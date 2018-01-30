@@ -5021,165 +5021,6 @@ void msrGroupStats(MSR msr) {
 	printf("Group statistics complete, Wallclock: %f secs\n\n",dsec);
     }
 
-
-void msrFof(MSR msr, double exp) {
-    struct inFof in;
-    struct outGroupCountGID outCount;
-    struct inGroupAssignGID inAssign;
-
-    in.nSmooth = msr->param.nSmooth;
-    in.bPeriodic = msr->param.bPeriodic;
-    in.bSymmetric = 0;
-    in.iSmoothType = SMX_FOF;
-    in.smf.a = exp;
-    in.smf.dTau2 = pow(msr->param.dTau,2.0);
-    in.smf.dVTau2 = pow(msr->param.dVTau,2.0);
-    in.smf.iCenterType = msr->param.iCenterType;
-    if (msr->param.bTauAbs == 0) {
-	in.smf.dTau2 *= pow(msr->param.csm->val.dOmega0,-0.6666);
-	}
-    else {
-	in.smf.dTau2 /= exp*exp;
-	in.smf.dVTau2 *= exp*exp;
-	}
-    in.smf.bTauAbs = msr->param.bTauAbs;
-    in.smf.nMinMembers = msr->param.nMinMembers;
-
-    if (msr->param.bVStep) {
-	double sec,dsec;
-	if (msr->param.bTauAbs == 0){
-	  printf("Doing FOF with space linking length %e * m_p^(1/3) ,\n", sqrt(in.smf.dTau2) );
-	  printf("  and velocity linking length %e (ignored if 0) ...\n", sqrt(in.smf.dVTau2) );
-	  } else {
-	    printf("Doing FOF with fixed space linking length %e ,\n", sqrt(in.smf.dTau2) );
-	    printf("  and velocity linking length %e (ignored if 0) ...\n", sqrt(in.smf.dVTau2) );
-	}
-	sec = msrTime();
-	pstFof(msr->pst,&in,sizeof(in),NULL,NULL);
-	dsec = msrTime() - sec;
-	printf("FOF Calculated, Wallclock: %f secs\n\n",dsec);
-	}
-    else {
-	pstFof(msr->pst,&in,sizeof(in),NULL,NULL);
-	}
-
-    pstGroupCountGID(msr->pst,NULL,0,&outCount,NULL); /* This has the side-effect of updating counts in the PST */
-    inAssign.iStartGID = 0;
-    pstGroupAssignGID(msr->pst,&inAssign,sizeof(inAssign),NULL,NULL); /* Requires correct counts in the PST */
-    }
-
-void msrGroupMerge(MSR msr, double exp) {
-    struct inGroupMerge in;
-    int nGroups;
-    in.bPeriodic = msr->param.bPeriodic;
-    in.smf.nMinMembers = msr->param.nMinMembers;
-    in.smf.iCenterType = msr->param.iCenterType;
-    in.smf.a = exp;
-    if (msr->param.bVStep) {
-	double sec,dsec;
-	printf("Doing GroupMerge...\n");
-	sec = msrTime();
-	pstGroupMerge(msr->pst,&in,sizeof(in),&nGroups,NULL);
-	dsec = msrTime() - sec;
-	printf("GroupMerge done, Wallclock: %f secs\n",dsec);
-	}
-    else {
-	pstGroupMerge(msr->pst,&in,sizeof(in),&nGroups,NULL);
-	}
-    msr->nGroups = nGroups;
-    printf("MASTER: TOTAL groups: %i \n" ,nGroups);
-    }
-
-void msrGroupProfiles(MSR msr, double exp) {
-    int nBins;
-    struct inGroupProfiles in;
-    in.nSmooth = msr->param.nSmooth;
-    in.bPeriodic = msr->param.bPeriodic;
-    in.nTotalGroups = msr->nGroups;
-    in.bSymmetric = 0;
-    in.iSmoothType = SMX_FOF;
-    in.smf.iCenterType = msr->param.iCenterType; 
-    in.smf.nMinMembers = msr->param.nMinMembers;
-    in.smf.nBins = msr->param.nBins;
-    in.smf.bLogBins = msr->param.bLogBins;
-    in.smf.binFactor = msr->param.binFactor;
-    in.smf.fMinRadius = msr->param.fMinRadius;
-    in.smf.a = exp;
-    if (msr->param.bVStep) {
-	double sec,dsec;
-	printf("Doing GroupProfiles...\n");
-	sec = msrTime();
-	pstGroupProfiles(msr->pst,&in,sizeof(in),&nBins,NULL);
-	dsec = msrTime() - sec;
-	printf("GroupProfiles done, Wallclock: %f secs\n",dsec);
-	}
-    else {
-	pstGroupProfiles(msr->pst,&in,sizeof(in),&nBins,NULL);
-	}
-    msr->nBins = nBins;
-    printf("MASTER: TOTAL bins: %i TOTAL groups: %i \n" ,nBins,msr->nGroups);
-    }
-
-void msrOutGroups(MSR msr,const char *pszFile,int iOutType, double dTime) {
-    char achOutFile[PST_FILENAME_SIZE];
-    LCL *plcl;
-    PST pst0;
-    FILE *fp;
-    double dvFac,time;
-
-    pst0 = msr->pst;
-    while (pst0->nLeaves > 1)
-	pst0 = pst0->pstLower;
-    plcl = pst0->plcl;
-    if (pszFile) {
-	/*
-	** Add Data Subpath for local and non-local names.
-	*/
-	_msrMakePath(msr->param.achDataSubPath,pszFile,achOutFile);
-	}
-    else {
-	printf("No Group Output File specified\n");
-	_msrExit(msr,1);
-	return;
-	}
-    if (msrComove(msr)) {
-	time = csmTime2Exp(msr->param.csm,dTime);
-	if (msr->param.csm->val.bComove) {
-	    dvFac = 1.0/(time*time);
-	    }
-	else {
-	    dvFac = 1.0;
-	    }
-	}
-    else {
-	time = dTime;
-	dvFac = 1.0;
-	}
-
-    if (iOutType == OUT_GROUP_TIPSY_NAT || iOutType == OUT_GROUP_TIPSY_STD) {
-	FIO fio;
-	fio = fioTipsyCreate(achOutFile,0,iOutType==OUT_GROUP_TIPSY_STD,
-		    time, 0, 0, msr->nGroups);
-	if (!fio) {
-	    printf("Could not open Group Output File:%s\n",achOutFile);
-	    _msrExit(msr,1);
-	    }
-	fioClose(fio);
-	}
-    else {
-	fp = fopen(achOutFile,"w");
-	if (!fp) {
-	    printf("Could not open Group Output File:%s\n",achOutFile);
-	    _msrExit(msr,1);
-	    }
-        fclose(fp);
-    }
-    /*
-     * Write the groups.
-     */
-    pkdOutGroup(plcl->pkd,achOutFile,iOutType,0,dvFac);
-    }
-
 void msrDeleteGroups(MSR msr) {
 
     LCL *plcl;
@@ -5190,7 +5031,6 @@ void msrDeleteGroups(MSR msr) {
 	pst0 = pst0->pstLower;
     plcl = pst0->plcl;
 
-    if (plcl->pkd->groupData)free(plcl->pkd->groupData);
     if (plcl->pkd->groupBin)free(plcl->pkd->groupBin);
     plcl->pkd->nBins = 0;
     plcl->pkd->nGroups = 0;
@@ -5579,8 +5419,8 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
 	}
     if ( msr->param.bFindGroups ) {
 	msrReorder(msr);
-	sprintf(achFile,"%s.fof",msrOutName(msr));
-	msrOutArray(msr,achFile,OUT_GROUP_ARRAY);
+	//sprintf(achFile,"%s.fof",msrOutName(msr));
+	//msrOutArray(msr,achFile,OUT_GROUP_ARRAY);
 	msrBuildName(msr,achFile,iStep);
 	strncat(achFile,".fofstats",256);
 	msrHopWrite(msr,achFile);
@@ -5593,8 +5433,8 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
 	msrReorder(msr);
 
 	msrBuildName(msr,achFile,iStep);
-	strncat(achFile,".hopgrp",256);
-	msrOutArray(msr,achFile,OUT_GROUP_ARRAY);
+	//strncat(achFile,".hopgrp",256);
+	//msrOutArray(msr,achFile,OUT_GROUP_ARRAY);
 
 	msrBuildName(msr,achFile,iStep);
 	strncat(achFile,".hopstats",256);

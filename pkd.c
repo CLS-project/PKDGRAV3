@@ -4035,7 +4035,7 @@ void pkdOutPsGroup(PKD pkd,char *pszFileName,int iType)
 	}
 	if (fclose(fp) == EOF)
 	{
-	    perror("pkdOutGroup: could not close file");
+	    perror("pkdOutPsGroup: could not close file");
 	    exit(1);
 	}
     }

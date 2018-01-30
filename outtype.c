@@ -35,7 +35,6 @@ static int getType(int iType) {
 
     case OUT_BALL_ARRAY:
     case OUT_DENSITY_ARRAY:
-    case OUT_COLOR_ARRAY:
     case OUT_POT_ARRAY:
     case OUT_AMAG_ARRAY:
     case OUT_RUNG_ARRAY:
@@ -99,8 +98,6 @@ static double fetchFloat(PKD pkd,PARTICLE *p,int iType,int iDim) {
     case OUT_BALL_ARRAY:
 	v = pkdBall(pkd,p);
 	break;
-    case OUT_COLOR_ARRAY:
-	assert(0);
     case OUT_POT_ARRAY:
 	assert(pkd->oPotential);
 	a = pkdPot(pkd,p);
@@ -615,70 +612,3 @@ void pkdOutHDF5(PKD pkd,char *pszFileName,int iType,int iDim) {
     assert(0);
     }
 #endif
-
-void pkdOutGroup(PKD pkd,char *pszFileName,int iType, int nStart,double dvFac) {
-    FILE *fp;
-    int i,j;
-
-    /*
-     ** Write Group Data!
-     */
-    if (iType == OUT_GROUP_STATS) {
-	fp = fopen(pszFileName,"r+");
-	assert(fp != NULL);
-	for (i=0;i<pkd->nGroups;++i) {
-	    fprintf(fp,"%d ",pkd->groupData[i].iGlobalId);
-	    fprintf(fp,"%d ",pkd->groupData[i].nTotal);
-	    fprintf(fp,"%.8g ",pkd->groupData[i].fMass);
-            fprintf(fp,"%.8g ",pkd->groupData[i].fRMSRadius);
-            fprintf(fp,"%.11g ",pkd->groupData[i].rcom[0]);
-            fprintf(fp,"%.11g ",pkd->groupData[i].rcom[1]);
-            fprintf(fp,"%.11g ",pkd->groupData[i].rcom[2]);
-	    fprintf(fp,"%.11g ",pkd->groupData[i].r[0]);
-	    fprintf(fp,"%.11g ",pkd->groupData[i].r[1]);
-	    fprintf(fp,"%.11g ",pkd->groupData[i].r[2]);
-	    fprintf(fp,"%.8g ",dvFac*pkd->groupData[i].v[0]);
-	    fprintf(fp,"%.8g ",dvFac*pkd->groupData[i].v[1]);
-	    fprintf(fp,"%.8g ",dvFac*pkd->groupData[i].v[2]);
-	    fprintf(fp,"\n");
-	    }
-	i = fclose(fp);
-	if (i != 0) {
-	    perror("pkdOutGroup: could not close file");
-	    exit(1);
-	    }
-	}
-    else if (iType == OUT_GROUP_TIPSY_NAT || iType == OUT_GROUP_TIPSY_STD) {
-	FIO fio;
-	fio = fioTipsyAppend(pszFileName,0,iType==OUT_GROUP_TIPSY_STD);
-	assert(fio != NULL);
-	for (i=0;i<pkd->nGroups;++i) {
-	    if (pkd->groupData[i].bMyGroup) {
-		double v[3];
-		for (j=0;j<3;++j) {
-		    v[j] = dvFac*pkd->groupData[i].v[j];
-		    }
-		fioWriteStar(fio,i,pkd->groupData[i].r,v,
-			     pkd->groupData[i].fMass,pkd->groupData[i].fRMSRadius,
-			     0.0, 0.0, 0.0, 0.0);
-		}
-	    }
-	fioClose(fio);
-	}
-    else if (iType == OUT_GROUP_PROFILES) {
-	fp = fopen(pszFileName,"at");
-	assert(fp != NULL);
-	for (i=0;i< pkd->nBins;++i) {
-	    fprintf(fp,"%.8g ",pkd->groupBin[i].fRadius);
-	    fprintf(fp,"%d ",pkd->groupBin[i].nMembers);
-	    fprintf(fp,"%.8g ",pkd->groupBin[i].fMassInBin);
-	    fprintf(fp,"\n");
-	    }
-	i = fclose(fp);
-	if (i != 0) {
-	    perror("pkdOutGroup: could not close file");
-	    exit(1);
-	    }
-	}
-    else assert(0);
-    }

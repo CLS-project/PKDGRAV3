@@ -1106,37 +1106,6 @@ void VelDisp2Sym(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 	}
     }
 
-
-
-void initGroupMerge(void *vpkd, void *g) {
-    }
-void combGroupMerge(void *vpkd, void *g1, void *g2) {
-    FOFGD * gd1 = (FOFGD *)g1;
-    FOFGD * gd2 = (FOFGD *)g2;
-
-    /* accept second (remote) group number, if its smaller */
-    if (gd1->iGlobalId < gd2->iGlobalId)
-	gd2->iGlobalId = gd1->iGlobalId;
-    else gd1->iGlobalId = gd2->iGlobalId;
-    /* if someone says that this not my group, accept it */
-    gd1->bMyGroup *= gd2->bMyGroup;
-    gd2->bMyGroup *= gd1->bMyGroup;
-    }
-void initGroupBins(void *vpkd, void *b) {
-    FOFBIN * gb1 = (FOFBIN *)b;
-
-    gb1->nMembers = 0;
-    gb1->fMassInBin = 0.0;
-    }
-void combGroupBins(void *vpkd, void *b1, void *b2) {
-    FOFBIN * gb1 = (FOFBIN *)b1;
-    FOFBIN * gb2 = (FOFBIN *)b2;
-
-    /* add entries */
-    gb1->nMembers += gb2->nMembers;
-    gb1->fMassInBin += gb2->fMassInBin;
-    }
-
 void AddRelaxation(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
     double  vSigma2,L,fRel,e,pmax,pmin,vMean[3],feps;

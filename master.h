@@ -233,14 +233,10 @@ int msrMaxRung(MSR msr);
 void msrSwitchTheta(MSR msr,double);
 uint64_t msrMaxOrder(MSR msr);
 
-void msrFof(MSR msr, double exp);
 void msrNewFof(MSR msr, double exp);
 void msrGroupStats(MSR msr);
 void msrHop(MSR msr, double exp);
 void msrHopWrite(MSR msr, const char *fname);
-void msrGroupMerge(MSR msr, double exp);
-void msrGroupProfiles(MSR msr, double exp);
-void msrOutGroups(MSR msr,const char *,int,double dTime);
 void msrDeleteGroups(MSR msr);
 void msrInitRelaxation(MSR msr);
 void msrRelaxation(MSR msr,double dTime,double deltaT,int iSmoothType,int bSymmetric);

@@ -157,7 +157,6 @@ enum pst_service {
     PST_GETNPARTS,
     PST_SETNPARTS,
     PST_DENSCHECK,
-    PST_FOF,
     PST_NEW_FOF,
     PST_FOF_PHASES,
     PST_FOF_FINISH_UP,
@@ -173,7 +172,6 @@ enum pst_service {
     PST_GROUP_ASSIGN_GID,
     PST_GROUP_STATS,
     PST_HOP_SEND_STATS,
-    PST_GROUPMERGE,
     PST_GROUPPROFILES,
     PST_INITRELAXATION,
     PST_CLEARTIMER,
@@ -1063,16 +1061,6 @@ struct inClearTimer {
 
 void pstClearTimer(PST,void *,int,void *,int *);
 
-struct inFof {
-    int nSmooth;
-    int bPeriodic;
-    int bSymmetric;
-    int iSmoothType;
-    int iCenterType;
-    SMF smf;
-    };
-void pstFof(PST,void *,int,void *,int *);
-
 /* PST_NEW_FOF */
 struct inNewFof {
     double dTau2;
@@ -1092,23 +1080,6 @@ struct inFofFinishUp{
     };
 void pstFofFinishUp(PST,void *,int,void *,int *);
 
-
-struct inGroupMerge {
-    int bPeriodic;
-    int iCenterType;
-    SMF smf;
-  };
-void pstGroupMerge(PST,void *,int,void *,int *);
-
-struct inGroupProfiles {
-    int nSmooth;
-    int bPeriodic;
-    int nTotalGroups;
-    int bSymmetric;
-    int iSmoothType;
-    SMF smf;
-    };
-void pstGroupProfiles(PST,void *,int,void *,int *);
 void pstInitRelaxation(PST,void *,int,void *,int *);
 
 #ifdef MDL_FFTW

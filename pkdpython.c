@@ -530,28 +530,6 @@ ppy_msr_Hop(PyObject *self, PyObject *args, PyObject *kwobj) {
 
 
 static PyObject *
-ppy_msr_Fof(PyObject *self, PyObject *args, PyObject *kwobj) {
-    static char *kwlist[]={"Time",NULL};
-    double dExp;
-    double dTime = 0.0;
-
-    ppy2prm();
-    if (!ppy_get_dTime(&dTime))
-	return NULL;
-    if ( !PyArg_ParseTupleAndKeywords(
-	     args, kwobj, "|d:Fof", kwlist,
-	     &dTime ) )
-	return NULL;
-    dExp = csmTime2Exp(ppy_msr->param.csm,dTime);
-    msrFof(ppy_msr,dExp);
-    msrGroupMerge(ppy_msr,dExp);
-    Py_INCREF(Py_None);
-    return Py_None;
-}
-
-
-
-static PyObject *
 ppy_msr_Smooth(PyObject *self, PyObject *args, PyObject *kwobj) {
     static char *kwlist[]={"iSmoothType","bSymmetric","dTime","nSmooth",NULL};
     int iSmoothType;
@@ -688,25 +666,6 @@ ppy_msr_MeasurePk(PyObject *self, PyObject *args, PyObject *kwobj) {
     return List;
 }
 #endif
-
-static PyObject *
-ppy_msr_GroupProfiles(PyObject *self, PyObject *args, PyObject *kwobj) {
-    static char *kwlist[]={"Time",NULL};
-    double dExp;
-    double dTime = 0.0;
-
-    ppy2prm();
-    if (!ppy_get_dTime(&dTime))
-	return NULL;
-    if ( !PyArg_ParseTupleAndKeywords(
-	     args, kwobj, "|d:GroupProfiles", kwlist,
-	     &dTime ) )
-	return NULL;
-    dExp = csmTime2Exp(ppy_msr->param.csm,dTime);
-    msrGroupProfiles(ppy_msr,dExp);
-    Py_INCREF(Py_None);
-    return Py_None;
-}
 
 static PyObject *
 ppy_msr_Load(PyObject *self, PyObject *args, PyObject *kwobj) {
@@ -874,30 +833,6 @@ ppy_msr_SaveArray(PyObject *self, PyObject *args, PyObject *kwobj) {
     return Py_None;
 }
 
-#if 0
-static PyObject *
-ppy_msr_PsFof(PyObject *self, PyObject *args, PyObject *kwobj) {
-    static char *kwlist[]={"Time",NULL};
-    double dExp;
-    double dTime = 0.0;
-    PyObject *v, *dict;
-
-    dict = PyModule_GetDict(global_ppy->module);
-    if ( (v = PyDict_GetItemString(dict, "dTime")) == NULL )
-	return NULL;
-    dTime = PyFloat_AsDouble(v);
-    if ( !PyArg_ParseTupleAndKeywords(
-	     args, kwobj, "|d:PsFof", kwlist,
-	     &dTime ) )
-	return NULL;
-    dExp = csmTime2Exp(ppy_msr->param.csm,dTime);
-    msrPsFof(ppy_msr,dExp);
-    //msrGroupMerge(ppy_msr,dExp);
-    Py_INCREF(Py_None);
-    return Py_None;
-}
-#endif
-
 /**********************************************************************\
  * MSR methods.  These methods are shared by both the "msr" module,
  * and the "MSR" object.
@@ -954,12 +889,8 @@ static PyMethodDef msr_methods[] = {
      "Smooth"},
     {"ReSmooth", (PyCFunction)ppy_msr_ReSmooth, METH_VARARGS|METH_KEYWORDS,
      "ReSmooth"},
-    {"Fof", (PyCFunction)ppy_msr_Fof, METH_VARARGS|METH_KEYWORDS,
-     "Friends of Friends"},
     {"Hop", (PyCFunction)ppy_msr_Hop, METH_VARARGS|METH_KEYWORDS,
      "Grasshopper"},
-    {"GroupProfiles", (PyCFunction)ppy_msr_GroupProfiles, METH_VARARGS|METH_KEYWORDS,
-     "Group Profiles"},
     {"AdjustTime", (PyCFunction)ppy_msr_AdjustTime, METH_VARARGS|METH_KEYWORDS,
      "Changing starting time for Zel'dovich ICs"},
     {"InitGrid", (PyCFunction)ppy_msr_InitGrid, METH_VARARGS|METH_KEYWORDS,

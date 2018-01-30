@@ -314,9 +314,6 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_CLEARTIMER,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstClearTimer,
 		  sizeof(struct inClearTimer),0);
-    mdlAddService(mdl,PST_FOF,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstFof,
-		  sizeof(struct inFof),0);
     mdlAddService(mdl,PST_NEW_FOF,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstNewFof,
 		  sizeof(struct inNewFof),0);
@@ -326,12 +323,6 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_FOF_FINISH_UP,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstFofFinishUp,
 	          sizeof(struct inFofFinishUp),sizeof(uint64_t));
-    mdlAddService(mdl,PST_GROUPMERGE,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstGroupMerge,
-		  sizeof(struct inGroupMerge),sizeof(int));
-    mdlAddService(mdl,PST_GROUPPROFILES,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstGroupProfiles,
-		  sizeof(struct inGroupProfiles),sizeof(int));
     mdlAddService(mdl,PST_INITRELAXATION,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstInitRelaxation,0,0);
     mdlAddService(mdl,PST_INITIALIZEPSTORE,pst,
@@ -3676,27 +3667,6 @@ pstClearTimer(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     }
 
 
-void pstFof(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-    struct inFof *in = vin;
-
-    mdlassert(pst->mdl,nIn == sizeof(struct inFof));
-    if (pst->nLeaves > 1) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_FOF,in,nIn);
-	pstFof(pst->pstLower,in,nIn,NULL,NULL);
-	mdlGetReply(pst->mdl,rID,NULL,NULL);
-	}
-    else {
-	LCL *plcl = pst->plcl;
-	SMX smx;
-	(&in->smf)->pkd = pst->plcl->pkd;
-	smInitialize(&smx,plcl->pkd,&in->smf,in->nSmooth,
-		     in->bPeriodic,in->bSymmetric,in->iSmoothType);
-	smFof(smx,&in->smf);
-	smFinish(smx,&in->smf);
-	}
-    if (pnOut) *pnOut = 0;
-    }
-
 void pstNewFof(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     struct inNewFof *in = vin;
 
@@ -3755,49 +3725,6 @@ void pstFofFinishUp(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     if (pnOut) *pnOut = sizeof(uint64_t);
     }
 
-
-void pstGroupMerge(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-    struct inGroupMerge *in = vin;
-    int *nGroups = vout;
-
-    mdlassert(pst->mdl,nIn == sizeof(struct inGroupMerge));
-    if (pst->nLeaves > 1) {
-	int nGroupsLeaf;
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_GROUPMERGE,in,nIn);
-	pstGroupMerge(pst->pstLower,in,nIn,vout,pnOut);
-	mdlGetReply(pst->mdl,rID,&nGroupsLeaf,pnOut);
-	*nGroups += nGroupsLeaf;
-	}
-    else {      
-	(&in->smf)->pkd = pst->plcl->pkd;
-	*nGroups = smGroupMerge(&in->smf,in->bPeriodic);
-	}
-    if (pnOut) *pnOut = sizeof(int);
-    }
-
-void pstGroupProfiles(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-    struct inGroupProfiles *in = vin;
-    int *nBins = vout;
-
-    mdlassert(pst->mdl,nIn == sizeof(struct inGroupProfiles));
-    if (pst->nLeaves > 1) {
-	int nBinsLeaf;
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_GROUPPROFILES,in,nIn);
-	pstGroupProfiles(pst->pstLower,in,nIn,vout,pnOut);
-	mdlGetReply(pst->mdl,rID,&nBinsLeaf,pnOut);
-	*nBins = nBinsLeaf;
-	}
-    else {
-	LCL *plcl = pst->plcl;
-	SMX smx;
-	(&in->smf)->pkd = pst->plcl->pkd;
-	smInitialize(&smx,plcl->pkd,&in->smf,in->nSmooth,
-		     in->bPeriodic,in->bSymmetric,in->iSmoothType);
-	*nBins = smGroupProfiles(smx,&in->smf,in->nTotalGroups);
-	smFinish(smx,&in->smf);
-	}
-    if (pnOut) *pnOut = sizeof(int);
-    }
 
 void pstInitRelaxation(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
