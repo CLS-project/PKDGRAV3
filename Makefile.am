@@ -174,9 +174,9 @@ pkdgrav3_mpi_LDADD += -L$(PYTHON_LIB) -lpython$(PYTHON_VER) -ldl -lutil
 pkdgrav3_mpi_CFLAGS += -I$(PYTHON_INC)
 endif
 if HAVE_DARWIN
-pkdgrav3_mpi_SOURCES += mac/pthread_barrier.c
-pkdgrav3_mpi_CFLAGS += -Imac/
-pkdgrav3_mpi_CXXFLAGS += -Imac/
+pkdgrav3_mpi_SOURCES += mdl2/mac/pthread_barrier.c
+pkdgrav3_mpi_CFLAGS += -Imdl2/mac/
+pkdgrav3_mpi_CXXFLAGS += -Imdl2/mac/
 endif
 endif
 
