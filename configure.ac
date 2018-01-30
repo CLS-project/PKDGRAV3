@@ -121,6 +121,7 @@ if test "$with_fftw" != "no" ; then
 fi
 AM_CONDITIONAL(FFTW, test "$with_fftw" != "no")
 AM_PATH_GSL(1.8,[],[AC_MSG_ERROR([Unable to locate GNU Scientific Library (gsl)])])
+AC_DEFINE([HAVE_GSL], 1, [GSL library is compulsory])
 
 # Electric fence
 AC_ARG_WITH(efence,
