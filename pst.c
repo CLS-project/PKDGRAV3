@@ -180,6 +180,7 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_SMOOTH,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstSmooth,
 		  sizeof(struct inSmooth),0);
+#ifdef FAST_GAS
     mdlAddService(mdl,PST_FASTGASPHASE1,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstFastGasPhase1,
 		  sizeof(struct inSmooth),0);
@@ -189,6 +190,7 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_FASTGASCLEANUP,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstFastGasCleanup,
 		  0,0);
+#endif
     mdlAddService(mdl,PST_GRAVITY,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstGravity,
 	          sizeof(struct inGravity),
@@ -2773,6 +2775,7 @@ void pstSmooth(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     }
 
 
+#ifdef FAST_GAS
 void pstFastGasPhase1(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     struct inSmooth *in = vin;
 
@@ -2830,7 +2833,7 @@ void pstFastGasCleanup(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	}
     if (pnOut) *pnOut = 0;
     }
-
+#endif
 
 void pstReSmooth(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     struct inSmooth *in = vin;

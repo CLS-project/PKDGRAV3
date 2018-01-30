@@ -2507,9 +2507,11 @@ void msrDomainDecompOld(MSR msr,int iRung,int bSplitVA) {
     ** all neighbor lists here since the pointers in the particles will
     ** only be valid on the node where it was malloc'ed!
     */
+#ifdef FAST_GAS
     if (msr->param.bDoGas) {
 	pstFastGasCleanup(msr->pst,NULL,0,NULL,NULL);
 	}
+#endif
     in.bSplitVA = bSplitVA;
     msrprintf(msr,"Domain Decomposition: nActive (Rung %d) %"PRIu64" SplitVA:%d\n",
 	msr->iLastRungRT,msr->nActive,bSplitVA);
@@ -2931,6 +2933,7 @@ void msrSmooth(MSR msr,double dTime,int iSmoothType,int bSymmetric,int nSmooth) 
     }
 
 
+#ifdef FAST_GAS
 void msrFastGasPhase1(MSR msr,double dTime,int iSmoothType) {
     struct inSmooth in;
 
@@ -2973,7 +2976,7 @@ void msrFastGasPhase2(MSR msr,double dTime,int iSmoothType) {
 	pstFastGasPhase2(msr->pst,&in,sizeof(in),NULL,NULL);
 	}
     }
-
+#endif
 
 void msrReSmooth(MSR msr,double dTime,int iSmoothType,int bSymmetric) {
     struct inSmooth in;
@@ -5392,7 +5395,7 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
 	}
 
     if (msrDoDensity(msr)) {
-#ifdef FASTGAS_TESTING
+#ifdef FAST_GAS
 	msrActiveRung(msr,3,1); /* Activate some particles */
 	msrDomainDecomp(msr,0,0,0);
 	msrBuildTree(msr,dTime,0);

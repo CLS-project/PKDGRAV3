@@ -99,9 +99,11 @@ enum pst_service {
     PST_DISTRIBROOT,
     PST_ENFORCEPERIODIC,
     PST_SMOOTH,
+#ifdef FAST_GAS
     PST_FASTGASPHASE1,
     PST_FASTGASPHASE2,
     PST_FASTGASCLEANUP,
+#endif
     PST_GRAVITY,
     PST_GRAVEXTERNAL,
     PST_LIGHTCONE,
@@ -589,6 +591,7 @@ void pstSmooth(PST,void *,int,void *,int *);
 /* PST_RESMOOTH */
 void pstReSmooth(PST,void *,int,void *,int *);
 
+#ifdef FAST_GAS
 /* PST_FASTGASPHASE1 */
 void pstFastGasPhase1(PST,void *,int,void *,int *);
 
@@ -597,7 +600,7 @@ void pstFastGasPhase2(PST,void *,int,void *,int *);
 
 /* PST_FASTGASCLEANUP */
 void pstFastGasCleanup(PST,void *,int,void *,int *);
-
+#endif
 
 /* PST_GRAVITY */
 struct inGravity {
