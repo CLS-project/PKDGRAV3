@@ -1238,12 +1238,6 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.dTau = 0.164;
     prmAddParam(msr->prm,"dTau",2,&msr->param.dTau,sizeof(double),"dTau",
 		"<linking length for FOF in units of mean particle separation> = 0.164");
-    msr->param.dVTau = -1.0;
-    prmAddParam(msr->prm,"dVTau",2,&msr->param.dVTau,sizeof(double),"dVTau",
-		"<velocity space linking length for phase-space FOF, set to 0 for plain FOF> = 0");
-    msr->param.bTauAbs = 0;
-    prmAddParam(msr->prm,"bTauAbs",0,&msr->param.bTauAbs,sizeof(int),"bTauAbs",
-		"<if 1 use z=0 simulation units for dTau, not mean particle separation> = 0");
     msr->param.dEnvironment0 = -1.0;
     prmAddParam(msr->prm,"dEnvironment0",2,&msr->param.dEnvironment0,sizeof(double),"dEnv0",
 		"<first radius for density environment about a group> = -1.0 (disabled)");
@@ -1789,8 +1783,6 @@ void msrLogParams(MSR msr,FILE *fp) {
     /* -- */
     fprintf(fp,"\n# Group Find: bFindGroups: %d",msr->param.bFindGroups);
     fprintf(fp," dTau: %g",msr->param.dTau);
-    fprintf(fp," dVTau: %g",msr->param.dVTau);
-    fprintf(fp," bTauAbs: %d",msr->param.bTauAbs);
     fprintf(fp," nMinMembers: %d",msr->param.nMinMembers);
     fprintf(fp," nBins: %d",msr->param.nBins);
     fprintf(fp," iCenterType: %d",msr->param.iCenterType);

@@ -188,8 +188,6 @@ struct parameters {
     int	nMinMembers;
     double dHopTau;
     double dTau;
-    double dVTau;
-    int bTauAbs;
     int	nBins;
     int	iCenterType;
     double binFactor;
