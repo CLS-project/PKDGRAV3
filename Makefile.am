@@ -37,7 +37,7 @@ clean-local:
 	rm -f $(EXTRA_PROGRAMS)
 
 SOURCES = main.c tree.c analysis.c bt.c
-noinst_HEADERS = bt.h parameters.h grav.h walk.h cycle.h tipsydefs.h basetype.h vqsort.h
+noinst_HEADERS = bt.h parameters.h grav.h walk.h mdl2/cycle.h tipsydefs.h basetype.h vqsort.h
 SOURCES        += cosmo.c master.c param.c pst.c smooth.c ewald.cxx opening.cxx pp.cxx pc.cxx
 noinst_HEADERS += cosmo.h master.h param.h pst.h smooth.h ewald.h pp.h pc.h meval.h qeval.h
 SOURCES        += moments.c intype.c outtype.c pkd.c smoothfcn.c rbtree.c fio.c listcomp.c illinois.c iomodule.c output.c

@@ -1,10 +1,6 @@
 /*
  ** MPI version of MDL.
  */
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #ifdef USE_AFFINITY
 #include <sched.h>
 #include <stdio.h>
@@ -16,7 +12,10 @@
 #include <stdlib.h>
 #include <stddef.h>
 #include <string.h>
-#if !defined(HAVE_CONFIG_H) || defined(HAVE_MALLOC_H)
+
+#include "mdl.h"
+
+#ifdef HAVE_MALLOC_H
 #include <malloc.h>
 #endif
 #ifdef HAVE_SIGNAL_H
@@ -36,7 +35,6 @@
 #include <sys/resource.h>
 #endif
 #include "mpi.h"
-#include "mdl.h"
 #ifdef USE_CUDA
 #include "cudautil.h"
 #endif
@@ -1590,12 +1588,6 @@ static void cleanupMDL(MDL mdl) {
     mdlBaseFinish(&mdl->base);
     }
 
-#if defined(SIGRTMAX) && defined(HAVE_MALLOC_STATS)
-static void SIGRTMAX0_handler(int signo) {
-    malloc_stats();
-    }
-#endif
-
 #ifdef USE_AFFINITY
 static void cpu_get_siblings(int cpu,cpu_set_t *sib) {
     char ach[256];
@@ -1632,10 +1624,6 @@ void mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(
 #ifdef USE_AFFINITY
     cpu_set_t set;
     int cpu;
-#endif
-
-#if defined(SIGRTMAX) && defined(HAVE_MALLOC_STATS)
-    signal(SIGRTMAX-1,SIGRTMAX0_handler);
 #endif
 
 #ifdef USE_ITT

@@ -1,5 +1,10 @@
 #ifndef MDLBASE_H
 #define MDLBASE_H
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#else
+#include "mdl_config.h"
+#endif
 #ifdef INSTRUMENT
 #include "cycle.h"
 #endif
