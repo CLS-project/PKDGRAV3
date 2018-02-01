@@ -1646,37 +1646,38 @@ void mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(
     ** Do some low level argument parsing for number of threads, and
     ** diagnostic flag!
     */
-    for (argc = 0; argv[argc]; argc++);
     bDiag = 0;
     bThreads = 0;
     bDedicated = -1;
-    i = 1;
-    while (argv[i]) {
-	if (!strcmp(argv[i], "-sz") && !bThreads) {
+    if(argv) {
+	for (argc = 0; argv[argc]; argc++);
+	i = 1;
+	while (argv[i]) {
+	    if (!strcmp(argv[i], "-sz") && !bThreads) {
+		++i;
+		mdl->base.nCores = atoi(argv[i]);
+		if (argv[i]) bThreads = 1;
+		}
+	    if (!strcmp(argv[i], "-dedicated")) {
+		if (bDedicated<1) bDedicated = 0;
+		}
+	    if (!strcmp(argv[i], "+dedicated")) {
+		if (bDedicated<1) bDedicated = 1;
+		}
+	    if (!strcmp(argv[i], "+sharedmpi")) {
+		bDedicated = 2;
+		}
+	    if (!strcmp(argv[i], "+d") && !bDiag) {
+		p = getenv("MDL_DIAGNOSTIC");
+		if (!p) p = getenv("HOME");
+		if (!p) sprintf(ach, "/tmp");
+		else sprintf(ach, "%s", p);
+		bDiag = 1;
+		}
 	    ++i;
-	    mdl->base.nCores = atoi(argv[i]);
-	    if (argv[i]) bThreads = 1;
 	    }
-	if (!strcmp(argv[i], "-dedicated")) {
-	    if (bDedicated<1) bDedicated = 0;
-	    }
-	if (!strcmp(argv[i], "+dedicated")) {
-	    if (bDedicated<1) bDedicated = 1;
-	    }
-	if (!strcmp(argv[i], "+sharedmpi")) {
-	    bDedicated = 2;
-	    }
-	if (!strcmp(argv[i], "+d") && !bDiag) {
-	    p = getenv("MDL_DIAGNOSTIC");
-	    if (!p) p = getenv("HOME");
-	    if (!p) sprintf(ach, "/tmp");
-	    else sprintf(ach, "%s", p);
-	    bDiag = 1;
-	    }
-	++i;
+	argc = i;
 	}
-    argc = i;
-
     if (!bThreads) {
 	if ( (p=getenv("SLURM_CPUS_PER_TASK")) != NULL ) mdl->base.nCores = atoi(p);
 	else if ( (p=getenv("OMP_NUM_THREADS")) != NULL ) mdl->base.nCores = atoi(p);
