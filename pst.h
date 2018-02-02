@@ -50,12 +50,6 @@ typedef struct pstContext {
     int iVASplitSide;
     uint64_t nLowerStore;
     uint64_t nUpperStore;
-    /*
-    ** Analysis information. Sticking this stuff in the PST is perhaps a bad idea,
-    ** but in avoids order(nThread) storage on the master.
-    */
-    uint64_t nGroupsLower;
-
     } * PST;
 
 
@@ -167,8 +161,6 @@ enum pst_service {
     PST_HOP_GRAVITY,
     PST_HOP_UNBIND,
     PST_GROUP_RELOCATE,
-    PST_GROUP_COUNT_GID,
-    PST_GROUP_ASSIGN_GID,
     PST_GROUP_STATS,
     PST_HOP_SEND_STATS,
     PST_GROUPPROFILES,
@@ -550,18 +542,6 @@ void pstHopUnbind(PST,void *,int,void *,int *);
 
 /* PST_GROUP_RELOCATE */
 void pstGroupRelocate(PST,void *,int,void *,int *);
-
-/* PST_GROUP_COUNT_GID */
-struct outGroupCountGID {
-    uint64_t nGroups;
-    };
-void pstGroupCountGID(PST,void *,int,void *,int *);
-
-/* PST_GROUP_ASSIGN_GID */
-struct inGroupAssignGID {
-    uint64_t iStartGID;
-    };
-void pstGroupAssignGID(PST,void *,int,void *,int *);
 
 /* PST_GROUP_STATS */
 struct inGroupStats {

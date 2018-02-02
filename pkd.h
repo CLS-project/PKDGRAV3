@@ -852,7 +852,6 @@ typedef struct pkdContext {
 	} ti[MAX_TIMERS];
     struct psGroupTable psGroupTable;
 
-    uint64_t iStartGID;
     int nGroups, nLocalGroups;
     struct smGroupArray *ga;
     BND bndInterior;  /* this gets calculated at the start of Fof for now but should be done elsewhere */

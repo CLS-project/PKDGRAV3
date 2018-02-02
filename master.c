@@ -4802,8 +4802,6 @@ void msrHop(MSR msr, double dTime) {
     struct inHopGravity inGravity;
     struct inHopUnbind inUnbind;
     struct outHopUnbind outUnbind;
-    struct outGroupCountGID outCount;
-    struct inGroupAssignGID inAssign;
     struct inGroupStats inGroupStats;
     int i;
     uint64_t nGroups;
@@ -4918,10 +4916,6 @@ void msrHop(MSR msr, double dTime) {
 		dsec,outUnbind.nEvaporated, nGroups);
 	} while(++inUnbind.iIteration < 100 && outUnbind.nEvaporated);
 #endif
-    pstGroupCountGID(msr->pst,NULL,0,&outCount,NULL); /* This has the side-effect of updating counts in the PST */
-    inAssign.iStartGID = 0;
-    pstGroupAssignGID(msr->pst,&inAssign,sizeof(inAssign),NULL,NULL); /* Requires correct counts in the PST */
-
     /*
     ** This should be done as a separate msr function.
     */
@@ -4947,8 +4941,6 @@ void msrNewFof(MSR msr, double dTime) {
     struct inNewFof in;
     struct outFofPhases out;
     struct inFofFinishUp inFinish;
-    struct outGroupCountGID outCount;
-    struct inGroupAssignGID inAssign;
     int i;
     uint64_t nGroups;
     double sec,dsec,ssec;
@@ -4986,9 +4978,6 @@ void msrNewFof(MSR msr, double dTime) {
 	printf("Removed groups with fewer than %d particles, %"PRIu64" remain\n",
 	    inFinish.nMinGroupSize, nGroups);
 //    pstGroupRelocate(msr->pst,NULL,0,NULL,NULL);
-//    pstGroupCountGID(msr->pst,NULL,0,&outCount,NULL); /* This has the side-effect of updating counts in the PST */
-//    inAssign.iStartGID = 0;
-//    pstGroupAssignGID(msr->pst,&inAssign,sizeof(inAssign),NULL,NULL); /* Requires correct counts in the PST */
     dsec = msrTime() - ssec;
     if (msr->param.bVStep)
 	printf("FoF complete, Wallclock: %f secs\n",dsec);

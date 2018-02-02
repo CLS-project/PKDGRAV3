@@ -19,7 +19,5 @@ int pkdGroupCombineDuplicateIds(PKD pkd,int nGroups, struct smGroupArray *ga,int
 int pkdGroupRelocate(PKD pkd,int nGroups,struct smGroupArray *ga);
 int pkdPurgeSmallGroups(PKD pkd,int nGroups, struct smGroupArray *ga,int nMinGroupSize);
 int pkdGroupCounts(PKD pkd,int nGroups, struct smGroupArray *ga);
-void pkdGroupAssignGID(PKD pkd,uint64_t iStartGID);
-int pkdGroupCountGID(PKD pkd);
 
 #endif

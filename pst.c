@@ -165,12 +165,6 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_GROUP_RELOCATE,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstGroupRelocate,
 		  0,0);
-    mdlAddService(mdl,PST_GROUP_COUNT_GID,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstGroupCountGID,
-		  0,sizeof(struct outGroupCountGID));
-    mdlAddService(mdl,PST_GROUP_ASSIGN_GID,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstGroupAssignGID,
-	          sizeof(struct inGroupAssignGID),0);
     mdlAddService(mdl,PST_GROUP_STATS,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstGroupStats,
 	          sizeof(struct inGroupStats),0);
@@ -2688,42 +2682,6 @@ void pstGroupRelocate(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	LCL *plcl = pst->plcl;
 	PKD pkd = plcl->pkd;
         pkdGroupRelocate(pkd,pkd->nGroups,pkd->ga);
-        }
-    if (pnOut) *pnOut = 0;
-    }
-
-void pstGroupCountGID(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-    struct outGroupCountGID *out = (struct outGroupCountGID *)vout;
-    struct outGroupCountGID outUpper;
-    mdlassert(pst->mdl,nIn == 0);
-    if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_GROUP_COUNT_GID,vin,nIn);
-        pstGroupCountGID(pst->pstLower,vin,nIn,vout,pnOut);
-        mdlGetReply(pst->mdl,rID,&outUpper,pnOut);
-	pst->nGroupsLower = out->nGroups; /* Remember this for later -- this is an exscan */
-	out->nGroups += outUpper.nGroups;
-        }
-    else {
-	LCL *plcl = pst->plcl;
-	pst->nGroupsLower = 0;
-        out->nGroups = pkdGroupCountGID(plcl->pkd);
-        }
-    if (pnOut) *pnOut = sizeof(struct outGroupCountGID);
-    }
-
-void pstGroupAssignGID(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-    struct inGroupAssignGID *inAssign = vin;
-    struct inGroupAssignGID inAssignUpper;
-    mdlassert(pst->mdl,nIn == sizeof(struct inGroupAssignGID));
-    if (pst->nLeaves > 1) {
-	inAssignUpper.iStartGID = inAssign->iStartGID + pst->nGroupsLower;
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_GROUP_ASSIGN_GID,&inAssignUpper,nIn);
-        pstGroupAssignGID(pst->pstLower,vin,nIn,NULL,pnOut);
-        mdlGetReply(pst->mdl,rID,NULL,pnOut);
-        }
-    else {
-	LCL *plcl = pst->plcl;
-        pkdGroupAssignGID(plcl->pkd,inAssign->iStartGID);
         }
     if (pnOut) *pnOut = 0;
     }
