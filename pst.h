@@ -50,9 +50,6 @@ typedef struct pstContext {
     int iVASplitSide;
     uint64_t nLowerStore;
     uint64_t nUpperStore;
-    uint64_t nLowTot;    /* total number of particles in the lower subset of processors */
-    uint64_t nHighTot;   /* total number of particles in the upper subset of processors */
-
     /*
     ** Analysis information. Sticking this stuff in the PST is perhaps a bad idea,
     ** but in avoids order(nThread) storage on the master.

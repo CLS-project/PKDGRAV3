@@ -484,8 +484,6 @@ void pstInitialize(PST *ppst,MDL mdl,LCL *plcl) {
     pst->nUpper = 0;
     pst->iSplitDim = -1;
     pst->iVASplitSide = 0;
-    pst->nLowTot = 0;
-    pst->nHighTot = 0;
     }
 
 
@@ -1305,9 +1303,6 @@ void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
     mdlassert(pst->mdl, nHighTot >= pst->nUpper);
     mdlassert(pst->mdl, nLowTot <= nLowerStore);
     mdlassert(pst->mdl, nHighTot <= nUpperStore);
-
-    pst->nLowTot = nLowTot;
-    pst->nHighTot = nHighTot;
 
     mdlPrintTimer(pst->mdl,"TIME Total Split _pstRootSplit ",&t);
 
