@@ -7,16 +7,8 @@ SUFFIXES = .cu
 	$(NVCC) -I. -DHAVE_CONFIG_H -lineinfo -o $@ -c $< $(NVML_INCLUDE) $(NVCCFLAGS) -Imdl2/mpi -Imdl2 -Iopenpa/src
 
 EXTRA_DIST = server.py examples/cosmology.par examples/euclid_z0_transfer_combined.dat
-#EXTRA_PROGRAMS = pkdgrav3_null
-#TARGETS = null
 EXTRA_PROGRAMS = 
 TARGETS = 
-
-if HAVE_PTHREAD
-EXTRA_PROGRAMS	+= pkdgrav3_pthread
-TARGETS	+= pthread
-pthread		: pkdgrav3_pthread
-endif
 
 if HAVE_MPI
 EXTRA_PROGRAMS	+= pkdgrav3_mpi
@@ -28,8 +20,6 @@ mpi	: pkdgrav3_mpi
 endif
 
 EXTRA_PROGRAMS += tostd tdiff hpb2fits lcp2tip
-
-#null	: pkdgrav3_null
 
 all-local: $(TARGETS)
 
@@ -85,28 +75,6 @@ if USE_CL
 SOURCES += clutil.cxx clewald.cxx clpp.cxx
 noinst_HEADERS += clutil.h
 endif
-
-#pkdgrav3_null_SOURCES = $(SOURCES) $(MDL)/null/mdl.c
-#noinst_HEADERS += $(MDL)/null/mdl.h
-#pkdgrav3_null_CFLAGS =  -I$(MDL)/null/ -I$(MDL) $(AM_CFLAGS)
-#pkdgrav3_null_CXXFLAGS =  -I$(MDL)/null/ -I$(MDL) $(AM_CXXFLAGS)
-#pkdgrav3_null_LDADD = $(FLIBS)
-#if USE_EFENCE
-#if HAVE_EFENCE_PATH
-#pkdgrav3_null_LDADD += -L @EFENCE_PATH@
-#endif
-#pkdgrav3_null_LDADD += -lefence
-#endif
-#if USE_CUDA
-#pkdgrav3_null_LDADD += @CUDA_LIBS@
-#endif
-#if USE_PYTHON
-#if HAVE_RDYNAMIC
-#pkdgrav3_null_LDFLAGS = -Xlinker -rdynamic 
-#endif
-#pkdgrav3_null_LDADD += -L$(PYTHON_LIB) -lpython$(PYTHON_VER) -ldl -lrt -lutil
-#pkdgrav3_null_CFLAGS += -I$(PYTHON_INC)
-#endif
 
 if HAVE_MPI
 pkdgrav3_mpi_LDADD = -lpthread
@@ -173,30 +141,6 @@ if HAVE_DARWIN
 pkdgrav3_mpi_SOURCES += mdl2/mac/pthread_barrier.c
 pkdgrav3_mpi_CFLAGS += -Imdl2/mac/
 pkdgrav3_mpi_CXXFLAGS += -Imdl2/mac/
-endif
-endif
-
-if HAVE_PTHREAD
-pkdgrav3_pthread_SOURCES = $(SOURCES) $(MDL)/pthread/mdl.c
-noinst_HEADERS += $(MDL)/pthread/mdl.h
-pkdgrav3_pthread_CFLAGS = -DUSE_PTHREAD -I$(MDL)/pthread/ -I$(MDL) $(AM_CFLAGS)
-pkdgrav3_pthread_CXXFLAGS = -DUSE_PTHREAD -I$(MDL)/pthread/ -I$(MDL) $(AM_CXXFLAGS)
-pkdgrav3_pthread_LDADD = -lpthread
-if USE_EFENCE
-if HAVE_EFENCE_PATH
-pkdgrav3_pthread_LDADD += -L @EFENCE_PATH@
-endif
-pkdgrav3_pthread_LDADD += -lefence
-endif
-if USE_CUDA
-pkdgrav3_pthread_LDADD += @CUDA_LIBS@ -lcudart
-endif
-if USE_PYTHON
-if HAVE_RDYNAMIC
-pkdgrav3_pthread_LDFLAGS = -Xlinker -rdynamic 
-endif
-pkdgrav3_pthread_LDADD += -L$(PYTHON_LIB) -lpython$(PYTHON_VER) -ldl -lutil
-pkdgrav3_pthread_CFLAGS += -I$(PYTHON_INC)
 endif
 endif
 

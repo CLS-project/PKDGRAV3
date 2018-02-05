@@ -590,8 +590,6 @@ fi
 AC_CHECK_FUNCS([wordexp wordfree glob globfree gethostname getpagesize mkdir strverscmp])
 AC_CHECK_FUNCS([floor gettimeofday pow sqrt strchr strdup strrchr strstr],,[AC_MSG_ERROR([not found])])
 AX_PTHREAD
-#AM_CONDITIONAL(HAVE_PTHREAD,test "x$ax_pthread_ok" = "xyes")
-AM_CONDITIONAL(HAVE_PTHREAD,false)
 
 AC_CONFIG_FILES([Makefile])
 AC_CONFIG_SUBDIRS([openpa])
