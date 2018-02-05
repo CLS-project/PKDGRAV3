@@ -559,29 +559,13 @@ AM_CONDITIONAL(HAVE_RDYNAMIC,test "x$HAVE_RDYNAMIC" = "xyes")
 AC_CHECK_LIB([bz2],[BZ2_bzWriteOpen])
 
 # Checks for header files.
-AC_FUNC_ALLOCA
 AC_FUNC_FSEEKO
-AC_FUNC_MALLOC
-AC_FUNC_REALLOC
-AC_FUNC_STAT
-AC_FUNC_VPRINTF
-AC_HEADER_STDC
 AC_CHECK_HEADERS([fcntl.h limits.h malloc.h stddef.h stdlib.h string.h sys/param.h sys/time.h unistd.h ansidecl.h fenv.h signal.h])
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_C_CONST
 AC_C_INLINE
 AC_C_RESTRICT
-AC_TYPE_OFF_T
-AC_TYPE_SIZE_T
-AC_TYPE_INT16_T
-AC_TYPE_INT32_T
-AC_TYPE_INT64_T
-AC_TYPE_UINT16_T
-AC_TYPE_UINT32_T
-AC_TYPE_UINT64_T
-AC_TYPE_UINT8_T
-AC_HEADER_STDBOOL
 AC_HEADER_TIME
 AC_SYS_LARGEFILE
 
