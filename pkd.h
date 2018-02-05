@@ -8,9 +8,6 @@
 #ifndef HAVE_CONFIG_H
 #include "floattype.h"
 #endif
-#ifdef COOLING
-#include "cooling.h" /* before parameters.h */
-#endif
 #include "parameters.h"
 #include "ilp.h"
 #include "ilc.h"
@@ -760,9 +757,6 @@ typedef struct pkdContext {
     float fSoftMax;
     int nClasses;
     void *pLite;
-#ifdef COOLING
-    COOL *Cool; /* Cooling Context */
-#endif
     uint32_t nEphemeralBytes; /* per-particle */
     /*
     ** Advanced memory models

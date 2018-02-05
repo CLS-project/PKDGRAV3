@@ -368,11 +368,7 @@ void * master_ch(MDL mdl) {
     return NULL;
     }
 
-#ifdef FC_DUMMY_MAIN
-int FC_DUMMY_MAIN() { return 1; }
-#endif
-
-int FC_MAIN(int argc,char **argv) {
+int main(int argc,char **argv) {
 #ifdef USE_BT
     bt_initialize();
 #endif

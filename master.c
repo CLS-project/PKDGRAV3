@@ -1390,12 +1390,6 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 		sizeof(int),"iRungCoolTableUpdate",
 		"<Rung on which to update cool tables, def. 0>");
     msr->param.bInitTFromCooling = 0;
-
-    /* Add any parameters specific to the cooling approach */
-#ifdef COOLING
-    CoolAddParams( &msr->param.CoolParam, msr->prm );
-#endif
-
     msr->param.dEtaCourant = 0.4;
     prmAddParam(msr->prm,"dEtaCourant",2,&msr->param.dEtaCourant,sizeof(double),"etaC",
 				"<Courant criterion> = 0.4");
@@ -1750,9 +1744,6 @@ void msrLogParams(MSR msr,FILE *fp) {
     fprintf(fp," dhMinOverSoft: %g",msr->param.dhMinOverSoft);
     fprintf(fp," dMetalDiffusionCoeff: %g",msr->param.dMetalDiffusionCoeff);
     fprintf(fp," dThermalDiffusionCoeff: %g",msr->param.dThermalDiffusionCoeff);
-#ifdef COOLING
-    if (msr->param.bGasCooling) CoolLogParams( &msr->param.CoolParam, fp );
-#endif
     fprintf(fp,"\n# UNITS: dKBoltzUnit: %g",msr->param.dKBoltzUnit);
     fprintf(fp," dMsolUnit: %g",msr->param.dMsolUnit);
     fprintf(fp," dKpcUnit: %g",msr->param.dKpcUnit);
@@ -4649,67 +4640,10 @@ void msrSph(MSR msr,double dTime, double dStep) {
 	}
     }
 
-
 void msrCoolSetup(MSR msr, double dTime) {
-#ifdef COOLING
-    struct inCoolSetup in;
-    
-    if (!msr->param.bGasCooling) return;
-
-    in.dGmPerCcUnit = msr->param.dGmPerCcUnit;
-    in.dComovingGmPerCcUnit = msr->param.dComovingGmPerCcUnit;
-    in.dErgPerGmUnit = msr->param.dErgPerGmUnit;
-    in.dSecUnit = msr->param.dSecUnit;
-    in.dKpcUnit = msr->param.dKpcUnit;
-    
-    in.dOmega0 = msr->param.csm->val.dOmega0;
-    in.dHubble0 = msr->param.csm->val.dHubble0; /* code unit Hubble0 -- usually sqrt(8 pi/3) */
-    in.dLambda = msr->param.csm->val.dLambda;
-    in.dOmegab = msr->param.csm->val.dOmegab;
-    in.dOmegaRad = msr->param.csm->val.dOmegaRad;
-    
-    in.a = csmTime2Exp(msr->param.csm,dTime);
-    in.z = 1/in.a-1;
-    in.dTime = dTime; 
-    in.CoolParam = msr->param.CoolParam;
-    
-    pstCoolSetup(msr->pst,&in,sizeof(struct inCoolSetup),NULL,NULL);
-#endif
     }
 
 void msrCooling(MSR msr,double dTime,double dStep,int bUpdateState, int bUpdateTable, int bIterateDt) {
-#ifdef COOLING
-    struct inCooling in;
-    struct outCooling out;
-    double a,sec,dsec;
-	
-    if (!msr->param.bGasCooling && !msr->param.bGasIsothermal) return;
-    if (msr->param.bVStep) printf("Calculating Cooling, Step:%f\n",dStep);
-    sec = msrTime();
-
-    a = csmTime2Exp(msr->param.csm,dTime);
-    in.z = 1/a - 1;
-    in.dTime = dTime;
-    in.bUpdateState = bUpdateState;
-    in.bUpdateTable = bUpdateTable;
-    in.bIterateDt = bIterateDt;
-    in.bIsothermal = msr->param.bGasIsothermal;
-    
-    if (bUpdateTable) {
-	printf("Cooling: Updating Tables to z=%g\n",in.z);
-	}
-
-    if (bIterateDt > 0) {
-	printf("Cooling: Iterating on cooling timestep: individual dDelta(uDot) \n");
-	}
-
-    pstCooling(msr->pst,&in,sizeof(in),&out,NULL);
-    
-    dsec = msrTime() - sec;
-    if (msr->param.bVStep) {
-	printf("Cooling Calculated, Wallclock: %f secs\n",  dsec);
-	}
-#endif
     }
 
 /* END Gas routines */

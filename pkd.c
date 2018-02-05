@@ -779,10 +779,6 @@ void pkdInitialize(
     pkd->hopGroups = NULL;
     pkd->hopRootIndex = NULL;
     pkd->hopRoots = NULL;
-
-#ifdef COOLING
-    pkd->Cool = CoolInit();
-#endif
     assert(pkdNodeSize(pkd) > 0);
     }
 
@@ -2098,17 +2094,7 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,BND *bnd,PARTICLE *p) {
 	assert(pkd->param.dTuFac>0.0);
 	    {
 	    double T;
-#ifdef COOLING
-	    COOLPARTICLE cp;
-	    if (pkd->param.bGasCooling) {
-		double E = pSph->u;
-		CoolTempFromEnergyCode( pkd->Cool, 
-		    &cp, &E, &T, p->fDensity, pSph->fMetals );
-		}
-	    else T = pSph->u/pkd->param.dTuFac;
-#else
 	    T = pSph->u/pkd->param.dTuFac;
-#endif
 	    fioWriteSph(fio,iParticleID,r,v,fMass,fSoft,*pPot,
 		fDensity,T,pSph->fMetals);
 	    }
@@ -3033,17 +3019,7 @@ void pkdSphStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,double dAccFac) {
 		if (uNewRung > p->uNewRung) p->uNewRung = uNewRung;
 		if (!(p->iOrder%10000) || (p->uNewRung > 5 && !(p->iOrder%1000))) {
 		    SPHFIELDS *sph = pkdSph(pkd,p);
-#ifdef COOLING
-		    double T, E = sph->u;
-		    if (pkd->param.bGasIsothermal) T = E/pkd->param.dTuFac;
-		    else {
-			COOLPARTICLE cp;
-			CoolTempFromEnergyCode( pkd->Cool, &cp, &E, &T, p->fDensity, sph->fMetals );
-		    }
-
-#else
 		    /*T = E/pkd->param.dTuFac;*/
-#endif
 		    }
 		}
 	    }
@@ -3061,9 +3037,6 @@ void pkdStarForm(PKD pkd, double dRateCoeff, double dTMax, double dDenMin,
 		 int *nDeleted) /* gas particles deleted */ {
 
     PARTICLE *p;
-#ifdef COOLING
-    COOLPARTICLE cp;
-#endif
     SPHFIELDS *sph;
     double T, E, dmstar, dt, prob;
     PARTICLE *starp;
@@ -3089,13 +3062,7 @@ void pkdStarForm(PKD pkd, double dRateCoeff, double dTMax, double dDenMin,
 	    pkdStar(pkd,p)->totaltime += dt;
 	    if (pkdDensity(pkd,p) < dDenMin || (bdivv && sph->divv >= 0.0)) continue;
 	    E = sph->uPred;
-#ifdef COOLING
-	    if (pkd->param.bGasCooling) 
-		CoolTempFromEnergyCode( pkd->Cool, &cp, &E, &T, p->fDensity, sph->fMetals );
-	    else T=E/pkd->param.dTuFac;
-#else
 	    T=E/pkd->param.dTuFac;
-#endif
 	    if (T > dTMax) continue;
 	    
             /* Note: Ramses allows for multiple stars per step -- but we have many particles
@@ -3154,9 +3121,6 @@ void pkdCooling(PKD pkd, double dTime, double z, int bUpdateState, int bUpdateTa
     PARTICLE *p;
     int i;
     SPHFIELDS *sph;
-#ifdef COOLING
-    COOLPARTICLE cp;  /* Dummy: Not yet fully implemented */
-#endif
     double E,dt,ExternalHeating;
   
     pkdClearTimer(pkd,1);
@@ -3172,10 +3136,6 @@ void pkdCooling(PKD pkd, double dTime, double z, int bUpdateState, int bUpdateTa
 	    }
 	}
     else {
-
-#ifdef COOLING
-	CoolSetTime( pkd->Cool, dTime, z, bUpdateTable );
-#endif	
 	if (bIterateDt) { /* Iterate Cooling & dt for each particle */
 	    for (i=0;i<pkdLocal(pkd);++i) {
 		p = pkdParticle(pkd,i);
@@ -3188,9 +3148,6 @@ void pkdCooling(PKD pkd, double dTime, double z, int bUpdateState, int bUpdateTa
 			
 			E = sph->u;
 			dt = pkd->param.dDelta/(1<<p->uNewRung); /* Rung Guess */
-#ifdef COOLING
-			CoolIntegrateEnergyCode(pkd->Cool, &cp, &E, ExternalHeating, p->fDensity, sph->fMetals, p->r, dt);
-#endif
 			uDot = (E-sph->u)/dt; 
 			if (uDot < 0) {
 			    double dtNew;
@@ -3219,9 +3176,6 @@ void pkdCooling(PKD pkd, double dTime, double z, int bUpdateState, int bUpdateTa
 		    ExternalHeating = sph->uDot;
 		    E = sph->u;
 		    dt = pkd->param.dDelta/(1<<p->uRung); /* Actual Rung */
-#ifdef COOLING
-		    CoolIntegrateEnergyCode(pkd->Cool, &cp, &E, ExternalHeating, p->fDensity, sph->fMetals, p->r, dt);
-#endif
 		    sph->uDot = (E-sph->u)/dt; /* To let us interpolate/extrapolate uPred */
 		    }
 		}
@@ -3236,59 +3190,13 @@ void pkdCorrectEnergy(PKD pkd, double dTuFac, double z, double dTime, int iDirec
     SPHFIELDS *sph;
     int i;
     double T,E;
-#ifdef COOLING
-    COOL *cl;
-    COOLPARTICLE cp; /* Dummy for now */
-#endif
-
-#ifdef COOLING
-    cl = pkd->Cool;
-    CoolSetTime( cl, dTime, z, 1 );
-#endif
     switch(iDirection)  {
     case CORRECTENERGY_IN:
-#ifdef COOLING
-	for(i=0;i<pkdLocal(pkd);++i) {
-	    p = pkdParticle(pkd,i);
-	    if (pkdIsGas(pkd,p)) {
-		sph = pkdSph(pkd,p);
-		T = sph->u/dTuFac;
-		CoolEnergyCodeFromTemp( cl, &cp, &E, &T, p->fDensity, sph->fMetals );
-		sph->u = E;
-		sph->uPred = E;
-		pkdStar(pkd,p)->totaltime = dTime;
-		}
-	    }
-#endif
 	break;
 	/* Careful using this -- it permanenty converts the thermal energy */
     case CORRECTENERGY_OUT: 
-#ifdef COOLING
-	for(i=0;i<pkdLocal(pkd);++i) {
-	    p = pkdParticle(pkd,i);
-	    if (pkdIsGas(pkd,p)) {
-		sph = pkdSph(pkd,p);
-		E = sph->u;
-		CoolTempFromEnergyCode( cl, &cp, &E, &T, p->fDensity, sph->fMetals );
-		sph->u = T*dTuFac;
-		sph->uPred = T*dTuFac;
-		}
-	    }
-#endif
 	break;
     case CORRECTENERGY_SPECIAL:
-#ifdef COOLING
-	for(i=0;i<pkdLocal(pkd);++i) {
-	    p = pkdParticle(pkd,i);
-	    if (pkdIsGas(pkd,p)) {
-		sph = pkdSph(pkd,p);
-		T = sph->u/dTuFac; 
-		CoolInitEnergyCode( cl, &cp, &E, &T, p->fDensity, sph->fMetals );
-		sph->u = E;
-		sph->uPred = E;
-		}
-	    }
-#endif
 	break;
     default:
 	assert(0);

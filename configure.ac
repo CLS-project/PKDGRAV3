@@ -56,29 +56,6 @@ AC_CHECK_LIB([m], [cos])
 
 AC_DEFINE([NAIVE_DOMAIN_DECOMP], 1, [Use a simplified domain decomposition.])
 
-# Cooling
-AC_ARG_ENABLE(cooling,
-  [  --enable-cooling             enable cooling],
-  [COOLING=yes
-   AC_DEFINE([COOLING], 1,
- 	[Define if cooling module should be used.])])
-AM_CONDITIONAL(COOLING, test "x$COOLING" = "xyes")
-
-if test "x$COOLING" = "xyes" ; then
-#AC_PROG_FC
-#AC_FC_MAIN
-#AC_FC_DUMMY_MAIN
-##AC_FC_WRAPPERS
-#FC_MODULE_WRAPPERS
-AC_ARG_WITH(mpif90,
-  [  --with-mpif90=mpif90    specify the name of the MPI f90 compiler],
-  [MPIFC="${withval}"],[AC_CHECK_PROG([MPIFC],mpif90,mpif90,no)])
-AC_SUBST(MPIFC)
-else
-AC_DEFINE([FC_MAIN],main,
-	[C main function (varies if FORTRAN is being used).])
-fi
-
 # The floating point data type - This should be detected and --with-float added
 AC_DEFINE([FLOAT_MAXVAL],HUGE,
 	[This defines the maximum value that a FLOAT can represent.])

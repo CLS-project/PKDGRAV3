@@ -132,9 +132,6 @@
     <ClInclude Include="..\config.h">
       <Filter>headers</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\cooling.h">
-      <Filter>headers</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\cosmo.h">
       <Filter>headers</Filter>
     </ClInclude>

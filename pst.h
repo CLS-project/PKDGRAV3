@@ -132,8 +132,6 @@ enum pst_service {
     PST_SPHSTEP,
     PST_STARFORM,
     PST_DENSITYSTEP,
-    PST_COOLSETUP,
-    PST_COOLING,
     PST_CORRECTENERGY,
     PST_SETRUNGVERYACTIVE,
     PST_MARKSMOOTH,
@@ -892,47 +890,6 @@ struct inDensityStep {
     uint8_t uRungHi;
     };
 void pstDensityStep(PST,void *,int,void *,int *);
-
-#ifdef COOLING
-/* PST_COOLSETUP */
-struct inCoolSetup {
-    double dGmPerCcUnit;
-    double dComovingGmPerCcUnit;
-    double dErgPerGmUnit;
-    double dSecUnit;
-    double dKpcUnit;
-
-    double dOmega0;
-    double dHubble0;
-    double dLambda;
-    double dOmegab;
-    double dOmegaRad;
-
-    double a;
-    double z;
-    double dTime;
-    COOLPARAM CoolParam;
-    };
-
-void pstCoolSetup(PST,void *,int,void *,int *);
-
-/* PST_COOLING */
-struct inCooling {
-    double dTime;	
-    double z;
-    int bUpdateState;
-    int bUpdateTable;
-    int bIterateDt;
-    int bIsothermal;
-    };
-struct outCooling {
-    double Time;
-    double MaxTime;
-    double SumTime;
-    int nSum;
-    };
-void pstCooling(PST,void *,int,void *,int *);
-#endif
 
 /* PST_CORRECTENERGY */
 struct inCorrectEnergy {

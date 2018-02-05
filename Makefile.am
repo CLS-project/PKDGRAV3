@@ -42,10 +42,6 @@ SOURCES        += cosmo.c master.c param.c pst.c smooth.c ewald.cxx opening.cxx 
 noinst_HEADERS += cosmo.h master.h param.h pst.h smooth.h ewald.h pp.h pc.h meval.h qeval.h
 SOURCES        += moments.c intype.c outtype.c pkd.c smoothfcn.c rbtree.c fio.c listcomp.c illinois.c iomodule.c output.c
 noinst_HEADERS += moments.h intype.h outtype.h pkd.h smoothfcn.h rbtree.h fio.h listcomp.h illinois.h iomodule.h output.h
-if COOLING
-#SOURCES        += cooling.c cooling_module.F90
-#noinst_HEADERS += cooling.h
-endif
 
 SOURCES += healpix.c
 noinst_HEADERS += healpix.h
