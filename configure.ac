@@ -370,17 +370,6 @@ fi
 AC_DEFINE([MOMFLOAT],double,
 	[This defines the base floating point type for moments.])
 
-# Change softening
-CHANGESOFT=yes
-AC_ARG_ENABLE(change-softening,
-  [  --disable-change-softening     disable softening change],
-  [if test "x$enableval" = "xno" ; then CHANGESOFT=no ; fi])
-if test "x$CHANGESOFT" = "xyes" ; then
-AC_DEFINE([CHANGESOFT], 1,
- 	[Define if softening can be changed.])
-fi
-AM_CONDITIONAL(CHANGESOFT, test "x$CHANGESOFT" = "xyes")
-
 # HSHRINK M4 Kernel
 AC_ARG_ENABLE(hshrink,
   [  --enable-hshrink               enable HSHRINK M4 Kernel],
