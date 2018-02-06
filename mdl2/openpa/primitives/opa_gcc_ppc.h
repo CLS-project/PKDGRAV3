@@ -134,7 +134,7 @@ static _opa_inline int OPA_SC_int(OPA_int_t *ptr, int val)
 static _opa_inline void *OPA_LL_ptr(OPA_ptr_t *ptr)
 {
     void *val;
-    __asm__ __volatile__ ("l"OPA_SS"arx %[val],0,%[ptr]"
+    __asm__ __volatile__ ("l" OPA_SS "arx %[val],0,%[ptr]"
                           : [val] "=r" (val)
                           : [ptr] "r" (&ptr->v)
                           : "cc");
@@ -146,7 +146,7 @@ static _opa_inline void *OPA_LL_ptr(OPA_ptr_t *ptr)
 static _opa_inline int OPA_SC_ptr(OPA_ptr_t *ptr, void *val)
 {
     int ret = 1; /* init to non-zero, will be reset to 0 if SC was unsuccessful */
-    __asm__ __volatile__ ("st"OPA_SS"cx. %[val],0,%[ptr];\n"
+    __asm__ __volatile__ ("st" OPA_SS "cx. %[val],0,%[ptr];\n"
                           "beq 1f;\n"
                           "li %[ret], 0;\n"
                           "1: ;\n"
