@@ -23,6 +23,8 @@
 #include "ewald.h"
 #include "grav.h"
 #include "cudautil.h"
+#include "cudapppc.h"
+#include "cudaewald.h"
 #include "clutil.h"
 
 #if 1

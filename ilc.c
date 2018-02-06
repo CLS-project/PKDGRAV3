@@ -6,7 +6,6 @@
 #include <assert.h>
 
 #include "ilc.h"
-#include "cudautil.h"
 
 void ilcInitialize(ILC *ilc) {
     *ilc = malloc(sizeof(struct ilcContext));

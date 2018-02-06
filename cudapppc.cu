@@ -3,7 +3,7 @@
 #include "config.h"
 #endif
 #include <stdio.h>
-#include "cudautil.h"
+#include "cudapppc.h"
 #include "pp.h"
 #include "pc.h"
 

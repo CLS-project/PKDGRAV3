@@ -1,8 +1,6 @@
 #ifndef CUDAUTIL_H
 #define CUDAUTIL_H
 #include "opa_queue.h"
-#include "basetype.h"
-#include "ilp.h"
 
 //#define CUDA_STREAMS 16
 
@@ -10,8 +8,6 @@
 extern "C" {
 #endif
 #ifdef USE_CUDA
-    void CUDA_nvtxRangePush(char *name);
-    void CUDA_nvtxRangePop();
     void *CUDA_initialize(int nCores, int iCore, OPA_Queue_info_t *queueWORK, OPA_Queue_info_t *queueREGISTER);
     void CUDA_finish(void *vctx);
     void CUDA_SetQueueSize(void *vcuda,int cudaSize, int inCudaBufSize, int outCudaBufSiz);
@@ -20,9 +16,6 @@ extern "C" {
 	int (*initWork)(void *ctx,void *work),
 	int (*checkWork)(void *ctx,void *work));
     int CUDA_flushDone(void *vcuda);
-    int CUDA_queuePP(void *cudaCtx,workParticle *wp, ILPTILE tile, int bGravStep);
-    int CUDA_queuePC(void *cudaCtx,workParticle *wp, ILCTILE tile, int bGravStep);
-    int CUDA_queueEwald(void *cudaCtx,workParticle *work);
     void CUDA_sendWork(void *cudaCtx);
     void CUDA_flushEwald(void *cudaCtx);
     void CUDA_checkForRecovery(void *vcuda);
