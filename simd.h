@@ -521,7 +521,7 @@ static inline v_df SIMD_DRE_EXACT(v_df a) {
 
 #if defined(__cplusplus)
 
-#if __GNUC__ > 4
+#if __GNUC__ > 5
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wignored-attributes"
 #endif

@@ -30,8 +30,8 @@ check_c_source_compiles("
 #ifdef __GNU_LIBRARY__
   int main() {return 0;} 
 #endif
-" HAVE_GNU_SOURCE)
-if (HAVE_GNU_SOURCE)
+" _GNU_SOURCE)
+if (_GNU_SOURCE)
   set(CMAKE_REQUIRED_DEFINITIONS -D_GNU_SOURCE)
 endif()
 
