@@ -7,6 +7,12 @@ endif()
 set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 set(CMAKE_C_FLAGS_RELEASE "-O3")
 
+if(UNIX)
+  set(CMAKE_REQUIRED_LIBRARIES m)
+  set(HAVE_LIBM 1)
+endif()
+
+
 include(CheckCXXCompilerFlag)
 include(CheckCXXCompilerFlag)
 CHECK_CXX_COMPILER_FLAG("-march=native" COMPILER_OPT_ARCH_NATIVE_SUPPORTED)
@@ -15,7 +21,7 @@ if (COMPILER_OPT_ARCH_NATIVE_SUPPORTED)
 endif()
 
 find_package(GSL REQUIRED)      # GNU Scientific Library
-add_definitions(-DHAVE_CONFIG_H)
+#add_definitions(-DHAVE_CONFIG_H)
 
 # _GNU_SOURCE gives us more options
 INCLUDE(CheckCSourceCompiles)
@@ -85,6 +91,8 @@ check_symbol_exists(getpagesize unistd.h HAVE_GETPAGESIZE)
 check_symbol_exists(mkdir sys/stat.h HAVE_MKDIR)
 check_symbol_exists(strverscmp string.h HAVE_STRVERSCMP)
 
+check_symbol_exists(backtrace execinfo.h USE_BT)
+
 #AC_CHECK_FUNCS([gethrtime read_real_time time_base_to_time clock_gettime mach_absolute_time])
 check_symbol_exists(atexit stdlib.h HAVE_ATEXIT)
 
@@ -97,6 +105,10 @@ target_sources(${PROJECT_NAME} PRIVATE
 	lst.c moments.c ilp.c ilc.c iomodule.c
 	fof.c hop.c group.c groupstats.c RngStream.c listcomp.c healpix.c
 )
+if(USE_BT)
+target_sources(${PROJECT_NAME} PRIVATE bt.c)
+endif()
+
 
 #if USE_SIMD
 #if USE_SIMD_FMM
@@ -108,7 +120,7 @@ target_sources(${PROJECT_NAME} PRIVATE lightcone.cxx)
 #endif
 
 
-CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/pkd_config.h.in ${CMAKE_CURRENT_BINARY_DIR}/config.h)
+CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/pkd_config.h.in ${CMAKE_CURRENT_BINARY_DIR}/pkd_config.h)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
 target_link_libraries(${PROJECT_NAME} mdl2 openpa)
 target_include_directories(${PROJECT_NAME} PRIVATE ${GSL_INCLUDE_DIRS})

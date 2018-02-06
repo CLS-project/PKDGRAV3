@@ -5,9 +5,6 @@
 #include "pkd.h"
 #include "smoothfcn.h"
 #include "group.h"
-#ifndef HAVE_CONFIG_H
-#include "floattype.h"
-#endif
 
 #define NNLIST_INCREMENT	200		/* number of extra neighbor elements added to nnList */
 

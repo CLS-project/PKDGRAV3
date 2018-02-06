@@ -5,7 +5,7 @@ add_subdirectory(openpa)	# Lockless queue support
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/")
 find_package(FFTW REQUIRED)
 if(FFTW_FOUND)
-  INCLUDE_DIRECTORIES(${FFTW_INCLUDES})
+#  INCLUDE_DIRECTORIES(${FFTW_INCLUDES})
   set(MDL_FFTW ${FFTW_FOUND})
 endif()
 
@@ -50,6 +50,7 @@ target_link_libraries(${PROJECT_NAME} ${MPI_C_LIBRARIES} openpa)
 
 #if(FFTW_FOUND)
 target_link_libraries(${PROJECT_NAME} ${FFTW_LIBRARIES})
+target_include_directories(${PROJECT_NAME} PUBLIC ${FFTW_INCLUDES})
 #endif()
 
 install(TARGETS ${PROJECT_NAME} DESTINATION "lib")

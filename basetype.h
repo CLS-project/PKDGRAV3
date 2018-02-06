@@ -2,6 +2,8 @@
 #define BASETYPE_H
 #ifdef HAVE_CONFIG_H
 #include "config.h"
+#else
+#include "pkd_config.h"
 #endif
 #include <stdint.h>
 #include "ilp.h"

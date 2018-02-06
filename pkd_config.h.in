@@ -23,6 +23,8 @@
 #cmakedefine HAVE_STRVERSCMP 1
 #cmakedefine HAVE_ATEXIT 1
 
+#cmakedefine USE_BT 1
+
 #define USE_SIMD 1
 #define USE_SIMD_OPEN 1
 #define USE_SIMD_FMM 1

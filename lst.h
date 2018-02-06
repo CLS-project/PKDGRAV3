@@ -7,6 +7,8 @@
 #define LST_H
 #ifdef HAVE_CONFIG_H
 #include "config.h"
+#else
+#include "pkd_config.h"
 #endif
 #include <stdlib.h>
 #include <stdint.h>
