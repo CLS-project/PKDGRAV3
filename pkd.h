@@ -5,9 +5,6 @@
 #include <string.h>
 
 #include "mdl.h"
-#ifndef HAVE_CONFIG_H
-#include "floattype.h"
-#endif
 #include "parameters.h"
 #include "ilp.h"
 #include "ilc.h"

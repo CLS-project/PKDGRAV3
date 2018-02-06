@@ -79,3 +79,5 @@ add_library(${PROJECT_NAME} STATIC opa_primitives.c opa_queue.c)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
 
+install(TARGETS ${PROJECT_NAME} DESTINATION "lib")
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/opa_config.h opa_queue.h opa_primitives.h opa_util.h DESTINATION "include")

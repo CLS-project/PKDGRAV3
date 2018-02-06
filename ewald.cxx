@@ -208,7 +208,8 @@ double pkdParticleEwald(PKD pkd,double *r, float *pa, float *pPot,double *pdFlop
 		    g4 = 7*g3*dir2 + alphan*a;
 		    alphan *= 2*ew.alpha2;
 		    g5 = 9*g4*dir2 + alphan*a;
-		    dFlopDouble += evalEwald(ew,&ax,&ay,&az,&Pot,x,y,z,g0,g1,g2,g3,g4,g5);
+		    dFlopDouble += evalEwald<double,struct EwaldVariables,MOMC>(ew,ew.mom,ax,ay,az,Pot,x,y,z,g0,g1,g2,g3,g4,g5);
+		    //dFlopDouble += evalEwald(ew,&ax,&ay,&az,&Pot,x,y,z,g0,g1,g2,g3,g4,g5);
 #endif
 		    }
 		++nLoop;

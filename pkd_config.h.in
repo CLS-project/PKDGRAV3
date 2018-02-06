@@ -1,0 +1,36 @@
+#cmakedefine HAVE_MALLOC_H 1
+#cmakedefine HAVE_SYS_TIME_H 1
+#cmakedefine HAVE_SYS_STAT_H 1
+#cmakedefine HAVE_UNISTD_H 1
+
+#cmakedefine HAVE_FLOOR 1
+#cmakedefine HAVE_POW 1
+#cmakedefine HAVE_SQRT 1
+#cmakedefine HAVE_STRCHR 1
+#cmakedefine HAVE_STRRCHR 1
+#cmakedefine HAVE_STRDUP 1
+#cmakedefine HAVE_STRSTR 1
+#cmakedefine HAVE_MEMMOVE 1
+#cmakedefine HAVE_MEMSET 1
+#cmakedefine HAVE_GETTIMEOFDAY 1
+#cmakedefine HAVE_WORDEXP 1
+#cmakedefine HAVE_WORDFREE 1
+#cmakedefine HAVE_GLOB 1
+#cmakedefine HAVE_GLOBFREE 1
+#cmakedefine HAVE_GETHOSTNAME 1
+#cmakedefine HAVE_GETPAGESIZE 1
+#cmakedefine HAVE_MKDIR 1
+#cmakedefine HAVE_STRVERSCMP 1
+#cmakedefine HAVE_ATEXIT 1
+
+#define USE_SIMD 1
+#define USE_SIMD_OPEN 1
+#define USE_SIMD_FMM 1
+#define USE_SIMD_LC 1
+#define USE_SIMD_EWALD 1
+#define USE_SIMD_PP 1
+#define USE_SIMD_PC 1
+
+#define PACKAGE_VERSION "3.0.0"
+#define PACKAGE_STRING "pkdgrav 3.0.0"
+#define FLOAT_MAXVAL HUGE

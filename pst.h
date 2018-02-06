@@ -4,9 +4,6 @@
 #include "pkd.h"
 #include "mdl.h"
 #include "smoothfcn.h"
-#ifndef HAVE_CONFIG_H
-#include "floattype.h"
-#endif
 #include "moments.h"
 #include "outtype.h"
 #include "output.h"

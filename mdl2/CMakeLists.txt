@@ -1,8 +1,13 @@
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.1)
 project(mdl2)
-find_package(MPI REQUIRED)
+add_subdirectory(openpa)	# Lockless queue support
 
-add_subdirectory(openpa)
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/")
+find_package(FFTW REQUIRED)
+if(FFTW_FOUND)
+  INCLUDE_DIRECTORIES(${FFTW_INCLUDES})
+  set(MDL_FFTW ${FFTW_FOUND})
+endif()
 
 INCLUDE (CheckIncludeFiles)
 CHECK_INCLUDE_FILES (malloc.h HAVE_MALLOC_H)
@@ -10,24 +15,42 @@ CHECK_INCLUDE_FILES (sys/time.h HAVE_SYS_TIME_H)
 CHECK_INCLUDE_FILES (unistd.h HAVE_UNISTD_H)
 CHECK_INCLUDE_FILES (signal.h HAVE_SIGNAL_H)
 CHECK_INCLUDE_FILES (inttypes.h HAVE_INTTYPES_H)
+CHECK_INCLUDE_FILES (stdint.h HAVE_STDINT_H)
 
 INCLUDE(CheckLibraryExists)
 CHECK_LIBRARY_EXISTS(memkind hbw_posix_memalign "" HAVE_MEMKIND)
 
 CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/mdl_config.h.in ${CMAKE_CURRENT_BINARY_DIR}/mdl_config.h)
 
-set(mdl_SOURCES mpi/mdl.c mdlbase.c)
-if(APPLE)
-set(mdl_SOURCES ${mdl_SOURCES} mac/pthread_barrier.c)
+add_library(${PROJECT_NAME} STATIC "")
+target_sources(${PROJECT_NAME}
+  PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/mpi/mdl.c
+          ${CMAKE_CURRENT_SOURCE_DIR}/mdlbase.c
+  PUBLIC  ${CMAKE_CURRENT_SOURCE_DIR}/mpi/mdl.h
+          ${CMAKE_CURRENT_SOURCE_DIR}/mdlbase.h
+          ${CMAKE_CURRENT_BINARY_DIR}/mdl_config.h
+)
+if (APPLE)
+  target_sources(${PROJECT_NAME}
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/mac/pthread_barrier.c
+    PUBLIC  ${CMAKE_CURRENT_SOURCE_DIR}/mac/pthread_barrier.h
+  )
 endif()
 
-add_library(${PROJECT_NAME} STATIC ${mdl_SOURCES})
-#target_link_libraries(${PROJECT_NAME} openpa)
 if (APPLE)
-target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/mac)
+  target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/mac)
 endif()
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/mpi)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
-target_link_libraries(${PROJECT_NAME} PRIVATE ${MPI_C_LIBRARIES} openpa)
-target_include_directories(${PROJECT_NAME} PRIVATE ${MPI_C_INCLUDE_PATH}) 
+target_include_directories(${PROJECT_NAME} PRIVATE ${MPI_C_INCLUDE_PATH})
+
+find_package(MPI REQUIRED)	# MPI support
+target_link_libraries(${PROJECT_NAME} ${MPI_C_LIBRARIES} openpa)
+
+#if(FFTW_FOUND)
+target_link_libraries(${PROJECT_NAME} ${FFTW_LIBRARIES})
+#endif()
+
+install(TARGETS ${PROJECT_NAME} DESTINATION "lib")
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/mdl_config.h mpi/mdl.h mdlbase.h DESTINATION "include")
