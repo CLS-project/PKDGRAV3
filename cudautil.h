@@ -1,6 +1,7 @@
 #ifndef CUDAUTIL_H
 #define CUDAUTIL_H
 #include "opa_queue.h"
+#include "basetype.h"
 
 //#define CUDA_STREAMS 16
 
@@ -152,7 +153,6 @@ typedef struct cuda_ctx {
     int inCudaBufSize, outCudaBufSize;
     int epoch;
     int nCores, iCore;
-    uint64_t nKernelLaunches;
 
     struct EwaldVariables *ewIn;
     EwaldTable *ewt;
