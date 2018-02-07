@@ -3,10 +3,13 @@
 #else
 #include "pkd_config.h"
 #endif
-
 #define _LARGEFILE_SOURCE
 #define _FILE_OFFSET_BITS 64
-
+#ifdef HAVE_INTTYPES_H
+#include <inttypes.h>
+#else
+#define PRIu64 "llu"
+#endif
 #include "iomodule.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -2708,7 +2711,7 @@ void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, 
 
 
 	if (pkd->param.bVDetails) {
-	    printf("%*cAdjust at iRung: %d, nMaxRung:%d nRungCount[%d]=%lld\n",
+	    printf("%*cAdjust at iRung: %d, nMaxRung:%d nRungCount[%d]=%"PRIu64"\n",
 		   2*iRung+2,' ',iRung,*pnMaxRung,*pnMaxRung,nRungCount[*pnMaxRung]);
 	    }
 
@@ -3072,7 +3075,7 @@ void pkdStarForm(PKD pkd, double dRateCoeff, double dTMax, double dDenMin,
 	    if (pkd->param.bGasCooling) {
 		if (fabs(pkdStar(pkd,p)->totaltime-dTime) > 1e-3*dt) {
 		    printf("total time error: %"PRIu64",  %g %g %g\n",
-                p->iOrder,pkdStar(pkd,p)->totaltime,dTime,dt);
+                (uint64_t)p->iOrder,pkdStar(pkd,p)->totaltime,dTime,dt);
 		    assert(0);
 		    }
 		}
@@ -3921,7 +3924,7 @@ void pkdOutPsGroup(PKD pkd,char *pszFileName,int iType)
 	{
 	    if (gd[i].iPid != pkd->idSelf) continue;
 	    fprintf(fp,"%d",gd[i].iGlobalId);
-	    fprintf(fp," %10llu",gd[i].nTotal);
+	    fprintf(fp," %10"PRIu64"",gd[i].nTotal);
 	    fprintf(fp," %12.8e",gd[i].fMass);
 	    fprintf(fp," %12.8e",gd[i].fRMSRadius);
 	    fprintf(fp," %12.8e",gd[i].r[0]);

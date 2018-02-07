@@ -5152,7 +5152,7 @@ double msrRead(MSR msr, const char *achInFile) {
     read->nProcessors = msr->param.bParaRead==0?1:(msr->param.nParaRead<=1 ? msr->nThreads:msr->param.nParaRead);
 
     if (!fioGetAttr(fio,"nFiles",FIO_TYPE_UINT32,&j)) j = 1;
-    printf("Reading %llu particles from %d file%s using %d processor%s\n",
+    printf("Reading %"PRIu64" particles from %d file%s using %d processor%s\n",
 	msr->N, j, (j==1?"":"s"), read->nProcessors, (read->nProcessors==1?"":"s") );
 
     dTime = getTime(msr,dExpansion,&read->dvFac);

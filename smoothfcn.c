@@ -3,7 +3,11 @@
 #else
 #include "pkd_config.h"
 #endif
-
+#ifdef HAVE_INTTYPES_H
+#include <inttypes.h>
+#else
+#define PRIu64 "llu"
+#endif
 #include <stdio.h>
 #include <math.h>
 #include <assert.h>
@@ -252,12 +256,12 @@ void PrintNN(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
     int i;
 
-    printf("%llu:",p->iOrder);
+    printf("%"PRIu64":",(uint64_t)p->iOrder);
     for (i=0;i<nSmooth;++i) {
 	if (pkdIsActive(pkd,nnList[i].pPart))
-	    printf("%llu ",nnList[i].pPart->iOrder);
+	    printf("%"PRIu64" ",(uint64_t)nnList[i].pPart->iOrder);
 	else 
-	    printf("\033[7m%llu\033[0m ",nnList[i].pPart->iOrder);
+	    printf("\033[7m%"PRIu64"\033[0m ",(uint64_t)nnList[i].pPart->iOrder);
 	}
     printf("\n");
     }

@@ -12,6 +12,7 @@
 #include <inttypes.h>
 #else
 #define PRIu64 "llu"
+#define PRIx64 "llx"
 #endif
 #include "pkd.h"
 #include "outtype.h"
@@ -223,7 +224,7 @@ static void storeRungDest(PKD pkd,PKDOUT ctx,PARTICLE *p,int iType,int iDim) {
 #endif
     if ( PKDOUT_BUFFER_SIZE - (ctx->inOffset-ctx->inBuffer) < 100 )
 	(*ctx->fnFlush)(pkd,ctx,0);
-    sprintf(ctx->inOffset,"%016llx %d",lKey,p->uRung);
+    sprintf(ctx->inOffset,"%016"PRIx64" %d",lKey,p->uRung);
     ctx->inOffset += strlen(ctx->inOffset);
     for(iRung=0; iRung<8; iRung++) {
 	sprintf(ctx->inOffset," %d", pRungDest[iRung]);

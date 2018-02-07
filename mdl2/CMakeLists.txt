@@ -1,4 +1,7 @@
 cmake_minimum_required(VERSION 3.1)
+if(COMMAND cmake_policy)
+  cmake_policy(SET CMP0003 NEW)
+endif(COMMAND cmake_policy)
 project(mdl2)
 add_subdirectory(openpa)	# Lockless queue support
 
@@ -36,17 +39,17 @@ if (APPLE)
     PUBLIC  ${CMAKE_CURRENT_SOURCE_DIR}/mac/pthread_barrier.h
   )
 endif()
-
+find_package(Threads REQUIRED)
+find_package(MPI REQUIRED)	# MPI support
 if (APPLE)
   target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/mac)
 endif()
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/mpi)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
-target_include_directories(${PROJECT_NAME} PRIVATE ${MPI_C_INCLUDE_PATH})
+target_include_directories(${PROJECT_NAME} PUBLIC ${MPI_C_INCLUDE_PATH})
 
-find_package(MPI REQUIRED)	# MPI support
-target_link_libraries(${PROJECT_NAME} ${MPI_C_LIBRARIES} openpa)
+target_link_libraries(${PROJECT_NAME} ${MPI_C_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} openpa)
 
 #if(FFTW_FOUND)
 target_link_libraries(${PROJECT_NAME} ${FFTW_LIBRARIES})

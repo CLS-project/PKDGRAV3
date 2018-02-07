@@ -1,4 +1,7 @@
 cmake_minimum_required(VERSION 2.4)
+if(COMMAND cmake_policy)
+  cmake_policy(SET CMP0003 NEW)
+endif(COMMAND cmake_policy)
 project(pkdgrav3)
 
 if(NOT CMAKE_BUILD_TYPE)
@@ -69,6 +72,7 @@ CHECK_INCLUDE_FILES (malloc.h HAVE_MALLOC_H)
 CHECK_INCLUDE_FILES (sys/time.h HAVE_SYS_TIME_H)
 CHECK_INCLUDE_FILES (sys/stat.h HAVE_SYS_STAT_H)
 CHECK_INCLUDE_FILES (unistd.h HAVE_UNISTD_H)
+CHECK_INCLUDE_FILES (inttypes.h HAVE_INTTYPES_H)
 
 INCLUDE(CheckSymbolExists)
 check_symbol_exists(floor math.h HAVE_FLOOR)
