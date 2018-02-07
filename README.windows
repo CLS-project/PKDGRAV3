@@ -1,0 +1,31 @@
+********************************************************************************
+There are two ways to install pkdgrav3 under Windows. The first is to use
+Ubuntu on Windows 10. This is by far the easiest method.
+
+1.  Install Ubuntu on Windows 10.
+
+    Open a command prompt and run this command:
+
+	lxrun /install
+
+2.  Install the necessary dependent packages.
+
+    Open a BASH prompt, then use "apt" to install the following.
+
+	sudo apt update
+	sudo apt install build-essential git cmake libgsl-dev
+	sudo apt install openmpi-bin libopenmpi-dev
+	sudo apt install libfftw3-mpi-dev libfftw3-dev
+
+3.  Clone the pkdgrav3 repository
+
+	git clone https://bitbucket.org/dpotter/pkdgrav3.git
+
+4.  Decide on a "build" directory, and on a "install" directory.
+    In this example we have three directories, pkdgrav3, build and install.
+
+	mkdir build install
+	cd build
+	cmake -DCMAKE_INSTALL_PREFIX=../install ../pkdgrav3
+	make
+
