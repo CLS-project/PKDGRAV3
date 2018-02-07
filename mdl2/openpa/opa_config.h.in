@@ -2,16 +2,16 @@
 #define _SRC_OPA_CONFIG_H 1
  
 /* define to 1 if we have support for gcc ARM atomics */
-#cmakedefine OPA_HAVE_GCC_AND_ARM_ASM 0
+#cmakedefine OPA_HAVE_GCC_AND_ARM_ASM 1
 
 /* define to 1 if we have support for gcc ia64 primitives */
-#cmakedefine OPA_HAVE_GCC_AND_IA64_ASM 0
+#cmakedefine OPA_HAVE_GCC_AND_IA64_ASM 1
 
 /* define to 1 if we have support for gcc PowerPC atomics */
-#cmakedefine OPA_HAVE_GCC_AND_POWERPC_ASM 0
+#cmakedefine OPA_HAVE_GCC_AND_POWERPC_ASM 1
 
 /* define to 1 if we have support for gcc SiCortex atomics */
-#cmakedefine OPA_HAVE_GCC_AND_SICORTEX_ASM 0
+#cmakedefine OPA_HAVE_GCC_AND_SICORTEX_ASM 1
 
 /* Define if GNU __attribute__ is supported */
 #cmakedefine OPA_HAVE_GCC_ATTRIBUTE  1 
@@ -26,7 +26,7 @@
 #cmakedefine OPA_HAVE_GCC_X86_32_64_P3  1 
 
 /* define to 1 if we have support for Windows NT atomic intrinsics */
-#cmakedefine OPA_HAVE_NT_INTRINSICS 0
+#cmakedefine OPA_HAVE_NT_INTRINSICS 1
 
 /* Define to 1 if you have the <pthread.h> header file. */
 #cmakedefine OPA_HAVE_PTHREAD_H  1 
@@ -38,7 +38,7 @@
 #cmakedefine OPA_HAVE_STDDEF_H  1 
 
 /* define to 1 if we have support for Sun atomic operations library */
-#cmakedefine OPA_HAVE_SUN_ATOMIC_OPS 0
+#cmakedefine OPA_HAVE_SUN_ATOMIC_OPS 1
 
 /* The size of `int', as computed by sizeof. */
 #cmakedefine OPA_SIZEOF_INT  4 
@@ -47,10 +47,10 @@
 #define OPA_SIZEOF_VOID_P  ${CMAKE_SIZEOF_VOID_P}
 
 /* define to 1 to force using lock-based atomic primitives */
-#cmakedefine OPA_USE_LOCK_BASED_PRIMITIVES 0
+#cmakedefine OPA_USE_LOCK_BASED_PRIMITIVES 1
 
 /* define to 1 if unsafe (non-atomic) primitives should be used */
-#cmakedefine OPA_USE_UNSAFE_PRIMITIVES 0
+#cmakedefine OPA_USE_UNSAFE_PRIMITIVES 1
 
 /* Define to the equivalent of the C99 'restrict' keyword, or to
    nothing if this is not supported.  Do not define if restrict is
