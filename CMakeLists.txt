@@ -130,4 +130,4 @@ target_link_libraries(${PROJECT_NAME} mdl2 openpa)
 target_include_directories(${PROJECT_NAME} PRIVATE ${GSL_INCLUDE_DIRS})
 target_link_libraries(${PROJECT_NAME} ${GSL_LIBRARIES})
 
-
+install(TARGETS ${PROJECT_NAME} DESTINATION "bin")
