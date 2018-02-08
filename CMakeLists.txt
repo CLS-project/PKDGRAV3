@@ -23,6 +23,7 @@ if (COMPILER_OPT_ARCH_NATIVE_SUPPORTED)
   add_compile_options(-march=native)
 endif()
 
+find_package(CUDA)
 find_package(GSL REQUIRED)      # GNU Scientific Library
 #add_definitions(-DHAVE_CONFIG_H)
 
@@ -113,7 +114,14 @@ if(USE_BT)
 target_sources(${PROJECT_NAME} PRIVATE bt.c)
 endif()
 
-
+if (CUDA_FOUND)
+  set(USE_CUDA TRUE)
+  CUDA_COMPILE(cuda_files cudaewald.cu cudapppc.cu cudautil.cu
+	OPTIONS -arch compute_35
+		-I${CMAKE_CURRENT_SOURCE_DIR}/mdl2/openpa
+		-I${CMAKE_CURRENT_BINARY_DIR})
+  target_sources(${PROJECT_NAME} PRIVATE ${cuda_files})
+endif()
 #if USE_SIMD
 #if USE_SIMD_FMM
 target_sources(${PROJECT_NAME} PRIVATE vmoments.cxx)

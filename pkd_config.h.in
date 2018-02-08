@@ -26,6 +26,7 @@
 
 #cmakedefine USE_BT 1
 #cmakedefine _GNU_SOURCE 1
+#cmakedefine USE_CUDA 1
 
 #define USE_SIMD 1
 #define USE_SIMD_OPEN 1
