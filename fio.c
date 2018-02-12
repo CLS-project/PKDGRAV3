@@ -51,7 +51,7 @@
 #define UNUSED(x) x##_UNUSED
 #endif
 
-#ifndef NO_XDR
+#ifdef HAVE_RPC_XDR_H
 #include <rpc/types.h>
 #include <rpc/xdr.h>
 #else

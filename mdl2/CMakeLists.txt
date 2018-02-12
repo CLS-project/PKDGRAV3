@@ -39,10 +39,19 @@ if (APPLE)
     PUBLIC  ${CMAKE_CURRENT_SOURCE_DIR}/mac/pthread_barrier.h
   )
 endif()
+if (MSVC)
+  target_sources(${PROJECT_NAME}
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/windows/pthread.c
+    PUBLIC  ${CMAKE_CURRENT_SOURCE_DIR}/windows/pthread.h
+  )
+endif()
 find_package(Threads REQUIRED)
 find_package(MPI REQUIRED)	# MPI support
 if (APPLE)
   target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/mac)
+endif()
+if (MSVC)
+  target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/windows)
 endif()
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/mpi)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
