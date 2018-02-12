@@ -17,8 +17,6 @@ extern "C" {
 	int (*initWork)(void *ctx,void *work),
 	int (*checkWork)(void *ctx,void *work));
     int CUDA_flushDone(void *vcuda);
-    void CUDA_sendWork(void *cudaCtx);
-    void CUDA_flushEwald(void *cudaCtx);
     void CUDA_checkForRecovery(void *vcuda);
     void CUDA_startWork(void *vcuda,OPA_Queue_info_t *queueWORK);
     void CUDA_registerBuffers(void *vcuda, OPA_Queue_info_t *queueWORK);

@@ -1,6 +1,8 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 #ifdef HAVE_CONFIG_H
 #include "config.h"
+#else
+#include "pkd_config.h"
 #endif
 #include <cuda.h>
 

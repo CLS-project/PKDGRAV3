@@ -23,6 +23,13 @@ CHECK_INCLUDE_FILES (stdint.h HAVE_STDINT_H)
 INCLUDE(CheckLibraryExists)
 CHECK_LIBRARY_EXISTS(memkind hbw_posix_memalign "" HAVE_MEMKIND)
 
+find_package(Threads REQUIRED)
+find_package(MPI REQUIRED)	# MPI support
+find_package(CUDA)
+if (CUDA_FOUND)
+  set(USE_CUDA TRUE)
+endif(CUDA_FOUND)
+
 CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/mdl_config.h.in ${CMAKE_CURRENT_BINARY_DIR}/mdl_config.h)
 
 add_library(${PROJECT_NAME} STATIC "")
@@ -64,6 +71,10 @@ target_link_libraries(${PROJECT_NAME} ${MPI_C_LIBRARIES} ${CMAKE_THREAD_LIBS_INI
 target_link_libraries(${PROJECT_NAME} ${FFTW_LIBRARIES})
 target_include_directories(${PROJECT_NAME} PUBLIC ${FFTW_INCLUDES})
 #endif()
+if(HAVE_MEMKIND)
+find_library(MEMKIND_LIBRARY memkind)
+target_link_libraries(${PROJECT_NAME} ${MEMKIND_LIBRARY})
+endif()
 
 install(TARGETS ${PROJECT_NAME} DESTINATION "lib")
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/mdl_config.h mpi/mdl.h mdlbase.h DESTINATION "include")

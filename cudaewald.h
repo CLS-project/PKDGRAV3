@@ -6,6 +6,7 @@
 extern "C" {
 #endif
     int CUDA_queueEwald(void *cudaCtx,workParticle *work);
+    void CUDA_flushEwald(void *cudaCtx);
 #ifdef __cplusplus
     }
 #endif

@@ -1240,7 +1240,7 @@ static int mdlDoSomeWork(MDL mdl) {
     }
 
 void mdlCompleteAllWork(MDL mdl) {
-#ifdef USE_CUDA
+#ifdef moved_to_walk2_USE_CUDA
     CUDA_sendWork(mdl->cudaCtx);
     CUDA_flushEwald(mdl->cudaCtx);
 #endif
