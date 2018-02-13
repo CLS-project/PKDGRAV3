@@ -10,7 +10,6 @@
 #define WIN32_LEAN_AND_MEAN
 #include<windows.h>
 #include<intrin.h>
-#include "mpi.h"
 
 /* OPA_int_t uses a long because the compiler intrinsics operate on
  * longs instead of ints. */
