@@ -13,7 +13,7 @@
 
 /* Define if SIMD optimizations should be used. */
 /* Visual Studio definition */
-#if defined(__AVX__)
+#if defined(_MSC_VER) && defined(__AVX__)
 #define USE_SIMD 1
 #ifndef __SSE__
 #define __SSE__
