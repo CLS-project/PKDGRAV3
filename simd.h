@@ -11,6 +11,34 @@
 #endif
 #include <math.h>
 
+/* Define if SIMD optimizations should be used. */
+/* Visual Studio definition */
+#if defined(__AVX__)
+#define USE_SIMD 1
+#ifndef __SSE__
+#define __SSE__
+#endif
+#ifndef __SSE2__
+#define __SSE2__
+#endif
+#ifdef __AVX2__
+#define __FMA__
+#endif
+#elif defined(_M_X64)
+#define __SSE__
+#define __SSE2__
+#define __AVX__
+#ifdef __AVX2__
+#define __FMA__
+#endif
+#define USE_SIMD 1
+#elif _M_IX86_FP >= 1
+#define USE_SIMD 1
+#define __SSE__
+#if _M_IX86_FP >= 2
+#define __SSE2__
+#endif
+#endif
 
 #ifdef USE_SIMD
 #if defined(__AVX512F__)

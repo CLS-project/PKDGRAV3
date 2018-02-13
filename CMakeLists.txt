@@ -23,9 +23,18 @@ if (COMPILER_OPT_ARCH_NATIVE_SUPPORTED)
   add_compile_options(-march=native)
 endif()
 
-find_package(CUDA)
+CHECK_CXX_COMPILER_FLAG("/arch:AVX" COMPILER_OPT_ARCH_AVX_SUPPORTED)
+if (COMPILER_OPT_ARCH_AVX_SUPPORTED)
+  add_compile_options(/arch:AVX)
+endif()
+
+
+
+
+
+
+#find_package(CUDA)
 find_package(GSL REQUIRED)      # GNU Scientific Library
-#add_definitions(-DHAVE_CONFIG_H)
 
 # _GNU_SOURCE gives us more options
 INCLUDE(CheckCSourceCompiles)

@@ -14,6 +14,7 @@ endif()
 
 INCLUDE (CheckIncludeFiles)
 CHECK_INCLUDE_FILES (malloc.h HAVE_MALLOC_H)
+CHECK_INCLUDE_FILES (time.h HAVE_TIME_H)
 CHECK_INCLUDE_FILES (sys/time.h HAVE_SYS_TIME_H)
 CHECK_INCLUDE_FILES (unistd.h HAVE_UNISTD_H)
 CHECK_INCLUDE_FILES (signal.h HAVE_SIGNAL_H)
@@ -25,10 +26,10 @@ CHECK_LIBRARY_EXISTS(memkind hbw_posix_memalign "" HAVE_MEMKIND)
 
 find_package(Threads REQUIRED)
 find_package(MPI REQUIRED)	# MPI support
-find_package(CUDA)
-if (CUDA_FOUND)
-  set(USE_CUDA TRUE)
-endif(CUDA_FOUND)
+#find_package(CUDA)
+#if (CUDA_FOUND)
+#  set(USE_CUDA TRUE)
+#endif(CUDA_FOUND)
 
 CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/mdl_config.h.in ${CMAKE_CURRENT_BINARY_DIR}/mdl_config.h)
 
