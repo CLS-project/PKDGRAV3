@@ -466,7 +466,7 @@ void csmComoveGrowth(CSM csm, double a, double *D1LPT, double *D2LPT, double *f1
     //fp = fopen("GrowthFactorTable.NewBC.dat","a");
 
     int i; // running loop variable
-    for(i=0;i<=NSTEPS;i++){
+    for(i=0;i<NSTEPS;i++){
         ln_timesteps[i] = lna_init + i*stepwidth;
         //fprintf(file, "%.15f, %.5f,%.20f\n", exp(ln_timesteps[i]),1.0/exp(ln_timesteps[i])-1.0, D[i]+ 0.0001977011);
  
