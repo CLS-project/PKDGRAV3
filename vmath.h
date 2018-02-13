@@ -97,7 +97,7 @@ void sincosf(const fvec &xx, fvec &sin, fvec &cos) {
 
 /* Cost: AVX: 30 ops, SSE: 33 */
 static inline
-dvec exp(dvec x) {
+dvec exp(const dvec &x) {
     dvec d,xx,pow2n,Pexp,Qexp;
 
     const dvec C1 = 6.93145751953125E-1;
@@ -139,16 +139,15 @@ dvec exp(dvec x) {
     n1  = _mm_slli_epi64(n1, 52);
     pow2n = _mm_castsi128_pd(n1);
 #endif
-    x -= d*C1;
-    x -= d*C2;
-    xx = x * x;
+    xx = x - d*C1 - d*C2;
+    xx *= xx;
 
     Pexp = ((p0*xx + p1)*xx + p2)*x;
     Qexp = (((q0*xx + q1)*xx + q2)*xx + q3) - Pexp;
-    x = Pexp / Qexp;
-    x = (x*2.0f + 1.0f)*pow2n;
+    dvec r = Pexp / Qexp;
+    r = (r*2.0f + 1.0f)*pow2n;
 
-    return x;
+    return r;
     }
 
 /*
@@ -157,7 +156,7 @@ dvec exp(dvec x) {
 ** Cost: AVX: 105, SSE: 172
 */
 static inline
-dvec verf(dvec v,dvec iv,dvec ex2,dvec &r_erf,dvec &r_erfc) {
+dvec verf(const dvec &v,const dvec &iv,const dvec &ex2,dvec &r_erf,dvec &r_erfc) {
     dvec Perf,Qerf,v2;
     dvec t,nt;
     const dvec threshold0 = 0.65;

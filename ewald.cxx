@@ -24,8 +24,8 @@ template<class F,class E,class M>
 static int evalEwald(
     const E &ew, const M &mom,
     F &ax, F &ay, F &az, F &fPot,
-    F x, F y, F z,
-    F g0, F g1, F g2, F g3,F g4, F g5) {
+    const F &x, const F &y, const F &z,
+    const F &g0, const F &g1, const F &g2, const F &g3,const F &g4, const F &g5) {
     F onethird = 1.0/3.0;
 
     F xx = 0.5*x*x;
@@ -74,7 +74,7 @@ static int evalEwald(
 #if defined(USE_SIMD_EWALD) && defined(__SSE2__)
 double evalEwaldSIMD( PKD pkd,ewaldSIMD *ews,
     dvec &ax, dvec &ay, dvec &az, dvec &dPot,
-    v_df Ix, v_df Iy, v_df Iz, v_df Ir2, dmask doerfc ) {
+    v_df Ix, v_df Iy, v_df Iz, const v_df &Ir2, const dmask &doerfc ) {
     dvec dir,dir2,a,g0,g1,g2,g3,g4,g5,alphan;
     dvec xx,xxx,xxy,xxz,yy,yyy,yyz,xyy,zz,zzz,xzz,yzz,xy,xyz,xz,yz;
     dvec Qta,Q4mirx,Q4miry,Q4mirz,Q4mir,Q4x,Q4y,Q4z;

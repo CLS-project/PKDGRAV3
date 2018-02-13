@@ -3,10 +3,10 @@
 #endif
 template<class F,class M,bool bGravStep>
 CUDA_DEVICE void EvalPP(
-	F Pdx, F Pdy, F Pdz, F Psmooth2,     // Particle
-	F Idx, F Idy, F Idz, F fourh2, F Im, // Interaction(s)
+	const F &Pdx, const F &Pdy, const F &Pdz, const F &Psmooth2,     // Particle
+	const F &Idx, const F &Idy, const F &Idz, const F &fourh2, const F &Im, // Interaction(s)
 	F &ax, F &ay, F &az, F &pot,         // results
-	F Pax, F Pay, F Paz,F imaga, F &ir, F &norm) {
+	const F &Pax, const F &Pay, const F &Paz,const F &imaga, F &ir, F &norm) {
     static const float minSoftening = 1e-18f;
     F dx = Idx + Pdx;
     F dy = Idy + Pdy;

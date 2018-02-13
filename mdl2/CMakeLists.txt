@@ -52,6 +52,7 @@ if (MSVC)
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/windows/pthread.c
     PUBLIC  ${CMAKE_CURRENT_SOURCE_DIR}/windows/pthread.h
   )
+  target_link_libraries(${PROJECT_NAME} wsock32 ws2_32)
 endif()
 find_package(Threads REQUIRED)
 find_package(MPI REQUIRED)	# MPI support
