@@ -67,6 +67,37 @@ module mdl
       type(*) :: msg
       integer(c_int) :: n
     end subroutine mdl_get_reply
-
   end interface
+
+  contains
+    integer function mdl_threads(mdl)
+      type(mdl2_t)::mdl
+      mdl_threads = mdl%ncpu
+    end function mdl_threads
+
+    integer function mdl_self(mdl)
+      type(mdl2_t)::mdl
+      mdl_self = mdl%myid
+    end function mdl_self
+
+    integer function mdl_core(mdl)
+      type(mdl2_t)::mdl
+      mdl_core = mdl%icore
+    end function mdl_core
+
+    integer function mdl_cores(mdl)
+      type(mdl2_t)::mdl
+      mdl_cores = mdl%ncore
+    end function mdl_cores
+
+    integer function mdl_proc(mdl)
+      type(mdl2_t)::mdl
+      mdl_proc = mdl%irank
+    end function mdl_proc
+
+    integer function mdl_procs(mdl)
+      type(mdl2_t)::mdl
+      mdl_procs = mdl%nrank
+    end function mdl_procs
+
 end module mdl
