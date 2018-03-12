@@ -1487,7 +1487,7 @@ void mdlInitCommon(MDL mdl0, int iMDL,int bDiag,int argc, char **argv,
     ** maximums, as the structures will be realloc'd when these
     ** values are exceeded.
     */
-    mdl->nMaxSrvBytes = 0;
+    mdl->nMaxSrvBytes = -1;
     /*
     ** Allocate service buffers.
     */
