@@ -182,7 +182,7 @@ static uint64_t getMemoryModel(MSR msr) {
     ** can be used to request a specific model, but certain operations
     ** will force these flags to be on.
     */
-    if (msr->param.bFindGroups) mMemoryModel |= PKD_MODEL_GROUPS|PKD_MODEL_VELOCITY|PKD_MODEL_NODE_MOMENT;
+    if (msr->param.bFindGroups) mMemoryModel |= PKD_MODEL_GROUPS|PKD_MODEL_VELOCITY;
     if (msrDoGravity(msr)) {
 	mMemoryModel |= PKD_MODEL_VELOCITY|PKD_MODEL_NODE_MOMENT;
 	if (!msr->param.bNewKDK) mMemoryModel |= PKD_MODEL_ACCELERATION;

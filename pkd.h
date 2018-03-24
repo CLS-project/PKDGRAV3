@@ -561,6 +561,7 @@ typedef struct {
 typedef struct {
     pos_t rPot[3];
     float minPot;
+    float rcen[3];
     float rcom[3];
     float vcom[3];
     float angular[3];
