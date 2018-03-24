@@ -85,6 +85,7 @@ struct parameters {
     int bAddDelete;
     int bLightCone;
     int bLightConeParticles;
+    int bInFileLC;
     double dRedshiftLCP;
     int nSideHealpix;
     /* BEGIN Gas Parameters */

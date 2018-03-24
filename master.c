@@ -1174,6 +1174,9 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.bLightConeParticles = 0;
     prmAddParam(msr->prm,"bLightConeParticles",0,&msr->param.bLightConeParticles,sizeof(int),"lcp",
 		"output light cone particles = -lcp");
+    msr->param.bInFileLC = 0;
+    prmAddParam(msr->prm,"bInFileLC",0,&msr->param.bInFileLC,sizeof(int),"lcin",
+		"input light cone data = -lcin");
     msr->param.dRedshiftLCP = 0;
     prmAddParam(msr->prm,"dRedshiftLCP",2,&msr->param.dRedshiftLCP,sizeof(double),"zlcp",
 		"starting redshift to output light cone particles = 0");

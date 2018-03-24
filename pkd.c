@@ -1130,6 +1130,19 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	    }
 
 	for (j=0;j<3;++j) pkdSetPos(pkd,p,j,r[j]);
+
+	if (pkd->param.bInFileLC) {
+	    double tLookback,a;
+	    double r2 = 0.0;
+
+	    for (j=0;j<3;++j) {
+		r2 += r[j]*r[j];
+		}
+	    r2 = sqrt(r2); /* comoving lookback distance */
+	    tLookback = r2/dLightSpeedSim(pkd->param.dBoxSize);
+	    a = csmComoveLookbackTime2Exp(pkd->param.csm,tLookback);
+	    dvFac = 1.0/a; /* input velocities are momenta p = a^2*x_dot and we want v_pec = a*x_dot */
+	    }
 	if (pkd->oVelocity) {
 	    for (j=0;j<3;++j) pkdVel(pkd,p)[j] = vel[j]*dvFac;
 	    }
