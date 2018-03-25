@@ -365,7 +365,7 @@ void * master_ch(MDL mdl) {
 	    }
 	if (msrLogInterval(msr)) (void) fclose(fpLog);
 	}
-
+    printf("Done all, just finishing up now with msrFinish()\n");
     msrFinish(msr);
     return NULL;
     }
