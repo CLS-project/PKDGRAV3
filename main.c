@@ -190,7 +190,7 @@ void * master_ch(MDL mdl) {
 	    if (msr->param.bFindGroups) {
 		msrNewFof(msr,csmTime2Exp(msr->param.csm,dTime));
 		}
-	    if (msrDoGravity(msr) || msr->param.bFindGroups) {
+	    if (msrDoGravity(msr)) {
 		msrGravity(msr,0,MAX_RUNG,ROOT,0,dTime,iStartStep,0,0,
 		    msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
 		msrMemStatus(msr);
@@ -365,7 +365,7 @@ void * master_ch(MDL mdl) {
 	    }
 	if (msrLogInterval(msr)) (void) fclose(fpLog);
 	}
-
+    printf("Done all, just finishing up now with msrFinish()\n");
     msrFinish(msr);
     return NULL;
     }

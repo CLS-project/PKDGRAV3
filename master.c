@@ -182,7 +182,7 @@ static uint64_t getMemoryModel(MSR msr) {
     ** can be used to request a specific model, but certain operations
     ** will force these flags to be on.
     */
-    if (msr->param.bFindGroups) mMemoryModel |= PKD_MODEL_GROUPS|PKD_MODEL_VELOCITY|PKD_MODEL_NODE_MOMENT;
+    if (msr->param.bFindGroups) mMemoryModel |= PKD_MODEL_GROUPS|PKD_MODEL_VELOCITY;
     if (msrDoGravity(msr)) {
 	mMemoryModel |= PKD_MODEL_VELOCITY|PKD_MODEL_NODE_MOMENT;
 	if (!msr->param.bNewKDK) mMemoryModel |= PKD_MODEL_ACCELERATION;
@@ -748,13 +748,12 @@ static int validateParameters(PRM prm,struct parameters *param) {
     if (param->dyPeriod == 0) param->dyPeriod = FLOAT_MAXVAL;
     if (param->dzPeriod == 0) param->dzPeriod = FLOAT_MAXVAL;
     /*
-    ** At the moment, integer positions only work on periodic boxes.
+    ** At the moment, integer positions are only really safe in periodic boxes!Wr
     */
 #ifdef INTEGER_POSITION
     if (!param->bPeriodic||param->dxPeriod!=1.0||param->dyPeriod!=1.0||param->dzPeriod!=1.0) {
-	fprintf(stderr,"ERROR: Integer coordinates are enabled but the the box is not periodic\n"
+	fprintf(stderr,"WARNING: Integer coordinates are enabled but the the box is not periodic\n"
 	               "       and/or the box size is not 1. Set bPeriodic=1 and dPeriod=1.\n");
-	return 0;
 	}
 #endif
 
@@ -881,11 +880,7 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.nDigits = 5;
     prmAddParam(msr->prm,"nDigits",1,&msr->param.nDigits,sizeof(int),"nd",
 		"<number of digits to use in output filenames> = 5");
-#ifdef INTEGER_POSITION
-    msr->param.bPeriodic = 1;
-#else
     msr->param.bPeriodic = 0;
-#endif
     prmAddParam(msr->prm,"bPeriodic",0,&msr->param.bPeriodic,sizeof(int),"p",
 		"periodic/non-periodic = -p");
     msr->param.bRestart = 0;
@@ -1174,6 +1169,9 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.bLightConeParticles = 0;
     prmAddParam(msr->prm,"bLightConeParticles",0,&msr->param.bLightConeParticles,sizeof(int),"lcp",
 		"output light cone particles = -lcp");
+    msr->param.bInFileLC = 0;
+    prmAddParam(msr->prm,"bInFileLC",0,&msr->param.bInFileLC,sizeof(int),"lcin",
+		"input light cone data = -lcin");
     msr->param.dRedshiftLCP = 0;
     prmAddParam(msr->prm,"dRedshiftLCP",2,&msr->param.dRedshiftLCP,sizeof(double),"zlcp",
 		"starting redshift to output light cone particles = 0");
@@ -1882,11 +1880,13 @@ int msrCheckForStop(MSR msr,const char *achStopFile) {
 
 void msrFinish(MSR msr) {
    int id;
+   printf("1\n");
     for (id=1;id<msr->nThreads;++id) {
 	int rID;
 	rID = mdlReqService(msr->mdl,id,SRV_STOP,NULL,0);
 	mdlGetReply(msr->mdl,rID,NULL,NULL);
 	}
+   printf("2\n");
     pstFinish(msr->pst);
     csmFinish(msr->param.csm);
     /*
@@ -5156,6 +5156,7 @@ double msrRead(MSR msr, const char *achInFile) {
 	msr->N, j, (j==1?"":"s"), read->nProcessors, (read->nProcessors==1?"":"s") );
 
     dTime = getTime(msr,dExpansion,&read->dvFac);
+    if (msr->param.bInFileLC) read->dvFac = 1.0;
     read->dTuFac = msr->param.dTuFac;
     
     if (msr->nGas && !prmSpecified(msr->prm,"bDoGas")) msr->param.bDoGas = 1;

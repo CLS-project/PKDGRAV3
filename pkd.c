@@ -852,10 +852,13 @@ void pkdFinish(PKD pkd) {
 #ifdef _MSC_VER
 	_aligned_free(pkd->pStorePRIVATE);
 #else
+    printf("h\n");
 	mdlFree(pkd->mdl, pkd->pStorePRIVATE);
+    printf("ha\n");
 #endif
     }
     free(pkd->pTempPRIVATE);
+    printf("i\n");
     if (pkd->pLightCone) {
 #ifdef _MSC_VER
 	_aligned_free(pkd->pLightCone);
@@ -863,6 +866,7 @@ void pkdFinish(PKD pkd) {
 	free(pkd->pLightCone);
 #endif
         }
+    printf("j\n");
     if (pkd->pHealpixData) free(pkd->pHealpixData);
     io_free(&pkd->afiLightCone);
     csmFinish(pkd->param.csm);
@@ -1129,7 +1133,23 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	    assert(0);
 	    }
 
-	for (j=0;j<3;++j) pkdSetPos(pkd,p,j,r[j]);
+	for (j=0;j<3;++j) {
+	    pkdSetPos(pkd,p,j,r[j]);
+	    }
+#if 0
+	if (pkd->param.bInFileLC) {
+	    double tLookback,a;
+	    double r2 = 0.0;
+
+	    for (j=0;j<3;++j) {
+		r2 += r[j]*r[j];
+		}
+	    r2 = sqrt(r2); /* comoving lookback distance */
+	    tLookback = r2/dLightSpeedSim(pkd->param.dBoxSize);
+	    a = csmComoveLookbackTime2Exp(pkd->param.csm,tLookback);
+	    dvFac = 1.0/a; /* input velocities are momenta p = a^2*x_dot and we want v_pec = a*x_dot */
+	    }
+#endif
 	if (pkd->oVelocity) {
 	    for (j=0;j<3;++j) pkdVel(pkd,p)[j] = vel[j]*dvFac;
 	    }
