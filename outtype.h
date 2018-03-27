@@ -6,7 +6,6 @@
 #define OUT_TIPSY_STD            0
 #define OUT_TIPSY_DBL            1
 
-#define OUT_COLOR_ARRAY		10
 #define OUT_DENSITY_ARRAY	11
 #define OUT_POT_ARRAY		12
 #define OUT_AMAG_ARRAY		13
@@ -35,10 +34,6 @@
 #define OUT_HOP_STATS          100
 
 #define OUT_GROUP_ARRAY	       112
-#define OUT_GROUP_TIPSY_NAT    113
-#define OUT_GROUP_TIPSY_STD    114
-#define OUT_GROUP_STATS        115
-#define OUT_GROUP_PROFILES     116
 #define OUT_RELAX_ARRAY        120
 #define OUT_BALL_ARRAY         121
 #define OUT_PSGROUP_ARRAY      122
@@ -96,8 +91,4 @@ void pkdFinishOutASCII(PKD pkd,PKDOUT ctx);
 uint64_t pkdCountOutASCII(PKD pkd,PKDOUT ctx);
 void pkdDumpOutASCII(PKD pkd,PKDOUT ctx,FILE *fp);
 void pkdFreeOutASCII(PKD pkd,PKDOUT ctx);
-
-
-void pkdOutGroup(PKD,char *,int,int,double);
-
 #endif

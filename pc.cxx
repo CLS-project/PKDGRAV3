@@ -1,5 +1,7 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
+#else
+#include "pkd_config.h"
 #endif
 #ifndef xxUSE_SIMD_PC
 #define MPICH_SKIP_MPICXX

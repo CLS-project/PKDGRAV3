@@ -1,10 +1,15 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
+#else
+#include "pkd_config.h"
 #endif
-
 #define _LARGEFILE_SOURCE
 #define _FILE_OFFSET_BITS 64
-
+#ifdef HAVE_INTTYPES_H
+#include <inttypes.h>
+#else
+#define PRIu64 "llu"
+#endif
 #include "iomodule.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -779,10 +784,6 @@ void pkdInitialize(
     pkd->hopGroups = NULL;
     pkd->hopRootIndex = NULL;
     pkd->hopRoots = NULL;
-
-#ifdef COOLING
-    pkd->Cool = CoolInit();
-#endif
     assert(pkdNodeSize(pkd) > 0);
     }
 
@@ -851,10 +852,13 @@ void pkdFinish(PKD pkd) {
 #ifdef _MSC_VER
 	_aligned_free(pkd->pStorePRIVATE);
 #else
+    printf("h\n");
 	mdlFree(pkd->mdl, pkd->pStorePRIVATE);
+    printf("ha\n");
 #endif
     }
     free(pkd->pTempPRIVATE);
+    printf("i\n");
     if (pkd->pLightCone) {
 #ifdef _MSC_VER
 	_aligned_free(pkd->pLightCone);
@@ -862,6 +866,7 @@ void pkdFinish(PKD pkd) {
 	free(pkd->pLightCone);
 #endif
         }
+    printf("j\n");
     if (pkd->pHealpixData) free(pkd->pHealpixData);
     io_free(&pkd->afiLightCone);
     csmFinish(pkd->param.csm);
@@ -1128,7 +1133,23 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	    assert(0);
 	    }
 
-	for (j=0;j<3;++j) pkdSetPos(pkd,p,j,r[j]);
+	for (j=0;j<3;++j) {
+	    pkdSetPos(pkd,p,j,r[j]);
+	    }
+#if 0
+	if (pkd->param.bInFileLC) {
+	    double tLookback,a;
+	    double r2 = 0.0;
+
+	    for (j=0;j<3;++j) {
+		r2 += r[j]*r[j];
+		}
+	    r2 = sqrt(r2); /* comoving lookback distance */
+	    tLookback = r2/dLightSpeedSim(pkd->param.dBoxSize);
+	    a = csmComoveLookbackTime2Exp(pkd->param.csm,tLookback);
+	    dvFac = 1.0/a; /* input velocities are momenta p = a^2*x_dot and we want v_pec = a*x_dot */
+	    }
+#endif
 	if (pkd->oVelocity) {
 	    for (j=0;j<3;++j) pkdVel(pkd,p)[j] = vel[j]*dvFac;
 	    }
@@ -2098,17 +2119,7 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,BND *bnd,PARTICLE *p) {
 	assert(pkd->param.dTuFac>0.0);
 	    {
 	    double T;
-#ifdef COOLING
-	    COOLPARTICLE cp;
-	    if (pkd->param.bGasCooling) {
-		double E = pSph->u;
-		CoolTempFromEnergyCode( pkd->Cool, 
-		    &cp, &E, &T, p->fDensity, pSph->fMetals );
-		}
-	    else T = pSph->u/pkd->param.dTuFac;
-#else
 	    T = pSph->u/pkd->param.dTuFac;
-#endif
 	    fioWriteSph(fio,iParticleID,r,v,fMass,fSoft,*pPot,
 		fDensity,T,pSph->fMetals);
 	    }
@@ -2720,7 +2731,7 @@ void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, 
 
 
 	if (pkd->param.bVDetails) {
-	    printf("%*cAdjust at iRung: %d, nMaxRung:%d nRungCount[%d]=%lld\n",
+	    printf("%*cAdjust at iRung: %d, nMaxRung:%d nRungCount[%d]=%"PRIu64"\n",
 		   2*iRung+2,' ',iRung,*pnMaxRung,*pnMaxRung,nRungCount[*pnMaxRung]);
 	    }
 
@@ -3033,17 +3044,7 @@ void pkdSphStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,double dAccFac) {
 		if (uNewRung > p->uNewRung) p->uNewRung = uNewRung;
 		if (!(p->iOrder%10000) || (p->uNewRung > 5 && !(p->iOrder%1000))) {
 		    SPHFIELDS *sph = pkdSph(pkd,p);
-#ifdef COOLING
-		    double T, E = sph->u;
-		    if (pkd->param.bGasIsothermal) T = E/pkd->param.dTuFac;
-		    else {
-			COOLPARTICLE cp;
-			CoolTempFromEnergyCode( pkd->Cool, &cp, &E, &T, p->fDensity, sph->fMetals );
-		    }
-
-#else
 		    /*T = E/pkd->param.dTuFac;*/
-#endif
 		    }
 		}
 	    }
@@ -3061,9 +3062,6 @@ void pkdStarForm(PKD pkd, double dRateCoeff, double dTMax, double dDenMin,
 		 int *nDeleted) /* gas particles deleted */ {
 
     PARTICLE *p;
-#ifdef COOLING
-    COOLPARTICLE cp;
-#endif
     SPHFIELDS *sph;
     double T, E, dmstar, dt, prob;
     PARTICLE *starp;
@@ -3089,13 +3087,7 @@ void pkdStarForm(PKD pkd, double dRateCoeff, double dTMax, double dDenMin,
 	    pkdStar(pkd,p)->totaltime += dt;
 	    if (pkdDensity(pkd,p) < dDenMin || (bdivv && sph->divv >= 0.0)) continue;
 	    E = sph->uPred;
-#ifdef COOLING
-	    if (pkd->param.bGasCooling) 
-		CoolTempFromEnergyCode( pkd->Cool, &cp, &E, &T, p->fDensity, sph->fMetals );
-	    else T=E/pkd->param.dTuFac;
-#else
 	    T=E/pkd->param.dTuFac;
-#endif
 	    if (T > dTMax) continue;
 	    
             /* Note: Ramses allows for multiple stars per step -- but we have many particles
@@ -3103,7 +3095,7 @@ void pkdStarForm(PKD pkd, double dRateCoeff, double dTMax, double dDenMin,
 	    if (pkd->param.bGasCooling) {
 		if (fabs(pkdStar(pkd,p)->totaltime-dTime) > 1e-3*dt) {
 		    printf("total time error: %"PRIu64",  %g %g %g\n",
-                p->iOrder,pkdStar(pkd,p)->totaltime,dTime,dt);
+                (uint64_t)p->iOrder,pkdStar(pkd,p)->totaltime,dTime,dt);
 		    assert(0);
 		    }
 		}
@@ -3154,9 +3146,6 @@ void pkdCooling(PKD pkd, double dTime, double z, int bUpdateState, int bUpdateTa
     PARTICLE *p;
     int i;
     SPHFIELDS *sph;
-#ifdef COOLING
-    COOLPARTICLE cp;  /* Dummy: Not yet fully implemented */
-#endif
     double E,dt,ExternalHeating;
   
     pkdClearTimer(pkd,1);
@@ -3172,10 +3161,6 @@ void pkdCooling(PKD pkd, double dTime, double z, int bUpdateState, int bUpdateTa
 	    }
 	}
     else {
-
-#ifdef COOLING
-	CoolSetTime( pkd->Cool, dTime, z, bUpdateTable );
-#endif	
 	if (bIterateDt) { /* Iterate Cooling & dt for each particle */
 	    for (i=0;i<pkdLocal(pkd);++i) {
 		p = pkdParticle(pkd,i);
@@ -3188,9 +3173,6 @@ void pkdCooling(PKD pkd, double dTime, double z, int bUpdateState, int bUpdateTa
 			
 			E = sph->u;
 			dt = pkd->param.dDelta/(1<<p->uNewRung); /* Rung Guess */
-#ifdef COOLING
-			CoolIntegrateEnergyCode(pkd->Cool, &cp, &E, ExternalHeating, p->fDensity, sph->fMetals, p->r, dt);
-#endif
 			uDot = (E-sph->u)/dt; 
 			if (uDot < 0) {
 			    double dtNew;
@@ -3219,9 +3201,6 @@ void pkdCooling(PKD pkd, double dTime, double z, int bUpdateState, int bUpdateTa
 		    ExternalHeating = sph->uDot;
 		    E = sph->u;
 		    dt = pkd->param.dDelta/(1<<p->uRung); /* Actual Rung */
-#ifdef COOLING
-		    CoolIntegrateEnergyCode(pkd->Cool, &cp, &E, ExternalHeating, p->fDensity, sph->fMetals, p->r, dt);
-#endif
 		    sph->uDot = (E-sph->u)/dt; /* To let us interpolate/extrapolate uPred */
 		    }
 		}
@@ -3236,59 +3215,13 @@ void pkdCorrectEnergy(PKD pkd, double dTuFac, double z, double dTime, int iDirec
     SPHFIELDS *sph;
     int i;
     double T,E;
-#ifdef COOLING
-    COOL *cl;
-    COOLPARTICLE cp; /* Dummy for now */
-#endif
-
-#ifdef COOLING
-    cl = pkd->Cool;
-    CoolSetTime( cl, dTime, z, 1 );
-#endif
     switch(iDirection)  {
     case CORRECTENERGY_IN:
-#ifdef COOLING
-	for(i=0;i<pkdLocal(pkd);++i) {
-	    p = pkdParticle(pkd,i);
-	    if (pkdIsGas(pkd,p)) {
-		sph = pkdSph(pkd,p);
-		T = sph->u/dTuFac;
-		CoolEnergyCodeFromTemp( cl, &cp, &E, &T, p->fDensity, sph->fMetals );
-		sph->u = E;
-		sph->uPred = E;
-		pkdStar(pkd,p)->totaltime = dTime;
-		}
-	    }
-#endif
 	break;
 	/* Careful using this -- it permanenty converts the thermal energy */
     case CORRECTENERGY_OUT: 
-#ifdef COOLING
-	for(i=0;i<pkdLocal(pkd);++i) {
-	    p = pkdParticle(pkd,i);
-	    if (pkdIsGas(pkd,p)) {
-		sph = pkdSph(pkd,p);
-		E = sph->u;
-		CoolTempFromEnergyCode( cl, &cp, &E, &T, p->fDensity, sph->fMetals );
-		sph->u = T*dTuFac;
-		sph->uPred = T*dTuFac;
-		}
-	    }
-#endif
 	break;
     case CORRECTENERGY_SPECIAL:
-#ifdef COOLING
-	for(i=0;i<pkdLocal(pkd);++i) {
-	    p = pkdParticle(pkd,i);
-	    if (pkdIsGas(pkd,p)) {
-		sph = pkdSph(pkd,p);
-		T = sph->u/dTuFac; 
-		CoolInitEnergyCode( cl, &cp, &E, &T, p->fDensity, sph->fMetals );
-		sph->u = E;
-		sph->uPred = E;
-		}
-	    }
-#endif
 	break;
     default:
 	assert(0);
@@ -3997,39 +3930,6 @@ int pkdSelDstGroup(PKD pkd, int iGroup) {
     return n;
     }
 
-/*
-**  Find the source particle with the deepest potential
-*/
-int pkdDeepestPot(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
-    double *r, float *fPot) {
-    int i,n,nChecked;
-    PARTICLE *p, *pLocal;
-    float *pPot, *pPotLocal;
-
-    assert(pkd->oPotential);
-
-    n = pkdLocal(pkd);
-    pLocal = pkdParticle(pkd,0);
-    pPotLocal = pkdPot(pkd,pLocal);
-    nChecked = 0;
-    for (i=0;i<n;++i) {
-	p = pkdParticle(pkd,i);
-	if (pkdIsSrcActive(p,uRungLo,uRungHi)) {
-	    nChecked++;
-	    pPot = pkdPot(pkd,p);
-	    if ( *pPot < *pPotLocal ) {
-		pLocal = p;
-		pPotLocal = pkdPot(pkd,pLocal);
-		}
-	    }
-	}
-    r[0] = pkdPos(pkd,pLocal,0);
-    r[1] = pkdPos(pkd,pLocal,1);
-    r[2] = pkdPos(pkd,pLocal,2);
-    *fPot= *pPotLocal;
-    return nChecked;
-    }
-
 void pkdOutPsGroup(PKD pkd,char *pszFileName,int iType)
 {
     FILE *fp;
@@ -4044,7 +3944,7 @@ void pkdOutPsGroup(PKD pkd,char *pszFileName,int iType)
 	{
 	    if (gd[i].iPid != pkd->idSelf) continue;
 	    fprintf(fp,"%d",gd[i].iGlobalId);
-	    fprintf(fp," %10llu",gd[i].nTotal);
+	    fprintf(fp," %10"PRIu64"",gd[i].nTotal);
 	    fprintf(fp," %12.8e",gd[i].fMass);
 	    fprintf(fp," %12.8e",gd[i].fRMSRadius);
 	    fprintf(fp," %12.8e",gd[i].r[0]);
@@ -4068,7 +3968,7 @@ void pkdOutPsGroup(PKD pkd,char *pszFileName,int iType)
 	}
 	if (fclose(fp) == EOF)
 	{
-	    perror("pkdOutGroup: could not close file");
+	    perror("pkdOutPsGroup: could not close file");
 	    exit(1);
 	}
     }

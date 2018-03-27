@@ -1,7 +1,13 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
+#else
+#include "pkd_config.h"
 #endif
-
+#ifdef HAVE_INTTYPES_H
+#include <inttypes.h>
+#else
+#define PRIu64 "llu"
+#endif
 #include <stdio.h>
 #include <math.h>
 #include <assert.h>
@@ -250,12 +256,12 @@ void PrintNN(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
     int i;
 
-    printf("%llu:",p->iOrder);
+    printf("%"PRIu64":",(uint64_t)p->iOrder);
     for (i=0;i<nSmooth;++i) {
 	if (pkdIsActive(pkd,nnList[i].pPart))
-	    printf("%llu ",nnList[i].pPart->iOrder);
+	    printf("%"PRIu64" ",(uint64_t)nnList[i].pPart->iOrder);
 	else 
-	    printf("\033[7m%llu\033[0m ",nnList[i].pPart->iOrder);
+	    printf("\033[7m%"PRIu64"\033[0m ",(uint64_t)nnList[i].pPart->iOrder);
 	}
     printf("\n");
     }
@@ -1104,37 +1110,6 @@ void VelDisp2Sym(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 	pvel->veldisp2 += rs*fMassQ/pkdDensity(pkd,q)*tv2;
 	qvel->veldisp2 += rs*fMassP/pkdDensity(pkd,p)*tv2;
 	}
-    }
-
-
-
-void initGroupMerge(void *vpkd, void *g) {
-    }
-void combGroupMerge(void *vpkd, void *g1, void *g2) {
-    FOFGD * gd1 = (FOFGD *)g1;
-    FOFGD * gd2 = (FOFGD *)g2;
-
-    /* accept second (remote) group number, if its smaller */
-    if (gd1->iGlobalId < gd2->iGlobalId)
-	gd2->iGlobalId = gd1->iGlobalId;
-    else gd1->iGlobalId = gd2->iGlobalId;
-    /* if someone says that this not my group, accept it */
-    gd1->bMyGroup *= gd2->bMyGroup;
-    gd2->bMyGroup *= gd1->bMyGroup;
-    }
-void initGroupBins(void *vpkd, void *b) {
-    FOFBIN * gb1 = (FOFBIN *)b;
-
-    gb1->nMembers = 0;
-    gb1->fMassInBin = 0.0;
-    }
-void combGroupBins(void *vpkd, void *b1, void *b2) {
-    FOFBIN * gb1 = (FOFBIN *)b1;
-    FOFBIN * gb2 = (FOFBIN *)b2;
-
-    /* add entries */
-    gb1->nMembers += gb2->nMembers;
-    gb1->fMassInBin += gb2->fMassInBin;
     }
 
 void AddRelaxation(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {

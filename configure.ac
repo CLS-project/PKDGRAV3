@@ -54,31 +54,7 @@ fi
 AM_CONDITIONAL(HAVE_DARWIN,[test "${target_os}x" != "${target_os##darwin}x"])
 AC_CHECK_LIB([m], [cos])
 
-AC_DEFINE([HAVE_ROMBERG], 1, [Use the pkdgrav3 Romberg integrator.])
 AC_DEFINE([NAIVE_DOMAIN_DECOMP], 1, [Use a simplified domain decomposition.])
-
-# Cooling
-AC_ARG_ENABLE(cooling,
-  [  --enable-cooling             enable cooling],
-  [COOLING=yes
-   AC_DEFINE([COOLING], 1,
- 	[Define if cooling module should be used.])])
-AM_CONDITIONAL(COOLING, test "x$COOLING" = "xyes")
-
-if test "x$COOLING" = "xyes" ; then
-#AC_PROG_FC
-#AC_FC_MAIN
-#AC_FC_DUMMY_MAIN
-##AC_FC_WRAPPERS
-#FC_MODULE_WRAPPERS
-AC_ARG_WITH(mpif90,
-  [  --with-mpif90=mpif90    specify the name of the MPI f90 compiler],
-  [MPIFC="${withval}"],[AC_CHECK_PROG([MPIFC],mpif90,mpif90,no)])
-AC_SUBST(MPIFC)
-else
-AC_DEFINE([FC_MAIN],main,
-	[C main function (varies if FORTRAN is being used).])
-fi
 
 # The floating point data type - This should be detected and --with-float added
 AC_DEFINE([FLOAT_MAXVAL],HUGE,
@@ -122,6 +98,7 @@ if test "$with_fftw" != "no" ; then
 fi
 AM_CONDITIONAL(FFTW, test "$with_fftw" != "no")
 AM_PATH_GSL(1.8,[],[AC_MSG_ERROR([Unable to locate GNU Scientific Library (gsl)])])
+AC_DEFINE([HAVE_GSL], 1, [GSL library is compulsory])
 
 # Electric fence
 AC_ARG_WITH(efence,
@@ -370,17 +347,6 @@ fi
 AC_DEFINE([MOMFLOAT],double,
 	[This defines the base floating point type for moments.])
 
-# Change softening
-CHANGESOFT=yes
-AC_ARG_ENABLE(change-softening,
-  [  --disable-change-softening     disable softening change],
-  [if test "x$enableval" = "xno" ; then CHANGESOFT=no ; fi])
-if test "x$CHANGESOFT" = "xyes" ; then
-AC_DEFINE([CHANGESOFT], 1,
- 	[Define if softening can be changed.])
-fi
-AM_CONDITIONAL(CHANGESOFT, test "x$CHANGESOFT" = "xyes")
-
 # HSHRINK M4 Kernel
 AC_ARG_ENABLE(hshrink,
   [  --enable-hshrink               enable HSHRINK M4 Kernel],
@@ -593,29 +559,13 @@ AM_CONDITIONAL(HAVE_RDYNAMIC,test "x$HAVE_RDYNAMIC" = "xyes")
 AC_CHECK_LIB([bz2],[BZ2_bzWriteOpen])
 
 # Checks for header files.
-AC_FUNC_ALLOCA
 AC_FUNC_FSEEKO
-AC_FUNC_MALLOC
-AC_FUNC_REALLOC
-AC_FUNC_STAT
-AC_FUNC_VPRINTF
-AC_HEADER_STDC
 AC_CHECK_HEADERS([fcntl.h limits.h malloc.h stddef.h stdlib.h string.h sys/param.h sys/time.h unistd.h ansidecl.h fenv.h signal.h])
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_C_CONST
 AC_C_INLINE
 AC_C_RESTRICT
-AC_TYPE_OFF_T
-AC_TYPE_SIZE_T
-AC_TYPE_INT16_T
-AC_TYPE_INT32_T
-AC_TYPE_INT64_T
-AC_TYPE_UINT16_T
-AC_TYPE_UINT32_T
-AC_TYPE_UINT64_T
-AC_TYPE_UINT8_T
-AC_HEADER_STDBOOL
 AC_HEADER_TIME
 AC_SYS_LARGEFILE
 
@@ -640,8 +590,6 @@ fi
 AC_CHECK_FUNCS([wordexp wordfree glob globfree gethostname getpagesize mkdir strverscmp])
 AC_CHECK_FUNCS([floor gettimeofday pow sqrt strchr strdup strrchr strstr],,[AC_MSG_ERROR([not found])])
 AX_PTHREAD
-#AM_CONDITIONAL(HAVE_PTHREAD,test "x$ax_pthread_ok" = "xyes")
-AM_CONDITIONAL(HAVE_PTHREAD,false)
 
 AC_CONFIG_FILES([Makefile])
 AC_CONFIG_SUBDIRS([openpa])

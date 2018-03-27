@@ -347,7 +347,6 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     <ClInclude Include="..\..\bt.h" />
     <ClInclude Include="..\..\cl.h" />
     <ClInclude Include="..\..\clutil.h" />
-    <ClInclude Include="..\..\cooling.h" />
     <ClInclude Include="..\..\cosmo.h" />
     <ClInclude Include="..\..\cudautil.h" />
     <ClInclude Include="..\..\cycle.h" />

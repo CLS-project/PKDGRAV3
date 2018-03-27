@@ -1,6 +1,3 @@
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
 #include "mdlbase.h"
 //#include <WinSock2.h> /* gethostname */
 #ifdef __linux__
@@ -9,7 +6,7 @@
 #include <time.h>
 #endif
 #include <assert.h>
-#if !defined(HAVE_CONFIG_H) || defined(HAVE_MALLOC_H)
+#ifdef HAVE_MALLOC_H
 #include <malloc.h>
 #endif
 #ifdef HAVE_SYS_TIME_H
@@ -117,7 +114,7 @@ void mdlBaseAddService(mdlBASE *base, int sid, void *p1,
     int nInBytes, int nOutBytes) {
     int i, nMaxServices;
 
-    assert(sid > 0);
+    assert(sid >= 0); /* We can replace SRV_STOP to do something at the end */
     if (sid >= base->nMaxServices) {
         /*
         ** reallocate service buffer, adding space for 8 new services

@@ -1,5 +1,7 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
+#else
+#include "pkd_config.h"
 #endif
 #include <math.h>
 #include "group.h"
@@ -279,18 +281,3 @@ int pkdPurgeSmallGroups(PKD pkd,int nGroups,struct smGroupArray *ga,int nMinGrou
    nGroups = reorderGroups(pkd,nGroups,ga);
    return(nGroups);
    }
-
-
-/*
-** pkd->nLocalGroups is the count of groups owned by this processor.
-*/
-int pkdGroupCountGID(PKD pkd) {
-    return pkd->nLocalGroups;
-    }
-
-
-void pkdGroupAssignGID(PKD pkd,uint64_t iStartGID) {
-    pkd->iStartGID = iStartGID;
-    }
-
-

@@ -7,34 +7,10 @@
 #define _USE_MATH_DEFINES
 #define NO_XDR
 #define NO_COOLING
-/* Define if softening can be changed. */
-#define CHANGESOFT 1
-
 /* Define to one of `_getb67', `GETB67', `getb67' for Cray-2 and Cray-YMP
    systems. This function is required for `alloca.c' support on those systems.
    */
 /* #undef CRAY_STACKSEG_END */
-
-/* Define to 1 if using `alloca.c'. */
-/* #undef C_ALLOCA */
-
-/* Define to dummy `main' function (if any) required to link to the Fortran
-   libraries. */
-/* #undef FC_DUMMY_MAIN */
-
-/* Define if F77 and FC dummy `main' functions are identical. */
-/* #undef FC_DUMMY_MAIN_EQ_F77 */
-
-/* Define to alternate name for `main' routine that is called from a `main' in
-   the Fortran libraries. */
-#define FC_MAIN main
-
-/* Define to a macro mangling the given C identifier (in lower and upper
-   case), which must not contain underscores, for linking with Fortran. */
-#define FC_MOD_FUNC(mod,MOD,name,NAME) __##mod##__##name
-
-/* As FC_MOD_FUNC, but for C identifiers containing underscores. */
-#define FC_MOD_FUNC_(mod,MOD,name,NAME) __##mod##__##name
 
 /* This defines the base floating point type for particles. */
 #define FLOAT double
@@ -166,9 +142,6 @@
    zero-length file name argument. */
 /* #undef HAVE_STAT_EMPTY_STRING_BUG */
 
-/* Define to 1 if stdbool.h conforms to C99. */
-#define HAVE_STDBOOL_H 1
-
 /* Define to 1 if you have the <stddef.h> header file. */
 #define HAVE_STDDEF_H 1
 
@@ -222,9 +195,6 @@
 
 /* Define to 1 if you have the `wordfree' function. */
 /* #undef HAVE_WORDFREE */
-
-/* Define to 1 if the system has the type `_Bool'. */
-#define HAVE__BOOL 1
 
 /* Define if you have the UNICOS _rtc() intrinsic. */
 /* #undef HAVE__RTC */

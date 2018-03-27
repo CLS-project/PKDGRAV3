@@ -127,7 +127,6 @@
     <ClInclude Include="..\..\bt.h" />
     <ClInclude Include="..\..\cl.h" />
     <ClInclude Include="..\..\collision.h" />
-    <ClInclude Include="..\..\cooling.h" />
     <ClInclude Include="..\..\cosmo.h" />
     <ClInclude Include="..\..\cycle.h" />
     <ClInclude Include="..\..\ewald.h" />

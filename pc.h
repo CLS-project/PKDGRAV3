@@ -3,16 +3,16 @@
 #endif
 template<class F,class M,bool bGravStep>
 CUDA_DEVICE void EvalPC(
-	F Pdx, F Pdy, F Pdz, F Psmooth2, // Particle
-	F Idx, F Idy, F Idz, F Im, F Iu, // Interaction(s)
-	F Ixxxx,F Ixxxy,F Ixxxz,F Ixxyz,F Ixxyy,F Iyyyz,F Ixyyz,F Ixyyy,F Iyyyy,
-	F Ixxx,F Ixyy,F Ixxy,F Iyyy,F Ixxz,F Iyyz,F Ixyz,
-	F Ixx,F Ixy,F Ixz,F Iyy,F Iyz,
+	const F &Pdx, const F &Pdy, const F &Pdz, const F &Psmooth2, // Particle
+	const F &Idx, const F &Idy, const F &Idz, const F &Im, const F &Iu, // Interaction(s)
+	const F &Ixxxx,const F &Ixxxy,const F &Ixxxz,const F &Ixxyz,const F &Ixxyy,const F &Iyyyz,const F &Ixyyz,const F &Ixyyy,const F &Iyyyy,
+	const F &Ixxx,const F &Ixyy,const F &Ixxy,const F &Iyyy,const F &Ixxz,const F &Iyyz,const F &Ixyz,
+	const F &Ixx,const F &Ixy,const F &Ixz,const F &Iyy,const F &Iyz,
 #ifdef USE_DIAPOLE
-	F Ix, F Iy, F Iz,
+	const F &Ix, const F &Iy, const F &Iz,
 #endif
 	F &ax, F &ay, F &az, F &pot,     // Results
-	F Pax, F Pay, F Paz,F imaga,F &ir, F &norm) {
+	const F &Pax, const F &Pay, const F &Paz,const F &imaga,F &ir, F &norm) {
     const F onethird = 1.0f/3.0f;
     F dx = Idx + Pdx;
     F dy = Idy + Pdy;

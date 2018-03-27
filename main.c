@@ -1,5 +1,7 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
+#else
+#include "pkd_config.h"
 #endif
 
 #define _LARGEFILE_SOURCE
@@ -188,7 +190,7 @@ void * master_ch(MDL mdl) {
 	    if (msr->param.bFindGroups) {
 		msrNewFof(msr,csmTime2Exp(msr->param.csm,dTime));
 		}
-	    if (msrDoGravity(msr) || msr->param.bFindGroups) {
+	    if (msrDoGravity(msr)) {
 		msrGravity(msr,0,MAX_RUNG,ROOT,0,dTime,iStartStep,0,0,
 		    msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
 		msrMemStatus(msr);
@@ -264,7 +266,7 @@ void * master_ch(MDL mdl) {
 	    msrOutputPk(msr,iStartStep,dTime);
 	    }
 #endif
-	if (msrDoGravity(msr) && !msr->param.bHSDKD) {
+	if (msrDoGravity(msr)) {
 	    if (msr->param.bNewKDK) {
 		msrLightConeOpen(msr,iStartStep + 1);
 		bKickOpen = 1;
@@ -277,10 +279,6 @@ void * master_ch(MDL mdl) {
 		msrBuildTree(msr,dTime,msr->param.bEwald);
 		msrGravity(msr,0,MAX_RUNG,ROOT,0,dTime,iStartStep,0,0,msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
 		msrMemStatus(msr);
-		if (msr->param.bHSDKD) {
-		    msrAccelStep(msr,0,MAX_RUNG,dTime);
-		    msrUpdateRung(msr,0);
-		    }
 		}
 	    }
 	if (msrDoGas(msr)) {
@@ -307,20 +305,7 @@ void * master_ch(MDL mdl) {
 	    if (msrComove(msr)) msrSwitchTheta(msr,dTime);
 	    dMultiEff = 0.0;
 	    lSec = time(0);
-	    if (msr->param.bHSDKD) {
-		/* Perform select */
-		msrActiveRung(msr,0,1); /* Activate all particles */
-		msrBuildTree(msr,dTime,msr->param.bEwald);
-		msrGravity(msr,0,MAX_RUNG,ROOT,0,dTime,iStep-1,0,0,msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
-		msrMemStatus(msr);
-		msrAccelStep(msr,0,MAX_RUNG,dTime);
-		msrUpdateRung(msr,0);
-
-		msrTopStepHSDKD(msr,iStep-1,dTime,
-		    msrDelta(msr),0,0,msrMaxRung(msr),1,
-		    &dMultiEff,&iSec);
-		}
-	    else if (msr->param.bNewKDK) {
+	    if (msr->param.bNewKDK) {
 		diStep = (double)(iStep-1);
 		ddTime = dTime;
 		if (bDoOpeningKick) {
@@ -380,16 +365,12 @@ void * master_ch(MDL mdl) {
 	    }
 	if (msrLogInterval(msr)) (void) fclose(fpLog);
 	}
-
+    printf("Done all, just finishing up now with msrFinish()\n");
     msrFinish(msr);
     return NULL;
     }
 
-#ifdef FC_DUMMY_MAIN
-int FC_DUMMY_MAIN() { return 1; }
-#endif
-
-int FC_MAIN(int argc,char **argv) {
+int main(int argc,char **argv) {
 #ifdef USE_BT
     bt_initialize();
 #endif

@@ -1,6 +1,8 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 #ifdef HAVE_CONFIG_H
 #include "config.h"
+#else
+#include "pkd_config.h"
 #endif
 #include <cuda.h>
 
@@ -191,7 +193,6 @@ void *CUDA_initialize(int nCores, int iCore, OPA_Queue_info_t *queueWORK, OPA_Qu
     ctx->epoch = 0;
     ctx->nWorkQueueSize = 0;
     ctx->nWorkQueueBusy = 0;
-    ctx->nKernelLaunches = 0;
 
 #ifdef CUDA_STREAMS
     ctx->wqCudaFree = NULL;
@@ -333,7 +334,6 @@ extern "C" void CUDA_startWork(void *vcuda,OPA_Queue_info_t *queueWORK) {
 #endif
         ++cuda->nwqCudaBusy;
         cudaError_t rc = static_cast<cudaError_t>((*node->initFcn)(node->ctx,node));
-        ++cuda->nKernelLaunches;
         if ( rc != cudaSuccess) CUDA_attempt_recovery(cuda,rc);
         }
     }
@@ -396,9 +396,9 @@ int CUDA_flushDone(void *vcuda) {
                 const char *done2 = (rc==cudaSuccess?"yes":"no");
                 fprintf(stderr,"%s: cudaStreamQuery for kernel %s has returned cudaErrorNotReady for %f seconds, Copy=%s Kernel=%s Copy=no\n",
                     cuda->hostname, work->kernelName, seconds, done1, done2);
-                fprintf(stderr,"%s: dimBlock=%d,%d,%d  dimGrid=%d,%d,%d Launches=%llu\n",
+                fprintf(stderr,"%s: dimBlock=%d,%d,%d  dimGrid=%d,%d,%d\n",
                     cuda->hostname, work->dimBlock.x,work->dimBlock.y,work->dimBlock.z,
-                    work->dimGrid.x,work->dimGrid.y,work->dimGrid.z,cuda->nKernelLaunches);
+                    work->dimGrid.x,work->dimGrid.y,work->dimGrid.z);
                 if (work->dumpFcn) (*work->dumpFcn)(work);
                 work->startTime = 0;
                 CUDA_attempt_recovery(cuda,cudaErrorLaunchTimeout);

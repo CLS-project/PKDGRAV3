@@ -1,10 +1,6 @@
 /*
  ** MPI version of MDL.
  */
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #ifdef USE_AFFINITY
 #include <sched.h>
 #include <stdio.h>
@@ -16,7 +12,10 @@
 #include <stdlib.h>
 #include <stddef.h>
 #include <string.h>
-#if !defined(HAVE_CONFIG_H) || defined(HAVE_MALLOC_H)
+
+#include "mdl.h"
+
+#ifdef HAVE_MALLOC_H
 #include <malloc.h>
 #endif
 #ifdef HAVE_SIGNAL_H
@@ -36,12 +35,10 @@
 #include <sys/resource.h>
 #endif
 #include "mpi.h"
-#include "mdl.h"
 #ifdef USE_CUDA
 #include "cudautil.h"
 #endif
 #ifdef USE_CL
-#include <CL/cl.h>
 #include "clutil.h"
 #endif
 #ifdef USE_ITT
@@ -1243,7 +1240,7 @@ static int mdlDoSomeWork(MDL mdl) {
     }
 
 void mdlCompleteAllWork(MDL mdl) {
-#ifdef USE_CUDA
+#ifdef moved_to_walk2_USE_CUDA
     CUDA_sendWork(mdl->cudaCtx);
     CUDA_flushEwald(mdl->cudaCtx);
 #endif
@@ -1490,7 +1487,7 @@ void mdlInitCommon(MDL mdl0, int iMDL,int bDiag,int argc, char **argv,
     ** maximums, as the structures will be realloc'd when these
     ** values are exceeded.
     */
-    mdl->nMaxSrvBytes = 0;
+    mdl->nMaxSrvBytes = -1;
     /*
     ** Allocate service buffers.
     */
@@ -1591,12 +1588,6 @@ static void cleanupMDL(MDL mdl) {
     mdlBaseFinish(&mdl->base);
     }
 
-#if defined(SIGRTMAX) && defined(HAVE_MALLOC_STATS)
-static void SIGRTMAX0_handler(int signo) {
-    malloc_stats();
-    }
-#endif
-
 #ifdef USE_AFFINITY
 static void cpu_get_siblings(int cpu,cpu_set_t *sib) {
     char ach[256];
@@ -1635,10 +1626,6 @@ void mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(
     int cpu;
 #endif
 
-#if defined(SIGRTMAX) && defined(HAVE_MALLOC_STATS)
-    signal(SIGRTMAX-1,SIGRTMAX0_handler);
-#endif
-
 #ifdef USE_ITT
     __itt_domain* domain = __itt_domain_create("MyTraces.MyDomain");
     __itt_string_handle* shMyTask = __itt_string_handle_create("MDL Startup");
@@ -1659,37 +1646,38 @@ void mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(
     ** Do some low level argument parsing for number of threads, and
     ** diagnostic flag!
     */
-    for (argc = 0; argv[argc]; argc++);
     bDiag = 0;
     bThreads = 0;
     bDedicated = -1;
-    i = 1;
-    while (argv[i]) {
-	if (!strcmp(argv[i], "-sz") && !bThreads) {
+    if(argv) {
+	for (argc = 0; argv[argc]; argc++);
+	i = 1;
+	while (argv[i]) {
+	    if (!strcmp(argv[i], "-sz") && !bThreads) {
+		++i;
+		mdl->base.nCores = atoi(argv[i]);
+		if (argv[i]) bThreads = 1;
+		}
+	    if (!strcmp(argv[i], "-dedicated")) {
+		if (bDedicated<1) bDedicated = 0;
+		}
+	    if (!strcmp(argv[i], "+dedicated")) {
+		if (bDedicated<1) bDedicated = 1;
+		}
+	    if (!strcmp(argv[i], "+sharedmpi")) {
+		bDedicated = 2;
+		}
+	    if (!strcmp(argv[i], "+d") && !bDiag) {
+		p = getenv("MDL_DIAGNOSTIC");
+		if (!p) p = getenv("HOME");
+		if (!p) sprintf(ach, "/tmp");
+		else sprintf(ach, "%s", p);
+		bDiag = 1;
+		}
 	    ++i;
-	    mdl->base.nCores = atoi(argv[i]);
-	    if (argv[i]) bThreads = 1;
 	    }
-	if (!strcmp(argv[i], "-dedicated")) {
-	    if (bDedicated<1) bDedicated = 0;
-	    }
-	if (!strcmp(argv[i], "+dedicated")) {
-	    if (bDedicated<1) bDedicated = 1;
-	    }
-	if (!strcmp(argv[i], "+sharedmpi")) {
-	    bDedicated = 2;
-	    }
-	if (!strcmp(argv[i], "+d") && !bDiag) {
-	    p = getenv("MDL_DIAGNOSTIC");
-	    if (!p) p = getenv("HOME");
-	    if (!p) sprintf(ach, "/tmp");
-	    else sprintf(ach, "%s", p);
-	    bDiag = 1;
-	    }
-	++i;
+	argc = i;
 	}
-    argc = i;
-
     if (!bThreads) {
 	if ( (p=getenv("SLURM_CPUS_PER_TASK")) != NULL ) mdl->base.nCores = atoi(p);
 	else if ( (p=getenv("OMP_NUM_THREADS")) != NULL ) mdl->base.nCores = atoi(p);

@@ -85,6 +85,7 @@ struct parameters {
     int bAddDelete;
     int bLightCone;
     int bLightConeParticles;
+    int bInFileLC;
     double dRedshiftLCP;
     int nSideHealpix;
     /* BEGIN Gas Parameters */
@@ -98,7 +99,6 @@ struct parameters {
     int iViscosityLimiter;
     int iDiffusion;
     int iRungCoolTableUpdate;
-    int bHSDKD;
     int bNewKDK;
     int nDigits;
     double dEtaCourant;
@@ -121,9 +121,6 @@ struct parameters {
     double dhMinOverSoft;
     double dMetalDiffusionCoeff;
     double dThermalDiffusionCoeff;
-#ifdef COOLING
-    COOLPARAM CoolParam;
-#endif
     /* StarForm and Feedback */
     double SFdEfficiency;
     double SFdTMax;
@@ -189,8 +186,6 @@ struct parameters {
     int	nMinMembers;
     double dHopTau;
     double dTau;
-    double dVTau;
-    int bTauAbs;
     int	nBins;
     int	iCenterType;
     double binFactor;

@@ -1,5 +1,7 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
+#else
+#include "pkd_config.h"
 #endif
 
 #define _LARGEFILE_SOURCE
@@ -180,7 +182,7 @@ static uint64_t getMemoryModel(MSR msr) {
     ** can be used to request a specific model, but certain operations
     ** will force these flags to be on.
     */
-    if (msr->param.bFindGroups) mMemoryModel |= PKD_MODEL_GROUPS|PKD_MODEL_VELOCITY|PKD_MODEL_NODE_MOMENT;
+    if (msr->param.bFindGroups) mMemoryModel |= PKD_MODEL_GROUPS|PKD_MODEL_VELOCITY;
     if (msrDoGravity(msr)) {
 	mMemoryModel |= PKD_MODEL_VELOCITY|PKD_MODEL_NODE_MOMENT;
 	if (!msr->param.bNewKDK) mMemoryModel |= PKD_MODEL_ACCELERATION;
@@ -746,13 +748,12 @@ static int validateParameters(PRM prm,struct parameters *param) {
     if (param->dyPeriod == 0) param->dyPeriod = FLOAT_MAXVAL;
     if (param->dzPeriod == 0) param->dzPeriod = FLOAT_MAXVAL;
     /*
-    ** At the moment, integer positions only work on periodic boxes.
+    ** At the moment, integer positions are only really safe in periodic boxes!Wr
     */
 #ifdef INTEGER_POSITION
     if (!param->bPeriodic||param->dxPeriod!=1.0||param->dyPeriod!=1.0||param->dzPeriod!=1.0) {
-	fprintf(stderr,"ERROR: Integer coordinates are enabled but the the box is not periodic\n"
+	fprintf(stderr,"WARNING: Integer coordinates are enabled but the the box is not periodic\n"
 	               "       and/or the box size is not 1. Set bPeriodic=1 and dPeriod=1.\n");
-	return 0;
 	}
 #endif
 
@@ -879,11 +880,7 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.nDigits = 5;
     prmAddParam(msr->prm,"nDigits",1,&msr->param.nDigits,sizeof(int),"nd",
 		"<number of digits to use in output filenames> = 5");
-#ifdef INTEGER_POSITION
-    msr->param.bPeriodic = 1;
-#else
     msr->param.bPeriodic = 0;
-#endif
     prmAddParam(msr->prm,"bPeriodic",0,&msr->param.bPeriodic,sizeof(int),"p",
 		"periodic/non-periodic = -p");
     msr->param.bRestart = 0;
@@ -1033,9 +1030,6 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.nPartVeryActive = 0;
     prmAddParam(msr->prm,"nPartVeryActive",1,&msr->param.nPartVeryActive,
 		sizeof(int), "nvactpart", "<number of particles to use very active timestepping>");
-    msr->param.bHSDKD = 0;
-    prmAddParam(msr->prm,"bHSDKD",0,&msr->param.bHSDKD,
-		sizeof(int), "HSDKD", "<Use Hold/Select drift-kick-drift time stepping=no>");
     msr->param.bNewKDK = 0;
     prmAddParam(msr->prm,"bNewKDK",0,&msr->param.bNewKDK,
 		sizeof(int), "NewKDK", "<Use new implementation of KDK time stepping=no>");
@@ -1175,6 +1169,9 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.bLightConeParticles = 0;
     prmAddParam(msr->prm,"bLightConeParticles",0,&msr->param.bLightConeParticles,sizeof(int),"lcp",
 		"output light cone particles = -lcp");
+    msr->param.bInFileLC = 0;
+    prmAddParam(msr->prm,"bInFileLC",0,&msr->param.bInFileLC,sizeof(int),"lcin",
+		"input light cone data = -lcin");
     msr->param.dRedshiftLCP = 0;
     prmAddParam(msr->prm,"dRedshiftLCP",2,&msr->param.dRedshiftLCP,sizeof(double),"zlcp",
 		"starting redshift to output light cone particles = 0");
@@ -1241,12 +1238,6 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.dTau = 0.164;
     prmAddParam(msr->prm,"dTau",2,&msr->param.dTau,sizeof(double),"dTau",
 		"<linking length for FOF in units of mean particle separation> = 0.164");
-    msr->param.dVTau = -1.0;
-    prmAddParam(msr->prm,"dVTau",2,&msr->param.dVTau,sizeof(double),"dVTau",
-		"<velocity space linking length for phase-space FOF, set to 0 for plain FOF> = 0");
-    msr->param.bTauAbs = 0;
-    prmAddParam(msr->prm,"bTauAbs",0,&msr->param.bTauAbs,sizeof(int),"bTauAbs",
-		"<if 1 use z=0 simulation units for dTau, not mean particle separation> = 0");
     msr->param.dEnvironment0 = -1.0;
     prmAddParam(msr->prm,"dEnvironment0",2,&msr->param.dEnvironment0,sizeof(double),"dEnv0",
 		"<first radius for density environment about a group> = -1.0 (disabled)");
@@ -1399,12 +1390,6 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 		sizeof(int),"iRungCoolTableUpdate",
 		"<Rung on which to update cool tables, def. 0>");
     msr->param.bInitTFromCooling = 0;
-
-    /* Add any parameters specific to the cooling approach */
-#ifdef COOLING
-    CoolAddParams( &msr->param.CoolParam, msr->prm );
-#endif
-
     msr->param.dEtaCourant = 0.4;
     prmAddParam(msr->prm,"dEtaCourant",2,&msr->param.dEtaCourant,sizeof(double),"etaC",
 				"<Courant criterion> = 0.4");
@@ -1759,9 +1744,6 @@ void msrLogParams(MSR msr,FILE *fp) {
     fprintf(fp," dhMinOverSoft: %g",msr->param.dhMinOverSoft);
     fprintf(fp," dMetalDiffusionCoeff: %g",msr->param.dMetalDiffusionCoeff);
     fprintf(fp," dThermalDiffusionCoeff: %g",msr->param.dThermalDiffusionCoeff);
-#ifdef COOLING
-    if (msr->param.bGasCooling) CoolLogParams( &msr->param.CoolParam, fp );
-#endif
     fprintf(fp,"\n# UNITS: dKBoltzUnit: %g",msr->param.dKBoltzUnit);
     fprintf(fp," dMsolUnit: %g",msr->param.dMsolUnit);
     fprintf(fp," dKpcUnit: %g",msr->param.dKpcUnit);
@@ -1792,8 +1774,6 @@ void msrLogParams(MSR msr,FILE *fp) {
     /* -- */
     fprintf(fp,"\n# Group Find: bFindGroups: %d",msr->param.bFindGroups);
     fprintf(fp," dTau: %g",msr->param.dTau);
-    fprintf(fp," dVTau: %g",msr->param.dVTau);
-    fprintf(fp," bTauAbs: %d",msr->param.bTauAbs);
     fprintf(fp," nMinMembers: %d",msr->param.nMinMembers);
     fprintf(fp," nBins: %d",msr->param.nBins);
     fprintf(fp," iCenterType: %d",msr->param.iCenterType);
@@ -1900,11 +1880,13 @@ int msrCheckForStop(MSR msr,const char *achStopFile) {
 
 void msrFinish(MSR msr) {
    int id;
+   printf("1\n");
     for (id=1;id<msr->nThreads;++id) {
 	int rID;
 	rID = mdlReqService(msr->mdl,id,SRV_STOP,NULL,0);
 	mdlGetReply(msr->mdl,rID,NULL,NULL);
 	}
+   printf("2\n");
     pstFinish(msr->pst);
     csmFinish(msr->param.csm);
     /*
@@ -2518,9 +2500,11 @@ void msrDomainDecompOld(MSR msr,int iRung,int bSplitVA) {
     ** all neighbor lists here since the pointers in the particles will
     ** only be valid on the node where it was malloc'ed!
     */
+#ifdef FAST_GAS
     if (msr->param.bDoGas) {
 	pstFastGasCleanup(msr->pst,NULL,0,NULL,NULL);
 	}
+#endif
     in.bSplitVA = bSplitVA;
     msrprintf(msr,"Domain Decomposition: nActive (Rung %d) %"PRIu64" SplitVA:%d\n",
 	msr->iLastRungRT,msr->nActive,bSplitVA);
@@ -2942,6 +2926,7 @@ void msrSmooth(MSR msr,double dTime,int iSmoothType,int bSymmetric,int nSmooth) 
     }
 
 
+#ifdef FAST_GAS
 void msrFastGasPhase1(MSR msr,double dTime,int iSmoothType) {
     struct inSmooth in;
 
@@ -2984,7 +2969,7 @@ void msrFastGasPhase2(MSR msr,double dTime,int iSmoothType) {
 	pstFastGasPhase2(msr->pst,&in,sizeof(in),NULL,NULL);
 	}
     }
-
+#endif
 
 void msrReSmooth(MSR msr,double dTime,int iSmoothType,int bSymmetric) {
     struct inSmooth in;
@@ -4016,115 +4001,6 @@ int msrUpdateRung(MSR msr, uint8_t uRung) {
     return(iRungVeryActive);
     }
 
-void msrKickHSDKD(MSR msr,double dStep, double dTime,double dDelta, int iRung,
-    int iAdjust, double *pdActiveSum,
-		   int *piSec) {
-    struct inKickTree in;
-    struct outKickTree out;
-    uint64_t nActive;
-
-    msrActiveRung(msr,iRung,1);
-    msrDomainDecomp(msr,iRung,0,0);
-
-    /* JW: Good place to zero uNewRung */
-    msrZeroNewRung(msr,iRung,MAX_RUNG,iRung); /* brute force */
-    if (msrDoGravity(msr)) {
-	msrUpdateSoft(msr,dTime);
-	msrprintf(msr,"%*cForces, iRung: %d to %d\n",2*iRung+2,' ',iRung,iRung);
-	msrBuildTreeByRung(msr,dTime,msr->param.bEwald,iRung);
-	msrGravity(msr,iRung,MAX_RUNG,ROOT,msrCurrMaxRung(msr) == iRung ? 0 : ROOT+1,
-	    dTime,dStep,0,0,msr->param.bEwald,msr->param.nGroup,piSec,&nActive);
-	*pdActiveSum += (double)nActive/msr->N;
-
-	in.dTime = dTime;
-	if (msr->param.csm->val.bComove) {
-	    in.dDelta = csmComoveKickFac(msr->param.csm,dTime,dDelta);
-	    in.dDeltaVPred = 0;
-	    }
-	else {
-	    in.dDelta = dDelta;
-	    in.dDeltaVPred = 0;
-	    }
-	in.dDeltaU = dDelta;
-	in.dDeltaUPred = 0;
-	in.iRoot = ROOT;
-	pstKickTree(msr->pst,&in,sizeof(in),&out,NULL);
-	in.iRoot = ROOT+1;
-	pstKickTree(msr->pst,&in,sizeof(in),&out,NULL);
-	}
-    msrprintf(msr,"Kick: Avg Wallclock %f, Max Wallclock %f\n",
-	      out.SumTime/out.nSum,out.MaxTime);
-
-
-    // Select for Rungs > iRung
-    // Rung+1 down only
-    // >Rung+1 up or down
-    if (iAdjust && (iRung < msrMaxRung(msr)-1)) {
-	msrprintf(msr,"%*cAdjust, iRung: %d\n",2*iRung+2,' ',iRung);
-	msrActiveRung(msr, iRung, 1);
-	if (msr->param.bAccelStep) {
-	    msrAccelStep(msr,iRung,MAX_RUNG,dTime);
-	    }
-	if (msrDoGas(msr)) {
-	    msrSphStep(msr,iRung,MAX_RUNG,dTime);
-	    }
-	if (msr->param.bDensityStep) {
-	    int bSplitVA = 0;
-	    msrDomainDecomp(msr,iRung,0,bSplitVA);
-	    msrActiveRung(msr,iRung,1);
-	    msrBuildTree(msr,dTime,0);
-	    msrDensityStep(msr,iRung,MAX_RUNG,dTime);
-	    }
-	/* Select */
-	//msrUpdateRungByTree(msr,iRung+1,ROOT+1);
-        }
-
-    }
-
-
-void msrTopStepHSDKD(MSR msr,
-		   double dStep,	/* Current step */
-		   double dTime,	/* Current time */
-		   double dDelta,	/* Time step */
-		   int iRung,		/* Rung level */
-		   int iKickRung,	/* Gravity on all rungs from iRung
-					   to iKickRung */
-		   int iRungVeryActive,  /* current setting for iRungVeryActive */
-		   /*
-		   ** Note that iRungVeryActive is one less than the first rung with VA particles!
-		   */
-		   int iAdjust,		/* Do an adjust? */
-		   double *pdActiveSum,
-		   int *piSec) {
-
-    assert(0); // msrDrift() is wrong
-    msrprintf(msr,"%*cHSDKD open  at iRung: %d 0.5*dDelta: %g\n",
-	      2*iRung+2,' ',iRung,0.5*dDelta);
-
-    msrDrift(msr,dTime,dDelta*0.5,ROOT);
-    if ( iRung < msrCurrMaxRung(msr) ) {
-	msrTopStepHSDKD(msr,dStep,dTime,0.5*dDelta,iRung+1,iRung+1,iRungVeryActive,1,pdActiveSum,piSec);
-
-	dTime += 0.5*dDelta;
-	dStep += 1.0/(2 << iRung);
-	msrKickHSDKD(msr,dStep,dTime,dDelta,iRung,iAdjust,pdActiveSum,piSec);
-
-	msrTopStepHSDKD(msr,dStep,dTime,0.5*dDelta,iRung+1,iKickRung,iRungVeryActive,1,pdActiveSum,piSec);
-	}
-    else /*msrCurrMaxRung(msr) == iRung*/ {
-	assert(msrCurrMaxRung(msr) == iRung);
-	dTime += 0.5*dDelta;
-	dStep += 1.0/(2 << iRung);
-	msrKickHSDKD(msr,dStep,dTime,dDelta,iRung,iAdjust,pdActiveSum,piSec);
-	}
-    msrDrift(msr,dTime,dDelta*0.5,ROOT);
-
-    msrprintf(msr,"%*cHSDKD close  at iRung: %d 0.5*dDelta: %g\n",
-	      2*iRung+2,' ',iRung,0.5*dDelta);
-
-    }
-
-
 
 /*
 ** Open the healpix output file, and also the particles files if requested.
@@ -4766,67 +4642,10 @@ void msrSph(MSR msr,double dTime, double dStep) {
 	}
     }
 
-
 void msrCoolSetup(MSR msr, double dTime) {
-#ifdef COOLING
-    struct inCoolSetup in;
-    
-    if (!msr->param.bGasCooling) return;
-
-    in.dGmPerCcUnit = msr->param.dGmPerCcUnit;
-    in.dComovingGmPerCcUnit = msr->param.dComovingGmPerCcUnit;
-    in.dErgPerGmUnit = msr->param.dErgPerGmUnit;
-    in.dSecUnit = msr->param.dSecUnit;
-    in.dKpcUnit = msr->param.dKpcUnit;
-    
-    in.dOmega0 = msr->param.csm->val.dOmega0;
-    in.dHubble0 = msr->param.csm->val.dHubble0; /* code unit Hubble0 -- usually sqrt(8 pi/3) */
-    in.dLambda = msr->param.csm->val.dLambda;
-    in.dOmegab = msr->param.csm->val.dOmegab;
-    in.dOmegaRad = msr->param.csm->val.dOmegaRad;
-    
-    in.a = csmTime2Exp(msr->param.csm,dTime);
-    in.z = 1/in.a-1;
-    in.dTime = dTime; 
-    in.CoolParam = msr->param.CoolParam;
-    
-    pstCoolSetup(msr->pst,&in,sizeof(struct inCoolSetup),NULL,NULL);
-#endif
     }
 
 void msrCooling(MSR msr,double dTime,double dStep,int bUpdateState, int bUpdateTable, int bIterateDt) {
-#ifdef COOLING
-    struct inCooling in;
-    struct outCooling out;
-    double a,sec,dsec;
-	
-    if (!msr->param.bGasCooling && !msr->param.bGasIsothermal) return;
-    if (msr->param.bVStep) printf("Calculating Cooling, Step:%f\n",dStep);
-    sec = msrTime();
-
-    a = csmTime2Exp(msr->param.csm,dTime);
-    in.z = 1/a - 1;
-    in.dTime = dTime;
-    in.bUpdateState = bUpdateState;
-    in.bUpdateTable = bUpdateTable;
-    in.bIterateDt = bIterateDt;
-    in.bIsothermal = msr->param.bGasIsothermal;
-    
-    if (bUpdateTable) {
-	printf("Cooling: Updating Tables to z=%g\n",in.z);
-	}
-
-    if (bIterateDt > 0) {
-	printf("Cooling: Iterating on cooling timestep: individual dDelta(uDot) \n");
-	}
-
-    pstCooling(msr->pst,&in,sizeof(in),&out,NULL);
-    
-    dsec = msrTime() - sec;
-    if (msr->param.bVStep) {
-	printf("Cooling Calculated, Wallclock: %f secs\n",  dsec);
-	}
-#endif
     }
 
 /* END Gas routines */
@@ -4919,8 +4738,6 @@ void msrHop(MSR msr, double dTime) {
     struct inHopGravity inGravity;
     struct inHopUnbind inUnbind;
     struct outHopUnbind outUnbind;
-    struct outGroupCountGID outCount;
-    struct inGroupAssignGID inAssign;
     struct inGroupStats inGroupStats;
     int i;
     uint64_t nGroups;
@@ -5035,10 +4852,6 @@ void msrHop(MSR msr, double dTime) {
 		dsec,outUnbind.nEvaporated, nGroups);
 	} while(++inUnbind.iIteration < 100 && outUnbind.nEvaporated);
 #endif
-    pstGroupCountGID(msr->pst,NULL,0,&outCount,NULL); /* This has the side-effect of updating counts in the PST */
-    inAssign.iStartGID = 0;
-    pstGroupAssignGID(msr->pst,&inAssign,sizeof(inAssign),NULL,NULL); /* Requires correct counts in the PST */
-
     /*
     ** This should be done as a separate msr function.
     */
@@ -5064,8 +4877,6 @@ void msrNewFof(MSR msr, double dTime) {
     struct inNewFof in;
     struct outFofPhases out;
     struct inFofFinishUp inFinish;
-    struct outGroupCountGID outCount;
-    struct inGroupAssignGID inAssign;
     int i;
     uint64_t nGroups;
     double sec,dsec,ssec;
@@ -5103,9 +4914,6 @@ void msrNewFof(MSR msr, double dTime) {
 	printf("Removed groups with fewer than %d particles, %"PRIu64" remain\n",
 	    inFinish.nMinGroupSize, nGroups);
 //    pstGroupRelocate(msr->pst,NULL,0,NULL,NULL);
-//    pstGroupCountGID(msr->pst,NULL,0,&outCount,NULL); /* This has the side-effect of updating counts in the PST */
-//    inAssign.iStartGID = 0;
-//    pstGroupAssignGID(msr->pst,&inAssign,sizeof(inAssign),NULL,NULL); /* Requires correct counts in the PST */
     dsec = msrTime() - ssec;
     if (msr->param.bVStep)
 	printf("FoF complete, Wallclock: %f secs\n",dsec);
@@ -5133,165 +4941,6 @@ void msrGroupStats(MSR msr) {
 	printf("Group statistics complete, Wallclock: %f secs\n\n",dsec);
     }
 
-
-void msrFof(MSR msr, double exp) {
-    struct inFof in;
-    struct outGroupCountGID outCount;
-    struct inGroupAssignGID inAssign;
-
-    in.nSmooth = msr->param.nSmooth;
-    in.bPeriodic = msr->param.bPeriodic;
-    in.bSymmetric = 0;
-    in.iSmoothType = SMX_FOF;
-    in.smf.a = exp;
-    in.smf.dTau2 = pow(msr->param.dTau,2.0);
-    in.smf.dVTau2 = pow(msr->param.dVTau,2.0);
-    in.smf.iCenterType = msr->param.iCenterType;
-    if (msr->param.bTauAbs == 0) {
-	in.smf.dTau2 *= pow(msr->param.csm->val.dOmega0,-0.6666);
-	}
-    else {
-	in.smf.dTau2 /= exp*exp;
-	in.smf.dVTau2 *= exp*exp;
-	}
-    in.smf.bTauAbs = msr->param.bTauAbs;
-    in.smf.nMinMembers = msr->param.nMinMembers;
-
-    if (msr->param.bVStep) {
-	double sec,dsec;
-	if (msr->param.bTauAbs == 0){
-	  printf("Doing FOF with space linking length %e * m_p^(1/3) ,\n", sqrt(in.smf.dTau2) );
-	  printf("  and velocity linking length %e (ignored if 0) ...\n", sqrt(in.smf.dVTau2) );
-	  } else {
-	    printf("Doing FOF with fixed space linking length %e ,\n", sqrt(in.smf.dTau2) );
-	    printf("  and velocity linking length %e (ignored if 0) ...\n", sqrt(in.smf.dVTau2) );
-	}
-	sec = msrTime();
-	pstFof(msr->pst,&in,sizeof(in),NULL,NULL);
-	dsec = msrTime() - sec;
-	printf("FOF Calculated, Wallclock: %f secs\n\n",dsec);
-	}
-    else {
-	pstFof(msr->pst,&in,sizeof(in),NULL,NULL);
-	}
-
-    pstGroupCountGID(msr->pst,NULL,0,&outCount,NULL); /* This has the side-effect of updating counts in the PST */
-    inAssign.iStartGID = 0;
-    pstGroupAssignGID(msr->pst,&inAssign,sizeof(inAssign),NULL,NULL); /* Requires correct counts in the PST */
-    }
-
-void msrGroupMerge(MSR msr, double exp) {
-    struct inGroupMerge in;
-    int nGroups;
-    in.bPeriodic = msr->param.bPeriodic;
-    in.smf.nMinMembers = msr->param.nMinMembers;
-    in.smf.iCenterType = msr->param.iCenterType;
-    in.smf.a = exp;
-    if (msr->param.bVStep) {
-	double sec,dsec;
-	printf("Doing GroupMerge...\n");
-	sec = msrTime();
-	pstGroupMerge(msr->pst,&in,sizeof(in),&nGroups,NULL);
-	dsec = msrTime() - sec;
-	printf("GroupMerge done, Wallclock: %f secs\n",dsec);
-	}
-    else {
-	pstGroupMerge(msr->pst,&in,sizeof(in),&nGroups,NULL);
-	}
-    msr->nGroups = nGroups;
-    printf("MASTER: TOTAL groups: %i \n" ,nGroups);
-    }
-
-void msrGroupProfiles(MSR msr, double exp) {
-    int nBins;
-    struct inGroupProfiles in;
-    in.nSmooth = msr->param.nSmooth;
-    in.bPeriodic = msr->param.bPeriodic;
-    in.nTotalGroups = msr->nGroups;
-    in.bSymmetric = 0;
-    in.iSmoothType = SMX_FOF;
-    in.smf.iCenterType = msr->param.iCenterType; 
-    in.smf.nMinMembers = msr->param.nMinMembers;
-    in.smf.nBins = msr->param.nBins;
-    in.smf.bLogBins = msr->param.bLogBins;
-    in.smf.binFactor = msr->param.binFactor;
-    in.smf.fMinRadius = msr->param.fMinRadius;
-    in.smf.a = exp;
-    if (msr->param.bVStep) {
-	double sec,dsec;
-	printf("Doing GroupProfiles...\n");
-	sec = msrTime();
-	pstGroupProfiles(msr->pst,&in,sizeof(in),&nBins,NULL);
-	dsec = msrTime() - sec;
-	printf("GroupProfiles done, Wallclock: %f secs\n",dsec);
-	}
-    else {
-	pstGroupProfiles(msr->pst,&in,sizeof(in),&nBins,NULL);
-	}
-    msr->nBins = nBins;
-    printf("MASTER: TOTAL bins: %i TOTAL groups: %i \n" ,nBins,msr->nGroups);
-    }
-
-void msrOutGroups(MSR msr,const char *pszFile,int iOutType, double dTime) {
-    char achOutFile[PST_FILENAME_SIZE];
-    LCL *plcl;
-    PST pst0;
-    FILE *fp;
-    double dvFac,time;
-
-    pst0 = msr->pst;
-    while (pst0->nLeaves > 1)
-	pst0 = pst0->pstLower;
-    plcl = pst0->plcl;
-    if (pszFile) {
-	/*
-	** Add Data Subpath for local and non-local names.
-	*/
-	_msrMakePath(msr->param.achDataSubPath,pszFile,achOutFile);
-	}
-    else {
-	printf("No Group Output File specified\n");
-	_msrExit(msr,1);
-	return;
-	}
-    if (msrComove(msr)) {
-	time = csmTime2Exp(msr->param.csm,dTime);
-	if (msr->param.csm->val.bComove) {
-	    dvFac = 1.0/(time*time);
-	    }
-	else {
-	    dvFac = 1.0;
-	    }
-	}
-    else {
-	time = dTime;
-	dvFac = 1.0;
-	}
-
-    if (iOutType == OUT_GROUP_TIPSY_NAT || iOutType == OUT_GROUP_TIPSY_STD) {
-	FIO fio;
-	fio = fioTipsyCreate(achOutFile,0,iOutType==OUT_GROUP_TIPSY_STD,
-		    time, 0, 0, msr->nGroups);
-	if (!fio) {
-	    printf("Could not open Group Output File:%s\n",achOutFile);
-	    _msrExit(msr,1);
-	    }
-	fioClose(fio);
-	}
-    else {
-	fp = fopen(achOutFile,"w");
-	if (!fp) {
-	    printf("Could not open Group Output File:%s\n",achOutFile);
-	    _msrExit(msr,1);
-	    }
-        fclose(fp);
-    }
-    /*
-     * Write the groups.
-     */
-    pkdOutGroup(plcl->pkd,achOutFile,iOutType,0,dvFac);
-    }
-
 void msrDeleteGroups(MSR msr) {
 
     LCL *plcl;
@@ -5302,7 +4951,6 @@ void msrDeleteGroups(MSR msr) {
 	pst0 = pst0->pstLower;
     plcl = pst0->plcl;
 
-    if (plcl->pkd->groupData)free(plcl->pkd->groupData);
     if (plcl->pkd->groupBin)free(plcl->pkd->groupBin);
     plcl->pkd->nBins = 0;
     plcl->pkd->nGroups = 0;
@@ -5504,10 +5152,11 @@ double msrRead(MSR msr, const char *achInFile) {
     read->nProcessors = msr->param.bParaRead==0?1:(msr->param.nParaRead<=1 ? msr->nThreads:msr->param.nParaRead);
 
     if (!fioGetAttr(fio,"nFiles",FIO_TYPE_UINT32,&j)) j = 1;
-    printf("Reading %llu particles from %d file%s using %d processor%s\n",
+    printf("Reading %"PRIu64" particles from %d file%s using %d processor%s\n",
 	msr->N, j, (j==1?"":"s"), read->nProcessors, (read->nProcessors==1?"":"s") );
 
     dTime = getTime(msr,dExpansion,&read->dvFac);
+    if (msr->param.bInFileLC) read->dvFac = 1.0;
     read->dTuFac = msr->param.dTuFac;
     
     if (msr->nGas && !prmSpecified(msr->prm,"bDoGas")) msr->param.bDoGas = 1;
@@ -5672,7 +5321,7 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
 	}
 
     if (msrDoDensity(msr)) {
-#ifdef FASTGAS_TESTING
+#ifdef FAST_GAS
 	msrActiveRung(msr,3,1); /* Activate some particles */
 	msrDomainDecomp(msr,0,0,0);
 	msrBuildTree(msr,dTime,0);
@@ -5691,8 +5340,8 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
 	}
     if ( msr->param.bFindGroups ) {
 	msrReorder(msr);
-	sprintf(achFile,"%s.fof",msrOutName(msr));
-	msrOutArray(msr,achFile,OUT_GROUP_ARRAY);
+	//sprintf(achFile,"%s.fof",msrOutName(msr));
+	//msrOutArray(msr,achFile,OUT_GROUP_ARRAY);
 	msrBuildName(msr,achFile,iStep);
 	strncat(achFile,".fofstats",256);
 	msrHopWrite(msr,achFile);
@@ -5705,8 +5354,8 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
 	msrReorder(msr);
 
 	msrBuildName(msr,achFile,iStep);
-	strncat(achFile,".hopgrp",256);
-	msrOutArray(msr,achFile,OUT_GROUP_ARRAY);
+	//strncat(achFile,".hopgrp",256);
+	//msrOutArray(msr,achFile,OUT_GROUP_ARRAY);
 
 	msrBuildName(msr,achFile,iStep);
 	strncat(achFile,".hopstats",256);
@@ -5965,19 +5614,6 @@ uint64_t msrSelDstCylinder(MSR msr,double *dP1, double *dP2, double dRadius,
     in.clearIfFalse = clearIfFalse;
     pstSelDstCylinder(msr->pst, &in, sizeof(in), &out, &nOut);
     return out.nSelected;
-    }
-
-void msrDeepestPot(MSR msr,double *r, float *fPot) {
-    struct inDeepestPot in;
-    struct outDeepestPot out;
-    int nOut;
-    int d;
-
-    in.uRungLo = 0;
-    in.uRungHi = msrMaxRung(msr)-1;
-    pstDeepestPot(msr->pst, &in, sizeof(in), &out, &nOut);
-    for(d=0; d<3; d++ ) r[d] = out.r[d];
-    if ( fPot ) *fPot = out.fPot;
     }
 
 double msrTotalMass(MSR msr) {

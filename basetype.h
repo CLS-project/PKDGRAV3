@@ -2,18 +2,12 @@
 #define BASETYPE_H
 #ifdef HAVE_CONFIG_H
 #include "config.h"
+#else
+#include "pkd_config.h"
 #endif
 #include <stdint.h>
 #include "ilp.h"
 #include "ilc.h"
-
-#ifdef HAVE_ALLOCA
-#define stack_alloc(s) alloca(s)
-#define stack_free(p) do {} while(0)
-#else
-#define stack_alloc(s) malloc(s)
-#define stack_free(p) free(p)
-#endif
 
 #define IORDERBITS 41
 #define IORDERMAX ((((uint64_t) 1)<<IORDERBITS)-1)

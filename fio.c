@@ -1,5 +1,7 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
+#else
+#include "pkd_config.h"
 #endif
 #ifndef _LARGEFILE64_SOURCE
 #define _LARGEFILE64_SOURCE
@@ -49,7 +51,7 @@
 #define UNUSED(x) x##_UNUSED
 #endif
 
-#ifndef NO_XDR
+#ifdef HAVE_RPC_XDR_H
 #include <rpc/types.h>
 #include <rpc/xdr.h>
 #else
@@ -4239,10 +4241,6 @@ static double ddplus(void *ctx,double a) {
     eta = sqrt(dc->omegam/a + dc->omegav*a*a + 1.0 - dc->omegam - dc->omegav);
     return 2.5/(eta*eta*eta);
     }
-#ifdef HAVE_ROMBERG
-extern double dRombergO(void *CTX, double (*func)(void *,double), double a,
-                 double b, double eps);
-#else
 #define MAXLEV 13
 
 /*
@@ -4299,7 +4297,6 @@ static double dRombergO(void *CTX,double (*func)(void *, double),double a,double
 
     return tllnew;
     }
-#endif
 
 static double dplus(double a,double omegam,double omegav) {
     double eta;

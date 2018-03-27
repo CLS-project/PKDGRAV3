@@ -1,0 +1,71 @@
+********************************************************************************
+There are two ways to install pkdgrav3 under Windows. The first is to use
+Ubuntu on Windows 10. This is by far the easiest method.
+
+A. Running under Ubuntu on Windows 10
+
+  1.  Install Ubuntu on Windows 10.
+
+      Open a command prompt and run this command:
+
+	lxrun /install
+
+  2.  Install the necessary dependent packages.
+
+      Open a BASH prompt, then use "apt" to install the following.
+
+	sudo apt update
+	sudo apt install build-essential git cmake libgsl-dev
+	sudo apt install openmpi-bin libopenmpi-dev
+	sudo apt install libfftw3-mpi-dev libfftw3-dev
+
+  3.  Clone the pkdgrav3 repository
+
+	git clone https://bitbucket.org/dpotter/pkdgrav3.git
+
+  4.  Decide on a "build" directory, and on a "install" directory.
+      In this example we have three directories, pkdgrav3, build and install.
+
+	mkdir build install
+	cd build
+	cmake -DCMAKE_INSTALL_PREFIX=../install ../pkdgrav3
+	make
+
+B. Native Windows
+
+  1. Install Visual Studio
+
+     Check which version of Visual Studio is support by which CUDA version;
+     this is the most restrictive version support issue. Check here:
+
+     http://docs.nvidia.com/cuda/cuda-installation-guide-microsoft-windows/index.html
+
+  2. Install CUDA
+
+     https://developer.nvidia.com/cuda-downloads
+
+  3. Download and install "Microsoft MPI"
+
+     https://www.microsoft.com/en-us/download/details.aspx?id=56511
+
+  4. Build FFTW
+
+     Download project: https://github.com/jdpotter/fftw-cmake
+
+     Extract a version of fftw (e.g., fftw-3.3.7) into the same directory.
+     Disable: BUILD_SHARED_LIBS, BUILD_TESTS
+     Enable: ENABLE_FLOAT, ENABLE_MPI, ENABLE_THREADS
+     Set: CMAKE_INSTALL_PREFIX
+     When building, enable "INSTALL" project in "Configuration Manager"
+
+  5. Build gsl
+
+     Download project: https://github.com/jdpotter/gsl
+     Set: CMAKE_INSTALL_PREFIX
+     When building, enable "INSTALL" project in "Configuration Manager"
+
+  6. Build pkdgrav3
+
+     Set FFTW_ROOT to above CMAKE_INSTALL_PREFIX
+
+

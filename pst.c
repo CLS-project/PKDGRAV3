@@ -1,5 +1,7 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
+#else
+#include "pkd_config.h"
 #endif
 
 #include <math.h>
@@ -7,9 +9,6 @@
 #include <stddef.h>
 #ifdef HAVE_MALLOC_H
 #include <malloc.h>
-#endif
-#ifdef HAVE_ALLOCA_H
-#include <alloca.h>
 #endif
 #include <assert.h>
 #include <stdint.h>
@@ -165,12 +164,6 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_GROUP_RELOCATE,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstGroupRelocate,
 		  0,0);
-    mdlAddService(mdl,PST_GROUP_COUNT_GID,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstGroupCountGID,
-		  0,sizeof(struct outGroupCountGID));
-    mdlAddService(mdl,PST_GROUP_ASSIGN_GID,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstGroupAssignGID,
-	          sizeof(struct inGroupAssignGID),0);
     mdlAddService(mdl,PST_GROUP_STATS,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstGroupStats,
 	          sizeof(struct inGroupStats),0);
@@ -180,6 +173,7 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_SMOOTH,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstSmooth,
 		  sizeof(struct inSmooth),0);
+#ifdef FAST_GAS
     mdlAddService(mdl,PST_FASTGASPHASE1,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstFastGasPhase1,
 		  sizeof(struct inSmooth),0);
@@ -189,6 +183,7 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_FASTGASCLEANUP,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstFastGasCleanup,
 		  0,0);
+#endif
     mdlAddService(mdl,PST_GRAVITY,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstGravity,
 	          sizeof(struct inGravity),
@@ -267,14 +262,6 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_DENSITYSTEP,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstDensityStep,
 		  sizeof(struct inDensityStep),0);
-#ifdef COOLING
-    mdlAddService(mdl,PST_COOLSETUP,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstCoolSetup,
-		  sizeof(struct inCoolSetup),0);
-    mdlAddService(mdl,PST_COOLING,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstCooling,
-		  sizeof(struct inCooling),sizeof(struct outCooling));
-#endif
     mdlAddService(mdl,PST_CORRECTENERGY,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstCorrectEnergy,
 		  sizeof(struct inCorrectEnergy),0);
@@ -314,9 +301,6 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_CLEARTIMER,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstClearTimer,
 		  sizeof(struct inClearTimer),0);
-    mdlAddService(mdl,PST_FOF,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstFof,
-		  sizeof(struct inFof),0);
     mdlAddService(mdl,PST_NEW_FOF,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstNewFof,
 		  sizeof(struct inNewFof),0);
@@ -326,12 +310,6 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_FOF_FINISH_UP,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstFofFinishUp,
 	          sizeof(struct inFofFinishUp),sizeof(uint64_t));
-    mdlAddService(mdl,PST_GROUPMERGE,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstGroupMerge,
-		  sizeof(struct inGroupMerge),sizeof(int));
-    mdlAddService(mdl,PST_GROUPPROFILES,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstGroupProfiles,
-		  sizeof(struct inGroupProfiles),sizeof(int));
     mdlAddService(mdl,PST_INITRELAXATION,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstInitRelaxation,0,0);
     mdlAddService(mdl,PST_INITIALIZEPSTORE,pst,
@@ -436,9 +414,6 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_SELDSTGROUP,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstSelDstGroup,
 		  sizeof(int), 0);
-    mdlAddService(mdl,PST_DEEPESTPOT,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstDeepestPot,
-		  sizeof(struct inDeepestPot), sizeof(struct outDeepestPot));
     mdlAddService(mdl,PST_PROFILE,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstProfile,
 		  sizeof(struct inProfile), 0); 
@@ -494,8 +469,6 @@ void pstInitialize(PST *ppst,MDL mdl,LCL *plcl) {
     pst->nUpper = 0;
     pst->iSplitDim = -1;
     pst->iVASplitSide = 0;
-    pst->nLowTot = 0;
-    pst->nHighTot = 0;
     }
 
 
@@ -1315,9 +1288,6 @@ void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
     mdlassert(pst->mdl, nHighTot >= pst->nUpper);
     mdlassert(pst->mdl, nLowTot <= nLowerStore);
     mdlassert(pst->mdl, nHighTot <= nUpperStore);
-
-    pst->nLowTot = nLowTot;
-    pst->nHighTot = nHighTot;
 
     mdlPrintTimer(pst->mdl,"TIME Total Split _pstRootSplit ",&t);
 
@@ -2707,42 +2677,6 @@ void pstGroupRelocate(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     if (pnOut) *pnOut = 0;
     }
 
-void pstGroupCountGID(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-    struct outGroupCountGID *out = (struct outGroupCountGID *)vout;
-    struct outGroupCountGID outUpper;
-    mdlassert(pst->mdl,nIn == 0);
-    if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_GROUP_COUNT_GID,vin,nIn);
-        pstGroupCountGID(pst->pstLower,vin,nIn,vout,pnOut);
-        mdlGetReply(pst->mdl,rID,&outUpper,pnOut);
-	pst->nGroupsLower = out->nGroups; /* Remember this for later -- this is an exscan */
-	out->nGroups += outUpper.nGroups;
-        }
-    else {
-	LCL *plcl = pst->plcl;
-	pst->nGroupsLower = 0;
-        out->nGroups = pkdGroupCountGID(plcl->pkd);
-        }
-    if (pnOut) *pnOut = sizeof(struct outGroupCountGID);
-    }
-
-void pstGroupAssignGID(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-    struct inGroupAssignGID *inAssign = vin;
-    struct inGroupAssignGID inAssignUpper;
-    mdlassert(pst->mdl,nIn == sizeof(struct inGroupAssignGID));
-    if (pst->nLeaves > 1) {
-	inAssignUpper.iStartGID = inAssign->iStartGID + pst->nGroupsLower;
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_GROUP_ASSIGN_GID,&inAssignUpper,nIn);
-        pstGroupAssignGID(pst->pstLower,vin,nIn,NULL,pnOut);
-        mdlGetReply(pst->mdl,rID,NULL,pnOut);
-        }
-    else {
-	LCL *plcl = pst->plcl;
-        pkdGroupAssignGID(plcl->pkd,inAssign->iStartGID);
-        }
-    if (pnOut) *pnOut = 0;
-    }
-
 void pstGroupStats(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     struct inGroupStats *in = vin;
     mdlassert(pst->mdl,nIn == sizeof(struct inGroupStats));
@@ -2785,6 +2719,7 @@ void pstSmooth(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     }
 
 
+#ifdef FAST_GAS
 void pstFastGasPhase1(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     struct inSmooth *in = vin;
 
@@ -2842,7 +2777,7 @@ void pstFastGasCleanup(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	}
     if (pnOut) *pnOut = 0;
     }
-
+#endif
 
 void pstReSmooth(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     struct inSmooth *in = vin;
@@ -3459,56 +3394,6 @@ pstDensityStep(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     if (pnOut) *pnOut = 0;
     }
 
-#ifdef COOLING
-void pstCoolSetup(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
-    LCL *plcl = pst->plcl;
-    struct inCoolSetup *in = vin;
-    
-    if (pst->nLeaves > 1) {
-	rID = mdlReqService(pst->mdl,pst->idUpper,PST_COOLSETUP,in,nIn);
-	pstCoolSetup(pst->pstLower,in,nIn,NULL,NULL);
-	mdlGetReply(pst->mdl,rID,NULL,NULL);
-	}
-    else {
-#if defined(COOLDEBUG)
-	(plcl->pkd->Cool)->mdl = plcl->pkd->mdl;
-#endif
-	CoolSetup((plcl->pkd->Cool),in->dGmPerCcUnit, in->dComovingGmPerCcUnit, in->dErgPerGmUnit, in->dSecUnit, in->dKpcUnit, in->dOmega0, in->dHubble0, in->dLambda, in->dOmegab, in->dOmegaRad, in->a, in->z, in->dTime, in->CoolParam);
-    }
-    if (pnOut) *pnOut = 0;
-    }
-
-void pstCooling(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
-    LCL *plcl = pst->plcl;
-    struct inCooling *in = vin;
-    struct outCooling *out = vout;
-    struct outCooling outUp;
-    
-    mdlassert(pst->mdl,nIn == sizeof(struct inCooling));
-    
-    if (pst->nLeaves > 1) {
-	rID = mdlReqService(pst->mdl,pst->idUpper,PST_COOLING,in,nIn);
-	pstCooling(pst->pstLower,in,nIn,out,NULL);
-	mdlGetReply(pst->mdl,rID,&outUp,NULL);
-	
-	out->SumTime += outUp.SumTime;
-	out->nSum += outUp.nSum;
-	if (outUp.MaxTime > out->MaxTime) out->MaxTime = outUp.MaxTime;
-	}
-    else {
-	pkdCooling(plcl->pkd,in->dTime,in->z,in->bUpdateState,in->bUpdateTable,in->bIterateDt,in->bIsothermal);
-	out->Time = pkdGetTimer(plcl->pkd,1);
-	out->MaxTime = out->Time;
-	out->SumTime = out->Time;
-	out->nSum = 1;
-	}
-
-    if (pnOut) *pnOut = sizeof(struct outCooling);
-    }
-#endif
-
 void pstCorrectEnergy(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     {
     LCL *plcl = pst->plcl;
@@ -3679,27 +3564,6 @@ pstClearTimer(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     }
 
 
-void pstFof(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-    struct inFof *in = vin;
-
-    mdlassert(pst->mdl,nIn == sizeof(struct inFof));
-    if (pst->nLeaves > 1) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_FOF,in,nIn);
-	pstFof(pst->pstLower,in,nIn,NULL,NULL);
-	mdlGetReply(pst->mdl,rID,NULL,NULL);
-	}
-    else {
-	LCL *plcl = pst->plcl;
-	SMX smx;
-	(&in->smf)->pkd = pst->plcl->pkd;
-	smInitialize(&smx,plcl->pkd,&in->smf,in->nSmooth,
-		     in->bPeriodic,in->bSymmetric,in->iSmoothType);
-	smFof(smx,&in->smf);
-	smFinish(smx,&in->smf);
-	}
-    if (pnOut) *pnOut = 0;
-    }
-
 void pstNewFof(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     struct inNewFof *in = vin;
 
@@ -3758,49 +3622,6 @@ void pstFofFinishUp(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     if (pnOut) *pnOut = sizeof(uint64_t);
     }
 
-
-void pstGroupMerge(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-    struct inGroupMerge *in = vin;
-    int *nGroups = vout;
-
-    mdlassert(pst->mdl,nIn == sizeof(struct inGroupMerge));
-    if (pst->nLeaves > 1) {
-	int nGroupsLeaf;
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_GROUPMERGE,in,nIn);
-	pstGroupMerge(pst->pstLower,in,nIn,vout,pnOut);
-	mdlGetReply(pst->mdl,rID,&nGroupsLeaf,pnOut);
-	*nGroups += nGroupsLeaf;
-	}
-    else {      
-	(&in->smf)->pkd = pst->plcl->pkd;
-	*nGroups = smGroupMerge(&in->smf,in->bPeriodic);
-	}
-    if (pnOut) *pnOut = sizeof(int);
-    }
-
-void pstGroupProfiles(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-    struct inGroupProfiles *in = vin;
-    int *nBins = vout;
-
-    mdlassert(pst->mdl,nIn == sizeof(struct inGroupProfiles));
-    if (pst->nLeaves > 1) {
-	int nBinsLeaf;
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_GROUPPROFILES,in,nIn);
-	pstGroupProfiles(pst->pstLower,in,nIn,vout,pnOut);
-	mdlGetReply(pst->mdl,rID,&nBinsLeaf,pnOut);
-	*nBins = nBinsLeaf;
-	}
-    else {
-	LCL *plcl = pst->plcl;
-	SMX smx;
-	(&in->smf)->pkd = pst->plcl->pkd;
-	smInitialize(&smx,plcl->pkd,&in->smf,in->nSmooth,
-		     in->bPeriodic,in->bSymmetric,in->iSmoothType);
-	*nBins = smGroupProfiles(smx,&in->smf,in->nTotalGroups);
-	smFinish(smx,&in->smf);
-	}
-    if (pnOut) *pnOut = sizeof(int);
-    }
 
 void pstInitRelaxation(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
@@ -3873,7 +3694,7 @@ void pltMoveIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	assert(in->nInflateFactor>0);
 	if (in->nMove <= (pkd->nStore/in->nInflateFactor)) {}
 	else {
-	    printf("nMove=%llu nStore=%d nInflateFactor=%d\n", in->nMove, pkd->nStore, in->nInflateFactor);
+	    printf("nMove=%"PRIu64" nStore=%d nInflateFactor=%d\n", in->nMove, pkd->nStore, in->nInflateFactor);
 	}
 	assert(in->nMove <= (pkd->nStore/in->nInflateFactor));
 	double inGrid = 1.0 / in->nGrid;
@@ -4668,34 +4489,6 @@ void pstSelDstGroup(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	pkdSelDstGroup(plcl->pkd, *in);
 	}
     if (pnOut) *pnOut = 0;
-    }
-
-void pstDeepestPot(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-    LCL *plcl = pst->plcl;
-    struct inDeepestPot *in = vin;
-    struct outDeepestPot *out = vout;
-    struct outDeepestPot outUpper;
-    int nOut;
-
-    assert( nIn==sizeof(struct inDeepestPot) );
-    if (pst->nLeaves > 1) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_DEEPESTPOT,vin,nIn);
-	pstDeepestPot(pst->pstLower,vin,nIn,vout,pnOut);
-	mdlGetReply(pst->mdl,rID,&outUpper,&nOut);
-	assert(nOut == sizeof(struct outDeepestPot));
-	if ( out->nChecked==0 || (outUpper.nChecked && outUpper.fPot < out->fPot) ) {
-	    out->r[0] = outUpper.r[0];
-	    out->r[1] = outUpper.r[1];
-	    out->r[2] = outUpper.r[2];
-	    out->fPot = outUpper.fPot;
-	    out->nChecked += outUpper.nChecked;
-	    }
-	}
-    else {
-	out->nChecked = pkdDeepestPot(plcl->pkd,in->uRungLo,in->uRungHi,
-	    out->r,&out->fPot);
-	}
-    if (pnOut) *pnOut = sizeof(struct outDeepestPot);
     }
 
 void pstProfile(PST pst,void *vin,int nIn,void *vout,int *pnOut) {

@@ -37,6 +37,7 @@
 #define WIN_PTHREADS
 
 #include <windows.h>
+#include <intrin.h>
 #include <process.h>
 #include <setjmp.h>
 #include <errno.h>
@@ -95,12 +96,16 @@
 #define PTHREAD_BARRIER_SERIAL_THREAD 1
 
 /* Windows doesn't have this, so declare it ourselves. */
+#ifndef xxxxHAVE_TIME_H
+#include <time.h>
+#else
 struct timespec
 {
 	/* long long in windows is the same as long in unix for 64bit */
 	long long tv_sec;
 	long long tv_nsec;
 };
+#endif
 
 typedef struct _pthread_cleanup _pthread_cleanup;
 struct _pthread_cleanup

@@ -1,5 +1,7 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
+#else
+#include "pkd_config.h"
 #endif
 #include <math.h>
 #include "basetype.h"
@@ -623,7 +625,25 @@ void pkdNewFof(PKD pkd,double dTau2,int nMinMembers) {
 	pkd->ga[i].iGid = i;
 	pkd->ga[i].iLink = 0;   /* this is a linked list of remote groups linked to this local group */
 	pkd->ga[i].minPot = FLOAT_MAXVAL;
-	pkd->ga[i].iMinPart = 0xffffffff;  /* should never be used */
+	pkd->ga[i].iMinPart = 0xffffffff;
+	}
+    /*
+    ** Set a local reference point for each group.
+    */
+    for (pn=0;pn<pkd->nLocal;++pn) {
+	p = pkdParticle(pkd,pn);
+	if (i = pkdGetGroup(pkd,p)) {
+	    if (pkd->ga[i].iMinPart == 0xffffffff) {
+		pkd->ga[i].iMinPart = pn;
+		pkd->ga[i].minPot = (float)pkd->idSelf; /* this makes the reference particle be in the lowest processor number */
+		}
+	    }
+	/*
+	** Note that IF we calculate gravity this reference gets overwritten with 
+	** the true minimum potential particle (since the potentials are always 
+	** negative). Otherwise it remains a useful reference point for the group. 
+	** This is useful in case where a group straddles a periodic boundary.
+	*/
 	}
     pkd->iRemoteGroup = 1;  /* The first entry is a dummy one for a null index */
     /*

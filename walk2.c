@@ -1,5 +1,7 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
+#else
+#include "pkd_config.h"
 #endif
 
 #ifdef __SSE__
@@ -21,6 +23,10 @@
 #include "moments.h"
 #include "vmoments.h"
 #include "cl.h"
+#include "cudautil.h"
+#include "cudapppc.h"
+#include "cudaewald.h"
+#include "clutil.h"
 
 static inline int getCell(PKD pkd,int iCache,int iCell,int id,float *pcOpen,KDN **pc) {
     KDN *c;
@@ -352,9 +358,6 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2, ui
     double dFlop;
 
     pkd->dFlop = 0.0; /* Flops are accumulated here! */
-#ifdef OLD_CUDA_EWALD
-    pkdGravStartEwald(pkd);
-#endif
     iStack = -1;
 
     /*
@@ -865,8 +868,9 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2, ui
 	--iStack;
 	}
 doneCheckList:
-#ifdef OLD_CUDA_EWALD
-    pkdGravFinishEwald(pkd);
+#ifdef USE_CUDA
+    CUDA_sendWork(pkd->mdl->cudaCtx);
+    CUDA_flushEwald(pkd->mdl->cudaCtx);
 #endif
     mdlCompleteAllWork(pkd->mdl);
     *pdFlop += pkd->dFlop; /* Accumulate work flops (notably Ewald) */

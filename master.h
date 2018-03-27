@@ -9,9 +9,6 @@
 #include "pst.h"
 #include "mdl.h"
 #include "parameters.h"
-#ifndef HAVE_CONFIG_H
-#include "floattype.h"
-#endif
 
 #define MSR_INIT_E		1
 #define MSR_STEP_E		0
@@ -20,12 +17,12 @@ static time_t timeGlobalSignalTime = 0;
 static int bGlobalOutput = 0;
 
 #ifndef _MSC_VER
-static void USR1_handler(int signo) {
+static inline void USR1_handler(int signo) {
     signal(SIGUSR1,USR1_handler);
     timeGlobalSignalTime = time(0);
     }
 
-static void USR2_handler(int signo) {
+static inline void USR2_handler(int signo) {
     signal(SIGUSR2,USR2_handler);
     bGlobalOutput = 1;
     }
@@ -233,14 +230,10 @@ int msrMaxRung(MSR msr);
 void msrSwitchTheta(MSR msr,double);
 uint64_t msrMaxOrder(MSR msr);
 
-void msrFof(MSR msr, double exp);
 void msrNewFof(MSR msr, double exp);
 void msrGroupStats(MSR msr);
 void msrHop(MSR msr, double exp);
 void msrHopWrite(MSR msr, const char *fname);
-void msrGroupMerge(MSR msr, double exp);
-void msrGroupProfiles(MSR msr, double exp);
-void msrOutGroups(MSR msr,const char *,int,double dTime);
 void msrDeleteGroups(MSR msr);
 void msrInitRelaxation(MSR msr);
 void msrRelaxation(MSR msr,double dTime,double deltaT,int iSmoothType,int bSymmetric);

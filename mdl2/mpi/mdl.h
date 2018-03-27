@@ -1,11 +1,5 @@
 #ifndef MDL_HINCLUDED
 #define MDL_HINCLUDED
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-#ifdef INSTRUMENT
-#include "cycle.h"
-#endif
 #include <pthread.h>
 #ifdef __APPLE__
 #include "pthread_barrier.h"

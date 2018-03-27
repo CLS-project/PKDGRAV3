@@ -4,9 +4,6 @@
 #include "pkd.h"
 #include "mdl.h"
 #include "smoothfcn.h"
-#ifndef HAVE_CONFIG_H
-#include "floattype.h"
-#endif
 #include "moments.h"
 #include "outtype.h"
 #include "output.h"
@@ -50,15 +47,6 @@ typedef struct pstContext {
     int iVASplitSide;
     uint64_t nLowerStore;
     uint64_t nUpperStore;
-    uint64_t nLowTot;    /* total number of particles in the lower subset of processors */
-    uint64_t nHighTot;   /* total number of particles in the upper subset of processors */
-
-    /*
-    ** Analysis information. Sticking this stuff in the PST is perhaps a bad idea,
-    ** but in avoids order(nThread) storage on the master.
-    */
-    uint64_t nGroupsLower;
-
     } * PST;
 
 
@@ -99,9 +87,11 @@ enum pst_service {
     PST_DISTRIBROOT,
     PST_ENFORCEPERIODIC,
     PST_SMOOTH,
+#ifdef FAST_GAS
     PST_FASTGASPHASE1,
     PST_FASTGASPHASE2,
     PST_FASTGASCLEANUP,
+#endif
     PST_GRAVITY,
     PST_GRAVEXTERNAL,
     PST_LIGHTCONE,
@@ -139,8 +129,6 @@ enum pst_service {
     PST_SPHSTEP,
     PST_STARFORM,
     PST_DENSITYSTEP,
-    PST_COOLSETUP,
-    PST_COOLING,
     PST_CORRECTENERGY,
     PST_SETRUNGVERYACTIVE,
     PST_MARKSMOOTH,
@@ -157,7 +145,6 @@ enum pst_service {
     PST_GETNPARTS,
     PST_SETNPARTS,
     PST_DENSCHECK,
-    PST_FOF,
     PST_NEW_FOF,
     PST_FOF_PHASES,
     PST_FOF_FINISH_UP,
@@ -169,11 +156,8 @@ enum pst_service {
     PST_HOP_GRAVITY,
     PST_HOP_UNBIND,
     PST_GROUP_RELOCATE,
-    PST_GROUP_COUNT_GID,
-    PST_GROUP_ASSIGN_GID,
     PST_GROUP_STATS,
     PST_HOP_SEND_STATS,
-    PST_GROUPMERGE,
     PST_GROUPPROFILES,
     PST_INITRELAXATION,
     PST_CLEARTIMER,
@@ -212,7 +196,6 @@ enum pst_service {
     PST_SELSRCCYLINDER,
     PST_SELDSTCYLINDER,
 
-    PST_DEEPESTPOT,
     PST_PROFILE,
     PST_CALCDISTANCE,
     PST_CALCCOM,
@@ -555,18 +538,6 @@ void pstHopUnbind(PST,void *,int,void *,int *);
 /* PST_GROUP_RELOCATE */
 void pstGroupRelocate(PST,void *,int,void *,int *);
 
-/* PST_GROUP_COUNT_GID */
-struct outGroupCountGID {
-    uint64_t nGroups;
-    };
-void pstGroupCountGID(PST,void *,int,void *,int *);
-
-/* PST_GROUP_ASSIGN_GID */
-struct inGroupAssignGID {
-    uint64_t iStartGID;
-    };
-void pstGroupAssignGID(PST,void *,int,void *,int *);
-
 /* PST_GROUP_STATS */
 struct inGroupStats {
     int bPeriodic;
@@ -592,6 +563,7 @@ void pstSmooth(PST,void *,int,void *,int *);
 /* PST_RESMOOTH */
 void pstReSmooth(PST,void *,int,void *,int *);
 
+#ifdef FAST_GAS
 /* PST_FASTGASPHASE1 */
 void pstFastGasPhase1(PST,void *,int,void *,int *);
 
@@ -600,7 +572,7 @@ void pstFastGasPhase2(PST,void *,int,void *,int *);
 
 /* PST_FASTGASCLEANUP */
 void pstFastGasCleanup(PST,void *,int,void *,int *);
-
+#endif
 
 /* PST_GRAVITY */
 struct inGravity {
@@ -916,47 +888,6 @@ struct inDensityStep {
     };
 void pstDensityStep(PST,void *,int,void *,int *);
 
-#ifdef COOLING
-/* PST_COOLSETUP */
-struct inCoolSetup {
-    double dGmPerCcUnit;
-    double dComovingGmPerCcUnit;
-    double dErgPerGmUnit;
-    double dSecUnit;
-    double dKpcUnit;
-
-    double dOmega0;
-    double dHubble0;
-    double dLambda;
-    double dOmegab;
-    double dOmegaRad;
-
-    double a;
-    double z;
-    double dTime;
-    COOLPARAM CoolParam;
-    };
-
-void pstCoolSetup(PST,void *,int,void *,int *);
-
-/* PST_COOLING */
-struct inCooling {
-    double dTime;	
-    double z;
-    int bUpdateState;
-    int bUpdateTable;
-    int bIterateDt;
-    int bIsothermal;
-    };
-struct outCooling {
-    double Time;
-    double MaxTime;
-    double SumTime;
-    int nSum;
-    };
-void pstCooling(PST,void *,int,void *,int *);
-#endif
-
 /* PST_CORRECTENERGY */
 struct inCorrectEnergy {
     double dTuFac;
@@ -1064,16 +995,6 @@ struct inClearTimer {
 
 void pstClearTimer(PST,void *,int,void *,int *);
 
-struct inFof {
-    int nSmooth;
-    int bPeriodic;
-    int bSymmetric;
-    int iSmoothType;
-    int iCenterType;
-    SMF smf;
-    };
-void pstFof(PST,void *,int,void *,int *);
-
 /* PST_NEW_FOF */
 struct inNewFof {
     double dTau2;
@@ -1093,23 +1014,6 @@ struct inFofFinishUp{
     };
 void pstFofFinishUp(PST,void *,int,void *,int *);
 
-
-struct inGroupMerge {
-    int bPeriodic;
-    int iCenterType;
-    SMF smf;
-  };
-void pstGroupMerge(PST,void *,int,void *,int *);
-
-struct inGroupProfiles {
-    int nSmooth;
-    int bPeriodic;
-    int nTotalGroups;
-    int bSymmetric;
-    int iSmoothType;
-    SMF smf;
-    };
-void pstGroupProfiles(PST,void *,int,void *,int *);
 void pstInitRelaxation(PST,void *,int,void *,int *);
 
 #ifdef MDL_FFTW
@@ -1308,18 +1212,6 @@ void pstSelDstCylinder(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 /* PST_SECSRCGROUP */
 void pstSelSrcGroup(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 void pstSelDstGroup(PST pst,void *vin,int nIn,void *vout,int *pnOut);
-
-/* PST_DEEPESTPOT - Input inDeepestPot - Output outDeepestPot */
-struct inDeepestPot {
-    uint8_t uRungLo;
-    uint8_t uRungHi;
-    };
-struct outDeepestPot {
-    double   r[3];
-    uint64_t nChecked;
-    float    fPot;
-    };
-void pstDeepestPot(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 
 /* PST_PROFILE */
 #define PST_MAX_PROFILE_BINS 1000000

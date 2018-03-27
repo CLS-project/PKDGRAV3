@@ -3,6 +3,8 @@
 #include <marshal.h>
 #ifdef HAVE_CONFIG_H
 #include "config.h"
+#else
+#include "pkd_config.h"
 #endif
 
 #include <stdint.h>
@@ -91,20 +93,32 @@ static void ppy2prm(void) {
 	    case 0:
 	    case 1:
 		assert(pn->iSize == sizeof(int));
+#if PY_MAJOR_VERSION >= 3
+		*(int *)pn->pValue = PyLong_AsLong(v);
+#else
 		*(int *)pn->pValue = PyInt_AsLong(v);
+#endif		
 		break;
 	    case 2:
 		assert(pn->iSize == sizeof(double));
 		*(double *)pn->pValue = PyFloat_AsDouble(v);
 		break;
 	    case 3:
+#if PY_MAJOR_VERSION >= 3
+		s = PyBytes_AsString(v);
+#else
 		s = PyString_AsString(v);
+#endif
 		assert(pn->iSize > strlen(s));
 		strcpy((char *)pn->pValue,s);
 		break;
 	    case 4:
 		assert(pn->iSize == sizeof(uint64_t));
+#if PY_MAJOR_VERSION >= 3
+		*(uint64_t *)pn->pValue = PyLong_AsLong(v);
+#else
 		*(uint64_t *)pn->pValue = PyInt_AsLong(v);
+#endif
 		break;
 		}
 	    }
@@ -357,15 +371,6 @@ ppy_msr_SelSrc(PyObject *self, PyObject *args) {
 #endif
 
 static PyObject *
-ppy_msr_DeepestPotential(PyObject *self, PyObject *args) {
-    double r[3];
-    float fPot;
-    ppy2prm();
-    msrDeepestPot(ppy_msr,r,&fPot);
-    return Py_BuildValue("((ddd)f)", r[0], r[1], r[2], fPot);
-}
-
-static PyObject *
 ppy_msr_TotalMass(PyObject *self, PyObject *args) {
     double dMass;
     ppy2prm();
@@ -527,28 +532,6 @@ ppy_msr_Hop(PyObject *self, PyObject *args, PyObject *kwobj) {
 
 
 static PyObject *
-ppy_msr_Fof(PyObject *self, PyObject *args, PyObject *kwobj) {
-    static char *kwlist[]={"Time",NULL};
-    double dExp;
-    double dTime = 0.0;
-
-    ppy2prm();
-    if (!ppy_get_dTime(&dTime))
-	return NULL;
-    if ( !PyArg_ParseTupleAndKeywords(
-	     args, kwobj, "|d:Fof", kwlist,
-	     &dTime ) )
-	return NULL;
-    dExp = csmTime2Exp(ppy_msr->param.csm,dTime);
-    msrFof(ppy_msr,dExp);
-    msrGroupMerge(ppy_msr,dExp);
-    Py_INCREF(Py_None);
-    return Py_None;
-}
-
-
-
-static PyObject *
 ppy_msr_Smooth(PyObject *self, PyObject *args, PyObject *kwobj) {
     static char *kwlist[]={"iSmoothType","bSymmetric","dTime","nSmooth",NULL};
     int iSmoothType;
@@ -670,7 +653,7 @@ ppy_msr_MeasurePk(PyObject *self, PyObject *args, PyObject *kwobj) {
 
     fPk = malloc(sizeof(float)*(iNyquist+1));
     fK = malloc(sizeof(float)*(iNyquist+1));
-    msrMeasurePk(ppy_msr,dCenter,dRadius,nGrid,nGrid/2,NULL,fK,fPk);
+    msrMeasurePk(ppy_msr,nGrid,nGrid/2,NULL,fK,fPk);
 
     List = PyList_New( iNyquist+1 );
     assert( List !=NULL );
@@ -685,25 +668,6 @@ ppy_msr_MeasurePk(PyObject *self, PyObject *args, PyObject *kwobj) {
     return List;
 }
 #endif
-
-static PyObject *
-ppy_msr_GroupProfiles(PyObject *self, PyObject *args, PyObject *kwobj) {
-    static char *kwlist[]={"Time",NULL};
-    double dExp;
-    double dTime = 0.0;
-
-    ppy2prm();
-    if (!ppy_get_dTime(&dTime))
-	return NULL;
-    if ( !PyArg_ParseTupleAndKeywords(
-	     args, kwobj, "|d:GroupProfiles", kwlist,
-	     &dTime ) )
-	return NULL;
-    dExp = csmTime2Exp(ppy_msr->param.csm,dTime);
-    msrGroupProfiles(ppy_msr,dExp);
-    Py_INCREF(Py_None);
-    return Py_None;
-}
 
 static PyObject *
 ppy_msr_Load(PyObject *self, PyObject *args, PyObject *kwobj) {
@@ -871,30 +835,6 @@ ppy_msr_SaveArray(PyObject *self, PyObject *args, PyObject *kwobj) {
     return Py_None;
 }
 
-#if 0
-static PyObject *
-ppy_msr_PsFof(PyObject *self, PyObject *args, PyObject *kwobj) {
-    static char *kwlist[]={"Time",NULL};
-    double dExp;
-    double dTime = 0.0;
-    PyObject *v, *dict;
-
-    dict = PyModule_GetDict(global_ppy->module);
-    if ( (v = PyDict_GetItemString(dict, "dTime")) == NULL )
-	return NULL;
-    dTime = PyFloat_AsDouble(v);
-    if ( !PyArg_ParseTupleAndKeywords(
-	     args, kwobj, "|d:PsFof", kwlist,
-	     &dTime ) )
-	return NULL;
-    dExp = csmTime2Exp(ppy_msr->param.csm,dTime);
-    msrPsFof(ppy_msr,dExp);
-    //msrGroupMerge(ppy_msr,dExp);
-    Py_INCREF(Py_None);
-    return Py_None;
-}
-#endif
-
 /**********************************************************************\
  * MSR methods.  These methods are shared by both the "msr" module,
  * and the "MSR" object.
@@ -933,8 +873,6 @@ static PyMethodDef msr_methods[] = {
      "Selects source particles inside a given cylinder."},
     {"SelDstCylinder", ppy_msr_SelDstCylinder, METH_VARARGS,
      "Selects destination particles inside a given cylinder."},
-    {"DeepestPotential", ppy_msr_DeepestPotential, METH_NOARGS,
-     "Finds the most bound particle (deepest potential)"},
     {"TotalMass", ppy_msr_TotalMass, METH_NOARGS,
      "Returns the total mass of the selected particles"},
     {"Profile", ppy_msr_Profile, METH_VARARGS,
@@ -953,12 +891,8 @@ static PyMethodDef msr_methods[] = {
      "Smooth"},
     {"ReSmooth", (PyCFunction)ppy_msr_ReSmooth, METH_VARARGS|METH_KEYWORDS,
      "ReSmooth"},
-    {"Fof", (PyCFunction)ppy_msr_Fof, METH_VARARGS|METH_KEYWORDS,
-     "Friends of Friends"},
     {"Hop", (PyCFunction)ppy_msr_Hop, METH_VARARGS|METH_KEYWORDS,
      "Grasshopper"},
-    {"GroupProfiles", (PyCFunction)ppy_msr_GroupProfiles, METH_VARARGS|METH_KEYWORDS,
-     "Group Profiles"},
     {"AdjustTime", (PyCFunction)ppy_msr_AdjustTime, METH_VARARGS|METH_KEYWORDS,
      "Changing starting time for Zel'dovich ICs"},
     {"InitGrid", (PyCFunction)ppy_msr_InitGrid, METH_VARARGS|METH_KEYWORDS,

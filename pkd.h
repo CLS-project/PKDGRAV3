@@ -5,12 +5,6 @@
 #include <string.h>
 
 #include "mdl.h"
-#ifndef HAVE_CONFIG_H
-#include "floattype.h"
-#endif
-#ifdef COOLING
-#include "cooling.h" /* before parameters.h */
-#endif
 #include "parameters.h"
 #include "ilp.h"
 #include "ilc.h"
@@ -567,6 +561,7 @@ typedef struct {
 typedef struct {
     pos_t rPot[3];
     float minPot;
+    float rcen[3];
     float rcom[3];
     float vcom[3];
     float angular[3];
@@ -581,33 +576,6 @@ typedef struct {
 
 //typedef struct {
 //    } SmallGroupTable;
-
-
-
-
-/*
-** components required for groupfinder:  --J.D.--
-*/
-typedef struct remoteMember {
-    int iPid;
-    int iIndex;
-    } FOFRM;
-
-typedef struct groupData {
-    int iLocalId;
-    int iGlobalId;
-    float fMass;
-    float fRMSRadius;
-    double r[3];
-    double rcom[3];
-    float potordenmax;
-    float v[3];
-    int nLocal;
-    int nTotal;
-    int bMyGroup;
-    int nRemoteMembers;
-    int iFirstRm;
-} FOFGD;
 
 struct remote_root_id
 {
@@ -787,9 +755,6 @@ typedef struct pkdContext {
     float fSoftMax;
     int nClasses;
     void *pLite;
-#ifdef COOLING
-    COOL *Cool; /* Cooling Context */
-#endif
     uint32_t nEphemeralBytes; /* per-particle */
     /*
     ** Advanced memory models
@@ -879,9 +844,6 @@ typedef struct pkdContext {
 	} ti[MAX_TIMERS];
     struct psGroupTable psGroupTable;
 
-    FOFGD *groupData;
-
-    uint64_t iStartGID;
     int nGroups, nLocalGroups;
     struct smGroupArray *ga;
     BND bndInterior;  /* this gets calculated at the start of Fof for now but should be done elsewhere */
@@ -901,7 +863,6 @@ typedef struct pkdContext {
     struct saddle_point_list saddle_points;
     int nRm;
     int nMaxRm;
-    FOFRM *remoteMember;
     int nBins;
 
     FOFBIN *groupBin;

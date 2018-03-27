@@ -5,9 +5,6 @@
 #include "pkd.h"
 #include "smoothfcn.h"
 #include "group.h"
-#ifndef HAVE_CONFIG_H
-#include "floattype.h"
-#endif
 
 #define NNLIST_INCREMENT	200		/* number of extra neighbor elements added to nnList */
 
@@ -95,9 +92,5 @@ void smReSmooth(SMX,SMF *);
 void smFastGasPhase1(SMX smx,SMF *smf);
 void smFastGasPhase2(SMX smx,SMF *smf);
 void pkdFastGasCleanup(PKD pkd);  /* frees up the neighbor lists */
-
-void smFof(SMX smx, SMF *smf);
-int smGroupMerge(SMF *smf, int bPeriodic);
-int smGroupProfiles(SMX smx, SMF *smf,int nTotalGroups);
 
 #endif

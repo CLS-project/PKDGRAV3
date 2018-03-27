@@ -1,5 +1,7 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
+#else
+#include "pkd_config.h"
 #endif
 
 #include <stdio.h>
@@ -423,22 +425,22 @@ static double RK4_g2(CSM csm, double lna, double D1, double D2, double G){
 }
 
 
+#define NSTEPS 1000
 void csmComoveGrowth(CSM csm, double a, double *D1LPT, double *D2LPT, double *f1LPT, double *f2LPT){
     /*
     ** Variable declarations & initializations
     */
-    int nSteps=1000;
     double a_init, lna_init = log(1e-12); // ln(a)=-12 ==> a = e^(-12) ~ 0 
-    double stepwidth = (log(a)- lna_init)/nSteps;
+    double stepwidth = (log(a)- lna_init)/NSTEPS;
 
     // NOTICE: Storing the following quantities into data structures is by far not optimal (we actually never need the old values after the update).
-    double ln_timesteps[nSteps+1];
+    double ln_timesteps[NSTEPS+1];
     // -- 1LPT 
-    double D1[nSteps+1]; // 1LPT Growth factor D1(a)
-    double G1[nSteps+1]; // G1(a) = dD1(a)/dln(a) *H  ==>  Growth rate: f1(a) = G1/(H*D1) 
+    double D1[NSTEPS+1]; // 1LPT Growth factor D1(a)
+    double G1[NSTEPS+1]; // G1(a) = dD1(a)/dln(a) *H  ==>  Growth rate: f1(a) = G1/(H*D1) 
     // -- 2LPT
-    double D2[nSteps+1]; // 2LPT Growth factor D2(a)
-    double G2[nSteps+1]; // G2(a) = dD2(a)/dln(a) *H  ==>  Growth rate: f2(a) = G1/(H*D1) 
+    double D2[NSTEPS+1]; // 2LPT Growth factor D2(a)
+    double G2[NSTEPS+1]; // G2(a) = dD2(a)/dln(a) *H  ==>  Growth rate: f2(a) = G1/(H*D1) 
 
     /* 
     ** Set boundary conditions
@@ -464,7 +466,7 @@ void csmComoveGrowth(CSM csm, double a, double *D1LPT, double *D2LPT, double *f1
     //fp = fopen("GrowthFactorTable.NewBC.dat","a");
 
     int i; // running loop variable
-    for(i=0;i<=nSteps;i++){
+    for(i=0;i<NSTEPS;i++){
         ln_timesteps[i] = lna_init + i*stepwidth;
         //fprintf(file, "%.15f, %.5f,%.20f\n", exp(ln_timesteps[i]),1.0/exp(ln_timesteps[i])-1.0, D[i]+ 0.0001977011);
  
@@ -508,11 +510,11 @@ void csmComoveGrowth(CSM csm, double a, double *D1LPT, double *D2LPT, double *f1
        
     //fclose(fp);
 
-    *D1LPT = D1[nSteps];
-    *f1LPT = G1[nSteps]/(csmExp2Hub(csm,a) * *D1LPT);
+    *D1LPT = D1[NSTEPS];
+    *f1LPT = G1[NSTEPS]/(csmExp2Hub(csm,a) * *D1LPT);
 
-    *D2LPT = D2[nSteps];
-    *f2LPT = G2[nSteps]/(csmExp2Hub(csm,a) * *D2LPT);
+    *D2LPT = D2[NSTEPS];
+    *f2LPT = G2[NSTEPS]/(csmExp2Hub(csm,a) * *D2LPT);
     return;
 }
 

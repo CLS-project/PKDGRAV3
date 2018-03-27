@@ -1,10 +1,11 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
+#else
+#include "pkd_config.h"
 #endif
 #include <assert.h>
 
 #include "ilp.h"
-#include "cudautil.h"
 
 void ilpInitialize(ILP *ilp) {
     *ilp = malloc(sizeof(struct ilpContext));
