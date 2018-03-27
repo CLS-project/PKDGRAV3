@@ -14,9 +14,8 @@
  *  along with PKDGRAV3.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/*
- ** MPI version of MDL.
- */
+#include "mdl.h"
+
 #ifdef USE_AFFINITY
 #include <sched.h>
 #include <stdio.h>
@@ -29,7 +28,6 @@
 #include <stddef.h>
 #include <string.h>
 
-#include "mdl.h"
 
 #ifdef HAVE_MALLOC_H
 #include <malloc.h>

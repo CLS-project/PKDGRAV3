@@ -10,5 +10,7 @@
 #define MDL_FFTW 1
 #define USE_SINGLE 1
 #define OMPI_SKIP_MPICXX
-
 #define INSTRUMENT 1
+#if defined(USE_AFFINITY) && !defined(_GNU_SOURCE)
+#define _GNU_SOURCE 1
+#endif

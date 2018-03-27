@@ -16,11 +16,11 @@
 
 #ifndef MDL_HINCLUDED
 #define MDL_HINCLUDED
+#include "mdlbase.h"
 #include <pthread.h>
 #ifdef __APPLE__
 #include "pthread_barrier.h"
 #endif
-#include "mdlbase.h"
 #include <stdio.h>
 #include <assert.h>
 #ifdef HAVE_INTTYPES_H
