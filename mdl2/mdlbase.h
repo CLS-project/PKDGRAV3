@@ -1,4 +1,5 @@
-/*  This file is part of PKDGRAV3.
+/*  This file is part of PKDGRAV3 (http://www.pkdgrav.org/).
+ *  Copyright (c) 2001-2018 Joachim Stadel & Douglas Potter
  *
  *  PKDGRAV3 is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
