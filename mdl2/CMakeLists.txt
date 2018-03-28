@@ -4,14 +4,13 @@ if(COMMAND cmake_policy)
 endif(COMMAND cmake_policy)
 project(mdl2)
 add_subdirectory(openpa)	# Lockless queue support
-
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/")
 find_package(FFTW REQUIRED)
 if(FFTW_FOUND)
 #  INCLUDE_DIRECTORIES(${FFTW_INCLUDES})
   set(MDL_FFTW ${FFTW_FOUND})
 endif()
-
+pkg_check_modules(HWLOC hwloc)
 INCLUDE (CheckIncludeFiles)
 CHECK_INCLUDE_FILES (malloc.h HAVE_MALLOC_H)
 CHECK_INCLUDE_FILES (time.h HAVE_TIME_H)
@@ -31,7 +30,6 @@ find_package(MPI REQUIRED)	# MPI support
 #  set(USE_CUDA TRUE)
 #endif(CUDA_FOUND)
 
-CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/mdl_config.h.in ${CMAKE_CURRENT_BINARY_DIR}/mdl_config.h)
 
 add_library(${PROJECT_NAME} STATIC "")
 target_sources(${PROJECT_NAME}
@@ -41,6 +39,11 @@ target_sources(${PROJECT_NAME}
           ${CMAKE_CURRENT_SOURCE_DIR}/mdlbase.h
           ${CMAKE_CURRENT_BINARY_DIR}/mdl_config.h
 )
+if (HWLOC_FOUND)
+  set(USE_HWLOC TRUE)
+  target_include_directories(${PROJECT_NAME} PUBLIC ${HWLOC_INCLUDE_DIRS})
+  target_link_libraries(${PROJECT_NAME} ${HWLOC_LIBRARIES})
+endif()
 if (APPLE)
   target_sources(${PROJECT_NAME}
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/mac/pthread_barrier.c
@@ -78,5 +81,6 @@ find_library(MEMKIND_LIBRARY memkind)
 target_link_libraries(${PROJECT_NAME} ${MEMKIND_LIBRARY})
 endif()
 
+CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/mdl_config.h.in ${CMAKE_CURRENT_BINARY_DIR}/mdl_config.h)
 install(TARGETS ${PROJECT_NAME} DESTINATION "lib")
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/mdl_config.h mpi/mdl.h mdlbase.h DESTINATION "include")
