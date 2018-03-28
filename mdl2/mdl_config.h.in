@@ -12,6 +12,3 @@
 #define USE_SINGLE 1
 #define OMPI_SKIP_MPICXX
 #define INSTRUMENT 1
-#if defined(USE_HWLOC) && !defined(_GNU_SOURCE)
-#define _GNU_SOURCE 1
-#endif

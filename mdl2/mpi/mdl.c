@@ -19,10 +19,6 @@
 
 #ifdef USE_HWLOC
 #include "hwloc.h"
-#include <sched.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <ctype.h>
 #endif
 
 #include <stdio.h>
@@ -1611,8 +1607,9 @@ void mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(
     mdlContextMPI *mpi;
 #ifdef USE_HWLOC
     hwloc_topology_t topology;
-    hwloc_cpuset_t set_proc;
-    hwloc_obj_t t;
+    hwloc_cpuset_t set_proc, set_thread;
+    hwloc_obj_t t = NULL;
+    int iCPU = -1;
 #endif
 
 #ifdef USE_ITT
@@ -1710,15 +1707,18 @@ void mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(
 	hwloc_topology_init(&topology);
 	hwloc_topology_load(topology);
 	set_proc = hwloc_bitmap_alloc();
-
+	set_thread = hwloc_bitmap_alloc();
 	n = hwloc_get_nbobjs_by_type(topology, HWLOC_OBJ_PU);
 	if (n != mdl->base.nCores) n = 1;
 	else if (hwloc_get_cpubind(topology,set_proc,HWLOC_CPUBIND_PROCESS) != 0) n = 1;
-	else {  
+	else {
 	    // Get the first core and reserve it for our MDL use
 	    t = hwloc_get_obj_inside_cpuset_by_type(topology,set_proc,HWLOC_OBJ_CORE,0);
-	    hwloc_bitmap_andnot(set_proc,set_proc,t->cpuset);
-	    n = hwloc_bitmap_weight(t->cpuset);
+	    if ( t != NULL ) {
+		hwloc_bitmap_andnot(set_proc,set_proc,t->cpuset);
+		n = hwloc_bitmap_weight(t->cpuset);
+		}
+	    else n = 1;
 	    }
 	mdl->base.nCores -= n;
 #endif
@@ -1764,7 +1764,6 @@ void mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(
 	    clContext,
 #endif
 	    fcnMaster, fcnChild);
-
 
     OPA_Queue_init(&mpi->queueMPI);
     OPA_Queue_init(&mpi->queueREGISTER);
@@ -1871,22 +1870,22 @@ void mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(
     mpi->nActiveCores = 0;
     if (mdl->base.nCores > 1 || bDedicated) {
 #ifdef USE_HWLOC
-	cpu_set_t cpus;
 	int icpu = -1;
 #endif
 	pthread_attr_t attr;
 	pthread_attr_init(&attr);
 	pthread_barrier_init(&mdl->pmdl[0]->barrier,NULL,mdlCores(mdl)+(bDedicated?1:0));
 	for (i = mdl->iCoreMPI+1; i < mdl->base.nCores; ++i) {
-#ifdef USE_HWLOC
-	    icpu = hwloc_bitmap_next(set_proc,icpu);
-	    CPU_ZERO(&cpus);
-	    CPU_SET(icpu, &cpus);
-	    pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &cpus);
-#endif
 	    pthread_create(&mdl->threadid[i], &attr,
 		mdlWorkerThread,
 		mdl->pmdl[i]);
+#ifdef USE_HWLOC
+	    if (t) { // If requested, bind the new thread to the specific core
+		icpu = hwloc_bitmap_next(set_proc,icpu);
+		hwloc_bitmap_only(set_thread,icpu);
+		hwloc_set_thread_cpubind(topology,mdl->threadid[i],set_thread,HWLOC_CPUBIND_THREAD);
+		}
+#endif
 	    ++mpi->nActiveCores;
 	    }
 	pthread_attr_destroy(&attr);
@@ -1896,6 +1895,7 @@ void mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(
     __itt_task_end(domain);
 #endif
 #ifdef USE_HWLOC
+    hwloc_bitmap_free(set_thread);
     hwloc_bitmap_free(set_proc);
     hwloc_topology_destroy(topology);
 #endif
