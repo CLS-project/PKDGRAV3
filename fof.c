@@ -649,7 +649,7 @@ void pkdNewFof(PKD pkd,double dTau2,int nMinMembers) {
     */
     for (pn=0;pn<pkd->nLocal;++pn) {
 	p = pkdParticle(pkd,pn);
-	if (i = pkdGetGroup(pkd,p)) {
+	if ( (i = pkdGetGroup(pkd,p)) != 0 ) {
 	    if (pkd->ga[i].iMinPart == 0xffffffff) {
 		pkd->ga[i].iMinPart = pn;
 		pkd->ga[i].minPot = (float)pkd->idSelf; /* this makes the reference particle be in the lowest processor number */
