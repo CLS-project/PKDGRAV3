@@ -17,7 +17,8 @@
 
 #include "mdl.h"
 
-#ifdef USE_AFFINITY
+#ifdef USE_HWLOC
+#include "hwloc.h"
 #include <sched.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -1603,42 +1604,15 @@ static void cleanupMDL(MDL mdl) {
     mdlBaseFinish(&mdl->base);
     }
 
-#ifdef USE_AFFINITY
-static void cpu_get_siblings(int cpu,cpu_set_t *sib) {
-    char ach[256];
-    int n, o, i;
-    uint32_t v;
-    sprintf(ach,"/sys/devices/system/cpu/cpu%d/topology/thread_siblings",cpu);
-    FILE *fp = fopen(ach,"r");
-    assert(fp!=NULL);
-    if (fgets(ach,sizeof(ach),fp)==NULL) assert(0);
-    ach[sizeof(ach)-1] = 0;
-    n = strlen(ach);
-    while(n>0 && isspace(ach[n-1])) ach[--n] = 0;
-
-    CPU_ZERO(sib);
-    o = 0;
-    while( (n = strlen(ach)) > 8 ) {
-	assert(ach[n-9] == ',');
-	ach[n-9] = 0;
-	uint32_t v;
-	sscanf(ach+n-8,"%x",&v);
-	for(i=0; i<32; ++i) if (v & (1<<i)) CPU_SET(o+i,sib);
-	o += 32;
-	}
-    sscanf(ach,"%x",&v);
-    for(i=0; i<32; ++i) if (v & (1<<i)) CPU_SET(o+i,sib);
-    }
-#endif
-
 void mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(MDL)) {
     MDL mdl;
     int i,n,bDiag,bThreads,bDedicated,thread_support,rc,flag,*piTagUB;
     char *p, ach[256];
     mdlContextMPI *mpi;
-#ifdef USE_AFFINITY
-    cpu_set_t set;
-    int cpu;
+#ifdef USE_HWLOC
+    hwloc_topology_t topology;
+    hwloc_cpuset_t set_proc;
+    hwloc_obj_t t;
 #endif
 
 #ifdef USE_ITT
@@ -1729,31 +1703,26 @@ void mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(
 	else bDedicated = 0;
 	}
     if (bDedicated == 1) {
+#ifndef USE_HWLOC
 	/*if (mdl->base.nCores==1 || mdl->base.nProcs==1) bDedicated=0;
 	  else*/ --mdl->base.nCores;
-	}
+#else
+	hwloc_topology_init(&topology);
+	hwloc_topology_load(topology);
+	set_proc = hwloc_bitmap_alloc();
 
-#ifdef USE_AFFINITY
-    if (bDedicated) {
-	cpu_set_t sib;
-	int icpu;
-
-	/* Remove siblings of the MPI core */
-	sched_getaffinity(0, sizeof(cpu_set_t), &set);
-	for (cpu = 0; cpu < CPU_SETSIZE; cpu++)
-	    if (CPU_ISSET(cpu, &set)) break;
-	assert(cpu<CPU_SETSIZE);
-	cpu_get_siblings(cpu, &sib);
-	assert(CPU_ISSET(cpu,&sib));
-	CPU_CLR(cpu,&set);
-	for (icpu = 0; icpu < CPU_SETSIZE; icpu++) {
-	    if (cpu != icpu && CPU_ISSET(icpu, &sib) && CPU_ISSET(icpu,&set) ) {
-		CPU_CLR(icpu,&set);
-		--mdl->base.nCores;
-	        }
+	n = hwloc_get_nbobjs_by_type(topology, HWLOC_OBJ_PU);
+	if (n != mdl->base.nCores) n = 1;
+	else if (hwloc_get_cpubind(topology,set_proc,HWLOC_CPUBIND_PROCESS) != 0) n = 1;
+	else {  
+	    // Get the first core and reserve it for our MDL use
+	    t = hwloc_get_obj_inside_cpuset_by_type(topology,set_proc,HWLOC_OBJ_CORE,0);
+	    hwloc_bitmap_andnot(set_proc,set_proc,t->cpuset);
+	    n = hwloc_bitmap_weight(t->cpuset);
 	    }
-	}
+	mdl->base.nCores -= n;
 #endif
+	}
 
     /* Construct the thread/processor map */
     mdl->base.iProcToThread = malloc((mdl->base.nProcs + 1) * sizeof(int));
@@ -1901,18 +1870,16 @@ void mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(
 #endif
     mpi->nActiveCores = 0;
     if (mdl->base.nCores > 1 || bDedicated) {
-#ifdef USE_AFFINITY
-	int icpu = cpu;
+#ifdef USE_HWLOC
 	cpu_set_t cpus;
+	int icpu = -1;
 #endif
 	pthread_attr_t attr;
 	pthread_attr_init(&attr);
 	pthread_barrier_init(&mdl->pmdl[0]->barrier,NULL,mdlCores(mdl)+(bDedicated?1:0));
 	for (i = mdl->iCoreMPI+1; i < mdl->base.nCores; ++i) {
-#ifdef USE_AFFINITY
-	    ++icpu;
-	    while(!CPU_ISSET(icpu,&set) && icpu < CPU_SETSIZE ) ++icpu;
-	    assert(icpu<CPU_SETSIZE);
+#ifdef USE_HWLOC
+	    icpu = hwloc_bitmap_next(set_proc,icpu);
 	    CPU_ZERO(&cpus);
 	    CPU_SET(icpu, &cpus);
 	    pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &cpus);
@@ -1923,15 +1890,14 @@ void mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(
 	    ++mpi->nActiveCores;
 	    }
 	pthread_attr_destroy(&attr);
-#ifdef notwithfftwUSE_AFFINITY
-	CPU_ZERO(&cpus);
-	CPU_SET(cpu, &cpus);
-	sched_setaffinity(0, sizeof(cpu_set_t), &cpus);
-#endif
 	}
 #ifdef USE_ITT
     __itt_task_end(domain);
     __itt_task_end(domain);
+#endif
+#ifdef USE_HWLOC
+    hwloc_bitmap_free(set_proc);
+    hwloc_topology_destroy(topology);
 #endif
     if (!bDedicated) {
 	if (mdl->base.idSelf) (*fcnChild)(mdl);
