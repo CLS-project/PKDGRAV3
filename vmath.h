@@ -156,10 +156,10 @@ dvec exp(const dvec &x) {
     n1  = _mm_slli_epi64(n1, 52);
     pow2n = _mm_castsi128_pd(n1);
 #endif
-    xx = x - d*C1 - d*C2;
-    xx *= xx;
+    dvec y = x - d*C1 - d*C2;
+    xx = y * y;
 
-    Pexp = ((p0*xx + p1)*xx + p2)*x;
+    Pexp = ((p0*xx + p1)*xx + p2)*y;
     Qexp = (((q0*xx + q1)*xx + q2)*xx + q3) - Pexp;
     dvec r = Pexp / Qexp;
     r = (r*2.0f + 1.0f)*pow2n;
