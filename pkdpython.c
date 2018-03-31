@@ -742,10 +742,6 @@ ppy_msr_Load(PyObject *self, PyObject *args, PyObject *kwobj) {
 	PyDict_SetItemString(dict, "dTime", Py_BuildValue("d",dTime));
 	break;
 
-    case IN_SRC_MARK:
-    case IN_DST_MARK:
-	break;
-
     default:
 	assert(0);
 	}

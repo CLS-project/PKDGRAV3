@@ -2912,7 +2912,7 @@ void pstGravity(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 #ifdef __linux__
 	fp = fopen("/proc/self/stat","r");
 	if ( fp != NULL ) {
-	    fgets(buffer,sizeof(buffer),fp);
+	    if (fgets(buffer,sizeof(buffer),fp)==NULL) buffer[0] = '\0';
 	    fclose(fp);
 	    f = strtok_r(buffer," ",&save);
 	    for ( i=0; i<= 36 && f; i++ ) {
@@ -3997,7 +3997,7 @@ void pstMemStatus(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 #ifdef __linux__
 	fp = fopen("/proc/self/stat","r");
 	if ( fp != NULL ) {
-	    fgets(buffer,sizeof(buffer),fp);
+	    if (fgets(buffer,sizeof(buffer),fp)==NULL) buffer[0] = '\0';
 	    fclose(fp);
 	    f = strtok_r(buffer," ",&save);
 	    for ( i=0; i<= 36 && f; i++ ) {

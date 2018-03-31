@@ -57,15 +57,19 @@ static void alarm_handler(int signo, siginfo_t *si, void *unused) {
 static void alarm_handler(int signo) {
 #endif
     FILE *fp;
+    int fd;
 #if defined(MAXHOSTNAMELEN) && defined(HAVE_GETHOSTNAME)
     char hostname[MAXHOSTNAMELEN+12];
     strcpy(hostname,"dump/");
     if (gethostname(hostname+5,MAXHOSTNAMELEN)) fp = stderr;
     else {
 	strcpy(hostname+strlen(hostname),".XXXXXX");
-	mkstemp(hostname);
-	fp = fopen(hostname,"a");
-	if (fp==NULL) fp = stderr;
+	fd = mkstemp(hostname);
+	if (fd>0) {
+	    fp = fdopen(fd,"a");
+	    if (fp==NULL) fp = stderr;
+	    }
+	else fp = stderr;
 	}
 #else
     fp = stderr;

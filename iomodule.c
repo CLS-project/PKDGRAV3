@@ -208,7 +208,7 @@ void io_close(asyncFileInfo *info) {
     if (info->iByte) queue_dio(info,info->iBuffer,1);
     if (info->nPending) wait_complete(info,info->nPending);
     assert(info->nPending==0);
-	ftruncate(info->fd, info->iFilePosition);
+    if (ftruncate(info->fd, info->iFilePosition)) perror("ftruncate");
 #endif
     close(info->fd);
     }
