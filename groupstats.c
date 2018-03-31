@@ -748,7 +748,7 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnviro
 		ShrinkStruct *g;
 		if (shrink[gid].nEnclosed < 0) continue;
 		g = mdlFetch(mdl,CID_GROUP,pkd->ga[gid].id.iIndex,pkd->ga[gid].id.iPid);
-		for (j=0;j<5;j++) {
+		for (j=0;j<3;j++) {
 		    shrink[gid].rcom[j] = g->rcom[j];
 		    }
 		shrink[gid].fMass = g->fMass;

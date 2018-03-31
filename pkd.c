@@ -2007,7 +2007,9 @@ static void asyncCheckpoint(PKD pkd,const char *fname,int bWrite) {
 	} while(!bDone);
 #endif
     /* Record the actual file size */
-    if (bWrite) ftruncate(info.fd,nFileSize);
+    if (bWrite) {
+	if (ftruncate(info.fd,nFileSize)) perror("ftruncate");
+	}
     close(info.fd);
     }
 #endif
