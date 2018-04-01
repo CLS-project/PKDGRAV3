@@ -4,17 +4,14 @@ if(COMMAND cmake_policy)
 endif(COMMAND cmake_policy)
 project(pkdgrav3)
 
-if(NOT CMAKE_BUILD_TYPE)
-  set(CMAKE_BUILD_TYPE Release)
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+  message(STATUS "Release build with debug info selected")
+  set(CMAKE_BUILD_TYPE RelWithDebInfo)
 endif()
-set(CMAKE_CXX_FLAGS_RELEASE "-O3")
-set(CMAKE_C_FLAGS_RELEASE "-O3")
-
 if(UNIX)
   set(CMAKE_REQUIRED_LIBRARIES m)
   set(HAVE_LIBM 1)
 endif()
-
 
 include(CheckCXXCompilerFlag)
 include(CheckCXXCompilerFlag)
@@ -27,12 +24,11 @@ CHECK_CXX_COMPILER_FLAG("/arch:AVX" COMPILER_OPT_ARCH_AVX_SUPPORTED)
 if (COMPILER_OPT_ARCH_AVX_SUPPORTED)
   add_compile_options(/arch:AVX)
 endif()
-
-
-
-
-
-
+CHECK_CXX_COMPILER_FLAG("-Wall" COMPILER_OPT_WARN_ALL_SUPPORTED)
+if (COMPILER_OPT_WARN_ALL_SUPPORTED)
+  set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wall")
+  set(CMAKE_C_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wall")
+endif()
 #find_package(CUDA)
 find_package(GSL REQUIRED)      # GNU Scientific Library
 
