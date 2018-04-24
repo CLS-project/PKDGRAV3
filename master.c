@@ -1854,7 +1854,7 @@ msrGetLock(MSR msr) {
 
     _msrMakePath(msr->param.achDataSubPath,LOCKFILE,achFile);
     if (!msr->param.bOverwrite && (fp = fopen(achFile,"r"))) {
-	(void) fscanf(fp,"%s",achTmp);
+	if (fscanf(fp,"%s",achTmp) != 1) achTmp[0] = '\0';
 	(void) fclose(fp);
 	if (!strcmp(msr->param.achOutName,achTmp)) {
 	    (void) printf("ABORT: %s detected.\nPlease ensure data is safe to "

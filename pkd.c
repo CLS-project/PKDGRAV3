@@ -2007,7 +2007,9 @@ static void asyncCheckpoint(PKD pkd,const char *fname,int bWrite) {
 	} while(!bDone);
 #endif
     /* Record the actual file size */
-    if (bWrite) ftruncate(info.fd,nFileSize);
+    if (bWrite) {
+	if (ftruncate(info.fd,nFileSize)) perror("ftruncate");
+	}
     close(info.fd);
     }
 #endif
@@ -2402,6 +2404,7 @@ static void combHealpix(void *vctx, void *v1, void *v2) {
 
 void pkdLightConeClose(PKD pkd,const char *healpixname) {
     int i;
+    size_t nWrite;
     if (pkd->afiLightCone.fd > 0) {
 	flushLightCone(pkd);
 	io_close(&pkd->afiLightCone);
@@ -2416,7 +2419,10 @@ void pkdLightConeClose(PKD pkd,const char *healpixname) {
 	    sum += pkd->pHealpixData[i].nUngrouped;
 	    if (sum) pkd->pHealpixData[i].fPotential /= sum;
 	    }
-	write(fd,pkd->pHealpixData,pkd->nHealpixPerDomain * sizeof(*pkd->pHealpixData));
+	nWrite = pkd->nHealpixPerDomain * sizeof(*pkd->pHealpixData);
+	if (write(fd,pkd->pHealpixData,nWrite) != nWrite) {
+	    perror("Wrong size writing Healpix");
+	    }
 	close(fd);
 	}
     }
