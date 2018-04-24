@@ -742,9 +742,9 @@ inline float hadd(__m256 p) {
     return _mm_cvtss_f32(sum);
     }
 inline float hadd(vec<__m512,float> const &a) {
-    __m256 low  = _mm512_castps512_ps256(a);
-    __m256 high = _mm256_castpd_ps(_mm512_extractf64x4_pd(_mm512_castps_pd(a),1));
-    return hadd(low) + hadd(high);
+    __m256 lower = _mm512_castps512_ps256(a);
+    __m256 upper = _mm256_castpd_ps(_mm512_extractf64x4_pd(_mm512_castps_pd(a),1));
+    return hadd(_mm256_add_ps(lower,upper));
     }
 
 inline vec<__m512,float> mask_xor(mmask<__mmask16> const &k,vec<__m512,float> const &a,vec<__m512,float> const &b)
