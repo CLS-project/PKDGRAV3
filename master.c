@@ -1618,9 +1618,9 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->iRungDT = 0;
     msr->iLastRungRT = -1;
     msr->iLastRungDD = -1;
-    msr->nRung = malloc((msr->param.iMaxRung+1)*sizeof(uint64_t));
+    msr->nRung = malloc((MAX_RUNG+1)*sizeof(uint64_t));
     assert(msr->nRung != NULL);
-    for (i=0;i<=msr->param.iMaxRung;++i) msr->nRung[i] = 0;
+    for (i=0;i<=MAX_RUNG;++i) msr->nRung[i] = 0;
 
     msr->iRungVeryActive = msr->param.iMaxRung; /* No very active particles */
     msr->bSavePending = 0;                      /* There is no pending save */
