@@ -570,43 +570,6 @@ void msrCheckpoint(MSR msr,int iStep,double dTime) {
 */
 static int validateParameters(PRM prm,struct parameters *param) {
     
-#define KBOLTZ	1.38e-16     /* bolzman constant in cgs */
-#define MHYDR 1.67e-24       /* mass of hydrogen atom in grams */
-#define MSOLG 1.99e33        /* solar mass in grams */
-#define GCGS 6.67e-8         /* G in cgs */
-#define KPCCM 3.085678e21    /* kiloparsec in centimeters */
-#define SIGMAT 6.6524e-25    /* Thompson cross-section (cm^2) */
-#define LIGHTSPEED 2.9979e10 /* Speed of Light cm/s */
-    /*
-    ** Convert kboltz/mhydrogen to system units, assuming that
-    ** G == 1.
-    */
-    if(prmSpecified(prm, "dMsolUnit") &&
-       prmSpecified(prm, "dKpcUnit")) {
-	param->dGasConst = param->dKpcUnit*KPCCM*KBOLTZ
-	    /MHYDR/GCGS/param->dMsolUnit/MSOLG;
-	/* code energy per unit mass --> erg per g */
-	param->dErgPerGmUnit = GCGS*param->dMsolUnit*MSOLG/(param->dKpcUnit*KPCCM);
-	/* code density --> g per cc */
-	param->dGmPerCcUnit = (param->dMsolUnit*MSOLG)/pow(param->dKpcUnit*KPCCM,3.0);
-	/* code time --> seconds */
-	param->dSecUnit = sqrt(1/(param->dGmPerCcUnit*GCGS));
-	/* code speed --> km/s */
-	param->dKmPerSecUnit = sqrt(GCGS*param->dMsolUnit*MSOLG/(param->dKpcUnit*KPCCM))/1e5;
-	/* code comoving density --> g per cc = param->dGmPerCcUnit (1+z)^3 */
-	param->dComovingGmPerCcUnit = param->dGmPerCcUnit;
-	}
-    else {
-	param->dSecUnit = 1;
-	param->dKmPerSecUnit = 1;
-	param->dComovingGmPerCcUnit = 1;
-	param->dGmPerCcUnit = 1;
-	param->dErgPerGmUnit = 1;
-	}
-
-    param->dTuFac = param->dGasConst/(param->dConstGamma - 1)/
-		param->dMeanMolWeight;
-
     if (prmSpecified(prm, "dMetalDiffsionCoeff") || prmSpecified(prm,"dThermalDiffusionCoeff")) {
 	if (!prmSpecified(prm, "iDiffusion")) param->iDiffusion=1;
 	}
@@ -1569,6 +1532,43 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 	    }
 	if (!validateParameters(msr->prm,&msr->param)) _msrExit(msr,1);
 	}
+
+    msr->param.dTuFac = msr->param.dGasConst/(msr->param.dConstGamma - 1)/
+		msr->param.dMeanMolWeight;
+#define KBOLTZ	1.38e-16     /* bolzman constant in cgs */
+#define MHYDR 1.67e-24       /* mass of hydrogen atom in grams */
+#define MSOLG 1.99e33        /* solar mass in grams */
+#define GCGS 6.67e-8         /* G in cgs */
+#define KPCCM 3.085678e21    /* kiloparsec in centimeters */
+#define SIGMAT 6.6524e-25    /* Thompson cross-section (cm^2) */
+#define LIGHTSPEED 2.9979e10 /* Speed of Light cm/s */
+    /*
+    ** Convert kboltz/mhydrogen to system units, assuming that
+    ** G == 1.
+    */
+    if(prmSpecified(msr->prm, "dMsolUnit") &&
+       prmSpecified(msr->prm, "dKpcUnit")) {
+	msr->param.dGasConst = msr->param.dKpcUnit*KPCCM*KBOLTZ
+	    /MHYDR/GCGS/msr->param.dMsolUnit/MSOLG;
+	/* code energy per unit mass --> erg per g */
+	msr->param.dErgPerGmUnit = GCGS*msr->param.dMsolUnit*MSOLG/(msr->param.dKpcUnit*KPCCM);
+	/* code density --> g per cc */
+	msr->param.dGmPerCcUnit = (msr->param.dMsolUnit*MSOLG)/pow(msr->param.dKpcUnit*KPCCM,3.0);
+	/* code time --> seconds */
+	msr->param.dSecUnit = sqrt(1/(msr->param.dGmPerCcUnit*GCGS));
+	/* code speed --> km/s */
+	msr->param.dKmPerSecUnit = sqrt(GCGS*msr->param.dMsolUnit*MSOLG/(msr->param.dKpcUnit*KPCCM))/1e5;
+	/* code comoving density --> g per cc = msr->param.dGmPerCcUnit (1+z)^3 */
+	msr->param.dComovingGmPerCcUnit = msr->param.dGmPerCcUnit;
+	}
+    else {
+	msr->param.dSecUnit = 1;
+	msr->param.dKmPerSecUnit = 1;
+	msr->param.dComovingGmPerCcUnit = 1;
+	msr->param.dGmPerCcUnit = 1;
+	msr->param.dErgPerGmUnit = 1;
+	}
+
 
     /* Gas parameter checks */
 #ifdef CLASSICAL_FOPEN

@@ -1868,28 +1868,30 @@ typedef struct {
 
 static void queue_dio(asyncInfo *info,int i,int bWrite) {
     size_t nBytes = info->nBytes > info->nBufferSize ? info->nBufferSize : info->nBytes;
+    size_t nBytesWrite;
     int rc;
 
     /* Align buffer size for direct I/O. File will be truncated before closing if writing */
-    nBytes = (nBytes+info->nPageSize-1) & ~(info->nPageSize-1);
+    nBytesWrite = (nBytes+info->nPageSize-1) & ~(info->nPageSize-1);
+    memset(info->pSource+nBytes,0,nBytesWrite-nBytes); /* pad buffer */
 #ifdef HAVE_LIBAIO
     struct iocb *pcb = &info->cb[i];
-    if (bWrite) io_prep_pwrite(info->cb+i,info->fd,info->pSource,nBytes,info->iFilePosition);
-    else        io_prep_pread(info->cb+i,info->fd,info->pSource,nBytes,info->iFilePosition);
+    if (bWrite) io_prep_pwrite(info->cb+i,info->fd,info->pSource,nBytesWrite,info->iFilePosition);
+    else        io_prep_pread(info->cb+i,info->fd,info->pSource,nBytesWrite,info->iFilePosition);
     rc = io_submit(info->ctx,1,&pcb);
     if (rc<0) { perror("io_submit"); abort(); }
 #else
     info->cb[i].aio_buf = info->pSource;
     info->cb[i].aio_offset = info->iFilePosition;
-    info->cb[i].aio_nbytes = nBytes;
+    info->cb[i].aio_nbytes = nBytesWrite;
     if (bWrite) rc = aio_write(&info->cb[i]);
     else rc = aio_read(&info->cb[i]);
     if (rc) { perror("aio_write/read"); abort(); }
 #endif
-    info->iFilePosition += nBytes;
-    if (nBytes < info->nBytes) {
-	info->pSource += nBytes;
-	info->nBytes -= nBytes;
+    info->iFilePosition += nBytesWrite;
+    if (nBytesWrite < info->nBytes) {
+	info->pSource += nBytesWrite;
+	info->nBytes -= nBytesWrite;
 	}
     else info->nBytes = 0;
     }
@@ -3308,7 +3310,7 @@ int pkdUpdateRung(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     int i;
     int iTempRung;
     assert(!pkd->bNoParticleOrder);
-    for (i=0;i<iMaxRung;++i) nRungCount[i] = 0;
+    for (i=0;i<=iMaxRung;++i) nRungCount[i] = 0;
     for (i=0;i<pkdLocal(pkd);++i) {
 	p = pkdParticle(pkd,i);
 	if ( pkdIsActive(pkd,p) ) {
