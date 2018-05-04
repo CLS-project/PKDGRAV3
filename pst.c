@@ -122,6 +122,9 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_WRITE,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstWrite,
 		  sizeof(struct inWrite),0);
+    mdlAddService(mdl,PST_SENDPARTICLES,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstSendParticles,
+		  sizeof(int),0);
     mdlAddService(mdl,PST_CHECKPOINT,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstCheckpoint,
 		  sizeof(struct inWrite),0);
@@ -2272,6 +2275,11 @@ void pstOutput(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     }
 
 
+void pstSendParticles(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    int iTo = *(int *)vin;
+    pkdWriteViaNode(pst->plcl->pkd, iTo);
+    }
+
 void pstWrite(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     char achOutFile[PST_FILENAME_SIZE];
     struct inWrite *in = vin;
@@ -2286,11 +2294,11 @@ void pstWrite(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	int nProcessors = in->nProcessors;
 	/* If we are the writer (nProcessors==1) or a producer (==1) keep requesting */
 	if (nProcessors<=1) {
-	    in->nProcessors = 0;
-	    int rID = mdlReqService(pst->mdl,pst->idUpper,PST_WRITE,in,nIn);
-	    in->nProcessors = nProcessors;
+//	    in->nProcessors = 0;
+//	    int rID = mdlReqService(pst->mdl,pst->idUpper,PST_WRITE,in,nIn);
+//	    in->nProcessors = nProcessors;
 	    pstWrite(pst->pstLower,in,nIn,vout,pnOut);
-	    mdlGetReply(pst->mdl,rID,NULL,NULL);
+//	    mdlGetReply(pst->mdl,rID,NULL,NULL);
 	    }
 	/* Split writing tasks between child nodes */
 	else {
@@ -2311,10 +2319,11 @@ void pstWrite(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	}
     else {
 	LCL *plcl = pst->plcl;
-	if (in->nProcessors==0) {
-	    pkdWriteViaNode(plcl->pkd, in->iLower);
-	    }
-	else {
+//	if (in->nProcessors==0) {
+//	    pkdWriteViaNode(plcl->pkd, in->iLower);
+//	    }
+//	else {
+	if (in->nProcessors!=0) {
 //	    if (in->bStandard==2) {
 //		makeName(achOutFile,in->achOutFile,in->iIndex);
 //		fio = fioGadgetCreate(achOutFile,in->mFlags,in->dTime,in->dBoxSize,
@@ -2358,7 +2367,9 @@ void pstWrite(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 
 	    pkdWriteFIO(plcl->pkd,fio,in->dvFac,&in->bnd);
 	    for(i=in->iLower+1; i<in->iUpper; ++i ) {
+		int rID = mdlReqService(pst->mdl,i,PST_SENDPARTICLES,&pst->idSelf,sizeof(pst->idSelf));
 		pkdWriteFromNode(plcl->pkd,i,fio,in->dvFac,&in->bnd);
+		mdlGetReply(pst->mdl,rID,NULL,NULL);
 		}
 	    fioClose(fio);
 	    }

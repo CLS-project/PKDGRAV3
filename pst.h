@@ -90,6 +90,7 @@ enum pst_service {
     PST_DOMAINORDER,
     PST_LOCALORDER,
     PST_COMPRESSASCII,
+    PST_SENDPARTICLES,
     PST_WRITEASCII,
     PST_WRITE,
     PST_OUTPUT,
@@ -426,6 +427,9 @@ struct inWrite {
     char achOutFile[PST_FILENAME_SIZE];
     };
 void pstWrite(PST,void *,int,void *,int *);
+
+/* PST_SENDPARTICLES */
+void pstSendParticles(PST,void *,int,void *,int *);
 
 /* PST_CHECKPOINT */
 void pstCheckpoint(PST,void *,int,void *,int *);
