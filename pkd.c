@@ -1059,7 +1059,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
     float *pPot, dummypot;
     double r[3];
     double vel[3];
-    float fMass, fSoft,fDensity,fMetals,fTimer;
+    float fMass, fSoft,fDensity,u,fMetals,fTimer;
     FIO_SPECIES eSpecies;
     uint64_t iParticleID;
 
@@ -1118,32 +1118,34 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	eSpecies = fioSpecies(fio);
 	switch(eSpecies) {
 	case FIO_SPECIES_SPH:
-	    assert(pSph); /* JW: Could convert to dark ... */
 	    assert(dTuFac>0.0);
 	    fioReadSph(fio,&iParticleID,r,vel,&fMass,&fSoft,pPot,
-			     &fDensity/*?*/,&pSph->u,&pSph->fMetals);
+			     &fDensity/*?*/,&u,&fMetals);
 	    pkdSetDensity(pkd,p,fDensity);
-	    pSph->u *= dTuFac; /* Can't do precise conversion until density known */
-	    pSph->uPred = pSph->u;
-	    pSph->fMetalsPred = pSph->fMetals;
-	    pSph->vPred[0] = vel[0]*dvFac;
-	    pSph->vPred[1] = vel[1]*dvFac;
-	    pSph->vPred[2] = vel[2]*dvFac; /* density, divv, BalsaraSwitch, c set in smooth */
+	    if (pSph) {
+		pSph->u = u * dTuFac; /* Can't do precise conversion until density known */
+		pSph->fMetals = fMetals;
+		pSph->uPred = pSph->u;
+		pSph->fMetalsPred = pSph->fMetals;
+		pSph->vPred[0] = vel[0]*dvFac;
+		pSph->vPred[1] = vel[1]*dvFac;
+		pSph->vPred[2] = vel[2]*dvFac; /* density, divv, BalsaraSwitch, c set in smooth */
+		}
 	    break;
 	case FIO_SPECIES_DARK:
 	    fioReadDark(fio,&iParticleID,r,vel,&fMass,&fSoft,pPot,&fDensity);
 	    pkdSetDensity(pkd,p,fDensity);
 	    break;
 	case FIO_SPECIES_STAR:
-//	    assert(pStar && pSph);
-//	    fioReadStar(fio,&iParticleID,r,vel,&fMass,&fSoft,pPot,&fDensity,
-//			      &pSph->fMetals,&pStar->fTimer);
-	    fioReadStar(fio,&iParticleID,r,vel,&fMass,&fSoft,pPot,&fDensity,
-			      &fMetals,&fTimer);
-//	    pkdSetDensity(pkd,p,fDensity);
-//	    pSph->vPred[0] = vel[0]*dvFac;
-//	    pSph->vPred[1] = vel[1]*dvFac;
-//	    pSph->vPred[2] = vel[2]*dvFac;
+	    fioReadStar(fio,&iParticleID,r,vel,&fMass,&fSoft,pPot,&fDensity,&fMetals,&fTimer);
+	    pkdSetDensity(pkd,p,fDensity);
+	    if (pSph) {
+		pSph->fMetals = fMetals;
+		pSph->vPred[0] = vel[0]*dvFac;
+		pSph->vPred[1] = vel[1]*dvFac;
+		pSph->vPred[2] = vel[2]*dvFac;
+		}
+	    if (pStar) pStar->fTimer = fTimer;
 	    break;
 	default:
 	    fprintf(stderr,"Unsupported particle type: %d\n",eSpecies);
@@ -2133,7 +2135,6 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,BND *bnd,PARTICLE *p) {
 		(r[j] < bnd->fCenter[j] + bnd->fMax[j])));
 	
 	}
-
     switch(pkdSpecies(pkd,p)) {
     case FIO_SPECIES_SPH:
 	assert(pSph);
@@ -2149,9 +2150,8 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,BND *bnd,PARTICLE *p) {
 	fioWriteDark(fio,iParticleID,r,v,fMass,fSoft,*pPot,fDensity);
 	break;
     case FIO_SPECIES_STAR:
-//	assert(pStar && pSph);
-	fMetals = 0;
-	fTimer = 0;
+	fMetals = pSph ? pSph->fMetals : 0;
+	fTimer = pStar ? pStar->fTimer : 0;
 	fioWriteStar(fio,iParticleID,r,v,fMass,fSoft,*pPot,fDensity,
 	    fMetals,fTimer);
 	break;
@@ -2159,7 +2159,6 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,BND *bnd,PARTICLE *p) {
 	fprintf(stderr,"Unsupported particle type: %d\n",pkdSpecies(pkd,p));
 	assert(0);
 	}
-
     }
 
 struct packWriteCtx {
