@@ -31,6 +31,7 @@ if (COMPILER_OPT_WARN_ALL_SUPPORTED)
 endif()
 #find_package(CUDA)
 find_package(GSL REQUIRED)      # GNU Scientific Library
+find_package(HDF5)
 
 # _GNU_SOURCE gives us more options
 INCLUDE(CheckCSourceCompiles)
@@ -129,6 +130,14 @@ if (CUDA_FOUND)
 		-I${CMAKE_CURRENT_BINARY_DIR})
   target_sources(${PROJECT_NAME} PRIVATE ${cuda_files})
 endif()
+if (HDF5_FOUND)
+  set(USE_HDF5 TRUE)
+  target_include_directories(${PROJECT_NAME} PUBLIC ${HDF5_INCLUDE_DIRS})
+  target_link_libraries(${PROJECT_NAME} ${HDF5_LIBRARIES})
+  set_property(TARGET ${PROJECT_NAME} APPEND PROPERTY COMPILE_FLAGS ${HDF5_DEFINITIONS})
+  #set_property(TARGET ${PROJECT_NAME} APPEND PROPERTY COMPILE_DEFINITIONS H5_USE_16_API)
+endif(HDF5_FOUND)
+
 #if USE_SIMD
 #if USE_SIMD_FMM
 target_sources(${PROJECT_NAME} PRIVATE vmoments.cxx)

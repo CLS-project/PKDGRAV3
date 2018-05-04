@@ -2334,7 +2334,7 @@ void pstWrite(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 //		}
 	    if (in->bHDF5) {
 #ifdef USE_HDF5
-		makeName(achOutFile,in->achOutFile,in->iIndex);
+		makeName(achOutFile,in->achOutFile,in->iIndex,"");
 		fio = fioHDF5Create(achOutFile,in->mFlags);
 #else
 		fio = NULL; /* Should never happen */
