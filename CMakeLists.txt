@@ -32,6 +32,7 @@ endif()
 #find_package(CUDA)
 find_package(GSL REQUIRED)      # GNU Scientific Library
 find_package(HDF5)
+find_package(PythonLibs)
 
 # _GNU_SOURCE gives us more options
 INCLUDE(CheckCSourceCompiles)
@@ -137,6 +138,12 @@ if (HDF5_FOUND)
   set_property(TARGET ${PROJECT_NAME} APPEND PROPERTY COMPILE_FLAGS ${HDF5_DEFINITIONS})
   #set_property(TARGET ${PROJECT_NAME} APPEND PROPERTY COMPILE_DEFINITIONS H5_USE_16_API)
 endif(HDF5_FOUND)
+if (PYTHONLIBS_FOUND)
+  set(USE_PYTHON TRUE)
+  target_include_directories(${PROJECT_NAME} PUBLIC ${PYTHON_INCLUDE_DIRS})
+  target_link_libraries(${PROJECT_NAME} ${PYTHON_LIBRARIES})
+  target_sources(${PROJECT_NAME} PRIVATE pkdpython.c)
+endif(PYTHONLIBS_FOUND)
 
 #if USE_SIMD
 #if USE_SIMD_FMM

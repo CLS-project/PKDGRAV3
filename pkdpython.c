@@ -23,6 +23,13 @@
 #else
 #include "pkd_config.h"
 #endif
+#ifndef Py_TYPE
+    #define Py_TYPE(ob) (((PyObject*)(ob))->ob_type)
+#endif
+#ifndef PyVarObject_HEAD_INIT
+    #define PyVarObject_HEAD_INIT(type, size) \
+        PyObject_HEAD_INIT(type) size,
+#endif
 
 #include <stdint.h>
 #include "master.h"
@@ -122,12 +129,19 @@ static void ppy2prm(void) {
 		break;
 	    case 3:
 #if PY_MAJOR_VERSION >= 3
-		s = PyBytes_AsString(v);
-#else
+		{
+		    PyObject *ascii = PyUnicode_AsASCIIString(v);
+		    s = PyBytes_AsString(ascii);
+		    Py_DECREF(ascii);
+		    }
+#else 
 		s = PyString_AsString(v);
 #endif
-		assert(pn->iSize > strlen(s));
-		strcpy((char *)pn->pValue,s);
+		if (s!=NULL) {
+		    assert(pn->iSize > strlen(s));
+		    strcpy((char *)pn->pValue,s);
+		    }
+		else *(char *)pn->pValue = 0;
 		break;
 	    case 4:
 		assert(pn->iSize == sizeof(uint64_t));
@@ -687,6 +701,26 @@ ppy_msr_MeasurePk(PyObject *self, PyObject *args, PyObject *kwobj) {
 #endif
 
 static PyObject *
+ppy_msr_GenerateIC(PyObject *self, PyObject *args, PyObject *kwobj) {
+    static char *kwlist[]={"Grid","Seed",NULL};
+    int nGrid, iSeed;
+
+    ppy2prm();
+
+    if ( !PyArg_ParseTupleAndKeywords(
+	     args, kwobj, "|ii:GenerateIC", kwlist,
+	     &ppy_msr->param.nGrid, &ppy_msr->param.iSeed ) )
+	return NULL;
+
+    msrGenerateIC(ppy_msr);    
+
+
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+
+static PyObject *
 ppy_msr_Load(PyObject *self, PyObject *args, PyObject *kwobj) {
     static char *kwlist[]={"Name","Type",NULL};
     const char *fname;
@@ -777,7 +811,6 @@ ppy_msr_Save(PyObject *self, PyObject *args, PyObject *kwobj) {
 	break;
 
     case OUT_IORDER_ARRAY:
-    case OUT_COLOR_ARRAY:
     case OUT_DENSITY_ARRAY:
     case OUT_BALL_ARRAY:
     case OUT_POT_ARRAY:
@@ -801,13 +834,6 @@ ppy_msr_Save(PyObject *self, PyObject *args, PyObject *kwobj) {
     case OUT_ACCEL_VECTOR:
     case OUT_MEANVEL_VECTOR:
 	msrOutVector(ppy_msr,fname,iType);
-	break;
-
-    case OUT_GROUP_TIPSY_NAT:
-    case OUT_GROUP_TIPSY_STD:
-    case OUT_GROUP_STATS:
-    case OUT_GROUP_PROFILES:
-	msrOutGroups(ppy_msr,fname,iType,dTime);
 	break;
 
     default:
@@ -916,6 +942,8 @@ static PyMethodDef msr_methods[] = {
     {"MeasurePk", (PyCFunction)ppy_msr_MeasurePk, METH_VARARGS|METH_KEYWORDS,
      "Measure the power spectrum"},
 #endif
+    {"GenerateIC", (PyCFunction)ppy_msr_GenerateIC, METH_VARARGS|METH_KEYWORDS,
+     "Generate Initial Condition"},
     {"Load", (PyCFunction)ppy_msr_Load, METH_VARARGS|METH_KEYWORDS,
      "Load an input file"},
     {"Save", (PyCFunction)ppy_msr_Save, METH_VARARGS|METH_KEYWORDS,
@@ -974,7 +1002,7 @@ typedef struct {
     } MSRINSTANCE;
 
 static void msr_dealloc(MSRINSTANCE *self) {
-    self->ob_type->tp_free((PyObject*)self);
+    Py_TYPE(self)->tp_free((PyObject*)self);
     }
 
 static PyObject *msr_new(PyTypeObject *type, PyObject *args, PyObject *kwds) {
@@ -998,8 +1026,7 @@ static PyGetSetDef msr_getseters[] = {
     };
 
 static PyTypeObject msrType = {
-    PyObject_HEAD_INIT(NULL)
-    0, /*ob_size*/
+    PyVarObject_HEAD_INIT(NULL,0)
     "MSR", /*tp_name*/
     sizeof(MSRINSTANCE), /*tp_basicsize */
     0, /*tp_itemsize*/
@@ -1062,7 +1089,6 @@ static void setConstants( PyObject *dict ) {
     PyDict_SetItemString(dict, "OUT_MEANVEL_VECTOR", Py_BuildValue("i",OUT_MEANVEL_VECTOR));
     PyDict_SetItemString(dict, "OUT_IORDER_ARRAY", Py_BuildValue("i",OUT_IORDER_ARRAY));
     PyDict_SetItemString(dict, "OUT_RUNGDEST_ARRAY", Py_BuildValue("i",OUT_RUNGDEST_ARRAY));
-    PyDict_SetItemString(dict, "OUT_COLOR_ARRAY", Py_BuildValue("i",OUT_COLOR_ARRAY));
     PyDict_SetItemString(dict, "OUT_DENSITY_ARRAY", Py_BuildValue("i",OUT_DENSITY_ARRAY));
     PyDict_SetItemString(dict, "OUT_BALL_ARRAY", Py_BuildValue("i",OUT_BALL_ARRAY));
     PyDict_SetItemString(dict, "OUT_POT_ARRAY", Py_BuildValue("i",OUT_POT_ARRAY));
@@ -1079,10 +1105,6 @@ static void setConstants( PyObject *dict ) {
     PyDict_SetItemString(dict, "OUT_MARKED_ARRAY", Py_BuildValue("i",OUT_MARKED_ARRAY));
     PyDict_SetItemString(dict, "OUT_PSGROUP_ARRAY", Py_BuildValue("i",OUT_PSGROUP_ARRAY));
     PyDict_SetItemString(dict, "OUT_RELAX_ARRAY", Py_BuildValue("i",OUT_RELAX_ARRAY));
-    PyDict_SetItemString(dict, "OUT_GROUP_TIPSY_NAT", Py_BuildValue("i",OUT_GROUP_TIPSY_NAT));
-    PyDict_SetItemString(dict, "OUT_GROUP_TIPSY_STD", Py_BuildValue("i",OUT_GROUP_TIPSY_STD));
-    PyDict_SetItemString(dict, "OUT_GROUP_STATS", Py_BuildValue("i",OUT_GROUP_STATS));
-    PyDict_SetItemString(dict, "OUT_GROUP_PROFILES", Py_BuildValue("i",OUT_GROUP_PROFILES));
     PyDict_SetItemString(dict, "OUT_PSGROUP_STATS", Py_BuildValue("i",OUT_PSGROUP_STATS));
     }
 
@@ -1090,7 +1112,7 @@ static void setConstants( PyObject *dict ) {
 /**********************************************************************\
  ** Parallel Python (ppy) setup
 \**********************************************************************/
-static void initModuleMSR(void) {
+static PyObject * initModuleMSR(void) {
     PyObject *dict;
 
 //    global_ppy->module = Py_InitModule("msr", msr_methods);
@@ -1119,6 +1141,7 @@ static void initModuleMSR(void) {
 	Py_INCREF(&msrType);
 	PyModule_AddObject(global_ppy->module, "MSR", (PyObject *)&msrType);
 	}
+    return (PyObject *)&msrType;
     }
 
 
@@ -1156,7 +1179,12 @@ void ppyRunScript(PPY vppy,int argc, char *argv[]) {
     FILE *fp;
     PyObject *dict, *globals;
     struct _node *node;
-
+#if PY_MAJOR_VERSION > 2
+    wchar_t **wargv;
+    int i;
+    wargv = malloc(sizeof(*wargv)*argc);
+    for(i=0; i<argc; ++i) wargv[i] = Py_DecodeLocale(argv[i],NULL);
+#endif
     assert(Py_IsInitialized());
     assert(argc>0);
 
@@ -1164,7 +1192,11 @@ void ppyRunScript(PPY vppy,int argc, char *argv[]) {
     PyDict_SetItemString(globals, "__builtins__",
 			 PyEval_GetBuiltins());
 
+#if PY_MAJOR_VERSION > 2
+    PySys_SetArgv(argc, wargv);
+#else
     PySys_SetArgv(argc, argv);
+#endif
 
     printf("---------------------------------------"
 	   "---------------------------------------\n"
@@ -1197,4 +1229,8 @@ void ppyRunScript(PPY vppy,int argc, char *argv[]) {
     printf("---------------------------------------"
 	   "---------------------------------------\n" );
 
+#if PY_MAJOR_VERSION > 2
+    for(i=0; i<argc; ++i) PyMem_RawFree(wargv[i]);
+    free(wargv);
+#endif
     }
