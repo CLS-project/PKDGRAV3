@@ -209,9 +209,7 @@ int prmParseParam(PRM prm) {
 	                    }
 			memcpy((char *)pn->pValue,o.string.val,o.string.len);
 			((char *)pn->pValue)[o.string.len] = 0;
-			printf("%s = %s\n",pn->pszName,pn->pValue);
 			}
-
 		    break;
 		}
 	    }
