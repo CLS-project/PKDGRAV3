@@ -118,25 +118,37 @@ static void ppy2prm(void) {
 	    case 1:
 		assert(pn->iSize == sizeof(int));
 #if PY_MAJOR_VERSION >= 3
-		*(int *)pn->pValue = PyLong_AsLong(v);
+		if (PyLong_Check(v)) *(int *)pn->pValue = PyLong_AsLong(v);
 #else
-		*(int *)pn->pValue = PyInt_AsLong(v);
+		if (PyInt_Check(v) *(int *)pn->pValue = PyInt_AsLong(v);
 #endif		
+		else if (PyFloat_Check(v)) *(int *)pn->pValue = (int)PyFloat_AsDouble(v);
+		else fprintf(stderr,"Invalid type for %s\n",pn->pszName);
 		break;
 	    case 2:
 		assert(pn->iSize == sizeof(double));
-		*(double *)pn->pValue = PyFloat_AsDouble(v);
+		if (PyFloat_Check(v)) *(double *)pn->pValue = PyFloat_AsDouble(v);
+#if PY_MAJOR_VERSION >= 3
+		else if (PyLong_Check(v)) *(double *)pn->pValue = PyLong_AsLong(v);
+#else
+		else if (PyInt_Check(v) *(double *)pn->pValue = PyInt_AsLong(v);
+#endif		
+		else fprintf(stderr,"Invalid type for %s\n",pn->pszName);
 		break;
 	    case 3:
 #if PY_MAJOR_VERSION >= 3
-		{
+		if (PyUnicode_Check(v)) {
 		    PyObject *ascii = PyUnicode_AsASCIIString(v);
 		    s = PyBytes_AsString(ascii);
 		    Py_DECREF(ascii);
 		    }
 #else 
-		s = PyString_AsString(v);
+		if (PyString_Check(v) s = PyString_AsString(v);
 #endif
+		else {
+		    fprintf(stderr,"Invalid type for %s\n",pn->pszName);
+		    s = NULL;
+		    }
 		if (s!=NULL) {
 		    assert(pn->iSize > strlen(s));
 		    strcpy((char *)pn->pValue,s);
