@@ -118,6 +118,7 @@ target_sources(${PROJECT_NAME} PRIVATE
 	walk2.c grav2.c ewald.cxx ic.cxx tree.c opening.cxx pp.cxx pc.cxx cl.c
 	lst.c moments.c ilp.c ilc.c iomodule.c
 	fof.c hop.c group.c groupstats.c RngStream.c listcomp.c healpix.c
+	tinypy.c
 )
 if(USE_BT)
 target_sources(${PROJECT_NAME} PRIVATE bt.c)
