@@ -120,7 +120,7 @@ static void ppy2prm(void) {
 #if PY_MAJOR_VERSION >= 3
 		if (PyLong_Check(v)) *(int *)pn->pValue = PyLong_AsLong(v);
 #else
-		if (PyInt_Check(v) *(int *)pn->pValue = PyInt_AsLong(v);
+		if (PyInt_Check(v)) *(int *)pn->pValue = PyInt_AsLong(v);
 #endif		
 		else if (PyFloat_Check(v)) *(int *)pn->pValue = (int)PyFloat_AsDouble(v);
 		else fprintf(stderr,"Invalid type for %s\n",pn->pszName);
@@ -131,7 +131,7 @@ static void ppy2prm(void) {
 #if PY_MAJOR_VERSION >= 3
 		else if (PyLong_Check(v)) *(double *)pn->pValue = PyLong_AsLong(v);
 #else
-		else if (PyInt_Check(v) *(double *)pn->pValue = PyInt_AsLong(v);
+		else if (PyInt_Check(v)) *(double *)pn->pValue = PyInt_AsLong(v);
 #endif		
 		else fprintf(stderr,"Invalid type for %s\n",pn->pszName);
 		break;
@@ -143,7 +143,7 @@ static void ppy2prm(void) {
 		    Py_DECREF(ascii);
 		    }
 #else 
-		if (PyString_Check(v) s = PyString_AsString(v);
+		if (PyString_Check(v)) s = PyString_AsString(v);
 #endif
 		else {
 		    fprintf(stderr,"Invalid type for %s\n",pn->pszName);
@@ -1124,7 +1124,13 @@ static void setConstants( PyObject *dict ) {
 /**********************************************************************\
  ** Parallel Python (ppy) setup
 \**********************************************************************/
-static PyObject * initModuleMSR(void) {
+static
+#if PY_MAJOR_VERSION >= 3
+PyObject *
+#else
+void
+#endif
+initModuleMSR(void) {
     PyObject *dict;
 
 //    global_ppy->module = Py_InitModule("msr", msr_methods);
@@ -1153,7 +1159,9 @@ static PyObject * initModuleMSR(void) {
 	Py_INCREF(&msrType);
 	PyModule_AddObject(global_ppy->module, "MSR", (PyObject *)&msrType);
 	}
+#if PY_MAJOR_VERSION >= 3
     return (PyObject *)&msrType;
+#endif
     }
 
 
