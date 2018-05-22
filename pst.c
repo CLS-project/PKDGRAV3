@@ -469,7 +469,10 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_INFLATE,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstInflate,
 	          sizeof(struct inInflate), 0);
-
+    mdlAddService(mdl,PST_GET_PARTICLES,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstGetParticles,
+	          sizeof(uint64_t)*GET_PARTICLES_MAX,
+	          sizeof(struct outGetParticles)*GET_PARTICLES_MAX );
     mdlCommitServices(mdl);
    }
 
@@ -4739,4 +4742,22 @@ void pstInflate(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	pkdInflate(plcl->pkd,in->nInflateReps);
 	}
     if (pnOut) *pnOut = 0;
+    }
+
+void pstGetParticles(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    struct outGetParticles *out = vout;
+    uint64_t *ID = vin;
+    int nOutUpper;
+    if (pst->nLeaves > 1) {
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_GET_PARTICLES,vin,nIn);
+	pstGetParticles(pst->pstLower,vin,nIn,vout,pnOut);
+	mdlGetReply(pst->mdl,rID,out + (*pnOut / sizeof(uint64_t)),&nOutUpper);
+	*pnOut += nOutUpper;
+	}
+    else {
+	int nParticles = nIn / sizeof(uint64_t);
+	int n = pkdGetParticles(plcl->pkd,nParticles, ID, out );
+	*pnOut = n * sizeof(uint64_t);
+	}
     }

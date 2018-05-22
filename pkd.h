@@ -1558,6 +1558,12 @@ void pkdLightCone(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     double *dtLCDrift,double *dtLCKick);
 void pkdInflate(PKD pkd,int nInflateReps);
 
+struct outGetParticles { /* Array of these */
+    uint64_t id;
+    float    mass, phi;
+    float    r[3], v[3];
+    };
+int pkdGetParticles(PKD pkd, int nIn, uint64_t *ID, struct outGetParticles *out);
 
 #ifdef __cplusplus
 extern "C" {

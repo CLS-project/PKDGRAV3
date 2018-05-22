@@ -4000,3 +4000,31 @@ void pkdOutPsGroup(PKD pkd,char *pszFileName,int iType)
 	assert(0);
 }
 
+int pkdGetParticles(PKD pkd, int nIn, uint64_t *ID, struct outGetParticles *out) {
+    int i,j,d,nOut;
+
+    assert(!pkd->bNoParticleOrder); /* We need particle IDs */
+
+    nOut = 0;
+    for (i=0;i<pkdLocal(pkd);++i) {
+	PARTICLE *p = pkdParticle(pkd,i);
+	float *pPot = pkdPot(pkd,p);
+	for(j=0; j<nIn; ++j) {
+	    if (ID[j] == p->iOrder) {
+		double r0[3];
+		vel_t *v = pkdVel(pkd,p);
+		pkdGetPos1(pkd,p,r0);
+		out[nOut].id = p->iOrder;
+		out[nOut].mass = pkdMass(pkd,p);
+		out[nOut].phi = pPot ? *pPot : 0.0;
+		for(d=0; d<3; ++d) {
+		    out[nOut].r[d] = r0[d];
+		    out[nOut].v[d] = v[d];
+		    }
+		++nOut;
+		break;
+		}
+	    }
+	}
+    return nOut;
+    }

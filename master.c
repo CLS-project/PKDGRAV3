@@ -5977,8 +5977,15 @@ void msrMeasurePk(MSR msr,int nGrid,int nBins,uint64_t *nPk,float *fK,float *fPk
 	    }
 	}
     /* At this point, dPk[] needs to be corrected by the box size */
+    free(out);
 
     dsec = msrTime() - sec;
     printf("P(k) Calculated, Wallclock: %f secs\n\n",dsec);
     }
 #endif
+
+int msrGetParticles(MSR msr, int nIn, uint64_t *ID, struct outGetParticles *out) {
+    int nOut;
+    pstGetParticles(msr->pst, ID, sizeof(uint64_t)*nIn, out, &nOut);
+    return nOut / sizeof(struct outGetParticles);
+    }
