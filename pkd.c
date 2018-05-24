@@ -1058,7 +1058,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
     float *pPot, dummypot;
     double r[3];
     double vel[3];
-    float fMass, fSoft,fDensity,fMetals,fTimer;
+    float fMass, fSoft,fDensity,u,fMetals,fTimer;
     FIO_SPECIES eSpecies;
     uint64_t iParticleID;
 
@@ -1117,32 +1117,34 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	eSpecies = fioSpecies(fio);
 	switch(eSpecies) {
 	case FIO_SPECIES_SPH:
-	    assert(pSph); /* JW: Could convert to dark ... */
 	    assert(dTuFac>0.0);
 	    fioReadSph(fio,&iParticleID,r,vel,&fMass,&fSoft,pPot,
-			     &fDensity/*?*/,&pSph->u,&pSph->fMetals);
+			     &fDensity/*?*/,&u,&fMetals);
 	    pkdSetDensity(pkd,p,fDensity);
-	    pSph->u *= dTuFac; /* Can't do precise conversion until density known */
-	    pSph->uPred = pSph->u;
-	    pSph->fMetalsPred = pSph->fMetals;
-	    pSph->vPred[0] = vel[0]*dvFac;
-	    pSph->vPred[1] = vel[1]*dvFac;
-	    pSph->vPred[2] = vel[2]*dvFac; /* density, divv, BalsaraSwitch, c set in smooth */
+	    if (pSph) {
+		pSph->u = u * dTuFac; /* Can't do precise conversion until density known */
+		pSph->fMetals = fMetals;
+		pSph->uPred = pSph->u;
+		pSph->fMetalsPred = pSph->fMetals;
+		pSph->vPred[0] = vel[0]*dvFac;
+		pSph->vPred[1] = vel[1]*dvFac;
+		pSph->vPred[2] = vel[2]*dvFac; /* density, divv, BalsaraSwitch, c set in smooth */
+		}
 	    break;
 	case FIO_SPECIES_DARK:
 	    fioReadDark(fio,&iParticleID,r,vel,&fMass,&fSoft,pPot,&fDensity);
 	    pkdSetDensity(pkd,p,fDensity);
 	    break;
 	case FIO_SPECIES_STAR:
-//	    assert(pStar && pSph);
-//	    fioReadStar(fio,&iParticleID,r,vel,&fMass,&fSoft,pPot,&fDensity,
-//			      &pSph->fMetals,&pStar->fTimer);
-	    fioReadStar(fio,&iParticleID,r,vel,&fMass,&fSoft,pPot,&fDensity,
-			      &fMetals,&fTimer);
-//	    pkdSetDensity(pkd,p,fDensity);
-//	    pSph->vPred[0] = vel[0]*dvFac;
-//	    pSph->vPred[1] = vel[1]*dvFac;
-//	    pSph->vPred[2] = vel[2]*dvFac;
+	    fioReadStar(fio,&iParticleID,r,vel,&fMass,&fSoft,pPot,&fDensity,&fMetals,&fTimer);
+	    pkdSetDensity(pkd,p,fDensity);
+	    if (pSph) {
+		pSph->fMetals = fMetals;
+		pSph->vPred[0] = vel[0]*dvFac;
+		pSph->vPred[1] = vel[1]*dvFac;
+		pSph->vPred[2] = vel[2]*dvFac;
+		}
+	    if (pStar) pStar->fTimer = fTimer;
 	    break;
 	default:
 	    fprintf(stderr,"Unsupported particle type: %d\n",eSpecies);
@@ -1853,28 +1855,30 @@ typedef struct {
 
 static void queue_dio(asyncInfo *info,int i,int bWrite) {
     size_t nBytes = info->nBytes > info->nBufferSize ? info->nBufferSize : info->nBytes;
+    size_t nBytesWrite;
     int rc;
 
     /* Align buffer size for direct I/O. File will be truncated before closing if writing */
-    nBytes = (nBytes+info->nPageSize-1) & ~(info->nPageSize-1);
+    nBytesWrite = (nBytes+info->nPageSize-1) & ~(info->nPageSize-1);
+    memset(info->pSource+nBytes,0,nBytesWrite-nBytes); /* pad buffer */
 #ifdef HAVE_LIBAIO
     struct iocb *pcb = &info->cb[i];
-    if (bWrite) io_prep_pwrite(info->cb+i,info->fd,info->pSource,nBytes,info->iFilePosition);
-    else        io_prep_pread(info->cb+i,info->fd,info->pSource,nBytes,info->iFilePosition);
+    if (bWrite) io_prep_pwrite(info->cb+i,info->fd,info->pSource,nBytesWrite,info->iFilePosition);
+    else        io_prep_pread(info->cb+i,info->fd,info->pSource,nBytesWrite,info->iFilePosition);
     rc = io_submit(info->ctx,1,&pcb);
     if (rc<0) { perror("io_submit"); abort(); }
 #else
     info->cb[i].aio_buf = info->pSource;
     info->cb[i].aio_offset = info->iFilePosition;
-    info->cb[i].aio_nbytes = nBytes;
+    info->cb[i].aio_nbytes = nBytesWrite;
     if (bWrite) rc = aio_write(&info->cb[i]);
     else rc = aio_read(&info->cb[i]);
     if (rc) { perror("aio_write/read"); abort(); }
 #endif
-    info->iFilePosition += nBytes;
-    if (nBytes < info->nBytes) {
-	info->pSource += nBytes;
-	info->nBytes -= nBytes;
+    info->iFilePosition += nBytesWrite;
+    if (nBytesWrite < info->nBytes) {
+	info->pSource += nBytesWrite;
+	info->nBytes -= nBytesWrite;
 	}
     else info->nBytes = 0;
     }
@@ -1992,7 +1996,9 @@ static void asyncCheckpoint(PKD pkd,const char *fname,int bWrite) {
 	} while(!bDone);
 #endif
     /* Record the actual file size */
-    if (bWrite) ftruncate(info.fd,nFileSize);
+    if (bWrite) {
+	if (ftruncate(info.fd,nFileSize)) perror("ftruncate");
+	}
     close(info.fd);
     }
 #endif
@@ -2114,7 +2120,6 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,BND *bnd,PARTICLE *p) {
 		(r[j] < bnd->fCenter[j] + bnd->fMax[j])));
 	
 	}
-
     switch(pkdSpecies(pkd,p)) {
     case FIO_SPECIES_SPH:
 	assert(pSph);
@@ -2130,9 +2135,8 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,BND *bnd,PARTICLE *p) {
 	fioWriteDark(fio,iParticleID,r,v,fMass,fSoft,*pPot,fDensity);
 	break;
     case FIO_SPECIES_STAR:
-//	assert(pStar && pSph);
-	fMetals = 0;
-	fTimer = 0;
+	fMetals = pSph ? pSph->fMetals : 0;
+	fTimer = pStar ? pStar->fTimer : 0;
 	fioWriteStar(fio,iParticleID,r,v,fMass,fSoft,*pPot,fDensity,
 	    fMetals,fTimer);
 	break;
@@ -2140,7 +2144,6 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,BND *bnd,PARTICLE *p) {
 	fprintf(stderr,"Unsupported particle type: %d\n",pkdSpecies(pkd,p));
 	assert(0);
 	}
-
     }
 
 struct packWriteCtx {
@@ -2387,6 +2390,7 @@ static void combHealpix(void *vctx, void *v1, void *v2) {
 
 void pkdLightConeClose(PKD pkd,const char *healpixname) {
     int i;
+    size_t nWrite;
     if (pkd->afiLightCone.fd > 0) {
 	flushLightCone(pkd);
 	io_close(&pkd->afiLightCone);
@@ -2401,7 +2405,10 @@ void pkdLightConeClose(PKD pkd,const char *healpixname) {
 	    sum += pkd->pHealpixData[i].nUngrouped;
 	    if (sum) pkd->pHealpixData[i].fPotential /= sum;
 	    }
-	write(fd,pkd->pHealpixData,pkd->nHealpixPerDomain * sizeof(*pkd->pHealpixData));
+	nWrite = pkd->nHealpixPerDomain * sizeof(*pkd->pHealpixData);
+	if (write(fd,pkd->pHealpixData,nWrite) != nWrite) {
+	    perror("Wrong size writing Healpix");
+	    }
 	close(fd);
 	}
     }
@@ -3333,7 +3340,7 @@ int pkdUpdateRung(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     int i;
     int iTempRung;
     assert(!pkd->bNoParticleOrder);
-    for (i=0;i<iMaxRung;++i) nRungCount[i] = 0;
+    for (i=0;i<=iMaxRung;++i) nRungCount[i] = 0;
     for (i=0;i<pkdLocal(pkd);++i) {
 	p = pkdParticle(pkd,i);
 	if ( pkdIsActive(pkd,p) ) {
@@ -4024,3 +4031,31 @@ void pkdOutPsGroup(PKD pkd,char *pszFileName,int iType)
 	assert(0);
 }
 
+int pkdGetParticles(PKD pkd, int nIn, uint64_t *ID, struct outGetParticles *out) {
+    int i,j,d,nOut;
+
+    assert(!pkd->bNoParticleOrder); /* We need particle IDs */
+
+    nOut = 0;
+    for (i=0;i<pkdLocal(pkd);++i) {
+	PARTICLE *p = pkdParticle(pkd,i);
+	float *pPot = pkdPot(pkd,p);
+	for(j=0; j<nIn; ++j) {
+	    if (ID[j] == p->iOrder) {
+		double r0[3];
+		vel_t *v = pkdVel(pkd,p);
+		pkdGetPos1(pkd,p,r0);
+		out[nOut].id = p->iOrder;
+		out[nOut].mass = pkdMass(pkd,p);
+		out[nOut].phi = pPot ? *pPot : 0.0;
+		for(d=0; d<3; ++d) {
+		    out[nOut].r[d] = r0[d];
+		    out[nOut].v[d] = v[d];
+		    }
+		++nOut;
+		break;
+		}
+	    }
+	}
+    return nOut;
+    }

@@ -90,6 +90,7 @@ enum pst_service {
     PST_DOMAINORDER,
     PST_LOCALORDER,
     PST_COMPRESSASCII,
+    PST_SENDPARTICLES,
     PST_WRITEASCII,
     PST_WRITE,
     PST_OUTPUT,
@@ -226,6 +227,7 @@ enum pst_service {
     PST_LIGHTCONE_OPEN,
     PST_LIGHTCONE_CLOSE,
     PST_INFLATE,
+    PST_GET_PARTICLES,
     };
 
 void pstAddServices(PST,MDL);
@@ -426,6 +428,9 @@ struct inWrite {
     char achOutFile[PST_FILENAME_SIZE];
     };
 void pstWrite(PST,void *,int,void *,int *);
+
+/* PST_SENDPARTICLES */
+void pstSendParticles(PST,void *,int,void *,int *);
 
 /* PST_CHECKPOINT */
 void pstCheckpoint(PST,void *,int,void *,int *);
@@ -1326,5 +1331,8 @@ struct inInflate {
     };
 void pstInflate(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 
+/* PST_GET_PARICLES */
+#define GET_PARTICLES_MAX 20 /* We have a nested loop, so don't increase this */
+void pstGetParticles(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 
 #endif

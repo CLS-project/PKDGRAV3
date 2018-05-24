@@ -122,6 +122,9 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_WRITE,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstWrite,
 		  sizeof(struct inWrite),0);
+    mdlAddService(mdl,PST_SENDPARTICLES,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstSendParticles,
+		  sizeof(int),0);
     mdlAddService(mdl,PST_CHECKPOINT,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstCheckpoint,
 		  sizeof(struct inWrite),0);
@@ -466,7 +469,10 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_INFLATE,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstInflate,
 	          sizeof(struct inInflate), 0);
-
+    mdlAddService(mdl,PST_GET_PARTICLES,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstGetParticles,
+	          sizeof(uint64_t)*GET_PARTICLES_MAX,
+	          sizeof(struct outGetParticles)*GET_PARTICLES_MAX );
     mdlCommitServices(mdl);
    }
 
@@ -2272,6 +2278,11 @@ void pstOutput(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     }
 
 
+void pstSendParticles(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    int iTo = *(int *)vin;
+    pkdWriteViaNode(pst->plcl->pkd, iTo);
+    }
+
 void pstWrite(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     char achOutFile[PST_FILENAME_SIZE];
     struct inWrite *in = vin;
@@ -2286,11 +2297,11 @@ void pstWrite(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	int nProcessors = in->nProcessors;
 	/* If we are the writer (nProcessors==1) or a producer (==1) keep requesting */
 	if (nProcessors<=1) {
-	    in->nProcessors = 0;
-	    int rID = mdlReqService(pst->mdl,pst->idUpper,PST_WRITE,in,nIn);
-	    in->nProcessors = nProcessors;
+//	    in->nProcessors = 0;
+//	    int rID = mdlReqService(pst->mdl,pst->idUpper,PST_WRITE,in,nIn);
+//	    in->nProcessors = nProcessors;
 	    pstWrite(pst->pstLower,in,nIn,vout,pnOut);
-	    mdlGetReply(pst->mdl,rID,NULL,NULL);
+//	    mdlGetReply(pst->mdl,rID,NULL,NULL);
 	    }
 	/* Split writing tasks between child nodes */
 	else {
@@ -2311,10 +2322,11 @@ void pstWrite(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	}
     else {
 	LCL *plcl = pst->plcl;
-	if (in->nProcessors==0) {
-	    pkdWriteViaNode(plcl->pkd, in->iLower);
-	    }
-	else {
+//	if (in->nProcessors==0) {
+//	    pkdWriteViaNode(plcl->pkd, in->iLower);
+//	    }
+//	else {
+	if (in->nProcessors!=0) {
 //	    if (in->bStandard==2) {
 //		makeName(achOutFile,in->achOutFile,in->iIndex);
 //		fio = fioGadgetCreate(achOutFile,in->mFlags,in->dTime,in->dBoxSize,
@@ -2325,7 +2337,7 @@ void pstWrite(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 //		}
 	    if (in->bHDF5) {
 #ifdef USE_HDF5
-		makeName(achOutFile,in->achOutFile,in->iIndex);
+		makeName(achOutFile,in->achOutFile,in->iIndex,"");
 		fio = fioHDF5Create(achOutFile,in->mFlags);
 #else
 		fio = NULL; /* Should never happen */
@@ -2358,7 +2370,9 @@ void pstWrite(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 
 	    pkdWriteFIO(plcl->pkd,fio,in->dvFac,&in->bnd);
 	    for(i=in->iLower+1; i<in->iUpper; ++i ) {
+		int rID = mdlReqService(pst->mdl,i,PST_SENDPARTICLES,&pst->idSelf,sizeof(pst->idSelf));
 		pkdWriteFromNode(plcl->pkd,i,fio,in->dvFac,&in->bnd);
+		mdlGetReply(pst->mdl,rID,NULL,NULL);
 		}
 	    fioClose(fio);
 	    }
@@ -2912,7 +2926,7 @@ void pstGravity(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 #ifdef __linux__
 	fp = fopen("/proc/self/stat","r");
 	if ( fp != NULL ) {
-	    fgets(buffer,sizeof(buffer),fp);
+	    if (fgets(buffer,sizeof(buffer),fp)==NULL) buffer[0] = '\0';
 	    fclose(fp);
 	    f = strtok_r(buffer," ",&save);
 	    for ( i=0; i<= 36 && f; i++ ) {
@@ -3997,7 +4011,7 @@ void pstMemStatus(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 #ifdef __linux__
 	fp = fopen("/proc/self/stat","r");
 	if ( fp != NULL ) {
-	    fgets(buffer,sizeof(buffer),fp);
+	    if (fgets(buffer,sizeof(buffer),fp)==NULL) buffer[0] = '\0';
 	    fclose(fp);
 	    f = strtok_r(buffer," ",&save);
 	    for ( i=0; i<= 36 && f; i++ ) {
@@ -4728,4 +4742,22 @@ void pstInflate(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	pkdInflate(plcl->pkd,in->nInflateReps);
 	}
     if (pnOut) *pnOut = 0;
+    }
+
+void pstGetParticles(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    struct outGetParticles *out = vout;
+    uint64_t *ID = vin;
+    int nOutUpper;
+    if (pst->nLeaves > 1) {
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_GET_PARTICLES,vin,nIn);
+	pstGetParticles(pst->pstLower,vin,nIn,vout,pnOut);
+	mdlGetReply(pst->mdl,rID,out + (*pnOut / sizeof(uint64_t)),&nOutUpper);
+	*pnOut += nOutUpper;
+	}
+    else {
+	int nParticles = nIn / sizeof(uint64_t);
+	int n = pkdGetParticles(plcl->pkd,nParticles, ID, out );
+	*pnOut = n * sizeof(uint64_t);
+	}
     }

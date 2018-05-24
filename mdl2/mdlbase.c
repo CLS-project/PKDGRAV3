@@ -66,6 +66,7 @@ void mdlBaseInitialize(mdlBASE *base,int argc,char **argv) {
     base->nCores = 1;
     base->iCore = 0;
     base->iProcToThread = NULL;
+    base->nTicks = 0;
 
     /*
     ** Set default "maximums" for structures. These are NOT hard
