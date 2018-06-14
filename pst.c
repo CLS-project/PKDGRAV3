@@ -4752,12 +4752,12 @@ void pstGetParticles(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     if (pst->nLeaves > 1) {
 	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_GET_PARTICLES,vin,nIn);
 	pstGetParticles(pst->pstLower,vin,nIn,vout,pnOut);
-	mdlGetReply(pst->mdl,rID,out + (*pnOut / sizeof(uint64_t)),&nOutUpper);
+	mdlGetReply(pst->mdl,rID,out + (*pnOut / sizeof(struct outGetParticles)),&nOutUpper);
 	*pnOut += nOutUpper;
 	}
     else {
 	int nParticles = nIn / sizeof(uint64_t);
 	int n = pkdGetParticles(plcl->pkd,nParticles, ID, out );
-	*pnOut = n * sizeof(uint64_t);
+	*pnOut = n * sizeof(struct outGetParticles);
 	}
     }

@@ -309,5 +309,6 @@ void msrPSGroupFinder(MSR msr);
 void msrOutPsGroups(MSR msr,const char *pszFile,int iOutType, double dTime);
 void msrUnbind(MSR msr);
 void msrSetPSGroupIds(MSR msr);
-
+int msrGetParticles(MSR msr, int nIn, uint64_t *ID, struct outGetParticles *out);
+void msrOutputOrbits(MSR msr,int iStep,double dTime);
 #endif

@@ -49,4 +49,4 @@
 
 #define PACKAGE_VERSION "3.0.0"
 #define PACKAGE_STRING "pkdgrav 3.0.0"
-#define FLOAT_MAXVAL HUGE
+#define FLOAT_MAXVAL HUGE_VAL

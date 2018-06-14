@@ -1502,6 +1502,8 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 		"<SF Use div v for star formation> = 1");
     /* END Gas/Star Parameters */
 
+    prmAddArray(msr->prm,"lstOrbits",4,&msr->param.iOutputParticles,sizeof(uint64_t),&msr->param.nOutputParticles);
+
     msr->param.bAccelStep = 0;
 
 #ifndef USE_DIAPOLE
@@ -5988,4 +5990,47 @@ int msrGetParticles(MSR msr, int nIn, uint64_t *ID, struct outGetParticles *out)
     int nOut;
     pstGetParticles(msr->pst, ID, sizeof(uint64_t)*nIn, out, &nOut);
     return nOut / sizeof(struct outGetParticles);
+    }
+
+void msrOutputOrbits(MSR msr,int iStep,double dTime) {
+#ifdef _MSC_VER
+    char achFile[MAX_PATH];
+#else
+    char achFile[PATH_MAX];
+#endif
+    FILE *fp;
+    int i;
+
+    if (msr->param.nOutputParticles) {
+	struct outGetParticles particles[GET_PARTICLES_MAX];
+	double dExp, dvFac;
+
+	if (msr->param.csm->val.bComove) {
+	    dExp = csmTime2Exp(msr->param.csm,dTime);
+	    dvFac = 1.0/(dExp*dExp);
+	    }
+	else {
+	    dExp = dTime;
+	    dvFac = 1.0;
+	    }
+
+	msrGetParticles(msr,msr->param.nOutputParticles,msr->param.iOutputParticles,particles);
+	msrBuildName(msr,achFile,iStep);
+	strncat(achFile,".orb",256);
+
+	fp = fopen(achFile,"w");
+	if ( fp==NULL) {
+	    printf("Could not create orbit File:%s\n",achFile);
+	    _msrExit(msr,1);
+	    }
+	fprintf(fp,"%d %f\n",msr->param.nOutputParticles,dExp);
+	for(i=0; i<msr->param.nOutputParticles; ++i) {
+	    fprintf(fp,"%"PRIu64" %.8e %.16e %.16e %.16e %.8e %.8e %.8e %.8e\n",
+		particles[i].id, particles[i].mass,
+		particles[i].r[0], particles[i].r[1], particles[i].r[2],
+		particles[i].v[0]*dvFac, particles[i].v[1]*dvFac, particles[i].v[2]*dvFac,
+		particles[i].phi);
+	    }
+	fclose(fp);
+	}
     }

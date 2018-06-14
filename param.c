@@ -72,6 +72,29 @@ void prmFinish(PRM prm) {
     free(prm);
     }
 
+void prmAddArray(PRM prm,const char *pszName,int iType,void *pValue,int iSize,int *pCount) {
+    PRM_NODE *pn,*pnTail;
+    pn = (PRM_NODE *)malloc(sizeof(PRM_NODE));
+    assert(pn != NULL);
+    pn->pszName = (char *)malloc(strlen(pszName)+1);
+    assert(pn->pszName != NULL);
+    strcpy(pn->pszName,pszName);
+    pn->iType = iType;
+    pn->iSize = iSize;
+    pn->bArg = 0;
+    pn->bFile = 0;
+    pn->pValue = pValue;
+    pn->pCount = pCount;
+    pn->pszArg = NULL;
+    pn->pszArgUsage = NULL;
+    pn->pnNext = NULL;
+    if (!prm->pnHead) prm->pnHead = pn;
+    else {
+	pnTail = prm->pnHead;
+	while (pnTail->pnNext) pnTail = pnTail->pnNext;
+	pnTail->pnNext = pn;
+	}
+    }
 
 void prmAddParam(PRM prm,const char *pszName,int iType,void *pValue,
 		 int iSize,const char *pszArg,const char *pszArgUsage) {
@@ -87,6 +110,7 @@ void prmAddParam(PRM prm,const char *pszName,int iType,void *pValue,
     pn->bArg = 0;
     pn->bFile = 0;
     pn->pValue = pValue;
+    pn->pCount = NULL;
     if (pszArg) {
 	pn->pszArg = (char *)malloc(strlen(pszArg)+1);
 	assert(pn->pszArg != NULL);
@@ -168,6 +192,39 @@ void prmSave(PRM prm, FIO fio) {
 static const char *type_names[] = {
     "Boolean", "Integer", "Real", "String", "Long Integer"
 };
+
+static int setNode(PRM_NODE *pn,int i,tp_obj o) {
+    switch(pn->iType) {
+    	case 0:
+        case 1:
+        case 2:
+        case 4:
+            if (o.type == TP_NUMBER) {
+                if (pn->iType == 4) ((uint64_t *)pn->pValue)[i] = o.number.val;
+                else if (pn->iType < 2)  ((int *)pn->pValue)[i] = o.number.val;
+                else                  ((double *)pn->pValue)[i] = o.number.val;
+		if (pn->pCount) *pn->pCount = 1;
+        	}
+            else {
+        	fprintf(stderr, "ERROR: %s has invalid type, expected %s\n",
+        		pn->pszName, type_names[pn->iType]);
+        	return 0;
+        	}
+            break;
+        case 3:
+            if (o.type == TP_STRING) {
+                if (pn->iSize <= o.string.len) {
+                    fprintf(stderr, "Parameter %s too long\n",pn->pszName);
+                    return 0;
+                    }
+		memcpy((char *)pn->pValue,o.string.val,o.string.len);
+		((char *)pn->pValue)[o.string.len] = 0;
+		}
+	    break;
+	}
+    return 1;
+    }
+
 int prmParseParam(PRM prm) {
     FILE *fpParam;
     PRM_NODE *pn;
@@ -179,39 +236,22 @@ int prmParseParam(PRM prm) {
     if (prm->pszFilename==NULL) return(1);
 
     tp_vm *tp = tp_init(0, NULL);
+    tpyInitialize(tp);
+
     tp_obj dict = tp_main(tp,(char *)prm->pszFilename,0,0);
     for( pn=prm->pnHead; pn!=NULL; pn=pn->pnNext ) {
     	tp_obj o;
 	if (tp_iget(tp,&o,dict,tp_string(pn->pszName))) {
 	    pn->bFile = 1; // This came from the file
 	    if (pn->bArg) continue; // but command line takes precedence
-	    switch(pn->iType) {
-	    	case 0:
-	        case 1:
-	        case 2:
-	        case 4:
-	            if (o.type == TP_NUMBER) {
-	                if (pn->iType == 4) *(uint64_t *)pn->pValue = o.number.val;
-	                else if (pn->iType < 2)  *(int *)pn->pValue = o.number.val;
-	                else                  *(double *)pn->pValue = o.number.val;
-	        	}
-	            else {
-	        	fprintf(stderr, "ERROR: %s has invalid type, expected %s\n",
-	        		pn->pszName, type_names[pn->iType]);
-	        	return 0;
-	        	}
-	            break;
-	        case 3:
-	            if (o.type == TP_STRING) {
-	                if (pn->iSize <= o.string.len) {
-	                    fprintf(stderr, "Parameter %s too long\n",pn->pszName);
-	                    return 0;
-	                    }
-			memcpy((char *)pn->pValue,o.string.val,o.string.len);
-			((char *)pn->pValue)[o.string.len] = 0;
-			}
-		    break;
+	    if (o.type == TP_LIST) {
+		int i;
+		for (i=0; i<o.list.val->len; ++i) {
+		    if (!setNode(pn,i,o.list.val->items[i])) return 0;
+		    }
+		*pn->pCount = o.list.val->len;
 		}
+	    else if (!setNode(pn,0,o)) return 0;
 	    }
 	}
     tp_deinit(tp);

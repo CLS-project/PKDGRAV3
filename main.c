@@ -199,6 +199,7 @@ void * master_ch(MDL mdl) {
 	    msrDomainDecomp(msr,0,0,0);
 	    msrUpdateSoft(msr,dTime);
 	    msrBuildTree(msr,dTime,msr->param.bEwald);
+	    msrOutputOrbits(msr,iStartStep,dTime);
 #ifdef MDL_FFTW
 	    if (bDoPk) {
 		msrOutputPk(msr,iStartStep,dTime);
@@ -278,6 +279,7 @@ void * master_ch(MDL mdl) {
 	msrDomainDecomp(msr,0,0,0);
 	msrUpdateSoft(msr,dTime);
 	msrBuildTree(msr,dTime,msr->param.bEwald);
+	msrOutputOrbits(msr,iStartStep,dTime);
 #ifdef MDL_FFTW
 	if (msr->param.nGridPk>0) {
 	    msrOutputPk(msr,iStartStep,dTime);
@@ -342,6 +344,7 @@ void * master_ch(MDL mdl) {
 	    lSec = time(0) - lSec;
 	    msrMemStatus(msr);
 
+	    msrOutputOrbits(msr,iStep,dTime);
 #ifdef MDL_FFTW
 	    if (msr->param.iPkInterval && iStep%msr->param.iPkInterval == 0) {
 		msrOutputPk(msr,iStep,dTime);

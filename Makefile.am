@@ -28,7 +28,7 @@ clean-local:
 
 SOURCES = main.c tree.c analysis.c bt.c
 noinst_HEADERS = bt.h parameters.h grav.h walk.h mdl2/cycle.h tipsydefs.h basetype.h vqsort.h
-SOURCES        += cosmo.c master.c param.c tinypy.c pst.c smooth.c ewald.cxx opening.cxx pp.cxx pc.cxx
+SOURCES        += cosmo.c master.c param.c tinypy.c pkdtinypy.c pst.c smooth.c ewald.cxx opening.cxx pp.cxx pc.cxx
 noinst_HEADERS += cosmo.h master.h param.h tinypy.h pst.h smooth.h ewald.h pp.h pc.h meval.h qeval.h
 SOURCES        += moments.c outtype.c pkd.c smoothfcn.c rbtree.c fio.c listcomp.c illinois.c iomodule.c output.c
 noinst_HEADERS += moments.h intype.h outtype.h pkd.h smoothfcn.h rbtree.h fio.h listcomp.h illinois.h iomodule.h output.h

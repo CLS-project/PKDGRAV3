@@ -32,7 +32,7 @@ endif()
 #find_package(CUDA)
 find_package(GSL REQUIRED)      # GNU Scientific Library
 find_package(HDF5)
-find_package(PythonLibs)
+#find_package(PythonLibs)
 
 # _GNU_SOURCE gives us more options
 INCLUDE(CheckCSourceCompiles)
@@ -118,7 +118,7 @@ target_sources(${PROJECT_NAME} PRIVATE
 	walk2.c grav2.c ewald.cxx ic.cxx tree.c opening.cxx pp.cxx pc.cxx cl.c
 	lst.c moments.c ilp.c ilc.c iomodule.c
 	fof.c hop.c group.c groupstats.c RngStream.c listcomp.c healpix.c
-	tinypy.c
+	tinypy.c pkdtinypy.c
 )
 if(USE_BT)
 target_sources(${PROJECT_NAME} PRIVATE bt.c)

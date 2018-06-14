@@ -1332,7 +1332,6 @@ struct inInflate {
 void pstInflate(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 
 /* PST_GET_PARICLES */
-#define GET_PARTICLES_MAX 20 /* We have a nested loop, so don't increase this */
 void pstGetParticles(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 
 #endif
