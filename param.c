@@ -37,7 +37,7 @@
 #include <assert.h>
 #include <ctype.h>
 #include "param.h"
-#include "tinypy.h"
+#include "pkdtinypy.h"
 
 void prmInitialize(PRM *pprm,void (*fcnLeader)(void),void (*fcnTrailer)(void)) {
     PRM prm;
@@ -251,7 +251,8 @@ int prmParseParam(PRM prm) {
 		    }
 		*pn->pCount = o.list.val->len;
 		}
-	    else if (!setNode(pn,0,o)) return 0;
+	    else if (setNode(pn,0,o)) *pn->pCount = 1;
+	    else return 0;
 	    }
 	}
     tp_deinit(tp);
