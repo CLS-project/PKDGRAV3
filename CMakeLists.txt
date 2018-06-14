@@ -112,6 +112,7 @@ check_symbol_exists(atexit stdlib.h HAVE_ATEXIT)
 
 add_subdirectory(mdl2)
 add_executable(${PROJECT_NAME} "")
+set_property(TARGET ${PROJECT_NAME} APPEND PROPERTY COMPILE_DEFINITIONS _LARGEFILE_SOURCE)
 target_sources(${PROJECT_NAME} PRIVATE
 	main.c cosmo.c master.c pst.c fio.c illinois.c param.c
 	pkd.c analysis.c smooth.c smoothfcn.c outtype.c output.c
@@ -136,7 +137,7 @@ if (HDF5_FOUND)
   set(USE_HDF5 TRUE)
   target_include_directories(${PROJECT_NAME} PUBLIC ${HDF5_INCLUDE_DIRS})
   target_link_libraries(${PROJECT_NAME} ${HDF5_LIBRARIES})
-  set_property(TARGET ${PROJECT_NAME} APPEND PROPERTY COMPILE_FLAGS ${HDF5_DEFINITIONS})
+  set_property(TARGET ${PROJECT_NAME} APPEND PROPERTY COMPILE_DEFINITIONS ${HDF5_DEFINITIONS})
   #set_property(TARGET ${PROJECT_NAME} APPEND PROPERTY COMPILE_DEFINITIONS H5_USE_16_API)
 endif(HDF5_FOUND)
 if (PYTHONLIBS_FOUND)

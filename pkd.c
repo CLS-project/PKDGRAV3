@@ -20,8 +20,6 @@
 #else
 #include "pkd_config.h"
 #endif
-#define _LARGEFILE_SOURCE
-#define _FILE_OFFSET_BITS 64
 #ifdef HAVE_INTTYPES_H
 #include <inttypes.h>
 #else
