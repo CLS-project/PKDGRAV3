@@ -251,7 +251,9 @@ int prmParseParam(PRM prm) {
 		    }
 		*pn->pCount = o.list.val->len;
 		}
-	    else if (setNode(pn,0,o)) *pn->pCount = 1;
+	    else if (setNode(pn,0,o)) {
+		if (pn->pCount) *pn->pCount = 1;
+		}
 	    else return 0;
 	    }
 	}
