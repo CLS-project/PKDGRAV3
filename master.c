@@ -325,10 +325,13 @@ static int readParametersClasses(MSR msr,FILE *fp) {
 
 static int parseString(char *s, int size, const char *match) {
     char *p;
-    if ( (p = strchr(s,'=')) == NULL) return 0;
-    *p++ = 0;
+    if (match) {
+	if ( (p = strchr(s,'=')) == NULL) return 0;
+	*p++ = 0;
+	if (strcmp(s,match)!=0) return 0;
+	}
+    else p = s;
     if (*p++ != '"') return 0;
-    if (strcmp(s,match)!=0) return 0;
     size_t n = strlen(p);
     while(n && isspace(p[n-1])) --n;
     if (n==0) return 0;
@@ -355,6 +358,7 @@ int readParameters(MSR msr,const char *fileName) {
     char achFormat[50];
     char *pScan, *p;
     int bError = 0;
+    int n;
 
     if (fp==NULL) return 0;
 
@@ -377,28 +381,49 @@ int readParameters(MSR msr,const char *fileName) {
 	    pScan = achBuffer;
 	    if (*pScan=='#') ++pScan;
 	    else  pn->bFile = 1;
-	    switch (pn->iType) {
-	    case 0:
-	    case 1:
-		assert(pn->iSize == sizeof(int));
-		sprintf(achFormat,"%s=%%d\n",pn->pszName);
-		if (sscanf(pScan,achFormat,pn->pValue)!=1) bError=1;
-		break;
-	    case 2:
-		assert(pn->iSize == sizeof(double));
-		sprintf(achFormat,"%s=%%lg\n",pn->pszName);
-		if (sscanf(pScan,achFormat,pn->pValue)!=1) bError=1;
-		break;
-	    case 3:
-		if (parseString(pScan,256,pn->pszName)!=1) bError = 1;
-		else strcpy(pn->pValue,pScan);
-		break;
-	    case 4:
-		assert(pn->iSize == sizeof(uint64_t));
-		sprintf(achFormat,"%s=%%llu\n",pn->pszName);
-		if (sscanf(pScan,achFormat,pn->pValue)!=1) bError=1;
-		break;
+	    sprintf(achFormat,"%s=",pn->pszName);
+	    if (strncmp(pScan,achFormat,strlen(achFormat))==0) {
+	    	pScan += strlen(achFormat);
+		if (pn->pCount) {
+		    if (*pScan++ != '[') break;
+		    n = strlen(pScan) - 2;
+		    if (n<0 || pScan[n]!=']') break;
+		    pScan[n] = 0;
+		    if (n==0) {
+		    	*pn->pCount = 0;
+			continue;
+			}
+		    pScan = strtok(pScan,",");
+		    assert(pScan);
+		    }
+		n = 0;
+		while(pScan) {
+		    switch (pn->iType) {
+		    case 0:
+		    case 1:
+			assert(pn->iSize == sizeof(int));
+			if (sscanf(pScan,"%d\n",(int *)pn->pValue+n)!=1) bError=1;
+			break;
+		    case 2:
+			assert(pn->iSize == sizeof(double));
+			if (sscanf(pScan,"%lg\n",(double *)pn->pValue+n)!=1) bError=1;
+			break;
+		    case 3:
+			if (parseString(pScan,256,NULL)!=1) bError = 1;
+			else strcpy(pn->pValue,pScan);
+			break;
+		    case 4:
+			sprintf(achFormat,"%s=%%llu\n",pn->pszName);
+			if (sscanf(pScan,"%"PRIu64,(uint64_t *)pn->pValue+n)!=1) bError=1;
+			break;
+			}
+		    ++n;
+		    if (pn->pCount) pScan = strtok(NULL,",");
+		    else pScan = NULL;
+		    }
 		}
+		else bError = 1;
+		if (pn->pCount) *pn->pCount = n;
 	    }
 	if (bError) break;
 	}
@@ -503,33 +528,40 @@ static void writeParameters(MSR msr,const char *baseName,int iStep,double dTime)
     fprintf(fp,"achCheckpointName=\"%s\"\n",baseName);
 
     for( pn=msr->prm->pnHead; pn!=NULL; pn=pn->pnNext ) {
-	switch (pn->iType) {
-	case 0:
-	case 1:
-	    assert(pn->iSize == sizeof(int));
-	    fprintf(fp,"%s%s=%d\n",pn->bArg|pn->bFile?"":"#",
-		pn->pszName,*(int *)pn->pValue);
-	    break;
-	case 2:
-	    assert(pn->iSize == sizeof(double));
-	    /* This is purely cosmetic so 0.15 doesn't turn into 0.14999999... */
-	    sprintf(szNumber,"%.16g",*(double *)pn->pValue);
-	    sscanf(szNumber,"%le",&v);
-	    if ( v!= *(double *)pn->pValue )
-		sprintf(szNumber,"%.17g",*(double *)pn->pValue);
-	    fprintf(fp,"%s%s=%s\n",pn->bArg|pn->bFile?"":"#",
-		pn->pszName,szNumber);
-	    break;
-	case 3:
-	    fprintf(fp,"%s%s=\"%s\"\n",pn->bArg|pn->bFile?"":"#",
-		pn->pszName,(char *)pn->pValue);
-	    break;
-	case 4:
-	    assert(pn->iSize == sizeof(uint64_t));
-	    fprintf(fp,"%s%s=%"PRIu64"\n",pn->bArg|pn->bFile?"":"#",
-		pn->pszName,*(uint64_t *)pn->pValue);
-	    break;
+    	void *pValue = pn->pValue;
+    	int nCount = 1;
+	fprintf(fp,"%s%s=",pn->bArg|pn->bFile?"":"#",pn->pszName);
+	if (pn->pCount) {
+	    fprintf(fp,"[");
+	    nCount = *pn->pCount;
 	    }
+	for(i=0; i<nCount; ++i) {
+	    if (i) fprintf(fp, ",");
+	    switch (pn->iType) {
+	    case 0:
+	    case 1:
+		assert(pn->iSize == sizeof(int));
+		fprintf(fp,"%d",((int *)pn->pValue)[i]);
+		break;
+	    case 2:
+		assert(pn->iSize == sizeof(double));
+		/* This is purely cosmetic so 0.15 doesn't turn into 0.14999999... */
+		sprintf(szNumber,"%.16g",((double *)pn->pValue)[i]);
+		sscanf(szNumber,"%le",&v);
+		if ( v!= *(double *)pn->pValue )
+		    sprintf(szNumber,"%.17g",((double *)pn->pValue)[i]);
+		fprintf(fp,"%s",szNumber);
+		break;
+	    case 3:
+		fprintf(fp,"\"%s\"",(char *)pn->pValue);
+		break;
+	    case 4:
+		assert(pn->iSize == sizeof(uint64_t));
+		fprintf(fp,"%"PRIu64,((uint64_t *)pn->pValue)[i]);
+		break;
+		}
+	    }
+	fprintf(fp,"%s\n",pn->pCount?"]":"");
 	}
     fclose(fp);
     }
