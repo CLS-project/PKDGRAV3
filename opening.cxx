@@ -129,7 +129,7 @@ void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin ) {
 	    P3 = mask_mov(P2,T6,P1);
 	    P4 = mask_mov(P3,T1,i32v(8));
 	    iOpen = mask_mov(i32v(10),T0,P4);
-	    blk->iOpen.pf[i] = iOpen;
+	    blk->iOpen.p[i] = iOpen;
 	    }
 	}
     double dFlop = COST_FLOP_OPEN*(tile->lstTile.nBlocks*CL_PART_PER_BLK  + tile->lstTile.nInLast);
