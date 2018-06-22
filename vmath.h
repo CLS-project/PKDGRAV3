@@ -187,7 +187,7 @@ dvec verf(const dvec &v,const dvec &iv,const dvec &ex2,dvec &r_erf,dvec &r_erfc)
 const struct CONSTS {
 #if defined(__AVX512F__)
     dvec::array_t p0,p1,p2,p3,p4,p5,q0,q1,q2,q3,q4,q5;
-    vint64 one,two;
+    i64v::array_t one,two;
 #elif defined(__AVX2__)
     dvec::array_t p0,p1,p2,p3,p4,p5,q0,q1,q2,q3,q4,q5;
     i32v::array_t init,two;
@@ -236,7 +236,7 @@ const struct CONSTS {
 #elif defined(__AVX2__)
 #define SET_PREFACTOR(q) dvec q = _mm256_castsi256_pd(_mm256_permutevar8x32_epi32(_mm256_castpd_si256(dvec(consts.q)),idx));
 #elif defined(__AVX__)
-#define SET_PREFACTOR(q) dvec q = _mm256_blendv_pd(_mm256_permutevar_pd(dvec(consts.q##ab),SIMD_D2I(pred0)),_mm256_permutevar_pd(dvec(consts.q##cd),SIMD_D2I(pred2)),pred1)
+#define SET_PREFACTOR(q) dvec q = _mm256_blendv_pd(_mm256_permutevar_pd(dvec(consts.q##ab),_mm256_castpd_si256(pred0)),_mm256_permutevar_pd(dvec(consts.q##cd),_mm256_castpd_si256(pred2)),pred1)
 #else
 #define SET_PREFACTOR(q) dvec q = dvec(consts.q##a) + (pred0&dvec(consts.q##b)) + (pred1&dvec(consts.q##c)) + (pred2&dvec(consts.q##d))
 #endif
@@ -244,9 +244,9 @@ const struct CONSTS {
 #if defined(__AVX512F__)
 i64v idx =
 	_mm512_mask_add_epi64(
-	    _mm512_maskz_mov_epi64(pred0,consts.one.pi),
-	    pred1,consts.two.pi,
-	    _mm512_maskz_mov_epi64(pred2,consts.one.pi));
+	    _mm512_maskz_mov_epi64(pred0,i64v(consts.one)),
+	    pred1,i64v(consts.two),
+	    _mm512_maskz_mov_epi64(pred2,i64v(consts.one)));
 #elif defined(__AVX2__)
     i32v idx = i32v(consts.init)
 	+ i32v(_mm256_and_si256(i32v(consts.two),_mm256_castpd_si256(pred0)))
