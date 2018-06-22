@@ -134,7 +134,7 @@ double pkdParticleEwald(PKD pkd,double *r, float *pa, float *pPot,double *pdFlop
 #ifdef USE_SIMD_EWALD
     dvec dPot,dax,day,daz;
     fvec fPot,fax,fay,faz,fx,fy,fz;
-    vdouble px, py, pz, pr2,pInHole;
+    dvec::array_t px,py,pz,pr2,pInHole;
     int nSIMD = 0;
 #endif
     int i,ix,iy,iz;
@@ -192,14 +192,14 @@ double pkdParticleEwald(PKD pkd,double *r, float *pa, float *pPot,double *pdFlop
 		    }
 		else {
 #if defined(USE_SIMD_EWALD)
-		    px.d[nSIMD] = x;
-		    py.d[nSIMD] = y;
-		    pz.d[nSIMD] = z;
-		    pr2.d[nSIMD] = r2;
-		    pInHole.d[nSIMD] = bInHole;
+		    px[nSIMD] = x;
+		    py[nSIMD] = y;
+		    pz[nSIMD] = z;
+		    pr2[nSIMD] = r2;
+		    pInHole[nSIMD] = bInHole;
 //		    doerfc.i[nSIMD] = bInHole ? 0 : UINT64_MAX;
 		    if (++nSIMD == SIMD_DWIDTH) {
-			dFlopDouble += evalEwaldSIMD(pkd,&pkd->es,dax,day,daz,dPot,px.p,py.p,pz.p,pr2.p,dvec(pInHole.p) == 0.0);
+			dFlopDouble += evalEwaldSIMD(pkd,&pkd->es,dax,day,daz,dPot,dvec(px),dvec(py),dvec(pz),dvec(pr2),dvec(pInHole) == 0.0);
 			nSIMD = 0;
 			}
 #else
@@ -240,18 +240,18 @@ double pkdParticleEwald(PKD pkd,double *r, float *pa, float *pPot,double *pdFlop
     if (nSIMD) { /* nSIMD can be 0 through 7 */
 #define M 0xffffffffffffffff
 #if defined(__AVX512F__)
-	static const vint64 keepmask[] = {{0,0,0,0,0,0,0,0},{M,0,0,0,0,0,0,0},{M,M,0,0,0,0,0,0},{M,M,M,0,0,0,0,0},
+	static const i64v::array_t keepmask[] = {{0,0,0,0,0,0,0,0},{M,0,0,0,0,0,0,0},{M,M,0,0,0,0,0,0},{M,M,M,0,0,0,0,0},
 	    {M,M,M,M,0,0,0,0},{M,M,M,M,M,0,0,0},{M,M,M,M,M,M,0,0},{M,M,M,M,M,M,M,0}};
 #elif defined(__AVX__)
-	static const vint64 keepmask[] = {{0,0,0,0},{M,0,0,0},{M,M,0,0},{M,M,M,0}};
+	static const i64v::array_t keepmask[] = {{0,0,0,0},{M,0,0,0},{M,M,0,0},{M,M,M,0}};
 #else
-	static const vint64 keepmask[] = {{0,0},{M,0}};
+	static const i64v::array_t keepmask[] = {{0,0},{M,0}};
 #endif
 #undef M
-	dvec t, tax=0, tay=0, taz=0, tpot=0;
-	evalEwaldSIMD(pkd,&pkd->es,tax,tay,taz,tpot,px.p,py.p,pz.p,pr2.p,dvec(pInHole.p) == 0.0);
+	dvec t,tax=0, tay=0, taz=0, tpot=0;
+	evalEwaldSIMD(pkd,&pkd->es,tax,tay,taz,tpot,dvec(px),dvec(py),dvec(pz),dvec(pr2),dvec(pInHole) == 0.0);
 	dFlopDouble += COST_FLOP_EWALD * nSIMD;
-	t = keepmask[nSIMD].pd;
+	t = cast_dvec(i64v(keepmask[nSIMD]));
 	tax = tax & t;
 	tay = tay & t;
 	taz = taz & t;

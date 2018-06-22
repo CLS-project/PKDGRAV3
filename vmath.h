@@ -186,27 +186,27 @@ dvec verf(const dvec &v,const dvec &iv,const dvec &ex2,dvec &r_erf,dvec &r_erfc)
 
 const struct CONSTS {
 #if defined(__AVX512F__)
-    vdouble p0,p1,p2,p3,p4,p5,q0,q1,q2,q3,q4,q5;
+    dvec::array_t p0,p1,p2,p3,p4,p5,q0,q1,q2,q3,q4,q5;
     vint64 one,two;
 #elif defined(__AVX2__)
-    vdouble p0,p1,p2,p3,p4,p5,q0,q1,q2,q3,q4,q5;
-    vint init,two;
+    dvec::array_t p0,p1,p2,p3,p4,p5,q0,q1,q2,q3,q4,q5;
+    i32v::array_t init,two;
 #elif defined(__AVX__)
-    vdouble p0ab,p0cd,p1ab,p1cd,p2ab,p2cd,p3ab,p3cd,p4ab,p4cd,p5ab,p5cd;
-    vdouble q0ab,q0cd,q1ab,q1cd,q2ab,q2cd,q3ab,q3cd,q4ab,q4cd,q5ab,q5cd;
+    dvec::array_t p0ab,p0cd,p1ab,p1cd,p2ab,p2cd,p3ab,p3cd,p4ab,p4cd,p5ab,p5cd;
+    dvec::array_t q0ab,q0cd,q1ab,q1cd,q2ab,q2cd,q3ab,q3cd,q4ab,q4cd,q5ab,q5cd;
 #else
-    vdouble p0a,p0b,p0c,p0d, p1a,p1b,p1c,p1d, p2a,p2b,p2c,p2d;
-    vdouble p3a,p3b,p3c,p3d, p4a,p4b,p4c,p4d, p5a,p5b,p5c,p5d;
-    vdouble q0a,q0b,q0c,q0d, q1a,q1b,q1c,q1d, q2a,q2b,q2c,q2d;
-    vdouble q3a,q3b,q3c,q3d, q4a,q4b,q4c,q4d, q5a,q5b,q5c,q5d;
+    dvec::array_t p0a,p0b,p0c,p0d, p1a,p1b,p1c,p1d, p2a,p2b,p2c,p2d;
+    dvec::array_t p3a,p3b,p3c,p3d, p4a,p4b,p4c,p4d, p5a,p5b,p5c,p5d;
+    dvec::array_t q0a,q0b,q0c,q0d, q1a,q1b,q1c,q1d, q2a,q2b,q2c,q2d;
+    dvec::array_t q3a,q3b,q3c,q3d, q4a,q4b,q4c,q4d, q5a,q5b,q5c,q5d;
 #endif
     } consts = {
 #if defined(__AVX512F__)
-#define ERF_CONSTS(d,c,b,a) {{a,b,c,d,a,b,c,d}}
+#define ERF_CONSTS(d,c,b,a) {a,b,c,d,a,b,c,d}
 #elif defined(__AVX2__)
-#define ERF_CONSTS(d,c,b,a) {{a,b,c,d}}
+#define ERF_CONSTS(d,c,b,a) {a,b,c,d}
 #elif defined(__AVX__)
-#define ERF_CONSTS(d,c,b,a) {{a,b,a,b}},{{c,d,c,d}}
+#define ERF_CONSTS(d,c,b,a) {a,b,a,b},{c,d,c,d}
 #else
 #define ERF_CONSTS(d,c,b,a) {a,a},{b-a,b-a},{c-b,c-b},{d-c,d-c}
 #endif
@@ -232,13 +232,13 @@ const struct CONSTS {
 #endif
     };
 #if defined(__AVX512F__)
-#define SET_PREFACTOR(q) dvec q = _mm512_permutexvar_pd(idx,consts.q.p)
+#define SET_PREFACTOR(q) dvec q = _mm512_permutexvar_pd(idx,dvec(consts.q))
 #elif defined(__AVX2__)
-#define SET_PREFACTOR(q) dvec q = _mm256_castsi256_pd(_mm256_permutevar8x32_epi32(_mm256_castpd_si256(consts.q.p),idx));
+#define SET_PREFACTOR(q) dvec q = _mm256_castsi256_pd(_mm256_permutevar8x32_epi32(_mm256_castpd_si256(dvec(consts.q)),idx));
 #elif defined(__AVX__)
-#define SET_PREFACTOR(q) dvec q = _mm256_blendv_pd(_mm256_permutevar_pd(consts.q##ab.p,SIMD_D2I(pred0)),_mm256_permutevar_pd(consts.q##cd.p,SIMD_D2I(pred2)),pred1)
+#define SET_PREFACTOR(q) dvec q = _mm256_blendv_pd(_mm256_permutevar_pd(dvec(consts.q##ab),SIMD_D2I(pred0)),_mm256_permutevar_pd(dvec(consts.q##cd),SIMD_D2I(pred2)),pred1)
 #else
-#define SET_PREFACTOR(q) dvec q = consts.q##a.p + (pred0&consts.q##b.p) + (pred1&consts.q##c.p) + (pred2&consts.q##d.p)
+#define SET_PREFACTOR(q) dvec q = dvec(consts.q##a) + (pred0&dvec(consts.q##b)) + (pred1&dvec(consts.q##c)) + (pred2&dvec(consts.q##d))
 #endif
 
 #if defined(__AVX512F__)
@@ -248,10 +248,10 @@ i64v idx =
 	    pred1,consts.two.pi,
 	    _mm512_maskz_mov_epi64(pred2,consts.one.pi));
 #elif defined(__AVX2__)
-    i32v idx = i32v(consts.init.p)
-	+ i32v(_mm256_and_si256(consts.two.p,_mm256_castpd_si256(pred0)))
-	+ i32v(_mm256_and_si256(consts.two.p,_mm256_castpd_si256(pred1)))
-	+ i32v(_mm256_and_si256(consts.two.p,_mm256_castpd_si256(pred2)));
+    i32v idx = i32v(consts.init)
+	+ i32v(_mm256_and_si256(i32v(consts.two),_mm256_castpd_si256(pred0)))
+	+ i32v(_mm256_and_si256(i32v(consts.two),_mm256_castpd_si256(pred1)))
+	+ i32v(_mm256_and_si256(i32v(consts.two),_mm256_castpd_si256(pred2)));
 #endif
 
 

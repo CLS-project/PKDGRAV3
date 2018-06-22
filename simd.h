@@ -62,7 +62,7 @@
 #define SIMD_BITS 4
 #elif defined(__AVX__)
 #define SIMD_BITS 3
-#elif defined(__SSE__) || defined(__ALTIVEC__)
+#elif defined(__SSE__)
 #define SIMD_BITS 2
 #endif
 #endif
@@ -95,10 +95,8 @@
 #ifdef __FMA4__
 #include <x86intrin.h>
 #endif
-#elif defined(__ALTIVEC__)/*not defined(__SSE__)*/
-#include <altivec.h>
-#include <math.h> /* for sqrtf() */
-#endif/*__SSE__,__ALTIVEC__*/
+
+#endif/*__SSE__*/
 #endif/*USE_SIMD*/
 
 #ifdef USE_SIMD
@@ -135,32 +133,6 @@ typedef double v_df;
 typedef int32_t v_i;
 #endif/*USE_SIMD*/
 
-typedef union {
-    float f[SIMD_WIDTH];
-    v_sf p;
-    float i[SIMD_WIDTH];
-    } vfloat;
-
-typedef union {
-    double d[SIMD_DWIDTH];
-    v_df p;
-    uint64_t i[SIMD_DWIDTH];
-    } vdouble;
-
-typedef union {
-    int32_t  i[SIMD_WIDTH];
-    uint32_t u[SIMD_WIDTH];
-    v_i      p;
-    v_sf     pf;
-    v_df     pd;
-    } vint;
-
-typedef union {
-    uint64_t u[SIMD_WIDTH];
-    v_i      pi;
-    v_df     pd;
-    } vint64;
-
 #ifdef USE_SIMD
 
 #if defined(HAVE_POSIX_MEMALIGN) || defined(HAVE_MEMALIGN)
@@ -184,7 +156,7 @@ static inline void SIMD_free(void *p) {
 static inline void * SIMD_malloc( size_t newSize ) {
     void *np;
 
-    if ( posix_memalign( &np, 2*sizeof(v_sf), newSize ) == 0 )
+    if ( posix_memalign( &np, sizeof(v_sf), newSize ) == 0 )
 	return np;
     else
 	return NULL;
@@ -195,7 +167,7 @@ static inline void SIMD_free(void *p) {
     }
 #else
 static inline void * SIMD_malloc(size_t newSize) {
-    return _mm_malloc(newSize, 2*sizeof(vfloat));
+    return _mm_malloc(newSize, sizeof(v_sf));
 }
 
 static inline void SIMD_free(void *p) {
@@ -219,34 +191,42 @@ static inline void SIMD_free(void *p) {
 \**********************************************************************/
 template<typename vtype,typename ftype>
 struct vec {
-    vtype ymm;
 public:
     typedef vtype vector_t;
     typedef ftype scalar_t;
+    static int width() { return sizeof(vector_t)/sizeof(scalar_t); }
+    static int mask()  { return sizeof(vector_t)/sizeof(scalar_t)-1; }
+    typedef scalar_t __attribute__((aligned(sizeof(vector_t)))) array_t[sizeof(vector_t)/sizeof(scalar_t)];
+private:
+    vector_t ymm;
+public:
+    vec & load1(scalar_t f);
+    vec & load(const scalar_t *f);
+    vec & zero();
+
     vec() {}
 #ifdef USE_SIMD
     vec(scalar_t const &d);
 #endif
     vec(vector_t const &d) { ymm = d; }
+    explicit vec(scalar_t const *d) { load(d); }
     operator vector_t() const { return ymm; }
     scalar_t operator [] (uint32_t idx) const;
-    vec & zero();
-    vec & load1(scalar_t f);
-    vec & load(scalar_t *f);
     const vec & store(scalar_t *f) const;
-    static int width() { return sizeof(vector_t)/sizeof(scalar_t); }
-    static int mask()  { return sizeof(vector_t)/sizeof(scalar_t)-1; }
     static const vec sign_mask();
     vec<vector_t,scalar_t> operator-() const;
     };
 
 template<typename vtype>
 class mmask {
-    vtype ymm;
+public:
+    typedef vtype vector_t;
+private:
+    vector_t ymm;
 public:
     mmask() {}
-    mmask(vtype const &d) { ymm = d; }
-    operator vtype() const { return ymm; }
+    mmask(vector_t const &d) { ymm = d; }
+    operator vector_t() const { return ymm; }
     };
 
 #if defined(__AVX512F__) && defined(USE_SIMD)
@@ -261,6 +241,7 @@ inline i32v cvt_i32v(const fvec &a) { return i32v(_mm512_cvtps_epi32(a)); }
 inline fvec cvt_fvec(const i32v &a) { return fvec(_mm512_cvtepi32_ps(a)); }
 inline fvec cvt_fvec(const dvec &a) { return fvec(_mm512_castps256_ps512(_mm512_cvtpd_ps(a))); }
 inline fvec cast_fvec(const i32v &a) { return fvec(_mm512_castsi512_ps(a)); }
+inline dvec cast_dvec(const i64v &a) { return dvec(_mm512_castsi512_pd(a)); }
 
 //inline fvec cvt_fvec(const i64v &a) { return fvec(_mm512_cvtepi64_ps(a)); }
 #elif defined(__AVX__) && defined(USE_SIMD)
@@ -274,6 +255,7 @@ inline i32v cvt_i32v(const fvec &a) { return i32v(_mm256_cvtps_epi32(a)); }
 inline fvec cvt_fvec(const i32v &a) { return fvec(_mm256_cvtepi32_ps(a)); }
 inline fvec cvt_fvec(const dvec &a) { return fvec(_mm256_castps128_ps256(_mm256_cvtpd_ps(a))); }
 inline fvec cast_fvec(const i32v &a) { return fvec(_mm256_castsi256_ps(a)); }
+inline dvec cast_dvec(const i64v &a) { return dvec(_mm256_castsi256_pd(a)); }
 #elif defined(__SSE__) && defined(USE_SIMD)
 typedef vec<__m128i,int32_t> i32v;
 typedef vec<__m128,float> fvec;
@@ -286,6 +268,7 @@ inline i32v cvt_i32v(const fvec &a) { return i32v(_mm_cvtps_epi32(a)); }
 inline fvec cvt_fvec(const i32v &a) { return fvec(_mm_cvtepi32_ps(a)); }
 inline fvec cvt_fvec(const dvec &a) { return fvec(_mm_cvtpd_ps(a)); }
 inline fvec cast_fvec(const i32v &a) { return fvec(_mm_castsi128_ps(a)); }
+inline dvec cast_fvec(const i64v &a) { return dvec(_mm_castsi128_pd(a)); }
 #endif/*__SSE2__*/
 #else/*__AVX512F__,__AVX__,__SSE2__*/
 typedef vec<int32_t,int32_t> i32v;
@@ -318,8 +301,7 @@ template<typename v,typename ftype> inline vec<v,ftype> & operator|=(vec<v,ftype
 template<typename v,typename ftype> inline vec<v,ftype> & operator^=(vec<v,ftype> &a,vec<v,ftype> const &b) { return a = a ^ b; }
 template<typename v,typename ftype> inline vec<v,ftype> & operator^=(vec<v,ftype> &a,ftype const &b) { return a = a ^ b; }
 template<typename v,typename ftype> inline ftype vec<v,ftype>::operator [] (uint32_t idx) const {
-//	ftype d[width()];
-	ftype d[SIMD_WIDTH];
+	ftype d[sizeof(vector_t)/sizeof(scalar_t)];
 	store(d);
     return d[idx];
     }
@@ -337,7 +319,7 @@ template<typename v> inline mmask<v> & operator^=(mmask<v> &a,mmask<v> const &b)
 template<> inline vec<__m512,float>::vec(const float &d) { ymm = _mm512_set1_ps(d); }
 template<> inline vec<__m512,float> & vec<__m512,float>::zero() { ymm = _mm512_setzero_ps(); return *this; }
 template<> inline vec<__m512,float> & vec<__m512,float>::load1(float f) { ymm = _mm512_setr_ps(f,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0); return *this; }
-template<> inline vec<__m512,float> & vec<__m512,float>::load(float *pf) { ymm = _mm512_loadu_ps(pf); return *this; }
+template<> inline vec<__m512,float> & vec<__m512,float>::load(const float *pf) { ymm = _mm512_loadu_ps(pf); return *this; }
 template<> inline const vec<__m512,float> & vec<__m512,float>::store(float *pf) const { _mm512_storeu_ps(pf,ymm); return *this; }
 template<> inline const vec<__m512,float> vec<__m512,float>::sign_mask() { return _mm512_castsi512_ps(_mm512_set1_epi32(0x80000000)); }
 inline vec<__m512,float> min(vec<__m512,float> const &a,vec<__m512,float> const &b) { return _mm512_min_ps(a,b); }
@@ -410,7 +392,7 @@ inline vec<__m512,float> maskz_mov(mmask<__mmask16> const &k,vec<__m512,float> c
 template<> inline vec<__m512i,int32_t>::vec(const int32_t &d) { ymm = _mm512_set1_epi32(d); }
 template<> inline vec<__m512i,int32_t> & vec<__m512i,int32_t>::zero() { ymm = _mm512_setzero_si512(); return *this; }
 template<> inline vec<__m512i,int32_t> & vec<__m512i,int32_t>::load1(int32_t f) { ymm = _mm512_setr_epi32(f,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0); return *this; }
-template<> inline vec<__m512i,int32_t> & vec<__m512i,int32_t>::load(int32_t *pf) { ymm = _mm512_loadu_si512((__m512i*)pf); return *this; }
+template<> inline vec<__m512i,int32_t> & vec<__m512i,int32_t>::load(const int32_t *pf) { ymm = _mm512_loadu_si512((__m512i*)pf); return *this; }
 template<> inline const vec<__m512i,int32_t> & vec<__m512i,int32_t>::store(int32_t *pf) const { _mm512_storeu_si512((__m512i*)pf,ymm); return *this; }
 template<> inline const vec<__m512i,int32_t> vec<__m512i,int32_t>::sign_mask() { return _mm512_set1_epi32(0x80000000); }
 template<> inline vec<__m512i,int32_t> vec<__m512i,int32_t>::operator-() const {
@@ -436,7 +418,7 @@ inline vec<__m512i,int32_t> mask_mov(vec<__m512i,int32_t> const &src,mmask<__mma
 template<> inline vec<__m512i,int64_t>::vec(const int64_t &d) { ymm = _mm512_set1_epi64(d); }
 template<> inline vec<__m512i,int64_t> & vec<__m512i,int64_t>::zero() { ymm = _mm512_setzero_si512(); return *this; }
 template<> inline vec<__m512i,int64_t> & vec<__m512i,int64_t>::load1(int64_t f) { ymm = _mm512_setr_epi64(f,0,0,0,0,0,0,0); return *this; }
-template<> inline vec<__m512i,int64_t> & vec<__m512i,int64_t>::load(int64_t *pf) { ymm = _mm512_loadu_si512((__m512i*)pf); return *this; }
+template<> inline vec<__m512i,int64_t> & vec<__m512i,int64_t>::load(const int64_t *pf) { ymm = _mm512_loadu_si512((__m512i*)pf); return *this; }
 template<> inline const vec<__m512i,int64_t> & vec<__m512i,int64_t>::store(int64_t *pf) const { _mm512_storeu_si512((__m512i*)pf,ymm); return *this; }
 template<> inline const vec<__m512i,int64_t> vec<__m512i,int64_t>::sign_mask() { return _mm512_set1_epi64(0x8000000000000000); }
 template<> inline vec<__m512i,int64_t> vec<__m512i,int64_t>::operator-() const {
@@ -461,7 +443,7 @@ inline int testz(mmask<__mmask16> const &a) { return _mm512_kortestz(a,a); }
 template<> inline vec<__m512d,double>::vec(const double &d) { ymm = _mm512_set1_pd(d); }
 template<> inline vec<__m512d,double> & vec<__m512d,double>::zero() { ymm = _mm512_setzero_pd(); return *this; }
 template<> inline vec<__m512d,double> & vec<__m512d,double>::load1(double f) { ymm = _mm512_setr_pd(f,0,0,0,0,0,0,0); return *this; }
-template<> inline vec<__m512d,double> & vec<__m512d,double>::load(double *pf) { ymm = _mm512_loadu_pd(pf); return *this; }
+template<> inline vec<__m512d,double> & vec<__m512d,double>::load(const double *pf) { ymm = _mm512_loadu_pd(pf); return *this; }
 template<> inline const vec<__m512d,double> & vec<__m512d,double>::store(double *pf) const { _mm512_storeu_pd(pf,ymm); return *this; }
 template<> inline const vec<__m512d,double> vec<__m512d,double>::sign_mask() { return _mm512_castsi512_pd(_mm512_set1_epi64(0x8000000000000000)); }
 inline vec<__m512d,double> min(vec<__m512d,double> const &a,vec<__m512d,double> const &b) { return _mm512_min_pd(a,b); }
@@ -546,7 +528,7 @@ template<typename v,typename ftype,typename mtype> inline
 template<> inline vec<__m256,float>::vec(const float &d) { ymm = _mm256_set1_ps(d); }
 template<> inline vec<__m256,float> & vec<__m256,float>::zero() { ymm = _mm256_setzero_ps(); return *this; }
 template<> inline vec<__m256,float> & vec<__m256,float>::load1(float f) { ymm = _mm256_setr_ps(f,0,0,0,0,0,0,0); return *this; }
-template<> inline vec<__m256,float> & vec<__m256,float>::load(float *pf) { ymm = _mm256_loadu_ps(pf); return *this; }
+template<> inline vec<__m256,float> & vec<__m256,float>::load(const float *pf) { ymm = _mm256_loadu_ps(pf); return *this; }
 template<> inline const vec<__m256,float> & vec<__m256,float>::store(float *pf) const { _mm256_storeu_ps(pf,ymm); return *this; }
 template<> inline const vec<__m256,float> vec<__m256,float>::sign_mask() { return _mm256_castsi256_ps(_mm256_set1_epi32(0x80000000)); }
 template<> inline vec<__m256,float> vec<__m256,float>::operator-() const { return _mm256_xor_ps(ymm,sign_mask()); }
@@ -583,7 +565,6 @@ inline float hadd(vec<__m256,float> const &p) {
     sum = _mm_add_ps(sum, shuf);
     return _mm_cvtss_f32(sum);
     }
-inline vec<__m256,float> blend(vec<__m256,float> const &a,vec<__m256,float> const &b,vec<__m256,float> const &p) { return _mm256_blendv_ps(a,b,p); }
 inline vec<__m256,float> mask_mov(vec<__m256,float> const &src,vec<__m256,float> const &p,vec<__m256,float> const &a)
     { return _mm256_blendv_ps(src,a,p); }
 inline vec<__m256,float> maskz_mov(vec<__m256,float> const &p,vec<__m256,float> const &a) { return a & p; }
@@ -595,7 +576,7 @@ inline int testz(vec<__m256,float> const &a) { return !_mm256_movemask_ps(a); }
 template<> inline vec<__m256i,int32_t>::vec(const int32_t &d) { ymm = _mm256_set1_epi32(d); }
 template<> inline vec<__m256i,int32_t> & vec<__m256i,int32_t>::zero() { ymm = _mm256_setzero_si256(); return *this; }
 template<> inline vec<__m256i,int32_t> & vec<__m256i,int32_t>::load1(int32_t f) { ymm = _mm256_setr_epi32(f,0,0,0,0,0,0,0); return *this; }
-template<> inline vec<__m256i,int32_t> & vec<__m256i,int32_t>::load(int32_t *pf) { ymm = _mm256_loadu_si256((__m256i*)pf); return *this; }
+template<> inline vec<__m256i,int32_t> & vec<__m256i,int32_t>::load(const int32_t *pf) { ymm = _mm256_loadu_si256((__m256i*)pf); return *this; }
 template<> inline const vec<__m256i,int32_t> & vec<__m256i,int32_t>::store(int32_t *pf) const { _mm256_storeu_si256((__m256i*)pf,ymm); return *this; }
 template<> inline const vec<__m256i,int32_t> vec<__m256i,int32_t>::sign_mask() { return _mm256_set1_epi32(0x80000000); }
 #ifdef __AVX2__
@@ -633,7 +614,7 @@ inline vec<__m256i,int32_t> operator>(vec<__m256i,int32_t> const &a,vec<__m256i,
 template<> inline vec<__m256d,double>::vec(const double &d) { ymm = _mm256_set1_pd(d); }
 template<> inline vec<__m256d,double> & vec<__m256d,double>::zero() { ymm = _mm256_setzero_pd(); return *this; }
 template<> inline vec<__m256d,double> & vec<__m256d,double>::load1(double f) { ymm = _mm256_setr_pd(f,0,0,0); return *this; }
-template<> inline vec<__m256d,double> & vec<__m256d,double>::load(double *pf) { ymm = _mm256_loadu_pd(pf); return *this; }
+template<> inline vec<__m256d,double> & vec<__m256d,double>::load(const double *pf) { ymm = _mm256_loadu_pd(pf); return *this; }
 template<> inline const vec<__m256d,double> & vec<__m256d,double>::store(double *pf) const { _mm256_storeu_pd(pf,ymm); return *this; }
 template<> inline const vec<__m256d,double> vec<__m256d,double>::sign_mask() { return _mm256_castsi256_pd(_mm256_set1_epi64x(0x8000000000000000)); }
 template<> inline vec<__m256d,double> vec<__m256d,double>::operator-() const { return _mm256_xor_pd(ymm,sign_mask()); }
@@ -661,12 +642,17 @@ inline vec<__m256d,double> operator|(vec<__m256d,double> const &a,vec<__m256d,do
 inline vec<__m256d,double> operator^(vec<__m256d,double> const &a,vec<__m256d,double> const &b) { return _mm256_xor_pd(a,b); }
 inline vec<__m256d,double> operator~(vec<__m256d,double> const &a) { return _mm256_xor_pd(a,_mm256_castsi256_pd(_mm256_set1_epi32(0xffffffff))); }
 
-inline vec<__m256d,double> blend(vec<__m256d,double> const &a,vec<__m256d,double> const &b,vec<__m256d,double> const &p) { return _mm256_blendv_pd(a,b,p); }
 inline int movemask(vec<__m256d,double> const &r2) { return _mm256_movemask_pd(r2); }
-
 inline vec<__m256d,double> mask_mov(vec<__m256d,double> const &src,vec<__m256d,double> const &k,vec<__m256d,double> const &a)
     { return _mm256_blendv_pd(src,a,k); }
 inline int testz(vec<__m256d,double> const &a) { return !_mm256_movemask_pd(a); }
+
+/**********************************************************************\
+* AVX 64-bit integer
+\**********************************************************************/
+template<> inline vec<__m256i,int64_t> & vec<__m256i,int64_t>::zero() { ymm = _mm256_setzero_si256(); return *this; }
+template<> inline vec<__m256i,int64_t> & vec<__m256i,int64_t>::load1(int64_t f) { ymm = _mm256_setr_epi64x(f,0,0,0); return *this; }
+template<> inline vec<__m256i,int64_t> & vec<__m256i,int64_t>::load(const int64_t *pf) { ymm = _mm256_loadu_si256((__m256i*)pf); return *this; }
 
 #elif defined(__SSE__) && defined(USE_SIMD)
 
@@ -677,7 +663,7 @@ inline int testz(vec<__m256d,double> const &a) { return !_mm256_movemask_pd(a); 
 template<> inline vec<__m128,float>::vec(const float &d) { ymm = _mm_set1_ps(d); }
 template<> inline vec<__m128,float> & vec<__m128,float>::zero() { ymm = _mm_setzero_ps(); return *this; }
 template<> inline vec<__m128,float> & vec<__m128,float>::load1(float f) { ymm = _mm_setr_ps(f,0,0,0); return *this; }
-template<> inline vec<__m128,float> & vec<__m128,float>::load(float *pf) { ymm = _mm_loadu_ps(pf); return *this; }
+template<> inline vec<__m128,float> & vec<__m128,float>::load(const float *pf) { ymm = _mm_loadu_ps(pf); return *this; }
 template<> inline const vec<__m128,float> & vec<__m128,float>::store(float *pf) const { _mm_storeu_ps(pf,ymm); return *this; }
 template<> inline const vec<__m128,float> vec<__m128,float>::sign_mask() { return _mm_castsi128_ps(_mm_set1_epi32(0x80000000)); }
 template<> inline vec<__m128,float> vec<__m128,float>::operator-() const { return _mm_xor_ps(ymm,sign_mask()); }
@@ -718,15 +704,7 @@ inline float hadd(vec<__m128,float> const &p) {
     }
 inline int movemask(vec<__m128,float> const &r2) { return _mm_movemask_ps(r2); }
 inline vec<__m128,float> sqrt(vec<__m128,float> const &r2) { return _mm_sqrt_ps(r2); }
-inline vec<__m128,float> blend(vec<__m128,float> const &a,vec<__m128,float> const &b,vec<__m128,float> const &p) {
-#ifdef __SSE4_1__
-    return _mm_blendv_ps(a,b,p);
-#else
-    return _mm_or_ps(_mm_and_ps(p,b),_mm_andnot_ps(p,a));
-#endif
-    }
 inline int testz(vec<__m128,float> const &a) { return !_mm_movemask_ps(a); }
-
 inline vec<__m128,float> maskz_mov(vec<__m128,float> const &p,vec<__m128,float> const &a) { return a & p; }
 inline vec<__m128,float> mask_mov(vec<__m128,float> const &src,vec<__m128,float> const &p,vec<__m128,float> const &a) {
 #ifdef __SSE4_1__
@@ -742,7 +720,7 @@ inline vec<__m128,float> mask_mov(vec<__m128,float> const &src,vec<__m128,float>
 template<> inline vec<__m128i,int32_t>::vec(const int32_t &d) { ymm = _mm_set1_epi32(d); }
 template<> inline vec<__m128i,int32_t> & vec<__m128i,int32_t>::zero() { ymm = _mm_setzero_si128(); return *this; }
 template<> inline vec<__m128i,int32_t> & vec<__m128i,int32_t>::load1(int32_t f) { ymm = _mm_setr_epi32(f,0,0,0); return *this; }
-template<> inline vec<__m128i,int32_t> & vec<__m128i,int32_t>::load(int32_t *pf) { ymm = _mm_loadu_si128((__m128i*)pf); return *this; }
+template<> inline vec<__m128i,int32_t> & vec<__m128i,int32_t>::load(const int32_t *pf) { ymm = _mm_loadu_si128((__m128i*)pf); return *this; }
 template<> inline const vec<__m128i,int32_t> & vec<__m128i,int32_t>::store(int32_t *pf) const { _mm_storeu_si128((__m128i*)pf,ymm); return *this; }
 template<> inline const vec<__m128i,int32_t> vec<__m128i,int32_t>::sign_mask() { return _mm_set1_epi32(0x80000000); }
 #ifdef __SSE2__
@@ -778,7 +756,7 @@ inline vec<__m128i,int32_t> mask_mov(vec<__m128i,int32_t> const &src,vec<__m128,
 template<> inline vec<__m128d,double>::vec(const double &d) { ymm = _mm_set1_pd(d); }
 template<> inline vec<__m128d,double> & vec<__m128d,double>::zero() { ymm = _mm_setzero_pd(); return *this; }
 template<> inline vec<__m128d,double> & vec<__m128d,double>::load1(double f) { ymm = _mm_setr_pd(f,0); return *this; }
-template<> inline vec<__m128d,double> & vec<__m128d,double>::load(double *pf) { ymm = _mm_loadu_pd(pf); return *this; }
+template<> inline vec<__m128d,double> & vec<__m128d,double>::load(const double *pf) { ymm = _mm_loadu_pd(pf); return *this; }
 template<> inline const vec<__m128d,double> & vec<__m128d,double>::store(double *pf) const { _mm_storeu_pd(pf,ymm); return *this; }
 template<> inline const vec<__m128d,double> vec<__m128d,double>::sign_mask() { return _mm_castsi128_pd(_mm_set1_epi64x(0x8000000000000000)); }
 template<> inline vec<__m128d,double> vec<__m128d,double>::operator-() const { return _mm_xor_pd(ymm,sign_mask()); }
@@ -811,13 +789,6 @@ inline vec<__m128d,double> rsqrt(vec<__m128d,double> const &r2) {
     r *= 1.5 - 0.5*r*r*r2; /* Newton step correction */
     return r*(1.5 - 0.5*r*r*r2); /* Newton step correction */
     }
-inline vec<__m128d,double> blend(vec<__m128d,double> const &a,vec<__m128d,double> const &b,vec<__m128d,double> const &p) {
-#ifdef __SSE4_1__
-    return _mm_blendv_pd(a,b,p);
-#else
-    return _mm_or_pd(_mm_and_pd(p,b),_mm_andnot_pd(p,a));
-#endif
-    }
 #endif/*__SSE2__*/
 
 inline vec<__m128d,double> mask_mov(vec<__m128d,double> const &src,vec<__m128d,double> const &p,vec<__m128d,double> const &a) {
@@ -836,7 +807,7 @@ inline vec<__m128d,double> mask_mov(vec<__m128d,double> const &src,vec<__m128d,d
 //template<> inline vec<float,float>::vec(const float &d) { ymm = d; }
 template<> inline vec<float,float> & vec<float,float>::zero() { ymm = 0; return *this; }
 template<> inline vec<float,float> & vec<float,float>::load1(float f) { ymm = f; return *this; }
-template<> inline vec<float,float> & vec<float,float>::load(float *pf) { ymm = *pf; return *this; }
+template<> inline vec<float,float> & vec<float,float>::load(const float *pf) { ymm = *pf; return *this; }
 template<> inline const vec<float,float> & vec<float,float>::store(float *pf) const { *pf = ymm; return *this; }
 template<> inline const vec<float,float> vec<float,float>::sign_mask() { return 0x80000000; }
 template<> inline vec<float,float> vec<float,float>::operator-() const { return -ymm; }
@@ -881,7 +852,7 @@ inline vec<float,float> mask_mov(vec<float,float> const &src,bool const &p,vec<f
 //template<> inline vec<int32_t,int32_t>::vec(const int32_t &d) { ymm = d; }
 template<> inline vec<int32_t,int32_t> & vec<int32_t,int32_t>::zero() { ymm = 0; return *this; }
 template<> inline vec<int32_t,int32_t> & vec<int32_t,int32_t>::load1(int32_t f) { ymm = f; return *this; }
-template<> inline vec<int32_t,int32_t> & vec<int32_t,int32_t>::load(int32_t *pf) { ymm = *pf; return *this; }
+template<> inline vec<int32_t,int32_t> & vec<int32_t,int32_t>::load(const int32_t *pf) { ymm = *pf; return *this; }
 template<> inline const vec<int32_t,int32_t> & vec<int32_t,int32_t>::store(int32_t *pf) const { *pf = ymm; return *this; }
 inline vec<int32_t,int32_t> maskz_mov(mmask<bool> const &p,vec<int32_t,int32_t> const &a) {
     return p ? a : vec<int32_t,int32_t>(0); 
