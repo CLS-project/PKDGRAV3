@@ -3909,7 +3909,7 @@ void pstGenerateIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     PKD pkd = plcl->pkd;
     struct inGenerateIC *in = vin;
     struct outGenerateIC *out = vout, outUp;
-    int i;
+    int64_t i;
 
     mdlassert(pst->mdl,nIn == sizeof(struct inGenerateIC));
     mdlassert(pst->mdl,vout != NULL);
