@@ -2940,6 +2940,9 @@ void pkdInitStep(PKD pkd, struct parameters *p, struct csmVariables *cosmo) {
     */
     csmInitialize(&pkd->param.csm);
     pkd->param.csm->val = *cosmo;
+    if (pkd->param.csm->val.classData.bClass){
+        csmClassGslInitialize(pkd->param.csm);
+    }
     }
 
 
