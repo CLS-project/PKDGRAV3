@@ -584,18 +584,20 @@ template<> inline vec<__m256i,int32_t> vec<__m256i,int32_t>::operator-() const {
 inline vec<__m256i,int32_t> operator+(vec<__m256i,int32_t> const &a,vec<__m256i,int32_t> const &b) { return _mm256_add_epi32(a,b); }
 inline vec<__m256i,int32_t> operator-(vec<__m256i,int32_t> const &a,vec<__m256i,int32_t> const &b) { return _mm256_sub_epi32(a,b); }
 inline vec<__m256i,int32_t> operator&(vec<__m256i,int32_t> const &a,vec<__m256i,int32_t> const &b) { return _mm256_and_si256(a,b); }
+inline vec<__m256i,int32_t> mask_mov(vec<__m256i,int32_t> const &src,vec<__m256i,int32_t> const &p,vec<__m256i,int32_t> const &a)
+    { return _mm256_blendv_epi8(src,a,p); }
+inline vec<__m256i,int32_t> mask_mov(vec<__m256i,int32_t> const &src,vec<__m256,float> const &p,vec<__m256i,int32_t> const &a)
+    { return _mm256_blendv_epi8(src,a,_mm256_castps_si256(p)); }
 #else
 template<> inline vec<__m256i,int32_t> vec<__m256i,int32_t>::operator-() const {
     return _mm256_castps_si256(_mm256_xor_ps(_mm256_castsi256_ps(ymm),_mm256_castsi256_ps(sign_mask()))); }
 inline vec<__m256i,int32_t> operator&(vec<__m256i,int32_t> const &a,vec<__m256i,int32_t> const &b)
     { return _mm256_castps_si256(_mm256_and_ps(_mm256_castsi256_ps(a),_mm256_castsi256_ps(b))); }
-#endif
-
 inline vec<__m256i,int32_t> mask_mov(vec<__m256i,int32_t> const &src,vec<__m256i,int32_t> const &p,vec<__m256i,int32_t> const &a)
-    { return _mm256_blendv_epi8(src,a,p); }
+    { return _mm256_castps_si256(_mm256_blendv_ps(_mm256_castsi256_ps(src),_mm256_castsi256_ps(a),_mm256_castsi256_ps(p))); }
 inline vec<__m256i,int32_t> mask_mov(vec<__m256i,int32_t> const &src,vec<__m256,float> const &p,vec<__m256i,int32_t> const &a)
-    { return _mm256_blendv_epi8(src,a,_mm256_castps_si256(p)); }
-
+    { return _mm256_castps_si256(_mm256_blendv_ps(_mm256_castsi256_ps(src),_mm256_castsi256_ps(a),p)); }
+#endif
 #ifdef __AVX2__
 inline vec<__m256i,int32_t> operator==(vec<__m256i,int32_t> const &a,vec<__m256i,int32_t> const &b) { return _mm256_cmpeq_epi32(a,b); }
 //inline vec<__m256i,int32_t> operator!=(vec<__m256i,int32_t> const &a,vec<__m256i,int32_t> const &b) { return _mm256_cmpneq_epi32(a,b); }
