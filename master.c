@@ -1928,14 +1928,12 @@ int msrCheckForStop(MSR msr,const char *achStopFile) {
     }
 
 void msrFinish(MSR msr) {
-   int id;
-   printf("1\n");
+    int id;
     for (id=1;id<msr->nThreads;++id) {
 	int rID;
 	rID = mdlReqService(msr->mdl,id,SRV_STOP,NULL,0);
 	mdlGetReply(msr->mdl,rID,NULL,NULL);
 	}
-   printf("2\n");
     pstFinish(msr->pst);
     csmFinish(msr->param.csm);
     /*
