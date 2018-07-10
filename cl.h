@@ -46,7 +46,6 @@ typedef union {
     int32_t i[CL_PART_PER_BLK];
 #if !defined(__CUDACC__)
     v_i     p[CL_PART_PER_BLK/SIMD_WIDTH];
-    v_sf    pf[CL_PART_PER_BLK/SIMD_WIDTH];
 #endif
     } clInt32;
 

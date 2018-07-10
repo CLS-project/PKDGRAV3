@@ -37,6 +37,7 @@
 #include <assert.h>
 #include <ctype.h>
 #include "param.h"
+#include "pkdtinypy.h"
 
 void prmInitialize(PRM *pprm,void (*fcnLeader)(void),void (*fcnTrailer)(void)) {
     PRM prm;
@@ -71,6 +72,29 @@ void prmFinish(PRM prm) {
     free(prm);
     }
 
+void prmAddArray(PRM prm,const char *pszName,int iType,void *pValue,int iSize,int *pCount) {
+    PRM_NODE *pn,*pnTail;
+    pn = (PRM_NODE *)malloc(sizeof(PRM_NODE));
+    assert(pn != NULL);
+    pn->pszName = (char *)malloc(strlen(pszName)+1);
+    assert(pn->pszName != NULL);
+    strcpy(pn->pszName,pszName);
+    pn->iType = iType;
+    pn->iSize = iSize;
+    pn->bArg = 0;
+    pn->bFile = 0;
+    pn->pValue = pValue;
+    pn->pCount = pCount;
+    pn->pszArg = NULL;
+    pn->pszArgUsage = NULL;
+    pn->pnNext = NULL;
+    if (!prm->pnHead) prm->pnHead = pn;
+    else {
+	pnTail = prm->pnHead;
+	while (pnTail->pnNext) pnTail = pnTail->pnNext;
+	pnTail->pnNext = pn;
+	}
+    }
 
 void prmAddParam(PRM prm,const char *pszName,int iType,void *pValue,
 		 int iSize,const char *pszArg,const char *pszArgUsage) {
@@ -86,6 +110,7 @@ void prmAddParam(PRM prm,const char *pszName,int iType,void *pValue,
     pn->bArg = 0;
     pn->bFile = 0;
     pn->pValue = pValue;
+    pn->pCount = NULL;
     if (pszArg) {
 	pn->pszArg = (char *)malloc(strlen(pszArg)+1);
 	assert(pn->pszArg != NULL);
@@ -164,6 +189,42 @@ void prmSave(PRM prm, FIO fio) {
 ** way without using python.  We keep this around in case python is
 ** not available or uses too much memory.
 */
+static const char *type_names[] = {
+    "Boolean", "Integer", "Real", "String", "Long Integer"
+};
+
+static int setNode(PRM_NODE *pn,int i,tp_obj o) {
+    switch(pn->iType) {
+    	case 0:
+        case 1:
+        case 2:
+        case 4:
+            if (o.type == TP_NUMBER) {
+                if (pn->iType == 4) ((uint64_t *)pn->pValue)[i] = o.number.val;
+                else if (pn->iType < 2)  ((int *)pn->pValue)[i] = o.number.val;
+                else                  ((double *)pn->pValue)[i] = o.number.val;
+		if (pn->pCount) *pn->pCount = 1;
+        	}
+            else {
+        	fprintf(stderr, "ERROR: %s has invalid type, expected %s\n",
+        		pn->pszName, type_names[pn->iType]);
+        	return 0;
+        	}
+            break;
+        case 3:
+            if (o.type == TP_STRING) {
+                if (pn->iSize <= o.string.len) {
+                    fprintf(stderr, "Parameter %s too long\n",pn->pszName);
+                    return 0;
+                    }
+		memcpy((char *)pn->pValue,o.string.val,o.string.len);
+		((char *)pn->pValue)[o.string.len] = 0;
+		}
+	    break;
+	}
+    return 1;
+    }
+
 int prmParseParam(PRM prm) {
     FILE *fpParam;
     PRM_NODE *pn;
@@ -173,131 +234,31 @@ int prmParseParam(PRM prm) {
     int bWarnQuote=0;
 
     if (prm->pszFilename==NULL) return(1);
-    fpParam = fopen(prm->pszFilename,"r");
-    if (!fpParam) {
-	printf("Could not open file:%s\n",prm->pszFilename);
-	return(0);
-	}
-    p = fgets(achBuf,PRM_LINE_SIZE,fpParam);
-    iLine = 1;
-    while (p) {
-	if (*p == 0) goto new_line;
-	if (*p == '#') goto new_line;
-	while (isspace((int) *p)) {
-	    ++p;
-	    if (*p == 0) goto new_line;
-	    }
-	if (isalpha((int) *p)) {
-	    pszCmd = p;
-	    ++p;
-	    if (*p == 0) goto lookup_cmd;
-	    }
-	else goto syntax_error;
-	while (isalnum((int) *p)||strchr("_$",*p)) {
-	    ++p;
-	    if (*p == 0) goto lookup_cmd;
-	    }
-    lookup_cmd:
-	t = *p;
-	*p = 0;
-	pn = prm->pnHead;
-	while (pn) {
-	    if (!strcmp(pszCmd,pn->pszName)) break;
-	    pn = pn->pnNext;
-	    }
-	if (!pn) goto cmd_error;
-	*p = t;
-	if (*p == 0) goto syntax_error;
-	while (isspace((int) *p)) {
-	    ++p;
-	    if (*p == 0) goto syntax_error;
-	    }
-	if (*p != '=') goto syntax_error;
-	++p;
-	if (*p == 0) goto syntax_error;
-	while (isspace((int) *p)) {
-	    ++p;
-	    if (*p == 0) goto syntax_error;
-	    }
-	pn->bFile = 1;
-	/* The command line is authoritative */
-	if (pn->bArg) goto new_line;
-	switch (pn->iType) {
-	case 0:
-	    assert(pn->iSize == sizeof(int));
-	    ret = sscanf(p,"%d",(int *)pn->pValue);
-	    if (ret != 1) goto syntax_error;
-	    break;
-	case 1:
-	    assert(pn->iSize == sizeof(int));
-	    ret = sscanf(p,"%d",(int *)pn->pValue);
-	    if (ret != 1) goto syntax_error;
-	    break;
-	case 2:
-	    assert(pn->iSize == sizeof(double));
-	    ret = sscanf(p,"%lf",(double *)pn->pValue);
-	    if (ret != 1) goto syntax_error;
-	    break;
-	case 3:
-	    /*
-	    ** Make sure there is enough space to handle the string.
-	    ** This is a CONSERVATIVE test.
-	    */
-	    assert((size_t)pn->iSize > strlen(p));
-	    ret = sscanf(p,"%[^\n#]",(char *)pn->pValue);
-	    if (ret != 1) goto syntax_error;
-	    /*
-	     ** Strip trailing whitespace. OKAY!
-	     */
-	    p = pn->pValue;
-	    q = &p[strlen(p)];
-	    while (--q >= p) if (!isspace((int) *q)) break;
-	    if ( *q=='"' && *p=='"' && p != q) {
-		*q = 0;
-		do {
-		    p[0] = p[1];
-		} while(*++p);
-		}
-	    else {
-		*++q = 0;
-		if ( !bWarnQuote ) {
-		    fprintf(stderr,"WARNING: strings in parameter file should now be enclosed in quotes\n");
-		    bWarnQuote=1;
+
+    tp_vm *tp = tp_init(0, NULL);
+    tpyInitialize(tp);
+
+    tp_obj dict = tp_main(tp,(char *)prm->pszFilename,0,0);
+    for( pn=prm->pnHead; pn!=NULL; pn=pn->pnNext ) {
+    	tp_obj o;
+	if (tp_iget(tp,&o,dict,tp_string(pn->pszName))) {
+	    pn->bFile = 1; // This came from the file
+	    if (pn->bArg) continue; // but command line takes precedence
+	    if (o.type == TP_LIST) {
+		int i;
+		for (i=0; i<o.list.val->len; ++i) {
+		    if (!setNode(pn,i,o.list.val->items[i])) return 0;
 		    }
+		*pn->pCount = o.list.val->len;
 		}
-	    break;
-	case 4:
-	    assert(pn->iSize == sizeof(uint64_t));
-	    ret = sscanf(p,"%"PRIu64,(uint64_t *)pn->pValue);
-	    if (ret != 1) goto syntax_error;
-	    break;
-	default:
-	    goto cmd_error;
+	    else if (setNode(pn,0,o)) {
+		if (pn->pCount) *pn->pCount = 1;
+		}
+	    else return 0;
 	    }
-    new_line:
-	p = fgets(achBuf,PRM_LINE_SIZE,fpParam);
-	++iLine;
 	}
-    fclose(fpParam);
-    return(1);
-syntax_error:
-    q = achBuf;
-    while (*q) {
-	if (*q == '\n') *q = 0;
-	else ++q;
-	}
-    printf("Syntax error in %s(%d):\n%s",prm->pszFilename,iLine,achBuf);
-    fclose(fpParam);
-    return(0);
-cmd_error:
-    q = achBuf;
-    while (*q) {
-	if (*q == '\n') *q = 0;
-	else ++q;
-	}
-    printf("Unrecognized command in %s(%d):%s\n",prm->pszFilename,iLine,achBuf);
-    fclose(fpParam);
-    return(0);
+    tp_deinit(tp);
+    return 1;
     }
 
 int prmArgProc(PRM prm,int argc,char **argv) {

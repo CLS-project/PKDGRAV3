@@ -37,6 +37,9 @@
 #include <unistd.h>
 #endif
 #include <pthread.h>
+#ifdef __APPLE__
+#include "pthread_barrier.h"
+#endif
 #ifdef HAVE_SYS_PARAM_H
 #include <sys/param.h> /* for MAXHOSTNAMELEN, if available */
 #endif

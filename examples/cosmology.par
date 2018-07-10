@@ -1,3 +1,5 @@
+import math
+
 achOutName	= "example"
 
 # Memory and performance
@@ -30,7 +32,7 @@ iOutInterval	= 10
 #iCheckInterval	= 10
 bDoDensity	= 0
 bVDetails	= 1
-dHubble0        = 2.894405              # sqrt(pi*8/3)
+dHubble0        = math.sqrt(math.pi*8/3)
 
 bOverwrite	= 1
 bParaRead       = 1	# Read in parallel

@@ -21,8 +21,6 @@
 #include "pkd_config.h"
 #endif
 
-#define _LARGEFILE_SOURCE
-#define _FILE_OFFSET_BITS 64
 #include <stdio.h>
 #include <stdlib.h>
 #ifdef HAVE_UNISTD_H
@@ -327,10 +325,13 @@ static int readParametersClasses(MSR msr,FILE *fp) {
 
 static int parseString(char *s, int size, const char *match) {
     char *p;
-    if ( (p = strchr(s,'=')) == NULL) return 0;
-    *p++ = 0;
+    if (match) {
+	if ( (p = strchr(s,'=')) == NULL) return 0;
+	*p++ = 0;
+	if (strcmp(s,match)!=0) return 0;
+	}
+    else p = s;
     if (*p++ != '"') return 0;
-    if (strcmp(s,match)!=0) return 0;
     size_t n = strlen(p);
     while(n && isspace(p[n-1])) --n;
     if (n==0) return 0;
@@ -357,6 +358,7 @@ int readParameters(MSR msr,const char *fileName) {
     char achFormat[50];
     char *pScan, *p;
     int bError = 0;
+    int n;
 
     if (fp==NULL) return 0;
 
@@ -379,28 +381,49 @@ int readParameters(MSR msr,const char *fileName) {
 	    pScan = achBuffer;
 	    if (*pScan=='#') ++pScan;
 	    else  pn->bFile = 1;
-	    switch (pn->iType) {
-	    case 0:
-	    case 1:
-		assert(pn->iSize == sizeof(int));
-		sprintf(achFormat,"%s=%%d\n",pn->pszName);
-		if (sscanf(pScan,achFormat,pn->pValue)!=1) bError=1;
-		break;
-	    case 2:
-		assert(pn->iSize == sizeof(double));
-		sprintf(achFormat,"%s=%%lg\n",pn->pszName);
-		if (sscanf(pScan,achFormat,pn->pValue)!=1) bError=1;
-		break;
-	    case 3:
-		if (parseString(pScan,256,pn->pszName)!=1) bError = 1;
-		else strcpy(pn->pValue,pScan);
-		break;
-	    case 4:
-		assert(pn->iSize == sizeof(uint64_t));
-		sprintf(achFormat,"%s=%%llu\n",pn->pszName);
-		if (sscanf(pScan,achFormat,pn->pValue)!=1) bError=1;
-		break;
+	    sprintf(achFormat,"%s=",pn->pszName);
+	    if (strncmp(pScan,achFormat,strlen(achFormat))==0) {
+	    	pScan += strlen(achFormat);
+		if (pn->pCount) {
+		    if (*pScan++ != '[') break;
+		    n = strlen(pScan) - 2;
+		    if (n<0 || pScan[n]!=']') break;
+		    pScan[n] = 0;
+		    if (n==0) {
+		    	*pn->pCount = 0;
+			continue;
+			}
+		    pScan = strtok(pScan,",");
+		    assert(pScan);
+		    }
+		n = 0;
+		while(pScan) {
+		    switch (pn->iType) {
+		    case 0:
+		    case 1:
+			assert(pn->iSize == sizeof(int));
+			if (sscanf(pScan,"%d\n",(int *)pn->pValue+n)!=1) bError=1;
+			break;
+		    case 2:
+			assert(pn->iSize == sizeof(double));
+			if (sscanf(pScan,"%lg\n",(double *)pn->pValue+n)!=1) bError=1;
+			break;
+		    case 3:
+			if (parseString(pScan,256,NULL)!=1) bError = 1;
+			else strcpy(pn->pValue,pScan);
+			break;
+		    case 4:
+			sprintf(achFormat,"%s=%%llu\n",pn->pszName);
+			if (sscanf(pScan,"%"PRIu64,(uint64_t *)pn->pValue+n)!=1) bError=1;
+			break;
+			}
+		    ++n;
+		    if (pn->pCount) pScan = strtok(NULL,",");
+		    else pScan = NULL;
+		    }
 		}
+		else bError = 1;
+		if (pn->pCount) *pn->pCount = n;
 	    }
 	if (bError) break;
 	}
@@ -505,33 +528,40 @@ static void writeParameters(MSR msr,const char *baseName,int iStep,double dTime)
     fprintf(fp,"achCheckpointName=\"%s\"\n",baseName);
 
     for( pn=msr->prm->pnHead; pn!=NULL; pn=pn->pnNext ) {
-	switch (pn->iType) {
-	case 0:
-	case 1:
-	    assert(pn->iSize == sizeof(int));
-	    fprintf(fp,"%s%s=%d\n",pn->bArg|pn->bFile?"":"#",
-		pn->pszName,*(int *)pn->pValue);
-	    break;
-	case 2:
-	    assert(pn->iSize == sizeof(double));
-	    /* This is purely cosmetic so 0.15 doesn't turn into 0.14999999... */
-	    sprintf(szNumber,"%.16g",*(double *)pn->pValue);
-	    sscanf(szNumber,"%le",&v);
-	    if ( v!= *(double *)pn->pValue )
-		sprintf(szNumber,"%.17g",*(double *)pn->pValue);
-	    fprintf(fp,"%s%s=%s\n",pn->bArg|pn->bFile?"":"#",
-		pn->pszName,szNumber);
-	    break;
-	case 3:
-	    fprintf(fp,"%s%s=\"%s\"\n",pn->bArg|pn->bFile?"":"#",
-		pn->pszName,(char *)pn->pValue);
-	    break;
-	case 4:
-	    assert(pn->iSize == sizeof(uint64_t));
-	    fprintf(fp,"%s%s=%"PRIu64"\n",pn->bArg|pn->bFile?"":"#",
-		pn->pszName,*(uint64_t *)pn->pValue);
-	    break;
+    	void *pValue = pn->pValue;
+    	int nCount = 1;
+	fprintf(fp,"%s%s=",pn->bArg|pn->bFile?"":"#",pn->pszName);
+	if (pn->pCount) {
+	    fprintf(fp,"[");
+	    nCount = *pn->pCount;
 	    }
+	for(i=0; i<nCount; ++i) {
+	    if (i) fprintf(fp, ",");
+	    switch (pn->iType) {
+	    case 0:
+	    case 1:
+		assert(pn->iSize == sizeof(int));
+		fprintf(fp,"%d",((int *)pn->pValue)[i]);
+		break;
+	    case 2:
+		assert(pn->iSize == sizeof(double));
+		/* This is purely cosmetic so 0.15 doesn't turn into 0.14999999... */
+		sprintf(szNumber,"%.16g",((double *)pn->pValue)[i]);
+		sscanf(szNumber,"%le",&v);
+		if ( v!= *(double *)pn->pValue )
+		    sprintf(szNumber,"%.17g",((double *)pn->pValue)[i]);
+		fprintf(fp,"%s",szNumber);
+		break;
+	    case 3:
+		fprintf(fp,"\"%s\"",(char *)pn->pValue);
+		break;
+	    case 4:
+		assert(pn->iSize == sizeof(uint64_t));
+		fprintf(fp,"%"PRIu64,((uint64_t *)pn->pValue)[i]);
+		break;
+		}
+	    }
+	fprintf(fp,"%s\n",pn->pCount?"]":"");
 	}
     fclose(fp);
     }
@@ -570,43 +600,6 @@ void msrCheckpoint(MSR msr,int iStep,double dTime) {
 */
 static int validateParameters(PRM prm,struct parameters *param) {
     
-#define KBOLTZ	1.38e-16     /* bolzman constant in cgs */
-#define MHYDR 1.67e-24       /* mass of hydrogen atom in grams */
-#define MSOLG 1.99e33        /* solar mass in grams */
-#define GCGS 6.67e-8         /* G in cgs */
-#define KPCCM 3.085678e21    /* kiloparsec in centimeters */
-#define SIGMAT 6.6524e-25    /* Thompson cross-section (cm^2) */
-#define LIGHTSPEED 2.9979e10 /* Speed of Light cm/s */
-    /*
-    ** Convert kboltz/mhydrogen to system units, assuming that
-    ** G == 1.
-    */
-    if(prmSpecified(prm, "dMsolUnit") &&
-       prmSpecified(prm, "dKpcUnit")) {
-	param->dGasConst = param->dKpcUnit*KPCCM*KBOLTZ
-	    /MHYDR/GCGS/param->dMsolUnit/MSOLG;
-	/* code energy per unit mass --> erg per g */
-	param->dErgPerGmUnit = GCGS*param->dMsolUnit*MSOLG/(param->dKpcUnit*KPCCM);
-	/* code density --> g per cc */
-	param->dGmPerCcUnit = (param->dMsolUnit*MSOLG)/pow(param->dKpcUnit*KPCCM,3.0);
-	/* code time --> seconds */
-	param->dSecUnit = sqrt(1/(param->dGmPerCcUnit*GCGS));
-	/* code speed --> km/s */
-	param->dKmPerSecUnit = sqrt(GCGS*param->dMsolUnit*MSOLG/(param->dKpcUnit*KPCCM))/1e5;
-	/* code comoving density --> g per cc = param->dGmPerCcUnit (1+z)^3 */
-	param->dComovingGmPerCcUnit = param->dGmPerCcUnit;
-	}
-    else {
-	param->dSecUnit = 1;
-	param->dKmPerSecUnit = 1;
-	param->dComovingGmPerCcUnit = 1;
-	param->dGmPerCcUnit = 1;
-	param->dErgPerGmUnit = 1;
-	}
-
-    param->dTuFac = param->dGasConst/(param->dConstGamma - 1)/
-		param->dMeanMolWeight;
-
     if (prmSpecified(prm, "dMetalDiffsionCoeff") || prmSpecified(prm,"dThermalDiffusionCoeff")) {
 	if (!prmSpecified(prm, "iDiffusion")) param->iDiffusion=1;
 	}
@@ -1539,6 +1532,8 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 		"<SF Use div v for star formation> = 1");
     /* END Gas/Star Parameters */
 
+    prmAddArray(msr->prm,"lstOrbits",4,&msr->param.iOutputParticles,sizeof(uint64_t),&msr->param.nOutputParticles);
+
     msr->param.bAccelStep = 0;
 
 #ifndef USE_DIAPOLE
@@ -1569,6 +1564,43 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 	    }
 	if (!validateParameters(msr->prm,&msr->param)) _msrExit(msr,1);
 	}
+
+    msr->param.dTuFac = msr->param.dGasConst/(msr->param.dConstGamma - 1)/
+		msr->param.dMeanMolWeight;
+#define KBOLTZ	1.38e-16     /* bolzman constant in cgs */
+#define MHYDR 1.67e-24       /* mass of hydrogen atom in grams */
+#define MSOLG 1.99e33        /* solar mass in grams */
+#define GCGS 6.67e-8         /* G in cgs */
+#define KPCCM 3.085678e21    /* kiloparsec in centimeters */
+#define SIGMAT 6.6524e-25    /* Thompson cross-section (cm^2) */
+#define LIGHTSPEED 2.9979e10 /* Speed of Light cm/s */
+    /*
+    ** Convert kboltz/mhydrogen to system units, assuming that
+    ** G == 1.
+    */
+    if(prmSpecified(msr->prm, "dMsolUnit") &&
+       prmSpecified(msr->prm, "dKpcUnit")) {
+	msr->param.dGasConst = msr->param.dKpcUnit*KPCCM*KBOLTZ
+	    /MHYDR/GCGS/msr->param.dMsolUnit/MSOLG;
+	/* code energy per unit mass --> erg per g */
+	msr->param.dErgPerGmUnit = GCGS*msr->param.dMsolUnit*MSOLG/(msr->param.dKpcUnit*KPCCM);
+	/* code density --> g per cc */
+	msr->param.dGmPerCcUnit = (msr->param.dMsolUnit*MSOLG)/pow(msr->param.dKpcUnit*KPCCM,3.0);
+	/* code time --> seconds */
+	msr->param.dSecUnit = sqrt(1/(msr->param.dGmPerCcUnit*GCGS));
+	/* code speed --> km/s */
+	msr->param.dKmPerSecUnit = sqrt(GCGS*msr->param.dMsolUnit*MSOLG/(msr->param.dKpcUnit*KPCCM))/1e5;
+	/* code comoving density --> g per cc = msr->param.dGmPerCcUnit (1+z)^3 */
+	msr->param.dComovingGmPerCcUnit = msr->param.dGmPerCcUnit;
+	}
+    else {
+	msr->param.dSecUnit = 1;
+	msr->param.dKmPerSecUnit = 1;
+	msr->param.dComovingGmPerCcUnit = 1;
+	msr->param.dGmPerCcUnit = 1;
+	msr->param.dErgPerGmUnit = 1;
+	}
+
 
     /* Gas parameter checks */
 #ifdef CLASSICAL_FOPEN
@@ -1618,9 +1650,9 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->iRungDT = 0;
     msr->iLastRungRT = -1;
     msr->iLastRungDD = -1;
-    msr->nRung = malloc((msr->param.iMaxRung+1)*sizeof(uint64_t));
+    msr->nRung = malloc((MAX_RUNG+1)*sizeof(uint64_t));
     assert(msr->nRung != NULL);
-    for (i=0;i<=msr->param.iMaxRung;++i) msr->nRung[i] = 0;
+    for (i=0;i<=MAX_RUNG;++i) msr->nRung[i] = 0;
 
     msr->iRungVeryActive = msr->param.iMaxRung; /* No very active particles */
     msr->bSavePending = 0;                      /* There is no pending save */
@@ -1854,7 +1886,7 @@ msrGetLock(MSR msr) {
 
     _msrMakePath(msr->param.achDataSubPath,LOCKFILE,achFile);
     if (!msr->param.bOverwrite && (fp = fopen(achFile,"r"))) {
-	(void) fscanf(fp,"%s",achTmp);
+	if (fscanf(fp,"%s",achTmp) != 1) achTmp[0] = '\0';
 	(void) fclose(fp);
 	if (!strcmp(msr->param.achOutName,achTmp)) {
 	    (void) printf("ABORT: %s detected.\nPlease ensure data is safe to "
@@ -5977,8 +6009,58 @@ void msrMeasurePk(MSR msr,int nGrid,int nBins,uint64_t *nPk,float *fK,float *fPk
 	    }
 	}
     /* At this point, dPk[] needs to be corrected by the box size */
+    free(out);
 
     dsec = msrTime() - sec;
     printf("P(k) Calculated, Wallclock: %f secs\n\n",dsec);
     }
 #endif
+
+int msrGetParticles(MSR msr, int nIn, uint64_t *ID, struct outGetParticles *out) {
+    int nOut;
+    pstGetParticles(msr->pst, ID, sizeof(uint64_t)*nIn, out, &nOut);
+    return nOut / sizeof(struct outGetParticles);
+    }
+
+void msrOutputOrbits(MSR msr,int iStep,double dTime) {
+#ifdef _MSC_VER
+    char achFile[MAX_PATH];
+#else
+    char achFile[PATH_MAX];
+#endif
+    FILE *fp;
+    int i;
+
+    if (msr->param.nOutputParticles) {
+	struct outGetParticles particles[GET_PARTICLES_MAX];
+	double dExp, dvFac;
+
+	if (msr->param.csm->val.bComove) {
+	    dExp = csmTime2Exp(msr->param.csm,dTime);
+	    dvFac = 1.0/(dExp*dExp);
+	    }
+	else {
+	    dExp = dTime;
+	    dvFac = 1.0;
+	    }
+
+	msrGetParticles(msr,msr->param.nOutputParticles,msr->param.iOutputParticles,particles);
+	msrBuildName(msr,achFile,iStep);
+	strncat(achFile,".orb",256);
+
+	fp = fopen(achFile,"w");
+	if ( fp==NULL) {
+	    printf("Could not create orbit File:%s\n",achFile);
+	    _msrExit(msr,1);
+	    }
+	fprintf(fp,"%d %f\n",msr->param.nOutputParticles,dExp);
+	for(i=0; i<msr->param.nOutputParticles; ++i) {
+	    fprintf(fp,"%"PRIu64" %.8e %.16e %.16e %.16e %.8e %.8e %.8e %.8e\n",
+		particles[i].id, particles[i].mass,
+		particles[i].r[0], particles[i].r[1], particles[i].r[2],
+		particles[i].v[0]*dvFac, particles[i].v[1]*dvFac, particles[i].v[2]*dvFac,
+		particles[i].phi);
+	    }
+	fclose(fp);
+	}
+    }

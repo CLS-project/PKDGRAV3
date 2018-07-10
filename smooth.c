@@ -485,7 +485,6 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
     ** Need to cast the pLite to an array of extra stuff.
     */
     assert(pkd->nEphemeralBytes >= sizeof(struct smExtraArray));
-    assert(pkd->nEphemeralBytes >= sizeof(struct smGroupArray)/4 + sizeof(uint32_t));
     smx->ea = (struct smExtraArray *)(pkd->pLite); /* Used only for SPH */
     *psmx = smx;
     return(1);

@@ -4,17 +4,14 @@ if(COMMAND cmake_policy)
 endif(COMMAND cmake_policy)
 project(pkdgrav3)
 
-if(NOT CMAKE_BUILD_TYPE)
-  set(CMAKE_BUILD_TYPE Release)
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+  message(STATUS "Release build with debug info selected")
+  set(CMAKE_BUILD_TYPE RelWithDebInfo)
 endif()
-set(CMAKE_CXX_FLAGS_RELEASE "-O3")
-set(CMAKE_C_FLAGS_RELEASE "-O3")
-
 if(UNIX)
   set(CMAKE_REQUIRED_LIBRARIES m)
   set(HAVE_LIBM 1)
 endif()
-
 
 include(CheckCXXCompilerFlag)
 include(CheckCXXCompilerFlag)
@@ -27,14 +24,15 @@ CHECK_CXX_COMPILER_FLAG("/arch:AVX" COMPILER_OPT_ARCH_AVX_SUPPORTED)
 if (COMPILER_OPT_ARCH_AVX_SUPPORTED)
   add_compile_options(/arch:AVX)
 endif()
-
-
-
-
-
-
+CHECK_CXX_COMPILER_FLAG("-Wall" COMPILER_OPT_WARN_ALL_SUPPORTED)
+if (COMPILER_OPT_WARN_ALL_SUPPORTED)
+  set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wall")
+  set(CMAKE_C_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wall")
+endif()
 #find_package(CUDA)
 find_package(GSL REQUIRED)      # GNU Scientific Library
+find_package(HDF5)
+#find_package(PythonLibs)
 
 # _GNU_SOURCE gives us more options
 INCLUDE(CheckCSourceCompiles)
@@ -114,12 +112,14 @@ check_symbol_exists(atexit stdlib.h HAVE_ATEXIT)
 
 add_subdirectory(mdl2)
 add_executable(${PROJECT_NAME} "")
+set_property(TARGET ${PROJECT_NAME} APPEND PROPERTY COMPILE_DEFINITIONS _LARGEFILE_SOURCE)
 target_sources(${PROJECT_NAME} PRIVATE
 	main.c cosmo.c master.c pst.c fio.c illinois.c param.c
 	pkd.c analysis.c smooth.c smoothfcn.c outtype.c output.c
 	walk2.c grav2.c ewald.cxx ic.cxx tree.c opening.cxx pp.cxx pc.cxx cl.c
 	lst.c moments.c ilp.c ilc.c iomodule.c
 	fof.c hop.c group.c groupstats.c RngStream.c listcomp.c healpix.c
+	tinypy.c pkdtinypy.c
 )
 if(USE_BT)
 target_sources(${PROJECT_NAME} PRIVATE bt.c)
@@ -133,6 +133,20 @@ if (CUDA_FOUND)
 		-I${CMAKE_CURRENT_BINARY_DIR})
   target_sources(${PROJECT_NAME} PRIVATE ${cuda_files})
 endif()
+if (HDF5_FOUND)
+  set(USE_HDF5 TRUE)
+  target_include_directories(${PROJECT_NAME} PUBLIC ${HDF5_INCLUDE_DIRS})
+  target_link_libraries(${PROJECT_NAME} ${HDF5_LIBRARIES})
+  set_property(TARGET ${PROJECT_NAME} APPEND PROPERTY COMPILE_DEFINITIONS ${HDF5_DEFINITIONS})
+  #set_property(TARGET ${PROJECT_NAME} APPEND PROPERTY COMPILE_DEFINITIONS H5_USE_16_API)
+endif(HDF5_FOUND)
+if (PYTHONLIBS_FOUND)
+  set(USE_PYTHON TRUE)
+  target_include_directories(${PROJECT_NAME} PUBLIC ${PYTHON_INCLUDE_DIRS})
+  target_link_libraries(${PROJECT_NAME} ${PYTHON_LIBRARIES})
+  target_sources(${PROJECT_NAME} PRIVATE pkdpython.c)
+endif(PYTHONLIBS_FOUND)
+
 #if USE_SIMD
 #if USE_SIMD_FMM
 target_sources(${PROJECT_NAME} PRIVATE vmoments.cxx)

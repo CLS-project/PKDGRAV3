@@ -15,11 +15,8 @@
  *  along with PKDGRAV3.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef INTYPE_HINCLUDED
-#define INTYPE_HINCLUDED
-
-#define IN_TIPSY_STD            0
-#define IN_TIPSY_DBL            1
-#define IN_TIPSY_NAT            2
-
+#ifndef PKDTINYPY_H
+#define PKDTINYPY_H
+#include "tinypy.h"
+void tpyInitialize(TP);
 #endif
