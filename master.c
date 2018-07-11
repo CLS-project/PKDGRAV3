@@ -1296,6 +1296,15 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 		sizeof(int),"nir","<Number of replicas when inflating> = 0");
 
     /* IC Generation */
+    msr->param.csm->val.classData.bClass = 0;
+    prmAddParam(msr->prm,"bClass",0,&msr->param.csm->val.classData.bClass,
+		sizeof(int),"class","<Enable/disable the use of CLASS> = -class");
+    msr->param.csm->val.classData.achFilename[0] = 0;
+    prmAddParam(msr->prm, "achClassFilename", 3, msr->param.csm->val.classData.achFilename,
+		256, "class_filename", "<Name of hdf5 file containing the CLASS data> -class_filename");
+    msr->param.csm->val.classData.bNeutrinos = 0;
+    prmAddParam(msr->prm, "bNeutrinos", 0, &msr->param.csm->val.classData.bNeutrinos,
+        sizeof(int), "neutrinos", "<Enable/disable neutrinos> = -neutrinos");
     msr->param.h = 0.0;
     prmAddParam(msr->prm,"h",2,&msr->param.h,
 		sizeof(double),"h","<hubble parameter h> = 0");
@@ -1656,6 +1665,15 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 
     msr->iRungVeryActive = msr->param.iMaxRung; /* No very active particles */
     msr->bSavePending = 0;                      /* There is no pending save */
+
+    if (msr->param.csm->val.classData.bClass){
+        csmClassRead(msr->param.csm, msr->param.dBoxSize, msr->param.h);
+        csmClassGslInitialize(msr->param.csm);
+    }
+    if (msr->param.csm->val.classData.bClass && msr->param.b2LPT){
+        fprintf(stderr, "ERROR: 2LPT not yet implemented for Class ICs\n");
+        abort();
+    }
 
     return bDoRestore;
     }
@@ -5059,6 +5077,7 @@ double msrGenerateIC(MSR msr) {
     in.fPhase = msr->param.dFixedAmpPhasePI * M_PI;
     in.nGrid = msr->param.nGrid;
     in.b2LPT = msr->param.b2LPT;
+    in.bClass = msr->param.csm->val.classData.bClass;
     in.cosmo = msr->param.csm->val;
     in.nInflateFactor = msr->param.nInflateReps + 1;
     in.nInflateFactor *= in.nInflateFactor * in.nInflateFactor;

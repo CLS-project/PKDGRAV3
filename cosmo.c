@@ -29,6 +29,9 @@
 #include <ctype.h>
 #include <assert.h>
 
+#include <hdf5.h>
+#include <hdf5_hl.h>
+
 #ifdef CRAY_T3D
 #include "hyperlib.h"
 #endif
@@ -62,15 +65,536 @@ void csmInitialize(CSM *pcsm) {
     csm->val.dOmegab = 0.0;
     csm->val.bComove = 0;
     csm->W = gsl_integration_workspace_alloc(LIMIT);
+    csm->val.classData.bClass = 0;
+    csm->val.classData.achFilename[0] = 0;
+    csm->val.classData.background.size = 0;
+    csm->val.classData.background.a[0] = 0.;
+    csm->val.classData.background.t[0] = 0.;
+    csm->val.classData.background.H[0] = 0.;
+    csm->val.classData.perturbations.size_a = 0;
+    csm->val.classData.perturbations.size_k = 0;
+    csm->val.classData.perturbations.a[0] = 0.;
+    csm->val.classData.perturbations.k[0] = 0.;
+    csm->val.classData.perturbations.delta_m [0] = 0.;
+    csm->val.classData.perturbations.theta_m [0] = 0.;
+    csm->val.classData.perturbations.delta_nu[0] = 0.;
+    csm->val.classData.perturbations.A_s = 0.;
+    csm->val.classData.perturbations.n_s = 0.;
+    csm->val.classData.perturbations.alpha_s = 0.;
+    csm->val.classData.perturbations.k_pivot = 0.;
+    csm->classGsl.initialized = 0;
     *pcsm = csm;
     }
 
 void csmFinish(CSM csm) {
+    if (csm->val.classData.bClass){
+        gsl_interp_accel_free(csm->classGsl.background.logExp2logHub_acc);
+        gsl_spline_free      (csm->classGsl.background.logExp2logHub_spline);
+        gsl_interp_accel_free(csm->classGsl.background.logTime2logHub_acc);
+        gsl_spline_free      (csm->classGsl.background.logTime2logHub_spline);
+        gsl_interp_accel_free(csm->classGsl.background.logExp2logTime_acc);
+        gsl_spline_free      (csm->classGsl.background.logExp2logTime_spline);
+        gsl_interp_accel_free(csm->classGsl.background.logTime2logExp_acc);
+        gsl_spline_free      (csm->classGsl.background.logTime2logExp_spline);
+        gsl_interp_accel_free(csm->classGsl.background.logExp2logRho_m_acc);
+        gsl_spline_free      (csm->classGsl.background.logExp2logRho_m_spline);
+        gsl_interp_accel_free(csm->classGsl.background.logExp2logRho_nu_acc);
+        gsl_spline_free      (csm->classGsl.background.logExp2logRho_nu_spline);
+        gsl_interp_accel_free(csm->classGsl.perturbations.logk2delta_m_acc);
+        gsl_interp_accel_free(csm->classGsl.perturbations.loga2delta_m_acc);
+        gsl_spline2d_free    (csm->classGsl.perturbations.logkloga2delta_m_spline);
+        gsl_interp_accel_free(csm->classGsl.perturbations.logk2theta_m_acc);
+        gsl_interp_accel_free(csm->classGsl.perturbations.loga2theta_m_acc);
+        gsl_spline2d_free    (csm->classGsl.perturbations.logkloga2theta_m_spline);
+        gsl_interp_accel_free(csm->classGsl.perturbations.logk2delta_nu_acc);
+        gsl_interp_accel_free(csm->classGsl.perturbations.loga2delta_nu_acc);
+        gsl_spline2d_free    (csm->classGsl.perturbations.logkloga2delta_nu_spline);
+    }
     gsl_integration_workspace_free(csm->W);
     free(csm);
     }
 
+void csmClassRead(CSM csm, double dBoxSize, double h){
+    size_t i, j;
+    hid_t file, group, attr, string_type;
+    hsize_t size, size_a, size_k;
+    char *unit_length;
+    double A_s, n_s, alpha_s, k_pivot;
+    double a, k, unit_convertion_time, unit_convertion_density;
+    double *zeta;
+
+    assert(csm->val.classData.bClass);
+
+    /* Create an HDF5 ASCII string type */
+    string_type = H5Tcopy(H5T_C_S1);
+    H5Tset_size(string_type, H5T_VARIABLE);
+
+    file = H5Fopen(csm->val.classData.achFilename, H5F_ACC_RDONLY, H5P_DEFAULT);
+
+    /* Check the unit system used by the HDF5 file.
+    ** Though this system is specified by "unit length", "unit time" and
+    ** "unit mass", we only rely on the length. Specifically, the
+    ** "unit length" is assumed to be Mpc.
+    */
+    group = H5Gopen(file, "units", H5P_DEFAULT);
+    attr = H5Aopen_name(group, "unit length");
+    H5Aread(attr, string_type, &unit_length);
+    if (strcmp(unit_length, "Mpc") != 0){
+        fprintf(stderr,
+            "WARNING: The HDF5 file uses a unit system in which %s = 1, "
+            "but we need Mpc = 1.\n",
+            unit_length);
+        abort();
+    }
+    free(unit_length);
+    H5Aclose(attr);
+    H5Gclose(group);
+
+    /* Read in the background */
+    H5LTget_dataset_info(file, "/background/a", &size, NULL, NULL);
+    if (size > CLASS_BACKGROUND_SIZE){
+        fprintf(stderr,
+            "WARNING: The CLASS background size (%zu) "
+            "is larger than CLASS_BACKGROUND_SIZE (%d)\n",
+            (size_t)size, CLASS_BACKGROUND_SIZE);
+        abort();
+    }
+    csm->val.classData.background.size = (size_t)size;
+    H5LTread_dataset_double(file, "/background/a"        , csm->val.classData.background.a    );
+    H5LTread_dataset_double(file, "/background/t"        , csm->val.classData.background.t    );
+    H5LTread_dataset_double(file, "/background/H"        , csm->val.classData.background.H    );
+    H5LTread_dataset_double(file, "/background/rho_cdm+b", csm->val.classData.background.rho_m);
+    if (csm->val.classData.bNeutrinos){
+        H5LTread_dataset_double(file, "/background/rho_ncdm[0]", csm->val.classData.background.rho_nu);
+    }
+    /* Convert to PKDGRAV units.
+    ** Here we make use of the fact that in PKDGRAV units,
+    ** H0 = sqrt(8*pi/3) and \bar{rho}_m0 = Omega_0.
+    ** Since H0 and \bar{rho}_m0 are part of the CLASS data,
+    ** we have enough information to be completely agnostic
+    ** abouth the units actually used in the hdf5 file.
+    */
+    unit_convertion_time = sqrt(8*M_PI/3)/csm->val.classData.background.H[size - 1];
+    for (i = 0; i < size; i++){
+        csm->val.classData.background.t[i] /= unit_convertion_time;
+    }
+    for (i = 0; i < size; i++){
+        csm->val.classData.background.H[i] *= unit_convertion_time;
+    }
+    unit_convertion_density = csm->val.classData.background.rho_m[size - 1]/csm->val.dOmega0;
+    for (i = 0; i < size; i++){
+        csm->val.classData.background.rho_m[i] /= unit_convertion_density;
+    }
+    if (csm->val.classData.bNeutrinos){
+        for (i = 0; i < size; i++){
+            csm->val.classData.background.rho_nu[i] /= unit_convertion_density;
+        }
+    }
+
+    /* Read in the perturbations */
+    /* a */
+    H5LTget_dataset_info(file, "/perturbations/a", &size_a, NULL, NULL);
+    if (size_a > CLASS_PERTURBATIONS_A_SIZE){
+        fprintf(stderr,
+            "WARNING: The CLASS perturbations size_a (%zu) "
+            "is larger than CLASS_PERTURBATIONS_A_SIZE (%d)\n",
+            (size_t)size_a, CLASS_PERTURBATIONS_A_SIZE);
+        abort();
+    }
+    csm->val.classData.perturbations.size_a = (size_t)size_a;
+    H5LTread_dataset_double(file, "/perturbations/a", csm->val.classData.perturbations.a);
+    /* k
+    ** This is given in 1/Mpc in the HDF5 file,
+    ** but we want it in h/Mpc.
+    */
+    H5LTget_dataset_info(file, "/perturbations/k", &size_k, NULL, NULL);
+    if (size_k > CLASS_PERTURBATIONS_K_SIZE){
+        fprintf(stderr,
+            "WARNING: The CLASS perturbations size_k (%zu) "
+            "is larger than CLASS_PERTURBATIONS_K_SIZE (%d)\n",
+            (size_t)size_k, CLASS_PERTURBATIONS_K_SIZE);
+        abort();
+    }
+    csm->val.classData.perturbations.size_k = (size_t)size_k;
+    H5LTread_dataset_double(file, "/perturbations/k", csm->val.classData.perturbations.k);
+    for (i = 0; i < size_k; i++){
+        csm->val.classData.perturbations.k[i] /= h;
+    }
+    /* Primordial parameters, needed to convert from transfer functions
+    ** to actual fields.
+    */
+    group = H5Gopen(file, "perturbations", H5P_DEFAULT);
+    attr = H5Aopen(group, "A_s", H5P_DEFAULT);
+    H5Aread(attr, H5T_NATIVE_DOUBLE, &A_s);
+    csm->val.classData.perturbations.A_s = A_s;
+    H5Aclose(attr);
+    attr = H5Aopen(group, "n_s", H5P_DEFAULT);
+    H5Aread(attr, H5T_NATIVE_DOUBLE, &n_s);
+    csm->val.classData.perturbations.n_s = n_s;
+    H5Aclose(attr);
+    attr = H5Aopen(group, "alpha_s", H5P_DEFAULT);
+    H5Aread(attr, H5T_NATIVE_DOUBLE, &alpha_s);
+    csm->val.classData.perturbations.alpha_s = alpha_s;
+    H5Aclose(attr);
+    attr = H5Aopen(group, "k_pivot", H5P_DEFAULT);
+    H5Aread(attr, H5T_NATIVE_DOUBLE, &k_pivot);
+    csm->val.classData.perturbations.k_pivot = k_pivot;
+    H5Aclose(attr);
+    H5Gclose(group);
+    csm->val.classData.perturbations.k_pivot /= h;  /* [1/Mpc] -> [h/Mpc] */
+    /* The delta and theta perturbations in the hdf5 file is given as
+    ** transfer functions using CLASS convention. To convert them to
+    ** actual linear field, the square of which equals the power
+    ** spectrum, we use the CLASS convention
+    **   delta(k) = T_delta(k)*zeta(k),
+    ** (similar for theta) with
+    **   zeta(k) = pi*sqrt(2*A_s)*k^(-3/2)*(k/k_pivot)^((n_s - 1)/2)
+    **             *exp(alpha_s/4*(log(k/k_pivot))^2).
+    ** the comoving curvature perturbation and T_delta(k) the CLASS
+    ** transfer function. These transfer functions bears units.
+    ** Specifically, the delta transfer function is unitless while the
+    ** theta transfer function has units of inverse time. From the
+    ** above, we see that delta(k) has units of length^(3/2). After an
+    ** inverse 3D FFT, a unitless delta(\vec{x}) is obtained by
+    ** multiplying by the Fourier normalization boxsize^(-3/2). Here we
+    ** include this Fourier normalization directly in zeta.
+    ** ACTUALLY, it turns out that we need a factor of boxsize^(-5/2),
+    ** for some reason?
+    */
+    zeta = (double*)malloc(sizeof(double)*size_k);
+    for (i = 0; i < size_k; i++){
+        k = csm->val.classData.perturbations.k[i];
+        zeta[i] = M_PI*sqrt(2*A_s)*pow(k, -1.5)*pow(k/k_pivot, 0.5*(n_s - 1))*pow(dBoxSize, -2.5)
+                  *exp(0.25*alpha_s*pow(log(k/k_pivot), 2));
+    }
+    /* delta_m[a, k] */
+    H5LTread_dataset_double(file, "/perturbations/delta_cdm+b",
+        csm->val.classData.perturbations.delta_m);
+    for (i = 0; i < size_a; i++){
+        for (j = 0; j < size_k; j++){
+            k = csm->val.classData.perturbations.k[j];
+            csm->val.classData.perturbations.delta_m[i*size_k + j] *= zeta[j];
+        }
+    }
+    /* theta_m[a, k]
+    ** Here we reuse unit_convertion_time to convert the unit of theta
+    ** (inverse time) to PKDGRAV units.
+    ** Also, theta is the comoving divergence of the peculiar velocity.
+    ** To convert to the velocities used by PKDGRAV, we have to
+    ** multiply this by the scale factor.
+    */
+    H5LTread_dataset_double(file, "/perturbations/theta_cdm+b",
+        csm->val.classData.perturbations.theta_m);
+    for (i = 0; i < size_a; i++){
+        a = csm->val.classData.perturbations.a[i];
+        for (j = 0; j < size_k; j++){
+            k = csm->val.classData.perturbations.k[j];
+            csm->val.classData.perturbations.theta_m[i*size_k + j] *= unit_convertion_time*zeta[j]*a;
+        }
+    }
+    /* delta_nu[a, k] */
+    if (csm->val.classData.bNeutrinos){
+        H5LTread_dataset_double(file, "/perturbations/delta_ncdm[0]",
+        csm->val.classData.perturbations.delta_nu);
+        for (i = 0; i < size_a; i++){
+            for (j = 0; j < size_k; j++){
+                k = csm->val.classData.perturbations.k[j];
+                csm->val.classData.perturbations.delta_nu[i*size_k + j] *= zeta[j];
+            }
+        }
+    }
+
+    free(zeta);
+    H5Tclose(string_type);
+    H5Fclose(file);
+}
+
+void csmClassGslInitialize(CSM csm){
+    if (csm->classGsl.initialized){
+        return;
+    }
+    csm->classGsl.initialized = 1;
+
+    size_t i, size, size_k, size_a;
+    double *logx, *logy, *logk, *loga;
+
+    /* Allocate and initialize background objects */
+    size = csm->val.classData.background.size;
+    logx = (double*)malloc(sizeof(double)*size);
+    logy = (double*)malloc(sizeof(double)*size);
+    /* Exp2Hub */
+    csm->classGsl.background.logExp2logHub_acc = gsl_interp_accel_alloc();
+    csm->classGsl.background.logExp2logHub_spline = gsl_spline_alloc(gsl_interp_cspline, size);
+    for (i = 0; i < size; i++){
+        logx[i] = log(csm->val.classData.background.a[i]);
+        logy[i] = log(csm->val.classData.background.H[i]);
+    }
+    gsl_spline_init(csm->classGsl.background.logExp2logHub_spline, logx, logy, size);
+    /* Time2Hub */
+    csm->classGsl.background.logTime2logHub_acc = gsl_interp_accel_alloc();
+    csm->classGsl.background.logTime2logHub_spline = gsl_spline_alloc(gsl_interp_cspline, size);
+    gsl_spline_init(csm->classGsl.background.logTime2logHub_spline, logx, logy, size);
+    for (i = 0; i < size; i++){
+        logx[i] = log(csm->val.classData.background.t[i]);
+        logy[i] = log(csm->val.classData.background.H[i]);
+    }
+    gsl_spline_init(csm->classGsl.background.logTime2logHub_spline, logx, logy, size);
+    /* Exp2Time */
+    csm->classGsl.background.logExp2logTime_acc = gsl_interp_accel_alloc();
+    csm->classGsl.background.logExp2logTime_spline = gsl_spline_alloc(gsl_interp_cspline, size);
+    for (i = 0; i < size; i++){
+        logx[i] = log(csm->val.classData.background.a[i]);
+        logy[i] = log(csm->val.classData.background.t[i]);
+    }
+    gsl_spline_init(csm->classGsl.background.logExp2logTime_spline, logx, logy, size);
+    /* Time2Exp */
+    csm->classGsl.background.logTime2logExp_acc = gsl_interp_accel_alloc();
+    csm->classGsl.background.logTime2logExp_spline = gsl_spline_alloc(gsl_interp_cspline, size);
+    for (i = 0; i < size; i++){
+        logx[i] = log(csm->val.classData.background.t[i]);
+        logy[i] = log(csm->val.classData.background.a[i]);
+    }
+    gsl_spline_init(csm->classGsl.background.logTime2logExp_spline, logx, logy, size);
+    /* Exp2Rho_m */
+    csm->classGsl.background.logExp2logRho_m_acc = gsl_interp_accel_alloc();
+    csm->classGsl.background.logExp2logRho_m_spline = gsl_spline_alloc(gsl_interp_cspline, size);
+    for (i = 0; i < size; i++){
+        logx[i] = log(csm->val.classData.background.a[i]);
+        logy[i] = log(csm->val.classData.background.rho_m[i]);
+    }
+    gsl_spline_init(csm->classGsl.background.logExp2logRho_m_spline, logx, logy, size);
+    /* Exp2Rho_nu */
+    if (csm->val.classData.bNeutrinos){
+        csm->classGsl.background.logExp2logRho_nu_acc = gsl_interp_accel_alloc();
+        csm->classGsl.background.logExp2logRho_nu_spline = gsl_spline_alloc(gsl_interp_cspline, size);
+        for (i = 0; i < size; i++){
+            logx[i] = log(csm->val.classData.background.a[i]);
+            logy[i] = log(csm->val.classData.background.rho_nu[i]);
+        }
+        gsl_spline_init(csm->classGsl.background.logExp2logRho_nu_spline, logx, logy, size);
+    }
+
+    free(logx);
+    free(logy);
+
+    /* Allocate and initialize perturbation objects */
+    size_k = csm->val.classData.perturbations.size_k;
+    size_a = csm->val.classData.perturbations.size_a;
+    logk = (double*)malloc(sizeof(double)*size_k);
+    loga = (double*)malloc(sizeof(double)*size_a);
+    for (i = 0; i < size_k; i++){
+        logk[i] = log(csm->val.classData.perturbations.k[i]);
+    }
+    for (i = 0; i < size_a; i++){
+        loga[i] = log(csm->val.classData.perturbations.a[i]);
+    }
+    loga[size_a - 1] = .0;  /* Ensure high accuracy at a = 1 boundary */
+    /* delta_m */
+    csm->classGsl.perturbations.logk2delta_m_acc = gsl_interp_accel_alloc();
+    csm->classGsl.perturbations.loga2delta_m_acc = gsl_interp_accel_alloc();
+    csm->classGsl.perturbations.logkloga2delta_m_spline = gsl_spline2d_alloc(
+        gsl_interp2d_bicubic, size_k, size_a);
+    gsl_spline2d_init(csm->classGsl.perturbations.logkloga2delta_m_spline, logk, loga,
+        csm->val.classData.perturbations.delta_m, size_k, size_a);
+    /* theta_m */
+    csm->classGsl.perturbations.logk2theta_m_acc = gsl_interp_accel_alloc();
+    csm->classGsl.perturbations.loga2theta_m_acc = gsl_interp_accel_alloc();
+    csm->classGsl.perturbations.logkloga2theta_m_spline = gsl_spline2d_alloc(
+        gsl_interp2d_bicubic, size_k, size_a);
+    gsl_spline2d_init(csm->classGsl.perturbations.logkloga2theta_m_spline, logk, loga,
+        csm->val.classData.perturbations.theta_m, size_k, size_a);
+    /* delta_nu */
+    if (csm->val.classData.bNeutrinos){
+        csm->classGsl.perturbations.logk2delta_nu_acc = gsl_interp_accel_alloc();
+        csm->classGsl.perturbations.loga2delta_nu_acc = gsl_interp_accel_alloc();
+        csm->classGsl.perturbations.logkloga2delta_nu_spline = gsl_spline2d_alloc(
+            gsl_interp2d_bicubic, size_k, size_a);
+        gsl_spline2d_init(csm->classGsl.perturbations.logkloga2delta_nu_spline, logk, loga,
+            csm->val.classData.perturbations.delta_nu, size_k, size_a);
+    }
+
+    free(loga);
+    free(logk);
+
+    /* Testing */
+    int do_background_test = 0;
+    int do_D1_test = 0;
+    double a, a_PKDGRAV, a_CLASS;
+    double t, t_PKDGRAV, t_CLASS;
+    double H, H_PKDGRAV, H_CLASS;
+    double D1_PKDGRAV, f1_PKDGRAV, D1_CLASS, f1_CLASS;
+    double D2_PKDGRAV, f2_PKDGRAV, D2_CLASS, f2_CLASS;
+    if (do_background_test){
+        /* H(a) */
+        for (i = 0; i < csm->val.classData.background.size; i++){
+            /* At tabulated point */
+            a = csm->val.classData.background.a[i];
+            csm->val.classData.bClass = 0; H_PKDGRAV = csmExp2Hub(csm, a);
+            csm->val.classData.bClass = 1; H_CLASS   = csmExp2Hub(csm, a);
+            printf("TEST H(a): a = %.17e H_PKDGRAV = %.17e H_CLASS = %.17e\n",
+                a, H_PKDGRAV, H_CLASS);
+            /* In between tabulated points */
+            if (i + 1 < csm->val.classData.background.size){
+                a = 0.5*(a + csm->val.classData.background.a[i + 1]);
+                csm->val.classData.bClass = 0; H_PKDGRAV = csmExp2Hub(csm, a);
+                csm->val.classData.bClass = 1; H_CLASS   = csmExp2Hub(csm, a);
+                printf("TEST H(a): a = %.17e H_PKDGRAV = %.17e H_CLASS = %.17e\n",
+                    a, H_PKDGRAV, H_CLASS);
+            }
+        }
+        /* a(t) */
+        for (i = 0; i < csm->val.classData.background.size; i++){
+            /* At tabulated point */
+            t = csm->val.classData.background.t[i];
+            csm->val.classData.bClass = 0; a_PKDGRAV = csmTime2Exp(csm, t);
+            csm->val.classData.bClass = 1; a_CLASS   = csmTime2Exp(csm, t);
+            printf("TEST a(t): t = %.17e a_PKDGRAV = %.17e a_CLASS = %.17e\n",
+                t, a_PKDGRAV, a_CLASS);
+            /* In between tabulated points */
+            if (i + 1 < csm->val.classData.background.size){
+                t = 0.5*(t + csm->val.classData.background.t[i + 1]);
+                csm->val.classData.bClass = 0; a_PKDGRAV = csmTime2Exp(csm, t);
+                csm->val.classData.bClass = 1; a_CLASS   = csmTime2Exp(csm, t);
+                printf("TEST a(t): t = %.17e a_PKDGRAV = %.17e a_CLASS = %.17e\n",
+                    t, a_PKDGRAV, a_CLASS);
+            }
+        }
+        /* H(t) */
+        for (i = 0; i < csm->val.classData.background.size; i++){
+           /* At tabulated point */
+           t = csm->val.classData.background.t[i];
+           csm->val.classData.bClass = 0; H_PKDGRAV = csmTime2Hub(csm, t);
+           csm->val.classData.bClass = 1; H_CLASS   = csmTime2Hub(csm, t);
+           printf("TEST H(t): t = %.17e H_PKDGRAV = %.17e H_CLASS = %.17e\n",
+               t, H_PKDGRAV, H_CLASS);
+           /* In between tabulated points */
+           if (i + 1 < csm->val.classData.background.size){
+               t = 0.5*(t + csm->val.classData.background.t[i + 1]);
+               csm->val.classData.bClass = 0; H_PKDGRAV = csmTime2Hub(csm, t);
+               csm->val.classData.bClass = 1; H_CLASS   = csmTime2Hub(csm, t);
+               printf("TEST H(t): t = %.17e H_PKDGRAV = %.17e H_CLASS = %.17e\n",
+                   t, H_PKDGRAV, H_CLASS);
+           }
+        }
+        /* t(a) */
+        for (i = 0; i < csm->val.classData.background.size; i++){
+            /* At tabulated point */
+            a = csm->val.classData.background.a[i];
+            csm->val.classData.bClass = 0; t_PKDGRAV = csmExp2Time(csm, a);
+            csm->val.classData.bClass = 1; t_CLASS   = csmExp2Time(csm, a);
+            printf("TEST t(a): a = %.17e t_PKDGRAV = %.17e t_CLASS = %.17e\n",
+                a, t_PKDGRAV, t_CLASS);
+            /* In between tabulated points */
+            if (i + 1 < csm->val.classData.background.size){
+                a = 0.5*(a + csm->val.classData.background.a[i + 1]);
+                csm->val.classData.bClass = 0; t_PKDGRAV = csmExp2Time(csm, a);
+                csm->val.classData.bClass = 1; t_CLASS   = csmExp2Time(csm, a);
+                printf("TEST t(a): a = %.17e t_PKDGRAV = %.17e t_CLASS = %.17e\n",
+                    a, t_PKDGRAV, t_CLASS);
+            }
+        }
+    }
+    if (do_background_test || do_D1_test){
+        /* Growth functions */
+        for (i = 0; i < csm->val.classData.background.size; i++){
+            /* At tabulated point */
+            a = csm->val.classData.background.a[i];
+            csm->val.classData.bClass = 0; csmComoveGrowth(csm, a,
+                &D1_PKDGRAV, &D2_PKDGRAV, &f1_PKDGRAV, &f2_PKDGRAV);
+            csm->val.classData.bClass = 1; csmComoveGrowth(csm, a,
+                &D1_CLASS, &D2_CLASS, &f1_CLASS, &f2_CLASS);
+            printf("TEST D_1(a): a = %.17e D1_PKDGRAV = %.17e D1_CLASS = %.17e\n",
+                a, D1_PKDGRAV, D1_CLASS);
+            printf("TEST f_1(a): a = %.17e f1_PKDGRAV = %.17e f1_CLASS = %.17e\n",
+                a, f1_PKDGRAV, f1_CLASS);
+            printf("TEST D_2(a): a = %.17e D2_PKDGRAV = %.17e D2_CLASS = %.17e\n",
+                a, D2_PKDGRAV, D2_CLASS);
+            printf("TEST f_2(a): a = %.17e f2_PKDGRAV = %.17e f2_CLASS = %.17e\n",
+                a, f2_PKDGRAV, f2_CLASS);
+            /* In between tabulated points */
+            if (i + 1 < csm->val.classData.background.size){
+                a = 0.5*(a + csm->val.classData.background.a[i + 1]);
+                csm->val.classData.bClass = 0; csmComoveGrowth(csm, a,
+                    &D1_PKDGRAV, &D2_PKDGRAV, &f1_PKDGRAV, &f2_PKDGRAV);
+                csm->val.classData.bClass = 1; csmComoveGrowth(csm, a,
+                    &D1_CLASS, &D2_CLASS, &f1_CLASS, &f2_CLASS);
+                printf("TEST D_1(a): a = %.17e D1_PKDGRAV = %.17e D1_CLASS = %.17e\n",
+                    a, D1_PKDGRAV, D1_CLASS);
+                printf("TEST f_1(a): a = %.17e f1_PKDGRAV = %.17e f1_CLASS = %.17e\n",
+                    a, f1_PKDGRAV, f1_CLASS);
+                printf("TEST D_2(a): a = %.17e D2_PKDGRAV = %.17e D2_CLASS = %.17e\n",
+                    a, D2_PKDGRAV, D2_CLASS);
+                printf("TEST f_2(a): a = %.17e f2_PKDGRAV = %.17e f2_CLASS = %.17e\n",
+                    a, f2_PKDGRAV, f2_CLASS);
+            }
+        }
+        /* Done testing */
+        abort();
+    }
+}
+
+#define EPSCOSMO_FUTURE 1e-6
+double csmRhoBar_m(CSM csm, double a){
+    assert(csm->val.classData.bClass);
+    double loga = log(a);
+    if (loga > .0 && loga < EPSCOSMO_FUTURE){
+        /* log(a) slightly in the future. Move back to the present. */
+        loga = .0;
+    }
+    return exp(gsl_spline_eval(csm->classGsl.background.logExp2logRho_m_spline,
+        loga, csm->classGsl.background.logExp2logRho_m_acc));
+}
+double csmRhoBar_nu(CSM csm, double a){
+    assert(csm->val.classData.bClass);
+    double loga = log(a);
+    if (loga > .0 && loga < EPSCOSMO_FUTURE){
+        /* log(a) slightly in the future. Move back to the present. */
+        loga = .0;
+    }
+    return exp(gsl_spline_eval(csm->classGsl.background.logExp2logRho_nu_spline,
+        loga, csm->classGsl.background.logExp2logRho_nu_acc));
+}
+double csmDelta_m(CSM csm, double a, double k){
+    assert(csm->val.classData.bClass);
+    double loga = log(a);
+    if (loga > .0 && loga < EPSCOSMO_FUTURE){
+        /* log(a) slightly in the future. Move back to the present. */
+        loga = .0;
+    }
+    return gsl_spline2d_eval(csm->classGsl.perturbations.logkloga2delta_m_spline,
+        log(k), loga,
+        csm->classGsl.perturbations.logk2delta_m_acc,
+        csm->classGsl.perturbations.loga2delta_m_acc);
+}
+double csmTheta_m(CSM csm, double a, double k){
+    assert(csm->val.classData.bClass);
+    double loga = log(a);
+    if (loga > .0 && loga < EPSCOSMO_FUTURE){
+        /* log(a) slightly in the future. Move back to the present. */
+        loga = .0;
+    }
+    return gsl_spline2d_eval(csm->classGsl.perturbations.logkloga2theta_m_spline,
+        log(k), loga,
+        csm->classGsl.perturbations.logk2theta_m_acc,
+        csm->classGsl.perturbations.loga2theta_m_acc);
+}
+double csmDelta_nu(CSM csm, double a, double k){
+    assert(csm->val.classData.bClass);
+    double loga = log(a);
+    if (loga > .0 && loga < EPSCOSMO_FUTURE){
+        /* log(a) slightly in the future. Move back to the present. */
+        loga = .0;
+    }
+    return gsl_spline2d_eval(csm->classGsl.perturbations.logkloga2delta_nu_spline,
+        log(k), loga,
+        csm->classGsl.perturbations.logk2delta_nu_acc,
+        csm->classGsl.perturbations.loga2delta_nu_acc);
+}
+
+
 #define EPSCOSMO 1e-7
+#define EPSCOSMO_Time2Exp 1e-20
+#define EPSCOSMO_Exp2TimeIntegrate 1e-13
 
 /*
  * ** by MK: Computes the scale factor a at radiation-matter equivalence.
@@ -80,6 +604,13 @@ double csmRadMatEquivalence(CSM csm){
 }
 
 double csmTime2Hub(CSM csm,double dTime) {
+    if (csm->val.classData.bClass){
+        return exp(gsl_spline_eval(
+            csm->classGsl.background.logTime2logHub_spline,
+            log(dTime),
+            csm->classGsl.background.logTime2logHub_acc));
+    }
+
     double a = csmTime2Exp(csm,dTime);
 
     assert(a > 0.0);
@@ -101,12 +632,19 @@ static double Exp2TimeIntegrate(CSM csm,double dExp) {
     F.params = csm;
     double result,error;
     gsl_integration_qag(&F, 0.0, pow(dExp, 1.5),
-	0.0, EPSCOSMO, LIMIT, GSL_INTEG_GAUSS61, csm->W, &result, &error);
+	0.0, EPSCOSMO_Exp2TimeIntegrate, LIMIT, GSL_INTEG_GAUSS61, csm->W, &result, &error);
     //printf("a=%g,\t result of Exp2TimeIntegrate = %g\n", dExp, result);
     return result;
     }
 
 double csmExp2Time(CSM csm,double dExp) {
+    if (csm->val.classData.bClass){
+        return exp(gsl_spline_eval(
+            csm->classGsl.background.logExp2logTime_spline,
+            log(dExp),
+            csm->classGsl.background.logExp2logTime_acc));
+    }
+
     double dOmega0 = csm->val.dOmega0;
     double dHubble0 = csm->val.dHubble0;
     double a0,A,B,eta;
@@ -168,6 +706,24 @@ double csmExp2Time(CSM csm,double dExp) {
 #define MAX_ITER 100
 
 double csmTime2Exp(CSM csm,double dTime) {
+    if (csm->val.classData.bClass){
+        if (dTime > csm->val.classData.background.t[csm->val.classData.background.size - 1]){
+            /* dTime is in the future; do linear extrapolation */
+            return csm->val.classData.background.a[csm->val.classData.background.size - 1]
+                + (
+                    csm->val.classData.background.a[csm->val.classData.background.size - 1]
+                  - csm->val.classData.background.a[csm->val.classData.background.size - 2]
+                )/(
+                    csm->val.classData.background.t[csm->val.classData.background.size - 1]
+                  - csm->val.classData.background.t[csm->val.classData.background.size - 2]
+                )*(dTime - csm->val.classData.background.t[csm->val.classData.background.size - 1]);
+        }
+        return exp(gsl_spline_eval(
+            csm->classGsl.background.logTime2logExp_spline,
+            log(dTime),
+            csm->classGsl.background.logTime2logExp_acc));
+    }
+
     double al=0,ah=1,a0,a1=1,at,a;
     double th,f,f1,h,ho;
     int j;
@@ -217,7 +773,7 @@ double csmTime2Exp(CSM csm,double dTime) {
 		*/
 		if (a == at) return a;
 		}
-	    if (fabs(h) < EPSCOSMO) {
+	    if (fabs(h) < EPSCOSMO_Time2Exp) {
 		/*
 				printf("converged al:%.14g ah:%.14g a:%.14g t:%.14g == %.14g\n",
 				       al,ah,a,dRombergO(csm, (double (*)(void *, double)) csmCosmoTint,0.0,pow(a,1.5),EPSCOSMO*1e-1),
@@ -226,6 +782,9 @@ double csmTime2Exp(CSM csm,double dTime) {
 		return a;
 		}
 
+	    if (h == ho){
+	        return a;
+	    }
 	    f = dTime - Exp2TimeIntegrate(csm,a);
 	    f1 = 1/(a*csmExp2Hub(csm,a));
 	    if (f < 0) ah = a;
