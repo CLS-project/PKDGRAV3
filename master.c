@@ -3794,7 +3794,7 @@ void msrSwitchTheta(MSR msr,double dTime) {
 
 void msrInitStep(MSR msr) {
     struct inSetRung insr;
-    struct inInitStep in;
+    static/*FIXME: this is a HACK: message is too large for stack */ struct inInitStep in;
 
     /*
     ** Here we can pass down all parameters of the simulation
@@ -5059,7 +5059,7 @@ void msrRelaxation(MSR msr,double dTime,double deltaT,int iSmoothType,int bSymme
 
 #ifdef MDL_FFTW
 double msrGenerateIC(MSR msr) {
-    struct inGenerateIC in;
+    static/*FIXME: this is a HACK: message is too large for stack */ struct inGenerateIC in;
     struct outGenerateIC out;
     struct inGetFFTMaxSizes inFFTSizes;
     struct outGetFFTMaxSizes outFFTSizes;
