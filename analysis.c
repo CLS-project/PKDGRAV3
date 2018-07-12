@@ -978,6 +978,7 @@ static void assign_mass(PKD pkd, double dTotalMass, double dDelta, MDLFFT fft, F
 	for(j=0;j<3;j++) {
 	    r[j] = pkdPos(pkd,p,j) + 0.5 + dDelta;
 	    if (r[j]>=pkd->fPeriod[j]) r[j] -= pkd->fPeriod[j];
+	        else if (r[j]<0) r[j] += pkd->fPeriod[j];
 	    }
 	/* 
 	** The position has been rescaled to [0,1).  If it is not in that range,

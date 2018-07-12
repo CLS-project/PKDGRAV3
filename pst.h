@@ -1068,6 +1068,7 @@ struct inGenerateIC {
     int nGrid;
     int b2LPT;
     int bComove;
+    int bClass;
     int nTf;
     int nInflateFactor;
     struct csmVariables cosmo;
