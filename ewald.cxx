@@ -238,7 +238,7 @@ double pkdParticleEwald(PKD pkd,double *r, float *pa, float *pPot,double *pdFlop
 #if defined(USE_SIMD_EWALD)
     /* Finish remaining SIMD operations if necessary */
     if (nSIMD) { /* nSIMD can be 0 through 7 */
-#define M 0xffffffffffffffff
+#define M (~0LL)
 #if defined(__AVX512F__)
 	static const i64v::array_t keepmask[] = {{0,0,0,0,0,0,0,0},{M,0,0,0,0,0,0,0},{M,M,0,0,0,0,0,0},{M,M,M,0,0,0,0,0},
 	    {M,M,M,M,0,0,0,0},{M,M,M,M,M,0,0,0},{M,M,M,M,M,M,0,0},{M,M,M,M,M,M,M,0}};
