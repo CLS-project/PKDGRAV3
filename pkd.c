@@ -758,7 +758,7 @@ void pkdInitialize(
 
     pkd->fSoftFix = -1.0;
     pkd->fSoftFac = 1.0;
-    pkd->fSoftMax = HUGE;
+    pkd->fSoftMax = HUGE_VALF;
     /*
     ** Ewald stuff!
     */
