@@ -2236,7 +2236,7 @@ void pkdSetSoft(PKD pkd,double dSoft) {
 
 void pkdPhysicalSoft(PKD pkd,double dSoftMax,double dFac,int bSoftMaxMul) {
     pkd->fSoftFac = dFac;
-    pkd->fSoftMax = bSoftMaxMul ? HUGE : dSoftMax;
+    pkd->fSoftMax = bSoftMaxMul ? HUGE_VALF : dSoftMax;
     }
 
 void
