@@ -225,7 +225,7 @@ static int setNode(PRM_NODE *pn,int i,tp_obj o) {
     return 1;
     }
 
-int prmParseParam(PRM prm) {
+int prmParseParam(PRM prm,void *msr) {
     FILE *fpParam;
     PRM_NODE *pn;
     char achBuf[PRM_LINE_SIZE];
@@ -236,29 +236,50 @@ int prmParseParam(PRM prm) {
     if (prm->pszFilename==NULL) return(1);
 
     tp_vm *tp = tp_init(0, NULL);
-    tpyInitialize(tp);
+    tpyInitialize(tp,msr);
 
+    /* Look for, and retrieve all valid parameters */
     tp_obj dict = tp_main(tp,(char *)prm->pszFilename,0,0);
     for( pn=prm->pnHead; pn!=NULL; pn=pn->pnNext ) {
     	tp_obj o;
 	if (tp_iget(tp,&o,dict,tp_string(pn->pszName))) {
 	    pn->bFile = 1; // This came from the file
-	    if (pn->bArg) continue; // but command line takes precedence
-	    if (o.type == TP_LIST) {
-		int i;
-		for (i=0; i<o.list.val->len; ++i) {
-		    if (!setNode(pn,i,o.list.val->items[i])) return 0;
+	    if (!pn->bArg) { // but command line takes precedence
+		if (o.type == TP_LIST) {
+		    int i;
+		    for (i=0; i<o.list.val->len; ++i) {
+			if (!setNode(pn,i,o.list.val->items[i])) return 0;
+			}
+		    *pn->pCount = o.list.val->len;
 		    }
-		*pn->pCount = o.list.val->len;
-		}
-	    else if (setNode(pn,0,o)) {
-		if (pn->pCount) *pn->pCount = 1;
-		}
-	    else return 0;
+		else if (setNode(pn,0,o)) {
+		    if (pn->pCount) *pn->pCount = 1;
+		    }
+		else return 0;
+	    }
+	    tp_del(tp,dict,tp_string(pn->pszName)); /* Delete as we processed it */
 	    }
 	}
+    /* Now look for unprocessed parameters: this would be an error */
+    int i,n = tp_len(tp,dict).number.val;
+    int bOK = 1;
+    for(i=0; i<n; ++i) {
+	tp_obj o, k = tp_iter(tp,dict,tp_number(i));
+	tp_iget(tp,&o,dict,k);
+	const char *key = k.string.val;
+	if (islower(*key) && o.type!=TP_NONE) {
+	    int j;
+	    for(j=0; j<k.string.len; ++j){
+		if (isupper(key[j])) {
+		    printf("Unrecognized parameter: %s\n", key);
+		    bOK = 0;
+		    }
+		}
+            }
+	}
+
     tp_deinit(tp);
-    return 1;
+    return bOK;
     }
 
 int prmArgProc(PRM prm,int argc,char **argv) {

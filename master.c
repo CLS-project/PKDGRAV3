@@ -1568,7 +1568,7 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 	** Now read parameter file if one was specified.
 	** NOTE: command line argument take precedence.
 	*/
-	if (!prmParseParam(msr->prm)) {
+	if (!prmParseParam(msr->prm,msr)) {
 	    _msrExit(msr,1);
 	    }
 	if (!validateParameters(msr->prm,&msr->param)) _msrExit(msr,1);

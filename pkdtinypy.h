@@ -17,6 +17,7 @@
 
 #ifndef PKDTINYPY_H
 #define PKDTINYPY_H
+#include "master.h"
 #include "tinypy.h"
-void tpyInitialize(TP);
+void tpyInitialize(TP, MSR msr);
 #endif
