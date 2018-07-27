@@ -85,7 +85,7 @@ double illinois(double (*func)(double),double r,double s,double xacc,int *pnIter
 static void initMinPot(void *vpkd,void *v) {
     TinyGroupTable *g = (TinyGroupTable *)v;
     
-    g->minPot = HUGE_VALF;  /* make sure it is always set */
+    g->minPot = HUGE;  /* make sure it is always set */
     }
 
 static void combMinPot(void *vpkd, void *v1, void *v2) {

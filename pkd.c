@@ -437,6 +437,7 @@ void pkdInitialize(
 
 #ifdef MDL_FFTW
     pkd->fft = NULL;
+    pkd->Nufft = NULL;
 #endif
 
     /*
@@ -758,7 +759,7 @@ void pkdInitialize(
 
     pkd->fSoftFix = -1.0;
     pkd->fSoftFac = 1.0;
-    pkd->fSoftMax = HUGE_VALF;
+    pkd->fSoftMax = HUGE;
     /*
     ** Ewald stuff!
     */
@@ -2236,7 +2237,7 @@ void pkdSetSoft(PKD pkd,double dSoft) {
 
 void pkdPhysicalSoft(PKD pkd,double dSoftMax,double dFac,int bSoftMaxMul) {
     pkd->fSoftFac = dFac;
-    pkd->fSoftMax = bSoftMaxMul ? HUGE_VALF : dSoftMax;
+    pkd->fSoftMax = bSoftMaxMul ? HUGE : dSoftMax;
     }
 
 void
@@ -2246,6 +2247,7 @@ pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     double dAccFac,double dTime,int nReps,int bPeriodic,
     int bEwald,int nGroup,int iRoot1, int iRoot2,
     double fEwCut,double fEwhCut,double dThetaMin,
+    int bNeutrinos,
     uint64_t *pnActive,
     double *pdPart,double *pdPartNumAccess,double *pdPartMissRatio,
     double *pdCell,double *pdCellNumAccess,double *pdCellMissRatio,
@@ -2283,6 +2285,18 @@ pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     */
     mdlROcache(pkd->mdl,CID_PARTICLE,NULL,pkdParticleBase(pkd),pkdParticleSize(pkd),
 	       pkdLocal(pkd));
+    /* Start Neutrino grids caching space (for inverse force interpolation)*/
+    if (bNeutrinos){
+        mdlGridCoord  first, last;
+        mdlGridCoordFirstLast(pkd->mdl,pkd->Nufft->rgrid,&first,&last,1);
+        FFTW3(real)* forceX = mdlSetArray(pkd->mdl,last.i,sizeof(FFTW3(real)),pkd->pLite);
+        FFTW3(real)* forceY = mdlSetArray(pkd->mdl,last.i,sizeof(FFTW3(real)),forceX + pkd->Nufft->rgrid->nLocal);
+        FFTW3(real)* forceZ = mdlSetArray(pkd->mdl,last.i,sizeof(FFTW3(real)),forceY + pkd->Nufft->rgrid->nLocal);
+ 
+        mdlROcache(pkd->mdl,CID_GridNuFx,NULL, forceX, sizeof(FFTW3(real)),last.i );
+        mdlROcache(pkd->mdl,CID_GridNuFy,NULL, forceY, sizeof(FFTW3(real)),last.i ); 
+        mdlROcache(pkd->mdl,CID_GridNuFz,NULL, forceZ, sizeof(FFTW3(real)),last.i );
+    }
     /*
     ** Calculate newtonian gravity, including replicas if any.
     */
@@ -2329,6 +2343,12 @@ pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     ** Stop particle caching space.
     */
     mdlFinishCache(pkd->mdl,CID_PARTICLE);
+    /* Stop the Neutrino grids caching space */
+    if (bNeutrinos){
+       mdlFinishCache(pkd->mdl,CID_GridNuFx);
+       mdlFinishCache(pkd->mdl,CID_GridNuFy);
+       mdlFinishCache(pkd->mdl,CID_GridNuFz);
+    }
 
     for (i=0;i<=IRUNGMAX;++i) pnRung[i] = pkd->nRung[i];
 

@@ -456,6 +456,12 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_MEASUREPK,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstMeasurePk,
 		  sizeof(struct inMeasurePk), sizeof(struct outMeasurePk));
+    mdlAddService(mdl,PST_SETNUGRID, pst,
+           (void (*)(void*, void*, int, void*, int*)) pstSetNuGrid,
+           sizeof(struct inSetNuGrid), 0);
+    mdlAddService(mdl,PST_MEASURENUPK,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstMeasureNuPk,
+		  sizeof(struct inMeasureNuPk), sizeof(struct outMeasureNuPk));
 #endif
     mdlAddService(mdl,PST_TOTALMASS,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstTotalMass,
@@ -2913,6 +2919,7 @@ void pstGravity(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	    in->dtClose,in->dtOpen,in->dtLCDrift,in->dtLCKick,in->dLookbackFac,in->dLookbackFacLCP,
 	    in->dAccFac,in->dTime,in->nReps,in->bPeriodic,
 	    in->bEwald,in->nGroup,in->iRoot1,in->iRoot2,in->dEwCut,in->dEwhCut,in->dThetaMin,
+	    in->bNeutrinos,
 	    &outr->nActive,
 	    &outr->sPart.dSum,&outr->sPartNumAccess.dSum,&outr->sPartMissRatio.dSum,
 	    &outr->sCell.dSum,&outr->sCellNumAccess.dSum,&outr->sCellMissRatio.dSum,
@@ -4677,6 +4684,55 @@ void pstMeasurePk(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	    in->nGrid, in->nBins, out->fK, out->fPower, out->nPower);
 	}
     if (pnOut) *pnOut = sizeof(struct outMeasurePk);
+    }
+
+void pstMeasureNuPk(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    struct inMeasureNuPk *in = vin;
+    struct outMeasureNuPk *out = vout;
+    struct outMeasureNuPk *outUpper;
+    int nOut;
+    int i;
+
+    assert( nIn==sizeof(struct inMeasureNuPk) );
+    if (pstNotCore(pst)) {
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_MEASURENUPK,vin,nIn);
+	pstMeasureNuPk(pst->pstLower,vin,nIn,vout,pnOut);
+	outUpper = malloc(sizeof(struct outMeasureNuPk));
+	assert(outUpper != NULL);
+	mdlGetReply(pst->mdl,rID,outUpper,&nOut);
+	assert(nOut==sizeof(struct outMeasureNuPk));
+
+	for(i=0;i<in->nBins; i++) {
+	    out->fK[i] += outUpper->fK[i];
+	    out->fPower[i] += outUpper->fPower[i];
+	    out->nPower[i] += outUpper->nPower[i];
+	    }
+	free(outUpper);
+	}
+    else {
+	pkdMeasureNuPk(plcl->pkd, in->nGrid, in->dA, in->dBoxSize,
+                        in->nBins, in->iSeed, in->bFixed, in->fPhase, 
+                        out->fK, out->fPower, out->nPower);
+	}
+    if (pnOut) *pnOut = sizeof(struct outMeasureNuPk);
+    }
+
+void pstSetNuGrid(PST pst,void *vin,int nIn,void *vout,int *pnOut) {    
+        LCL *plcl = pst->plcl;
+        struct inSetNuGrid *in = vin;
+        assert (nIn==sizeof(struct inSetNuGrid) );
+        if (pstNotCore(pst)) {
+            int rID = mdlReqService(pst->mdl, pst->idUpper, PST_SETNUGRID, vin, nIn);
+            pstSetNuGrid(pst->pstLower, vin, nIn, vout, pnOut);
+            mdlGetReply(pst->mdl,rID, vout,pnOut);
+        }
+        else {
+            plcl->pkd->Nufft = mdlFFTInitialize(pst->mdl, in->nGrid, in->nGrid, in->nGrid, 0,0);          
+            pkdSetNuGrid(plcl->pkd, in->dTime, 
+                in->dBSize, in->nGrid, 
+                in ->iSeed, in->bFixed, in->fPhase);
+        }
     }
 #endif
 

@@ -692,3 +692,31 @@ int pkdGenerateClassICm(PKD pkd, MDLFFT fft, int iSeed, int bFixed, float fPhase
     return nLocal;
 }
 
+void pkdGenerateNuGrid(PKD pkd, MDLFFT fft, double a,double Lbox, int iSeed, int bFixed, float fPhase){
+    mdlGridCoord kfirst, klast, kindex;
+    mdlGridCoord rfirst, rlast, rindex;
+    mdlGridCoordFirstLast(pkd->mdl, fft->kgrid, &kfirst, &klast, 0);
+    mdlGridCoordFirstLast(pkd->mdl, fft->rgrid, &rfirst, &rlast, 0);
+    double noiseMean, noiseCSQ;
+    int idx;
+    double kx, ky, kz, k2;
+    double iLbox = 2*M_PI/Lbox;
+    int iNuquist = fft->rgrid->n3 / 2;
+    gridptr noiseData;
+    noiseData.r =(FFTW3(real) *)mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)),pkd->pLite);
+    pkdGenerateNoise(pkd, iSeed, bFixed, fPhase, fft, noiseData.k, &noiseMean, &noiseCSQ);    
+      /* Particle positions */
+    for( kindex=kfirst; !mdlGridCoordCompare(&kindex,&klast); mdlGridCoordIncrement(&kindex) ) {
+	/* Range: (-iNyquist,iNyquist] */
+	ky = wrap(kindex.z,iNuquist,fft->rgrid->n3) * iLbox;
+	kz = wrap(kindex.y,iNuquist,fft->rgrid->n2) * iLbox;
+	kx = wrap(kindex.x,iNuquist,fft->rgrid->n1) * iLbox;
+	k2 = kx*kx + ky*ky + kz*kz;
+	idx = kindex.i;
+	if (k2>0) 
+	    noiseData.k[idx] *= csmDelta_nu(pkd->param.csm, a, sqrt(k2));
+        else
+            noiseData.k[idx] = 0.0;
+    }
+}
+
