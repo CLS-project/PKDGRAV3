@@ -222,6 +222,8 @@ enum pst_service {
     PST_GRIDPROJECT,
 #ifdef MDL_FFTW
     PST_MEASUREPK,
+    PST_MEASURENUPK,
+    PST_SETNUGRID,
 #endif
     PST_TOTALMASS,
     PST_LIGHTCONE_OPEN,
@@ -619,6 +621,7 @@ struct inGravity {
     double dtLCKick[IRUNGMAX+1];
     double dLookbackFac;
     double dLookbackFacLCP;
+    int bNeutrinos;
     };
 
 
@@ -1308,6 +1311,33 @@ struct outMeasurePk {
     uint64_t nPower[PST_MAX_K_BINS];
     };
 void pstMeasurePk(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+/* PST_SETNUGRID */
+struct inSetNuGrid {
+    double dTime;
+    double dBSize;
+    int nGrid;
+    /* Noise generation */
+    int iSeed;
+    int bFixed;
+    float fPhase;
+    };
+void pstSetNuGrid(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+/* PST_MEASURENUPK */
+struct inMeasureNuPk {
+    double dA;
+    double dBoxSize;
+    int iSeed;
+    int bFixed; 
+    float fPhase;
+    int nGrid;
+    int nBins;
+    };
+struct outMeasureNuPk {
+    double fK[PST_MAX_K_BINS];
+    double fPower[PST_MAX_K_BINS];
+    uint64_t nPower[PST_MAX_K_BINS];
+    };
+void pstMeasureNuPk(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 #endif
 
 /* PST_TOTALMASS */

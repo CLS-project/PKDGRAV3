@@ -180,7 +180,7 @@ void LinkGradientM3(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 	}
     idrho = 1.0/sqrt(frho[0]*frho[0] + frho[1]*frho[1] + frho[2]*frho[2]);
     for (j=0;j<3;++j) frho[j] *= 0.5*idrho*fBall;
-    r2min = HUGE_VALF;
+    r2min = HUGE;
     if (nSmooth==0) pkdSetGroup(pkd, p, -1);
     for (i=0;i<nSmooth;++i) {
 	dr = nnList[i].dx - frho[0];
