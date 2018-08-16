@@ -285,8 +285,24 @@ void msrInitializePStore(MSR msr, uint64_t *nSpecies) {
 	ps.nMinEphemeral = 2*outFFTSizes.nMaxLocal*sizeof(FFTW3(real));
 #else
 	ps.nMinEphemeral = outFFTSizes.nMaxLocal*sizeof(FFTW3(real));
+    }
+    /* 
+     * Add some ephemeral memory (if needed) for the nuGrid 
+     * 3 grids are stored : forceX, forceY, forceZ
+     */
+    if (msr->param.csm->val.classData.bNeutrinos){
+        struct inGetFFTMaxSizes inFFTSizes;
+        struct outGetFFTMaxSizes outFFTSizes;
+        int n;
+
+        inFFTSizes.nx = inFFTSizes.ny = inFFTSizes.nz = msr->param.nGridNu;
+        pstGetFFTMaxSizes(msr->pst, &inFFTSizes,sizeof(inFFTSizes), &outFFTSizes, &n);
+    
+        if (ps.nMinEphemeral < 3*outFFTSizes.nMaxLocal*sizeof(FFTW3(real)))
+            ps.nMinEphemeral = 3*outFFTSizes.nMaxLocal*sizeof(FFTW3(real));
+    }
 #endif
-	}
+
     if (msr->param.nGrid>0) {
 	struct inGetFFTMaxSizes inFFTSizes;
 	struct outGetFFTMaxSizes outFFTSizes;
@@ -685,6 +701,12 @@ static int validateParameters(PRM prm,struct parameters *param) {
 	    return 0;
 	    }
 	}
+    /* Set the number of bins for the neutrino power spectrum measurement */
+    if (param->nGridNu > 0){
+        param->nBinsNuPk = param->nGridNu/2;
+        if (param->nBinsNuPk > PST_MAX_K_BINS)
+            param->nBinsNuPk = PST_MAX_K_BINS;
+    }
 #endif
     if (param->dTheta <= 0) {
 	if (param->dTheta == 0 && param->bVWarnings)
@@ -1286,6 +1308,12 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.dFixedAmpPhasePI = 0.0;
     prmAddParam(msr->prm,"dFixedAmpPhasePI",2,&msr->param.dFixedAmpPhasePI,
 		sizeof(double),"fixedphase","<Phase shift for fixed amplitude in units of PI> = 0.0");
+    msr->param.nGridNu = 0;
+    prmAddParam(msr->prm, "nGridNu", 0, &msr->param.nGridNu,
+        sizeof(int), "nugrid", "<Grid size for neutrinos 0=disabled> =0");
+    msr->param.bDoNuPkOutput = 0;
+    prmAddParam(msr->prm, "bDoNuPkOutput", 0, &msr->param.bDoNuPkOutput,
+        sizeof(int), "nuPk", "<enable/disable neutrino power spectrum output> = 0");
 #endif
 
     msr->param.iInflateStep = 0;
@@ -1669,6 +1697,10 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     if (msr->param.csm->val.classData.bClass){
         csmClassRead(msr->param.csm, msr->param.dBoxSize, msr->param.h);
         csmClassGslInitialize(msr->param.csm);
+    }
+    if (msr->param.csm->val.classData.bNeutrinos && msr->param.nGridNu ==0){
+        fprintf(stderr, "ERROR: you must specify nGridNu when running with neutrinos\n");
+        abort();
     }
     if (msr->param.csm->val.classData.bClass && msr->param.b2LPT){
         fprintf(stderr, "ERROR: 2LPT not yet implemented for Class ICs\n");
@@ -3290,7 +3322,7 @@ uint8_t msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot
 		}
 	    }
 	}
-
+    in.bNeutrinos = msr->param.csm->val.classData.bNeutrinos;
     out = malloc(msr->nThreads*sizeof(struct outGravityPerProc) + sizeof(struct outGravityReduct));
     assert(out != NULL);
     outend = out + msr->nThreads;
@@ -4240,6 +4272,13 @@ int msrNewTopStepKDK(MSR msr,
 	msrLightConeClose(msr,iStep);
 	if (bKickOpen) msrLightConeOpen(msr,iStep+1);
 	}
+
+    /* Compute the neutrino grids at main timesteps, before gravity is called */
+    if (!uRung && msr->param.csm->val.classData.bNeutrinos){
+        msrSetNuGrid(msr, *pdTime, msr->param.nGridNu);
+        if (msr->param.bDoNuPkOutput)
+            msrOutputNuPk(msr, *pdStep, *pdTime);
+    }
 
     *puRungMax = msrGravity(msr,uRung,msrMaxRung(msr),ROOT,uRoot2,*pdTime,
 	*pdStep,1,bKickOpen,msr->param.bEwald,nGroup,piSec,&nActive);
@@ -5348,6 +5387,60 @@ void msrOutputPk(MSR msr,int iStep,double dTime) {
     free(fPk);
     free(nPk);
     }
+
+
+void msrOutputNuPk(MSR msr,int iStep,double dTime) {
+#ifdef _MSC_VER
+    char achFile[MAX_PATH];
+#else
+    char achFile[PATH_MAX];
+#endif
+    float *fK, *fPk;
+    uint64_t *nPk;
+    double a, vfact, kfact;
+    FILE *fp;
+    int i;
+
+    if (msr->param.nGridNu == 0) return;
+    if (!msr->param.csm->val.bComove) return;
+    if (!prmSpecified(msr->prm, "dBoxSize")) return; 
+    fK = malloc(sizeof(float)*(msr->param.nBinsNuPk));
+    assert(fK != NULL);
+    fPk = malloc(sizeof(float)*(msr->param.nBinsNuPk));
+    assert(fPk != NULL);
+    nPk = malloc(sizeof(uint64_t)*(msr->param.nBinsNuPk));
+    assert(nPk != NULL);
+
+    a = csmTime2Exp(msr->param.csm, dTime);
+
+    msrMeasureNuPk(msr,msr->param.nGridNu,a,msr->param.dBoxSize,nPk,fK,fPk);
+
+    msrBuildName(msr,achFile,iStep);
+    strncat(achFile,".nu_pk",256);
+
+    if (!msr->param.csm->val.bComove) a = 1.0;
+    else a = csmTime2Exp(msr->param.csm,dTime);
+
+    if ( msr->param.dBoxSize > 0.0 ) kfact = msr->param.dBoxSize;
+    else kfact = 1.0;
+    vfact = kfact * kfact * kfact;
+    kfact = 1.0 / kfact;
+
+    fp = fopen(achFile,"w");
+    if ( fp==NULL) {
+	printf("Could not create P_nu(k) File:%s\n",achFile);
+	_msrExit(msr,1);
+	}
+    for(i=0; i<msr->param.nBinsNuPk; ++i) {
+	if (fPk[i] > 0.0) fprintf(fp,"%g %g %" PRIu64 "\n",
+ 	    kfact * fK[i] * 2.0 * M_PI,vfact * fPk[i], nPk[i]);
+	}
+    fclose(fp);
+    free(fK);
+    free(fPk);
+    free(nPk);
+    }
+
 #endif
 
 /*
@@ -6030,6 +6123,61 @@ void msrMeasurePk(MSR msr,int nGrid,int nBins,uint64_t *nPk,float *fK,float *fPk
 
     dsec = msrTime() - sec;
     printf("P(k) Calculated, Wallclock: %f secs\n\n",dsec);
+    }
+
+void msrMeasureNuPk(MSR msr,int nGrid, double dA, double dBoxSize,  
+                    uint64_t *nPk,float *fK,float *fPk) {
+    struct inMeasureNuPk in;
+    struct outMeasureNuPk *out;
+    int nOut;
+    int i;
+    double sec,dsec;
+
+    sec = msrTime();
+
+    in.nGrid = nGrid;
+    in.nBins = msr->param.nBinsNuPk;
+    in.dBoxSize = dBoxSize;
+    in.dA = dA;
+    in.iSeed = msr->param.iSeed;
+    in.bFixed = msr->param.bFixedAmpIC;
+    in.fPhase = msr->param.dFixedAmpPhasePI * M_PI;
+
+    out = malloc(sizeof(struct outMeasureNuPk));
+    assert(out != NULL);
+    printf("Measuring P_nu(k) with grid size %d (%d bins)...\n",in.nGrid,in.nBins);
+    pstMeasureNuPk(msr->pst, &in, sizeof(in), out, &nOut);
+    for( i=0; i<in.nBins; i++ ) {
+	if ( out->nPower[i] == 0 ) fK[i] = fPk[i] = 0;
+	else {
+	    if (nPk) nPk[i] = out->nPower[i];
+	    fK[i] = out->fK[i]/out->nPower[i];
+	    fPk[i] = out->fPower[i]/out->nPower[i];
+	    }
+	}
+    /* At this point, dPk[] needs to be corrected by the box size */
+
+    dsec = msrTime() - sec;
+    printf("P_nu(k) Calculated, Wallclock: %f secs\n\n",dsec);
+    }
+
+void msrSetNuGrid(MSR msr,double dTime, int nGrid){
+    printf("Setting Neutrino force grids with nGridNu = %d \n", nGrid);
+    double sec, dsec;
+    sec = msrTime();
+
+    struct inSetNuGrid in;
+    in.nGrid = nGrid;
+    in.dTime = dTime;
+    in.dBSize = msr->param.dBoxSize;
+    /* Parameters for the grid realization */
+    in.iSeed = msr->param.iSeed;
+    in.bFixed = msr->param.bFixedAmpIC;
+    in.fPhase = msr->param.dFixedAmpPhasePI*M_PI;
+    pstSetNuGrid(msr->pst, &in, sizeof(in), NULL, NULL);
+
+    dsec = msrTime() - sec;
+    printf("Neutrino force calculated, Wallclock: %f, secs\n\n", dsec);
     }
 #endif
 
