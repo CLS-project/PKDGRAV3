@@ -759,7 +759,7 @@ void pkdInitialize(
 
     pkd->fSoftFix = -1.0;
     pkd->fSoftFac = 1.0;
-    pkd->fSoftMax = HUGE;
+    pkd->fSoftMax = HUGE_VALF;
     /*
     ** Ewald stuff!
     */
@@ -2237,7 +2237,7 @@ void pkdSetSoft(PKD pkd,double dSoft) {
 
 void pkdPhysicalSoft(PKD pkd,double dSoftMax,double dFac,int bSoftMaxMul) {
     pkd->fSoftFac = dFac;
-    pkd->fSoftMax = bSoftMaxMul ? HUGE : dSoftMax;
+    pkd->fSoftMax = bSoftMaxMul ? HUGE_VALF : dSoftMax;
     }
 
 void
