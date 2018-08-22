@@ -38,20 +38,20 @@
 #define CLASS_PERTURBATIONS_K_SIZE 256
 struct classDataBackgroundStruct{
     size_t size;
-    double a     [CLASS_BACKGROUND_SIZE];
-    double t     [CLASS_BACKGROUND_SIZE];
-    double H     [CLASS_BACKGROUND_SIZE];
-    double rho_m [CLASS_BACKGROUND_SIZE];
-    double rho_nu[CLASS_BACKGROUND_SIZE];
+    double a      [CLASS_BACKGROUND_SIZE];
+    double t      [CLASS_BACKGROUND_SIZE];
+    double H      [CLASS_BACKGROUND_SIZE];
+    double rho_m  [CLASS_BACKGROUND_SIZE];
+    double rho_lin[CLASS_BACKGROUND_SIZE];
 };
 struct classDataPerturbationsStruct{
     size_t size_a;
     size_t size_k;
     double a[CLASS_PERTURBATIONS_A_SIZE];
     double k[CLASS_PERTURBATIONS_K_SIZE];
-    double delta_m [CLASS_PERTURBATIONS_A_SIZE*CLASS_PERTURBATIONS_K_SIZE];
-    double theta_m [CLASS_PERTURBATIONS_A_SIZE*CLASS_PERTURBATIONS_K_SIZE];
-    double delta_nu[CLASS_PERTURBATIONS_A_SIZE*CLASS_PERTURBATIONS_K_SIZE];
+    double delta_m  [CLASS_PERTURBATIONS_A_SIZE*CLASS_PERTURBATIONS_K_SIZE];
+    double theta_m  [CLASS_PERTURBATIONS_A_SIZE*CLASS_PERTURBATIONS_K_SIZE];
+    double delta_lin[CLASS_PERTURBATIONS_A_SIZE*CLASS_PERTURBATIONS_K_SIZE];
     double A_s;
     double n_s;
     double alpha_s;
@@ -59,9 +59,9 @@ struct classDataPerturbationsStruct{
 };
 struct classDataStruct{
     int bClass;
-    int bNeutrinos;
     char achFilename[256];
-    struct classDataBackgroundStruct    background;
+    char achLinSpecies[128];
+    struct classDataBackgroundStruct background;
     struct classDataPerturbationsStruct perturbations;
 };
 
@@ -82,8 +82,8 @@ struct classGslBackgroundStruct{
     gsl_spline       *logTime2logExp_spline;
     gsl_interp_accel *logExp2logRho_m_acc;
     gsl_spline       *logExp2logRho_m_spline;
-    gsl_interp_accel *logExp2logRho_nu_acc;
-    gsl_spline       *logExp2logRho_nu_spline;
+    gsl_interp_accel *logExp2logRho_lin_acc;
+    gsl_spline       *logExp2logRho_lin_spline;
 };
 struct classGslPerturbationsStruct{
     gsl_interp_accel *logk2delta_m_acc;
@@ -92,9 +92,9 @@ struct classGslPerturbationsStruct{
     gsl_interp_accel *logk2theta_m_acc;
     gsl_interp_accel *loga2theta_m_acc;
     gsl_spline2d     *logkloga2theta_m_spline;
-    gsl_interp_accel *logk2delta_nu_acc;
-    gsl_interp_accel *loga2delta_nu_acc;
-    gsl_spline2d     *logkloga2delta_nu_spline;
+    gsl_interp_accel *logk2delta_lin_acc;
+    gsl_interp_accel *loga2delta_lin_acc;
+    gsl_spline2d     *logkloga2delta_lin_spline;
 };
 struct classGslStruct{
     int initialized;
@@ -130,13 +130,13 @@ typedef struct csmContext {
 #ifdef __cplusplus
 extern "C" {
 #endif
-    void csmClassRead(CSM csm, double dBoxSize, double h);
+    void csmClassRead(CSM csm, double dBoxSize);
     void csmClassGslInitialize(CSM csm);
-    double csmRhoBar_m (CSM csm, double a);
-    double csmRhoBar_nu(CSM csm, double a);
-    double csmDelta_m  (CSM csm, double a, double k);
-    double csmTheta_m  (CSM csm, double a, double k);
-    double csmDelta_nu (CSM csm, double a, double k);
+    double csmRhoBar_m  (CSM csm, double a);
+    double csmRhoBar_lin(CSM csm, double a);
+    double csmDelta_m   (CSM csm, double a, double k);
+    double csmTheta_m   (CSM csm, double a, double k);
+    double csmDelta_lin (CSM csm, double a, double k);
 
     void csmInitialize(CSM *pcsm);
     void csmFinish(CSM csm);

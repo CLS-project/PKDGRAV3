@@ -32,7 +32,7 @@
 
 #define SHAPES
 #define USE_PCS /* USE_PCS USE_TSC USE_CIC USE_NGP */
-#define USE_PCS_NU /* USE_PCS_NU USE_TSC_NU USE_CIC_NU USE_NGP_NU */
+#define USE_PCS_LIN /* USE_PCS_LIN USE_TSC_LIN USE_CIC_LIN USE_NGP_LIN */
 static void transpose(double mat[3][3],double trans_mat[3][3]) {
     int i,j ;
 
@@ -787,7 +787,7 @@ static void cell_accumulate(PKD pkd, MDLFFT fft,int x,int y,int z, float m) {
 	}
     }
 
-#if defined(USE_NGP) || defined(USE_NGP_NU)
+#if defined(USE_NGP) || defined(USE_NGP_LIN)
 static void ngp_assign(PKD pkd, MDLFFT fft, int nGrid,
                        double x, double y, double z, float mass) {
     int           ix, iy, iz;
@@ -803,7 +803,7 @@ static void ngp_assign(PKD pkd, MDLFFT fft, int nGrid,
     if (iz==nGrid) iz = nGrid-1;
     cell_accumulate(pkd,fft,ix,iy,iz,mass);
     }
-#elif defined(USE_CIC) || defined(USE_CIC_NU)
+#elif defined(USE_CIC) || defined(USE_CIC_LIN)
 
 static void cic_weights(int ii[3][2],float H[3][2],const double r[3], int nGrid) {
     int d;
@@ -842,7 +842,7 @@ static void cic_assign(PKD pkd, MDLFFT fft, int nGrid,
 	    }
 	}
 }
-#elif defined(USE_TSC) || defined(USE_TSC_NU)
+#elif defined(USE_TSC) || defined(USE_TSC_LIN)
 
 static void tsc_weights(int ii[3][3],float H[3][3],const double r[3], int nGrid) {
     int d;
@@ -942,15 +942,15 @@ static double deconvolveWindow(int i,int nGrid) {
 #endif
     }
 
-static double deconvolveNuWindow(int i,int nGrid) {
+static double deconvolveLinWindow(int i,int nGrid) {
     double win = M_PI * i / nGrid;
     if(win>0.1) win = win / sin(win);
     else win=1.0 / (1.0-win*win/6.0*(1.0-win*win/20.0*(1.0-win*win/76.0)));
-#if defined(USE_NGP_NU)
+#if defined(USE_NGP_LIN)
     return win;
-#elif defined(USE_CIC_NU)
+#elif defined(USE_CIC_LIN)
     return win*win;
-#elif defined(USE_TSC_NU)
+#elif defined(USE_TSC_LIN)
     return win*win*win;
 #else
     return win*win*win*win;
@@ -1143,7 +1143,7 @@ static void force_accumulate(PKD pkd, MDLFFT fft, int cid, int x, int y, int z, 
         }
 }
 
-#if defined(USE_NGP_NU)
+#if defined(USE_NGP_LIN)
 static void ngp_addForce(PKD pkd, MDLFFT fft,int cid, int nGrid,
                 double x, double y, double z, float* force){
         int ix, iy, iz;
@@ -1155,7 +1155,7 @@ static void ngp_addForce(PKD pkd, MDLFFT fft,int cid, int nGrid,
         if (iz==nGrid) iz = nGrid-1;
         force_accumulate(pkd,fft,cid,ix,iy,iz,force, 1.0f);
 }
-#elif defined(USE_CIC_NU)
+#elif defined(USE_CIC_LIN)
 static void cic_addForce(PKD pkd, MDLFFT fft,int cid, int nGrid,
                 double x, double y, double z, float* force) {
         double r[] = {x,y,z};
@@ -1180,7 +1180,7 @@ static void cic_addForce(PKD pkd, MDLFFT fft,int cid, int nGrid,
         }
 }
 
-#elif defined(USE_TSC_NU)
+#elif defined(USE_TSC_LIN)
 static void tsc_addForce(PKD pkd, MDLFFT fft,int cid, int nGrid,
                 double x, double y, double z, float* force) {
         double r[] = {x,y,z};
@@ -1220,7 +1220,7 @@ static void pcs_addForce(PKD pkd, MDLFFT fft, int cid, int nGrid,
 #endif
 
 
-void getNuAcc(PKD pkd, MDLFFT fft,int cid, double r[3], float* force){
+void getLinAcc(PKD pkd, MDLFFT fft,int cid, double r[3], float* force){
         int nGrid = fft->rgrid->n1;
         int i;
         /* Recenter, apply periodic boundary and scale to the correct size */
@@ -1234,11 +1234,11 @@ void getNuAcc(PKD pkd, MDLFFT fft,int cid, double r[3], float* force){
                 if (r_c[i]< 0 ) r_c[i] += pkd->fPeriod[i];
         }
         assert( r_c[0]>=0.0 && r_c[0]<1.0 && r_c[1]>=0.0 && r_c[1]<1.0 && r_c[2]>=0.0 && r_c[2]<1.0 );
-#if defined(USE_NGP_NU)
+#if defined(USE_NGP_LIN)
         ngp_addForce(pkd, fft, cid, nGrid, r_c[0], r_c[1], r_c[2], force);
-#elif defined(USE_CIC_NU)
+#elif defined(USE_CIC_LIN)
         cic_addForce(pkd, fft, cid, nGrid, r_c[0], r_c[1], r_c[2], force);
-#elif defined(USE_TSC_NU)
+#elif defined(USE_TSC_LIN)
         tsc_addForce(pkd, fft, cid, nGrid, r_c[0], r_c[1], r_c[2], force);
 #else
         pcs_addForce(pkd, fft, cid, nGrid, r_c[0], r_c[1], r_c[2], force);
@@ -1257,8 +1257,8 @@ static double green(int i, int jj, int kk, int nGrid){
         return -1.0/g;
 }
 
-void pkdSetNuGrid(PKD pkd,double dTime, double dBSize, int nGrid, int iSeed, int bFixed, float fPhase) {
-        MDLFFT fft = pkd->Nufft;
+void pkdSetLinGrid(PKD pkd,double dTime, double dBSize, int nGrid, int iSeed, int bFixed, float fPhase) {
+        MDLFFT fft = pkd->Linfft;
         /* Grid coordinates in real space :      [0, nGrid].[0, nGrid].[0, nGrid] */
         mdlGridCoord rfirst, rlast, rindex;
         /* Grid coordinates in Fourier space : [O, Nyquist].[0, nGrid].[0, nGrid] */
@@ -1269,7 +1269,7 @@ void pkdSetNuGrid(PKD pkd,double dTime, double dBSize, int nGrid, int iSeed, int
          * have an explicit naming in the code
          */
         FFTW3(real) *rForceX, *rForceY, *rForceZ;
-        FFTW3(complex) *cDelta_nu_field, *cForceY, *cForceZ;
+        FFTW3(complex) *cDelta_lin_field, *cForceY, *cForceZ;
 #ifdef USE_ITT
         __itt_domain* domain = __itt_domain_create("MyTraces.MyDomain");
         __itt_string_handle* shMyTask = __itt_string_handle_create("AssignMass_DGrid");
@@ -1279,17 +1279,17 @@ void pkdSetNuGrid(PKD pkd,double dTime, double dBSize, int nGrid, int iSeed, int
 #endif
         /* Scale factor, and normalization */
         const double a = csmTime2Exp(pkd->param.csm, dTime);
-        const double dRhoMean = csmRhoBar_nu(pkd->param.csm, a) * a*a*a * dBSize;
+        const double dRhoMean = csmRhoBar_lin(pkd->param.csm, a) * a*a*a * dBSize;
 
         mdlGridCoordFirstLast(pkd->mdl,fft->rgrid,&rfirst,&rlast,1);
         mdlGridCoordFirstLast(pkd->mdl,fft->kgrid,&kfirst,&klast,0);
 
-        /* Imprint the neutrino density grid */         
-        pkdGenerateNuGrid(pkd, fft, a, dBSize, iSeed, bFixed, fPhase);
-        cDelta_nu_field = mdlSetArray(pkd->mdl, klast.i, sizeof(FFTW3(complex)), pkd->pLite);
+        /* Imprint the density grid of the linear species */
+        pkdGenerateLinGrid(pkd, fft, a, dBSize, iSeed, bFixed, fPhase);
+        cDelta_lin_field = mdlSetArray(pkd->mdl, klast.i, sizeof(FFTW3(complex)), pkd->pLite);
 
         /* Remember, the grid is now transposed to x,z,y (from x,y,z) */
-        cForceY = mdlSetArray(pkd->mdl,klast.i,sizeof(FFTW3(complex)),cDelta_nu_field + fft->kgrid->nLocal);
+        cForceY = mdlSetArray(pkd->mdl,klast.i,sizeof(FFTW3(complex)),cDelta_lin_field + fft->kgrid->nLocal);
         cForceZ = mdlSetArray(pkd->mdl,klast.i, sizeof(FFTW3(complex)),cForceY + fft->kgrid->nLocal);
 
         int idx, i, j, jj, k, kk;
@@ -1304,21 +1304,21 @@ void pkdSetNuGrid(PKD pkd,double dTime, double dBSize, int nGrid, int iSeed, int
                 if ( j != kindex.z ) {
                         j = kindex.z;
                         jj = j>iNyquist ? j - nGrid : j;
-                        win_j = deconvolveNuWindow(jj,nGrid);
+                        win_j = deconvolveLinWindow(jj,nGrid);
                 }
                 if ( k != kindex.y ) {
                         k = kindex.y;
                         kk = k>iNyquist ? k - nGrid : k;
-                        win_k = deconvolveNuWindow(kk,nGrid);
+                        win_k = deconvolveLinWindow(kk,nGrid);
                 }
                 i = kindex.x;
-                double win = deconvolveNuWindow(i,nGrid)*win_j*win_k;
+                double win = deconvolveLinWindow(i,nGrid)*win_j*win_k;
                 /* Green Function for a discrete Laplacian operator */
                 dPoissonSolve=4*M_PI*green(i,jj,kk,nGrid)*dRhoMean*win;
                 /* Solve Poisson equation */
 
-                rePotential = cDelta_nu_field[idx][0] * dPoissonSolve;
-                imPotential = cDelta_nu_field[idx][1] * dPoissonSolve;
+                rePotential = cDelta_lin_field[idx][0] * dPoissonSolve;
+                imPotential = cDelta_lin_field[idx][1] * dPoissonSolve;
                 /* Differentiaite in Y direction */
                 dDifferentiate = nGrid*sin(2*M_PI*jj/(1.0*nGrid));
                 cForceY[idx][0] =  dDifferentiate * imPotential;
@@ -1331,11 +1331,11 @@ void pkdSetNuGrid(PKD pkd,double dTime, double dBSize, int nGrid, int iSeed, int
 
                 /*
                  * Differentiate in X direction (over-write the
-                 * delta_nu field)
+                 * delta_lin field)
                  */
                 dDifferentiate = nGrid*sin(2*M_PI*i/(1.0*nGrid));
-                cDelta_nu_field[idx][0] =  dDifferentiate * imPotential;
-                cDelta_nu_field[idx][1] = -dDifferentiate * rePotential;
+                cDelta_lin_field[idx][0] =  dDifferentiate * imPotential;
+                cDelta_lin_field[idx][1] = -dDifferentiate * rePotential;
         }
         mdlIFFT(pkd->mdl, fft, cForceY);
         rForceY = mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)),cForceY);
@@ -1343,8 +1343,8 @@ void pkdSetNuGrid(PKD pkd,double dTime, double dBSize, int nGrid, int iSeed, int
         mdlIFFT(pkd->mdl, fft, cForceZ);
         rForceZ = mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)),cForceZ);
                 
-        mdlIFFT(pkd->mdl, fft, cDelta_nu_field);
-        rForceX = mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)), cDelta_nu_field);
+        mdlIFFT(pkd->mdl, fft, cDelta_lin_field);
+        rForceX = mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)), cDelta_lin_field);
 
 
 #ifdef USE_ITT
@@ -1355,10 +1355,10 @@ void pkdSetNuGrid(PKD pkd,double dTime, double dBSize, int nGrid, int iSeed, int
 #endif
 }
 
-void pkdMeasureNuPk(PKD pkd, int nGrid, double dA, double dBoxSize,
+void pkdMeasureLinPk(PKD pkd, int nGrid, double dA, double dBoxSize,
                 int nBins,  int iSeed, int bFixed, float fPhase, 
                 double *fK, double *fPower, uint64_t *nPower) {
-    MDLFFT fft = pkd->Nufft;
+    MDLFFT fft = pkd->Linfft;
     mdlGridCoord first, last, index;
     FFTW3(complex) *fftDataK;
     double ak;
@@ -1366,7 +1366,7 @@ void pkdMeasureNuPk(PKD pkd, int nGrid, double dA, double dBoxSize,
     int iNyquist;
 #ifdef USE_ITT
     __itt_domain* domain = __itt_domain_create("MyTraces.MyDomain");
-    __itt_string_handle* shMyTask = __itt_string_handle_create("MeasureNuPk");
+    __itt_string_handle* shMyTask = __itt_string_handle_create("MeasureLinPk");
     __itt_task_begin(domain, __itt_null, __itt_null, shMyTask);
     mdlThreadBarrier(pkd->mdl);
     __itt_resume();
@@ -1378,8 +1378,10 @@ void pkdMeasureNuPk(PKD pkd, int nGrid, double dA, double dBoxSize,
     iNyquist = nGrid / 2;
 
     mdlGridCoordFirstLast(pkd->mdl,fft->rgrid,&first,&last,1);
-    /* Generate the neutrino grid again, this should not be done this way for performances */ 
-    pkdGenerateNuGrid(pkd, fft, dA, dBoxSize, iSeed, bFixed, fPhase);
+    /* Generate the grid of the linear species again,
+    ** this should not be done this way for performances.
+    */
+    pkdGenerateLinGrid(pkd, fft, dA, dBoxSize, iSeed, bFixed, fPhase);
 
     /* Remember, the grid is now transposed to x,z,y (from x,y,z) */
     mdlGridCoordFirstLast(pkd->mdl,fft->kgrid,&first,&last,0);

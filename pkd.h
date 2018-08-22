@@ -81,9 +81,9 @@ static inline int64_t d2u64(double d) {
 #define CID_BIN		4
 #define CID_SHAPES	5
 #define CID_PK          2
-#define CID_GridNuFx    2 
-#define CID_GridNuFy    10
-#define CID_GridNuFz    11
+#define CID_GridLinFx   2
+#define CID_GridLinFy   10
+#define CID_GridLinFz   11
 #define CID_PNG         2
 #define CID_SADDLE_BUF  3
 #define CID_TREE_ROOT   3
@@ -900,7 +900,7 @@ typedef struct pkdContext {
 #endif
 #ifdef MDL_FFTW
     MDLFFT fft;
-    MDLFFT Nufft;
+    MDLFFT Linfft;
 #endif
     MDLGRID grid;
     float *gridData;
@@ -1413,7 +1413,7 @@ void pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     double dAccFac,double dTime,int nReps,int bPeriodic,
     int bEwald,int nGroup,int iRoot1, int iRoot2,
     double fEwCut,double fEwhCut,double dThetaMin,
-    int bNeutrinos,
+    int bLinearSpecies,
     uint64_t *pnActive,
     double *pdPart,double *pdPartNumAccess,double *pdPartMissRatio,
     double *pdCell,double *pdCellNumAccess,double *pdCellMissRatio,

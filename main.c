@@ -290,11 +290,11 @@ void * master_ch(MDL mdl) {
 		}
 	    else bKickOpen = 0;
 
-            /* Compute the neutrino grids before doing gravity */
-            if (msr->param.csm->val.classData.bNeutrinos){
-                msrSetNuGrid(msr,dTime, msr->param.nGridNu);
-                if (msr->param.bDoNuPkOutput)
-                    msrOutputNuPk(msr, iStartStep, dTime);
+            /* Compute the grids of the linear species before doing gravity */
+            if (strlen(msr->param.csm->val.classData.achLinSpecies)){
+                msrSetLinGrid(msr,dTime, msr->param.nGridLin);
+                if (msr->param.bDoLinPkOutput)
+                    msrOutputLinPk(msr, iStartStep, dTime);
             }
 	    uRungMax = msrGravity(msr,0,MAX_RUNG,ROOT,0,dTime,iStartStep,0,bKickOpen,msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
 	    msrMemStatus(msr);
@@ -336,11 +336,11 @@ void * master_ch(MDL mdl) {
 		    bDoOpeningKick = 0; /* clear the opening kicking flag */
                     msrLightConeOpen(msr,iStep);  /* open the lightcone */
 		    uRungMax = msrGravity(msr,0,MAX_RUNG,ROOT,0,ddTime,diStep,0,1,msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
-                    /* Set the Neutrino grids */
-                    if (msr->param.csm->val.classData.bNeutrinos){
-		        msrSetNuGrid(msr, dTime, msr->param.nGridNu);
-                        if (msr->param.bDoNuPkOutput)
-                            msrOutputNuPk(msr, iStartStep, dTime);
+                    /* Set the grids of the linear species */
+                    if (strlen(msr->param.csm->val.classData.achLinSpecies)){
+		        msrSetLinGrid(msr, dTime, msr->param.nGridLin);
+                        if (msr->param.bDoLinPkOutput)
+                            msrOutputLinPk(msr, iStartStep, dTime);
                         }
 		    }
 		msrNewTopStepKDK(msr,0,0,&diStep,&ddTime,&uRungMax,&iSec,&bDoCheckpoint,&bDoOutput);

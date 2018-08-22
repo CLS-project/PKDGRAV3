@@ -222,8 +222,8 @@ enum pst_service {
     PST_GRIDPROJECT,
 #ifdef MDL_FFTW
     PST_MEASUREPK,
-    PST_MEASURENUPK,
-    PST_SETNUGRID,
+    PST_MEASURELINPK,
+    PST_SETLINGRID,
 #endif
     PST_TOTALMASS,
     PST_LIGHTCONE_OPEN,
@@ -621,7 +621,7 @@ struct inGravity {
     double dtLCKick[IRUNGMAX+1];
     double dLookbackFac;
     double dLookbackFacLCP;
-    int bNeutrinos;
+    int bLinearSpecies;
     };
 
 
@@ -1311,8 +1311,8 @@ struct outMeasurePk {
     uint64_t nPower[PST_MAX_K_BINS];
     };
 void pstMeasurePk(PST pst,void *vin,int nIn,void *vout,int *pnOut);
-/* PST_SETNUGRID */
-struct inSetNuGrid {
+/* PST_SETLINGRID */
+struct inSetLinGrid {
     double dTime;
     double dBSize;
     int nGrid;
@@ -1321,9 +1321,9 @@ struct inSetNuGrid {
     int bFixed;
     float fPhase;
     };
-void pstSetNuGrid(PST pst,void *vin,int nIn,void *vout,int *pnOut);
-/* PST_MEASURENUPK */
-struct inMeasureNuPk {
+void pstSetLinGrid(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+/* PST_MEASURELINPK */
+struct inMeasureLinPk {
     double dA;
     double dBoxSize;
     int iSeed;
@@ -1332,12 +1332,12 @@ struct inMeasureNuPk {
     int nGrid;
     int nBins;
     };
-struct outMeasureNuPk {
+struct outMeasureLinPk {
     double fK[PST_MAX_K_BINS];
     double fPower[PST_MAX_K_BINS];
     uint64_t nPower[PST_MAX_K_BINS];
     };
-void pstMeasureNuPk(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+void pstMeasureLinPk(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 #endif
 
 /* PST_TOTALMASS */

@@ -67,6 +67,7 @@ void csmInitialize(CSM *pcsm) {
     csm->W = gsl_integration_workspace_alloc(LIMIT);
     csm->val.classData.bClass = 0;
     csm->val.classData.achFilename[0] = 0;
+    csm->val.classData.achLinSpecies[0] = 0;
     csm->val.classData.background.size = 0;
     csm->val.classData.background.a[0] = 0.;
     csm->val.classData.background.t[0] = 0.;
@@ -75,9 +76,9 @@ void csmInitialize(CSM *pcsm) {
     csm->val.classData.perturbations.size_k = 0;
     csm->val.classData.perturbations.a[0] = 0.;
     csm->val.classData.perturbations.k[0] = 0.;
-    csm->val.classData.perturbations.delta_m [0] = 0.;
-    csm->val.classData.perturbations.theta_m [0] = 0.;
-    csm->val.classData.perturbations.delta_nu[0] = 0.;
+    csm->val.classData.perturbations.delta_m  [0] = 0.;
+    csm->val.classData.perturbations.theta_m  [0] = 0.;
+    csm->val.classData.perturbations.delta_lin[0] = 0.;
     csm->val.classData.perturbations.A_s = 0.;
     csm->val.classData.perturbations.n_s = 0.;
     csm->val.classData.perturbations.alpha_s = 0.;
@@ -98,47 +99,90 @@ void csmFinish(CSM csm) {
         gsl_spline_free      (csm->classGsl.background.logTime2logExp_spline);
         gsl_interp_accel_free(csm->classGsl.background.logExp2logRho_m_acc);
         gsl_spline_free      (csm->classGsl.background.logExp2logRho_m_spline);
-        gsl_interp_accel_free(csm->classGsl.background.logExp2logRho_nu_acc);
-        gsl_spline_free      (csm->classGsl.background.logExp2logRho_nu_spline);
+        gsl_interp_accel_free(csm->classGsl.background.logExp2logRho_lin_acc);
+        gsl_spline_free      (csm->classGsl.background.logExp2logRho_lin_spline);
         gsl_interp_accel_free(csm->classGsl.perturbations.logk2delta_m_acc);
         gsl_interp_accel_free(csm->classGsl.perturbations.loga2delta_m_acc);
         gsl_spline2d_free    (csm->classGsl.perturbations.logkloga2delta_m_spline);
         gsl_interp_accel_free(csm->classGsl.perturbations.logk2theta_m_acc);
         gsl_interp_accel_free(csm->classGsl.perturbations.loga2theta_m_acc);
         gsl_spline2d_free    (csm->classGsl.perturbations.logkloga2theta_m_spline);
-        gsl_interp_accel_free(csm->classGsl.perturbations.logk2delta_nu_acc);
-        gsl_interp_accel_free(csm->classGsl.perturbations.loga2delta_nu_acc);
-        gsl_spline2d_free    (csm->classGsl.perturbations.logkloga2delta_nu_spline);
+        gsl_interp_accel_free(csm->classGsl.perturbations.logk2delta_lin_acc);
+        gsl_interp_accel_free(csm->classGsl.perturbations.loga2delta_lin_acc);
+        gsl_spline2d_free    (csm->classGsl.perturbations.logkloga2delta_lin_spline);
     }
     gsl_integration_workspace_free(csm->W);
     free(csm);
     }
 
-void csmClassRead(CSM csm, double dBoxSize, double h){
-    size_t i, j;
-    hid_t file, group, attr, string_type;
-    hsize_t size, size_a, size_k;
-    char *unit_length;
-    double A_s, n_s, alpha_s, k_pivot;
-    double a, k, unit_convertion_time, unit_convertion_density;
-    double *zeta;
+void csmClassRead(CSM csm, double dBoxSize){
+    size_t i, j, l, index;
+    int nLinSpecies;
+    hid_t file, group, attr, string_type, rhocrit_dataset, rhocrit_dataspace, memspace;
+    hsize_t size_bg, size_a, size_k, count[1], offset[1], offset_out[1];
+    char *matter_name, hdf5_key[128], *unit_length,
+        *linSpeciesNames[10], *linSpeciesName, *LinSpeciesParsing;
+    double h, A_s, n_s, alpha_s, k_pivot;
+    double a, k, rho_crit[1], unit_convertion_time, unit_convertion_density;
+    double *loga, *logrho_lin, *deltarho_lin, *rho_lin, *zeta;
 
     assert(csm->val.classData.bClass);
+    if (strlen(csm->val.classData.achFilename) == 0){
+        fprintf(stderr, "WARNING: No achClassFilename specified\n");
+        abort();
+    }
+
+    /* Parse the achLinSpecies string */
+    nLinSpecies = 0;
+    LinSpeciesParsing = strdup(csm->val.classData.achLinSpecies);
+    while ((linSpeciesName = strsep(&LinSpeciesParsing, "+")) != NULL){
+        if (strlen(linSpeciesName)){
+            linSpeciesNames[nLinSpecies] = strdup(linSpeciesName);
+            nLinSpecies++;
+        }
+    }
+    free(LinSpeciesParsing);
+    if (strlen(csm->val.classData.achLinSpecies) && nLinSpecies == 0){
+        fprintf(stderr,
+            "WARNING: The non-empty achLinSpecies = \"%s\" was specified, "
+            "which does not contain any names of species\n",
+            csm->val.classData.achLinSpecies);
+        abort();
+    }
+    printf("Reading background and linear perturbations");
+    if (nLinSpecies){
+        printf(", including the %d linear species ", nLinSpecies);
+        for (l = 0; l < nLinSpecies; l++){
+            if (l > 0){
+                if (l == nLinSpecies - 1)
+                    printf(" and ");
+                else
+                    printf(", ");
+            }
+            printf("\"%s\"", linSpeciesNames[l]);
+        }
+        printf(",");
+    }
+    printf(" from %s\n", csm->val.classData.achFilename);
 
     /* Create an HDF5 ASCII string type */
     string_type = H5Tcopy(H5T_C_S1);
     H5Tset_size(string_type, H5T_VARIABLE);
 
+    /* Open the CLASS HDF5 file for reading */
     file = H5Fopen(csm->val.classData.achFilename, H5F_ACC_RDONLY, H5P_DEFAULT);
+    if (file < 0) abort();
 
     /* Check the unit system used by the HDF5 file.
     ** Though this system is specified by "unit length", "unit time" and
     ** "unit mass", we only rely on the length. Specifically, the
     ** "unit length" is assumed to be Mpc.
     */
-    group = H5Gopen(file, "units", H5P_DEFAULT);
-    attr = H5Aopen_name(group, "unit length");
-    H5Aread(attr, string_type, &unit_length);
+    attr = H5Aopen_by_name(file, "/units", "unit length", H5P_DEFAULT, H5P_DEFAULT);
+    if (attr < 0) abort();
+    unit_length = (char*)malloc(128*sizeof(char));
+    if (H5Aread(attr, string_type, &unit_length) < 0) abort();
+    H5Aclose(attr);
     if (strcmp(unit_length, "Mpc") != 0){
         fprintf(stderr,
             "WARNING: The HDF5 file uses a unit system in which %s = 1, "
@@ -147,53 +191,53 @@ void csmClassRead(CSM csm, double dBoxSize, double h){
         abort();
     }
     free(unit_length);
-    H5Aclose(attr);
-    H5Gclose(group);
 
-    /* Read in the background */
-    H5LTget_dataset_info(file, "/background/a", &size, NULL, NULL);
-    if (size > CLASS_BACKGROUND_SIZE){
+    /* Read in the Hubble parameter h = H0/(100*km/(s*Mpc)),
+    ** which we will need to convert from 1/Mpc to h/Mpc.
+    */
+    attr = H5Aopen_by_name(file, "/background", "h", H5P_DEFAULT, H5P_DEFAULT);
+    if (attr < 0) abort();
+    if (H5Aread(attr, H5T_NATIVE_DOUBLE, &h) < 0) abort();
+    H5Aclose(attr);
+
+    /* The matter species "m" is really the combination "cdm+b".
+    ** Here we check whether this is written as "cdm+b" or "b+cdm"
+    ** in the HDF5 file.
+    */
+    if (H5Lexists(file, "/background/rho_cdm+b", H5P_DEFAULT)){
+        matter_name = "cdm+b";
+    } else if (H5Lexists(file, "/background/rho_b+cdm", H5P_DEFAULT)){
+        matter_name = "b+cdm";
+    } else {
+        fprintf(stderr,
+            "WARNING: Could not find the matter species in %s\n",
+            csm->val.classData.achFilename);
+        abort();
+    }
+
+    /* Read in the background, excluding densities of linear species */
+    if (H5LTget_dataset_info(file, "/background/a", &size_bg, NULL, NULL) < 0) abort();
+    if (size_bg > CLASS_BACKGROUND_SIZE){
         fprintf(stderr,
             "WARNING: The CLASS background size (%zu) "
             "is larger than CLASS_BACKGROUND_SIZE (%d)\n",
-            (size_t)size, CLASS_BACKGROUND_SIZE);
+            (size_t)size_bg, CLASS_BACKGROUND_SIZE);
         abort();
     }
-    csm->val.classData.background.size = (size_t)size;
-    H5LTread_dataset_double(file, "/background/a"        , csm->val.classData.background.a    );
-    H5LTread_dataset_double(file, "/background/t"        , csm->val.classData.background.t    );
-    H5LTread_dataset_double(file, "/background/H"        , csm->val.classData.background.H    );
-    H5LTread_dataset_double(file, "/background/rho_cdm+b", csm->val.classData.background.rho_m);
-    if (csm->val.classData.bNeutrinos){
-        H5LTread_dataset_double(file, "/background/rho_ncdm[0]", csm->val.classData.background.rho_nu);
-    }
-    /* Convert to PKDGRAV units.
-    ** Here we make use of the fact that in PKDGRAV units,
-    ** H0 = sqrt(8*pi/3) and \bar{rho}_m0 = Omega_0.
-    ** Since H0 and \bar{rho}_m0 are part of the CLASS data,
-    ** we have enough information to be completely agnostic
-    ** abouth the units actually used in the hdf5 file.
-    */
-    unit_convertion_time = sqrt(8*M_PI/3)/csm->val.classData.background.H[size - 1];
-    for (i = 0; i < size; i++){
-        csm->val.classData.background.t[i] /= unit_convertion_time;
-    }
-    for (i = 0; i < size; i++){
-        csm->val.classData.background.H[i] *= unit_convertion_time;
-    }
-    unit_convertion_density = csm->val.classData.background.rho_m[size - 1]/csm->val.dOmega0;
-    for (i = 0; i < size; i++){
-        csm->val.classData.background.rho_m[i] /= unit_convertion_density;
-    }
-    if (csm->val.classData.bNeutrinos){
-        for (i = 0; i < size; i++){
-            csm->val.classData.background.rho_nu[i] /= unit_convertion_density;
-        }
-    }
+    csm->val.classData.background.size = (size_t)size_bg;
+    if (H5LTread_dataset_double(file, "/background/a",
+        csm->val.classData.background.a) < 0) abort();
+    if (H5LTread_dataset_double(file, "/background/t",
+        csm->val.classData.background.t) < 0) abort();
+    if (H5LTread_dataset_double(file, "/background/H",
+        csm->val.classData.background.H) < 0) abort();
+    snprintf(hdf5_key, sizeof(hdf5_key), "/background/rho_%s", matter_name);
+    if (H5LTread_dataset_double(file, hdf5_key,
+        csm->val.classData.background.rho_m) < 0) abort();
 
-    /* Read in the perturbations */
+    /* Read in the perturbations, excluding density constrasts of linear species */
     /* a */
-    H5LTget_dataset_info(file, "/perturbations/a", &size_a, NULL, NULL);
+    if (H5LTget_dataset_info(file, "/perturbations/a", &size_a, NULL, NULL) < 0) abort();
     if (size_a > CLASS_PERTURBATIONS_A_SIZE){
         fprintf(stderr,
             "WARNING: The CLASS perturbations size_a (%zu) "
@@ -202,12 +246,13 @@ void csmClassRead(CSM csm, double dBoxSize, double h){
         abort();
     }
     csm->val.classData.perturbations.size_a = (size_t)size_a;
-    H5LTread_dataset_double(file, "/perturbations/a", csm->val.classData.perturbations.a);
+    if (H5LTread_dataset_double(file, "/perturbations/a",
+        csm->val.classData.perturbations.a) < 0) abort();
     /* k
     ** This is given in 1/Mpc in the HDF5 file,
     ** but we want it in h/Mpc.
     */
-    H5LTget_dataset_info(file, "/perturbations/k", &size_k, NULL, NULL);
+    if (H5LTget_dataset_info(file, "/perturbations/k", &size_k, NULL, NULL) < 0) abort();
     if (size_k > CLASS_PERTURBATIONS_K_SIZE){
         fprintf(stderr,
             "WARNING: The CLASS perturbations size_k (%zu) "
@@ -216,35 +261,153 @@ void csmClassRead(CSM csm, double dBoxSize, double h){
         abort();
     }
     csm->val.classData.perturbations.size_k = (size_t)size_k;
-    H5LTread_dataset_double(file, "/perturbations/k", csm->val.classData.perturbations.k);
+    if (H5LTread_dataset_double(file, "/perturbations/k",
+        csm->val.classData.perturbations.k) < 0) abort();
     for (i = 0; i < size_k; i++){
         csm->val.classData.perturbations.k[i] /= h;
     }
-    /* Primordial parameters, needed to convert from transfer functions
-    ** to actual fields.
+    /* delta_m[a, k] */
+    snprintf(hdf5_key, sizeof(hdf5_key), "/perturbations/delta_%s", matter_name);
+    if (H5LTread_dataset_double(file, hdf5_key,
+        csm->val.classData.perturbations.delta_m) < 0) abort();
+    /* theta_m[a, k] */
+    snprintf(hdf5_key, sizeof(hdf5_key), "/perturbations/theta_%s", matter_name);
+    if (H5LTread_dataset_double(file, hdf5_key,
+        csm->val.classData.perturbations.theta_m) < 0) abort();
+
+    /* If any linear species are requested, read in their background
+    ** densities and perturbations and add them together to form
+    ** the combined "lin" species.
+    **/
+    if (nLinSpecies){
+        /* For each linear species, we read in its background density rho
+        ** and its density contrast delta. We will keep running totals in
+        ** the rho_lin and deltarho_lin arrays (deltarho since delta*rho
+        ** is additive, unlike delta).
+        **/
+        rho_lin = (double*)calloc(size_bg, sizeof(double));
+        for (i = 0; i < size_bg; i++){
+            rho_lin[i] = 0.;
+        }
+        deltarho_lin = (double*)calloc(size_a*size_k, sizeof(double));
+        for (i = 0; i < size_a*size_k; i++){
+            deltarho_lin[i] = 0.;
+        }
+        loga = (double*)calloc(size_bg, sizeof(double));
+        for (i = 0; i < size_bg; i++){
+            loga[i] = log(csm->val.classData.background.a[i]);
+        }
+        logrho_lin = (double*)calloc(size_bg, sizeof(double));
+        csm->classGsl.background.logExp2logRho_lin_acc = gsl_interp_accel_alloc();
+        csm->classGsl.background.logExp2logRho_lin_spline = gsl_spline_alloc(
+            gsl_interp_cspline, size_bg);
+        for (l = 0; l < nLinSpecies; l++){
+            /* Read in the background density of the l'th linear species,
+            ** overwriting the previous data.
+            */
+            snprintf(hdf5_key, sizeof(hdf5_key), "/background/rho_%s", linSpeciesNames[l]);
+            if (H5LTread_dataset_double(file, hdf5_key,
+                csm->val.classData.background.rho_lin) < 0) abort();
+            /* Add the background density of the l'th linear species to the running total */
+            for (i = 0; i < size_bg; i++){
+                rho_lin[i] += csm->val.classData.background.rho_lin[i];
+            }
+            /* Construct spline over the l'th linear species rho(a) */
+            for (i = 0; i < size_bg; i++){
+                logrho_lin[i] = log(csm->val.classData.background.rho_lin[i]);
+            }
+            gsl_spline_init(csm->classGsl.background.logExp2logRho_lin_spline,
+                loga, logrho_lin, size_bg);
+            /* Read in the density contrast of the l'th linear species,
+            ** overwriting the previous data.
+            */
+            snprintf(hdf5_key, sizeof(hdf5_key), "/perturbations/delta_%s", linSpeciesNames[l]);
+            if (H5LTread_dataset_double(file, hdf5_key,
+                csm->val.classData.perturbations.delta_lin) < 0) abort();
+            /* Add the density perturbation delta*rho of the l'th linear species
+            ** to the running total.
+            **/
+            for (i = 0; i < size_a; i++){
+                a = csm->val.classData.perturbations.a[i];
+                for (j = 0; j < size_k; j++){
+                    index = i*size_k + j;
+                    deltarho_lin[index] +=
+                        csm->val.classData.perturbations.delta_lin[index]*csmRhoBar_lin(csm, a);
+                }
+            }
+        }
+        /* Store the total background density in the classData struct */
+        for (i = 0; i < size_bg; i++){
+            csm->val.classData.background.rho_lin[i] = rho_lin[i];
+        }
+        /*  Construct spline over the total rho(a) */
+        for (i = 0; i < size_bg; i++){
+            logrho_lin[i] = log(rho_lin[i]);
+        }
+        gsl_spline_init(csm->classGsl.background.logExp2logRho_lin_spline,
+            loga, logrho_lin, size_bg);
+        /* Store the combined density contrast in the classData struct */
+        for (i = 0; i < size_a; i++){
+            a = csm->val.classData.perturbations.a[i];
+            for (j = 0; j < size_k; j++){
+                index = i*size_k + j;
+                csm->val.classData.perturbations.delta_lin[index] =
+                    deltarho_lin[index]/csmRhoBar_lin(csm, a);
+            }
+        }
+        /* Cleanup */
+        for (l = 0; l < nLinSpecies; l++){
+            free(linSpeciesNames[l]);
+        }
+        free(rho_lin);
+        free(deltarho_lin);
+        free(loga);
+        free(logrho_lin);
+        gsl_interp_accel_free(csm->classGsl.background.logExp2logRho_lin_acc);
+        gsl_spline_free      (csm->classGsl.background.logExp2logRho_lin_spline);
+    }
+
+    /* Convert background variables to PKDGRAV units.
+    ** Here we make use of the fact that in PKDGRAV units,
+    ** H0 = sqrt(8*pi/3) and rho_crit0 = 1.
+    ** Since H0 and rho_crit0 are part of the CLASS data,
+    ** we have enough information to be completely agnostic
+    ** abouth the units actually used in the hdf5 file.
     */
-    group = H5Gopen(file, "perturbations", H5P_DEFAULT);
-    attr = H5Aopen(group, "A_s", H5P_DEFAULT);
-    H5Aread(attr, H5T_NATIVE_DOUBLE, &A_s);
-    csm->val.classData.perturbations.A_s = A_s;
-    H5Aclose(attr);
-    attr = H5Aopen(group, "n_s", H5P_DEFAULT);
-    H5Aread(attr, H5T_NATIVE_DOUBLE, &n_s);
-    csm->val.classData.perturbations.n_s = n_s;
-    H5Aclose(attr);
-    attr = H5Aopen(group, "alpha_s", H5P_DEFAULT);
-    H5Aread(attr, H5T_NATIVE_DOUBLE, &alpha_s);
-    csm->val.classData.perturbations.alpha_s = alpha_s;
-    H5Aclose(attr);
-    attr = H5Aopen(group, "k_pivot", H5P_DEFAULT);
-    H5Aread(attr, H5T_NATIVE_DOUBLE, &k_pivot);
-    csm->val.classData.perturbations.k_pivot = k_pivot;
-    H5Aclose(attr);
-    H5Gclose(group);
-    csm->val.classData.perturbations.k_pivot /= h;  /* [1/Mpc] -> [h/Mpc] */
+    unit_convertion_time = sqrt(8*M_PI/3)/csm->val.classData.background.H[size_bg - 1];
+    count[0] = 1;
+    offset[0] = size_bg - 1;
+    offset_out[0] = 0;
+    rhocrit_dataset = H5Dopen(file, "/background/rho_crit", H5P_DEFAULT);
+    if (rhocrit_dataset < 0) abort();
+    rhocrit_dataspace = H5Dget_space(rhocrit_dataset);
+    memspace = H5Screate_simple(1, count, NULL);
+    H5Sselect_hyperslab(rhocrit_dataspace, H5S_SELECT_SET, offset, NULL, count, NULL);
+    H5Sselect_hyperslab(memspace, H5S_SELECT_SET, offset_out, NULL, count, NULL);
+    if (H5Dread(rhocrit_dataset, H5T_NATIVE_DOUBLE, memspace, rhocrit_dataspace,
+        H5P_DEFAULT, rho_crit) < 0) abort();
+    H5Dclose(rhocrit_dataset);
+    H5Sclose(rhocrit_dataspace);
+    H5Sclose(memspace);
+    unit_convertion_density = rho_crit[0];
+    for (i = 0; i < size_bg; i++){
+        csm->val.classData.background.t[i] /= unit_convertion_time;
+    }
+    for (i = 0; i < size_bg; i++){
+        csm->val.classData.background.H[i] *= unit_convertion_time;
+    }
+    for (i = 0; i < size_bg; i++){
+        csm->val.classData.background.rho_m[i] /= unit_convertion_density;
+    }
+    if (nLinSpecies){
+        for (i = 0; i < size_bg; i++){
+            csm->val.classData.background.rho_lin[i] /= unit_convertion_density;
+        }
+    }
+
     /* The delta and theta perturbations in the hdf5 file is given as
     ** transfer functions using CLASS convention. To convert them to
-    ** actual linear field, the square of which equals the power
+    ** actual linear fields, the square of which equals the power
     ** spectrum, we use the CLASS convention
     **   delta(k) = T_delta(k)*zeta(k),
     ** (similar for theta) with
@@ -261,6 +424,25 @@ void csmClassRead(CSM csm, double dBoxSize, double h){
     ** ACTUALLY, it turns out that we need a factor of boxsize^(-5/2),
     ** for some reason?
     */
+    group = H5Gopen(file, "/perturbations", H5P_DEFAULT); if (group < 0) abort();
+    attr = H5Aopen(group, "A_s", H5P_DEFAULT); if (attr < 0) abort();
+    if (H5Aread(attr, H5T_NATIVE_DOUBLE, &A_s) < 0) abort();
+    csm->val.classData.perturbations.A_s = A_s;
+    H5Aclose(attr);
+    attr = H5Aopen(group, "n_s", H5P_DEFAULT); if (attr < 0) abort();
+    if (H5Aread(attr, H5T_NATIVE_DOUBLE, &n_s) < 0) abort();
+    csm->val.classData.perturbations.n_s = n_s;
+    H5Aclose(attr);
+    attr = H5Aopen(group, "alpha_s", H5P_DEFAULT); if (attr < 0) abort();
+    if (H5Aread(attr, H5T_NATIVE_DOUBLE, &alpha_s) < 0) abort();
+    csm->val.classData.perturbations.alpha_s = alpha_s;
+    H5Aclose(attr);
+    attr = H5Aopen(group, "k_pivot", H5P_DEFAULT); if (attr < 0) abort();
+    if (H5Aread(attr, H5T_NATIVE_DOUBLE, &k_pivot) < 0) abort();
+    csm->val.classData.perturbations.k_pivot = k_pivot;
+    H5Aclose(attr);
+    H5Gclose(group);
+    csm->val.classData.perturbations.k_pivot /= h;  /* [1/Mpc] -> [h/Mpc] */
     zeta = (double*)malloc(sizeof(double)*size_k);
     for (i = 0; i < size_k; i++){
         k = csm->val.classData.perturbations.k[i];
@@ -268,8 +450,6 @@ void csmClassRead(CSM csm, double dBoxSize, double h){
                   *exp(0.25*alpha_s*pow(log(k/k_pivot), 2));
     }
     /* delta_m[a, k] */
-    H5LTread_dataset_double(file, "/perturbations/delta_cdm+b",
-        csm->val.classData.perturbations.delta_m);
     for (i = 0; i < size_a; i++){
         for (j = 0; j < size_k; j++){
             k = csm->val.classData.perturbations.k[j];
@@ -283,8 +463,6 @@ void csmClassRead(CSM csm, double dBoxSize, double h){
     ** To convert to the velocities used by PKDGRAV, we have to
     ** multiply this by the scale factor.
     */
-    H5LTread_dataset_double(file, "/perturbations/theta_cdm+b",
-        csm->val.classData.perturbations.theta_m);
     for (i = 0; i < size_a; i++){
         a = csm->val.classData.perturbations.a[i];
         for (j = 0; j < size_k; j++){
@@ -292,14 +470,12 @@ void csmClassRead(CSM csm, double dBoxSize, double h){
             csm->val.classData.perturbations.theta_m[i*size_k + j] *= unit_convertion_time*zeta[j]*a;
         }
     }
-    /* delta_nu[a, k] */
-    if (csm->val.classData.bNeutrinos){
-        H5LTread_dataset_double(file, "/perturbations/delta_ncdm[0]",
-        csm->val.classData.perturbations.delta_nu);
+    /* delta_lin[a, k] */
+    if (nLinSpecies){
         for (i = 0; i < size_a; i++){
             for (j = 0; j < size_k; j++){
                 k = csm->val.classData.perturbations.k[j];
-                csm->val.classData.perturbations.delta_nu[i*size_k + j] *= zeta[j];
+                csm->val.classData.perturbations.delta_lin[i*size_k + j] *= zeta[j];
             }
         }
     }
@@ -363,15 +539,15 @@ void csmClassGslInitialize(CSM csm){
         logy[i] = log(csm->val.classData.background.rho_m[i]);
     }
     gsl_spline_init(csm->classGsl.background.logExp2logRho_m_spline, logx, logy, size);
-    /* Exp2Rho_nu */
-    if (csm->val.classData.bNeutrinos){
-        csm->classGsl.background.logExp2logRho_nu_acc = gsl_interp_accel_alloc();
-        csm->classGsl.background.logExp2logRho_nu_spline = gsl_spline_alloc(gsl_interp_cspline, size);
+    /* Exp2Rho_lin */
+    if (strlen(csm->val.classData.achLinSpecies)){
+        csm->classGsl.background.logExp2logRho_lin_acc = gsl_interp_accel_alloc();
+        csm->classGsl.background.logExp2logRho_lin_spline = gsl_spline_alloc(gsl_interp_cspline, size);
         for (i = 0; i < size; i++){
             logx[i] = log(csm->val.classData.background.a[i]);
-            logy[i] = log(csm->val.classData.background.rho_nu[i]);
+            logy[i] = log(csm->val.classData.background.rho_lin[i]);
         }
-        gsl_spline_init(csm->classGsl.background.logExp2logRho_nu_spline, logx, logy, size);
+        gsl_spline_init(csm->classGsl.background.logExp2logRho_lin_spline, logx, logy, size);
     }
 
     free(logx);
@@ -403,14 +579,14 @@ void csmClassGslInitialize(CSM csm){
         gsl_interp2d_bicubic, size_k, size_a);
     gsl_spline2d_init(csm->classGsl.perturbations.logkloga2theta_m_spline, logk, loga,
         csm->val.classData.perturbations.theta_m, size_k, size_a);
-    /* delta_nu */
-    if (csm->val.classData.bNeutrinos){
-        csm->classGsl.perturbations.logk2delta_nu_acc = gsl_interp_accel_alloc();
-        csm->classGsl.perturbations.loga2delta_nu_acc = gsl_interp_accel_alloc();
-        csm->classGsl.perturbations.logkloga2delta_nu_spline = gsl_spline2d_alloc(
+    /* delta_lin */
+    if (strlen(csm->val.classData.achLinSpecies)){
+        csm->classGsl.perturbations.logk2delta_lin_acc = gsl_interp_accel_alloc();
+        csm->classGsl.perturbations.loga2delta_lin_acc = gsl_interp_accel_alloc();
+        csm->classGsl.perturbations.logkloga2delta_lin_spline = gsl_spline2d_alloc(
             gsl_interp2d_bicubic, size_k, size_a);
-        gsl_spline2d_init(csm->classGsl.perturbations.logkloga2delta_nu_spline, logk, loga,
-            csm->val.classData.perturbations.delta_nu, size_k, size_a);
+        gsl_spline2d_init(csm->classGsl.perturbations.logkloga2delta_lin_spline, logk, loga,
+            csm->val.classData.perturbations.delta_lin, size_k, size_a);
     }
 
     free(loga);
@@ -544,15 +720,15 @@ double csmRhoBar_m(CSM csm, double a){
     return exp(gsl_spline_eval(csm->classGsl.background.logExp2logRho_m_spline,
         loga, csm->classGsl.background.logExp2logRho_m_acc));
 }
-double csmRhoBar_nu(CSM csm, double a){
+double csmRhoBar_lin(CSM csm, double a){
     assert(csm->val.classData.bClass);
     double loga = log(a);
     if (loga > .0 && loga < EPSCOSMO_FUTURE){
         /* log(a) slightly in the future. Move back to the present. */
         loga = .0;
     }
-    return exp(gsl_spline_eval(csm->classGsl.background.logExp2logRho_nu_spline,
-        loga, csm->classGsl.background.logExp2logRho_nu_acc));
+    return exp(gsl_spline_eval(csm->classGsl.background.logExp2logRho_lin_spline,
+        loga, csm->classGsl.background.logExp2logRho_lin_acc));
 }
 double csmDelta_m(CSM csm, double a, double k){
     assert(csm->val.classData.bClass);
@@ -578,17 +754,17 @@ double csmTheta_m(CSM csm, double a, double k){
         csm->classGsl.perturbations.logk2theta_m_acc,
         csm->classGsl.perturbations.loga2theta_m_acc);
 }
-double csmDelta_nu(CSM csm, double a, double k){
+double csmDelta_lin(CSM csm, double a, double k){
     assert(csm->val.classData.bClass);
     double loga = log(a);
     if (loga > .0 && loga < EPSCOSMO_FUTURE){
         /* log(a) slightly in the future. Move back to the present. */
         loga = .0;
     }
-    return gsl_spline2d_eval(csm->classGsl.perturbations.logkloga2delta_nu_spline,
+    return gsl_spline2d_eval(csm->classGsl.perturbations.logkloga2delta_lin_spline,
         log(k), loga,
-        csm->classGsl.perturbations.logk2delta_nu_acc,
-        csm->classGsl.perturbations.loga2delta_nu_acc);
+        csm->classGsl.perturbations.logk2delta_lin_acc,
+        csm->classGsl.perturbations.loga2delta_lin_acc);
 }
 
 
