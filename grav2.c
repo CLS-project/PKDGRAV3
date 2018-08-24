@@ -520,18 +520,18 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 	}
 
     nActive += wp->nP;
-    /* If this is a main timestep, add acceleration from the neutrinos */    
-    if (uRungLo == 0 && pkd->param.nGridNu >0){
-        float NuAcc[3];
+    /* If this is a main timestep, add acceleration from the linear species */
+    if (uRungLo == 0 && pkd->param.nGridLin >0){
+        float LinAcc[3];
         for (i=0; i<wp->nP; i++){
             pkdGetPos1(pkd,wp->pPart[i],r);
-            NuAcc[0] = NuAcc[1] = NuAcc[2] = 0.0f;
-            getNuAcc(pkd,pkd->Nufft,CID_GridNuFx,r,&NuAcc[0]);
-            getNuAcc(pkd,pkd->Nufft,CID_GridNuFy,r,&NuAcc[1]);
-            getNuAcc(pkd,pkd->Nufft,CID_GridNuFz,r,&NuAcc[2]);
-            wp->pInfoOut[i].a[0] += NuAcc[0];
-            wp->pInfoOut[i].a[1] += NuAcc[1];
-            wp->pInfoOut[i].a[2] += NuAcc[2];
+            LinAcc[0] = LinAcc[1] = LinAcc[2] = 0.0f;
+            getLinAcc(pkd,pkd->Linfft,CID_GridLinFx,r,&LinAcc[0]);
+            getLinAcc(pkd,pkd->Linfft,CID_GridLinFy,r,&LinAcc[1]);
+            getLinAcc(pkd,pkd->Linfft,CID_GridLinFz,r,&LinAcc[2]);
+            wp->pInfoOut[i].a[0] += LinAcc[0];
+            wp->pInfoOut[i].a[1] += LinAcc[1];
+            wp->pInfoOut[i].a[2] += LinAcc[2];
         }
     }
 

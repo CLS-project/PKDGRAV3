@@ -230,9 +230,9 @@ struct parameters {
 #ifdef MDL_FFTW
     int nGridPk;
     int nBinsPk;
-    int nGridNu;
-    int bDoNuPkOutput;
-    int nBinsNuPk;
+    int nGridLin;
+    int bDoLinPkOutput;
+    int nBinsLinPk;
 #endif
 
     int iInflateStep;

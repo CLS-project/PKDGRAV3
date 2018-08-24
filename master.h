@@ -220,7 +220,7 @@ int msrCountRungs(MSR msr, uint64_t *nRungs);
 */
 int msrSteps(MSR);
 void msrOutputPk(MSR msr,int iStep,double dTime);
-void msrOutputNuPk(MSR msr, int iStep, double dTime);
+void msrOutputLinPk(MSR msr, int iStep, double dTime);
 void msrCheckpoint(MSR msr, int iStep, double dTime);
 double msrRestore(MSR msr);
 void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint);
@@ -305,9 +305,9 @@ void msrInitGrid(MSR msr,int x,int y,int z);
 void msrGridProject(MSR msr,double x,double y,double z);
 #ifdef MDL_FFTW
 void msrMeasurePk(MSR msr,int nGrid,int nBins,uint64_t *nPk,float *fK,float *fPk);
-void msrMeasureNuPk(MSR msr,int nGridNu,double a,double dBoxSize,
+void msrMeasureLinPk(MSR msr,int nGridLin,double a,double dBoxSize,
                 uint64_t *nPk,float *fK,float *fPk);
-void msrSetNuGrid(MSR msr,double dTime, int nGrid);
+void msrSetLinGrid(MSR msr,double dTime, int nGrid);
 #endif
 void msrPSGroupFinder(MSR msr);
 void msrOutPsGroups(MSR msr,const char *pszFile,int iOutType, double dTime);
