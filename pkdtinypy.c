@@ -1,6 +1,12 @@
 #include "master.h"
 #include "pkdtinypy.h"
 
+static tp_obj missing(const char *func, const char *parm) {
+    fprintf(stderr, "%s: missing parameter %s\n", func, parm);
+    return tp_None;
+    }
+
+
 static tp_obj msr_tp_OutputOrbits(TP) {
     tp_obj v = TP_OBJ();
     int type = v.type;
@@ -21,10 +27,29 @@ static tp_obj msr_tp_OutputOrbits(TP) {
     }
 
 static tp_obj msr_tp_GenerateIC(TP) {
-    tp_obj v = TP_DEFAULT(tp_None);
-    int type = v.type;
+    tp_obj o, v = TP_DEFAULT(tp_None);
+    int nGrid = 0;
+
+
+    tp_obj msr_module = tp_get(tp, tp->modules, tp_string("msr"));
+    tp_obj msr_data = tp_get(tp,msr_module,tp_string("__MSR__"));
+    MSR msr = msr_data.data.val;
+
+    /* We have named parameters: fetch them */
+    if (v.type == TP_DICT) {
+	if (tp_iget(tp,&o,v,tp_string("nGrid")) && o.type == TP_NUMBER)
+	    nGrid = o.number.val;
+	else return missing("GenerateIC","nGrid");
+	}
+    else {
+    	fprintf(stderr,"GenerateIC: missing named parameters\n");
+	}
+
+    msrGenerateIC(msr);
+
+
     printf("========================================\n");
-    printf("GenerateIC %d\n", type);
+    printf("GenerateIC\n");
     printf("========================================\n");
 
     return tp_None;
@@ -56,12 +81,13 @@ static struct {
 	SERVICE(Fof),
     };
 
-void tpyInitialize(TP) {
-    tp_obj msr = tp_dict(tp);
+void tpyInitialize(TP, MSR msr) {
+    tp_obj msr_module = tp_dict(tp);
     int i;
 
     for(i=0; i<sizeof(msr_services)/sizeof(msr_services[0]); ++i)
-	tp_set(tp,msr, tp_string(msr_services[i].name), tp_fnc(tp,msr_services[i].fcn));
-    tp_set(tp,tp->modules, tp_string("msr"), msr);  // Register the module
+	tp_set(tp,msr_module, tp_string(msr_services[i].name), tp_fnc(tp,msr_services[i].fcn));
+    tp_set(tp,msr_module,tp_string("__MSR__"),tp_data(tp,1,msr));
+    tp_set(tp,tp->modules, tp_string("msr"), msr_module);  // Register the module
 
     }
