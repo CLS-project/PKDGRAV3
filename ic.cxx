@@ -692,7 +692,7 @@ int pkdGenerateClassICm(PKD pkd, MDLFFT fft, int iSeed, int bFixed, float fPhase
     return nLocal;
 }
 
-void pkdGenerateNuGrid(PKD pkd, MDLFFT fft, double a,double Lbox, int iSeed, int bFixed, float fPhase){
+void pkdGenerateLinGrid(PKD pkd, MDLFFT fft, double a,double Lbox, int iSeed, int bFixed, float fPhase){
     mdlGridCoord kfirst, klast, kindex;
     mdlGridCoord rfirst, rlast, rindex;
     mdlGridCoordFirstLast(pkd->mdl, fft->kgrid, &kfirst, &klast, 0);
@@ -714,7 +714,7 @@ void pkdGenerateNuGrid(PKD pkd, MDLFFT fft, double a,double Lbox, int iSeed, int
 	k2 = kx*kx + ky*ky + kz*kz;
 	idx = kindex.i;
 	if (k2>0) 
-	    noiseData.k[idx] *= csmDelta_nu(pkd->param.csm, a, sqrt(k2));
+	    noiseData.k[idx] *= csmDelta_lin(pkd->param.csm, a, sqrt(k2));
         else
             noiseData.k[idx] = 0.0;
     }
