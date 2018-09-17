@@ -1,5 +1,4 @@
 cmake_minimum_required(VERSION 3.1)
-cmake_policy(VERSION 3.1)
 project(pkdgrav3)
 
 include(CheckFunctionExists)
@@ -115,7 +114,7 @@ check_symbol_exists(atexit stdlib.h HAVE_ATEXIT)
 add_subdirectory(blitz)
 add_subdirectory(mdl2)
 add_executable(${PROJECT_NAME} "")
-#target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_11)
+target_compile_features(${PROJECT_NAME} PRIVATE cxx_auto_type cxx_lambdas)
 set_property(TARGET ${PROJECT_NAME} APPEND PROPERTY COMPILE_DEFINITIONS _LARGEFILE_SOURCE)
 target_sources(${PROJECT_NAME} PRIVATE
 	main.c cosmo.c master.c pst.c fio.c illinois.c param.c

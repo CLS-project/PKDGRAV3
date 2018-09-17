@@ -8,7 +8,6 @@ set(BLITZ_HEADERS
 )
 
 add_library(blitz INTERFACE)
-target_compile_features(blitz INTERFACE cxx_std_11)
 #target_include_directories(blitz INTERFACE $<BUILD_INTERFACE:${BLITZ_INCLUDE_DIR}>
 #					   $<INSTALL_INTERFACE:include>)
 target_include_directories(blitz INTERFACE ${BLITZ_INCLUDE_DIR})
