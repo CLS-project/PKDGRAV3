@@ -1,16 +1,19 @@
-cmake_minimum_required(VERSION 2.4)
-if(COMMAND cmake_policy)
-  cmake_policy(SET CMP0003 NEW)
-endif(COMMAND cmake_policy)
+cmake_minimum_required(VERSION 3.1)
+cmake_policy(VERSION 3.1)
 project(pkdgrav3)
+
+include(CheckFunctionExists)
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   message(STATUS "Release build with debug info selected")
   set(CMAKE_BUILD_TYPE RelWithDebInfo)
 endif()
-if(UNIX)
-  set(CMAKE_REQUIRED_LIBRARIES m)
-  set(HAVE_LIBM 1)
+
+CHECK_FUNCTION_EXISTS(pow HAVE_LIBM)
+if(NOT HAVE_LIBM)
+  unset(HAVE_LIBM)
+  list(APPEND CMAKE_REQUIRED_LIBRARIES m)
+  CHECK_FUNCTION_EXISTS(pow HAVE_LIBM)
 endif()
 
 include(CheckCXXCompilerFlag)
@@ -33,7 +36,6 @@ endif()
 find_package(GSL REQUIRED)      # GNU Scientific Library
 find_package(HDF5 COMPONENTS HL)
 #find_package(PythonLibs)
-
 # _GNU_SOURCE gives us more options
 INCLUDE(CheckCSourceCompiles)
 check_c_source_compiles("
@@ -110,8 +112,10 @@ check_symbol_exists(backtrace execinfo.h USE_BT)
 #AC_CHECK_FUNCS([gethrtime read_real_time time_base_to_time clock_gettime mach_absolute_time])
 check_symbol_exists(atexit stdlib.h HAVE_ATEXIT)
 
+add_subdirectory(blitz)
 add_subdirectory(mdl2)
 add_executable(${PROJECT_NAME} "")
+#target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_11)
 set_property(TARGET ${PROJECT_NAME} APPEND PROPERTY COMPILE_DEFINITIONS _LARGEFILE_SOURCE)
 target_sources(${PROJECT_NAME} PRIVATE
 	main.c cosmo.c master.c pst.c fio.c illinois.c param.c
@@ -120,6 +124,7 @@ target_sources(${PROJECT_NAME} PRIVATE
 	lst.c moments.c ilp.c ilc.c iomodule.c
 	fof.c hop.c group.c groupstats.c RngStream.c listcomp.c healpix.c
 	tinypy.c pkdtinypy.c
+	assignmass.cxx
 )
 if(USE_BT)
 target_sources(${PROJECT_NAME} PRIVATE bt.c)
@@ -162,5 +167,6 @@ target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
 target_link_libraries(${PROJECT_NAME} mdl2 openpa)
 target_include_directories(${PROJECT_NAME} PRIVATE ${GSL_INCLUDE_DIRS})
 target_link_libraries(${PROJECT_NAME} ${GSL_LIBRARIES})
+target_link_libraries(${PROJECT_NAME} blitz)
 
 install(TARGETS ${PROJECT_NAME} DESTINATION "bin")

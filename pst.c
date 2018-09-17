@@ -53,13 +53,6 @@
 #include "group.h"
 #include "groupstats.h"
 
-#define pstOffNode(pst) ((pst)->nLeaves > mdlCores((pst)->mdl))
-#define pstOnNode(pst) ((pst)->nLeaves <= mdlCores((pst)->mdl))
-#define pstAmNode(pst) ((pst)->nLeaves == mdlCores((pst)->mdl))
-#define pstNotNode(pst) ((pst)->nLeaves != mdlCores((pst)->mdl))
-#define pstAmCore(pst) ((pst)->nLeaves == 1)
-#define pstNotCore(pst) ((pst)->nLeaves > 1)
-
 void pstAddServices(PST pst,MDL mdl) {
     int nThreads;
 
@@ -456,6 +449,9 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_MEASUREPK,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstMeasurePk,
 		  sizeof(struct inMeasurePk), sizeof(struct outMeasurePk));
+    mdlAddService(mdl,PST_ASSIGN_MASS,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstAssignMass,
+		  sizeof(struct inAssignMass), 0);
     mdlAddService(mdl,PST_SETLINGRID, pst,
            (void (*)(void*, void*, int, void*, int*)) pstSetLinGrid,
            sizeof(struct inSetLinGrid), 0);
@@ -4681,7 +4677,7 @@ void pstMeasurePk(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	free(outUpper);
 	}
     else {
-	pkdMeasurePk(plcl->pkd, in->dTotalMass,
+	pkdMeasurePk(plcl->pkd, in->dTotalMass, in->iAssignment,
 	    in->nGrid, in->nBins, out->fK, out->fPower, out->nPower);
 	}
     if (pnOut) *pnOut = sizeof(struct outMeasurePk);

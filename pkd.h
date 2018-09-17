@@ -1551,8 +1551,19 @@ void pkdCalcCOM(PKD pkd, double *dCenter, double dRadius,
 void pkdGridInitialize(PKD pkd, int n1, int n2, int n3, int a1, int s, int n);
 void pkdGridProject(PKD pkd);
 #ifdef MDL_FFTW
-void pkdMeasurePk(PKD pkd, double dTotalMass,
+#ifdef __cplusplus
+extern "C" {
+#endif
+void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int nGrid, int iAssignment);
+void pkdMeasurePk(PKD pkd, double dTotalMass, int iAssignment,
     int nGrid, int nBins, double *fK, double *fPower, uint64_t *nPower);
+void pkdSetLinGrid(PKD pkd,double dTime, double dBSize, int nGrid, int iSeed, int bFixed, float fPhase);
+void pkdMeasureLinPk(PKD pkd, int nGrid, double dA, double dBoxSize,
+                int nBins,  int iSeed, int bFixed, float fPhase, 
+                double *fK, double *fPower, uint64_t *nPower);
+#ifdef __cplusplus
+}
+#endif
 #endif
 void pkdOutPsGroup(PKD pkd,char *pszFileName,int iType);
 

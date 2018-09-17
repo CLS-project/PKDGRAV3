@@ -29,6 +29,7 @@
 #ifdef USE_ITT
 #include "ittnotify.h"
 #endif
+#include "ic.h"
 
 #define SHAPES
 #define USE_PCS /* USE_PCS USE_TSC USE_CIC USE_NGP */
@@ -976,7 +977,7 @@ static inline int pkd_grid_order(PKD pkd,void *a,void *b,int nGrid) {
 #define qsort_lt(a,b) pkd_grid_order(pkd,a,b,nGrid)
 #endif
 
-static void assign_mass(PKD pkd, double dTotalMass, double dDelta, MDLFFT fft, FFTW3(real) *fftData) {
+static void assign_mass(PKD pkd, int iAssignment, double dTotalMass, double dDelta, MDLFFT fft, FFTW3(real) *fftData) {
 //    double dScale = 0.5 / dRadius; /* Box scaling factor */
     int nGrid = fft->rgrid->n1;
     double fftNormalize = 1.0 / (1.0*nGrid*nGrid*nGrid);
@@ -987,6 +988,7 @@ static void assign_mass(PKD pkd, double dTotalMass, double dDelta, MDLFFT fft, F
     mdlGridCoordFirstLast(pkd->mdl,fft->rgrid,&first,&last,1);
     for( i=first.i; i<last.i; ++i ) fftData[i] = 0.0;
     mdlCOcache(pkd->mdl,CID_PK,NULL,fftData,sizeof(FFTW3(real)),last.i,pkd,initPk,combPk);
+#if 0
     for (i=0;i<pkd->nLocal;++i) {
 	PARTICLE *p = pkdParticle(pkd,i);
 	if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue;
@@ -1011,7 +1013,18 @@ static void assign_mass(PKD pkd, double dTotalMass, double dDelta, MDLFFT fft, F
 	pcs_assign(pkd, fft, nGrid, r[0], r[1], r[2], pkdMass(pkd,p));
 #endif
 	}
+#else
+    pkdAssignMass(pkd, ROOT, nGrid, iAssignment);
+#endif
     mdlFinishCache(pkd->mdl,CID_PK);
+
+#if 0
+    void dumpDensity(float *fftData,int nGrid);
+    if (pkd->idSelf == 0) dumpDensity(fftData,nGrid);
+    mdlThreadBarrier(pkd->mdl);
+#endif
+
+
 
     for( i=first.i; i<last.i; ++i ) {
 	assert(fftData[i] >= 0.0);
@@ -1027,7 +1040,7 @@ static void assign_mass(PKD pkd, double dTotalMass, double dDelta, MDLFFT fft, F
     mdlFFT(pkd->mdl,fft,fftData);
     }
 
-void pkdMeasurePk(PKD pkd, double dTotalMass,
+void pkdMeasurePk(PKD pkd, double dTotalMass, int iAssignment,
     int nGrid, int nBins, double *fK, double *fPower, uint64_t *nPower) {
     MDLFFT fft;
     mdlGridCoord first, last, index;
@@ -1049,15 +1062,15 @@ void pkdMeasurePk(PKD pkd, double dTotalMass,
 
     iNyquist = nGrid / 2;
 
-    fft = mdlFFTInitialize(pkd->mdl,nGrid,nGrid,nGrid,0,0);
+    pkd->fft = fft = mdlFFTInitialize(pkd->mdl,nGrid,nGrid,nGrid,0,0);
 
     mdlGridCoordFirstLast(pkd->mdl,fft->rgrid,&first,&last,1);
     fftData = mdlSetArray(pkd->mdl,last.i,sizeof(FFTW3(real)),pkd->pLite);
-    assign_mass(pkd,dTotalMass,0.0,fft,fftData);
+    assign_mass(pkd,iAssignment,dTotalMass,0.0,fft,fftData);
 
 #ifdef INTERLEAVE
     fftData2 = mdlSetArray(pkd->mdl,last.i,sizeof(FFTW3(real)),fftData + fft->rgrid->nLocal);
-    assign_mass(pkd,dTotalMass,0.5/nGrid,fft,fftData2);
+    assign_mass(pkd,iAssignment,dTotalMass,0.5/nGrid,fft,fftData2);
 #endif
 
     /* Remember, the grid is now transposed to x,z,y (from x,y,z) */
@@ -1118,6 +1131,7 @@ void pkdMeasurePk(PKD pkd, double dTotalMass,
 	    }
 	}
     mdlFFTFinish(pkd->mdl,fft);
+    pkd->fft = NULL;
 #ifdef USE_ITT
     mdlThreadBarrier(pkd->mdl);
     __itt_pause();

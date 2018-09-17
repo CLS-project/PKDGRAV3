@@ -687,6 +687,10 @@ static int validateParameters(PRM prm,struct parameters *param) {
 	if (param->nBinsPk > PST_MAX_K_BINS)
 	    param->nBinsPk = PST_MAX_K_BINS;
 	}
+    if (param->iPkOrder<0 || param->iPkOrder>3) {
+    	puts("ERROR: iPkOrder must be 0 (NGP), 1 (CIC), 2 (TSC) or 3 (PCS)");
+    	return 0;
+        }
     if ( param->nGrid ) {
 	if (param->achInFile[0]) {
 	    puts("ERROR: do not specify an input file when generating IC");
@@ -1302,6 +1306,9 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.nGridPk = 0;
     prmAddParam(msr->prm,"nGridPk",1,&msr->param.nGridPk,
 		sizeof(int),"pk","<Grid size for measure P(k) 0=disabled> = 0");
+    msr->param.iPkOrder = 3;
+    prmAddParam(msr->prm,"iPkOrder",1,&msr->param.iPkOrder,
+		sizeof(int),"pko","<Mass assignment order for measuring P(k) = 3");
     msr->param.bFixedAmpIC = 0;
     prmAddParam(msr->prm,"bFixedAmpIC",0,&msr->param.bFixedAmpIC,
 		sizeof(int),"fixedamp","<Use fixed amplitude of 1 for ICs> = -fixedamp");
@@ -5361,7 +5368,7 @@ void msrOutputPk(MSR msr,int iStep,double dTime) {
     nPk = malloc(sizeof(uint64_t)*(msr->param.nBinsPk));
     assert(nPk != NULL);
 
-    msrMeasurePk(msr,msr->param.nGridPk,msr->param.nBinsPk,nPk,fK,fPk);
+    msrMeasurePk(msr,msr->param.iPkOrder,msr->param.nGridPk,msr->param.nBinsPk,nPk,fK,fPk);
 
     msrBuildName(msr,achFile,iStep);
     strncat(achFile,".pk",256);
@@ -6085,7 +6092,7 @@ void msrGridProject(MSR msr,double x,double y,double z) {
     }
 
 #ifdef MDL_FFTW
-void msrMeasurePk(MSR msr,int nGrid,int nBins,uint64_t *nPk,float *fK,float *fPk) {
+void msrMeasurePk(MSR msr,int iAssignment,int nGrid,int nBins,uint64_t *nPk,float *fK,float *fPk) {
     struct inMeasurePk in;
     struct outMeasurePk *out;
     int nOut;
@@ -6100,17 +6107,16 @@ void msrMeasurePk(MSR msr,int nGrid,int nBins,uint64_t *nPk,float *fK,float *fPk
     fftNormalize *= fftNormalize;
 
     sec = msrTime();
+    printf("Measuring P(k) with grid size %d (%d bins)...\n",nGrid,nBins);
 
     /* NOTE: reordering the particles by their z coordinate would be good here */
+    in.iAssignment = iAssignment;
     in.nGrid = nGrid;
     in.nBins = nBins ;
     in.dTotalMass = msrTotalMass(msr);
 
     out = malloc(sizeof(struct outMeasurePk));
     assert(out != NULL);
-
-
-    printf("Measuring P(k) with grid size %d (%d bins)...\n",in.nGrid,in.nBins);
     pstMeasurePk(msr->pst, &in, sizeof(in), out, &nOut);
     for( i=0; i<nBins; i++ ) {
 	if ( out->nPower[i] == 0 ) fK[i] = fPk[i] = 0;
