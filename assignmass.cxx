@@ -17,75 +17,68 @@ struct tree_node : public KDN {
     bool is_bucket() { return iLower==0; }
     };
 
-template<typename F>
-static void ngp_weights(int ii[3],F H[][3],const F r[3]) {
-    for( int d=0; d<3; ++d) {
-    	ii[d] = r[d];
-    	H[0][d] = 1.0;
+template<int Order,typename F>
+class W {
+    template <int A, typename B> struct identity {};
+    void weights(identity<1,F> d, F r) {		// NGP
+    	i = r;
+    	H[0] = 1.0;
 	}
-    }
-
-template<typename F>
-static void cic_weights(int ii[3],F H[][3],const F r[3]) {
-    for(int d=0; d<3; ++d) {
-	F rr = r[d] - 0.5;              /* Center on grid boundary */
-	ii[d] = floorf(rr);                 /* index of first grid point [0,size] */
-	F h = rr - ii[d];  	    /* distance to first grid point */
-	H[0][d] = 1.0 - h;           	    /* calculate CIC weights */
-	H[1][d] = h;
+    void weights(identity<2,F> d, F r) {		// CIC
+	F rr = r - 0.5;
+	i = floorf(rr);
+	F h = rr - i;
+	H[0] = 1.0 - h;
+	H[1] = h;
 	}
-    }
-
-template<typename F>
-static void tsc_weights(int ii[3],F H[][3],const F r[3]) {
-    auto K0 = [](F h) { return 0.75 - h*h; };
-    auto K1 = [](F h) { return 0.50 * h*h; };
-    for(int d=0; d<3; ++d) {
-	F rr = r[d];		    /* */
-	int i = rr;      		    /* Middle cell (of three) */
-	ii[d] = i - 1;
-	F h = rr - i - 0.5;
-	H[0][d] = K1(0.5 - h);
-	H[1][d] = K0(h);
-	H[2][d] = K1(0.5 + h);
+    void weights(identity<3,F> d, F r) {		// TSC
+	auto K0 = [](F h) { return 0.75 - h*h; };
+	auto K1 = [](F h) { return 0.50 * h*h; };
+	i = int(r) - 1;
+	F h = r - i - 1.5;
+	H[0] = K1(0.5 - h);
+	H[1] = K0(h);
+	H[2] = K1(0.5 + h);
 	}
-    }
+    void weights(identity<4,F> d, F r) {		// PCS
+	auto pow3 = [](F x) { return x*x*x; };
+	auto K0   = [](F h) { return 1.0/6.0 * ( 4.0 - 6.0*h*h + 3.0*h*h*h); };
+	auto K1   = [&pow3](F h) { return 1.0/6.0 * pow3(2.0 - h); };
+	F rr = r;              	 	    /* coordinates in subcube units [0,size] */
+	i = (floorf(rr-1.5));
+	F h = rr - (i+0.5);
+	H[0] = K1(h);
+	H[1] = K0(h-1);
+	H[2] = K0(2-h);
+	H[3] = K1(3-h);
+        }
+public:
+    F H[Order];
+    int i;
+    W(F r) { weights(identity<Order,F>(),r); }
+    };
 
-template<typename F>
-static void pcs_weights(int ii[3],F H[][3],const F r[3]) {
-    auto pow3 = [](F x) { return x*x*x; };
-    auto K0   = [](F h) { return 1.0/6.0 * ( 4.0 - 6.0*h*h + 3.0*h*h*h); };
-    auto K1   = [&pow3](F h) { return 1.0/6.0 * pow3(2.0 - h); };
-    for(int d=0; d<3; ++d) {
-	F rr = r[d];              	 	    /* coordinates in subcube units [0,size] */
-	ii[d] = (floorf(rr-1.5));
-	F h = rr - (ii[d]+0.5);
-	H[0][d] = K1(h);
-	H[1][d] = K0(h-1);
-	H[2][d] = K0(2-h);
-	H[3][d] = K1(3-h);
+template<int Order,typename F>
+static void assign(mass_array_t &masses, const F r[3], F mass) {
+    W<Order,F> Hx(r[0]),Hy(r[1]),Hz(r[2]);
+
+    for(int i=0; i<Order; ++i) {
+	for(int j=0; j<Order; ++j) {
+	    for(int k=0; k<Order; ++k) {
+		masses(Hx.i+i,Hy.i+j,Hz.i+k) += Hx.H[i]*Hy.H[j]*Hz.H[k] * mass;
+		}
+	    }
 	}
     }
 
 template<typename F>
 static void assign_mass(mass_array_t &masses, const F r[3], F mass,int iAssignment=4) {
-    int    ii[3];
-    F  H[4][3];
-    switch(iAssignment) { // Get weights/indexes based on choosen assignment scheme
-	case 1: ngp_weights(ii,H,r); break;
-	case 2: cic_weights(ii,H,r); break;
-	case 3: tsc_weights(ii,H,r); break;
-	case 4: pcs_weights(ii,H,r); break;
+    switch(iAssignment) {
+	case 1: assign<1,F>(masses,r,mass); break;
+	case 2: assign<2,F>(masses,r,mass); break;
+	case 3: assign<3,F>(masses,r,mass); break;
+	case 4: assign<4,F>(masses,r,mass); break;
 	default: assert(iAssignment>=1 && iAssignment<=4); abort();
-	}
-
-    /* assign particle according to weights to neighboring nodes */
-    for(int i=0; i<iAssignment; ++i) {
-	for(int j=0; j<iAssignment; ++j) {
-	    for(int k=0; k<iAssignment; ++k) {
-		masses(ii[0]+i,ii[1]+j,ii[2]+k) += H[i][0]*H[j][1]*H[k][2] * mass;
-		}
-	    }
 	}
     }
 
