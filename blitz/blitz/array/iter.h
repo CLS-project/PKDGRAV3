@@ -93,6 +93,12 @@ public:
         ++pos_(order_(0));
     }
 
+    ConstArrayIterator(const Array<T,N>& array, const TinyVector<int,N> & pos) : 
+        data_(const_cast<T*>(&array(pos))) {
+        Init(array);
+        pos_ = pos;
+    }
+
     bool operator==(const ConstArrayIterator<T,N>& x) const 
     { return data_ == x.data_; }
     
@@ -168,6 +174,8 @@ public:
     ArrayIterator(Array<T,N>& x) : T_base(x) { }
 
     ArrayIterator(const Array<T,N>& array, const int): T_base(array,0) { }
+
+    ArrayIterator(const Array<T,N>& array, const TinyVector<int,N> &pos) : T_base(array,pos) { }
 
     T& operator*() const {
         CheckIteratorValidity("Attempted to dereference",0);
