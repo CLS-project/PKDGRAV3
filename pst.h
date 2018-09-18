@@ -181,7 +181,9 @@ enum pst_service {
     PST_HOP_GRAVITY,
     PST_HOP_UNBIND,
     PST_GROUP_RELOCATE,
-    PST_GROUP_STATS,
+    PST_GROUP_STATS1,
+    PST_SHRINK_PHASES,
+    PST_GROUP_STATS2,
     PST_HOP_SEND_STATS,
     PST_GROUPPROFILES,
     PST_INITRELAXATION,
@@ -236,6 +238,7 @@ enum pst_service {
     PST_TOTALMASS,
     PST_LIGHTCONE_OPEN,
     PST_LIGHTCONE_CLOSE,
+    PST_LIGHTCONEVEL,
     PST_INFLATE,
     PST_GET_PARTICLES,
     };
@@ -574,13 +577,27 @@ void pstHopUnbind(PST,void *,int,void *,int *);
 /* PST_GROUP_RELOCATE */
 void pstGroupRelocate(PST,void *,int,void *,int *);
 
-/* PST_GROUP_STATS */
-struct inGroupStats {
+/* PST_GROUP_STATS1 */
+struct inGroupStats1 {
     int bPeriodic;
     double dPeriod[3];
     double rEnvironment[2];
     };
-void pstGroupStats(PST,void *,int,void *,int *);
+void pstGroupStats1(PST,void *,int,void *,int *);
+
+/* PST_SHRINK_PHASES */
+struct outShrinkPhases {
+    int bdone;
+    };   
+void pstShrinkPhases(PST,void *,int,void *,int *);
+
+/* PST_GROUP_STATS2 */
+struct inGroupStats2 {
+    int bPeriodic;
+    double dPeriod[3];
+    double rEnvironment[2];
+    };
+void pstGroupStats2(PST,void *,int,void *,int *);
 
 
 /* PST_HOP_SEND_STATS */
@@ -1374,6 +1391,8 @@ struct inLightConeClose {
     char achOutFile[PST_FILENAME_SIZE];
     };
 void pstLightConeClose(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+
+void pstLightConeVel(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 
 /* PST_INFLATE */
 struct inInflate {

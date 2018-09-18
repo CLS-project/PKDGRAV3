@@ -468,6 +468,9 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_LIGHTCONE_CLOSE,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstLightConeClose,
 		  sizeof(struct inLightConeClose), 0);
+    mdlAddService(mdl,PST_LIGHTCONEVEL,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstLightConeVel,
+		  0,0);
     mdlAddService(mdl,PST_INFLATE,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstInflate,
 	          sizeof(struct inInflate), 0);
@@ -4787,6 +4790,22 @@ void pstLightConeClose(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
         }
     if (pnOut) *pnOut = 0;
 }
+
+void pstLightConeVel(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    struct inScaleVel *in = vin;
+
+    mdlassert(pst->mdl,nIn == 0);
+    if (pst->nLeaves > 1) {
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_LIGHTCONEVEL,in,nIn);
+	pstLightConeVel(pst->pstLower,in,nIn,NULL,NULL);
+	mdlGetReply(pst->mdl,rID,NULL,NULL);
+	}
+    else {
+	pkdLightConeVel(plcl->pkd);
+	}
+    if (pnOut) *pnOut = 0;
+    }
 
 void pstInflate(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;

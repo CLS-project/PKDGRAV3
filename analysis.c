@@ -994,9 +994,9 @@ static void assign_mass(PKD pkd, int iAssignment, double dTotalMass, double dDel
 	if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue;
 	/* Recenter, apply periodic boundary and scale to the correct size */
 	for(j=0;j<3;j++) {
-	    r[j] = pkdPos(pkd,p,j) + 0.5 + dDelta;
+	    r[j] = pkdPos(pkd,p,j) + 0.5*pkd->fPeriod[j] + dDelta;
 	    if (r[j]>=pkd->fPeriod[j]) r[j] -= pkd->fPeriod[j];
-	        else if (r[j]<0) r[j] += pkd->fPeriod[j];
+	    else if (r[j] < 0) r[j] += pkd->fPeriod[j];
 	    }
 	/* 
 	** The position has been rescaled to [0,1).  If it is not in that range,
