@@ -181,6 +181,7 @@ enum pst_service {
     PST_HOP_GRAVITY,
     PST_HOP_UNBIND,
     PST_GROUP_RELOCATE,
+    PST_GROUP_STATS,
     PST_GROUP_STATS1,
     PST_SHRINK_PHASES,
     PST_GROUP_STATS2,
@@ -576,6 +577,14 @@ void pstHopUnbind(PST,void *,int,void *,int *);
 
 /* PST_GROUP_RELOCATE */
 void pstGroupRelocate(PST,void *,int,void *,int *);
+
+/* PST_GROUP_STATS */
+struct inGroupStats {
+    int bPeriodic;
+    double dPeriod[3];
+    double rEnvironment[2];
+    };
+void pstGroupStats(PST,void *,int,void *,int *);
 
 /* PST_GROUP_STATS1 */
 struct inGroupStats1 {
