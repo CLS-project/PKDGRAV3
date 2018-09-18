@@ -687,8 +687,8 @@ static int validateParameters(PRM prm,struct parameters *param) {
 	if (param->nBinsPk > PST_MAX_K_BINS)
 	    param->nBinsPk = PST_MAX_K_BINS;
 	}
-    if (param->iPkOrder<0 || param->iPkOrder>3) {
-    	puts("ERROR: iPkOrder must be 0 (NGP), 1 (CIC), 2 (TSC) or 3 (PCS)");
+    if (param->iPkOrder<1 || param->iPkOrder>4) {
+    	puts("ERROR: iPkOrder must be 1 (NGP), 2 (CIC), 3 (TSC) or 4 (PCS)");
     	return 0;
         }
     if ( param->nGrid ) {
@@ -1306,7 +1306,7 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.nGridPk = 0;
     prmAddParam(msr->prm,"nGridPk",1,&msr->param.nGridPk,
 		sizeof(int),"pk","<Grid size for measure P(k) 0=disabled> = 0");
-    msr->param.iPkOrder = 3;
+    msr->param.iPkOrder = 4;
     prmAddParam(msr->prm,"iPkOrder",1,&msr->param.iPkOrder,
 		sizeof(int),"pko","<Mass assignment order for measuring P(k) = 3");
     msr->param.bFixedAmpIC = 0;

@@ -68,21 +68,21 @@ static void pcs_weights(int ii[3],F H[][3],const F r[3]) {
     }
 
 template<typename F>
-static void assign_mass(mass_array_t &masses, const F r[3], F mass,int iAssignment=3) {
+static void assign_mass(mass_array_t &masses, const F r[3], F mass,int iAssignment=4) {
     int    ii[3];
     F  H[4][3];
     switch(iAssignment) { // Get weights/indexes based on choosen assignment scheme
-	case 0: ngp_weights(ii,H,r); break;
-	case 1: cic_weights(ii,H,r); break;
-	case 2: tsc_weights(ii,H,r); break;
-	case 3: pcs_weights(ii,H,r); break;
-	default: assert(iAssignment>=0 && iAssignment<=3); abort();
+	case 1: ngp_weights(ii,H,r); break;
+	case 2: cic_weights(ii,H,r); break;
+	case 3: tsc_weights(ii,H,r); break;
+	case 4: pcs_weights(ii,H,r); break;
+	default: assert(iAssignment>=1 && iAssignment<=4); abort();
 	}
 
     /* assign particle according to weights to neighboring nodes */
-    for(int i=0; i<=iAssignment; ++i) {
-	for(int j=0; j<=iAssignment; ++j) {
-	    for(int k=0; k<=iAssignment; ++k) {
+    for(int i=0; i<iAssignment; ++i) {
+	for(int j=0; j<iAssignment; ++j) {
+	    for(int k=0; k<iAssignment; ++k) {
 		masses(ii[0]+i,ii[1]+j,ii[2]+k) += H[i][0]*H[j][1]*H[k][2] * mass;
 		}
 	    }
@@ -131,7 +131,7 @@ void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int nGrid, int iAssignment) {
     shape_t index;
     position_t fPeriod(pkd->fPeriod), ifPeriod = 1.0 / fPeriod;
 
-    assert(iAssignment>=0 && iAssignment<=3);
+    assert(iAssignment>=1 && iAssignment<=4);
 
     std::vector<std::uint32_t> stack;
     stack.push_back(iLocalRoot);
@@ -140,8 +140,8 @@ void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int nGrid, int iAssignment) {
 	stack.pop_back(); // Go to the next node in the tree
 	BND bnd = pkdNodeGetBnd(pkd, kdn);
 	position_t fCenter(bnd.fCenter), fMax(bnd.fMax);
-	const shape_t ilower = shape_t(((fCenter - fMax) * ifPeriod + 0.5) * nGrid) - (iAssignment+1)/2;
-	const shape_t iupper = shape_t(((fCenter + fMax) * ifPeriod + 0.5) * nGrid) + (iAssignment+1)/2;
+	const shape_t ilower = shape_t(((fCenter - fMax) * ifPeriod + 0.5) * nGrid) - iAssignment/2;
+	const shape_t iupper = shape_t(((fCenter + fMax) * ifPeriod + 0.5) * nGrid) + iAssignment/2;
 	const shape_t ishape = iupper - ilower + 1;
 	const float3_t flower = ilower;
 	std::size_t size = blitz::product(ishape);
@@ -189,8 +189,8 @@ void msrAssignMass(MSR msr,int iAssignment,int nGrid) {
     	"Nearest Grid Point (NGP)", "Cloud in Cell (CIC)",
         "Triangular Shaped Cloud (TSC)", "Piecewise Cubic Spline (PCS)" };
     struct inAssignMass mass;
-    assert(iAssignment>=0 && iAssignment<=3);
-    printf("Assigning mass using %s (order %d)\n",schemes[iAssignment],iAssignment);
+    assert(iAssignment>=1 && iAssignment<=4);
+    printf("Assigning mass using %s (order %d)\n",schemes[iAssignment-1],iAssignment);
     mass.nGrid = nGrid;
     mass.iAssignment = iAssignment;
     auto sec = msrTime();
