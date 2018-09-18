@@ -21,8 +21,6 @@
 #include "pkd_config.h"
 #endif
 
-#define _LARGEFILE_SOURCE
-#define _FILE_OFFSET_BITS 64
 #ifdef ENABLE_FE
 #include <fenv.h>
 #endif
@@ -199,6 +197,7 @@ void * master_ch(MDL mdl) {
 	    msrDomainDecomp(msr,0,0,0);
 	    msrUpdateSoft(msr,dTime);
 	    msrBuildTree(msr,dTime,msr->param.bEwald);
+	    msrOutputOrbits(msr,iStartStep,dTime);
 #ifdef MDL_FFTW
 	    if (bDoPk) {
 		msrOutputPk(msr,iStartStep,dTime);
@@ -278,6 +277,7 @@ void * master_ch(MDL mdl) {
 	msrDomainDecomp(msr,0,0,0);
 	msrUpdateSoft(msr,dTime);
 	msrBuildTree(msr,dTime,msr->param.bEwald);
+	msrOutputOrbits(msr,iStartStep,dTime);
 #ifdef MDL_FFTW
 	if (msr->param.nGridPk>0) {
 	    msrOutputPk(msr,iStartStep,dTime);
@@ -289,6 +289,13 @@ void * master_ch(MDL mdl) {
 		bKickOpen = 1;
 		}
 	    else bKickOpen = 0;
+
+            /* Compute the grids of the linear species before doing gravity */
+            if (strlen(msr->param.csm->val.classData.achLinSpecies)){
+                msrSetLinGrid(msr,dTime, msr->param.nGridLin);
+                if (msr->param.bDoLinPkOutput)
+                    msrOutputLinPk(msr, iStartStep, dTime);
+            }
 	    uRungMax = msrGravity(msr,0,MAX_RUNG,ROOT,0,dTime,iStartStep,0,bKickOpen,msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
 	    msrMemStatus(msr);
 	    if (msr->param.bGravStep) {
@@ -327,8 +334,14 @@ void * master_ch(MDL mdl) {
 		ddTime = dTime;
 		if (bDoOpeningKick) {
 		    bDoOpeningKick = 0; /* clear the opening kicking flag */
-		    msrLightConeOpen(msr,iStep);  /* open the lightcone */
+                    msrLightConeOpen(msr,iStep);  /* open the lightcone */
 		    uRungMax = msrGravity(msr,0,MAX_RUNG,ROOT,0,ddTime,diStep,0,1,msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
+                    /* Set the grids of the linear species */
+                    if (strlen(msr->param.csm->val.classData.achLinSpecies)){
+		        msrSetLinGrid(msr, dTime, msr->param.nGridLin);
+                        if (msr->param.bDoLinPkOutput)
+                            msrOutputLinPk(msr, iStartStep, dTime);
+                        }
 		    }
 		msrNewTopStepKDK(msr,0,0,&diStep,&ddTime,&uRungMax,&iSec,&bDoCheckpoint,&bDoOutput);
 		bDoOpeningKick = bDoCheckpoint || bDoOutput;
@@ -342,6 +355,7 @@ void * master_ch(MDL mdl) {
 	    lSec = time(0) - lSec;
 	    msrMemStatus(msr);
 
+	    msrOutputOrbits(msr,iStep,dTime);
 #ifdef MDL_FFTW
 	    if (msr->param.iPkInterval && iStep%msr->param.iPkInterval == 0) {
 		msrOutputPk(msr,iStep,dTime);

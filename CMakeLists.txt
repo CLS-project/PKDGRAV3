@@ -1,16 +1,18 @@
-cmake_minimum_required(VERSION 2.4)
-if(COMMAND cmake_policy)
-  cmake_policy(SET CMP0003 NEW)
-endif(COMMAND cmake_policy)
+cmake_minimum_required(VERSION 3.1)
 project(pkdgrav3)
+
+include(CheckFunctionExists)
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   message(STATUS "Release build with debug info selected")
   set(CMAKE_BUILD_TYPE RelWithDebInfo)
 endif()
-if(UNIX)
-  set(CMAKE_REQUIRED_LIBRARIES m)
-  set(HAVE_LIBM 1)
+
+CHECK_FUNCTION_EXISTS(pow HAVE_LIBM)
+if(NOT HAVE_LIBM)
+  unset(HAVE_LIBM)
+  list(APPEND CMAKE_REQUIRED_LIBRARIES m)
+  CHECK_FUNCTION_EXISTS(pow HAVE_LIBM)
 endif()
 
 include(CheckCXXCompilerFlag)
@@ -31,9 +33,8 @@ if (COMPILER_OPT_WARN_ALL_SUPPORTED)
 endif()
 #find_package(CUDA)
 find_package(GSL REQUIRED)      # GNU Scientific Library
-find_package(HDF5)
-find_package(PythonLibs)
-
+find_package(HDF5 COMPONENTS HL)
+#find_package(PythonLibs)
 # _GNU_SOURCE gives us more options
 INCLUDE(CheckCSourceCompiles)
 check_c_source_compiles("
@@ -110,15 +111,19 @@ check_symbol_exists(backtrace execinfo.h USE_BT)
 #AC_CHECK_FUNCS([gethrtime read_real_time time_base_to_time clock_gettime mach_absolute_time])
 check_symbol_exists(atexit stdlib.h HAVE_ATEXIT)
 
+add_subdirectory(blitz)
 add_subdirectory(mdl2)
 add_executable(${PROJECT_NAME} "")
+target_compile_features(${PROJECT_NAME} PRIVATE cxx_auto_type cxx_lambdas)
+set_property(TARGET ${PROJECT_NAME} APPEND PROPERTY COMPILE_DEFINITIONS _LARGEFILE_SOURCE)
 target_sources(${PROJECT_NAME} PRIVATE
 	main.c cosmo.c master.c pst.c fio.c illinois.c param.c
 	pkd.c analysis.c smooth.c smoothfcn.c outtype.c output.c
 	walk2.c grav2.c ewald.cxx ic.cxx tree.c opening.cxx pp.cxx pc.cxx cl.c
 	lst.c moments.c ilp.c ilc.c iomodule.c
 	fof.c hop.c group.c groupstats.c RngStream.c listcomp.c healpix.c
-	tinypy.c
+	tinypy.c pkdtinypy.c
+	assignmass.cxx
 )
 if(USE_BT)
 target_sources(${PROJECT_NAME} PRIVATE bt.c)
@@ -135,8 +140,8 @@ endif()
 if (HDF5_FOUND)
   set(USE_HDF5 TRUE)
   target_include_directories(${PROJECT_NAME} PUBLIC ${HDF5_INCLUDE_DIRS})
-  target_link_libraries(${PROJECT_NAME} ${HDF5_LIBRARIES})
-  set_property(TARGET ${PROJECT_NAME} APPEND PROPERTY COMPILE_FLAGS ${HDF5_DEFINITIONS})
+  target_link_libraries(${PROJECT_NAME} ${HDF5_LIBRARIES} ${HDF5_HL_LIBRARIES})
+  #set_property(TARGET ${PROJECT_NAME} APPEND PROPERTY COMPILE_DEFINITIONS ${HDF5_DEFINITIONS})
   #set_property(TARGET ${PROJECT_NAME} APPEND PROPERTY COMPILE_DEFINITIONS H5_USE_16_API)
 endif(HDF5_FOUND)
 if (PYTHONLIBS_FOUND)
@@ -161,5 +166,6 @@ target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
 target_link_libraries(${PROJECT_NAME} mdl2 openpa)
 target_include_directories(${PROJECT_NAME} PRIVATE ${GSL_INCLUDE_DIRS})
 target_link_libraries(${PROJECT_NAME} ${GSL_LIBRARIES})
+target_link_libraries(${PROJECT_NAME} blitz)
 
 install(TARGETS ${PROJECT_NAME} DESTINATION "bin")

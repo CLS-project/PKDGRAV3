@@ -21,7 +21,86 @@
 #define USE_GSL_COSMO
 #ifdef USE_GSL_COSMO
 #include <gsl/gsl_integration.h>
+#include <gsl/gsl_spline.h>
+#include <gsl/gsl_interp2d.h>
+#include <gsl/gsl_spline2d.h>
 #endif
+
+/*
+** Nested strucst storing the CLASS data.
+** They are nested in the following way:
+** - classDataStruct (classData)
+**   - classDataBackgroundStruct (background)
+**   - classDataPerturbationsStruct (perturbations)
+*/
+#define CLASS_BACKGROUND_SIZE 10000
+#define CLASS_PERTURBATIONS_A_SIZE 1024
+#define CLASS_PERTURBATIONS_K_SIZE 256
+struct classDataBackgroundStruct{
+    size_t size;
+    double a      [CLASS_BACKGROUND_SIZE];
+    double t      [CLASS_BACKGROUND_SIZE];
+    double H      [CLASS_BACKGROUND_SIZE];
+    double rho_m  [CLASS_BACKGROUND_SIZE];
+    double rho_lin[CLASS_BACKGROUND_SIZE];
+};
+struct classDataPerturbationsStruct{
+    size_t size_a;
+    size_t size_k;
+    double a[CLASS_PERTURBATIONS_A_SIZE];
+    double k[CLASS_PERTURBATIONS_K_SIZE];
+    double delta_m  [CLASS_PERTURBATIONS_A_SIZE*CLASS_PERTURBATIONS_K_SIZE];
+    double theta_m  [CLASS_PERTURBATIONS_A_SIZE*CLASS_PERTURBATIONS_K_SIZE];
+    double delta_lin[CLASS_PERTURBATIONS_A_SIZE*CLASS_PERTURBATIONS_K_SIZE];
+    double A_s;
+    double n_s;
+    double alpha_s;
+    double k_pivot;
+};
+struct classDataStruct{
+    int bClass;
+    char achFilename[256];
+    char achLinSpecies[128];
+    struct classDataBackgroundStruct background;
+    struct classDataPerturbationsStruct perturbations;
+};
+
+/* Nested strucst storing the CLASS GSL objects.
+** They are nested in the following way:
+** - classGslStruct (classGsl)
+**   - classGslBackgroundStruct (background)
+**   - classGslPerturbationsStruct (perturbations)
+*/
+struct classGslBackgroundStruct{
+    gsl_interp_accel *logExp2logHub_acc;
+    gsl_spline       *logExp2logHub_spline;
+    gsl_interp_accel *logTime2logHub_acc;
+    gsl_spline       *logTime2logHub_spline;
+    gsl_interp_accel *logExp2logTime_acc;
+    gsl_spline       *logExp2logTime_spline;
+    gsl_interp_accel *logTime2logExp_acc;
+    gsl_spline       *logTime2logExp_spline;
+    gsl_interp_accel *logExp2logRho_m_acc;
+    gsl_spline       *logExp2logRho_m_spline;
+    gsl_interp_accel *logExp2logRho_lin_acc;
+    gsl_spline       *logExp2logRho_lin_spline;
+};
+struct classGslPerturbationsStruct{
+    gsl_interp_accel *logk2delta_m_acc;
+    gsl_interp_accel *loga2delta_m_acc;
+    gsl_spline2d     *logkloga2delta_m_spline;
+    gsl_interp_accel *logk2theta_m_acc;
+    gsl_interp_accel *loga2theta_m_acc;
+    gsl_spline2d     *logkloga2theta_m_spline;
+    gsl_interp_accel *logk2delta_lin_acc;
+    gsl_interp_accel *loga2delta_lin_acc;
+    gsl_spline2d     *logkloga2delta_lin_spline;
+};
+struct classGslStruct{
+    int initialized;
+    struct classGslBackgroundStruct background;
+    struct classGslPerturbationsStruct perturbations;
+};
 
     struct csmVariables {
 	int bComove;
@@ -36,6 +115,7 @@
 	double dSigma8;
 	double dNormalization;  /* either sigma8 or normalization must be non-zero */
 	double dSpectral;
+	struct classDataStruct classData;
 	};
 
 
@@ -45,15 +125,42 @@ typedef struct csmContext {
 #ifdef USE_GSL_COSMO
     gsl_integration_workspace *W;
 #endif
+    struct classGslStruct classGsl;
     } * CSM;
 #ifdef __cplusplus
 extern "C" {
 #endif
+    void csmClassRead(CSM csm, double dBoxSize);
+    void csmClassGslInitialize(CSM csm);
+    double csmRhoBar_m  (CSM csm, double a);
+    double csmRhoBar_lin(CSM csm, double a);
+    double csmDelta_m   (CSM csm, double a, double k);
+    double csmTheta_m   (CSM csm, double a, double k);
+    double csmDelta_lin (CSM csm, double a, double k);
+
     void csmInitialize(CSM *pcsm);
     void csmFinish(CSM csm);
     double csmRadMatEquivalence(CSM csm);
 
     static inline double csmExp2Hub(CSM csm, double dExp) {
+        if (csm->val.classData.bClass){
+            if (dExp > csm->val.classData.background.a[csm->val.classData.background.size - 1]){
+                /* dExp is in the future; do linear extrapolation */
+                return csm->val.classData.background.H[csm->val.classData.background.size - 1]
+                    + (
+                        csm->val.classData.background.H[csm->val.classData.background.size - 1]
+                      - csm->val.classData.background.H[csm->val.classData.background.size - 2]
+                    )/(
+                        csm->val.classData.background.a[csm->val.classData.background.size - 1]
+                      - csm->val.classData.background.a[csm->val.classData.background.size - 2]
+                    )*(dExp - csm->val.classData.background.a[csm->val.classData.background.size - 1]);
+            }
+            return exp(gsl_spline_eval(
+                csm->classGsl.background.logExp2logHub_spline,
+                log(dExp),
+                csm->classGsl.background.logExp2logHub_acc));
+        }
+
         double dOmegaCurve = 1.0 - csm->val.dOmega0 - csm->val.dLambda - csm->val.dOmegaDE - csm->val.dOmegaRad;
 
         assert(dExp > 0.0);

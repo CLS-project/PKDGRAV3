@@ -81,6 +81,9 @@ static inline int64_t d2u64(double d) {
 #define CID_BIN		4
 #define CID_SHAPES	5
 #define CID_PK          2
+#define CID_GridLinFx   2
+#define CID_GridLinFy   10
+#define CID_GridLinFz   11
 #define CID_PNG         2
 #define CID_SADDLE_BUF  3
 #define CID_TREE_ROOT   3
@@ -897,6 +900,7 @@ typedef struct pkdContext {
 #endif
 #ifdef MDL_FFTW
     MDLFFT fft;
+    MDLFFT Linfft;
 #endif
     MDLGRID grid;
     float *gridData;
@@ -1409,6 +1413,7 @@ void pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     double dAccFac,double dTime,int nReps,int bPeriodic,
     int bEwald,int nGroup,int iRoot1, int iRoot2,
     double fEwCut,double fEwhCut,double dThetaMin,
+    int bLinearSpecies,
     uint64_t *pnActive,
     double *pdPart,double *pdPartNumAccess,double *pdPartMissRatio,
     double *pdCell,double *pdCellNumAccess,double *pdCellMissRatio,
@@ -1546,8 +1551,19 @@ void pkdCalcCOM(PKD pkd, double *dCenter, double dRadius,
 void pkdGridInitialize(PKD pkd, int n1, int n2, int n3, int a1, int s, int n);
 void pkdGridProject(PKD pkd);
 #ifdef MDL_FFTW
-void pkdMeasurePk(PKD pkd, double dTotalMass,
+#ifdef __cplusplus
+extern "C" {
+#endif
+void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int nGrid, int iAssignment);
+void pkdMeasurePk(PKD pkd, double dTotalMass, int iAssignment,
     int nGrid, int nBins, double *fK, double *fPower, uint64_t *nPower);
+void pkdSetLinGrid(PKD pkd,double dTime, double dBSize, int nGrid, int iSeed, int bFixed, float fPhase);
+void pkdMeasureLinPk(PKD pkd, int nGrid, double dA, double dBoxSize,
+                int nBins,  int iSeed, int bFixed, float fPhase, 
+                double *fK, double *fPower, uint64_t *nPower);
+#ifdef __cplusplus
+}
+#endif
 #endif
 void pkdOutPsGroup(PKD pkd,char *pszFileName,int iType);
 

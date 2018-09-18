@@ -101,7 +101,7 @@ static inline uint32_t lstCount(LST *lst) {
     }
 
 static inline void *lstReposition(LST *lst) {
-    register LSTTILE *tile = lst->tile;
+    LSTTILE *tile = lst->tile;
     if (tile->nRefs > 1) tile=lstSplit(lst);
     if (tile->nInLast == lst->nPerBlock ) {
 	if ( ++tile->nBlocks == lst->nBlocksPerTile ) {

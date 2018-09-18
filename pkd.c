@@ -20,8 +20,6 @@
 #else
 #include "pkd_config.h"
 #endif
-#define _LARGEFILE_SOURCE
-#define _FILE_OFFSET_BITS 64
 #ifdef HAVE_INTTYPES_H
 #include <inttypes.h>
 #else
@@ -442,6 +440,7 @@ void pkdInitialize(
 
 #ifdef MDL_FFTW
     pkd->fft = NULL;
+    pkd->Linfft = NULL;
 #endif
 
     /*
@@ -763,7 +762,7 @@ void pkdInitialize(
 
     pkd->fSoftFix = -1.0;
     pkd->fSoftFac = 1.0;
-    pkd->fSoftMax = HUGE;
+    pkd->fSoftMax = HUGE_VALF;
     /*
     ** Ewald stuff!
     */
@@ -2223,7 +2222,7 @@ void pkdSetSoft(PKD pkd,double dSoft) {
 
 void pkdPhysicalSoft(PKD pkd,double dSoftMax,double dFac,int bSoftMaxMul) {
     pkd->fSoftFac = dFac;
-    pkd->fSoftMax = bSoftMaxMul ? HUGE : dSoftMax;
+    pkd->fSoftMax = bSoftMaxMul ? HUGE_VALF : dSoftMax;
     }
 
 void
@@ -2233,6 +2232,7 @@ pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     double dAccFac,double dTime,int nReps,int bPeriodic,
     int bEwald,int nGroup,int iRoot1, int iRoot2,
     double fEwCut,double fEwhCut,double dThetaMin,
+    int bLinearSpecies,
     uint64_t *pnActive,
     double *pdPart,double *pdPartNumAccess,double *pdPartMissRatio,
     double *pdCell,double *pdCellNumAccess,double *pdCellMissRatio,
@@ -2270,6 +2270,19 @@ pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     */
     mdlROcache(pkd->mdl,CID_PARTICLE,NULL,pkdParticleBase(pkd),pkdParticleSize(pkd),
 	       pkdLocal(pkd));
+
+    /* Start linear species grids caching space (for inverse force interpolation)*/
+    if (bLinearSpecies){
+        mdlGridCoord  first, last;
+        mdlGridCoordFirstLast(pkd->mdl,pkd->Linfft->rgrid,&first,&last,1);
+        FFTW3(real)* forceX = mdlSetArray(pkd->mdl,last.i,sizeof(FFTW3(real)),pkd->pLite);
+        FFTW3(real)* forceY = mdlSetArray(pkd->mdl,last.i,sizeof(FFTW3(real)),forceX + pkd->Linfft->rgrid->nLocal);
+        FFTW3(real)* forceZ = mdlSetArray(pkd->mdl,last.i,sizeof(FFTW3(real)),forceY + pkd->Linfft->rgrid->nLocal);
+ 
+        mdlROcache(pkd->mdl,CID_GridLinFx,NULL, forceX, sizeof(FFTW3(real)),last.i );
+        mdlROcache(pkd->mdl,CID_GridLinFy,NULL, forceY, sizeof(FFTW3(real)),last.i );
+        mdlROcache(pkd->mdl,CID_GridLinFz,NULL, forceZ, sizeof(FFTW3(real)),last.i );
+    }
     /*
     ** Calculate newtonian gravity, including replicas if any.
     */
@@ -2316,6 +2329,12 @@ pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     ** Stop particle caching space.
     */
     mdlFinishCache(pkd->mdl,CID_PARTICLE);
+    /* Stop the linear species grids caching space */
+    if (bLinearSpecies){
+       mdlFinishCache(pkd->mdl,CID_GridLinFx);
+       mdlFinishCache(pkd->mdl,CID_GridLinFy);
+       mdlFinishCache(pkd->mdl,CID_GridLinFz);
+    }
 
     for (i=0;i<=IRUNGMAX;++i) pnRung[i] = pkd->nRung[i];
 
@@ -2973,6 +2992,9 @@ void pkdInitStep(PKD pkd, struct parameters *p, struct csmVariables *cosmo) {
     */
     csmInitialize(&pkd->param.csm);
     pkd->param.csm->val = *cosmo;
+    if (pkd->param.csm->val.classData.bClass){
+        csmClassGslInitialize(pkd->param.csm);
+    }
     }
 
 

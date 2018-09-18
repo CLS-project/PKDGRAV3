@@ -21,8 +21,6 @@
 #include "pkd_config.h"
 #endif
 
-#define _LARGEFILE_SOURCE
-#define _FILE_OFFSET_BITS 64
 #include <stdio.h>
 #include <stdlib.h>
 #ifdef HAVE_UNISTD_H
@@ -287,8 +285,24 @@ void msrInitializePStore(MSR msr, uint64_t *nSpecies) {
 	ps.nMinEphemeral = 2*outFFTSizes.nMaxLocal*sizeof(FFTW3(real));
 #else
 	ps.nMinEphemeral = outFFTSizes.nMaxLocal*sizeof(FFTW3(real));
+    }
+    /* 
+     * Add some ephemeral memory (if needed) for the linGrid.
+     * 3 grids are stored : forceX, forceY, forceZ
+     */
+    if (strlen(msr->param.csm->val.classData.achLinSpecies)){
+        struct inGetFFTMaxSizes inFFTSizes;
+        struct outGetFFTMaxSizes outFFTSizes;
+        int n;
+
+        inFFTSizes.nx = inFFTSizes.ny = inFFTSizes.nz = msr->param.nGridLin;
+        pstGetFFTMaxSizes(msr->pst, &inFFTSizes,sizeof(inFFTSizes), &outFFTSizes, &n);
+    
+        if (ps.nMinEphemeral < 3*outFFTSizes.nMaxLocal*sizeof(FFTW3(real)))
+            ps.nMinEphemeral = 3*outFFTSizes.nMaxLocal*sizeof(FFTW3(real));
+    }
 #endif
-	}
+
     if (msr->param.nGrid>0) {
 	struct inGetFFTMaxSizes inFFTSizes;
 	struct outGetFFTMaxSizes outFFTSizes;
@@ -327,10 +341,13 @@ static int readParametersClasses(MSR msr,FILE *fp) {
 
 static int parseString(char *s, int size, const char *match) {
     char *p;
-    if ( (p = strchr(s,'=')) == NULL) return 0;
-    *p++ = 0;
+    if (match) {
+	if ( (p = strchr(s,'=')) == NULL) return 0;
+	*p++ = 0;
+	if (strcmp(s,match)!=0) return 0;
+	}
+    else p = s;
     if (*p++ != '"') return 0;
-    if (strcmp(s,match)!=0) return 0;
     size_t n = strlen(p);
     while(n && isspace(p[n-1])) --n;
     if (n==0) return 0;
@@ -357,6 +374,7 @@ int readParameters(MSR msr,const char *fileName) {
     char achFormat[50];
     char *pScan, *p;
     int bError = 0;
+    int n;
 
     if (fp==NULL) return 0;
 
@@ -379,28 +397,49 @@ int readParameters(MSR msr,const char *fileName) {
 	    pScan = achBuffer;
 	    if (*pScan=='#') ++pScan;
 	    else  pn->bFile = 1;
-	    switch (pn->iType) {
-	    case 0:
-	    case 1:
-		assert(pn->iSize == sizeof(int));
-		sprintf(achFormat,"%s=%%d\n",pn->pszName);
-		if (sscanf(pScan,achFormat,pn->pValue)!=1) bError=1;
-		break;
-	    case 2:
-		assert(pn->iSize == sizeof(double));
-		sprintf(achFormat,"%s=%%lg\n",pn->pszName);
-		if (sscanf(pScan,achFormat,pn->pValue)!=1) bError=1;
-		break;
-	    case 3:
-		if (parseString(pScan,256,pn->pszName)!=1) bError = 1;
-		else strcpy(pn->pValue,pScan);
-		break;
-	    case 4:
-		assert(pn->iSize == sizeof(uint64_t));
-		sprintf(achFormat,"%s=%%llu\n",pn->pszName);
-		if (sscanf(pScan,achFormat,pn->pValue)!=1) bError=1;
-		break;
+	    sprintf(achFormat,"%s=",pn->pszName);
+	    if (strncmp(pScan,achFormat,strlen(achFormat))==0) {
+	    	pScan += strlen(achFormat);
+		if (pn->pCount) {
+		    if (*pScan++ != '[') break;
+		    n = strlen(pScan) - 2;
+		    if (n<0 || pScan[n]!=']') break;
+		    pScan[n] = 0;
+		    if (n==0) {
+		    	*pn->pCount = 0;
+			continue;
+			}
+		    pScan = strtok(pScan,",");
+		    assert(pScan);
+		    }
+		n = 0;
+		while(pScan) {
+		    switch (pn->iType) {
+		    case 0:
+		    case 1:
+			assert(pn->iSize == sizeof(int));
+			if (sscanf(pScan,"%d\n",(int *)pn->pValue+n)!=1) bError=1;
+			break;
+		    case 2:
+			assert(pn->iSize == sizeof(double));
+			if (sscanf(pScan,"%lg\n",(double *)pn->pValue+n)!=1) bError=1;
+			break;
+		    case 3:
+			if (parseString(pScan,256,NULL)!=1) bError = 1;
+			else strcpy(pn->pValue,pScan);
+			break;
+		    case 4:
+			sprintf(achFormat,"%s=%%llu\n",pn->pszName);
+			if (sscanf(pScan,"%"PRIu64,(uint64_t *)pn->pValue+n)!=1) bError=1;
+			break;
+			}
+		    ++n;
+		    if (pn->pCount) pScan = strtok(NULL,",");
+		    else pScan = NULL;
+		    }
 		}
+		else bError = 1;
+		if (pn->pCount) *pn->pCount = n;
 	    }
 	if (bError) break;
 	}
@@ -505,33 +544,40 @@ static void writeParameters(MSR msr,const char *baseName,int iStep,double dTime)
     fprintf(fp,"achCheckpointName=\"%s\"\n",baseName);
 
     for( pn=msr->prm->pnHead; pn!=NULL; pn=pn->pnNext ) {
-	switch (pn->iType) {
-	case 0:
-	case 1:
-	    assert(pn->iSize == sizeof(int));
-	    fprintf(fp,"%s%s=%d\n",pn->bArg|pn->bFile?"":"#",
-		pn->pszName,*(int *)pn->pValue);
-	    break;
-	case 2:
-	    assert(pn->iSize == sizeof(double));
-	    /* This is purely cosmetic so 0.15 doesn't turn into 0.14999999... */
-	    sprintf(szNumber,"%.16g",*(double *)pn->pValue);
-	    sscanf(szNumber,"%le",&v);
-	    if ( v!= *(double *)pn->pValue )
-		sprintf(szNumber,"%.17g",*(double *)pn->pValue);
-	    fprintf(fp,"%s%s=%s\n",pn->bArg|pn->bFile?"":"#",
-		pn->pszName,szNumber);
-	    break;
-	case 3:
-	    fprintf(fp,"%s%s=\"%s\"\n",pn->bArg|pn->bFile?"":"#",
-		pn->pszName,(char *)pn->pValue);
-	    break;
-	case 4:
-	    assert(pn->iSize == sizeof(uint64_t));
-	    fprintf(fp,"%s%s=%"PRIu64"\n",pn->bArg|pn->bFile?"":"#",
-		pn->pszName,*(uint64_t *)pn->pValue);
-	    break;
+    	void *pValue = pn->pValue;
+    	int nCount = 1;
+	fprintf(fp,"%s%s=",pn->bArg|pn->bFile?"":"#",pn->pszName);
+	if (pn->pCount) {
+	    fprintf(fp,"[");
+	    nCount = *pn->pCount;
 	    }
+	for(i=0; i<nCount; ++i) {
+	    if (i) fprintf(fp, ",");
+	    switch (pn->iType) {
+	    case 0:
+	    case 1:
+		assert(pn->iSize == sizeof(int));
+		fprintf(fp,"%d",((int *)pn->pValue)[i]);
+		break;
+	    case 2:
+		assert(pn->iSize == sizeof(double));
+		/* This is purely cosmetic so 0.15 doesn't turn into 0.14999999... */
+		sprintf(szNumber,"%.16g",((double *)pn->pValue)[i]);
+		sscanf(szNumber,"%le",&v);
+		if ( v!= *(double *)pn->pValue )
+		    sprintf(szNumber,"%.17g",((double *)pn->pValue)[i]);
+		fprintf(fp,"%s",szNumber);
+		break;
+	    case 3:
+		fprintf(fp,"\"%s\"",(char *)pn->pValue);
+		break;
+	    case 4:
+		assert(pn->iSize == sizeof(uint64_t));
+		fprintf(fp,"%"PRIu64,((uint64_t *)pn->pValue)[i]);
+		break;
+		}
+	    }
+	fprintf(fp,"%s\n",pn->pCount?"]":"");
 	}
     fclose(fp);
     }
@@ -641,6 +687,10 @@ static int validateParameters(PRM prm,struct parameters *param) {
 	if (param->nBinsPk > PST_MAX_K_BINS)
 	    param->nBinsPk = PST_MAX_K_BINS;
 	}
+    if (param->iPkOrder<1 || param->iPkOrder>4) {
+    	puts("ERROR: iPkOrder must be 1 (NGP), 2 (CIC), 3 (TSC) or 4 (PCS)");
+    	return 0;
+        }
     if ( param->nGrid ) {
 	if (param->achInFile[0]) {
 	    puts("ERROR: do not specify an input file when generating IC");
@@ -655,6 +705,12 @@ static int validateParameters(PRM prm,struct parameters *param) {
 	    return 0;
 	    }
 	}
+    /* Set the number of bins for the power spectrum measurement of linear species */
+    if (param->nGridLin > 0){
+        param->nBinsLinPk = param->nGridLin/2;
+        if (param->nBinsLinPk > PST_MAX_K_BINS)
+            param->nBinsLinPk = PST_MAX_K_BINS;
+    }
 #endif
     if (param->dTheta <= 0) {
 	if (param->dTheta == 0 && param->bVWarnings)
@@ -1250,12 +1306,21 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.nGridPk = 0;
     prmAddParam(msr->prm,"nGridPk",1,&msr->param.nGridPk,
 		sizeof(int),"pk","<Grid size for measure P(k) 0=disabled> = 0");
+    msr->param.iPkOrder = 4;
+    prmAddParam(msr->prm,"iPkOrder",1,&msr->param.iPkOrder,
+		sizeof(int),"pko","<Mass assignment order for measuring P(k) = 3");
     msr->param.bFixedAmpIC = 0;
     prmAddParam(msr->prm,"bFixedAmpIC",0,&msr->param.bFixedAmpIC,
 		sizeof(int),"fixedamp","<Use fixed amplitude of 1 for ICs> = -fixedamp");
     msr->param.dFixedAmpPhasePI = 0.0;
     prmAddParam(msr->prm,"dFixedAmpPhasePI",2,&msr->param.dFixedAmpPhasePI,
 		sizeof(double),"fixedphase","<Phase shift for fixed amplitude in units of PI> = 0.0");
+    msr->param.nGridLin = 0;
+    prmAddParam(msr->prm, "nGridLin", 0, &msr->param.nGridLin,
+        sizeof(int), "lingrid", "<Grid size for linear species 0=disabled> =0");
+    msr->param.bDoLinPkOutput = 0;
+    prmAddParam(msr->prm, "bDoLinPkOutput", 0, &msr->param.bDoLinPkOutput,
+        sizeof(int), "linPk", "<enable/disable power spectrum output for linear species> = 0");
 #endif
 
     msr->param.iInflateStep = 0;
@@ -1266,6 +1331,16 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 		sizeof(int),"nir","<Number of replicas when inflating> = 0");
 
     /* IC Generation */
+    msr->param.csm->val.classData.bClass = 0;
+    prmAddParam(msr->prm,"bClass",0,&msr->param.csm->val.classData.bClass,
+		sizeof(int),"class","<Enable/disable the use of CLASS> = -class");
+    msr->param.csm->val.classData.achFilename[0] = 0;
+    prmAddParam(msr->prm, "achClassFilename", 3, msr->param.csm->val.classData.achFilename,
+		256, "class_filename", "<Name of hdf5 file containing the CLASS data> -class_filename");
+    msr->param.csm->val.classData.achLinSpecies[0] = 0;
+    prmAddParam(msr->prm, "achLinSpecies", 3, msr->param.csm->val.classData.achLinSpecies,
+                128, "lin_species",
+                "<plus-separated string of linear species, e.g. \"ncdm[0]+g+metric\"> -lin_species");
     msr->param.h = 0.0;
     prmAddParam(msr->prm,"h",2,&msr->param.h,
 		sizeof(double),"h","<hubble parameter h> = 0");
@@ -1502,6 +1577,8 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 		"<SF Use div v for star formation> = 1");
     /* END Gas/Star Parameters */
 
+    prmAddArray(msr->prm,"lstOrbits",4,&msr->param.iOutputParticles,sizeof(uint64_t),&msr->param.nOutputParticles);
+
     msr->param.bAccelStep = 0;
 
 #ifndef USE_DIAPOLE
@@ -1527,7 +1604,7 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 	** Now read parameter file if one was specified.
 	** NOTE: command line argument take precedence.
 	*/
-	if (!prmParseParam(msr->prm)) {
+	if (!prmParseParam(msr->prm,msr)) {
 	    _msrExit(msr,1);
 	    }
 	if (!validateParameters(msr->prm,&msr->param)) _msrExit(msr,1);
@@ -1624,6 +1701,19 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 
     msr->iRungVeryActive = msr->param.iMaxRung; /* No very active particles */
     msr->bSavePending = 0;                      /* There is no pending save */
+
+    if (msr->param.csm->val.classData.bClass){
+        csmClassRead(msr->param.csm, msr->param.dBoxSize);
+        csmClassGslInitialize(msr->param.csm);
+    }
+    if (strlen(msr->param.csm->val.classData.achLinSpecies) && msr->param.nGridLin == 0){
+        fprintf(stderr, "ERROR: you must specify nGridLin when running with linear species\n");
+        abort();
+    }
+    if (msr->param.csm->val.classData.bClass && msr->param.b2LPT){
+        fprintf(stderr, "ERROR: 2LPT not yet implemented for Class ICs\n");
+        abort();
+    }
 
     return bDoRestore;
     }
@@ -3241,7 +3331,7 @@ uint8_t msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot
 		}
 	    }
 	}
-
+    in.bLinearSpecies = (strlen(msr->param.csm->val.classData.achLinSpecies) > 0);
     out = malloc(msr->nThreads*sizeof(struct outGravityPerProc) + sizeof(struct outGravityReduct));
     assert(out != NULL);
     outend = out + msr->nThreads;
@@ -3253,6 +3343,7 @@ uint8_t msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot
 
     *piSec = d2i(dsec);
     *pnActive = outr->nActive;
+
     if (bKickOpen) {
 	for (i=IRUNGMAX;i>=uRungLo;--i) {
 	    if (outr->nRung[i]) break;
@@ -3745,7 +3836,7 @@ void msrSwitchTheta(MSR msr,double dTime) {
 
 void msrInitStep(MSR msr) {
     struct inSetRung insr;
-    struct inInitStep in;
+    static/*FIXME: this is a HACK: message is too large for stack */ struct inInitStep in;
 
     /*
     ** Here we can pass down all parameters of the simulation
@@ -4205,6 +4296,13 @@ int msrNewTopStepKDK(MSR msr,
 	msrLightConeClose(msr,iStep);
 	if (bKickOpen) msrLightConeOpen(msr,iStep+1);
 	}
+
+    /* Compute the grids of linear species at main timesteps, before gravity is called */
+    if (!uRung && strlen(msr->param.csm->val.classData.achLinSpecies)){
+        msrSetLinGrid(msr, *pdTime, msr->param.nGridLin);
+        if (msr->param.bDoLinPkOutput)
+            msrOutputLinPk(msr, *pdStep, *pdTime);
+    }
 
     *puRungMax = msrGravity(msr,uRung,msrMaxRung(msr),ROOT,uRoot2,*pdTime,
 	*pdStep,1,bKickOpen,msr->param.bEwald,nGroup,piSec,&nActive);
@@ -5024,7 +5122,7 @@ void msrRelaxation(MSR msr,double dTime,double deltaT,int iSmoothType,int bSymme
 
 #ifdef MDL_FFTW
 double msrGenerateIC(MSR msr) {
-    struct inGenerateIC in;
+    static/*FIXME: this is a HACK: message is too large for stack */ struct inGenerateIC in;
     struct outGenerateIC out;
     struct inGetFFTMaxSizes inFFTSizes;
     struct outGetFFTMaxSizes outFFTSizes;
@@ -5042,6 +5140,7 @@ double msrGenerateIC(MSR msr) {
     in.fPhase = msr->param.dFixedAmpPhasePI * M_PI;
     in.nGrid = msr->param.nGrid;
     in.b2LPT = msr->param.b2LPT;
+    in.bClass = msr->param.csm->val.classData.bClass;
     in.cosmo = msr->param.csm->val;
     in.nInflateFactor = msr->param.nInflateReps + 1;
     in.nInflateFactor *= in.nInflateFactor * in.nInflateFactor;
@@ -5284,7 +5383,7 @@ void msrOutputPk(MSR msr,int iStep,double dTime) {
     nPk = malloc(sizeof(uint64_t)*(msr->param.nBinsPk));
     assert(nPk != NULL);
 
-    msrMeasurePk(msr,msr->param.nGridPk,msr->param.nBinsPk,nPk,fK,fPk);
+    msrMeasurePk(msr,msr->param.iPkOrder,msr->param.nGridPk,msr->param.nBinsPk,nPk,fK,fPk);
 
     msrBuildName(msr,achFile,iStep);
     strncat(achFile,".pk",256);
@@ -5312,6 +5411,60 @@ void msrOutputPk(MSR msr,int iStep,double dTime) {
     free(fPk);
     free(nPk);
     }
+
+
+void msrOutputLinPk(MSR msr,int iStep,double dTime) {
+#ifdef _MSC_VER
+    char achFile[MAX_PATH];
+#else
+    char achFile[PATH_MAX];
+#endif
+    float *fK, *fPk;
+    uint64_t *nPk;
+    double a, vfact, kfact;
+    FILE *fp;
+    int i;
+
+    if (msr->param.nGridLin == 0) return;
+    if (!msr->param.csm->val.bComove) return;
+    if (!prmSpecified(msr->prm, "dBoxSize")) return; 
+    fK = malloc(sizeof(float)*(msr->param.nBinsLinPk));
+    assert(fK != NULL);
+    fPk = malloc(sizeof(float)*(msr->param.nBinsLinPk));
+    assert(fPk != NULL);
+    nPk = malloc(sizeof(uint64_t)*(msr->param.nBinsLinPk));
+    assert(nPk != NULL);
+
+    a = csmTime2Exp(msr->param.csm, dTime);
+
+    msrMeasureLinPk(msr,msr->param.nGridLin,a,msr->param.dBoxSize,nPk,fK,fPk);
+
+    msrBuildName(msr,achFile,iStep);
+    strncat(achFile,".lin_pk",256);
+
+    if (!msr->param.csm->val.bComove) a = 1.0;
+    else a = csmTime2Exp(msr->param.csm,dTime);
+
+    if ( msr->param.dBoxSize > 0.0 ) kfact = msr->param.dBoxSize;
+    else kfact = 1.0;
+    vfact = kfact * kfact * kfact;
+    kfact = 1.0 / kfact;
+
+    fp = fopen(achFile,"w");
+    if ( fp==NULL) {
+	printf("Could not create P_lin(k) File:%s\n",achFile);
+	_msrExit(msr,1);
+	}
+    for(i=0; i<msr->param.nBinsLinPk; ++i) {
+	if (fPk[i] > 0.0) fprintf(fp,"%g %g %" PRIu64 "\n",
+ 	    kfact * fK[i] * 2.0 * M_PI,vfact * fPk[i], nPk[i]);
+	}
+    fclose(fp);
+    free(fK);
+    free(fPk);
+    free(nPk);
+    }
+
 #endif
 
 /*
@@ -5954,7 +6107,7 @@ void msrGridProject(MSR msr,double x,double y,double z) {
     }
 
 #ifdef MDL_FFTW
-void msrMeasurePk(MSR msr,int nGrid,int nBins,uint64_t *nPk,float *fK,float *fPk) {
+void msrMeasurePk(MSR msr,int iAssignment,int nGrid,int nBins,uint64_t *nPk,float *fK,float *fPk) {
     struct inMeasurePk in;
     struct outMeasurePk *out;
     int nOut;
@@ -5969,17 +6122,16 @@ void msrMeasurePk(MSR msr,int nGrid,int nBins,uint64_t *nPk,float *fK,float *fPk
     fftNormalize *= fftNormalize;
 
     sec = msrTime();
+    printf("Measuring P(k) with grid size %d (%d bins)...\n",nGrid,nBins);
 
     /* NOTE: reordering the particles by their z coordinate would be good here */
+    in.iAssignment = iAssignment;
     in.nGrid = nGrid;
     in.nBins = nBins ;
     in.dTotalMass = msrTotalMass(msr);
 
     out = malloc(sizeof(struct outMeasurePk));
     assert(out != NULL);
-
-
-    printf("Measuring P(k) with grid size %d (%d bins)...\n",in.nGrid,in.nBins);
     pstMeasurePk(msr->pst, &in, sizeof(in), out, &nOut);
     for( i=0; i<nBins; i++ ) {
 	if ( out->nPower[i] == 0 ) fK[i] = fPk[i] = 0;
@@ -5995,10 +6147,108 @@ void msrMeasurePk(MSR msr,int nGrid,int nBins,uint64_t *nPk,float *fK,float *fPk
     dsec = msrTime() - sec;
     printf("P(k) Calculated, Wallclock: %f secs\n\n",dsec);
     }
+
+void msrMeasureLinPk(MSR msr,int nGrid, double dA, double dBoxSize,
+                    uint64_t *nPk,float *fK,float *fPk) {
+    struct inMeasureLinPk in;
+    struct outMeasureLinPk *out;
+    int nOut;
+    int i;
+    double sec,dsec;
+
+    sec = msrTime();
+
+    in.nGrid = nGrid;
+    in.nBins = msr->param.nBinsLinPk;
+    in.dBoxSize = dBoxSize;
+    in.dA = dA;
+    in.iSeed = msr->param.iSeed;
+    in.bFixed = msr->param.bFixedAmpIC;
+    in.fPhase = msr->param.dFixedAmpPhasePI * M_PI;
+
+    out = malloc(sizeof(struct outMeasureLinPk));
+    assert(out != NULL);
+    printf("Measuring P_lin(k) with grid size %d (%d bins)...\n",in.nGrid,in.nBins);
+    pstMeasureLinPk(msr->pst, &in, sizeof(in), out, &nOut);
+    for( i=0; i<in.nBins; i++ ) {
+	if ( out->nPower[i] == 0 ) fK[i] = fPk[i] = 0;
+	else {
+	    if (nPk) nPk[i] = out->nPower[i];
+	    fK[i] = out->fK[i]/out->nPower[i];
+	    fPk[i] = out->fPower[i]/out->nPower[i];
+	    }
+	}
+    /* At this point, dPk[] needs to be corrected by the box size */
+
+    dsec = msrTime() - sec;
+    printf("P_lin(k) Calculated, Wallclock: %f secs\n\n",dsec);
+    }
+
+void msrSetLinGrid(MSR msr,double dTime, int nGrid){
+    printf("Setting force grids of linear species with nGridLin = %d \n", nGrid);
+    double sec, dsec;
+    sec = msrTime();
+
+    struct inSetLinGrid in;
+    in.nGrid = nGrid;
+    in.dTime = dTime;
+    in.dBSize = msr->param.dBoxSize;
+    /* Parameters for the grid realization */
+    in.iSeed = msr->param.iSeed;
+    in.bFixed = msr->param.bFixedAmpIC;
+    in.fPhase = msr->param.dFixedAmpPhasePI*M_PI;
+    pstSetLinGrid(msr->pst, &in, sizeof(in), NULL, NULL);
+
+    dsec = msrTime() - sec;
+    printf("Force from linear species calculated, Wallclock: %f, secs\n\n", dsec);
+    }
 #endif
 
 int msrGetParticles(MSR msr, int nIn, uint64_t *ID, struct outGetParticles *out) {
     int nOut;
     pstGetParticles(msr->pst, ID, sizeof(uint64_t)*nIn, out, &nOut);
     return nOut / sizeof(struct outGetParticles);
+    }
+
+void msrOutputOrbits(MSR msr,int iStep,double dTime) {
+#ifdef _MSC_VER
+    char achFile[MAX_PATH];
+#else
+    char achFile[PATH_MAX];
+#endif
+    FILE *fp;
+    int i;
+
+    if (msr->param.nOutputParticles) {
+	struct outGetParticles particles[GET_PARTICLES_MAX];
+	double dExp, dvFac;
+
+	if (msr->param.csm->val.bComove) {
+	    dExp = csmTime2Exp(msr->param.csm,dTime);
+	    dvFac = 1.0/(dExp*dExp);
+	    }
+	else {
+	    dExp = dTime;
+	    dvFac = 1.0;
+	    }
+
+	msrGetParticles(msr,msr->param.nOutputParticles,msr->param.iOutputParticles,particles);
+	msrBuildName(msr,achFile,iStep);
+	strncat(achFile,".orb",256);
+
+	fp = fopen(achFile,"w");
+	if ( fp==NULL) {
+	    printf("Could not create orbit File:%s\n",achFile);
+	    _msrExit(msr,1);
+	    }
+	fprintf(fp,"%d %f\n",msr->param.nOutputParticles,dExp);
+	for(i=0; i<msr->param.nOutputParticles; ++i) {
+	    fprintf(fp,"%"PRIu64" %.8e %.16e %.16e %.16e %.8e %.8e %.8e %.8e\n",
+		particles[i].id, particles[i].mass,
+		particles[i].r[0], particles[i].r[1], particles[i].r[2],
+		particles[i].v[0]*dvFac, particles[i].v[1]*dvFac, particles[i].v[2]*dvFac,
+		particles[i].phi);
+	    }
+	fclose(fp);
+	}
     }

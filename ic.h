@@ -53,5 +53,14 @@ extern "C"
 int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int bFixed,float fPhase,int nGrid,int b2LPT,double dBoxSize,
     struct csmVariables *cosmo,double a,int nTf, double *tk, double *tf,
     double *noiseMean, double *noiseCSQ);
+#ifdef __cplusplus
+extern "C"
+#endif
+int pkdGenerateClassICm(PKD pkd, MDLFFT fft, int iSeed, int bFixed, float fPhase, int nGrid,
+    double dBoxSize, struct csmVariables *cosmo, double a, double *noiseMean, double *noiseCSQ);
+#ifdef __cplusplus
+extern "C"
+#endif
+void pkdGenerateLinGrid(PKD pkd, MDLFFT fft,double a,double LBox, int iSeed, int bFixed, float fPhase);
 #endif
 #endif

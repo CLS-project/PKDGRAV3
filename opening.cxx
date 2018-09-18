@@ -24,40 +24,6 @@
 #include "simd.h"
 #include "pkd.h"
 
-static const struct ICONSTS {
-    vint zero;
-    vint one;
-    vint two;
-    vint three;
-    vint four;
-    vint five;
-    vint six;
-    vint seven;
-    vint eight;
-    /* no nine */
-    vint ten;
-    vint walk_min_multipole;
-    } iconsts = {
-        {SIMD_CONST(0)},
-	{SIMD_CONST(1)},
-	{SIMD_CONST(2)},
-	{SIMD_CONST(3)},
-	{SIMD_CONST(4)},
-	{SIMD_CONST(5)},
-	{SIMD_CONST(6)},
-	{SIMD_CONST(7)},
-	{SIMD_CONST(8)},
-	{SIMD_CONST(10)},
-	{SIMD_CONST(3)},
-};
-
-static union {
-    uint32_t u[SIMD_WIDTH];
-    v_sf p;
-    } const_fabs = {SIMD_CONST(0x7fffffff)};
-
-
-
 /*
 ** This implements the original pkdgrav2m opening criterion, which has been
 ** well tested, gives good force accuracy, but may not be the most efficient
@@ -69,11 +35,11 @@ extern "C"
 void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin ) {
     const float walk_min_multipole = 3;
     fmask T0,T1,T2,T3,T4,T6,T7;
-    fvec P1,P2,P3,P4;
+    i32v P1,P2,P3,P4;
     fvec xc,yc,zc,dx,dy,dz,d2,diCrit,cOpen,cOpen2,d2Open,mink2,minbnd2,fourh2;
     int i,iEnd,nLeft;
     CL_BLK *blk;
-    fvec iOpen,iOpenA,iOpenB;
+    i32v iOpen,iOpenA,iOpenB;
     BND kbnd;
     fvec k_xCenter, k_yCenter, k_zCenter, k_xMax, k_yMax, k_zMax;
     fvec k_xMinBnd, k_yMinBnd, k_zMinBnd, k_xMaxBnd, k_yMaxBnd, k_zMaxBnd;
@@ -103,7 +69,6 @@ void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin ) {
     k_y = k_r[1];
     k_z = k_r[2];
     k_bMax = k->bMax;
-//    k_notgrp = SIMD_I2F(SIMD_SPLATI32(k->bGroup?0:0xffffffff));
     k_notgrp = cvt_fvec(i32v(k->bGroup)) == 0.0;
     k_Open = 1.5f*k_bMax*diCrit;
 
@@ -157,14 +122,14 @@ void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin ) {
 	    T4 = minbnd2 > fourh2;
 	    T6 = cOpen > k_Open;
 	    T7 = k_notgrp;
- 	    iOpenA = mask_mov(fvec(iconsts.three.pf),T2,fvec(iconsts.one.pf));
-	    iOpenB = mask_mov(mask_mov(iOpenA,T4,fvec(iconsts.four.pf)),T3,iOpenA);
-	    P1 = mask_mov(fvec(iconsts.three.pf),T2,fvec(iconsts.two.pf));
-	    P2 = mask_mov(iOpenB,T7,fvec(iconsts.zero.pf));
+ 	    iOpenA = mask_mov(i32v(3),T2,i32v(1));
+	    iOpenB = mask_mov(mask_mov(iOpenA,T4,i32v(4)),T3,iOpenA);
+	    P1 = mask_mov(i32v(3),T2,i32v(2));
+	    P2 = mask_mov(iOpenB,T7,i32v(0));
 	    P3 = mask_mov(P2,T6,P1);
-	    P4 = mask_mov(P3,T1,fvec(iconsts.eight.pf));
-	    iOpen = mask_mov(fvec(iconsts.ten.pf),T0,P4);
-	    blk->iOpen.pf[i] = iOpen;
+	    P4 = mask_mov(P3,T1,i32v(8));
+	    iOpen = mask_mov(i32v(10),T0,P4);
+	    blk->iOpen.p[i] = iOpen;
 	    }
 	}
     double dFlop = COST_FLOP_OPEN*(tile->lstTile.nBlocks*CL_PART_PER_BLK  + tile->lstTile.nInLast);

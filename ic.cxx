@@ -243,6 +243,10 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int bFixed,float fPhase,int nGrid
     csmInitialize(&csm);
     csm->val = *cosmo;
 
+    if (csm->val.classData.bClass){
+        csmClassGslInitialize(csm);
+    }
+
     mdlGridCoord kfirst, klast, kindex;
     mdlGridCoord rfirst, rlast, rindex;
     gridptr ic[10];
@@ -527,3 +531,192 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int bFixed,float fPhase,int nGrid
 
     return nLocal;
     }
+
+
+/*
+** Just like pkdGenerateIC(), this function will generate the particle ICs,
+** the difference being that this will use the CLASS interface.
+** Note that no back-scaling is performed; the CLASS transfer function
+** is realized at the given scale factor `a` as is.
+** Currently, only 1LPT is implemented.
+*/
+#ifdef __cplusplus
+extern "C"
+#endif
+int pkdGenerateClassICm(PKD pkd, MDLFFT fft, int iSeed, int bFixed, float fPhase, int nGrid,
+    double dBoxSize, struct csmVariables *cosmo, double a, double *noiseMean, double *noiseCSQ) {
+    MDL mdl = pkd->mdl;
+    int idx;
+    float kx, ky, kz;
+    int iNyquist = nGrid / 2;
+    float iLbox = 2*M_PI / dBoxSize;
+    float k2, amp;
+    float dOmega;
+
+    basicParticle *p;
+    int nLocal;
+    CSM csm;
+
+    csmInitialize(&csm);
+    csm->val = *cosmo;
+    assert(csm->val.classData.bClass);
+    csmClassGslInitialize(csm);
+
+    mdlGridCoord kfirst, klast, kindex;
+    mdlGridCoord rfirst, rlast, rindex;
+    gridptr ic[10];
+
+    mdlGridCoordFirstLast(mdl,fft->kgrid,&kfirst,&klast,0);
+    mdlGridCoordFirstLast(mdl,fft->rgrid,&rfirst,&rlast,0);
+    assert(rlast.i == klast.i*2); /* Arrays must overlap here. */
+
+    /* The mdlSetArray will use the values from thread 0 */
+    ic[0].r = (FFTW3(real)*)pkdParticleBase(pkd);
+    ic[1].r = ic[0].r + fft->rgrid->nLocal;
+    ic[2].r = ic[1].r + fft->rgrid->nLocal;
+    ic[3].r = ic[2].r + fft->rgrid->nLocal;
+    ic[4].r = ic[3].r + fft->rgrid->nLocal;
+    ic[5].r = ic[4].r + fft->rgrid->nLocal;
+    ic[6].r = ic[5].r + fft->rgrid->nLocal;
+    ic[7].r = ic[6].r + fft->rgrid->nLocal;
+    ic[8].r = ic[7].r + fft->rgrid->nLocal;
+    ic[9].r = ic[8].r + fft->rgrid->nLocal;
+
+    ic[0].r = (FFTW3(real) *)mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)),ic[0].r);
+    ic[1].r = (FFTW3(real) *)mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)),ic[1].r);
+    ic[2].r = (FFTW3(real) *)mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)),ic[2].r);
+    ic[3].r = (FFTW3(real) *)mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)),ic[3].r);
+    ic[4].r = (FFTW3(real) *)mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)),ic[4].r);
+    ic[5].r = (FFTW3(real) *)mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)),ic[5].r);
+    ic[6].r = (FFTW3(real) *)mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)),ic[6].r);
+    ic[7].r = (FFTW3(real) *)mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)),ic[7].r);
+    ic[8].r = (FFTW3(real) *)mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)),ic[8].r);
+    ic[9].r = (FFTW3(real) *)mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)),ic[9].r);
+
+    /* Particles will overlap ic[0] through ic[5] eventually */
+    nLocal = rlast.i / fft->rgrid->a1 * fft->rgrid->n1;
+    p = (basicParticle *)mdlSetArray(pkd->mdl,nLocal,sizeof(basicParticle),pkdParticleBase(pkd));
+
+    /* Generate white noise realization -> ic[6] */
+    if (mdlSelf(mdl)==0) {printf("Generating random noise\n"); fflush(stdout);}
+    pkdGenerateNoise(pkd,iSeed,bFixed,fPhase,fft,ic[6].k,noiseMean,noiseCSQ);
+
+    if (mdlSelf(mdl)==0) {printf("Imprinting power\n"); fflush(stdout);}
+
+    /* Particle positions */
+    for (kindex=kfirst; !mdlGridCoordCompare(&kindex,&klast); mdlGridCoordIncrement(&kindex)){
+	/* Range: (-iNyquist,iNyquist] */
+	ky = wrap(kindex.z,iNyquist,fft->rgrid->n3) * iLbox;
+	kz = wrap(kindex.y,iNyquist,fft->rgrid->n2) * iLbox;
+	kx = wrap(kindex.x,iNyquist,fft->rgrid->n1) * iLbox;
+	idx = kindex.i;
+	k2 = kx*kx + ky*ky + kz*kz;
+	if (k2>0) {
+	    amp = csmDelta_m(csm, a, sqrt(k2));
+	    ic[7].k[idx] = ic[6].k[idx] * amp * kx/k2 * I;
+	    ic[8].k[idx] = ic[6].k[idx] * amp * ky/k2 * I;
+	    ic[9].k[idx] = ic[6].k[idx] * amp * kz/k2 * I;
+	}
+	else{
+	    ic[7].k[idx] = .0;
+	    ic[8].k[idx] = .0;
+	    ic[9].k[idx] = .0;
+	}
+    }
+
+    if (mdlSelf(mdl)==0) {printf("Generating x displacements\n"); fflush(stdout);}
+    mdlIFFT(mdl, fft, (FFTW3(complex)*)ic[7].k);
+    if (mdlSelf(mdl)==0) {printf("Generating y displacements\n"); fflush(stdout);}
+    mdlIFFT(mdl, fft, (FFTW3(complex)*)ic[8].k);
+    if (mdlSelf(mdl)==0) {printf("Generating z displacements\n"); fflush(stdout);}
+    mdlIFFT(mdl, fft, (FFTW3(complex)*)ic[9].k);
+
+    /* Move the 1LPT positions/velocities to the particle area */
+    if (mdlSelf(mdl)==0) {printf("Transfering 1LPT positions to output area\n"); fflush(stdout);}
+    idx = 0;
+    for (rindex=rfirst; !mdlGridCoordCompare(&rindex,&rlast); mdlGridCoordIncrement(&rindex)){
+	float x = ic[7].r[rindex.i];
+	float y = ic[8].r[rindex.i];
+	float z = ic[9].r[rindex.i];
+	p[idx].dr[0] = x;
+	p[idx].dr[1] = y;
+	p[idx].dr[2] = z;
+	++idx;
+    }
+    assert(idx == nLocal);
+
+    /* Particle velocities */
+    for (kindex=kfirst; !mdlGridCoordCompare(&kindex,&klast); mdlGridCoordIncrement(&kindex)){
+	/* Range: (-iNyquist,iNyquist] */
+	ky = wrap(kindex.z,iNyquist,fft->rgrid->n3) * iLbox;
+	kz = wrap(kindex.y,iNyquist,fft->rgrid->n2) * iLbox;
+	kx = wrap(kindex.x,iNyquist,fft->rgrid->n1) * iLbox;
+	idx = kindex.i;
+	k2 = kx*kx + ky*ky + kz*kz;
+	if (k2>0) {
+	    amp = csmTheta_m(csm, a, sqrt(k2));
+	    ic[7].k[idx] = ic[6].k[idx] * amp * kx/k2 * -I;
+	    ic[8].k[idx] = ic[6].k[idx] * amp * ky/k2 * -I;
+	    ic[9].k[idx] = ic[6].k[idx] * amp * kz/k2 * -I;
+
+	}
+	else{
+	    ic[7].k[idx] = .0;
+	    ic[8].k[idx] = .0;
+	    ic[9].k[idx] = .0;
+        }
+    }
+    if (mdlSelf(mdl)==0) {printf("Generating x velocities\n"); fflush(stdout);}
+    mdlIFFT(mdl, fft, (FFTW3(complex)*)ic[7].k);
+    if (mdlSelf(mdl)==0) {printf("Generating y velocitites\n"); fflush(stdout);}
+    mdlIFFT(mdl, fft, (FFTW3(complex)*)ic[8].k);
+    if (mdlSelf(mdl)==0) {printf("Generating z velocities\n"); fflush(stdout);}
+    mdlIFFT(mdl, fft, (FFTW3(complex)*)ic[9].k);
+
+    /* Move the 1LPT positions/velocities to the particle area */
+    if (mdlSelf(mdl)==0) {printf("Transfering 1LPT velocitites to output area\n"); fflush(stdout);}
+    idx = 0;
+    for (rindex=rfirst; !mdlGridCoordCompare(&rindex,&rlast); mdlGridCoordIncrement(&rindex)){
+	float vx = ic[7].r[rindex.i];
+	float vy = ic[8].r[rindex.i];
+	float vz = ic[9].r[rindex.i];
+	p[idx].v[0] = vx;
+	p[idx].v[1] = vy;
+	p[idx].v[2] = vz;
+	++idx;
+    }
+    assert(idx == nLocal);
+
+    csmFinish(csm);
+
+    return nLocal;
+}
+
+void pkdGenerateLinGrid(PKD pkd, MDLFFT fft, double a,double Lbox, int iSeed, int bFixed, float fPhase){
+    mdlGridCoord kfirst, klast, kindex;
+    mdlGridCoord rfirst, rlast, rindex;
+    mdlGridCoordFirstLast(pkd->mdl, fft->kgrid, &kfirst, &klast, 0);
+    mdlGridCoordFirstLast(pkd->mdl, fft->rgrid, &rfirst, &rlast, 0);
+    double noiseMean, noiseCSQ;
+    int idx;
+    double kx, ky, kz, k2;
+    double iLbox = 2*M_PI/Lbox;
+    int iNuquist = fft->rgrid->n3 / 2;
+    gridptr noiseData;
+    noiseData.r =(FFTW3(real) *)mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)),pkd->pLite);
+    pkdGenerateNoise(pkd, iSeed, bFixed, fPhase, fft, noiseData.k, &noiseMean, &noiseCSQ);    
+      /* Particle positions */
+    for( kindex=kfirst; !mdlGridCoordCompare(&kindex,&klast); mdlGridCoordIncrement(&kindex) ) {
+	/* Range: (-iNyquist,iNyquist] */
+	ky = wrap(kindex.z,iNuquist,fft->rgrid->n3) * iLbox;
+	kz = wrap(kindex.y,iNuquist,fft->rgrid->n2) * iLbox;
+	kx = wrap(kindex.x,iNuquist,fft->rgrid->n1) * iLbox;
+	k2 = kx*kx + ky*ky + kz*kz;
+	idx = kindex.i;
+	if (k2>0) 
+	    noiseData.k[idx] *= csmDelta_lin(pkd->param.csm, a, sqrt(k2));
+        else
+            noiseData.k[idx] = 0.0;
+    }
+}
+

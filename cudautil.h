@@ -61,11 +61,19 @@ inline __device__ float maskz_mov(bool p,float a) { return p ? a : 0.0f; }
 
 template <typename T,unsigned int blockSize>
 inline __device__ T warpReduce(/*volatile T * data, int tid,*/ T t) {
+#if CUDART_VERSION >= 9000
+    if (blockSize >= 32) t += __shfl_xor_sync(0xffffffff,t,16);
+    if (blockSize >= 16) t += __shfl_xor_sync(0xffffffff,t,8);
+    if (blockSize >= 8)  t += __shfl_xor_sync(0xffffffff,t,4);
+    if (blockSize >= 4)  t += __shfl_xor_sync(0xffffffff,t,2);
+    if (blockSize >= 2)  t += __shfl_xor_sync(0xffffffff,t,1);
+#else
     if (blockSize >= 32) t += __shfl_xor(t,16);
     if (blockSize >= 16) t += __shfl_xor(t,8);
     if (blockSize >= 8)  t += __shfl_xor(t,4);
     if (blockSize >= 4)  t += __shfl_xor(t,2);
     if (blockSize >= 2)  t += __shfl_xor(t,1);
+#endif
     return t;
     }
 

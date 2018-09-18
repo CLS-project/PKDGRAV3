@@ -520,6 +520,20 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 	}
 
     nActive += wp->nP;
+    /* If this is a main timestep, add acceleration from the linear species */
+    if (uRungLo == 0 && pkd->param.nGridLin >0){
+        float LinAcc[3];
+        for (i=0; i<wp->nP; i++){
+            pkdGetPos1(pkd,wp->pPart[i],r);
+            LinAcc[0] = LinAcc[1] = LinAcc[2] = 0.0f;
+            getLinAcc(pkd,pkd->Linfft,CID_GridLinFx,r,&LinAcc[0]);
+            getLinAcc(pkd,pkd->Linfft,CID_GridLinFy,r,&LinAcc[1]);
+            getLinAcc(pkd,pkd->Linfft,CID_GridLinFz,r,&LinAcc[2]);
+            wp->pInfoOut[i].a[0] += LinAcc[0];
+            wp->pInfoOut[i].a[1] += LinAcc[1];
+            wp->pInfoOut[i].a[2] += LinAcc[2];
+        }
+    }
 
     /*
     ** Evaluate the local expansion.

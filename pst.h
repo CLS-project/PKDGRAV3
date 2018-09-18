@@ -29,6 +29,13 @@
 #include "cosmo.h"
 #include "ic.h"
 
+#define pstOffNode(pst) ((pst)->nLeaves > mdlCores((pst)->mdl))
+#define pstOnNode(pst) ((pst)->nLeaves <= mdlCores((pst)->mdl))
+#define pstAmNode(pst) ((pst)->nLeaves == mdlCores((pst)->mdl))
+#define pstNotNode(pst) ((pst)->nLeaves != mdlCores((pst)->mdl))
+#define pstAmCore(pst) ((pst)->nLeaves == 1)
+#define pstNotCore(pst) ((pst)->nLeaves > 1)
+
 typedef struct lclBlock {
     PKD	pkd;
     int iWtFrom;
@@ -222,7 +229,10 @@ enum pst_service {
     PST_GRIDPROJECT,
 #ifdef MDL_FFTW
     PST_MEASUREPK,
+    PST_MEASURELINPK,
+    PST_SETLINGRID,
 #endif
+    PST_ASSIGN_MASS,
     PST_TOTALMASS,
     PST_LIGHTCONE_OPEN,
     PST_LIGHTCONE_CLOSE,
@@ -241,6 +251,10 @@ struct inSetAdd {
     int idUpper;
     };
 void pstSetAdd(PST,void *,int,void *,int *);
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /* PST_INITIALIZEPSTORE */
 struct inInitializePStore {
@@ -619,6 +633,7 @@ struct inGravity {
     double dtLCKick[IRUNGMAX+1];
     double dLookbackFac;
     double dLookbackFacLCP;
+    int bLinearSpecies;
     };
 
 
@@ -1068,6 +1083,7 @@ struct inGenerateIC {
     int nGrid;
     int b2LPT;
     int bComove;
+    int bClass;
     int nTf;
     int nInflateFactor;
     struct csmVariables cosmo;
@@ -1298,6 +1314,7 @@ void pstGridProject(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 /* PST_MEASUREPK */
 struct inMeasurePk {
     double dTotalMass;
+    int iAssignment;
     int nGrid;
     int nBins;
     };
@@ -1307,6 +1324,39 @@ struct outMeasurePk {
     uint64_t nPower[PST_MAX_K_BINS];
     };
 void pstMeasurePk(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+/* PST_ASSIGN_MASS */
+struct inAssignMass {
+    int nGrid;
+    int iAssignment;
+    };
+void pstAssignMass(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+/* PST_SETLINGRID */
+struct inSetLinGrid {
+    double dTime;
+    double dBSize;
+    int nGrid;
+    /* Noise generation */
+    int iSeed;
+    int bFixed;
+    float fPhase;
+    };
+void pstSetLinGrid(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+/* PST_MEASURELINPK */
+struct inMeasureLinPk {
+    double dA;
+    double dBoxSize;
+    int iSeed;
+    int bFixed; 
+    float fPhase;
+    int nGrid;
+    int nBins;
+    };
+struct outMeasureLinPk {
+    double fK[PST_MAX_K_BINS];
+    double fPower[PST_MAX_K_BINS];
+    uint64_t nPower[PST_MAX_K_BINS];
+    };
+void pstMeasureLinPk(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 #endif
 
 /* PST_TOTALMASS */
@@ -1332,7 +1382,10 @@ struct inInflate {
 void pstInflate(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 
 /* PST_GET_PARICLES */
-#define GET_PARTICLES_MAX 20 /* We have a nested loop, so don't increase this */
 void pstGetParticles(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

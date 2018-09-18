@@ -53,13 +53,6 @@
 #include "group.h"
 #include "groupstats.h"
 
-#define pstOffNode(pst) ((pst)->nLeaves > mdlCores((pst)->mdl))
-#define pstOnNode(pst) ((pst)->nLeaves <= mdlCores((pst)->mdl))
-#define pstAmNode(pst) ((pst)->nLeaves == mdlCores((pst)->mdl))
-#define pstNotNode(pst) ((pst)->nLeaves != mdlCores((pst)->mdl))
-#define pstAmCore(pst) ((pst)->nLeaves == 1)
-#define pstNotCore(pst) ((pst)->nLeaves > 1)
-
 void pstAddServices(PST pst,MDL mdl) {
     int nThreads;
 
@@ -456,6 +449,15 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_MEASUREPK,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstMeasurePk,
 		  sizeof(struct inMeasurePk), sizeof(struct outMeasurePk));
+    mdlAddService(mdl,PST_ASSIGN_MASS,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstAssignMass,
+		  sizeof(struct inAssignMass), 0);
+    mdlAddService(mdl,PST_SETLINGRID, pst,
+           (void (*)(void*, void*, int, void*, int*)) pstSetLinGrid,
+           sizeof(struct inSetLinGrid), 0);
+    mdlAddService(mdl,PST_MEASURELINPK,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstMeasureLinPk,
+		  sizeof(struct inMeasureLinPk), sizeof(struct outMeasureLinPk));
 #endif
     mdlAddService(mdl,PST_TOTALMASS,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstTotalMass,
@@ -2859,6 +2861,7 @@ void pstGravity(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     struct outGravityReduct tmp;
     int i;
 
+
     mdlassert(pst->mdl,nIn == sizeof(struct inGravity));
     if (pst->nLeaves > 1) {
 	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_GRAVITY,in,nIn);
@@ -2913,6 +2916,7 @@ void pstGravity(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	    in->dtClose,in->dtOpen,in->dtLCDrift,in->dtLCKick,in->dLookbackFac,in->dLookbackFacLCP,
 	    in->dAccFac,in->dTime,in->nReps,in->bPeriodic,
 	    in->bEwald,in->nGroup,in->iRoot1,in->iRoot2,in->dEwCut,in->dEwhCut,in->dThetaMin,
+	    in->bLinearSpecies,
 	    &outr->nActive,
 	    &outr->sPart.dSum,&outr->sPartNumAccess.dSum,&outr->sPartMissRatio.dSum,
 	    &outr->sCell.dSum,&outr->sCellNumAccess.dSum,&outr->sCellMissRatio.dSum,
@@ -3896,8 +3900,13 @@ void pltGenerateIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	out->noiseCSQ += outUp.noiseCSQ;
 	}
     else {
-	out->N = pkdGenerateIC(plcl->pkd,tin->fft,in->iSeed,in->bFixed,in->fPhase,in->nGrid,in->b2LPT,in->dBoxSize,
-	    &in->cosmo,in->dExpansion,in->nTf, in->k, in->tf,&out->noiseMean,&out->noiseCSQ);
+	if (in->bClass)
+	    out->N = pkdGenerateClassICm(plcl->pkd,tin->fft,in->iSeed, in->bFixed,in->fPhase,
+	        in->nGrid, in->dBoxSize,&in->cosmo,in->dExpansion,&out->noiseMean,&out->noiseCSQ);
+	else
+	    out->N = pkdGenerateIC(plcl->pkd,tin->fft,in->iSeed,in->bFixed,in->fPhase,
+	        in->nGrid,in->b2LPT,in->dBoxSize, &in->cosmo,in->dExpansion,in->nTf,
+	        in->k, in->tf,&out->noiseMean,&out->noiseCSQ);
 	out->dExpansion = in->dExpansion;
 	}
 
@@ -3909,7 +3918,7 @@ void pstGenerateIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     PKD pkd = plcl->pkd;
     struct inGenerateIC *in = vin;
     struct outGenerateIC *out = vout, outUp;
-    int i;
+    int64_t i;
 
     mdlassert(pst->mdl,nIn == sizeof(struct inGenerateIC));
     mdlassert(pst->mdl,vout != NULL);
@@ -4668,10 +4677,59 @@ void pstMeasurePk(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	free(outUpper);
 	}
     else {
-	pkdMeasurePk(plcl->pkd, in->dTotalMass,
+	pkdMeasurePk(plcl->pkd, in->dTotalMass, in->iAssignment,
 	    in->nGrid, in->nBins, out->fK, out->fPower, out->nPower);
 	}
     if (pnOut) *pnOut = sizeof(struct outMeasurePk);
+    }
+
+void pstMeasureLinPk(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    struct inMeasureLinPk *in = vin;
+    struct outMeasureLinPk *out = vout;
+    struct outMeasureLinPk *outUpper;
+    int nOut;
+    int i;
+
+    assert( nIn==sizeof(struct inMeasureLinPk) );
+    if (pstNotCore(pst)) {
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_MEASURELINPK,vin,nIn);
+	pstMeasureLinPk(pst->pstLower,vin,nIn,vout,pnOut);
+	outUpper = malloc(sizeof(struct outMeasureLinPk));
+	assert(outUpper != NULL);
+	mdlGetReply(pst->mdl,rID,outUpper,&nOut);
+	assert(nOut==sizeof(struct outMeasureLinPk));
+
+	for(i=0;i<in->nBins; i++) {
+	    out->fK[i] += outUpper->fK[i];
+	    out->fPower[i] += outUpper->fPower[i];
+	    out->nPower[i] += outUpper->nPower[i];
+	    }
+	free(outUpper);
+	}
+    else {
+	pkdMeasureLinPk(plcl->pkd, in->nGrid, in->dA, in->dBoxSize,
+                        in->nBins, in->iSeed, in->bFixed, in->fPhase, 
+                        out->fK, out->fPower, out->nPower);
+	}
+    if (pnOut) *pnOut = sizeof(struct outMeasureLinPk);
+    }
+
+void pstSetLinGrid(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+        LCL *plcl = pst->plcl;
+        struct inSetLinGrid *in = vin;
+        assert (nIn==sizeof(struct inSetLinGrid) );
+        if (pstNotCore(pst)) {
+            int rID = mdlReqService(pst->mdl, pst->idUpper, PST_SETLINGRID, vin, nIn);
+            pstSetLinGrid(pst->pstLower, vin, nIn, vout, pnOut);
+            mdlGetReply(pst->mdl,rID, vout,pnOut);
+        }
+        else {
+            plcl->pkd->Linfft = mdlFFTInitialize(pst->mdl, in->nGrid, in->nGrid, in->nGrid, 0,0);
+            pkdSetLinGrid(plcl->pkd, in->dTime,
+                in->dBSize, in->nGrid, 
+                in ->iSeed, in->bFixed, in->fPhase);
+        }
     }
 #endif
 
@@ -4752,12 +4810,12 @@ void pstGetParticles(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     if (pst->nLeaves > 1) {
 	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_GET_PARTICLES,vin,nIn);
 	pstGetParticles(pst->pstLower,vin,nIn,vout,pnOut);
-	mdlGetReply(pst->mdl,rID,out + (*pnOut / sizeof(uint64_t)),&nOutUpper);
+	mdlGetReply(pst->mdl,rID,out + (*pnOut / sizeof(struct outGetParticles)),&nOutUpper);
 	*pnOut += nOutUpper;
 	}
     else {
 	int nParticles = nIn / sizeof(uint64_t);
 	int n = pkdGetParticles(plcl->pkd,nParticles, ID, out );
-	*pnOut = n * sizeof(uint64_t);
+	*pnOut = n * sizeof(struct outGetParticles);
 	}
     }

@@ -118,6 +118,9 @@ struct parameters {
     int iRungCoolTableUpdate;
     int bNewKDK;
     int nDigits;
+#define GET_PARTICLES_MAX 20 /* We have a nested loop, so don't increase this */
+    int nOutputParticles;
+    uint64_t iOutputParticles[GET_PARTICLES_MAX];
     double dEtaCourant;
     double dEtaUDot;
     double dConstAlpha;
@@ -226,7 +229,11 @@ struct parameters {
 
 #ifdef MDL_FFTW
     int nGridPk;
+    int iPkOrder;
     int nBinsPk;
+    int nGridLin;
+    int bDoLinPkOutput;
+    int nBinsLinPk;
 #endif
 
     int iInflateStep;

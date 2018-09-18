@@ -113,7 +113,10 @@ typedef struct msrContext {
     int nCheckpointClasses;
     PARTCLASS aCheckpointClasses[PKD_MAX_CLASSES];
     } * MSR;
-
+#ifdef __cplusplus
+extern "C" {
+#endif
+double msrTime();
 int msrInitialize(MSR *,MDL,int,char **);
 void msrLogParams(MSR msr, FILE *fp);
 void msrprintf(MSR msr, const char *Format, ... );
@@ -220,6 +223,7 @@ int msrCountRungs(MSR msr, uint64_t *nRungs);
 */
 int msrSteps(MSR);
 void msrOutputPk(MSR msr,int iStep,double dTime);
+void msrOutputLinPk(MSR msr, int iStep, double dTime);
 void msrCheckpoint(MSR msr, int iStep, double dTime);
 double msrRestore(MSR msr);
 void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint);
@@ -303,11 +307,19 @@ void msrCalcCOM(MSR msr,const double *dCenter, double dRadius,
 void msrInitGrid(MSR msr,int x,int y,int z);
 void msrGridProject(MSR msr,double x,double y,double z);
 #ifdef MDL_FFTW
-void msrMeasurePk(MSR msr,int nGrid,int nBins,uint64_t *nPk,float *fK,float *fPk);
+void msrAssignMass(MSR msr,int iAssignment,int nGrid);
+void msrMeasurePk(MSR msr,int iAssignment, int nGrid,int nBins,uint64_t *nPk,float *fK,float *fPk);
+void msrMeasureLinPk(MSR msr,int nGridLin,double a,double dBoxSize,
+                uint64_t *nPk,float *fK,float *fPk);
+void msrSetLinGrid(MSR msr,double dTime, int nGrid);
 #endif
 void msrPSGroupFinder(MSR msr);
 void msrOutPsGroups(MSR msr,const char *pszFile,int iOutType, double dTime);
 void msrUnbind(MSR msr);
 void msrSetPSGroupIds(MSR msr);
-
+int msrGetParticles(MSR msr, int nIn, uint64_t *ID, struct outGetParticles *out);
+void msrOutputOrbits(MSR msr,int iStep,double dTime);
+#ifdef __cplusplus
+}
+#endif
 #endif
