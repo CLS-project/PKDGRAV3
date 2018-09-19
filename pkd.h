@@ -77,6 +77,7 @@ static inline int64_t d2u64(double d) {
 #define CID_CELL2	9
 #define CID_HEALPIX     7
 #define CID_GROUP	2
+#define CID_SHRINK      3
 #define CID_RM		3
 #define CID_BIN		4
 #define CID_SHAPES	5
@@ -1572,6 +1573,7 @@ void pkdLightConeClose(PKD pkd, const char *healpixname);
 void pkdLightCone(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     double dLookbackFac,double dLookbackFacLCP,
     double *dtLCDrift,double *dtLCKick);
+void pkdLightConeVel(PKD pkd);
 void pkdInflate(PKD pkd,int nInflateReps);
 
 struct outGetParticles { /* Array of these */

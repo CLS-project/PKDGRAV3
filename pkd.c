@@ -56,6 +56,9 @@
 #ifdef __linux__
 #include <sys/resource.h>
 #endif
+
+#include <gsl/gsl_spline.h>
+
 #ifdef USE_ITT
 #include "ittnotify.h"
 #endif
@@ -868,13 +871,10 @@ void pkdFinish(PKD pkd) {
 #ifdef _MSC_VER
 	_aligned_free(pkd->pStorePRIVATE);
 #else
-    printf("h\n");
 	mdlFree(pkd->mdl, pkd->pStorePRIVATE);
-    printf("ha\n");
 #endif
     }
     free(pkd->pTempPRIVATE);
-    printf("i\n");
     if (pkd->pLightCone) {
 #ifdef _MSC_VER
 	_aligned_free(pkd->pLightCone);
@@ -882,7 +882,6 @@ void pkdFinish(PKD pkd) {
 	free(pkd->pLightCone);
 #endif
         }
-    printf("j\n");
     if (pkd->pHealpixData) free(pkd->pHealpixData);
     io_free(&pkd->afiLightCone);
     csmFinish(pkd->param.csm);
@@ -1154,20 +1153,6 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	for (j=0;j<3;++j) {
 	    pkdSetPos(pkd,p,j,r[j]);
 	    }
-#if 0
-	if (pkd->param.bInFileLC) {
-	    double tLookback,a;
-	    double r2 = 0.0;
-
-	    for (j=0;j<3;++j) {
-		r2 += r[j]*r[j];
-		}
-	    r2 = sqrt(r2); /* comoving lookback distance */
-	    tLookback = r2/dLightSpeedSim(pkd->param.dBoxSize);
-	    a = csmComoveLookbackTime2Exp(pkd->param.csm,tLookback);
-	    dvFac = 1.0/a; /* input velocities are momenta p = a^2*x_dot and we want v_pec = a*x_dot */
-	    }
-#endif
 	if (pkd->oVelocity) {
 	    for (j=0;j<3;++j) pkdVel(pkd,p)[j] = vel[j]*dvFac;
 	    }
@@ -2730,6 +2715,52 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
 	pkd->bnd.fMax[j] = 0.5*(dMax[j] - dMin[j]);
 	}
     mdlDiag(pkd->mdl, "Out of pkdDrift\n");
+    }
+
+
+void pkdLightConeVel(PKD pkd) {
+    const int nTable=1000;
+    const double rMax=3.0;
+    gsl_spline *scale;
+    gsl_interp_accel *acc = gsl_interp_accel_alloc();
+    double r,dr,rt[nTable],at_inv[nTable];
+    PARTICLE *p;
+    vel_t *v;
+    double dvFac,r2;
+    const double dLightSpeed = dLightSpeedSim(pkd->param.dBoxSize);
+    int i,j;
+
+    assert(pkd->oVelocity);
+    /*
+    ** Setup lookup table.
+    */
+    dr = rMax/(nTable-1);
+    for (i=0;i<nTable;++i) {
+	rt[i] = i*dr;
+	at_inv[i] = 1.0/csmComoveLookbackTime2Exp(pkd->param.csm,rt[i]/dLightSpeed);
+	}
+    scale = gsl_spline_alloc(gsl_interp_cspline,nTable);
+    gsl_spline_init(scale,rt,at_inv,nTable);
+    /*
+    ** Now loop over all particles using this table.
+    */
+    for (i=0;i<pkd->nLocal;++i) {
+	p = pkdParticle(pkd,i);
+	v = pkdVel(pkd,p);
+
+	r2 = 0.0;
+	for (j=0;j<3;++j) {
+	    r2 += pkdPos(pkd,p,j)*pkdPos(pkd,p,j);
+	    }
+	/*
+	** Use r -> 1/a spline table.
+	*/
+	dvFac = gsl_spline_eval(scale,sqrt(r2),acc);
+	/* input velocities are momenta p = a^2*x_dot and we want v_pec = a*x_dot */
+	for (j=0;j<3;++j) v[j] *= dvFac;
+	}
+    gsl_spline_free(scale);
+    gsl_interp_accel_free(acc);
     }
 
 

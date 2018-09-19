@@ -1985,8 +1985,9 @@ int msrCheckForStop(MSR msr,const char *achStopFile) {
     }
 
 void msrFinish(MSR msr) {
-    int id;
-    for (id=1;id<msr->nThreads;++id) {
+   int id;
+   
+   for (id=1;id<msr->nThreads;++id) {
 	int rID;
 	rID = mdlReqService(msr->mdl,id,SRV_STOP,NULL,0);
 	mdlGetReply(msr->mdl,rID,NULL,NULL);
@@ -4132,6 +4133,20 @@ void msrLightConeClose(MSR msr,int iStep) {
 	pstLightConeClose(msr->pst,&lc,sizeof(lc),NULL,NULL);
 	}
     }
+
+/*
+** Correct velocities from a^2 x_dot to a x_dot (physical peculiar velocities) using the 
+** position dependent scale factor within the light cone. This could be expensive.
+*/
+void msrLightConeVel(MSR msr) {
+    double sec,dsec;
+
+    sec = msrTime();
+    pstLightConeVel(msr->pst,NULL,0,NULL,NULL);
+    dsec = msrTime() - sec;
+    printf("Converted lightcone velocities to physical, Wallclock: %f secs.\n", dsec);
+    }
+
 
 
 void msrCheckForOutput(MSR msr,int iStep,double dTime,int *pbDoCheckpoint,int *pbDoOutput) {
