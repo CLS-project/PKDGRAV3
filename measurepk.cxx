@@ -92,8 +92,8 @@ void pkdMeasurePk(PKD pkd, double dTotalMass, int iAssignment, int bInterleave,
     for( auto index=K1.begin(); index!=K1.end(); ++index ) {
     	auto pos = index.position();
 	i = pos[0];
-	if ( j != pos[1] ) {
-	    j = pos[1];
+	if ( j != pos[1] + G.sy() ) {
+	    j = pos[1] + G.sy();
 	    jj = j>iNyquist ? nGrid - j : j;
 	    win_j = deconvolveWindow(jj,nGrid,iAssignment);
 	    }
