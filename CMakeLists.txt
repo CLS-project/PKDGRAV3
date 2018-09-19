@@ -123,7 +123,7 @@ target_sources(${PROJECT_NAME} PRIVATE
 	lst.c moments.c ilp.c ilc.c iomodule.c
 	fof.c hop.c group.c groupstats.c RngStream.c listcomp.c healpix.c
 	tinypy.c pkdtinypy.c
-	assignmass.cxx
+	gridinfo.cxx assignmass.cxx measurepk.cxx
 )
 if(USE_BT)
 target_sources(${PROJECT_NAME} PRIVATE bt.c)

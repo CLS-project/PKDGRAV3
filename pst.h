@@ -1314,6 +1314,7 @@ void pstGridProject(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 /* PST_MEASUREPK */
 struct inMeasurePk {
     double dTotalMass;
+    int bInterleave;
     int iAssignment;
     int nGrid;
     int nBins;

@@ -281,27 +281,23 @@ void msrInitializePStore(MSR msr, uint64_t *nSpecies) {
 	inFFTSizes.nx = inFFTSizes.ny = inFFTSizes.nz = msr->param.nGridPk;
 	pstGetFFTMaxSizes(msr->pst,&inFFTSizes,sizeof(inFFTSizes),&outFFTSizes,&n);
 	/* The new MeasurePk requires two FFTs to eliminate aliasing */
-#ifdef INTERLEAVE
-	ps.nMinEphemeral = 2*outFFTSizes.nMaxLocal*sizeof(FFTW3(real));
-#else
-	ps.nMinEphemeral = outFFTSizes.nMaxLocal*sizeof(FFTW3(real));
-    }
+	ps.nMinEphemeral = (msr->param.bPkInterleave?2:1)*outFFTSizes.nMaxLocal*sizeof(FFTW3(real));
+	}
     /* 
      * Add some ephemeral memory (if needed) for the linGrid.
      * 3 grids are stored : forceX, forceY, forceZ
      */
     if (strlen(msr->param.csm->val.classData.achLinSpecies)){
-        struct inGetFFTMaxSizes inFFTSizes;
-        struct outGetFFTMaxSizes outFFTSizes;
-        int n;
+	struct inGetFFTMaxSizes inFFTSizes;
+	struct outGetFFTMaxSizes outFFTSizes;
+	int n;
 
-        inFFTSizes.nx = inFFTSizes.ny = inFFTSizes.nz = msr->param.nGridLin;
-        pstGetFFTMaxSizes(msr->pst, &inFFTSizes,sizeof(inFFTSizes), &outFFTSizes, &n);
-    
-        if (ps.nMinEphemeral < 3*outFFTSizes.nMaxLocal*sizeof(FFTW3(real)))
-            ps.nMinEphemeral = 3*outFFTSizes.nMaxLocal*sizeof(FFTW3(real));
-    }
-#endif
+	inFFTSizes.nx = inFFTSizes.ny = inFFTSizes.nz = msr->param.nGridLin;
+	pstGetFFTMaxSizes(msr->pst, &inFFTSizes,sizeof(inFFTSizes), &outFFTSizes, &n);
+
+	if (ps.nMinEphemeral < 3*outFFTSizes.nMaxLocal*sizeof(FFTW3(real)))
+	    ps.nMinEphemeral = 3*outFFTSizes.nMaxLocal*sizeof(FFTW3(real));
+	}
 
     if (msr->param.nGrid>0) {
 	struct inGetFFTMaxSizes inFFTSizes;
@@ -1306,6 +1302,9 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.nGridPk = 0;
     prmAddParam(msr->prm,"nGridPk",1,&msr->param.nGridPk,
 		sizeof(int),"pk","<Grid size for measure P(k) 0=disabled> = 0");
+    msr->param.bPkInterleave = 0;
+    prmAddParam(msr->prm,"bPkInterleave",0,&msr->param.bPkInterleave,
+		sizeof(int),"pkinterleave","<Use interleaving to measure P(k)> = -pkinterleave");
     msr->param.iPkOrder = 4;
     prmAddParam(msr->prm,"iPkOrder",1,&msr->param.iPkOrder,
 		sizeof(int),"pko","<Mass assignment order for measuring P(k) = 3");
@@ -6111,8 +6110,9 @@ void msrMeasurePk(MSR msr,int iAssignment,int nGrid,int nBins,uint64_t *nPk,floa
 
     /* NOTE: reordering the particles by their z coordinate would be good here */
     in.iAssignment = iAssignment;
+    in.bInterleave = 0;
     in.nGrid = nGrid;
-    in.nBins = nBins ;
+    in.nBins = nBins;
     in.dTotalMass = msrTotalMass(msr);
 
     out = malloc(sizeof(struct outMeasurePk));

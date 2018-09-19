@@ -44,9 +44,8 @@ class W {
 	auto pow3 = [](F x) { return x*x*x; };
 	auto K0   = [](F h) { return 1.0/6.0 * ( 4.0 - 6.0*h*h + 3.0*h*h*h); };
 	auto K1   = [&pow3](F h) { return 1.0/6.0 * pow3(2.0 - h); };
-	F rr = r;              	 	    /* coordinates in subcube units [0,size] */
-	i = (floorf(rr-1.5));
-	F h = rr - (i+0.5);
+	i = (floorf(r-1.5));
+	F h = r - (i+0.5);
 	H[0] = K1(h);
 	H[1] = K0(h-1);
 	H[2] = K0(2-h);
@@ -97,6 +96,7 @@ static void flush_masses(PKD pkd,int nGrid,const mass_array_t &masses, const sha
     }
 
 
+#if 0
 extern "C"
 void dumpDensity(float *fftData,int nGrid){
     blitz::Array<float,3> raw(fftData,blitz::shape(nGrid+2,nGrid,nGrid),blitz::neverDeleteData,RegularArray());
@@ -115,9 +115,10 @@ void dumpDensity(float *fftData,int nGrid){
 	std::clog << std::endl;
 	}
     }
+#endif
 
 extern "C"
-void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int nGrid, int iAssignment) {
+void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int nGrid, float fDelta, int iAssignment) {
     const std::size_t maxSize = 1000000;
     std::vector<float> data;
     data.reserve(maxSize); // Reserve maximum number
@@ -133,8 +134,8 @@ void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int nGrid, int iAssignment) {
 	stack.pop_back(); // Go to the next node in the tree
 	BND bnd = pkdNodeGetBnd(pkd, kdn);
 	position_t fCenter(bnd.fCenter), fMax(bnd.fMax);
-	const shape_t ilower = shape_t(((fCenter - fMax) * ifPeriod + 0.5) * nGrid) - iAssignment/2;
-	const shape_t iupper = shape_t(((fCenter + fMax) * ifPeriod + 0.5) * nGrid) + iAssignment/2;
+	const shape_t ilower = shape_t(((fCenter - fMax) * ifPeriod + 0.5) * nGrid + fDelta) - iAssignment/2;
+	const shape_t iupper = shape_t(((fCenter + fMax) * ifPeriod + 0.5) * nGrid + fDelta) + iAssignment/2;
 	const shape_t ishape = iupper - ilower + 1;
 	const float3_t flower = ilower;
 	std::size_t size = blitz::product(ishape);
@@ -153,7 +154,7 @@ void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int nGrid, int iAssignment) {
 	    	PARTICLE *p = pkdParticle(pkd,i);
 	    	position_t dr; pkdGetPos1(pkd,p,dr.data()); // Centered on 0 with period fPeriod
 	    	float3_t r(dr);
-		r = (r * ifPeriod + 0.5) * nGrid - flower; // Scale and shift to fit in subcube
+		r = (r * ifPeriod + 0.5) * nGrid + fDelta - flower; // Scale and shift to fit in subcube
 		assign_mass(masses, r.data(), pkdMass(pkd,p), iAssignment);
 		}
 	    flush_masses(pkd,nGrid,masses,ilower);
@@ -172,7 +173,7 @@ void pstAssignMass(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	mdlGetReply(pst->mdl,rID, vout,pnOut);
 	}
     else {
-    	pkdAssignMass(plcl->pkd,ROOT,in->nGrid,in->iAssignment);
+    	pkdAssignMass(plcl->pkd,ROOT,in->nGrid,0.0f,in->iAssignment);
 	}
     }
 

@@ -1554,8 +1554,8 @@ void pkdGridProject(PKD pkd);
 #ifdef __cplusplus
 extern "C" {
 #endif
-void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int nGrid, int iAssignment);
-void pkdMeasurePk(PKD pkd, double dTotalMass, int iAssignment,
+void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int nGrid, float dDelta, int iAssignment);
+void pkdMeasurePk(PKD pkd, double dTotalMass, int iAssignment, int bInterleave,
     int nGrid, int nBins, double *fK, double *fPower, uint64_t *nPower);
 void pkdSetLinGrid(PKD pkd,double dTime, double dBSize, int nGrid, int iSeed, int bFixed, float fPhase);
 void pkdMeasureLinPk(PKD pkd, int nGrid, double dA, double dBoxSize,

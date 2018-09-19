@@ -4677,7 +4677,7 @@ void pstMeasurePk(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	free(outUpper);
 	}
     else {
-	pkdMeasurePk(plcl->pkd, in->dTotalMass, in->iAssignment,
+	pkdMeasurePk(plcl->pkd, in->dTotalMass, in->iAssignment, in->bInterleave,
 	    in->nGrid, in->nBins, out->fK, out->fPower, out->nPower);
 	}
     if (pnOut) *pnOut = sizeof(struct outMeasurePk);
