@@ -69,7 +69,7 @@ void GridInfo::setupArray(real_t *dataFirst,complex_array_t &kspace) {
                 blitz::Range(0,ny()-1),
                 blitz::Range(sz,ez-1));
         kspace.reference(kspace2);
-        kspace.reindexSelf(dimension_t(0,0,sz)); // Correct "z" dimension
+        kspace.reindexSelf(dimension_t(0,sy(),sz)); // Correct "z" dimension
         }
     // Create an empty array; note that the data pointer is NULL
     else {
