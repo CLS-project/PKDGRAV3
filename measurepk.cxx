@@ -1,8 +1,9 @@
 #include "pst.h"
 #include "master.h"
-
 #include "gridinfo.hpp"
 using namespace gridinfo;
+
+#include <vector>
 
 static void initPk(void *vpkd, void *g) {
     FFTW3(real) * r = (FFTW3(real) *)g;
@@ -41,15 +42,20 @@ static void assign_mass(PKD pkd, int iAssignment, double dTotalMass, double fDel
     mdlFFT(pkd->mdl,fft,fftData);
     }
 
-static double deconvolveWindow(int i,int nGrid,int iAssignment) {
-    double win = M_PI * i / nGrid;
-    if(win>0.1) win = win / sin(win);
-    else win=1.0 / (1.0-win*win/6.0*(1.0-win*win/20.0*(1.0-win*win/76.0)));
-    double ret = win;
-    while(--iAssignment) ret *= win;
-    return ret;
-    }
+class Window : public std::vector<float> {
+public:
+    Window(int nGrid,int iAssignment);
+    };
 
+Window::Window(int nGrid,int iAssignment) {
+    reserve(nGrid);
+    for( auto i=0; i<nGrid; ++i) {
+	float win = M_PI * i / nGrid;
+	if(win>0.1) win = win / sinf(win);
+	else win=1.0 / (1.0-win*win/6.0*(1.0-win*win/20.0*(1.0-win*win/76.0)));
+	push_back(powf(win,iAssignment));
+	}
+    }
 
 extern "C"
 void pkdMeasurePk(PKD pkd, double dTotalMass, int iAssignment, int bInterleave,
@@ -59,6 +65,7 @@ void pkdMeasurePk(PKD pkd, double dTotalMass, int iAssignment, int bInterleave,
     auto iNyquist = nGrid / 2;
     auto fft = pkd->fft = mdlFFTInitialize(pkd->mdl,nGrid,nGrid,nGrid,0,0);
     GridInfo G(pkd->mdl,fft);
+    Window W(nGrid,iAssignment);
 
     mdlGridCoordFirstLast(pkd->mdl,fft->rgrid,&first,&last,1);
     auto fftData1 = reinterpret_cast<FFTW3(real) *>(mdlSetArray(pkd->mdl,last.i,sizeof(FFTW3(real)),pkd->pLite));
@@ -87,23 +94,14 @@ void pkdMeasurePk(PKD pkd, double dTotalMass, int iAssignment, int bInterleave,
 #else
     double scale = nBins * 1.0 / log(iNyquist+1);
 #endif
-    int jj, kk, i, j, k;
-    i = j = k = -1;
+    int i, j, k;
     for( auto index=K1.begin(); index!=K1.end(); ++index ) {
     	auto pos = index.position();
 	i = pos[0];
-	if ( j != pos[1]) {
-	    j = pos[1];
-	    jj = j>iNyquist ? nGrid - j : j;
-	    win_j = deconvolveWindow(jj,nGrid,iAssignment);
-	    }
-	if ( k != pos[2] ) {
-	    k = pos[2];
-	    kk = k>iNyquist ? nGrid - k : k;
-            win_k = deconvolveWindow(kk,nGrid,iAssignment);
-	    }
-	double win = deconvolveWindow(i,nGrid,iAssignment) * win_k * win_j;
-	auto ak = sqrt(i*i + jj*jj + kk*kk);
+	j = pos[1]>iNyquist ? nGrid - pos[1] : pos[1];
+	k = pos[2]>iNyquist ? nGrid - pos[2] : pos[2];
+	double win = W[i] * W[j] * W[k];
+	auto ak = sqrt(i*i + j*j + k*k);
 	auto ks = int(ak);
 	if ( ks >= 1 && ks <= iNyquist ) {
 #ifdef LINEAR_PK
