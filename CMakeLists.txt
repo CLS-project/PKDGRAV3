@@ -113,6 +113,7 @@ check_symbol_exists(atexit stdlib.h HAVE_ATEXIT)
 
 add_subdirectory(blitz)
 add_subdirectory(mdl2)
+
 add_executable(${PROJECT_NAME} "")
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_auto_type cxx_lambdas)
 set_property(TARGET ${PROJECT_NAME} APPEND PROPERTY COMPILE_DEFINITIONS _LARGEFILE_SOURCE)
@@ -125,6 +126,8 @@ target_sources(${PROJECT_NAME} PRIVATE
 	tinypy.c pkdtinypy.c
 	gridinfo.cxx assignmass.cxx measurepk.cxx
 )
+add_executable(tostd tostd.c fio.c)
+
 if(USE_BT)
 target_sources(${PROJECT_NAME} PRIVATE bt.c)
 endif()
@@ -143,6 +146,8 @@ if (HDF5_FOUND)
   target_link_libraries(${PROJECT_NAME} ${HDF5_LIBRARIES} ${HDF5_HL_LIBRARIES})
   #set_property(TARGET ${PROJECT_NAME} APPEND PROPERTY COMPILE_DEFINITIONS ${HDF5_DEFINITIONS})
   #set_property(TARGET ${PROJECT_NAME} APPEND PROPERTY COMPILE_DEFINITIONS H5_USE_16_API)
+  target_include_directories(tostd PUBLIC ${HDF5_INCLUDE_DIRS})
+  target_link_libraries(tostd ${HDF5_LIBRARIES} ${HDF5_HL_LIBRARIES})
 endif(HDF5_FOUND)
 if (PYTHONLIBS_FOUND)
   set(USE_PYTHON TRUE)
@@ -168,4 +173,8 @@ target_include_directories(${PROJECT_NAME} PRIVATE ${GSL_INCLUDE_DIRS})
 target_link_libraries(${PROJECT_NAME} ${GSL_LIBRARIES})
 target_link_libraries(${PROJECT_NAME} blitz)
 
-install(TARGETS ${PROJECT_NAME} DESTINATION "bin")
+target_include_directories(tostd PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
+
+
+
+install(TARGETS ${PROJECT_NAME} tostd DESTINATION "bin")
