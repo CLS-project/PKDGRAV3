@@ -73,7 +73,7 @@ void pkdMeasurePk(PKD pkd, double dTotalMass, int iAssignment, int bInterleave,
 
     assign_mass(pkd,iAssignment,dTotalMass,0.0f,fft,fftData1);
     if (bInterleave) {
-	//assign_mass(pkd,iAssignment,dTotalMass,0.5f,fft,fftData2);
+	assign_mass(pkd,iAssignment,dTotalMass,0.5f,fft,fftData2);
 	}
 
     complex_array_t K1,K2;
@@ -94,12 +94,11 @@ void pkdMeasurePk(PKD pkd, double dTotalMass, int iAssignment, int bInterleave,
 #else
     double scale = nBins * 1.0 / log(iNyquist+1);
 #endif
-    int i, j, k;
     for( auto index=K1.begin(); index!=K1.end(); ++index ) {
     	auto pos = index.position();
-	i = pos[0];
-	j = pos[1]>iNyquist ? nGrid - pos[1] : pos[1];
-	k = pos[2]>iNyquist ? nGrid - pos[2] : pos[2];
+	auto i = pos[0]; // i,j,k are all positive (absolute value)
+	auto j = pos[1]>iNyquist ? nGrid - pos[1] : pos[1];
+	auto k = pos[2]>iNyquist ? nGrid - pos[2] : pos[2];
 	double win = W[i] * W[j] * W[k];
 	auto ak = sqrt(i*i + j*j + k*k);
 	auto ks = int(ak);
@@ -110,7 +109,15 @@ void pkdMeasurePk(PKD pkd, double dTotalMass, int iAssignment, int bInterleave,
 	    ks = floor(log(ks) * scale);
 #endif
 	    assert(ks>=0 && ks <nBins);
-	    double delta2 = win*win*std::norm(*index);
+	    auto v1 = *index;
+	    if (bInterleave) { // jj,kk can be negative
+		auto jj = pos[1]>iNyquist ? pos[1] - nGrid : pos[1];
+		auto kk = pos[2]>iNyquist ? pos[2] - nGrid : pos[2];
+		float theta = M_PI/nGrid * (i + jj + kk);
+		auto v2 = K2(index.position()) * complex_t(cosf(theta),sinf(theta));
+		v1 = complex_t(0.5) * (v1 + v2);
+		}
+	    double delta2 = win*win*std::norm(v1);
 	    fK[ks] += ak;
 	    fPower[ks] += delta2;
 	    nPower[ks] += 1;

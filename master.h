@@ -309,7 +309,7 @@ void msrInitGrid(MSR msr,int x,int y,int z);
 void msrGridProject(MSR msr,double x,double y,double z);
 #ifdef MDL_FFTW
 void msrAssignMass(MSR msr,int iAssignment,int nGrid);
-void msrMeasurePk(MSR msr,int iAssignment, int nGrid,int nBins,uint64_t *nPk,float *fK,float *fPk);
+void msrMeasurePk(MSR msr,int iAssignment,int bInterleave,int nGrid,int nBins,uint64_t *nPk,float *fK,float *fPk);
 void msrMeasureLinPk(MSR msr,int nGridLin,double a,double dBoxSize,
                 uint64_t *nPk,float *fK,float *fPk);
 void msrSetLinGrid(MSR msr,double dTime, int nGrid);

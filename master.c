@@ -5382,7 +5382,7 @@ void msrOutputPk(MSR msr,int iStep,double dTime) {
     nPk = malloc(sizeof(uint64_t)*(msr->param.nBinsPk));
     assert(nPk != NULL);
 
-    msrMeasurePk(msr,msr->param.iPkOrder,msr->param.nGridPk,msr->param.nBinsPk,nPk,fK,fPk);
+    msrMeasurePk(msr,msr->param.iPkOrder,msr->param.bPkInterleave,msr->param.nGridPk,msr->param.nBinsPk,nPk,fK,fPk);
 
     msrBuildName(msr,achFile,iStep);
     strncat(achFile,".pk",256);
@@ -6106,7 +6106,7 @@ void msrGridProject(MSR msr,double x,double y,double z) {
     }
 
 #ifdef MDL_FFTW
-void msrMeasurePk(MSR msr,int iAssignment,int nGrid,int nBins,uint64_t *nPk,float *fK,float *fPk) {
+void msrMeasurePk(MSR msr,int iAssignment,int bInterleave,int nGrid,int nBins,uint64_t *nPk,float *fK,float *fPk) {
     struct inMeasurePk in;
     struct outMeasurePk *out;
     int nOut;
@@ -6125,7 +6125,7 @@ void msrMeasurePk(MSR msr,int iAssignment,int nGrid,int nBins,uint64_t *nPk,floa
 
     /* NOTE: reordering the particles by their z coordinate would be good here */
     in.iAssignment = iAssignment;
-    in.bInterleave = 0;
+    in.bInterleave = bInterleave;
     in.nGrid = nGrid;
     in.nBins = nBins;
     in.dTotalMass = msrTotalMass(msr);
