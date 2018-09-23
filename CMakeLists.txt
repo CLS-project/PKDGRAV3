@@ -127,6 +127,7 @@ target_sources(${PROJECT_NAME} PRIVATE
 	gridinfo.cxx assignmass.cxx measurepk.cxx
 )
 add_executable(tostd tostd.c fio.c)
+add_executable(psout psout.c cosmo.c)
 
 if(USE_BT)
 target_sources(${PROJECT_NAME} PRIVATE bt.c)
@@ -148,6 +149,8 @@ if (HDF5_FOUND)
   #set_property(TARGET ${PROJECT_NAME} APPEND PROPERTY COMPILE_DEFINITIONS H5_USE_16_API)
   target_include_directories(tostd PUBLIC ${HDF5_INCLUDE_DIRS})
   target_link_libraries(tostd ${HDF5_LIBRARIES} ${HDF5_HL_LIBRARIES})
+  target_include_directories(psout PUBLIC ${HDF5_INCLUDE_DIRS})
+  target_link_libraries(psout ${HDF5_LIBRARIES} ${HDF5_HL_LIBRARIES})
 endif(HDF5_FOUND)
 if (PYTHONLIBS_FOUND)
   set(USE_PYTHON TRUE)
@@ -174,7 +177,8 @@ target_link_libraries(${PROJECT_NAME} ${GSL_LIBRARIES})
 target_link_libraries(${PROJECT_NAME} blitz)
 
 target_include_directories(tostd PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
-
-
+target_include_directories(psout PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
+target_include_directories(psout PRIVATE ${GSL_INCLUDE_DIRS})
+target_link_libraries(psout ${GSL_LIBRARIES})
 
 install(TARGETS ${PROJECT_NAME} tostd DESTINATION "bin")
