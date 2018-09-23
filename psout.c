@@ -127,6 +127,7 @@ int main(int argc,char *argv[]) {
 
     double dBoxSize = 3780;
     double twopi = 2.0 * 4.0 * atan(1.0);
+    double twopi3 = pow(twopi,3.0);
     double itwopi = 1.0 / twopi;
     double iLbox = twopi / dBoxSize;
     double iLbox3 = pow(iLbox,3.0);
@@ -139,18 +140,13 @@ int main(int argc,char *argv[]) {
     double dk = (lke - lkb) / 300;
 
     double lak;
-//    for(lak=lkb; lak<=lke; lak+=dk) {
-//	double ak = exp(lak) * iLbox;
     while(fgets(buffer,sizeof(buffer),stdin)) {
 	double ak;
 	if (sscanf(buffer,"%lg\n",&ak)!=1) {
 	    fprintf(stderr,"ERROR\n");
 	    return 3;
 	    }
-	//double ak2 = 1;
-	//double ak = sqrt(ak2) * iLbox;
-	//double amp = sqrt(power(&P,ak*iLbox) * iLbox3) * itwopi / (ak*ak);
-	double amp = power(&P,ak);
+	double amp = power(&P,ak) * twopi3;
 	printf("%g %g\n", ak, amp);
 	}
     

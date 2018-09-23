@@ -5393,7 +5393,6 @@ void msrOutputPk(MSR msr,int iStep,double dTime) {
     /* If the Box Size (in mpc/h) was specified, then we can scale the output power spectrum measurement */
     if ( prmSpecified(msr->prm,"dBoxSize") && msr->param.dBoxSize > 0.0 ) kfact = msr->param.dBoxSize;
     else kfact = 1.0;
-    kfact /= 2.0 * M_PI;
     vfact = kfact * kfact * kfact;
     kfact = 1.0 / kfact;
 
@@ -5404,7 +5403,7 @@ void msrOutputPk(MSR msr,int iStep,double dTime) {
 	}
     for(i=0; i<msr->param.nBinsPk; ++i) {
 	if (fPk[i] > 0.0) fprintf(fp,"%g %g %" PRIu64 "\n",
- 	    kfact * fK[i],vfact * fPk[i], nPk[i]);
+ 	    kfact * fK[i] * 2.0 * M_PI,vfact * fPk[i], nPk[i]);
 	}
     fclose(fp);
     free(fK);
