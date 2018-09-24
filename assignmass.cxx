@@ -140,7 +140,7 @@ void dumpDensity(float *fftData,int nGrid){
 
 extern "C"
 void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int nGrid, float fDelta, int iAssignment) {
-    const std::size_t maxSize = 1000000;
+    const std::size_t maxSize = 100000; // We would like this to remain in L2 cache
     std::vector<float> data;
     data.reserve(maxSize); // Reserve maximum number
     shape_t index;
@@ -155,16 +155,35 @@ void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int nGrid, float fDelta, int iA
 	stack.pop_back(); // Go to the next node in the tree
 	BND bnd = pkdNodeGetBnd(pkd, kdn);
 	position_t fCenter(bnd.fCenter), fMax(bnd.fMax);
-	const shape_t ilower = shape_t(((fCenter - fMax) * ifPeriod + 0.5) * nGrid + fDelta) - iAssignment/2;
-	const shape_t iupper = shape_t(((fCenter + fMax) * ifPeriod + 0.5) * nGrid + fDelta) + iAssignment/2;
-	const shape_t ishape = iupper - ilower + 1;
-	const float3_t flower = ilower;
+	shape_t ilower = shape_t(((fCenter - fMax) * ifPeriod + 0.5) * nGrid + fDelta) - iAssignment/2;
+	shape_t iupper = shape_t(((fCenter + fMax) * ifPeriod + 0.5) * nGrid + fDelta) + iAssignment/2;
+	shape_t ishape = iupper - ilower + 1;
+	float3_t flower = ilower;
 	std::size_t size = blitz::product(ishape);
 
 	if (size > maxSize) { // This cell is too large, so we split it and move on
-	    assert(kdn->is_cell()); // At the moment we cannot handle enormous buckets
-	    stack.push_back(kdn->iLower+1);
-	    stack.push_back(kdn->iLower);
+	    if (kdn->is_cell()) { // At the moment we cannot handle enormous buckets
+		stack.push_back(kdn->iLower+1);
+		stack.push_back(kdn->iLower);
+		}
+	    // Huge bucket. Do a particle at a time.
+	    else for( int i=kdn->pLower; i<=kdn->pUpper; ++i) { // All particles in this tree cell
+	        PARTICLE *p = pkdParticle(pkd,i);
+	        position_t dr; pkdGetPos1(pkd,p,dr.data()); // Centered on 0 with period fPeriod
+	        float3_t r(dr);
+	        r = (r * ifPeriod + 0.5) * nGrid + fDelta;
+		ilower = shape_t(r) - iAssignment/2;
+		iupper = shape_t(r) + iAssignment/2;
+		ishape = iupper - ilower + 1;
+		flower = ilower;
+		size = blitz::product(ishape);
+		r = r - flower; // Scale and shift to fit in subcube
+		data.resize(size); // Hold the right number of masses
+		mass_array_t masses(data.data(),ishape,blitz::neverDeleteData,RegularArray());
+		masses = 0.0f;
+		assign_mass(masses, r.data(), pkdMass(pkd,p), iAssignment);
+		flush_masses(pkd,nGrid,masses,ilower);
+		}
 	    }
 	else { // Assign the mass for this range of particles
 	    data.resize(size); // Hold the right number of masses
