@@ -1,24 +1,38 @@
 			       pkdgrav3
-			 September 28, 2016
+			 September 24, 2018
 		      http://www.pkdgrav.org/
 
-		 Doug Potter <dpotter@physik.uzh.ch>
+		Douglas Potter <douglas.potter@uzh.ch>
 		Joachim Stadel <stadel@physik.uzh.ch>
 
 Quick Start
 -----------
 
-To compile the code, simply run:
+The pkdgrav3 code now uses the "cmake" build system. It is recommended to
+use an "out of source" build. The easiest way to accomplish this is to
+create a subdirectory in the pkdgrav3 source directory:
 
-    ./configure
+    mkdir build
+    cd build
+    cmake ..
     make
 
-This will build a single executable:
-
-    pkdgrav3_mpi      Version that uses MPI and pthreads (optionally CUDA)
+This will build a single executable "pkdgrav3" and other utility programs.
 
 Prerequisites
 -------------
+
+CMake - cmake build system
+
+    Most modern systems already have cmake installed. Pkdgrav3 requires
+    version 3.1 or newer of cmake. You can check with "cmake --version":
+
+        pkdgrav3:~> cmake --version
+        cmake version 3.5.2
+
+    If you need a more recent version is can be found at:
+
+        https://cmake.org/
 
 GSL - The GNU Scientific Library
 
@@ -28,7 +42,10 @@ GSL - The GNU Scientific Library
         https://www.gnu.org/software/gsl/
 
     pkdgrav3 will locate the GSL installation by invoking gsl-config, so make
-    sure that it is in your PATH.
+    sure that it is in your PATH. Alternatively, you can tell CMake where to
+    find it by defining GSL_ROOT_ROOT:
+
+        cmake -DGSL_ROOT_DIR=/opt/gsl/2.5
 
 FFTW - Fast Fourier Transform Library (optional)
 
@@ -40,6 +57,10 @@ FFTW - Fast Fourier Transform Library (optional)
 
         http://www.fftw.org/
 
+    If CMake does not automatically find FFTW then you can define FFTW_ROOT_ROOT:
+
+        cmake -DFFTW_ROOT=/path/to/fftw
+
 CUDA
 
     If your system has a CUDA capable GPU then pkdgrav3 can use it.
@@ -47,74 +68,10 @@ CUDA
 
 	https://developer.nvidia.com/cuda-downloads
 
-Configuration
--------------
-
-There are several flags to configure that affect the features and performance 
-of pkdgrav3.  Flags are selected by adding them to the configure command, for
-example, to request that more detailed instrumentation be performed:
-
-    ./configure --with-fftw
-
-For a list of all options to configure, use --help as in:
-
-    ./configure --help
-
-QUICK START: Cosmological Simulations
-
-    ./configure --with-fftw --enable-integer-positions
-
-    This will generate pkdgrav3_mpi with support for Initial Condition
-    generation (FFTW is required), and optimized memory (Integerized postitions).
-
-QUICK START: Cosmological Simulations with CUDA support
-
-    ./configure --with-fftw --enable-integer-positions --with-cuda
-
-    This builds pkdgrav3_mpi with GPU support.
-
-Compiler options:
-
-    pkdgrav3 has been testing and works well with the GNU Compiler Collection
-    as well as the Intel Compilers. Selection of compilers is system dependent,
-    and by default pkdgrav3 will look for "cc", "gcc", and "mpicc". It is possible
-    to override this on the configure command line with "CC=" and "CXX=",
-    for example:
-
-    ./configure CC=icc CXX=icpc
-
-Cray Systems
-
-    For Cray systems, the compilers are choosen by selecting the appropriate
-    "PrgEnv" and the default is often PrgEnv-cray, the Cray compiler suite.
-    To switch use "module swap":
-
-    module swap PrgEnv-cray PrgEnv-gnu
-
-    The gsl and fftw libraries can often be selected with:
-
-    module load fftw gsl
-
-The following are the available options.
-
-    --disable-simd
-
-    By default, SIMD (single instruction, multiple data) instructions are
-    enabled.  SIMD is supported for Intel (SSE/SSE2) and IBM (Altivec)
-    architectures.  This gives a noticable performance boost for machines
-    on which it is supported.
-
-    --disable-instrument
-
-    This turnes off detailed timing information for the various phases of
-    computation and communication.  It uses the Matteo Frigo "cycle.h"
-    for access to high resolution hardware timers.  By default, this
-    feature is enabled on those architectures on which it is supported.
-
 Build
 -----
 
-Once the configure script has been run to produce a Makefile and config.h,
+Once CMake has been run to produce a Makefile and associated files,
 the "make" command is used to build the program, as in:
 
     make
@@ -127,12 +84,12 @@ a 16 core machine, the build process can be sped up with:
 Running
 -------
 
-    pkdgrav3_mpi
-    -------------
+    pkdgrav3
+    --------
     This version is run using the MPI system on the cluster in question.
     Normally this involves a special command (often "mpirun" or "mpiexec"),
     for example:
 
-	mpiexec pkdgrav3_mpi simfile.par
+	mpiexec pkdgrav3 simfile.par
 
     Consult your cluster documentation on how to run MPI programs.
