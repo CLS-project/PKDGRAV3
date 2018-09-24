@@ -14,6 +14,11 @@
  *  You should have received a copy of the GNU General Public License
  *  along with PKDGRAV3.  If not, see <http://www.gnu.org/licenses/>.
  */
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#else
+#include "pkd_config.h"
+#endif
 #include <cstddef>
 #include <vector>
 #include <numeric>
