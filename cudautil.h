@@ -55,10 +55,6 @@ extern "C" {
 inline __device__ bool testz(bool p) { return !p; }
 inline __device__ float maskz_mov(bool p,float a) { return p ? a : 0.0f; }
 
-#define CUDA_NUM_BANKS 16
-#define CUDA_LOG_NUM_BANKS 4
-#define cfOffset(i) ((i) + ((i)>>CUDA_LOG_NUM_BANKS))
-
 template <typename T,unsigned int blockSize>
 inline __device__ T warpReduce(/*volatile T * data, int tid,*/ T t) {
 #if CUDART_VERSION >= 9000
@@ -88,6 +84,34 @@ __device__ void warpReduceAndStore(int tid,T t,T *result) {
     t = warpReduce<T,blockSize>(t);
     if (tid==0) *result = t;
     }
+
+#ifdef __cplusplus
+class WorkNode {
+    OPA_Queue_element_hdr_t hdr;
+    OPA_Queue_info_t *pwqDone; // Where to return this
+public:
+    void queueTo(OPA_Queue_info_t *q,        // Send to this queue for processing
+    	         OPA_Queue_info_t *qBack=0); // Return to this queue when complete
+    void sendBack(); // Return this work node back to the requested queue
+    };
+
+class CudaWorkNode : public WorkNode {
+    int inBufferSize, outBufferSize;
+    void *pHostBufToGPU, *pHostBufFromGPU;
+    void *pCudaBufIn, *pCudaBufOut;
+    cudaStream_t stream;     // execution stream
+    dim3 dimBlock, dimGrid;
+
+public:
+    explicit CudaWorkNode(int inSize,int outSize=0);
+    virtual ~CudaWorkNode();
+    virtual int init(void *context) = 0; // Start the work (mdl thread)
+    virtual int done(void *context) = 0; // finish the work (mdl thread)
+    virtual int save(void *context) = 0; // save the results (caller)
+    void create_buffers();
+    void destroy_buffers();
+    };
+#endif
 
 void CUDA_Abort(cudaError_t rc, const char *fname, const char *file, int line);
 

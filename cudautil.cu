@@ -48,6 +48,17 @@
 #include <sys/time.h>
 #endif
 
+// Queue this node to another thread, optionally with a return
+void WorkNode::queueTo(OPA_Queue_info_t *q, OPA_Queue_info_t *qBack) {
+    pwqDone = qBack;
+    OPA_Queue_enqueue(q, this, WorkNode, hdr);
+    }
+
+void WorkNode::sendBack() {
+    assert(pwqDone);
+    OPA_Queue_enqueue(pwqDone, this, WorkNode, hdr);
+    }
+
 static void *CUDA_malloc(size_t nBytes) {
 #ifdef __linux__
     uint64_t nPageSize = sysconf(_SC_PAGESIZE);
@@ -203,8 +214,8 @@ extern "C"
 void *CUDA_initialize(int nCores, int iCore, OPA_Queue_info_t *queueWORK, OPA_Queue_info_t *queueREGISTER) {
     int nDevices;
 
-    CUDA_CHECK(cudaGetDeviceCount,(&nDevices))
-    if (nDevices == 0 ) return NULL;
+    cudaError_t rc = cudaGetDeviceCount(&nDevices);
+    if (rc!=cudaSuccess || nDevices == 0 ) return NULL;
     CUDA_CHECK(cudaSetDevice,(iCore % nDevices));
     CUDACTX ctx = reinterpret_cast<CUDACTX>(malloc(sizeof(struct cuda_ctx)));
     assert(ctx!=NULL);
@@ -511,4 +522,33 @@ void CUDA_finish(void *vcuda) {
         }
     cudaDeviceReset();
     free(cuda);
+    }
+
+CudaWorkNode::CudaWorkNode(int inSize,int outSize) {
+    inBufferSize = inSize;
+    outBufferSize = outSize;
+    pHostBufToGPU = NULL;
+    pHostBufFromGPU = NULL;
+    pCudaBufIn = NULL;
+    pCudaBufOut = NULL;
+    }
+
+CudaWorkNode::~CudaWorkNode() {
+    }
+
+// This must be called once to setup the buffers; normally by the MPI/CUDA thread
+void CudaWorkNode::create_buffers() {
+    CUDA_CHECK(cudaHostRegister,(pHostBufToGPU,   inBufferSize,  cudaHostRegisterPortable));
+    CUDA_CHECK(cudaHostRegister,(pHostBufFromGPU, outBufferSize, cudaHostRegisterPortable));
+    pCudaBufIn = CUDA_gpu_malloc(inBufferSize);   assert(pCudaBufIn!=NULL);
+    pCudaBufOut = CUDA_gpu_malloc(outBufferSize); assert(pCudaBufOut!=NULL);
+    CUDA_CHECK(cudaStreamCreate,( &stream ));
+    }
+
+void CudaWorkNode::destroy_buffers() {
+    CUDA_free(pHostBufFromGPU);
+    CUDA_free(pHostBufToGPU);
+    CUDA_gpu_free(pCudaBufIn);
+    CUDA_gpu_free(pCudaBufOut);
+    cudaStreamDestroy(stream);
     }

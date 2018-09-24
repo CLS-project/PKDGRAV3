@@ -31,7 +31,7 @@ if (COMPILER_OPT_WARN_ALL_SUPPORTED)
   set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wall")
   set(CMAKE_C_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wall")
 endif()
-#find_package(CUDA)
+find_package(CUDA)
 find_package(GSL REQUIRED)      # GNU Scientific Library
 find_package(HDF5 COMPONENTS HL)
 #find_package(PythonLibs)
@@ -135,6 +135,10 @@ endif()
 
 if (CUDA_FOUND)
   set(USE_CUDA TRUE)
+  get_property(MDL_INCLUDES TARGET mdl2 PROPERTY INCLUDE_DIRECTORIES)
+  get_property(OPENPA_INCLUDES TARGET openpa PROPERTY INCLUDE_DIRECTORIES)
+#  target_link_libraries(${PROJECT_NAME} ${CUDA_LIBRARIES})
+  CUDA_INCLUDE_DIRECTORIES(${MDL_INCLUDES} ${OPENPA_INCLUDES})
   CUDA_COMPILE(cuda_files cudaewald.cu cudapppc.cu cudautil.cu
 	OPTIONS -arch compute_35
 		-I${CMAKE_CURRENT_SOURCE_DIR}/mdl2/openpa
@@ -167,6 +171,20 @@ target_sources(${PROJECT_NAME} PRIVATE vmoments.cxx)
 target_sources(${PROJECT_NAME} PRIVATE lightcone.cxx)
 #endif
 #endif
+
+
+
+
+foreach(flag_var
+        CMAKE_C_FLAGS CMAKE_C_FLAGS_DEBUG CMAKE_C_FLAGS_RELEASE
+        CMAKE_C_FLAGS_MINSIZEREL CMAKE_C_FLAGS_RELWITHDEBINFO
+        CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE
+        CMAKE_CXX_FLAGS_MINSIZEREL CMAKE_CXX_FLAGS_RELWITHDEBINFO)
+   if(${flag_var} MATCHES "-DNDEBUG")
+      string(REPLACE "-DNDEBUG" "" ${flag_var} "${${flag_var}}")
+   endif(${flag_var} MATCHES "-DNDEBUG")
+endforeach(flag_var)
+
 
 
 CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/pkd_config.h.in ${CMAKE_CURRENT_BINARY_DIR}/pkd_config.h)

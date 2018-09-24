@@ -1170,9 +1170,9 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.iWorkQueueSize = 0;
     prmAddParam(msr->prm,"iWorkQueueSize",1,&msr->param.iWorkQueueSize,sizeof(int),"wqs",
 		"<size of the MDL work queue> = 0");
-    msr->param.iCUDAQueueSize = 0;
+    msr->param.iCUDAQueueSize = 8;
     prmAddParam(msr->prm,"iCUDAQueueSize",1,&msr->param.iCUDAQueueSize,sizeof(int),"cqs",
-		"<size of the CUDA work queue> = 0");
+		"<size of the CUDA work queue> = 8");
     msr->param.nSmooth = 64;
     prmAddParam(msr->prm,"nSmooth",1,&msr->param.nSmooth,sizeof(int),"s",
 		"<number of particles to smooth over> = 64");
