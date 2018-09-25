@@ -122,9 +122,8 @@ void csmClassRead(CSM csm, double dBoxSize){
     hsize_t size_bg, size_a, size_k, count[1], offset[1], offset_out[1];
     char *matter_name, hdf5_key[128], *unit_length,
         *linSpeciesNames[10], *linSpeciesName, *LinSpeciesParsing;
-    double h, A_s, n_s, alpha_s, k_pivot;
-    double a, k, rho_crit[1], unit_convertion_time, unit_convertion_density;
-    double *loga, *logrho_lin, *deltarho_lin, *rho_lin, *zeta;
+    double h, a, k, rho_crit[1], unit_convertion_time, unit_convertion_density;
+    double *loga, *logrho_lin, *deltarho_lin, *rho_lin;
 
     assert(csm->val.classData.bClass);
     if (strlen(csm->val.classData.achFilename) == 0){
@@ -405,56 +404,57 @@ void csmClassRead(CSM csm, double dBoxSize){
         }
     }
 
-    /* The delta and theta perturbations in the hdf5 file is given as
-    ** transfer functions using CLASS convention. To convert them to
-    ** actual linear fields, the square of which equals the power
+    /* The delta and theta perturbations in the hdf5 file are given as
+    ** transfer functions using the CLASS convention. To convert them
+    ** to actual linear fields, the square of which equals the power
     ** spectrum, we use the CLASS convention
     **   delta(k) = T_delta(k)*zeta(k),
     ** (similar for theta) with
     **   zeta(k) = pi*sqrt(2*A_s)*k^(-3/2)*(k/k_pivot)^((n_s - 1)/2)
     **             *exp(alpha_s/4*(log(k/k_pivot))^2).
     ** the comoving curvature perturbation and T_delta(k) the CLASS
-    ** transfer function. These transfer functions bears units.
-    ** Specifically, the delta transfer function is unitless while the
-    ** theta transfer function has units of inverse time. From the
-    ** above, we see that delta(k) has units of length^(3/2). After an
-    ** inverse 3D FFT, a unitless delta(\vec{x}) is obtained by
-    ** multiplying by the Fourier normalization boxsize^(-3/2). Here we
-    ** include this Fourier normalization directly in zeta.
+    ** transfer function. This comoving curvature perturbation
+    ** is implemented in csmZeta(). What we store in
+    ** csm->val.classData.perturbations is then just the
+    ** transfer functions. When a perturbation is looked up by either
+    ** the csmDelta_m(), csmTheta_m() or csmDelta_lin() function,
+    ** the corresponding transfer function is looked up via spline
+    ** interpolation and zeta(k) is constructed through a call
+    ** to csmZeta(). We could also multiply  the zeta(k) values on now
+    ** and be done with it, but this will make the interpolations
+    ** slightly poorer.
+    ** The transfer functions bears units. Specifically, the delta
+    ** transfer functions are unitless while the theta transfer function
+    ** has units of inverse time. From the above expression of zeta(k)
+    ** we see that delta(k) has units of length^(3/2). After an inverse
+    ** 3D FFT, a unitless delta(\vec{x}) is obtained by multiplying by
+    ** the Fourier normalization boxsize^(-3/2). We include this
+    ** normalization directly on the transfer functions.
     ** ACTUALLY, it turns out that we need a factor of boxsize^(-5/2),
     ** for some reason?
     */
     group = H5Gopen(file, "/perturbations", H5P_DEFAULT); if (group < 0) abort();
     attr = H5Aopen(group, "A_s", H5P_DEFAULT); if (attr < 0) abort();
-    if (H5Aread(attr, H5T_NATIVE_DOUBLE, &A_s) < 0) abort();
-    csm->val.classData.perturbations.A_s = A_s;
+    if (H5Aread(attr, H5T_NATIVE_DOUBLE, &csm->val.classData.perturbations.A_s) < 0)
+        abort();
     H5Aclose(attr);
     attr = H5Aopen(group, "n_s", H5P_DEFAULT); if (attr < 0) abort();
-    if (H5Aread(attr, H5T_NATIVE_DOUBLE, &n_s) < 0) abort();
-    csm->val.classData.perturbations.n_s = n_s;
+    if (H5Aread(attr, H5T_NATIVE_DOUBLE, &csm->val.classData.perturbations.n_s) < 0)
+        abort();
     H5Aclose(attr);
     attr = H5Aopen(group, "alpha_s", H5P_DEFAULT); if (attr < 0) abort();
-    if (H5Aread(attr, H5T_NATIVE_DOUBLE, &alpha_s) < 0) abort();
-    csm->val.classData.perturbations.alpha_s = alpha_s;
+    if (H5Aread(attr, H5T_NATIVE_DOUBLE, &csm->val.classData.perturbations.alpha_s) < 0)
+        abort();
     H5Aclose(attr);
     attr = H5Aopen(group, "k_pivot", H5P_DEFAULT); if (attr < 0) abort();
-    if (H5Aread(attr, H5T_NATIVE_DOUBLE, &k_pivot) < 0) abort();
-    csm->val.classData.perturbations.k_pivot = k_pivot;
+    if (H5Aread(attr, H5T_NATIVE_DOUBLE, &csm->val.classData.perturbations.k_pivot) < 0)
+        abort();
     H5Aclose(attr);
-    H5Gclose(group);
     csm->val.classData.perturbations.k_pivot /= h;  /* [1/Mpc] -> [h/Mpc] */
-    zeta = (double*)malloc(sizeof(double)*size_k);
-    for (i = 0; i < size_k; i++){
-        k = csm->val.classData.perturbations.k[i];
-        zeta[i] = M_PI*sqrt(2*A_s)*pow(k, -1.5)*pow(k/k_pivot, 0.5*(n_s - 1))*pow(dBoxSize, -2.5)
-                  *exp(0.25*alpha_s*pow(log(k/k_pivot), 2));
-    }
+    H5Gclose(group);
     /* delta_m[a, k] */
-    for (i = 0; i < size_a; i++){
-        for (j = 0; j < size_k; j++){
-            k = csm->val.classData.perturbations.k[j];
-            csm->val.classData.perturbations.delta_m[i*size_k + j] *= zeta[j];
-        }
+    for (i = 0; i < size_a*size_k; i++){
+        csm->val.classData.perturbations.delta_m[i] *= pow(dBoxSize, -2.5);
     }
     /* theta_m[a, k]
     ** Here we reuse unit_convertion_time to convert the unit of theta
@@ -466,21 +466,17 @@ void csmClassRead(CSM csm, double dBoxSize){
     for (i = 0; i < size_a; i++){
         a = csm->val.classData.perturbations.a[i];
         for (j = 0; j < size_k; j++){
-            k = csm->val.classData.perturbations.k[j];
-            csm->val.classData.perturbations.theta_m[i*size_k + j] *= unit_convertion_time*zeta[j]*a;
+            csm->val.classData.perturbations.theta_m[i*size_k + j] *=
+                unit_convertion_time*a*pow(dBoxSize, -2.5);
         }
     }
     /* delta_lin[a, k] */
     if (nLinSpecies){
-        for (i = 0; i < size_a; i++){
-            for (j = 0; j < size_k; j++){
-                k = csm->val.classData.perturbations.k[j];
-                csm->val.classData.perturbations.delta_lin[i*size_k + j] *= zeta[j];
-            }
+        for (i = 0; i < size_a*size_k; i++){
+            csm->val.classData.perturbations.delta_lin[i] *= pow(dBoxSize, -2.5);
         }
     }
 
-    free(zeta);
     H5Tclose(string_type);
     H5Fclose(file);
 }
@@ -737,7 +733,8 @@ double csmDelta_m(CSM csm, double a, double k){
         /* log(a) slightly in the future. Move back to the present. */
         loga = .0;
     }
-    return gsl_spline2d_eval(csm->classGsl.perturbations.logkloga2delta_m_spline,
+    return csmZeta(csm, k)*gsl_spline2d_eval(
+        csm->classGsl.perturbations.logkloga2delta_m_spline,
         log(k), loga,
         csm->classGsl.perturbations.logk2delta_m_acc,
         csm->classGsl.perturbations.loga2delta_m_acc);
@@ -749,7 +746,8 @@ double csmTheta_m(CSM csm, double a, double k){
         /* log(a) slightly in the future. Move back to the present. */
         loga = .0;
     }
-    return gsl_spline2d_eval(csm->classGsl.perturbations.logkloga2theta_m_spline,
+    return csmZeta(csm, k)*gsl_spline2d_eval(
+        csm->classGsl.perturbations.logkloga2theta_m_spline,
         log(k), loga,
         csm->classGsl.perturbations.logk2theta_m_acc,
         csm->classGsl.perturbations.loga2theta_m_acc);
@@ -761,10 +759,22 @@ double csmDelta_lin(CSM csm, double a, double k){
         /* log(a) slightly in the future. Move back to the present. */
         loga = .0;
     }
-    return gsl_spline2d_eval(csm->classGsl.perturbations.logkloga2delta_lin_spline,
+    return csmZeta(csm, k)*gsl_spline2d_eval(
+        csm->classGsl.perturbations.logkloga2delta_lin_spline,
         log(k), loga,
         csm->classGsl.perturbations.logk2delta_lin_acc,
         csm->classGsl.perturbations.loga2delta_lin_acc);
+}
+double csmZeta(CSM csm, double k){
+    double zeta;
+    double A_s     = csm->val.classData.perturbations.A_s;
+    double n_s     = csm->val.classData.perturbations.n_s;
+    double alpha_s = csm->val.classData.perturbations.alpha_s;
+    double k_pivot = csm->val.classData.perturbations.k_pivot;
+    zeta = M_PI*sqrt(2*A_s)*pow(k, -1.5)*pow(k/k_pivot, 0.5*(n_s - 1));
+    if (alpha_s != 0.0)
+        zeta *= exp(0.25*alpha_s*pow(log(k/k_pivot), 2));
+    return zeta;
 }
 
 
