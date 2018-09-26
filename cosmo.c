@@ -122,7 +122,7 @@ void csmClassRead(CSM csm, double dBoxSize){
     hsize_t size_bg, size_a, size_k, count[1], offset[1], offset_out[1];
     char *matter_name, hdf5_key[128], *unit_length,
         *linSpeciesNames[10], *linSpeciesName, *LinSpeciesParsing;
-    double h, a, k, rho_crit[1], unit_convertion_time, unit_convertion_density;
+    double h, a, k, dOmega0, rho_crit[1], unit_convertion_time, unit_convertion_density;
     double *loga, *logrho_lin, *deltarho_lin, *rho_lin;
 
     assert(csm->val.classData.bClass);
@@ -198,6 +198,16 @@ void csmClassRead(CSM csm, double dBoxSize){
     if (attr < 0) abort();
     if (H5Aread(attr, H5T_NATIVE_DOUBLE, &h) < 0) abort();
     H5Aclose(attr);
+
+    /* Added by MK:
+    ** Read in the total (cdm+b) matter density parameter dOmega0
+    */
+    attr = H5Aopen_by_name(file, "/background", "Omega_cdm+b", H5P_DEFAULT, H5P_DEFAULT);
+    if (attr < 0) abort();
+    if (H5Aread(attr, H5T_NATIVE_DOUBLE, &dOmega0) < 0) abort();
+    H5Aclose(attr);
+
+    printf("Omega0 read in from HDF5 file (by MK): %.14f\n", dOmega0); 
 
     /* The matter species "m" is really the combination "cdm+b".
     ** Here we check whether this is written as "cdm+b" or "b+cdm"

@@ -3877,7 +3877,15 @@ void pstMoveIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	move.pBase = (overlayedParticle *)pkdParticleBase(pkd);
 	move.iStart = 0;
 	move.nMove = nLocal;
-	move.fMass = in->cosmo.dOmega0 / nTotal;
+        
+        if(csm->val.classData.bClass){
+            move.fMass = dOmega0 / nTotal;
+        }
+        else{
+            move.fMass = in->cosmo.dOmega0 / nTotal;
+        }
+
+        printf("fMass (input) = %g", move.fMass);
 	move.fSoft = 1.0 / (50.0*in->nGrid);
 	move.nGrid = in->nGrid;
 	move.nInflateFactor = in->nInflateFactor;
