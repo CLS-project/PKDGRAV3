@@ -137,6 +137,7 @@ extern "C" {
     double csmDelta_m   (CSM csm, double a, double k);
     double csmTheta_m   (CSM csm, double a, double k);
     double csmDelta_lin (CSM csm, double a, double k);
+    double csmZeta      (CSM csm,           double k);
 
     void csmInitialize(CSM *pcsm);
     void csmFinish(CSM csm);
