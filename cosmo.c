@@ -206,8 +206,11 @@ void csmClassRead(CSM csm, double dBoxSize){
     if (attr < 0) abort();
     if (H5Aread(attr, H5T_NATIVE_DOUBLE, &dOmega0) < 0) abort();
     H5Aclose(attr);
+    // update csm->val.dOmega0
+    csm->val.dOmega0=dOmega0;
+    
 
-    printf("Omega0 read in from HDF5 file (by MK): %.14f\n", dOmega0); 
+    //printf("Omega0 read in from HDF5 file (by MK): %.14f\n", dOmega0); 
 
     /* The matter species "m" is really the combination "cdm+b".
     ** Here we check whether this is written as "cdm+b" or "b+cdm"
