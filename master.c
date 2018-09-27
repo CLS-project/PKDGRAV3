@@ -5147,6 +5147,8 @@ double msrGenerateIC(MSR msr) {
     nTotal  = in.nGrid; /* Careful: 32 bit integer cubed => 64 bit integer */
     nTotal *= in.nGrid;
     nTotal *= in.nGrid;
+    in.dBoxMass = msr->param.csm->val.dOmega0 / nTotal;
+
     for( j=0; j<FIO_SPECIES_LAST; j++) nSpecies[j] = 0;
     nSpecies[FIO_SPECIES_ALL] = nSpecies[FIO_SPECIES_DARK] = nTotal;
     msrInitializePStore(msr,nSpecies);
