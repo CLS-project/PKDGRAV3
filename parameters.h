@@ -229,6 +229,8 @@ struct parameters {
 
 #ifdef MDL_FFTW
     int nGridPk;
+    int bPkInterlace;
+    int iPkOrder;
     int nBinsPk;
     int nGridLin;
     int bDoLinPkOutput;

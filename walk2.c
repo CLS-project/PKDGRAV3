@@ -723,8 +723,10 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2, ui
 	}
 doneCheckList:
 #ifdef USE_CUDA
-    CUDA_sendWork(pkd->mdl->cudaCtx);
-    CUDA_flushEwald(pkd->mdl->cudaCtx);
+    if (pkd->mdl->cudaCtx) {
+	CUDA_sendWork(pkd->mdl->cudaCtx);
+	CUDA_flushEwald(pkd->mdl->cudaCtx);
+	}
 #endif
     mdlCompleteAllWork(pkd->mdl);
     *pdFlop += pkd->dFlop; /* Accumulate work flops (notably Ewald) */

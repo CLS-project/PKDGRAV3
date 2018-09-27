@@ -53,13 +53,6 @@
 #include "group.h"
 #include "groupstats.h"
 
-#define pstOffNode(pst) ((pst)->nLeaves > mdlCores((pst)->mdl))
-#define pstOnNode(pst) ((pst)->nLeaves <= mdlCores((pst)->mdl))
-#define pstAmNode(pst) ((pst)->nLeaves == mdlCores((pst)->mdl))
-#define pstNotNode(pst) ((pst)->nLeaves != mdlCores((pst)->mdl))
-#define pstAmCore(pst) ((pst)->nLeaves == 1)
-#define pstNotCore(pst) ((pst)->nLeaves > 1)
-
 void pstAddServices(PST pst,MDL mdl) {
     int nThreads;
 
@@ -456,6 +449,9 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_MEASUREPK,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstMeasurePk,
 		  sizeof(struct inMeasurePk), sizeof(struct outMeasurePk));
+    mdlAddService(mdl,PST_ASSIGN_MASS,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstAssignMass,
+		  sizeof(struct inAssignMass), 0);
     mdlAddService(mdl,PST_SETLINGRID, pst,
            (void (*)(void*, void*, int, void*, int*)) pstSetLinGrid,
            sizeof(struct inSetLinGrid), 0);
@@ -472,6 +468,9 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_LIGHTCONE_CLOSE,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstLightConeClose,
 		  sizeof(struct inLightConeClose), 0);
+    mdlAddService(mdl,PST_LIGHTCONEVEL,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstLightConeVel,
+		  0,0);
     mdlAddService(mdl,PST_INFLATE,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstInflate,
 	          sizeof(struct inInflate), 0);
@@ -4689,7 +4688,7 @@ void pstMeasurePk(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	free(outUpper);
 	}
     else {
-	pkdMeasurePk(plcl->pkd, in->dTotalMass,
+	pkdMeasurePk(plcl->pkd, in->dTotalMass, in->iAssignment, in->bInterlace,
 	    in->nGrid, in->nBins, out->fK, out->fPower, out->nPower);
 	}
     if (pnOut) *pnOut = sizeof(struct outMeasurePk);
@@ -4799,6 +4798,22 @@ void pstLightConeClose(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
         }
     if (pnOut) *pnOut = 0;
 }
+
+void pstLightConeVel(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    struct inScaleVel *in = vin;
+
+    mdlassert(pst->mdl,nIn == 0);
+    if (pst->nLeaves > 1) {
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_LIGHTCONEVEL,in,nIn);
+	pstLightConeVel(pst->pstLower,in,nIn,NULL,NULL);
+	mdlGetReply(pst->mdl,rID,NULL,NULL);
+	}
+    else {
+	pkdLightConeVel(plcl->pkd);
+	}
+    if (pnOut) *pnOut = 0;
+    }
 
 void pstInflate(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;

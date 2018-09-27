@@ -611,7 +611,7 @@ void csmClassGslInitialize(CSM csm){
     double D2_PKDGRAV, f2_PKDGRAV, D2_CLASS, f2_CLASS;
     if (do_background_test){
         /* H(a) */
-        for (i = 0; i < csm->val.classData.background.size; i++){
+        for (i = 1; i < csm->val.classData.background.size; i++){
             /* At tabulated point */
             a = csm->val.classData.background.a[i];
             csm->val.classData.bClass = 0; H_PKDGRAV = csmExp2Hub(csm, a);
@@ -628,7 +628,7 @@ void csmClassGslInitialize(CSM csm){
             }
         }
         /* a(t) */
-        for (i = 0; i < csm->val.classData.background.size; i++){
+        for (i = 1; i < csm->val.classData.background.size; i++){
             /* At tabulated point */
             t = csm->val.classData.background.t[i];
             csm->val.classData.bClass = 0; a_PKDGRAV = csmTime2Exp(csm, t);
@@ -645,7 +645,7 @@ void csmClassGslInitialize(CSM csm){
             }
         }
         /* H(t) */
-        for (i = 0; i < csm->val.classData.background.size; i++){
+        for (i = 1; i < csm->val.classData.background.size; i++){
            /* At tabulated point */
            t = csm->val.classData.background.t[i];
            csm->val.classData.bClass = 0; H_PKDGRAV = csmTime2Hub(csm, t);
@@ -662,7 +662,7 @@ void csmClassGslInitialize(CSM csm){
            }
         }
         /* t(a) */
-        for (i = 0; i < csm->val.classData.background.size; i++){
+        for (i = 1; i < csm->val.classData.background.size; i++){
             /* At tabulated point */
             a = csm->val.classData.background.a[i];
             csm->val.classData.bClass = 0; t_PKDGRAV = csmExp2Time(csm, a);
@@ -681,7 +681,7 @@ void csmClassGslInitialize(CSM csm){
     }
     if (do_background_test || do_D1_test){
         /* Growth functions */
-        for (i = 0; i < csm->val.classData.background.size; i++){
+        for (i = 1; i < csm->val.classData.background.size; i++){
             /* At tabulated point */
             a = csm->val.classData.background.a[i];
             csm->val.classData.bClass = 0; csmComoveGrowth(csm, a,

@@ -196,6 +196,11 @@ void * master_ch(MDL mdl) {
 	    msrActiveRung(msr,0,1); /* Activate all particles */
 	    msrDomainDecomp(msr,0,0,0);
 	    msrUpdateSoft(msr,dTime);
+	    /*
+	    ** Convert lightcone momentum (a^2 x_dot) to physical velocities (a x_dot).
+	    */
+	    if (msr->param.bInFileLC) msrLightConeVel(msr);
+
 	    msrBuildTree(msr,dTime,msr->param.bEwald);
 	    msrOutputOrbits(msr,iStartStep,dTime);
 #ifdef MDL_FFTW
@@ -214,12 +219,12 @@ void * master_ch(MDL mdl) {
 		    msrBuildTree(msr,dTime,msr->param.bEwald);
 		    msrGravity(msr,0,MAX_RUNG,ROOT,0,dTime,iStartStep,0,0,
 			msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
-		    msrMemStatus(msr);
 		    }
 		}
 	    if (msr->param.bFindGroups) {
 		msrGroupStats(msr);
 		}
+	    msrMemStatus(msr);
 		
 	    if (msrDoGas(msr)) {
 		/* Initialize SPH, Cooling and SF/FB and gas time step */

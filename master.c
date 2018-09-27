@@ -281,27 +281,23 @@ void msrInitializePStore(MSR msr, uint64_t *nSpecies) {
 	inFFTSizes.nx = inFFTSizes.ny = inFFTSizes.nz = msr->param.nGridPk;
 	pstGetFFTMaxSizes(msr->pst,&inFFTSizes,sizeof(inFFTSizes),&outFFTSizes,&n);
 	/* The new MeasurePk requires two FFTs to eliminate aliasing */
-#ifdef INTERLEAVE
-	ps.nMinEphemeral = 2*outFFTSizes.nMaxLocal*sizeof(FFTW3(real));
-#else
-	ps.nMinEphemeral = outFFTSizes.nMaxLocal*sizeof(FFTW3(real));
-    }
+	ps.nMinEphemeral = (msr->param.bPkInterlace?2:1)*outFFTSizes.nMaxLocal*sizeof(FFTW3(real));
+	}
     /* 
      * Add some ephemeral memory (if needed) for the linGrid.
      * 3 grids are stored : forceX, forceY, forceZ
      */
     if (strlen(msr->param.csm->val.classData.achLinSpecies)){
-        struct inGetFFTMaxSizes inFFTSizes;
-        struct outGetFFTMaxSizes outFFTSizes;
-        int n;
+	struct inGetFFTMaxSizes inFFTSizes;
+	struct outGetFFTMaxSizes outFFTSizes;
+	int n;
 
-        inFFTSizes.nx = inFFTSizes.ny = inFFTSizes.nz = msr->param.nGridLin;
-        pstGetFFTMaxSizes(msr->pst, &inFFTSizes,sizeof(inFFTSizes), &outFFTSizes, &n);
-    
-        if (ps.nMinEphemeral < 3*outFFTSizes.nMaxLocal*sizeof(FFTW3(real)))
-            ps.nMinEphemeral = 3*outFFTSizes.nMaxLocal*sizeof(FFTW3(real));
-    }
-#endif
+	inFFTSizes.nx = inFFTSizes.ny = inFFTSizes.nz = msr->param.nGridLin;
+	pstGetFFTMaxSizes(msr->pst, &inFFTSizes,sizeof(inFFTSizes), &outFFTSizes, &n);
+
+	if (ps.nMinEphemeral < 3*outFFTSizes.nMaxLocal*sizeof(FFTW3(real)))
+	    ps.nMinEphemeral = 3*outFFTSizes.nMaxLocal*sizeof(FFTW3(real));
+	}
 
     if (msr->param.nGrid>0) {
 	struct inGetFFTMaxSizes inFFTSizes;
@@ -687,6 +683,10 @@ static int validateParameters(PRM prm,struct parameters *param) {
 	if (param->nBinsPk > PST_MAX_K_BINS)
 	    param->nBinsPk = PST_MAX_K_BINS;
 	}
+    if (param->iPkOrder<1 || param->iPkOrder>4) {
+    	puts("ERROR: iPkOrder must be 1 (NGP), 2 (CIC), 3 (TSC) or 4 (PCS)");
+    	return 0;
+        }
     if ( param->nGrid ) {
 	if (param->achInFile[0]) {
 	    puts("ERROR: do not specify an input file when generating IC");
@@ -1170,9 +1170,9 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.iWorkQueueSize = 0;
     prmAddParam(msr->prm,"iWorkQueueSize",1,&msr->param.iWorkQueueSize,sizeof(int),"wqs",
 		"<size of the MDL work queue> = 0");
-    msr->param.iCUDAQueueSize = 0;
+    msr->param.iCUDAQueueSize = 8;
     prmAddParam(msr->prm,"iCUDAQueueSize",1,&msr->param.iCUDAQueueSize,sizeof(int),"cqs",
-		"<size of the CUDA work queue> = 0");
+		"<size of the CUDA work queue> = 8");
     msr->param.nSmooth = 64;
     prmAddParam(msr->prm,"nSmooth",1,&msr->param.nSmooth,sizeof(int),"s",
 		"<number of particles to smooth over> = 64");
@@ -1302,6 +1302,12 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.nGridPk = 0;
     prmAddParam(msr->prm,"nGridPk",1,&msr->param.nGridPk,
 		sizeof(int),"pk","<Grid size for measure P(k) 0=disabled> = 0");
+    msr->param.bPkInterlace = 1;
+    prmAddParam(msr->prm,"bPkInterlace",0,&msr->param.bPkInterlace,
+		sizeof(int),"pkinterlace","<Use interlacing to measure P(k)> = +pkinterlace");
+    msr->param.iPkOrder = 4;
+    prmAddParam(msr->prm,"iPkOrder",1,&msr->param.iPkOrder,
+		sizeof(int),"pko","<Mass assignment order for measuring P(k) = 3");
     msr->param.bFixedAmpIC = 0;
     prmAddParam(msr->prm,"bFixedAmpIC",0,&msr->param.bFixedAmpIC,
 		sizeof(int),"fixedamp","<Use fixed amplitude of 1 for ICs> = -fixedamp");
@@ -1979,8 +1985,9 @@ int msrCheckForStop(MSR msr,const char *achStopFile) {
     }
 
 void msrFinish(MSR msr) {
-    int id;
-    for (id=1;id<msr->nThreads;++id) {
+   int id;
+   
+   for (id=1;id<msr->nThreads;++id) {
 	int rID;
 	rID = mdlReqService(msr->mdl,id,SRV_STOP,NULL,0);
 	mdlGetReply(msr->mdl,rID,NULL,NULL);
@@ -4127,6 +4134,20 @@ void msrLightConeClose(MSR msr,int iStep) {
 	}
     }
 
+/*
+** Correct velocities from a^2 x_dot to a x_dot (physical peculiar velocities) using the 
+** position dependent scale factor within the light cone. This could be expensive.
+*/
+void msrLightConeVel(MSR msr) {
+    double sec,dsec;
+
+    sec = msrTime();
+    pstLightConeVel(msr->pst,NULL,0,NULL,NULL);
+    dsec = msrTime() - sec;
+    printf("Converted lightcone velocities to physical, Wallclock: %f secs.\n", dsec);
+    }
+
+
 
 void msrCheckForOutput(MSR msr,int iStep,double dTime,int *pbDoCheckpoint,int *pbDoOutput) {
     int iStop, iCheck;
@@ -5361,7 +5382,7 @@ void msrOutputPk(MSR msr,int iStep,double dTime) {
     nPk = malloc(sizeof(uint64_t)*(msr->param.nBinsPk));
     assert(nPk != NULL);
 
-    msrMeasurePk(msr,msr->param.nGridPk,msr->param.nBinsPk,nPk,fK,fPk);
+    msrMeasurePk(msr,msr->param.iPkOrder,msr->param.bPkInterlace,msr->param.nGridPk,msr->param.nBinsPk,nPk,fK,fPk);
 
     msrBuildName(msr,achFile,iStep);
     strncat(achFile,".pk",256);
@@ -6085,7 +6106,7 @@ void msrGridProject(MSR msr,double x,double y,double z) {
     }
 
 #ifdef MDL_FFTW
-void msrMeasurePk(MSR msr,int nGrid,int nBins,uint64_t *nPk,float *fK,float *fPk) {
+void msrMeasurePk(MSR msr,int iAssignment,int bInterlace,int nGrid,int nBins,uint64_t *nPk,float *fK,float *fPk) {
     struct inMeasurePk in;
     struct outMeasurePk *out;
     int nOut;
@@ -6100,17 +6121,17 @@ void msrMeasurePk(MSR msr,int nGrid,int nBins,uint64_t *nPk,float *fK,float *fPk
     fftNormalize *= fftNormalize;
 
     sec = msrTime();
+    printf("Measuring P(k) with grid size %d (%d bins)...\n",nGrid,nBins);
 
     /* NOTE: reordering the particles by their z coordinate would be good here */
+    in.iAssignment = iAssignment;
+    in.bInterlace = bInterlace;
     in.nGrid = nGrid;
-    in.nBins = nBins ;
+    in.nBins = nBins;
     in.dTotalMass = msrTotalMass(msr);
 
     out = malloc(sizeof(struct outMeasurePk));
     assert(out != NULL);
-
-
-    printf("Measuring P(k) with grid size %d (%d bins)...\n",in.nGrid,in.nBins);
     pstMeasurePk(msr->pst, &in, sizeof(in), out, &nOut);
     for( i=0; i<nBins; i++ ) {
 	if ( out->nPower[i] == 0 ) fK[i] = fPk[i] = 0;
