@@ -3876,7 +3876,7 @@ void pstMoveIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	move.pBase = (overlayedParticle *)pkdParticleBase(pkd);
 	move.iStart = 0;
 	move.nMove = nLocal;
-	move.fMass = in->cosmo.dOmega0 / nTotal;
+	move.fMass = in->dBoxMass;
 	move.fSoft = 1.0 / (50.0*in->nGrid);
 	move.nGrid = in->nGrid;
 	move.nInflateFactor = in->nInflateFactor;
