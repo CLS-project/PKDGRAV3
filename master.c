@@ -281,7 +281,7 @@ void msrInitializePStore(MSR msr, uint64_t *nSpecies) {
 	inFFTSizes.nx = inFFTSizes.ny = inFFTSizes.nz = msr->param.nGridPk;
 	pstGetFFTMaxSizes(msr->pst,&inFFTSizes,sizeof(inFFTSizes),&outFFTSizes,&n);
 	/* The new MeasurePk requires two FFTs to eliminate aliasing */
-	ps.nMinEphemeral = (msr->param.bPkInterleave?2:1)*outFFTSizes.nMaxLocal*sizeof(FFTW3(real));
+	ps.nMinEphemeral = (msr->param.bPkInterlace?2:1)*outFFTSizes.nMaxLocal*sizeof(FFTW3(real));
 	}
     /* 
      * Add some ephemeral memory (if needed) for the linGrid.
@@ -1302,9 +1302,9 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.nGridPk = 0;
     prmAddParam(msr->prm,"nGridPk",1,&msr->param.nGridPk,
 		sizeof(int),"pk","<Grid size for measure P(k) 0=disabled> = 0");
-    msr->param.bPkInterleave = 0;
-    prmAddParam(msr->prm,"bPkInterleave",0,&msr->param.bPkInterleave,
-		sizeof(int),"pkinterleave","<Use interleaving to measure P(k)> = -pkinterleave");
+    msr->param.bPkInterlace = 1;
+    prmAddParam(msr->prm,"bPkInterlace",0,&msr->param.bPkInterlace,
+		sizeof(int),"pkinterlace","<Use interlacing to measure P(k)> = +pkinterlace");
     msr->param.iPkOrder = 4;
     prmAddParam(msr->prm,"iPkOrder",1,&msr->param.iPkOrder,
 		sizeof(int),"pko","<Mass assignment order for measuring P(k) = 3");
@@ -5382,7 +5382,7 @@ void msrOutputPk(MSR msr,int iStep,double dTime) {
     nPk = malloc(sizeof(uint64_t)*(msr->param.nBinsPk));
     assert(nPk != NULL);
 
-    msrMeasurePk(msr,msr->param.iPkOrder,msr->param.bPkInterleave,msr->param.nGridPk,msr->param.nBinsPk,nPk,fK,fPk);
+    msrMeasurePk(msr,msr->param.iPkOrder,msr->param.bPkInterlace,msr->param.nGridPk,msr->param.nBinsPk,nPk,fK,fPk);
 
     msrBuildName(msr,achFile,iStep);
     strncat(achFile,".pk",256);
@@ -6106,7 +6106,7 @@ void msrGridProject(MSR msr,double x,double y,double z) {
     }
 
 #ifdef MDL_FFTW
-void msrMeasurePk(MSR msr,int iAssignment,int bInterleave,int nGrid,int nBins,uint64_t *nPk,float *fK,float *fPk) {
+void msrMeasurePk(MSR msr,int iAssignment,int bInterlace,int nGrid,int nBins,uint64_t *nPk,float *fK,float *fPk) {
     struct inMeasurePk in;
     struct outMeasurePk *out;
     int nOut;
@@ -6125,7 +6125,7 @@ void msrMeasurePk(MSR msr,int iAssignment,int bInterleave,int nGrid,int nBins,ui
 
     /* NOTE: reordering the particles by their z coordinate would be good here */
     in.iAssignment = iAssignment;
-    in.bInterleave = bInterleave;
+    in.bInterlace = bInterlace;
     in.nGrid = nGrid;
     in.nBins = nBins;
     in.dTotalMass = msrTotalMass(msr);

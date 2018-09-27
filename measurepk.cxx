@@ -79,7 +79,7 @@ Window::Window(int nGrid,int iAssignment) {
     }
 
 extern "C"
-void pkdMeasurePk(PKD pkd, double dTotalMass, int iAssignment, int bInterleave,
+void pkdMeasurePk(PKD pkd, double dTotalMass, int iAssignment, int bInterlace,
     int nGrid, int nBins, double *fK, double *fPower, uint64_t *nPower) {
     mdlGridCoord first, last, index;
 
@@ -93,7 +93,7 @@ void pkdMeasurePk(PKD pkd, double dTotalMass, int iAssignment, int bInterleave,
     auto fftData2 = reinterpret_cast<FFTW3(real) *>(mdlSetArray(pkd->mdl,last.i,sizeof(FFTW3(real)),fftData1 + fft->rgrid->nLocal));
 
     assign_mass(pkd,iAssignment,dTotalMass,0.0f,fft,fftData1);
-    if (bInterleave) {
+    if (bInterlace) {
 	assign_mass(pkd,iAssignment,dTotalMass,0.5f,fft,fftData2);
 	}
 
@@ -131,7 +131,7 @@ void pkdMeasurePk(PKD pkd, double dTotalMass, int iAssignment, int bInterleave,
 #endif
 	    assert(ks>=0 && ks <nBins);
 	    auto v1 = *index;
-	    if (bInterleave) { // jj,kk can be negative
+	    if (bInterlace) { // jj,kk can be negative
 		auto jj = pos[1]>iNyquist ? pos[1] - nGrid : pos[1];
 		auto kk = pos[2]>iNyquist ? pos[2] - nGrid : pos[2];
 		float theta = M_PI/nGrid * (i + jj + kk);
