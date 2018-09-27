@@ -569,7 +569,7 @@ static void combine_all_incoming(MDL mdl) {
 
 static void bookkeeping(MDL mdl) {
 #ifdef USE_CUDA
-    CUDA_checkForRecovery(mdl->cudaCtx);
+    if (mdl->cudaCtx) CUDA_checkForRecovery(mdl->cudaCtx);
 #endif
     combine_all_incoming(mdl);
     }
@@ -1168,9 +1168,11 @@ static int checkMPI(MDL mdl) {
 
 	/* Start any CUDA work packages */
 #ifdef USE_CUDA
-	CUDA_registerBuffers(mpi->cudaCtx, &mpi->queueREGISTER);
-        CUDA_startWork(mpi->cudaCtx, &mpi->queueWORK);
-	CUDA_flushDone(mpi->cudaCtx);
+	if (mdl->cudaCtx) {
+	    CUDA_registerBuffers(mpi->cudaCtx, &mpi->queueREGISTER);
+            CUDA_startWork(mpi->cudaCtx, &mpi->queueWORK);
+	    CUDA_flushDone(mpi->cudaCtx);
+	    }
 #endif
 
 	/* These are messages/completions from/to other MPI processes. */
@@ -1252,16 +1254,12 @@ static int mdlDoSomeWork(MDL mdl) {
     }
 
 void mdlCompleteAllWork(MDL mdl) {
-#ifdef moved_to_walk2_USE_CUDA
-    CUDA_sendWork(mdl->cudaCtx);
-    CUDA_flushEwald(mdl->cudaCtx);
-#endif
     while(mdlDoSomeWork(mdl)) {}
 #ifdef USE_CL
     while(CL_flushDone(mdl->clCtx)) {}
 #endif
 #ifdef USE_CUDA
-    while(CUDA_flushDone(mdl->cudaCtx)) {}
+    if (mdl->cudaCtx) while(CUDA_flushDone(mdl->cudaCtx)) {}
 #endif
     }
 
@@ -1936,7 +1934,7 @@ void mdlFinish(MDL mdl) {
     MPI_Finalize();
 
 #ifdef USE_CUDA
-    CUDA_finish(mdl->cudaCtx);
+    if (mdl->cudaCtx) CUDA_finish(mdl->cudaCtx);
 #endif
 
     cleanupMDL(mdl);
@@ -1958,7 +1956,7 @@ void mdlFinish(MDL mdl) {
     mpi->freeCacheReplies = NULL;
 
 #ifdef USE_CUDA
-    CUDA_finish(mdl->mpi->cudaCtx);
+    if (mdl->mpi->cudaCtx) CUDA_finish(mdl->mpi->cudaCtx);
 #endif
     free(mdl->mpi->pReqRcv);
     free(mdl->base.iProcToThread);
@@ -3271,7 +3269,7 @@ void mdlSetWorkQueueSize(MDL mdl,int wqMaxSize,int cudaSize) {
     int i;
 
 #ifdef USE_CUDA
-    CUDA_SetQueueSize(mdl->cudaCtx,cudaSize,mdl->inCudaBufSize,mdl->outCudaBufSize);
+    if (mdl->cudaCtx) CUDA_SetQueueSize(mdl->cudaCtx,cudaSize,mdl->inCudaBufSize,mdl->outCudaBufSize);
 #endif
 #ifdef USE_CL
     CL_SetQueueSize(mdl->clCtx,cudaSize,mdl->inCudaBufSize,mdl->outCudaBufSize);

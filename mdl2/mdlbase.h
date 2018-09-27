@@ -22,6 +22,9 @@
 #else
 #include "mdl_config.h"
 #endif
+#ifdef __cplusplus
+extern "C" {
+#endif
 #ifdef INSTRUMENT
 #include "cycle.h"
 #endif
@@ -213,4 +216,7 @@ void mdlPrintTimer(void *mdl, char *message, mdlTimer *);
 #define mdlPrintTimer
 #endif
 
+#ifdef __cplusplus
+}
+#endif
 #endif

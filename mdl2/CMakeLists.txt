@@ -25,11 +25,7 @@ CHECK_LIBRARY_EXISTS(memkind hbw_posix_memalign "" HAVE_MEMKIND)
 
 find_package(Threads REQUIRED)
 find_package(MPI REQUIRED)	# MPI support
-#find_package(CUDA)
-#if (CUDA_FOUND)
-#  set(USE_CUDA TRUE)
-#endif(CUDA_FOUND)
-
+find_package(CUDA)
 
 add_library(${PROJECT_NAME} STATIC "")
 target_sources(${PROJECT_NAME}
@@ -72,10 +68,13 @@ endif()
 if (MSVC)
   target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/windows)
 endif()
+target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/openpa)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/mpi)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
 target_include_directories(${PROJECT_NAME} PUBLIC ${MPI_C_INCLUDE_PATH})
+target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..) ############################
+target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/..)
 
 target_link_libraries(${PROJECT_NAME} ${MPI_C_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} openpa)
 
@@ -87,6 +86,14 @@ if(HAVE_MEMKIND)
 find_library(MEMKIND_LIBRARY memkind)
 target_link_libraries(${PROJECT_NAME} ${MEMKIND_LIBRARY})
 endif()
+
+if (CUDA_FOUND)
+  set(USE_CUDA TRUE)
+  get_property(MDL_INCLUDES TARGET mdl2 PROPERTY INCLUDE_DIRECTORIES)
+  get_property(OPENPA_INCLUDES TARGET openpa PROPERTY INCLUDE_DIRECTORIES)
+  CUDA_INCLUDE_DIRECTORIES(${MDL_INCLUDES} ${OPENPA_INCLUDES})
+  target_link_libraries(${PROJECT_NAME} ${CUDA_LIBRARIES})
+endif(CUDA_FOUND)
 
 CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/mdl_config.h.in ${CMAKE_CURRENT_BINARY_DIR}/mdl_config.h)
 install(TARGETS ${PROJECT_NAME} DESTINATION "lib")

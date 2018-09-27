@@ -77,6 +77,7 @@ static inline int64_t d2u64(double d) {
 #define CID_CELL2	9
 #define CID_HEALPIX     7
 #define CID_GROUP	2
+#define CID_SHRINK      3
 #define CID_RM		3
 #define CID_BIN		4
 #define CID_SHAPES	5
@@ -1551,8 +1552,19 @@ void pkdCalcCOM(PKD pkd, double *dCenter, double dRadius,
 void pkdGridInitialize(PKD pkd, int n1, int n2, int n3, int a1, int s, int n);
 void pkdGridProject(PKD pkd);
 #ifdef MDL_FFTW
-void pkdMeasurePk(PKD pkd, double dTotalMass,
+#ifdef __cplusplus
+extern "C" {
+#endif
+void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int nGrid, float dDelta, int iAssignment);
+void pkdMeasurePk(PKD pkd, double dTotalMass, int iAssignment, int bInterlace,
     int nGrid, int nBins, double *fK, double *fPower, uint64_t *nPower);
+void pkdSetLinGrid(PKD pkd,double dTime, double dBSize, int nGrid, int iSeed, int bFixed, float fPhase);
+void pkdMeasureLinPk(PKD pkd, int nGrid, double dA, double dBoxSize,
+                int nBins,  int iSeed, int bFixed, float fPhase, 
+                double *fK, double *fPower, uint64_t *nPower);
+#ifdef __cplusplus
+}
+#endif
 #endif
 void pkdOutPsGroup(PKD pkd,char *pszFileName,int iType);
 
@@ -1561,6 +1573,7 @@ void pkdLightConeClose(PKD pkd, const char *healpixname);
 void pkdLightCone(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     double dLookbackFac,double dLookbackFacLCP,
     double *dtLCDrift,double *dtLCKick);
+void pkdLightConeVel(PKD pkd);
 void pkdInflate(PKD pkd,int nInflateReps);
 
 struct outGetParticles { /* Array of these */

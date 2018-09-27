@@ -1,3 +1,0 @@
-[patterns]
-**.c = native
-**.h = native

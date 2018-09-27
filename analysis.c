@@ -29,6 +29,7 @@
 #ifdef USE_ITT
 #include "ittnotify.h"
 #endif
+#include "ic.h"
 
 #define SHAPES
 #define USE_PCS /* USE_PCS USE_TSC USE_CIC USE_NGP */
@@ -751,16 +752,6 @@ void pkdGridProject(PKD pkd) {
 
 #ifdef MDL_FFTW
 
-static void initPk(void *vpkd, void *g) {
-    FFTW3(real) * r = (FFTW3(real) *)g;
-    *r = 0.0;
-    }
-static void combPk(void *vpkd, void *g1, void *g2) {
-    FFTW3(real) * r1 = (FFTW3(real) *)g1;
-    FFTW3(real) * r2 = (FFTW3(real) *)g2;
-    *r1 += *r2;
-    }
-
 static int wrap(int i,int w) {
     if (i>=w) i -= w;
     else if (i<0) i += w;
@@ -787,24 +778,6 @@ static void cell_accumulate(PKD pkd, MDLFFT fft,int x,int y,int z, float m) {
 	}
     }
 
-#if defined(USE_NGP) || defined(USE_NGP_LIN)
-static void ngp_assign(PKD pkd, MDLFFT fft, int nGrid,
-                       double x, double y, double z, float mass) {
-    int           ix, iy, iz;
-
-    /* coordinates in subcube units [0,NGRID] */
-    ix = (int)(x * nGrid);
-    iy = (int)(y * nGrid);
-    iz = (int)(z * nGrid);
-
-    /* If very close to 1.0, it could round up, so correct */
-    if (ix==nGrid) ix = nGrid-1;
-    if (iy==nGrid) iy = nGrid-1;
-    if (iz==nGrid) iz = nGrid-1;
-    cell_accumulate(pkd,fft,ix,iy,iz,mass);
-    }
-#elif defined(USE_CIC) || defined(USE_CIC_LIN)
-
 static void cic_weights(int ii[3][2],float H[3][2],const double r[3], int nGrid) {
     int d;
     float rr, h;
@@ -818,31 +791,6 @@ static void cic_weights(int ii[3][2],float H[3][2],const double r[3], int nGrid)
 	H[d][1] = h;
 	}
     }
-
-static void cic_assign(PKD pkd, MDLFFT fft, int nGrid,
-		       double x, double y, double z, float mass) {
-    double r[] = {x,y,z};
-    int    ii[3][2];
-    float  H[3][2];
-    int i,j,k;
-
-    int           ix, iy, iz, ixp1, iyp1, izp1;
-    float         rrx, rry, rrz;
-    float         hx, hy, hz;
-    float         hx0, hy0, hz0, hxp1, hyp1, hzp1;
-
-    cic_weights(ii,H,r,nGrid);
-   
-    /* assign particle according to weights to 8 neighboring nodes */
-    for(i=0; i<2; ++i) {
-	for(j=0; j<2; ++j) {
-	    for(k=0; k<2; ++k) {
-		cell_accumulate(pkd,fft,ii[0][i],ii[1][j],ii[2][k],H[0][i]*H[1][j]*H[2][k] * mass);
-		}
-	    }
-	}
-}
-#elif defined(USE_TSC) || defined(USE_TSC_LIN)
 
 static void tsc_weights(int ii[3][3],float H[3][3],const double r[3], int nGrid) {
     int d;
@@ -859,27 +807,6 @@ static void tsc_weights(int ii[3][3],float H[3][3],const double r[3], int nGrid)
 	H[d][2] = 0.5 * pow2(0.5 + h);
 	}
     }
-
-static void tsc_assign(PKD pkd, MDLFFT fft, int nGrid,
-		       double x, double y, double z, float mass) {
-    double r[] = {x,y,z};
-    int    ii[3][3];
-    float  H[3][3];
-    int    i,j,k;
-
-    tsc_weights(ii,H,r,nGrid);
-
-    /* assign particle according to weights to 27 neighboring nodes */
-    for(i=0; i<3; ++i) {
-	for(j=0; j<3; ++j) {
-	    for(k=0; k<3; ++k) {
-		cell_accumulate(pkd,fft,ii[0][i],ii[1][j],ii[2][k],H[0][i]*H[1][j]*H[2][k] * mass);
-		}
-	    }
-	}
-    }
-
-#else
 
 static inline float pow3(float x) {
     return x*x*x;
@@ -904,44 +831,6 @@ static void pcs_weights(int ii[3][4],float H[3][4],const double r[3], int nGrid)
 	}
     }
 
-static void pcs_assign(PKD pkd, MDLFFT fft, int nGrid,
-		       double x, double y, double z, float mass) {
-    double r[] = {x,y,z};
-    int    ii[3][4];
-    float  H[3][4];
-    int    i,j,k;
-
-    pcs_weights(ii,H,r,nGrid);
-
-    /* assign particle according to weights to 64 neighboring nodes */
-    for(i=0; i<4; ++i) {
-	for(j=0; j<4; ++j) {
-	    for(k=0; k<4; ++k) {
-		cell_accumulate(pkd,fft,ii[0][i],ii[1][j],ii[2][k],H[0][i]*H[1][j]*H[2][k] * mass);
-		}
-	    }
-	}
-    }
-
-
-
-#endif
-
-static double deconvolveWindow(int i,int nGrid) {
-    double win = M_PI * i / nGrid;
-    if(win>0.1) win = win / sin(win);
-    else win=1.0 / (1.0-win*win/6.0*(1.0-win*win/20.0*(1.0-win*win/76.0)));
-#if defined(USE_NGP)
-    return win;
-#elif defined(USE_CIC)
-    return win*win;
-#elif defined(USE_TSC)
-    return win*win*win;
-#else
-    return win*win*win*win;
-#endif
-    }
-
 static double deconvolveLinWindow(int i,int nGrid) {
     double win = M_PI * i / nGrid;
     if(win>0.1) win = win / sin(win);
@@ -954,175 +843,6 @@ static double deconvolveLinWindow(int i,int nGrid) {
     return win*win*win;
 #else
     return win*win*win*win;
-#endif
-    }
-
-#if 0
-static inline int pkd_grid_order(PKD pkd,void *a,void *b,int nGrid) {
-    PARTICLE *pa = a;
-    PARTICLE *pb = b;
-    int i1, i2;
-
-    i1 = nGrid * (pkdPos(pkd,pa,0) + 0.5);
-    i2 = nGrid * (pkdPos(pkd,pb,0) + 0.5);
-    if (i1 != i2) return i1 < i2;
-    i1 = nGrid * (pkdPos(pkd,pa,2) + 0.5);
-    i2 = nGrid * (pkdPos(pkd,pb,2) + 0.5);
-    if (i1 != i2) return i1 < i2;
-    i1 = nGrid * (pkdPos(pkd,pa,1) + 0.5);
-    i2 = nGrid * (pkdPos(pkd,pb,1) + 0.5);
-    return i1 < i2;
-    }
-#define qsort_lt(a,b) pkd_grid_order(pkd,a,b,nGrid)
-#endif
-
-static void assign_mass(PKD pkd, double dTotalMass, double dDelta, MDLFFT fft, FFTW3(real) *fftData) {
-//    double dScale = 0.5 / dRadius; /* Box scaling factor */
-    int nGrid = fft->rgrid->n1;
-    double fftNormalize = 1.0 / (1.0*nGrid*nGrid*nGrid);
-    mdlGridCoord first, last;
-    int i, j;
-    double r[3];
-
-    mdlGridCoordFirstLast(pkd->mdl,fft->rgrid,&first,&last,1);
-    for( i=first.i; i<last.i; ++i ) fftData[i] = 0.0;
-    mdlCOcache(pkd->mdl,CID_PK,NULL,fftData,sizeof(FFTW3(real)),last.i,pkd,initPk,combPk);
-    for (i=0;i<pkd->nLocal;++i) {
-	PARTICLE *p = pkdParticle(pkd,i);
-	if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue;
-	/* Recenter, apply periodic boundary and scale to the correct size */
-	for(j=0;j<3;j++) {
-	    r[j] = pkdPos(pkd,p,j) + 0.5 + dDelta;
-	    if (r[j]>=pkd->fPeriod[j]) r[j] -= pkd->fPeriod[j];
-	        else if (r[j]<0) r[j] += pkd->fPeriod[j];
-	    }
-	/* 
-	** The position has been rescaled to [0,1).  If it is not in that range,
-	** then this particle is outside of the given box and should be ignored.
-	*/
-	assert( r[0]>=0.0 && r[0]<1.0 && r[1]>=0.0 && r[1]<1.0 && r[2]>=0.0 && r[2]<1.0 );
-#if defined(USE_NGP)
-	ngp_assign(pkd, fft, nGrid, r[0], r[1], r[2], pkdMass(pkd,p));
-#elif defined(USE_CIC)
-	cic_assign(pkd, fft, nGrid, r[0], r[1], r[2], pkdMass(pkd,p));
-#elif defined(USE_TSC)
-	tsc_assign(pkd, fft, nGrid, r[0], r[1], r[2], pkdMass(pkd,p));
-#else
-	pcs_assign(pkd, fft, nGrid, r[0], r[1], r[2], pkdMass(pkd,p));
-#endif
-	}
-    mdlFinishCache(pkd->mdl,CID_PK);
-
-    for( i=first.i; i<last.i; ++i ) {
-	assert(fftData[i] >= 0.0);
-	}
-    double dRhoMean = dTotalMass * fftNormalize;
-    double diRhoMean = 1.0 / dRhoMean;
-
-    /*printf( "Calculating density contrast\n" );*/
-    for( i=first.i; i<last.i; ++i ) {
-	fftData[i] = fftData[i]*diRhoMean - 1.0;
-	}
-
-    mdlFFT(pkd->mdl,fft,fftData);
-    }
-
-void pkdMeasurePk(PKD pkd, double dTotalMass,
-    int nGrid, int nBins, double *fK, double *fPower, uint64_t *nPower) {
-    MDLFFT fft;
-    mdlGridCoord first, last, index;
-    FFTW3(real) *fftData, *fftData2;
-    FFTW3(complex) *fftDataK, *fftDataK2;
-    double ak;
-    int i,j,k, idx, ks;
-    int iNyquist;
-#ifdef USE_ITT
-    __itt_domain* domain = __itt_domain_create("MyTraces.MyDomain");
-    __itt_string_handle* shMyTask = __itt_string_handle_create("MeasurePk");
-    __itt_task_begin(domain, __itt_null, __itt_null, shMyTask);
-    mdlThreadBarrier(pkd->mdl);
-    __itt_resume();
-#endif
-
-    /* Sort the particles into optimal "cell" order */
-    /* Use tree order: QSORT(pkdParticleSize(pkd),pkdParticle(pkd,0),pkd->nLocal,qsort_lt); */
-
-    iNyquist = nGrid / 2;
-
-    fft = mdlFFTInitialize(pkd->mdl,nGrid,nGrid,nGrid,0,0);
-
-    mdlGridCoordFirstLast(pkd->mdl,fft->rgrid,&first,&last,1);
-    fftData = mdlSetArray(pkd->mdl,last.i,sizeof(FFTW3(real)),pkd->pLite);
-    assign_mass(pkd,dTotalMass,0.0,fft,fftData);
-
-#ifdef INTERLEAVE
-    fftData2 = mdlSetArray(pkd->mdl,last.i,sizeof(FFTW3(real)),fftData + fft->rgrid->nLocal);
-    assign_mass(pkd,dTotalMass,0.5/nGrid,fft,fftData2);
-#endif
-
-    /* Remember, the grid is now transposed to x,z,y (from x,y,z) */
-    mdlGridCoordFirstLast(pkd->mdl,fft->kgrid,&first,&last,0);
-    fftDataK = mdlSetArray(pkd->mdl,last.i,sizeof(FFTW3(complex)),fftData);
-    fftDataK2 = mdlSetArray(pkd->mdl,last.i,sizeof(FFTW3(complex)),fftData2);
-
-    for( i=0; i<nBins; i++ ) {
-	fK[i] = 0.0;
-	fPower[i] = 0.0;
-	nPower[i] = 0;
-	}
-
-    /*
-    ** Calculate which slabs to process.  Because of zero padding,
-    ** there may be nothing to process here, in which case ey will
-    ** be less than sy.  This is fine.
-    */
-    double win_j, win_k;
-#ifdef LINEAR_PK
-    double scale = nBins * 1.0 / iNyquist;
-#else
-    double scale = nBins * 1.0 / log(iNyquist+1);
-#endif
-    int jj, kk;
-    i = j = k = -1;
-    for( index=first; !mdlGridCoordCompare(&index,&last); mdlGridCoordIncrement(&index) ) {
-	if ( j != index.z ) {
-	    j = index.z;
-	    jj = j>iNyquist ? nGrid - j : j;
-	    win_j = deconvolveWindow(jj,nGrid);
-	    }
-	if ( k != index.y ) {
-	    k = index.y;
-	    kk = k>iNyquist ? nGrid - k : k;
-            win_k = deconvolveWindow(kk,nGrid);
-	    }
-	i = index.x;
-	double win = deconvolveWindow(i,nGrid) * win_k * win_j;
-	ak = sqrt(i*i + jj*jj + kk*kk);
-	ks = ak;
-	if ( ks >= 1 && ks <= iNyquist ) {
-#ifdef LINEAR_PK
-	    ks = floor((ks-1.0) * scale);
-#else
-	    ks = floor(log(ks) * scale);
-#endif
-	    assert(ks>=0 && ks <nBins);
-	    idx = index.i;
-#ifdef INTERLEAVE
-	    double delta2 = win*win*0.5*(pow2(fftDataK[idx][0]) + pow2(fftDataK[idx][1]) + pow2(fftDataK2[idx][0]) + pow2(fftDataK2[idx][1]));
-#else
-	    double delta2 = win*win*(pow2(fftDataK[idx][0]) + pow2(fftDataK[idx][1]));
-#endif
-	    fK[ks] += ak;
-	    fPower[ks] += delta2;
-	    nPower[ks] += 1;
-	    }
-	}
-    mdlFFTFinish(pkd->mdl,fft);
-#ifdef USE_ITT
-    mdlThreadBarrier(pkd->mdl);
-    __itt_pause();
-    __itt_task_end(domain);
-    mdlThreadBarrier(pkd->mdl);
 #endif
     }
 

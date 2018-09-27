@@ -29,6 +29,13 @@
 #include "cosmo.h"
 #include "ic.h"
 
+#define pstOffNode(pst) ((pst)->nLeaves > mdlCores((pst)->mdl))
+#define pstOnNode(pst) ((pst)->nLeaves <= mdlCores((pst)->mdl))
+#define pstAmNode(pst) ((pst)->nLeaves == mdlCores((pst)->mdl))
+#define pstNotNode(pst) ((pst)->nLeaves != mdlCores((pst)->mdl))
+#define pstAmCore(pst) ((pst)->nLeaves == 1)
+#define pstNotCore(pst) ((pst)->nLeaves > 1)
+
 typedef struct lclBlock {
     PKD	pkd;
     int iWtFrom;
@@ -175,6 +182,9 @@ enum pst_service {
     PST_HOP_UNBIND,
     PST_GROUP_RELOCATE,
     PST_GROUP_STATS,
+    PST_GROUP_STATS1,
+    PST_SHRINK_PHASES,
+    PST_GROUP_STATS2,
     PST_HOP_SEND_STATS,
     PST_GROUPPROFILES,
     PST_INITRELAXATION,
@@ -225,9 +235,11 @@ enum pst_service {
     PST_MEASURELINPK,
     PST_SETLINGRID,
 #endif
+    PST_ASSIGN_MASS,
     PST_TOTALMASS,
     PST_LIGHTCONE_OPEN,
     PST_LIGHTCONE_CLOSE,
+    PST_LIGHTCONEVEL,
     PST_INFLATE,
     PST_GET_PARTICLES,
     };
@@ -243,6 +255,10 @@ struct inSetAdd {
     int idUpper;
     };
 void pstSetAdd(PST,void *,int,void *,int *);
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /* PST_INITIALIZEPSTORE */
 struct inInitializePStore {
@@ -569,6 +585,28 @@ struct inGroupStats {
     double rEnvironment[2];
     };
 void pstGroupStats(PST,void *,int,void *,int *);
+
+/* PST_GROUP_STATS1 */
+struct inGroupStats1 {
+    int bPeriodic;
+    double dPeriod[3];
+    double rEnvironment[2];
+    };
+void pstGroupStats1(PST,void *,int,void *,int *);
+
+/* PST_SHRINK_PHASES */
+struct outShrinkPhases {
+    int bdone;
+    };   
+void pstShrinkPhases(PST,void *,int,void *,int *);
+
+/* PST_GROUP_STATS2 */
+struct inGroupStats2 {
+    int bPeriodic;
+    double dPeriod[3];
+    double rEnvironment[2];
+    };
+void pstGroupStats2(PST,void *,int,void *,int *);
 
 
 /* PST_HOP_SEND_STATS */
@@ -1302,6 +1340,8 @@ void pstGridProject(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 /* PST_MEASUREPK */
 struct inMeasurePk {
     double dTotalMass;
+    int bInterlace;
+    int iAssignment;
     int nGrid;
     int nBins;
     };
@@ -1311,6 +1351,12 @@ struct outMeasurePk {
     uint64_t nPower[PST_MAX_K_BINS];
     };
 void pstMeasurePk(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+/* PST_ASSIGN_MASS */
+struct inAssignMass {
+    int nGrid;
+    int iAssignment;
+    };
+void pstAssignMass(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 /* PST_SETLINGRID */
 struct inSetLinGrid {
     double dTime;
@@ -1356,6 +1402,8 @@ struct inLightConeClose {
     };
 void pstLightConeClose(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 
+void pstLightConeVel(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+
 /* PST_INFLATE */
 struct inInflate {
     int nInflateReps;
@@ -1364,5 +1412,9 @@ void pstInflate(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 
 /* PST_GET_PARICLES */
 void pstGetParticles(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
