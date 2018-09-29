@@ -1575,7 +1575,7 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 		sizeof(int), "SFbdivv",
 		"<SF Use div v for star formation> = 1");
     /* END Gas/Star Parameters */
-
+    msr->param.nOutputParticles = 0;
     prmAddArray(msr->prm,"lstOrbits",4,&msr->param.iOutputParticles,sizeof(uint64_t),&msr->param.nOutputParticles);
 
     msr->param.bAccelStep = 0;
