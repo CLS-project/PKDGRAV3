@@ -6119,13 +6119,9 @@ void msrMeasurePk(MSR msr,int iAssignment,int bInterlace,int nGrid,int nBins,uin
     if (nGrid/2 < nBins) nBins = nGrid/2;
     assert(nBins <= PST_MAX_K_BINS);
 
-    fftNormalize = 1.0 / (1.0*nGrid*nGrid*nGrid);
-    fftNormalize *= fftNormalize;
-
     sec = msrTime();
     printf("Measuring P(k) with grid size %d (%d bins)...\n",nGrid,nBins);
 
-    /* NOTE: reordering the particles by their z coordinate would be good here */
     in.iAssignment = iAssignment;
     in.bInterlace = bInterlace;
     in.nGrid = nGrid;
@@ -6139,8 +6135,8 @@ void msrMeasurePk(MSR msr,int iAssignment,int bInterlace,int nGrid,int nBins,uin
 	if ( out->nPower[i] == 0 ) fK[i] = fPk[i] = 0;
 	else {
 	    if (nPk) nPk[i] = out->nPower[i];
-	    fK[i] = out->fK[i]/out->nPower[i];
-	    fPk[i] = out->fPower[i]/out->nPower[i]*fftNormalize;
+	    fK[i] = exp(out->fK[i]/out->nPower[i]);
+	    fPk[i] = out->fPower[i]/out->nPower[i];
 	    }
 	}
     /* At this point, dPk[] needs to be corrected by the box size */
