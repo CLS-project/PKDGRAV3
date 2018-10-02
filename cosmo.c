@@ -122,7 +122,8 @@ void csmClassRead(CSM csm, double dBoxSize){
     hsize_t size_bg, size_a, size_k, count[1], offset[1], offset_out[1];
     char *matter_name, hdf5_key[128], *unit_length,
         *linSpeciesNames[10], *linSpeciesName, *LinSpeciesParsing;
-    double h, a, k, dOmega0, rho_crit[1], unit_convertion_time, unit_convertion_density;
+    double dOmega0, dOmegaDE, dOmegaRad, dOmegaNu, dSpectral, h;
+    double a, k, rho_crit[1], unit_convertion_time, unit_convertion_density;
     double *loga, *logrho_lin, *deltarho_lin, *rho_lin;
 
     assert(csm->val.classData.bClass);
@@ -199,7 +200,8 @@ void csmClassRead(CSM csm, double dBoxSize){
     if (H5Aread(attr, H5T_NATIVE_DOUBLE, &h) < 0) abort();
     H5Aclose(attr);
 
-    /* Added by MK:
+    /* Added by MK: read in full cosmology from HDF5 */
+    /*
     ** Read in the total (cdm+b) matter density parameter dOmega0
     */
     attr = H5Aopen_by_name(file, "/background", "Omega_cdm+b", H5P_DEFAULT, H5P_DEFAULT);
@@ -209,6 +211,46 @@ void csmClassRead(CSM csm, double dBoxSize){
     // update csm->val.dOmega0
     csm->val.dOmega0=dOmega0;
     
+    /*
+    ** Read in the dark energy density parameter dOmegaDE
+    */
+    attr = H5Aopen_by_name(file, "/background", "Omega_fld", H5P_DEFAULT, H5P_DEFAULT);
+    if (attr < 0) abort();
+    if (H5Aread(attr, H5T_NATIVE_DOUBLE, &dOmegaDE) < 0) abort();
+    H5Aclose(attr);
+    // update csm->val.dOmegaDE
+    csm->val.dOmegaDE=dOmegaDE;
+    
+    /*
+    ** Read in the radiation energy density (photons) parameter dOmegaRad
+    */
+    attr = H5Aopen_by_name(file, "/background", "Omega_g", H5P_DEFAULT, H5P_DEFAULT);
+    if (attr < 0) abort();
+    if (H5Aread(attr, H5T_NATIVE_DOUBLE, &dOmegaRad) < 0) abort();
+    H5Aclose(attr);
+    // update csm->val.dOmegaRad
+    csm->val.dOmegaRad=dOmegaRad;
+
+    /*
+    ** Read in the neutrino density paremeter
+    */
+    attr = H5Aopen_by_name(file, "/background", "Omega_ncdm[0]", H5P_DEFAULT, H5P_DEFAULT);
+    if (attr < 0) abort();
+    if (H5Aread(attr, H5T_NATIVE_DOUBLE, &dOmegaNu) < 0) abort();
+    H5Aclose(attr);
+    // update csm->val.dOmegaRad
+    csm->val.dOmegaRad += dOmegaNu;
+
+    /*
+    ** Read in the spectral index n_s
+    */
+    //attr = H5Aopen_by_name(file, "/background", "n_s", H5P_DEFAULT, H5P_DEFAULT);
+    //if (attr < 0) abort();
+    //if (H5Aread(attr, H5T_NATIVE_DOUBLE, &dSpectral) < 0) abort();
+    //H5Aclose(attr);
+    // update csm->val.dSpectral
+    //csm->val.dSpectral = dSpectral;
+
 
     //printf("Omega0 read in from HDF5 file (by MK): %.14f\n", dOmega0); 
 
