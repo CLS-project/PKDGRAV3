@@ -109,7 +109,7 @@ void pkdMeasurePk(PKD pkd, double dTotalMass, int iAssignment, int bInterlace,
 	nPower[i] = 0;
 	}
 
-    double win_j, win_k;
+    complex_t fftNormalize = 1.0 / (1.0*nGrid*nGrid*nGrid);
 #ifdef LINEAR_PK
     double scale = nBins * 1.0 / iNyquist;
 #else
@@ -130,16 +130,17 @@ void pkdMeasurePk(PKD pkd, double dTotalMass, int iAssignment, int bInterlace,
 	    ks = floor(log(ks) * scale);
 #endif
 	    assert(ks>=0 && ks <nBins);
-	    auto v1 = *index;
+	    auto v1 = *index * fftNormalize;
 	    if (bInterlace) { // jj,kk can be negative
 		auto jj = pos[1]>iNyquist ? pos[1] - nGrid : pos[1];
 		auto kk = pos[2]>iNyquist ? pos[2] - nGrid : pos[2];
 		float theta = M_PI/nGrid * (i + jj + kk);
-		auto v2 = K2(index.position()) * complex_t(cosf(theta),sinf(theta));
+		auto v2 = K2(index.position()) * fftNormalize * complex_t(cosf(theta),sinf(theta));
 		v1 = complex_t(0.5) * (v1 + v2);
 		}
+	    *index = v1;
 	    double delta2 = win*win*std::norm(v1);
-	    fK[ks] += ak;
+	    fK[ks] += log(ak);
 	    fPower[ks] += delta2;
 	    nPower[ks] += 1;
 	    }
