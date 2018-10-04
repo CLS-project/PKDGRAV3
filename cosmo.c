@@ -203,13 +203,14 @@ void csmClassRead(CSM csm, double dBoxSize){
     /* Added by MK: read in full cosmology from HDF5 */
     /*
     ** Read in the baryonic matter density parameter dOmegab
-    */
+    *
     attr = H5Aopen_by_name(file, "/background", "Omega_b", H5P_DEFAULT, H5P_DEFAULT);
     if (attr < 0) abort();
     if (H5Aread(attr, H5T_NATIVE_DOUBLE, &dOmegab) < 0) abort();
     H5Aclose(attr);
     // update csm->val.dOmegab
     csm->val.dOmegab=dOmegab;
+    */
 
     /*
     ** Read in the total (cdm+b) matter density parameter dOmega0
@@ -233,7 +234,7 @@ void csmClassRead(CSM csm, double dBoxSize){
     
     /*
     ** Read in the radiation energy density (photons) parameter dOmegaRad
-    */
+    
     attr = H5Aopen_by_name(file, "/background", "Omega_g", H5P_DEFAULT, H5P_DEFAULT);
     if (attr < 0) abort();
     if (H5Aread(attr, H5T_NATIVE_DOUBLE, &dOmegaRad) < 0) abort();
@@ -241,20 +242,20 @@ void csmClassRead(CSM csm, double dBoxSize){
     // update csm->val.dOmegaRad
     csm->val.dOmegaRad=dOmegaRad;
 
-    /*
+    *
     ** Read in the neutrino density paremeter
-    */
+    *
     attr = H5Aopen_by_name(file, "/background", "Omega_ncdm[0]", H5P_DEFAULT, H5P_DEFAULT);
     if (attr < 0) abort();
     if (H5Aread(attr, H5T_NATIVE_DOUBLE, &dOmegaNu) < 0) abort();
     H5Aclose(attr);
     // update csm->val.dOmegaRad
-    csm->val.dOmegaRad += dOmegaNu;
+    //csm->val.dOmegaRad += dOmegaNu;
 
     
-    /*
+    *
     ** Read in the spectral index n_s
-    */
+    /
     attr = H5Aopen_by_name(file, "/perturbations", "n_s", H5P_DEFAULT, H5P_DEFAULT);
     if (attr < 0) abort();
     if (H5Aread(attr, H5T_NATIVE_DOUBLE, &dSpectral) < 0) abort();
@@ -262,15 +263,16 @@ void csmClassRead(CSM csm, double dBoxSize){
     // update csm->val.dSpectral
     csm->val.dSpectral = dSpectral;
 
-    /*
+    *
     ** Read in the spectral amplitude
-    */
+    *
     attr = H5Aopen_by_name(file, "/perturbations", "A_s", H5P_DEFAULT, H5P_DEFAULT);
     if (attr < 0) abort();
     if (H5Aread(attr, H5T_NATIVE_DOUBLE, &dNormalization) < 0) abort();
     H5Aclose(attr);
     // update csm->val.dNormalization
     csm->val.dSpectral = dNormalization;
+    */
 
     //printf("Omega0 read in from HDF5 file (by MK): %.14f\n", dOmega0); 
 
