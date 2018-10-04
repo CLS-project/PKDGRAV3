@@ -1087,7 +1087,7 @@ double csmComoveDriftFac(CSM csm,double dTime,double dDelta) {
 
     if (!csm->val.bComove) return(dDelta);
  
-    else if (bClass == 0) {
+    else if (csm->val.classData.bClass == 0) {
         if (csm->val.dLambda == 0.0 && csm->val.dOmegaDE == 0.0 && csm->val.dOmegaRad == 0.0) {
             a1 = csmTime2Exp(csm,dTime);
             a2 = csmTime2Exp(csm,dTime+dDelta);
@@ -1156,7 +1156,7 @@ double csmComoveKickFac(CSM csm,double dTime,double dDelta) {
     double a0,A,B,a1,a2,eta1,eta2;
 
     if (!csm->val.bComove) return(dDelta);
-    else if (bClass == 0) {
+    else if (csm->val.classData.bClass == 0) {
         if (csm->val.dLambda == 0.0 && csm->val.dOmegaDE == 0.0 && csm->val.dOmegaRad == 0.0) {
             a1 = csmTime2Exp(csm,dTime);
             a2 = csmTime2Exp(csm,dTime+dDelta);
