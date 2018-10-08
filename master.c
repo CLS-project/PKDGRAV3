@@ -610,7 +610,7 @@ void msrCheckpoint(MSR msr,int iStep,double dTime) {
 /*
 ** This routine validates the given parameters and makes any adjustments.
 */
-static int validateParameters(PRM prm,struct parameters *param) {
+static int validateParameters(MDL mdl,PRM prm,struct parameters *param) {
     
     if (prmSpecified(prm, "dMetalDiffsionCoeff") || prmSpecified(prm,"dThermalDiffusionCoeff")) {
 	if (!prmSpecified(prm, "iDiffusion")) param->iDiffusion=1;
@@ -661,7 +661,7 @@ static int validateParameters(PRM prm,struct parameters *param) {
     /*
     ** CUDA likes a larger group size
     */
-    if (param->iCUDAQueueSize>0 && !prmSpecified(prm,"nGroup") && param->nGroup<256)
+    if (mdlCudaActive(mdl) && param->iCUDAQueueSize>0 && !prmSpecified(prm,"nGroup") && param->nGroup<256)
 	param->nGroup = 256;
 
 
@@ -1606,7 +1606,7 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 	if (!prmParseParam(msr->prm,msr)) {
 	    _msrExit(msr,1);
 	    }
-	if (!validateParameters(msr->prm,&msr->param)) _msrExit(msr,1);
+	if (!validateParameters(mdl,msr->prm,&msr->param)) _msrExit(msr,1);
 	}
 
     msr->param.dTuFac = msr->param.dGasConst/(msr->param.dConstGamma - 1)/
