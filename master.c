@@ -4227,16 +4227,22 @@ int msrNewTopStepKDK(MSR msr,
 
     if (uRung == iRungDT+1) {
 	if ( msr->param.bDualTree && uRung < *puRungMax) {
-	    bDualTree = 1;
-	    struct inDumpTrees dump;
-	    dump.bOnlyVA = 0;
-	    dump.uRungDD = iRungDT;
-	    pstDumpTrees(msr->pst,&dump,sizeof(dump),NULL,NULL);
-	    msrprintf(msr,"Half Drift, uRung: %d\n",iRungDT);
-	    dDelta = msr->param.dDelta/(1 << iRungDT); // Main tree step
-	    msrDrift(msr,*pdTime,0.5 * dDelta,FIXROOT);
-	    dTimeFixed = *pdTime + 0.5 * dDelta;
-	    msrBuildTreeFixed(msr,*pdTime,msr->param.bEwald,iRungDT);
+	    /* HACK: FIXME: Don't use the dual tree before z=2; the overlap region is too large */
+	    /* better would be to construct the tree matching remote processor shape as well as local */
+	    double a = csmTime2Exp(msr->param.csm,*pdTime);
+	    if (a < (1.0/3.0)) bDualTree = 0;
+	    else {
+		bDualTree = 1;
+		struct inDumpTrees dump;
+		dump.bOnlyVA = 0;
+		dump.uRungDD = iRungDT;
+		pstDumpTrees(msr->pst,&dump,sizeof(dump),NULL,NULL);
+		msrprintf(msr,"Half Drift, uRung: %d\n",iRungDT);
+		dDelta = msr->param.dDelta/(1 << iRungDT); // Main tree step
+		msrDrift(msr,*pdTime,0.5 * dDelta,FIXROOT);
+		dTimeFixed = *pdTime + 0.5 * dDelta;
+		msrBuildTreeFixed(msr,*pdTime,msr->param.bEwald,iRungDT);
+		}
 	    }
 	else bDualTree = 0;
 	}
