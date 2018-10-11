@@ -1315,7 +1315,7 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     prmAddParam(msr->prm,"dFixedAmpPhasePI",2,&msr->param.dFixedAmpPhasePI,
 		sizeof(double),"fixedphase","<Phase shift for fixed amplitude in units of PI> = 0.0");
     msr->param.nGridLin = 0;
-    prmAddParam(msr->prm, "nGridLin", 0, &msr->param.nGridLin,
+    prmAddParam(msr->prm, "nGridLin", 1, &msr->param.nGridLin,
         sizeof(int), "lingrid", "<Grid size for linear species 0=disabled> =0");
     msr->param.bDoLinPkOutput = 0;
     prmAddParam(msr->prm, "bDoLinPkOutput", 0, &msr->param.bDoLinPkOutput,
