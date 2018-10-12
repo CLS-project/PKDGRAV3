@@ -470,7 +470,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
     ** Set up the sentinel particle with some very far away distance.
     ** This is used to initially load the priority queue and all references
     ** to this particle should end up being replaced in the priority queue
-    ** as long as there are nSmooth particles set bSrcActive=1.
+    ** as long as there are nSmooth particles.
     */
     for (j=0;j<3;++j) {
 #ifdef INTEGER_POSITION
@@ -479,8 +479,6 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
 	pkdSetPos(pkd,smx->pSentinel,j,HUGE_VAL);
 #endif
     }
-    smx->pSentinel->bSrcActive = 1;
-    smx->pSentinel->bDstActive = 0;
     /*
     ** Need to cast the pLite to an array of extra stuff.
     */
@@ -540,8 +538,7 @@ void smFinish(SMX smx,SMF *smf) {
     if (smx->fcnPost != NULL) {
 	for (pi=0;pi<pkd->nLocal;++pi) {
 	    p = pkdParticle(pkd,pi);
-	    if ( pkdIsSrcActive(p,0,MAX_RUNG) && pkdIsDstActive(p,0,MAX_RUNG) )
-		smx->fcnPost(pkd,p,smf);
+	    smx->fcnPost(pkd,p,smf);
 	}
     }
     /*
@@ -647,7 +644,7 @@ PQ *pqSearch(SMX smx,PQ *pq,double r[3],int iRoot) {
 	    pEnd = kdn->pUpper;
 	    for (pj=kdn->pLower;pj<=pEnd;++pj) {
 		p = mdlFetch(mdl,CID_PARTICLE,pj,id);
-		if (!p->bSrcActive || smHashPresent(smx,p)) continue;
+		if (smHashPresent(smx,p)) continue;
 		pkdGetPos1(pkd,p,p_r);
 		dx = r[0] - p_r[0];
 		dy = r[1] - p_r[1];
@@ -798,15 +795,13 @@ void smSmooth(SMX smx,SMF *smf) {
     */
     for (pi=0;pi<pkd->nLocal;++pi) {
 	p = pkdParticle(pkd,pi);
-	p->bMarked = p->bSrcActive;
+	p->bMarked = 1;
     }
     smSmoothInitialize(smx);
     smf->pfDensity = NULL;
     for (pi=0;pi<pkd->nLocal;++pi) {
 	p = pkdParticle(pkd,pi);
-	if ( !pkdIsDstActive(p,0,MAX_RUNG) ) continue;
 	pkdSetBall(pkd,p,smSmoothSingle(smx,smf,p,ROOT,0));
-
 	/*
 	** Call mdlCacheCheck to make sure we are making progress!
 	*/
@@ -1889,7 +1884,7 @@ void smFastGasPhase1(SMX smx,SMF *smf) {
     uTail = 0;
     for (pi=0;pi<pkd->nLocal;++pi) {
 	p = pkdParticle(pkd,pi);
-	p->bMarked = p->bSrcActive;
+	p->bMarked = 1;
 	smx->ea[pi].bDone = 0;
 	if (pkdIsGas(pkd,p) && pkdIsActive(pkd,p)) {
 	    /*
@@ -2042,7 +2037,7 @@ void smFastGasPhase1(SMX smx,SMF *smf) {
 		    } /* end of if (pkdIsGas(pkd,pp)) */
 		    else {
 			/*
-			** We should never get here if the bSrcActive is set to 1 for all gas particles!
+			** We should never get here if all gas particles are active!
 			*/
 			assert(pkdIsGas(pkd,pp));
 		    } /* end of !pkdIsGas(pkd,pp) */
@@ -2387,7 +2382,6 @@ void smGather(SMX smx,double fBall2,double r[3]) {
 		pEnd = kdn->pUpper;
 		for (pj=kdn->pLower;pj<=pEnd;++pj) {
 		    p = pkdParticle(pkd,pj);
-		    if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue;
 		    pkdGetPos1(pkd,p,p_r);
 		    dx = r[0] - p_r[0];
 		    dy = r[1] - p_r[1];
@@ -2414,7 +2408,6 @@ void smGather(SMX smx,double fBall2,double r[3]) {
 		pEnd = kdn->pUpper;
 		for (pj=kdn->pLower;pj<=pEnd;++pj) {
 		    p = mdlFetch(mdl,CID_PARTICLE,pj,id);
-		    if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue;
 		    pkdGetPos1(pkd,p,p_r);
 		    dx = r[0] - p_r[0];
 		    dy = r[1] - p_r[1];
@@ -2480,7 +2473,6 @@ void smDoGatherLocal(SMX smx,double fBall2,double r[3],void (*Do)(SMX,PARTICLE *
 	    pEnd = kdn->pUpper;
 	    for (pj=kdn->pLower;pj<=pEnd;++pj) {
 		p = pkdParticle(pkd,pj);
-		if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue;
 		pkdGetPos1(pkd,p,p_r);
 		dx = r[0] - p_r[0];
 		dy = r[1] - p_r[1];
@@ -2554,7 +2546,6 @@ void smReSmooth(SMX smx,SMF *smf) {
     smf->pfDensity = NULL;
     for (pi=0;pi<pkd->nLocal;++pi) {
 	p = pkdParticle(pkd,pi);
-	if ( pkdIsDstActive(p,0,MAX_RUNG) && pkdIsSrcActive(p,0,MAX_RUNG) )
-	    smReSmoothSingle(smx,smf,p,pkdBall(pkd,p));
+	smReSmoothSingle(smx,smf,p,pkdBall(pkd,p));
     }
 }

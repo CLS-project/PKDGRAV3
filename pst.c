@@ -361,71 +361,38 @@ void pstAddServices(PST pst,MDL mdl) {
 		  (void (*)(void *,void *,int,void *,int *)) pstSwapClasses,
 		  PKD_MAX_CLASSES*sizeof(PARTCLASS),
 		  PKD_MAX_CLASSES*sizeof(PARTCLASS));
-    mdlAddService(mdl,PST_SELSRCALL,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstSelSrcAll,
+    mdlAddService(mdl,PST_SELALL,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstSelAll,
 		  0, 0 );
-    mdlAddService(mdl,PST_SELDSTALL,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstSelDstAll,
+    mdlAddService(mdl,PST_SELGAS,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstSelGas,
 		  0, 0 );
-    mdlAddService(mdl,PST_SELSRCGAS,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstSelSrcGas,
+    mdlAddService(mdl,PST_SELSTAR,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstSelStar,
 		  0, 0 );
-    mdlAddService(mdl,PST_SELDSTGAS,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstSelDstGas,
+    mdlAddService(mdl,PST_SELDELETED,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstSelDeleted,
 		  0, 0 );
-    mdlAddService(mdl,PST_SELSRCSTAR,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstSelSrcStar,
-		  0, 0 );
-    mdlAddService(mdl,PST_SELDSTSTAR,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstSelDstStar,
-		  sizeof(struct inSelDstStar), 0 );
-    mdlAddService(mdl,PST_SELSRCDELETED,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstSelSrcDeleted,
-		  0, 0 );
-    mdlAddService(mdl,PST_SELDSTDELETED,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstSelDstDeleted,
-		  0, 0 );
-    mdlAddService(mdl,PST_SELSRCBYID,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstSelSrcById,
+    mdlAddService(mdl,PST_SELBYID,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstSelById,
 		  sizeof(struct inSelById), sizeof(struct outSelById));
-    mdlAddService(mdl,PST_SELDSTBYID,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstSelDstById,
-		  sizeof(struct inSelById), sizeof(struct outSelById));
-    mdlAddService(mdl,PST_SELSRCMASS,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstSelSrcMass,
+    mdlAddService(mdl,PST_SELMASS,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstSelMass,
 		  sizeof(struct inSelMass), sizeof(struct outSelMass));
-    mdlAddService(mdl,PST_SELDSTMASS,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstSelDstMass,
-		  sizeof(struct inSelMass), sizeof(struct outSelMass));
-    mdlAddService(mdl,PST_SELSRCPHASEDENSITY,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstSelSrcPhaseDensity,
+    mdlAddService(mdl,PST_SELPHASEDENSITY,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstSelPhaseDensity,
 		  sizeof(struct inSelPhaseDensity), sizeof(struct outSelPhaseDensity));
-    mdlAddService(mdl,PST_SELDSTPHASEDENSITY,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstSelDstPhaseDensity,
-		  sizeof(struct inSelPhaseDensity), sizeof(struct outSelPhaseDensity));
-    mdlAddService(mdl,PST_SELSRCBOX,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstSelSrcBox,
+    mdlAddService(mdl,PST_SELBOX,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstSelBox,
 		  sizeof(struct inSelBox), sizeof(struct outSelBox));
-    mdlAddService(mdl,PST_SELDSTBOX,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstSelDstBox,
-		  sizeof(struct inSelBox), sizeof(struct outSelBox));
-    mdlAddService(mdl,PST_SELSRCSPHERE,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstSelSrcSphere,
+    mdlAddService(mdl,PST_SELSPHERE,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstSelSphere,
 		  sizeof(struct inSelSphere), sizeof(struct outSelSphere));
-    mdlAddService(mdl,PST_SELDSTSPHERE,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstSelDstSphere,
-		  sizeof(struct inSelSphere), sizeof(struct outSelSphere));
-    mdlAddService(mdl,PST_SELSRCCYLINDER,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstSelSrcCylinder,
+    mdlAddService(mdl,PST_SELCYLINDER,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstSelCylinder,
 		  sizeof(struct inSelCylinder), sizeof(struct outSelCylinder));
-    mdlAddService(mdl,PST_SELDSTCYLINDER,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstSelDstCylinder,
-		  sizeof(struct inSelCylinder), sizeof(struct outSelCylinder));
-    mdlAddService(mdl,PST_SELSRCGROUP,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstSelSrcGroup,
-		  sizeof(int), 0);
-    mdlAddService(mdl,PST_SELDSTGROUP,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstSelDstGroup,
+    mdlAddService(mdl,PST_SELGROUP,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstSelGroup,
 		  sizeof(int), 0);
     mdlAddService(mdl,PST_PROFILE,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstProfile,
@@ -3237,7 +3204,7 @@ void pstSetTotal(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	}
     else {
 	/*pst->nTotal = pkdLocal(plcl->pkd);*/
-	pst->nTotal = pkdNumSrcActive(plcl->pkd,0,MAX_RUNG);
+	pst->nTotal = pkdLocal(plcl->pkd);
 	out->nTotal = pst->nTotal;
 	}
     if (pnOut) *pnOut = sizeof(struct outSetTotal);
@@ -3749,7 +3716,7 @@ void pltMoveIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	    pkdSetPos(pkd,p,1,temp.dr[1] + (temp.iy+0.5) * inGrid - 0.5);
 	    pkdSetPos(pkd,p,0,temp.dr[0] + (temp.ix+0.5) * inGrid - 0.5);
 	    pkdSetClass(pkd,in->fMass,in->fSoft,FIO_SPECIES_DARK,p);
-	    p->bMarked = p->bSrcActive = p->bDstActive = 1;
+	    p->bMarked = 1;
 	    p->uRung = 0;
 	    if (pkd->bNoParticleOrder) {
 		((UPARTICLE *)p)->iGroup = 0;
@@ -4142,113 +4109,59 @@ void pstSwapClasses(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     }
 
 
-void pstSelSrcAll(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+void pstSelAll(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     if (pst->nLeaves > 1) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SELSRCALL,vin,nIn);
-	pstSelSrcAll(pst->pstLower,vin,nIn,vout,pnOut);
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SELALL,vin,nIn);
+	pstSelAll(pst->pstLower,vin,nIn,vout,pnOut);
 	mdlGetReply(pst->mdl,rID,vout,pnOut);
 	}
     else {
-	pkdSelSrcAll(plcl->pkd);
-	}
-    if (pnOut) *pnOut = 0;
-    }
-void pstSelDstAll(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-    LCL *plcl = pst->plcl;
-    if (pst->nLeaves > 1) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SELDSTALL,vin,nIn);
-	pstSelDstAll(pst->pstLower,vin,nIn,vout,pnOut);
-	mdlGetReply(pst->mdl,rID,vout,pnOut);
-	}
-    else {
-	pkdSelDstAll(plcl->pkd);
+	pkdSelAll(plcl->pkd);
 	}
     if (pnOut) *pnOut = 0;
     }
 
-void pstSelSrcGas(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+void pstSelGas(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     if (pst->nLeaves > 1) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SELSRCGAS,vin,nIn);
-	pstSelSrcGas(pst->pstLower,vin,nIn,vout,pnOut);
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SELGAS,vin,nIn);
+	pstSelGas(pst->pstLower,vin,nIn,vout,pnOut);
 	mdlGetReply(pst->mdl,rID,vout,pnOut);
 	}
     else {
-	pkdSelSrcGas(plcl->pkd);
+	pkdSelGas(plcl->pkd);
 	}
     if (pnOut) *pnOut = 0;
     }
 
-void pstSelDstGas(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+void pstSelStar(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     if (pst->nLeaves > 1) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SELDSTGAS,vin,nIn);
-	pstSelDstGas(pst->pstLower,vin,nIn,vout,pnOut);
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SELSTAR,vin,nIn);
+	pstSelStar(pst->pstLower,vin,nIn,vout,pnOut);
 	mdlGetReply(pst->mdl,rID,vout,pnOut);
 	}
     else {
-	pkdSelDstGas(plcl->pkd);
+	pkdSelStar(plcl->pkd);
 	}
     if (pnOut) *pnOut = 0;
     }
 
-void pstSelSrcStar(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+void pstSelDeleted(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     if (pst->nLeaves > 1) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SELSRCSTAR,vin,nIn);
-	pstSelSrcStar(pst->pstLower,vin,nIn,vout,pnOut);
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SELDELETED,vin,nIn);
+	pstSelDeleted(pst->pstLower,vin,nIn,vout,pnOut);
 	mdlGetReply(pst->mdl,rID,vout,pnOut);
 	}
     else {
-	pkdSelSrcStar(plcl->pkd);
+	pkdSelDeleted(plcl->pkd);
 	}
     if (pnOut) *pnOut = 0;
     }
 
-void pstSelDstStar(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-    LCL *plcl = pst->plcl;
-    struct inSelDstStar *in = vin;
-    assert(nIn==sizeof(struct inSelDstStar));
-
-    if (pst->nLeaves > 1) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SELDSTSTAR,vin,nIn);
-	pstSelDstStar(pst->pstLower,vin,nIn,vout,pnOut);
-	mdlGetReply(pst->mdl,rID,vout,pnOut);
-	}
-    else {
-	pkdSelDstStar(plcl->pkd,in->bFB,in->dTimeFB);
-	}
-    if (pnOut) *pnOut = 0;
-    }
-
-void pstSelSrcDeleted(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-    LCL *plcl = pst->plcl;
-    if (pst->nLeaves > 1) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SELSRCDELETED,vin,nIn);
-	pstSelSrcDeleted(pst->pstLower,vin,nIn,vout,pnOut);
-	mdlGetReply(pst->mdl,rID,vout,pnOut);
-	}
-    else {
-	pkdSelSrcDeleted(plcl->pkd);
-	}
-    if (pnOut) *pnOut = 0;
-    }
-
-void pstSelDstDeleted(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-    LCL *plcl = pst->plcl;
-    if (pst->nLeaves > 1) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SELDSTDELETED,vin,nIn);
-	pstSelDstDeleted(pst->pstLower,vin,nIn,vout,pnOut);
-	mdlGetReply(pst->mdl,rID,vout,pnOut);
-	}
-    else {
-	pkdSelDstDeleted(plcl->pkd);
-	}
-    if (pnOut) *pnOut = 0;
-    }
-
-void pstSelSrcById(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+void pstSelById(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inSelById *in = vin;
     struct outSelById *out = vout;
@@ -4257,38 +4170,18 @@ void pstSelSrcById(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 
     assert( nIn==sizeof(struct inSelById) );
     if (pst->nLeaves > 1) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SELSRCBYID,vin,nIn);
-	pstSelSrcById(pst->pstLower,vin,nIn,vout,pnOut);
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SELBYID,vin,nIn);
+	pstSelById(pst->pstLower,vin,nIn,vout,pnOut);
 	mdlGetReply(pst->mdl,rID,&outUpper,&nOut);
 	assert(nOut == sizeof(struct outSelById));
 	out->nSelected += outUpper.nSelected;
 	}
     else {
-	out->nSelected = pkdSelSrcById(plcl->pkd,in->idStart,in->idEnd,in->setIfTrue,in->clearIfFalse);
+	out->nSelected = pkdSelById(plcl->pkd,in->idStart,in->idEnd,in->setIfTrue,in->clearIfFalse);
 	}
     if (pnOut) *pnOut = sizeof(struct outSelById);
     }
-void pstSelDstById(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-    LCL *plcl = pst->plcl;
-    struct inSelById *in = vin;
-    struct outSelById *out = vout;
-    struct outSelById outUpper;
-    int nOut;
-
-    assert( nIn==sizeof(struct inSelById) );
-    if (pst->nLeaves > 1) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SELDSTBYID,vin,nIn);
-	pstSelDstById(pst->pstLower,vin,nIn,vout,pnOut);
-	mdlGetReply(pst->mdl,rID,&outUpper,&nOut);
-	assert(nOut == sizeof(struct outSelById));
-	out->nSelected += outUpper.nSelected;
-	}
-    else {
-	out->nSelected = pkdSelDstById(plcl->pkd,in->idStart,in->idEnd,in->setIfTrue,in->clearIfFalse);
-	}
-    if (pnOut) *pnOut = sizeof(struct outSelById);
-    }
-void pstSelSrcMass(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+void pstSelMass(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inSelMass *in = vin;
     struct outSelMass *out = vout;
@@ -4297,39 +4190,19 @@ void pstSelSrcMass(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 
     assert( nIn==sizeof(struct inSelMass) );
     if (pst->nLeaves > 1) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SELSRCMASS,vin,nIn);
-	pstSelSrcMass(pst->pstLower,vin,nIn,vout,pnOut);
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SELMASS,vin,nIn);
+	pstSelMass(pst->pstLower,vin,nIn,vout,pnOut);
 	mdlGetReply(pst->mdl,rID,&outUpper,&nOut);
 	assert(nOut == sizeof(struct outSelMass));
 	out->nSelected += outUpper.nSelected;
 	}
     else {
-	out->nSelected = pkdSelSrcMass(plcl->pkd,in->dMinMass,in->dMaxMass,in->setIfTrue,in->clearIfFalse);
-	}
-    if (pnOut) *pnOut = sizeof(struct outSelMass);
-    }
-void pstSelDstMass(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-    LCL *plcl = pst->plcl;
-    struct inSelMass *in = vin;
-    struct outSelMass *out = vout;
-    struct outSelMass outUpper;
-    int nOut;
-
-    assert( nIn==sizeof(struct inSelMass) );
-    if (pst->nLeaves > 1) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SELDSTMASS,vin,nIn);
-	pstSelDstMass(pst->pstLower,vin,nIn,vout,pnOut);
-	mdlGetReply(pst->mdl,rID,&outUpper,&nOut);
-	assert(nOut == sizeof(struct outSelMass));
-	out->nSelected += outUpper.nSelected;
-	}
-    else {
-	out->nSelected = pkdSelDstMass(plcl->pkd,in->dMinMass,in->dMaxMass,in->setIfTrue,in->clearIfFalse);
+	out->nSelected = pkdSelMass(plcl->pkd,in->dMinMass,in->dMaxMass,in->setIfTrue,in->clearIfFalse);
 	}
     if (pnOut) *pnOut = sizeof(struct outSelMass);
     }
 
-void pstSelSrcPhaseDensity(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+void pstSelPhaseDensity(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inSelPhaseDensity *in = vin;
     struct outSelPhaseDensity *out = vout;
@@ -4338,40 +4211,19 @@ void pstSelSrcPhaseDensity(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 
     assert( nIn==sizeof(struct inSelPhaseDensity) );
     if (pst->nLeaves > 1) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SELSRCPHASEDENSITY,vin,nIn);
-	pstSelSrcPhaseDensity(pst->pstLower,vin,nIn,vout,pnOut);
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SELPHASEDENSITY,vin,nIn);
+	pstSelPhaseDensity(pst->pstLower,vin,nIn,vout,pnOut);
 	mdlGetReply(pst->mdl,rID,&outUpper,&nOut);
 	assert(nOut == sizeof(struct outSelPhaseDensity));
 	out->nSelected += outUpper.nSelected;
 	}
     else {
-	out->nSelected = pkdSelSrcPhaseDensity(plcl->pkd,in->dMinDensity,in->dMaxDensity,in->setIfTrue,in->clearIfFalse);
+	out->nSelected = pkdSelPhaseDensity(plcl->pkd,in->dMinDensity,in->dMaxDensity,in->setIfTrue,in->clearIfFalse);
 	}
     if (pnOut) *pnOut = sizeof(struct outSelPhaseDensity);
     }
 
-void pstSelDstPhaseDensity(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-    LCL *plcl = pst->plcl;
-    struct inSelPhaseDensity *in = vin;
-    struct outSelPhaseDensity *out = vout;
-    struct outSelPhaseDensity outUpper;
-    int nOut;
-
-    assert( nIn==sizeof(struct inSelPhaseDensity) );
-    if (pst->nLeaves > 1) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SELDSTPHASEDENSITY,vin,nIn);
-	pstSelDstPhaseDensity(pst->pstLower,vin,nIn,vout,pnOut);
-	mdlGetReply(pst->mdl,rID,&outUpper,&nOut);
-	assert(nOut == sizeof(struct outSelPhaseDensity));
-	out->nSelected += outUpper.nSelected;
-	}
-    else {
-	out->nSelected = pkdSelDstPhaseDensity(plcl->pkd,in->dMinDensity,in->dMaxDensity,in->setIfTrue,in->clearIfFalse);
-	}
-    if (pnOut) *pnOut = sizeof(struct outSelPhaseDensity);
-    }
-
-void pstSelSrcBox(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+void pstSelBox(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inSelBox *in = vin;
     struct outSelBox *out = vout;
@@ -4380,43 +4232,20 @@ void pstSelSrcBox(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 
     assert( nIn==sizeof(struct inSelBox) );
     if (pst->nLeaves > 1) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SELSRCBOX,vin,nIn);
-	pstSelSrcBox(pst->pstLower,vin,nIn,vout,pnOut);
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SELBOX,vin,nIn);
+	pstSelBox(pst->pstLower,vin,nIn,vout,pnOut);
 	mdlGetReply(pst->mdl,rID,&outUpper,&nOut);
 	assert(nOut == sizeof(struct outSelBox));
 	out->nSelected += outUpper.nSelected;
 	}
     else {
-	out->nSelected = pkdSelSrcBox(
-	    plcl->pkd,in->dCenter,in->dSize,in->setIfTrue,in->clearIfFalse);
-	}
-    if (pnOut) *pnOut = sizeof(struct outSelBox);
-    }
-void pstSelDstBox(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-    LCL *plcl = pst->plcl;
-    struct inSelBox *in = vin;
-    struct outSelBox *out = vout;
-    struct outSelBox outUpper;
-    int nOut;
-
-    assert( nIn==sizeof(struct inSelBox) );
-    if (pst->nLeaves > 1) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SELDSTBOX,vin,nIn);
-	pstSelDstBox(pst->pstLower,vin,nIn,vout,pnOut);
-	mdlGetReply(pst->mdl,rID,&outUpper,&nOut);
-	assert(nOut == sizeof(struct outSelBox));
-	out->nSelected += outUpper.nSelected;
-	}
-    else {
-	out->nSelected = pkdSelDstBox(
+	out->nSelected = pkdSelBox(
 	    plcl->pkd,in->dCenter,in->dSize,in->setIfTrue,in->clearIfFalse);
 	}
     if (pnOut) *pnOut = sizeof(struct outSelBox);
     }
 
-
-
-void pstSelSrcSphere(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+void pstSelSphere(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inSelSphere *in = vin;
     struct outSelSphere *out = vout;
@@ -4425,42 +4254,20 @@ void pstSelSrcSphere(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 
     assert( nIn==sizeof(struct inSelSphere) );
     if (pst->nLeaves > 1) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SELSRCSPHERE,vin,nIn);
-	pstSelSrcSphere(pst->pstLower,vin,nIn,vout,pnOut);
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SELSPHERE,vin,nIn);
+	pstSelSphere(pst->pstLower,vin,nIn,vout,pnOut);
 	mdlGetReply(pst->mdl,rID,&outUpper,&nOut);
 	assert(nOut == sizeof(struct outSelSphere));
 	out->nSelected += outUpper.nSelected;
 	}
     else {
-	out->nSelected = pkdSelSrcSphere(
+	out->nSelected = pkdSelSphere(
 	    plcl->pkd,in->r,in->dRadius,in->setIfTrue,in->clearIfFalse);
 	}
     if (pnOut) *pnOut = sizeof(struct outSelSphere);
     }
 
-void pstSelDstSphere(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-    LCL *plcl = pst->plcl;
-    struct inSelSphere *in = vin;
-    struct outSelSphere *out = vout;
-    struct outSelSphere outUpper;
-    int nOut;
-
-    assert( nIn==sizeof(struct inSelSphere) );
-    if (pst->nLeaves > 1) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SELDSTSPHERE,vin,nIn);
-	pstSelDstSphere(pst->pstLower,vin,nIn,vout,pnOut);
-	mdlGetReply(pst->mdl,rID,&outUpper,&nOut);
-	assert(nOut == sizeof(struct outSelSphere));
-	out->nSelected += outUpper.nSelected;
-	}
-    else {
-	out->nSelected = pkdSelDstSphere(
-	    plcl->pkd,in->r,in->dRadius,in->setIfTrue,in->clearIfFalse);
-	}
-    if (pnOut) *pnOut = sizeof(struct outSelSphere);
-    }
-
-void pstSelSrcCylinder(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+void pstSelCylinder(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inSelCylinder *in = vin;
     struct outSelCylinder *out = vout;
@@ -4469,67 +4276,30 @@ void pstSelSrcCylinder(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 
     assert( nIn==sizeof(struct inSelCylinder) );
     if (pst->nLeaves > 1) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SELSRCCYLINDER,vin,nIn);
-	pstSelSrcCylinder(pst->pstLower,vin,nIn,vout,pnOut);
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SELCYLINDER,vin,nIn);
+	pstSelCylinder(pst->pstLower,vin,nIn,vout,pnOut);
 	mdlGetReply(pst->mdl,rID,&outUpper,&nOut);
 	assert(nOut == sizeof(struct outSelCylinder));
 	out->nSelected += outUpper.nSelected;
 	}
     else {
-	out->nSelected = pkdSelSrcCylinder(
+	out->nSelected = pkdSelCylinder(
 	    plcl->pkd,in->dP1,in->dP2,in->dRadius,in->setIfTrue,in->clearIfFalse);
 	}
     if (pnOut) *pnOut = sizeof(struct outSelCylinder);
     }
 
-void pstSelDstCylinder(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-    LCL *plcl = pst->plcl;
-    struct inSelCylinder *in = vin;
-    struct outSelCylinder *out = vout;
-    struct outSelCylinder outUpper;
-    int nOut;
-
-    assert( nIn==sizeof(struct inSelCylinder) );
-    if (pst->nLeaves > 1) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SELDSTCYLINDER,vin,nIn);
-	pstSelDstCylinder(pst->pstLower,vin,nIn,vout,pnOut);
-	mdlGetReply(pst->mdl,rID,&outUpper,&nOut);
-	assert(nOut == sizeof(struct outSelCylinder));
-	out->nSelected += outUpper.nSelected;
-	}
-    else {
-	out->nSelected = pkdSelDstCylinder(
-	    plcl->pkd,in->dP1,in->dP2,in->dRadius,in->setIfTrue,in->clearIfFalse);
-	}
-    if (pnOut) *pnOut = sizeof(struct outSelCylinder);
-    }
-
-void pstSelSrcGroup(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+void pstSelGroup(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     int *in = vin;
     LCL *plcl = pst->plcl;
     assert( nIn==sizeof(int) );
     if (pst->nLeaves > 1) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SELSRCGROUP,vin,nIn);
-	pstSelSrcGroup(pst->pstLower,vin,nIn,vout,pnOut);
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SELGROUP,vin,nIn);
+	pstSelGroup(pst->pstLower,vin,nIn,vout,pnOut);
 	mdlGetReply(pst->mdl,rID,vout,pnOut);
 	}
     else {
-	pkdSelSrcGroup(plcl->pkd, *in);
-	}
-    if (pnOut) *pnOut = 0;
-    }
-
-void pstSelDstGroup(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-    int *in = vin;
-    LCL *plcl = pst->plcl;
-    assert( nIn==sizeof(int) );
-    if (pst->nLeaves > 1) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SELDSTGROUP,vin,nIn);
-	pstSelDstGroup(pst->pstLower,vin,nIn,vout,pnOut);
-	mdlGetReply(pst->mdl,rID,vout,pnOut);
-	}
-    else {
-	pkdSelDstGroup(plcl->pkd, *in);
+	pkdSelGroup(plcl->pkd, *in);
 	}
     if (pnOut) *pnOut = 0;
     }

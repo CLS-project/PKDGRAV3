@@ -272,28 +272,16 @@ void msrHostname(MSR msr);
 void msrMemStatus(MSR msr);
 
 
-void msrSelSrcAll(MSR msr);
-void msrSelDstAll(MSR msr);
-void msrSelSrcGas(MSR msr);
-void msrSelDstGas(MSR msr);
-void msrSelSrcStar(MSR msr);
-void msrSelDstStar(MSR msr, int, double);
-void msrSelSrcDeleted(MSR msr);
-void msrSelDstDeleted(MSR msr);
-uint64_t msrSelSrcMass(MSR msr,double dMinMass,double dMaxMass,int setIfTrue,int ClearIfFalse);
-uint64_t msrSelDstMass(MSR msr,double dMinMass,double dMaxMass,int setIfTrue,int ClearIfFalse);
-uint64_t msrSelSrcById(MSR msr,uint64_t idStart,uint64_t idEnd,int setIfTrue,int clearIfFalse);
-uint64_t msrSelDstById(MSR msr,uint64_t idStart,uint64_t idEnd,int setIfTrue,int clearIfFalse);
-uint64_t msrSelSrcPhaseDensity(MSR msr,double dMinPhaseDensity,double dMaxPhaseDensity,int setIfTrue,int clearIfFalse);
-uint64_t msrSelDstPhaseDensity(MSR msr,double dMinPhaseDensity,double dMaxPhaseDensity,int setIfTrue,int clearIfFalse);
-uint64_t msrSelSrcBox(MSR msr,double *dCenter, double *dSize,int setIfTrue,int clearIfFalse);
-uint64_t msrSelDstBox(MSR msr,double *dCenter, double *dSize,int setIfTrue,int clearIfFalse);
-uint64_t msrSelSrcSphere(MSR msr,double *r, double dRadius,int setIfTrue,int clearIfFalse);
-uint64_t msrSelDstSphere(MSR msr,double *r, double dRadius,int setIfTrue,int clearIfFalse);
-uint64_t msrSelSrcCylinder(MSR msr,double *dP1, double *dP2, double dRadius,
-		      int setIfTrue, int clearIfFalse );
-uint64_t msrSelDstCylinder(MSR msr,double *dP1, double *dP2, double dRadius,
-		      int setIfTrue, int clearIfFalse );
+void msrSelAll(MSR msr);
+void msrSelGas(MSR msr);
+void msrSelStar(MSR msr);
+void msrSelDeleted(MSR msr);
+uint64_t msrSrcMass(MSR msr,double dMinMass,double dMaxMass,int setIfTrue,int ClearIfFalse);
+uint64_t msrSrcById(MSR msr,uint64_t idStart,uint64_t idEnd,int setIfTrue,int clearIfFalse);
+uint64_t msrSrcPhaseDensity(MSR msr,double dMinPhaseDensity,double dMaxPhaseDensity,int setIfTrue,int clearIfFalse);
+uint64_t msrSrcBox(MSR msr,double *dCenter, double *dSize,int setIfTrue,int clearIfFalse);
+uint64_t msrSrcSphere(MSR msr,double *r, double dRadius,int setIfTrue,int clearIfFalse);
+uint64_t msrSrcCylinder(MSR msr,double *dP1, double *dP2, double dRadius, int setIfTrue, int clearIfFalse );
 
 void msrDeepestPot(MSR msr,double *r, float *fPot);
 double msrTotalMass(MSR msr);

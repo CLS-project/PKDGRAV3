@@ -401,13 +401,11 @@ typedef struct kdNode {
     int pLower;		     /* also serves as thread id for the LTT */
     int pUpper;		     /* pUpper < 0 indicates no particles in tree! */
     uint32_t iLower;         /* Local lower node (or remote processor w/bRemote=1) */
-    uint32_t iDepth     : 13;
+    uint32_t iDepth     : 15;
     uint32_t bGroup     : 1;
     uint32_t iSplitDim  : 2;
     uint32_t uMinRung   : 6;
     uint32_t uMaxRung   : 6;
-    uint32_t bSrcActive : 1;
-    uint32_t bDstActive : 1;
     uint32_t bTopTree   : 1; /* This is a top tree node: pLower,pUpper are node indexes */
     uint32_t bRemote    : 1; /* children are remote */
     float bMax;
@@ -944,15 +942,6 @@ typedef struct pkdContext {
     (dMax)[5] = (dVal1)[2] > (dMax)[5] ? (dVal1)[2] : (dMax)[5];	\
     }
 
-/* New, rung based ACTIVE/INACTIVE routines */
-static inline int pkdIsDstActive(PARTICLE *p,uint8_t uRungLo,uint8_t uRungHi) {
-    return((p->uRung >= uRungLo)&&(p->uRung <= uRungHi)&&p->bDstActive);
-    }
-
-static inline int pkdIsSrcActive(PARTICLE *p,uint8_t uRungLo,uint8_t uRungHi) {
-    return((p->uRung >= uRungLo)&&(p->uRung <= uRungHi)&&p->bSrcActive);
-    }
-
 static inline int pkdIsRungRange(PARTICLE *p,uint8_t uRungLo,uint8_t uRungHi) {
     return((p->uRung >= uRungLo)&&(p->uRung <= uRungHi));
     }
@@ -1399,8 +1388,6 @@ int pkdLocal(PKD);
 int pkdActive(PKD);
 int pkdInactive(PKD);
 
-int pkdNumSrcActive(PKD pkd,uint8_t uRungLo,uint8_t uRungHi);
-int pkdNumDstActive(PKD pkd,uint8_t uRungLo,uint8_t uRungHi);
 int pkdColOrdRejects(PKD,uint64_t,int);
 void pkdLocalOrder(PKD,uint64_t iMinOrder,uint64_t iMaxOrder);
 void pkdCheckpoint(PKD pkd,const char *fname);
@@ -1514,31 +1501,18 @@ int pkdGetClasses( PKD pkd, int nMax, PARTCLASS *pClass );
 void pkdSetClasses( PKD pkd, int n, PARTCLASS *pClass, int bUpdate );
 void pkdSetClass( PKD pkd, float fMass, float fSoft, FIO_SPECIES eSpecies, PARTICLE *p );
 
-int pkdSelSrcAll(PKD pkd);
-int pkdSelDstAll(PKD pkd);
-int pkdSelSrcGas(PKD pkd);
-int pkdSelDstGas(PKD pkd);
-int pkdSelSrcStar(PKD pkd);
-int pkdSelDstStar(PKD pkd, int, double);
-int pkdSelSrcDeleted(PKD pkd);
-int pkdSelDstDeleted(PKD pkd);
-int pkdSelSrcGroup(PKD pkd, int iGroup);
-int pkdSelDstGroup(PKD pkd, int iGroup);
+int pkdSelAll(PKD pkd);
+int pkdSelGas(PKD pkd);
+int pkdSelStar(PKD pkd);
+int pkdSelDeleted(PKD pkd);
+int pkdSelGroup(PKD pkd, int iGroup);
+int pkdSelMass(PKD pkd,double dMinMass, double dMaxMass, int setIfTrue, int clearIfFalse );
+int pkdSelById(PKD pkd,uint64_t idStart, uint64_t idEnd, int setIfTrue, int clearIfFalse );
+int pkdSelPhaseDensity(PKD pkd,double dMinDensity, double dMaxDensity, int setIfTrue, int clearIfFalse );
+int pkdSelBox(PKD pkd,double *dCenter, double *dSize, int setIfTrue, int clearIfFalse );
+int pkdSelSphere(PKD pkd,double *r, double dRadius, int setIfTrue, int clearIfFalse );
+int pkdSelCylinder(PKD pkd,double *dP1, double *dP2, double dRadius, int setIfTrue, int clearIfFalse );
 
-int pkdSelSrcMass(PKD pkd,double dMinMass, double dMaxMass, int setIfTrue, int clearIfFalse );
-int pkdSelDstMass(PKD pkd,double dMinMass, double dMaxMass, int setIfTrue, int clearIfFalse );
-int pkdSelSrcById(PKD pkd,uint64_t idStart, uint64_t idEnd, int setIfTrue, int clearIfFalse );
-int pkdSelDstById(PKD pkd,uint64_t idStart, uint64_t idEnd, int setIfTrue, int clearIfFalse );
-int pkdSelSrcPhaseDensity(PKD pkd,double dMinDensity, double dMaxDensity, int setIfTrue, int clearIfFalse );
-int pkdSelDstPhaseDensity(PKD pkd,double dMinDensity, double dMaxDensity, int setIfTrue, int clearIfFalse );
-int pkdSelSrcBox(PKD pkd,double *dCenter, double *dSize, int setIfTrue, int clearIfFalse );
-int pkdSelDstBox(PKD pkd,double *dCenter, double *dSize, int setIfTrue, int clearIfFalse );
-int pkdSelSrcSphere(PKD pkd,double *r, double dRadius, int setIfTrue, int clearIfFalse );
-int pkdSelDstSphere(PKD pkd,double *r, double dRadius, int setIfTrue, int clearIfFalse );
-int pkdSelSrcCylinder(PKD pkd,double *dP1, double *dP2, double dRadius,
-		      int setIfTrue, int clearIfFalse );
-int pkdSelDstCylinder(PKD pkd,double *dP1, double *dP2, double dRadius,
-		      int setIfTrue, int clearIfFalse );
 int pkdDeepestPot(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
     double *r, float *fPot);
 void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
