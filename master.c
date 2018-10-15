@@ -3289,6 +3289,7 @@ uint8_t msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot
     in.bKickOpen = bKickOpen;
     if (msr->param.csm->val.bComove) {
 	a = csmTime2Exp(msr->param.csm,dTime);
+	in.dAccFac = 1.0/(a*a*a);
 	}
     else {
 	in.dAccFac = 1.0;
