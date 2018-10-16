@@ -219,6 +219,8 @@ enum pst_service {
     PST_INITGRID,
     PST_GRIDPROJECT,
 #ifdef MDL_FFTW
+    PST_GRID_CREATE_FFT,
+    PST_GRID_DELETE_FFT,
     PST_MEASUREPK,
     PST_MEASURELINPK,
     PST_SETLINGRID,
@@ -1308,6 +1310,15 @@ struct inGridProject {
     double r[3];
     };
 void pstGridProject(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+
+/* PST_GRID_CREATE_FFT */
+struct inGridCreateFFT {
+    int nGrid;
+    };
+void pstGridCreateFFT(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+
+/* PST_GRID_DELETE_FFT */
+void pstGridDeleteFFT(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 
 #ifdef MDL_FFTW
 #define PST_MAX_K_BINS 2500

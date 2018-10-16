@@ -296,6 +296,8 @@ void msrCalcCOM(MSR msr,const double *dCenter, double dRadius,
 void msrInitGrid(MSR msr,int x,int y,int z);
 void msrGridProject(MSR msr,double x,double y,double z);
 #ifdef MDL_FFTW
+void msrGridCreateFFT(MSR msr, int nGrid);
+void msrGridDeleteFFT(MSR msr);
 void msrAssignMass(MSR msr,int iAssignment,int nGrid);
 void msrMeasurePk(MSR msr,int iAssignment,int bInterlace,int nGrid,int nBins,uint64_t *nPk,float *fK,float *fPk);
 void msrMeasureLinPk(MSR msr,int nGridLin,double a,double dBoxSize,

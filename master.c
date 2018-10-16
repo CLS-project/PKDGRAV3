@@ -1320,6 +1320,9 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.bDoLinPkOutput = 0;
     prmAddParam(msr->prm, "bDoLinPkOutput", 0, &msr->param.bDoLinPkOutput,
         sizeof(int), "linPk", "<enable/disable power spectrum output for linear species> = 0");
+    msr->param.bOutputDeltaK = 0;
+    prmAddParam(msr->prm, "bOutputDeltaK", 0, &msr->param.bOutputDeltaK,
+        sizeof(int), "deltak", "<enable/disable output of delta(k) grid> = 0");
 #endif
 
     msr->param.iInflateStep = 0;
@@ -3290,6 +3293,14 @@ uint8_t msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot
     if (msr->param.csm->val.bComove) {
 	a = csmTime2Exp(msr->param.csm,dTime);
 	in.dAccFac = 1.0/(a*a*a);
+#if 0
+	// erf2: in.dThetaMin = 0.4 + 0.3*erf(a*10.0);
+	in.dThetaMin = 0.35 + 0.35*erf(a*8.0); // erf3
+	if ( !prmSpecified(msr->prm,"nReplicas") && msr->param.nReplicas>=1 ) {
+	    in.nReps = in.dThetaMin < 0.52 ? 2 : 1;
+	    }
+	printf("z=%.1f theta=%.3f nReps=%d\n", 1.0/a - 1.0, in.dThetaMin,in.nReps);
+#endif
 	}
     else {
 	in.dAccFac = 1.0;
@@ -5382,6 +5393,9 @@ void msrOutputPk(MSR msr,int iStep,double dTime) {
 
     if (msr->param.nGridPk == 0) return;
 
+    msrGridCreateFFT(msr,msr->param.nGridPk);
+
+
     fK = malloc(sizeof(float)*(msr->param.nBinsPk));
     assert(fK != NULL);
     fPk = malloc(sizeof(float)*(msr->param.nBinsPk));
@@ -5416,6 +5430,24 @@ void msrOutputPk(MSR msr,int iStep,double dTime) {
     free(fK);
     free(fPk);
     free(nPk);
+    /* Output the k-grid if requested */
+    if (msr->param.bOutputDeltaK) {
+	struct inOutput out;
+	double dsec, sec = msrTime();
+	out.eOutputType = OUT_KGRID;
+	out.iPartner = -1;
+	out.nPartner = -1;
+	out.iProcessor = 0;
+	out.nProcessor = msr->param.bParaWrite==0?1:(msr->param.nParaWrite<=1 ? msr->nThreads:msr->param.nParaWrite);
+	if (out.nProcessor > mdlProcs(msr->mdl)) out.nProcessor = mdlProcs(msr->mdl); 
+	msrBuildName(msr,out.achOutFile,iStep);
+	strncat(out.achOutFile,".deltak",256);
+        printf("Writing Delta(k) to %s ...\n",out.achOutFile);
+	pstOutput(msr->pst,&out,sizeof(out),NULL,NULL);
+	dsec = msrTime() - sec;
+	msrprintf(msr,"Delta(k) has been successfully written, Wallclock: %f secs.\n\n", dsec);
+	}
+    msrGridDeleteFFT(msr);
     }
 
 
@@ -6003,6 +6035,17 @@ void msrGridProject(MSR msr,double x,double y,double z) {
     }
 
 #ifdef MDL_FFTW
+void msrGridCreateFFT(MSR msr, int nGrid) {
+    struct inGridCreateFFT in;
+    in.nGrid = nGrid;
+    pstGridCreateFFT(msr->pst, &in, sizeof(in), NULL, NULL);
+    }
+
+void msrGridDeleteFFT(MSR msr) {
+    pstGridDeleteFFT(msr->pst, NULL, 0, NULL, NULL);
+    }
+
+/* Important: call msrGridCreateFFT() before, and msrGridDeleteFFT() after */
 void msrMeasurePk(MSR msr,int iAssignment,int bInterlace,int nGrid,int nBins,uint64_t *nPk,float *fK,float *fPk) {
     struct inMeasurePk in;
     struct outMeasurePk *out;

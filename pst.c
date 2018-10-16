@@ -413,6 +413,12 @@ void pstAddServices(PST pst,MDL mdl) {
 		  (void (*)(void *,void *,int,void *,int *)) pstGridProject,
 		  sizeof(struct inGridProject), 0);
 #ifdef MDL_FFTW
+    mdlAddService(mdl,PST_GRID_CREATE_FFT,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstGridCreateFFT,
+		  sizeof(struct inGridCreateFFT), 0);
+    mdlAddService(mdl,PST_GRID_DELETE_FFT,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstGridDeleteFFT,
+		  0, 0);
     mdlAddService(mdl,PST_MEASUREPK,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstMeasurePk,
 		  sizeof(struct inMeasurePk), sizeof(struct outMeasurePk));
@@ -2197,58 +2203,6 @@ void pstCheckpoint(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	pkdCheckpoint(pkd,achOutFile);
 	}
     }
-
-void pstOutputSend(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-    struct inOutputSend *in = vin;
-    pkdOutputSend(pst->plcl->pkd, in->eOutputType, in->iPartner);
-    if (pnOut) *pnOut = 0;
-    }
-
-void pstOutput(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-    struct inOutput *in = vin;
-
-    mdlassert(pst->mdl,nIn >= sizeof(struct inOutput));
-    if (pstNotCore(pst)) {
-	int nProcessor = in->nProcessor;
-	int iProcessor = in->iProcessor;
-
-	/* Still allowed to write more in parallel */
-	if (nProcessor>1) {
-	    int nLower, nUpper;
-	    nLower = nProcessor * pst->nLower / pst->nLeaves;
-	    if (nLower==0) nLower=1;
-	    nUpper = nProcessor - nLower;
-	    in->nProcessor = nUpper;
-	    in->iProcessor = iProcessor + nLower;
-	    int rID = mdlReqService(pst->mdl,pst->idUpper,PST_OUTPUT,in,nIn);
-	    in->nProcessor = nLower;
-	    in->iProcessor = iProcessor;
-	    pstOutput(pst->pstLower,in,nIn,vout,pnOut);
-	    mdlGetReply(pst->mdl,rID,NULL,NULL);
-	    }
-	/* We are the node that will be the writer for all of the pst children */
-	else if (nProcessor==1) {
-	    in->iPartner = pst->idSelf;
-	    in->nPartner = pst->nLeaves;
-	    in->nProcessor = 0;
-	    pstOutput(pst->pstLower,in,nIn,vout,pnOut); /* Keep decending to write */
-	    }
-	else {
-	    pstOutput(pst->pstLower,in,nIn,vout,pnOut); /* Keep decending to write */
-	    }
-	}
-    else {
-	/* If it is fully parallel then there is just us writing. */
-	if (in->nProcessor>0) {
-	    in->iPartner = pst->idSelf;
-	    in->nPartner = 1;
-	    }
-	PKD pkd = pst->plcl->pkd;
-	pkdOutput(pkd,in->eOutputType,in->iProcessor,in->nProcessor,
-	    in->iPartner,in->nPartner,in->achOutFile);
-	}
-    }
-
 
 void pstSendParticles(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     int iTo = *(int *)vin;
@@ -4502,6 +4456,37 @@ void pstSetLinGrid(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
             pkdSetLinGrid(plcl->pkd, in->dTime,
                 in->dBSize, in->nGrid, 
                 in ->iSeed, in->bFixed, in->fPhase);
+        }
+    }
+
+void pstGridCreateFFT(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+        LCL *plcl = pst->plcl;
+        struct inGridCreateFFT *in = vin;
+        assert (nIn==sizeof(struct inGridCreateFFT) );
+        if (pstNotCore(pst)) {
+            int rID = mdlReqService(pst->mdl, pst->idUpper, PST_GRID_CREATE_FFT, vin, nIn);
+            pstGridCreateFFT(pst->pstLower, vin, nIn, vout, pnOut);
+            mdlGetReply(pst->mdl,rID, vout,pnOut);
+        }
+        else {
+            PKD pkd = plcl->pkd;
+            assert(pkd->fft == NULL);
+            pkd->fft = mdlFFTInitialize(pst->mdl, in->nGrid, in->nGrid, in->nGrid, 0, 0);
+        }
+    }
+
+void pstGridDeleteFFT(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+        LCL *plcl = pst->plcl;
+        if (pstNotCore(pst)) {
+            int rID = mdlReqService(pst->mdl, pst->idUpper, PST_GRID_DELETE_FFT, vin, nIn);
+            pstGridDeleteFFT(pst->pstLower, vin, nIn, vout, pnOut);
+            mdlGetReply(pst->mdl,rID, vout,pnOut);
+        }
+        else {
+            PKD pkd = plcl->pkd;
+            assert(pkd->fft != NULL);
+            mdlFFTFinish(pst->mdl,plcl->pkd->fft);
+            pkd->fft = NULL;
         }
     }
 #endif
