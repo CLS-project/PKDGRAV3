@@ -1791,7 +1791,7 @@ void mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(
     mpi->busyCacheRepliesTail = &mpi->busyCacheReplies;
     n = mdl->base.nProcs;
     if (n > 256) n = 256;
-    else if (n < 32) n = 64;
+    else if (n < 64) n = 64;
     for (i = 0; i<n; ++i) {
 	MDLcacheReplyData *pdata = malloc(sizeof(MDLcacheReplyData) + mpi->iReplyBufSize);
 	assert( pdata != NULL );

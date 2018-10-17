@@ -99,17 +99,17 @@ void csmFinish(CSM csm) {
         gsl_spline_free      (csm->classGsl.background.logTime2logExp_spline);
         gsl_interp_accel_free(csm->classGsl.background.logExp2logRho_m_acc);
         gsl_spline_free      (csm->classGsl.background.logExp2logRho_m_spline);
-        gsl_interp_accel_free(csm->classGsl.background.logExp2logRho_lin_acc);
-        gsl_spline_free      (csm->classGsl.background.logExp2logRho_lin_spline);
+	if (csm->classGsl.background.logExp2logRho_lin_acc) gsl_interp_accel_free(csm->classGsl.background.logExp2logRho_lin_acc);
+        if (csm->classGsl.background.logExp2logRho_lin_spline) gsl_spline_free(csm->classGsl.background.logExp2logRho_lin_spline);
         gsl_interp_accel_free(csm->classGsl.perturbations.logk2delta_m_acc);
         gsl_interp_accel_free(csm->classGsl.perturbations.loga2delta_m_acc);
         gsl_spline2d_free    (csm->classGsl.perturbations.logkloga2delta_m_spline);
         gsl_interp_accel_free(csm->classGsl.perturbations.logk2theta_m_acc);
         gsl_interp_accel_free(csm->classGsl.perturbations.loga2theta_m_acc);
         gsl_spline2d_free    (csm->classGsl.perturbations.logkloga2theta_m_spline);
-        gsl_interp_accel_free(csm->classGsl.perturbations.logk2delta_lin_acc);
-        gsl_interp_accel_free(csm->classGsl.perturbations.loga2delta_lin_acc);
-        gsl_spline2d_free    (csm->classGsl.perturbations.logkloga2delta_lin_spline);
+        if (csm->classGsl.perturbations.logk2delta_lin_acc) gsl_interp_accel_free(csm->classGsl.perturbations.logk2delta_lin_acc);
+        if (csm->classGsl.perturbations.loga2delta_lin_acc) gsl_interp_accel_free(csm->classGsl.perturbations.loga2delta_lin_acc);
+        if (csm->classGsl.perturbations.logkloga2delta_lin_spline) gsl_spline2d_free(csm->classGsl.perturbations.logkloga2delta_lin_spline);
     }
     gsl_integration_workspace_free(csm->W);
     free(csm);
@@ -621,7 +621,11 @@ void csmClassGslInitialize(CSM csm){
             logy[i] = log(csm->val.classData.background.rho_lin[i]);
         }
         gsl_spline_init(csm->classGsl.background.logExp2logRho_lin_spline, logx, logy, size);
-    }
+        }
+    else {
+	csm->classGsl.background.logExp2logRho_lin_acc = NULL;
+	csm->classGsl.background.logExp2logRho_lin_spline = NULL;
+	}
 
     free(logx);
     free(logy);
@@ -660,7 +664,12 @@ void csmClassGslInitialize(CSM csm){
             gsl_interp2d_bicubic, size_k, size_a);
         gsl_spline2d_init(csm->classGsl.perturbations.logkloga2delta_lin_spline, logk, loga,
             csm->val.classData.perturbations.delta_lin, size_k, size_a);
-    }
+	}
+    else {
+	csm->classGsl.perturbations.logk2delta_lin_acc = NULL;
+	csm->classGsl.perturbations.loga2delta_lin_acc = NULL;
+	csm->classGsl.perturbations.logkloga2delta_lin_spline = NULL;
+	}
 
     free(loga);
     free(logk);

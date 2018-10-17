@@ -200,29 +200,17 @@ enum pst_service {
     PST_GETCLASSES,
     PST_SETCLASSES,
     PST_SWAPCLASSES,
-    PST_SELSRCALL,
-    PST_SELDSTALL,
-    PST_SELSRCGAS,
-    PST_SELDSTGAS,
-    PST_SELSRCSTAR,
-    PST_SELDSTSTAR,
-    PST_SELSRCDELETED,
-    PST_SELDSTDELETED,
-    PST_SELSRCMASS,
-    PST_SELDSTMASS,
-    PST_SELSRCBYID,
-    PST_SELDSTBYID,
-    PST_SELSRCPHASEDENSITY,
-    PST_SELDSTPHASEDENSITY,
-    PST_SELSRCGROUP,
-    PST_SELDSTGROUP,
-
-    PST_SELSRCBOX,
-    PST_SELDSTBOX,
-    PST_SELSRCSPHERE,
-    PST_SELDSTSPHERE,
-    PST_SELSRCCYLINDER,
-    PST_SELDSTCYLINDER,
+    PST_SELALL,
+    PST_SELGAS,
+    PST_SELSTAR,
+    PST_SELDELETED,
+    PST_SELMASS,
+    PST_SELBYID,
+    PST_SELPHASEDENSITY,
+    PST_SELGROUP,
+    PST_SELBOX,
+    PST_SELSPHERE,
+    PST_SELCYLINDER,
 
     PST_PROFILE,
     PST_CALCDISTANCE,
@@ -231,6 +219,8 @@ enum pst_service {
     PST_INITGRID,
     PST_GRIDPROJECT,
 #ifdef MDL_FFTW
+    PST_GRID_CREATE_FFT,
+    PST_GRID_DELETE_FFT,
     PST_MEASUREPK,
     PST_MEASURELINPK,
     PST_SETLINGRID,
@@ -1175,27 +1165,19 @@ void pstSetClasses(PST,void *,int,void *,int *);
 void pstSwapClasses(PST,void *,int,void *,int *);
 
 
-/* PST_SELSRCALL */
-void pstSelSrcAll(PST pst,void *vin,int nIn,void *vout,int *pnOut);
-void pstSelDstAll(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+/* PST_SELALL */
+void pstSelAll(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 
-/* PST_SELSRCGAS */
-void pstSelSrcGas(PST pst,void *vin,int nIn,void *vout,int *pnOut);
-void pstSelDstGas(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+/* PST_SELGAS */
+void pstSelGas(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 
-/* PST_SELSRCSTAR */
-struct inSelDstStar {
-    int bFB;
-    double dTimeFB;
-    };
-void pstSelSrcStar(PST pst,void *vin,int nIn,void *vout,int *pnOut);
-void pstSelDstStar(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+/* PST_SELSTAR */
+void pstSelStar(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 
-/* PST_SELSRCDELETED */
-void pstSelSrcDeleted(PST pst,void *vin,int nIn,void *vout,int *pnOut);
-void pstSelDstDeleted(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+/* PST_SELDELETED */
+void pstSelDeleted(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 
-/* PST_SELSRCMASS */
+/* PST_SELMASS */
 struct inSelMass {
     double dMinMass;
     double dMaxMass;
@@ -1205,10 +1187,9 @@ struct inSelMass {
 struct outSelMass {
     uint64_t nSelected;
     };
-void pstSelSrcMass(PST pst,void *vin,int nIn,void *vout,int *pnOut);
-void pstSelDstMass(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+void pstSelMass(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 
-/* PST_SELSRCBYID */
+/* PST_SELBYID */
 struct inSelById {
     uint64_t idStart;
     uint64_t idEnd;
@@ -1218,10 +1199,9 @@ struct inSelById {
 struct outSelById {
     uint64_t nSelected;
     };
-void pstSelSrcById(PST pst,void *vin,int nIn,void *vout,int *pnOut);
-void pstSelDstById(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+void pstSelById(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 
-/* PST_SELSRCPHASEDENSITY */
+/* PST_SELPHASEDENSITY */
 struct inSelPhaseDensity {
     double dMinDensity;
     double dMaxDensity;
@@ -1231,10 +1211,9 @@ struct inSelPhaseDensity {
 struct outSelPhaseDensity {
     uint64_t nSelected;
     };
-void pstSelSrcPhaseDensity(PST pst,void *vin,int nIn,void *vout,int *pnOut);
-void pstSelDstPhaseDensity(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+void pstSelPhaseDensity(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 
-/* PST_SELSRCBOX */
+/* PST_SELBOX */
 struct inSelBox {
     double dCenter[3];
     double dSize[3];
@@ -1244,10 +1223,9 @@ struct inSelBox {
 struct outSelBox {
     uint64_t nSelected;
     };
-void pstSelSrcBox(PST pst,void *vin,int nIn,void *vout,int *pnOut);
-void pstSelDstBox(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+void pstSelBox(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 
-/* PST_SELSRCSPHERE */
+/* PST_SELSPHERE */
 struct inSelSphere {
     double r[3];
     double dRadius;
@@ -1257,10 +1235,9 @@ struct inSelSphere {
 struct outSelSphere {
     uint64_t nSelected;
     };
-void pstSelSrcSphere(PST pst,void *vin,int nIn,void *vout,int *pnOut);
-void pstSelDstSphere(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+void pstSelSphere(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 
-/* PST_SELSRCCYLINDER */
+/* PST_SELCYLINDER */
 struct inSelCylinder {
     double dP1[3];
     double dP2[3];
@@ -1271,12 +1248,10 @@ struct inSelCylinder {
 struct outSelCylinder {
     uint64_t nSelected;
     };
-void pstSelSrcCylinder(PST pst,void *vin,int nIn,void *vout,int *pnOut);
-void pstSelDstCylinder(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+void pstSelCylinder(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 
-/* PST_SECSRCGROUP */
-void pstSelSrcGroup(PST pst,void *vin,int nIn,void *vout,int *pnOut);
-void pstSelDstGroup(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+/* PST_SECGROUP */
+void pstSelGroup(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 
 /* PST_PROFILE */
 #define PST_MAX_PROFILE_BINS 1000000
@@ -1335,6 +1310,15 @@ struct inGridProject {
     double r[3];
     };
 void pstGridProject(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+
+/* PST_GRID_CREATE_FFT */
+struct inGridCreateFFT {
+    int nGrid;
+    };
+void pstGridCreateFFT(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+
+/* PST_GRID_DELETE_FFT */
+void pstGridDeleteFFT(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 
 #ifdef MDL_FFTW
 #define PST_MAX_K_BINS 2500

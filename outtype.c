@@ -622,8 +622,7 @@ void pkdOutASCII(PKD pkd,PKDOUT ctx,int iType,int iDim) {
     */
     for (i=0;i<pkd->nLocal;++i) {
 	PARTICLE *p = pkdParticle(pkd,i);
-	if ( pkdIsSrcActive(p,0,MAX_RUNG) )
-	    (*ctx->fnOut)(pkd,ctx,p,iType,iDim);
+	(*ctx->fnOut)(pkd,ctx,p,iType,iDim);
 	}
     }
 

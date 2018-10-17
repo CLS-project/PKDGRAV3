@@ -1082,7 +1082,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	*/
 	p->uRung =  0;
 	if (!pkd->bNoParticleOrder) p->uNewRung = 0;
-	p->bSrcActive = p->bDstActive = p->bMarked = 1;
+	p->bMarked = 1;
 	pkdSetDensity(pkd,p,0.0);
 	if (pkd->oBall) pkdSetBall(pkd,p,0.0);
 	/*
@@ -1774,20 +1774,6 @@ void *pkdTreeNodeGetElement(void *vData,int i,int iDataSize) {
     return pkdTreeNode(pkd,i);
     }
 
-int pkdNumSrcActive(PKD pkd,uint8_t uRungLo,uint8_t uRungHi) {
-    int i, n;
-    for (n=0,i=0;i<pkdLocal(pkd);++i)
-	if ( pkdIsSrcActive(pkdParticle(pkd,i),uRungLo,uRungHi) ) n++;
-    return n;
-    }
-
-int pkdNumDstActive(PKD pkd,uint8_t uRungLo,uint8_t uRungHi) {
-    int i, n;
-    for (n=0,i=0;i<pkdLocal(pkd);++i)
-	if ( pkdIsDstActive(pkdParticle(pkd,i),uRungLo,uRungHi) ) n++;
-    return n;
-    }
-
 int pkdColOrdRejects(PKD pkd,uint64_t nOrdSplit,int iSplitSide) {
     int nSplit;
     if (iSplitSide) nSplit = pkdLowerOrdPart(pkd,nOrdSplit,0,pkdLocal(pkd)-1);
@@ -2209,7 +2195,6 @@ uint32_t pkdWriteFIO(PKD pkd,FIO fio,double dvFac,BND *bnd) {
     nCount = 0;
     for (i=0;i<pkdLocal(pkd);++i) {
 	p = pkdParticle(pkd,i);
-	if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue;  /* JW: Ack! */
 	writeParticle(pkd,fio,dvFac,bnd,p);
 	nCount++;
 	}
@@ -2631,7 +2616,7 @@ void pkdLightCone(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dLookbackFac,do
     KDN *kdn = pkdTreeNode(pkd,ROOT);
     for (i=kdn->pLower;i<=kdn->pUpper;++i) {
 	p = pkdParticle(pkd,i);
-	if ( !pkdIsDstActive(p,uRungLo,uRungHi) ) continue;
+	if ( !pkdIsRungRange(p,uRungLo,uRungHi) ) continue;
 	/*
 	** Now check the particle against the passing light surface.
 	*/
@@ -3004,7 +2989,7 @@ void pkdSetRung(PKD pkd,uint8_t uRungLo, uint8_t uRungHi, uint8_t uRung) {
 
     for (i=0;i<pkdLocal(pkd);++i) {
 	p = pkdParticle(pkd,i);
-	if ( !pkdIsDstActive(p,uRungLo,uRungHi) ) continue;
+	if ( !pkdIsRungRange(p,uRungLo,uRungHi) ) continue;
 	p->uRung = uRung;
 	if (!pkd->bNoParticleOrder) p->uNewRung = uRung;
 	}
@@ -3554,7 +3539,7 @@ double pkdTotalMass(PKD pkd) {
     n = pkdLocal(pkd);
     for( i=0; i<n; i++ ) {
 	p = pkdParticle(pkd,i);
-	if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue;
+	if ( !pkdIsRungRange(p,0,MAX_RUNG) ) continue;
 	m += pkdMass(pkd,p);
 	}
     return m;
@@ -3634,100 +3619,44 @@ static inline int isSelected( int predicate, int setIfTrue, int clearIfFalse, in
     return (~s&~c&value) | (s&~(c&value));
     }
 
-int pkdSelSrcAll(PKD pkd) {
+int pkdSelAll(PKD pkd) {
     int i;
     int n=pkdLocal(pkd);
-    for( i=0; i<n; i++ ) pkdParticle(pkd,i)->bSrcActive = 1;
-    return n;
-    }
-int pkdSelDstAll(PKD pkd) {
-    int i;
-    int n=pkdLocal(pkd);
-    for( i=0; i<n; i++ ) pkdParticle(pkd,i)->bDstActive = 1;
+    for( i=0; i<n; i++ ) pkdParticle(pkd,i)->bMarked = 1;
     return n;
     }
 
-int pkdSelSrcGas(PKD pkd) {
+int pkdSelGas(PKD pkd) {
     int i;
     int n=pkdLocal(pkd);
     PARTICLE *p;
     for( i=0; i<n; i++ ) {
 	p=pkdParticle(pkd,i);
-	if (pkdIsGas(pkd,p)) p->bSrcActive = 1; else p->bSrcActive = 0;
+	p->bMarked = pkdIsGas(pkd,p) ? 1 : 0;
 	}
     return n;
     }
-
-int pkdSelDstGas(PKD pkd) {
+int pkdSelStar(PKD pkd) {
     int i;
     int n=pkdLocal(pkd);
     PARTICLE *p;
     for( i=0; i<n; i++ ) {
 	p=pkdParticle(pkd,i);
-	if (pkdIsGas(pkd,p)) p->bDstActive = 1; else p->bDstActive = 0;
+	p->bMarked = pkdIsStar(pkd,p) ? 1 : 0;
 	}
     return n;
     }
-
-int pkdSelSrcStar(PKD pkd) {
+int pkdSelDeleted(PKD pkd) {
     int i;
     int n=pkdLocal(pkd);
     PARTICLE *p;
     for( i=0; i<n; i++ ) {
 	p=pkdParticle(pkd,i);
-	if (pkdIsStar(pkd,p)) p->bSrcActive = 1; else p->bSrcActive = 0;
+	p->bMarked = pkdIsDeleted(pkd,p) ? 1 : 0;
 	}
     return n;
     }
-
-int pkdSelDstStar(PKD pkd, int bFB, double dTimeFB) {
-    int i;
-    int n=pkdLocal(pkd);
-    PARTICLE *p;
-
-    if (bFB) {
-	for( i=0; i<n; i++ ) {
-	    p=pkdParticle(pkd,i);
-	    if (pkdIsStar(pkd,p) && pkdIsActive(pkd,p)) {
-		double dtp = pkd->param.dDelta/(1<<p->uRung);
-		if (dTimeFB-dtp < *pkd_Timer(pkd,p)) p->bDstActive = 1; 
-		else p->bDstActive = 0;
-		}
-	    else p->bDstActive = 0;
-	    }
-	}
-    else {
-	for( i=0; i<n; i++ ) {
-	    p=pkdParticle(pkd,i);
-	    if (pkdIsStar(pkd,p)) p->bDstActive = 1; else p->bDstActive = 0;
-	    }
-	}
-    return n;
-    }
-
-int pkdSelSrcDeleted(PKD pkd) {
-    int i;
-    int n=pkdLocal(pkd);
-    PARTICLE *p;
-    for( i=0; i<n; i++ ) {
-	p=pkdParticle(pkd,i);
-	if (pkdIsDeleted(pkd,p)) p->bSrcActive = 1; else p->bSrcActive = 0;
-	}
-    return n;
-    }
-
-int pkdSelDstDeleted(PKD pkd) {
-    int i;
-    int n=pkdLocal(pkd);
-    PARTICLE *p;
-    for( i=0; i<n; i++ ) {
-	p=pkdParticle(pkd,i);
-	if (pkdIsDeleted(pkd,p)) p->bDstActive = 1; else p->bDstActive = 0;
-	}
-    return n;
-    }
-
-int pkdSelSrcMass(PKD pkd,double dMinMass, double dMaxMass, int setIfTrue, int clearIfFalse ) {
+int pkdSelMass(PKD pkd,double dMinMass, double dMaxMass, int setIfTrue, int clearIfFalse ) {
     PARTICLE *p;
     double m;
     int i,n,nSelected;
@@ -3737,29 +3666,12 @@ int pkdSelSrcMass(PKD pkd,double dMinMass, double dMaxMass, int setIfTrue, int c
     for( i=0; i<n; i++ ) {
 	p = pkdParticle(pkd,i);
 	m = pkdMass(pkd,p);
-	p->bSrcActive = isSelected((m >= dMinMass && m <=dMaxMass),setIfTrue,clearIfFalse,p->bSrcActive);
-	if ( p->bSrcActive ) nSelected++;
+	p->bMarked = isSelected((m >= dMinMass && m <=dMaxMass),setIfTrue,clearIfFalse,p->bMarked);
+	if ( p->bMarked ) nSelected++;
 	}
     return nSelected;
     }
-
-int pkdSelDstMass(PKD pkd,double dMinMass, double dMaxMass, int setIfTrue, int clearIfFalse ) {
-    PARTICLE *p;
-    double m;
-    int i,n,nSelected;
-
-    n = pkdLocal(pkd);
-    nSelected = 0;
-    for( i=0; i<n; i++ ) {
-	p = pkdParticle(pkd,i);
-	m = pkdMass(pkd,p);
-	p->bDstActive = isSelected((m >= dMinMass && m <=dMaxMass),setIfTrue,clearIfFalse,p->bDstActive);
-	if ( p->bDstActive ) nSelected++;
-	}
-    return nSelected;
-    }
-
-int pkdSelSrcById(PKD pkd,uint64_t idStart, uint64_t idEnd, int setIfTrue, int clearIfFalse ) {
+int pkdSelById(PKD pkd,uint64_t idStart, uint64_t idEnd, int setIfTrue, int clearIfFalse ) {
     PARTICLE *p;
     int i,n,nSelected;
 
@@ -3767,28 +3679,12 @@ int pkdSelSrcById(PKD pkd,uint64_t idStart, uint64_t idEnd, int setIfTrue, int c
     nSelected = 0;
     for( i=0; i<n; i++ ) {
 	p = pkdParticle(pkd,i);
-	p->bSrcActive = isSelected((p->iOrder >= idStart && p->iOrder <= idEnd),setIfTrue,clearIfFalse,p->bSrcActive);
-	if ( p->bSrcActive ) nSelected++;
+	p->bMarked = isSelected((p->iOrder >= idStart && p->iOrder <= idEnd),setIfTrue,clearIfFalse,p->bMarked);
+	if ( p->bMarked ) nSelected++;
 	}
     return nSelected;
     }
-
-int pkdSelDstById(PKD pkd,uint64_t idStart, uint64_t idEnd, int setIfTrue, int clearIfFalse ) {
-    PARTICLE *p;
-    int i,n,nSelected;
-
-    n = pkdLocal(pkd);
-    nSelected = 0;
-    for( i=0; i<n; i++ ) {
-	p = pkdParticle(pkd,i);
-	p->bDstActive = isSelected((p->iOrder >= idStart && p->iOrder <= idEnd),setIfTrue,clearIfFalse,p->bDstActive);
-	if ( p->bDstActive ) nSelected++;
-	}
-    return nSelected;
-    }
-
-
-int pkdSelSrcPhaseDensity(PKD pkd,double dMinDensity, double dMaxDensity, int setIfTrue, int clearIfFalse ) {
+int pkdSelPhaseDensity(PKD pkd,double dMinDensity, double dMaxDensity, int setIfTrue, int clearIfFalse ) {
     PARTICLE *p;
     VELSMOOTH *pvel;
     float density;
@@ -3800,31 +3696,12 @@ int pkdSelSrcPhaseDensity(PKD pkd,double dMinDensity, double dMaxDensity, int se
 	p = pkdParticle(pkd,i);
 	pvel = pkdField(p,pkd->oVelSmooth);
 	density = pkdDensity(pkd,p) * pow(pvel->veldisp2,-1.5);
-	p->bSrcActive = isSelected((density >= dMinDensity && density <=dMaxDensity),setIfTrue,clearIfFalse,p->bSrcActive);
-	if ( p->bSrcActive ) nSelected++;
+	p->bMarked = isSelected((density >= dMinDensity && density <=dMaxDensity),setIfTrue,clearIfFalse,p->bMarked);
+	if ( p->bMarked ) nSelected++;
 	}
     return nSelected;
     }
-
-int pkdSelDstPhaseDensity(PKD pkd,double dMinDensity, double dMaxDensity, int setIfTrue, int clearIfFalse ) {
-    PARTICLE *p;
-    VELSMOOTH *pvel;
-    float density;
-    int i,n,nSelected;
-
-    n = pkdLocal(pkd);
-    nSelected = 0;
-    for( i=0; i<n; i++ ) {
-	p = pkdParticle(pkd,i);
-	pvel = pkdField(p,pkd->oVelSmooth);
-	density = pkdDensity(pkd,p) * pow(pvel->veldisp2,-1.5);
-	p->bDstActive = isSelected((density >= dMinDensity && density <=dMaxDensity),setIfTrue,clearIfFalse,p->bDstActive);
-	if ( p->bDstActive ) nSelected++;
-	}
-    return nSelected;
-    }
-
-int pkdSelSrcBox(PKD pkd,double *dCenter, double *dSize, int setIfTrue, int clearIfFalse ) {
+int pkdSelBox(PKD pkd,double *dCenter, double *dSize, int setIfTrue, int clearIfFalse ) {
     PARTICLE *p;
     int i,j,n,nSelected;
     int predicate;
@@ -3838,31 +3715,12 @@ int pkdSelSrcBox(PKD pkd,double *dCenter, double *dSize, int setIfTrue, int clea
 	    double dx = dCenter[j] - pkdPos(pkd,p,j);
 	    predicate = predicate && dx < dSize[j] && dx >= -dSize[j];
 	    }
-	p->bSrcActive = isSelected(predicate,setIfTrue,clearIfFalse,p->bSrcActive);
-	if ( p->bSrcActive ) nSelected++;
+	p->bMarked = isSelected(predicate,setIfTrue,clearIfFalse,p->bMarked);
+	if ( p->bMarked ) nSelected++;
 	}
     return nSelected;
     }
-
-int pkdSelDstBox(PKD pkd,double *dCenter, double *dSize, int setIfTrue, int clearIfFalse ) {
-    PARTICLE *p;
-    int i,j,n,nSelected;
-    int predicate;
-
-    n = pkdLocal(pkd);
-    nSelected = 0;
-    for( i=0; i<n; i++ ) {
-	p = pkdParticle(pkd,i);
-	predicate = 1;
-	for(j=0; j<3; j++ )
-	    predicate = predicate && fabs(dCenter[j] - pkdPos(pkd,p,j)) <= dSize[j];
-	p->bDstActive = isSelected(predicate,setIfTrue,clearIfFalse,p->bDstActive);
-	if ( p->bDstActive ) nSelected++;
-	}
-    return nSelected;
-    }
-
-int pkdSelSrcSphere(PKD pkd,double *r, double dRadius, int setIfTrue, int clearIfFalse ) {
+int pkdSelSphere(PKD pkd,double *r, double dRadius, int setIfTrue, int clearIfFalse ) {
     PARTICLE *p;
     double d2,dx,dy,dz,dRadius2;
     int i,n,nSelected;
@@ -3877,29 +3735,8 @@ int pkdSelSrcSphere(PKD pkd,double *r, double dRadius, int setIfTrue, int clearI
 	dz = r[2] - pkdPos(pkd,p,2);
 
 	d2 = dx*dx + dy*dy + dz*dz;
-	p->bSrcActive = isSelected((d2<=dRadius2),setIfTrue,clearIfFalse,p->bSrcActive);
-	if ( p->bSrcActive ) nSelected++;
-	}
-    return nSelected;
-    }
-
-int pkdSelDstSphere(PKD pkd,double *r, double dRadius, int setIfTrue, int clearIfFalse ) {
-    PARTICLE *p;
-    double d2,dx,dy,dz,dRadius2;
-    int i,n,nSelected;
-
-    n = pkdLocal(pkd);
-    nSelected = 0;
-    dRadius2 = dRadius*dRadius;
-    for( i=0; i<n; i++ ) {
-	p = pkdParticle(pkd,i);
-	dx = r[0] - pkdPos(pkd,p,0);
-	dy = r[1] - pkdPos(pkd,p,1);
-	dz = r[2] - pkdPos(pkd,p,2);
-
-	d2 = dx*dx + dy*dy + dz*dz;
-	p->bDstActive = isSelected((d2<=dRadius2),setIfTrue,clearIfFalse,p->bSrcActive);
-	if ( p->bDstActive ) nSelected++;
+	p->bMarked = isSelected((d2<=dRadius2),setIfTrue,clearIfFalse,p->bMarked);
+	if ( p->bMarked ) nSelected++;
 	}
     return nSelected;
     }
@@ -3908,7 +3745,7 @@ int pkdSelDstSphere(PKD pkd,double *r, double dRadius, int setIfTrue, int clearI
 ** Select all particles that fall inside a cylinder between two points P1 and P2
 ** with radius dRadius.
 */
-int pkdSelSrcCylinder(PKD pkd,double *dP1, double *dP2, double dRadius,
+int pkdSelCylinder(PKD pkd,double *dP1, double *dP2, double dRadius,
 		      int setIfTrue, int clearIfFalse ) {
     PARTICLE *p;
     double dCyl[3], dPart[3];
@@ -3938,75 +3775,21 @@ int pkdSelSrcCylinder(PKD pkd,double *dP1, double *dP2, double dRadius,
 	    dL2 = dPart[0]*dPart[0] + dPart[1]*dPart[1] + dPart[2]*dPart[2] - pdotr*pdotr/dLength2;
 	    predicate = (dL2 <= dRadius2);
 	    }
-	p->bSrcActive = isSelected(predicate,setIfTrue,clearIfFalse,p->bSrcActive);
-	if ( p->bSrcActive ) nSelected++;
+	p->bMarked = isSelected(predicate,setIfTrue,clearIfFalse,p->bMarked);
+	if ( p->bMarked ) nSelected++;
 	}
     return nSelected;
     }
-
-/*
-** Select all particles that fall inside a cylinder between two points P1 and P2
-** with radius dRadius.
-*/
-int pkdSelDstCylinder(PKD pkd,double *dP1, double *dP2, double dRadius,
-		      int setIfTrue, int clearIfFalse ) {
-    PARTICLE *p;
-    double dCyl[3], dPart[3];
-    double dLength2, dRadius2, dL2;
-    double pdotr;
-    int i,j,n,nSelected;
-    int predicate;
-
-    dRadius2 = dRadius*dRadius;
-    dLength2 = 0.0;
-    for( j=0;j<3;j++ ) {
-	dCyl[j] = dP2[j] - dP1[j];
-	dLength2 += dCyl[j] * dCyl[j];
-	}
-
-    n = pkdLocal(pkd);
-    nSelected = 0;
-    for( i=0; i<n; i++ ) {
-	p = pkdParticle(pkd,i);
-	pdotr = 0.0;
-	for( j=0;j<3;j++ ) {
-	    dPart[j] = pkdPos(pkd,p,j) - dP1[j];
-	    pdotr += dPart[j] * dCyl[j];
-	    }
-
-	if ( pdotr < 0.0 || pdotr > dLength2 ) predicate = 0;
-	else {
-	    dL2 = dPart[0]*dPart[0] + dPart[1]*dPart[1] + dPart[2]*dPart[2] - pdotr*pdotr/dLength2;
-	    predicate = (dL2 <= dRadius2);
-	    }
-	p->bDstActive = isSelected(predicate,setIfTrue,clearIfFalse,p->bSrcActive);
-	if ( p->bDstActive ) nSelected++;
-	}
-    return nSelected;
-    }
-
-int pkdSelSrcGroup(PKD pkd, int iGroup) {
+int pkdSelGroup(PKD pkd, int iGroup) {
     int i;
     int n=pkdLocal(pkd);
     PARTICLE *p;
     for( i=0; i<n; i++ ) {
 	p=pkdParticle(pkd,i);
-	p->bSrcActive = pkdGetGroup(pkd,p)==iGroup;
+	p->bMarked = pkdGetGroup(pkd,p)==iGroup;
 	}
     return n;
     }
-
-int pkdSelDstGroup(PKD pkd, int iGroup) {
-    int i;
-    int n=pkdLocal(pkd);
-    PARTICLE *p;
-    for( i=0; i<n; i++ ) {
-	p=pkdParticle(pkd,i);
-	p->bDstActive = pkdGetGroup(pkd,p)==iGroup;
-	}
-    return n;
-    }
-
 void pkdOutPsGroup(PKD pkd,char *pszFileName,int iType)
 {
     FILE *fp;

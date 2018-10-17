@@ -475,6 +475,11 @@ double mdlCollRatio(MDL,int);
 
 void mdlSetWorkQueueSize(MDL,int,int);
 void mdlSetCudaBufferSize(MDL,int,int);
+#ifdef USE_CUDA
+static inline int mdlCudaActive(MDL mdl) { return mdl->cudaCtx != NULL; }
+#else
+static inline int mdlCudaActive(MDL mdl) { return 0; }
+#endif
 void mdlAddWork(MDL mdl, void *ctx,
     int (*initWork)(void *ctx,void *vwork),
     int (*checkWork)(void *ctx,void *vwork),

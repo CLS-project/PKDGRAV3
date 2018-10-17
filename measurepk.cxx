@@ -82,9 +82,9 @@ extern "C"
 void pkdMeasurePk(PKD pkd, double dTotalMass, int iAssignment, int bInterlace,
     int nGrid, int nBins, double *fK, double *fPower, uint64_t *nPower) {
     mdlGridCoord first, last, index;
-
+    assert(pkd->fft != NULL);
     auto iNyquist = nGrid / 2;
-    auto fft = pkd->fft = mdlFFTInitialize(pkd->mdl,nGrid,nGrid,nGrid,0,0);
+    auto fft = pkd->fft;
     GridInfo G(pkd->mdl,fft);
     Window W(nGrid,iAssignment);
 
@@ -145,6 +145,4 @@ void pkdMeasurePk(PKD pkd, double dTotalMass, int iAssignment, int bInterlace,
 	    nPower[ks] += 1;
 	    }
 	}
-    mdlFFTFinish(pkd->mdl,fft);
-    pkd->fft = NULL;
     }
