@@ -22,12 +22,20 @@
 #endif
 #include "output.h"
 #include "pst.h"
+#include <complex.h>
+#define COMPLEX float complex
 
 /* Generic context: all things/stuff from iIndex (starts at zero) */
 struct packCtx {
     PKD pkd;
     int iIndex;
     };
+
+static int unpackWrite(void *vctx, int *id, size_t nSize, void *vBuff) {
+    asyncFileInfo *info = vctx;
+    io_write(info,vBuff,nSize);
+    return 1;
+    }
 
 /*
 ** Tiny Group statistics
@@ -41,14 +49,22 @@ static int packGroupStats(void *vctx, int *id, size_t nSize, void *vBuff) {
     ctx->iIndex += n;
     return n*sizeof(TinyGroupTable);
     }
-static int unpackGroupStats(void *vctx, int *id, size_t nSize, void *vBuff) {
-    asyncFileInfo *info = vctx;
-    io_write(info,vBuff,nSize);
-    return 1;
+
+static int packGrid(void *vctx, int *id, size_t nSize, void *vBuff) {
+    struct packCtx *ctx = (struct packCtx *)vctx;
+    PKD pkd = ctx->pkd;
+    if (mdlCore(pkd->mdl) == 0) {
+	COMPLEX *fftData = pkd->pLite;
+	size_t nLocal = pkd->fft->kgrid->nLocal;
+	int nLeft = nLocal - ctx->iIndex;
+	int n = nSize / sizeof(COMPLEX);
+	if ( n > nLeft ) n = nLeft;
+	memcpy(vBuff,fftData + ctx->iIndex, n*sizeof(COMPLEX) );
+	ctx->iIndex += n;
+	return n*sizeof(COMPLEX);
+	}
+    else return 0;
     }
-
-
-
 
 /*
 ** We do not do the write, rather we send to another thread.
@@ -56,16 +72,27 @@ static int unpackGroupStats(void *vctx, int *id, size_t nSize, void *vBuff) {
 
 void pkdOutputSend(PKD pkd, outType eOutputType, int iPartner) {
     struct packCtx ctx;
+    mdlPack pack;
     ctx.pkd = pkd;
     ctx.iIndex = 0;
     switch(eOutputType) {
     case OUT_TINY_GROUP:
-	mdlSend(pkd->mdl,iPartner, packGroupStats, &ctx);
+	pack = packGroupStats;
+	break;
+    case OUT_KGRID:
+	pack = packGrid;
 	break;
     default:
 	fprintf(stderr,"ERROR: invalid output type %d\n", eOutputType);
 	abort();
 	}
+    mdlSend(pkd->mdl,iPartner, pack, &ctx);
+    }
+
+void pstOutputSend(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    struct inOutputSend *in = vin;
+    pkdOutputSend(pst->plcl->pkd, in->eOutputType, in->iPartner);
+    if (pnOut) *pnOut = 0;
     }
 
 /*
@@ -86,7 +113,11 @@ void pkdOutput(PKD pkd, outType eOutputType, int iProcessor,int nProcessor,
     switch(eOutputType) {
     case OUT_TINY_GROUP:
 	io_write(&info,pkd->tinyGroupTable+1,sizeof(TinyGroupTable)*pkd->nLocalGroups);
-	unpack = unpackGroupStats;
+	unpack = unpackWrite;
+	break;
+    case OUT_KGRID:
+	io_write(&info,pkd->pLite,sizeof(COMPLEX)*pkd->fft->kgrid->nLocal);
+	unpack = unpackWrite;
 	break;
     default:
 	unpack = NULL;
@@ -104,4 +135,49 @@ void pkdOutput(PKD pkd, outType eOutputType, int iProcessor,int nProcessor,
 	}
     io_close(&info);
     io_free(&info);
+    }
+
+void pstOutput(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    struct inOutput *in = vin;
+
+    mdlassert(pst->mdl,nIn >= sizeof(struct inOutput));
+    if (pstNotCore(pst)) {
+	int nProcessor = in->nProcessor;
+	int iProcessor = in->iProcessor;
+
+	/* Still allowed to write more in parallel */
+	if (nProcessor>1) {
+	    int nLower, nUpper;
+	    nLower = nProcessor * pst->nLower / pst->nLeaves;
+	    if (nLower==0) nLower=1;
+	    nUpper = nProcessor - nLower;
+	    in->nProcessor = nUpper;
+	    in->iProcessor = iProcessor + nLower;
+	    int rID = mdlReqService(pst->mdl,pst->idUpper,PST_OUTPUT,in,nIn);
+	    in->nProcessor = nLower;
+	    in->iProcessor = iProcessor;
+	    pstOutput(pst->pstLower,in,nIn,vout,pnOut);
+	    mdlGetReply(pst->mdl,rID,NULL,NULL);
+	    }
+	/* We are the node that will be the writer for all of the pst children */
+	else if (nProcessor==1) {
+	    in->iPartner = pst->idSelf;
+	    in->nPartner = pst->nLeaves;
+	    in->nProcessor = 0;
+	    pstOutput(pst->pstLower,in,nIn,vout,pnOut); /* Keep decending to write */
+	    }
+	else {
+	    pstOutput(pst->pstLower,in,nIn,vout,pnOut); /* Keep decending to write */
+	    }
+	}
+    else {
+	/* If it is fully parallel then there is just us writing. */
+	if (in->nProcessor>0) {
+	    in->iPartner = pst->idSelf;
+	    in->nPartner = 1;
+	    }
+	PKD pkd = pst->plcl->pkd;
+	pkdOutput(pkd,in->eOutputType,in->iProcessor,in->nProcessor,
+	    in->iPartner,in->nPartner,in->achOutFile);
+	}
     }

@@ -184,21 +184,14 @@ static int ppy_get_dTime(double *dTime)
 \**********************************************************************/
 
 static PyObject *
-ppy_msr_SelSrcAll(PyObject *self, PyObject *args) {
+ppy_msr_SelAll(PyObject *self, PyObject *args) {
     ppy2prm();
-    msrSelSrcAll(ppy_msr);
+    msrSelAll(ppy_msr);
     return Py_BuildValue("L", ppy_msr->N);
 }
 
 static PyObject *
-ppy_msr_SelDstAll(PyObject *self, PyObject *args) {
-    ppy2prm();
-    msrSelDstAll(ppy_msr);
-    return Py_BuildValue("L", ppy_msr->N);
-}
-
-static PyObject *
-ppy_msr_SelSrcMass(PyObject *self, PyObject *args, PyObject *kwobj) {
+ppy_msr_SelMass(PyObject *self, PyObject *args, PyObject *kwobj) {
     static char *kwlist[] = { "MinMass", "MaxMass", "setIfTrue", "clearIfFalse", NULL };
     double dMinMass, dMaxMass;
     int setIfTrue=1, clearIfFalse=1;
@@ -206,31 +199,15 @@ ppy_msr_SelSrcMass(PyObject *self, PyObject *args, PyObject *kwobj) {
 
     ppy2prm();
     if ( !PyArg_ParseTupleAndKeywords(
-	     args, kwobj, "dd|ii:SelSrcMass", kwlist,
+	     args, kwobj, "dd|ii:SelMass", kwlist,
 	     &dMinMass, &dMaxMass, &setIfTrue, &clearIfFalse) )
 	return NULL;
-    nSelected = msrSelSrcMass(ppy_msr,dMinMass,dMaxMass,setIfTrue,clearIfFalse);
+    nSelected = msrSelMass(ppy_msr,dMinMass,dMaxMass,setIfTrue,clearIfFalse);
     return Py_BuildValue("L", nSelected);
 }
 
 static PyObject *
-ppy_msr_SelDstMass(PyObject *self, PyObject *args, PyObject *kwobj) {
-    static char *kwlist[] = { "MinMass", "MaxMass", "setIfTrue", "clearIfFalse", NULL };
-    double dMinMass, dMaxMass;
-    int setIfTrue=1, clearIfFalse=1;
-    uint64_t nSelected;
-
-    ppy2prm();
-    if ( !PyArg_ParseTupleAndKeywords(
-	     args, kwobj, "dd|ii:SelDstMass", kwlist,
-	     &dMinMass, &dMaxMass, &setIfTrue, &clearIfFalse) )
-	return NULL;
-    nSelected = msrSelDstMass(ppy_msr,dMinMass,dMaxMass,setIfTrue,clearIfFalse);
-    return Py_BuildValue("L", nSelected);
-}
-
-static PyObject *
-ppy_msr_SelSrcPhaseDensity(PyObject *self, PyObject *args, PyObject *kwobj) {
+ppy_msr_SelPhaseDensity(PyObject *self, PyObject *args, PyObject *kwobj) {
     static char *kwlist[] = { "MinDensity", "MaxDensity", "setIfTrue", "clearIfFalse", NULL };
     double dMinDensity, dMaxDensity;
     int setIfTrue=1, clearIfFalse=1;
@@ -238,180 +215,73 @@ ppy_msr_SelSrcPhaseDensity(PyObject *self, PyObject *args, PyObject *kwobj) {
 
     ppy2prm();
     if ( !PyArg_ParseTupleAndKeywords(
-	     args, kwobj, "dd|ii:SelSrcPhaseDensity", kwlist,
+	     args, kwobj, "dd|ii:SelPhaseDensity", kwlist,
 	     &dMinDensity, &dMaxDensity, &setIfTrue, &clearIfFalse) )
 	return NULL;
-    nSelected = msrSelSrcPhaseDensity(ppy_msr,dMinDensity,dMaxDensity,setIfTrue,clearIfFalse);
+    nSelected = msrSelPhaseDensity(ppy_msr,dMinDensity,dMaxDensity,setIfTrue,clearIfFalse);
     return Py_BuildValue("L", nSelected);
 }
 
 static PyObject *
-ppy_msr_SelDstPhaseDensity(PyObject *self, PyObject *args, PyObject *kwobj) {
-    static char *kwlist[] = { "MinDensity", "MaxDensity", "setIfTrue", "clearIfFalse", NULL };
-    double dMinDensity, dMaxDensity;
-    int setIfTrue=1, clearIfFalse=1;
-    uint64_t nSelected;
-
-    ppy2prm();
-    if ( !PyArg_ParseTupleAndKeywords(
-	     args, kwobj, "dd|ii:SelDstPhaseDensity", kwlist,
-	     &dMinDensity, &dMaxDensity, &setIfTrue, &clearIfFalse) )
-	return NULL;
-    nSelected = msrSelDstPhaseDensity(ppy_msr,dMinDensity,dMaxDensity,setIfTrue,clearIfFalse);
-    return Py_BuildValue("L", nSelected);
-}
-
-static PyObject *
-ppy_msr_SelSrcBox(PyObject *self, PyObject *args) {
+ppy_msr_SelBox(PyObject *self, PyObject *args) {
     double dCenter[3], dSize[3];
     int setIfTrue=1, clearIfFalse=1;
     uint64_t nSelected;
 
     ppy2prm();
     if ( !PyArg_ParseTuple(
-	     args, "(ddd)(ddd)|ii:SelSrcBox",
+	     args, "(ddd)(ddd)|ii:SelBox",
 	     dCenter+0, dCenter+1, dCenter+2, dSize+0, dSize+1, dSize+2, &setIfTrue, &clearIfFalse) )
 	return NULL;
-    nSelected = msrSelSrcBox(ppy_msr,dCenter,dSize,setIfTrue,clearIfFalse);
-    return Py_BuildValue("L", nSelected);
-}
-static PyObject *
-ppy_msr_SelDstBox(PyObject *self, PyObject *args) {
-    double dCenter[3], dSize[3];
-    int setIfTrue=1, clearIfFalse=1;
-    uint64_t nSelected;
-
-    ppy2prm();
-    if ( !PyArg_ParseTuple(
-	     args, "(ddd)(ddd)|ii:SelDstBox",
-	     dCenter+0, dCenter+1, dCenter+2, dSize+0, dSize+1, dSize+2, &setIfTrue, &clearIfFalse) )
-	return NULL;
-    nSelected = msrSelDstBox(ppy_msr,dCenter,dSize,setIfTrue,clearIfFalse);
+    nSelected = msrSelBox(ppy_msr,dCenter,dSize,setIfTrue,clearIfFalse);
     return Py_BuildValue("L", nSelected);
 }
 
 static PyObject *
-ppy_msr_SelSrcSphere(PyObject *self, PyObject *args) {
+ppy_msr_SelSphere(PyObject *self, PyObject *args) {
     double r[3], dRadius;
     int setIfTrue=1, clearIfFalse=1;
     uint64_t nSelected;
 
     ppy2prm();
     if ( !PyArg_ParseTuple(
-	     args, "(ddd)d|ii:SelSrcSphere",
+	     args, "(ddd)d|ii:SelSphere",
 	     r+0, r+1, r+2, &dRadius, &setIfTrue, &clearIfFalse) )
 	return NULL;
-    nSelected = msrSelSrcSphere(ppy_msr,r,dRadius,setIfTrue,clearIfFalse);
+    nSelected = msrSelSphere(ppy_msr,r,dRadius,setIfTrue,clearIfFalse);
     return Py_BuildValue("L", nSelected);
 }
 
 static PyObject *
-ppy_msr_SelDstSphere(PyObject *self, PyObject *args) {
-    double r[3], dRadius;
-    int setIfTrue=1, clearIfFalse=1;
-    uint64_t nSelected;
-
-    ppy2prm();
-    if ( !PyArg_ParseTuple(
-	     args, "(ddd)d|ii:SelDstSphere",
-	     r+0, r+1, r+2, &dRadius, &setIfTrue, &clearIfFalse) )
-	return NULL;
-    nSelected = msrSelDstSphere(ppy_msr,r,dRadius,setIfTrue,clearIfFalse);
-    return Py_BuildValue("L", nSelected);
-}
-
-static PyObject *
-ppy_msr_SelSrcCylinder(PyObject *self, PyObject *args) {
+ppy_msr_SelCylinder(PyObject *self, PyObject *args) {
     double dP1[3],dP2[3],dRadius;
     int setIfTrue=1, clearIfFalse=1;
     uint64_t nSelected;
 
     ppy2prm();
     if ( !PyArg_ParseTuple(
-	     args, "(ddd)(ddd)d|ii:SelSrcSphere",
+	     args, "(ddd)(ddd)d|ii:SelSphere",
 	     dP1+0, dP1+1, dP1+2, dP2+0, dP2+1, dP2+2, &dRadius,
 	     &setIfTrue, &clearIfFalse) )
 	return NULL;
-    nSelected = msrSelSrcCylinder(ppy_msr,dP1,dP2,dRadius,setIfTrue,clearIfFalse);
+    nSelected = msrSelCylinder(ppy_msr,dP1,dP2,dRadius,setIfTrue,clearIfFalse);
     return Py_BuildValue("L", nSelected);
 }
 
 static PyObject *
-ppy_msr_SelDstCylinder(PyObject *self, PyObject *args) {
-    double dP1[3],dP2[3],dRadius;
-    int setIfTrue=1, clearIfFalse=1;
-    uint64_t nSelected;
-
-    ppy2prm();
-    if ( !PyArg_ParseTuple(
-	     args, "(ddd)(ddd)d|ii:SelDstSphere",
-	     dP1+0, dP1+1, dP1+2, dP2+0, dP2+1, dP2+2, &dRadius,
-	     &setIfTrue, &clearIfFalse) )
-	return NULL;
-    nSelected = msrSelDstCylinder(ppy_msr,dP1,dP2,dRadius,setIfTrue,clearIfFalse);
-    return Py_BuildValue("L", nSelected);
-}
-
-static PyObject *
-ppy_msr_SelSrcById(PyObject *self, PyObject *args) {
+ppy_msr_SelById(PyObject *self, PyObject *args) {
     uint64_t idStart,idEnd;
     int setIfTrue=1, clearIfFalse=1;
     uint64_t nSelected;
 
     ppy2prm();
     if ( !PyArg_ParseTuple(
-	     args, "LL|ii:SelSrcById",
+	     args, "LL|ii:SelById",
 	     &idStart, &idEnd, &setIfTrue, &clearIfFalse) )
 	return NULL;
-    nSelected = msrSelSrcById(ppy_msr,idStart,idEnd,setIfTrue,clearIfFalse);
+    nSelected = msrSelById(ppy_msr,idStart,idEnd,setIfTrue,clearIfFalse);
     return Py_BuildValue("L", nSelected);
 }
-
-static PyObject *
-ppy_msr_SelDstById(PyObject *self, PyObject *args) {
-    uint64_t idStart,idEnd;
-    int setIfTrue=1, clearIfFalse=1;
-    uint64_t nSelected;
-
-    ppy2prm();
-    if ( !PyArg_ParseTuple(
-	     args, "ll|ii:SelDstById",
-	     &idStart, &idEnd, &setIfTrue, &clearIfFalse) )
-	return NULL;
-    nSelected = msrSelDstById(ppy_msr,idStart,idEnd,setIfTrue,clearIfFalse);
-    return Py_BuildValue("L", nSelected);
-}
-
-
-#if 0
-static PyObject *
-ppy_msr_SelSrc(PyObject *self, PyObject *args) {
-    uint64_t nSelected = 0;
-    PyObject *object;
-    if ( !PyArg_ParseTuple(
-	     args, "O:SelSrc",
-	     &object) )
-	return NULL;
-    if ( !PyCallable_Check(object) ) {
-	PyErr_SetString(PyExc_TypeError, "SelSrc argument is not callable");
-	return NULL;
-	}
-#if 0
-    PyObject *o = PyMarshal_WriteObjectToString(object,Py_MARSHAL_VERSION);
-    assert( o!=NULL );
-
-    if ( !PyString_Check(o) ) {
-	PyErr_SetString(PyExc_TypeError, "PyMarshal did not return a string");
-	return NULL;
-	}
-    int iSize = PyString_GET_SIZE(o);
-    const char *szData = PyString_AS_STRING(o);
-
-    Py_DECREF(o);
-#endif
-    return Py_BuildValue("L", nSelected);
-}
-#endif
 
 static PyObject *
 ppy_msr_TotalMass(PyObject *self, PyObject *args) {
@@ -892,38 +762,20 @@ ppy_msr_SaveArray(PyObject *self, PyObject *args, PyObject *kwobj) {
 \**********************************************************************/
 
 static PyMethodDef msr_methods[] = {
-/*
-    {"SelSrc", ppy_msr_SelSrc, METH_VARARGS,
-     "Selects source particles based on a supplied function"},
-*/
-    {"SelSrcAll", ppy_msr_SelSrcAll, METH_NOARGS,
+    {"SelAll", ppy_msr_SelAll, METH_NOARGS,
      "Selects all particles as operation source."},
-    {"SelDstAll", ppy_msr_SelDstAll, METH_NOARGS,
-     "Selects all particles as operation destination."},
-    {"SelSrcMass", (PyCFunction)ppy_msr_SelSrcMass, METH_VARARGS|METH_KEYWORDS,
+    {"SelMass", (PyCFunction)ppy_msr_SelMass, METH_VARARGS|METH_KEYWORDS,
      "Selects source particles with a specific mass range."},
-    {"SelDstMass", (PyCFunction)ppy_msr_SelDstMass, METH_VARARGS|METH_KEYWORDS,
-     "Selects destination particles with a specific mass range."},
-    {"SelSrcById", (PyCFunction)ppy_msr_SelSrcById, METH_VARARGS,
+    {"SelById", (PyCFunction)ppy_msr_SelById, METH_VARARGS,
      "Selects source particles with a specific id range."},
-    {"SelDstById", (PyCFunction)ppy_msr_SelDstById, METH_VARARGS,
-     "Selects destination particles with a specific id range."},
-    {"SelSrcPhaseDensity", (PyCFunction)ppy_msr_SelSrcPhaseDensity, METH_VARARGS|METH_KEYWORDS,
+    {"SelPhaseDensity", (PyCFunction)ppy_msr_SelPhaseDensity, METH_VARARGS|METH_KEYWORDS,
      "Selects source particles with a specific phase space density."},
-    {"SelDstPhaseDensity", (PyCFunction)ppy_msr_SelDstPhaseDensity, METH_VARARGS|METH_KEYWORDS,
-     "Selects destination particles with a specific phase space density."},
-    {"SelSrcBox", ppy_msr_SelSrcBox, METH_VARARGS,
+    {"SelBox", ppy_msr_SelBox, METH_VARARGS,
      "Selects source particles inside a given box."},
-    {"SelDstBox", ppy_msr_SelDstBox, METH_VARARGS,
-     "Selects destination particles inside a given box."},
-    {"SelSrcSphere", ppy_msr_SelSrcSphere, METH_VARARGS,
+    {"SelSphere", ppy_msr_SelSphere, METH_VARARGS,
      "Selects source particles inside a given sphere."},
-    {"SelDstSphere", ppy_msr_SelDstSphere, METH_VARARGS,
-     "Selects destination particles inside a given sphere."},
-    {"SelSrcCylinder", ppy_msr_SelSrcCylinder, METH_VARARGS,
+    {"SelCylinder", ppy_msr_SelCylinder, METH_VARARGS,
      "Selects source particles inside a given cylinder."},
-    {"SelDstCylinder", ppy_msr_SelDstCylinder, METH_VARARGS,
-     "Selects destination particles inside a given cylinder."},
     {"TotalMass", ppy_msr_TotalMass, METH_NOARGS,
      "Returns the total mass of the selected particles"},
     {"Profile", ppy_msr_Profile, METH_VARARGS,

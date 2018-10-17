@@ -21,6 +21,7 @@
 
 typedef enum {
     OUT_TINY_GROUP,
+    OUT_KGRID,
     } outType;
 
 struct inOutputSend {

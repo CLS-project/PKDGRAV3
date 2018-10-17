@@ -129,7 +129,7 @@ int smHopLink(SMX smx,SMF *smf) {
     for (pi=0;pi<pkd->nLocal;++pi) {
 	p = pkdParticle(pkd,pi);
 	pkdSetGroup(pkd,p,0); /* Ungrouped */
-	p->bMarked = p->bSrcActive; /* Used by smooth to determine active particles */
+	p->bMarked = 1; /* Used by smooth to determine active particles */
 	}
     smSmoothInitialize(smx);
 
@@ -149,7 +149,6 @@ int smHopLink(SMX smx,SMF *smf) {
     for (pi=0;pi<pkd->nLocal;++pi) {
 	p = pkdParticle(pkd,iParticle=pi);
 	if ( pkdGetGroup(pkd,p) > 0 ) continue; /* Already done (below) */
-	if ( !pkdIsDstActive(p,0,MAX_RUNG) ) continue;
 	assert((uint32_t *)&ga[nGroups+1] < pl);
 	ga[nGroups].iGid = nGroups;
 	for(;;) {

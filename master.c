@@ -610,7 +610,7 @@ void msrCheckpoint(MSR msr,int iStep,double dTime) {
 /*
 ** This routine validates the given parameters and makes any adjustments.
 */
-static int validateParameters(PRM prm,struct parameters *param) {
+static int validateParameters(MDL mdl,PRM prm,struct parameters *param) {
     
     if (prmSpecified(prm, "dMetalDiffsionCoeff") || prmSpecified(prm,"dThermalDiffusionCoeff")) {
 	if (!prmSpecified(prm, "iDiffusion")) param->iDiffusion=1;
@@ -661,7 +661,7 @@ static int validateParameters(PRM prm,struct parameters *param) {
     /*
     ** CUDA likes a larger group size
     */
-    if (param->iCUDAQueueSize>0 && !prmSpecified(prm,"nGroup") && param->nGroup<256)
+    if (mdlCudaActive(mdl) && param->iCUDAQueueSize>0 && !prmSpecified(prm,"nGroup") && param->nGroup<256)
 	param->nGroup = 256;
 
 
@@ -1320,6 +1320,9 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.bDoLinPkOutput = 0;
     prmAddParam(msr->prm, "bDoLinPkOutput", 0, &msr->param.bDoLinPkOutput,
         sizeof(int), "linPk", "<enable/disable power spectrum output for linear species> = 0");
+    msr->param.bOutputDeltaK = 0;
+    prmAddParam(msr->prm, "bOutputDeltaK", 0, &msr->param.bOutputDeltaK,
+        sizeof(int), "deltak", "<enable/disable output of delta(k) grid> = 0");
 #endif
 
     msr->param.iInflateStep = 0;
@@ -1606,7 +1609,7 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 	if (!prmParseParam(msr->prm,msr)) {
 	    _msrExit(msr,1);
 	    }
-	if (!validateParameters(msr->prm,&msr->param)) _msrExit(msr,1);
+	if (!validateParameters(mdl,msr->prm,&msr->param)) _msrExit(msr,1);
 	}
 
     msr->param.dTuFac = msr->param.dGasConst/(msr->param.dConstGamma - 1)/
@@ -2313,7 +2316,6 @@ uint64_t msrCalcWriteStart(MSR msr) {
     struct inSetWriteStart in;
 
     pstSetTotal(msr->pst,NULL,0,&out,NULL);
-    /*This was true before IsSrcActive:assert(out.nTotal == msr->N);*/
     assert(out.nTotal <= msr->N);
     in.nWriteStart = 0;
     pstSetWriteStart(msr->pst,&in,sizeof(in),NULL,NULL);
@@ -3291,6 +3293,14 @@ uint8_t msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot
     if (msr->param.csm->val.bComove) {
 	a = csmTime2Exp(msr->param.csm,dTime);
 	in.dAccFac = 1.0/(a*a*a);
+#if 0
+	// erf2: in.dThetaMin = 0.4 + 0.3*erf(a*10.0);
+	in.dThetaMin = 0.35 + 0.35*erf(a*8.0); // erf3
+	if ( !prmSpecified(msr->prm,"nReplicas") && msr->param.nReplicas>=1 ) {
+	    in.nReps = in.dThetaMin < 0.52 ? 2 : 1;
+	    }
+	printf("z=%.1f theta=%.3f nReps=%d\n", 1.0/a - 1.0, in.dThetaMin,in.nReps);
+#endif
 	}
     else {
 	in.dAccFac = 1.0;
@@ -4227,16 +4237,22 @@ int msrNewTopStepKDK(MSR msr,
 
     if (uRung == iRungDT+1) {
 	if ( msr->param.bDualTree && uRung < *puRungMax) {
-	    bDualTree = 1;
-	    struct inDumpTrees dump;
-	    dump.bOnlyVA = 0;
-	    dump.uRungDD = iRungDT;
-	    pstDumpTrees(msr->pst,&dump,sizeof(dump),NULL,NULL);
-	    msrprintf(msr,"Half Drift, uRung: %d\n",iRungDT);
-	    dDelta = msr->param.dDelta/(1 << iRungDT); // Main tree step
-	    msrDrift(msr,*pdTime,0.5 * dDelta,FIXROOT);
-	    dTimeFixed = *pdTime + 0.5 * dDelta;
-	    msrBuildTreeFixed(msr,*pdTime,msr->param.bEwald,iRungDT);
+	    /* HACK: FIXME: Don't use the dual tree before z=2; the overlap region is too large */
+	    /* better would be to construct the tree matching remote processor shape as well as local */
+	    double a = csmTime2Exp(msr->param.csm,*pdTime);
+	    if (a < (1.0/3.0)) bDualTree = 0;
+	    else {
+		bDualTree = 1;
+		struct inDumpTrees dump;
+		dump.bOnlyVA = 0;
+		dump.uRungDD = iRungDT;
+		pstDumpTrees(msr->pst,&dump,sizeof(dump),NULL,NULL);
+		msrprintf(msr,"Half Drift, uRung: %d\n",iRungDT);
+		dDelta = msr->param.dDelta/(1 << iRungDT); // Main tree step
+		msrDrift(msr,*pdTime,0.5 * dDelta,FIXROOT);
+		dTimeFixed = *pdTime + 0.5 * dDelta;
+		msrBuildTreeFixed(msr,*pdTime,msr->param.bEwald,iRungDT);
+		}
 	    }
 	else bDualTree = 0;
 	}
@@ -4552,13 +4568,13 @@ void msrStarForm(MSR msr, double dTime, int iRung)
 	       out.nFormed, out.dMassFormed, out.nDeleted);
     
     if (out.nDeleted) {
-	msrSelSrcGas(msr); /* Not really sure what the setting here needs to be */
-	msrSelDstDeleted(msr); /* Select only deleted particles */
+	//msrSelSrcGas(msr); /* Not really sure what the setting here needs to be */
+	//msrSelDstDeleted(msr); /* Select only deleted particles */
 	msrActiveRung(msr,0,1); /* costs nothing -- may be redundant */
 /*	msrBuildTree(msr,dTime,msr->param.bEwald);*/
 	msrSmooth(msr, dTime, SMX_DIST_DELETED_GAS, 1,msr->param.nSmooth); /* use full smooth to account for deleted */
-	msrSelSrcAll(msr);
-	msrSelDstAll(msr);
+	//msrSelSrcAll(msr);
+	//msrSelDstAll(msr);
 	}
 
     /* Strictly speaking adding/deleting particles invalidates the tree 
@@ -4573,12 +4589,12 @@ void msrStarForm(MSR msr, double dTime, int iRung)
 
     if (msr->param.bFeedback) {
 	msrActiveRung(msr,iRung,1); /* costs nothing -- important to limit to active stars only */
- 	msrSelSrcGas(msr); /* Not really sure what the setting here needs to be */
-	msrSelDstStar(msr,1,dTime); /* Select only stars that have FB to do */ 
+ 	//msrSelSrcGas(msr); /* Not really sure what the setting here needs to be */
+	//msrSelDstStar(msr,1,dTime); /* Select only stars that have FB to do */ 
 /*	msrBuildTree(msr,dTime,msr->param.bEwald);*/
 	msrSmooth(msr, dTime, SMX_DIST_SN_ENERGY, 1, msr->param.nSmooth); /* full smooth for stars */
-	msrSelSrcAll(msr);
-	msrSelDstAll(msr);
+	//msrSelSrcAll(msr);
+	//msrSelDstAll(msr);
 
 	dsec = msrTime() - sec1;
 	printf("Feedback Calculated, Wallclock: %f secs\n\n",dsec);
@@ -4718,11 +4734,11 @@ void msrInitSph(MSR msr,double dTime)
 	struct inCorrectEnergy in;
 	double a;
 
- 	msrSelSrcGas(msr); /* Not really sure what the setting here needs to be */
-	msrSelDstGas(msr);  
+ 	//msrSelSrcGas(msr); /* Not really sure what the setting here needs to be */
+	//msrSelDstGas(msr);  
 	msrSmooth(msr,dTime,SMX_DENDVDX,0,msr->param.nSmooth);  
-	msrSelSrcAll(msr);
-	msrSelDstAll(msr);
+	//msrSelSrcAll(msr);
+	//msrSelDstAll(msr);
 
 	in.dTuFac = msr->param.dTuFac;
 	a = csmTime2Exp(msr->param.csm,dTime);
@@ -4756,12 +4772,12 @@ void msrSph(MSR msr,double dTime, double dStep) {
 /* JW: Is the tree aware of this -- does it need to be? 
        Will smooth behave correctly? */
 
-    msrSelSrcGas(msr); /* Not really sure what the setting here needs to be */
-    msrSelDstGas(msr);  
+    //msrSelSrcGas(msr); /* Not really sure what the setting here needs to be */
+    //msrSelDstGas(msr);  
     msrSmooth(msr,dTime,SMX_DENDVDX,0,msr->param.nSmooth);  
     msrSmooth(msr,dTime,SMX_SPHFORCES,1,msr->param.nSmooth); /* Should be a resmooth */
-    msrSelSrcAll(msr);
-    msrSelDstAll(msr);
+    //msrSelSrcAll(msr);
+    //msrSelDstAll(msr);
 
     dsec = msrTime() - sec;
     if (msr->param.bVStep) {
@@ -5377,6 +5393,9 @@ void msrOutputPk(MSR msr,int iStep,double dTime) {
 
     if (msr->param.nGridPk == 0) return;
 
+    msrGridCreateFFT(msr,msr->param.nGridPk);
+
+
     fK = malloc(sizeof(float)*(msr->param.nBinsPk));
     assert(fK != NULL);
     fPk = malloc(sizeof(float)*(msr->param.nBinsPk));
@@ -5411,6 +5430,24 @@ void msrOutputPk(MSR msr,int iStep,double dTime) {
     free(fK);
     free(fPk);
     free(nPk);
+    /* Output the k-grid if requested */
+    if (msr->param.bOutputDeltaK) {
+	struct inOutput out;
+	double dsec, sec = msrTime();
+	out.eOutputType = OUT_KGRID;
+	out.iPartner = -1;
+	out.nPartner = -1;
+	out.iProcessor = 0;
+	out.nProcessor = msr->param.bParaWrite==0?1:(msr->param.nParaWrite<=1 ? msr->nThreads:msr->param.nParaWrite);
+	if (out.nProcessor > mdlProcs(msr->mdl)) out.nProcessor = mdlProcs(msr->mdl); 
+	msrBuildName(msr,out.achOutFile,iStep);
+	strncat(out.achOutFile,".deltak",256);
+        printf("Writing Delta(k) to %s ...\n",out.achOutFile);
+	pstOutput(msr->pst,&out,sizeof(out),NULL,NULL);
+	dsec = msrTime() - sec;
+	msrprintf(msr,"Delta(k) has been successfully written, Wallclock: %f secs.\n\n", dsec);
+	}
+    msrGridDeleteFFT(msr);
     }
 
 
@@ -5510,10 +5547,10 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
 	msrDomainDecomp(msr,0,0,0);
 	msrBuildTree(msr,dTime,0);
 
-	msrSelSrcGas(msr);  /* FOR TESTING!! of gas active particles */
+	//msrSelSrcGas(msr);  /* FOR TESTING!! of gas active particles */
 	msrFastGasPhase1(msr,dTime,SMX_DENSITY);
 	msrFastGasPhase2(msr,dTime,SMX_PRINTNN);
-	msrSelSrcAll(msr);  /* FOR TESTING!! of gas active particles */
+	//msrSelSrcAll(msr);  /* FOR TESTING!! of gas active particles */
 #else
 	msrActiveRung(msr,0,1); /* Activate all particles */
 	msrDomainDecomp(msr,-1,0,0);
@@ -5595,38 +5632,19 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
     while (msrOutTime(msr,dTime));
     }
 
-void msrSelSrcAll(MSR msr) {
-    pstSelSrcAll(msr->pst, NULL, 0, NULL, NULL );
+void msrSelAll(MSR msr) {
+    pstSelAll(msr->pst, NULL, 0, NULL, NULL );
     }
-void msrSelDstAll(MSR msr) {
-    pstSelDstAll(msr->pst, NULL, 0, NULL, NULL );
+void msrSelGas(MSR msr) {
+    pstSelGas(msr->pst, NULL, 0, NULL, NULL );
     }
-
-void msrSelSrcGas(MSR msr) {
-    pstSelSrcGas(msr->pst, NULL, 0, NULL, NULL );
+void msrSelStar(MSR msr) {
+    pstSelStar(msr->pst, NULL, 0, NULL, NULL );
     }
-void msrSelDstGas(MSR msr) {
-    pstSelDstGas(msr->pst, NULL, 0, NULL, NULL );
+void msrSelDeleted(MSR msr) {
+    pstSelDeleted(msr->pst, NULL, 0, NULL, NULL );
     }
-
-void msrSelSrcStar(MSR msr) {
-    pstSelSrcStar(msr->pst, NULL, 0, NULL, NULL );
-    }
-void msrSelDstStar(MSR msr, int bFB, double dTime) {
-    struct inSelDstStar in;
-    in.bFB = bFB;
-    in.dTimeFB = dTime-msr->param.SFdtFeedbackDelay*1.0000013254678*SECONDSPERYEAR/msr->param.dSecUnit;
-    pstSelDstStar(msr->pst, &in, sizeof(in), NULL, NULL );
-    }
-
-void msrSelSrcDeleted(MSR msr) {
-    pstSelSrcDeleted(msr->pst, NULL, 0, NULL, NULL );
-    }
-void msrSelDstDeleted(MSR msr) {
-    pstSelDstDeleted(msr->pst, NULL, 0, NULL, NULL );
-    }
-
-uint64_t msrSelSrcById(MSR msr,uint64_t idStart,uint64_t idEnd,int setIfTrue,int clearIfFalse) {
+uint64_t msrSelById(MSR msr,uint64_t idStart,uint64_t idEnd,int setIfTrue,int clearIfFalse) {
     struct inSelById in;
     struct outSelById out;
     int nOut;
@@ -5635,25 +5653,10 @@ uint64_t msrSelSrcById(MSR msr,uint64_t idStart,uint64_t idEnd,int setIfTrue,int
     in.idEnd = idEnd;
     in.setIfTrue = setIfTrue;
     in.clearIfFalse = clearIfFalse;
-    pstSelSrcById(msr->pst, &in, sizeof(in), &out, &nOut);
+    pstSelById(msr->pst, &in, sizeof(in), &out, &nOut);
     return out.nSelected;
     }
-
-uint64_t msrSelDstById(MSR msr,uint64_t idStart,uint64_t idEnd,int setIfTrue,int clearIfFalse) {
-    struct inSelById in;
-    struct outSelById out;
-    int nOut;
-
-    in.idStart = idStart;
-    in.idEnd = idEnd;
-    in.setIfTrue = setIfTrue;
-    in.clearIfFalse = clearIfFalse;
-    pstSelDstById(msr->pst, &in, sizeof(in), &out, &nOut);
-    return out.nSelected;
-    }
-
-
-uint64_t msrSelSrcMass(MSR msr,double dMinMass,double dMaxMass,int setIfTrue,int clearIfFalse) {
+uint64_t msrSelMass(MSR msr,double dMinMass,double dMaxMass,int setIfTrue,int clearIfFalse) {
     struct inSelMass in;
     struct outSelMass out;
     int nOut;
@@ -5662,22 +5665,10 @@ uint64_t msrSelSrcMass(MSR msr,double dMinMass,double dMaxMass,int setIfTrue,int
     in.dMaxMass = dMaxMass;
     in.setIfTrue = setIfTrue;
     in.clearIfFalse = clearIfFalse;
-    pstSelSrcMass(msr->pst, &in, sizeof(in), &out, &nOut);
+    pstSelMass(msr->pst, &in, sizeof(in), &out, &nOut);
     return out.nSelected;
     }
-uint64_t msrSelDstMass(MSR msr,double dMinMass,double dMaxMass,int setIfTrue,int clearIfFalse) {
-    struct inSelMass in;
-    struct outSelMass out;
-    int nOut;
-
-    in.dMinMass = dMinMass;
-    in.dMaxMass = dMaxMass;
-    in.setIfTrue = setIfTrue;
-    in.clearIfFalse = clearIfFalse;
-    pstSelDstMass(msr->pst, &in, sizeof(in), &out, &nOut);
-    return out.nSelected;
-    }
-uint64_t msrSelSrcPhaseDensity(MSR msr,double dMinPhaseDensity,double dMaxPhaseDensity,int setIfTrue,int clearIfFalse) {
+uint64_t msrSelPhaseDensity(MSR msr,double dMinPhaseDensity,double dMaxPhaseDensity,int setIfTrue,int clearIfFalse) {
     struct inSelPhaseDensity in;
     struct outSelPhaseDensity out;
     int nOut;
@@ -5686,23 +5677,10 @@ uint64_t msrSelSrcPhaseDensity(MSR msr,double dMinPhaseDensity,double dMaxPhaseD
     in.dMaxDensity = dMaxPhaseDensity;
     in.setIfTrue = setIfTrue;
     in.clearIfFalse = clearIfFalse;
-    pstSelSrcPhaseDensity(msr->pst, &in, sizeof(in), &out, &nOut);
+    pstSelPhaseDensity(msr->pst, &in, sizeof(in), &out, &nOut);
     return out.nSelected;
     }
-uint64_t msrSelDstPhaseDensity(MSR msr,double dMinPhaseDensity,double dMaxPhaseDensity,int setIfTrue,int clearIfFalse) {
-    struct inSelPhaseDensity in;
-    struct outSelPhaseDensity out;
-    int nOut;
-
-    in.dMinDensity = dMinPhaseDensity;
-    in.dMaxDensity = dMaxPhaseDensity;
-    in.setIfTrue = setIfTrue;
-    in.clearIfFalse = clearIfFalse;
-    pstSelDstPhaseDensity(msr->pst, &in, sizeof(in), &out, &nOut);
-    return out.nSelected;
-    }
-
-uint64_t msrSelSrcBox(MSR msr,double *dCenter, double *dSize,int setIfTrue,int clearIfFalse) {
+uint64_t msrSelBox(MSR msr,double *dCenter, double *dSize,int setIfTrue,int clearIfFalse) {
     struct inSelBox in;
     struct outSelBox out;
     int nOut;
@@ -5715,28 +5693,10 @@ uint64_t msrSelSrcBox(MSR msr,double *dCenter, double *dSize,int setIfTrue,int c
     in.dSize[2] = dSize[2];
     in.setIfTrue = setIfTrue;
     in.clearIfFalse = clearIfFalse;
-    pstSelSrcBox(msr->pst, &in, sizeof(in), &out, &nOut);
+    pstSelBox(msr->pst, &in, sizeof(in), &out, &nOut);
     return out.nSelected;
     }
-uint64_t msrSelDstBox(MSR msr,double *dCenter, double *dSize,int setIfTrue,int clearIfFalse) {
-    struct inSelBox in;
-    struct outSelBox out;
-    int nOut;
-
-    in.dCenter[0] = dCenter[0];
-    in.dCenter[1] = dCenter[1];
-    in.dCenter[2] = dCenter[2];
-    in.dSize[0] = dSize[0];
-    in.dSize[1] = dSize[1];
-    in.dSize[2] = dSize[2];
-    in.setIfTrue = setIfTrue;
-    in.clearIfFalse = clearIfFalse;
-    pstSelDstBox(msr->pst, &in, sizeof(in), &out, &nOut);
-    return out.nSelected;
-    }
-
-
-uint64_t msrSelSrcSphere(MSR msr,double *r, double dRadius,int setIfTrue,int clearIfFalse) {
+uint64_t msrSelSphere(MSR msr,double *r, double dRadius,int setIfTrue,int clearIfFalse) {
     struct inSelSphere in;
     struct outSelSphere out;
     int nOut;
@@ -5747,26 +5707,10 @@ uint64_t msrSelSrcSphere(MSR msr,double *r, double dRadius,int setIfTrue,int cle
     in.dRadius = dRadius;
     in.setIfTrue = setIfTrue;
     in.clearIfFalse = clearIfFalse;
-    pstSelSrcSphere(msr->pst, &in, sizeof(in), &out, &nOut);
+    pstSelSphere(msr->pst, &in, sizeof(in), &out, &nOut);
     return out.nSelected;
     }
-
-uint64_t msrSelDstSphere(MSR msr,double *r, double dRadius,int setIfTrue,int clearIfFalse) {
-    struct inSelSphere in;
-    struct outSelSphere out;
-    int nOut;
-
-    in.r[0] = r[0];
-    in.r[1] = r[1];
-    in.r[2] = r[2];
-    in.dRadius = dRadius;
-    in.setIfTrue = setIfTrue;
-    in.clearIfFalse = clearIfFalse;
-    pstSelDstSphere(msr->pst, &in, sizeof(in), &out, &nOut);
-    return out.nSelected;
-    }
-
-uint64_t msrSelSrcCylinder(MSR msr,double *dP1, double *dP2, double dRadius,
+uint64_t msrSelCylinder(MSR msr,double *dP1, double *dP2, double dRadius,
 			   int setIfTrue, int clearIfFalse ) {
     struct inSelCylinder in;
     struct outSelCylinder out;
@@ -5779,24 +5723,7 @@ uint64_t msrSelSrcCylinder(MSR msr,double *dP1, double *dP2, double dRadius,
     in.dRadius = dRadius;
     in.setIfTrue = setIfTrue;
     in.clearIfFalse = clearIfFalse;
-    pstSelSrcCylinder(msr->pst, &in, sizeof(in), &out, &nOut);
-    return out.nSelected;
-    }
-
-uint64_t msrSelDstCylinder(MSR msr,double *dP1, double *dP2, double dRadius,
-			   int setIfTrue, int clearIfFalse ) {
-    struct inSelCylinder in;
-    struct outSelCylinder out;
-    int nOut,j;
-
-    for(j=0;j<3;j++) {
-	in.dP1[j] = dP1[j];
-	in.dP2[j] = dP2[j];
-	}
-    in.dRadius = dRadius;
-    in.setIfTrue = setIfTrue;
-    in.clearIfFalse = clearIfFalse;
-    pstSelDstCylinder(msr->pst, &in, sizeof(in), &out, &nOut);
+    pstSelCylinder(msr->pst, &in, sizeof(in), &out, &nOut);
     return out.nSelected;
     }
 
@@ -6022,7 +5949,7 @@ void msrProfile( MSR msr, const PROFILEBIN **ppBins, int *pnBins,
 	double dLogMax = log10(dMaxRadius);
 	double dRadius;
 
-	ctxSphere.nTotal = msrSelSrcSphere(msr,r,dMaxRadius,1,1);
+	ctxSphere.nTotal = msrSelSphere(msr,r,dMaxRadius,1,1);
 	ctxSphere.msr = msr;
 
 	N = msrCountDistance(msr,0.0,dLogRadius*dLogRadius);
@@ -6108,6 +6035,17 @@ void msrGridProject(MSR msr,double x,double y,double z) {
     }
 
 #ifdef MDL_FFTW
+void msrGridCreateFFT(MSR msr, int nGrid) {
+    struct inGridCreateFFT in;
+    in.nGrid = nGrid;
+    pstGridCreateFFT(msr->pst, &in, sizeof(in), NULL, NULL);
+    }
+
+void msrGridDeleteFFT(MSR msr) {
+    pstGridDeleteFFT(msr->pst, NULL, 0, NULL, NULL);
+    }
+
+/* Important: call msrGridCreateFFT() before, and msrGridDeleteFFT() after */
 void msrMeasurePk(MSR msr,int iAssignment,int bInterlace,int nGrid,int nBins,uint64_t *nPk,float *fK,float *fPk) {
     struct inMeasurePk in;
     struct outMeasurePk *out;

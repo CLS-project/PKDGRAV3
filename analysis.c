@@ -228,7 +228,7 @@ int pkdShellCount(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
     iCount = 0;
     for (i=0;i<n;++i) {
 	p = pkdParticle(pkd,i);
-	if (pkdIsSrcActive(p,uRungLo,uRungHi)) {
+	if (pkdIsRungRange(p,uRungLo,uRungHi)) {
 	    d2 = pkdGetDistance2(pkd,p,dCenter);
 	    if ( d2>=r2min || d2 < r2max )
 		iCount ++;
@@ -718,7 +718,6 @@ void pkdGridProject(PKD pkd) {
 	       pkd->grid->nLocal,pkd,initPng,combPng);
     for (i=0;i<pkd->nLocal;++i) {
 	p = pkdParticle(pkd,i);
-	if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue;
 	v = pkdDensity(pkd,p);
 
 	/* Should scale and rotate here */

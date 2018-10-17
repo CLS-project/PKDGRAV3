@@ -595,7 +595,6 @@ void Create(PKD pkd,int iRoot) {
 	pkdn->bMax = 1.0;
 	pkdn->uMinRung = MAX_RUNG;
 	pkdn->uMaxRung = 0;
-	pkdn->bSrcActive = pkdn->bDstActive = 0;
 	if (pkd->oNodeMom) momClearFmomr(pkdNodeMom(pkd,pkdn));
 	return;
 	}
@@ -715,7 +714,6 @@ void Create(PKD pkd,int iRoot) {
 	ay = m*a[1];
 	az = m*a[2];
 	pkdn->uMinRung = pkdn->uMaxRung = p->uRung;
-	pkdn->bDstActive = p->bDstActive;
 	for (++pj;pj<=pkdn->pUpper;++pj) {
 	    p = pkdParticle(pkd,pj);
 	    a = pkd->oAcceleration ? pkdAccel(pkd,p) : zeroF;
@@ -736,7 +734,6 @@ void Create(PKD pkd,int iRoot) {
 	    az += m*a[2];
 	    if ( p->uRung > pkdn->uMaxRung ) pkdn->uMaxRung = p->uRung;
 	    if ( p->uRung < pkdn->uMinRung ) pkdn->uMinRung = p->uRung;
-	    if ( p->bDstActive ) pkdn->bDstActive = 1;
 	    }
 	m = 1.0f / fMass;
 	if (pkd->param.bCenterOfMassExpand) {
@@ -981,7 +978,6 @@ void pkdCombineCells1(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
     pkdn->fSoft2 = p1->fSoft2 > p2->fSoft2 ? p1->fSoft2 : p2->fSoft2;
     pkdn->uMinRung = p1->uMinRung < p2->uMinRung ? p1->uMinRung : p2->uMinRung;
     pkdn->uMaxRung = p1->uMaxRung > p2->uMaxRung ? p1->uMaxRung : p2->uMaxRung;
-    pkdn->bDstActive = p1->bDstActive || p2->bDstActive;
     }
 
 

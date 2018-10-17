@@ -26,7 +26,7 @@
 #include "ilp.h"
 #include "ilc.h"
 
-#define IORDERBITS 41
+#define IORDERBITS 43
 #define IORDERMAX ((((uint64_t) 1)<<IORDERBITS)-1)
 
 #define IRUNGBITS 6
@@ -63,22 +63,18 @@ typedef struct {
 typedef struct particle {
     uint64_t  uRung      :  IRUNGBITS;
     uint64_t  bMarked    :  1;
-    uint64_t  bSrcActive :  1;
-    uint64_t  bDstActive :  1;
     uint64_t  uNewRung   :  IRUNGBITS;  /* Optional with bNewKDK + bMemUnordered */
     uint64_t  iClass     :  8;          /* Optional with bMemUnordered */
     uint64_t  iOrder     :  IORDERBITS; /* Optional with bMemUnordered */
     } PARTICLE;
 
 /* Abbreviated particle header with group id */
-#define IGROUPBITS (32-IRUNGBITS-3)
+#define IGROUPBITS (32-IRUNGBITS-1)
 #define IGROUPMAX ((1<<IGROUPBITS)-1)
 
 typedef struct uparticle {
     uint32_t  uRung      :  IRUNGBITS;
     uint32_t  bMarked    :  1;
-    uint32_t  bSrcActive :  1;
-    uint32_t  bDstActive :  1;
     uint32_t  iGroup     :  IGROUPBITS;
     } UPARTICLE;
 

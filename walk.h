@@ -28,7 +28,7 @@
 ** subcells).
 */
 static inline int pkdIsCellActive(KDN *c,uint8_t uRungLo,uint8_t uRungHi) {
-    return (uRungLo <= c->uMaxRung && uRungHi >= c->uMinRung) && c->bDstActive;
+    return (uRungLo <= c->uMaxRung && uRungHi >= c->uMinRung);
     }
 
 /*
