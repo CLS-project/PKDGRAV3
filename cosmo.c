@@ -122,7 +122,8 @@ void csmClassRead(CSM csm, double dBoxSize){
     hsize_t size_bg, size_a, size_k, count[1], offset[1], offset_out[1];
     char *matter_name, hdf5_key[128], *unit_length,
         *linSpeciesNames[10], *linSpeciesName, *LinSpeciesParsing;
-    double h, a, k, rho_crit[1], unit_convertion_time, unit_convertion_density;
+    double dOmegab, dOmega0, dOmegaDE, dOmegaRad, dOmegaNu, dSpectral,dNormalization, h;
+    double a, k, rho_crit[1], unit_convertion_time, unit_convertion_density;
     double *loga, *logrho_lin, *deltarho_lin, *rho_lin;
 
     assert(csm->val.classData.bClass);
@@ -198,6 +199,82 @@ void csmClassRead(CSM csm, double dBoxSize){
     if (attr < 0) abort();
     if (H5Aread(attr, H5T_NATIVE_DOUBLE, &h) < 0) abort();
     H5Aclose(attr);
+
+    /* Added by MK: read in full cosmology from HDF5 */
+    /*
+    ** Read in the baryonic matter density parameter dOmegab
+    *
+    attr = H5Aopen_by_name(file, "/background", "Omega_b", H5P_DEFAULT, H5P_DEFAULT);
+    if (attr < 0) abort();
+    if (H5Aread(attr, H5T_NATIVE_DOUBLE, &dOmegab) < 0) abort();
+    H5Aclose(attr);
+    // update csm->val.dOmegab
+    csm->val.dOmegab=dOmegab;
+    */
+
+    /*
+    ** Read in the total (cdm+b) matter density parameter dOmega0
+    */
+    attr = H5Aopen_by_name(file, "/background", "Omega_cdm+b", H5P_DEFAULT, H5P_DEFAULT);
+    if (attr < 0) abort();
+    if (H5Aread(attr, H5T_NATIVE_DOUBLE, &dOmega0) < 0) abort();
+    H5Aclose(attr);
+    // update csm->val.dOmega0
+    csm->val.dOmega0=dOmega0;
+    
+    /*
+    ** Read in the dark energy density parameter dOmegaDE
+    */
+    attr = H5Aopen_by_name(file, "/background", "Omega_fld", H5P_DEFAULT, H5P_DEFAULT);
+    if (attr < 0) abort();
+    if (H5Aread(attr, H5T_NATIVE_DOUBLE, &dOmegaDE) < 0) abort();
+    H5Aclose(attr);
+    // update csm->val.dOmegaDE
+    csm->val.dOmegaDE=dOmegaDE;
+    
+    /*
+    ** Read in the radiation energy density (photons) parameter dOmegaRad
+    
+    attr = H5Aopen_by_name(file, "/background", "Omega_g", H5P_DEFAULT, H5P_DEFAULT);
+    if (attr < 0) abort();
+    if (H5Aread(attr, H5T_NATIVE_DOUBLE, &dOmegaRad) < 0) abort();
+    H5Aclose(attr);
+    // update csm->val.dOmegaRad
+    csm->val.dOmegaRad=dOmegaRad;
+
+    *
+    ** Read in the neutrino density paremeter
+    *
+    attr = H5Aopen_by_name(file, "/background", "Omega_ncdm[0]", H5P_DEFAULT, H5P_DEFAULT);
+    if (attr < 0) abort();
+    if (H5Aread(attr, H5T_NATIVE_DOUBLE, &dOmegaNu) < 0) abort();
+    H5Aclose(attr);
+    // update csm->val.dOmegaRad
+    //csm->val.dOmegaRad += dOmegaNu;
+
+    
+    *
+    ** Read in the spectral index n_s
+    /
+    attr = H5Aopen_by_name(file, "/perturbations", "n_s", H5P_DEFAULT, H5P_DEFAULT);
+    if (attr < 0) abort();
+    if (H5Aread(attr, H5T_NATIVE_DOUBLE, &dSpectral) < 0) abort();
+    H5Aclose(attr);
+    // update csm->val.dSpectral
+    csm->val.dSpectral = dSpectral;
+
+    *
+    ** Read in the spectral amplitude
+    *
+    attr = H5Aopen_by_name(file, "/perturbations", "A_s", H5P_DEFAULT, H5P_DEFAULT);
+    if (attr < 0) abort();
+    if (H5Aread(attr, H5T_NATIVE_DOUBLE, &dNormalization) < 0) abort();
+    H5Aclose(attr);
+    // update csm->val.dNormalization
+    csm->val.dSpectral = dNormalization;
+    */
+
+    //printf("Omega0 read in from HDF5 file (by MK): %.14f\n", dOmega0); 
 
     /* The matter species "m" is really the combination "cdm+b".
     ** Here we check whether this is written as "cdm+b" or "b+cdm"
@@ -1019,51 +1096,53 @@ double csmComoveDriftFac(CSM csm,double dTime,double dDelta) {
 
     if (!csm->val.bComove) return(dDelta);
  
-    else if (csm->val.dLambda == 0.0 && csm->val.dOmegaDE == 0.0 && csm->val.dOmegaRad == 0.0) {
-	a1 = csmTime2Exp(csm,dTime);
-	a2 = csmTime2Exp(csm,dTime+dDelta);
-	if (dOmega0 == 1.0) {
-	    return((2.0/dHubble0)*(1.0/sqrt(a1) - 1.0/sqrt(a2)));
-	    }
-	else if (dOmega0 > 1.0) {
-	    assert(dHubble0 >= 0.0);
-	    if (dHubble0 == 0.0) {
-		A = 1.0;
-		B = 1.0/sqrt(dOmega0);
-		}
-	    else {
-		a0 = 1.0/dHubble0/sqrt(dOmega0-1.0);
-		A = 0.5*dOmega0/(dOmega0-1.0);
-		B = A*a0;
-		}
-	    eta1 = acos(1.0-a1/A);
-	    eta2 = acos(1.0-a2/A);
-	    return(B/A/A*(1.0/tan(0.5*eta1) - 1.0/tan(0.5*eta2)));
-	    }
-	else if (dOmega0 > 0.0) {
-	    assert(dHubble0 > 0.0);
-	    a0 = 1.0/dHubble0/sqrt(1.0-dOmega0);
-	    A = 0.5*dOmega0/(1.0-dOmega0);
-	    B = A*a0;
-	    eta1 = acosh(a1/A+1.0);
-	    eta2 = acosh(a2/A+1.0);
-	    return(B/A/A*(1.0/tanh(0.5*eta1) - 1.0/tanh(0.5*eta2)));
-	    }
-	else if (dOmega0 == 0.0) {
-	    /*
-	     ** YOU figure this one out!
-	     */
-	    assert(0);
-	    return(0.0);
-	    }
-	else {
-	    /*
-	     ** Bad value?
-	     */
-	    assert(0);
-	    return(0.0);
-	    }
-	}
+    else if (csm->val.classData.bClass == 0) {
+        if (csm->val.dLambda == 0.0 && csm->val.dOmegaDE == 0.0 && csm->val.dOmegaRad == 0.0) {
+            a1 = csmTime2Exp(csm,dTime);
+            a2 = csmTime2Exp(csm,dTime+dDelta);
+            if (dOmega0 == 1.0) {
+                return((2.0/dHubble0)*(1.0/sqrt(a1) - 1.0/sqrt(a2)));
+                }
+            else if (dOmega0 > 1.0) {
+                assert(dHubble0 >= 0.0);
+                if (dHubble0 == 0.0) {
+                    A = 1.0;
+                    B = 1.0/sqrt(dOmega0);
+                    }
+                else {
+                    a0 = 1.0/dHubble0/sqrt(dOmega0-1.0);
+                    A = 0.5*dOmega0/(dOmega0-1.0);
+                    B = A*a0;
+                    }
+                eta1 = acos(1.0-a1/A);
+                eta2 = acos(1.0-a2/A);
+                return(B/A/A*(1.0/tan(0.5*eta1) - 1.0/tan(0.5*eta2)));
+                }
+            else if (dOmega0 > 0.0) {
+                assert(dHubble0 > 0.0);
+                a0 = 1.0/dHubble0/sqrt(1.0-dOmega0);
+                A = 0.5*dOmega0/(1.0-dOmega0);
+                B = A*a0;
+                eta1 = acosh(a1/A+1.0);
+                eta2 = acosh(a2/A+1.0);
+                return(B/A/A*(1.0/tanh(0.5*eta1) - 1.0/tanh(0.5*eta2)));
+                }
+            else if (dOmega0 == 0.0) {
+                /*
+                 ** YOU figure this one out!
+                 */
+                assert(0);
+                return(0.0);
+                }
+            else {
+                /*
+                 ** Bad value?
+                 */
+                assert(0);
+                return(0.0);
+                }
+            }
+        }
     else {
 	gsl_function F;
 	F.function = &ComoveDrift_integrand;
@@ -1086,51 +1165,53 @@ double csmComoveKickFac(CSM csm,double dTime,double dDelta) {
     double a0,A,B,a1,a2,eta1,eta2;
 
     if (!csm->val.bComove) return(dDelta);
-    else if (csm->val.dLambda == 0.0 && csm->val.dOmegaDE == 0.0 && csm->val.dOmegaRad == 0.0) {
-	a1 = csmTime2Exp(csm,dTime);
-	a2 = csmTime2Exp(csm,dTime+dDelta);
-	if (dOmega0 == 1.0) {
-	    return((2.0/dHubble0)*(sqrt(a2) - sqrt(a1)));
-	    }
-	else if (dOmega0 > 1.0) {
-	    assert(dHubble0 >= 0.0);
-	    if (dHubble0 == 0.0) {
-		A = 1.0;
-		B = 1.0/sqrt(dOmega0);
-		}
-	    else {
-		a0 = 1.0/dHubble0/sqrt(dOmega0-1.0);
-		A = 0.5*dOmega0/(dOmega0-1.0);
-		B = A*a0;
-		}
-	    eta1 = acos(1.0-a1/A);
-	    eta2 = acos(1.0-a2/A);
-	    return(B/A*(eta2 - eta1));
-	    }
-	else if (dOmega0 > 0.0) {
-	    assert(dHubble0 > 0.0);
-	    a0 = 1.0/dHubble0/sqrt(1.0-dOmega0);
-	    A = 0.5*dOmega0/(1.0-dOmega0);
-	    B = A*a0;
-	    eta1 = acosh(a1/A+1.0);
-	    eta2 = acosh(a2/A+1.0);
-	    return(B/A*(eta2 - eta1));
-	    }
-	else if (dOmega0 == 0.0) {
-	    /*
-	     ** YOU figure this one out!
-	     */
-	    assert(0);
-	    return(0.0);
-	    }
-	else {
-	    /*
-	     ** Bad value?
-	     */
-	    assert(0);
-	    return(0.0);
-	    }
+    else if (csm->val.classData.bClass == 0) {
+        if (csm->val.dLambda == 0.0 && csm->val.dOmegaDE == 0.0 && csm->val.dOmegaRad == 0.0) {
+            a1 = csmTime2Exp(csm,dTime);
+            a2 = csmTime2Exp(csm,dTime+dDelta);
+            if (dOmega0 == 1.0) {
+                return((2.0/dHubble0)*(sqrt(a2) - sqrt(a1)));
+                }
+            else if (dOmega0 > 1.0) {
+                assert(dHubble0 >= 0.0);
+                if (dHubble0 == 0.0) {
+                    A = 1.0;
+                    B = 1.0/sqrt(dOmega0);
+                    }
+                else {
+                    a0 = 1.0/dHubble0/sqrt(dOmega0-1.0);
+                    A = 0.5*dOmega0/(dOmega0-1.0);
+                    B = A*a0;
+                    }
+                eta1 = acos(1.0-a1/A);
+                eta2 = acos(1.0-a2/A);
+                return(B/A*(eta2 - eta1));
+                }
+            else if (dOmega0 > 0.0) {
+                assert(dHubble0 > 0.0);
+                a0 = 1.0/dHubble0/sqrt(1.0-dOmega0);
+                A = 0.5*dOmega0/(1.0-dOmega0);
+                B = A*a0;
+                eta1 = acosh(a1/A+1.0);
+                eta2 = acosh(a2/A+1.0);
+                return(B/A*(eta2 - eta1));
+                }
+            else if (dOmega0 == 0.0) {
+                /*
+                 ** YOU figure this one out!
+                 */
+                assert(0);
+                return(0.0);
+                }
+            else {
+                /*
+                 ** Bad value?
+                 */
+                assert(0);
+                return(0.0);
+                }
 	}
+    }
     else {
 	gsl_function F;
 	F.function = &ComoveKick_integrand;
