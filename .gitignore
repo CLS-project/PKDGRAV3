@@ -6,3 +6,4 @@
 /windows*/*\.filters
 /windows*/*\.user
 /windows*/*\.filters
+build_*
