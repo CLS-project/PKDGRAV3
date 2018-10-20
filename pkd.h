@@ -1224,11 +1224,11 @@ static inline __m256d pkdGetPos(PKD pkd,PARTICLE *p) {
     return _mm256_mul_pd(_mm256_cvtepi32_pd(pkdGetPosRaw(pkd,p)),_mm256_set1_pd(1.0/INTEGER_FACTOR));
     }
 #define pkdGetPos3(pkd,p,d1,d2,d3) do {					\
-	union { __m256d p; double d[4]; } r_pkdGetPos3;			\
-	r_pkdGetPos3.p = pkdGetPos(pkd,p);				\
-	d1 = r_pkdGetPos3.d[0];						\
-	d2 = r_pkdGetPos3.d[1];						\
-	d3 = r_pkdGetPos3.d[2];						\
+	union { __m256d P; double D[4]; } r_pkdGetPos3;			\
+	r_pkdGetPos3.P = pkdGetPos(pkd,p);				\
+	d1 = r_pkdGetPos3.D[0];						\
+	d2 = r_pkdGetPos3.D[1];						\
+	d3 = r_pkdGetPos3.D[2];						\
 	} while(0)
 #else
 #define pkdGetPos3(pkd,p,d1,d2,d3) do { d1=pkdPos(pkd,p,0); d2=pkdPos(pkd,p,1); d3=pkdPos(pkd,p,2); } while(0)
