@@ -31,9 +31,15 @@ typedef struct {
     float v[3];
     } expandParticle;
 
+typedef struct {
+    int32_t r[3];
+    float v[3];
+    } integerParticle;
+
 typedef union {
     basicParticle b;
     expandParticle e;
+    integerParticle i;
     } overlayedParticle;
 
 #ifdef MDL_FFTW
