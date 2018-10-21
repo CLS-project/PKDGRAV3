@@ -6128,6 +6128,16 @@ void msrSetLinGrid(MSR msr,double dTime, int nGrid){
     struct inSetLinGrid in;
     in.nGrid = nGrid;
     in.dTime = dTime;
+
+    /* To disable the averaging of the linear \delta\rho
+    ** over each time step, set dTime_next equal to dTime.
+    */
+    int do_DeltaRho_lin_avg = 0;
+    if (do_DeltaRho_lin_avg)
+        in.dTime_next = dTime + msrDelta(msr);
+    else
+        in.dTime_next = in.dTime;
+
     in.dBSize = msr->param.dBoxSize;
     /* Parameters for the grid realization */
     in.iSeed = msr->param.iSeed;

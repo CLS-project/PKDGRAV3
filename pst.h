@@ -1345,6 +1345,7 @@ void pstAssignMass(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 /* PST_SETLINGRID */
 struct inSetLinGrid {
     double dTime;
+    double dTime_next;
     double dBSize;
     int nGrid;
     /* Noise generation */

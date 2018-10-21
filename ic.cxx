@@ -692,31 +692,76 @@ int pkdGenerateClassICm(PKD pkd, MDLFFT fft, int iSeed, int bFixed, float fPhase
     return nLocal;
 }
 
-void pkdGenerateLinGrid(PKD pkd, MDLFFT fft, double a,double Lbox, int iSeed, int bFixed, float fPhase){
+void pkdGenerateLinGrid(PKD pkd, MDLFFT fft, double a, double a_next, double Lbox, int iSeed,
+    int bFixed, float fPhase, int bRho){
+    /* If bRho == 0, we generate the \delta field,
+    ** otherwise we generate the \delta\rho field.
+    ** If a == a_next, we generate the field at this a.
+    ** Otherwize, we generate the weighted average of the
+    ** field over the interval [a, a_next]. Note that
+    ** averaging is only implemented for bRho == 1.
+    */
+    if (!bRho && a != a_next){
+        fprintf(stderr,
+            "WARNING: In pkdGenerateLinGrid(): Averaging of \\delta fields not implemented\n");
+        abort();
+    }
+    /* For the sake of performance we precompute the (possibly averaged)
+    ** field at the |k|'s at which the perturbations are tabulated.
+    */
+    size_t size = pkd->param.csm->val.classData.perturbations.size_k;
+    double *logk = (double*)malloc(sizeof(double)*size);
+    double *field = (double*)malloc(sizeof(double)*size);
+    size_t i;
+    double k;
+    gsl_interp_accel *acc;
+    gsl_spline *spline;
+    for (i = 0; i < size; i++){
+        k = pkd->param.csm->val.classData.perturbations.k[i];
+        logk[i] = log(k);
+        if (bRho)
+            /* Use the \delta\rho field, possibly averaged */
+            field[i] = csmDeltaRho_lin(pkd->param.csm, a, a_next, k);
+        else
+            /* Use the \delta field */
+            field[i] = csmDelta_lin(pkd->param.csm, a, k);
+        /* The cubic splining is much better without the analytic zeta */
+        field[i] /= csmZeta(pkd->param.csm, k);
+    }
+    acc = gsl_interp_accel_alloc();
+    spline = gsl_spline_alloc(gsl_interp_cspline, size);
+    gsl_spline_init(spline, logk, field, size);
+    /* Generate grid */
     mdlGridCoord kfirst, klast, kindex;
     mdlGridCoord rfirst, rlast, rindex;
     mdlGridCoordFirstLast(pkd->mdl, fft->kgrid, &kfirst, &klast, 0);
     mdlGridCoordFirstLast(pkd->mdl, fft->rgrid, &rfirst, &rlast, 0);
     double noiseMean, noiseCSQ;
     int idx;
-    double kx, ky, kz, k2;
+    ssize_t ix, iy, iz, i2;
     double iLbox = 2*M_PI/Lbox;
     int iNuquist = fft->rgrid->n3 / 2;
     gridptr noiseData;
     noiseData.r =(FFTW3(real) *)mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)),pkd->pLite);
-    pkdGenerateNoise(pkd, iSeed, bFixed, fPhase, fft, noiseData.k, &noiseMean, &noiseCSQ);    
-      /* Particle positions */
-    for( kindex=kfirst; !mdlGridCoordCompare(&kindex,&klast); mdlGridCoordIncrement(&kindex) ) {
-	/* Range: (-iNyquist,iNyquist] */
-	ky = wrap(kindex.z,iNuquist,fft->rgrid->n3) * iLbox;
-	kz = wrap(kindex.y,iNuquist,fft->rgrid->n2) * iLbox;
-	kx = wrap(kindex.x,iNuquist,fft->rgrid->n1) * iLbox;
-	k2 = kx*kx + ky*ky + kz*kz;
-	idx = kindex.i;
-	if (k2>0) 
-	    noiseData.k[idx] *= csmDelta_lin(pkd->param.csm, a, sqrt(k2));
+    pkdGenerateNoise(pkd, iSeed, bFixed, fPhase, fft, noiseData.k, &noiseMean, &noiseCSQ);
+    for (kindex=kfirst; !mdlGridCoordCompare(&kindex,&klast); mdlGridCoordIncrement(&kindex)){
+        /* Range: (-iNyquist,iNyquist] */
+        iy = wrap(kindex.z,iNuquist,fft->rgrid->n3);
+        iz = wrap(kindex.y,iNuquist,fft->rgrid->n2);
+        ix = wrap(kindex.x,iNuquist,fft->rgrid->n1);
+        i2 = ix*ix + iy*iy + iz*iz;
+        idx = kindex.i;
+        if (i2>0){
+            k = sqrt((double)i2)*iLbox;
+            noiseData.k[idx] *= csmZeta(pkd->param.csm, k)*gsl_spline_eval(spline, log(k), acc);
+        }
         else
             noiseData.k[idx] = 0.0;
     }
+    /* Cleanup */
+    gsl_interp_accel_free(acc);
+    gsl_spline_free(spline);
+    free(logk);
+    free(field);
 }
 

@@ -132,12 +132,13 @@ extern "C" {
 #endif
     void csmClassRead(CSM csm, double dBoxSize);
     void csmClassGslInitialize(CSM csm);
-    double csmRhoBar_m  (CSM csm, double a);
-    double csmRhoBar_lin(CSM csm, double a);
-    double csmDelta_m   (CSM csm, double a, double k);
-    double csmTheta_m   (CSM csm, double a, double k);
-    double csmDelta_lin (CSM csm, double a, double k);
-    double csmZeta      (CSM csm,           double k);
+    double csmRhoBar_m    (CSM csm, double a);
+    double csmRhoBar_lin  (CSM csm, double a);
+    double csmDelta_m     (CSM csm, double a,                double k);
+    double csmTheta_m     (CSM csm, double a,                double k);
+    double csmDelta_lin   (CSM csm, double a,                double k);
+    double csmDeltaRho_lin(CSM csm, double a, double a_next, double k);
+    double csmZeta        (CSM csm,                          double k);
 
     void csmInitialize(CSM *pcsm);
     void csmFinish(CSM csm);
