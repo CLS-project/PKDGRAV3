@@ -6132,7 +6132,7 @@ void msrSetLinGrid(MSR msr,double dTime, int nGrid){
     /* To disable the averaging of the linear \delta\rho
     ** over each time step, set dTime_next equal to dTime.
     */
-    int do_DeltaRho_lin_avg = 0;
+    int do_DeltaRho_lin_avg = 1;
     if (do_DeltaRho_lin_avg)
         in.dTime_next = dTime + msrDelta(msr);
     else
