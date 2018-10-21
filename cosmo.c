@@ -120,7 +120,7 @@ void csmClassRead(CSM csm, double dBoxSize){
     int nLinSpecies;
     hid_t file, group, attr, string_type, rhocrit_dataset, rhocrit_dataspace, memspace;
     hsize_t size_bg, size_a, size_k, count[1], offset[1], offset_out[1];
-    char *matter_name, hdf5_key[128], *unit_length,
+    char *matter_name, *de_name, hdf5_key[128], *unit_length,
         *linSpeciesNames[10], *linSpeciesName, *LinSpeciesParsing;
     double dOmegab, dOmega0, dOmegaDE, dOmegaRad, dOmegaNu, dSpectral,dNormalization, h;
     double a, k, rho_crit[1], unit_convertion_time, unit_convertion_density;
@@ -212,26 +212,59 @@ void csmClassRead(CSM csm, double dBoxSize){
     csm->val.dOmegab=dOmegab;
     */
 
+    /* The matter species "m" is really the combination "cdm+b".
+    ** Here we check whether this is written as "cdm+b" or "b+cdm"
+    ** in the HDF5 file.
+    */
+    if (H5Lexists(file, "/background/rho_cdm+b", H5P_DEFAULT)){
+        matter_name = "cdm+b";
+    } else if (H5Lexists(file, "/background/rho_b+cdm", H5P_DEFAULT)){
+        matter_name = "b+cdm";
+    } else {
+        fprintf(stderr,
+            "WARNING: Could not find the matter species in %s\n",
+            csm->val.classData.achFilename);
+        abort();
+    }
+
     /*
     ** Read in the total (cdm+b) matter density parameter dOmega0
     */
-    attr = H5Aopen_by_name(file, "/background", "Omega_cdm+b", H5P_DEFAULT, H5P_DEFAULT);
+    snprintf(hdf5_key, sizeof(hdf5_key), "Omega_%s", matter_name);
+    attr = H5Aopen_by_name(file, "/background", hdf5_key, H5P_DEFAULT, H5P_DEFAULT);
     if (attr < 0) abort();
     if (H5Aread(attr, H5T_NATIVE_DOUBLE, &dOmega0) < 0) abort();
     H5Aclose(attr);
     // update csm->val.dOmega0
     csm->val.dOmega0=dOmega0;
-    
+
+    /* The dark energy model may either be a cosmological constant
+    ** or the {w0, wa} parameterization, respectively called
+    ** "lambda" and "fld" in CLASS syntax. Here we check which is
+    ** present in the HDF5 fie.
+    */
+    if (H5Lexists(file, "/background/rho_lambda", H5P_DEFAULT)){
+        de_name = "lambda";
+    } else if (H5Lexists(file, "/background/rho_fld", H5P_DEFAULT)){
+        de_name = "fld";
+    } else {
+        fprintf(stderr,
+            "WARNING: Could not find the dark energy species in %s\n",
+            csm->val.classData.achFilename);
+        abort();
+    }
+
     /*
     ** Read in the dark energy density parameter dOmegaDE
     */
-    attr = H5Aopen_by_name(file, "/background", "Omega_fld", H5P_DEFAULT, H5P_DEFAULT);
+    snprintf(hdf5_key, sizeof(hdf5_key), "Omega_%s", de_name);
+    attr = H5Aopen_by_name(file, "/background", hdf5_key, H5P_DEFAULT, H5P_DEFAULT);
     if (attr < 0) abort();
     if (H5Aread(attr, H5T_NATIVE_DOUBLE, &dOmegaDE) < 0) abort();
     H5Aclose(attr);
     // update csm->val.dOmegaDE
     csm->val.dOmegaDE=dOmegaDE;
-    
+
     /*
     ** Read in the radiation energy density (photons) parameter dOmegaRad
     
@@ -275,21 +308,6 @@ void csmClassRead(CSM csm, double dBoxSize){
     */
 
     //printf("Omega0 read in from HDF5 file (by MK): %.14f\n", dOmega0); 
-
-    /* The matter species "m" is really the combination "cdm+b".
-    ** Here we check whether this is written as "cdm+b" or "b+cdm"
-    ** in the HDF5 file.
-    */
-    if (H5Lexists(file, "/background/rho_cdm+b", H5P_DEFAULT)){
-        matter_name = "cdm+b";
-    } else if (H5Lexists(file, "/background/rho_b+cdm", H5P_DEFAULT)){
-        matter_name = "b+cdm";
-    } else {
-        fprintf(stderr,
-            "WARNING: Could not find the matter species in %s\n",
-            csm->val.classData.achFilename);
-        abort();
-    }
 
     /* Read in the background, excluding densities of linear species */
     if (H5LTget_dataset_info(file, "/background/a", &size_bg, NULL, NULL) < 0) abort();
