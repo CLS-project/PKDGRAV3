@@ -947,6 +947,8 @@ double csmDeltaRho_lin(CSM csm, double a, double a_next, double k){
         /* Compute integrals */
         t = csmExp2Time(csm, a);
         t_next = csmExp2Time(csm, a_next);
+        if (t_next > t_arr[N - 1])
+            t_next = t_arr[N - 1];
         acc = gsl_interp_accel_alloc();
         spline = gsl_spline_alloc(gsl_interp_cspline, N);
         gsl_spline_init(spline, t_arr, y_arr, N);
@@ -1046,6 +1048,17 @@ static double Exp2TimeIntegrate(CSM csm,double dExp) {
 
 double csmExp2Time(CSM csm,double dExp) {
     if (csm->val.classData.bClass){
+        if (dExp > csm->val.classData.background.a[csm->val.classData.background.size - 1]){
+            /* dExp is in the future; do linear extrapolation */
+            return csm->val.classData.background.t[csm->val.classData.background.size - 1]
+                + (
+                    csm->val.classData.background.t[csm->val.classData.background.size - 1]
+                  - csm->val.classData.background.t[csm->val.classData.background.size - 2]
+                )/(
+                    csm->val.classData.background.a[csm->val.classData.background.size - 1]
+                  - csm->val.classData.background.a[csm->val.classData.background.size - 2]
+                )*(dExp - csm->val.classData.background.a[csm->val.classData.background.size - 1]);
+        }
         return exp(gsl_spline_eval(
             csm->classGsl.background.logExp2logTime_spline,
             log(dExp),
