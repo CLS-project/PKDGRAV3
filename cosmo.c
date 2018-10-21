@@ -120,7 +120,7 @@ void csmClassRead(CSM csm, double dBoxSize){
     int nLinSpecies;
     hid_t file, group, attr, string_type, rhocrit_dataset, rhocrit_dataspace, memspace;
     hsize_t size_bg, size_a, size_k, count[1], offset[1], offset_out[1];
-    char *matter_name, hdf5_key[128], *unit_length,
+    char *matter_name, *de_name, hdf5_key[128], *unit_length,
         *linSpeciesNames[10], *linSpeciesName, *LinSpeciesParsing;
     double dOmegab, dOmega0, dOmegaDE, dOmegaRad, dOmegaNu, dSpectral,dNormalization, h;
     double a, k, rho_crit[1], unit_convertion_time, unit_convertion_density;
@@ -212,26 +212,59 @@ void csmClassRead(CSM csm, double dBoxSize){
     csm->val.dOmegab=dOmegab;
     */
 
+    /* The matter species "m" is really the combination "cdm+b".
+    ** Here we check whether this is written as "cdm+b" or "b+cdm"
+    ** in the HDF5 file.
+    */
+    if (H5Lexists(file, "/background/rho_cdm+b", H5P_DEFAULT)){
+        matter_name = "cdm+b";
+    } else if (H5Lexists(file, "/background/rho_b+cdm", H5P_DEFAULT)){
+        matter_name = "b+cdm";
+    } else {
+        fprintf(stderr,
+            "WARNING: Could not find the matter species in %s\n",
+            csm->val.classData.achFilename);
+        abort();
+    }
+
     /*
     ** Read in the total (cdm+b) matter density parameter dOmega0
     */
-    attr = H5Aopen_by_name(file, "/background", "Omega_cdm+b", H5P_DEFAULT, H5P_DEFAULT);
+    snprintf(hdf5_key, sizeof(hdf5_key), "Omega_%s", matter_name);
+    attr = H5Aopen_by_name(file, "/background", hdf5_key, H5P_DEFAULT, H5P_DEFAULT);
     if (attr < 0) abort();
     if (H5Aread(attr, H5T_NATIVE_DOUBLE, &dOmega0) < 0) abort();
     H5Aclose(attr);
     // update csm->val.dOmega0
     csm->val.dOmega0=dOmega0;
-    
+
+    /* The dark energy model may either be a cosmological constant
+    ** or the {w0, wa} parameterization, respectively called
+    ** "lambda" and "fld" in CLASS syntax. Here we check which is
+    ** present in the HDF5 fie.
+    */
+    if (H5Lexists(file, "/background/rho_lambda", H5P_DEFAULT)){
+        de_name = "lambda";
+    } else if (H5Lexists(file, "/background/rho_fld", H5P_DEFAULT)){
+        de_name = "fld";
+    } else {
+        fprintf(stderr,
+            "WARNING: Could not find the dark energy species in %s\n",
+            csm->val.classData.achFilename);
+        abort();
+    }
+
     /*
     ** Read in the dark energy density parameter dOmegaDE
     */
-    attr = H5Aopen_by_name(file, "/background", "Omega_fld", H5P_DEFAULT, H5P_DEFAULT);
+    snprintf(hdf5_key, sizeof(hdf5_key), "Omega_%s", de_name);
+    attr = H5Aopen_by_name(file, "/background", hdf5_key, H5P_DEFAULT, H5P_DEFAULT);
     if (attr < 0) abort();
     if (H5Aread(attr, H5T_NATIVE_DOUBLE, &dOmegaDE) < 0) abort();
     H5Aclose(attr);
     // update csm->val.dOmegaDE
     csm->val.dOmegaDE=dOmegaDE;
-    
+
     /*
     ** Read in the radiation energy density (photons) parameter dOmegaRad
     
@@ -275,21 +308,6 @@ void csmClassRead(CSM csm, double dBoxSize){
     */
 
     //printf("Omega0 read in from HDF5 file (by MK): %.14f\n", dOmega0); 
-
-    /* The matter species "m" is really the combination "cdm+b".
-    ** Here we check whether this is written as "cdm+b" or "b+cdm"
-    ** in the HDF5 file.
-    */
-    if (H5Lexists(file, "/background/rho_cdm+b", H5P_DEFAULT)){
-        matter_name = "cdm+b";
-    } else if (H5Lexists(file, "/background/rho_b+cdm", H5P_DEFAULT)){
-        matter_name = "b+cdm";
-    } else {
-        fprintf(stderr,
-            "WARNING: Could not find the matter species in %s\n",
-            csm->val.classData.achFilename);
-        abort();
-    }
 
     /* Read in the background, excluding densities of linear species */
     if (H5LTget_dataset_info(file, "/background/a", &size_bg, NULL, NULL) < 0) abort();
@@ -850,6 +868,123 @@ double csmDelta_lin(CSM csm, double a, double k){
         log(k), loga,
         csm->classGsl.perturbations.logk2delta_lin_acc,
         csm->classGsl.perturbations.loga2delta_lin_acc);
+}
+double csmDeltaRho_lin(CSM csm, double a, double a_next, double k){
+    /* This function computes the linear \delta\rho(a, k), basically as
+    ** csmRhoBar_lin(a)*csmDelta_lin(a, k). If a_next is different from a,
+    ** it is expected to be the scale factor at the end of the current
+    ** time step. In this case, the weighted average of \delta\rho(k)
+    ** over the time step [a, a_next] will be returned. This weighting
+    ** takes the form
+    ** \int_t(a)^{t(a_next)} a(t)^2 \delta\rho(a(t), k) dt
+    **    / ( \int_t(a)^{t(a_next)} a(t)^2 dt ) ,
+    ** with t the cosmic time. The a^2 is needed because
+    ** it is a^2\delta\rho that enters in the Poisson equation.
+    ** The integration is done in t and not a as the momentum update is
+    ** proportional to time (dP/dt = F \propto k^2\phi \propto a^2\delta\rho).
+    */
+    assert(csm->val.classData.bClass);
+    if (a == a_next){
+        /* Compute \delta\rho at a == a_next */
+        return csmRhoBar_lin(csm, a)*csmDelta_lin(csm, a, k);
+    } else{
+        /* Do the weighted averaging */
+        int N_side_points, N_min_points;
+        ssize_t upper, lower, center, index_left, index_right, i, N;
+        double a_left, a_right, a_i, t, t_next, integral_y, integral_w, result;
+        double *t_arr, *y_arr, *w_arr;
+        gsl_interp_accel *acc;
+        gsl_spline *spline;
+        /* Number of additional tabulated points to include on both
+        ** sides of the interval [a, a_next].
+        */
+        N_side_points = 1;
+        /* Minimum number of points in the tabulations to come */
+        N_min_points = 18;
+        /* Determine left boundary of spline */
+        upper = csm->val.classData.perturbations.size_a - 1;
+        lower = 0;
+        while (upper - lower > 1){
+            center = (upper + lower)/2;
+            if (a < csm->val.classData.perturbations.a[center])
+                upper = center;
+            else
+                lower = center;
+        }
+        index_left = lower - N_side_points;
+        if (index_left < 0)
+            index_left = 0;
+        a_left = csm->val.classData.perturbations.a[index_left];
+        /* Determine right boundary of spline */
+        upper = csm->val.classData.perturbations.size_a - 1;
+        lower = 0;
+        while (upper - lower > 1){
+            center = (upper + lower)/2;
+            if (a_next < csm->val.classData.perturbations.a[center])
+                upper = center;
+            else
+                lower = center;
+        }
+        index_right = lower + N_side_points;
+        if (a_next != csm->val.classData.perturbations.a[lower])
+            index_right += 1;
+        if (index_right > csm->val.classData.perturbations.size_a - 1)
+            index_right = csm->val.classData.perturbations.size_a - 1;
+        a_right = csm->val.classData.perturbations.a[index_right];
+        /* Construct integrands */
+        N = index_right - index_left + 1;
+        if (N < N_min_points)
+            N = N_min_points;
+        t_arr = (double*)malloc(sizeof(double)*N);
+        y_arr = (double*)malloc(sizeof(double)*N);
+        w_arr = (double*)malloc(sizeof(double)*N);
+        for (i = 0; i < N; i++){
+            a_i = a_left + (a_right - a_left)/(N - 1)*i;
+            w_arr[i] = a_i*a_i;
+            y_arr[i] = w_arr[i]*csmDelta_lin(csm, a_i, k)*csmRhoBar_lin(csm, a_i);
+            t_arr[i] = csmExp2Time(csm, a_i);
+        }
+        /* Compute integrals */
+        t = csmExp2Time(csm, a);
+        t_next = csmExp2Time(csm, a_next);
+        acc = gsl_interp_accel_alloc();
+        spline = gsl_spline_alloc(gsl_interp_cspline, N);
+        gsl_spline_init(spline, t_arr, y_arr, N);
+        integral_y = gsl_spline_eval_integ(spline, t, t_next, acc);
+        gsl_spline_init(spline, t_arr, w_arr, N);
+        integral_w = gsl_spline_eval_integ(spline, t, t_next, acc);
+        result = integral_y/integral_w;
+        /* Cleanup */
+        gsl_interp_accel_free(acc);
+        gsl_spline_free(spline);
+        free(t_arr);
+        free(y_arr);
+        free(w_arr);
+        /* Test */
+        int do_DeltaRho_lin_average_test = 0;
+        if (do_DeltaRho_lin_average_test){
+            /* Do the integrals as Riemann sums */
+            double a_i2, t_i, t_i2, dt;
+            size_t N_test = 1000;
+            integral_y = 0;
+            integral_w = 0;
+            for (i = 0; i < N_test - 1; i++){
+                a_i  = a + (a_next - a)/(N_test - 1)*i;
+                a_i2 = a + (a_next - a)/(N_test - 1)*(i + 1);
+                t_i  = csmExp2Time(csm, a_i);
+                t_i2 = csmExp2Time(csm, a_i2);
+                dt = t_i2 - t_i;
+                a_i = csmTime2Exp(csm, 0.5*(t_i + t_i2));
+                integral_w += dt*a_i*a_i;
+                integral_y += dt*a_i*a_i*csmDelta_lin(csm, a_i, k)*csmRhoBar_lin(csm, a_i);
+            }
+            printf("TEST DeltaRho_lin average: a = %.17lg, a_next = %.17lg, "
+                "GSL = %.17e (N = %zu), Riemann = %.17e (N = %zu)\n",
+                a, a_next, result, N, integral_y/integral_w, N_test);
+        }
+        /* Return the weighted average */
+        return result;
+    }
 }
 double csmZeta(CSM csm, double k){
     double zeta;

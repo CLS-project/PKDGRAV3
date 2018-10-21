@@ -67,6 +67,7 @@ int pkdGenerateClassICm(PKD pkd, MDLFFT fft, int iSeed, int bFixed, float fPhase
 #ifdef __cplusplus
 extern "C"
 #endif
-void pkdGenerateLinGrid(PKD pkd, MDLFFT fft,double a,double LBox, int iSeed, int bFixed, float fPhase);
+void pkdGenerateLinGrid(PKD pkd, MDLFFT fft, double a, double a_next, double LBox, int iSeed,
+    int bFixed, float fPhase, int bRho);
 #endif
 #endif

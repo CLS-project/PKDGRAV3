@@ -976,7 +976,8 @@ static double green(int i, int jj, int kk, int nGrid){
         return -1.0/g;
 }
 
-void pkdSetLinGrid(PKD pkd,double dTime, double dBSize, int nGrid, int iSeed, int bFixed, float fPhase) {
+void pkdSetLinGrid(PKD pkd, double dTime, double dTime_next, double dBSize, int nGrid, int iSeed,
+    int bFixed, float fPhase) {
         MDLFFT fft = pkd->Linfft;
         /* Grid coordinates in real space :      [0, nGrid].[0, nGrid].[0, nGrid] */
         mdlGridCoord rfirst, rlast, rindex;
@@ -996,15 +997,17 @@ void pkdSetLinGrid(PKD pkd,double dTime, double dBSize, int nGrid, int iSeed, in
         mdlThreadBarrier(pkd->mdl);
         __itt_resume();
 #endif
-        /* Scale factor, and normalization */
-        const double a = csmTime2Exp(pkd->param.csm, dTime);
-        const double dRhoMean = csmRhoBar_lin(pkd->param.csm, a) * a*a*a * dBSize;
+        /* Scale factors and normalization */
+        const double a      = csmTime2Exp(pkd->param.csm, dTime);
+        const double a_next = csmTime2Exp(pkd->param.csm, dTime_next);
+        const double dNormalization = a*a*a * dBSize;
 
         mdlGridCoordFirstLast(pkd->mdl,fft->rgrid,&rfirst,&rlast,1);
         mdlGridCoordFirstLast(pkd->mdl,fft->kgrid,&kfirst,&klast,0);
 
         /* Imprint the density grid of the linear species */
-        pkdGenerateLinGrid(pkd, fft, a, dBSize, iSeed, bFixed, fPhase);
+        int bRho = 1;  /* Generate the \delta\rho field */
+        pkdGenerateLinGrid(pkd, fft, a, a_next, dBSize, iSeed, bFixed, fPhase, bRho);
         cDelta_lin_field = mdlSetArray(pkd->mdl, klast.i, sizeof(FFTW3(complex)), pkd->pLite);
 
         /* Remember, the grid is now transposed to x,z,y (from x,y,z) */
@@ -1013,7 +1016,7 @@ void pkdSetLinGrid(PKD pkd,double dTime, double dBSize, int nGrid, int iSeed, in
 
         int idx, i, j, jj, k, kk;
         const int iNyquist = nGrid / 2 ;
-        double rePotential, imPotential; 
+        double rePotential, imPotential;
         double dDifferentiate, dPoissonSolve;
         double win_j, win_k;
         /* Here starts the Poisson solver */
@@ -1033,7 +1036,7 @@ void pkdSetLinGrid(PKD pkd,double dTime, double dBSize, int nGrid, int iSeed, in
                 i = kindex.x;
                 double win = deconvolveLinWindow(i,nGrid)*win_j*win_k;
                 /* Green Function for a discrete Laplacian operator */
-                dPoissonSolve=4*M_PI*green(i,jj,kk,nGrid)*dRhoMean*win;
+                dPoissonSolve=4*M_PI*green(i,jj,kk,nGrid)*dNormalization*win;
                 /* Solve Poisson equation */
 
                 rePotential = cDelta_lin_field[idx][0] * dPoissonSolve;
@@ -1099,8 +1102,14 @@ void pkdMeasureLinPk(PKD pkd, int nGrid, double dA, double dBoxSize,
     mdlGridCoordFirstLast(pkd->mdl,fft->rgrid,&first,&last,1);
     /* Generate the grid of the linear species again,
     ** this should not be done this way for performances.
+    ** - Well, for the gravity computation what is generated
+    **   on the grid is \delta\rho averaged over one time step.
+    **   Here we want the \delta power spectrum at a specific
+    **   time, and so we need to generate the \delta field at this
+    **   time. We thus have to re-generate the grid.
     */
-    pkdGenerateLinGrid(pkd, fft, dA, dBoxSize, iSeed, bFixed, fPhase);
+    int bRho = 0; double a_next = dA; /* Generate the \delta field at dA (no averaging) */
+    pkdGenerateLinGrid(pkd, fft, dA, a_next, dBoxSize, iSeed, bFixed, fPhase, bRho);
 
     /* Remember, the grid is now transposed to x,z,y (from x,y,z) */
     mdlGridCoordFirstLast(pkd->mdl,fft->kgrid,&first,&last,0);

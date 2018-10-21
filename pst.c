@@ -4490,7 +4490,7 @@ void pstSetLinGrid(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
         }
         else {
             plcl->pkd->Linfft = mdlFFTInitialize(pst->mdl, in->nGrid, in->nGrid, in->nGrid, 0,0);
-            pkdSetLinGrid(plcl->pkd, in->dTime,
+            pkdSetLinGrid(plcl->pkd, in->dTime, in->dTime_next,
                 in->dBSize, in->nGrid, 
                 in ->iSeed, in->bFixed, in->fPhase);
         }
