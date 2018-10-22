@@ -81,12 +81,14 @@ public:
     inline int n2()             const { return grid()[1]; }
     inline int n3()             const { return grid()[2]; }
     inline uint64_t nt()        const { return (uint64_t)grid()[0]*grid()[1]*grid()[2]; }
+    inline uint64_t nlocal()    const { return m_nlocal; }
 
     inline int a1k()            const { return n1k(); }
     inline int a1r()            const { return 2*a1k(); }
 
     void setupArray(real_t *dataFirst,real_array_t &rspace);
     void setupArray(real_t *dataFirst,complex_array_t &kspace);
+    void setupArray(complex_t *dataFirst,complex_array_t &kspace);
 
     explicit GridInfo(MDL mdl,MDLFFT fft);
     };

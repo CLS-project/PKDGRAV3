@@ -41,14 +41,20 @@ void GridInfo::setupArray(real_t *dataFirst,real_array_t &rspace) {
     // - The z dimension is a slab on this processor: sz() -> ez()
     //   but it has dimensions 0 -> nz() to avoid overflowing index calculations
     // Note that we may end up with zero elements on some processors! nz()==0
-    if (nz()) {
+    auto ny = (n2()+m_nCore-1) / m_nCore;
+    auto sy = m_iCore * ny;
+    auto ey = sy + ny;
+    if (sy >= n2()) sy = ey = 0;
+    else if (ey > n2()) ey = n2();
+    ny = ey - sy;
+    if (nz() && ny) {
         real_array_t rawr(
             dataFirst,
             blitz::shape(a1r(),n2(),nz()), blitz::neverDeleteData,
             RegularArray());
         real_array_t rspace2=
             rawr(blitz::Range(0,n1r()-1),
-                blitz::Range(0,n2()-1),
+                blitz::Range(sy,ey-1),
                 blitz::Range(0,nz()-1));
         rspace.reference(rspace2);
         }
@@ -63,7 +69,7 @@ void GridInfo::setupArray(real_t *dataFirst,real_array_t &rspace) {
 //pthread_mutex_lock(&mutex);
 //pthread_mutex_unlock(&mutex);
 
-void GridInfo::setupArray(real_t *dataFirst,complex_array_t &kspace) {
+void GridInfo::setupArray(complex_t *dataFirst,complex_array_t &kspace) {
     // The complex array shares the storage of the real array, but:
     // - The x dimension is 1 greater than half the grid size
     // - The z and y dimensions are transposed.
@@ -77,7 +83,7 @@ void GridInfo::setupArray(real_t *dataFirst,complex_array_t &kspace) {
     nz = ez - sz;
     if (ny() && nz) {
         complex_array_t rawk( // Raw dimensions. May include holes
-            reinterpret_cast<complex_t *>(dataFirst),
+            dataFirst,
             blitz::shape(a1k(),ny(),n3()), blitz::neverDeleteData,
             TransposedArray());
         complex_array_t kspace2 = // Just the valid parts for our core
@@ -92,4 +98,8 @@ void GridInfo::setupArray(real_t *dataFirst,complex_array_t &kspace) {
         complex_array_t kspace2;
         kspace.reference(kspace2);
         }
+    }
+
+void GridInfo::setupArray(real_t *dataFirst,complex_array_t &kspace) {
+    setupArray(reinterpret_cast<complex_t *>(dataFirst),kspace);
     }
