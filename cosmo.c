@@ -1301,6 +1301,7 @@ double csmComoveDriftFac(CSM csm,double dTime,double dDelta) {
 	    0.0, EPSCOSMO, LIMIT, GSL_INTEG_GAUSS61, csm->W, &result, &error);
 	return result;
 	}
+    return 0.0;
     }
 
 
@@ -1370,6 +1371,7 @@ double csmComoveKickFac(CSM csm,double dTime,double dDelta) {
 	    0.0, EPSCOSMO, LIMIT, GSL_INTEG_GAUSS61, csm->W, &result, &error);
 	return result;
 	}
+    return 0.0;
     }
 
 double csmComoveLookbackTime2Exp(CSM csm,double dComoveTime) {
