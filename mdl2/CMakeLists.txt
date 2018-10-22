@@ -36,11 +36,12 @@ target_sources(${PROJECT_NAME}
           ${CMAKE_CURRENT_BINARY_DIR}/mdl_config.h
 )
 if (HWLOC_FOUND)
+  find_library(HWLOC_LIBRARY hwloc HINTS ${HWLOC_LIBDIR})
   CHECK_LIBRARY_EXISTS(hwloc hwloc_topology_init ${HWLOC_LIBDIR} HAVE_HWLOC)
   if (HAVE_HWLOC)
     set(USE_HWLOC TRUE)
     target_include_directories(${PROJECT_NAME} PUBLIC ${HWLOC_INCLUDE_DIRS})
-    target_link_libraries(${PROJECT_NAME} ${HWLOC_LIBRARIES})
+    target_link_libraries(${PROJECT_NAME} ${HWLOC_LIBRARY})
   else()
     message(WARNING
 	" Found hwloc library but cannot link to it, so we won't use it.\n"
