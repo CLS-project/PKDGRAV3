@@ -27,18 +27,27 @@
 #include "pkd.h"
 #include "ic.h"
 #include "RngStream.h"
-#ifdef __cplusplus
-#include <complex>
-typedef std::complex<float> COMPLEX;
+#include "gridinfo.hpp"
+using namespace gridinfo;
+using namespace blitz;
+typedef complex_t COMPLEX;
 #define REAL(x) std::real(x)
 #define IMAG(x) std::imag(x)
 static const std::complex<float> I(0,1);
-#else
-#include <complex.h>
-#define COMPLEX float complex
-#define REAL(x) creal(x)
-#define IMAG(x) cimag(x)
-#endif
+
+
+void transpose(real_array_t &R, int nRows, int nCols) {
+    fftw_iodim d[2];
+    d[0].n  = nRows;
+    d[0].is = nCols;
+    d[0].os = 1;
+    d[1].n  = nCols;
+    d[1].is = 1;
+    d[1].os = nRows;
+    fftwf_plan plan = fftwf_plan_guru_r2r(0,NULL,2,d,R.dataFirst(),R.dataFirst(),NULL,FFTW_ESTIMATE);
+    fftwf_execute(plan);
+    fftwf_destroy_plan(plan);
+    }
 
 typedef union {
     FFTW3(real) *r;
@@ -121,13 +130,22 @@ static int wrap(int v,int h,int m) {
     return v - (v > h ? m : 0);
     }
 
+// A blitz++ friendly wrap function. returns "ik" given array index
+// Range: (-iNyquist,iNyquist] where iNyquist = m/2
+static float fwrap(float v,float m) {
+    return v - (v > m*0.5 ? m : 0);
+    }
+BZ_DEFINE_BINARY_FUNC(Fn_fwrap,fwrap)
+BZ_DECLARE_ARRAY_ET_BINARY(fwrap,     Fn_fwrap)
+BZ_DECLARE_ARRAY_ET_BINARY_SCALAR(fwrap,     Fn_fwrap, float)
+
 /*
 ** Generate Gaussian white noise in k-space. The noise is in the proper form for
 ** an inverse FFT. The complex conjugates in the Nyquist planes are correct, and
 ** the normalization is such that that the inverse FFT needs to be normalized
 ** by sqrt(Ngrid^3) compared with Ngrid^3 with FFT followed by IFFT.
 */
-static void pkdGenerateNoise(PKD pkd,unsigned long seed,int bFixed, float fPhase,MDLFFT fft,COMPLEX *ic,double *mean,double *csq) {
+static void pkdGenerateNoise(PKD pkd,unsigned long seed,int bFixed, float fPhase,MDLFFT fft,complex_array_t &K,double *mean,double *csq) {
     MDL mdl = pkd->mdl;
     const int nGrid = fft->kgrid->n3;
     const int iNyquist = nGrid / 2;
@@ -136,8 +154,9 @@ static void pkdGenerateNoise(PKD pkd,unsigned long seed,int bFixed, float fPhase
     int i,j,k;
     COMPLEX v_ny,v_wn;
 
-    mdlGridCoord kfirst, klast, kindex;
-    mdlGridCoordFirstLast(mdl,fft->kgrid,&kfirst,&klast,0);
+//    GridInfo G(pkd->mdl,fft);
+//    complex_array_t K;
+//    G.setupArray(ic,K);
 
     fullKey[0] = seed;
     fullKey[1] = fullKey[0];
@@ -160,28 +179,28 @@ static void pkdGenerateNoise(PKD pkd,unsigned long seed,int bFixed, float fPhase
     *mean = *csq = 0.0;
 
     j = k = nGrid; /* Start with invalid values so we advance the RNG correctly. */
-    for( kindex=kfirst; !mdlGridCoordCompare(&kindex,&klast); mdlGridCoordIncrement(&kindex) ) {
-	if (j!=kindex.z || k!=kindex.y) {
-	    assert(kindex.x==0); /* The contrary should work properly now but needs testing. */
-	    j = kindex.z; /* Remember: z and y indexes are permuted in k-space */
-	    k = kindex.y;
-
+    for( auto index=K.begin(); index!=K.end(); ++index ) {
+    	auto pos = index.position();
+	if (j!=pos[1] || k!=pos[2]) { // Start a new pencil
+	    assert(pos[0]==0);
+	    j = pos[1];
+	    k = pos[2];
 	    int jj = j<=iNyquist ? j*2 : (nGrid-j)*2 % nGrid + 1;
 	    int kk = k<=iNyquist ? k*2 : (nGrid-k)*2 % nGrid + 1;
 
 	    /* We need the sample for x==0 AND/OR x==iNyquist, usually both but at least one. */
 	    RngStream_ResetStartStream (g);
-	    if ( kindex.y <= iNyquist && (kindex.y%iNyquist!=0||kindex.z<=iNyquist) ) { /* Positive zone */
+	    if ( pos[2] <= iNyquist && (pos[2]%iNyquist!=0||pos[1]<=iNyquist) ) { /* Positive zone */
 		RngStream_AdvanceState (g, 0, (1LL<<40)*jj + (1LL<<20)*kk );
 		v_ny = pairc(g,bFixed,fPhase);
 		v_wn = pairc(g,bFixed,fPhase);
 
-		if ( (kindex.z==0 || kindex.z==iNyquist)  && (kindex.y==0 || kindex.y==iNyquist) ) {
+		if ( (pos[1]==0 || pos[1]==iNyquist)  && (pos[2]==0 || pos[2]==iNyquist) ) {
 		    /* These are real because they must be a complex conjugate of themselves. */
 		    v_ny = REAL(v_ny);
 		    v_wn = REAL(v_wn);
 		    /* DC mode is zero */
-		    if ( kindex.y==0 && kindex.z==0) v_wn = 0.0;
+		    if ( pos[2]==0 && pos[1]==0) v_wn = 0.0;
 		    }
 		}
 	    /* We need to generate the correct complex conjugates */
@@ -197,18 +216,14 @@ static void pkdGenerateNoise(PKD pkd,unsigned long seed,int bFixed, float fPhase
 		RngStream_AdvanceState (g, 0, (1LL<<40)*jj + (1LL<<20)*kk );
 		pairc(g,bFixed,fPhase); pairc(g,bFixed,fPhase); /* Burn the two samples we didn't use. */
 		}
-	    if (kindex.z!=klast.z || kindex.y!=klast.y || klast.x>iNyquist) 
-		ic[kindex.i-kindex.x+iNyquist] = v_ny;
-	    if (kindex.x < iNyquist) {
-		for(i=0; i<kindex.x; ++i) v_wn = pairc(g,bFixed,fPhase); /* (optional) advance to this sample */
-		ic[kindex.i] = v_wn;
-		}
+	    K(iNyquist,pos[1],pos[2]) = v_ny;
+	    *index = v_wn;
 	    }
-	else if (kindex.x!=iNyquist) {
-	    ic[kindex.i] = pairc(g,bFixed,fPhase);
+	else if (pos[0]!=iNyquist) {
+	    *index = pairc(g,bFixed,fPhase);
 	    }
-	*mean += REAL(ic[kindex.i]) + IMAG(ic[kindex.i]);
-	*csq += REAL(ic[kindex.i] * conj(ic[kindex.i]));
+	*mean += REAL(*index) + IMAG(*index);
+	*csq += std::norm(*index);
 	}
     RngStream_DeleteStream(&g);
     }
@@ -225,7 +240,7 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int bFixed,float fPhase,int nGrid
     float inGrid = 1.0 / nGrid;
     float fftNormalize = inGrid*inGrid*inGrid;
     int i,j,k,idx;
-    float ix, iy, iz;
+    float fx, fy, fz;
     int iNyquist = nGrid / 2;
     float iLbox = twopi / dBoxSize;
     float iLbox3 = pow(iLbox,3.0);
@@ -287,6 +302,17 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int bFixed,float fPhase,int nGrid
     velFactor = csmExp2Hub(csm,a);
     velFactor *= a*a; /* Comoving */
 
+    // Construct the arrays. "data" points to the same block for all threads!
+    GridInfo G(pkd->mdl,fft);
+    complex_array_t K[10];
+    real_array_t R[10];
+    auto data = reinterpret_cast<real_t *>(mdlSetArray(pkd->mdl,0,0,pkdParticleBase(pkd)));
+    for(i=0; i<10; ++i) {
+	G.setupArray(data,K[i]);
+	G.setupArray(data,R[i]);
+	data += fft->rgrid->nLocal;
+	}
+
     mdlGridCoordFirstLast(mdl,fft->kgrid,&kfirst,&klast,0);
     mdlGridCoordFirstLast(mdl,fft->rgrid,&rfirst,&rlast,0);
     assert(rlast.i == klast.i*2); /* Arrays must overlap here. */
@@ -314,141 +340,82 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int bFixed,float fPhase,int nGrid
     ic[8].r = (FFTW3(real) *)mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)),ic[8].r);
     ic[9].r = (FFTW3(real) *)mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)),ic[9].r);
 
-    /* Particles will overlap ic[0] through ic[5] eventually */
+    /* Particles will overlap K[0] through K[5] eventually */
     nLocal = rlast.i / fft->rgrid->a1 * fft->rgrid->n1;
     p = (basicParticle *)mdlSetArray(pkd->mdl,nLocal,sizeof(basicParticle),pkdParticleBase(pkd));
 
-    /* Generate white noise realization -> ic[6] */
+    /* K[6]: White noise realization ->  */
     if (mdlSelf(mdl)==0) {printf("Generating random noise\n"); fflush(stdout); }
-    pkdGenerateNoise(pkd,iSeed,bFixed,fPhase,fft,ic[6].k,noiseMean,noiseCSQ);
-#if 0
-    if (mdlSelf(mdl)==0) {printf("Writing noise\n"); fflush(stdout); }
-    float csq = 0.0;
-    for( kindex=kfirst; !mdlGridCoordCompare(&kindex,&klast); mdlGridCoordIncrement(&kindex) ) {
-	idx = kindex.i;
-	ic[7].k[idx] = ic[6].k[idx];
-	csq += REAL(ic[7].k[idx] * conj(ic[7].k[idx]));
-	}
-    mdlIFFT(mdl, fft, (FFTW3(complex)*)ic[7].k );
-
-#if 0
-    // Copy it back, normalize and take the FFT -- should give the same result
-    for( rindex=rfirst; !mdlGridCoordCompare(&rindex,&rlast); mdlGridCoordIncrement(&rindex) ) {
-	int i = rindex.i;
-	ic[7].r[i] *= 1.0/nGrid/nGrid/nGrid;
-	}
-    mdlFFT(mdl, fft, ic[7].r );
-
-    for( kindex=kfirst; !mdlGridCoordCompare(&kindex,&klast); mdlGridCoordIncrement(&kindex) ) {
-	idx = kindex.i;
-	float a = REAL(ic[7].k[idx]-ic[6].k[idx]);
-	float b = IMAG(ic[7].k[idx]-ic[6].k[idx]);
-	if ( fabs(a) > 1e-6 || fabs(b) > 1e-6)
-	    printf("%3d.%3d.%3d: %+6f + %+6f i   %+6f + %+6f i   %+6f + %+6f i  !\n",
-		kindex.x,kindex.y,kindex.z,
-		a,b,
-		REAL(ic[6].k[idx]),IMAG(ic[6].k[idx]),
-		REAL(ic[7].k[idx]),IMAG(ic[7].k[idx]));
-	assert ( fabs(a) < 1e-6 && fabs(b) < 1e-6);
-//	else
-//	    printf("%3d.%3d.%3d:                           %+6f + %+6f i   %+6f + %+6f i\n",
-//		kindqex.x,kindex.y,kindex.z,
-//		REAL(ic[6].k[idx]),IMAG(ic[6].k[idx]),
-//		REAL(ic[7].k[idx]),IMAG(ic[7].k[idx]));
-	}
-#endif
-
-    if (mdlSelf(mdl)==0) {
-	FILE *fp = fopen("wn.dat","wb");
-	assert(fp);
-	uint32_t w;
-
-	w = 16;
-	fwrite(&w,sizeof(w),1,fp);
-	fwrite(&nGrid,sizeof(nGrid),1,fp);
-	fwrite(&nGrid,sizeof(nGrid),1,fp);
-	fwrite(&nGrid,sizeof(nGrid),1,fp);
-	fwrite(&nGrid,sizeof(nGrid),1,fp);
-	fwrite(&w,sizeof(w),1,fp);
-
-	w = nGrid * nGrid * sizeof(float);
-	double sum = 0.0;
-	double sum2 = 0.0;
-	for(k=0; k<nGrid; ++k) {
-	    fwrite(&w,sizeof(w),1,fp);
-	    for(j=0; j<nGrid; ++j) {
-		int ii = fft->rgrid->a1*(j + k*nGrid);
-		for(i=0; i<nGrid; ++i) {
-		    float v = ic[7].r[i + ii] *= sqrt(1.0/nGrid/nGrid/nGrid);
-		    sum += v;
-		    sum2 += v*v;
-		    }
-		fwrite(&(ic[7].r[ii]),sizeof(float),nGrid,fp);
-		}
-	    fwrite(&w,sizeof(w),1,fp);
-	    }
-	fclose(fp);
-	sum /= nGrid*nGrid*nGrid;
-	printf("mean=%g sum2=%g var=%g\n", sum, sum2, sum2/(nGrid*nGrid*nGrid) );
-	}
-    mdlThreadBarrier(pkd->mdl);
-#endif
+    pkdGenerateNoise(pkd,iSeed,bFixed,fPhase,fft,K[7],noiseMean,noiseCSQ);
 
     if (mdlSelf(mdl)==0) {printf("Imprinting power\n"); fflush(stdout); }
-    for( kindex=kfirst; !mdlGridCoordCompare(&kindex,&klast); mdlGridCoordIncrement(&kindex) ) {
-	/* Range: (-iNyquist,iNyquist] */
-	iy = wrap(kindex.z,iNyquist,fft->rgrid->n3);
-	iz = wrap(kindex.y,iNyquist,fft->rgrid->n2);
-	ix = wrap(kindex.x,iNyquist,fft->rgrid->n1);
-	idx = kindex.i;
-	ak2 = ix*ix + iy*iy + iz*iz;
+    for( auto index=K[7].begin(); index!=K[7].end(); ++index ) {
+	auto pos = index.position();
+	fz = fwrap(pos[2],nGrid); // Range: (-iNyquist,iNyquist]
+	fy = fwrap(pos[1],nGrid);
+	fx = pos[0];
+	ak2 = fx*fx + fy*fy + fz*fz;
 	if (ak2>0) {
 	    ak = sqrt(ak2) * iLbox;
 	    amp = sqrt(power(&P,ak) * iLbox3) * itwopi / ak2;
 	    }
 	else amp = 0.0;
-	ic[7].k[idx] = ic[6].k[idx] * amp * ix * -I;
-	ic[8].k[idx] = ic[6].k[idx] * amp * iy * -I;
-	ic[9].k[idx] = ic[6].k[idx] * amp * iz * -I;
+	K[9](pos) = *index * amp * fz * -I; // z
+	K[8](pos) = *index * amp * fy * -I; // y
+	K[7](pos) = *index * amp * fx * -I; // x
 	if (b2LPT) {
-	    ic[0].k[idx] = ic[7].k[idx] * twopi * ix * -I; /* xx */
-	    ic[1].k[idx] = ic[8].k[idx] * twopi * iy * -I; /* yy */
-	    ic[2].k[idx] = ic[9].k[idx] * twopi * iz * -I; /* zz */
-	    ic[3].k[idx] = ic[7].k[idx] * twopi * iy * -I; /* xy */
-	    ic[4].k[idx] = ic[8].k[idx] * twopi * iz * -I; /* yz */
-	    ic[5].k[idx] = ic[9].k[idx] * twopi * ix * -I; /* zx */
+//	    K[0](pos) = K[7](pos) * twopi * ix * -I; // xx
+//	    K[1](pos) = K[8](pos) * twopi * iy * -I; // yy
+//	    K[2](pos) = K[9](pos) * twopi * iz * -I; // zz
+//	    K[3](pos) = K[7](pos) * twopi * iy * -I; // xy
+//	    K[4](pos) = K[8](pos) * twopi * iz * -I; // yz
+//	    K[5](pos) = K[9](pos) * twopi * ix * -I; // zx
 	    }
 	}
 
-    if (mdlSelf(mdl)==0) {printf("Generating x displacements\n"); fflush(stdout); }
-    mdlIFFT(mdl, fft, (FFTW3(complex)*)ic[7].k );
-    if (mdlSelf(mdl)==0) {printf("Generating y displacements\n"); fflush(stdout); }
-    mdlIFFT(mdl, fft, (FFTW3(complex)*)ic[8].k );
-    if (mdlSelf(mdl)==0) {printf("Generating z displacements\n"); fflush(stdout); }
-    mdlIFFT(mdl, fft, (FFTW3(complex)*)ic[9].k );
     if (b2LPT) {
 	if (mdlSelf(mdl)==0) {printf("Generating xx term\n"); fflush(stdout); }
-	mdlIFFT(mdl, fft, (FFTW3(complex)*)ic[0].k );
+	K[0] = K[7] * twopi * -I * fwrap(tensor::i,nGrid); // xx
+        mdlIFFT(mdl, fft, (FFTW3(complex)*)K[0].dataFirst() );
+
 	if (mdlSelf(mdl)==0) {printf("Generating yy term\n"); fflush(stdout); }
-	mdlIFFT(mdl, fft, (FFTW3(complex)*)ic[1].k );
+	K[1] = K[8] * twopi * -I * fwrap(tensor::j,nGrid); // yy
+	mdlIFFT(mdl, fft, (FFTW3(complex)*)K[1].dataFirst() );
+
 	if (mdlSelf(mdl)==0) {printf("Generating zz term\n"); fflush(stdout); }
-	mdlIFFT(mdl, fft, (FFTW3(complex)*)ic[2].k );
+	K[2] = K[9] * twopi * -I * fwrap(tensor::k,nGrid); // zz
+	mdlIFFT(mdl, fft, (FFTW3(complex)*)K[2].dataFirst() );
+
+	K[6] = K[0]*K[1] + K[0]*K[2] + K[1]*K[2];
+
 	if (mdlSelf(mdl)==0) {printf("Generating xy term\n"); fflush(stdout); }
-	mdlIFFT(mdl, fft, (FFTW3(complex)*)ic[3].k );
+	K[3] = K[7] * twopi * -I * fwrap(tensor::j,nGrid); // xy
+	mdlIFFT(mdl, fft, (FFTW3(complex)*)K[3].dataFirst() );
+	K[6] = K[6] - K[3]*K[3];
+
 	if (mdlSelf(mdl)==0) {printf("Generating yz term\n"); fflush(stdout); }
-	mdlIFFT(mdl, fft, (FFTW3(complex)*)ic[4].k );
+	K[3] = K[8] * twopi * -I * fwrap(tensor::k,nGrid); // yz
+	mdlIFFT(mdl, fft, (FFTW3(complex)*)K[3].dataFirst() );
+	K[6] = K[6] - K[3]*K[3];
+
 	if (mdlSelf(mdl)==0) {printf("Generating xz term\n"); fflush(stdout); }
-	mdlIFFT(mdl, fft, (FFTW3(complex)*)ic[5].k );
+	K[3] = K[9] * twopi * -I * fwrap(tensor::i,nGrid); // zx
+	mdlIFFT(mdl, fft, (FFTW3(complex)*)K[3].dataFirst() );
+	K[6] = K[6] - K[3]*K[3];
 
 	/* Calculate the source term */
 	if (mdlSelf(mdl)==0) {printf("Generating source term\n"); fflush(stdout); }
-	for( rindex=rfirst; !mdlGridCoordCompare(&rindex,&rlast); mdlGridCoordIncrement(&rindex) ) {
-	    int i = rindex.i;
-	    ic[6].r[i] = ic[0].r[i]*ic[1].r[i] + ic[0].r[i]*ic[2].r[i] + ic[1].r[i]*ic[2].r[i]
-		- ic[3].r[i]*ic[3].r[i] - ic[4].r[i]*ic[4].r[i] - ic[5].r[i]*ic[5].r[i];
-	    }
-	mdlFFT(mdl, fft, ic[6].r );
+	mdlFFT(mdl, fft, (FFTW3(real)*)K[6].dataFirst() );
 	}
+    if (mdlSelf(mdl)==0) {printf("Generating x displacements\n"); fflush(stdout); }
+    mdlIFFT(mdl, fft, (FFTW3(complex)*)K[7].dataFirst() );
+    if (mdlSelf(mdl)==0) {printf("Generating y displacements\n"); fflush(stdout); }
+    mdlIFFT(mdl, fft, (FFTW3(complex)*)K[8].dataFirst() );
+    if (mdlSelf(mdl)==0) {printf("Generating z displacements\n"); fflush(stdout); }
+    mdlIFFT(mdl, fft, (FFTW3(complex)*)K[9].dataFirst() );
+
+
+
 
     /* Move the 1LPT positions/velocities to the particle area */
     if (mdlSelf(mdl)==0) {printf("Transfering 1LPT results to output area\n"); fflush(stdout); }
@@ -471,18 +438,22 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int bFixed,float fPhase,int nGrid
         float aeq = csmRadMatEquivalence(csm);
         float aeqDratio = aeq/D1_a;
 	float D2;
+
+	mdlThreadBarrier(mdl); // Remove later
+
 	if (aeq>0.0f) D2 = (-3.0/7.0 + 4.0/7.0 * aeqDratio - 2.0/3.0 * aeqDratio * aeqDratio * (+2.0/7.0 + a/aeq));
         else D2 = (-3.0/7.0);
 	if (mdlSelf(mdl)==0) printf("D2 (approx) = %.20g\n", D2);
         D2 = D2_a/pow(D1_a,2);
 	if (mdlSelf(mdl)==0) printf("D2 (exact)  = %.20g\n", D2);
 
-	for(kindex=kfirst; !mdlGridCoordCompare(&kindex,&klast); mdlGridCoordIncrement(&kindex)) {
-	    iy = wrap(kindex.z,iNyquist,fft->rgrid->n3);
-	    iz = wrap(kindex.y,iNyquist,fft->rgrid->n2);
-	    ix = wrap(kindex.x,iNyquist,fft->rgrid->n1);
-	    idx = kindex.i;
-	    ak2 = ix*ix + iy*iy + iz*iz;
+	for( auto index=K[6].begin(); index!=K[6].end(); ++index ) {
+	    auto pos = index.position();
+	    /* Range: (-iNyquist,iNyquist] */
+	    fz = fwrap(pos[2],nGrid);
+	    fy = fwrap(pos[1],nGrid);
+	    fx = pos[0];
+	    ak2 = fx*fx + fy*fy + fz*fz;
 	    if (ak2>0.0) {
 		
 		//float aeq = csmRadMatEquivalence(csm);
@@ -493,19 +464,19 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int bFixed,float fPhase,int nGrid
 		//if (mdlSelf(mdl)==0) printf("approx D2 = %.20g\n", D2);
       		D2 = D2_a/pow(D1_a,2)/(ak2 * twopi);  // The source term contains phi^2 which in turn contains D1, we need to divide by D1^2 (cf Scoccimarro Transients paper, appendix D). Here we use normalized D1 values in contrast to there.
                 //if (mdlSelf(mdl)==0) printf("exact  D2 = %.20g\n", D2);
-		ic[7].k[idx] = D2 * ic[6].k[idx] * ix * -I;
-		ic[8].k[idx] = D2 * ic[6].k[idx] * iy * -I;
-		ic[9].k[idx] = D2 * ic[6].k[idx] * iz * -I;
+		K[7](pos) = D2 * *index * fx * -I;
+		K[8](pos) = D2 * *index * fy * -I;
+		K[9](pos) = D2 * *index * fz * -I;
 		}
-	    else ic[7].k[idx] = ic[8].k[idx] = ic[9].k[idx] = 0.0;
+	    else K[7](pos) = K[8](pos) = K[9](pos) = 0.0;
 	    }
 
 	if (mdlSelf(mdl)==0) {printf("Generating x2 displacements\n"); fflush(stdout); }
-	mdlIFFT(mdl, fft, (FFTW3(complex)*)ic[7].k );
+	mdlIFFT(mdl, fft, (FFTW3(complex)*)K[7].dataFirst() );
 	if (mdlSelf(mdl)==0) {printf("Generating y2 displacements\n"); fflush(stdout); }
-	mdlIFFT(mdl, fft, (FFTW3(complex)*)ic[8].k );
+	mdlIFFT(mdl, fft, (FFTW3(complex)*)K[8].dataFirst() );
 	if (mdlSelf(mdl)==0) {printf("Generating z2 displacements\n"); fflush(stdout); }
-	mdlIFFT(mdl, fft, (FFTW3(complex)*)ic[9].k );
+	mdlIFFT(mdl, fft, (FFTW3(complex)*)K[9].dataFirst() );
 
 	/* Add the 2LPT positions/velocities corrections to the particle area */
 	if (mdlSelf(mdl)==0) {printf("Transfering 2LPT results to output area\n"); fflush(stdout); }
@@ -566,6 +537,17 @@ int pkdGenerateClassICm(PKD pkd, MDLFFT fft, int iSeed, int bFixed, float fPhase
     mdlGridCoord rfirst, rlast, rindex;
     gridptr ic[10];
 
+    // Construct the arrays. "data" points to the same block for all threads!
+    GridInfo G(pkd->mdl,fft);
+    complex_array_t K[10];
+    real_array_t R[10];
+    auto data = reinterpret_cast<real_t *>(mdlSetArray(pkd->mdl,0,0,pkdParticleBase(pkd)));
+    for(auto i=0; i<10; ++i) {
+	G.setupArray(data,K[i]);
+	G.setupArray(data,R[i]);
+	data += fft->rgrid->nLocal;
+	}
+
     mdlGridCoordFirstLast(mdl,fft->kgrid,&kfirst,&klast,0);
     mdlGridCoordFirstLast(mdl,fft->rgrid,&rfirst,&rlast,0);
     assert(rlast.i == klast.i*2); /* Arrays must overlap here. */
@@ -599,7 +581,9 @@ int pkdGenerateClassICm(PKD pkd, MDLFFT fft, int iSeed, int bFixed, float fPhase
 
     /* Generate white noise realization -> ic[6] */
     if (mdlSelf(mdl)==0) {printf("Generating random noise\n"); fflush(stdout);}
-    pkdGenerateNoise(pkd,iSeed,bFixed,fPhase,fft,ic[6].k,noiseMean,noiseCSQ);
+    auto data1 = reinterpret_cast<real_t *>(mdlSetArray(pkd->mdl,0,0,pkdParticleBase(pkd)));
+    data1 += 6 * fft->rgrid->nLocal;
+    pkdGenerateNoise(pkd,iSeed,bFixed,fPhase,fft,K[6],noiseMean,noiseCSQ);
 
     if (mdlSelf(mdl)==0) {printf("Imprinting power\n"); fflush(stdout);}
 
@@ -743,7 +727,13 @@ void pkdGenerateLinGrid(PKD pkd, MDLFFT fft, double a, double a_next, double Lbo
     int iNuquist = fft->rgrid->n3 / 2;
     gridptr noiseData;
     noiseData.r =(FFTW3(real) *)mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)),pkd->pLite);
-    pkdGenerateNoise(pkd, iSeed, bFixed, fPhase, fft, noiseData.k, &noiseMean, &noiseCSQ);
+
+    GridInfo G(pkd->mdl,fft);
+    complex_array_t K;
+    auto data = (FFTW3(real) *)mdlSetArray(pkd->mdl,0,0,pkd->pLite);
+    G.setupArray(data,K);
+    pkdGenerateNoise(pkd, iSeed, bFixed, fPhase, fft, K, &noiseMean, &noiseCSQ);    
+
     for (kindex=kfirst; !mdlGridCoordCompare(&kindex,&klast); mdlGridCoordIncrement(&kindex)){
         /* Range: (-iNyquist,iNyquist] */
         iy = wrap(kindex.z,iNuquist,fft->rgrid->n3);
