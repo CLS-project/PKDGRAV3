@@ -60,6 +60,15 @@ static int wrap(int v,int h,int m) {
     return v - (v > h ? m : 0);
     }
 
+// A blitz++ friendly wrap function. returns "ik" given array index
+// Range: (-iNyquist,iNyquist] where iNyquist = m/2
+static float fwrap(float v,float m) {
+    return v - (v > m*0.5 ? m : 0);
+    }
+BZ_DEFINE_BINARY_FUNC(Fn_fwrap,fwrap)
+BZ_DECLARE_ARRAY_ET_BINARY(fwrap,     Fn_fwrap)
+BZ_DECLARE_ARRAY_ET_BINARY_SCALAR(fwrap,     Fn_fwrap, float)
+
 /*
 ** Generate Gaussian white noise in k-space. The noise is in the proper form for
 ** an inverse FFT. The complex conjugates in the Nyquist planes are correct, and
@@ -349,28 +358,27 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int bFixed,float fPhase,int nGrid
     pkdGenerateNoise(pkd,iSeed,bFixed,fPhase,fft,K[6],noiseMean,noiseCSQ);
 
     if (mdlSelf(mdl)==0) {printf("Imprinting power\n"); fflush(stdout); }
-    for( kindex=kfirst; !mdlGridCoordCompare(&kindex,&klast); mdlGridCoordIncrement(&kindex) ) {
-	/* Range: (-iNyquist,iNyquist] */
-	iy = wrap(kindex.z,iNyquist,fft->rgrid->n3);
-	iz = wrap(kindex.y,iNyquist,fft->rgrid->n2);
-	ix = wrap(kindex.x,iNyquist,fft->rgrid->n1);
-	idx = kindex.i;
+    for( auto index=K[6].begin(); index!=K[6].end(); ++index ) {
+	auto pos = index.position();
+	iz = fwrap(pos[2],nGrid); // Range: (-iNyquist,iNyquist]
+	iy = fwrap(pos[1],nGrid);
+	ix = fwrap(pos[0],nGrid);
 	ak2 = ix*ix + iy*iy + iz*iz;
 	if (ak2>0) {
 	    ak = sqrt(ak2) * iLbox;
 	    amp = sqrt(transfer.getAmplitude(ak) * iLbox3) * itwopi / ak2;
 	    }
 	else amp = 0.0;
-	ic[7].k[idx] = ic[6].k[idx] * amp * ix * -I;
-	ic[8].k[idx] = ic[6].k[idx] * amp * iy * -I;
-	ic[9].k[idx] = ic[6].k[idx] * amp * iz * -I;
+	K[9](pos) = *index * amp * iz * -I; // z
+	K[8](pos) = *index * amp * iy * -I; // y
+	K[7](pos) = *index * amp * ix * -I; // x
 	if (b2LPT) {
-	    ic[0].k[idx] = ic[7].k[idx] * twopi * ix * -I; /* xx */
-	    ic[1].k[idx] = ic[8].k[idx] * twopi * iy * -I; /* yy */
-	    ic[2].k[idx] = ic[9].k[idx] * twopi * iz * -I; /* zz */
-	    ic[3].k[idx] = ic[7].k[idx] * twopi * iy * -I; /* xy */
-	    ic[4].k[idx] = ic[8].k[idx] * twopi * iz * -I; /* yz */
-	    ic[5].k[idx] = ic[9].k[idx] * twopi * ix * -I; /* zx */
+	    K[0](pos) = K[7](pos) * twopi * ix * -I; // xx
+	    K[1](pos) = K[8](pos) * twopi * iy * -I; // yy
+	    K[2](pos) = K[9](pos) * twopi * iz * -I; // zz
+	    K[3](pos) = K[7](pos) * twopi * iy * -I; // xy
+	    K[4](pos) = K[8](pos) * twopi * iz * -I; // yz
+	    K[5](pos) = K[9](pos) * twopi * ix * -I; // zx
 	    }
 	}
 
@@ -396,10 +404,10 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int bFixed,float fPhase,int nGrid
 
 	/* Calculate the source term */
 	if (mdlSelf(mdl)==0) {printf("Generating source term\n"); fflush(stdout); }
-	for( rindex=rfirst; !mdlGridCoordCompare(&rindex,&rlast); mdlGridCoordIncrement(&rindex) ) {
-	    int i = rindex.i;
-	    ic[6].r[i] = ic[0].r[i]*ic[1].r[i] + ic[0].r[i]*ic[2].r[i] + ic[1].r[i]*ic[2].r[i]
-		- ic[3].r[i]*ic[3].r[i] - ic[4].r[i]*ic[4].r[i] - ic[5].r[i]*ic[5].r[i];
+	for( auto index=K[6].begin(); index!=K[6].end(); ++index ) {
+	    auto pos = index.position();
+	    *index = K[0](pos)*K[1](pos) + K[0](pos)*K[2](pos) + K[1](pos)*K[2](pos)
+		- K[3](pos)*K[3](pos) - K[4](pos)*K[4](pos) - K[5](pos)*K[5](pos);
 	    }
 	mdlFFT(mdl, fft, ic[6].r );
 	}
@@ -426,19 +434,20 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int bFixed,float fPhase,int nGrid
         float aeqDratio = aeq/D1_a;
 	float D2 = D2_a/pow(D1_a,2);
 
-	for(kindex=kfirst; !mdlGridCoordCompare(&kindex,&klast); mdlGridCoordIncrement(&kindex)) {
-	    iy = wrap(kindex.z,iNyquist,fft->rgrid->n3);
-	    iz = wrap(kindex.y,iNyquist,fft->rgrid->n2);
-	    ix = wrap(kindex.x,iNyquist,fft->rgrid->n1);
-	    idx = kindex.i;
+	mdlThreadBarrier(mdl);
+	for( auto index=K[6].begin(); index!=K[6].end(); ++index ) {
+	    auto pos = index.position();
+	    iz = fwrap(pos[2],nGrid); // Range: (-iNyquist,iNyquist]
+	    iy = fwrap(pos[1],nGrid);
+	    ix = fwrap(pos[0],nGrid);
 	    ak2 = ix*ix + iy*iy + iz*iz;
 	    if (ak2>0.0) {
       		D2 = D2_a/pow(D1_a,2)/(ak2 * twopi);  // The source term contains phi^2 which in turn contains D1, we need to divide by D1^2 (cf Scoccimarro Transients paper, appendix D). Here we use normalized D1 values in contrast to there.
-		ic[7].k[idx] = D2 * ic[6].k[idx] * ix * -I;
-		ic[8].k[idx] = D2 * ic[6].k[idx] * iy * -I;
-		ic[9].k[idx] = D2 * ic[6].k[idx] * iz * -I;
+		K[7](pos) = D2 * *index * ix * -I;
+		K[8](pos) = D2 * *index * iy * -I;
+		K[9](pos) = D2 * *index * iz * -I;
 		}
-	    else ic[7].k[idx] = ic[8].k[idx] = ic[9].k[idx] = 0.0;
+	    else K[7](pos) = K[8](pos) = K[9](pos) = 0.0;
 	    }
 
 	if (mdlSelf(mdl)==0) {printf("Generating x2 displacements\n"); fflush(stdout); }
@@ -455,7 +464,6 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int bFixed,float fPhase,int nGrid
 	    float x = ic[7].r[rindex.i] * fftNormalize;
 	    float y = ic[8].r[rindex.i] * fftNormalize;
 	    float z = ic[9].r[rindex.i] * fftNormalize;
-
 	    p[idx].dr[0] += x;
 	    p[idx].dr[1] += y;
 	    p[idx].dr[2] += z;
@@ -464,6 +472,7 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int bFixed,float fPhase,int nGrid
 	    p[idx].v[2] += f2_a * z * velFactor;
 	    ++idx;
 	    }
+	assert(idx == nLocal);
 	}
     csmFinish(csm);
 
