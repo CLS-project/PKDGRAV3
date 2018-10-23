@@ -37,59 +37,6 @@ typedef union {
     complex_t *k;
     } gridptr;
 
-typedef struct {
-    gsl_interp_accel *acc;
-    gsl_spline *spline;
-    double *tk, *tf;
-    double spectral;
-    double normalization;
-    int nTf;
-    double rise0, rise1;
-    } powerParameters;
-
-static double power(powerParameters *P,double k) {
-    double lk = log(k);
-    double T;
-
-    if (lk > P->tk[P->nTf-1]) /* Extrapolate beyond kmax */
-	T =  P->tf[P->nTf-1] + (lk - P->tk[P->nTf-1]) * P->rise1;
-    else if (lk < P->tk[0]) /* Extrapolate beyond kmin */
-	T =  P->tf[0] + (lk - P->tk[0]) * P->rise0;
-    else
-	T = gsl_spline_eval(P->spline,lk,P->acc);
-    T = exp(T);
-    return pow(k,P->spectral) * P->normalization * T * T;
-    }
-
-typedef struct {
-    powerParameters *P;
-    double r;
-    } varianceParameters;
-
-static double variance_integrand(double ak, void * params) {
-    varianceParameters *vprm = (varianceParameters *)params;
-    double x, w;
-    /* Window function for spherical tophat of given radius (e.g., 8 Mpc/h) */
-    x = ak * vprm->r;
-    w = 3.0*(sin(x)-x*cos(x))/(x*x*x);
-    return power(vprm->P,ak)*ak*ak*w*w*4.0*M_PI;
-    }
-
-static double variance(powerParameters *P,double dRadius) {
-    varianceParameters vprm;
-    gsl_function F;
-    double result, error;
-    gsl_integration_workspace *W = gsl_integration_workspace_alloc (1000);
-    vprm.P = P;
-    vprm.r = dRadius; /* 8 Mpc/h for example */
-    F.function = &variance_integrand;
-    F.params = &vprm;
-    gsl_integration_qag(&F, exp(P->tk[0]), exp(P->tk[P->nTf-1]),
-	0.0, 1e-6, 1000, GSL_INTEG_GAUSS61, W, &result, &error);
-    gsl_integration_workspace_free(W);
-    return result;
-    }
-
 /* Gaussian noise in k-space. Note correction sqrt(2) because of FFT normalization. */
 static complex_t pairc( RngStream g, int bFixed, float fPhase ) {
     float x1, x2, w;
@@ -202,6 +149,100 @@ static void pkdGenerateNoise(PKD pkd,unsigned long seed,int bFixed, float fPhase
     mdlThreadBarrier(pkd->mdl); // Temporary
     }
 
+class Power {
+    typedef struct {
+	class Power *power;
+	double r;
+	} varianceParameters;
+    static double variance_integrand(double ak, void * params);
+public:
+    virtual double getAmplitude(double k) = 0;
+    double variance(double dRadius,double k0,double k1);
+    };
+
+double Power::variance_integrand(double ak, void * params) {
+    varianceParameters *vprm = reinterpret_cast<varianceParameters *>(params);
+    double x, w;
+    /* Window function for spherical tophat of given radius (e.g., 8 Mpc/h) */
+    x = ak * vprm->r;
+    w = 3.0*(sin(x)-x*cos(x))/(x*x*x);
+    return vprm->power->getAmplitude(ak)*ak*ak*w*w*4.0*M_PI;
+    }
+
+double Power::variance(double dRadius,double k0,double k1) {
+    varianceParameters vprm;
+    gsl_function F;
+    double result, error;
+    gsl_integration_workspace *W = gsl_integration_workspace_alloc (1000);
+    vprm.power = this;
+    vprm.r = dRadius; /* 8 Mpc/h for example */
+    F.function = &variance_integrand;
+    F.params = &vprm;
+    gsl_integration_qag(&F, exp(k0), exp(k1),
+	0.0, 1e-6, 1000, GSL_INTEG_GAUSS61, W, &result, &error);
+    gsl_integration_workspace_free(W);
+    return result;
+    }
+
+class PowerTransfer : public Power {
+    gsl_interp_accel *acc;
+    gsl_spline *spline;
+    double *tk, *tf;
+    double spectral;
+    double normalization;
+    int nTf;
+    double rise0, rise1;
+    double dSigma8;
+public:
+    virtual double getAmplitude(double k);
+    PowerTransfer(CSM csm, double a,int nTf, double *tk, double *tf);
+    double variance(double dRadius);
+    };
+
+double PowerTransfer::getAmplitude(double k) {
+    double lk = log(k);
+    double T;
+
+    if (lk > tk[nTf-1]) /* Extrapolate beyond kmax */
+	T =  tf[nTf-1] + (lk - tk[nTf-1]) * rise1;
+    else if (lk < tk[0]) /* Extrapolate beyond kmin */
+	T =  tf[0] + (lk - tk[0]) * rise0;
+    else
+	T = gsl_spline_eval(spline,lk,acc);
+    T = exp(T);
+    return pow(k,spectral) * normalization * T * T;
+    }
+
+double PowerTransfer::variance(double dRadius) {
+    return Power::variance(dRadius,tk[0], tk[nTf-1]);
+    }
+
+PowerTransfer::PowerTransfer(CSM csm, double a,int nTf, double *tk, double *tf) {
+    double D1_0, D2_0, D1_a, D2_a; 
+    double f1_0, f2_0, f1_a, f2_a;
+    csmComoveGrowth(csm, 1.0, &D1_0, &D2_0, &f1_0, &f2_0); 
+    csmComoveGrowth(csm, a, &D1_a, &D2_a, &f1_a, &f2_a);
+    normalization = 1.0;
+    spectral = csm->val.dSpectral;
+    this->nTf = nTf;
+    this->tk = tk;
+    this->tf = tf;
+    rise0 = (tf[0] - tf[1]) / (tk[0] - tk[1]);
+    rise1 = (tf[nTf-1] - tf[nTf-2]) / (tk[nTf-1] - tk[nTf-2]);
+    acc = gsl_interp_accel_alloc();
+    spline = gsl_spline_alloc (gsl_interp_cspline, nTf);
+    gsl_spline_init(spline, tk, tf, nTf);
+    float dSigma8 = csm->val.dSigma8;
+    if (dSigma8 > 0) {
+	dSigma8 *= D1_a/D1_0;
+	normalization *= dSigma8*dSigma8 / variance(8.0);
+	}
+    else if (csm->val.dNormalization > 0) {
+	normalization = csm->val.dNormalization * D1_a/D1_0;
+	dSigma8 = sqrt(variance(8.0));
+	}
+    }
+
 #ifdef __cplusplus
 extern "C"
 #endif
@@ -240,30 +281,15 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int bFixed,float fPhase,int nGrid
     mdlGridCoord rfirst, rlast, rindex;
     gridptr ic[10];
 
-    powerParameters P;
+
+    PowerTransfer transfer(csm,a,nTf,tk,tf);
+
+
 
     csmComoveGrowth(csm, 1.0, &D1_0, &D2_0, &f1_0, &f2_0); 
     csmComoveGrowth(csm, a, &D1_a, &D2_a, &f1_a, &f2_a);
     dOmega = cosmo->dOmega0 / (a*a*a*pow(csmExp2Hub(csm, a)/cosmo->dHubble0,2.0));
 
-    P.normalization = 1.0;
-    P.spectral = cosmo->dSpectral;
-    P.nTf = nTf;
-    P.tk = tk;
-    P.tf = tf;
-    P.rise0 = (P.tf[0] - P.tf[1]) / (P.tk[0] - P.tk[1]);
-    P.rise1 = (P.tf[P.nTf-1] - P.tf[P.nTf-2]) / (P.tk[P.nTf-1] - P.tk[P.nTf-2]);
-    P.acc = gsl_interp_accel_alloc();
-    P.spline = gsl_spline_alloc (gsl_interp_cspline, nTf);
-    gsl_spline_init(P.spline, P.tk, P.tf, P.nTf);
-    if (dSigma8 > 0) {
-	dSigma8 *= D1_a/D1_0;
-	P.normalization *= dSigma8*dSigma8 / variance(&P,8.0);
-	}
-    else if (cosmo->dNormalization > 0) {
-	P.normalization = cosmo->dNormalization * D1_a/D1_0;
-	dSigma8 = sqrt(variance(&P,8.0));
-	}
     double f1 = pow(dOmega,5.0/9.0);
     double f2 = 2.0 * pow(dOmega,6.0/11.0);
     if (mdlSelf(mdl)==0) {
@@ -332,7 +358,7 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int bFixed,float fPhase,int nGrid
 	ak2 = ix*ix + iy*iy + iz*iz;
 	if (ak2>0) {
 	    ak = sqrt(ak2) * iLbox;
-	    amp = sqrt(power(&P,ak) * iLbox3) * itwopi / ak2;
+	    amp = sqrt(transfer.getAmplitude(ak) * iLbox3) * itwopi / ak2;
 	    }
 	else amp = 0.0;
 	ic[7].k[idx] = ic[6].k[idx] * amp * ix * -I;
@@ -439,9 +465,6 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int bFixed,float fPhase,int nGrid
 	    ++idx;
 	    }
 	}
-    gsl_spline_free(P.spline);
-    gsl_interp_accel_free(P.acc);
-
     csmFinish(csm);
 
     return nLocal;
