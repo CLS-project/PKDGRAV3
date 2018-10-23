@@ -14,6 +14,8 @@
  *  You should have received a copy of the GNU General Public License
  *  along with PKDGRAV3.  If not, see <http://www.gnu.org/licenses/>.
  */
+#ifndef GRIDINFO_HPP
+#define GRIDINFO_HPP
 #include "blitz/array.h"
 #include "mdl.h"
 
@@ -93,3 +95,4 @@ public:
     explicit GridInfo(MDL mdl,MDLFFT fft);
     };
 }
+#endif

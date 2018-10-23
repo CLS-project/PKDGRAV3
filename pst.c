@@ -4132,55 +4132,6 @@ void pstMeasurePk(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     if (pnOut) *pnOut = sizeof(struct outMeasurePk);
     }
 
-void pstMeasureLinPk(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-    LCL *plcl = pst->plcl;
-    struct inMeasureLinPk *in = vin;
-    struct outMeasureLinPk *out = vout;
-    struct outMeasureLinPk *outUpper;
-    int nOut;
-    int i;
-
-    assert( nIn==sizeof(struct inMeasureLinPk) );
-    if (pstNotCore(pst)) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_MEASURELINPK,vin,nIn);
-	pstMeasureLinPk(pst->pstLower,vin,nIn,vout,pnOut);
-	outUpper = malloc(sizeof(struct outMeasureLinPk));
-	assert(outUpper != NULL);
-	mdlGetReply(pst->mdl,rID,outUpper,&nOut);
-	assert(nOut==sizeof(struct outMeasureLinPk));
-
-	for(i=0;i<in->nBins; i++) {
-	    out->fK[i] += outUpper->fK[i];
-	    out->fPower[i] += outUpper->fPower[i];
-	    out->nPower[i] += outUpper->nPower[i];
-	    }
-	free(outUpper);
-	}
-    else {
-	pkdMeasureLinPk(plcl->pkd, in->nGrid, in->dA, in->dBoxSize,
-                        in->nBins, in->iSeed, in->bFixed, in->fPhase, 
-                        out->fK, out->fPower, out->nPower);
-	}
-    if (pnOut) *pnOut = sizeof(struct outMeasureLinPk);
-    }
-
-void pstSetLinGrid(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-        LCL *plcl = pst->plcl;
-        struct inSetLinGrid *in = vin;
-        assert (nIn==sizeof(struct inSetLinGrid) );
-        if (pstNotCore(pst)) {
-            int rID = mdlReqService(pst->mdl, pst->idUpper, PST_SETLINGRID, vin, nIn);
-            pstSetLinGrid(pst->pstLower, vin, nIn, vout, pnOut);
-            mdlGetReply(pst->mdl,rID, vout,pnOut);
-        }
-        else {
-            plcl->pkd->Linfft = mdlFFTInitialize(pst->mdl, in->nGrid, in->nGrid, in->nGrid, 0,0);
-            pkdSetLinGrid(plcl->pkd, in->dTime, in->dTime_next,
-                in->dBSize, in->nGrid, 
-                in ->iSeed, in->bFixed, in->fPhase);
-        }
-    }
-
 void pstGridCreateFFT(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
         LCL *plcl = pst->plcl;
         struct inGridCreateFFT *in = vin;
