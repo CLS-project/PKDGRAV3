@@ -425,6 +425,9 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_ASSIGN_MASS,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstAssignMass,
 		  sizeof(struct inAssignMass), 0);
+    mdlAddService(mdl,PST_LINEARKICK, pst,
+           (void (*)(void*, void*, int, void*, int*)) pstLinearKick,
+           sizeof(struct inLinearKick), 0);
     mdlAddService(mdl,PST_SETLINGRID, pst,
            (void (*)(void*, void*, int, void*, int*)) pstSetLinGrid,
            sizeof(struct inSetLinGrid), 0);

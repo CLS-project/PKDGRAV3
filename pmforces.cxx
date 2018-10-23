@@ -418,30 +418,76 @@ static void pcs_addForce(PKD pkd, MDLFFT fft, int cid, int nGrid,
 }
 #endif
 
-void getLinAcc(PKD pkd, MDLFFT fft,int cid, double r[3], float* force){
-        int nGrid = fft->rgrid->n1;
-        int i;
-        /* Recenter, apply periodic boundary and scale to the correct size */
-        mdlGridCoord first, last;
-        mdlGridCoordFirstLast(pkd->mdl,fft->rgrid,&first,&last,1);
-        /* Shift particle position by 0.5*fPeriod */
-        double r_c[3];
-        for(i=0;i<3;i++) {
-                r_c[i] = 0.5*pkd->fPeriod[i] + r[i];
-                if (r_c[i]>=pkd->fPeriod[i]) r_c[i] -= pkd->fPeriod[i];
-                if (r_c[i]< 0 ) r_c[i] += pkd->fPeriod[i];
-        }
-        assert( r_c[0]>=0.0 && r_c[0]<1.0 && r_c[1]>=0.0 && r_c[1]<1.0 && r_c[2]>=0.0 && r_c[2]<1.0 );
+float getLinAcc(PKD pkd, MDLFFT fft,int cid, double r[3]){
+    float force = 0;
+    int nGrid = fft->rgrid->n1;
+    int i;
+    /* Recenter, apply periodic boundary and scale to the correct size */
+    mdlGridCoord first, last;
+    mdlGridCoordFirstLast(pkd->mdl,fft->rgrid,&first,&last,1);
+    /* Shift particle position by 0.5*fPeriod */
+    double r_c[3];
+    for(i=0;i<3;i++) {
+        r_c[i] = 0.5*pkd->fPeriod[i] + r[i];
+        if (r_c[i]>=pkd->fPeriod[i]) r_c[i] -= pkd->fPeriod[i];
+        if (r_c[i]< 0 ) r_c[i] += pkd->fPeriod[i];
+    }
+    assert( r_c[0]>=0.0 && r_c[0]<1.0 && r_c[1]>=0.0 && r_c[1]<1.0 && r_c[2]>=0.0 && r_c[2]<1.0 );
 #if defined(USE_NGP_LIN)
-        ngp_addForce(pkd, fft, cid, nGrid, r_c[0], r_c[1], r_c[2], force);
+    ngp_addForce(pkd, fft, cid, nGrid, r_c[0], r_c[1], r_c[2], &force);
 #elif defined(USE_CIC_LIN)
-        cic_addForce(pkd, fft, cid, nGrid, r_c[0], r_c[1], r_c[2], force);
+    cic_addForce(pkd, fft, cid, nGrid, r_c[0], r_c[1], r_c[2], &force);
 #elif defined(USE_TSC_LIN)
-        tsc_addForce(pkd, fft, cid, nGrid, r_c[0], r_c[1], r_c[2], force);
+    tsc_addForce(pkd, fft, cid, nGrid, r_c[0], r_c[1], r_c[2], &force);
 #else
-        pcs_addForce(pkd, fft, cid, nGrid, r_c[0], r_c[1], r_c[2], force);
+    pcs_addForce(pkd, fft, cid, nGrid, r_c[0], r_c[1], r_c[2], &force);
 #endif
+    return force;
 }
+
+void pkdLinearKick(PKD pkd, vel_t dtOpen, vel_t dtClose) {
+    mdlGridCoord  first, last;
+    mdlGridCoordFirstLast(pkd->mdl,pkd->Linfft->rgrid,&first,&last,1);
+    FFTW3(real)* forceX = reinterpret_cast<FFTW3(real)*>(mdlSetArray(pkd->mdl,last.i,sizeof(FFTW3(real)),pkd->pLite));
+    FFTW3(real)* forceY = reinterpret_cast<FFTW3(real)*>(mdlSetArray(pkd->mdl,last.i,sizeof(FFTW3(real)),forceX + pkd->Linfft->rgrid->nLocal));
+    FFTW3(real)* forceZ = reinterpret_cast<FFTW3(real)*>(mdlSetArray(pkd->mdl,last.i,sizeof(FFTW3(real)),forceY + pkd->Linfft->rgrid->nLocal));
+    mdlROcache(pkd->mdl,CID_GridLinFx,NULL, forceX, sizeof(FFTW3(real)),last.i );
+    mdlROcache(pkd->mdl,CID_GridLinFy,NULL, forceY, sizeof(FFTW3(real)),last.i );
+    mdlROcache(pkd->mdl,CID_GridLinFz,NULL, forceZ, sizeof(FFTW3(real)),last.i );
+    for ( auto i=0; i<pkd->nLocal; ++i) {
+        auto p = pkdParticle(pkd,i);
+        auto v = pkdVel(pkd,p);
+        double r[3];
+        float a[3];
+        pkdGetPos1(pkd,p,r);
+        a[0] = getLinAcc(pkd,pkd->Linfft,CID_GridLinFx,r);
+        a[1] = getLinAcc(pkd,pkd->Linfft,CID_GridLinFy,r);
+        a[2] = getLinAcc(pkd,pkd->Linfft,CID_GridLinFz,r);
+	v[0] += dtOpen*a[0] + dtClose*a[0];
+	v[1] += dtOpen*a[1] + dtClose*a[1];
+	v[2] += dtOpen*a[2] + dtClose*a[2];
+        }
+    mdlFinishCache(pkd->mdl,CID_GridLinFx);
+    mdlFinishCache(pkd->mdl,CID_GridLinFy);
+    mdlFinishCache(pkd->mdl,CID_GridLinFz);
+    }
+
+extern "C"
+void pstLinearKick(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    struct inLinearKick *in = reinterpret_cast<struct inLinearKick *>(vin);
+    assert( nIn==sizeof(struct inLinearKick) );
+
+    if (pstNotCore(pst)) {
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_LINEARKICK,vin,nIn);
+	pstLinearKick(pst->pstLower,vin,nIn,vout,pnOut);
+	mdlGetReply(pst->mdl,rID,vout,pnOut);
+	}
+    else {
+	pkdLinearKick(plcl->pkd,in->dtOpen,in->dtClose);
+	}
+    if (pnOut) *pnOut = sizeof(struct outMeasureLinPk);
+    }
 
 void pkdMeasureLinPk(PKD pkd, int nGrid, double dA, double dBoxSize,
                 int nBins,  int iSeed, int bFixed, float fPhase, 

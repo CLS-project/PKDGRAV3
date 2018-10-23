@@ -224,6 +224,7 @@ enum pst_service {
     PST_MEASUREPK,
     PST_MEASURELINPK,
     PST_SETLINGRID,
+    PST_LINEARKICK,
 #endif
     PST_ASSIGN_MASS,
     PST_TOTALMASS,
@@ -1342,6 +1343,11 @@ struct inAssignMass {
     int iAssignment;
     };
 void pstAssignMass(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+/* PST_LINEARKICK */
+struct inLinearKick {
+    vel_t dtOpen, dtClose;
+};
+void pstLinearKick(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 /* PST_SETLINGRID */
 struct inSetLinGrid {
     double dTime;

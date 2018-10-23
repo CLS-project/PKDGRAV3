@@ -6148,6 +6148,14 @@ void msrSetLinGrid(MSR msr,double dTime, int nGrid){
     dsec = msrTime() - sec;
     printf("Force from linear species calculated, Wallclock: %f, secs\n\n", dsec);
     }
+
+/* First call msrSetLinGrid() to setup the grid */
+void msrLinearKick(MSR msr, vel_t dtOpen, vel_t dtClose) {
+    struct inLinearKick in;
+    in.dtOpen = dtOpen;
+    in.dtClose = dtClose;
+    pstLinearKick(msr->pst, &in, sizeof(in), NULL, NULL);
+    }
 #endif
 
 int msrGetParticles(MSR msr, int nIn, uint64_t *ID, struct outGetParticles *out) {

@@ -523,10 +523,9 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
         float LinAcc[3];
         for (i=0; i<wp->nP; i++){
             pkdGetPos1(pkd,wp->pPart[i],r);
-            LinAcc[0] = LinAcc[1] = LinAcc[2] = 0.0f;
-            getLinAcc(pkd,pkd->Linfft,CID_GridLinFx,r,&LinAcc[0]);
-            getLinAcc(pkd,pkd->Linfft,CID_GridLinFy,r,&LinAcc[1]);
-            getLinAcc(pkd,pkd->Linfft,CID_GridLinFz,r,&LinAcc[2]);
+            LinAcc[0] = getLinAcc(pkd,pkd->Linfft,CID_GridLinFx,r);
+            LinAcc[1] = getLinAcc(pkd,pkd->Linfft,CID_GridLinFy,r);
+            LinAcc[2] = getLinAcc(pkd,pkd->Linfft,CID_GridLinFz,r);
             wp->pInfoOut[i].a[0] += LinAcc[0];
             wp->pInfoOut[i].a[1] += LinAcc[1];
             wp->pInfoOut[i].a[2] += LinAcc[2];

@@ -1533,7 +1533,7 @@ void pkdGridProject(PKD pkd);
 void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int nGrid, float dDelta, int iAssignment);
 void pkdMeasurePk(PKD pkd, double dTotalMass, int iAssignment, int bInterlace,
     int nGrid, int nBins, double *fK, double *fPower, uint64_t *nPower);
-void getLinAcc(PKD pkd, MDLFFT fft,int cid, double r[3], float* force);
+float getLinAcc(PKD pkd, MDLFFT fft,int cid, double r[3]);
 void pkdSetLinGrid(PKD pkd,double dTime, double dTime_next, double dBSize, int nGrid, int iSeed,
     int bFixed, float fPhase);
 void pkdMeasureLinPk(PKD pkd, int nGrid, double dA, double dBoxSize,

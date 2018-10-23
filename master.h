@@ -303,6 +303,7 @@ void msrMeasurePk(MSR msr,int iAssignment,int bInterlace,int nGrid,int nBins,uin
 void msrMeasureLinPk(MSR msr,int nGridLin,double a,double dBoxSize,
                 uint64_t *nPk,float *fK,float *fPk);
 void msrSetLinGrid(MSR msr,double dTime, int nGrid);
+void msrLinearKick(MSR msr,vel_t dtOpen,vel_t dtClose);
 #endif
 void msrPSGroupFinder(MSR msr);
 void msrOutPsGroups(MSR msr,const char *pszFile,int iOutType, double dTime);
