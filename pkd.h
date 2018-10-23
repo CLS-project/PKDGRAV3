@@ -1489,6 +1489,10 @@ struct outGetNParts {
     total_t nMaxOrder;
     };
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void pkdGetNParts(PKD pkd, struct outGetNParts *out );
 void pkdSetNParts(PKD pkd, int nGas, int nDark, int nStar);
 void pkdInitRelaxation(PKD pkd);
@@ -1526,9 +1530,6 @@ void pkdCalcCOM(PKD pkd, double *dCenter, double dRadius,
 void pkdGridInitialize(PKD pkd, int n1, int n2, int n3, int a1, int s, int n);
 void pkdGridProject(PKD pkd);
 #ifdef MDL_FFTW
-#ifdef __cplusplus
-extern "C" {
-#endif
 void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int nGrid, float dDelta, int iAssignment);
 void pkdMeasurePk(PKD pkd, double dTotalMass, int iAssignment, int bInterlace,
     int nGrid, int nBins, double *fK, double *fPower, uint64_t *nPower);
@@ -1538,9 +1539,9 @@ void pkdSetLinGrid(PKD pkd,double dTime, double dTime_next, double dBSize, int n
 void pkdMeasureLinPk(PKD pkd, int nGrid, double dA, double dBoxSize,
                 int nBins,  int iSeed, int bFixed, float fPhase, 
                 double *fK, double *fPower, uint64_t *nPower);
+#endif
 #ifdef __cplusplus
 }
-#endif
 #endif
 void pkdOutPsGroup(PKD pkd,char *pszFileName,int iType);
 

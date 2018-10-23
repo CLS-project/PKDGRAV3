@@ -24,7 +24,7 @@
 #include <gsl/gsl_integration.h>
 #include <gsl/gsl_errno.h>
 #include <gsl/gsl_spline.h>
-#include "pkd.h"
+#include "pst.h"
 #include "ic.h"
 #include "RngStream.h"
 #include "gridinfo.hpp"
@@ -460,10 +460,11 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int bFixed,float fPhase,int nGrid
 	/* Add the 2LPT positions/velocities corrections to the particle area */
 	if (mdlSelf(mdl)==0) {printf("Transfering 2LPT results to output area\n"); fflush(stdout); }
 	idx = 0;
-	for( rindex=rfirst; !mdlGridCoordCompare(&rindex,&rlast); mdlGridCoordIncrement(&rindex) ) {
-	    float x = ic[7].r[rindex.i] * fftNormalize;
-	    float y = ic[8].r[rindex.i] * fftNormalize;
-	    float z = ic[9].r[rindex.i] * fftNormalize;
+	for( auto index=R[7].begin(); index!=R[7].end(); ++index ) {
+	    auto pos = index.position();
+	    float x = R[7](pos) * fftNormalize;
+	    float y = R[8](pos) * fftNormalize;
+	    float z = R[9](pos) * fftNormalize;
 	    p[idx].dr[0] += x;
 	    p[idx].dr[1] += y;
 	    p[idx].dr[2] += z;
@@ -728,3 +729,317 @@ void pkdGenerateLinGrid(PKD pkd, MDLFFT fft, double a, double a_next, double Lbo
     free(field);
 }
 
+void pltMoveIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    struct inMoveIC *in = reinterpret_cast<struct inMoveIC *>(vin);
+    int i;
+
+    mdlassert(pst->mdl,nIn == sizeof(struct inMoveIC));
+    assert(pstOnNode(pst)); /* We pass around pointers! */
+    if (pstNotCore(pst)) {
+	struct inMoveIC icUp;
+	
+	icUp.pBase = in->pBase;
+	icUp.nMove = pst->nUpper * in->nMove / pst->nLeaves;
+	in->nMove -= icUp.nMove;
+	icUp.iStart = in->iStart + in->nMove;
+	icUp.fMass = in->fMass;
+	icUp.fSoft = in->fSoft;
+	icUp.nGrid = in->nGrid;
+	icUp.nInflateFactor = in->nInflateFactor;
+
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PLT_MOVEIC,&icUp,nIn);
+	mdlGetReply(pst->mdl,rID,vout,pnOut);
+	pltMoveIC(pst->pstLower,in,nIn,vout,pnOut);
+	}
+    else {
+	PKD pkd = plcl->pkd;
+	assert(in->nInflateFactor>0);
+	if (in->nMove <= (pkd->nStore/in->nInflateFactor)) {}
+	else {
+	    printf("nMove=%" PRIu64 " nStore=%d nInflateFactor=%d\n", in->nMove, pkd->nStore, in->nInflateFactor);
+	}
+	assert(in->nMove <= (pkd->nStore/in->nInflateFactor));
+	double inGrid = 1.0 / in->nGrid;
+	for(i=in->nMove-1; i>=0; --i) {
+	    PARTICLE *p = pkdParticle(pkd,i);
+	    vel_t *pVel = pkdVel(pkd,p);
+#ifdef INTEGER_POSITION
+	    // If we have no particle order convert directly to Integerized positions.
+	    // We do this to save space as an "Integer" particle is small.
+	    if (pkd->bNoParticleOrder) {
+		integerParticle *b = ((integerParticle *)in->pBase) + in->iStart + i;
+		integerParticle temp;
+		memcpy(&temp,b,sizeof(temp));
+		pVel[2] = temp.v[2];
+		pVel[1] = temp.v[1];
+		pVel[0] = temp.v[0];
+		pkdSetPosRaw(pkd,p,2,temp.r[2]);
+		pkdSetPosRaw(pkd,p,1,temp.r[1]);
+		pkdSetPosRaw(pkd,p,0,temp.r[0]);
+		}
+	    else
+#endif
+	    {
+		expandParticle *b = ((expandParticle *)in->pBase) + in->iStart + i;
+		expandParticle temp;
+		memcpy(&temp,b,sizeof(temp));
+		pVel[2] = temp.v[2];
+		pVel[1] = temp.v[1];
+		pVel[0] = temp.v[0];
+		pkdSetPos(pkd,p,2,temp.dr[2] + (temp.iz+0.5) * inGrid - 0.5);
+		pkdSetPos(pkd,p,1,temp.dr[1] + (temp.iy+0.5) * inGrid - 0.5);
+		pkdSetPos(pkd,p,0,temp.dr[0] + (temp.ix+0.5) * inGrid - 0.5);
+		if (!pkd->bNoParticleOrder)
+		    p->iOrder = temp.ix + in->nGrid*(temp.iy + 1ul*in->nGrid*temp.iz);
+		}
+	    pkdSetClass(pkd,in->fMass,in->fSoft,FIO_SPECIES_DARK,p);
+	    p->bMarked = 1;
+	    p->uRung = 0;
+	    if (pkd->bNoParticleOrder) ((UPARTICLE *)p)->iGroup = 0;
+	    else p->uNewRung = 0;
+	    float *pPot = pkdPot(pkd,p);
+	    if (pPot) pPot = 0;
+	    }
+	pkd->nLocal = pkd->nActive = in->nMove;
+	}
+    if (pnOut) *pnOut = 0;
+    }
+
+void pstMoveIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    PKD pkd = plcl->pkd;
+    struct inGenerateIC *in = reinterpret_cast<struct inGenerateIC *>(vin);
+
+    if (pstOffNode(pst)) {
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_MOVEIC,vin,nIn);
+	pstMoveIC(pst->pstLower,vin,nIn,vout,pnOut);
+	mdlGetReply(pst->mdl,rID,vout,pnOut);
+	}
+    else {
+	MDLFFT fft = pkd->fft;
+	int myProc = mdlProc(pst->mdl);
+	int iProc;
+	uint64_t iUnderBeg=0, iOverBeg=0;
+	uint64_t iUnderEnd, iOverEnd;
+	uint64_t iBeg, iEnd;
+
+	int *scount = reinterpret_cast<int *>(malloc(sizeof(int)*mdlProcs(pst->mdl))); assert(scount!=NULL);
+	int *sdisps = reinterpret_cast<int *>(malloc(sizeof(int)*mdlProcs(pst->mdl))); assert(sdisps!=NULL);
+	int *rcount = reinterpret_cast<int *>(malloc(sizeof(int)*mdlProcs(pst->mdl))); assert(rcount!=NULL);
+	int *rdisps = reinterpret_cast<int *>(malloc(sizeof(int)*mdlProcs(pst->mdl))); assert(rdisps!=NULL);
+
+	assert(pstAmNode(pst));
+	assert(fft != NULL);
+
+	assert(in->nInflateFactor>0);
+	uint64_t nPerNode = (uint64_t)mdlCores(pst->mdl) * (pkd->nStore / in->nInflateFactor);
+	uint64_t nLocal = (int64_t)fft->rgrid->rn[myProc] * in->nGrid*in->nGrid;
+
+	/* Calculate how many slots are free (under) and how many need to be sent (over) before my rank */
+	iUnderBeg = iOverBeg = 0;
+	for(iProc=0; iProc<myProc; ++iProc) {
+	    uint64_t nOnNode = fft->rgrid->rn[iProc] * in->nGrid*in->nGrid;
+	    if (nOnNode>nPerNode) iOverBeg += nOnNode - nPerNode;
+	    else iUnderBeg += nPerNode - nOnNode;
+	    }
+	size_t nSize = sizeof(expandParticle);
+#ifdef INTEGER_POSITION
+	if (pkd->bNoParticleOrder) nSize = sizeof(integerParticle);
+#endif
+	char *pBase = (char *)pkdParticleBase(pkd);
+	char *pRecv = pBase + nSize*nLocal;
+	char *eBase;
+	if (nLocal > nPerNode) {      /* Too much here: send extra particles to other nodes */
+	    eBase = pBase + nSize*nPerNode;
+	    iUnderBeg = 0;
+	    iOverEnd = iOverBeg + nLocal - nPerNode;
+	    for(iProc=0; iProc<mdlProcs(pst->mdl); ++iProc) {
+		rcount[iProc] = rdisps[iProc] = 0; // We cannot receive anything
+		uint64_t nOnNode = fft->rgrid->rn[iProc] * in->nGrid*in->nGrid;
+		if (nOnNode<nPerNode) {
+		    iUnderEnd = iUnderBeg + nPerNode - nOnNode;
+		    /* The transfer condition */
+		    if (iUnderEnd>iOverBeg && iUnderBeg<iOverEnd) {
+			iBeg = iOverBeg>iUnderBeg ? iOverBeg : iUnderBeg;
+			iEnd = iOverEnd<iUnderEnd ? iOverEnd : iUnderEnd;
+			scount[iProc] = (iEnd-iBeg);
+			sdisps[iProc] = (iBeg-iOverBeg);
+			nLocal -= iEnd-iBeg;
+			}
+		    else scount[iProc] = sdisps[iProc] = 0;
+		    iUnderBeg = iUnderEnd;
+		    }
+		else scount[iProc] = sdisps[iProc] = 0;
+		}
+	    assert(nLocal == nPerNode);
+	    }
+	else if (nLocal < nPerNode) { /* We have room: *maybe* receive particles from other nodes */
+	    eBase = pBase + nSize*nLocal;
+	    iOverBeg = 0;
+	    iUnderEnd = iUnderBeg + nPerNode - nLocal;
+	    for(iProc=0; iProc<mdlProcs(pst->mdl); ++iProc) {
+		scount[iProc] = sdisps[iProc] = 0; // We have nothing to send
+		uint64_t nOnNode = fft->rgrid->rn[iProc] * in->nGrid*in->nGrid;
+		if (nOnNode>nPerNode) {
+		    iOverEnd = iOverBeg + nOnNode - nPerNode;
+		    if (iOverEnd>iUnderBeg && iOverBeg<iUnderEnd) {
+			iBeg = iOverBeg>iUnderBeg ? iOverBeg : iUnderBeg;
+			iEnd = iOverEnd<iUnderEnd ? iOverEnd : iUnderEnd;
+			rcount[iProc] = (iEnd-iBeg);
+			rdisps[iProc] = (iBeg-iUnderBeg);
+			nLocal += iEnd-iBeg;
+			}
+		    else rcount[iProc] = rdisps[iProc] = 0;
+		    iOverBeg = iOverEnd;
+		    }
+		else rcount[iProc] = rdisps[iProc] = 0;
+		}
+	    assert(nLocal <= nPerNode);
+	    }
+	else {
+	    for(iProc=0; iProc<mdlProcs(pst->mdl); ++iProc) {
+		rcount[iProc] = rdisps[iProc] = 0; // We cannot receive anything
+		scount[iProc] = sdisps[iProc] = 0; // We have nothing to send
+		}
+	    }
+	mdlAlltoallv(pst->mdl, nSize,
+	    pBase + nSize*nPerNode, scount, sdisps,
+	    pRecv,            rcount, rdisps);
+	free(scount);
+	free(sdisps);
+	free(rcount);
+	free(rdisps);
+	mdlFFTNodeFinish(pst->mdl,fft);
+	pkd->fft = NULL;
+
+	/* We need to relocate the particles */
+	struct inMoveIC move;
+	uint64_t nTotal;
+	nTotal = in->nGrid; /* Careful: 32 bit integer cubed => 64 bit integer */
+	nTotal *= in->nGrid;
+	nTotal *= in->nGrid;
+	move.pBase = (overlayedParticle *)pkdParticleBase(pkd);
+	move.iStart = 0;
+	move.nMove = nLocal;
+	move.fMass = in->dBoxMass;
+	move.fSoft = 1.0 / (50.0*in->nGrid);
+	move.nGrid = in->nGrid;
+	move.nInflateFactor = in->nInflateFactor;
+	pltMoveIC(pst,&move,sizeof(move),NULL,0);
+	}
+    }
+
+/* NOTE: only called when on-node -- pointers are passed around. */
+void pltGenerateIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    struct inGenerateICthread *tin = reinterpret_cast<struct inGenerateICthread *>(vin);
+    struct inGenerateIC *in = tin->ic;
+    struct outGenerateIC *out = reinterpret_cast<struct outGenerateIC *>(vout), outUp;
+    mdlassert(pst->mdl,nIn == sizeof(struct inGenerateICthread));
+    mdlassert(pst->mdl,vout != NULL);
+    assert(pstOnNode(pst)); /* We pass around pointers! */
+
+    if (pstNotCore(pst)) {
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PLT_GENERATEIC,vin,nIn);
+	pltGenerateIC(pst->pstLower,vin,nIn,vout,pnOut);
+	mdlGetReply(pst->mdl,rID,&outUp,pnOut);
+	out->N += outUp.N;
+	out->noiseMean += outUp.noiseMean;
+	out->noiseCSQ += outUp.noiseCSQ;
+	}
+    else {
+	if (in->bClass)
+	    out->N = pkdGenerateClassICm(plcl->pkd,tin->fft,in->iSeed, in->bFixed,in->fPhase,
+	        in->nGrid, in->dBoxSize,&in->cosmo,in->dExpansion,&out->noiseMean,&out->noiseCSQ);
+	else
+	    out->N = pkdGenerateIC(plcl->pkd,tin->fft,in->iSeed,in->bFixed,in->fPhase,
+	        in->nGrid,in->b2LPT,in->dBoxSize, &in->cosmo,in->dExpansion,in->nTf,
+	        in->k, in->tf,&out->noiseMean,&out->noiseCSQ);
+	out->dExpansion = in->dExpansion;
+	}
+
+    if (pnOut) *pnOut = sizeof(struct outGenerateIC);
+    }
+
+void pstGenerateIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    PKD pkd = plcl->pkd;
+    struct inGenerateIC *in = reinterpret_cast<struct inGenerateIC *>(vin);
+    struct outGenerateIC *out = reinterpret_cast<struct outGenerateIC *>(vout), outUp;
+    int64_t i;
+
+    mdlassert(pst->mdl,nIn == sizeof(struct inGenerateIC));
+    mdlassert(pst->mdl,vout != NULL);
+
+    if (pstAmNode(pst)) {
+	struct inGenerateICthread tin;
+	MDLFFT fft = mdlFFTNodeInitialize(pst->mdl,in->nGrid,in->nGrid,in->nGrid,0,0);
+	tin.ic = reinterpret_cast<struct inGenerateIC *>(vin);
+	tin.fft = fft;
+	pltGenerateIC(pst,&tin,sizeof(tin),vout,pnOut);
+
+	int myProc = mdlProc(pst->mdl);
+	uint64_t nLocal = (int64_t)fft->rgrid->rn[myProc] * in->nGrid*in->nGrid;
+
+	/* Expand the particles by adding an iOrder */
+	assert(sizeof(expandParticle) >= sizeof(basicParticle));
+	overlayedParticle  * pbBase = (overlayedParticle *)pkdParticleBase(pkd);
+	int iz = fft->rgrid->rs[myProc] + fft->rgrid->rn[myProc];
+	int iy=0, ix=0;
+	float inGrid = 1.0 / in->nGrid;
+	for(i=nLocal-1; i>=0; --i) {
+	    basicParticle  *b = &pbBase->b + i;
+	    basicParticle temp;
+	    memcpy(&temp,b,sizeof(temp));
+	    if (ix>0) --ix;
+	    else {
+		ix = in->nGrid-1;
+		if (iy>0) --iy;
+		else {
+		    iy = in->nGrid-1;
+		    --iz;
+		    assert(iz>=0);
+		    }
+		}
+#ifdef INTEGER_POSITION
+	    // If we have no particle order convert directly to Integerized positions.
+	    // We do this to save space as an "Integer" particle is small.
+	    if (pkd->bNoParticleOrder) {
+		integerParticle *p = &pbBase->i + i;
+		p->v[2] = temp.v[2];
+		p->v[1] = temp.v[1];
+		p->v[0] = temp.v[0];
+		p->r[2] = pkdDblToPos(pkd,temp.dr[2] + (iz+0.5) * inGrid - 0.5);
+		p->r[1] = pkdDblToPos(pkd,temp.dr[1] + (iy+0.5) * inGrid - 0.5);
+		p->r[0] = pkdDblToPos(pkd,temp.dr[0] + (ix+0.5) * inGrid - 0.5);
+		}
+	    else
+#endif
+	    {
+		expandParticle *p = &pbBase->e + i;
+		p->v[2] = temp.v[2];
+		p->v[1] = temp.v[1];
+		p->v[0] = temp.v[0];
+		p->dr[2] = temp.dr[2];
+		p->dr[1] = temp.dr[1];
+		p->dr[0] = temp.dr[0];
+		p->ix = ix;
+		p->iy = iy;
+		p->iz = iz;
+		}
+	    }
+	assert(ix==0 && iy==0 && iz==fft->rgrid->rs[myProc]);
+	/* Now we need to move excess particles between nodes so nStore is obeyed. */
+	pkd->fft = fft; /* This is freed in pstMoveIC() */
+	}
+    else if (pstNotCore(pst)) {
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_GENERATEIC,in,nIn);
+	pstGenerateIC(pst->pstLower,in,nIn,vout,pnOut);
+	mdlGetReply(pst->mdl,rID,&outUp,pnOut);
+	out->N += outUp.N;
+	out->noiseMean += outUp.noiseMean;
+	out->noiseCSQ += outUp.noiseCSQ;
+	}
+    if (pnOut) *pnOut = sizeof(struct outGenerateIC);
+    }
