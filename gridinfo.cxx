@@ -57,6 +57,7 @@ void GridInfo::setupArray(real_t *dataFirst,real_array_t &rspace) {
                 blitz::Range(sy,ey-1),
                 blitz::Range(0,nz()-1));
         rspace.reference(rspace2);
+        rspace.reindexSelf(dimension_t(0,sy,sz())); // Correct "y" dimension
         }
     // Create an empty array; note that the data pointer is NULL
     else {
