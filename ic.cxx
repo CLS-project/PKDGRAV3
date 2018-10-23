@@ -372,17 +372,17 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int bFixed,float fPhase,int nGrid
 
     /* Move the 1LPT positions/velocities to the particle area */
     if (mdlSelf(mdl)==0) {printf("Transfering 1LPT results to output area\n"); fflush(stdout); }
-    for( auto index=output.begin(); index!=output.end(); ++index ) {
+    for( auto index=R[7].begin(); index!=R[7].end(); ++index ) {
 	auto pos = index.position();
 	float x = R[7](pos);
 	float y = R[8](pos);
 	float z = R[9](pos);
-	index->dr[0] = x;
-	index->dr[1] = y;
-	index->dr[2] = z;
-	index->v[0] = f1_a * x * velFactor;
-	index->v[1] = f1_a * y * velFactor;
-	index->v[2] = f1_a * z * velFactor;
+	output(pos).dr[0] = x;
+	output(pos).dr[1] = y;
+	output(pos).dr[2] = z;
+	output(pos).v[0] = f1_a * x * velFactor;
+	output(pos).v[1] = f1_a * y * velFactor;
+	output(pos).v[2] = f1_a * z * velFactor;
 	}
 
     if (b2LPT) {
@@ -414,17 +414,17 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int bFixed,float fPhase,int nGrid
 
 	/* Add the 2LPT positions/velocities corrections to the particle area */
 	if (mdlSelf(mdl)==0) {printf("Transfering 2LPT results to output area\n"); fflush(stdout); }
-	for( auto index=output.begin(); index!=output.end(); ++index ) {
+	for( auto index=R[7].begin(); index!=R[7].end(); ++index ) {
 	    auto pos = index.position();
 	    float x = R[7](pos) * fftNormalize;
 	    float y = R[8](pos) * fftNormalize;
 	    float z = R[9](pos) * fftNormalize;
-	    index->dr[0] += x;
-	    index->dr[1] += y;
-	    index->dr[2] += z;
-	    index->v[0] += f2_a * x * velFactor;
-	    index->v[1] += f2_a * y * velFactor;
-	    index->v[2] += f2_a * z * velFactor;
+	    output(pos).dr[0] += x;
+	    output(pos).dr[1] += y;
+	    output(pos).dr[2] += z;
+	    output(pos).v[0] += f2_a * x * velFactor;
+	    output(pos).v[1] += f2_a * y * velFactor;
+	    output(pos).v[2] += f2_a * z * velFactor;
 	    }
 	}
     csmFinish(csm);
@@ -514,11 +514,11 @@ int pkdGenerateClassICm(PKD pkd, MDLFFT fft, int iSeed, int bFixed, float fPhase
 
     /* Move the 1LPT positions/velocities to the particle area */
     if (mdlSelf(mdl)==0) {printf("Transfering 1LPT positions to output area\n"); fflush(stdout);}
-    for( auto index=output.begin(); index!=output.end(); ++index ) {
+    for( auto index=R[7].begin(); index!=R[7].end(); ++index ) {
 	auto pos = index.position();
-	index->dr[0] = R[7](pos);
-	index->dr[1] = R[8](pos);
-	index->dr[2] = R[9](pos);
+	output(pos).dr[0] = R[7](pos);
+	output(pos).dr[1] = R[8](pos);
+	output(pos).dr[2] = R[9](pos);
     }
 
     /* Particle velocities */
@@ -549,11 +549,11 @@ int pkdGenerateClassICm(PKD pkd, MDLFFT fft, int iSeed, int bFixed, float fPhase
 
     /* Move the 1LPT positions/velocities to the particle area */
     if (mdlSelf(mdl)==0) {printf("Transfering 1LPT velocities to output area\n"); fflush(stdout); }
-    for( auto index=output.begin(); index!=output.end(); ++index ) {
+    for( auto index=R[7].begin(); index!=R[7].end(); ++index ) {
 	auto pos = index.position();
-	index->v[0] = R[7](pos);
-	index->v[1] = R[8](pos);
-	index->v[2] = R[9](pos);
+	output(pos).v[0] = R[7](pos);
+	output(pos).v[1] = R[8](pos);
+	output(pos).v[2] = R[9](pos);
 	}
 
     csmFinish(csm);
