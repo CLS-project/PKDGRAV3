@@ -32,6 +32,22 @@ using namespace gridinfo;
 using namespace blitz;
 static const std::complex<float> I(0,1);
 
+typedef blitz::Array<basicParticle,3> basicParticleArray;
+static basicParticleArray getOutputArray(PKD pkd,GridInfo &G,real_array_t &R) {
+    basicParticleArray fullOutput(
+        reinterpret_cast<basicParticle *>(mdlSetArray(pkd->mdl,0,0,pkdParticleBase(pkd))),
+        blitz::shape(G.n1r(),G.n2(),G.nz()), blitz::neverDeleteData,
+        RegularArray(G.sz()));
+    basicParticleArray output = fullOutput(
+    	blitz::Range::all(),
+    	blitz::Range(R.base(1),R.base(1)+R.extent(1)-1),
+    	blitz::Range(G.sz(),G.ez()-1));
+    output.reindexSelf(dimension_t(0,R.base(1),G.sz()));
+    return output;
+    }
+
+
+
 // A blitz++ friendly wrap function. returns "ik" given array index
 // Range: (-iNyquist,iNyquist] where iNyquist = m/2
 static float fwrap(float v,float m) {
@@ -196,13 +212,10 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int bFixed,float fPhase,int nGrid
 	data += fft->rgrid->nLocal;
 	}
 
-    /* Particles will overlap K[0] through K[5] eventually */
     nLocal = blitz::product(R[7].shape());
-    blitz::Array<basicParticle,3> output(
-        reinterpret_cast<basicParticle *>(mdlSetArray(pkd->mdl,0,0,pkdParticleBase(pkd))),
-        blitz::shape(G.n1r(),G.n2(),G.nz()), blitz::neverDeleteData,
-        RegularArray(G.sz()));
-    
+    // Create a local view of our part of the output array.
+    basicParticleArray output = getOutputArray(pkd,G,R[0]);
+
     /* Generate white noise realization -> K[6] */
     if (mdlSelf(mdl)==0) {printf("Generating random noise\n"); fflush(stdout); }
     pkdGenerateNoise(pkd,iSeed,bFixed,fPhase,fft,K[6],noiseMean,noiseCSQ);
@@ -264,17 +277,17 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int bFixed,float fPhase,int nGrid
 
     /* Move the 1LPT positions/velocities to the particle area */
     if (mdlSelf(mdl)==0) {printf("Transfering 1LPT results to output area\n"); fflush(stdout); }
-    for( auto index=R[7].begin(); index!=R[7].end(); ++index ) {
+    for( auto index=output.begin(); index!=output.end(); ++index ) {
 	auto pos = index.position();
 	float x = R[7](pos);
 	float y = R[8](pos);
 	float z = R[9](pos);
-	output(pos).dr[0] = x;
-	output(pos).dr[1] = y;
-	output(pos).dr[2] = z;
-	output(pos).v[0] = f1_a * x * velFactor;
-	output(pos).v[1] = f1_a * y * velFactor;
-	output(pos).v[2] = f1_a * z * velFactor;
+	index->dr[0] = x;
+	index->dr[1] = y;
+	index->dr[2] = z;
+	index->v[0] = f1_a * x * velFactor;
+	index->v[1] = f1_a * y * velFactor;
+	index->v[2] = f1_a * z * velFactor;
 	}
 
     if (b2LPT) {
@@ -306,17 +319,17 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int bFixed,float fPhase,int nGrid
 
 	/* Add the 2LPT positions/velocities corrections to the particle area */
 	if (mdlSelf(mdl)==0) {printf("Transfering 2LPT results to output area\n"); fflush(stdout); }
-	for( auto index=R[7].begin(); index!=R[7].end(); ++index ) {
+	for( auto index=output.begin(); index!=output.end(); ++index ) {
 	    auto pos = index.position();
 	    float x = R[7](pos) * fftNormalize;
 	    float y = R[8](pos) * fftNormalize;
 	    float z = R[9](pos) * fftNormalize;
-	    output(pos).dr[0] += x;
-	    output(pos).dr[1] += y;
-	    output(pos).dr[2] += z;
-	    output(pos).v[0] += f2_a * x * velFactor;
-	    output(pos).v[1] += f2_a * y * velFactor;
-	    output(pos).v[2] += f2_a * z * velFactor;
+	    index->dr[0] += x;
+	    index->dr[1] += y;
+	    index->dr[2] += z;
+	    index->v[0] += f2_a * x * velFactor;
+	    index->v[1] += f2_a * y * velFactor;
+	    index->v[2] += f2_a * z * velFactor;
 	    }
 	}
     csmFinish(csm);
@@ -366,10 +379,7 @@ int pkdGenerateClassICm(PKD pkd, MDLFFT fft, int iSeed, int bFixed, float fPhase
 
     /* Particles will overlap K[0] through K[5] eventually */
     nLocal = blitz::product(R[7].shape());
-    blitz::Array<basicParticle,3> output(
-        reinterpret_cast<basicParticle *>(mdlSetArray(pkd->mdl,0,0,pkdParticleBase(pkd))),
-        blitz::shape(G.n1r(),G.n2(),G.nz()), blitz::neverDeleteData,
-        RegularArray(G.sz()));
+    basicParticleArray output = getOutputArray(pkd,G,R[0]);
 
     /* Generate white noise realization -> K[6] */
     if (mdlSelf(mdl)==0) {printf("Generating random noise\n"); fflush(stdout);}
@@ -406,11 +416,11 @@ int pkdGenerateClassICm(PKD pkd, MDLFFT fft, int iSeed, int bFixed, float fPhase
 
     /* Move the 1LPT positions/velocities to the particle area */
     if (mdlSelf(mdl)==0) {printf("Transfering 1LPT positions to output area\n"); fflush(stdout);}
-    for( auto index=R[7].begin(); index!=R[7].end(); ++index ) {
+    for( auto index=output.begin(); index!=output.end(); ++index ) {
 	auto pos = index.position();
-	output(pos).dr[0] = R[7](pos);
-	output(pos).dr[1] = R[8](pos);
-	output(pos).dr[2] = R[9](pos);
+	index->dr[0] = R[7](pos);
+	index->dr[1] = R[8](pos);
+	index->dr[2] = R[9](pos);
     }
 
     /* Particle velocities */
@@ -441,11 +451,11 @@ int pkdGenerateClassICm(PKD pkd, MDLFFT fft, int iSeed, int bFixed, float fPhase
 
     /* Move the 1LPT positions/velocities to the particle area */
     if (mdlSelf(mdl)==0) {printf("Transfering 1LPT velocities to output area\n"); fflush(stdout); }
-    for( auto index=R[7].begin(); index!=R[7].end(); ++index ) {
+    for( auto index=output.begin(); index!=output.end(); ++index ) {
 	auto pos = index.position();
-	output(pos).v[0] = R[7](pos);
-	output(pos).v[1] = R[8](pos);
-	output(pos).v[2] = R[9](pos);
+	index->v[0] = R[7](pos);
+	index->v[1] = R[8](pos);
+	index->v[2] = R[9](pos);
 	}
 
     csmFinish(csm);
