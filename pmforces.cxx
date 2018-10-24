@@ -16,7 +16,9 @@
  */
 #include "pkd_config.h"
 
+#include <vector>
 #include "pst.h"
+#include "aweights.hpp"
 #include "whitenoise.hpp"
 using namespace gridinfo;
 using namespace blitz;
@@ -256,9 +258,135 @@ void pstSetLinGrid(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
         }
     }
 
+#ifdef NEW_LINEAR_KICK
 /********************************************************************************\
 *
-* Force Interpolation
+* New Force Interpolation
+* WARNING: super duper not tested 
+*
+\********************************************************************************/
+typedef blitz::Array<float,3> force_array_t;
+typedef blitz::TinyVector<int,3> shape_t;
+typedef blitz::TinyVector<double,3> position_t;
+typedef blitz::TinyVector<float,3> float3_t;
+
+struct tree_node : public KDN {
+    bool is_cell()   { return iLower!=0; }
+    bool is_bucket() { return iLower==0; }
+    };
+
+template<int Order,typename F>
+static float interpolate(force_array_t &forces, const F r[3]) {
+    AssignmentWeights<Order,F> Hx(r[0]),Hy(r[1]),Hz(r[2]);
+    float force = 0;
+    for(int i=0; i<Order; ++i) {
+	for(int j=0; j<Order; ++j) {
+	    for(int k=0; k<Order; ++k) {
+		force += forces(Hx.i+i,Hy.i+j,Hz.i+k) * Hx.H[i]*Hy.H[j]*Hz.H[k];
+		}
+	    }
+	}
+    return force;
+    }
+
+template<typename F>
+static float force_interpolate(force_array_t &forces, const F r[3],int iAssignment=4) {
+    float f;
+    switch(iAssignment) {
+	case 1: f=interpolate<1,F>(forces,r); break;
+	case 2: f=interpolate<2,F>(forces,r); break;
+	case 3: f=interpolate<3,F>(forces,r); break;
+	case 4: f=interpolate<4,F>(forces,r); break;
+	default: f=0; assert(iAssignment>=1 && iAssignment<=4); abort();
+	}
+    return f;
+    }
+
+// Fetch all forces into this local grid. Could be optimized by bulk fetches.
+static void fetch_forces(PKD pkd,int cid,int nGrid,force_array_t &forces, const shape_t &lower) {
+    auto wrap = [&nGrid](int i) { if (i>=nGrid) i-=nGrid; else if (i<0) i+=nGrid; return i; };
+    for(auto i=forces.begin(); i!=forces.end(); ++i) {
+	shape_t loc = i.position() + lower;
+	loc[0] = wrap(loc[0]); loc[1] = wrap(loc[1]); loc[2] = wrap(loc[2]);
+	auto id = mdlFFTrId(pkd->mdl,pkd->fft,loc[0],loc[1],loc[2]);
+	auto idx = mdlFFTrIdx(pkd->mdl,pkd->fft,loc[0],loc[1],loc[2]);
+	auto p = reinterpret_cast<float*>(mdlFetch(pkd->mdl,cid,idx,id));
+	*i = *p;
+	}
+    }
+
+void pkdLinearKick(PKD pkd,vel_t dtOpen,vel_t dtClose, int iAssignment=4) {
+    const std::size_t maxSize = 100000; // We would like this to remain in L2 cache
+    std::vector<float> dataX, dataY, dataZ;
+    dataX.reserve(maxSize);
+    dataY.reserve(maxSize);
+    dataZ.reserve(maxSize);
+    shape_t index;
+    position_t fPeriod(pkd->fPeriod), ifPeriod = 1.0 / fPeriod;
+    int nGrid = pkd->Linfft->rgrid->n1;
+    assert(iAssignment>=1 && iAssignment<=4);
+
+    int iLocal = mdlCore(pkd->mdl) ? 0 : pkd->Linfft->rgrid->nLocal;
+    FFTW3(real)* forceX = reinterpret_cast<FFTW3(real)*>(mdlSetArray(pkd->mdl,iLocal,sizeof(FFTW3(real)),pkd->pLite));
+    FFTW3(real)* forceY = reinterpret_cast<FFTW3(real)*>(mdlSetArray(pkd->mdl,iLocal,sizeof(FFTW3(real)),forceX + pkd->Linfft->rgrid->nLocal));
+    FFTW3(real)* forceZ = reinterpret_cast<FFTW3(real)*>(mdlSetArray(pkd->mdl,iLocal,sizeof(FFTW3(real)),forceY + pkd->Linfft->rgrid->nLocal));
+    mdlROcache(pkd->mdl,CID_GridLinFx,NULL, forceX, sizeof(FFTW3(real)),iLocal);
+    mdlROcache(pkd->mdl,CID_GridLinFy,NULL, forceY, sizeof(FFTW3(real)),iLocal );
+    mdlROcache(pkd->mdl,CID_GridLinFz,NULL, forceZ, sizeof(FFTW3(real)),iLocal );
+
+    std::vector<std::uint32_t> stack;
+    stack.push_back(ROOT);
+    while( !stack.empty()) {
+	tree_node *kdn = reinterpret_cast<tree_node *>(pkdTreeNode(pkd,stack.back()));
+	stack.pop_back(); // Go to the next node in the tree
+	BND bnd = pkdNodeGetBnd(pkd, kdn);
+	position_t fCenter(bnd.fCenter), fMax(bnd.fMax);
+	shape_t ilower = shape_t(floor(((fCenter - fMax) * ifPeriod + 0.5) * nGrid)) - iAssignment/2;
+	shape_t iupper = shape_t(floor(((fCenter + fMax) * ifPeriod + 0.5) * nGrid)) + iAssignment/2;
+	shape_t ishape = iupper - ilower + 1;
+	float3_t flower = ilower;
+	std::size_t size = blitz::product(ishape);
+
+	if (size > maxSize) { // This cell is too large, so we split it and move on
+	    assert(kdn->is_cell()); // At the moment we cannot handle enormous buckets
+	    stack.push_back(kdn->iLower+1);
+	    stack.push_back(kdn->iLower);
+	    }
+	else { // Assign the mass for this range of particles
+	    dataX.resize(size); // Hold the right number of masses
+	    dataY.resize(size); // Hold the right number of masses
+	    dataZ.resize(size); // Hold the right number of masses
+	    force_array_t forcesX(dataX.data(),ishape,blitz::neverDeleteData,blitz::ColumnMajorArray<3>());
+	    force_array_t forcesY(dataY.data(),ishape,blitz::neverDeleteData,blitz::ColumnMajorArray<3>());
+	    force_array_t forcesZ(dataZ.data(),ishape,blitz::neverDeleteData,blitz::ColumnMajorArray<3>());
+	    fetch_forces(pkd,CID_GridLinFx,nGrid,forcesX,ilower);
+	    fetch_forces(pkd,CID_GridLinFy,nGrid,forcesY,ilower);
+	    fetch_forces(pkd,CID_GridLinFz,nGrid,forcesZ,ilower);
+	    for( int i=kdn->pLower; i<=kdn->pUpper; ++i) { // All particles in this tree cell
+		auto p = pkdParticle(pkd,i);
+		auto v = pkdVel(pkd,p);
+		float a;
+		position_t dr; pkdGetPos1(pkd,p,dr.data()); // Centered on 0 with period fPeriod
+		float3_t r(dr);
+		r = (r * ifPeriod + 0.5) * nGrid - flower; // Scale and shift to fit in subcube
+		a = force_interpolate(forcesX, r.data(), iAssignment);
+		v[0] += dtOpen*a + dtClose*a;
+		a = force_interpolate(forcesY, r.data(), iAssignment);
+		v[1] += dtOpen*a + dtClose*a;
+		a = force_interpolate(forcesZ, r.data(), iAssignment);
+		v[2] += dtOpen*a + dtClose*a;
+		}
+	    }
+	}
+    mdlFinishCache(pkd->mdl,CID_GridLinFx);
+    mdlFinishCache(pkd->mdl,CID_GridLinFy);
+    mdlFinishCache(pkd->mdl,CID_GridLinFz);
+    }
+#else
+/********************************************************************************\
+*
+* Old Force Interpolation
+* WARNING: not tested; particularily the new pkdLinearKick() framework.
 *
 \********************************************************************************/
 
@@ -471,6 +599,7 @@ void pkdLinearKick(PKD pkd, vel_t dtOpen, vel_t dtClose) {
     mdlFinishCache(pkd->mdl,CID_GridLinFy);
     mdlFinishCache(pkd->mdl,CID_GridLinFz);
     }
+#endif
 
 extern "C"
 void pstLinearKick(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
