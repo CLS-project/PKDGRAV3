@@ -26,6 +26,7 @@
 #include "blitz/array.h"
 #include "pst.h"
 #include "master.h"
+#include "aweights.hpp"
 
 typedef blitz::Array<float,3> mass_array_t;
 typedef blitz::TinyVector<int,3> shape_t;
@@ -39,48 +40,8 @@ struct tree_node : public KDN {
     };
 
 template<int Order,typename F>
-class W {
-    template <int A, typename B> struct identity {};
-    void weights(identity<1,F> d, F r) {		// NGP
-    	i = r;
-    	H[0] = 1.0;
-	}
-    void weights(identity<2,F> d, F r) {		// CIC
-	F rr = r - 0.5;
-	i = floorf(rr);
-	F h = rr - i;
-	H[0] = 1.0 - h;
-	H[1] = h;
-	}
-    void weights(identity<3,F> d, F r) {		// TSC
-	auto K0 = [](F h) { return 0.75 - h*h; };
-	auto K1 = [](F h) { return 0.50 * h*h; };
-	i = int(r) - 1;
-	F h = r - i - 1.5;
-	H[0] = K1(0.5 - h);
-	H[1] = K0(h);
-	H[2] = K1(0.5 + h);
-	}
-    void weights(identity<4,F> d, F r) {		// PCS
-	auto pow3 = [](F x) { return x*x*x; };
-	auto K0   = [](F h) { return 1.0/6.0 * ( 4.0 - 6.0*h*h + 3.0*h*h*h); };
-	auto K1   = [&pow3](F h) { return 1.0/6.0 * pow3(2.0 - h); };
-	i = (floorf(r-1.5));
-	F h = r - (i+0.5);
-	H[0] = K1(h);
-	H[1] = K0(h-1);
-	H[2] = K0(2-h);
-	H[3] = K1(3-h);
-        }
-public:
-    F H[Order];
-    int i;
-    W(F r) { weights(identity<Order,F>(),r); }
-    };
-
-template<int Order,typename F>
 static void assign(mass_array_t &masses, const F r[3], F mass) {
-    W<Order,F> Hx(r[0]),Hy(r[1]),Hz(r[2]);
+    AssignmentWeights<Order,F> Hx(r[0]),Hy(r[1]),Hz(r[2]);
 
     for(int i=0; i<Order; ++i) {
 	for(int j=0; j<Order; ++j) {
