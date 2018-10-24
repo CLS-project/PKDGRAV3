@@ -20,7 +20,7 @@ template<int Order,typename F>
 class AssignmentWeights {
     template <int A, typename B> struct identity {};
     void weights(identity<1,F> d, F r) {		// NGP
-    	i = r;
+    	i = floorf(r);
     	H[0] = 1.0;
 	}
     void weights(identity<2,F> d, F r) {		// CIC
@@ -33,7 +33,7 @@ class AssignmentWeights {
     void weights(identity<3,F> d, F r) {		// TSC
 	auto K0 = [](F h) { return 0.75 - h*h; };
 	auto K1 = [](F h) { return 0.50 * h*h; };
-	i = int(r) - 1;
+	i = floorf(r) - 1;
 	F h = r - i - 1.5;
 	H[0] = K1(0.5 - h);
 	H[1] = K0(h);
@@ -43,7 +43,7 @@ class AssignmentWeights {
 	auto pow3 = [](F x) { return x*x*x; };
 	auto K0   = [](F h) { return 1.0/6.0 * ( 4.0 - 6.0*h*h + 3.0*h*h*h); };
 	auto K1   = [&pow3](F h) { return 1.0/6.0 * pow3(2.0 - h); };
-	i = (floorf(r-1.5));
+	i = floorf(r-1.5);
 	F h = r - (i+0.5);
 	H[0] = K1(h);
 	H[1] = K0(h-1);
