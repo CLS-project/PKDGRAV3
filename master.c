@@ -4321,7 +4321,9 @@ int msrNewTopStepKDK(MSR msr,
 
     *puRungMax = msrGravity(msr,uRung,msrMaxRung(msr),ROOT,uRoot2,*pdTime,
 	*pdStep,1,bKickOpen,msr->param.bEwald,nGroup,piSec,&nActive);
-	
+
+    if (!uRung && msr->param.nGridLin > 0) msrLinearKick(msr,*pdTime,1,bKickOpen);
+
     if (!uRung && msr->param.bFindGroups) {
 	msrGroupStats(msr);
 	msrBuildName(msr,achFile,iStep);
@@ -6150,10 +6152,19 @@ void msrSetLinGrid(MSR msr,double dTime, int nGrid){
     }
 
 /* First call msrSetLinGrid() to setup the grid */
-void msrLinearKick(MSR msr, vel_t dtOpen, vel_t dtClose) {
+void msrLinearKick(MSR msr, double dTime, int bKickClose, int bKickOpen) {
     struct inLinearKick in;
-    in.dtOpen = dtOpen;
-    in.dtClose = dtClose;
+    double dt = 0.5*msr->param.dDelta;
+
+    in.dtOpen = in.dtClose = 0.0;
+    if (msr->param.csm->val.bComove) {
+	if (bKickClose) in.dtClose = csmComoveKickFac(msr->param.csm,dTime-dt,dt);
+	if (bKickOpen) in.dtOpen = csmComoveKickFac(msr->param.csm,dTime,dt);
+	}
+    else {
+	if (bKickClose) in.dtClose = dt;
+	if (bKickOpen) in.dtOpen = dt;
+	}
     pstLinearKick(msr->pst, &in, sizeof(in), NULL, NULL);
     }
 #endif

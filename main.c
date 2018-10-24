@@ -346,6 +346,7 @@ void * master_ch(MDL mdl) {
 		        msrSetLinGrid(msr, dTime, msr->param.nGridLin);
                         if (msr->param.bDoLinPkOutput)
                             msrOutputLinPk(msr, iStartStep, dTime);
+			if (msr->param.nGridLin > 0) msrLinearKick(msr,dTime,0,1);
                         }
 		    }
 		msrNewTopStepKDK(msr,0,0,&diStep,&ddTime,&uRungMax,&iSec,&bDoCheckpoint,&bDoOutput);
