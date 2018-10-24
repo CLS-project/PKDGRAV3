@@ -974,6 +974,9 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.iPkInterval = 1;
     prmAddParam(msr->prm,"iPkInterval",1,&msr->param.iPkInterval,sizeof(int),
 		"opk","<number of timesteps between pk outputs> = 1");
+    msr->param.iDeltakInterval = 0;
+    prmAddParam(msr->prm,"iDeltakInterval",1,&msr->param.iDeltakInterval,sizeof(int),
+		"odk","<number of timesteps between DeltaK outputs> = 0 (off)");
     msr->param.bEwald = 1;
     prmAddParam(msr->prm,"bEwald",0,&msr->param.bEwald,sizeof(int),"ewald",
 		"enable/disable Ewald correction = +ewald");
@@ -1320,9 +1323,6 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.bDoLinPkOutput = 0;
     prmAddParam(msr->prm, "bDoLinPkOutput", 0, &msr->param.bDoLinPkOutput,
         sizeof(int), "linPk", "<enable/disable power spectrum output for linear species> = 0");
-    msr->param.bOutputDeltaK = 0;
-    prmAddParam(msr->prm, "bOutputDeltaK", 0, &msr->param.bOutputDeltaK,
-        sizeof(int), "deltak", "<enable/disable output of delta(k) grid> = 0");
 #endif
 
     msr->param.iInflateStep = 0;
@@ -5433,7 +5433,7 @@ void msrOutputPk(MSR msr,int iStep,double dTime) {
     free(fPk);
     free(nPk);
     /* Output the k-grid if requested */
-    if (msr->param.bOutputDeltaK) {
+    if (msr->param.iDeltakInterval && (iStep % msr->param.iDeltakInterval == 0)) {
 	struct inOutput out;
 	double dsec, sec = msrTime();
 	out.eOutputType = OUT_KGRID;

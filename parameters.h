@@ -235,7 +235,7 @@ struct parameters {
     int nGridLin;
     int bDoLinPkOutput;
     int nBinsLinPk;
-    int bOutputDeltaK;
+    int iDeltakInterval;
 #endif
 
     int iInflateStep;
