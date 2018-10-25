@@ -489,10 +489,6 @@ void pltMoveIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     else {
 	PKD pkd = plcl->pkd;
 	assert(in->nInflateFactor>0);
-	if (in->nMove <= (pkd->nStore/in->nInflateFactor)) {}
-	else {
-	    printf("nMove=%" PRIu64 " nStore=%d nInflateFactor=%d\n", in->nMove, pkd->nStore, in->nInflateFactor);
-	}
 	assert(in->nMove <= (pkd->nStore/in->nInflateFactor));
 	double inGrid = 1.0 / in->nGrid;
 	for(i=in->nMove-1; i>=0; --i) {
