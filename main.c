@@ -297,7 +297,7 @@ void * master_ch(MDL mdl) {
 
             /* Compute the grids of the linear species before doing gravity */
             if (strlen(msr->param.csm->val.classData.achLinSpecies)){
-                msrSetLinGrid(msr,dTime, msr->param.nGridLin);
+                msrSetLinGrid(msr,dTime, msr->param.nGridLin,0,0);
                 if (msr->param.bDoLinPkOutput)
                     msrOutputLinPk(msr, iStartStep, dTime);
             }
@@ -343,7 +343,7 @@ void * master_ch(MDL mdl) {
 		    uRungMax = msrGravity(msr,0,MAX_RUNG,ROOT,0,ddTime,diStep,0,1,msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
                     /* Set the grids of the linear species */
                     if (strlen(msr->param.csm->val.classData.achLinSpecies)){
-		        msrSetLinGrid(msr, dTime, msr->param.nGridLin);
+		        msrSetLinGrid(msr, dTime, msr->param.nGridLin,0,1);
                         if (msr->param.bDoLinPkOutput)
                             msrOutputLinPk(msr, iStartStep, dTime);
 			if (msr->param.nGridLin > 0) msrLinearKick(msr,dTime,0,1);

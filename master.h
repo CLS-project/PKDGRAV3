@@ -302,7 +302,7 @@ void msrAssignMass(MSR msr,int iAssignment,int nGrid);
 void msrMeasurePk(MSR msr,int iAssignment,int bInterlace,int nGrid,int nBins,uint64_t *nPk,float *fK,float *fPk);
 void msrMeasureLinPk(MSR msr,int nGridLin,double a,double dBoxSize,
                 uint64_t *nPk,float *fK,float *fPk);
-void msrSetLinGrid(MSR msr,double dTime, int nGrid);
+void msrSetLinGrid(MSR msr,double dTime, int nGrid, int bKickClose, int bKickOpen);
 void msrLinearKick(MSR msr, double dTime, int bKickClose, int bKickOpen);
 #endif
 void msrPSGroupFinder(MSR msr);

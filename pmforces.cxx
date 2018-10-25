@@ -139,7 +139,7 @@ static double green(int i, int jj, int kk, int nGrid){
 }
 
 extern "C"
-void pkdSetLinGrid(PKD pkd, double dTime, double dTime_next, double dBSize, int nGrid, int iSeed,
+void pkdSetLinGrid(PKD pkd, double a0, double a, double a1, double dBSize, int nGrid, int iSeed,
     int bFixed, float fPhase) {
         MDLFFT fft = pkd->Linfft;
         /* Grid coordinates in real space :      [0, nGrid].[0, nGrid].[0, nGrid] */
@@ -161,8 +161,6 @@ void pkdSetLinGrid(PKD pkd, double dTime, double dTime_next, double dBSize, int 
         __itt_resume();
 #endif
         /* Scale factors and normalization */
-        const double a      = csmTime2Exp(pkd->param.csm, dTime);
-        const double a_next = csmTime2Exp(pkd->param.csm, dTime_next);
         const double dNormalization = a*a*a * dBSize;
 
         mdlGridCoordFirstLast(pkd->mdl,fft->rgrid,&rfirst,&rlast,1);
@@ -170,7 +168,7 @@ void pkdSetLinGrid(PKD pkd, double dTime, double dTime_next, double dBSize, int 
 
         /* Imprint the density grid of the linear species */
         int bRho = 1;  /* Generate the \delta\rho field */
-        pkdGenerateLinGrid(pkd, fft, a, a_next, dBSize, iSeed, bFixed, fPhase, bRho);
+        pkdGenerateLinGrid(pkd, fft, a0, a1, dBSize, iSeed, bFixed, fPhase, bRho);
         cDelta_lin_field = (FFTW3(complex) *)mdlSetArray(pkd->mdl, klast.i, sizeof(FFTW3(complex)), pkd->pLite);
 
         /* Remember, the grid is now transposed to x,z,y (from x,y,z) */
@@ -252,7 +250,7 @@ void pstSetLinGrid(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
         }
         else {
             plcl->pkd->Linfft = mdlFFTInitialize(pst->mdl, in->nGrid, in->nGrid, in->nGrid, 0,0);
-            pkdSetLinGrid(plcl->pkd, in->dTime, in->dTime_next,
+            pkdSetLinGrid(plcl->pkd, in->a0, in->a, in->a1,
                 in->dBSize, in->nGrid, 
                 in ->iSeed, in->bFixed, in->fPhase);
         }

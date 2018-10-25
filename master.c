@@ -4314,7 +4314,7 @@ int msrNewTopStepKDK(MSR msr,
 
     /* Compute the grids of linear species at main timesteps, before gravity is called */
     if (!uRung && strlen(msr->param.csm->val.classData.achLinSpecies)){
-        msrSetLinGrid(msr, *pdTime, msr->param.nGridLin);
+        msrSetLinGrid(msr, *pdTime, msr->param.nGridLin,1,bKickOpen);
         if (msr->param.bDoLinPkOutput)
             msrOutputLinPk(msr, *pdStep, *pdTime);
     }
@@ -6122,23 +6122,20 @@ void msrMeasureLinPk(MSR msr,int nGrid, double dA, double dBoxSize,
     printf("P_lin(k) Calculated, Wallclock: %f secs\n\n",dsec);
     }
 
-void msrSetLinGrid(MSR msr,double dTime, int nGrid){
+void msrSetLinGrid(MSR msr,double dTime, int nGrid, int bKickClose, int bKickOpen){
     printf("Setting force grids of linear species with nGridLin = %d \n", nGrid);
     double sec, dsec;
     sec = msrTime();
 
     struct inSetLinGrid in;
     in.nGrid = nGrid;
-    in.dTime = dTime;
 
-    /* To disable the averaging of the linear \delta\rho
-    ** over each time step, set dTime_next equal to dTime.
-    */
     int do_DeltaRho_lin_avg = 1;
-    if (do_DeltaRho_lin_avg)
-        in.dTime_next = dTime + msrDelta(msr);
-    else
-        in.dTime_next = in.dTime;
+    in.a0 = in.a1 = in.a = csmTime2Exp(msr->param.csm, dTime);
+    if (do_DeltaRho_lin_avg) {
+	if (bKickClose) in.a0 = csmTime2Exp(msr->param.csm, dTime - 0.5*msrDelta(msr));
+	if (bKickOpen)  in.a1 = csmTime2Exp(msr->param.csm, dTime + 0.5*msrDelta(msr));
+	}
 
     in.dBSize = msr->param.dBoxSize;
     /* Parameters for the grid realization */

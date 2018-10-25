@@ -1350,8 +1350,9 @@ struct inLinearKick {
 void pstLinearKick(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 /* PST_SETLINGRID */
 struct inSetLinGrid {
-    double dTime;
-    double dTime_next;
+    double a0;
+    double a;
+    double a1;
     double dBSize;
     int nGrid;
     /* Noise generation */

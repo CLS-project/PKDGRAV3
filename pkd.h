@@ -1534,7 +1534,7 @@ void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int nGrid, float dDelta, int iA
 void pkdMeasurePk(PKD pkd, double dTotalMass, int iAssignment, int bInterlace,
     int nGrid, int nBins, double *fK, double *fPower, uint64_t *nPower);
 float getLinAcc(PKD pkd, MDLFFT fft,int cid, double r[3]);
-void pkdSetLinGrid(PKD pkd,double dTime, double dTime_next, double dBSize, int nGrid, int iSeed,
+void pkdSetLinGrid(PKD pkd,double a0, double a, double a1, double dBSize, int nGrid, int iSeed,
     int bFixed, float fPhase);
 void pkdMeasureLinPk(PKD pkd, int nGrid, double dA, double dBoxSize,
                 int nBins,  int iSeed, int bFixed, float fPhase, 
