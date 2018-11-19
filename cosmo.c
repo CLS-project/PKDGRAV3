@@ -1244,51 +1244,49 @@ double csmComoveDriftFac(CSM csm,double dTime,double dDelta) {
 
     if (!csm->val.bComove) return(dDelta);
  
-    else if (csm->val.classData.bClass == 0) {
-        if (csm->val.dLambda == 0.0 && csm->val.dOmegaDE == 0.0 && csm->val.dOmegaRad == 0.0) {
-            a1 = csmTime2Exp(csm,dTime);
-            a2 = csmTime2Exp(csm,dTime+dDelta);
-            if (dOmega0 == 1.0) {
-                return((2.0/dHubble0)*(1.0/sqrt(a1) - 1.0/sqrt(a2)));
-                }
-            else if (dOmega0 > 1.0) {
-                assert(dHubble0 >= 0.0);
-                if (dHubble0 == 0.0) {
-                    A = 1.0;
-                    B = 1.0/sqrt(dOmega0);
-                    }
-                else {
-                    a0 = 1.0/dHubble0/sqrt(dOmega0-1.0);
-                    A = 0.5*dOmega0/(dOmega0-1.0);
-                    B = A*a0;
-                    }
-                eta1 = acos(1.0-a1/A);
-                eta2 = acos(1.0-a2/A);
-                return(B/A/A*(1.0/tan(0.5*eta1) - 1.0/tan(0.5*eta2)));
-                }
-            else if (dOmega0 > 0.0) {
-                assert(dHubble0 > 0.0);
-                a0 = 1.0/dHubble0/sqrt(1.0-dOmega0);
-                A = 0.5*dOmega0/(1.0-dOmega0);
-                B = A*a0;
-                eta1 = acosh(a1/A+1.0);
-                eta2 = acosh(a2/A+1.0);
-                return(B/A/A*(1.0/tanh(0.5*eta1) - 1.0/tanh(0.5*eta2)));
-                }
-            else if (dOmega0 == 0.0) {
-                /*
-                 ** YOU figure this one out!
-                 */
-                assert(0);
-                return(0.0);
+    else if (csm->val.classData.bClass == 0 && csm->val.dLambda == 0.0 && csm->val.dOmegaDE == 0.0 && csm->val.dOmegaRad == 0.0) {
+        a1 = csmTime2Exp(csm,dTime);
+        a2 = csmTime2Exp(csm,dTime+dDelta);
+        if (dOmega0 == 1.0) {
+            return((2.0/dHubble0)*(1.0/sqrt(a1) - 1.0/sqrt(a2)));
+            }
+        else if (dOmega0 > 1.0) {
+            assert(dHubble0 >= 0.0);
+            if (dHubble0 == 0.0) {
+                A = 1.0;
+                B = 1.0/sqrt(dOmega0);
                 }
             else {
-                /*
-                 ** Bad value?
-                 */
-                assert(0);
-                return(0.0);
+                a0 = 1.0/dHubble0/sqrt(dOmega0-1.0);
+                A = 0.5*dOmega0/(dOmega0-1.0);
+                B = A*a0;
                 }
+            eta1 = acos(1.0-a1/A);
+            eta2 = acos(1.0-a2/A);
+            return(B/A/A*(1.0/tan(0.5*eta1) - 1.0/tan(0.5*eta2)));
+            }
+        else if (dOmega0 > 0.0) {
+            assert(dHubble0 > 0.0);
+            a0 = 1.0/dHubble0/sqrt(1.0-dOmega0);
+            A = 0.5*dOmega0/(1.0-dOmega0);
+            B = A*a0;
+            eta1 = acosh(a1/A+1.0);
+            eta2 = acosh(a2/A+1.0);
+            return(B/A/A*(1.0/tanh(0.5*eta1) - 1.0/tanh(0.5*eta2)));
+            }
+        else if (dOmega0 == 0.0) {
+            /*
+                ** YOU figure this one out!
+                */
+            assert(0);
+            return(0.0);
+            }
+        else {
+            /*
+                ** Bad value?
+                */
+            assert(0);
+            return(0.0);
             }
         }
     else {
@@ -1314,53 +1312,51 @@ double csmComoveKickFac(CSM csm,double dTime,double dDelta) {
     double a0,A,B,a1,a2,eta1,eta2;
 
     if (!csm->val.bComove) return(dDelta);
-    else if (csm->val.classData.bClass == 0) {
-        if (csm->val.dLambda == 0.0 && csm->val.dOmegaDE == 0.0 && csm->val.dOmegaRad == 0.0) {
-            a1 = csmTime2Exp(csm,dTime);
-            a2 = csmTime2Exp(csm,dTime+dDelta);
-            if (dOmega0 == 1.0) {
-                return((2.0/dHubble0)*(sqrt(a2) - sqrt(a1)));
-                }
-            else if (dOmega0 > 1.0) {
-                assert(dHubble0 >= 0.0);
-                if (dHubble0 == 0.0) {
-                    A = 1.0;
-                    B = 1.0/sqrt(dOmega0);
-                    }
-                else {
-                    a0 = 1.0/dHubble0/sqrt(dOmega0-1.0);
-                    A = 0.5*dOmega0/(dOmega0-1.0);
-                    B = A*a0;
-                    }
-                eta1 = acos(1.0-a1/A);
-                eta2 = acos(1.0-a2/A);
-                return(B/A*(eta2 - eta1));
-                }
-            else if (dOmega0 > 0.0) {
-                assert(dHubble0 > 0.0);
-                a0 = 1.0/dHubble0/sqrt(1.0-dOmega0);
-                A = 0.5*dOmega0/(1.0-dOmega0);
-                B = A*a0;
-                eta1 = acosh(a1/A+1.0);
-                eta2 = acosh(a2/A+1.0);
-                return(B/A*(eta2 - eta1));
-                }
-            else if (dOmega0 == 0.0) {
-                /*
-                 ** YOU figure this one out!
-                 */
-                assert(0);
-                return(0.0);
+    else if (csm->val.classData.bClass == 0 && csm->val.dLambda == 0.0 && csm->val.dOmegaDE == 0.0 && csm->val.dOmegaRad == 0.0) {
+        a1 = csmTime2Exp(csm,dTime);
+        a2 = csmTime2Exp(csm,dTime+dDelta);
+        if (dOmega0 == 1.0) {
+            return((2.0/dHubble0)*(sqrt(a2) - sqrt(a1)));
+            }
+        else if (dOmega0 > 1.0) {
+            assert(dHubble0 >= 0.0);
+            if (dHubble0 == 0.0) {
+                A = 1.0;
+                B = 1.0/sqrt(dOmega0);
                 }
             else {
-                /*
-                 ** Bad value?
-                 */
-                assert(0);
-                return(0.0);
+                a0 = 1.0/dHubble0/sqrt(dOmega0-1.0);
+                A = 0.5*dOmega0/(dOmega0-1.0);
+                B = A*a0;
                 }
+            eta1 = acos(1.0-a1/A);
+            eta2 = acos(1.0-a2/A);
+            return(B/A*(eta2 - eta1));
+            }
+        else if (dOmega0 > 0.0) {
+            assert(dHubble0 > 0.0);
+            a0 = 1.0/dHubble0/sqrt(1.0-dOmega0);
+            A = 0.5*dOmega0/(1.0-dOmega0);
+            B = A*a0;
+            eta1 = acosh(a1/A+1.0);
+            eta2 = acosh(a2/A+1.0);
+            return(B/A*(eta2 - eta1));
+            }
+        else if (dOmega0 == 0.0) {
+            /*
+                ** YOU figure this one out!
+                */
+            assert(0);
+            return(0.0);
+            }
+        else {
+            /*
+                ** Bad value?
+                */
+            assert(0);
+            return(0.0);
+            }
 	}
-    }
     else {
 	gsl_function F;
 	F.function = &ComoveKick_integrand;
