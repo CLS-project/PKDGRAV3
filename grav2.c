@@ -465,6 +465,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 
     for (i=pkdn->pLower;i<=pkdn->pUpper;++i) {
 	p = pkdParticle(pkd,i);
+	if (!pkdIsRungRange(p,uRungLo,uRungHi)) continue;
 	pkdGetPos1(pkd,p,r);
 	fMass = pkdMass(pkd,p);
 	fSoft = pkdSoft(pkd,p);

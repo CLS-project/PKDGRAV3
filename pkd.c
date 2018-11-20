@@ -3539,7 +3539,6 @@ double pkdTotalMass(PKD pkd) {
     n = pkdLocal(pkd);
     for( i=0; i<n; i++ ) {
 	p = pkdParticle(pkd,i);
-	if ( !pkdIsRungRange(p,0,MAX_RUNG) ) continue;
 	m += pkdMass(pkd,p);
 	}
     return m;
