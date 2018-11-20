@@ -2691,7 +2691,10 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
 	    p = pkdParticle(pkd,i);
 	    v = pkdVel(pkd,p);
 	    pkdGetPos1(pkd,p,r0);
-	    for (j=0;j<3;++j) pkdSetPos(pkd,p,j,rfinal[j] = r0[j] + dDelta*v[j]);
+	    for (j=0;j<3;++j) {
+		pkdSetPos(pkd,p,j,rfinal[j] = r0[j] + dDelta*v[j]);
+		assert(isfinite(rfinal[j]));
+		}
 	    pkdMinMax(rfinal,dMin,dMax);
 	    }
 	}
