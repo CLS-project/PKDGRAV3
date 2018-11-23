@@ -362,11 +362,7 @@ void * master_ch(MDL mdl) {
 	    msrMemStatus(msr);
 
 	    msrOutputOrbits(msr,iStep,dTime);
-#ifdef MDL_FFTW
-	    if (msr->param.iPkInterval && iStep%msr->param.iPkInterval == 0) {
-		msrOutputPk(msr,iStep,dTime);
-		}
-#endif
+
 	    /*
 	    ** Output a log file line if requested.
 	    ** Note: no extra gravity calculation required.

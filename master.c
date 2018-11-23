@@ -4286,10 +4286,13 @@ int msrNewTopStepKDK(MSR msr,
 	msrBuildTree(msr,*pdTime,msr->param.bEwald);
 	}
 
+    if (!uRung && msr->param.iPkInterval && iStep%msr->param.iPkInterval == 0) {
+	msrOutputPk(msr,iStep,*pdTime);
+	}
+
     // We need to make sure we descend all the way to the bucket with the
     // active tree, or we can get HUGE group cells, and hence too much P-P/P-C
     int nGroup = (bDualTree && uRung > iRungDT) ? 1 : msr->param.nGroup;
-
     
     if (!uRung && msr->param.bFindGroups) {
 	msrNewFof(msr,*pdTime);
