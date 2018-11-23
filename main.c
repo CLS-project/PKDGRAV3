@@ -270,8 +270,10 @@ void * master_ch(MDL mdl) {
 	    }
 
 	if (msr->param.bLightCone && msrComove(msr)) {
-	    printf("LightCone output will begin at z=%.10g\n",
-		1.0/csmComoveLookbackTime2Exp(msr->param.csm,1.0 / dLightSpeedSim(msr->param.dBoxSize)) - 1.0 );;
+	    printf("One, Two, Three replica depth is z=%.10g, %.10g, %.10g\n",
+		1.0/csmComoveLookbackTime2Exp(msr->param.csm,1.0 / dLightSpeedSim(1*msr->param.dBoxSize)) - 1.0,
+		1.0/csmComoveLookbackTime2Exp(msr->param.csm,1.0 / dLightSpeedSim(2*msr->param.dBoxSize)) - 1.0,
+		1.0/csmComoveLookbackTime2Exp(msr->param.csm,1.0 / dLightSpeedSim(3*msr->param.dBoxSize)) - 1.0 );
 	    }
 
 	/*
