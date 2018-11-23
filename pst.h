@@ -185,7 +185,6 @@ enum pst_service {
     PST_GROUP_STATS1,
     PST_SHRINK_PHASES,
     PST_GROUP_STATS2,
-    PST_HOP_SEND_STATS,
     PST_GROUPPROFILES,
     PST_INITRELAXATION,
     PST_CLEARTIMER,
@@ -598,10 +597,6 @@ struct inGroupStats2 {
     double rEnvironment[2];
     };
 void pstGroupStats2(PST,void *,int,void *,int *);
-
-
-/* PST_HOP_SEND_STATS */
-void pstHopSendStats(PST,void *,int,void *,int *);
 
 /* PST_SMOOTH */
 struct inSmooth {

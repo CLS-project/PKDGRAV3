@@ -202,29 +202,6 @@ static void combAngular(void *vpkd, void *v1, void *v2) {
 	}
     }
 
-struct packHopCtx {
-    PKD pkd;
-    int iIndex;
-    };
-
-static int packHop(void *vctx, int *id, size_t nSize, void *vBuff) {
-    struct packHopCtx *ctx = (struct packHopCtx *)vctx;
-    int nLeft = ctx->pkd->nLocalGroups - ctx->iIndex;
-    int n = nSize / sizeof(TinyGroupTable);
-    if ( n > nLeft ) n = nLeft;
-    memcpy(vBuff,ctx->pkd->tinyGroupTable + 1 + ctx->iIndex, n*sizeof(TinyGroupTable) );
-    ctx->iIndex += n;
-    return n*sizeof(TinyGroupTable);
-    }
-
-/* Send the group information to processor 0 */
-void pkdHopSendStats(PKD pkd) {
-    struct packHopCtx ctx;
-    ctx.pkd = pkd;
-    ctx.iIndex = 0;
-    mdlSend(pkd->mdl,0,packHop, &ctx);
-    }
-
 typedef struct {
     float fMass;
     float dr;

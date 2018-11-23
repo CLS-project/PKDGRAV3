@@ -180,9 +180,6 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_GROUP_STATS,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstGroupStats,
 	          sizeof(struct inGroupStats),0);
-    mdlAddService(mdl,PST_HOP_SEND_STATS,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstHopSendStats,
-		  0,0);
     mdlAddService(mdl,PST_SMOOTH,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstSmooth,
 		  sizeof(struct inSmooth),0);
@@ -2649,11 +2646,6 @@ void pstGroupStats(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	LCL *plcl = pst->plcl;
         pkdCalculateGroupStats(plcl->pkd,in->bPeriodic,in->dPeriod,in->rEnvironment);
         }
-    if (pnOut) *pnOut = 0;
-    }
-
-void pstHopSendStats(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-    pkdHopSendStats(pst->plcl->pkd);
     if (pnOut) *pnOut = 0;
     }
 

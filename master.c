@@ -4795,37 +4795,6 @@ void msrCooling(MSR msr,double dTime,double dStep,int bUpdateState, int bUpdateT
 
 /* END Gas routines */
 
-static void writeTinyGroupStats(FILE *fp, int nGroups, TinyGroupTable *g) {
-    int i;
-    for( i=0; i<nGroups; ++i ) {
-	fprintf(fp, "%.7g %.7g %.7g %.7g %.10g %.10g %.10g %.7g %.7g %.7g %.7g %.7g %.7g %.7g %.7g %.7g %.7g %.7g %.7g %.7g %.7g %.7g %.7g %.7g %.7g\n",
-	    g[i].fMass,
-	    g[i].rMax,
-	    g[i].rHalf,
-	    g[i].minPot,
-	    pkdPosToDbl(NULL,g[i].rPot[0]),  /* BAD, should pass PKD but will work for now */
-	    pkdPosToDbl(NULL,g[i].rPot[1]),
-
-	    pkdPosToDbl(NULL,g[i].rPot[2]),
-	    g[i].rcom[0], g[i].rcom[1], g[i].rcom[2],
-	    g[i].vcom[0], g[i].vcom[1], g[i].vcom[2],
-	    g[i].angular[0], g[i].angular[1], g[i].angular[2],
-	    g[i].inertia[0], g[i].inertia[1], g[i].inertia[2],
-	    g[i].inertia[3], g[i].inertia[4], g[i].inertia[5],
-	    g[i].sigma,
-	    g[i].fEnvironDensity0,g[i].fEnvironDensity1);
-	}
-    }
-
-static int unpackHop(void *vctx, int *id, size_t nSize, void *vBuff) {
-    FILE *fp = (FILE *)vctx;
-    TinyGroupTable *g = (TinyGroupTable *)vBuff;
-    int n = nSize / sizeof(TinyGroupTable);
-    assert( n*sizeof(TinyGroupTable) == nSize);
-    writeTinyGroupStats(fp,n,g);
-    return 1;
-    }
-
 void msrHopWrite(MSR msr, const char *fname) {
     FILE *fp;
     LCL *plcl;
@@ -4843,7 +4812,6 @@ void msrHopWrite(MSR msr, const char *fname) {
 	printf("Writing group statistics to %s\n", fname );
     sec = msrTime();
 
-#ifndef FOF_TESTING
     /* This is the new parallel binary format */
     struct inOutput out;
     out.eOutputType = OUT_TINY_GROUP;
@@ -4853,21 +4821,6 @@ void msrHopWrite(MSR msr, const char *fname) {
     out.nProcessor = msr->param.bParaWrite==0?1:(msr->param.nParaWrite<=1 ? msr->nThreads:msr->param.nParaWrite);
     strcpy(out.achOutFile,fname);
     pstOutput(msr->pst,&out,sizeof(out),NULL,NULL);
-#else
-    fp = fopen(fname,"w");
-    if (!fp) {
-	printf("Could not open Group Output File:%s\n",fname);
-	_msrExit(msr,1);
-	}
-    writeTinyGroupStats(fp,plcl->pkd->nLocalGroups,plcl->pkd->tinyGroupTable+1);
-
-    for (id=1;id<msr->nThreads;++id) {
-        int rID = mdlReqService(pst0->mdl,id,PST_HOP_SEND_STATS,NULL,0);
-	mdlRecv(pst0->mdl,id,unpackHop,fp);
-        mdlGetReply(pst0->mdl,rID,NULL,NULL);
-        }
-    fclose(fp);
-#endif
     dsec = msrTime() - sec;
     if (msr->param.bVStep)
 	printf("Written statistics, Wallclock: %f secs\n",dsec);
