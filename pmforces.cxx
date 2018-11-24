@@ -254,6 +254,7 @@ void pstSetLinGrid(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
                 in->dBSize, in->nGrid, 
                 in ->iSeed, in->bFixed, in->fPhase);
         }
+        if (pnOut) *pnOut = 0;
     }
 
 #ifdef NEW_LINEAR_KICK
@@ -306,8 +307,8 @@ static void fetch_forces(PKD pkd,int cid,int nGrid,force_array_t &forces, const 
     for(auto i=forces.begin(); i!=forces.end(); ++i) {
 	shape_t loc = i.position() + lower;
 	loc[0] = wrap(loc[0]); loc[1] = wrap(loc[1]); loc[2] = wrap(loc[2]);
-	auto id = mdlFFTrId(pkd->mdl,pkd->fft,loc[0],loc[1],loc[2]);
-	auto idx = mdlFFTrIdx(pkd->mdl,pkd->fft,loc[0],loc[1],loc[2]);
+	auto id = mdlFFTrId(pkd->mdl,pkd->Linfft,loc[0],loc[1],loc[2]);
+	auto idx = mdlFFTrIdx(pkd->mdl,pkd->Linfft,loc[0],loc[1],loc[2]);
 	auto p = reinterpret_cast<float*>(mdlFetch(pkd->mdl,cid,idx,id));
 	*i = *p;
 	}
@@ -613,7 +614,7 @@ void pstLinearKick(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     else {
 	pkdLinearKick(plcl->pkd,in->dtOpen,in->dtClose);
 	}
-    if (pnOut) *pnOut = sizeof(struct outMeasureLinPk);
+    if (pnOut) *pnOut = 0;
     }
 
 void pkdMeasureLinPk(PKD pkd, int nGrid, double dA, double dBoxSize,
