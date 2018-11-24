@@ -2201,7 +2201,11 @@ void mdlHandler(MDL mdl) {
 	assert(mdl->base.psrv[sid].fcnService != NULL);
 	(*mdl->base.psrv[sid].fcnService)(mdl->base.psrv[sid].p1, pszIn, phi->nInBytes,
 	    pszOut, &nOutBytes);
-	assert(nOutBytes <= mdl->base.psrv[sid].nOutBytes);
+	if (nOutBytes > mdl->base.psrv[sid].nOutBytes) {
+	    fprintf(stderr,"%d > %d: sid=%d\n",
+		nOutBytes, mdl->base.psrv[sid].nOutBytes, sid);
+	    assert(nOutBytes <= mdl->base.psrv[sid].nOutBytes);
+	    }
 	pho->idFrom = mdl->base.idSelf;
 	pho->replyTag = phi->replyTag;
 	pho->sid = sid;
