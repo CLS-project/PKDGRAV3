@@ -302,6 +302,7 @@ void * master_ch(MDL mdl) {
                 msrSetLinGrid(msr,dTime, msr->param.nGridLin,0,0);
                 if (msr->param.bDoLinPkOutput)
                     msrOutputLinPk(msr, iStartStep, dTime);
+		if (msr->param.nGridLin > 0) msrLinearKick(msr,dTime,0,1);
             }
 	    uRungMax = msrGravity(msr,0,MAX_RUNG,ROOT,0,dTime,iStartStep,0,bKickOpen,msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
 	    msrMemStatus(msr);
