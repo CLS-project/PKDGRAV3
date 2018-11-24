@@ -6108,7 +6108,10 @@ void msrSetLinGrid(MSR msr,double dTime, int nGrid, int bKickClose, int bKickOpe
 void msrLinearKick(MSR msr, double dTime, int bKickClose, int bKickOpen) {
     struct inLinearKick in;
     double dt = 0.5*msr->param.dDelta;
+    double sec, dsec;
 
+    printf("Applying Linear Kick...\n");
+    sec = msrTime();
     in.dtOpen = in.dtClose = 0.0;
     if (msr->param.csm->val.bComove) {
 	if (bKickClose) in.dtClose = csmComoveKickFac(msr->param.csm,dTime-dt,dt);
@@ -6119,6 +6122,8 @@ void msrLinearKick(MSR msr, double dTime, int bKickClose, int bKickOpen) {
 	if (bKickOpen) in.dtOpen = dt;
 	}
     pstLinearKick(msr->pst, &in, sizeof(in), NULL, NULL);
+    dsec = msrTime() - sec;
+    printf("Linear Kick Applied, Wallclock: %f secs\n\n",dsec);
     }
 #endif
 
