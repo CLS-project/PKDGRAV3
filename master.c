@@ -4290,14 +4290,6 @@ int msrNewTopStepKDK(MSR msr,
 	msrOutputPk(msr,iStep,*pdTime);
 	}
 
-    // We need to make sure we descend all the way to the bucket with the
-    // active tree, or we can get HUGE group cells, and hence too much P-P/P-C
-    int nGroup = (bDualTree && uRung > iRungDT) ? 1 : msr->param.nGroup;
-    
-    if (!uRung && msr->param.bFindGroups) {
-	msrNewFof(msr,*pdTime);
-	}
-
     if (!uRung) {
 	msrCheckForOutput(msr,iStep,*pdTime,pbDoCheckpoint,pbDoOutput);	
 	if (*pbDoCheckpoint || *pbDoOutput) bKickOpen = 0;
@@ -4321,11 +4313,15 @@ int msrNewTopStepKDK(MSR msr,
         if (msr->param.bDoLinPkOutput)
             msrOutputLinPk(msr, *pdStep, *pdTime);
     }
+    if (!uRung && msr->param.nGridLin > 0) msrLinearKick(msr,*pdTime,1,bKickOpen);
 
+    if (!uRung && msr->param.bFindGroups) msrNewFof(msr,*pdTime);
+
+    // We need to make sure we descend all the way to the bucket with the
+    // active tree, or we can get HUGE group cells, and hence too much P-P/P-C
+    int nGroup = (bDualTree && uRung > iRungDT) ? 1 : msr->param.nGroup;
     *puRungMax = msrGravity(msr,uRung,msrMaxRung(msr),ROOT,uRoot2,*pdTime,
 	*pdStep,1,bKickOpen,msr->param.bEwald,nGroup,piSec,&nActive);
-
-    if (!uRung && msr->param.nGridLin > 0) msrLinearKick(msr,*pdTime,1,bKickOpen);
 
     if (!uRung && msr->param.bFindGroups) {
 	msrGroupStats(msr);
