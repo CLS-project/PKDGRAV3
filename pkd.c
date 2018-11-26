@@ -440,7 +440,6 @@ void pkdInitialize(
 
 #ifdef MDL_FFTW
     pkd->fft = NULL;
-    pkd->Linfft = NULL;
 #endif
 
     /*
@@ -2256,18 +2255,6 @@ pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     mdlROcache(pkd->mdl,CID_PARTICLE,NULL,pkdParticleBase(pkd),pkdParticleSize(pkd),
 	       pkdLocal(pkd));
 
-    /* Start linear species grids caching space (for inverse force interpolation)*/
-    if (bLinearSpecies){
-        mdlGridCoord  first, last;
-        mdlGridCoordFirstLast(pkd->mdl,pkd->Linfft->rgrid,&first,&last,1);
-        FFTW3(real)* forceX = mdlSetArray(pkd->mdl,last.i,sizeof(FFTW3(real)),pkd->pLite);
-        FFTW3(real)* forceY = mdlSetArray(pkd->mdl,last.i,sizeof(FFTW3(real)),forceX + pkd->Linfft->rgrid->nLocal);
-        FFTW3(real)* forceZ = mdlSetArray(pkd->mdl,last.i,sizeof(FFTW3(real)),forceY + pkd->Linfft->rgrid->nLocal);
- 
-        mdlROcache(pkd->mdl,CID_GridLinFx,NULL, forceX, sizeof(FFTW3(real)),last.i );
-        mdlROcache(pkd->mdl,CID_GridLinFy,NULL, forceY, sizeof(FFTW3(real)),last.i );
-        mdlROcache(pkd->mdl,CID_GridLinFz,NULL, forceZ, sizeof(FFTW3(real)),last.i );
-    }
     /*
     ** Calculate newtonian gravity, including replicas if any.
     */
@@ -2314,12 +2301,6 @@ pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     ** Stop particle caching space.
     */
     mdlFinishCache(pkd->mdl,CID_PARTICLE);
-    /* Stop the linear species grids caching space */
-    if (bLinearSpecies){
-       mdlFinishCache(pkd->mdl,CID_GridLinFx);
-       mdlFinishCache(pkd->mdl,CID_GridLinFy);
-       mdlFinishCache(pkd->mdl,CID_GridLinFz);
-    }
 
     for (i=0;i<=IRUNGMAX;++i) pnRung[i] = pkd->nRung[i];
 

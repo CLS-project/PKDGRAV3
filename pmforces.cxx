@@ -141,7 +141,7 @@ static double green(int i, int jj, int kk, int nGrid){
 extern "C"
 void pkdSetLinGrid(PKD pkd, double a0, double a, double a1, double dBSize, int nGrid, int iSeed,
     int bFixed, float fPhase) {
-        MDLFFT fft = pkd->Linfft;
+        MDLFFT fft = pkd->fft;
         /* Grid coordinates in real space :      [0, nGrid].[0, nGrid].[0, nGrid] */
         mdlGridCoord rfirst, rlast, rindex;
         /* Grid coordinates in Fourier space : [O, Nyquist].[0, nGrid].[0, nGrid] */
@@ -249,7 +249,6 @@ void pstSetLinGrid(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
             mdlGetReply(pst->mdl,rID, vout,pnOut);
         }
         else {
-            plcl->pkd->Linfft = mdlFFTInitialize(pst->mdl, in->nGrid, in->nGrid, in->nGrid, 0,0);
             pkdSetLinGrid(plcl->pkd, in->a0, in->a, in->a1,
                 in->dBSize, in->nGrid, 
                 in ->iSeed, in->bFixed, in->fPhase);
@@ -307,8 +306,8 @@ static void fetch_forces(PKD pkd,int cid,int nGrid,force_array_t &forces, const 
     for(auto i=forces.begin(); i!=forces.end(); ++i) {
 	shape_t loc = i.position() + lower;
 	loc[0] = wrap(loc[0]); loc[1] = wrap(loc[1]); loc[2] = wrap(loc[2]);
-	auto id = mdlFFTrId(pkd->mdl,pkd->Linfft,loc[0],loc[1],loc[2]);
-	auto idx = mdlFFTrIdx(pkd->mdl,pkd->Linfft,loc[0],loc[1],loc[2]);
+	auto id = mdlFFTrId(pkd->mdl,pkd->fft,loc[0],loc[1],loc[2]);
+	auto idx = mdlFFTrIdx(pkd->mdl,pkd->fft,loc[0],loc[1],loc[2]);
 	auto p = reinterpret_cast<float*>(mdlFetch(pkd->mdl,cid,idx,id));
 	*i = *p;
 	}
@@ -322,13 +321,13 @@ void pkdLinearKick(PKD pkd,vel_t dtOpen,vel_t dtClose, int iAssignment=4) {
     dataZ.reserve(maxSize);
     shape_t index;
     position_t fPeriod(pkd->fPeriod), ifPeriod = 1.0 / fPeriod;
-    int nGrid = pkd->Linfft->rgrid->n1;
+    int nGrid = pkd->fft->rgrid->n1;
     assert(iAssignment>=1 && iAssignment<=4);
 
-    int iLocal = mdlCore(pkd->mdl) ? 0 : pkd->Linfft->rgrid->nLocal;
+    int iLocal = mdlCore(pkd->mdl) ? 0 : pkd->fft->rgrid->nLocal;
     FFTW3(real)* forceX = reinterpret_cast<FFTW3(real)*>(mdlSetArray(pkd->mdl,iLocal,sizeof(FFTW3(real)),pkd->pLite));
-    FFTW3(real)* forceY = reinterpret_cast<FFTW3(real)*>(mdlSetArray(pkd->mdl,iLocal,sizeof(FFTW3(real)),forceX + pkd->Linfft->rgrid->nLocal));
-    FFTW3(real)* forceZ = reinterpret_cast<FFTW3(real)*>(mdlSetArray(pkd->mdl,iLocal,sizeof(FFTW3(real)),forceY + pkd->Linfft->rgrid->nLocal));
+    FFTW3(real)* forceY = reinterpret_cast<FFTW3(real)*>(mdlSetArray(pkd->mdl,iLocal,sizeof(FFTW3(real)),forceX + pkd->fft->rgrid->nLocal));
+    FFTW3(real)* forceZ = reinterpret_cast<FFTW3(real)*>(mdlSetArray(pkd->mdl,iLocal,sizeof(FFTW3(real)),forceY + pkd->fft->rgrid->nLocal));
     mdlROcache(pkd->mdl,CID_GridLinFx,NULL, forceX, sizeof(FFTW3(real)),iLocal);
     mdlROcache(pkd->mdl,CID_GridLinFy,NULL, forceY, sizeof(FFTW3(real)),iLocal );
     mdlROcache(pkd->mdl,CID_GridLinFz,NULL, forceZ, sizeof(FFTW3(real)),iLocal );
@@ -570,10 +569,10 @@ float getLinAcc(PKD pkd, MDLFFT fft,int cid, double r[3]){
 
 void pkdLinearKick(PKD pkd, vel_t dtOpen, vel_t dtClose) {
     mdlGridCoord  first, last;
-    mdlGridCoordFirstLast(pkd->mdl,pkd->Linfft->rgrid,&first,&last,1);
+    mdlGridCoordFirstLast(pkd->mdl,pkd->fft->rgrid,&first,&last,1);
     FFTW3(real)* forceX = reinterpret_cast<FFTW3(real)*>(mdlSetArray(pkd->mdl,last.i,sizeof(FFTW3(real)),pkd->pLite));
-    FFTW3(real)* forceY = reinterpret_cast<FFTW3(real)*>(mdlSetArray(pkd->mdl,last.i,sizeof(FFTW3(real)),forceX + pkd->Linfft->rgrid->nLocal));
-    FFTW3(real)* forceZ = reinterpret_cast<FFTW3(real)*>(mdlSetArray(pkd->mdl,last.i,sizeof(FFTW3(real)),forceY + pkd->Linfft->rgrid->nLocal));
+    FFTW3(real)* forceY = reinterpret_cast<FFTW3(real)*>(mdlSetArray(pkd->mdl,last.i,sizeof(FFTW3(real)),forceX + pkd->fft->rgrid->nLocal));
+    FFTW3(real)* forceZ = reinterpret_cast<FFTW3(real)*>(mdlSetArray(pkd->mdl,last.i,sizeof(FFTW3(real)),forceY + pkd->fft->rgrid->nLocal));
     mdlROcache(pkd->mdl,CID_GridLinFx,NULL, forceX, sizeof(FFTW3(real)),last.i );
     mdlROcache(pkd->mdl,CID_GridLinFy,NULL, forceY, sizeof(FFTW3(real)),last.i );
     mdlROcache(pkd->mdl,CID_GridLinFz,NULL, forceZ, sizeof(FFTW3(real)),last.i );
@@ -582,9 +581,9 @@ void pkdLinearKick(PKD pkd, vel_t dtOpen, vel_t dtClose) {
         auto v = pkdVel(pkd,p);
         double r[3];
         pkdGetPos1(pkd,p,r);
-	v[0] += (dtOpen + dtClose) * getLinAcc(pkd,pkd->Linfft,CID_GridLinFx,r);
-	v[1] += (dtOpen + dtClose) * getLinAcc(pkd,pkd->Linfft,CID_GridLinFy,r);
-	v[2] += (dtOpen + dtClose) * getLinAcc(pkd,pkd->Linfft,CID_GridLinFz,r);
+	v[0] += (dtOpen + dtClose) * getLinAcc(pkd,pkd->fft,CID_GridLinFx,r);
+	v[1] += (dtOpen + dtClose) * getLinAcc(pkd,pkd->fft,CID_GridLinFy,r);
+	v[2] += (dtOpen + dtClose) * getLinAcc(pkd,pkd->fft,CID_GridLinFz,r);
         }
     mdlFinishCache(pkd->mdl,CID_GridLinFx);
     mdlFinishCache(pkd->mdl,CID_GridLinFy);
@@ -612,7 +611,7 @@ void pstLinearKick(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 void pkdMeasureLinPk(PKD pkd, int nGrid, double dA, double dBoxSize,
                 int nBins,  int iSeed, int bFixed, float fPhase, 
                 double *fK, double *fPower, uint64_t *nPower) {
-    MDLFFT fft = pkd->Linfft;
+    MDLFFT fft = pkd->fft;
     mdlGridCoord first, last, index;
     FFTW3(complex) *fftDataK;
     double ak;

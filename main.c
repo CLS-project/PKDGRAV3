@@ -298,11 +298,13 @@ void * master_ch(MDL mdl) {
 	    else bKickOpen = 0;
 
             /* Compute the grids of the linear species before doing gravity */
-            if (strlen(msr->param.csm->val.classData.achLinSpecies)){
+            if (strlen(msr->param.csm->val.classData.achLinSpecies) && msr->param.nGridLin > 0){
+		msrGridCreateFFT(msr,msr->param.nGridLin);
                 msrSetLinGrid(msr,dTime, msr->param.nGridLin,0,0);
                 if (msr->param.bDoLinPkOutput)
                     msrOutputLinPk(msr, iStartStep, dTime);
-		if (msr->param.nGridLin > 0) msrLinearKick(msr,dTime,0,1);
+		msrLinearKick(msr,dTime,0,1);
+		msrGridDeleteFFT(msr);
             }
 	    uRungMax = msrGravity(msr,0,MAX_RUNG,ROOT,0,dTime,iStartStep,0,bKickOpen,msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
 	    msrMemStatus(msr);
@@ -346,11 +348,13 @@ void * master_ch(MDL mdl) {
                     msrLightConeOpen(msr,iStep);  /* open the lightcone */
 		    uRungMax = msrGravity(msr,0,MAX_RUNG,ROOT,0,ddTime,diStep,0,1,msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
                     /* Set the grids of the linear species */
-                    if (strlen(msr->param.csm->val.classData.achLinSpecies)){
+                    if (strlen(msr->param.csm->val.classData.achLinSpecies) && msr->param.nGridLin > 0){
+			msrGridCreateFFT(msr,msr->param.nGridLin);
 		        msrSetLinGrid(msr, dTime, msr->param.nGridLin,0,1);
                         if (msr->param.bDoLinPkOutput)
                             msrOutputLinPk(msr, iStartStep, dTime);
-			if (msr->param.nGridLin > 0) msrLinearKick(msr,dTime,0,1);
+			msrLinearKick(msr,dTime,0,1);
+			msrGridDeleteFFT(msr);
                         }
 		    }
 		msrNewTopStepKDK(msr,0,0,&diStep,&ddTime,&uRungMax,&iSec,&bDoCheckpoint,&bDoOutput);

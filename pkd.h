@@ -899,7 +899,6 @@ typedef struct pkdContext {
 #endif
 #ifdef MDL_FFTW
     MDLFFT fft;
-    MDLFFT Linfft;
 #endif
     MDLGRID grid;
     float *gridData;

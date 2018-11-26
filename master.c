@@ -4308,12 +4308,14 @@ int msrNewTopStepKDK(MSR msr,
 	}
 
     /* Compute the grids of linear species at main timesteps, before gravity is called */
-    if (!uRung && strlen(msr->param.csm->val.classData.achLinSpecies)){
+    if (!uRung && strlen(msr->param.csm->val.classData.achLinSpecies) && msr->param.nGridLin){
+	msrGridCreateFFT(msr,msr->param.nGridLin);
         msrSetLinGrid(msr, *pdTime, msr->param.nGridLin,1,bKickOpen);
         if (msr->param.bDoLinPkOutput)
             msrOutputLinPk(msr, *pdStep, *pdTime);
-    }
-    if (!uRung && msr->param.nGridLin > 0) msrLinearKick(msr,*pdTime,1,bKickOpen);
+	msrLinearKick(msr,*pdTime,1,bKickOpen);
+	msrGridDeleteFFT(msr);
+	}
 
     if (!uRung && msr->param.bFindGroups) msrNewFof(msr,*pdTime);
 
