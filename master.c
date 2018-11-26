@@ -5021,6 +5021,8 @@ void msrGroupStats(MSR msr) {
     struct inGroupStats inGroupStats;
     double sec,dsec,ssec;
 
+    if (msr->param.bVStep)
+	printf("Generating Group statistics\n");
     sec = msrTime();
     inGroupStats.bPeriodic = msr->param.bPeriodic;
     inGroupStats.dPeriod[0] = msr->param.dxPeriod;
