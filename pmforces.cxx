@@ -364,16 +364,12 @@ void pkdLinearKick(PKD pkd,vel_t dtOpen,vel_t dtClose, int iAssignment=4) {
 	    for( int i=kdn->pLower; i<=kdn->pUpper; ++i) { // All particles in this tree cell
 		auto p = pkdParticle(pkd,i);
 		auto v = pkdVel(pkd,p);
-		float a;
 		position_t dr; pkdGetPos1(pkd,p,dr.data()); // Centered on 0 with period fPeriod
 		float3_t r(dr);
 		r = (r * ifPeriod + 0.5) * nGrid - flower; // Scale and shift to fit in subcube
-		a = force_interpolate(forcesX, r.data(), iAssignment);
-		v[0] += dtOpen*a + dtClose*a;
-		a = force_interpolate(forcesY, r.data(), iAssignment);
-		v[1] += dtOpen*a + dtClose*a;
-		a = force_interpolate(forcesZ, r.data(), iAssignment);
-		v[2] += dtOpen*a + dtClose*a;
+		v[0] += (dtOpen + dtClose) * force_interpolate(forcesX, r.data(), iAssignment);
+		v[1] += (dtOpen + dtClose) * force_interpolate(forcesY, r.data(), iAssignment);
+		v[2] += (dtOpen + dtClose) * force_interpolate(forcesZ, r.data(), iAssignment);
 		}
 	    }
 	}
@@ -585,14 +581,10 @@ void pkdLinearKick(PKD pkd, vel_t dtOpen, vel_t dtClose) {
         auto p = pkdParticle(pkd,i);
         auto v = pkdVel(pkd,p);
         double r[3];
-        float a[3];
         pkdGetPos1(pkd,p,r);
-        a[0] = getLinAcc(pkd,pkd->Linfft,CID_GridLinFx,r);
-        a[1] = getLinAcc(pkd,pkd->Linfft,CID_GridLinFy,r);
-        a[2] = getLinAcc(pkd,pkd->Linfft,CID_GridLinFz,r);
-	v[0] += dtOpen*a[0] + dtClose*a[0];
-	v[1] += dtOpen*a[1] + dtClose*a[1];
-	v[2] += dtOpen*a[2] + dtClose*a[2];
+	v[0] += (dtOpen + dtClose) * getLinAcc(pkd,pkd->Linfft,CID_GridLinFx,r);
+	v[1] += (dtOpen + dtClose) * getLinAcc(pkd,pkd->Linfft,CID_GridLinFy,r);
+	v[2] += (dtOpen + dtClose) * getLinAcc(pkd,pkd->Linfft,CID_GridLinFz,r);
         }
     mdlFinishCache(pkd->mdl,CID_GridLinFx);
     mdlFinishCache(pkd->mdl,CID_GridLinFy);
