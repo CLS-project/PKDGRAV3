@@ -34,16 +34,20 @@ static const std::complex<float> I(0,1);
 
 typedef blitz::Array<basicParticle,3> basicParticleArray;
 static basicParticleArray getOutputArray(PKD pkd,GridInfo &G,real_array_t &R) {
-    basicParticleArray fullOutput(
-        reinterpret_cast<basicParticle *>(mdlSetArray(pkd->mdl,0,0,pkdParticleBase(pkd))),
-        blitz::shape(G.n1r(),G.n2(),G.nz()), blitz::neverDeleteData,
-        RegularArray(G.sz()));
-    basicParticleArray output = fullOutput(
-    	blitz::Range::all(),
-    	blitz::Range(R.base(1),R.base(1)+R.extent(1)-1),
-    	blitz::Range(G.sz(),G.ez()-1));
-    output.reindexSelf(dimension_t(0,R.base(1),G.sz()));
-    return output;
+    void *pData = mdlSetArray(pkd->mdl,0,0,pkdParticleBase(pkd));
+    if (blitz::product(R.shape())) {
+	basicParticleArray fullOutput(
+            reinterpret_cast<basicParticle *>(pData),
+            blitz::shape(G.n1r(),G.n2(),G.nz()), blitz::neverDeleteData,
+            RegularArray(G.sz()));
+	basicParticleArray output = fullOutput(
+	    blitz::Range::all(),
+	    blitz::Range(R.base(1),R.base(1)+R.extent(1)-1),
+	    blitz::Range(G.sz(),G.ez()-1));
+	output.reindexSelf(dimension_t(0,R.base(1),G.sz()));
+	return output;
+	}
+    else return basicParticleArray();
     }
 
 
