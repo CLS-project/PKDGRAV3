@@ -84,7 +84,7 @@ void * master_ch(MDL mdl) {
     int i,iStep,iStartStep,iSec=0,iStop=0;
     uint64_t nActive;
     int bKickOpen=0;
-    int bDoOpeningKick=0;
+    const int bKickClose=0;
     int bDoCheckpoint=0;
     int bDoOutput=0;
     int64_t nRungs[MAX_RUNG+1];
@@ -300,10 +300,10 @@ void * master_ch(MDL mdl) {
             /* Compute the grids of the linear species before doing gravity */
             if (strlen(msr->param.csm->val.classData.achLinSpecies) && msr->param.nGridLin > 0){
 		msrGridCreateFFT(msr,msr->param.nGridLin);
-                msrSetLinGrid(msr,dTime, msr->param.nGridLin,0,0);
+                msrSetLinGrid(msr,dTime, msr->param.nGridLin,bKickClose,bKickOpen);
                 if (msr->param.bDoLinPkOutput)
                     msrOutputLinPk(msr, iStartStep, dTime);
-		msrLinearKick(msr,dTime,0,1);
+		msrLinearKick(msr,dTime,bKickClose,bKickOpen);
 		msrGridDeleteFFT(msr);
             }
 	    uRungMax = msrGravity(msr,0,MAX_RUNG,ROOT,0,dTime,iStartStep,0,bKickOpen,msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
@@ -334,7 +334,7 @@ void * master_ch(MDL mdl) {
 	    msrInitRelaxation(msr);
 	    }
 
-	bDoOpeningKick = 0;
+	bKickOpen = 0;
 	for (iStep=iStartStep+1;iStep<=msrSteps(msr)&&!iStop;++iStep) {
 	    if (msrComove(msr)) msrSwitchTheta(msr,dTime);
 	    dMultiEff = 0.0;
@@ -342,23 +342,23 @@ void * master_ch(MDL mdl) {
 	    if (msr->param.bNewKDK) {
 		diStep = (double)(iStep-1);
 		ddTime = dTime;
-		if (bDoOpeningKick) {
-		    bDoOpeningKick = 0; /* clear the opening kicking flag */
+		if (bKickOpen) {
 		    msrBuildTree(msr,dTime,0);
                     msrLightConeOpen(msr,iStep);  /* open the lightcone */
 		    uRungMax = msrGravity(msr,0,MAX_RUNG,ROOT,0,ddTime,diStep,0,1,msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
                     /* Set the grids of the linear species */
                     if (strlen(msr->param.csm->val.classData.achLinSpecies) && msr->param.nGridLin > 0){
 			msrGridCreateFFT(msr,msr->param.nGridLin);
-		        msrSetLinGrid(msr, dTime, msr->param.nGridLin,0,1);
+		        msrSetLinGrid(msr, dTime, msr->param.nGridLin,bKickClose,bKickOpen);
                         if (msr->param.bDoLinPkOutput)
                             msrOutputLinPk(msr, iStartStep, dTime);
-			msrLinearKick(msr,dTime,0,1);
+			msrLinearKick(msr,dTime,bKickClose,bKickOpen);
 			msrGridDeleteFFT(msr);
                         }
+		    bKickOpen = 0; /* clear the opening kicking flag */
 		    }
 		msrNewTopStepKDK(msr,0,0,&diStep,&ddTime,&uRungMax,&iSec,&bDoCheckpoint,&bDoOutput);
-		bDoOpeningKick = bDoCheckpoint || bDoOutput;
+		bKickOpen = bDoCheckpoint || bDoOutput;
 		}
 	    else {
 		msrTopStepKDK(msr,iStep-1,dTime,
