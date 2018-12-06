@@ -59,11 +59,15 @@ void csmInitialize(CSM *pcsm) {
     csm->val.dOmega0 = 0.0;
     csm->val.dLambda = 0.0;
     csm->val.dOmegaDE = 0.0;
-    csm->val.w0 = 0.0;
+    csm->val.w0 = -1.0;
     csm->val.wa = 0.0;
     csm->val.dOmegaRad = 0.0;
     csm->val.dOmegab = 0.0;
     csm->val.bComove = 0;
+    csm->val.dNormalization = 0.0;
+    csm->val.dSpectral = 0.0;
+    csm->val.dRunning = 0.0;
+    csm->val.dPivot = 0.0;
     csm->W = gsl_integration_workspace_alloc(LIMIT);
     csm->val.classData.bClass = 0;
     csm->val.classData.achFilename[0] = 0;
@@ -79,10 +83,6 @@ void csmInitialize(CSM *pcsm) {
     csm->val.classData.perturbations.delta_m  [0] = 0.;
     csm->val.classData.perturbations.theta_m  [0] = 0.;
     csm->val.classData.perturbations.delta_lin[0] = 0.;
-    csm->val.classData.perturbations.A_s = 0.;
-    csm->val.classData.perturbations.n_s = 0.;
-    csm->val.classData.perturbations.alpha_s = 0.;
-    csm->val.classData.perturbations.k_pivot = 0.;
     csm->classGsl.initialized = 0;
     *pcsm = csm;
     }
@@ -115,15 +115,16 @@ void csmFinish(CSM csm) {
     free(csm);
     }
 
-void csmClassRead(CSM csm, double dBoxSize){
+#define EPSCONFLICT 1e-6
+void csmClassRead(CSM csm, double dBoxSize, double h){
     size_t i, j, l, index;
-    int nLinSpecies;
+    int conflicts, nLinSpecies;
     hid_t file, group, attr, string_type, rhocrit_dataset, rhocrit_dataspace, memspace;
     hsize_t size_bg, size_a, size_k, count[1], offset[1], offset_out[1];
-    char *matter_name, *de_name, hdf5_key[128], *unit_length,
+    char *matter_name, hdf5_key[128], *unit_length,
         *linSpeciesNames[10], *linSpeciesName, *LinSpeciesParsing;
-    double dOmegab, dOmega0, dOmegaDE, dOmegaRad, dOmegaNu, dSpectral,dNormalization, h;
-    double a, k, rho_crit[1], unit_convertion_time, unit_convertion_density;
+    double h_class, Omega_b, Omega_m, Omega_Lambda, Omega_fld, Omega_g, Omega_ur, w0, wa;
+    double a, k, rho_crit[1], unit_conversion_time, unit_conversion_density;
     double *loga, *logrho_lin, *deltarho_lin, *rho_lin;
 
     assert(csm->val.classData.bClass);
@@ -131,6 +132,11 @@ void csmClassRead(CSM csm, double dBoxSize){
         fprintf(stderr, "WARNING: No achClassFilename specified\n");
         abort();
     }
+
+    /* Flag keeping track of conflicts between parameter specifications
+    ** in the parameter file and parameters in the HDF5 file.
+    */
+    conflicts = 0;
 
     /* Parse the achLinSpecies string */
     nLinSpecies = 0;
@@ -192,33 +198,13 @@ void csmClassRead(CSM csm, double dBoxSize){
     }
     free(unit_length);
 
-    /* Read in the Hubble parameter h = H0/(100*km/(s*Mpc)),
-    ** which we will need to convert from 1/Mpc to h/Mpc.
-    */
-    attr = H5Aopen_by_name(file, "/background", "h", H5P_DEFAULT, H5P_DEFAULT);
-    if (attr < 0) abort();
-    if (H5Aread(attr, H5T_NATIVE_DOUBLE, &h) < 0) abort();
-    H5Aclose(attr);
-
-    /* Added by MK: read in full cosmology from HDF5 */
-    /*
-    ** Read in the baryonic matter density parameter dOmegab
-    *
-    attr = H5Aopen_by_name(file, "/background", "Omega_b", H5P_DEFAULT, H5P_DEFAULT);
-    if (attr < 0) abort();
-    if (H5Aread(attr, H5T_NATIVE_DOUBLE, &dOmegab) < 0) abort();
-    H5Aclose(attr);
-    // update csm->val.dOmegab
-    csm->val.dOmegab=dOmegab;
-    */
-
     /* The matter species "m" is really the combination "cdm+b".
     ** Here we check whether this is written as "cdm+b" or "b+cdm"
     ** in the HDF5 file.
     */
-    if (H5Lexists(file, "/background/rho_cdm+b", H5P_DEFAULT)){
+    if (H5Lexists(file, "/background/rho_cdm+b", H5P_DEFAULT) > 0){
         matter_name = "cdm+b";
-    } else if (H5Lexists(file, "/background/rho_b+cdm", H5P_DEFAULT)){
+    } else if (H5Lexists(file, "/background/rho_b+cdm", H5P_DEFAULT) > 0){
         matter_name = "b+cdm";
     } else {
         fprintf(stderr,
@@ -227,87 +213,120 @@ void csmClassRead(CSM csm, double dBoxSize){
         abort();
     }
 
-    /*
-    ** Read in the total (cdm+b) matter density parameter dOmega0
+    /* Read in cosmological background parameters, check that these are
+    ** consistent with corresponding parameters given in the parameter
+    ** file (and the passed h) and update the corresponding values
+    ** in csm->val. Note that we completely ignore massive neutrinos.
     */
-    snprintf(hdf5_key, sizeof(hdf5_key), "Omega_%s", matter_name);
-    attr = H5Aopen_by_name(file, "/background", hdf5_key, H5P_DEFAULT, H5P_DEFAULT);
-    if (attr < 0) abort();
-    if (H5Aread(attr, H5T_NATIVE_DOUBLE, &dOmega0) < 0) abort();
+    group = H5Gopen(file, "/background", H5P_DEFAULT); if (group < 0) abort();
+    /* The Hubble parameter h = H0/(100*km/(s*Mpc)) */
+    attr = H5Aopen(group, "h", H5P_DEFAULT); if (attr < 0) abort();
+    if (H5Aread(attr, H5T_NATIVE_DOUBLE, &h_class) < 0) abort();
     H5Aclose(attr);
-    // update csm->val.dOmega0
-    csm->val.dOmega0=dOmega0;
-
-    /* The dark energy model may either be a cosmological constant
-    ** or the {w0, wa} parameterization, respectively called
-    ** "lambda" and "fld" in CLASS syntax. Here we check which is
-    ** present in the HDF5 fie.
-    */
-    if (H5Lexists(file, "/background/rho_lambda", H5P_DEFAULT)){
-        de_name = "lambda";
-    } else if (H5Lexists(file, "/background/rho_fld", H5P_DEFAULT)){
-        de_name = "fld";
-    } else {
-        fprintf(stderr,
-            "WARNING: Could not find the dark energy species in %s\n",
-            csm->val.classData.achFilename);
-        abort();
+    if (h != 0 && fabs(h_class/h - 1) > EPSCONFLICT){
+        conflicts += 1;
+        fprintf(stderr, "WARNING: Parameter conflict: h = %.12g vs %.12g\n",
+            h, h_class);
     }
-
-    /*
-    ** Read in the dark energy density parameter dOmegaDE
+    h = h_class;
+    /* Density parameter for baryons */
+    attr = H5Aopen(group, "Omega_b", H5P_DEFAULT); if (attr < 0) abort();
+    if (H5Aread(attr, H5T_NATIVE_DOUBLE, &Omega_b) < 0) abort();
+    H5Aclose(attr);
+    if (csm->val.dOmegab != 0 && fabs(Omega_b/csm->val.dOmegab - 1) > EPSCONFLICT){
+        conflicts += 1;
+        fprintf(stderr, "WARNING: Parameter conflict: dOmegab = %.12g vs %.12g\n",
+            csm->val.dOmegab, Omega_b);
+    }
+    csm->val.dOmegab = Omega_b;
+    /* Density parameter for matter (baryons and cold dark matter) */
+    snprintf(hdf5_key, sizeof(hdf5_key), "Omega_%s", matter_name);
+    attr = H5Aopen(group, hdf5_key, H5P_DEFAULT); if (attr < 0) abort();
+    if (H5Aread(attr, H5T_NATIVE_DOUBLE, &Omega_m) < 0) abort();
+    H5Aclose(attr);
+    if (csm->val.dOmega0 != 0 && fabs(Omega_m/csm->val.dOmega0 - 1) > EPSCONFLICT){
+        conflicts += 1;
+        fprintf(stderr, "WARNING: Parameter conflict: dOmega0 = %.12g vs %.12g\n",
+            csm->val.dOmega0, Omega_m);
+    }
+    csm->val.dOmega0 = Omega_m;
+    /* Density parameter for radiation (photons and massless neutrinos) */
+    attr = H5Aopen(group, "Omega_g", H5P_DEFAULT); if (attr < 0) abort();
+    if (H5Aread(attr, H5T_NATIVE_DOUBLE, &Omega_g) < 0) abort();
+    H5Aclose(attr);
+    Omega_ur = 0.0;
+    if (H5Lexists(file, "/background/rho_ur", H5P_DEFAULT) > 0){
+        attr = H5Aopen(group, "Omega_ur", H5P_DEFAULT); if (attr < 0) abort();
+        if (H5Aread(attr, H5T_NATIVE_DOUBLE, &Omega_ur) < 0) abort();
+        H5Aclose(attr);
+    }
+    if (csm->val.dOmegaRad != 0 && fabs(csm->val.dOmegaRad/(Omega_g + Omega_ur) - 1) > EPSCONFLICT){
+        conflicts += 1;
+        fprintf(stderr, "WARNING: Parameter conflict: dOmegaRad = %.12g vs %.12g\n",
+            csm->val.dOmegaRad, Omega_g + Omega_ur);
+    }
+    csm->val.dOmegaRad = Omega_g + Omega_ur;
+    /* Density parameter for the cosmological constant */
+    Omega_Lambda = 0.0;
+    if (H5Lexists(file, "/background/rho_lambda", H5P_DEFAULT) > 0){
+        attr = H5Aopen(group, "Omega_lambda", H5P_DEFAULT); if (attr < 0) abort();
+        if (H5Aread(attr, H5T_NATIVE_DOUBLE, &Omega_Lambda) < 0) abort();
+        H5Aclose(attr);
+    }
+    if (csm->val.dLambda != 0 && fabs(Omega_Lambda/csm->val.dLambda - 1) > EPSCONFLICT){
+        conflicts += 1;
+        fprintf(stderr, "WARNING: Parameter conflict: dLambda = %.12g vs %.12g\n",
+            csm->val.dLambda, Omega_Lambda);
+    }
+    csm->val.dLambda = Omega_Lambda;
+    /* Density parameter for dynamical dark energy
+    ** using the {w0, wa} parameterization.
     */
-    snprintf(hdf5_key, sizeof(hdf5_key), "Omega_%s", de_name);
-    attr = H5Aopen_by_name(file, "/background", hdf5_key, H5P_DEFAULT, H5P_DEFAULT);
-    if (attr < 0) abort();
-    if (H5Aread(attr, H5T_NATIVE_DOUBLE, &dOmegaDE) < 0) abort();
-    H5Aclose(attr);
-    // update csm->val.dOmegaDE
-    csm->val.dOmegaDE=dOmegaDE;
+    Omega_fld = 0.0;
+    if (H5Lexists(file, "/background/rho_fld", H5P_DEFAULT) > 0){
+        attr = H5Aopen(group, "Omega_fld", H5P_DEFAULT); if (attr < 0) abort();
+        if (H5Aread(attr, H5T_NATIVE_DOUBLE, &Omega_fld) < 0) abort();
+        H5Aclose(attr);
+    }
+    if (csm->val.dOmegaDE != 0 && fabs(Omega_fld/csm->val.dOmegaDE - 1) > EPSCONFLICT){
+        conflicts += 1;
+        fprintf(stderr, "WARNING: Parameter conflict: dOmegaDE = %.12g vs %.12g\n",
+            csm->val.dOmegaDE, Omega_fld);
+    }
+    csm->val.dOmegaDE = Omega_fld;
+    /* The w0 and wa parameters for dynamical dark energy */
+    w0 = -1.0;
+    wa =  0.0;
+    if (H5Aexists(group, "w_0") > 0){
+        attr = H5Aopen(group, "w_0", H5P_DEFAULT); if (attr < 0) abort();
+        if (H5Aread(attr, H5T_NATIVE_DOUBLE, &w0) < 0) abort();
+        H5Aclose(attr);
+    }
+    if (H5Aexists(group, "w_a") > 0){
+        attr = H5Aopen(group, "w_a", H5P_DEFAULT); if (attr < 0) abort();
+        if (H5Aread(attr, H5T_NATIVE_DOUBLE, &wa) < 0) abort();
+        H5Aclose(attr);
+    }
+    if (csm->val.w0 != -1.0 && fabs(w0/csm->val.w0 - 1) > EPSCONFLICT){
+        conflicts += 1;
+        fprintf(stderr, "WARNING: Parameter conflict: w0 = %.12g vs %.12g\n",
+            csm->val.w0, w0);
+    }
+    if (csm->val.wa != 0.0 && fabs(wa/csm->val.wa - 1) > EPSCONFLICT){
+        conflicts += 1;
+        fprintf(stderr, "WARNING: Parameter conflict: wa = %.12g vs %.12g\n",
+            csm->val.wa, wa);
+    }
+    csm->val.w0 = w0;
+    csm->val.wa = wa;
+    /* Done reading in cosmological background variables */
+    H5Gclose(group);
+    if (conflicts != 0) abort();
 
-    /*
-    ** Read in the radiation energy density (photons) parameter dOmegaRad
-    
-    attr = H5Aopen_by_name(file, "/background", "Omega_g", H5P_DEFAULT, H5P_DEFAULT);
-    if (attr < 0) abort();
-    if (H5Aread(attr, H5T_NATIVE_DOUBLE, &dOmegaRad) < 0) abort();
-    H5Aclose(attr);
-    // update csm->val.dOmegaRad
-    csm->val.dOmegaRad=dOmegaRad;
-
-    *
-    ** Read in the neutrino density paremeter
-    *
-    attr = H5Aopen_by_name(file, "/background", "Omega_ncdm[0]", H5P_DEFAULT, H5P_DEFAULT);
-    if (attr < 0) abort();
-    if (H5Aread(attr, H5T_NATIVE_DOUBLE, &dOmegaNu) < 0) abort();
-    H5Aclose(attr);
-    // update csm->val.dOmegaRad
-    //csm->val.dOmegaRad += dOmegaNu;
-
-    
-    *
-    ** Read in the spectral index n_s
-    /
-    attr = H5Aopen_by_name(file, "/perturbations", "n_s", H5P_DEFAULT, H5P_DEFAULT);
-    if (attr < 0) abort();
-    if (H5Aread(attr, H5T_NATIVE_DOUBLE, &dSpectral) < 0) abort();
-    H5Aclose(attr);
-    // update csm->val.dSpectral
-    csm->val.dSpectral = dSpectral;
-
-    *
-    ** Read in the spectral amplitude
-    *
-    attr = H5Aopen_by_name(file, "/perturbations", "A_s", H5P_DEFAULT, H5P_DEFAULT);
-    if (attr < 0) abort();
-    if (H5Aread(attr, H5T_NATIVE_DOUBLE, &dNormalization) < 0) abort();
-    H5Aclose(attr);
-    // update csm->val.dNormalization
-    csm->val.dSpectral = dNormalization;
+    /* The pivot scale dPivot is specified in 1/Mpc in the
+    ** parameter file, but we need it in h/Mpc. Do the conversion.
     */
-
-    //printf("Omega0 read in from HDF5 file (by MK): %.14f\n", dOmega0); 
+    csm->val.dPivot /= h;
 
     /* Read in the background, excluding densities of linear species */
     if (H5LTget_dataset_info(file, "/background/a", &size_bg, NULL, NULL) < 0) abort();
@@ -326,10 +345,11 @@ void csmClassRead(CSM csm, double dBoxSize){
     if (H5LTread_dataset_double(file, "/background/H",
         csm->val.classData.background.H) < 0) abort();
     snprintf(hdf5_key, sizeof(hdf5_key), "/background/rho_%s", matter_name);
-    if (H5LTread_dataset_double(file, hdf5_key,
-        csm->val.classData.background.rho_m) < 0) abort();
+    if (H5LTread_dataset_double(file, hdf5_key, csm->val.classData.background.rho_m) < 0) abort();
 
-    /* Read in the perturbations, excluding density constrasts of linear species */
+    /* Read in the perturbations,
+    ** excluding density constrasts of linear species.
+    */
     /* a */
     if (H5LTget_dataset_info(file, "/perturbations/a", &size_a, NULL, NULL) < 0) abort();
     if (size_a > CLASS_PERTURBATIONS_A_SIZE){
@@ -462,13 +482,13 @@ void csmClassRead(CSM csm, double dBoxSize){
     }
 
     /* Convert background variables to PKDGRAV units.
-    ** Here we make use of the fact that in PKDGRAV units,
-    ** H0 = sqrt(8*pi/3) and rho_crit0 = 1.
+    ** We use the value of dHubble0, as well as the fact that
+    ** rho_crit0 = 1 in PKDGRAV units.
     ** Since H0 and rho_crit0 are part of the CLASS data,
     ** we have enough information to be completely agnostic
     ** abouth the units actually used in the hdf5 file.
     */
-    unit_convertion_time = sqrt(8*M_PI/3)/csm->val.classData.background.H[size_bg - 1];
+    unit_conversion_time = csm->val.dHubble0/csm->val.classData.background.H[size_bg - 1];
     count[0] = 1;
     offset[0] = size_bg - 1;
     offset_out[0] = 0;
@@ -483,19 +503,19 @@ void csmClassRead(CSM csm, double dBoxSize){
     H5Dclose(rhocrit_dataset);
     H5Sclose(rhocrit_dataspace);
     H5Sclose(memspace);
-    unit_convertion_density = rho_crit[0];
+    unit_conversion_density = rho_crit[0];
     for (i = 0; i < size_bg; i++){
-        csm->val.classData.background.t[i] /= unit_convertion_time;
+        csm->val.classData.background.t[i] /= unit_conversion_time;
     }
     for (i = 0; i < size_bg; i++){
-        csm->val.classData.background.H[i] *= unit_convertion_time;
+        csm->val.classData.background.H[i] *= unit_conversion_time;
     }
     for (i = 0; i < size_bg; i++){
-        csm->val.classData.background.rho_m[i] /= unit_convertion_density;
+        csm->val.classData.background.rho_m[i] /= unit_conversion_density;
     }
     if (nLinSpecies){
         for (i = 0; i < size_bg; i++){
-            csm->val.classData.background.rho_lin[i] /= unit_convertion_density;
+            csm->val.classData.background.rho_lin[i] /= unit_conversion_density;
         }
     }
 
@@ -528,31 +548,12 @@ void csmClassRead(CSM csm, double dBoxSize){
     ** ACTUALLY, it turns out that we need a factor of boxsize^(-5/2),
     ** for some reason?
     */
-    group = H5Gopen(file, "/perturbations", H5P_DEFAULT); if (group < 0) abort();
-    attr = H5Aopen(group, "A_s", H5P_DEFAULT); if (attr < 0) abort();
-    if (H5Aread(attr, H5T_NATIVE_DOUBLE, &csm->val.classData.perturbations.A_s) < 0)
-        abort();
-    H5Aclose(attr);
-    attr = H5Aopen(group, "n_s", H5P_DEFAULT); if (attr < 0) abort();
-    if (H5Aread(attr, H5T_NATIVE_DOUBLE, &csm->val.classData.perturbations.n_s) < 0)
-        abort();
-    H5Aclose(attr);
-    attr = H5Aopen(group, "alpha_s", H5P_DEFAULT); if (attr < 0) abort();
-    if (H5Aread(attr, H5T_NATIVE_DOUBLE, &csm->val.classData.perturbations.alpha_s) < 0)
-        abort();
-    H5Aclose(attr);
-    attr = H5Aopen(group, "k_pivot", H5P_DEFAULT); if (attr < 0) abort();
-    if (H5Aread(attr, H5T_NATIVE_DOUBLE, &csm->val.classData.perturbations.k_pivot) < 0)
-        abort();
-    H5Aclose(attr);
-    csm->val.classData.perturbations.k_pivot /= h;  /* [1/Mpc] -> [h/Mpc] */
-    H5Gclose(group);
     /* delta_m[a, k] */
     for (i = 0; i < size_a*size_k; i++){
         csm->val.classData.perturbations.delta_m[i] *= pow(dBoxSize, -2.5);
     }
     /* theta_m[a, k]
-    ** Here we reuse unit_convertion_time to convert the unit of theta
+    ** Here we reuse unit_conversion_time to convert the unit of theta
     ** (inverse time) to PKDGRAV units.
     ** Also, theta is the comoving divergence of the peculiar velocity.
     ** To convert to the velocities used by PKDGRAV, we have to
@@ -562,7 +563,7 @@ void csmClassRead(CSM csm, double dBoxSize){
         a = csm->val.classData.perturbations.a[i];
         for (j = 0; j < size_k; j++){
             csm->val.classData.perturbations.theta_m[i*size_k + j] *=
-                unit_convertion_time*a*pow(dBoxSize, -2.5);
+                unit_conversion_time*a*pow(dBoxSize, -2.5);
         }
     }
     /* delta_lin[a, k] */
@@ -990,10 +991,10 @@ double csmDeltaRho_lin(CSM csm, double a, double a_next, double k){
 }
 double csmZeta(CSM csm, double k){
     double zeta;
-    double A_s     = csm->val.classData.perturbations.A_s;
-    double n_s     = csm->val.classData.perturbations.n_s;
-    double alpha_s = csm->val.classData.perturbations.alpha_s;
-    double k_pivot = csm->val.classData.perturbations.k_pivot;
+    double A_s     = csm->val.dNormalization;
+    double n_s     = csm->val.dSpectral;
+    double alpha_s = csm->val.dRunning;
+    double k_pivot = csm->val.dPivot;
     zeta = M_PI*sqrt(2*A_s)*pow(k, -1.5)*pow(k/k_pivot, 0.5*(n_s - 1));
     if (alpha_s != 0.0)
         zeta *= exp(0.25*alpha_s*pow(log(k/k_pivot), 2));

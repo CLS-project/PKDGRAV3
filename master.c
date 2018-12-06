@@ -1146,6 +1146,12 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.csm->val.dSpectral = 0.0;
     prmAddParam(msr->prm,"dSpectral",2,&msr->param.csm->val.dSpectral,
 		sizeof(double),"ns", "<dSpectral> = 0.0");
+    msr->param.csm->val.dRunning = 0.0;
+    prmAddParam(msr->prm,"dRunning",2,&msr->param.csm->val.dRunning,
+        sizeof(double), "alphas", "Primordial tilt running: <dRunning> = 0.0");
+    msr->param.csm->val.dPivot = 0.05;
+    prmAddParam(msr->prm,"dPivot",2,&msr->param.csm->val.dPivot,
+        sizeof(double), "kpivot", "Primordial pivot scale in 1/Mpc (not h/Mpc): <dPivot> = 0.05");
     strcpy(msr->param.achDataSubPath,"");
     prmAddParam(msr->prm,"achDataSubPath",3,msr->param.achDataSubPath,256,
 		NULL,NULL);
@@ -1705,7 +1711,7 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->bSavePending = 0;                      /* There is no pending save */
 
     if (msr->param.csm->val.classData.bClass){
-        csmClassRead(msr->param.csm, msr->param.dBoxSize);
+        csmClassRead(msr->param.csm, msr->param.dBoxSize, msr->param.h);
         csmClassGslInitialize(msr->param.csm);
     }
     if (strlen(msr->param.csm->val.classData.achLinSpecies) && msr->param.nGridLin == 0){

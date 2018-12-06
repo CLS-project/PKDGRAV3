@@ -52,10 +52,6 @@ struct classDataPerturbationsStruct{
     double delta_m  [CLASS_PERTURBATIONS_A_SIZE*CLASS_PERTURBATIONS_K_SIZE];
     double theta_m  [CLASS_PERTURBATIONS_A_SIZE*CLASS_PERTURBATIONS_K_SIZE];
     double delta_lin[CLASS_PERTURBATIONS_A_SIZE*CLASS_PERTURBATIONS_K_SIZE];
-    double A_s;
-    double n_s;
-    double alpha_s;
-    double k_pivot;
 };
 struct classDataStruct{
     int bClass;
@@ -115,6 +111,8 @@ struct classGslStruct{
 	double dSigma8;
 	double dNormalization;  /* either sigma8 or normalization must be non-zero */
 	double dSpectral;
+	double dRunning;
+	double dPivot;
 	struct classDataStruct classData;
 	};
 
@@ -130,7 +128,7 @@ typedef struct csmContext {
 #ifdef __cplusplus
 extern "C" {
 #endif
-    void csmClassRead(CSM csm, double dBoxSize);
+    void csmClassRead(CSM csm, double dBoxSize, double h);
     void csmClassGslInitialize(CSM csm);
     double csmRhoBar_m    (CSM csm, double a);
     double csmRhoBar_lin  (CSM csm, double a);
