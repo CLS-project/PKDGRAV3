@@ -2434,6 +2434,7 @@ void addToLightCone(PKD pkd,double *r,float fPot,PARTICLE *p,int bParticleOutput
 	pLC[pkd->nLightCone].vel[0] = v[0];
 	pLC[pkd->nLightCone].vel[1] = v[1];
 	pLC[pkd->nLightCone].vel[2] = v[2];
+	pLC[pkd->nLightCone].pot    = fPot;
 	if (++pkd->nLightCone == pkd->nLightConeMax) flushLightCone(pkd);
 	}
     if (pkd->nSideHealpix) {
