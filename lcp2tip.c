@@ -22,6 +22,7 @@
 typedef struct partLightCone {
     float pos[3];
     float vel[3];
+    float pot;
     } LIGHTCONEP;
 
 typedef struct {
@@ -64,7 +65,6 @@ int main(int argc, char *argv[]) {
 
     d.mass = atof(argv[2]);
     d.eps = 0.0;
-    d.phi = 0.0;
 
     fp = fopen(argv[1],"wb");
     if (fp==NULL) {
@@ -78,6 +78,7 @@ int main(int argc, char *argv[]) {
 	    d.pos[j] = p.pos[j];
 	    d.vel[j] = p.vel[j];
 	    }
+	d.phi = p.pot;
 	fwrite(&d,sizeof(d),1,fp);
 	++h.nBodies;
 	}
