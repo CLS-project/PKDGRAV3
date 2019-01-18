@@ -41,37 +41,34 @@
 #include "pkdpython.h"
 #endif
 
-void * main_ch(MDL mdl) {
+/*
+** This function is called at the very start by every thread.
+** It returns the "worker context"; in this case the PST.
+*/
+void *worker_init(MDL mdl) {
     PST pst;
-    LCL lcl;
-
-#ifndef _MSC_VER
-	/* a USR1 signal indicates that the queue wants us to exit */
-    timeGlobalSignalTime = 0;
-    signal(SIGUSR1,NULL);
-    signal(SIGUSR1,USR1_handler);
-
-    /* a USR2 signal indicates that we should write an output when convenient */
-    bGlobalOutput = 0;
-    signal(SIGUSR2,NULL);
-    signal(SIGUSR2,USR2_handler);
-#endif
-
-    lcl.pkd = NULL;
-    pstInitialize(&pst,mdl,&lcl);
-
+    LCL *plcl = malloc(sizeof(LCL));
+    plcl->pkd = NULL;
+    pstInitialize(&pst,mdl,plcl);
     pstAddServices(pst,mdl);
-
-    mdlHandler(mdl);
-
-    pstFinish(pst);
-    return NULL;
+    return pst;
     }
 
 /*
-** This is invoked instead of main_ch for the "master" process.
+** This function is called at the very end for every thread.
+** It needs to destroy the worker context (PST).
 */
-void * master_ch(MDL mdl) {
+void worker_done(MDL mdl, void *ctx) {
+    PST pst = ctx;
+    LCL *plcl = pst->plcl;
+    pstFinish(pst);
+    free(plcl);
+    }
+
+/*
+** This is invoked for the "master" process after the worker has been setup.
+*/
+void master(MDL mdl,void *pst) {
     int argc = mdl->base.argc;
     char **argv = mdl->base.argv;
     MSR msr;
@@ -95,7 +92,7 @@ void * master_ch(MDL mdl) {
 
     printf("%s\n", PACKAGE_STRING );
 
-    bRestore = msrInitialize(&msr,mdl,argc,argv);
+    bRestore = msrInitialize(&msr,mdl,pst,argc,argv);
     msr->lStart=time(0);
 
     /*
@@ -103,7 +100,7 @@ void * master_ch(MDL mdl) {
     */
     if (!msrGetLock(msr)) {
 	msrFinish(msr);
-	return NULL;
+	return;
 	}
 
     /* a USR1 signal indicates that the queue wants us to exit */
@@ -145,7 +142,7 @@ void * master_ch(MDL mdl) {
 #else
 	printf("To generate initial conditions, compile with FFTW\n");
 	msrFinish(msr);
-	return NULL;
+	return;
 #endif
 	msrInitStep(msr);
 	if (prmSpecified(msr->prm,"dSoft")) msrSetSoft(msr,msrSoft(msr));
@@ -178,7 +175,7 @@ void * master_ch(MDL mdl) {
     else {
 	printf("No input file specified\n");
 	msrFinish(msr);
-	return NULL;
+	return;
 	}
 
     /* Adjust theta for gravity calculations. */
@@ -408,7 +405,6 @@ void * master_ch(MDL mdl) {
 	}
     printf("Done all, just finishing up now with msrFinish()\n");
     msrFinish(msr);
-    return NULL;
     }
 
 int main(int argc,char **argv) {
@@ -423,7 +419,7 @@ int main(int argc,char **argv) {
     setbuf(stdout,(char *) NULL);
 #endif
 
-    mdlLaunch(argc,argv,master_ch,main_ch);
+    mdlLaunch(argc,argv,master,worker_init,worker_done);
 
     return 0;
     }

@@ -1448,7 +1448,7 @@ void mdlInitCommon(MDL mdl0, int iMDL,int bDiag,int argc, char **argv,
 #ifdef USE_CL
     void *clContext,
 #endif
-    void * (*fcnMaster)(MDL),void * (*fcnChild)(MDL)) {
+    void (*fcnMaster)(MDL,void *),void * (*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *)) {
     mdlContextMPI *mpi = mdl0->mpi;
     MDL mdl = mdl0->pmdl[iMDL];
     int i;
@@ -1466,8 +1466,9 @@ void mdlInitCommon(MDL mdl0, int iMDL,int bDiag,int argc, char **argv,
 	mdl->pmdl = mdl0->pmdl;
 	mdl->mpi = NULL;    /* Only used by the MPI thread */
 	}
-    if (mdl->base.idSelf) mdl->fcnWorker = fcnChild;
-    else mdl->fcnWorker = fcnMaster;
+    mdl->fcnWorkerInit = fcnWorkerInit;
+    mdl->fcnWorkerDone = fcnWorkerDone;
+    mdl->fcnMaster = fcnMaster;
     /* We need a queue for each TAG, and a receive queue from each thread. */
     mdl->inQueue = malloc((MDL_TAG_MAX+mdl->base.nCores) * sizeof(*mdl->inQueue));
     for(i=0; i<(MDL_TAG_MAX+mdl->base.nCores); ++i) OPA_Queue_init(mdl->inQueue+i);
@@ -1573,7 +1574,12 @@ static void *mdlWorkerThread(void *vmdl) {
     sprintf(szName,"ID %d", mdl->base.iCore);
     __itt_thread_set_name(szName);
 #endif
-    result = (*mdl->fcnWorker)(mdl);
+
+    mdl->worker_ctx = (*mdl->fcnWorkerInit)(mdl);
+    if (mdl->base.idSelf) mdlHandler(mdl);
+    else (*mdl->fcnMaster)(mdl,mdl->worker_ctx);
+    (*mdl->fcnWorkerDone)(mdl,mdl->worker_ctx);
+
     if (mdl->base.iCore != mdl->iCoreMPI) {
 	mdlSendToMPI(mdl,&mdl->inMessage,MDL_SE_STOP);
 	mdlWaitThreadQueue(mdl,0); /* Wait for Send to complete */
@@ -1598,7 +1604,7 @@ static void cleanupMDL(MDL mdl) {
     mdlBaseFinish(&mdl->base);
     }
 
-void mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(MDL)) {
+void mdlLaunch(int argc,char **argv,void (*fcnMaster)(MDL,void *),void * (*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *)) {
     MDL mdl;
     int i,n,bDiag,bThreads,bDedicated,thread_support,rc,flag,*piTagUB;
     char *p, ach[256];
@@ -1761,7 +1767,7 @@ void mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(
 #ifdef USE_CL
 	    clContext,
 #endif
-	    fcnMaster, fcnChild);
+	    fcnMaster, fcnWorkerInit, fcnWorkerDone);
 
     OPA_Queue_init(&mpi->queueMPI);
     OPA_Queue_init(&mpi->queueREGISTER);
@@ -1898,8 +1904,8 @@ void mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(
     hwloc_topology_destroy(topology);
 #endif
     if (!bDedicated) {
-	if (mdl->base.idSelf) (*fcnChild)(mdl);
-	else fcnMaster(mdl);
+	if (mdl->base.idSelf) (*fcnWorkerInit)(mdl);
+	else fcnMaster(mdl,mdl->worker_ctx);
 	}
     drainMPI(mdl);
     pthread_barrier_destroy(&mdl->pmdl[0]->barrier);

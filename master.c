@@ -854,7 +854,7 @@ static int validateParameters(MDL mdl,PRM prm,struct parameters *param) {
     }
 
 
-int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
+int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
     MSR msr;
     int i,j,ret;
     struct inSetAdd inAdd;
@@ -864,7 +864,7 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr = (MSR)malloc(sizeof(struct msrContext));
     assert(msr != NULL);
     msr->mdl = mdl;
-    msr->pst = NULL;
+    msr->pst = pst;
     msr->lcl.pkd = NULL;
     *pmsr = msr;
     csmInitialize(&msr->param.csm);
@@ -1675,10 +1675,6 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     assert(msr->pdOutTime != NULL);
     msr->nOuts = msr->iOut = 0;
 
-
-    pstInitialize(&msr->pst,msr->mdl,&msr->lcl);
-    pstAddServices(msr->pst,msr->mdl);
-
     msr->nThreads = mdlThreads(mdl);
 
     /* Make sure that parallel read and write are sane */
@@ -2001,7 +1997,6 @@ void msrFinish(MSR msr) {
 	rID = mdlReqService(msr->mdl,id,SRV_STOP,NULL,0);
 	mdlGetReply(msr->mdl,rID,NULL,NULL);
 	}
-    pstFinish(msr->pst);
     csmFinish(msr->param.csm);
     /*
     ** finish with parameter stuff, deallocate and exit.
