@@ -1990,13 +1990,6 @@ int msrCheckForStop(MSR msr,const char *achStopFile) {
     }
 
 void msrFinish(MSR msr) {
-   int id;
-   
-   for (id=1;id<msr->nThreads;++id) {
-	int rID;
-	rID = mdlReqService(msr->mdl,id,SRV_STOP,NULL,0);
-	mdlGetReply(msr->mdl,rID,NULL,NULL);
-	}
     csmFinish(msr->param.csm);
     /*
     ** finish with parameter stuff, deallocate and exit.

@@ -1566,6 +1566,15 @@ static void drainMPI(MDL mdl) {
 	}
     }
 
+static void run_master(MDL mdl) {
+    (*mdl->fcnMaster)(mdl,mdl->worker_ctx);
+    int id;
+    for (id=1;id<mdlThreads(mdl);++id) {
+	int rID = mdlReqService(mdl,id,SRV_STOP,NULL,0);
+	mdlGetReply(mdl,rID,NULL,NULL);
+	}
+    }
+
 static void *mdlWorkerThread(void *vmdl) {
     MDL mdl = vmdl;
     void *result;
@@ -1577,7 +1586,7 @@ static void *mdlWorkerThread(void *vmdl) {
 
     mdl->worker_ctx = (*mdl->fcnWorkerInit)(mdl);
     if (mdl->base.idSelf) mdlHandler(mdl);
-    else (*mdl->fcnMaster)(mdl,mdl->worker_ctx);
+    else run_master(mdl);
     (*mdl->fcnWorkerDone)(mdl,mdl->worker_ctx);
 
     if (mdl->base.iCore != mdl->iCoreMPI) {
@@ -1904,8 +1913,8 @@ void mdlLaunch(int argc,char **argv,void (*fcnMaster)(MDL,void *),void * (*fcnWo
     hwloc_topology_destroy(topology);
 #endif
     if (!bDedicated) {
-	if (mdl->base.idSelf) (*fcnWorkerInit)(mdl);
-	else fcnMaster(mdl,mdl->worker_ctx);
+	if (mdl->base.idSelf) (*mdl->fcnWorkerInit)(mdl);
+	else run_master(mdl);
 	}
     drainMPI(mdl);
     pthread_barrier_destroy(&mdl->pmdl[0]->barrier);
