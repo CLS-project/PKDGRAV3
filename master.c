@@ -1216,9 +1216,6 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
     msr->param.dRedshiftLCP = 0;
     prmAddParam(msr->prm,"dRedshiftLCP",2,&msr->param.dRedshiftLCP,sizeof(double),"zlcp",
 		"starting redshift to output light cone particles = 0");
-    msr->param.bCenterOfMassExpand = 1;
-    prmAddParam(msr->prm,"bCenterOfMassExpand",0,&msr->param.bCenterOfMassExpand,sizeof(int),"CoM",
-		"use multipole expansions about the center of mass = +CoM");
     msr->param.dRedTo = 0.0;
     prmAddParam(msr->prm,"dRedTo",2,&msr->param.dRedTo,sizeof(double),"zto",
 		"specifies final redshift for the simulation");
@@ -1588,10 +1585,6 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
     prmAddArray(msr->prm,"lstOrbits",4,&msr->param.iOutputParticles,sizeof(uint64_t),&msr->param.nOutputParticles);
 
     msr->param.bAccelStep = 0;
-
-#ifndef USE_DIAPOLE
-    msr->param.bCenterOfMassExpand = 1;
-#endif
 
     /*
     ** Set the box center to (0,0,0) for now!
