@@ -220,6 +220,7 @@ static uint64_t getMemoryModel(MSR msr) {
     if (msr->param.bMemNodeVelocity)     mMemoryModel |= PKD_MODEL_NODE_VEL;
     if (msr->param.bMemNodeMoment)       mMemoryModel |= PKD_MODEL_NODE_MOMENT;
     if (msr->param.bMemNodeSphBounds)    mMemoryModel |= PKD_MODEL_NODE_SPHBNDS;
+    if (msr->param.bDoGas)               mMemoryModel |= (PKD_MODEL_SPH | PKD_MODEL_NODE_SPHBNDS | PKD_MODEL_ACCELERATION);
 
     if (msr->param.bMemNodeBnd)          mMemoryModel |= PKD_MODEL_NODE_BND;
     if (msr->param.bMemNodeVBnd)         mMemoryModel |= PKD_MODEL_NODE_VBND;
@@ -1618,8 +1619,6 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 	if (!validateParameters(mdl,msr->prm,&msr->param)) _msrExit(msr,1);
 	}
 
-    msr->param.dTuFac = msr->param.dGasConst/(msr->param.dConstGamma - 1)/
-		msr->param.dMeanMolWeight;
 #define KBOLTZ	1.38e-16     /* bolzman constant in cgs */
 #define MHYDR 1.67e-24       /* mass of hydrogen atom in grams */
 #define MSOLG 1.99e33        /* solar mass in grams */
@@ -1653,6 +1652,8 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 	msr->param.dGmPerCcUnit = 1;
 	msr->param.dErgPerGmUnit = 1;
 	}
+    msr->param.dTuFac = msr->param.dGasConst/(msr->param.dConstGamma - 1)/
+		msr->param.dMeanMolWeight;
 
 
     /* Gas parameter checks */

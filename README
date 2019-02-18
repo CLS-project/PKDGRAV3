@@ -93,3 +93,15 @@ Running
 	mpiexec pkdgrav3 simfile.par
 
     Consult your cluster documentation on how to run MPI programs.
+
+
+IA annotations
+-------
+
+For the CUDA compiler, the GNU compiler must be older than 6.0
+This is the command used for preparing and compiling my version, on virus
+
+   mkdir build
+   cd build
+   CC=/scratch/isaacaa/opt/gcc53/bin/gcc CXX=/scratch/isaacaa/opt/gcc53/bin/g++ cmake -DFFTW_ROOT=/scratch/isaacaa/opt/fftw3  ..
+   make
