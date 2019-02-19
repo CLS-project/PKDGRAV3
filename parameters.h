@@ -227,6 +227,11 @@ struct parameters {
     double dFixedAmpPhasePI;
     int b2LPT;
 
+    /*
+     * Parameters for the meshless hydrodynamics
+     */
+    int bMeshlessHydro;
+
 #ifdef MDL_FFTW
     int nGridPk;
     int bPkInterlace;

@@ -1588,6 +1588,14 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.nOutputParticles = 0;
     prmAddArray(msr->prm,"lstOrbits",4,&msr->param.iOutputParticles,sizeof(uint64_t),&msr->param.nOutputParticles);
 
+    /* New params added by IA for the hydrodynamics */
+    msr->param.bMeshlessHydro = 0;
+    prmAddParam(msr->prm,"bMeshlessHydro", 0, &msr->param.bMeshlessHydro,
+		sizeof(int), "meshlessHydro",
+		"Use the new implementation of the hydrodynamics");
+
+    /* END of new params */
+
     msr->param.bAccelStep = 0;
 
 #ifndef USE_DIAPOLE

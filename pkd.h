@@ -170,6 +170,19 @@ typedef struct sphfields {
     float fMetalsPred;
     float fMetalsDot;
 
+    /* IA: Added gradients for the meshless hydrodynamics. If the original sph is expected to be
+     * extensively used, it would be worth to add these in another struct. Otherwise there will
+     * be unused memory for these variables. TODO: Think about float vs double
+     */
+    double densGradx, densGrady, densGradz;
+    double momxGradx, momxGrady, momxGradz;
+    double momyGrady, momyGrady, momyGradz;
+    double momzGradx, momzGrady, momzGradz;
+    double intEneGradx, intEneGrady, intEneGradz;
+    /* IA: Not sure if they will be needed, but I will add the psiTilde */
+//    double psiTildex, psiTildey, psiTildez;
+    
+
     } SPHFIELDS;
 
 typedef struct starfields {
