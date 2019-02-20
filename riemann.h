@@ -1,3 +1,7 @@
+/* IA FIXME */ 
+#define GAMMA 1.66666666
+#define GAMMA_MINUS1 0.6666666
+/* END IA */
 #define GAMMA_G1 ((GAMMA-1.0)/(2.0*GAMMA))
 #define GAMMA_G2 ((GAMMA+1.0)/(2.0*GAMMA))
 #define GAMMA_G3 ((2.0*GAMMA/(GAMMA-1.0)))
@@ -36,6 +40,57 @@
  *   identified explicitly in the code below.
  */
 
+/* IA: Structures needed, taken from other GIZMO source files */
+#define MyDouble double
+#define MyFloat float
+struct Conserved_var_Riemann //IA: TODO: change the name of this struct..!!
+{
+    MyDouble rho;
+    MyDouble p;  // IA: Pressure is a primitive variable, not a conserved one...
+    MyDouble v[3]; // IA: same...
+    MyDouble u;
+    MyDouble cs;
+#ifdef MAGNETIC
+    MyDouble B[3];
+    MyDouble B_normal_corrected;
+#ifdef DIVBCLEANING_DEDNER
+    MyDouble phi;
+#endif
+#endif
+};
+
+struct kernel_hydra
+{
+    double dp[3];
+    double r, vsig, sound_i, sound_j;
+    double dv[3], vdotr2;
+    double wk_i, wk_j, dwk_i, dwk_j;
+    double h_i, h_j, dwk_ij, rho_ij_inv;
+    double spec_egy_u_i;
+#ifdef HYDRO_SPH
+    double p_over_rho2_i;
+#endif
+#ifdef MAGNETIC
+    double b2_i, b2_j;
+    double alfven2_i, alfven2_j;
+#ifdef HYDRO_SPH
+    double mf_i, mf_j;
+#endif
+#endif // MAGNETIC //
+};
+
+// From proto.h
+static inline double DMAX(double a, double b) { return (a > b) ? a : b; }
+static inline double DMIN(double a, double b) { return (a < b) ? a : b; }
+static inline int IMAX(int a, int b) { return (a > b) ? a : b; }
+static inline int IMIN(int a, int b) { return (a < b) ? a : b; }
+static inline double MINMOD(double a, double b) {return (a>0) ? ((b<0) ? 0 : DMIN(a,b)) : ((b>=0) ? 0 : DMAX(a,b));}
+// From allvars.h
+#define  MIN_REAL_NUMBER  1e-37
+/* special version of MINMOD below: a is always the "preferred" choice, b the stability-required one. here we allow overshoot, just not opposite signage */
+static inline double MINMOD_G(double a, double b) {return a;}
+
+/* IA: END */
 
 /* --------------------------------------------------------------------------------- */
 /* some structures with the conserved variables to pass to/from the Riemann solver */
@@ -126,125 +181,7 @@ void rotate_fluxes_back_to_lab(struct Riemann_outputs *Riemann_out, struct rotat
 /* --------------------------------------------------------------------------------- */
 void reconstruct_face_states(double Q_i, MyFloat Grad_Q_i[3], double Q_j, MyFloat Grad_Q_j[3],
                              double distance_from_i[3], double distance_from_j[3], double *Q_L, double *Q_R, int mode)
-{
-    if(mode == 0)
-    {
-        /* zeroth order reconstruction: this case is trivial */
-        *Q_R = Q_i;
-        *Q_L = Q_j;
-        return;
-    }
-    /* check for the (also) trivial case of equal values on both sides */
-    if(Q_i==Q_j) {*Q_L=*Q_R=Q_i; return;}
-    
-    /* first order reconstruction */
-    *Q_R = Q_i + Grad_Q_i[0]*distance_from_i[0] + Grad_Q_i[1]*distance_from_i[1] + Grad_Q_i[2]*distance_from_i[2];
-    *Q_L = Q_j + Grad_Q_j[0]*distance_from_j[0] + Grad_Q_j[1]*distance_from_j[1] + Grad_Q_j[2]*distance_from_j[2];
-
-    /* here we do our slightly-fancy slope-limiting */
-    double Qmin,Qmax,Qmed,Qmax_eff,Qmin_eff,fac,Qmed_max,Qmed_min;
-#ifdef MAGNETIC
-    double fac_minmax;
-    double fac_meddev;
-    if(mode == 1)
-    {
-        fac_minmax = 0.5; //0.375; /* 0.5, 0.1 works; 1.0 unstable; 0.75 is stable but begins to 'creep' */
-        fac_meddev = 0.375; //0.25; /* 0.25,0.375 work well; 0.5 unstable; 0.44 is on-edge */
-    }
-    if(mode == 2)
-    {
-#ifdef MHD_CONSTRAINED_GRADIENT
-        fac_minmax = 0.0;
-        fac_meddev = 0.0;
-#else
-        fac_minmax = 0.0;
-        fac_meddev = 0.25;
-#endif
-    }
-    if(mode == -1)
-    {
-        fac_minmax = MHD_CONSTRAINED_GRADIENT_FAC_MINMAX;
-        fac_meddev = MHD_CONSTRAINED_GRADIENT_FAC_MEDDEV;
-    }
-#else
-    double fac_minmax = 0.5; /* 0.5, 0.1 works; 1.0 unstable; 0.75 is stable but begins to 'creep' */
-    double fac_meddev = 0.375; /* 0.25,0.375 work well; 0.5 unstable; 0.44 is on-edge */
-#if (SLOPE_LIMITER_TOLERANCE == 2)
-    fac_minmax=0.75;
-    fac_meddev=0.40;
-#endif
-#endif
-#if (SLOPE_LIMITER_TOLERANCE == 0)
-    fac_minmax=0.0;
-    fac_meddev=0.0;
-#endif
-#if defined(KERNEL_CRK_FACES) && (SLOPE_LIMITER_TOLERANCE > 0)
-    fac_minmax=0.75; fac_meddev=0.5; // default to aggressive limiters, but with additional limiter below //
-#endif
-
-    
-    /* get the max/min vals, difference, and midpoint value */
-    Qmed = 0.5*(Q_i+Q_j);
-    if(Q_i<Q_j) {Qmax=Q_j; Qmin=Q_i;} else {Qmax=Q_i; Qmin=Q_j;}
-    fac = fac_minmax * (Qmax-Qmin);
-    if(mode == -1) {fac += MHD_CONSTRAINED_GRADIENT_FAC_MAX_PM * fabs(Qmed);}
-    Qmax_eff = Qmax + fac; /* 'overshoot tolerance' */
-    Qmin_eff = Qmin - fac; /* 'undershoot tolerance' */
-    /* check if this implies a sign from the min/max values: if so, we re-interpret the derivative as a
-     logarithmic derivative to prevent sign changes from occurring */
-    if(mode > 0)
-    {
-        if(Qmax<0) {if(Qmax_eff>0) Qmax_eff=Qmax*Qmax/(Qmax-(Qmax_eff-Qmax));} // works with 0.5,0.1 //
-        if(Qmin>0) {if(Qmin_eff<0) Qmin_eff=Qmin*Qmin/(Qmin+(Qmin-Qmin_eff));}
-    }
-    /* also allow tolerance to over/undershoot the exact midpoint value in the reconstruction */
-    fac = fac_meddev * (Qmax-Qmin);
-    if(mode == -1) {fac += MHD_CONSTRAINED_GRADIENT_FAC_MED_PM * fabs(Qmed);}
-    Qmed_max = Qmed + fac;
-    Qmed_min = Qmed - fac;
-    if(Qmed_max>Qmax_eff) Qmed_max=Qmax_eff;
-    if(Qmed_min<Qmin_eff) Qmed_min=Qmin_eff;
-    /* now check which side is which and apply these limiters */
-    if(Q_i<Q_j)
-    {
-        if(*Q_R<Qmin_eff) *Q_R=Qmin_eff;
-        if(*Q_R>Qmed_max) *Q_R=Qmed_max;
-        if(*Q_L>Qmax_eff) *Q_L=Qmax_eff;
-        if(*Q_L<Qmed_min) *Q_L=Qmed_min;
-#if defined(KERNEL_CRK_FACES)
-        if(*Q_R > *Q_L)
-        {
-            double Q0L = *Q_L, Q0R = *Q_R, Qh = 0.5*(Q0L+Q0R);
-            if(Q0R > Q_j)  {if(Qh > Q_j) {*Q_R=Qh; *Q_L=Qh;} else {*Q_R=Q_j; if(Q0L < Q_i) {*Q_L=Q_i;} else {*Q_L=Q0L;}}}
-            if(Q0L < Q_i)  {if(Qh < Q_i) {*Q_L=Qh; *Q_R=Qh;} else {*Q_L=Q_i; if(Q0R > Q_j) {*Q_R=Q_j;} else {*Q_R=Q0R;}}}
-        }
-#endif
-    } else {
-        if(*Q_R>Qmax_eff) *Q_R=Qmax_eff;
-        if(*Q_R<Qmed_min) *Q_R=Qmed_min;
-        if(*Q_L<Qmin_eff) *Q_L=Qmin_eff;
-        if(*Q_L>Qmed_max) *Q_L=Qmed_max;
-#if defined(KERNEL_CRK_FACES)
-        if(*Q_R < *Q_L)
-        {
-            double Q0L = *Q_L, Q0R = *Q_R, Qh = 0.5*(Q0L+Q0R);
-            if(Q0L > Q_i)  {if(Qh > Q_i) {*Q_L=Qh; *Q_R=Qh;} else {*Q_L=Q_i; if(Q0R < Q_j) {*Q_R=Q_j;} else {*Q_R=Q0R;}}}
-            if(Q0R < Q_j)  {if(Qh < Q_j) {*Q_R=Qh; *Q_L=Qh;} else {*Q_R=Q_j; if(Q0L > Q_i) {*Q_L=Q_i;} else {*Q_L=Q0L;}}}
-        }
-#endif
-    }
-#if defined(KERNEL_CRK_FACES) && defined(KERNEL_CRK_FACES_EXPERIMENTAL_SLOPELIMITERS)
-    double Q0L=*Q_L, Q0R=*Q_R, dQ_ij=fabs(Q_j-Q_i), dQ_LR=fabs(Q0L-Q0R);
-    if(dQ_LR > dQ_ij)
-    {
-        double Q0=0.5*(Q0L+Q0R), dQ0=0.5*(Q0R-Q0L), alpha = dQ_ij/dQ_LR;
-        *Q_R = Q0 + alpha*dQ0; *Q_L = Q0 - alpha*dQ0;
-    }
-#endif
-
-    /* done! */
-}
-
+{/*IA: Not used in my version*/}
 
 /* --------------------------------------------------------------------------------- */
 /* slope limiter: put other limiters here, will replace all calculations with this */
@@ -290,11 +227,12 @@ void Riemann_solver(struct Input_vec_Riemann Riemann_vec, struct Riemann_outputs
         Riemann_out->P_M = 0;
         return;
     }
-    
+   
+    /* IA: TODO 
     if(All.ComovingIntegrationOn)
     {
-        /* first convert the input variables to -PHYSICAL- units so the answer makes sense:
-         note that we don't require a Hubble-flow correction, because we're solving at the face */
+        // first convert the input variables to -PHYSICAL- units so the answer makes sense:
+        // note that we don't require a Hubble-flow correction, because we're solving at the face 
         int k;
         for(k=0;k<3;k++)
         {
@@ -320,6 +258,7 @@ void Riemann_solver(struct Input_vec_Riemann Riemann_vec, struct Riemann_outputs
         Riemann_vec.R.u /= All.cf_afac1;
 #endif
     }
+    */
 #ifndef EOS_GENERAL
     /* here we haven't reconstructed the sound speeds and internal energies explicitly, so need to do it from pressure, density */
     Riemann_vec.L.cs = sqrt(GAMMA * Riemann_vec.L.p / Riemann_vec.L.rho);

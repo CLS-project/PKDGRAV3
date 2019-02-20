@@ -800,7 +800,6 @@ void smSmooth(SMX smx,SMF *smf) {
     }
     smSmoothInitialize(smx);
     smf->pfDensity = NULL;
-    test();
     for (pi=0;pi<pkd->nLocal;++pi) {
 	p = pkdParticle(pkd,pi);
 	pkdSetBall(pkd,p,smSmoothSingle(smx,smf,p,ROOT,0));
