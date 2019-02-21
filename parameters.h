@@ -228,7 +228,7 @@ struct parameters {
     int b2LPT;
 
     /*
-     * Parameters for the meshless hydrodynamics
+     * IA: Parameters for the meshless hydrodynamics
      */
     int bMeshlessHydro;
 

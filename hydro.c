@@ -144,6 +144,10 @@ void hydroGradients(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     }
 
 
+    /* IA: We compute the density making use of Eq. 27 Hopkins 2015 */
+    pkdSetDensity(pkd,p, pkdMass(pkd,p)*psph->omega);
+    /* IA: TODO: having this information maybe some memory can be saved if we do not
+     * store \omega */
 
 
 
@@ -188,74 +192,11 @@ void hydroGradients(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     /* IA: Now, we need to do the inverse */
     inverseMatrix(E, psph->B);
     
-    /* IA: Now we are prepared for computing the gradients! */
-    for (i=0;i<nSmooth;++i) {
-	q = nnList[i].pPart;
+    /* IA: There is nothing more that we can do in this loop, as all the particle must have their densities
+     * and B matrices computed */
 
-	dx = nnList[i].dx;
-	dy = nnList[i].dy;
-	dz = nnList[i].dz;
-
-      qh = 0.5*pkdBall(pkd,q); // TODO: Check this 
-
-      rpq = sqrt(nnList[i].fDist2);
-      hpq = 0.5*(qh+ph); // IA: We symmetrize the kernel size (probably needed, not sure)
-
-      Wpq = cubicSplineKernel(rpq, hpq); //TODO: Re-use this from the previous loop!!
-      psi = Wpq/psph->omega;
-
-      /* IA: By the way, we use this loop to compute the volume of each particle.
-       * This may not be needed, depending on how the pkdDensity has been computed, so TODO: check! */
-      qsph->V += psi; //Contribution of the 'volume' at position p, of the particle q. Note that in order
-                      // to use this 'effective volume' value, a full loop around all particles must be done!!
-                      // TODO: This must be initialized to zero outside the smooth loop!!!
-                      // TODO: This can also be done using Eq. 27 Hopkins 2015
-                      // Indeed, I am not sure my implementation is ok!!
-
-      psiTilde[0] = (psph->B[XX]*dx + psph->B[XY]*dy + psph->B[XZ]*dz)*psi;
-      psiTilde[1] = (psph->B[XY]*dx + psph->B[YY]*dy + psph->B[YZ]*dz)*psi;
-      psiTilde[2] = (psph->B[XZ]*dx + psph->B[YZ]*dy + psph->B[ZZ]*dz)*psi;
-
-      // Density gradients
-      diff = (pkdDensity(pkd,q) - pDensity);
-      for (j=0; j<3; j++) {
-         psph->densGrad[j] += psiTilde[j]*diff;
-      }
-
-      // Momentum gradients
-      diff = qsph->vPred[0] - psph->vPred[0];// TODO :check this vPred!
-      for (j=0; j<3; j++) {
-         psph->vxGrad[j] += psiTilde[j] * diff;
-      }
-
-      diff = qsph->vPred[1] - psph->vPred[1];// TODO :check this vPred!
-      for (j=0; j<3; j++) {
-         psph->vyGrad[j] += psiTilde[j] * diff;
-      }
-
-      diff = qsph->vPred[2] - psph->vPred[2];// TODO :check this vPred!
-      for (j=0; j<3; j++) {
-         psph->vzGrad[j] += psiTilde[j] * diff;
-      }
-
-      // Internal energy gradients TODO: also, chech this uPred!
-      diff = qsph->uPred + 0.5*pkdDensity(pkd,q)*(qsph->vPred[0]*qsph->vPred[0] + qsph->vPred[1]*qsph->vPred[1] + qsph->vPred[2]*qsph->vPred[2])
-           - psph->uPred - 0.5*pDensity*(psph->vPred[0]*psph->vPred[0] + psph->vPred[1]*psph->vPred[1] + psph->vPred[2]*psph->vPred[2]);
-      for (j=0; j<3; j++){
-         psph->intEneGrad[j] += psiTilde[j] * diff;
-      }
-
-
-      // Dont know if needed, but I will also store the psiTildes. THERE IS ONE FOR EACH NEIGHBOR!!
-//      psph->psiTildex = psiTildex;
-//      psph->psiTildey = psiTildey;
-//      psph->psiTildez = psiTildez;
-    }
 
     /* TODO: I should make sure that psph is not cleared after a smSmooth call!!! */
-
-    /* TODO: Here I should limit the gradients if needed */
-
 
     }
 
@@ -270,8 +211,8 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PARTICLE *q;
     SPHFIELDS *psph, *qsph;
     double pv[3], qv[3], vFrame[3];
-    double ph,qh, hpq, modApq, rpq, dx,dy,dz,Wpq,psi_p,psi_q;
-    double psiTilde_p[3], psiTilde_q[3], Apq[3], face_unit[3]; 
+    double ph,qh, hpq, modApq, rpq, dx,dy,dz,Wpq,psi_p,psi_q,diff,pDensity;
+    double psiTilde_p[3], psiTilde_q[3], Apq[3], face_unit[3], dr[3]; 
     struct Input_vec_Riemann riemann_input;
     struct Riemann_outputs riemann_output; //TODO: do this outside the loop
     int i,j;
@@ -288,6 +229,22 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 	 dz = nnList[i].dz;
 
        qh = 0.5*pkdBall(pkd,q); // TODO: Check this 
+       rpq = sqrt(nnList[i].fDist2);
+       hpq = 0.5*(qh+ph); // IA: We symmetrize the kernel size (probably needed, not sure)
+
+       Wpq = cubicSplineKernel(rpq, hpq); 
+       psi_p = Wpq/psph->omega;
+       psi_q = Wpq/qsph->omega;
+
+       /* Compute the gradients and extrapolate to the faces */
+      psiTilde_p[0] = (psph->B[XX]*dx + psph->B[XY]*dy + psph->B[XZ]*dz)*psi_p;
+      psiTilde_p[1] = (psph->B[XY]*dx + psph->B[YY]*dy + psph->B[YZ]*dz)*psi_p;
+      psiTilde_p[2] = (psph->B[XZ]*dx + psph->B[YZ]*dy + psph->B[ZZ]*dz)*psi_p;
+
+       psiTilde_q[0] = -(qsph->B[XX]*dx + qsph->B[XY]*dy + qsph->B[XZ]*dz)*psi_q;
+       psiTilde_q[1] = -(qsph->B[XY]*dx + qsph->B[YY]*dy + qsph->B[YZ]*dz)*psi_q;
+       psiTilde_q[2] = -(qsph->B[XZ]*dx + qsph->B[YZ]*dy + qsph->B[ZZ]*dz)*psi_q;
+
 
        // Velocity of the quadrature mid-point 
        for (j=0; j<3; j++){
@@ -296,51 +253,69 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
           pv[j] = psph->vPred[j] - vFrame[j];
           qv[j] = qsph->vPred[j] - vFrame[j];
        }
+ 
+       dr[0] = dx;
+       dr[1] = dy;
+       dr[2] = dz;
+ 
+       // TODO: The next loops can be unified
+       // TODO: Remove psph->*Grad variables
+       // Density gradients
+      diff = (pkdDensity(pkd,q) - pDensity);
+      riemann_input.L.rho = pkdDensity(pkd,p);
+      riemann_input.R.rho = pkdDensity(pkd,q);
+      for (j=0; j<3; j++) {
+         riemann_input.L.rho += 0.5*dr[j]*psiTilde_p[j]*diff;
+         riemann_input.R.rho += 0.5*dr[j]*psiTilde_q[j]*diff; //Same sign (- from diff and another - from dr
+      }
+
+      // Momentum gradients 
+      diff = qsph->vPred[0] - psph->vPred[0];// TODO :check this vPred!
+      riemann_input.L.v[0] = pv[0];
+      riemann_input.R.v[0] = qv[0];
+      for (j=0; j<3; j++) {
+//         psph->vxGrad[j] += psiTilde[j] * diff;
+         riemann_input.L.v[0] += 0.5*dr[j]*psiTilde_p[j]*diff;
+         riemann_input.R.v[0] += 0.5*dr[j]*psiTilde_q[j]*diff;
+      }
+
+      diff = qsph->vPred[1] - psph->vPred[1];// TODO :check this vPred!
+      riemann_input.L.v[1] = pv[1];
+      riemann_input.R.v[1] = qv[1];
+      for (j=0; j<3; j++) {
+//         psph->vyGrad[j] += psiTilde[j] * diff;
+         riemann_input.L.v[1] += 0.5*dr[j]*psiTilde_p[j]*diff;
+         riemann_input.R.v[1] += 0.5*dr[j]*psiTilde_q[j]*diff;
+      }
+
+      diff = qsph->vPred[2] - psph->vPred[2];// TODO :check this vPred!
+      riemann_input.L.v[2] = pv[2];
+      riemann_input.R.v[2] = qv[2];
+      for (j=0; j<3; j++) {
+//         psph->vzGrad[j] += psiTilde[j] * diff;
+         riemann_input.L.v[2] += 0.5*dr[j]*psiTilde_p[j]*diff;
+         riemann_input.R.v[2] += 0.5*dr[j]*psiTilde_q[j]*diff;
+      }
+
+      // Pressure gradients TODO: check when psph->cs is computed! is it predicted?
+      riemann_input.L.p = psph->c*psph->c * pDensity / pkd->param.dConstGamma;
+      riemann_input.R.p = qsph->c*qsph->c * pkdDensity(pkd,q) / pkd->param.dConstGamma;
+      diff = riemann_input.R.p - riemann_input.L.p;
+      for (j=0; j<3; j++){
+//         psph->intEneGrad[j] += psiTilde[j] * diff;
+         riemann_input.L.p += 0.5*dr[j]*psiTilde_p[j]*diff;
+         riemann_input.R.p += 0.5*dr[j]*psiTilde_q[j]*diff;
+      }
+
+      // The cs and u values of the reconstructed states are computed inside the Riemann Solver!
 
 
-       // Extrapolation to the faces TODO: check dx/y/z sign!
-       riemann_input.L.rho = pkdDensity(pkd,p) + 0.5*( psph->densGrad[0]*dx + psph->densGrad[1]*dy + psph->densGrad[2]*dz );
-       riemann_input.L.v[0] = pv[0] + 0.5*( psph->vxGrad[0]*dx + psph->vxGrad[1]*dy + psph->vxGrad[2]*dz );
-       riemann_input.L.v[1] = pv[1] + 0.5*( psph->vyGrad[0]*dx + psph->vyGrad[1]*dy + psph->vyGrad[2]*dz );
-       riemann_input.L.v[2] = pv[2] + 0.5*( psph->vzGrad[0]*dx + psph->vzGrad[1]*dy + psph->vzGrad[2]*dz );
-       riemann_input.L.u = psph->uPred + 0.5*( psph->intEneGrad[0]*dx + psph->intEneGrad[1]*dy + psph->intEneGrad[2]*dz );
-       riemann_input.L.cs = sqrt(pkd->param.dConstGamma * riemann_input.L.p / riemann_input.L.rho) ;// This can be done inside Riemann solver
-       riemann_input.L.p = riemann_input.L.u * (pkd->param.dConstGamma - 1.0) * riemann_input.L.rho; // Same
-
-       riemann_input.R.rho = pkdDensity(pkd, q) - 0.5*( qsph->densGrad[0]*dx + qsph->densGrad[1]*dy + qsph->densGrad[2]*dz );
-       riemann_input.R.v[0] = pv[0] - 0.5*( qsph->vxGrad[0]*dx + qsph->vxGrad[1]*dy + qsph->vxGrad[2]*dz );
-       riemann_input.R.v[1] = pv[1] - 0.5*( qsph->vyGrad[0]*dx + qsph->vyGrad[1]*dy + qsph->vyGrad[2]*dz );
-       riemann_input.R.v[2] = pv[2] - 0.5*( qsph->vzGrad[0]*dx + qsph->vzGrad[1]*dy + qsph->vzGrad[2]*dz );
-       riemann_input.R.u = qsph->uPred - 0.5*( qsph->intEneGrad[0]*dx + qsph->intEneGrad[1]*dy + qsph->intEneGrad[2]*dz );
-       riemann_input.R.cs = sqrt(pkd->param.dConstGamma * riemann_input.R.p / riemann_input.R.rho) ;// This can be done inside Riemann solver
-       riemann_input.R.p = riemann_input.R.u * (pkd->param.dConstGamma - 1.0) * riemann_input.R.rho; // Same
 
 
-
-       // Rotate the vectors to be aligned with the face. This means that the vx velocity will be aligned
-       // with the Aij = Vi * psiTildej(xi) - Vj*psiTildei(xj)
-       // [19/02/19] I need the psiTilde from BOTH sides!!!! Will I need to store such a big array (64 doubles/floats) per particle...
-       // Other option would be to just store the B matrix, (6 doubles/floats) and reconstruct the psiTilde using the kernel function...
-       // AS ALWAYS: MEMORY VS NB OF OPERATIONS!
-       // [20/02/19] I think that I will go with saving the B matrix.. anyway this three different loop thing will have to be changed sooner or later
-       rpq = sqrt(nnList[i].fDist2);
-       hpq = 0.5*(qh+ph); // IA: We symmetrize the kernel size (probably needed, not sure)
-
-       Wpq = cubicSplineKernel(rpq, hpq); 
-       psi_p = Wpq/psph->omega;
-       psi_q = Wpq/qsph->omega;
-
-       psiTilde_p[0] =  (psph->B[XX]*dx + psph->B[XY]*dy + psph->B[XZ]*dz)*psi_p;
-       psiTilde_p[1] =  (psph->B[XY]*dx + psph->B[YY]*dy + psph->B[YZ]*dz)*psi_p;
-       psiTilde_p[2] =  (psph->B[XZ]*dx + psph->B[YZ]*dy + psph->B[ZZ]*dz)*psi_p;
-
-       psiTilde_q[0] = -(qsph->B[XX]*dx + qsph->B[XY]*dy + qsph->B[XZ]*dz)*psi_q;
-       psiTilde_q[1] = -(qsph->B[XY]*dx + qsph->B[YY]*dy + qsph->B[YZ]*dz)*psi_q;
-       psiTilde_q[2] = -(qsph->B[XZ]*dx + qsph->B[YZ]*dy + qsph->B[ZZ]*dz)*psi_q;
-
+       // Face where the riemann problem will be solved
        modApq = 0.0;
        for (j=0; j<3; j++){
-          Apq[j] = psph->V*psiTilde_q[j] - qsph->V*psiTilde_p[j];
+          Apq[j] = psiTilde_q[j]/psph->omega - psiTilde_p[j]/qsph->omega;
           modApq += Apq[j]*Apq[j];
        }
        modApq = sqrt(modApq);
@@ -349,22 +324,19 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
           face_unit[j] = Apq[j]/modApq;
        }
 
-       // Now we rotate the velocity vectors in this new SoR TODO: Implement this using arrays and loops..
        // It seems that in hydra_core_meshless.h they do not rotate any velocity, they just pass the face_unit
        // to the Riemann solver and let it do its stuff..
 
        
-       // Once we have the states in the correct SoR, we can compute the riemann flux
        // It uses as input parameters the density, pressure and velocities at both ends. They are assumed to be given in comoving coordinates, then they are
        // converted into physical units inside Riemann_Solver. 
- 
        Riemann_solver(riemann_input, &riemann_output, face_unit, /*double press_tot_limiter TODO For now, just p>0: */ 0.0);
 
        psph->Frho = riemann_output.Fluxes.rho;
        psph->Fene = riemann_output.Fluxes.p;
        for (j=0;j<3;j++){ psph->Fmom[j] = riemann_output.Fluxes.v[j]; }
 
-       // Now we de-boost the fluxes following Eq. A8 Hopkins 2015 (From hydra_core_meshless.h)
+       // Now we de-boost the fluxes following Eq. A8 Hopkins 2015 (From hydra_core_meshless.h):
        /* the fluxes have been calculated in the rest frame of the interface: we need to de-boost to the 'simulation frame'
         which we do following Pakmor et al. 2011 */
        for(j=0;j<3;j++)
@@ -379,7 +351,7 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
        /* ok now we can actually apply this to the EOM */
 //#if defined(HYDRO_MESHLESS_FINITE_VOLUME)
-       psph->Frho *= modApq; //Face_Area_Norm  ;//IA TODO: Check if Face_Area_Norm is EQUAL to modAqp
+       psph->Frho *= modApq; //Face_Area_Norm  ;//IA TODO: Check if Face_Area_Norm is EQUAL to modAqp. It seems they are!
 //#endif
        psph->Fene *= modApq; //Face_Area_Norm ; // this is really Dt of --total-- energy, need to subtract KE component for e */
        for(j=0;j<3;j++) {psph->Fmom[j] *= modApq;} //Face_Area_Norm;} // momentum flux (need to divide by mass) //

@@ -170,25 +170,11 @@ typedef struct sphfields {
     float fMetalsPred;
     float fMetalsDot;
 
-    /* IA: Added gradients for the meshless hydrodynamics. If the original sph is expected to be
-     * extensively used, it would be worth to add these in another struct. Otherwise there will
-     * be unused memory for these variables. TODO: Think about float vs double
-     * TODO: use arrays!
-     */
-    double densGrad[3];
-    double vxGrad[3];
-    double vyGrad[3];
-    double vzGrad[3];
-    double intEneGrad[3];
-    
     /* IA: B matrix to 'easily' reconstruct faces'. Reminder: it is symmetric */
     double B[6];
 
     /* IA: normalization factor (Eq 7 Hopkins 2015) at the particle position */
     double omega;
-
-    /* IA: effective volume */
-    double V;
 
     /* IA: Fluxes */
     double Frho;
