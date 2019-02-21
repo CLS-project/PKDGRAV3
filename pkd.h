@@ -181,6 +181,7 @@ typedef struct sphfields {
     double Fmom[3];
     double Fene;
 
+
     } SPHFIELDS;
 
 typedef struct starfields {
@@ -1427,6 +1428,7 @@ void pkdGravEvalPC(PINFOIN *pPart, int nBlocks, int nInLast, ILC_BLK *blk,  PINF
 }
 #endif
 void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double,double);
+void pkdUpdateConsVars(PKD pkd,int iRoot,double dTime,double dDelta,double,double);
 void pkdScaleVel(PKD pkd,double dvFac);
 void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, double dTime, double dDelta,
 			  int iRung, int iKickRung, int iRungVeryActive,int iAdjust, double diCrit2,

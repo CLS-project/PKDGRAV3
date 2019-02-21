@@ -2686,6 +2686,57 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
     mdlDiag(pkd->mdl, "Out of pkdDrift\n");
     }
 
+/* IA. We update the conserved variables with the *already computed* fluxes, which
+ * should be stored in the SPHFIELDS of each particle */
+void pkdUpdateConsVars(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,double dDeltaTime) {
+    PARTICLE *p;
+    vel_t *v;
+    float *a;
+    SPHFIELDS *sph;
+    int i,j,k;
+    double rfinal[3],r0[3],dMin[3],dMax[3];
+    int pLower, pUpper;
+
+//  if (iRoot>=0) {
+//    KDN *pRoot = pkdTreeNode(pkd,iRoot);
+//    pLower = pRoot->pLower;
+//    pUpper = pRoot->pUpper;
+//  }
+//  else {
+      pLower = 0;
+      pUpper = pkdLocal(pkd); //IA: All particles local to this proccessor
+//      }
+
+    mdlDiag(pkd->mdl, "Into pkdUpdateConsVars\n");
+    assert(pkd->oVelocity);
+
+    /*
+    ** Add the computed flux to the conserved variables for each gas particle
+    */
+    if (pkd->param.bDoGas) {
+      assert(pkd->param.bDoGas);    
+      double dDeltaUPred = dDeltaTime;
+      assert(pkd->oSph);
+      assert(pkd->oAcceleration);
+      for (i=pLower;i<=pUpper;++i) { /* IA: We could avoid part of this loop is I add a flag to SPHFIELDS
+                                        which indicates if the flux of the given particle has been updated
+                                        during the last smoothing loop */
+         if (pkdIsGas(pkd,p)) {
+            p = pkdParticle(pkd,i);
+            v = pkdVel(pkd,p);
+            a = pkdAccel(pkd,p);
+            sph = pkdSph(pkd,p);
+            for (j=0;j<3;++j) { /* NB: Pred quantities must be done before std. */
+               sph->vPred[j] += a[j]*dDeltaVPred;
+            }
+            sph->uPred += sph->uDot*dDeltaUPred;
+            sph->fMetalsPred += sph->fMetalsDot*dDeltaUPred;
+         }
+       }
+    }
+
+    mdlDiag(pkd->mdl, "Out of pkdUpdateConsVars\n");
+    }
 
 void pkdLightConeVel(PKD pkd) {
     const int nTable=1000;

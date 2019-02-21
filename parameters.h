@@ -231,6 +231,7 @@ struct parameters {
      * IA: Parameters for the meshless hydrodynamics
      */
     int bMeshlessHydro;
+    int bFirstHydroLoop;
 
 #ifdef MDL_FFTW
     int nGridPk;

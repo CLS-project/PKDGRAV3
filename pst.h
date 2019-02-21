@@ -123,6 +123,7 @@ enum pst_service {
     PST_CALCEANDL,
     PST_CALCEANDLEXT,
     PST_DRIFT,
+    PST_UPDATECONSVARS, //IA: hopefully this wont break anything..
     PST_DRIFTINACTIVE,
     PST_SCALEVEL,
     PST_CACHEBARRIER,
@@ -726,6 +727,7 @@ struct inDrift {
     int iRoot;
     };
 void pstDrift(PST,void *,int,void *,int *);
+void pstUpdateConsVars(PST,void *,int,void *,int *); // IA: we re-use the same structure
 
 /* PST_DRIFT */
 struct inScaleVel {

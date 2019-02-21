@@ -3517,6 +3517,25 @@ void msrDrift(MSR msr,double dTime,double dDelta,int iRoot) {
     pstDrift(msr->pst,&in,sizeof(in),NULL,NULL);
     }
 
+void msrUpdateConsVars(MSR msr,double dTime,double dDelta,int iRoot) {
+    struct inDrift in;
+
+    assert(iRoot!=0); //IA: Dual tree not implemented
+
+    if (msr->param.csm->val.bComove) {
+	in.dDelta = csmComoveDriftFac(msr->param.csm,dTime,dDelta);
+	in.dDeltaVPred = csmComoveKickFac(msr->param.csm,dTime,dDelta);
+	}
+    else {
+	in.dDelta = dDelta;
+	in.dDeltaVPred = dDelta;
+	}
+    in.dTime = dTime;
+    in.dDeltaUPred = dDelta;
+    in.iRoot = iRoot;
+    pstUpdateConsVars(msr->pst,&in,sizeof(in),NULL,NULL);
+    }
+
 void msrScaleVel(MSR msr,double dvFac) {
     struct inScaleVel in;
 
@@ -4380,7 +4399,7 @@ void msrTopStepKDK(MSR msr,
 	if (msr->param.bAccelStep) {
 	    msrAccelStep(msr,iRung,MAX_RUNG,dTime);
 	    }
-	if (msrDoGas(msr)) {
+	if (msrDoGas(msr) && !msrMeshlessHydro(msr)) {
 	    msrSphStep(msr,iRung,MAX_RUNG,dTime);
 	    }
 	if (msr->param.bDensityStep) {
@@ -4434,7 +4453,7 @@ void msrTopStepKDK(MSR msr,
 	    *pdActiveSum += (double)nActive/msr->N;
 	    }
 	
-	if (msrDoGas(msr)) {
+	if (msrDoGas(msr) ) {
 	    msrSph(msr,dTime,dStep);  /* dTime = Time at end of kick */
 	    msrCooling(msr,dTime,dStep,0,
 		       (iKickRung<=msr->param.iRungCoolTableUpdate ? 1:0),0);
@@ -4741,6 +4760,10 @@ int msrDoGravity(MSR msr) {
 
 int msrDoGas(MSR msr) {
     return(msr->param.bDoGas);
+    }
+
+int msrMeshlessHydro(MSR msr) {
+    return(msr->param.bMeshlessHydro);
     }
 
 void msrInitSph(MSR msr,double dTime)

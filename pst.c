@@ -207,6 +207,11 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_DRIFT,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstDrift,
 		  sizeof(struct inDrift),0);
+    // IA 
+    mdlAddService(mdl,PST_UPDATECONSVARS,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstUpdateConsVars,
+		  sizeof(struct inDrift),0);
+    //
     mdlAddService(mdl,PST_SCALEVEL,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstScaleVel,
 		  sizeof(struct inScaleVel),0);
@@ -2977,6 +2982,23 @@ void pstDrift(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	}
     else {
 	pkdDrift(plcl->pkd,in->iRoot,in->dTime,in->dDelta,in->dDeltaVPred,in->dDeltaUPred);
+	}
+    if (pnOut) *pnOut = 0;
+    }
+
+
+void pstUpdateConsVars(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    struct inDrift *in = vin;
+
+    mdlassert(pst->mdl,nIn == sizeof(struct inDrift));
+    if (pst->nLeaves > 1) {
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_UPDATECONSVARS,in,nIn);
+	pstUpdateConsVars(pst->pstLower,in,nIn,NULL,NULL);
+	mdlGetReply(pst->mdl,rID,NULL,NULL);
+	}
+    else {
+	pkdUpdateConsVars(plcl->pkd,in->iRoot,in->dTime,in->dDelta,in->dDeltaVPred,in->dDeltaUPred);
 	}
     if (pnOut) *pnOut = 0;
     }

@@ -802,7 +802,13 @@ void smSmooth(SMX smx,SMF *smf) {
     smf->pfDensity = NULL;
     for (pi=0;pi<pkd->nLocal;++pi) {
 	p = pkdParticle(pkd,pi);
-	pkdSetBall(pkd,p,smSmoothSingle(smx,smf,p,ROOT,0));
+      if (!pkd->param.bMeshlessHydro || pkd->param.bFirstHydroLoop){ // IA: For the first hydro loop we do not care about actives
+	   pkdSetBall(pkd,p,smSmoothSingle(smx,smf,p,ROOT,0));
+      }else{
+         if (pkdIsActive(pkd,p)){ // IA: But we care when solving the riemann problem
+            pkdSetBall(pkd,p,smSmoothSingle(smx,smf,p,ROOT,0));
+         }
+      }
 	/*
 	** Call mdlCacheCheck to make sure we are making progress!
 	*/

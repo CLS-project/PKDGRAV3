@@ -341,21 +341,19 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
         which we do following Pakmor et al. 2011 */
        for(j=0;j<3;j++)
        {
-           psph->Fene += vFrame[j] * riemann_output.Fluxes.v[j];
-//#if defined(HYDRO_MESHLESS_FINITE_VOLUME)
-           /* Riemann_out->Fluxes.rho is un-modified */
-           psph->Fene += (0.5*vFrame[j]*vFrame[j])*riemann_output.Fluxes.rho;
-           psph->Fmom[j] += vFrame[j] * riemann_output.Fluxes.rho; /* just boost by frame vel (as we would in non-moving frame) */
-//#endif
+           riemann_output.Fluxes.p += vFrame[j] * riemann_output.Fluxes.v[j];
+           riemann_output.Fluxes.p += (0.5*vFrame[j]*vFrame[j])*riemann_output.Fluxes.rho;
        }
 
        /* ok now we can actually apply this to the EOM */
-//#if defined(HYDRO_MESHLESS_FINITE_VOLUME)
-       psph->Frho *= modApq; //Face_Area_Norm  ;//IA TODO: Check if Face_Area_Norm is EQUAL to modAqp. It seems they are!
-//#endif
-       psph->Fene *= modApq; //Face_Area_Norm ; // this is really Dt of --total-- energy, need to subtract KE component for e */
-       for(j=0;j<3;j++) {psph->Fmom[j] *= modApq;} //Face_Area_Norm;} // momentum flux (need to divide by mass) //
+       psph->Frho += riemann_output.Fluxes.rho*modApq; //IA TODO: Check if Face_Area_Norm is EQUAL to modAqp. It seems they are!
+       psph->Fene += riemann_output.Fluxes.p*modApq; 
+       for(j=0;j<3;j++) {psph->Fmom[j] += (riemann_output.Fluxes.v[j]+vFrame[j] * riemann_output.Fluxes.rho)*modApq;} // momentum flux (need to divide by mass) 
 
+       // IA: we store this flux also for the q particle
+       qsph->Frho -= psph->Frho;
+       qsph->Fene -= psph->Fene;
+       for(j=0;j<3;j++){ qsph->Fmom[j] -= psph->Fmom[j]; }
 
 
 
@@ -376,36 +374,6 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 #endif
                 for(k=0;k<3;k++) {out.Acc[k] += Fluxes.v[k];}
                 out.DtInternalEnergy += Fluxes.p;
-#ifdef MAGNETIC
-#ifndef HYDRO_SPH
-                for(k=0;k<3;k++) {out.Face_Area[k] += Face_Area_Vec[k];}
-#endif
-#ifndef FREEZE_HYDRO
-                for(k=0;k<3;k++) {out.DtB[k]+=Fluxes.B[k];}
-                out.divB += Fluxes.B_normal_corrected;
-#if defined(DIVBCLEANING_DEDNER) && defined(HYDRO_MESHLESS_FINITE_VOLUME) // mass-based phi-flux
-                out.DtPhi += Fluxes.phi;
-#endif
-#ifdef HYDRO_SPH
-                for(k=0;k<3;k++) {out.DtInternalEnergy+=magfluxv[k]*local.Vel[k]/All.cf_atime;}
-                out.DtInternalEnergy += resistivity_heatflux;
-#else
-                double wt_face_sum = Face_Area_Norm * (-face_area_dot_vel+face_vel_i);
-                out.DtInternalEnergy += 0.5 * kernel.b2_i*All.cf_a2inv*All.cf_a2inv * wt_face_sum;
-#ifdef DIVBCLEANING_DEDNER
-                for(k=0; k<3; k++)
-                {
-                    out.DtB_PhiCorr[k] += Riemann_out.phi_normal_db * Face_Area_Vec[k];
-                    out.DtB[k] += Riemann_out.phi_normal_mean * Face_Area_Vec[k];
-                    out.DtInternalEnergy += Riemann_out.phi_normal_mean * Face_Area_Vec[k] * local.BPred[k]*All.cf_a2inv;
-                }
-#endif
-#ifdef MHD_NON_IDEAL
-                for(k=0;k<3;k++) {out.DtInternalEnergy += local.BPred[k]*All.cf_a2inv*bflux_from_nonideal_effects[k];}
-#endif
-#endif
-#endif
-#endif  // magnetic //
 
                 // if this is particle j's active timestep, you should sent them the time-derivative information as well, for their subsequent drift operations 
                 if(j_is_active_for_fluxes)
@@ -417,36 +385,6 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
                     for(k=0;k<3;k++) {SphP[j].HydroAccel[k] -= Fluxes.v[k];}
                     SphP[j].DtInternalEnergy -= Fluxes.p;
 
-#ifdef MAGNETIC
-#ifndef HYDRO_SPH
-                    for(k=0;k<3;k++) {SphP[j].Face_Area[k] -= Face_Area_Vec[k];}
-#endif
-#ifndef FREEZE_HYDRO
-                    for(k=0;k<3;k++) {SphP[j].DtB[k]-=Fluxes.B[k];}
-                    SphP[j].divB -= Fluxes.B_normal_corrected;
-#if defined(DIVBCLEANING_DEDNER) && defined(HYDRO_MESHLESS_FINITE_VOLUME) // mass-based phi-flux
-                    SphP[j].DtPhi -= Fluxes.phi;
-#endif
-#ifdef HYDRO_SPH
-                    for(k=0;k<3;k++) {SphP[j].DtInternalEnergy-=magfluxv[k]*VelPred_j[k]/All.cf_atime;}
-                    SphP[j].DtInternalEnergy += resistivity_heatflux;
-#else
-                    double wt_face_sum = Face_Area_Norm * (-face_area_dot_vel+face_vel_j);
-                    SphP[j].DtInternalEnergy -= 0.5 * kernel.b2_j*All.cf_a2inv*All.cf_a2inv * wt_face_sum;
-#ifdef DIVBCLEANING_DEDNER
-                    for(k=0; k<3; k++)
-                    {
-                        SphP[j].DtB_PhiCorr[k] -= Riemann_out.phi_normal_db * Face_Area_Vec[k];
-                        SphP[j].DtB[k] -= Riemann_out.phi_normal_mean * Face_Area_Vec[k];
-                        SphP[j].DtInternalEnergy -= Riemann_out.phi_normal_mean * Face_Area_Vec[k] * BPred_j[k]*All.cf_a2inv;
-                    }
-#endif
-#ifdef MHD_NON_IDEAL
-                    for(k=0;k<3;k++) {SphP[j].DtInternalEnergy -= BPred_j[k]*All.cf_a2inv*bflux_from_nonideal_effects[k];}
-#endif
-#endif
-#endif
-#endif // magnetic // */
 
                 //}
 
@@ -455,19 +393,6 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 #ifdef HYDRO_MESHLESS_FINITE_VOLUME
                 if(dmass_holder != 0)
                 {
-#ifdef METALS
-                    if(Fluxes.rho > 0)
-                    {
-                        // particle i gains mass from particle j 
-                        for(k=0;k<NUM_METAL_SPECIES;k++)
-                            out.Dyield[k] += (P[j].Metallicity[k] - local.Metallicity[k]) * dmass_holder;
-                    } else {
-                        // particle j gains mass from particle i 
-                        dmass_holder /= -P[j].Mass;
-                        for(k=0;k<NUM_METAL_SPECIES;k++)
-                            P[j].Metallicity[k] += (local.Metallicity[k] - P[j].Metallicity[k]) * dmass_holder;
-                    }
-#endif 
                 }
 #endif */
 
@@ -477,15 +402,6 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 /*
                 if(kernel.vsig > out.MaxSignalVel) out.MaxSignalVel = kernel.vsig;
                 if(j_is_active_for_fluxes) {if(kernel.vsig > SphP[j].MaxSignalVel) SphP[j].MaxSignalVel = kernel.vsig;}
-#ifdef WAKEUP
-                if(!(TimeBinActive[P[j].TimeBin]))
-                {
-                    if(kernel.vsig > WAKEUP*SphP[j].MaxSignalVel) PPPZ[j].wakeup = 1;
-#if (SLOPE_LIMITER_TOLERANCE <= 0)
-                    if(local.Timestep*WAKEUP < TimeStep_J) PPPZ[j].wakeup = 1;
-#endif
-                }
-#endif
 */
 
 //            } // for(n = 0; n < numngb; n++) //
