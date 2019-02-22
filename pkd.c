@@ -2722,15 +2722,7 @@ void pkdUpdateConsVars(PKD pkd,int iRoot,double dTime,double dDelta,double dDelt
                                         which indicates if the flux of the given particle has been updated
                                         during the last smoothing loop */
          if (pkdIsGas(pkd,p)) {
-            p = pkdParticle(pkd,i);
-            v = pkdVel(pkd,p);
-            a = pkdAccel(pkd,p);
-            sph = pkdSph(pkd,p);
-            for (j=0;j<3;++j) { /* NB: Pred quantities must be done before std. */
-               sph->vPred[j] += a[j]*dDeltaVPred;
-            }
-            sph->uPred += sph->uDot*dDeltaUPred;
-            sph->fMetalsPred += sph->fMetalsDot*dDeltaUPred;
+            // TODO Add fluxes to conserved quantities!
          }
        }
     }

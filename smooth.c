@@ -317,6 +317,24 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
 	comb = combSphForces;
 	smx->fcnPost = NULL;
 	break;
+    case SMX_FIRSTHYDROLOOP:
+	assert( pkd->oSph ); /* Validate memory model */
+	assert( pkd->oAcceleration ); /* Validate memory model */
+	smx->fcnSmooth = hydroGradients;
+	initParticle = initHydroLoop; /* Original Particle */
+	init = initHydroLoopCached; /* Cached copies */
+	comb = combFirstHydroLoop;
+	smx->fcnPost = NULL;
+	break;
+    case SMX_SECONDHYDROLOOP:
+	assert( pkd->oSph ); /* Validate memory model */
+	assert( pkd->oAcceleration ); /* Validate memory model */
+	smx->fcnSmooth = hydroRiemann;
+	initParticle = initHydroFluxes; /* Original Particle */
+	init = initHydroFluxes; /* Cached copies */ 
+	comb = combSecondHydroLoop;
+	smx->fcnPost = NULL;
+	break;
     case SMX_DIST_DELETED_GAS:
 	assert(bSymmetric != 0);
 	smx->fcnSmooth = DistDeletedGas;
@@ -803,6 +821,7 @@ void smSmooth(SMX smx,SMF *smf) {
     for (pi=0;pi<pkd->nLocal;++pi) {
 	p = pkdParticle(pkd,pi);
       if (!pkd->param.bMeshlessHydro || pkd->param.bFirstHydroLoop){ // IA: For the first hydro loop we do not care about actives
+         // IA TODO I should check taht bFirstHydroLoop is correctly changed
 	   pkdSetBall(pkd,p,smSmoothSingle(smx,smf,p,ROOT,0));
       }else{
          if (pkdIsActive(pkd,p)){ // IA: But we care when solving the riemann problem

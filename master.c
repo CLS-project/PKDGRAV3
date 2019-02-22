@@ -3536,6 +3536,34 @@ void msrUpdateConsVars(MSR msr,double dTime,double dDelta,int iRoot) {
     pstUpdateConsVars(msr->pst,&in,sizeof(in),NULL,NULL);
     }
 
+
+void msrMeshlessHydroStep(MSR msr,double dTime,double dDelta,int iRoot) {
+    /*
+    struct inMeshlessHydroStep in;
+
+    assert(iRoot!=0); //IA: Dual tree not implemented
+
+    if (msr->param.csm->val.bComove) {
+	in.dDelta = csmComoveDriftFac(msr->param.csm,dTime,dDelta);
+	in.dDeltaVPred = csmComoveKickFac(msr->param.csm,dTime,dDelta);
+	}
+    else {
+	in.dDelta = dDelta;
+	in.dDeltaVPred = dDelta;
+	}
+    in.dTime = dTime;
+    in.dDeltaUPred = dDelta;
+    in.iRoot = iRoot;
+    in.bFirstHydroLoop;
+    pstMeshlessHydroStep(msr->pst,&in,sizeof(in),NULL,NULL);
+    */
+    int bSymmetric = 0; //TODO: What does this change? I think nothing if I do not want to
+    msrSetFirstHydroLoop(msr, 1);
+    msrSmooth(msr,dTime,SMX_FIRSTHYDROLOOP,bSymmetric,msr->param.nSmooth);
+    msrSetFirstHydroLoop(msr, 0);
+    msrSmooth(msr,dTime,SMX_SECONDHYDROLOOP,bSymmetric,msr->param.nSmooth);
+    }
+
 void msrScaleVel(MSR msr,double dvFac) {
     struct inScaleVel in;
 
@@ -4430,6 +4458,14 @@ void msrTopStepKDK(MSR msr,
 		      pdActiveSum,piSec);
 	}
     else if (msrCurrMaxRung(msr) == iRung) {
+      /* IA: Following the scheme of AREPO, we kick->hydro vars update->drift->gravity->kick->move hydro 
+       * But this does not have a lot of sense for me... TODO discuss with Claudio */
+      if (msrDoGas(msr) && msrMeshlessHydro(msr)){
+         msrMeshlessHydroStep(msr, dTime, dDelta, ROOT);
+         msrUpdateConsVars(msr, dTime, dDelta, ROOT);
+      }
+
+
 	/* This Drifts everybody */
 	msrprintf(msr,"%*cDrift, iRung: %d\n",2*iRung+2,' ',iRung);
 	msrDrift(msr,dTime,dDelta,ROOT);
@@ -4453,7 +4489,7 @@ void msrTopStepKDK(MSR msr,
 	    *pdActiveSum += (double)nActive/msr->N;
 	    }
 	
-	if (msrDoGas(msr) ) {
+	if (msrDoGas(msr) && !msrMeshlessHydro(msr)) {
 	    msrSph(msr,dTime,dStep);  /* dTime = Time at end of kick */
 	    msrCooling(msr,dTime,dStep,0,
 		       (iKickRung<=msr->param.iRungCoolTableUpdate ? 1:0),0);
@@ -4464,7 +4500,7 @@ void msrTopStepKDK(MSR msr,
 	 */
 	dTime -= 0.5*dDelta;
 	}
-    else {
+    else { /* Very active particles */
 	double dDeltaTmp;
 	int i;
 
@@ -4550,7 +4586,7 @@ void msrTopStepKDK(MSR msr,
 	 * from 1/2 through the timestep to the end.
 	 */
 	dTime -= 0.5*dDelta;
-	}
+	 } /* END of very active particles */
 
     msrprintf(msr,"%*cKickClose, iRung: %d, 0.5*dDelta: %g\n",
 	      2*iRung+2,' ',iRung, 0.5*dDelta);
@@ -4764,6 +4800,13 @@ int msrDoGas(MSR msr) {
 
 int msrMeshlessHydro(MSR msr) {
     return(msr->param.bMeshlessHydro);
+    }
+
+int msrFirstHydroLoop(MSR msr) {
+    return(msr->param.bFirstHydroLoop);
+    }
+void msrSetFirstHydroLoop(MSR msr, int value) {
+    msr->param.bFirstHydroLoop = value;
     }
 
 void msrInitSph(MSR msr,double dTime)

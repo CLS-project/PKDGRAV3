@@ -46,43 +46,59 @@ void inverseMatrix(double* E, double* B){
 }
 
 
-
-void initHydroForces(void *vpkd, void *vp) {
+/* IA: We need to clear the SPHFIELD for all particles */
+void initHydroLoop(void *vpkd, void *vp) {
     PKD pkd = (PKD) vpkd;
     PARTICLE *p = vp;
+    int i;
     assert(!pkd->bNoParticleOrder);
-    if (pkdIsActive(pkd,p)) {
+//    if (pkdIsActive(pkd,p)) {
 	SPHFIELDS *psph = pkdSph(pkd,p);
 	psph->uDot = 0;
 	psph->fMetalsDot = 0;
-	if (!pkd->param.bDoGravity) { /* Normally these are zeroed in Gravity */
-	    p->uNewRung = 0;
-	    pkdAccel(pkd,p)[0] = 0;
-	    pkdAccel(pkd,p)[1] = 0;
-	    pkdAccel(pkd,p)[2] = 0;
-	    }
+      for (i=0;i<6;i++) { psph->B[i] = 0.0; }
+      psph->omega = 0.0;
+      psph->Frho = 0.0;
+      psph->Fene = 0.0;
+      p->uNewRung = 0;
+      for (i=0;i<3;i++) { 
+         psph->Fmom[i] = 0.0;
+	   pkdAccel(pkd,p)[i] = 0;
+	   pkdAccel(pkd,p)[i] = 0;
+	   pkdAccel(pkd,p)[i] = 0;
 	}
+	
     }
 
-void initHydroForcesCached(void *vpkd, void *vp) {
+void initHydroLoopCached(void *vpkd, void *vp) {
     PKD pkd = (PKD) vpkd;
     PARTICLE *p = vp;
     assert(!pkd->bNoParticleOrder);
-    if (pkdIsActive(pkd,p)) {
+    int i;
+//    if (pkdIsActive(pkd,p)) {
 	SPHFIELDS *psph = pkdSph(pkd,p);
 	psph->uDot = 0;
 	psph->fMetalsDot = 0;
-	p->uNewRung = 0;
-	pkdAccel(pkd,p)[0] = 0;  
-	pkdAccel(pkd,p)[1] = 0;  
-	pkdAccel(pkd,p)[2] = 0; /* JW: Cached copies have zero accel! && rung */
+      for (i=0;i<6;i++) { psph->B[i] = 0.0; }
+      psph->omega = 0.0;
+      psph->Frho = 0.0;
+      psph->Fene = 0.0;
+      p->uNewRung = 0;
+      for (i=0;i<3;i++) { 
+         psph->Fmom[i] = 0.0;
+	   pkdAccel(pkd,p)[i] = 0;
+	   pkdAccel(pkd,p)[i] = 0;
+	   pkdAccel(pkd,p)[i] = 0;
 	}
     }
 
-
-void combHydroForces(void *vpkd, void *p1,void *p2) {
+/* IA: I guess that this is called when we 'merge' information coming from different processors
+ * about the same particle.. For the first hydro loop, all quantities are aditives so easy!
+ */
+void combFirstHydroLoop(void *vpkd, void *p1,void *p2) {
     PKD pkd = (PKD) vpkd;
     assert(!pkd->bNoParticleOrder);
+    /*
     if (pkdIsActive(pkd,p1)) {
 	SPHFIELDS *psph1 = pkdSph(pkd,p1), *psph2 = pkdSph(pkd,p2);
 	float *a1 = pkdAccel(pkd,p1), *a2 = pkdAccel(pkd,p2);
@@ -93,6 +109,41 @@ void combHydroForces(void *vpkd, void *p1,void *p2) {
 	a1[2] += a2[2]; 
 	if (((PARTICLE *) p2)->uNewRung > ((PARTICLE *) p1)->uNewRung) 
 	    ((PARTICLE *) p1)->uNewRung = ((PARTICLE *) p2)->uNewRung;
+	} */
+    SPHFIELDS *psph1 = pkdSph(pkd,p1), *psph2 = pkdSph(pkd,p2);
+    int i;
+
+    for (i=0;i<6;i++){ psph1->B[i] += psph2->B[i]; }
+    psph1->omega += psph2->omega;
+
+    //IA: the fluxes are not added because they has not been yet computed!
+
+    }
+
+void combSecondHydroLoop(void *vpkd, void *p1,void *p2) {
+    PKD pkd = (PKD) vpkd;
+    assert(!pkd->bNoParticleOrder);
+    SPHFIELDS *psph1 = pkdSph(pkd,p1), *psph2 = pkdSph(pkd,p2);
+    int i;
+
+    for (i=0;i<3;i++){ psph1->Fmom[i] += psph2->Fmom[i]; }
+    psph1->Frho += psph2->Frho;
+    psph1->Fene += psph2->Fene;
+      // TODO: Still need to compute uNewRung inside the meshless hydro loops!!!
+    }
+
+void initHydroFluxes(void *vpkd, void *vp) {
+    PKD pkd = (PKD) vpkd;
+    PARTICLE *p = vp;
+    assert(!pkd->bNoParticleOrder);
+    int i;
+//    if (pkdIsActive(pkd,p)) {
+	SPHFIELDS *psph = pkdSph(pkd,p);
+      psph->Frho = 0.0;
+      psph->Fene = 0.0;
+      p->uNewRung = 0;
+      for (i=0;i<3;i++) { 
+         psph->Fmom[i] = 0.0;
 	}
     }
 
@@ -105,7 +156,6 @@ void hydroGradients(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     double E[6], B[6];  // IA: We are assumming 3D here!
     double ph, qh, rpq, hpq, dx,dy,dz,Wpq;
     double psi, psiTilde[3];
-    double diff, pDensity;
     int i, j;
 
     /*
@@ -120,15 +170,8 @@ void hydroGradients(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
     /* Particle p data */
     psph = pkdSph(pkd,p);
-    pDensity = pkdDensity(pkd,p); // TODO: check where is this computed
-//    pMass = pkdMass(pkd,p); TODO: check where is computed.. is it useful for this implementation??? Probably not..
     ph = 0.5*fBall; /* IA: fBall seems to be the minimun distance to any neighbors ¿? Although it would be logical to be the maximum */
-//    pActive = pkdIsActive(pkd,p);
 
-    /* IA: I do not get this, so I will use my own cubic spline kernel */
-//    ih2 = 1/(ph*ph);
-//    fNorm = 0.5*M_1_PI*ih2/ph;
-//    fNorm1 = fNorm*ih2;	/* converts to physical u */
 
     /* IA: Compute the \omega(x_i) normalization factor */
     psph->omega = 0.0;
@@ -155,7 +198,6 @@ void hydroGradients(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     for (i=0; i<6;++i){
        E[i] = 0.0; 
     }
-    // TODO: Check initialization of E
 
     for (i=0; i<nSmooth;++i){
        q = nnList[i].pPart;
@@ -196,7 +238,6 @@ void hydroGradients(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
      * and B matrices computed */
 
 
-    /* TODO: I should make sure that psph is not cleared after a smSmooth call!!! */
 
     }
 
@@ -211,13 +252,16 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PARTICLE *q;
     SPHFIELDS *psph, *qsph;
     double pv[3], qv[3], vFrame[3];
-    double ph,qh, hpq, modApq, rpq, dx,dy,dz,Wpq,psi_p,psi_q,diff,pDensity;
+    double ph,qh, hpq, modApq, rpq, dx,dy,dz,Wpq,psi_p,psi_q,pDensity,dDeltaHalf;
+    double rhodiff, vxdiff, vydiff, vzdiff, pdiff, pdivv, qdivv, pdiffOverRhop, pdiffOverRhoq;
     double psiTilde_p[3], psiTilde_q[3], Apq[3], face_unit[3], dr[3]; 
     struct Input_vec_Riemann riemann_input;
     struct Riemann_outputs riemann_output; //TODO: do this outside the loop
     int i,j;
 
     psph = pkdSph(pkd, p);   
+
+    dDeltaHalf = smf->dDelta/2.;
 
     for (i=0;i<nSmooth;++i){
 
@@ -257,55 +301,74 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
        dr[0] = dx;
        dr[1] = dy;
        dr[2] = dz;
- 
-       // TODO: The next loops can be unified
-       // TODO: Remove psph->*Grad variables
-       // Density gradients
-      diff = (pkdDensity(pkd,q) - pDensity);
-      riemann_input.L.rho = pkdDensity(pkd,p);
-      riemann_input.R.rho = pkdDensity(pkd,q);
-      for (j=0; j<3; j++) {
-         riemann_input.L.rho += 0.5*dr[j]*psiTilde_p[j]*diff;
-         riemann_input.R.rho += 0.5*dr[j]*psiTilde_q[j]*diff; //Same sign (- from diff and another - from dr
-      }
 
-      // Momentum gradients 
-      diff = qsph->vPred[0] - psph->vPred[0];// TODO :check this vPred!
-      riemann_input.L.v[0] = pv[0];
-      riemann_input.R.v[0] = qv[0];
-      for (j=0; j<3; j++) {
-//         psph->vxGrad[j] += psiTilde[j] * diff;
-         riemann_input.L.v[0] += 0.5*dr[j]*psiTilde_p[j]*diff;
-         riemann_input.R.v[0] += 0.5*dr[j]*psiTilde_q[j]*diff;
-      }
-
-      diff = qsph->vPred[1] - psph->vPred[1];// TODO :check this vPred!
-      riemann_input.L.v[1] = pv[1];
-      riemann_input.R.v[1] = qv[1];
-      for (j=0; j<3; j++) {
-//         psph->vyGrad[j] += psiTilde[j] * diff;
-         riemann_input.L.v[1] += 0.5*dr[j]*psiTilde_p[j]*diff;
-         riemann_input.R.v[1] += 0.5*dr[j]*psiTilde_q[j]*diff;
-      }
-
-      diff = qsph->vPred[2] - psph->vPred[2];// TODO :check this vPred!
-      riemann_input.L.v[2] = pv[2];
-      riemann_input.R.v[2] = qv[2];
-      for (j=0; j<3; j++) {
-//         psph->vzGrad[j] += psiTilde[j] * diff;
-         riemann_input.L.v[2] += 0.5*dr[j]*psiTilde_p[j]*diff;
-         riemann_input.R.v[2] += 0.5*dr[j]*psiTilde_q[j]*diff;
-      }
-
-      // Pressure gradients TODO: check when psph->cs is computed! is it predicted?
+      // Differences in the variables
+      rhodiff = (pkdDensity(pkd,q) - pDensity);
+      vxdiff = qsph->vPred[0] - psph->vPred[0];
+      vydiff = qsph->vPred[1] - psph->vPred[1];
+      vzdiff = qsph->vPred[2] - psph->vPred[2];
       riemann_input.L.p = psph->c*psph->c * pDensity / pkd->param.dConstGamma;
       riemann_input.R.p = qsph->c*qsph->c * pkdDensity(pkd,q) / pkd->param.dConstGamma;
-      diff = riemann_input.R.p - riemann_input.L.p;
-      for (j=0; j<3; j++){
-//         psph->intEneGrad[j] += psiTilde[j] * diff;
-         riemann_input.L.p += 0.5*dr[j]*psiTilde_p[j]*diff;
-         riemann_input.R.p += 0.5*dr[j]*psiTilde_q[j]*diff;
+      pdiff = riemann_input.R.p - riemann_input.L.p;
+
+
+      // Divergence of the velocity field for the forward in time prediction
+      pdivv = 0.0;
+      qdivv = 0.0;
+
+      pdivv += vxdiff*psiTilde_p[0];
+      pdivv += vydiff*psiTilde_p[1];
+      pdivv += vzdiff*psiTilde_p[2];
+
+      qdivv -= vxdiff*psiTilde_q[0];
+      qdivv -= vydiff*psiTilde_q[1];
+      qdivv -= vzdiff*psiTilde_q[2];
+
+      pdivv *= dDeltaHalf;
+      qdivv *= dDeltaHalf;
+
+      riemann_input.L.rho = pkdDensity(pkd,p);
+      riemann_input.R.rho = pkdDensity(pkd,q);
+      riemann_input.L.v[0] = pv[0];
+      riemann_input.R.v[0] = qv[0];
+      riemann_input.L.v[1] = pv[1];
+      riemann_input.R.v[1] = qv[1];
+      riemann_input.L.v[2] = pv[2];
+      riemann_input.R.v[2] = qv[2];
+
+      // This notation may be confusing... sorry
+      pdiffOverRhop = -pdiff/pDensity * dDeltaHalf;  // We include here the minus comming from eq. A4
+      pdiffOverRhoq = pdiff/pkdDensity(pkd,q) * dDeltaHalf;
+
+      // TODO: Has this to be done in physical units? I guess..
+      // We to add the terms on the divergence of v from the forward prediction
+      riemann_input.L.rho -= pkdDensity(pkd,p)*pdivv;
+      riemann_input.R.rho -= pkdDensity(pkd,q)*qdivv;
+      for (j=0; j<3; j++) { 
+         riemann_input.L.v[j] -= pv[j]*pdivv;
+         riemann_input.R.v[j] -= qv[j]*qdivv;
       }
+      riemann_input.L.p -= pkd->param.dConstGamma*riemann_input.L.p*pdivv;
+      riemann_input.R.p -= pkd->param.dConstGamma*riemann_input.R.p*qdivv;
+
+      // We add the gradients terms (from extrapolation and forward prediction)
+      for (j=0; j<3; j++) {
+         riemann_input.L.rho += ( 0.5*dr[j] - dDeltaHalf*pv[j])*psiTilde_p[j]*rhodiff;
+         riemann_input.R.rho += (-0.5*dr[j] - dDeltaHalf*qv[j])*psiTilde_q[j]*(-rhodiff);
+
+         riemann_input.L.v[0] += (0.5*dr[j]*vxdiff + pdiffOverRhop)*psiTilde_p[j];
+         riemann_input.R.v[0] += (0.5*dr[j]*vxdiff + pdiffOverRhoq)*psiTilde_q[j]; // The two minus at the first term compensate each other
+
+         riemann_input.L.v[1] += (0.5*dr[j]*vydiff + pdiffOverRhop)*psiTilde_p[j];
+         riemann_input.R.v[1] += (0.5*dr[j]*vydiff + pdiffOverRhoq)*psiTilde_q[j];
+
+         riemann_input.L.v[2] += (0.5*dr[j]*vzdiff + pdiffOverRhop)*psiTilde_p[j];
+         riemann_input.R.v[2] += (0.5*dr[j]*vzdiff + pdiffOverRhoq)*psiTilde_q[j];
+
+         riemann_input.L.p += ( 0.5*dr[j] - dDeltaHalf*pv[j])*psiTilde_p[j]*pdiff;
+         riemann_input.R.p += (-0.5*dr[j] - dDeltaHalf*qv[j])*psiTilde_q[j]*pdiff;
+      }
+
 
       // The cs and u values of the reconstructed states are computed inside the Riemann Solver!
 
@@ -345,8 +408,8 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
            riemann_output.Fluxes.p += (0.5*vFrame[j]*vFrame[j])*riemann_output.Fluxes.rho;
        }
 
-       /* ok now we can actually apply this to the EOM */
-       psph->Frho += riemann_output.Fluxes.rho*modApq; //IA TODO: Check if Face_Area_Norm is EQUAL to modAqp. It seems they are!
+       // IA: Now we just multiply by the face area
+       psph->Frho += riemann_output.Fluxes.rho*modApq; 
        psph->Fene += riemann_output.Fluxes.p*modApq; 
        for(j=0;j<3;j++) {psph->Fmom[j] += (riemann_output.Fluxes.v[j]+vFrame[j] * riemann_output.Fluxes.rho)*modApq;} // momentum flux (need to divide by mass) 
 
