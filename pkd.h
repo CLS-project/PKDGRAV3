@@ -181,6 +181,9 @@ typedef struct sphfields {
     double Fmom[3];
     double Fene;
 
+    /* IA: Conserved variables */
+    double mom[3];
+    double E;
 
     } SPHFIELDS;
 
@@ -1458,6 +1461,7 @@ void pkdCooling(PKD pkd,double,double,int,int,int,int);
 #define CORRECTENERGY_IN 1
 #define CORRECTENERGY_OUT 2
 #define CORRECTENERGY_SPECIAL 3
+#define CORRECTENERGY_IC_MESHLESS 4
 void pkdCorrectEnergy(PKD pkd, double dTuFac, double z, double dTime, int iType );
 void pkdDensityStep(PKD pkd, uint8_t uRungLo, uint8_t uRungHi, double dEta, double dRhoFac);
 int pkdUpdateRung(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,

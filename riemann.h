@@ -14,6 +14,7 @@
 
 #define TOL_ITER 1.e-6
 #define NMAX_ITER 1000
+#define HYDRO_MESHLESS_FINITE_VOLUME /* IA: TODO, compile time option */
 
 #ifdef MHD_CONSTRAINED_GRADIENT
 #define DEDNER_IMPLICIT_LIMITER 0.25
@@ -225,10 +226,11 @@ void Riemann_solver(struct Input_vec_Riemann Riemann_vec, struct Riemann_outputs
         printf("FAILURE: Unphysical Inputs to Reimann Solver: Left P/rho=%g/%g, Right P/rho=%g/%g \n",
                Riemann_vec.L.p,Riemann_vec.L.rho,Riemann_vec.R.p,Riemann_vec.R.rho); fflush(stdout);
         Riemann_out->P_M = 0;
+        abort();
         return;
     }
    
-    /* IA: TODO 
+    /* IA: TODO for comoving integration
     if(All.ComovingIntegrationOn)
     {
         // first convert the input variables to -PHYSICAL- units so the answer makes sense:
@@ -265,6 +267,14 @@ void Riemann_solver(struct Input_vec_Riemann Riemann_vec, struct Riemann_outputs
     Riemann_vec.R.cs = sqrt(GAMMA * Riemann_vec.R.p / Riemann_vec.R.rho);
     Riemann_vec.L.u  = Riemann_vec.L.p / (GAMMA_MINUS1 * Riemann_vec.L.rho);
     Riemann_vec.R.u  = Riemann_vec.R.p / (GAMMA_MINUS1 * Riemann_vec.R.rho);
+    /* DEBUG
+    printf("Riemann_vec.L.p %e Riemann_vec.L.rho %e \n", Riemann_vec.L.p, Riemann_vec.L.rho);
+    printf("Riemann_vec.R.p %e Riemann_vec.R.rho %e \n", Riemann_vec.R.p, Riemann_vec.R.rho);
+    printf("Riemann_vec.L.cs %e Riemann_vec.R.cs %e Riemann_vec.L.u %e Riemann_vec.R.u %e \n ", Riemann_vec.L.cs, Riemann_vec.R.cs, Riemann_vec.L.u, Riemann_vec.R.u);
+    printf("Riemann_vec.L.v %e %e %e \n", Riemann_vec.L.v[0], Riemann_vec.L.v[1], Riemann_vec.L.v[2]);
+    printf("Riemann_vec.R.v %e %e %e \n", Riemann_vec.R.v[0], Riemann_vec.R.v[1], Riemann_vec.R.v[2]);
+    printf("n_unit %e %e %e \n", n_unit[0], n_unit[1], n_unit[2]);
+    */
 #endif
     
 #ifdef MAGNETIC
@@ -334,8 +344,11 @@ void HLLC_Riemann_solver(struct Input_vec_Riemann Riemann_vec, struct Riemann_ou
     get_wavespeeds_and_pressure_star(Riemann_vec, Riemann_out, n_unit,  v_line_L, v_line_R, cs_L, cs_R, h_L, h_R, &S_L, &S_R, press_tot_limiter);
 #ifdef HYDRO_MESHLESS_FINITE_VOLUME
     /* check if we have a valid solution, and if so, compute the fluxes */
-    if((Riemann_out->P_M>0)&&(!isnan(Riemann_out->P_M)))
+    if((Riemann_out->P_M>0)&&(!isnan(Riemann_out->P_M))){
         HLLC_fluxes(Riemann_vec, Riemann_out, n_unit,  v_line_L, v_line_R, cs_L, cs_R, h_L, h_R, S_L, S_R);
+    }else{
+//       printf("Negative pressures! \n");
+    }
 #else
 #ifdef SAVE_FACE_DENSITY
     if((Riemann_out->S_M==0) || ((Riemann_out->P_M<=0)&&(!isnan(Riemann_out->P_M))))
@@ -558,6 +571,7 @@ void HLLC_fluxes(struct Input_vec_Riemann Riemann_vec, struct Riemann_outputs *R
 void Riemann_solver_exact(struct Input_vec_Riemann Riemann_vec, struct Riemann_outputs *Riemann_out, double n_unit[3],
                        double v_line_L, double v_line_R, double cs_L, double cs_R, double h_L, double h_R)
 {
+//   printf("Going for the exact Riemann Solver \n");
     /* first, we need to check for all the special/exceptional cases that will cause things to go haywire */
     if((Riemann_vec.L.p == 0 && Riemann_vec.L.p == 0) || (Riemann_vec.L.rho==0 && Riemann_vec.R.rho==0))
     {
@@ -573,8 +587,10 @@ void Riemann_solver_exact(struct Input_vec_Riemann Riemann_vec, struct Riemann_o
     {
         if(iterative_Riemann_solver(Riemann_vec, Riemann_out, v_line_L, v_line_R, cs_L, cs_R))
         {
+//           printf("Normal Riemann solution %e \n", Riemann_out->Fluxes.rho);
             /* this is the 'normal' Reimann solution */
             sample_reimann_standard(0.0,Riemann_vec,Riemann_out,n_unit,v_line_L,v_line_R,cs_L,cs_R);
+//           printf("Normal Riemann solution %e \n", Riemann_out->Fluxes.rho);
         }
         else
         {
@@ -956,12 +972,14 @@ int iterative_Riemann_solver(struct Input_vec_Riemann Riemann_vec, struct Rieman
             Pg = 0.1 * Pg_prev;
         
         tol = 2.0 * fabs((Pg-Pg_prev)/(Pg+Pg_prev));
+//        printf("tol %e \n", tol);
         niter_Riemann++;
     }
     if(niter_Riemann<NMAX_ITER)
     {
         Riemann_out->P_M = Pg;
         Riemann_out->S_M = 0.5*(v_line_L+v_line_R) + 0.5*(W_R-W_L);
+//        printf("Convergence! P_M %e \t S_M %e \n", Riemann_out->P_M, Riemann_out->S_M);
         return 1;
     } else {
         return 0;

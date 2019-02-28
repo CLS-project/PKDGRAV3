@@ -2837,28 +2837,28 @@ void msrBuildTreeMarked(MSR msr,double dTime) {
     BuildTree(msr,0,ROOT,0);
     }
 
-void msrReorder(MSR msr) {
-    if (!msr->param.bMemUnordered) {
-	struct inDomainOrder in;
-	double sec,dsec;
+void msrReorder(MSR msr) { //IA TODO FIXME figure out why this crashes and creates pathological configurations (probably sph field not being copied...)
+//    if (!msr->param.bMemUnordered) {
+//	struct inDomainOrder in;
+//	double sec,dsec;
 
-	msrprintf(msr,"Ordering...\n");
-	sec = msrTime();
-	in.iMinOrder = 0;
-	in.iMaxOrder = msrMaxOrder(msr)-1;
-	pstDomainOrder(msr->pst,&in,sizeof(in),NULL,NULL);
-	in.iMinOrder = 0;
-	in.iMaxOrder = msrMaxOrder(msr)-1;
-	pstLocalOrder(msr->pst,&in,sizeof(in),NULL,NULL);
-	dsec = msrTime() - sec;
-	msrprintf(msr,"Order established, Wallclock: %f secs\n\n",dsec);
+//	msrprintf(msr,"Ordering...\n");
+//	sec = msrTime();
+//	in.iMinOrder = 0;
+//	in.iMaxOrder = msrMaxOrder(msr)-1;
+//	pstDomainOrder(msr->pst,&in,sizeof(in),NULL,NULL);
+//	in.iMinOrder = 0;
+//	in.iMaxOrder = msrMaxOrder(msr)-1;
+//	pstLocalOrder(msr->pst,&in,sizeof(in),NULL,NULL);
+//	dsec = msrTime() - sec;
+//	msrprintf(msr,"Order established, Wallclock: %f secs\n\n",dsec);
 
 	/*
 	** Mark domain decomp as not done.
 	*/
-	msr->iLastRungRT = -1;
-	msr->iLastRungDD = -1;
-	}
+//	msr->iLastRungRT = -1;
+//	msr->iLastRungDD = -1;
+//	}
     }
 
 void msrOutASCII(MSR msr,const char *pszFile,int iType,int nDims) {
@@ -3516,8 +3516,8 @@ void msrDrift(MSR msr,double dTime,double dDelta,int iRoot) {
     in.iRoot = iRoot;
     pstDrift(msr->pst,&in,sizeof(in),NULL,NULL);
     }
-
-void msrUpdateConsVars(MSR msr,double dTime,double dDelta,int iRoot) {
+/*
+TODO void msrApplyGravWork(MSR msr,double dTime,double dDelta,int iRoot) {
     struct inDrift in;
 
     assert(iRoot!=0); //IA: Dual tree not implemented
@@ -3533,7 +3533,30 @@ void msrUpdateConsVars(MSR msr,double dTime,double dDelta,int iRoot) {
     in.dTime = dTime;
     in.dDeltaUPred = dDelta;
     in.iRoot = iRoot;
+    pstApplyGravWork(msr->pst,&in,sizeof(in),NULL,NULL);
+    }
+*/
+
+
+void msrUpdateConsVars(MSR msr,double dTime,double dDelta,int iRoot) {
+    struct inDrift in;
+
+    assert(iRoot!=0); //IA: Dual tree not implemented
+
+    printf("(msrUpdateConsVars) Begin \n");
+    if (msr->param.csm->val.bComove) {
+	in.dDelta = csmComoveDriftFac(msr->param.csm,dTime,dDelta);
+	in.dDeltaVPred = csmComoveKickFac(msr->param.csm,dTime,dDelta);
+	}
+    else {
+	in.dDelta = dDelta;
+	in.dDeltaVPred = dDelta;
+	}
+    in.dTime = dTime;
+    in.dDeltaUPred = dDelta;
+    in.iRoot = iRoot;
     pstUpdateConsVars(msr->pst,&in,sizeof(in),NULL,NULL);
+    printf("(msrUpdateConsVars) End \n");
     }
 
 
@@ -3557,11 +3580,14 @@ void msrMeshlessHydroStep(MSR msr,double dTime,double dDelta,int iRoot) {
     in.bFirstHydroLoop;
     pstMeshlessHydroStep(msr->pst,&in,sizeof(in),NULL,NULL);
     */
+    printf("(msrMeshlessHydroStep) Begin of first hydro loop \n");
     int bSymmetric = 0; //TODO: What does this change? I think nothing if I do not want to
     msrSetFirstHydroLoop(msr, 1);
     msrSmooth(msr,dTime,SMX_FIRSTHYDROLOOP,bSymmetric,msr->param.nSmooth);
+    printf("(msrMeshlessHydroStep) Begin of second hydro loop \n");
     msrSetFirstHydroLoop(msr, 0);
     msrSmooth(msr,dTime,SMX_SECONDHYDROLOOP,bSymmetric,msr->param.nSmooth);
+    printf("(msrMeshlessHydroStep) End \n");
     }
 
 void msrScaleVel(MSR msr,double dvFac) {
@@ -4458,11 +4484,9 @@ void msrTopStepKDK(MSR msr,
 		      pdActiveSum,piSec);
 	}
     else if (msrCurrMaxRung(msr) == iRung) {
-      /* IA: Following the scheme of AREPO, we kick->hydro vars update->drift->gravity->kick->move hydro 
-       * But this does not have a lot of sense for me... TODO discuss with Claudio */
+      /* IA: Following the scheme of AREPO, we kick->hydro fluxes->drift->hydro vars update->gravity->kick->move hydro  */
       if (msrDoGas(msr) && msrMeshlessHydro(msr)){
          msrMeshlessHydroStep(msr, dTime, dDelta, ROOT);
-         msrUpdateConsVars(msr, dTime, dDelta, ROOT);
       }
 
 
@@ -4472,12 +4496,19 @@ void msrTopStepKDK(MSR msr,
 	dTime += dDelta;
 	dStep += 1.0/(1 << iRung);
 
+      printf("dTime %e \n", dTime);
 	msrActiveRung(msr,iKickRung,1);
 	bSplitVA = 0;
 	msrDomainDecomp(msr,iKickRung,0,bSplitVA);
 
-	/* JW: Good place to zero uNewRung */
-	msrZeroNewRung(msr,iKickRung,MAX_RUNG,iKickRung); /* brute force */
+	/* JW: Good place to zero uNewRung  IA: not really... This is done in the init call of smSmooth*/ 
+	if (!msrMeshlessHydro(msr)) msrZeroNewRung(msr,iKickRung,MAX_RUNG,iKickRung); /* brute force */
+
+
+      if (msrDoGas(msr) && msrMeshlessHydro(msr)){
+         msrUpdateConsVars(msr, dTime, dDelta, ROOT);
+      }
+
 	if (msrDoGravity(msr) || msrDoGas(msr)) {
 	    msrActiveRung(msr,iKickRung,1);
 	    if (msrDoGravity(msr)) msrUpdateSoft(msr,dTime);
@@ -4494,6 +4525,12 @@ void msrTopStepKDK(MSR msr,
 	    msrCooling(msr,dTime,dStep,0,
 		       (iKickRung<=msr->param.iRungCoolTableUpdate ? 1:0),0);
 	}
+
+
+      //if (msrDoGas(msr) && msrMeshlessHydro(msr) && msrDoGravity(msr)){
+      //   msrApplyGravWork(msr, dTime, dDelta, ROOT);   // TODO: Implement
+      //}
+
 	/*
 	 * move time back to 1/2 step so that KickClose can integrate
 	 * from 1/2 through the timestep to the end.
@@ -4811,6 +4848,7 @@ void msrSetFirstHydroLoop(MSR msr, int value) {
 
 void msrInitSph(MSR msr,double dTime)
     {
+    if (!msrMeshlessHydro(msr)){
     /* Init gas, internal energy -- correct estimate from dTuFac */
     msrActiveRung(msr,0,1);
     /* Very important NOT to do this if starting from a checkpoint */
@@ -4845,6 +4883,9 @@ void msrInitSph(MSR msr,double dTime)
     msrSph(msr,dTime,0);
     msrSphStep(msr,0,MAX_RUNG,dTime); /* Requires SPH */
     msrCooling(msr,dTime,0,0,1,1); /* Interate cooling for consistent dt */
+    }else{ //IA: we set the initial rungs of the particles
+        msrMeshlessHydroStep(msr, 0.0, 0.0, ROOT); // We do not add fluxes, just update the rungs
+    }
 }
 
 void msrSph(MSR msr,double dTime, double dStep) {

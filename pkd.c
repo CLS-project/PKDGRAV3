@@ -1117,7 +1117,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	case FIO_SPECIES_SPH:
 	    assert(dTuFac>0.0);
 	    fioReadSph(fio,&iParticleID,r,vel,&fMass,&fSoft,pPot,
-			     &fDensity/*?*/,&u,&fMetals);
+			     &fDensity/*?*/,&u,&fMetals); //IA: misreading, u means temperature
 	    pkdSetDensity(pkd,p,fDensity);
 	    if (pSph) {
 		pSph->u = u * dTuFac; /* Can't do precise conversion until density known */
@@ -1127,6 +1127,17 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 		pSph->vPred[0] = vel[0]*dvFac;
 		pSph->vPred[1] = vel[1]*dvFac;
 		pSph->vPred[2] = vel[2]*dvFac; /* density, divv, BalsaraSwitch, c set in smooth */
+            pSph->Frho = 0.0;
+            pSph->Fmom[0] = 0.0;
+            pSph->Fmom[1] = 0.0;
+            pSph->Fmom[2] = 0.0;
+            pSph->Fene = 0.0;
+            pSph->E = u*dTuFac + 0.5*(pSph->vPred[0]*pSph->vPred[0] + pSph->vPred[1]*pSph->vPred[1] + pSph->vPred[2]*pSph->vPred[2]); 
+            pSph->E *= fMass;
+            assert(pSph->E>0);
+            pSph->mom[0] = fMass*vel[0];
+            pSph->mom[1] = fMass*vel[1];
+            pSph->mom[2] = fMass*vel[2];
 		}
 	    break;
 	case FIO_SPECIES_DARK:
@@ -2662,6 +2673,7 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
 		sph->fMetalsPred += sph->fMetalsDot*dDeltaUPred;
 		}
 	    for (j=0;j<3;++j) {
+//if(v[j]!=0)             printf("dDelta*v %e \n", dDelta*v[j]);
 		pkdSetPos(pkd,p,j,rfinal[j] = pkdPos(pkd,p,j) + dDelta*v[j]);
 		}
 	    pkdMinMax(rfinal,dMin,dMax);
@@ -2690,11 +2702,9 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
  * should be stored in the SPHFIELDS of each particle */
 void pkdUpdateConsVars(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,double dDeltaTime) {
     PARTICLE *p;
-    vel_t *v;
-    float *a;
-    SPHFIELDS *sph;
-    int i,j,k;
-    double rfinal[3],r0[3],dMin[3],dMax[3];
+    SPHFIELDS *psph;
+    float* pmass;
+    int i;
     int pLower, pUpper;
 
 //  if (iRoot>=0) {
@@ -2709,20 +2719,44 @@ void pkdUpdateConsVars(PKD pkd,int iRoot,double dTime,double dDelta,double dDelt
 
     mdlDiag(pkd->mdl, "Into pkdUpdateConsVars\n");
     assert(pkd->oVelocity);
+    assert(pkd->oMass);
 
     /*
     ** Add the computed flux to the conserved variables for each gas particle
     */
     if (pkd->param.bDoGas) {
       assert(pkd->param.bDoGas);    
-      double dDeltaUPred = dDeltaTime;
       assert(pkd->oSph);
-      assert(pkd->oAcceleration);
-      for (i=pLower;i<=pUpper;++i) { /* IA: We could avoid part of this loop is I add a flag to SPHFIELDS
+      for (i=pLower;i<pUpper;++i) { /* IA: We could avoid part of this loop is I add a flag to SPHFIELDS
                                         which indicates if the flux of the given particle has been updated
-                                        during the last smoothing loop */
+                                        during the last smoothing loop */     
+      p = pkdParticle(pkd,i);
          if (pkdIsGas(pkd,p)) {
-            // TODO Add fluxes to conserved quantities!
+            psph = pkdSph(pkd, p);
+            // Eq 22 Hopkins 2015
+            // For Q = V rho = M
+            pmass = pkdField(p,pkd->oMass);
+//            printf("Previous mass %e \t", *pmass);
+            *pmass -= dDelta * psph->Frho;
+//if(psph->Frho != psph->Frho)            printf("Mass flux %e \n", psph->Frho);
+//            printf("Next mass %e \t Difference %e \t dDelta %e \n", *pmass, dDelta * psph->Frho, dDelta);
+
+
+            // For Q = V rho v = mv
+//            printf("Momentum flux %e \t %e \t %e \n", psph->Fmom[0], psph->Fmom[1], psph->Fmom[2]);
+            psph->mom[0] -= dDelta * psph->Fmom[0];
+            psph->mom[1] -= dDelta * psph->Fmom[1];
+            psph->mom[2] -= dDelta * psph->Fmom[2];
+
+            // For Q = V rho e = E
+//           if (pkdPos(pkd,p,0)==0 && pkdPos(pkd,p,1)==0 && pkdPos(pkd,p,2)==0){
+//    printf("%d - x %e y %e z %e \n", i, pkdPos(pkd,p,0), pkdPos(pkd,p,1), pkdPos(pkd,p,2));
+//            printf("E %e dDelta %e psph->Fene %e \n", psph->E, dDelta, psph->Fene);
+//            }
+            psph->E -= dDelta * psph->Fene;
+            assert(psph->E>0.0);
+
+            
          }
        }
     }
