@@ -3561,6 +3561,8 @@ void msrUpdateConsVars(MSR msr,double dTime,double dDelta,int iRoot) {
 
 
 void msrMeshlessHydroStep(MSR msr,double dTime,double dDelta,int iRoot) {
+    struct inDrift in; //IA: TODO new struct for this, as I am using more space than needed
+    in.iRoot = iRoot;
     /*
     struct inMeshlessHydroStep in;
 
@@ -3584,9 +3586,12 @@ void msrMeshlessHydroStep(MSR msr,double dTime,double dDelta,int iRoot) {
     int bSymmetric = 0; //TODO: What does this change? I think nothing if I do not want to
     msrSetFirstHydroLoop(msr, 1);
     msrSmooth(msr,dTime,SMX_FIRSTHYDROLOOP,bSymmetric,msr->param.nSmooth);
+    pstComputePrimVars(msr->pst,&in,sizeof(in),NULL,NULL); 
     printf("(msrMeshlessHydroStep) Begin of second hydro loop \n");
     msrSetFirstHydroLoop(msr, 0);
     msrSmooth(msr,dTime,SMX_SECONDHYDROLOOP,bSymmetric,msr->param.nSmooth);
+    printf("(msrMeshlessHydroStep) Begin of third hydro loop \n");
+    msrSmooth(msr,dTime,SMX_THIRDHYDROLOOP,bSymmetric,msr->param.nSmooth);
     printf("(msrMeshlessHydroStep) End \n");
     }
 
@@ -4486,6 +4491,8 @@ void msrTopStepKDK(MSR msr,
     else if (msrCurrMaxRung(msr) == iRung) {
       /* IA: Following the scheme of AREPO, we kick->hydro fluxes->drift->hydro vars update->gravity->kick->move hydro  */
       if (msrDoGas(msr) && msrMeshlessHydro(msr)){
+         msrActiveRung(msr,iKickRung,1); //IA: The repeated call after msrDrift would not be needed
+         if (msr->param.bVStep) printf("Step:%f (rung %d)\n",dStep,iKickRung);
          msrMeshlessHydroStep(msr, dTime, dDelta, ROOT);
       }
 

@@ -319,8 +319,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
 	break;
     case SMX_FIRSTHYDROLOOP:
 	assert( pkd->oSph ); /* Validate memory model */
-	assert( pkd->oAcceleration ); /* Validate memory model */
-	smx->fcnSmooth = hydroGradients;
+	smx->fcnSmooth = hydroDensity;
 	initParticle = initHydroLoop; /* Original Particle */
 	init = initHydroLoopCached; /* Cached copies */
 	comb = combFirstHydroLoop;
@@ -328,11 +327,18 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
 	break;
     case SMX_SECONDHYDROLOOP:
 	assert( pkd->oSph ); /* Validate memory model */
-	assert( pkd->oAcceleration ); /* Validate memory model */
+	smx->fcnSmooth = hydroGradients;
+	initParticle = initHydroGradients; /* Original Particle */
+	init = initHydroGradients; /* Cached copies */ 
+	comb = combSecondHydroLoop;
+	smx->fcnPost = NULL;
+	break;
+    case SMX_THIRDHYDROLOOP:
+	assert( pkd->oSph ); /* Validate memory model */
 	smx->fcnSmooth = hydroRiemann;
 	initParticle = initHydroFluxes; /* Original Particle */
 	init = initHydroFluxes; /* Cached copies */ 
-	comb = combSecondHydroLoop;
+	comb = combThirdHydroLoop;
 	smx->fcnPost = NULL;
 	break;
     case SMX_DIST_DELETED_GAS:
@@ -806,7 +812,7 @@ float smSmoothSingle(SMX smx,SMF *smf,PARTICLE *p,int iRoot1, int iRoot2) {
     for (i=0; i<smx->nSmooth; ++i){
        if (fBall < smx->pq[i].fDist2) fBall = smx->pq[i].fDist2;
     }
-    fBall = 0.55*sqrt(fBall);
+    fBall = 0.501*sqrt(fBall);
 
 
     /*

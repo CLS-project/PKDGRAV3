@@ -178,6 +178,7 @@ void SphForces(PARTICLE *,float fBall,int,NN *,SMF *);
 
 #define SMX_FIRSTHYDROLOOP    40
 #define SMX_SECONDHYDROLOOP   41
+#define SMX_THIRDHYDROLOOP    42
 
 #define SMX_DIST_DELETED_GAS                    7
 void initDistDeletedGas(void *,void *p1);

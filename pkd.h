@@ -170,8 +170,16 @@ typedef struct sphfields {
     float fMetalsPred;
     float fMetalsDot;
 
+    // TODO Think or discuss with Claudio about float vs doubles
     /* IA: B matrix to 'easily' reconstruct faces'. Reminder: it is symmetric */
-    double B[6];
+    double B[6]; 
+
+    /* IA: Gradients */
+    double gradRho[3];
+    double gradVx[3];
+    double gradVy[3];
+    double gradVz[3];
+    double gradP[3];
 
     /* IA: normalization factor (Eq 7 Hopkins 2015) at the particle position */
     double omega;
@@ -184,6 +192,9 @@ typedef struct sphfields {
     /* IA: Conserved variables */
     double mom[3];
     double E;
+
+    /* IA: Primitive variables */
+    double P;
 
     } SPHFIELDS;
 
@@ -1432,6 +1443,7 @@ void pkdGravEvalPC(PINFOIN *pPart, int nBlocks, int nInLast, ILC_BLK *blk,  PINF
 #endif
 void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double,double);
 void pkdUpdateConsVars(PKD pkd,int iRoot,double dTime,double dDelta,double,double);
+void pkdComputePrimVars(PKD pkd,int iRoot);
 void pkdScaleVel(PKD pkd,double dvFac);
 void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, double dTime, double dDelta,
 			  int iRung, int iKickRung, int iRungVeryActive,int iAdjust, double diCrit2,

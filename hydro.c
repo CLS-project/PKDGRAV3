@@ -18,6 +18,7 @@ double cubicSplineKernel(double r, double h) {
    }else if (q<2.0){
       return 0.25*M_1_PI/(h*h*h)*(2.-q)*(2.-q)*(2.-q);
    }else{
+      printf("aa \n");
       return 0.0;
    }
 }
@@ -125,7 +126,24 @@ void combFirstHydroLoop(void *vpkd, void *p1,void *p2) {
 
     }
 
+
 void combSecondHydroLoop(void *vpkd, void *p1,void *p2) {
+    PKD pkd = (PKD) vpkd;
+    assert(!pkd->bNoParticleOrder);
+    SPHFIELDS *psph1 = pkdSph(pkd,p1), *psph2 = pkdSph(pkd,p2);
+    int i;
+
+    for (i=0;i<3;i++){ 
+       psph1->gradRho[i] += psph2->gradRho[i];
+       psph1->gradVx[i] += psph2->gradVx[i];
+       psph1->gradVy[i] += psph2->gradVy[i];
+       psph1->gradVz[i] += psph2->gradVz[i];
+       psph1->gradP[i] += psph2->gradP[i];
+       }
+    }
+
+
+void combThirdHydroLoop(void *vpkd, void *p1,void *p2) {
     PKD pkd = (PKD) vpkd;
     assert(!pkd->bNoParticleOrder);
     SPHFIELDS *psph1 = pkdSph(pkd,p1), *psph2 = pkdSph(pkd,p2);
@@ -153,19 +171,29 @@ void initHydroFluxes(void *vpkd, void *vp) {
 	}
     }
 
-/* We build the geometrical information of the cell, this is:
- *  - omega
- *  - B matrix
- */
-void hydroGradients(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
+void initHydroGradients(void *vpkd, void *vp) {
+    PKD pkd = (PKD) vpkd;
+    PARTICLE *p = vp;
+    assert(!pkd->bNoParticleOrder);
+    SPHFIELDS *psph = pkdSph(pkd,p);
+    int j;
+    for (j=0; j<3;j++){
+      psph->gradRho[j] = 0.0;
+      psph->gradVx[j] = 0.0;
+      psph->gradVy[j] = 0.0;
+      psph->gradVz[j] = 0.0;
+      psph->gradP[j] = 0.0;
+      }
+    }
 
+
+
+void hydroDensity(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
     PARTICLE *q;
-    SPHFIELDS *psph, *qsph;
-    double E[6];  // IA: We are assumming 3D here!
+    SPHFIELDS *psph;
     double ph, qh, rpq, hpq, dx,dy,dz,Wpq;
-    double psi, psiTilde[3];
-    int i, j;
+    int i;
 
     /*
     assert(!pkd->bNoParticleOrder);
@@ -191,7 +219,6 @@ void hydroGradients(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
        rpq = sqrt(nnList[i].fDist2);
        hpq = ph;// 0.5*(qh+ph); // IA: We symmetrize the kernel size (probably needed, not sure)
-       //printf("rpq %e ph %e qh %e Wpq %e \n", rpq, ph, qh, cubicSplineKernel(rpq, hpq));
 
        psph->omega += cubicSplineKernel(rpq, hpq);
     }
@@ -200,8 +227,25 @@ void hydroGradients(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     /* IA: We compute the density making use of Eq. 27 Hopkins 2015 */
     pkdSetDensity(pkd,p, pkdMass(pkd,p)*psph->omega);
 /*    if(pkdDensity(pkd,p) > 3)*/  //  printf("mass %e \t omega %e \t density %e \n",pkdMass(pkd,p), psph->omega, pkdMass(pkd,p)*psph->omega);
+}
 
 
+void hydroGradients(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
+
+    PKD pkd = smf->pkd;
+    PARTICLE *q;
+    SPHFIELDS *psph, *qsph;
+    double E[6];  // IA: We are assumming 3D here!
+    double ph, qh, rpq, hpq,Wpq, dx,dy,dz, diff;
+    double rho_max, rho_min, vx_max, vx_min, vy_max, vy_min, vz_max, vz_min, p_max, p_min;
+    double limRho, limVx, limVy, limVz, limP;
+    double psi, psiTilde_p[3];
+    float  *pv, *qv;
+    int i, j;
+    psph = pkdSph(pkd,p);
+    ph = fBall;
+
+//    printf("(hydroGradients) BEGIN \n");
 
     /* IA: Compute the E matrix (Hopkins 2015, eq 14) */
     for (i=0; i<6;++i){
@@ -224,7 +268,7 @@ void hydroGradients(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
        E[XX] += dx*dx*Wpq;
        E[YY] += dy*dy*Wpq;
-    //   printf("dx %e dy %e dz %e Wpq %e \n", dx, dy, dz, Wpq);
+//       printf("dx %e dy %e dz %e Wpq %e \n", dx, dy, dz, Wpq);
        E[ZZ] += dz*dz*Wpq;
 
        E[XY] += dy*dx*Wpq;
@@ -233,14 +277,12 @@ void hydroGradients(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
     }
 
-    
     /* IA: Normalize the matrix */
     for (i=0; i<6;++i){
        E[i] /= psph->omega; 
     }
 
     /* IA: END of E matrix computation */
-//    printf("x %e y %e z %e \n", pkdPos(pkd,p,0), pkdPos(pkd,p,1), pkdPos(pkd,p,2));
 //    printf("E_q [XX] %e \t [XY] %e \t [XZ] %e \n \t \t \t [YY] %e \t [YZ] %e \n \t\t\t \t \t \t [ZZ] %e \n", E[XX], E[XY], E[XZ], E[YY], E[YZ], E[ZZ]);
 
     /* IA: Now, we need to do the inverse */
@@ -265,7 +307,135 @@ void hydroGradients(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     printf("XY %e \t XZ %e \t YZ %e \n", unityXY, unityXZ, unityYZ);
     */
 
+    /* IA: Now we can compute the gradients 
+     * This and the B matrix computation could be done in the first hydro loop (where omega is computed) but
+     * at that time we do not know the density of all particles (because it depends on omega) */
+
+//    printf("(hydroGradients) Begin GRADIENTS \n");
+    for (i=0;i<nSmooth;++i){
+
+	 q = nnList[i].pPart;
+       qsph = pkdSph(pkd, q);
+
+	 dx = nnList[i].dx;
+	 dy = nnList[i].dy;
+	 dz = nnList[i].dz;
+
+       if (dx==0 && dy==0 && dz==0) continue;
+
+       qh = pkdBall(pkd,q); 
+       ph = fBall;
+       rpq = sqrt(nnList[i].fDist2);
+       hpq = ph; //0.5*(qh+ph); // IA: We symmetrize the kernel size (probably needed, not sure)
+
+       Wpq = cubicSplineKernel(rpq, hpq); 
+       psi = Wpq/psph->omega;
+//       printf("omega_p %e omega_q %e \n", psph->omega, qsph->omega);
+//       printf("psi_p %e \t psi_q %e \n", psi_p, psi_q);
+
+       psiTilde_p[0] = (psph->B[XX]*dx + psph->B[XY]*dy + psph->B[XZ]*dz)*psi;
+       psiTilde_p[1] = (psph->B[XY]*dx + psph->B[YY]*dy + psph->B[YZ]*dz)*psi;
+       psiTilde_p[2] = (psph->B[XZ]*dx + psph->B[YZ]*dy + psph->B[ZZ]*dz)*psi;
+
+       diff = pkdDensity(pkd, q) - pkdDensity(pkd, p);
+       for (j=0; j<3; j++) {psph->gradRho[j] += diff*psiTilde_p[j]; }
+       diff = qsph->vPred[0] - psph->vPred[0];
+       for (j=0; j<3; j++) {psph->gradVx[j] += diff*psiTilde_p[j]; }
+       diff = qsph->vPred[1] - psph->vPred[1];
+       for (j=0; j<3; j++) {psph->gradVy[j] += diff*psiTilde_p[j]; }
+       diff = qsph->vPred[2] - psph->vPred[2];
+       for (j=0; j<3; j++) {psph->gradVz[j] += diff*psiTilde_p[j]; }
+       diff = qsph->P - psph->P;
+       for (j=0; j<3; j++) {psph->gradP[j] += diff*psiTilde_p[j]; }
+
+       }
+
+     /* IA: Now we can limit them */
+//    printf("(hydroGradients) Begin LIMITER \n");
+    
+    // IA: First step, compute the maximum and minimum difference of each variable
+    rho_min= vx_min= vy_min= vz_min= p_min =  HUGE_VAL;
+    rho_max= vx_max= vy_max= vz_max= p_max = -HUGE_VAL;
+
+    pv = pkdVel(pkd,p);
+    for (i=0; i<nSmooth;++i){
+       if (nnList[i].dx==0 && nnList[i].dy==0 && nnList[i].dz==0) continue;
+       q = nnList[i].pPart;
+       qsph = pkdSph(pkd, q);
+       qv = pkdVel(pkd,q);
+
+       diff = pkdDensity(pkd,q) - pkdDensity(pkd,p);
+       if (diff < rho_min) rho_min = diff;
+       if (diff > rho_max) rho_max = diff;
+
+       diff = qv[0] - pv[0];
+       if (diff < vx_min) vx_min = diff;
+       if (diff > vx_max) vx_max = diff;
+
+       diff = qv[1] - pv[1];
+       if (diff < vy_min) vy_min = diff;
+       if (diff > vy_max) vy_max = diff;
+
+       diff = qv[2] - pv[2];
+       if (diff < vz_min) vz_min = diff;
+       if (diff > vz_max) vz_max = diff;
+
+       diff = qsph->P - psph->P;
+       if (diff < p_min) p_min = diff;
+       if (diff > p_max) p_max = diff;
     }
+
+    limRho= limVx= limVy= limVz= limP = 1.;
+    for (i=0; i<nSmooth;++i){
+	 dx = nnList[i].dx;
+	 dy = nnList[i].dy;
+	 dz = nnList[i].dz;
+       if (dx==0 && dy==0 && dz==0) continue;
+       q = nnList[i].pPart;
+       qsph = pkdSph(pkd, q);
+
+       // Density
+       BarthJespersenLimiter(&limRho, psph->gradRho, rho_max, rho_min, dx, dy, dz);
+       BarthJespersenLimiter(&limVx, psph->gradVx, vx_max, vx_min, dx, dy, dz);
+       BarthJespersenLimiter(&limVy, psph->gradVy, vy_max, vy_min, dx, dy, dz);
+       BarthJespersenLimiter(&limVz, psph->gradVz, vz_max, vz_min, dx, dy, dz);
+       BarthJespersenLimiter(&limP, psph->gradP, p_max, p_min, dx, dy, dz);
+    }
+
+    for (j=0; j<3; j++){
+       psph->gradRho[j] *= limRho;
+       psph->gradVx[j] *= limVx;
+       psph->gradVy[j] *= limVy;
+       psph->gradVz[j] *= limVz;
+       psph->gradP[j] *= limP;
+    }
+    /* END OF LIMITER */
+    if (psph->gradRho[0]>0.1) {
+    printf("Limiter: rho %e \t v %e %e %e \t p %e \n", limRho, limVx, limVy, limVz, limP);
+    printf("x %e y %e z %e \n", pkdPos(pkd,p,0), pkdPos(pkd,p,1), pkdPos(pkd,p,2));
+       printf("gradRho %e \n", psph->gradRho[0]);
+    }
+    }
+
+
+void BarthJespersenLimiter(double* limVar, double* gradVar, double var_max, double var_min, double dx, double dy, double dz){
+    double diff, lim;
+
+    diff = gradVar[0]*dx + gradVar[1]*dy + gradVar[2]*dz;
+    if (gradVar[0]>0.1) printf("diff %e gradVar %e var_max/diff %e var_min %e \n", diff, gradVar[0], var_max/diff, var_min);
+    if (diff > 0.) {
+       lim = var_max/diff;
+    }else if (diff < 0.){
+       lim = var_min/diff;
+    }else{
+       lim = 1.;
+    }
+    if (lim > 1.) lim = 1.; // min(1,lim)
+    if (lim < (*limVar) && lim>0.) *limVar = lim; //IA: the second condition can happen due to machine precision errors when dealing with constant fields
+}
+
+
+
 
 
 /* IA: This routine will extrapolate the primitives to the 'faces' and solve the 1D riemann problem. 
@@ -279,7 +449,7 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     SPHFIELDS *psph, *qsph;
     double pv[3], qv[3], vFrame[3];
     double ph,qh, hpq, modApq, rpq, dx,dy,dz,Wpq,psi_p,psi_q,pDensity,pDeltaHalf, qDeltaHalf, dt2, dtEst, vsig_pq, dvDotd, dvDotdr;
-    double rhodiff, vxdiff, vydiff, vzdiff, pdiff, pdivv, qdivv, pdiffOverRhop, pdiffOverRhoq;
+    double vxdiff, vydiff, vzdiff, pdivv, qdivv, pdiffOverRhop, pdiffOverRhoq;
     double psiTilde_p[3], psiTilde_q[3], Apq[3], face_unit[3], dr[3]; 
     struct Input_vec_Riemann riemann_input;
     struct Riemann_outputs riemann_output; //TODO: do this outside the loop
@@ -287,34 +457,13 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     int i,j;
 
     psph = pkdSph(pkd, p);   
+    ph = fBall;
 
-    //TODO: I think that this assummes that both particles are syncronized, this is, that both had the last primitive update
-    // at the same time. If we have 'p' active and 'q' is not, then the forward prediction for the set of primitives variables
-    // will be different for each particle!!!
-    //dtp = smf->pkd->param.dDelta/(1<<p->uRung);/* size of step just completed by star */
 // printf("dDelta %e \n", smf->dDelta/(1<<p->uRung));
-    pDeltaHalf = 0.5*( smf->dDelta/(1<<p->uRung) );
+    pDeltaHalf = 0.0; //0.5*( smf->dDelta/(1<<p->uRung) );
 
     pDensity = pkdDensity(pkd,p);
 
-     
-
-    // The conversion to primitive variables for the p-particle has only to be done once
-    if (pkdIsActive(pkd,p)){ //FIXME TODO there is no need for doing this inside the q-particles loop!!
-       // Rho has already been computed from the first hydro loop
-       riemann_input.L.p = psph->E;
-       for (j=0; j<3; j++){
-          psph->vPred[j] = psph->mom[j]/pkdMass(pkd,p);
-          riemann_input.R.p -= 0.5*psph->mom[j]*psph->mom[j]/pkdMass(pkd,p);
-       }
-       riemann_input.L.p *= psph->omega*(pkd->param.dConstGamma - 1.);
-
-       // We set new particle velocities 
-       for (j=0;j<3; j++){
-          pkdVel(pkd,p)[j] = psph->vPred[j];
-       }
-    }
-    psph->c = sqrt(riemann_input.L.p*pkd->param.dConstGamma/pDensity);
     dtEst = HUGE_VAL;
 
     for (i=0;i<nSmooth;++i){
@@ -322,7 +471,7 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 	 q = nnList[i].pPart;
        qsph = pkdSph(pkd, q);
 
-       qDeltaHalf = pDeltaHalf; //0.5*( smf->dDelta/(1<<q->uRung) );
+       qDeltaHalf = 0.0; //0.5*( smf->dDelta/(1<<q->uRung) ); IA: TODO this is not correct, think a solution. if I have dTime from here may be easy
 //       printf("pDeltaHalf %e qDeltaHalf %e \n", pDeltaHalf, qDeltaHalf);
 
 	 dx = nnList[i].dx;
@@ -333,54 +482,6 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
         * to be computed here */
        if (dx==0 && dy==0 && dz==0) continue;
 
-       qh = pkdBall(pkd,q); // TODO: Check this, it may or not be updated 
-       ph = fBall;
-       rpq = sqrt(nnList[i].fDist2);
-       hpq = 0.5*(qh+ph); // IA: We symmetrize the kernel size (probably needed, not sure)
-
-       Wpq = cubicSplineKernel(rpq, hpq); 
-       psi_p = Wpq/psph->omega;
-       psi_q = Wpq/qsph->omega;
-//       printf("omega_p %e omega_q %e \n", psph->omega, qsph->omega);
-//       printf("psi_p %e \t psi_q %e \n", psi_p, psi_q);
-
-       /* Compute the gradients and extrapolate to the faces */
-      psiTilde_p[0] = (psph->B[XX]*dx + psph->B[XY]*dy + psph->B[XZ]*dz)*psi_p;
-      psiTilde_p[1] = (psph->B[XY]*dx + psph->B[YY]*dy + psph->B[YZ]*dz)*psi_p;
-      psiTilde_p[2] = (psph->B[XZ]*dx + psph->B[YZ]*dy + psph->B[ZZ]*dz)*psi_p;
-
-//      printf("dx %e dy %e dz %e \n", dx, dy, dz);
-       psiTilde_q[0] = -(qsph->B[XX]*dx + qsph->B[XY]*dy + qsph->B[XZ]*dz)*psi_q;
-       psiTilde_q[1] = -(qsph->B[XY]*dx + qsph->B[YY]*dy + qsph->B[YZ]*dz)*psi_q;
-       psiTilde_q[2] = -(qsph->B[XZ]*dx + qsph->B[YZ]*dy + qsph->B[ZZ]*dz)*psi_q;
-
-//       printf("B_p [XX] %e \t [XY] %e \t [XZ] %e \n \t \t \t [YY] %e \t [YZ] %e \n \t\t\t \t \t \t [ZZ] %e \n", psph->B[XX], psph->B[XY], psph->B[XZ], psph->B[YY], psph->B[YZ], psph->B[ZZ]);
-//       printf("B_q [XX] %e \t [XY] %e \t [XZ] %e \n \t \t \t [YY] %e \t [YZ] %e \n \t\t\t \t \t \t [ZZ] %e \n", qsph->B[XX], qsph->B[XY], qsph->B[XZ], qsph->B[YY], qsph->B[YZ], qsph->B[ZZ]);
-
-//       printf("dx %e \t dy %e \t dz %e \n", dx, dy, dz);
-//       printf("psiTilde_p %e \t %e \t %e \n", psiTilde_p[0], psiTilde_p[1], psiTilde_p[2]);
-//       printf("psiTilde_q %e \t %e \t %e \n", psiTilde_q[0], psiTilde_q[1], psiTilde_q[2]);
-
-       // Compute primitives variables from conserved ones:
-       // m, mv, E -> rho, v, p
-       // From AREPO, pag 820, last paragraph, they say that the primitives variables are only updated
-       // for the active particles, but i do not see the advantage of that.
-//       if (pkdIsActive(pkd,q)){ //FIXME This is repeated too many times!! This should be done in another particle loop? W/o neighs of course
-          // Rho has already been computed from the first hydro loop
-          riemann_input.R.p = qsph->E;
-//          printf("qsph->E %e \n", qsph->E);
-          for (j=0; j<3; j++){
-             qsph->vPred[j] = qsph->mom[j]/pkdMass(pkd,q);
-             riemann_input.R.p -= 0.5*qsph->mom[j]*qsph->mom[j]/pkdMass(pkd,q);
-          }
-          riemann_input.R.p *= qsph->omega*(pkd->param.dConstGamma - 1.);
-
-          // We set new particle velocities TODO: is this the right place to do this?
-          for (j=0;j<3; j++){
-             pkdVel(pkd,q)[j] = psph->vPred[j];
-          }
-//       }
-
 
        // Velocity of the quadrature mid-point 
        for (j=0; j<3; j++){
@@ -390,22 +491,18 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
           qv[j] = qsph->vPred[j] - vFrame[j];
        }
  
-       dr[0] = dx;
-       dr[1] = dy;
-       dr[2] = dz;
+       // Mid-point rule
+       dr[0] = 0.5*dx;
+       dr[1] = 0.5*dy;
+       dr[2] = 0.5*dz;
 
       // Differences in the variables
-      rhodiff = (pkdDensity(pkd,q) - pDensity);
       vxdiff = (qsph->vPred[0] - psph->vPred[0]);
       vydiff = (qsph->vPred[1] - psph->vPred[1]);
       vzdiff = (qsph->vPred[2] - psph->vPred[2]);
-      pdiff = (riemann_input.R.p - riemann_input.L.p);
 
- // FIXME This cs computation is also done inside riemann_solver
-       qsph->c = sqrt(riemann_input.R.p*pkd->param.dConstGamma/pkdDensity(pkd,q));
 
        // From Eqs 24,25 Hopkins 2015, to limit deltaT
-
        dvDotdr = (dx*vxdiff + dy*vydiff + dz*vzdiff);
        if (dvDotdr < 0) {
           vsig_pq = psph->c + qsph->c - dvDotdr/sqrt(nnList[i].fDist2);
@@ -417,16 +514,8 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 	 if (dt2 < dtEst) dtEst=dt2;
 
       // Divergence of the velocity field for the forward in time prediction
-      pdivv = 0.0;
-      qdivv = 0.0;
-
-      pdivv += vxdiff*psiTilde_p[0];
-      pdivv += vydiff*psiTilde_p[1];
-      pdivv += vzdiff*psiTilde_p[2];
-
-      qdivv -= vxdiff*psiTilde_q[0];
-      qdivv -= vydiff*psiTilde_q[1];
-      qdivv -= vzdiff*psiTilde_q[2];
+      pdivv = psph->gradVx[0] + psph->gradVy[1] + psph->gradVz[2];
+      qdivv = qsph->gradVx[0] + qsph->gradVy[1] + qsph->gradVz[2];
 
       pdivv *= pDeltaHalf;
       qdivv *= qDeltaHalf;
@@ -439,52 +528,45 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
       riemann_input.R.v[1] = qv[1];
       riemann_input.L.v[2] = pv[2];
       riemann_input.R.v[2] = qv[2];
+      riemann_input.L.p = psph->P;
+      riemann_input.R.p = qsph->P;
 
-//      printf("1) L.rho %e \t R.rho %e \n", riemann_input.L.rho, riemann_input.R.rho);
+      printf("1) L.rho %e \t R.rho %e \n", riemann_input.L.rho, riemann_input.R.rho);
 //      printf("1) L.p %e \t R.p %e \n", riemann_input.L.p, riemann_input.R.p);
-
-      // This notation may be confusing... sorry
-      pdiffOverRhop = -pdiff/pDensity * pDeltaHalf;  // We include here the minus comming from eq. A4
-      pdiffOverRhoq = pdiff/pkdDensity(pkd,q) * qDeltaHalf;
-
-      // TODO: Has this to be done in physical units? I guess..
-      // We to add the terms on the divergence of v from the forward prediction TODO: I have commented them for simplicity
-      riemann_input.L.rho -= pkdDensity(pkd,p)*pdivv;
-      riemann_input.R.rho -= pkdDensity(pkd,q)*qdivv;
-//      printf("2) L.rho %e \t R.rho %e \n", riemann_input.L.rho, riemann_input.R.rho);
-      for (j=0; j<3; j++) { 
-         riemann_input.L.v[j] -= pv[j]*pdivv;
-         riemann_input.R.v[j] -= qv[j]*qdivv;
-      }
-      riemann_input.L.p -= pkd->param.dConstGamma*riemann_input.L.p*pdivv;
-      riemann_input.R.p -= pkd->param.dConstGamma*riemann_input.R.p*qdivv;
-//      printf("2) L.p %e \t R.p %e \n", riemann_input.L.p, riemann_input.R.p);
 
       // We add the gradients terms (from extrapolation and forward prediction)
       for (j=0; j<3; j++) {
-         riemann_input.L.rho += ( 0.5*dr[j] - pDeltaHalf*pv[j])*psiTilde_p[j]*rhodiff;
-         riemann_input.R.rho += (-0.5*dr[j] - qDeltaHalf*qv[j])*psiTilde_q[j]*(-rhodiff);
+         riemann_input.L.rho += ( dr[j] - pDeltaHalf*pv[j])*psph->gradRho[j];
+         riemann_input.R.rho += (-dr[j] - qDeltaHalf*qv[j])*qsph->gradRho[j];
 
-         riemann_input.L.v[0] += (0.5*dr[j]*vxdiff + pdiffOverRhop)*psiTilde_p[j];
-         riemann_input.R.v[0] += (0.5*dr[j]*vxdiff + pdiffOverRhoq)*psiTilde_q[j]; // The two minus at the first term compensate each other
+         riemann_input.L.v[0] += ( dr[j]*psph->gradVx[j]);
+         riemann_input.R.v[0] += (-dr[j]*qsph->gradVx[j]); // The two minus at the first term compensate each other
                                                    
-         riemann_input.L.v[1] += (0.5*dr[j]*vydiff + pdiffOverRhop)*psiTilde_p[j];
-         riemann_input.R.v[1] += (0.5*dr[j]*vydiff + pdiffOverRhoq)*psiTilde_q[j];
+         riemann_input.L.v[1] += ( dr[j]*psph->gradVy[j]);
+         riemann_input.R.v[1] += (-dr[j]*qsph->gradVy[j]);
                                                    
-         riemann_input.L.v[2] += (0.5*dr[j]*vzdiff + pdiffOverRhop)*psiTilde_p[j];
-         riemann_input.R.v[2] += (0.5*dr[j]*vzdiff + pdiffOverRhoq)*psiTilde_q[j];
+         riemann_input.L.v[2] += ( dr[j]*psph->gradVz[j]);
+         riemann_input.R.v[2] += (-dr[j]*qsph->gradVz[j]);
 
-         riemann_input.L.p += ( 0.5*dr[j] - pDeltaHalf*pv[j])*psiTilde_p[j]*pdiff;
-         riemann_input.R.p += (-0.5*dr[j] - qDeltaHalf*qv[j])*psiTilde_q[j]*(-pdiff);
+         riemann_input.L.p += ( dr[j] - pDeltaHalf*pv[j])*psph->gradP[j];
+         riemann_input.R.p += (-dr[j] - qDeltaHalf*qv[j])*qsph->gradP[j];
       }
+      printf("2) L.rho %e \t R.rho %e \n", riemann_input.L.rho, riemann_input.R.rho);
+//      printf("2) L.p %e \t R.p %e \n", riemann_input.L.p, riemann_input.R.p);
+
+      for (j=0; j<3; j++){ // Forward extrapolation of velocity
+         riemann_input.L.v[j] -= pv[j]*pdivv + psph->gradP[j]/pDensity*pDeltaHalf;
+         riemann_input.R.v[j] -= qv[j]*qdivv + qsph->gradP[j]/pkdDensity(pkd,q)*qDeltaHalf;
+      }
+
+      riemann_input.L.rho -= pDensity*pdivv;
+      riemann_input.R.rho -= pkdDensity(pkd,q)*qdivv;
+      riemann_input.L.p -= pkd->param.dConstGamma*psph->P*pdivv;
+      riemann_input.L.p -= pkd->param.dConstGamma*qsph->P*qdivv;
 //      printf("3) L.rho %e \t R.rho %e \n", riemann_input.L.rho, riemann_input.R.rho);
 //      printf("3) L.p %e \t R.p %e \n", riemann_input.L.p, riemann_input.R.p);
-
-
-      // The cs and u values of the reconstructed states are computed inside the Riemann Solver!
-
-
-
+//      printf("p - gradRho %e %e %e \n", psph->gradRho[0], psph->gradRho[1], psph->gradRho[2]);
+//      printf("q - gradRho %e %e %e \n", qsph->gradRho[0], qsph->gradRho[1], qsph->gradRho[2]);
 
        // Face where the riemann problem will be solved
        modApq = 0.0;
@@ -495,6 +577,17 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
        }
 //       printf("modApq %e \n", modApq);
        modApq = sqrt(modApq);
+
+       /* DEBUG
+       if (modApq<=0.0) {
+          printf("dx %e \t dy %e \t dz %e \n", dx, dy, dz);
+          printf("rpq %e hpq %e ratio %e \n", rpq, hpq, rpq/hpq);
+          printf("psiTilde_p %e %e %e \n", psiTilde_p[0], psiTilde_p[1], psiTilde_p[2]);
+          printf("psiTilde_q %e %e %e \n", psiTilde_q[0], psiTilde_q[1], psiTilde_q[2]);
+       }
+       assert(modApq>0.0); // Area should be positive!
+       */
+
 
        for (j=0; j<3; j++){
           face_unit[j] = Apq[j]/modApq;
@@ -507,8 +600,6 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
        // It uses as input parameters the density, pressure and velocities at both ends. They are assumed to be given in comoving coordinates, then they are
        // converted into physical units inside Riemann_Solver. 
 //       printf("unit_face %e %e %e \n", face_unit[0], face_unit[1], face_unit[2]);
-       riemann_input.L.p = riemann_input.R.p;     
-       riemann_input.L.rho = riemann_input.R.rho;     
        Riemann_solver(riemann_input, &riemann_output, face_unit, /*double press_tot_limiter TODO For now, just p>0: */ 0.0);
 //       printf("riemann_output.Fluxes.v %e %e %e \n", riemann_output.Fluxes.v[0], riemann_output.Fluxes.v[1], riemann_output.Fluxes.v[2]);
 
@@ -530,22 +621,26 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
        }
 
        // IA: Now we just multiply by the face area
-       psph->Frho += riemann_output.Fluxes.rho*modApq; 
-       psph->Fene += riemann_output.Fluxes.p*modApq; 
-       for(j=0;j<3;j++) {psph->Fmom[j] += (riemann_output.Fluxes.v[j]+vFrame[j] * riemann_output.Fluxes.rho)*modApq;} // momentum flux (need to divide by mass) 
+       riemann_output.Fluxes.p *= modApq;
+       riemann_output.Fluxes.rho *= modApq;
+       for (j=0;j<3;j++) {riemann_output.Fluxes.v[j] *= modApq; riemann_output.Fluxes.v[j] += vFrame[j]*riemann_output.Fluxes.rho;  } // De-boost (modApq included in Fluxes.rho
 
+
+       /* IA: REMEMBER! Right now, we are not discerning which fluxes have been computed previously, so if both p and q are active, 
+        * then the flux will be computed twice. However if only p is active the flux is only computed once. This has to be taken
+        * into account when adding the fluxes, as in the first case we should halve the contribution (or only add it to the particle p) 
+        */
+       psph->Frho += riemann_output.Fluxes.rho; 
+       psph->Fene += riemann_output.Fluxes.p; 
+       for(j=0;j<3;j++) {psph->Fmom[j] += riemann_output.Fluxes.v[j];} 
+
+       if (!pkdIsActive(pkd,q)){
+          qsph->Frho -= riemann_output.Fluxes.rho;
+          qsph->Fene -= riemann_output.Fluxes.p;
+          for(j=0;j<3;j++){ qsph->Fmom[j] -= riemann_output.Fluxes.v[j]; }
+       }
        /* IA: we will compute the same flux from p->q and q->p so we now halve the fluxes */
-       psph->Frho *= 0.5;
-       psph->Fene *= 0.5;
-       psph->Fmom[0] *= 0.5;
-       psph->Fmom[1] *= 0.5;
-       psph->Fmom[2] *= 0.5;
-
-
-       // IA: we store this flux also for the q particle
-       qsph->Frho -= psph->Frho;
-       qsph->Fene -= psph->Fene;
-       for(j=0;j<3;j++){ qsph->Fmom[j] -= psph->Fmom[j]; }
+       // IA TODO: This is not entirely correct if particles are not in the same rung!!!
 
 
 
@@ -600,8 +695,8 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     } // IA: End of loop over neighbors
 
 
+//    dtEst = 2.e-3; //IA FIXME forced same rungs for all particles
     uNewRung = pkdDtToRung(dtEst,smf->dDelta,MAX_RUNG);
     if (uNewRung > p->uNewRung ) p->uNewRung = uNewRung; 
-//    printf("dtEst %e uNewRung %d \n", dtEst, p->uNewRung);
 
 }

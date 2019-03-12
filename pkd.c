@@ -2121,7 +2121,9 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,BND *bnd,PARTICLE *p) {
 	assert(pkd->param.dTuFac>0.0);
 	    {
 	    double T;
-	    T = pSph->u/pkd->param.dTuFac;
+	    T = pSph->u/pkd->param.dTuFac; //IA FIXME TODO Temporarly writing pressure as temperature output
+          T = pSph->E - 0.5*( pSph->mom[0]*pSph->mom[0] + pSph->mom[1]*pSph->mom[1] + pSph->mom[2]*pSph->mom[2])/pkdMass(pkd,p);
+          T *= pSph->omega*(pkd->param.dConstGamma - 1.);
 	    fioWriteSph(fio,iParticleID,r,v,fMass,fSoft,*pPot,
 		fDensity,T,pSph->fMetals);
 	    }
@@ -2673,7 +2675,7 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
 		sph->fMetalsPred += sph->fMetalsDot*dDeltaUPred;
 		}
 	    for (j=0;j<3;++j) {
-//if(v[j]!=0)             printf("dDelta*v %e \n", dDelta*v[j]);
+//if(v[j]!=0)             printf("dDelta %e dDelta*v %e \n", dDelta, dDelta*v[j]);
 		pkdSetPos(pkd,p,j,rfinal[j] = pkdPos(pkd,p,j) + dDelta*v[j]);
 		}
 	    pkdMinMax(rfinal,dMin,dMax);
@@ -2763,6 +2765,64 @@ void pkdUpdateConsVars(PKD pkd,int iRoot,double dTime,double dDelta,double dDelt
 
     mdlDiag(pkd->mdl, "Out of pkdUpdateConsVars\n");
     }
+
+
+
+void pkdComputePrimVars(PKD pkd,int iRoot) {
+    PARTICLE *p;
+    SPHFIELDS *psph;
+    int i;
+
+//  if (iRoot>=0) {
+//    KDN *pRoot = pkdTreeNode(pkd,iRoot);
+//    pLower = pRoot->pLower;
+//    pUpper = pRoot->pUpper;
+//  }
+//  else {
+//      pLower = 0;
+//      pUpper = pkdLocal(pkd); //IA: All particles local to this proccessor
+//      }
+
+    mdlDiag(pkd->mdl, "Into pkdComputePrimiteVars\n");
+    assert(pkd->oVelocity);
+    assert(pkd->oMass);
+
+    /*
+    ** Compute the primitive variables (rho, v, p)
+    */
+    if (pkd->param.bDoGas) {
+      assert(pkd->param.bDoGas);    
+      assert(pkd->oSph);
+      for (i=0;i<pkdLocal(pkd);++i) { 
+      p = pkdParticle(pkd,i);
+         if (pkdIsGas(pkd,p) && pkdIsActive(pkd, p)) { //IA: We only update those which are active, as in AREPO
+       // From AREPO, pag 820, last paragraph, they say that the primitives variables are only updated
+       // for the active particles, but i do not see the advantage of that.
+            psph = pkdSph(pkd, p);
+
+            // IA: Density has already been computed in the first hydro loop
+            psph->P = (psph->E - 0.5*( psph->mom[0]*psph->mom[0] + psph->mom[1]*psph->mom[1] + psph->mom[2]*psph->mom[2] ) / pkdMass(pkd,p) )*psph->omega*(pkd->param.dConstGamma -1.);
+//            printf("P %e E %e mom %e %e %e \n", psph->P, psph->E, psph->mom[0], psph->mom[1], psph->mom[2]);
+            pkdVel(pkd,p)[0] = psph->mom[0]/pkdMass(pkd,p);
+            pkdVel(pkd,p)[1] = psph->mom[1]/pkdMass(pkd,p);
+            pkdVel(pkd,p)[2] = psph->mom[2]/pkdMass(pkd,p);
+
+            //IA: This is here for compatibility with hydro.c, as in there we use vPred. I think that all could be changed to use
+            // only pkdVel instead. But I am not sure if when adding gravity vPred would be needed, thus I will *temporarly* keep it */
+            psph->vPred[0] = pkdVel(pkd,p)[0];
+            psph->vPred[1] = pkdVel(pkd,p)[1];
+            psph->vPred[2] = pkdVel(pkd,p)[2];
+            
+            psph->c = sqrt(psph->P*pkd->param.dConstGamma/pkdDensity(pkd,p));
+         }
+       }
+    }
+
+    mdlDiag(pkd->mdl, "Out of pkdComputePrimitiveVars\n");
+    }
+
+
+
 
 void pkdLightConeVel(PKD pkd) {
     const int nTable=1000;
