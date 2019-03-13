@@ -33,7 +33,7 @@ if (COMPILER_OPT_WARN_ALL_SUPPORTED)
 endif()
 find_package(CUDA)
 find_package(GSL REQUIRED)      # GNU Scientific Library
-find_package(HDF5 COMPONENTS HL)
+find_package(HDF5 COMPONENTS C HL)
 #find_package(PythonLibs)
 # _GNU_SOURCE gives us more options
 INCLUDE(CheckCSourceCompiles)
