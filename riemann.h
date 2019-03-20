@@ -1,6 +1,6 @@
 /* IA FIXME */ 
-#define GAMMA 1.66666666
-#define GAMMA_MINUS1 0.6666666
+#define GAMMA 1.4
+#define GAMMA_MINUS1 0.4
 /* END IA */
 #define GAMMA_G1 ((GAMMA-1.0)/(2.0*GAMMA))
 #define GAMMA_G2 ((GAMMA+1.0)/(2.0*GAMMA))
@@ -221,7 +221,7 @@ static inline double get_dQ_from_slopelimiter(double dQ_1, MyFloat grad[3], stru
 /* --------------------------------------------------------------------------------- */
 void Riemann_solver(struct Input_vec_Riemann Riemann_vec, struct Riemann_outputs *Riemann_out, double n_unit[3], double press_tot_limiter)
 {
-    if((Riemann_vec.L.p < 0 && Riemann_vec.R.p < 0)||(Riemann_vec.L.rho < 0)||(Riemann_vec.R.rho < 0))
+    if((Riemann_vec.L.p < 0 || Riemann_vec.R.p < 0)||(Riemann_vec.L.rho < 0)||(Riemann_vec.R.rho < 0))
     {
         printf("FAILURE: Unphysical Inputs to Reimann Solver: Left P/rho=%g/%g, Right P/rho=%g/%g \n",
                Riemann_vec.L.p,Riemann_vec.L.rho,Riemann_vec.R.p,Riemann_vec.R.rho); fflush(stdout);

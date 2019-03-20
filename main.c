@@ -335,6 +335,7 @@ void * master_ch(MDL mdl) {
 	    }
 
 	bKickOpen = 0;
+	msrOutput(msr,0,dTime,0);  // IA: Save the IC after computing density 
 	for (iStep=iStartStep+1;iStep<=msrSteps(msr)&&!iStop;++iStep) {
 	    if (msrComove(msr)) msrSwitchTheta(msr,dTime);
 	    dMultiEff = 0.0;

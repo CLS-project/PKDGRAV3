@@ -3563,6 +3563,7 @@ void msrUpdateConsVars(MSR msr,double dTime,double dDelta,int iRoot) {
 void msrMeshlessHydroStep(MSR msr,double dTime,double dDelta,int iRoot) {
     struct inDrift in; //IA: TODO new struct for this, as I am using more space than needed
     in.iRoot = iRoot;
+    in.dTime = dTime;
     /*
     struct inMeshlessHydroStep in;
 
@@ -5610,7 +5611,8 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
     printf( "Writing output for step %d\n", iStep );
     msrBuildIoName(msr,achFile,iStep);
 
-    if ( iStep ) msrWrite(msr,achFile,dTime,bCheckpoint );
+    // IA: I want to do this even at step 0
+    /*if ( iStep )*/ msrWrite(msr,achFile,dTime,bCheckpoint );
 
     if (msrDoGas(msr) && !msr->param.nSteps) {  /* Diagnostic Gas */ 
 	msrReorder(msr);

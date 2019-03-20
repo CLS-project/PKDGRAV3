@@ -3017,7 +3017,7 @@ void pstComputePrimVars(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	mdlGetReply(pst->mdl,rID,NULL,NULL);
 	}
     else {
-	pkdComputePrimVars(plcl->pkd,in->iRoot);
+	pkdComputePrimVars(plcl->pkd,in->iRoot, in->dTime);
 	}
     if (pnOut) *pnOut = 0;
     }

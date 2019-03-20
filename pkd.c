@@ -2125,7 +2125,7 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,BND *bnd,PARTICLE *p) {
           T = pSph->E - 0.5*( pSph->mom[0]*pSph->mom[0] + pSph->mom[1]*pSph->mom[1] + pSph->mom[2]*pSph->mom[2])/pkdMass(pkd,p);
           T *= pSph->omega*(pkd->param.dConstGamma - 1.);
 	    fioWriteSph(fio,iParticleID,r,v,fMass,fSoft,*pPot,
-		fDensity,T,pSph->fMetals);
+		fDensity,T,pSph->Frho);
 	    }
 	break;
     case FIO_SPECIES_DARK:
@@ -2635,7 +2635,7 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
     float *a;
     SPHFIELDS *sph;
     int i,j,k;
-    double rfinal[3],r0[3],dMin[3],dMax[3];
+    double rfinal[3],r0[3],dMin[3],dMax[3], dr[3];
     int pLower, pUpper;
 
     if (iRoot>=0) {
@@ -2659,29 +2659,50 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
     ** Update particle positions
     */
     if (pkd->param.bDoGas) {
-	double dDeltaUPred = dDeltaTime;
-	assert(pkd->oSph);
-	assert(pkd->oAcceleration);
-	for (i=pLower;i<=pUpper;++i) {
-	    p = pkdParticle(pkd,i);
-	    v = pkdVel(pkd,p);
-	    if (pkdIsGas(pkd,p)) {
-		a = pkdAccel(pkd,p);
-		sph = pkdSph(pkd,p);
-		for (j=0;j<3;++j) { /* NB: Pred quantities must be done before std. */
-		    sph->vPred[j] += a[j]*dDeltaVPred;
-		    }
-		sph->uPred += sph->uDot*dDeltaUPred;
-		sph->fMetalsPred += sph->fMetalsDot*dDeltaUPred;
-		}
-	    for (j=0;j<3;++j) {
-//if(v[j]!=0)             printf("dDelta %e dDelta*v %e \n", dDelta, dDelta*v[j]);
-		pkdSetPos(pkd,p,j,rfinal[j] = pkdPos(pkd,p,j) + dDelta*v[j]);
-		}
-	    pkdMinMax(rfinal,dMin,dMax);
-	    }
-	}
-    else {
+      if (pkd->param.bMeshlessHydro){
+         assert(pkd->oSph);
+         assert(pkd->oAcceleration);
+         for (i=pLower;i<=pUpper;++i) {
+             p = pkdParticle(pkd,i);
+             v = pkdVel(pkd,p);
+             
+             for (j=0;j<3;++j) {
+               dr[j] = dDelta*v[j];
+             }
+             // IA: Extrapolate new variables from gradients (gizmo does not do thi..)
+             if (pkdIsGas(pkd,p)) {
+               sph = pkdSph(pkd,p);
+             }
+
+
+             for (j=0;j<3;++j) {
+               pkdSetPos(pkd,p,j,rfinal[j] = pkdPos(pkd,p,j) + dr[j]);
+               }
+             pkdMinMax(rfinal,dMin,dMax);
+         }
+      }else{
+         double dDeltaUPred = dDeltaTime;
+         assert(pkd->oSph);
+         assert(pkd->oAcceleration);
+         for (i=pLower;i<=pUpper;++i) {
+             p = pkdParticle(pkd,i);
+             v = pkdVel(pkd,p);
+             if (pkdIsGas(pkd,p)) {
+               a = pkdAccel(pkd,p);
+               sph = pkdSph(pkd,p);
+               for (j=0;j<3;++j) { /* NB: Pred quantities must be done before std. */
+                   sph->vPred[j] += a[j]*dDeltaVPred;
+                   }
+               sph->uPred += sph->uDot*dDeltaUPred;
+               sph->fMetalsPred += sph->fMetalsDot*dDeltaUPred;
+               }
+             for (j=0;j<3;++j) {
+               pkdSetPos(pkd,p,j,rfinal[j] = pkdPos(pkd,p,j) + dDelta*v[j]);
+               }
+             pkdMinMax(rfinal,dMin,dMax);
+             }
+        }
+    } else {
 	for (i=pLower;i<=pUpper;++i) {
 	    p = pkdParticle(pkd,i);
 	    v = pkdVel(pkd,p);
@@ -2739,16 +2760,16 @@ void pkdUpdateConsVars(PKD pkd,int iRoot,double dTime,double dDelta,double dDelt
             // For Q = V rho = M
             pmass = pkdField(p,pkd->oMass);
 //            printf("Previous mass %e \t", *pmass);
-            *pmass -= dDelta * psph->Frho;
+            *pmass -= dDelta * psph->Frho ;
+//            printf("Frho %e \n", psph->Frho);
 //if(psph->Frho != psph->Frho)            printf("Mass flux %e \n", psph->Frho);
-//            printf("Next mass %e \t Difference %e \t dDelta %e \n", *pmass, dDelta * psph->Frho, dDelta);
 
 
             // For Q = V rho v = mv
 //            printf("Momentum flux %e \t %e \t %e \n", psph->Fmom[0], psph->Fmom[1], psph->Fmom[2]);
-            psph->mom[0] -= dDelta * psph->Fmom[0];
-            psph->mom[1] -= dDelta * psph->Fmom[1];
-            psph->mom[2] -= dDelta * psph->Fmom[2];
+            psph->mom[0] -= dDelta * psph->Fmom[0] ;
+            psph->mom[1] -= dDelta * psph->Fmom[1] ;
+            psph->mom[2] -= dDelta * psph->Fmom[2] ;
 
             // For Q = V rho e = E
 //           if (pkdPos(pkd,p,0)==0 && pkdPos(pkd,p,1)==0 && pkdPos(pkd,p,2)==0){
@@ -2768,7 +2789,7 @@ void pkdUpdateConsVars(PKD pkd,int iRoot,double dTime,double dDelta,double dDelt
 
 
 
-void pkdComputePrimVars(PKD pkd,int iRoot) {
+void pkdComputePrimVars(PKD pkd,int iRoot, double dTime) {
     PARTICLE *p;
     SPHFIELDS *psph;
     int i;
@@ -2814,6 +2835,8 @@ void pkdComputePrimVars(PKD pkd,int iRoot) {
             psph->vPred[2] = pkdVel(pkd,p)[2];
             
             psph->c = sqrt(psph->P*pkd->param.dConstGamma/pkdDensity(pkd,p));
+
+            psph->lastUpdateTime = dTime;
          }
        }
     }
@@ -3024,28 +3047,63 @@ void pkdKick(PKD pkd,double dTime,double dDelta,double dDeltaVPred,double dDelta
     pkdStartTimer(pkd,1);
 
     if (pkd->param.bDoGas) {
-	assert(pkd->oSph);
-	n = pkdLocal(pkd);
-	for (i=0;i<n;++i) {
-	    p = pkdParticle(pkd,i);
-	    if (pkdIsRungRange(p,uRungLo,uRungHi)) {
-		a = pkdAccel(pkd,p);
-		v = pkdVel(pkd,p);
-		if (pkdIsGas(pkd,p)) {
-		    sph = pkdSph(pkd,p);
-		    for (j=0;j<3;++j) { /* NB: Pred quantities must be done before std. */
-			sph->vPred[j] = v[j] + a[j]*dDeltaVPred;
-			}
-		    sph->uPred = sph->u + sph->uDot*dDeltaUPred;
-		    sph->u += sph->uDot*dDeltaU;
-		    sph->fMetalsPred = sph->fMetals + sph->fMetalsDot*dDeltaUPred;
-		    sph->fMetals += sph->fMetalsDot*dDeltaU;
-		    }
-		for (j=0;j<3;++j) {
-		    v[j] += a[j]*dDelta;
-		    }
-		}
-	    }
+      if (pkd->param.bMeshlessHydro) {
+         assert(pkd->oSph);
+         n = pkdLocal(pkd);
+         for (i=0;i<n;++i) {
+
+             p = pkdParticle(pkd,i);
+             if (pkdIsRungRange(p,uRungLo,uRungHi)) {
+               a = pkdAccel(pkd,p);
+               v = pkdVel(pkd,p);
+               if (pkdIsGas(pkd,p)) {
+                   sph = pkdSph(pkd,p);
+
+                   // IA: Add hydro acceleration taking into account variable mass:
+                   // d/dt( mv ) = m a + u Frho = - Fmom   ->  a = -(u Frho + Fmom)/m
+                   // This sustitutes the velocity update in ComputePrimVars (pkd.c:2827)
+                   //for (j=0; j<3; j++){
+                   //   a[j] -= (v[j]*sph->Frho + sph->Fmom[j])/pkdMass(pkd,p);
+                   //}
+                   //printf("hydro accel %e \n", (v[j]*sph->Frho + sph->Fmom[j])/pkdMass(pkd,p));
+                   // IA : This is simular to gizmo, but I have encountered problems when particles move across boundaries... can this 
+                   // be a symptom that the neighbor search is not consistent?
+               }
+               for (j=0;j<3;++j) {
+                   v[j] += a[j]*dDelta;
+               }
+//               if (pkdIsGas(pkd,p)){
+//                  sph = pkdSph(pkd,p);
+//                  sph->vPred[0] = v[0];
+//                  sph->vPred[1] = v[1];
+//                  sph->vPred[2] = v[2];
+//               }
+             }
+         }
+      }else{
+         assert(pkd->oSph);
+         n = pkdLocal(pkd);
+         for (i=0;i<n;++i) {
+             p = pkdParticle(pkd,i);
+             if (pkdIsRungRange(p,uRungLo,uRungHi)) {
+               a = pkdAccel(pkd,p);
+               v = pkdVel(pkd,p);
+               if (pkdIsGas(pkd,p)) {
+                   sph = pkdSph(pkd,p);
+                   for (j=0;j<3;++j) { /* NB: Pred quantities must be done before std. */
+                     sph->vPred[j] = v[j] + a[j]*dDeltaVPred;
+                     }
+                   sph->uPred = sph->u + sph->uDot*dDeltaUPred;
+                   sph->u += sph->uDot*dDeltaU;
+                   sph->fMetalsPred = sph->fMetals + sph->fMetalsDot*dDeltaUPred;
+                   sph->fMetals += sph->fMetalsDot*dDeltaU;
+                   }
+               for (j=0;j<3;++j) {
+                   v[j] += a[j]*dDelta;
+                   }
+               }
+             }
+      }
 	}
     else {
 	n = pkdLocal(pkd);
