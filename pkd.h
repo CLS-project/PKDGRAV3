@@ -198,6 +198,9 @@ typedef struct sphfields {
     /* IA: Primitive variables */
     double P;
 
+    /* IA: TODO temporarly */
+    uint8_t uNewRung; 
+
     } SPHFIELDS;
 
 typedef struct starfields {
@@ -1464,6 +1467,7 @@ void pkdAccelStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
 		  double dEta,double dVelFac,double dAccFac,
 		  int bDoGravity,int bEpsAcc,double dhMinOverSoft);
 void pkdSphStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,double dAccFac);
+void pkdHydroStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,double dAccFac); //IA
 void pkdStarForm(PKD pkd, double dRateCoeff, double dTMax, double dDenMin,
 		 double dDelta, double dTime,
 		 double dInitStarMass, double dESNPerStarMass, double dtCoolingShutoff,

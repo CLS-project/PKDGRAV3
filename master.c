@@ -4092,6 +4092,18 @@ void msrSphStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime) {
     pstSphStep(msr->pst,&in,sizeof(in),NULL,NULL);
     }
 
+/* IA: Computes the dt criteria being known the fluxes and the signal velocities */
+void msrHydroStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime) {
+    struct inSphStep in;
+    double a;
+
+    a = csmTime2Exp(msr->param.csm,dTime);
+    in.dAccFac = 1.0/(a*a*a);
+    in.uRungLo = uRungLo;
+    in.uRungHi = uRungHi;
+    pstHydroStep(msr->pst,&in,sizeof(in),NULL,NULL);
+    }
+
 void msrDensityStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime) {
     struct inDensityStep in;
     double expand;
@@ -4459,9 +4471,13 @@ void msrTopStepKDK(MSR msr,
 	if (msr->param.bAccelStep) {
 	    msrAccelStep(msr,iRung,MAX_RUNG,dTime);
 	    }
-	if (msrDoGas(msr) && !msrMeshlessHydro(msr)) {
-	    msrSphStep(msr,iRung,MAX_RUNG,dTime);
-	    }
+	if (msrDoGas(msr)) {
+          if (!msrMeshlessHydro(msr)) {
+	       msrSphStep(msr,iRung,MAX_RUNG,dTime);
+	       }else{
+             msrHydroStep(msr,iRung, MAX_RUNG, dTime);
+          }
+      }    
 	if (msr->param.bDensityStep) {
 	    bSplitVA = 0;
 	    msrDomainDecomp(msr,iRung,0,bSplitVA);
@@ -4510,7 +4526,8 @@ void msrTopStepKDK(MSR msr,
 	msrDomainDecomp(msr,iKickRung,0,bSplitVA);
 
 	/* JW: Good place to zero uNewRung  IA: not really... This is done in the init call of smSmooth*/ 
-	if (!msrMeshlessHydro(msr)) msrZeroNewRung(msr,iKickRung,MAX_RUNG,iKickRung); /* brute force */
+	//if (!msrMeshlessHydro(msr)) msrZeroNewRung(msr,iKickRung,MAX_RUNG,iKickRung); /* brute force */
+	msrZeroNewRung(msr,iKickRung,MAX_RUNG,iKickRung); /* brute force */
 
 
       if (msrDoGas(msr) && msrMeshlessHydro(msr)){

@@ -2125,7 +2125,7 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,BND *bnd,PARTICLE *p) {
           T = pSph->E - 0.5*( pSph->mom[0]*pSph->mom[0] + pSph->mom[1]*pSph->mom[1] + pSph->mom[2]*pSph->mom[2])/pkdMass(pkd,p);
           T *= pSph->omega*(pkd->param.dConstGamma - 1.);
 	    fioWriteSph(fio,iParticleID,r,v,fMass,fSoft,*pPot,
-		fDensity,T,pSph->Frho);
+		fDensity,T,pSph->fMetals);
 	    }
 	break;
     case FIO_SPECIES_DARK:
@@ -2754,7 +2754,7 @@ void pkdUpdateConsVars(PKD pkd,int iRoot,double dTime,double dDelta,double dDelt
                                         which indicates if the flux of the given particle has been updated
                                         during the last smoothing loop */     
       p = pkdParticle(pkd,i);
-         if (pkdIsGas(pkd,p)) {
+         if (pkdIsGas(pkd,p) && pkdIsActive(pkd,p)) {
             psph = pkdSph(pkd, p);
             // Eq 22 Hopkins 2015
             // For Q = V rho = M
@@ -2767,9 +2767,10 @@ void pkdUpdateConsVars(PKD pkd,int iRoot,double dTime,double dDelta,double dDelt
 
             // For Q = V rho v = mv
 //            printf("Momentum flux %e \t %e \t %e \n", psph->Fmom[0], psph->Fmom[1], psph->Fmom[2]);
-            psph->mom[0] -= dDelta * psph->Fmom[0] ;
-            psph->mom[1] -= dDelta * psph->Fmom[1] ;
-            psph->mom[2] -= dDelta * psph->Fmom[2] ;
+//          IA FIXME Test for new velocity update
+            psph->mom[0] = pkdVel(pkd,p)[0]*(*pmass); //dDelta * psph->Fmom[0] ;
+            psph->mom[1] = pkdVel(pkd,p)[1]*(*pmass);//dDelta * psph->Fmom[1] ;
+            psph->mom[2] = pkdVel(pkd,p)[2]*(*pmass);//dDelta * psph->Fmom[2] ;
 
             // For Q = V rho e = E
 //           if (pkdPos(pkd,p,0)==0 && pkdPos(pkd,p,1)==0 && pkdPos(pkd,p,2)==0){
@@ -2823,10 +2824,15 @@ void pkdComputePrimVars(PKD pkd,int iRoot, double dTime) {
 
             // IA: Density has already been computed in the first hydro loop
             psph->P = (psph->E - 0.5*( psph->mom[0]*psph->mom[0] + psph->mom[1]*psph->mom[1] + psph->mom[2]*psph->mom[2] ) / pkdMass(pkd,p) )*psph->omega*(pkd->param.dConstGamma -1.);
+
+            //IA: FIXME TEST for new velocity update
+            psph->P = (psph->E - 0.5*( pkdVel(pkd,p)[0]*pkdVel(pkd,p)[0] + pkdVel(pkd,p)[1]*pkdVel(pkd,p)[1] + pkdVel(pkd,p)[2]*pkdVel(pkd,p)[2] ) * pkdMass(pkd,p) )*psph->omega*(pkd->param.dConstGamma -1.);
 //            printf("P %e E %e mom %e %e %e \n", psph->P, psph->E, psph->mom[0], psph->mom[1], psph->mom[2]);
-            pkdVel(pkd,p)[0] = psph->mom[0]/pkdMass(pkd,p);
-            pkdVel(pkd,p)[1] = psph->mom[1]/pkdMass(pkd,p);
-            pkdVel(pkd,p)[2] = psph->mom[2]/pkdMass(pkd,p);
+//
+              /* IA: If new velocity update (done in pkdKick), this should not be done */
+//            pkdVel(pkd,p)[0] = psph->mom[0]/pkdMass(pkd,p);
+//            pkdVel(pkd,p)[1] = psph->mom[1]/pkdMass(pkd,p);
+//            pkdVel(pkd,p)[2] = psph->mom[2]/pkdMass(pkd,p);
 
             //IA: This is here for compatibility with hydro.c, as in there we use vPred. I think that all could be changed to use
             // only pkdVel instead. But I am not sure if when adding gravity vPred would be needed, thus I will *temporarly* keep it */
@@ -3060,24 +3066,24 @@ void pkdKick(PKD pkd,double dTime,double dDelta,double dDeltaVPred,double dDelta
                    sph = pkdSph(pkd,p);
 
                    // IA: Add hydro acceleration taking into account variable mass:
-                   // d/dt( mv ) = m a + u Frho = - Fmom   ->  a = -(u Frho + Fmom)/m
+                   // d/dt( mv ) = m a + v Frho = - Fmom   ->  a = -(v Frho + Fmom)/m
                    // This sustitutes the velocity update in ComputePrimVars (pkd.c:2827)
-                   //for (j=0; j<3; j++){
-                   //   a[j] -= (v[j]*sph->Frho + sph->Fmom[j])/pkdMass(pkd,p);
-                   //}
+                   for (j=0; j<3; j++){
+                      v[j] -= (v[j]*sph->Frho + sph->Fmom[j])/pkdMass(pkd,p)*dDelta;
+                   }
                    //printf("hydro accel %e \n", (v[j]*sph->Frho + sph->Fmom[j])/pkdMass(pkd,p));
-                   // IA : This is simular to gizmo, but I have encountered problems when particles move across boundaries... can this 
-                   // be a symptom that the neighbor search is not consistent?
                }
                for (j=0;j<3;++j) {
                    v[j] += a[j]*dDelta;
                }
-//               if (pkdIsGas(pkd,p)){
-//                  sph = pkdSph(pkd,p);
-//                  sph->vPred[0] = v[0];
-//                  sph->vPred[1] = v[1];
-//                  sph->vPred[2] = v[2];
-//               }
+               //v[1]=0.0;
+               //v[2]=0.0;
+               if (pkdIsGas(pkd,p)){
+                  sph = pkdSph(pkd,p);
+                  sph->vPred[0] = v[0];
+                  sph->vPred[1] = v[1];
+                  sph->vPred[2] = v[2];
+               }
              }
          }
       }else{
@@ -3291,6 +3297,43 @@ void pkdSphStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,double dAccFac) {
 	    }
 	}
     }
+
+
+void pkdHydroStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,double dAccFac) {
+    PARTICLE *p;
+    SPHFIELDS *psph;
+    float *a, uDot;
+    int i,j,uNewRung;
+    double acc;
+    double dtNew;
+    int u1,u2,u3;
+
+    assert(pkd->oAcceleration);
+    assert(pkd->oSph);
+    assert(!pkd->bNoParticleOrder);
+
+    for (i=0;i<pkdLocal(pkd);++i) {
+	p = pkdParticle(pkd,i);
+	if (pkdIsActive(pkd,p)) {
+	    if (pkdIsGas(pkd,p)) {
+              psph = pkdSph(pkd,p);
+              // IA: First, we check for the maximum dt given by the signal velocity. This is computed at the
+              // third hydro loop and stored in the SPHFIELD of the variable
+
+
+              // IA: Also, we check for the acceleration criteria
+              //
+              //
+              // IA: Ok, the preceding is ok.. but in a zero order approach we can just save in SPHFIELD the uNewRung computed
+              // at the third hydro loop and just update it here?
+              // All this can be tricky, maybe a smoothing operation is needed, as the signal velocities depends on the particles
+              // position and velocities, which are now different than those at the hydro loop...
+              if (psph->uNewRung > p->uNewRung) p->uNewRung = psph->uNewRung;
+		}
+	    }
+	}
+    }
+
 
 void pkdStarForm(PKD pkd, double dRateCoeff, double dTMax, double dDenMin,
 		 double dDelta, double dTime,

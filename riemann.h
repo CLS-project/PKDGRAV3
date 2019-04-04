@@ -1,6 +1,6 @@
 /* IA FIXME */ 
-#define GAMMA 1.4
-#define GAMMA_MINUS1 0.4
+#define GAMMA 1.666666666666
+#define GAMMA_MINUS1 0.66666666
 /* END IA */
 #define GAMMA_G1 ((GAMMA-1.0)/(2.0*GAMMA))
 #define GAMMA_G2 ((GAMMA+1.0)/(2.0*GAMMA))

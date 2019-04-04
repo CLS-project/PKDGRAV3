@@ -154,6 +154,7 @@ enum pst_service {
     PST_GRAVSTEP,
     PST_ACCELSTEP,
     PST_SPHSTEP,
+    PST_HYDROSTEP, //IA
     PST_STARFORM,
     PST_DENSITYSTEP,
     PST_CORRECTENERGY,
@@ -902,6 +903,7 @@ struct inSphStep {
     uint8_t uRungHi;
     };
 void pstSphStep(PST,void *,int,void *,int *);
+void pstHydroStep(PST,void *,int,void *,int *); //IA
 
 /* PST_STARFORM */
 struct inStarForm
