@@ -2669,7 +2669,7 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
              for (j=0;j<3;++j) {
                dr[j] = dDelta*v[j];
              }
-             // IA: Extrapolate new variables from gradients (gizmo does not do thi..)
+             // IA: Extrapolate new variables from gradients? (gizmo does not do this..)
              if (pkdIsGas(pkd,p)) {
                sph = pkdSph(pkd,p);
              }
@@ -2750,11 +2750,9 @@ void pkdUpdateConsVars(PKD pkd,int iRoot,double dTime,double dDelta,double dDelt
     if (pkd->param.bDoGas) {
       assert(pkd->param.bDoGas);    
       assert(pkd->oSph);
-      for (i=pLower;i<pUpper;++i) { /* IA: We could avoid part of this loop is I add a flag to SPHFIELDS
-                                        which indicates if the flux of the given particle has been updated
-                                        during the last smoothing loop */     
+      for (i=pLower;i<pUpper;++i) { 
       p = pkdParticle(pkd,i);
-         if (pkdIsGas(pkd,p) && pkdIsActive(pkd,p)) {
+         if (pkdIsGas(pkd,p) /* && pkdIsActive(pkd,p) */  ) {
             psph = pkdSph(pkd, p);
             // Eq 22 Hopkins 2015
             // For Q = V rho = M
@@ -2768,9 +2766,14 @@ void pkdUpdateConsVars(PKD pkd,int iRoot,double dTime,double dDelta,double dDelt
             // For Q = V rho v = mv
 //            printf("Momentum flux %e \t %e \t %e \n", psph->Fmom[0], psph->Fmom[1], psph->Fmom[2]);
 //          IA FIXME Test for new velocity update
-            psph->mom[0] = pkdVel(pkd,p)[0]*(*pmass); //dDelta * psph->Fmom[0] ;
-            psph->mom[1] = pkdVel(pkd,p)[1]*(*pmass);//dDelta * psph->Fmom[1] ;
-            psph->mom[2] = pkdVel(pkd,p)[2]*(*pmass);//dDelta * psph->Fmom[2] ;
+//            psph->mom[0] = pkdVel(pkd,p)[0]*(*pmass); //dDelta * psph->Fmom[0] ;
+//            psph->mom[1] = pkdVel(pkd,p)[1]*(*pmass);//dDelta * psph->Fmom[1] ;
+//            psph->mom[2] = pkdVel(pkd,p)[2]*(*pmass);//dDelta * psph->Fmom[2] ;
+//
+
+            psph->mom[0] -= dDelta * psph->Fmom[0] ;
+            psph->mom[1] -= dDelta * psph->Fmom[1] ;
+            psph->mom[2] -= dDelta * psph->Fmom[2] ;
 
             // For Q = V rho e = E
 //           if (pkdPos(pkd,p,0)==0 && pkdPos(pkd,p,1)==0 && pkdPos(pkd,p,2)==0){
@@ -2781,6 +2784,12 @@ void pkdUpdateConsVars(PKD pkd,int iRoot,double dTime,double dDelta,double dDelt
             assert(psph->E>0.0);
 
             
+            //IA: We reset the fluxes
+            psph->Frho = 0.0;
+            psph->Fene = 0.0;
+            psph->Fmom[0] = 0.0;
+            psph->Fmom[1] = 0.0;
+            psph->Fmom[2] = 0.0;
          }
        }
     }
@@ -2817,22 +2826,20 @@ void pkdComputePrimVars(PKD pkd,int iRoot, double dTime) {
       assert(pkd->oSph);
       for (i=0;i<pkdLocal(pkd);++i) { 
       p = pkdParticle(pkd,i);
-         if (pkdIsGas(pkd,p) && pkdIsActive(pkd, p)) { //IA: We only update those which are active, as in AREPO
-       // From AREPO, pag 820, last paragraph, they say that the primitives variables are only updated
-       // for the active particles, but i do not see the advantage of that.
+         if (pkdIsGas(pkd,p)  && pkdIsActive(pkd, p)  ) { //IA: We only update those which are active, as in AREPO
             psph = pkdSph(pkd, p);
 
-            // IA: Density has already been computed in the first hydro loop
+            // IA: Omega has already been computed in the first hydro loop
             psph->P = (psph->E - 0.5*( psph->mom[0]*psph->mom[0] + psph->mom[1]*psph->mom[1] + psph->mom[2]*psph->mom[2] ) / pkdMass(pkd,p) )*psph->omega*(pkd->param.dConstGamma -1.);
 
             //IA: FIXME TEST for new velocity update
-            psph->P = (psph->E - 0.5*( pkdVel(pkd,p)[0]*pkdVel(pkd,p)[0] + pkdVel(pkd,p)[1]*pkdVel(pkd,p)[1] + pkdVel(pkd,p)[2]*pkdVel(pkd,p)[2] ) * pkdMass(pkd,p) )*psph->omega*(pkd->param.dConstGamma -1.);
+//            psph->P = (psph->E - 0.5*( pkdVel(pkd,p)[0]*pkdVel(pkd,p)[0] + pkdVel(pkd,p)[1]*pkdVel(pkd,p)[1] + pkdVel(pkd,p)[2]*pkdVel(pkd,p)[2] ) * pkdMass(pkd,p) )*psph->omega*(pkd->param.dConstGamma -1.);
 //            printf("P %e E %e mom %e %e %e \n", psph->P, psph->E, psph->mom[0], psph->mom[1], psph->mom[2]);
 //
               /* IA: If new velocity update (done in pkdKick), this should not be done */
-//            pkdVel(pkd,p)[0] = psph->mom[0]/pkdMass(pkd,p);
-//            pkdVel(pkd,p)[1] = psph->mom[1]/pkdMass(pkd,p);
-//            pkdVel(pkd,p)[2] = psph->mom[2]/pkdMass(pkd,p);
+            pkdVel(pkd,p)[0] = psph->mom[0]/pkdMass(pkd,p);
+            pkdVel(pkd,p)[1] = psph->mom[1]/pkdMass(pkd,p);
+            pkdVel(pkd,p)[2] = psph->mom[2]/pkdMass(pkd,p);
 
             //IA: This is here for compatibility with hydro.c, as in there we use vPred. I think that all could be changed to use
             // only pkdVel instead. But I am not sure if when adding gravity vPred would be needed, thus I will *temporarly* keep it */
@@ -3068,9 +3075,9 @@ void pkdKick(PKD pkd,double dTime,double dDelta,double dDeltaVPred,double dDelta
                    // IA: Add hydro acceleration taking into account variable mass:
                    // d/dt( mv ) = m a + v Frho = - Fmom   ->  a = -(v Frho + Fmom)/m
                    // This sustitutes the velocity update in ComputePrimVars (pkd.c:2827)
-                   for (j=0; j<3; j++){
-                      v[j] -= (v[j]*sph->Frho + sph->Fmom[j])/pkdMass(pkd,p)*dDelta;
-                   }
+                   //for (j=0; j<3; j++){
+                   //   v[j] -= (v[j]*sph->Frho + sph->Fmom[j])/pkdMass(pkd,p)*dDelta;
+                   //}
                    //printf("hydro accel %e \n", (v[j]*sph->Frho + sph->Fmom[j])/pkdMass(pkd,p));
                }
                for (j=0;j<3;++j) {
@@ -3329,6 +3336,7 @@ void pkdHydroStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,double dAccFac) {
               // All this can be tricky, maybe a smoothing operation is needed, as the signal velocities depends on the particles
               // position and velocities, which are now different than those at the hydro loop...
               if (psph->uNewRung > p->uNewRung) p->uNewRung = psph->uNewRung;
+              // FIXME TODO ERASE; THIS IS NOT USED
 		}
 	    }
 	}

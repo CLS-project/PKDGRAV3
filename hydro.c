@@ -63,16 +63,21 @@ void initHydroLoop(void *vpkd, void *vp) {
 	psph->fMetalsDot = 0;
       for (i=0;i<6;i++) { psph->B[i] = 0.0; }
       psph->omega = 0.0;
-      psph->Frho = 0.0;
-      psph->Fene = 0.0;
-      p->uNewRung = 0;
-      for (i=0;i<3;i++) { 
-         psph->Fmom[i] = 0.0;
-	   pkdAccel(pkd,p)[i] = 0;
-	   pkdAccel(pkd,p)[i] = 0;
-	   pkdAccel(pkd,p)[i] = 0;
-	}
+//      p->uNewRung = 0;
+//      for (i=0;i<3;i++) { 
+//         psph->Fmom[i] = 0.0;
+//	   pkdAccel(pkd,p)[i] = 0;
+//	   pkdAccel(pkd,p)[i] = 0;
+//	   pkdAccel(pkd,p)[i] = 0;
+//	}
 	
+
+//      psph->Frho = 0.0;
+//      psph->Fene = 0.0;
+//      psph->uNewRung = 0;
+//      for (i=0;i<3;i++) { 
+//         psph->Fmom[i] = 0.0;
+//	}
     }
 
 void initHydroLoopCached(void *vpkd, void *vp) {
@@ -86,15 +91,13 @@ void initHydroLoopCached(void *vpkd, void *vp) {
 	psph->fMetalsDot = 0;
       for (i=0;i<6;i++) { psph->B[i] = 0.0; }
       psph->omega = 0.0;
-      psph->Frho = 0.0;
-      psph->Fene = 0.0;
-      p->uNewRung = 0;
-      for (i=0;i<3;i++) { 
-         psph->Fmom[i] = 0.0;
-	   pkdAccel(pkd,p)[i] = 0;
-	   pkdAccel(pkd,p)[i] = 0;
-	   pkdAccel(pkd,p)[i] = 0;
-	}
+//      p->uNewRung = 0;
+//      for (i=0;i<3;i++) { 
+//         psph->Fmom[i] = 0.0;
+//	   pkdAccel(pkd,p)[i] = 0;
+//	   pkdAccel(pkd,p)[i] = 0;
+//	   pkdAccel(pkd,p)[i] = 0;
+//	}
     }
 
 /* IA: I guess that this is called when we 'merge' information coming from different processors
@@ -120,7 +123,6 @@ void combFirstHydroLoop(void *vpkd, void *p1,void *p2) {
 
     psph1->omega += psph2->omega;
 
-    //IA: the fluxes are not added because they has not been yet computed!
 
     }
 
@@ -165,12 +167,12 @@ void initHydroFluxes(void *vpkd, void *vp) {
     int i;
 //    if (pkdIsActive(pkd,p)) {
 	SPHFIELDS *psph = pkdSph(pkd,p);
-      psph->Frho = 0.0;
-      psph->Fene = 0.0;
-      psph->uNewRung = 0;
-      for (i=0;i<3;i++) { 
-         psph->Fmom[i] = 0.0;
-	}
+//      psph->Frho = 0.0;
+//      psph->Fene = 0.0;
+//      psph->uNewRung = 0;
+//      for (i=0;i<3;i++) { 
+//         psph->Fmom[i] = 0.0;
+//	}
     }
 
 void initHydroGradients(void *vpkd, void *vp) {
@@ -406,7 +408,6 @@ void hydroGradients(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     for (j=0; j<3; j++){
        psph->gradRho[j] *= limRho;
        psph->gradVx[j] *= limVx;
-       psph->fMetals = maxdx;
        psph->gradVy[j] *= limVy;
        psph->gradVz[j] *= limVz;
        psph->gradP[j] *= limP;
@@ -447,6 +448,7 @@ void BarthJespersenLimiter(double* limVar, double* gradVar, double var_max, doub
 /* IA: This routine will extrapolate the primitives to the 'faces' and solve the 1D riemann problem. 
  * For now, the 1D riemann flux will be computed TWICE for a given face, one for each adjacent particles */ 
 void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
+   //IA TODO Clean unused variables!
     PKD pkd = smf->pkd;
     PARTICLE *q;
     SPHFIELDS *psph, *qsph;
@@ -463,7 +465,7 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     ph = fBall;
 
 // printf("dDelta %e \n", smf->dDelta/(1<<p->uRung));
-    pDeltaHalf = 0.0; //0.5*( smf->dDelta/(1<<p->uRung) );
+    pDeltaHalf = 0.5*( smf->dDelta/(1<<p->uRung) );
 
     pDensity = pkdDensity(pkd,p);
 
@@ -475,7 +477,7 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
        qsph = pkdSph(pkd, q);
        qh = pkdBall(pkd,q); 
 
-       qDeltaHalf = 0.0; //smf->dTime - qsph->lastUpdateTime + pDeltaHalf; 
+       qDeltaHalf = smf->dTime - qsph->lastUpdateTime + pDeltaHalf; 
 //       printf("pDeltaHalf %e qDeltaHalf %e \n", pDeltaHalf, qDeltaHalf);
 
 	 dx = nnList[i].dx;
@@ -539,22 +541,6 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
        dr[1] = -0.5*dy;
        dr[2] = -0.5*dz;
 
-      // Differences in the variables
-      vxdiff = (qsph->vPred[0] - psph->vPred[0]);
-      vydiff = (qsph->vPred[1] - psph->vPred[1]);
-      vzdiff = (qsph->vPred[2] - psph->vPred[2]);
-
-
-       // From Eqs 24,25 Hopkins 2015, to limit deltaT
-       dvDotdr = (dx*vxdiff + dy*vydiff + dz*vzdiff);
-       if (dvDotdr < 0) {
-          vsig_pq = psph->c + qsph->c - dvDotdr/rpq;
-       }else{
-          vsig_pq = psph->c + qsph->c;
-       }
-
-       dt2 = 2.*smf->dEtaCourant * fBall /vsig_pq;	
-	 if (dt2 < dtEst) dtEst=dt2;
 
       // Divergence of the velocity field for the forward in time prediction
       pdivv = psph->gradVx[0] + psph->gradVy[1] + psph->gradVz[2];
@@ -660,7 +646,7 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
        /* IA: If the other particle is not active, we just add the proportional part of the flux in the given timestep. For example, if p is in rung 2 and q in rung 1,
         * then we only add half of the fluxes in this step, as the we need two timesteps of particle p to be syncronized with q. */
        double dtFracDueToRungDiff; 
-       dtFracDueToRungDiff = 1./(1<<(p->uRung - q->uRung));
+       dtFracDueToRungDiff = 1.0; // 1./(1<<(p->uRung - q->uRung));
        
 
        if (!pkdIsActive(pkd,q)){
@@ -734,15 +720,63 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     double dmass_limiter = 0.1*pkdMass(pkd,p), dmass_holder = psph->Frho * ( smf->dDelta/(1<<p->uRung) );
 
     if (fabs(dmass_holder) > dmass_limiter) {
-       printf("Limiting! \n");
+    //   printf("Limiting! \n");
        psph->Frho *= dmass_limiter / fabs(dmass_holder);
     }
     
 
 
+
+}
+
+
+
+/* IA: Compute the hydrodynamical time step of this particle, based on two criterias: acceleration and signal velocity */
+void hydroStep(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
+    PKD pkd = smf->pkd;
+    PARTICLE *q;
+    SPHFIELDS *psph, *qsph;
+    double dt2, dtEst, vsig_pq, dvDotdr, dx, dy, dz;
+    uint8_t uNewRung;
+    int i,j;
+
+    psph = pkdSph(pkd, p);   
+
+    dtEst = HUGE_VAL;
+
+    /* Signal velocity criteria */
+    for (i=0;i<nSmooth;++i){
+
+	 dx = nnList[i].dx;
+	 dy = nnList[i].dy;
+	 dz = nnList[i].dz;
+
+       if (dx==0 && dy==0 && dz==0) continue;
+
+	 q = nnList[i].pPart;
+       qsph = pkdSph(pkd, q);
+
+       // From Eqs 24,25 Hopkins 2015, to limit deltaT
+       dvDotdr = (dx*(qsph->vPred[0] - psph->vPred[0]) + 
+                  dy*(qsph->vPred[1] - psph->vPred[1]) +
+                  dz*(qsph->vPred[2] - psph->vPred[2]));
+
+       if (dvDotdr < 0) {
+          vsig_pq = psph->c + qsph->c - dvDotdr/sqrt(nnList[i].fDist2);
+       }else{
+          vsig_pq = psph->c + qsph->c;
+       }
+
+       dt2 = 2.*smf->dEtaCourant * fBall /vsig_pq;	
+	 if (dt2 < dtEst) dtEst=dt2;
+
+    }
+
+
+
     // IA: Timestep criteria based on the hydro accelerations
     double a[3], acc;
-    double cfl = 0.001, dtAcc;
+    double cfl = 0.050, dtAcc;
     
     for (j=0;j<3;j++) { a[j] = (pkdVel(pkd,p)[j]*psph->Frho + psph->Fmom[j])/pkdMass(pkd,p); }
     acc = sqrt(a[0]*a[0] + a[1]*a[1] + a[2]*a[2]);
@@ -751,11 +785,10 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     if (dtAcc < dtEst) dtEst = dtAcc;
     
 
-//    dtEst = 1.e-7; //IA FIXME forced same rungs for all particles
-    psph->uNewRung = pkdDtToRung(dtEst,smf->dDelta,MAX_RUNG);
+    //dtEst = 5.e-6; //IA FIXME forced same rungs for all particles
+    uNewRung = pkdDtToRung(dtEst,smf->dDelta,MAX_RUNG);
 
 
-    //IA: TODO FIXME Now this is done temporarly on pkdHydroStep
-    //if (uNewRung > p->uNewRung ) p->uNewRung = uNewRung; 
+    if (uNewRung > p->uNewRung ) p->uNewRung = uNewRung; 
 
 }

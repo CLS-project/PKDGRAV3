@@ -61,6 +61,8 @@ typedef struct smfParameters {
     remoteID hopParticleLink;
     int bDone;
     float *pfDensity;
+    /* IA: Meshless hydro */
+    int FirstHydroLoop;
     } SMF;
 
 
@@ -179,6 +181,7 @@ void SphForces(PARTICLE *,float fBall,int,NN *,SMF *);
 #define SMX_FIRSTHYDROLOOP    40
 #define SMX_SECONDHYDROLOOP   41
 #define SMX_THIRDHYDROLOOP    42
+#define SMX_HYDROSTEP         43
 
 #define SMX_DIST_DELETED_GAS                    7
 void initDistDeletedGas(void *,void *p1);

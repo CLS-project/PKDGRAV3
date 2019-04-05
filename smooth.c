@@ -341,6 +341,14 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
 	comb = combThirdHydroLoop;
 	smx->fcnPost = NULL;
 	break;
+    case SMX_HYDROSTEP:
+	assert( pkd->oSph ); /* Validate memory model */
+	smx->fcnSmooth = hydroStep;
+	initParticle = NULL; /* Original Particle */
+	init = NULL; /* Cached copies */ 
+	comb = NULL;
+	smx->fcnPost = NULL;
+	break;
     case SMX_DIST_DELETED_GAS:
 	assert(bSymmetric != 0);
 	smx->fcnSmooth = DistDeletedGas;
@@ -838,7 +846,7 @@ void smSmooth(SMX smx,SMF *smf) {
     smf->pfDensity = NULL;
     for (pi=0;pi<pkd->nLocal;++pi) {
 	p = pkdParticle(pkd,pi);
-      if (!pkd->param.bMeshlessHydro){ // IA: For the first hydro loop we do not care about actives -> FALSE (see below)
+      if (!pkd->param.bMeshlessHydro || smf->FirstHydroLoop){ // IA: For the first hydro loop we do not care about actives -> FALSE (see below)
 	   pkdSetBall(pkd,p,smSmoothSingle(smx,smf,p,ROOT,0));
       }else{
          if (pkdIsActive(pkd,p)){ // IA: But we care when solving the riemann problem

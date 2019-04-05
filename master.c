@@ -3024,6 +3024,7 @@ void msrSmoothSetSMF(MSR msr, SMF *smf, double dTime) {
     smf->SFdZMassPerStarMass = msr->param.SFdZMassPerStarMass;
     smf->SFdFBFac = 0.5/((1+0.6*smf->alpha)/(smf->a*smf->dEtaCourant))
 	/(msr->param.SFdvFB/msr->param.dKmPerSecUnit);
+    smf->FirstHydroLoop = msrFirstHydroLoop(msr);
     }
 
 void msrSmooth(MSR msr,double dTime,int iSmoothType,int bSymmetric,int nSmooth) {
@@ -3560,41 +3561,35 @@ void msrUpdateConsVars(MSR msr,double dTime,double dDelta,int iRoot) {
     }
 
 
-void msrMeshlessHydroStep(MSR msr,double dTime,double dDelta,int iRoot) {
+
+void msrMeshlessGradients(MSR msr,double dTime,double dDelta,int iRoot){
+    printf("Computing gradients... \n");
+    msrSmooth(msr,dTime,SMX_SECONDHYDROLOOP,0,msr->param.nSmooth);
+}
+
+
+void msrMeshlessFluxes(MSR msr,double dTime,double dDelta,int iRoot){
+    printf("Computing fluxes... \n");
+    msrSmooth(msr,dTime,SMX_THIRDHYDROLOOP,0,msr->param.nSmooth);
+}
+
+
+void msrUpdatePrimVars(MSR msr,double dTime,double dDelta,int iRoot){
     struct inDrift in; //IA: TODO new struct for this, as I am using more space than needed
     in.iRoot = iRoot;
     in.dTime = dTime;
-    /*
-    struct inMeshlessHydroStep in;
 
-    assert(iRoot!=0); //IA: Dual tree not implemented
-
-    if (msr->param.csm->val.bComove) {
-	in.dDelta = csmComoveDriftFac(msr->param.csm,dTime,dDelta);
-	in.dDeltaVPred = csmComoveKickFac(msr->param.csm,dTime,dDelta);
-	}
-    else {
-	in.dDelta = dDelta;
-	in.dDeltaVPred = dDelta;
-	}
-    in.dTime = dTime;
-    in.dDeltaUPred = dDelta;
-    in.iRoot = iRoot;
-    in.bFirstHydroLoop;
-    pstMeshlessHydroStep(msr->pst,&in,sizeof(in),NULL,NULL);
-    */
-    printf("(msrMeshlessHydroStep) Begin of first hydro loop \n");
-    int bSymmetric = 0; //TODO: What does this change? I think nothing if I do not want to
-    msrSetFirstHydroLoop(msr, 1);
-    msrSmooth(msr,dTime,SMX_FIRSTHYDROLOOP,bSymmetric,msr->param.nSmooth);
-    pstComputePrimVars(msr->pst,&in,sizeof(in),NULL,NULL); 
-    printf("(msrMeshlessHydroStep) Begin of second hydro loop \n");
+    // IA: We also update the particles densities here (i.e., first hydro loop)
+    msrSetFirstHydroLoop(msr, 0); // 1-> All particles ; 0-> Active particles
+    printf("Computing density... \n");
+    msrSmooth(msr,dTime,SMX_FIRSTHYDROLOOP,0,msr->param.nSmooth);
     msrSetFirstHydroLoop(msr, 0);
-    msrSmooth(msr,dTime,SMX_SECONDHYDROLOOP,bSymmetric,msr->param.nSmooth);
-    printf("(msrMeshlessHydroStep) Begin of third hydro loop \n");
-    msrSmooth(msr,dTime,SMX_THIRDHYDROLOOP,bSymmetric,msr->param.nSmooth);
-    printf("(msrMeshlessHydroStep) End \n");
-    }
+
+    printf("Computing primitive variables... \n");
+    pstComputePrimVars(msr->pst,&in,sizeof(in),NULL,NULL); 
+}
+
+
 
 void msrScaleVel(MSR msr,double dvFac) {
     struct inScaleVel in;
@@ -4094,14 +4089,18 @@ void msrSphStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime) {
 
 /* IA: Computes the dt criteria being known the fluxes and the signal velocities */
 void msrHydroStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime) {
-    struct inSphStep in;
-    double a;
+    int bSymmetric = 0; //IA TODO: What does this change? I think nothing if I do not want to
 
+    printf("Computing hydro time step... \n");
+    msrSmooth(msr,dTime,SMX_HYDROSTEP,bSymmetric,msr->param.nSmooth);
+
+    /* IA TODO Remove HydroStep functions, now using smooth
     a = csmTime2Exp(msr->param.csm,dTime);
     in.dAccFac = 1.0/(a*a*a);
     in.uRungLo = uRungLo;
     in.uRungHi = uRungHi;
     pstHydroStep(msr->pst,&in,sizeof(in),NULL,NULL);
+    */
     }
 
 void msrDensityStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime) {
@@ -4510,7 +4509,7 @@ void msrTopStepKDK(MSR msr,
       if (msrDoGas(msr) && msrMeshlessHydro(msr)){
          msrActiveRung(msr,iKickRung,1); //IA: The repeated call after msrDrift would not be needed
          if (msr->param.bVStep) printf("Step:%f (rung %d)\n",dStep,iKickRung);
-         msrMeshlessHydroStep(msr, dTime, dDelta, ROOT);
+         msrMeshlessFluxes(msr, dTime, dDelta, ROOT);
       }
 
 
@@ -4551,10 +4550,13 @@ void msrTopStepKDK(MSR msr,
 		       (iKickRung<=msr->param.iRungCoolTableUpdate ? 1:0),0);
 	}
 
-
       //if (msrDoGas(msr) && msrMeshlessHydro(msr) && msrDoGravity(msr)){
       //   msrApplyGravWork(msr, dTime, dDelta, ROOT);   // TODO: Implement
       //}
+    if (msrDoGas(msr) && msrMeshlessHydro(msr)){
+        msrUpdatePrimVars(msr, dTime, dDelta, ROOT);
+        msrMeshlessGradients(msr, dTime, dDelta, ROOT);
+    }
 
 	/*
 	 * move time back to 1/2 step so that KickClose can integrate
@@ -4653,6 +4655,7 @@ void msrTopStepKDK(MSR msr,
     msrprintf(msr,"%*cKickClose, iRung: %d, 0.5*dDelta: %g\n",
 	      2*iRung+2,' ',iRung, 0.5*dDelta);
     msrKickKDKClose(msr,dTime,0.5*dDelta,iRung,iRung); /* uses dTime-0.5*dDelta */
+
 
     dTime += 0.5*dDelta; /* Important to have correct time at step end for SF! */
     /* JW: Creating/Deleting/Merging is best done outside (before or after) KDK cycle 
@@ -4909,7 +4912,11 @@ void msrInitSph(MSR msr,double dTime)
     msrSphStep(msr,0,MAX_RUNG,dTime); /* Requires SPH */
     msrCooling(msr,dTime,0,0,1,1); /* Interate cooling for consistent dt */
     }else{ //IA: we set the initial rungs of the particles
-        msrMeshlessHydroStep(msr, 0.0, 0.0, ROOT); // We do not add fluxes, just update the rungs
+        msrUpdatePrimVars(msr, 0.0, 0.0, ROOT);
+        msrMeshlessGradients(msr, 0.0, 0.0, ROOT);
+        msrMeshlessFluxes(msr, 0.0, 0.0, ROOT);
+        msrHydroStep(msr,0,MAX_RUNG,dTime);
+        msrUpdateConsVars(msr, 0.0, 0.0, ROOT); // Reset the fluxes
     }
 }
 
