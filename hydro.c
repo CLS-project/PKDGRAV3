@@ -156,8 +156,18 @@ void combThirdHydroLoop(void *vpkd, void *p1,void *p2) {
     for (i=0;i<3;i++){ psph1->Fmom[i] += psph2->Fmom[i]; }
     psph1->Frho += psph2->Frho;
     psph1->Fene += psph2->Fene;
-    if (((PARTICLE *) p2)->uNewRung > ((PARTICLE *) p1)->uNewRung) 
-       ((PARTICLE *) p1)->uNewRung = ((PARTICLE *) p2)->uNewRung;
+   
+    
+    float *p1mass = pkdField(p1,pkd->oMass);
+    float *p2mass = pkdField(p2,pkd->oMass);
+    *p1mass += *p2mass;
+
+    psph1->mom[0] += psph2->mom[0];
+    psph1->mom[1] += psph2->mom[1];
+    psph1->mom[2] += psph2->mom[2];
+    psph1->E += psph2->E;
+//    if (((PARTICLE *) p2)->uNewRung > ((PARTICLE *) p1)->uNewRung) 
+//       ((PARTICLE *) p1)->uNewRung = ((PARTICLE *) p2)->uNewRung;
     }
 
 void initHydroFluxes(void *vpkd, void *vp) {
@@ -167,6 +177,35 @@ void initHydroFluxes(void *vpkd, void *vp) {
     int i;
 //    if (pkdIsActive(pkd,p)) {
 	SPHFIELDS *psph = pkdSph(pkd,p);
+//      psph->Frho = 0.0;
+//      psph->Fene = 0.0;
+//      psph->uNewRung = 0;
+//      for (i=0;i<3;i++) { 
+//         psph->Fmom[i] = 0.0;
+//	}
+    }
+
+/* IA: If this works as I think it works, I should put to zero all the 
+ * conserved quantities, which will be updated during the hydro loop.
+ * Then those will be merged with the actual particle information inside
+ * combThirdHydroLoop
+ * However, the comb does not seem to be called... But everything seems
+ * to work just fine.. (chuckles) I'm in danger */
+void initHydroFluxesCached(void *vpkd, void *vp) {
+    PKD pkd = (PKD) vpkd;
+    PARTICLE *p = vp;
+    assert(!pkd->bNoParticleOrder);
+    SPHFIELDS *psph = pkdSph(pkd,p);
+    int i;
+
+    float *pmass = pkdField(p,pkd->oMass);
+    *pmass = 0.0;
+    psph->mom[0] = 0.;
+    psph->mom[1] = 0.;
+    psph->mom[2] = 0.;
+    psph->E = 0.;
+
+//    if (pkdIsActive(pkd,p)) {
 //      psph->Frho = 0.0;
 //      psph->Fene = 0.0;
 //      psph->uNewRung = 0;
@@ -452,12 +491,14 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
     PARTICLE *q;
     SPHFIELDS *psph, *qsph;
+    float *pmass, *qmass; 
+    double minDt;
     double pv[3], qv[3], vFrame[3];
     double ph,qh, hpq, modApq, rpq, dx,dy,dz,Wpq,psi_p,psi_q,pDensity,pDeltaHalf, qDeltaHalf, dt2, dtEst, vsig_pq, dvDotd, dvDotdr;
     double vxdiff, vydiff, vzdiff, pdivv, qdivv, pdiffOverRhop, pdiffOverRhoq, psi;
     double psiTilde_p[3], psiTilde_q[3], Apq[3], face_unit[3], dr[3]; 
     struct Input_vec_Riemann riemann_input;
-    struct Riemann_outputs riemann_output; //TODO: do this outside the loop
+    struct Riemann_outputs riemann_output; 
     uint8_t uNewRung;
     int i,j;
 
@@ -638,21 +679,54 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
        riemann_output.Fluxes.rho *= modApq;
        for (j=0;j<3;j++) {riemann_output.Fluxes.v[j] *= modApq; riemann_output.Fluxes.v[j] += vFrame[j]*riemann_output.Fluxes.rho;  } // De-boost (modApq included in Fluxes.rho)
 
+
+       if (smf->dTime != 0){
+       /* IA: We update the conservatives variables taking the minimum timestep between the particles */
+       pmass = pkdField(p,pkd->oMass);
+       qmass = pkdField(q,pkd->oMass);
+
+       if (!pkdIsActive(pkd,q)) { // If q is not active we now that p has the smallest dt 
+          minDt = smf->dDelta/(1<<p->uRung) ;
+       } else { // Otherwise we need to explicitly check
+          if (p->uRung > q->uRung) {
+             minDt = smf->dDelta/(1<<p->uRung) ;
+          }else{
+             minDt = smf->dDelta/(1<<q->uRung) ;
+          }
+       }
+
+       if (!pkdIsActive(pkd,q)){  
+            *qmass += minDt * riemann_output.Fluxes.rho ;
+
+            qsph->mom[0] += minDt * riemann_output.Fluxes.v[0];
+            qsph->mom[1] += minDt * riemann_output.Fluxes.v[1];
+            qsph->mom[2] += minDt * riemann_output.Fluxes.v[2];
+
+            qsph->E += minDt * riemann_output.Fluxes.p;
+       }
+            *pmass -= minDt * riemann_output.Fluxes.rho ;
+
+            psph->mom[0] -= minDt * riemann_output.Fluxes.v[0] ;
+            psph->mom[1] -= minDt * riemann_output.Fluxes.v[1];
+            psph->mom[2] -= minDt * riemann_output.Fluxes.v[2];
+
+            psph->E -= minDt * riemann_output.Fluxes.p;
+       }
+/*IA:  Old fluxes update (see 15/04/19 ) 
+ * TODO: This is not needed for the update of the conserved variables. Instead,
+ * it is now only used for the acceleleration criteria. Memory-wise, this can be
+ * substantially improved
+ */
        // IA: Own contribution is always added
        psph->Frho += riemann_output.Fluxes.rho; 
        psph->Fene += riemann_output.Fluxes.p; 
        for(j=0;j<3;j++) {psph->Fmom[j] += riemann_output.Fluxes.v[j];} 
 
-       /* IA: If the other particle is not active, we just add the proportional part of the flux in the given timestep. For example, if p is in rung 2 and q in rung 1,
-        * then we only add half of the fluxes in this step, as the we need two timesteps of particle p to be syncronized with q. */
-       double dtFracDueToRungDiff; 
-       dtFracDueToRungDiff = 1.0; // 1./(1<<(p->uRung - q->uRung));
-       
 
        if (!pkdIsActive(pkd,q)){
-          qsph->Frho -= dtFracDueToRungDiff*riemann_output.Fluxes.rho;
-          qsph->Fene -= dtFracDueToRungDiff*riemann_output.Fluxes.p;
-          for(j=0;j<3;j++){ qsph->Fmom[j] -= dtFracDueToRungDiff*riemann_output.Fluxes.v[j]; }
+          qsph->Frho -= riemann_output.Fluxes.rho;
+          qsph->Fene -= riemann_output.Fluxes.p;
+          for(j=0;j<3;j++){ qsph->Fmom[j] -= riemann_output.Fluxes.v[j]; }
        }else{
           if (2.*qh < rpq) {  // q is active but p is not in its neighbors list
              qsph->Frho -= riemann_output.Fluxes.rho;
@@ -661,69 +735,19 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
           }
        }
 
-
-
-
-                
-       // From hydra_evaluate.h //TODO: Understand this mass_holder thingy... Apart from that, is only updating the Dt structs, which I do not need to do
-/*
-#ifdef HYDRO_MESHLESS_FINITE_VOLUME
-                double dmass_holder = Fluxes.rho * dt_hydrostep, dmass_limiter;
-                if(dmass_holder > 0) {dmass_limiter=P[j].Mass;} else {dmass_limiter=local.Mass;}
-                dmass_limiter *= 0.1;
-                if(fabs(dmass_holder) > dmass_limiter) {dmass_holder *= dmass_limiter / fabs(dmass_holder);}
-                out.dMass += dmass_holder;
-                out.DtMass += Fluxes.rho;
-#ifndef BOX_SHEARING
-                SphP[j].dMass -= dmass_holder;
-#endif
-                double gravwork[3]; gravwork[0]=Fluxes.rho*kernel.dp[0]; gravwork[1]=Fluxes.rho*kernel.dp[1]; gravwork[2]=Fluxes.rho*kernel.dp[2];
-                for(k=0;k<3;k++) {out.GravWorkTerm[k] += gravwork[k];}
-#endif
-                for(k=0;k<3;k++) {out.Acc[k] += Fluxes.v[k];}
-                out.DtInternalEnergy += Fluxes.p;
-
-                // if this is particle j's active timestep, you should sent them the time-derivative information as well, for their subsequent drift operations 
-                if(j_is_active_for_fluxes)
-                {
-#ifdef HYDRO_MESHLESS_FINITE_VOLUME
-                    SphP[j].DtMass -= Fluxes.rho;
-                    for(k=0;k<3;k++) {SphP[j].GravWorkTerm[k] -= gravwork[k];}
-#endif
-                    for(k=0;k<3;k++) {SphP[j].HydroAccel[k] -= Fluxes.v[k];}
-                    SphP[j].DtInternalEnergy -= Fluxes.p;
-
-
-                //}
-*/
-                /* if we have mass fluxes, we need to have metal fluxes if we're using them (or any other passive scalars) */
-/*                
-#ifdef HYDRO_MESHLESS_FINITE_VOLUME
-                if(dmass_holder != 0)
-                {
-                }
-#endif */
-
-                /* --------------------------------------------------------------------------------- */
-                /* don't forget to save the signal velocity for time-stepping! */
-                /* --------------------------------------------------------------------------------- */
-/*
-                if(kernel.vsig > out.MaxSignalVel) out.MaxSignalVel = kernel.vsig;
-                if(j_is_active_for_fluxes) {if(kernel.vsig > SphP[j].MaxSignalVel) SphP[j].MaxSignalVel = kernel.vsig;}
-*/
-
     } // IA: End of loop over neighbors
 
 
-    // IA: Mass change limiter
-    
+    // IA: Mass change limiter. For now, disables as it does not make a lot of sense. To keep the conservative
+    // properties of the code, this could be added as a time limiter
+   /* 
     double dmass_limiter = 0.1*pkdMass(pkd,p), dmass_holder = psph->Frho * ( smf->dDelta/(1<<p->uRung) );
 
     if (fabs(dmass_holder) > dmass_limiter) {
     //   printf("Limiting! \n");
        psph->Frho *= dmass_limiter / fabs(dmass_holder);
     }
-    
+    */
 
 
 
@@ -775,6 +799,7 @@ void hydroStep(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
 
     // IA: Timestep criteria based on the hydro accelerations
+
     double a[3], acc;
     double cfl = 0.050, dtAcc;
     

@@ -12,6 +12,7 @@ void inverseMatrix(double* E, double* B);
 void initHydroLoop(void *vpkd, void *vp);
 void initHydroLoopCached(void *vpkd, void *vp);
 void initHydroFluxes(void *vpkd, void *vp);
+void initHydroFluxesCached(void *vpkd, void *vp);
 void initHydroGradients(void *vpkd, void *vp);
 void combFirstHydroLoop(void *vpkd, void *p1,void *p2);
 void combSecondHydroLoop(void *vpkd, void *p1,void *p2);

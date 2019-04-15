@@ -4089,18 +4089,11 @@ void msrSphStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime) {
 
 /* IA: Computes the dt criteria being known the fluxes and the signal velocities */
 void msrHydroStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime) {
-    int bSymmetric = 0; //IA TODO: What does this change? I think nothing if I do not want to
+    int bSymmetric = 0; 
 
     printf("Computing hydro time step... \n");
     msrSmooth(msr,dTime,SMX_HYDROSTEP,bSymmetric,msr->param.nSmooth);
 
-    /* IA TODO Remove HydroStep functions, now using smooth
-    a = csmTime2Exp(msr->param.csm,dTime);
-    in.dAccFac = 1.0/(a*a*a);
-    in.uRungLo = uRungLo;
-    in.uRungHi = uRungHi;
-    pstHydroStep(msr->pst,&in,sizeof(in),NULL,NULL);
-    */
     }
 
 void msrDensityStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime) {
@@ -4912,6 +4905,7 @@ void msrInitSph(MSR msr,double dTime)
     msrSphStep(msr,0,MAX_RUNG,dTime); /* Requires SPH */
     msrCooling(msr,dTime,0,0,1,1); /* Interate cooling for consistent dt */
     }else{ //IA: we set the initial rungs of the particles
+        msrActiveRung(msr,0,1);
         msrUpdatePrimVars(msr, 0.0, 0.0, ROOT);
         msrMeshlessGradients(msr, 0.0, 0.0, ROOT);
         msrMeshlessFluxes(msr, 0.0, 0.0, ROOT);

@@ -2722,7 +2722,10 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
     }
 
 /* IA. We update the conserved variables with the *already computed* fluxes, which
- * should be stored in the SPHFIELDS of each particle */
+ * should be stored in the SPHFIELDS of each particle 
+ * (UPDATE 15/04/19) Now this is done during the third hydro loop, so here we just reset
+ * the fluxes to zero (and they, indeed, are only needed now for the dt criteria)
+ * */
 void pkdUpdateConsVars(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,double dDeltaTime) {
     PARTICLE *p;
     SPHFIELDS *psph;
@@ -2758,7 +2761,7 @@ void pkdUpdateConsVars(PKD pkd,int iRoot,double dTime,double dDelta,double dDelt
             // For Q = V rho = M
             pmass = pkdField(p,pkd->oMass);
 //            printf("Previous mass %e \t", *pmass);
-            *pmass -= dDelta * psph->Frho ;
+            //*pmass -= dDelta * psph->Frho ;
 //            printf("Frho %e \n", psph->Frho);
 //if(psph->Frho != psph->Frho)            printf("Mass flux %e \n", psph->Frho);
 
@@ -2771,16 +2774,16 @@ void pkdUpdateConsVars(PKD pkd,int iRoot,double dTime,double dDelta,double dDelt
 //            psph->mom[2] = pkdVel(pkd,p)[2]*(*pmass);//dDelta * psph->Fmom[2] ;
 //
 
-            psph->mom[0] -= dDelta * psph->Fmom[0] ;
-            psph->mom[1] -= dDelta * psph->Fmom[1] ;
-            psph->mom[2] -= dDelta * psph->Fmom[2] ;
+            //psph->mom[0] -= dDelta * psph->Fmom[0] ;
+            //psph->mom[1] -= dDelta * psph->Fmom[1] ;
+            //psph->mom[2] -= dDelta * psph->Fmom[2] ;
 
             // For Q = V rho e = E
 //           if (pkdPos(pkd,p,0)==0 && pkdPos(pkd,p,1)==0 && pkdPos(pkd,p,2)==0){
 //    printf("%d - x %e y %e z %e \n", i, pkdPos(pkd,p,0), pkdPos(pkd,p,1), pkdPos(pkd,p,2));
 //            printf("E %e dDelta %e psph->Fene %e \n", psph->E, dDelta, psph->Fene);
 //            }
-            psph->E -= dDelta * psph->Fene;
+            //psph->E -= dDelta * psph->Fene;
             assert(psph->E>0.0);
 
             
@@ -3305,42 +3308,6 @@ void pkdSphStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,double dAccFac) {
 	}
     }
 
-
-void pkdHydroStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,double dAccFac) {
-    PARTICLE *p;
-    SPHFIELDS *psph;
-    float *a, uDot;
-    int i,j,uNewRung;
-    double acc;
-    double dtNew;
-    int u1,u2,u3;
-
-    assert(pkd->oAcceleration);
-    assert(pkd->oSph);
-    assert(!pkd->bNoParticleOrder);
-
-    for (i=0;i<pkdLocal(pkd);++i) {
-	p = pkdParticle(pkd,i);
-	if (pkdIsActive(pkd,p)) {
-	    if (pkdIsGas(pkd,p)) {
-              psph = pkdSph(pkd,p);
-              // IA: First, we check for the maximum dt given by the signal velocity. This is computed at the
-              // third hydro loop and stored in the SPHFIELD of the variable
-
-
-              // IA: Also, we check for the acceleration criteria
-              //
-              //
-              // IA: Ok, the preceding is ok.. but in a zero order approach we can just save in SPHFIELD the uNewRung computed
-              // at the third hydro loop and just update it here?
-              // All this can be tricky, maybe a smoothing operation is needed, as the signal velocities depends on the particles
-              // position and velocities, which are now different than those at the hydro loop...
-              if (psph->uNewRung > p->uNewRung) p->uNewRung = psph->uNewRung;
-              // FIXME TODO ERASE; THIS IS NOT USED
-		}
-	    }
-	}
-    }
 
 
 void pkdStarForm(PKD pkd, double dRateCoeff, double dTMax, double dDenMin,

@@ -337,7 +337,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
 	assert( pkd->oSph ); /* Validate memory model */
 	smx->fcnSmooth = hydroRiemann;
 	initParticle = initHydroFluxes; /* Original Particle */
-	init = initHydroFluxes; /* Cached copies */ 
+	init = initHydroFluxesCached; /* Cached copies */ 
 	comb = combThirdHydroLoop;
 	smx->fcnPost = NULL;
 	break;

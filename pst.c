@@ -289,9 +289,6 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_SPHSTEP,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstSphStep,
 		  sizeof(struct inSphStep), 0);
-    mdlAddService(mdl,PST_HYDROSTEP,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstHydroStep,
-		  sizeof(struct inSphStep), 0);
     mdlAddService(mdl,PST_STARFORM,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstStarForm,
 		  sizeof(struct inStarForm),sizeof(struct outStarForm));
@@ -3344,23 +3341,6 @@ pstSphStep(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     if (pnOut) *pnOut = 0;
     }
 
-
-void
-pstHydroStep(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-    LCL *plcl = pst->plcl;
-    struct inSphStep *in = vin;
-
-    mdlassert(pst->mdl,nIn == sizeof(struct inSphStep));
-    if (pst->nLeaves > 1) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_HYDROSTEP,vin,nIn);
-	pstHydroStep(pst->pstLower,vin,nIn,vout,pnOut);
-	mdlGetReply(pst->mdl,rID,vout,pnOut);
-	}
-    else {
-	pkdHydroStep(plcl->pkd,in->uRungLo,in->uRungHi,in->dAccFac);
-	}
-    if (pnOut) *pnOut = 0;
-    }
 
 
 void
