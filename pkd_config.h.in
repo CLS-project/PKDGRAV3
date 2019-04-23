@@ -42,6 +42,7 @@
 #cmakedefine INTEGER_POSITION 1
 #cmakedefine HAVE_LIBAIO 1
 #cmakedefine HAVE_AIO_H 1
+#cmakedefine POTENTIAL_IN_LIGHTCONE
 
 #define USE_SIMD 1
 #define USE_SIMD_OPEN 1

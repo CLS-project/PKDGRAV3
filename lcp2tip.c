@@ -18,11 +18,14 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <errno.h>
+#include "pkd_config.h" // for POTENTIAL_IN_LIGHTCONE
 
 typedef struct partLightCone {
     float pos[3];
     float vel[3];
+#ifdef POTENTIAL_IN_LIGHTCONE
     float pot;
+#endif
     } LIGHTCONEP;
 
 typedef struct {
@@ -65,6 +68,7 @@ int main(int argc, char *argv[]) {
 
     d.mass = atof(argv[2]);
     d.eps = 0.0;
+    d.phi = 0.0;
 
     fp = fopen(argv[1],"wb");
     if (fp==NULL) {
@@ -78,7 +82,9 @@ int main(int argc, char *argv[]) {
 	    d.pos[j] = p.pos[j];
 	    d.vel[j] = p.vel[j];
 	    }
+#ifdef POTENTIAL_IN_LIGHTCONE
 	d.phi = p.pot;
+#endif
 	fwrite(&d,sizeof(d),1,fp);
 	++h.nBodies;
 	}

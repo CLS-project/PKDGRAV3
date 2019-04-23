@@ -68,6 +68,24 @@ CUDA (optional)
 
 	https://developer.nvidia.com/cuda-downloads
 
+Configuration
+-------------
+
+Integer Positions
+
+  This option saves memory and provides sufficient accuracy for cosmological simulations.
+  Only periodic boxes are supported. Enable by setting INTEGER_POSITION when running cmake.
+
+    cmake -DINTEGER_POSITION=True ...
+
+Potentials in Lightcone particle output
+
+  The potential for each particle can be output for the lightcone.
+  Enable by setting POTENTIAL_IN_LIGHTCONE when running cmake.
+
+    cmake -DPOTENTIAL_IN_LIGHTCONE=True ...
+
+
 Build
 -----
 
