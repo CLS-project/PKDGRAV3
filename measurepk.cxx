@@ -138,8 +138,9 @@ void pkdMeasurePk(PKD pkd, double dTotalMass, int iAssignment, int bInterlace,
 		auto v2 = K2(index.position()) * fftNormalize * complex_t(cosf(theta),sinf(theta));
 		v1 = complex_t(0.5) * (v1 + v2);
 		}
+	    v1 *= win;
 	    *index = v1;
-	    double delta2 = win*win*std::norm(v1);
+	    double delta2 = std::norm(v1);
 	    fK[ks] += log(ak);
 	    fPower[ks] += delta2;
 	    nPower[ks] += 1;
