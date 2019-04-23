@@ -47,7 +47,7 @@ GSL - The GNU Scientific Library
 
         cmake -DGSL_ROOT_DIR=/opt/gsl/2.5
 
-FFTW - Fast Fourier Transform Library (optional)
+FFTW - Fast Fourier Transform Library
 
     If FFTW is available then two advanced features are enabled in pkdgrav3.
       1. Initial Condition Generation, and,
@@ -57,16 +57,34 @@ FFTW - Fast Fourier Transform Library (optional)
 
         http://www.fftw.org/
 
-    If CMake does not automatically find FFTW then you can define FFTW_ROOT_ROOT:
+    If CMake does not automatically find FFTW then you can define FFTW_ROOT:
 
         cmake -DFFTW_ROOT=/path/to/fftw
 
-CUDA
+CUDA (optional)
 
     If your system has a CUDA capable GPU then pkdgrav3 can use it.
     The necessary toolkits can be downloaded from nVidia.
 
 	https://developer.nvidia.com/cuda-downloads
+
+Configuration
+-------------
+
+Integer Positions
+
+  This option saves memory and provides sufficient accuracy for cosmological simulations.
+  Only periodic boxes are supported. Enable by setting INTEGER_POSITION when running cmake.
+
+    cmake -DINTEGER_POSITION=True ...
+
+Potentials in Lightcone particle output
+
+  The potential for each particle can be output for the lightcone.
+  Enable by setting POTENTIAL_IN_LIGHTCONE when running cmake.
+
+    cmake -DPOTENTIAL_IN_LIGHTCONE=True ...
+
 
 Build
 -----

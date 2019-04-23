@@ -181,6 +181,9 @@ typedef struct starfields {
 typedef struct partLightCone {
     float pos[3];
     float vel[3];
+#ifdef POTENTIAL_IN_LIGHTCONE
+    float pot;
+#endif
     } LIGHTCONEP;
 
 

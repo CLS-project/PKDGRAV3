@@ -2434,6 +2434,9 @@ void addToLightCone(PKD pkd,double *r,float fPot,PARTICLE *p,int bParticleOutput
 	pLC[pkd->nLightCone].vel[0] = v[0];
 	pLC[pkd->nLightCone].vel[1] = v[1];
 	pLC[pkd->nLightCone].vel[2] = v[2];
+#ifdef POTENTIAL_IN_LIGHTCONE
+	pLC[pkd->nLightCone].pot    = fPot;
+#endif
 	if (++pkd->nLightCone == pkd->nLightConeMax) flushLightCone(pkd);
 	}
     if (pkd->nSideHealpix) {
@@ -2772,19 +2775,9 @@ void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, 
 	*pnMaxRung = pkdUpdateRung(pkd,iRung,pkd->param.iMaxRung,
 				   iRung,pkd->param.iMaxRung, nRungCount);
 
-
-	if (pkd->param.bVDetails) {
-	    printf("%*cAdjust at iRung: %d, nMaxRung:%d nRungCount[%d]=%"PRIu64"\n",
-		   2*iRung+2,' ',iRung,*pnMaxRung,*pnMaxRung,nRungCount[*pnMaxRung]);
-	    }
-
 	}
     /* skip this if we are entering for the first time: Kick is taken care of in master(). */
     if (iRung > iRungVeryActive) {
-	if (pkd->param.bVDetails) {
-	    printf("%*cVeryActive pkdKickOpen  at iRung: %d, 0.5*dDelta: %g\n",
-		   2*iRung+2,' ',iRung,0.5*dDelta);
-	    }
 	pkdKickKDKOpen(pkd,dTime,0.5*dDelta,iRung,iRung);
 	}
     if (*pnMaxRung > iRung) {
@@ -2802,10 +2795,6 @@ void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, 
 			     dThetaMin,pnMaxRung,aSunInact,adSunInact,dSunMass);
 	}
     else {
-	if (pkd->param.bVDetails) {
-	    printf("%*cVeryActive Drift at iRung: %d, drifting %d and higher with dDelta: %g\n",
-		   2*iRung+2,' ',iRung,iRungVeryActive+1,dDelta);
-	    }
 	/*
 	** We need to account for cosmological drift factor here!
 	** Normally this is done at the MASTER level in msrDrift.
@@ -2827,11 +2816,6 @@ void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, 
 
 	/* skip this if we are entering for the first time: Kick is taken care of in master(). */
 	if (iKickRung > iRungVeryActive) {
-	    if (pkd->param.bVDetails) {
-		printf("%*cGravityVA: iRung %d Gravity for rungs %d to %d ... ",
-		       2*iRung+2,' ',iRung,iKickRung,*pnMaxRung);
-		}
-
 	    pkdActiveRung(pkd,iKickRung,1);
 //	    pkdVATreeBuild(pkd,pkd->param.nBucket);
 	    pkdGravityVeryActive(pkd,uRungLo,uRungHi,dTime,pkd->param.bEwald && pkd->param.bPeriodic,pkd->param.nGroup,
@@ -2846,10 +2830,6 @@ void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, 
 	}
     /* skip this if we are entering for the first time: Kick is taken care of in master(). */
     if (iKickRung > iRungVeryActive) {
-	if (pkd->param.bVDetails) {
-	    printf("%*cVeryActive pkdKickClose at iRung: %d, 0.5*dDelta: %g\n",
-		   2*iRung+2,' ',iRung,0.5*dDelta);
-	    }
 	pkdKickKDKClose(pkd,dTime,0.5*dDelta,iRung,iRung);
 	}
     }
@@ -3123,7 +3103,6 @@ void pkdStarForm(PKD pkd, double dRateCoeff, double dTMax, double dDenMin,
     starp = (PARTICLE *) malloc(pkdParticleSize(pkd));
     assert(starp != NULL);
 
-    printf("pkdSF calc dTime %g\n",dTime);
     for (i=0;i<pkdLocal(pkd);++i) {
 	p = pkdParticle(pkd,i);
 	
@@ -3140,7 +3119,7 @@ void pkdStarForm(PKD pkd, double dRateCoeff, double dTMax, double dDenMin,
 	      and he has one cell that may contain many times m_particle */
 	    if (pkd->param.bGasCooling) {
 		if (fabs(pkdStar(pkd,p)->totaltime-dTime) > 1e-3*dt) {
-		    printf("total time error: %"PRIu64",  %g %g %g\n",
+		    fprintf(stderr,"total time error: %"PRIu64",  %g %g %g\n",
                 (uint64_t)p->iOrder,pkdStar(pkd,p)->totaltime,dTime,dt);
 		    assert(0);
 		    }

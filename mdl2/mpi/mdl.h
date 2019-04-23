@@ -250,7 +250,10 @@ typedef struct mdlContext {
     struct mdlContext **pmdl;
     pthread_t *threadid;
     pthread_barrier_t barrier;
-    void * (*fcnWorker)(struct mdlContext *mdl);
+    void *worker_ctx;
+    void * (*fcnWorkerInit)(struct mdlContext *mdl);
+    void   (*fcnWorkerDone)(struct mdlContext *mdl, void *ctx);
+    void   (*fcnMaster)(    struct mdlContext *mdl, void *ctx);
 
     OPA_Queue_info_t *inQueue;
     MDLserviceElement inMessage;
@@ -309,7 +312,7 @@ typedef struct mdlContext {
 /*
  ** General Functions
  */
-void mdlLaunch(int,char **,void * (*)(MDL),void * (*)(MDL));
+void mdlLaunch(int,char **,void (*)(MDL,void *),void * (*)(MDL),void (*)(MDL,void *));
 void mdlFinish(MDL);
 int  mdlSplitComm(MDL mdl, int nProcs);
 void mdlSetComm(MDL mdl, int iComm);
