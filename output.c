@@ -55,7 +55,7 @@ static int packGrid(void *vctx, int *id, size_t nSize, void *vBuff) {
     PKD pkd = ctx->pkd;
     if (mdlCore(pkd->mdl) == 0) {
 	COMPLEX *fftData = pkd->pLite;
-	size_t nLocal = pkd->fft->kgrid->nLocal;
+	size_t nLocal = 1ul * pkd->fft->kgrid->a1 * pkd->fft->kgrid->n2 * pkd->fft->kgrid->nSlab;
 	int nLeft = nLocal - ctx->iIndex;
 	int n = nSize / sizeof(COMPLEX);
 	if ( n > nLeft ) n = nLeft;
@@ -116,7 +116,10 @@ void pkdOutput(PKD pkd, outType eOutputType, int iProcessor,int nProcessor,
 	unpack = unpackWrite;
 	break;
     case OUT_KGRID:
-	io_write(&info,pkd->pLite,sizeof(COMPLEX)*pkd->fft->kgrid->nLocal);
+	{
+	    size_t nLocal = 1ul * pkd->fft->kgrid->a1 * pkd->fft->kgrid->n2 * pkd->fft->kgrid->nSlab;
+	    io_write(&info,pkd->pLite,sizeof(COMPLEX)*nLocal);
+	    }
 	unpack = unpackWrite;
 	break;
     default:
