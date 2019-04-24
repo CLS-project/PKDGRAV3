@@ -4524,6 +4524,7 @@ void msrTopStepKDK(MSR msr,
       if (msrDoGas(msr) && msrMeshlessHydro(msr)){
          msrActiveRung(msr,iKickRung,1); //IA: The repeated call after msrDrift would not be needed
          if (msr->param.bVStep) printf("Step:%f (rung %d)\n",dStep,iKickRung);
+         msrUpdateConsVars(msr, dTime, dDelta, ROOT);
          msrMeshlessFluxes(msr, dTime, dDelta, ROOT);
       }
 
@@ -4545,7 +4546,7 @@ void msrTopStepKDK(MSR msr,
 
 
       if (msrDoGas(msr) && msrMeshlessHydro(msr)){
-         msrUpdateConsVars(msr, dTime, dDelta, ROOT);
+         //msrUpdateConsVars(msr, dTime, dDelta, ROOT);
       }
 
 	if (msrDoGravity(msr) || msrDoGas(msr)) {
