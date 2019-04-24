@@ -2125,7 +2125,7 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,BND *bnd,PARTICLE *p) {
           T = pSph->E - 0.5*( pSph->mom[0]*pSph->mom[0] + pSph->mom[1]*pSph->mom[1] + pSph->mom[2]*pSph->mom[2])/pkdMass(pkd,p);
           T *= pSph->omega*(pkd->param.dConstGamma - 1.);
 	    fioWriteSph(fio,iParticleID,r,v,fMass,fSoft,*pPot,
-		fDensity,T,pSph->fMetals);
+		fDensity,pSph->P,pSph->fMetals);
 	    }
 	break;
     case FIO_SPECIES_DARK:
@@ -3740,6 +3740,33 @@ double pkdTotalMass(PKD pkd) {
 	}
     return m;
     }
+
+
+uint8_t pkdGetMinDt(PKD pkd) {
+    PARTICLE *p;
+    uint8_t minDt = 0;
+    int i, n;
+
+    n = pkdLocal(pkd);
+    for( i=0; i<n; i++ ) {
+	p = pkdParticle(pkd,i);
+        if (minDt < p->uNewRung) minDt = p->uNewRung;
+	}
+    return minDt;
+    }
+
+
+void pkdSetGlobalDt(PKD pkd, uint8_t minDt) {
+    PARTICLE *p;
+    int i, n;
+
+    n = pkdLocal(pkd);
+    for( i=0; i<n; i++ ) {
+	p = pkdParticle(pkd,i);
+	p->uNewRung = minDt;
+	}
+    }
+
 
 void pkdInflate(PKD pkd,int nReps) {
     int i,j,n;

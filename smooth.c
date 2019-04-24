@@ -813,7 +813,7 @@ float smSmoothSingle(SMX smx,SMF *smf,PARTICLE *p,int iRoot1, int iRoot2) {
     fBall = sqrt(pq->fDist2);
 
     /* IA: I do not fully understand this fBall, so I will compute my own kernel length such that it encloses
-     * all the particles in the neighbor list. This means that h > 0.5*max(dist). I have taken 0.55 as a safe
+     * all the particles in the neighbor list. This means that h > 0.5*max(dist). I have taken 0.501 as a safe
      * value, because 0.5 would exclude the furthest particle(s) */
     int i;
     fBall = 0.0;    
@@ -834,6 +834,7 @@ void smSmooth(SMX smx,SMF *smf) {
     PKD pkd = smx->pkd;
     PARTICLE *p, *p2;
     int pi, pj;
+    float fBall;
 
     /*
     ** Initialize the bInactive flags for all local particles.
@@ -846,18 +847,19 @@ void smSmooth(SMX smx,SMF *smf) {
     smf->pfDensity = NULL;
     for (pi=0;pi<pkd->nLocal;++pi) {
 	p = pkdParticle(pkd,pi);
-      if (!pkd->param.bMeshlessHydro || smf->FirstHydroLoop){ // IA: For the first hydro loop we do not care about actives -> FALSE (see below)
+      if (!pkd->param.bMeshlessHydro ){ 
 	   pkdSetBall(pkd,p,smSmoothSingle(smx,smf,p,ROOT,0));
       }else{
-         if (pkdIsActive(pkd,p)){ // IA: But we care when solving the riemann problem
-            // For the first hydro loop we care about the actives (although I do not fully understand why). In AREPO, the gradients
-            // are only updated for actives particles. If they are not active, they are not changed. This however seems weird because
-            // neighbors particles may be moving and thus changing the B matrix...
-            pkdSetBall(pkd,p,smSmoothSingle(smx,smf,p,ROOT,0));
+         if (pkdIsActive(pkd,p)){ 
+            fBall = smSmoothSingle(smx,smf,p,ROOT,0);
+            if (smf->FirstHydroLoop)
+                pkdSetBall(pkd,p,fBall);
+
+
 //    for (pj=0;pj<smx->nSmooth;++pj) {
 //	p2= smx->nnList[pj].pPart; //pkdParticle(pkd,pj);
 //	p2->bMarked = 1;
-    }
+            }
 //         }
       }
 	/*

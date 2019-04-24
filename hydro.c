@@ -258,10 +258,8 @@ void hydroDensity(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     for (i=0; i<nSmooth; ++i){
        q = nnList[i].pPart;
 
-       qh = pkdBall(pkd,q); // TODO: Check this 
-
        rpq = sqrt(nnList[i].fDist2);
-       hpq = ph;// 0.5*(qh+ph); // IA: We symmetrize the kernel size (probably needed, not sure)
+       hpq = ph; // IA: We symmetrize the kernel size (probably needed, not sure)
 
        psph->omega += cubicSplineKernel(rpq, hpq);
     }
@@ -503,10 +501,13 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     int i,j;
 
     psph = pkdSph(pkd, p);   
-    ph = fBall;
+    ph = pkdBall(pkd, p); //fBall;
 
-// printf("dDelta %e \n", smf->dDelta/(1<<p->uRung));
-    pDeltaHalf = 0.5*( smf->dDelta/(1<<p->uRung) );
+    if (smf->dTime > 0) {
+       pDeltaHalf = 0.5*( smf->dDelta/(1<<p->uRung) );
+    }else{
+       pDeltaHalf = 0.0; // For the initialization step we do not extrapolate because we dont have a reliable dDelta
+    }
 
     pDensity = pkdDensity(pkd,p);
 
@@ -518,7 +519,11 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
        qsph = pkdSph(pkd, q);
        qh = pkdBall(pkd,q); 
 
-       qDeltaHalf = smf->dTime - qsph->lastUpdateTime + pDeltaHalf; 
+       if (smf->dTime > 0) {
+          qDeltaHalf = smf->dTime - qsph->lastUpdateTime + pDeltaHalf; 
+       }else{
+          qDeltaHalf = 0.0; // For the initialization step we do not extrapolate because we dont have a reliable dDelta
+       }
 //       printf("pDeltaHalf %e qDeltaHalf %e \n", pDeltaHalf, qDeltaHalf);
 
 	 dx = nnList[i].dx;
@@ -535,7 +540,8 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
        rpq = sqrt(nnList[i].fDist2);
 
        Wpq = cubicSplineKernel(rpq, hpq); 
-       if (Wpq==0.0){/*printf("hpq %e rpq %e \n", hpq, rpq);*/ continue; }
+//       Wpq = 0.5*( cubicSplineKernel(rpq, ph) + cubicSplineKernel(rpq, qh) ); 
+       if (Wpq==0.0){/*printf("hpq %e rpq %e \t %e \n", hpq, rpq, rpq/hpq); */continue; }
 
        psi = Wpq/psph->omega;
        psiTilde_p[0] = (psph->B[XX]*dx + psph->B[XY]*dy + psph->B[XZ]*dz)*psi;
@@ -680,7 +686,7 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
        for (j=0;j<3;j++) {riemann_output.Fluxes.v[j] *= modApq; riemann_output.Fluxes.v[j] += vFrame[j]*riemann_output.Fluxes.rho;  } // De-boost (modApq included in Fluxes.rho)
 
 
-       if (smf->dTime != 0){
+       if (smf->dTime > 0){
        /* IA: We update the conservatives variables taking the minimum timestep between the particles */
        pmass = pkdField(p,pkd->oMass);
        qmass = pkdField(q,pkd->oMass);
@@ -698,17 +704,28 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
        if (!pkdIsActive(pkd,q)){  
             *qmass += minDt * riemann_output.Fluxes.rho ;
 
-            qsph->mom[0] += minDt * riemann_output.Fluxes.v[0];
-            qsph->mom[1] += minDt * riemann_output.Fluxes.v[1];
-            qsph->mom[2] += minDt * riemann_output.Fluxes.v[2];
+            qsph->mom[0] += minDt * riemann_output.Fluxes.v[0] ;
+            qsph->mom[1] += minDt * riemann_output.Fluxes.v[1] ;
+            qsph->mom[2] += minDt * riemann_output.Fluxes.v[2] ;
 
             qsph->E += minDt * riemann_output.Fluxes.p;
+       }else{
+            if ( qh/0.501 < rpq ) {  // q is active but p is not in its neighbors list
+
+            *qmass += minDt * riemann_output.Fluxes.rho ;
+
+            qsph->mom[0] += minDt * riemann_output.Fluxes.v[0] ;
+            qsph->mom[1] += minDt * riemann_output.Fluxes.v[1] ;
+            qsph->mom[2] += minDt * riemann_output.Fluxes.v[2] ;
+
+            qsph->E += minDt * riemann_output.Fluxes.p;
+            }  
        }
             *pmass -= minDt * riemann_output.Fluxes.rho ;
 
             psph->mom[0] -= minDt * riemann_output.Fluxes.v[0] ;
-            psph->mom[1] -= minDt * riemann_output.Fluxes.v[1];
-            psph->mom[2] -= minDt * riemann_output.Fluxes.v[2];
+            psph->mom[1] -= minDt * riemann_output.Fluxes.v[1] ;
+            psph->mom[2] -= minDt * riemann_output.Fluxes.v[2] ;
 
             psph->E -= minDt * riemann_output.Fluxes.p;
        }
@@ -727,12 +744,12 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
           qsph->Frho -= riemann_output.Fluxes.rho;
           qsph->Fene -= riemann_output.Fluxes.p;
           for(j=0;j<3;j++){ qsph->Fmom[j] -= riemann_output.Fluxes.v[j]; }
-       }else{
-          if (2.*qh < rpq) {  // q is active but p is not in its neighbors list
-             qsph->Frho -= riemann_output.Fluxes.rho;
-             qsph->Fene -= riemann_output.Fluxes.p;
-             for(j=0;j<3;j++){ qsph->Fmom[j] -= riemann_output.Fluxes.v[j]; }
-          }
+       }else{ 
+            if (qh/0.501 < rpq) {  // q is active but p is not in its neighbors list
+               qsph->Frho -= riemann_output.Fluxes.rho;
+               qsph->Fene -= riemann_output.Fluxes.p;
+               for(j=0;j<3;j++){ qsph->Fmom[j] -= riemann_output.Fluxes.v[j]; }
+            } 
        }
 
     } // IA: End of loop over neighbors
@@ -768,7 +785,7 @@ void hydroStep(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
     dtEst = HUGE_VAL;
 
-    /* Signal velocity criteria */
+    /* IA: Signal velocity criteria */
     for (i=0;i<nSmooth;++i){
 
 	 dx = nnList[i].dx;
@@ -798,10 +815,12 @@ void hydroStep(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
 
 
+
+
     // IA: Timestep criteria based on the hydro accelerations
 
     double a[3], acc;
-    double cfl = 0.050, dtAcc;
+    double cfl = 0.05, dtAcc;
     
     for (j=0;j<3;j++) { a[j] = (pkdVel(pkd,p)[j]*psph->Frho + psph->Fmom[j])/pkdMass(pkd,p); }
     acc = sqrt(a[0]*a[0] + a[1]*a[1] + a[2]*a[2]);
@@ -815,5 +834,21 @@ void hydroStep(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
 
     if (uNewRung > p->uNewRung ) p->uNewRung = uNewRung; 
+
+
+    // IA: Timestep limiter that imposes that I must have a dt which is at most, 
+    // four times (i.e., 2 rungs) the smallest dt of my neighbours
+
+    if (smf->dTime >= 0){
+    for (i=0; i<nSmooth; ++i){
+        q = nnList[i].pPart;
+
+	if ( (q->uNewRung > p->uNewRung) &&  (q->uNewRung - p->uNewRung) > 2) uNewRung = q->uNewRung-2;
+
+    }
+    if (uNewRung > p->uNewRung ) p->uNewRung = uNewRung; 
+    
+    }
+
 
 }

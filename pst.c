@@ -214,6 +214,9 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_COMPUTEPRIMVARS,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstComputePrimVars,
 		  sizeof(struct inDrift),0);
+    mdlAddService(mdl,PST_SETGLOBALDT,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstSetGlobalDt,
+		  sizeof(struct outGetMinDt),0);
     //
     mdlAddService(mdl,PST_SCALEVEL,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstScaleVel,
@@ -443,6 +446,9 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_TOTALMASS,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstTotalMass,
 		  0, sizeof(struct outTotalMass));
+    mdlAddService(mdl,PST_GETMINDT,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstGetMinDt,
+		  0, sizeof(struct outGetMinDt));
     mdlAddService(mdl,PST_LIGHTCONE_OPEN,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstLightConeOpen,
 		  sizeof(struct inLightConeOpen), 0);
@@ -2990,6 +2996,24 @@ void pstDrift(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     }
 
 
+void pstSetGlobalDt(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    struct outGetMinDt *in = vin;
+
+    mdlassert(pst->mdl,nIn == sizeof(struct outGetMinDt));
+    if (pst->nLeaves > 1) {
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SETGLOBALDT,in,nIn);
+	pstSetGlobalDt(pst->pstLower,in,nIn,NULL,NULL);
+	mdlGetReply(pst->mdl,rID,NULL,NULL);
+	}
+    else {
+	pkdSetGlobalDt(plcl->pkd, in->uMinDt);
+	}
+    if (pnOut) *pnOut = 0;
+    }
+
+
+
 void pstUpdateConsVars(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inDrift *in = vin;
@@ -4220,6 +4244,27 @@ void pstTotalMass(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	}
     if (pnOut) *pnOut = sizeof(struct outTotalMass);
     }
+
+
+void pstGetMinDt(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    struct outGetMinDt *out = vout;
+    struct outGetMinDt outUpper;
+    int nOut;
+
+    if (pst->nLeaves > 1) {
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_GETMINDT,vin,nIn);
+	pstGetMinDt(pst->pstLower,vin,nIn,vout,pnOut);
+	mdlGetReply(pst->mdl,rID,&outUpper,&nOut);
+	assert(nOut==sizeof(struct outGetMinDt));
+	if (out->uMinDt < outUpper.uMinDt) out->uMinDt = outUpper.uMinDt;
+	}
+    else {
+	out->uMinDt = pkdGetMinDt(plcl->pkd);
+	}
+    if (pnOut) *pnOut = sizeof(struct outGetMinDt);
+    }
+
 
 void pstLightConeOpen(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     struct inLightConeOpen *in = vin;

@@ -289,6 +289,8 @@ uint64_t msrSrcCylinder(MSR msr,double *dP1, double *dP2, double dRadius, int se
 
 void msrDeepestPot(MSR msr,double *r, float *fPot);
 double msrTotalMass(MSR msr);
+uint8_t msrGetMinDt(MSR msr);
+void msrSetGlobalDt(MSR msr, uint8_t minDt);
 void msrProfile(
     MSR msr, const PROFILEBIN **pBins, int *pnBins, double *r,
     double dMinRadius, double dLogRadius, double dMaxRadius,

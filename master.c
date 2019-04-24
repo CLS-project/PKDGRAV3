@@ -3570,7 +3570,7 @@ void msrMeshlessGradients(MSR msr,double dTime,double dDelta,int iRoot){
 
 void msrMeshlessFluxes(MSR msr,double dTime,double dDelta,int iRoot){
     printf("Computing fluxes... \n");
-    msrSmooth(msr,dTime,SMX_THIRDHYDROLOOP,0,msr->param.nSmooth);
+    msrSmooth(msr,dTime,SMX_THIRDHYDROLOOP,1,msr->param.nSmooth);
 }
 
 
@@ -3580,7 +3580,7 @@ void msrUpdatePrimVars(MSR msr,double dTime,double dDelta,int iRoot){
     in.dTime = dTime;
 
     // IA: We also update the particles densities here (i.e., first hydro loop)
-    msrSetFirstHydroLoop(msr, 0); // 1-> All particles ; 0-> Active particles
+    msrSetFirstHydroLoop(msr, 1); // 1-> we update the particle's h ; 0-> we dont
     printf("Computing density... \n");
     msrSmooth(msr,dTime,SMX_FIRSTHYDROLOOP,0,msr->param.nSmooth);
     msrSetFirstHydroLoop(msr, 0);
@@ -4094,7 +4094,29 @@ void msrHydroStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime) {
     printf("Computing hydro time step... \n");
     msrSmooth(msr,dTime,SMX_HYDROSTEP,bSymmetric,msr->param.nSmooth);
 
+    /* IA: FIXME all particles in the same rung 
+     * TODO activate this from the .par file */
+    uint8_t minDt;
+    minDt = msrGetMinDt(msr);
+    msrSetGlobalDt(msr, minDt);
+
     }
+
+uint8_t msrGetMinDt(MSR msr){
+    struct outGetMinDt out;
+    int nOut;
+
+    pstGetMinDt(msr->pst, NULL, 0, &out, &nOut);
+    return out.uMinDt;
+    }
+
+void msrSetGlobalDt(MSR msr, uint8_t minDt){
+   struct outGetMinDt in;
+   in.uMinDt = minDt;
+
+   pstSetGlobalDt(msr->pst, &in, sizeof(in), NULL, NULL); 
+
+   }
 
 void msrDensityStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime) {
     struct inDensityStep in;
@@ -4544,7 +4566,7 @@ void msrTopStepKDK(MSR msr,
 	}
 
       //if (msrDoGas(msr) && msrMeshlessHydro(msr) && msrDoGravity(msr)){
-      //   msrApplyGravWork(msr, dTime, dDelta, ROOT);   // TODO: Implement
+      //   msrApplyGravWork(msr, dTime, dDelta, ROOT);   // IA TODO: Implement
       //}
     if (msrDoGas(msr) && msrMeshlessHydro(msr)){
         msrUpdatePrimVars(msr, dTime, dDelta, ROOT);
@@ -4906,10 +4928,12 @@ void msrInitSph(MSR msr,double dTime)
     msrCooling(msr,dTime,0,0,1,1); /* Interate cooling for consistent dt */
     }else{ //IA: we set the initial rungs of the particles
         msrActiveRung(msr,0,1);
-        msrUpdatePrimVars(msr, 0.0, 0.0, ROOT);
+        msrUpdatePrimVars(msr, dTime, 0.0, ROOT);
         msrMeshlessGradients(msr, 0.0, 0.0, ROOT);
         msrMeshlessFluxes(msr, 0.0, 0.0, ROOT);
-        msrHydroStep(msr,0,MAX_RUNG,dTime);
+	msrZeroNewRung(msr,0,MAX_RUNG,0); 
+        msrHydroStep(msr,-1,MAX_RUNG,dTime); // We do this twice because we need to have uNewRung for the time limiter
+        msrHydroStep(msr,0.0,MAX_RUNG,dTime);  // of Durier & Dalla Vecchia
         msrUpdateConsVars(msr, 0.0, 0.0, ROOT); // Reset the fluxes
     }
 }

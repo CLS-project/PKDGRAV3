@@ -1386,6 +1386,8 @@ void pkdPhysicalSoft(PKD pkd,double dSoftMax,double dFac,int bSoftMaxMul);
 int pkdWeight(PKD,int,double,int,int,int,int *,int *,double *,double *);
 void pkdCountVA(PKD,int,double,int *,int *);
 double pkdTotalMass(PKD pkd);
+uint8_t pkdGetMinDt(PKD pkd);
+void   pkdSetGlobalDt(PKD pkd, uint8_t minDt);
 int pkdLowerPart(PKD,int,double,int,int);
 int pkdUpperPart(PKD,int,double,int,int);
 int pkdWeightWrap(PKD,int,double,double,int,int,int,int,int *,int *);

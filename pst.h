@@ -229,6 +229,8 @@ enum pst_service {
 #endif
     PST_ASSIGN_MASS,
     PST_TOTALMASS,
+    PST_GETMINDT,
+    PST_SETGLOBALDT,
     PST_LIGHTCONE_OPEN,
     PST_LIGHTCONE_CLOSE,
     PST_LIGHTCONEVEL,
@@ -1383,6 +1385,14 @@ struct outTotalMass {
     double dMass;
     };
 void pstTotalMass(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+
+
+/* PST_GETMINDT */
+struct outGetMinDt {
+    uint8_t uMinDt;
+    };
+void pstGetMinDt(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+void pstSetGlobalDt(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 
 struct inLightConeOpen {
     int nSideHealpix;
