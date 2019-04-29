@@ -120,7 +120,18 @@ void pkdMeasurePk(PKD pkd, double dTotalMass, int iAssignment, int bInterlace,
 	auto i = pos[0]; // i,j,k are all positive (absolute value)
 	auto j = pos[1]>iNyquist ? nGrid - pos[1] : pos[1];
 	auto k = pos[2]>iNyquist ? nGrid - pos[2] : pos[2];
-	double win = W[i] * W[j] * W[k];
+	auto v1 = *index;
+	if (bInterlace) { // jj,kk can be negative
+	    auto jj = pos[1]>iNyquist ? pos[1] - nGrid : pos[1];
+	    auto kk = pos[2]>iNyquist ? pos[2] - nGrid : pos[2];
+	    float theta = M_PI/nGrid * (i + jj + kk);
+	    auto v2 = K2(index.position()) * complex_t(cosf(theta),sinf(theta));
+	    v1 = complex_t(0.5) * (v1 + v2);
+	    }
+	v1 *= fftNormalize;       // Normalize for FFT
+	v1 *= W[i] * W[j] * W[k]; // Correction for mass assignment
+	*index = v1;
+
 	auto ak = sqrt(i*i + j*j + k*k);
 	auto ks = int(ak);
 	if ( ks >= 1 && ks <= iNyquist ) {
@@ -129,20 +140,9 @@ void pkdMeasurePk(PKD pkd, double dTotalMass, int iAssignment, int bInterlace,
 #else
 	    ks = floor(log(ks) * scale);
 #endif
-	    assert(ks>=0 && ks <nBins);
-	    auto v1 = *index * fftNormalize;
-	    if (bInterlace) { // jj,kk can be negative
-		auto jj = pos[1]>iNyquist ? pos[1] - nGrid : pos[1];
-		auto kk = pos[2]>iNyquist ? pos[2] - nGrid : pos[2];
-		float theta = M_PI/nGrid * (i + jj + kk);
-		auto v2 = K2(index.position()) * fftNormalize * complex_t(cosf(theta),sinf(theta));
-		v1 = complex_t(0.5) * (v1 + v2);
-		}
-	    v1 *= win;
-	    *index = v1;
-	    double delta2 = std::norm(v1);
+	    assert(ks>=0 && ks<nBins);
 	    fK[ks] += log(ak);
-	    fPower[ks] += delta2;
+	    fPower[ks] += std::norm(v1);
 	    nPower[ks] += 1;
 	    }
 	}
