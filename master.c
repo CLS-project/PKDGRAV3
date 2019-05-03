@@ -4148,7 +4148,7 @@ void msrLightConeVel(MSR msr) {
 
 void msrCheckForOutput(MSR msr,int iStep,double dTime,int *pbDoCheckpoint,int *pbDoOutput) {
     int iStop, iCheck;
-    long lSec;
+    long lSec = time(0) - msr->lPrior;
 
     /*
     ** Check for user interrupt.
@@ -4188,7 +4188,7 @@ void msrCheckForOutput(MSR msr,int iStep,double dTime,int *pbDoCheckpoint,int *p
 		    || iStop
 			|| (iStep%msrCheckInterval(msr) == 0) )) ) {
 	bGlobalOutput = 0;
-	*pbDoCheckpoint = 1;
+	*pbDoCheckpoint = 1 | (iStop<<1);
 	}
 
     if (msrOutTime(msr,dTime) 
@@ -4198,7 +4198,7 @@ void msrCheckForOutput(MSR msr,int iStep,double dTime,int *pbDoCheckpoint,int *p
 		|| iStep == msrSteps(msr)
 		|| (iStep%msrOutInterval(msr) == 0))) ) {
 	bGlobalOutput = 0;
-	*pbDoOutput = 1;
+	*pbDoOutput = 1  | (iStop<<1);
 	}
     }
 

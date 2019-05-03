@@ -30,20 +30,8 @@
 #define MSR_INIT_E		1
 #define MSR_STEP_E		0
 
-static time_t timeGlobalSignalTime = 0;
-static int bGlobalOutput = 0;
-
-#ifndef _MSC_VER
-static inline void USR1_handler(int signo) {
-    signal(SIGUSR1,USR1_handler);
-    timeGlobalSignalTime = time(0);
-    }
-
-static inline void USR2_handler(int signo) {
-    signal(SIGUSR2,USR2_handler);
-    bGlobalOutput = 1;
-    }
-#endif
+extern time_t timeGlobalSignalTime;
+extern int bGlobalOutput;
 
 typedef struct msrContext {
     PRM prm;
@@ -103,7 +91,7 @@ typedef struct msrContext {
     int bSavePending;
 
     long lStart; /* starting time of job */
-
+    long lPrior; /* starting time of last step */
 
     /* Values for a restore from checkpoint */
     double dCheckpointTime;

@@ -41,6 +41,21 @@
 #include "pkdpython.h"
 #endif
 
+time_t timeGlobalSignalTime = 0;
+int bGlobalOutput = 0;
+
+#ifndef _MSC_VER
+static inline void USR1_handler(int signo) {
+    signal(SIGUSR1,USR1_handler);
+    timeGlobalSignalTime = time(0);
+    }
+
+static inline void USR2_handler(int signo) {
+    signal(SIGUSR2,USR2_handler);
+    bGlobalOutput = 1;
+    }
+#endif
+
 /*
 ** This function is called at the very start by every thread.
 ** It returns the "worker context"; in this case the PST.
@@ -335,7 +350,7 @@ void master(MDL mdl,void *pst) {
 	for (iStep=iStartStep+1;iStep<=msrSteps(msr)&&!iStop;++iStep) {
 	    if (msrComove(msr)) msrSwitchTheta(msr,dTime);
 	    dMultiEff = 0.0;
-	    lSec = time(0);
+	    msr->lPrior = time(0);
 	    if (msr->param.bNewKDK) {
 		diStep = (double)(iStep-1);
 		ddTime = dTime;
@@ -363,7 +378,7 @@ void master(MDL mdl,void *pst) {
 		    &dMultiEff,&iSec);
 		}
 	    dTime += msrDelta(msr);
-	    lSec = time(0) - lSec;
+	    lSec = time(0) - msr->lPrior;
 	    msrMemStatus(msr);
 
 	    msrOutputOrbits(msr,iStep,dTime);
@@ -388,6 +403,7 @@ void master(MDL mdl,void *pst) {
 	    if (!msr->param.bNewKDK) {
 		msrCheckForOutput(msr,iStep,dTime,&bDoCheckpoint,&bDoOutput);
 		}
+	    iStop = (bDoCheckpoint&2) || (bDoOutput&2);
 	    if (bDoCheckpoint) {
 		msrCheckpoint(msr,iStep,dTime);
 		bDoCheckpoint = 0;
