@@ -1,6 +1,6 @@
 /* IA FIXME */ 
-#define GAMMA 1.6666666666666666666 // 1.4 //1.666666666666
-#define GAMMA_MINUS1 0.6666666666666666 //2./3. //0.4 //0.66666666
+#define GAMMA (pkd->param.dConstGamma)//1.6666666666666666666 // 1.4 //1.666666666666
+#define GAMMA_MINUS1 (pkd->param.dConstGamma-1.0) //2./3. //0.4 //0.66666666
 /* END IA */
 #define GAMMA_G1 ((GAMMA-1.0)/(2.0*GAMMA))
 #define GAMMA_G2 ((GAMMA+1.0)/(2.0*GAMMA))
@@ -31,7 +31,7 @@
 #if defined(VISCOSITY) && defined(MAGNETIC)
 //#define SAVE_FACE_VFIELD 1 // for now we use a simpler midpoint velocity; this should be updated for hydro solvers (not just mhd) //
 #endif
-
+#include "pkd.h"
 
 /*
  * This file was written by Phil Hopkins (phopkins@caltech.edu) for GIZMO. 
@@ -141,32 +141,32 @@ struct rotation_matrix
 /* --------------------------------------------------------------------------------- */
 static inline double actual_slopelimiter(double dQ_1, double dQ_2);
 static inline double get_dQ_from_slopelimiter(double dQ_1, MyFloat grad[3], struct kernel_hydra kernel, double rinv);
-void Riemann_solver(struct Input_vec_Riemann Riemann_vec, struct Riemann_outputs *Riemann_out, double n_unit[3], double press_tot_limiter);
-double guess_for_pressure(struct Input_vec_Riemann Riemann_vec, struct Riemann_outputs *Riemann_out,
+void Riemann_solver(PKD pkd, struct Input_vec_Riemann Riemann_vec, struct Riemann_outputs *Riemann_out, double n_unit[3], double press_tot_limiter);
+double guess_for_pressure(PKD pkd, struct Input_vec_Riemann Riemann_vec, struct Riemann_outputs *Riemann_out,
                           double v_line_L, double v_line_R, double cs_L, double cs_R);
-void sample_reimann_standard(double S, struct Input_vec_Riemann Riemann_vec, struct Riemann_outputs *Riemann_out,
+void sample_reimann_standard(PKD pkd, double S, struct Input_vec_Riemann Riemann_vec, struct Riemann_outputs *Riemann_out,
                              double n_unit[3], double v_line_L, double v_line_R, double cs_L, double cs_R);
-void sample_reimann_vaccum_internal(double S, struct Input_vec_Riemann Riemann_vec, struct Riemann_outputs *Riemann_out,
+void sample_reimann_vaccum_internal(PKD pkd, double S, struct Input_vec_Riemann Riemann_vec, struct Riemann_outputs *Riemann_out,
                                     double n_unit[3], double v_line_L, double v_line_R, double cs_L, double cs_R);
-void sample_reimann_vaccum_right(double S, struct Input_vec_Riemann Riemann_vec, struct Riemann_outputs *Riemann_out,
+void sample_reimann_vaccum_right(PKD pkd, double S, struct Input_vec_Riemann Riemann_vec, struct Riemann_outputs *Riemann_out,
                                  double n_unit[3], double v_line_L, double v_line_R, double cs_L, double cs_R);
-void sample_reimann_vaccum_left(double S, struct Input_vec_Riemann Riemann_vec, struct Riemann_outputs *Riemann_out,
+void sample_reimann_vaccum_left(PKD pkd, double S, struct Input_vec_Riemann Riemann_vec, struct Riemann_outputs *Riemann_out,
                                 double n_unit[3], double v_line_L, double v_line_R, double cs_L, double cs_R);
-void Riemann_solver_exact(struct Input_vec_Riemann Riemann_vec, struct Riemann_outputs *Riemann_out, double n_unit[3],
+void Riemann_solver_exact(PKD pkd, struct Input_vec_Riemann Riemann_vec, struct Riemann_outputs *Riemann_out, double n_unit[3],
                             double v_line_L, double v_line_R, double cs_L, double cs_R, double h_L, double h_R);
-void HLLC_fluxes(struct Input_vec_Riemann Riemann_vec, struct Riemann_outputs *Riemann_out, double n_unit[3],
+void HLLC_fluxes(PKD pkd, struct Input_vec_Riemann Riemann_vec, struct Riemann_outputs *Riemann_out, double n_unit[3],
                  double v_line_L, double v_line_R, double cs_L, double cs_R, double h_L, double h_R, double S_L, double S_R);
-void get_wavespeeds_and_pressure_star(struct Input_vec_Riemann Riemann_vec, struct Riemann_outputs *Riemann_out, double n_unit[3],
+void get_wavespeeds_and_pressure_star(PKD pkd, struct Input_vec_Riemann Riemann_vec, struct Riemann_outputs *Riemann_out, double n_unit[3],
                                       double v_line_L, double v_line_R, double cs_L, double cs_R, double h_L, double h_R,
                                       double *S_L_out, double *S_R_out, double press_tot_limiter);
-void Riemann_solver_Rusanov(struct Input_vec_Riemann Riemann_vec, struct Riemann_outputs *Riemann_out, double n_unit[3],
+void Riemann_solver_Rusanov(PKD pkd, struct Input_vec_Riemann Riemann_vec, struct Riemann_outputs *Riemann_out, double n_unit[3],
                             double v_line_L, double v_line_R, double cs_L, double cs_R, double h_L, double h_R);
-void HLLC_Riemann_solver(struct Input_vec_Riemann Riemann_vec, struct Riemann_outputs *Riemann_out, double n_unit[3],
+void HLLC_Riemann_solver(PKD pkd, struct Input_vec_Riemann Riemann_vec, struct Riemann_outputs *Riemann_out, double n_unit[3],
                          double v_line_L, double v_line_R, double cs_L, double cs_R, double h_L, double h_R, double press_tot_limiter);
-void convert_face_to_flux(struct Riemann_outputs *Riemann_out, double n_unit[3]);
-int iterative_Riemann_solver(struct Input_vec_Riemann Riemann_vec, struct Riemann_outputs *Riemann_out,
+void convert_face_to_flux(PKD pkd, struct Riemann_outputs *Riemann_out, double n_unit[3]);
+int iterative_Riemann_solver(PKD pkd, struct Input_vec_Riemann Riemann_vec, struct Riemann_outputs *Riemann_out,
                               double v_line_L, double v_line_R, double cs_L, double cs_R);
-void reconstruct_face_states(double Q_i, MyFloat Grad_Q_i[3], double Q_j, MyFloat Grad_Q_j[3],
+void reconstruct_face_states(PKD pkd, double Q_i, MyFloat Grad_Q_i[3], double Q_j, MyFloat Grad_Q_j[3],
                              double distance_from_i[3], double distance_from_j[3], double *Q_L, double *Q_R, int mode);
 #ifdef MAGNETIC
 void HLLD_Riemann_solver(struct Input_vec_Riemann Riemann_vec, struct Riemann_outputs *Riemann_out, double press_tot_limiter);
@@ -180,7 +180,7 @@ void rotate_fluxes_back_to_lab(struct Riemann_outputs *Riemann_out, struct rotat
 /* reconstruction procedure (use to extrapolate from cell/particle centered quantities to faces) */
 /*  (reconstruction and slope-limiter from P. Hopkins) */
 /* --------------------------------------------------------------------------------- */
-void reconstruct_face_states(double Q_i, MyFloat Grad_Q_i[3], double Q_j, MyFloat Grad_Q_j[3],
+void reconstruct_face_states(PKD pkd, double Q_i, MyFloat Grad_Q_i[3], double Q_j, MyFloat Grad_Q_j[3],
                              double distance_from_i[3], double distance_from_j[3], double *Q_L, double *Q_R, int mode)
 {/*IA: Not used in my version*/}
 
@@ -219,7 +219,7 @@ static inline double get_dQ_from_slopelimiter(double dQ_1, MyFloat grad[3], stru
 /* Master Riemann solver routine: call this, it will call sub-routines */
 /*  (written by P. Hopkins, this is just a wrapper though for the various sub-routines) */
 /* --------------------------------------------------------------------------------- */
-void Riemann_solver(struct Input_vec_Riemann Riemann_vec, struct Riemann_outputs *Riemann_out, double n_unit[3], double press_tot_limiter)
+void Riemann_solver(PKD pkd, struct Input_vec_Riemann Riemann_vec, struct Riemann_outputs *Riemann_out, double n_unit[3], double press_tot_limiter)
 {
     if((Riemann_vec.L.p < 0 || Riemann_vec.R.p < 0)||(Riemann_vec.L.rho < 0)||(Riemann_vec.R.rho < 0))
     {
@@ -295,17 +295,17 @@ void Riemann_solver(struct Input_vec_Riemann Riemann_vec, struct Riemann_outputs
     double v_line_L = Riemann_vec.L.v[0]*n_unit[0] + Riemann_vec.L.v[1]*n_unit[1] + Riemann_vec.L.v[2]*n_unit[2];
     double v_line_R = Riemann_vec.R.v[0]*n_unit[0] + Riemann_vec.R.v[1]*n_unit[1] + Riemann_vec.R.v[2]*n_unit[2];
     
-    HLLC_Riemann_solver(Riemann_vec, Riemann_out, n_unit, v_line_L, v_line_R, cs_L, cs_R, h_L, h_R, press_tot_limiter);
+    HLLC_Riemann_solver(pkd, Riemann_vec, Riemann_out, n_unit, v_line_L, v_line_R, cs_L, cs_R, h_L, h_R, press_tot_limiter);
 #ifdef EOS_GENERAL
     /* check if HLLC failed: if so, compute the Rusanov flux instead */
     if((Riemann_out->P_M<=0)||(isnan(Riemann_out->P_M)))
-        Riemann_solver_Rusanov(Riemann_vec, Riemann_out, n_unit, v_line_L, v_line_R, cs_L, cs_R, h_L, h_R);
+        Riemann_solver_Rusanov(pkd, Riemann_vec, Riemann_out, n_unit, v_line_L, v_line_R, cs_L, cs_R, h_L, h_R);
 #else
 #if !defined(COOLING) && !defined(GALSF)
     /* go straight to the expensive but exact solver (only for hydro with polytropic eos!) */
     if((Riemann_out->P_M<=0)||(isnan(Riemann_out->P_M))||(Riemann_out->P_M>press_tot_limiter))
     {
-        Riemann_solver_exact(Riemann_vec, Riemann_out, n_unit, v_line_L, v_line_R, cs_L, cs_R, h_L, h_R);
+        Riemann_solver_exact(pkd, Riemann_vec, Riemann_out, n_unit, v_line_L, v_line_R, cs_L, cs_R, h_L, h_R);
 #ifdef SAVE_FACE_DENSITY
         Riemann_out->Face_Density = 0.5*(Riemann_vec.L.rho + Riemann_vec.R.rho);
 #endif
@@ -337,15 +337,24 @@ void Riemann_solver(struct Input_vec_Riemann Riemann_vec, struct Riemann_outputs
 /*  (wrapper for sub-routines to evaluate hydro reimann problem) */
 /* -------------------------------------------------------------------------------------------------------------- */
 /* HLLC: hydro (no MHD) */
-void HLLC_Riemann_solver(struct Input_vec_Riemann Riemann_vec, struct Riemann_outputs *Riemann_out, double n_unit[3],
+void HLLC_Riemann_solver(PKD pkd, struct Input_vec_Riemann Riemann_vec, struct Riemann_outputs *Riemann_out, double n_unit[3],
                         double v_line_L, double v_line_R, double cs_L, double cs_R, double h_L, double h_R, double press_tot_limiter)
 {
     double S_L,S_R;
-    get_wavespeeds_and_pressure_star(Riemann_vec, Riemann_out, n_unit,  v_line_L, v_line_R, cs_L, cs_R, h_L, h_R, &S_L, &S_R, press_tot_limiter);
+    get_wavespeeds_and_pressure_star(pkd, Riemann_vec, Riemann_out, n_unit,  v_line_L, v_line_R, cs_L, cs_R, h_L, h_R, &S_L, &S_R, press_tot_limiter);
 #ifdef HYDRO_MESHLESS_FINITE_VOLUME
     /* check if we have a valid solution, and if so, compute the fluxes */
     if((Riemann_out->P_M>0)&&(!isnan(Riemann_out->P_M))){
-        HLLC_fluxes(Riemann_vec, Riemann_out, n_unit,  v_line_L, v_line_R, cs_L, cs_R, h_L, h_R, S_L, S_R);
+  /* DEBUG
+    printf("v_line_L %e \t v_line_R %e \n", v_line_L, v_line_R);
+    printf("cs_L %e \t cs_R %e \n", cs_L, cs_R);
+    printf("h_L %e \t h_R %e \n", h_L, h_R);
+    printf("S_L %e \t S_R %e \n", S_L, S_R);
+    printf("S_M %e \t P_M %e \n", Riemann_out->S_M, Riemann_out->P_M);
+  */
+
+
+        HLLC_fluxes(pkd, Riemann_vec, Riemann_out, n_unit,  v_line_L, v_line_R, cs_L, cs_R, h_L, h_R, S_L, S_R);
     }else{
 //       printf("Negative pressures! \n");
     }
@@ -368,7 +377,7 @@ void HLLC_Riemann_solver(struct Input_vec_Riemann Riemann_vec, struct Riemann_ou
 
 /*  Rusanov flux: generally not used, because it's too diffusive. But here if we need it. 
         (this implementation written by P. Hopkins) */
-void Riemann_solver_Rusanov(struct Input_vec_Riemann Riemann_vec, struct Riemann_outputs *Riemann_out, double n_unit[3],
+void Riemann_solver_Rusanov(PKD pkd, struct Input_vec_Riemann Riemann_vec, struct Riemann_outputs *Riemann_out, double n_unit[3],
                             double v_line_L, double v_line_R, double cs_L, double cs_R, double h_L, double h_R)
 {
     /* estimate wave speed and simplest-average intermediate state
@@ -410,7 +419,7 @@ void Riemann_solver_Rusanov(struct Input_vec_Riemann Riemann_vec, struct Riemann
     Lagrangian (contact-wave) method; note we keep trying several methods here in the hopes of eventually getting a
     valid (positive-pressure) solution */
 /*  (written by P. Hopkins) */
-void get_wavespeeds_and_pressure_star(struct Input_vec_Riemann Riemann_vec, struct Riemann_outputs *Riemann_out, double n_unit[3],
+void get_wavespeeds_and_pressure_star(PKD pkd, struct Input_vec_Riemann Riemann_vec, struct Riemann_outputs *Riemann_out, double n_unit[3],
                                       double v_line_L, double v_line_R, double cs_L, double cs_R, double h_L, double h_R,
                                       double *S_L_out, double *S_R_out, double press_tot_limiter)
 {
@@ -486,7 +495,7 @@ void get_wavespeeds_and_pressure_star(struct Input_vec_Riemann Riemann_vec, stru
 /* ... fluxes from HLLC four-wave sampling ... */
 /*  (written by P. Hopkins) */
 /* --------------------------------------------------------------------------------- */
-void HLLC_fluxes(struct Input_vec_Riemann Riemann_vec, struct Riemann_outputs *Riemann_out, double n_unit[3],
+void HLLC_fluxes(PKD pkd, struct Input_vec_Riemann Riemann_vec, struct Riemann_outputs *Riemann_out, double n_unit[3],
                  double v_line_L, double v_line_R, double cs_L, double cs_R, double h_L, double h_R, double S_L, double S_R)
 {
     /* note that we are solving everything in the REST FRAME of the interface, then de-boosting the Riemann solution in the main loop */
@@ -568,7 +577,7 @@ void HLLC_fluxes(struct Input_vec_Riemann Riemann_vec, struct Riemann_outputs *R
 /*  exact Riemann solver here -- deals with all the problematic states! */
 /*  (written by V. Springel for AREPO; as are the extensions to the exact solver below) */
 /* --------------------------------------------------------------------------------- */
-void Riemann_solver_exact(struct Input_vec_Riemann Riemann_vec, struct Riemann_outputs *Riemann_out, double n_unit[3],
+void Riemann_solver_exact(PKD pkd, struct Input_vec_Riemann Riemann_vec, struct Riemann_outputs *Riemann_out, double n_unit[3],
                        double v_line_L, double v_line_R, double cs_L, double cs_R, double h_L, double h_R)
 {
 //   printf("Going for the exact Riemann Solver \n");
@@ -585,30 +594,30 @@ void Riemann_solver_exact(struct Input_vec_Riemann Riemann_vec, struct Riemann_o
     /* the usual situation is here:: */
     if((Riemann_vec.L.rho > 0) && (Riemann_vec.R.rho > 0))
     {
-        if(iterative_Riemann_solver(Riemann_vec, Riemann_out, v_line_L, v_line_R, cs_L, cs_R))
+        if(iterative_Riemann_solver(pkd, Riemann_vec, Riemann_out, v_line_L, v_line_R, cs_L, cs_R))
         {
 //           printf("Normal Riemann solution %e \n", Riemann_out->Fluxes.rho);
             /* this is the 'normal' Reimann solution */
-            sample_reimann_standard(0.0,Riemann_vec,Riemann_out,n_unit,v_line_L,v_line_R,cs_L,cs_R);
+            sample_reimann_standard(pkd, 0.0,Riemann_vec,Riemann_out,n_unit,v_line_L,v_line_R,cs_L,cs_R);
 //           printf("Normal Riemann solution %e \n", Riemann_out->Fluxes.rho);
         }
         else
         {
             /* ICs lead to vacuum, need to sample vacuum solution */
-            sample_reimann_vaccum_internal(0.0,Riemann_vec,Riemann_out,n_unit,v_line_L,v_line_R,cs_L,cs_R);
+            sample_reimann_vaccum_internal(pkd, 0.0,Riemann_vec,Riemann_out,n_unit,v_line_L,v_line_R,cs_L,cs_R);
         }
     } else {
         /* one of the densities is zero or negative */
         if((Riemann_vec.L.rho<0)||(Riemann_vec.R.rho<0))
             exit(1234);
         if(Riemann_vec.L.rho>0)
-            sample_reimann_vaccum_right(0.0,Riemann_vec,Riemann_out,n_unit,v_line_L,v_line_R,cs_L,cs_R);
+            sample_reimann_vaccum_right(pkd, 0.0,Riemann_vec,Riemann_out,n_unit,v_line_L,v_line_R,cs_L,cs_R);
         if(Riemann_vec.R.rho>0)
-            sample_reimann_vaccum_left(0.0,Riemann_vec,Riemann_out,n_unit,v_line_L,v_line_R,cs_L,cs_R);
+            sample_reimann_vaccum_left(pkd, 0.0,Riemann_vec,Riemann_out,n_unit,v_line_L,v_line_R,cs_L,cs_R);
     }
 #ifdef HYDRO_MESHLESS_FINITE_VOLUME
     /* if we got a valid solution, this solver returns face states: need to convert these to fluxes */
-    convert_face_to_flux(Riemann_out, n_unit);
+    convert_face_to_flux(pkd, Riemann_out, n_unit);
 #endif
 }
 
@@ -618,7 +627,7 @@ void Riemann_solver_exact(struct Input_vec_Riemann Riemann_vec, struct Riemann_o
 /* left state is a vacuum, but right state is not: sample the fan appropriately */
 /*  (written by V. Springel for AREPO) */
 /* --------------------------------------------------------------------------------- */
-void sample_reimann_vaccum_left(double S, struct Input_vec_Riemann Riemann_vec, struct Riemann_outputs *Riemann_out,
+void sample_reimann_vaccum_left(PKD pkd, double S, struct Input_vec_Riemann Riemann_vec, struct Riemann_outputs *Riemann_out,
                                 double n_unit[3], double v_line_L, double v_line_R, double cs_L, double cs_R)
 {
     double S_R = v_line_R - GAMMA_G4 * cs_R;
@@ -666,7 +675,7 @@ void sample_reimann_vaccum_left(double S, struct Input_vec_Riemann Riemann_vec, 
 /* right state is a vacuum, but left state is not: sample the fan appropriately */
 /*  (written by V. Springel for AREPO) */
 /* --------------------------------------------------------------------------------- */
-void sample_reimann_vaccum_right(double S, struct Input_vec_Riemann Riemann_vec, struct Riemann_outputs *Riemann_out,
+void sample_reimann_vaccum_right(PKD pkd, double S, struct Input_vec_Riemann Riemann_vec, struct Riemann_outputs *Riemann_out,
                                 double n_unit[3], double v_line_L, double v_line_R, double cs_L, double cs_R)
 {
     //double S_L = v_line_L - GAMMA_G4 * cs_L;
@@ -717,7 +726,7 @@ void sample_reimann_vaccum_right(double S, struct Input_vec_Riemann Riemann_vec,
 /*   (note that these solutions are identical to the left/right solutions above) */
 /*  (written by V. Springel for AREPO) */
 /* --------------------------------------------------------------------------------- */
-void sample_reimann_vaccum_internal(double S, struct Input_vec_Riemann Riemann_vec, struct Riemann_outputs *Riemann_out,
+void sample_reimann_vaccum_internal(PKD pkd, double S, struct Input_vec_Riemann Riemann_vec, struct Riemann_outputs *Riemann_out,
                                     double n_unit[3], double v_line_L, double v_line_R, double cs_L, double cs_R)
 {
     double S_L = v_line_L + GAMMA_G4 * cs_L;
@@ -725,12 +734,12 @@ void sample_reimann_vaccum_internal(double S, struct Input_vec_Riemann Riemann_v
     if(S <= S_L)
     {
         /* left fan */
-        sample_reimann_vaccum_right(S,Riemann_vec,Riemann_out,n_unit,v_line_L,v_line_R,cs_L,cs_R);
+        sample_reimann_vaccum_right(pkd, S,Riemann_vec,Riemann_out,n_unit,v_line_L,v_line_R,cs_L,cs_R);
     }
     else if(S >= S_R)
     {
         /* right fan */
-        sample_reimann_vaccum_left(S,Riemann_vec,Riemann_out,n_unit,v_line_L,v_line_R,cs_L,cs_R);
+        sample_reimann_vaccum_left(pkd, S,Riemann_vec,Riemann_out,n_unit,v_line_L,v_line_R,cs_L,cs_R);
     }
     else
     {
@@ -756,7 +765,7 @@ void sample_reimann_vaccum_internal(double S, struct Input_vec_Riemann Riemann_v
 /*  This is the "normal" Riemann fan, with no vacuum on L or R state! */
 /*  (written by V. Springel for AREPO) */
 /* --------------------------------------------------------------------------------- */
-void sample_reimann_standard(double S, struct Input_vec_Riemann Riemann_vec, struct Riemann_outputs *Riemann_out,
+void sample_reimann_standard(PKD pkd, double S, struct Input_vec_Riemann Riemann_vec, struct Riemann_outputs *Riemann_out,
                              double n_unit[3], double v_line_L, double v_line_R, double cs_L, double cs_R)
 {
 #ifndef HYDRO_MESHLESS_FINITE_VOLUME
@@ -920,7 +929,7 @@ void sample_reimann_standard(double S, struct Input_vec_Riemann Riemann_vec, str
 /*  (written by P. Hopkins; however this is adapted from the iterative solver in 
         ATHENA by J. Stone) */
 /* --------------------------------------------------------------------------------- */
-int iterative_Riemann_solver(struct Input_vec_Riemann Riemann_vec, struct Riemann_outputs *Riemann_out, double v_line_L, double v_line_R, double cs_L, double cs_R)
+int iterative_Riemann_solver(PKD pkd, struct Input_vec_Riemann Riemann_vec, struct Riemann_outputs *Riemann_out, double v_line_L, double v_line_R, double cs_L, double cs_R)
 {
     /* before going on, let's compare this to an exact Riemann solution calculated iteratively */
     double Pg,Pg_prev,W_L,W_R,Z_L,Z_R,tol,pratio; int niter_Riemann=0;
@@ -931,7 +940,7 @@ int iterative_Riemann_solver(struct Input_vec_Riemann Riemann_vec, struct Rieman
     if(check_vel < 0) return 0;
     
     tol=100.0;
-    Pg = guess_for_pressure(Riemann_vec, Riemann_out, v_line_L, v_line_R, cs_L, cs_R);
+    Pg = guess_for_pressure(pkd, Riemann_vec, Riemann_out, v_line_L, v_line_R, cs_L, cs_R);
     while((tol>TOL_ITER)&&(niter_Riemann<NMAX_ITER))
     {
         Pg_prev=Pg;
@@ -992,7 +1001,7 @@ int iterative_Riemann_solver(struct Input_vec_Riemann Riemann_vec, struct Rieman
 /* get a pressure guess to begin iteration, for the iterative exact Riemann solver(s) */
 /*   (written by V. Springel for AREPO, with minor modifications) */
 /* --------------------------------------------------------------------------------- */
-double guess_for_pressure(struct Input_vec_Riemann Riemann_vec, struct Riemann_outputs *Riemann_out, double v_line_L, double v_line_R, double cs_L, double cs_R)
+double guess_for_pressure(PKD pkd, struct Input_vec_Riemann Riemann_vec, struct Riemann_outputs *Riemann_out, double v_line_L, double v_line_R, double cs_L, double cs_R)
 {
     double pmin, pmax;
     /* start with the usual lowest-order guess for the contact wave pressure */
@@ -1034,7 +1043,7 @@ double guess_for_pressure(struct Input_vec_Riemann Riemann_vec, struct Riemann_o
  /*    take the face state we have calculated from the exact Riemann solution and get the corresponding fluxes */
 /*   (written by V. Springel for AREPO, with minor modifications) */
  /* -------------------------------------------------------------------------------------------------------------- */
-void convert_face_to_flux(struct Riemann_outputs *Riemann_out, double n_unit[3])
+void convert_face_to_flux(PKD pkd, struct Riemann_outputs *Riemann_out, double n_unit[3])
 {
     double rho, P, v[3], v_line=0, v_frame=0, h=0; int k;
     rho = Riemann_out->Fluxes.rho;

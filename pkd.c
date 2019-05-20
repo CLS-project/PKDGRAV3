@@ -2125,7 +2125,7 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,BND *bnd,PARTICLE *p) {
           T = pSph->E - 0.5*( pSph->mom[0]*pSph->mom[0] + pSph->mom[1]*pSph->mom[1] + pSph->mom[2]*pSph->mom[2])/pkdMass(pkd,p);
           T *= pSph->omega*(pkd->param.dConstGamma - 1.);
 	    fioWriteSph(fio,iParticleID,r,v,fMass,fSoft,*pPot,
-		fDensity,pSph->P,pSph->fMetals);
+		fDensity,pSph->P,pSph->E);
 	    }
 	break;
     case FIO_SPECIES_DARK:

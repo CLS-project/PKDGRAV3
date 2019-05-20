@@ -660,7 +660,7 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 //       riemann_input.L.rho = 1.0; riemann_input.L.p = 1.0; riemann_input.L.v[0] = 0.0;
 //       riemann_input.L.rho = 0.125; riemann_input.L.p = 0.1; riemann_input.L.v[0] = 0.0;
 
-       Riemann_solver(riemann_input, &riemann_output, face_unit, /*double press_tot_limiter TODO For now, just p>0: */ 0.0);
+       Riemann_solver(pkd, riemann_input, &riemann_output, face_unit, /*double press_tot_limiter TODO For now, just p>0: */ 0.0);
 
        // IA: DEBUG
 //       printf("Riemann_output: rho %e \tp %e \tv %e %e %e \n", riemann_output.Fluxes.rho, riemann_output.Fluxes.p, riemann_output.Fluxes.v[0], riemann_output.Fluxes.v[1], riemann_output.Fluxes.v[2]);
@@ -701,6 +701,7 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
           }
        }
 
+       // /*
        if (!pkdIsActive(pkd,q)){  
             *qmass += minDt * riemann_output.Fluxes.rho ;
 
@@ -720,7 +721,8 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
             qsph->E += minDt * riemann_output.Fluxes.p;
             }  
-       }
+       } //*/
+       //if (qh/0.501 > rpq){
             *pmass -= minDt * riemann_output.Fluxes.rho ;
 
             psph->mom[0] -= minDt * riemann_output.Fluxes.v[0] ;
@@ -728,6 +730,7 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
             psph->mom[2] -= minDt * riemann_output.Fluxes.v[2] ;
 
             psph->E -= minDt * riemann_output.Fluxes.p;
+       //}
        }
 /*IA:  Old fluxes update (see 15/04/19 ) 
  * TODO: This is not needed for the update of the conserved variables. Instead,
@@ -735,11 +738,13 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
  * substantially improved
  */
        // IA: Own contribution is always added
+       //if (qh/0.501 > rpq){
        psph->Frho += riemann_output.Fluxes.rho; 
        psph->Fene += riemann_output.Fluxes.p; 
        for(j=0;j<3;j++) {psph->Fmom[j] += riemann_output.Fluxes.v[j];} 
+       //}
 
-
+// /*
        if (!pkdIsActive(pkd,q)){
           qsph->Frho -= riemann_output.Fluxes.rho;
           qsph->Fene -= riemann_output.Fluxes.p;
@@ -751,7 +756,7 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
                for(j=0;j<3;j++){ qsph->Fmom[j] -= riemann_output.Fluxes.v[j]; }
             } 
        }
-
+// */
     } // IA: End of loop over neighbors
 
 
