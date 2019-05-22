@@ -1594,6 +1594,15 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 		sizeof(int), "meshlessHydro",
 		"Use the new implementation of the hydrodynamics");
 
+    msr->param.bConservativeReSmooth = 0;
+    prmAddParam(msr->prm,"bConservativeReSmooth", 0, &msr->param.bConservativeReSmooth,
+		sizeof(int), "resmooth",
+		"Use re-smoothing for the fluxes and gradients computation");
+
+    msr->param.bGlobalDt = 0;
+    prmAddParam(msr->prm,"bGlobalDt", 0, &msr->param.bGlobalDt,
+		sizeof(int), "globaldt",
+		"Force all particles to the same rung");
     /* END of new params */
 
     msr->param.bAccelStep = 0;
@@ -2838,28 +2847,28 @@ void msrBuildTreeMarked(MSR msr,double dTime) {
     }
 
 void msrReorder(MSR msr) { //IA TODO FIXME figure out why this crashes and creates pathological configurations (probably sph field not being copied...)
-//    if (!msr->param.bMemUnordered) {
-//	struct inDomainOrder in;
-//	double sec,dsec;
+//  if (!msr->param.bMemUnordered) {
+//    struct inDomainOrder in;
+//    double sec,dsec;
 
-//	msrprintf(msr,"Ordering...\n");
-//	sec = msrTime();
-//	in.iMinOrder = 0;
-//	in.iMaxOrder = msrMaxOrder(msr)-1;
-//	pstDomainOrder(msr->pst,&in,sizeof(in),NULL,NULL);
-//	in.iMinOrder = 0;
-//	in.iMaxOrder = msrMaxOrder(msr)-1;
-//	pstLocalOrder(msr->pst,&in,sizeof(in),NULL,NULL);
-//	dsec = msrTime() - sec;
-//	msrprintf(msr,"Order established, Wallclock: %f secs\n\n",dsec);
+//    msrprintf(msr,"Ordering...\n");
+//    sec = msrTime();
+//    in.iMinOrder = 0;
+//    in.iMaxOrder = msrMaxOrder(msr)-1;
+//    pstDomainOrder(msr->pst,&in,sizeof(in),NULL,NULL);
+//    in.iMinOrder = 0;
+//    in.iMaxOrder = msrMaxOrder(msr)-1;
+//    pstLocalOrder(msr->pst,&in,sizeof(in),NULL,NULL);
+//    dsec = msrTime() - sec;
+//    msrprintf(msr,"Order established, Wallclock: %f secs\n\n",dsec);
 
-	/*
-	** Mark domain decomp as not done.
-	*/
-//	msr->iLastRungRT = -1;
-//	msr->iLastRungDD = -1;
-//	}
-    }
+//  /*
+//  ** Mark domain decomp as not done.
+//  */
+//    msr->iLastRungRT = -1;
+//    msr->iLastRungDD = -1;
+//    }
+  }
 
 void msrOutASCII(MSR msr,const char *pszFile,int iType,int nDims) {
 
@@ -3564,13 +3573,21 @@ void msrUpdateConsVars(MSR msr,double dTime,double dDelta,int iRoot) {
 
 void msrMeshlessGradients(MSR msr,double dTime,double dDelta,int iRoot){
     printf("Computing gradients... \n");
-    msrSmooth(msr,dTime,SMX_SECONDHYDROLOOP,0,msr->param.nSmooth);
+    if (msr->param.bConservativeReSmooth){
+       msrReSmooth(msr,dTime,SMX_SECONDHYDROLOOP,0);
+    }else{
+       msrSmooth(msr,dTime,SMX_SECONDHYDROLOOP,0, msr->param.nSmooth);
+    }
 }
 
 
 void msrMeshlessFluxes(MSR msr,double dTime,double dDelta,int iRoot){
     printf("Computing fluxes... \n");
-    msrSmooth(msr,dTime,SMX_THIRDHYDROLOOP,1,msr->param.nSmooth);
+    if (msr->param.bConservativeReSmooth){
+       msrReSmooth(msr,dTime,SMX_THIRDHYDROLOOP,0); 
+    }else{
+       msrSmooth(msr,dTime,SMX_THIRDHYDROLOOP,0,msr->param.nSmooth);
+    }
 }
 
 
@@ -4092,14 +4109,13 @@ void msrHydroStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime) {
     int bSymmetric = 0; 
 
     printf("Computing hydro time step... \n");
-    msrSmooth(msr,dTime,SMX_HYDROSTEP,bSymmetric,msr->param.nSmooth);
+    msrReSmooth(msr,dTime,SMX_HYDROSTEP,bSymmetric);
 
-    /* IA: FIXME all particles in the same rung 
-     * TODO activate this from the .par file */
-    uint8_t minDt;
-    minDt = msrGetMinDt(msr);
-    msrSetGlobalDt(msr, minDt);
-
+    if (msr->param.bGlobalDt){
+       uint8_t minDt;
+       minDt = msrGetMinDt(msr);
+       msrSetGlobalDt(msr, minDt);
+    }
     }
 
 uint8_t msrGetMinDt(MSR msr){

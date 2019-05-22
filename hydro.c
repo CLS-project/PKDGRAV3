@@ -391,7 +391,7 @@ void hydroGradients(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
        diff = qsph->P - psph->P;
        for (j=0; j<3; j++) {psph->gradP[j] += diff*psiTilde_p[j]; }
 
-       }
+    }
 
      /* IA: Now we can limit them */
 //    printf("(hydroGradients) Begin LIMITER \n");
@@ -400,6 +400,11 @@ void hydroGradients(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     rho_min= vx_min= vy_min= vz_min= p_min =  HUGE_VAL;
     rho_max= vx_max= vy_max= vz_max= p_max = -HUGE_VAL;
 
+    //IA: Test for Gaburov limiter
+   // double irho_min, irho_max, ip_max, ip_min;
+   // irho_min=  ip_min =  HUGE_VAL;
+   // irho_max=  ip_max = -HUGE_VAL;
+
     pv = pkdVel(pkd,p);
     for (i=0; i<nSmooth;++i){
 //       if (nnList[i].dx==0 && nnList[i].dy==0 && nnList[i].dz==0) continue;
@@ -407,6 +412,10 @@ void hydroGradients(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
        qsph = pkdSph(pkd, q);
        qv = pkdVel(pkd,q);
 
+    //IA: Test for Gaburov limiter
+      // double irho = pkdDensity(pkd,p) + (psph->gradRho[0]*dx + psph->gradRho[1]*dy + psph->gradRho[2]*dz);
+      // if (irho < irho_min) irho_min = irho;
+      // if (irho > irho_max) irho_max = irho;
        if (pkdDensity(pkd,q) < rho_min) rho_min = pkdDensity(pkd,q);
        if (pkdDensity(pkd,q) > rho_max) rho_max = pkdDensity(pkd,q);
 
@@ -419,20 +428,35 @@ void hydroGradients(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
        if (qv[2] < vz_min) vz_min = qv[2];
        if (qv[2] > vz_max) vz_max = qv[2];
 
+    //IA: Test for Gaburov limiter
+      // double ip = psph->P + (psph->gradP[0]*dx + psph->gradP[1]*dy + psph->gradP[2]*dz);
+      // if (ip < ip_min) ip_min = ip;
+      // if (ip > ip_max) ip_max = ip;
        if (qsph->P < p_min) p_min = qsph->P;
        if (qsph->P > p_max) p_max = qsph->P;
     }
+ 
+    /*
+    //IA: Test for Gaburov limiter
+    double a = ( rho_max-pkdDensity(pkd,p) )/ ( irho_max-pkdDensity(pkd,p) );
+    double b = ( pkdDensity(pkd,p)-rho_min )/ ( pkdDensity(pkd,p)-irho_min );
+    limRho = a<b ? a : b;
+    limRho = 1<limRho ? 1 : limRho;
+
+    a = ( p_max-psph->P )/ ( ip_max-psph->P );
+    b = ( psph->P-p_min )/ ( psph->P-ip_min );
+    limP = a<b ? a : b;
+    limP = 1<limP ? 1 : limP;
+    */
 
     limRho= limVx= limVy= limVz= limP = 1.;
-    double maxdx = 0.0; //IA TODO For debugging
     for (i=0; i<nSmooth;++i){
-	 dx = -nnList[i].dx;
+	 dx = -nnList[i].dx; //Vector from p to q
 	 dy = -nnList[i].dy;
 	 dz = -nnList[i].dz;
        if (dx==0 && dy==0 && dz==0) continue;
        q = nnList[i].pPart;
        qsph = pkdSph(pkd, q);
-       if (maxdx < fabs(dx)) maxdx = fabs(dx);
 
        // Las diferencias se pueden poner fuera, siempre son con p
        BarthJespersenLimiter(&limRho, psph->gradRho, rho_max-pkdDensity(pkd,p), rho_min-pkdDensity(pkd,p), dx, dy, dz);
@@ -450,18 +474,25 @@ void hydroGradients(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
        psph->gradP[j] *= limP;
     }
     /* END OF LIMITER */
-//    if (limRho<0.5) {
-//      printf("Limiter: rho %e \t v %e %e %e \t p %e \n", limRho, limVx, limVy, limVz, limP);
-//      printf("x %e y %e z %e \n", pkdPos(pkd,p,0), pkdPos(pkd,p,1), pkdPos(pkd,p,2));
-//      printf("gradRho %e \n", psph->gradRho[0]);
-//    }
+    /*
+    if (p->iOrder==55) {
+      printf("Limiter: rho %e \t v %e %e %e \t p %e \n", limRho, limVx, limVy, limVz, limP);
+      printf("x %e y %e z %e \n", pkdPos(pkd,p,0), pkdPos(pkd,p,1), pkdPos(pkd,p,2));
+      printf("gradRho %e \n", psph->gradRho[0]);
+      
+      for (i=0; i<nSmooth;++i){
+       q = nnList[i].pPart;
+         printf("\t p %" PRId64 " \t q %" PRId64 " \n", p->iOrder, q->iOrder);
+      }
+    }
+    */
     }
 
 
 void BarthJespersenLimiter(double* limVar, double* gradVar, double var_max, double var_min, double dx, double dy, double dz){
     double diff, lim;
 
-    diff = gradVar[0]*dx + gradVar[1]*dy + gradVar[2]*dz;
+    diff = (gradVar[0]*dx + gradVar[1]*dy + gradVar[2]*dz);
     if (var_min > 0) { var_min=0; } //IA: Can happen due to machine precision
     if (var_max < 0) { var_max=0; } //IA: Can happen due to machine precision
     if (diff > 0.) {
@@ -472,7 +503,8 @@ void BarthJespersenLimiter(double* limVar, double* gradVar, double var_max, doub
        lim = 1.;
     }
     if (lim > 1.) lim = 1.; // min(1,lim)
-    if (lim < (*limVar) && lim>=0.) {/*printf("aa %e \n", lim);*/ *limVar = lim;} //IA: the second condition can happen due to machine precision errors when dealing with constant fields
+    if (lim < 0.) lim = 0.;
+    if (lim < (*limVar)) { *limVar = lim;} 
     // FIXME IA: Option to avoid extrapolation or limiter
 //    *limVar = 1.0;
 //    *limVar = 0.0;
@@ -501,13 +533,7 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     int i,j;
 
     psph = pkdSph(pkd, p);   
-    ph = pkdBall(pkd, p); //fBall;
-
-    if (smf->dTime > 0) {
-       pDeltaHalf = 0.5*( smf->dDelta/(1<<p->uRung) );
-    }else{
-       pDeltaHalf = 0.0; // For the initialization step we do not extrapolate because we dont have a reliable dDelta
-    }
+    ph = pkdBall(pkd, p); 
 
     pDensity = pkdDensity(pkd,p);
 
@@ -519,10 +545,24 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
        qsph = pkdSph(pkd, q);
        qh = pkdBall(pkd,q); 
 
+
+       /* IA: We update the conservatives variables taking the minimum timestep between the particles, as in AREPO */
+       if (!pkdIsActive(pkd,q)) { // If q is not active we now that p has the smallest dt 
+          minDt = smf->dDelta/(1<<p->uRung) ;
+       } else { // Otherwise we need to explicitly check
+          if (p->uRung > q->uRung) {
+             minDt = smf->dDelta/(1<<p->uRung) ;
+          }else{
+             minDt = smf->dDelta/(1<<q->uRung) ;
+          }
+       }
+
        if (smf->dTime > 0) {
-          qDeltaHalf = smf->dTime - qsph->lastUpdateTime + pDeltaHalf; 
+          pDeltaHalf = smf->dTime - psph->lastUpdateTime + minDt*0.5;
+          qDeltaHalf = smf->dTime - qsph->lastUpdateTime + minDt*0.5; //smf->dTime - qsph->lastUpdateTime + pDeltaHalf; 
        }else{
           qDeltaHalf = 0.0; // For the initialization step we do not extrapolate because we dont have a reliable dDelta
+          pDeltaHalf = 0.0;
        }
 //       printf("pDeltaHalf %e qDeltaHalf %e \n", pDeltaHalf, qDeltaHalf);
 
@@ -530,7 +570,7 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 	 dy = nnList[i].dy;
 	 dz = nnList[i].dz;
 
-       /* IA: in the nnList there is a 'copy' of the own particle, which we can omit as there is no fluxes
+       /* IA: in the nnList there is a 'copy' of the own particle, which we can omit as there are no fluxes
         * to be computed here */
        if (dx==0 && dy==0 && dz==0) continue;
 
@@ -538,16 +578,19 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
        hpq = 0.5*(qh+ph); // IA: We symmetrize the kernel size 
 //       hpq = qh > ph ? qh : ph; 
        rpq = sqrt(nnList[i].fDist2);
+       if (qh/0.50 < rpq) continue;
 
        Wpq = cubicSplineKernel(rpq, hpq); 
 //       Wpq = 0.5*( cubicSplineKernel(rpq, ph) + cubicSplineKernel(rpq, qh) ); 
        if (Wpq==0.0){/*printf("hpq %e rpq %e \t %e \n", hpq, rpq, rpq/hpq); */continue; }
 
-       psi = Wpq/psph->omega;
+       // \tilde{\psi}_j (x_i)
+       psi = Wpq/psph->omega;   
        psiTilde_p[0] = (psph->B[XX]*dx + psph->B[XY]*dy + psph->B[XZ]*dz)*psi;
        psiTilde_p[1] = (psph->B[XY]*dx + psph->B[YY]*dy + psph->B[YZ]*dz)*psi;
        psiTilde_p[2] = (psph->B[XZ]*dx + psph->B[YZ]*dy + psph->B[ZZ]*dz)*psi;
 
+       // \tilde{\psi}_i (x_j)
        psi = -Wpq/qsph->omega; // IA: minus because we are 'looking from' the other particle, thus -dr
        psiTilde_q[0] = (qsph->B[XX]*dx + qsph->B[XY]*dy + qsph->B[XZ]*dz)*psi;
        psiTilde_q[1] = (qsph->B[XY]*dx + qsph->B[YY]*dy + qsph->B[YZ]*dz)*psi;
@@ -607,7 +650,7 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
       riemann_input.L.p = psph->P;
       riemann_input.R.p = qsph->P;
 
-//      printf("1) L.rho %e \t R.rho %e \n", riemann_input.L.rho, riemann_input.R.rho);
+//      printf("1) L.rho %e \t R.rho %e \n", riemann_input.L.rho, riemann_input.R.rho);     
 //      printf("1) L.p %e \t R.p %e \n", riemann_input.L.p, riemann_input.R.p);
 
       // We add the gradients terms (from extrapolation and forward prediction)
@@ -637,16 +680,26 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
          riemann_input.L.v[j] -= pv[j]*pdivv + psph->gradP[j]/pDensity*pDeltaHalf;
          riemann_input.R.v[j] -= qv[j]*qdivv + qsph->gradP[j]/pkdDensity(pkd,q)*qDeltaHalf;
       }
+/*
+      uint64_t A, B;
+      A = 4;
+      B = 55;
+
+if (p->iOrder == A || p->iOrder==B){
+      printf("%d \t p %" PRId64 "; %e \t q %" PRId64 "; %e \t %e \n", i, p->iOrder, 2.*pkdBall(pkd,p), q->iOrder, 2.*pkdBall(pkd,q), rpq);
+}
+*/
 
       riemann_input.L.rho -= pDensity*pdivv;
       riemann_input.R.rho -= pkdDensity(pkd,q)*qdivv;
       riemann_input.L.p -= pkd->param.dConstGamma*psph->P*pdivv;
       riemann_input.R.p -= pkd->param.dConstGamma*qsph->P*qdivv;
+//if ((p->iOrder == B && q->iOrder==A) || (p->iOrder == A && q->iOrder==B)){     
 //      printf("3) L.rho %e \t R.rho %e \n", riemann_input.L.rho, riemann_input.R.rho);
 //      printf("3) L.p %e \t R.p %e \n", riemann_input.L.p, riemann_input.R.p);
-//      printf("p - gradRho %e %e %e \n", psph->gradRho[0], psph->gradRho[1], psph->gradRho[2]);
-//      printf("q - gradRho %e %e %e \n", qsph->gradRho[0], qsph->gradRho[1], qsph->gradRho[2]);
-
+//      printf("p %" PRId64 " - gradRho %e %e %e \n", p->iOrder, psph->gradRho[0], psph->gradRho[1], psph->gradRho[2]);
+//      printf("q %" PRId64 " - gradRho %e %e %e \n", q->iOrder, qsph->gradRho[0], qsph->gradRho[1], qsph->gradRho[2]);
+//}
 
        // It seems that in hydra_core_meshless.h they do not rotate any velocity, they just pass the face_unit
        // to the Riemann solver and let it do its stuff..
@@ -660,10 +713,13 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 //       riemann_input.L.rho = 1.0; riemann_input.L.p = 1.0; riemann_input.L.v[0] = 0.0;
 //       riemann_input.L.rho = 0.125; riemann_input.L.p = 0.1; riemann_input.L.v[0] = 0.0;
 
+       if (riemann_input.L.rho <= 0) {riemann_input.L.rho = pkdDensity(pkd,p); printf("WARNING, L.rho < 0 : using first-order scheme \n"); }
+       if (riemann_input.R.rho <= 0) {riemann_input.R.rho = pkdDensity(pkd,q); printf("WARNING, R.rho < 0 : using first-order scheme \n"); }
+       if (riemann_input.L.p <= 0) {riemann_input.L.p = psph->P;    printf("WARNING, L.p < 0 : using first-order scheme \n"); }
+       if (riemann_input.R.p <= 0) {riemann_input.R.p = qsph->P;    printf("WARNING, R.p < 0 : using first-order scheme \n");}
        Riemann_solver(pkd, riemann_input, &riemann_output, face_unit, /*double press_tot_limiter TODO For now, just p>0: */ 0.0);
 
        // IA: DEBUG
-//       printf("Riemann_output: rho %e \tp %e \tv %e %e %e \n", riemann_output.Fluxes.rho, riemann_output.Fluxes.p, riemann_output.Fluxes.v[0], riemann_output.Fluxes.v[1], riemann_output.Fluxes.v[2]);
 //       abort();
 
        // Check for NAN fluxes
@@ -685,23 +741,15 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
        riemann_output.Fluxes.rho *= modApq;
        for (j=0;j<3;j++) {riemann_output.Fluxes.v[j] *= modApq; riemann_output.Fluxes.v[j] += vFrame[j]*riemann_output.Fluxes.rho;  } // De-boost (modApq included in Fluxes.rho)
 
+//if ((p->iOrder == A && q->iOrder==B) || (p->iOrder == B && q->iOrder==A)){     
+//         printf("Riemann_output: rho %e \tp %e \tv %e %e %e \n", riemann_output.Fluxes.rho, riemann_output.Fluxes.p, riemann_output.Fluxes.v[0], riemann_output.Fluxes.v[1], riemann_output.Fluxes.v[2]);
+//}
 
        if (smf->dTime > 0){
-       /* IA: We update the conservatives variables taking the minimum timestep between the particles */
        pmass = pkdField(p,pkd->oMass);
        qmass = pkdField(q,pkd->oMass);
 
-       if (!pkdIsActive(pkd,q)) { // If q is not active we now that p has the smallest dt 
-          minDt = smf->dDelta/(1<<p->uRung) ;
-       } else { // Otherwise we need to explicitly check
-          if (p->uRung > q->uRung) {
-             minDt = smf->dDelta/(1<<p->uRung) ;
-          }else{
-             minDt = smf->dDelta/(1<<q->uRung) ;
-          }
-       }
 
-       // /*
        if (!pkdIsActive(pkd,q)){  
             *qmass += minDt * riemann_output.Fluxes.rho ;
 
@@ -710,19 +758,7 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
             qsph->mom[2] += minDt * riemann_output.Fluxes.v[2] ;
 
             qsph->E += minDt * riemann_output.Fluxes.p;
-       }else{
-            if ( qh/0.501 < rpq ) {  // q is active but p is not in its neighbors list
-
-            *qmass += minDt * riemann_output.Fluxes.rho ;
-
-            qsph->mom[0] += minDt * riemann_output.Fluxes.v[0] ;
-            qsph->mom[1] += minDt * riemann_output.Fluxes.v[1] ;
-            qsph->mom[2] += minDt * riemann_output.Fluxes.v[2] ;
-
-            qsph->E += minDt * riemann_output.Fluxes.p;
-            }  
-       } //*/
-       //if (qh/0.501 > rpq){
+       } 
             *pmass -= minDt * riemann_output.Fluxes.rho ;
 
             psph->mom[0] -= minDt * riemann_output.Fluxes.v[0] ;
@@ -730,7 +766,6 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
             psph->mom[2] -= minDt * riemann_output.Fluxes.v[2] ;
 
             psph->E -= minDt * riemann_output.Fluxes.p;
-       //}
        }
 /*IA:  Old fluxes update (see 15/04/19 ) 
  * TODO: This is not needed for the update of the conserved variables. Instead,
@@ -738,29 +773,19 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
  * substantially improved
  */
        // IA: Own contribution is always added
-       //if (qh/0.501 > rpq){
        psph->Frho += riemann_output.Fluxes.rho; 
        psph->Fene += riemann_output.Fluxes.p; 
        for(j=0;j<3;j++) {psph->Fmom[j] += riemann_output.Fluxes.v[j];} 
-       //}
 
-// /*
        if (!pkdIsActive(pkd,q)){
           qsph->Frho -= riemann_output.Fluxes.rho;
           qsph->Fene -= riemann_output.Fluxes.p;
           for(j=0;j<3;j++){ qsph->Fmom[j] -= riemann_output.Fluxes.v[j]; }
-       }else{ 
-            if (qh/0.501 < rpq) {  // q is active but p is not in its neighbors list
-               qsph->Frho -= riemann_output.Fluxes.rho;
-               qsph->Fene -= riemann_output.Fluxes.p;
-               for(j=0;j<3;j++){ qsph->Fmom[j] -= riemann_output.Fluxes.v[j]; }
-            } 
        }
-// */
     } // IA: End of loop over neighbors
 
 
-    // IA: Mass change limiter. For now, disables as it does not make a lot of sense. To keep the conservative
+    // IA: Mass change limiter. For now, disabled as it does not make a lot of sense. To keep the conservative
     // properties of the code, this could be added as a time limiter
    /* 
     double dmass_limiter = 0.1*pkdMass(pkd,p), dmass_holder = psph->Frho * ( smf->dDelta/(1<<p->uRung) );
@@ -848,10 +873,10 @@ void hydroStep(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     for (i=0; i<nSmooth; ++i){
         q = nnList[i].pPart;
 
-	if ( (q->uNewRung > p->uNewRung) &&  (q->uNewRung - p->uNewRung) > 2) uNewRung = q->uNewRung-2;
+        if ( (q->uNewRung - p->uNewRung) > 2) uNewRung = q->uNewRung-1;
 
+        if (uNewRung > p->uNewRung ) p->uNewRung = uNewRung; 
     }
-    if (uNewRung > p->uNewRung ) p->uNewRung = uNewRung; 
     
     }
 

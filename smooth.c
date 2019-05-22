@@ -790,6 +790,8 @@ float smSmoothSingle(SMX smx,SMF *smf,PARTICLE *p,int iRoot1, int iRoot2) {
     /*
     ** Search in replica boxes if it is required.
     */
+//    printf("fPeriod %f %f %f \n",pkd->fPeriod[0],pkd->fPeriod[1],pkd->fPeriod[2] );
+//    printf("x %f y %f z %f \n", p_r[0], p_r[1], p_r[2]);
     if (smx->bPeriodic) {
 	fBall = sqrt(pq->fDist2);
 	for (j=0;j<3;++j) {
@@ -802,6 +804,8 @@ float smSmoothSingle(SMX smx,SMF *smf,PARTICLE *p,int iRoot1, int iRoot2) {
 		r[1] = p_r[1] - iy*pkd->fPeriod[1];
 		for (iz=iStart[2];iz<=iEnd[2];++iz) {
 		    r[2] = p_r[2] - iz*pkd->fPeriod[2];
+//    printf("\t ix %d iy %d iz %d \n", ix, iy, iz);
+//    printf("\t x %f y %f z %f \n", r[0], r[1], r[2]);
 		    if (ix || iy || iz) {
 			pq = pqSearch(smx,pq,r,iRoot1);
 			if (iRoot2) pq = pqSearch(smx,pq,r,iRoot2);
@@ -820,7 +824,7 @@ float smSmoothSingle(SMX smx,SMF *smf,PARTICLE *p,int iRoot1, int iRoot2) {
     for (i=0; i<smx->nSmooth; ++i){
        if (fBall < smx->pq[i].fDist2) fBall = smx->pq[i].fDist2;
     }
-    fBall = 0.501*sqrt(fBall);
+    fBall = 0.50*sqrt(fBall);
 
 
     /*
@@ -852,15 +856,19 @@ void smSmooth(SMX smx,SMF *smf) {
       }else{
          if (pkdIsActive(pkd,p)){ 
             fBall = smSmoothSingle(smx,smf,p,ROOT,0);
-            if (smf->FirstHydroLoop)
+            if (smf->FirstHydroLoop){
                 pkdSetBall(pkd,p,fBall);
-
-
-//    for (pj=0;pj<smx->nSmooth;++pj) {
-//	p2= smx->nnList[pj].pPart; //pkdParticle(pkd,pj);
-//	p2->bMarked = 1;
             }
-//         }
+/*            
+    smSmoothFinish(smx);
+    for (pj=0;pj<pkd->nLocal;++pj) {
+	p2 = pkdParticle(pkd,pj);
+	p2->bMarked = 1;
+    }
+    smSmoothInitialize(smx);
+    smf->pfDensity = NULL;
+*/
+            }
       }
 	/*
 	** Call mdlCacheCheck to make sure we are making progress!
@@ -2587,6 +2595,7 @@ void smReSmoothSingle(SMX smx,SMF *smf,PARTICLE *p,double fBall) {
     /*
     ** Apply smooth funtion to the neighbor list.
     */
+    //printf("smx->nnList %d \n", smx->nnListSize);
     smx->fcnSmooth(p,fBall,smx->nnListSize,smx->nnList,smf);
     /*
     ** Release acquired pointers.
@@ -2606,6 +2615,7 @@ void smReSmooth(SMX smx,SMF *smf) {
     smf->pfDensity = NULL;
     for (pi=0;pi<pkd->nLocal;++pi) {
 	p = pkdParticle(pkd,pi);
-	smReSmoothSingle(smx,smf,p,pkdBall(pkd,p));
+      if (pkdIsActive(pkd,p))
+         smReSmoothSingle(smx,smf,p,2.*pkdBall(pkd,p));
     }
 }

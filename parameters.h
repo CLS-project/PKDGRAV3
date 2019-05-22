@@ -232,6 +232,12 @@ struct parameters {
      */
     int bMeshlessHydro;
     int bFirstHydroLoop;
+    int bConservativeReSmooth;
+
+    /* 
+     * IA: Parameter for fixing all particles to the same rung
+     */
+    int bGlobalDt;
 
 #ifdef MDL_FFTW
     int nGridPk;
