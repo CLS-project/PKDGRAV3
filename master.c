@@ -3613,13 +3613,22 @@ void msrUpdatePrimVars(MSR msr,double dTime,double dDelta,int iRoot){
     // IA: We also update the particles densities here (i.e., first hydro loop)
     printf("Computing density... \n");
     if (msr->param.bIterativeSmoothingLength){
-       msrSelAll(msr);
+       msrSelAll(msr); // We set all particles as "not converged"
        while (nSmoothed>0 && it <= maxit){
           msrSetFirstHydroLoop(msr, 1); // 1-> we care if the particle is marked ; 0-> we dont
           nSmoothed = msrReSmooth(msr,dTime,SMX_FIRSTHYDROLOOP,0);
           msrSetFirstHydroLoop(msr, 0);
           it++;
        }
+       if (nSmoothed >0) { /* IA: If we reach the maximum iteration number without full convergence, we compute the smoothing length
+                            * as the mean of the surrounding particles which have already converged.
+                            * If there are none, the fBall is unmodified 
+                            */
+                              
+         // msrSetFirstHydroLoop(msr, 1); // 1-> we care if the particle is marked ; 0-> we dont
+         // nSmoothed = msrReSmooth(msr,dTime,SMX_MEANSMOOTHING,0);
+         // msrSetFirstHydroLoop(msr, 0);
+       } 
        printf("Computing h took %d iterations \n", it);
     }else{
        msrSetFirstHydroLoop(msr, 1); // 1-> we update the particle's h ; 0-> we dont

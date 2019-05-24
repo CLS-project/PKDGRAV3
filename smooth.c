@@ -2596,7 +2596,7 @@ void smReSmoothSingle(SMX smx,SMF *smf,PARTICLE *p,double fBall) {
     ** Apply smooth funtion to the neighbor list.
     */
     //printf("smx->nnList %d \n", smx->nnListSize);
-    smx->fcnSmooth(p,fBall,smx->nnListSize,smx->nnList,smf);
+    smx->fcnSmooth(p,0.5*fBall,smx->nnListSize,smx->nnList,smf);
     /*
     ** Release acquired pointers.
     */

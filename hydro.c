@@ -239,12 +239,7 @@ void hydroDensity(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
     /* Particle p data */
     psph = pkdSph(pkd,p);
-    ph = fBall;//*0.5;
-                     /* IA: fBall is the radius of the sphere that encloses nSmooth neighbors.
-                      *  In order to haven non-zero contributions of those, h = r/2, because
-                      *  W \neq 0 if rpq<2 */
-    // TODO: When using the non-conservative scheme ph=fBall; GENERALIZE!
-
+    ph = fBall;
 
     /* IA: Compute the \omega(x_i) normalization factor */
     psph->omega = 0.0;
@@ -262,15 +257,15 @@ void hydroDensity(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
      *    - Particles not marked are those with a correct smoothing length
      */
     if (pkd->param.bIterativeSmoothingLength && p->bMarked){
-       c = 4.*M_PI/3. * psph->omega; 
-       if (fabs(nSmooth-pkd->param.nSmooth) < pkd->param.iNeighborsStd){
-       //if (fabs(c*fBall*fBall*fBall-pkd->param.nSmooth) < pkd->param.iNeighborsStd){
+       c = 4.*M_PI/3. * psph->omega ; 
+       //if (fabs(nSmooth-pkd->param.nSmooth) < pkd->param.iNeighborsStd){
+       if (fabs(c*fBall*fBall*fBall*8.-pkd->param.nSmooth) < pkd->param.iNeighborsStd){
           p->bMarked = 0;
        }else{
           if (psph->fLastBall == 0.0) { // IA: We have just read the input file. So we can only do one Newton iteration
-             float newBall = pow( pkd->param.nSmooth/c, 1./3.) ;      
-//             printf("p %" PRId64 " omega %e Nngb %e nSmooth %d fBall %e newBall %e NewNngb %e \n", p->iOrder, psph->omega, c*fBall*fBall*fBall, nSmooth, fBall, newBall, c*newBall*newBall*newBall);
-             pkdSetBall(pkd,p, newBall ); 
+             float newBall = pow( pkd->param.nSmooth/c, 1./3.)/2.;      
+             printf("p %" PRId64 " omega %e Nngb %e nSmooth %d fBall %e newBall %e NewNngb %e \n", p->iOrder, psph->omega, c*fBall*fBall*fBall*8., nSmooth, fBall, newBall, c*newBall*newBall*newBall*8.);
+             pkdSetBall(pkd,p, newBall); 
              psph->fLastBall = fBall;
              psph->nLastNeighs = nSmooth;
           }else{ //IA: We have the last two points, thus we can apply the bisection rule
