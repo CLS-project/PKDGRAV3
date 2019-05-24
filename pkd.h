@@ -198,6 +198,11 @@ typedef struct sphfields {
     /* IA: Primitive variables */
     double P;
 
+    /* IA: fBall from the last iteration. Used for the bisection algorithm */
+    float fLastBall;
+    /* IA: Number of neighbors correspoding to that fBall */
+    int nLastNeighs;
+
     /* IA: TODO temporarly */
     uint8_t uNewRung; 
 

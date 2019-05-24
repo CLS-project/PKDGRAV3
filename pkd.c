@@ -1119,6 +1119,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	    fioReadSph(fio,&iParticleID,r,vel,&fMass,&fSoft,pPot,
 			     &fDensity/*?*/,&u,&fMetals); //IA: misreading, u means temperature
 	    pkdSetDensity(pkd,p,fDensity);
+          pkdSetBall(pkd,p,fSoft);
 	    if (pSph) {
 		pSph->u = u * dTuFac; /* Can't do precise conversion until density known */
 		pSph->fMetals = fMetals;
@@ -1138,6 +1139,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             pSph->mom[0] = fMass*vel[0];
             pSph->mom[1] = fMass*vel[1];
             pSph->mom[2] = fMass*vel[2];
+            pSph->fLastBall = 0.0;
 		}
 	    break;
 	case FIO_SPECIES_DARK:
@@ -2837,8 +2839,8 @@ void pkdComputePrimVars(PKD pkd,int iRoot, double dTime) {
 
             //IA: FIXME TEST for new velocity update
 //            psph->P = (psph->E - 0.5*( pkdVel(pkd,p)[0]*pkdVel(pkd,p)[0] + pkdVel(pkd,p)[1]*pkdVel(pkd,p)[1] + pkdVel(pkd,p)[2]*pkdVel(pkd,p)[2] ) * pkdMass(pkd,p) )*psph->omega*(pkd->param.dConstGamma -1.);
-//            printf("P %e E %e mom %e %e %e \n", psph->P, psph->E, psph->mom[0], psph->mom[1], psph->mom[2]);
-//
+//           printf("P %e E %e mom %e %e %e omega %e \n", psph->P, psph->E, psph->mom[0], psph->mom[1], psph->mom[2], psph->omega);
+
               /* IA: If new velocity update (done in pkdKick), this should not be done */
             pkdVel(pkd,p)[0] = psph->mom[0]/pkdMass(pkd,p);
             pkdVel(pkd,p)[1] = psph->mom[1]/pkdMass(pkd,p);

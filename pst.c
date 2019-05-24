@@ -300,7 +300,7 @@ void pstAddServices(PST pst,MDL mdl) {
 		  sizeof(struct inSetRung),0);
     mdlAddService(mdl,PST_RESMOOTH,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstReSmooth,
-		  sizeof(struct inSmooth),0);
+		  sizeof(struct inSmooth),sizeof(struct outSmooth));
     mdlAddService(mdl,PST_UPDATERUNG,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstUpdateRung,
 		  sizeof(struct inUpdateRung),sizeof(struct outUpdateRung));
@@ -2745,14 +2745,43 @@ void pstFastGasCleanup(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     }
 #endif
 
+
+/*
+void pstGetMinDt(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    struct outGetMinDt *out = vout;
+    struct outGetMinDt outUpper;
+    int nOut;
+
+    if (pst->nLeaves > 1) {
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_GETMINDT,vin,nIn);
+	pstGetMinDt(pst->pstLower,vin,nIn,vout,pnOut);
+	mdlGetReply(pst->mdl,rID,&outUpper,&nOut);
+	assert(nOut==sizeof(struct outGetMinDt));
+	if (out->uMinDt < outUpper.uMinDt) out->uMinDt = outUpper.uMinDt;
+	}
+    else {
+	out->uMinDt = pkdGetMinDt(plcl->pkd);
+	}
+    if (pnOut) *pnOut = sizeof(struct outGetMinDt);
+    }
+
+*/
+
+
 void pstReSmooth(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     struct inSmooth *in = vin;
+    struct outSmooth *out = vout;
+    struct outSmooth outUpper;
+    int nOut;
 
-    mdlassert(pst->mdl,nIn == sizeof(struct inSmooth));
+//    mdlassert(pst->mdl,nIn == sizeof(struct inSmooth));
     if (pst->nLeaves > 1) {
 	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_RESMOOTH,in,nIn);
-	pstReSmooth(pst->pstLower,in,nIn,NULL,NULL);
-	mdlGetReply(pst->mdl,rID,NULL,NULL);
+	pstReSmooth(pst->pstLower,vin,nIn,vout,pnOut);
+	mdlGetReply(pst->mdl,rID,&outUpper,&nOut);
+	assert(nOut==sizeof(struct outSmooth));
+      out->nSmoothed += outUpper.nSmoothed;
 	}
     else {
 	LCL *plcl = pst->plcl;
@@ -2760,10 +2789,10 @@ void pstReSmooth(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 
 	smInitialize(&smx,plcl->pkd,&in->smf,in->nSmooth,
 		     in->bPeriodic,in->bSymmetric,in->iSmoothType);
-	smReSmooth(smx,&in->smf);
+	out->nSmoothed = smReSmooth(smx,&in->smf);
 	smFinish(smx,&in->smf);
 	}
-    if (pnOut) *pnOut = 0;
+    if (pnOut) *pnOut = sizeof(struct outSmooth);
     }
 
 

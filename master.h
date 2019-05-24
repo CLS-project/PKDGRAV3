@@ -148,7 +148,7 @@ int msrFirstHydroLoop(MSR msr);
 void msrSetFirstHydroLoop(MSR msr, int value);
 void msrFastGasPhase1(MSR,double,int);
 void msrFastGasPhase2(MSR,double,int);
-void msrReSmooth(MSR,double,int,int);
+int  msrReSmooth(MSR,double,int,int);
 void msrUpdateSoft(MSR,double);
 uint8_t msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
     double dTime,double dStep,int bKickClose,int bKickOpen,int bEwald,int nGroup,int *piSec,uint64_t *pnActive);

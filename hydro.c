@@ -9,7 +9,7 @@
 #include "riemann.h"
 #include <stdio.h>
 
-
+//IA: Ref https://pysph.readthedocs.io/en/latest/reference/kernels.html
 double cubicSplineKernel(double r, double h) {
    double q;
    q = r/h;
@@ -44,7 +44,8 @@ void inverseMatrix(double* E, double* B){
    B[YZ] = -(E[XX]*E[YZ] - E[XY]*E[XZ])/det;
 
    if (det==0) {
-      printf("Singular matrix!");
+      printf("Singular matrix!\n");
+      printf("XX %e \nXY %e \t YY %e \nXZ %e \t YZ %e \t ZZ %e \n", E[XX], E[XY], E[YY], E[XZ], E[YZ], E[ZZ]);
       abort();
    }
 
@@ -61,8 +62,7 @@ void initHydroLoop(void *vpkd, void *vp) {
 	SPHFIELDS *psph = pkdSph(pkd,p);
 	psph->uDot = 0;
 	psph->fMetalsDot = 0;
-      for (i=0;i<6;i++) { psph->B[i] = 0.0; }
-      psph->omega = 0.0;
+//      for (i=0;i<6;i++) { psph->B[i] = 0.0; }
 //      p->uNewRung = 0;
 //      for (i=0;i<3;i++) { 
 //         psph->Fmom[i] = 0.0;
@@ -89,8 +89,7 @@ void initHydroLoopCached(void *vpkd, void *vp) {
 	SPHFIELDS *psph = pkdSph(pkd,p);
 	psph->uDot = 0;
 	psph->fMetalsDot = 0;
-      for (i=0;i<6;i++) { psph->B[i] = 0.0; }
-      psph->omega = 0.0;
+//      for (i=0;i<6;i++) { psph->B[i] = 0.0; }
 //      p->uNewRung = 0;
 //      for (i=0;i<3;i++) { 
 //         psph->Fmom[i] = 0.0;
@@ -199,11 +198,11 @@ void initHydroFluxesCached(void *vpkd, void *vp) {
     int i;
 
     float *pmass = pkdField(p,pkd->oMass);
-    *pmass = 0.0;
-    psph->mom[0] = 0.;
-    psph->mom[1] = 0.;
-    psph->mom[2] = 0.;
-    psph->E = 0.;
+//    *pmass = 0.0;
+//    psph->mom[0] = 0.;
+//    psph->mom[1] = 0.;
+//    psph->mom[2] = 0.;
+//    psph->E = 0.;
 
 //    if (pkdIsActive(pkd,p)) {
 //      psph->Frho = 0.0;
@@ -220,13 +219,13 @@ void initHydroGradients(void *vpkd, void *vp) {
     assert(!pkd->bNoParticleOrder);
     SPHFIELDS *psph = pkdSph(pkd,p);
     int j;
-    for (j=0; j<3;j++){
-      psph->gradRho[j] = 0.0;
-      psph->gradVx[j] = 0.0;
-      psph->gradVy[j] = 0.0;
-      psph->gradVz[j] = 0.0;
-      psph->gradP[j] = 0.0;
-      }
+//    for (j=0; j<3;j++){
+//      psph->gradRho[j] = 0.0;
+//      psph->gradVx[j] = 0.0;
+//      psph->gradVy[j] = 0.0;
+//      psph->gradVz[j] = 0.0;
+//      psph->gradP[j] = 0.0;
+//      }
     }
 
 
@@ -235,22 +234,16 @@ void hydroDensity(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
     PARTICLE *q;
     SPHFIELDS *psph;
-    double ph, qh, rpq, hpq, dx,dy,dz,Wpq;
+    double ph, qh, rpq, hpq, dx,dy,dz,Wpq, c;
     int i;
-
-    /*
-    assert(!pkd->bNoParticleOrder);
-
-    aFac = (smf->a);        // comoving acceleration factor 
-    vFac = (smf->bComove ? 1./(smf->a*smf->a) : 1.0); // converts v to xdot 
-    dConstGammainv = 1/smf->dConstGamma;
-    dtC = (1+0.6*smf->alpha)/(smf->a*smf->dEtaCourant);
-    dtMu = (0.6*smf->beta)/(smf->a*smf->dEtaCourant);
-    */
 
     /* Particle p data */
     psph = pkdSph(pkd,p);
-    ph = fBall; /* IA: fBall seems to be the minimun distance to any neighbors ¿? Although it would be logical to be the maximum */
+    ph = fBall;//*0.5;
+                     /* IA: fBall is the radius of the sphere that encloses nSmooth neighbors.
+                      *  In order to haven non-zero contributions of those, h = r/2, because
+                      *  W \neq 0 if rpq<2 */
+    // TODO: When using the non-conservative scheme ph=fBall; GENERALIZE!
 
 
     /* IA: Compute the \omega(x_i) normalization factor */
@@ -259,15 +252,89 @@ void hydroDensity(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
        q = nnList[i].pPart;
 
        rpq = sqrt(nnList[i].fDist2);
-       hpq = ph; // IA: We symmetrize the kernel size (probably needed, not sure)
+       hpq = ph; 
 
        psph->omega += cubicSplineKernel(rpq, hpq);
+    }
+    
+    /* IA: If we are using a iterative procedure for computing the smoothing length, then:
+     *    - Particles marked are those which still needs iterations
+     *    - Particles not marked are those with a correct smoothing length
+     */
+    if (pkd->param.bIterativeSmoothingLength && p->bMarked){
+       c = 4.*M_PI/3. * psph->omega; 
+       if (fabs(nSmooth-pkd->param.nSmooth) < pkd->param.iNeighborsStd){
+       //if (fabs(c*fBall*fBall*fBall-pkd->param.nSmooth) < pkd->param.iNeighborsStd){
+          p->bMarked = 0;
+       }else{
+          if (psph->fLastBall == 0.0) { // IA: We have just read the input file. So we can only do one Newton iteration
+             float newBall = pow( pkd->param.nSmooth/c, 1./3.) ;      
+//             printf("p %" PRId64 " omega %e Nngb %e nSmooth %d fBall %e newBall %e NewNngb %e \n", p->iOrder, psph->omega, c*fBall*fBall*fBall, nSmooth, fBall, newBall, c*newBall*newBall*newBall);
+             pkdSetBall(pkd,p, newBall ); 
+             psph->fLastBall = fBall;
+             psph->nLastNeighs = nSmooth;
+          }else{ //IA: We have the last two points, thus we can apply the bisection rule
+             if (psph->fLastBall == fBall) {p->bMarked=0; return; } // We got stuck
+
+             int minNeighs = psph->nLastNeighs < nSmooth ? psph->nLastNeighs : nSmooth;
+             float minBall = psph->fLastBall < fBall ? psph->fLastBall : fBall;
+
+
+             int maxNeighs = psph->nLastNeighs > nSmooth ? psph->nLastNeighs : nSmooth;
+             float maxBall = psph->fLastBall > fBall ? psph->fLastBall : fBall;
+
+             if (minNeighs > pkd->param.nSmooth){ 
+                pkdSetBall(pkd, p, 0.92*minBall); 
+                psph->fLastBall = minBall;
+                psph->nLastNeighs = minNeighs;
+             }else if (maxNeighs < pkd->param.nSmooth) {
+                pkdSetBall(pkd, p, 1.23*maxBall);
+                psph->fLastBall = maxBall;
+                psph->nLastNeighs = maxNeighs;
+             }else{
+                pkdSetBall(pkd, p, 0.5*(minBall + maxBall));
+                psph->fLastBall = 0.0;
+                psph->nLastNeighs = minNeighs;
+             }
+/*
+             if ( psph->nLastNeighs > nSmooth ){ // We had more neighbors before
+                if (nSmooth > pkd->param.nSmooth) { // But still more than the expected
+                   // We keep iterating using a Newton method
+                   float newBall = 0.9*fBall; //pow( pkd->param.nSmooth/c, 1./3.) ;      
+                   pkdSetBall(pkd,p, newBall ); 
+                   psph->fLastBall = fBall;
+                   psph->nLastNeighs = nSmooth;
+                   
+                }else{ // And the target is in between. Apply middle point rule
+                   pkdSetBall(pkd,p, (psph->fLastBall + fBall)*0.5 );
+                   psph->fLastBall = fBall;
+                   psph->nLastNeighs = nSmooth;
+                }
+
+             }else{  // We had less neighbors
+
+                if (pkd->param.nSmooth < psph->nLastNeighs) {  // And we still have too much compared to the target
+                   // So we can only do a newton iteration
+                   float newBall = 0.9*pow( pkd->param.nSmooth/c, 1./3.) ;      
+                   pkdSetBall(pkd,p, newBall ); 
+                   //psph->fLastBall = fBall;
+                   //psph->nLastNeighs = nSmooth;
+                }else{ // The target is in between.
+                   pkdSetBall(pkd,p, (psph->fLastBall + fBall)*0.5 );
+                   psph->fLastBall = fBall;
+                   psph->nLastNeighs = nSmooth;
+                }
+
+             }
+                */
+             
+          }
+       }
     }
 
 
     /* IA: We compute the density making use of Eq. 27 Hopkins 2015 */
     pkdSetDensity(pkd,p, pkdMass(pkd,p)*psph->omega);
-/*    if(pkdDensity(pkd,p) > 3)*/  //  printf("mass %e \t omega %e \t density %e \n",pkdMass(pkd,p), psph->omega, pkdMass(pkd,p)*psph->omega);
 }
 
 
@@ -316,6 +383,7 @@ void hydroGradients(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
        E[XZ] += dz*dx*Wpq;
        E[YZ] += dy*dz*Wpq;
 
+      //printf("rpq %e hpq %e omega %e Wpq %e \n", rpq, hpq, psph->omega, Wpq);
     }
 
     /* IA: Normalize the matrix */
@@ -324,7 +392,7 @@ void hydroGradients(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     }
 
     /* IA: END of E matrix computation */
-//    printf("E_q [XX] %e \t [XY] %e \t [XZ] %e \n \t \t \t [YY] %e \t [YZ] %e \n \t\t\t \t \t \t [ZZ] %e \n", E[XX], E[XY], E[XZ], E[YY], E[YZ], E[ZZ]);
+    //printf("E_q [XX] %e \t [XY] %e \t [XZ] %e \n \t \t \t [YY] %e \t [YZ] %e \n \t\t\t \t \t \t [ZZ] %e \n", E[XX], E[XY], E[XZ], E[YY], E[YZ], E[ZZ]);
 
     /* IA: Now, we need to do the inverse */
     inverseMatrix(E, psph->B);
@@ -353,6 +421,13 @@ void hydroGradients(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
      * at that time we do not know the density of all particles (because it depends on omega) */
 
 //    printf("(hydroGradients) Begin GRADIENTS \n");
+    for (j=0; j<3;j++){
+       psph->gradRho[j] = 0.0;
+       psph->gradVx[j] = 0.0;
+       psph->gradVy[j] = 0.0;
+       psph->gradVz[j] = 0.0;
+       psph->gradP[j] = 0.0;
+    }
     for (i=0;i<nSmooth;++i){
 
 	 q = nnList[i].pPart;
@@ -364,7 +439,7 @@ void hydroGradients(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
        if (dx==0 && dy==0 && dz==0) continue;
 
-       qh = pkdBall(pkd,q); 
+       qh = pkdBall(pkd,q);
        ph = fBall;
        rpq = sqrt(nnList[i].fDist2);
        hpq = 0.5*(qh+ph); // IA: We symmetrize the kernel size (probably needed, not sure)

@@ -610,6 +610,9 @@ struct inSmooth {
     int iSmoothType;
     SMF smf;
     };
+struct outSmooth { //IA
+   int nSmoothed;
+};
 void pstSmooth(PST,void *,int,void *,int *);
 
 /* PST_RESMOOTH */

@@ -2607,15 +2607,28 @@ void smReSmoothSingle(SMX smx,SMF *smf,PARTICLE *p,double fBall) {
     }
 }
 
-void smReSmooth(SMX smx,SMF *smf) {
+int  smReSmooth(SMX smx,SMF *smf) {
     PKD pkd = smx->pkd;
     PARTICLE *p;
-    int pi;
+    int pi, nSmoothed=0;
 
     smf->pfDensity = NULL;
-    for (pi=0;pi<pkd->nLocal;++pi) {
-	p = pkdParticle(pkd,pi);
-      if (pkdIsActive(pkd,p))
-         smReSmoothSingle(smx,smf,p,2.*pkdBall(pkd,p));
+    if (smf->FirstHydroLoop){
+       for (pi=0;pi<pkd->nLocal;++pi) {
+         p = pkdParticle(pkd,pi);
+         if (pkdIsActive(pkd,p) && p->bMarked){
+            smReSmoothSingle(smx,smf,p,2.*pkdBall(pkd,p));
+            nSmoothed++;
+         }
+       }
+    }else{
+       for (pi=0;pi<pkd->nLocal;++pi) {
+         p = pkdParticle(pkd,pi);
+         if (pkdIsActive(pkd,p)){
+            smReSmoothSingle(smx,smf,p, 2.*pkdBall(pkd,p));
+            nSmoothed++;
+         }
+       }
     }
+    return nSmoothed;
 }

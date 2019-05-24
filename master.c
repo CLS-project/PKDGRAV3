@@ -1594,7 +1594,7 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 		sizeof(int), "meshlessHydro",
 		"Use the new implementation of the hydrodynamics");
 
-    msr->param.bConservativeReSmooth = 0;
+    msr->param.bConservativeReSmooth = 1;
     prmAddParam(msr->prm,"bConservativeReSmooth", 0, &msr->param.bConservativeReSmooth,
 		sizeof(int), "resmooth",
 		"Use re-smoothing for the fluxes and gradients computation");
@@ -1603,6 +1603,16 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     prmAddParam(msr->prm,"bGlobalDt", 0, &msr->param.bGlobalDt,
 		sizeof(int), "globaldt",
 		"Force all particles to the same rung");
+
+    msr->param.bIterativeSmoothingLength = 1;
+    prmAddParam(msr->prm,"bIterativeSmoothingLength", 0, &msr->param.bIterativeSmoothingLength,
+		sizeof(int), "iterh",
+		"Use an iterative scheme to obtain h");
+
+    msr->param.iNeighborsStd = 1;
+    prmAddParam(msr->prm,"iNeighborsStd", 0, &msr->param.iNeighborsStd,
+		sizeof(int), "neighstd",
+		"Maximum deviation from desired number of neighbors");
     /* END of new params */
 
     msr->param.bAccelStep = 0;
@@ -3103,8 +3113,10 @@ void msrFastGasPhase2(MSR msr,double dTime,int iSmoothType) {
     }
 #endif
 
-void msrReSmooth(MSR msr,double dTime,int iSmoothType,int bSymmetric) {
+int msrReSmooth(MSR msr,double dTime,int iSmoothType,int bSymmetric) {
     struct inSmooth in;
+    struct outSmooth out;
+    int nOut;
 
     in.nSmooth = msr->param.nSmooth;
     in.bPeriodic = msr->param.bPeriodic;
@@ -3115,13 +3127,14 @@ void msrReSmooth(MSR msr,double dTime,int iSmoothType,int bSymmetric) {
 	double sec,dsec;
 	printf("ReSmoothing...\n");
 	sec = msrTime();
-	pstReSmooth(msr->pst,&in,sizeof(in),NULL,NULL);
+	pstReSmooth(msr->pst,&in,sizeof(in),&out,&nOut);
 	dsec = msrTime() - sec;
-	printf("ReSmooth Calculated, Wallclock: %f secs\n\n",dsec);
+	printf("ReSmooth Calculated on %d particles, Wallclock: %f secs\n\n", out.nSmoothed, dsec);
 	}
     else {
-	pstReSmooth(msr->pst,&in,sizeof(in),NULL,NULL);
+	pstReSmooth(msr->pst,&in,sizeof(in),&out,&nOut);
 	}
+    return out.nSmoothed;
     }
 
 void msrUpdateSoft(MSR msr,double dTime) {
@@ -3593,14 +3606,26 @@ void msrMeshlessFluxes(MSR msr,double dTime,double dDelta,int iRoot){
 
 void msrUpdatePrimVars(MSR msr,double dTime,double dDelta,int iRoot){
     struct inDrift in; //IA: TODO new struct for this, as I am using more space than needed
+    int nSmoothed = 1, it=0, maxit = 10;  
     in.iRoot = iRoot;
     in.dTime = dTime;
 
     // IA: We also update the particles densities here (i.e., first hydro loop)
-    msrSetFirstHydroLoop(msr, 1); // 1-> we update the particle's h ; 0-> we dont
     printf("Computing density... \n");
-    msrSmooth(msr,dTime,SMX_FIRSTHYDROLOOP,0,msr->param.nSmooth);
-    msrSetFirstHydroLoop(msr, 0);
+    if (msr->param.bIterativeSmoothingLength){
+       msrSelAll(msr);
+       while (nSmoothed>0 && it <= maxit){
+          msrSetFirstHydroLoop(msr, 1); // 1-> we care if the particle is marked ; 0-> we dont
+          nSmoothed = msrReSmooth(msr,dTime,SMX_FIRSTHYDROLOOP,0);
+          msrSetFirstHydroLoop(msr, 0);
+          it++;
+       }
+       printf("Computing h took %d iterations \n", it);
+    }else{
+       msrSetFirstHydroLoop(msr, 1); // 1-> we update the particle's h ; 0-> we dont
+       msrSmooth(msr,dTime,SMX_FIRSTHYDROLOOP,0,msr->param.nSmooth);
+       msrSetFirstHydroLoop(msr, 0);
+    }
 
     printf("Computing primitive variables... \n");
     pstComputePrimVars(msr->pst,&in,sizeof(in),NULL,NULL); 
