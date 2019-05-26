@@ -313,6 +313,7 @@ typedef struct mdlContext {
  ** General Functions
  */
 void mdlLaunch(int,char **,void (*)(MDL,void *),void * (*)(MDL),void (*)(MDL,void *));
+void mdlAbort(MDL);
 void mdlFinish(MDL);
 int  mdlSplitComm(MDL mdl, int nProcs);
 void mdlSetComm(MDL mdl, int iComm);

@@ -1585,6 +1585,7 @@ static void *mdlWorkerThread(void *vmdl) {
 #endif
 
     mdl->worker_ctx = (*mdl->fcnWorkerInit)(mdl);
+    mdlCommitServices(mdl);
     if (mdl->base.idSelf) mdlHandler(mdl);
     else run_master(mdl);
     (*mdl->fcnWorkerDone)(mdl,mdl->worker_ctx);
@@ -1913,12 +1914,19 @@ void mdlLaunch(int argc,char **argv,void (*fcnMaster)(MDL,void *),void * (*fcnWo
     hwloc_topology_destroy(topology);
 #endif
     if (!bDedicated) {
-	if (mdl->base.idSelf) (*mdl->fcnWorkerInit)(mdl);
+	mdl->worker_ctx = (*mdl->fcnWorkerInit)(mdl);
+	mdlCommitServices(mdl);
+	if (mdl->base.idSelf) mdlHandler(mdl);
 	else run_master(mdl);
+	(*mdl->fcnWorkerDone)(mdl,mdl->worker_ctx);
 	}
     drainMPI(mdl);
     pthread_barrier_destroy(&mdl->pmdl[0]->barrier);
     mdlFinish(mdl);
+    }
+
+void mdlAbort(MDL mdl) {
+    abort();
     }
 
 void mdlFinish(MDL mdl) {
@@ -2172,6 +2180,7 @@ int mdlReqService(MDL mdl,int id,int sid,void *vin,int nInBytes) {
 	}
     mdl_start_MPI_Ssend(ph, nInBytes + (int)sizeof(SRVHEAD), MPI_BYTE, id, MDL_TAG_REQ, mdl, MDL_SE_SEND_REQUEST);
     mdlWaitThreadQueue(mdl,0); /* Wait for Send to complete */
+printf("return\n");
     return ph->replyTag;
     }
 
