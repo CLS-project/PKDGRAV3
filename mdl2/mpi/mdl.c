@@ -2159,7 +2159,7 @@ void mdlCommitServices(MDL mdl) {
     }
 
 void mdlAddService(MDL mdl,int sid,void *p1,
-		   void (*fcnService)(void *,void *,int,void *,int *),
+		   fcnService_t *fcnService,
 		   int nInBytes,int nOutBytes) {
     mdlBaseAddService(&mdl->base, sid, p1, fcnService, nInBytes, nOutBytes);
     }
@@ -2180,7 +2180,6 @@ int mdlReqService(MDL mdl,int id,int sid,void *vin,int nInBytes) {
 	}
     mdl_start_MPI_Ssend(ph, nInBytes + (int)sizeof(SRVHEAD), MPI_BYTE, id, MDL_TAG_REQ, mdl, MDL_SE_SEND_REQUEST);
     mdlWaitThreadQueue(mdl,0); /* Wait for Send to complete */
-printf("return\n");
     return ph->replyTag;
     }
 
@@ -2223,8 +2222,9 @@ void mdlHandler(MDL mdl) {
 	assert(phi->nInBytes <= mdl->base.psrv[sid].nInBytes);
 	nOutBytes = 0;
 	assert(mdl->base.psrv[sid].fcnService != NULL);
-	(*mdl->base.psrv[sid].fcnService)(mdl->base.psrv[sid].p1, pszIn, phi->nInBytes,
-	    pszOut, &nOutBytes);
+
+	nOutBytes = (*mdl->base.psrv[sid].fcnService)(mdl->base.psrv[sid].p1, pszIn, phi->nInBytes,
+	    pszOut, mdl->base.psrv[sid].nOutBytes);
 	if (nOutBytes > mdl->base.psrv[sid].nOutBytes) {
 	    fprintf(stderr,"%d > %d: sid=%d\n",
 		nOutBytes, mdl->base.psrv[sid].nOutBytes, sid);

@@ -321,7 +321,7 @@ int mdlSwap(MDL,int,size_t,void *,size_t,size_t *,size_t *);
 typedef int (*mdlPack)(void *,int *,size_t,void*);
 void mdlSend(MDL mdl,int id,mdlPack pack, void *ctx);
 void mdlRecv(MDL mdl,int id,mdlPack unpack, void *ctx);
-void mdlAddService(MDL,int,void *,void (*)(void *,void *,int,void *,int *),
+void mdlAddService(MDL,int,void *,fcnService_t *fcnService,
 		   int,int);
 void mdlCommitServices(MDL mdl);
 int  mdlReqService(MDL, int, int, void *, int);

@@ -91,11 +91,14 @@ static inline int mdlkey_t_to_int(mdlkey_t v) {
 */
 #define MDLASSERT
 
+typedef int (fcnService_t)(void *p1, void *vin, int nIn, void *vout, int nOut);
+
 typedef struct serviceRec {
     int nInBytes;
     int nOutBytes;
     void *p1;
-    void(*fcnService)(void *, void *, int, void *, int *);
+    fcnService_t *fcnService;
+//    int (*fcnService)(void *, void *, int, void *, int *);
 } SERVICE;
 
 #define MAX_NODE_NAME_LENGTH      256
@@ -136,7 +139,7 @@ typedef struct {
 void mdlBaseInitialize(mdlBASE *base,int argc,char **argv);
 void mdlBaseFinish(mdlBASE *base);
 void mdlBaseAddService(mdlBASE *base, int sid, void *p1,
-    void(*fcnService)(void *, void *, int, void *, int *),
+    fcnService_t *fcnService,
     int nInBytes, int nOutBytes);
 
 #define mdlThreads(mdl) ((mdl)->base.nThreads)

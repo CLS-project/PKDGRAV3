@@ -164,18 +164,19 @@ void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int nGrid, float fDelta, int iA
     }
 
 extern "C"
-void pstAssignMass(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+int pstAssignMass(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
     struct inAssignMass *in = reinterpret_cast<struct inAssignMass *>(vin);
     assert (nIn==sizeof(struct inAssignMass) );
     if (pstNotCore(pst)) {
 	int rID = mdlReqService(pst->mdl, pst->idUpper, PST_ASSIGN_MASS, vin, nIn);
-	pstAssignMass(pst->pstLower, vin, nIn, vout, pnOut);
-	mdlGetReply(pst->mdl,rID, vout,pnOut);
+	pstAssignMass(pst->pstLower, vin, nIn, NULL, 0);
+	mdlGetReply(pst->mdl,rID,NULL,NULL);
 	}
     else {
     	pkdAssignMass(plcl->pkd,ROOT,in->nGrid,0.0f,in->iAssignment);
 	}
+    return 0;
     }
 
 extern "C"
@@ -189,6 +190,6 @@ void msrAssignMass(MSR msr,int iAssignment,int nGrid) {
     mass.nGrid = nGrid;
     mass.iAssignment = iAssignment;
     auto sec = msrTime();
-    pstAssignMass(msr->pst, &mass, sizeof(mass), NULL, NULL);
+    pstAssignMass(msr->pst, &mass, sizeof(mass), NULL, 0);
     printf("Mass assignment complete, Wallclock: %f secs\n",msrTime() - sec);
     }

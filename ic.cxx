@@ -467,7 +467,7 @@ int pkdGenerateClassICm(PKD pkd, MDLFFT fft, int iSeed, int bFixed, float fPhase
     return nLocal;
 }
 
-void pltMoveIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
     struct inMoveIC *in = reinterpret_cast<struct inMoveIC *>(vin);
     int i;
@@ -487,8 +487,8 @@ void pltMoveIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	icUp.nInflateFactor = in->nInflateFactor;
 
 	int rID = mdlReqService(pst->mdl,pst->idUpper,PLT_MOVEIC,&icUp,nIn);
-	mdlGetReply(pst->mdl,rID,vout,pnOut);
-	pltMoveIC(pst->pstLower,in,nIn,vout,pnOut);
+	mdlGetReply(pst->mdl,rID,NULL,0);
+	pltMoveIC(pst->pstLower,in,nIn,NULL,0);
 	}
     else {
 	PKD pkd = plcl->pkd;
@@ -537,18 +537,18 @@ void pltMoveIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	    }
 	pkd->nLocal = pkd->nActive = in->nMove;
 	}
-    if (pnOut) *pnOut = 0;
+    return 0;
     }
 
-void pstMoveIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+int pstMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
     PKD pkd = plcl->pkd;
     struct inGenerateIC *in = reinterpret_cast<struct inGenerateIC *>(vin);
 
     if (pstOffNode(pst)) {
 	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_MOVEIC,vin,nIn);
-	pstMoveIC(pst->pstLower,vin,nIn,vout,pnOut);
-	mdlGetReply(pst->mdl,rID,vout,pnOut);
+	pstMoveIC(pst->pstLower,vin,nIn,NULL,0);
+	mdlGetReply(pst->mdl,rID,NULL,NULL);
 	}
     else {
 	MDLFFT fft = pkd->fft;
@@ -662,10 +662,11 @@ void pstMoveIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	move.nInflateFactor = in->nInflateFactor;
 	pltMoveIC(pst,&move,sizeof(move),NULL,0);
 	}
+    return 0;
     }
 
 /* NOTE: only called when on-node -- pointers are passed around. */
-void pltGenerateIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+int pltGenerateIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
     struct inGenerateICthread *tin = reinterpret_cast<struct inGenerateICthread *>(vin);
     struct inGenerateIC *in = tin->ic;
@@ -676,8 +677,8 @@ void pltGenerateIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 
     if (pstNotCore(pst)) {
 	int rID = mdlReqService(pst->mdl,pst->idUpper,PLT_GENERATEIC,vin,nIn);
-	pltGenerateIC(pst->pstLower,vin,nIn,vout,pnOut);
-	mdlGetReply(pst->mdl,rID,&outUp,pnOut);
+	pltGenerateIC(pst->pstLower,vin,nIn,vout,nOut);
+	mdlGetReply(pst->mdl,rID,&outUp,NULL);
 	out->N += outUp.N;
 	out->noiseMean += outUp.noiseMean;
 	out->noiseCSQ += outUp.noiseCSQ;
@@ -693,10 +694,10 @@ void pltGenerateIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	out->dExpansion = in->dExpansion;
 	}
 
-    if (pnOut) *pnOut = sizeof(struct outGenerateIC);
+    return sizeof(struct outGenerateIC);
     }
 
-void pstGenerateIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+int pstGenerateIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
     PKD pkd = plcl->pkd;
     struct inGenerateIC *in = reinterpret_cast<struct inGenerateIC *>(vin);
@@ -711,7 +712,7 @@ void pstGenerateIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	MDLFFT fft = mdlFFTNodeInitialize(pst->mdl,in->nGrid,in->nGrid,in->nGrid,0,0);
 	tin.ic = reinterpret_cast<struct inGenerateIC *>(vin);
 	tin.fft = fft;
-	pltGenerateIC(pst,&tin,sizeof(tin),vout,pnOut);
+	pltGenerateIC(pst,&tin,sizeof(tin),vout,nOut);
 
 	int myProc = mdlProc(pst->mdl);
 	uint64_t nLocal = (int64_t)fft->rgrid->rn[myProc] * in->nGrid*in->nGrid;
@@ -769,11 +770,11 @@ void pstGenerateIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	}
     else if (pstNotCore(pst)) {
 	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_GENERATEIC,in,nIn);
-	pstGenerateIC(pst->pstLower,in,nIn,vout,pnOut);
-	mdlGetReply(pst->mdl,rID,&outUp,pnOut);
+	pstGenerateIC(pst->pstLower,in,nIn,vout,nOut);
+	mdlGetReply(pst->mdl,rID,&outUp,NULL);
 	out->N += outUp.N;
 	out->noiseMean += outUp.noiseMean;
 	out->noiseCSQ += outUp.noiseCSQ;
 	}
-    if (pnOut) *pnOut = sizeof(struct outGenerateIC);
+    return sizeof(struct outGenerateIC);
     }

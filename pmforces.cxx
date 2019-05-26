@@ -239,21 +239,21 @@ void pkdSetLinGrid(PKD pkd, double a0, double a, double a1, double dBSize, int n
 }
 
 extern "C"
-void pstSetLinGrid(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-        LCL *plcl = pst->plcl;
-        struct inSetLinGrid *in = reinterpret_cast<struct inSetLinGrid *>(vin);
-        assert (nIn==sizeof(struct inSetLinGrid) );
-        if (pstNotCore(pst)) {
-            int rID = mdlReqService(pst->mdl, pst->idUpper, PST_SETLINGRID, vin, nIn);
-            pstSetLinGrid(pst->pstLower, vin, nIn, vout, pnOut);
-            mdlGetReply(pst->mdl,rID, vout,pnOut);
-        }
-        else {
-            pkdSetLinGrid(plcl->pkd, in->a0, in->a, in->a1,
-                in->dBSize, in->nGrid, 
-                in ->iSeed, in->bFixed, in->fPhase);
-        }
-        if (pnOut) *pnOut = 0;
+int pstSetLinGrid(PST pst,void *vin,int nIn,void *vout,int nOut) {
+    LCL *plcl = pst->plcl;
+    struct inSetLinGrid *in = reinterpret_cast<struct inSetLinGrid *>(vin);
+    assert (nIn==sizeof(struct inSetLinGrid) );
+    if (pstNotCore(pst)) {
+        int rID = mdlReqService(pst->mdl, pst->idUpper, PST_SETLINGRID, vin, nIn);
+        pstSetLinGrid(pst->pstLower, vin, nIn, NULL, 0);
+        mdlGetReply(pst->mdl,rID,NULL,NULL);
+    }
+    else {
+        pkdSetLinGrid(plcl->pkd, in->a0, in->a, in->a1,
+            in->dBSize, in->nGrid, 
+            in ->iSeed, in->bFixed, in->fPhase);
+    }
+    return 0;
     }
 
 typedef blitz::Array<float,3> force_array_t;
@@ -371,20 +371,20 @@ void pkdLinearKick(PKD pkd,vel_t dtOpen,vel_t dtClose, int iAssignment=4) {
     }
 
 extern "C"
-void pstLinearKick(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+int pstLinearKick(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
     struct inLinearKick *in = reinterpret_cast<struct inLinearKick *>(vin);
     assert( nIn==sizeof(struct inLinearKick) );
 
     if (pstNotCore(pst)) {
 	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_LINEARKICK,vin,nIn);
-	pstLinearKick(pst->pstLower,vin,nIn,vout,pnOut);
-	mdlGetReply(pst->mdl,rID,vout,pnOut);
+	pstLinearKick(pst->pstLower,vin,nIn,NULL,0);
+	mdlGetReply(pst->mdl,rID,NULL,NULL);
 	}
     else {
 	pkdLinearKick(plcl->pkd,in->dtOpen,in->dtClose);
 	}
-    if (pnOut) *pnOut = 0;
+    return 0;
     }
 
 void pkdMeasureLinPk(PKD pkd, int nGrid, double dA, double dBoxSize,
@@ -478,18 +478,17 @@ void pkdMeasureLinPk(PKD pkd, int nGrid, double dA, double dBoxSize,
     }
 
 extern "C"
-void pstMeasureLinPk(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+int pstMeasureLinPk(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
     struct inMeasureLinPk *in = reinterpret_cast<struct inMeasureLinPk *>(vin);
     struct outMeasureLinPk *out = reinterpret_cast<struct outMeasureLinPk *>(vout);
     struct outMeasureLinPk *outUpper;
-    int nOut;
     int i;
 
     assert( nIn==sizeof(struct inMeasureLinPk) );
     if (pstNotCore(pst)) {
 	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_MEASURELINPK,vin,nIn);
-	pstMeasureLinPk(pst->pstLower,vin,nIn,vout,pnOut);
+	pstMeasureLinPk(pst->pstLower,vin,nIn,vout,nOut);
 	outUpper = reinterpret_cast<struct outMeasureLinPk *>(malloc(sizeof(struct outMeasureLinPk)));
 	assert(outUpper != NULL);
 	mdlGetReply(pst->mdl,rID,outUpper,&nOut);
@@ -507,5 +506,5 @@ void pstMeasureLinPk(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
                         in->nBins, in->iSeed, in->bFixed, in->fPhase, 
                         out->fK, out->fPower, out->nPower);
 	}
-    if (pnOut) *pnOut = sizeof(struct outMeasureLinPk);
+    return sizeof(struct outMeasureLinPk);
     }
