@@ -279,13 +279,21 @@ void hydroDensity(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
              float maxBall = psph->fLastBall > fBall ? psph->fLastBall : fBall;
 
              if (minNeighs > pkd->param.nSmooth){ 
-                pkdSetBall(pkd, p, 0.92*minBall); 
-                psph->fLastBall = minBall;
-                psph->nLastNeighs = minNeighs;
+                float newBall = pow( pkd->param.nSmooth/c, 1./3.)/2.;      
+                pkdSetBall(pkd,p, newBall); 
+                psph->fLastBall = fBall;
+                psph->nLastNeighs = nSmooth;
+//                pkdSetBall(pkd, p, 0.92*minBall); 
+//                psph->fLastBall = minBall;
+//                psph->nLastNeighs = minNeighs;
              }else if (maxNeighs < pkd->param.nSmooth) {
-                pkdSetBall(pkd, p, 1.23*maxBall);
-                psph->fLastBall = maxBall;
-                psph->nLastNeighs = maxNeighs;
+                float newBall = pow( pkd->param.nSmooth/c, 1./3.)/2.;      
+                pkdSetBall(pkd,p, newBall); 
+                psph->fLastBall = fBall;
+                psph->nLastNeighs = nSmooth;
+//                pkdSetBall(pkd, p, 1.23*maxBall);
+//                psph->fLastBall = maxBall;
+//                psph->nLastNeighs = maxNeighs;
              }else{
                 pkdSetBall(pkd, p, 0.5*(minBall + maxBall));
                 psph->fLastBall = 0.0;

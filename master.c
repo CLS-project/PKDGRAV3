@@ -1611,7 +1611,7 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 
     msr->param.iNeighborsStd = 1;
     prmAddParam(msr->prm,"iNeighborsStd", 0, &msr->param.iNeighborsStd,
-		sizeof(int), "neighstd",
+		sizeof(float), "neighstd",
 		"Maximum deviation from desired number of neighbors");
     /* END of new params */
 
