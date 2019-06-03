@@ -264,7 +264,7 @@ void hydroDensity(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
        }else{
           if (psph->fLastBall == 0.0) { // IA: We have just read the input file. So we can only do one Newton iteration
              float newBall = pow( pkd->param.nSmooth/c, 1./3.)/2.;      
-             printf("p %" PRId64 " omega %e Nngb %e nSmooth %d fBall %e newBall %e NewNngb %e \n", p->iOrder, psph->omega, c*fBall*fBall*fBall*8., nSmooth, fBall, newBall, c*newBall*newBall*newBall*8.);
+//             printf("p %" PRId64 " omega %e Nngb %e nSmooth %d fBall %e newBall %e NewNngb %e \n", p->iOrder, psph->omega, c*fBall*fBall*fBall*8., nSmooth, fBall, newBall, c*newBall*newBall*newBall*8.);
              pkdSetBall(pkd,p, newBall); 
              psph->fLastBall = fBall;
              psph->nLastNeighs = nSmooth;
