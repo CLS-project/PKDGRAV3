@@ -9,9 +9,9 @@ endif()
 project(mdl2)
 add_subdirectory(openpa)	# Lockless queue support
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/")
+include(FindPkgConfig)
 find_package(FFTW REQUIRED)
 if(FFTW_FOUND)
-#  INCLUDE_DIRECTORIES(${FFTW_INCLUDES})
   set(MDL_FFTW ${FFTW_FOUND})
 endif()
 pkg_check_modules(HWLOC hwloc)
@@ -83,10 +83,10 @@ target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/..
 
 target_link_libraries(${PROJECT_NAME} ${MPI_C_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} openpa)
 
-#if(FFTW_FOUND)
+if(FFTW_FOUND)
 target_link_libraries(${PROJECT_NAME} ${FFTW_LIBRARIES})
 target_include_directories(${PROJECT_NAME} PUBLIC ${FFTW_INCLUDES})
-#endif()
+endif()
 if(HAVE_MEMKIND)
 find_library(MEMKIND_LIBRARY memkind)
 target_link_libraries(${PROJECT_NAME} ${MEMKIND_LIBRARY})
