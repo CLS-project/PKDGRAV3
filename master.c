@@ -1704,11 +1704,6 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
         fprintf(stderr, "ERROR: you must specify nGridLin when running with linear species\n");
         abort();
     }
-    if (msr->param.csm->val.classData.bClass && msr->param.b2LPT){
-        fprintf(stderr, "ERROR: 2LPT not yet implemented for Class ICs\n");
-        abort();
-    }
-
     return bDoRestore;
     }
 
