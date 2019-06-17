@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.1)
 project(pkdgrav3)
 
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/mdl2)
+
 include(CheckFunctionExists)
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
@@ -34,6 +36,7 @@ endif()
 find_package(CUDA)
 find_package(GSL REQUIRED)      # GNU Scientific Library
 find_package(HDF5 COMPONENTS C HL)
+find_package(FFTW REQUIRED)
 #find_package(PythonLibs)
 # _GNU_SOURCE gives us more options
 INCLUDE(CheckCSourceCompiles)
