@@ -33,6 +33,7 @@
 #cmakedefine HAVE_MKDIR 1
 #cmakedefine HAVE_STRVERSCMP 1
 #cmakedefine HAVE_ATEXIT 1
+#cmakedefine HAVE_POSIX_MEMALIGN 1
 
 #cmakedefine USE_BT 1
 #cmakedefine _GNU_SOURCE 1

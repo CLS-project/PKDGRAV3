@@ -101,6 +101,7 @@ check_symbol_exists(strstr string.h HAVE_STRSTR)
 check_symbol_exists(memmove string.h HAVE_MEMMOVE)
 check_symbol_exists(memset string.h HAVE_MEMSET)
 check_symbol_exists(gettimeofday sys/time.h HAVE_GETTIMEOFDAY)
+check_symbol_exists(posix_memalign stdlib.h HAVE_POSIX_MEMALIGN)
 
 check_symbol_exists(wordexp wordexp.h HAVE_WORDEXP)
 check_symbol_exists(wordfree wordexp.h HAVE_WORDFREE)
