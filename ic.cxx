@@ -271,10 +271,10 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int bFixed,float fPhase,int nGrid
 
 	/* Calculate the source term */
 	if (mdlSelf(mdl)==0) {printf("Generating source term\n"); fflush(stdout); }
-	for( auto index=K[6].begin(); index!=K[6].end(); ++index ) {
+	for( auto index=R[6].begin(); index!=R[6].end(); ++index ) {
 	    auto pos = index.position();
-	    *index = K[0](pos)*K[1](pos) + K[0](pos)*K[2](pos) + K[1](pos)*K[2](pos)
-		- K[3](pos)*K[3](pos) - K[4](pos)*K[4](pos) - K[5](pos)*K[5](pos);
+	    *index = R[0](pos)*R[1](pos) + R[0](pos)*R[2](pos) + R[1](pos)*R[2](pos)
+		- R[3](pos)*R[3](pos) - R[4](pos)*R[4](pos) - R[5](pos)*R[5](pos);
 	    }
 	mdlFFT(mdl, fft, R[6].dataFirst() );
 	}
@@ -416,6 +416,9 @@ int pkdGenerateClassICm(PKD pkd, MDLFFT fft, int iSeed, int bFixed, float fPhase
 	kx = fwrap(pos[0],fft->rgrid->n1) * iLbox;
 	k2 = kx*kx + ky*ky + kz*kz;
 	if (k2>0) {
+	    iz = fwrap(pos[2],nGrid); // Range: (-iNyquist,iNyquist]
+	    iy = fwrap(pos[1],nGrid);
+	    ix = fwrap(pos[0],nGrid);
 	    amp = csmDelta_m(csm, a, sqrt(k2));
 	    K[7](pos) = *index * amp * kx/k2 * I;
 	    K[8](pos) = *index * amp * ky/k2 * I;
@@ -466,10 +469,10 @@ int pkdGenerateClassICm(PKD pkd, MDLFFT fft, int iSeed, int bFixed, float fPhase
 	mdlIFFT(mdl, fft, (FFTW3(complex)*)K[5].dataFirst() );
 	/* Calculate the source term */
 	if (mdlSelf(mdl)==0) {printf("Generating source term\n"); fflush(stdout); }
-	for( auto index=K[6].begin(); index!=K[6].end(); ++index ) {
+	for( auto index=R[6].begin(); index!=R[6].end(); ++index ) {
 	    auto pos = index.position();
-	    *index = K[0](pos)*K[1](pos) + K[0](pos)*K[2](pos) + K[1](pos)*K[2](pos)
-		- K[3](pos)*K[3](pos) - K[4](pos)*K[4](pos) - K[5](pos)*K[5](pos);
+	    *index = R[0](pos)*R[1](pos) + R[0](pos)*R[2](pos) + R[1](pos)*R[2](pos)
+		- R[3](pos)*R[3](pos) - R[4](pos)*R[4](pos) - R[5](pos)*R[5](pos);
 	    }
 	mdlFFT(mdl, fft, R[6].dataFirst() );
 	}
