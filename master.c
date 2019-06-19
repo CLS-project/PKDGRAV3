@@ -2136,39 +2136,6 @@ double getTime(MSR msr, double dExpansion, double *dvFac) {
 		else
 		    msr->param.dDelta = 0.0;
 		}
-	    else if (!prmSpecified(msr->prm,"nSteps") &&
-		     prmFileSpecified(msr->prm,"dDelta")) {
-		aTo = 1.0/(msr->param.dRedTo + 1.0);
-		tTo = csmExp2Time(msr->param.csm,aTo);
-		if (msr->param.bVStart)
-		    printf("Simulation to Time:%g Redshift:%g Expansion factor:%g\n",
-			   tTo,1.0/aTo-1.0,aTo);
-		if (tTo < dTime) {
-		    printf("Badly specified final redshift, check -zto parameter.\n");
-		    _msrExit(msr,1);
-		    }
-		msr->param.nSteps = (int)ceil((tTo-dTime)/msr->param.dDelta);
-		msr->param.dDelta =
-		    (tTo-dTime)/(msr->param.nSteps -
-				 msr->param.iStartStep);
-		}
-	    else if (!prmSpecified(msr->prm,"dDelta") &&
-		     prmFileSpecified(msr->prm,"nSteps")) {
-		aTo = 1.0/(msr->param.dRedTo + 1.0);
-		tTo = csmExp2Time(msr->param.csm,aTo);
-		if (msr->param.bVStart)
-		    printf("Simulation to Time:%g Redshift:%g Expansion factor:%g\n",
-			   tTo,1.0/aTo-1.0,aTo);
-		if (tTo < dTime) {
-		    printf("Badly specified final redshift, check -zto parameter.\n");
-		    _msrExit(msr,1);
-		    }
-		if (msr->param.nSteps != 0)
-		    msr->param.dDelta =	(tTo-dTime)/(msr->param.nSteps
-						     - msr->param.iStartStep);
-		else
-		    msr->param.dDelta = 0.0;
-		}
 	    }
 	else {
 	    tTo = dTime + msr->param.nSteps*msr->param.dDelta;
