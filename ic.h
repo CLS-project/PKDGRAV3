@@ -62,7 +62,7 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int bFixed,float fPhase,int nGrid
 #ifdef __cplusplus
 extern "C"
 #endif
-int pkdGenerateClassICm(PKD pkd, MDLFFT fft, int iSeed, int bFixed, float fPhase, int nGrid,
+int pkdGenerateClassICm(PKD pkd, MDLFFT fft, int iSeed, int bFixed, float fPhase, int nGrid,int b2LPT,
     double dBoxSize, struct csmVariables *cosmo, double a, double *noiseMean, double *noiseCSQ);
 #ifdef __cplusplus
 extern "C"
