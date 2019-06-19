@@ -348,6 +348,7 @@ void master(MDL mdl,void *pst) {
 
 	bKickOpen = 0;
 	for (iStep=iStartStep+1;iStep<=msrSteps(msr)&&!iStop;++iStep) {
+	    msrSwitchDelta(msr,dTime,iStep-1);
 	    if (msrComove(msr)) msrSwitchTheta(msr,dTime);
 	    dMultiEff = 0.0;
 	    msr->lPrior = time(0);

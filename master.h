@@ -238,6 +238,7 @@ void msrSetRung(MSR msr, uint8_t uRungLo, uint8_t uRungHi, int uRung);
 void msrZeroNewRung(MSR msr, uint8_t uRungLo, uint8_t uRungHi, int uRung);
 int msrMaxRung(MSR msr);
 void msrSwitchTheta(MSR msr,double);
+double msrSwitchDelta(MSR msr,double dTime,int iStep);
 uint64_t msrMaxOrder(MSR msr);
 
 void msrNewFof(MSR msr, double exp);

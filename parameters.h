@@ -79,6 +79,7 @@ struct parameters {
     int nReplicas;
     int iStartStep;
     int nSteps;
+    int nSteps10;
     int nSmooth;
     int iMaxRung;
     int nRungVeryActive;

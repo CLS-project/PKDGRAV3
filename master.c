@@ -950,6 +950,9 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
     msr->param.nSteps = 0;
     prmAddParam(msr->prm,"nSteps",1,&msr->param.nSteps,sizeof(int),"n",
 		"<number of timesteps> = 0");
+    msr->param.nSteps10 = 0;
+    prmAddParam(msr->prm,"nSteps10",1,&msr->param.nSteps10,sizeof(int),"n10",
+		"<number of timesteps to redshift 10> = 0");
     msr->param.iOutInterval = 0;
     prmAddParam(msr->prm,"iOutInterval",1,&msr->param.iOutInterval,sizeof(int),
 		"oi","<number of timesteps between snapshots> = 0");
@@ -2082,6 +2085,28 @@ void msrOneNodeRead(MSR msr, struct inReadFile *in, FIO fio) {
     pkdReadFIO(plcl->pkd, fio, 0, nParts[0], in->dvFac, in->dTuFac);
 
     free(nParts);
+    }
+
+double msrSwitchDelta(MSR msr,double dTime,int iStep) {
+    if (msr->param.csm->val.bComove && prmSpecified(msr->prm,"dRedTo")
+        && prmArgSpecified(msr->prm,"nSteps") && prmSpecified(msr->prm,"nSteps10")) {
+	double aTo,tTo,z;
+	int nSteps;
+	if (iStep < msr->param.nSteps10) {
+	    aTo = 1.0 / (10.0 + 1.0);
+	    nSteps = msr->param.nSteps10 - iStep;
+	    }
+	else {
+	    aTo = 1.0/(msr->param.dRedTo + 1.0);
+	    nSteps = msr->param.nSteps - iStep;
+	    }
+	assert(nSteps>0);
+	tTo = csmExp2Time(msr->param.csm,aTo);
+	msr->param.dDelta = (tTo-dTime) / nSteps;
+	if (iStep == msr->param.nSteps10 && msr->param.bVDetails)
+	    printf("dDelta changed to %g at z=10\n",msr->param.dDelta);
+	}
+    return msr->param.dDelta;
     }
 
 double getTime(MSR msr, double dExpansion, double *dvFac) {
