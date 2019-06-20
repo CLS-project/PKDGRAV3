@@ -3180,44 +3180,6 @@ void msrPrintStat(STAT *ps,char *pszPrefix,int p) {
     }
 
 
-void msrLightCone(MSR msr,double dTime,uint8_t uRungLo,uint8_t uRungHi) {
-    struct inLightCone in;
-    double sec,dsec,dt;
-    double dTimeLCP;
-    int i;
-
-    if (!msr->param.bLightCone) return;
-    in.dLookbackFac = csmComoveKickFac(msr->param.csm,dTime,(csmExp2Time(msr->param.csm,1.0) - dTime));
-    dTimeLCP = csmExp2Time(msr->param.csm,1.0/(1.0+msr->param.dRedshiftLCP));
-    in.dLookbackFacLCP = csmComoveKickFac(msr->param.csm,dTimeLCP,(csmExp2Time(msr->param.csm,1.0) - dTimeLCP));
-    in.uRungLo = uRungLo;
-    in.uRungHi = uRungHi;
-    for (i=0,dt=msr->param.dDelta;i<=msr->param.iMaxRung;++i,dt*=0.5) {
-	in.dtLCDrift[i] = 0.0;
-	in.dtLCKick[i] = 0.0;
-	if (i>=uRungLo) {
-	    if (msr->param.csm->val.bComove) {
-		in.dtLCDrift[i] = csmComoveDriftFac(msr->param.csm,dTime,dt);
-		in.dtLCKick[i] = csmComoveKickFac(msr->param.csm,dTime,dt);
-		}
-	    else {
-	        in.dtLCDrift[i] = dt;
-	        in.dtLCKick[i] = dt;
-		}
-	    }
-	}
-    sec = msrTime();
-    pstLightCone(msr->pst,&in,sizeof(in),NULL,0);
-    dsec = msrTime() - sec;
-    if (msr->param.bVStep) {
-	/*
-	** Output some info...
-	*/
-	printf("Light-Cone Calculated, Wallclock: %f secs\n",dsec);
-	}
-    }
-
-
 uint8_t msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
     double dTime, double dStep,int bKickClose,int bKickOpen,int bEwald,int nGroup,int *piSec,uint64_t *pnActive) {
     struct inGravity in;

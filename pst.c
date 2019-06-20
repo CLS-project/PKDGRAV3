@@ -154,8 +154,6 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_GRAVITY,pst,(fcnService_t*)pstGravity,
 	          sizeof(struct inGravity),
 	          nThreads*sizeof(struct outGravityPerProc) + sizeof(struct outGravityReduct));
-    mdlAddService(mdl,PST_LIGHTCONE,pst,(fcnService_t*)pstLightCone,
-		  sizeof(struct inLightCone),0);
     mdlAddService(mdl,PST_CALCEANDL,pst,(fcnService_t*)pstCalcEandL,
 		  0,sizeof(struct outCalcEandL));
     mdlAddService(mdl,PST_DRIFT,pst,(fcnService_t*)pstDrift,
@@ -2806,24 +2804,6 @@ int pstGravity(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	}
     return (mdlThreads(pst->mdl) - pst->idSelf)*sizeof(struct outGravityPerProc) + sizeof(struct outGravityReduct);
     }
-
-
-int pstLightCone(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    LCL *plcl = pst->plcl;
-    struct inLightCone *in = vin;
-
-    mdlassert(pst->mdl,nIn == sizeof(struct inLightCone));
-    if (pst->nLeaves > 1) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_LIGHTCONE,in,nIn);
-	pstLightCone(pst->pstLower,in,nIn,NULL,0);
-	mdlGetReply(pst->mdl,rID,NULL,NULL);
-	}
-    else {
-	pkdLightCone(plcl->pkd,in->uRungLo,in->uRungHi,in->dLookbackFac,in->dLookbackFacLCP,in->dtLCDrift,in->dtLCKick);
-	}
-    return 0;
-    }
-
 
 int pstCalcEandL(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;

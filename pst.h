@@ -695,17 +695,6 @@ struct outGravityPerProc {
     };
 int pstGravity(PST,void *,int,void *,int);
 
-/* PST_LIGHTCONE */
-struct inLightCone {
-    double dtLCDrift[IRUNGMAX+1];
-    double dtLCKick[IRUNGMAX+1];
-    double dLookbackFac;
-    double dLookbackFacLCP;
-    uint8_t uRungLo;
-    uint8_t uRungHi;
-    };
-int pstLightCone(PST,void *,int,void *,int);
-
 /* PST_CALCEANDL */
 struct outCalcEandL {
     double T;

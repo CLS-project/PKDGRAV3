@@ -2591,27 +2591,6 @@ void pkdProcessLightCone(PKD pkd,PARTICLE *p,float fPot,double dLookbackFac,doub
 #undef NBOX
 #endif
 
-void pkdLightCone(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dLookbackFac,double dLookbackFacLCP,
-    double *dtLCDrift,double *dtLCKick) {
-    PARTICLE *p;
-    float fPot,*pfPot;
-    int i;
-
-    KDN *kdn = pkdTreeNode(pkd,ROOT);
-    for (i=kdn->pLower;i<=kdn->pUpper;++i) {
-	p = pkdParticle(pkd,i);
-	if ( !pkdIsRungRange(p,uRungLo,uRungHi) ) continue;
-	/*
-	** Now check the particle against the passing light surface.
-	*/
-	pfPot = pkdPot(pkd,p);
-	if (pfPot) fPot = *pfPot;
-	else fPot = 0.0;
-	pkdProcessLightCone(pkd,p,fPot,dLookbackFac,dLookbackFacLCP,dtLCDrift[p->uRung],dtLCKick[p->uRung]);
-	}
-    }
-
-
 /*
 ** Drift particles whose Rung falls between uRungLo (large step) and uRungHi (small step) inclusive,
 ** and those whose destination activity flag is set.
