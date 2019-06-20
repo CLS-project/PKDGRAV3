@@ -2084,7 +2084,7 @@ void msrOneNodeRead(MSR msr, struct inReadFile *in, FIO fio) {
 
 double msrSwitchDelta(MSR msr,double dTime,int iStep) {
     if (msr->param.csm->val.bComove && prmSpecified(msr->prm,"dRedTo")
-        && prmArgSpecified(msr->prm,"nSteps") && prmSpecified(msr->prm,"nSteps10")) {
+        && prmSpecified(msr->prm,"nSteps") && prmSpecified(msr->prm,"nSteps10")) {
 	double aTo,tTo,z;
 	int nSteps;
 	if (iStep < msr->param.nSteps10) {
@@ -2121,8 +2121,8 @@ double getTime(MSR msr, double dExpansion, double *dvFac) {
 		printf("Badly specified final redshift (zTo <= -1.0), check -zto parameter.\n");
 		_msrExit(msr,1);
 		}
-	    if (!prmArgSpecified(msr->prm,"nSteps") &&
-		    prmArgSpecified(msr->prm,"dDelta")) {
+	    if (!prmSpecified(msr->prm,"nSteps") &&
+		    prmSpecified(msr->prm,"dDelta")) {
 		aTo = 1.0/(msr->param.dRedTo + 1.0);
 		tTo = csmExp2Time(msr->param.csm,aTo);
 		if (msr->param.bVStart)
@@ -2137,8 +2137,8 @@ double getTime(MSR msr, double dExpansion, double *dvFac) {
 		    (tTo-dTime)/(msr->param.nSteps -
 				 msr->param.iStartStep);
 		}
-	    else if (!prmArgSpecified(msr->prm,"dDelta") &&
-		     prmArgSpecified(msr->prm,"nSteps")) {
+	    else if (!prmSpecified(msr->prm,"dDelta") &&
+		     prmSpecified(msr->prm,"nSteps")) {
 		aTo = 1.0/(msr->param.dRedTo + 1.0);
 		tTo = csmExp2Time(msr->param.csm,aTo);
 		if (msr->param.bVStart)
