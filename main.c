@@ -303,6 +303,8 @@ void master(MDL mdl,void *pst) {
 	    }
 #endif
 	if (msrDoGravity(msr)) {
+	    msrSwitchDelta(msr,dTime,iStartStep);
+	    msrInitStep(msr);
 	    if (msr->param.bNewKDK) {
 		msrLightConeOpen(msr,iStartStep + 1);
 		bKickOpen = 1;
@@ -349,6 +351,7 @@ void master(MDL mdl,void *pst) {
 	bKickOpen = 0;
 	for (iStep=iStartStep+1;iStep<=msrSteps(msr)&&!iStop;++iStep) {
 	    msrSwitchDelta(msr,dTime,iStep-1);
+	    msrInitStep(msr);
 	    if (msrComove(msr)) msrSwitchTheta(msr,dTime);
 	    dMultiEff = 0.0;
 	    msr->lPrior = time(0);
