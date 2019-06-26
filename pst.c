@@ -190,8 +190,10 @@ void pstAddServices(PST pst,MDL mdl) {
 		  sizeof(int),0);
     mdlAddService(mdl,PST_ACTIVEORDER,pst,(fcnService_t*)pstActiveOrder,
 		  0,sizeof(uint64_t));
-    mdlAddService(mdl,PST_INITSTEP,pst,(fcnService_t*)pstInitStep,
-		  sizeof(struct inInitStep),0);
+    mdlAddService(mdl,PST_INITCOSMOLOGY,pst,(fcnService_t*)pstInitCosmology,
+		  sizeof(struct csmVariables),0);
+    mdlAddService(mdl,PST_SETPARAMETERS,pst,(fcnService_t*)pstSetParameters,
+		  sizeof(struct parameters),0);
     mdlAddService(mdl,PST_SETRUNG,pst,(fcnService_t*)pstSetRung,
 		  sizeof(struct inSetRung),0);
     mdlAddService(mdl,PST_ZERONEWRUNG,pst,(fcnService_t*)pstZeroNewRung,
@@ -3077,18 +3079,34 @@ int pstZeroNewRung(PST pst,void *vin,int nIn,void *vout,int nOut) {
     return 0;
     }
 
-int pstInitStep(PST pst,void *vin,int nIn,void *vout,int nOut) {
+int pstInitCosmology(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
-    struct inInitStep *in = vin;
 
-    mdlassert(pst->mdl,nIn == sizeof(*in));
+    mdlassert(pst->mdl,nIn == sizeof(struct csmVariables));
     if (pst->nLeaves > 1) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_INITSTEP,vin,nIn);
-	pstInitStep(pst->pstLower,vin,nIn,NULL,0);
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_INITCOSMOLOGY,vin,nIn);
+	pstInitCosmology(pst->pstLower,vin,nIn,NULL,0);
 	mdlGetReply(pst->mdl,rID,NULL,NULL);
 	}
     else {
-	pkdInitStep(plcl->pkd,&in->param,&in->cosmo);
+	struct csmVariables *cosmo = vin;
+	pkdInitCosmology(plcl->pkd,cosmo);
+	}
+    return 0;
+    }
+
+int pstSetParameters(PST pst,void *vin,int nIn,void *vout,int nOut) {
+    LCL *plcl = pst->plcl;
+
+    mdlassert(pst->mdl,nIn == sizeof(struct parameters));
+    if (pst->nLeaves > 1) {
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SETPARAMETERS,vin,nIn);
+	pstSetParameters(pst->pstLower,vin,nIn,NULL,0);
+	mdlGetReply(pst->mdl,rID,NULL,NULL);
+	}
+    else {
+    	struct parameters *param = vin;
+	pkdSetParameters(plcl->pkd,param);
 	}
     return 0;
     }

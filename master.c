@@ -3776,30 +3776,19 @@ void msrSwitchTheta(MSR msr,double dTime) {
 	}
     }
 
-void msrInitStep(MSR msr) {
-    struct inSetRung insr;
-    static/*FIXME: this is a HACK: message is too large for stack */ struct inInitStep in;
+void msrInitCosmology(MSR msr) {
+    pstInitCosmology(msr->pst, &msr->param.csm->val, sizeof(msr->param.csm->val), NULL, 0);
+    }
 
+void msrSetParameters(MSR msr) {
     /*
     ** Here we can pass down all parameters of the simulation
     ** before any timestepping takes place. This should happen
     ** just after the file has been read and the PKD structure
     ** initialized for each processor.
     */
-    in.param = msr->param;
-    in.cosmo = msr->param.csm->val;
-    pstInitStep(msr->pst, &in, sizeof(in), NULL, 0);
-
-    /*
-    ** Initialize particles to lowest rung. (what for? JW: Seconded and removed)
-    */
-//    insr.uRung = 0; /* msr->param.iMaxRung - 1; */
-//    insr.uRungLo = 0;
-//    insr.uRungHi = MAX_RUNG;
-//    pstSetRung(msr->pst, &insr, sizeof(insr), NULL, 0);
-//    msr->iCurrMaxRung = insr.uRung;
+    pstSetParameters(msr->pst, &msr->param, sizeof(msr->param), NULL, 0);
     }
-
 
 void msrSetRung(MSR msr, uint8_t uRungLo, uint8_t uRungHi, int uRung) {
     struct inSetRung in;

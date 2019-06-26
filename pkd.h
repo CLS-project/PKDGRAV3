@@ -893,7 +893,7 @@ typedef struct pkdContext {
 
     /*
     ** Oh heck, just put all the parameters in here!
-    ** This is set in pkdInitStep.
+    ** This is set in pkdSetParameters.
     */
     struct parameters param;
 
@@ -1429,7 +1429,8 @@ void pkdKickKDKClose(PKD pkd,double dTime,double dDelta,uint8_t uRungLo,uint8_t 
 void pkdKick(PKD pkd,double dTime,double dDelta,double,double,double,uint8_t uRungLo,uint8_t uRungHi);
 void pkdKickTree(PKD pkd,double dTime,double dDelta,double,double,double,int iRoot);
 void pkdSwapAll(PKD pkd, int idSwap);
-void pkdInitStep(PKD pkd,struct parameters *p,struct csmVariables *cosmo);
+void pkdSetParameters(PKD pkd,struct parameters *p);
+void pkdInitCosmology(PKD pkd,struct csmVariables *cosmo);
 void pkdSetRung(PKD pkd,uint8_t uRungLo, uint8_t uRungHi, uint8_t uRung);
 void pkdZeroNewRung(PKD pkd,uint8_t uRungLo, uint8_t uRungHi, uint8_t uRung);
 void pkdActiveRung(PKD pkd, int iRung, int bGreater);

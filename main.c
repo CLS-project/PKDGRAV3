@@ -139,7 +139,8 @@ void master(MDL mdl,void *pst) {
     if (bRestore) {
 	dTime = msrRestore(msr);
 	iStartStep = msr->iCheckpointStep;
-	msrInitStep(msr);
+	msrSetParameters(msr);
+	msrInitCosmology(msr);
 	if (prmSpecified(msr->prm,"dSoft")) msrSetSoft(msr,msrSoft(msr));
 	iStep = msrSteps(msr); /* 0=analysis, >1=simulate, <0=python */
 	uRungMax = msr->iCurrMaxRung;
@@ -159,7 +160,8 @@ void master(MDL mdl,void *pst) {
 	msrFinish(msr);
 	return;
 #endif
-	msrInitStep(msr);
+	msrSetParameters(msr);
+	msrInitCosmology(msr);
 	if (prmSpecified(msr->prm,"dSoft")) msrSetSoft(msr,msrSoft(msr));
 	iStep = msrSteps(msr); /* 0=analysis, >1=simulate, <0=python */
 	}
@@ -168,7 +170,8 @@ void master(MDL mdl,void *pst) {
     else if ( msr->param.achInFile[0] ) {
 	iStartStep = msr->param.iStartStep; /* Should be zero */
 	dTime = msrRead(msr,msr->param.achInFile); /* May change nSteps/dDelta */
-	msrInitStep(msr);
+	msrSetParameters(msr);
+	msrInitCosmology(msr);
 	if (msr->param.bAddDelete) msrGetNParts(msr);
 	if (prmSpecified(msr->prm,"dRedFrom")) {
 	    double aOld, aNew;
@@ -177,7 +180,7 @@ void master(MDL mdl,void *pst) {
 	    dTime = msrAdjustTime(msr,aOld,aNew);
 	    /* Seriously, we shouldn't need to send parameters *again*.
 	       When we remove sending parameters, we should remove this. */
-	    msrInitStep(msr);
+	    msrSetParameters(msr);
 	    }
 	if (prmSpecified(msr->prm,"dSoft")) msrSetSoft(msr,msrSoft(msr));
 	iStep = msrSteps(msr); /* 0=analysis, >1=simulate, <0=python */
@@ -304,7 +307,7 @@ void master(MDL mdl,void *pst) {
 #endif
 	if (msrDoGravity(msr)) {
 	    msrSwitchDelta(msr,dTime,iStartStep);
-	    msrInitStep(msr);
+	    msrSetParameters(msr);
 	    if (msr->param.bNewKDK) {
 		msrLightConeOpen(msr,iStartStep + 1);
 		bKickOpen = 1;
@@ -351,7 +354,7 @@ void master(MDL mdl,void *pst) {
 	bKickOpen = 0;
 	for (iStep=iStartStep+1;iStep<=msrSteps(msr)&&!iStop;++iStep) {
 	    msrSwitchDelta(msr,dTime,iStep-1);
-	    msrInitStep(msr);
+	    msrSetParameters(msr);
 	    if (msrComove(msr)) msrSwitchTheta(msr,dTime);
 	    dMultiEff = 0.0;
 	    msr->lPrior = time(0);

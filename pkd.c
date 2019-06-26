@@ -2912,19 +2912,20 @@ void pkdKickTree(PKD pkd,double dTime,double dDelta,double dDeltaVPred,double dD
 	}
     }
 
-void pkdInitStep(PKD pkd, struct parameters *p, struct csmVariables *cosmo) {
-    pkd->param = *p;
+void pkdInitCosmology(PKD pkd, struct csmVariables *cosmo) {
     /*
     ** Need to be careful to correctly copy the cosmo
     ** parameters. This is very ugly!
     */
-    csmInitialize(&pkd->param.csm);
     pkd->param.csm->val = *cosmo;
     if (pkd->param.csm->val.classData.bClass){
         csmClassGslInitialize(pkd->param.csm);
-    }
+	}
     }
 
+void pkdSetParameters(PKD pkd, struct parameters *p) {
+    pkd->param = *p;
+    }
 
 void pkdSetRung(PKD pkd,uint8_t uRungLo, uint8_t uRungHi, uint8_t uRung) {
     PARTICLE *p;

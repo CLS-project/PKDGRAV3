@@ -144,7 +144,8 @@ enum pst_service {
     PST_SWAPALL,
     PST_MASSCHECK,
     PST_ACTIVEORDER,
-    PST_INITSTEP,
+    PST_SETPARAMETERS,
+    PST_INITCOSMOLOGY,
     PST_SETRUNG,
     PST_ZERONEWRUNG,
     PST_ACTIVERUNG,
@@ -832,12 +833,11 @@ struct inZeroNewRung {
     };
 int pstZeroNewRung(PST,void *,int,void *,int);
 
-/* PST_INITSTEP */
-struct inInitStep {
-    struct parameters param;
-    struct csmVariables cosmo;
-    };
-int pstInitStep(PST,void *,int,void *,int);
+/* PST_INITCOSMOLOGY: struct csmVariables as input */
+int pstInitCosmology(PST,void *,int,void *,int);
+
+/* PST_SETPARAMETERS: struct parameters as input */
+int pstSetParameters(PST,void *,int,void *,int);
 
 struct inDensCheck {
     int iRung;

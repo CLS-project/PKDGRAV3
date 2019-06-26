@@ -233,7 +233,8 @@ int msrDoDensity(MSR);
 int msrPNGResolution(MSR msr);
 #endif
 int msrDoGravity(MSR msr);
-void msrInitStep(MSR msr);
+void msrSetParameters(MSR msr);
+void msrInitCosmology(MSR msr);
 void msrSetRung(MSR msr, uint8_t uRungLo, uint8_t uRungHi, int uRung);
 void msrZeroNewRung(MSR msr, uint8_t uRungLo, uint8_t uRungHi, int uRung);
 int msrMaxRung(MSR msr);
