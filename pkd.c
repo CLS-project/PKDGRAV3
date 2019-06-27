@@ -2917,6 +2917,7 @@ void pkdInitCosmology(PKD pkd, struct csmVariables *cosmo) {
     ** Need to be careful to correctly copy the cosmo
     ** parameters. This is very ugly!
     */
+    csmInitialize(&pkd->param.csm);
     pkd->param.csm->val = *cosmo;
     if (pkd->param.csm->val.classData.bClass){
         csmClassGslInitialize(pkd->param.csm);
