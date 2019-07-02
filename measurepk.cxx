@@ -144,6 +144,11 @@ void pkdMeasurePk(PKD pkd, double dTotalMass, int iAssignment, int bInterlace,
 	    fK[ks] += log(ak);
 	    fPower[ks] += std::norm(v1);
 	    nPower[ks] += 1;
+	    if (ix!=0 && ix!=iNyquist) { // Account for negative Kx values
+		fK[ks] += log(ak);
+		fPower[ks] += std::norm(v1);
+		nPower[ks] += 1;
+		}
 	    }
 	}
     }
