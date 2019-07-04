@@ -883,7 +883,7 @@ void pkdFinish(PKD pkd) {
         }
     if (pkd->pHealpixData) free(pkd->pHealpixData);
     io_free(&pkd->afiLightCone);
-    csmFinish(pkd->param.csm);
+    csmFinish(pkd->csm);
     SIMD_free(pkd);
     }
 
@@ -2688,7 +2688,7 @@ void pkdLightConeVel(PKD pkd) {
     dr = rMax/(nTable-1);
     for (i=0;i<nTable;++i) {
 	rt[i] = i*dr;
-	at_inv[i] = 1.0/csmComoveLookbackTime2Exp(pkd->param.csm,rt[i]/dLightSpeed);
+	at_inv[i] = 1.0/csmComoveLookbackTime2Exp(pkd->csm,rt[i]/dLightSpeed);
 	}
     scale = gsl_spline_alloc(gsl_interp_cspline,nTable);
     gsl_spline_init(scale,rt,at_inv,nTable);
@@ -2744,7 +2744,7 @@ void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, 
 	*/
 	pkdActiveRung(pkd, iRung, 1);
 	if (pkd->param.bAccelStep) {
-	    double a = csmTime2Exp(pkd->param.csm,dTime);
+	    double a = csmTime2Exp(pkd->csm,dTime);
 	    double dVelFac = 1.0/(a*a);
 	    double dAccFac = 1.0/(a*a*a);
 	    double dhMinOverSoft = 0;
@@ -2780,8 +2780,8 @@ void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, 
 	** Note that for kicks we have written new "master-like" functions
 	** KickOpen and KickClose which do this same job at PKD level.
 	*/
-	if (pkd->param.csm->val.bComove) {
-	    dDriftFac = csmComoveDriftFac(pkd->param.csm,dTime,dDelta);
+	if (pkd->csm->val.bComove) {
+	    dDriftFac = csmComoveDriftFac(pkd->csm,dTime,dDelta);
 	    }
 	else {
 	    dDriftFac = dDelta;
@@ -2818,15 +2818,15 @@ void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, 
  * Stripped down versions of routines from master.c
  */
 void pkdKickKDKOpen(PKD pkd,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi) {
-    if (pkd->param.csm->val.bComove) {
-	dDelta = csmComoveKickFac(pkd->param.csm,dTime,dDelta);
+    if (pkd->csm->val.bComove) {
+	dDelta = csmComoveKickFac(pkd->csm,dTime,dDelta);
     }
     pkdKick(pkd,dTime,dDelta,0,0,0,uRungLo,uRungHi);
     }
 
 void pkdKickKDKClose(PKD pkd,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi) {
-    if (pkd->param.csm->val.bComove) {
-	dDelta = csmComoveKickFac(pkd->param.csm,dTime,dDelta);
+    if (pkd->csm->val.bComove) {
+	dDelta = csmComoveKickFac(pkd->csm,dTime,dDelta);
     }
     pkdKick(pkd,dTime,dDelta,0,0,0,uRungLo,uRungHi);
     }
@@ -2917,10 +2917,10 @@ void pkdInitCosmology(PKD pkd, struct csmVariables *cosmo) {
     ** Need to be careful to correctly copy the cosmo
     ** parameters. This is very ugly!
     */
-    csmInitialize(&pkd->param.csm);
-    pkd->param.csm->val = *cosmo;
-    if (pkd->param.csm->val.classData.bClass){
-        csmClassGslInitialize(pkd->param.csm);
+    csmInitialize(&pkd->csm);
+    pkd->csm->val = *cosmo;
+    if (pkd->csm->val.classData.bClass){
+        csmClassGslInitialize(pkd->csm);
 	}
     }
 

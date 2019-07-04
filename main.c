@@ -175,7 +175,7 @@ void master(MDL mdl,void *pst) {
 	if (msr->param.bAddDelete) msrGetNParts(msr);
 	if (prmSpecified(msr->prm,"dRedFrom")) {
 	    double aOld, aNew;
-	    aOld = csmTime2Exp(msr->param.csm,dTime);
+	    aOld = csmTime2Exp(msr->csm,dTime);
 	    aNew = 1.0 / (1.0 + msr->param.dRedFrom);
 	    dTime = msrAdjustTime(msr,aOld,aNew);
 	    /* Seriously, we shouldn't need to send parameters *again*.
@@ -224,7 +224,7 @@ void master(MDL mdl,void *pst) {
 		}
 #endif
 	    if (msr->param.bFindGroups) {
-		msrNewFof(msr,csmTime2Exp(msr->param.csm,dTime));
+		msrNewFof(msr,csmTime2Exp(msr->csm,dTime));
 		}
 	    if (msrDoGravity(msr)) {
 		msrGravity(msr,0,MAX_RUNG,ROOT,0,dTime,iStartStep,0,0,
@@ -286,9 +286,9 @@ void master(MDL mdl,void *pst) {
 
 	if (msr->param.bLightCone && msrComove(msr)) {
 	    printf("One, Two, Three replica depth is z=%.10g, %.10g, %.10g\n",
-		1.0/csmComoveLookbackTime2Exp(msr->param.csm,1.0 / dLightSpeedSim(1*msr->param.dBoxSize)) - 1.0,
-		1.0/csmComoveLookbackTime2Exp(msr->param.csm,1.0 / dLightSpeedSim(2*msr->param.dBoxSize)) - 1.0,
-		1.0/csmComoveLookbackTime2Exp(msr->param.csm,1.0 / dLightSpeedSim(3*msr->param.dBoxSize)) - 1.0 );
+		1.0/csmComoveLookbackTime2Exp(msr->csm,1.0 / dLightSpeedSim(1*msr->param.dBoxSize)) - 1.0,
+		1.0/csmComoveLookbackTime2Exp(msr->csm,1.0 / dLightSpeedSim(2*msr->param.dBoxSize)) - 1.0,
+		1.0/csmComoveLookbackTime2Exp(msr->csm,1.0 / dLightSpeedSim(3*msr->param.dBoxSize)) - 1.0 );
 	    }
 
 	/*
@@ -315,7 +315,7 @@ void master(MDL mdl,void *pst) {
 	    else bKickOpen = 0;
 
             /* Compute the grids of the linear species before doing gravity */
-            if (strlen(msr->param.csm->val.classData.achLinSpecies) && msr->param.nGridLin > 0){
+            if (strlen(msr->csm->val.classData.achLinSpecies) && msr->param.nGridLin > 0){
 		msrGridCreateFFT(msr,msr->param.nGridLin);
                 msrSetLinGrid(msr,dTime, msr->param.nGridLin,bKickClose,bKickOpen);
                 if (msr->param.bDoLinPkOutput)
@@ -344,7 +344,7 @@ void master(MDL mdl,void *pst) {
 	if (msrLogInterval(msr)) {
 		(void) fprintf(fpLog,"%e %e %.16e %e %e %e %.16e %.16e %.16e "
 			       "%.16e %.16e %.16e %.16e %i %e\n",dTime,
-			       1.0/csmTime2Exp(msr->param.csm,dTime)-1.0,
+			       1.0/csmTime2Exp(msr->csm,dTime)-1.0,
 			       E,T,U,Eth,L[0],L[1],L[2],F[0],F[1],F[2],W,iSec,dMultiEff);
 	    }
 	if ( msr->param.bTraceRelaxation) {
@@ -366,7 +366,7 @@ void master(MDL mdl,void *pst) {
                     msrLightConeOpen(msr,iStep);  /* open the lightcone */
 		    uRungMax = msrGravity(msr,0,MAX_RUNG,ROOT,0,ddTime,diStep,0,1,msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
                     /* Set the grids of the linear species */
-                    if (strlen(msr->param.csm->val.classData.achLinSpecies) && msr->param.nGridLin > 0){
+                    if (strlen(msr->csm->val.classData.achLinSpecies) && msr->param.nGridLin > 0){
 			msrGridCreateFFT(msr,msr->param.nGridLin);
 		        msrSetLinGrid(msr, dTime, msr->param.nGridLin,bKickClose,bKickOpen);
                         if (msr->param.bDoLinPkOutput)
@@ -398,7 +398,7 @@ void master(MDL mdl,void *pst) {
 		msrCalcEandL(msr,MSR_STEP_E,dTime,&E,&T,&U,&Eth,L,F,&W);
 		(void) fprintf(fpLog,"%e %e %.16e %e %e %e %.16e %.16e "
 			       "%.16e %.16e %.16e %.16e %.16e %li %e\n",dTime,
-			       1.0/csmTime2Exp(msr->param.csm,dTime)-1.0,
+			       1.0/csmTime2Exp(msr->csm,dTime)-1.0,
 			       E,T,U,Eth,L[0],L[1],L[2],F[0],F[1],F[2],W,lSec,dMultiEff);
 		}
 	    if ( msr->param.bTraceRelaxation) {

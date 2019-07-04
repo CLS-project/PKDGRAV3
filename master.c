@@ -286,7 +286,7 @@ void msrInitializePStore(MSR msr, uint64_t *nSpecies) {
      * Add some ephemeral memory (if needed) for the linGrid.
      * 3 grids are stored : forceX, forceY, forceZ
      */
-    if (strlen(msr->param.csm->val.classData.achLinSpecies)){
+    if (strlen(msr->csm->val.classData.achLinSpecies)){
 	struct inGetFFTMaxSizes inFFTSizes;
 	struct outGetFFTMaxSizes outFFTSizes;
 
@@ -476,7 +476,7 @@ double msrRestore(MSR msr) {
 
     dsec = msrTime() - sec;
     PKD pkd = msr->pst->plcl->pkd;
-    double dExp = csmTime2Exp(msr->param.csm,msr->dCheckpointTime);
+    double dExp = csmTime2Exp(msr->csm,msr->dCheckpointTime);
     msrprintf(msr,"Checkpoint Restart Complete @ a=%g, Wallclock: %f secs\n\n",dExp,dsec);
 
     /* We can indicate that the DD was already done at rung 0 */
@@ -583,8 +583,8 @@ void msrCheckpoint(MSR msr,int iStep,double dTime) {
     else
 	_BuildName(msr,in.achOutFile,iStep, msr->param.achOutPath);
     in.nProcessors = msr->param.bParaWrite==0?1:(msr->param.nParaWrite<=1 ? msr->nThreads:msr->param.nParaWrite);
-    if (msr->param.csm->val.bComove) {
-	double dExp = csmTime2Exp(msr->param.csm,dTime);
+    if (msr->csm->val.bComove) {
+	double dExp = csmTime2Exp(msr->csm,dTime);
 	msrprintf(msr,"Writing checkpoint for Step: %d Time:%g Redshift:%g\n",
 	    iStep,dTime,(1.0/dExp - 1.0));
 	}
@@ -607,7 +607,7 @@ void msrCheckpoint(MSR msr,int iStep,double dTime) {
 /*
 ** This routine validates the given parameters and makes any adjustments.
 */
-static int validateParameters(MDL mdl,PRM prm,struct parameters *param) {
+static int validateParameters(MDL mdl,CSM csm,PRM prm,struct parameters *param) {
     
     if (prmSpecified(prm, "dMetalDiffsionCoeff") || prmSpecified(prm,"dThermalDiffusionCoeff")) {
 	if (!prmSpecified(prm, "iDiffusion")) param->iDiffusion=1;
@@ -743,7 +743,7 @@ static int validateParameters(MDL mdl,PRM prm,struct parameters *param) {
      * Softening
      */
     if (param->bPhysicalSoft ) {
-	if (param->bPhysicalSoft && !param->csm->val.bComove) {
+	if (param->bPhysicalSoft && !csm->val.bComove) {
 	    printf("WARNING: bPhysicalSoft reset to 0 for non-comoving (bComove == 0)\n");
 	    param->bPhysicalSoft = 0;
 	    }
@@ -864,7 +864,7 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
     msr->pst = pst;
     msr->lcl.pkd = NULL;
     *pmsr = msr;
-    csmInitialize(&msr->param.csm);
+    csmInitialize(&msr->csm);
     /*
     ** Now setup for the input parameters.
     **
@@ -1110,47 +1110,47 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
     strcpy(msr->param.achCheckpointPath,"");
     prmAddParam(msr->prm,"achCheckpointPath",3,msr->param.achCheckpointPath,256,"cpp",
 		"<output path for checkpoints> = \"\"");
-    msr->param.csm->val.bComove = 0;
-    prmAddParam(msr->prm,"bComove",0,&msr->param.csm->val.bComove,sizeof(int),
+    msr->csm->val.bComove = 0;
+    prmAddParam(msr->prm,"bComove",0,&msr->csm->val.bComove,sizeof(int),
 		"cm", "enable/disable comoving coordinates = -cm");
-    msr->param.csm->val.dHubble0 = 0.0;
-    prmAddParam(msr->prm,"dHubble0",2,&msr->param.csm->val.dHubble0,
+    msr->csm->val.dHubble0 = 0.0;
+    prmAddParam(msr->prm,"dHubble0",2,&msr->csm->val.dHubble0,
 		sizeof(double),"Hub", "<dHubble0> = 0.0");
-    msr->param.csm->val.dOmega0 = 1.0;
-    prmAddParam(msr->prm,"dOmega0",2,&msr->param.csm->val.dOmega0,
+    msr->csm->val.dOmega0 = 1.0;
+    prmAddParam(msr->prm,"dOmega0",2,&msr->csm->val.dOmega0,
 		sizeof(double),"Om", "<dOmega0> = 1.0");
-    msr->param.csm->val.dLambda = 0.0;
-    prmAddParam(msr->prm,"dLambda",2,&msr->param.csm->val.dLambda,
+    msr->csm->val.dLambda = 0.0;
+    prmAddParam(msr->prm,"dLambda",2,&msr->csm->val.dLambda,
 		sizeof(double),"Lambda", "<dLambda> = 0.0");
-    msr->param.csm->val.dOmegaDE = 0.0;
-    prmAddParam(msr->prm,"dOmegaDE",2,&msr->param.csm->val.dOmegaDE,
+    msr->csm->val.dOmegaDE = 0.0;
+    prmAddParam(msr->prm,"dOmegaDE",2,&msr->csm->val.dOmegaDE,
 		sizeof(double),"OmDE", "Omega for Dark Energy using w0 and wa parameters: <dOmegaDE> = 0.0");
-    msr->param.csm->val.w0 = -1.0;
-    prmAddParam(msr->prm,"w0",2,&msr->param.csm->val.w0,
+    msr->csm->val.w0 = -1.0;
+    prmAddParam(msr->prm,"w0",2,&msr->csm->val.w0,
 		sizeof(double),"w0", "w0 parameter for Dark Energy <w0> = -1.0 (pure Lambda)");
-    msr->param.csm->val.wa = 0.0;
-    prmAddParam(msr->prm,"wa",2,&msr->param.csm->val.wa,
+    msr->csm->val.wa = 0.0;
+    prmAddParam(msr->prm,"wa",2,&msr->csm->val.wa,
 		sizeof(double),"wa", "wa parameter for Dark Energy <wa> = 0.0 (pure Lambda)");
-    msr->param.csm->val.dOmegaRad = 0.0;
-    prmAddParam(msr->prm,"dOmegaRad",2,&msr->param.csm->val.dOmegaRad,
+    msr->csm->val.dOmegaRad = 0.0;
+    prmAddParam(msr->prm,"dOmegaRad",2,&msr->csm->val.dOmegaRad,
 		sizeof(double),"Omrad", "<dOmegaRad> = 0.0");
-    msr->param.csm->val.dOmegab = 0.0;
-    prmAddParam(msr->prm,"dOmegab",2,&msr->param.csm->val.dOmegab,
+    msr->csm->val.dOmegab = 0.0;
+    prmAddParam(msr->prm,"dOmegab",2,&msr->csm->val.dOmegab,
 		sizeof(double),"Omb", "<dOmegab> = 0.0");
-    msr->param.csm->val.dSigma8 = 0.0;
-    prmAddParam(msr->prm,"dSigma8",2,&msr->param.csm->val.dSigma8,
+    msr->csm->val.dSigma8 = 0.0;
+    prmAddParam(msr->prm,"dSigma8",2,&msr->csm->val.dSigma8,
 		sizeof(double),"S8", "<dSimga8> = 0.0");
-    msr->param.csm->val.dNormalization = 0.0;
-    prmAddParam(msr->prm,"dNormalization",2,&msr->param.csm->val.dNormalization,
+    msr->csm->val.dNormalization = 0.0;
+    prmAddParam(msr->prm,"dNormalization",2,&msr->csm->val.dNormalization,
 		sizeof(double),"As", "<dNormalization> = 0.0");
-    msr->param.csm->val.dSpectral = 0.0;
-    prmAddParam(msr->prm,"dSpectral",2,&msr->param.csm->val.dSpectral,
+    msr->csm->val.dSpectral = 0.0;
+    prmAddParam(msr->prm,"dSpectral",2,&msr->csm->val.dSpectral,
 		sizeof(double),"ns", "<dSpectral> = 0.0");
-    msr->param.csm->val.dRunning = 0.0;
-    prmAddParam(msr->prm,"dRunning",2,&msr->param.csm->val.dRunning,
+    msr->csm->val.dRunning = 0.0;
+    prmAddParam(msr->prm,"dRunning",2,&msr->csm->val.dRunning,
         sizeof(double), "alphas", "Primordial tilt running: <dRunning> = 0.0");
-    msr->param.csm->val.dPivot = 0.05;
-    prmAddParam(msr->prm,"dPivot",2,&msr->param.csm->val.dPivot,
+    msr->csm->val.dPivot = 0.05;
+    prmAddParam(msr->prm,"dPivot",2,&msr->csm->val.dPivot,
         sizeof(double), "kpivot", "Primordial pivot scale in 1/Mpc (not h/Mpc): <dPivot> = 0.05");
     strcpy(msr->param.achDataSubPath,"");
     prmAddParam(msr->prm,"achDataSubPath",3,msr->param.achDataSubPath,256,
@@ -1336,14 +1336,14 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
 		sizeof(int),"nir","<Number of replicas when inflating> = 0");
 
     /* IC Generation */
-    msr->param.csm->val.classData.bClass = 0;
-    prmAddParam(msr->prm,"bClass",0,&msr->param.csm->val.classData.bClass,
+    msr->csm->val.classData.bClass = 0;
+    prmAddParam(msr->prm,"bClass",0,&msr->csm->val.classData.bClass,
 		sizeof(int),"class","<Enable/disable the use of CLASS> = -class");
-    msr->param.csm->val.classData.achFilename[0] = 0;
-    prmAddParam(msr->prm, "achClassFilename", 3, msr->param.csm->val.classData.achFilename,
+    msr->csm->val.classData.achFilename[0] = 0;
+    prmAddParam(msr->prm, "achClassFilename", 3, msr->csm->val.classData.achFilename,
 		256, "class_filename", "<Name of hdf5 file containing the CLASS data> -class_filename");
-    msr->param.csm->val.classData.achLinSpecies[0] = 0;
-    prmAddParam(msr->prm, "achLinSpecies", 3, msr->param.csm->val.classData.achLinSpecies,
+    msr->csm->val.classData.achLinSpecies[0] = 0;
+    prmAddParam(msr->prm, "achLinSpecies", 3, msr->csm->val.classData.achLinSpecies,
                 128, "lin_species",
                 "<plus-separated string of linear species, e.g. \"ncdm[0]+g+metric\"> -lin_species");
     msr->param.h = 0.0;
@@ -1608,7 +1608,7 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
 	if (!prmParseParam(msr->prm,msr)) {
 	    _msrExit(msr,1);
 	    }
-	if (!validateParameters(mdl,msr->prm,&msr->param)) _msrExit(msr,1);
+	if (!validateParameters(mdl,msr->csm,msr->prm,&msr->param)) _msrExit(msr,1);
 	}
 
     msr->param.dTuFac = msr->param.dGasConst/(msr->param.dConstGamma - 1)/
@@ -1699,11 +1699,11 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
     msr->iRungVeryActive = msr->param.iMaxRung; /* No very active particles */
     msr->bSavePending = 0;                      /* There is no pending save */
 
-    if (msr->param.csm->val.classData.bClass){
-        csmClassRead(msr->param.csm, msr->param.dBoxSize, msr->param.h);
-        csmClassGslInitialize(msr->param.csm);
+    if (msr->csm->val.classData.bClass){
+        csmClassRead(msr->csm, msr->param.dBoxSize, msr->param.h);
+        csmClassGslInitialize(msr->csm);
     }
-    if (strlen(msr->param.csm->val.classData.achLinSpecies) && msr->param.nGridLin == 0){
+    if (strlen(msr->csm->val.classData.achLinSpecies) && msr->param.nGridLin == 0){
         fprintf(stderr, "ERROR: you must specify nGridLin when running with linear species\n");
         abort();
     }
@@ -1757,7 +1757,7 @@ void msrLogParams(MSR msr,FILE *fp) {
 	    msr->param.bVStart,msr->param.bVStep,msr->param.bVRungStat,
 	    msr->param.bVDetails);
     fprintf(fp,"\n# bPeriodic: %d",msr->param.bPeriodic);
-    fprintf(fp," bComove: %d",msr->param.csm->val.bComove);
+    fprintf(fp," bComove: %d",msr->csm->val.bComove);
     fprintf(fp,"\n# bRestart: %d",msr->param.bRestart);
     fprintf(fp," bParaRead: %d",msr->param.bParaRead);
     fprintf(fp," nParaRead: %d",msr->param.nParaRead);
@@ -1888,25 +1888,25 @@ void msrLogParams(MSR msr,FILE *fp) {
 	    msr->param.dyPeriod >= FLOAT_MAXVAL ? 0 : msr->param.dyPeriod);
     fprintf(fp," dzPeriod: %g",
 	    msr->param.dzPeriod >= FLOAT_MAXVAL ? 0 : msr->param.dzPeriod);
-    fprintf(fp,"\n# dHubble0: %g",msr->param.csm->val.dHubble0);
-    fprintf(fp," dOmega0: %g",msr->param.csm->val.dOmega0);
-    fprintf(fp," dLambda: %g",msr->param.csm->val.dLambda);
-    fprintf(fp," dOmegaDE: %g",msr->param.csm->val.dOmegaDE);
-    fprintf(fp," w0: %g",msr->param.csm->val.w0);
-    fprintf(fp," wa: %g",msr->param.csm->val.wa);
-    fprintf(fp," dOmegaRad: %g",msr->param.csm->val.dOmegaRad);
-    fprintf(fp," dOmegab: %g",msr->param.csm->val.dOmegab);
+    fprintf(fp,"\n# dHubble0: %g",msr->csm->val.dHubble0);
+    fprintf(fp," dOmega0: %g",msr->csm->val.dOmega0);
+    fprintf(fp," dLambda: %g",msr->csm->val.dLambda);
+    fprintf(fp," dOmegaDE: %g",msr->csm->val.dOmegaDE);
+    fprintf(fp," w0: %g",msr->csm->val.w0);
+    fprintf(fp," wa: %g",msr->csm->val.wa);
+    fprintf(fp," dOmegaRad: %g",msr->csm->val.dOmegaRad);
+    fprintf(fp," dOmegab: %g",msr->csm->val.dOmegab);
     fprintf(fp,"\n# achInFile: %s",msr->param.achInFile);
     fprintf(fp,"\n# achOutName: %s",msr->param.achOutName);
     fprintf(fp,"\n# achOutPath: %s",msr->param.achOutPath);
     fprintf(fp,"\n# achIoPath: %s",msr->param.achIoPath);
     fprintf(fp,"\n# achDataSubPath: %s",msr->param.achDataSubPath);
-    if (msr->param.csm->val.bComove) {
+    if (msr->csm->val.bComove) {
 	fprintf(fp,"\n# RedOut:");
 	if (msr->nOuts == 0) fprintf(fp," none");
 	for (i=0;i<msr->nOuts;i++) {
 	    if (i%5 == 0) fprintf(fp,"\n#   ");
-	    z = 1.0/csmTime2Exp(msr->param.csm, msr->pdOutTime[i]) - 1.0;
+	    z = 1.0/csmTime2Exp(msr->csm, msr->pdOutTime[i]) - 1.0;
 	    fprintf(fp," %f",z);
 	    }
 	fprintf(fp,"\n");
@@ -1978,7 +1978,7 @@ int msrCheckForStop(MSR msr,const char *achStopFile) {
     }
 
 void msrFinish(MSR msr) {
-    csmFinish(msr->param.csm);
+    csmFinish(msr->csm);
     /*
     ** finish with parameter stuff, deallocate and exit.
     */
@@ -2083,7 +2083,7 @@ void msrOneNodeRead(MSR msr, struct inReadFile *in, FIO fio) {
     }
 
 double msrSwitchDelta(MSR msr,double dTime,int iStep) {
-    if (msr->param.csm->val.bComove && prmSpecified(msr->prm,"dRedTo")
+    if (msr->csm->val.bComove && prmSpecified(msr->prm,"dRedTo")
         && prmSpecified(msr->prm,"nSteps") && prmSpecified(msr->prm,"nSteps10")) {
 	double aTo,tTo,z;
 	int nSteps;
@@ -2096,7 +2096,7 @@ double msrSwitchDelta(MSR msr,double dTime,int iStep) {
 	    nSteps = msr->param.nSteps - iStep;
 	    }
 	assert(nSteps>0);
-	tTo = csmExp2Time(msr->param.csm,aTo);
+	tTo = csmExp2Time(msr->csm,aTo);
 	msr->param.dDelta = (tTo-dTime) / nSteps;
 	if (iStep == msr->param.nSteps10 && msr->param.bVDetails)
 	    printf("dDelta changed to %g at z=10\n",msr->param.dDelta);
@@ -2106,12 +2106,12 @@ double msrSwitchDelta(MSR msr,double dTime,int iStep) {
 
 double getTime(MSR msr, double dExpansion, double *dvFac) {
     double dTime,aTo,tTo,z;
-    if (msr->param.csm->val.bComove) {
-	if (msr->param.csm->val.dHubble0 == 0.0) {
+    if (msr->csm->val.bComove) {
+	if (msr->csm->val.dHubble0 == 0.0) {
 	    printf("No hubble constant specified\n");
 	    _msrExit(msr,1);
 	    }
-	dTime = csmExp2Time(msr->param.csm,dExpansion);
+	dTime = csmExp2Time(msr->csm,dExpansion);
 	z = 1.0/dExpansion - 1.0;
 	if (msr->param.bVStart)
 	    printf("Input file, Time:%g Redshift:%g Expansion factor:%g iStartStep:%d\n",
@@ -2124,7 +2124,7 @@ double getTime(MSR msr, double dExpansion, double *dvFac) {
 	    if (!prmSpecified(msr->prm,"nSteps") &&
 		    prmSpecified(msr->prm,"dDelta")) {
 		aTo = 1.0/(msr->param.dRedTo + 1.0);
-		tTo = csmExp2Time(msr->param.csm,aTo);
+		tTo = csmExp2Time(msr->csm,aTo);
 		if (msr->param.bVStart)
 		    printf("Simulation to Time:%g Redshift:%g Expansion factor:%g\n",
 			   tTo,1.0/aTo-1.0,aTo);
@@ -2140,7 +2140,7 @@ double getTime(MSR msr, double dExpansion, double *dvFac) {
 	    else if (!prmSpecified(msr->prm,"dDelta") &&
 		     prmSpecified(msr->prm,"nSteps")) {
 		aTo = 1.0/(msr->param.dRedTo + 1.0);
-		tTo = csmExp2Time(msr->param.csm,aTo);
+		tTo = csmExp2Time(msr->csm,aTo);
 		if (msr->param.bVStart)
 		    printf("Simulation to Time:%g Redshift:%g Expansion factor:%g\n",
 			   tTo,1.0/aTo-1.0,aTo);
@@ -2159,12 +2159,12 @@ double getTime(MSR msr, double dExpansion, double *dvFac) {
 	    }
 	else {
 	    tTo = dTime + msr->param.nSteps*msr->param.dDelta;
-	    aTo = csmTime2Exp(msr->param.csm,tTo);
+	    aTo = csmTime2Exp(msr->csm,tTo);
 	    if (msr->param.bVStart)
 		printf("Simulation to Time:%g Redshift:%g Expansion factor:%g\n",
 		       tTo,1.0/aTo-1.0,aTo);
 	    }
-	if (msr->param.csm->val.bComove) {
+	if (msr->csm->val.bComove) {
 	    *dvFac = dExpansion*dExpansion;
 	    }
 	else {
@@ -2218,8 +2218,8 @@ void msrAllNodeWrite(MSR msr, const char *pszFileName, double dTime, double dvFa
     nProcessors = msr->param.bParaWrite==0?1:(msr->param.nParaWrite<=1 ? msr->nThreads:msr->param.nParaWrite);
     in.iIndex = 0;
 
-    if (msr->param.csm->val.bComove) {
-	in.dTime = csmTime2Exp(msr->param.csm,dTime);
+    if (msr->csm->val.bComove) {
+	in.dTime = csmTime2Exp(msr->csm,dTime);
 	in.dvFac = 1.0/(in.dTime*in.dTime);
 	}
     else {
@@ -2250,8 +2250,8 @@ void msrAllNodeWrite(MSR msr, const char *pszFileName, double dTime, double dvFa
     in.dTimeOld   = msr->dTimeOld;
     in.dUOld      = msr->dUOld;
     in.dBoxSize   = msr->param.dBoxSize;
-    in.Omega0     = msr->param.csm->val.dOmega0;
-    in.OmegaLambda= msr->param.csm->val.dLambda;
+    in.Omega0     = msr->csm->val.dOmega0;
+    in.OmegaLambda= msr->csm->val.dLambda;
     in.HubbleParam= msr->param.h;
 
     in.nDark = msr->nDark;
@@ -2326,8 +2326,8 @@ void msrWrite(MSR msr,const char *pszFileName,double dTime,int bCheckpoint) {
     */
     nProcessors = msr->param.bParaWrite==0?1:(msr->param.nParaWrite<=1 ? msr->nThreads:msr->param.nParaWrite);
 
-    if (msr->param.csm->val.bComove) {
-	dExp = csmTime2Exp(msr->param.csm,dTime);
+    if (msr->csm->val.bComove) {
+	dExp = csmTime2Exp(msr->csm,dTime);
 	dvFac = 1.0/(dExp*dExp);
 	}
     else {
@@ -2347,7 +2347,7 @@ void msrWrite(MSR msr,const char *pszFileName,double dTime,int bCheckpoint) {
 		      achOutFile, (msr->param.bHDF5?"HDF5":"Tipsy"));
 	}
 
-    if (msr->param.csm->val.bComove)
+    if (msr->csm->val.bComove)
 	msrprintf(msr,"Time:%g Redshift:%g\n",dTime,(1.0/dExp - 1.0));
     else
 	msrprintf(msr,"Time:%g\n",dTime);
@@ -2951,8 +2951,8 @@ void msrSmoothSetSMF(MSR msr, SMF *smf, double dTime) {
     smf->dTime = dTime;
     if (msrComove(msr)) {
 	smf->bComove = 1;
-	smf->H = csmTime2Hub(msr->param.csm,dTime);
-	smf->a = csmTime2Exp(msr->param.csm,dTime);
+	smf->H = csmTime2Hub(msr->csm,dTime);
+	smf->a = csmTime2Exp(msr->csm,dTime);
 	}
     else {
 	smf->bComove = 0;
@@ -3074,7 +3074,7 @@ void msrUpdateSoft(MSR msr,double dTime) {
     if (msr->param.bPhysicalSoft) {
 	struct inPhysicalSoft in;
 
-	in.dFac = 1./csmTime2Exp(msr->param.csm,dTime);
+	in.dFac = 1./csmTime2Exp(msr->csm,dTime);
 	in.bSoftMaxMul = msr->param.bSoftMaxMul;
 	in.dSoftMax = msr->param.dSoftMax;
 
@@ -3207,9 +3207,9 @@ uint8_t msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot
     in.iRoot1 = iRoot1;
     in.iRoot2 = iRoot2;
     if (msr->param.bLightCone) {
-	in.dLookbackFac = csmComoveKickFac(msr->param.csm,dTime,(csmExp2Time(msr->param.csm,1.0) - dTime));
-	dTimeLCP = csmExp2Time(msr->param.csm,1.0/(1.0+msr->param.dRedshiftLCP));
-	in.dLookbackFacLCP = csmComoveKickFac(msr->param.csm,dTimeLCP,(csmExp2Time(msr->param.csm,1.0) - dTimeLCP));
+	in.dLookbackFac = csmComoveKickFac(msr->csm,dTime,(csmExp2Time(msr->csm,1.0) - dTime));
+	dTimeLCP = csmExp2Time(msr->csm,1.0/(1.0+msr->param.dRedshiftLCP));
+	in.dLookbackFacLCP = csmComoveKickFac(msr->csm,dTimeLCP,(csmExp2Time(msr->csm,1.0) - dTimeLCP));
 	}
     else {
 	in.dLookbackFac = 0.0;
@@ -3222,8 +3222,8 @@ uint8_t msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot
     */
     in.bKickClose = bKickClose;
     in.bKickOpen = bKickOpen;
-    if (msr->param.csm->val.bComove) {
-	a = csmTime2Exp(msr->param.csm,dTime);
+    if (msr->csm->val.bComove) {
+	a = csmTime2Exp(msr->csm,dTime);
 	in.dAccFac = 1.0/(a*a*a);
 #if 0
 	// erf2: in.dThetaMin = 0.4 + 0.3*erf(a*10.0);
@@ -3241,12 +3241,12 @@ uint8_t msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot
 	in.dtClose[i] = 0.0;
 	in.dtOpen[i] = 0.0;
 	if (i>=uRungLo) {
-	    if (msr->param.csm->val.bComove) {
+	    if (msr->csm->val.bComove) {
 		if (bKickClose) {
-		    in.dtClose[i] = csmComoveKickFac(msr->param.csm,dTime-dt,dt);
+		    in.dtClose[i] = csmComoveKickFac(msr->csm,dTime-dt,dt);
 		    }
 		if (bKickOpen) {
-		    in.dtOpen[i] = csmComoveKickFac(msr->param.csm,dTime,dt);
+		    in.dtOpen[i] = csmComoveKickFac(msr->csm,dTime,dt);
 		    }
 		}
 	    else {
@@ -3262,9 +3262,9 @@ uint8_t msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot
 	in.dtLCDrift[i] = 0.0;
 	in.dtLCKick[i] = 0.0;
 	if (i>=uRungLo) {
-	    if (msr->param.csm->val.bComove) {
-		in.dtLCDrift[i] = csmComoveDriftFac(msr->param.csm,dTime,dt);
-		in.dtLCKick[i] = csmComoveKickFac(msr->param.csm,dTime,dt);
+	    if (msr->csm->val.bComove) {
+		in.dtLCDrift[i] = csmComoveDriftFac(msr->csm,dTime,dt);
+		in.dtLCKick[i] = csmComoveKickFac(msr->csm,dTime,dt);
 		}
 	    else {
 	        in.dtLCDrift[i] = dt;
@@ -3272,7 +3272,7 @@ uint8_t msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot
 		}
 	    }
 	}
-    in.bLinearSpecies = (strlen(msr->param.csm->val.classData.achLinSpecies) > 0);
+    in.bLinearSpecies = (strlen(msr->csm->val.classData.achLinSpecies) > 0);
     out_size = msr->nThreads*sizeof(struct outGravityPerProc) + sizeof(struct outGravityReduct);
     out = malloc(out_size);
     assert(out != NULL);
@@ -3397,15 +3397,15 @@ void msrCalcEandL(MSR msr,int bFirst,double dTime,double *E,double *T,double *U,
     ** Do the comoving coordinates stuff.
     ** Currently L is not adjusted for this. Should it be?
     */
-    a = csmTime2Exp(msr->param.csm,dTime);
-    if (!msr->param.csm->val.bComove) *T *= pow(a,4.0);
+    a = csmTime2Exp(msr->csm,dTime);
+    if (!msr->csm->val.bComove) *T *= pow(a,4.0);
     /*
      * Estimate integral (\dot a*U*dt) over the interval.
      * Note that this is equal to integral (W*da) and the latter
      * is more accurate when a is changing rapidly.
      */
-    if (msr->param.csm->val.bComove && !bFirst) {
-	msr->dEcosmo += 0.5*(a - csmTime2Exp(msr->param.csm, msr->dTimeOld))
+    if (msr->csm->val.bComove && !bFirst) {
+	msr->dEcosmo += 0.5*(a - csmTime2Exp(msr->csm, msr->dTimeOld))
 			*((*U) + msr->dUOld);
 	}
     else {
@@ -3421,9 +3421,9 @@ void msrCalcEandL(MSR msr,int bFirst,double dTime,double *E,double *T,double *U,
 void msrDrift(MSR msr,double dTime,double dDelta,int iRoot) {
     struct inDrift in;
 
-    if (msr->param.csm->val.bComove) {
-	in.dDelta = csmComoveDriftFac(msr->param.csm,dTime,dDelta);
-	in.dDeltaVPred = csmComoveKickFac(msr->param.csm,dTime,dDelta);
+    if (msr->csm->val.bComove) {
+	in.dDelta = csmComoveDriftFac(msr->csm,dTime,dDelta);
+	in.dDeltaVPred = csmComoveKickFac(msr->csm,dTime,dDelta);
 	}
     else {
 	in.dDelta = dDelta;
@@ -3527,8 +3527,8 @@ static double dladt( double a, double omegam, double omegav ) {
 */
 double msrAdjustTime(MSR msr, double aOld, double aNew) {
     struct inDrift in;
-    double dOmegaM = msr->param.csm->val.dOmega0;
-    double dOmegaV = msr->param.csm->val.dLambda;
+    double dOmegaM = msr->csm->val.dOmega0;
+    double dOmegaV = msr->csm->val.dLambda;
     double dvFac;
     double dOld, dNew;
 
@@ -3563,8 +3563,8 @@ void msrKickKDKOpen(MSR msr,double dTime,double dDelta,uint8_t uRungLo,uint8_t u
     struct outKick out;
 
     in.dTime = dTime;
-    if (msr->param.csm->val.bComove) {
-	in.dDelta = csmComoveKickFac(msr->param.csm,dTime,dDelta);
+    if (msr->csm->val.bComove) {
+	in.dDelta = csmComoveKickFac(msr->csm,dTime,dDelta);
 	in.dDeltaVPred = 0;
     }
     else {
@@ -3588,8 +3588,8 @@ void msrKickKDKClose(MSR msr,double dTime,double dDelta,uint8_t uRungLo,uint8_t 
     struct outKick out;
 
     in.dTime = dTime;
-    if (msr->param.csm->val.bComove) {
-	in.dDelta = csmComoveKickFac(msr->param.csm,dTime,dDelta);
+    if (msr->csm->val.bComove) {
+	in.dDelta = csmComoveKickFac(msr->csm,dTime,dDelta);
 	in.dDeltaVPred = in.dDelta;
     }
     else {
@@ -3653,12 +3653,12 @@ void msrReadOuts(MSR msr,double dTime) {
 	    ret = sscanf(&achIn[1],"%lf",&z);
 	    if (ret != 1) goto NoMoreOuts;
 	    a = 1.0/(z+1.0);
-	    msr->pdOutTime[i] = csmExp2Time(msr->param.csm,a);
+	    msr->pdOutTime[i] = csmExp2Time(msr->csm,a);
 	    break;
 	case 'a':
 	    ret = sscanf(&achIn[1],"%lf",&a);
 	    if (ret != 1) goto NoMoreOuts;
-	    msr->pdOutTime[i] = csmExp2Time(msr->param.csm,a);
+	    msr->pdOutTime[i] = csmExp2Time(msr->csm,a);
 	    break;
 	case 't':
 	    ret = sscanf(&achIn[1],"%lf",&msr->pdOutTime[i]);
@@ -3673,7 +3673,7 @@ void msrReadOuts(MSR msr,double dTime) {
 	    ret = sscanf(achIn,"%lf",&z);
 	    if (ret != 1) goto NoMoreOuts;
 	    a = 1.0/(z+1.0);
-	    msr->pdOutTime[i] = csmExp2Time(msr->param.csm,a);
+	    msr->pdOutTime[i] = csmExp2Time(msr->csm,a);
 	    }
 	++i;
 	if (i > msr->nMaxOuts) {
@@ -3745,7 +3745,7 @@ const char *msrCheckTypes(MSR msr) {
 
 
 int msrComove(MSR msr) {
-    return(msr->param.csm->val.bComove);
+    return(msr->csm->val.bComove);
     }
 
 
@@ -3760,7 +3760,7 @@ double msrSoft(MSR msr) {
 ** We also adjust the number of replicas if the accuracy warrants it.
 */
 void msrSwitchTheta(MSR msr,double dTime) {
-    double a = csmTime2Exp(msr->param.csm,dTime);
+    double a = csmTime2Exp(msr->csm,dTime);
     double dNewTheta;
     if (a < (1.0/21.0)) dNewTheta = msr->param.dTheta;
     else if (a < (1.0/3.0)) dNewTheta = msr->param.dTheta20;
@@ -3777,7 +3777,7 @@ void msrSwitchTheta(MSR msr,double dTime) {
     }
 
 void msrInitCosmology(MSR msr) {
-    pstInitCosmology(msr->pst, &msr->param.csm->val, sizeof(msr->param.csm->val), NULL, 0);
+    pstInitCosmology(msr->pst, &msr->csm->val, sizeof(msr->csm->val), NULL, 0);
     }
 
 void msrSetParameters(MSR msr) {
@@ -3893,8 +3893,8 @@ void msrAccelStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime) {
     double a;
 
     in.dEta = msrEta(msr);
-    a = csmTime2Exp(msr->param.csm,dTime);
-    if (msr->param.csm->val.bComove) {
+    a = csmTime2Exp(msr->csm,dTime);
+    if (msr->csm->val.bComove) {
 	in.dVelFac = 1.0/(a*a);
 	}
     else {
@@ -3913,7 +3913,7 @@ void msrSphStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime) {
     struct inSphStep in;
     double a;
 
-    a = csmTime2Exp(msr->param.csm,dTime);
+    a = csmTime2Exp(msr->csm,dTime);
     in.dAccFac = 1.0/(a*a*a);
     in.uRungLo = uRungLo;
     in.uRungHi = uRungHi;
@@ -3929,7 +3929,7 @@ void msrDensityStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime) {
     bSymmetric = 0;
     msrSmooth(msr,dTime,SMX_DENSITY,bSymmetric,msr->param.nSmooth);
     in.dEta = msrEta(msr);
-    expand = csmTime2Exp(msr->param.csm,dTime);
+    expand = csmTime2Exp(msr->csm,dTime);
     in.dRhoFac = 1.0/(expand*expand*expand);
     in.uRungLo = uRungLo;
     in.uRungHi = uRungHi;
@@ -4161,7 +4161,7 @@ int msrNewTopStepKDK(MSR msr,
 	if ( msr->param.bDualTree && uRung < *puRungMax) {
 	    /* HACK: FIXME: Don't use the dual tree before z=2; the overlap region is too large */
 	    /* better would be to construct the tree matching remote processor shape as well as local */
-	    double a = csmTime2Exp(msr->param.csm,*pdTime);
+	    double a = csmTime2Exp(msr->csm,*pdTime);
 	    if (a < (1.0/3.0)) bDualTree = 0;
 	    else {
 		bDualTree = 1;
@@ -4230,7 +4230,7 @@ int msrNewTopStepKDK(MSR msr,
 	}
 
     /* Compute the grids of linear species at main timesteps, before gravity is called */
-    if (!uRung && strlen(msr->param.csm->val.classData.achLinSpecies) && msr->param.nGridLin){
+    if (!uRung && strlen(msr->csm->val.classData.achLinSpecies) && msr->param.nGridLin){
 	msrGridCreateFFT(msr,msr->param.nGridLin);
         msrSetLinGrid(msr, *pdTime, msr->param.nGridLin,1,bKickOpen);
         if (msr->param.bDoLinPkOutput)
@@ -4463,7 +4463,7 @@ void msrStarForm(MSR msr, double dTime, int iRung)
     if(!msr->param.bStarForm) return;
     sec = msrTime();
 
-    a = csmTime2Exp(msr->param.csm,dTime);
+    a = csmTime2Exp(msr->csm,dTime);
     in.dDelta = 0;
     /* Convert input parameters to code units */
     in.dRateCoeff = msr->param.SFdEfficiency*sqrt(32/(3*M_PI)/pow(a,3)); /* G=1 */
@@ -4665,7 +4665,7 @@ void msrInitSph(MSR msr,double dTime)
 	//msrSelDstAll(msr);
 
 	in.dTuFac = msr->param.dTuFac;
-	a = csmTime2Exp(msr->param.csm,dTime);
+	a = csmTime2Exp(msr->csm,dTime);
 	in.z = 1/a - 1;
 	in.dTime = dTime;
 	if (msr->param.bInitTFromCooling) {
@@ -4993,8 +4993,8 @@ void msrRelaxation(MSR msr,double dTime,double deltaT,int iSmoothType,int bSymme
 			   4.0*msr->param.dhMinOverSoft*msr->param.dhMinOverSoft);
 #endif
     if (msrComove(msr)) {
-	in.smf.H = csmTime2Hub(msr->param.csm,dTime);
-	in.smf.a = csmTime2Exp(msr->param.csm,dTime);
+	in.smf.H = csmTime2Hub(msr->csm,dTime);
+	in.smf.a = csmTime2Exp(msr->csm,dTime);
 	}
     else {
 	in.smf.H = 0.0;
@@ -5034,15 +5034,15 @@ double msrGenerateIC(MSR msr) {
     in.fPhase = msr->param.dFixedAmpPhasePI * M_PI;
     in.nGrid = msr->param.nGrid;
     in.b2LPT = msr->param.b2LPT;
-    in.bClass = msr->param.csm->val.classData.bClass;
-    in.cosmo = msr->param.csm->val;
+    in.bClass = msr->csm->val.classData.bClass;
+    in.cosmo = msr->csm->val;
     in.nInflateFactor = msr->param.nInflateReps + 1;
     in.nInflateFactor *= in.nInflateFactor * in.nInflateFactor;
 
     nTotal  = in.nGrid; /* Careful: 32 bit integer cubed => 64 bit integer */
     nTotal *= in.nGrid;
     nTotal *= in.nGrid;
-    in.dBoxMass = msr->param.csm->val.dOmega0 / nTotal;
+    in.dBoxMass = msr->csm->val.dOmega0 / nTotal;
 
     for( j=0; j<FIO_SPECIES_LAST; j++) nSpecies[j] = 0;
     nSpecies[FIO_SPECIES_ALL] = nSpecies[FIO_SPECIES_DARK] = nTotal;
@@ -5150,7 +5150,7 @@ double msrRead(MSR msr, const char *achInFile) {
     /* Add Data Subpath for local and non-local names. */
     _msrMakePath(msr->param.achDataSubPath,achInFile,achFilename);
 //    strcpy(read.achFilename,achFilename);
-    fio = fioOpen(achFilename,msr->param.csm->val.dOmega0,msr->param.csm->val.dOmegab);
+    fio = fioOpen(achFilename,msr->csm->val.dOmega0,msr->csm->val.dOmegab);
     if (fio==NULL) {
 	fprintf(stderr,"ERROR: unable to open input file\n");
 	perror(achFilename);
@@ -5163,8 +5163,8 @@ double msrRead(MSR msr, const char *achInFile) {
     if (!fioGetAttr(fio,"dTimeOld",FIO_TYPE_DOUBLE,&msr->dTimeOld)) msr->dTimeOld = 0.0;
     if (!fioGetAttr(fio,"dUOld",FIO_TYPE_DOUBLE,&msr->dUOld)) msr->dUOld = 0.0;
 
-    if(!prmSpecified(msr->prm, "dOmega0")) fioGetAttr(fio,"dOmega0",FIO_TYPE_DOUBLE,&msr->param.csm->val.dOmega0);
-    if(!prmSpecified(msr->prm, "dLambda")) fioGetAttr(fio,"dLambda",FIO_TYPE_DOUBLE,&msr->param.csm->val.dLambda);
+    if(!prmSpecified(msr->prm, "dOmega0")) fioGetAttr(fio,"dOmega0",FIO_TYPE_DOUBLE,&msr->csm->val.dOmega0);
+    if(!prmSpecified(msr->prm, "dLambda")) fioGetAttr(fio,"dLambda",FIO_TYPE_DOUBLE,&msr->csm->val.dLambda);
     if(!prmSpecified(msr->prm, "dBoxSize")) fioGetAttr(fio,"dBoxSize",FIO_TYPE_DOUBLE,&msr->param.dBoxSize);
     if(!prmSpecified(msr->prm, "h")) fioGetAttr(fio,"h",FIO_TYPE_DOUBLE,&msr->param.h);
 
@@ -5195,8 +5195,8 @@ double msrRead(MSR msr, const char *achInFile) {
     for( j=0; j<FIO_SPECIES_LAST; j++) nSpecies[j] = fioGetN(fio,j);
     msrInitializePStore(msr, nSpecies);
 
-    read->dOmega0 = msr->param.csm->val.dOmega0;
-    read->dOmegab = msr->param.csm->val.dOmegab;
+    read->dOmega0 = msr->csm->val.dOmega0;
+    read->dOmegab = msr->csm->val.dOmegab;
 
     /*
     ** If bParaRead is 0, then we read serially; if it is 1, then we read
@@ -5287,8 +5287,8 @@ void msrOutputPk(MSR msr,int iStep,double dTime) {
     msrBuildName(msr,achFile,iStep);
     strncat(achFile,".pk",256);
 
-    if (!msr->param.csm->val.bComove) a = 1.0;
-    else a = csmTime2Exp(msr->param.csm,dTime);
+    if (!msr->csm->val.bComove) a = 1.0;
+    else a = csmTime2Exp(msr->csm,dTime);
 
     /* If the Box Size (in mpc/h) was specified, then we can scale the output power spectrum measurement */
     if ( prmSpecified(msr->prm,"dBoxSize") && msr->param.dBoxSize > 0.0 ) kfact = msr->param.dBoxSize;
@@ -5343,7 +5343,7 @@ void msrOutputLinPk(MSR msr,int iStep,double dTime) {
     int i;
 
     if (msr->param.nGridLin == 0) return;
-    if (!msr->param.csm->val.bComove) return;
+    if (!msr->csm->val.bComove) return;
     if (!prmSpecified(msr->prm, "dBoxSize")) return; 
     fK = malloc(sizeof(float)*(msr->param.nBinsLinPk));
     assert(fK != NULL);
@@ -5352,15 +5352,15 @@ void msrOutputLinPk(MSR msr,int iStep,double dTime) {
     nPk = malloc(sizeof(uint64_t)*(msr->param.nBinsLinPk));
     assert(nPk != NULL);
 
-    a = csmTime2Exp(msr->param.csm, dTime);
+    a = csmTime2Exp(msr->csm, dTime);
 
     msrMeasureLinPk(msr,msr->param.nGridLin,a,msr->param.dBoxSize,nPk,fK,fPk);
 
     msrBuildName(msr,achFile,iStep);
     strncat(achFile,".lin_pk",256);
 
-    if (!msr->param.csm->val.bComove) a = 1.0;
-    else a = csmTime2Exp(msr->param.csm,dTime);
+    if (!msr->csm->val.bComove) a = 1.0;
+    else a = csmTime2Exp(msr->csm,dTime);
 
     if ( msr->param.dBoxSize > 0.0 ) kfact = msr->param.dBoxSize;
     else kfact = 1.0;
@@ -6004,10 +6004,10 @@ void msrSetLinGrid(MSR msr,double dTime, int nGrid, int bKickClose, int bKickOpe
     in.nGrid = nGrid;
 
     int do_DeltaRho_lin_avg = 1;
-    in.a0 = in.a1 = in.a = csmTime2Exp(msr->param.csm, dTime);
+    in.a0 = in.a1 = in.a = csmTime2Exp(msr->csm, dTime);
     if (do_DeltaRho_lin_avg) {
-	if (bKickClose) in.a0 = csmTime2Exp(msr->param.csm, dTime - 0.5*msrDelta(msr));
-	if (bKickOpen)  in.a1 = csmTime2Exp(msr->param.csm, dTime + 0.5*msrDelta(msr));
+	if (bKickClose) in.a0 = csmTime2Exp(msr->csm, dTime - 0.5*msrDelta(msr));
+	if (bKickOpen)  in.a1 = csmTime2Exp(msr->csm, dTime + 0.5*msrDelta(msr));
 	}
 
     in.dBSize = msr->param.dBoxSize;
@@ -6030,9 +6030,9 @@ void msrLinearKick(MSR msr, double dTime, int bKickClose, int bKickOpen) {
     printf("Applying Linear Kick...\n");
     sec = msrTime();
     in.dtOpen = in.dtClose = 0.0;
-    if (msr->param.csm->val.bComove) {
-	if (bKickClose) in.dtClose = csmComoveKickFac(msr->param.csm,dTime-dt,dt);
-	if (bKickOpen) in.dtOpen = csmComoveKickFac(msr->param.csm,dTime,dt);
+    if (msr->csm->val.bComove) {
+	if (bKickClose) in.dtClose = csmComoveKickFac(msr->csm,dTime-dt,dt);
+	if (bKickOpen) in.dtOpen = csmComoveKickFac(msr->csm,dTime,dt);
 	}
     else {
 	if (bKickClose) in.dtClose = dt;
@@ -6063,8 +6063,8 @@ void msrOutputOrbits(MSR msr,int iStep,double dTime) {
 	struct outGetParticles particles[GET_PARTICLES_MAX];
 	double dExp, dvFac;
 
-	if (msr->param.csm->val.bComove) {
-	    dExp = csmTime2Exp(msr->param.csm,dTime);
+	if (msr->csm->val.bComove) {
+	    dExp = csmTime2Exp(msr->csm,dTime);
 	    dvFac = 1.0/(dExp*dExp);
 	    }
 	else {

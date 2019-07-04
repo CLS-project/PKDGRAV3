@@ -896,6 +896,7 @@ typedef struct pkdContext {
     ** This is set in pkdSetParameters.
     */
     struct parameters param;
+    CSM csm;
 
 #ifdef USE_CUDA
     void *cudaCtx;

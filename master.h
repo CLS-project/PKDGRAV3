@@ -43,6 +43,7 @@ typedef struct msrContext {
     ** Parameters.
     */
     struct parameters param;
+    CSM csm;
     /*
     ** Other stuff...
     */

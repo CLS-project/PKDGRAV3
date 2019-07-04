@@ -18,8 +18,6 @@
 #ifndef PARAMETERS_HINCLUDED
 #define PARAMETERS_HINCLUDED
 
-#include "cosmo.h"
-
 /*
 ** Don't even think about putting a pointer in here!!
 */
@@ -175,7 +173,6 @@ struct parameters {
     double dPreFacRhoLoc;
     double dFacExcludePart;
     double dEccFacMax;
-    CSM csm;
     double dRedTo;
     double dRedFrom;
     double dCentMass;

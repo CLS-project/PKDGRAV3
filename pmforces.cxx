@@ -57,7 +57,7 @@ void pkdGenerateLinGrid(PKD pkd, MDLFFT fft, double a, double a_next, double Lbo
     /* For the sake of performance we precompute the (possibly averaged)
     ** field at the |k|'s at which the perturbations are tabulated.
     */
-    size_t size = pkd->param.csm->val.classData.perturbations.size_k;
+    size_t size = pkd->csm->val.classData.perturbations.size_k;
     double *logk = (double*)malloc(sizeof(double)*size);
     double *field = (double*)malloc(sizeof(double)*size);
     size_t i;
@@ -65,16 +65,16 @@ void pkdGenerateLinGrid(PKD pkd, MDLFFT fft, double a, double a_next, double Lbo
     gsl_interp_accel *acc;
     gsl_spline *spline;
     for (i = 0; i < size; i++){
-        k = pkd->param.csm->val.classData.perturbations.k[i];
+        k = pkd->csm->val.classData.perturbations.k[i];
         logk[i] = log(k);
         if (bRho)
             /* Use the \delta\rho field, possibly averaged */
-            field[i] = csmDeltaRho_lin(pkd->param.csm, a, a_next, k);
+            field[i] = csmDeltaRho_lin(pkd->csm, a, a_next, k);
         else
             /* Use the \delta field */
-            field[i] = csmDelta_lin(pkd->param.csm, a, k);
+            field[i] = csmDelta_lin(pkd->csm, a, k);
         /* The cubic splining is much better without the analytic zeta */
-        field[i] /= csmZeta(pkd->param.csm, k);
+        field[i] /= csmZeta(pkd->csm, k);
     }
     acc = gsl_interp_accel_alloc();
     spline = gsl_spline_alloc(gsl_interp_cspline, size);
@@ -98,7 +98,7 @@ void pkdGenerateLinGrid(PKD pkd, MDLFFT fft, double a, double a_next, double Lbo
         i2 = ix*ix + iy*iy + iz*iz;
         if (i2>0){
             k = sqrt((double)i2)*iLbox;
-            *index *= csmZeta(pkd->param.csm, k)*gsl_spline_eval(spline, log(k), acc);
+            *index *= csmZeta(pkd->csm, k)*gsl_spline_eval(spline, log(k), acc);
         }
         else
             *index = 0.0;
