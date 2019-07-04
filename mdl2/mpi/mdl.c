@@ -138,6 +138,32 @@ static uint32_t swar32(register uint32_t x)
 }
 
 /*
+** This makes the following assumptions (changed from regular hash)
+**   1. keys are a multiple of four bytes (and at least four bytes)
+**   2. length is always identical (so don't need to mix in the length)
+**   3. We will always use the same seed
+*/
+uint32_t murmur3(const uint32_t* key, size_t len) {
+    uint32_t h = 0xdeadbeef;
+    len >>= 2;
+    do {
+	uint32_t k = *key++;
+	k *= 0xcc9e2d51;
+	k = (k << 15) | (k >> 17);
+	k *= 0x1b873593;
+	h ^= k;
+	h = (h << 13) | (h >> 19);
+	h = h * 5 + 0xe6546b64;
+	} while (--len);
+    h ^= h >> 16;
+    h *= 0x85ebca6b;
+    h ^= h >> 13;
+    h *= 0xc2b2ae35;
+    h ^= h >> 16;
+    return h;
+    }
+
+/*
 ** MurmurHash2, by Austin Appleby
 ** adapted for hashing 2 uint32_t variables for mdl2
 */
