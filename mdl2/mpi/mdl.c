@@ -213,24 +213,24 @@ static inline uint32_t MurmurHash2(uint32_t a,uint32_t b) {
     }
 
 static inline CDB *remove_from_list(CDB *t) {
-    t->hdr.links.prev->hdr.links.next = t->hdr.links.next;
-    t->hdr.links.next->hdr.links.prev = t->hdr.links.prev;
+    t->prev->next = t->next;
+    t->next->prev = t->prev;
     return t;
 }
 
 static inline CDB *lru_remove(CDB *list) {
-    return remove_from_list(list->hdr.links.prev);
+    return remove_from_list(list->prev);
 }
 
 static inline void lru_insert(CDB *p,CDB *list) {
-    p->hdr.links.prev = list->hdr.links.prev;
-    p->hdr.links.next = list;
-    list->hdr.links.prev->hdr.links.next = p;
-    list->hdr.links.prev = p;
+    p->prev = list->prev;
+    p->next = list;
+    list->prev->next = p;
+    list->prev = p;
 }
 
 static inline void mru_insert(CDB *p,CDB *list) {
-    lru_insert(p,list->hdr.links.next);
+    lru_insert(p,list->next);
     }
 
 static inline CDB * remove_from_hash(ARC arc,CDB *p) {
@@ -239,9 +239,9 @@ static inline CDB * remove_from_hash(ARC arc,CDB *p) {
     uint32_t uHash = (MurmurHash2(uPage,uId)&arc->uHashMask);
     CDB **pt;
 
-    for(pt = &arc->Hash[uHash]; *pt != NULL; pt = &((*pt)->extra.coll)) {
+    for(pt = &arc->Hash[uHash]; *pt != NULL; pt = &((*pt)->coll)) {
 	if ( *pt == p) {
-	    *pt = (*pt)->extra.coll;
+	    *pt = (*pt)->coll;
 	    return p;
 	    }
 	}
@@ -298,32 +298,32 @@ ARC arcInitialize(uint32_t nCache,uint32_t uDataSize,CACHE *c) {
     */
     arc->T1 = ARC_malloc(sizeof(CDB));
     assert(arc->T1 != NULL);
-    arc->T1->hdr.links.next = arc->T1;
-    arc->T1->hdr.links.prev = arc->T1;
+    arc->T1->next = arc->T1;
+    arc->T1->prev = arc->T1;
     arc->T1->uId = 0xdeadbeef;
     arc->T1Length = 0;
     arc->B1 = ARC_malloc(sizeof(CDB));
     assert(arc->B1 != NULL);
-    arc->B1->hdr.links.next = arc->B1;
-    arc->B1->hdr.links.prev = arc->B1;
+    arc->B1->next = arc->B1;
+    arc->B1->prev = arc->B1;
     arc->B1->uId = 0xdeadbeef;
     arc->B1Length = 0;
     arc->T2 = ARC_malloc(sizeof(CDB));
     assert(arc->T2 != NULL);
-    arc->T2->hdr.links.next = arc->T2;
-    arc->T2->hdr.links.prev = arc->T2;
+    arc->T2->next = arc->T2;
+    arc->T2->prev = arc->T2;
     arc->T2->uId = 0xdeadbeef;
     arc->T2Length = 0;
     arc->B2 = ARC_malloc(sizeof(CDB));
     assert(arc->B2 != NULL);
-    arc->B2->hdr.links.next = arc->B2;
-    arc->B2->hdr.links.prev = arc->B2;
+    arc->B2->next = arc->B2;
+    arc->B2->prev = arc->B2;
     arc->B2->uId = 0xdeadbeef;
     arc->B2Length = 0;
     arc->Free = ARC_malloc(sizeof(CDB));
     assert(arc->Free != NULL);
-    arc->Free->hdr.links.next = arc->Free;
-    arc->Free->hdr.links.prev = arc->Free;
+    arc->Free->next = arc->Free;
+    arc->Free->prev = arc->Free;
     /*
     ** Initialize target T1 length.
     */
@@ -334,7 +334,7 @@ ARC arcInitialize(uint32_t nCache,uint32_t uDataSize,CACHE *c) {
     for (i=0;i<nCache;++i) {
 	/*arc->dataBase[i*(arc->uDataSize+1)] = _ARC_MAGIC_;*/ /* Defer this until we use it. */
 	arc->cdbBase[i].data = &arc->dataBase[i*(arc->uDataSize+1)+1];
-	arc->cdbBase[i].extra.coll = NULL;
+	arc->cdbBase[i].coll = NULL;
 	lru_insert(&arc->cdbBase[i],arc->Free);
     }
     /*
@@ -342,7 +342,7 @@ ARC arcInitialize(uint32_t nCache,uint32_t uDataSize,CACHE *c) {
     */
     for (i=nCache;i<2*nCache;++i) {
 	arc->cdbBase[i].data = 0;
-	arc->cdbBase[i].extra.coll = NULL;
+	arc->cdbBase[i].coll = NULL;
 	mru_insert(&arc->cdbBase[i],arc->Free);
     }
     return(arc);
@@ -2562,14 +2562,14 @@ static void arcRemoveAll(MDL mdl,ARC arc) {
 	assert(temp->data == NULL);
 	mru_insert(temp,arc->Free);
 	}
-    assert(arc->T1->hdr.links.next == arc->T1);
-    assert(arc->T1->hdr.links.prev == arc->T1);
-    assert(arc->B1->hdr.links.next == arc->B1);
-    assert(arc->B1->hdr.links.prev == arc->B1);
-    assert(arc->T2->hdr.links.next == arc->T2);
-    assert(arc->T2->hdr.links.prev == arc->T2);
-    assert(arc->B2->hdr.links.next == arc->B2);
-    assert(arc->B2->hdr.links.prev == arc->B2);
+    assert(arc->T1->next == arc->T1);
+    assert(arc->T1->prev == arc->T1);
+    assert(arc->B1->next == arc->B1);
+    assert(arc->B1->prev == arc->B1);
+    assert(arc->T2->next == arc->T2);
+    assert(arc->T2->prev == arc->T2);
+    assert(arc->B2->next == arc->B2);
+    assert(arc->B2->prev == arc->B2);
     }
 
 void mdlFlushCache(MDL mdl,int cid) {
@@ -2629,13 +2629,13 @@ static inline uint64_t *replace(MDL mdl,ARC arc, int iInB2) {
     uint32_t max = (arc->target_T1 > 1)?(arc->target_T1+1-iInB2):1;
     if (arc->T1Length >= max) { /* T1’s size exceeds target? */
                                         /* yes: T1 is too big */
-	temp = arc->T1->hdr.links.prev;                /* get LRU */
+	temp = arc->T1->prev;                /* get LRU */
 	while (temp->data[-1] != _ARC_MAGIC_) {           /* is it a locked page? */
-	    temp = temp->hdr.links.prev;
+	    temp = temp->prev;
 	    if (temp == arc->T1) {           /* all pages in T1 are currently locked, try T2 in this case */
-		temp = arc->T2->hdr.links.prev;                /* get LRU */
+		temp = arc->T2->prev;                /* get LRU */
 		while (temp->data[-1] != _ARC_MAGIC_) {           /* is it a locked page? */
-		    temp = temp->hdr.links.prev;
+		    temp = temp->prev;
 		    if (temp == arc->T2) return(NULL); /* all pages are currently locked, give up! */
 		}
 		goto replace_T2;
@@ -2644,13 +2644,13 @@ static inline uint64_t *replace(MDL mdl,ARC arc, int iInB2) {
 	goto replace_T1;
     } else {
 	/* no: T1 is not too big */
-	temp = arc->T2->hdr.links.prev;                /* get LRU */
+	temp = arc->T2->prev;                /* get LRU */
 	while (temp->data[-1] != _ARC_MAGIC_) {           /* is it a locked page? */
-	    temp = temp->hdr.links.prev;
+	    temp = temp->prev;
 	    if (temp == arc->T2) {           /* all pages in T2 are currently locked, try T1 in this case */
-		temp = arc->T1->hdr.links.prev;                /* get LRU */
+		temp = arc->T1->prev;                /* get LRU */
 		while (temp->data[-1] != _ARC_MAGIC_) {           /* is it a locked page? */
-		    temp = temp->hdr.links.prev;
+		    temp = temp->prev;
 		    if (temp == arc->T1) return(NULL); /* all pages are currently locked, give up! */
 		}
 		goto replace_T1;
@@ -2698,7 +2698,7 @@ static inline CDB *arcSetPrefetchDataByHash(MDL mdl,ARC arc,uint32_t uPage,uint3
     int inB2=0;
 
     assert(data);
-    for( temp = arc->Hash[uHash]; temp; temp = temp->extra.coll ) {
+    for( temp = arc->Hash[uHash]; temp; temp = temp->coll ) {
 	if (temp->uPage == uPage && (temp->uId&_IDMASK_) == tuId) break;
 	}
     if (temp != NULL) {                       /* found in cache directory? */
@@ -2773,7 +2773,7 @@ static inline CDB *arcSetPrefetchDataByHash(MDL mdl,ARC arc,uint32_t uPage,uint3
 	temp->uId = _P1_|(uId&_IDMASK_);     /* temp->ARC_where = _P1_; and clear the dirty bit for this page */
 /* 	assert( (temp->uId&_WHERE_) == _P1_ ); */
 	temp->uPage = uPage;
-	temp->extra.coll = arc->Hash[uHash];                  /* add to collision chain */
+	temp->coll = arc->Hash[uHash];                  /* add to collision chain */
 	arc->Hash[uHash] = temp;                               /* insert into hash table */
     }
     memcpy(temp->data,data,arc->cache->iLineSize); /* Copy actual cache data amount */
@@ -2886,7 +2886,7 @@ void *mdlAccess(MDL mdl, int cid, uint32_t uIndex, int uId, int bLock,int bModif
 
     /* First check our own cache */
     uHash = (MurmurHash2(uLine,tuId)&arc->uHashMask);
-    for ( temp = arc->Hash[uHash]; temp; temp = temp->extra.coll ) {
+    for ( temp = arc->Hash[uHash]; temp; temp = temp->coll ) {
 	if (temp->uPage == uLine && (temp->uId&_IDMASK_) == tuId) break;
 	}
     if (temp != NULL) {                       /* found in cache directory? */
@@ -2924,7 +2924,7 @@ void *mdlAccess(MDL mdl, int cid, uint32_t uIndex, int uId, int bLock,int bModif
 	    ** Can initiate the data request right here, and do the rest while waiting...
 	    */
 	    if (!bVirtual) queueCacheRequest(mdl,cid,uLine,uId);
-/* 	    assert(arc->B1->hdr.links.next != arc->B1); */
+/* 	    assert(arc->B1->next != arc->B1); */
 /* 	    assert(arc->B1Length>0); */
 	    rat = arc->B2Length/arc->B1Length;
 	    if (rat < 1) rat = 1;
@@ -2938,7 +2938,7 @@ void *mdlAccess(MDL mdl, int cid, uint32_t uIndex, int uId, int bLock,int bModif
 	    ** Can initiate the data request right here, and do the rest while waiting...
 	    */
 	    if (!bVirtual) queueCacheRequest(mdl,cid,uLine,uId);
-/* 	    assert(arc->B2->hdr.links.next != arc->B2); */
+/* 	    assert(arc->B2->next != arc->B2); */
 /* 	    assert(arc->B2Length>0); */
 
 	    rat = arc->B1Length/arc->B2Length;
@@ -3013,7 +3013,7 @@ void *mdlAccess(MDL mdl, int cid, uint32_t uIndex, int uId, int bLock,int bModif
 /* 	assert( (temp->uId&_WHERE_) == _T1_ ); */
 	temp->uPage = uLine;
 	finishCacheRequest(mdl,cid,uLine,uId,temp,bVirtual);
-	temp->extra.coll = arc->Hash[uHash];                  /* add to collision chain */
+	temp->coll = arc->Hash[uHash];                  /* add to collision chain */
 	arc->Hash[uHash] = temp;                               /* insert into hash table */
 	mdlTimeAddWaiting(mdl);
     }

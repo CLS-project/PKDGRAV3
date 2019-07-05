@@ -40,25 +40,10 @@ typedef double fftw_real;
 #endif
 #endif
 
-typedef struct  {
+typedef struct CacheDataBucket {
     struct CacheDataBucket *next;      /* for doubly linked list */
     struct CacheDataBucket *prev;      /* for doubly linked list */
-    } CacheDataLinks;
-
-typedef struct CacheDataBucket {
-    /*
-    ** When we are flushing, the element has been removed from all lists,
-    ** and from the hash table. We can "send" the CDB to the MPI node and
-    ** get it returned to us later.
-    */
-    union {
-	CacheDataLinks  links; /* When in the ARC cache */
-	MDLserviceElement svc; /* When sending to/from the MPI thread */
-	} hdr;
-    union {
-	struct CacheDataBucket *coll; /* collision chain for hash table */
-	struct cacheSpace *cache; /* when flushing need to know which cache */
-	} extra;
+    struct CacheDataBucket *coll; /* collision chain for hash table */
     uint64_t *data;      /* page's location in cache */
     uint32_t uId;       /* upper 4 bits encode ARC_where and dirty bit */
     uint32_t uPage;    /* page's ID number */
@@ -121,13 +106,6 @@ typedef struct mdl_wq_node {
     mdlWorkFunction doFcn;
     mdlWorkFunction doneFcn;
     } MDLwqNode;
-
-typedef struct cacheTag {
-    mdlkey_t iKey;
-    int nLock;
-    int iLink;
-    } CTAG;
-
 
 /*
 ** This structure should be "maximally" aligned.
