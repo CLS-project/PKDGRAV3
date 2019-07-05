@@ -137,15 +137,32 @@ static uint32_t swar32(register uint32_t x)
     return(x);
 }
 
+static inline uint32_t murmur2(const uint32_t *key, int len) {
+    const uint32_t m = 0x5bd1e995;
+    const int r = 24;
+    uint32_t h = 0xdeadbeef /*^ len : len will be the same */;
+    while(len--) {
+	uint32_t k = *key++;
+	k *= m;
+	k ^= k >> r;
+	k *= m;
+	h *= m;
+	h ^= k;
+	}
+    h ^= h >> 13;
+    h *= m;
+    h ^= h >> 15;
+    return h;
+    } 
+
 /*
 ** This makes the following assumptions (changed from regular hash)
-**   1. keys are a multiple of four bytes (and at least four bytes)
+**   1. keys lengths are a multiple of four bytes (and at least four bytes)
 **   2. length is always identical (so don't need to mix in the length)
 **   3. We will always use the same seed
 */
-uint32_t murmur3(const uint32_t* key, size_t len) {
+static inline uint32_t murmur3(const uint32_t* key, size_t len) {
     uint32_t h = 0xdeadbeef;
-    len >>= 2;
     do {
 	uint32_t k = *key++;
 	k *= 0xcc9e2d51;
@@ -167,8 +184,7 @@ uint32_t murmur3(const uint32_t* key, size_t len) {
 ** MurmurHash2, by Austin Appleby
 ** adapted for hashing 2 uint32_t variables for mdl2
 */
-static inline uint32_t MurmurHash2(uint32_t a,uint32_t b)
-{
+static inline uint32_t MurmurHash2(uint32_t a,uint32_t b) {
     /* 
     ** 'm' and 'r' are mixing constants generated offline.
     ** They're not really 'magic', they just happen to work well.
@@ -194,7 +210,7 @@ static inline uint32_t MurmurHash2(uint32_t a,uint32_t b)
     h *= m;
     h ^= h >> 15;
     return h;
-} 
+    }
 
 static inline CDB *remove_from_list(CDB *t) {
     t->hdr.links.prev->hdr.links.next = t->hdr.links.next;
