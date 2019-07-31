@@ -796,6 +796,21 @@ if (p->iOrder == A || p->iOrder==B){
        if (riemann_input.L.p <= 0) {riemann_input.L.p = psph->P;    printf("WARNING, L.p < 0 : using first-order scheme \n"); }
        if (riemann_input.R.p <= 0) {riemann_input.R.p = qsph->P;    printf("WARNING, R.p < 0 : using first-order scheme \n");}
        Riemann_solver(pkd, riemann_input, &riemann_output, face_unit, /*double press_tot_limiter TODO For now, just p>0: */ 0.0);
+      
+       // IA: MFM
+#ifdef USE_MFM
+       if (riemann_output.Fluxes.rho != 0){
+          printf("Frho %e \n",riemann_output.Fluxes.rho);
+          abort();
+       }
+       for (j=0;j<3;j++){
+          vFrame[j] += riemann_output.S_M*face_unit[j];
+       }
+#endif       
+       // IA: End MFM
+
+      
+
 
        // IA: DEBUG
 //       abort();

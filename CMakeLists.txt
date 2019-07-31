@@ -204,6 +204,12 @@ foreach(flag_var
    endif(${flag_var} MATCHES "-DNDEBUG")
 endforeach(flag_var)
 
+option(USE_MFM "Use the MFM hydro scheme instead of MFV" OFF)
+if (USE_MFM)
+   message("-- Compiling with MFM hydrodynamics")
+   target_compile_options(${PROJECT_NAME} PRIVATE -DUSE_MFM)
+endif(USE_MFM)
+
 
 
 CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/pkd_config.h.in ${CMAKE_CURRENT_BINARY_DIR}/pkd_config.h)

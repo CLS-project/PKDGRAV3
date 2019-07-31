@@ -306,6 +306,16 @@ void Riemann_solver(PKD pkd, struct Input_vec_Riemann Riemann_vec, struct Rieman
     if((Riemann_out->P_M<=0)||(isnan(Riemann_out->P_M))||(Riemann_out->P_M>press_tot_limiter))
     {
         Riemann_solver_exact(pkd, Riemann_vec, Riemann_out, n_unit, v_line_L, v_line_R, cs_L, cs_R, h_L, h_R);
+
+        // IA: If using MFM, we need to compute the fluxes of the star state
+#ifdef USE_MFM 
+        Riemann_out->Fluxes.rho = 0;
+        Riemann_out->Fluxes.p = Riemann_out->P_M * Riemann_out->S_M;
+        int k;
+        for(k=0;k<3;k++)
+            Riemann_out->Fluxes.v[k] = Riemann_out->P_M * n_unit[k];
+#endif
+        // END
 #ifdef SAVE_FACE_DENSITY
         Riemann_out->Face_Density = 0.5*(Riemann_vec.L.rho + Riemann_vec.R.rho);
 #endif
@@ -342,6 +352,7 @@ void HLLC_Riemann_solver(PKD pkd, struct Input_vec_Riemann Riemann_vec, struct R
 {
     double S_L,S_R;
     get_wavespeeds_and_pressure_star(pkd, Riemann_vec, Riemann_out, n_unit,  v_line_L, v_line_R, cs_L, cs_R, h_L, h_R, &S_L, &S_R, press_tot_limiter);
+    
 #ifdef HYDRO_MESHLESS_FINITE_VOLUME
     /* check if we have a valid solution, and if so, compute the fluxes */
     if((Riemann_out->P_M>0)&&(!isnan(Riemann_out->P_M))){
@@ -503,6 +514,9 @@ void HLLC_fluxes(PKD pkd, struct Input_vec_Riemann Riemann_vec, struct Riemann_o
     if((P_M <= 0)||(isnan(P_M))) return;
     
     double nfac,eK,dv2=0,v_line_frame=0; int k;
+#ifdef USE_MFM
+    v_line_frame = S_M; /* IA: If we set this, we have the MFM scheme */
+#endif
     if((S_M==S_L)||(S_M==S_R)||(S_M==v_line_frame))
     {
         /* trap for this case, which gives NAN below but is actually very simple */
@@ -580,7 +594,7 @@ void HLLC_fluxes(PKD pkd, struct Input_vec_Riemann Riemann_vec, struct Riemann_o
 void Riemann_solver_exact(PKD pkd, struct Input_vec_Riemann Riemann_vec, struct Riemann_outputs *Riemann_out, double n_unit[3],
                        double v_line_L, double v_line_R, double cs_L, double cs_R, double h_L, double h_R)
 {
-//   printf("Going for the exact Riemann Solver \n");
+    //printf("Going for the exact Riemann Solver \n");
     /* first, we need to check for all the special/exceptional cases that will cause things to go haywire */
     if((Riemann_vec.L.p == 0 && Riemann_vec.L.p == 0) || (Riemann_vec.L.rho==0 && Riemann_vec.R.rho==0))
     {
