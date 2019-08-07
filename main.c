@@ -376,8 +376,7 @@ void master(MDL mdl,void *pst) {
                         }
 		    bKickOpen = 0; /* clear the opening kicking flag */
 		    }
-		msrNewTopStepKDK(msr,0,0,&diStep,&ddTime,&uRungMax,&iSec,&bDoCheckpoint,&bDoOutput);
-		bKickOpen = bDoCheckpoint || bDoOutput;
+		msrNewTopStepKDK(msr,0,0,&diStep,&ddTime,&uRungMax,&iSec,&bDoCheckpoint,&bDoOutput,&bKickOpen);
 		}
 	    else {
 		msrTopStepKDK(msr,iStep-1,dTime,

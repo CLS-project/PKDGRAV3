@@ -4080,8 +4080,8 @@ void msrLightConeVel(MSR msr) {
     }
 
 
-
-void msrCheckForOutput(MSR msr,int iStep,double dTime,int *pbDoCheckpoint,int *pbDoOutput) {
+/* True if we should omit the opening kick */
+int msrCheckForOutput(MSR msr,int iStep,double dTime,int *pbDoCheckpoint,int *pbDoOutput) {
     int iStop, iCheck;
     long lSec = time(0) - msr->lPrior;
 
@@ -4135,6 +4135,8 @@ void msrCheckForOutput(MSR msr,int iStep,double dTime,int *pbDoCheckpoint,int *p
 	bGlobalOutput = 0;
 	*pbDoOutput = 1  | (iStop<<1);
 	}
+
+    return (iStep==msr->param.nSteps10) || *pbDoOutput || *pbDoCheckpoint;
     }
 
 
@@ -4144,13 +4146,13 @@ int msrNewTopStepKDK(MSR msr,
     double *pdStep,	/* Current step */
     double *pdTime,	/* Current time */
     uint8_t *puRungMax,
-    int *piSec,int *pbDoCheckpoint,int *pbDoOutput) {
+    int *piSec,int *pbDoCheckpoint,int *pbDoOutput,int *pbNeedKickOpen) {
     uint64_t nActive;
     double dDelta,dTimeFixed;
     uint32_t uRoot2=0;
     int iRungDT = msr->iRungDT;
     char achFile[256];
-    int bKickOpen;
+    int bKickOpen=1;
     /*
     ** The iStep variable serves only to give a number to the lightcone and group output files.
     ** We define this to be the output number of the final radius of the lightcone surface.
@@ -4179,7 +4181,7 @@ int msrNewTopStepKDK(MSR msr,
 	else bDualTree = 0;
 	}
     if (uRung < *puRungMax) {
-	bDualTree = msrNewTopStepKDK(msr,bDualTree,uRung+1,pdStep,pdTime,puRungMax,piSec,pbDoCheckpoint,pbDoOutput);
+	bDualTree = msrNewTopStepKDK(msr,bDualTree,uRung+1,pdStep,pdTime,puRungMax,piSec,pbDoCheckpoint,pbDoOutput,pbNeedKickOpen);
 	}
 
     /* Drift the "ROOT" (active) tree or all particle */
@@ -4213,11 +4215,10 @@ int msrNewTopStepKDK(MSR msr,
 	}
 
     if (!uRung) {
-	msrCheckForOutput(msr,iStep,*pdTime,pbDoCheckpoint,pbDoOutput);	
-	if (*pbDoCheckpoint || *pbDoOutput) bKickOpen = 0;
-	else bKickOpen = 1;
+	bKickOpen = !msrCheckForOutput(msr,iStep,*pdTime,pbDoCheckpoint,pbDoOutput);	
 	}
     else bKickOpen = 1;
+    *pbNeedKickOpen = !bKickOpen;
     
     /*
     ** We need to write all light cone files (healpix and LCP) at this point before the last
@@ -4254,7 +4255,7 @@ int msrNewTopStepKDK(MSR msr,
 	msrHopWrite(msr,achFile);
 	}
 
-    if (uRung && uRung < *puRungMax) bDualTree = msrNewTopStepKDK(msr,bDualTree,uRung+1,pdStep,pdTime,puRungMax,piSec,pbDoCheckpoint,pbDoOutput);
+    if (uRung && uRung < *puRungMax) bDualTree = msrNewTopStepKDK(msr,bDualTree,uRung+1,pdStep,pdTime,puRungMax,piSec,pbDoCheckpoint,pbDoOutput,pbNeedKickOpen);
     if (bDualTree && uRung==iRungDT+1) {
 	msrprintf(msr,"Half Drift, uRung: %d\n",iRungDT);
 	dDelta = msr->param.dDelta/(1 << iRungDT);

@@ -147,13 +147,13 @@ double msrReadCheck(MSR,int *);
 void msrWriteCheck(MSR,double,int);
 int msrOutTime(MSR,double);
 void msrReadOuts(MSR,double);
-void msrCheckForOutput(MSR msr,int iStep,double dTime,int *pbDoCheckpoint,int *pbDoOutput);
+int msrCheckForOutput(MSR msr,int iStep,double dTime,int *pbDoCheckpoint,int *pbDoOutput);
 int msrNewTopStepKDK(MSR msr,
     int bDualTree,      /* Should be zero at rung 0! */
     uint8_t uRung,	/* Rung level */
     double *pdStep,	/* Current step */
     double *pdTime,	/* Current time */
-    uint8_t *puRungMax,int *piSec,int *pbDoCheckpoint,int *pbDoOutput);
+    uint8_t *puRungMax,int *piSec,int *pbDoCheckpoint,int *pbDoOutput,int *pbNeedKickOpen);
 void msrTopStepKDK(MSR msr,
 		   double dStep,	/* Current step */
 		   double dTime,	/* Current time */
