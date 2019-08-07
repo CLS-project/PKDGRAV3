@@ -20,7 +20,7 @@
 #include "opa_queue.h"
 #include "basetype.h"
 
-//#define CUDA_STREAMS 16
+#define CUDA_STREAMS 8
 
 #ifdef __cplusplus
 extern "C" {
