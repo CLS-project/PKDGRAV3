@@ -1589,6 +1589,9 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     prmAddArray(msr->prm,"lstOrbits",4,&msr->param.iOutputParticles,sizeof(uint64_t),&msr->param.nOutputParticles);
 
     /* New params added by IA for the hydrodynamics */
+    msr->param.dCFLacc = 0.01;
+    prmAddParam(msr->prm,"dCFLacc",2,&msr->param.dCFLacc,sizeof(double),"CFLacc",
+				"<CFL for the acceleration criteria> = 0.01");
     msr->param.bMeshlessHydro = 0;
     prmAddParam(msr->prm,"bMeshlessHydro", 0, &msr->param.bMeshlessHydro,
 		sizeof(int), "meshlessHydro",
@@ -3044,6 +3047,7 @@ void msrSmoothSetSMF(MSR msr, SMF *smf, double dTime) {
     smf->SFdFBFac = 0.5/((1+0.6*smf->alpha)/(smf->a*smf->dEtaCourant))
 	/(msr->param.SFdvFB/msr->param.dKmPerSecUnit);
     smf->FirstHydroLoop = msrFirstHydroLoop(msr);
+    smf->dCFLacc = msr->param.dCFLacc;
     }
 
 void msrSmooth(MSR msr,double dTime,int iSmoothType,int bSymmetric,int nSmooth) {
@@ -3539,26 +3543,33 @@ void msrDrift(MSR msr,double dTime,double dDelta,int iRoot) {
     in.iRoot = iRoot;
     pstDrift(msr->pst,&in,sizeof(in),NULL,NULL);
     }
-/*
-TODO void msrApplyGravWork(MSR msr,double dTime,double dDelta,int iRoot) {
-    struct inDrift in;
+/* IA
+ * We add the gravitational work following a second-order scheme (e.g., equations H1 and H2 of Hopkins 2015)
+ * To that end, we need the gradient of the gravitational potential at the begining and end of the timestep.
+ * This gradient is just the acceleration due to gravity.
+ *
+ */
+void  msrApplyGravWork(MSR msr,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi) {
+    struct inKick in;
 
-    assert(iRoot!=0); //IA: Dual tree not implemented
 
+    in.dTime = dTime;
     if (msr->param.csm->val.bComove) {
-	in.dDelta = csmComoveDriftFac(msr->param.csm,dTime,dDelta);
-	in.dDeltaVPred = csmComoveKickFac(msr->param.csm,dTime,dDelta);
-	}
+	in.dDelta = csmComoveKickFac(msr->param.csm,dTime,dDelta);
+	in.dDeltaVPred = 0;
+    }
     else {
 	in.dDelta = dDelta;
-	in.dDeltaVPred = dDelta;
-	}
-    in.dTime = dTime;
-    in.dDeltaUPred = dDelta;
-    in.iRoot = iRoot;
+	in.dDeltaVPred = 0;
+    }
+    in.dDeltaU = dDelta;
+    in.dDeltaUPred = 0;
+    in.uRungLo = uRungLo;
+    in.uRungHi = uRungHi;
+
     pstApplyGravWork(msr->pst,&in,sizeof(in),NULL,NULL);
     }
-*/
+
 
 
 void msrUpdateConsVars(MSR msr,double dTime,double dDelta,int iRoot) {
@@ -3606,7 +3617,7 @@ void msrMeshlessFluxes(MSR msr,double dTime,double dDelta,int iRoot){
 
 void msrUpdatePrimVars(MSR msr,double dTime,double dDelta,int iRoot){
     struct inDrift in; //IA: TODO new struct for this, as I am using more space than needed
-    int nSmoothed = 1, it=0, maxit = 10;  
+    int nSmoothed = 1, it=0, maxit = 100;  
     in.iRoot = iRoot;
     in.dTime = dTime;
 
@@ -4555,6 +4566,9 @@ void msrTopStepKDK(MSR msr,
     msrprintf(msr,"%*cmsrKickOpen  at iRung: %d 0.5*dDelta: %g\n",
 	      2*iRung+2,' ',iRung,0.5*dDelta);
     msrKickKDKOpen(msr,dTime,0.5*dDelta,iRung,iRung);
+      if (msrDoGas(msr) && msrMeshlessHydro(msr) && msrDoGravity(msr)){
+          msrApplyGravWork(msr,dTime,-1,iRung,iRung); //IA: -1 dDelta means that we are in the open kick 
+      }
     if ((msrCurrMaxRung(msr) > iRung) && (iRungVeryActive > iRung)) {
 	/*
 	** Recurse.
@@ -4606,7 +4620,8 @@ void msrTopStepKDK(MSR msr,
 	    msrBuildTree(msr,dTime,msr->param.bEwald);
 	    }
 	if (msrDoGravity(msr)) {
-	    msrGravity(msr,iKickRung,MAX_RUNG,ROOT,0,dTime,dStep,0,0,msr->param.bEwald,msr->param.nGroup,piSec,&nActive);
+      // IA: FIXME TODO Commented for analytical gravity
+	//    msrGravity(msr,iKickRung,MAX_RUNG,ROOT,0,dTime,dStep,0,0,msr->param.bEwald,msr->param.nGroup,piSec,&nActive);
 	    *pdActiveSum += (double)nActive/msr->N;
 	    }
 	
@@ -4616,13 +4631,10 @@ void msrTopStepKDK(MSR msr,
 		       (iKickRung<=msr->param.iRungCoolTableUpdate ? 1:0),0);
 	}
 
-      //if (msrDoGas(msr) && msrMeshlessHydro(msr) && msrDoGravity(msr)){
-      //   msrApplyGravWork(msr, dTime, dDelta, ROOT);   // IA TODO: Implement
-      //}
-    if (msrDoGas(msr) && msrMeshlessHydro(msr)){
-        msrUpdatePrimVars(msr, dTime, dDelta, ROOT);
-        msrMeshlessGradients(msr, dTime, dDelta, ROOT);
-    }
+      if (msrDoGas(msr) && msrMeshlessHydro(msr)){
+         msrUpdatePrimVars(msr, dTime, dDelta, ROOT);
+         msrMeshlessGradients(msr, dTime, dDelta, ROOT);
+      }
 
 	/*
 	 * move time back to 1/2 step so that KickClose can integrate
@@ -4721,6 +4733,9 @@ void msrTopStepKDK(MSR msr,
     msrprintf(msr,"%*cKickClose, iRung: %d, 0.5*dDelta: %g\n",
 	      2*iRung+2,' ',iRung, 0.5*dDelta);
     msrKickKDKClose(msr,dTime,0.5*dDelta,iRung,iRung); /* uses dTime-0.5*dDelta */
+      if (msrDoGas(msr) && msrMeshlessHydro(msr) && msrDoGravity(msr)){
+          msrApplyGravWork(msr,dTime,dDelta,iRung,iRung);  
+      }
 
 
     dTime += 0.5*dDelta; /* Important to have correct time at step end for SF! */
@@ -4979,6 +4994,9 @@ void msrInitSph(MSR msr,double dTime)
     msrCooling(msr,dTime,0,0,1,1); /* Interate cooling for consistent dt */
     }else{ //IA: we set the initial rungs of the particles
         msrActiveRung(msr,0,1);
+      if (msrDoGravity(msr)){ //IA: We need this for the acceleration time step criteria in the kepler ring!
+          //msrApplyGravWork(msr, dTime, 0.0, ROOT);  
+      }
         msrUpdatePrimVars(msr, dTime, 0.0, ROOT);
         msrMeshlessGradients(msr, 0.0, 0.0, ROOT);
         msrMeshlessFluxes(msr, 0.0, 0.0, ROOT);

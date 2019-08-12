@@ -2952,6 +2952,14 @@ static void class_read(IOCLASS *ioClass, PINDEX iOffset, uint_fast32_t nBuffered
     field_read(&ioClass->fldClasses,iOffset,nBuffered);
     }
 
+    /* IA: This would need to be changed for the MFV if we allow for variable masses as
+     * we are not using classes! 
+     *
+     * This whole classes stuff would need to be revised, as would be useful to have classes
+     * for DM particles (thus no need to store mass), but individual masses for gas particles
+     *
+     * TODO: ADD this to TRELLO
+     * */
 static void class_add( IOBASE *base, PINDEX iOrder, float fMass, float fSoft ) {
     IOCLASS *ioClass = &base->ioClass;
     uint_fast32_t i;

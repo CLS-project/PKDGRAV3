@@ -62,6 +62,7 @@ typedef struct smfParameters {
     int bDone;
     float *pfDensity;
     /* IA: Meshless hydro */
+    double dCFLacc;
     int FirstHydroLoop;
     } SMF;
 

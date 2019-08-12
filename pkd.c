@@ -1121,7 +1121,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	    pkdSetDensity(pkd,p,fDensity);
           pkdSetBall(pkd,p,fSoft);
 	    if (pSph) {
-		pSph->u = u * dTuFac; /* Can't do precise conversion until density known */
+		pSph->u = u * dTuFac; /* Can't do precise conversion until density known IA: ¿?*/
 		pSph->fMetals = fMetals;
 		pSph->uPred = pSph->u;
 		pSph->fMetalsPred = pSph->fMetals;
@@ -1135,6 +1135,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             pSph->Fene = 0.0;
             pSph->E = u*dTuFac + 0.5*(pSph->vPred[0]*pSph->vPred[0] + pSph->vPred[1]*pSph->vPred[1] + pSph->vPred[2]*pSph->vPred[2]); 
             pSph->E *= fMass;
+            pSph->Uint = u*dTuFac*fMass;
             assert(pSph->E>0);
             pSph->mom[0] = fMass*vel[0];
             pSph->mom[1] = fMass*vel[1];
@@ -2802,6 +2803,73 @@ void pkdUpdateConsVars(PKD pkd,int iRoot,double dTime,double dDelta,double dDelt
     mdlDiag(pkd->mdl, "Out of pkdUpdateConsVars\n");
     }
 
+void pkdApplyGravWork(PKD pkd,double dTime,double dDelta,double dDeltaVPred,double dDeltaU,double dDeltaUPred,uint8_t uRungLo,uint8_t uRungHi) {
+    PARTICLE *p;
+    SPHFIELDS *psph;
+    int i,j;
+    double gravE, fac;
+    float* pv, *pa;
+
+    assert(pkd->oVelocity);
+    assert(pkd->oMass);
+
+    for (i=0;i<pkdLocal(pkd);++i) { 
+      p = pkdParticle(pkd,i);
+      if (pkdIsGas(pkd,p) && pkdIsRungRange(p,uRungLo,uRungHi) /* && pkdIsActive(pkd, p)*/  ) { 
+         psph = pkdSph(pkd, p);
+         pv = pkdVel(pkd,p);
+         pa = pkdAccel(pkd,p);
+
+         if (dDelta != -1){
+
+         // Analytical gravity for the keplerian ring:
+            double eps = 0.0;
+            double r = sqrt(pkdPos(pkd,p,0)*pkdPos(pkd,p,0)  +  pkdPos(pkd,p,1)*pkdPos(pkd,p,1) + eps*eps);
+            double GM = 1.;
+            double r3 = r*r*r;
+
+            if (pkdMass(pkd,p) > 0.0 /*4e-5 r<2.0 && r>0.4*/){
+            pa[0] = GM*pkdPos(pkd,p,0)/r3;
+            pa[1] = GM*pkdPos(pkd,p,1)/r3;
+            pa[2] = 0.0; 
+            }else{
+               pa[0] = 0.;
+               pa[1] = 0.;
+               pa[2] = 0.;
+            }
+          
+         // END of analytical gravity 
+
+         //IA: For now, we assume MFM, and thus Frho=0, m=constant
+         fac = 0.5*dDelta*pkdMass(pkd,p);
+         gravE = 0.0;
+         for (j=0;j<3;j++){
+            //IA: OLD We take advantage that we have not called UpdatePrimVars yet, thus pkdVel give us v^n
+            //    but the momentum is updated, giving us v^n+1
+            //
+            //    NEW: We call this at kick open (dDelta=0) and at kick close. We add lastV to SPHFIELDS, and now
+            //    v is at n+1
+            //
+            //    TODO: Need to take into account variable mass if MFV!!
+            psph->mom[j] -= fac*(psph->lastAcc[j] + pa[j]); 
+            gravE += pkdMass(pkd,p)*(psph->lastV[j]*psph->lastAcc[j] + pv[j]*pa[j]) ; 
+         }
+
+         psph->E -= 0.5*dDelta*gravE;
+
+         } // dDelta != -1
+
+         //IA: Now we set the last values
+        for (j=0;j<3;j++){
+           psph->lastAcc[j] = pa[j];   
+           psph->lastV[j] = pv[j];
+        } 
+
+      }
+    }
+    
+
+    }
 
 
 void pkdComputePrimVars(PKD pkd,int iRoot, double dTime) {
@@ -2809,15 +2877,6 @@ void pkdComputePrimVars(PKD pkd,int iRoot, double dTime) {
     SPHFIELDS *psph;
     int i;
 
-//  if (iRoot>=0) {
-//    KDN *pRoot = pkdTreeNode(pkd,iRoot);
-//    pLower = pRoot->pLower;
-//    pUpper = pRoot->pUpper;
-//  }
-//  else {
-//      pLower = 0;
-//      pUpper = pkdLocal(pkd); //IA: All particles local to this proccessor
-//      }
 
     mdlDiag(pkd->mdl, "Into pkdComputePrimiteVars\n");
     assert(pkd->oVelocity);
@@ -2834,14 +2893,15 @@ void pkdComputePrimVars(PKD pkd,int iRoot, double dTime) {
          if (pkdIsGas(pkd,p)  && pkdIsActive(pkd, p)  ) { //IA: We only update those which are active, as in AREPO
             psph = pkdSph(pkd, p);
 
-            // IA: Omega has already been computed in the first hydro loop
-            psph->P = (psph->E - 0.5*( psph->mom[0]*psph->mom[0] + psph->mom[1]*psph->mom[1] + psph->mom[2]*psph->mom[2] ) / pkdMass(pkd,p) )*psph->omega*(pkd->param.dConstGamma -1.);
+            double Ekin = 0.5*( psph->mom[0]*psph->mom[0] + psph->mom[1]*psph->mom[1] + psph->mom[2]*psph->mom[2] ) / pkdMass(pkd,p);
+            //printf("E %e \t Uint %e \t Ekin %e \n", psph->E, psph->Uint, Ekin);
+            if (Ekin > .90*psph->E ){
+                  psph->P = psph->Uint*psph->omega*(pkd->param.dConstGamma -1.);
+            }else{
+                  psph->P = (psph->E - Ekin )*psph->omega*(pkd->param.dConstGamma -1.);
+            }     
 
-            //IA: FIXME TEST for new velocity update
-//            psph->P = (psph->E - 0.5*( pkdVel(pkd,p)[0]*pkdVel(pkd,p)[0] + pkdVel(pkd,p)[1]*pkdVel(pkd,p)[1] + pkdVel(pkd,p)[2]*pkdVel(pkd,p)[2] ) * pkdMass(pkd,p) )*psph->omega*(pkd->param.dConstGamma -1.);
-//           printf("P %e E %e mom %e %e %e omega %e \n", psph->P, psph->E, psph->mom[0], psph->mom[1], psph->mom[2], psph->omega);
 
-              /* IA: If new velocity update (done in pkdKick), this should not be done */
             pkdVel(pkd,p)[0] = psph->mom[0]/pkdMass(pkd,p);
             pkdVel(pkd,p)[1] = psph->mom[1]/pkdMass(pkd,p);
             pkdVel(pkd,p)[2] = psph->mom[2]/pkdMass(pkd,p);
@@ -3072,24 +3132,7 @@ void pkdKick(PKD pkd,double dTime,double dDelta,double dDeltaVPred,double dDelta
 
              p = pkdParticle(pkd,i);
              if (pkdIsRungRange(p,uRungLo,uRungHi)) {
-               a = pkdAccel(pkd,p);
                v = pkdVel(pkd,p);
-               if (pkdIsGas(pkd,p)) {
-                   sph = pkdSph(pkd,p);
-
-                   // IA: Add hydro acceleration taking into account variable mass:
-                   // d/dt( mv ) = m a + v Frho = - Fmom   ->  a = -(v Frho + Fmom)/m
-                   // This sustitutes the velocity update in ComputePrimVars (pkd.c:2827)
-                   //for (j=0; j<3; j++){
-                   //   v[j] -= (v[j]*sph->Frho + sph->Fmom[j])/pkdMass(pkd,p)*dDelta;
-                   //}
-                   //printf("hydro accel %e \n", (v[j]*sph->Frho + sph->Fmom[j])/pkdMass(pkd,p));
-               }
-               for (j=0;j<3;++j) {
-                   v[j] += a[j]*dDelta;
-               }
-               //v[1]=0.0;
-               //v[2]=0.0;
                if (pkdIsGas(pkd,p)){
                   sph = pkdSph(pkd,p);
                   sph->vPred[0] = v[0];

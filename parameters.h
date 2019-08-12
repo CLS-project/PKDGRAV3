@@ -230,6 +230,7 @@ struct parameters {
     /*
      * IA: Parameters for the meshless hydrodynamics
      */
+    double dCFLacc;
     int bMeshlessHydro;
     int bFirstHydroLoop;
     int bConservativeReSmooth;

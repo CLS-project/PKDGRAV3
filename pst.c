@@ -208,6 +208,9 @@ void pstAddServices(PST pst,MDL mdl) {
 		  (void (*)(void *,void *,int,void *,int *)) pstDrift,
 		  sizeof(struct inDrift),0);
     // IA 
+    mdlAddService(mdl,PST_APPLYGRAVWORK,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstApplyGravWork,
+		  sizeof(struct inKick),0);
     mdlAddService(mdl,PST_UPDATECONSVARS,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstUpdateConsVars,
 		  sizeof(struct inDrift),0);
@@ -3042,6 +3045,21 @@ void pstSetGlobalDt(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     }
 
 
+void pstApplyGravWork(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    struct inKick  *in = vin;
+
+    mdlassert(pst->mdl,nIn == sizeof(struct inKick ));
+    if (pst->nLeaves > 1) {
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_APPLYGRAVWORK,in,nIn);
+	pstApplyGravWork(pst->pstLower,in,nIn,NULL,NULL);
+	mdlGetReply(pst->mdl,rID,NULL,NULL);
+	}
+    else {
+	pkdApplyGravWork(plcl->pkd,in->dTime,in->dDelta,in->dDeltaVPred,in->dDeltaU,in->dDeltaUPred,in->uRungLo,in->uRungHi);
+	}
+    if (pnOut) *pnOut = 0;
+    }
 
 void pstUpdateConsVars(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;

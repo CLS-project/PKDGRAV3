@@ -123,6 +123,7 @@ enum pst_service {
     PST_CALCEANDL,
     PST_CALCEANDLEXT,
     PST_DRIFT,
+    PST_APPLYGRAVWORK,
     PST_UPDATECONSVARS, //IA: hopefully this wont break anything..
     PST_COMPUTEPRIMVARS, //IA: hopefully this wont break anything..
     PST_DRIFTINACTIVE,
@@ -733,6 +734,7 @@ struct inDrift {
     int iRoot;
     };
 void pstDrift(PST,void *,int,void *,int *);
+void pstApplyGravWork(PST,void *,int,void *,int *);
 void pstUpdateConsVars(PST,void *,int,void *,int *); // IA: we re-use the same structure
 void pstComputePrimVars(PST,void *,int,void *,int *); // IA: we re-use the same structure
 

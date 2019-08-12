@@ -182,6 +182,9 @@ typedef struct sphfields {
 
     /* IA: last time this particle's primitve variables were updated */
     double lastUpdateTime;
+    /* IA: Last gravitational acceleration */
+    double lastAcc[3];
+    double lastV[3];
 
     /* IA: normalization factor (Eq 7 Hopkins 2015) at the particle position */
     double omega;
@@ -194,6 +197,8 @@ typedef struct sphfields {
     /* IA: Conserved variables */
     double mom[3];
     double E;
+    /* IA: Internal energy, which is evolved in parallel and used for updating the pressure if we are in a cold flow */
+    double Uint;
 
     /* IA: Primitive variables */
     double P;
@@ -1454,6 +1459,7 @@ void pkdGravEvalPC(PINFOIN *pPart, int nBlocks, int nInLast, ILC_BLK *blk,  PINF
 }
 #endif
 void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double,double);
+void pkdApplyGravWork(PKD pkd,double dTime,double dDelta,double,double,double,uint8_t uRungLo,uint8_t uRungHi);
 void pkdUpdateConsVars(PKD pkd,int iRoot,double dTime,double dDelta,double,double);
 void pkdComputePrimVars(PKD pkd,int iRoot, double dTime);
 void pkdScaleVel(PKD pkd,double dvFac);

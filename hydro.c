@@ -696,8 +696,15 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
        }
 
 
+
        // Velocity of the quadrature mid-point 
        for (j=0; j<3; j++){
+          psph->vPred[j] = pkdVel(pkd,p)[j];
+          psph->vPred[j] += pkdAccel(pkd,p)[j]*pDeltaHalf;
+
+          qsph->vPred[j] = pkdVel(pkd,q)[j];
+          qsph->vPred[j] += pkdAccel(pkd,q)[j]*qDeltaHalf;
+
           vFrame[j] = 0.5*(psph->vPred[j]+qsph->vPred[j]);
           // We boost to the reference of the p-q 'face'
           pv[j] = psph->vPred[j] - vFrame[j];
@@ -851,6 +858,11 @@ if (p->iOrder == A || p->iOrder==B){
             qsph->mom[2] += minDt * riemann_output.Fluxes.v[2] ;
 
             qsph->E += minDt * riemann_output.Fluxes.p;
+
+            qsph->Uint += minDt * ( riemann_output.Fluxes.p - riemann_output.Fluxes.v[0]*qsph->vPred[0] 
+                                                            - riemann_output.Fluxes.v[1]*qsph->vPred[1]
+                                                            - riemann_output.Fluxes.v[2]*qsph->vPred[2]
+                                  + 0.5*(qsph->vPred[0]*qsph->vPred[0] + qsph->vPred[1]*qsph->vPred[1] + qsph->vPred[2]*qsph->vPred[2]) * riemann_output.Fluxes.rho );
        } 
             *pmass -= minDt * riemann_output.Fluxes.rho ;
 
@@ -859,6 +871,13 @@ if (p->iOrder == A || p->iOrder==B){
             psph->mom[2] -= minDt * riemann_output.Fluxes.v[2] ;
 
             psph->E -= minDt * riemann_output.Fluxes.p;
+
+            psph->Uint -= minDt * ( riemann_output.Fluxes.p - riemann_output.Fluxes.v[0]*psph->vPred[0] 
+                                                            - riemann_output.Fluxes.v[1]*psph->vPred[1]
+                                                            - riemann_output.Fluxes.v[2]*psph->vPred[2]
+                                  + 0.5*(psph->vPred[0]*psph->vPred[0] + psph->vPred[1]*psph->vPred[1] + psph->vPred[2]*psph->vPred[2]) * riemann_output.Fluxes.rho );
+
+
        }
 /*IA:  Old fluxes update (see 15/04/19 ) 
  * TODO: This is not needed for the update of the conserved variables. Instead,
@@ -940,24 +959,25 @@ void hydroStep(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
 
 
-    // IA: Timestep criteria based on the hydro accelerations
+    // IA: Timestep criteria based on the hydro+grav accelerations
 
     double a[3], acc;
-    double cfl = 0.05, dtAcc;
+    float* pa = pkdAccel(pkd,p);
+    double cfl = smf->dCFLacc, dtAcc;
     
-    for (j=0;j<3;j++) { a[j] = (pkdVel(pkd,p)[j]*psph->Frho + psph->Fmom[j])/pkdMass(pkd,p); }
+    for (j=0;j<3;j++) { a[j] = pa[j] + (pkdVel(pkd,p)[j]*psph->Frho + psph->Fmom[j])/pkdMass(pkd,p); }
     acc = sqrt(a[0]*a[0] + a[1]*a[1] + a[2]*a[2]);
 
-    dtAcc = sqrt(2*cfl*cfl*fBall/acc);
-    if (dtAcc < dtEst) dtEst = dtAcc;
+    dtAcc = cfl*sqrt(2*fBall/acc);
     
+    // IA: New dtAcc in the case for circular orbits (keplerian disk!)
+    //double r = sqrt(pkdPos(pkd,p,0)*pkdPos(pkd,p,0) + pkdPos(pkd,p,1)*pkdPos(pkd,p,1));
+    //dtAcc = 2.*3.14159*sqrt(r*r*r) * cfl;
+    //printf("r %f \t dtAcc %e \n", sqrt(pkdPos(pkd,p,0)*pkdPos(pkd,p,0) + pkdPos(pkd,p,1)*pkdPos(pkd,p,1)), dtAcc);
 
-    //dtEst = 5.e-6; //IA FIXME forced same rungs for all particles
+    if (dtAcc < dtEst) dtEst = dtAcc;
     uNewRung = pkdDtToRung(dtEst,smf->dDelta,MAX_RUNG);
-
-
     if (uNewRung > p->uNewRung ) p->uNewRung = uNewRung; 
-
 
     // IA: Timestep limiter that imposes that I must have a dt which is at most, 
     // four times (i.e., 2 rungs) the smallest dt of my neighbours
