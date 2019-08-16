@@ -4566,9 +4566,19 @@ void msrTopStepKDK(MSR msr,
     msrprintf(msr,"%*cmsrKickOpen  at iRung: %d 0.5*dDelta: %g\n",
 	      2*iRung+2,' ',iRung,0.5*dDelta);
     msrKickKDKOpen(msr,dTime,0.5*dDelta,iRung,iRung);
+#ifdef HYDRO_GRAV_KDK
       if (msrDoGas(msr) && msrMeshlessHydro(msr) && msrDoGravity(msr)){
-          msrApplyGravWork(msr,dTime,-1,iRung,iRung); //IA: -1 dDelta means that we are in the open kick 
+          msrApplyGravWork(msr,-1,0.5*dDelta,iRung,iRung); 
+         msrUpdatePrimVars(msr, dTime, dDelta, ROOT); //IA: solucion de mierda, los gradientes tambien habria que calcularlos..
+         msrMeshlessGradients(msr, dTime, dDelta, ROOT);
       }
+#else
+      if (dTime == 1 && msrDoGas(msr) && msrMeshlessHydro(msr) && msrDoGravity(msr)){
+          msrApplyGravWork(msr,dTime,0.0,iRung,iRung); 
+//          msrUpdatePrimVars(msr, dTime, dDelta, ROOT); 
+//          msrMeshlessGradients(msr, dTime, dDelta, ROOT);
+      }
+#endif
     if ((msrCurrMaxRung(msr) > iRung) && (iRungVeryActive > iRung)) {
 	/*
 	** Recurse.
@@ -4584,10 +4594,9 @@ void msrTopStepKDK(MSR msr,
 		      pdActiveSum,piSec);
 	}
     else if (msrCurrMaxRung(msr) == iRung) {
-      /* IA: Following the scheme of AREPO, we kick->hydro fluxes->drift->hydro vars update->gravity->kick->move hydro  */
       if (msrDoGas(msr) && msrMeshlessHydro(msr)){
          msrActiveRung(msr,iKickRung,1); //IA: The repeated call after msrDrift would not be needed
-         if (msr->param.bVStep) printf("Step:%f (rung %d)\n",dStep,iKickRung);
+         if (msr->param.bVStep) printf("Step:%f (iKickRung %d) (iRung %d) \n",dStep,iKickRung, iRung);
          msrUpdateConsVars(msr, dTime, dDelta, ROOT);
          msrMeshlessFluxes(msr, dTime, dDelta, ROOT);
       }
@@ -4630,6 +4639,16 @@ void msrTopStepKDK(MSR msr,
 	    msrCooling(msr,dTime,dStep,0,
 		       (iKickRung<=msr->param.iRungCoolTableUpdate ? 1:0),0);
 	}
+
+#ifdef HYDRO_GRAV_KDK
+      if (msrDoGas(msr) && msrMeshlessHydro(msr) && msrDoGravity(msr)){
+          msrApplyGravWork(msr,dTime,0.5*dDelta,iKickRung,iRung); // IA: dDelta is the step for iRung, but iKickRung *may* be lower
+      }
+#else
+      if (msrDoGas(msr) && msrMeshlessHydro(msr) && msrDoGravity(msr)){
+          msrApplyGravWork(msr,dTime,dDelta,iKickRung,iRung); // IA: dDelta is the step for iRung, but iKickRung *may* be lower
+      }
+#endif
 
       if (msrDoGas(msr) && msrMeshlessHydro(msr)){
          msrUpdatePrimVars(msr, dTime, dDelta, ROOT);
@@ -4733,9 +4752,9 @@ void msrTopStepKDK(MSR msr,
     msrprintf(msr,"%*cKickClose, iRung: %d, 0.5*dDelta: %g\n",
 	      2*iRung+2,' ',iRung, 0.5*dDelta);
     msrKickKDKClose(msr,dTime,0.5*dDelta,iRung,iRung); /* uses dTime-0.5*dDelta */
-      if (msrDoGas(msr) && msrMeshlessHydro(msr) && msrDoGravity(msr)){
-          msrApplyGravWork(msr,dTime,dDelta,iRung,iRung);  
-      }
+//      if (msrDoGas(msr) && msrMeshlessHydro(msr) && msrDoGravity(msr)){
+//          msrApplyGravWork(msr,dTime,0.5*dDelta,iRung,iRung);  
+//      }
 
 
     dTime += 0.5*dDelta; /* Important to have correct time at step end for SF! */
@@ -4995,7 +5014,7 @@ void msrInitSph(MSR msr,double dTime)
     }else{ //IA: we set the initial rungs of the particles
         msrActiveRung(msr,0,1);
       if (msrDoGravity(msr)){ //IA: We need this for the acceleration time step criteria in the kepler ring!
-          //msrApplyGravWork(msr, dTime, 0.0, ROOT);  
+          msrApplyGravWork(msr, -1, 0.0, 0, MAX_RUNG);  
       }
         msrUpdatePrimVars(msr, dTime, 0.0, ROOT);
         msrMeshlessGradients(msr, 0.0, 0.0, ROOT);

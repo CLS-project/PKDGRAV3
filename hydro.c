@@ -394,6 +394,8 @@ void hydroGradients(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
        E[i] /= psph->omega; 
     }
 
+
+
     /* IA: END of E matrix computation */
     //printf("E_q [XX] %e \t [XY] %e \t [XZ] %e \n \t \t \t [YY] %e \t [YZ] %e \n \t\t\t \t \t \t [ZZ] %e \n", E[XX], E[XY], E[XZ], E[YY], E[YZ], E[ZZ]);
 
@@ -802,7 +804,7 @@ if (p->iOrder == A || p->iOrder==B){
        if (riemann_input.R.rho <= 0) {riemann_input.R.rho = pkdDensity(pkd,q); printf("WARNING, R.rho < 0 : using first-order scheme \n"); }
        if (riemann_input.L.p <= 0) {riemann_input.L.p = psph->P;    printf("WARNING, L.p < 0 : using first-order scheme \n"); }
        if (riemann_input.R.p <= 0) {riemann_input.R.p = qsph->P;    printf("WARNING, R.p < 0 : using first-order scheme \n");}
-       Riemann_solver(pkd, riemann_input, &riemann_output, face_unit, /*double press_tot_limiter TODO For now, just p>0: */ 0.0);
+       Riemann_solver(pkd, riemann_input, &riemann_output, face_unit, /*double press_tot_limiter TODO For now, just p>0: */ HUGE_VAL);
       
        // IA: MFM
 #ifdef USE_MFM

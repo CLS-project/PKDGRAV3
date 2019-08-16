@@ -1140,6 +1140,12 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             pSph->mom[0] = fMass*vel[0];
             pSph->mom[1] = fMass*vel[1];
             pSph->mom[2] = fMass*vel[2];
+            pSph->lastV[0] = 0.; // vel[0];
+            pSph->lastV[1] = 0.; //vel[1];
+            pSph->lastV[2] = 0.; //vel[2];
+            pSph->lastAcc[0] = 0.;
+            pSph->lastAcc[1] = 0.;
+            pSph->lastAcc[2] = 0.;
             pSph->fLastBall = 0.0;
 		}
 	    break;
@@ -2807,7 +2813,7 @@ void pkdApplyGravWork(PKD pkd,double dTime,double dDelta,double dDeltaVPred,doub
     PARTICLE *p;
     SPHFIELDS *psph;
     int i,j;
-    double gravE, fac;
+    double gravE, fac, pDelta;
     float* pv, *pa;
 
     assert(pkd->oVelocity);
@@ -2820,50 +2826,66 @@ void pkdApplyGravWork(PKD pkd,double dTime,double dDelta,double dDeltaVPred,doub
          pv = pkdVel(pkd,p);
          pa = pkdAccel(pkd,p);
 
-         if (dDelta != -1){
+         pDelta = dDelta *(1 << (uRungHi-p->uRung));
 
-         // Analytical gravity for the keplerian ring:
-            double eps = 0.0;
-            double r = sqrt(pkdPos(pkd,p,0)*pkdPos(pkd,p,0)  +  pkdPos(pkd,p,1)*pkdPos(pkd,p,1) + eps*eps);
-            double GM = 1.;
-            double r3 = r*r*r;
+            // Analytical gravity for the keplerian ring:
+               double eps = 0.0;
+               double r = sqrt(pkdPos(pkd,p,0)*pkdPos(pkd,p,0)  +  pkdPos(pkd,p,1)*pkdPos(pkd,p,1) + eps*eps);
+               double GM = 1.;
+               double r3 = r*r*r;
 
-            if (pkdMass(pkd,p) > 0.0 /*4e-5 r<2.0 && r>0.4*/){
-            pa[0] = GM*pkdPos(pkd,p,0)/r3;
-            pa[1] = GM*pkdPos(pkd,p,1)/r3;
-            pa[2] = 0.0; 
-            }else{
-               pa[0] = 0.;
-               pa[1] = 0.;
-               pa[2] = 0.;
+               if (pkdMass(pkd,p) > 0.0 /*4e-5 r<2.0 && r>0.4*/){
+               pa[0] = GM*pkdPos(pkd,p,0)/r3;
+               pa[1] = GM*pkdPos(pkd,p,1)/r3;
+               pa[2] = 0.0; 
+               }else{
+                  pa[0] = 0.;
+                  pa[1] = 0.;
+                  pa[2] = 0.;
+               }
+             
+            // END of analytical gravity 
+
+            //IA: For now, we assume MFM, and thus Frho=0, m=constant
+            fac = pDelta*pkdMass(pkd,p);
+#ifndef HYDRO_GRAV_KDK
+            //fac *= 0.5;
+#endif
+            gravE = 0.0;
+            for (j=0;j<3;j++){
+               //    IA: We call this at kick open (dDelta=-1) and at kick close. We add lastV to SPHFIELDS, and now
+               //    v is at n+1
+               //
+               //    TODO: Need to take into account variable mass if MFV!!
+#ifdef HYDRO_GRAV_KDK
+               psph->mom[j] -= fac*pa[j]; 
+               gravE +=  psph->mom[j]*pa[j] ; 
+#else
+               psph->mom[j] -= fac*pa[j]; 
+               gravE +=  psph->mom[j]*pa[j] ; 
+               //IA: No se por que, pero el esquema de segundo orden no funciona, produce un drift de las particulas hacia afuera
+               //   Sospecho que tiene que ver con cuando se guardan los valores de lastAcc y lastV
+              // gravE += pkdMass(pkd,p)*psph->lastV[j]*psph->lastAcc[j] + psph->mom[j]*pa[j] ; 
+              // psph->mom[j] -= fac*(psph->lastAcc[j] + pa[j]); 
+#endif
             }
-          
-         // END of analytical gravity 
+#ifndef HYDRO_GRAV_KDK
+            //gravE *= 0.5;
+#endif
 
-         //IA: For now, we assume MFM, and thus Frho=0, m=constant
-         fac = 0.5*dDelta*pkdMass(pkd,p);
-         gravE = 0.0;
-         for (j=0;j<3;j++){
-            //IA: OLD We take advantage that we have not called UpdatePrimVars yet, thus pkdVel give us v^n
-            //    but the momentum is updated, giving us v^n+1
-            //
-            //    NEW: We call this at kick open (dDelta=0) and at kick close. We add lastV to SPHFIELDS, and now
-            //    v is at n+1
-            //
-            //    TODO: Need to take into account variable mass if MFV!!
-            psph->mom[j] -= fac*(psph->lastAcc[j] + pa[j]); 
-            gravE += pkdMass(pkd,p)*(psph->lastV[j]*psph->lastAcc[j] + pv[j]*pa[j]) ; 
+            psph->E -= pDelta*gravE;
+
+#ifdef HYDRO_GRAV_KDK
+         if (dTime == -1){
+#endif
+            //IA: Now we set the last values
+           for (j=0;j<3;j++){
+              psph->lastAcc[j] = pa[j];   
+              psph->lastV[j] = psph->mom[j]/pkdMass(pkd,p);
+           } 
+#ifdef HYDRO_GRAV_KDK
          }
-
-         psph->E -= 0.5*dDelta*gravE;
-
-         } // dDelta != -1
-
-         //IA: Now we set the last values
-        for (j=0;j<3;j++){
-           psph->lastAcc[j] = pa[j];   
-           psph->lastV[j] = pv[j];
-        } 
+#endif
 
       }
     }
@@ -2895,10 +2917,11 @@ void pkdComputePrimVars(PKD pkd,int iRoot, double dTime) {
 
             double Ekin = 0.5*( psph->mom[0]*psph->mom[0] + psph->mom[1]*psph->mom[1] + psph->mom[2]*psph->mom[2] ) / pkdMass(pkd,p);
             //printf("E %e \t Uint %e \t Ekin %e \n", psph->E, psph->Uint, Ekin);
-            if (Ekin > .90*psph->E ){
+            if (Ekin > .0*psph->E ){
                   psph->P = psph->Uint*psph->omega*(pkd->param.dConstGamma -1.);
             }else{
                   psph->P = (psph->E - Ekin )*psph->omega*(pkd->param.dConstGamma -1.);
+                  psph->Uint = psph->P/(psph->omega*(pkd->param.dConstGamma -1.)); // IA: Synchronize the energies
             }     
 
 
