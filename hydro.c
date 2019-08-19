@@ -402,6 +402,28 @@ void hydroGradients(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     /* IA: Now, we need to do the inverse */
     inverseMatrix(E, psph->B);
     
+
+    /* IA: Computation of the condition number */
+    double modE = 0.;
+    modE += E[XX]*E[XX]; 
+    modE += E[YY]*E[YY]; 
+    modE += E[ZZ]*E[ZZ]; 
+    modE += 2.*E[XY]*E[XY]; 
+    modE += 2.*E[XZ]*E[XZ]; 
+    modE += 2.*E[YZ]*E[YZ]; 
+
+    double modB = 0.;
+    modB += psph->B[XX]*psph->B[XX]; 
+    modB += psph->B[YY]*psph->B[YY]; 
+    modB += psph->B[ZZ]*psph->B[ZZ]; 
+    modB += 2.*psph->B[XY]*psph->B[XY]; 
+    modB += 2.*psph->B[XZ]*psph->B[XZ]; 
+    modB += 2.*psph->B[YZ]*psph->B[YZ]; 
+
+    psph->Ncond = sqrt(modB*modE)/3.;
+
+
+
     /* IA: There is nothing more that we can do in this loop, as all the particle must have their densities
      * and B matrices computed */
 
@@ -544,6 +566,11 @@ void hydroGradients(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
        BarthJespersenLimiter(&limVy, psph->gradVy, vy_max-pv[1], vy_min-pv[1], dx, dy, dz);
        BarthJespersenLimiter(&limVz, psph->gradVz, vz_max-pv[2], vz_min-pv[2], dx, dy, dz);
        BarthJespersenLimiter(&limP, psph->gradP, p_max-psph->P, p_min-psph->P, dx, dy, dz);
+//     ConditionedBarthJespersenLimiter(&limRho, psph->gradRho, rho_max-pkdDensity(pkd,p), rho_min-pkdDensity(pkd,p), dx, dy, dz, 10., psph->Ncond);
+//     ConditionedBarthJespersenLimiter(&limVx, psph->gradVx, vx_max-pv[0], vx_min-pv[0], dx, dy, dz, 10., psph->Ncond);
+//     ConditionedBarthJespersenLimiter(&limVy, psph->gradVy, vy_max-pv[1], vy_min-pv[1], dx, dy, dz, 10., psph->Ncond);
+//     ConditionedBarthJespersenLimiter(&limVz, psph->gradVz, vz_max-pv[2], vz_min-pv[2], dx, dy, dz, 10., psph->Ncond);
+//     ConditionedBarthJespersenLimiter(&limP, psph->gradP, p_max-psph->P, p_min-psph->P, dx, dy, dz, 10., psph->Ncond);
     }
 
     for (j=0; j<3; j++){
@@ -590,7 +617,34 @@ void BarthJespersenLimiter(double* limVar, double* gradVar, double var_max, doub
 //    *limVar = 0.0;
 }
 
+// IA: In this version we take into account the condition number, which give us an idea about how 'well aligned' are the particles
+void ConditionedBarthJespersenLimiter(double* limVar, double* gradVar, double var_max, double var_min, double dx, double dy, double dz, double Ncrit, double Ncond){
+    double diff, lim, beta;
 
+    diff = Ncrit/Ncond;
+    diff = diff < 1. ? diff : 1.;
+    diff *= 2.;
+    beta = (1. < diff) ? diff : 1.; 
+
+
+    diff = (gradVar[0]*dx + gradVar[1]*dy + gradVar[2]*dz);
+    if (var_min > 0) { var_min=0; } //IA: Can happen due to machine precision
+    if (var_max < 0) { var_max=0; } //IA: Can happen due to machine precision
+    if (diff > 0.) {
+       lim = var_max/diff;
+    }else if (diff < 0.){
+       lim = var_min/diff;
+    }else{
+       lim = 1.;
+    }
+    lim *= beta;
+    if (lim > 1.) lim = 1.; // min(1,lim)
+    if (lim < 0.) lim = 0.;
+    if (lim < (*limVar)) { *limVar = lim;} 
+    // FIXME IA: Option to avoid extrapolation or limiter
+//    *limVar = 1.0;
+//    *limVar = 0.0;
+}
 
 
 
@@ -802,8 +856,8 @@ if (p->iOrder == A || p->iOrder==B){
 
        if (riemann_input.L.rho <= 0) {riemann_input.L.rho = pkdDensity(pkd,p); printf("WARNING, L.rho < 0 : using first-order scheme \n"); }
        if (riemann_input.R.rho <= 0) {riemann_input.R.rho = pkdDensity(pkd,q); printf("WARNING, R.rho < 0 : using first-order scheme \n"); }
-       if (riemann_input.L.p <= 0) {riemann_input.L.p = psph->P;    printf("WARNING, L.p < 0 : using first-order scheme \n"); }
-       if (riemann_input.R.p <= 0) {riemann_input.R.p = qsph->P;    printf("WARNING, R.p < 0 : using first-order scheme \n");}
+       if (riemann_input.L.p < 0) {riemann_input.L.p = psph->P;  /*  printf("WARNING, L.p < 0 : using first-order scheme \n");*/ }
+       if (riemann_input.R.p < 0) {riemann_input.R.p = qsph->P;  /*  printf("WARNING, R.p < 0 : using first-order scheme \n");*/ }
        Riemann_solver(pkd, riemann_input, &riemann_output, face_unit, /*double press_tot_limiter TODO For now, just p>0: */ HUGE_VAL);
       
        // IA: MFM

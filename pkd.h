@@ -173,6 +173,9 @@ typedef struct sphfields {
     /* IA: B matrix to 'easily' reconstruct faces'. Reminder: it is symmetric */
     double B[6]; 
 
+    /* IA: Condition number for pathological configurations */
+    double Ncond;
+
     /* IA: Gradients */
     double gradRho[3];
     double gradVx[3];

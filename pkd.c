@@ -2134,7 +2134,7 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,BND *bnd,PARTICLE *p) {
           T = pSph->E - 0.5*( pSph->mom[0]*pSph->mom[0] + pSph->mom[1]*pSph->mom[1] + pSph->mom[2]*pSph->mom[2])/pkdMass(pkd,p);
           T *= pSph->omega*(pkd->param.dConstGamma - 1.);
 	    fioWriteSph(fio,iParticleID,r,v,fMass,pkdBall(pkd,p),*pPot,
-		fDensity,pSph->P,pSph->E);
+		fDensity,pSph->P,pSph->Ncond);
 	    }
 	break;
     case FIO_SPECIES_DARK:
@@ -2923,6 +2923,11 @@ void pkdComputePrimVars(PKD pkd,int iRoot, double dTime) {
                   psph->P = (psph->E - Ekin )*psph->omega*(pkd->param.dConstGamma -1.);
                   psph->Uint = psph->P/(psph->omega*(pkd->param.dConstGamma -1.)); // IA: Synchronize the energies
             }     
+            if (psph->P < 0){
+               psph->P = 0.;
+               psph->Uint = 0.;
+               psph->E = Ekin;
+            }
 
 
             pkdVel(pkd,p)[0] = psph->mom[0]/pkdMass(pkd,p);
