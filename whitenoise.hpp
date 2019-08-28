@@ -17,8 +17,23 @@
 #ifndef WHITENOISE_HPP
 #define WHITENOISE_HPP
 
+#include "RngStream.h"
 #include "gridinfo.hpp"
 #include "pkd.h"
+
+class NoiseGenerator {
+private:
+    void pencilNoise(gridinfo::complex_vector_t &pencil,int nGrid,int j, int k);
+protected:
+    RngStream g;
+    float fPhase;
+    bool bFixed;
+    virtual void update(gridinfo::complex_vector_t &pencil,gridinfo::complex_vector_t &noise,int j,int k);
+public:
+    explicit NoiseGenerator(unsigned long seed,bool bFixed=false,float fPhase=0);
+    virtual ~NoiseGenerator();
+    void FillNoise(gridinfo::complex_array_t &K,int nGrid,double *mean,double *csq);
+    };
 
 void pkdGenerateNoise(PKD pkd,unsigned long seed,int bFixed, float fPhase,MDLFFT fft,gridinfo::complex_array_t &K,double *mean,double *csq);
 #endif
