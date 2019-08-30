@@ -122,7 +122,8 @@ void NoiseGenerator::FillNoise(complex_array_t &K,int nGrid,double *mean,double 
     const int iNyquist = nGrid / 2;
     complex_vector_t noise(K.domain()[0]);
     complex_slice_t pencils = K(0,K.domain()[1],K.domain()[2]);
-    *mean = *csq = 0.0;
+    if (mean) *mean = 0.0;
+    if (csq) *csq = 0.0;
     // Iterate over each pencil of our part of the array, generate white noise and call update().
     // The default behaviour of update() is to set the output pencil to the white noise.
     for( auto pindex=pencils.begin(); pindex!=pencils.end(); ++pindex ) {
@@ -130,10 +131,14 @@ void NoiseGenerator::FillNoise(complex_array_t &K,int nGrid,double *mean,double 
 	auto k = pindex.position()[1];
 	complex_vector_t pencil = K(blitz::Range::all(),j,k);
 	pencilNoise(noise, nGrid, j, k);
-	auto s = sum(noise);
-	*mean += std::real(s) + std::imag(s);
-	auto r = sum(norm(noise));
-	*csq += r;
-	update(pencil,noise,j,k);
+	if (mean) {
+	    auto s = sum(noise);
+	    *mean += std::real(s) + std::imag(s);
+	    }
+	if (csq) {
+	    auto r = sum(norm(noise));
+	    *csq += r;
+	    }
+	update(pencil,noise,j<=iNyquist?j:j-nGrid,k<=iNyquist?k:k-nGrid);
 	}
     }

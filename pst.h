@@ -1314,11 +1314,18 @@ struct inMeasurePk {
     int iAssignment;
     int nGrid;
     int nBins;
+    int bLinear;
+    int iSeed;
+    int bFixed;
+    float fPhase;
+    double Lbox;
+    double a;
     };
 struct outMeasurePk {
     double fK[PST_MAX_K_BINS];
     double fPower[PST_MAX_K_BINS];
     uint64_t nPower[PST_MAX_K_BINS];
+    double fPowerAll[PST_MAX_K_BINS];
     };
 int pstMeasurePk(PST pst,void *vin,int nIn,void *vout,int nOut);
 /* PST_ASSIGN_MASS */

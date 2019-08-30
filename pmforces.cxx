@@ -80,7 +80,6 @@ void pkdGenerateLinGrid(PKD pkd, MDLFFT fft, double a, double a_next, double Lbo
     spline = gsl_spline_alloc(gsl_interp_cspline, size);
     gsl_spline_init(spline, logk, field, size);
     /* Generate grid */
-    double noiseMean, noiseCSQ;
     int idx;
     double ix, iy, iz, i2;
     double iLbox = 2*M_PI/Lbox;
@@ -90,7 +89,7 @@ void pkdGenerateLinGrid(PKD pkd, MDLFFT fft, double a, double a_next, double Lbo
     complex_array_t K;
     G.setupArray((FFTW3(real) *)mdlSetArray(pkd->mdl,0,0,pkd->pLite),K);
     NoiseGenerator ng(iSeed,bFixed,fPhase);
-    ng.FillNoise(K,fft->rgrid->n3,&noiseMean,&noiseCSQ);
+    ng.FillNoise(K,fft->rgrid->n3);
     for( auto index=K.begin(); index!=K.end(); ++index ) {
 	auto pos = index.position();
 	iz = fwrap(pos[2],fft->rgrid->n3); // Range: (-iNyquist,iNyquist]

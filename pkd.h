@@ -1537,7 +1537,8 @@ void pkdGridProject(PKD pkd);
 #ifdef MDL_FFTW
 void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int nGrid, float dDelta, int iAssignment);
 void pkdMeasurePk(PKD pkd, double dTotalMass, int iAssignment, int bInterlace,
-    int nGrid, int nBins, double *fK, double *fPower, uint64_t *nPower);
+    int bLinear, int iSeed, int bFixed, float fPhase, double Lbox, double a,
+    int nGrid, int nBins, double *fK, double *fPower, uint64_t *nPower, double *fPowerAll);
 float getLinAcc(PKD pkd, MDLFFT fft,int cid, double r[3]);
 void pkdSetLinGrid(PKD pkd,double a0, double a, double a1, double dBSize, int nGrid, int iSeed,
     int bFixed, float fPhase);

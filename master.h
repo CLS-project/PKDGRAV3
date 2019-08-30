@@ -290,7 +290,7 @@ void msrGridProject(MSR msr,double x,double y,double z);
 void msrGridCreateFFT(MSR msr, int nGrid);
 void msrGridDeleteFFT(MSR msr);
 void msrAssignMass(MSR msr,int iAssignment,int nGrid);
-void msrMeasurePk(MSR msr,int iAssignment,int bInterlace,int nGrid,int nBins,uint64_t *nPk,float *fK,float *fPk);
+void msrMeasurePk(MSR msr,int iAssignment,int bInterlace,int nGrid,double a,int nBins,uint64_t *nPk,float *fK,float *fPk,float *fPkAll);
 void msrMeasureLinPk(MSR msr,int nGridLin,double a,double dBoxSize,
                 uint64_t *nPk,float *fK,float *fPk);
 void msrSetLinGrid(MSR msr,double dTime, int nGrid, int bKickClose, int bKickOpen);

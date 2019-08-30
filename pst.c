@@ -3975,13 +3975,15 @@ int pstMeasurePk(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	for(i=0;i<in->nBins; i++) {
 	    out->fK[i] += outUpper->fK[i];
 	    out->fPower[i] += outUpper->fPower[i];
+	    out->fPowerAll[i] += outUpper->fPowerAll[i];
 	    out->nPower[i] += outUpper->nPower[i];
 	    }
 	free(outUpper);
 	}
     else {
 	pkdMeasurePk(plcl->pkd, in->dTotalMass, in->iAssignment, in->bInterlace,
-	    in->nGrid, in->nBins, out->fK, out->fPower, out->nPower);
+	    in->bLinear, in->iSeed, in->bFixed, in->fPhase, in->Lbox, in->a,
+	    in->nGrid, in->nBins, out->fK, out->fPower, out->nPower, out->fPowerAll);
 	}
     return sizeof(struct outMeasurePk);
     }

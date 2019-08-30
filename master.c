@@ -5265,7 +5265,7 @@ void msrOutputPk(MSR msr,int iStep,double dTime) {
 #else
     char achFile[PATH_MAX];
 #endif
-    float *fK, *fPk;
+    float *fK, *fPk, *fPkAll;
     uint64_t *nPk;
     double a, vfact, kfact;
     FILE *fp;
@@ -5280,16 +5280,18 @@ void msrOutputPk(MSR msr,int iStep,double dTime) {
     assert(fK != NULL);
     fPk = malloc(sizeof(float)*(msr->param.nBinsPk));
     assert(fPk != NULL);
+    fPkAll = malloc(sizeof(float)*(msr->param.nBinsPk));
+    assert(fPkAll != NULL);
     nPk = malloc(sizeof(uint64_t)*(msr->param.nBinsPk));
     assert(nPk != NULL);
 
-    msrMeasurePk(msr,msr->param.iPkOrder,msr->param.bPkInterlace,msr->param.nGridPk,msr->param.nBinsPk,nPk,fK,fPk);
+    if (!msr->csm->val.bComove) a = 1.0;
+    else a = csmTime2Exp(msr->csm,dTime);
+
+    msrMeasurePk(msr,msr->param.iPkOrder,msr->param.bPkInterlace,msr->param.nGridPk,a,msr->param.nBinsPk,nPk,fK,fPk,fPkAll);
 
     msrBuildName(msr,achFile,iStep);
     strncat(achFile,".pk",256);
-
-    if (!msr->csm->val.bComove) a = 1.0;
-    else a = csmTime2Exp(msr->csm,dTime);
 
     /* If the Box Size (in mpc/h) was specified, then we can scale the output power spectrum measurement */
     if ( prmSpecified(msr->prm,"dBoxSize") && msr->param.dBoxSize > 0.0 ) kfact = msr->param.dBoxSize;
@@ -5303,12 +5305,13 @@ void msrOutputPk(MSR msr,int iStep,double dTime) {
 	_msrExit(msr,1);
 	}
     for(i=0; i<msr->param.nBinsPk; ++i) {
-	if (fPk[i] > 0.0) fprintf(fp,"%g %g %" PRIu64 "\n",
- 	    kfact * fK[i] * 2.0 * M_PI,vfact * fPk[i], nPk[i]);
+	if (fPk[i] > 0.0) fprintf(fp,"%g %g %" PRIu64 " %g\n",
+ 	    kfact * fK[i] * 2.0 * M_PI,vfact * fPk[i], nPk[i],vfact * fPkAll[i]);
 	}
     fclose(fp);
     free(fK);
     free(fPk);
+    free(fPkAll);
     free(nPk);
     /* Output the k-grid if requested */
     if (msr->param.iDeltakInterval && (iStep % msr->param.iDeltakInterval == 0)) {
@@ -5924,7 +5927,7 @@ void msrGridDeleteFFT(MSR msr) {
     }
 
 /* Important: call msrGridCreateFFT() before, and msrGridDeleteFFT() after */
-void msrMeasurePk(MSR msr,int iAssignment,int bInterlace,int nGrid,int nBins,uint64_t *nPk,float *fK,float *fPk) {
+void msrMeasurePk(MSR msr,int iAssignment,int bInterlace,int nGrid,double a,int nBins,uint64_t *nPk,float *fK,float *fPk,float *fPkAll) {
     struct inMeasurePk in;
     struct outMeasurePk *out;
     int i;
@@ -5943,15 +5946,23 @@ void msrMeasurePk(MSR msr,int iAssignment,int bInterlace,int nGrid,int nBins,uin
     in.nBins = nBins;
     in.dTotalMass = msrTotalMass(msr);
 
+    in.bLinear = msr->csm->val.classData.bClass && (msr->param.nGridLin>0);
+    in.iSeed = msr->param.iSeed;
+    in.bFixed = msr->param.bFixedAmpIC;
+    in.fPhase = msr->param.dFixedAmpPhasePI * M_PI;
+    in.Lbox = msr->param.dBoxSize;
+    in.a = a;
+
     out = malloc(sizeof(struct outMeasurePk));
     assert(out != NULL);
     pstMeasurePk(msr->pst, &in, sizeof(in), out, sizeof(out));
     for( i=0; i<nBins; i++ ) {
-	if ( out->nPower[i] == 0 ) fK[i] = fPk[i] = 0;
+	if ( out->nPower[i] == 0 ) fK[i] = fPk[i] = fPkAll[i] = 0;
 	else {
 	    if (nPk) nPk[i] = out->nPower[i];
 	    fK[i] = exp(out->fK[i]/out->nPower[i]);
 	    fPk[i] = out->fPower[i]/out->nPower[i];
+	    fPkAll[i] = out->fPowerAll[i]/out->nPower[i];
 	    }
 	}
     /* At this point, dPk[] needs to be corrected by the box size */

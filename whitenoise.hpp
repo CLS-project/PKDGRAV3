@@ -32,6 +32,6 @@ protected:
 public:
     explicit NoiseGenerator(unsigned long seed,bool bFixed=false,float fPhase=0);
     virtual ~NoiseGenerator();
-    void FillNoise(gridinfo::complex_array_t &K,int nGrid,double *mean,double *csq);
+    void FillNoise(gridinfo::complex_array_t &K,int nGrid,double *mean=0,double *csq=0);
     };
 #endif
