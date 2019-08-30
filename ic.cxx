@@ -181,6 +181,8 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int bFixed,float fPhase,int nGrid
     float dSigma8 = cosmo->dSigma8;
     CSM csm;
 
+    NoiseGenerator ng(iSeed,bFixed,fPhase);
+
     csmInitialize(&csm);
     csm->val = *cosmo;
 
@@ -222,7 +224,7 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int bFixed,float fPhase,int nGrid
 
     /* Generate white noise realization -> K[6] */
     if (mdlSelf(mdl)==0) {printf("Generating random noise\n"); fflush(stdout); }
-    pkdGenerateNoise(pkd,iSeed,bFixed,fPhase,fft,K[6],noiseMean,noiseCSQ);
+    ng.FillNoise(K[6],nGrid,noiseMean,noiseCSQ);
 
     if (mdlSelf(mdl)==0) {printf("Imprinting power\n"); fflush(stdout); }
     for( auto index=K[6].begin(); index!=K[6].end(); ++index ) {
@@ -376,6 +378,8 @@ int pkdGenerateClassICm(PKD pkd, MDLFFT fft, int iSeed, int bFixed, float fPhase
     int nLocal;
     CSM csm;
 
+    NoiseGenerator ng(iSeed,bFixed,fPhase);
+
     csmInitialize(&csm);
     csm->val = *cosmo;
     assert(csm->val.classData.bClass);
@@ -404,7 +408,7 @@ int pkdGenerateClassICm(PKD pkd, MDLFFT fft, int iSeed, int bFixed, float fPhase
 
     /* Generate white noise realization -> K[6] */
     if (mdlSelf(mdl)==0) {printf("Generating random noise for delta\n"); fflush(stdout);}
-    pkdGenerateNoise(pkd,iSeed,bFixed,fPhase,fft,K[6],noiseMean,noiseCSQ);
+    ng.FillNoise(K[6],nGrid,noiseMean,noiseCSQ);
 
     if (mdlSelf(mdl)==0) {printf("Imprinting power\n"); fflush(stdout);}
 
@@ -530,7 +534,7 @@ int pkdGenerateClassICm(PKD pkd, MDLFFT fft, int iSeed, int bFixed, float fPhase
     if (b2LPT) {
 	/* Generate white noise realization -> K[6] */
 	if (mdlSelf(mdl)==0) {printf("Generating random noise again for theta\n"); fflush(stdout);}
-	pkdGenerateNoise(pkd,iSeed,bFixed,fPhase,fft,K[6],noiseMean,noiseCSQ);
+	ng.FillNoise(K[6],nGrid,noiseMean,noiseCSQ);
 	}
 
     /* Particle velocities */

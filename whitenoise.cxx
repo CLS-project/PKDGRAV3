@@ -112,13 +112,19 @@ void NoiseGenerator::update(complex_vector_t &pencil,complex_vector_t &noise,int
     pencil = noise;
     }
 
-// Iterate over each pencil of our part of the array, generate white noise and call update().
-// The default behaviour of update() is to set the output pencil to the white noise.
+/*
+** Generate Gaussian white noise in k-space. The noise is in the proper form for
+** an inverse FFT. The complex conjugates in the Nyquist planes are correct, and
+** the normalization is such that that the inverse FFT needs to be normalized
+** by sqrt(Ngrid^3) compared with Ngrid^3 with FFT followed by IFFT.
+*/
 void NoiseGenerator::FillNoise(complex_array_t &K,int nGrid,double *mean,double *csq) {
     const int iNyquist = nGrid / 2;
     complex_vector_t noise(K.domain()[0]);
     complex_slice_t pencils = K(0,K.domain()[1],K.domain()[2]);
     *mean = *csq = 0.0;
+    // Iterate over each pencil of our part of the array, generate white noise and call update().
+    // The default behaviour of update() is to set the output pencil to the white noise.
     for( auto pindex=pencils.begin(); pindex!=pencils.end(); ++pindex ) {
 	auto j = pindex.position()[0];
 	auto k = pindex.position()[1];
@@ -130,15 +136,4 @@ void NoiseGenerator::FillNoise(complex_array_t &K,int nGrid,double *mean,double 
 	*csq += r;
 	update(pencil,noise,j,k);
 	}
-    }
-
-/*
-** Generate Gaussian white noise in k-space. The noise is in the proper form for
-** an inverse FFT. The complex conjugates in the Nyquist planes are correct, and
-** the normalization is such that that the inverse FFT needs to be normalized
-** by sqrt(Ngrid^3) compared with Ngrid^3 with FFT followed by IFFT.
-*/
-void pkdGenerateNoise(PKD pkd,unsigned long seed,int bFixed, float fPhase,MDLFFT fft,complex_array_t &K,double *mean,double *csq) {
-    NoiseGenerator ng(seed,bFixed,fPhase);
-    ng.FillNoise(K,fft->kgrid->n3,mean,csq);
     }

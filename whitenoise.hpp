@@ -34,6 +34,4 @@ public:
     virtual ~NoiseGenerator();
     void FillNoise(gridinfo::complex_array_t &K,int nGrid,double *mean,double *csq);
     };
-
-void pkdGenerateNoise(PKD pkd,unsigned long seed,int bFixed, float fPhase,MDLFFT fft,gridinfo::complex_array_t &K,double *mean,double *csq);
 #endif
