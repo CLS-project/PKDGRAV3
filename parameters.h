@@ -18,8 +18,6 @@
 #ifndef PARAMETERS_HINCLUDED
 #define PARAMETERS_HINCLUDED
 
-#include "cosmo.h"
-
 /*
 ** Don't even think about putting a pointer in here!!
 */
@@ -79,6 +77,7 @@ struct parameters {
     int nReplicas;
     int iStartStep;
     int nSteps;
+    int nSteps10;
     int nSmooth;
     int iMaxRung;
     int nRungVeryActive;
@@ -174,7 +173,6 @@ struct parameters {
     double dPreFacRhoLoc;
     double dFacExcludePart;
     double dEccFacMax;
-    CSM csm;
     double dRedTo;
     double dRedFrom;
     double dCentMass;
@@ -235,7 +233,6 @@ struct parameters {
     int bDoLinPkOutput;
     int nBinsLinPk;
     int iDeltakInterval;
-    double dDeltakRedshift;
 #endif
 
     int iInflateStep;
