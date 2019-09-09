@@ -185,7 +185,7 @@ typedef struct sphfields {
 
     /* IA: last time this particle's primitve variables were updated */
     double lastUpdateTime;
-    /* IA: Last gravitational acceleration */
+    /* IA: Last gravitational acceleration TODO Not used!*/
     double lastAcc[3];
     double lastV[3];
 
@@ -196,6 +196,8 @@ typedef struct sphfields {
     double Frho;
     double Fmom[3];
     double Fene;
+
+    double drDotFrho[3]; 
 
     /* IA: Conserved variables */
     double mom[3];

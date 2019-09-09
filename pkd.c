@@ -2678,15 +2678,17 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
              for (j=0;j<3;++j) {
                dr[j] = dDelta*v[j];
              }
-             // IA: Extrapolate new variables from gradients? (gizmo does not do this..)
-             if (pkdIsGas(pkd,p)) {
-               sph = pkdSph(pkd,p);
-             }
 
-
+#ifdef GRAV_RT
+             if ( (pkdPos(pkd,p,1)<-0.4) | (pkdPos(pkd,p,1)>0.4) ) continue;
+#endif
              for (j=0;j<3;++j) {
                pkdSetPos(pkd,p,j,rfinal[j] = pkdPos(pkd,p,j) + dr[j]);
                }
+#ifdef GRAV_RT
+//             if (pkdPos(pkd,p,1) > 0.4) { pkdSetPos(pkd,p,1, 0.8 - pkdPos(pkd,p,1) ); pkdVel(pkd,p)[1] *= -1;}
+//             if (pkdPos(pkd,p,1) <-0.4) { pkdSetPos(pkd,p,1,-0.8 - pkdPos(pkd,p,1) ); pkdVel(pkd,p)[1] *= -1; }
+#endif
              pkdMinMax(rfinal,dMin,dMax);
          }
       }else{
@@ -2793,7 +2795,10 @@ void pkdUpdateConsVars(PKD pkd,int iRoot,double dTime,double dDelta,double dDelt
 //            printf("E %e dDelta %e psph->Fene %e \n", psph->E, dDelta, psph->Fene);
 //            }
             //psph->E -= dDelta * psph->Fene;
-            assert(psph->E>0.0);
+            if (psph->E<0.0){
+               psph->E = 0.;
+            }
+            //assert(psph->E>0.0);
 
             
             //IA: We reset the fluxes
@@ -2813,7 +2818,7 @@ void pkdApplyGravWork(PKD pkd,double dTime,double dDelta,double dDeltaVPred,doub
     PARTICLE *p;
     SPHFIELDS *psph;
     int i,j;
-    double gravE, fac, pDelta;
+    double gravE, gravEdm, fac, pDelta;
     float* pv, *pa;
 
     assert(pkd->oVelocity);
@@ -2828,23 +2833,30 @@ void pkdApplyGravWork(PKD pkd,double dTime,double dDelta,double dDeltaVPred,doub
 
          pDelta = dDelta *(1 << (uRungHi-p->uRung));
 
+#ifdef GRAV_KEPLER
             // Analytical gravity for the keplerian ring:
                double eps = 0.0;
                double r = sqrt(pkdPos(pkd,p,0)*pkdPos(pkd,p,0)  +  pkdPos(pkd,p,1)*pkdPos(pkd,p,1) + eps*eps);
                double GM = 1.;
                double r3 = r*r*r;
 
-               if (pkdMass(pkd,p) > 0.0 /*4e-5 r<2.0 && r>0.4*/){
-               pa[0] = GM*pkdPos(pkd,p,0)/r3;
-               pa[1] = GM*pkdPos(pkd,p,1)/r3;
+               if (r > 0.35 /*4e-5 r<2.0 && r>0.4*/){
+               pa[0] = -GM*pkdPos(pkd,p,0)/r3;
+               pa[1] = -GM*pkdPos(pkd,p,1)/r3;
                pa[2] = 0.0; 
                }else{
-                  pa[0] = 0.;
-                  pa[1] = 0.;
+                  pa[0] = 0.0; //GM*pkdPos(pkd,p,0)/r3 * ( 1. - pow(r/0.35,2) - r/0.35 );
+                  pa[1] = 0.0; //GM*pkdPos(pkd,p,1)/r3 * ( 1. - pow(r/0.35,2) - r/0.35 );
                   pa[2] = 0.;
                }
-             
-            // END of analytical gravity 
+#endif
+
+#ifdef GRAV_RT
+//               if ( (pkdPos(pkd,p,1) > 0.4) | (pkdPos(pkd,p,1) < -0.4) ) continue;
+              pa[0] = 0.0;
+              pa[1] = -.5; 
+              pa[2] = 0.0;
+#endif             
 
             //IA: For now, we assume MFM, and thus Frho=0, m=constant
             fac = pDelta*pkdMass(pkd,p);
@@ -2858,11 +2870,12 @@ void pkdApplyGravWork(PKD pkd,double dTime,double dDelta,double dDeltaVPred,doub
                //
                //    TODO: Need to take into account variable mass if MFV!!
 #ifdef HYDRO_GRAV_KDK
-               psph->mom[j] -= fac*pa[j]; 
+               psph->mom[j] += fac*pa[j]; 
                gravE +=  psph->mom[j]*pa[j] ; 
 #else
-               psph->mom[j] -= fac*pa[j]; 
+               psph->mom[j] += fac*pa[j]; 
                gravE +=  psph->mom[j]*pa[j] ; 
+               gravEdm += psph->drDotFrho[j]*pa[j];
                //IA: No se por que, pero el esquema de segundo orden no funciona, produce un drift de las particulas hacia afuera
                //   Sospecho que tiene que ver con cuando se guardan los valores de lastAcc y lastV
               // gravE += pkdMass(pkd,p)*psph->lastV[j]*psph->lastAcc[j] + psph->mom[j]*pa[j] ; 
@@ -2873,7 +2886,11 @@ void pkdApplyGravWork(PKD pkd,double dTime,double dDelta,double dDeltaVPred,doub
             //gravE *= 0.5;
 #endif
 
-            psph->E -= pDelta*gravE;
+            psph->E += pDelta*gravE + gravEdm;
+
+            for (j=0; j<3;j++){
+               psph->drDotFrho[j] = 0.;
+            }
 
 #ifdef HYDRO_GRAV_KDK
          if (dTime == -1){
@@ -2914,10 +2931,15 @@ void pkdComputePrimVars(PKD pkd,int iRoot, double dTime) {
       p = pkdParticle(pkd,i);
          if (pkdIsGas(pkd,p)  && pkdIsActive(pkd, p)  ) { //IA: We only update those which are active, as in AREPO
             psph = pkdSph(pkd, p);
+            psph->lastUpdateTime = dTime;
+
+#ifdef GRAV_RT
+             if ( dTime != 1 & ((pkdPos(pkd,p,1)<-0.4) | (pkdPos(pkd,p,1)>0.4)) ) continue;
+#endif
 
             double Ekin = 0.5*( psph->mom[0]*psph->mom[0] + psph->mom[1]*psph->mom[1] + psph->mom[2]*psph->mom[2] ) / pkdMass(pkd,p);
             //printf("E %e \t Uint %e \t Ekin %e \n", psph->E, psph->Uint, Ekin);
-            if (Ekin > .0*psph->E ){
+            if (Ekin > 0.0*psph->E ){
                   psph->P = psph->Uint*psph->omega*(pkd->param.dConstGamma -1.);
             }else{
                   psph->P = (psph->E - Ekin )*psph->omega*(pkd->param.dConstGamma -1.);
@@ -2942,7 +2964,6 @@ void pkdComputePrimVars(PKD pkd,int iRoot, double dTime) {
             
             psph->c = sqrt(psph->P*pkd->param.dConstGamma/pkdDensity(pkd,p));
 
-            psph->lastUpdateTime = dTime;
          }
        }
     }

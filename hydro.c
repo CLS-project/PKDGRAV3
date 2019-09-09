@@ -47,6 +47,12 @@ void inverseMatrix(double* E, double* B){
       printf("Singular matrix!\n");
       printf("XX %e \nXY %e \t YY %e \nXZ %e \t YZ %e \t ZZ %e \n", E[XX], E[XY], E[YY], E[XZ], E[YZ], E[ZZ]);
       abort();
+      B[XX] = 0.;
+      B[YY] = 0.;
+      B[ZZ] = 0.;
+      B[XY] = 0.;
+      B[XZ] = 0.;
+      B[YZ] = 0.;
    }
 
 }
@@ -703,6 +709,9 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 	 dx = nnList[i].dx;
 	 dy = nnList[i].dy;
 	 dz = nnList[i].dz;
+#ifdef FORCE_2D
+       if (dz!=0) continue;
+#endif
 
        /* IA: in the nnList there is a 'copy' of the own particle, which we can omit as there are no fluxes
         * to be computed here */
@@ -854,11 +863,15 @@ if (p->iOrder == A || p->iOrder==B){
 //       riemann_input.L.rho = 1.0; riemann_input.L.p = 1.0; riemann_input.L.v[0] = 0.0;
 //       riemann_input.L.rho = 0.125; riemann_input.L.p = 0.1; riemann_input.L.v[0] = 0.0;
 
-       if (riemann_input.L.rho <= 0) {riemann_input.L.rho = pkdDensity(pkd,p); printf("WARNING, L.rho < 0 : using first-order scheme \n"); }
-       if (riemann_input.R.rho <= 0) {riemann_input.R.rho = pkdDensity(pkd,q); printf("WARNING, R.rho < 0 : using first-order scheme \n"); }
+       if (riemann_input.L.rho < 0) {riemann_input.L.rho = pkdDensity(pkd,p); printf("WARNING, L.rho < 0 : using first-order scheme \n"); }
+       if (riemann_input.R.rho < 0) {riemann_input.R.rho = pkdDensity(pkd,q); printf("WARNING, R.rho < 0 : using first-order scheme \n"); }
        if (riemann_input.L.p < 0) {riemann_input.L.p = psph->P;  /*  printf("WARNING, L.p < 0 : using first-order scheme \n");*/ }
        if (riemann_input.R.p < 0) {riemann_input.R.p = qsph->P;  /*  printf("WARNING, R.p < 0 : using first-order scheme \n");*/ }
        Riemann_solver(pkd, riemann_input, &riemann_output, face_unit, /*double press_tot_limiter TODO For now, just p>0: */ HUGE_VAL);
+       // Force 2D
+#ifdef FORCE_2D
+       riemann_output.Fluxes.v[2] = 0.;
+#endif
       
        // IA: MFM
 #ifdef USE_MFM
@@ -879,8 +892,8 @@ if (p->iOrder == A || p->iOrder==B){
 //       abort();
 
        // Check for NAN fluxes
-       if (riemann_output.Fluxes.rho!=riemann_output.Fluxes.rho) abort();
-       if (riemann_output.Fluxes.p!=riemann_output.Fluxes.p) abort(); 
+       if (riemann_output.Fluxes.rho!=riemann_output.Fluxes.rho) riemann_output.Fluxes.rho = 0.;//abort();
+       if (riemann_output.Fluxes.p!=riemann_output.Fluxes.p) riemann_output.Fluxes.p = 0.;//abort(); 
 
 
        // Now we de-boost the fluxes following Eq. A8 Hopkins 2015 (From hydra_core_meshless.h):
@@ -919,6 +932,10 @@ if (p->iOrder == A || p->iOrder==B){
                                                             - riemann_output.Fluxes.v[1]*qsph->vPred[1]
                                                             - riemann_output.Fluxes.v[2]*qsph->vPred[2]
                                   + 0.5*(qsph->vPred[0]*qsph->vPred[0] + qsph->vPred[1]*qsph->vPred[1] + qsph->vPred[2]*qsph->vPred[2]) * riemann_output.Fluxes.rho );
+
+            qsph->drDotFrho[0] -= minDt * riemann_output.Fluxes.rho * dx;
+            qsph->drDotFrho[1] -= minDt * riemann_output.Fluxes.rho * dy;
+            qsph->drDotFrho[2] -= minDt * riemann_output.Fluxes.rho * dz;
        } 
             *pmass -= minDt * riemann_output.Fluxes.rho ;
 
@@ -933,6 +950,9 @@ if (p->iOrder == A || p->iOrder==B){
                                                             - riemann_output.Fluxes.v[2]*psph->vPred[2]
                                   + 0.5*(psph->vPred[0]*psph->vPred[0] + psph->vPred[1]*psph->vPred[1] + psph->vPred[2]*psph->vPred[2]) * riemann_output.Fluxes.rho );
 
+            psph->drDotFrho[0] += minDt * riemann_output.Fluxes.rho * dx;
+            psph->drDotFrho[1] += minDt * riemann_output.Fluxes.rho * dy;
+            psph->drDotFrho[2] += minDt * riemann_output.Fluxes.rho * dz;
 
        }
 /*IA:  Old fluxes update (see 15/04/19 ) 

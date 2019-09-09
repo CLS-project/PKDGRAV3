@@ -1607,6 +1607,10 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 		sizeof(int), "globaldt",
 		"Force all particles to the same rung");
 
+    msr->param.dFixedDelta = 0.0;
+    prmAddParam(msr->prm,"dFixedDelta",2,&msr->param.dFixedDelta,sizeof(double),"FixedDelta",
+				"<Fixed time step of the simulation (requires bGlobalDt=1)> = 0.0");
+
     msr->param.bIterativeSmoothingLength = 1;
     prmAddParam(msr->prm,"bIterativeSmoothingLength", 0, &msr->param.bIterativeSmoothingLength,
 		sizeof(int), "iterh",
@@ -4157,11 +4161,15 @@ void msrHydroStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime) {
     msrReSmooth(msr,dTime,SMX_HYDROSTEP,bSymmetric);
 
     if (msr->param.bGlobalDt){
-       uint8_t minDt;
-       minDt = msrGetMinDt(msr);
-       msrSetGlobalDt(msr, minDt);
+       if (msr->param.dFixedDelta != 0.0){
+          msrSetGlobalDt(msr, msr->param.dFixedDelta);
+       }else{
+          uint8_t minDt;
+          minDt = msrGetMinDt(msr);
+          msrSetGlobalDt(msr, minDt);
+       }
     }
-    }
+}
 
 uint8_t msrGetMinDt(MSR msr){
     struct outGetMinDt out;
@@ -4569,8 +4577,8 @@ void msrTopStepKDK(MSR msr,
 #ifdef HYDRO_GRAV_KDK
       if (msrDoGas(msr) && msrMeshlessHydro(msr) && msrDoGravity(msr)){
           msrApplyGravWork(msr,-1,0.5*dDelta,iRung,iRung); 
-         msrUpdatePrimVars(msr, dTime, dDelta, ROOT); //IA: solucion de mierda, los gradientes tambien habria que calcularlos..
-         msrMeshlessGradients(msr, dTime, dDelta, ROOT);
+         msrUpdatePrimVars(msr, dTime, dDelta, ROOT); 
+         msrMeshlessGradients(msr, dTime, dDelta, ROOT); //EXPENSIVE
       }
 #else
       if (dTime == 1 && msrDoGas(msr) && msrMeshlessHydro(msr) && msrDoGravity(msr)){
@@ -4630,7 +4638,7 @@ void msrTopStepKDK(MSR msr,
 	    }
 	if (msrDoGravity(msr)) {
       // IA: FIXME TODO Commented for analytical gravity
-	//    msrGravity(msr,iKickRung,MAX_RUNG,ROOT,0,dTime,dStep,0,0,msr->param.bEwald,msr->param.nGroup,piSec,&nActive);
+	    msrGravity(msr,iKickRung,MAX_RUNG,ROOT,0,dTime,dStep,0,0,msr->param.bEwald,msr->param.nGroup,piSec,&nActive);
 	    *pdActiveSum += (double)nActive/msr->N;
 	    }
 	

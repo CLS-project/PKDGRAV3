@@ -393,6 +393,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2, ui
 					else p = CAST(PARTICLE *,mdlFetch(pkd->mdl,iCidPart,pj,id));
 					fMass = pkdMass(pkd,p);
 					fSoft = pkdSoft(pkd,p);
+                              //printf("fSoft %e \n", fSoft);
 					if (bGravStep && pkd->param.iTimeStepCrit == 1) v = pkdVel(pkd,p);
 					pkdGetPos1(pkd,p,r);
 					iOrder = pkd->bNoParticleOrder ? 0 : p->iOrder;

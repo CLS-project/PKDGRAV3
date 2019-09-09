@@ -241,6 +241,7 @@ struct parameters {
      * IA: Parameter for fixing all particles to the same rung
      */
     int bGlobalDt;
+    double dFixedDelta;
 
 #ifdef MDL_FFTW
     int nGridPk;

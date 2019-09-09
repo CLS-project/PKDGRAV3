@@ -105,3 +105,33 @@ This is the command used for preparing and compiling my version, on virus
    cd build
    CC=/scratch/isaacaa/opt/gcc53/bin/gcc CXX=/scratch/isaacaa/opt/gcc53/bin/g++ cmake -DFFTW_ROOT=/scratch/isaacaa/opt/fftw3  ..
    make
+
+New compile-time flags
+-------
+
+These flags are designed to avoid plenty of if/else statements in critical parts of the code, 
+as well as activating some parts of the code which, in general, will be disabled (such as an analytic gravity prescription)
+
+In the following the implemented flags will be described, to turn them on/off:
+
+   cmake -D<FLAG>=on/off ..
+
+  * USE_MFM (default=off):
+      Use the Meshless finite mass method for the hydrodynamics. As today, this does not, for example, avoid the storage of the 
+      mass flux (which is always zero), thus can be further optimized
+
+  * GRAV_RT (default=off):
+      Add the gravity for the Rayleigh-Taylor instability test case. Also, this flag take care of the boundary conditions
+
+  * GRAV_KEPLER (default=off):
+      Add the gravity for the keplerian ring test case. It is just the acceleration due to a point particle at the origin, with GM=1
+
+  * HYDRO_GRAV_KDK (default=off):
+      Integrate the gravity for the hydro particles following a KDK scheme. This improves the accuracy with respect to the default scheme, 
+      although both are second order. Using this flag will considerably slow the simulation, as the gradients must be calculated twice per 
+      iteration if the particles have individual timesteps
+
+  * FORCE_2D (default=off):
+      This option is only for specific 2D cases (KEPLER, RT). It set the fluxes in the z-direction to zero and ignores interactions among particles with
+      different positions in the z-axis. This, however, does not change the neighbor search or the tree construction, which is still done in 3D
+      and thus is highly inefficient!
