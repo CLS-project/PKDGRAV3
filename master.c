@@ -977,6 +977,9 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
     msr->param.iDeltakInterval = 0;
     prmAddParam(msr->prm,"iDeltakInterval",1,&msr->param.iDeltakInterval,sizeof(int),
 		"odk","<number of timesteps between DeltaK outputs> = 0 (off)");
+    msr->param.dDeltakRedshift = 2.0;
+    prmAddParam(msr->prm,"dDeltakRedshift",2,&msr->param.dDeltakRedshift,sizeof(double),"zdel",
+		"starting redshift to output delta(k) field = 2.0");
     msr->param.bEwald = 1;
     prmAddParam(msr->prm,"bEwald",0,&msr->param.bEwald,sizeof(int),"ewald",
 		"enable/disable Ewald correction = +ewald");
@@ -5267,7 +5270,7 @@ void msrOutputPk(MSR msr,int iStep,double dTime) {
 #endif
     float *fK, *fPk, *fPkAll;
     uint64_t *nPk;
-    double a, vfact, kfact;
+    double a, z, vfact, kfact;
     FILE *fp;
     int i;
 
@@ -5314,7 +5317,9 @@ void msrOutputPk(MSR msr,int iStep,double dTime) {
     free(fPkAll);
     free(nPk);
     /* Output the k-grid if requested */
-    if (msr->param.iDeltakInterval && (iStep % msr->param.iDeltakInterval == 0)) {
+    z = 1/a - 1;
+    if (msr->param.iDeltakInterval && (iStep % msr->param.iDeltakInterval == 0) &&
+	z < msr->param.dDeltakRedshift) {
 	struct inOutput out;
 	double dsec, sec = msrTime();
 	out.eOutputType = OUT_KGRID;

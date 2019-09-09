@@ -233,6 +233,7 @@ struct parameters {
     int bDoLinPkOutput;
     int nBinsLinPk;
     int iDeltakInterval;
+  double dDeltakRedshift;
 #endif
 
     int iInflateStep;
