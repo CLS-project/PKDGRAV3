@@ -819,12 +819,12 @@ float smSmoothSingle(SMX smx,SMF *smf,PARTICLE *p,int iRoot1, int iRoot2) {
     /* IA: I do not fully understand this fBall, so I will compute my own kernel length such that it encloses
      * all the particles in the neighbor list. This means that h > 0.5*max(dist). I have taken 0.501 as a safe
      * value, because 0.5 would exclude the furthest particle(s) */
-    int i;
-    fBall = 0.0;    
-    for (i=0; i<smx->nSmooth; ++i){
-       if (fBall < smx->pq[i].fDist2) fBall = smx->pq[i].fDist2;
-    }
-    fBall = 0.50*sqrt(fBall);
+//    int i;
+//    fBall = 0.0;    
+//    for (i=0; i<smx->nSmooth; ++i){
+//       if (fBall < smx->pq[i].fDist2) fBall = smx->pq[i].fDist2;
+//    }
+//    fBall = 0.50*sqrt(fBall);
 
 
     /*
