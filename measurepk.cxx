@@ -105,13 +105,7 @@ LinearSignal::LinearSignal(CSM csm,double a,double Lbox,unsigned long seed,bool 
     for (auto i = 0; i < size; i++){
         auto k = csm->val.classData.perturbations.k[i];
         logk[i] = log(k);
-//        if (bRho)
-            /* Use the \delta\rho field, possibly averaged */
-            field[i] = csmDeltaRho_lin(csm, a, a, k);
-//        else
-            /* Use the \delta field */
-//            field[i] = csmDelta_lin(pkd->csm, a, k);
-        /* The cubic splining is much better without the analytic zeta */
+        field[i] = csmDeltaRho_pk(csm, a, k);
         field[i] /= csmZeta(csm, k);
     }
     gsl_spline_init(spline, logk, field, size);

@@ -315,7 +315,7 @@ void master(MDL mdl,void *pst) {
 	    else bKickOpen = 0;
 
             /* Compute the grids of the linear species before doing gravity */
-            if (strlen(msr->param.achLinSpecies) && msr->param.nGridLin > 0){
+            if (strlen(msr->param.achLinearSpecies) && msr->param.nGridLin > 0){
 		msrGridCreateFFT(msr,msr->param.nGridLin);
                 msrSetLinGrid(msr,dTime, msr->param.nGridLin,bKickClose,bKickOpen);
                 if (msr->param.bDoLinPkOutput)
@@ -366,7 +366,7 @@ void master(MDL mdl,void *pst) {
                     msrLightConeOpen(msr,iStep);  /* open the lightcone */
 		    uRungMax = msrGravity(msr,0,MAX_RUNG,ROOT,0,ddTime,diStep,0,1,msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
                     /* Set the grids of the linear species */
-                    if (strlen(msr->param.achLinSpecies) && msr->param.nGridLin > 0){
+                    if (strlen(msr->param.achLinearSpecies) && msr->param.nGridLin > 0){
 			msrGridCreateFFT(msr,msr->param.nGridLin);
 		        msrSetLinGrid(msr, dTime, msr->param.nGridLin,bKickClose,bKickOpen);
                         if (msr->param.bDoLinPkOutput)

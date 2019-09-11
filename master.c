@@ -286,7 +286,7 @@ void msrInitializePStore(MSR msr, uint64_t *nSpecies) {
      * Add some ephemeral memory (if needed) for the linGrid.
      * 3 grids are stored : forceX, forceY, forceZ
      */
-    if (strlen(msr->param.achLinSpecies)){
+    if (strlen(msr->param.achLinearSpecies)){
 	struct inGetFFTMaxSizes inFFTSizes;
 	struct outGetFFTMaxSizes outFFTSizes;
 
@@ -850,6 +850,18 @@ static int validateParameters(MDL mdl,CSM csm,PRM prm,struct parameters *param) 
     return 1;
     }
 
+#define MAX_CSM_SPECIES 20
+static int parseSpeciesNames(const char *aSpecies[], char *achSpecies) {
+    if (achSpecies==NULL || achSpecies[0]==0 ) return 0;
+    char *p, *stringp = achSpecies;
+    int nSpecies = 0;
+    while ((p = strsep(&stringp, "+")) != NULL) {
+	assert(nSpecies<MAX_CSM_SPECIES);
+        if (p[0]) aSpecies[nSpecies++] = p;
+	}
+    return nSpecies;
+    }
+
 
 int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
     MSR msr;
@@ -1345,10 +1357,14 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
     msr->param.achClassFilename[0] = 0;
     prmAddParam(msr->prm, "achClassFilename", 3, msr->param.achClassFilename,
 		256, "class_filename", "<Name of hdf5 file containing the CLASS data> -class_filename");
-    msr->param.achLinSpecies[0] = 0;
-    prmAddParam(msr->prm, "achLinSpecies", 3, msr->param.achLinSpecies,
+    msr->param.achLinearSpecies[0] = 0;
+    prmAddParam(msr->prm, "achLinSpecies", 3, msr->param.achLinearSpecies,
                 128, "lin_species",
                 "<plus-separated string of linear species, e.g. \"ncdm[0]+g+metric\"> -lin_species");
+    msr->param.achPowerSpecies[0] = 0;
+    prmAddParam(msr->prm, "achPkSpecies", 3, msr->param.achPowerSpecies,
+                128, "pk_species",
+                "<plus-separated string of P(k) linear species, e.g. \"ncdm[0]+g\"> -pk_species");
     msr->param.h = 0.0;
     prmAddParam(msr->prm,"h",2,&msr->param.h,
 		sizeof(double),"h","<hubble parameter h> = 0");
@@ -1702,25 +1718,20 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
     msr->iRungVeryActive = msr->param.iMaxRung; /* No very active particles */
     msr->bSavePending = 0;                      /* There is no pending save */
 
-#define MAX_CSM_SPECIES 20
     if (msr->csm->val.classData.bClass){
-	char *achLinSpecies = NULL;
-	int nSpecies = 0;
-	const char *aSpecies[MAX_CSM_SPECIES];
-	if (strlen(msr->param.achLinSpecies)) {
-	    achLinSpecies = strdup(msr->param.achLinSpecies);
-	    char *p, *stringp = achLinSpecies;
-	    while ((p = strsep(&stringp, "+")) != NULL) {
-		assert(nSpecies<MAX_CSM_SPECIES);
-        	if (p[0]) aSpecies[nSpecies++] = p;
-		}
-	    }
+	const char *aLinear[MAX_CSM_SPECIES];
+	const char *aPower[MAX_CSM_SPECIES];
+	char *achLinearSpecies = strdup(msr->param.achLinearSpecies);
+	char *achPowerSpecies = strdup(msr->param.achPowerSpecies);
+	int nLinear = parseSpeciesNames(aLinear,achLinearSpecies);
+	int nPower = parseSpeciesNames(aPower,achPowerSpecies);
         if (!prmSpecified(msr->prm,"dOmega0")) msr->csm->val.dOmega0 = 0.0;
-        csmClassRead(msr->csm, msr->param.achClassFilename, msr->param.dBoxSize, msr->param.h, nSpecies, aSpecies);
+        csmClassRead(msr->csm, msr->param.achClassFilename, msr->param.dBoxSize, msr->param.h, nLinear, aLinear, nPower, aPower);
+        free(achLinearSpecies);
+        free(achPowerSpecies);
         csmClassGslInitialize(msr->csm);
-        if (achLinSpecies) free(achLinSpecies);
     }
-    if (strlen(msr->param.achLinSpecies) && msr->param.nGridLin == 0){
+    if (strlen(msr->param.achLinearSpecies) && msr->param.nGridLin == 0){
         fprintf(stderr, "ERROR: you must specify nGridLin when running with linear species\n");
         abort();
     }
@@ -3289,7 +3300,7 @@ uint8_t msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot
 		}
 	    }
 	}
-    in.bLinearSpecies = (strlen(msr->param.achLinSpecies) > 0);
+    in.bLinearSpecies = (strlen(msr->param.achLinearSpecies) > 0);
     out_size = msr->nThreads*sizeof(struct outGravityPerProc) + sizeof(struct outGravityReduct);
     out = malloc(out_size);
     assert(out != NULL);
@@ -4248,7 +4259,7 @@ int msrNewTopStepKDK(MSR msr,
 	}
 
     /* Compute the grids of linear species at main timesteps, before gravity is called */
-    if (!uRung && strlen(msr->param.achLinSpecies) && msr->param.nGridLin){
+    if (!uRung && strlen(msr->param.achLinearSpecies) && msr->param.nGridLin){
 	msrGridCreateFFT(msr,msr->param.nGridLin);
         msrSetLinGrid(msr, *pdTime, msr->param.nGridLin,1,bKickOpen);
         if (msr->param.bDoLinPkOutput)
@@ -5965,7 +5976,7 @@ void msrMeasurePk(MSR msr,int iAssignment,int bInterlace,int nGrid,double a,int 
     in.nBins = nBins;
     in.dTotalMass = msrTotalMass(msr);
 
-    in.bLinear = msr->csm->val.classData.bClass && (msr->param.nGridLin>0);
+    in.bLinear = msr->csm->val.classData.bClass && msr->param.nGridLin>0 && strlen(msr->param.achPowerSpecies) > 0;
     in.iSeed = msr->param.iSeed;
     in.bFixed = msr->param.bFixedAmpIC;
     in.fPhase = msr->param.dFixedAmpPhasePI * M_PI;

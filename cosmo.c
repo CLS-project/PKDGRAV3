@@ -62,7 +62,8 @@ void csmInitialize(CSM *pcsm) {
     csm->val.h = 0.0;
     csm->W = gsl_integration_workspace_alloc(LIMIT);
     csm->val.classData.bClass = 0;
-    csm->val.classData.nSpecies = 0;
+    csm->val.classData.nLinear = 0;
+    csm->val.classData.nPower = 0;
     csm->val.classData.background.size = 0;
     csm->val.classData.background.a[0] = 0.;
     csm->val.classData.background.t[0] = 0.;
@@ -92,6 +93,8 @@ void csmFinish(CSM csm) {
         gsl_spline_free      (csm->classGsl.background.logExp2logRho_m_spline);
 	if (csm->classGsl.background.logExp2logRho_lin_acc) gsl_interp_accel_free(csm->classGsl.background.logExp2logRho_lin_acc);
         if (csm->classGsl.background.logExp2logRho_lin_spline) gsl_spline_free(csm->classGsl.background.logExp2logRho_lin_spline);
+	if (csm->classGsl.background.logExp2logRho_pk_acc) gsl_interp_accel_free(csm->classGsl.background.logExp2logRho_pk_acc);
+        if (csm->classGsl.background.logExp2logRho_pk_spline) gsl_spline_free(csm->classGsl.background.logExp2logRho_pk_spline);
         gsl_interp_accel_free(csm->classGsl.perturbations.logk2delta_m_acc);
         gsl_interp_accel_free(csm->classGsl.perturbations.loga2delta_m_acc);
         gsl_spline2d_free    (csm->classGsl.perturbations.logkloga2delta_m_spline);
@@ -101,13 +104,84 @@ void csmFinish(CSM csm) {
         if (csm->classGsl.perturbations.logk2delta_lin_acc) gsl_interp_accel_free(csm->classGsl.perturbations.logk2delta_lin_acc);
         if (csm->classGsl.perturbations.loga2delta_lin_acc) gsl_interp_accel_free(csm->classGsl.perturbations.loga2delta_lin_acc);
         if (csm->classGsl.perturbations.logkloga2delta_lin_spline) gsl_spline2d_free(csm->classGsl.perturbations.logkloga2delta_lin_spline);
+        if (csm->classGsl.perturbations.logk2delta_pk_acc) gsl_interp_accel_free(csm->classGsl.perturbations.logk2delta_pk_acc);
+        if (csm->classGsl.perturbations.loga2delta_pk_acc) gsl_interp_accel_free(csm->classGsl.perturbations.loga2delta_pk_acc);
+        if (csm->classGsl.perturbations.logkloga2delta_pk_spline) gsl_spline2d_free(csm->classGsl.perturbations.logkloga2delta_pk_spline);
     }
     gsl_integration_workspace_free(csm->W);
     free(csm);
     }
 
+    /* For each linear species, we read in its background density rho
+    ** and its density contrast delta. We will keep running totals in
+    ** the rho_lin and deltarho_lin arrays (deltarho since delta*rho
+    ** is additive, unlike delta).
+    **/
+static void readLinearSpecies(CSM csm, double *out_delta, double *out_rho, hid_t file, int nLinear, const char *aLinear[] ) {
+    size_t size_bg = csm->val.classData.background.size;
+    size_t size_a = csm->val.classData.perturbations.size_a;
+    size_t size_k = csm->val.classData.perturbations.size_k;
+    int iLinear, i, j;
+
+    double * rho_lin = (double*)calloc(size_bg, sizeof(double));
+    double * deltarho_lin = (double*)calloc(size_a*size_k, sizeof(double));
+    double * logrho_lin = (double*)calloc(size_bg, sizeof(double));
+    double * loga = (double*)calloc(size_bg, sizeof(double));
+    csm->classGsl.background.logExp2logRho_lin_acc = gsl_interp_accel_alloc();
+    csm->classGsl.background.logExp2logRho_lin_spline = gsl_spline_alloc(gsl_interp_cspline, size_bg);
+
+    for (i = 0; i < size_bg; i++) loga[i] = log(csm->val.classData.background.a[i]);
+
+    for (iLinear=0; iLinear < nLinear; ++iLinear) {
+        char hdf5_key[128];
+	/* Read in the background density of the l'th linear species, overwriting the previous data. */
+	snprintf(hdf5_key, sizeof(hdf5_key), "/background/rho_%s", aLinear[iLinear]);
+	if (H5LTread_dataset_double(file, hdf5_key, csm->val.classData.background.rho_lin) < 0) abort();
+	/* Add the background density of the l'th linear species to the running total */
+	for (i = 0; i < size_bg; i++) rho_lin[i] += csm->val.classData.background.rho_lin[i];
+	/* Construct spline over the l'th linear species rho(a) */
+	for (i = 0; i < size_bg; i++) logrho_lin[i] = log(csm->val.classData.background.rho_lin[i]);
+	gsl_spline_init(csm->classGsl.background.logExp2logRho_lin_spline, loga, logrho_lin, size_bg);
+	/* Read in the density contrast of the l'th linear species, overwriting the previous data. */
+	snprintf(hdf5_key, sizeof(hdf5_key), "/perturbations/delta_%s", aLinear[iLinear]);
+	if (H5LTread_dataset_double(file, hdf5_key, csm->val.classData.perturbations.delta_lin) < 0) abort();
+	/* Add the density perturbation delta*rho of the l'th linear species
+	** to the running total.
+	**/
+	for (i = 0; i < size_a; i++){
+	    double a = csm->val.classData.perturbations.a[i];
+	    for (j = 0; j < size_k; j++){
+		size_t index = i*size_k + j;
+		deltarho_lin[index] += csm->val.classData.perturbations.delta_lin[index]*csmRhoBar_lin(csm, a);
+		}
+	    }
+	}
+
+    /* Store the total background density in the classData struct */
+    for (i = 0; i < size_bg; i++) out_rho[i] = rho_lin[i];
+    /*  Construct spline over the total rho(a) */
+    for (i = 0; i < size_bg; i++) logrho_lin[i] = log(rho_lin[i]);
+    gsl_spline_init(csm->classGsl.background.logExp2logRho_lin_spline, loga, logrho_lin, size_bg);
+    /* Store the combined density contrast in the classData struct */
+    for (i = 0; i < size_a; i++){
+	double a = csm->val.classData.perturbations.a[i];
+	for (j = 0; j < size_k; j++){
+	    size_t index = i*size_k + j;
+	    out_delta[index] = deltarho_lin[index]/csmRhoBar_lin(csm, a);
+	    }
+	}
+
+    free(rho_lin);
+    free(deltarho_lin);
+    free(loga);
+    free(logrho_lin);
+    gsl_interp_accel_free(csm->classGsl.background.logExp2logRho_lin_acc);
+    gsl_spline_free      (csm->classGsl.background.logExp2logRho_lin_spline);
+    }
+
 #define EPSCONFLICT 1e-6
-void csmClassRead(CSM csm, const char *achFilename, double dBoxSize, double h, int nSpecies, const char **aSpecies){
+void csmClassRead(CSM csm, const char *achFilename, double dBoxSize, double h,
+		int nLinear, const char **aLinear, int nPower, const char **aPower){
     size_t i, j, l, index;
     int conflicts;
     hid_t file, group, attr, string_type, rhocrit_dataset, rhocrit_dataspace, memspace;
@@ -346,95 +420,13 @@ void csmClassRead(CSM csm, const char *achFilename, double dBoxSize, double h, i
     if (H5LTread_dataset_double(file, hdf5_key,
         csm->val.classData.perturbations.theta_m) < 0) abort();
 
-    /* If any linear species are requested, read in their background
-    ** densities and perturbations and add them together to form
-    ** the combined "lin" species.
+    /* If any linear species are requested, read in their background densities and perturbations and add them together to form
+    ** the combined "lin" species. Be sure to read the "real" linear species last as they are used by P(k).
     **/
-    if (nSpecies) {
-	csm->val.classData.nSpecies = nSpecies;
-        /* For each linear species, we read in its background density rho
-        ** and its density contrast delta. We will keep running totals in
-        ** the rho_lin and deltarho_lin arrays (deltarho since delta*rho
-        ** is additive, unlike delta).
-        **/
-        rho_lin = (double*)calloc(size_bg, sizeof(double));
-        for (i = 0; i < size_bg; i++){
-            rho_lin[i] = 0.;
-        }
-        deltarho_lin = (double*)calloc(size_a*size_k, sizeof(double));
-        for (i = 0; i < size_a*size_k; i++){
-            deltarho_lin[i] = 0.;
-        }
-        loga = (double*)calloc(size_bg, sizeof(double));
-        for (i = 0; i < size_bg; i++){
-            loga[i] = log(csm->val.classData.background.a[i]);
-        }
-        logrho_lin = (double*)calloc(size_bg, sizeof(double));
-        csm->classGsl.background.logExp2logRho_lin_acc = gsl_interp_accel_alloc();
-        csm->classGsl.background.logExp2logRho_lin_spline = gsl_spline_alloc(
-            gsl_interp_cspline, size_bg);
-        for (l = 0; l < nSpecies; l++){
-            /* Read in the background density of the l'th linear species,
-            ** overwriting the previous data.
-            */
-            snprintf(hdf5_key, sizeof(hdf5_key), "/background/rho_%s", aSpecies[l]);
-            if (H5LTread_dataset_double(file, hdf5_key,
-                csm->val.classData.background.rho_lin) < 0) abort();
-            /* Add the background density of the l'th linear species to the running total */
-            for (i = 0; i < size_bg; i++){
-                rho_lin[i] += csm->val.classData.background.rho_lin[i];
-            }
-            /* Construct spline over the l'th linear species rho(a) */
-            for (i = 0; i < size_bg; i++){
-                logrho_lin[i] = log(csm->val.classData.background.rho_lin[i]);
-            }
-            gsl_spline_init(csm->classGsl.background.logExp2logRho_lin_spline,
-                loga, logrho_lin, size_bg);
-            /* Read in the density contrast of the l'th linear species,
-            ** overwriting the previous data.
-            */
-            snprintf(hdf5_key, sizeof(hdf5_key), "/perturbations/delta_%s", aSpecies[l]);
-            if (H5LTread_dataset_double(file, hdf5_key,
-                csm->val.classData.perturbations.delta_lin) < 0) abort();
-            /* Add the density perturbation delta*rho of the l'th linear species
-            ** to the running total.
-            **/
-            for (i = 0; i < size_a; i++){
-                a = csm->val.classData.perturbations.a[i];
-                for (j = 0; j < size_k; j++){
-                    index = i*size_k + j;
-                    deltarho_lin[index] +=
-                        csm->val.classData.perturbations.delta_lin[index]*csmRhoBar_lin(csm, a);
-                }
-            }
-        }
-        /* Store the total background density in the classData struct */
-        for (i = 0; i < size_bg; i++){
-            csm->val.classData.background.rho_lin[i] = rho_lin[i];
-        }
-        /*  Construct spline over the total rho(a) */
-        for (i = 0; i < size_bg; i++){
-            logrho_lin[i] = log(rho_lin[i]);
-        }
-        gsl_spline_init(csm->classGsl.background.logExp2logRho_lin_spline,
-            loga, logrho_lin, size_bg);
-        /* Store the combined density contrast in the classData struct */
-        for (i = 0; i < size_a; i++){
-            a = csm->val.classData.perturbations.a[i];
-            for (j = 0; j < size_k; j++){
-                index = i*size_k + j;
-                csm->val.classData.perturbations.delta_lin[index] =
-                    deltarho_lin[index]/csmRhoBar_lin(csm, a);
-            }
-        }
-        /* Cleanup */
-        free(rho_lin);
-        free(deltarho_lin);
-        free(loga);
-        free(logrho_lin);
-        gsl_interp_accel_free(csm->classGsl.background.logExp2logRho_lin_acc);
-        gsl_spline_free      (csm->classGsl.background.logExp2logRho_lin_spline);
-    }
+    csm->val.classData.nPower = nPower;
+    if (nPower)  readLinearSpecies(csm, csm->val.classData.perturbations.delta_pk,  csm->val.classData.background.rho_pk,  file, nPower,  aPower );
+    csm->val.classData.nLinear = nLinear;
+    if (nLinear) readLinearSpecies(csm, csm->val.classData.perturbations.delta_lin, csm->val.classData.background.rho_lin, file, nLinear, aLinear );
 
     /* Convert background variables to PKDGRAV units.
     ** We use the value of dHubble0, as well as the fact that
@@ -468,9 +460,14 @@ void csmClassRead(CSM csm, const char *achFilename, double dBoxSize, double h, i
     for (i = 0; i < size_bg; i++){
         csm->val.classData.background.rho_m[i] /= unit_conversion_density;
     }
-    if (nSpecies){
+    if (nLinear){
         for (i = 0; i < size_bg; i++){
             csm->val.classData.background.rho_lin[i] /= unit_conversion_density;
+        }
+    }
+    if (nPower){
+        for (i = 0; i < size_bg; i++){
+            csm->val.classData.background.rho_pk[i] /= unit_conversion_density;
         }
     }
 
@@ -522,9 +519,14 @@ void csmClassRead(CSM csm, const char *achFilename, double dBoxSize, double h, i
         }
     }
     /* delta_lin[a, k] */
-    if (nSpecies){
+    if (nLinear){
         for (i = 0; i < size_a*size_k; i++){
             csm->val.classData.perturbations.delta_lin[i] *= pow(dBoxSize, -2.5);
+        }
+    }
+    if (nPower){
+        for (i = 0; i < size_a*size_k; i++){
+            csm->val.classData.perturbations.delta_pk[i] *= pow(dBoxSize, -2.5);
         }
     }
 
@@ -587,7 +589,7 @@ void csmClassGslInitialize(CSM csm){
     }
     gsl_spline_init(csm->classGsl.background.logExp2logRho_m_spline, logx, logy, size);
     /* Exp2Rho_lin */
-    if (csm->val.classData.nSpecies){
+    if (csm->val.classData.nLinear){
         csm->classGsl.background.logExp2logRho_lin_acc = gsl_interp_accel_alloc();
         csm->classGsl.background.logExp2logRho_lin_spline = gsl_spline_alloc(gsl_interp_cspline, size);
         for (i = 0; i < size; i++){
@@ -600,7 +602,19 @@ void csmClassGslInitialize(CSM csm){
 	csm->classGsl.background.logExp2logRho_lin_acc = NULL;
 	csm->classGsl.background.logExp2logRho_lin_spline = NULL;
 	}
-
+    if (csm->val.classData.nPower){
+        csm->classGsl.background.logExp2logRho_pk_acc = gsl_interp_accel_alloc();
+        csm->classGsl.background.logExp2logRho_pk_spline = gsl_spline_alloc(gsl_interp_cspline, size);
+        for (i = 0; i < size; i++){
+            logx[i] = log(csm->val.classData.background.a[i]);
+            logy[i] = log(csm->val.classData.background.rho_pk[i]);
+        }
+        gsl_spline_init(csm->classGsl.background.logExp2logRho_pk_spline, logx, logy, size);
+        }
+    else {
+	csm->classGsl.background.logExp2logRho_pk_acc = NULL;
+	csm->classGsl.background.logExp2logRho_pk_spline = NULL;
+	}
     free(logx);
     free(logy);
 
@@ -631,7 +645,7 @@ void csmClassGslInitialize(CSM csm){
     gsl_spline2d_init(csm->classGsl.perturbations.logkloga2theta_m_spline, logk, loga,
         csm->val.classData.perturbations.theta_m, size_k, size_a);
     /* delta_lin */
-    if (csm->val.classData.nSpecies){
+    if (csm->val.classData.nLinear){
         csm->classGsl.perturbations.logk2delta_lin_acc = gsl_interp_accel_alloc();
         csm->classGsl.perturbations.loga2delta_lin_acc = gsl_interp_accel_alloc();
         csm->classGsl.perturbations.logkloga2delta_lin_spline = gsl_spline2d_alloc(
@@ -643,6 +657,19 @@ void csmClassGslInitialize(CSM csm){
 	csm->classGsl.perturbations.logk2delta_lin_acc = NULL;
 	csm->classGsl.perturbations.loga2delta_lin_acc = NULL;
 	csm->classGsl.perturbations.logkloga2delta_lin_spline = NULL;
+	}
+    if (csm->val.classData.nPower){
+        csm->classGsl.perturbations.logk2delta_pk_acc = gsl_interp_accel_alloc();
+        csm->classGsl.perturbations.loga2delta_pk_acc = gsl_interp_accel_alloc();
+        csm->classGsl.perturbations.logkloga2delta_pk_spline = gsl_spline2d_alloc(
+            gsl_interp2d_bicubic, size_k, size_a);
+        gsl_spline2d_init(csm->classGsl.perturbations.logkloga2delta_pk_spline, logk, loga,
+            csm->val.classData.perturbations.delta_pk, size_k, size_a);
+	}
+    else {
+	csm->classGsl.perturbations.logk2delta_pk_acc = NULL;
+	csm->classGsl.perturbations.loga2delta_pk_acc = NULL;
+	csm->classGsl.perturbations.logkloga2delta_pk_spline = NULL;
 	}
 
     free(loga);
@@ -786,6 +813,16 @@ double csmRhoBar_lin(CSM csm, double a){
     return exp(gsl_spline_eval(csm->classGsl.background.logExp2logRho_lin_spline,
         loga, csm->classGsl.background.logExp2logRho_lin_acc));
 }
+double csmRhoBar_pk(CSM csm, double a){
+    assert(csm->val.classData.bClass);
+    double loga = log(a);
+    if (loga > .0 && loga < EPSCOSMO_FUTURE){
+        /* log(a) slightly in the future. Move back to the present. */
+        loga = .0;
+    }
+    return exp(gsl_spline_eval(csm->classGsl.background.logExp2logRho_pk_spline,
+        loga, csm->classGsl.background.logExp2logRho_pk_acc));
+}
 double csmDelta_m(CSM csm, double a, double k){
     assert(csm->val.classData.bClass);
     double loga = log(a);
@@ -825,6 +862,24 @@ double csmDelta_lin(CSM csm, double a, double k){
         csm->classGsl.perturbations.logk2delta_lin_acc,
         csm->classGsl.perturbations.loga2delta_lin_acc);
 }
+double csmDelta_pk(CSM csm, double a, double k){
+    assert(csm->val.classData.bClass);
+    double loga = log(a);
+    if (loga > .0 && loga < EPSCOSMO_FUTURE){
+        /* log(a) slightly in the future. Move back to the present. */
+        loga = .0;
+    }
+    return csmZeta(csm, k)*gsl_spline2d_eval(
+        csm->classGsl.perturbations.logkloga2delta_pk_spline,
+        log(k), loga,
+        csm->classGsl.perturbations.logk2delta_pk_acc,
+        csm->classGsl.perturbations.loga2delta_pk_acc);
+}
+double csmDeltaRho_pk(CSM csm, double a, double k){
+    assert(csm->val.classData.bClass);
+    return csmRhoBar_pk(csm, a)*csmDelta_pk(csm, a, k);
+    }
+
 double csmDeltaRho_lin(CSM csm, double a, double a_next, double k){
     /* This function computes the linear \delta\rho(a, k), basically as
     ** csmRhoBar_lin(a)*csmDelta_lin(a, k). If a_next is different from a,
