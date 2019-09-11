@@ -188,6 +188,8 @@ struct parameters {
     char achScriptFile[256];
 #endif
     char achTfFile[256];
+    char achClassFilename[256];
+    char achLinSpecies[256];
     double dGrowDeltaM;
     double dGrowStartT;
     double dGrowEndT;

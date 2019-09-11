@@ -55,8 +55,7 @@ struct classDataPerturbationsStruct{
 };
 struct classDataStruct{
     int bClass;
-    char achFilename[256];
-    char achLinSpecies[128];
+    int nSpecies; /* Number of linear species */
     struct classDataBackgroundStruct background;
     struct classDataPerturbationsStruct perturbations;
 };
@@ -129,7 +128,7 @@ typedef struct csmContext {
 #ifdef __cplusplus
 extern "C" {
 #endif
-    void csmClassRead(CSM csm, double dBoxSize, double h);
+    void csmClassRead(CSM csm, const char *achFilename, double dBoxSize, double h, int nSpecies, const char **aSpecies);
     void csmClassGslInitialize(CSM csm);
     double csmRhoBar_m    (CSM csm, double a);
     double csmRhoBar_lin  (CSM csm, double a);

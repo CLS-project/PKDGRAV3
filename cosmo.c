@@ -15,12 +15,6 @@
  *  along with PKDGRAV3.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#else
-#include "pkd_config.h"
-#endif
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -32,9 +26,6 @@
 #include <hdf5.h>
 #include <hdf5_hl.h>
 
-#ifdef CRAY_T3D
-#include "hyperlib.h"
-#endif
 #include "cosmo.h"
 
 //This version of the code requires GSL
@@ -71,8 +62,7 @@ void csmInitialize(CSM *pcsm) {
     csm->val.h = 0.0;
     csm->W = gsl_integration_workspace_alloc(LIMIT);
     csm->val.classData.bClass = 0;
-    csm->val.classData.achFilename[0] = 0;
-    csm->val.classData.achLinSpecies[0] = 0;
+    csm->val.classData.nSpecies = 0;
     csm->val.classData.background.size = 0;
     csm->val.classData.background.a[0] = 0.;
     csm->val.classData.background.t[0] = 0.;
@@ -117,19 +107,18 @@ void csmFinish(CSM csm) {
     }
 
 #define EPSCONFLICT 1e-6
-void csmClassRead(CSM csm, double dBoxSize, double h){
+void csmClassRead(CSM csm, const char *achFilename, double dBoxSize, double h, int nSpecies, const char **aSpecies){
     size_t i, j, l, index;
-    int conflicts, nLinSpecies;
+    int conflicts;
     hid_t file, group, attr, string_type, rhocrit_dataset, rhocrit_dataspace, memspace;
     hsize_t size_bg, size_a, size_k, count[1], offset[1], offset_out[1];
-    char *matter_name, hdf5_key[128], *unit_length,
-        *linSpeciesNames[10], *linSpeciesName, *LinSpeciesParsing;
+    char *matter_name, hdf5_key[128], *unit_length;
     double h_class, Omega_b, Omega_m, Omega_Lambda, Omega_fld, Omega_g, Omega_ur, w0, wa;
-    double a, k, rho_crit[1], unit_conversion_time, unit_conversion_density;
+    double a, rho_crit[1], unit_conversion_time, unit_conversion_density;
     double *loga, *logrho_lin, *deltarho_lin, *rho_lin;
 
     assert(csm->val.classData.bClass);
-    if (strlen(csm->val.classData.achFilename) == 0){
+    if (strlen(achFilename) == 0){
         fprintf(stderr, "WARNING: No achClassFilename specified\n");
         abort();
     }
@@ -139,45 +128,12 @@ void csmClassRead(CSM csm, double dBoxSize, double h){
     */
     conflicts = 0;
 
-    /* Parse the achLinSpecies string */
-    nLinSpecies = 0;
-    LinSpeciesParsing = strdup(csm->val.classData.achLinSpecies);
-    while ((linSpeciesName = strsep(&LinSpeciesParsing, "+")) != NULL){
-        if (strlen(linSpeciesName)){
-            linSpeciesNames[nLinSpecies] = strdup(linSpeciesName);
-            nLinSpecies++;
-        }
-    }
-    free(LinSpeciesParsing);
-    if (strlen(csm->val.classData.achLinSpecies) && nLinSpecies == 0){
-        fprintf(stderr,
-            "WARNING: The non-empty achLinSpecies = \"%s\" was specified, "
-            "which does not contain any names of species\n",
-            csm->val.classData.achLinSpecies);
-        abort();
-    }
-    printf("Reading background and linear perturbations");
-    if (nLinSpecies){
-        printf(", including the %d linear species ", nLinSpecies);
-        for (l = 0; l < nLinSpecies; l++){
-            if (l > 0){
-                if (l == nLinSpecies - 1)
-                    printf(" and ");
-                else
-                    printf(", ");
-            }
-            printf("\"%s\"", linSpeciesNames[l]);
-        }
-        printf(",");
-    }
-    printf(" from %s\n", csm->val.classData.achFilename);
-
     /* Create an HDF5 ASCII string type */
     string_type = H5Tcopy(H5T_C_S1);
     H5Tset_size(string_type, H5T_VARIABLE);
 
     /* Open the CLASS HDF5 file for reading */
-    file = H5Fopen(csm->val.classData.achFilename, H5F_ACC_RDONLY, H5P_DEFAULT);
+    file = H5Fopen(achFilename, H5F_ACC_RDONLY, H5P_DEFAULT);
     if (file < 0) abort();
 
     /* Check the unit system used by the HDF5 file.
@@ -210,7 +166,7 @@ void csmClassRead(CSM csm, double dBoxSize, double h){
     } else {
         fprintf(stderr,
             "WARNING: Could not find the matter species in %s\n",
-            csm->val.classData.achFilename);
+            achFilename);
         abort();
     }
 
@@ -394,7 +350,8 @@ void csmClassRead(CSM csm, double dBoxSize, double h){
     ** densities and perturbations and add them together to form
     ** the combined "lin" species.
     **/
-    if (nLinSpecies){
+    if (nSpecies) {
+	csm->val.classData.nSpecies = nSpecies;
         /* For each linear species, we read in its background density rho
         ** and its density contrast delta. We will keep running totals in
         ** the rho_lin and deltarho_lin arrays (deltarho since delta*rho
@@ -416,11 +373,11 @@ void csmClassRead(CSM csm, double dBoxSize, double h){
         csm->classGsl.background.logExp2logRho_lin_acc = gsl_interp_accel_alloc();
         csm->classGsl.background.logExp2logRho_lin_spline = gsl_spline_alloc(
             gsl_interp_cspline, size_bg);
-        for (l = 0; l < nLinSpecies; l++){
+        for (l = 0; l < nSpecies; l++){
             /* Read in the background density of the l'th linear species,
             ** overwriting the previous data.
             */
-            snprintf(hdf5_key, sizeof(hdf5_key), "/background/rho_%s", linSpeciesNames[l]);
+            snprintf(hdf5_key, sizeof(hdf5_key), "/background/rho_%s", aSpecies[l]);
             if (H5LTread_dataset_double(file, hdf5_key,
                 csm->val.classData.background.rho_lin) < 0) abort();
             /* Add the background density of the l'th linear species to the running total */
@@ -436,7 +393,7 @@ void csmClassRead(CSM csm, double dBoxSize, double h){
             /* Read in the density contrast of the l'th linear species,
             ** overwriting the previous data.
             */
-            snprintf(hdf5_key, sizeof(hdf5_key), "/perturbations/delta_%s", linSpeciesNames[l]);
+            snprintf(hdf5_key, sizeof(hdf5_key), "/perturbations/delta_%s", aSpecies[l]);
             if (H5LTread_dataset_double(file, hdf5_key,
                 csm->val.classData.perturbations.delta_lin) < 0) abort();
             /* Add the density perturbation delta*rho of the l'th linear species
@@ -471,9 +428,6 @@ void csmClassRead(CSM csm, double dBoxSize, double h){
             }
         }
         /* Cleanup */
-        for (l = 0; l < nLinSpecies; l++){
-            free(linSpeciesNames[l]);
-        }
         free(rho_lin);
         free(deltarho_lin);
         free(loga);
@@ -514,7 +468,7 @@ void csmClassRead(CSM csm, double dBoxSize, double h){
     for (i = 0; i < size_bg; i++){
         csm->val.classData.background.rho_m[i] /= unit_conversion_density;
     }
-    if (nLinSpecies){
+    if (nSpecies){
         for (i = 0; i < size_bg; i++){
             csm->val.classData.background.rho_lin[i] /= unit_conversion_density;
         }
@@ -568,7 +522,7 @@ void csmClassRead(CSM csm, double dBoxSize, double h){
         }
     }
     /* delta_lin[a, k] */
-    if (nLinSpecies){
+    if (nSpecies){
         for (i = 0; i < size_a*size_k; i++){
             csm->val.classData.perturbations.delta_lin[i] *= pow(dBoxSize, -2.5);
         }
@@ -633,7 +587,7 @@ void csmClassGslInitialize(CSM csm){
     }
     gsl_spline_init(csm->classGsl.background.logExp2logRho_m_spline, logx, logy, size);
     /* Exp2Rho_lin */
-    if (strlen(csm->val.classData.achLinSpecies)){
+    if (csm->val.classData.nSpecies){
         csm->classGsl.background.logExp2logRho_lin_acc = gsl_interp_accel_alloc();
         csm->classGsl.background.logExp2logRho_lin_spline = gsl_spline_alloc(gsl_interp_cspline, size);
         for (i = 0; i < size; i++){
@@ -677,7 +631,7 @@ void csmClassGslInitialize(CSM csm){
     gsl_spline2d_init(csm->classGsl.perturbations.logkloga2theta_m_spline, logk, loga,
         csm->val.classData.perturbations.theta_m, size_k, size_a);
     /* delta_lin */
-    if (strlen(csm->val.classData.achLinSpecies)){
+    if (csm->val.classData.nSpecies){
         csm->classGsl.perturbations.logk2delta_lin_acc = gsl_interp_accel_alloc();
         csm->classGsl.perturbations.loga2delta_lin_acc = gsl_interp_accel_alloc();
         csm->classGsl.perturbations.logkloga2delta_lin_spline = gsl_spline2d_alloc(
@@ -699,7 +653,7 @@ void csmClassGslInitialize(CSM csm){
     int do_D1_test = 0;
     double a, a_PKDGRAV, a_CLASS;
     double t, t_PKDGRAV, t_CLASS;
-    double H, H_PKDGRAV, H_CLASS;
+    double H_PKDGRAV, H_CLASS;
     double D1_PKDGRAV, f1_PKDGRAV, D1_CLASS, f1_CLASS;
     double D2_PKDGRAV, f2_PKDGRAV, D2_CLASS, f2_CLASS;
     if (do_background_test){
