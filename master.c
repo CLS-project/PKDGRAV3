@@ -4574,19 +4574,10 @@ void msrTopStepKDK(MSR msr,
     msrprintf(msr,"%*cmsrKickOpen  at iRung: %d 0.5*dDelta: %g\n",
 	      2*iRung+2,' ',iRung,0.5*dDelta);
     msrKickKDKOpen(msr,dTime,0.5*dDelta,iRung,iRung);
-#ifdef HYDRO_GRAV_KDK
-      if (msrDoGas(msr) && msrMeshlessHydro(msr) && msrDoGravity(msr)){
-          msrApplyGravWork(msr,-1,0.5*dDelta,iRung,iRung); 
-         msrUpdatePrimVars(msr, dTime, dDelta, ROOT); 
-         msrMeshlessGradients(msr, dTime, dDelta, ROOT); //EXPENSIVE
-      }
-#else
+    //msrUpdateConsVars(msr, dTime, dDelta, ROOT);
       if (dTime == 1 && msrDoGas(msr) && msrMeshlessHydro(msr) && msrDoGravity(msr)){
-          msrApplyGravWork(msr,dTime,0.0,iRung,iRung); 
-//          msrUpdatePrimVars(msr, dTime, dDelta, ROOT); 
-//          msrMeshlessGradients(msr, dTime, dDelta, ROOT);
+    //      msrApplyGravWork(msr,dTime,0.0,iRung,iRung); 
       }
-#endif
     if ((msrCurrMaxRung(msr) > iRung) && (iRungVeryActive > iRung)) {
 	/*
 	** Recurse.
@@ -4648,15 +4639,9 @@ void msrTopStepKDK(MSR msr,
 		       (iKickRung<=msr->param.iRungCoolTableUpdate ? 1:0),0);
 	}
 
-#ifdef HYDRO_GRAV_KDK
-      if (msrDoGas(msr) && msrMeshlessHydro(msr) && msrDoGravity(msr)){
-          msrApplyGravWork(msr,dTime,0.5*dDelta,iKickRung,iRung); // IA: dDelta is the step for iRung, but iKickRung *may* be lower
-      }
-#else
       if (msrDoGas(msr) && msrMeshlessHydro(msr) && msrDoGravity(msr)){
           msrApplyGravWork(msr,dTime,dDelta,iKickRung,iRung); // IA: dDelta is the step for iRung, but iKickRung *may* be lower
       }
-#endif
 
       if (msrDoGas(msr) && msrMeshlessHydro(msr)){
          msrUpdatePrimVars(msr, dTime, dDelta, ROOT);
@@ -4766,6 +4751,15 @@ void msrTopStepKDK(MSR msr,
 
 
     dTime += 0.5*dDelta; /* Important to have correct time at step end for SF! */
+
+//      if (msrDoGas(msr) && msrMeshlessHydro(msr)){
+//	   msrActiveRung(msr,iRung,0);
+//         msrUpdatePrimVars(msr, dTime, dDelta, ROOT);
+//         msrMeshlessGradients(msr, dTime, dDelta, ROOT);
+//      }
+
+
+
     /* JW: Creating/Deleting/Merging is best done outside (before or after) KDK cycle 
        -- Tree should still be valid from last force eval (only Drifts + Deletes invalidate it) */
     if (iKickRung == iRung) { /* Do all co-incident kicked p's in one go */

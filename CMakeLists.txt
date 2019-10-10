@@ -210,12 +210,6 @@ if (USE_MFM)
    target_compile_options(${PROJECT_NAME} PRIVATE -DUSE_MFM)
 endif(USE_MFM)
 
-option(HYDRO_GRAV_KDK "Use the KDK for the gravity inside the hydro solver" OFF)
-if (HYDRO_GRAV_KDK)
-   message("-- Using the KDK scheme for the gravity in the hydro solver")
-   target_compile_options(${PROJECT_NAME} PRIVATE -DHYDRO_GRAV_KDK)
-endif(HYDRO_GRAV_KDK)
-
 option(GRAV_KEPLER "Analytical gravity for the keplerian ring" OFF)
 if (GRAV_KEPLER)
    message("-- Analytical gravity for the keplerian ring: active")
@@ -231,6 +225,21 @@ if (FORCE_2D)
    message("-- Ignoring fluxes in the z-direction and interaction among misaligned particles")
    target_compile_options(${PROJECT_NAME} PRIVATE -DFORCE_2D)
 endif(FORCE_2D)
+
+option(LIMITER_BARTH "Use the Barth-Jespersen limiter" OFF)
+if (LIMITER_BARTH)
+   message("-- Using the Barth-Jespersen limiter")
+   target_compile_options(${PROJECT_NAME} PRIVATE -DLIMITER_BARTH)
+endif(LIMITER_BARTH)
+
+option(LIMITER_CONDBARTH "Use the Conditioned Barth-Jespersen limiter" OFF)
+if (LIMITER_CONDBARTH)
+   message("-- Using the Conditioned Barth-Jespersen limiter")
+   target_compile_options(${PROJECT_NAME} PRIVATE -DLIMITER_CONDBARTH)
+endif(LIMITER_CONDBARTH)
+
+
+
 
 CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/pkd_config.h.in ${CMAKE_CURRENT_BINARY_DIR}/pkd_config.h)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_BINARY_DIR})

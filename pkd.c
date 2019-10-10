@@ -2820,6 +2820,7 @@ void pkdApplyGravWork(PKD pkd,double dTime,double dDelta,double dDeltaVPred,doub
     int i,j;
     double gravE, gravEdm, fac, pDelta;
     float* pv, *pa;
+return;
 
     assert(pkd->oVelocity);
     assert(pkd->oMass);
@@ -2860,19 +2861,12 @@ void pkdApplyGravWork(PKD pkd,double dTime,double dDelta,double dDeltaVPred,doub
 
             //IA: For now, we assume MFM, and thus Frho=0, m=constant
             fac = pDelta*pkdMass(pkd,p);
-#ifndef HYDRO_GRAV_KDK
-            //fac *= 0.5;
-#endif
             gravE = 0.0;
             for (j=0;j<3;j++){
                //    IA: We call this at kick open (dDelta=-1) and at kick close. We add lastV to SPHFIELDS, and now
                //    v is at n+1
                //
                //    TODO: Need to take into account variable mass if MFV!!
-#ifdef HYDRO_GRAV_KDK
-               psph->mom[j] += fac*pa[j]; 
-               gravE +=  psph->mom[j]*pa[j] ; 
-#else
                psph->mom[j] += fac*pa[j]; 
                gravE +=  psph->mom[j]*pa[j] ; 
                gravEdm += psph->drDotFrho[j]*pa[j];
@@ -2880,11 +2874,7 @@ void pkdApplyGravWork(PKD pkd,double dTime,double dDelta,double dDeltaVPred,doub
                //   Sospecho que tiene que ver con cuando se guardan los valores de lastAcc y lastV
               // gravE += pkdMass(pkd,p)*psph->lastV[j]*psph->lastAcc[j] + psph->mom[j]*pa[j] ; 
               // psph->mom[j] -= fac*(psph->lastAcc[j] + pa[j]); 
-#endif
             }
-#ifndef HYDRO_GRAV_KDK
-            //gravE *= 0.5;
-#endif
 
             psph->E += pDelta*gravE + gravEdm;
 
@@ -2892,17 +2882,11 @@ void pkdApplyGravWork(PKD pkd,double dTime,double dDelta,double dDeltaVPred,doub
                psph->drDotFrho[j] = 0.;
             }
 
-#ifdef HYDRO_GRAV_KDK
-         if (dTime == -1){
-#endif
             //IA: Now we set the last values
            for (j=0;j<3;j++){
               psph->lastAcc[j] = pa[j];   
               psph->lastV[j] = psph->mom[j]/pkdMass(pkd,p);
            } 
-#ifdef HYDRO_GRAV_KDK
-         }
-#endif
 
       }
     }
@@ -2939,7 +2923,7 @@ void pkdComputePrimVars(PKD pkd,int iRoot, double dTime) {
 
             double Ekin = 0.5*( psph->mom[0]*psph->mom[0] + psph->mom[1]*psph->mom[1] + psph->mom[2]*psph->mom[2] ) / pkdMass(pkd,p);
             //printf("E %e \t Uint %e \t Ekin %e \n", psph->E, psph->Uint, Ekin);
-            if (Ekin > 0.0*psph->E ){
+            if (Ekin > 1.0*psph->E ){
                   psph->P = psph->Uint*psph->omega*(pkd->param.dConstGamma -1.);
             }else{
                   psph->P = (psph->E - Ekin )*psph->omega*(pkd->param.dConstGamma -1.);

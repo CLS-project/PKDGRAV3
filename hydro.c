@@ -558,6 +558,7 @@ void hydroGradients(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     */
 
     limRho= limVx= limVy= limVz= limP = 1.;
+#if defined(LIMITER_BARTH) || defined(LIMITER_CONDBARTH)
     for (i=0; i<nSmooth;++i){
 	 dx = -nnList[i].dx; //Vector from p to q
 	 dy = -nnList[i].dy;
@@ -567,17 +568,23 @@ void hydroGradients(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
        qsph = pkdSph(pkd, q);
 
        // Las diferencias se pueden poner fuera, siempre son con p
+#ifdef LIMITER_BARTH
        BarthJespersenLimiter(&limRho, psph->gradRho, rho_max-pkdDensity(pkd,p), rho_min-pkdDensity(pkd,p), dx, dy, dz);
        BarthJespersenLimiter(&limVx, psph->gradVx, vx_max-pv[0], vx_min-pv[0], dx, dy, dz);
        BarthJespersenLimiter(&limVy, psph->gradVy, vy_max-pv[1], vy_min-pv[1], dx, dy, dz);
        BarthJespersenLimiter(&limVz, psph->gradVz, vz_max-pv[2], vz_min-pv[2], dx, dy, dz);
        BarthJespersenLimiter(&limP, psph->gradP, p_max-psph->P, p_min-psph->P, dx, dy, dz);
-//     ConditionedBarthJespersenLimiter(&limRho, psph->gradRho, rho_max-pkdDensity(pkd,p), rho_min-pkdDensity(pkd,p), dx, dy, dz, 10., psph->Ncond);
-//     ConditionedBarthJespersenLimiter(&limVx, psph->gradVx, vx_max-pv[0], vx_min-pv[0], dx, dy, dz, 10., psph->Ncond);
-//     ConditionedBarthJespersenLimiter(&limVy, psph->gradVy, vy_max-pv[1], vy_min-pv[1], dx, dy, dz, 10., psph->Ncond);
-//     ConditionedBarthJespersenLimiter(&limVz, psph->gradVz, vz_max-pv[2], vz_min-pv[2], dx, dy, dz, 10., psph->Ncond);
-//     ConditionedBarthJespersenLimiter(&limP, psph->gradP, p_max-psph->P, p_min-psph->P, dx, dy, dz, 10., psph->Ncond);
+#endif
+
+#ifdef LIMITER_CONDBARTH
+       ConditionedBarthJespersenLimiter(&limRho, psph->gradRho, rho_max-pkdDensity(pkd,p), rho_min-pkdDensity(pkd,p), dx, dy, dz, 10., psph->Ncond);
+       ConditionedBarthJespersenLimiter(&limVx, psph->gradVx, vx_max-pv[0], vx_min-pv[0], dx, dy, dz, 10., psph->Ncond);
+       ConditionedBarthJespersenLimiter(&limVy, psph->gradVy, vy_max-pv[1], vy_min-pv[1], dx, dy, dz, 10., psph->Ncond);
+       ConditionedBarthJespersenLimiter(&limVz, psph->gradVz, vz_max-pv[2], vz_min-pv[2], dx, dy, dz, 10., psph->Ncond);
+       ConditionedBarthJespersenLimiter(&limP, psph->gradP, p_max-psph->P, p_min-psph->P, dx, dy, dz, 10., psph->Ncond);
+#endif
     }
+#endif
 
     for (j=0; j<3; j++){
        psph->gradRho[j] *= limRho;
@@ -698,8 +705,10 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
        }
 
        if (smf->dTime > 0) {
-          pDeltaHalf = smf->dTime - psph->lastUpdateTime + minDt*0.5;
-          qDeltaHalf = smf->dTime - qsph->lastUpdateTime + minDt*0.5; //smf->dTime - qsph->lastUpdateTime + pDeltaHalf; 
+//          pDeltaHalf = smf->dTime - psph->lastUpdateTime + minDt*0.5;
+//          qDeltaHalf = smf->dTime - qsph->lastUpdateTime + minDt*0.5; 
+          pDeltaHalf = smf->dTime - psph->lastUpdateTime + 0.5*smf->dDelta/(1<<p->uRung);
+          qDeltaHalf = smf->dTime - qsph->lastUpdateTime + 0.5*smf->dDelta/(1<<q->uRung);
        }else{
           qDeltaHalf = 0.0; // For the initialization step we do not extrapolate because we dont have a reliable dDelta
           pDeltaHalf = 0.0;
@@ -764,13 +773,8 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
        // Velocity of the quadrature mid-point 
        for (j=0; j<3; j++){
-          psph->vPred[j] = pkdVel(pkd,p)[j];
-          psph->vPred[j] += pkdAccel(pkd,p)[j]*pDeltaHalf;
-
-          qsph->vPred[j] = pkdVel(pkd,q)[j];
-          qsph->vPred[j] += pkdAccel(pkd,q)[j]*qDeltaHalf;
-
           vFrame[j] = 0.5*(psph->vPred[j]+qsph->vPred[j]);
+
           // We boost to the reference of the p-q 'face'
           pv[j] = psph->vPred[j] - vFrame[j];
           qv[j] = qsph->vPred[j] - vFrame[j];
@@ -826,9 +830,15 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 //      printf("2) L.rho %e \t R.rho %e \n", riemann_input.L.rho, riemann_input.R.rho);
 //      printf("2) L.p %e \t R.p %e \n", riemann_input.L.p, riemann_input.R.p);
 
+      double temp;
       for (j=0; j<3; j++){ // Forward extrapolation of velocity
-         riemann_input.L.v[j] -= pv[j]*pdivv + psph->gradP[j]/pDensity*pDeltaHalf;
-         riemann_input.R.v[j] -= qv[j]*qdivv + qsph->gradP[j]/pkdDensity(pkd,q)*qDeltaHalf;
+         temp = pv[j]*pdivv + (psph->gradP[j]/pDensity + pkdAccel(pkd,p)[j])*pDeltaHalf;
+         riemann_input.L.v[j] -= temp;
+//         vFrame[j] += 0.5*temp;
+
+         temp = qv[j]*qdivv + (qsph->gradP[j]/pkdDensity(pkd,q) + pkdAccel(pkd,q)[j])*qDeltaHalf;
+         riemann_input.R.v[j] -= temp;
+//         vFrame[j] += 0.5*temp;
       }
 /*
       uint64_t A, B;
@@ -879,6 +889,11 @@ if (p->iOrder == A || p->iOrder==B){
           printf("Frho %e \n",riemann_output.Fluxes.rho);
           abort();
        }
+//        riemann_output.Fluxes.rho = 0;
+//        riemann_output.Fluxes.p = riemann_output.P_M * riemann_output.S_M;
+//        int j;
+//        for(j=0;j<3;j++)
+//            riemann_output.Fluxes.v[j] = riemann_output.P_M * face_unit[j];
        for (j=0;j<3;j++){
           vFrame[j] += riemann_output.S_M*face_unit[j];
        }
