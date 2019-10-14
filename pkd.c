@@ -1143,9 +1143,16 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             pSph->lastV[0] = 0.; // vel[0];
             pSph->lastV[1] = 0.; //vel[1];
             pSph->lastV[2] = 0.; //vel[2];
+            pSph->lastMass = fMass;
             pSph->lastAcc[0] = 0.;
             pSph->lastAcc[1] = 0.;
             pSph->lastAcc[2] = 0.;
+            pSph->lastDrDotFrho[0] = 0.;
+            pSph->lastDrDotFrho[1] = 0.;
+            pSph->lastDrDotFrho[2] = 0.;
+            pSph->drDotFrho[0] = 0.;
+            pSph->drDotFrho[1] = 0.;
+            pSph->drDotFrho[2] = 0.;
             pSph->fLastBall = 0.0;
 		}
 	    break;
@@ -2134,7 +2141,7 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,BND *bnd,PARTICLE *p) {
           T = pSph->E - 0.5*( pSph->mom[0]*pSph->mom[0] + pSph->mom[1]*pSph->mom[1] + pSph->mom[2]*pSph->mom[2])/pkdMass(pkd,p);
           T *= pSph->omega*(pkd->param.dConstGamma - 1.);
 	    fioWriteSph(fio,iParticleID,r,v,fMass,pkdBall(pkd,p),*pPot,
-		fDensity,pSph->P,pSph->Ncond);
+		fDensity,pSph->P,pSph->E);
 	    }
 	break;
     case FIO_SPECIES_DARK:
@@ -2678,6 +2685,13 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
              for (j=0;j<3;++j) {
                dr[j] = dDelta*v[j];
              }
+#ifdef FORCE_1D
+             dr[2] = 0.0;
+             dr[1] = 0.0;
+#endif
+#ifdef FORCE_2D
+             dr[2] = 0.0;
+#endif
 
 #ifdef GRAV_RT
              if ( (pkdPos(pkd,p,1)<-0.4) | (pkdPos(pkd,p,1)>0.4) ) continue;
@@ -2820,7 +2834,6 @@ void pkdApplyGravWork(PKD pkd,double dTime,double dDelta,double dDeltaVPred,doub
     int i,j;
     double gravE, gravEdm, fac, pDelta;
     float* pv, *pa;
-return;
 
     assert(pkd->oVelocity);
     assert(pkd->oMass);
@@ -2832,7 +2845,6 @@ return;
          pv = pkdVel(pkd,p);
          pa = pkdAccel(pkd,p);
 
-         pDelta = dDelta *(1 << (uRungHi-p->uRung));
 
 #ifdef GRAV_KEPLER
             // Analytical gravity for the keplerian ring:
@@ -2859,35 +2871,27 @@ return;
               pa[2] = 0.0;
 #endif             
 
-            //IA: For now, we assume MFM, and thus Frho=0, m=constant
-            fac = pDelta*pkdMass(pkd,p);
+         pDelta = dTime - psph->lastUpdateTime; //dDelta *(1 << (uRungHi-p->uRung));
+      
             gravE = 0.0;
             for (j=0;j<3;j++){
-               //    IA: We call this at kick open (dDelta=-1) and at kick close. We add lastV to SPHFIELDS, and now
-               //    v is at n+1
-               //
-               //    TODO: Need to take into account variable mass if MFV!!
-               psph->mom[j] += fac*pa[j]; 
-               gravE +=  psph->mom[j]*pa[j] ; 
-               gravEdm += psph->drDotFrho[j]*pa[j];
-               //IA: No se por que, pero el esquema de segundo orden no funciona, produce un drift de las particulas hacia afuera
-               //   Sospecho que tiene que ver con cuando se guardan los valores de lastAcc y lastV
-              // gravE += pkdMass(pkd,p)*psph->lastV[j]*psph->lastAcc[j] + psph->mom[j]*pa[j] ; 
-              // psph->mom[j] -= fac*(psph->lastAcc[j] + pa[j]); 
+               psph->mom[j] += 0.5*pDelta*(psph->lastMass*psph->lastAcc[j] + pkdMass(pkd,p)*pa[j]); 
+               pkdVel(pkd,p)[j] = psph->mom[j]/pkdMass(pkd,p);
+
+               gravE += 0.5*pDelta*( psph->lastMass*psph->lastV[j]*psph->lastAcc[j] + pkdMass(pkd,p)*pkdVel(pkd,p)[j]*pa[j]  );
             }
 
-            psph->E += pDelta*gravE + gravEdm;
-
-            for (j=0; j<3;j++){
-               psph->drDotFrho[j] = 0.;
-            }
+            psph->E += pDelta*gravE;// + gravEdm;
 
             //IA: Now we set the last values
            for (j=0;j<3;j++){
-              psph->lastAcc[j] = pa[j];   
+              psph->lastAcc[j] = pkdAccel(pkd,p)[j];   
               psph->lastV[j] = psph->mom[j]/pkdMass(pkd,p);
            } 
 
+            psph->vPred[0] = pkdVel(pkd,p)[0];
+            psph->vPred[1] = pkdVel(pkd,p)[1];
+            psph->vPred[2] = pkdVel(pkd,p)[2];
       }
     }
     
@@ -2898,7 +2902,8 @@ return;
 void pkdComputePrimVars(PKD pkd,int iRoot, double dTime) {
     PARTICLE *p;
     SPHFIELDS *psph;
-    int i;
+    int i,j;
+    double gravE, gravE_dmdt, pDelta;
 
 
     mdlDiag(pkd->mdl, "Into pkdComputePrimiteVars\n");
@@ -2915,11 +2920,28 @@ void pkdComputePrimVars(PKD pkd,int iRoot, double dTime) {
       p = pkdParticle(pkd,i);
          if (pkdIsGas(pkd,p)  && pkdIsActive(pkd, p)  ) { //IA: We only update those which are active, as in AREPO
             psph = pkdSph(pkd, p);
-            psph->lastUpdateTime = dTime;
 
 #ifdef GRAV_RT
              if ( dTime != 1 & ((pkdPos(pkd,p,1)<-0.4) | (pkdPos(pkd,p,1)>0.4)) ) continue;
 #endif
+             if (dTime>1){
+                pDelta = dTime - psph->lastUpdateTime; //dDelta *(1 << (uRungHi-p->uRung));
+             }else{
+                pDelta = 0.0;
+             }
+      
+            gravE = 0.0;
+            gravE_dmdt = 0.0;
+            for (j=0;j<3;j++){
+               psph->mom[j] += 0.5*pDelta*(psph->lastMass*psph->lastAcc[j] + pkdMass(pkd,p)*pkdAccel(pkd,p)[j]); 
+               pkdVel(pkd,p)[j] = psph->mom[j]/pkdMass(pkd,p);
+
+               gravE_dmdt +=  0.5*( psph->lastAcc[j]*psph->lastDrDotFrho[j] + pkdAccel(pkd,p)[j]*psph->drDotFrho[j] ) ;
+               gravE += 0.5*pDelta*( psph->lastMass*psph->lastV[j]*psph->lastAcc[j] + pkdMass(pkd,p)*pkdVel(pkd,p)[j]*pkdAccel(pkd,p)[j]  );
+            }
+            if (dTime==1) gravE_dmdt = 0.;
+
+            psph->E += gravE - 0.5*gravE_dmdt;
 
             double Ekin = 0.5*( psph->mom[0]*psph->mom[0] + psph->mom[1]*psph->mom[1] + psph->mom[2]*psph->mom[2] ) / pkdMass(pkd,p);
             //printf("E %e \t Uint %e \t Ekin %e \n", psph->E, psph->Uint, Ekin);
@@ -2947,6 +2969,17 @@ void pkdComputePrimVars(PKD pkd,int iRoot, double dTime) {
             psph->vPred[2] = pkdVel(pkd,p)[2];
             
             psph->c = sqrt(psph->P*pkd->param.dConstGamma/pkdDensity(pkd,p));
+
+            for (j=0; j<3;j++){
+               psph->lastDrDotFrho[j] = psph->drDotFrho[j];
+               psph->drDotFrho[j] = 0.;
+            }
+           for (j=0;j<3;j++){
+              psph->lastAcc[j] = pkdAccel(pkd,p)[j];   
+              psph->lastV[j] = psph->mom[j]/pkdMass(pkd,p);
+           } 
+            psph->lastUpdateTime = dTime;
+            psph->lastMass = pkdMass(pkd,p);
 
          }
        }

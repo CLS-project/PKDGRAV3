@@ -188,6 +188,8 @@ typedef struct sphfields {
     /* IA: Last gravitational acceleration TODO Not used!*/
     double lastAcc[3];
     double lastV[3];
+    double lastDrDotFrho[3];
+    float lastMass;
 
     /* IA: normalization factor (Eq 7 Hopkins 2015) at the particle position */
     double omega;

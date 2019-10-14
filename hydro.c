@@ -577,11 +577,11 @@ void hydroGradients(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 #endif
 
 #ifdef LIMITER_CONDBARTH
-       ConditionedBarthJespersenLimiter(&limRho, psph->gradRho, rho_max-pkdDensity(pkd,p), rho_min-pkdDensity(pkd,p), dx, dy, dz, 10., psph->Ncond);
-       ConditionedBarthJespersenLimiter(&limVx, psph->gradVx, vx_max-pv[0], vx_min-pv[0], dx, dy, dz, 10., psph->Ncond);
-       ConditionedBarthJespersenLimiter(&limVy, psph->gradVy, vy_max-pv[1], vy_min-pv[1], dx, dy, dz, 10., psph->Ncond);
-       ConditionedBarthJespersenLimiter(&limVz, psph->gradVz, vz_max-pv[2], vz_min-pv[2], dx, dy, dz, 10., psph->Ncond);
-       ConditionedBarthJespersenLimiter(&limP, psph->gradP, p_max-psph->P, p_min-psph->P, dx, dy, dz, 10., psph->Ncond);
+       ConditionedBarthJespersenLimiter(&limRho, psph->gradRho, rho_max-pkdDensity(pkd,p), rho_min-pkdDensity(pkd,p), dx, dy, dz, 100., psph->Ncond);
+       ConditionedBarthJespersenLimiter(&limVx, psph->gradVx, vx_max-pv[0], vx_min-pv[0], dx, dy, dz, 100., psph->Ncond);
+       ConditionedBarthJespersenLimiter(&limVy, psph->gradVy, vy_max-pv[1], vy_min-pv[1], dx, dy, dz, 100., psph->Ncond);
+       ConditionedBarthJespersenLimiter(&limVz, psph->gradVz, vz_max-pv[2], vz_min-pv[2], dx, dy, dz, 100., psph->Ncond);
+       ConditionedBarthJespersenLimiter(&limP, psph->gradP, p_max-psph->P, p_min-psph->P, dx, dy, dz, 100., psph->Ncond);
 #endif
     }
 #endif
@@ -718,6 +718,10 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 	 dx = nnList[i].dx;
 	 dy = nnList[i].dy;
 	 dz = nnList[i].dz;
+#ifdef FORCE_1D
+       if (dz!=0) continue;
+       if (dy!=0) continue;
+#endif
 #ifdef FORCE_2D
        if (dz!=0) continue;
 #endif
@@ -832,13 +836,23 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
       double temp;
       for (j=0; j<3; j++){ // Forward extrapolation of velocity
-         temp = pv[j]*pdivv + (psph->gradP[j]/pDensity + pkdAccel(pkd,p)[j])*pDeltaHalf;
+         temp = pv[j]*pdivv + psph->gradP[j]/pDensity*pDeltaHalf;
          riemann_input.L.v[j] -= temp;
-//         vFrame[j] += 0.5*temp;
+         vFrame[j] -= 0.5*temp;
 
-         temp = qv[j]*qdivv + (qsph->gradP[j]/pkdDensity(pkd,q) + pkdAccel(pkd,q)[j])*qDeltaHalf;
+         temp = qv[j]*qdivv + qsph->gradP[j]/pkdDensity(pkd,q)*qDeltaHalf;
          riemann_input.R.v[j] -= temp;
-//         vFrame[j] += 0.5*temp;
+         vFrame[j] -= 0.5*temp;
+      }
+
+      for (j=0; j<3; j++){
+         temp = psph->lastAcc[j]*pDeltaHalf;
+         riemann_input.L.v[j] += temp;
+         vFrame[j] += 0.5*temp;
+
+         temp = qsph->lastAcc[j]*qDeltaHalf;
+         riemann_input.R.v[j] += temp;
+         vFrame[j] += 0.5*temp;
       }
 /*
       uint64_t A, B;
@@ -873,15 +887,11 @@ if (p->iOrder == A || p->iOrder==B){
 //       riemann_input.L.rho = 1.0; riemann_input.L.p = 1.0; riemann_input.L.v[0] = 0.0;
 //       riemann_input.L.rho = 0.125; riemann_input.L.p = 0.1; riemann_input.L.v[0] = 0.0;
 
-       if (riemann_input.L.rho < 0) {riemann_input.L.rho = pkdDensity(pkd,p); printf("WARNING, L.rho < 0 : using first-order scheme \n"); }
-       if (riemann_input.R.rho < 0) {riemann_input.R.rho = pkdDensity(pkd,q); printf("WARNING, R.rho < 0 : using first-order scheme \n"); }
+       if (riemann_input.L.rho < 0) {riemann_input.L.rho = pkdDensity(pkd,p); /* printf("WARNING, L.rho < 0 : using first-order scheme \n");*/ }
+       if (riemann_input.R.rho < 0) {riemann_input.R.rho = pkdDensity(pkd,q); /* printf("WARNING, R.rho < 0 : using first-order scheme \n");*/ }
        if (riemann_input.L.p < 0) {riemann_input.L.p = psph->P;  /*  printf("WARNING, L.p < 0 : using first-order scheme \n");*/ }
        if (riemann_input.R.p < 0) {riemann_input.R.p = qsph->P;  /*  printf("WARNING, R.p < 0 : using first-order scheme \n");*/ }
        Riemann_solver(pkd, riemann_input, &riemann_output, face_unit, /*double press_tot_limiter TODO For now, just p>0: */ HUGE_VAL);
-       // Force 2D
-#ifdef FORCE_2D
-       riemann_output.Fluxes.v[2] = 0.;
-#endif
       
        // IA: MFM
 #ifdef USE_MFM
@@ -889,17 +899,24 @@ if (p->iOrder == A || p->iOrder==B){
           printf("Frho %e \n",riemann_output.Fluxes.rho);
           abort();
        }
-//        riemann_output.Fluxes.rho = 0;
-//        riemann_output.Fluxes.p = riemann_output.P_M * riemann_output.S_M;
-//        int j;
-//        for(j=0;j<3;j++)
-//            riemann_output.Fluxes.v[j] = riemann_output.P_M * face_unit[j];
-       for (j=0;j<3;j++){
-          vFrame[j] += riemann_output.S_M*face_unit[j];
-       }
+        riemann_output.Fluxes.rho = 0.;
+        riemann_output.Fluxes.p = riemann_output.P_M * riemann_output.S_M;
+        for(j=0;j<3;j++)
+            riemann_output.Fluxes.v[j] = riemann_output.P_M * face_unit[j];
+//       for (j=0;j<3;j++){
+//          vFrame[j] += riemann_output.S_M*face_unit[j];
+//       }
 #endif       
        // IA: End MFM
 
+       // Force 2D
+#ifdef FORCE_1D
+       riemann_output.Fluxes.v[2] = 0.;
+       riemann_output.Fluxes.v[1] = 0.;
+#endif
+#ifdef FORCE_2D
+       riemann_output.Fluxes.v[2] = 0.;
+#endif
       
 
 

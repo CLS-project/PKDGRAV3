@@ -3133,11 +3133,11 @@ int msrReSmooth(MSR msr,double dTime,int iSmoothType,int bSymmetric) {
     msrSmoothSetSMF(msr, &(in.smf), dTime);
     if (msr->param.bVStep) {
 	double sec,dsec;
-	printf("ReSmoothing...\n");
+	//printf("ReSmoothing...\n");
 	sec = msrTime();
 	pstReSmooth(msr->pst,&in,sizeof(in),&out,&nOut);
 	dsec = msrTime() - sec;
-	printf("ReSmooth Calculated on %d particles, Wallclock: %f secs\n\n", out.nSmoothed, dsec);
+	//printf("ReSmooth Calculated on %d particles, Wallclock: %f secs\n\n", out.nSmoothed, dsec);
 	}
     else {
 	pstReSmooth(msr->pst,&in,sizeof(in),&out,&nOut);
@@ -4639,15 +4639,15 @@ void msrTopStepKDK(MSR msr,
 		       (iKickRung<=msr->param.iRungCoolTableUpdate ? 1:0),0);
 	}
 
-      if (msrDoGas(msr) && msrMeshlessHydro(msr) && msrDoGravity(msr)){
-          msrApplyGravWork(msr,dTime,dDelta,iKickRung,iRung); // IA: dDelta is the step for iRung, but iKickRung *may* be lower
-      }
 
       if (msrDoGas(msr) && msrMeshlessHydro(msr)){
          msrUpdatePrimVars(msr, dTime, dDelta, ROOT);
          msrMeshlessGradients(msr, dTime, dDelta, ROOT);
       }
 
+      if (msrDoGas(msr) && msrMeshlessHydro(msr) && msrDoGravity(msr)){
+          //msrApplyGravWork(msr,dTime,dDelta,iKickRung,iRung); // IA: dDelta is the step for iRung, but iKickRung *may* be lower
+      }
 	/*
 	 * move time back to 1/2 step so that KickClose can integrate
 	 * from 1/2 through the timestep to the end.
@@ -5016,7 +5016,7 @@ void msrInitSph(MSR msr,double dTime)
     }else{ //IA: we set the initial rungs of the particles
         msrActiveRung(msr,0,1);
       if (msrDoGravity(msr)){ //IA: We need this for the acceleration time step criteria in the kepler ring!
-          msrApplyGravWork(msr, -1, 0.0, 0, MAX_RUNG);  
+//          msrApplyGravWork(msr, -1, 0.0, 0, MAX_RUNG);  
       }
         msrUpdatePrimVars(msr, dTime, 0.0, ROOT);
         msrMeshlessGradients(msr, 0.0, 0.0, ROOT);
