@@ -185,9 +185,10 @@ typedef struct sphfields {
 
     /* IA: last time this particle's primitve variables were updated */
     double lastUpdateTime;
-    /* IA: Last gravitational acceleration TODO Not used!*/
     double lastAcc[3];
-    double lastV[3];
+    double lastMom[3];
+    double lastE;
+    double lastHubble; // TODO: Maybe there is a more intelligent way to avoid saving this...
     double lastDrDotFrho[3];
     float lastMass;
 
@@ -1468,7 +1469,7 @@ void pkdGravEvalPC(PINFOIN *pPart, int nBlocks, int nInLast, ILC_BLK *blk,  PINF
 void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double,double);
 void pkdApplyGravWork(PKD pkd,double dTime,double dDelta,double,double,double,uint8_t uRungLo,uint8_t uRungHi);
 void pkdUpdateConsVars(PKD pkd,int iRoot,double dTime,double dDelta,double,double);
-void pkdComputePrimVars(PKD pkd,int iRoot, double dTime);
+void pkdComputePrimVars(PKD pkd,int iRoot, double dTime, double dDelta);
 void pkdScaleVel(PKD pkd,double dvFac);
 void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, double dTime, double dDelta,
 			  int iRung, int iKickRung, int iRungVeryActive,int iAdjust, double diCrit2,

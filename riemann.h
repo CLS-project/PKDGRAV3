@@ -230,37 +230,6 @@ void Riemann_solver(PKD pkd, struct Input_vec_Riemann Riemann_vec, struct Rieman
         return;
     }
    
-    /* IA: TODO for comoving integration
-    if(All.ComovingIntegrationOn)
-    {
-        // first convert the input variables to -PHYSICAL- units so the answer makes sense:
-        // note that we don't require a Hubble-flow correction, because we're solving at the face 
-        int k;
-        for(k=0;k<3;k++)
-        {
-            Riemann_vec.L.v[k] /= All.cf_atime;
-            Riemann_vec.R.v[k] /= All.cf_atime;
-#ifdef MAGNETIC
-            Riemann_vec.L.B[k] *= All.cf_a2inv;
-            Riemann_vec.R.B[k] *= All.cf_a2inv;
-#endif
-        }
-        Riemann_vec.L.rho *= All.cf_a3inv;
-        Riemann_vec.R.rho *= All.cf_a3inv;
-        Riemann_vec.L.p *= All.cf_a3inv / All.cf_afac1;
-        Riemann_vec.R.p *= All.cf_a3inv / All.cf_afac1;
-#ifdef DIVBCLEANING_DEDNER
-        Riemann_vec.L.phi *= All.cf_a3inv;
-        Riemann_vec.R.phi *= All.cf_a3inv;
-#endif
-#ifdef EOS_GENERAL
-        Riemann_vec.L.cs *= All.cf_afac3;
-        Riemann_vec.R.cs *= All.cf_afac3;
-        Riemann_vec.L.u /= All.cf_afac1;
-        Riemann_vec.R.u /= All.cf_afac1;
-#endif
-    }
-    */
 #ifndef EOS_GENERAL
     /* here we haven't reconstructed the sound speeds and internal energies explicitly, so need to do it from pressure, density */
     Riemann_vec.L.cs = sqrt(GAMMA * Riemann_vec.L.p / Riemann_vec.L.rho);

@@ -704,7 +704,7 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
           }
        }
 
-       if (smf->dTime > 0) {
+       if (smf->dDelta > 0) {
 //          pDeltaHalf = smf->dTime - psph->lastUpdateTime + minDt*0.5;
 //          qDeltaHalf = smf->dTime - qsph->lastUpdateTime + minDt*0.5; 
           pDeltaHalf = smf->dTime - psph->lastUpdateTime + 0.5*smf->dDelta/(1<<p->uRung);
@@ -713,6 +713,13 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
           qDeltaHalf = 0.0; // For the initialization step we do not extrapolate because we dont have a reliable dDelta
           pDeltaHalf = 0.0;
        }
+       if(pkd->param.csm->val.bComove)
+       {
+          qDeltaHalf /= smf->a;
+          pDeltaHalf /= smf->a;
+       }
+
+
 //       printf("pDeltaHalf %e qDeltaHalf %e \n", pDeltaHalf, qDeltaHalf);
 
 	 dx = nnList[i].dx;
@@ -797,6 +804,7 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
       pdivv *= pDeltaHalf;
       qdivv *= qDeltaHalf;
 
+
       riemann_input.L.rho = pkdDensity(pkd,p);
       riemann_input.R.rho = pkdDensity(pkd,q);
       riemann_input.L.v[0] = pv[0];
@@ -834,7 +842,28 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 //      printf("2) L.rho %e \t R.rho %e \n", riemann_input.L.rho, riemann_input.R.rho);
 //      printf("2) L.p %e \t R.p %e \n", riemann_input.L.p, riemann_input.R.p);
 
+      
       double temp;
+      if(pkd->param.csm->val.bComove){
+         
+         for (j=0;j<3;j++){
+            temp = smf->H * pDeltaHalf * smf->a * riemann_input.L.v[j];
+            riemann_input.L.v[j] -= temp;
+            vFrame[j] -= 0.5*temp;
+
+            temp = smf->H * qDeltaHalf * smf->a * riemann_input.R.v[j];
+            riemann_input.R.v[j] -= temp;
+            vFrame[j] -= 0.5*temp;
+         }
+         
+         riemann_input.L.p -= 3. * smf->H * pDeltaHalf * smf->a * (pkd->param.dConstGamma - 1.) * riemann_input.L.p;
+         riemann_input.R.p -= 3. * smf->H * qDeltaHalf * smf->a * (pkd->param.dConstGamma - 1.) * riemann_input.R.p;
+         
+      }
+
+
+
+
       for (j=0; j<3; j++){ // Forward extrapolation of velocity
          temp = pv[j]*pdivv + psph->gradP[j]/pDensity*pDeltaHalf;
          riemann_input.L.v[j] -= temp;
@@ -891,6 +920,29 @@ if (p->iOrder == A || p->iOrder==B){
        if (riemann_input.R.rho < 0) {riemann_input.R.rho = pkdDensity(pkd,q); /* printf("WARNING, R.rho < 0 : using first-order scheme \n");*/ }
        if (riemann_input.L.p < 0) {riemann_input.L.p = psph->P;  /*  printf("WARNING, L.p < 0 : using first-order scheme \n");*/ }
        if (riemann_input.R.p < 0) {riemann_input.R.p = qsph->P;  /*  printf("WARNING, R.p < 0 : using first-order scheme \n");*/ }
+
+
+       //IA: We convert from comoving to physical units
+         /* 
+       if(pkd->param.csm->val.bComove)
+       {
+          double inva3 = 1./(smf->a*smf->a*smf->a); 
+           for(j=0;j<3;j++)
+           {
+             riemann_input.L.v[j] /= smf->a;
+             riemann_input.R.v[j] /= smf->a;
+             riemann_input.L.v[j] -= smf->H * smf->a * dr[j];
+             riemann_input.R.v[j] += smf->H * smf->a * dr[j];
+           }
+           riemann_input.L.rho *= inva3;
+           riemann_input.R.rho *= inva3;
+
+           riemann_input.L.p *= inva3;
+           riemann_input.R.p *= inva3;
+       }
+          */
+
+
        Riemann_solver(pkd, riemann_input, &riemann_output, face_unit, /*double press_tot_limiter TODO For now, just p>0: */ HUGE_VAL);
       
        // IA: MFM
@@ -903,9 +955,6 @@ if (p->iOrder == A || p->iOrder==B){
         riemann_output.Fluxes.p = riemann_output.P_M * riemann_output.S_M;
         for(j=0;j<3;j++)
             riemann_output.Fluxes.v[j] = riemann_output.P_M * face_unit[j];
-//       for (j=0;j<3;j++){
-//          vFrame[j] += riemann_output.S_M*face_unit[j];
-//       }
 #endif       
        // IA: End MFM
 
@@ -928,6 +977,17 @@ if (p->iOrder == A || p->iOrder==B){
        if (riemann_output.Fluxes.p!=riemann_output.Fluxes.p) riemann_output.Fluxes.p = 0.;//abort(); 
 
 
+       if(pkd->param.csm->val.bComove){ 
+          minDt /= smf->a; // 1/a term before \nabla
+          /*
+          modApq *= smf->a*smf->a; 
+          for (j=0;j<3;j++){
+             vFrame[j] /= smf->a;
+          }
+          */
+       }
+
+
        // Now we de-boost the fluxes following Eq. A8 Hopkins 2015 (From hydra_core_meshless.h):
        /* the fluxes have been calculated in the rest frame of the interface: we need to de-boost to the 'simulation frame'
         which we do following Pakmor et al. 2011 */
@@ -946,11 +1006,18 @@ if (p->iOrder == A || p->iOrder==B){
 //         printf("Riemann_output: rho %e \tp %e \tv %e %e %e \n", riemann_output.Fluxes.rho, riemann_output.Fluxes.p, riemann_output.Fluxes.v[0], riemann_output.Fluxes.v[1], riemann_output.Fluxes.v[2]);
 //}
 
-       if (smf->dTime > 0){
+       if (smf->dDelta > 0){
        pmass = pkdField(p,pkd->oMass);
        qmass = pkdField(q,pkd->oMass);
 
+       /*
+       if(pkd->param.csm->val.bComove){ 
+          for (j=0;j<3;j++) riemann_output.Fluxes.v[j] *= smf->a;
+          riemann_output.Fluxes.p *= smf->a*smf->a;
+       }
+       */
 
+       
        if (!pkdIsActive(pkd,q)){  
             *qmass += minDt * riemann_output.Fluxes.rho ;
 
@@ -1090,7 +1157,7 @@ void hydroStep(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     // IA: Timestep limiter that imposes that I must have a dt which is at most, 
     // four times (i.e., 2 rungs) the smallest dt of my neighbours
 
-    if (smf->dTime >= 0){
+    if (smf->dDelta >= 0){
     for (i=0; i<nSmooth; ++i){
         q = nnList[i].pPart;
 

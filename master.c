@@ -1653,10 +1653,10 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 	if (!validateParameters(mdl,msr->prm,&msr->param)) _msrExit(msr,1);
 	}
 
-#define KBOLTZ	1.38e-16     /* bolzman constant in cgs */
-#define MHYDR 1.67e-24       /* mass of hydrogen atom in grams */
-#define MSOLG 1.99e33        /* solar mass in grams */
-#define GCGS 6.67e-8         /* G in cgs */
+#define KBOLTZ	1.3806485e-16     /* bolzman constant in cgs */
+#define MHYDR 1.6735575e-24       /* mass of hydrogen atom in grams */
+#define MSOLG 1.98847e33        /* solar mass in grams */
+#define GCGS 6.67408e-8         /* G in cgs */
 #define KPCCM 3.085678e21    /* kiloparsec in centimeters */
 #define SIGMAT 6.6524e-25    /* Thompson cross-section (cm^2) */
 #define LIGHTSPEED 2.9979e10 /* Speed of Light cm/s */
@@ -3121,7 +3121,7 @@ void msrFastGasPhase2(MSR msr,double dTime,int iSmoothType) {
     }
 #endif
 
-int msrReSmooth(MSR msr,double dTime,int iSmoothType,int bSymmetric) {
+int msrReSmooth(MSR msr,double dTime,int iSmoothType,int bSymmetric, int bFirstStep) {
     struct inSmooth in;
     struct outSmooth out;
     int nOut;
@@ -3131,6 +3131,8 @@ int msrReSmooth(MSR msr,double dTime,int iSmoothType,int bSymmetric) {
     in.bSymmetric = bSymmetric;
     in.iSmoothType = iSmoothType;
     msrSmoothSetSMF(msr, &(in.smf), dTime);
+    if (bFirstStep) in.smf.dDelta = 0.0; // Avoid adding fluxes and doing the spatial extrapolation
+
     if (msr->param.bVStep) {
 	double sec,dsec;
 	//printf("ReSmoothing...\n");
@@ -3602,7 +3604,7 @@ void msrUpdateConsVars(MSR msr,double dTime,double dDelta,int iRoot) {
 void msrMeshlessGradients(MSR msr,double dTime,double dDelta,int iRoot){
     printf("Computing gradients... \n");
     if (msr->param.bConservativeReSmooth){
-       msrReSmooth(msr,dTime,SMX_SECONDHYDROLOOP,0);
+       msrReSmooth(msr,dTime,SMX_SECONDHYDROLOOP,0,0);
     }else{
        msrSmooth(msr,dTime,SMX_SECONDHYDROLOOP,0, msr->param.nSmooth);
     }
@@ -3612,7 +3614,11 @@ void msrMeshlessGradients(MSR msr,double dTime,double dDelta,int iRoot){
 void msrMeshlessFluxes(MSR msr,double dTime,double dDelta,int iRoot){
     printf("Computing fluxes... \n");
     if (msr->param.bConservativeReSmooth){
-       msrReSmooth(msr,dTime,SMX_THIRDHYDROLOOP,0); 
+       if (dDelta==0.0){
+          msrReSmooth(msr,dTime,SMX_THIRDHYDROLOOP,0,1); 
+       }else{
+          msrReSmooth(msr,dTime,SMX_THIRDHYDROLOOP,0,0); 
+       }
     }else{
        msrSmooth(msr,dTime,SMX_THIRDHYDROLOOP,0,msr->param.nSmooth);
     }
@@ -3624,6 +3630,7 @@ void msrUpdatePrimVars(MSR msr,double dTime,double dDelta,int iRoot){
     int nSmoothed = 1, it=0, maxit = 100;  
     in.iRoot = iRoot;
     in.dTime = dTime;
+    in.dDelta = dDelta;
 
     // IA: We also update the particles densities here (i.e., first hydro loop)
     printf("Computing density... \n");
@@ -3631,7 +3638,7 @@ void msrUpdatePrimVars(MSR msr,double dTime,double dDelta,int iRoot){
        msrSelAll(msr); // We set all particles as "not converged"
        while (nSmoothed>0 && it <= maxit){
           msrSetFirstHydroLoop(msr, 1); // 1-> we care if the particle is marked ; 0-> we dont
-          nSmoothed = msrReSmooth(msr,dTime,SMX_FIRSTHYDROLOOP,0);
+          nSmoothed = msrReSmooth(msr,dTime,SMX_FIRSTHYDROLOOP,0,0);
           msrSetFirstHydroLoop(msr, 0);
           it++;
        }
@@ -4158,7 +4165,7 @@ void msrHydroStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime) {
     int bSymmetric = 0; 
 
     printf("Computing hydro time step... \n");
-    msrReSmooth(msr,dTime,SMX_HYDROSTEP,bSymmetric);
+    msrReSmooth(msr,dTime,SMX_HYDROSTEP,bSymmetric, 0);
 
     if (msr->param.bGlobalDt){
        if (msr->param.dFixedDelta != 0.0){
@@ -5019,12 +5026,12 @@ void msrInitSph(MSR msr,double dTime)
 //          msrApplyGravWork(msr, -1, 0.0, 0, MAX_RUNG);  
       }
         msrUpdatePrimVars(msr, dTime, 0.0, ROOT);
-        msrMeshlessGradients(msr, 0.0, 0.0, ROOT);
-        msrMeshlessFluxes(msr, 0.0, 0.0, ROOT);
+        msrMeshlessGradients(msr, dTime, 0.0, ROOT);
+        msrMeshlessFluxes(msr, dTime, 0.0, ROOT);
 	msrZeroNewRung(msr,0,MAX_RUNG,0); 
-        msrHydroStep(msr,-1,MAX_RUNG,dTime); // We do this twice because we need to have uNewRung for the time limiter
-        msrHydroStep(msr,0.0,MAX_RUNG,dTime);  // of Durier & Dalla Vecchia
-        msrUpdateConsVars(msr, 0.0, 0.0, ROOT); // Reset the fluxes
+        msrHydroStep(msr,0,MAX_RUNG,dTime); // We do this twice because we need to have uNewRung for the time limiter
+        msrHydroStep(msr,0,MAX_RUNG,dTime);  // of Durier & Dalla Vecchia
+        msrUpdateConsVars(msr, dTime, 0.0, ROOT); // Reset the fluxes
     }
 }
 
