@@ -395,7 +395,7 @@ typedef struct {
 
 
 void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnvironment[2]) {
-    const int bDoShrinkingSphere = 1;
+    const int bDoShrinkingSphere = 0;
     MDL mdl = pkd->mdl;
     PARTICLE *p;
     float fPot;
