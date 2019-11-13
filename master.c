@@ -2433,11 +2433,22 @@ void msrWrite(MSR msr,const char *pszFileName,double dTime,int bCheckpoint) {
 void msrSetSoft(MSR msr,double dSoft) {
     struct inSetSoft in;
 
-    msrprintf(msr,"Set Softening...\n");
     in.dSoft = dSoft;
     pstSetSoft(msr->pst,&in,sizeof(in),NULL,NULL);
     }
 
+// IA: If the initial condition do not provide information on the smoothing
+//    length of the gas particles, we set it assuming an equipartition of the whole
+//    volume. This will be the first estimate before the iterative computation of fBall
+void msrSetSmooth(MSR msr) {
+    struct inSetSoft in;  // For simplicty we reuse this struct
+
+    double V = msr->param.dxPeriod * msr->param.dyPeriod * msr->param.dzPeriod;
+    double dSmooth = pow( 3.*V/(4.*3.1415*msr->N), 1./3. );
+
+    in.dSoft = dSmooth;
+    pstSetSmooth(msr->pst,&in,sizeof(in),NULL,NULL);
+    }
 
 void msrDomainDecompOld(MSR msr,int iRung,int bSplitVA) {
     struct inDomainDecomp in;
@@ -5025,6 +5036,7 @@ void msrInitSph(MSR msr,double dTime)
       if (msrDoGravity(msr)){ //IA: We need this for the acceleration time step criteria in the kepler ring!
 //          msrApplyGravWork(msr, -1, 0.0, 0, MAX_RUNG);  
       }
+        msrSetSmooth(msr);
         msrUpdatePrimVars(msr, dTime, 0.0, ROOT);
         msrMeshlessGradients(msr, dTime, 0.0, ROOT);
         msrMeshlessFluxes(msr, dTime, 0.0, ROOT);

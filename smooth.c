@@ -2616,7 +2616,7 @@ int  smReSmooth(SMX smx,SMF *smf) {
     if (smf->FirstHydroLoop){
        for (pi=0;pi<pkd->nLocal;++pi) {
          p = pkdParticle(pkd,pi);
-         if (pkdIsActive(pkd,p) && p->bMarked){
+         if (pkdIsActive(pkd,p) && p->bMarked && pkdIsGas(pkd,p)){
             smReSmoothSingle(smx,smf,p,2.*pkdBall(pkd,p));
             nSmoothed++;
          }
@@ -2624,7 +2624,7 @@ int  smReSmooth(SMX smx,SMF *smf) {
     }else{
        for (pi=0;pi<pkd->nLocal;++pi) {
          p = pkdParticle(pkd,pi);
-         if (pkdIsActive(pkd,p)){
+         if (pkdIsActive(pkd,p) && pkdIsGas(pkd,p)){
             smReSmoothSingle(smx,smf,p, 2.*pkdBall(pkd,p));
             nSmoothed++;
          }

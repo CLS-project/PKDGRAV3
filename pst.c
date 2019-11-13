@@ -246,6 +246,9 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_SETSOFT,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstSetSoft,
 		  sizeof(struct inSetSoft),0);
+    mdlAddService(mdl,PST_SETSMOOTH,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstSetSmooth,
+		  sizeof(struct inSetSoft),0);
     mdlAddService(mdl,PST_PHYSICALSOFT,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstPhysicalSoft,
 		  sizeof(struct inPhysicalSoft),0);
@@ -2312,6 +2315,7 @@ void pstWrite(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	    fioSetAttr(fio, "dUOld",    FIO_TYPE_DOUBLE, &in->dUOld );
 
 	    pkdWriteFIO(plcl->pkd,fio,in->dvFac,&in->bnd);
+
 	    for(i=in->iLower+1; i<in->iUpper; ++i ) {
 		int rID = mdlReqService(pst->mdl,i,PST_SENDPARTICLES,&pst->idSelf,sizeof(pst->idSelf));
 		pkdWriteFromNode(plcl->pkd,i,fio,in->dvFac,&in->bnd);
@@ -2337,6 +2341,23 @@ void pstSetSoft(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	}
     else {
 	pkdSetSoft(plcl->pkd,in->dSoft);
+	}
+    if (pnOut) *pnOut = 0;
+    }
+
+
+void pstSetSmooth(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    struct inSetSoft *in = vin;
+
+    mdlassert(pst->mdl,nIn == sizeof(struct inSetSoft));
+    if (pst->nLeaves > 1) {
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SETSMOOTH,in,nIn);
+	pstSetSmooth(pst->pstLower,in,nIn,NULL,NULL);
+	mdlGetReply(pst->mdl,rID,NULL,NULL);
+	}
+    else {
+	pkdSetSmooth(plcl->pkd,in->dSoft);
 	}
     if (pnOut) *pnOut = 0;
     }

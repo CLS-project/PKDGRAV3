@@ -1396,6 +1396,7 @@ size_t pkdIlpMemory(PKD pkd);
 size_t pkdTreeMemory(PKD pkd);
 void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double dTuFac);
 void pkdSetSoft(PKD pkd,double dSoft);
+void pkdSetSmooth(PKD pkd,double dSmooth);
 void pkdSetCrit(PKD pkd,double dCrit);
 void pkdCalcBound(PKD,BND *);
 void pkdCalcVBound(PKD,BND *);

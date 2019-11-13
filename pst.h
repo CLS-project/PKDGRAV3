@@ -141,6 +141,7 @@ enum pst_service {
     PST_KICK,
     PST_KICKTREE,
     PST_SETSOFT,
+    PST_SETSMOOTH,
     PST_PHYSICALSOFT,
     PST_SETTOTAL,
     PST_ONENODEREADINIT,
@@ -814,6 +815,7 @@ struct inSetSoft {
     double dSoft;
     };
 void pstSetSoft(PST,void *,int,void *,int *);
+void pstSetSmooth(PST,void *,int,void *,int *);
 
 /* PST_PHYSICALSOFT */
 struct inPhysicalSoft {

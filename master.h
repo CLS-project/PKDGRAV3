@@ -128,6 +128,7 @@ double msrGenerateIC(MSR);
 double msrRead(MSR msr,const char *achInFile);
 void msrWrite(MSR,const char *,double, int bCheckpoint );
 void msrSetSoft(MSR msr,double);
+void msrSetSmooth(MSR msr);
 void msrDomainDecomp(MSR,int iRung,int bOthers,int bSplitVA);
 void msrBuildTree(MSR msr,double dTime,int bNeedEwald);
 void msrBuildTreeVeryActive(MSR msr,double dTime,int bNeedEwald,uint8_t uRungDD);

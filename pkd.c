@@ -1125,9 +1125,9 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 		pSph->fMetals = fMetals;
 		pSph->uPred = pSph->u;
 		pSph->fMetalsPred = pSph->fMetals;
-		pSph->vPred[0] = vel[0];  //*dvFac;  IA: 1/a2, if we already input v = a dotx we do not need this
-		pSph->vPred[1] = vel[1];  //*dvFac;
-		pSph->vPred[2] = vel[2];  //*dvFac; 
+		pSph->vPred[0] = vel[0]*sqrt(dvFac);  //*dvFac;  TODO: Compute sqrt(dvFac only once)
+		pSph->vPred[1] = vel[1]*sqrt(dvFac);  //*dvFac;
+		pSph->vPred[2] = vel[2]*sqrt(dvFac);  //*dvFac; 
             pSph->Frho = 0.0;
             pSph->Fmom[0] = 0.0;
             pSph->Fmom[1] = 0.0;
@@ -1137,9 +1137,9 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             pSph->E *= fMass;
             pSph->Uint = u*dTuFac*fMass;
             assert(pSph->E>0);
-            pSph->mom[0] = fMass*vel[0];
-            pSph->mom[1] = fMass*vel[1];
-            pSph->mom[2] = fMass*vel[2];
+            pSph->mom[0] = fMass*vel[0]*sqrt(dvFac);
+            pSph->mom[1] = fMass*vel[1]*sqrt(dvFac);
+            pSph->mom[2] = fMass*vel[2]*sqrt(dvFac);
             pSph->lastMom[0] = 0.; // vel[0];
             pSph->lastMom[1] = 0.; //vel[1];
             pSph->lastMom[2] = 0.; //vel[2];
@@ -1182,19 +1182,19 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	for (j=0;j<3;++j) {
 	    pkdSetPos(pkd,p,j,r[j]);
 	    }
-	if (pkd->oVelocity){
-        if (!pkdIsGas(pkd,p)) { // IA: dvFac = 1/a2, and for the gas we already provide the peculiar velocity in the IC
-	    for (j=0;j<3;++j) pkdVel(pkd,p)[j] = vel[j]*dvFac;
-	  }else{
-	    for (j=0;j<3;++j) pkdVel(pkd,p)[j] = vel[j];
-        }
-      }
-
-
 	if (!pkd->bNoParticleOrder) p->iOrder = iFirst++;
 	if (pkd->oParticleID) *pkdParticleID(pkd,p) = iParticleID;
 
 	pkdSetClass(pkd,fMass,fSoft,eSpecies,p);
+	if (pkd->oVelocity){
+        if (!pkdIsGas(pkd,p)) { // IA: dvFac = a*a, and for the gas we already provide the peculiar velocity in the IC
+	    for (j=0;j<3;++j) pkdVel(pkd,p)[j] = vel[j]*dvFac;
+	  }else{
+	    for (j=0;j<3;++j) pkdVel(pkd,p)[j] = vel[j]*sqrt(dvFac);
+        }
+      }
+
+
 	}
     
     pkd->nLocal += nLocal;
@@ -2110,9 +2110,9 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,BND *bnd,PARTICLE *p) {
          v[2] = pV[2] * dvFac;
       }else{ //IA: we save the gas velocity as v = a dotx
          vel_t *pV = pkdVel(pkd,p);
-         v[0] = pV[0] ;
-         v[1] = pV[1] ;
-         v[2] = pV[2] ;
+         v[0] = pV[0] * sqrt(dvFac);
+         v[1] = pV[1] * sqrt(dvFac);
+         v[2] = pV[2] * sqrt(dvFac);
       }
 	}
     else v[0] = v[1] = v[2] = 0.0;
@@ -2151,10 +2151,6 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,BND *bnd,PARTICLE *p) {
 	assert(pSph);
 	assert(pkd->param.dTuFac>0.0);
 	    {
-	    double T;
-	    T = pSph->u/pkd->param.dTuFac; //IA FIXME TODO Temporarly writing pressure as temperature output
-          T = pSph->E - 0.5*( pSph->mom[0]*pSph->mom[0] + pSph->mom[1]*pSph->mom[1] + pSph->mom[2]*pSph->mom[2])/pkdMass(pkd,p);
-          T *= pSph->omega*(pkd->param.dConstGamma - 1.);
 	    fioWriteSph(fio,iParticleID,r,v,fMass,pkdBall(pkd,p),*pPot,
 		fDensity,pSph->P,pSph->E);
 	    }
@@ -2246,6 +2242,16 @@ uint32_t pkdWriteFIO(PKD pkd,FIO fio,double dvFac,BND *bnd) {
 
 void pkdSetSoft(PKD pkd,double dSoft) {
     pkd->fSoftFix = dSoft;
+    }
+
+void pkdSetSmooth(PKD pkd,double dSmooth) {
+    PARTICLE *p;
+    int i;
+    for (i=0;i<pkdLocal(pkd);++i) {
+       p = pkdParticle(pkd,i);
+       if (pkdIsGas(pkd,p) && pkdBall(pkd,p)==0.0)
+          pkdSetBall(pkd,p,dSmooth);
+    }
     }
 
 void pkdPhysicalSoft(PKD pkd,double dSoftMax,double dFac,int bSoftMaxMul) {
@@ -2697,10 +2703,17 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
              p = pkdParticle(pkd,i);
              v = pkdVel(pkd,p);
              
-             for (j=0;j<3;++j) {
-               // As for gas particles we use dx/dt = v/a, we must use the Kick factor provided by pkdgrav, see Stadel 2001, Appendix 3.8 
-               dr[j] = v[j]*dDeltaVPred;
+             if (pkdIsGas(pkd,p)){
+                for (j=0;j<3;++j) {
+                  // IA: As for gas particles we use dx/dt = v/a, we must use the Kick factor provided by pkdgrav, see Stadel 2001, Appendix 3.8 
+                  dr[j] = v[j]*dDeltaVPred;
+                }
+             }else{
+                for (j=0;j<3;++j) {
+                  dr[j] = v[j]*dDelta;
+                }
              }
+
 #ifdef FORCE_1D
              dr[2] = 0.0;
              dr[1] = 0.0;
@@ -2712,8 +2725,9 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
 #ifdef GRAV_RT
              if ( (pkdPos(pkd,p,1)<-0.4) | (pkdPos(pkd,p,1)>0.4) ) continue;
 #endif
+	    pkdGetPos1(pkd,p,r0);
              for (j=0;j<3;++j) {
-               pkdSetPos(pkd,p,j,rfinal[j] = pkdPos(pkd,p,j) + dr[j]);
+               pkdSetPos(pkd,p,j,rfinal[j] = r0[j] + dr[j]);
                }
 #ifdef GRAV_RT
 //             if (pkdPos(pkd,p,1) > 0.4) { pkdSetPos(pkd,p,1, 0.8 - pkdPos(pkd,p,1) ); pkdVel(pkd,p)[1] *= -1;}
@@ -2919,7 +2933,7 @@ void pkdComputePrimVars(PKD pkd,int iRoot, double dTime, double dDelta) {
     PARTICLE *p;
     SPHFIELDS *psph;
     int i,j;
-    double gravE, gravE_dmdt, pDelta, dScaleFac, dHubble;
+    double gravE, gravE_dmdt, pDelta, dScaleFac, dHubble, pa[3];
 
 
     mdlDiag(pkd->mdl, "Into pkdComputePrimiteVars\n");
@@ -2953,12 +2967,17 @@ void pkdComputePrimVars(PKD pkd,int iRoot, double dTime, double dDelta) {
             // ##### GRAVITY
             gravE = 0.0;
             gravE_dmdt = 0.0;
+            if (pkd->param.csm->val.bComove){
+               for (j=0;j<3;j++){
+                  pa[j] = pkdAccel(pkd,p)[j]/(dScaleFac*dScaleFac); // TODO: Do 1/a2 only once
+               }
+            }
             for (j=0;j<3;j++){
-               psph->mom[j] += 0.5*pDelta*(psph->lastMass*psph->lastAcc[j] + pkdMass(pkd,p)*pkdAccel(pkd,p)[j]); 
+               psph->mom[j] += 0.5*pDelta*(psph->lastMass*psph->lastAcc[j] + pkdMass(pkd,p)*pa[j]); 
                pkdVel(pkd,p)[j] = psph->mom[j]/pkdMass(pkd,p);
 
-               gravE_dmdt +=  0.5*( psph->lastAcc[j]*psph->lastDrDotFrho[j] + pkdAccel(pkd,p)[j]*psph->drDotFrho[j] ) ;
-               gravE += 0.5*pDelta*( psph->lastMom[j]*psph->lastAcc[j] + pkdMass(pkd,p)*pkdVel(pkd,p)[j]*pkdAccel(pkd,p)[j]  );
+               gravE_dmdt +=  0.5*( psph->lastAcc[j]*psph->lastDrDotFrho[j] + pa[j]*psph->drDotFrho[j] ) ;
+               gravE += 0.5*pDelta*( psph->lastMom[j]*psph->lastAcc[j] + pkdMass(pkd,p)*pkdVel(pkd,p)[j]*pa[j]  );
             }
             if (dTime==1) gravE_dmdt = 0.;
 
@@ -3012,7 +3031,7 @@ void pkdComputePrimVars(PKD pkd,int iRoot, double dTime, double dDelta) {
                psph->drDotFrho[j] = 0.;
             }
            for (j=0;j<3;j++){
-              psph->lastAcc[j] = pkdAccel(pkd,p)[j];   
+              psph->lastAcc[j] = pkdAccel(pkd,p)[j]/(dScaleFac*dScaleFac);   
               psph->lastMom[j] = psph->mom[j];
            } 
             psph->lastUpdateTime = dTime;
@@ -3242,6 +3261,11 @@ void pkdKick(PKD pkd,double dTime,double dDelta,double dDeltaVPred,double dDelta
                   sph->vPred[0] = v[0];
                   sph->vPred[1] = v[1];
                   sph->vPred[2] = v[2];
+               }else{
+                  a = pkdAccel(pkd,p);
+                  for (j=0;j<3;++j) {
+                      v[j] += a[j]*dDelta;
+                  }
                }
              }
          }
@@ -3266,6 +3290,11 @@ void pkdKick(PKD pkd,double dTime,double dDelta,double dDeltaVPred,double dDelta
                for (j=0;j<3;++j) {
                    v[j] += a[j]*dDelta;
                    }
+               }else{
+                  a = pkdAccel(pkd,p);
+                  for (j=0;j<3;++j) {
+                      v[j] += a[j]*dDelta;
+                  }
                }
              }
       }

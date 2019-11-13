@@ -158,16 +158,17 @@ void * master_ch(MDL mdl) {
 	dTime = msrRead(msr,msr->param.achInFile); /* May change nSteps/dDelta */
 	msrInitStep(msr);
 	if (msr->param.bAddDelete) msrGetNParts(msr);
-	if (prmSpecified(msr->prm,"dRedFrom")) {
-	    double aOld, aNew;
-	    aOld = csmTime2Exp(msr->param.csm,dTime);
-	    aNew = 1.0 / (1.0 + msr->param.dRedFrom);
-	    dTime = msrAdjustTime(msr,aOld,aNew);
-	    /* Seriously, we shouldn't need to send parameters *again*.
-	       When we remove sending parameters, we should remove this. */
-	    msrInitStep(msr);
-	    }
-	if (prmSpecified(msr->prm,"dSoft")) msrSetSoft(msr,msrSoft(msr));
+      // IA: I do not understand this... So
+//    if (prmSpecified(msr->prm,"dRedFrom")) {
+//        double aOld, aNew;
+//        aOld = csmTime2Exp(msr->param.csm,dTime);
+//        aNew = 1.0 / (1.0 + msr->param.dRedFrom);
+//        dTime = msrAdjustTime(msr,aOld,aNew);
+//        /* Seriously, we shouldn't need to send parameters *again*.
+//           When we remove sending parameters, we should remove this. */
+//        msrInitStep(msr);
+//        }
+    if (prmSpecified(msr->prm,"dSoft")) msrSetSoft(msr,msrSoft(msr));
 	iStep = msrSteps(msr); /* 0=analysis, >1=simulate, <0=python */
 	}
 #ifdef USE_PYTHON
