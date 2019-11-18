@@ -1144,6 +1144,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             pSph->lastMom[1] = 0.; //vel[1];
             pSph->lastMom[2] = 0.; //vel[2];
             pSph->lastE = pSph->E;
+            pSph->lastUint = pSph->Uint;
             pSph->lastHubble = 0.0;
             pSph->lastMass = fMass;
             pSph->lastAcc[0] = 0.;
@@ -2990,6 +2991,7 @@ void pkdComputePrimVars(PKD pkd,int iRoot, double dTime, double dDelta) {
             if (pkd->param.csm->val.bComove){
                psph->E = (psph->E - psph->lastHubble*pDelta*psph->lastE)/(1.+pDelta*dHubble);
                //printf("E (%e - %e / %e  \n", psph->E, pDelta, (1.+pDelta*dHubble));
+               psph->Uint = (psph->Uint - psph->lastHubble*1.5*pDelta*psph->lastUint*(pkd->param.dConstGamma - 1.))/(1.+1.5*pDelta*dHubble*(pkd->param.dConstGamma - 1.));
                
                for (j=0; j<3; j++){ 
                   psph->mom[j] = (psph->mom[j] - 0.5*psph->lastHubble*pDelta*psph->lastMom[j])/(1.+0.5*pDelta*dHubble);
@@ -3036,6 +3038,7 @@ void pkdComputePrimVars(PKD pkd,int iRoot, double dTime, double dDelta) {
            } 
             psph->lastUpdateTime = dTime;
             psph->lastE = psph->E;
+            psph->lastUint = psph->Uint;
             psph->lastMass = pkdMass(pkd,p);
 
          }

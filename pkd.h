@@ -188,6 +188,7 @@ typedef struct sphfields {
     double lastAcc[3];
     double lastMom[3];
     double lastE;
+    double lastUint;
     double lastHubble; // TODO: Maybe there is a more intelligent way to avoid saving this...
     double lastDrDotFrho[3];
     float lastMass;
