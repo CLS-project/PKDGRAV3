@@ -3033,9 +3033,14 @@ void pkdComputePrimVars(PKD pkd,int iRoot, double dTime, double dDelta) {
                psph->drDotFrho[j] = 0.;
             }
            for (j=0;j<3;j++){
-              psph->lastAcc[j] = pkdAccel(pkd,p)[j]/(dScaleFac*dScaleFac);   
+              psph->lastAcc[j] = pkdAccel(pkd,p)[j];   
               psph->lastMom[j] = psph->mom[j];
            } 
+            if (pkd->param.csm->val.bComove){
+               for (j=0;j<3;j++){
+                 psph->lastAcc[j] /= (dScaleFac*dScaleFac);   
+               }
+            }
             psph->lastUpdateTime = dTime;
             psph->lastE = psph->E;
             psph->lastUint = psph->Uint;
