@@ -1656,6 +1656,10 @@ static void cleanupMDL(MDL mdl) {
     mdlBaseFinish(&mdl->base);
     }
 
+static void TERM_handler(int signo) {
+    MPI_Abort(MPI_COMM_WORLD,130);
+    }
+
 void mdlLaunch(int argc,char **argv,void (*fcnMaster)(MDL,void *),void * (*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *)) {
     MDL mdl;
     int i,n,bDiag,bThreads,bDedicated,thread_support,rc,flag,*piTagUB;
@@ -1738,6 +1742,9 @@ void mdlLaunch(int argc,char **argv,void (*fcnMaster)(MDL,void *),void * (*fcnWo
 	perror(ach);
 	MPI_Abort(mpi->commMDL,rc);
 	}
+#ifdef HAVE_SIGNAL_H
+    signal(SIGINT,TERM_handler);
+#endif
 #ifdef MDL_FFTW
     if (mdlCores(mdl)>1) FFTW3(init_threads)();
     FFTW3(mpi_init)();
