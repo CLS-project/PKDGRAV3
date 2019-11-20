@@ -36,8 +36,8 @@
 
 #define MDL_DEFAULT_SERVICES	120
 
-static void _srvNull(void *p1, void *vin, int nIn, void *vout, int *pnOut) {
-    return;
+static int _srvNull(void *p1, void *vin, int nIn, void *vout, int nOut) {
+    return 0;
     }
 
 void mdlBaseInitialize(mdlBASE *base,int argc,char **argv) {
@@ -128,7 +128,7 @@ void mdlBaseFinish(mdlBASE *base) {
     }
 
 void mdlBaseAddService(mdlBASE *base, int sid, void *p1,
-    void(*fcnService)(void *, void *, int, void *, int *),
+    fcnService_t *fcnService,
     int nInBytes, int nOutBytes) {
     int i, nMaxServices;
 

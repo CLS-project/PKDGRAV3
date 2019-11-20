@@ -621,7 +621,7 @@ int pkdHopUnbind(PKD pkd, double dTime, int nMinGroupSize, int bPeriodic, double
     PARTICLE *p;
     KDN *pNode;
     HopGroupTable *g;
-    double a = csmTime2Exp(pkd->param.csm,dTime);
+    double a = csmTime2Exp(pkd->csm,dTime);
     double ia = 1.0 / a;
     double a2 = a * a;
     double dv, dv2;

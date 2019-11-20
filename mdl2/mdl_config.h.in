@@ -7,8 +7,7 @@
 #cmakedefine HAVE_MEMKIND 1
 #cmakedefine USE_CUDA 1
 #cmakedefine USE_HWLOC 1
-//#cmakedefine MDL_FFTW 1
-#define MDL_FFTW 1
+#cmakedefine MDL_FFTW 1
 #define USE_SINGLE 1
 #define OMPI_SKIP_MPICXX
 #define INSTRUMENT 1

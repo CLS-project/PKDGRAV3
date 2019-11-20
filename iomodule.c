@@ -149,7 +149,7 @@ static int wait_complete(asyncFileInfo *info, int nWait) {
     while(nWait) {
 	rc = aio_suspend(info->pcb,info->nBuffers,NULL);
 	if (rc) { perror("aio_suspend"); abort(); }
-	for(i=0; i<info->nBuffers; ++i) {
+	for(i=0; i<info->nBuffers && nWait; ++i) {
 	    char szError[100];
 	    if (info->pcb[i] == NULL) continue;
 	    rc = aio_error(info->pcb[i]);

@@ -19,6 +19,8 @@
 #If environment variable FFTWDIR is specified, it has same effect as FFTW_ROOT
 if( NOT FFTW_ROOT AND ENV{FFTWDIR} )
   set( FFTW_ROOT $ENV{FFTWDIR} )
+elseif( NOT FFTW_ROOT AND ENV{FFTW3_ROOT_DIR} )
+  set( FFTW_ROOT $ENV{FFTW3_ROOT_DIR} )
 endif()
 
 # Check if we can use PkgConfig

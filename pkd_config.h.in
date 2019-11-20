@@ -8,6 +8,7 @@
 #endif
 
 #cmakedefine HAVE_MALLOC_H 1
+#cmakedefine HAVE_SIGNAL_H 1
 #cmakedefine HAVE_SYS_TIME_H 1
 #cmakedefine HAVE_SYS_STAT_H 1
 #cmakedefine HAVE_SYS_PARAM_H 1
@@ -33,6 +34,7 @@
 #cmakedefine HAVE_MKDIR 1
 #cmakedefine HAVE_STRVERSCMP 1
 #cmakedefine HAVE_ATEXIT 1
+#cmakedefine HAVE_POSIX_MEMALIGN 1
 
 #cmakedefine USE_BT 1
 #cmakedefine _GNU_SOURCE 1
@@ -53,6 +55,6 @@
 #define USE_SIMD_PC 1
 #define NAIVE_DOMAIN_DECOMP 1
 
-#define PACKAGE_VERSION "3.0.2"
-#define PACKAGE_STRING "pkdgrav 3.0.2"
+#define PACKAGE_VERSION "3.0.3"
+#define PACKAGE_STRING "pkdgrav 3.0.3"
 #define FLOAT_MAXVAL HUGE_VAL

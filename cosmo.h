@@ -43,6 +43,7 @@ struct classDataBackgroundStruct{
     double H      [CLASS_BACKGROUND_SIZE];
     double rho_m  [CLASS_BACKGROUND_SIZE];
     double rho_lin[CLASS_BACKGROUND_SIZE];
+    double rho_pk [CLASS_BACKGROUND_SIZE];
 };
 struct classDataPerturbationsStruct{
     size_t size_a;
@@ -52,11 +53,12 @@ struct classDataPerturbationsStruct{
     double delta_m  [CLASS_PERTURBATIONS_A_SIZE*CLASS_PERTURBATIONS_K_SIZE];
     double theta_m  [CLASS_PERTURBATIONS_A_SIZE*CLASS_PERTURBATIONS_K_SIZE];
     double delta_lin[CLASS_PERTURBATIONS_A_SIZE*CLASS_PERTURBATIONS_K_SIZE];
+    double delta_pk [CLASS_PERTURBATIONS_A_SIZE*CLASS_PERTURBATIONS_K_SIZE];
 };
 struct classDataStruct{
     int bClass;
-    char achFilename[256];
-    char achLinSpecies[128];
+    int nLinear; /* Number of linear species */
+    int nPower; /* Number of linear species for measuring P(k) */
     struct classDataBackgroundStruct background;
     struct classDataPerturbationsStruct perturbations;
 };
@@ -80,6 +82,8 @@ struct classGslBackgroundStruct{
     gsl_spline       *logExp2logRho_m_spline;
     gsl_interp_accel *logExp2logRho_lin_acc;
     gsl_spline       *logExp2logRho_lin_spline;
+    gsl_interp_accel *logExp2logRho_pk_acc;
+    gsl_spline       *logExp2logRho_pk_spline;
 };
 struct classGslPerturbationsStruct{
     gsl_interp_accel *logk2delta_m_acc;
@@ -91,6 +95,9 @@ struct classGslPerturbationsStruct{
     gsl_interp_accel *logk2delta_lin_acc;
     gsl_interp_accel *loga2delta_lin_acc;
     gsl_spline2d     *logkloga2delta_lin_spline;
+    gsl_interp_accel *logk2delta_pk_acc;
+    gsl_interp_accel *loga2delta_pk_acc;
+    gsl_spline2d     *logkloga2delta_pk_spline;
 };
 struct classGslStruct{
     int initialized;
@@ -129,14 +136,18 @@ typedef struct csmContext {
 #ifdef __cplusplus
 extern "C" {
 #endif
-    void csmClassRead(CSM csm, double dBoxSize, double h);
+    void csmClassRead(CSM csm, const char *achFilename, double dBoxSize, double h,
+		    int nLinear, const char **aLinear, int nPower, const char **aPower);
     void csmClassGslInitialize(CSM csm);
     double csmRhoBar_m    (CSM csm, double a);
     double csmRhoBar_lin  (CSM csm, double a);
+    double csmRhoBar_pk   (CSM csm, double a);
     double csmDelta_m     (CSM csm, double a,                double k);
     double csmTheta_m     (CSM csm, double a,                double k);
     double csmDelta_lin   (CSM csm, double a,                double k);
+    double csmDelta_pk    (CSM csm, double a,                double k);
     double csmDeltaRho_lin(CSM csm, double a, double a_next, double k);
+    double csmDeltaRho_pk (CSM csm, double a,                double k);
     double csmZeta        (CSM csm,                          double k);
 
     void csmInitialize(CSM *pcsm);

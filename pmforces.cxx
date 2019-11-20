@@ -57,7 +57,7 @@ void pkdGenerateLinGrid(PKD pkd, MDLFFT fft, double a, double a_next, double Lbo
     /* For the sake of performance we precompute the (possibly averaged)
     ** field at the |k|'s at which the perturbations are tabulated.
     */
-    size_t size = pkd->param.csm->val.classData.perturbations.size_k;
+    size_t size = pkd->csm->val.classData.perturbations.size_k;
     double *logk = (double*)malloc(sizeof(double)*size);
     double *field = (double*)malloc(sizeof(double)*size);
     size_t i;
@@ -65,22 +65,21 @@ void pkdGenerateLinGrid(PKD pkd, MDLFFT fft, double a, double a_next, double Lbo
     gsl_interp_accel *acc;
     gsl_spline *spline;
     for (i = 0; i < size; i++){
-        k = pkd->param.csm->val.classData.perturbations.k[i];
+        k = pkd->csm->val.classData.perturbations.k[i];
         logk[i] = log(k);
         if (bRho)
             /* Use the \delta\rho field, possibly averaged */
-            field[i] = csmDeltaRho_lin(pkd->param.csm, a, a_next, k);
+            field[i] = csmDeltaRho_lin(pkd->csm, a, a_next, k);
         else
             /* Use the \delta field */
-            field[i] = csmDelta_lin(pkd->param.csm, a, k);
+            field[i] = csmDelta_lin(pkd->csm, a, k);
         /* The cubic splining is much better without the analytic zeta */
-        field[i] /= csmZeta(pkd->param.csm, k);
+        field[i] /= csmZeta(pkd->csm, k);
     }
     acc = gsl_interp_accel_alloc();
     spline = gsl_spline_alloc(gsl_interp_cspline, size);
     gsl_spline_init(spline, logk, field, size);
     /* Generate grid */
-    double noiseMean, noiseCSQ;
     int idx;
     double ix, iy, iz, i2;
     double iLbox = 2*M_PI/Lbox;
@@ -89,7 +88,8 @@ void pkdGenerateLinGrid(PKD pkd, MDLFFT fft, double a, double a_next, double Lbo
     GridInfo G(pkd->mdl,fft);
     complex_array_t K;
     G.setupArray((FFTW3(real) *)mdlSetArray(pkd->mdl,0,0,pkd->pLite),K);
-    pkdGenerateNoise(pkd, iSeed, bFixed, fPhase, fft, K, &noiseMean, &noiseCSQ);
+    NoiseGenerator ng(iSeed,bFixed,fPhase);
+    ng.FillNoise(K,fft->rgrid->n3);
     for( auto index=K.begin(); index!=K.end(); ++index ) {
 	auto pos = index.position();
 	iz = fwrap(pos[2],fft->rgrid->n3); // Range: (-iNyquist,iNyquist]
@@ -98,7 +98,7 @@ void pkdGenerateLinGrid(PKD pkd, MDLFFT fft, double a, double a_next, double Lbo
         i2 = ix*ix + iy*iy + iz*iz;
         if (i2>0){
             k = sqrt((double)i2)*iLbox;
-            *index *= csmZeta(pkd->param.csm, k)*gsl_spline_eval(spline, log(k), acc);
+            *index *= csmZeta(pkd->csm, k)*gsl_spline_eval(spline, log(k), acc);
         }
         else
             *index = 0.0;
@@ -239,21 +239,21 @@ void pkdSetLinGrid(PKD pkd, double a0, double a, double a1, double dBSize, int n
 }
 
 extern "C"
-void pstSetLinGrid(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-        LCL *plcl = pst->plcl;
-        struct inSetLinGrid *in = reinterpret_cast<struct inSetLinGrid *>(vin);
-        assert (nIn==sizeof(struct inSetLinGrid) );
-        if (pstNotCore(pst)) {
-            int rID = mdlReqService(pst->mdl, pst->idUpper, PST_SETLINGRID, vin, nIn);
-            pstSetLinGrid(pst->pstLower, vin, nIn, vout, pnOut);
-            mdlGetReply(pst->mdl,rID, vout,pnOut);
-        }
-        else {
-            pkdSetLinGrid(plcl->pkd, in->a0, in->a, in->a1,
-                in->dBSize, in->nGrid, 
-                in ->iSeed, in->bFixed, in->fPhase);
-        }
-        if (pnOut) *pnOut = 0;
+int pstSetLinGrid(PST pst,void *vin,int nIn,void *vout,int nOut) {
+    LCL *plcl = pst->plcl;
+    struct inSetLinGrid *in = reinterpret_cast<struct inSetLinGrid *>(vin);
+    assert (nIn==sizeof(struct inSetLinGrid) );
+    if (pstNotCore(pst)) {
+        int rID = mdlReqService(pst->mdl, pst->idUpper, PST_SETLINGRID, vin, nIn);
+        pstSetLinGrid(pst->pstLower, vin, nIn, NULL, 0);
+        mdlGetReply(pst->mdl,rID,NULL,NULL);
+    }
+    else {
+        pkdSetLinGrid(plcl->pkd, in->a0, in->a, in->a1,
+            in->dBSize, in->nGrid, 
+            in ->iSeed, in->bFixed, in->fPhase);
+    }
+    return 0;
     }
 
 typedef blitz::Array<float,3> force_array_t;
@@ -371,20 +371,20 @@ void pkdLinearKick(PKD pkd,vel_t dtOpen,vel_t dtClose, int iAssignment=4) {
     }
 
 extern "C"
-void pstLinearKick(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+int pstLinearKick(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
     struct inLinearKick *in = reinterpret_cast<struct inLinearKick *>(vin);
     assert( nIn==sizeof(struct inLinearKick) );
 
     if (pstNotCore(pst)) {
 	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_LINEARKICK,vin,nIn);
-	pstLinearKick(pst->pstLower,vin,nIn,vout,pnOut);
-	mdlGetReply(pst->mdl,rID,vout,pnOut);
+	pstLinearKick(pst->pstLower,vin,nIn,NULL,0);
+	mdlGetReply(pst->mdl,rID,NULL,NULL);
 	}
     else {
 	pkdLinearKick(plcl->pkd,in->dtOpen,in->dtClose);
 	}
-    if (pnOut) *pnOut = 0;
+    return 0;
     }
 
 void pkdMeasureLinPk(PKD pkd, int nGrid, double dA, double dBoxSize,
@@ -478,18 +478,17 @@ void pkdMeasureLinPk(PKD pkd, int nGrid, double dA, double dBoxSize,
     }
 
 extern "C"
-void pstMeasureLinPk(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+int pstMeasureLinPk(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
     struct inMeasureLinPk *in = reinterpret_cast<struct inMeasureLinPk *>(vin);
     struct outMeasureLinPk *out = reinterpret_cast<struct outMeasureLinPk *>(vout);
     struct outMeasureLinPk *outUpper;
-    int nOut;
     int i;
 
     assert( nIn==sizeof(struct inMeasureLinPk) );
     if (pstNotCore(pst)) {
 	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_MEASURELINPK,vin,nIn);
-	pstMeasureLinPk(pst->pstLower,vin,nIn,vout,pnOut);
+	pstMeasureLinPk(pst->pstLower,vin,nIn,vout,nOut);
 	outUpper = reinterpret_cast<struct outMeasureLinPk *>(malloc(sizeof(struct outMeasureLinPk)));
 	assert(outUpper != NULL);
 	mdlGetReply(pst->mdl,rID,outUpper,&nOut);
@@ -507,5 +506,5 @@ void pstMeasureLinPk(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
                         in->nBins, in->iSeed, in->bFixed, in->fPhase, 
                         out->fK, out->fPower, out->nPower);
 	}
-    if (pnOut) *pnOut = sizeof(struct outMeasureLinPk);
+    return sizeof(struct outMeasureLinPk);
     }
