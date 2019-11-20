@@ -11,13 +11,6 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set(CMAKE_BUILD_TYPE RelWithDebInfo)
 endif()
 
-CHECK_FUNCTION_EXISTS(pow HAVE_LIBM)
-if(NOT HAVE_LIBM)
-  unset(HAVE_LIBM)
-  list(APPEND CMAKE_REQUIRED_LIBRARIES m)
-  CHECK_FUNCTION_EXISTS(pow HAVE_LIBM)
-endif()
-
 include(CheckCXXCompilerFlag)
 
 set(TARGET_ARCHITECTURE "auto" CACHE STRING "CPU architecture to optimize for.")
@@ -139,6 +132,10 @@ target_sources(${PROJECT_NAME} PRIVATE
 )
 add_executable(tostd tostd.c fio.c)
 add_executable(psout psout.c cosmo.c)
+
+target_link_libraries(${PROJECT_NAME} m)
+target_link_libraries(tostd m)
+target_link_libraries(psout m)
 
 if(USE_BT)
 target_sources(${PROJECT_NAME} PRIVATE bt.c)
