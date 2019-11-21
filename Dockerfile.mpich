@@ -1,4 +1,4 @@
-FROM ubuntu:18.04 as pkdgrav3-build-mpich
+FROM nvidia/cuda:10.1-devel-ubuntu18.04 as pkdgrav3-build-mpich
 MAINTAINER Douglas Potter "douglas.potter@uzh.ch"
 ARG MPICH_VERSION=3.2
 ARG FFTW_VERSION=3.3.8
@@ -15,10 +15,12 @@ RUN cd /build && wget http://www.fftw.org/fftw-${FFTW_VERSION}.tar.gz\
 FROM pkdgrav3-build-mpich as builder
 MAINTAINER Douglas Potter "douglas.potter@uzh.ch"
 ARG BRANCH=develop
+ARG TARGET_ARCHITECTURE=auto
 RUN cd /build && git clone --depth=1 --branch ${BRANCH} https://bitbucket.org/dpotter/pkdgrav3.git\
-  && cd /tmp && cmake /build/pkdgrav3 && make install
+  && cd /tmp && cmake -DTARGET_ARCHITECTURE=${TARGET_ARCHITECTURE} /build/pkdgrav3 && make install
 
-FROM ubuntu:18.04
+FROM nvidia/cuda:10.1-base-ubuntu18.04
+WORKDIR /pkdgrav3
 ENTRYPOINT ["/usr/local/bin/pkdgrav3"]
 RUN apt-get update && apt-get install -y --no-install-recommends libgsl23 libhdf5-100 libmemkind0 && apt-get clean all
 COPY --from=builder /usr/local/bin/pkdgrav3 /usr/local/bin/
