@@ -1,8 +1,8 @@
 FROM nvidia/cuda:10.1-devel-ubuntu18.04 as pkdgrav3-build-mpich
 MAINTAINER Douglas Potter "douglas.potter@uzh.ch"
-ARG MPICH_VERSION=3.2
+ARG MPICH_VERSION=3.2.1
 ARG FFTW_VERSION=3.3.8
-RUN apt-get update && apt-get install -y autoconf automake cmake gcc g++ make gfortran wget git libgsl0-dev libhdf5-dev libmemkind-dev && apt-get clean all
+RUN apt-get update && apt-get install -y autoconf automake cmake gcc g++ make gfortran wget git libgsl0-dev libhdf5-dev libmemkind-dev libhwloc-dev && apt-get clean all
 RUN mkdir build
 RUN cd /build && wget http://www.mpich.org/static/downloads/${MPICH_VERSION}/mpich-${MPICH_VERSION}.tar.gz\
   && tar xvzf mpich-${MPICH_VERSION}.tar.gz && cd /build/mpich-${MPICH_VERSION} \
@@ -22,7 +22,7 @@ RUN cd /build && git clone --depth=1 --branch ${BRANCH} https://bitbucket.org/dp
 FROM nvidia/cuda:10.1-base-ubuntu18.04
 WORKDIR /pkdgrav3
 ENTRYPOINT ["/usr/local/bin/pkdgrav3"]
-RUN apt-get update && apt-get install -y --no-install-recommends libgsl23 libhdf5-100 libmemkind0 && apt-get clean all
+RUN apt-get update && apt-get install -y --no-install-recommends libgsl23 libhdf5-100 libmemkind0 libhwloc5 && apt-get clean all
 COPY --from=builder /usr/local/bin/pkdgrav3 /usr/local/bin/
-COPY --from=builder /usr/local/lib/libmpi.so* /usr/local/lib/
-RUN ldconfig
+COPY --from=builder /usr/local/lib/libmpi.so.12.1.1 /usr/local/lib/
+RUN ln -s libmpi.so.12.1.1 /usr/local/lib/libmpi.so.12 && ln -s libmpi.so.12.1.1 /usr/local/lib/libmpi.so && ldconfig
