@@ -2,7 +2,7 @@ FROM nvidia/cuda:10.1-devel-ubuntu18.04 as pkdgrav3-build-mpich
 MAINTAINER Douglas Potter "douglas.potter@uzh.ch"
 ARG MPICH_VERSION=3.2.1
 ARG FFTW_VERSION=3.3.8
-RUN apt-get update && apt-get install -y autoconf automake cmake gcc g++ make gfortran wget git libgsl0-dev libhdf5-dev libmemkind-dev libhwloc-dev && apt-get clean all
+RUN apt-get update && apt-get install -y autoconf automake pkg-config cmake gcc g++ make gfortran wget git libgsl0-dev libhdf5-dev libmemkind-dev libhwloc-dev && apt-get clean all
 RUN mkdir build
 RUN cd /build && wget http://www.mpich.org/static/downloads/${MPICH_VERSION}/mpich-${MPICH_VERSION}.tar.gz\
   && tar xvzf mpich-${MPICH_VERSION}.tar.gz && cd /build/mpich-${MPICH_VERSION} \
