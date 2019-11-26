@@ -1,0 +1,4 @@
+You can run pkdgrav3 via a docker container. The containers are built using the
+recipe found in Dockerfile.mpich. To run you can use something like:
+
+docker container run -it --rm -v ${PWD}:/pkdgrav3 -u $(id -u ${USER}):$(id -g ${USER}) dpotter/pkdgrav3:3.0.3 cosmology.par
