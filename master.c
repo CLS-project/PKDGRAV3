@@ -203,6 +203,7 @@ static uint64_t getMemoryModel(MSR msr) {
 	if (!msr->param.bNewKDK) mMemoryModel |= PKD_MODEL_ACCELERATION;
 	}
     if (msr->param.bDoDensity)       mMemoryModel |= PKD_MODEL_DENSITY;
+    if (msr->param.bMemIntegerPosition) mMemoryModel |= PKD_MODEL_INTEGER_POS;
     if (msr->param.bMemUnordered)    mMemoryModel |= PKD_MODEL_UNORDERED;
     if (msr->param.bMemParticleID)   mMemoryModel |= PKD_MODEL_PARTICLE_ID;
     if (msr->param.bTraceRelaxation) mMemoryModel |= PKD_MODEL_RELAXATION;
@@ -252,11 +253,7 @@ void msrInitializePStore(MSR msr, uint64_t *nSpecies) {
 
 #define SHOW(m) ((ps.mMemoryModel&PKD_MODEL_##m)?" " #m:"")
        printf("Memory Models:%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s\n", 
-#ifdef INTEGER_POSITION
-	   " INTEGER_POSITION",
-#else
-	   " DOUBLE_POSITION",
-#endif
+	   msr->param.bMemIntegerPosition ? " INTEGER_POSITION" : " DOUBLE_POSITION",
 	   SHOW(UNORDERED),SHOW(VELOCITY),SHOW(ACCELERATION),SHOW(POTENTIAL),
 	   SHOW(GROUPS),SHOW(RELAXATION),SHOW(MASS),SHOW(DENSITY),
 	   SHOW(BALL),SHOW(SOFTENING),SHOW(VELSMOOTH),SHOW(SPH),
@@ -779,12 +776,10 @@ static int validateParameters(MDL mdl,CSM csm,PRM prm,struct parameters *param) 
     /*
     ** At the moment, integer positions are only really safe in periodic boxes!Wr
     */
-#ifdef INTEGER_POSITION
-    if (!param->bPeriodic||param->dxPeriod!=1.0||param->dyPeriod!=1.0||param->dzPeriod!=1.0) {
+    if (param->bMemIntegerPosition && (!param->bPeriodic||param->dxPeriod!=1.0||param->dyPeriod!=1.0||param->dzPeriod!=1.0)) {
 	fprintf(stderr,"WARNING: Integer coordinates are enabled but the the box is not periodic\n"
 	               "       and/or the box size is not 1. Set bPeriodic=1 and dPeriod=1.\n");
 	}
-#endif
 
     if (!prmSpecified(prm,"dTheta20")) param->dTheta20 = param->dTheta;
     if (!prmSpecified(prm,"dTheta2")) param->dTheta2 = param->dTheta20;
@@ -1393,6 +1388,9 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
 		sizeof(int),"wic","<Write IC after generating> = 0");
 
     /* Memory models */
+    msr->param.bMemIntegerPosition = 0;
+    prmAddParam(msr->prm,"bMemIntegerPosition",0,&msr->param.bMemIntegerPosition,
+		sizeof(int),"integer","<Particles have integerized positions> = -integer");
     msr->param.bMemUnordered = 0;
     prmAddParam(msr->prm,"bMemUnordered",0,&msr->param.bMemUnordered,
 		sizeof(int),"unordered","<Particles have no specific order> = -unordered");

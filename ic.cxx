@@ -618,10 +618,9 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	for(i=in->nMove-1; i>=0; --i) {
 	    PARTICLE *p = pkdParticle(pkd,i);
 	    vel_t *pVel = pkdVel(pkd,p);
-#ifdef INTEGER_POSITION
 	    // If we have no particle order convert directly to Integerized positions.
 	    // We do this to save space as an "Integer" particle is small.
-	    if (pkd->bNoParticleOrder) {
+	    if (pkd->bIntegerPosition && pkd->bNoParticleOrder) {
 		integerParticle *b = ((integerParticle *)in->pBase) + in->iStart + i;
 		integerParticle temp;
 		memcpy(&temp,b,sizeof(temp));
@@ -632,9 +631,7 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
 		pkdSetPosRaw(pkd,p,1,temp.r[1]);
 		pkdSetPosRaw(pkd,p,0,temp.r[0]);
 		}
-	    else
-#endif
-	    {
+	    else {
 		expandParticle *b = ((expandParticle *)in->pBase) + in->iStart + i;
 		expandParticle temp;
 		memcpy(&temp,b,sizeof(temp));
@@ -698,9 +695,7 @@ int pstMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	    else iUnderBeg += nPerNode - nOnNode;
 	    }
 	size_t nSize = sizeof(expandParticle);
-#ifdef INTEGER_POSITION
-	if (pkd->bNoParticleOrder) nSize = sizeof(integerParticle);
-#endif
+	if (pkd->bIntegerPosition && pkd->bNoParticleOrder) nSize = sizeof(integerParticle);
 	char *pBase = (char *)pkdParticleBase(pkd);
 	char *pRecv = pBase + nSize*nLocal;
 	char *eBase;
@@ -857,21 +852,18 @@ int pstGenerateIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
 		    assert(iz>=0);
 		    }
 		}
-#ifdef INTEGER_POSITION
 	    // If we have no particle order convert directly to Integerized positions.
 	    // We do this to save space as an "Integer" particle is small.
-	    if (pkd->bNoParticleOrder) {
+	    if (pkd->bIntegerPosition && pkd->bNoParticleOrder) {
 		integerParticle *p = &pbBase->i + i;
 		p->v[2] = temp.v[2];
 		p->v[1] = temp.v[1];
 		p->v[0] = temp.v[0];
-		p->r[2] = pkdDblToPos(pkd,temp.dr[2] + (iz+0.5) * inGrid - 0.5);
-		p->r[1] = pkdDblToPos(pkd,temp.dr[1] + (iy+0.5) * inGrid - 0.5);
-		p->r[0] = pkdDblToPos(pkd,temp.dr[0] + (ix+0.5) * inGrid - 0.5);
+		p->r[2] = pkdDblToIntPos(pkd,temp.dr[2] + (iz+0.5) * inGrid - 0.5);
+		p->r[1] = pkdDblToIntPos(pkd,temp.dr[1] + (iy+0.5) * inGrid - 0.5);
+		p->r[0] = pkdDblToIntPos(pkd,temp.dr[0] + (ix+0.5) * inGrid - 0.5);
 		}
-	    else
-#endif
-	    {
+	    else {
 		expandParticle *p = &pbBase->e + i;
 		p->v[2] = temp.v[2];
 		p->v[1] = temp.v[1];

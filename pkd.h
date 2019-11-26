@@ -52,14 +52,9 @@ static inline int64_t d2u64(double d) {
     return (uint64_t)d;
 }
 
-#ifdef INTEGER_POSITION
 #define INTEGER_FACTOR 0x80000000u
-#define pkdDblToPos(pkd,d) (pos_t)((d)*INTEGER_FACTOR)
-#define pkdPosToDbl(pkd,pos) ((pos)*(1.0/INTEGER_FACTOR))
-#else
-#define pkdDblToPos(pkd,d) (d)
-#define pkdPosToDbl(pkd,pos) (pos)
-#endif
+#define pkdDblToIntPos(pkd,d) (int32_t)((d)*INTEGER_FACTOR)
+#define pkdIntPosToDbl(pkd,pos) ((pos)*(1.0/INTEGER_FACTOR))
 
 /*
 ** Handy type punning macro.
@@ -115,6 +110,7 @@ static inline int64_t d2u64(double d) {
 #define PKD_MODEL_STAR         (1<<12) /* Star Fields */
 #define PKD_MODEL_PARTICLE_ID  (1<<13) /* Particles have a unique ID */
 #define PKD_MODEL_UNORDERED    (1<<14) /* Particles do not have an order */
+#define PKD_MODEL_INTEGER_POS  (1<<15) /* Particles do not have an order */
 
 #define PKD_MODEL_NODE_MOMENT  (1<<24) /* Include moment in the tree */
 #define PKD_MODEL_NODE_ACCEL   (1<<25) /* mean accel on cell (for grav step) */
@@ -191,12 +187,10 @@ typedef struct bndBound {
     double fCenter[3];
     double fMax[3];
     } BND;
-#ifdef INTEGER_POSITION
 typedef struct {
-    pos_t fCenter[3];
-    pos_t fMax[3];
+    int32_t fCenter[3];
+    int32_t fMax[3];
     } IBND;
-#endif
 
 #define BND_COMBINE(b,b1,b2)\
 {\
@@ -581,7 +575,7 @@ typedef struct {
     } FOFRemote;
 
 typedef struct {
-    pos_t rPot[3];
+    float rPot[3];
     float minPot;
     float rcen[3];
     float rcom[3];
@@ -782,6 +776,7 @@ typedef struct pkdContext {
     ** Advanced memory models
     */
     int bNoParticleOrder;
+    int bIntegerPosition;
     int oPosition;
     int oAcceleration; /* Three float */
     int oVelocity; /* Three vel_t */
@@ -801,7 +796,7 @@ typedef struct pkdContext {
     /*
     ** Advanced memory models - Tree Nodes
     */
-    int oNodePosition; /* Three pos_t */
+    int oNodePosition; /* Three double or int32_t (if bIntegerPosition) */
     int oNodeVelocity; /* Three vel_t */
     int oNodeAcceleration; /* Three doubles */
     int oNodeSoft;
@@ -998,16 +993,32 @@ static inline SPHBNDS *pkdNodeSphBounds( PKD pkd, KDN *n ) {
     }
 
 static inline void pkdNodeGetPos(PKD pkd,KDN *n,double *r) {
-    pos_t *pr = CAST(pos_t *,pkdNodeField(n,pkd->oNodePosition));
-    r[0] = pkdPosToDbl(pkd,pr[0]);
-    r[1] = pkdPosToDbl(pkd,pr[1]);
-    r[2] = pkdPosToDbl(pkd,pr[2]);
+    if (pkd->bIntegerPosition) {
+	int32_t *pr = CAST(int32_t *,pkdNodeField(n,pkd->oNodePosition));
+	r[0] = pkdIntPosToDbl(pkd,pr[0]);
+	r[1] = pkdIntPosToDbl(pkd,pr[1]);
+	r[2] = pkdIntPosToDbl(pkd,pr[2]);
+	}
+    else {
+	double *pr = CAST(double *,pkdNodeField(n,pkd->oNodePosition));
+	r[0] = pr[0];
+	r[1] = pr[1];
+	r[2] = pr[2];
+	}
     }
 static inline void pkdNodeSetPos3(PKD pkd,KDN *n,double x, double y, double z) {
-    pos_t *pr = CAST(pos_t *,pkdNodeField(n,pkd->oNodePosition));
-    pr[0] = pkdDblToPos(pkd,x);
-    pr[1] = pkdDblToPos(pkd,y);
-    pr[2] = pkdDblToPos(pkd,z);
+    if (pkd->bIntegerPosition) {
+	int32_t *pr = CAST(int32_t *,pkdNodeField(n,pkd->oNodePosition));
+	pr[0] = pkdDblToIntPos(pkd,x);
+	pr[1] = pkdDblToIntPos(pkd,y);
+	pr[2] = pkdDblToIntPos(pkd,z);
+	}
+    else {
+	double *pr = CAST(double *,pkdNodeField(n,pkd->oNodePosition));
+	pr[0] = x;
+	pr[1] = y;
+	pr[2] = z;
+	}
     }
 static inline void pkdNodeSetPos1(PKD pkd,KDN *n,const double *r) {
     pkdNodeSetPos3(pkd,n,r[0],r[1],r[2]);
@@ -1017,32 +1028,32 @@ static inline BND *pkdNodeBndPRIVATE( PKD pkd, KDN *n ) {
     return CAST(BND *,pkdNodeField(n,pkd->oNodeBnd));
     }
 static inline BND pkdNodeGetBnd( PKD pkd, KDN *n ) {
-#ifdef INTEGER_POSITION
-    IBND *ibnd = (IBND *)pkdNodeField(n,pkd->oNodeBnd);
-    BND bnd;
-    bnd.fCenter[0] = pkdPosToDbl(pkd,ibnd->fCenter[0]);
-    bnd.fCenter[1] = pkdPosToDbl(pkd,ibnd->fCenter[1]);
-    bnd.fCenter[2] = pkdPosToDbl(pkd,ibnd->fCenter[2]);
-    bnd.fMax[0] = pkdPosToDbl(pkd,ibnd->fMax[0]);
-    bnd.fMax[1] = pkdPosToDbl(pkd,ibnd->fMax[1]);
-    bnd.fMax[2] = pkdPosToDbl(pkd,ibnd->fMax[2]);
-    return bnd;
-#else
-    return *pkdNodeBndPRIVATE(pkd,n);
-#endif
+    if (pkd->bIntegerPosition) {
+	IBND *ibnd = (IBND *)pkdNodeField(n,pkd->oNodeBnd);
+	BND bnd;
+	bnd.fCenter[0] = pkdIntPosToDbl(pkd,ibnd->fCenter[0]);
+	bnd.fCenter[1] = pkdIntPosToDbl(pkd,ibnd->fCenter[1]);
+	bnd.fCenter[2] = pkdIntPosToDbl(pkd,ibnd->fCenter[2]);
+	bnd.fMax[0] = pkdIntPosToDbl(pkd,ibnd->fMax[0]);
+	bnd.fMax[1] = pkdIntPosToDbl(pkd,ibnd->fMax[1]);
+	bnd.fMax[2] = pkdIntPosToDbl(pkd,ibnd->fMax[2]);
+	return bnd;
+	}
+    else return *pkdNodeBndPRIVATE(pkd,n);
     }
 static inline void pkdNodeSetBnd( PKD pkd, KDN *n, const BND *bnd ) {
-#ifdef INTEGER_POSITION
-    IBND *ibnd = (IBND *)pkdNodeField(n,pkd->oNodeBnd);
-    ibnd->fCenter[0] = pkdDblToPos(pkd,bnd->fCenter[0]);
-    ibnd->fCenter[1] = pkdDblToPos(pkd,bnd->fCenter[1]);
-    ibnd->fCenter[2] = pkdDblToPos(pkd,bnd->fCenter[2]);
-    ibnd->fMax[0] = pkdDblToPos(pkd,bnd->fMax[0]);
-    ibnd->fMax[1] = pkdDblToPos(pkd,bnd->fMax[1]);
-    ibnd->fMax[2] = pkdDblToPos(pkd,bnd->fMax[2]);
-#else
-    *pkdNodeBndPRIVATE(pkd,n) = *bnd;
-#endif
+    if (pkd->bIntegerPosition) {
+	IBND *ibnd = (IBND *)pkdNodeField(n,pkd->oNodeBnd);
+	ibnd->fCenter[0] = pkdDblToIntPos(pkd,bnd->fCenter[0]);
+	ibnd->fCenter[1] = pkdDblToIntPos(pkd,bnd->fCenter[1]);
+	ibnd->fCenter[2] = pkdDblToIntPos(pkd,bnd->fCenter[2]);
+	ibnd->fMax[0] = pkdDblToIntPos(pkd,bnd->fMax[0]);
+	ibnd->fMax[1] = pkdDblToIntPos(pkd,bnd->fMax[1]);
+	ibnd->fMax[2] = pkdDblToIntPos(pkd,bnd->fMax[2]);
+	}
+    else {
+	*pkdNodeBndPRIVATE(pkd,n) = *bnd;
+	}
     }
 
 static inline void pkdNodeSetBndMinMax( PKD pkd, KDN *n, double *dMin, double *dMax ) {
@@ -1062,8 +1073,16 @@ static inline BND *pkdNodeVBnd( PKD pkd, KDN *n ) {
 static inline KDN *pkdNode(PKD pkd,KDN *pBase,int iNode) {
     return (KDN *)&((char *)pBase)[pkd->iTreeNodeSize*iNode];
     }
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 int pkdNodes(PKD pkd);
 void pkdExtendTree(PKD pkd);
+#ifdef __cplusplus
+}
+#endif
+
 static inline KDN *pkdTreeNode(PKD pkd,int iNode) {
     char *kdn = &pkd->kdNodeListPRIVATE[(iNode>>pkd->nTreeBitsLo)][pkd->iTreeNodeSize*(iNode&pkd->iTreeMask)];
     return (KDN *)kdn;
@@ -1090,7 +1109,13 @@ static inline void pkdTreeAllocRootNode(PKD pkd,int *iRoot) {
     pkdTreeAllocNodePair(pkd,NULL,iRoot);
     }
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 void *pkdTreeNodeGetElement(void *vData,int i,int iDataSize);
+#ifdef __cplusplus
+}
+#endif
 //static inline KDN *pkdTopNode(PKD pkd,int iNode) {
 //    assert(0); // no top tree now
 //    }
@@ -1207,41 +1232,28 @@ static inline FIO_SPECIES pkdSpecies( PKD pkd, PARTICLE *p ) {
 ** The situation is more complicated with non-periodic boxes, or for boxes
 ** with a different period so this is not currently supported.
 */
-#define pkdPosRaw(pkd,p,d) (CAST(pos_t *,pkdField(p,pkd->oPosition))[d])
-#define pkdSetPosRaw(pkd,p,d,v) (CAST(pos_t *,pkdField(p,pkd->oPosition))[d]) = (v)
-#ifdef INTEGER_POSITION
-#define pkdPos(pkd,p,d) pkdPosToDbl(pkd,CAST(pos_t *,pkdField(p,pkd->oPosition))[d])
-#define pkdSetPos(pkd,p,d,v) (void)((CAST(pos_t *,pkdField(p,pkd->oPosition))[d]) = pkdDblToPos(pkd,v))
-#if defined(__AVX__) && defined(USE_SIMD)
-static inline void pkdSetPosRaw1xx(PKD pkd,PARTICLE *p,__m128i v) {
-    pos_t *r = (pos_t *)pkdField(p,pkd->oPosition);
-    r[0] = _mm_extract_epi32 (v,0);
-    r[1] = _mm_extract_epi32 (v,1);
-    r[2] = _mm_extract_epi32 (v,2);
-//    _mm_maskmoveu_si128 (v,_mm_setr_epi32(-1,-1,-1,0), pkdField(p,pkd->oPosition));
+#define pkdPosRaw(pkd,p,d) (CAST(int32_t *,pkdField(p,pkd->oPosition))[d])
+#define pkdSetPosRaw(pkd,p,d,v) (CAST(int32_t *,pkdField(p,pkd->oPosition))[d]) = (v)
+
+static inline double pkdPos(PKD pkd,PARTICLE *p,int d) {
+    if (pkd->bIntegerPosition) return pkdIntPosToDbl(pkd,CAST(int32_t *,pkdField(p,pkd->oPosition))[d]);
+    else return CAST(double *,pkdField(p,pkd->oPosition))[d];
     }
+static inline void pkdSetPos(PKD pkd,PARTICLE *p,int d,double v) {
+    if (pkd->bIntegerPosition) CAST(int32_t *,pkdField(p,pkd->oPosition))[d] = pkdDblToIntPos(pkd,v);
+    else CAST(double *,pkdField(p,pkd->oPosition))[d] = v;
+    }
+#define pkdGetPos3(pkd,p,d1,d2,d3) ((d1)=pkdPos(pkd,p,0),(d2)=pkdPos(pkd,p,1),(d3)=pkdPos(pkd,p,2))
+#define pkdGetPos1(pkd,p,d) pkdGetPos3(pkd,p,(d)[0],(d)[1],(d)[2])
+
+#if defined(__AVX__) && defined(USE_SIMD)
 static inline __m128i pkdGetPosRaw(PKD pkd,PARTICLE *p) {
     return _mm_loadu_si128((__m128i *)pkdField(p,pkd->oPosition));
     }
 static inline __m256d pkdGetPos(PKD pkd,PARTICLE *p) {
     return _mm256_mul_pd(_mm256_cvtepi32_pd(pkdGetPosRaw(pkd,p)),_mm256_set1_pd(1.0/INTEGER_FACTOR));
     }
-#define pkdGetPos3(pkd,p,d1,d2,d3) do {					\
-	union { __m256d P; double D[4]; } r_pkdGetPos3;			\
-	r_pkdGetPos3.P = pkdGetPos(pkd,p);				\
-	d1 = r_pkdGetPos3.D[0];						\
-	d2 = r_pkdGetPos3.D[1];						\
-	d3 = r_pkdGetPos3.D[2];						\
-	} while(0)
-#else
-#define pkdGetPos3(pkd,p,d1,d2,d3) do { d1=pkdPos(pkd,p,0); d2=pkdPos(pkd,p,1); d3=pkdPos(pkd,p,2); } while(0)
 #endif
-#else
-#define pkdPos(pkd,p,d) (CAST(pos_t *,pkdField(p,pkd->oPosition))[d])
-#define pkdSetPos(pkd,p,d,v) (void)((CAST(pos_t *,pkdField(p,pkd->oPosition))[d]) = (v))
-#define pkdGetPos3(pkd,p,d1,d2,d3) ((d1)=pkdPos(pkd,p,0),(d2)=pkdPos(pkd,p,1),(d3)=pkdPos(pkd,p,2))
-#endif
-#define pkdGetPos1(pkd,p,d) pkdGetPos3(pkd,p,(d)[0],(d)[1],(d)[2])
 
 static inline vel_t *pkdVel( PKD pkd, PARTICLE *p ) {
     return CAST(vel_t *,pkdField(p,pkd->oVelocity));
@@ -1310,6 +1322,10 @@ static inline int pkdIsDeleted(PKD pkd,PARTICLE *p) {
 static inline int pkdIsNew(PKD pkd,PARTICLE *p) {
     return (p->iOrder == IORDERMAX);
     }
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /*
 ** From tree.c:
@@ -1410,16 +1426,10 @@ void pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     double *pdCell,double *pdCellNumAccess,double *pdCellMissRatio,
     double *pdFlop,uint64_t *pnRung);
 void pkdCalcEandL(PKD pkd,double *T,double *U,double *Eth,double *L,double *F,double *W);
-#ifdef __cplusplus
-extern "C" {
-#endif
 void pkdProcessLightCone(PKD pkd,PARTICLE *p,float fPot,double dLookbackFac,double dLookbackFacLCP,
 			double dDriftDelta,double dKickDelta,double dBoxSize,int bLightConeParticles);
 void pkdGravEvalPP(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINFOOUT *pOut );
 void pkdGravEvalPC(PINFOIN *pPart, int nBlocks, int nInLast, ILC_BLK *blk,  PINFOOUT *pOut );
-#ifdef __cplusplus
-}
-#endif
 void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double,double);
 void pkdScaleVel(PKD pkd,double dvFac);
 void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, double dTime, double dDelta,
@@ -1565,6 +1575,9 @@ struct outGetParticles { /* Array of these */
     float    r[3], v[3];
     };
 int pkdGetParticles(PKD pkd, int nIn, uint64_t *ID, struct outGetParticles *out);
+#ifdef __cplusplus
+}
+#endif
 
 #ifdef __cplusplus
 extern "C" {
