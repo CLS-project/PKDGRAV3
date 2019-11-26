@@ -18,6 +18,8 @@
 #ifndef IC_H
 #define IC_H
 
+#include <stdint.h>
+
 typedef struct {
     float dr[3];
     float v[3];

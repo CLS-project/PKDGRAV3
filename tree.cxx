@@ -165,26 +165,33 @@ void pkdDumpTrees(PKD pkd,int bOnlyVA, uint8_t uRungDD) {
 
 #define MIN_SRATIO    0.05
 
+
+template<class split_t>
+static split_t PosRaw(PKD pkd,PARTICLE *p, int d) {
+    return reinterpret_cast<split_t *>(pkdField(p,pkd->oPosition))[d];
+    }
+
 /*
 ** Partition the particles between pLower and pUpper (inclusive)
 ** around "Split" in dimension "d". Return the index of the split.
 */
-static int PartPart(PKD pkd,int pLower,int pUpper,int d,pos_t Split) {
+template<class split_t>
+static int PartPart(PKD pkd,int pLower,int pUpper,int d,split_t Split) {
 	PARTICLE *pi = pkdParticle(pkd,pLower);
 	PARTICLE *pj = pkdParticle(pkd,pUpper);
 	while (pi <= pj) {
-	    if (pkdPosRaw(pkd,pi,d) < Split) pi = (PARTICLE *)(((char *)pi) + pkdParticleSize(pkd));
+	    if (PosRaw<split_t>(pkd,pi,d) < Split) pi = (PARTICLE *)(((char *)pi) + pkdParticleSize(pkd));
 	    else break;
 	    }
 	while (pi <= pj) {
-	    if (Split < pkdPosRaw(pkd,pj,d)) pj = (PARTICLE *)(((char *)pj) - pkdParticleSize(pkd));
+	    if (Split < PosRaw<split_t>(pkd,pj,d)) pj = (PARTICLE *)(((char *)pj) - pkdParticleSize(pkd));
 	    else break;
 	    }
 	if (pi < pj) {
 	    pkdSwapParticle(pkd,pi,pj);
 	    while (1) {
-		while (pkdPosRaw(pkd,(pi = (PARTICLE *)(((char *)pi) + pkdParticleSize(pkd))),d) < Split);
-		while (Split < pkdPosRaw(pkd,(pj = (PARTICLE *)(((char *)pj) - pkdParticleSize(pkd))),d));
+		while (PosRaw<split_t>(pkd,(pi = (PARTICLE *)(((char *)pi) + pkdParticleSize(pkd))),d) < Split);
+		while (Split < PosRaw<split_t>(pkd,(pj = (PARTICLE *)(((char *)pj) - pkdParticleSize(pkd))),d));
 		if (pi < pj) {
 		    pkdSwapParticle(pkd,pi,pj);
 		    }
@@ -206,7 +213,6 @@ void BuildTemp(PKD pkd,int iNode,int M,int nGroup,double dMaxMax) {
     BND bnd,lbnd,rbnd;
     KDN *pLeft, *pRight;
     double lrMax;
-    pos_t Split; /* Integer or double */
     int *S;		/* this is the stack */
     int s,ns;
     int iLeft,iRight;
@@ -246,13 +252,16 @@ void BuildTemp(PKD pkd,int iNode,int M,int nGroup,double dMaxMax) {
 	    }
 	else if (bnd.fMax[0] < bnd.fMax[2]) d = 2;
 	else d = 0;
-	Split = pkdDblToPos(pkd,bnd.fCenter[d]);
 	pNode->iSplitDim = d;
 	/*
 	** Now start the partitioning of the particles about
 	** fSplit on dimension given by d.
 	*/
-	i = PartPart(pkd,pNode->pLower,pNode->pUpper,d,Split);
+	if (pkd->bIntegerPosition) {
+	    int32_t Split = pkdDblToIntPos(pkd,bnd.fCenter[d]);
+	    i = PartPart(pkd,pNode->pLower,pNode->pUpper,d,Split);
+	    }
+	else i = PartPart(pkd,pNode->pLower,pNode->pUpper,d,bnd.fCenter[d]);
 	nl = i - pNode->pLower;
 	nr = pNode->pUpper - i + 1;
 	if (nl > 0 && nr > 0) {
@@ -421,7 +430,6 @@ void BuildFromTemplate(PKD pkd,int iNode,int M,int nGroup,int iTemplate) {
     BND tbnd, ltbnd, rtbnd;
 
     double dSplit;
-    pos_t Split;
     int d;
     int i, j, nr, nl;
     int ns,s;
@@ -467,10 +475,13 @@ void BuildFromTemplate(PKD pkd,int iNode,int M,int nGroup,int iTemplate) {
 	    rtbnd = pkdNodeGetBnd(pkd, ptRight=pkdTreeNode(pkd,pTemp->iLower+1));
 	    assert(ltbnd.fCenter[d] < rtbnd.fCenter[d]);
 	    dSplit = 0.5 * (ltbnd.fCenter[d] + ltbnd.fMax[d] + rtbnd.fCenter[d] - rtbnd.fMax[d]);
-	    Split = pkdDblToPos(pkd,dSplit);
 
 	    // Partition the particles on either side of the split
-	    i = PartPart(pkd,pNode->pLower,pNode->pUpper,d,Split);
+	    if (pkd->bIntegerPosition) {
+		int32_t Split = pkdDblToIntPos(pkd,dSplit);
+		i = PartPart(pkd,pNode->pLower,pNode->pUpper,d,Split);
+		}
+	    else i = PartPart(pkd,pNode->pLower,pNode->pUpper,d,dSplit);
 	    nl = i - pNode->pLower;
 	    nr = pNode->pUpper - i + 1;
 	    assert(nl>0 || nr>0);
@@ -639,61 +650,54 @@ void Create(PKD pkd,int iRoot) {
 	*/
 	pj = pkdn->pLower;
 	p = pkdParticle(pkd,pj);
-#if defined(__AVX__) && defined(INTEGER_POSITION) && defined(USE_SIMD)
-	__m256d vmin, vmax;
-#if defined(INTEGER_POSITION)
-	__m128i ivmin, ivmax;
-	ivmin = ivmax = pkdGetPosRaw(pkd,p);
-	for (++pj;pj<=pkdn->pUpper;++pj) {
-	    p = pkdParticle(pkd,pj);
-	    __m128i v = pkdGetPosRaw(pkd,p);
-	    ivmin = _mm_min_epi32(ivmin,v);
-	    ivmax = _mm_max_epi32(ivmax,v);
+#if defined(__AVX__) && defined(USE_SIMD)
+	if (pkd->bIntegerPosition) {
+	    __m256d vmin, vmax;
+	    __m128i ivmin, ivmax;
+	    ivmin = ivmax = pkdGetPosRaw(pkd,p);
+	    for (++pj;pj<=pkdn->pUpper;++pj) {
+		p = pkdParticle(pkd,pj);
+		__m128i v = pkdGetPosRaw(pkd,p);
+		ivmin = _mm_min_epi32(ivmin,v);
+		ivmax = _mm_max_epi32(ivmax,v);
+		}
+	    vmin = _mm256_mul_pd(_mm256_cvtepi32_pd(ivmin),_mm256_set1_pd(1.0/INTEGER_FACTOR) );
+	    vmax = _mm256_mul_pd(_mm256_cvtepi32_pd(ivmax),_mm256_set1_pd(1.0/INTEGER_FACTOR) );
+	    union {
+		double d[4];
+		__m256d p;
+    		} dout;
+	    dout.p = _mm256_mul_pd(_mm256_set1_pd(0.5),_mm256_add_pd(vmax,vmin));
+	    bnd.fCenter[0] = dout.d[0];
+	    bnd.fCenter[1] = dout.d[1];
+	    bnd.fCenter[2] = dout.d[2];
+	    dout.p = _mm256_mul_pd(_mm256_set1_pd(0.5),_mm256_sub_pd(vmax,vmin));
+	    bnd.fMax[0] = dout.d[0];
+	    bnd.fMax[1] = dout.d[1];
+	    bnd.fMax[2] = dout.d[2];
 	    }
-	vmin = _mm256_mul_pd(_mm256_cvtepi32_pd(ivmin),_mm256_set1_pd(1.0/INTEGER_FACTOR) );
-	vmax = _mm256_mul_pd(_mm256_cvtepi32_pd(ivmax),_mm256_set1_pd(1.0/INTEGER_FACTOR) );
-#else
-	vmin = vmax = pkdGetPos(pkd,p);
-	for (++pj;pj<=pkdn->pUpper;++pj) {
-	    p = pkdParticle(pkd,pj);
-	    __m256d v = pkdGetPos(pkd,p);
-	    vmin = _mm256_min_pd(vmin,v);
-	    vmax = _mm256_max_pd(vmin,v);
-	    }
+	else
 #endif
-	union {
-	    double d[4];
-	    __m256d p;
-    	    } dout;
-	dout.p = _mm256_mul_pd(_mm256_set1_pd(0.5),_mm256_add_pd(vmax,vmin));
-	bnd.fCenter[0] = dout.d[0];
-	bnd.fCenter[1] = dout.d[1];
-	bnd.fCenter[2] = dout.d[2];
-	dout.p = _mm256_mul_pd(_mm256_set1_pd(0.5),_mm256_sub_pd(vmax,vmin));
-	bnd.fMax[0] = dout.d[0];
-	bnd.fMax[1] = dout.d[1];
-	bnd.fMax[2] = dout.d[2];
-
-#else
-	pkdGetPos1(pkd,p,ft);
-	for (d=0;d<3;++d) {
-	    bnd.fCenter[d] = ft[d];
-	    bnd.fMax[d] = ft[d];
-	    }
-	for (++pj;pj<=pkdn->pUpper;++pj) {
-	    p = pkdParticle(pkd,pj);
+	{
 	    pkdGetPos1(pkd,p,ft);
 	    for (d=0;d<3;++d) {
-		if (ft[d] < bnd.fCenter[d]) bnd.fCenter[d] = ft[d];
-		else if (ft[d] > bnd.fMax[d]) bnd.fMax[d] = ft[d];
+		bnd.fCenter[d] = ft[d];
+		bnd.fMax[d] = ft[d];
+		}
+	    for (++pj;pj<=pkdn->pUpper;++pj) {
+		p = pkdParticle(pkd,pj);
+		pkdGetPos1(pkd,p,ft);
+		for (d=0;d<3;++d) {
+		    if (ft[d] < bnd.fCenter[d]) bnd.fCenter[d] = ft[d];
+		    else if (ft[d] > bnd.fMax[d]) bnd.fMax[d] = ft[d];
+		    }
+		}
+	    for (d=0;d<3;++d) {
+		ft[d] = bnd.fCenter[d];
+		bnd.fCenter[d] = 0.5*(bnd.fMax[d] + ft[d]);
+		bnd.fMax[d] = 0.5*(bnd.fMax[d] - ft[d]);
 		}
 	    }
-	for (d=0;d<3;++d) {
-	    ft[d] = bnd.fCenter[d];
-	    bnd.fCenter[d] = 0.5*(bnd.fMax[d] + ft[d]);
-	    bnd.fMax[d] = 0.5*(bnd.fMax[d] - ft[d]);
-	    }
-#endif
         pkdNodeSetBnd(pkd, pkdn, &bnd);
 	pj = pkdn->pLower;
 	p = pkdParticle(pkd,pj);
@@ -756,26 +760,30 @@ void Create(PKD pkd,int iRoot) {
 	d2Max = 0.0;
 	for (pj=pkdn->pLower;pj<=pkdn->pUpper;++pj) {
 	    p = pkdParticle(pkd,pj);
-#if defined(__AVX__) && defined(INTEGER_POSITION) && defined(USE_SIMD)
-	    __m256d v = _mm256_sub_pd(pkdGetPos(pkd,p),_mm256_setr_pd(kdn_r[0],kdn_r[1],kdn_r[2],0.0));
-	    v = _mm256_mul_pd(v,v);
-	    __m128d t0 = _mm256_extractf128_pd(v,0);
-	    __m128d t2 = _mm256_extractf128_pd(v,1);
-	    __m128d t1 = _mm_unpackhi_pd(t0,t0);
-	    t0 = _mm_add_sd(t0,t2);
-	    t0 = _mm_add_sd(t0,t1);
-	    d2Max = _mm_cvtsd_f64(_mm_max_sd(t0,_mm_set_sd(d2Max)));
-#else
-	    pkdGetPos1(pkd,p,ft);
-	    x = ft[0] - kdn_r[0];
-	    y = ft[1] - kdn_r[1];
-	    z = ft[2] - kdn_r[2];
-	    d2 = x*x + y*y + z*z;
-	    /*
-	    ** Update bounding ball and softened bounding ball.
-	    */
-	    d2Max = (d2 > d2Max)?d2:d2Max;
+#if defined(__AVX__) && defined(USE_SIMD)
+	    if (pkd->bIntegerPosition) {
+		__m256d v = _mm256_sub_pd(pkdGetPos(pkd,p),_mm256_setr_pd(kdn_r[0],kdn_r[1],kdn_r[2],0.0));
+		v = _mm256_mul_pd(v,v);
+		__m128d t0 = _mm256_extractf128_pd(v,0);
+		__m128d t2 = _mm256_extractf128_pd(v,1);
+		__m128d t1 = _mm_unpackhi_pd(t0,t0);
+		t0 = _mm_add_sd(t0,t2);
+		t0 = _mm_add_sd(t0,t1);
+		d2Max = _mm_cvtsd_f64(_mm_max_sd(t0,_mm_set_sd(d2Max)));
+	    }
+	    else
 #endif
+	    {
+		pkdGetPos1(pkd,p,ft);
+		x = ft[0] - kdn_r[0];
+		y = ft[1] - kdn_r[1];
+		z = ft[2] - kdn_r[2];
+		d2 = x*x + y*y + z*z;
+		/*
+		** Update bounding ball and softened bounding ball.
+		*/
+		d2Max = (d2 > d2Max)?d2:d2Max;
+		}
 	    }
 #ifdef USE_MAXSIDE
         MAXSIDE(bnd.fMax,b);
@@ -876,23 +884,27 @@ void Create(PKD pkd,int iRoot) {
 		d2Max = 0;
 		for (;pj<=pkdn->pUpper;++pj) {
 		    p = pkdParticle(pkd,pj);
-#if defined(__AVX__) && defined(INTEGER_POSITION) && defined(USE_SIMD)
-		    __m256d v = _mm256_sub_pd(pkdGetPos(pkd,p),_mm256_setr_pd(kdn_r[0],kdn_r[1],kdn_r[2],0.0));
-		    v = _mm256_mul_pd(v,v);
-		    __m128d t0 = _mm256_extractf128_pd(v,0);
-		    __m128d t2 = _mm256_extractf128_pd(v,1);
-		    __m128d t1 = _mm_unpackhi_pd(t0,t0);
-		    t0 = _mm_add_sd(t0,t2);
-		    t0 = _mm_add_sd(t0,t1);
-		    d2Max = _mm_cvtsd_f64(_mm_max_sd(t0,_mm_set_sd(d2Max)));
-#else
-		    pkdGetPos3(pkd,p,x,y,z);
-		    x -= kdn_r[0];
-		    y -= kdn_r[1];
-		    z -= kdn_r[2];
-		    d2 = x*x + y*y + z*z;
-		    d2Max = (d2 > d2Max)?d2:d2Max;
+#if defined(__AVX__) && defined(USE_SIMD)
+		    if (pkd->bIntegerPosition) {
+			__m256d v = _mm256_sub_pd(pkdGetPos(pkd,p),_mm256_setr_pd(kdn_r[0],kdn_r[1],kdn_r[2],0.0));
+			v = _mm256_mul_pd(v,v);
+			__m128d t0 = _mm256_extractf128_pd(v,0);
+			__m128d t2 = _mm256_extractf128_pd(v,1);
+			__m128d t1 = _mm_unpackhi_pd(t0,t0);
+			t0 = _mm_add_sd(t0,t2);
+			t0 = _mm_add_sd(t0,t1);
+			d2Max = _mm_cvtsd_f64(_mm_max_sd(t0,_mm_set_sd(d2Max)));
+			}
+		    else
 #endif
+		    {
+			pkdGetPos3(pkd,p,x,y,z);
+			x -= kdn_r[0];
+			y -= kdn_r[1];
+			z -= kdn_r[2];
+			d2 = x*x + y*y + z*z;
+			d2Max = (d2 > d2Max)?d2:d2Max;
+			}
 		    }
 		assert(d2Max>0);
 		/*
@@ -1118,8 +1130,8 @@ void pkdTreeBuildByGroup(PKD pkd, int nBucket, int nGroup) {
 
     if (pkd->hopSavedRoots == 0) {
 	/* Sort particle by group, but with group 0 at the end */
-	int *iGrpOffset = malloc(sizeof(int)*(pkd->nGroups+1));
-	int *iGrpEnd = malloc(sizeof(int)*(pkd->nGroups+1));
+	int *iGrpOffset = CAST(int *,malloc(sizeof(int)*(pkd->nGroups+1)));
+	int *iGrpEnd = CAST(int *,malloc(sizeof(int)*(pkd->nGroups+1)));
 
 	/* Count the number of particles in each group */
 	for (i=0; i<=pkd->nGroups;++i) iGrpOffset[i] = 0;

@@ -74,9 +74,7 @@ Configuration
 Integer Positions
 
   This option saves memory and provides sufficient accuracy for cosmological simulations.
-  Only periodic boxes are supported. Enable by setting INTEGER_POSITION when running cmake.
-
-    cmake -DINTEGER_POSITION=True ...
+  Only periodic boxes are supported. This is now supported by setting bIntegerPosition at runtime.
 
 Potentials in Lightcone particle output
 
