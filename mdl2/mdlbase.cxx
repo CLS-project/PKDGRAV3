@@ -40,130 +40,141 @@ static int _srvNull(void *p1, void *vin, int nIn, void *vout, int nOut) {
     return 0;
     }
 
-void mdlBaseInitialize(mdlBASE *base,int argc,char **argv) {
+mdlBASE::mdlBASE(int argc,char **argv) {
     int i;
 
 #ifdef _MSC_VER
     WSADATA wsaData;
     WSAStartup(0x202, &wsaData);
 #endif
-    if (gethostname(base->nodeName, sizeof(base->nodeName)))
-        base->nodeName[0] = 0;
+    if (gethostname(nodeName, sizeof(nodeName)))
+        nodeName[0] = 0;
     else
-        base->nodeName[sizeof(base->nodeName) - 1] = 0;
+        nodeName[sizeof(nodeName) - 1] = 0;
 
-    base->bDiag = 0;
-    base->fpDiag = NULL;
+    bDiag = 0;
+    fpDiag = NULL;
 
-    base->argc = argc;
-    base->argv = argv;
+    this->argc = argc;
+    this->argv = argv;
 
     /* Some sensible defaults */
-    base->nThreads = 1;
-    base->idSelf = 0;
-    base->nProcs = 1;
-    base->iProc = 0;
-    base->nCores = 1;
-    base->iCore = 0;
-    base->iProcToThread = NULL;
-    base->nTicks = 0;
+    nThreads = 1;
+    idSelf = 0;
+    nProcs = 1;
+    iProc = 0;
+    nCores = 1;
+    iCore = 0;
+    iProcToThread = NULL;
+    nTicks = 0;
 
     /*
     ** Set default "maximums" for structures. These are NOT hard
     ** maximums, as the structures will be realloc'd when these
     ** values are exceeded.
     */
-    base->nMaxServices = MDL_DEFAULT_SERVICES;
-    base->nMaxInBytes  = 0;
-    base->nMaxOutBytes = 0;
+    nMaxServices = MDL_DEFAULT_SERVICES;
+    nMaxInBytes  = 0;
+    nMaxOutBytes = 0;
     /*
     ** Now allocate the initial service slots.
     */
-    base->psrv = malloc(base->nMaxServices*sizeof(SERVICE));
-    assert(base->psrv != NULL);
+    psrv = (SERVICE *)malloc(nMaxServices*sizeof(SERVICE));
+    assert(psrv != NULL);
     /*
     ** Provide a 'null' service for sid = 0, so that stopping the
     ** service handler is well defined!
     */
-    base->psrv[0].p1 = NULL;
-    base->psrv[0].nInBytes = 0;
-    base->psrv[0].nOutBytes = 0;
-    base->psrv[0].fcnService = _srvNull;
+    psrv[0].p1 = NULL;
+    psrv[0].nInBytes = 0;
+    psrv[0].nOutBytes = 0;
+    psrv[0].fcnService = _srvNull;
     /*
     ** Initialize the remaining new service slots.
     */
-    for (i = 1; i<base->nMaxServices; ++i) {
-        base->psrv[i].p1 = NULL;
-        base->psrv[i].nInBytes = 0;
-        base->psrv[i].nOutBytes = 0;
-        base->psrv[i].fcnService = NULL;
+    for (i = 1; i<nMaxServices; ++i) {
+        psrv[i].p1 = NULL;
+        psrv[i].nInBytes = 0;
+        psrv[i].nOutBytes = 0;
+        psrv[i].fcnService = NULL;
         }
     }
 
-/* O(1): Given a process id, return the first global thread id */
-int mdlBaseProcToThread(mdlBASE *base, int iProc) {
-    assert(iProc >= 0 && iProc <= base->nProcs);
-    return base->iProcToThread[iProc];
-    }
-
-/* O(l2(nProc)): Given a global thread id, return the process to which it belongs */
-int mdlBaseThreadToProc(mdlBASE *base, int iThread) {
-    int l=0, u=base->nProcs;
-    assert(iThread >= 0 && iThread <= base->nThreads);
-    assert(base->nThreads == base->iProcToThread[base->nProcs]);
-    while (l <= u) {
-	int m = (u + l) / 2;
-	if (iThread < base->iProcToThread[m]) u = m - 1;
-	else l = m+1;
-	}
-    return l-1;
-    }
-
-void mdlBaseFinish(mdlBASE *base) {
-    free(base->psrv);
-
+mdlBASE::~mdlBASE() {
+    free(psrv);
 #ifdef _MSC_VER
     WSACleanup();
 #endif
     }
 
-void mdlBaseAddService(mdlBASE *base, int sid, void *p1,
+/* O(1): Given a process id, return the first global thread id */
+int32_t mdlBASE::ProcToThread(int32_t iProc) const {
+    assert(iProc >= 0 && iProc <= nProcs);
+    return iProcToThread[iProc];
+    }
+
+/* O(l2(nProc)): Given a global thread id, return the process to which it belongs */
+int32_t mdlBASE::ThreadToProc(int32_t iThread) const {
+    int l=0, u=nProcs;
+    assert(iThread >= 0 && iThread <= nThreads);
+    assert(nThreads == iProcToThread[nProcs]);
+    while (l <= u) {
+	int m = (u + l) / 2;
+	if (iThread < iProcToThread[m]) u = m - 1;
+	else l = m+1;
+	}
+    return l-1;
+    }
+
+void mdlBASE::AddService(int sid, void *p1,
     fcnService_t *fcnService,
     int nInBytes, int nOutBytes) {
     int i, nMaxServices;
 
     assert(sid >= 0); /* We can replace SRV_STOP to do something at the end */
-    if (sid >= base->nMaxServices) {
+    if (sid >= nMaxServices) {
         /*
         ** reallocate service buffer, adding space for 8 new services
         ** including the one just defined.
         */
         nMaxServices = sid + 9;
-        base->psrv = realloc(base->psrv, nMaxServices*sizeof(SERVICE));
-        assert(base->psrv != NULL);
+        psrv = (SERVICE *)realloc(psrv, nMaxServices*sizeof(SERVICE));
+        assert(psrv != NULL);
         /*
         ** Initialize the new service slots.
         */
-        for (i = base->nMaxServices; i<nMaxServices; ++i) {
-            base->psrv[i].p1 = NULL;
-            base->psrv[i].nInBytes = 0;
-            base->psrv[i].nOutBytes = 0;
-            base->psrv[i].fcnService = NULL;
+        for (i = nMaxServices; i<nMaxServices; ++i) {
+            psrv[i].p1 = NULL;
+            psrv[i].nInBytes = 0;
+            psrv[i].nOutBytes = 0;
+            psrv[i].fcnService = NULL;
         }
-        base->nMaxServices = nMaxServices;
+        nMaxServices = nMaxServices;
     }
-    if (nInBytes  > base->nMaxInBytes)  base->nMaxInBytes  = nInBytes;
-    if (nOutBytes > base->nMaxOutBytes) base->nMaxOutBytes = nOutBytes;
-    base->psrv[sid].p1 = p1;
-    base->psrv[sid].nInBytes = nInBytes;
-    base->psrv[sid].nOutBytes = nOutBytes;
-    base->psrv[sid].fcnService = fcnService;
+    if (nInBytes  > nMaxInBytes)  nMaxInBytes  = nInBytes;
+    if (nOutBytes > nMaxOutBytes) nMaxOutBytes = nOutBytes;
+    psrv[sid].p1 = p1;
+    psrv[sid].nInBytes = nInBytes;
+    psrv[sid].nOutBytes = nOutBytes;
+    psrv[sid].fcnService = fcnService;
 }
 
 const char *mdlName(void *mdl) {
-    mdlBASE *base = mdl;
+    mdlBASE *base = reinterpret_cast<mdlBASE *>(mdl);
     return base->nodeName;
     }
+
+#if 0
+int mdlThreads(void *mdl) {  return reinterpret_cast<mdlBASE *>(mdl)->nThreads; }
+int mdlSelf(void *mdl)    {  return reinterpret_cast<mdlBASE *>(mdl)->idSelf; }
+int mdlCore(void *mdl)    {  return reinterpret_cast<mdlBASE *>(mdl)->iCore; }
+int mdlCores(void *mdl)   {  return reinterpret_cast<mdlBASE *>(mdl)->nCores; }
+int mdlProc(void *mdl)    {  return reinterpret_cast<mdlBASE *>(mdl)->iProc; }
+int mdlProcs(void *mdl)   {  return reinterpret_cast<mdlBASE *>(mdl)->nProcs; }
+
+int mdlGetArgc(void *mdl) {  return reinterpret_cast<mdlBASE *>(mdl)->argc; }
+char **mdlGetArgv(void *mdl) {  return reinterpret_cast<mdlBASE *>(mdl)->argv; }
+#endif
 
 double mdlCpuTimer(void * mdl) {
 #ifdef __linux__
@@ -193,23 +204,26 @@ double mdlCpuTimer(void * mdl) {
     }
 
 void mdlDiag(void *mdl, char *psz) {
-    mdlBASE *base = mdl;
+#if 0
+    mdlBASE *base = reinterpret_cast<mdlBASE *>(mdl);
     if (base->bDiag) {
         fputs(psz, base->fpDiag);
         fflush(base->fpDiag);
         }
+#endif
     }
 
-
-void mdlprintf(void *mdl, const char *format, ...) {
-    mdlBASE *base = mdl;
-    if (base->bDiag) {
-        va_list args;
-        va_start(args, format);
-        vfprintf(base->fpDiag, format, args);
-        fflush(base->fpDiag);
-        va_end(args);
+void mdlBASE::mdl_vprintf(const char *format, va_list ap) {
+    if (bDiag) {
+        vfprintf(fpDiag, format, ap);
+        fflush(fpDiag);
         }
+    }
+void mdlBASE::mdl_printf(const char *format, ...) {
+    va_list args;
+    va_start(args, format);
+    mdl_vprintf(format,args);
+    va_end(args);
     }
 
 /*
@@ -266,70 +280,65 @@ void mdlGetTimer(void *mdl, mdlTimer *t0, mdlTimer *t) {
     }
 
 void mdlPrintTimer(void *mdl, char *message, mdlTimer *t0) {
-    mdlBASE *base = mdl;
+#if 0
+    mdlBASE *base = reinterpret_cast<mdlBASE *>(mdl);
     mdlTimer lt;
 
     if (base->bDiag) {
         mdlGetTimer(mdl, t0, &lt);
-        mdlprintf(mdl, "%s %f %f %f\n", message, lt.wallclock, lt.cpu, lt.system);
+        base->mdl_printf("%s %f %f %f\n", message, lt.wallclock, lt.cpu, lt.system);
         }
+#endif
     }
 
 
+void mdlBASE::TimeReset() {
+    dWaiting = dComputing = dSynchronizing = 0.0;
 #if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
-void mdlTimeReset(void *mdl) {
-    mdlBASE *base = mdl;
-    base->dWaiting = base->dComputing = base->dSynchronizing = 0.0;
-    base->nTicks = getticks();
+    nTicks = getticks();
+#endif
     }
 
-void mdlTimeAddComputing(void *mdl) {
-    mdlBASE *base = mdl;
+void mdlBASE::TimeAddComputing() {
+#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
     ticks nTicks = getticks();
-    base->dComputing += elapsed(nTicks, base->nTicks);
-    base->nTicks = nTicks;
+    dComputing += elapsed(nTicks, this->nTicks);
+    this->nTicks = nTicks;
+#endif
     }
 
-void mdlTimeAddSynchronizing(void *mdl) {
-    mdlBASE *base = mdl;
+void mdlBASE::TimeAddSynchronizing() {
+#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
     ticks nTicks = getticks();
-    base->dSynchronizing += elapsed(nTicks, base->nTicks);
-    base->nTicks = nTicks;
+    dSynchronizing += elapsed(nTicks, this->nTicks);
+    this->nTicks = nTicks;
+#endif
     }
 
-void mdlTimeAddWaiting(void *mdl) {
-    mdlBASE *base = mdl;
+void mdlBASE::TimeAddWaiting() {
+#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
     ticks nTicks = getticks();
-    base->dWaiting += elapsed(nTicks, base->nTicks);
-    base->nTicks = nTicks;
+    dWaiting += elapsed(nTicks, this->nTicks);
+    this->nTicks = nTicks;
+#endif
     }
 
-static double TimeFraction(void * mdl) {
-    mdlBASE *base = mdl;
-    double dTotal = base->dComputing + base->dWaiting + base->dSynchronizing;
+double mdlBASE::TimeFraction() const {
+    double dTotal = dComputing + dWaiting + dSynchronizing;
     if (dTotal <= 0.0) return 0.0;
     return 100.0 / dTotal;
     }
 
-double mdlTimeComputing(void * mdl) {
-    mdlBASE *base = mdl;
-    return base->dComputing * TimeFraction(mdl);
+double mdlBASE::TimeComputing() const {
+    return dComputing * TimeFraction();
     }
 
-double mdlTimeSynchronizing(void * mdl) {
-    mdlBASE *base = mdl;
-    return base->dSynchronizing * TimeFraction(mdl);
+double mdlBASE::TimeSynchronizing() const {
+    return dSynchronizing * TimeFraction();
     }
 
-double mdlTimeWaiting(void * mdl) {
-    mdlBASE *base = mdl;
-    return base->dWaiting * TimeFraction(mdl);
+double mdlBASE::TimeWaiting() const {
+    return dWaiting * TimeFraction();
     }
-#endif
-
-
-
-
-
 #endif
 

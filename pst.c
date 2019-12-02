@@ -325,8 +325,7 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_GET_PARTICLES,pst,(fcnService_t*)pstGetParticles,
 	          sizeof(uint64_t)*GET_PARTICLES_MAX,
 	          sizeof(struct outGetParticles)*GET_PARTICLES_MAX );
-    mdlCommitServices(mdl);
-   }
+    }
 
 void pstInitialize(PST *ppst,MDL mdl,LCL *plcl) {
     PST pst;

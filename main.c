@@ -84,8 +84,8 @@ void worker_done(MDL mdl, void *ctx) {
 ** This is invoked for the "master" process after the worker has been setup.
 */
 void master(MDL mdl,void *pst) {
-    int argc = mdl->base.argc;
-    char **argv = mdl->base.argv;
+    int argc = mdlGetArgc(mdl);
+    char **argv = mdlGetArgv(mdl);
     MSR msr;
     FILE *fpLog = NULL;
     char achFile[256];			/*DEBUG use MAXPATHLEN here (& elsewhere)? -- DCR*/

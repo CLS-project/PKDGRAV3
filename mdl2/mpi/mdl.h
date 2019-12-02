@@ -40,17 +40,84 @@ typedef double fftw_real;
 #endif
 #endif
 
-typedef struct CacheDataBucket {
-    struct CacheDataBucket *next;      /* for doubly linked list */
-    struct CacheDataBucket *prev;      /* for doubly linked list */
-    struct CacheDataBucket *coll; /* collision chain for hash table */
-    uint64_t *data;      /* page's location in cache */
-    uint32_t uId;       /* upper 4 bits encode ARC_where and dirty bit */
-    uint32_t uPage;    /* page's ID number */
-} CDB;
+#ifdef __cplusplus
+#include <vector>
+#endif
+
+#ifndef MPI_VERSION
+#define MPI_VERSION 1
+#endif
+
+#define SRV_STOP		0
+
+#define MDL_CACHE_SIZE		15000000
+#define MDL_CHECK_MASK  	0x7f
+
+typedef struct {
+    OPA_Queue_element_hdr_t hdr;
+    uint32_t iServiceID;
+    uint32_t iCoreFrom;
+    } MDLserviceElement;
 
 
-typedef struct ArcContext {
+typedef int (*mdlWorkFunction)(void *ctx);
+typedef int (*mdlPack)(void *,int *,size_t,void*);
+
+struct mdlContext {};
+//typedef struct mdlContext * MDL;
+typedef void * MDL;
+
+/*
+** Grid Operations
+*/
+
+typedef struct mdlGridContext {
+    uint32_t n1,n2,n3;     /* Real dimensions */
+    uint32_t a1;           /* Actual size of dimension 1 */
+    uint32_t sSlab, nSlab; /* Start and number of slabs */
+    uint64_t nLocal;       /* Number of local elements */
+    uint32_t *rs;  /* Starting slab for each processor */
+    uint32_t *rn;  /* Number of slabs on each processor */
+    uint32_t *id;  /* Which processor has this slab */
+    } * MDLGRID;
+
+typedef struct {
+    MDLGRID grid;
+    uint64_t II;
+    int x, y, z; /* Real coordinate */
+    int i;       /* Index into local array */
+    } mdlGridCoord;
+
+#ifdef MDL_FFTW
+typedef struct mdlFFTContext {
+    MDLGRID rgrid;
+    MDLGRID kgrid;
+    FFTW3(plan) fplan, iplan;
+    } * MDLFFT;
+#endif
+
+#ifdef __cplusplus
+class CACHE;
+
+class CDB {
+public:
+    CDB *next;      /* for doubly linked list */
+    CDB *prev;      /* for doubly linked list */
+    CDB *coll;      /* collision chain for hash table */
+    uint64_t *data; /* page's location in cache */
+    uint32_t uId;   /* upper 4 bits encode ARC_where and dirty bit */
+    uint32_t uPage; /* page's ID number */
+public:
+    explicit CDB();
+    CDB *remove_from_list();
+    CDB *lru_remove();
+    void lru_insert(CDB *p);
+    void mru_insert(CDB *p);
+};
+
+class ARC {
+    class mdlClass * const mdl; // MDL is needed for cache operations
+public:
     CDB **Hash;
     CDB *cdbBase;
     uint64_t *dataBase;
@@ -69,21 +136,15 @@ typedef struct ArcContext {
     uint32_t T2Length;
     uint32_t B2Length;
     uint32_t target_T1;
-    struct cacheSpace *cache;
-} * ARC;
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#ifndef MPI_VERSION
-#define MPI_VERSION 1
-#endif
-
-#define SRV_STOP		0
-
-#define MDL_CACHE_SIZE		15000000
-#define MDL_CHECK_MASK  	0x7f
+    CACHE *cache;
+public:
+    explicit ARC(mdlClass * mdl,uint32_t nCache,uint32_t uDataSize,CACHE *c);
+    ~ARC();
+    CDB *destage(CDB *temp);
+    uint64_t *replace(bool iInB2=false);
+    void RemoveAll();
+    CDB * remove_from_hash(CDB *p);
+};
 
 typedef struct {
     MDLserviceElement svc;
@@ -93,8 +154,6 @@ typedef struct {
     int tag;
     MPI_Datatype datatype;
     } MDLserviceSend;
-
-typedef int (*mdlWorkFunction)(void *ctx);
 
 typedef struct mdl_wq_node {
     /* We can put this on different types of queues */
@@ -162,7 +221,8 @@ typedef struct {
     MPI_Request request;
     } MDLserviceCacheReq;
 
-typedef struct cacheSpace {
+class CACHE {
+public:
     void *pData;
     uint16_t iType;
     uint16_t iCID;
@@ -172,7 +232,7 @@ typedef struct cacheSpace {
     uint32_t nLineMask;
     int nLineElements;
     int iLineSize;
-    ARC arc;
+    ARC *arc;
     char *pOneLine;
 
     MDLserviceCacheReq cacheRequest;
@@ -186,9 +246,10 @@ typedef struct cacheSpace {
     uint64_t nAccess;
     uint64_t nMiss;
     uint64_t nColl;
-    } CACHE;
+    };
 
-typedef struct {
+class mdlContextMPI {
+public:
     MPI_Comm commMDL;             /* Current active communicator */
 #ifdef USE_CUDA
     void *cudaCtx;
@@ -221,17 +282,20 @@ typedef struct {
     MDLserviceCacheReq **pThreadCacheReq;
     MDLcacheReplyData *freeCacheReplies;
     MDLcacheReplyData *busyCacheReplies, **busyCacheRepliesTail;
-    } mdlContextMPI;
+    };
 
-typedef struct mdlContext {
-    mdlBASE base;
-    struct mdlContext **pmdl;
+class mdlClass : public mdlBASE {
+    friend class ARC;
+public:
+    struct mdlClass **pmdl;
+    mdlContextMPI *mpi;
+    void * (*fcnWorkerInit)(MDL mdl);
+    void   (*fcnWorkerDone)(MDL mdl, void *ctx);
+    void   (*fcnMaster)(    MDL mdl, void *ctx);
+
     pthread_t *threadid;
     pthread_barrier_t barrier;
     void *worker_ctx;
-    void * (*fcnWorkerInit)(struct mdlContext *mdl);
-    void   (*fcnWorkerDone)(struct mdlContext *mdl, void *ctx);
-    void   (*fcnMaster)(    struct mdlContext *mdl, void *ctx);
 
     OPA_Queue_info_t *inQueue;
     MDLserviceElement inMessage;
@@ -271,7 +335,6 @@ typedef struct mdlContext {
 
     int nFlushOutBytes;
 
-    mdlContextMPI *mpi;
     MDLserviceSend sendRequest;
     MDLserviceSend recvRequest;
 
@@ -284,48 +347,126 @@ typedef struct mdlContext {
 #ifdef USE_CL
     void *clCtx;
 #endif
-    } * MDL;
+protected:
+    void CommitServices();
+    void Handler();
+    void run_master();
+    ARC *arcReinitialize(ARC *arc,uint32_t nCache,uint32_t uDataSize,CACHE *c);
+    int mdl_MPI_Barrier();
+    int mdl_MPI_Ssend(void *buf, int count, MPI_Datatype datatype, int dest, int tag);
+    int mdl_MPI_Send(void *buf, int count, MPI_Datatype datatype, int dest, int tag);
+    int mdl_MPI_Sendrecv(
+	void *sendbuf, int sendcount, MPI_Datatype sendtype,
+	int dest, int sendtag, void *recvbuf, int recvcount,
+	MPI_Datatype recvtype, int source, int recvtag, int *nReceived);
+    int mdl_start_MPI_Ssend(void *buf, int count, MPI_Datatype datatype, int dest, int tag, int stype);
+    int mdl_MPI_Recv(void *buf, int count, MPI_Datatype datatype, int source, int tag, int *nBytes);
+    int mdl_remote_MPI_Recv(void *buf, int count, MPI_Datatype datatype, int source, int tag, int *nBytes, int iServiceID);
+    virtual int checkMPI();
+    void drainMPI();
+    static void *mdlWorkerThread(void *vmdl); // Called by pthread_create with an mdlClass *
+    void *WorkerThread();
+    void combine_all_incoming();
+    void cleanupMDL();
 
+    int DoSomeWork();
+    void bookkeeping();
+    void queueCacheRequest(int cid, int iLine, int id);
+    void finishCacheRequest(int cid, int iLine, int id, CDB *temp,int bVirtual);
+    void SendThreadMessage(int iQueue,int iCore, void *vhdr, uint16_t iServiceID );
+  
+protected:
+    MDLflushBuffer *flush_core_buffer();
+
+private:
+    void init(bool bDiag = false);
+
+public:
+    explicit mdlClass(mdlClass *mpi, int iMDL);
+    explicit mdlClass(void (*fcnMaster)(MDL,void *),void * (*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *),
+    	     int argc=0, char **argv=0);
+    virtual ~mdlClass();
+    //void AddService(int sid,void *p1, fcnService_t *fcnService, int nInBytes,int nOutBytes);
+
+#if 0
+    int32_t Threads() { return base.nThreads; }
+    int32_t Self()    { return base.idSelf; }
+    int16_t Core()    { return base.iCore; }
+    int16_t Cores()   { return base.nCores; }
+    int32_t Proc()    { return base.iProc; }
+    int32_t Procs()   { return base.nProcs; }
+    int ProcToThread(int iProc);
+    int ThreadToProc(int iThread);
+#endif
+
+    CACHE *CacheInitialize(int cid,
+	void * (*getElt)(void *pData,int i,int iDataSize),
+	void *pData,int iDataSize,int nData,
+	void *ctx,void (*init)(void *,void *),void (*combine)(void *,void *,void *));
+    void FlushCache(int cid);
+    void FinishCache(int cid);
+    int ReqService(int id,int sid,void *vin,int nInBytes);
+    void GetReply(int rID,void *vout,int *pnOutBytes);
+    void Send(int id,mdlPack pack, void *ctx);
+    void Recv(int id,mdlPack unpack, void *ctx);
+    int Swap(int id,size_t nBufBytes,void *vBuf,size_t nOutBytes, size_t *pnSndBytes,size_t *pnRcvBytes);
+
+    void CacheCheck();
+    void CacheBarrier(int cid);
+    void ThreadBarrier();
+    void CompleteAllWork();
+
+    void *Access(int cid, uint32_t uIndex, int uId, int bLock,int bModify,int bVirtual);
+
+    void /*MDLserviceElement*/ *WaitThreadQueue(int iQueue);
+
+    void SendToMPI(void *vhdr, uint16_t iServiceID );
+    void FFT( MDLFFT fft, FFTW3(real) *data );
+    void IFFT( MDLFFT fft, FFTW3(complex) *kdata );
+    void Alltoallv(int dataSize,void *sbuff,int *scount,int *sdisps,void *rbuff,int *rcount,int *rdisps);
+
+    };
+
+class mpiClass : public mdlClass {
+protected:
+    MDLflushBuffer *get_local_flush_buffer();
+    void flush_send(MDLflushBuffer *pBuffer);
+    void finish_local_flush();
+    int flush_check_completion();
+    void flush_element(CAHEAD *pHdr,int iLineSize);
+    void flush_elements(MDLflushBuffer *pFlush);
+    void flush_all_elements();
+    void queue_local_flush(CAHEAD *ph);
+    int CacheReceive(MPI_Status *status);
+    virtual int checkMPI();
+    int swapall(const char *buffer,int count,int datasize,/*const*/ int *counts);
+public:
+    explicit mpiClass(void (*fcnMaster)(MDL,void *),void * (*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *),
+    	     int argc=0, char **argv=0);
+    virtual ~mpiClass();
+    void Launch(int argc,char **argv,void (*fcnMaster)(MDL,void *),void * (*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *));
+    };
+#endif
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+int mdlProcToThread(MDL mdl, int iProc);
+int mdlThreadToProc(MDL mdl, int iThread);
 
 /*
  ** General Functions
  */
 void mdlLaunch(int,char **,void (*)(MDL,void *),void * (*)(MDL),void (*)(MDL,void *));
+
 void mdlAbort(MDL);
-void mdlFinish(MDL);
-int  mdlSplitComm(MDL mdl, int nProcs);
-void mdlSetComm(MDL mdl, int iComm);
 int mdlSwap(MDL,int,size_t,void *,size_t,size_t *,size_t *);
-typedef int (*mdlPack)(void *,int *,size_t,void*);
 void mdlSend(MDL mdl,int id,mdlPack pack, void *ctx);
 void mdlRecv(MDL mdl,int id,mdlPack unpack, void *ctx);
-void mdlAddService(MDL,int,void *,fcnService_t *fcnService,
-		   int,int);
-void mdlCommitServices(MDL mdl);
+void mdlAddService(MDL,int,void *,fcnService_t *fcnService,int,int);
 int  mdlReqService(MDL, int, int, void *, int);
 void mdlGetReply(MDL,int,void *,int *);
-void mdlHandler(MDL);
-
-/*
-** Grid Operations
-*/
-
-typedef struct mdlGridContext {
-    uint32_t n1,n2,n3;     /* Real dimensions */
-    uint32_t a1;           /* Actual size of dimension 1 */
-    uint32_t sSlab, nSlab; /* Start and number of slabs */
-    uint64_t nLocal;       /* Number of local elements */
-    uint32_t *rs;  /* Starting slab for each processor */
-    uint32_t *rn;  /* Number of slabs on each processor */
-    uint32_t *id;  /* Which processor has this slab */
-    } * MDLGRID;
-
-typedef struct {
-    MDLGRID grid;
-    uint64_t II;
-    int x, y, z; /* Real coordinate */
-    int i;       /* Index into local array */
-    } mdlGridCoord;
 
 static inline int mdlGridCoordCompare(const mdlGridCoord *a,const mdlGridCoord *b) {
     return a->x==b->x && a->y==b->y && a->z==b->z; 
@@ -391,11 +532,6 @@ static inline int mdlGridIdx(MDL mdl,MDLGRID grid, uint32_t x, uint32_t y, uint3
 ** FFT Operations
 */
 #ifdef MDL_FFTW
-typedef struct mdlFFTContext {
-    MDLGRID rgrid;
-    MDLGRID kgrid;
-    FFTW3(plan) fplan, iplan;
-    } * MDLFFT;
 
 size_t mdlFFTlocalCount(MDL mdl,int n1,int n2,int n3,int *nz,int *sz,int *ny,int*sy);
 MDLFFT mdlFFTNodeInitialize(MDL mdl,int nx,int ny,int nz,int bMeasure,FFTW3(real) *data);
@@ -440,7 +576,6 @@ void mdlFinishCache(MDL,int);
 void mdlCacheCheck(MDL);
 void mdlCacheBarrier(MDL,int);
 void mdlPrefetch(MDL mdl,int cid,int iIndex, int id);
-void *mdlAccess(MDL mdl, int cid, uint32_t uIndex, int uId, int bLock,int bModify,int bVirtual);
 void *mdlAcquire(MDL mdl,int cid,int iIndex,int id);
 void *mdlFetch(MDL mdl,int cid,int iIndex,int id);
 void *mdlVirtualFetch(MDL mdl,int cid,int iIndex,int id);
@@ -467,6 +602,12 @@ void mdlAddWork(MDL mdl, void *ctx,
     int (*checkWork)(void *ctx,void *vwork),
     mdlWorkFunction doWork,
     mdlWorkFunction doneWork);
+
+void mdlTimeReset(MDL mdl);
+double mdlTimeComputing(MDL mdl);
+double mdlTimeSynchronizing(MDL mdl);
+double mdlTimeWaiting(MDL mdl);
+void mdlprintf(MDL mdl, const char *format, ...);
 
 #ifdef __cplusplus
 }

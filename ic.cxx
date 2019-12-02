@@ -161,7 +161,7 @@ extern "C"
 int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int bFixed,float fPhase,int nGrid,int b2LPT,double dBoxSize,
     struct csmVariables *cosmo,double a,int nTf, double *tk, double *tf,
     double *noiseMean, double *noiseCSQ) {
-    MDL mdl = pkd->mdl;
+    mdlClass *mdl = reinterpret_cast<mdlClass *>(pkd->mdl);
     float twopi = 2.0 * 4.0 * atan(1.0);
     float itwopi = 1.0 / twopi;
     float inGrid = 1.0 / nGrid;
@@ -197,7 +197,7 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int bFixed,float fPhase,int nGrid
 
     double f1 = pow(dOmega,5.0/9.0);
     double f2 = 2.0 * pow(dOmega,6.0/11.0);
-    if (mdlSelf(mdl)==0) {
+    if (mdl->Self()==0) {
 	printf("sigma8=%.15g\n",dSigma8); 
 	printf("f1=%.12g (exact) or %.12g (approx)\n", f1_a, f1);
 	printf("f2=%.12g (exact) or %.12g (approx)\n", f2_a, f2);//2.0 * f1_a, f2_a);
@@ -223,10 +223,10 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int bFixed,float fPhase,int nGrid
     basicParticleArray output = getOutputArray(pkd,G,R[0]);
 
     /* Generate white noise realization -> K[6] */
-    if (mdlSelf(mdl)==0) {printf("Generating random noise\n"); fflush(stdout); }
+    if (mdl->Self()==0) {printf("Generating random noise\n"); fflush(stdout); }
     ng.FillNoise(K[6],nGrid,noiseMean,noiseCSQ);
 
-    if (mdlSelf(mdl)==0) {printf("Imprinting power\n"); fflush(stdout); }
+    if (mdl->Self()==0) {printf("Imprinting power\n"); fflush(stdout); }
     for( auto index=K[6].begin(); index!=K[6].end(); ++index ) {
 	auto pos = index.position();
 	iz = fwrap(pos[2],nGrid); // Range: (-iNyquist,iNyquist]
@@ -251,38 +251,38 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int bFixed,float fPhase,int nGrid
 	    }
 	}
 
-    if (mdlSelf(mdl)==0) {printf("Generating x displacements\n"); fflush(stdout); }
-    mdlIFFT(mdl, fft, (FFTW3(complex)*)K[7].dataFirst() );
-    if (mdlSelf(mdl)==0) {printf("Generating y displacements\n"); fflush(stdout); }
-    mdlIFFT(mdl, fft, (FFTW3(complex)*)K[8].dataFirst() );
-    if (mdlSelf(mdl)==0) {printf("Generating z displacements\n"); fflush(stdout); }
-    mdlIFFT(mdl, fft, (FFTW3(complex)*)K[9].dataFirst() );
+    if (mdl->Self()==0) {printf("Generating x displacements\n"); fflush(stdout); }
+    mdl->IFFT( fft, (FFTW3(complex)*)K[7].dataFirst() );
+    if (mdl->Self()==0) {printf("Generating y displacements\n"); fflush(stdout); }
+    mdl->IFFT( fft, (FFTW3(complex)*)K[8].dataFirst() );
+    if (mdl->Self()==0) {printf("Generating z displacements\n"); fflush(stdout); }
+    mdl->IFFT( fft, (FFTW3(complex)*)K[9].dataFirst() );
     if (b2LPT) {
-	if (mdlSelf(mdl)==0) {printf("Generating xx term\n"); fflush(stdout); }
-	mdlIFFT(mdl, fft, (FFTW3(complex)*)K[0].dataFirst() );
-	if (mdlSelf(mdl)==0) {printf("Generating yy term\n"); fflush(stdout); }
-	mdlIFFT(mdl, fft, (FFTW3(complex)*)K[1].dataFirst() );
-	if (mdlSelf(mdl)==0) {printf("Generating zz term\n"); fflush(stdout); }
-	mdlIFFT(mdl, fft, (FFTW3(complex)*)K[2].dataFirst() );
-	if (mdlSelf(mdl)==0) {printf("Generating xy term\n"); fflush(stdout); }
-	mdlIFFT(mdl, fft, (FFTW3(complex)*)K[3].dataFirst() );
-	if (mdlSelf(mdl)==0) {printf("Generating yz term\n"); fflush(stdout); }
-	mdlIFFT(mdl, fft, (FFTW3(complex)*)K[4].dataFirst() );
-	if (mdlSelf(mdl)==0) {printf("Generating xz term\n"); fflush(stdout); }
-	mdlIFFT(mdl, fft, (FFTW3(complex)*)K[5].dataFirst() );
+	if (mdl->Self()==0) {printf("Generating xx term\n"); fflush(stdout); }
+	mdl->IFFT( fft, (FFTW3(complex)*)K[0].dataFirst() );
+	if (mdl->Self()==0) {printf("Generating yy term\n"); fflush(stdout); }
+	mdl->IFFT( fft, (FFTW3(complex)*)K[1].dataFirst() );
+	if (mdl->Self()==0) {printf("Generating zz term\n"); fflush(stdout); }
+	mdl->IFFT( fft, (FFTW3(complex)*)K[2].dataFirst() );
+	if (mdl->Self()==0) {printf("Generating xy term\n"); fflush(stdout); }
+	mdl->IFFT( fft, (FFTW3(complex)*)K[3].dataFirst() );
+	if (mdl->Self()==0) {printf("Generating yz term\n"); fflush(stdout); }
+	mdl->IFFT( fft, (FFTW3(complex)*)K[4].dataFirst() );
+	if (mdl->Self()==0) {printf("Generating xz term\n"); fflush(stdout); }
+	mdl->IFFT( fft, (FFTW3(complex)*)K[5].dataFirst() );
 
 	/* Calculate the source term */
-	if (mdlSelf(mdl)==0) {printf("Generating source term\n"); fflush(stdout); }
+	if (mdl->Self()==0) {printf("Generating source term\n"); fflush(stdout); }
 	for( auto index=R[6].begin(); index!=R[6].end(); ++index ) {
 	    auto pos = index.position();
 	    *index = R[0](pos)*R[1](pos) + R[0](pos)*R[2](pos) + R[1](pos)*R[2](pos)
 		- R[3](pos)*R[3](pos) - R[4](pos)*R[4](pos) - R[5](pos)*R[5](pos);
 	    }
-	mdlFFT(mdl, fft, R[6].dataFirst() );
+	mdl->FFT( fft, R[6].dataFirst() );
 	}
 
     /* Move the 1LPT positions/velocities to the particle area */
-    if (mdlSelf(mdl)==0) {printf("Transfering 1LPT results to output area\n"); fflush(stdout); }
+    if (mdl->Self()==0) {printf("Transfering 1LPT results to output area\n"); fflush(stdout); }
     for( auto index=output.begin(); index!=output.end(); ++index ) {
 	auto pos = index.position();
 	float x = R[7](pos);
@@ -316,15 +316,15 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int bFixed,float fPhase,int nGrid
 	    else K[7](pos) = K[8](pos) = K[9](pos) = 0.0;
 	    }
 
-	if (mdlSelf(mdl)==0) {printf("Generating x2 displacements\n"); fflush(stdout); }
-	mdlIFFT(mdl, fft, (FFTW3(complex)*)K[7].dataFirst() );
-	if (mdlSelf(mdl)==0) {printf("Generating y2 displacements\n"); fflush(stdout); }
-	mdlIFFT(mdl, fft, (FFTW3(complex)*)K[8].dataFirst() );
-	if (mdlSelf(mdl)==0) {printf("Generating z2 displacements\n"); fflush(stdout); }
-	mdlIFFT(mdl, fft, (FFTW3(complex)*)K[9].dataFirst() );
+	if (mdl->Self()==0) {printf("Generating x2 displacements\n"); fflush(stdout); }
+	mdl->IFFT( fft, (FFTW3(complex)*)K[7].dataFirst() );
+	if (mdl->Self()==0) {printf("Generating y2 displacements\n"); fflush(stdout); }
+	mdl->IFFT( fft, (FFTW3(complex)*)K[8].dataFirst() );
+	if (mdl->Self()==0) {printf("Generating z2 displacements\n"); fflush(stdout); }
+	mdl->IFFT( fft, (FFTW3(complex)*)K[9].dataFirst() );
 
 	/* Add the 2LPT positions/velocities corrections to the particle area */
-	if (mdlSelf(mdl)==0) {printf("Transfering 2LPT results to output area\n"); fflush(stdout); }
+	if (mdl->Self()==0) {printf("Transfering 2LPT results to output area\n"); fflush(stdout); }
 	for( auto index=output.begin(); index!=output.end(); ++index ) {
 	    auto pos = index.position();
 	    float x = R[7](pos) * fftNormalize;
@@ -356,7 +356,7 @@ extern "C"
 #endif
 int pkdGenerateClassICm(PKD pkd, MDLFFT fft, int iSeed, int bFixed, float fPhase, int nGrid,int b2LPT,
     double dBoxSize, struct csmVariables *cosmo, double a, double *noiseMean, double *noiseCSQ) {
-    MDL mdl = pkd->mdl;
+    mdlClass *mdl = reinterpret_cast<mdlClass *>(pkd->mdl);
     float twopi = 2.0 * 4.0 * atan(1.0);
     float itwopi = 1.0 / twopi;
     float inGrid = 1.0 / nGrid;
@@ -407,10 +407,10 @@ int pkdGenerateClassICm(PKD pkd, MDLFFT fft, int iSeed, int bFixed, float fPhase
     basicParticleArray output = getOutputArray(pkd,G,R[0]);
 
     /* Generate white noise realization -> K[6] */
-    if (mdlSelf(mdl)==0) {printf("Generating random noise for delta\n"); fflush(stdout);}
+    if (mdl->Self()==0) {printf("Generating random noise for delta\n"); fflush(stdout);}
     ng.FillNoise(K[6],nGrid,noiseMean,noiseCSQ);
 
-    if (mdlSelf(mdl)==0) {printf("Imprinting power\n"); fflush(stdout);}
+    if (mdl->Self()==0) {printf("Imprinting power\n"); fflush(stdout);}
 
     /* Particle positions */
     for( auto index=K[6].begin(); index!=K[6].end(); ++index ) {
@@ -451,38 +451,38 @@ int pkdGenerateClassICm(PKD pkd, MDLFFT fft, int iSeed, int bFixed, float fPhase
 	}
     }
 
-    if (mdlSelf(mdl)==0) {printf("Generating x displacements\n"); fflush(stdout);}
-    mdlIFFT(mdl, fft, (FFTW3(complex)*)K[7].dataFirst());
-    if (mdlSelf(mdl)==0) {printf("Generating y displacements\n"); fflush(stdout);}
-    mdlIFFT(mdl, fft, (FFTW3(complex)*)K[8].dataFirst());
-    if (mdlSelf(mdl)==0) {printf("Generating z displacements\n"); fflush(stdout);}
-    mdlIFFT(mdl, fft, (FFTW3(complex)*)K[9].dataFirst());
+    if (mdl->Self()==0) {printf("Generating x displacements\n"); fflush(stdout);}
+    mdl->IFFT( fft, (FFTW3(complex)*)K[7].dataFirst());
+    if (mdl->Self()==0) {printf("Generating y displacements\n"); fflush(stdout);}
+    mdl->IFFT( fft, (FFTW3(complex)*)K[8].dataFirst());
+    if (mdl->Self()==0) {printf("Generating z displacements\n"); fflush(stdout);}
+    mdl->IFFT( fft, (FFTW3(complex)*)K[9].dataFirst());
 
     if (b2LPT) {
-	if (mdlSelf(mdl)==0) {printf("Generating xx term\n"); fflush(stdout); }
-	mdlIFFT(mdl, fft, (FFTW3(complex)*)K[0].dataFirst() );
-	if (mdlSelf(mdl)==0) {printf("Generating yy term\n"); fflush(stdout); }
-	mdlIFFT(mdl, fft, (FFTW3(complex)*)K[1].dataFirst() );
-	if (mdlSelf(mdl)==0) {printf("Generating zz term\n"); fflush(stdout); }
-	mdlIFFT(mdl, fft, (FFTW3(complex)*)K[2].dataFirst() );
-	if (mdlSelf(mdl)==0) {printf("Generating xy term\n"); fflush(stdout); }
-	mdlIFFT(mdl, fft, (FFTW3(complex)*)K[3].dataFirst() );
-	if (mdlSelf(mdl)==0) {printf("Generating yz term\n"); fflush(stdout); }
-	mdlIFFT(mdl, fft, (FFTW3(complex)*)K[4].dataFirst() );
-	if (mdlSelf(mdl)==0) {printf("Generating xz term\n"); fflush(stdout); }
-	mdlIFFT(mdl, fft, (FFTW3(complex)*)K[5].dataFirst() );
+	if (mdl->Self()==0) {printf("Generating xx term\n"); fflush(stdout); }
+	mdl->IFFT( fft, (FFTW3(complex)*)K[0].dataFirst() );
+	if (mdl->Self()==0) {printf("Generating yy term\n"); fflush(stdout); }
+	mdl->IFFT( fft, (FFTW3(complex)*)K[1].dataFirst() );
+	if (mdl->Self()==0) {printf("Generating zz term\n"); fflush(stdout); }
+	mdl->IFFT( fft, (FFTW3(complex)*)K[2].dataFirst() );
+	if (mdl->Self()==0) {printf("Generating xy term\n"); fflush(stdout); }
+	mdl->IFFT( fft, (FFTW3(complex)*)K[3].dataFirst() );
+	if (mdl->Self()==0) {printf("Generating yz term\n"); fflush(stdout); }
+	mdl->IFFT( fft, (FFTW3(complex)*)K[4].dataFirst() );
+	if (mdl->Self()==0) {printf("Generating xz term\n"); fflush(stdout); }
+	mdl->IFFT( fft, (FFTW3(complex)*)K[5].dataFirst() );
 	/* Calculate the source term */
-	if (mdlSelf(mdl)==0) {printf("Generating source term\n"); fflush(stdout); }
+	if (mdl->Self()==0) {printf("Generating source term\n"); fflush(stdout); }
 	for( auto index=R[6].begin(); index!=R[6].end(); ++index ) {
 	    auto pos = index.position();
 	    *index = R[0](pos)*R[1](pos) + R[0](pos)*R[2](pos) + R[1](pos)*R[2](pos)
 		- R[3](pos)*R[3](pos) - R[4](pos)*R[4](pos) - R[5](pos)*R[5](pos);
 	    }
-	mdlFFT(mdl, fft, R[6].dataFirst() );
+	mdl->FFT( fft, R[6].dataFirst() );
 	}
     
     /* Move the 1LPT positions/velocities to the particle area */
-    if (mdlSelf(mdl)==0) {printf("Transfering 1LPT positions to output area\n"); fflush(stdout);}
+    if (mdl->Self()==0) {printf("Transfering 1LPT positions to output area\n"); fflush(stdout);}
     for( auto index=output.begin(); index!=output.end(); ++index ) {
 	auto pos = index.position();
 	index->dr[0] = R[7](pos);
@@ -508,15 +508,15 @@ int pkdGenerateClassICm(PKD pkd, MDLFFT fft, int iSeed, int bFixed, float fPhase
 	    else K[7](pos) = K[8](pos) = K[9](pos) = 0.0;
 	    }
 
-	if (mdlSelf(mdl)==0) {printf("2LPT Generating x2 displacements\n"); fflush(stdout); }
-	mdlIFFT(mdl, fft, (FFTW3(complex)*)K[7].dataFirst() );
-	if (mdlSelf(mdl)==0) {printf("2LPT Generating y2 displacements\n"); fflush(stdout); }
-	mdlIFFT(mdl, fft, (FFTW3(complex)*)K[8].dataFirst() );
-	if (mdlSelf(mdl)==0) {printf("2LPT Generating z2 displacements\n"); fflush(stdout); }
-	mdlIFFT(mdl, fft, (FFTW3(complex)*)K[9].dataFirst() );
+	if (mdl->Self()==0) {printf("2LPT Generating x2 displacements\n"); fflush(stdout); }
+	mdl->IFFT( fft, (FFTW3(complex)*)K[7].dataFirst() );
+	if (mdl->Self()==0) {printf("2LPT Generating y2 displacements\n"); fflush(stdout); }
+	mdl->IFFT( fft, (FFTW3(complex)*)K[8].dataFirst() );
+	if (mdl->Self()==0) {printf("2LPT Generating z2 displacements\n"); fflush(stdout); }
+	mdl->IFFT( fft, (FFTW3(complex)*)K[9].dataFirst() );
 
 	/* Add the 2LPT positions/velocities corrections to the particle area */
-	if (mdlSelf(mdl)==0) {printf("Transfering 2LPT results to output area\n"); fflush(stdout); }
+	if (mdl->Self()==0) {printf("Transfering 2LPT results to output area\n"); fflush(stdout); }
 	for( auto index=output.begin(); index!=output.end(); ++index ) {
 	    auto pos = index.position();
 	    float x = R[7](pos) * fftNormalize;
@@ -533,7 +533,7 @@ int pkdGenerateClassICm(PKD pkd, MDLFFT fft, int iSeed, int bFixed, float fPhase
 
     if (b2LPT) {
 	/* Generate white noise realization -> K[6] */
-	if (mdlSelf(mdl)==0) {printf("Generating random noise again for theta\n"); fflush(stdout);}
+	if (mdl->Self()==0) {printf("Generating random noise again for theta\n"); fflush(stdout);}
 	ng.FillNoise(K[6],nGrid,noiseMean,noiseCSQ);
 	}
 
@@ -556,15 +556,15 @@ int pkdGenerateClassICm(PKD pkd, MDLFFT fft, int iSeed, int bFixed, float fPhase
 	    K[9](pos) = .0;
         }
     }
-    if (mdlSelf(mdl)==0) {printf("1LPT Generating x velocities\n"); fflush(stdout);}
-    mdlIFFT(mdl, fft, (FFTW3(complex)*)K[7].dataFirst());
-    if (mdlSelf(mdl)==0) {printf("1LPT Generating y velocitites\n"); fflush(stdout);}
-    mdlIFFT(mdl, fft, (FFTW3(complex)*)K[8].dataFirst());
-    if (mdlSelf(mdl)==0) {printf("1LPT Generating z velocities\n"); fflush(stdout);}
-    mdlIFFT(mdl, fft, (FFTW3(complex)*)K[9].dataFirst());
+    if (mdl->Self()==0) {printf("1LPT Generating x velocities\n"); fflush(stdout);}
+    mdl->IFFT( fft, (FFTW3(complex)*)K[7].dataFirst());
+    if (mdl->Self()==0) {printf("1LPT Generating y velocitites\n"); fflush(stdout);}
+    mdl->IFFT( fft, (FFTW3(complex)*)K[8].dataFirst());
+    if (mdl->Self()==0) {printf("1LPT Generating z velocities\n"); fflush(stdout);}
+    mdl->IFFT( fft, (FFTW3(complex)*)K[9].dataFirst());
 
     /* Move the 1LPT velocities to the particle area, if 2LPT was done then add them! */
-    if (mdlSelf(mdl)==0) {printf("Transfering 1LPT velocities to output area\n"); fflush(stdout); }
+    if (mdl->Self()==0) {printf("Transfering 1LPT velocities to output area\n"); fflush(stdout); }
     if (b2LPT) {
 	for( auto index=output.begin(); index!=output.end(); ++index ) {
 	    auto pos = index.position();
@@ -591,8 +591,9 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
     struct inMoveIC *in = reinterpret_cast<struct inMoveIC *>(vin);
     int i;
+    mdlClass *mdl = reinterpret_cast<mdlClass *>(pst->mdl);
 
-    mdlassert(pst->mdl,nIn == sizeof(struct inMoveIC));
+    mdlassert(mdl,nIn == sizeof(struct inMoveIC));
     assert(pstOnNode(pst)); /* We pass around pointers! */
     if (pstNotCore(pst)) {
 	struct inMoveIC icUp;
@@ -606,8 +607,8 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	icUp.nGrid = in->nGrid;
 	icUp.nInflateFactor = in->nInflateFactor;
 
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PLT_MOVEIC,&icUp,nIn);
-	mdlGetReply(pst->mdl,rID,NULL,0);
+	int rID = mdl->ReqService(pst->idUpper,PLT_MOVEIC,&icUp,nIn);
+	mdl->GetReply(rID,NULL,0);
 	pltMoveIC(pst->pstLower,in,nIn,NULL,0);
 	}
     else {
@@ -661,30 +662,31 @@ int pstMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
     PKD pkd = plcl->pkd;
     struct inGenerateIC *in = reinterpret_cast<struct inGenerateIC *>(vin);
+    mdlClass *mdl = reinterpret_cast<mdlClass *>(pst->mdl);
 
     if (pstOffNode(pst)) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_MOVEIC,vin,nIn);
+	int rID = mdl->ReqService(pst->idUpper,PST_MOVEIC,vin,nIn);
 	pstMoveIC(pst->pstLower,vin,nIn,NULL,0);
-	mdlGetReply(pst->mdl,rID,NULL,NULL);
+	mdl->GetReply(rID,NULL,NULL);
 	}
     else {
 	MDLFFT fft = pkd->fft;
-	int myProc = mdlProc(pst->mdl);
+	int myProc = mdl->Proc();
 	int iProc;
 	uint64_t iUnderBeg=0, iOverBeg=0;
 	uint64_t iUnderEnd, iOverEnd;
 	uint64_t iBeg, iEnd;
 
-	int *scount = reinterpret_cast<int *>(malloc(sizeof(int)*mdlProcs(pst->mdl))); assert(scount!=NULL);
-	int *sdisps = reinterpret_cast<int *>(malloc(sizeof(int)*mdlProcs(pst->mdl))); assert(sdisps!=NULL);
-	int *rcount = reinterpret_cast<int *>(malloc(sizeof(int)*mdlProcs(pst->mdl))); assert(rcount!=NULL);
-	int *rdisps = reinterpret_cast<int *>(malloc(sizeof(int)*mdlProcs(pst->mdl))); assert(rdisps!=NULL);
+	int *scount = reinterpret_cast<int *>(malloc(sizeof(int)*mdl->Procs())); assert(scount!=NULL);
+	int *sdisps = reinterpret_cast<int *>(malloc(sizeof(int)*mdl->Procs())); assert(sdisps!=NULL);
+	int *rcount = reinterpret_cast<int *>(malloc(sizeof(int)*mdl->Procs())); assert(rcount!=NULL);
+	int *rdisps = reinterpret_cast<int *>(malloc(sizeof(int)*mdl->Procs())); assert(rdisps!=NULL);
 
 	assert(pstAmNode(pst));
 	assert(fft != NULL);
 
 	assert(in->nInflateFactor>0);
-	uint64_t nPerNode = (uint64_t)mdlCores(pst->mdl) * (pkd->nStore / in->nInflateFactor);
+	uint64_t nPerNode = (uint64_t)mdl->Cores() * (pkd->nStore / in->nInflateFactor);
 	uint64_t nLocal = (int64_t)fft->rgrid->rn[myProc] * in->nGrid*in->nGrid;
 
 	/* Calculate how many slots are free (under) and how many need to be sent (over) before my rank */
@@ -703,7 +705,7 @@ int pstMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	    eBase = pBase + nSize*nPerNode;
 	    iUnderBeg = 0;
 	    iOverEnd = iOverBeg + nLocal - nPerNode;
-	    for(iProc=0; iProc<mdlProcs(pst->mdl); ++iProc) {
+	    for(iProc=0; iProc<mdl->Procs(); ++iProc) {
 		rcount[iProc] = rdisps[iProc] = 0; // We cannot receive anything
 		uint64_t nOnNode = fft->rgrid->rn[iProc] * in->nGrid*in->nGrid;
 		if (nOnNode<nPerNode) {
@@ -727,7 +729,7 @@ int pstMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	    eBase = pBase + nSize*nLocal;
 	    iOverBeg = 0;
 	    iUnderEnd = iUnderBeg + nPerNode - nLocal;
-	    for(iProc=0; iProc<mdlProcs(pst->mdl); ++iProc) {
+	    for(iProc=0; iProc<mdl->Procs(); ++iProc) {
 		scount[iProc] = sdisps[iProc] = 0; // We have nothing to send
 		uint64_t nOnNode = fft->rgrid->rn[iProc] * in->nGrid*in->nGrid;
 		if (nOnNode>nPerNode) {
@@ -747,12 +749,12 @@ int pstMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	    assert(nLocal <= nPerNode);
 	    }
 	else {
-	    for(iProc=0; iProc<mdlProcs(pst->mdl); ++iProc) {
+	    for(iProc=0; iProc<mdl->Procs(); ++iProc) {
 		rcount[iProc] = rdisps[iProc] = 0; // We cannot receive anything
 		scount[iProc] = sdisps[iProc] = 0; // We have nothing to send
 		}
 	    }
-	mdlAlltoallv(pst->mdl, nSize,
+	mdl->Alltoallv(nSize,
 	    pBase + nSize*nPerNode, scount, sdisps,
 	    pRecv,            rcount, rdisps);
 	free(scount);
@@ -786,14 +788,15 @@ int pltGenerateIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
     struct inGenerateICthread *tin = reinterpret_cast<struct inGenerateICthread *>(vin);
     struct inGenerateIC *in = tin->ic;
     struct outGenerateIC *out = reinterpret_cast<struct outGenerateIC *>(vout), outUp;
-    mdlassert(pst->mdl,nIn == sizeof(struct inGenerateICthread));
-    mdlassert(pst->mdl,vout != NULL);
+    mdlClass *mdl = reinterpret_cast<mdlClass *>(pst->mdl);
+    mdlassert(mdl,nIn == sizeof(struct inGenerateICthread));
+    mdlassert(mdl,vout != NULL);
     assert(pstOnNode(pst)); /* We pass around pointers! */
 
     if (pstNotCore(pst)) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PLT_GENERATEIC,vin,nIn);
+	int rID = mdl->ReqService(pst->idUpper,PLT_GENERATEIC,vin,nIn);
 	pltGenerateIC(pst->pstLower,vin,nIn,vout,nOut);
-	mdlGetReply(pst->mdl,rID,&outUp,NULL);
+	mdl->GetReply(rID,&outUp,NULL);
 	out->N += outUp.N;
 	out->noiseMean += outUp.noiseMean;
 	out->noiseCSQ += outUp.noiseCSQ;
@@ -815,6 +818,7 @@ int pltGenerateIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
 int pstGenerateIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
     PKD pkd = plcl->pkd;
+    mdlClass *mdl = reinterpret_cast<mdlClass *>(pst->mdl);
     struct inGenerateIC *in = reinterpret_cast<struct inGenerateIC *>(vin);
     struct outGenerateIC *out = reinterpret_cast<struct outGenerateIC *>(vout), outUp;
     int64_t i;
@@ -881,9 +885,9 @@ int pstGenerateIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	pkd->fft = fft; /* This is freed in pstMoveIC() */
 	}
     else if (pstNotCore(pst)) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_GENERATEIC,in,nIn);
+	int rID = mdl->ReqService(pst->idUpper,PST_GENERATEIC,in,nIn);
 	pstGenerateIC(pst->pstLower,in,nIn,vout,nOut);
-	mdlGetReply(pst->mdl,rID,&outUp,NULL);
+	mdl->GetReply(rID,&outUp,NULL);
 	out->N += outUp.N;
 	out->noiseMean += outUp.noiseMean;
 	out->noiseCSQ += outUp.noiseCSQ;

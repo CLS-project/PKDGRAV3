@@ -34,7 +34,7 @@ find_package(CUDA)
 add_library(${PROJECT_NAME} STATIC "")
 target_sources(${PROJECT_NAME}
   PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/mpi/mdl.cxx
-          ${CMAKE_CURRENT_SOURCE_DIR}/mdlbase.c
+          ${CMAKE_CURRENT_SOURCE_DIR}/mdlbase.cxx
   PUBLIC  ${CMAKE_CURRENT_SOURCE_DIR}/mpi/mdl.h
           ${CMAKE_CURRENT_SOURCE_DIR}/mdlbase.h
           ${CMAKE_CURRENT_BINARY_DIR}/mdl_config.h
