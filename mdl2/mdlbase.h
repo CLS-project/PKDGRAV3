@@ -43,17 +43,25 @@
 
 typedef int (fcnService_t)(void *p1, void *vin, int nIn, void *vout, int nOut);
 
-typedef struct serviceRec {
-    int nInBytes;
-    int nOutBytes;
-    void *p1;
-    fcnService_t *fcnService;
-//    int (*fcnService)(void *, void *, int, void *, int *);
-} SERVICE;
-
 #ifdef __cplusplus
+#include <vector>
 #define MAX_NODE_NAME_LENGTH      256
 class mdlBASE {
+protected:
+    class SERVICE {
+    	friend class mdlBASE;
+public:
+	int nInBytes;
+	int nOutBytes;
+	void *p1;
+	fcnService_t *fcnService;
+    public:
+	SERVICE() : nInBytes(0), nOutBytes(0), p1(0), fcnService(0) {}
+	SERVICE(fcnService_t *fcnService, void *p1=0, int nInBytes=0, int nOutBytes=0)
+	    :fcnService(fcnService), p1(p1), nInBytes(nInBytes), nOutBytes(nOutBytes) {}
+	int operator()(int nIn, char *pszIn, char *pszOut);
+    };
+
 public:
     int32_t nThreads; /* Global number of threads (total) */
     int32_t idSelf;   /* Global index of this thread */
@@ -68,10 +76,9 @@ public:
     char **argv;
 
     /* Services information */
-    int nMaxServices;
     int nMaxInBytes;
     int nMaxOutBytes;
-    SERVICE *psrv;
+    std::vector<SERVICE> services;
 
     /* Maps a give process (Proc) to the first global thread ID */
     int *iProcToThread; /* [0,nProcs] (note inclusive extra element) */
@@ -110,6 +117,7 @@ public:
     int32_t Procs()   const { return nProcs; }
     int32_t ProcToThread(int32_t iProc) const;
     int32_t ThreadToProc(int32_t iThread) const;
+    void yield();
     void AddService(int sid, void *p1, fcnService_t *fcnService, int nInBytes, int nOutBytes);
     };
 int mdlBaseProcToThread(mdlBASE *base, int iProc);

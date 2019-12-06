@@ -29,19 +29,11 @@
 #endif
 #include <stdint.h>
 #include "mpi.h"
-#ifdef MDL_FFTW
-#include <fftw3-mpi.h>
-#ifdef USE_SINGLE
-#define FFTW3(name) fftwf_ ## name
-typedef float fftwf_real;
-#else
-#define FFTW3(name) fftw_ ## name
-typedef double fftw_real;
-#endif
-#endif
-
+#include "mdlfft.h"
 #ifdef __cplusplus
+#include "mdlmessages.h"
 #include <vector>
+#include <list>
 #endif
 
 #ifndef MPI_VERSION
@@ -53,12 +45,17 @@ typedef double fftw_real;
 #define MDL_CACHE_SIZE		15000000
 #define MDL_CHECK_MASK  	0x7f
 
-typedef struct {
-    OPA_Queue_element_hdr_t hdr;
-    uint32_t iServiceID;
-    uint32_t iCoreFrom;
-    } MDLserviceElement;
+/*                                   MQ   MPI */
+#define MDL_TAG_BARRIER        	1 /* Yes  Yes */
+#define MDL_TAG_SWAPINIT 	2 /* NO   Yes */
+#define MDL_TAG_CACHE_FLUSH 	2 /* Yes  NO  */
+#define MDL_TAG_SWAP		3 /* NO   Yes */
+#define MDL_TAG_REQ	   	4 /* NO   Yes */
+#define MDL_TAG_RPL		5 /* This is treated specially */
+#define MDL_TAG_SEND            6 /* NO   Yes */
+#define MDL_TAG_CACHECOM	7 /* Yes  Yes */
 
+#define MDL_TAG_MAX             8
 
 typedef int (*mdlWorkFunction)(void *ctx);
 typedef int (*mdlPack)(void *,int *,size_t,void*);
@@ -66,35 +63,6 @@ typedef int (*mdlPack)(void *,int *,size_t,void*);
 struct mdlContext {};
 //typedef struct mdlContext * MDL;
 typedef void * MDL;
-
-/*
-** Grid Operations
-*/
-
-typedef struct mdlGridContext {
-    uint32_t n1,n2,n3;     /* Real dimensions */
-    uint32_t a1;           /* Actual size of dimension 1 */
-    uint32_t sSlab, nSlab; /* Start and number of slabs */
-    uint64_t nLocal;       /* Number of local elements */
-    uint32_t *rs;  /* Starting slab for each processor */
-    uint32_t *rn;  /* Number of slabs on each processor */
-    uint32_t *id;  /* Which processor has this slab */
-    } * MDLGRID;
-
-typedef struct {
-    MDLGRID grid;
-    uint64_t II;
-    int x, y, z; /* Real coordinate */
-    int i;       /* Index into local array */
-    } mdlGridCoord;
-
-#ifdef MDL_FFTW
-typedef struct mdlFFTContext {
-    MDLGRID rgrid;
-    MDLGRID kgrid;
-    FFTW3(plan) fplan, iplan;
-    } * MDLFFT;
-#endif
 
 #ifdef __cplusplus
 class CACHE;
@@ -146,63 +114,24 @@ public:
     CDB * remove_from_hash(CDB *p);
 };
 
-typedef struct {
-    MDLserviceElement svc;
-    void *buf;
-    int count;
-    int target;
-    int tag;
-    MPI_Datatype datatype;
-    } MDLserviceSend;
-
 typedef struct mdl_wq_node {
     /* We can put this on different types of queues */
     union {
 	OPA_Queue_element_hdr_t hdr;
-	} q;
+	};
     int iCoreOwner;
     void *ctx;
     mdlWorkFunction doFcn;
     mdlWorkFunction doneFcn;
     } MDLwqNode;
 
-/*
-** This structure should be "maximally" aligned.
-*/
-typedef struct cacheHeader {
-    uint8_t cid;
-    uint8_t mid;
-    uint16_t nItems;
-    int32_t idFrom;
-    int32_t idTo;
-    int32_t iLine;
-    } CAHEAD;
-
-typedef struct cacheHeaderNew {
-    uint32_t mid     :  2; /*  2: Message ID: request, flush, reply */
-    uint32_t cid     :  6; /*  6: Cache for this entry */
-    uint32_t tidFrom : 12; /* 12: thread id that made the request */
-    uint32_t tidTo   : 12; /* 12: thread id that gets the reply */
-    uint32_t iLine;        /* Index of the cache line */
-    } CAHEADnew;
-
-typedef struct {
-    struct mdl_flush_buffer *next, *prev;
-    MPI_Request request;
-    } mdl_flush_links;
-
-typedef struct mdl_flush_buffer {
-    union {
-	mdl_flush_links mpi;
-	OPA_Queue_element_hdr_t hdr;
-	MDLserviceElement svc; /* When sending to/from the MPI thread */
-	} hdr;
-    MPI_Request request;
-    uint32_t nBufferSize;
-    uint32_t nBytes;
-    uint32_t iRankTo;
-    } MDLflushBuffer;
-/* followed by CAHEAD, element, CAHEAD, element, etc. */
+// typedef struct cacheHeaderNew {
+//     uint32_t mid     :  2; /*  2: Message ID: request, flush, reply */
+//     uint32_t cid     :  6; /*  6: Cache for this entry */
+//     uint32_t tidFrom : 12; /* 12: thread id that made the request */
+//     uint32_t tidTo   : 12; /* 12: thread id that gets the reply */
+//     uint32_t iLine;        /* Index of the cache line */
+//     } CacheHeadernew;
 
 #define MDL_CACHE_DATA_SIZE (512)
 typedef struct cache_reply_data {
@@ -212,14 +141,7 @@ typedef struct cache_reply_data {
     MPI_Request mpiRequest;
     int nBytes;
     } MDLcacheReplyData;
-    /* followed by CAHEAD and data */
-
-typedef struct {
-    MDLserviceElement svc;
-    void *pLine;
-    CAHEAD caReq;
-    MPI_Request request;
-    } MDLserviceCacheReq;
+    /* followed by CacheHeader and data */
 
 class CACHE {
 public:
@@ -235,7 +157,6 @@ public:
     ARC *arc;
     char *pOneLine;
 
-    MDLserviceCacheReq cacheRequest;
     void *ctx;
     void (*init)(void *,void *);
     void (*combine)(void *,void *,void *);
@@ -248,47 +169,14 @@ public:
     uint64_t nColl;
     };
 
-class mdlContextMPI {
-public:
-    MPI_Comm commMDL;             /* Current active communicator */
-#ifdef USE_CUDA
-    void *cudaCtx;
-    OPA_Queue_info_t queueCUDA;
-#endif
-#if defined(USE_CUDA) || defined(USE_CL)
-    int inCudaBufSize, outCudaBufSize;
-#endif
-    OPA_Queue_info_t queueMPI;
-    OPA_Queue_info_t queueWORK;
-    OPA_Queue_info_t queueREGISTER;
-    OPA_Queue_info_t localFlushBuffers;
-    MDLflushBuffer **flushBuffersByRank;
-    MDLflushBuffer **flushBuffersByCore;
-    MDLflushBuffer flushHeadBusy;
-    MDLflushBuffer flushHeadFree;
-    MDLflushBuffer flushHeadSent;
-    int flushBusyCount, flushBuffCount;
-    int *pRequestTargets;
-    int nRequestTargets;
-    int iRequestTarget;
-    int nSendRecvReq;
-    int nActiveCores;
-    int nOpenCaches;
-    int iCacheBufSize;  /* Cache input buffer size */
-    int iReplyBufSize;  /* Cache reply buffer size */
-    MPI_Request *pSendRecvReq;
-    MDLcacheReplyData *pReqRcv;
-    MDLserviceSend **pSendRecvBuf;
-    MDLserviceCacheReq **pThreadCacheReq;
-    MDLcacheReplyData *freeCacheReplies;
-    MDLcacheReplyData *busyCacheReplies, **busyCacheRepliesTail;
-    };
-
 class mdlClass : public mdlBASE {
     friend class ARC;
+protected:
+    friend class mdlMessageFlushToCore;
+    void MessageFlushToCore(mdlMessageFlushToCore *message);
 public:
     struct mdlClass **pmdl;
-    mdlContextMPI *mpi;
+    class mpiClass *mpi;
     void * (*fcnWorkerInit)(MDL mdl);
     void   (*fcnWorkerDone)(MDL mdl, void *ctx);
     void   (*fcnMaster)(    MDL mdl, void *ctx);
@@ -296,30 +184,28 @@ public:
     pthread_t *threadid;
     pthread_barrier_t barrier;
     void *worker_ctx;
+    mdlMessageQueue threadBarrierQueue;
 
-    OPA_Queue_info_t *inQueue;
-    MDLserviceElement inMessage;
+    std::vector<mdlMessageQueue> queueReceive; // Receive "Send/Ssend"
+    mdlMessageQueue *inQueue;
     void *pvMessageData; /* These two are for the collective malloc */
     size_t nMessageData;
     int iCoreMPI;             /* Core that handles MPI requests */
     int cacheSize;
 
     /* Work Queues */
-    OPA_Queue_info_t wq;     /* Work for us to do */
-    OPA_Queue_info_t wqDone; /* Completed work from other threads */
-    OPA_Queue_info_t wqFree; /* Free work queue nodes */
+    mdlMessageQueue wq;     /* Work for us to do */
+    mdlMessageQueue wqDone; /* Completed work from other threads */
+    mdlMessageQueue wqFree; /* Free work queue nodes */
     int wqMaxSize;
     uint16_t wqAccepting;
     uint16_t wqLastHelper;
     OPA_int_t wqCurSize;
-
     /*
      ** Services stuff!
      */
     int nMaxSrvBytes;
-    char *pszIn;
-    char *pszOut;
-    char *pszBuf;
+    std::vector<char> input_buffer, output_buffer;
     /*
      ** Swapping buffer.
      */
@@ -327,16 +213,17 @@ public:
     /*
      ** Caching stuff!
      */
+
+    // Flush messages are added here. Eventually we send them to the MPI thread.
+    mdlMessageQueue coreFlushBuffers; // Available buffers
+    mdlMessageFlushFromCore *coreFlushBuffer; // Active buffer
+
+    mdlMessageQueue queueCacheReply; // Replies to cache requests
     int nMaxCacheIds;
     CACHE *cache;
-    MDLflushBuffer *coreFlushBuffer;
-    OPA_Queue_info_t coreFlushBuffers; /* Buffers we can destage to */
-    OPA_Queue_info_t wqCacheFlush;
+    mdlMessageQueue wqCacheFlush;
 
     int nFlushOutBytes;
-
-    MDLserviceSend sendRequest;
-    MDLserviceSend recvRequest;
 
 #ifdef USE_CUDA
     void *cudaCtx;
@@ -352,16 +239,15 @@ protected:
     void Handler();
     void run_master();
     ARC *arcReinitialize(ARC *arc,uint32_t nCache,uint32_t uDataSize,CACHE *c);
-    int mdl_MPI_Barrier();
-    int mdl_MPI_Ssend(void *buf, int count, MPI_Datatype datatype, int dest, int tag);
-    int mdl_MPI_Send(void *buf, int count, MPI_Datatype datatype, int dest, int tag);
+    //int mdl_MPI_Barrier();
+    void mdl_MPI_Ssend(void *buf, int count, MPI_Datatype datatype, int dest, int tag);
+//    int mdl_MPI_Send(void *buf, int count, MPI_Datatype datatype, int dest, int tag);
     int mdl_MPI_Sendrecv(
 	void *sendbuf, int sendcount, MPI_Datatype sendtype,
 	int dest, int sendtag, void *recvbuf, int recvcount,
 	MPI_Datatype recvtype, int source, int recvtag, int *nReceived);
-    int mdl_start_MPI_Ssend(void *buf, int count, MPI_Datatype datatype, int dest, int tag, int stype);
+    void mdl_start_MPI_Ssend(mdlMessageSend &M, mdlMessageQueue &replyTo);
     int mdl_MPI_Recv(void *buf, int count, MPI_Datatype datatype, int source, int tag, int *nBytes);
-    int mdl_remote_MPI_Recv(void *buf, int count, MPI_Datatype datatype, int source, int tag, int *nBytes, int iServiceID);
     virtual int checkMPI();
     void drainMPI();
     static void *mdlWorkerThread(void *vmdl); // Called by pthread_create with an mdlClass *
@@ -371,12 +257,14 @@ protected:
 
     int DoSomeWork();
     void bookkeeping();
-    void queueCacheRequest(int cid, int iLine, int id);
-    void finishCacheRequest(int cid, int iLine, int id, CDB *temp,int bVirtual);
-    void SendThreadMessage(int iQueue,int iCore, void *vhdr, uint16_t iServiceID );
+    void finishCacheRequest(mdlMessageCacheRequest &R, CDB *temp,int bVirtual);
   
 protected:
-    MDLflushBuffer *flush_core_buffer();
+    void flush_core_buffer();
+    mdlMessage & waitQueue(mdlMessageQueue &wait);
+    void enqueue(mdlMessage &M);
+    void enqueue(const mdlMessage &M, mdlMessageQueue &replyTo, bool bWait=false);
+    void enqueueAndWait(const mdlMessage &M);
 
 private:
     void init(bool bDiag = false);
@@ -386,18 +274,6 @@ public:
     explicit mdlClass(void (*fcnMaster)(MDL,void *),void * (*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *),
     	     int argc=0, char **argv=0);
     virtual ~mdlClass();
-    //void AddService(int sid,void *p1, fcnService_t *fcnService, int nInBytes,int nOutBytes);
-
-#if 0
-    int32_t Threads() { return base.nThreads; }
-    int32_t Self()    { return base.idSelf; }
-    int16_t Core()    { return base.iCore; }
-    int16_t Cores()   { return base.nCores; }
-    int32_t Proc()    { return base.iProc; }
-    int32_t Procs()   { return base.nProcs; }
-    int ProcToThread(int iProc);
-    int ThreadToProc(int iThread);
-#endif
 
     CACHE *CacheInitialize(int cid,
 	void * (*getElt)(void *pData,int i,int iDataSize),
@@ -413,14 +289,15 @@ public:
 
     void CacheCheck();
     void CacheBarrier(int cid);
-    void ThreadBarrier();
+    void ThreadBarrier(bool bGlobal=false);
     void CompleteAllWork();
 
     void *Access(int cid, uint32_t uIndex, int uId, int bLock,int bModify,int bVirtual);
 
-    void /*MDLserviceElement*/ *WaitThreadQueue(int iQueue);
+    size_t FFTlocalCount(int n1,int n2,int n3,int *nz,int *sz,int *ny,int*sy);
+    MDLFFT FFTNodeInitialize(int n1,int n2,int n3,int bMeasure,FFTW3(real) *data);
+    void GridShare(MDLGRID grid);
 
-    void SendToMPI(void *vhdr, uint16_t iServiceID );
     void FFT( MDLFFT fft, FFTW3(real) *data );
     void IFFT( MDLFFT fft, FFTW3(complex) *kdata );
     void Alltoallv(int dataSize,void *sbuff,int *scount,int *sdisps,void *rbuff,int *rcount,int *rdisps);
@@ -428,23 +305,117 @@ public:
     };
 
 class mpiClass : public mdlClass {
+public:
+    mdlMessageQueue queueWORK;
+    mdlMessageQueue queueREGISTER;
 protected:
-    MDLflushBuffer *get_local_flush_buffer();
-    void flush_send(MDLflushBuffer *pBuffer);
-    void finish_local_flush();
-    int flush_check_completion();
-    void flush_element(CAHEAD *pHdr,int iLineSize);
-    void flush_elements(MDLflushBuffer *pFlush);
-    void flush_all_elements();
-    void queue_local_flush(CAHEAD *ph);
-    int CacheReceive(MPI_Status *status);
+    MPI_Comm commMDL;             /* Current active communicator */
+#ifdef USE_CUDA
+    void *cudaCtx;
+    mdlMessageQueue queueCUDA;
+#endif
+#if defined(USE_CUDA) || defined(USE_CL)
+    int inCudaBufSize, outCudaBufSize;
+#endif
+    mdlMessageQueue queueMPInew;     // Queue of work sent to MPI task
+    std::vector<mdlMessageCacheRequest*> CacheRequestMessages;
+
+    mdlMessageQueue queueMPI;
+
+    // Used to buffer incoming flush requests before sending them to each core
+    mdlMessageQueue localFlushBuffers;
+    std::vector<mdlMessageFlushToCore *> flushBuffersByCore;
+
+    typedef std::list<mdlMessageFlushToRank *> FlushToRankList;
+    FlushToRankList flushHeadFree; // Unused buffers
+    FlushToRankList flushHeadBusy; // Buffers currently being filled (in flushBuffersByRank)
+    std::vector<FlushToRankList::iterator> flushBuffersByRank;
+
+    int flushBuffCount;
+    int *pRequestTargets;
+    int nRequestTargets;
+    int iRequestTarget;
+    int nActiveCores;
+    int nOpenCaches;
+    int iCacheBufSize;  /* Cache input buffer size */
+    int iReplyBufSize;  /* Cache reply buffer size */
+    std::vector<MPI_Request>    SendReceiveRequests;
+    std::vector<MPI_Status>     SendReceiveStatuses;
+    std::vector<int>            SendReceiveIndices;
+    std::vector<mdlMessageMPI*> SendReceiveMessages;
+
+    mdlMessageCacheReceive *pReqRcv;
+    std::list<mdlMessageCacheReply *> freeCacheReplies;
+
+protected:
+    // These are functions that are called as a result of a worker thread sending
+    // us a message to perform a certain task.
+    friend class mdlMessageSTOP;
+    void MessageSTOP(mdlMessageSTOP *message);
+    friend class mdlMessageBarrierMPI;
+    void MessageBarrierMPI(mdlMessageBarrierMPI *message);
+    friend class mdlMessageFlushFromCore;
+    void MessageFlushFromCore(mdlMessageFlushFromCore *message);
+    friend class mdlMessageFlushToRank;
+    void MessageFlushToRank(mdlMessageFlushToRank *message);
+    void FinishFlushToRank(mdlMessageFlushToRank *message);
+    friend class mdlMessageCacheReply;
+    void MessageCacheReply(mdlMessageCacheReply *message);
+    void FinishCacheReply(mdlMessageCacheReply *message);
+    friend class mdlMessageCacheReceive;
+    void MessageCacheReceive(mdlMessageCacheReceive *message);
+    void FinishCacheReceive(mdlMessageCacheReceive *message, const MPI_Status &status);
+    void CacheReceiveRequest(int count, const CacheHeader *ph);
+    void CacheReceiveReply(int count, const CacheHeader *ph);
+    void CacheReceiveFlush(int count, CacheHeader *ph);
+    friend class mdlMessageCacheOpen;
+    void MessageCacheOpen(mdlMessageCacheOpen *message);
+    friend class mdlMessageCacheClose;
+    void MessageCacheClose(mdlMessageCacheClose *message);
+    friend class mdlMessageCacheFlushOut;
+    void MessageCacheFlushOut(mdlMessageCacheFlushOut *message);
+    friend class mdlMessageCacheFlushLocal;
+    void MessageCacheFlushLocal(mdlMessageCacheFlushLocal *message);
+    friend class mdlMessageGridShare;
+    void MessageGridShare(mdlMessageGridShare *message);
+    friend class mdlMessageDFT_R2C;
+    void MessageDFT_R2C(mdlMessageDFT_R2C *message);
+    friend class mdlMessageDFT_C2R;
+    void MessageDFT_C2R(mdlMessageDFT_C2R *message);
+    friend class mdlMessageFFT_Sizes;
+    void MessageFFT_Sizes(mdlMessageFFT_Sizes *message);
+    friend class mdlMessageFFT_Plans;
+    void MessageFFT_Plans(mdlMessageFFT_Plans *message);
+    friend class mdlMessageAlltoallv;
+    void MessageAlltoallv(mdlMessageAlltoallv *message);
+    friend class mdlMessageSend;
+    void MessageSend(mdlMessageSend *message);
+    friend class mdlMessageReceive;
+    void MessageReceive(mdlMessageReceive *message);
+    friend class mdlMessageReceiveReply;
+    void MessageReceiveReply(mdlMessageReceiveReply *message);
+    void FinishReceiveReply(mdlMessageReceiveReply *message);
+    friend class mdlMessageSendRequest;
+    void MessageSendRequest(mdlMessageSendRequest *message);
+    friend class mdlMessageSendReply;
+    void MessageSendReply(mdlMessageSendReply *message);
+    friend class mdlMessageCacheRequest;
+    void MessageCacheRequest(mdlMessageCacheRequest *message);
+
+protected:
+    void flush_element(CacheHeader *pHdr,int iLineSize);
+    void queue_local_flush(CacheHeader *ph);
     virtual int checkMPI();
+    void processMessages();
+    void finishRequests();
     int swapall(const char *buffer,int count,int datasize,/*const*/ int *counts);
 public:
     explicit mpiClass(void (*fcnMaster)(MDL,void *),void * (*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *),
     	     int argc=0, char **argv=0);
     virtual ~mpiClass();
     void Launch(int argc,char **argv,void (*fcnMaster)(MDL,void *),void * (*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *));
+    void enqueue(mdlMessage &M);
+    void enqueue(const mdlMessage &M, mdlMessageQueue &replyTo, bool bWait=false);
     };
 #endif
 

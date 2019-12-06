@@ -121,6 +121,11 @@ add_subdirectory(mdl2)
 
 add_executable(${PROJECT_NAME} "")
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_auto_type cxx_lambdas)
+set_target_properties(${PROJECT_NAME} PROPERTIES
+    CXX_STANDARD 11
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO
+)
 set_property(TARGET ${PROJECT_NAME} APPEND PROPERTY COMPILE_DEFINITIONS _LARGEFILE_SOURCE)
 target_sources(${PROJECT_NAME} PRIVATE
 	main.c cosmo.c master.c pst.c fio.c illinois.c param.c

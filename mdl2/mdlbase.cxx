@@ -40,6 +40,17 @@ static int _srvNull(void *p1, void *vin, int nIn, void *vout, int nOut) {
     return 0;
     }
 
+
+
+int mdlBASE::SERVICE::operator()(int nIn, char *pszIn, char *pszOut) {
+    assert(nIn <= nInBytes);
+    assert(fcnService != NULL);
+    int nOut = (*fcnService)(p1, pszIn, nIn, pszOut, nOutBytes);
+    assert(nOut <= nOutBytes);
+    return nOut;
+    }
+
+
 mdlBASE::mdlBASE(int argc,char **argv) {
     int i;
 
@@ -73,35 +84,20 @@ mdlBASE::mdlBASE(int argc,char **argv) {
     ** maximums, as the structures will be realloc'd when these
     ** values are exceeded.
     */
-    nMaxServices = MDL_DEFAULT_SERVICES;
     nMaxInBytes  = 0;
     nMaxOutBytes = 0;
     /*
     ** Now allocate the initial service slots.
     */
-    psrv = (SERVICE *)malloc(nMaxServices*sizeof(SERVICE));
-    assert(psrv != NULL);
+    services.resize(MDL_DEFAULT_SERVICES);
     /*
     ** Provide a 'null' service for sid = 0, so that stopping the
     ** service handler is well defined!
     */
-    psrv[0].p1 = NULL;
-    psrv[0].nInBytes = 0;
-    psrv[0].nOutBytes = 0;
-    psrv[0].fcnService = _srvNull;
-    /*
-    ** Initialize the remaining new service slots.
-    */
-    for (i = 1; i<nMaxServices; ++i) {
-        psrv[i].p1 = NULL;
-        psrv[i].nInBytes = 0;
-        psrv[i].nOutBytes = 0;
-        psrv[i].fcnService = NULL;
-        }
+    services[0] = SERVICE(_srvNull);
     }
 
 mdlBASE::~mdlBASE() {
-    free(psrv);
 #ifdef _MSC_VER
     WSACleanup();
 #endif
@@ -129,35 +125,19 @@ int32_t mdlBASE::ThreadToProc(int32_t iThread) const {
 void mdlBASE::AddService(int sid, void *p1,
     fcnService_t *fcnService,
     int nInBytes, int nOutBytes) {
-    int i, nMaxServices;
-
-    assert(sid >= 0); /* We can replace SRV_STOP to do something at the end */
-    if (sid >= nMaxServices) {
-        /*
-        ** reallocate service buffer, adding space for 8 new services
-        ** including the one just defined.
-        */
-        nMaxServices = sid + 9;
-        psrv = (SERVICE *)realloc(psrv, nMaxServices*sizeof(SERVICE));
-        assert(psrv != NULL);
-        /*
-        ** Initialize the new service slots.
-        */
-        for (i = nMaxServices; i<nMaxServices; ++i) {
-            psrv[i].p1 = NULL;
-            psrv[i].nInBytes = 0;
-            psrv[i].nOutBytes = 0;
-            psrv[i].fcnService = NULL;
-        }
-        nMaxServices = nMaxServices;
-    }
     if (nInBytes  > nMaxInBytes)  nMaxInBytes  = nInBytes;
     if (nOutBytes > nMaxOutBytes) nMaxOutBytes = nOutBytes;
-    psrv[sid].p1 = p1;
-    psrv[sid].nInBytes = nInBytes;
-    psrv[sid].nOutBytes = nOutBytes;
-    psrv[sid].fcnService = fcnService;
+    if (sid >= services.size()) services.resize(sid+9);
+    services[sid] = SERVICE(fcnService,p1,nInBytes,nOutBytes);
 }
+
+void mdlBASE::yield() {
+#ifdef _MSC_VER
+    SwitchToThread();
+#else
+    sched_yield();
+#endif
+    }
 
 const char *mdlName(void *mdl) {
     mdlBASE *base = reinterpret_cast<mdlBASE *>(mdl);

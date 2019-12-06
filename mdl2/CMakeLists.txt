@@ -32,8 +32,15 @@ find_package(MPI REQUIRED)	# MPI support
 find_package(CUDA)
 
 add_library(${PROJECT_NAME} STATIC "")
+set_target_properties(${PROJECT_NAME} PROPERTIES
+    CXX_STANDARD 11
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO
+)
+
 target_sources(${PROJECT_NAME}
   PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/mpi/mdl.cxx
+          ${CMAKE_CURRENT_SOURCE_DIR}/mpi/mdlmessages.cxx
           ${CMAKE_CURRENT_SOURCE_DIR}/mdlbase.cxx
   PUBLIC  ${CMAKE_CURRENT_SOURCE_DIR}/mpi/mdl.h
           ${CMAKE_CURRENT_SOURCE_DIR}/mdlbase.h
