@@ -339,6 +339,264 @@ static int gcd ( int a, int b ) {
     return b;
     }
 
+/*
+** This function is written so that one can pass the same vector to 
+** x and y.
+*/
+static inline void matvec(double y[3],double R[3][3],double x[3]) {
+    double yx = R[0][0]*x[0] + R[0][1]*x[1] + R[0][2]*x[2];
+    double yy = R[1][0]*x[0] + R[1][1]*x[1] + R[1][2]*x[2];
+    y[2] = R[2][0]*x[0] + R[2][1]*x[1] + R[2][2]*x[2];
+    y[0] = yx;
+    y[1] = yy;
+    }
+
+static inline double dotvec(double y[3],double x[3]) {
+    return y[0]*x[0] + y[1]*x[1] + y[2]*x[2];
+    }
+
+
+/*
+** Build a rotation matrix from a unit quaternion.
+** Note: it MUST be a unit quaternion, for this to work!
+*/
+static inline void makerot(double R[3][3],double qr,double qi,double qj,double qk) {
+    R[0][0] = 1 - 2*(qj*qj + qk*qk);
+    R[0][1] = 2*(qi*qj - qk*qr);
+    R[0][2] = 2*(qi*qk + qj*qr);
+    R[1][0] = 2*(qi*qj + qk*qr);
+    R[1][1] = 1 - 2*(qi*qi + qk*qk);
+    R[1][2] = 2*(qj*qk - qi*qr);
+    R[2][0] = 2*(qi*qk - qj*qr);
+    R[2][1] = 2*(qj*qk + qi*qr);
+    R[2][2] = 1 - 2*(qi*qi + qj*qj);
+    }
+
+
+#define INDEX(i,j,k) (k+n*(j+n*i))
+
+int initLightBeamOffsets(PKD pkd,int iBeam,double dTheta,double dPhi,double dDelta,double dDepth) {
+#ifdef __linux__
+	uint64_t nPageSize = sysconf(_SC_PAGESIZE);
+#else
+	uint64_t nPageSize = 512;
+#endif
+    uint64_t nLightBeamBytes = (1024*1024*16);
+    int nBox,nBoxMax;
+    double sx,sy,sz;
+    double nx,ny,nz;
+    double scale,qr,qi,qj,qk;
+    double r[3],m[3];
+    double R[3][3];
+    int n,i,j,k,ii;
+    double *dist;
+    double *nldot;
+    double *mldot;
+    double *nudot;
+    double *mudot;
+    void *v;
+    
+    assert(0 <= dTheta && dTheta < M_PI);
+    assert(-M_PI <= dPhi && dPhi < M_PI);
+    /*
+    ** Can loop through all the replicas marking the cells that intersect the 
+    ** beam. We may want to check that the tangential extent at the largest 
+    ** depth is no larger than the length of the side of the simulation box.
+    ** In other words, no replication of the projected sky.
+    */
+    /*
+    ** Calculate some needed unit vectors...
+    ** <s> is the direction of the beam
+    ** <n> is normal of the "tilt plane" of <s>, we will rotate dDelta about this vector
+    ** <nl> is the normal to the lower bound of the tilt plane
+    ** <nu> is the normal to the upper bound of the tilt plane
+    */
+    sx = sin(dTheta)*cos(dPhi);
+    sy = sin(dTheta)*sin(dPhi);
+    sz = cos(dTheta);
+    nx = -cos(dTheta)*cos(dPhi);
+    ny = -cos(dTheta)*sin(dPhi);
+    nz = sin(dTheta);
+    dTheta += 0.5*dDelta;
+    pkd->beam[iBeam].nl[0] = -cos(dTheta)*cos(dPhi);
+    pkd->beam[iBeam].nl[1] = -cos(dTheta)*sin(dPhi);
+    pkd->beam[iBeam].nl[2] = sin(dTheta);
+    dTheta -= dDelta;
+    pkd->beam[iBeam].nu[0] = -cos(dTheta)*cos(dPhi);
+    pkd->beam[iBeam].nu[1] = -cos(dTheta)*sin(dPhi);
+    pkd->beam[iBeam].nu[2] = sin(dTheta);
+    dTheta += 0.5*dDelta; /* set back to original value */
+    /*
+    ** Make a unit quaternion.
+    ** scale = sin(0.5*dTheta)/sqrt(nx*nx + ny*ny + nz*nz);    
+    */
+    scale = sin(0.5*(-0.5*dDelta));
+    qr = cos(0.5*(-0.5*dDelta));
+    qi = nx*scale;
+    qj = ny*scale;
+    qk = nz*scale;
+    makerot(R,qr,qi,qj,qk);
+    m[0] = -sin(dPhi);
+    m[1] = cos(dPhi);
+    m[2] = 0;
+    matvec(pkd->beam[iBeam].ml,R,m);
+    scale = sin(0.5*dDelta);
+    qr = cos(0.5*dDelta);
+    qi = nx*scale;
+    qj = ny*scale;
+    qk = nz*scale;
+    makerot(R,qr,qi,qj,qk);
+    matvec(pkd->beam[iBeam].mu,R,m);
+    /*
+    ** Main replica loop
+    ** First calculating 4 dot products and distance at each corner.
+    */
+    pkd->beam[iBeam].dDepth = dDepth;
+    n = 1 + ceil(dDepth);
+    dist = malloc(n*n*n*sizeof(double));
+    assert(dist != NULL);
+    nldot = malloc(n*n*n*sizeof(double));
+    assert(nldot != NULL);
+    mldot = malloc(n*n*n*sizeof(double));
+    assert(mldot != NULL);
+    nudot = malloc(n*n*n*sizeof(double));
+    assert(nudot != NULL);
+    mudot = malloc(n*n*n*sizeof(double));
+    assert(mudot != NULL);
+    for (i=0;i<n;++i) {
+	r[0] = copysign(0.5,sx)*(2*i-1);
+	for (j=0;j<n;++j) {
+	    r[1] = copysign(0.5,sy)*(2*j-1);
+	    for (k=0;k<n;++k) {
+		r[2] = copysign(0.5,sz)*(2*k-1);
+		ii = INDEX(i,j,k);
+		dist[ii] = sqrt(i*i + j*j + k*k);
+		nldot[ii] = dotvec(pkd->beam[iBeam].nl,r);
+		nudot[ii] = dotvec(pkd->beam[iBeam].nu,r);
+		mldot[ii] = dotvec(pkd->beam[iBeam].ml,r);
+		mudot[ii] = dotvec(pkd->beam[iBeam].mu,r);
+		}
+	    }
+	}
+    /*
+    ** Main replica loop.
+    ** Now checking each of the 8 corners and distance.
+    */
+    /* Make sure there is no old memory hanging around */
+    if (pkd->beam[iBeam].lcOffset0) free(pkd->beam[iBeam].lcOffset0);
+    if (pkd->beam[iBeam].lcOffset1) free(pkd->beam[iBeam].lcOffset1);
+    if (pkd->beam[iBeam].lcOffset2) free(pkd->beam[iBeam].lcOffset2);
+    pkd->beam[iBeam].lcOffset0 = NULL;
+    pkd->beam[iBeam].lcOffset1 = NULL;
+    pkd->beam[iBeam].lcOffset2 = NULL;
+    nBoxMax = 0;
+    nBox = 0;
+    for (i=0;i<(n-1);++i) {
+	r[0] = copysign(0.5,sx)*(2*i-1);
+	for (j=0;j<(n-1);++j) {
+	    r[1] = copysign(0.5,sy)*(2*j-1);
+	    for (k=0;k<(n-1);++k) {
+		r[2] = copysign(0.5,sz)*(2*k-1);
+		/*
+		** If distance to the "lower" corner is less than depth
+		** then all particles in this cell are outside the beam.
+		*/
+		if (dist[INDEX(i,j,k)] > dDepth) continue;
+		/*
+		** If all 8 corners lie below the lower plane then this 
+		** cell is outside of the beam and doesn't need to be checked.
+		*/
+		if (nldot[INDEX(i,j,k)] < 0 &&
+		    nldot[INDEX(i+1,j,k)] < 0 &&
+		    nldot[INDEX(i,j+1,k)] < 0 &&
+		    nldot[INDEX(i+1,j+1,k)] < 0 &&
+		    nldot[INDEX(i,j,k+1)] < 0 &&
+		    nldot[INDEX(i+1,j,k+1)] < 0 &&
+		    nldot[INDEX(i,j+1,k+1)] < 0 &&
+		    nldot[INDEX(i+1,j+1,k+1)] < 0) continue; 
+		/*
+		** If all 8 corners lie below the lower plane then this 
+		** cell is outside of the beam and doesn't need to be checked.
+		*/
+		if (mldot[INDEX(i,j,k)] < 0 &&
+		    mldot[INDEX(i+1,j,k)] < 0 &&
+		    mldot[INDEX(i,j+1,k)] < 0 &&
+		    mldot[INDEX(i+1,j+1,k)] < 0 &&
+		    mldot[INDEX(i,j,k+1)] < 0 &&
+		    mldot[INDEX(i+1,j,k+1)] < 0 &&
+		    mldot[INDEX(i,j+1,k+1)] < 0 &&
+		    mldot[INDEX(i+1,j+1,k+1)] < 0) continue; 
+		/*
+		** If all 8 corners lie above the upper plane then this 
+		** cell is outside of the beam and doesn't need to be checked.
+		*/
+		if (nudot[INDEX(i,j,k)] >= 0 &&
+		    nudot[INDEX(i+1,j,k)] >= 0 &&
+		    nudot[INDEX(i,j+1,k)] >= 0 &&
+		    nudot[INDEX(i+1,j+1,k)] >= 0 &&
+		    nudot[INDEX(i,j,k+1)] >= 0 &&
+		    nudot[INDEX(i+1,j,k+1)] >= 0 &&
+		    nudot[INDEX(i,j+1,k+1)] >= 0 &&
+		    nudot[INDEX(i+1,j+1,k+1)] >= 0) continue; 
+		/*
+		** If all 8 corners lie above the upper plane then this 
+		** cell is outside of the beam and doesn't need to be checked.
+		*/
+		if (mudot[INDEX(i,j,k)] >= 0 &&
+		    mudot[INDEX(i+1,j,k)] >= 0 &&
+		    mudot[INDEX(i,j+1,k)] >= 0 &&
+		    mudot[INDEX(i+1,j+1,k)] >= 0 &&
+		    mudot[INDEX(i,j,k+1)] >= 0 &&
+		    mudot[INDEX(i+1,j,k+1)] >= 0 &&
+		    mudot[INDEX(i,j+1,k+1)] >= 0 &&
+		    mudot[INDEX(i+1,j+1,k+1)] >= 0) continue; 
+		/*
+		** We should check the particles of this cell.
+		** Record the offset and increase nBox
+		*/
+		if (nBox == nBoxMax) {
+		    nBoxMax += 100;
+		    pkd->beam[iBeam].lcOffset0 = realloc(pkd->beam[iBeam].lcOffset0,nBoxMax);
+		    assert(pkd->beam[iBeam].lcOffset0 != NULL);
+		    pkd->beam[iBeam].lcOffset1 = realloc(pkd->beam[iBeam].lcOffset1,nBoxMax);
+		    assert(pkd->beam[iBeam].lcOffset1 != NULL);
+		    pkd->beam[iBeam].lcOffset2 = realloc(pkd->beam[iBeam].lcOffset2,nBoxMax);
+		    assert(pkd->beam[iBeam].lcOffset2 != NULL);
+		    }
+		pkd->beam[iBeam].lcOffset0[nBox] = r[0];
+		pkd->beam[iBeam].lcOffset1[nBox] = r[1];
+		pkd->beam[iBeam].lcOffset2[nBox] = r[2];
+		++nBox;
+		}
+	    }
+	}
+    pkd->beam[iBeam].nBox = nBox;
+    free(dist);
+    free(nldot);
+    free(mldot);
+    free(nudot);
+    free(mudot);
+    /*
+    ** allocate enough space for light beam particle output
+    */
+    pkd->nLightBeamMax = nLightBeamBytes / sizeof(LIGHTCONEP);
+    
+    pkd->beam[iBeam].nBeam = 0;
+#ifdef _MSC_VER
+    pkd->beam[iBeam].pBeam = _aligned_malloc(nLightBeamBytes, nPageSize);
+#else
+    if (posix_memalign(&v, nPageSize, nLightBeamBytes)) pkd->beam[iBeam].pBeam = NULL;
+    else pkd->beam[iBeam].pBeam = v;
+#endif
+    mdlassert(pkd->mdl,pkd->beam[iBeam].pBeam != NULL);
+    io_init(&pkd->beam[iBeam].afiLightBeam,8,2*1024*1024);
+    pkd->beam[iBeam].afiLightBeam.fd = -1;
+    return nBox;
+    }
+
+#undef INDEX
+
+
 void initLightConeOffsets(PKD pkd) {
     BND bnd = {0,0,0,0.5,0.5,0.5};
     double min2;
@@ -397,11 +655,13 @@ void pkdInitialize(
     PKD *ppkd,MDL mdl,int nStore,uint64_t nMinTotalStore,uint64_t nMinEphemeral,uint32_t nEphemeralBytes,
     int nTreeBitsLo, int nTreeBitsHi,
     int iCacheSize,int iWorkQueueSize,int iCUDAQueueSize,double *fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,
-    uint64_t mMemoryModel, int bLightCone, int bLightConeParticles) {
+    uint64_t mMemoryModel, int bLightCone, int bLightConeParticles,
+    int nLightBeams,LBP *beam) {
     PKD pkd;
     PARTICLE *p;
     uint32_t pi;
     int j,ism;
+    uint64_t nLightConeBytes = (1024*1024*16);
 
 #ifdef __linux__
 	uint64_t nPageSize = sysconf(_SC_PAGESIZE);
@@ -699,7 +959,6 @@ void pkdInitialize(
     /*
     ** allocate enough space for light cone particle output
     */
-    uint64_t nLightConeBytes = (1024*1024*16);
     pkd->nLightConeMax = nLightConeBytes / sizeof(LIGHTCONEP);
     pkd->nLightCone = 0;
     if (bLightCone && bLightConeParticles) {
@@ -719,7 +978,15 @@ void pkdInitialize(
 	}
     pkd->afiLightCone.fd = -1;
     pkd->pHealpixData = NULL;
-
+    /*
+    ** Initialize light beam offsets.
+    */
+    int iBeam;
+    for (iBeam=0;iBeam<nLightBeams;++iBeam) {
+	initLightBeamOffsets(pkd,iBeam,beam[iBeam].dTheta,
+	    beam[iBeam].dPhi,beam[iBeam].dDelta,beam[iBeam].dDepth);
+	}
+    
 #ifdef MDL_CACHE_SIZE
     if ( iCacheSize > 0 ) mdlSetCacheSize(pkd->mdl,iCacheSize);
 #endif

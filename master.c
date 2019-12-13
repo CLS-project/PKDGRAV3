@@ -250,7 +250,26 @@ void msrInitializePStore(MSR msr, uint64_t *nSpecies) {
     ps.mMemoryModel = getMemoryModel(msr) | PKD_MODEL_VELOCITY;
     ps.bLightCone  = msr->param.bLightCone;
     ps.bLightConeParticles  = msr->param.bLightConeParticles;    
-
+    /*
+    ** Initialize the light beams (if any)
+    */
+    ps.nLightBeams = msr->param.nLightBeams;
+    for (i=0;i<msr->param.nLightBeams;++i) {
+	/*
+	** Convert given redshift to a lookback depth in simulation
+	** units. This is done with the same integral given by the comoving Kick
+	** factor (a time) multiplied by the speed of light.
+	** This is then the same as the mrLCP variable that is used in 
+	** lightcone.cxx.
+	*/
+	double dTimeLBP = csmExp2Time(msr->csm,1.0/(1.0+msr->param.lbpDepth[i]));
+	ps.beam[i].dDepth = dLightSpeedSim(msr->param.dBoxSize)*  // note: boxsize must be a sensible value!
+	    csmComoveKickFac(msr->csm,dTimeLBP,(csmExp2Time(msr->csm,1.0) - dTimeLBP));
+	printf("LightBeam[%02d]: Depth = %f\n",i,ps.beam[i].dDepth);  // print it out to make sure it is OK.
+	ps.beam[i].dTheta = msr->param.lbpTheta[i];
+	ps.beam[i].dPhi = msr->param.lbpPhi[i];
+	ps.beam[i].dDelta = msr->param.lbpDelta[i];
+	}
 #define SHOW(m) ((ps.mMemoryModel&PKD_MODEL_##m)?" " #m:"")
        printf("Memory Models:%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s\n", 
 	   msr->param.bMemIntegerPosition ? " INTEGER_POSITION" : " DOUBLE_POSITION",
@@ -1210,6 +1229,9 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
     msr->param.bDoubleVel = 0;
     prmAddParam(msr->prm,"bDoubleVel",0,&msr->param.bDoubleVel,sizeof(int),"dv",
 		"input/output double precision velocities (standard format only) = -dv");
+    /*
+    ** Light Cone and Light Beam parameters.
+    */
     msr->param.bLightCone = 0;
     prmAddParam(msr->prm,"bLightCone",0,&msr->param.bLightCone,sizeof(int),"lc",
 		"output light cone data = -lc");
@@ -1226,6 +1248,12 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
     msr->param.dRedshiftLCP = 0;
     prmAddParam(msr->prm,"dRedshiftLCP",2,&msr->param.dRedshiftLCP,sizeof(double),"zlcp",
 		"starting redshift to output light cone particles = 0");
+    msr->param.nLightBeams = 0;
+    prmAddArray(msr->prm,"lbpTheta",4,&msr->param.lbpTheta,sizeof(double),&msr->param.nLightBeams);
+    prmAddArray(msr->prm,"lbpPhi",4,&msr->param.lbpPhi,sizeof(double),&msr->param.nLightBeams);
+    prmAddArray(msr->prm,"lbpDelta",4,&msr->param.lbpDelta,sizeof(double),&msr->param.nLightBeams);
+    prmAddArray(msr->prm,"lbpDepth",4,&msr->param.lbpDepth,sizeof(double),&msr->param.nLightBeams);
+
     msr->param.dRedTo = 0.0;
     prmAddParam(msr->prm,"dRedTo",2,&msr->param.dRedTo,sizeof(double),"zto",
 		"specifies final redshift for the simulation");

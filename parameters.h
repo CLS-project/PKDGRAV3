@@ -98,11 +98,21 @@ struct parameters {
     int iWorkQueueSize;
     int iCUDAQueueSize;
     int bAddDelete;
+    /*
+    ** Light cone stuff.
+    */
     int bLightCone;
     int bLightConeParticles;
     int bInFileLC;
     double dRedshiftLCP;
     int nSideHealpix;
+#define LIGHT_BEAMS_MAX 20
+    int nLightBeams;
+    double lbpTheta[LIGHT_BEAMS_MAX];
+    double lbpPhi[LIGHT_BEAMS_MAX];
+    double lbpDelta[LIGHT_BEAMS_MAX];
+    double lbpDepth[LIGHT_BEAMS_MAX];
+    
     /* BEGIN Gas Parameters */
     int bDoGas;
     int bGasAdiabatic;

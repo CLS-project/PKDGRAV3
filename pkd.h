@@ -718,6 +718,13 @@ typedef struct {
     float fPotential;
     } healpixData;
 
+typedef struct lbpDef {
+    double dTheta;
+    double dPhi;
+    double dDelta;
+    double dDepth;
+    } LBP;
+    
 struct psContext;
 
 typedef struct pkdContext {
@@ -764,7 +771,26 @@ typedef struct pkdContext {
     int64_t nHealpixPerDomain;
     int64_t nSideHealpix;
     healpixData *pHealpixData;
-
+    /*
+    ** Light beam variables.
+    */
+    int nLightBeamMax;
+    struct lbp {
+	double dDepth;
+	/* variables describing the cut planes */
+	double nl[3];
+	double nu[3];
+	double ml[3];
+	double mu[3];
+	/* the periodic offsets we certainly need to check */
+	int nBox;
+	double *lcOffset0;
+	double *lcOffset1;
+	double *lcOffset2;
+	asyncFileInfo afiLightBeam;
+	LIGHTCONEP *pBeam;
+	int nBeam;
+	} beam[LIGHT_BEAMS_MAX];    
     PARTCLASS *pClass;
     float fSoftFix;
     float fSoftFac;
@@ -1357,7 +1383,7 @@ void pkdInitialize(
     PKD *ppkd,MDL mdl,int nStore,uint64_t nMinTotalStore,uint64_t nMinEphemeral,uint32_t nEphemeralBytes,
     int nTreeBitsLo, int nTreeBitsHi,
     int iCacheSize,int iWorkQueueSize,int iCUDAQueueSize,double *fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,
-    uint64_t mMemoryModel, int bLightCone, int bLightConeParticles);
+    uint64_t mMemoryModel, int bLightCone, int bLightConeParticles,int nLightBeams,LBP *beam);
 void pkdFinish(PKD);
 size_t pkdClCount(PKD pkd);
 size_t pkdClMemory(PKD pkd);

@@ -267,6 +267,9 @@ struct inInitializePStore {
     int iCUDAQueueSize;
     int bLightCone;
     int bLightConeParticles;
+#define LIGHT_BEAMS_MAX 20
+    int nLightBeams;
+    LBP beam[LIGHT_BEAMS_MAX];
     };
 int pstInitializePStore(PST,void *,int,void *,int);
 
