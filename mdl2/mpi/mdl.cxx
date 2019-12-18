@@ -16,6 +16,7 @@
  */
 
 #include "mdl.h"
+#include <algorithm>
 
 static inline int size_t_to_int(size_t v) {
     return (int)v;
@@ -1055,7 +1056,7 @@ void mpiClass::Launch(int argc,char **argv,void (*fcnMaster)(MDL,void *),void * 
     if (bDedicated == 1) {
 #ifndef USE_HWLOC
 	/*if (Cores()==1 || nProcs==1) bDedicated=0;
-	  else*/ --Cores();
+	  else*/ --nCores;
 #else
 	hwloc_topology_init(&topology);
 	hwloc_topology_load(topology);
