@@ -1,5 +1,7 @@
 #include "mdlmessages.h"
 #include "mdl.h"
+#include <string.h>
+
 mdlMessageQueue::mdlMessageQueue() {
     OPA_Queue_init(this);
     }
