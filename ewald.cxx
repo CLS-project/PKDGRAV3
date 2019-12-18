@@ -514,8 +514,9 @@ void pkdEwaldInit(PKD pkd,int nReps,double fEwCut,double fhCut) {
     mdlThreadBarrier(pkd->mdl);
 #endif
 #ifdef USE_CUDA
-    if (pkd->mdl->cudaCtx) {
-	cudaEwaldInit(pkd->mdl->cudaCtx,ew,ewt);
+    void *cudaCtx = mdlGetCudaContext(pkd->mdl);
+    if (cudaCtx) {
+	cudaEwaldInit(cudaCtx,ew,ewt);
 	mdlThreadBarrier(pkd->mdl);
 	}
 #endif

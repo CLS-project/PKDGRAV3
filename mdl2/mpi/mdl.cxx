@@ -2943,3 +2943,19 @@ void mdlprintf(MDL cmdl, const char *format, ...) {
     mdl->mdl_vprintf(format,args);
     va_end(args);
     }
+
+int mdlCudaActive(MDL mdl) {
+#ifdef USE_CUDA
+    return reinterpret_cast<mdlClass *>(mdl)->cudaCtx != NULL;
+#else
+    return 0;
+#endif
+    }
+
+void *mdlGetCudaContext(MDL mdl) {
+#ifdef USE_CUDA
+    return reinterpret_cast<mdlClass *>(mdl)->cudaCtx;
+#else
+    return 0;
+#endif
+    }
