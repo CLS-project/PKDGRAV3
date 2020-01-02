@@ -126,6 +126,7 @@ enum pst_service {
     PST_APPLYGRAVWORK,
     PST_UPDATECONSVARS, //IA: hopefully this wont break anything..
     PST_COMPUTEPRIMVARS, //IA: hopefully this wont break anything..
+    PST_PREDICTSMOOTH,
     PST_DRIFTINACTIVE,
     PST_SCALEVEL,
     PST_CACHEBARRIER,
@@ -738,6 +739,7 @@ void pstDrift(PST,void *,int,void *,int *);
 void pstApplyGravWork(PST,void *,int,void *,int *);
 void pstUpdateConsVars(PST,void *,int,void *,int *); // IA: we re-use the same structure
 void pstComputePrimVars(PST,void *,int,void *,int *); // IA: we re-use the same structure
+void pstPredictSmoothing(PST,void *,int,void *,int *);
 
 /* PST_DRIFT */
 struct inScaleVel {

@@ -344,9 +344,9 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
     case SMX_HYDROSTEP:
 	assert( pkd->oSph ); /* Validate memory model */
 	smx->fcnSmooth = hydroStep;
-	initParticle = NULL; /* Original Particle */
-	init = NULL; /* Cached copies */ 
-	comb = NULL;
+	initParticle = initHydroStep; /* Original Particle */
+	init = initHydroStep; /* Cached copies */ 
+	comb = combHydroStep;
 	smx->fcnPost = NULL;
 	break;
     case SMX_DIST_DELETED_GAS:

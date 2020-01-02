@@ -1472,6 +1472,7 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double,double);
 void pkdApplyGravWork(PKD pkd,double dTime,double dDelta,double,double,double,uint8_t uRungLo,uint8_t uRungHi);
 void pkdUpdateConsVars(PKD pkd,int iRoot,double dTime,double dDelta,double,double);
 void pkdComputePrimVars(PKD pkd,int iRoot, double dTime, double dDelta);
+void pkdPredictSmoothing(PKD pkd,int iRoot, double dTime, double dDelta);
 void pkdScaleVel(PKD pkd,double dvFac);
 void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, double dTime, double dDelta,
 			  int iRung, int iKickRung, int iRungVeryActive,int iAdjust, double diCrit2,

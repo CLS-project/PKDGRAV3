@@ -2930,6 +2930,36 @@ void pkdApplyGravWork(PKD pkd,double dTime,double dDelta,double dDeltaVPred,doub
     }
 
 
+void pkdPredictSmoothing(PKD pkd,int iRoot, double dTime, double dDelta) {
+    PARTICLE *p;
+    SPHFIELDS *psph;
+    double dScaleFac, dHubble;
+
+    if (pkd->param.csm->val.bComove){
+       dScaleFac = csmTime2Exp(pkd->param.csm,dTime);
+       dHubble = csmTime2Hub(pkd->param.csm,dTime);
+    }
+    if (dDelta>0){
+       for (int i=0;i<pkdLocal(pkd);++i) {
+         p = pkdParticle(pkd,i);
+         if (pkdIsGas(pkd,p)  && pkdIsActive(pkd, p)  ) {
+            psph = pkdSph(pkd, p);
+
+            double pdivv = psph->gradVx[0] + psph->gradVy[1] + psph->gradVz[2];
+            if (pkd->param.csm->val.bComove){
+               pdivv /= dScaleFac;
+            }
+            float fBall = pkdBall(pkd,p);
+            float newBall = fBall*exp(0.3333333*pdivv*(dTime - psph->lastUpdateTime));
+
+            pkdSetBall(pkd,p, newBall);
+         }
+       }
+    }
+
+}
+
+
 void pkdComputePrimVars(PKD pkd,int iRoot, double dTime, double dDelta) {
     PARTICLE *p;
     SPHFIELDS *psph;
@@ -2972,6 +3002,10 @@ void pkdComputePrimVars(PKD pkd,int iRoot, double dTime, double dDelta) {
                for (j=0;j<3;j++){
                   pa[j] = pkdAccel(pkd,p)[j]/(dScaleFac*dScaleFac); // TODO: Do 1/a2 only once
                }
+            }else{
+               for (j=0;j<3;j++){
+                  pa[j] = pkdAccel(pkd,p)[j];
+               }
             }
             for (j=0;j<3;j++){
                psph->mom[j] += 0.5*pDelta*(psph->lastMass*psph->lastAcc[j] + pkdMass(pkd,p)*pa[j]); 
@@ -3003,12 +3037,12 @@ void pkdComputePrimVars(PKD pkd,int iRoot, double dTime, double dDelta) {
 
             double Ekin = 0.5*( psph->mom[0]*psph->mom[0] + psph->mom[1]*psph->mom[1] + psph->mom[2]*psph->mom[2] ) / pkdMass(pkd,p);
             //printf("E %e \t Uint %e \t Ekin %e \n", psph->E, psph->Uint, Ekin);
-            if (Ekin > 1.0*psph->E ){
+//            if (Ekin > 0.0*psph->E ){
                   psph->P = psph->Uint*psph->omega*(pkd->param.dConstGamma -1.);
-            }else{
-                  psph->P = (psph->E - Ekin )*psph->omega*(pkd->param.dConstGamma -1.);
-                  psph->Uint = psph->P/(psph->omega*(pkd->param.dConstGamma -1.)); // IA: Synchronize the energies
-            }     
+//            }else{
+//                  psph->P = (psph->E - Ekin )*psph->omega*(pkd->param.dConstGamma -1.);
+//                  psph->Uint = psph->P/(psph->omega*(pkd->param.dConstGamma -1.)); // IA: Synchronize the energies
+//            }     
             if (psph->P < 0){
                psph->P = 0.;
                psph->Uint = 0.;
@@ -3033,14 +3067,9 @@ void pkdComputePrimVars(PKD pkd,int iRoot, double dTime, double dDelta) {
                psph->drDotFrho[j] = 0.;
             }
            for (j=0;j<3;j++){
-              psph->lastAcc[j] = pkdAccel(pkd,p)[j];   
+              psph->lastAcc[j] = pa[j];   
               psph->lastMom[j] = psph->mom[j];
            } 
-            if (pkd->param.csm->val.bComove){
-               for (j=0;j<3;j++){
-                 psph->lastAcc[j] /= (dScaleFac*dScaleFac);   
-               }
-            }
             psph->lastUpdateTime = dTime;
             psph->lastE = psph->E;
             psph->lastUint = psph->Uint;

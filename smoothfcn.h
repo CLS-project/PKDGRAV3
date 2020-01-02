@@ -64,6 +64,7 @@ typedef struct smfParameters {
     /* IA: Meshless hydro */
     double dCFLacc;
     int FirstHydroLoop;
+    double dNeighborsStd;
     } SMF;
 
 

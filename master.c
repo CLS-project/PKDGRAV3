@@ -1616,8 +1616,8 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 		sizeof(int), "iterh",
 		"Use an iterative scheme to obtain h");
 
-    msr->param.iNeighborsStd = 1;
-    prmAddParam(msr->prm,"iNeighborsStd", 0, &msr->param.iNeighborsStd,
+    msr->param.dNeighborsStd0 = 1;
+    prmAddParam(msr->prm,"dNeighborsStd", 2, &msr->param.dNeighborsStd0,
 		sizeof(double), "neighstd",
 		"Maximum deviation from desired number of neighbors");
     /* END of new params */
@@ -3063,6 +3063,7 @@ void msrSmoothSetSMF(MSR msr, SMF *smf, double dTime) {
 	/(msr->param.SFdvFB/msr->param.dKmPerSecUnit);
     smf->FirstHydroLoop = msrFirstHydroLoop(msr);
     smf->dCFLacc = msr->param.dCFLacc;
+    smf->dNeighborsStd = msrNeighborsStd(msr);
     }
 
 void msrSmooth(MSR msr,double dTime,int iSmoothType,int bSymmetric,int nSmooth) {
@@ -3626,9 +3627,9 @@ void msrMeshlessFluxes(MSR msr,double dTime,double dDelta,int iRoot){
     printf("Computing fluxes... \n");
     if (msr->param.bConservativeReSmooth){
        if (dDelta==0.0){
-          msrReSmooth(msr,dTime,SMX_THIRDHYDROLOOP,0,1); 
+          msrReSmooth(msr,dTime,SMX_THIRDHYDROLOOP,1,1); 
        }else{
-          msrReSmooth(msr,dTime,SMX_THIRDHYDROLOOP,0,0); 
+          msrReSmooth(msr,dTime,SMX_THIRDHYDROLOOP,1,0); 
        }
     }else{
        msrSmooth(msr,dTime,SMX_THIRDHYDROLOOP,0,msr->param.nSmooth);
@@ -3647,11 +3648,17 @@ void msrUpdatePrimVars(MSR msr,double dTime,double dDelta,int iRoot){
     printf("Computing density... \n");
     if (msr->param.bIterativeSmoothingLength){
        msrSelAll(msr); // We set all particles as "not converged"
+       msrResetNeighborsStd(msr);
+
+       //pstPredictSmoothing(msr->pst,&in,sizeof(in),NULL,NULL);
+
        while (nSmoothed>0 && it <= maxit){
           msrSetFirstHydroLoop(msr, 1); // 1-> we care if the particle is marked ; 0-> we dont
           nSmoothed = msrReSmooth(msr,dTime,SMX_FIRSTHYDROLOOP,0,0);
           msrSetFirstHydroLoop(msr, 0);
           it++;
+          if (it>4)
+             msrIncreaseNeighborsStd(msr);
        }
        if (nSmoothed >0) { /* IA: If we reach the maximum iteration number without full convergence, we compute the smoothing length
                             * as the mean of the surrounding particles which have already converged.
@@ -3661,6 +3668,7 @@ void msrUpdatePrimVars(MSR msr,double dTime,double dDelta,int iRoot){
          // msrSetFirstHydroLoop(msr, 1); // 1-> we care if the particle is marked ; 0-> we dont
          // nSmoothed = msrReSmooth(msr,dTime,SMX_MEANSMOOTHING,0);
          // msrSetFirstHydroLoop(msr, 0);
+         printf("Smoothing length did not converge for %d particles\n", nSmoothed);
        } 
        printf("Computing h took %d iterations \n", it);
     }else{
@@ -4176,7 +4184,7 @@ void msrHydroStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime) {
     int bSymmetric = 0; 
 
     printf("Computing hydro time step... \n");
-    msrReSmooth(msr,dTime,SMX_HYDROSTEP,bSymmetric, 0);
+    msrReSmooth(msr,dTime,SMX_HYDROSTEP,1, 0);
 
     if (msr->param.bGlobalDt){
        if (msr->param.dFixedDelta != 0.0){
@@ -4985,6 +4993,17 @@ int msrDoGas(MSR msr) {
 
 int msrMeshlessHydro(MSR msr) {
     return(msr->param.bMeshlessHydro);
+    }
+
+double msrNeighborsStd(MSR msr) {
+    return(msr->param.dNeighborsStd);
+    }
+void msrIncreaseNeighborsStd(MSR msr) {
+    msr->param.dNeighborsStd *= 1.4;
+    if (msr->param.dNeighborsStd > 0.25*msr->param.nSmooth) msr->param.dNeighborsStd = 0.25*msr->param.nSmooth;
+    }
+void msrResetNeighborsStd(MSR msr) {
+    msr->param.dNeighborsStd  = msr->param.dNeighborsStd0;
     }
 
 int msrFirstHydroLoop(MSR msr) {

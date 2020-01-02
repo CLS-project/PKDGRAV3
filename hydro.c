@@ -190,6 +190,22 @@ void initHydroFluxes(void *vpkd, void *vp) {
 //	}
     }
 
+void initHydroStep(void *vpkd, void *vp) {
+    PKD pkd = (PKD) vpkd;
+    PARTICLE *p = vp;
+
+}
+
+void combHydroStep(void *vpkd, void *p1,void *p2) {
+    PKD pkd = (PKD) vpkd;
+    assert(!pkd->bNoParticleOrder);
+    SPHFIELDS *psph1 = pkdSph(pkd,p1), *psph2 = pkdSph(pkd,p2);
+
+       if (((PARTICLE *) p2)->uNewRung > ((PARTICLE *) p1)->uNewRung)
+           ((PARTICLE *) p1)->uNewRung = ((PARTICLE *) p2)->uNewRung;
+}
+
+
 /* IA: If this works as I think it works, I should put to zero all the 
  * conserved quantities, which will be updated during the hydro loop.
  * Then those will be merged with the actual particle information inside
@@ -263,11 +279,17 @@ void hydroDensity(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
      *    - Particles not marked are those with a correct smoothing length
      */
     if (pkd->param.bIterativeSmoothingLength && p->bMarked){
-       c = 4.*M_PI/3. * psph->omega ; 
+       c = 4.*M_PI/3. * psph->omega *fBall*fBall*fBall*8.; 
        //if (fabs(nSmooth-pkd->param.nSmooth) < pkd->param.iNeighborsStd){
-       if (fabs(c*fBall*fBall*fBall*8.-pkd->param.nSmooth) < pkd->param.iNeighborsStd){
+       if (fabs(c-pkd->param.nSmooth) < pkd->param.dNeighborsStd0){
           p->bMarked = 0;
        }else{
+          float newBall;
+          newBall = fBall * pow(  pkd->param.nSmooth/c  ,0.3333333333);
+          pkdSetBall(pkd,p, newBall);
+          psph->fLastBall = fBall;
+
+          /*
           if (psph->fLastBall == 0.0) { // IA: We have just read the input file. So we can only do one Newton iteration
              float newBall = pow( pkd->param.nSmooth/c, 1./3.)/2.;      
 //             printf("p %" PRId64 " omega %e Nngb %e nSmooth %d fBall %e newBall %e NewNngb %e \n", p->iOrder, psph->omega, c*fBall*fBall*fBall*8., nSmooth, fBall, newBall, c*newBall*newBall*newBall*8.);
@@ -305,39 +327,9 @@ void hydroDensity(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
                 psph->fLastBall = 0.0;
                 psph->nLastNeighs = minNeighs;
              }
-/*
-             if ( psph->nLastNeighs > nSmooth ){ // We had more neighbors before
-                if (nSmooth > pkd->param.nSmooth) { // But still more than the expected
-                   // We keep iterating using a Newton method
-                   float newBall = 0.9*fBall; //pow( pkd->param.nSmooth/c, 1./3.) ;      
-                   pkdSetBall(pkd,p, newBall ); 
-                   psph->fLastBall = fBall;
-                   psph->nLastNeighs = nSmooth;
-                   
-                }else{ // And the target is in between. Apply middle point rule
-                   pkdSetBall(pkd,p, (psph->fLastBall + fBall)*0.5 );
-                   psph->fLastBall = fBall;
-                   psph->nLastNeighs = nSmooth;
-                }
-
-             }else{  // We had less neighbors
-
-                if (pkd->param.nSmooth < psph->nLastNeighs) {  // And we still have too much compared to the target
-                   // So we can only do a newton iteration
-                   float newBall = 0.9*pow( pkd->param.nSmooth/c, 1./3.) ;      
-                   pkdSetBall(pkd,p, newBall ); 
-                   //psph->fLastBall = fBall;
-                   //psph->nLastNeighs = nSmooth;
-                }else{ // The target is in between.
-                   pkdSetBall(pkd,p, (psph->fLastBall + fBall)*0.5 );
-                   psph->fLastBall = fBall;
-                   psph->nLastNeighs = nSmooth;
-                }
-
-             }
-                */
              
           }
+           */ 
        }
     }
 
@@ -943,7 +935,7 @@ if (p->iOrder == A || p->iOrder==B){
           */
 
 
-       Riemann_solver(pkd, riemann_input, &riemann_output, face_unit, /*double press_tot_limiter TODO For now, just p>0: */ HUGE_VAL);
+       Riemann_solver(pkd, riemann_input, &riemann_output, face_unit, /*double press_tot_limiter TODO For now, just p>0: */ 0.0);
       
        // IA: MFM
 #ifdef USE_MFM
@@ -1140,7 +1132,8 @@ void hydroStep(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     float* pa = pkdAccel(pkd,p);
     double cfl = smf->dCFLacc, dtAcc;
     
-    for (j=0;j<3;j++) { a[j] = pa[j] + (pkdVel(pkd,p)[j]*psph->Frho + psph->Fmom[j])/pkdMass(pkd,p); }
+    double pdt = smf->dDelta/(1<<p->uRung) ;
+    for (j=0;j<3;j++) { a[j] = pa[j] + (pkdVel(pkd,p)[j]*psph->Frho + pdt*psph->Fmom[j])/pkdMass(pkd,p); }
     acc = sqrt(a[0]*a[0] + a[1]*a[1] + a[2]*a[2]);
 
     dtAcc = cfl*sqrt(2*fBall/acc);
@@ -1161,9 +1154,12 @@ void hydroStep(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     for (i=0; i<nSmooth; ++i){
         q = nnList[i].pPart;
 
-        if ( (q->uNewRung - p->uNewRung) > 2) uNewRung = q->uNewRung-1;
+        //if ( (q->uNewRung - p->uNewRung) > 2) uNewRung = q->uNewRung-1;
+        //if (uNewRung > p->uNewRung ) p->uNewRung = uNewRung; 
 
-        if (uNewRung > p->uNewRung ) p->uNewRung = uNewRung; 
+
+        if ( (p->uNewRung - q->uNewRung) > 2) q->uNewRung = p->uNewRung-1;
+
     }
     
     }

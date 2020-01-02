@@ -235,7 +235,8 @@ struct parameters {
     int bFirstHydroLoop;
     int bConservativeReSmooth;
     int bIterativeSmoothingLength;
-    double iNeighborsStd;
+    double dNeighborsStd0;
+    double dNeighborsStd;
 
     /* 
      * IA: Parameter for fixing all particles to the same rung

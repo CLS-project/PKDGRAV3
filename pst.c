@@ -217,6 +217,9 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_COMPUTEPRIMVARS,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstComputePrimVars,
 		  sizeof(struct inDrift),0);
+    mdlAddService(mdl,PST_PREDICTSMOOTH,pst,
+              (void (*)(void *,void *,int,void *,int *)) pstPredictSmoothing,
+              sizeof(struct inDrift),0);
     mdlAddService(mdl,PST_SETGLOBALDT,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstSetGlobalDt,
 		  sizeof(struct outGetMinDt),0);
@@ -3113,6 +3116,23 @@ void pstComputePrimVars(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	}
     if (pnOut) *pnOut = 0;
     }
+
+void pstPredictSmoothing(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    struct inDrift *in = vin;
+
+    mdlassert(pst->mdl,nIn == sizeof(struct inDrift));
+    if (pst->nLeaves > 1) {
+       int rID = mdlReqService(pst->mdl,pst->idUpper,PST_PREDICTSMOOTH,in,nIn);
+       pstPredictSmoothing(pst->pstLower,in,nIn,NULL,NULL);
+       mdlGetReply(pst->mdl,rID,NULL,NULL);
+       }
+    else {
+       pkdPredictSmoothing(plcl->pkd,in->iRoot, in->dTime, in->dDelta);
+       }
+    if (pnOut) *pnOut = 0;
+    }
+
 
 void pstScaleVel(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
