@@ -183,47 +183,27 @@ static inline uint32_t MurmurHash2(uint32_t a,uint32_t b) {
     return h;
     }
 
-CDB::CDB() {
-    next = prev = this;
-    uId = 0xdeadbeef;
-    }
-
-CDB *CDB::remove_from_list() {
-    prev->next = next;
-    next->prev = prev;
-    return this;
-    }
-
-CDB *CDB::lru_remove() {
-    return prev->remove_from_list();
-    }
-
-void CDB::lru_insert(CDB *p) {
-    p->prev = prev;
-    p->next = this;
-    prev->next = p;
-    prev = p;
-    }
-
-void CDB::mru_insert(CDB *p) {
-    next->lru_insert(p);
-    }
+ARC::CDB::CDB(uint64_t *data) : uId(0xdeadbeef), data(data) {}
 
 uint32_t ARC::hash(uint32_t uLine,uint32_t uId) {
     return MurmurHash2(uLine,uId) & uHashMask;
     }
 
-CDB * ARC::remove_from_hash(CDB *p) {
+// Remove the CDB entry (given by a list iterator) from the hash table
+ARC::CDBL::iterator ARC::remove_from_hash(const CDBL::iterator p) {
     uint32_t uHash = hash(p->uPage,p->uId&_IDMASK_);
-    CDB **pt;
+    auto & Hash = HashChains[uHash];
+    assert(!Hash.empty());
+    // Move the matching hash table entry to the start of the collision chain, then move it to the free list
+    std::partition(Hash.begin(), Hash.end(), [&](const CDBL::iterator & i) { return i == p; });
+    assert(Hash.front() == p);
+    HashFree.splice_after(HashFree.before_begin(),Hash,Hash.before_begin());
+    return p;
+    }
 
-    for(pt = &Hash[uHash]; *pt != NULL; pt = &((*pt)->coll)) {
-	if ( *pt == p) {
-	    *pt = (*pt)->coll;
-	    return p;
-	    }
-	}
-    abort();  /* should never get here, the element should always be found in the hash */
+// Typically we want to remove the LRU (front) element from a list, in anticipation of reusing the entry
+ARC::CDBL::iterator ARC::remove_from_hash(CDBL &list) {
+    return remove_from_hash(list.begin());
     }
 
 #ifdef HAVE_MEMKIND
@@ -240,74 +220,29 @@ ARC::ARC(mdlClass * mdlIn,uint32_t nCacheIn,uint32_t uDataSizeIn,CACHE *c)
     uint32_t i;
 
     /*
-    ** Allocate stuff.
-    */
-    cdbBase = new CDB[2*nCache];
-    /*
     ** Make sure we have sufficient alignment of data.
     ** In this case to nearest long word (8 bytes).
     ** We add one long word at the start to store the 
     ** magic number and lock count.
     */
-    dataBase = new uint64_t[nCache*(uDataSize+1)];
-    dataLast = dataBase + nCache*(uDataSize+1);
+    dataBase.resize(nCache*(uDataSize+1));
     /*
     ** Determine nHash.
     */
     uHashMask = swar32(3*nCache-1);
-    nHash = uHashMask+1; 
-    Hash.resize(nHash,NULL);
-    /*
-    ** Create all lists as circular lists, with a sentinel
-    ** CDB at the head/tail of the list.
-    ** Initialize the lengths of the various lists.
-    */
-    T1 = new CDB;    T1Length = 0;
-    B1 = new CDB;    B1Length = 0;
-    T2 = new CDB;    T2Length = 0;
-    B2 = new CDB;    B2Length = 0;
-    Free = new CDB;
+    HashFree.resize(nCache);
+    HashChains.resize(uHashMask+1);
     /*
     ** Initialize target T1 length.
     */
     target_T1 = nCache/2;   /* is this ok? */
-    /*
-    ** Insert CDBs with data into the Free list first.
-    */
-    for (i=0;i<nCache;++i) {
-	/*dataBase[i*(uDataSize+1)] = _ARC_MAGIC_;*/ /* Defer this until we use it. */
-	cdbBase[i].data = &dataBase[i*(uDataSize+1)+1];
-	cdbBase[i].coll = NULL;
-	Free->lru_insert(&cdbBase[i]);
+    // Insert CDBs with data into the Free list first.
+    for (i=0;i<nCache;++i) ArcFree.push_front(CDB(&dataBase[i*(uDataSize+1)+1]));
+    // Finally insert CDBs without data pages into the Free list last.
+    ArcFree.resize(2*nCache);
     }
-    /*
-    ** Finally insert CDBs without data pages into the Free list last.
-    */
-    for (i=nCache;i<2*nCache;++i) {
-	cdbBase[i].data = 0;
-	cdbBase[i].coll = NULL;
-	Free->mru_insert(&cdbBase[i]);
-    }
-}
-
 
 ARC::~ARC() {
-    /*
-    ** Free the sentinels.
-    */
-    delete Free;
-    delete B2;
-    delete T2;
-    delete B1;
-    delete T1;
-    /*
-    ** Free the data pages.
-    */
-    delete dataBase;
-    /*
-    ** Free the CDBs.
-    */
-    delete cdbBase;
     }
 
 /*
@@ -634,10 +569,8 @@ int mpiClass::swapall(const char *buffer,int count,int datasize,/*const*/ int *c
     /* MPI buffers and datatype */
     MPI_Type_contiguous(datasize,MPI_BYTE,&mpitype);
     MPI_Type_commit(&mpitype);
-    rcount = CAST(int *,malloc(sizeof(int) * Procs()));
-    assert(rcount != NULL);
-    scount = CAST(int *,malloc(sizeof(int) * Procs()));
-    assert(scount != NULL);
+    rcount = new int[Procs()];
+    scount = new int[Procs()];
     /* Note twice as many request/status pairs because of send + recv possibility */
     requests = CAST(MPI_Request *,malloc(sizeof(MPI_Request) * 2 * Procs()));
     assert(requests != NULL);
@@ -721,8 +654,8 @@ int mpiClass::swapall(const char *buffer,int count,int datasize,/*const*/ int *c
 	}
 
     MPI_Type_free(&mpitype);
-    free(rcount);
-    free(scount);
+    delete rcount;
+    delete scount;
     free(requests);
     free(statuses);
 
@@ -951,9 +884,8 @@ static void TERM_handler(int signo) {
 
 extern "C"
 void mdlLaunch(int argc,char **argv,void (*fcnMaster)(MDL,void *),void * (*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *)) {
-    mpiClass *mdl = new mpiClass(fcnMaster,fcnWorkerInit,fcnWorkerDone,argc,argv);
-    mdl->Launch(argc,argv,fcnMaster,fcnWorkerInit,fcnWorkerDone);
-    delete mdl;
+    mpiClass mdl(fcnMaster,fcnWorkerInit,fcnWorkerDone,argc,argv);
+    mdl.Launch(argc,argv,fcnMaster,fcnWorkerInit,fcnWorkerDone);
     }
 void mpiClass::Launch(int argc,char **argv,void (*fcnMaster)(MDL,void *),void * (*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *)) {
     int i,n,bDiag,bThreads,bDedicated,thread_support,rc,flag,*piTagUB;
@@ -1075,10 +1007,9 @@ void mpiClass::Launch(int argc,char **argv,void (*fcnMaster)(MDL,void *),void * 
 	}
 
     /* Construct the thread/processor map */
-    iProcToThread = CAST(int *,malloc((Procs() + 1) * sizeof(int)));
-    assert(iProcToThread != NULL);
+    iProcToThread.resize(Procs()+1);
     iProcToThread[0] = 0;
-    MPI_Allgather(&nCores, 1, MPI_INT, iProcToThread + 1, 1, MPI_INT, commMDL);
+    MPI_Allgather(&nCores, 1, MPI_INT, &iProcToThread.front() + 1, 1, MPI_INT, commMDL);
     for (i = 1; i < Procs(); ++i) iProcToThread[i + 1] += iProcToThread[i];
     nThreads = iProcToThread[Procs()];
     idSelf = iProcToThread[Proc()];
@@ -1257,7 +1188,6 @@ mdlClass::~mdlClass() {
 #ifdef USE_CUDA
     if (cudaCtx) CUDA_finish(cudaCtx);
 #endif
-    free(iProcToThread);
     }
 
 /*****************************************************************************\
@@ -1266,11 +1196,15 @@ mdlClass::~mdlClass() {
 // This routine is overridden for the MPI thread.
 int mdlClass::checkMPI() { return 0; }
 
+// True if the current ARC cache is compatible with the data layout
+bool ARC::compatible(uint32_t nCache,uint32_t uDataSize,CACHE *c) {
+    assert(this->cache == c);
+    return this->nCache == nCache && this->uDataSize == ((uDataSize+7)>>3);
+    }
+
 ARC *mdlClass::arcReinitialize(ARC *arc,uint32_t nCache,uint32_t uDataSize,CACHE *c) {
     if (arc!=NULL) {
-	assert(arc->cache == c);
-	if ( arc->nCache == nCache && arc->uDataSize == ((uDataSize+7)>>3) )
-	    return arc;
+	if (arc->compatible(nCache,uDataSize,c)) return arc;
 	delete arc;
 	}
     return new ARC(this,nCache,uDataSize,c);
@@ -2019,111 +1953,74 @@ void mdlClass::flush_core_buffer() {
 	}
     }
 
-/* This CDB must not be on any list when destage is called */
-CDB *ARC::destage(CDB *temp) {
-    assert(temp->data != NULL);
-    assert(temp->data[-1] == _ARC_MAGIC_);
-    if (temp->uId & _DIRTY_) {     /* if dirty, evict before free */
-	if (!mdl->coreFlushBuffer->canBuffer(cache->iLineSize)) mdl->flush_core_buffer();
-	mdl->coreFlushBuffer->addBuffer(cache->iCID,mdlSelf(mdl),temp->uId&_IDMASK_,temp->uPage,cache->iLineSize,(char *)temp->data);
-	temp->uId &= ~ _DIRTY_;    /* No longer dirty */
+void ARC::release(void *vp) {
+    uint64_t *p = reinterpret_cast<uint64_t*>(vp);
+    if (p>&dataBase.front() && p<=&dataBase.back()) { // Might have been a fast, read-only grab. If so ignore it.
+	/* We will be given an element, but this needs to be turned into a cache line */
+	p = &dataBase[(p - &dataBase.front()) / (uDataSize+1) * (uDataSize+1) + 1];
+	uint64_t t = p[-1]-1;
+	assert((t^_ARC_MAGIC_) < 0x00000000ffffffff); // Not an element or too many unlocks
+	p[-1] = t;
 	}
-    return temp;
+    }
+
+/* This CDB must not be on any list when destage is called */
+void ARC::destage(CDB &temp) {
+    assert(temp.data != NULL);
+    assert(temp.data[-1] == _ARC_MAGIC_);
+    if (temp.uId & _DIRTY_) {     /* if dirty, evict before free */
+	if (!mdl->coreFlushBuffer->canBuffer(cache->iLineSize)) mdl->flush_core_buffer();
+	mdl->coreFlushBuffer->addBuffer(cache->iCID,mdlSelf(mdl),temp.uId&_IDMASK_,temp.uPage,cache->iLineSize,(char *)temp.data);
+	temp.uId &= ~ _DIRTY_;    /* No longer dirty */
+	}
     }
 
 uint64_t *ARC::replace(bool bInB2) {
-    CDB *temp;
     uint64_t *data;
     uint32_t max = (target_T1 > 1)?(target_T1+(bInB2?0:1)):1;
-    if (T1Length >= max) { /* T1’s size exceeds target? */
-                                        /* yes: T1 is too big */
-	temp = T1->prev;                /* get LRU */
-	while (temp->data[-1] != _ARC_MAGIC_) {           /* is it a locked page? */
-	    temp = temp->prev;
-	    if (temp == T1) {           /* all pages in T1 are currently locked, try T2 in this case */
-		temp = T2->prev;                /* get LRU */
-		while (temp->data[-1] != _ARC_MAGIC_) {           /* is it a locked page? */
-		    temp = temp->prev;
-		    if (temp == T2) return(NULL); /* all pages are currently locked, give up! */
-		}
-		goto replace_T2;
-	    }
+    auto unlocked = [](CDB&i) {return i.data[-1] == _ARC_MAGIC_;}; // True if there are no locks
+    CDBL::iterator tempX;
+    if (T1.size() >= max) { // T1’s size exceeds target?
+	tempX = std::find_if(T1.begin(),T1.end(),unlocked); // Grab the oldest unlocked entry
+	if (tempX != T1.end()) goto replace_T1;
+	tempX = std::find_if(T2.begin(),T2.end(),unlocked); // Try the same in T2 if all T1 entries are locked
+	if (tempX != T2.end()) goto replace_T2;
 	}
-	goto replace_T1;
-    } else {
-	/* no: T1 is not too big */
-	temp = T2->prev;                /* get LRU */
-	while (temp->data[-1] != _ARC_MAGIC_) {           /* is it a locked page? */
-	    temp = temp->prev;
-	    if (temp == T2) {           /* all pages in T2 are currently locked, try T1 in this case */
-		temp = T1->prev;                /* get LRU */
-		while (temp->data[-1] != _ARC_MAGIC_) {           /* is it a locked page? */
-		    temp = temp->prev;
-		    if (temp == T1) return(NULL); /* all pages are currently locked, give up! */
-		}
-		goto replace_T1;
-	    }
+    else { // no: T1 is not too big
+	tempX = std::find_if(T2.begin(),T2.end(),unlocked); // Try the same in T2 if all T1 entries are locked
+	if (tempX != T2.end()) goto replace_T2;
+	tempX = std::find_if(T1.begin(),T1.end(),unlocked); // Grab the oldest unlocked entry
+	if (tempX != T1.end()) goto replace_T1;
 	}
-	goto replace_T2;
-    }
-    assert(0);
+    fprintf(stderr,"ERROR: all ARC entries are locked, aborting\n");
+    abort();
     if (0) {  /* using a Duff's device to handle the replacement */
-    replace_T1: 
-        temp->remove_from_list();          /* grab LRU unlocked page from T1 */
-	destage(temp);     /* if dirty, evict before overwrite */
-	data = temp->data;
-	temp->data = NULL; /*GHOST*/
-	B1->mru_insert(temp);           /* put it on B1 */
-	temp->uId = (temp->uId&_IDMASK_)|_B1_;  /* need to be careful here because it could have been _P1_ */
-/* 	assert( (temp->uId&_WHERE_) == _B1_ ); */
-        T1Length--; B1Length++;          /* bookkeep */
-	/*assert(B1Length<=nCache);*/
-    }
+    replace_T1:
+	destage(*tempX);     /* if dirty, evict before overwrite */
+	data = tempX->data;
+	tempX->data = NULL; /*GHOST*/
+	tempX->uId = (tempX->uId&_IDMASK_)|_B1_;  /* need to be careful here because it could have been _P1_ */
+	B1.splice(B1.end(),T1,tempX); // Move element from T1 to B1
+	}
     if (0) {
     replace_T2:
-        temp->remove_from_list();          /* grab LRU unlocked page from T2 */
-	destage(temp);     /* if dirty, evict before overwrite */
-	data = temp->data;
-	temp->data = NULL; /*GHOST*/
-        B2->mru_insert(temp);           /* put it on B2 */
-        temp->uId |= _B2_;          /* note that fact */
-/* 	assert( (temp->uId&_WHERE_) == _B2_ ); */
-        T2Length--; B2Length++;          /* bookkeep */
-    }
-    /*assert(data!=NULL);*/
+	destage(*tempX);     /* if dirty, evict before overwrite */
+	data = tempX->data;
+	tempX->data = NULL; /*GHOST*/
+        tempX->uId |= _B2_;          /* note that fact */
+	B2.splice(B2.end(),T2,tempX); // Move element from T2 to B2
+	}
     return data;
-}
+    }
 
 void ARC::RemoveAll() {
-    CDB *temp;
-    for(;T1Length;--T1Length) {
-	temp = remove_from_hash(T1->lru_remove());
-	destage(temp);     /* if dirty, evict before free */
-	Free->lru_insert(temp);
-	}
-    for(;T2Length;--T2Length) {
-	temp = remove_from_hash(T2->lru_remove());
-	destage(temp);     /* if dirty, evict before free */
-	Free->lru_insert(temp);
-	}
-    for(;B1Length;--B1Length) {
-	temp = remove_from_hash(B1->lru_remove());
-	assert(temp->data == NULL);
-	Free->mru_insert(temp);
-	}
-    for(;B2Length;--B2Length) {
-	temp = remove_from_hash(B2->lru_remove());
-	assert(temp->data == NULL);
-	Free->mru_insert(temp);
-	}
-    assert(T1->next == T1);
-    assert(T1->prev == T1);
-    assert(B1->next == B1);
-    assert(B1->prev == B1);
-    assert(T2->next == T2);
-    assert(T2->prev == T2);
-    assert(B2->next == B2);
-    assert(B2->prev == B2);
+    for(auto &i : T1) { destage(i); } // Flush any dirty (modified) cache entries
+    for(auto &i : T2) { destage(i); }
+    for(auto &i : HashChains) { HashFree.splice_after(HashFree.before_begin(),i); } // Empty the hash table
+    ArcFree.splice(ArcFree.begin(),T1); // Finally empty the lists making sure entries with data are at the start
+    ArcFree.splice(ArcFree.begin(),T2);
+    ArcFree.splice(ArcFree.end(),  B1); // B lists have no data so add them to the end
+    ArcFree.splice(ArcFree.end(),  B2);
     }
 
 extern "C" void mdlFlushCache(MDL mdl,int cid) { reinterpret_cast<mdlClass *>(mdl)->FlushCache(cid); }
@@ -2170,135 +2067,18 @@ void mdlClass::FinishCache(int cid) {
     TimeAddSynchronizing();
     }
 
-void mdlPrefetch(MDL mdl,int cid,int iIndex, int id) {
-    }
-
-/*
-** The highest order bit (1<<31) of uId encodes the dirty bit.
-** The next 3 highest order bits of uId ((1<<30), (1<<29) and (1<<28)) are reserved 
-** for list location and should be zero! The maximum legal uId is then (1<<28)-1.
-*/
-static inline CDB *arcSetPrefetchDataByHash(ARC *arc,uint32_t uPage,uint32_t uId,void *data,uint32_t uHash) {
-    CDB *temp;
-    uint32_t tuId = uId&_IDMASK_;
-    uint32_t L1Length;
-    bool inB2=false;
-
-    assert(data);
-    for( temp = arc->Hash[uHash]; temp; temp = temp->coll ) {
-	if (temp->uPage == uPage && (temp->uId&_IDMASK_) == tuId) break;
-	}
-    if (temp != NULL) {                       /* found in cache directory? */
-	switch (temp->uId & _WHERE_) {                   /* yes, which list? */
-	case _P1_:
-	case _T1_:
-	case _T2_:
-	    return temp;              /* do nothing */
-	case _B1_:                            /* B1 "hit": don't favour anything */
-	    arc->B1Length--;                                           /* bookkeep */
-	    goto doBcase;
-	case _B2_:                            /* B2 "hit": don't favour anything */
-	    arc->B2Length--;                                           /* bookkeep*/
-	    inB2=true;
-	doBcase:
-	    /* Better would be to put this back on P1, but L1 may be full. */
-	    temp->remove_from_list();                                   /* take off whichever list */
-	    temp->data = arc->replace(inB2);                                /* find a place to put new page */
-	    temp->uPage = uPage;                          /* bookkeep */
-	    if (inB2) {
-		temp->uId = _T2_|(uId&_IDMASK_);     /* temp->ARC_where = _P1_; and clear the dirty bit for this page */
-/* 		assert( (temp->uId&_WHERE_) == _T2_ ); */
-		arc->T2->mru_insert(temp);                                     /* not seen yet, put on T1 */
-		arc->T2Length++;
-		}
-	    else {
-		temp->uId = _P1_|(uId&_IDMASK_);     /* temp->ARC_where = _P1_; and clear the dirty bit for this page */
-/* 		assert( (temp->uId&_WHERE_) == _P1_ ); */
-		arc->T1->mru_insert(temp);                                     /* not seen yet, put on T1 */
-		arc->T1Length++;
-		/*assert(arc->T1Length+arc->B1Length<=arc->nCache);*/
-		}
-	    break;
-	}
-    } else {                                                              /* page is not in cache directory */
-	L1Length = arc->T1Length + arc->B1Length;
-	/*assert(L1Length<=arc->nCache);*/
-	if (L1Length == arc->nCache) {                                   /* B1 + T1 full? */
-	    if (arc->T1Length < arc->nCache) {                                           /* Still room in T1? */
-		temp = arc->remove_from_hash(arc->B1->lru_remove());        /* yes: take page off B1 */
-		arc->B1Length--;                                               /* bookkeep that */
-		temp->data = arc->replace();                                /* find new place to put page */
-	    } else {                                                      /* no: B1 must be empty */
-		temp = arc->remove_from_hash(arc->T1->lru_remove());         /* take page off T1 */
-		arc->destage(temp);     /* if dirty, evict before overwrite */
-		arc->T1Length--;                                               /* bookkeep that */
-	    }
-	} else {                                                          /* B1 + T1 have less than c pages */
-	    uint32_t nCache = arc->T1Length + arc->T2Length + arc->B1Length + arc->B2Length;
-	    /*assert(L1Length < arc->nCache);*/
-	    if (nCache >= arc->nCache) {         /* cache full? */
-		/* Yes, cache full: */
-		if (arc->T1Length + arc->T2Length + arc->B1Length + arc->B2Length == 2*arc->nCache) {
-		    /* directory is full: */
-		    /*assert(arc->B2Length>0);*/
-		    temp = arc->remove_from_hash(arc->B2->lru_remove());/* here we lose memory of what was in lru B2 */
-		    arc->B2Length--;                                           /* find and reuse B2’s LRU */
-		    inB2=true;
-		} else {                                                   /* cache directory not full, easy case */
-		    temp = arc->Free->lru_remove();
-		}
-		temp->data = arc->replace(inB2);                                /* new place for page */
-	    } else {                                                      /* cache not full, easy case */
-		temp = arc->Free->lru_remove();
-		assert(temp->data != NULL);               /* This CDB should have an unused page associated with it */
-		temp->data[-1] = _ARC_MAGIC_; /* this also sets nLock to zero */
-	    }
-	}
-	arc->T1->mru_insert(temp);                                             /* not been seen yet, but put on T1 */
-	arc->T1Length++;                                                       /* bookkeep: */
-	/*assert(arc->T1Length+arc->B1Length<=arc->nCache);*/
-	temp->uId = _P1_|(uId&_IDMASK_);     /* temp->ARC_where = _P1_; and clear the dirty bit for this page */
-/* 	assert( (temp->uId&_WHERE_) == _P1_ ); */
-	temp->uPage = uPage;
-	temp->coll = arc->Hash[uHash];                  /* add to collision chain */
-	arc->Hash[uHash] = temp;                               /* insert into hash table */
-    }
-    memcpy(temp->data,data,arc->cache->iLineSize); /* Copy actual cache data amount */
-    return temp;
-}
-
-static inline CDB *arcSetPrefetchData(MDL mdl,ARC *arc,uint32_t uPage,uint32_t uId,void *data) {
-    return arcSetPrefetchDataByHash(arc,uPage,uId,data,arc->hash(uPage,uId&_IDMASK_));
-    }
-
-/*
-** This releases a lock on a page by decrementing the lock counter for that page. It also checks
-** that the magic number matches, and that the lock count is greater than 0. This is to prevent
-** strange errors if the user tries to release the wrong pointer (could silently modify memory 
-** that it should not if this check was not there).
-*/
-static inline void arcRelease(ARC *arc,uint64_t *p) {
-    if (p>arc->dataBase && p<arc->dataLast) { /* Might have been a fast, read-only grab */
-	/* We will be given an element, but this needs to be turned into a cache line */
-	p = arc->dataBase + (p - arc->dataBase) / (arc->uDataSize+1) * (arc->uDataSize+1) + 1;
-	uint64_t t = p[-1]-1;
-	assert((t^_ARC_MAGIC_) < 0x00000000ffffffff);
-	p[-1] = t;
-	}
-}
-
-void mdlClass::finishCacheRequest(mdlMessageCacheRequest &R, CDB *temp,int bVirtual) {
+void mdlClass::finishCacheRequest(mdlMessageCacheRequest &R, void *data, int bVirtual) {
     int iCore = R.header.idTo - pmdl[0]->Self();
     CACHE *c = &cache[R.header.cid];
     int i,s,n;
-    char *pData = (char *)temp->data;
+    char *pData = reinterpret_cast<char *>(data);
     uint32_t iIndex = R.header.iLine << c->nLineBits;
 
     s = iIndex;
     n = s + c->nLineElements;
 
     if (bVirtual) {
-	memset(temp->data,0,c->iLineSize);
+	memset(pData,0,c->iLineSize);
 	}
     /* Local requests must be from a combiner cache if we get here */
     else if (iCore >= 0 && iCore < Cores() ) {
@@ -2311,19 +2091,148 @@ void mdlClass::finishCacheRequest(mdlMessageCacheRequest &R, CDB *temp,int bVirt
 	    }
 	}
     else {
-	assert(R.header.iLine == temp->uPage);
+	//assert(R.header.iLine == temp->uPage);
 	waitQueue(queueCacheReply);
-	memcpy(temp->data,c->pOneLine, c->iLineSize);
+	memcpy(pData,c->pOneLine, c->iLineSize);
 	}
 
     if (c->init) {
-	pData = (char *)temp->data;
 	for(i=s; i<n; i++ ) {
 	    (*c->init)(c->ctx,pData);
 	    pData += c->iDataSize;
 	    }
 	}
     }
+
+void *ARC::fetch(uint32_t uIndex, int uId, int bLock,int bModify,int bVirtual) {
+    auto uLine = uIndex >> cache->nLineBits;
+    auto iInLine = uIndex & cache->nLineMask;
+    auto tuId = uId&_IDMASK_;
+    uint32_t rat;
+    bool inB2=false;
+
+    mdlMessageCacheRequest request(cache->iCID, cache->nLineElements, mdl->Self(), uId, uLine, cache->pOneLine);
+
+    /* First check our own cache */
+    auto uHash = hash(uLine,tuId);
+    CDBL::iterator tempX;
+    auto &Hash = HashChains[uHash];
+    auto iskey = [&](CDBL::iterator &i) {return i->uPage == uLine && (i->uId&_IDMASK_) == tuId;};
+    auto match = std::find_if(Hash.begin(),Hash.end(),iskey);
+    if (match != Hash.end()) {                       /* found in cache directory? */
+	tempX = *match;
+	switch (tempX->uId & _WHERE_) {                   /* yes, which list? */
+	case _P1_:
+	    tempX->uId = uId;     /* clears prefetch flag and sets WHERE = _T1_ (zero) and dirty bit */
+	    T1.splice(T1.end(),T1,tempX);
+	    goto cachehit;
+	case _T1_:
+	    tempX->uId |= _T2_ | uId;
+	    T2.splice(T2.end(),T1,tempX);
+	    goto cachehit;
+	case _T2_:
+	    tempX->uId |= uId;          /* if the dirty bit is now set we need to record this */
+	    T2.splice(T2.end(),T2,tempX);
+	cachehit:
+	    if (bLock) {
+		/*
+		** We don't have to check if the lock counter rolls over, since it will increment the  
+		** magic number first. This in turn will cause this page to be locked in a way that it 
+		** cannot be unlocked without an error condition.
+		*/
+		++tempX->data[-1];       /* increase lock count */
+		}
+	    /*
+	    ** Get me outa here.
+	    */
+	    return (char *)tempX->data + cache->iDataSize*iInLine;
+	case _B1_:                            /* B1 hit: favor recency */
+	    rat = B2.size()/B1.size();
+	    if (rat < 1) rat = 1;
+	    target_T1 += rat;
+	    if (target_T1 > nCache) target_T1 = nCache;
+	    /* adapt the target size */
+	    T2.splice(T2.end(),B1,tempX);
+	    goto doBcase;
+	case _B2_:                            /* B2 hit: favor frequency */
+	    rat = B1.size()/B2.size();
+	    if (rat < 1) rat = 1;
+	    if (rat > target_T1) target_T1 = 0;
+	    else target_T1 = target_T1 - rat;
+	    /* adapt the target size */
+	    inB2=true;
+	    T2.splice(T2.end(),B2,tempX);
+	doBcase:
+	    if (!bVirtual) mdl->enqueue(request, mdl->queueCacheReply); // Request the element be fetched
+	    tempX->data = replace(inB2);                                /* find a place to put new page */
+	    tempX->uId = _T2_|uId;     /* temp->ARC_where = _T2_; and set the dirty bit for this page */
+	    tempX->uPage = uLine;                          /* bookkeep */
+	    mdl->finishCacheRequest(request,tempX->data,bVirtual);
+	    break;
+	    }
+	}
+
+    else {                                                              /* page is not in cache directory */
+	++cache->nMiss;
+	mdl->TimeAddComputing();
+	/*
+	** Can initiate the data request right here, and do the rest while waiting...
+	*/
+	if (!bVirtual) mdl->enqueue(request, mdl->queueCacheReply);
+	auto L1Length = T1.size() + B1.size();
+	if (L1Length == nCache) {                                   /* B1 + T1 full? */
+	    if (T1.size() < nCache) {                                           /* Still room in T1? */
+		tempX = remove_from_hash(B1);        /* yes: take page off B1 */
+		tempX->data = replace();                                /* find new place to put page */
+		T1.splice(T1.end(),B1,tempX);
+		}
+	    else {                                                      /* no: B1 must be empty */
+		tempX = remove_from_hash(T1);       /* take page off T1 */
+		destage(*tempX);     /* if dirty, evict before overwrite */
+		T1.splice(T1.end(),T1,tempX);
+		}
+	    }
+	else {                                                          /* B1 + T1 have less than c pages */
+	    uint32_t nInCache = T1.size() + T2.size() + B1.size() + B2.size();
+	    if (nInCache >= nCache) {         /* cache full? */
+		/* Yes, cache full: */
+		if (nInCache == 2*nCache) {
+		    /* directory is full: */
+		    tempX = remove_from_hash(B2);
+		    T1.splice(T1.end(),B2,tempX);
+		    inB2=true;
+		} else {                                                   /* cache directory not full, easy case */
+		    T1.splice(T1.end(),ArcFree,ArcFree.begin());
+		}
+		T1.back().data = replace(inB2);                                /* new place for page */
+	    } else {                                                      /* cache not full, easy case */
+		T1.splice(T1.end(),ArcFree,ArcFree.begin());
+		assert(T1.back().data != NULL);               /* This CDB should have an unused page associated with it */
+		T1.back().data[-1] = _ARC_MAGIC_; /* this also sets nLock to zero */
+		}
+	    }
+	tempX = --T1.end();
+	tempX->uId = uId;                  /* temp->dirty = dirty;  p->ARC_where = _T1_; as well! */
+	tempX->uPage = uLine;
+	mdl->finishCacheRequest(request,tempX->data,bVirtual);
+	Hash.splice_after(Hash.before_begin(),HashFree,HashFree.before_begin());
+	Hash.front() = tempX;
+	mdl->TimeAddWaiting();
+    }
+    if (bLock) {
+	/*
+	** We don't have to check if the lock counter rolls over, since it will increment the  
+	** magic number first. This in turn will cause this page to be locked in a way that it 
+	** cannot be unlocked without an error condition.
+	*/
+	++tempX->data[-1];       /* increase lock count */
+    }
+    /* If we will modify the element, then it must eventually be flushed. */
+    if (bModify) tempX->uId |= _DIRTY_;
+
+    return (char *)tempX->data + cache->iDataSize*iInLine;
+    }
+
 
 /*
 ** The highest order bit (1<<31) of uId encodes the dirty bit.
@@ -2333,13 +2242,6 @@ void mdlClass::finishCacheRequest(mdlMessageCacheRequest &R, CDB *temp,int bVirt
 void *mdlClass::Access(int cid, uint32_t uIndex, int uId, int bLock,int bModify,int bVirtual) {
     CACHE *c = &cache[cid];
     ARC *arc = c->arc;
-    CDB *temp;
-    uint32_t L1Length;
-    uint32_t uHash,rat;
-    uint32_t tuId = uId&_IDMASK_;
-    uint32_t uLine;
-    uint32_t iInLine;
-    bool inB2=false;
 
     if (!(++c->nAccess & MDL_CHECK_MASK)) CacheCheck();
 
@@ -2350,164 +2252,9 @@ void *mdlClass::Access(int cid, uint32_t uIndex, int uId, int bLock,int bModify,
 	c = &omdl->cache[cid];
 	return (*c->getElt)(c->pData,uIndex,c->iDataSize);
 	}
-    iInLine = uIndex & c->nLineMask;
-    uLine = uIndex >> c->nLineBits;
 
-    mdlMessageCacheRequest request(cid, c->nLineElements, Self(), uId, uLine, c->pOneLine);
-
-    /* First check our own cache */
-    uHash = arc->hash(uLine,tuId);
-    for ( temp = arc->Hash[uHash]; temp; temp = temp->coll ) {
-	if (temp->uPage == uLine && (temp->uId&_IDMASK_) == tuId) break;
-	}
-    if (temp != NULL) {                       /* found in cache directory? */
-	switch (temp->uId & _WHERE_) {                   /* yes, which list? */
-	case _P1_:
-	    temp->uId = uId;     /* clears prefetch flag and sets WHERE = _T1_ and dirty bit */
-/* 	    assert( (temp->uId&_WHERE_) == _T1_ ); */
-	    temp->remove_from_list();                           /* take off T1 list */
-	    arc->T1->mru_insert(temp);                         /* first access but recently prefetched, put on T1 */
-	    goto cachehit;
-	case _T1_:
-	    arc->T1Length--; arc->T2Length++;
-	    temp->uId |= _T2_;
-/* 	    assert( (temp->uId&_WHERE_) == _T2_ ); */
-	    /* fall through */
-	case _T2_:
-	    temp->remove_from_list();                                   /* take off whichever list */
-	    arc->T2->mru_insert(temp);                                     /* seen twice recently, put on T2 */
-	    temp->uId |= uId;          /* if the dirty bit is now set we need to record this */
-	cachehit:
-	    if (bLock) {
-		/*
-		** We don't have to check if the lock counter rolls over, since it will increment the  
-		** magic number first. This in turn will cause this page to be locked in a way that it 
-		** cannot be unlocked without an error condition.
-		*/
-		++temp->data[-1];       /* increase lock count */
-		}
-	    /*
-	    ** Get me outa here.
-	    */
-	    return (char *)temp->data + c->iDataSize*iInLine;
-	case _B1_:                            /* B1 hit: favor recency */
-	    /*
-	    ** Can initiate the data request right here, and do the rest while waiting...
-	    */
-//	    if (!bVirtual) enqueue(request, queueCacheReply);
-	    //if (!bVirtual) queueCacheRequest(cid,uLine,uId);
-/* 	    assert(arc->B1->next != arc->B1); */
-/* 	    assert(arc->B1Length>0); */
-	    rat = arc->B2Length/arc->B1Length;
-	    if (rat < 1) rat = 1;
-	    arc->target_T1 += rat;
-	    if (arc->target_T1 > arc->nCache) arc->target_T1 = arc->nCache;
-	    /* adapt the target size */
-	    arc->B1Length--;                                           /* bookkeep */
-	    goto doBcase;
-	case _B2_:                            /* B2 hit: favor frequency */
-	    /*
-	    ** Can initiate the data request right here, and do the rest while waiting...
-	    */
-//	    if (!bVirtual) enqueue(request, queueCacheReply);
-	    //if (!bVirtual) queueCacheRequest(cid,uLine,uId);
-/* 	    assert(arc->B2->next != arc->B2); */
-/* 	    assert(arc->B2Length>0); */
-
-	    rat = arc->B1Length/arc->B2Length;
-	    if (rat < 1) rat = 1;
-	    if (rat > arc->target_T1) arc->target_T1 = 0;
-	    else arc->target_T1 = arc->target_T1 - rat;
-	    /* adapt the target size */
-	    arc->B2Length--;                                           /* bookkeep */
-	    inB2=true;
-	doBcase:
-	    if (!bVirtual) enqueue(request, queueCacheReply);
-	    temp->remove_from_list();                                   /* take off whichever list */
-	    temp->data = arc->replace(inB2);                                /* find a place to put new page */
-	    temp->uId = _T2_|uId;     /* temp->ARC_where = _T2_; and set the dirty bit for this page */
-/* 	    assert( (temp->uId&_WHERE_) == _T2_ ); */
-	    temp->uPage = uLine;                          /* bookkeep */
-	    arc->T2->mru_insert(temp);                                     /* seen twice recently, put on T2 */
-	    arc->T2Length++;                 /* JS: this was not in the original code. Should it be? bookkeep */
-	    /*assert(temp->data!=NULL);*/
-	    finishCacheRequest(request,temp,bVirtual);
-	    //finishCacheRequest(cid,uLine,uId,temp,bVirtual);
-	    break;
-	    }
-	}
-
-    else {                                                              /* page is not in cache directory */
-	++c->nMiss;
-	TimeAddComputing();
-	/*
-	** Can initiate the data request right here, and do the rest while waiting...
-	*/
-	if (!bVirtual) enqueue(request, queueCacheReply);
-	//if (!bVirtual) queueCacheRequest(cid,uLine,uId);
-	L1Length = arc->T1Length + arc->B1Length;
-	/*assert(L1Length<=arc->nCache);*/
-	if (L1Length == arc->nCache) {                                   /* B1 + T1 full? */
-	    if (arc->T1Length < arc->nCache) {                                           /* Still room in T1? */
-		temp = arc->remove_from_hash(arc->B1->lru_remove());        /* yes: take page off B1 */
-		arc->B1Length--;                                               /* bookkeep that */
-		temp->data = arc->replace();                                /* find new place to put page */
-		}
-	    else {                                                      /* no: B1 must be empty */
-		temp = arc->remove_from_hash(arc->T1->lru_remove());       /* take page off T1 */
-		arc->destage(temp);     /* if dirty, evict before overwrite */
-		arc->T1Length--;                                               /* bookkeep that */
-		}
-	    /*assert(temp->data!=NULL);*/
-	    }
-	else {                                                          /* B1 + T1 have less than c pages */
-	    uint32_t nCache = arc->T1Length + arc->T2Length + arc->B1Length + arc->B2Length;
-	    /*assert(L1Length < arc->nCache);*/
-	    if (nCache >= arc->nCache) {         /* cache full? */
-		/* Yes, cache full: */
-		if (nCache == 2*arc->nCache) {
-		    /* directory is full: */
-		    temp = arc->remove_from_hash(arc->B2->lru_remove());
-		    arc->B2Length--;                                           /* find and reuse B2’s LRU */
-		    inB2=true;
-		} else {                                                   /* cache directory not full, easy case */
-		    temp = arc->Free->lru_remove();
-		    assert(temp->data == NULL);            /* This CDB should not be associated with data */
-		}
-		temp->data = arc->replace(inB2);                                /* new place for page */
-		/*assert(temp->data!=NULL);*/
-	    } else {                                                      /* cache not full, easy case */
-		temp = arc->Free->lru_remove();
-		assert(temp->data != NULL);               /* This CDB should have an unused page associated with it */
-		temp->data[-1] = _ARC_MAGIC_; /* this also sets nLock to zero */
-		}
-	    }
-	arc->T1->mru_insert(temp);                                             /* seen once recently, put on T1 */
-	arc->T1Length++;                                                       /* bookkeep: */
-	/*assert(arc->T1Length+arc->B1Length<=arc->nCache);*/
-	temp->uId = uId;                  /* temp->dirty = dirty;  p->ARC_where = _T1_; as well! */
-/* 	assert( (temp->uId&_WHERE_) == _T1_ ); */
-	temp->uPage = uLine;
-	finishCacheRequest(request,temp,bVirtual);
-	//finishCacheRequest(cid,uLine,uId,temp,bVirtual);
-	temp->coll = arc->Hash[uHash];                  /* add to collision chain */
-	arc->Hash[uHash] = temp;                               /* insert into hash table */
-	TimeAddWaiting();
+    return arc->fetch(uIndex,uId,bLock,bModify,bVirtual);
     }
-    /*assert(temp!=NULL);*/
-    if (bLock) {
-	/*
-	** We don't have to check if the lock counter rolls over, since it will increment the  
-	** magic number first. This in turn will cause this page to be locked in a way that it 
-	** cannot be unlocked without an error condition.
-	*/
-	++temp->data[-1];       /* increase lock count */
-    }
-    /* If we will modify the element, then it must eventually be flushed. */
-    if (bModify) temp->uId |= _DIRTY_;
-
-    return (char *)temp->data + c->iDataSize*iInLine;
-}
 
 /* Does not lock the element */
 void *mdlFetch(MDL mdl,int cid,int iIndex,int id) {
@@ -2536,10 +2283,9 @@ void *mdlVirtualFetch(MDL mdl,int cid,int iIndex,int id) {
 
 void mdlRelease(MDL cmdl,int cid,void *p) {
     mdlClass *mdl = reinterpret_cast<mdlClass *>(cmdl);
-    CACHE *c = &mdl->cache[cid];
-    arcRelease(c->arc,CAST(uint64_t *,p));
+    CACHE &c = mdl->cache[cid];
+    c.arc->release(p);
     }
-
 
 double mdlNumAccess(MDL cmdl,int cid) {
     mdlClass *mdl = reinterpret_cast<mdlClass *>(cmdl);

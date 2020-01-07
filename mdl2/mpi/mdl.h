@@ -34,6 +34,7 @@
 #include "mdlmessages.h"
 #include <vector>
 #include <list>
+#include <forward_list>
 #endif
 
 #ifndef MPI_VERSION
@@ -67,52 +68,46 @@ typedef void * MDL;
 #ifdef __cplusplus
 class CACHE;
 
-class CDB {
-public:
-    CDB *next;      /* for doubly linked list */
-    CDB *prev;      /* for doubly linked list */
-    CDB *coll;      /* collision chain for hash table */
-    uint64_t *data; /* page's location in cache */
-    uint32_t uId;   /* upper 4 bits encode ARC_where and dirty bit */
-    uint32_t uPage; /* page's ID number */
-public:
-    explicit CDB();
-    CDB *remove_from_list();
-    CDB *lru_remove();
-    void lru_insert(CDB *p);
-    void mru_insert(CDB *p);
-};
-
 class ARC {
     class mdlClass * const mdl; // MDL is needed for cache operations
-public:
-    std::vector<CDB*> Hash;
-    CDB *cdbBase;
-    uint64_t *dataBase;
-    uint64_t *dataLast;
-    CDB *T1;
-    CDB *B1;
-    CDB *T2;
-    CDB *B2;
-    CDB *Free;
-    uint32_t nHash;
+protected:
+    class CDB {
+	friend class ARC;
+    protected:
+	uint64_t *data; /* page's location in cache */
+	uint32_t uId;   /* upper 4 bits encode ARC_where and dirty bit */
+	uint32_t uPage; /* page's ID number */
+    public:
+	explicit CDB(uint64_t *data=0);
+    };
+    typedef std::list<CDB> CDBL;
+    typedef std::forward_list<CDBL::iterator> CDBIL; // Memory efficient linked-list
+    std::vector<uint64_t> dataBase; // Contains all cached data (continguous)
+    CDBIL HashFree;                 // List of free hash entries (added to HashChains)
+    std::vector<CDBIL> HashChains;  // List of hash entries for each value
+    CDBL T1;
+    CDBL B1;
+    CDBL T2;
+    CDBL B2;
+    CDBL ArcFree;
     uint32_t uHashMask;
-    uint32_t nCache;
-    uint32_t uDataSize;
-    uint32_t T1Length;
-    uint32_t B1Length;
-    uint32_t T2Length;
-    uint32_t B2Length;
     uint32_t target_T1;
+    uint32_t nCache;
     CACHE *cache;
+    uint32_t uDataSize;
+protected:
+    std::list<CDB>::iterator remove_from_hash(const std::list<CDB>::iterator p);
+    std::list<CDB>::iterator remove_from_hash(std::list<CDB> &list);
+    uint64_t *replace(bool iInB2=false);
+    void destage(CDB &temp);
+    uint32_t hash(uint32_t uLine,uint32_t uId);
 public:
     explicit ARC(mdlClass * mdl,uint32_t nCache,uint32_t uDataSize,CACHE *c);
     ~ARC();
-    CDB *destage(CDB *temp);
-    uint64_t *replace(bool iInB2=false);
+    bool compatible(uint32_t nCache,uint32_t uDataSize,CACHE *c);
+    void *fetch(uint32_t uIndex, int uId, int bLock,int bModify,int bVirtual);
+    void release(void *p);
     void RemoveAll();
-    CDB * remove_from_hash(CDB *p);
-    uint32_t hash(uint32_t uLine,uint32_t uId);
     };
 
 typedef struct mdl_wq_node {
@@ -250,7 +245,7 @@ protected:
 
     int DoSomeWork();
     void bookkeeping();
-    void finishCacheRequest(mdlMessageCacheRequest &R, CDB *temp,int bVirtual);
+    void finishCacheRequest(mdlMessageCacheRequest &R, void *data, int bVirtual);
   
 protected:
     void flush_core_buffer();

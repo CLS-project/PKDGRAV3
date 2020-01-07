@@ -76,7 +76,6 @@ mdlBASE::mdlBASE(int argc,char **argv) {
     iProc = 0;
     nCores = 1;
     iCore = 0;
-    iProcToThread = NULL;
     nTicks = 0;
 
     /*

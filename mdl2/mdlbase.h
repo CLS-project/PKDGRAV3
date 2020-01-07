@@ -81,7 +81,7 @@ public:
     std::vector<SERVICE> services;
 
     /* Maps a give process (Proc) to the first global thread ID */
-    int *iProcToThread; /* [0,nProcs] (note inclusive extra element) */
+    std::vector<int> iProcToThread; /* [0,nProcs] (note inclusive extra element) */
 
     char nodeName[MAX_NODE_NAME_LENGTH];
 
