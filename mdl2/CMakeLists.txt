@@ -32,6 +32,7 @@ find_package(MPI REQUIRED)	# MPI support
 find_package(CUDA)
 
 add_library(${PROJECT_NAME} STATIC "")
+target_compile_features(${PROJECT_NAME} PRIVATE cxx_auto_type cxx_range_for cxx_lambdas cxx_strong_enums)
 set_target_properties(${PROJECT_NAME} PROPERTIES
     CXX_STANDARD 11
     CXX_STANDARD_REQUIRED YES
@@ -72,8 +73,6 @@ if (MSVC)
   )
   target_link_libraries(${PROJECT_NAME} wsock32 ws2_32)
 endif()
-find_package(Threads REQUIRED)
-find_package(MPI REQUIRED)	# MPI support
 if (APPLE)
   target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/mac)
 endif()

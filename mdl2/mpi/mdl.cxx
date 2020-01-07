@@ -209,20 +209,20 @@ void CDB::mru_insert(CDB *p) {
     next->lru_insert(p);
     }
 
+uint32_t ARC::hash(uint32_t uLine,uint32_t uId) {
+    return MurmurHash2(uLine,uId) & uHashMask;
+    }
+
 CDB * ARC::remove_from_hash(CDB *p) {
-    ARC *arc = this;
-    uint32_t uPage = p->uPage;
-    uint32_t uId = p->uId&_IDMASK_;
-    uint32_t uHash = (MurmurHash2(uPage,uId)&arc->uHashMask);
+    uint32_t uHash = hash(p->uPage,p->uId&_IDMASK_);
     CDB **pt;
 
-    for(pt = &arc->Hash[uHash]; *pt != NULL; pt = &((*pt)->coll)) {
+    for(pt = &Hash[uHash]; *pt != NULL; pt = &((*pt)->coll)) {
 	if ( *pt == p) {
 	    *pt = (*pt)->coll;
 	    return p;
 	    }
 	}
-    printf("Tried to remove uPage %d uId %x\n", uPage, uId);
     abort();  /* should never get here, the element should always be found in the hash */
     }
 
@@ -256,8 +256,7 @@ ARC::ARC(mdlClass * mdlIn,uint32_t nCacheIn,uint32_t uDataSizeIn,CACHE *c)
     */
     uHashMask = swar32(3*nCache-1);
     nHash = uHashMask+1; 
-    Hash = new CDB*[nHash];
-    for (i=0;i<nHash;++i) Hash[i] = NULL;
+    Hash.resize(nHash,NULL);
     /*
     ** Create all lists as circular lists, with a sentinel
     ** CDB at the head/tail of the list.
@@ -301,10 +300,6 @@ ARC::~ARC() {
     delete T2;
     delete B1;
     delete T1;
-    /*
-    ** Free the hash table.
-    */
-    delete Hash;
     /*
     ** Free the data pages.
     */
@@ -412,8 +407,9 @@ void mpiClass::CacheReceiveReply(int count, const CacheHeader *ph) {
 * Here we follow a Cache Flush
 \*****************************************************************************/
 
-// A core has filled a buffer, and now needs to flush it. Each element can be
-// destined for a diffent node so we process them separately.
+// Individual cores flush elements from their cache (see ARC::destage). When a
+// buffer is filled (or at the very end), this routine is called to flush it.
+// Each element can be destined for a diffent node so we process them separately.
 void mpiClass::MessageFlushFromCore(mdlMessageFlushFromCore *pFlush) {
     CacheHeader *ca;
     char *pData;
@@ -830,14 +826,14 @@ void mpiClass::MessageSendRequest(mdlMessageSendRequest *send) {
     }
 
 void mpiClass::MessageSendReply(mdlMessageSendReply *send) {
-    int iProc = ThreadToProc(send->target);
-    int iCore = send->target - ProcToThread(iProc);
+    int iProc = ThreadToProc(send->iThreadTo);
+    int iCore = send->iThreadTo - ProcToThread(iProc);
     assert(iCore>=0);
     int tag = MDL_TAG_RPL + MDL_TAG_THREAD_OFFSET * send->header.replyTag;
 
     MPI_Aint disp[2];
     MPI_Get_address(&send->header, &disp[0]);
-    MPI_Get_address(send->buf, &disp[1]);
+    MPI_Get_address(&send->Buffer.front(), &disp[1]);
     disp[1] -= disp[0]; disp[0] = 0;
     int blocklen[2] = {sizeof(ServiceHeader), send->header.nInBytes};
     MPI_Datatype type[3] = {MPI_BYTE, MPI_BYTE};
@@ -1235,7 +1231,6 @@ void mdlAbort(MDL mdl) {
     }
 
 mdlClass::~mdlClass() {
-    MDLcacheReplyData *pdata, *pnext;
     int i;
 
     for (i = iCoreMPI+1; i < Cores(); ++i) {
@@ -1498,6 +1493,7 @@ void mdlClass::init(bool bDiag) {
     /*
     ** Allocate initial cache spaces.
     */
+
     nMaxCacheIds = MDL_DEFAULT_CACHEIDS;
     cache = CAST(CACHE *,malloc(nMaxCacheIds*sizeof(CACHE)));
     assert(cache != NULL);
@@ -1779,8 +1775,7 @@ void mdlClass::CommitServices() {
     nMaxBytes = (nMaxInBytes > nMaxOutBytes) ? nMaxInBytes : nMaxOutBytes;
     if (nMaxBytes > nMaxSrvBytes) {
         nMaxSrvBytes = nMaxBytes;
-	input_buffer.resize(nMaxBytes + sizeof(SRVHEAD));
-	output_buffer.resize(nMaxBytes + sizeof(SRVHEAD));
+	input_buffer.resize(nMaxSrvBytes + sizeof(SRVHEAD));
         }
     /* We need a thread barrier here because we share these buffers */
     ThreadBarrier();
@@ -1809,10 +1804,9 @@ void mdlClass::GetReply(int rID,void *vout,int *pnOutBytes) {
 
 void mdlClass::Handler() {
     SRVHEAD *phi = (SRVHEAD *)(&input_buffer.front());
-    SRVHEAD *pho = (SRVHEAD *)(&output_buffer.front());
     char *pszIn = (char *)(phi + 1);
-    char *pszOut = (char *)(pho + 1);
     int sid,id,tag,nOutBytes,nBytes;
+    mdlMessageSendReply reply(nMaxSrvBytes);
 
     do {
 	/* We ALWAYS use MPI to send requests. */
@@ -1823,14 +1817,8 @@ void mdlClass::Handler() {
 	id = phi->idFrom;
 	sid = phi->sid;
 	assert(sid < services.size());
-	nOutBytes = services[sid](phi->nInBytes,pszIn,pszOut);
-	pho->idFrom = Self();
-	pho->replyTag = phi->replyTag;
-	pho->sid = sid;
-	pho->nInBytes = phi->nInBytes;
-	pho->nOutBytes = nOutBytes;
-	tag = phi->replyTag;
-	enqueueAndWait(mdlMessageSendReply(Self(),phi->replyTag,sid,id,pszOut,nOutBytes));
+	nOutBytes = services[sid](phi->nInBytes,pszIn,&reply.Buffer.front());
+	enqueueAndWait(reply.makeReply(Self(),phi->replyTag,sid,id,nOutBytes));
 	} while (sid != SRV_STOP);
     }
 
@@ -2190,8 +2178,7 @@ void mdlPrefetch(MDL mdl,int cid,int iIndex, int id) {
 ** The next 3 highest order bits of uId ((1<<30), (1<<29) and (1<<28)) are reserved 
 ** for list location and should be zero! The maximum legal uId is then (1<<28)-1.
 */
-static inline CDB *arcSetPrefetchDataByHash(MDL cmdl,ARC *arc,uint32_t uPage,uint32_t uId,void *data,uint32_t uHash) {
-    mdlClass *mdl = reinterpret_cast<mdlClass *>(cmdl);
+static inline CDB *arcSetPrefetchDataByHash(ARC *arc,uint32_t uPage,uint32_t uId,void *data,uint32_t uHash) {
     CDB *temp;
     uint32_t tuId = uId&_IDMASK_;
     uint32_t L1Length;
@@ -2281,7 +2268,7 @@ static inline CDB *arcSetPrefetchDataByHash(MDL cmdl,ARC *arc,uint32_t uPage,uin
 }
 
 static inline CDB *arcSetPrefetchData(MDL mdl,ARC *arc,uint32_t uPage,uint32_t uId,void *data) {
-    return arcSetPrefetchDataByHash(mdl,arc,uPage,uId,data,MurmurHash2(uPage,uId&_IDMASK_)&arc->uHashMask);
+    return arcSetPrefetchDataByHash(arc,uPage,uId,data,arc->hash(uPage,uId&_IDMASK_));
     }
 
 /*
@@ -2369,7 +2356,7 @@ void *mdlClass::Access(int cid, uint32_t uIndex, int uId, int bLock,int bModify,
     mdlMessageCacheRequest request(cid, c->nLineElements, Self(), uId, uLine, c->pOneLine);
 
     /* First check our own cache */
-    uHash = (MurmurHash2(uLine,tuId)&arc->uHashMask);
+    uHash = arc->hash(uLine,tuId);
     for ( temp = arc->Hash[uHash]; temp; temp = temp->coll ) {
 	if (temp->uPage == uLine && (temp->uId&_IDMASK_) == tuId) break;
 	}
@@ -2913,12 +2900,10 @@ void mdlAddWork(MDL cmdl, void *ctx,
     }
 
 int mdlProcToThread(MDL cmdl, int iProc) {
-    mdlClass *mdl = reinterpret_cast<mdlClass *>(cmdl);
-    return mdl->ProcToThread(iProc);
+    return reinterpret_cast<mdlClass *>(cmdl)->ProcToThread(iProc);
     }
 int mdlThreadToProc(MDL cmdl, int iThread) {
-    mdlClass *mdl = reinterpret_cast<mdlClass *>(cmdl);
-    return mdl->ThreadToProc(iThread);
+    return reinterpret_cast<mdlClass *>(cmdl)->ThreadToProc(iThread);
     }
 
 int mdlThreads(void *mdl) {  return reinterpret_cast<mdlClass *>(mdl)->Threads(); }

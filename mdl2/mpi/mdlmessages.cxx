@@ -163,13 +163,20 @@ mdlMessageSendRequest::mdlMessageSendRequest(int32_t idFrom,int16_t sid,int targ
     header.nOutBytes = 0;
     }
 
-mdlMessageSendReply::mdlMessageSendReply(int32_t idFrom,int16_t replyTag,int16_t sid,int target,void *buf,int32_t count)
-    : mdlMessageBufferedMPI(buf,count,MPI_BYTE,target,MDL_TAG_RPL) {
+mdlMessageReceiveRequest::mdlMessageReceiveRequest(int32_t count) : Buffer(count) {}
+
+// mdlMessageSendReply::mdlMessageSendReply(int32_t idFrom,int16_t replyTag,int16_t sid,int target,void *buf,int32_t count)
+//     : mdlMessageBufferedMPI(buf,count,MPI_BYTE,target,MDL_TAG_RPL) {
+mdlMessageSendReply::mdlMessageSendReply(int32_t count) : Buffer(count) {}
+
+mdlMessageSendReply & mdlMessageSendReply::makeReply(int32_t idFrom,int16_t replyTag,int16_t sid,int target,int32_t count) {
+    iThreadTo = target;
     header.idFrom = idFrom;
     header.replyTag = replyTag;
     header.sid = sid;
     header.nInBytes=count;
     header.nOutBytes = 0;
+    return *this;
     }
 
 mdlMessageCacheRequest::mdlMessageCacheRequest(uint8_t cid, uint16_t nItems, int32_t idFrom, int32_t idTo, int32_t iLine, void *pLine)

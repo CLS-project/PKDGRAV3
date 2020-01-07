@@ -86,7 +86,7 @@ public:
 class ARC {
     class mdlClass * const mdl; // MDL is needed for cache operations
 public:
-    CDB **Hash;
+    std::vector<CDB*> Hash;
     CDB *cdbBase;
     uint64_t *dataBase;
     uint64_t *dataLast;
@@ -112,7 +112,8 @@ public:
     uint64_t *replace(bool iInB2=false);
     void RemoveAll();
     CDB * remove_from_hash(CDB *p);
-};
+    uint32_t hash(uint32_t uLine,uint32_t uId);
+    };
 
 typedef struct mdl_wq_node {
     /* We can put this on different types of queues */
@@ -134,14 +135,6 @@ typedef struct mdl_wq_node {
 //     } CacheHeadernew;
 
 #define MDL_CACHE_DATA_SIZE (512)
-typedef struct cache_reply_data {
-    union {
-	struct cache_reply_data *next;
-	};
-    MPI_Request mpiRequest;
-    int nBytes;
-    } MDLcacheReplyData;
-    /* followed by CacheHeader and data */
 
 class CACHE {
 public:
@@ -205,7 +198,7 @@ public:
      ** Services stuff!
      */
     int nMaxSrvBytes;
-    std::vector<char> input_buffer, output_buffer;
+    std::vector<char> input_buffer;
     /*
      ** Swapping buffer.
      */

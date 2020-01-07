@@ -153,13 +153,7 @@ void pkdSetLinGrid(PKD pkd, double a0, double a, double a1, double dBSize, int n
          */
         FFTW3(real) *rForceX, *rForceY, *rForceZ;
         FFTW3(complex) *cDelta_lin_field, *cForceY, *cForceZ;
-#ifdef USE_ITT
-        __itt_domain* domain = __itt_domain_create("MyTraces.MyDomain");
-        __itt_string_handle* shMyTask = __itt_string_handle_create("AssignMass_DGrid");
-        __itt_task_begin(domain, __itt_null, __itt_null, shMyTask);
-        mdlThreadBarrier(pkd->mdl);
-        __itt_resume();
-#endif
+
         /* Scale factors and normalization */
         const double dNormalization = a*a*a * dBSize;
 
@@ -228,14 +222,6 @@ void pkdSetLinGrid(PKD pkd, double a0, double a, double a1, double dBSize, int n
                 
         mdlIFFT(pkd->mdl, fft, cDelta_lin_field);
         rForceX = (FFTW3(real) *)mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)), cDelta_lin_field);
-
-
-#ifdef USE_ITT
-        mdlThreadBarrier(pkd->mdl);
-        __itt_pause();
-        __itt_task_end(domain);
-        mdlThreadBarrier(pkd->mdl);
-#endif
 }
 
 extern "C"
@@ -396,13 +382,6 @@ void pkdMeasureLinPk(PKD pkd, int nGrid, double dA, double dBoxSize,
     double ak;
     int i,j,k, idx, ks;
     int iNyquist;
-#ifdef USE_ITT
-    __itt_domain* domain = __itt_domain_create("MyTraces.MyDomain");
-    __itt_string_handle* shMyTask = __itt_string_handle_create("MeasureLinPk");
-    __itt_task_begin(domain, __itt_null, __itt_null, shMyTask);
-    mdlThreadBarrier(pkd->mdl);
-    __itt_resume();
-#endif
 
     /* Sort the particles into optimal "cell" order */
     /* Use tree order: QSORT(pkdParticleSize(pkd),pkdParticle(pkd,0),pkd->nLocal,qsort_lt); */
@@ -469,12 +448,6 @@ void pkdMeasureLinPk(PKD pkd, int nGrid, double dA, double dBoxSize,
 	    nPower[ks] += 1;
 	    }
 	}
-#ifdef USE_ITT
-    mdlThreadBarrier(pkd->mdl);
-    __itt_pause();
-    __itt_task_end(domain);
-    mdlThreadBarrier(pkd->mdl);
-#endif
     }
 
 extern "C"

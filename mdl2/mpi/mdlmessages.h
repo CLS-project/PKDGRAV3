@@ -274,6 +274,17 @@ public:
     explicit mdlMessageReceiveReply(void *buf,int32_t count, int rID, int iCoreFrom);
     };
 
+class mdlMessageReceiveRequest : public mdlMessageMPI {
+protected:
+    friend class mdlClass;
+    friend class mpiClass;
+    ServiceHeader header;
+    std::vector<char> Buffer;
+public:
+//    virtual void action(class mpiClass *mdl);
+    explicit mdlMessageReceiveRequest(int32_t count=0);
+    };
+
 class mdlMessageSendRequest : public mdlMessageBufferedMPI {
 protected:
     friend class mdlClass;
@@ -284,14 +295,18 @@ public:
     explicit mdlMessageSendRequest(int32_t idFrom,int16_t sid,int target,void *buf=0,int32_t count=0);
     };
 
-class mdlMessageSendReply : public mdlMessageBufferedMPI {
+class mdlMessageSendReply : public mdlMessageMPI {
 protected:
     friend class mdlClass;
     friend class mpiClass;
     ServiceHeader header;
+    std::vector<char> Buffer;
+    int iThreadTo;
 public:
     virtual void action(class mpiClass *mdl);
-    explicit mdlMessageSendReply(int32_t idFrom,int16_t replyTag, int16_t sid,int target,void *buf=0,int32_t count=0);
+//    explicit mdlMessageSendReply(int32_t idFrom,int16_t replyTag, int16_t sid,int target,void *buf=0,int32_t count=0);
+    explicit mdlMessageSendReply(int32_t count=0);
+    mdlMessageSendReply & makeReply(int32_t idFrom,int16_t replyTag,int16_t sid,int target,int32_t count);
     };
 
 class mdlMessageCacheRequest : public mdlMessageBufferedMPI {
