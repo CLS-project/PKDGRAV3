@@ -143,7 +143,7 @@ public:
     int nLineElements;
     int iLineSize;
     ARC *arc;
-    char *pOneLine;
+    std::vector<char> OneLine;
 
     void *ctx;
     void (*init)(void *,void *);
@@ -169,7 +169,7 @@ public:
     void   (*fcnWorkerDone)(MDL mdl, void *ctx);
     void   (*fcnMaster)(    MDL mdl, void *ctx);
 
-    pthread_t *threadid;
+    std::vector<pthread_t> threadid;
     pthread_barrier_t barrier;
     void *worker_ctx;
     mdlMessageQueue threadBarrierQueue;
@@ -197,7 +197,7 @@ public:
     /*
      ** Swapping buffer.
      */
-    char *pszTrans;
+    std::vector<char> pszTrans;
     /*
      ** Caching stuff!
      */
@@ -207,8 +207,7 @@ public:
     mdlMessageFlushFromCore *coreFlushBuffer; // Active buffer
 
     mdlMessageQueue queueCacheReply; // Replies to cache requests
-    int nMaxCacheIds;
-    CACHE *cache;
+    std::vector<CACHE> cache;
     mdlMessageQueue wqCacheFlush;
 
     int nFlushOutBytes;
@@ -320,8 +319,7 @@ protected:
     std::vector<FlushToRankList::iterator> flushBuffersByRank;
 
     int flushBuffCount;
-    int *pRequestTargets;
-    int nRequestTargets;
+    std::vector<int> pRequestTargets;
     int iRequestTarget;
     int nActiveCores;
     int nOpenCaches;
