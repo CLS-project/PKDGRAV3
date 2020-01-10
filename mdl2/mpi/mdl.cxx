@@ -83,8 +83,8 @@ static inline int size_t_to_int(size_t v) {
 */
 #define MDL_TAG_THREAD_OFFSET   MDL_TAG_MAX
 
-MDLARC::MDLARC(mdlClass * mdlIn,uint32_t nCacheIn,uint32_t uLineSizeInBytes,CACHE *c)
-    : mdl(mdlIn), ARC(nCacheIn,uLineSizeInBytes,c->nLineBits), cache(c) {}
+MDLARC::MDLARC(mdlClass * mdlIn,CACHE *c)
+    : mdl(mdlIn), ARC(), cache(c) {}
 
 /*
  ** This structure should be "maximally" aligned, with 4 ints it
@@ -1043,23 +1043,14 @@ mdlClass::~mdlClass() {
 // This routine is overridden for the MPI thread.
 int mdlClass::checkMPI() { return 0; }
 
-void CACHE::arcReinitialize(class mdlClass *mdl) {
-    auto nCache = mdl->cacheSize/iLineSize;
-    if (arc!=NULL) {
-	if (arc->compatible(nCache,iLineSize)) return;
-	delete arc;
-	}
-    arc = new MDLARC(mdl,nCache,iLineSize,this);
+
+void MDLARC::initialize() {
+    ARC::initialize(mdl->cacheSize,cache->iLineSize,cache->nLineBits);
     }
 
-MDLARC *mdlClass::arcReinitialize(CACHE *c) {
-    MDLARC *arc = c->arc;
-    auto nCache = this->cacheSize/c->iLineSize;
-    if (arc!=NULL) {
-	if (arc->compatible(nCache,c->iLineSize)) return arc;
-	delete arc;
-	}
-    return new MDLARC(this,nCache,c->iLineSize,c);
+void CACHE::arcReinitialize(class mdlClass *mdl) {
+    if (arc==NULL) arc = new MDLARC(mdl,this);
+    arc->initialize();
     }
 
 void mdlClass::MessageFlushToCore(mdlMessageFlushToCore *pFlush) {
@@ -1738,7 +1729,8 @@ CACHE *mdlClass::CacheInitialize(
     c->nAccess = 0;
     c->nMiss = 0;				/* !!!, not NB */
     c->nColl = 0;				/* !!!, not NB */
-    c->arc = arcReinitialize(c);
+//    c->arc = arcReinitialize(c);
+    c->arcReinitialize(this);
     c->OneLine.resize(c->iLineSize);
 
     /* Read-only or combiner caches */

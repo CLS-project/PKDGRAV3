@@ -84,42 +84,43 @@ static uint32_t swar32(uint32_t x) {
     return(x);
     }
 
-ARC::ARC(uint32_t nCache,uint32_t uLineSizeInBytes,uint32_t nLineBits)
-    : nCache(nCache),
-      uLineSizeInWords((uLineSizeInBytes+7)>>3),               // Size of a cache line (aligned properly)
-      uDataSizeInBytes((uLineSizeInBytes) >> nLineBits),       // Size of a single element
-      nLineBits(nLineBits), nLineMask((1 << nLineBits) - 1) {
-    uint32_t i;
+ARC::ARC()
+    : nCache(0), uLineSizeInWords(0), uLineSizeInBytes(0), uDataSizeInBytes(0),
+      nLineBits(0), nLineMask(0), uHashMask(0), target_T1(0) {}
 
-    /*
-    ** Make sure we have sufficient alignment of data.
-    ** In this case to nearest long word (8 bytes).
-    ** We add one long word at the start to store the 
-    ** magic number and lock count.
-    */
-    dataBase.resize(nCache*(uLineSizeInWords+1));
-    /*
-    ** Determine nHash.
-    */
+ARC::ARC(uint32_t uCacheSizeInBytes,uint32_t uLineSizeInBytes,uint32_t nLineBits) {
+    initialize(uCacheSizeInBytes,uLineSizeInBytes,nLineBits);
+    }
+
+void ARC::initialize(uint32_t uCacheSizeInBytes,uint32_t uLineSizeInBytes,uint32_t nLineBits) {
+    this->uLineSizeInWords = (uLineSizeInBytes+7) >> 3;       // Size of a cache line (aligned properly)
+    // Calculate nCache based on the number of cache lines that will fit in out cache buffer
+    // Account for the "magic" number before the cache line.
+    auto nCache = (uCacheSizeInBytes>>3) / (this->uLineSizeInWords+1);
+    if (this->nCache == nCache && this->uLineSizeInBytes == uLineSizeInBytes) return; // Already setup
+    this->uLineSizeInBytes = uLineSizeInBytes;
+    this->uDataSizeInBytes = (uLineSizeInBytes) >> nLineBits; // Size of a single element
+    this->nLineBits = nLineBits;
+    this->nLineMask = (1 << nLineBits) - 1;
+    this->nCache = nCache;
+
+    // Allocate the total possible amount of storage. If we change cache types we won't have to reallocate.
+    dataBase.resize(uCacheSizeInBytes >> 3);
+
+    // Calculate the size of the hash table
     uHashMask = swar32(3*nCache-1);
     HashFree.resize(nCache);
     HashChains.resize(uHashMask+1);
-    /*
-    ** Initialize target T1 length.
-    */
+
     target_T1 = nCache/2;   /* is this ok? */
-    // Insert CDBs with data into the Free list first.
-    for (i=0;i<nCache;++i) ArcFree.push_front(CDB(&dataBase[i*(uLineSizeInWords+1)+1]));
-    // Finally insert CDBs without data pages into the Free list last.
+
+    // Setup the CDB entries on the free list. The first "nCache" elements have data; the rest don't.
+    ArcFree.clear();
+    for (auto i=0;i<nCache;++i) ArcFree.emplace_back(&dataBase[i*(uLineSizeInWords+1)+1]);
     ArcFree.resize(2*nCache);
     }
 
 ARC::~ARC() {
-    }
-
-// True if the current ARC cache is compatible with the data layout
-bool ARC::compatible(uint32_t nCache,uint32_t uLineSizeInBytes) {
-    return this->nCache == nCache && this->uLineSizeInWords == ((uLineSizeInBytes+7)>>3);
     }
 
 void ARC::release(void *vp) {

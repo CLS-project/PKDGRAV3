@@ -35,6 +35,7 @@ protected:
     };
     typedef std::list<CDB> CDBL;
     typedef std::forward_list<CDBL::iterator> CDBIL; // Memory efficient linked-list
+private:
     std::vector<uint64_t> dataBase; // Contains all cached data (continguous)
     CDBIL HashFree;                 // List of free hash entries (added to HashChains)
     std::vector<CDBIL> HashChains;  // List of hash entries for each value
@@ -48,6 +49,7 @@ protected:
     uint32_t target_T1;
     uint32_t nCache;
     uint32_t uLineSizeInWords;
+    uint32_t uLineSizeInBytes;
     uint32_t uDataSizeInBytes;
 protected:
     std::list<CDB>::iterator remove_from_hash(const std::list<CDB>::iterator p);
@@ -59,9 +61,10 @@ protected:
     virtual void invokeRequest(uint32_t uLine, uint32_t uId) = 0;
     virtual void finishRequest(uint32_t uLine, uint32_t uId, void *data, bool bVirtual) = 0;
 public:
-    explicit ARC(uint32_t nCache,uint32_t uLineSizeInBytes,uint32_t nLineBits=0);
+    explicit ARC();
+    explicit ARC(uint32_t uCacheSizeInBytes,uint32_t uLineSizeInBytes,uint32_t nLineBits=0);
     virtual ~ARC();
-    bool compatible(uint32_t nCache,uint32_t uLineSizeInBytes);
+    void initialize(uint32_t uCacheSizeInBytes,uint32_t uLineSizeInBytes,uint32_t nLineBits=0);
     void *fetch(uint32_t uIndex, int uId, int bLock,int bModify,bool bVirtual);
     void release(void *p);
     void RemoveAll();

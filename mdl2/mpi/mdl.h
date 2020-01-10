@@ -77,7 +77,8 @@ protected:
     virtual void finishRequest(uint32_t uLine, uint32_t uId,void *data, bool bVirtual);
     virtual void destage(CDB &temp);
 public:
-    explicit MDLARC(mdlClass * mdl,uint32_t nCache,uint32_t uLineSizeInBytes,CACHE *c);
+    explicit MDLARC(mdlClass * mdl,CACHE *c);
+    void initialize();
     };
 
 typedef struct mdl_wq_node {
@@ -197,7 +198,6 @@ protected:
     void CommitServices();
     void Handler();
     void run_master();
-    MDLARC *arcReinitialize(CACHE *c);
     //int mdl_MPI_Barrier();
     void mdl_MPI_Ssend(void *buf, int count, MPI_Datatype datatype, int dest, int tag);
 //    int mdl_MPI_Send(void *buf, int count, MPI_Datatype datatype, int dest, int tag);
