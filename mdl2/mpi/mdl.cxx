@@ -72,7 +72,7 @@ static inline int size_t_to_int(size_t v) {
 #define MDL_ROCACHE			1
 #define MDL_COCACHE			2
 
-#define MDL_DEFAULT_CACHEIDS	12
+#define MDL_DEFAULT_CACHEIDS	32
 
 #define MDL_TRANS_SIZE		5000000
 
@@ -82,9 +82,6 @@ static inline int size_t_to_int(size_t v) {
 ** or more if the MPI implementation allows it.
 */
 #define MDL_TAG_THREAD_OFFSET   MDL_TAG_MAX
-
-MDLARC::MDLARC(mdlClass * mdlIn,CACHE *c)
-    : mdl(mdlIn), ARC(), cache(c) {}
 
 /*
  ** This structure should be "maximally" aligned, with 4 ints it
@@ -118,7 +115,7 @@ mpiClass::~mpiClass() {
 // First, a worker thread calls Access() (via mdlAcquire or similar) to return a reference to an entry
 void *mdlClass::Access(int cid, uint32_t uIndex, int uId, int bLock,int bModify,bool bVirtual) {
     CACHE *c = &cache[cid];
-    MDLARC *arc = c->arc;
+
 
     if (!(++c->nAccess & MDL_CHECK_MASK)) CacheCheck(); // For non-dedicated MPI thread we periodically check for messages
 
@@ -129,7 +126,7 @@ void *mdlClass::Access(int cid, uint32_t uIndex, int uId, int bLock,int bModify,
 	c = &omdl->cache[cid];
 	return (*c->getElt)(c->pData,uIndex,c->iDataSize);
 	}
-    return arc->fetch(uIndex,uId,bLock,bModify,bVirtual); // Otherwise we look it up in the cache, or fetch it remotely
+    return c->fetch(uIndex,uId,bLock,bModify,bVirtual); // Otherwise we look it up in the cache, or fetch it remotely
     }
 
 // Each thread starts by queueing a "request" to the MPI thread. This is sent to the remote node.
@@ -1043,16 +1040,6 @@ mdlClass::~mdlClass() {
 // This routine is overridden for the MPI thread.
 int mdlClass::checkMPI() { return 0; }
 
-
-void MDLARC::initialize() {
-    ARC::initialize(mdl->cacheSize,cache->iLineSize,cache->nLineBits);
-    }
-
-void CACHE::arcReinitialize(class mdlClass *mdl) {
-    if (arc==NULL) arc = new MDLARC(mdl,this);
-    arc->initialize();
-    }
-
 void mdlClass::MessageFlushToCore(mdlMessageFlushToCore *pFlush) {
     CacheHeader *ca = reinterpret_cast<CacheHeader *>(pFlush->getBuffer());
     int count = pFlush->getCount();
@@ -1269,21 +1256,13 @@ void mdlClass::init(bool bDiag) {
     /*
     ** Allocate initial cache spaces.
     */
-    cache.resize(MDL_DEFAULT_CACHEIDS);
+    cacheSize = MDL_CACHE_SIZE;
+    cache.reserve(MDL_DEFAULT_CACHEIDS);
+    while(cache.size() < MDL_DEFAULT_CACHEIDS) cache.emplace_back(this,cache.size());
     nFlushOutBytes = 0;
 
     for(int i=0; i<9; ++i) coreFlushBuffers.enqueue(new mdlMessageFlushFromCore);
     coreFlushBuffer = new mdlMessageFlushFromCore;
-
-    /*
-    ** Initialize caching spaces.
-    */
-    cacheSize = MDL_CACHE_SIZE;
-    for (int i = 0; i<cache.size(); ++i) {
-	cache[i].iType = MDL_NOCACHE;
-	cache[i].iCID = i;
-	cache[i].arc = NULL;
-	}
 
     queueReceive.resize(Cores()); // A separate receive queue from each core
     /* We need a queue for each TAG, and a receive queue from each thread. */
@@ -1380,7 +1359,6 @@ void *mdlClass::mdlWorkerThread(void *vmdl) {
     }
 
 void mdlClass::cleanupMDL() {
-    for(auto &c : cache) {delete c.arc;}
     delete inQueue;
     }
 
@@ -1689,56 +1667,26 @@ int mdlCacheStatus(MDL cmdl,int cid) {
     return c->iType;
     }
 
-/*
- ** Common initialization for all types of caches.
- */
+/*****************************************************************************\
+* The life cycle of a CACHE table entry
+\*****************************************************************************/
+
+// A list of cache tables is constructed when mdlClass is created. They are all set to NOCACHE.
+CACHE::CACHE(mdlClass * mdl,uint16_t iCID) : mdl(mdl), iType(MDL_NOCACHE), iCID(iCID) {}
+
+// Cache creation is a collective operation: call the initialize() member to set it up.
 CACHE *mdlClass::CacheInitialize(
     int cid,
     void * (*getElt)(void *pData,int i,int iDataSize),
     void *pData,int iDataSize,int nData,
     void *ctx,void (*init)(void *,void *),void (*combine)(void *,void *,void *)) {
 
-    CACHE *c;
-    int i;
-    // cacheOpenClose coc;
-
-    /*
-     ** We cannot reallocate this structure because there may be other threads accessing it.
-     */
+    // We cannot reallocate this structure because there may be other threads accessing it.
     assert(cid >= 0 && cid <cache.size());
     if (cid<0 || cid >= cache.size()) abort();
-    c = &cache[cid];
-    assert(c->iType == MDL_NOCACHE);
-    c->getElt = getElt==NULL ? getArrayElement : getElt;
-    c->pData = pData;
-    c->iDataSize = iDataSize;
-    c->nData = nData;
-    if (c->iDataSize > MDL_CACHE_DATA_SIZE) c->nLineBits = 0;
-    else c->nLineBits = log2(MDL_CACHE_DATA_SIZE / c->iDataSize);
-    /*
-    ** Let's not have too much of a good thing. We want to fetch in cache lines both for
-    ** performance, and to save memory (ARC cache has a high overhead), but too much has
-    ** a negative effect on performance. Empirically, 16 elements maximal is optimal.
-    ** This was tested with the particle, cell and P(k) caches.
-    */
-    if (c->nLineBits > 4) c->nLineBits = 4;
-    c->nLineElements = 1 << c->nLineBits;
-    c->nLineMask = (1 << c->nLineBits) - 1;
-    c->iLineSize = c->nLineElements*c->iDataSize;
 
-    c->nAccess = 0;
-    c->nMiss = 0;				/* !!!, not NB */
-    c->nColl = 0;				/* !!!, not NB */
-//    c->arc = arcReinitialize(c);
-    c->arcReinitialize(this);
-    c->OneLine.resize(c->iLineSize);
-
-    /* Read-only or combiner caches */
-    assert( init==NULL && combine==NULL || init!=NULL && combine!=NULL );
-    c->iType = (init==NULL ? MDL_ROCACHE : MDL_COCACHE);
-    c->init = init;
-    c->combine = combine;
-    c->ctx = ctx;
+    auto c = &cache[cid];
+    c->initialize(cacheSize,getElt,pData,iDataSize,nData,ctx,init,combine);
 
     /* Nobody should start using this cache until all threads have started it! */
     ThreadBarrier(true);
@@ -1748,6 +1696,121 @@ CACHE *mdlClass::CacheInitialize(
 
     return(c);
     }
+
+// This records the callback information, and updates the ARC cache to match (if necessary)
+void CACHE::initialize(uint32_t cacheSize,
+    void * (*getElt)(void *pData,int i,int iDataSize),
+    void *pData,int iDataSize,int nData,
+    void *ctx,void (*init)(void *,void *),void (*combine)(void *,void *,void *) ) {
+
+    assert(iType == MDL_NOCACHE);
+
+    this->getElt = getElt==NULL ? getArrayElement : getElt;
+    this->pData = pData;
+    this->iDataSize = iDataSize;
+    this->nData = nData;
+
+    if (iDataSize > MDL_CACHE_DATA_SIZE) nLineBits = 0;
+    else nLineBits = log2(MDL_CACHE_DATA_SIZE / iDataSize);
+    /*
+    ** Let's not have too much of a good thing. We want to fetch in cache lines both for
+    ** performance, and to save memory (ARC cache has a high overhead), but too much has
+    ** a negative effect on performance. Empirically, 16 elements maximal is optimal.
+    ** This was tested with the particle, cell and P(k) caches.
+    */
+    if (nLineBits > 4) nLineBits = 4;
+    nLineElements = 1 << nLineBits;
+    nLineMask = (1 << nLineBits) - 1;
+    iLineSize = nLineElements*iDataSize;
+    OneLine.resize(iLineSize);
+
+    nAccess = 0;
+    nMiss = 0;				/* !!!, not NB */
+    nColl = 0;				/* !!!, not NB */
+    ARC::initialize(cacheSize,iLineSize,nLineBits);
+
+    /* Read-only or combiner caches */
+    assert( init==NULL && combine==NULL || init!=NULL && combine!=NULL );
+    iType = (init==NULL ? MDL_ROCACHE : MDL_COCACHE);
+    this->init = init;
+    this->combine = combine;
+    this->ctx = ctx;
+    }
+
+// When we are missing a cache element, this is called to start the communication
+void CACHE::invokeRequest(uint32_t uLine, uint32_t uId) {
+    ++nMiss;
+    mdl->TimeAddComputing();
+    cacheRequest = new mdlMessageCacheRequest(iCID, nLineElements, mdl->Self(), uId, uLine, OneLine.data());
+    mdl->enqueue(*cacheRequest, mdl->queueCacheReply);
+    }
+
+// Later when we have found an empty cache element, this is called to wait for the result
+// and to copy it into the buffer area.
+void CACHE::finishRequest(uint32_t uLine, uint32_t uId,void *data, bool bVirtual) {
+    mdl->finishCacheRequest(uLine,uId,iCID,data,bVirtual);
+    if (!bVirtual) {
+    	mdl->TimeAddWaiting();
+    	delete cacheRequest;
+	}
+    }
+
+void mdlClass::finishCacheRequest(uint32_t uLine, uint32_t uId, int cid, void *data, bool bVirtual) {
+    int iCore = uId - pmdl[0]->Self();
+    CACHE *c = &cache[cid];
+    int i,s,n;
+    char *pData = reinterpret_cast<char *>(data);
+    uint32_t iIndex = uLine << c->nLineBits;
+
+    s = iIndex;
+    n = s + c->nLineElements;
+
+    // A virtual fetch results in an empty cache line (unless init is called below)
+    if (bVirtual) {
+	memset(pData,0,c->iLineSize);
+	}
+    // Local requests must be from a combiner cache if we get here,
+    // otherwise we would have simply returned a reference
+    else if (iCore >= 0 && iCore < Cores() ) {
+	mdlClass * omdl = pmdl[iCore];
+	CACHE *oc = &omdl->cache[cid];
+	if ( n > oc->nData ) n = oc->nData;
+	for(i=s; i<n; i++ ) {
+	    memcpy(pData,(*oc->getElt)(oc->pData,i,oc->iDataSize),oc->iDataSize);
+	    pData += oc->iDataSize;
+	    }
+	}
+    // Here we wait for the reply, and copy the data into the ARC cache
+    else {
+	waitQueue(queueCacheReply);
+	memcpy(pData,c->OneLine.data(), c->iLineSize);
+	}
+
+    // A combiner cache can intialize some/all of the elements
+    if (c->init) {
+	for(i=s; i<n; i++ ) {
+	    (*c->init)(c->ctx,pData);
+	    pData += c->iDataSize;
+	    }
+	}
+    }
+
+// When we need to evict an element (especially at the end) this routine is called.
+void CACHE::destage(CDB &temp) {
+    assert(temp.data != NULL);
+
+    if (temp.dirty()) {     /* if dirty, evict before free */
+	if (!mdl->coreFlushBuffer->canBuffer(iLineSize)) mdl->flush_core_buffer();
+	mdl->coreFlushBuffer->addBuffer(iCID,mdlSelf(mdl),temp.uId&_IDMASK_,temp.uPage,iLineSize,(char *)temp.data);
+	temp.uId &= ~ _DIRTY_;    /* No longer dirty */
+	}
+    }
+
+// When we are finished using the cache, it is marked as complete. All elements should have been flushed by now.
+void CACHE::close() {
+    iType = MDL_NOCACHE;
+    }
+
 
 /*
  ** Initialize a Read-Only caching space.
@@ -1785,24 +1848,13 @@ void mdlClass::flush_core_buffer() {
 	}
     }
 
-/* This CDB must not be on any list when destage is called */
-void MDLARC::destage(CDB &temp) {
-    assert(temp.data != NULL);
-
-    if (temp.dirty()) {     /* if dirty, evict before free */
-	if (!mdl->coreFlushBuffer->canBuffer(cache->iLineSize)) mdl->flush_core_buffer();
-	mdl->coreFlushBuffer->addBuffer(cache->iCID,mdlSelf(mdl),temp.uId&_IDMASK_,temp.uPage,cache->iLineSize,(char *)temp.data);
-	temp.uId &= ~ _DIRTY_;    /* No longer dirty */
-	}
-    }
-
 extern "C" void mdlFlushCache(MDL mdl,int cid) { reinterpret_cast<mdlClass *>(mdl)->FlushCache(cid); }
 void mdlClass::FlushCache(int cid) {
     CACHE *c = &cache[cid];
 
     TimeAddComputing();
     wqAccepting = 1;
-    c->arc->RemoveAll();
+    c->RemoveAll();
     flush_core_buffer();
     ThreadBarrier();
     if (Core()==0) { /* This flushes all buffered data, not just our thread */
@@ -1827,69 +1879,10 @@ void mdlClass::FinishCache(int cid) {
     wqAccepting = 1;
     FlushCache(cid);
     enqueueAndWait(mdlMessageCacheClose());
-    /*
-     ** Free up storage and finish.
-     */
-#ifdef FINISH_ARC
-    delete c->arc;
-    c->arc = NULL;
-#endif
-    c->iType = MDL_NOCACHE;
+    c->close();
     wqAccepting = 0;
     TimeAddSynchronizing();
     }
-
-void mdlClass::finishCacheRequest(uint32_t uLine, uint32_t uId, int cid, void *data, bool bVirtual) {
-    int iCore = uId - pmdl[0]->Self();
-    CACHE *c = &cache[cid];
-    int i,s,n;
-    char *pData = reinterpret_cast<char *>(data);
-    uint32_t iIndex = uLine << c->nLineBits;
-
-    s = iIndex;
-    n = s + c->nLineElements;
-
-    if (bVirtual) {
-	memset(pData,0,c->iLineSize);
-	}
-    /* Local requests must be from a combiner cache if we get here */
-    else if (iCore >= 0 && iCore < Cores() ) {
-	mdlClass * omdl = pmdl[iCore];
-	CACHE *oc = &omdl->cache[cid];
-	if ( n > oc->nData ) n = oc->nData;
-	for(i=s; i<n; i++ ) {
-	    memcpy(pData,(*oc->getElt)(oc->pData,i,oc->iDataSize),oc->iDataSize);
-	    pData += oc->iDataSize;
-	    }
-	}
-    else {
-	waitQueue(queueCacheReply);
-	memcpy(pData,c->OneLine.data(), c->iLineSize);
-	}
-
-    if (c->init) {
-	for(i=s; i<n; i++ ) {
-	    (*c->init)(c->ctx,pData);
-	    pData += c->iDataSize;
-	    }
-	}
-    }
-
-void MDLARC::finishRequest(uint32_t uLine, uint32_t uId,void *data, bool bVirtual) {
-    mdl->finishCacheRequest(uLine,uId,cache->iCID,data,bVirtual);
-    if (!bVirtual) {
-    	mdl->TimeAddWaiting();
-    	delete cacheRequest;
-	}
-    }
-
-void MDLARC::invokeRequest(uint32_t uLine, uint32_t uId) {
-    ++cache->nMiss;
-    mdl->TimeAddComputing();
-    cacheRequest = new mdlMessageCacheRequest(cache->iCID, cache->nLineElements, mdl->Self(), uId, uLine, cache->OneLine.data());
-    mdl->enqueue(*cacheRequest, mdl->queueCacheReply);
-    }
-
 
 /* Does not lock the element */
 void *mdlFetch(MDL mdl,int cid,int iIndex,int id) {
@@ -1919,7 +1912,7 @@ void *mdlVirtualFetch(MDL mdl,int cid,int iIndex,int id) {
 void mdlRelease(MDL cmdl,int cid,void *p) {
     mdlClass *mdl = reinterpret_cast<mdlClass *>(cmdl);
     CACHE &c = mdl->cache[cid];
-    c.arc->release(p);
+    c.release(p);
     }
 
 double mdlNumAccess(MDL cmdl,int cid) {

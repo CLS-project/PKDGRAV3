@@ -65,21 +65,6 @@ typedef int (*mdlPack)(void *,int *,size_t,void*);
 typedef void * MDL;
 
 #ifdef __cplusplus
-class CACHE;
-
-
-class MDLARC : public ARC {
-protected:
-    class mdlClass * const mdl; // MDL is needed for cache operations
-    class CACHE * const cache;
-    mdlMessageCacheRequest *cacheRequest;
-    virtual void invokeRequest(uint32_t uLine, uint32_t uId);
-    virtual void finishRequest(uint32_t uLine, uint32_t uId,void *data, bool bVirtual);
-    virtual void destage(CDB &temp);
-public:
-    explicit MDLARC(mdlClass * mdl,CACHE *c);
-    void initialize();
-    };
 
 typedef struct mdl_wq_node {
     /* We can put this on different types of queues */
@@ -102,7 +87,18 @@ typedef struct mdl_wq_node {
 
 #define MDL_CACHE_DATA_SIZE (512)
 
-class CACHE {
+class CACHE : public ARC {
+protected:
+    class mdlClass * const mdl; // MDL is needed for cache operations
+    mdlMessageCacheRequest *cacheRequest;
+    virtual void invokeRequest(uint32_t uLine, uint32_t uId);
+    virtual void finishRequest(uint32_t uLine, uint32_t uId,void *data, bool bVirtual);
+    virtual void destage(CDB &temp);
+public:
+    void initialize(uint32_t cacheSize,
+	void * (*getElt)(void *pData,int i,int iDataSize),
+	void *pData,int iDataSize,int nData,
+	void *ctx,void (*init)(void *,void *),void (*combine)(void *,void *,void *));
 public:
     void *pData;
     uint16_t iType;
@@ -113,7 +109,6 @@ public:
     uint32_t nLineMask;
     int nLineElements;
     int iLineSize;
-    MDLARC *arc;
     std::vector<char> OneLine;
 
     void *ctx;
@@ -127,11 +122,12 @@ public:
     uint64_t nMiss;
     uint64_t nColl;
 public:
-    void arcReinitialize(class mdlClass *mdl);
+    explicit CACHE(mdlClass * mdl,uint16_t iCID);
+    void close();
     };
 
 class mdlClass : public mdlBASE {
-    friend class MDLARC;
+    friend class CACHE;
 protected:
     friend class mdlMessageFlushToCore;
     void MessageFlushToCore(mdlMessageFlushToCore *message);
@@ -198,9 +194,7 @@ protected:
     void CommitServices();
     void Handler();
     void run_master();
-    //int mdl_MPI_Barrier();
     void mdl_MPI_Ssend(void *buf, int count, MPI_Datatype datatype, int dest, int tag);
-//    int mdl_MPI_Send(void *buf, int count, MPI_Datatype datatype, int dest, int tag);
     int mdl_MPI_Sendrecv(
 	void *sendbuf, int sendcount, MPI_Datatype sendtype,
 	int dest, int sendtag, void *recvbuf, int recvcount,
