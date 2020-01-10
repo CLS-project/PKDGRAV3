@@ -31,6 +31,7 @@
 #include "mpi.h"
 #include "mdlfft.h"
 #ifdef __cplusplus
+#include "arc.h"
 #include "mdlmessages.h"
 #include <vector>
 #include <list>
@@ -61,53 +62,22 @@
 typedef int (*mdlWorkFunction)(void *ctx);
 typedef int (*mdlPack)(void *,int *,size_t,void*);
 
-struct mdlContext {};
-//typedef struct mdlContext * MDL;
 typedef void * MDL;
 
 #ifdef __cplusplus
 class CACHE;
 
-class ARC {
+
+class MDLARC : public ARC {
+protected:
     class mdlClass * const mdl; // MDL is needed for cache operations
-protected:
-    class CDB {
-	friend class ARC;
-    protected:
-	uint64_t *data; /* page's location in cache */
-	uint32_t uId;   /* upper 4 bits encode ARC_where and dirty bit */
-	uint32_t uPage; /* page's ID number */
-    public:
-	explicit CDB(uint64_t *data=0);
-    };
-    typedef std::list<CDB> CDBL;
-    typedef std::forward_list<CDBL::iterator> CDBIL; // Memory efficient linked-list
-    std::vector<uint64_t> dataBase; // Contains all cached data (continguous)
-    CDBIL HashFree;                 // List of free hash entries (added to HashChains)
-    std::vector<CDBIL> HashChains;  // List of hash entries for each value
-    CDBL T1;
-    CDBL B1;
-    CDBL T2;
-    CDBL B2;
-    CDBL ArcFree;
-    uint32_t uHashMask;
-    uint32_t target_T1;
-    uint32_t nCache;
-    CACHE *cache;
-    uint32_t uDataSize;
-protected:
-    std::list<CDB>::iterator remove_from_hash(const std::list<CDB>::iterator p);
-    std::list<CDB>::iterator remove_from_hash(std::list<CDB> &list);
-    uint64_t *replace(bool iInB2=false);
-    void destage(CDB &temp);
-    uint32_t hash(uint32_t uLine,uint32_t uId);
+    class CACHE * const cache;
+    mdlMessageCacheRequest *cacheRequest;
+    virtual void invokeRequest(uint32_t uLine, uint32_t uId);
+    virtual void finishRequest(uint32_t uLine, uint32_t uId,void *data, bool bVirtual);
+    virtual void destage(CDB &temp);
 public:
-    explicit ARC(mdlClass * mdl,uint32_t nCache,uint32_t uDataSize,CACHE *c);
-    ~ARC();
-    bool compatible(uint32_t nCache,uint32_t uDataSize,CACHE *c);
-    void *fetch(uint32_t uIndex, int uId, int bLock,int bModify,int bVirtual);
-    void release(void *p);
-    void RemoveAll();
+    explicit MDLARC(mdlClass * mdl,uint32_t nCache,uint32_t uLineSizeInBytes,CACHE *c);
     };
 
 typedef struct mdl_wq_node {
@@ -142,7 +112,7 @@ public:
     uint32_t nLineMask;
     int nLineElements;
     int iLineSize;
-    ARC *arc;
+    MDLARC *arc;
     std::vector<char> OneLine;
 
     void *ctx;
@@ -155,10 +125,12 @@ public:
     uint64_t nAccess;
     uint64_t nMiss;
     uint64_t nColl;
+public:
+    void arcReinitialize(class mdlClass *mdl);
     };
 
 class mdlClass : public mdlBASE {
-    friend class ARC;
+    friend class MDLARC;
 protected:
     friend class mdlMessageFlushToCore;
     void MessageFlushToCore(mdlMessageFlushToCore *message);
@@ -225,7 +197,7 @@ protected:
     void CommitServices();
     void Handler();
     void run_master();
-    ARC *arcReinitialize(ARC *arc,uint32_t nCache,uint32_t uDataSize,CACHE *c);
+    MDLARC *arcReinitialize(CACHE *c);
     //int mdl_MPI_Barrier();
     void mdl_MPI_Ssend(void *buf, int count, MPI_Datatype datatype, int dest, int tag);
 //    int mdl_MPI_Send(void *buf, int count, MPI_Datatype datatype, int dest, int tag);
@@ -244,7 +216,7 @@ protected:
 
     int DoSomeWork();
     void bookkeeping();
-    void finishCacheRequest(mdlMessageCacheRequest &R, void *data, int bVirtual);
+    void finishCacheRequest(uint32_t uLine, uint32_t uId, int cid, void *data, bool bVirtual);
   
 protected:
     void flush_core_buffer();
@@ -279,7 +251,7 @@ public:
     void ThreadBarrier(bool bGlobal=false);
     void CompleteAllWork();
 
-    void *Access(int cid, uint32_t uIndex, int uId, int bLock,int bModify,int bVirtual);
+    void *Access(int cid, uint32_t uIndex, int uId, int bLock,int bModify,bool bVirtual);
 
     size_t FFTlocalCount(int n1,int n2,int n3,int *nz,int *sz,int *ny,int*sy);
     MDLFFT FFTNodeInitialize(int n1,int n2,int n3,int bMeasure,FFTW3(real) *data);

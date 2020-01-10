@@ -83,167 +83,8 @@ static inline int size_t_to_int(size_t v) {
 */
 #define MDL_TAG_THREAD_OFFSET   MDL_TAG_MAX
 
-/*
-** The bit values of these flags are NOT arbitrary!
-** The implementation depends on their values being set this way.
-*/
-#define _P1_     0x10000000
-#define _T1_     0x00000000
-#define _B1_     0x20000000
-#define _T2_     0x40000000
-#define _B2_     0x60000000
-#define _WHERE_  0x70000000
-#define _IDMASK_ 0x0fffffff
-#define _DIRTY_  0x80000000
-#define _ARC_MAGIC_ 0xa6c3a91c00000000
-#define _ARC_MASK_  0xa6c3a91cffffffff
-
-static uint32_t swar32(uint32_t x)
-{
-    x |= (x >> 1);
-    x |= (x >> 2);
-    x |= (x >> 4);
-    x |= (x >> 8);
-    x |= (x >> 16);
-    return(x);
-}
-
-static inline uint32_t murmur2(const uint32_t *key, int len) {
-    const uint32_t m = 0x5bd1e995;
-    const int r = 24;
-    uint32_t h = 0xdeadbeef /*^ len : len will be the same */;
-    while(len--) {
-	uint32_t k = *key++;
-	k *= m;
-	k ^= k >> r;
-	k *= m;
-	h *= m;
-	h ^= k;
-	}
-    h ^= h >> 13;
-    h *= m;
-    h ^= h >> 15;
-    return h;
-    } 
-
-/*
-** This makes the following assumptions (changed from regular hash)
-**   1. keys lengths are a multiple of four bytes (and at least four bytes)
-**   2. length is always identical (so don't need to mix in the length)
-**   3. We will always use the same seed
-*/
-static inline uint32_t murmur3(const uint32_t* key, size_t len) {
-    uint32_t h = 0xdeadbeef;
-    do {
-	uint32_t k = *key++;
-	k *= 0xcc9e2d51;
-	k = (k << 15) | (k >> 17);
-	k *= 0x1b873593;
-	h ^= k;
-	h = (h << 13) | (h >> 19);
-	h = h * 5 + 0xe6546b64;
-	} while (--len);
-    h ^= h >> 16;
-    h *= 0x85ebca6b;
-    h ^= h >> 13;
-    h *= 0xc2b2ae35;
-    h ^= h >> 16;
-    return h;
-    }
-
-/*
-** MurmurHash2, by Austin Appleby
-** adapted for hashing 2 uint32_t variables for mdl2
-*/
-static inline uint32_t MurmurHash2(uint32_t a,uint32_t b) {
-    /* 
-    ** 'm' and 'r' are mixing constants generated offline.
-    ** They're not really 'magic', they just happen to work well.
-    */
-    const uint32_t m = 0x5bd1e995;
-    const int r = 24;
-    uint32_t h = 0xdeadbeef;
-
-    /* Mix the 2 32-bit words into the hash */
-    a *= m; 
-    b *= m; 
-    a ^= a >> r; 
-    b ^= b >> r; 
-    a *= m; 	
-    b *= m; 	
-    /* now work on the hash */
-    h ^= a;
-    h *= m; 
-    h ^= b;	
-    /* Do a few final mixes of the hash to ensure the last few
-    ** bytes are well-incorporated. */
-    h ^= h >> 13;
-    h *= m;
-    h ^= h >> 15;
-    return h;
-    }
-
-ARC::CDB::CDB(uint64_t *data) : uId(0xdeadbeef), data(data) {}
-
-uint32_t ARC::hash(uint32_t uLine,uint32_t uId) {
-    return MurmurHash2(uLine,uId) & uHashMask;
-    }
-
-// Remove the CDB entry (given by a list iterator) from the hash table
-ARC::CDBL::iterator ARC::remove_from_hash(const CDBL::iterator p) {
-    uint32_t uHash = hash(p->uPage,p->uId&_IDMASK_);
-    auto & Hash = HashChains[uHash];
-    assert(!Hash.empty());
-    // Move the matching hash table entry to the start of the collision chain, then move it to the free list
-    std::partition(Hash.begin(), Hash.end(), [&](const CDBL::iterator & i) { return i == p; });
-    assert(Hash.front() == p);
-    HashFree.splice_after(HashFree.before_begin(),Hash,Hash.before_begin());
-    return p;
-    }
-
-// Typically we want to remove the LRU (front) element from a list, in anticipation of reusing the entry
-ARC::CDBL::iterator ARC::remove_from_hash(CDBL &list) {
-    return remove_from_hash(list.begin());
-    }
-
-#ifdef HAVE_MEMKIND
-#include <hbwmalloc.h>
-#define ARC_malloc hbw_malloc
-#define ARC_free hbw_free
-#else
-#define ARC_malloc malloc
-#define ARC_free free
-#endif
-
-ARC::ARC(mdlClass * mdlIn,uint32_t nCacheIn,uint32_t uDataSizeIn,CACHE *c)
-    : mdl(mdlIn), nCache(nCacheIn), uDataSize((uDataSizeIn+7)>>3), cache(c) {
-    uint32_t i;
-
-    /*
-    ** Make sure we have sufficient alignment of data.
-    ** In this case to nearest long word (8 bytes).
-    ** We add one long word at the start to store the 
-    ** magic number and lock count.
-    */
-    dataBase.resize(nCache*(uDataSize+1));
-    /*
-    ** Determine nHash.
-    */
-    uHashMask = swar32(3*nCache-1);
-    HashFree.resize(nCache);
-    HashChains.resize(uHashMask+1);
-    /*
-    ** Initialize target T1 length.
-    */
-    target_T1 = nCache/2;   /* is this ok? */
-    // Insert CDBs with data into the Free list first.
-    for (i=0;i<nCache;++i) ArcFree.push_front(CDB(&dataBase[i*(uDataSize+1)+1]));
-    // Finally insert CDBs without data pages into the Free list last.
-    ArcFree.resize(2*nCache);
-    }
-
-ARC::~ARC() {
-    }
+MDLARC::MDLARC(mdlClass * mdlIn,uint32_t nCacheIn,uint32_t uLineSizeInBytes,CACHE *c)
+    : mdl(mdlIn), ARC(nCacheIn,uLineSizeInBytes,c->nLineBits), cache(c) {}
 
 /*
  ** This structure should be "maximally" aligned, with 4 ints it
@@ -275,9 +116,9 @@ mpiClass::~mpiClass() {
 \*****************************************************************************/
 
 // First, a worker thread calls Access() (via mdlAcquire or similar) to return a reference to an entry
-void *mdlClass::Access(int cid, uint32_t uIndex, int uId, int bLock,int bModify,int bVirtual) {
+void *mdlClass::Access(int cid, uint32_t uIndex, int uId, int bLock,int bModify,bool bVirtual) {
     CACHE *c = &cache[cid];
-    ARC *arc = c->arc;
+    MDLARC *arc = c->arc;
 
     if (!(++c->nAccess & MDL_CHECK_MASK)) CacheCheck(); // For non-dedicated MPI thread we periodically check for messages
 
@@ -1202,18 +1043,23 @@ mdlClass::~mdlClass() {
 // This routine is overridden for the MPI thread.
 int mdlClass::checkMPI() { return 0; }
 
-// True if the current ARC cache is compatible with the data layout
-bool ARC::compatible(uint32_t nCache,uint32_t uDataSize,CACHE *c) {
-    assert(this->cache == c);
-    return this->nCache == nCache && this->uDataSize == ((uDataSize+7)>>3);
-    }
-
-ARC *mdlClass::arcReinitialize(ARC *arc,uint32_t nCache,uint32_t uDataSize,CACHE *c) {
+void CACHE::arcReinitialize(class mdlClass *mdl) {
+    auto nCache = mdl->cacheSize/iLineSize;
     if (arc!=NULL) {
-	if (arc->compatible(nCache,uDataSize,c)) return arc;
+	if (arc->compatible(nCache,iLineSize)) return;
 	delete arc;
 	}
-    return new ARC(this,nCache,uDataSize,c);
+    arc = new MDLARC(mdl,nCache,iLineSize,this);
+    }
+
+MDLARC *mdlClass::arcReinitialize(CACHE *c) {
+    MDLARC *arc = c->arc;
+    auto nCache = this->cacheSize/c->iLineSize;
+    if (arc!=NULL) {
+	if (arc->compatible(nCache,c->iLineSize)) return arc;
+	delete arc;
+	}
+    return new MDLARC(this,nCache,c->iLineSize,c);
     }
 
 void mdlClass::MessageFlushToCore(mdlMessageFlushToCore *pFlush) {
@@ -1892,7 +1738,7 @@ CACHE *mdlClass::CacheInitialize(
     c->nAccess = 0;
     c->nMiss = 0;				/* !!!, not NB */
     c->nColl = 0;				/* !!!, not NB */
-    c->arc = arcReinitialize(c->arc,cacheSize/c->iLineSize,c->iLineSize,c);
+    c->arc = arcReinitialize(c);
     c->OneLine.resize(c->iLineSize);
 
     /* Read-only or combiner caches */
@@ -1947,74 +1793,15 @@ void mdlClass::flush_core_buffer() {
 	}
     }
 
-void ARC::release(void *vp) {
-    uint64_t *p = reinterpret_cast<uint64_t*>(vp);
-    if (p>&dataBase.front() && p<=&dataBase.back()) { // Might have been a fast, read-only grab. If so ignore it.
-	/* We will be given an element, but this needs to be turned into a cache line */
-	p = &dataBase[(p - &dataBase.front()) / (uDataSize+1) * (uDataSize+1) + 1];
-	uint64_t t = p[-1]-1;
-	assert((t^_ARC_MAGIC_) < 0x00000000ffffffff); // Not an element or too many unlocks
-	p[-1] = t;
-	}
-    }
-
 /* This CDB must not be on any list when destage is called */
-void ARC::destage(CDB &temp) {
+void MDLARC::destage(CDB &temp) {
     assert(temp.data != NULL);
-    assert(temp.data[-1] == _ARC_MAGIC_);
-    if (temp.uId & _DIRTY_) {     /* if dirty, evict before free */
+
+    if (temp.dirty()) {     /* if dirty, evict before free */
 	if (!mdl->coreFlushBuffer->canBuffer(cache->iLineSize)) mdl->flush_core_buffer();
 	mdl->coreFlushBuffer->addBuffer(cache->iCID,mdlSelf(mdl),temp.uId&_IDMASK_,temp.uPage,cache->iLineSize,(char *)temp.data);
 	temp.uId &= ~ _DIRTY_;    /* No longer dirty */
 	}
-    }
-
-uint64_t *ARC::replace(bool bInB2) {
-    uint64_t *data;
-    uint32_t max = (target_T1 > 1)?(target_T1+(bInB2?0:1)):1;
-    auto unlocked = [](CDB&i) {return i.data[-1] == _ARC_MAGIC_;}; // True if there are no locks
-    CDBL::iterator tempX;
-    if (T1.size() >= max) { // T1’s size exceeds target?
-	tempX = std::find_if(T1.begin(),T1.end(),unlocked); // Grab the oldest unlocked entry
-	if (tempX != T1.end()) goto replace_T1;
-	tempX = std::find_if(T2.begin(),T2.end(),unlocked); // Try the same in T2 if all T1 entries are locked
-	if (tempX != T2.end()) goto replace_T2;
-	}
-    else { // no: T1 is not too big
-	tempX = std::find_if(T2.begin(),T2.end(),unlocked); // Try the same in T2 if all T1 entries are locked
-	if (tempX != T2.end()) goto replace_T2;
-	tempX = std::find_if(T1.begin(),T1.end(),unlocked); // Grab the oldest unlocked entry
-	if (tempX != T1.end()) goto replace_T1;
-	}
-    fprintf(stderr,"ERROR: all ARC entries are locked, aborting\n");
-    abort();
-    if (0) {  /* using a Duff's device to handle the replacement */
-    replace_T1:
-	destage(*tempX);     /* if dirty, evict before overwrite */
-	data = tempX->data;
-	tempX->data = NULL; /*GHOST*/
-	tempX->uId = (tempX->uId&_IDMASK_)|_B1_;  /* need to be careful here because it could have been _P1_ */
-	B1.splice(B1.end(),T1,tempX); // Move element from T1 to B1
-	}
-    if (0) {
-    replace_T2:
-	destage(*tempX);     /* if dirty, evict before overwrite */
-	data = tempX->data;
-	tempX->data = NULL; /*GHOST*/
-        tempX->uId |= _B2_;          /* note that fact */
-	B2.splice(B2.end(),T2,tempX); // Move element from T2 to B2
-	}
-    return data;
-    }
-
-void ARC::RemoveAll() {
-    for(auto &i : T1) { destage(i); } // Flush any dirty (modified) cache entries
-    for(auto &i : T2) { destage(i); }
-    for(auto &i : HashChains) { HashFree.splice_after(HashFree.before_begin(),i); } // Empty the hash table
-    ArcFree.splice(ArcFree.begin(),T1); // Finally empty the lists making sure entries with data are at the start
-    ArcFree.splice(ArcFree.begin(),T2);
-    ArcFree.splice(ArcFree.end(),  B1); // B lists have no data so add them to the end
-    ArcFree.splice(ArcFree.end(),  B2);
     }
 
 extern "C" void mdlFlushCache(MDL mdl,int cid) { reinterpret_cast<mdlClass *>(mdl)->FlushCache(cid); }
@@ -2060,12 +1847,12 @@ void mdlClass::FinishCache(int cid) {
     TimeAddSynchronizing();
     }
 
-void mdlClass::finishCacheRequest(mdlMessageCacheRequest &R, void *data, int bVirtual) {
-    int iCore = R.header.idTo - pmdl[0]->Self();
-    CACHE *c = &cache[R.header.cid];
+void mdlClass::finishCacheRequest(uint32_t uLine, uint32_t uId, int cid, void *data, bool bVirtual) {
+    int iCore = uId - pmdl[0]->Self();
+    CACHE *c = &cache[cid];
     int i,s,n;
     char *pData = reinterpret_cast<char *>(data);
-    uint32_t iIndex = R.header.iLine << c->nLineBits;
+    uint32_t iIndex = uLine << c->nLineBits;
 
     s = iIndex;
     n = s + c->nLineElements;
@@ -2076,7 +1863,7 @@ void mdlClass::finishCacheRequest(mdlMessageCacheRequest &R, void *data, int bVi
     /* Local requests must be from a combiner cache if we get here */
     else if (iCore >= 0 && iCore < Cores() ) {
 	mdlClass * omdl = pmdl[iCore];
-	CACHE *oc = &omdl->cache[R.header.cid];
+	CACHE *oc = &omdl->cache[cid];
 	if ( n > oc->nData ) n = oc->nData;
 	for(i=s; i<n; i++ ) {
 	    memcpy(pData,(*oc->getElt)(oc->pData,i,oc->iDataSize),oc->iDataSize);
@@ -2084,7 +1871,6 @@ void mdlClass::finishCacheRequest(mdlMessageCacheRequest &R, void *data, int bVi
 	    }
 	}
     else {
-	//assert(R.header.iLine == temp->uPage);
 	waitQueue(queueCacheReply);
 	memcpy(pData,c->OneLine.data(), c->iLineSize);
 	}
@@ -2097,140 +1883,27 @@ void mdlClass::finishCacheRequest(mdlMessageCacheRequest &R, void *data, int bVi
 	}
     }
 
-void *ARC::fetch(uint32_t uIndex, int uId, int bLock,int bModify,int bVirtual) {
-    auto uLine = uIndex >> cache->nLineBits;
-    auto iInLine = uIndex & cache->nLineMask;
-    auto tuId = uId&_IDMASK_;
-    uint32_t rat;
-    bool inB2=false;
-
-    mdlMessageCacheRequest request(cache->iCID, cache->nLineElements, mdl->Self(), uId, uLine, cache->OneLine.data());
-
-    /* First check our own cache */
-    auto uHash = hash(uLine,tuId);
-    CDBL::iterator tempX;
-    auto &Hash = HashChains[uHash];
-    auto iskey = [&](CDBL::iterator &i) {return i->uPage == uLine && (i->uId&_IDMASK_) == tuId;};
-    auto match = std::find_if(Hash.begin(),Hash.end(),iskey);
-    if (match != Hash.end()) {                       /* found in cache directory? */
-	tempX = *match;
-	switch (tempX->uId & _WHERE_) {                   /* yes, which list? */
-	case _P1_:
-	    tempX->uId = uId;     /* clears prefetch flag and sets WHERE = _T1_ (zero) and dirty bit */
-	    T1.splice(T1.end(),T1,tempX);
-	    goto cachehit;
-	case _T1_:
-	    tempX->uId |= _T2_ | uId;
-	    T2.splice(T2.end(),T1,tempX);
-	    goto cachehit;
-	case _T2_:
-	    tempX->uId |= uId;          /* if the dirty bit is now set we need to record this */
-	    T2.splice(T2.end(),T2,tempX);
-	cachehit:
-	    if (bLock) {
-		/*
-		** We don't have to check if the lock counter rolls over, since it will increment the  
-		** magic number first. This in turn will cause this page to be locked in a way that it 
-		** cannot be unlocked without an error condition.
-		*/
-		++tempX->data[-1];       /* increase lock count */
-		}
-	    /*
-	    ** Get me outa here.
-	    */
-	    return (char *)tempX->data + cache->iDataSize*iInLine;
-	case _B1_:                            /* B1 hit: favor recency */
-	    rat = B2.size()/B1.size();
-	    if (rat < 1) rat = 1;
-	    target_T1 += rat;
-	    if (target_T1 > nCache) target_T1 = nCache;
-	    /* adapt the target size */
-	    T2.splice(T2.end(),B1,tempX);
-	    goto doBcase;
-	case _B2_:                            /* B2 hit: favor frequency */
-	    rat = B1.size()/B2.size();
-	    if (rat < 1) rat = 1;
-	    if (rat > target_T1) target_T1 = 0;
-	    else target_T1 = target_T1 - rat;
-	    /* adapt the target size */
-	    inB2=true;
-	    T2.splice(T2.end(),B2,tempX);
-	doBcase:
-	    if (!bVirtual) mdl->enqueue(request, mdl->queueCacheReply); // Request the element be fetched
-	    tempX->data = replace(inB2);                                /* find a place to put new page */
-	    tempX->uId = _T2_|uId;     /* temp->ARC_where = _T2_; and set the dirty bit for this page */
-	    tempX->uPage = uLine;                          /* bookkeep */
-	    mdl->finishCacheRequest(request,tempX->data,bVirtual);
-	    break;
-	    }
+void MDLARC::finishRequest(uint32_t uLine, uint32_t uId,void *data, bool bVirtual) {
+    mdl->finishCacheRequest(uLine,uId,cache->iCID,data,bVirtual);
+    if (!bVirtual) {
+    	mdl->TimeAddWaiting();
+    	delete cacheRequest;
 	}
+    }
 
-    else {                                                              /* page is not in cache directory */
-	++cache->nMiss;
-	mdl->TimeAddComputing();
-	/*
-	** Can initiate the data request right here, and do the rest while waiting...
-	*/
-	if (!bVirtual) mdl->enqueue(request, mdl->queueCacheReply);
-	auto L1Length = T1.size() + B1.size();
-	if (L1Length == nCache) {                                   /* B1 + T1 full? */
-	    if (T1.size() < nCache) {                                           /* Still room in T1? */
-		tempX = remove_from_hash(B1);        /* yes: take page off B1 */
-		tempX->data = replace();                                /* find new place to put page */
-		T1.splice(T1.end(),B1,tempX);
-		}
-	    else {                                                      /* no: B1 must be empty */
-		tempX = remove_from_hash(T1);       /* take page off T1 */
-		destage(*tempX);     /* if dirty, evict before overwrite */
-		T1.splice(T1.end(),T1,tempX);
-		}
-	    }
-	else {                                                          /* B1 + T1 have less than c pages */
-	    uint32_t nInCache = T1.size() + T2.size() + B1.size() + B2.size();
-	    if (nInCache >= nCache) {         /* cache full? */
-		/* Yes, cache full: */
-		if (nInCache == 2*nCache) {
-		    /* directory is full: */
-		    tempX = remove_from_hash(B2);
-		    T1.splice(T1.end(),B2,tempX);
-		    inB2=true;
-		} else {                                                   /* cache directory not full, easy case */
-		    T1.splice(T1.end(),ArcFree,ArcFree.begin());
-		}
-		T1.back().data = replace(inB2);                                /* new place for page */
-	    } else {                                                      /* cache not full, easy case */
-		T1.splice(T1.end(),ArcFree,ArcFree.begin());
-		assert(T1.back().data != NULL);               /* This CDB should have an unused page associated with it */
-		T1.back().data[-1] = _ARC_MAGIC_; /* this also sets nLock to zero */
-		}
-	    }
-	tempX = --T1.end();
-	tempX->uId = uId;                  /* temp->dirty = dirty;  p->ARC_where = _T1_; as well! */
-	tempX->uPage = uLine;
-	mdl->finishCacheRequest(request,tempX->data,bVirtual);
-	Hash.splice_after(Hash.before_begin(),HashFree,HashFree.before_begin());
-	Hash.front() = tempX;
-	mdl->TimeAddWaiting();
+void MDLARC::invokeRequest(uint32_t uLine, uint32_t uId) {
+    ++cache->nMiss;
+    mdl->TimeAddComputing();
+    cacheRequest = new mdlMessageCacheRequest(cache->iCID, cache->nLineElements, mdl->Self(), uId, uLine, cache->OneLine.data());
+    mdl->enqueue(*cacheRequest, mdl->queueCacheReply);
     }
-    if (bLock) {
-	/*
-	** We don't have to check if the lock counter rolls over, since it will increment the  
-	** magic number first. This in turn will cause this page to be locked in a way that it 
-	** cannot be unlocked without an error condition.
-	*/
-	++tempX->data[-1];       /* increase lock count */
-    }
-    /* If we will modify the element, then it must eventually be flushed. */
-    if (bModify) tempX->uId |= _DIRTY_;
 
-    return (char *)tempX->data + cache->iDataSize*iInLine;
-    }
 
 /* Does not lock the element */
 void *mdlFetch(MDL mdl,int cid,int iIndex,int id) {
     const int lock = 0;  /* we never lock in fetch */
     const int modify = 0; /* fetch can never modify */
-    const int virt = 0; /* really fetch the element */
+    const bool virt = false; /* really fetch the element */
     return reinterpret_cast<mdlClass *>(mdl)->Access(cid, iIndex, id, lock, modify, virt);
     }
 
@@ -2239,7 +1912,7 @@ void *mdlAcquire(MDL cmdl,int cid,int iIndex,int id) {
     mdlClass *mdl = reinterpret_cast<mdlClass *>(cmdl);
     const int lock = 1;  /* we always lock in acquire */
     const int modify = (mdl->cache[cid].iType == MDL_COCACHE);
-    const int virt = 0; /* really fetch the element */
+    const bool virt = false; /* really fetch the element */
     return mdl->Access(cid, iIndex, id, lock, modify, virt);
     }
 
@@ -2247,7 +1920,7 @@ void *mdlAcquire(MDL cmdl,int cid,int iIndex,int id) {
 void *mdlVirtualFetch(MDL mdl,int cid,int iIndex,int id) {
     const int lock = 0; /* fetch never locks */
     const int modify = 1; /* virtual always modifies */
-    const int virt = 1; /* do not fetch the element */
+    const bool virt = true; /* do not fetch the element */
     return reinterpret_cast<mdlClass *>(mdl)->Access(cid, iIndex, id, lock, modify, virt);
     }
 
