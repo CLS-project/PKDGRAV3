@@ -89,6 +89,8 @@ typedef struct mdl_wq_node {
 
 class CACHE : public ARC {
 protected:
+    static void *getArrayElement(void *vData,int i,int iDataSize);
+protected:
     class mdlClass * const mdl; // MDL is needed for cache operations
     mdlMessageCacheRequest *cacheRequest;
     virtual void invokeRequest(uint32_t uLine, uint32_t uId);

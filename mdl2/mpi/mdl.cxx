@@ -96,26 +96,196 @@ typedef struct srvHeader {
     } SRVHEAD;
 
 /*****************************************************************************\
-
-The following is the MPI thread only functions
-
+* Class/Thread overview
+*   mpiClass - A single instance that handles MPI communication.
+*              Derived from mdlClass, and may also be a worker in non-deticated
+*   mdlClass - A worker thread instance
 \*****************************************************************************/
 
-mpiClass::mpiClass(void (*fcnMaster)(MDL,void *),void * (*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *),int argc, char **argv)
-    : mdlClass(fcnMaster,fcnWorkerInit,fcnWorkerDone,argc,argv) {
+
+/*****************************************************************************\
+* CACHE open/close
+\*****************************************************************************/
+
+// A list of cache tables is constructed when mdlClass is created. They are all set to NOCACHE.
+CACHE::CACHE(mdlClass * mdl,uint16_t iCID) : mdl(mdl), iType(MDL_NOCACHE), iCID(iCID) {}
+
+// This opens a read-only cache. Called from a worker outside of MDL
+extern "C"
+void mdlROcache(MDL mdl,int cid,
+		void * (*getElt)(void *pData,int i,int iDataSize),
+		void *pData,int iDataSize,int nData) {
+    reinterpret_cast<mdlClass *>(mdl)->CacheInitialize(cid,getElt,pData,iDataSize,nData,NULL,NULL,NULL);
     }
 
-mpiClass::~mpiClass() {
+// This opens a combiner (read/write) cache. Called from a worker outside of MDL
+extern "C"
+void mdlCOcache(MDL mdl,int cid,
+		void * (*getElt)(void *pData,int i,int iDataSize),
+		void *pData,int iDataSize,int nData,
+		void *ctx,void (*init)(void *,void *),void (*combine)(void *,void *,void *)) {
+    assert(init);
+    assert(combine);
+    reinterpret_cast<mdlClass *>(mdl)->CacheInitialize(cid,getElt,pData,iDataSize,nData,ctx,init,combine);
+    }
+
+// Cache creation is a collective operation (all worker threads participate): call the initialize() member to set it up.
+CACHE *mdlClass::CacheInitialize(
+    int cid,
+    void * (*getElt)(void *pData,int i,int iDataSize),
+    void *pData,int iDataSize,int nData,
+    void *ctx,void (*init)(void *,void *),void (*combine)(void *,void *,void *)) {
+
+    // We cannot reallocate this structure because there may be other threads accessing it.
+    // This might be safe to do with an appropriate barrier, but it would shuffle CACHE objects.
+    // The problem isn't the cache we are about to open, rather other caches that are already open.
+    assert(cid >= 0 && cid <cache.size());
+    if (cid<0 || cid >= cache.size()) abort();
+
+    auto c = &cache[cid];
+    c->initialize(cacheSize,getElt,pData,iDataSize,nData,ctx,init,combine);
+
+    /* Nobody should start using this cache until all threads have started it! */
+    ThreadBarrier(true);
+
+    /* We might need to resize the cache buffer */
+    enqueueAndWait(mdlMessageCacheOpen());
+
+    return(c);
+    }
+
+// Open the cache by posting the receive if required
+void mpiClass::MessageCacheOpen(mdlMessageCacheOpen *message) {
+    if (nOpenCaches==0) pReqRcv->action(this); // MessageCacheReceive()
+    ++nOpenCaches;
+    message->sendBack();
+    }
+
+// Post the recieve. Receive will continue to be reposted as message are recieved.
+void mpiClass::MessageCacheReceive(mdlMessageCacheReceive *message) {
+    SendReceiveRequests.emplace_back();
+    SendReceiveMessages.push_back(message);
+    MPI_Irecv(message->getBuffer(),iCacheBufSize, MPI_BYTE, MPI_ANY_SOURCE,
+	      MDL_TAG_CACHECOM, commMDL, &SendReceiveRequests.back());
+    }
+
+// Called when the receive finishes. Decode the type of message and process it,
+// then restart the receive.
+void mpiClass::FinishCacheReceive(mdlMessageCacheReceive *message, const MPI_Status &status) {
+    int cancelled;
+    int count, iProc, s, n, iLineSize;
+
+    MPI_Test_cancelled(&status,&cancelled);
+    if (cancelled) return;
+
+    CacheHeader *ph = reinterpret_cast<CacheHeader *>(message->getBuffer());
+    char *pszRcv = reinterpret_cast<char *>(ph+1);
+    int iRankFrom = status.MPI_SOURCE;
+    MPI_Get_count(&status, MPI_BYTE, &count);
+
+    /* Well, could be any threads cache */
+    int iCore = ph->idTo - pmdl[0]->Self();
+    assert(iCore>=0 && iCore<Cores());
+    CACHE *c = &pmdl[iCore]->cache[ph->cid];
+
+    switch (ph->mid) {
+    case CacheMessageType::REQUEST: CacheReceiveRequest(count,ph); break;
+    case CacheMessageType::FLUSH:   CacheReceiveFlush(count,ph);  break;
+    case CacheMessageType::REPLY:   CacheReceiveReply(count,ph);  break;
+    default:
+	assert(0);
+	}
+    MessageCacheReceive(message); // Restart the receive
+    }
+
+/*
+** This is the default element fetch routine.  It impliments the old behaviour
+** of a single large array.  New data structures need to be more clever.
+*/
+void *CACHE::getArrayElement(void *vData,int i,int iDataSize) {
+    char *pData = CAST(char *,vData);
+    return pData + (size_t)i*(size_t)iDataSize;
+    }
+
+// This records the callback information, and updates the ARC cache to match (if necessary)
+void CACHE::initialize(uint32_t cacheSize,
+    void * (*getElt)(void *pData,int i,int iDataSize),
+    void *pData,int iDataSize,int nData,
+    void *ctx,void (*init)(void *,void *),void (*combine)(void *,void *,void *) ) {
+
+    assert(iType == MDL_NOCACHE);
+
+    this->getElt = getElt==NULL ? getArrayElement : getElt;
+    this->pData = pData;
+    this->iDataSize = iDataSize;
+    this->nData = nData;
+
+    if (iDataSize > MDL_CACHE_DATA_SIZE) nLineBits = 0;
+    else nLineBits = log2(MDL_CACHE_DATA_SIZE / iDataSize);
+    /*
+    ** Let's not have too much of a good thing. We want to fetch in cache lines both for
+    ** performance, and to save memory (ARC cache has a high overhead), but too much has
+    ** a negative effect on performance. Empirically, 16 elements maximal is optimal.
+    ** This was tested with the particle, cell and P(k) caches.
+    */
+    if (nLineBits > 4) nLineBits = 4;
+    nLineElements = 1 << nLineBits;
+    nLineMask = (1 << nLineBits) - 1;
+    iLineSize = nLineElements*iDataSize;
+    OneLine.resize(iLineSize);
+
+    nAccess = nMiss = nColl = 0; // Clear statistics. Are these even used any more?
+
+    ARC::initialize(cacheSize,iLineSize,nLineBits);
+
+    /* Read-only or combiner caches */
+    assert( init==NULL && combine==NULL || init!=NULL && combine!=NULL );
+    this->iType = (init==NULL ? MDL_ROCACHE : MDL_COCACHE);
+    this->init = init;
+    this->combine = combine;
+    this->ctx = ctx;
+    }
+
+// When we are finished using the cache, it is marked as complete. All elements should have been flushed by now.
+void CACHE::close() {
+    iType = MDL_NOCACHE;
     }
 
 /*****************************************************************************\
 * Here we follow a Cache Request
 \*****************************************************************************/
 
-// First, a worker thread calls Access() (via mdlAcquire or similar) to return a reference to an entry
+/* Does not lock the element */
+extern "C"
+void *mdlFetch(MDL mdl,int cid,int iIndex,int id) {
+    const int lock = 0;  /* we never lock in fetch */
+    const int modify = 0; /* fetch can never modify */
+    const bool virt = false; /* really fetch the element */
+    return reinterpret_cast<mdlClass *>(mdl)->Access(cid, iIndex, id, lock, modify, virt);
+    }
+
+/* Locks, so mdlRelease must be called eventually */
+extern "C"
+void *mdlAcquire(MDL cmdl,int cid,int iIndex,int id) {
+    mdlClass *mdl = reinterpret_cast<mdlClass *>(cmdl);
+    const int lock = 1;  /* we always lock in acquire */
+    const int modify = (mdl->cache[cid].iType == MDL_COCACHE);
+    const bool virt = false; /* really fetch the element */
+    return mdl->Access(cid, iIndex, id, lock, modify, virt);
+    }
+
+/* Locks the element, but does not fetch or initialize */
+extern "C"
+void *mdlVirtualFetch(MDL mdl,int cid,int iIndex,int id) {
+    const int lock = 0; /* fetch never locks */
+    const int modify = 1; /* virtual always modifies */
+    const bool virt = true; /* do not fetch the element */
+    return reinterpret_cast<mdlClass *>(mdl)->Access(cid, iIndex, id, lock, modify, virt);
+    }
+
+// main routine to perform an immediate cache request. Does not return until the cache element is present
 void *mdlClass::Access(int cid, uint32_t uIndex, int uId, int bLock,int bModify,bool bVirtual) {
     CACHE *c = &cache[cid];
-
 
     if (!(++c->nAccess & MDL_CHECK_MASK)) CacheCheck(); // For non-dedicated MPI thread we periodically check for messages
 
@@ -126,10 +296,21 @@ void *mdlClass::Access(int cid, uint32_t uIndex, int uId, int bLock,int bModify,
 	c = &omdl->cache[cid];
 	return (*c->getElt)(c->pData,uIndex,c->iDataSize);
 	}
+
+    // Retreive the element from the ARC cache. If it is not present then the ARC class will
+    // call invokeRequest to initiate the fetch, then finishRequest to copy the result into the cache
     return c->fetch(uIndex,uId,bLock,bModify,bVirtual); // Otherwise we look it up in the cache, or fetch it remotely
     }
 
-// Each thread starts by queueing a "request" to the MPI thread. This is sent to the remote node.
+// When we are missing a cache element then we ask the MPI thread to send a request to the remote node
+void CACHE::invokeRequest(uint32_t uLine, uint32_t uId) {
+    ++nMiss;
+    mdl->TimeAddComputing();
+    cacheRequest = new mdlMessageCacheRequest(iCID, nLineElements, mdl->Self(), uId, uLine, OneLine.data());
+    mdl->enqueue(*cacheRequest, mdl->queueCacheReply);
+    }
+
+// The MPI thread sends this to the remote node. This will not be returned until the reply has been received.
 void mpiClass::MessageCacheRequest(mdlMessageCacheRequest *message) {
     int iCoreFrom = message->header.idFrom - pmdl[0]->Self();
     CacheRequestMessages[iCoreFrom] = message;
@@ -140,7 +321,9 @@ void mpiClass::MessageCacheRequest(mdlMessageCacheRequest *message) {
     }
 
 // On the remote node, the message is received, and a response is constructed with the data
-// pulled directly from thread's cache. This is read-only, so is safe.
+// pulled directly from thread's cache. This is read-only, so is safe. It is forbidden in MDL
+// to remotely "read" part of an element that is also being modified. Results are "unpredictable".
+// Instead, one is expected to initialize such data via the "init" function.
 void mpiClass::CacheReceiveRequest(int count, const CacheHeader *ph) {
     assert( count == sizeof(CacheHeader) );
     int iCore = ph->idTo - pmdl[0]->Self();
@@ -160,10 +343,11 @@ void mpiClass::CacheReceiveRequest(int count, const CacheHeader *ph) {
 	char *t = (i<c->nData) ? reinterpret_cast<char *>((*c->getElt)(c->pData,i,c->iDataSize)) : NULL;
 	reply->addBuffer(c->iDataSize,t);
 	}
-    reply->action(this);
+    reply->action(this); // MessageCacheReply()
     }
 
 // The reply message is sent back to the origin node, and added to the MPI request tracker.
+// This is the "action" routine.
 void mpiClass::MessageCacheReply(mdlMessageCacheReply *pFlush) {
     SendReceiveRequests.emplace_back();
     SendReceiveMessages.push_back(pFlush);
@@ -184,7 +368,7 @@ void mpiClass::CacheReceiveReply(int count, const CacheHeader *ph) {
     CACHE *c = &pmdl[iCore]->cache[ph->cid];
     int iLineSize = c->iLineSize;
     assert( count == sizeof(CacheHeader) + iLineSize );
-    if (CacheRequestMessages[iCore]) {
+    if (CacheRequestMessages[iCore]) { // This better be true (unless we implement prefetch)
 	mdlMessageCacheRequest *pRequest = CacheRequestMessages[iCore];
 	CacheRequestMessages[iCore] = NULL;
 	pRequest->header.nItems = ph->nItems;
@@ -193,9 +377,80 @@ void mpiClass::CacheReceiveReply(int count, const CacheHeader *ph) {
 	}
     }
 
+// Later when we have found an empty cache element, this is called to wait for the result
+// and to copy it into the buffer area.
+void CACHE::finishRequest(uint32_t uLine, uint32_t uId,void *data, bool bVirtual) {
+    mdl->finishCacheRequest(uLine,uId,iCID,data,bVirtual);
+    if (!bVirtual) {
+    	mdl->TimeAddWaiting();
+    	delete cacheRequest;
+	}
+    }
+
+void mdlClass::finishCacheRequest(uint32_t uLine, uint32_t uId, int cid, void *data, bool bVirtual) {
+    int iCore = uId - pmdl[0]->Self();
+    CACHE *c = &cache[cid];
+    int i,s,n;
+    char *pData = reinterpret_cast<char *>(data);
+    uint32_t iIndex = uLine << c->nLineBits;
+
+    s = iIndex;
+    n = s + c->nLineElements;
+
+    // A virtual fetch results in an empty cache line (unless init is called below)
+    if (bVirtual) {
+	memset(pData,0,c->iLineSize);
+	}
+    // Local requests must be from a combiner cache if we get here,
+    // otherwise we would have simply returned a reference
+    else if (iCore >= 0 && iCore < Cores() ) {
+	mdlClass * omdl = pmdl[iCore];
+	CACHE *oc = &omdl->cache[cid];
+	if ( n > oc->nData ) n = oc->nData;
+	for(i=s; i<n; i++ ) {
+	    memcpy(pData,(*oc->getElt)(oc->pData,i,oc->iDataSize),oc->iDataSize);
+	    pData += oc->iDataSize;
+	    }
+	}
+    // Here we wait for the reply, and copy the data into the ARC cache
+    else {
+	waitQueue(queueCacheReply);
+	memcpy(pData,c->OneLine.data(), c->iLineSize);
+	}
+
+    // A combiner cache can intialize some/all of the elements
+    if (c->init) {
+	for(i=s; i<n; i++ ) {
+	    (*c->init)(c->ctx,pData);
+	    pData += c->iDataSize;
+	    }
+	}
+    }
+
 /*****************************************************************************\
 * Here we follow a Cache Flush
 \*****************************************************************************/
+
+// When we need to evict an element (especially at the end) this routine is called by the ARC cache.
+void CACHE::destage(CDB &temp) {
+    assert(temp.data != NULL);
+
+    if (temp.dirty()) {     /* if dirty, evict before free */
+	if (!mdl->coreFlushBuffer->canBuffer(iLineSize)) mdl->flush_core_buffer();
+	mdl->coreFlushBuffer->addBuffer(iCID,mdlSelf(mdl),temp.uId&_IDMASK_,temp.uPage,iLineSize,(char *)temp.data);
+	temp.uId &= ~ _DIRTY_;    /* No longer dirty */
+	}
+    }
+
+// This sends our local flush buffer to the MPI thread to be flushed (if it's full for example)
+void mdlClass::flush_core_buffer() {
+    if (!coreFlushBuffer->isEmpty()) {
+	enqueue(*coreFlushBuffer,coreFlushBuffers);
+	mdlMessageFlushFromCore &M = dynamic_cast<mdlMessageFlushFromCore&>(waitQueue(coreFlushBuffers));
+	M.emptyBuffer(); // NOTE: this is a different buffer -- we shouldn't have to really wait
+	coreFlushBuffer = &M;
+	}
+    }
 
 // Individual cores flush elements from their cache (see ARC::destage). When a
 // buffer is filled (or at the very end), this routine is called to flush it.
@@ -305,11 +560,9 @@ void mpiClass::queue_local_flush(CacheHeader *ph) {
     CACHE *c = &mdl1->cache[ph->cid];
 
     mdlMessageFlushToCore *flush = flushBuffersByCore[iCore];
-    // if (flush==NULL) flush = & dynamic_cast<mdlMessageFlushToCore&>(waitQueue(localFlushBuffers));
     if (flush==NULL) flush = & dynamic_cast<mdlMessageFlushToCore&>(localFlushBuffers.wait());
     if (!flush->canBuffer(c->iLineSize)) {
 	mdl1->wqCacheFlush.enqueue(* flush, localFlushBuffers);
-	// flush = & dynamic_cast<mdlMessageFlushToCore&>(waitQueue(localFlushBuffers));
 	flush = & dynamic_cast<mdlMessageFlushToCore&>(localFlushBuffers.wait());
 	assert(flush->getCount()==0);
 	}
@@ -317,34 +570,61 @@ void mpiClass::queue_local_flush(CacheHeader *ph) {
     flushBuffersByCore[iCore] = flush;
     }
 
+// Received by the worker thread: call the combiner function for each element
+void mdlClass::MessageFlushToCore(mdlMessageFlushToCore *pFlush) {
+    CacheHeader *ca = reinterpret_cast<CacheHeader *>(pFlush->getBuffer());
+    int count = pFlush->getCount();
+    while(count > 0) {
+	char *pData = reinterpret_cast<char *>(ca+1);
+	CACHE *c = &cache[ca->cid];
+	uint32_t uIndex = ca->iLine << c->nLineBits;
+	int s = uIndex;
+	int n = s + c->nLineElements;
+	for(int i=s; i<n; i++ ) {
+	    if (i<c->nData)
+		(*c->combine)(c->ctx,(*c->getElt)(c->pData,i,c->iDataSize),pData);
+	    pData += c->iDataSize;
+	    }
+	count -= sizeof(CacheHeader) + c->iLineSize;
+	ca = (CacheHeader *)pData;
+	}
+    assert(count == 0);
+    pFlush->emptyBuffer();
+    pFlush->sendBack();
+    }
+
 /*****************************************************************************\
-* 
+* The following are used to end or synchronize a cache
 \*****************************************************************************/
 
-// Open the cache by posting the receive if required
-void mpiClass::MessageCacheOpen(mdlMessageCacheOpen *message) {
-    if (nOpenCaches==0) pReqRcv->action(this); // MessageCacheReceive()
-    ++nOpenCaches;
-    message->sendBack();
+// Continues to process incoming cache requests until all threads on all nodes reach this point
+extern "C" void mdlCacheBarrier(MDL mdl,int cid) { reinterpret_cast<mdlClass *>(mdl)->CacheBarrier(cid); }
+void mdlClass::CacheBarrier(int cid) {
+    ThreadBarrier(true);
     }
 
-void mpiClass::MessageCacheReceive(mdlMessageCacheReceive *message) {
-    SendReceiveRequests.emplace_back();
-    SendReceiveMessages.push_back(message);
-    MPI_Irecv(message->getBuffer(),iCacheBufSize, MPI_BYTE, MPI_ANY_SOURCE,
-	      MDL_TAG_CACHECOM, commMDL, &SendReceiveRequests.back());
-    }
+// This does the same thing as a CacheBarrier(), but in addition all data from all caches will have been
+// fully flushed and synchonized between all threads on all nodes before it returns.
+extern "C" void mdlFlushCache(MDL mdl,int cid) { reinterpret_cast<mdlClass *>(mdl)->FlushCache(cid); }
+void mdlClass::FlushCache(int cid) {
+    CACHE *c = &cache[cid];
 
-// Close the cache by cancelling the recieve (if there are no more open caches)
-void mpiClass::MessageCacheClose(mdlMessageCacheClose *message) {
-    assert(nOpenCaches > 0);
-    --nOpenCaches;
-    if (nOpenCaches == 0) {
-	auto it = std::find(SendReceiveMessages.begin(), SendReceiveMessages.end(), pReqRcv);
-	assert(it!=SendReceiveMessages.end());
-	MPI_Cancel(&SendReceiveRequests[it-SendReceiveMessages.begin()]);
+    TimeAddComputing();
+    wqAccepting = 1;
+    c->RemoveAll();
+    flush_core_buffer();
+    ThreadBarrier();
+    if (Core()==0) { // This flushes all buffered data, not just our thread
+	enqueueAndWait(mdlMessageCacheFlushOut());
 	}
-    message->sendBack();
+    ThreadBarrier(true); // We must wait for all threads on all nodes to finish with this cache
+    //mdl_MPI_Barrier();
+    if (Core()==0) { // This flushes all buffered data, not just our thread
+	enqueueAndWait(mdlMessageCacheFlushLocal());
+	}
+    ThreadBarrier();
+    wqAccepting = 0;
+    TimeAddSynchronizing();
     }
 
 // This sends all incomplete buffers to the correct rank
@@ -373,34 +653,43 @@ void mpiClass::MessageCacheFlushLocal(mdlMessageCacheFlushLocal *message) {
     message->sendBack();
     }
 
-// Process incoming cache messages, and repost the receive
-void mpiClass::FinishCacheReceive(mdlMessageCacheReceive *message, const MPI_Status &status) {
-    int cancelled;
-    int count, iProc, s, n, iLineSize;
+extern "C" void mdlFinishCache(MDL mdl,int cid) { reinterpret_cast<mdlClass *>(mdl)->FinishCache(cid); }
+void mdlClass::FinishCache(int cid) {
+    CACHE *c = &cache[cid];
 
-    MPI_Test_cancelled(&status,&cancelled);
-    if (cancelled) return;
-
-    CacheHeader *ph = reinterpret_cast<CacheHeader *>(message->getBuffer());
-    char *pszRcv = reinterpret_cast<char *>(ph+1);
-    int iRankFrom = status.MPI_SOURCE;
-    MPI_Get_count(&status, MPI_BYTE, &count);
-
-    /* Well, could be any threads cache */
-    int iCore = ph->idTo - pmdl[0]->Self();
-    assert(iCore>=0 && iCore<Cores());
-    CACHE *c = &pmdl[iCore]->cache[ph->cid];
-
-    switch (ph->mid) {
-    case CacheMessageType::REQUEST: CacheReceiveRequest(count,ph); break;
-    case CacheMessageType::FLUSH:   CacheReceiveFlush(count,ph);  break;
-    case CacheMessageType::REPLY:   CacheReceiveReply(count,ph);  break;
-    default:
-	assert(0);
-	}
-    MessageCacheReceive(message); // Restart the receive
+    TimeAddComputing();
+    wqAccepting = 1;
+    FlushCache(cid);
+    enqueueAndWait(mdlMessageCacheClose());
+    c->close();
+    wqAccepting = 0;
+    TimeAddSynchronizing();
     }
 
+// Close the cache by cancelling the recieve (if there are no more open caches)
+void mpiClass::MessageCacheClose(mdlMessageCacheClose *message) {
+    assert(nOpenCaches > 0);
+    --nOpenCaches;
+    if (nOpenCaches == 0) {
+	auto it = std::find(SendReceiveMessages.begin(), SendReceiveMessages.end(), pReqRcv);
+	assert(it!=SendReceiveMessages.end());
+	MPI_Cancel(&SendReceiveRequests[it-SendReceiveMessages.begin()]);
+	}
+    message->sendBack();
+    }
+
+/*****************************************************************************\
+*
+* The following is the MPI thread only functions
+*
+\*****************************************************************************/
+
+mpiClass::mpiClass(void (*fcnMaster)(MDL,void *),void * (*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *),int argc, char **argv)
+    : mdlClass(fcnMaster,fcnWorkerInit,fcnWorkerDone,argc,argv) {
+    }
+
+mpiClass::~mpiClass() {
+    }
 
 /*
 ** Perform a global swap: effectively a specialized in-place alltoallv
@@ -1040,28 +1329,6 @@ mdlClass::~mdlClass() {
 // This routine is overridden for the MPI thread.
 int mdlClass::checkMPI() { return 0; }
 
-void mdlClass::MessageFlushToCore(mdlMessageFlushToCore *pFlush) {
-    CacheHeader *ca = reinterpret_cast<CacheHeader *>(pFlush->getBuffer());
-    int count = pFlush->getCount();
-    while(count > 0) {
-	char *pData = reinterpret_cast<char *>(ca+1);
-	CACHE *c = &cache[ca->cid];
-	uint32_t uIndex = ca->iLine << c->nLineBits;
-	int s = uIndex;
-	int n = s + c->nLineElements;
-	for(int i=s; i<n; i++ ) {
-	    if (i<c->nData)
-		(*c->combine)(c->ctx,(*c->getElt)(c->pData,i,c->iDataSize),pData);
-	    pData += c->iDataSize;
-	    }
-	count -= sizeof(CacheHeader) + c->iLineSize;
-	ca = (CacheHeader *)pData;
-	}
-    assert(count == 0);
-    pFlush->emptyBuffer();
-    pFlush->sendBack();
-    }
-
 /* Accept pending combine requests, and call the combine function for each. */
 void mdlClass::combine_all_incoming() {
     if (Core()<0) return; /* Dedicated MPI thread combines nothing */
@@ -1639,15 +1906,6 @@ void mdlFreeArray(MDL mdl,void *p) {
     if (mdlCore(mdl)==0) free(p);
     }
 
-/*
-** This is the default element fetch routine.  It impliments the old behaviour
-** of a single large array.  New data structures need to be more clever.
-*/
-static void *getArrayElement(void *vData,int i,int iDataSize) {
-    char *pData = CAST(char *,vData);
-    return pData + (size_t)i*(size_t)iDataSize;
-    }
-
 void mdlSetCacheSize(MDL cmdl,int cacheSize) {
     mdlClass *mdl = reinterpret_cast<mdlClass *>(cmdl);
     mdl->cacheSize = cacheSize;
@@ -1665,248 +1923,6 @@ int mdlCacheStatus(MDL cmdl,int cid) {
     if (cid >= mdl->cache.size()) return MDL_NOCACHE;
     CACHE *c = &mdl->cache[cid];
     return c->iType;
-    }
-
-/*****************************************************************************\
-* The life cycle of a CACHE table entry
-\*****************************************************************************/
-
-// A list of cache tables is constructed when mdlClass is created. They are all set to NOCACHE.
-CACHE::CACHE(mdlClass * mdl,uint16_t iCID) : mdl(mdl), iType(MDL_NOCACHE), iCID(iCID) {}
-
-// Cache creation is a collective operation: call the initialize() member to set it up.
-CACHE *mdlClass::CacheInitialize(
-    int cid,
-    void * (*getElt)(void *pData,int i,int iDataSize),
-    void *pData,int iDataSize,int nData,
-    void *ctx,void (*init)(void *,void *),void (*combine)(void *,void *,void *)) {
-
-    // We cannot reallocate this structure because there may be other threads accessing it.
-    assert(cid >= 0 && cid <cache.size());
-    if (cid<0 || cid >= cache.size()) abort();
-
-    auto c = &cache[cid];
-    c->initialize(cacheSize,getElt,pData,iDataSize,nData,ctx,init,combine);
-
-    /* Nobody should start using this cache until all threads have started it! */
-    ThreadBarrier(true);
-
-    /* We might need to resize the cache buffer */
-    enqueueAndWait(mdlMessageCacheOpen());
-
-    return(c);
-    }
-
-// This records the callback information, and updates the ARC cache to match (if necessary)
-void CACHE::initialize(uint32_t cacheSize,
-    void * (*getElt)(void *pData,int i,int iDataSize),
-    void *pData,int iDataSize,int nData,
-    void *ctx,void (*init)(void *,void *),void (*combine)(void *,void *,void *) ) {
-
-    assert(iType == MDL_NOCACHE);
-
-    this->getElt = getElt==NULL ? getArrayElement : getElt;
-    this->pData = pData;
-    this->iDataSize = iDataSize;
-    this->nData = nData;
-
-    if (iDataSize > MDL_CACHE_DATA_SIZE) nLineBits = 0;
-    else nLineBits = log2(MDL_CACHE_DATA_SIZE / iDataSize);
-    /*
-    ** Let's not have too much of a good thing. We want to fetch in cache lines both for
-    ** performance, and to save memory (ARC cache has a high overhead), but too much has
-    ** a negative effect on performance. Empirically, 16 elements maximal is optimal.
-    ** This was tested with the particle, cell and P(k) caches.
-    */
-    if (nLineBits > 4) nLineBits = 4;
-    nLineElements = 1 << nLineBits;
-    nLineMask = (1 << nLineBits) - 1;
-    iLineSize = nLineElements*iDataSize;
-    OneLine.resize(iLineSize);
-
-    nAccess = 0;
-    nMiss = 0;				/* !!!, not NB */
-    nColl = 0;				/* !!!, not NB */
-    ARC::initialize(cacheSize,iLineSize,nLineBits);
-
-    /* Read-only or combiner caches */
-    assert( init==NULL && combine==NULL || init!=NULL && combine!=NULL );
-    iType = (init==NULL ? MDL_ROCACHE : MDL_COCACHE);
-    this->init = init;
-    this->combine = combine;
-    this->ctx = ctx;
-    }
-
-// When we are missing a cache element, this is called to start the communication
-void CACHE::invokeRequest(uint32_t uLine, uint32_t uId) {
-    ++nMiss;
-    mdl->TimeAddComputing();
-    cacheRequest = new mdlMessageCacheRequest(iCID, nLineElements, mdl->Self(), uId, uLine, OneLine.data());
-    mdl->enqueue(*cacheRequest, mdl->queueCacheReply);
-    }
-
-// Later when we have found an empty cache element, this is called to wait for the result
-// and to copy it into the buffer area.
-void CACHE::finishRequest(uint32_t uLine, uint32_t uId,void *data, bool bVirtual) {
-    mdl->finishCacheRequest(uLine,uId,iCID,data,bVirtual);
-    if (!bVirtual) {
-    	mdl->TimeAddWaiting();
-    	delete cacheRequest;
-	}
-    }
-
-void mdlClass::finishCacheRequest(uint32_t uLine, uint32_t uId, int cid, void *data, bool bVirtual) {
-    int iCore = uId - pmdl[0]->Self();
-    CACHE *c = &cache[cid];
-    int i,s,n;
-    char *pData = reinterpret_cast<char *>(data);
-    uint32_t iIndex = uLine << c->nLineBits;
-
-    s = iIndex;
-    n = s + c->nLineElements;
-
-    // A virtual fetch results in an empty cache line (unless init is called below)
-    if (bVirtual) {
-	memset(pData,0,c->iLineSize);
-	}
-    // Local requests must be from a combiner cache if we get here,
-    // otherwise we would have simply returned a reference
-    else if (iCore >= 0 && iCore < Cores() ) {
-	mdlClass * omdl = pmdl[iCore];
-	CACHE *oc = &omdl->cache[cid];
-	if ( n > oc->nData ) n = oc->nData;
-	for(i=s; i<n; i++ ) {
-	    memcpy(pData,(*oc->getElt)(oc->pData,i,oc->iDataSize),oc->iDataSize);
-	    pData += oc->iDataSize;
-	    }
-	}
-    // Here we wait for the reply, and copy the data into the ARC cache
-    else {
-	waitQueue(queueCacheReply);
-	memcpy(pData,c->OneLine.data(), c->iLineSize);
-	}
-
-    // A combiner cache can intialize some/all of the elements
-    if (c->init) {
-	for(i=s; i<n; i++ ) {
-	    (*c->init)(c->ctx,pData);
-	    pData += c->iDataSize;
-	    }
-	}
-    }
-
-// When we need to evict an element (especially at the end) this routine is called.
-void CACHE::destage(CDB &temp) {
-    assert(temp.data != NULL);
-
-    if (temp.dirty()) {     /* if dirty, evict before free */
-	if (!mdl->coreFlushBuffer->canBuffer(iLineSize)) mdl->flush_core_buffer();
-	mdl->coreFlushBuffer->addBuffer(iCID,mdlSelf(mdl),temp.uId&_IDMASK_,temp.uPage,iLineSize,(char *)temp.data);
-	temp.uId &= ~ _DIRTY_;    /* No longer dirty */
-	}
-    }
-
-// When we are finished using the cache, it is marked as complete. All elements should have been flushed by now.
-void CACHE::close() {
-    iType = MDL_NOCACHE;
-    }
-
-
-/*
- ** Initialize a Read-Only caching space.
- */
-void mdlROcache(MDL mdl,int cid,
-		void * (*getElt)(void *pData,int i,int iDataSize),
-		void *pData,int iDataSize,int nData) {
-    reinterpret_cast<mdlClass *>(mdl)->CacheInitialize(cid,getElt,pData,iDataSize,nData,NULL,NULL,NULL);
-    }
-
-/*
- ** Initialize a Combiner caching space.
- */
-void mdlCOcache(MDL mdl,int cid,
-		void * (*getElt)(void *pData,int i,int iDataSize),
-		void *pData,int iDataSize,int nData,
-		void *ctx,void (*init)(void *,void *),void (*combine)(void *,void *,void *)) {
-    assert(init);
-    assert(combine);
-    reinterpret_cast<mdlClass *>(mdl)->CacheInitialize(cid,getElt,pData,iDataSize,nData,ctx,init,combine);
-    }
-
-extern "C" void mdlCacheBarrier(MDL mdl,int cid) { reinterpret_cast<mdlClass *>(mdl)->CacheBarrier(cid); }
-void mdlClass::CacheBarrier(int cid) {
-    ThreadBarrier(true);
-    //mdl_MPI_Barrier();
-    }
-
-void mdlClass::flush_core_buffer() {
-    if (!coreFlushBuffer->isEmpty()) {
-	enqueue(*coreFlushBuffer,coreFlushBuffers);
-	mdlMessageFlushFromCore &M = dynamic_cast<mdlMessageFlushFromCore&>(waitQueue(coreFlushBuffers));
-	M.emptyBuffer(); // NOTE: this is a different buffer -- we shouldn't have to really wait
-	coreFlushBuffer = &M;
-	}
-    }
-
-extern "C" void mdlFlushCache(MDL mdl,int cid) { reinterpret_cast<mdlClass *>(mdl)->FlushCache(cid); }
-void mdlClass::FlushCache(int cid) {
-    CACHE *c = &cache[cid];
-
-    TimeAddComputing();
-    wqAccepting = 1;
-    c->RemoveAll();
-    flush_core_buffer();
-    ThreadBarrier();
-    if (Core()==0) { /* This flushes all buffered data, not just our thread */
-	enqueueAndWait(mdlMessageCacheFlushOut());
-	}
-    /* We must wait for all threads to finish with this cache */
-    ThreadBarrier(true);
-    //mdl_MPI_Barrier();
-    if (Core()==0) { /* This flushes all buffered data, not just our thread */
-	enqueueAndWait(mdlMessageCacheFlushLocal());
-	}
-    ThreadBarrier();
-    wqAccepting = 0;
-    TimeAddSynchronizing();
-    }
-
-extern "C" void mdlFinishCache(MDL mdl,int cid) { reinterpret_cast<mdlClass *>(mdl)->FinishCache(cid); }
-void mdlClass::FinishCache(int cid) {
-    CACHE *c = &cache[cid];
-
-    TimeAddComputing();
-    wqAccepting = 1;
-    FlushCache(cid);
-    enqueueAndWait(mdlMessageCacheClose());
-    c->close();
-    wqAccepting = 0;
-    TimeAddSynchronizing();
-    }
-
-/* Does not lock the element */
-void *mdlFetch(MDL mdl,int cid,int iIndex,int id) {
-    const int lock = 0;  /* we never lock in fetch */
-    const int modify = 0; /* fetch can never modify */
-    const bool virt = false; /* really fetch the element */
-    return reinterpret_cast<mdlClass *>(mdl)->Access(cid, iIndex, id, lock, modify, virt);
-    }
-
-/* Locks, so mdlRelease must be called eventually */
-void *mdlAcquire(MDL cmdl,int cid,int iIndex,int id) {
-    mdlClass *mdl = reinterpret_cast<mdlClass *>(cmdl);
-    const int lock = 1;  /* we always lock in acquire */
-    const int modify = (mdl->cache[cid].iType == MDL_COCACHE);
-    const bool virt = false; /* really fetch the element */
-    return mdl->Access(cid, iIndex, id, lock, modify, virt);
-    }
-
-/* Locks the element, but does not fetch or initialize */
-void *mdlVirtualFetch(MDL mdl,int cid,int iIndex,int id) {
-    const int lock = 0; /* fetch never locks */
-    const int modify = 1; /* virtual always modifies */
-    const bool virt = true; /* do not fetch the element */
-    return reinterpret_cast<mdlClass *>(mdl)->Access(cid, iIndex, id, lock, modify, virt);
     }
 
 void mdlRelease(MDL cmdl,int cid,void *p) {
