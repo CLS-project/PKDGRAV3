@@ -1,6 +1,7 @@
 #ifndef ARC_H
 #define ARC_H
 
+#include <stdint.h>
 #include <vector>
 #include <list>
 #include <forward_list>
