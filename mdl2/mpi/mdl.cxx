@@ -1267,6 +1267,13 @@ void mpiClass::Launch(int argc,char **argv,void (*fcnMaster)(MDL,void *),void * 
 	}
     drainMPI();
 
+
+    for (i = iCoreMPI+1; i < Cores(); ++i) {
+	pthread_join(threadid[i],0);
+	delete pmdl[i];
+	}
+    delete (pmdl-1);
+
     // Deallocate cache reply buffers
     for (auto pReply : freeCacheReplies) { delete pReply; }
     freeCacheReplies.clear();
@@ -1291,20 +1298,9 @@ void mdlAbort(MDL mdl) {
     }
 
 mdlClass::~mdlClass() {
-    int i;
-
-    for (i = iCoreMPI+1; i < Cores(); ++i) {
-	pthread_join(threadid[i],0);
-	pmdl[i]->cleanupMDL();
-	delete pmdl[i];
-	}
-    delete (pmdl-1);
-
 #ifdef USE_CUDA
     if (cudaCtx) CUDA_finish(cudaCtx);
 #endif
-
-    cleanupMDL();
 
     /*
      ** Close Diagnostic file.
@@ -1312,10 +1308,6 @@ mdlClass::~mdlClass() {
     if (bDiag) {
 	fclose(fpDiag);
 	}
-
-#ifdef USE_CUDA
-    if (cudaCtx) CUDA_finish(cudaCtx);
-#endif
     }
 
 /*****************************************************************************\
@@ -1525,8 +1517,6 @@ void mdlClass::init(bool bDiag) {
     coreFlushBuffer = new mdlMessageFlushFromCore;
 
     queueReceive.resize(Cores()); // A separate receive queue from each core
-    /* We need a queue for each TAG, and a receive queue from each thread. */
-    inQueue = new mdlMessageQueue[MDL_TAG_MAX+Cores()];
 
 #ifdef USE_CUDA
     inCudaBufSize = outCudaBufSize = 0;
@@ -1615,10 +1605,6 @@ void *mdlClass::WorkerThread() {
 void *mdlClass::mdlWorkerThread(void *vmdl) {
     mdlClass *mdl = reinterpret_cast<mdlClass *>(vmdl);
     return mdl->WorkerThread();
-    }
-
-void mdlClass::cleanupMDL() {
-    delete inQueue;
     }
 
 /*

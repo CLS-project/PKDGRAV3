@@ -155,7 +155,6 @@ public:
     mdlMessageQueue threadBarrierQueue;
 
     std::vector<mdlMessageQueue> queueReceive; // Receive "Send/Ssend"
-    mdlMessageQueue *inQueue;
     void *pvMessageData; /* These two are for the collective malloc */
     size_t nMessageData;
     int iCoreMPI;             /* Core that handles MPI requests */
@@ -217,7 +216,6 @@ protected:
     static void *mdlWorkerThread(void *vmdl); // Called by pthread_create with an mdlClass *
     void *WorkerThread();
     void combine_all_incoming();
-    void cleanupMDL();
 
     int DoSomeWork();
     void bookkeeping();
