@@ -88,6 +88,12 @@ typedef struct mdl_wq_node {
 #define MDL_CACHE_DATA_SIZE (512)
 
 class CACHE : public ARC {
+public:
+    enum class Type : uint16_t {
+	NOCACHE = 0,
+	ROCACHE = 1,
+	COCACHE = 2,
+	};
 protected:
     static void *getArrayElement(void *vData,int i,int iDataSize);
 protected:
@@ -101,10 +107,12 @@ public:
 	void * (*getElt)(void *pData,int i,int iDataSize),
 	void *pData,int iDataSize,int nData,
 	void *ctx,void (*init)(void *,void *),void (*combine)(void *,void *,void *));
-public:
+protected:
+    void * (*getElt)(void *pData,int i,int iDataSize);
     void *pData;
-    uint16_t iType;
+    Type iType;
     uint16_t iCID;
+public:
     int iDataSize;
     int nData;
     uint32_t nLineBits;
@@ -116,7 +124,6 @@ public:
     void *ctx;
     void (*init)(void *,void *);
     void (*combine)(void *,void *,void *);
-    void * (*getElt)(void *pData,int i,int iDataSize);
     /*
      ** Statistics stuff.
      */
@@ -126,6 +133,8 @@ public:
 public:
     explicit CACHE(mdlClass * mdl,uint16_t iCID);
     void close();
+    Type getType() {return iType;}
+    void *getElement(int i) {return (*getElt)(pData,i,iDataSize);}
     };
 
 class mdlClass : public mdlBASE {

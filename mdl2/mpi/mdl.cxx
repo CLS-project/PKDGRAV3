@@ -68,10 +68,6 @@ static inline int size_t_to_int(size_t v) {
 #define CAST(T,V) ((T)(V))
 #endif
 
-#define MDL_NOCACHE			0
-#define MDL_ROCACHE			1
-#define MDL_COCACHE			2
-
 #define MDL_DEFAULT_CACHEIDS	32
 
 #define MDL_TRANS_SIZE		5000000
@@ -108,7 +104,7 @@ typedef struct srvHeader {
 \*****************************************************************************/
 
 // A list of cache tables is constructed when mdlClass is created. They are all set to NOCACHE.
-CACHE::CACHE(mdlClass * mdl,uint16_t iCID) : mdl(mdl), iType(MDL_NOCACHE), iCID(iCID) {}
+CACHE::CACHE(mdlClass * mdl,uint16_t iCID) : mdl(mdl), iType(Type::NOCACHE), iCID(iCID) {}
 
 // This opens a read-only cache. Called from a worker outside of MDL
 extern "C"
@@ -213,7 +209,7 @@ void CACHE::initialize(uint32_t cacheSize,
     void *pData,int iDataSize,int nData,
     void *ctx,void (*init)(void *,void *),void (*combine)(void *,void *,void *) ) {
 
-    assert(iType == MDL_NOCACHE);
+    assert(iType == Type::NOCACHE);
 
     this->getElt = getElt==NULL ? getArrayElement : getElt;
     this->pData = pData;
@@ -240,7 +236,7 @@ void CACHE::initialize(uint32_t cacheSize,
 
     /* Read-only or combiner caches */
     assert( init==NULL && combine==NULL || init!=NULL && combine!=NULL );
-    this->iType = (init==NULL ? MDL_ROCACHE : MDL_COCACHE);
+    this->iType = (init==NULL ? Type::ROCACHE : Type::COCACHE);
     this->init = init;
     this->combine = combine;
     this->ctx = ctx;
@@ -248,7 +244,7 @@ void CACHE::initialize(uint32_t cacheSize,
 
 // When we are finished using the cache, it is marked as complete. All elements should have been flushed by now.
 void CACHE::close() {
-    iType = MDL_NOCACHE;
+    iType = Type::NOCACHE;
     }
 
 /*****************************************************************************\
@@ -269,7 +265,7 @@ extern "C"
 void *mdlAcquire(MDL cmdl,int cid,int iIndex,int id) {
     mdlClass *mdl = reinterpret_cast<mdlClass *>(cmdl);
     const int lock = 1;  /* we always lock in acquire */
-    const int modify = (mdl->cache[cid].iType == MDL_COCACHE);
+    const int modify = (mdl->cache[cid].getType() == CACHE::Type::COCACHE);
     const bool virt = false; /* really fetch the element */
     return mdl->Access(cid, iIndex, id, lock, modify, virt);
     }
@@ -291,10 +287,10 @@ void *mdlClass::Access(int cid, uint32_t uIndex, int uId, int bLock,int bModify,
 
     /* Short circuit the cache if this belongs to another thread (or ourselves), and is read-only */
     uint32_t uCore = uId - pmdl[0]->Self();
-    if (uCore < Cores() && c->iType == MDL_ROCACHE ) {
+    if (uCore < Cores() && c->getType() == CACHE::Type::ROCACHE ) {
 	mdlClass * omdl = pmdl[uCore];
 	c = &omdl->cache[cid];
-	return (*c->getElt)(c->pData,uIndex,c->iDataSize);
+	return c->getElement(uIndex);
 	}
 
     // Retreive the element from the ARC cache. If it is not present then the ARC class will
@@ -340,7 +336,7 @@ void mpiClass::CacheReceiveRequest(int count, const CacheHeader *ph) {
     int n = s + c->nLineElements;
     int iLineSize = c->iLineSize;
     for(auto i=s; i<n; i++ ) {
-	char *t = (i<c->nData) ? reinterpret_cast<char *>((*c->getElt)(c->pData,i,c->iDataSize)) : NULL;
+	char *t = (i<c->nData) ? reinterpret_cast<char *>(c->getElement(i)) : NULL;
 	reply->addBuffer(c->iDataSize,t);
 	}
     reply->action(this); // MessageCacheReply()
@@ -408,7 +404,7 @@ void mdlClass::finishCacheRequest(uint32_t uLine, uint32_t uId, int cid, void *d
 	CACHE *oc = &omdl->cache[cid];
 	if ( n > oc->nData ) n = oc->nData;
 	for(i=s; i<n; i++ ) {
-	    memcpy(pData,(*oc->getElt)(oc->pData,i,oc->iDataSize),oc->iDataSize);
+	    memcpy(pData,oc->getElement(i),oc->iDataSize);
 	    pData += oc->iDataSize;
 	    }
 	}
@@ -536,7 +532,7 @@ void mpiClass::CacheReceiveFlush(int count, CacheHeader *ph) {
 	char *pszRcv = (char *)(ph+1);
 	int iCore = ph->idTo - pmdl[0]->Self();
 	CACHE *c = &pmdl[iCore]->cache[ph->cid];
-	assert(c->iType == MDL_COCACHE);
+	assert(c->getType() == CACHE::Type::COCACHE);
 	int iIndex = ph->iLine << c->nLineBits;
 	while(iIndex >= c->nData) {
 	    iIndex -= c->nData;
@@ -582,7 +578,7 @@ void mdlClass::MessageFlushToCore(mdlMessageFlushToCore *pFlush) {
 	int n = s + c->nLineElements;
 	for(int i=s; i<n; i++ ) {
 	    if (i<c->nData)
-		(*c->combine)(c->ctx,(*c->getElt)(c->pData,i,c->iDataSize),pData);
+		(*c->combine)(c->ctx,c->getElement(i),pData);
 	    pData += c->iDataSize;
 	    }
 	count -= sizeof(CacheHeader) + c->iLineSize;
@@ -1920,9 +1916,9 @@ void mdlClass::CacheCheck() {
 int mdlCacheStatus(MDL cmdl,int cid) {
     mdlClass *mdl = reinterpret_cast<mdlClass *>(cmdl);
     assert(cid >= 0);
-    if (cid >= mdl->cache.size()) return MDL_NOCACHE;
+    if (cid >= mdl->cache.size()) return static_cast<int>(CACHE::Type::NOCACHE);
     CACHE *c = &mdl->cache[cid];
-    return c->iType;
+    return static_cast<int>(c->getType());
     }
 
 void mdlRelease(MDL cmdl,int cid,void *p) {
