@@ -234,9 +234,10 @@ private:
     void init(bool bDiag = false);
 
 public:
-    explicit mdlClass(mdlClass *mpi, int iMDL);
-    explicit mdlClass(void (*fcnMaster)(MDL,void *),void * (*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *),
-    	     int argc=0, char **argv=0);
+    explicit mdlClass(class mpiClass *mpi, int iMDL);
+    explicit mdlClass(class mpiClass *mpi,
+		void (*fcnMaster)(MDL,void *),void * (*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *),
+		int argc=0, char **argv=0);
     virtual ~mdlClass();
 
     CACHE *CacheInitialize(int cid,

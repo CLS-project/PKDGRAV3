@@ -681,7 +681,7 @@ void mpiClass::MessageCacheClose(mdlMessageCacheClose *message) {
 \*****************************************************************************/
 
 mpiClass::mpiClass(void (*fcnMaster)(MDL,void *),void * (*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *),int argc, char **argv)
-    : mdlClass(fcnMaster,fcnWorkerInit,fcnWorkerDone,argc,argv) {
+    : mdlClass(this,fcnMaster,fcnWorkerInit,fcnWorkerDone,argc,argv) {
     }
 
 mpiClass::~mpiClass() {
@@ -1037,7 +1037,6 @@ void mpiClass::Launch(int argc,char **argv,void (*fcnMaster)(MDL,void *),void * 
     __itt_string_handle* shMyTask = __itt_string_handle_create("MDL Startup");
     __itt_task_begin(domain, __itt_null, __itt_null, shMyTask);
 #endif
-    mpi = this;
 
 #ifdef _SC_NPROCESSORS_CONF /* from unistd.h */
     nCores = sysconf(_SC_NPROCESSORS_CONF);
@@ -1428,7 +1427,7 @@ void mdlClass::ThreadBarrier(bool bGlobal) {
 	mdlMessageQueue pending;
 	// Wait for all of the above messages, then send them back
 	for(i=1; i<Cores(); ++i) pending.enqueue(waitQueue(threadBarrierQueue));
-	if (bGlobal) enqueueAndWait(mdlMessageBarrierMPI());
+	if (bGlobal && Procs()>1) enqueueAndWait(mdlMessageBarrierMPI());
 	for(i=1; i<Cores(); ++i) waitQueue(pending).sendBack();
 	}
     }
@@ -1492,8 +1491,6 @@ int mdlClass::mdl_MPI_Sendrecv(
     }
 
 void mdlClass::init(bool bDiag) {
-    mpi = NULL;
-
     /*
     ** Our work queue. We can defer work for when we are waiting, or get work
     ** from other threads if we are idle.
@@ -1551,8 +1548,8 @@ void mdlClass::init(bool bDiag) {
 	}
     }
 
-mdlClass::mdlClass(mdlClass *mdl, int iMDL)
-	: mdlBASE(mdl->argc,mdl->argv)  {
+mdlClass::mdlClass(class mpiClass *mdl, int iMDL)
+	: mpi(mdl), mdlBASE(mdl->argc,mdl->argv)  {
     iCore = iMDL;
     idSelf = mdl->Self() + iMDL;
     nThreads = mdl->Threads();
@@ -1568,11 +1565,10 @@ mdlClass::mdlClass(mdlClass *mdl, int iMDL)
     fcnWorkerDone = mdl->fcnWorkerDone;
     fcnMaster = mdl->fcnMaster;
     init();
-    mpi = mdl->mpi;
     }
 
-mdlClass::mdlClass(void (*fcnMaster)(MDL,void *),void * (*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *),int argc, char **argv)
-	: mdlBASE(argc,argv), fcnWorkerInit(fcnWorkerInit), fcnWorkerDone(fcnWorkerDone), fcnMaster(fcnMaster) {
+mdlClass::mdlClass(class mpiClass *mdl, void (*fcnMaster)(MDL,void *),void * (*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *),int argc, char **argv)
+	: mpi(mdl), mdlBASE(argc,argv), fcnWorkerInit(fcnWorkerInit), fcnWorkerDone(fcnWorkerDone), fcnMaster(fcnMaster) {
     init();
     }
 
