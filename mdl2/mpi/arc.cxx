@@ -1,4 +1,8 @@
 #include "arc.h"
+#include <assert.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <algorithm>
 
 static inline uint32_t murmur2(const uint32_t *key, int len) {
     const uint32_t m = 0x5bd1e995;
