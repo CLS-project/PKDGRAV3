@@ -98,9 +98,9 @@ protected:
     static void *getArrayElement(void *vData,int i,int iDataSize);
 protected:
     class mdlClass * const mdl; // MDL is needed for cache operations
-    mdlMessageCacheRequest *cacheRequest;
-    virtual void invokeRequest(uint32_t uLine, uint32_t uId);
-    virtual void finishRequest(uint32_t uLine, uint32_t uId,void *data, bool bVirtual);
+    mdlMessageCacheRequest CacheRequest;
+    virtual void invokeRequest(uint32_t uLine, uint32_t uId, bool bVirtual);
+    virtual void finishRequest(uint32_t uLine, uint32_t uId, bool bVirtual, void *data);
     virtual void destage(CDB &temp);
 public:
     void initialize(uint32_t cacheSize,

@@ -317,8 +317,10 @@ protected:
     void *pLine;
 public:
     virtual void action(class mpiClass *mdl);
-    virtual void finish(class mpiClass *mdl, const MPI_Status &status) {}
-    explicit mdlMessageCacheRequest(uint8_t cid, uint16_t nItems, int32_t idFrom, int32_t idTo, int32_t iLine, void *pLine);
+    virtual void finish(class mpiClass *mdl, const MPI_Status &status);
+    explicit mdlMessageCacheRequest(uint8_t cid, int32_t idFrom);
+    explicit mdlMessageCacheRequest(uint8_t cid, int32_t idFrom, uint16_t nItems, int32_t idTo, int32_t iLine, void *pLine);
+    mdlMessageCacheRequest & makeCacheRequest(uint16_t nItems, int32_t idTo, int32_t iLine, void *pLine);
     };
 
 #endif

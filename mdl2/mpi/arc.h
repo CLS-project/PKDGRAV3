@@ -59,8 +59,8 @@ protected:
     uint32_t hash(uint32_t uLine,uint32_t uId);
 protected:
     virtual void destage(CDB &temp);
-    virtual void invokeRequest(uint32_t uLine, uint32_t uId) = 0;
-    virtual void finishRequest(uint32_t uLine, uint32_t uId, void *data, bool bVirtual) = 0;
+    virtual void invokeRequest(uint32_t uLine, uint32_t uId, bool bVirtual) = 0;
+    virtual void finishRequest(uint32_t uLine, uint32_t uId, bool bVirtual, void *data) = 0;
 public:
     explicit ARC();
     explicit ARC(uint32_t uCacheSizeInBytes,uint32_t uLineSizeInBytes,uint32_t nLineBits=0);

@@ -104,7 +104,7 @@ typedef struct srvHeader {
 \*****************************************************************************/
 
 // A list of cache tables is constructed when mdlClass is created. They are all set to NOCACHE.
-CACHE::CACHE(mdlClass * mdl,uint16_t iCID) : mdl(mdl), iType(Type::NOCACHE), iCID(iCID) {}
+CACHE::CACHE(mdlClass * mdl,uint16_t iCID) : mdl(mdl), iType(Type::NOCACHE), iCID(iCID), CacheRequest(iCID,mdl->Self()) {}
 
 // This opens a read-only cache. Called from a worker outside of MDL
 extern "C"
@@ -299,11 +299,13 @@ void *mdlClass::Access(int cid, uint32_t uIndex, int uId, int bLock,int bModify,
     }
 
 // When we are missing a cache element then we ask the MPI thread to send a request to the remote node
-void CACHE::invokeRequest(uint32_t uLine, uint32_t uId) {
+void CACHE::invokeRequest(uint32_t uLine, uint32_t uId, bool bVirtual) {
+    uint32_t uCore = uId - mdl->mpi->Self();
     ++nMiss;
     mdl->TimeAddComputing();
-    cacheRequest = new mdlMessageCacheRequest(iCID, nLineElements, mdl->Self(), uId, uLine, OneLine.data());
-    mdl->enqueue(*cacheRequest, mdl->queueCacheReply);
+    if (!bVirtual && uCore >= mdl->Cores()) { // Only send a request if non-Virtual and remote
+	mdl->enqueue(CacheRequest.makeCacheRequest(nLineElements, uId, uLine, OneLine.data()), mdl->queueCacheReply);
+	}
     }
 
 // The MPI thread sends this to the remote node. This will not be returned until the reply has been received.
@@ -375,12 +377,9 @@ void mpiClass::CacheReceiveReply(int count, const CacheHeader *ph) {
 
 // Later when we have found an empty cache element, this is called to wait for the result
 // and to copy it into the buffer area.
-void CACHE::finishRequest(uint32_t uLine, uint32_t uId,void *data, bool bVirtual) {
+void CACHE::finishRequest(uint32_t uLine, uint32_t uId, bool bVirtual, void *data) {
     mdl->finishCacheRequest(uLine,uId,iCID,data,bVirtual);
-    if (!bVirtual) {
-    	mdl->TimeAddWaiting();
-    	delete cacheRequest;
-	}
+    mdl->TimeAddWaiting();
     }
 
 void mdlClass::finishCacheRequest(uint32_t uLine, uint32_t uId, int cid, void *data, bool bVirtual) {
@@ -1267,7 +1266,7 @@ void mpiClass::Launch(int argc,char **argv,void (*fcnMaster)(MDL,void *),void * 
 	}
     drainMPI();
 
-
+    pthread_barrier_destroy(&pmdl[0]->barrier);
     for (i = iCoreMPI+1; i < Cores(); ++i) {
 	pthread_join(threadid[i],0);
 	delete pmdl[i];
@@ -1279,7 +1278,6 @@ void mpiClass::Launch(int argc,char **argv,void (*fcnMaster)(MDL,void *),void * 
     freeCacheReplies.clear();
     delete pReqRcv;
 
-    pthread_barrier_destroy(&pmdl[0]->barrier);
     MPI_Barrier(commMDL);
     MPI_Finalize();
     }

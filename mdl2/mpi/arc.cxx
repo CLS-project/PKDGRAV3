@@ -270,11 +270,11 @@ void *ARC::fetch(uint32_t uIndex, int uId, int bLock,int bModify,bool bVirtual) 
 	    inB2=true;
 	    T2.splice(T2.end(),B2,tempX);
 	doBcase:
-	    if (!bVirtual) invokeRequest(uLine,uId); // Request the element be fetched
+	    invokeRequest(uLine,uId,bVirtual); // Request the element be fetched
 	    tempX->data = replace(inB2);                                /* find a place to put new page */
 	    tempX->uId = _T2_|uId;     /* temp->ARC_where = _T2_; and set the dirty bit for this page */
 	    tempX->uPage = uLine;                          /* bookkeep */
-	    finishRequest(uLine,uId,tempX->data,bVirtual);
+	    finishRequest(uLine,uId,bVirtual,tempX->data);
 	    break;
 	    }
 	}
@@ -283,7 +283,7 @@ void *ARC::fetch(uint32_t uIndex, int uId, int bLock,int bModify,bool bVirtual) 
 	/*
 	** Can initiate the data request right here, and do the rest while waiting...
 	*/
-	if (!bVirtual) invokeRequest(uLine,uId);
+	invokeRequest(uLine,uId,bVirtual);
 	auto L1Length = T1.size() + B1.size();
 	if (L1Length == nCache) {                                   /* B1 + T1 full? */
 	    if (T1.size() < nCache) {                                           /* Still room in T1? */
@@ -320,7 +320,7 @@ void *ARC::fetch(uint32_t uIndex, int uId, int bLock,int bModify,bool bVirtual) 
 	tempX = --T1.end();
 	tempX->uId = uId;                  /* temp->dirty = dirty;  p->ARC_where = _T1_; as well! */
 	tempX->uPage = uLine;
-	finishRequest(uLine,uId,tempX->data,bVirtual);
+	finishRequest(uLine,uId,bVirtual,tempX->data);
 	Hash.splice_after(Hash.before_begin(),HashFree,HashFree.before_begin());
 	Hash.front() = tempX;
     }

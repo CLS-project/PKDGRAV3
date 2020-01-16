@@ -179,7 +179,17 @@ mdlMessageSendReply & mdlMessageSendReply::makeReply(int32_t idFrom,int16_t repl
     return *this;
     }
 
-mdlMessageCacheRequest::mdlMessageCacheRequest(uint8_t cid, uint16_t nItems, int32_t idFrom, int32_t idTo, int32_t iLine, void *pLine)
+mdlMessageCacheRequest::mdlMessageCacheRequest(uint8_t cid, int32_t idFrom) 
+    : mdlMessageBufferedMPI(&header,sizeof(header),MPI_BYTE,0,MDL_TAG_CACHECOM), pLine(NULL) {
+    header.cid   = cid;
+    header.mid   = CacheMessageType::REQUEST;
+    header.nItems= 0;
+    header.idFrom= idFrom;
+    header.idTo  = 0;
+    header.iLine = 0;
+    }
+
+mdlMessageCacheRequest::mdlMessageCacheRequest(uint8_t cid, int32_t idFrom, uint16_t nItems, int32_t idTo, int32_t iLine, void *pLine)
     : mdlMessageBufferedMPI(&header,sizeof(header),MPI_BYTE,idTo,MDL_TAG_CACHECOM), pLine(pLine) {
     header.cid   = cid;
     header.mid   = CacheMessageType::REQUEST;
@@ -189,5 +199,16 @@ mdlMessageCacheRequest::mdlMessageCacheRequest(uint8_t cid, uint16_t nItems, int
     header.iLine = iLine;
     }
 
+mdlMessageCacheRequest & mdlMessageCacheRequest::makeCacheRequest(uint16_t nItems, int32_t idTo, int32_t iLine, void *pLine) {
+    header.nItems= nItems;
+    header.idTo  =  idTo;
+    header.iLine = iLine;
+    this->pLine = pLine;
+    return * this;
+    }
 
-
+// Normally, when an MPI request finishes, we send it back to the requesting thread. The process is
+// different for cache requests. We do nothing because the result is actually sent back, not the request.
+// You would think that the "request" MPI send would complete before the response message is received,
+// but this is NOT ALWAYS THE CASE. Care must be take if new/delete is used on this type of message.
+void mdlMessageCacheRequest::finish(class mpiClass *mdl, const MPI_Status &status) {}
