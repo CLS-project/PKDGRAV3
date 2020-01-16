@@ -149,8 +149,6 @@ public:
     void   (*fcnWorkerDone)(MDL mdl, void *ctx);
     void   (*fcnMaster)(    MDL mdl, void *ctx);
 
-    std::vector<pthread_t> threadid;
-    pthread_barrier_t barrier;
     void *worker_ctx;
     mdlMessageQueue threadBarrierQueue;
 
@@ -273,6 +271,7 @@ public:
     mdlMessageQueue queueREGISTER;
 protected:
     MPI_Comm commMDL;             /* Current active communicator */
+    pthread_barrier_t barrier;
 #ifdef USE_CUDA
     void *cudaCtx;
     mdlMessageQueue queueCUDA;
@@ -378,6 +377,7 @@ public:
     void Launch(int argc,char **argv,void (*fcnMaster)(MDL,void *),void * (*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *));
     void enqueue(mdlMessage &M);
     void enqueue(const mdlMessage &M, mdlMessageQueue &replyTo, bool bWait=false);
+    void pthreadBarrierWait();
     };
 #endif
 

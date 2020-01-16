@@ -180,7 +180,7 @@ void mpiClass::FinishCacheReceive(mdlMessageCacheReceive *message, const MPI_Sta
     MPI_Get_count(&status, MPI_BYTE, &count);
 
     /* Well, could be any threads cache */
-    int iCore = ph->idTo - pmdl[0]->Self();
+    int iCore = ph->idTo - Self();
     assert(iCore>=0 && iCore<Cores());
     CACHE *c = &pmdl[iCore]->cache[ph->cid];
 
@@ -286,7 +286,7 @@ void *mdlClass::Access(int cid, uint32_t uIndex, int uId, int bLock,int bModify,
     if (!(++c->nAccess & MDL_CHECK_MASK)) CacheCheck(); // For non-dedicated MPI thread we periodically check for messages
 
     /* Short circuit the cache if this belongs to another thread (or ourselves), and is read-only */
-    uint32_t uCore = uId - pmdl[0]->Self();
+    uint32_t uCore = uId - mpi->Self();
     if (uCore < Cores() && c->getType() == CACHE::Type::ROCACHE ) {
 	mdlClass * omdl = pmdl[uCore];
 	c = &omdl->cache[cid];
@@ -310,7 +310,7 @@ void CACHE::invokeRequest(uint32_t uLine, uint32_t uId, bool bVirtual) {
 
 // The MPI thread sends this to the remote node. This will not be returned until the reply has been received.
 void mpiClass::MessageCacheRequest(mdlMessageCacheRequest *message) {
-    int iCoreFrom = message->header.idFrom - pmdl[0]->Self();
+    int iCoreFrom = message->header.idFrom - Self();
     CacheRequestMessages[iCoreFrom] = message;
     iProc = ThreadToProc(message->header.idTo);
     SendReceiveRequests.emplace_back();
@@ -324,7 +324,7 @@ void mpiClass::MessageCacheRequest(mdlMessageCacheRequest *message) {
 // Instead, one is expected to initialize such data via the "init" function.
 void mpiClass::CacheReceiveRequest(int count, const CacheHeader *ph) {
     assert( count == sizeof(CacheHeader) );
-    int iCore = ph->idTo - pmdl[0]->Self();
+    int iCore = ph->idTo - Self();
     assert(iCore>=0 && iCore<Cores());
     CACHE *c = &pmdl[iCore]->cache[ph->cid];
     int iRankFrom = ThreadToProc(ph->idFrom); /* Can use iRankFrom */
@@ -361,7 +361,7 @@ void mpiClass::FinishCacheReply(mdlMessageCacheReply *pFlush) {
 // On the requesting node, the data is copied back to the request, and the message
 // is queued back to the requesting thread. It will continue with the result.
 void mpiClass::CacheReceiveReply(int count, const CacheHeader *ph) {
-    int iCore = ph->idTo - pmdl[0]->Self();
+    int iCore = ph->idTo - Self();
     assert(iCore>=0 && iCore<Cores());
     CACHE *c = &pmdl[iCore]->cache[ph->cid];
     int iLineSize = c->iLineSize;
@@ -383,7 +383,7 @@ void CACHE::finishRequest(uint32_t uLine, uint32_t uId, bool bVirtual, void *dat
     }
 
 void mdlClass::finishCacheRequest(uint32_t uLine, uint32_t uId, int cid, void *data, bool bVirtual) {
-    int iCore = uId - pmdl[0]->Self();
+    int iCore = uId - mpi->Self();
     CACHE *c = &cache[cid];
     int i,s,n;
     char *pData = reinterpret_cast<char *>(data);
@@ -529,7 +529,7 @@ void mpiClass::CacheReceiveFlush(int count, CacheHeader *ph) {
     while(count>0) {
 	assert(count > sizeof(CacheHeader));
 	char *pszRcv = (char *)(ph+1);
-	int iCore = ph->idTo - pmdl[0]->Self();
+	int iCore = ph->idTo - Self();
 	CACHE *c = &pmdl[iCore]->cache[ph->cid];
 	assert(c->getType() == CACHE::Type::COCACHE);
 	int iIndex = ph->iLine << c->nLineBits;
@@ -686,6 +686,11 @@ mpiClass::mpiClass(void (*fcnMaster)(MDL,void *),void * (*fcnWorkerInit)(MDL),vo
 mpiClass::~mpiClass() {
     }
 
+// While FFTW does its thing we need to wait without spinning. This function does that.
+void mpiClass::pthreadBarrierWait() {
+    pthread_barrier_wait(&barrier);
+    }
+
 /*
 ** Perform a global swap: effectively a specialized in-place alltoallv
 ** - data to be sent starts at "buffer" and send items are contiguous and in order by target
@@ -820,13 +825,13 @@ void mpiClass::MessageGridShare(mdlMessageGridShare *share) {
 // MPI thread: initiate a real to complex transform
 void mpiClass::MessageDFT_R2C(mdlMessageDFT_R2C *message) {
     FFTW3(execute_dft_r2c)(message->fft->fplan,message->data,message->kdata);
-    pthread_barrier_wait(&pmdl[0]->barrier);
+    pthreadBarrierWait();
     }
 
 // MPI thread: initiate a complex to real transform
 void mpiClass::MessageDFT_C2R(mdlMessageDFT_C2R *message) {
     FFTW3(execute_dft_c2r)(message->fft->iplan,message->kdata,message->data);
-    pthread_barrier_wait(&pmdl[0]->barrier);
+    pthreadBarrierWait();
     }
 
 void mpiClass::MessageFFT_Sizes(mdlMessageFFT_Sizes *sizes) {
@@ -1156,7 +1161,6 @@ void mpiClass::Launch(int argc,char **argv,void (*fcnMaster)(MDL,void *),void * 
     assert(pmdl!=NULL);
     pmdl++;
     pmdl[iCoreMPI] = this;
-    threadid.resize(Cores());
 
 #ifdef USE_CL
     void * clContext = CL_create_context();
@@ -1164,7 +1168,6 @@ void mpiClass::Launch(int argc,char **argv,void (*fcnMaster)(MDL,void *),void * 
 
     /* Allocate the other MDL structures for any threads. */
     for (i = iCoreMPI+1; i < Cores(); ++i) {
-	//pmdl[i] = new mdlClass(fcnMaster,fcnWorkerInit,fcnWorkerDone,argc,argv);
 	pmdl[i] = new mdlClass(this,i);
 	}
 
@@ -1220,6 +1223,8 @@ void mpiClass::Launch(int argc,char **argv,void (*fcnMaster)(MDL,void *),void * 
     __itt_thread_set_name("MPI");
 #endif
 
+    std::vector<pthread_t> threadid(Cores());
+
     /* Launch threads: if dedicated MPI thread then launch all worker threads. */
 #ifdef USE_ITT
     __itt_string_handle* shPthreadTask = __itt_string_handle_create("pthread");
@@ -1232,7 +1237,7 @@ void mpiClass::Launch(int argc,char **argv,void (*fcnMaster)(MDL,void *),void * 
 #endif
 	pthread_attr_t attr;
 	pthread_attr_init(&attr);
-	pthread_barrier_init(&pmdl[0]->barrier,NULL,Cores()+(bDedicated?1:0));
+	pthread_barrier_init(&barrier,NULL,Cores()+(bDedicated?1:0));
 	for (i = iCoreMPI+1; i < Cores(); ++i) {
 	    pthread_create(&threadid[i], &attr,
 		mdlWorkerThread,
@@ -1266,7 +1271,7 @@ void mpiClass::Launch(int argc,char **argv,void (*fcnMaster)(MDL,void *),void * 
 	}
     drainMPI();
 
-    pthread_barrier_destroy(&pmdl[0]->barrier);
+    pthread_barrier_destroy(&barrier);
     for (i = iCoreMPI+1; i < Cores(); ++i) {
 	pthread_join(threadid[i],0);
 	delete pmdl[i];
@@ -1423,7 +1428,7 @@ void mdlClass::ThreadBarrier(bool bGlobal) {
     }
 
 void mdlClass::mdl_start_MPI_Ssend(mdlMessageSend &M, mdlMessageQueue &replyTo) {
-    int iCore = M.target - pmdl[0]->Self();
+    int iCore = M.target - mpi->Self();
     int bOnNode = (iCore >= 0 && iCore < Cores());
     if (bOnNode) pmdl[iCore]->queueReceive[Core()].enqueue(M,replyTo);
     else enqueue(M,replyTo);
@@ -1440,7 +1445,7 @@ void mdlClass::mdl_MPI_Ssend(void *buf, int count, MPI_Datatype datatype, int de
 **
 */
 int mdlClass::mdl_MPI_Recv(void *buf, int count, MPI_Datatype datatype, int source, int tag, int *nBytes) {
-    int iCore = source - pmdl[0]->Self();
+    int iCore = source - mpi->Self();
     int bOnNode = (iCore >= 0 && iCore < Cores());
 
     assert(source != Self());
@@ -2147,7 +2152,7 @@ void mdlClass::FFT( MDLFFT fft, FFTW3(real) *data ) {
 	mdlMessageDFT_R2C trans(fft,data,(FFTW3(complex) *)data);
 	enqueue(trans);
 	}
-    if (Cores()>1) pthread_barrier_wait(&pmdl[0]->barrier);
+    if (Cores()>1) mpi->pthreadBarrierWait();
     }
 
 void mdlIFFT( MDL cmdl, MDLFFT fft, FFTW3(complex) *kdata ) { reinterpret_cast<mdlClass *>(cmdl)->IFFT(fft,kdata); }
@@ -2163,7 +2168,7 @@ void mdlClass::IFFT( MDLFFT fft, FFTW3(complex) *kdata ) {
 	mdlMessageDFT_C2R trans(fft,(FFTW3(real) *)kdata,kdata);
 	enqueue(trans);
 	}
-    if (Cores()>1) pthread_barrier_wait(&pmdl[0]->barrier);
+    if (Cores()>1) mpi->pthreadBarrierWait();
     }
 #endif
 
