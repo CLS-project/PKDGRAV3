@@ -50,7 +50,7 @@ void mdlMessage::sendBack() {
 
 FlushBuffer::FlushBuffer(uint32_t nSize,CacheMessageType mid) : nBuffer(0),Buffer(nSize),mid(mid) {}
 
-bool FlushBuffer::addBuffer(int nSize, char *pData) {
+bool FlushBuffer::addBuffer(int nSize, const char *pData) {
     if (nBuffer+nSize > Buffer.size()) return false;
     if (pData) memcpy(&Buffer[nBuffer],pData,nSize);
     else memset(&Buffer[nBuffer],0,nSize);

@@ -428,12 +428,12 @@ void mdlClass::finishCacheRequest(uint32_t uLine, uint32_t uId, int cid, void *d
 
 // When we need to evict an element (especially at the end) this routine is called by the ARC cache.
 void CACHE::destage(CDB &temp) {
-    assert(temp.data != NULL);
+    assert(temp.getData() != NULL);
 
     if (temp.dirty()) {     /* if dirty, evict before free */
 	if (!mdl->coreFlushBuffer->canBuffer(iLineSize)) mdl->flush_core_buffer();
-	mdl->coreFlushBuffer->addBuffer(iCID,mdlSelf(mdl),temp.uId&_IDMASK_,temp.uPage,iLineSize,(char *)temp.data);
-	temp.uId &= ~ _DIRTY_;    /* No longer dirty */
+	mdl->coreFlushBuffer->addBuffer(iCID,mdlSelf(mdl),temp.getId(),temp.getPage(),iLineSize,temp.getData());
+	temp.setClean();    /* No longer dirty */
 	}
     }
 

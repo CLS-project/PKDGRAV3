@@ -26,14 +26,21 @@ protected:
 
     class CDB {
 	friend class ARC;
-    public:
+    protected:
 	uint64_t *data; /* page's location in cache */
 	uint32_t uId;   /* upper 4 bits encode ARC_where and dirty bit */
 	uint32_t uPage; /* page's ID number */
     public:
 	explicit CDB(uint64_t *data=0);
-	bool dirty();
+	uint32_t where() const {return uId & _WHERE_;}
+	uint32_t getId() const {return uId&_IDMASK_;}
+	uint32_t getPage() const {return uPage;}
+	const char *getData() const  {return reinterpret_cast<char*>(data);}
+	bool dirty() {return (uId& _DIRTY_) != 0;}
+	void setDirty() {uId |= _DIRTY_;}
+	void setClean() {uId &= ~ _DIRTY_;}
     };
+private:
     typedef std::list<CDB> CDBL;
     typedef std::forward_list<CDBL::iterator> CDBIL; // Memory efficient linked-list
 private:
@@ -52,7 +59,7 @@ private:
     uint32_t uLineSizeInWords;
     uint32_t uLineSizeInBytes;
     uint32_t uDataSizeInBytes;
-protected:
+private:
     std::list<CDB>::iterator remove_from_hash(const std::list<CDB>::iterator p);
     std::list<CDB>::iterator remove_from_hash(std::list<CDB> &list);
     uint64_t *replace(bool iInB2=false);

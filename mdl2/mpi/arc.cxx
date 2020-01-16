@@ -140,15 +140,13 @@ void ARC::release(void *vp) {
 
 ARC::CDB::CDB(uint64_t *data) : uId(0xdeadbeef), data(data) {}
 
-bool ARC::CDB::dirty() { return (uId& _DIRTY_) != 0; }
-
 uint32_t ARC::hash(uint32_t uLine,uint32_t uId) {
     return MurmurHash2(uLine,uId) & uHashMask;
     }
 
 // Remove the CDB entry (given by a list iterator) from the hash table
 ARC::CDBL::iterator ARC::remove_from_hash(const CDBL::iterator p) {
-    uint32_t uHash = hash(p->uPage,p->uId&_IDMASK_);
+    uint32_t uHash = hash(p->uPage,p->getId());
     auto & Hash = HashChains[uHash];
     assert(!Hash.empty());
     // Move the matching hash table entry to the start of the collision chain, then move it to the free list
@@ -189,7 +187,7 @@ uint64_t *ARC::replace(bool bInB2) {
 	destage(*tempX);     /* if dirty, evict before overwrite */
 	data = tempX->data;
 	tempX->data = NULL; /*GHOST*/
-	tempX->uId = (tempX->uId&_IDMASK_)|_B1_;  /* need to be careful here because it could have been _P1_ */
+	tempX->uId = (tempX->getId())|_B1_;  /* need to be careful here because it could have been _P1_ */
 	B1.splice(B1.end(),T1,tempX); // Move element from T1 to B1
 	}
     if (0) {
@@ -224,11 +222,11 @@ void *ARC::fetch(uint32_t uIndex, int uId, int bLock,int bModify,bool bVirtual) 
     auto uHash = hash(uLine,tuId);
     CDBL::iterator tempX;
     auto &Hash = HashChains[uHash];
-    auto iskey = [&](CDBL::iterator &i) {return i->uPage == uLine && (i->uId&_IDMASK_) == tuId;};
+    auto iskey = [&](CDBL::iterator &i) {return i->uPage == uLine && (i->getId()) == tuId;};
     auto match = std::find_if(Hash.begin(),Hash.end(),iskey);
     if (match != Hash.end()) {                       /* found in cache directory? */
 	tempX = *match;
-	switch (tempX->uId & _WHERE_) {                   /* yes, which list? */
+	switch (tempX->where()) {                   /* yes, which list? */
 	case _P1_:
 	    tempX->uId = uId;     /* clears prefetch flag and sets WHERE = _T1_ (zero) and dirty bit */
 	    T1.splice(T1.end(),T1,tempX);
@@ -333,7 +331,7 @@ void *ARC::fetch(uint32_t uIndex, int uId, int bLock,int bModify,bool bVirtual) 
 	++tempX->data[-1];       /* increase lock count */
     }
     /* If we will modify the element, then it must eventually be flushed. */
-    if (bModify) tempX->uId |= _DIRTY_;
+    if (bModify) tempX->setDirty();
 
     return reinterpret_cast<char*>(tempX->data) + uDataSizeInBytes*iInLine;
     }
