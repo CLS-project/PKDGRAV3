@@ -268,7 +268,7 @@ inline i32v cvt_i32v(const fvec &a) { return i32v(_mm_cvtps_epi32(a)); }
 inline fvec cvt_fvec(const i32v &a) { return fvec(_mm_cvtepi32_ps(a)); }
 inline fvec cvt_fvec(const dvec &a) { return fvec(_mm_cvtpd_ps(a)); }
 inline fvec cast_fvec(const i32v &a) { return fvec(_mm_castsi128_ps(a)); }
-inline dvec cast_fvec(const i64v &a) { return dvec(_mm_castsi128_pd(a)); }
+inline dvec cast_dvec(const i64v &a) { return dvec(_mm_castsi128_pd(a)); }
 #endif/*__SSE2__*/
 #else/*__AVX512F__,__AVX__,__SSE2__*/
 typedef vec<int32_t,int32_t> i32v;
@@ -278,7 +278,7 @@ typedef mmask<bool> fmask;
 typedef mmask<bool> dmask;
 inline i32v cvt_i32v(const fvec &a) { return i32v((int32_t)a); }
 inline fvec cvt_fvec(const i32v &a) { return fvec((float)a); }
-inline fvec cvt_fvec(const dvec &a) { return fvec((float)a); }
+inline fvec cvt_dvec(const dvec &a) { return fvec((float)a); }
 #endif/*__AVX512F__,__AVX__,__SSE2__*/
 
 /**********************************************************************\
@@ -723,6 +723,7 @@ template<> inline vec<__m128i,int32_t>::vec(const int32_t &d) { ymm = _mm_set1_e
 template<> inline vec<__m128i,int32_t> & vec<__m128i,int32_t>::zero() { ymm = _mm_setzero_si128(); return *this; }
 template<> inline vec<__m128i,int32_t> & vec<__m128i,int32_t>::load1(int32_t f) { ymm = _mm_setr_epi32(f,0,0,0); return *this; }
 template<> inline vec<__m128i,int32_t> & vec<__m128i,int32_t>::load(const int32_t *pf) { ymm = _mm_loadu_si128((__m128i*)pf); return *this; }
+template<> inline vec<__m128i,int64_t> & vec<__m128i,int64_t>::load(const int64_t *pf) { ymm = _mm_loadu_si128((__m128i*)pf); return *this; }
 template<> inline const vec<__m128i,int32_t> & vec<__m128i,int32_t>::store(int32_t *pf) const { _mm_storeu_si128((__m128i*)pf,ymm); return *this; }
 template<> inline const vec<__m128i,int32_t> vec<__m128i,int32_t>::sign_mask() { return _mm_set1_epi32(0x80000000); }
 #ifdef __SSE2__
@@ -741,14 +742,14 @@ inline vec<__m128i,int32_t> mask_mov(vec<__m128i,int32_t> const &src,vec<__m128i
 #else
     return _mm_or_ps(_mm_and_ps(_mm_castsi128_ps(p),_mm_castsi128_ps(a)),_mm_andnot_ps(_mm_castsi128_ps(p),_mm_castsi128_ps(src)));
 #endif
-
+    }
 inline vec<__m128i,int32_t> mask_mov(vec<__m128i,int32_t> const &src,vec<__m128,float> const &p,vec<__m128i,int32_t> const &a) {
 #ifdef __SSE4_1__
     return _mm_blendv_epi8(src,a,_mm_castps_si128(p));
 #else
     return _mm_or_ps(_mm_and_ps(p,_mm_castsi128_ps(a)),_mm_andnot_ps(p,_mm_castsi128_ps(src)));
 #endif
-
+    }
 
 #if defined(__SSE2__)
 /**********************************************************************\
