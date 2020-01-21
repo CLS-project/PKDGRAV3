@@ -36,7 +36,8 @@ protected:
 	uint32_t getId() const {return uId&_IDMASK_;}
 	uint32_t getPage() const {return uPage;}
 	const char *getData() const  {return reinterpret_cast<char*>(data);}
-	bool dirty() {return (uId& _DIRTY_) != 0;}
+	bool dirty() {return (uId& _DIRTY_) != 0;}  // Data has been modified (P1,T1,T2)
+	bool absent() {return (uId& _DIRTY_) != 0;} // Data is absent on remote (B1,B2)
 	void setDirty() {uId |= _DIRTY_;}
 	void setClean() {uId &= ~ _DIRTY_;}
     };
@@ -74,6 +75,7 @@ public:
     virtual ~ARC();
     void initialize(uint32_t uCacheSizeInBytes,uint32_t uLineSizeInBytes,uint32_t nLineBits=0);
     void *fetch(uint32_t uIndex, int uId, int bLock,int bModify,bool bVirtual);
+    void lock(void *p);
     void release(void *p);
     void RemoveAll();
     };

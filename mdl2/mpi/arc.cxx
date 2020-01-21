@@ -127,6 +127,15 @@ void ARC::initialize(uint32_t uCacheSizeInBytes,uint32_t uLineSizeInBytes,uint32
 ARC::~ARC() {
     }
 
+void ARC::lock(void *vp) {
+    uint64_t *p = reinterpret_cast<uint64_t*>(vp);
+    if (p>&dataBase.front() && p<=&dataBase.back()) { // Might have been a fast, read-only grab. If so ignore it.
+	/* We will be given an element, but this needs to be turned into a cache line */
+	p = &dataBase[(p - &dataBase.front()) / (uLineSizeInWords+1) * (uLineSizeInWords+1) + 1];
+	++p[-1]; // Increment the lock count
+	}
+    }
+
 void ARC::release(void *vp) {
     uint64_t *p = reinterpret_cast<uint64_t*>(vp);
     if (p>&dataBase.front() && p<=&dataBase.back()) { // Might have been a fast, read-only grab. If so ignore it.
@@ -252,6 +261,10 @@ void *ARC::fetch(uint32_t uIndex, int uId, int bLock,int bModify,bool bVirtual) 
 	    */
 	    return reinterpret_cast<char*>(tempX->data) + uDataSizeInBytes*iInLine;
 	case _B1_:                            /* B1 hit: favor recency */
+	    if (tempX->absent()) { // We return "not found" (NULL)
+		B2.splice(B2.end(),B1,tempX);
+		return NULL;
+		}
 	    rat = B2.size()/B1.size();
 	    if (rat < 1) rat = 1;
 	    target_T1 += rat;
@@ -260,6 +273,10 @@ void *ARC::fetch(uint32_t uIndex, int uId, int bLock,int bModify,bool bVirtual) 
 	    T2.splice(T2.end(),B1,tempX);
 	    goto doBcase;
 	case _B2_:                            /* B2 hit: favor frequency */
+	    if (tempX->absent()) { // We return "not found" (NULL)
+		B2.splice(B2.end(),B2,tempX);
+		return NULL;
+		}
 	    rat = B1.size()/B2.size();
 	    if (rat < 1) rat = 1;
 	    if (rat > target_T1) target_T1 = 0;
