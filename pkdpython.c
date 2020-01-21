@@ -344,7 +344,7 @@ ppy_msr_Hop(PyObject *self, PyObject *args, PyObject *kwobj) {
 	     args, kwobj, "|d:Hop", kwlist,
 	     &dTime ) )
 	return NULL;
-    dExp = csmTime2Exp(ppy_msr->param.csm,dTime);
+    dExp = csmTime2Exp(ppy_msr->csm,dTime);
     msrHop(ppy_msr,dExp);
     Py_INCREF(Py_None);
     return Py_None;
@@ -405,7 +405,7 @@ ppy_msr_AdjustTime(PyObject *self, PyObject *args, PyObject *kwobj) {
     ppy2prm();
     if (!ppy_get_dTime(&dTime))
 	return NULL;
-    aOld = csmTime2Exp(ppy_msr->param.csm,dTime);
+    aOld = csmTime2Exp(ppy_msr->csm,dTime);
 
     if ( !PyArg_ParseTupleAndKeywords(
 	     args, kwobj, "d:AdjustTime", kwlist,
@@ -458,8 +458,10 @@ ppy_msr_MeasurePk(PyObject *self, PyObject *args, PyObject *kwobj) {
     static char *kwlist[]={"nGrid","x","y","z","r",NULL};
     double dCenter[3] = {0.0,0.0,0.0};
     double dRadius = 0.5;
+    double a;
     int nGrid, iNyquist, i;
-    float *fK,*fPk;
+    float *fK,*fPk,*fPkAll;
+    uint64_t *nPk;
     PyObject *List, *value;
 
     ppy2prm();
@@ -470,10 +472,16 @@ ppy_msr_MeasurePk(PyObject *self, PyObject *args, PyObject *kwobj) {
 	return NULL;
     iNyquist = nGrid/2;
 
+    a = 1.0;
+//    if (!ppy_msr->csm->val.bComove) a = 1.0;
+//    else a = csmTime2Exp(ppy_msr->csm,dTime);
 
     fPk = malloc(sizeof(float)*(iNyquist+1));
+    nPk = malloc(sizeof(uint64_t)*(iNyquist+1));
     fK = malloc(sizeof(float)*(iNyquist+1));
-    msrMeasurePk(ppy_msr,4,1,nGrid,nGrid/2,NULL,fK,fPk);
+    fPkAll = malloc(sizeof(float)*(iNyquist+1));
+
+    msrMeasurePk(ppy_msr,4,1,nGrid,a,nGrid/2,nPk,fK,fPk,fPkAll);
 
     List = PyList_New( iNyquist+1 );
     assert( List !=NULL );
@@ -484,6 +492,8 @@ ppy_msr_MeasurePk(PyObject *self, PyObject *args, PyObject *kwobj) {
 	}
     free(fK);
     free(fPk);
+    free(nPk);
+    free(fPkAll);
 
     return List;
 }
@@ -560,7 +570,8 @@ ppy_msr_Load(PyObject *self, PyObject *args, PyObject *kwobj) {
     case IN_TIPSY_DBL:
     case IN_TIPSY_NAT:
 	dTime = msrRead(ppy_msr,fname);
-	msrInitStep(ppy_msr);
+	msrSetParameters(ppy_msr);
+	msrInitCosmology(ppy_msr);
 	dict = PyModule_GetDict(global_ppy->module);
 	PyDict_SetItemString(dict, "dTime", Py_BuildValue("d",dTime));
 	break;
@@ -941,7 +952,7 @@ void ppyFinish(PPY vppy) {
     global_ppy = NULL;
     }
 
-void ppyRunScript(PPY vppy,int argc, char *argv[]) {
+void ppyRunScript(PPY vppy,int argc, const char *argv[]) {
     ppyCtx *ppy = (ppyCtx *)vppy;
     FILE *fp;
     PyObject *dict, *globals;

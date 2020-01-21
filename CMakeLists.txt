@@ -35,7 +35,7 @@ find_package(CUDA)
 find_package(GSL REQUIRED)      # GNU Scientific Library
 find_package(HDF5 COMPONENTS C HL)
 find_package(FFTW REQUIRED)
-#find_package(PythonLibs)
+find_package(PythonLibs)
 # _GNU_SOURCE gives us more options
 INCLUDE(CheckCSourceCompiles)
 check_c_source_compiles("
@@ -133,7 +133,6 @@ target_sources(${PROJECT_NAME} PRIVATE
 	walk2.c grav2.c ewald.cxx ic.cxx tree.cxx opening.cxx pp.cxx pc.cxx cl.c
 	lst.c moments.c ilp.c ilc.c iomodule.c
 	fof.c hop.c group.c groupstats.c RngStream.c listcomp.c healpix.c
-	tinypy.c pkdtinypy.c
 	gridinfo.cxx assignmass.cxx measurepk.cxx whitenoise.cxx pmforces.cxx
 )
 add_executable(tostd tostd.c fio.c)
@@ -191,6 +190,8 @@ if (PYTHONLIBS_FOUND)
   target_include_directories(${PROJECT_NAME} PUBLIC ${PYTHON_INCLUDE_DIRS})
   target_link_libraries(${PROJECT_NAME} ${PYTHON_LIBRARIES})
   target_sources(${PROJECT_NAME} PRIVATE pkdpython.c)
+else()
+  target_sources(${PROJECT_NAME} PRIVATE tinypy.c pkdtinypy.c)
 endif(PYTHONLIBS_FOUND)
 
 #if USE_SIMD

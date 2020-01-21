@@ -20,6 +20,9 @@
 #else
 #include "pkd_config.h"
 #endif
+#ifdef USE_PYTHON
+#include <Python.h>
+#endif
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -184,6 +187,90 @@ void prmSave(PRM prm, FIO fio) {
 	}
     }
 
+#ifdef USE_PYTHON
+static void setNode(PRM_NODE *pn,int i,PyObject *v) {
+    const char *s;
+    switch(pn->iType) {
+    case 0:
+    case 1:
+	assert(pn->iSize == sizeof(int));
+#if PY_MAJOR_VERSION >= 3
+	if (PyLong_Check(v)) ((int *)pn->pValue)[i] = PyLong_AsLong(v);
+#else
+	if (PyInt_Check(v)) ((int *)pn->pValue)[i] = PyInt_AsLong(v);
+#endif		
+	else if (PyFloat_Check(v)) ((int *)pn->pValue)[i] = (int)PyFloat_AsDouble(v);
+	else fprintf(stderr,"Invalid type for %s\n",pn->pszName);
+	break;
+    case 2:
+	assert(pn->iSize == sizeof(double));
+	if (PyFloat_Check(v)) ((double *)pn->pValue)[i] = PyFloat_AsDouble(v);
+#if PY_MAJOR_VERSION >= 3
+	else if (PyLong_Check(v)) ((double *)pn->pValue)[i] = PyLong_AsLong(v);
+#else
+	else if (PyInt_Check(v)) ((double *)pn->pValue)[i] = PyInt_AsLong(v);
+#endif		
+	else fprintf(stderr,"Invalid type for %s\n",pn->pszName);
+	break;
+    case 3:
+#if PY_MAJOR_VERSION >= 3
+	if (PyUnicode_Check(v)) {
+	    PyObject *ascii = PyUnicode_AsASCIIString(v);
+	    s = PyBytes_AsString(ascii);
+	    Py_DECREF(ascii);
+	    }
+#else 
+	if (PyString_Check(v)) s = PyString_AsString(v);
+#endif
+	else {
+	    fprintf(stderr,"Invalid type for %s\n",pn->pszName);
+	    s = NULL;
+	    }
+	if (s!=NULL) {
+	    assert(pn->iSize > strlen(s));
+	    strcpy((char *)pn->pValue,s);
+	    }
+	else *(char *)pn->pValue = 0;
+	break;
+    case 4:
+	assert(pn->iSize == sizeof(uint64_t));
+#if PY_MAJOR_VERSION >= 3
+	((uint64_t *)pn->pValue)[i] = PyLong_AsLong(v);
+#else
+	((uint64_t *)pn->pValue)[i] = PyInt_AsLong(v);
+#endif
+	break;
+	}
+    }
+
+/* Copy parameters from python dictionary back into parameters. */
+static int ppy2prm(PRM prm,PyObject *global) {
+    PyObject *v;
+    PRM_NODE *pn;
+    int bOK = 1;
+
+    for( pn=prm->pnHead; pn!=NULL; pn=pn->pnNext ) {
+	v = PyDict_GetItemString(global, pn->pszName);
+	if (v!=NULL) {
+	    if (v == Py_None) continue;
+	    pn->bArg = 1;
+	    if (PyList_Check(v)) {
+		if (pn->pCount==NULL) {
+	            fprintf(stderr,"The parameter %s cannot be a list!\n",pn->pszName);
+	            bOK = 0;
+		    }
+		else {
+		    int i, n = PyList_Size(v);
+		    for(i=0; i<n; ++i) setNode(pn,i,PyList_GetItem(v,i));
+		    *pn->pCount = n;
+		    }
+		}
+	    else setNode(pn,0,v);
+	    }
+	}
+    return bOK;
+    }
+#else
 /*
 ** If there was a parameter file specified, then parse it the "old"
 ** way without using python.  We keep this around in case python is
@@ -224,6 +311,7 @@ static int setNode(PRM_NODE *pn,int i,tp_obj o) {
 	}
     return 1;
     }
+#endif
 
 int prmParseParam(PRM prm,void *msr) {
     FILE *fpParam;
@@ -232,9 +320,45 @@ int prmParseParam(PRM prm,void *msr) {
     char *p,*q,*pszCmd,t;
     int iLine,ret;
     int bWarnQuote=0;
+    extern void prm2ppy();
 
     if (prm->pszFilename==NULL) return(1);
+    prm->script_argv[0] = prm->pszFilename;
 
+#ifdef USE_PYTHON
+    Py_Initialize();
+    PyObject *mainModule = PyImport_AddModule("__main__"); 
+
+    FILE *fp;
+    PyObject *globals;
+#if PY_MAJOR_VERSION > 2
+    wchar_t **wargv;
+    int i;
+    wargv = malloc(sizeof(*wargv)*prm->script_argc);
+    for(i=0; i<prm->script_argc; ++i) wargv[i] = Py_DecodeLocale(prm->script_argv[i],NULL);
+#endif
+    assert(Py_IsInitialized());
+    assert(prm->script_argc>0);
+
+    globals = PyDict_New();
+    PyDict_SetItemString(globals, "__builtins__", PyEval_GetBuiltins());
+
+#if PY_MAJOR_VERSION > 2
+    PySys_SetArgv(prm->script_argc, wargv);
+#else
+    PySys_SetArgv(prm->script_argc, prm->script_argv);
+#endif
+    fp = fopen(prm->script_argv[0],"r");
+
+    PyRun_SimpleFile(fp,prm->script_argv[0]);
+    fclose(fp);
+
+#if PY_MAJOR_VERSION > 2
+    for(i=0; i<prm->script_argc; ++i) PyMem_RawFree(wargv[i]);
+    free(wargv);
+#endif
+    return ppy2prm(prm,PyModule_GetDict(mainModule));
+#else
     tp_vm *tp = tp_init(0, NULL);
     tpyInitialize(tp,msr);
 
@@ -280,6 +404,7 @@ int prmParseParam(PRM prm,void *msr) {
 
     tp_deinit(tp);
     return bOK;
+#endif
     }
 
 int prmArgProc(PRM prm,int argc,char **argv) {
