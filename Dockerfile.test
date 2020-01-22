@@ -1,9 +1,0 @@
-FROM ubuntu:18.04
-MAINTAINER Douglas Potter "douglas.potter@uzh.ch"
-
-ENV TZ=Europe/Zurich
-RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
-RUN apt-get update
-RUN apt-get install -y git gcc make cmake openmpi-bin libopenmpi-dev libgsl0-dev libhdf5-dev autoconf libfftw3-dev libfftw3-mpi-dev python3-pandas
-RUN apt-get autoremove
-RUN apt-get clean

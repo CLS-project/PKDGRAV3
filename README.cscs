@@ -1,0 +1,74 @@
+Support for CSCS (https://www.cscs.ch/) is regularily tested.
+You can compile the code yourself, or run it in a container.
+
+1. Compile yourself
+
+  1.1 Obtain the source code
+
+	git clone --depth=1 --branch master https://bitbucket.org/dpotter/pkdgrav3.git
+
+  1.2 Prepare for compilation
+
+    1.2.1 Multi-core partition
+
+	module load daint-mc cray-hdf5 GSL cray-fftw
+
+    1.2.2 GPU partition
+
+	module load daint-gpu cudatoolkit cray-hdf5 GSL cray-fftw
+
+  1.3 Compile the code
+
+	cd pkdgrav3 && mkdir build && cd build
+	cmake .. && make
+
+  1.4 Run the code
+
+    1.4.1 Sample job script for multi-core partition
+
+	#!/bin/bash -l
+	#SBATCH -p debug -t 0:10:00 -A uzh4 -C gpu
+	#SBATCH -N 4 -c 36 --ntasks-per-node=1 --ntasks-per-core=1
+	module load daint-mc GSL cray-fftw
+	srun $HOME/pkdgrav3/build/pkdgrav3 cosmology.par
+
+    1.4.2 Sample job script for GPU partition
+
+	#!/bin/bash -l
+	#SBATCH -p debug -t 0:10:00 -A uzg3 -C gpu
+	#SBATCH -N 4 -c 12 --ntasks-per-node=1 --ntasks-per-core=1
+	module load daint-gpu cudatoolkit cray-hdf5 GSL cray-fftw
+	srun $HOME/pkdgrav3/build/pkdgrav3 cosmology.par
+
+2. Run using a Container (Sarus)
+
+  2.1 Pull the image
+
+	sarus pull dpotter/pkdgrav3:3.0.4-haswell
+
+  2.2 Run the code
+
+   2.2.1 Sample job script for multi-core partition
+
+        #!/bin/bash -l
+        #SBATCH -p debug -t 0:10:00 -A uzh4 -C gpu
+        #SBATCH -N 4 -c 36 --ntasks-per-node=1 --ntasks-per-core=1
+        module load daint-mc sarus
+	srun sarus run --mpi\
+	 --mount=type=bind,source=$SCRATCH,destination=$SCRATCH\
+	 --mount=type=bind,source=$HOME,destination=$HOME\
+	 --mount=type=bind,source=$PWD,destination=/pkdgrav3\
+	 dpotter/pkdgrav3:3.0.4-haswell cosmology.par
+
+    2.2.2 Sample job script for GPU partition
+
+        #!/bin/bash -l
+        #SBATCH -p debug -t 0:10:00 -A uzg3 -C gpu
+        #SBATCH -N 4 -c 12 --ntasks-per-node=1 --ntasks-per-core=1
+        module load daint-gpu sarus
+
+	srun sarus run --mpi\
+	 --mount=type=bind,source=$SCRATCH,destination=$SCRATCH\
+	 --mount=type=bind,source=$HOME,destination=$HOME\
+	 --mount=type=bind,source=$PWD,destination=/pkdgrav3\
+	 dpotter/pkdgrav3:3.0.4-haswell cosmology.par

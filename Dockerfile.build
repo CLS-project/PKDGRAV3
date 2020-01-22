@@ -1,0 +1,18 @@
+# Create the build/test image for pkdgrav3.
+# docker image build -t dpotter/pkdgrav3-build:latest - <Dockerfile.build
+FROM nvidia/cuda:10.1-devel-ubuntu18.04 as pkdgrav3-build-mpich
+LABEL maintainer="douglas.potter@uzh.ch"
+ARG MPICH_VERSION=3.2.1
+ARG FFTW_VERSION=3.3.8
+RUN apt-get update && apt-get install -y autoconf automake pkg-config cmake gcc g++ make gfortran wget git libgsl0-dev libhdf5-dev libmemkind-dev libhwloc-dev && apt-get clean all
+RUN mkdir /build
+RUN cd /build && wget http://www.mpich.org/static/downloads/${MPICH_VERSION}/mpich-${MPICH_VERSION}.tar.gz\
+  && tar xvzf mpich-${MPICH_VERSION}.tar.gz && cd /build/mpich-${MPICH_VERSION} \
+  && ./configure && make && make install && make clean && rm -rf /build/mpich-${MPICH_VERSION}.tar.gz /build/mpich-${MPICH_VERSION}
+RUN cd /build && wget http://www.fftw.org/fftw-${FFTW_VERSION}.tar.gz\
+  && tar xvzf fftw-${FFTW_VERSION}.tar.gz && cd /build/fftw-${FFTW_VERSION} \
+  && ./configure --enable-float --enable-mpi --enable-threads\
+  && make && make install && make clean && rm -rf /build/fftw-${FFTW_VERSION}.tar.gz /build/fftw-${FFTW_VERSION}
+RUN apt-get install -y libpython3.6-dev && apt-get clean all
+WORKDIR /build
+ENTRYPOINT /bin/bash
