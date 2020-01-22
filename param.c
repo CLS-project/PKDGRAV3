@@ -349,6 +349,7 @@ int prmParseParam(PRM prm,void *msr) {
     PySys_SetArgv(prm->script_argc, prm->script_argv);
 #endif
     fp = fopen(prm->script_argv[0],"r");
+    if (fp==NULL) {perror(prm->script_argv[0]); abort();}
 
     PyRun_SimpleFile(fp,prm->script_argv[0]);
     fclose(fp);
