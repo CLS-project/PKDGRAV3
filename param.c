@@ -250,6 +250,7 @@ static int ppy2prm(PRM prm,PyObject *global) {
     int bOK = 1;
 
     for( pn=prm->pnHead; pn!=NULL; pn=pn->pnNext ) {
+    	if (pn->bArg) continue; /* Command line override */
 	v = PyDict_GetItemString(global, pn->pszName);
 	if (v!=NULL) {
 	    if (v == Py_None) continue;
