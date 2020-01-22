@@ -35,7 +35,7 @@ find_package(CUDA)
 find_package(GSL REQUIRED)      # GNU Scientific Library
 find_package(HDF5 COMPONENTS C HL)
 find_package(FFTW REQUIRED)
-find_package(PythonLibs)
+find_package(PythonLibs 3 REQUIRED)
 # _GNU_SOURCE gives us more options
 INCLUDE(CheckCSourceCompiles)
 check_c_source_compiles("
