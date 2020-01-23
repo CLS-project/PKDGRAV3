@@ -325,7 +325,9 @@ ppy_msr_Gravity(PyObject *self, PyObject *args, PyObject *kwobj) {
 	     args, kwobj, "|idi:Gravity", kwlist,
 	     &iRung, &dTime, &bEwald ) )
 	return NULL;
-    msrGravity(ppy_msr,iRung,MAX_RUNG,ROOT,0,dTime,ppy_msr->param.iStartStep,0,0,bEwald,ppy_msr->param.nGroup,&iSec,&nActive);
+    msrGravity(ppy_msr,iRung,MAX_RUNG,ROOT,0,dTime,ppy_msr->param.iStartStep,0,0,
+    	bEwald,ppy_msr->param.bGravStep,ppy_msr->param.nPartRhoLoc,ppy_msr->param.iTimeStepCrit,
+    	ppy_msr->param.nGroup,&iSec,&nActive);
 
     Py_INCREF(Py_None);
     return Py_None;

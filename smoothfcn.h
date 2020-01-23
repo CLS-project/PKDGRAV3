@@ -21,14 +21,12 @@
 #include "pkd.h"
 
 typedef struct smfParameters {
+    int iMaxRung;
     int bComove;
     double dTime;
     double H;
     double a;
     double dDeltaT;
-#ifdef SYMBA
-    double dSunMass;
-#endif
     double dTau2;
     double dVTau2;
     int bTauAbs;
@@ -198,11 +196,6 @@ void combGroupBins(void *,void *b1, void *b2);
 
 #define SMX_RELAXATION		26
 void AddRelaxation(PARTICLE *,float fBall,int,NN *,SMF *);
-
-#ifdef SYMBA
-#define SMX_SYMBA               27
-void DrmininDrift(PARTICLE *,float fBall,int,NN *,SMF *);
-#endif
 
 #define SMX_DENSITY_F1          28
 void DensityF1(PARTICLE *,float fBall,int,NN *,SMF *);

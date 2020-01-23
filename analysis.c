@@ -191,7 +191,7 @@ static void initShapesBins1(void *vpkd, void *b) {
 ** reference point.  If a periodic boundary is in effect then the smallest
 ** possible distance is returned.
 */
-double pkdGetDistance2(PKD pkd,PARTICLE *p, const double *dCenter ) {
+double pkdGetDistance2(PKD pkd,PARTICLE *p, const double *dCenter, int bPeriodic ) {
     double d2;
     double dx,dx2;
     int j;
@@ -202,7 +202,7 @@ double pkdGetDistance2(PKD pkd,PARTICLE *p, const double *dCenter ) {
 	/*
 	** If a periodic wrap results in a smaller distance, then use that.
 	*/
-	if ( pkd->param.bPeriodic ) {
+	if ( bPeriodic ) {
 	    if ( dx<0.0 ) dx2 = dx + pkd->fPeriod[j];
 	    else dx2 = dx - pkd->fPeriod[j];
 	    if ( dx2*dx2 < dx*dx ) dx = dx2;
@@ -230,7 +230,7 @@ static int cmpRadiusLite(const void *pva,const void *pvb) {
 ** Use the pLite structure to calculate the distance to each particle
 ** Sort by distance when finished.
 */
-void pkdCalcDistance(PKD pkd, double *dCenter) {
+void pkdCalcDistance(PKD pkd, double *dCenter, int bPeriodic) {
     distance *pl = (distance *)pkd->pLite;
     int i;
 
@@ -240,7 +240,7 @@ void pkdCalcDistance(PKD pkd, double *dCenter) {
     for (i=0;i<pkd->nLocal;++i) {
 	PARTICLE *p = pkdParticle(pkd,i);
 	double m = pkdMass(pkd,p);
-	pl[i].d2 = pkdGetDistance2(pkd,p,dCenter);
+	pl[i].d2 = pkdGetDistance2(pkd,p,dCenter,bPeriodic);
 	pl[i].i = i;
 	}
     qsort(pkd->pLite,pkdLocal(pkd),sizeof(distance),cmpRadiusLite);
@@ -249,7 +249,7 @@ void pkdCalcDistance(PKD pkd, double *dCenter) {
 /*
 ** Return the mass weighted center of mass and velocity
 */
-void pkdCalcCOM(PKD pkd, double *dCenter, double dRadius,
+void pkdCalcCOM(PKD pkd, double *dCenter, double dRadius, int bPeriodic,
 		double *com, double *vcm, double *L,
 		double *M, uint64_t *N) {
     double d2, dRadius2, T[3];
@@ -265,7 +265,7 @@ void pkdCalcCOM(PKD pkd, double *dCenter, double dRadius,
 	vel_t *v = pkdVel(pkd,p);
 	double r[3];
 	pkdGetPos1(pkd,p,r);
-	d2 = pkdGetDistance2(pkd,p,dCenter );
+	d2 = pkdGetDistance2(pkd,p,dCenter,bPeriodic);
 	if ( d2 < dRadius2 ) {
 	    *M += m;
 	    vec_add_const_mult(com, com, m, r);

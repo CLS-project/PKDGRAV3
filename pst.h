@@ -421,6 +421,7 @@ struct inWrite {
     double dTimeOld;
     double dUOld;
     double dvFac;
+    double dTuFac;
     double dBoxSize;
     double Omega0;
     double OmegaLambda;
@@ -465,6 +466,7 @@ struct inBuildTree {
     int nGroup;       /* Group Size */
     uint32_t uRoot;   /* Which root node to use */
     uint32_t utRoot;  /* Template tree */
+    double ddHonHLimit;
     };
 int pstBuildTree(PST,void *,int,void *,int);
 
@@ -632,6 +634,9 @@ struct inGravity {
     int nReps;
     int bPeriodic;
     int bEwald;
+    int bGravStep;
+    int nPartRhoLoc;
+    int iTimeStepCrit;
     int nGroup;
     int iRoot1;
     int iRoot2;
@@ -714,10 +719,11 @@ struct inDrift {
     double dDeltaVPred;
     double dDeltaUPred;
     int iRoot;
+    int bDoGas;
     };
 int pstDrift(PST,void *,int,void *,int);
 
-/* PST_DRIFT */
+/* PST_ */
 struct inScaleVel {
     double dvFac;
     };
@@ -760,6 +766,7 @@ struct inKick {
     double dDeltaVPred;
     double dDeltaU;
     double dDeltaUPred;
+    int    bDoGas;
     uint8_t uRungLo;
     uint8_t uRungHi;
     };
@@ -872,6 +879,8 @@ struct inAccelStep {
     double dEta;
     double dVelFac;
     double dAccFac;
+    double dDelta;
+    int    iMaxRung;
     int    bDoGravity;
     int    bEpsAcc;
     double dhMinOverSoft;
@@ -882,7 +891,11 @@ int pstAccelStep(PST,void *,int,void *,int);
 
 /* PST_SPHSTEP */
 struct inSphStep {
+    double dDelta;
+    double dEta;
     double dAccFac;
+    double dEtaUDot;
+    int iMaxRung;
     uint8_t uRungLo;
     uint8_t uRungHi;
     };
@@ -895,7 +908,7 @@ struct inStarForm
     double dTMax;
     double dDenMin;
     double dDelta;
-    
+
     double dTime;
     double dInitStarMass;
     double dESNPerStarMass;
@@ -905,6 +918,9 @@ struct inStarForm
     double dMassLossPerStarMass;
     double dZMassPerStarMass;
     double dMinGasMass;
+    double dTuFac;
+
+    int bGasCooling;
     int bdivv;
     };
 
@@ -919,8 +935,10 @@ int pstStarForm(PST,void *,int,void *,int);
 
 /* PST_DENSITYSTEP */
 struct inDensityStep {
+    double dDelta;
     double dEta;
     double dRhoFac;
+    int iMaxRung;
     uint8_t uRungLo;
     uint8_t uRungHi;
     };
@@ -1256,6 +1274,7 @@ int pstProfile(PST pst,void *vin,int nIn,void *vout,int nOut);
 struct inCalcDistance {
     double dCenter[3];
     double dRadius;
+    int bPeriodic;
     };
 int pstCalcDistance(PST pst,void *vin,int nIn,void *vout,int nOut);
 
@@ -1263,6 +1282,7 @@ int pstCalcDistance(PST pst,void *vin,int nIn,void *vout,int nOut);
 struct inCalcCOM {
     double dCenter[3];
     double dRadius;
+    int bPeriodic;
     };
 struct outCalcCOM {
     double com[3];
@@ -1386,6 +1406,9 @@ struct inLightConeClose {
     };
 int pstLightConeClose(PST pst,void *vin,int nIn,void *vout,int nOut);
 
+struct inLightConeVel {
+    double dBoxSize;
+    };
 int pstLightConeVel(PST pst,void *vin,int nIn,void *vout,int nOut);
 
 /* PST_INFLATE */

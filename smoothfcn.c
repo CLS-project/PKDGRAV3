@@ -391,12 +391,13 @@ void initSphForcesParticle(void *vpkd, void *vp) {
 	SPHFIELDS *psph = pkdSph(pkd,p);
 	psph->uDot = 0;
 	psph->fMetalsDot = 0;
-	if (!pkd->param.bDoGravity) { /* Normally these are zeroed in Gravity */
-	    p->uNewRung = 0;
-	    pkdAccel(pkd,p)[0] = 0;
-	    pkdAccel(pkd,p)[1] = 0;
-	    pkdAccel(pkd,p)[2] = 0;
-	    }
+	assert(0); /* What happens here? */
+	// if (!pkd->param.bDoGravity) { /* Normally these are zeroed in Gravity */
+	//     p->uNewRung = 0;
+	//     pkdAccel(pkd,p)[0] = 0;
+	//     pkdAccel(pkd,p)[1] = 0;
+	//     pkdAccel(pkd,p)[2] = 0;
+	//     }
 	}
     }
 
@@ -798,7 +799,7 @@ void DistSNEnergy(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf)
     if (!pkdIsStar( pkd, p )) return; /* not a star */
 
     Timer = *pkd_Timer(pkd,p);
-    dtp = smf->pkd->param.dDelta/(1<<p->uRung);/* size of step just completed by star */
+    dtp = smf->dDelta/(1<<p->uRung);/* size of step just completed by star */
 
     if(smf->dTime-dtp > Timer+smf->SFdtFeedbackDelay) {
 	assert(pkdSph(pkd,p)->u == 0); /* Star must have fedback by now */
@@ -810,13 +811,13 @@ void DistSNEnergy(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf)
 
     /* Keep star timestep of order Courant time in FB region */
     dtNew=smf->SFdFBFac*fBall;
-    uNewRung = pkdDtToRung(dtNew,pkd->param.dDelta,pkd->param.iMaxRung-1);
+    uNewRung = pkdDtToRung(dtNew,smf->dDelta,smf->iMaxRung-1);
     if (uNewRung > p->uNewRung) p->uNewRung = uNewRung;
 
     /* Has it gone off yet ? */
     if (smf->dTime <= Timer + smf->SFdtFeedbackDelay) {
 	/* No -- but attempt to warn particles the SN is coming... by lowering timesteps */
-	/* Star dt should be suppressed in right way -- see param.SFdvFB */
+	/* Star dt should be suppressed in right way -- see SFdvFB  */
 	uNewRung = p->uNewRung;
 	for (i=0;i<nSmooth;++i) {
 	    q = nnList[i].pPart;
@@ -878,7 +879,7 @@ void DistSNEnergy(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf)
 	c = sqrt(smf->gamma*(smf->gamma-1)*pkdSph(pkd,q)->uPred);
 	qBall = pkdBall(pkd,q);
 	dt = 0.5*qBall/(dtC*c);
-	uNewRung = pkdDtToRung(dt,smf->pkd->param.dDelta,MAX_RUNG);	
+	uNewRung = pkdDtToRung(dt,smf->dDelta,MAX_RUNG);	
     
 	if (q->uNewRung > uNewRung) uNewRung = q->uNewRung;
 	}
@@ -1175,136 +1176,3 @@ void AddRelaxation(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     fRel *= pkdMass(pkd,p)*rho*pow(vSigma2, -1.5)/gamma;
     *pRelax += fRel * smf->dDeltaT;
     }
-
-#ifdef SYMBA
-void DrmininDrift(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
-    int i,j,k,ial;
-    PARTICLE *q;
-    double dDelta = smf->pkd->param.dDelta;
-    double dSunMass = smf->dSunMass;
-    double fMass1 = p->fMass;
-    double piOrder = p->iOrder;
-    double a1,a2;
-    double x0,y0,z0,x1,y1,z1,vx0,vy0,vz0,vx1,vy1,vz1;
-    double dx0,dy0,dz0,dvx0,dvy0,dvz0,dvx1,dvy1,dvz1;
-    double dr0,dr1,dv0,dv1;
-    double a,b,c,d;
-    double tmin,drmin,hill;
-    /*double a1b, a2b, hillb;*/
-    /*
-    **  calculates drmin during drift using third order intepolation
-    ** dr0, dr1: relative distance before and after drift
-    ** dv0, dv1: relative velocity before and after drift
-    */
-
-    p->drmin2 = 1000.0;
-    x0 = p->rb[0];
-    y0 = p->rb[1];
-    z0 = p->rb[2];
-    vx0 = p->vb[0];
-    vy0 = p->vb[1];
-    vz0 = p->vb[2];
-    x1 = p->r[0];
-    y1 = p->r[1];
-    z1 = p->r[2];
-    vx1 = p->v[0];
-    vy1 = p->v[1];
-    vz1 = p->v[2];
-    a1 = sqrt(x1*x1 + y1*y1 + z1*z1);
-    /* a1b = sqrt(x0*x0 + y0*y0 + z0*z0);*/
-
-    for (i=0;i<nSmooth;++i) {
-	q = nnList[i].pPart;
-	if (piOrder==(q->iOrder)) goto enstep;
-	a2 = sqrt(q->r[0]*q->r[0]+q->r[1]*q->r[1]+q->r[2]*q->r[2]);
-	/*a2b = sqrt(q->rb[0]*q->rb[0]+q->rb[1]*q->rb[1]+q->rb[2]*q->rb[2]);*/
-
-	hill = 0.5*cbrt((fMass1 + q->fMass)/(3.0*dSunMass));
-	/* hillb = hill*(a1b+a2b);*/
-	hill *= (a1+a2);
-
-	dr1 = sqrt(nnList[i].dx*nnList[i].dx + nnList[i].dy*nnList[i].dy
-		   + nnList[i].dz*nnList[i].dz);
-
-	dx0 = x0 - q->rb[0];
-	dy0 = y0 - q->rb[1];
-	dz0 = z0 - q->rb[2];
-	dr0 = sqrt(dx0*dx0 + dy0*dy0 + dz0*dz0);
-
-	if (dr1 < 3.0*hill) {
-	    p->drmin2 = dr1/hill;
-	    /* check if particle q is already in the list*/
-	    ial = 0;
-	    if (p->n_VA > 0) {
-		for (k=0;k<p->n_VA;k++) {
-		    if (p->iOrder_VA[k] == q->iOrder) {
-			ial = 1;
-			}
-		    }
-		}
-
-	    if (ial==0) {
-		/*if(dr0 <= 3.0*hillb)printf("dr0 %e, drmin%e \n",dr0/hillb,p->drmin);*/
-		p->iOrder_VA[p->n_VA] = q->iOrder;
-		p->hill_VA[p->n_VA] = hill;
-		p->n_VA++;
-		assert(piOrder!=(q->iOrder));
-		}
-	    goto enstep;
-	    }
-
-	dvx0 = vx0 - q->vb[0];
-	dvy0 = vy0 - q->vb[1];
-	dvz0 = vz0 - q->vb[2];
-	dvx1 = vx1 - q->v[0];
-	dvy1 = vy1 - q->v[1];
-	dvz1 = vz1 - q->v[2];
-
-	dv0 = sqrt(dvx0*dx0 + dvy0*dy0 + dvz0*dz0)/dr0;
-	dv1 = (dvx1*nnList[i].dx + dvy1*nnList[i].dy + dvz1*nnList[i].dz)/dr1;
-
-	a = 2.0*(dr0-dr1) + (dv0 + dv1)*dDelta;
-	b = 3.0*(dr1-dr0) - (2.0*dv0 + dv1)*dDelta;
-	c = dv0*dDelta;
-	d = 4.0*b*b -12.0*a*c; /* BB-4AC: A=3a, B=2b C=c */
-
-	if (d < 0.0) {
-	    goto enstep; /* no encounter */
-	    }
-	else {
-	    tmin = 0.5*(-b+sqrt(d))/a;
-	    if (tmin < 0.0 || tmin > 1.0) {
-		goto enstep; /* no encounter */
-		}
-	    else {
-		drmin = ((a*tmin + b)*tmin + c)*tmin + dr0;
-		if (drmin < 3.0*hill) {
-		    p->drmin2 = drmin/hill;
-		    /* check if particle q is already in the list*/
-		    ial = 0;
-		    if (p->n_VA > 0) {
-			for (k=0;k<p->n_VA;k++) {
-			    if (p->iOrder_VA[k] == q->iOrder) {
-				ial = 1;
-				}
-			    }
-			}
-
-		    if (ial==0) {
-			/*if(dr0 <= 3.0*hillb)printf("dr0 %e, drmin%e \n",dr0/hillb,p->drmin);*/
-			p->iOrder_VA[p->n_VA] = q->iOrder;
-			p->hill_VA[p->n_VA] = hill;
-			p->n_VA++;
-			assert(piOrder!=(q->iOrder));
-			}
-		    goto enstep;
-		    }
-		}
-	    }
-    enstep:
-	continue;
-	}
-    }
-
-
-#endif

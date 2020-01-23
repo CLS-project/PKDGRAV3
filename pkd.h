@@ -1331,7 +1331,7 @@ extern "C" {
 ** From tree.c:
 */
 void pkdVATreeBuild(PKD pkd,int nBucket);
-void pkdTreeBuild(PKD pkd,int nBucket,int nGroup,uint32_t uRoot,uint32_t uTemp);
+void pkdTreeBuild(PKD pkd,int nBucket,int nGroup,uint32_t uRoot,uint32_t uTemp,double ddHonHLimit);
 uint32_t pkdDistribTopTree(PKD pkd, uint32_t uRoot, uint32_t nTop, KDN *pTop);
 void pkdOpenCloseCaches(PKD pkd,int bOpen,int bFixed);
 void pkdTreeInitMarked(PKD pkd);
@@ -1411,14 +1411,14 @@ int pkdColOrdRejects(PKD,uint64_t,int);
 void pkdLocalOrder(PKD,uint64_t iMinOrder,uint64_t iMaxOrder);
 void pkdCheckpoint(PKD pkd,const char *fname);
 void pkdRestore(PKD pkd,const char *fname);
-uint32_t pkdWriteFIO(PKD pkd,FIO fio,double dvFac,BND *bnd);
-void pkdWriteFromNode(PKD pkd,int iNode, FIO fio,double dvFac,BND *bnd);
+uint32_t pkdWriteFIO(PKD pkd,FIO fio,double dvFac,double dTuFac,BND *bnd);
+void pkdWriteFromNode(PKD pkd,int iNode, FIO fio,double dvFac,double dTuFac,BND *bnd);
 void pkdWriteViaNode(PKD pkd, int iNode);
 void pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     int bKickClose,int bKickOpen,vel_t *dtClose,vel_t *dtOpen,
     double *dtLCDrift,double *dtLCKick,double dLookbackFac,double dLookbackFacLCP,
     double dAccFac,double dTime,int nReps,int bPeriodic,
-    int bEwald,int nGroup,int iRoot1, int iRoot2,
+    int bEwald,int bGravStep,int nPartRhoLoc,int iTimeStepCrit,int nGroup,int iRoot1, int iRoot2,
     double fEwCut,double fEwhCut,double dThetaMin,
     int bLinearSpecies,
     uint64_t *pnActive,
@@ -1430,14 +1430,14 @@ void pkdProcessLightCone(PKD pkd,PARTICLE *p,float fPot,double dLookbackFac,doub
 			double dDriftDelta,double dKickDelta,double dBoxSize,int bLightConeParticles);
 void pkdGravEvalPP(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINFOOUT *pOut );
 void pkdGravEvalPC(PINFOIN *pPart, int nBlocks, int nInLast, ILC_BLK *blk,  PINFOOUT *pOut );
-void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double,double);
+void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double,double,int bDoGas);
 void pkdScaleVel(PKD pkd,double dvFac);
 void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, double dTime, double dDelta,
 			  int iRung, int iKickRung, int iRungVeryActive,int iAdjust, double diCrit2,
 			  int *pnMaxRung, double aSunInact[], double adSunInact[], double dSunMass);
 void pkdKickKDKOpen(PKD pkd,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi);
 void pkdKickKDKClose(PKD pkd,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi);
-void pkdKick(PKD pkd,double dTime,double dDelta,double,double,double,uint8_t uRungLo,uint8_t uRungHi);
+void pkdKick(PKD pkd,double dTime,double dDelta,int bDoGas,double,double,double,uint8_t uRungLo,uint8_t uRungHi);
 void pkdKickTree(PKD pkd,double dTime,double dDelta,double,double,double,int iRoot);
 void pkdSwapAll(PKD pkd, int idSwap);
 void pkdSetParameters(PKD pkd,struct parameters *p);
@@ -1447,14 +1447,17 @@ void pkdZeroNewRung(PKD pkd,uint8_t uRungLo, uint8_t uRungHi, uint8_t uRung);
 void pkdActiveRung(PKD pkd, int iRung, int bGreater);
 void pkdCountRungs(PKD pkd,uint64_t *nRungs);
 void pkdAccelStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
+		  double dDelta, int iMaxRung,
 		  double dEta,double dVelFac,double dAccFac,
 		  int bDoGravity,int bEpsAcc,double dhMinOverSoft);
-void pkdSphStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,double dAccFac);
+void pkdSphStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
+		double dDelta, int iMaxRung,double dEta, double dAccFac, double dEtaUDot);
 void pkdStarForm(PKD pkd, double dRateCoeff, double dTMax, double dDenMin,
 		 double dDelta, double dTime,
 		 double dInitStarMass, double dESNPerStarMass, double dtCoolingShutoff,
 		 double dtFeedbackDelay,  double dMassLossPerStarMass,    
 		 double dZMassPerStarMass, double dMinGasMass,
+		 double dTuFac, int bGasCooling,
 		 int bdivv, int *nFormed, double *dMassFormed,
 		 int *nDeleted);
 void pkdCooling(PKD pkd,double,double,int,int,int,int);
@@ -1462,7 +1465,7 @@ void pkdCooling(PKD pkd,double,double,int,int,int,int);
 #define CORRECTENERGY_OUT 2
 #define CORRECTENERGY_SPECIAL 3
 void pkdCorrectEnergy(PKD pkd, double dTuFac, double z, double dTime, int iType );
-void pkdDensityStep(PKD pkd, uint8_t uRungLo, uint8_t uRungHi, double dEta, double dRhoFac);
+void pkdDensityStep(PKD pkd, uint8_t uRungLo, uint8_t uRungHi, int iMaxRung, double dDelta, double dEta, double dRhoFac);
 int pkdUpdateRung(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 		  uint8_t uRung,int iMaxRung,uint64_t *nRungCount);
 void pkdUpdateRungByTree(PKD pkd,int iRoot,uint8_t uMinRung,int iMaxRung,uint64_t *nRungCount);
@@ -1537,9 +1540,9 @@ int pkdDeepestPot(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
 void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
 		const double *dCenter, const double *dRadii, int nBins,
 		const double *com, const double *vcm, const double *L);
-void pkdCalcDistance(PKD pkd, double *dCenter);
+void pkdCalcDistance(PKD pkd, double *dCenter, int bPeriodic);
 uint_fast32_t pkdCountDistance(PKD pkd, double r2i, double r2o );
-void pkdCalcCOM(PKD pkd, double *dCenter, double dRadius,
+void pkdCalcCOM(PKD pkd, double *dCenter, double dRadius, int bPeriodic,
 		double *com, double *vcm, double *L,
 		double *M, uint64_t *N);
 void pkdGridInitialize(PKD pkd, int n1, int n2, int n3, int a1, int s, int n);
@@ -1566,7 +1569,7 @@ void pkdLightConeClose(PKD pkd, const char *healpixname);
 void pkdLightCone(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     double dLookbackFac,double dLookbackFacLCP,
     double *dtLCDrift,double *dtLCKick);
-void pkdLightConeVel(PKD pkd);
+void pkdLightConeVel(PKD pkd,double dBoxSize);
 void pkdInflate(PKD pkd,int nInflateReps);
 
 struct outGetParticles { /* Array of these */

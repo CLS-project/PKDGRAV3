@@ -2049,7 +2049,7 @@ void pkdRestore(PKD pkd,const char *fname) {
 #endif
     }
 
-static void writeParticle(PKD pkd,FIO fio,double dvFac,BND *bnd,PARTICLE *p) {
+static void writeParticle(PKD pkd,FIO fio,double dvFac,double dTuFac,BND *bnd,PARTICLE *p) {
     STARFIELDS *pStar;
     SPHFIELDS *pSph;
     float *pPot, dummypot;
@@ -2102,10 +2102,10 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,BND *bnd,PARTICLE *p) {
     switch(pkdSpecies(pkd,p)) {
     case FIO_SPECIES_SPH:
 	assert(pSph);
-	assert(pkd->param.dTuFac>0.0);
+	assert(dTuFac>0.0);
 	    {
 	    double T;
-	    T = pSph->u/pkd->param.dTuFac;
+	    T = pSph->u/dTuFac;
 	    fioWriteSph(fio,iParticleID,r,v,fMass,fSoft,*pPot,
 		fDensity,T,pSph->fMetals);
 	    }
@@ -2130,6 +2130,7 @@ struct packWriteCtx {
     FIO fio;
     BND *bnd;
     double dvFac;
+    double dTuFac;
     int iIndex;
     };
 
@@ -2141,17 +2142,18 @@ static int unpackWrite(void *vctx, int *id, size_t nSize, void *vBuff) {
     int i;
     assert( n*pkdParticleSize(pkd) == nSize);
     for(i=0; i<n; ++i) {
-	writeParticle(pkd,ctx->fio,ctx->dvFac,ctx->bnd,pkdParticleGet(pkd,p,i));
+	writeParticle(pkd,ctx->fio,ctx->dvFac,ctx->dTuFac,ctx->bnd,pkdParticleGet(pkd,p,i));
 	}
     return 1;
     }
 
-void pkdWriteFromNode(PKD pkd,int iNode, FIO fio,double dvFac,BND *bnd) {
+void pkdWriteFromNode(PKD pkd,int iNode, FIO fio,double dvFac,double dTuFac,BND *bnd) {
     struct packWriteCtx ctx;
     ctx.pkd = pkd;
     ctx.fio = fio;
     ctx.bnd = bnd;
     ctx.dvFac = dvFac;
+    ctx.dTuFac = dTuFac;
     ctx.iIndex = 0;
 #ifdef MPI_VERSION
     mdlRecv(pkd->mdl,iNode,unpackWrite,&ctx);
@@ -2182,14 +2184,14 @@ void pkdWriteViaNode(PKD pkd, int iNode) {
 #endif
     }
 
-uint32_t pkdWriteFIO(PKD pkd,FIO fio,double dvFac,BND *bnd) {
+uint32_t pkdWriteFIO(PKD pkd,FIO fio,double dvFac,double dTuFac,BND *bnd) {
     PARTICLE *p;
     int i;
     uint32_t nCount;
     nCount = 0;
     for (i=0;i<pkdLocal(pkd);++i) {
 	p = pkdParticle(pkd,i);
-	writeParticle(pkd,fio,dvFac,bnd,p);
+	writeParticle(pkd,fio,dvFac,dTuFac,bnd,p);
 	nCount++;
 	}
     return nCount;
@@ -2209,7 +2211,7 @@ pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     int bKickClose,int bKickOpen,vel_t *dtClose,vel_t *dtOpen,
     double *dtLCDrift,double *dtLCKick,double dLookbackFac,double dLookbackFacLCP,
     double dAccFac,double dTime,int nReps,int bPeriodic,
-    int bEwald,int nGroup,int iRoot1, int iRoot2,
+    int bEwald,int bGravStep,int nPartRhoLoc,int iTimeStepCrit,int nGroup,int iRoot1, int iRoot2,
     double fEwCut,double fEwhCut,double dThetaMin,
     int bLinearSpecies,
     uint64_t *pnActive,
@@ -2261,7 +2263,7 @@ pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     pkd->dFlopSingleGPU = pkd->dFlopDoubleGPU = 0.0;
     *pnActive = pkdGravWalk(pkd,uRungLo,uRungHi,bKickClose,bKickOpen,dtClose,dtOpen,
 	dtLCDrift,dtLCKick,dLookbackFac,dLookbackFacLCP,
-	dAccFac,dTime,nReps,bPeriodic && bEwald,nGroup,
+	dAccFac,dTime,nReps,bPeriodic && bEwald,bGravStep,nPartRhoLoc,iTimeStepCrit,nGroup,
 	iRoot1,iRoot2,0,dThetaMin,pdFlop,&dPartSum,&dCellSum);
     pkdStopTimer(pkd,1);
 
@@ -2454,8 +2456,8 @@ void addToLightCone(PKD pkd,double *r,float fPot,PARTICLE *p,int bParticleOutput
 
 #ifndef USE_SIMD_LC
 #define NBOX 184
-void pkdProcessLightCone(PKD pkd,PARTICLE *p,float fPot,double dLookbackFac,double dLookbackFacLCP,double dDriftDelta,double dKickDelta) {
-    const double dLightSpeed = dLightSpeedSim(pkd->param.dBoxSize);
+void pkdProcessLightCone(PKD pkd,PARTICLE *p,float fPot,double dLookbackFac,double dLookbackFacLCP,double dDriftDelta,double dKickDelta,double dBoxSize,int bLightConeParticles) {
+    const double dLightSpeed = dLightSpeedSim(dBoxSize);
     const double mrLCP = dLightSpeed*dLookbackFacLCP;
     double vrx0[NBOX],vry0[NBOX],vrz0[NBOX];
     double vrx1[NBOX],vry1[NBOX],vrz1[NBOX];
@@ -2572,7 +2574,7 @@ void pkdProcessLightCone(PKD pkd,PARTICLE *p,float fPot,double dLookbackFac,doub
 		r[1] = (1-x[iOct])*vry0[iOct] + x[iOct]*vry1[iOct];
 		r[2] = (1-x[iOct])*vrz0[iOct] + x[iOct]*vrz1[iOct];
 		mr = sqrt(r[0]*r[0] + r[1]*r[1] + r[2]*r[2]);
-		addToLightCone(pkd,r,fPot,p,pkd->param.bLightConeParticles && (mr <= mrLCP));
+		addToLightCone(pkd,r,fPot,p,bLightConeParticles && (mr <= mrLCP));
 		}
 	    }
 	if (isect[k].jPlane == 3) break;
@@ -2593,7 +2595,7 @@ void pkdProcessLightCone(PKD pkd,PARTICLE *p,float fPot,double dLookbackFac,doub
 ** Note that the drift funtion no longer wraps the particles around the periodic "unit" cell. This is
 ** now done by Domain Decomposition only.
 */
-void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,double dDeltaTime) {
+void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,double dDeltaTime,int bDoGas) {
     PARTICLE *p;
     vel_t *v;
     float *a;
@@ -2622,7 +2624,7 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
     /*
     ** Update particle positions
     */
-    if (pkd->param.bDoGas) {
+    if (bDoGas) {
 	double dDeltaUPred = dDeltaTime;
 	assert(pkd->oSph);
 	assert(pkd->oAcceleration);
@@ -2664,7 +2666,7 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
     }
 
 
-void pkdLightConeVel(PKD pkd) {
+void pkdLightConeVel(PKD pkd,double dBoxSize) {
     const int nTable=1000;
     const double rMax=3.0;
     gsl_spline *scale;
@@ -2673,7 +2675,7 @@ void pkdLightConeVel(PKD pkd) {
     PARTICLE *p;
     vel_t *v;
     double dvFac,r2;
-    const double dLightSpeed = dLightSpeedSim(pkd->param.dBoxSize);
+    const double dLightSpeed = dLightSpeedSim(dBoxSize);
     int i,j;
 
     assert(pkd->oVelocity);
@@ -2710,8 +2712,8 @@ void pkdLightConeVel(PKD pkd) {
     }
 
 
-void pkdGravityVeryActive(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int bEwald,int nGroup,int nReps,
-			  double dStep,double dTheta) {
+void pkdGravityVeryActive(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int bEwald,int bGravStep,int nPartRhoLoc,int iTimeStepCrit,
+			  int nGroup,int nReps,double dStep,double dTheta) {
     int nActive;
     double dFlop,dPartSum,dCellSum;
 
@@ -2721,7 +2723,7 @@ void pkdGravityVeryActive(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,i
     dFlop = 0.0;
     dPartSum = 0.0;
     dCellSum = 0.0;
-    nActive = pkdGravWalk(pkd,uRungLo,uRungHi,0,0,NULL,NULL,NULL,NULL,0.0,0.0,1.0,dTime,nReps,bEwald,nGroup,
+    nActive = pkdGravWalk(pkd,uRungLo,uRungHi,0,0,NULL,NULL,NULL,NULL,0.0,0.0,1.0,dTime,nReps,bEwald,bGravStep,nPartRhoLoc,iTimeStepCrit,nGroup,
 	ROOT,0,VAROOT,dTheta,&dFlop,&dPartSum,&dCellSum);
     }
 
@@ -2743,7 +2745,9 @@ void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, 
 	    double dVelFac = 1.0/(a*a);
 	    double dAccFac = 1.0/(a*a*a);
 	    double dhMinOverSoft = 0;
-	    pkdAccelStep(pkd,uRungLo,uRungHi,pkd->param.dEta, dVelFac,dAccFac,pkd->param.bDoGravity,
+	    pkdAccelStep(pkd,uRungLo,uRungHi,
+	    	         pkd->param.dDelta,pkd->param.iMaxRung,
+	        	 pkd->param.dEta,dVelFac,dAccFac,pkd->param.bDoGravity,
 			 pkd->param.bEpsAccStep,dhMinOverSoft);
 	    }
 	*pnMaxRung = pkdUpdateRung(pkd,iRung,pkd->param.iMaxRung,
@@ -2784,7 +2788,7 @@ void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, 
 	/*
 	** This should drift *all* very actives!
 	*/
-	pkdDrift(pkd,VAROOT,dTime,dDriftFac,0,0);
+	pkdDrift(pkd,VAROOT,dTime,dDriftFac,0,0,pkd->param.bDoGas);
 	dTime += dDelta;
 	dStep += 1.0/(1 << iRung);
 
@@ -2792,8 +2796,9 @@ void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, 
 	if (iKickRung > iRungVeryActive) {
 	    pkdActiveRung(pkd,iKickRung,1);
 //	    pkdVATreeBuild(pkd,pkd->param.nBucket);
-	    pkdGravityVeryActive(pkd,uRungLo,uRungHi,dTime,pkd->param.bEwald && pkd->param.bPeriodic,pkd->param.nGroup,
-				 pkd->param.nReplicas,dStep,dThetaMin);
+	    pkdGravityVeryActive(pkd,uRungLo,uRungHi,dTime,pkd->param.bEwald && pkd->param.bPeriodic,
+	    	     	 	pkd->param.bGravStep,pkd->param.nPartRhoLoc,pkd->param.iTimeStepCrit,
+	    	     	 	pkd->param.nGroup,pkd->param.nReplicas,dStep,dThetaMin);
 
 	    }
 	/*
@@ -2816,18 +2821,18 @@ void pkdKickKDKOpen(PKD pkd,double dTime,double dDelta,uint8_t uRungLo,uint8_t u
     if (pkd->csm->val.bComove) {
 	dDelta = csmComoveKickFac(pkd->csm,dTime,dDelta);
     }
-    pkdKick(pkd,dTime,dDelta,0,0,0,uRungLo,uRungHi);
+    pkdKick(pkd,dTime,dDelta,0,0,0,0,uRungLo,uRungHi);
     }
 
 void pkdKickKDKClose(PKD pkd,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi) {
     if (pkd->csm->val.bComove) {
 	dDelta = csmComoveKickFac(pkd->csm,dTime,dDelta);
     }
-    pkdKick(pkd,dTime,dDelta,0,0,0,uRungLo,uRungHi);
+    pkdKick(pkd,dTime,dDelta,0,0,0,0,uRungLo,uRungHi);
     }
 
 
-void pkdKick(PKD pkd,double dTime,double dDelta,double dDeltaVPred,double dDeltaU,double dDeltaUPred,uint8_t uRungLo,uint8_t uRungHi) {
+void pkdKick(PKD pkd,double dTime,double dDelta,int bDoGas,double dDeltaVPred,double dDeltaU,double dDeltaUPred,uint8_t uRungLo,uint8_t uRungHi) {
     PARTICLE *p;
     vel_t *v;
     float *a;
@@ -2840,7 +2845,7 @@ void pkdKick(PKD pkd,double dTime,double dDelta,double dDeltaVPred,double dDelta
     pkdClearTimer(pkd,1);
     pkdStartTimer(pkd,1);
 
-    if (pkd->param.bDoGas) {
+    if (bDoGas) {
 	assert(pkd->oSph);
 	n = pkdLocal(pkd);
 	for (i=0;i<n;++i) {
@@ -2964,6 +2969,7 @@ void pkdCountRungs(PKD pkd,uint64_t *nRungs) {
     }
 
 void pkdAccelStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
+		  double dDelta, int iMaxRung,
 		  double dEta,double dVelFac,double dAccFac,
 		  int bDoGravity,int bEpsAcc,double dhMinOverSoft) {
     PARTICLE *p;
@@ -3002,14 +3008,15 @@ void pkdAccelStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
 		    dT = dEta*sqrt(fSoft/acc);
 		    }
 		}
-	    uNewRung = pkdDtToRung(dT,pkd->param.dDelta,pkd->param.iMaxRung);
+	    uNewRung = pkdDtToRung(dT,dDelta,iMaxRung);
 	    if (uNewRung > p->uNewRung) p->uNewRung = uNewRung;
 	    }
 	}
     }
 
 
-void pkdSphStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,double dAccFac) {
+void pkdSphStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
+	double dDelta, int iMaxRung,double dEta, double dAccFac, double dEtaUDot) {
     PARTICLE *p;
     float *a, uDot;
     int i,j,uNewRung;
@@ -3033,20 +3040,19 @@ void pkdSphStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,double dAccFac) {
 		    }
 		acc = sqrt(acc)*dAccFac;
 		dtNew = FLOAT_MAXVAL;
-		if (acc>0) dtNew = pkd->param.dEta*sqrt(pkdBall(pkd,p)/acc);
-		u2 = pkdDtToRung(dtNew,pkd->param.dDelta,pkd->param.iMaxRung);
+		if (acc>0) dtNew = dEta*sqrt(pkdBall(pkd,p)/acc);
+		u2 = pkdDtToRung(dtNew,dDelta,iMaxRung);
 		uDot = *pkd_uDot(pkd,p);
 		u3=0;
 		if (uDot < 0) {
-		    double dtemp = pkd->param.dEtaUDot*(*pkd_u(pkd,p))/fabs(uDot);
+		    double dtemp = dEtaUDot*(*pkd_u(pkd,p))/fabs(uDot);
 		    if (dtemp < dtNew) dtNew = dtemp;
-		    u3 = pkdDtToRung(dtemp,pkd->param.dDelta,pkd->param.iMaxRung);
+		    u3 = pkdDtToRung(dtemp,dDelta,iMaxRung);
 		    }
-		uNewRung = pkdDtToRung(dtNew,pkd->param.dDelta,pkd->param.iMaxRung);
+		uNewRung = pkdDtToRung(dtNew,dDelta,iMaxRung);
 		if (uNewRung > p->uNewRung) p->uNewRung = uNewRung;
 		if (!(p->iOrder%10000) || (p->uNewRung > 5 && !(p->iOrder%1000))) {
 		    SPHFIELDS *sph = pkdSph(pkd,p);
-		    /*T = E/pkd->param.dTuFac;*/
 		    }
 		}
 	    }
@@ -3058,6 +3064,7 @@ void pkdStarForm(PKD pkd, double dRateCoeff, double dTMax, double dDenMin,
 		 double dInitStarMass, double dESNPerStarMass, double dtCoolingShutoff,
 		 double dtFeedbackDelay,  double dMassLossPerStarMass,    
 		 double dZMassPerStarMass, double dMinGasMass,
+		 double dTuFac, int bGasCooling,
 		 int bdivv,
 		 int *nFormed, /* number of stars formed */
 		 double *dMassFormed,	/* mass of stars formed */
@@ -3084,16 +3091,16 @@ void pkdStarForm(PKD pkd, double dRateCoeff, double dTMax, double dDenMin,
 	
 	if (pkdIsActive(pkd,p) && pkdIsGas(pkd,p)) {
 	    sph = pkdSph(pkd,p);
-	    dt = pkd->param.dDelta/(1<<p->uRung); /* Actual Rung */
+	    dt = dDelta/(1<<p->uRung); /* Actual Rung */
 	    pkdStar(pkd,p)->totaltime += dt;
 	    if (pkdDensity(pkd,p) < dDenMin || (bdivv && sph->divv >= 0.0)) continue;
 	    E = sph->uPred;
-	    T=E/pkd->param.dTuFac;
+	    T=E/dTuFac;
 	    if (T > dTMax) continue;
 	    
             /* Note: Ramses allows for multiple stars per step -- but we have many particles
 	      and he has one cell that may contain many times m_particle */
-	    if (pkd->param.bGasCooling) {
+	    if (bGasCooling) {
 		if (fabs(pkdStar(pkd,p)->totaltime-dTime) > 1e-3*dt) {
 		    fprintf(stderr,"total time error: %"PRIu64",  %g %g %g\n",
                 (uint64_t)p->iOrder,pkdStar(pkd,p)->totaltime,dTime,dt);
@@ -3230,7 +3237,7 @@ void pkdCorrectEnergy(PKD pkd, double dTuFac, double z, double dTime, int iDirec
 	}
     }
     
-void pkdDensityStep(PKD pkd, uint8_t uRungLo, uint8_t uRungHi, double dEta, double dRhoFac) {
+void pkdDensityStep(PKD pkd, uint8_t uRungLo, uint8_t uRungHi, int iMaxRung, double dDelta, double dEta, double dRhoFac) {
     PARTICLE *p;
     int i;
     double dT;
@@ -3240,7 +3247,7 @@ void pkdDensityStep(PKD pkd, uint8_t uRungLo, uint8_t uRungHi, double dEta, doub
 	p = pkdParticle(pkd,i);
 	if (pkdIsActive(pkd,p)) {
 	    dT = dEta/sqrt(pkdDensity(pkd,p)*dRhoFac);
-	    p->uNewRung = pkdDtToRung(dT,pkd->param.dDelta,pkd->param.iMaxRung);
+	    p->uNewRung = pkdDtToRung(dT,dDelta,iMaxRung);
 	    }
 	}
     }

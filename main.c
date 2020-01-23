@@ -228,12 +228,12 @@ void master(MDL mdl,void *pst) {
 		}
 	    if (msrDoGravity(msr)) {
 		msrGravity(msr,0,MAX_RUNG,ROOT,0,dTime,iStartStep,0,0,
-		    msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
+		    msr->param.bEwald,msr->param.bGravStep,msr->param.nPartRhoLoc,msr->param.iTimeStepCrit,msr->param.nGroup,&iSec,&nActive);
 		msrMemStatus(msr);
 		if (msr->param.bGravStep) {
 		    msrBuildTree(msr,dTime,msr->param.bEwald);
 		    msrGravity(msr,0,MAX_RUNG,ROOT,0,dTime,iStartStep,0,0,
-			msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
+			msr->param.bEwald,msr->param.bGravStep,msr->param.nPartRhoLoc,msr->param.iTimeStepCrit,msr->param.nGroup,&iSec,&nActive);
 		    }
 		}
 	    if (msr->param.bFindGroups) {
@@ -323,12 +323,14 @@ void master(MDL mdl,void *pst) {
 		msrLinearKick(msr,dTime,bKickClose,bKickOpen);
 		msrGridDeleteFFT(msr);
             }
-	    uRungMax = msrGravity(msr,0,MAX_RUNG,ROOT,0,dTime,iStartStep,0,bKickOpen,msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
+	    uRungMax = msrGravity(msr,0,MAX_RUNG,ROOT,0,dTime,iStartStep,0,bKickOpen,
+	    	msr->param.bEwald,msr->param.bGravStep,msr->param.nPartRhoLoc,msr->param.iTimeStepCrit,msr->param.nGroup,&iSec,&nActive);
 	    msrMemStatus(msr);
 	    if (msr->param.bGravStep) {
 		assert(msr->param.bNewKDK == 0);    /* for now! */
 		msrBuildTree(msr,dTime,msr->param.bEwald);
-		msrGravity(msr,0,MAX_RUNG,ROOT,0,dTime,iStartStep,0,0,msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
+		msrGravity(msr,0,MAX_RUNG,ROOT,0,dTime,iStartStep,0,0,
+			msr->param.bEwald,msr->param.bGravStep,msr->param.nPartRhoLoc,msr->param.iTimeStepCrit,msr->param.nGroup,&iSec,&nActive);
 		msrMemStatus(msr);
 		}
 	    }
@@ -364,7 +366,8 @@ void master(MDL mdl,void *pst) {
 		if (bKickOpen) {
 		    msrBuildTree(msr,dTime,0);
                     msrLightConeOpen(msr,iStep);  /* open the lightcone */
-		    uRungMax = msrGravity(msr,0,MAX_RUNG,ROOT,0,ddTime,diStep,0,1,msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
+		    uRungMax = msrGravity(msr,0,MAX_RUNG,ROOT,0,ddTime,diStep,0,1,
+		    	msr->param.bEwald,msr->param.bGravStep,msr->param.nPartRhoLoc,msr->param.iTimeStepCrit,msr->param.nGroup,&iSec,&nActive);
                     /* Set the grids of the linear species */
                     if (strlen(msr->param.achLinearSpecies) && msr->param.nGridLin > 0){
 			msrGridCreateFFT(msr,msr->param.nGridLin);

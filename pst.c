@@ -319,7 +319,7 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_LIGHTCONE_CLOSE,pst,(fcnService_t*)pstLightConeClose,
 		  sizeof(struct inLightConeClose), 0);
     mdlAddService(mdl,PST_LIGHTCONEVEL,pst,(fcnService_t*)pstLightConeVel,
-		  0,0);
+		  sizeof(struct inLightConeVel),0);
     mdlAddService(mdl,PST_INFLATE,pst,(fcnService_t*)pstInflate,
 	          sizeof(struct inInflate), 0);
     mdlAddService(mdl,PST_GET_PARTICLES,pst,(fcnService_t*)pstGetParticles,
@@ -2175,10 +2175,10 @@ int pstWrite(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	    fioSetAttr(fio, "dTimeOld", FIO_TYPE_DOUBLE, &in->dTimeOld );
 	    fioSetAttr(fio, "dUOld",    FIO_TYPE_DOUBLE, &in->dUOld );
 
-	    pkdWriteFIO(plcl->pkd,fio,in->dvFac,&in->bnd);
+	    pkdWriteFIO(plcl->pkd,fio,in->dvFac,in->dTuFac,&in->bnd);
 	    for(i=in->iLower+1; i<in->iUpper; ++i ) {
 		int rID = mdlReqService(pst->mdl,i,PST_SENDPARTICLES,&pst->idSelf,sizeof(pst->idSelf));
-		pkdWriteFromNode(plcl->pkd,i,fio,in->dvFac,&in->bnd);
+		pkdWriteFromNode(plcl->pkd,i,fio,in->dvFac,in->dTuFac,&in->bnd);
 		mdlGetReply(pst->mdl,rID,NULL,NULL);
 		}
 	    fioClose(fio);
@@ -2301,7 +2301,7 @@ int pstBuildTree(PST pst,void *vin,int nIn,void *vout,int nOut) {
     else {
 	KDN *pRoot = pkdTreeNode(pkd,uRoot);
 	pkdTreeAlignNode(pkd);
-	pkdTreeBuild(plcl->pkd,in->nBucket,in->nGroup,in->uRoot,in->utRoot);
+	pkdTreeBuild(plcl->pkd,in->nBucket,in->nGroup,in->uRoot,in->utRoot,in->ddHonHLimit);
 	pkdCopyNode(pkd,pTop,pRoot);
 	/* Get our cell ready */
 	pTop->bTopTree = 1;
@@ -2718,7 +2718,7 @@ int pstGravity(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	pkdGravAll(pkd,in->uRungLo,in->uRungHi,in->bKickClose,in->bKickOpen,
 	    in->dtClose,in->dtOpen,in->dtLCDrift,in->dtLCKick,in->dLookbackFac,in->dLookbackFacLCP,
 	    in->dAccFac,in->dTime,in->nReps,in->bPeriodic,
-	    in->bEwald,in->nGroup,in->iRoot1,in->iRoot2,in->dEwCut,in->dEwhCut,in->dThetaMin,
+	    in->bEwald,in->bGravStep,in->nPartRhoLoc,in->iTimeStepCrit,in->nGroup,in->iRoot1,in->iRoot2,in->dEwCut,in->dEwhCut,in->dThetaMin,
 	    in->bLinearSpecies,
 	    &outr->nActive,
 	    &outr->sPart.dSum,&outr->sPartNumAccess.dSum,&outr->sPartMissRatio.dSum,
@@ -2842,7 +2842,7 @@ int pstDrift(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	mdlGetReply(pst->mdl,rID,NULL,NULL);
 	}
     else {
-	pkdDrift(plcl->pkd,in->iRoot,in->dTime,in->dDelta,in->dDeltaVPred,in->dDeltaUPred);
+	pkdDrift(plcl->pkd,in->iRoot,in->dTime,in->dDelta,in->dDeltaVPred,in->dDeltaUPred,in->bDoGas);
 	}
     return 0;
     }
@@ -2968,7 +2968,7 @@ int pstKick(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	if (outUp.MaxTime > out->MaxTime) out->MaxTime = outUp.MaxTime;
 	}
     else {
-	pkdKick(plcl->pkd,in->dTime,in->dDelta,in->dDeltaVPred,in->dDeltaU,in->dDeltaUPred,in->uRungLo,in->uRungHi);
+	pkdKick(plcl->pkd,in->dTime,in->dDelta,in->bDoGas,in->dDeltaVPred,in->dDeltaU,in->dDeltaUPred,in->uRungLo,in->uRungHi);
 	out->Time = pkdGetTimer(plcl->pkd,1);
 	out->MaxTime = out->Time;
 	out->SumTime = out->Time;
@@ -3153,7 +3153,9 @@ int pstAccelStep(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	mdlGetReply(pst->mdl,rID,NULL,NULL);
 	}
     else {
-	pkdAccelStep(plcl->pkd,in->uRungLo,in->uRungHi,in->dEta,in->dVelFac,in->dAccFac,
+	pkdAccelStep(plcl->pkd,in->uRungLo,in->uRungHi,
+		     in->dDelta,in->iMaxRung,
+		     in->dEta,in->dVelFac,in->dAccFac,
 		     in->bDoGravity,in->bEpsAcc,in->dhMinOverSoft);
 	}
     return 0;
@@ -3170,7 +3172,7 @@ int pstSphStep(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	mdlGetReply(pst->mdl,rID,NULL,NULL);
 	}
     else {
-	pkdSphStep(plcl->pkd,in->uRungLo,in->uRungHi,in->dAccFac);
+	pkdSphStep(plcl->pkd,in->uRungLo,in->uRungHi,in->dDelta,in->iMaxRung,in->dEta,in->dAccFac,in->dEtaUDot);
 	}
     return 0;
     }
@@ -3197,6 +3199,7 @@ int pstStarForm(PST pst,void *vin,int nIn,void *vout,int nOut) {
 		     in->dInitStarMass, in->dESNPerStarMass, in->dtCoolingShutoff,
 		    in->dtFeedbackDelay,    in->dMassLossPerStarMass,    
 		    in->dZMassPerStarMass,    in->dMinGasMass,
+		    in->dTuFac, in->bGasCooling,
 		    in->bdivv,
 		     &out->nFormed, &out->dMassFormed, &out->nDeleted);
 	}
@@ -3214,7 +3217,7 @@ int pstDensityStep(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	mdlGetReply(pst->mdl,rID,NULL,NULL);
 	}
     else {
-	pkdDensityStep(plcl->pkd,in->uRungLo,in->uRungHi,in->dEta,in->dRhoFac);
+	pkdDensityStep(plcl->pkd,in->uRungLo,in->uRungHi,in->iMaxRung,in->dDelta,in->dEta,in->dRhoFac);
 	}
     return 0;
     }
@@ -3863,7 +3866,7 @@ int pstCalcDistance(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	mdlGetReply(pst->mdl,rID,NULL,NULL);
 	}
     else {
-	pkdCalcDistance(plcl->pkd,in->dCenter);
+	pkdCalcDistance(plcl->pkd,in->dCenter,in->bPeriodic);
 	}
     return 0;
     }
@@ -3890,7 +3893,7 @@ int pstCalcCOM(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	    }
 	}
     else {
-	pkdCalcCOM(plcl->pkd,in->dCenter,in->dRadius,
+	pkdCalcCOM(plcl->pkd,in->dCenter,in->dRadius,in->bPeriodic,
 		   out->com, out->vcm, out->L, &out->M, &out->N);
 	}
     return sizeof(struct outCalcCOM);
@@ -4077,7 +4080,7 @@ int pstLightConeClose(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
 int pstLightConeVel(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
-    struct inScaleVel *in = vin;
+    struct inLightConeVel *in = vin;
 
     mdlassert(pst->mdl,nIn == 0);
     if (pst->nLeaves > 1) {
@@ -4086,7 +4089,7 @@ int pstLightConeVel(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	mdlGetReply(pst->mdl,rID,NULL,NULL);
 	}
     else {
-	pkdLightConeVel(plcl->pkd);
+	pkdLightConeVel(plcl->pkd,in->dBoxSize);
 	}
     return 0;
     }

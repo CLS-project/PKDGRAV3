@@ -137,7 +137,8 @@ void msrFastGasPhase2(MSR,double,int);
 void msrReSmooth(MSR,double,int,int);
 void msrUpdateSoft(MSR,double);
 uint8_t msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
-    double dTime,double dStep,int bKickClose,int bKickOpen,int bEwald,int nGroup,int *piSec,uint64_t *pnActive);
+    double dTime,double dStep,int bKickClose,int bKickOpen,int bEwald,int bGravStep,int nPartRhoLoc,int iTimeStepCrit,
+    int nGroup,int *piSec,uint64_t *pnActive);
 void msrCalcEandL(MSR msr,int bFirst,double dTime,double *E,double *T,double *U,double *Eth,double *L,double *F,double *W);
 void msrDrift(MSR,double dTime,double dDelta,int iRoot);
 void msrScaleVel(MSR msr,double dvFac);
@@ -223,16 +224,11 @@ char *msrBuildIoName(MSR msr,char *achFile,int iStep);
 double msrDelta(MSR);
 int msrLogInterval(MSR);
 int msrCheckInterval(MSR);
-const char *msrCheckTypes(MSR msr);
 int msrOutInterval(MSR);
-const char *msrOutTypes(MSR msr);
 int msrRestart(MSR);
 int msrComove(MSR);
 double msrSoft(MSR);
 int msrDoDensity(MSR);
-#ifdef USE_PNG
-int msrPNGResolution(MSR msr);
-#endif
 int msrDoGravity(MSR msr);
 void msrSetParameters(MSR msr);
 void msrInitCosmology(MSR msr);

@@ -29,7 +29,6 @@ struct parameters {
     int bDiag;
     int bDedicatedMPI;
     int bSharedMPI;
-    int bNoGrav;
     int bOverwrite;
     int bVWarnings;
     int bVStart;
@@ -56,16 +55,11 @@ struct parameters {
     int nPartColl;
     int nTruncateRung;
     int bDoDensity;
-#ifdef USE_PNG
-    int nPNGResolution;
-#endif
     int bDoRungOutput;
     int bDoRungDestOutput;
     int bDoGravity;
-    int bAarsethStep;
     int nBucket;
     int nGroup;
-    int n2min;
     int iOutInterval;
     int iFofInterval;
     int iCheckInterval;
@@ -89,8 +83,6 @@ struct parameters {
     int iSignalSeconds;
     int bPhysicalSoft;
     int bSoftMaxMul;
-    int nSoftNbr;
-    int bSoftByType;
     int bDoSoftOutput;
     int bDoAccOutput;
     int bDoPotOutput;
@@ -171,7 +163,6 @@ struct parameters {
     double dyPeriod;
     double dzPeriod;
     double dPreFacRhoLoc;
-    double dFacExcludePart;
     double dEccFacMax;
     double dRedTo;
     double dRedFrom;
@@ -182,8 +173,6 @@ struct parameters {
     char achIoPath[256];
     char achCheckpointPath[256];
     char achDataSubPath[256];
-    char achOutTypes[256];
-    char achCheckTypes[256];
 #ifdef USE_PYTHON
     char achScriptFile[256];
 #endif
@@ -191,9 +180,6 @@ struct parameters {
     char achClassFilename[256];
     char achLinearSpecies[256];
     char achPowerSpecies[256];
-    double dGrowDeltaM;
-    double dGrowStartT;
-    double dGrowEndT;
     double dFracDualTree;
     double dFracNoDomainDecomp;
     double dFracNoDomainRootFind;

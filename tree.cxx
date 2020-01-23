@@ -586,7 +586,7 @@ void BuildFromTemplate(PKD pkd,int iNode,int M,int nGroup,int iTemplate) {
 static vel_t zeroV[3] = {0.0,0.0,0.0};
 static float  zeroF[3] = {0.0,0.0,0.0};
 
-void Create(PKD pkd,int iRoot) {
+void Create(PKD pkd,int iRoot,double ddHonHLimit) {
     int iNode = iRoot;
     PARTICLE *p;
     KDN *pkdn,*pkdl,*pkdu;
@@ -834,15 +834,15 @@ void Create(PKD pkd,int iRoot) {
 		    /*
 		    ** This first ball bound over all gas particles is only used for remote searching.
 		    */
-		    for (d=0;d<3;++d) bn->B.min[d] = fmin(bn->B.min[d],r[d] - (1+pkd->param.ddHonHLimit)*fBall);
-		    for (d=0;d<3;++d) bn->B.max[d] = fmax(bn->B.max[d],r[d] + (1+pkd->param.ddHonHLimit)*fBall);
+		    for (d=0;d<3;++d) bn->B.min[d] = fmin(bn->B.min[d],r[d] - (1+ddHonHLimit)*fBall);
+		    for (d=0;d<3;++d) bn->B.max[d] = fmax(bn->B.max[d],r[d] + (1+ddHonHLimit)*fBall);
 		    if (pkdIsActive(pkd,p)) {
 			for (d=0;d<3;++d) bn->A.min[d] = fmin(bn->A.min[d],r[d]);
 			for (d=0;d<3;++d) bn->A.max[d] = fmax(bn->A.max[d],r[d]);
 		    }
 		    else {
-			for (d=0;d<3;++d) bn->BI.min[d] = fmin(bn->BI.min[d],r[d] - (1+pkd->param.ddHonHLimit)*fBall);
-			for (d=0;d<3;++d) bn->BI.max[d] = fmax(bn->BI.max[d],r[d] + (1+pkd->param.ddHonHLimit)*fBall);
+			for (d=0;d<3;++d) bn->BI.min[d] = fmin(bn->BI.min[d],r[d] - (1+ddHonHLimit)*fBall);
+			for (d=0;d<3;++d) bn->BI.max[d] = fmax(bn->BI.max[d],r[d] + (1+ddHonHLimit)*fBall);
 		    }
 		}
 	    }
@@ -1027,7 +1027,7 @@ void pkdCombineCells2(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
     }
 }
 
-void pkdTreeBuild(PKD pkd,int nBucket, int nGroup, uint32_t uRoot,uint32_t uTemp) {
+void pkdTreeBuild(PKD pkd,int nBucket, int nGroup, uint32_t uRoot,uint32_t uTemp, double ddHonHLimit) {
     int i;
 #ifdef USE_ITT
     __itt_domain* domain = __itt_domain_create("MyTraces.MyDomain");
@@ -1047,7 +1047,7 @@ void pkdTreeBuild(PKD pkd,int nBucket, int nGroup, uint32_t uRoot,uint32_t uTemp
 
     if (uTemp==0) BuildTemp(pkd,uRoot,nBucket,nGroup,HUGE_VAL);
     else  BuildFromTemplate(pkd,uRoot,nBucket,nGroup,uTemp);
-    Create(pkd,uRoot);
+    Create(pkd,uRoot,ddHonHLimit);
     pkdStopTimer(pkd,0);
 
     if (uRoot == FIXROOT) {
@@ -1246,7 +1246,7 @@ void pkdTreeBuildByGroup(PKD pkd, int nBucket, int nGroup) {
 	    BuildTemp(pkd,pkd->hopGroups[gid].iTreeRoot,nBucket,nGroup,HUGE_VAL);
     for(gid=1; gid<pkd->nGroups; ++gid)
 	if (pkd->hopGroups[gid].bNeedGrav)
-	    Create(pkd,pkd->hopGroups[gid].iTreeRoot);
+	    Create(pkd,pkd->hopGroups[gid].iTreeRoot,0.0);
     /*
     ** Finally activate a read only cache for remote access.
     */

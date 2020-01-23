@@ -172,7 +172,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2, ui
     int bKickClose,int bKickOpen,vel_t *dtClose,vel_t *dtOpen,
     double *dtLCDrift,double *dtLCKick,double dLookbackFac,double dLookbackFacLCP,
     double dAccFac,double dTime,double dRhoFac, int bEwald,
-    double dThetaMin, int bGravStep, double *pdFlop, double *pdPartSum,double *pdCellSum) {
+    double dThetaMin, int bGravStep, int iTimeStepCrit, double *pdFlop, double *pdPartSum,double *pdCellSum) {
     KDN *k,*c,*kFind;
     int id,idUpper,iCell,iSib,iLower,iUpper,iCheckCell,iCheckLower,iCellDescend;
     PARTICLE *p;
@@ -360,7 +360,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2, ui
 				    iCidPart = blk->iCache.i[jTile]==CID_CELL ? CID_PARTICLE : CID_PARTICLE2;
 				    if (id == pkd->idSelf) p = pkdParticle(pkd,pj);
 				    else p = CAST(PARTICLE *,mdlFetch(pkd->mdl,iCidPart,pj,id));
-				    if (bGravStep && pkd->param.iTimeStepCrit == 1) v = pkdVel(pkd,p);
+				    if (bGravStep && iTimeStepCrit == 1) v = pkdVel(pkd,p);
 				    pkdGetPos1(pkd,p,r);
 				    if (!bReferenceFound) {
 					bReferenceFound=1;
@@ -395,7 +395,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2, ui
 					else p = CAST(PARTICLE *,mdlFetch(pkd->mdl,iCidPart,pj,id));
 					fMass = pkdMass(pkd,p);
 					fSoft = pkdSoft(pkd,p);
-					if (bGravStep && pkd->param.iTimeStepCrit == 1) v = pkdVel(pkd,p);
+					if (bGravStep && iTimeStepCrit == 1) v = pkdVel(pkd,p);
 					pkdGetPos1(pkd,p,r);
 					iOrder = pkd->bNoParticleOrder ? 0 : p->iOrder;
 					ilpAppend(pkd->ilp,
@@ -430,7 +430,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2, ui
 				    pkdGetPos1(pkd,p,r);
 				    fMass = pkdMass(pkd,p);
 				    fSoft = pkdSoft(pkd,p);
-				    if (bGravStep && pkd->param.iTimeStepCrit == 1) v = pkdVel(pkd,p);
+				    if (bGravStep && iTimeStepCrit == 1) v = pkdVel(pkd,p);
 				    clAppend(pkd->clNew,blk->iCache.i[jTile],id,-1 - pj,0,0,0,0,1,0.0,fMass,4.0f*fSoft*fSoft,
 					r,       /* center of mass */
 					fOffset, /* fOffset */
@@ -675,13 +675,10 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2, ui
 	** Checklist should be empty! Calculate gravity on this
 	** Bucket!
 	*/
-	if (!pkd->param.bNoGrav) {
-	    nActive = pkdGravInteract(pkd,uRungLo,uRungHi,bKickClose,bKickOpen,dtClose,dtOpen,
-		dtLCDrift,dtLCKick,dLookbackFac,dLookbackFacLCP,
-		dAccFac,k,&L,pkd->ilp,pkd->ilc,dirLsum,normLsum,bEwald,bGravStep,pdFlop,dRhoFac,
-		smx, &smf, iRoot, iRoot2);
-	    }
-	else nActive = 0;
+	nActive = pkdGravInteract(pkd,uRungLo,uRungHi,bKickClose,bKickOpen,dtClose,dtOpen,
+	    dtLCDrift,dtLCKick,dLookbackFac,dLookbackFacLCP,
+	    dAccFac,k,&L,pkd->ilp,pkd->ilc,dirLsum,normLsum,bEwald,bGravStep,pdFlop,dRhoFac,
+	    smx, &smf, iRoot, iRoot2);
 	/*
 	** Update the limit for a shift of the center here based on the opening radius of this
 	** cell (the one we just evaluated).
@@ -737,7 +734,7 @@ static void doneGravWalk(PKD pkd,SMX smx,SMF *smf) {
 	}
     }
 
-static void initGravWalk(PKD pkd,double dTime,double dThetaMin,int bPeriodic,int bGravStep,
+static void initGravWalk(PKD pkd,double dTime,double dThetaMin,int bPeriodic,int bGravStep,int nPartRhoLoc,int iTimeStepCrit,
     SMX *smx, SMF *smf, double *dRhoFac) {
     int pi;
 
@@ -752,7 +749,7 @@ static void initGravWalk(PKD pkd,double dTime,double dThetaMin,int bPeriodic,int
     assert(pkd->oNodeMom);
     if (bGravStep) {
 	assert(pkd->oNodeAcceleration);
-	if (pkd->param.iTimeStepCrit == 1) {
+	if (iTimeStepCrit == 1) {
 	    assert(pkd->oNodeVelocity);
 	    assert(pkd->oVelocity);
 	    }
@@ -762,7 +759,7 @@ static void initGravWalk(PKD pkd,double dTime,double dThetaMin,int bPeriodic,int
     ** Setup smooth for calculating local densities when a particle has too few P-P interactions.
     */
     if (bGravStep) {
-	smInitializeRO(smx,pkd,smf,pkd->param.nPartRhoLoc,bPeriodic,SMX_DENSITY_F1);
+	smInitializeRO(smx,pkd,smf,nPartRhoLoc,bPeriodic,SMX_DENSITY_F1);
 	smSmoothInitialize(*smx);
 	}
     else (*smx) = NULL;
@@ -796,7 +793,7 @@ int pkdGravWalkHop(PKD pkd,double dTime,int nGroup, double dThetaMin,double *pdF
     SMF smf;
 
     mdlROcache(pkd->mdl,CID_PARTICLE,NULL,pkdParticleBase(pkd),pkdParticleSize(pkd), pkdLocal(pkd));
-    initGravWalk(pkd,dTime,dThetaMin,0,0,&smx,&smf,&dRhoFac);
+    initGravWalk(pkd,dTime,dThetaMin,0,0,0,0,&smx,&smf,&dRhoFac);
     nActive = 0;
     for(gid=1; gid<pkd->nGroups; ++gid) {
 	if (!pkd->hopGroups[gid].bNeedGrav) continue;
@@ -815,7 +812,7 @@ int pkdGravWalkHop(PKD pkd,double dTime,int nGroup, double dThetaMin,double *pdF
 	assert(pkd->hopRoots[iRootSelf].iPid==pkd->idSelf);
 	nActive += processCheckList(pkd, smx, smf, pkd->hopRoots[iRootSelf].iIndex, 0, 0, MAX_RUNG,
 	    0,0,NULL,NULL,NULL,NULL,0.0,0.0,1.0,dTime,
-	    dRhoFac, 0, dThetaMin, 0, pdFlop, pdPartSum, pdCellSum);
+	    dRhoFac, 0, dThetaMin, 0, 0, pdFlop, pdPartSum, pdCellSum);
 	}
     doneGravWalk(pkd,smx,&smf);
     mdlFinishCache(pkd->mdl,CID_PARTICLE);
@@ -828,7 +825,7 @@ int pkdGravWalkHop(PKD pkd,double dTime,int nGroup, double dThetaMin,double *pdF
 */
 int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,int bKickClose,int bKickOpen,
     vel_t *dtClose,vel_t *dtOpen,double *dtLCDrift,double *dtLCKick,double dLookbackFac,double dLookbackFacLCP, 
-    double dAccFac,double dTime,int nReps,int bEwald,int nGroup,
+    double dAccFac,double dTime,int nReps,int bEwald,int bGravStep,int nPartRhoLoc,int iTimeStepCrit,int nGroup,
     int iLocalRoot1, int iLocalRoot2,int iVARoot,
     double dThetaMin,double *pdFlop,double *pdPartSum,double *pdCellSum) {
     int id;
@@ -843,7 +840,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,int bKickClose,int bKick
     SMF smf;
     int iTop1, iTop2;
 
-    initGravWalk(pkd,dTime,dThetaMin,nReps?1:0,pkd->param.bGravStep,&smx,&smf,&dRhoFac);
+    initGravWalk(pkd,dTime,dThetaMin,nReps?1:0,bGravStep,nPartRhoLoc,iTimeStepCrit,&smx,&smf,&dRhoFac);
 
     iTop1 = pkd->iTopTree[iLocalRoot1];
     iTop2 = pkd->iTopTree[iLocalRoot2];
@@ -883,7 +880,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,int bKickClose,int bKick
 	    }
 	nActive += processCheckList(pkd, smx, smf, iLocalRoot1, iLocalRoot2, uRungLo, uRungHi,
 	    bKickClose,bKickOpen,dtClose,dtOpen,dtLCDrift,dtLCKick,dLookbackFac,dLookbackFacLCP,
-	    dAccFac,dTime,dRhoFac, bEwald, dThetaMin, pkd->param.bGravStep, pdFlop, pdPartSum, pdCellSum);
+	    dAccFac,dTime,dRhoFac, bEwald, dThetaMin, bGravStep, iTimeStepCrit, pdFlop, pdPartSum, pdCellSum);
 	}
 #if 0
     /*
@@ -912,7 +909,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,int bKickClose,int bKick
 	    }
 	nActive += processCheckList(pkd, smx, smf, iLocalRoot2, iLocalRoot1, uRungLo, uRungHi,
 	    bKickClose,bKickOpen,dtClose,dtOpen,dtLCDrift,dtLCKick,dLookbackFac,dLookbackFacLCP,
-	    dAccFac,dTime,dRhoFac, 0, dThetaMin, pkd->param.bGravStep, pdFlop, pdPartSum, pdCellSum);
+	    dAccFac,dTime,dRhoFac, 0, dThetaMin, bGravStep, pdFlop, pdPartSum, pdCellSum);
 	}
 #endif
     doneGravWalk(pkd,smx,&smf);
@@ -934,7 +931,7 @@ int pkdGravWalkGroups(PKD pkd,double dTime,int nGroup, double dThetaMin,double *
     SMX smx;
     SMF smf;
 
-    initGravWalk(pkd,dTime,dThetaMin,0,0,&smx,&smf,&dRhoFac);
+    initGravWalk(pkd,dTime,dThetaMin,0,0,0,0,&smx,&smf,&dRhoFac);
     /*
     ** Initially we set our cell pointer to
     ** point to the top tree.
@@ -959,7 +956,7 @@ int pkdGravWalkGroups(PKD pkd,double dTime,int nGroup, double dThetaMin,double *
 #endif
 	nActive += processCheckList(pkd, smx, smf, gd[i].treeRoots[0].iLocalRootId, 0, 0, MAX_RUNG,
 	    0,0,NULL,NULL,NULL,NULL,0.0,0.0,1.0,dTime,
-	    dRhoFac, 0, dThetaMin, 0, pdFlop, pdPartSum, pdCellSum);
+	    dRhoFac, 0, dThetaMin, 0, 0, pdFlop, pdPartSum, pdCellSum);
     }
     doneGravWalk(pkd,smx,&smf);
     return nActive;

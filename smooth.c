@@ -373,16 +373,6 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
 	comb = NULL;
 	smx->fcnPost = NULL;
 	break;
-#ifdef SYMBA
-    case SMX_SYMBA:
-	assert(bSymmetric == 0);
-	smx->fcnSmooth = DrmininDrift;
-	initParticle = NULL;
-	init = NULL;
-	comb = NULL;
-	smx->fcnPost = NULL;
-	break;
-#endif /* SYMBA */
 
     default:
 	assert(0);
@@ -809,7 +799,7 @@ void smSmooth(SMX smx,SMF *smf) {
 
 
 #ifdef FAST_GAS
-void UpdateSphBounds(SMX smx) {
+void UpdateSphBounds(SMX smx,double ddHonHLimit) {
     PKD pkd = smx->pkd;
     PARTICLE *p;
     KDN *pkdn,*p1,*p2;
@@ -860,11 +850,11 @@ void UpdateSphBounds(SMX smx) {
 		    /*
 		    ** Use the old fBall, but increased by the factor given by the maximum growth of hsmooth.
 		    */
-		    for (d=0;d<3;++d) Bmin[d] = fmin(Bmin[d],p->r[d] - (1+pkd->param.ddHonHLimit)*p->fBall);
-		    for (d=0;d<3;++d) Bmax[d] = fmax(Bmax[d],p->r[d] + (1+pkd->param.ddHonHLimit)*p->fBall);
+		    for (d=0;d<3;++d) Bmin[d] = fmin(Bmin[d],p->r[d] - (1+ddHonHLimit)*p->fBall);
+		    for (d=0;d<3;++d) Bmax[d] = fmax(Bmax[d],p->r[d] + (1+ddHonHLimit)*p->fBall);
 		    if (!pkdIsActive(pkd,p)) {
-			for (d=0;d<3;++d) BImin[d] = fmin(BImin[d],p->r[d] - (1+pkd->param.ddHonHLimit)*p->fBall);
-			for (d=0;d<3;++d) BImax[d] = fmax(BImax[d],p->r[d] + (1+pkd->param.ddHonHLimit)*p->fBall);
+			for (d=0;d<3;++d) BImin[d] = fmin(BImin[d],p->r[d] - (1+ddHonHLimit)*p->fBall);
+			for (d=0;d<3;++d) BImax[d] = fmax(BImax[d],p->r[d] + (1+ddHonHLimit)*p->fBall);
 		    }
 		}
 	    }
@@ -979,7 +969,7 @@ static inline int iOpenInactive(PKD pkd,KDN *k,CELT *check,KDN **pc,PARTICLE **p
 /*
 ** Returns the number of elements added to the do queue.
 */
-uint32_t BoundWalkInactive(SMX smx) {
+uint32_t BoundWalkInactive(SMX smx,double ddHonHLimit) {
     PKD pkd = smx->pkd;
     PARTICLE *p,*pp;
     KDN *k,*c,*kSib;
@@ -1110,7 +1100,7 @@ uint32_t BoundWalkInactive(SMX smx) {
 			    for (j=0;j<3;++j) {
 				d2 += pow(p->r[j] - (pp->r[j] + pkd->Check[i].rOffset[j]),2);
 			    }
-			    if (d2 < pow((1+pkd->param.ddHonHLimit)*p->fBall,2)) {
+			    if (d2 < pow((1+ddHonHLimit)*p->fBall,2)) {
 				/*
 				** Needs an updated density, so add it to the end of the 
 				** do queue.
@@ -1130,8 +1120,8 @@ uint32_t BoundWalkInactive(SMX smx) {
 				** The particle remains not done, and we can use it to calculate the inactive
 				** ball bounds.
 				*/
-				for (d=0;d<3;++d) BImin[d] = fmin(BImin[d],p->r[d] - (1+pkd->param.ddHonHLimit)*p->fBall);
-				for (d=0;d<3;++d) BImax[d] = fmax(BImax[d],p->r[d] + (1+pkd->param.ddHonHLimit)*p->fBall);
+				for (d=0;d<3;++d) BImin[d] = fmin(BImin[d],p->r[d] - (1+ddHonHLimit)*p->fBall);
+				for (d=0;d<3;++d) BImax[d] = fmax(BImax[d],p->r[d] + (1+ddHonHLimit)*p->fBall);
 			    }
 			}
 		    }
@@ -1356,7 +1346,7 @@ uint32_t BoundWalkInactive(SMX smx) {
 	}
     }
 
-static inline int iOpenActive(PKD pkd,KDN *k,CELT *check,KDN **pc,PARTICLE **pp) {
+static inline int iOpenActive(PKD pkd,KDN *k,CELT *check,KDN **pc,PARTICLE **pp,double ddHonHLimit) {
     PARTICLE *p;
     KDN *c;
     SPHBNDS *bk,*bc;
@@ -1392,7 +1382,7 @@ static inline int iOpenActive(PKD pkd,KDN *k,CELT *check,KDN **pc,PARTICLE **pp)
 	** we don't exactly know if they have an updated softening or not. Safe is to multiply all by 
 	** the maximum hsmooth growth factor regardless of their state.
 	*/
-	if (mink2 > pow((1+pkd->param.ddHonHLimit)*p->fBall,2)) return(10);
+	if (mink2 > pow((1+ddHonHLimit)*p->fBall,2)) return(10);
 	if (k->iLower) return(0); /* particle stays on the checklist (open k) */
 	else return(1);  /* test particle by particle */
     }
@@ -1436,7 +1426,7 @@ static inline int iOpenActive(PKD pkd,KDN *k,CELT *check,KDN **pc,PARTICLE **pp)
     }
 }
 
-void BoundWalkActive(SMX smx,LIST **ppList,int *pnMaxpList) {
+void BoundWalkActive(SMX smx,LIST **ppList,int *pnMaxpList,double ddHonHLimit) {
     PKD pkd = smx->pkd;
     PARTICLE *p,*pp;
     KDN *k,*c,*kSib;
@@ -1531,7 +1521,7 @@ void BoundWalkActive(SMX smx,LIST **ppList,int *pnMaxpList) {
 */
 	    ii = 0;
 	    for (i=0;i<nCheck;++i) {
-		iOpen = iOpenActive(pkd,k,&pkd->Check[i],&c,&pp);
+		iOpen = iOpenActive(pkd,k,&pkd->Check[i],&c,&pp,ddHonHLimit);
 /*
 		printf("%1d",iOpen);
 */
@@ -1566,7 +1556,7 @@ void BoundWalkActive(SMX smx,LIST **ppList,int *pnMaxpList) {
 			    ** phase, although this is only really needed for iterative SPH calculations, such as
 			    ** radiative transfer.
 			    */
-			    if (d2 < pow((1+pkd->param.ddHonHLimit)*pp->fBall,2)) {
+			    if (d2 < pow((1+ddHonHLimit)*pp->fBall,2)) {
 				/*
 				** Check if particle pp (a remote particle) is on the list of particle p (local and active).
 				** If not, then add pp to p's list.
@@ -1852,7 +1842,7 @@ void DoLocalSearch(SMX smx,SMF *smf,PARTICLE *p,double *rLast) {
 ** where both directions of the interaction must be calculated (with the advantage that we never 
 ** need the combiner cache of course). - Joachim Stadel
 */
-void smFastGasPhase1(SMX smx,SMF *smf) {
+void smFastGasPhase1(SMX smx,SMF *smf,double ddHonHLimit) {
     PKD pkd = smx->pkd;
     PARTICLE *p,*pp;
     double rLast[3];
@@ -1870,7 +1860,7 @@ void smFastGasPhase1(SMX smx,SMF *smf) {
     ** Initialize a default sized list. We will make this 2*nSmooth to start with.
     ** tList is a temporary list used to remove elements from a neighbor's own list.
     */
-    nMaxpList = 2*pkd->param.nSmooth;
+    nMaxpList = 2*smx->nSmooth;
     pList = malloc(nMaxpList*sizeof(LIST));
     assert(pList != NULL);
     /*
@@ -2135,7 +2125,7 @@ void smFastGasPhase1(SMX smx,SMF *smf) {
     ** Update all local sph bounds, making sure we only increase current minimums and decrease current
     ** maximums (only that is safe).
     */
-    UpdateSphBounds(smx);
+    UpdateSphBounds(smx,ddHonHLimit);
     /*
     ** Start of ball bound searching with the newly updated local bounds.
     ** First we make all local inactive which haven't been done search for active particles within their
@@ -2144,7 +2134,7 @@ void smFastGasPhase1(SMX smx,SMF *smf) {
     ** find them on their own in the last pass if need be).
     */
     uHead = 0;
-    uTail = BoundWalkInactive(smx);
+    uTail = BoundWalkInactive(smx,ddHonHLimit);
     assert(uTail < pkd->nLocal);
 /*
     printf("After BoundWalkInactive added %d new inactive particles. They get new densities now.\n",uTail);
@@ -2204,14 +2194,14 @@ void smFastGasPhase1(SMX smx,SMF *smf) {
     ** maximums (only that is safe). We are really only interested in the ball bound for all particles (B) from here
     ** on now, although the completed inactives will again cause a shrink in BI ball bounds.
     */
-    UpdateSphBounds(smx);
+    UpdateSphBounds(smx,ddHonHLimit);
     /*
     ** In this last pass we make all local active search for REMOTE actives AND inactives which have not already
     ** been added to our lists. If they haven't, then add them, their densities will have been updated already.
     ** This is the only part where extra particles, other than true nearest neighbors at this step are added to 
     ** local lists. So only remote neighbors are a superset of the actual remote neighbors.
     */
-    BoundWalkActive(smx,&pList,&nMaxpList);
+    BoundWalkActive(smx,&pList,&nMaxpList,ddHonHLimit);
     /*
     ** Release acquired pointers and source-reactivate particles in prioq.
     */
@@ -2241,7 +2231,7 @@ void smFastGasPhase2(SMX smx,SMF *smf) {
     /*
     ** Initialize a default sized list. We will make this 2*nSmooth to start with.
     */
-    nMaxpList = 2*pkd->param.nSmooth;
+    nMaxpList = 2*smx->nSmooth;
     pList = malloc(nMaxpList*sizeof(LIST));
     assert(pList != NULL);
 

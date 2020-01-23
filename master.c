@@ -892,9 +892,6 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
     msr->param.bSharedMPI = 0;
     prmAddParam(msr->prm,"bSharedMPI",0,&msr->param.bSharedMPI,sizeof(int),"sharedmpi",
 		"enable/disable extra dedicated MPI thread");
-    msr->param.bNoGrav = 0;
-    prmAddParam(msr->prm,"bNoGrav",0,&msr->param.bNoGrav,sizeof(int),"nograv",
-		"enable/disable Gravity calulation for testing = -nograv");
     msr->param.bOverwrite = 0;
     prmAddParam(msr->prm,"bOverwrite",0,&msr->param.bOverwrite,sizeof(int),
 		"overwrite","enable/disable overwrite safety lock = -overwrite");
@@ -937,20 +934,12 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
     msr->param.bDoDensity = 1;
     prmAddParam(msr->prm,"bDoDensity",0,&msr->param.bDoDensity,sizeof(int),
 		"den","enable/disable density outputs = +den");
-#ifdef USE_PNG
-    msr->param.nPNGResolution = 0;
-    prmAddParam(msr->prm,"nPNGResolution",1,&msr->param.nPNGResolution,sizeof(int),
-		"png","PNG output resolution (zero disables) = 0");
-#endif
     msr->param.nBucket = 16;
     prmAddParam(msr->prm,"nBucket",1,&msr->param.nBucket,sizeof(int),"b",
 		"<max number of particles in a bucket> = 16");
     msr->param.nGroup = 64;
     prmAddParam(msr->prm,"nGroup",1,&msr->param.nGroup,sizeof(int),"grp",
 		"<max number of particles in a group> = 64");
-    msr->param.n2min = 50;
-    prmAddParam(msr->prm,"n2min",1,&msr->param.n2min,sizeof(int),"nn",
-		"<minimum number of p-p interactions for using c-c interactions> = 50");
     msr->param.iStartStep = 0;
     prmAddParam(msr->prm,"iStartStep",1,&msr->param.iStartStep,
 		sizeof(int),"nstart","<initial step numbering> = 0");
@@ -966,15 +955,9 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
     msr->param.iFofInterval = 0;
     prmAddParam(msr->prm,"iFofInterval",1,&msr->param.iFofInterval,sizeof(int),
 		"fof","<number of timesteps between fof group finding> = 0");
-    strcpy(msr->param.achOutTypes,"rvmsp");
-    prmAddParam(msr->prm,"achOutTypes",3,msr->param.achOutTypes,256,"ot",
-		"<output types for snapshot> = \"rvmsp\"");
     msr->param.iCheckInterval = 0;
     prmAddParam(msr->prm,"iCheckInterval",1,&msr->param.iCheckInterval,sizeof(int),
 		"ci","<number of timesteps between checkpoints> = 0");
-    strcpy(msr->param.achCheckTypes,"RVMSP");
-    prmAddParam(msr->prm,"achCheckTypes",3,msr->param.achCheckTypes,256,"ct",
-		"<output types for checkpoints> = \"RVMSP\"");
     msr->param.iLogInterval = 1;
     prmAddParam(msr->prm,"iLogInterval",1,&msr->param.iLogInterval,sizeof(int),
 		"ol","<number of timesteps between logfile outputs> = 1");
@@ -1008,12 +991,6 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
     msr->param.bSoftMaxMul = 1;
     prmAddParam(msr->prm,"bSoftMaxMul",0,&msr->param.bSoftMaxMul,sizeof(int),"SMM",
 		"<Use maximum comoving gravitational softening length as a multiplier> +SMM");
-    msr->param.nSoftNbr = 32;
-    prmAddParam(msr->prm,"nSoftNbr",1,&msr->param.nSoftNbr,sizeof(int),"VarSoft",
-		"<Neighbours for Variable gravitational softening length> 32");
-    msr->param.bSoftByType = 1;
-    prmAddParam(msr->prm,"bSoftByType",0,&msr->param.bSoftByType,sizeof(int),"SBT",
-		"<Variable gravitational softening length by Type> +SBT");
     msr->param.bDoSoftOutput = 0;
     prmAddParam(msr->prm,"bDoSoftOutput",0,&msr->param.bDoSoftOutput,sizeof(int),
 		"softout","enable/disable soft outputs = -softout");
@@ -1053,9 +1030,6 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
     msr->param.dPreFacRhoLoc = 4.0*M_PI/3.0;
     prmAddParam(msr->prm,"dPreFacRhoLoc",2,&msr->param.dPreFacRhoLoc,sizeof(double),
 		"dprefacrholoc", "<Pre-factor for local density in dynamical time-stepping>");
-    msr->param.dFacExcludePart = 100;
-    prmAddParam(msr->prm,"dFacExcludePart",2,&msr->param.dFacExcludePart,sizeof(double),
-		"dfacexclp", "<Pre-factor for exluding far away particles on ILP list>");
     msr->param.dEccFacMax = 3000;
     prmAddParam(msr->prm,"dEccFacMax",2,&msr->param.dEccFacMax,sizeof(double),
 		"deccfacmax", "<Maximum correction factor for eccentricity correction>");
@@ -1232,15 +1206,6 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
     msr->param.dRedFrom = 0.0;
     prmAddParam(msr->prm,"dRedFrom",2,&msr->param.dRedFrom,sizeof(double),"z",
 		"specifies initial redshift for the simulation");
-    msr->param.dGrowDeltaM = 0.0;
-    prmAddParam(msr->prm,"dGrowDeltaM",2,&msr->param.dGrowDeltaM,
-		sizeof(double),"gmdm","<Total growth in mass/particle> = 0.0");
-    msr->param.dGrowStartT = 0.0;
-    prmAddParam(msr->prm,"dGrowStartT",2,&msr->param.dGrowStartT,
-		sizeof(double),"gmst","<Start time for growing mass> = 0.0");
-    msr->param.dGrowEndT = 1.0;
-    prmAddParam(msr->prm,"dGrowEndT",2,&msr->param.dGrowEndT,
-		sizeof(double),"gmet","<End time for growing mass> = 1.0");
     msr->param.dFracDualTree = 0.05;
     prmAddParam(msr->prm,"dFracDualTree",2,&msr->param.dFracDualTree,
 		sizeof(double),"fndt",
@@ -1260,9 +1225,6 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
     msr->param.bDoGravity = 1;
     prmAddParam(msr->prm,"bDoGravity",0,&msr->param.bDoGravity,sizeof(int),"g",
 		"enable/disable interparticle gravity = +g");
-    msr->param.bAarsethStep = 0;
-    prmAddParam(msr->prm,"bAarsethStep",0,&msr->param.bAarsethStep,sizeof(int),
-		"aas","<Aarseth timestepping>");
     msr->param.iWallRunTime = 0;
     prmAddParam(msr->prm,"iWallRunTime",1,&msr->param.iWallRunTime,
 		sizeof(int),"wall",
@@ -1794,7 +1756,6 @@ void msrLogParams(MSR msr,FILE *fp) {
     fprintf(fp," bHDF5: %d",msr->param.bHDF5);
     fprintf(fp," nBucket: %d",msr->param.nBucket);
     fprintf(fp," nGroup: %d",msr->param.nGroup);
-    fprintf(fp," n2min: %d",msr->param.n2min);
     fprintf(fp,"\n# iOutInterval: %d",msr->param.iOutInterval);
     fprintf(fp," iCheckInterval: %d",msr->param.iCheckInterval);
     fprintf(fp," iLogInterval: %d",msr->param.iLogInterval);
@@ -1816,8 +1777,6 @@ void msrLogParams(MSR msr,FILE *fp) {
     else
 	fprintf(fp," dSoft: input");
     fprintf(fp,"\n# bPhysicalSoft: %d",msr->param.bPhysicalSoft);
-    fprintf(fp," nSoftNbr: %d",msr->param.nSoftNbr);
-    fprintf(fp," bSoftByType: %d",msr->param.bSoftByType);
     fprintf(fp," bSoftMaxMul: %d",msr->param.bSoftMaxMul);
     fprintf(fp," dSoftMax: %g",msr->param.dSoftMax);
     fprintf(fp," bDoSoftOutput: %d",msr->param.bDoSoftOutput);
@@ -1836,19 +1795,14 @@ void msrLogParams(MSR msr,FILE *fp) {
     fprintf(fp,"\n# iTimeStepCrit: %d",msr->param.iTimeStepCrit);
     fprintf(fp," nPartRhoLoc: %d", msr->param.nPartRhoLoc);
     fprintf(fp," dPreFacRhoLoc: %g", msr->param.dPreFacRhoLoc);
-    fprintf(fp," dFacExcludePart: %g", msr->param.dFacExcludePart);
     fprintf(fp," dEccFacMax: %g", msr->param.dEccFacMax);
     fprintf(fp," nPartColl: %d", msr->param.nPartColl);
     fprintf(fp,"\n# bDoGravity: %d",msr->param.bDoGravity);
-    fprintf(fp," bAarsethStep: %d",msr->param.bAarsethStep);
     fprintf(fp,"\n# dFracDualTree: %g",msr->param.dFracDualTree);
     fprintf(fp,"dFracNoDomainDecomp: %g",msr->param.dFracNoDomainDecomp);
     fprintf(fp," dFracNoDomainRootFind: %g",msr->param.dFracNoDomainRootFind);
     fprintf(fp," dFracNoDomainDimChoice: %g",msr->param.dFracNoDomainDimChoice);
     fprintf(fp,"\n# nTruncateRung: %d",msr->param.nTruncateRung);
-    fprintf(fp," dGrowDeltaM: %g",msr->param.dGrowDeltaM);
-    fprintf(fp," dGrowStartT: %g",msr->param.dGrowStartT);
-    fprintf(fp," dGrowEndT: %g",msr->param.dGrowEndT);
 
     fprintf(fp,"\n# SPH: bDoGas: %d",msr->param.bDoGas);	
     fprintf(fp," bGasAdiabatic: %d",msr->param.bGasAdiabatic);	
@@ -2275,6 +2229,7 @@ void msrAllNodeWrite(MSR msr, const char *pszFileName, double dTime, double dvFa
     in.dEcosmo    = msr->dEcosmo;
     in.dTimeOld   = msr->dTimeOld;
     in.dUOld      = msr->dUOld;
+    in.dTuFac     = msr->param.dTuFac;
     in.dBoxSize   = msr->param.dBoxSize;
     in.Omega0     = msr->csm->val.dOmega0;
     in.OmegaLambda= msr->csm->val.dLambda;
@@ -2652,6 +2607,7 @@ static void BuildTree(MSR msr,int bNeedEwald,uint32_t uRoot,uint32_t utRoot) {
     struct inCalcRoot calc;
     struct outCalcRoot root;
     struct inDistribTopTree *pDistribTop;
+    const double ddHonHLimit = msr->param.ddHonHLimit;
     int i;
     PST pst0;
     LCL *plcl;
@@ -2676,6 +2632,7 @@ static void BuildTree(MSR msr,int bNeedEwald,uint32_t uRoot,uint32_t utRoot) {
     in.nGroup = msr->param.nGroup;
     in.uRoot = uRoot;
     in.utRoot = utRoot;
+    in.ddHonHLimit = ddHonHLimit;
     sec = msrTime();
     nTopTree = pstBuildTree(msr->pst,&in,sizeof(in),pkdn,nTopTree);
     pDistribTop->nTop = nTopTree / pkdNodeSize(pkd);
@@ -2971,10 +2928,8 @@ void msrOutVector(MSR msr,const char *pszFile,int iType) {
     }
 
 void msrSmoothSetSMF(MSR msr, SMF *smf, double dTime) {
-#ifdef SYMBA
-    smf->dSunMass = msr->dSunMass;
-#endif
     smf->dTime = dTime;
+    smf->iMaxRung = msr->param.iMaxRung;
     if (msrComove(msr)) {
 	smf->bComove = 1;
 	smf->H = csmTime2Hub(msr->csm,dTime);
@@ -3207,7 +3162,8 @@ void msrPrintStat(STAT *ps,char *pszPrefix,int p) {
 
 
 uint8_t msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
-    double dTime, double dStep,int bKickClose,int bKickOpen,int bEwald,int nGroup,int *piSec,uint64_t *pnActive) {
+    double dTime, double dStep,int bKickClose,int bKickOpen,int bEwald,int bGravStep,int nPartRhoLoc,int iTimeStepCrit,
+    int nGroup,int *piSec,uint64_t *pnActive) {
     struct inGravity in;
     struct outGravityPerProc *out;
     struct outGravityPerProc *outend;
@@ -3224,6 +3180,9 @@ uint8_t msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot
     in.nReps = msr->param.nReplicas;
     in.bPeriodic = msr->param.bPeriodic;
     in.bEwald = bEwald;
+    in.bGravStep = bGravStep;
+    in.nPartRhoLoc = nPartRhoLoc;
+    in.iTimeStepCrit = iTimeStepCrit;
     in.nGroup = nGroup;
     in.dEwCut = msr->param.dEwCut;
     in.dEwhCut = msr->param.dEwhCut;
@@ -3457,6 +3416,7 @@ void msrDrift(MSR msr,double dTime,double dDelta,int iRoot) {
 	}
     in.dTime = dTime;
     in.dDeltaUPred = dDelta;
+    in.bDoGas = msr->param.bDoGas;
     in.iRoot = iRoot;
     pstDrift(msr->pst,&in,sizeof(in),NULL,0);
     }
@@ -3562,6 +3522,7 @@ double msrAdjustTime(MSR msr, double aOld, double aNew) {
 
     in.dDeltaVPred = 0.0;
     in.dDeltaUPred = 0.0;
+    in.bDoGas = msr->param.bDoGas;
     in.iRoot = ROOT;
     msrprintf(msr,"Drifing particles from Time:%g Redshift:%g to Time:%g Redshift:%g ...\n",
 	      aOld, 1.0/aOld-1.0, aNew, aNew>0 ? 1.0/aNew-1.0 : 999999.0);
@@ -3601,6 +3562,7 @@ void msrKickKDKOpen(MSR msr,double dTime,double dDelta,uint8_t uRungLo,uint8_t u
     in.dDeltaUPred = 0;
     in.uRungLo = uRungLo;
     in.uRungHi = uRungHi;
+    in.bDoGas = msr->param.bDoGas;
     pstKick(msr->pst,&in,sizeof(in),&out,sizeof(out));
     msrprintf(msr,"KickOpen: Avg Wallclock %f, Max Wallclock %f\n",
 	      out.SumTime/out.nSum,out.MaxTime);
@@ -3626,6 +3588,7 @@ void msrKickKDKClose(MSR msr,double dTime,double dDelta,uint8_t uRungLo,uint8_t 
     in.dDeltaUPred = in.dDeltaU;
     in.uRungLo = uRungLo;
     in.uRungHi = uRungHi;
+    in.bDoGas = msr->param.bDoGas;
     pstKick(msr->pst,&in,sizeof(in),&out,sizeof(out));
     msrprintf(msr,"KickClose: Avg Wallclock %f, Max Wallclock %f\n",
 	      out.SumTime/out.nSum,out.MaxTime);
@@ -3754,21 +3717,9 @@ int msrOutInterval(MSR msr) {
     return(msr->param.iOutInterval);
     }
 
-
-const char *msrOutTypes(MSR msr) {
-    return(msr->param.achOutTypes);
-    }
-
-
 int msrCheckInterval(MSR msr) {
     return(msr->param.iCheckInterval);
     }
-
-
-const char *msrCheckTypes(MSR msr) {
-    return(msr->param.achCheckTypes);
-    }
-
 
 int msrComove(MSR msr) {
     return(msr->csm->val.bComove);
@@ -3929,6 +3880,8 @@ void msrAccelStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime) {
     in.dAccFac = 1.0/(a*a*a);
     in.bDoGravity = msrDoGravity(msr);
     in.bEpsAcc = msr->param.bEpsAccStep;
+    in.dDelta = msr->param.dDelta;
+    in.iMaxRung = msr->param.iMaxRung;
     in.uRungLo = uRungLo;
     in.uRungHi = uRungHi;
     pstAccelStep(msr->pst,&in,sizeof(in),NULL,0);
@@ -3941,8 +3894,12 @@ void msrSphStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime) {
 
     a = csmTime2Exp(msr->csm,dTime);
     in.dAccFac = 1.0/(a*a*a);
+    in.dEta = msr->param.dEta;
+    in.dEtaUDot = msr->param.dEtaUDot;
     in.uRungLo = uRungLo;
     in.uRungHi = uRungHi;
+    in.dDelta = msr->param.dDelta;
+    in.iMaxRung = msr->param.iMaxRung;
     pstSphStep(msr->pst,&in,sizeof(in),NULL,0);
     }
 
@@ -3954,6 +3911,8 @@ void msrDensityStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime) {
     msrprintf(msr,"Calculating Rung Densities...\n");
     bSymmetric = 0;
     msrSmooth(msr,dTime,SMX_DENSITY,bSymmetric,msr->param.nSmooth);
+    in.dDelta = msr->param.dDelta;
+    in.iMaxRung = msr->param.iMaxRung;
     in.dEta = msrEta(msr);
     expand = csmTime2Exp(msr->csm,dTime);
     in.dRhoFac = 1.0/(expand*expand*expand);
@@ -4098,9 +4057,11 @@ void msrLightConeClose(MSR msr,int iStep) {
 */
 void msrLightConeVel(MSR msr) {
     double sec,dsec;
+    struct inLightConeVel in;
 
     sec = msrTime();
-    pstLightConeVel(msr->pst,NULL,0,NULL,0);
+    in.dBoxSize = msr->param.dBoxSize;
+    pstLightConeVel(msr->pst,&in,sizeof(in),NULL,0);
     dsec = msrTime() - sec;
     printf("Converted lightcone velocities to physical, Wallclock: %f secs.\n", dsec);
     }
@@ -4272,7 +4233,7 @@ int msrNewTopStepKDK(MSR msr,
     // active tree, or we can get HUGE group cells, and hence too much P-P/P-C
     int nGroup = (bDualTree && uRung > iRungDT) ? 1 : msr->param.nGroup;
     *puRungMax = msrGravity(msr,uRung,msrMaxRung(msr),ROOT,uRoot2,*pdTime,
-	*pdStep,1,bKickOpen,msr->param.bEwald,nGroup,piSec,&nActive);
+	*pdStep,1,bKickOpen,msr->param.bEwald,msr->param.bGravStep,msr->param.nPartRhoLoc,msr->param.iTimeStepCrit,nGroup,piSec,&nActive);
 
     if (!uRung && msr->param.bFindGroups) {
 	msrGroupStats(msr);
@@ -4364,7 +4325,9 @@ void msrTopStepKDK(MSR msr,
 	    msrBuildTree(msr,dTime,msr->param.bEwald);
 	    }
 	if (msrDoGravity(msr)) {
-	    msrGravity(msr,iKickRung,MAX_RUNG,ROOT,0,dTime,dStep,0,0,msr->param.bEwald,msr->param.nGroup,piSec,&nActive);
+	    msrGravity(msr,iKickRung,MAX_RUNG,ROOT,0,dTime,dStep,0,0,
+	    	msr->param.bEwald,msr->param.bGravStep,msr->param.nPartRhoLoc,msr->param.iTimeStepCrit,
+	    	msr->param.nGroup,piSec,&nActive);
 	    *pdActiveSum += (double)nActive/msr->N;
 	    }
 	
@@ -4444,7 +4407,9 @@ void msrTopStepKDK(MSR msr,
 	    msrprintf(msr,"%*cGravity, iRung: %d to %d\n",
 		      2*iRung+2,' ',iKickRung,msrCurrMaxRung(msr));
 	    msrBuildTree(msr,dTime,msr->param.bEwald);
-	    msrGravity(msr,iKickRung,MAX_RUNG,ROOT,0,dTime,dStep,0,0,msr->param.bEwald,msr->param.nGroup,piSec,&nActive);
+	    msrGravity(msr,iKickRung,MAX_RUNG,ROOT,0,dTime,dStep,0,0,
+	    	msr->param.bEwald,msr->param.bGravStep,msr->param.nPartRhoLoc,msr->param.iTimeStepCrit,
+	    	msr->param.nGroup,piSec,&nActive);
 	    *pdActiveSum += (double)nActive/msr->N;
 	    }
 
@@ -4491,7 +4456,7 @@ void msrStarForm(MSR msr, double dTime, int iRung)
     sec = msrTime();
 
     a = csmTime2Exp(msr->csm,dTime);
-    in.dDelta = 0;
+    in.dDelta = msr->param.dDelta;
     /* Convert input parameters to code units */
     in.dRateCoeff = msr->param.SFdEfficiency*sqrt(32/(3*M_PI)/pow(a,3)); /* G=1 */
     in.dTMax = msr->param.SFdTMax;
@@ -4510,7 +4475,9 @@ void msrStarForm(MSR msr, double dTime, int iRung)
     in.dInitStarMass = msr->param.SFdInitStarMass;
     in.dMinGasMass = msr->param.SFdMinGasMass;
     in.bdivv = msr->param.SFbdivv;
-    
+    in.dTuFac = msr->param.dTuFac;
+    in.bGasCooling = msr->param.bGasCooling;
+
     if (msr->param.bVDetails) printf("Star Form ... ");
     
     msrActiveRung(msr,iRung,1); /* important to limit to active gas only */
@@ -4659,12 +4626,6 @@ msrAddDelParticles(MSR msr) {
 int msrDoDensity(MSR msr) {
     return(msr->param.bDoDensity);
     }
-
-#ifdef USE_PNG
-int msrPNGResolution(MSR msr) {
-    return(msr->param.nPNGResolution);
-    }
-#endif
 
 int msrDoGravity(MSR msr) {
     return(msr->param.bDoGravity);
@@ -5663,6 +5624,7 @@ void msrCalcDistance(MSR msr,const double *dCenter, double dRadius ) {
 
     for(j=0;j<3;j++) in.dCenter[j] = dCenter[j];
     in.dRadius = dRadius;
+    in.bPeriodic = msr->param.bPeriodic;
     pstCalcDistance(msr->pst, &in, sizeof(in), NULL, 0);
     }
 
@@ -5676,6 +5638,7 @@ void msrCalcCOM(MSR msr,const double *dCenter, double dRadius,
 
     for(j=0;j<3;j++) in.dCenter[j] = dCenter[j];
     in.dRadius = dRadius;
+    in.bPeriodic = msr->param.bPeriodic;
     nOut = pstCalcCOM(msr->pst, &in, sizeof(in), &out, sizeof(out));
     assert( nOut == sizeof(out) );
 
