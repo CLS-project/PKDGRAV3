@@ -72,8 +72,6 @@ void pstAddServices(PST pst,MDL mdl) {
 		  0,sizeof(BND));
     mdlAddService(mdl,PST_WEIGHT,pst,(fcnService_t*)pstWeight,
 		  sizeof(struct inWeight),sizeof(struct outWeight));
-    mdlAddService(mdl,PST_COUNTVA,pst,(fcnService_t*)pstCountVA,
-		  sizeof(struct inCountVA),sizeof(struct outCountVA));
     mdlAddService(mdl,PST_WEIGHTWRAP,pst,(fcnService_t*)pstWeightWrap,
 		  sizeof(struct inWeightWrap),sizeof(struct outWeightWrap));
     mdlAddService(mdl,PST_ORDWEIGHT,pst,(fcnService_t*)pstOrdWeight,
@@ -162,9 +160,6 @@ void pstAddServices(PST pst,MDL mdl) {
 		  sizeof(struct inScaleVel),0);
     mdlAddService(mdl,PST_CACHEBARRIER,pst,(fcnService_t*)pstCacheBarrier,
 		  0,0);
-    mdlAddService(mdl,PST_STEPVERYACTIVE,pst,(fcnService_t*)pstStepVeryActiveKDK,
-		  sizeof(struct inStepVeryActive),
-		  sizeof(struct outStepVeryActive));
     mdlAddService(mdl,PST_ROPARTICLECACHE,pst,(fcnService_t*)pstROParticleCache,
 		  0,0);
     mdlAddService(mdl,PST_PARTICLECACHEFINISH,pst,(fcnService_t*)pstParticleCacheFinish,
@@ -212,8 +207,6 @@ void pstAddServices(PST pst,MDL mdl) {
 		  sizeof(struct inSphStep), 0);
     mdlAddService(mdl,PST_STARFORM,pst,(fcnService_t*)pstStarForm,
 		  sizeof(struct inStarForm),sizeof(struct outStarForm));
-    mdlAddService(mdl,PST_SETRUNGVERYACTIVE,pst,(fcnService_t*)pstSetRungVeryActive,
-		  sizeof(struct inSetRung),0);
     mdlAddService(mdl,PST_RESMOOTH,pst,(fcnService_t*)pstReSmooth,
 		  sizeof(struct inSmooth),0);
     mdlAddService(mdl,PST_UPDATERUNG,pst,(fcnService_t*)pstUpdateRung,
@@ -342,7 +335,6 @@ void pstInitialize(PST *ppst,MDL mdl,LCL *plcl) {
     pst->nLower = 0;
     pst->nUpper = 0;
     pst->iSplitDim = -1;
-    pst->iVASplitSide = 0;
     }
 
 
@@ -638,8 +630,7 @@ int _pstRejMatch(PST pst,int n1,OREJ *p1,int n2,OREJ *p2,int *pidSwap) {
 
 #define MAX_ITTR	64
 
-void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
-		   int bSplitVA) {
+void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind) {
     int NUM_SAFETY = 4;			/* slop space when filling up memory */
     uint64_t nSafeTot;			/* total slop space we have to play with */
     uint64_t margin;			/* more slop */
@@ -663,8 +654,6 @@ void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
     struct outWeight outWtHigh;
     struct outWeightWrap outWtWrLow;
     struct outWeightWrap outWtWrHigh;
-    struct inCountVA inCtVA;
-    struct outCountVA outCtVA;
     OREJ *pLowerRej,*pUpperRej;
     int *pidSwap,iRet;
     char ach[256];				/* Debug */
@@ -704,7 +693,7 @@ void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
     fm = pst->fSplit;
     ittr = -1;
 
-    if (bDoRootFind || fm<fl || fm>fu || (bSplitVA && (pst->iVASplitSide == 0))) {
+    if (bDoRootFind || fm<fl || fm>fu) {
 	/*
 	** First order the particles into active/inactive order...
 	*/
@@ -781,22 +770,6 @@ void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
 	    fmm = (fl + fu)/2;
 	    ++ittr;
 	    }
-	/*
-	** We have now found a new split. We need to decide which side of this split
-	** we want to put the very active particles.
-	*/
-	inCtVA.iSplitDim = d;
-	inCtVA.fSplit = fm;
-	pstCountVA(pst,&inCtVA,sizeof(inCtVA),&outCtVA,sizeof(outCtVA));
-	if (outCtVA.nLow == 0 && outCtVA.nHigh == 0) {
-	    pst->iVASplitSide = 0;
-	    }
-	else if (outCtVA.nHigh > outCtVA.nLow) {
-	    pst->iVASplitSide = -1;
-	    }
-	else {
-	    pst->iVASplitSide = 1;
-	    }
 	mdlPrintTimer(pst->mdl,"TIME active split _pstRootSplit ",&t);
 	}
 
@@ -836,7 +809,6 @@ void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
     inWtWrap.fSplit = fm;
     inWtWrap.fSplit2 = pst->fSplit;
     inWtWrap.ittr = 0;
-    inWtWrap.iVASplitSide = (bSplitVA)?pst->iVASplitSide:0;
     inWtWrap.iSplitSide = 1;
     rID = mdlReqService(pst->mdl,pst->idUpper,PST_WEIGHTWRAP,&inWtWrap,sizeof(inWtWrap));
     inWtWrap.iSplitSide = 0;
@@ -887,7 +859,6 @@ void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
 	    inWtWrap.fSplit = fm;
 	    inWtWrap.fSplit2 = pst->fSplit;
 	    inWtWrap.ittr = ittr;
-	    inWtWrap.iVASplitSide = (bSplitVA)?pst->iVASplitSide:0;
 	    inWtWrap.iSplitSide = 1;
 	    rID = mdlReqService(pst->mdl,pst->idUpper,PST_WEIGHTWRAP,&inWtWrap,sizeof(inWtWrap));
 	    inWtWrap.iSplitSide = 0;
@@ -964,7 +935,6 @@ void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
 	    inWtWrap.fSplit = fm;
 	    inWtWrap.fSplit2 = pst->fSplit;
 	    inWtWrap.ittr = ittr;
-	    inWtWrap.iVASplitSide = (bSplitVA)?pst->iVASplitSide:0;
 	    inWtWrap.iSplitSide = 1;
 	    rID = mdlReqService(pst->mdl,pst->idUpper,PST_WEIGHTWRAP,&inWtWrap,sizeof(inWtWrap));
 	    inWtWrap.iSplitSide = 0;
@@ -1042,7 +1012,6 @@ void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
 	    inWtWrap.fSplit = fm;
 	    inWtWrap.fSplit2 = pst->fSplit;
 	    inWtWrap.ittr = ittr;
-	    inWtWrap.iVASplitSide = (bSplitVA)?pst->iVASplitSide:0;
 	    inWtWrap.iSplitSide = 1;
 	    rID = mdlReqService(pst->mdl,pst->idUpper,PST_WEIGHTWRAP,&inWtWrap,sizeof(inWtWrap));
 	    inWtWrap.iSplitSide = 0;
@@ -1111,7 +1080,6 @@ void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
 	    inWtWrap.fSplit = fm;
 	    inWtWrap.fSplit2 = pst->fSplit;
 	    inWtWrap.ittr = ittr;
-	    inWtWrap.iVASplitSide = (bSplitVA)?pst->iVASplitSide:0;
 	    inWtWrap.iSplitSide = 1;
 	    rID = mdlReqService(pst->mdl,pst->idUpper,PST_WEIGHTWRAP,&inWtWrap,sizeof(inWtWrap));
 	    inWtWrap.iSplitSide = 0;
@@ -1276,7 +1244,7 @@ int pstDomainDecomp(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	    }
 
 	mdlPrintTimer(pst->mdl,"TIME Mass Check done in pstDomainDecomp",&t);
-	_pstRootSplit(pst,d,in->bDoRootFind,in->bDoSplitDimFind,in->bSplitVA);
+	_pstRootSplit(pst,d,in->bDoRootFind,in->bDoSplitDimFind);
 	mdlPrintTimer(pst->mdl,"TIME RootSplit done in pstDomainDecomp",&t);
 
 	mdlPrintTimer(pst->mdl,"TIME Mass Check done in pstDomainDecomp",&t);
@@ -1497,30 +1465,6 @@ int pstWeight(PST pst,void *vin,int nIn,void *vout,int nOut) {
     */
     }
 
-
-
-int pstCountVA(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    LCL *plcl = pst->plcl;
-    struct inCountVA *in = vin;
-    struct outCountVA *out = vout;
-    struct outCountVA outCt;
-
-    mdlassert(pst->mdl,nIn == sizeof(struct inCountVA));
-    if (pst->nLeaves > 1) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_COUNTVA,in,nIn);
-	pstCountVA(pst->pstLower,in,nIn,out,nOut);
-	mdlGetReply(pst->mdl,rID,&outCt,NULL);
-	out->nLow += outCt.nLow;
-	out->nHigh += outCt.nHigh;
-	}
-    else {
-	pkdCountVA(plcl->pkd,in->iSplitDim,in->fSplit,&out->nLow,&out->nHigh);
-	}
-    return sizeof(struct outCountVA);
-    }
-
-
-
 /*
 ** Make sure that the local particles are split into active and inactive
 ** when passing pFlag != 0.
@@ -1572,7 +1516,7 @@ int pstWeightWrap(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	    plcl->fSplit = in->fSplit;
 	    }
 	plcl->iPart = pkdWeightWrap(plcl->pkd,in->iSplitDim,in->fSplit,in->fSplit2,in->iSplitSide,
-				    in->iVASplitSide,plcl->iWtFrom,plcl->iWtTo,&nLow,&nHigh);
+				    plcl->iWtFrom,plcl->iWtTo,&nLow,&nHigh);
 	out->nLow = nLow;
 	out->nHigh = nHigh;
 	/* For collect rejects */
@@ -2217,7 +2161,7 @@ int pstDumpTrees(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	mdlGetReply(pst->mdl,rID,NULL,NULL);
 	}
     else {
-	pkdDumpTrees(pkd,in->bOnlyVA,in->uRungDD);
+	pkdDumpTrees(pkd,in->uRungDD);
 	}
     return 0;
     }
@@ -2876,40 +2820,6 @@ int pstCacheBarrier(PST pst,void *vin,int nIn,void *vout,int nOut) {
     return 0;
     }
 
-int pstStepVeryActiveKDK(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    LCL *plcl = pst->plcl;
-    struct inStepVeryActive *in = vin;
-    struct outStepVeryActive *out = vout;
-
-    mdlassert(pst->mdl,nIn == sizeof(struct inStepVeryActive));
-    if (pst->nLeaves > 1) {
-	if (pst->iVASplitSide > 0) {
-	    int rID = mdlReqService(pst->mdl,pst->idUpper,PST_CACHEBARRIER,NULL,0);
-	    pstStepVeryActiveKDK(pst->pstLower,in,nIn,out,nOut);
-	    mdlGetReply(pst->mdl,rID,NULL,NULL); // FIXME: Shouldn't we look at nMaxRung?
-	    }
-	else if (pst->iVASplitSide < 0) {
-	    int rID = mdlReqService(pst->mdl,pst->idUpper,PST_STEPVERYACTIVE,in,nIn);
-	    pstCacheBarrier(pst->pstLower,NULL,0,NULL,0);
-	    mdlGetReply(pst->mdl,rID,out,NULL);
-	    }
-	else {
-	    mdlassert(pst->mdl,pst->iVASplitSide != 0);
-	    }
-	}
-    else {
-//	assert(plcl->pkd->nVeryActive > 0);
-
-	out->nMaxRung = in->nMaxRung;
-	pkdStepVeryActiveKDK(plcl->pkd,in->uRungLo,in->uRungHi,in->dStep,in->dTime,in->dDelta,
-			     in->iRung, in->iRung, in->iRung, 0, in->dThetaMin,
-			     &out->nMaxRung, in->aSunInact, in->adSunInact,
-			     in->dSunMass);
-	mdlCacheBarrier(pst->mdl,CID_CELL);
-	}
-    return sizeof(*out);
-    }
-
 int pstROParticleCache(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
 
@@ -3282,23 +3192,6 @@ int pstUpdateRungByTree(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	}
     return sizeof(*out);
     }
-
-int pstSetRungVeryActive(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    LCL *plcl = pst->plcl;
-    struct inSetRung *in = vin;
-
-    mdlassert(pst->mdl,nIn == sizeof(*in));
-    if (pst->nLeaves > 1) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SETRUNGVERYACTIVE,vin,nIn);
-	pstSetRungVeryActive(pst->pstLower,vin,nIn,NULL,0);
-	mdlGetReply(pst->mdl,rID,NULL,NULL);
-	}
-    else {
-	pkdSetRungVeryActive(plcl->pkd,in->uRung);
-	}
-    return 0;
-    }
-
 
 int pstColNParts(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;

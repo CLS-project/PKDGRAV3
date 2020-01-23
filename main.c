@@ -209,7 +209,7 @@ void master(MDL mdl,void *pst) {
 	msrInflate(msr,0);
 	if (msrDoGravity(msr) ||msrDoGas(msr) || bDoPk || msr->param.bFindGroups) {
 	    msrActiveRung(msr,0,1); /* Activate all particles */
-	    msrDomainDecomp(msr,0,0,0);
+	    msrDomainDecomp(msr,0,0);
 	    msrUpdateSoft(msr,dTime);
 	    /*
 	    ** Convert lightcone momentum (a^2 x_dot) to physical velocities (a x_dot).
@@ -296,7 +296,7 @@ void master(MDL mdl,void *pst) {
 	*/
 	msrInflate(msr,iStartStep);
 	msrActiveRung(msr,0,1); /* Activate all particles */
-	msrDomainDecomp(msr,0,0,0);
+	msrDomainDecomp(msr,0,0);
 	msrUpdateSoft(msr,dTime);
 	msrBuildTree(msr,dTime,msr->param.bEwald);
 	msrOutputOrbits(msr,iStartStep,dTime);
@@ -382,9 +382,7 @@ void master(MDL mdl,void *pst) {
 		msrNewTopStepKDK(msr,0,0,&diStep,&ddTime,&uRungMax,&iSec,&bDoCheckpoint,&bDoOutput,&bKickOpen);
 		}
 	    else {
-		msrTopStepKDK(msr,iStep-1,dTime,
-		    msrDelta(msr),0,0,msrMaxRung(msr),1,
-		    &dMultiEff,&iSec);
+		msrTopStepKDK(msr,iStep-1,dTime,msrDelta(msr),0,0,1,&dMultiEff,&iSec);
 		}
 	    dTime += msrDelta(msr);
 	    lSec = time(0) - msr->lPrior;
@@ -405,7 +403,7 @@ void master(MDL mdl,void *pst) {
 		}
 	    if ( msr->param.bTraceRelaxation) {
 		msrActiveRung(msr,0,1); /* Activate all particles */
-		msrDomainDecomp(msr,0,0,0);
+		msrDomainDecomp(msr,0,0);
 		msrBuildTree(msr,dTime,0);
 		msrRelaxation(msr,dTime,msrDelta(msr),SMX_RELAXATION,0);
 		}
@@ -421,7 +419,7 @@ void master(MDL mdl,void *pst) {
 		msrOutput(msr,iStep,dTime,0);
 		bDoOutput = 0;
 		if (msr->param.bNewKDK) {
-		    msrDomainDecomp(msr,0,0,0);
+		    msrDomainDecomp(msr,0,0);
 		    msrBuildTree(msr,dTime,msr->param.bEwald);
 		    }
 		}

@@ -432,7 +432,6 @@ void pkdInitialize(
 
     pkd->uMinRungActive  = 0;
     pkd->uMaxRungActive  = 255;
-    pkd->uRungVeryActive = 255;
     for (j=0;j<=IRUNGMAX;++j) pkd->nRung[j] = 0;
 
     pkd->psGroupTable.nGroups = 0;
@@ -1431,27 +1430,11 @@ int pkdWeight(PKD pkd,int d,double fSplit,int iSplitSide,int iFrom,int iTo,
     return(iPart);
     }
 
-
-void pkdCountVA(PKD pkd,int d,double fSplit,int *pnLow,int *pnHigh) {
-    PARTICLE *p;
-    int i;
-
-    *pnLow = 0;
-    *pnHigh = 0;
-    for (i=0;i<pkd->nLocal;++i) {
-	p = pkdParticle(pkd,i);
-	if (pkdIsVeryActive(pkd,p)) {
-	    if (pkdPos(pkd,p,d) < fSplit) *pnLow += 1;
-	    else *pnHigh += 1;
-	    }
-	}
-    }
-
 /*
 ** Partition particles between iFrom and iTo into those < fSplit and
 ** those >= to fSplit.  Find number and weight in each partition.
 */
-int pkdWeightWrap(PKD pkd,int d,double fSplit,double fSplit2,int iSplitSide,int iVASplitSide,
+int pkdWeightWrap(PKD pkd,int d,double fSplit,double fSplit2,int iSplitSide,
 		  int iFrom,int iTo,int *pnLow,int *pnHigh) {
     int iPart;
 
@@ -1459,12 +1442,12 @@ int pkdWeightWrap(PKD pkd,int d,double fSplit,double fSplit2,int iSplitSide,int 
     ** First partition the memory about fSplit for particles iFrom to iTo.
     */
     if (!iSplitSide) {
-	iPart = pkdLowerPartWrap(pkd,d,fSplit,fSplit2,iVASplitSide,iFrom,iTo);
+	iPart = pkdLowerPartWrap(pkd,d,fSplit,fSplit2,iFrom,iTo);
 	*pnLow = iPart;
 	*pnHigh = pkdLocal(pkd)-iPart;
 	}
     else {
-	iPart = pkdUpperPartWrap(pkd,d,fSplit,fSplit2,iVASplitSide,iFrom,iTo);
+	iPart = pkdUpperPartWrap(pkd,d,fSplit,fSplit2,iFrom,iTo);
 	*pnHigh = iPart;
 	*pnLow = pkdLocal(pkd)-iPart;
 	}
@@ -1517,125 +1500,45 @@ int pkdUpperPart(PKD pkd,int d,double fSplit,int i,int j) {
     }
 
 
-int pkdLowerPartWrap(PKD pkd,int d,double fSplit1,double fSplit2,int iVASplitSide,int i,int j) {
+int pkdLowerPartWrap(PKD pkd,int d,double fSplit1,double fSplit2,int i,int j) {
     PARTICLE *pi = pkdParticle(pkd,i);
     PARTICLE *pj = pkdParticle(pkd,j);
 
     if (fSplit1 > fSplit2) {
-	if (iVASplitSide < 0) {
-	    PARTITION(pi<pj,pi<=pj,
-		pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
-		pkdSwapParticle(pkd,pi,pj),
-	    (pkdPos(pkd,pi,d) < fSplit2 || pkdPos(pkd,pi,d) >= fSplit1) &&
-		       !pkdIsVeryActive(pkd,pi),
-	    (pkdPos(pkd,pj,d) >= fSplit2 && pkdPos(pkd,pj,d) < fSplit1) ||
-		       pkdIsVeryActive(pkd,pj));
-	    }
-	else if (iVASplitSide > 0) {
-	    PARTITION(pi<pj,pi<=pj,
-		pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
-		pkdSwapParticle(pkd,pi,pj),
-	    (pkdPos(pkd,pi,d) < fSplit2 || pkdPos(pkd,pi,d) >= fSplit1) ||
-		pkdIsVeryActive(pkd,pi),
-	    (pkdPos(pkd,pj,d) >= fSplit2 && pkdPos(pkd,pj,d) < fSplit1) &&
-		!pkdIsVeryActive(pkd,pj));
-	    }
-	else {
-	    PARTITION(pi<pj,pi<=pj,
-		pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
-		pkdSwapParticle(pkd,pi,pj),
-	    (pkdPos(pkd,pi,d) < fSplit2 || pkdPos(pkd,pi,d) >= fSplit1),
-	    (pkdPos(pkd,pj,d) >= fSplit2 && pkdPos(pkd,pj,d) < fSplit1));
-	    }
+	PARTITION(pi<pj,pi<=pj,
+	    pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
+	    pkdSwapParticle(pkd,pi,pj),
+	(pkdPos(pkd,pi,d) < fSplit2 || pkdPos(pkd,pi,d) >= fSplit1),
+	(pkdPos(pkd,pj,d) >= fSplit2 && pkdPos(pkd,pj,d) < fSplit1));
 	}
     else {
-	if (iVASplitSide < 0) {
-	    PARTITION(pi<pj,pi<=pj,
-		pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
-		pkdSwapParticle(pkd,pi,pj),
-	    (pkdPos(pkd,pi,d) < fSplit2 && pkdPos(pkd,pi,d) >= fSplit1) &&
-		!pkdIsVeryActive(pkd,pi),
-	    (pkdPos(pkd,pj,d) >= fSplit2 || pkdPos(pkd,pj,d) < fSplit1) ||
-		       pkdIsVeryActive(pkd,pj));
-	    }
-	else if (iVASplitSide > 0) {
-	    PARTITION(pi<pj,pi<=pj,
-		pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
-		pkdSwapParticle(pkd,pi,pj),
-	    (pkdPos(pkd,pi,d) < fSplit2 && pkdPos(pkd,pi,d) >= fSplit1) ||
-		pkdIsVeryActive(pkd,pi),
-	    (pkdPos(pkd,pj,d) >= fSplit2 || pkdPos(pkd,pj,d) < fSplit1) &&
-		!pkdIsVeryActive(pkd,pj));
-	    }
-	else {
-	    PARTITION(pi<pj,pi<=pj,
-		pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
-		pkdSwapParticle(pkd,pi,pj),
-	    (pkdPos(pkd,pi,d) < fSplit2 && pkdPos(pkd,pi,d) >= fSplit1),
-	    (pkdPos(pkd,pj,d) >= fSplit2 || pkdPos(pkd,pj,d) < fSplit1));
-	    }
+	PARTITION(pi<pj,pi<=pj,
+	    pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
+	    pkdSwapParticle(pkd,pi,pj),
+	(pkdPos(pkd,pi,d) < fSplit2 && pkdPos(pkd,pi,d) >= fSplit1),
+	(pkdPos(pkd,pj,d) >= fSplit2 || pkdPos(pkd,pj,d) < fSplit1));
 	}
     return(i);
     }
 
 
-int pkdUpperPartWrap(PKD pkd,int d,double fSplit1,double fSplit2,int iVASplitSide,int i,int j) {
+int pkdUpperPartWrap(PKD pkd,int d,double fSplit1,double fSplit2,int i,int j) {
     PARTICLE *pi = pkdParticle(pkd,i);
     PARTICLE *pj = pkdParticle(pkd,j);
 
     if (fSplit1 > fSplit2) {
-	if (iVASplitSide < 0) {
-	    PARTITION(pi<pj,pi<=pj,
-		pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
-		pkdSwapParticle(pkd,pi,pj),
-	    (pkdPos(pkd,pi,d) >= fSplit2 && pkdPos(pkd,pi,d) < fSplit1) ||
-		pkdIsVeryActive(pkd,pi),
-	    (pkdPos(pkd,pj,d) < fSplit2 || pkdPos(pkd,pj,d) >= fSplit1) &&
-		!pkdIsVeryActive(pkd,pj));
-	    }
-	else if (iVASplitSide > 0) {
-	    PARTITION(pi<pj,pi<=pj,
-		pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
-		pkdSwapParticle(pkd,pi,pj),
-	    (pkdPos(pkd,pi,d) >= fSplit2 && pkdPos(pkd,pi,d) < fSplit1) &&
-		!pkdIsVeryActive(pkd,pi),
-	    (pkdPos(pkd,pj,d) < fSplit2 || pkdPos(pkd,pj,d) >= fSplit1) ||
-		pkdIsVeryActive(pkd,pj));
-	    }
-	else {
-	    PARTITION(pi<pj,pi<=pj,
-		pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
-		pkdSwapParticle(pkd,pi,pj),
-	    (pkdPos(pkd,pi,d) >= fSplit2 && pkdPos(pkd,pi,d) < fSplit1),
-	    (pkdPos(pkd,pj,d) < fSplit2 || pkdPos(pkd,pj,d) >= fSplit1));
-	    }
+	PARTITION(pi<pj,pi<=pj,
+	    pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
+	    pkdSwapParticle(pkd,pi,pj),
+	(pkdPos(pkd,pi,d) >= fSplit2 && pkdPos(pkd,pi,d) < fSplit1),
+	(pkdPos(pkd,pj,d) < fSplit2 || pkdPos(pkd,pj,d) >= fSplit1));
 	}
     else {
-	if (iVASplitSide < 0) {
-	    PARTITION(pi<pj,pi<=pj,
-		pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
-		pkdSwapParticle(pkd,pi,pj),
-	    (pkdPos(pkd,pi,d) >= fSplit2 || pkdPos(pkd,pi,d) < fSplit1) ||
-		pkdIsVeryActive(pkd,pi),
-	    (pkdPos(pkd,pj,d) < fSplit2 && pkdPos(pkd,pj,d) >= fSplit1) &&
-		!pkdIsVeryActive(pkd,pj));
-	    }
-	else if (iVASplitSide > 0) {
-	    PARTITION(pi<pj,pi<=pj,
-		pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
-		pkdSwapParticle(pkd,pi,pj),
-	    (pkdPos(pkd,pi,d) >= fSplit2 || pkdPos(pkd,pi,d) < fSplit1) &&
-		!pkdIsVeryActive(pkd,pi),
-	    (pkdPos(pkd,pj,d) < fSplit2 && pkdPos(pkd,pj,d) >= fSplit1) ||
-		pkdIsVeryActive(pkd,pj));
-	    }
-	else {
-	    PARTITION(pi<pj,pi<=pj,
-		pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
-		pkdSwapParticle(pkd,pi,pj),
-	    (pkdPos(pkd,pi,d) >= fSplit2 || pkdPos(pkd,pi,d) < fSplit1),
-	    (pkdPos(pkd,pj,d) < fSplit2 && pkdPos(pkd,pj,d) >= fSplit1));
-	    }
+	PARTITION(pi<pj,pi<=pj,
+	    pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
+	    pkdSwapParticle(pkd,pi,pj),
+	(pkdPos(pkd,pi,d) >= fSplit2 || pkdPos(pkd,pi,d) < fSplit1),
+	(pkdPos(pkd,pj,d) < fSplit2 && pkdPos(pkd,pj,d) >= fSplit1));
 	}
     return(i);
     }
@@ -2711,109 +2614,6 @@ void pkdLightConeVel(PKD pkd,double dBoxSize) {
     gsl_interp_accel_free(acc);
     }
 
-
-void pkdGravityVeryActive(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int bEwald,int bGravStep,int nPartRhoLoc,int iTimeStepCrit,
-			  int nGroup,int nReps,double dStep,double dTheta) {
-    int nActive;
-    double dFlop,dPartSum,dCellSum;
-
-    /*
-    ** Calculate newtonian gravity for the very active particles ONLY, including replicas if any.
-    */
-    dFlop = 0.0;
-    dPartSum = 0.0;
-    dCellSum = 0.0;
-    nActive = pkdGravWalk(pkd,uRungLo,uRungHi,0,0,NULL,NULL,NULL,NULL,0.0,0.0,1.0,dTime,nReps,bEwald,bGravStep,nPartRhoLoc,iTimeStepCrit,nGroup,
-	ROOT,0,VAROOT,dTheta,&dFlop,&dPartSum,&dCellSum);
-    }
-
-
-void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, double dTime, double dDelta,
-			  int iRung, int iKickRung, int iRungVeryActive,int iAdjust, double dThetaMin,
-			  int *pnMaxRung, double aSunInact[], double adSunInact[], double dSunMass) {
-    uint64_t nRungCount[256];
-    double dDriftFac;
-
-    if (iAdjust && (iRung < pkd->param.iMaxRung)) {
-
-	/*
-	** The following should be replaced with a single call which sets the rungs of all particles.
-	*/
-	pkdActiveRung(pkd, iRung, 1);
-	if (pkd->param.bAccelStep) {
-	    double a = csmTime2Exp(pkd->csm,dTime);
-	    double dVelFac = 1.0/(a*a);
-	    double dAccFac = 1.0/(a*a*a);
-	    double dhMinOverSoft = 0;
-	    pkdAccelStep(pkd,uRungLo,uRungHi,
-	    	         pkd->param.dDelta,pkd->param.iMaxRung,
-	        	 pkd->param.dEta,dVelFac,dAccFac,pkd->param.bDoGravity,
-			 pkd->param.bEpsAccStep,dhMinOverSoft);
-	    }
-	*pnMaxRung = pkdUpdateRung(pkd,iRung,pkd->param.iMaxRung,
-				   iRung,pkd->param.iMaxRung, nRungCount);
-
-	}
-    /* skip this if we are entering for the first time: Kick is taken care of in master(). */
-    if (iRung > iRungVeryActive) {
-	pkdKickKDKOpen(pkd,dTime,0.5*dDelta,iRung,iRung);
-	}
-    if (*pnMaxRung > iRung) {
-	/*
-	** Recurse.
-	*/
-	pkdStepVeryActiveKDK(pkd,uRungLo,uRungHi,dStep,dTime,0.5*dDelta,iRung+1,iRung+1,iRungVeryActive,0,
-			     dThetaMin,pnMaxRung,aSunInact,adSunInact,dSunMass);
-	dStep += 1.0/(2 << iRung);
-	dTime += 0.5*dDelta;
-
-	pkdActiveRung(pkd,iRung,0);   /* is this needed? */
-
-	pkdStepVeryActiveKDK(pkd,uRungLo,uRungHi,dStep,dTime,0.5*dDelta,iRung+1,iKickRung,iRungVeryActive,1,
-			     dThetaMin,pnMaxRung,aSunInact,adSunInact,dSunMass);
-	}
-    else {
-	/*
-	** We need to account for cosmological drift factor here!
-	** Normally this is done at the MASTER level in msrDrift.
-	** Note that for kicks we have written new "master-like" functions
-	** KickOpen and KickClose which do this same job at PKD level.
-	*/
-	if (pkd->csm->val.bComove) {
-	    dDriftFac = csmComoveDriftFac(pkd->csm,dTime,dDelta);
-	    }
-	else {
-	    dDriftFac = dDelta;
-	    }
-	/*
-	** This should drift *all* very actives!
-	*/
-	pkdDrift(pkd,VAROOT,dTime,dDriftFac,0,0,pkd->param.bDoGas);
-	dTime += dDelta;
-	dStep += 1.0/(1 << iRung);
-
-	/* skip this if we are entering for the first time: Kick is taken care of in master(). */
-	if (iKickRung > iRungVeryActive) {
-	    pkdActiveRung(pkd,iKickRung,1);
-//	    pkdVATreeBuild(pkd,pkd->param.nBucket);
-	    pkdGravityVeryActive(pkd,uRungLo,uRungHi,dTime,pkd->param.bEwald && pkd->param.bPeriodic,
-	    	     	 	pkd->param.bGravStep,pkd->param.nPartRhoLoc,pkd->param.iTimeStepCrit,
-	    	     	 	pkd->param.nGroup,pkd->param.nReplicas,dStep,dThetaMin);
-
-	    }
-	/*
-	 * move time back to 1/2 step so that KickClose can integrate
-	 * from 1/2 through the timestep to the end.
-	 */
-	dTime -= 0.5*dDelta;
-	}
-    /* skip this if we are entering for the first time: Kick is taken care of in master(). */
-    if (iKickRung > iRungVeryActive) {
-	pkdKickKDKClose(pkd,dTime,0.5*dDelta,iRung,iRung);
-	}
-    }
-
-
 /*
  * Stripped down versions of routines from master.c
  */
@@ -3374,12 +3174,6 @@ void pkdSetNParts(PKD pkd,int nGas,int nDark,int nStar) {
     pkd->nGas = nGas;
     pkd->nDark = nDark;
     pkd->nStar = nStar;
-    }
-
-
-void pkdSetRungVeryActive(PKD pkd, int iRung) {
-    /* Remember, the first very active particle is at iRungVeryActive + 1 */
-    pkd->uRungVeryActive = iRung;
     }
 
 int pkdIsGas(PKD pkd,PARTICLE *p) {

@@ -1043,12 +1043,6 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
     sprintf(ach,"<maximum timestep rung> = %d",msr->param.iMaxRung);
     prmAddParam(msr->prm,"iMaxRung",1,&msr->param.iMaxRung,sizeof(int),
 		"mrung",ach);
-    msr->param.nRungVeryActive = 31;
-    prmAddParam(msr->prm,"nRungVeryActive",1,&msr->param.nRungVeryActive,
-		sizeof(int), "nvactrung", "<timestep rung to use very active timestepping>");
-    msr->param.nPartVeryActive = 0;
-    prmAddParam(msr->prm,"nPartVeryActive",1,&msr->param.nPartVeryActive,
-		sizeof(int), "nvactpart", "<number of particles to use very active timestepping>");
     msr->param.bNewKDK = 0;
     prmAddParam(msr->prm,"bNewKDK",0,&msr->param.bNewKDK,
 		sizeof(int), "NewKDK", "<Use new implementation of KDK time stepping=no>");
@@ -1675,7 +1669,6 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
     assert(msr->nRung != NULL);
     for (i=0;i<=MAX_RUNG;++i) msr->nRung[i] = 0;
 
-    msr->iRungVeryActive = msr->param.iMaxRung; /* No very active particles */
     msr->bSavePending = 0;                      /* There is no pending save */
 
     if (msr->csm->val.classData.bClass){
@@ -1785,7 +1778,6 @@ void msrLogParams(MSR msr,FILE *fp) {
     fprintf(fp,"\n# dDelta: %g",msr->param.dDelta);
     fprintf(fp," dEta: %g",msr->param.dEta);
     fprintf(fp," iMaxRung: %d",msr->param.iMaxRung);
-    fprintf(fp," nRungVeryActive: %d",msr->param.nRungVeryActive);
     fprintf(fp," bDoRungOutput: %d",msr->param.bDoRungOutput);
     fprintf(fp," bDoRungDestOutput: %d",msr->param.bDoRungDestOutput);
     fprintf(fp,"\n# bGravStep: %d",msr->param.bGravStep);
@@ -2350,7 +2342,7 @@ void msrSetSoft(MSR msr,double dSoft) {
     }
 
 
-void msrDomainDecompOld(MSR msr,int iRung,int bSplitVA) {
+void msrDomainDecompOld(MSR msr,int iRung) {
     struct inDomainDecomp in;
     uint64_t nActive;
     const uint64_t nDT = d2u64(msr->N*msr->param.dFracDualTree);
@@ -2564,9 +2556,8 @@ void msrDomainDecompOld(MSR msr,int iRung,int bSplitVA) {
 	pstFastGasCleanup(msr->pst,NULL,0,NULL,0);
 	}
 #endif
-    in.bSplitVA = bSplitVA;
-    msrprintf(msr,"Domain Decomposition: nActive (Rung %d) %"PRIu64" SplitVA:%d\n",
-	msr->iLastRungRT,msr->nActive,bSplitVA);
+    msrprintf(msr,"Domain Decomposition: nActive (Rung %d) %"PRIu64"\n",
+	msr->iLastRungRT,msr->nActive);
     msrprintf(msr,"Domain Decomposition... \n");
     sec = msrTime();
 
@@ -2594,8 +2585,8 @@ void msrInflate(MSR msr,int iStep) {
 	}
     }
 
-void msrDomainDecomp(MSR msr,int iRung,int bOthers,int bSplitVA) {
-    msrDomainDecompOld(msr,iRung,bSplitVA);
+void msrDomainDecomp(MSR msr,int iRung,int bOthers) {
+    msrDomainDecompOld(msr,iRung);
     }
 
 /*
@@ -2668,7 +2659,6 @@ void msrBuildTree(MSR msr,double dTime,int bNeedEwald) {
     msrprintf(msr,"Building local trees...\n\n");
 
     struct inDumpTrees dump;
-    dump.bOnlyVA = 0;
     dump.uRungDD = IRUNGMAX;
     pstDumpTrees(msr->pst,&dump,sizeof(dump),NULL,0);
     BuildTree(msr,bNeedEwald,ROOT,0);
@@ -2702,7 +2692,6 @@ void msrBuildTreeActive(MSR msr,double dTime,int bNeedEwald,uint8_t uRungDD) {
     msrprintf(msr,"Building active local trees...\n\n");
 
     struct inDumpTrees dump;
-    dump.bOnlyVA = 1;
     dump.uRungDD = uRungDD;
     pstDumpTrees(msr->pst,&dump,sizeof(dump),NULL,0);
 
@@ -2756,18 +2745,6 @@ void msrBuildTreeByRung(MSR msr,double dTime,int bNeedEwald,int iRung) {
 //	++nTrees;
 //	}
 //    BuildTree(msr,bNeedEwald,nTrees,spec);
-    }
-
-void msrBuildTreeExcludeVeryActive(MSR msr,double dTime) {
-    assert(0);
-//    TREESPEC spec[2];
-//    spec[0].uRoot = ROOT;
-//    spec[0].uRungFirst = 0;
-//    spec[0].uRungLast = msr->iRungVeryActive;
-//    spec[1].uRoot = ROOT+1;
-//    spec[1].uRungFirst = spec[0].uRungLast+1;
-//    spec[1].uRungLast = MAX_RUNG;
-//    BuildTree(msr,0,2,spec);
     }
 
 void msrBuildTreeMarked(MSR msr,double dTime) {
@@ -3829,17 +3806,6 @@ void msrActiveOrder(MSR msr) {
     pstActiveOrder(msr->pst,NULL,0,&(msr->nActive),sizeof(msr->nActive));
     }
 
-void msrSetRungVeryActive(MSR msr, int iRung) {
-    struct inSetRung in;
-
-    msr->iRungVeryActive = iRung;
-
-    in.uRung = iRung;
-    in.uRungLo = 0;
-    in.uRungHi = MAX_RUNG;
-    pstSetRungVeryActive(msr->pst,&in,sizeof(in),NULL,0);
-    }
-
 int msrCountRungs(MSR msr, uint64_t *nRungs) {
     struct outCountRungs out;
     int i, iMaxRung=0;
@@ -3952,15 +3918,15 @@ void msrUpdateRungByTree(MSR msr, uint8_t uRung, int iRoot) {
 ** Returns the Very Active rung based on the number of very active particles desired,
 ** or the fixed rung that was specified in the parameters.
 */
-int msrUpdateRung(MSR msr, uint8_t uRung) {
+void msrUpdateRung(MSR msr, uint8_t uRung) {
     struct inUpdateRung in;
     struct outUpdateRung out;
-    int iTempRung,iOutMaxRung,iRungVeryActive;
+    int iTempRung,iOutMaxRung;
     uint64_t sum;
     char c;
 
     /* If we are called, it is a mistake -- this happens in analysis mode */
-    if (msr->param.bMemUnordered) return 0;
+    if (msr->param.bMemUnordered) return;
 
     in.uRungLo = uRung;
     in.uRungHi = msrMaxRung(msr);
@@ -3988,20 +3954,6 @@ int msrUpdateRung(MSR msr, uint8_t uRung) {
     ** Now copy the rung distribution to the msr structure!
     */
     for (iTempRung=0;iTempRung < msrMaxRung(msr);++iTempRung) msr->nRung[iTempRung] = out.nRungCount[iTempRung];
-    /*
-    ** Now we want to make a suggestion for the current very active rung based on the number of
-    ** particles in the deepest rungs.
-    */
-    if (msr->param.nPartVeryActive > 0) {
-	iRungVeryActive = msrMaxRung(msr);
-	sum = 0;
-	while (sum < msr->param.nPartVeryActive && iRungVeryActive > 0) {
-	    sum += out.nRungCount[--iRungVeryActive];
-	    }
-	}
-    else {
-	iRungVeryActive = msr->param.nRungVeryActive;
-	}
 
     msr->iCurrMaxRung = iOutMaxRung;
 
@@ -4010,18 +3962,10 @@ int msrUpdateRung(MSR msr, uint8_t uRung) {
 	printf("\n");
 	for (iTempRung=0;iTempRung <= msr->iCurrMaxRung;++iTempRung) {
 	    if (out.nRungCount[iTempRung] == 0) continue;
-	    if (iTempRung > iRungVeryActive) c = 'v';
-	    else c = ' ';
-	    printf(" %c rung:%d %"PRIu64"\n",c,iTempRung,out.nRungCount[iTempRung]);
+	    printf("   rung:%d %"PRIu64"\n",iTempRung,out.nRungCount[iTempRung]);
 	    }
 	printf("\n");
 	}
-
-    /*
-     * Set VeryActive particles
-     */
-    msrSetRungVeryActive(msr, iRungVeryActive);
-    return(iRungVeryActive);
     }
 
 
@@ -4155,7 +4099,6 @@ int msrNewTopStepKDK(MSR msr,
 	    else {
 		bDualTree = 1;
 		struct inDumpTrees dump;
-		dump.bOnlyVA = 0;
 		dump.uRungDD = iRungDT;
 		pstDumpTrees(msr->pst,&dump,sizeof(dump),NULL,0);
 		msrprintf(msr,"Half Drift, uRung: %d\n",iRungDT);
@@ -4192,7 +4135,7 @@ int msrNewTopStepKDK(MSR msr,
 	}
     else {
 	if (uRung==0) msrInflate(msr,round(*pdStep));
-	msrDomainDecomp(msr,uRung,0,0);
+	msrDomainDecomp(msr,uRung,0);
 	uRoot2 = 0;
 	msrBuildTree(msr,*pdTime,msr->param.bEwald);
 	}
@@ -4256,17 +4199,11 @@ void msrTopStepKDK(MSR msr,
 		   double dTime,	/* Current time */
 		   double dDelta,	/* Time step */
 		   int iRung,		/* Rung level */
-		   int iKickRung,	/* Gravity on all rungs from iRung
-					   to iKickRung */
-		   int iRungVeryActive,  /* current setting for iRungVeryActive */
-		   /*
-		   ** Note that iRungVeryActive is one less than the first rung with VA particles!
-		   */
+		   int iKickRung,	/* Gravity on all rungs from iRung to iKickRung */
 		   int iAdjust,		/* Do an adjust? */
 		   double *pdActiveSum,
 		   int *piSec) {
     uint64_t nActive;
-    int bSplitVA;
 
     if (iAdjust && (iRung < msrMaxRung(msr)-1)) {
 	msrprintf(msr,"%*cAdjust, iRung: %d\n",2*iRung+2,' ',iRung);
@@ -4279,30 +4216,29 @@ void msrTopStepKDK(MSR msr,
 	    msrSphStep(msr,iRung,MAX_RUNG,dTime);
 	    }
 	if (msr->param.bDensityStep) {
-	    bSplitVA = 0;
-	    msrDomainDecomp(msr,iRung,0,bSplitVA);
+	    msrDomainDecomp(msr,iRung,0);
 	    msrActiveRung(msr,iRung,1);
 	    msrBuildTree(msr,dTime,0);
 	    msrDensityStep(msr,iRung,MAX_RUNG,dTime);
 	    }
-	iRungVeryActive = msrUpdateRung(msr,iRung);
+	msrUpdateRung(msr,iRung);
         }
 
     msrprintf(msr,"%*cmsrKickOpen  at iRung: %d 0.5*dDelta: %g\n",
 	      2*iRung+2,' ',iRung,0.5*dDelta);
     msrKickKDKOpen(msr,dTime,0.5*dDelta,iRung,iRung);
-    if ((msrCurrMaxRung(msr) > iRung) && (iRungVeryActive > iRung)) {
+    if (msrCurrMaxRung(msr) > iRung) {
 	/*
 	** Recurse.
 	*/
-	msrTopStepKDK(msr,dStep,dTime,0.5*dDelta,iRung+1,iRung+1,iRungVeryActive,0,
+	msrTopStepKDK(msr,dStep,dTime,0.5*dDelta,iRung+1,iRung+1,0,
 		      pdActiveSum,piSec);
 	dTime += 0.5*dDelta;
 	dStep += 1.0/(2 << iRung);
 
 	msrActiveRung(msr,iRung,0); /* is this call even needed? */
 
-	msrTopStepKDK(msr,dStep,dTime,0.5*dDelta,iRung+1,iKickRung,iRungVeryActive,1,
+	msrTopStepKDK(msr,dStep,dTime,0.5*dDelta,iRung+1,iKickRung,1,
 		      pdActiveSum,piSec);
 	}
     else if (msrCurrMaxRung(msr) == iRung) {
@@ -4313,8 +4249,7 @@ void msrTopStepKDK(MSR msr,
 	dStep += 1.0/(1 << iRung);
 
 	msrActiveRung(msr,iKickRung,1);
-	bSplitVA = 0;
-	msrDomainDecomp(msr,iKickRung,0,bSplitVA);
+	msrDomainDecomp(msr,iKickRung,0);
 
 	/* JW: Good place to zero uNewRung */
 	msrZeroNewRung(msr,iKickRung,MAX_RUNG,iKickRung); /* brute force */
@@ -4342,95 +4277,7 @@ void msrTopStepKDK(MSR msr,
 	 */
 	dTime -= 0.5*dDelta;
 	}
-    else {
-	double dDeltaTmp;
-	int i;
-
-	assert(!msrDoGas(msr)); /* Gas doesn't handle VA yet */
-	/*
-	 * We have more rungs to go, but we've hit the very active limit.
-	 */
-
-	/*
-	 * Drift the non-VeryActive particles forward 1/2 timestep
-	 */
-	msrprintf(msr,"%*cInActiveDrift at iRung: %d, 0.5*dDelta: %g\n",
-		  2*iRung+2,' ',iRung,0.5*dDelta);
-	msrDrift(msr,dTime,0.5*dDelta,ROOT);
-	/*
-	 * Build a tree out of them for use by the VeryActives
-	 */
-	if (msrDoGravity(msr)) {
-	    msrUpdateSoft(msr,dTime + 0.5*dDelta);
-	    /*
-	    ** Domain decomposition for parallel exclude very active is going to be
-	    ** placed here shortly.
-	    */
-	    bSplitVA = 1;
-	    msrDomainDecomp(msr,iRung,0,bSplitVA);
-
-	    msrprintf(msr,"%*cBuilding exclude very active tree: iRung: %d\n",
-		      2*iRung+2,' ',iRung);
-	    /*
-	     * Activate VeryActives, this is needed for the BuildTreeExcludeVeryActive below?
-	     */
-	    msrActiveRung(msr,msr->iRungVeryActive+1,1);
-	    msrBuildTreeExcludeVeryActive(msr,dTime + 0.5*dDelta);
-	    }
-	/*
-	 * Perform timestepping on individual processors.
-	 */
-	msrStepVeryActiveKDK(msr, dStep, dTime, dDelta, iRung);
-	dTime += dDelta;
-	dStep += 1.0/(1 << iRung);
-	/*
-	 * Move Inactives to the end of the step.
-	 */
-	msrprintf(msr,"%*cInActiveDrift at iRung: %d, 0.5*dDelta: %g\n",
-		  2*iRung+2,' ',iRung,0.5*dDelta);
-	/*
-	** The inactives are half time step behind the actives.
-	** Move them a half time step ahead to synchronize everything again.
-	*/
-	msrDrift(msr,dTime-0.5*dDelta,0.5*dDelta,ROOT);
-
-	/*
-	 * Regular Tree gravity
-	 */
-	msrActiveRung(msr,iKickRung,1);
-	bSplitVA = 0;
-	msrDomainDecomp(msr,iKickRung,0,bSplitVA);
-
-	if (msrDoGravity(msr)) {
-	    msrActiveRung(msr,iKickRung,1);
-	    msrUpdateSoft(msr,dTime);
-	    msrprintf(msr,"%*cGravity, iRung: %d to %d\n",
-		      2*iRung+2,' ',iKickRung,msrCurrMaxRung(msr));
-	    msrBuildTree(msr,dTime,msr->param.bEwald);
-	    msrGravity(msr,iKickRung,MAX_RUNG,ROOT,0,dTime,dStep,0,0,
-	    	msr->param.bEwald,msr->param.bGravStep,msr->param.nPartRhoLoc,msr->param.iTimeStepCrit,
-	    	msr->param.nGroup,piSec,&nActive);
-	    *pdActiveSum += (double)nActive/msr->N;
-	    }
-
-	dDeltaTmp = dDelta;
-	for (i = msrCurrMaxRung(msr); i > iRung; i--)
-	    dDeltaTmp *= 0.5;
-
-	for (i = msrCurrMaxRung(msr); i > iRung; i--) { /* close off all
-							 the VeryActive Kicks
-						      */
-	    msrprintf(msr,"%*cVeryActive msrKickClose at iRung: %d, 0.5*dDelta: %g\n",
-		      2*iRung+2,' ',i, 0.5*dDeltaTmp);
-	    msrKickKDKClose(msr,dTime-0.5*dDeltaTmp,0.5*dDeltaTmp,i,i);
-	    dDeltaTmp *= 2.0;
-	    }
-	/*
-	 * move time back to 1/2 step so that KickClose can integrate
-	 * from 1/2 through the timestep to the end.
-	 */
-	dTime -= 0.5*dDelta;
-	}
+    else { abort(); }
 
     msrprintf(msr,"%*cKickClose, iRung: %d, 0.5*dDelta: %g\n",
 	      2*iRung+2,' ',iRung, 0.5*dDelta);
@@ -4518,33 +4365,6 @@ void msrStarForm(MSR msr, double dTime, int iRung)
 	dsec = msrTime() - sec1;
 	printf("Feedback Calculated, Wallclock: %f secs\n\n",dsec);
 	}
-    }
-
-void msrStepVeryActiveKDK(MSR msr, double dStep, double dTime, double dDelta,
-		     int iRung) {
-    struct inStepVeryActive in;
-    struct outStepVeryActive out;
-
-    in.dStep = dStep;
-    in.dTime = dTime;
-    in.dDelta = dDelta;
-    in.iRung = iRung;
-    in.nMaxRung = msrCurrMaxRung(msr);
-    /*TODO: Are the next two lines okay?  nMaxRung and iRung needed? */
-    in.uRungLo = iRung;
-    in.uRungHi = msrCurrMaxRung(msr);
-    /*
-     * Start Particle Cache on all nodes (could be done as part of
-     * tree build)
-     */
-    pstROParticleCache(msr->pst, NULL, 0, NULL, 0);
-
-    pstStepVeryActiveKDK(msr->pst, &in, sizeof(in), &out, sizeof(out));
-    /*
-     * Finish Particle Cache on all nodes
-     */
-    pstParticleCacheFinish(msr->pst, NULL, 0, NULL, 0);
-    msr->iCurrMaxRung = out.nMaxRung;
     }
 
 uint64_t msrMaxOrder(MSR msr) {
@@ -5425,7 +5245,7 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
 	//msrSelSrcAll(msr);  /* FOR TESTING!! of gas active particles */
 #else
 	msrActiveRung(msr,0,1); /* Activate all particles */
-	msrDomainDecomp(msr,-1,0,0);
+	msrDomainDecomp(msr,-1,0);
 	msrBuildTree(msr,dTime,0);
 	bSymmetric = 0;  /* should be set in param file! */
 	msrSmooth(msr,dTime,SMX_DENSITY,bSymmetric,msr->param.nSmooth);
@@ -5441,7 +5261,7 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
 	}
     if ( msr->param.bFindHopGroups ) {
 	msrActiveRung(msr,0,1); /* Activate all particles */
-	msrDomainDecomp(msr,-1,0,0);
+	msrDomainDecomp(msr,-1,0);
 	msrBuildTree(msr,dTime,0);
 	msrHop(msr,dTime);
 	msrReorder(msr);

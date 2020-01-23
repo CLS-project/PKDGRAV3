@@ -260,17 +260,17 @@ ppy_msr_Reorder(PyObject *self, PyObject *args) {
 
 static PyObject *
 ppy_msr_DomainDecomp(PyObject *self, PyObject *args, PyObject *kwobj) {
-    static char *kwlist[]={"Rung","SplitVA",NULL};
+    static char *kwlist[]={"Rung",NULL};
     int iRung    = 0;
     int bOthers  = 0;
     int bSplitVA = 0;
 
     ppy2prm();
     if ( !PyArg_ParseTupleAndKeywords(
-	     args, kwobj, "|iii:DomainDecomp", kwlist,
-	     &iRung, &bOthers, &bSplitVA ) )
+	     args, kwobj, "|ii:DomainDecomp", kwlist,
+	     &iRung, &bOthers ) )
 	return NULL;
-    msrDomainDecomp(ppy_msr,iRung,bOthers,bSplitVA);
+    msrDomainDecomp(ppy_msr,iRung,bOthers);
     Py_INCREF(Py_None);
     return Py_None;
 }

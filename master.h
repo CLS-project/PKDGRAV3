@@ -76,8 +76,6 @@ typedef struct msrContext {
     double *pdOutTime;
     int iOut;
 
-    uint8_t iRungVeryActive;    /* NOTE: The first very active particle is at iRungVeryActive + 1 */
-
     /*
      * Domain Decomposition Done
      */
@@ -117,11 +115,9 @@ double msrGenerateIC(MSR);
 double msrRead(MSR msr,const char *achInFile);
 void msrWrite(MSR,const char *,double, int bCheckpoint );
 void msrSetSoft(MSR msr,double);
-void msrDomainDecomp(MSR,int iRung,int bOthers,int bSplitVA);
+void msrDomainDecomp(MSR,int iRung,int bOthers);
 void msrBuildTree(MSR msr,double dTime,int bNeedEwald);
-void msrBuildTreeVeryActive(MSR msr,double dTime,int bNeedEwald,uint8_t uRungDD);
 void msrBuildTreeByRung(MSR msr,double dTime,int bNeedEwald,int iRung);
-void msrBuildTreeExcludeVeryActive(MSR msr,double dTime);
 void msrBuildTreeMarked(MSR msr,double dTime);
 void msrCalcBound(MSR msr,BND *pbnd);
 void msrCalcVBound(MSR msr,BND *pbnd);
@@ -162,7 +158,6 @@ void msrTopStepKDK(MSR msr,
 		   int iRung,		/* Rung level */
 		   int iKickRung,	/* Gravity on all rungs from iRung
 					   to iKickRung */
-		   int iRungVeryActive, /* rung *below which* very active particles are */
 		   int iAdjust,		/* Do an adjust? */
 		   double *pdActiveSum,
 		   int *piSec);
@@ -173,12 +168,9 @@ void msrTopStepHSDKD(MSR msr,
 		   int iRung,		/* Rung level */
 		   int iKickRung,	/* Gravity on all rungs from iRung
 					   to iKickRung */
-		   int iRungVeryActive, /* rung *below which* very active particles are */
 		   int iAdjust,		/* Do an adjust? */
 		   double *pdActiveSum,
 		   int *piSec);
-void msrStepVeryActiveKDK(MSR msr, double dStep, double dTime, double dDelta,
-			  int iRung);
 
 void msrBallMax(MSR msr, int iRung, int bGreater);
 
@@ -206,7 +198,7 @@ void msrAddDelParticles(MSR msr);
 void msrGravStep(MSR msr, double dTime);
 void msrAccelStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime);
 void msrDensityStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime);
-int msrUpdateRung(MSR msr, uint8_t uRung);
+void msrUpdateRung(MSR msr, uint8_t uRung);
 int msrCountRungs(MSR msr, uint64_t *nRungs);
 
 /*

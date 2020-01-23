@@ -727,7 +727,6 @@ typedef struct pkdContext {
     int nStore;
     int nRejects;
     int nLocal;
-    int nVeryActive;
     int nActive;
     int nTreeBitsLo;
     int nTreeBitsHi;
@@ -836,7 +835,6 @@ typedef struct pkdContext {
     */
     uint8_t uMinRungActive;
     uint8_t uMaxRungActive;
-    uint8_t uRungVeryActive;    /* NOTE: The first very active particle is at iRungVeryActive + 1 */
 
     /*
     ** Ewald summation setup.
@@ -942,13 +940,6 @@ typedef struct pkdContext {
 
 static inline int pkdIsRungRange(PARTICLE *p,uint8_t uRungLo,uint8_t uRungHi) {
     return((p->uRung >= uRungLo)&&(p->uRung <= uRungHi));
-    }
-
-static inline int pkdRungVeryActive(PKD pkd) {
-    return pkd->uRungVeryActive;
-    }
-static inline int pkdIsVeryActive(PKD pkd, PARTICLE *p) {
-    return p->uRung > pkd->uRungVeryActive;
     }
 
 static inline int pkdIsRungActive(PKD pkd, uint8_t uRung ) {
@@ -1335,7 +1326,7 @@ void pkdTreeBuild(PKD pkd,int nBucket,int nGroup,uint32_t uRoot,uint32_t uTemp,d
 uint32_t pkdDistribTopTree(PKD pkd, uint32_t uRoot, uint32_t nTop, KDN *pTop);
 void pkdOpenCloseCaches(PKD pkd,int bOpen,int bFixed);
 void pkdTreeInitMarked(PKD pkd);
-void pkdDumpTrees(PKD pkd,int bOnlyVA,uint8_t uRungDD);
+void pkdDumpTrees(PKD pkd,uint8_t uRungDD);
 void pkdCombineCells1(PKD,KDN *pkdn,KDN *p1,KDN *p2);
 void pkdCombineCells2(PKD,KDN *pkdn,KDN *p1,KDN *p2);
 void pkdCalcRoot(PKD,uint32_t,double *,MOMC *);
@@ -1377,9 +1368,9 @@ void pkdCountVA(PKD,int,double,int *,int *);
 double pkdTotalMass(PKD pkd);
 int pkdLowerPart(PKD,int,double,int,int);
 int pkdUpperPart(PKD,int,double,int,int);
-int pkdWeightWrap(PKD,int,double,double,int,int,int,int,int *,int *);
-int pkdLowerPartWrap(PKD,int,double,double,int,int,int);
-int pkdUpperPartWrap(PKD,int,double,double,int,int,int);
+int pkdWeightWrap(PKD,int,double,double,int,int,int,int *,int *);
+int pkdLowerPartWrap(PKD,int,double,double,int,int);
+int pkdUpperPartWrap(PKD,int,double,double,int,int);
 int pkdLowerOrdPart(PKD,uint64_t,int,int);
 int pkdUpperOrdPart(PKD,uint64_t,int,int);
 int pkdActiveOrder(PKD);
@@ -1432,9 +1423,6 @@ void pkdGravEvalPP(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINF
 void pkdGravEvalPC(PINFOIN *pPart, int nBlocks, int nInLast, ILC_BLK *blk,  PINFOOUT *pOut );
 void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double,double,int bDoGas);
 void pkdScaleVel(PKD pkd,double dvFac);
-void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, double dTime, double dDelta,
-			  int iRung, int iKickRung, int iRungVeryActive,int iAdjust, double diCrit2,
-			  int *pnMaxRung, double aSunInact[], double adSunInact[], double dSunMass);
 void pkdKickKDKOpen(PKD pkd,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi);
 void pkdKickKDKClose(PKD pkd,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi);
 void pkdKick(PKD pkd,double dTime,double dDelta,int bDoGas,double,double,double,uint8_t uRungLo,uint8_t uRungHi);
@@ -1490,7 +1478,6 @@ int pkdOrdWeight(PKD pkd,uint64_t iOrdSplit,int iSplitSide,int iFrom,int iTo,
 void pkdDeleteParticle(PKD pkd, PARTICLE *p);
 void pkdNewParticle(PKD pkd, PARTICLE *p);
 int pkdResetTouchRung(PKD pkd, unsigned int iTestMask, unsigned int iSetMask);
-void pkdSetRungVeryActive(PKD pkd, int iRung );
 int pkdIsGas(PKD,PARTICLE *);
 int pkdIsDark(PKD,PARTICLE *);
 int pkdIsStar(PKD,PARTICLE *);

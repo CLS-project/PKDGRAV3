@@ -68,7 +68,6 @@ typedef struct pstContext {
     double fSplit;
     double fSplitInactive;
     uint64_t nTotal;
-    int iVASplitSide;
     uint64_t nLowerStore;
     uint64_t nUpperStore;
     } * PST;
@@ -88,7 +87,6 @@ enum pst_service {
     PST_CALCVBOUND,
     PST_COMBINEBOUND,
     PST_WEIGHT,
-    PST_COUNTVA,
     PST_WEIGHTWRAP,
     PST_FREESTORE,
     PST_COLREJECTS,
@@ -128,8 +126,6 @@ enum pst_service {
     PST_CACHEBARRIER,
     PST_ROPARTICLECACHE,
     PST_PARTICLECACHEFINISH,
-    PST_STEPVERYACTIVE,
-    PST_STEPVERYACTIVEH,
     PST_COPY0,
     PST_PREDICTOR,
     PST_CORRECTOR,
@@ -156,7 +152,6 @@ enum pst_service {
     PST_STARFORM,
     PST_DENSITYSTEP,
     PST_CORRECTENERGY,
-    PST_SETRUNGVERYACTIVE,
     PST_MARKSMOOTH,
     PST_RESMOOTH,
     PST_INITACCEL,
@@ -291,7 +286,6 @@ struct inDomainDecomp {
     int nBndWrap[3];
     int bDoRootFind;
     int bDoSplitDimFind;
-    int bSplitVA;
     uint64_t nActive;
     uint64_t nTotal;
     };
@@ -322,17 +316,6 @@ struct outWeight {
     };
 int pstWeight(PST,void *,int,void *,int);
 
-/* PST_COUNTVA */
-struct inCountVA {
-    int iSplitDim;
-    double fSplit;
-    };
-struct outCountVA {
-    int nLow;
-    int nHigh;
-    };
-int pstCountVA(PST,void *,int,void *,int);
-
 /* PST_WEIGHTWRAP */
 struct inWeightWrap {
     int iSplitDim;
@@ -340,7 +323,6 @@ struct inWeightWrap {
     double fSplit2;
     int iSplitSide;
     int ittr;
-    int iVASplitSide;
     };
 struct outWeightWrap {
     uint64_t nLow;
@@ -479,7 +461,6 @@ int pstDistribTopTree(PST,void *,int,void *,int);
 
 /* PST_DUMPTREES */
 struct inDumpTrees {
-    int bOnlyVA;
     uint8_t uRungDD; /* Domain DD was done on this rung */
     };
 int pstDumpTrees(PST,void *,int,void *,int);
@@ -740,25 +721,6 @@ int pstParticleCacheFinish(PST, void *, int, void *, int);
 /* PST_CACHEBARRIER */
 int pstCacheBarrier(PST, void *, int, void *, int);
 
-/* PST_STEPVERYACTIVE */
-struct inStepVeryActive {
-    double dStep;
-    double dTime;
-    double dDelta;
-    int iRung;
-    int nMaxRung;
-    double dThetaMin;
-    double aSunInact[3];
-    double adSunInact[3];
-    double dSunMass;
-    uint8_t uRungLo;
-    uint8_t uRungHi;
-    };
-struct outStepVeryActive {
-    int nMaxRung;
-    };
-int pstStepVeryActiveKDK(PST,void *,int,void *,int);
-
 /* PST_KICK */
 struct inKick {
     double dTime;
@@ -952,9 +914,6 @@ struct inCorrectEnergy {
     int    iDirection;
     };
 int pstCorrectEnergy(PST, void *,int,void *,int);
-
-
-int pstSetRungVeryActive(PST,void *,int,void *,int);
 
 /* PST_UPDATERUNG */
 struct inUpdateRung {
