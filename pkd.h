@@ -1460,7 +1460,6 @@ void pkdStarForm(PKD pkd, double dRateCoeff, double dTMax, double dDenMin,
 		 double dTuFac, int bGasCooling,
 		 int bdivv, int *nFormed, double *dMassFormed,
 		 int *nDeleted);
-void pkdCooling(PKD pkd,double,double,int,int,int,int);
 #define CORRECTENERGY_IN 1
 #define CORRECTENERGY_OUT 2
 #define CORRECTENERGY_SPECIAL 3
