@@ -392,6 +392,8 @@ int mdlThreadToProc(MDL mdl, int iThread);
  ** General Functions
  */
 void mdlLaunch(int,char **,void (*)(MDL,void *),void * (*)(MDL),void (*)(MDL,void *));
+MDL   mdlMDL(void);
+void *mdlWORKER(void);
 
 void mdlAbort(MDL);
 int mdlSwap(MDL,int,size_t,void *,size_t,size_t *,size_t *);

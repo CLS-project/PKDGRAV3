@@ -91,6 +91,17 @@ typedef struct srvHeader {
     int32_t nOutBytes;
     } SRVHEAD;
 
+
+
+/*****************************************************************************\
+* State retrieval
+\*****************************************************************************/
+pthread_key_t mdl_key; // One MDL per thread
+pthread_key_t worker_key; // One worker context per thread
+
+MDL   mdlMDL(void)    { return pthread_getspecific(mdl_key); }
+void *mdlWORKER(void) { return pthread_getspecific(worker_key); }
+
 /*****************************************************************************\
 * Class/Thread overview
 *   mpiClass - A single instance that handles MPI communication.
@@ -1042,6 +1053,10 @@ void mpiClass::Launch(int argc,char **argv,void (*fcnMaster)(MDL,void *),void * 
     __itt_task_begin(domain, __itt_null, __itt_null, shMyTask);
 #endif
 
+    pthread_key_create(&mdl_key,NULL);
+    pthread_key_create(&worker_key,NULL);
+    pthread_setspecific(mdl_key, reinterpret_cast<class mdlClass *>(this));
+
 #ifdef _SC_NPROCESSORS_CONF /* from unistd.h */
     nCores = sysconf(_SC_NPROCESSORS_CONF);
 #endif
@@ -1264,6 +1279,7 @@ void mpiClass::Launch(int argc,char **argv,void (*fcnMaster)(MDL,void *),void * 
 #endif
     if (!bDedicated) {
 	worker_ctx = (*fcnWorkerInit)(reinterpret_cast<MDL>(static_cast<mdlClass *>(this)));
+	pthread_setspecific(worker_key, worker_ctx);
 	CommitServices();
 	if (Self()) Handler();
 	else run_master();
@@ -1591,7 +1607,9 @@ void *mdlClass::WorkerThread() {
     sprintf(szName,"ID %d", Core());
     __itt_thread_set_name(szName);
 #endif
+    pthread_setspecific(mdl_key, this);
     worker_ctx = (*fcnWorkerInit)(reinterpret_cast<MDL>(this));
+    pthread_setspecific(worker_key, worker_ctx);
     CommitServices();
     if (Self()) Handler();
     else run_master();
