@@ -575,6 +575,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 	queueEwald( pkd,  wp );
 	}
 
+#ifdef TIMESTEP_CRITICAL
     for( i=0; i<wp->nP; i++ ) {
 	double *c = wp->c;
 	float *in = wp->pInfoIn[i].r;
@@ -588,7 +589,6 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
         ** Set value for time-step, note that we have the current ewald acceleration
         ** in this now as well!
         */
-#ifdef TIMESTEP_CRITICAL
         if (bGravStep && pkd->param.iTimeStepCrit == 1) {
 	    /*
 	    ** GravStep if iTimeStepCrit =
@@ -639,8 +639,8 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 		}
 	    wp->pInfoOut[i].rhopmax = rhopmax;
 	    }
-#endif
         } /* end of i-loop cells & particles */
+#endif
 
     pkdParticleWorkDone(wp);
 
