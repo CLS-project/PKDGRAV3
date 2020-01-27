@@ -1052,12 +1052,6 @@ struct inGenerateIC {
     uint64_t nPerNode;
     double dBoxSize;
     double dBoxMass;
-//    double omegam;
-//    double omegab;
-//    double omegav;
-//    double sigma8;
-//    double normalization;
-//    double spectral;
     double dExpansion;
     int iSeed;
     int bFixed;
@@ -1065,10 +1059,8 @@ struct inGenerateIC {
     int nGrid;
     int b2LPT;
     int bComove;
-    int bClass;
     int nTf;
     int nInflateFactor;
-    struct csmVariables cosmo;
     double k[MAX_TF];
     double tf[MAX_TF];
     };

@@ -170,9 +170,6 @@ struct parameters {
     char achIoPath[256];
     char achCheckpointPath[256];
     char achDataSubPath[256];
-#ifdef USE_PYTHON
-    char achScriptFile[256];
-#endif
     char achTfFile[256];
     char achClassFilename[256];
     char achLinearSpecies[256];

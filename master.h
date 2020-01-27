@@ -87,8 +87,6 @@ typedef struct msrContext {
     int nBins;
     int bAntiGrav;
 
-    int bSavePending;
-
     long lStart; /* starting time of job */
     long lPrior; /* starting time of last step */
 
@@ -106,6 +104,8 @@ typedef struct msrContext {
 #ifdef __cplusplus
 extern "C" {
 #endif
+int msrPython(MSR *msr,int argc, char *argv[]);
+int msrValidateParameters(MSR msr);
 double msrTime();
 int msrInitialize(MSR *,MDL,void *,int,char **);
 void msrLogParams(MSR msr, FILE *fp);

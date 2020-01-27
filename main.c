@@ -86,6 +86,7 @@ void worker_done(MDL mdl, void *ctx) {
 void master(MDL mdl,void *pst) {
     int argc = mdlGetArgc(mdl);
     char **argv = mdlGetArgv(mdl);
+
     MSR msr;
     FILE *fpLog = NULL;
     char achFile[256];			/*DEBUG use MAXPATHLEN here (& elsewhere)? -- DCR*/
@@ -103,168 +104,101 @@ void master(MDL mdl,void *pst) {
     uint8_t uRungMax;
     double diStep;
     double ddTime;
-    int bRestore;
+    int bRestore = 0;
 
     printf("%s\n", PACKAGE_STRING );
 
-    bRestore = msrInitialize(&msr,mdl,pst,argc,argv);
-    msr->lStart=time(0);
+    if (!msrPython(&msr,argc,argv)) {
+	msrValidateParameters(msr);
+	//bRestore = msrInitialize(&msr,mdl,pst,argc,argv);
+	msr->lStart=time(0);
 
-    /*
-    ** Establish safety lock.
-    */
-    if (!msrGetLock(msr)) {
-	msrFinish(msr);
-	return;
-	}
-
-    /* a USR1 signal indicates that the queue wants us to exit */
-#ifndef _MSC_VER
-    timeGlobalSignalTime = 0;
-    signal(SIGUSR1,NULL);
-    signal(SIGUSR1,USR1_handler);
-
-    /* a USR2 signal indicates that we should write an output when convenient */
-    bGlobalOutput = 0;
-    signal(SIGUSR2,NULL);
-    signal(SIGUSR2,USR2_handler);
-#endif
-
-    /*
-    ** Output the host names to make troubleshooting easier
-    */
-    msrHostname(msr);
-
-    /* Restore from a previous checkpoint */
-    if (bRestore) {
-	dTime = msrRestore(msr);
-	iStartStep = msr->iCheckpointStep;
-	msrSetParameters(msr);
-	msrInitCosmology(msr);
-	if (prmSpecified(msr->prm,"dSoft")) msrSetSoft(msr,msrSoft(msr));
-	iStep = msrSteps(msr); /* 0=analysis, >1=simulate, <0=python */
-	uRungMax = msr->iCurrMaxRung;
-	}
-
-    /* Generate the initial particle distribution */
-    else if (prmSpecified(msr->prm,"nGrid")) {
-	iStartStep = msr->param.iStartStep; /* Should be zero */
-#ifdef MDL_FFTW
-	dTime = msrGenerateIC(msr); /* May change nSteps/dDelta */
-	if ( msr->param.bWriteIC ) {
-	    msrBuildIoName(msr,achFile,0);
-	    msrWrite( msr,achFile,dTime,msr->param.bWriteIC-1);
+	/*
+	** Establish safety lock.
+	*/
+	if (!msrGetLock(msr)) {
+	    msrFinish(msr);
+	    return;
 	    }
-#else
-	printf("To generate initial conditions, compile with FFTW\n");
-	msrFinish(msr);
-	return;
-#endif
-	msrSetParameters(msr);
-	msrInitCosmology(msr);
-	if (prmSpecified(msr->prm,"dSoft")) msrSetSoft(msr,msrSoft(msr));
-	iStep = msrSteps(msr); /* 0=analysis, >1=simulate, <0=python */
-	}
 
-    /* Read in a binary file */
-    else if ( msr->param.achInFile[0] ) {
-	iStartStep = msr->param.iStartStep; /* Should be zero */
-	dTime = msrRead(msr,msr->param.achInFile); /* May change nSteps/dDelta */
-	msrSetParameters(msr);
-	msrInitCosmology(msr);
-	if (msr->param.bAddDelete) msrGetNParts(msr);
-	if (prmSpecified(msr->prm,"dRedFrom")) {
-	    double aOld, aNew;
-	    aOld = csmTime2Exp(msr->csm,dTime);
-	    aNew = 1.0 / (1.0 + msr->param.dRedFrom);
-	    dTime = msrAdjustTime(msr,aOld,aNew);
-	    /* Seriously, we shouldn't need to send parameters *again*.
-	       When we remove sending parameters, we should remove this. */
+	/* a USR1 signal indicates that the queue wants us to exit */
+    #ifndef _MSC_VER
+	timeGlobalSignalTime = 0;
+	signal(SIGUSR1,NULL);
+	signal(SIGUSR1,USR1_handler);
+
+	/* a USR2 signal indicates that we should write an output when convenient */
+	bGlobalOutput = 0;
+	signal(SIGUSR2,NULL);
+	signal(SIGUSR2,USR2_handler);
+    #endif
+
+	/*
+	** Output the host names to make troubleshooting easier
+	*/
+	msrHostname(msr);
+
+    #if 0
+	/* Restore from a previous checkpoint */
+	if (bRestore) {
+	    dTime = msrRestore(msr);
+	    iStartStep = msr->iCheckpointStep;
 	    msrSetParameters(msr);
+	    msrInitCosmology(msr);
+	    if (prmSpecified(msr->prm,"dSoft")) msrSetSoft(msr,msrSoft(msr));
+	    iStep = msrSteps(msr); /* 0=analysis, >1=simulate, <0=python */
+	    uRungMax = msr->iCurrMaxRung;
 	    }
-	if (prmSpecified(msr->prm,"dSoft")) msrSetSoft(msr,msrSoft(msr));
-	iStep = msrSteps(msr); /* 0=analysis, >1=simulate, <0=python */
-	}
-#ifdef USE_PYTHON
-    else if ( msr->param.achScriptFile[0] ) {
-	iStep = -1;
-	}
-#endif
-    else {
-	printf("No input file specified\n");
-	msrFinish(msr);
-	return;
-	}
 
-    /* Adjust theta for gravity calculations. */
-    if (msrComove(msr)) msrSwitchTheta(msr,dTime);
-
-    /* Analysis mode */
-    if (iStep==0) {
-#ifdef MDL_FFTW
-	int bDoPk = msr->param.nGridPk>0;
-#else
-	int bDoPk = 0;
-#endif
-	msrInflate(msr,0);
-	if (msrDoGravity(msr) ||msrDoGas(msr) || bDoPk || msr->param.bFindGroups) {
-	    msrActiveRung(msr,0,1); /* Activate all particles */
-	    msrDomainDecomp(msr,0,0);
-	    msrUpdateSoft(msr,dTime);
-	    /*
-	    ** Convert lightcone momentum (a^2 x_dot) to physical velocities (a x_dot).
-	    */
-	    if (msr->param.bInFileLC) msrLightConeVel(msr);
-
-	    msrBuildTree(msr,dTime,msr->param.bEwald);
-	    msrOutputOrbits(msr,iStartStep,dTime);
-#ifdef MDL_FFTW
-	    if (bDoPk) {
-		msrOutputPk(msr,iStartStep,dTime);
+	/* Generate the initial particle distribution */
+	else
+    #endif
+	if (prmSpecified(msr->prm,"nGrid")) {
+	    iStartStep = msr->param.iStartStep; /* Should be zero */
+    #ifdef MDL_FFTW
+	    dTime = msrGenerateIC(msr); /* May change nSteps/dDelta */
+	    if ( msr->param.bWriteIC ) {
+		msrBuildIoName(msr,achFile,0);
+		msrWrite( msr,achFile,dTime,msr->param.bWriteIC-1);
 		}
-#endif
-	    if (msr->param.bFindGroups) {
-		msrNewFof(msr,csmTime2Exp(msr->csm,dTime));
-		}
-	    if (msrDoGravity(msr)) {
-		msrGravity(msr,0,MAX_RUNG,ROOT,0,dTime,iStartStep,0,0,
-		    msr->param.bEwald,msr->param.bGravStep,msr->param.nPartRhoLoc,msr->param.iTimeStepCrit,msr->param.nGroup,&iSec,&nActive);
-		msrMemStatus(msr);
-		if (msr->param.bGravStep) {
-		    msrBuildTree(msr,dTime,msr->param.bEwald);
-		    msrGravity(msr,0,MAX_RUNG,ROOT,0,dTime,iStartStep,0,0,
-			msr->param.bEwald,msr->param.bGravStep,msr->param.nPartRhoLoc,msr->param.iTimeStepCrit,msr->param.nGroup,&iSec,&nActive);
-		    }
-		}
-	    if (msr->param.bFindGroups) {
-		msrGroupStats(msr);
-		}
-	    msrMemStatus(msr);
-		
-	    if (msrDoGas(msr)) {
-		/* Initialize SPH, Cooling and SF/FB and gas time step */
-		msrCoolSetup(msr,dTime);
-		/* Fix dTuFac conversion of T in InitSPH */
-		msrInitSph(msr,dTime);
-		}
-		   
-	    msrUpdateRung(msr,0); /* set rungs for output */
+    #else
+	    printf("To generate initial conditions, compile with FFTW\n");
+	    msrFinish(msr);
+	    return;
+    #endif
+	    msrSetParameters(msr);
+	    msrInitCosmology(msr);
+	    if (prmSpecified(msr->prm,"dSoft")) msrSetSoft(msr,msrSoft(msr));
+	    iStep = msrSteps(msr); /* 0=analysis, >1=simulate, <0=python */
 	    }
-	msrOutput(msr,0,dTime,0);  /* JW: Will trash gas density */
-	}
 
-#ifdef USE_PYTHON
-    else if ( iStep < 0 ) {
-	PPY ppy;
-	ppyInitialize(&ppy,msr,dTime);
-	msr->prm->script_argv[0] = msr->param.achScriptFile;
-	ppyRunScript(ppy,msr->prm->script_argc,msr->prm->script_argv);
-	ppyFinish(ppy);
-	}
-#endif
+	/* Read in a binary file */
+	else if ( msr->param.achInFile[0] ) {
+	    iStartStep = msr->param.iStartStep; /* Should be zero */
+	    dTime = msrRead(msr,msr->param.achInFile); /* May change nSteps/dDelta */
+	    msrSetParameters(msr);
+	    msrInitCosmology(msr);
+	    if (msr->param.bAddDelete) msrGetNParts(msr);
+	    if (prmSpecified(msr->prm,"dRedFrom")) {
+		double aOld, aNew;
+		aOld = csmTime2Exp(msr->csm,dTime);
+		aNew = 1.0 / (1.0 + msr->param.dRedFrom);
+		dTime = msrAdjustTime(msr,aOld,aNew);
+		/* Seriously, we shouldn't need to send parameters *again*.
+	        When we remove sending parameters, we should remove this. */
+		msrSetParameters(msr);
+		}
+	    if (prmSpecified(msr->prm,"dSoft")) msrSetSoft(msr,msrSoft(msr));
+	    iStep = msrSteps(msr); /* 0=analysis, >1=simulate, <0=python */
+	    }
+	else {
+	    printf("No input file specified\n");
+	    msrFinish(msr);
+	    return;
+	    }
 
-    /* Simulation mode */
-    else {
+	/* Adjust theta for gravity calculations. */
+	if (msrComove(msr)) msrSwitchTheta(msr,dTime);
 	/*
 	** Now we have all the parameters for the simulation we can make a
 	** log file entry.
@@ -426,7 +360,6 @@ void master(MDL mdl,void *pst) {
 	    }
 	if (msrLogInterval(msr)) (void) fclose(fpLog);
 	}
-    printf("Done all, just finishing up now with msrFinish()\n");
     msrFinish(msr);
     }
 

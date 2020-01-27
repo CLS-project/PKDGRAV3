@@ -38,8 +38,11 @@ find_package(HDF5 COMPONENTS C HL)
 find_package(FFTW REQUIRED)
 if(${CMAKE_VERSION} VERSION_LESS "3.12")
   find_package(PythonLibs 3 REQUIRED)
+  find_package(PythonInterp 3 REQUIRED)
+  set(PYTHON ${PYTHON_EXECUTABLE})
 else()
-  find_package(Python3 COMPONENTS Development REQUIRED)
+  find_package(Python3 COMPONENTS Interpreter REQUIRED Development REQUIRED)
+  set(PYTHON ${Python3_EXECUTABLE})
 endif()
 # _GNU_SOURCE gives us more options
 INCLUDE(CheckCSourceCompiles)
@@ -124,6 +127,14 @@ check_symbol_exists(atexit stdlib.h HAVE_ATEXIT)
 add_subdirectory(blitz)
 add_subdirectory(mdl2)
 
+add_custom_command(
+    OUTPUT ${CMAKE_BINARY_DIR}/m_parse.h
+    MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/parse.py
+    COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/make_parse.py ${CMAKE_SOURCE_DIR}/parse.py ${CMAKE_BINARY_DIR}/m_parse.h
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    VERBATIM
+)
+
 add_executable(${PROJECT_NAME} "")
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_auto_type cxx_range_for cxx_lambdas cxx_strong_enums)
 set_target_properties(${PROJECT_NAME} PROPERTIES
@@ -195,7 +206,7 @@ if(${CMAKE_VERSION} VERSION_LESS "3.8.0")
     set(USE_PYTHON TRUE)
     target_include_directories(${PROJECT_NAME} PUBLIC ${PYTHON_INCLUDE_DIRS})
     target_link_libraries(${PROJECT_NAME} ${PYTHON_LIBRARIES})
-    target_sources(${PROJECT_NAME} PRIVATE pkdpython.c)
+    target_sources(${PROJECT_NAME} PRIVATE pkdpython.c msrpython.cxx m_parse.h csmpython.c)
   else()
     target_sources(${PROJECT_NAME} PRIVATE tinypy.c pkdtinypy.c)
   endif(PYTHONLIBS_FOUND)
@@ -204,7 +215,7 @@ else()
     set(USE_PYTHON TRUE)
     target_include_directories(${PROJECT_NAME} PUBLIC ${Python3_INCLUDE_DIRS})
     target_link_libraries(${PROJECT_NAME} ${Python3_LIBRARIES})
-    target_sources(${PROJECT_NAME} PRIVATE pkdpython.c)
+    target_sources(${PROJECT_NAME} PRIVATE pkdpython.c msrpython.cxx m_parse.h csmpython.c)
   else()
     target_sources(${PROJECT_NAME} PRIVATE tinypy.c pkdtinypy.c)
   endif(Python3_Development_FOUND)

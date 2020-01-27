@@ -159,7 +159,7 @@ PowerTransfer::PowerTransfer(CSM csm, double a,int nTf, double *tk, double *tf) 
 extern "C"
 #endif
 int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int bFixed,float fPhase,int nGrid,int b2LPT,double dBoxSize,
-    struct csmVariables *cosmo,double a,int nTf, double *tk, double *tf,
+    double a,int nTf, double *tk, double *tf,
     double *noiseMean, double *noiseCSQ) {
     mdlClass *mdl = reinterpret_cast<mdlClass *>(pkd->mdl);
     float twopi = 2.0 * 4.0 * atan(1.0);
@@ -178,22 +178,15 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int bFixed,float fPhase,int nGrid
     float velFactor; 
     basicParticle *p;
     int nLocal;
-    float dSigma8 = cosmo->dSigma8;
-    CSM csm;
+    CSM csm = pkd->csm;
+    float dSigma8 = csm->val.dSigma8;
 
     NoiseGenerator ng(iSeed,bFixed,fPhase);
-
-    csmInitialize(&csm);
-    csm->val = *cosmo;
-
-    if (csm->val.classData.bClass){
-        csmClassGslInitialize(csm);
-    }
 
     PowerTransfer transfer(csm,a,nTf,tk,tf);
     csmComoveGrowth(csm, 1.0, &D1_0, &D2_0, &f1_0, &f2_0); 
     csmComoveGrowth(csm, a, &D1_a, &D2_a, &f1_a, &f2_a);
-    dOmega = cosmo->dOmega0 / (a*a*a*pow(csmExp2Hub(csm, a)/cosmo->dHubble0,2.0));
+    dOmega = csm->val.dOmega0 / (a*a*a*pow(csmExp2Hub(csm, a)/csm->val.dHubble0,2.0));
 
     double f1 = pow(dOmega,5.0/9.0);
     double f2 = 2.0 * pow(dOmega,6.0/11.0);
@@ -355,7 +348,7 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int bFixed,float fPhase,int nGrid
 extern "C"
 #endif
 int pkdGenerateClassICm(PKD pkd, MDLFFT fft, int iSeed, int bFixed, float fPhase, int nGrid,int b2LPT,
-    double dBoxSize, struct csmVariables *cosmo, double a, double *noiseMean, double *noiseCSQ) {
+    double dBoxSize, double a, double *noiseMean, double *noiseCSQ) {
     mdlClass *mdl = reinterpret_cast<mdlClass *>(pkd->mdl);
     float twopi = 2.0 * 4.0 * atan(1.0);
     float itwopi = 1.0 / twopi;
@@ -376,14 +369,9 @@ int pkdGenerateClassICm(PKD pkd, MDLFFT fft, int iSeed, int bFixed, float fPhase
 
     basicParticle *p;
     int nLocal;
-    CSM csm;
+    CSM csm = pkd->csm;
 
     NoiseGenerator ng(iSeed,bFixed,fPhase);
-
-    csmInitialize(&csm);
-    csm->val = *cosmo;
-    assert(csm->val.classData.bClass);
-    csmClassGslInitialize(csm);
 
     csmComoveGrowth(csm, 1.0, &D1_0, &D2_0, &f1_0, &f2_0); 
     csmComoveGrowth(csm, a, &D1_a, &D2_a, &f1_a, &f2_a);
@@ -802,12 +790,13 @@ int pltGenerateIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	out->noiseCSQ += outUp.noiseCSQ;
 	}
     else {
-	if (in->bClass)
+	CSM csm = plcl->pkd->csm;
+	if (csm->val.classData.bClass)
 	    out->N = pkdGenerateClassICm(plcl->pkd,tin->fft,in->iSeed, in->bFixed,in->fPhase,
-	        in->nGrid, in->b2LPT, in->dBoxSize,&in->cosmo,in->dExpansion,&out->noiseMean,&out->noiseCSQ);
+	        in->nGrid, in->b2LPT, in->dBoxSize,in->dExpansion,&out->noiseMean,&out->noiseCSQ);
 	else
 	    out->N = pkdGenerateIC(plcl->pkd,tin->fft,in->iSeed,in->bFixed,in->fPhase,
-	        in->nGrid,in->b2LPT,in->dBoxSize, &in->cosmo,in->dExpansion,in->nTf,
+	        in->nGrid,in->b2LPT,in->dBoxSize, in->dExpansion,in->nTf,
 	        in->k, in->tf,&out->noiseMean,&out->noiseCSQ);
 	out->dExpansion = in->dExpansion;
 	}

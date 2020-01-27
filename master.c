@@ -601,10 +601,22 @@ void msrCheckpoint(MSR msr,int iStep,double dTime) {
     msrprintf(msr,"Checkpoint has been successfully written, Wallclock: %f secs.\n", dsec);
     }
 
+#define MAX_CSM_SPECIES 20
+static int parseSpeciesNames(const char *aSpecies[], char *achSpecies) {
+    if (achSpecies==NULL || achSpecies[0]==0 ) return 0;
+    char *p, *stringp = achSpecies;
+    int nSpecies = 0;
+    while ((p = strsep(&stringp, "+")) != NULL) {
+	assert(nSpecies<MAX_CSM_SPECIES);
+        if (p[0]) aSpecies[nSpecies++] = p;
+	}
+    return nSpecies;
+    }
+
 /*
 ** This routine validates the given parameters and makes any adjustments.
 */
-static int validateParameters(MDL mdl,CSM csm,PRM prm,struct parameters *param) {
+static int validateParameters(MSR msr,MDL mdl,CSM csm,PRM prm,struct parameters *param) {
     
     if (prmSpecified(prm, "dMetalDiffsionCoeff") || prmSpecified(prm,"dThermalDiffusionCoeff")) {
 	if (!prmSpecified(prm, "iDiffusion")) param->iDiffusion=1;
@@ -840,23 +852,81 @@ static int validateParameters(MDL mdl,CSM csm,PRM prm,struct parameters *param) 
 	}
     }
 
+    /* Make sure that parallel read and write are sane */
+    int nThreads = mdlThreads(mdl);
+    if (param->nParaRead  > nThreads) param->nParaRead  = nThreads;
+    if (param->nParaWrite > nThreads) param->nParaWrite = nThreads;
 
 
+    /**********************************************************************\
+    * The following "parameters" are derived from real parameters.
+    \**********************************************************************/
+
+    msr->dTuFac = param->dGasConst/(param->dConstGamma - 1)/param->dMeanMolWeight;
+#define KBOLTZ	1.38e-16     /* bolzman constant in cgs */
+#define MHYDR 1.67e-24       /* mass of hydrogen atom in grams */
+#define MSOLG 1.99e33        /* solar mass in grams */
+#define GCGS 6.67e-8         /* G in cgs */
+#define KPCCM 3.085678e21    /* kiloparsec in centimeters */
+#define SIGMAT 6.6524e-25    /* Thompson cross-section (cm^2) */
+#define LIGHTSPEED 2.9979e10 /* Speed of Light cm/s */
+    /*
+    ** Convert kboltz/mhydrogen to system units, assuming that
+    ** G == 1.
+    */
+    if(prmSpecified(msr->prm, "dMsolUnit") &&
+       prmSpecified(msr->prm, "dKpcUnit")) {
+	msr->param.dGasConst = msr->param.dKpcUnit*KPCCM*KBOLTZ
+	    /MHYDR/GCGS/msr->param.dMsolUnit/MSOLG;
+	/* code energy per unit mass --> erg per g */
+	msr->param.dErgPerGmUnit = GCGS*msr->param.dMsolUnit*MSOLG/(msr->param.dKpcUnit*KPCCM);
+	/* code density --> g per cc */
+	msr->param.dGmPerCcUnit = (msr->param.dMsolUnit*MSOLG)/pow(msr->param.dKpcUnit*KPCCM,3.0);
+	/* code time --> seconds */
+	msr->param.dSecUnit = sqrt(1/(msr->param.dGmPerCcUnit*GCGS));
+	/* code speed --> km/s */
+	msr->param.dKmPerSecUnit = sqrt(GCGS*msr->param.dMsolUnit*MSOLG/(msr->param.dKpcUnit*KPCCM))/1e5;
+	/* code comoving density --> g per cc = msr->param.dGmPerCcUnit (1+z)^3 */
+	msr->param.dComovingGmPerCcUnit = msr->param.dGmPerCcUnit;
+	}
+    else {
+	msr->param.dSecUnit = 1;
+	msr->param.dKmPerSecUnit = 1;
+	msr->param.dComovingGmPerCcUnit = 1;
+	msr->param.dGmPerCcUnit = 1;
+	msr->param.dErgPerGmUnit = 1;
+	}
+
+    /* Determine current opening angle  */
+    msr->dThetaMin = msr->param.dTheta;
+    if ( !prmSpecified(msr->prm,"nReplicas") && msr->param.nReplicas>=1 ) {
+	if ( msr->dThetaMin < 0.52 ) msr->param.nReplicas = 2;
+	else msr->param.nReplicas = 1;
+	}
+
+    if (msr->csm->val.classData.bClass){
+	const char *aLinear[MAX_CSM_SPECIES];
+	const char *aPower[MAX_CSM_SPECIES];
+	char *achLinearSpecies = strdup(msr->param.achLinearSpecies);
+	char *achPowerSpecies = strdup(msr->param.achPowerSpecies);
+	int nLinear = parseSpeciesNames(aLinear,achLinearSpecies);
+	int nPower = parseSpeciesNames(aPower,achPowerSpecies);
+        if (!prmSpecified(msr->prm,"dOmega0")) msr->csm->val.dOmega0 = 0.0;
+        csmClassRead(msr->csm, msr->param.achClassFilename, msr->param.dBoxSize, msr->param.h, nLinear, aLinear, nPower, aPower);
+        free(achLinearSpecies);
+        free(achPowerSpecies);
+        csmClassGslInitialize(msr->csm);
+	}
+    if (strlen(msr->param.achLinearSpecies) && msr->param.nGridLin == 0){
+        fprintf(stderr, "ERROR: you must specify nGridLin when running with linear species\n");
+        abort();
+	}
     return 1;
     }
 
-#define MAX_CSM_SPECIES 20
-static int parseSpeciesNames(const char *aSpecies[], char *achSpecies) {
-    if (achSpecies==NULL || achSpecies[0]==0 ) return 0;
-    char *p, *stringp = achSpecies;
-    int nSpecies = 0;
-    while ((p = strsep(&stringp, "+")) != NULL) {
-	assert(nSpecies<MAX_CSM_SPECIES);
-        if (p[0]) aSpecies[nSpecies++] = p;
-	}
-    return nSpecies;
+int msrValidateParameters(MSR msr) {
+    return validateParameters(msr,msr->mdl,msr->csm,msr->prm,&msr->param);
     }
-
 
 int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
     MSR msr;
@@ -865,12 +935,26 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
     char ach[256];
     int bDoRestore;
 
-    msr = (MSR)malloc(sizeof(struct msrContext));
+    msr = *pmsr = (MSR)malloc(sizeof(struct msrContext));
     assert(msr != NULL);
     msr->mdl = mdl;
     msr->pst = pst;
     msr->lcl.pkd = NULL;
-    *pmsr = msr;
+    msr->nThreads = mdlThreads(mdl);
+    for (j=0;j<6;++j) msr->fCenter[j] = 0.0; /* Center is (0,0,0) */
+    /* Storage for output times*/
+    msr->nMaxOuts = 100;
+    msr->pdOutTime = malloc(msr->nMaxOuts*sizeof(double));
+    assert(msr->pdOutTime != NULL);
+    msr->nOuts = msr->iOut = 0;
+    msr->iCurrMaxRung = 0;
+    msr->iRungDD = 0;
+    msr->iRungDT = 0;
+    msr->iLastRungRT = -1;
+    msr->iLastRungDD = -1;  /* Domain decomposition is not done */
+    msr->nRung = malloc((MAX_RUNG+1)*sizeof(uint64_t));
+    assert(msr->nRung != NULL);
+    for (i=0;i<=MAX_RUNG;++i) msr->nRung[i] = 0;
     csmInitialize(&msr->csm);
     /*
     ** Now setup for the input parameters.
@@ -1334,11 +1418,6 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
     msr->param.b2LPT = 1;
     prmAddParam(msr->prm,"b2LPT",0,&msr->param.b2LPT,
 		sizeof(int),"2lpt","<Enable/disable 2LPT> = 1");
-#ifdef USE_PYTHON
-    strcpy(msr->param.achScriptFile,"");
-    prmAddParam(msr->prm,"achScript",3,msr->param.achScriptFile,256,"script",
-		"<Python script for analysis> = \"\"");
-#endif
     msr->param.bWriteIC = 0;
     prmAddParam(msr->prm,"bWriteIC",0,&msr->param.bWriteIC,
 		sizeof(int),"wic","<Write IC after generating> = 0");
@@ -1556,13 +1635,8 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
     /* END Gas/Star Parameters */
     msr->param.nOutputParticles = 0;
     prmAddArray(msr->prm,"lstOrbits",4,&msr->param.iOutputParticles,sizeof(uint64_t),&msr->param.nOutputParticles);
-
     msr->param.bAccelStep = 0;
-
-    /*
-    ** Set the box center to (0,0,0) for now!
-    */
-    for (j=0;j<6;++j) msr->fCenter[j] = 0.0;
+#if 0
     /*
     ** Process command line arguments.
     */
@@ -1581,71 +1655,9 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
 	if (!prmParseParam(msr->prm,msr)) {
 	    _msrExit(msr,1);
 	    }
-	if (!validateParameters(mdl,msr->csm,msr->prm,&msr->param)) _msrExit(msr,1);
+	if (!validateParameters(msr,mdl,msr->csm,msr->prm,&msr->param)) _msrExit(msr,1);
 	}
-
-    msr->dTuFac = msr->param.dGasConst/(msr->param.dConstGamma - 1)/
-		msr->param.dMeanMolWeight;
-#define KBOLTZ	1.38e-16     /* bolzman constant in cgs */
-#define MHYDR 1.67e-24       /* mass of hydrogen atom in grams */
-#define MSOLG 1.99e33        /* solar mass in grams */
-#define GCGS 6.67e-8         /* G in cgs */
-#define KPCCM 3.085678e21    /* kiloparsec in centimeters */
-#define SIGMAT 6.6524e-25    /* Thompson cross-section (cm^2) */
-#define LIGHTSPEED 2.9979e10 /* Speed of Light cm/s */
-    /*
-    ** Convert kboltz/mhydrogen to system units, assuming that
-    ** G == 1.
-    */
-    if(prmSpecified(msr->prm, "dMsolUnit") &&
-       prmSpecified(msr->prm, "dKpcUnit")) {
-	msr->param.dGasConst = msr->param.dKpcUnit*KPCCM*KBOLTZ
-	    /MHYDR/GCGS/msr->param.dMsolUnit/MSOLG;
-	/* code energy per unit mass --> erg per g */
-	msr->param.dErgPerGmUnit = GCGS*msr->param.dMsolUnit*MSOLG/(msr->param.dKpcUnit*KPCCM);
-	/* code density --> g per cc */
-	msr->param.dGmPerCcUnit = (msr->param.dMsolUnit*MSOLG)/pow(msr->param.dKpcUnit*KPCCM,3.0);
-	/* code time --> seconds */
-	msr->param.dSecUnit = sqrt(1/(msr->param.dGmPerCcUnit*GCGS));
-	/* code speed --> km/s */
-	msr->param.dKmPerSecUnit = sqrt(GCGS*msr->param.dMsolUnit*MSOLG/(msr->param.dKpcUnit*KPCCM))/1e5;
-	/* code comoving density --> g per cc = msr->param.dGmPerCcUnit (1+z)^3 */
-	msr->param.dComovingGmPerCcUnit = msr->param.dGmPerCcUnit;
-	}
-    else {
-	msr->param.dSecUnit = 1;
-	msr->param.dKmPerSecUnit = 1;
-	msr->param.dComovingGmPerCcUnit = 1;
-	msr->param.dGmPerCcUnit = 1;
-	msr->param.dErgPerGmUnit = 1;
-	}
-
-
-    /* Gas parameter checks */
-#ifdef CLASSICAL_FOPEN
-    fprintf(stderr,"WARNING: CLASSICAL_FOPEN\n");
 #endif
-
-    /* Determine current opening angle  */
-    msr->dThetaMin = msr->param.dTheta;
-    if ( !prmSpecified(msr->prm,"nReplicas") && msr->param.nReplicas>=1 ) {
-	if ( msr->dThetaMin < 0.52 ) msr->param.nReplicas = 2;
-	else msr->param.nReplicas = 1;
-	}
-
-    /*
-    ** Initialize comove variables.
-    */
-    msr->nMaxOuts = 100;
-    msr->pdOutTime = malloc(msr->nMaxOuts*sizeof(double));
-    assert(msr->pdOutTime != NULL);
-    msr->nOuts = msr->iOut = 0;
-
-    msr->nThreads = mdlThreads(mdl);
-
-    /* Make sure that parallel read and write are sane */
-    if (msr->param.nParaRead>msr->nThreads) msr->param.nParaRead = msr->nThreads;
-    if (msr->param.nParaWrite>msr->nThreads) msr->param.nParaWrite = msr->nThreads;
 
     /*
     ** Create the processor subset tree.
@@ -1657,37 +1669,6 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
 		  inAdd.idLower+1,inAdd.idUpper-1);
     pstSetAdd(msr->pst,&inAdd,sizeof(inAdd),NULL,0);
 
-    msr->iCurrMaxRung = 0;
-    /*
-    ** Mark the Domain Decompositon as not done
-    */
-    msr->iRungDD = 0;
-    msr->iRungDT = 0;
-    msr->iLastRungRT = -1;
-    msr->iLastRungDD = -1;
-    msr->nRung = malloc((MAX_RUNG+1)*sizeof(uint64_t));
-    assert(msr->nRung != NULL);
-    for (i=0;i<=MAX_RUNG;++i) msr->nRung[i] = 0;
-
-    msr->bSavePending = 0;                      /* There is no pending save */
-
-    if (msr->csm->val.classData.bClass){
-	const char *aLinear[MAX_CSM_SPECIES];
-	const char *aPower[MAX_CSM_SPECIES];
-	char *achLinearSpecies = strdup(msr->param.achLinearSpecies);
-	char *achPowerSpecies = strdup(msr->param.achPowerSpecies);
-	int nLinear = parseSpeciesNames(aLinear,achLinearSpecies);
-	int nPower = parseSpeciesNames(aPower,achPowerSpecies);
-        if (!prmSpecified(msr->prm,"dOmega0")) msr->csm->val.dOmega0 = 0.0;
-        csmClassRead(msr->csm, msr->param.achClassFilename, msr->param.dBoxSize, msr->param.h, nLinear, aLinear, nPower, aPower);
-        free(achLinearSpecies);
-        free(achPowerSpecies);
-        csmClassGslInitialize(msr->csm);
-    }
-    if (strlen(msr->param.achLinearSpecies) && msr->param.nGridLin == 0){
-        fprintf(stderr, "ERROR: you must specify nGridLin when running with linear species\n");
-        abort();
-    }
     return bDoRestore;
     }
 
@@ -4828,7 +4809,7 @@ void msrRelaxation(MSR msr,double dTime,double deltaT,int iSmoothType,int bSymme
 
 #ifdef MDL_FFTW
 double msrGenerateIC(MSR msr) {
-    static/*FIXME: this is a HACK: message is too large for stack */ struct inGenerateIC in;
+    struct inGenerateIC in;
     struct outGenerateIC out;
     struct inGetFFTMaxSizes inFFTSizes;
     struct outGetFFTMaxSizes outFFTSizes;
@@ -4846,8 +4827,6 @@ double msrGenerateIC(MSR msr) {
     in.fPhase = msr->param.dFixedAmpPhasePI * M_PI;
     in.nGrid = msr->param.nGrid;
     in.b2LPT = msr->param.b2LPT;
-    in.bClass = msr->csm->val.classData.bClass;
-    in.cosmo = msr->csm->val;
     in.nInflateFactor = msr->param.nInflateReps + 1;
     in.nInflateFactor *= in.nInflateFactor * in.nInflateFactor;
 
@@ -4859,6 +4838,8 @@ double msrGenerateIC(MSR msr) {
     for( j=0; j<FIO_SPECIES_LAST; j++) nSpecies[j] = 0;
     nSpecies[FIO_SPECIES_ALL] = nSpecies[FIO_SPECIES_DARK] = nTotal;
     msrInitializePStore(msr,nSpecies);
+    msrSetParameters(msr);
+    msrInitCosmology(msr);
 
     if (prmSpecified(msr->prm,"dRedFrom")) {
 	assert(msr->param.dRedFrom >= 0.0 );
