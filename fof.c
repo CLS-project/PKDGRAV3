@@ -164,7 +164,7 @@ static void addChildFof(PKD pkd, CL cl, int iChild, int id, float *fOffset) {
     }
 
 
-void pkdFofRemoteSearch(PKD pkd,double dTau2) {
+void pkdFofRemoteSearch(PKD pkd,double dTau2,int bPeriodic,int nReplicas,int nBucket) {
     KDN *kdnSelf,*kdn,*c,*k;
     BND bndSelf,bnd;
     PARTICLE *p;
@@ -187,7 +187,7 @@ void pkdFofRemoteSearch(PKD pkd,double dTau2) {
     ** Allocate the vectors to be large enough to handle all particles in a bucket.
     ** M should be aligned to 4*sizeof(double)
     */
-    M = pkd->param.nBucket;
+    M = nBucket;
     xi = malloc(M*sizeof(double));
     mdlassert(pkd->mdl,xi != NULL);
     yi = malloc(M*sizeof(double));
@@ -238,8 +238,8 @@ void pkdFofRemoteSearch(PKD pkd,double dTau2) {
     /*
     ** Add all replica global roots to the checklist for periodic BCs.
     */
-    if (pkd->param.bPeriodic) {
-	int nReps = pkd->param.nReplicas;
+    if (bPeriodic) {
+	int nReps = nReplicas;
 	for (ix=-nReps;ix<=nReps;++ix) {
 	    fOffset[0] = ix*pkd->fPeriod[0];
 	    for (iy=-nReps;iy<=nReps;++iy) {
@@ -454,7 +454,7 @@ void updateInteriorBound(BND *ibnd,BND *bnd) {
     }
 
 
-void pkdNewFof(PKD pkd,double dTau2,int nMinMembers) {
+void pkdNewFof(PKD pkd,double dTau2,int nMinMembers,int bPeriodic,int nReplicas,int nBucket) {
     MDL mdl = pkd->mdl;
     PARTICLE *p;
     double p_r[3];
@@ -529,7 +529,7 @@ void pkdNewFof(PKD pkd,double dTau2,int nMinMembers) {
     /*
     ** Check bounds against first replica global roots for periodic BCs.
     */
-    if (pkd->param.bPeriodic) {
+    if (bPeriodic) {
 	BND rbnd;
 	for (j=0;j<3;++j) rbnd.fMax[j] = bndTop->fMax[j];
 	for (ix=-1;ix<=1;++ix) {
@@ -668,7 +668,7 @@ void pkdNewFof(PKD pkd,double dTau2,int nMinMembers) {
     ** a group.
     */
     mdlROcache(mdl,CID_PARTICLE,NULL,pkdParticleBase(pkd),pkdParticleSize(pkd),pkdLocal(pkd));
-    pkdFofRemoteSearch(pkd,dTau2);
+    pkdFofRemoteSearch(pkd,dTau2,bPeriodic,nReplicas,nBucket);
     mdlFinishCache(mdl,CID_PARTICLE);
     }
 

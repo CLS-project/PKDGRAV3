@@ -116,7 +116,6 @@ struct parameters {
     double dConstGamma;
     double dMeanMolWeight;
     double dGasConst;
-    double dTuFac;
     double dMsolUnit;
     double dKpcUnit;
     double ddHonHLimit;

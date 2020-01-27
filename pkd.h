@@ -743,7 +743,6 @@ typedef struct pkdContext {
     int iTopTree[NRESERVED_NODES];
     int nNodes;
     int nNodesFull;     /* number of nodes in the full tree (including very active particles) */
-    int nNonVANodes;    /* number of nodes *not* in Very Active Tree, or index to the start of the VA nodes (except VAROOT) */
     BND bnd;
     BND vbnd;
     size_t iTreeNodeSize;

@@ -1584,7 +1584,7 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
 	if (!validateParameters(mdl,msr->csm,msr->prm,&msr->param)) _msrExit(msr,1);
 	}
 
-    msr->param.dTuFac = msr->param.dGasConst/(msr->param.dConstGamma - 1)/
+    msr->dTuFac = msr->param.dGasConst/(msr->param.dConstGamma - 1)/
 		msr->param.dMeanMolWeight;
 #define KBOLTZ	1.38e-16     /* bolzman constant in cgs */
 #define MHYDR 1.67e-24       /* mass of hydrogen atom in grams */
@@ -1811,7 +1811,7 @@ void msrLogParams(MSR msr,FILE *fp) {
     fprintf(fp," dGasConst: %g",msr->param.dGasConst);
     fprintf(fp,"\n# dEtaCourant: %g",msr->param.dEtaCourant);
     fprintf(fp," dEtaUDot: %g",msr->param.dEtaUDot);
-    fprintf(fp," dTuFac: %g",msr->param.dTuFac);
+    fprintf(fp," dTuFac: %g",msr->dTuFac);
     fprintf(fp," dhMinOverSoft: %g",msr->param.dhMinOverSoft);
     fprintf(fp," dMetalDiffusionCoeff: %g",msr->param.dMetalDiffusionCoeff);
     fprintf(fp," dThermalDiffusionCoeff: %g",msr->param.dThermalDiffusionCoeff);
@@ -2221,7 +2221,7 @@ void msrAllNodeWrite(MSR msr, const char *pszFileName, double dTime, double dvFa
     in.dEcosmo    = msr->dEcosmo;
     in.dTimeOld   = msr->dTimeOld;
     in.dUOld      = msr->dUOld;
-    in.dTuFac     = msr->param.dTuFac;
+    in.dTuFac     = msr->dTuFac;
     in.dBoxSize   = msr->param.dBoxSize;
     in.Omega0     = msr->csm->val.dOmega0;
     in.OmegaLambda= msr->csm->val.dLambda;
@@ -4322,7 +4322,7 @@ void msrStarForm(MSR msr, double dTime, int iRung)
     in.dInitStarMass = msr->param.SFdInitStarMass;
     in.dMinGasMass = msr->param.SFdMinGasMass;
     in.bdivv = msr->param.SFbdivv;
-    in.dTuFac = msr->param.dTuFac;
+    in.dTuFac = msr->dTuFac;
     in.bGasCooling = msr->param.bGasCooling;
 
     if (msr->param.bVDetails) printf("Star Form ... ");
@@ -4472,7 +4472,7 @@ void msrInitSph(MSR msr,double dTime)
 	//msrSelSrcAll(msr);
 	//msrSelDstAll(msr);
 
-	in.dTuFac = msr->param.dTuFac;
+	in.dTuFac = msr->dTuFac;
 	a = csmTime2Exp(msr->csm,dTime);
 	in.z = 1/a - 1;
 	in.dTime = dTime;
@@ -4713,6 +4713,10 @@ void msrNewFof(MSR msr, double dTime) {
 
     in.dTau2 = msr->param.dTau*msr->param.dTau;
     in.nMinMembers = msr->param.nMinMembers;
+    in.bPeriodic = msr->param.bPeriodic;
+    in.nReplicas = msr->param.nReplicas;
+    in.nBucket = msr->param.nBucket;
+
     if (msr->param.bVStep) {
 	printf("Running FoF with fixed linking length %g\n", msr->param.dTau );
 	}
@@ -4990,7 +4994,7 @@ double msrRead(MSR msr, const char *achInFile) {
 
     dTime = getTime(msr,dExpansion,&read->dvFac);
     if (msr->param.bInFileLC) read->dvFac = 1.0;
-    read->dTuFac = msr->param.dTuFac;
+    read->dTuFac = msr->dTuFac;
     
     if (msr->nGas && !prmSpecified(msr->prm,"bDoGas")) msr->param.bDoGas = 1;
     if (msrDoGas(msr) || msr->nGas) mMemoryModel |= (PKD_MODEL_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_NODE_SPHBNDS);		

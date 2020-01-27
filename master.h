@@ -92,6 +92,9 @@ typedef struct msrContext {
     long lStart; /* starting time of job */
     long lPrior; /* starting time of last step */
 
+    /* Gas */
+    double dTuFac;
+
     /* Values for a restore from checkpoint */
     double dCheckpointTime;
     int iCheckpointStep;

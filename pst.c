@@ -3291,7 +3291,7 @@ int pstNewFof(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	}
     else {
 	LCL *plcl = pst->plcl;
-	pkdNewFof(plcl->pkd,in->dTau2,in->nMinMembers);
+	pkdNewFof(plcl->pkd,in->dTau2,in->nMinMembers,in->bPeriodic,in->nReplicas,in->nBucket);
 	}
     return 0;
     }

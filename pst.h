@@ -1014,6 +1014,9 @@ int pstClearTimer(PST,void *,int,void *,int);
 struct inNewFof {
     double dTau2;
     int nMinMembers;
+    int bPeriodic;
+    int nReplicas;
+    int nBucket;
     };
 int pstNewFof(PST,void *,int,void *,int);
 
