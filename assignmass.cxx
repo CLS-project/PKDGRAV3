@@ -179,7 +179,6 @@ int pstAssignMass(PST pst,void *vin,int nIn,void *vout,int nOut) {
     return 0;
     }
 
-extern "C"
 void msrAssignMass(MSR msr,int iAssignment,int nGrid) {
     static const char *schemes[] = {
     	"Nearest Grid Point (NGP)", "Cloud in Cell (CIC)",

@@ -103,9 +103,7 @@ typedef struct msrContext {
     int nCheckpointClasses;
     PARTCLASS aCheckpointClasses[PKD_MAX_CLASSES];
     } * MSR;
-#ifdef __cplusplus
-extern "C" {
-#endif
+
 int msrPython(MSR *msr,int argc, char *argv[]);
 int msrValidateParameters(MSR msr);
 double msrTime();
@@ -295,7 +293,4 @@ void msrUnbind(MSR msr);
 void msrSetPSGroupIds(MSR msr);
 int msrGetParticles(MSR msr, int nIn, uint64_t *ID, struct outGetParticles *out);
 void msrOutputOrbits(MSR msr,int iStep,double dTime);
-#ifdef __cplusplus
-}
-#endif
 #endif

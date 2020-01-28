@@ -285,10 +285,11 @@ static int ppy2prm(PRM prm,PyObject *arguments, PyObject *specified) {
 *   Setup MSR using Python to parse parameters / enter analysis mode
 \******************************************************************************/
 
-extern "C"
+extern "C" PyObject *PyInit_CSM(void);
+
 int msrPython(MSR *msr, int argc, char *argv[]) {
     PyImport_AppendInittab(MASTER_MODULE_NAME,initModuleMSR);
-    { PyObject *PyInit_CSM(void); PyImport_AppendInittab("CSM",PyInit_CSM); }
+    PyImport_AppendInittab("CSM",PyInit_CSM);
     Py_InitializeEx(0);
 
     // Contruct the "MSR" context and module
