@@ -44,6 +44,9 @@ typedef struct prmContext {
 
 #define PRM_LINE_SIZE	128
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 void prmInitialize(PRM *,void (*)(void),void (*)(void));
 void prmFinish(PRM);
 void prmAddParam(PRM,const char *,int,void *,int,const char *,const char *);
@@ -55,6 +58,9 @@ int prmArgProc(PRM,int,char **);
 int prmSpecified(PRM,const char *);
 int prmArgSpecified(PRM,const char *);
 int prmFileSpecified(PRM,const char *);
+#ifdef __cplusplus
+}
+#endif
 
 #endif
 

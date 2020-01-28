@@ -98,6 +98,9 @@ typedef struct pkdout {
     void (*fnClose)(PKD pkd,struct pkdout *ctx);
     } *PKDOUT;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 PKDOUT pkdOpenOutASCII(PKD pkd,char *pszFileName,const char *mode,int iFile,int iType);
 void pkdCloseOutASCII(PKD pkd,PKDOUT ctx);
 void pkdOutHdr(PKD pkd,PKDOUT ctx,uint64_t N);
@@ -108,4 +111,7 @@ void pkdFinishOutASCII(PKD pkd,PKDOUT ctx);
 uint64_t pkdCountOutASCII(PKD pkd,PKDOUT ctx);
 void pkdDumpOutASCII(PKD pkd,PKDOUT ctx,FILE *fp);
 void pkdFreeOutASCII(PKD pkd,PKDOUT ctx);
+#ifdef __cplusplus
+}
+#endif
 #endif

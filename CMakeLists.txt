@@ -144,7 +144,7 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 )
 set_property(TARGET ${PROJECT_NAME} APPEND PROPERTY COMPILE_DEFINITIONS _LARGEFILE_SOURCE)
 target_sources(${PROJECT_NAME} PRIVATE
-	main.c cosmo.c master.c pst.c fio.c illinois.c param.c
+	main.c cosmo.c master.cxx pst.c fio.c illinois.c param.c
 	pkd.c analysis.c smooth.c smoothfcn.c outtype.c output.c
 	walk2.c grav2.c ewald.cxx ic.cxx tree.cxx opening.cxx pp.cxx pc.cxx cl.c
 	lst.c moments.c ilp.c ilc.c iomodule.c
@@ -206,7 +206,7 @@ if(${CMAKE_VERSION} VERSION_LESS "3.8.0")
     set(USE_PYTHON TRUE)
     target_include_directories(${PROJECT_NAME} PUBLIC ${PYTHON_INCLUDE_DIRS})
     target_link_libraries(${PROJECT_NAME} ${PYTHON_LIBRARIES})
-    target_sources(${PROJECT_NAME} PRIVATE pkdpython.c msrpython.cxx m_parse.h csmpython.c)
+    target_sources(${PROJECT_NAME} PRIVATE msrpython.cxx m_parse.h csmpython.c)
   else()
     target_sources(${PROJECT_NAME} PRIVATE tinypy.c pkdtinypy.c)
   endif(PYTHONLIBS_FOUND)
@@ -215,7 +215,7 @@ else()
     set(USE_PYTHON TRUE)
     target_include_directories(${PROJECT_NAME} PUBLIC ${Python3_INCLUDE_DIRS})
     target_link_libraries(${PROJECT_NAME} ${Python3_LIBRARIES})
-    target_sources(${PROJECT_NAME} PRIVATE pkdpython.c msrpython.cxx m_parse.h csmpython.c)
+    target_sources(${PROJECT_NAME} PRIVATE msrpython.cxx m_parse.h csmpython.c)
   else()
     target_sources(${PROJECT_NAME} PRIVATE tinypy.c pkdtinypy.c)
   endif(Python3_Development_FOUND)

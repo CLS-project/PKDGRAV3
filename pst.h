@@ -230,6 +230,10 @@ enum pst_service {
     PST_GET_PARTICLES,
     };
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void pstAddServices(PST,MDL);
 void pstInitialize(PST *,MDL,LCL *);
 void pstFinish(PST);
@@ -241,10 +245,6 @@ struct inSetAdd {
     int idUpper;
     };
 int pstSetAdd(PST,void *,int,void *,int);
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 /* PST_INITIALIZEPSTORE */
 struct inInitializePStore {

@@ -103,7 +103,7 @@ double msrTime() {
 #endif
 
 void _msrLeader(void) {
-    puts("pkdgrav"PACKAGE_VERSION" Joachim Stadel & Doug Potter Sept 2015");
+    puts("pkdgrav" PACKAGE_VERSION " Joachim Stadel & Doug Potter Sept 2015");
     puts("USAGE: pkdgrav3 [SETTINGS | FLAGS] [SIM_FILE]");
     puts("SIM_FILE: Configuration file of a particular simulation, which");
     puts("          includes desired settings and relevant input and");
@@ -311,7 +311,7 @@ void msrInitializePStore(MSR msr, uint64_t *nSpecies) {
 	   pkdParticleSize(pkd),ps.nEphemeralBytes,pkdNodeSize(pkd));
     }
 
-static char *formatKey(char *buf,char *fmt,int i) {
+static char *formatKey(char *buf,char const *fmt,int i) {
     sprintf(buf,fmt,i);
     return buf;
     }
@@ -375,10 +375,10 @@ int readParameters(MSR msr,const char *fileName) {
     else if (fscanf(fp,"dEcosmo=%lg\n",&msr->dEcosmo)!=1) bError=1;
     else if (fscanf(fp,"dTimeOld=%lg\n",&msr->dTimeOld)!=1) bError=1;
     else if (fscanf(fp,"dUOld=%lg\n",&msr->dUOld)!=1) bError=1;
-    else if (fscanf(fp,"nSpecies0=%"PRIu64"\n",&msr->N)!=1) bError=1;
-    else if (fscanf(fp,"nSpecies1=%"PRIu64"\n",&msr->nDark)!=1) bError=1;
-    else if (fscanf(fp,"nSpecies2=%"PRIu64"\n",&msr->nGas)!=1) bError=1;
-    else if (fscanf(fp,"nSpecies3=%"PRIu64"\n",&msr->nStar)!=1) bError=1;
+    else if (fscanf(fp,"nSpecies0=%" PRIu64 "\n",&msr->N)!=1) bError=1;
+    else if (fscanf(fp,"nSpecies1=%" PRIu64 "\n",&msr->nDark)!=1) bError=1;
+    else if (fscanf(fp,"nSpecies2=%" PRIu64 "\n",&msr->nGas)!=1) bError=1;
+    else if (fscanf(fp,"nSpecies3=%" PRIu64 "\n",&msr->nStar)!=1) bError=1;
     else if (readParametersClasses(msr,fp)) bError=1;
     else if (fscanf(fp,"nCheckpointFiles=%d\n",&msr->nCheckpointThreads)!=1) bError=1;
     else if (scanString(msr->achCheckpointName,sizeof(msr->achCheckpointName),fp,"achCheckpointName")==0) bError = 1;
@@ -417,11 +417,11 @@ int readParameters(MSR msr,const char *fileName) {
 			break;
 		    case 3:
 			if (parseString(pScan,256,NULL)!=1) bError = 1;
-			else strcpy(pn->pValue,pScan);
+			else strcpy(reinterpret_cast<char*>(pn->pValue),pScan);
 			break;
 		    case 4:
 			sprintf(achFormat,"%s=%%llu\n",pn->pszName);
-			if (sscanf(pScan,"%"PRIu64,(uint64_t *)pn->pValue+n)!=1) bError=1;
+			if (sscanf(pScan,"%" PRIu64,(uint64_t *)pn->pValue+n)!=1) bError=1;
 			break;
 			}
 		    ++n;
@@ -524,7 +524,7 @@ static void writeParameters(MSR msr,const char *baseName,int iStep,double dTime)
     fprintf(fp,"dTimeOld=%.17g\n",msr->dTimeOld);
     fprintf(fp,"dUOld=%.17g\n",msr->dUOld);
     for(i=0; i<FIO_SPECIES_LAST; ++i)
-	fprintf(fp,"nSpecies%d=%"PRIu64"\n",i,nSpecies[i]);
+	fprintf(fp,"nSpecies%d=%" PRIu64 "\n",i,nSpecies[i]);
     fprintf(fp,"nClasses=%d\n",msr->nCheckpointClasses);
     for(i=0; i<msr->nCheckpointClasses; ++i) {
 	fprintf(fp,"fMass%d=%.17g\n",i,msr->aCheckpointClasses[i].fMass);
@@ -564,7 +564,7 @@ static void writeParameters(MSR msr,const char *baseName,int iStep,double dTime)
 		break;
 	    case 4:
 		assert(pn->iSize == sizeof(uint64_t));
-		fprintf(fp,"%"PRIu64,((uint64_t *)pn->pValue)[i]);
+		fprintf(fp,"%" PRIu64,((uint64_t *)pn->pValue)[i]);
 		break;
 		}
 	    }
@@ -939,22 +939,20 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
     msr = *pmsr = (MSR)malloc(sizeof(struct msrContext));
     assert(msr != NULL);
     msr->mdl = mdl;
-    msr->pst = pst;
+    msr->pst = reinterpret_cast<PST>(pst);
     msr->lcl.pkd = NULL;
     msr->nThreads = mdlThreads(mdl);
     for (j=0;j<6;++j) msr->fCenter[j] = 0.0; /* Center is (0,0,0) */
     /* Storage for output times*/
     msr->nMaxOuts = 100;
-    msr->pdOutTime = malloc(msr->nMaxOuts*sizeof(double));
-    assert(msr->pdOutTime != NULL);
+    msr->pdOutTime = reinterpret_cast<double*>(msr->nMaxOuts*sizeof(double));
     msr->nOuts = msr->iOut = 0;
     msr->iCurrMaxRung = 0;
     msr->iRungDD = 0;
     msr->iRungDT = 0;
     msr->iLastRungRT = -1;
     msr->iLastRungDD = -1;  /* Domain decomposition is not done */
-    msr->nRung = malloc((MAX_RUNG+1)*sizeof(uint64_t));
-    assert(msr->nRung != NULL);
+    msr->nRung = new uint64_t[MAX_RUNG+1];
     for (i=0;i<=MAX_RUNG;++i) msr->nRung[i] = 0;
     csmInitialize(&msr->csm);
     /*
@@ -1711,9 +1709,9 @@ void msrLogParams(MSR msr,FILE *fp) {
     else
 	fprintf(fp,"%s",hostname);
 #endif
-    fprintf(fp,"\n# N: %"PRIu64,msr->N);
-    fprintf(fp," ngas: %"PRIu64,msr->nGas);
-    fprintf(fp," nstar: %"PRIu64,msr->nStar);
+    fprintf(fp,"\n# N: %" PRIu64,msr->N);
+    fprintf(fp," ngas: %" PRIu64,msr->nGas);
+    fprintf(fp," nstar: %" PRIu64,msr->nStar);
     fprintf(fp," nThreads: %d",msr->nThreads);
     fprintf(fp," bDiag: %d",msr->param.bDiag);
     fprintf(fp," Verbosity flags: (%d,%d,%d,%d,%d)",msr->param.bVWarnings,
@@ -1937,7 +1935,7 @@ void msrFinish(MSR msr) {
     ** finish with parameter stuff, deallocate and exit.
     */
     prmFinish(msr->prm);
-    free(msr->nRung);
+    delete msr->nRung;
     free(msr->pdOutTime);
     free(msr);
     }
@@ -1955,14 +1953,13 @@ static int CmpPC(const void *v1,const void *v2) {
 void msrSetClasses(MSR msr) {
     PARTCLASS *pClass;
     int n, nClass;
-    pClass = malloc(PKD_MAX_CLASSES*sizeof(PARTCLASS));
-    assert(pClass!=NULL);
+    pClass = new PARTCLASS[PKD_MAX_CLASSES];
     nClass = pstGetClasses(msr->pst,NULL,0,pClass,PKD_MAX_CLASSES*sizeof(PARTCLASS));
     n = nClass / sizeof(PARTCLASS);
     assert(n*sizeof(PARTCLASS)==nClass);
     qsort(pClass,n,sizeof(PARTCLASS),CmpPC);
     pstSetClasses(msr->pst,pClass,nClass,NULL,0);
-    free(pClass);
+    delete pClass;
     }
 
 static void _SwapClasses(MSR msr, int id) {
@@ -1972,20 +1969,18 @@ static void _SwapClasses(MSR msr, int id) {
     int n;
     int rID;
 
-    pClass = malloc(PKD_MAX_CLASSES*sizeof(PARTCLASS));
-    assert(pClass!=NULL);
+    pClass = new PARTCLASS[PKD_MAX_CLASSES];
 
     n = pkdGetClasses( plcl->pkd, PKD_MAX_CLASSES, pClass );
     rID = mdlReqService(pst0->mdl,id,PST_SWAPCLASSES,pClass,n*sizeof(PARTCLASS));
     mdlGetReply(pst0->mdl,rID,pClass,&n);
     n = n / sizeof(PARTCLASS);
     pkdSetClasses( plcl->pkd, n, pClass, 0 );
-    free(pClass);
+    delete pClass;
     }
 
 void msrOneNodeRead(MSR msr, struct inReadFile *in, FIO fio) {
     int id;
-    int *nParts;		/* number of particles for each processor */
     uint64_t nStart;
     PST pst0;
     LCL *plcl;
@@ -1994,7 +1989,8 @@ void msrOneNodeRead(MSR msr, struct inReadFile *in, FIO fio) {
     int inswap;
     int rID;
 
-    nParts = malloc(msr->nThreads*sizeof(*nParts));
+    int *nParts = new int[msr->nThreads];
+
     for (id=0;id<msr->nThreads;++id) {
 	nParts[id] = -1;
 	}
@@ -2033,7 +2029,7 @@ void msrOneNodeRead(MSR msr, struct inReadFile *in, FIO fio) {
      */
     pkdReadFIO(plcl->pkd, fio, 0, nParts[0], in->dvFac, in->dTuFac);
 
-    free(nParts);
+    delete[] nParts;
     }
 
 double msrSwitchDelta(MSR msr,double dTime,int iStep) {
@@ -2373,7 +2369,7 @@ void msrDomainDecompOld(MSR msr,int iRung) {
 	    in.bDoRootFind = 1;
 	    in.bDoSplitDimFind = 1;
 	    if (msr->param.bVRungStat) {
-		printf("Doing Domain Decomposition (nActive = %"PRIu64"/%"PRIu64", iRung:%d iRungRT:%d)\n",
+		printf("Doing Domain Decomposition (nActive = %" PRIu64 "/%" PRIu64 ", iRung:%d iRungRT:%d)\n",
 		    msr->nActive,msr->N,iRung,iRungRT);
 		}
 	    }
@@ -2384,14 +2380,14 @@ void msrDomainDecompOld(MSR msr,int iRung) {
 	    in.bDoRootFind = 1;
 	    if (iRung <= iRungSD) {
 		if (msr->param.bVRungStat) {
-		    printf("Doing Domain Decomposition (nActive = %"PRIu64"/%"PRIu64", iRung:%d iRungRT:%d)\n",
+		    printf("Doing Domain Decomposition (nActive = %" PRIu64 "/%" PRIu64 ", iRung:%d iRungRT:%d)\n",
 			msr->nActive,msr->N,iRung,iRungRT);
 		    }
 		in.bDoSplitDimFind = 1;
 		}
 	    else { 
 		if (msr->param.bVRungStat) {
-		    printf("Skipping Domain Dim Choice (nActive = %"PRIu64"/%"PRIu64", iRung:%d iRungSD:%d)\n",
+		    printf("Skipping Domain Dim Choice (nActive = %" PRIu64 "/%" PRIu64 ", iRung:%d iRungSD:%d)\n",
 			msr->nActive,msr->N,iRung,iRungSD);
 		    }
 		in.bDoSplitDimFind = 0;
@@ -2401,7 +2397,7 @@ void msrDomainDecompOld(MSR msr,int iRung) {
 	    }	    
 	else if (iRung <= iRungDD) {
 	    if (msr->param.bVRungStat) {
-		printf("Skipping Root Finder (nActive = %"PRIu64"/%"PRIu64", iRung:%d iRungRT:%d iRungDD:%d)\n",
+		printf("Skipping Root Finder (nActive = %" PRIu64 "/%" PRIu64 ", iRung:%d iRungRT:%d iRungDD:%d)\n",
 		    msr->nActive,msr->N,iRung,iRungRT,iRungDD);
 		}
 	    in.bDoRootFind = 0;
@@ -2410,7 +2406,7 @@ void msrDomainDecompOld(MSR msr,int iRung) {
 	    }
 	else {
 	    if (msr->param.bVRungStat) {
-		printf("Skipping Domain Decomposition (nActive = %"PRIu64"/%"PRIu64", iRung:%d iRungDD:%d)\n",
+		printf("Skipping Domain Decomposition (nActive = %" PRIu64 "/%" PRIu64 ", iRung:%d iRungDD:%d)\n",
 		    msr->nActive,msr->N,iRung,iRungDD);
 		}
 	    return; /* do absolutely nothing! */
@@ -2430,7 +2426,7 @@ void msrDomainDecompOld(MSR msr,int iRung) {
 	    }
 	else if (iRung == msr->iLastRungDD) {
 	    if (msr->param.bVRungStat) {
-		printf("Skipping Domain Decomposition (nActive = %"PRIu64"/%"PRIu64", iRung:%d iRungDD:%d iLastRungRT:%d)\n",
+		printf("Skipping Domain Decomposition (nActive = %" PRIu64 "/%" PRIu64 ", iRung:%d iRungDD:%d iLastRungRT:%d)\n",
 		    msr->nActive,msr->N,iRung,iRungDD,msr->iLastRungRT);
 		}
 	    return;  /* do absolutely nothing! */
@@ -2445,7 +2441,7 @@ void msrDomainDecompOld(MSR msr,int iRung) {
 		}
 	    else {
 		if (msr->param.bVRungStat) {
-		    printf("Skipping Domain Decomposition (nActive = %"PRIu64"/%"PRIu64", iRung:%d iRungDD:%d iLastRungRT:%d)\n",
+		    printf("Skipping Domain Decomposition (nActive = %" PRIu64 "/%" PRIu64 ", iRung:%d iRungDD:%d iLastRungRT:%d)\n",
 			msr->nActive,msr->N,iRung,iRungDD,msr->iLastRungRT);
 		    }
 		return;  /* do absolutely nothing! */
@@ -2461,7 +2457,7 @@ void msrDomainDecompOld(MSR msr,int iRung) {
 		}
 	    else {
 		if (msr->param.bVRungStat) {
-		    printf("Skipping Root Finder (nActive = %"PRIu64"/%"PRIu64", iRung:%d iRungRT:%d iRungDD:%d iLastRungRT:%d)\n",
+		    printf("Skipping Root Finder (nActive = %" PRIu64 "/%" PRIu64 ", iRung:%d iRungRT:%d iRungDD:%d iLastRungRT:%d)\n",
 			msr->nActive,msr->N,iRung,iRungRT,iRungDD,msr->iLastRungRT);
 		    }
 		in.bDoRootFind = 0;
@@ -2471,7 +2467,7 @@ void msrDomainDecompOld(MSR msr,int iRung) {
 	else if (iRung > iRungSD) {
 	    if (msr->iLastRungRT == iRung) {
 		if (msr->param.bVRungStat) {
-		    printf("Skipping Root Finder (nActive = %"PRIu64"/%"PRIu64", iRung:%d iRungRT:%d iRungDD:%d iLastRungRT:%d)\n",
+		    printf("Skipping Root Finder (nActive = %" PRIu64 "/%" PRIu64 ", iRung:%d iRungRT:%d iRungDD:%d iLastRungRT:%d)\n",
 			msr->nActive,msr->N,iRung,iRungRT,iRungDD,msr->iLastRungRT);
 		    }
 		in.bDoRootFind = 0;
@@ -2479,7 +2475,7 @@ void msrDomainDecompOld(MSR msr,int iRung) {
 		}
 	    else {
 		if (msr->param.bVRungStat) {
-		    printf("Skipping Domain Dim Choice (nActive = %"PRIu64"/%"PRIu64", iRung:%d iRungSD:%d iLastRungRT:%d)\n",
+		    printf("Skipping Domain Dim Choice (nActive = %" PRIu64 "/%" PRIu64 ", iRung:%d iRungSD:%d iLastRungRT:%d)\n",
 			msr->nActive,msr->N,iRung,iRungSD,msr->iLastRungRT);
 		    }
 		msr->iLastRungRT = iRung;
@@ -2538,7 +2534,7 @@ void msrDomainDecompOld(MSR msr,int iRung) {
 	pstFastGasCleanup(msr->pst,NULL,0,NULL,0);
 	}
 #endif
-    msrprintf(msr,"Domain Decomposition: nActive (Rung %d) %"PRIu64"\n",
+    msrprintf(msr,"Domain Decomposition: nActive (Rung %d) %" PRIu64 "\n",
 	msr->iLastRungRT,msr->nActive);
     msrprintf(msr,"Domain Decomposition... \n");
     sec = msrTime();
@@ -2596,7 +2592,7 @@ static void BuildTree(MSR msr,int bNeedEwald,uint32_t uRoot,uint32_t utRoot) {
     pkd = plcl->pkd;
 
     nTopTree = pkdNodeSize(pkd) * (2*msr->nThreads-1);
-    pDistribTop = malloc( sizeof(struct inDistribTopTree) + nTopTree );
+    pDistribTop = reinterpret_cast<inDistribTopTree*>(malloc( sizeof(struct inDistribTopTree) + nTopTree ));
     assert(pDistribTop != NULL);
     pDistribTop->uRoot = uRoot;
     pkdn = (KDN *)(pDistribTop + 1);
@@ -3028,32 +3024,32 @@ void msrUpdateSoft(MSR msr,double dTime) {
     printf("      % *d % *d % *d % *d % *d % *d % *d % *d % *d % *d\n",\
 	   w,0,w,1,w,2,w,3,w,4,w,5,w,6,w,7,w,8,w,9);		       \
     for (i=0;i<msr->nThreads/10;++i) {\
-	printf("%4d: "FRM" "FRM" "FRM" "FRM" "FRM" "FRM" "FRM" "FRM" "FRM" "FRM"\n",i*10,\
+	printf("%4d: " FRM " " FRM " " FRM " " FRM " " FRM " " FRM " " FRM " " FRM " " FRM " " FRM "\n",i*10,\
 	       out[i*10+0].VAR,out[i*10+1].VAR,out[i*10+2].VAR,out[i*10+3].VAR,out[i*10+4].VAR,\
 	       out[i*10+5].VAR,out[i*10+6].VAR,out[i*10+7].VAR,out[i*10+8].VAR,out[i*10+9].VAR);\
 	}\
     switch (msr->nThreads%10) {\
     case 0: break;\
-    case 1: printf("%4d: "FRM"\n",i*10,\
+    case 1: printf("%4d: " FRM "\n",i*10,\
 		   out[i*10+0].VAR); break;\
-    case 2: printf("%4d: "FRM" "FRM"\n",i*10,\
+    case 2: printf("%4d: " FRM " " FRM "\n",i*10,\
 		   out[i*10+0].VAR,out[i*10+1].VAR); break;\
-    case 3: printf("%4d: "FRM" "FRM" "FRM"\n",i*10,\
+    case 3: printf("%4d: " FRM " " FRM " " FRM "\n",i*10,\
 		   out[i*10+0].VAR,out[i*10+1].VAR,out[i*10+2].VAR); break;\
-    case 4: printf("%4d: "FRM" "FRM" "FRM" "FRM"\n",i*10,\
+    case 4: printf("%4d: " FRM " " FRM " " FRM " " FRM "\n",i*10,\
 		   out[i*10+0].VAR,out[i*10+1].VAR,out[i*10+2].VAR,out[i*10+3].VAR); break;\
-    case 5: printf("%4d: "FRM" "FRM" "FRM" "FRM" "FRM"\n",i*10,\
+    case 5: printf("%4d: " FRM " " FRM " " FRM " " FRM " " FRM "\n",i*10,\
 		   out[i*10+0].VAR,out[i*10+1].VAR,out[i*10+2].VAR,out[i*10+3].VAR,out[i*10+4].VAR); break;\
-    case 6: printf("%4d: "FRM" "FRM" "FRM" "FRM" "FRM" "FRM"\n",i*10,\
+    case 6: printf("%4d: " FRM " " FRM " " FRM " " FRM " " FRM " " FRM "\n",i*10,\
 		   out[i*10+0].VAR,out[i*10+1].VAR,out[i*10+2].VAR,out[i*10+3].VAR,out[i*10+4].VAR,\
 		   out[i*10+5].VAR); break;\
-    case 7: printf("%4d: "FRM" "FRM" "FRM" "FRM" "FRM" "FRM" "FRM"\n",i*10,\
+    case 7: printf("%4d: " FRM " " FRM " " FRM " " FRM " " FRM " " FRM " " FRM "\n",i*10,\
 		   out[i*10+0].VAR,out[i*10+1].VAR,out[i*10+2].VAR,out[i*10+3].VAR,out[i*10+4].VAR,\
 		   out[i*10+5].VAR,out[i*10+6].VAR); break;\
-    case 8: printf("%4d: "FRM" "FRM" "FRM" "FRM" "FRM" "FRM" "FRM" "FRM"\n",i*10,\
+    case 8: printf("%4d: " FRM " " FRM " " FRM " " FRM " " FRM " " FRM " " FRM " " FRM "\n",i*10,\
 		   out[i*10+0].VAR,out[i*10+1].VAR,out[i*10+2].VAR,out[i*10+3].VAR,out[i*10+4].VAR,\
 		   out[i*10+5].VAR,out[i*10+6].VAR,out[i*10+7].VAR); break;\
-    case 9: printf("%4d: "FRM" "FRM" "FRM" "FRM" "FRM" "FRM" "FRM" "FRM" "FRM"\n",i*10,\
+    case 9: printf("%4d: " FRM " " FRM " " FRM " " FRM " " FRM " " FRM " " FRM " " FRM " " FRM "\n",i*10,\
 		   out[i*10+0].VAR,out[i*10+1].VAR,out[i*10+2].VAR,out[i*10+3].VAR,out[i*10+4].VAR,\
 		   out[i*10+5].VAR,out[i*10+6].VAR,out[i*10+7].VAR,out[i*10+8].VAR); break;\
     }\
@@ -3062,42 +3058,40 @@ void msrUpdateSoft(MSR msr,double dTime) {
 void msrHostname(MSR msr) {
     struct outHostname *out;
     int i;
-    out = malloc(msr->nThreads*sizeof(struct outHostname));
-    assert(out != NULL);
+    out = new struct outHostname[msr->nThreads];
     pstHostname(msr->pst,0,0,out,msr->nThreads*sizeof(struct outHostname));
     printf("Host Names:\n");
     PRINTGRID(12,"%12.12s",szHostname);
     printf("MPI Rank:\n");
     PRINTGRID(8,"% 8d",iMpiID);
-    free(out);
+    delete out;
     }
 
 void msrMemStatus(MSR msr) {
     struct outMemStatus *out;
     int i;
     if (msr->param.bVDetails) {
-	out = malloc(msr->nThreads*sizeof(struct outMemStatus));
-	assert(out != NULL);
+	out = new struct outMemStatus[msr->nThreads];
 	pstMemStatus(msr->pst,0,0,out,msr->nThreads*sizeof(struct outMemStatus));
 #ifdef __linux__
 	printf("Resident (MB):\n");
-	PRINTGRID(8,"%8"PRIu64,rss);
+	PRINTGRID(8,"%8" PRIu64,rss);
 	printf("Free Memory (MB):\n");
-	PRINTGRID(8,"%8"PRIu64,freeMemory);
+	PRINTGRID(8,"%8" PRIu64,freeMemory);
 #endif
 	printf("Tree size (MB):\n");
-	PRINTGRID(8,"%8"PRIu64,nBytesTree/1024/1024);
+	PRINTGRID(8,"%8" PRIu64,nBytesTree/1024/1024);
 	printf("Checklist size (KB):\n");
-	PRINTGRID(8,"%8"PRIu64,nBytesCl/1024);
+	PRINTGRID(8,"%8" PRIu64,nBytesCl/1024);
 	printf("Particle List size (KB):\n");
-	PRINTGRID(8,"%8"PRIu64,nBytesIlp/1024);
+	PRINTGRID(8,"%8" PRIu64,nBytesIlp/1024);
 	printf("Cell List size (KB):\n");
-	PRINTGRID(8,"%8"PRIu64,nBytesIlc/1024);
-	free(out);
+	PRINTGRID(8,"%8" PRIu64,nBytesIlc/1024);
+	delete out;
 	}
     }
 
-void msrPrintStat(STAT *ps,char *pszPrefix,int p) {
+void msrPrintStat(STAT *ps,char const *pszPrefix,int p) {
     double dSum = ps->dSum;
     double dMax = ps->dMax;
     const char *minmax = "max";
@@ -3218,7 +3212,7 @@ uint8_t msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot
 	}
     in.bLinearSpecies = (strlen(msr->param.achLinearSpecies) > 0);
     out_size = msr->nThreads*sizeof(struct outGravityPerProc) + sizeof(struct outGravityReduct);
-    out = malloc(out_size);
+    out = reinterpret_cast<outGravityPerProc*>(malloc(out_size));
     assert(out != NULL);
     outend = out + msr->nThreads;
     outr = (struct outGravityReduct *)outend;
@@ -3314,7 +3308,7 @@ uint8_t msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot
 	    }
 	if (nRungSum[0]>0) for (;i<=uRungMax;++i) {
 	    c = ' ';
-	    printf(" %c rung:%d %14"PRIu64"    %14"PRIu64"  %3.0f %%\n",
+	    printf(" %c rung:%d %14" PRIu64 "    %14" PRIu64 "  %3.0f %%\n",
 		c,i,msr->nRung[i],nRungSum[i],
 		ceil(100.0 * nRungSum[i] / nRungSum[0]));
 	    }
@@ -3626,8 +3620,7 @@ void msrReadOuts(MSR msr,double dTime) {
 	++i;
 	if (i > msr->nMaxOuts) {
 	    msr->nMaxOuts *= 2;
-	    msr->pdOutTime = realloc(msr->pdOutTime,
-				     msr->nMaxOuts*sizeof(double));
+	    msr->pdOutTime = reinterpret_cast<double*>(realloc(msr->pdOutTime,msr->nMaxOuts*sizeof(double)));
 	    assert(msr->pdOutTime != NULL);
 	    }
 	}
@@ -3888,7 +3881,7 @@ void msrUpdateRungByTree(MSR msr, uint8_t uRung, int iRoot) {
 	printf("\n");
 	for (iTempRung=0;iTempRung <= msr->iCurrMaxRung;++iTempRung) {
 	    if (msr->nRung[iTempRung] == 0) continue;
-	    printf("   rung:%d %"PRIu64"\n",iTempRung,msr->nRung[iTempRung]);
+	    printf("   rung:%d %" PRIu64 "\n",iTempRung,msr->nRung[iTempRung]);
 	    }
 	printf("\n");
 	}
@@ -3922,7 +3915,7 @@ void msrUpdateRung(MSR msr, uint8_t uRung) {
     iOutMaxRung = iTempRung;
 
     while (out.nRungCount[iOutMaxRung] <= msr->param.nTruncateRung && iOutMaxRung > uRung) {
-	msrprintf(msr,"n_CurrMaxRung = %"PRIu64"  (iCurrMaxRung = %d):  Promoting particles to iCurrMaxrung = %d\n",
+	msrprintf(msr,"n_CurrMaxRung = %" PRIu64 "  (iCurrMaxRung = %d):  Promoting particles to iCurrMaxrung = %d\n",
 		  out.nRungCount[iOutMaxRung],iOutMaxRung,iOutMaxRung-1);
 
 	in.uMaxRung = iOutMaxRung; /* Note this is the forbidden rung so no -1 here */
@@ -3944,7 +3937,7 @@ void msrUpdateRung(MSR msr, uint8_t uRung) {
 	printf("\n");
 	for (iTempRung=0;iTempRung <= msr->iCurrMaxRung;++iTempRung) {
 	    if (out.nRungCount[iTempRung] == 0) continue;
-	    printf("   rung:%d %"PRIu64"\n",iTempRung,out.nRungCount[iTempRung]);
+	    printf("   rung:%d %" PRIu64 "\n",iTempRung,out.nRungCount[iTempRung]);
 	    }
 	printf("\n");
 	}
@@ -4375,20 +4368,16 @@ void msrGetNParts(MSR msr) { /* JW: Not pretty -- may be better way via fio */
 
 void
 msrAddDelParticles(MSR msr) {
-    struct outColNParts *pColNParts;
-    uint64_t *pNewOrder;
     struct inSetNParts in;
     int i;
 
     msrprintf(msr,"Changing Particle number\n");
-    pColNParts = malloc(msr->nThreads*sizeof(*pColNParts));
-    assert(pColNParts!=NULL);
+    auto pColNParts = new struct outColNParts[msr->nThreads];
     pstColNParts(msr->pst, NULL, 0, pColNParts, msr->nThreads*sizeof(*pColNParts));
     /*
      * Assign starting numbers for new particles in each processor.
      */
-    pNewOrder = malloc(msr->nThreads*sizeof(*pNewOrder));
-    assert(pNewOrder!=NULL);
+    auto pNewOrder = new uint64_t[msr->nThreads];
     for (i=0;i<msr->nThreads;i++) {
 	/*
 	 * Detect any changes in particle number, and force a tree
@@ -4413,7 +4402,7 @@ msrAddDelParticles(MSR msr) {
 
     pstNewOrder(msr->pst,pNewOrder,(int)sizeof(*pNewOrder)*msr->nThreads,NULL,0);
 
-    msrprintf(msr,"New numbers of particles: %"PRIu64" gas %"PRIu64" dark %"PRIu64" star\n",
+    msrprintf(msr,"New numbers of particles: %" PRIu64 " gas %" PRIu64 " dark %" PRIu64 " star\n",
 	      msr->nGas, msr->nDark, msr->nStar);
 
     in.nGas = msr->nGas;
@@ -4421,8 +4410,8 @@ msrAddDelParticles(MSR msr) {
     in.nStar = msr->nStar;
     pstSetNParts(msr->pst,&in,sizeof(in),NULL,0);
 
-    free(pNewOrder);
-    free(pColNParts);
+    delete[] pNewOrder;
+    delete[] pColNParts;
     }
 
 int msrDoDensity(MSR msr) {
@@ -4592,7 +4581,7 @@ void msrHop(MSR msr, double dTime) {
     msrBuildTreeMarked(msr,dTime);
     dsec = msrTime() - sec;
     if (msr->param.bVStep)
-	printf("Tree build complete in %f secs, merging %"PRIu64" chains...\n",dsec,nGroups);
+	printf("Tree build complete in %f secs, merging %" PRIu64 " chains...\n",dsec,nGroups);
 
     h.iSmoothType = SMX_HOP_LINK;
     sec = msrTime();
@@ -4602,12 +4591,12 @@ void msrHop(MSR msr, double dTime) {
 	assert(i<100);
 	pstHopJoin(msr->pst,&h,sizeof(h),&j,sizeof(j));
 	if (msr->param.bVStep)
-	    printf("... %d iteration%s, %"PRIu64" chains remain\n",i,i==1?"":"s",j.nGroups);
+	    printf("... %d iteration%s, %" PRIu64 " chains remain\n",i,i==1?"":"s",j.nGroups);
 	} while( !j.bDone );
     nGroups = j.nGroups;
     dsec = msrTime() - sec;
     if (msr->param.bVStep)
-	printf("Chain merge complete in %f secs, %"PRIu64" groups\n",dsec,nGroups);
+	printf("Chain merge complete in %f secs, %" PRIu64 " groups\n",dsec,nGroups);
     inFinish.nMinGroupSize = msr->param.nMinMembers;
     inFinish.bPeriodic = msr->param.bPeriodic;
     inFinish.fPeriod[0] = msr->param.dxPeriod;
@@ -4615,7 +4604,7 @@ void msrHop(MSR msr, double dTime) {
     inFinish.fPeriod[2] = msr->param.dzPeriod;
     pstHopFinishUp(msr->pst,&inFinish,sizeof(inFinish),&nGroups,sizeof(nGroups));
     if (msr->param.bVStep)
-	printf("Removed groups with fewer than %d particles, %"PRIu64" remain\n",
+	printf("Removed groups with fewer than %d particles, %" PRIu64 " remain\n",
 	    inFinish.nMinGroupSize, nGroups);
 #if 0
     if (msr->param.bVStep)
@@ -4658,7 +4647,7 @@ void msrHop(MSR msr, double dTime) {
 	nGroups = outUnbind.nGroups;
 	dsec = msrTime() - sec;
 	if (msr->param.bVStep)
-	    printf("Unbinding completed in %f secs, %"PRIu64" particles evaporated, %"PRIu64" groups remain\n",
+	    printf("Unbinding completed in %f secs, %" PRIu64 " particles evaporated, %" PRIu64 " groups remain\n",
 		dsec,outUnbind.nEvaporated, nGroups);
 	} while(++inUnbind.iIteration < 100 && outUnbind.nEvaporated);
 #endif
@@ -4725,7 +4714,7 @@ void msrNewFof(MSR msr, double dTime) {
     inFinish.nMinGroupSize = msr->param.nMinMembers;
     pstFofFinishUp(msr->pst,&inFinish,sizeof(inFinish),&nGroups,sizeof(nGroups));
     if (msr->param.bVStep)
-	printf("Removed groups with fewer than %d particles, %"PRIu64" remain\n",
+	printf("Removed groups with fewer than %d particles, %" PRIu64 " remain\n",
 	    inFinish.nMinGroupSize, nGroups);
 //    pstGroupRelocate(msr->pst,NULL,0,NULL,0);
     dsec = msrTime() - ssec;
@@ -4852,8 +4841,8 @@ double msrGenerateIC(MSR msr) {
     msr->nMaxOrder = msr->N;
 
     if (msr->param.bVStart)
-	printf("Generating IC...\nN:%"PRIu64" nDark:%"PRIu64
-	       " nGas:%"PRIu64" nStar:%"PRIu64"\n",
+	printf("Generating IC...\nN:%" PRIu64 " nDark:%" PRIu64
+	       " nGas:%" PRIu64 " nStar:%" PRIu64 "\n",
 	       msr->N, msr->nDark,msr->nGas,msr->nStar);
 
     /* Read the transfer function */
@@ -4935,7 +4924,7 @@ double msrRead(MSR msr, const char *achInFile) {
     sec = msrTime();
 
     nBytes = PST_MAX_FILES*(sizeof(fioSpeciesList)+PST_FILENAME_SIZE);
-    read = malloc(sizeof(struct inReadFile) + nBytes);
+    read = reinterpret_cast<struct inReadFile*>(malloc(sizeof(struct inReadFile) + nBytes));
     assert(read != NULL);
 
     /* Add Data Subpath for local and non-local names. */
@@ -4968,7 +4957,7 @@ double msrRead(MSR msr, const char *achInFile) {
     read->nProcessors = msr->param.bParaRead==0?1:(msr->param.nParaRead<=1 ? msr->nThreads:msr->param.nParaRead);
 
     if (!fioGetAttr(fio,"nFiles",FIO_TYPE_UINT32,&j)) j = 1;
-    printf("Reading %"PRIu64" particles from %d file%s using %d processor%s\n",
+    printf("Reading %" PRIu64 " particles from %d file%s using %d processor%s\n",
 	msr->N, j, (j==1?"":"s"), read->nProcessors, (read->nProcessors==1?"":"s") );
 
     dTime = getTime(msr,dExpansion,&read->dvFac);
@@ -4983,7 +4972,7 @@ double msrRead(MSR msr, const char *achInFile) {
     read->nNodeEnd = msr->N - 1;
 
 
-    for( j=0; j<FIO_SPECIES_LAST; j++) nSpecies[j] = fioGetN(fio,j);
+    for( auto s=FIO_SPECIES_ALL; s<FIO_SPECIES_LAST; s=FIO_SPECIES(s+1)) nSpecies[s] = fioGetN(fio,s);
     msrInitializePStore(msr, nSpecies);
 
     read->dOmega0 = msr->csm->val.dOmega0;
@@ -5066,13 +5055,10 @@ void msrOutputPk(MSR msr,int iStep,double dTime) {
     msrGridCreateFFT(msr,msr->param.nGridPk);
 
 
-    fK = malloc(sizeof(float)*(msr->param.nBinsPk));
-    assert(fK != NULL);
-    fPk = malloc(sizeof(float)*(msr->param.nBinsPk));
-    assert(fPk != NULL);
-    fPkAll = malloc(sizeof(float)*(msr->param.nBinsPk));
-    assert(fPkAll != NULL);
-    nPk = malloc(sizeof(uint64_t)*(msr->param.nBinsPk));
+    fK = new float[msr->param.nBinsPk];
+    fPk = new float[msr->param.nBinsPk];
+    fPkAll = new float [msr->param.nBinsPk];
+    nPk = new uint64_t[msr->param.nBinsPk];
     assert(nPk != NULL);
 
     if (!msr->csm->val.bComove) a = 1.0;
@@ -5099,10 +5085,10 @@ void msrOutputPk(MSR msr,int iStep,double dTime) {
  	    kfact * fK[i] * 2.0 * M_PI,vfact * fPk[i], nPk[i],vfact * fPkAll[i]);
 	}
     fclose(fp);
-    free(fK);
-    free(fPk);
-    free(fPkAll);
-    free(nPk);
+    delete fK;
+    delete fPk;
+    delete fPkAll;
+    delete nPk;
     /* Output the k-grid if requested */
     z = 1/a - 1;
     if (msr->param.iDeltakInterval && (iStep % msr->param.iDeltakInterval == 0) &&
@@ -5141,12 +5127,10 @@ void msrOutputLinPk(MSR msr,int iStep,double dTime) {
     if (msr->param.nGridLin == 0) return;
     if (!msr->csm->val.bComove) return;
     if (!prmSpecified(msr->prm, "dBoxSize")) return; 
-    fK = malloc(sizeof(float)*(msr->param.nBinsLinPk));
-    assert(fK != NULL);
-    fPk = malloc(sizeof(float)*(msr->param.nBinsLinPk));
-    assert(fPk != NULL);
-    nPk = malloc(sizeof(uint64_t)*(msr->param.nBinsLinPk));
-    assert(nPk != NULL);
+    fK = new float[msr->param.nBinsLinPk];
+
+    fPk = new float[msr->param.nBinsLinPk];
+    nPk = new uint64_t[msr->param.nBinsLinPk];
 
     a = csmTime2Exp(msr->csm, dTime);
 
@@ -5173,9 +5157,9 @@ void msrOutputLinPk(MSR msr,int iStep,double dTime) {
  	    kfact * fK[i] * 2.0 * M_PI,vfact * fPk[i], nPk[i]);
 	}
     fclose(fp);
-    free(fK);
-    free(fPk);
-    free(nPk);
+    delete fK;
+    delete fPk;
+    delete nPk;
     }
 
 #endif
@@ -5478,7 +5462,7 @@ typedef struct {
     } SPHERECTX;
 
 static double countSphere(double r,void *vctx) {
-    SPHERECTX *ctx = vctx;
+    auto *ctx = reinterpret_cast<SPHERECTX*>(vctx);
     ctx->nSelected = msrCountDistance(ctx->msr,0.0,r*r);
     return 1.0*ctx->nSelected - 1.0*ctx->nTarget;
     }
@@ -5502,7 +5486,7 @@ typedef struct {
     } SHELLCTX;
 
 static double countShell(double rInner,void *vctx) {
-    SHELLCTX *ctx = vctx;
+    auto *ctx = reinterpret_cast<SHELLCTX*>(vctx);
     double rOuter;
     local_t nSelected;
 
@@ -5594,7 +5578,7 @@ void msrProfile( MSR msr, const PROFILEBIN **ppBins, int *pnBins,
 	}
 
     inSize = sizeof(struct inProfile)-sizeof(in->dRadii[0])*(sizeof(in->dRadii)/sizeof(in->dRadii[0])-nBins-nBinsInner-1);
-    in = malloc(inSize);
+    in = reinterpret_cast<inProfile*>(malloc(inSize));
     assert(in!=NULL);
 
     in->dRadii[0] = dMinRadius;
@@ -5747,8 +5731,7 @@ void msrMeasurePk(MSR msr,int iAssignment,int bInterlace,int nGrid,double a,int 
     in.Lbox = msr->param.dBoxSize;
     in.a = a;
 
-    out = malloc(sizeof(struct outMeasurePk));
-    assert(out != NULL);
+    out = new struct outMeasurePk;
     pstMeasurePk(msr->pst, &in, sizeof(in), out, sizeof(out));
     for( i=0; i<nBins; i++ ) {
 	if ( out->nPower[i] == 0 ) fK[i] = fPk[i] = fPkAll[i] = 0;
@@ -5760,7 +5743,7 @@ void msrMeasurePk(MSR msr,int iAssignment,int bInterlace,int nGrid,double a,int 
 	    }
 	}
     /* At this point, dPk[] needs to be corrected by the box size */
-    free(out);
+    delete out;
 
     dsec = msrTime() - sec;
     printf("P(k) Calculated, Wallclock: %f secs\n\n",dsec);
@@ -5783,8 +5766,7 @@ void msrMeasureLinPk(MSR msr,int nGrid, double dA, double dBoxSize,
     in.bFixed = msr->param.bFixedAmpIC;
     in.fPhase = msr->param.dFixedAmpPhasePI * M_PI;
 
-    out = malloc(sizeof(struct outMeasureLinPk));
-    assert(out != NULL);
+    out = new struct outMeasureLinPk;
     printf("Measuring P_lin(k) with grid size %d (%d bins)...\n",in.nGrid,in.nBins);
     pstMeasureLinPk(msr->pst, &in, sizeof(in), out, sizeof(out));
     for( i=0; i<in.nBins; i++ ) {
@@ -5796,6 +5778,7 @@ void msrMeasureLinPk(MSR msr,int nGrid, double dA, double dBoxSize,
 	    }
 	}
     /* At this point, dPk[] needs to be corrected by the box size */
+    delete out;
 
     dsec = msrTime() - sec;
     printf("P_lin(k) Calculated, Wallclock: %f secs\n\n",dsec);
@@ -5889,7 +5872,7 @@ void msrOutputOrbits(MSR msr,int iStep,double dTime) {
 	    }
 	fprintf(fp,"%d %f\n",msr->param.nOutputParticles,dExp);
 	for(i=0; i<msr->param.nOutputParticles; ++i) {
-	    fprintf(fp,"%"PRIu64" %.8e %.16e %.16e %.16e %.8e %.8e %.8e %.8e\n",
+	    fprintf(fp,"%" PRIu64 " %.8e %.16e %.16e %.16e %.8e %.8e %.8e %.8e\n",
 		particles[i].id, particles[i].mass,
 		particles[i].r[0], particles[i].r[1], particles[i].r[2],
 		particles[i].v[0]*dvFac, particles[i].v[1]*dvFac, particles[i].v[2]*dvFac,

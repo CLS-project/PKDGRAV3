@@ -200,6 +200,9 @@ typedef struct fioInfo {
 /******************************************************************************\
 ** Generic Routines
 \******************************************************************************/
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /*
 ** Auto-detects the file format by looking at header information.
@@ -356,5 +359,8 @@ FIO fioGadgetCreate(
 /******************************************************************************\
 ** GRAFIC FORMAT
 \******************************************************************************/
+#ifdef __cplusplus
+}
+#endif
 
 #endif
