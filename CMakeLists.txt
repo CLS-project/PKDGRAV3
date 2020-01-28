@@ -144,7 +144,7 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 )
 set_property(TARGET ${PROJECT_NAME} APPEND PROPERTY COMPILE_DEFINITIONS _LARGEFILE_SOURCE)
 target_sources(${PROJECT_NAME} PRIVATE
-	main.c cosmo.c master.cxx pst.c fio.c illinois.c param.c
+	main.cxx cosmo.c master.cxx pst.c fio.c illinois.c param.c
 	pkd.c analysis.c smooth.c smoothfcn.c outtype.c output.c
 	walk2.c grav2.c ewald.cxx ic.cxx tree.cxx opening.cxx pp.cxx pc.cxx cl.c
 	lst.c moments.c ilp.c ilc.c iomodule.c

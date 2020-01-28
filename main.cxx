@@ -62,7 +62,7 @@ static inline void USR2_handler(int signo) {
 */
 void *worker_init(MDL mdl) {
     PST pst;
-    LCL *plcl = malloc(sizeof(LCL));
+    LCL *plcl = new LCL;
     plcl->pkd = NULL;
     pstInitialize(&pst,mdl,plcl);
     pstAddServices(pst,mdl);
@@ -74,10 +74,10 @@ void *worker_init(MDL mdl) {
 ** It needs to destroy the worker context (PST).
 */
 void worker_done(MDL mdl, void *ctx) {
-    PST pst = ctx;
+    PST pst = reinterpret_cast<PST>(ctx);
     LCL *plcl = pst->plcl;
     pstFinish(pst);
-    free(plcl);
+    delete plcl;
     }
 
 /*

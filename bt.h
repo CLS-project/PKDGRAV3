@@ -17,5 +17,11 @@
 
 #ifndef BT_H
 #define BT_H
+#ifdef __cplusplus
+extern "C" {
+#endif
 void bt_initialize(void);
+#ifdef __cplusplus
+}
+#endif
 #endif
