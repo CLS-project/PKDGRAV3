@@ -294,10 +294,11 @@ void msrInitializePStore(MSR msr, uint64_t *nSpecies) {
 	    ps.nMinEphemeral = 3*outFFTSizes.nMaxLocal*sizeof(FFTW3(real));
 	}
 
-    if (msr->param.nGrid>0) {
+    int nGrid = msr->param.nGrid;
+    if (nGrid>0) {
 	struct inGetFFTMaxSizes inFFTSizes;
 	struct outGetFFTMaxSizes outFFTSizes;
-	inFFTSizes.nx = inFFTSizes.ny = inFFTSizes.nz = msr->param.nGrid;
+	inFFTSizes.nx = inFFTSizes.ny = inFFTSizes.nz = nGrid;
 	pstGetFFTMaxSizes(msr->pst,&inFFTSizes,sizeof(inFFTSizes),&outFFTSizes,sizeof(outFFTSizes));
 	ps.nMinTotalStore = 10*outFFTSizes.nMaxLocal*sizeof(FFTW3(real));
 	}
@@ -4841,11 +4842,8 @@ double msrGenerateIC(MSR msr) {
     msrSetParameters(msr);
     msrInitCosmology(msr);
 
-    if (prmSpecified(msr->prm,"dRedFrom")) {
-	assert(msr->param.dRedFrom >= 0.0 );
-	in.dExpansion = 1.0 / (1.0 + msr->param.dRedFrom);
-	}
-    else in.dExpansion = 0.0;
+    assert(msr->param.dRedFrom >= 0.0 );
+    in.dExpansion = 1.0 / (1.0 + msr->param.dRedFrom);
 
     msr->N     = nSpecies[FIO_SPECIES_ALL];
     msr->nGas  = nSpecies[FIO_SPECIES_SPH];

@@ -21,6 +21,7 @@
 #include <stdint.h>
 #include <signal.h>
 #include <time.h>
+#include <Python.h>
 
 #include "param.h"
 #include "pst.h"
@@ -42,6 +43,7 @@ typedef struct msrContext {
     /*
     ** Parameters.
     */
+    PyObject *arguments, *specified;
     struct parameters param;
     CSM csm;
     /*

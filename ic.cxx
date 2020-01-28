@@ -331,8 +331,6 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int bFixed,float fPhase,int nGrid
 	    index->v[2] += f2_a * z * velFactor;
 	    }
 	}
-    csmFinish(csm);
-
     return nLocal;
     }
 
@@ -569,9 +567,6 @@ int pkdGenerateClassICm(PKD pkd, MDLFFT fft, int iSeed, int bFixed, float fPhase
 	    index->v[2] = R[9](pos);
 	    }
 	}
-    
-    csmFinish(csm);
-
     return nLocal;
 }
 

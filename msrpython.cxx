@@ -18,24 +18,88 @@ typedef struct {
 
 static PyObject *
 ppy_msr_GenerateIC(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
-    static char const *kwlist[]={"csm","grid","seed",NULL};
+    static char const *kwlist[]={"csm","z","grid","seed","L",NULL};
     int nGrid, iSeed;
+    double dBoxSize = 1.0;
     CSMINSTANCE *cosmo = NULL;
+    self->msr->param.bPeriodic = 1;
     if ( !PyArg_ParseTupleAndKeywords(
-	     args, kwobj, "O|ii:GenerateIC", const_cast<char **>(kwlist),
-	     &cosmo,&self->msr->param.nGrid, &self->msr->param.iSeed ) )
+	     args, kwobj, "Odi|id:GenerateIC", const_cast<char **>(kwlist),
+	     &cosmo,&self->msr->param.dRedFrom,&self->msr->param.nGrid,
+	     &self->msr->param.iSeed, &self->msr->param.dBoxSize) )
 	return NULL;
     if (!PyObject_TypeCheck(cosmo,&csmType)) return PyErr_Format(PyExc_TypeError,"Expected CSM object");
     self->msr->csm->val = cosmo->csm->val;
     if (self->msr->csm->val.classData.bClass)
         csmClassGslInitialize(self->msr->csm);
-    msrGenerateIC(self->msr);
+    double dTime = msrGenerateIC(self->msr);
+    return Py_BuildValue("d", dTime );
+    }
+
+static PyObject *
+ppy_msr_DomainDecomp(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    static char const *kwlist[]={"rung",NULL};
+    int iRung    = 0;
+    int bOthers  = 0;
+
+    if ( !PyArg_ParseTupleAndKeywords(
+	     args, kwobj, "|i:DomainDecomp", const_cast<char **>(kwlist),
+	     &iRung ) )
+	return NULL;
+    msrDomainDecomp(self->msr,iRung,bOthers);
+    Py_RETURN_NONE;
+    }
+
+static PyObject *
+ppy_msr_Checkpoint(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    static char const *kwlist[]={/*"name",*/"step","time",NULL};
+//    const char *fname;
+    int iStep = 0;
+    double dTime = 1.0;
+    if ( !PyArg_ParseTupleAndKeywords(
+	     args, kwobj, "|id:Checkpoint", const_cast<char **>(kwlist),
+	     /*&fname,*/&iStep,&dTime ) )
+	return NULL;
+    msrCheckpoint(self->msr,iStep,dTime);
+    Py_RETURN_NONE;
+    }
+
+static PyObject *
+ppy_msr_Restart(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    static char const *kwlist[]={"arguments","specified",NULL};
+    PyObject *arguments, *specified;
+    if ( !PyArg_ParseTupleAndKeywords(
+	     args, kwobj, "OO:Restart", const_cast<char **>(kwlist),
+	     &arguments,&specified ) )
+	return NULL;
+    //msrRestart(self->msr,iStep,dTime);
+    Py_RETURN_NONE;
+    }
+
+static PyObject *
+ppy_msr_Write(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    static char const *kwlist[]={"name","time",NULL};
+    const char *fname;
+    double dTime = 1.0;
+    if ( !PyArg_ParseTupleAndKeywords(
+	     args, kwobj, "s|d:Write", const_cast<char **>(kwlist),
+	     &fname,&dTime ) )
+	return NULL;
+    msrWrite(self->msr,fname,dTime,0);
     Py_RETURN_NONE;
     }
 
 static PyMethodDef msr_methods[] = {
     {"GenerateIC", (PyCFunction)ppy_msr_GenerateIC, METH_VARARGS|METH_KEYWORDS,
      "Generate Initial Condition"},
+    {"DomainDecomp", (PyCFunction)ppy_msr_DomainDecomp, METH_VARARGS|METH_KEYWORDS,
+     "Reorder the particles by position"},
+    {"Checkpoint", (PyCFunction)ppy_msr_Checkpoint, METH_VARARGS|METH_KEYWORDS,
+     "Write a checkpoint"},
+    {"Restart", (PyCFunction)ppy_msr_Restart, METH_VARARGS|METH_KEYWORDS,
+     "Restart from a checkpoint"},
+    {"Write", (PyCFunction)ppy_msr_Write, METH_VARARGS|METH_KEYWORDS,
+     "Write a particle output"},
     {NULL, NULL, 0, NULL}
 };
 
@@ -130,9 +194,7 @@ static struct PyModuleDef msrModule = {
 // This routine is called if the user does an "import msr" from the script.
 // We initialize the MSR module which will later cause "main" to be skipped.
 static PyObject * initModuleMSR(void) {
-    auto msr_module = PyModule_Create(&msrModule);
-    auto pmsr = reinterpret_cast<MSR*>(PyModule_GetState(msr_module));
-    msrInitialize(pmsr,mdlMDL(),mdlWORKER(),0,NULL);
+    auto msr_module = PyState_FindModule(&msrModule); // We created this already
     auto mainModule = PyImport_AddModule("__main__"); // Borrowed reference
     //PyObject *mainDict = PyModule_GetDict(mainModule);
     //setConstants(mainDict);
@@ -194,23 +256,26 @@ static int ppy2prm(PRM prm,PyObject *arguments, PyObject *specified) {
     for( pn=prm->pnHead; pn!=NULL; pn=pn->pnNext ) {
 	//auto v = PyDict_GetItemString(arguments, pn->pszName);
 	//auto f = PyDict_GetItemString(specified, pn->pszName);
-	auto v = PyObject_GetAttrString(arguments, pn->pszName); // These are a Namespace
-	auto f = PyObject_GetAttrString(specified, pn->pszName); // These are a Namespace
+	auto v = PyObject_GetAttrString(arguments, pn->pszName); // A Namespace
 	if (v!=NULL) {
-	    if (v == Py_None) continue;
-	    pn->bArg = (f && PyObject_IsTrue(f)>0);
-	    if (PyList_Check(v)) {
-		if (pn->pCount==NULL) {
-	            fprintf(stderr,"The parameter %s cannot be a list!\n",pn->pszName);
-	            bOK = 0;
+	    if (v != Py_None) {
+		auto f = PyObject_GetAttrString(specified, pn->pszName); // A Namespace
+		if (f) { pn->bArg = PyObject_IsTrue(f)>0; Py_DECREF(v); }
+		else pn->bArg = 0;
+		if (PyList_Check(v)) {
+		    if (pn->pCount==NULL) {
+	        	fprintf(stderr,"The parameter %s cannot be a list!\n",pn->pszName);
+	        	bOK = 0;
+			}
+		    else {
+			int i, n = PyList_Size(v);
+			for(i=0; i<n; ++i) setNode(pn,i,PyList_GetItem(v,i));
+			*pn->pCount = n;
+			}
 		    }
-		else {
-		    int i, n = PyList_Size(v);
-		    for(i=0; i<n; ++i) setNode(pn,i,PyList_GetItem(v,i));
-		    *pn->pCount = n;
-		    }
+		else setNode(pn,0,v);
 		}
-	    else setNode(pn,0,v);
+	    Py_DECREF(v);
 	    }
 	}
     return bOK;
@@ -226,6 +291,14 @@ int msrPython(MSR *msr, int argc, char *argv[]) {
     { PyObject *PyInit_CSM(void); PyImport_AppendInittab("CSM",PyInit_CSM); }
     Py_InitializeEx(0);
 
+    // Contruct the "MSR" context and module
+    auto msr_module = PyModule_Create(&msrModule);
+    PyState_AddModule(msr_module,&msrModule);
+    msrInitialize(msr,mdlMDL(),mdlWORKER(),0,NULL);
+    auto pmsr = reinterpret_cast<MSR*>(PyModule_GetState(msr_module));
+    *pmsr = *msr;
+
+    // Convert program arguments to unicode
     auto wargv = new wchar_t *[argc];
     for(int i=0; i<argc; ++i) wargv[i] = Py_DecodeLocale(argv[i],NULL);
     PySys_SetArgv(argc, wargv);
@@ -233,32 +306,35 @@ int msrPython(MSR *msr, int argc, char *argv[]) {
     auto globals = PyDict_New();
     auto locals = PyDict_New();
     PyDict_SetItemString(globals, "__builtins__",PyEval_GetBuiltins());
-//    PyObject *PARSE = PyImport_ImportModule("parse");
-//    if (PyErr_Occurred()) { /* Use the internal parser */
+
+    // Parse the command line
     auto PARSE = PyModule_New("parse");
     PyModule_AddStringConstant(PARSE, "__file__", "parse.py");
     PyObject *localDict = PyModule_GetDict(PARSE);
     PyDict_SetItemString(localDict, "__builtins__", PyEval_GetBuiltins());
     PyObject *pyValue = PyRun_String(parse_py, Py_file_input, localDict, localDict);
-
     PyObject *parse = PyObject_GetAttrString(PARSE, "parse");
     if (!PyCallable_Check(parse)) { fprintf(stderr,"INTERNAL ERROR: parse.parse() MUST be callable\n"); abort(); }
     PyObject *update = PyObject_GetAttrString(PARSE, "update");
     if (!PyCallable_Check(update)){ fprintf(stderr,"INTERNAL ERROR: parse.update() MUST be callable\n"); abort(); }
-//    PyObject *master = PyObject_GetAttrString(PARSE, "main");
     PyObject *result= PyObject_CallObject(parse,NULL);
     if (PyErr_Occurred()) { PyErr_Print(); exit(1); }
+    // Retrieve the results
     int n = PyTuple_Size(result);
     if (n!=2) { fprintf(stderr,"INTERNAL ERROR: parse.parse() MUST return a tuple\n"); abort();	}
     PyObject *arguments = PyTuple_GetItem(result,0); /* Values of each parameter */
     PyObject *specified = PyTuple_GetItem(result,1); /* If it was explicitely specified */
     PyObject *script = PyObject_GetAttrString(arguments,"script");
+    (*msr)->arguments = arguments;
+    (*msr)->specified = specified;
+
+    // If a script was specified then we run it.
     if (script != Py_None) {
     	char *filename;
+	PyObject *ascii;
 	if (PyUnicode_Check(script)) {
-	    PyObject *ascii = PyUnicode_AsASCIIString(script);
+	    ascii = PyUnicode_AsASCIIString(script);
 	    filename = PyBytes_AsString(ascii);
-	    Py_DECREF(ascii);
 	    }
 	else { fprintf(stderr,"INTERNAL ERROR: script filename is invalid\n"); abort();	}
 	FILE *fp = fopen(filename,"r");
@@ -266,39 +342,22 @@ int msrPython(MSR *msr, int argc, char *argv[]) {
 	PyRun_FileEx(fp,filename,Py_file_input,globals,locals,1);
 	fclose(fp);
 	if (PyErr_Occurred()) { PyErr_Print(); exit(1); }
+	Py_DECREF(ascii);
 	}
 
+    // If "MASTER" was imported then we are done -- the script should have done its job
     PyObject * strMSR = Py_BuildValue("s",MASTER_MODULE_NAME);
-    auto msr_module = PyImport_GetModule(strMSR);
-    int bImported = msr_module != NULL;
+    msr_module = PyImport_GetModule(strMSR); // Check to see if it was imported
     Py_DECREF(strMSR);
-
     if (msr_module == NULL) { // We must prepare for a normal legacy execution
-    	msrInitialize(msr,mdlMDL(),mdlWORKER(),0,NULL);
 	PyObject *args = PyTuple_New(3);
 	PyTuple_SetItem(args,0,locals);
 	PyTuple_SetItem(args,1,arguments);
 	PyTuple_SetItem(args,2,specified);
-	PyObject_CallObject(update,args);
+	PyObject_CallObject(update,args); // Copy and variables into the arguments Namespace
 	if (PyErr_Occurred()) { PyErr_Print(); exit(1); }
-	ppy2prm((*msr)->prm,arguments,specified);
+	ppy2prm((*msr)->prm,arguments,specified); // Update the pkdgrav parameter state
 	}
-    else *msr = * reinterpret_cast<MSR*>(PyModule_GetState(msr_module));
 
- //    if (!rc) {
- //    	printf("main() will be automatically run\n");
-	// PyObject *args = PyTuple_New(3);
-	// PyTuple_SetItem(args,0,locals);
-	// PyTuple_SetItem(args,1,arguments);
-	// PyTuple_SetItem(args,2,specified);
-	// PyObject_CallObject(update,args);
-	// if (PyErr_Occurred()) { PyErr_Print(); exit(1); }
-
-	// args = PyTuple_New(2);
-	// PyTuple_SetItem(args,0,arguments);
-	// PyTuple_SetItem(args,1,specified);
-	// PyObject_CallObject(master,args);
-	// if (PyErr_Occurred()) { PyErr_Print(); exit(1); }
-	// }
     return msr_module != NULL;
     }
