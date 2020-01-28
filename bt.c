@@ -108,8 +108,8 @@ void bt_initialize(void) {
     if (sigaction(SIGSEGV, &sa, NULL) == -1) abort();
     if (sigaction(SIGABRT, &sa, NULL) == -1) abort();
     if (sigaction(SIGFPE,  &sa, NULL) == -1) abort();
-    sa.sa_sigaction = alarm_handler;
-    if (sigaction(SIGWINCH, &sa, NULL) == -1) abort();
+    //sa.sa_sigaction = alarm_handler;
+    //if (sigaction(SIGWINCH, &sa, NULL) == -1) abort();
     }
 #else
 void bt_initialize(void) {
@@ -118,6 +118,6 @@ void bt_initialize(void) {
     signal(SIGSEGV, signal_handler);
     signal(SIGABRT, signal_handler);
     signal(SIGFPE, signal_handler);
-    signal(SIGWINCH, alarm_handler);
+    //signal(SIGWINCH, alarm_handler);
 }
 #endif

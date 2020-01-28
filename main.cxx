@@ -104,80 +104,48 @@ void master(MDL mdl,void *pst) {
     uint8_t uRungMax;
     double diStep;
     double ddTime;
-    int bRestore = 0;
 
     printf("%s\n", PACKAGE_STRING );
 
+    /* a USR1 signal indicates that the queue wants us to exit */
+#ifndef _MSC_VER
+    timeGlobalSignalTime = 0;
+    signal(SIGUSR1,NULL);
+    signal(SIGUSR1,USR1_handler);
+
+    /* a USR2 signal indicates that we should write an output when convenient */
+    bGlobalOutput = 0;
+    signal(SIGUSR2,NULL);
+    signal(SIGUSR2,USR2_handler);
+#endif
+
     if (!msrPython(&msr,argc,argv)) {
 	msrValidateParameters(msr);
-	//bRestore = msrInitialize(&msr,mdl,pst,argc,argv);
+
 	msr->lStart=time(0);
 
-	/*
-	** Establish safety lock.
-	*/
+	/* Establish safety lock. */
 	if (!msrGetLock(msr)) {
 	    msrFinish(msr);
 	    return;
 	    }
-
-	/* a USR1 signal indicates that the queue wants us to exit */
-    #ifndef _MSC_VER
-	timeGlobalSignalTime = 0;
-	signal(SIGUSR1,NULL);
-	signal(SIGUSR1,USR1_handler);
-
-	/* a USR2 signal indicates that we should write an output when convenient */
-	bGlobalOutput = 0;
-	signal(SIGUSR2,NULL);
-	signal(SIGUSR2,USR2_handler);
-    #endif
 
 	/*
 	** Output the host names to make troubleshooting easier
 	*/
 	msrHostname(msr);
 
-    #if 0
-	/* Restore from a previous checkpoint */
-	if (bRestore) {
-	    dTime = msrRestore(msr);
-	    iStartStep = msr->iCheckpointStep;
-	    msrSetParameters(msr);
-	    msrInitCosmology(msr);
-	    if (prmSpecified(msr->prm,"dSoft")) msrSetSoft(msr,msrSoft(msr));
-	    iStep = msrSteps(msr); /* 0=analysis, >1=simulate, <0=python */
-	    uRungMax = msr->iCurrMaxRung;
-	    }
-
-	/* Generate the initial particle distribution */
-	else
-    #endif
 	if (prmSpecified(msr->prm,"nGrid")) {
-	    iStartStep = msr->param.iStartStep; /* Should be zero */
-    #ifdef MDL_FFTW
 	    dTime = msrGenerateIC(msr); /* May change nSteps/dDelta */
 	    if ( msr->param.bWriteIC ) {
 		msrBuildIoName(msr,achFile,0);
 		msrWrite( msr,achFile,dTime,msr->param.bWriteIC-1);
 		}
-    #else
-	    printf("To generate initial conditions, compile with FFTW\n");
-	    msrFinish(msr);
-	    return;
-    #endif
-	    msrSetParameters(msr);
-	    msrInitCosmology(msr);
-	    if (prmSpecified(msr->prm,"dSoft")) msrSetSoft(msr,msrSoft(msr));
-	    iStep = msrSteps(msr); /* 0=analysis, >1=simulate, <0=python */
 	    }
 
 	/* Read in a binary file */
 	else if ( msr->param.achInFile[0] ) {
-	    iStartStep = msr->param.iStartStep; /* Should be zero */
 	    dTime = msrRead(msr,msr->param.achInFile); /* May change nSteps/dDelta */
-	    msrSetParameters(msr);
-	    msrInitCosmology(msr);
 	    if (msr->param.bAddDelete) msrGetNParts(msr);
 	    if (prmSpecified(msr->prm,"dRedFrom")) {
 		double aOld, aNew;
@@ -188,8 +156,6 @@ void master(MDL mdl,void *pst) {
 	        When we remove sending parameters, we should remove this. */
 		msrSetParameters(msr);
 		}
-	    if (prmSpecified(msr->prm,"dSoft")) msrSetSoft(msr,msrSoft(msr));
-	    iStep = msrSteps(msr); /* 0=analysis, >1=simulate, <0=python */
 	    }
 	else {
 	    printf("No input file specified\n");
@@ -197,8 +163,11 @@ void master(MDL mdl,void *pst) {
 	    return;
 	    }
 
-	/* Adjust theta for gravity calculations. */
-	if (msrComove(msr)) msrSwitchTheta(msr,dTime);
+	iStartStep = msr->param.iStartStep; /* Often zero at the start */
+	msrSetParameters(msr);
+	msrInitCosmology(msr);
+	if (prmSpecified(msr->prm,"dSoft")) msrSetSoft(msr,msrSoft(msr));
+	if (msrComove(msr)) msrSwitchTheta(msr,dTime); // Adjust theta for gravity calculations.
 	/*
 	** Now we have all the parameters for the simulation we can make a
 	** log file entry.
@@ -234,11 +203,8 @@ void master(MDL mdl,void *pst) {
 	msrUpdateSoft(msr,dTime);
 	msrBuildTree(msr,dTime,msr->param.bEwald);
 	msrOutputOrbits(msr,iStartStep,dTime);
-#ifdef MDL_FFTW
-	if (msr->param.nGridPk>0) {
-	    msrOutputPk(msr,iStartStep,dTime);
-	    }
-#endif
+	if (msr->param.nGridPk>0) msrOutputPk(msr,iStartStep,dTime);
+
 	if (msrDoGravity(msr)) {
 	    msrSwitchDelta(msr,dTime,iStartStep);
 	    msrSetParameters(msr);

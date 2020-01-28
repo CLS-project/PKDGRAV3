@@ -8,6 +8,81 @@
 #define MASTER_MODULE_NAME "MASTER"
 
 /******************************************************************************\
+*   Copy parameters from Python to pkdgrav3 (may go away eventually)
+\******************************************************************************/
+
+static void setNode(PRM_NODE *pn,int i,PyObject *v) {
+    const char *s;
+    switch(pn->iType) {
+    case 0:
+    case 1:
+	assert(pn->iSize == sizeof(int));
+	if (PyLong_Check(v)) ((int *)pn->pValue)[i] = PyLong_AsLong(v);
+	else if (PyFloat_Check(v)) ((int *)pn->pValue)[i] = (int)PyFloat_AsDouble(v);
+	else fprintf(stderr,"Invalid type for %s\n",pn->pszName);
+	break;
+    case 2:
+	assert(pn->iSize == sizeof(double));
+	if (PyFloat_Check(v)) ((double *)pn->pValue)[i] = PyFloat_AsDouble(v);
+	else if (PyLong_Check(v)) ((double *)pn->pValue)[i] = PyLong_AsLong(v);
+	else fprintf(stderr,"Invalid type for %s\n",pn->pszName);
+	break;
+    case 3:
+	if (PyUnicode_Check(v)) {
+	    PyObject *ascii = PyUnicode_AsASCIIString(v);
+	    s = PyBytes_AsString(ascii);
+	    Py_DECREF(ascii);
+	    }
+	else {
+	    fprintf(stderr,"Invalid type for %s\n",pn->pszName);
+	    s = NULL;
+	    }
+	if (s!=NULL) {
+	    assert(pn->iSize > strlen(s));
+	    strcpy((char *)pn->pValue,s);
+	    }
+	else *(char *)pn->pValue = 0;
+	break;
+    case 4:
+	assert(pn->iSize == sizeof(uint64_t));
+	((uint64_t *)pn->pValue)[i] = PyLong_AsLong(v);
+	break;
+	}
+    }
+
+static int ppy2prm(PRM prm,PyObject *arguments, PyObject *specified) {
+    PRM_NODE *pn;
+    int bOK = 1;
+
+    for( pn=prm->pnHead; pn!=NULL; pn=pn->pnNext ) {
+	//auto v = PyDict_GetItemString(arguments, pn->pszName);
+	//auto f = PyDict_GetItemString(specified, pn->pszName);
+	auto v = PyObject_GetAttrString(arguments, pn->pszName); // A Namespace
+	if (v!=NULL) {
+	    if (v != Py_None) {
+		auto f = PyObject_GetAttrString(specified, pn->pszName); // A Namespace
+		if (f) { pn->bArg = PyObject_IsTrue(f)>0; Py_DECREF(v); }
+		else pn->bArg = 0;
+		if (PyList_Check(v)) {
+		    if (pn->pCount==NULL) {
+	        	fprintf(stderr,"The parameter %s cannot be a list!\n",pn->pszName);
+	        	bOK = 0;
+			}
+		    else {
+			int i, n = PyList_Size(v);
+			for(i=0; i<n; ++i) setNode(pn,i,PyList_GetItem(v,i));
+			*pn->pCount = n;
+			}
+		    }
+		else setNode(pn,0,v);
+		}
+	    Py_DECREF(v);
+	    }
+	}
+    return bOK;
+    }
+
+/******************************************************************************\
 *   MSR Module methods
 \******************************************************************************/
 
@@ -66,13 +141,55 @@ ppy_msr_Checkpoint(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
 
 static PyObject *
 ppy_msr_Restart(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
-    static char const *kwlist[]={"arguments","specified",NULL};
-    PyObject *arguments, *specified;
+    MSR msr = self->msr;
+    static char const *kwlist[]={"arguments","specified","species","classes","n","name","step","time","E","U", "Utime", NULL};
+    PyObject *species, *classes;
+    int n, iStep;
+    const char *name;
+    double dTime;
     if ( !PyArg_ParseTupleAndKeywords(
-	     args, kwobj, "OO:Restart", const_cast<char **>(kwlist),
-	     &arguments,&specified ) )
+	     args, kwobj, "OOOOisidddd:Restart", const_cast<char **>(kwlist),
+	     &msr->arguments,&msr->specified,&species,&classes,&n,&name,
+	     &iStep,&dTime,&msr->dEcosmo,&msr->dUOld, &msr->dTimeOld ) )
 	return NULL;
-    //msrRestart(self->msr,iStep,dTime);
+
+    // Create a vector of number of species
+    species = PySequence_Fast(species,"species must be a list");
+    int nSpecies = PySequence_Fast_GET_SIZE(species);
+    std::vector<uint64_t> vecSpecies;
+    vecSpecies.reserve(nSpecies);
+    for(auto i=0; i < nSpecies; ++i) {
+        PyObject *item = PySequence_Fast_GET_ITEM(species, i);
+        vecSpecies.push_back(PyNumber_AsSsize_t(item,NULL));
+	}
+    Py_DECREF(species); // PySequence_Fast creates a new reference
+    assert(vecSpecies.size()==4);
+    msr->N     = vecSpecies[0];
+    msr->nDark = vecSpecies[1];
+    msr->nGas  = vecSpecies[2];
+    msr->nStar = vecSpecies[3];
+
+    // Process the array of class information
+    classes = PySequence_Fast(classes,"species must be a list");
+    int nClasses = PySequence_Fast_GET_SIZE(classes);
+    for(auto i=0; i < nClasses; ++i) {
+        PyObject *item = PySequence_Fast_GET_ITEM(classes, i);
+	auto cls = PySequence_Fast(item,"class entry must be a list");
+	assert(PySequence_Fast_GET_SIZE(cls)==3);
+	PyObject *itemSpecies = PySequence_Fast_GET_ITEM(cls, 0);
+	PyObject *itemMass    = PySequence_Fast_GET_ITEM(cls, 1);
+	PyObject *itemSoft    = PySequence_Fast_GET_ITEM(cls, 2);
+	msr->aCheckpointClasses[i].eSpecies = (FIO_SPECIES)PyNumber_AsSsize_t(itemSpecies,NULL);
+	msr->aCheckpointClasses[i].fMass = PyFloat_AsDouble(itemMass);
+	msr->aCheckpointClasses[i].fSoft = PyFloat_AsDouble(itemSoft);
+	Py_DECREF(cls); // PySequence_Fast creates a new reference
+	}
+    Py_DECREF(classes); // PySequence_Fast creates a new reference
+
+    ppy2prm(msr->prm,msr->arguments,msr->specified);
+
+    msrRestart(msr, n, name, iStep, dTime);
+
     Py_RETURN_NONE;
     }
 
@@ -203,82 +320,6 @@ static PyObject * initModuleMSR(void) {
 	PyModule_AddObject(msr_module, "MSR", (PyObject *)&msrType);
 	}
     return msr_module;
-    }
-
-/******************************************************************************\
-*   Copy parameters from Python to pkdgrav3 (may go away eventually)
-\******************************************************************************/
-
-static void setNode(PRM_NODE *pn,int i,PyObject *v) {
-    const char *s;
-    switch(pn->iType) {
-    case 0:
-    case 1:
-	assert(pn->iSize == sizeof(int));
-	if (PyLong_Check(v)) ((int *)pn->pValue)[i] = PyLong_AsLong(v);
-	else if (PyFloat_Check(v)) ((int *)pn->pValue)[i] = (int)PyFloat_AsDouble(v);
-	else fprintf(stderr,"Invalid type for %s\n",pn->pszName);
-	break;
-    case 2:
-	assert(pn->iSize == sizeof(double));
-	if (PyFloat_Check(v)) ((double *)pn->pValue)[i] = PyFloat_AsDouble(v);
-	else if (PyLong_Check(v)) ((double *)pn->pValue)[i] = PyLong_AsLong(v);
-	else fprintf(stderr,"Invalid type for %s\n",pn->pszName);
-	break;
-    case 3:
-	if (PyUnicode_Check(v)) {
-	    PyObject *ascii = PyUnicode_AsASCIIString(v);
-	    s = PyBytes_AsString(ascii);
-	    Py_DECREF(ascii);
-	    }
-	else {
-	    fprintf(stderr,"Invalid type for %s\n",pn->pszName);
-	    s = NULL;
-	    }
-	if (s!=NULL) {
-	    assert(pn->iSize > strlen(s));
-	    strcpy((char *)pn->pValue,s);
-	    }
-	else *(char *)pn->pValue = 0;
-	break;
-    case 4:
-	assert(pn->iSize == sizeof(uint64_t));
-	((uint64_t *)pn->pValue)[i] = PyLong_AsLong(v);
-	break;
-	}
-    }
-
-/* Copy parameters from python dictionary back into parameters. */
-static int ppy2prm(PRM prm,PyObject *arguments, PyObject *specified) {
-    PRM_NODE *pn;
-    int bOK = 1;
-
-    for( pn=prm->pnHead; pn!=NULL; pn=pn->pnNext ) {
-	//auto v = PyDict_GetItemString(arguments, pn->pszName);
-	//auto f = PyDict_GetItemString(specified, pn->pszName);
-	auto v = PyObject_GetAttrString(arguments, pn->pszName); // A Namespace
-	if (v!=NULL) {
-	    if (v != Py_None) {
-		auto f = PyObject_GetAttrString(specified, pn->pszName); // A Namespace
-		if (f) { pn->bArg = PyObject_IsTrue(f)>0; Py_DECREF(v); }
-		else pn->bArg = 0;
-		if (PyList_Check(v)) {
-		    if (pn->pCount==NULL) {
-	        	fprintf(stderr,"The parameter %s cannot be a list!\n",pn->pszName);
-	        	bOK = 0;
-			}
-		    else {
-			int i, n = PyList_Size(v);
-			for(i=0; i<n; ++i) setNode(pn,i,PyList_GetItem(v,i));
-			*pn->pCount = n;
-			}
-		    }
-		else setNode(pn,0,v);
-		}
-	    Py_DECREF(v);
-	    }
-	}
-    return bOK;
     }
 
 /******************************************************************************\

@@ -311,177 +311,55 @@ void msrInitializePStore(MSR msr, uint64_t *nSpecies) {
 	   pkdParticleSize(pkd),ps.nEphemeralBytes,pkdNodeSize(pkd));
     }
 
-static char *formatKey(char *buf,char const *fmt,int i) {
-    sprintf(buf,fmt,i);
-    return buf;
-    }
+void msrRestart(MSR msr, int n, const char *baseName, int iStep, double dTime) {
+    auto sec = msrTime();
 
-static int readParametersClasses(MSR msr,FILE *fp) {
-    int i;
-    char key[50];
-
-    if (fscanf(fp,"nClasses=%d\n",&msr->nCheckpointClasses) != 1) return 1;
-    for(i=0; i<msr->nCheckpointClasses; ++i) {
-	if (fscanf(fp,formatKey(key,"fMass%d=%%g\n",i),&msr->aCheckpointClasses[i].fMass) != 1) return 1;
-	if (fscanf(fp,formatKey(key,"fSoft%d=%%g\n",i),&msr->aCheckpointClasses[i].fSoft) != 1) return 1;
-	if (fscanf(fp,formatKey(key,"eSpecies%d=%%d\n",i),&msr->aCheckpointClasses[i].eSpecies) != 1) return 1;
-	}
-
-    return 0;
-    }
-
-static int parseString(char *s, int size, const char *match) {
-    char *p;
-    if (match) {
-	if ( (p = strchr(s,'=')) == NULL) return 0;
-	*p++ = 0;
-	if (strcmp(s,match)!=0) return 0;
-	}
-    else p = s;
-    if (*p++ != '"') return 0;
-    size_t n = strlen(p);
-    while(n && isspace(p[n-1])) --n;
-    if (n==0) return 0;
-    if (p[n-1] != '"') return 0;
-    p[n-1] = 0;
-    memmove(s,p,n);
-    return 1;
-    }
-
-static int scanString(char *s, int size, FILE *fp, const char *match) {
-    if (fgets(s,size,fp)==NULL) return 0;
-    return parseString(s,size,match);
-    }
-
-/*
-** Read parameters from the checkpoint file. This is extremely STRICT;
-** even an extra space will cause problems. This is by design.
-*/
-int readParameters(MSR msr,const char *fileName) {
-    if (fileName == NULL) return 0;
-    FILE *fp = fopen(fileName,"r");
-    PRM_NODE *pn = NULL;
-    char achBuffer[500];
-    char achFormat[50];
-    char *pScan, *p;
-    int bError = 0;
-    int n;
-
-    if (fp==NULL) return 0;
-
-    if (scanString(achBuffer,sizeof(achBuffer),fp,"VERSION")!=1 || strcmp(achBuffer,PACKAGE_VERSION)!=0) bError = 1;
-    else if (fscanf(fp,"iStep=%d\n",&msr->iCheckpointStep)!=1) bError=1;
-    else if (fscanf(fp,"dTime=%lg\n",&msr->dCheckpointTime)!=1) bError=1;
-    else if (fscanf(fp,"dEcosmo=%lg\n",&msr->dEcosmo)!=1) bError=1;
-    else if (fscanf(fp,"dTimeOld=%lg\n",&msr->dTimeOld)!=1) bError=1;
-    else if (fscanf(fp,"dUOld=%lg\n",&msr->dUOld)!=1) bError=1;
-    else if (fscanf(fp,"nSpecies0=%" PRIu64 "\n",&msr->N)!=1) bError=1;
-    else if (fscanf(fp,"nSpecies1=%" PRIu64 "\n",&msr->nDark)!=1) bError=1;
-    else if (fscanf(fp,"nSpecies2=%" PRIu64 "\n",&msr->nGas)!=1) bError=1;
-    else if (fscanf(fp,"nSpecies3=%" PRIu64 "\n",&msr->nStar)!=1) bError=1;
-    else if (readParametersClasses(msr,fp)) bError=1;
-    else if (fscanf(fp,"nCheckpointFiles=%d\n",&msr->nCheckpointThreads)!=1) bError=1;
-    else if (scanString(msr->achCheckpointName,sizeof(msr->achCheckpointName),fp,"achCheckpointName")==0) bError = 1;
-    else for( pn=msr->prm->pnHead; pn!=NULL; pn=pn->pnNext ) {
-	if (fgets(achBuffer,sizeof(achBuffer),fp)==NULL) bError=1;
-	else {
-	    pScan = achBuffer;
-	    if (*pScan=='#') ++pScan;
-	    else  pn->bFile = 1;
-	    sprintf(achFormat,"%s=",pn->pszName);
-	    if (strncmp(pScan,achFormat,strlen(achFormat))==0) {
-	    	pScan += strlen(achFormat);
-		if (pn->pCount) {
-		    if (*pScan++ != '[') break;
-		    n = strlen(pScan) - 2;
-		    if (n<0 || pScan[n]!=']') break;
-		    pScan[n] = 0;
-		    if (n==0) {
-		    	*pn->pCount = 0;
-			continue;
-			}
-		    pScan = strtok(pScan,",");
-		    assert(pScan);
-		    }
-		n = 0;
-		while(pScan) {
-		    switch (pn->iType) {
-		    case 0:
-		    case 1:
-			assert(pn->iSize == sizeof(int));
-			if (sscanf(pScan,"%d\n",(int *)pn->pValue+n)!=1) bError=1;
-			break;
-		    case 2:
-			assert(pn->iSize == sizeof(double));
-			if (sscanf(pScan,"%lg\n",(double *)pn->pValue+n)!=1) bError=1;
-			break;
-		    case 3:
-			if (parseString(pScan,256,NULL)!=1) bError = 1;
-			else strcpy(reinterpret_cast<char*>(pn->pValue),pScan);
-			break;
-		    case 4:
-			sprintf(achFormat,"%s=%%llu\n",pn->pszName);
-			if (sscanf(pScan,"%" PRIu64,(uint64_t *)pn->pValue+n)!=1) bError=1;
-			break;
-			}
-		    ++n;
-		    if (pn->pCount) pScan = strtok(NULL,",");
-		    else pScan = NULL;
-		    }
-		}
-		else bError = 1;
-		if (pn->pCount) *pn->pCount = n;
-	    }
-	if (bError) break;
-	}
-    fclose(fp);
-    return (pn==NULL && bError==0);
-    }
-
-double msrRestore(MSR msr) {
-    uint64_t nSpecies[FIO_SPECIES_LAST];
-    struct inRestore restore;
-    int i;
-    double sec,dsec;
-    BND bnd;
-
-    if (mdlThreads(msr->mdl) != msr->nCheckpointThreads) {
+    if (mdlThreads(msr->mdl) != n) {
 	fprintf(stderr,"ERROR: You must restart a checkpoint with the same number of threads\n");
-	fprintf(stderr,"       nThreads=%d, nCheckpointThreads=%d\n",mdlThreads(msr->mdl),msr->nCheckpointThreads);
-	fprintf(stderr,"       RESTART WITH %d THREADS\n",msr->nCheckpointThreads);
+	fprintf(stderr,"       nThreads=%d, nCheckpointThreads=%d\n",mdlThreads(msr->mdl),n);
+	fprintf(stderr,"       RESTART WITH %d THREADS\n",n);
 	_msrExit(msr,1);
 	}
 
     if (msr->param.bVStart)
 	printf("Restoring from checkpoint\n");
-    sec = msrTime();
 
     msr->nMaxOrder = msr->N;
 
-    for( i=0; i<FIO_SPECIES_LAST; ++i) nSpecies[i] = 0;
+    uint64_t nSpecies[FIO_SPECIES_LAST];
+    for( auto i=0; i<FIO_SPECIES_LAST; ++i) nSpecies[i] = 0;
     nSpecies[FIO_SPECIES_ALL]  = msr->N;
     nSpecies[FIO_SPECIES_SPH]  = msr->nGas;
     nSpecies[FIO_SPECIES_DARK] = msr->nDark;
     nSpecies[FIO_SPECIES_STAR] = msr->nStar;
     msrInitializePStore(msr,nSpecies);
 
+    struct inRestore restore;
     restore.nProcessors = msr->param.bParaRead==0?1:(msr->param.nParaRead<=1 ? msr->nThreads:msr->param.nParaRead);
-    strcpy(restore.achInFile,msr->achCheckpointName);
+    strcpy(restore.achInFile,baseName);
     pstRestore(msr->pst,&restore,sizeof(restore),NULL,0);
     pstSetClasses(msr->pst,msr->aCheckpointClasses,msr->nCheckpointClasses*sizeof(PARTCLASS),NULL,0);
+    BND bnd;
     pstCalcBound(msr->pst,NULL,0,&bnd,sizeof(bnd));
     msrCountRungs(msr,NULL);
 
-    dsec = msrTime() - sec;
+    auto dsec = msrTime() - sec;
     PKD pkd = msr->pst->plcl->pkd;
-    double dExp = csmTime2Exp(msr->csm,msr->dCheckpointTime);
+    double dExp = csmTime2Exp(msr->csm,dTime);
     msrprintf(msr,"Checkpoint Restart Complete @ a=%g, Wallclock: %f secs\n\n",dExp,dsec);
 
     /* We can indicate that the DD was already done at rung 0 */
     msr->iLastRungRT = 0;
     msr->iLastRungDD = 0;
 
-    return msr->dCheckpointTime;
+
+    msrSetParameters(msr);
+    msrInitCosmology(msr);
+    if (prmSpecified(msr->prm,"dSoft")) msrSetSoft(msr,msrSoft(msr));
+    //iStep = msrSteps(msr); /* 0=analysis, >1=simulate, <0=python */
+    //uRungMax = msr->iCurrMaxRung;
+
+//    return dTime;
     }
 
 static void writeParameters(MSR msr,const char *baseName,int iStep,double dTime) {
@@ -511,65 +389,34 @@ static void writeParameters(MSR msr,const char *baseName,int iStep,double dTime)
     FILE *fp = fopen(achOutName,"w");
     if (fp==NULL) {perror(achOutName); abort(); }
 
-    for(i=0; i<FIO_SPECIES_LAST; ++i) nSpecies[i] = i;
+    for(i=0; i<FIO_SPECIES_LAST; ++i) nSpecies[i] = 0;
     nSpecies[FIO_SPECIES_ALL]  = msr->N;
     nSpecies[FIO_SPECIES_SPH]  = msr->nGas;
     nSpecies[FIO_SPECIES_DARK] = msr->nDark;
     nSpecies[FIO_SPECIES_STAR] = msr->nStar;
 
-    fprintf(fp,"VERSION=\"%s\"\n",PACKAGE_VERSION);
-    fprintf(fp,"iStep=%d\n",iStep);
-    fprintf(fp,"dTime=%.17g\n",dTime);
-    fprintf(fp,"dEcosmo=%.17g\n",msr->dEcosmo);
-    fprintf(fp,"dTimeOld=%.17g\n",msr->dTimeOld);
-    fprintf(fp,"dUOld=%.17g\n",msr->dUOld);
-    for(i=0; i<FIO_SPECIES_LAST; ++i)
-	fprintf(fp,"nSpecies%d=%" PRIu64 "\n",i,nSpecies[i]);
-    fprintf(fp,"nClasses=%d\n",msr->nCheckpointClasses);
+    fprintf(fp,"%s\n%s\n%s",
+	"from MASTER import MSR",
+	"from argparse import Namespace",
+	"arguments=");
+    PyObject_Print(msr->arguments,fp,0);
+    fprintf(fp,"\n%s","specified=");
+    PyObject_Print(msr->specified,fp,0);
+    fprintf(fp,"\nspecies=[ ");
+    for(i=0; i<FIO_SPECIES_LAST; ++i) fprintf(fp,"%" PRIu64 ",",nSpecies[i]);
+    fprintf(fp," ]\n");
+    fprintf(fp,"classes=[ ");
     for(i=0; i<msr->nCheckpointClasses; ++i) {
-	fprintf(fp,"fMass%d=%.17g\n",i,msr->aCheckpointClasses[i].fMass);
-	fprintf(fp,"fSoft%d=%.17g\n",i,msr->aCheckpointClasses[i].fSoft);
-	fprintf(fp,"eSpecies%d=%d\n",i,msr->aCheckpointClasses[i].eSpecies);
+	fprintf(fp, "[%d,%.17g,%.17g], ", msr->aCheckpointClasses[i].eSpecies,
+		msr->aCheckpointClasses[i].fMass, msr->aCheckpointClasses[i].fSoft);
 	}
-    fprintf(fp,"nCheckpointFiles=%d\n",mdlThreads(msr->mdl));
-    fprintf(fp,"achCheckpointName=\"%s\"\n",baseName);
+    fprintf(fp," ]\n");
+    fprintf(fp,"msr=MSR()\n");
+    fprintf(fp,"msr.Restart(arguments=arguments, specified=specified, species=species, classes=classes,\n"
+    	       "            n=%d,name='%s',step=%d,time=%.17g,\n"
+    	       "            E=%.17g,U=%.17g,Utime=%.17g)\n",
+    	       mdlThreads(msr->mdl),baseName,iStep,dTime,msr->dEcosmo,msr->dUOld,msr->dTimeOld);
 
-    for( pn=msr->prm->pnHead; pn!=NULL; pn=pn->pnNext ) {
-    	void *pValue = pn->pValue;
-    	int nCount = 1;
-	fprintf(fp,"%s%s=",pn->bArg|pn->bFile?"":"#",pn->pszName);
-	if (pn->pCount) {
-	    fprintf(fp,"[");
-	    nCount = *pn->pCount;
-	    }
-	for(i=0; i<nCount; ++i) {
-	    if (i) fprintf(fp, ",");
-	    switch (pn->iType) {
-	    case 0:
-	    case 1:
-		assert(pn->iSize == sizeof(int));
-		fprintf(fp,"%d",((int *)pn->pValue)[i]);
-		break;
-	    case 2:
-		assert(pn->iSize == sizeof(double));
-		/* This is purely cosmetic so 0.15 doesn't turn into 0.14999999... */
-		sprintf(szNumber,"%.16g",((double *)pn->pValue)[i]);
-		sscanf(szNumber,"%le",&v);
-		if ( v!= *(double *)pn->pValue )
-		    sprintf(szNumber,"%.17g",((double *)pn->pValue)[i]);
-		fprintf(fp,"%s",szNumber);
-		break;
-	    case 3:
-		fprintf(fp,"\"%s\"",(char *)pn->pValue);
-		break;
-	    case 4:
-		assert(pn->iSize == sizeof(uint64_t));
-		fprintf(fp,"%" PRIu64,((uint64_t *)pn->pValue)[i]);
-		break;
-		}
-	    }
-	fprintf(fp,"%s\n",pn->pCount?"]":"");
-	}
     fclose(fp);
     }
 
@@ -945,7 +792,7 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
     for (j=0;j<6;++j) msr->fCenter[j] = 0.0; /* Center is (0,0,0) */
     /* Storage for output times*/
     msr->nMaxOuts = 100;
-    msr->pdOutTime = reinterpret_cast<double*>(msr->nMaxOuts*sizeof(double));
+    msr->pdOutTime = reinterpret_cast<double*>(malloc(msr->nMaxOuts*sizeof(double)));
     msr->nOuts = msr->iOut = 0;
     msr->iCurrMaxRung = 0;
     msr->iRungDD = 0;
@@ -1635,29 +1482,6 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
     msr->param.nOutputParticles = 0;
     prmAddArray(msr->prm,"lstOrbits",4,&msr->param.iOutputParticles,sizeof(uint64_t),&msr->param.nOutputParticles);
     msr->param.bAccelStep = 0;
-#if 0
-    /*
-    ** Process command line arguments.
-    */
-    ret = prmArgProc(msr->prm,argc,argv);
-    if (!ret) {
-	_msrExit(msr,1);
-	}
-
-    /* This was a checkpoint file! */
-    bDoRestore = readParameters(msr,msr->prm->pszFilename);
-    if (!bDoRestore) {
-	/*
-	** Now read parameter file if one was specified.
-	** NOTE: command line argument take precedence.
-	*/
-	if (!prmParseParam(msr->prm,msr)) {
-	    _msrExit(msr,1);
-	    }
-	if (!validateParameters(msr,mdl,msr->csm,msr->prm,&msr->param)) _msrExit(msr,1);
-	}
-#endif
-
     /*
     ** Create the processor subset tree.
     */
