@@ -1292,7 +1292,7 @@ void mpiClass::Launch(int argc,char **argv,void (*fcnMaster)(MDL,void *),void * 
 	pthread_join(threadid[i],0);
 	delete pmdl[i];
 	}
-    delete (pmdl-1);
+    delete[] (pmdl-1);
 
     // Deallocate cache reply buffers
     for (auto pReply : freeCacheReplies) { delete pReply; }
@@ -1647,7 +1647,7 @@ void mdlClass::Send(int id,mdlPack pack, void *ctx) {
 	mdl_MPI_Ssend(vOut,nBuff,MPI_BYTE,id,MDL_TAG_SEND);
 	}
     while ( nBuff != 0 );
-    delete vOut;
+    delete[] vOut;
     }
 
 extern "C" void mdlRecv(MDL mdl,int id,mdlPack unpack, void *ctx) { reinterpret_cast<mdlClass *>(mdl)->Recv(id,unpack,ctx); }
@@ -1668,7 +1668,7 @@ void mdlClass::Recv(int id,mdlPack unpack, void *ctx) {
 	}
     while (nUnpack>0 && nBytes>0);
 
-    delete vIn;
+    delete[] vIn;
     }
 
 /*

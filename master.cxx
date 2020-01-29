@@ -1435,7 +1435,7 @@ void msrFinish(MSR msr) {
     ** finish with parameter stuff, deallocate and exit.
     */
     prmFinish(msr->prm);
-    delete msr->nRung;
+    delete[] msr->nRung;
     free(msr->pdOutTime);
     free(msr);
     }
@@ -1459,7 +1459,7 @@ void msrSetClasses(MSR msr) {
     assert(n*sizeof(PARTCLASS)==nClass);
     qsort(pClass,n,sizeof(PARTCLASS),CmpPC);
     pstSetClasses(msr->pst,pClass,nClass,NULL,0);
-    delete pClass;
+    delete[] pClass;
     }
 
 static void _SwapClasses(MSR msr, int id) {
@@ -1476,7 +1476,7 @@ static void _SwapClasses(MSR msr, int id) {
     mdlGetReply(pst0->mdl,rID,pClass,&n);
     n = n / sizeof(PARTCLASS);
     pkdSetClasses( plcl->pkd, n, pClass, 0 );
-    delete pClass;
+    delete[] pClass;
     }
 
 void msrOneNodeRead(MSR msr, struct inReadFile *in, FIO fio) {
@@ -2566,7 +2566,7 @@ void msrHostname(MSR msr) {
     PRINTGRID(12,"%12.12s",szHostname);
     printf("MPI Rank:\n");
     PRINTGRID(8,"% 8d",iMpiID);
-    delete out;
+    delete[] out;
     }
 
 void msrMemStatus(MSR msr) {
@@ -2589,7 +2589,7 @@ void msrMemStatus(MSR msr) {
 	PRINTGRID(8,"%8" PRIu64,nBytesIlp/1024);
 	printf("Cell List size (KB):\n");
 	PRINTGRID(8,"%8" PRIu64,nBytesIlc/1024);
-	delete out;
+	delete[] out;
 	}
     }
 
@@ -4588,10 +4588,10 @@ void msrOutputPk(MSR msr,int iStep,double dTime) {
  	    kfact * fK[i] * 2.0 * M_PI,vfact * fPk[i], nPk[i],vfact * fPkAll[i]);
 	}
     fclose(fp);
-    delete fK;
-    delete fPk;
-    delete fPkAll;
-    delete nPk;
+    delete[] fK;
+    delete[] fPk;
+    delete[] fPkAll;
+    delete[] nPk;
     /* Output the k-grid if requested */
     z = 1/a - 1;
     if (msr->param.iDeltakInterval && (iStep % msr->param.iDeltakInterval == 0) &&
@@ -4660,9 +4660,9 @@ void msrOutputLinPk(MSR msr,int iStep,double dTime) {
  	    kfact * fK[i] * 2.0 * M_PI,vfact * fPk[i], nPk[i]);
 	}
     fclose(fp);
-    delete fK;
-    delete fPk;
-    delete nPk;
+    delete[] fK;
+    delete[] fPk;
+    delete[] nPk;
     }
 
 #endif
