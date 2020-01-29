@@ -220,6 +220,10 @@ typedef struct sphfields {
     /* IA: TODO temporarly */
     uint8_t uNewRung; 
 
+#if defined(MAKE_GLASS) || defined(REGULARIZE_MESH)
+    double cellCM[3];
+#endif
+
     } SPHFIELDS;
 
 typedef struct starfields {

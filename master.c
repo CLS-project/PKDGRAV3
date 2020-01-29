@@ -3624,6 +3624,9 @@ void msrMeshlessGradients(MSR msr,double dTime,double dDelta,int iRoot){
 
 
 void msrMeshlessFluxes(MSR msr,double dTime,double dDelta,int iRoot){
+#ifdef MAKE_GLASS
+    return;
+#endif
     printf("Computing fluxes... \n");
     if (msr->param.bConservativeReSmooth){
        if (dDelta==0.0){

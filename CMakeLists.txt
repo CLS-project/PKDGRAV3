@@ -248,7 +248,17 @@ if (LIMITER_CONDBARTH)
    target_compile_options(${PROJECT_NAME} PRIVATE -DLIMITER_CONDBARTH)
 endif(LIMITER_CONDBARTH)
 
+option(MAKE_GLASS "Create a glass distribution using an approximated Lloyd's algorithm" OFF)
+if (MAKE_GLASS)
+   message("-- Compiled to generate GLASS")
+   target_compile_options(${PROJECT_NAME} PRIVATE -DMAKE_GLASS)
+endif(MAKE_GLASS)
 
+option(REGULARIZE_MESH "Try to maintain a regular mesh - only valid for MFV!" OFF)
+if (REGULARIZE_MESH )
+   message("-- Mesh regularization active. Only valid with MFV!")
+   target_compile_options(${PROJECT_NAME} PRIVATE -DREGULARIZE_MESH)
+endif(REGULARIZE_MESH )
 
 
 CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/pkd_config.h.in ${CMAKE_CURRENT_BINARY_DIR}/pkd_config.h)

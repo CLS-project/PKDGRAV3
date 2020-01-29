@@ -2708,6 +2708,11 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
                 for (j=0;j<3;++j) {
                   // IA: As for gas particles we use dx/dt = v/a, we must use the Kick factor provided by pkdgrav, see Stadel 2001, Appendix 3.8 
                   dr[j] = v[j]*dDeltaVPred;
+
+#if defined(MAKE_GLASS) 
+                  sph = pkdSph(pkd,p);
+                  dr[j] = sph->cellCM[j];
+#endif
                 }
              }else{
                 for (j=0;j<3;++j) {
@@ -2726,10 +2731,14 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
 #ifdef GRAV_RT
              if ( (pkdPos(pkd,p,1)<-0.4) | (pkdPos(pkd,p,1)>0.4) ) continue;
 #endif
+
+
 	    pkdGetPos1(pkd,p,r0);
              for (j=0;j<3;++j) {
                pkdSetPos(pkd,p,j,rfinal[j] = r0[j] + dr[j]);
                }
+
+
 #ifdef GRAV_RT
 //             if (pkdPos(pkd,p,1) > 0.4) { pkdSetPos(pkd,p,1, 0.8 - pkdPos(pkd,p,1) ); pkdVel(pkd,p)[1] *= -1;}
 //             if (pkdPos(pkd,p,1) <-0.4) { pkdSetPos(pkd,p,1,-0.8 - pkdPos(pkd,p,1) ); pkdVel(pkd,p)[1] *= -1; }
@@ -3038,9 +3047,9 @@ void pkdComputePrimVars(PKD pkd,int iRoot, double dTime, double dDelta) {
             double Ekin = 0.5*( psph->mom[0]*psph->mom[0] + psph->mom[1]*psph->mom[1] + psph->mom[2]*psph->mom[2] ) / pkdMass(pkd,p);
             //printf("E %e \t Uint %e \t Ekin %e \n", psph->E, psph->Uint, Ekin);
 //            if (Ekin > 0.0*psph->E ){
-                  psph->P = psph->Uint*psph->omega*(pkd->param.dConstGamma -1.);
+//                  psph->P = psph->Uint*psph->omega*(pkd->param.dConstGamma -1.);
 //            }else{
-//                  psph->P = (psph->E - Ekin )*psph->omega*(pkd->param.dConstGamma -1.);
+                  psph->P = (psph->E - Ekin )*psph->omega*(pkd->param.dConstGamma -1.);
 //                  psph->Uint = psph->P/(psph->omega*(pkd->param.dConstGamma -1.)); // IA: Synchronize the energies
 //            }     
             if (psph->P < 0){
@@ -3049,10 +3058,36 @@ void pkdComputePrimVars(PKD pkd,int iRoot, double dTime, double dDelta) {
                psph->E = Ekin;
             }
 
+            psph->c = sqrt(psph->P*pkd->param.dConstGamma/pkdDensity(pkd,p));
 
             pkdVel(pkd,p)[0] = psph->mom[0]/pkdMass(pkd,p);
             pkdVel(pkd,p)[1] = psph->mom[1]/pkdMass(pkd,p);
             pkdVel(pkd,p)[2] = psph->mom[2]/pkdMass(pkd,p);
+
+#ifdef REGULARIZE_MESH
+            // IA: We add a small velocity which will tend to slowly move the particle to the approximated local center of mass 
+            //  We use eq 63 of Springel 2010 but instead of using the radius from the volume we take it directly to be the kernel size
+#define ETA 0.05
+
+            double d = sqrt(psph->cellCM[0]*psph->cellCM[0] + psph->cellCM[1]*psph->cellCM[1] + psph->cellCM[2]*psph->cellCM[2]); 
+            double fracHtoCM = d/(ETA*pkdBall(pkd,p)*2.);
+            vel_t  corrVel[3];
+
+            if (fracHtoCM > 1.1){
+               for (j=0;j<3;j++) corrVel[j] = psph->cellCM[j]/d;
+               //printf("Regularizing \n");
+            }else if (fracHtoCM > 0.9){
+               for (j=0;j<3;j++) corrVel[j] = psph->cellCM[j]/d * (d - 0.9*ETA*pkdBall(pkd,p)*2.) / (0.2* ETA * 2.*pkdBall(pkd,p)) ;
+               //printf("Regularizing \n");
+            }else{
+               for (j=0;j<3;j++) corrVel[j] = 0.;
+            }
+
+            for (j=0;j<3;j++) pkdVel(pkd,p)[j] += psph->c*corrVel[j];
+
+
+
+#endif
 
             //IA: This is here for compatibility with hydro.c, as in there we use vPred. I think that all could be changed to use
             // only pkdVel instead. But I am not sure if when adding gravity vPred would be needed, thus I will *temporarly* keep it */
@@ -3060,7 +3095,6 @@ void pkdComputePrimVars(PKD pkd,int iRoot, double dTime, double dDelta) {
             psph->vPred[1] = pkdVel(pkd,p)[1];
             psph->vPred[2] = pkdVel(pkd,p)[2];
             
-            psph->c = sqrt(psph->P*pkd->param.dConstGamma/pkdDensity(pkd,p));
 
             for (j=0; j<3;j++){
                psph->lastDrDotFrho[j] = psph->drDotFrho[j];

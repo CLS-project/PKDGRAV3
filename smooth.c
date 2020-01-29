@@ -2450,6 +2450,7 @@ void smGather(SMX smx,double fBall2,double r[3]) {
 		pEnd = kdn->pUpper;
 		for (pj=kdn->pLower;pj<=pEnd;++pj) {
 		    p = pkdParticle(pkd,pj);
+                if (!pkdIsGas(pkd,p)) continue;
 		    pkdGetPos1(pkd,p,p_r);
 		    dx = r[0] - p_r[0];
 		    dy = r[1] - p_r[1];
@@ -2476,6 +2477,7 @@ void smGather(SMX smx,double fBall2,double r[3]) {
 		pEnd = kdn->pUpper;
 		for (pj=kdn->pLower;pj<=pEnd;++pj) {
 		    p = mdlFetch(mdl,CID_PARTICLE,pj,id);
+                if (!pkdIsGas(pkd,p)) continue;
 		    pkdGetPos1(pkd,p,p_r);
 		    dx = r[0] - p_r[0];
 		    dy = r[1] - p_r[1];

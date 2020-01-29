@@ -14,7 +14,7 @@ double cubicSplineKernel(double r, double h) {
    double q;
    q = r/h;
    if (q<1.0){
-      return M_1_PI/(h*h*h)*( 1 - 1.5*q*q*(1.-0.5*q) );  
+      return M_1_PI/(h*h*h)*( 1. - 1.5*q*q*(1.-0.5*q) );  
    }else if (q<2.0){
       return 0.25*M_1_PI/(h*h*h)*(2.-q)*(2.-q)*(2.-q);
    }else{
@@ -286,6 +286,7 @@ void hydroDensity(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
        }else{
           float newBall;
           newBall = fBall * pow(  pkd->param.nSmooth/c  ,0.3333333333);
+       //   if (nSmooth <= 1) newBall *= 2.*fBall;
           pkdSetBall(pkd,p, newBall);
           psph->fLastBall = fBall;
 
@@ -452,6 +453,9 @@ void hydroGradients(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
        psph->gradVy[j] = 0.0;
        psph->gradVz[j] = 0.0;
        psph->gradP[j] = 0.0;
+#if defined(MAKE_GLASS) || defined(REGULARIZE_MESH)
+       psph->cellCM[j] = 0.0;
+#endif
     }
     for (i=0;i<nSmooth;++i){
 
@@ -467,7 +471,7 @@ void hydroGradients(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
        qh = pkdBall(pkd,q);
        ph = fBall;
        rpq = sqrt(nnList[i].fDist2);
-       hpq = 0.5*(qh+ph); // IA: We symmetrize the kernel size (probably needed, not sure)
+       hpq = ph; // IA: We symmetrize the kernel size (probably needed, not sure)
 //       hpq = ph;
 //       hpq = qh > ph ? qh : ph; 
 
@@ -490,8 +494,14 @@ void hydroGradients(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
        for (j=0; j<3; j++) {psph->gradVz[j] += diff*psiTilde_p[j]; }
        diff = qsph->P - psph->P;
        for (j=0; j<3; j++) {psph->gradP[j] += diff*psiTilde_p[j]; }
-
+#if defined(MAKE_GLASS) || defined(REGULARIZE_MESH)
+       for (j=0; j<3; j++) {psph->cellCM[j] += psi*psiTilde_p[j]; }
+#endif
     }
+#if defined(MAKE_GLASS) || defined(REGULARIZE_MESH)
+    double CMfactor = - fBall*fBall*M_PI*fBall*fBall*fBall * psph->omega / 3.;
+    for (j=0; j<3; j++) { psph->cellCM[j] *= CMfactor; }
+#endif
 
      /* IA: Now we can limit them */
 //    printf("(hydroGradients) Begin LIMITER \n");
@@ -731,29 +741,32 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
        // Face where the riemann problem will be solved
        hpq = 0.5*(qh+ph); // IA: We symmetrize the kernel size 
+       hpq = ph;
 //       hpq = qh > ph ? qh : ph; 
        rpq = sqrt(nnList[i].fDist2);
-       if (qh/0.50 < rpq) continue;
+       //if (qh/0.50 < rpq) continue;
 
        Wpq = cubicSplineKernel(rpq, hpq); 
 //       Wpq = 0.5*( cubicSplineKernel(rpq, ph) + cubicSplineKernel(rpq, qh) ); 
        if (Wpq==0.0){/*printf("hpq %e rpq %e \t %e \n", hpq, rpq, rpq/hpq); */continue; }
 
        // \tilde{\psi}_j (x_i)
-       psi = Wpq/psph->omega;   
+       psi = -cubicSplineKernel(rpq, ph)/psph->omega;   
+       //psi = Wpq/psph->omega;   
        psiTilde_p[0] = (psph->B[XX]*dx + psph->B[XY]*dy + psph->B[XZ]*dz)*psi;
        psiTilde_p[1] = (psph->B[XY]*dx + psph->B[YY]*dy + psph->B[YZ]*dz)*psi;
        psiTilde_p[2] = (psph->B[XZ]*dx + psph->B[YZ]*dy + psph->B[ZZ]*dz)*psi;
 
        // \tilde{\psi}_i (x_j)
-       psi = -Wpq/qsph->omega; // IA: minus because we are 'looking from' the other particle, thus -dr
+       psi = cubicSplineKernel(rpq, qh)/qsph->omega; // IA: minus because we are 'looking from' the other particle, thus -dr
+       //psi = -Wpq/qsph->omega; 
        psiTilde_q[0] = (qsph->B[XX]*dx + qsph->B[XY]*dy + qsph->B[XZ]*dz)*psi;
        psiTilde_q[1] = (qsph->B[XY]*dx + qsph->B[YY]*dy + qsph->B[YZ]*dz)*psi;
        psiTilde_q[2] = (qsph->B[XZ]*dx + qsph->B[YZ]*dy + qsph->B[ZZ]*dz)*psi;
 
        modApq = 0.0;
        for (j=0; j<3; j++){
-          Apq[j] = psiTilde_q[j]/psph->omega - psiTilde_p[j]/qsph->omega;
+          Apq[j] = psiTilde_p[j]/psph->omega - psiTilde_q[j]/qsph->omega;
           modApq += Apq[j]*Apq[j];
        }
 //       printf("modApq %e \n", modApq);
@@ -934,6 +947,18 @@ if (p->iOrder == A || p->iOrder==B){
        }
           */
 
+      // IA: Lastly, we apply the pairwise limiter, B4 of Hop       kins 2015.
+      // This *may* be needed for cosmological simulations
+      
+      genericPairwiseLimiter(pkdDensity(pkd,p), pkdDensity(pkd,q), &riemann_input.L.rho, &riemann_input.R.rho);
+      genericPairwiseLimiter(psph->P, qsph->P, &riemann_input.L.p, &riemann_input.R.p);
+      genericPairwiseLimiter(pv[0], qv[0], &riemann_input.L.v[0], &riemann_input.R.v[0]);
+      genericPairwiseLimiter(pv[1], qv[1], &riemann_input.L.v[1], &riemann_input.R.v[1]);
+      genericPairwiseLimiter(pv[2], qv[2], &riemann_input.L.v[2], &riemann_input.R.v[2]);
+      
+      
+
+
 
        Riemann_solver(pkd, riemann_input, &riemann_output, face_unit, /*double press_tot_limiter TODO For now, just p>0: */ 0.0);
       
@@ -1010,7 +1035,7 @@ if (p->iOrder == A || p->iOrder==B){
        */
 
        
-       if (!pkdIsActive(pkd,q)){  
+       if ( (2.*qh < rpq) | !pkdIsActive(pkd,q)){  
             *qmass += minDt * riemann_output.Fluxes.rho ;
 
             qsph->mom[0] += minDt * riemann_output.Fluxes.v[0] ;
@@ -1024,9 +1049,9 @@ if (p->iOrder == A || p->iOrder==B){
                                                             - riemann_output.Fluxes.v[2]*qsph->vPred[2]
                                   + 0.5*(qsph->vPred[0]*qsph->vPred[0] + qsph->vPred[1]*qsph->vPred[1] + qsph->vPred[2]*qsph->vPred[2]) * riemann_output.Fluxes.rho );
 
-            qsph->drDotFrho[0] -= minDt * riemann_output.Fluxes.rho * dx;
-            qsph->drDotFrho[1] -= minDt * riemann_output.Fluxes.rho * dy;
-            qsph->drDotFrho[2] -= minDt * riemann_output.Fluxes.rho * dz;
+            qsph->drDotFrho[0] += minDt * riemann_output.Fluxes.rho * dx;
+            qsph->drDotFrho[1] += minDt * riemann_output.Fluxes.rho * dy;
+            qsph->drDotFrho[2] += minDt * riemann_output.Fluxes.rho * dz;
        } 
             *pmass -= minDt * riemann_output.Fluxes.rho ;
 
@@ -1133,7 +1158,7 @@ void hydroStep(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     double cfl = smf->dCFLacc, dtAcc;
     
     double pdt = smf->dDelta/(1<<p->uRung) ;
-    for (j=0;j<3;j++) { a[j] = pa[j] + (pkdVel(pkd,p)[j]*psph->Frho + pdt*psph->Fmom[j])/pkdMass(pkd,p); }
+    for (j=0;j<3;j++) { a[j] = pa[j] + (-pkdVel(pkd,p)[j]*psph->Frho + psph->Fmom[j])/pkdMass(pkd,p); }
     acc = sqrt(a[0]*a[0] + a[1]*a[1] + a[2]*a[2]);
 
     dtAcc = cfl*sqrt(2*fBall/acc);
@@ -1163,6 +1188,52 @@ void hydroStep(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     }
     
     }
+
+
+}
+
+#define psi1 0.5
+#define psi2 0.25
+#define SIGN(x) (((x) > 0) ? 1 : (((x) < 0) ? -1 : 0) )
+#define MIN(X, Y)  ((X) < (Y) ? (X) : (Y))
+#define MAX(X, Y)  ((X) > (Y) ? (X) : (Y))
+void genericPairwiseLimiter(double Lstate, double Rstate, double *Lstate_face, double *Rstate_face){
+   double phi_max, phi_min, d1, d2, phi_mean, phi_p, phi_m;
+
+   if (Lstate == Rstate){
+      *Lstate_face = Lstate;
+      *Rstate_face = Rstate;
+   }else{
+
+      d1 = psi1*fabs(Lstate - Rstate);
+      d2 = psi2*fabs(Lstate - Rstate);
+
+      phi_mean = 0.5*(Lstate+Rstate);
+
+      phi_min = MIN(Lstate, Rstate);
+      phi_max = MAX(Lstate, Rstate);
+
+      if (SIGN(phi_min - d1) == SIGN(phi_min) ){
+         phi_m = phi_min - d1;
+      }else{
+         phi_m = phi_min/(1. + d1/fabs(phi_min));
+      }
+
+      if (SIGN(phi_max + d1) == SIGN(phi_max) ){
+         phi_p = phi_max + d1;
+      }else{
+         phi_p = phi_max/(1. + d1/fabs(phi_max));
+      }
+
+      if (Lstate < Rstate){
+         *Lstate_face = MAX(phi_m, MIN(phi_mean+d2, *Lstate_face));
+         *Rstate_face = MIN(phi_p, MAX(phi_mean-d2, *Rstate_face));
+      }else{
+         *Rstate_face = MAX(phi_m, MIN(phi_mean+d2, *Rstate_face));
+         *Lstate_face = MIN(phi_p, MAX(phi_mean-d2, *Lstate_face));
+      }
+
+   }
 
 
 }
