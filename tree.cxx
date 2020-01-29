@@ -95,10 +95,11 @@ void pkdTreeInitMarked(PKD pkd) {
     pRoot->pUpper = iLast;
     }
 
-void pkdDumpTrees(PKD pkd, uint8_t uRungDD) {
+void pkdDumpTrees(PKD pkd,int bOnlyVA, uint8_t uRungDD) {
     KDN *pRoot    = InitializeRootCommon(pkd,ROOT);
 
     if (pkd->nNodes == 0) {
+	assert(bOnlyVA==0);
 	pkd->nNodes = NRESERVED_NODES;
 	pkdTreeNode(pkd,ROOT)->iLower = NRESERVED_NODES;
 	pkdTreeNode(pkd,FIXROOT)->iLower = NRESERVED_NODES;
@@ -115,6 +116,15 @@ void pkdDumpTrees(PKD pkd, uint8_t uRungDD) {
 	pkd->nNodes = NRESERVED_NODES;
 	pRoot->iLower = 0;
 	pRoot->bGroup = 1;
+	}
+    /* Just rebuilding (active) ROOT. Truncate it. pLower and pUpper are still valid. */
+    else if (bOnlyVA) {
+	if (pRoot->iLower) {
+	    assert(pRoot->iLower >= NRESERVED_NODES);
+	    pkd->nNodes = pRoot->iLower; /* This effectively truncates the nodes used by this tree */
+	    pRoot->iLower = 0;
+	    pRoot->bGroup = 1;
+	    }
 	}
 
     /* Need to build two trees which is more complicated. */

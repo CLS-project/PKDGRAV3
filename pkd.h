@@ -1325,7 +1325,7 @@ void pkdTreeBuild(PKD pkd,int nBucket,int nGroup,uint32_t uRoot,uint32_t uTemp,d
 uint32_t pkdDistribTopTree(PKD pkd, uint32_t uRoot, uint32_t nTop, KDN *pTop);
 void pkdOpenCloseCaches(PKD pkd,int bOpen,int bFixed);
 void pkdTreeInitMarked(PKD pkd);
-void pkdDumpTrees(PKD pkd,uint8_t uRungDD);
+void pkdDumpTrees(PKD pkd,int bOnlyVA,uint8_t uRungDD);
 void pkdCombineCells1(PKD,KDN *pkdn,KDN *p1,KDN *p2);
 void pkdCombineCells2(PKD,KDN *pkdn,KDN *p1,KDN *p2);
 void pkdCalcRoot(PKD,uint32_t,double *,MOMC *);

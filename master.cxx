@@ -2137,6 +2137,7 @@ void msrBuildTree(MSR msr,double dTime,int bNeedEwald) {
     msrprintf(msr,"Building local trees...\n\n");
 
     struct inDumpTrees dump;
+    dump.bOnlyVA = 0;
     dump.uRungDD = IRUNGMAX;
     pstDumpTrees(msr->pst,&dump,sizeof(dump),NULL,0);
     BuildTree(msr,bNeedEwald,ROOT,0);
@@ -2170,6 +2171,7 @@ void msrBuildTreeActive(MSR msr,double dTime,int bNeedEwald,uint8_t uRungDD) {
     msrprintf(msr,"Building active local trees...\n\n");
 
     struct inDumpTrees dump;
+    dump.bOnlyVA = 1;
     dump.uRungDD = uRungDD;
     pstDumpTrees(msr->pst,&dump,sizeof(dump),NULL,0);
 
@@ -3574,6 +3576,7 @@ int msrNewTopStepKDK(MSR msr,
 	    else {
 		bDualTree = 1;
 		struct inDumpTrees dump;
+		dump.bOnlyVA = 0;
 		dump.uRungDD = iRungDT;
 		pstDumpTrees(msr->pst,&dump,sizeof(dump),NULL,0);
 		msrprintf(msr,"Half Drift, uRung: %d\n",iRungDT);
