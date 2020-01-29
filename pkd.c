@@ -339,7 +339,7 @@ static int gcd ( int a, int b ) {
     return b;
     }
 
-void initLightConeOffsets(PKD pkd) {
+static void initLightConeOffsets(PKD pkd) {
     BND bnd = {0,0,0,0.5,0.5,0.5};
     double min2;
     int ix,iy,iz,nBox;
@@ -971,71 +971,6 @@ void pkdSetClasses( PKD pkd, int n, PARTCLASS *pClass, int bUpdate ) {
     /* Finally, set the new class table */
     for ( i=0; i<n; i++ ) pkd->pClass[i] = pClass[i];
     pkd->nClasses = n;
-    }
-
-void pkdSeek(PKD pkd,FILE *fp,uint64_t nStart,int bStandard,int bDoublePos) {
-#ifndef HAVE_FSEEKO
-    off_t MAX_OFFSET = 2147483640;
-    int iErr;
-#endif
-    off_t lStart;
-
-    /*
-    ** Seek according to true XDR size structures when bStandard is true.
-    ** This may be a bit dicey, but it should work as long
-    ** as no one changes the tipsy binary format!
-    */
-    if (bStandard) lStart = 32;
-    else lStart = sizeof(struct dump);
-    if (nStart > pkd->nGas) {
-	if (bStandard) lStart += pkd->nGas*(bDoublePos?60:48);
-	else lStart += pkd->nGas*sizeof(struct gas_particle);
-	nStart -= pkd->nGas;
-	if (nStart > pkd->nDark) {
-	    if (bStandard) lStart += pkd->nDark*(bDoublePos?48:36);
-	    else lStart += pkd->nDark*sizeof(struct dark_particle);
-	    nStart -= pkd->nDark;
-	    if (bStandard) lStart += nStart*(bDoublePos?56:44);
-	    else lStart += nStart*sizeof(struct star_particle);
-	    }
-	else {
-	    if (bStandard) lStart += nStart*(bDoublePos?48:36);
-	    else lStart += nStart*sizeof(struct dark_particle);
-	    }
-	}
-    else {
-	if (bStandard) lStart += nStart*(bDoublePos?60:48);
-	else lStart += nStart*sizeof(struct gas_particle);
-	}
-
-#ifdef HAVE_FSEEKO
-    fseeko(fp,lStart,SEEK_SET);
-#else
-    /*fseek fails for offsets >= 2**31; this is an ugly workaround;*/
-    if (lStart > MAX_OFFSET) {
-	iErr = fseek(fp,0,SEEK_SET);
-	if (iErr) {
-	    perror("pkdSeek failed");
-	    exit(errno);
-	    }
-	while (lStart > MAX_OFFSET) {
-	    fseek(fp,MAX_OFFSET,SEEK_CUR);
-	    lStart -= MAX_OFFSET;
-	    }
-	iErr = fseek(fp,lStart,SEEK_CUR);
-	if (iErr) {
-	    perror("pkdSeek failed");
-	    exit(errno);
-	    }
-	}
-    else {
-	iErr = fseek(fp,lStart,SEEK_SET);
-	if (iErr) {
-	    perror("pkdSeek failed");
-	    exit(errno);
-	    }
-	}
-#endif
     }
 
 void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double dTuFac) {
