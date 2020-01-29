@@ -442,9 +442,6 @@ int msrPython(MSR *msr, int argc, char *argv[]) {
 	}
 
     // If "MASTER" was imported then we are done -- the script should have done its job
-    // PyObject * strMSR = Py_BuildValue("s",MASTER_MODULE_NAME);
-    // msr_module = PyImport_GetModule(strMSR); // Check to see if it was imported
-    // Py_DECREF(strMSR);
     if (!moduleState->bImported) { // We must prepare for a normal legacy execution
 	PyObject *args = PyTuple_New(3);
 	PyTuple_SetItem(args,0,locals);

@@ -37,9 +37,6 @@
 #include "master.h"
 #include "outtype.h"
 #include "smoothfcn.h"
-#ifdef USE_PYTHON
-#include "pkdpython.h"
-#endif
 
 time_t timeGlobalSignalTime = 0;
 int bGlobalOutput = 0;
