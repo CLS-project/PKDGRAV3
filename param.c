@@ -40,7 +40,6 @@
 #include <assert.h>
 #include <ctype.h>
 #include "param.h"
-#include "pkdtinypy.h"
 
 void prmInitialize(PRM *pprm,void (*fcnLeader)(void),void (*fcnTrailer)(void)) {
     PRM prm;

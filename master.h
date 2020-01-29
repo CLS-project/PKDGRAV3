@@ -105,7 +105,11 @@ typedef struct msrContext {
     } * MSR;
 
 int msrPython(MSR *msr,int argc, char *argv[]);
+void msrSaveParameters(MSR msr);
 int msrValidateParameters(MSR msr);
+void msrSimulate(MSR msr,double dTime,int iStartStep);
+void msrSimulate(MSR msr,double dTime);
+double msrLoadOrGenerateIC(MSR msr);
 double msrTime();
 int msrInitialize(MSR *,MDL,void *,int,char **);
 void msrLogParams(MSR msr, FILE *fp);

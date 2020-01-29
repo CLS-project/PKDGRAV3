@@ -1,3 +1,19 @@
+/*  This file is part of PKDGRAV3 (http://www.pkdgrav.org/).
+ *  Copyright (c) 2001-2020 Douglas Potter & Joachim Stadel
+ *
+ *  PKDGRAV3 is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  PKDGRAV3 is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with PKDGRAV3.  If not, see <http://www.gnu.org/licenses/>.
+ */
 #include <Python.h>
 #include <structmember.h> // for PyMemberDef
 #include "m_parse.h"
@@ -51,10 +67,9 @@ static void setNode(PRM_NODE *pn,int i,PyObject *v) {
     }
 
 static int ppy2prm(PRM prm,PyObject *arguments, PyObject *specified) {
-    PRM_NODE *pn;
     int bOK = 1;
 
-    for( pn=prm->pnHead; pn!=NULL; pn=pn->pnNext ) {
+    for( auto pn=prm->pnHead; pn!=NULL; pn=pn->pnNext ) {
 	//auto v = PyDict_GetItemString(arguments, pn->pszName);
 	//auto f = PyDict_GetItemString(specified, pn->pszName);
 	auto v = PyObject_GetAttrString(arguments, pn->pszName); // A Namespace
@@ -80,6 +95,34 @@ static int ppy2prm(PRM prm,PyObject *arguments, PyObject *specified) {
 	    }
 	}
     return bOK;
+    }
+
+/******************************************************************************\
+*   Copy parameters from pkdgrav3 to Python (may go away eventually)
+\******************************************************************************/
+
+static void prm2ppy(PRM prm,PyObject *arguments, PyObject *specified) {
+    for( auto pn=prm->pnHead; pn!=NULL; pn=pn->pnNext ) {
+	if (pn->pCount!=NULL) continue; // Lists are read-only for now
+	PyObject *v;
+
+	switch(pn->iType) {
+	case 0:
+	case 1:
+	    v = PyLong_FromLong(*(int *)pn->pValue);
+	    break;
+	case 2:
+	    v = PyFloat_FromDouble(*(double *)pn->pValue);
+	    break;
+	default:
+	    v = NULL;
+	    }
+	if (v) PyObject_SetAttrString(arguments,pn->pszName,v);
+	}
+    }
+
+void msrSaveParameters(MSR msr) {
+    prm2ppy(msr->prm,msr->arguments,msr->specified);
     }
 
 /******************************************************************************\
@@ -172,6 +215,7 @@ ppy_msr_Restart(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     // Process the array of class information
     classes = PySequence_Fast(classes,"species must be a list");
     int nClasses = PySequence_Fast_GET_SIZE(classes);
+    msr->nCheckpointClasses = nClasses;
     for(auto i=0; i < nClasses; ++i) {
         PyObject *item = PySequence_Fast_GET_ITEM(classes, i);
 	auto cls = PySequence_Fast(item,"class entry must be a list");

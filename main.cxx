@@ -87,24 +87,6 @@ void master(MDL mdl,void *pst) {
     int argc = mdlGetArgc(mdl);
     char **argv = mdlGetArgv(mdl);
 
-    MSR msr;
-    FILE *fpLog = NULL;
-    char achFile[256];			/*DEBUG use MAXPATHLEN here (& elsewhere)? -- DCR*/
-    double dTime;
-    double E=0,T=0,U=0,Eth=0,L[3]={0,0,0},F[3]={0,0,0},W=0;
-    double dMultiEff=0;
-    long lSec=0;
-    int i,iStep,iStartStep,iSec=0,iStop=0;
-    uint64_t nActive;
-    int bKickOpen=0;
-    const int bKickClose=0;
-    int bDoCheckpoint=0;
-    int bDoOutput=0;
-    int64_t nRungs[MAX_RUNG+1];
-    uint8_t uRungMax;
-    double diStep;
-    double ddTime;
-
     printf("%s\n", PACKAGE_STRING );
 
     /* a USR1 signal indicates that the queue wants us to exit */
@@ -119,10 +101,9 @@ void master(MDL mdl,void *pst) {
     signal(SIGUSR2,USR2_handler);
 #endif
 
+    MSR msr;
     if (!msrPython(&msr,argc,argv)) {
 	msrValidateParameters(msr);
-
-	msr->lStart=time(0);
 
 	/* Establish safety lock. */
 	if (!msrGetLock(msr)) {
@@ -130,201 +111,10 @@ void master(MDL mdl,void *pst) {
 	    return;
 	    }
 
-	/*
-	** Output the host names to make troubleshooting easier
-	*/
-	msrHostname(msr);
+	msrHostname(msr); // List all host names
 
-	if (prmSpecified(msr->prm,"nGrid")) {
-	    dTime = msrGenerateIC(msr); /* May change nSteps/dDelta */
-	    if ( msr->param.bWriteIC ) {
-		msrBuildIoName(msr,achFile,0);
-		msrWrite( msr,achFile,dTime,msr->param.bWriteIC-1);
-		}
-	    }
-
-	/* Read in a binary file */
-	else if ( msr->param.achInFile[0] ) {
-	    dTime = msrRead(msr,msr->param.achInFile); /* May change nSteps/dDelta */
-	    if (msr->param.bAddDelete) msrGetNParts(msr);
-	    if (prmSpecified(msr->prm,"dRedFrom")) {
-		double aOld, aNew;
-		aOld = csmTime2Exp(msr->csm,dTime);
-		aNew = 1.0 / (1.0 + msr->param.dRedFrom);
-		dTime = msrAdjustTime(msr,aOld,aNew);
-		/* Seriously, we shouldn't need to send parameters *again*.
-	        When we remove sending parameters, we should remove this. */
-		msrSetParameters(msr);
-		}
-	    }
-	else {
-	    printf("No input file specified\n");
-	    msrFinish(msr);
-	    return;
-	    }
-
-	iStartStep = msr->param.iStartStep; /* Often zero at the start */
-	msrSetParameters(msr);
-	msrInitCosmology(msr);
-	if (prmSpecified(msr->prm,"dSoft")) msrSetSoft(msr,msrSoft(msr));
-	if (msrComove(msr)) msrSwitchTheta(msr,dTime); // Adjust theta for gravity calculations.
-	/*
-	** Now we have all the parameters for the simulation we can make a
-	** log file entry.
-	*/
-	if (msrLogInterval(msr)) {
-	    sprintf(achFile,"%s.log",msrOutName(msr));
-	    fpLog = fopen(achFile,"a");
-	    assert(fpLog != NULL);
-	    setbuf(fpLog,(char *) NULL); /* no buffering */
-	    /*
-	    ** Include a comment at the start of the log file showing the
-	    ** command line options.
-	    */
-	    fprintf(fpLog,"# ");
-	    for (i=0;i<argc;++i) fprintf(fpLog,"%s ",argv[i]);
-	    fprintf(fpLog,"\n");
-	    msrLogParams(msr,fpLog);
-	    }
-
-	if (msr->param.bLightCone && msrComove(msr)) {
-	    printf("One, Two, Three replica depth is z=%.10g, %.10g, %.10g\n",
-		1.0/csmComoveLookbackTime2Exp(msr->csm,1.0 / dLightSpeedSim(1*msr->param.dBoxSize)) - 1.0,
-		1.0/csmComoveLookbackTime2Exp(msr->csm,1.0 / dLightSpeedSim(2*msr->param.dBoxSize)) - 1.0,
-		1.0/csmComoveLookbackTime2Exp(msr->csm,1.0 / dLightSpeedSim(3*msr->param.dBoxSize)) - 1.0 );
-	    }
-
-	/*
-	** Build tree, activating all particles first (just in case).
-	*/
-	msrInflate(msr,iStartStep);
-	msrActiveRung(msr,0,1); /* Activate all particles */
-	msrDomainDecomp(msr,0,0);
-	msrUpdateSoft(msr,dTime);
-	msrBuildTree(msr,dTime,msr->param.bEwald);
-	msrOutputOrbits(msr,iStartStep,dTime);
-	if (msr->param.nGridPk>0) msrOutputPk(msr,iStartStep,dTime);
-
-	if (msrDoGravity(msr)) {
-	    msrSwitchDelta(msr,dTime,iStartStep);
-	    msrSetParameters(msr);
-	    if (msr->param.bNewKDK) {
-		msrLightConeOpen(msr,iStartStep + 1);
-		bKickOpen = 1;
-		}
-	    else bKickOpen = 0;
-
-            /* Compute the grids of the linear species before doing gravity */
-            if (strlen(msr->param.achLinearSpecies) && msr->param.nGridLin > 0){
-		msrGridCreateFFT(msr,msr->param.nGridLin);
-                msrSetLinGrid(msr,dTime, msr->param.nGridLin,bKickClose,bKickOpen);
-                if (msr->param.bDoLinPkOutput)
-                    msrOutputLinPk(msr, iStartStep, dTime);
-		msrLinearKick(msr,dTime,bKickClose,bKickOpen);
-		msrGridDeleteFFT(msr);
-            }
-	    uRungMax = msrGravity(msr,0,MAX_RUNG,ROOT,0,dTime,iStartStep,0,bKickOpen,
-	    	msr->param.bEwald,msr->param.bGravStep,msr->param.nPartRhoLoc,msr->param.iTimeStepCrit,msr->param.nGroup,&iSec,&nActive);
-	    msrMemStatus(msr);
-	    if (msr->param.bGravStep) {
-		assert(msr->param.bNewKDK == 0);    /* for now! */
-		msrBuildTree(msr,dTime,msr->param.bEwald);
-		msrGravity(msr,0,MAX_RUNG,ROOT,0,dTime,iStartStep,0,0,
-			msr->param.bEwald,msr->param.bGravStep,msr->param.nPartRhoLoc,msr->param.iTimeStepCrit,msr->param.nGroup,&iSec,&nActive);
-		msrMemStatus(msr);
-		}
-	    }
-	if (msrDoGas(msr)) {
-	    /* Initialize SPH, Cooling and SF/FB and gas time step */
-	    msrCoolSetup(msr,dTime);
-	    /* Fix dTuFac conversion of T in InitSPH */
-	    msrInitSph(msr,dTime);
-	    }
-
-	msrCalcEandL(msr,MSR_INIT_E,dTime,&E,&T,&U,&Eth,L,F,&W);
-	dMultiEff = 1.0;
-	if (msrLogInterval(msr)) {
-		(void) fprintf(fpLog,"%e %e %.16e %e %e %e %.16e %.16e %.16e "
-			       "%.16e %.16e %.16e %.16e %i %e\n",dTime,
-			       1.0/csmTime2Exp(msr->csm,dTime)-1.0,
-			       E,T,U,Eth,L[0],L[1],L[2],F[0],F[1],F[2],W,iSec,dMultiEff);
-	    }
-	if ( msr->param.bTraceRelaxation) {
-	    msrInitRelaxation(msr);
-	    }
-
-	bKickOpen = 0;
-	for (iStep=iStartStep+1;iStep<=msrSteps(msr)&&!iStop;++iStep) {
-	    msrSwitchDelta(msr,dTime,iStep-1);
-	    msrSetParameters(msr);
-	    if (msrComove(msr)) msrSwitchTheta(msr,dTime);
-	    dMultiEff = 0.0;
-	    msr->lPrior = time(0);
-	    if (msr->param.bNewKDK) {
-		diStep = (double)(iStep-1);
-		ddTime = dTime;
-		if (bKickOpen) {
-		    msrBuildTree(msr,dTime,0);
-                    msrLightConeOpen(msr,iStep);  /* open the lightcone */
-		    uRungMax = msrGravity(msr,0,MAX_RUNG,ROOT,0,ddTime,diStep,0,1,
-		    	msr->param.bEwald,msr->param.bGravStep,msr->param.nPartRhoLoc,msr->param.iTimeStepCrit,msr->param.nGroup,&iSec,&nActive);
-                    /* Set the grids of the linear species */
-                    if (strlen(msr->param.achLinearSpecies) && msr->param.nGridLin > 0){
-			msrGridCreateFFT(msr,msr->param.nGridLin);
-		        msrSetLinGrid(msr, dTime, msr->param.nGridLin,bKickClose,bKickOpen);
-                        if (msr->param.bDoLinPkOutput)
-                            msrOutputLinPk(msr, iStartStep, dTime);
-			msrLinearKick(msr,dTime,bKickClose,bKickOpen);
-			msrGridDeleteFFT(msr);
-                        }
-		    bKickOpen = 0; /* clear the opening kicking flag */
-		    }
-		msrNewTopStepKDK(msr,0,0,&diStep,&ddTime,&uRungMax,&iSec,&bDoCheckpoint,&bDoOutput,&bKickOpen);
-		}
-	    else {
-		msrTopStepKDK(msr,iStep-1,dTime,msrDelta(msr),0,0,1,&dMultiEff,&iSec);
-		}
-	    dTime += msrDelta(msr);
-	    lSec = time(0) - msr->lPrior;
-	    msrMemStatus(msr);
-
-	    msrOutputOrbits(msr,iStep,dTime);
-
-	    /*
-	    ** Output a log file line if requested.
-	    ** Note: no extra gravity calculation required.
-	    */
-	    if (msrLogInterval(msr) && iStep%msrLogInterval(msr) == 0) {
-		msrCalcEandL(msr,MSR_STEP_E,dTime,&E,&T,&U,&Eth,L,F,&W);
-		(void) fprintf(fpLog,"%e %e %.16e %e %e %e %.16e %.16e "
-			       "%.16e %.16e %.16e %.16e %.16e %li %e\n",dTime,
-			       1.0/csmTime2Exp(msr->csm,dTime)-1.0,
-			       E,T,U,Eth,L[0],L[1],L[2],F[0],F[1],F[2],W,lSec,dMultiEff);
-		}
-	    if ( msr->param.bTraceRelaxation) {
-		msrActiveRung(msr,0,1); /* Activate all particles */
-		msrDomainDecomp(msr,0,0);
-		msrBuildTree(msr,dTime,0);
-		msrRelaxation(msr,dTime,msrDelta(msr),SMX_RELAXATION,0);
-		}
-	    if (!msr->param.bNewKDK) {
-		msrCheckForOutput(msr,iStep,dTime,&bDoCheckpoint,&bDoOutput);
-		}
-	    iStop = (bDoCheckpoint&2) || (bDoOutput&2);
-	    if (bDoCheckpoint) {
-		msrCheckpoint(msr,iStep,dTime);
-		bDoCheckpoint = 0;
-		}
-	    if (bDoOutput) {
-		msrOutput(msr,iStep,dTime,0);
-		bDoOutput = 0;
-		if (msr->param.bNewKDK) {
-		    msrDomainDecomp(msr,0,0);
-		    msrBuildTree(msr,dTime,msr->param.bEwald);
-		    }
-		}
-	    }
-	if (msrLogInterval(msr)) (void) fclose(fpLog);
+	auto dTime = msrLoadOrGenerateIC(msr);
+	if (dTime != -HUGE_VAL) msrSimulate(msr,dTime);
 	}
     msrFinish(msr);
     }
