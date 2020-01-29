@@ -265,6 +265,25 @@ static PyMethodDef msr_methods[] = {
 };
 
 /******************************************************************************\
+*   MSR Module Definition
+\******************************************************************************/
+
+struct msrModuleState {
+    MSR msr;
+    bool bImported;
+    };
+
+static struct PyModuleDef msrModule = { 
+    PyModuleDef_HEAD_INIT,
+    MASTER_MODULE_NAME,
+    "pkdgrav3 orchestration module",
+    sizeof(struct msrModuleState),
+    NULL, // Methods
+    NULL, // Slots
+    NULL, NULL, NULL
+};
+
+/******************************************************************************\
 *   MSR OBJECT Boilerplate code
 \******************************************************************************/
 
@@ -275,12 +294,10 @@ static void msr_dealloc(MSRINSTANCE *self) {
 static PyObject *msr_new(PyTypeObject *type, PyObject *args, PyObject *kwds) {
     MSRINSTANCE *self = reinterpret_cast<MSRINSTANCE *>(type->tp_alloc(type, 0));
     if (self == NULL) { return NULL; }
-
     // Make a copy of the MSR object
-    PyObject * strMSR = Py_BuildValue("s",MASTER_MODULE_NAME);
-    auto msr_module = PyImport_GetModule(strMSR);
-    Py_DECREF(strMSR);
-    self->msr = * reinterpret_cast<MSR*>(PyModule_GetState(msr_module));
+    auto msr_module = PyState_FindModule(&msrModule); // We created this already
+    auto moduleState = reinterpret_cast<struct msrModuleState*>(PyModule_GetState(msr_module));
+    self->msr = moduleState->msr;
     return reinterpret_cast<PyObject *>(self);
     }
 
@@ -342,21 +359,13 @@ static PyTypeObject msrType = {
 *   MSR Module Boilerplate code
 \******************************************************************************/
 
-static struct PyModuleDef msrModule = { 
-    PyModuleDef_HEAD_INIT,
-    MASTER_MODULE_NAME,
-    "pkdgrav3 orchestration module",
-    sizeof(MSR),
-    NULL, // Methods
-    NULL, // Slots
-    NULL, NULL, NULL
-};
-
 // This routine is called if the user does an "import msr" from the script.
 // We initialize the MSR module which will later cause "main" to be skipped.
 static PyObject * initModuleMSR(void) {
     auto msr_module = PyState_FindModule(&msrModule); // We created this already
-    auto mainModule = PyImport_AddModule("__main__"); // Borrowed reference
+    auto moduleState = reinterpret_cast<struct msrModuleState*>(PyModule_GetState(msr_module));
+    moduleState->bImported = true;
+    //auto mainModule = PyImport_AddModule("__main__"); // Borrowed reference
     //PyObject *mainDict = PyModule_GetDict(mainModule);
     //setConstants(mainDict);
     if (PyType_Ready(&msrType) >= 0) { // Initialize "MSR" object as well.
@@ -381,8 +390,9 @@ int msrPython(MSR *msr, int argc, char *argv[]) {
     auto msr_module = PyModule_Create(&msrModule);
     PyState_AddModule(msr_module,&msrModule);
     msrInitialize(msr,mdlMDL(),mdlWORKER(),0,NULL);
-    auto pmsr = reinterpret_cast<MSR*>(PyModule_GetState(msr_module));
-    *pmsr = *msr;
+    auto moduleState = reinterpret_cast<struct msrModuleState*>(PyModule_GetState(msr_module));
+    moduleState->msr = *msr;
+    moduleState->bImported = false; // If imported then we enter script mode
 
     // Convert program arguments to unicode
     auto wargv = new wchar_t *[argc];
@@ -432,10 +442,10 @@ int msrPython(MSR *msr, int argc, char *argv[]) {
 	}
 
     // If "MASTER" was imported then we are done -- the script should have done its job
-    PyObject * strMSR = Py_BuildValue("s",MASTER_MODULE_NAME);
-    msr_module = PyImport_GetModule(strMSR); // Check to see if it was imported
-    Py_DECREF(strMSR);
-    if (msr_module == NULL) { // We must prepare for a normal legacy execution
+    // PyObject * strMSR = Py_BuildValue("s",MASTER_MODULE_NAME);
+    // msr_module = PyImport_GetModule(strMSR); // Check to see if it was imported
+    // Py_DECREF(strMSR);
+    if (!moduleState->bImported) { // We must prepare for a normal legacy execution
 	PyObject *args = PyTuple_New(3);
 	PyTuple_SetItem(args,0,locals);
 	PyTuple_SetItem(args,1,arguments);
@@ -445,5 +455,5 @@ int msrPython(MSR *msr, int argc, char *argv[]) {
 	ppy2prm((*msr)->prm,arguments,specified); // Update the pkdgrav parameter state
 	}
 
-    return msr_module != NULL;
+    return moduleState->bImported;
     }

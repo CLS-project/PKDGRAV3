@@ -13,6 +13,6 @@ RUN cd /build && wget http://www.fftw.org/fftw-${FFTW_VERSION}.tar.gz\
   && tar xvzf fftw-${FFTW_VERSION}.tar.gz && cd /build/fftw-${FFTW_VERSION} \
   && ./configure --enable-float --enable-mpi --enable-threads\
   && make && make install && make clean && rm -rf /build/fftw-${FFTW_VERSION}.tar.gz /build/fftw-${FFTW_VERSION}
-RUN apt-get install -y libpython3.6-dev && apt-get clean all
+RUN apt-get install -y python3-dev && apt-get clean all
 WORKDIR /build
 ENTRYPOINT /bin/bash
