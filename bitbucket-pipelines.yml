@@ -8,8 +8,6 @@ image: dpotter/pkdgrav3-build
 pipelines:
   default:
     - step:
-        caches:
-          - docker
         script: # Modify the commands below to build your repository.
           - cmake .
           - make
