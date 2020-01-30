@@ -97,7 +97,7 @@ void msrSimulate(MSR msr,double dTime,int iStartStep) {
     msrActiveRung(msr,0,1); /* Activate all particles */
     msrDomainDecomp(msr,0,0);
     msrUpdateSoft(msr,dTime);
-    msrBuildTree(msr,dTime,msr->param.bEwald);
+    msrBuildTree(msr,msr->param.bEwald);
     msrOutputOrbits(msr,iStartStep,dTime);
     if (msr->param.nGridPk>0) msrOutputPk(msr,iStartStep,dTime);
 
@@ -130,7 +130,7 @@ void msrSimulate(MSR msr,double dTime,int iStartStep) {
 	msrMemStatus(msr);
 	if (msr->param.bGravStep) {
 	    assert(msr->param.bNewKDK == 0);    /* for now! */
-	    msrBuildTree(msr,dTime,msr->param.bEwald);
+	    msrBuildTree(msr,msr->param.bEwald);
 	    msrGravity(msr,0,MAX_RUNG,ROOT,0,dTime,iStartStep,0,0,
 		    msr->param.bEwald,msr->param.bGravStep,msr->param.nPartRhoLoc,msr->param.iTimeStepCrit,msr->param.nGroup,&iSec,&nActive);
 	    msrMemStatus(msr);
@@ -167,7 +167,7 @@ void msrSimulate(MSR msr,double dTime,int iStartStep) {
 	    double diStep = (double)(iStep-1);
 	    double ddTime = dTime;
 	    if (bKickOpen) {
-		msrBuildTree(msr,dTime,0);
+		msrBuildTree(msr,0);
                 msrLightConeOpen(msr,iStep);  /* open the lightcone */
 		uRungMax = msrGravity(msr,0,MAX_RUNG,ROOT,0,ddTime,diStep,0,1,
 		        msr->param.bEwald,msr->param.bGravStep,msr->param.nPartRhoLoc,msr->param.iTimeStepCrit,msr->param.nGroup,&iSec,&nActive);
@@ -207,7 +207,7 @@ void msrSimulate(MSR msr,double dTime,int iStartStep) {
 	if ( msr->param.bTraceRelaxation) {
 	    msrActiveRung(msr,0,1); /* Activate all particles */
 	    msrDomainDecomp(msr,0,0);
-	    msrBuildTree(msr,dTime,0);
+	    msrBuildTree(msr,0);
 	    msrRelaxation(msr,dTime,msrDelta(msr),SMX_RELAXATION,0);
 	    }
 	if (!msr->param.bNewKDK) {
@@ -223,7 +223,7 @@ void msrSimulate(MSR msr,double dTime,int iStartStep) {
 	    bDoOutput = 0;
 	    if (msr->param.bNewKDK) {
 		msrDomainDecomp(msr,0,0);
-		msrBuildTree(msr,dTime,msr->param.bEwald);
+		msrBuildTree(msr,msr->param.bEwald);
 		}
 	    }
 	}

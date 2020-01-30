@@ -134,6 +134,8 @@ typedef struct {
     MSR msr;
     } MSRINSTANCE;
 
+/********** Initial Condition Generation **********/
+
 static PyObject *
 ppy_msr_GenerateIC(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     static char const *kwlist[]={"csm","z","grid","seed","L",NULL};
@@ -154,19 +156,36 @@ ppy_msr_GenerateIC(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     return Py_BuildValue("d", dTime );
     }
 
+/********** File I/O **********/
+
 static PyObject *
-ppy_msr_DomainDecomp(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
-    static char const *kwlist[]={"rung",NULL};
-    int iRung    = 0;
-    int bOthers  = 0;
+ppy_msr_Load(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    static char const *kwlist[]={"filename",NULL};
+    const char *fname;
+    double dTime;
 
     if ( !PyArg_ParseTupleAndKeywords(
-	     args, kwobj, "|i:DomainDecomp", const_cast<char **>(kwlist),
-	     &iRung ) )
+	     args, kwobj, "s:Load", const_cast<char **>(kwlist),
+	     &fname ) )
 	return NULL;
-    msrDomainDecomp(self->msr,iRung,bOthers);
+    dTime = msrRead(self->msr,fname);
+    return Py_BuildValue("d", dTime );
+    }
+
+static PyObject *
+ppy_msr_Save(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    static char const *kwlist[]={"name","time",NULL};
+    const char *fname;
+    double dTime = 1.0;
+    if ( !PyArg_ParseTupleAndKeywords(
+	     args, kwobj, "s|d:Save", const_cast<char **>(kwlist),
+	     &fname,&dTime ) )
+	return NULL;
+    msrWrite(self->msr,fname,dTime,0);
     Py_RETURN_NONE;
     }
+
+/********** Checkpoint I/O **********/
 
 static PyObject *
 ppy_msr_Checkpoint(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
@@ -237,30 +256,159 @@ ppy_msr_Restart(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     Py_RETURN_NONE;
     }
 
+/********** Data Structures: Domain, Trees **********/
+
 static PyObject *
-ppy_msr_Write(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
-    static char const *kwlist[]={"name","time",NULL};
-    const char *fname;
-    double dTime = 1.0;
+ppy_msr_DomainDecomp(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    static char const *kwlist[]={"rung",NULL};
+    int iRung    = 0;
+    int bOthers  = 0;
+
     if ( !PyArg_ParseTupleAndKeywords(
-	     args, kwobj, "s|d:Write", const_cast<char **>(kwlist),
-	     &fname,&dTime ) )
+	     args, kwobj, "|i:DomainDecomp", const_cast<char **>(kwlist),
+	     &iRung ) )
 	return NULL;
-    msrWrite(self->msr,fname,dTime,0);
+    msrDomainDecomp(self->msr,iRung,bOthers);
     Py_RETURN_NONE;
     }
+
+static PyObject *
+ppy_msr_BuildTree(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    static char const *kwlist[]={"ewald","rung","active",NULL};
+    int bEwald = self->msr->param.bEwald;
+    uint8_t uRungDT = 0; /* Zero rung means build a single tree */
+    int bActive = 0;
+    if ( !PyArg_ParseTupleAndKeywords(
+	     args, kwobj, "|iBi:BuildTree", const_cast<char **>(kwlist),
+	     &bEwald, &uRungDT, &bActive ) )
+	return NULL;
+    if (uRungDT) {
+	if (bActive) msrBuildTreeActive(self->msr,bEwald,uRungDT);
+	else msrBuildTreeFixed(self->msr,bEwald,uRungDT);
+	}
+    else if (bActive) return PyErr_Format(PyExc_TypeError,"Building an active tree requires a valid rung");
+    else msrBuildTree(self->msr,bEwald);
+    Py_RETURN_NONE;
+    }
+
+static PyObject *
+ppy_msr_Reorder(MSRINSTANCE *self, PyObject *args) {
+    msrReorder(self->msr);
+    Py_RETURN_NONE;
+    }
+
+/********** Algorithms: Gravity **********/
+
+static PyObject *
+ppy_msr_Gravity(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    static char const *kwlist[]={"time","rung","ewald","step","KickClose","KickOpen", NULL};
+    double dTime = 0.0;
+    uint64_t nActive;
+    int iSec = 0;
+
+    int bEwald = self->msr->param.bEwald;
+    int iRungLo    = 0;
+    int iRungHi    = MAX_RUNG;
+    int iRoot1 = ROOT;
+    int iRoot2 = 0;
+    double dStep = 0.0;
+    int bKickOpen = 1;
+    int bKickClose = 1;
+
+    if ( !PyArg_ParseTupleAndKeywords(
+	     args, kwobj, "d|ipdpp:Gravity", const_cast<char **>(kwlist),
+	     &dTime, &iRungLo, &bEwald, &dStep, &bKickClose, &bKickOpen ) )
+	return NULL;
+    uint8_t uRungMax = msrGravity(self->msr,iRungLo,iRungHi,iRoot1,iRoot2,dTime,dStep,bKickClose,bKickOpen,bEwald,
+	self->msr->param.bGravStep, self->msr->param.nPartRhoLoc, self->msr->param.iTimeStepCrit,
+    	self->msr->param.nGroup,&iSec,&nActive);
+    return Py_BuildValue("i", uRungMax);
+    }
+
+/********** Algorithms: Smooth **********/
+
+static PyObject *
+ppy_msr_Smooth(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    static char const *kwlist[]={"type","n","symmetric","time","resmooth",NULL};
+    int iSmoothType;
+    int bSymmetric = 0;
+    int bResmooth = 0;
+    double dTime = 0.0;
+    int nSmooth = self->msr->param.nSmooth;
+
+    if ( !PyArg_ParseTupleAndKeywords(
+	     args, kwobj, "i|ipdp:Smooth", const_cast<char **>(kwlist),
+	     &iSmoothType,&nSmooth,&bSymmetric, &dTime, &bResmooth ) )
+	return NULL;
+    if (bResmooth) msrReSmooth(self->msr,dTime,iSmoothType,bSymmetric);
+    else msrSmooth(self->msr,dTime,iSmoothType,bSymmetric,nSmooth);
+    Py_RETURN_NONE;
+    }
+
+/********** Analysis: Measure P(k) **********/
+
+static PyObject *
+ppy_msr_MeasurePk(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    static char const *kwlist[]={"grid","bins","a",NULL};
+    double a = 1.0;
+    int nBins = -1;
+    int nGrid, i;
+    std::vector<float> fK,fPk,fPkAll;
+
+    if ( !PyArg_ParseTupleAndKeywords(
+	     args, kwobj, "i|ia:MeasurePk", const_cast<char **>(kwlist),
+	     &nGrid ) )
+	return NULL;
+    if (nBins<0) nBins = nGrid/2;
+
+    fPk.resize(nBins+1);
+    fPkAll.resize(nBins+1);
+    fK.resize(nBins+1);
+    msrMeasurePk(self->msr,4,1,nGrid,a,nGrid/2,NULL,fK.data(),fPk.data(),fPkAll.data());
+    auto ListK = PyList_New( nBins+1 );
+    auto ListPk = PyList_New( nBins+1 );
+    auto ListPkAll = PyList_New( nBins+1 );
+    for( i=0; i<=nBins; i++ ) {
+	PyList_SetItem(ListK,i,Py_BuildValue("f",fK[i]));
+	PyList_SetItem(ListPk,i,Py_BuildValue("f",fPk[i]));
+	PyList_SetItem(ListPkAll,i,Py_BuildValue("f",fPkAll[i]));
+	}
+    return Py_BuildValue("(NNN)",ListK,ListPk,ListPkAll);
+    }
+
+/******************************************************************************\
+*   MSR Module methods list
+\******************************************************************************/
 
 static PyMethodDef msr_methods[] = {
     {"GenerateIC", (PyCFunction)ppy_msr_GenerateIC, METH_VARARGS|METH_KEYWORDS,
      "Generate Initial Condition"},
-    {"DomainDecomp", (PyCFunction)ppy_msr_DomainDecomp, METH_VARARGS|METH_KEYWORDS,
-     "Reorder the particles by position"},
+
+    {"Load", (PyCFunction)ppy_msr_Load, METH_VARARGS|METH_KEYWORDS,
+     "Load an input file"},
+    {"Save", (PyCFunction)ppy_msr_Save, METH_VARARGS|METH_KEYWORDS,
+     "Write a particle output"},
+
     {"Checkpoint", (PyCFunction)ppy_msr_Checkpoint, METH_VARARGS|METH_KEYWORDS,
      "Write a checkpoint"},
     {"Restart", (PyCFunction)ppy_msr_Restart, METH_VARARGS|METH_KEYWORDS,
      "Restart from a checkpoint"},
-    {"Write", (PyCFunction)ppy_msr_Write, METH_VARARGS|METH_KEYWORDS,
-     "Write a particle output"},
+
+    {"DomainDecomp", (PyCFunction)ppy_msr_DomainDecomp, METH_VARARGS|METH_KEYWORDS,
+     "Reorder the particles by position"},
+    {"BuildTree", (PyCFunction)ppy_msr_BuildTree, METH_VARARGS|METH_KEYWORDS,
+     "Build the spatial tree"},
+    {"Reorder", (PyCFunction)ppy_msr_Reorder, METH_NOARGS,
+     "Reorders the particles by iOrder"},
+
+    {"Gravity", (PyCFunction)ppy_msr_Gravity, METH_VARARGS|METH_KEYWORDS,
+     "Calculate gravity"},
+    {"Smooth", (PyCFunction)ppy_msr_Smooth, METH_VARARGS|METH_KEYWORDS,
+     "Smooth"},
+
+    {"MeasurePk", (PyCFunction)ppy_msr_MeasurePk, METH_VARARGS|METH_KEYWORDS,
+     "Measure the power spectrum"},
+
     {NULL, NULL, 0, NULL}
 };
 

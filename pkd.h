@@ -903,7 +903,7 @@ typedef struct pkdContext {
     } * PKD;
 
 
-#if defined(USE_SIMD) && defined(__SSE2__)
+#if defined(USE_SIMD) && defined(__SSE2__) && 0
 #define pkdMinMax(dVal,dMin,dMax) do {					\
     (dMin)[0] = _mm_cvtsd_f64(_mm_min_sd(_mm_set_sd((dMin)[0]),_mm_set_sd((dVal)[0]))); \
     (dMin)[1] = _mm_cvtsd_f64(_mm_min_sd(_mm_set_sd((dMin)[1]),_mm_set_sd((dVal)[1])));	\

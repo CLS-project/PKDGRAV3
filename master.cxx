@@ -2133,7 +2133,7 @@ static void BuildTree(MSR msr,int bNeedEwald,uint32_t uRoot,uint32_t utRoot) {
     free(pDistribTop);
     }
 
-void msrBuildTree(MSR msr,double dTime,int bNeedEwald) {
+void msrBuildTree(MSR msr,int bNeedEwald) {
     msrprintf(msr,"Building local trees...\n\n");
 
     struct inDumpTrees dump;
@@ -2155,12 +2155,12 @@ void msrBuildTree(MSR msr,double dTime,int bNeedEwald) {
 /*
 ** Separates the particles into two trees, and builds the "fixed" tree.
 */
-void msrBuildTreeFixed(MSR msr,double dTime,int bNeedEwald,uint8_t uRungDD) {
+void msrBuildTreeFixed(MSR msr,int bNeedEwald,uint8_t uRungDD) {
     msrprintf(msr,"Building fixed local trees...\n\n");
     BuildTree(msr,bNeedEwald,FIXROOT,0);
     }
 
-void msrBuildTreeActive(MSR msr,double dTime,int bNeedEwald,uint8_t uRungDD) {
+void msrBuildTreeActive(MSR msr,int bNeedEwald,uint8_t uRungDD) {
    /*
     ** The trees reset/removed. This does the following:
     **   1. Closes any open cell cache (it will be subsequently invalid)
@@ -2211,23 +2211,7 @@ void msrBuildTreeActive(MSR msr,double dTime,int bNeedEwald,uint8_t uRungDD) {
 	}
     }
 
-void msrBuildTreeByRung(MSR msr,double dTime,int bNeedEwald,int iRung) {
-    assert(0);
-//    TREESPEC spec[2];
-//    int nTrees = 1;
-//    spec[0].uRoot = ROOT;
-//    spec[0].uRungFirst = iRung;
-//    spec[0].uRungLast = iRung;
-//    if (msrCurrMaxRung(msr) > iRung) {
-//	spec[1].uRoot = ROOT+1;
-//	spec[1].uRungFirst = iRung+1;
-//	spec[1].uRungLast = MAX_RUNG;
-//	++nTrees;
-//	}
-//    BuildTree(msr,bNeedEwald,nTrees,spec);
-    }
-
-void msrBuildTreeMarked(MSR msr,double dTime) {
+void msrBuildTreeMarked(MSR msr) {
     pstTreeInitMarked(msr->pst,NULL,0,NULL,0);
     BuildTree(msr,0,ROOT,0);
     }
@@ -3583,7 +3567,7 @@ int msrNewTopStepKDK(MSR msr,
 		dDelta = msr->param.dDelta/(1 << iRungDT); // Main tree step
 		msrDrift(msr,*pdTime,0.5 * dDelta,FIXROOT);
 		dTimeFixed = *pdTime + 0.5 * dDelta;
-		msrBuildTreeFixed(msr,*pdTime,msr->param.bEwald,iRungDT);
+		msrBuildTreeFixed(msr,msr->param.bEwald,iRungDT);
 		}
 	    }
 	else bDualTree = 0;
@@ -3609,13 +3593,13 @@ int msrNewTopStepKDK(MSR msr,
     msrUpdateSoft(msr,*pdTime);
     if (bDualTree && uRung > iRungDT) {
 	uRoot2 = FIXROOT;
-	msrBuildTreeActive(msr,*pdTime,msr->param.bEwald,iRungDT);
+	msrBuildTreeActive(msr,msr->param.bEwald,iRungDT);
 	}
     else {
 	if (uRung==0) msrInflate(msr,round(*pdStep));
 	msrDomainDecomp(msr,uRung,0);
 	uRoot2 = 0;
-	msrBuildTree(msr,*pdTime,msr->param.bEwald);
+	msrBuildTree(msr,msr->param.bEwald);
 	}
 
     if (!uRung && msr->param.iPkInterval && iStep%msr->param.iPkInterval == 0) {
@@ -3696,7 +3680,7 @@ void msrTopStepKDK(MSR msr,
 	if (msr->param.bDensityStep) {
 	    msrDomainDecomp(msr,iRung,0);
 	    msrActiveRung(msr,iRung,1);
-	    msrBuildTree(msr,dTime,0);
+	    msrBuildTree(msr,0);
 	    msrDensityStep(msr,iRung,MAX_RUNG,dTime);
 	    }
 	msrUpdateRung(msr,iRung);
@@ -3735,7 +3719,7 @@ void msrTopStepKDK(MSR msr,
 	    msrActiveRung(msr,iKickRung,1);
 	    if (msrDoGravity(msr)) msrUpdateSoft(msr,dTime);
 	    msrprintf(msr,"%*cForces, iRung: %d to %d\n",2*iRung+2,' ',iKickRung,iRung);
-	    msrBuildTree(msr,dTime,msr->param.bEwald);
+	    msrBuildTree(msr,msr->param.bEwald);
 	    }
 	if (msrDoGravity(msr)) {
 	    msrGravity(msr,iKickRung,MAX_RUNG,ROOT,0,dTime,dStep,0,0,
@@ -3815,7 +3799,7 @@ void msrStarForm(MSR msr, double dTime, int iRung)
 	//msrSelSrcGas(msr); /* Not really sure what the setting here needs to be */
 	//msrSelDstDeleted(msr); /* Select only deleted particles */
 	msrActiveRung(msr,0,1); /* costs nothing -- may be redundant */
-/*	msrBuildTree(msr,dTime,msr->param.bEwald);*/
+/*	msrBuildTree(msr,msr->param.bEwald);*/
 	msrSmooth(msr, dTime, SMX_DIST_DELETED_GAS, 1,msr->param.nSmooth); /* use full smooth to account for deleted */
 	//msrSelSrcAll(msr);
 	//msrSelDstAll(msr);
@@ -3835,7 +3819,7 @@ void msrStarForm(MSR msr, double dTime, int iRung)
 	msrActiveRung(msr,iRung,1); /* costs nothing -- important to limit to active stars only */
  	//msrSelSrcGas(msr); /* Not really sure what the setting here needs to be */
 	//msrSelDstStar(msr,1,dTime); /* Select only stars that have FB to do */ 
-/*	msrBuildTree(msr,dTime,msr->param.bEwald);*/
+/*	msrBuildTree(msr,msr->param.bEwald);*/
 	msrSmooth(msr, dTime, SMX_DIST_SN_ENERGY, 1, msr->param.nSmooth); /* full smooth for stars */
 	//msrSelSrcAll(msr);
 	//msrSelDstAll(msr);
@@ -4081,7 +4065,7 @@ void msrHop(MSR msr, double dTime) {
 
     /* Build a new tree with only marked particles */
     sec = msrTime();
-    msrBuildTreeMarked(msr,dTime);
+    msrBuildTreeMarked(msr);
     dsec = msrTime() - sec;
     if (msr->param.bVStep)
 	printf("Tree build complete in %f secs, merging %" PRIu64 " chains...\n",dsec,nGroups);
@@ -4707,7 +4691,7 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
 #ifdef FAST_GAS
 	msrActiveRung(msr,3,1); /* Activate some particles */
 	msrDomainDecomp(msr,0,0,0);
-	msrBuildTree(msr,dTime,0);
+	msrBuildTree(msr,0);
 
 	//msrSelSrcGas(msr);  /* FOR TESTING!! of gas active particles */
 	msrFastGasPhase1(msr,dTime,SMX_DENSITY);
@@ -4716,7 +4700,7 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
 #else
 	msrActiveRung(msr,0,1); /* Activate all particles */
 	msrDomainDecomp(msr,-1,0);
-	msrBuildTree(msr,dTime,0);
+	msrBuildTree(msr,0);
 	bSymmetric = 0;  /* should be set in param file! */
 	msrSmooth(msr,dTime,SMX_DENSITY,bSymmetric,msr->param.nSmooth);
 #endif
@@ -4732,7 +4716,7 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
     if ( msr->param.bFindHopGroups ) {
 	msrActiveRung(msr,0,1); /* Activate all particles */
 	msrDomainDecomp(msr,-1,0);
-	msrBuildTree(msr,dTime,0);
+	msrBuildTree(msr,0);
 	msrHop(msr,dTime);
 	msrReorder(msr);
 
