@@ -11,3 +11,4 @@ pipelines:
         script: # Modify the commands below to build your repository.
           - cmake .
           - make
+          - ./pkdgrav3 tests/cosmology.py

@@ -84,8 +84,6 @@ void master(MDL mdl,void *pst) {
     int argc = mdlGetArgc(mdl);
     char **argv = mdlGetArgv(mdl);
 
-    printf("%s\n", PACKAGE_STRING );
-
     /* a USR1 signal indicates that the queue wants us to exit */
 #ifndef _MSC_VER
     timeGlobalSignalTime = 0;
@@ -100,6 +98,7 @@ void master(MDL mdl,void *pst) {
 
     MSR msr;
     if (!msrPython(&msr,argc,argv)) {
+	printf("%s using Python %d.%d.%d\n", PACKAGE_STRING, PY_MAJOR_VERSION, PY_MINOR_VERSION, PY_MICRO_VERSION );
 	msrValidateParameters(msr);
 
 	/* Establish safety lock. */

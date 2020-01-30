@@ -14,6 +14,7 @@
  *  You should have received a copy of the GNU General Public License
  *  along with PKDGRAV3.  If not, see <http://www.gnu.org/licenses/>.
  */
+#include <string>
 #include <Python.h>
 #include <structmember.h> // for PyMemberDef
 #include "m_parse.h"
@@ -532,6 +533,16 @@ extern "C" PyObject *PyInit_CSM(void);
 int msrPython(MSR *msr, int argc, char *argv[]) {
     PyImport_AppendInittab(MASTER_MODULE_NAME,initModuleMSR);
     PyImport_AppendInittab("CSM",PyInit_CSM);
+
+    // I don't like this, but it works for pyenv. See:
+    //   https://bugs.python.org/issue22213
+    //   https://www.python.org/dev/peps/pep-0432/
+    auto PYENV_VIRTUAL_ENV = getenv("PYENV_VIRTUAL_ENV");
+    if (PYENV_VIRTUAL_ENV) {
+	std::string path = PYENV_VIRTUAL_ENV;
+	path += "/bin/python";
+	Py_SetProgramName(Py_DecodeLocale(path.c_str(),NULL));
+	}
     Py_InitializeEx(0);
 
     // Contruct the "MSR" context and module
@@ -547,8 +558,9 @@ int msrPython(MSR *msr, int argc, char *argv[]) {
     for(int i=0; i<argc; ++i) wargv[i] = Py_DecodeLocale(argv[i],NULL);
     PySys_SetArgv(argc, wargv);
 
-    auto globals = PyDict_New();
-    auto locals = PyDict_New();
+    PyObject * main_module = PyImport_ImportModule("__main__");
+    auto globals = PyModule_GetDict(main_module);
+    auto locals = globals;
     PyDict_SetItemString(globals, "__builtins__",PyEval_GetBuiltins());
 
     // Parse the command line
