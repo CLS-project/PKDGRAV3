@@ -253,6 +253,9 @@ target_include_directories(${PROJECT_NAME} PRIVATE ${GSL_INCLUDE_DIRS})
 target_link_libraries(${PROJECT_NAME} ${GSL_LIBRARIES})
 target_link_libraries(${PROJECT_NAME} blitz)
 
+enable_testing()
+add_test(NAME cosmology COMMAND ${PROJECT_NAME} tests/cosmology.py WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}) 
+
 target_include_directories(tostd PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
 target_include_directories(psout PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
 target_include_directories(psout PRIVATE ${GSL_INCLUDE_DIRS})
