@@ -219,9 +219,6 @@ struct parameters {
   double dDeltakRedshift;
 #endif
 
-    int iInflateStep;
-    int nInflateReps;
-
     /*
     ** Memory models.  Other parameters can force these to be set.
     */

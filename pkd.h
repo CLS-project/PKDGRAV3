@@ -1555,7 +1555,6 @@ void pkdLightCone(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     double dLookbackFac,double dLookbackFacLCP,
     double *dtLCDrift,double *dtLCKick);
 void pkdLightConeVel(PKD pkd,double dBoxSize);
-void pkdInflate(PKD pkd,int nInflateReps);
 
 struct outGetParticles { /* Array of these */
     uint64_t id;

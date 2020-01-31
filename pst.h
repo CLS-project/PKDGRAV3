@@ -226,7 +226,6 @@ enum pst_service {
     PST_LIGHTCONE_OPEN,
     PST_LIGHTCONE_CLOSE,
     PST_LIGHTCONEVEL,
-    PST_INFLATE,
     PST_GET_PARTICLES,
     };
 
@@ -1061,7 +1060,6 @@ struct inGenerateIC {
     int b2LPT;
     int bComove;
     int nTf;
-    int nInflateFactor;
     double k[MAX_TF];
     double tf[MAX_TF];
     };
@@ -1087,7 +1085,6 @@ struct inMoveIC {
     float fMass;
     float fSoft;
     int nGrid;
-    int nInflateFactor;
     };
 int pltMoveIC(PST,void *,int,void *,int);
 int pstMoveIC(PST,void *,int,void *,int);
@@ -1365,12 +1362,6 @@ struct inLightConeVel {
     double dBoxSize;
     };
 int pstLightConeVel(PST pst,void *vin,int nIn,void *vout,int nOut);
-
-/* PST_INFLATE */
-struct inInflate {
-    int nInflateReps;
-    };
-int pstInflate(PST pst,void *vin,int nIn,void *vout,int nOut);
 
 /* PST_GET_PARICLES */
 int pstGetParticles(PST pst,void *vin,int nIn,void *vout,int nOut);

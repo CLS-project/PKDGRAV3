@@ -588,7 +588,6 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	icUp.fMass = in->fMass;
 	icUp.fSoft = in->fSoft;
 	icUp.nGrid = in->nGrid;
-	icUp.nInflateFactor = in->nInflateFactor;
 
 	int rID = mdl->ReqService(pst->idUpper,PLT_MOVEIC,&icUp,nIn);
 	mdl->GetReply(rID,NULL,0);
@@ -596,8 +595,6 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	}
     else {
 	PKD pkd = plcl->pkd;
-	assert(in->nInflateFactor>0);
-	assert(in->nMove <= (pkd->nStore/in->nInflateFactor));
 	double inGrid = 1.0 / in->nGrid;
 	for(i=in->nMove-1; i>=0; --i) {
 	    PARTICLE *p = pkdParticle(pkd,i);
@@ -668,8 +665,7 @@ int pstMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	assert(pstAmNode(pst));
 	assert(fft != NULL);
 
-	assert(in->nInflateFactor>0);
-	uint64_t nPerNode = (uint64_t)mdl->Cores() * (pkd->nStore / in->nInflateFactor);
+	uint64_t nPerNode = (uint64_t)mdl->Cores() * pkd->nStore;
 	uint64_t nLocal = (int64_t)fft->rgrid->rn[myProc] * in->nGrid*in->nGrid;
 
 	/* Calculate how many slots are free (under) and how many need to be sent (over) before my rank */
@@ -759,7 +755,6 @@ int pstMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	move.fMass = in->dBoxMass;
 	move.fSoft = 1.0 / (50.0*in->nGrid);
 	move.nGrid = in->nGrid;
-	move.nInflateFactor = in->nInflateFactor;
 	pltMoveIC(pst,&move,sizeof(move),NULL,0);
 	}
     return 0;

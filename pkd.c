@@ -3150,65 +3150,6 @@ double pkdTotalMass(PKD pkd) {
     return m;
     }
 
-void pkdInflate(PKD pkd,int nReps) {
-    int i,j,n;
-    int nInflate = nReps + 1;
-    double dFactor = 1.0 / nInflate;
-    uint64_t iOrder = 0;
-    uint64_t N = pkd->nGas + pkd->nDark + pkd->nStar;
-    j = n = pkdLocal(pkd);
-
-    assert(pkd->nClasses>0);
-    for(i=0; i<pkd->nClasses; ++i) {
-	pkd->pClass[i].fMass *= dFactor*dFactor*dFactor;
-	pkd->pClass[i].fSoft *= dFactor;
-	}
-    for( i=0; i<n; i++ ) {
-	PARTICLE *p = pkdParticle(pkd,i);
-	double r0[3];
-	vel_t *v = pkdVel(pkd,p);
-	if (!pkd->bNoParticleOrder) iOrder = p->iOrder;
-	v[0] *= dFactor;
-	v[1] *= dFactor;
-	v[2] *= dFactor;
-	pkdGetPos1(pkd,p,r0);
-	r0[0] = (r0[0]+0.5)*dFactor - 0.5;
-	r0[1] = (r0[1]+0.5)*dFactor - 0.5;
-	r0[2] = (r0[2]+0.5)*dFactor - 0.5;
-	pkdSetPos(pkd,p,0,r0[0]);
-	pkdSetPos(pkd,p,1,r0[1]);
-	pkdSetPos(pkd,p,2,r0[2]);
-	int ix, iy, iz;
-	for(ix=0; ix<=nReps; ++ix) {
-	    for(iy=0; iy<=nReps; ++iy) {
-		for(iz=0; iz<=nReps; ++iz) {
-		    if (ix || iy || iz) {
-			PARTICLE *p2 = pkdParticle(pkd,j++);
-			pkdCopyParticle(pkd,p2,p);
-			pkdSetPos(pkd,p2,0,r0[0] + ix*dFactor);
-			pkdSetPos(pkd,p2,1,r0[1] + iy*dFactor);
-			pkdSetPos(pkd,p2,2,r0[2] + iz*dFactor);
-			if (!pkd->bNoParticleOrder) p2->iOrder = (iOrder+=N);
-			if ( pkd->oMass ) {
-			    float *pMass = CAST(float *,pkdField(p,pkd->oMass));
-			    *pMass *= dFactor*dFactor*dFactor;
-			    }
-			if ( pkd->oSoft ) {
-			    float *pSoft = CAST(float *,pkdField(p,pkd->oSoft));
-			    *pSoft *= dFactor;
-			    }
-			}
-		    }
-		}
-	    }
-	}
-    pkd->nLocal = j;
-    pkd->nActive = j;
-    pkd->nDark *= nInflate*nInflate*nInflate;
-    pkd->nStar *= nInflate*nInflate*nInflate;
-    pkd->nGas *= nInflate*nInflate*nInflate;
-    }
-
 /*
 ** This function checks the predicate and returns a new value based on the flags.
 ** setIfTrue:    >0 -> return true if the predicate is true

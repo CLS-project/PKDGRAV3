@@ -233,11 +233,6 @@ void msrInitializePStore(MSR msr, uint64_t *nSpecies) {
     double dStorageAmount = (1.0+msr->param.dExtraStore);
     int i;
     for( i=0; i<FIO_SPECIES_LAST; ++i) ps.nSpecies[i] = nSpecies[i];
-    /* If we plan to replicate the particles later then reserve space */
-    if (msr->param.nInflateReps) {
-	i = msr->param.nInflateReps + 1;
-	dStorageAmount *= i*i*i;
-	}
     ps.nStore = ceil( dStorageAmount * ps.nSpecies[FIO_SPECIES_ALL] / mdlThreads(msr->mdl));
     ps.nTreeBitsLo = msr->param.nTreeBitsLo;
     ps.nTreeBitsHi = msr->param.nTreeBitsHi;
@@ -899,13 +894,6 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
     prmAddParam(msr->prm, "bDoLinPkOutput", 0, &msr->param.bDoLinPkOutput,
         sizeof(int), "linPk", "<enable/disable power spectrum output for linear species> = 0");
 #endif
-
-    msr->param.iInflateStep = 0;
-    prmAddParam(msr->prm,"iInflateStep",1,&msr->param.iInflateStep,
-		sizeof(int),"iis","<Step when to inflate the number of particles> = 0");
-    msr->param.nInflateReps = 0;
-    prmAddParam(msr->prm,"nInflateReps",1,&msr->param.nInflateReps,
-		sizeof(int),"nir","<Number of replicas when inflating> = 0");
 
     /* IC Generation */
     msr->csm->val.classData.bClass = 0;
@@ -2045,21 +2033,6 @@ void msrDomainDecompOld(MSR msr,int iRung) {
     if (bRestoreActive) {
 	/* Restore Active data */
 	msrActiveRung(msr,iRung,1);
-	}
-    }
-
-void msrInflate(MSR msr,int iStep) {
-    if (msr->param.nInflateReps>0 && iStep==msr->param.iInflateStep) {
-	struct inInflate inflate;
-	int i = msr->param.nInflateReps + 1;
-	printf("Inflating number of particles by a factor of %d\n",i*i*i);
-	inflate.nInflateReps = msr->param.nInflateReps;
-	pstInflate(msr->pst,&inflate,sizeof(inflate),NULL,0);
-	msr->N *= i*i*i;
-	msr->nGas *= i*i*i;
-	msr->nDark *= i*i*i;
-	msr->nStar *= i*i*i;
-	msr->nMaxOrder = msr->N;
 	}
     }
 
@@ -3596,7 +3569,6 @@ int msrNewTopStepKDK(MSR msr,
 	msrBuildTreeActive(msr,msr->param.bEwald,iRungDT);
 	}
     else {
-	if (uRung==0) msrInflate(msr,round(*pdStep));
 	msrDomainDecomp(msr,uRung,0);
 	uRoot2 = 0;
 	msrBuildTree(msr,msr->param.bEwald);
@@ -4304,8 +4276,6 @@ double msrGenerateIC(MSR msr) {
     in.fPhase = msr->param.dFixedAmpPhasePI * M_PI;
     in.nGrid = msr->param.nGrid;
     in.b2LPT = msr->param.b2LPT;
-    in.nInflateFactor = msr->param.nInflateReps + 1;
-    in.nInflateFactor *= in.nInflateFactor * in.nInflateFactor;
 
     nTotal  = in.nGrid; /* Careful: 32 bit integer cubed => 64 bit integer */
     nTotal *= in.nGrid;

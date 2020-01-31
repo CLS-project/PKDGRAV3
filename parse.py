@@ -252,8 +252,6 @@ def parse():
     add_flag(debugp,'cs',default=0, dest='iCacheSize',type=int, help='size of the MDL cache (0=default)')
     add_flag(debugp,'wqs',default=0, dest='iWorkQueueSize',type=int, help='size of the MDL work queue')
     add_flag(debugp,'cqs',default=8, dest='iCUDAQueueSize',type=int, help='size of the CUDA work queue')
-    add_flag(debugp,'iis',default=0, dest='iInflateStep', type=int, help='Step when to inflate the number of particles')
-    add_flag(debugp,'nir',default=0, dest='nInflateReps', type=int, help='Number of replicas when inflating')
 
     parser.add_argument('script',nargs='?',default=None,help='File containing parameters or analysis script')
 

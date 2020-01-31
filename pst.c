@@ -313,8 +313,6 @@ void pstAddServices(PST pst,MDL mdl) {
 		  sizeof(struct inLightConeClose), 0);
     mdlAddService(mdl,PST_LIGHTCONEVEL,pst,(fcnService_t*)pstLightConeVel,
 		  sizeof(struct inLightConeVel),0);
-    mdlAddService(mdl,PST_INFLATE,pst,(fcnService_t*)pstInflate,
-	          sizeof(struct inInflate), 0);
     mdlAddService(mdl,PST_GET_PARTICLES,pst,(fcnService_t*)pstGetParticles,
 	          sizeof(uint64_t)*GET_PARTICLES_MAX,
 	          sizeof(struct outGetParticles)*GET_PARTICLES_MAX );
@@ -3983,20 +3981,6 @@ int pstLightConeVel(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	}
     else {
 	pkdLightConeVel(plcl->pkd,in->dBoxSize);
-	}
-    return 0;
-    }
-
-int pstInflate(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    LCL *plcl = pst->plcl;
-    if (pst->nLeaves > 1) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_INFLATE,vin,nIn);
-	pstInflate(pst->pstLower,vin,nIn,NULL,0);
-	mdlGetReply(pst->mdl,rID,NULL,NULL);
-	}
-    else {
-	struct inInflate *in = vin;
-	pkdInflate(plcl->pkd,in->nInflateReps);
 	}
     return 0;
     }

@@ -93,7 +93,6 @@ void msrSimulate(MSR msr,double dTime,int iStartStep) {
     /*
     ** Build tree, activating all particles first (just in case).
     */
-    msrInflate(msr,iStartStep);
     msrActiveRung(msr,0,1); /* Activate all particles */
     msrDomainDecomp(msr,0,0);
     msrUpdateSoft(msr,dTime);
