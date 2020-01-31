@@ -4230,10 +4230,6 @@ void msrRelaxation(MSR msr,double dTime,double deltaT,int iSmoothType,int bSymme
     in.bPeriodic = msr->param.bPeriodic;
     in.bSymmetric = bSymmetric;
     in.iSmoothType = iSmoothType;
-#if 0
-    in.dfBall2OverSoft2 = (msr->param.bLowerSoundSpeed ? 0 :
-			   4.0*msr->param.dhMinOverSoft*msr->param.dhMinOverSoft);
-#endif
     if (msrComove(msr)) {
 	in.smf.H = csmTime2Hub(msr->csm,dTime);
 	in.smf.a = csmTime2Exp(msr->csm,dTime);

@@ -997,7 +997,6 @@ struct inMarkSmooth {
     int bPeriodic;
     int bSymmetric;
     int iMarkType;
-    double dfBall2OverSoft2;
     SMF smf;
     };
 void pstMarkSmooth(PST,void *,int,void *,int *);
