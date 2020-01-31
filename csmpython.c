@@ -56,7 +56,7 @@ static int double_or_none(PyObject* o, void* d) {
 
 static PyObject *
 ppy_csmClassRead(CSMINSTANCE *self, PyObject *args, PyObject *kwobj) {
-    static char *kwlist[]={"","Lbox","LinSpecies","kpivot","alphas","As","ns",NULL};
+    static char *kwlist[]={"classfile","Lbox","LinSpecies","kpivot","alphas","As","ns",NULL};
     double Lbox;
     double kpivot = 0.05;
     double alphas = 0.0;
