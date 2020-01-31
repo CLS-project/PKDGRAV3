@@ -718,8 +718,6 @@ typedef struct {
     float fPotential;
     } healpixData;
 
-struct psContext;
-
 typedef struct pkdContext {
     MDL mdl;
     int idSelf;
@@ -896,9 +894,6 @@ typedef struct pkdContext {
 #ifdef MDL_FFTW
     MDLFFT fft;
 #endif
-    MDLGRID grid;
-    float *gridData;
-    struct psContext *psx;
 
     } * PKD;
 
@@ -1429,7 +1424,6 @@ void pkdKickTree(PKD pkd,double dTime,double dDelta,double,double,double,int iRo
 void pkdSwapAll(PKD pkd, int idSwap);
 void pkdSetParameters(PKD pkd,struct parameters *p);
 void pkdInitCosmology(PKD pkd,struct csmVariables *cosmo);
-void pkdSetRung(PKD pkd,uint8_t uRungLo, uint8_t uRungHi, uint8_t uRung);
 void pkdZeroNewRung(PKD pkd,uint8_t uRungLo, uint8_t uRungHi, uint8_t uRung);
 void pkdActiveRung(PKD pkd, int iRung, int bGreater);
 void pkdCountRungs(PKD pkd,uint64_t *nRungs);
@@ -1454,7 +1448,6 @@ void pkdCorrectEnergy(PKD pkd, double dTuFac, double z, double dTime, int iType 
 void pkdDensityStep(PKD pkd, uint8_t uRungLo, uint8_t uRungHi, int iMaxRung, double dDelta, double dEta, double dRhoFac);
 int pkdUpdateRung(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 		  uint8_t uRung,int iMaxRung,uint64_t *nRungCount);
-void pkdUpdateRungByTree(PKD pkd,int iRoot,uint8_t uMinRung,int iMaxRung,uint64_t *nRungCount);
 uint8_t pkdDtToRung(double dT, double dDelta, uint8_t uMaxRung);
 static inline uint8_t pkdDtToRungInverse(float fT, float fiDelta, uint8_t uMaxRung) {
     union {
@@ -1530,8 +1523,6 @@ uint_fast32_t pkdCountDistance(PKD pkd, double r2i, double r2o );
 void pkdCalcCOM(PKD pkd, double *dCenter, double dRadius, int bPeriodic,
 		double *com, double *vcm, double *L,
 		double *M, uint64_t *N);
-void pkdGridInitialize(PKD pkd, int n1, int n2, int n3, int a1, int s, int n);
-void pkdGridProject(PKD pkd);
 #ifdef MDL_FFTW
 void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int nGrid, float dDelta, int iAssignment);
 void pkdMeasurePk(PKD pkd, double dTotalMass, int iAssignment, int bInterlace,

@@ -189,8 +189,6 @@ void pstAddServices(PST pst,MDL mdl) {
 		  sizeof(struct csmVariables),0);
     mdlAddService(mdl,PST_SETPARAMETERS,pst,(fcnService_t*)pstSetParameters,
 		  sizeof(struct parameters),0);
-    mdlAddService(mdl,PST_SETRUNG,pst,(fcnService_t*)pstSetRung,
-		  sizeof(struct inSetRung),0);
     mdlAddService(mdl,PST_ZERONEWRUNG,pst,(fcnService_t*)pstZeroNewRung,
 		  sizeof(struct inZeroNewRung),0);
     mdlAddService(mdl,PST_ACTIVERUNG,pst,(fcnService_t*)pstActiveRung,
@@ -211,8 +209,6 @@ void pstAddServices(PST pst,MDL mdl) {
 		  sizeof(struct inSmooth),0);
     mdlAddService(mdl,PST_UPDATERUNG,pst,(fcnService_t*)pstUpdateRung,
 		  sizeof(struct inUpdateRung),sizeof(struct outUpdateRung));
-    mdlAddService(mdl,PST_UPDATERUNGBYTREE,pst,(fcnService_t*)pstUpdateRungByTree,
-		  sizeof(struct inUpdateRungByTree),sizeof(struct outUpdateRung));
     mdlAddService(mdl,PST_COLNPARTS,pst,(fcnService_t*)pstColNParts,
 		  0,nThreads*sizeof(struct outColNParts));
     mdlAddService(mdl,PST_NEWORDER,pst,(fcnService_t*)pstNewOrder,
@@ -285,10 +281,6 @@ void pstAddServices(PST pst,MDL mdl) {
 		  sizeof(struct inCalcCOM), sizeof(struct outCalcCOM));
     mdlAddService(mdl,PST_COUNTDISTANCE,pst,(fcnService_t*)pstCountDistance,
 		  sizeof(struct inCountDistance), sizeof(struct outCountDistance));
-    mdlAddService(mdl,PST_INITGRID,pst,(fcnService_t*)pstInitGrid,
-		  sizeof(struct inInitGrid), 0);
-    mdlAddService(mdl,PST_GRIDPROJECT,pst,(fcnService_t*)pstGridProject,
-		  sizeof(struct inGridProject), 0);
 #ifdef MDL_FFTW
     mdlAddService(mdl,PST_GRID_CREATE_FFT,pst,(fcnService_t*)pstGridCreateFFT,
 		  sizeof(struct inGridCreateFFT), 0);
@@ -2954,22 +2946,6 @@ int pstSetWriteStart(PST pst,void *vin,int nIn,void *vout,int nOut) {
     return 0;
     }
 
-int pstSetRung(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    LCL *plcl = pst->plcl;
-    struct inSetRung *in = vin;
-
-    mdlassert(pst->mdl,nIn == sizeof(*in));
-    if (pst->nLeaves > 1) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SETRUNG,vin,nIn);
-	pstSetRung(pst->pstLower,vin,nIn,NULL,0);
-	mdlGetReply(pst->mdl,rID,NULL,NULL);
-	}
-    else {
-	pkdSetRung(plcl->pkd,in->uRungLo,in->uRungHi,in->uRung);
-	}
-    return 0;
-    }
-
 int pstZeroNewRung(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
     struct inZeroNewRung *in = vin;
@@ -3165,28 +3141,6 @@ int pstUpdateRung(PST pst,void *vin,int nIn,void *vout,int nOut) {
     else {
 	pkdUpdateRung(plcl->pkd,in->uRungLo,in->uRungHi,
 		      in->uMinRung,in->uMaxRung,out->nRungCount);
-	}
-    return sizeof(*out);
-    }
-
-int pstUpdateRungByTree(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    LCL *plcl = pst->plcl;
-    struct inUpdateRungByTree *in = vin;
-    struct outUpdateRung *out = vout;
-    struct outUpdateRung outTemp;
-    int i;
-
-    mdlassert(pst->mdl,nIn == sizeof(*in));
-    if (pst->nLeaves > 1) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_UPDATERUNGBYTREE,vin,nIn);
-	pstUpdateRungByTree(pst->pstLower,vin,nIn,vout,nOut);
-	mdlGetReply(pst->mdl,rID,&outTemp,NULL);
-	for (i=0;i<in->uMaxRung;++i) {
-	    out->nRungCount[i] += outTemp.nRungCount[i];
-	    }
-	}
-    else {
-	pkdUpdateRungByTree(plcl->pkd,in->iRoot,in->uMinRung,in->uMaxRung,out->nRungCount);
 	}
     return sizeof(*out);
     }
@@ -3808,44 +3762,6 @@ int pstCountDistance(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	out->nCount = pkdCountDistance(plcl->pkd,in->dRadius2Inner,in->dRadius2Outer);
 	}
     return sizeof(struct outCountDistance);
-    }
-
-int pstInitGrid(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    LCL *plcl = pst->plcl;
-    struct inInitGrid *in = vin;
-    int rID;
-    int s = in->s;
-    int n = in->n;
-    assert( sizeof(struct inInitGrid) == nIn );
-    if (pst->nLeaves > 1) {
-
-	in->s = s + pst->nLower*n/pst->nLeaves;
-	in->n = s + n - in->s;
-	rID = mdlReqService(pst->mdl,pst->idUpper,PST_INITGRID,vin,nIn);
-	in->n = n - in->n;
-	in->s = in->n ? s : 0;
-	pstInitGrid(pst->pstLower,vin,nIn,NULL,0);
-	mdlGetReply(pst->mdl,rID,NULL,NULL);
-	}
-    else {
-	pkdGridInitialize(plcl->pkd,in->n1,in->n2,in->n3,in->a1,in->s,in->n);
-	}
-    return 0;
-    }
-
-int pstGridProject(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    LCL *plcl = pst->plcl;
-    /*struct inGridProject *in = vin;*/
-    assert( sizeof(struct inGridProject) == nIn );
-    if (pst->nLeaves > 1) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_GRIDPROJECT,vin,nIn);
-	pstGridProject(pst->pstLower,vin,nIn,NULL,0);
-	mdlGetReply(pst->mdl,rID,NULL,NULL);
-	}
-    else {
-	pkdGridProject(plcl->pkd);
-	}
-    return 0;
     }
 
 #ifdef MDL_FFTW

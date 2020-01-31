@@ -97,22 +97,20 @@ void master(MDL mdl,void *pst) {
 #endif
 
     MSR msr;
-    if (!msrPython(&msr,argc,argv)) {
+    if (!msr.Python(argc,argv)) {
 	printf("%s using Python %d.%d.%d\n", PACKAGE_STRING, PY_MAJOR_VERSION, PY_MINOR_VERSION, PY_MICRO_VERSION );
-	msrValidateParameters(msr);
+	msr.ValidateParameters();
 
 	/* Establish safety lock. */
-	if (!msrGetLock(msr)) {
-	    msrFinish(msr);
+	if (!msr.GetLock()) {
 	    return;
 	    }
 
-	msrHostname(msr); // List all host names
+	msr.Hostname(); // List all host names
 
-	auto dTime = msrLoadOrGenerateIC(msr);
-	if (dTime != -HUGE_VAL) msrSimulate(msr,dTime);
+	auto dTime = msr.LoadOrGenerateIC();
+	if (dTime != -HUGE_VAL) msr.Simulate(dTime);
 	}
-    msrFinish(msr);
     }
 
 int main(int argc,char **argv) {

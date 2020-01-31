@@ -34,7 +34,27 @@
 extern time_t timeGlobalSignalTime;
 extern int bGlobalOutput;
 
-typedef struct msrContext {
+class MSR {
+private:
+    typedef struct {
+	double dFrac;       /* Fraction of particles in each bin */
+	uint64_t nTotal;    /* Total number of particles in the range */
+	uint64_t nInner;    /* Number inside minimum radius */
+	uint64_t nTarget;   /* Target number of particles */
+	uint64_t nSelected;
+	MSR *msr;
+	} SPHERECTX;
+    static double countSphere(double r,void *vctx);
+    static void profileRootFind( double *dBins, int lo, int hi, int nAccuracy, SPHERECTX *ctx );
+
+    typedef struct {
+	double rMiddle;
+	total_t nTarget;   /* Target number of particles */
+	MSR *msr;
+	} SHELLCTX;
+    static double countShell(double rInner,void *vctx);
+
+public:
     PRM prm;
     PST pst;
     MDL mdl;
@@ -73,15 +93,16 @@ typedef struct msrContext {
     /*
     ** Redshift output points.
     */
-    int nMaxOuts;
-    int nOuts;
-    double *pdOutTime;
+    std::vector<double> dOutTimes;
     int iOut;
+    // int nMaxOuts;
+    // int nOuts;
+    // double *pdOutTime;
 
     /*
      * Domain Decomposition Done
      */
-    uint64_t *nRung;
+    std::vector<uint64_t> nRung;
     int iRungDD, iRungDT;
     int iLastRungRT,iLastRungDD;
     uint64_t nActive;
@@ -102,198 +123,180 @@ typedef struct msrContext {
     char achCheckpointName[PST_FILENAME_SIZE];
     int nCheckpointClasses;
     PARTCLASS aCheckpointClasses[PKD_MAX_CLASSES];
-    } * MSR;
+protected: // eventually protected
+    static double Time();
+    static void Leader();
+    static void Trailer();
+    static void MakePath(const char *dir,const char *base,char *path);
+    double getTime(double dExpansion, double *dvFac);
 
-int msrPython(MSR *msr,int argc, char *argv[]);
-void msrSaveParameters(MSR msr);
-int msrValidateParameters(MSR msr);
-void msrSimulate(MSR msr,double dTime,int iStartStep);
-void msrSimulate(MSR msr,double dTime);
-double msrLoadOrGenerateIC(MSR msr);
-double msrTime();
-int msrInitialize(MSR *,MDL,void *,int,char **);
-void msrLogParams(MSR msr, FILE *fp);
-void msrprintf(MSR msr, const char *Format, ... );
-int msrGetLock(MSR msr);
-int msrCheckForStop(MSR msr, const char *achStopFile);
-void msrFinish(MSR);
-void msrInitializePStore(MSR msr, uint64_t *nSpecies);
-double msrGenerateIC(MSR);
-double msrRead(MSR msr,const char *achInFile);
-void msrWrite(MSR,const char *,double, int bCheckpoint );
-void msrSetSoft(MSR msr,double);
-void msrDomainDecomp(MSR,int iRung,int bOthers);
-void msrBuildTree(MSR msr,int bNeedEwald);
-void msrBuildTreeFixed(MSR msr,int bNeedEwald,uint8_t uRungDD);
-void msrBuildTreeActive(MSR msr,int bNeedEwald,uint8_t uRungDD);
-void msrBuildTreeMarked(MSR msr);
-void msrCalcBound(MSR msr,BND *pbnd);
-void msrCalcVBound(MSR msr,BND *pbnd);
-void msrDomainColor(MSR);
-void msrReorder(MSR);
-void msrOutArray(MSR,const char *,int);
-void msrOutVector(MSR,const char *,int);
-void msrSmoothSetSMF(MSR msr, SMF *smf, double dTime);
-void msrSmooth(MSR,double,int,int,int);
-int msrDoGas(MSR msr);
-void msrFastGasPhase1(MSR,double,int);
-void msrFastGasPhase2(MSR,double,int);
-void msrReSmooth(MSR,double,int,int);
-void msrUpdateSoft(MSR,double);
-uint8_t msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
-    double dTime,double dStep,int bKickClose,int bKickOpen,int bEwald,int bGravStep,int nPartRhoLoc,int iTimeStepCrit,
-    int nGroup,int *piSec,uint64_t *pnActive);
-void msrCalcEandL(MSR msr,int bFirst,double dTime,double *E,double *T,double *U,double *Eth,double *L,double *F,double *W);
-void msrDrift(MSR,double dTime,double dDelta,int iRoot);
-void msrScaleVel(MSR msr,double dvFac);
-double msrAdjustTime(MSR msr, double aOld, double aNew);
-void msrKick(MSR,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi);
-double msrReadCheck(MSR,int *);
-void msrWriteCheck(MSR,double,int);
-int msrOutTime(MSR,double);
-void msrReadOuts(MSR,double);
-int msrCheckForOutput(MSR msr,int iStep,double dTime,int *pbDoCheckpoint,int *pbDoOutput);
-int msrNewTopStepKDK(MSR msr,
-    int bDualTree,      /* Should be zero at rung 0! */
-    uint8_t uRung,	/* Rung level */
-    double *pdStep,	/* Current step */
-    double *pdTime,	/* Current time */
-    uint8_t *puRungMax,int *piSec,int *pbDoCheckpoint,int *pbDoOutput,int *pbNeedKickOpen);
-void msrTopStepKDK(MSR msr,
-		   double dStep,	/* Current step */
-		   double dTime,	/* Current time */
-		   double dDelta,	/* Time step */
-		   int iRung,		/* Rung level */
-		   int iKickRung,	/* Gravity on all rungs from iRung
-					   to iKickRung */
-		   int iAdjust,		/* Do an adjust? */
-		   double *pdActiveSum,
-		   int *piSec);
-void msrTopStepHSDKD(MSR msr,
-		   double dStep,	/* Current step */
-		   double dTime,	/* Current time */
-		   double dDelta,	/* Time step */
-		   int iRung,		/* Rung level */
-		   int iKickRung,	/* Gravity on all rungs from iRung
-					   to iKickRung */
-		   int iAdjust,		/* Do an adjust? */
-		   double *pdActiveSum,
-		   int *piSec);
-
-void msrBallMax(MSR msr, int iRung, int bGreater);
-
-void msrLightConeOpen(MSR msr, int iStep);
-void msrLightConeClose(MSR msr, int iStep);
-void msrLightConeVel(MSR msr);
-
-/*------------------*/
-/* Active Functions */
-/*------------------*/
-void msrActiveRung(MSR msr, int iRung, int bGreater);
-void msrActiveOrder(MSR msr);
-
-/* Replacement functions */
-void msrActiveMaskRung(MSR msr, unsigned int iSetMask, int iRung, int bGreater);
-/*------------------*/
-/* Active Functions */
-/*------------------*/
-
-void msrVelocityRung(MSR msr,int iRung,double dDelta,double dTime,int bAll);
-uint64_t msrCalcWriteStart(MSR);
-void msrGetNParts(MSR msr);
-void msrAddDelParticles(MSR msr);
-void msrGravStep(MSR msr, double dTime);
-void msrAccelStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime);
-void msrDensityStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime);
-void msrUpdateRung(MSR msr, uint8_t uRung);
-int msrCountRungs(MSR msr, uint64_t *nRungs);
-
-/*
-** Interface functions.
-*/
-int msrSteps(MSR);
-void msrOutputPk(MSR msr,int iStep,double dTime);
-void msrOutputLinPk(MSR msr, int iStep, double dTime);
-void msrCheckpoint(MSR msr, int iStep, double dTime);
-void msrRestart(MSR msr, int n, const char *baseName, int iStep, double dTime);
-void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint);
-char *msrOutName(MSR);
-char *msrBuildName(MSR msr,char *achFile,int iStep);
-char *msrBuildIoName(MSR msr,char *achFile,int iStep);
-double msrDelta(MSR);
-int msrLogInterval(MSR);
-int msrCheckInterval(MSR);
-int msrOutInterval(MSR);
-int msrComove(MSR);
-double msrSoft(MSR);
-int msrDoDensity(MSR);
-int msrDoGravity(MSR msr);
-void msrSetParameters(MSR msr);
-void msrInitCosmology(MSR msr);
-void msrSetRung(MSR msr, uint8_t uRungLo, uint8_t uRungHi, int uRung);
-void msrZeroNewRung(MSR msr, uint8_t uRungLo, uint8_t uRungHi, int uRung);
-int msrMaxRung(MSR msr);
-void msrSwitchTheta(MSR msr,double);
-double msrSwitchDelta(MSR msr,double dTime,int iStep);
-uint64_t msrMaxOrder(MSR msr);
-
-void msrNewFof(MSR msr, double exp);
-void msrGroupStats(MSR msr);
-void msrHop(MSR msr, double exp);
-void msrHopWrite(MSR msr, const char *fname);
-void msrDeleteGroups(MSR msr);
-void msrInitRelaxation(MSR msr);
-void msrRelaxation(MSR msr,double dTime,double deltaT,int iSmoothType,int bSymmetric);
-/* Gas routines */
-void msrInitSph(MSR,double);
-void msrSph(MSR msr, double dTime, double dStep);
-void msrSphStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime);
-void msrCoolSetup(MSR msr, double);
-void msrCooling(MSR msr,double dTime,double dStep,int bUpdateState, int bUpdateTable,int bInterateDt);
-void msrStarForm( MSR, double, int);
-/* END Gas routines */
-
-void msrHostname(MSR msr);
-void msrMemStatus(MSR msr);
+    const char *OutName() const { return param.achOutName;}
+    int Steps()           const { return param.nSteps; }
+    double Delta()        const { return param.dDelta; }
+    int LogInterval()     const { return param.iLogInterval; }
+    int OutInterval()     const { return param.iOutInterval; }
+    int CheckInterval()   const { return param.iCheckInterval; }
+    double Soft()         const { return param.dSoft; }
+    int DoDensity()       const { return param.bDoDensity; }
+    int DoGas()           const { return param.bDoGas; }
+    int DoGravity()       const { return param.bDoGravity; }
+    double Eta()          const { return param.dEta; }
+    int MaxRung()         const { return param.iMaxRung; }
+    int Comove()          const { return csm->val.bComove; }
+    uint64_t MaxOrder()   const { return nMaxOrder; }
+    int CurrMaxRung()     const { return iCurrMaxRung; }
 
 
-void msrSelAll(MSR msr);
-void msrSelGas(MSR msr);
-void msrSelStar(MSR msr);
-void msrSelDeleted(MSR msr);
-uint64_t msrSrcMass(MSR msr,double dMinMass,double dMaxMass,int setIfTrue,int ClearIfFalse);
-uint64_t msrSrcById(MSR msr,uint64_t idStart,uint64_t idEnd,int setIfTrue,int clearIfFalse);
-uint64_t msrSrcPhaseDensity(MSR msr,double dMinPhaseDensity,double dMaxPhaseDensity,int setIfTrue,int clearIfFalse);
-uint64_t msrSrcBox(MSR msr,double *dCenter, double *dSize,int setIfTrue,int clearIfFalse);
-uint64_t msrSrcSphere(MSR msr,double *r, double dRadius,int setIfTrue,int clearIfFalse);
-uint64_t msrSrcCylinder(MSR msr,double *dP1, double *dP2, double dRadius, int setIfTrue, int clearIfFalse );
-
-void msrDeepestPot(MSR msr,double *r, float *fPot);
-double msrTotalMass(MSR msr);
-void msrProfile(
-    MSR msr, const PROFILEBIN **pBins, int *pnBins, double *r,
-    double dMinRadius, double dLogRadius, double dMaxRadius,
-    int nPerBin, int nBins, int nAccuracy );
-void msrDeleteProfile(MSR msr);
-
-void msrCalcCOM(MSR msr,const double *dCenter, double dRadius,
-		double *com, double *vcm, double *L, double *M);
-void msrInitGrid(MSR msr,int x,int y,int z);
-void msrGridProject(MSR msr,double x,double y,double z);
+    char *BuildName(char *achFile,int iStep,char *defaultPath);
+    char *BuildName(char *achFile,int iStep);
+    char *BuildIoName(char *achFile,int iStep);
+    void ReadOuts(double dTime);
+    void msrprintf(const char *Format, ... ) const;
+    void Exit(int status);
+    uint64_t getMemoryModel();
+    void InitializePStore(uint64_t *nSpecies);
+    int CheckForStop(const char *achStopFile);
+    int CheckForOutput(int iStep,double dTime,int *pbDoCheckpoint,int *pbDoOutput);
+    bool OutTime(double dTime);
+    void SetClasses();
+    void SwapClasses(int id);
+    void OneNodeRead(struct inReadFile *in, FIO fio);
+    void AllNodeWrite(const char *pszFileName, double dTime, double dvFac, int bDouble);
+    uint64_t CalcWriteStart();
+    void SwitchTheta(double);
+    double SwitchDelta(double dTime,int iStep);
+    void InitCosmology();
+    void SetParameters();
+    void BuildTree(int bNeedEwald,uint32_t uRoot,uint32_t utRoot);
+    void ActiveRung(int iRung, int bGreater);
+    void ActiveOrder();
+    void CalcBound(BND *pbnd);
+    void CalcVBound(BND *pbnd);
+    void GetNParts();
+    void ScaleVel(double dvFac);
+    double AdjustTime(double aOld, double aNew);
+    void UpdateSoft(double dTime);
+    int GetParticles(int nIn, uint64_t *ID, struct outGetParticles *out);
+    void OutputOrbits(int iStep,double dTime);
+    void GridCreateFFT(int nGrid);
+    void GridDeleteFFT();
+    double TotalMass();
+    void LightConeOpen(int iStep);
+    void LightConeClose(int iStep);
+    void LightConeVel();
 #ifdef MDL_FFTW
-void msrGridCreateFFT(MSR msr, int nGrid);
-void msrGridDeleteFFT(MSR msr);
-void msrAssignMass(MSR msr,int iAssignment,int nGrid);
-void msrMeasurePk(MSR msr,int iAssignment,int bInterlace,int nGrid,double a,int nBins,uint64_t *nPk,float *fK,float *fPk,float *fPkAll);
-void msrMeasureLinPk(MSR msr,int nGridLin,double a,double dBoxSize,
-                uint64_t *nPk,float *fK,float *fPk);
-void msrSetLinGrid(MSR msr,double dTime, int nGrid, int bKickClose, int bKickOpen);
-void msrLinearKick(MSR msr, double dTime, int bKickClose, int bKickOpen);
+    void AssignMass(int iAssignment,int nGrid);
+    void SetLinGrid(double dTime, int nGrid, int bKickClose, int bKickOpen);
+    void LinearKick(double dTime, int bKickClose, int bKickOpen);
 #endif
-void msrPSGroupFinder(MSR msr);
-void msrOutPsGroups(MSR msr,const char *pszFile,int iOutType, double dTime);
-void msrUnbind(MSR msr);
-void msrSetPSGroupIds(MSR msr);
-int msrGetParticles(MSR msr, int nIn, uint64_t *ID, struct outGetParticles *out);
-void msrOutputOrbits(MSR msr,int iStep,double dTime);
+    void CalcEandL(int bFirst,double dTime,double *E,double *T,double *U,double *Eth,double *L,double *F,double *W);
+    void Drift(double dTime,double dDelta,int iRoot);
+
+    void SmoothSetSMF(SMF *smf, double dTime);
+    void ZeroNewRung(uint8_t uRungLo, uint8_t uRungHi, int uRung);
+    void KickKDKOpen(double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi);
+    void KickKDKClose(double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi);
+    void UpdateRung(uint8_t uRung);
+    void AccelStep(uint8_t uRungLo,uint8_t uRungHi,double dTime);
+    void SphStep(uint8_t uRungLo,uint8_t uRungHi,double dTime);
+    void DensityStep(uint8_t uRungLo,uint8_t uRungHi,double dTime);
+
+    void FastGasPhase1(double dTime,int iSmoothType);
+    void FastGasPhase2(double dTime,int iSmoothType);
+    void CoolSetup(double dTime);
+    void Cooling(double dTime,double dStep,int bUpdateState, int bUpdateTable,int bInterateDt);
+    void AddDelParticles();
+    void StarForm(double dTime, int iRung);
+    void InitSph(double dTime);
+    void Sph(double dTime, double dStep);
+    uint64_t CountDistance(double dRadius2Inner, double dRadius2Outer);
+
+protected:
+    int Initialize(MDL,void *,int,char **);
+    void writeParameters(const char *baseName,int iStep,double dTime);
+    void OutASCII(const char *pszFile,int iType,int nDims);
+    void DomainDecompOld(int iRung);
+public:
+    ~MSR();
+    int Python(int argc, char *argv[]);
+    int ValidateParameters();
+    void Hostname();
+    void MemStatus();
+
+    void SaveParameters();
+    int CountRungs(uint64_t *nRungs);
+    int GetLock();
+    void SetSoft(double);
+
+    double Read(const char *achInFile);
+    void Checkpoint(int iStep, double dTime);
+    void Write(const char *pszFileName,double dTime,int bCheckpoint);
+    void OutArray(const char *,int);
+    void OutVector(const char *,int);
+    void Output(int iStep, double dTime, int bCheckpoint);
+    void Reorder();
+    void DomainDecomp(int iRung=0);
+    void BuildTree(int bNeedEwald);
+    void BuildTreeFixed(int bNeedEwald,uint8_t uRungDD);
+    void BuildTreeActive(int bNeedEwald,uint8_t uRungDD);
+    void BuildTreeMarked();
+
+    void MeasurePk(int iAssignment,int bInterlace,int nGrid,double a,int nBins,uint64_t *nPk,float *fK,float *fPk,float *fPkAll);
+    void MeasureLinPk(int nGridLin,double a,double dBoxSize, uint64_t *nPk,float *fK,float *fPk);
+    void OutputPk(int iStep,double dTime);
+    void OutputLinPk(int iStep, double dTime);
+
+    uint8_t Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
+	double dTime,double dStep,int bKickClose,int bKickOpen,int bEwald,int bGravStep,int nPartRhoLoc,int iTimeStepCrit,
+	int nGroup,int *piSec,uint64_t *pnActive);
+    int NewTopStepKDK(
+	int bDualTree,      /* Should be zero at rung 0! */
+	uint8_t uRung,	/* Rung level */
+	double *pdStep,	/* Current step */
+	double *pdTime,	/* Current time */
+	uint8_t *puRungMax,int *piSec,int *pbDoCheckpoint,int *pbDoOutput,int *pbNeedKickOpen);
+    void TopStepKDK(
+		    double dStep,	/* Current step */
+		    double dTime,	/* Current time */
+		    double dDelta,	/* Time step */
+		    int iRung,		/* Rung level */
+		    int iKickRung,	/* Gravity on all rungs from iRung
+					    to iKickRung */
+		    int iAdjust,		/* Do an adjust? */
+		    double *pdActiveSum,
+		    int *piSec);
+
+    void InitRelaxation();
+    void Relaxation(double dTime,double deltaT,int iSmoothType,int bSymmetric);
+    void Smooth(double dTime,int iSmoothType,int bSymmetric,int nSmooth);
+    void ReSmooth(double dTime,int iSmoothType,int bSymmetric);
+    void NewFof(double exp);
+    void Hop(double exp);
+    void GroupStats();
+    void HopWrite(const char *fname);
+    void CalcDistance(const double *dCenter, double dRadius );
+    void CalcCOM(const double *dCenter, double dRadius,
+		double *com, double *vcm, double *L, double *M);
+    void Profile(
+	const PROFILEBIN **pBins, int *pnBins, double *r,
+	double dMinRadius, double dLogRadius, double dMaxRadius,
+	int nPerBin, int nBins, int nAccuracy );
+
+    double GenerateIC();
+    double LoadOrGenerateIC();
+    void Simulate(double dTime,int iStartStep);
+    void Simulate(double dTime);
+    void Restart(int n, const char *baseName, int iStep, double dTime);
+
+    void SelAll();
+    void SelGas();
+    void SelStar();
+    void SelDeleted();
+    uint64_t SelMass(double dMinMass,double dMaxMass,int setIfTrue,int ClearIfFalse);
+    uint64_t SelById(uint64_t idStart,uint64_t idEnd,int setIfTrue,int clearIfFalse);
+    uint64_t SelPhaseDensity(double dMinPhaseDensity,double dMaxPhaseDensity,int setIfTrue,int clearIfFalse);
+    uint64_t SelBox(double *dCenter, double *dSize,int setIfTrue,int clearIfFalse);
+    uint64_t SelSphere(double *r, double dRadius,int setIfTrue,int clearIfFalse);
+    uint64_t SelCylinder(double *dP1, double *dP2, double dRadius, int setIfTrue, int clearIfFalse );
+    };
 #endif

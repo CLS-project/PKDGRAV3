@@ -785,9 +785,6 @@ void pkdInitialize(
     pkd->profileBins = NULL;
     pkd->groupBin = NULL;
 
-    pkd->grid = NULL;
-    pkd->gridData = NULL;
-
     pkd->tmpHopGroups = NULL;
     pkd->hopGroups = NULL;
     pkd->hopRootIndex = NULL;
@@ -2663,18 +2660,6 @@ void pkdSetParameters(PKD pkd, struct parameters *p) {
     pkd->param = *p;
     }
 
-void pkdSetRung(PKD pkd,uint8_t uRungLo, uint8_t uRungHi, uint8_t uRung) {
-    PARTICLE *p;
-    int i;
-
-    for (i=0;i<pkdLocal(pkd);++i) {
-	p = pkdParticle(pkd,i);
-	if ( !pkdIsRungRange(p,uRungLo,uRungHi) ) continue;
-	p->uRung = uRung;
-	if (!pkd->bNoParticleOrder) p->uNewRung = uRung;
-	}
-    }
-
 void pkdZeroNewRung(PKD pkd,uint8_t uRungLo, uint8_t uRungHi, uint8_t uRung) {  /* JW: Ugly -- need to clean up */
     PARTICLE *p;
     int i;
@@ -2933,23 +2918,6 @@ uint8_t pkdDtToRung(double dT, double dDelta, uint8_t uMaxRung) {
     iRung = T.ieee.exponent - 1023; /* log2(d) */
     if (iRung > uMaxRung) return uMaxRung;
     else return iRung;
-    }
-
-
-void pkdUpdateRungByTree(PKD pkd,int iRoot,uint8_t uMinRung,int iMaxRung,
-uint64_t *nRungCount) {
-    KDN *c = pkdTreeNode(pkd,iRoot);
-    int i;
-    assert(!pkd->bNoParticleOrder);
-    for (i=0;i<=iMaxRung;++i) nRungCount[i] = 0;
-    for (i=c->pLower; i<=c->pUpper; ++i) {
-	PARTICLE *p = pkdParticle(pkd,i);
-	if ( p->uNewRung > iMaxRung ) p->uNewRung = iMaxRung;
-	else if (p->uNewRung < uMinRung) p->uNewRung = uMinRung;
-	if ( p->uNewRung > p->uRung ) ++p->uRung;
-	else if ( p->uNewRung < p->uRung ) --p->uRung;
-	nRungCount[p->uRung] += 1;
-	}
     }
 
 

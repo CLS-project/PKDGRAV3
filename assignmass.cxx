@@ -179,7 +179,7 @@ int pstAssignMass(PST pst,void *vin,int nIn,void *vout,int nOut) {
     return 0;
     }
 
-void msrAssignMass(MSR msr,int iAssignment,int nGrid) {
+void MSR::AssignMass(int iAssignment,int nGrid) {
     static const char *schemes[] = {
     	"Nearest Grid Point (NGP)", "Cloud in Cell (CIC)",
         "Triangular Shaped Cloud (TSC)", "Piecewise Cubic Spline (PCS)" };
@@ -188,7 +188,7 @@ void msrAssignMass(MSR msr,int iAssignment,int nGrid) {
     printf("Assigning mass using %s (order %d)\n",schemes[iAssignment-1],iAssignment);
     mass.nGrid = nGrid;
     mass.iAssignment = iAssignment;
-    auto sec = msrTime();
-    pstAssignMass(msr->pst, &mass, sizeof(mass), NULL, 0);
-    printf("Mass assignment complete, Wallclock: %f secs\n",msrTime() - sec);
+    auto sec = MSR::Time();
+    pstAssignMass(pst, &mass, sizeof(mass), NULL, 0);
+    printf("Mass assignment complete, Wallclock: %f secs\n",MSR::Time() - sec);
     }

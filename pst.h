@@ -142,7 +142,6 @@ enum pst_service {
     PST_ACTIVEORDER,
     PST_SETPARAMETERS,
     PST_INITCOSMOLOGY,
-    PST_SETRUNG,
     PST_ZERONEWRUNG,
     PST_ACTIVERUNG,
     PST_COUNTRUNGS,
@@ -156,7 +155,6 @@ enum pst_service {
     PST_RESMOOTH,
     PST_INITACCEL,
     PST_UPDATERUNG,
-    PST_UPDATERUNGBYTREE,
     PST_INITDT,
     PST_ORDWEIGHT,
     PST_SETWRITESTART,
@@ -211,8 +209,6 @@ enum pst_service {
     PST_CALCDISTANCE,
     PST_CALCCOM,
     PST_COUNTDISTANCE,
-    PST_INITGRID,
-    PST_GRIDPROJECT,
 #ifdef MDL_FFTW
     PST_GRID_CREATE_FFT,
     PST_GRID_DELETE_FFT,
@@ -786,14 +782,6 @@ int pstSwapAll(PST pst,void *vin,int nIn,void *vout,int nOut);
 /* PST_ACTIVEORDER */
 int pstActiveOrder(PST,void *,int,void *,int);
 
-/* PST_SETRUNG */
-struct inSetRung {
-    uint8_t uRung;
-    uint8_t uRungLo;
-    uint8_t uRungHi;
-    };
-int pstSetRung(PST,void *,int,void *,int);
-
 /* PST_ZERONEWRUNG */
 struct inZeroNewRung {
     uint8_t uRung;
@@ -926,14 +914,6 @@ struct outUpdateRung {
     uint64_t nRungCount[MAX_RUNG];
     };
 int pstUpdateRung(PST,void *,int,void *,int);
-
-/* PST_UPDATE_RUNGBYTREE */
-struct inUpdateRungByTree {
-    int iRoot;
-    uint8_t uMinRung;
-    uint8_t uMaxRung;
-    };
-int pstUpdateRungByTree(PST,void *,int,void *,int);
 
 /* PST_ORDWEIGHT */
 struct inOrdWeight {
@@ -1253,19 +1233,6 @@ struct outCountDistance {
     uint64_t nCount;
     };
 int pstCountDistance(PST pst,void *vin,int nIn,void *vout,int nOut);
-
-/* PST_INITGRID */
-struct inInitGrid {
-    int n1, n2, n3, a1;
-    int s, n;
-    };
-int pstInitGrid(PST pst,void *vin,int nIn,void *vout,int nOut);
-
-/* PST_GRIDPROJECT */
-struct inGridProject {
-    double r[3];
-    };
-int pstGridProject(PST pst,void *vin,int nIn,void *vout,int nOut);
 
 /* PST_GRID_CREATE_FFT */
 struct inGridCreateFFT {

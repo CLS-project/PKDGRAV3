@@ -122,8 +122,8 @@ static void prm2ppy(PRM prm,PyObject *arguments, PyObject *specified) {
 	}
     }
 
-void msrSaveParameters(MSR msr) {
-    prm2ppy(msr->prm,msr->arguments,msr->specified);
+void MSR::SaveParameters() {
+    prm2ppy(prm,arguments,specified);
     }
 
 /******************************************************************************\
@@ -132,7 +132,7 @@ void msrSaveParameters(MSR msr) {
 
 typedef struct {
     PyObject_HEAD
-    MSR msr;
+    MSR *msr;
     } MSRINSTANCE;
 
 /********** Initial Condition Generation **********/
@@ -153,7 +153,7 @@ ppy_msr_GenerateIC(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     self->msr->csm->val = cosmo->csm->val;
     if (self->msr->csm->val.classData.bClass)
         csmClassGslInitialize(self->msr->csm);
-    double dTime = msrGenerateIC(self->msr);
+    double dTime = self->msr->GenerateIC();
     return Py_BuildValue("d", dTime );
     }
 
@@ -169,7 +169,7 @@ ppy_msr_Load(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
 	     args, kwobj, "s:Load", const_cast<char **>(kwlist),
 	     &fname ) )
 	return NULL;
-    dTime = msrRead(self->msr,fname);
+    dTime = self->msr->Read(fname);
     return Py_BuildValue("d", dTime );
     }
 
@@ -182,7 +182,7 @@ ppy_msr_Save(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
 	     args, kwobj, "s|d:Save", const_cast<char **>(kwlist),
 	     &fname,&dTime ) )
 	return NULL;
-    msrWrite(self->msr,fname,dTime,0);
+    self->msr->Write(fname,dTime,0);
     Py_RETURN_NONE;
     }
 
@@ -198,13 +198,13 @@ ppy_msr_Checkpoint(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
 	     args, kwobj, "|id:Checkpoint", const_cast<char **>(kwlist),
 	     /*&fname,*/&iStep,&dTime ) )
 	return NULL;
-    msrCheckpoint(self->msr,iStep,dTime);
+    self->msr->Checkpoint(iStep,dTime);
     Py_RETURN_NONE;
     }
 
 static PyObject *
 ppy_msr_Restart(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
-    MSR msr = self->msr;
+    MSR *msr = self->msr;
     static char const *kwlist[]={"arguments","specified","species","classes","n","name","step","time","E","U", "Utime", NULL};
     PyObject *species, *classes;
     int n, iStep;
@@ -252,7 +252,7 @@ ppy_msr_Restart(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
 
     ppy2prm(msr->prm,msr->arguments,msr->specified);
 
-    msrRestart(msr, n, name, iStep, dTime);
+    msr->Restart(n, name, iStep, dTime);
 
     Py_RETURN_NONE;
     }
@@ -269,7 +269,7 @@ ppy_msr_DomainDecomp(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
 	     args, kwobj, "|i:DomainDecomp", const_cast<char **>(kwlist),
 	     &iRung ) )
 	return NULL;
-    msrDomainDecomp(self->msr,iRung,bOthers);
+    self->msr->DomainDecomp(iRung);
     Py_RETURN_NONE;
     }
 
@@ -284,17 +284,17 @@ ppy_msr_BuildTree(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
 	     &bEwald, &uRungDT, &bActive ) )
 	return NULL;
     if (uRungDT) {
-	if (bActive) msrBuildTreeActive(self->msr,bEwald,uRungDT);
-	else msrBuildTreeFixed(self->msr,bEwald,uRungDT);
+	if (bActive) self->msr->BuildTreeActive(bEwald,uRungDT);
+	else self->msr->BuildTreeFixed(bEwald,uRungDT);
 	}
     else if (bActive) return PyErr_Format(PyExc_TypeError,"Building an active tree requires a valid rung");
-    else msrBuildTree(self->msr,bEwald);
+    else self->msr->BuildTree(bEwald);
     Py_RETURN_NONE;
     }
 
 static PyObject *
 ppy_msr_Reorder(MSRINSTANCE *self, PyObject *args) {
-    msrReorder(self->msr);
+    self->msr->Reorder();
     Py_RETURN_NONE;
     }
 
@@ -320,7 +320,7 @@ ppy_msr_Gravity(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
 	     args, kwobj, "d|ipdpp:Gravity", const_cast<char **>(kwlist),
 	     &dTime, &iRungLo, &bEwald, &dStep, &bKickClose, &bKickOpen ) )
 	return NULL;
-    uint8_t uRungMax = msrGravity(self->msr,iRungLo,iRungHi,iRoot1,iRoot2,dTime,dStep,bKickClose,bKickOpen,bEwald,
+    uint8_t uRungMax = self->msr->Gravity(iRungLo,iRungHi,iRoot1,iRoot2,dTime,dStep,bKickClose,bKickOpen,bEwald,
 	self->msr->param.bGravStep, self->msr->param.nPartRhoLoc, self->msr->param.iTimeStepCrit,
     	self->msr->param.nGroup,&iSec,&nActive);
     return Py_BuildValue("i", uRungMax);
@@ -341,8 +341,8 @@ ppy_msr_Smooth(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
 	     args, kwobj, "i|ipdp:Smooth", const_cast<char **>(kwlist),
 	     &iSmoothType,&nSmooth,&bSymmetric, &dTime, &bResmooth ) )
 	return NULL;
-    if (bResmooth) msrReSmooth(self->msr,dTime,iSmoothType,bSymmetric);
-    else msrSmooth(self->msr,dTime,iSmoothType,bSymmetric,nSmooth);
+    if (bResmooth) self->msr->ReSmooth(dTime,iSmoothType,bSymmetric);
+    else self->msr->Smooth(dTime,iSmoothType,bSymmetric,nSmooth);
     Py_RETURN_NONE;
     }
 
@@ -365,7 +365,7 @@ ppy_msr_MeasurePk(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     fPk.resize(nBins+1);
     fPkAll.resize(nBins+1);
     fK.resize(nBins+1);
-    msrMeasurePk(self->msr,4,1,nGrid,a,nGrid/2,NULL,fK.data(),fPk.data(),fPkAll.data());
+    self->msr->MeasurePk(4,1,nGrid,a,nGrid/2,NULL,fK.data(),fPk.data(),fPkAll.data());
     auto ListK = PyList_New( nBins+1 );
     auto ListPk = PyList_New( nBins+1 );
     auto ListPkAll = PyList_New( nBins+1 );
@@ -418,7 +418,7 @@ static PyMethodDef msr_methods[] = {
 \******************************************************************************/
 
 struct msrModuleState {
-    MSR msr;
+    MSR *msr;
     bool bImported;
     };
 
@@ -530,7 +530,7 @@ static PyObject * initModuleMSR(void) {
 
 extern "C" PyObject *PyInit_CSM(void);
 
-int msrPython(MSR *msr, int argc, char *argv[]) {
+int MSR::Python(int argc, char *argv[]) {
     PyImport_AppendInittab(MASTER_MODULE_NAME,initModuleMSR);
     PyImport_AppendInittab("CSM",PyInit_CSM);
 
@@ -548,9 +548,9 @@ int msrPython(MSR *msr, int argc, char *argv[]) {
     // Contruct the "MSR" context and module
     auto msr_module = PyModule_Create(&msrModule);
     PyState_AddModule(msr_module,&msrModule);
-    msrInitialize(msr,mdlMDL(),mdlWORKER(),0,NULL);
+    Initialize(mdlMDL(),mdlWORKER(),0,NULL);
     auto moduleState = reinterpret_cast<struct msrModuleState*>(PyModule_GetState(msr_module));
-    moduleState->msr = *msr;
+    moduleState->msr = this;
     moduleState->bImported = false; // If imported then we enter script mode
 
     // Convert program arguments to unicode
@@ -578,11 +578,9 @@ int msrPython(MSR *msr, int argc, char *argv[]) {
     // Retrieve the results
     int n = PyTuple_Size(result);
     if (n!=2) { fprintf(stderr,"INTERNAL ERROR: parse.parse() MUST return a tuple\n"); abort();	}
-    PyObject *arguments = PyTuple_GetItem(result,0); /* Values of each parameter */
-    PyObject *specified = PyTuple_GetItem(result,1); /* If it was explicitely specified */
+    arguments = PyTuple_GetItem(result,0); /* Values of each parameter */
+    specified = PyTuple_GetItem(result,1); /* If it was explicitely specified */
     PyObject *script = PyObject_GetAttrString(arguments,"script");
-    (*msr)->arguments = arguments;
-    (*msr)->specified = specified;
 
     // If a script was specified then we run it.
     if (script != Py_None) {
@@ -608,7 +606,7 @@ int msrPython(MSR *msr, int argc, char *argv[]) {
 	PyTuple_SetItem(args,2,specified);
 	PyObject_CallObject(update,args); // Copy and variables into the arguments Namespace
 	if (PyErr_Occurred()) { PyErr_Print(); exit(1); }
-	ppy2prm((*msr)->prm,arguments,specified); // Update the pkdgrav parameter state
+	ppy2prm(prm,arguments,specified); // Update the pkdgrav parameter state
 	}
 
     return moduleState->bImported;
