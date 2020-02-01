@@ -38,15 +38,6 @@ double MSR::LoadOrGenerateIC() {
     else if ( param.achInFile[0] ) {
 	dTime = Read(param.achInFile); /* May change nSteps/dDelta */
 	if (param.bAddDelete) GetNParts();
-	if (prmSpecified(prm,"dRedFrom")) {
-	    double aOld, aNew;
-	    aOld = csmTime2Exp(csm,dTime);
-	    aNew = 1.0 / (1.0 + param.dRedFrom);
-	    dTime = AdjustTime(aOld,aNew);
-	    /* Seriously, we shouldn't need to send parameters *again*.
-	    When we remove sending parameters, we should remove this. */
-	    SetParameters();
-	    }
 	}
     else {
 	printf("No input file specified\n");
