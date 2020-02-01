@@ -21,6 +21,7 @@
 #include <stdint.h>
 #include <signal.h>
 #include <time.h>
+#include <vector>
 #include <Python.h>
 
 #include "param.h"

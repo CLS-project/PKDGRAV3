@@ -58,7 +58,7 @@
 #include <glob.h>
 #endif
 #include <sys/stat.h>
-
+#include <algorithm>
 #ifdef HAVE_SYS_PARAM_H
 #include <sys/param.h> /* for MAXHOSTNAMELEN, if available */
 #endif
@@ -398,7 +398,7 @@ void MSR::writeParameters(const char *baseName,int iStep,double dTime) {
 	}
     fprintf(fp," ]\n");
     fprintf(fp,"msr=MSR()\n");
-    fprintf(fp,"Restart(arguments=arguments, specified=specified, species=species, classes=classes,\n"
+    fprintf(fp,"msr.Restart(arguments=arguments, specified=specified, species=species, classes=classes,\n"
     	       "            n=%d,name='%s',step=%d,time=%.17g,\n"
     	       "            E=%.17g,U=%.17g,Utime=%.17g)\n",
     	       mdlThreads(mdl),baseName,iStep,dTime,dEcosmo,dUOld,dTimeOld);
