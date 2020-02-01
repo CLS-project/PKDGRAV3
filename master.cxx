@@ -1412,26 +1412,14 @@ MSR::~MSR() {
     prmFinish(prm);
     }
 
-static int CmpPC(const void *v1,const void *v2) {
-    PARTCLASS *pClass1 = (PARTCLASS*)v1;
-    PARTCLASS *pClass2 = (PARTCLASS*)v2;
-    if ( pClass1->fMass < pClass2->fMass ) return -1;
-    else if ( pClass1->fMass > pClass2->fMass ) return 1;
-    else if ( pClass1->fSoft < pClass2->fSoft ) return -1;
-    else if ( pClass1->fSoft > pClass2->fSoft ) return 1;
-    else return 0;
-    }
-
 void MSR::SetClasses() {
-    PARTCLASS *pClass;
-    int n, nClass;
-    pClass = new PARTCLASS[PKD_MAX_CLASSES];
-    nClass = pstGetClasses(pst,NULL,0,pClass,PKD_MAX_CLASSES*sizeof(PARTCLASS));
-    n = nClass / sizeof(PARTCLASS);
+    std::vector<PARTCLASS> classes(PKD_MAX_CLASSES);
+    auto nClass = pstGetClasses(pst,NULL,0,classes.data(),classes.size()*sizeof(PARTCLASS));
+    auto n = nClass / sizeof(PARTCLASS);
     assert(n*sizeof(PARTCLASS)==nClass);
-    qsort(pClass,n,sizeof(PARTCLASS),CmpPC);
-    pstSetClasses(pst,pClass,nClass,NULL,0);
-    delete[] pClass;
+    classes.resize(n);
+    std::sort(classes.begin(),classes.end());
+    pstSetClasses(pst,classes.data(),nClass,NULL,0);
     }
 
 void MSR::SwapClasses(int id) {

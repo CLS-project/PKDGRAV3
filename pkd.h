@@ -142,6 +142,15 @@ typedef struct partclass {
     float       fMass;    /* Particle mass */
     float       fSoft;    /* Current softening */
     FIO_SPECIES eSpecies; /* Species: dark, star, etc. */
+#ifdef __cplusplus
+    bool operator <(const struct partclass &b) const {
+	if ( fMass < b.fMass ) return true;
+	else if ( fMass > b.fMass ) return false;
+	else if ( fSoft < b.fSoft ) return true;
+	else if ( fSoft > b.fSoft ) return false;
+	else return eSpecies < b.eSpecies;
+	}
+#endif
     } PARTCLASS;
 
 typedef struct velsmooth {
