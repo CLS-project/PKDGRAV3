@@ -548,7 +548,7 @@ int MSR::Python(int argc, char *argv[]) {
     // Contruct the "MSR" context and module
     auto msr_module = PyModule_Create(&msrModule);
     PyState_AddModule(msr_module,&msrModule);
-    Initialize(mdlMDL(),mdlWORKER(),0,NULL);
+    Initialize();
     auto moduleState = reinterpret_cast<struct msrModuleState*>(PyModule_GetState(msr_module));
     moduleState->msr = this;
     moduleState->bImported = false; // If imported then we enter script mode

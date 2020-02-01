@@ -35,6 +35,12 @@ extern time_t timeGlobalSignalTime;
 extern int bGlobalOutput;
 
 class MSR {
+protected:
+    PST pst;
+    MDL mdl;
+public:
+    explicit MSR(MDL mdl,PST pst) : pst(pst), mdl(mdl) {}
+    ~MSR();
 private:
     typedef struct {
 	double dFrac;       /* Fraction of particles in each bin */
@@ -56,8 +62,6 @@ private:
 
 public:
     PRM prm;
-    PST pst;
-    MDL mdl;
     LCL lcl;
     double fCenter[6];
     /*
@@ -123,7 +127,7 @@ public:
     char achCheckpointName[PST_FILENAME_SIZE];
     int nCheckpointClasses;
     PARTCLASS aCheckpointClasses[PKD_MAX_CLASSES];
-protected: // eventually protected
+protected:
     static double Time();
     static void Leader();
     static void Trailer();
@@ -212,12 +216,11 @@ protected: // eventually protected
     uint64_t CountDistance(double dRadius2Inner, double dRadius2Outer);
 
 protected:
-    int Initialize(MDL,void *,int,char **);
+    int Initialize();
     void writeParameters(const char *baseName,int iStep,double dTime);
     void OutASCII(const char *pszFile,int iType,int nDims);
     void DomainDecompOld(int iRung);
 public:
-    ~MSR();
     int Python(int argc, char *argv[]);
     int ValidateParameters();
     void Hostname();

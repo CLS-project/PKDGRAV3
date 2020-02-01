@@ -80,7 +80,8 @@ void worker_done(MDL mdl, void *ctx) {
 /*
 ** This is invoked for the "master" process after the worker has been setup.
 */
-void master(MDL mdl,void *pst) {
+void master(MDL mdl,void *vpst) {
+    auto pst = reinterpret_cast<PST>(vpst);
     int argc = mdlGetArgc(mdl);
     char **argv = mdlGetArgv(mdl);
 
@@ -96,7 +97,7 @@ void master(MDL mdl,void *pst) {
     signal(SIGUSR2,USR2_handler);
 #endif
 
-    MSR msr;
+    MSR msr(mdl,pst);
     if (!msr.Python(argc,argv)) {
 	printf("%s using Python %d.%d.%d\n", PACKAGE_STRING, PY_MAJOR_VERSION, PY_MINOR_VERSION, PY_MICRO_VERSION );
 	msr.ValidateParameters();
