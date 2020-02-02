@@ -9,7 +9,7 @@ pipelines:
   default:
     - step:
         script: # Modify the commands below to build your repository.
-          - ln -s /build/euclid_flagship.hdf5
           - cmake .
           - make
+          - cp /build/euclid_flagship.hdf5 ./
           - ./pkdgrav3 tests/cosmology.py
