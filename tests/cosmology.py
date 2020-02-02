@@ -55,22 +55,22 @@ class TestCosmology(unittest.TestCase):
         self.assertAlmostEqual(f1, 0.8952794949702897,places=15)
         self.assertAlmostEqual(f2, 1.7962589373634128,places=15)
 
-# This needs an HDF5 file
-class TestCosmologyClass(unittest.TestCase):
-    @classmethod
-    def setUpClass(self):
-        self.csm1 = CSM()
-        self.csm1.ClassRead('euclid_flagship_500.hdf5',Lbox=1,As=2.1e-09,ns=0.96)
-        self.csm2 = CSM()
-        self.csm2.SetCosmology(dHubble0=math.sqrt(math.pi*8/3),As=2.1e-09,ns=0.96,
-        		dOmega0=self.csm1.dOmega0 + (0.0011978 + 0.000208644 ),
-        		dLambda=self.csm1.dLambda,
-        		dOmegaRad=self.csm1.dOmegaRad + 1.27031e-05,
-        		dOmegaDE=self.csm1.dOmegaDE,w0=self.csm1.w0,wa=self.csm1.wa)
+# # This needs an HDF5 file
+# class TestCosmologyClass(unittest.TestCase):
+#     @classmethod
+#     def setUpClass(self):
+#         self.csm1 = CSM()
+#         self.csm1.ClassRead('euclid_flagship_500.hdf5',Lbox=1,As=2.1e-09,ns=0.96)
+#         self.csm2 = CSM()
+#         self.csm2.SetCosmology(dHubble0=math.sqrt(math.pi*8/3),As=2.1e-09,ns=0.96,
+#         		dOmega0=self.csm1.dOmega0 + (0.0011978 + 0.000208644 ),
+#         		dLambda=self.csm1.dLambda,
+#         		dOmegaRad=self.csm1.dOmegaRad + 1.27031e-05,
+#         		dOmegaDE=self.csm1.dOmegaDE,w0=self.csm1.w0,wa=self.csm1.wa)
 
-    def testHubble(self):
-        self.assertAlmostEqual(self.csm1.Exp2Hub(a=1.0), self.csm2.Exp2Hub(a=1.0),places=15)
-        self.assertAlmostEqual(self.csm1.Exp2Hub(a=0.1), self.csm2.Exp2Hub(a=0.1),delta=0.005)
+#     def testHubble(self):
+#         self.assertAlmostEqual(self.csm1.Exp2Hub(a=1.0), self.csm2.Exp2Hub(a=1.0),places=15)
+#         self.assertAlmostEqual(self.csm1.Exp2Hub(a=0.1), self.csm2.Exp2Hub(a=0.1),delta=0.005)
 
 if __name__ == '__main__':
     print('Running test')

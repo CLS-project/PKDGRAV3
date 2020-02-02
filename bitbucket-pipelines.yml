@@ -11,5 +11,4 @@ pipelines:
         script: # Modify the commands below to build your repository.
           - cmake .
           - make
-          - cp /build/euclid_flagship.hdf5 ./
           - ./pkdgrav3 tests/cosmology.py
