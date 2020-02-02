@@ -676,8 +676,9 @@ int MSR::Python(int argc, char *argv[]) {
 	else { fprintf(stderr,"INTERNAL ERROR: script filename is invalid\n"); abort();	}
 	FILE *fp = fopen(filename,"r");
 	if (fp == NULL) { perror(filename); exit(errno); }
-	PyRun_FileEx(fp,filename,Py_file_input,globals,locals,1); // fp is closed on return
+	auto s = PyRun_FileEx(fp,filename,Py_file_input,globals,locals,1); // fp is closed on return
 	if (PyErr_Occurred()) { PyErr_Print(); exit(1); }
+	Py_DECREF(s);
 	Py_DECREF(ascii);
 	}
 

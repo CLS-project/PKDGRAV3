@@ -260,8 +260,7 @@ def parse():
     for k in vars(params):
         if not k in vars(spec): setattr(spec,k,False)
     argv[1:] = extra # Consume the parameters we parsed out
-    #print('from argparse import Namespace')
-    #print('parameters = {}'.format(params))
+    if params.script is not None: argv[0]=params.script
     return (params,spec)
 
 def update(pars,args,spec):
