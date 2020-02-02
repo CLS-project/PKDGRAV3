@@ -16,6 +16,6 @@ RUN cd /build && wget http://www.fftw.org/fftw-${FFTW_VERSION}.tar.gz\
   && make && make install && make clean && rm -rf /build/fftw-${FFTW_VERSION}.tar.gz /build/fftw-${FFTW_VERSION}
 RUN apt-get install -y python3-dev && apt-get clean all
 RUN apt-get install -y python3-pip && apt-get clean all && pip3 install xmlrunner ddt
-WORKDIR /build
+WORKDIR /opt/atlassian/pipelines/agent/build
 COPY euclid_flagship.hdf5 ./
 ENTRYPOINT /bin/bash
