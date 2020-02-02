@@ -77,7 +77,7 @@ static int ppy2prm(PRM prm,PyObject *arguments, PyObject *specified) {
 	if (v!=NULL) {
 	    if (v != Py_None) {
 		auto f = PyObject_GetAttrString(specified, pn->pszName); // A Namespace
-		if (f) { pn->bArg = PyObject_IsTrue(f)>0; Py_DECREF(v); }
+		if (f) { pn->bArg = PyObject_IsTrue(f)>0; Py_DECREF(f); }
 		else pn->bArg = 0;
 		if (PyList_Check(v)) {
 		    if (pn->pCount==NULL) {
@@ -118,7 +118,10 @@ static void prm2ppy(PRM prm,PyObject *arguments, PyObject *specified) {
 	default:
 	    v = NULL;
 	    }
-	if (v) PyObject_SetAttrString(arguments,pn->pszName,v);
+	if (v) {
+	    PyObject_SetAttrString(arguments,pn->pszName,v);
+	    Py_DECREF(v);
+	    }
 	}
     }
 
@@ -527,6 +530,86 @@ static PyObject * initModuleMSR(void) {
 /******************************************************************************\
 *   Setup MSR using Python to parse parameters / enter analysis mode
 \******************************************************************************/
+
+bool MSR::wasParameterSpecified(const char *name) const {
+    bool bSpecified = false;
+    if (auto f = PyObject_GetAttrString(specified,name)) {
+    	bSpecified = PyObject_IsTrue(f)>0;
+    	Py_DECREF(f);
+	}
+    return bSpecified;
+    }
+
+bool MSR::getParameterBoolean(const char *name) const {
+    bool v = false;
+    if (auto o = PyObject_GetAttrString(arguments,name)) {
+	v = PyObject_IsTrue(o)>0;
+    	Py_DECREF(o);
+	}
+    if (PyErr_Occurred()) { PyErr_Print(); abort(); }
+    return v;
+    }
+void MSR::setParameter(const char *name,bool v,int bSpecified) {
+    auto o = v ? Py_True : Py_False;
+    PyObject_SetAttrString(arguments,name,o);
+    if (bSpecified) {
+	Py_INCREF(Py_True);
+	PyObject_SetAttrString(specified,name,Py_True);
+	}
+    if (PyErr_Occurred()) { PyErr_Print(); abort(); }
+    }
+
+
+double MSR::getParameterDouble(const char *name) const {
+    double v = 0.0;
+    if (auto n = PyObject_GetAttrString(arguments,name)) {
+	if (auto o = PyNumber_Float(n)) {
+	    v = PyFloat_AsDouble(o);
+            Py_DECREF(o);
+	    }
+    	Py_DECREF(n);
+	}
+    if (PyErr_Occurred()) { PyErr_Print(); abort(); }
+    return v;
+    }
+void MSR::setParameter(const char *name,double v,int bSpecified) {
+    auto o = PyFloat_FromDouble(v);
+    //v = PyLong_FromLong(*(int *)pn->pValue);
+    if (o) {
+    	PyObject_SetAttrString(arguments,name,o);
+	Py_DECREF(o);
+	if (bSpecified) {
+	    Py_INCREF(Py_True);
+	    PyObject_SetAttrString(specified,name,Py_True);
+	    }
+	}
+    if (PyErr_Occurred()) { PyErr_Print(); abort(); }
+    }
+
+long long MSR::getParameterLongLong(const char *name) const {
+    long long v = 0;
+    if (auto n = PyObject_GetAttrString(arguments,name)) {
+	if (auto o = PyNumber_Long(n)) {
+	    v = PyLong_AsLongLong(o);
+	    Py_DECREF(o);
+	    }
+    	Py_DECREF(n);
+	}
+    if (PyErr_Occurred()) { PyErr_Print(); abort(); }
+    return v;
+    }
+void MSR::setParameter(const char *name,long long v,int bSpecified) {
+    auto o = PyLong_FromLongLong(v);
+    if (o) {
+    	PyObject_SetAttrString(arguments,name,o);
+	Py_DECREF(o);
+	if (bSpecified) {
+	    Py_INCREF(Py_True);
+	    PyObject_SetAttrString(specified,name,Py_True);
+	    }
+	}
+    if (PyErr_Occurred()) { PyErr_Print(); abort(); }
+    }
 
 extern "C" PyObject *PyInit_CSM(void);
 

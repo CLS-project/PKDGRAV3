@@ -37,11 +37,62 @@ extern int bGlobalOutput;
 
 class MSR {
 protected:
-    PST pst;
-    MDL mdl;
+    const PST pst;
+    const MDL mdl;
 public:
     explicit MSR(MDL mdl,PST pst) : pst(pst), mdl(mdl) {}
     ~MSR();
+public:
+    int Python(int argc, char *argv[]);
+    int ValidateParameters();
+    void Hostname();
+    void MemStatus();
+    int GetLock();
+    double LoadOrGenerateIC();
+    void Simulate(double dTime,int iStartStep);
+    void Simulate(double dTime);
+public:
+    // Parameters
+    bool      wasParameterSpecified(const char *name) const;
+    bool      getParameterBoolean(  const char *name) const;
+    double    getParameterDouble(   const char *name) const;
+    long long getParameterLongLong( const char *name) const;
+    void      setParameter(         const char *name,bool v,     int bSpecified=false);
+    void      setParameter(         const char *name,double v,   int bSpecified=false);
+    void      setParameter(         const char *name,long long v,int bSpecified=false);
+
+    // I/O and IC Generation
+    double GenerateIC();
+    void Restart(int n, const char *baseName, int iStep, double dTime);
+    double Read(const char *achInFile);
+    void Checkpoint(int iStep, double dTime);
+    void Write(const char *pszFileName,double dTime,int bCheckpoint);
+    void OutArray(const char *,int);
+    void OutVector(const char *,int);
+    void Output(int iStep, double dTime, int bCheckpoint);
+
+    // Particle order, domains, trees
+    void Reorder();
+    void DomainDecomp(int iRung=0);
+    void BuildTree(int bNeedEwald);
+    void BuildTreeFixed(int bNeedEwald,uint8_t uRungDD);
+    void BuildTreeActive(int bNeedEwald,uint8_t uRungDD);
+    void BuildTreeMarked();
+
+    // Gravity
+    uint8_t Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
+	double dTime,double dStep,int bKickClose,int bKickOpen,int bEwald,int bGravStep,int nPartRhoLoc,int iTimeStepCrit,
+	int nGroup,int *piSec,uint64_t *pnActive);
+
+    // Analysis
+    void Smooth(double dTime,int iSmoothType,int bSymmetric,int nSmooth);
+    void ReSmooth(double dTime,int iSmoothType,int bSymmetric);
+    void NewFof(double exp);
+    void Hop(double exp);
+    void GroupStats();
+    void HopWrite(const char *fname);
+    void MeasurePk(int iAssignment,int bInterlace,int nGrid,double a,int nBins,uint64_t *nPk,float *fK,float *fPk,float *fPkAll);
+
 private:
     typedef struct {
 	double dFrac;       /* Fraction of particles in each bin */
@@ -151,7 +202,6 @@ protected:
     uint64_t MaxOrder()   const { return nMaxOrder; }
     int CurrMaxRung()     const { return iCurrMaxRung; }
 
-
     char *BuildName(char *achFile,int iStep,char *defaultPath);
     char *BuildName(char *achFile,int iStep);
     char *BuildIoName(char *achFile,int iStep);
@@ -216,43 +266,19 @@ protected:
     void Sph(double dTime, double dStep);
     uint64_t CountDistance(double dRadius2Inner, double dRadius2Outer);
 
-protected:
     int Initialize();
     void writeParameters(const char *baseName,int iStep,double dTime);
     void OutASCII(const char *pszFile,int iType,int nDims);
     void DomainDecompOld(int iRung);
-public:
-    int Python(int argc, char *argv[]);
-    int ValidateParameters();
-    void Hostname();
-    void MemStatus();
 
     void SaveParameters();
     int CountRungs(uint64_t *nRungs);
-    int GetLock();
     void SetSoft(double);
 
-    double Read(const char *achInFile);
-    void Checkpoint(int iStep, double dTime);
-    void Write(const char *pszFileName,double dTime,int bCheckpoint);
-    void OutArray(const char *,int);
-    void OutVector(const char *,int);
-    void Output(int iStep, double dTime, int bCheckpoint);
-    void Reorder();
-    void DomainDecomp(int iRung=0);
-    void BuildTree(int bNeedEwald);
-    void BuildTreeFixed(int bNeedEwald,uint8_t uRungDD);
-    void BuildTreeActive(int bNeedEwald,uint8_t uRungDD);
-    void BuildTreeMarked();
-
-    void MeasurePk(int iAssignment,int bInterlace,int nGrid,double a,int nBins,uint64_t *nPk,float *fK,float *fPk,float *fPkAll);
     void MeasureLinPk(int nGridLin,double a,double dBoxSize, uint64_t *nPk,float *fK,float *fPk);
     void OutputPk(int iStep,double dTime);
     void OutputLinPk(int iStep, double dTime);
 
-    uint8_t Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
-	double dTime,double dStep,int bKickClose,int bKickOpen,int bEwald,int bGravStep,int nPartRhoLoc,int iTimeStepCrit,
-	int nGroup,int *piSec,uint64_t *pnActive);
     int NewTopStepKDK(
 	int bDualTree,      /* Should be zero at rung 0! */
 	uint8_t uRung,	/* Rung level */
@@ -272,12 +298,6 @@ public:
 
     void InitRelaxation();
     void Relaxation(double dTime,double deltaT,int iSmoothType,int bSymmetric);
-    void Smooth(double dTime,int iSmoothType,int bSymmetric,int nSmooth);
-    void ReSmooth(double dTime,int iSmoothType,int bSymmetric);
-    void NewFof(double exp);
-    void Hop(double exp);
-    void GroupStats();
-    void HopWrite(const char *fname);
     void CalcDistance(const double *dCenter, double dRadius );
     void CalcCOM(const double *dCenter, double dRadius,
 		double *com, double *vcm, double *L, double *M);
@@ -285,12 +305,6 @@ public:
 	const PROFILEBIN **pBins, int *pnBins, double *r,
 	double dMinRadius, double dLogRadius, double dMaxRadius,
 	int nPerBin, int nBins, int nAccuracy );
-
-    double GenerateIC();
-    double LoadOrGenerateIC();
-    void Simulate(double dTime,int iStartStep);
-    void Simulate(double dTime);
-    void Restart(int n, const char *baseName, int iStep, double dTime);
 
     void SelAll();
     void SelGas();
