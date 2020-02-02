@@ -498,7 +498,7 @@ void mpiClass::flush_element(CacheHeader *pHdr,int iLineSize) {
 	}
     else pFlush = NULL; // We need a buffer
     if (pFlush==NULL) {
-	if (flushHeadFree.size() < 10 ) { // Take an penny / leave a penny
+	if (flushBuffCount - flushHeadBusy.size() < 10) { // Keep 10 free or in flight
 	    pFlush = flushHeadBusy.back(); // Remove LRU element
 	    flushHeadBusy.pop_back();
 	    flushBuffersByRank[pFlush->getRankTo()] = flushHeadBusy.end();
