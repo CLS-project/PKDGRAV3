@@ -54,7 +54,6 @@ void MSR::Simulate(double dTime) {
 void MSR::Simulate(double dTime,int iStartStep) {
     FILE *fpLog = NULL;
 
-    SetParameters();
     InitCosmology();
     if (prmSpecified(prm,"dSoft")) SetSoft(Soft());
     if (Comove()) SwitchTheta(dTime); // Adjust theta for gravity calculations.
@@ -99,7 +98,6 @@ void MSR::Simulate(double dTime,int iStartStep) {
 
     if (DoGravity()) {
 	SwitchDelta(dTime,iStartStep);
-	SetParameters();
 	if (param.bNewKDK) {
 	    LightConeOpen(iStartStep + 1);
 	    bKickOpen = 1;
@@ -149,7 +147,6 @@ void MSR::Simulate(double dTime,int iStartStep) {
     int iStop=0, bDoCheckpoint=0, bDoOutput=0;
     for (auto iStep=iStartStep+1;iStep<=Steps()&&!iStop;++iStep) {
 	SwitchDelta(dTime,iStep-1);
-	SetParameters();
 	if (Comove()) SwitchTheta(dTime);
 	dMultiEff = 0.0;
 	lPrior = time(0);

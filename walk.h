@@ -34,9 +34,8 @@ static inline int pkdIsCellActive(KDN *c,uint8_t uRungLo,uint8_t uRungHi) {
 /*
 ** Returns total number of active particles for which gravity was calculated.
 */
-int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,int bKickClose,int bKickOpen,
-    vel_t *dtClose,vel_t *dtOpen,double *dtLCDrift,double *dtLCKick,double dLookbackFac,double dLookbackFacLCP,
-    double dAccFac,double dTime,int nReps,int bEwald,int bGravStep,int nPartRhoLoc,int iTimeStepCrit,int nGroup, int iRoot1, int iRoot2,
+int pkdGravWalk(PKD pkd,struct pkdKickParameters *kick,struct pkdLightconeParameters *lc,struct pkdTimestepParameters *ts,
+    double dTime,int nReps,int bEwald,int nPartRhoLoc,int iTimeStepCrit,int nGroup, int iRoot1, int iRoot2,
     int iVARoot, double dThetaMin,double *pdFlop,double *pdPartSum,double *pdCellSum);
 
 int pkdGravWalkGroups(PKD pkd,double dTime,int nGroup, double dThetaMin,double *pdFlop,double *pdPartSum,double *pdCellSum);

@@ -22,7 +22,6 @@
 #include <string.h>
 
 #include "mdl.h"
-#include "parameters.h"
 #include "ilp.h"
 #include "ilc.h"
 #include "cl.h"
@@ -890,11 +889,6 @@ typedef struct pkdContext {
 
     PROFILEBIN *profileBins;
 
-    /*
-    ** Oh heck, just put all the parameters in here!
-    ** This is set in pkdSetParameters.
-    */
-    struct parameters param;
     CSM csm;
 
 #ifdef USE_CUDA
@@ -1337,7 +1331,6 @@ void pkdDistribRoot(PKD,double *,MOMC *);
 void pkdGroupOrder(PKD pkd,uint32_t *iGrpOffset);
 void pkdTreeBuildByGroup(PKD pkd, int nBucket, int nGroup);
 
-#include "parameters.h"
 /*
 ** From pkd.c:
 */
@@ -1408,11 +1401,10 @@ void pkdRestore(PKD pkd,const char *fname);
 uint32_t pkdWriteFIO(PKD pkd,FIO fio,double dvFac,double dTuFac,BND *bnd);
 void pkdWriteFromNode(PKD pkd,int iNode, FIO fio,double dvFac,double dTuFac,BND *bnd);
 void pkdWriteViaNode(PKD pkd, int iNode);
-void pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
-    int bKickClose,int bKickOpen,vel_t *dtClose,vel_t *dtOpen,
-    double *dtLCDrift,double *dtLCKick,double dLookbackFac,double dLookbackFacLCP,
-    double dAccFac,double dTime,int nReps,int bPeriodic,
-    int bEwald,int bGravStep,int nPartRhoLoc,int iTimeStepCrit,int nGroup,int iRoot1, int iRoot2,
+void pkdGravAll(PKD pkd,
+    struct pkdKickParameters *kick,struct pkdLightconeParameters *lc,struct pkdTimestepParameters *ts,
+    double dTime,int nReps,int bPeriodic,
+    int bEwald,int nPartRhoLoc,int iTimeStepCrit,int nGroup,int iRoot1, int iRoot2,
     double fEwCut,double fEwhCut,double dThetaMin,
     int bLinearSpecies,
     uint64_t *pnActive,
@@ -1431,7 +1423,6 @@ void pkdKickKDKClose(PKD pkd,double dTime,double dDelta,uint8_t uRungLo,uint8_t 
 void pkdKick(PKD pkd,double dTime,double dDelta,int bDoGas,double,double,double,uint8_t uRungLo,uint8_t uRungHi);
 void pkdKickTree(PKD pkd,double dTime,double dDelta,double,double,double,int iRoot);
 void pkdSwapAll(PKD pkd, int idSwap);
-void pkdSetParameters(PKD pkd,struct parameters *p);
 void pkdInitCosmology(PKD pkd,struct csmVariables *cosmo);
 void pkdZeroNewRung(PKD pkd,uint8_t uRungLo, uint8_t uRungHi, uint8_t uRung);
 void pkdActiveRung(PKD pkd, int iRung, int bGreater);

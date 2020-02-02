@@ -70,7 +70,6 @@
 #include "mdl.h"
 #include "tipsydefs.h"
 #include "outtype.h"
-#include "parameters.h"
 #include "cosmo.h"
 #include "healpix.h"
 
@@ -2041,12 +2040,10 @@ void pkdPhysicalSoft(PKD pkd,double dSoftMax,double dFac,int bSoftMaxMul) {
     pkd->fSoftMax = bSoftMaxMul ? HUGE_VALF : dSoftMax;
     }
 
-void
-pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
-    int bKickClose,int bKickOpen,vel_t *dtClose,vel_t *dtOpen,
-    double *dtLCDrift,double *dtLCKick,double dLookbackFac,double dLookbackFacLCP,
-    double dAccFac,double dTime,int nReps,int bPeriodic,
-    int bEwald,int bGravStep,int nPartRhoLoc,int iTimeStepCrit,int nGroup,int iRoot1, int iRoot2,
+void pkdGravAll(PKD pkd,
+    struct pkdKickParameters *kick,struct pkdLightconeParameters *lc,struct pkdTimestepParameters *ts,
+    double dTime,int nReps,int bPeriodic,
+    int bEwald,int nPartRhoLoc,int iTimeStepCrit,int nGroup,int iRoot1, int iRoot2,
     double fEwCut,double fEwhCut,double dThetaMin,
     int bLinearSpecies,
     uint64_t *pnActive,
@@ -2096,9 +2093,9 @@ pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     pkdStartTimer(pkd,1);
     pkd->dFlopSingleCPU = pkd->dFlopDoubleCPU = 0.0;
     pkd->dFlopSingleGPU = pkd->dFlopDoubleGPU = 0.0;
-    *pnActive = pkdGravWalk(pkd,uRungLo,uRungHi,bKickClose,bKickOpen,dtClose,dtOpen,
-	dtLCDrift,dtLCKick,dLookbackFac,dLookbackFacLCP,
-	dAccFac,dTime,nReps,bPeriodic && bEwald,bGravStep,nPartRhoLoc,iTimeStepCrit,nGroup,
+
+    *pnActive = pkdGravWalk(pkd,kick,lc,ts,
+	dTime,nReps,bPeriodic && bEwald,nPartRhoLoc,iTimeStepCrit,nGroup,
 	iRoot1,iRoot2,0,dThetaMin,pdFlop,&dPartSum,&dCellSum);
     pkdStopTimer(pkd,1);
 
@@ -2654,10 +2651,6 @@ void pkdInitCosmology(PKD pkd, struct csmVariables *cosmo) {
     if (pkd->csm->val.classData.bClass){
         csmClassGslInitialize(pkd->csm);
 	}
-    }
-
-void pkdSetParameters(PKD pkd, struct parameters *p) {
-    pkd->param = *p;
     }
 
 void pkdZeroNewRung(PKD pkd,uint8_t uRungLo, uint8_t uRungHi, uint8_t uRung) {  /* JW: Ugly -- need to clean up */

@@ -120,6 +120,31 @@ struct EwaldVariables {
     int nReps,nEwReps;
     };
 
+struct pkdTimestepParameters {
+    double dDelta, dEta;
+    double dAccFac, dRhoFac, dPreFacRhoLoc;
+    uint8_t uRungLo,uRungHi,uMaxRung;
+    uint8_t bGravStep;
+    int iTimeStepCrit;
+    double nPartColl;
+    double dEccFacMax;
+    };
+
+struct pkdKickParameters {
+    int bKickClose, bKickOpen;
+    vel_t dtClose[IRUNGMAX+1];
+    vel_t dtOpen[IRUNGMAX+1];
+    };
+
+struct pkdLightconeParameters {
+    double dtLCDrift[IRUNGMAX+1];
+    double dtLCKick[IRUNGMAX+1];
+    double dLookbackFac;
+    double dLookbackFacLCP;
+    double dBoxSize;
+    int bLightConeParticles;
+    };
+
 /*
 ** Accumulates the work for a set of particles
 */
@@ -130,23 +155,17 @@ typedef struct {
     PINFOOUT *pInfoOut;
     double dFlop;
     double c[3];
-    float dRhoFac;
     int nP;
     int nRefs;
     void *ctx;
-    int bGravStep;
-    uint8_t uRungLo;
-    uint8_t uRungHi;
-    int bKickClose;
-    int bKickOpen;
-    vel_t *dtClose;
-    vel_t *dtOpen;
-    double *dtLCDrift;
-    double *dtLCKick;
-    double dLookbackFac;
-    double dLookbackFacLCP;
+
+    struct pkdKickParameters *kick;
+    struct pkdLightconeParameters *lc;
+    struct pkdTimestepParameters *ts;
+    double dirLsum, normLsum;
+
     double dTime;
-    double dAccFac;
+
 #ifdef USE_CUDA
     void *cudaCtx;
 #endif

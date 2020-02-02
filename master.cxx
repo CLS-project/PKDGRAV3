@@ -341,8 +341,6 @@ void MSR::Restart(int n, const char *baseName, int iStep, double dTime) {
     iLastRungRT = 0;
     iLastRungDD = 0;
 
-
-    SetParameters();
     InitCosmology();
     if (prmSpecified(prm,"dSoft")) SetSoft(Soft());
     Simulate(dTime,iStep);
@@ -2561,80 +2559,88 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
     in.nReps = param.nReplicas;
     in.bPeriodic = param.bPeriodic;
     in.bEwald = bEwald;
-    in.bGravStep = bGravStep;
     in.nPartRhoLoc = nPartRhoLoc;
     in.iTimeStepCrit = iTimeStepCrit;
     in.nGroup = nGroup;
     in.dEwCut = param.dEwCut;
     in.dEwhCut = param.dEwhCut;
-    in.uRungLo = uRungLo;
-    in.uRungHi = uRungHi;
     in.dThetaMin = dThetaMin;
     in.iRoot1 = iRoot1;
     in.iRoot2 = iRoot2;
-    if (param.bLightCone) {
-	in.dLookbackFac = csmComoveKickFac(csm,dTime,(csmExp2Time(csm,1.0) - dTime));
-	dTimeLCP = csmExp2Time(csm,1.0/(1.0+param.dRedshiftLCP));
-	in.dLookbackFacLCP = csmComoveKickFac(csm,dTimeLCP,(csmExp2Time(csm,1.0) - dTimeLCP));
+
+
+    in.ts.iTimeStepCrit = 0;
+    in.ts.nPartColl = param.nPartColl;
+    in.ts.dEccFacMax = param.dEccFacMax;
+    if (bGravStep) {
+	double a = csmTime2Exp(csm,dTime);
+	in.ts.dRhoFac = 1.0/(a*a*a);
 	}
-    else {
-	in.dLookbackFac = 0.0;
-	in.dLookbackFacLCP = 0.0;
+    else in.ts.dRhoFac = 0.0;
+    in.ts.dDelta = param.dDelta;
+    in.ts.dEta = param.dEta;
+    in.ts.dPreFacRhoLoc = param.dPreFacRhoLoc;
+    in.ts.bGravStep = bGravStep;
+    in.ts.uRungLo = uRungLo;
+    in.ts.uRungHi = uRungHi;
+    in.ts.uMaxRung = param.iMaxRung;
+    if (csm->val.bComove) {
+	a = csmTime2Exp(csm,dTime);
+	in.ts.dAccFac = 1.0/(a*a*a);
 	}
+    else in.ts.dAccFac = 1.0;
+
     /*
     ** Now calculate the timestepping factors for kick close and open if the
     ** gravity should kick the particles. If the code uses bKickClose and 
     ** bKickOpen it no longer needs to store accelerations per particle.
     */
-    in.bKickClose = bKickClose;
-    in.bKickOpen = bKickOpen;
-    if (csm->val.bComove) {
-	a = csmTime2Exp(csm,dTime);
-	in.dAccFac = 1.0/(a*a*a);
-#if 0
-	// erf2: in.dThetaMin = 0.4 + 0.3*erf(a*10.0);
-	in.dThetaMin = 0.35 + 0.35*erf(a*8.0); // erf3
-	if ( !prmSpecified(prm,"nReplicas") && param.nReplicas>=1 ) {
-	    in.nReps = in.dThetaMin < 0.52 ? 2 : 1;
-	    }
-	printf("z=%.1f theta=%.3f nReps=%d\n", 1.0/a - 1.0, in.dThetaMin,in.nReps);
-#endif
-	}
-    else {
-	in.dAccFac = 1.0;
-	}
+    in.kick.bKickClose = bKickClose;
+    in.kick.bKickOpen = bKickOpen;
     for (i=0,dt=0.5*param.dDelta;i<=param.iMaxRung;++i,dt*=0.5) {
-	in.dtClose[i] = 0.0;
-	in.dtOpen[i] = 0.0;
+	in.kick.dtClose[i] = 0.0;
+	in.kick.dtOpen[i] = 0.0;
 	if (i>=uRungLo) {
 	    if (csm->val.bComove) {
 		if (bKickClose) {
-		    in.dtClose[i] = csmComoveKickFac(csm,dTime-dt,dt);
+		    in.kick.dtClose[i] = csmComoveKickFac(csm,dTime-dt,dt);
 		    }
 		if (bKickOpen) {
-		    in.dtOpen[i] = csmComoveKickFac(csm,dTime,dt);
+		    in.kick.dtOpen[i] = csmComoveKickFac(csm,dTime,dt);
 		    }
 		}
 	    else {
-		if (bKickClose) in.dtClose[i] = dt;
-		if (bKickOpen) in.dtOpen[i] = dt;
+		if (bKickClose) in.kick.dtClose[i] = dt;
+		if (bKickOpen) in.kick.dtOpen[i] = dt;
 		}
 	    }
+	}
+
+    in.lc.bLightConeParticles = param.bLightConeParticles;
+    in.lc.dBoxSize = param.dBoxSize;
+    if (param.bLightCone) {
+	in.lc.dLookbackFac = csmComoveKickFac(csm,dTime,(csmExp2Time(csm,1.0) - dTime));
+	dTimeLCP = csmExp2Time(csm,1.0/(1.0+param.dRedshiftLCP));
+	in.lc.dLookbackFacLCP = csmComoveKickFac(csm,dTimeLCP,(csmExp2Time(csm,1.0) - dTimeLCP));
+	}
+    else {
+	in.lc.dLookbackFac = 0.0;
+	in.lc.dLookbackFacLCP = 0.0;
 	}
     /*
     ** Note that in this loop we initialize dt with the full step, not a half step!
     */
     for (i=0,dt=param.dDelta;i<=param.iMaxRung;++i,dt*=0.5) {
-	in.dtLCDrift[i] = 0.0;
-	in.dtLCKick[i] = 0.0;
+	in.lc.dtLCDrift[i] = 0.0;
+	in.lc.dtLCKick[i] = 0.0;
 	if (i>=uRungLo) {
 	    if (csm->val.bComove) {
-		in.dtLCDrift[i] = csmComoveDriftFac(csm,dTime,dt);
-		in.dtLCKick[i] = csmComoveKickFac(csm,dTime,dt);
+		in.lc.dtLCDrift[i] = csmComoveDriftFac(csm,dTime,dt);
+		in.lc.dtLCKick[i] = csmComoveKickFac(csm,dTime,dt);
 		}
 	    else {
-	        in.dtLCDrift[i] = dt;
-	        in.dtLCKick[i] = dt;
+	        in.lc.dtLCDrift[i] = dt;
+	        in.lc.dtLCKick[i] = dt;
 		}
 	    }
 	}
@@ -2972,16 +2978,6 @@ void MSR::SwitchTheta(double dTime) {
 
 void MSR::InitCosmology() {
     pstInitCosmology(pst, &csm->val, sizeof(csm->val), NULL, 0);
-    }
-
-void MSR::SetParameters() {
-    /*
-    ** Here we can pass down all parameters of the simulation
-    ** before any timestepping takes place. This should happen
-    ** just after the file has been read and the PKD structure
-    ** initialized for each processor.
-    */
-    pstSetParameters(pst, &param, sizeof(param), NULL, 0);
     }
 
 void MSR::ZeroNewRung(uint8_t uRungLo, uint8_t uRungHi, int uRung) {
@@ -3996,7 +3992,6 @@ double MSR::GenerateIC() {
     for( j=0; j<FIO_SPECIES_LAST; j++) nSpecies[j] = 0;
     nSpecies[FIO_SPECIES_ALL] = nSpecies[FIO_SPECIES_DARK] = nTotal;
     InitializePStore(nSpecies);
-    SetParameters();
     InitCosmology();
 
     assert(param.dRedFrom >= 0.0 );

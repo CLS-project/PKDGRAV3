@@ -221,7 +221,6 @@ protected:
     void SwitchTheta(double);
     double SwitchDelta(double dTime,int iStep);
     void InitCosmology();
-    void SetParameters();
     void BuildTree(int bNeedEwald,uint32_t uRoot,uint32_t utRoot);
     void ActiveRung(int iRung, int bGreater);
     void ActiveOrder();

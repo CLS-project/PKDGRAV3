@@ -140,7 +140,6 @@ enum pst_service {
     PST_SWAPALL,
     PST_MASSCHECK,
     PST_ACTIVEORDER,
-    PST_SETPARAMETERS,
     PST_INITCOSMOLOGY,
     PST_ZERONEWRUNG,
     PST_ACTIVERUNG,
@@ -611,23 +610,14 @@ struct inGravity {
     int nReps;
     int bPeriodic;
     int bEwald;
-    int bGravStep;
     int nPartRhoLoc;
     int iTimeStepCrit;
     int nGroup;
     int iRoot1;
     int iRoot2;
-    uint8_t uRungLo;
-    uint8_t uRungHi;
-    int bKickClose;
-    int bKickOpen;
-    double dAccFac;
-    vel_t dtClose[IRUNGMAX+1];
-    vel_t dtOpen[IRUNGMAX+1];
-    double dtLCDrift[IRUNGMAX+1];
-    double dtLCKick[IRUNGMAX+1];
-    double dLookbackFac;
-    double dLookbackFacLCP;
+    struct pkdKickParameters kick;
+    struct pkdLightconeParameters lc;
+    struct pkdTimestepParameters ts;
     int bLinearSpecies;
     };
 
@@ -792,9 +782,6 @@ int pstZeroNewRung(PST,void *,int,void *,int);
 
 /* PST_INITCOSMOLOGY: struct csmVariables as input */
 int pstInitCosmology(PST,void *,int,void *,int);
-
-/* PST_SETPARAMETERS: struct parameters as input */
-int pstSetParameters(PST,void *,int,void *,int);
 
 struct inDensCheck {
     int iRung;

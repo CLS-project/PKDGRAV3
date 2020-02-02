@@ -187,8 +187,6 @@ void pstAddServices(PST pst,MDL mdl) {
 		  0,sizeof(uint64_t));
     mdlAddService(mdl,PST_INITCOSMOLOGY,pst,(fcnService_t*)pstInitCosmology,
 		  sizeof(struct csmVariables),0);
-    mdlAddService(mdl,PST_SETPARAMETERS,pst,(fcnService_t*)pstSetParameters,
-		  sizeof(struct parameters),0);
     mdlAddService(mdl,PST_ZERONEWRUNG,pst,(fcnService_t*)pstZeroNewRung,
 		  sizeof(struct inZeroNewRung),0);
     mdlAddService(mdl,PST_ACTIVERUNG,pst,(fcnService_t*)pstActiveRung,
@@ -2633,7 +2631,7 @@ int pstGravity(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	/*
 	** Combine the rung counts for the next timestep...
 	*/
-	for (i=in->uRungLo;i<=IRUNGMAX;++i) outr->nRung[i] += tmp.nRung[i];
+	for (i=in->ts.uRungLo;i<=IRUNGMAX;++i) outr->nRung[i] += tmp.nRung[i];
 	/*
 	** and the number of actives processed in this gravity call.
 	*/
@@ -2649,10 +2647,9 @@ int pstGravity(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	char buffer[512], *save, *f, *v;
 #endif
 	PKD pkd = plcl->pkd;
-	pkdGravAll(pkd,in->uRungLo,in->uRungHi,in->bKickClose,in->bKickOpen,
-	    in->dtClose,in->dtOpen,in->dtLCDrift,in->dtLCKick,in->dLookbackFac,in->dLookbackFacLCP,
-	    in->dAccFac,in->dTime,in->nReps,in->bPeriodic,
-	    in->bEwald,in->bGravStep,in->nPartRhoLoc,in->iTimeStepCrit,in->nGroup,in->iRoot1,in->iRoot2,in->dEwCut,in->dEwhCut,in->dThetaMin,
+	pkdGravAll(pkd,&in->kick,&in->lc,&in->ts,
+	    in->dTime,in->nReps,in->bPeriodic,
+	    in->bEwald,in->nPartRhoLoc,in->iTimeStepCrit,in->nGroup,in->iRoot1,in->iRoot2,in->dEwCut,in->dEwhCut,in->dThetaMin,
 	    in->bLinearSpecies,
 	    &outr->nActive,
 	    &outr->sPart.dSum,&outr->sPartNumAccess.dSum,&outr->sPartMissRatio.dSum,
@@ -2974,22 +2971,6 @@ int pstInitCosmology(PST pst,void *vin,int nIn,void *vout,int nOut) {
     else {
 	struct csmVariables *cosmo = vin;
 	pkdInitCosmology(plcl->pkd,cosmo);
-	}
-    return 0;
-    }
-
-int pstSetParameters(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    LCL *plcl = pst->plcl;
-
-    mdlassert(pst->mdl,nIn == sizeof(struct parameters));
-    if (pst->nLeaves > 1) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SETPARAMETERS,vin,nIn);
-	pstSetParameters(pst->pstLower,vin,nIn,NULL,0);
-	mdlGetReply(pst->mdl,rID,NULL,NULL);
-	}
-    else {
-    	struct parameters *param = vin;
-	pkdSetParameters(plcl->pkd,param);
 	}
     return 0;
     }
