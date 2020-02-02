@@ -1,5 +1,6 @@
 # Create the build/test image for pkdgrav3.
-# docker image build -t dpotter/pkdgrav3-build:latest - <Dockerfile.build
+# Make sure the required files are present: euclid_flagship.hdf5
+# docker image build -t dpotter/pkdgrav3-build:latest pkdgrav3-build
 FROM nvidia/cuda:10.1-devel-ubuntu18.04 as pkdgrav3-build-mpich
 LABEL maintainer="douglas.potter@uzh.ch"
 ARG MPICH_VERSION=3.2.1
@@ -14,6 +15,7 @@ RUN cd /build && wget http://www.fftw.org/fftw-${FFTW_VERSION}.tar.gz\
   && ./configure --enable-float --enable-mpi --enable-threads\
   && make && make install && make clean && rm -rf /build/fftw-${FFTW_VERSION}.tar.gz /build/fftw-${FFTW_VERSION}
 RUN apt-get install -y python3-dev && apt-get clean all
-RUN apt-get install -y python3-pip && apt-get clean all && pip3 install xmlrunner
+RUN apt-get install -y python3-pip && apt-get clean all && pip3 install xmlrunner ddt
 WORKDIR /build
+COPY euclid_flagship.hdf5 ./
 ENTRYPOINT /bin/bash

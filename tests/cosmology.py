@@ -3,39 +3,39 @@ import MASTER as MSR
 from CSM import CSM
 import math
 import unittest
+from ddt import ddt, data, file_data, unpack
 import xmlrunner
 
+@ddt
 class TestCosmology(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.csm = CSM()
         cls.csm.SetCosmology(dHubble0=math.sqrt(math.pi*8/3),dOmega0=0.32,dSigma8=0.83,ns=0.96)
 
-    def testTimeIdentity(self):
-        self.assertAlmostEqual(self.csm.Time2Exp(self.csm.Exp2Time(1.0)),1.0,places=15)
-        self.assertAlmostEqual(self.csm.Time2Exp(self.csm.Exp2Time(0.1)),0.1,places=15)
-        self.assertAlmostEqual(self.csm.Time2Exp(self.csm.Exp2Time(0.01)),0.01,places=15)
-        self.assertAlmostEqual(self.csm.Time2Exp(self.csm.Exp2Time(1.0)),1.0,places=15)
+    @data(1.0,0.1,0.01)
+    def testTimeIdentity(self,a):
+        self.assertAlmostEqual(self.csm.Time2Exp(self.csm.Exp2Time(a)),a,places=15)
 
-    def testExp2Time(self):
-        self.assertAlmostEqual(self.csm.Exp2Time(1.0),0.27718310726907297,places=15)
-        self.assertAlmostEqual(self.csm.Exp2Time(0.1),0.012137233682214097,places=15)
-        self.assertAlmostEqual(self.csm.Exp2Time(0.01),0.0004046022074540854,places=15)
+    @data([1.0,0.27718310726907297],[0.1,0.012137233682214097],[0.01,0.0004046022074540854])
+    @unpack
+    def testExp2Time(self,a,t):
+        self.assertAlmostEqual(self.csm.Exp2Time(a),t,places=15)
 
-    def testTime2Exp(self):
-        self.assertAlmostEqual(self.csm.Time2Exp(0.27718310726907297),1.0,places=15)
-        self.assertAlmostEqual(self.csm.Time2Exp(0.012137233682214097),0.1,places=15)
-        self.assertAlmostEqual(self.csm.Time2Exp(0.0004046022074540854),0.01,places=15)
+    @data([1.0,0.27718310726907297],[0.1,0.012137233682214097],[0.01,0.0004046022074540854])
+    @unpack
+    def testTime2Exp(self,a,t):
+        self.assertAlmostEqual(self.csm.Time2Exp(t),a,places=15)
 
     def testExp2Hub(self):
         self.assertAlmostEqual(self.csm.Exp2Hub(1.0), math.sqrt(math.pi*8/3),places=15)
-        self.assertAlmostEqual(self.csm.Exp2Hub(0.1),57.013166890765135,places=15)
-        self.assertAlmostEqual(self.csm.Exp2Hub(0.01),1654.627836659466,places=15)
+        self.assertAlmostEqual(self.csm.Exp2Hub(0.1),57.0131668907651,places=13)
+        self.assertAlmostEqual(self.csm.Exp2Hub(0.01),1654.62783665947,places=11)
 
     def testTime2Hub(self):
         self.assertAlmostEqual(self.csm.Time2Hub(0.27718310726907297),math.sqrt(math.pi*8/3),places=15)
-        self.assertAlmostEqual(self.csm.Time2Hub(0.012137233682214097),57.01316689076509,places=15)
-        self.assertAlmostEqual(self.csm.Time2Hub(0.0004046022074540854),1654.6278366594775,places=15)
+        self.assertAlmostEqual(self.csm.Time2Hub(0.012137233682214097),57.0131668907651,places=13)
+        self.assertAlmostEqual(self.csm.Time2Hub(0.0004046022074540854),1654.62783665948,places=11)
 
     def testComoveDriftFac(self):
         self.assertAlmostEqual(self.csm.ComoveDriftFac(0.1,0.01),0.04525620448976383,places=15)
@@ -55,22 +55,22 @@ class TestCosmology(unittest.TestCase):
         self.assertAlmostEqual(f1, 0.8952794949702897,places=15)
         self.assertAlmostEqual(f2, 1.7962589373634128,places=15)
 
-# # This needs an HDF5 file
-# class TestCosmologyClass(unittest.TestCase):
-#     @classmethod
-#     def setUpClass(self):
-#         self.csm1 = CSM()
-#         self.csm1.ClassRead('euclid_flagship_500.hdf5',Lbox=1,As=2.1e-09,ns=0.96)
-#         self.csm2 = CSM()
-#         self.csm2.SetCosmology(dHubble0=math.sqrt(math.pi*8/3),As=2.1e-09,ns=0.96,
-#         		dOmega0=self.csm1.dOmega0 + (0.0011978 + 0.000208644 ),
-#         		dLambda=self.csm1.dLambda,
-#         		dOmegaRad=self.csm1.dOmegaRad + 1.27031e-05,
-#         		dOmegaDE=self.csm1.dOmegaDE,w0=self.csm1.w0,wa=self.csm1.wa)
+# This needs an HDF5 file
+class TestCosmologyClass(unittest.TestCase):
+    @classmethod
+    def setUpClass(self):
+        self.csm1 = CSM()
+        self.csm1.ClassRead('euclid_flagship_500.hdf5',Lbox=1,As=2.1e-09,ns=0.96)
+        self.csm2 = CSM()
+        self.csm2.SetCosmology(dHubble0=math.sqrt(math.pi*8/3),As=2.1e-09,ns=0.96,
+        		dOmega0=self.csm1.dOmega0 + (0.0011978 + 0.000208644 ),
+        		dLambda=self.csm1.dLambda,
+        		dOmegaRad=self.csm1.dOmegaRad + 1.27031e-05,
+        		dOmegaDE=self.csm1.dOmegaDE,w0=self.csm1.w0,wa=self.csm1.wa)
 
-#     def testHubble(self):
-#         self.assertAlmostEqual(self.csm1.Exp2Hub(a=1.0), self.csm2.Exp2Hub(a=1.0),places=15)
-#         self.assertAlmostEqual(self.csm1.Exp2Hub(a=0.1), self.csm2.Exp2Hub(a=0.1),delta=0.005)
+    def testHubble(self):
+        self.assertAlmostEqual(self.csm1.Exp2Hub(a=1.0), self.csm2.Exp2Hub(a=1.0),places=15)
+        self.assertAlmostEqual(self.csm1.Exp2Hub(a=0.1), self.csm2.Exp2Hub(a=0.1),delta=0.005)
 
 if __name__ == '__main__':
     print('Running test')
