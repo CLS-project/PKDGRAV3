@@ -80,7 +80,7 @@ void csmInitialize(CSM *pcsm) {
     }
 
 void csmFinish(CSM csm) {
-    if (csm->val.classData.bClass){
+    if (csm->classGsl.initialized){
         gsl_interp_accel_free(csm->classGsl.background.logExp2logHub_acc);
         gsl_spline_free      (csm->classGsl.background.logExp2logHub_spline);
         gsl_interp_accel_free(csm->classGsl.background.logTime2logHub_acc);
