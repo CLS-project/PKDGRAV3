@@ -119,12 +119,12 @@ static double fetchFloat(PKD pkd,PARTICLE *p,int iType,int iDim) {
 	v = pkdBall(pkd,p);
 	break;
     case OUT_POT_ARRAY:
-	assert(pkd->oPotential);
+	assert(pkd->oFieldOffset[oPotential]);
 	a = pkdPot(pkd,p);
 	v = *a;
 	break;
     case OUT_AMAG_ARRAY:
-	assert(pkd->oAcceleration); /* Validate memory model */
+	assert(pkd->oFieldOffset[oAcceleration]); /* Validate memory model */
 	a = pkdAccel(pkd,p);
 	v = sqrt(a[0]*a[0] + a[1]*a[1] + a[2]*a[2]);
 	break;
@@ -135,27 +135,27 @@ static double fetchFloat(PKD pkd,PARTICLE *p,int iType,int iDim) {
 	v = pkdSoft(pkd,p);
 	break;
     case OUT_RELAX_ARRAY:
-	assert(pkd->oRelaxation);
-	a = pkdField(p,pkd->oRelaxation);
+	assert(pkd->oFieldOffset[oRelaxation]);
+	a = pkdField(p,pkd->oFieldOffset[oRelaxation]);
 	v = *a;
 	break;
     case OUT_DIVV_ARRAY:
-	assert(pkd->oVelSmooth); /* Validate memory model */
-	pvel = pkdField(p,pkd->oVelSmooth);
+	assert(pkd->oFieldOffset[oVelSmooth]); /* Validate memory model */
+	pvel = pkdField(p,pkd->oFieldOffset[oVelSmooth]);
 	v = pvel->divv;
 	break;
     case OUT_VELDISP2_ARRAY:
-	assert(pkd->oVelSmooth); /* Validate memory model */
-	pvel = pkdField(p,pkd->oVelSmooth);
+	assert(pkd->oFieldOffset[oVelSmooth]); /* Validate memory model */
+	pvel = pkdField(p,pkd->oFieldOffset[oVelSmooth]);
 	v = pvel->veldisp2;
     case OUT_VELDISP_ARRAY:
-	assert(pkd->oVelSmooth); /* Validate memory model */
-	pvel = pkdField(p,pkd->oVelSmooth);
+	assert(pkd->oFieldOffset[oVelSmooth]); /* Validate memory model */
+	pvel = pkdField(p,pkd->oFieldOffset[oVelSmooth]);
 	v = sqrt(pvel->veldisp2);
 	break;
     case OUT_PHASEDENS_ARRAY:
-	assert(pkd->oVelSmooth); /* Validate memory model */
-	pvel = pkdField(p,pkd->oVelSmooth);
+	assert(pkd->oFieldOffset[oVelSmooth]); /* Validate memory model */
+	pvel = pkdField(p,pkd->oFieldOffset[oVelSmooth]);
 	v = pkdDensity(pkd,p)*pow(pvel->veldisp2,-1.5);
 	break;
     case OUT_UDOT_ARRAY:
@@ -174,16 +174,16 @@ static double fetchFloat(PKD pkd,PARTICLE *p,int iType,int iDim) {
 	v = pkdPos(pkd,p,iDim);
 	break;
     case OUT_VEL_VECTOR:
-	assert(pkd->oVelocity); /* Validate memory model */
+	assert(pkd->oFieldOffset[oVelocity]); /* Validate memory model */
 	v = pkdVel(pkd,p)[iDim];
 	break;
     case OUT_MEANVEL_VECTOR:
-	assert(pkd->oVelSmooth); /* Validate memory model */
-	pvel = pkdField(p,pkd->oVelSmooth);
+	assert(pkd->oFieldOffset[oVelSmooth]); /* Validate memory model */
+	pvel = pkdField(p,pkd->oFieldOffset[oVelSmooth]);
 	v = pvel->vmean[iDim];
 	break;
     case OUT_ACCEL_VECTOR:
-	assert(pkd->oAcceleration); /* Validate memory model */
+	assert(pkd->oFieldOffset[oAcceleration]); /* Validate memory model */
 	a = pkdAccel(pkd,p);
 	v = a[iDim];
 	break;

@@ -1589,6 +1589,25 @@ double MSR::getTime(double dExpansion, double *dvFac) {
     return dTime;
     }
 
+void MSR::RecvArray(void *vBuffer,int field,int iUnitSize,double dTime) {
+    PKD pkd = pst->plcl->pkd;
+    inSendArray in;
+    in.field = field;
+    in.iUnitSize = iUnitSize;
+    if (csm->val.bComove) {
+	auto dExp = csmTime2Exp(csm,dTime);
+	in.dvFac = 1.0/(dExp*dExp);
+	}
+    else in.dvFac = 1.0;
+    vBuffer = pkdPackArray(pkd,vBuffer,0,pkd->nLocal,field,iUnitSize,in.dvFac);
+    for(auto i=1; i<nThreads; ++i) {
+	in.iTo = 0;
+	auto rID = mdlReqService(pkd->mdl,i,PST_SENDARRAY,&in,sizeof(in));
+	vBuffer = pkdRecvArray(pkd,i,vBuffer,iUnitSize);
+	mdlGetReply(pkd->mdl,rID,NULL,NULL);
+	}
+    }
+
 /*
 ** This function makes some potentially problematic assumptions!!!
 ** Main problem is that it calls pkd level routines, bypassing the

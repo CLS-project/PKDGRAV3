@@ -269,7 +269,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
 	break;
     case SMX_DENSITY_M3:
 	assert(!bSymmetric);
-	assert(pkd->oGroup);
+	assert(pkd->oFieldOffset[oGroup]);
 	smx->fcnSmooth = DensityM3;
 	initParticle = NULL;
 	init = NULL;
@@ -300,7 +300,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
 	smx->fcnPost = NULL;
 	break;
     case SMX_DENDVDX:
-	assert( pkd->oSph ); /* Validate memory model */
+	assert( pkd->oFieldOffset[oSph] ); /* Validate memory model */
 	smx->fcnSmooth = DenDVDX;
 	initParticle = NULL; /* Original Particle */
 	init = initDenDVDX; /* Cached copies */
@@ -308,8 +308,8 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
 	smx->fcnPost = NULL;
 	break;
     case SMX_SPHFORCES:
-	assert( pkd->oSph ); /* Validate memory model */
-	assert( pkd->oAcceleration ); /* Validate memory model */
+	assert( pkd->oFieldOffset[oSph] ); /* Validate memory model */
+	assert( pkd->oFieldOffset[oAcceleration] ); /* Validate memory model */
 	smx->fcnSmooth = SphForces;
 	initParticle = initSphForcesParticle; /* Original Particle */
 	init = initSphForces; /* Cached copies */
@@ -333,7 +333,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
 	smx->fcnPost = NULL;
 	break;
     case SMX_MEANVEL:
-	assert( pkd->oVelSmooth); /* Validate memory model */
+	assert( pkd->oFieldOffset[oVelSmooth]); /* Validate memory model */
 	smx->fcnSmooth = bSymmetric?MeanVelSym:MeanVel;
 	initParticle = initMeanVel; /* Original Particle */
 	init = initMeanVel; /* Cached copies */
@@ -341,7 +341,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
 	smx->fcnPost = NULL;
 	break;
     case SMX_DIVV:
-	assert( pkd->oVelSmooth); /* Validate memory model */
+	assert( pkd->oFieldOffset[oVelSmooth]); /* Validate memory model */
 	smx->fcnSmooth = bSymmetric?DivvSym:Divv;
 	initParticle = initDivv; /* Original Particle */
 	init = initDivv; /* Cached copies */
@@ -349,7 +349,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
 	smx->fcnPost = NULL;
 	break;
     case SMX_VELDISP2:
-	assert( pkd->oVelSmooth); /* Validate memory model */
+	assert( pkd->oFieldOffset[oVelSmooth]); /* Validate memory model */
 	smx->fcnSmooth = bSymmetric?VelDisp2Sym:VelDisp2;
 	initParticle = initVelDisp2; /* Original Particle */
 	init = initVelDisp2; /* Cached copies */
@@ -365,7 +365,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
 	smx->fcnPost = NULL;
 	break;
     case SMX_RELAXATION:
-	assert( pkd->oRelaxation); /* Validate memory model */
+	assert( pkd->oFieldOffset[oRelaxation]); /* Validate memory model */
 	assert(bSymmetric == 0);
 	smx->fcnSmooth = AddRelaxation;
 	initParticle = NULL;

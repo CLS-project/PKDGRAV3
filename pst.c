@@ -96,6 +96,8 @@ void pstAddServices(PST pst,MDL mdl) {
 		  sizeof(struct inWrite),0);
     mdlAddService(mdl,PST_SENDPARTICLES,pst,(fcnService_t*)pstSendParticles,
 		  sizeof(int),0);
+    mdlAddService(mdl,PST_SENDARRAY,pst,(fcnService_t*)pstSendArray,
+		  sizeof(struct inSendArray),0);
     mdlAddService(mdl,PST_CHECKPOINT,pst,(fcnService_t*)pstCheckpoint,
 		  sizeof(struct inWrite),0);
     mdlAddService(mdl,PST_OUTPUT,pst,(fcnService_t*)pstOutput,
@@ -2019,6 +2021,12 @@ int pstCheckpoint(PST pst,void *vin,int nIn,void *vout,int nOut) {
 int pstSendParticles(PST pst,void *vin,int nIn,void *vout,int nOut) {
     int iTo = *(int *)vin;
     pkdWriteViaNode(pst->plcl->pkd, iTo);
+    return 0;
+    }
+
+int pstSendArray(PST pst,void *vin,int nIn,void *vout,int nOut) {
+    struct inSendArray *in = vin;
+    pkdSendArray(pst->plcl->pkd, in->iTo, in->field, in->iUnitSize, in->dvFac);
     return 0;
     }
 

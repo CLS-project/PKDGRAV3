@@ -167,7 +167,7 @@ void pkdDumpTrees(PKD pkd,int bOnlyVA, uint8_t uRungDD) {
 
 template<class split_t>
 static split_t PosRaw(PKD pkd,PARTICLE *p, int d) {
-    return reinterpret_cast<split_t *>(pkdField(p,pkd->oPosition))[d];
+    return reinterpret_cast<split_t *>(pkdField(p,pkd->oFieldOffset[oPosition]))[d];
     }
 
 /*
@@ -700,10 +700,10 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
         pkdNodeSetBnd(pkd, pkdn, &bnd);
 	pj = pkdn->pLower;
 	p = pkdParticle(pkd,pj);
-	a = pkd->oAcceleration ? pkdAccel(pkd,p) : zeroF;
+	a = pkd->oFieldOffset[oAcceleration] ? pkdAccel(pkd,p) : zeroF;
 	m = pkdMass(pkd,p);
 	fSoft = pkdSoft(pkd,p);
-	v = pkd->oVelocity ? pkdVel(pkd,p) : zeroV;
+	v = pkd->oFieldOffset[oVelocity] ? pkdVel(pkd,p) : zeroV;
 	fMass = m;
 	dih2 = fSoft;
 	pkdGetPos3(pkd,p,x,y,z);
@@ -719,10 +719,10 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
 	pkdn->uMinRung = pkdn->uMaxRung = p->uRung;
 	for (++pj;pj<=pkdn->pUpper;++pj) {
 	    p = pkdParticle(pkd,pj);
-	    a = pkd->oAcceleration ? pkdAccel(pkd,p) : zeroF;
+	    a = pkd->oFieldOffset[oAcceleration] ? pkdAccel(pkd,p) : zeroF;
 	    m = pkdMass(pkd,p);
 	    fSoft = pkdSoft(pkd,p);
-	    v = pkd->oVelocity ? pkdVel(pkd,p) : zeroV;
+	    v = pkd->oFieldOffset[oVelocity] ? pkdVel(pkd,p) : zeroV;
 	    fMass += m;
 	    if (fSoft>dih2) dih2=fSoft;
 	    pkdGetPos1(pkd,p,ft);

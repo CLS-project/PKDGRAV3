@@ -71,6 +71,8 @@ public:
     void OutVector(const char *,int);
     void Output(int iStep, double dTime, int bCheckpoint);
 
+    void RecvArray(void *vBuffer,int field,int iUnitSize,double dTime);
+
     // Particle order, domains, trees
     void Reorder();
     void DomainDecomp(int iRung=0);

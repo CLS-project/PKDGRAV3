@@ -304,7 +304,7 @@ void DenDVDX(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf)
     double curlv[3];
     int i;
 
-    assert(pkd->oSph);
+    assert(pkd->oFieldOffset[oSph]);
     psph = pkdSph(pkd,p);
     ih = 2.0/fBall;  ih2 = ih*ih;
     vFac = (smf->bComove ? 1./(smf->a*smf->a) : 1.0); /* converts v to xdot (physical) */
@@ -588,7 +588,7 @@ void initDistDeletedGas(void *vpkd,void *vp)
  */
     if (pkdIsDeleted(pkd,p)) return; /* deleted */
 
-    *((float *) pkdField(p,pkd->oMass))=0;
+    *((float *) pkdField(p,pkd->oFieldOffset[oMass]))=0;
     pkdSetPos(pkd,p,0,0);
     pkdSetPos(pkd,p,1,0);
     pkdSetPos(pkd,p,2,0);
@@ -622,9 +622,9 @@ void combDistDeletedGas(void *vpkd,void *vp1,void *vp2)
      */
     if (pkdIsDeleted(pkd,p1)) return; /* deleted */
 
-    p2mass = pkdField(p2,pkd->oMass);
+    p2mass = pkdField(p2,pkd->oFieldOffset[oMass]);
     if (*p2mass > 0) {	
-	p1mass = pkdField(p1,pkd->oMass);
+	p1mass = pkdField(p1,pkd->oFieldOffset[oMass]);
 	m = (*p1mass+*p2mass);
 	f1=(*p1mass)/m;
 	f2=(*p2mass)/m;
@@ -662,7 +662,7 @@ void DistDeletedGas(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf)
     /* JW: Assert deleted? -- yes once smooth is reliable */
     if (!pkdIsDeleted( pkd, p )) return; /* not deleted */
 
-    pmass = pkdField(p,pkd->oMass);
+    pmass = pkdField(p,pkd->oFieldOffset[oMass]);
     if (*pmass <= 0) return;
 
     ih2 = 4.0/(fBall*fBall);
@@ -685,7 +685,7 @@ void DistDeletedGas(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf)
 	KERNEL(rs,r2);
 
 	delta_m = rs*fNorm;
-	qmass = pkdField(q,pkd->oMass);
+	qmass = pkdField(q,pkd->oFieldOffset[oMass]);
 	m = *qmass + delta_m;
 	fp = delta_m/m;
 	fq = (*qmass)/m;
@@ -722,7 +722,7 @@ void initDistSNEnergy(void *vpkd,void *vp)
  */
     if (!pkdIsGas(pkd,p)) return; /* not gas */
 
-    *((float *) pkdField(p,pkd->oMass))=0;
+    *((float *) pkdField(p,pkd->oFieldOffset[oMass]))=0;
     pkdSetPos(pkd,p,0,0);
     pkdSetPos(pkd,p,1,0);
     pkdSetPos(pkd,p,2,0);
@@ -755,9 +755,9 @@ void combDistSNEnergy(void *vpkd,void *vp1,void *vp2)
      */ 
     if (!pkdIsGas(pkd,p1)) return; /* not gas */
 
-    p2mass = pkdField(p2,pkd->oMass);
+    p2mass = pkdField(p2,pkd->oFieldOffset[oMass]);
     if (*p2mass > 0) {	
-	p1mass = pkdField(p1,pkd->oMass);
+	p1mass = pkdField(p1,pkd->oFieldOffset[oMass]);
 	m = (*p1mass+*p2mass);
 	f1=(*p1mass)/m;
 	f2=(*p2mass)/m;
@@ -829,7 +829,7 @@ void DistSNEnergy(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf)
 	}
 
     dtC = (1+0.6*smf->alpha)/(smf->a*smf->dEtaCourant);
-    pmass = pkdField(p,pkd->oMass);
+    pmass = pkdField(p,pkd->oFieldOffset[oMass]);
 
     ih2 = 4.0/(fBall*fBall);
     r2min = 1e37f;
@@ -848,7 +848,7 @@ void DistSNEnergy(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf)
     q=qmin;
 
 	{
-	qmass = pkdField(q,pkd->oMass);
+	qmass = pkdField(q,pkd->oFieldOffset[oMass]);
 	delta_m = *pmass*smf->SFdMassLossPerStarMass;
 	m = *qmass + delta_m;
 	im = 1/m;
@@ -902,7 +902,7 @@ void initMeanVel(void *vpkd, void *pvoid) {
     VELSMOOTH *pvel;
     int j;
     assert(pkd);
-    pvel = pkdField(p,pkd->oVelSmooth);
+    pvel = pkdField(p,pkd->oFieldOffset[oVelSmooth]);
     for(j=0;j<3;++j) pvel->vmean[j] = 0.0;
     }
 
@@ -914,8 +914,8 @@ void combMeanVel(void *vpkd, void *p1void,void *p2void) {
     int j;
 
     assert(pkd);
-    p1vel = pkdField(p1,pkd->oVelSmooth);
-    p2vel = pkdField(p2,pkd->oVelSmooth);
+    p1vel = pkdField(p1,pkd->oFieldOffset[oVelSmooth]);
+    p2vel = pkdField(p2,pkd->oFieldOffset[oVelSmooth]);
 
     for (j=0;j<3;++j) p1vel->vmean[j] += p2vel->vmean[j];
     }
@@ -929,7 +929,7 @@ void MeanVel(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     float ih2,r2,rs,fMass;
     int i,j;
 
-    pvel = pkdField(p,pkd->oVelSmooth);
+    pvel = pkdField(p,pkd->oFieldOffset[oVelSmooth]);
     ih2 = 4.0/BALL2(fBall);
     for (j=0;j<3;++j) v[j] = 0.0;
     for (i=0;i<nSmooth;++i) {
@@ -952,7 +952,7 @@ void MeanVelSym(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     int i,j;
 
     pv = pkdVel(pkd,p);
-    pvel = pkdField(p,pkd->oVelSmooth);
+    pvel = pkdField(p,pkd->oFieldOffset[oVelSmooth]);
     fMassP = pkdMass(pkd,p);
     ih2 = 4.0/(BALL2(fBall));
     fNorm = 0.5*M_1_PI*sqrt(ih2)*ih2;
@@ -962,7 +962,7 @@ void MeanVelSym(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 	rs *= fNorm;
 	q = nnList[i].pPart;
 	qv = pkdVel(pkd,q);
-	qvel = pkdField(q,pkd->oVelSmooth);
+	qvel = pkdField(q,pkd->oFieldOffset[oVelSmooth]);
 	fMassQ = pkdMass(pkd,q);
 	for (j=0;j<3;++j) {
 	    pvel->vmean[j] += rs*fMassQ/pkdDensity(pkd,q)*qv[j];
@@ -978,7 +978,7 @@ void initDivv(void *vpkd, void *pvoid) {
     PARTICLE *p = pvoid;
     VELSMOOTH *pvel;
     assert(pkd);
-    pvel = pkdField(p,pkd->oVelSmooth);
+    pvel = pkdField(p,pkd->oFieldOffset[oVelSmooth]);
     pvel->divv = 0.0;
     }
 
@@ -988,8 +988,8 @@ void combDivv(void *vpkd, void *p1void,void *p2void) {
     PARTICLE *p1 = p1void;
     PARTICLE *p2 = p2void;
     assert(pkd);
-    p1vel = pkdField(p1,pkd->oVelSmooth);
-    p2vel = pkdField(p2,pkd->oVelSmooth);
+    p1vel = pkdField(p1,pkd->oFieldOffset[oVelSmooth]);
+    p2vel = pkdField(p2,pkd->oFieldOffset[oVelSmooth]);
     p1vel->divv += p2vel->divv;
     }
 
@@ -1002,7 +1002,7 @@ void Divv(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     float fNorm,ih2,r2,rs,fMass,dvdotdr;
     int i;
 
-    pvel = pkdField(p,pkd->oVelSmooth);
+    pvel = pkdField(p,pkd->oFieldOffset[oVelSmooth]);
     pv = pkdVel(pkd,p);
     ih2 = 4.0/BALL2(fBall);
     fNorm = M_1_PI*ih2*ih2;
@@ -1026,7 +1026,7 @@ void DivvSym(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     float fNorm,ih2,r2,rs,fMassQ,fMassP,dvdotdr;
     int i;
 
-    pvel = pkdField(p,pkd->oVelSmooth);
+    pvel = pkdField(p,pkd->oFieldOffset[oVelSmooth]);
     pv = pkdVel(pkd,p);
     fMassP = pkdMass(pkd,p);
     ih2 = 4.0/(BALL2(fBall));
@@ -1037,7 +1037,7 @@ void DivvSym(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 	rs *= fNorm;
 	q = nnList[i].pPart;
 	qv = pkdVel(pkd,q);
-	qvel = pkdField(q,pkd->oVelSmooth);
+	qvel = pkdField(q,pkd->oFieldOffset[oVelSmooth]);
 	fMassQ = pkdMass(pkd,q);
 	dvdotdr = (qv[0] - pv[0])*nnList[i].dx + (qv[1] - pv[1])*nnList[i].dy + (qv[2] - pv[2])*nnList[i].dz;
 	pvel->divv += rs*fMassQ/pkdDensity(pkd,q)*dvdotdr;
@@ -1052,7 +1052,7 @@ void initVelDisp2(void *vpkd, void *pvoid) {
     PARTICLE *p = pvoid;
     VELSMOOTH *pvel;
     assert(pkd);
-    pvel = pkdField(p,pkd->oVelSmooth);
+    pvel = pkdField(p,pkd->oFieldOffset[oVelSmooth]);
     pvel->veldisp2 = 0.0;
     }
 
@@ -1062,8 +1062,8 @@ void combVelDisp2(void *vpkd, void *p1void,void *p2void) {
     PARTICLE *p2 = p2void;
     VELSMOOTH *p1vel,*p2vel;
     assert(pkd);
-    p1vel = pkdField(p1,pkd->oVelSmooth);
-    p2vel = pkdField(p2,pkd->oVelSmooth);
+    p1vel = pkdField(p1,pkd->oFieldOffset[oVelSmooth]);
+    p2vel = pkdField(p2,pkd->oFieldOffset[oVelSmooth]);
     p1vel->veldisp2 += p2vel->veldisp2;
     }
 
@@ -1075,7 +1075,7 @@ void VelDisp2(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     float fNorm,ih2,r2,rs,fMass,tv,tv2;
     int i;
 
-    pvel = pkdField(p,pkd->oVelSmooth);
+    pvel = pkdField(p,pkd->oFieldOffset[oVelSmooth]);
     ih2 = 4.0/BALL2(fBall);
     fNorm = M_1_PI*sqrt(ih2)*ih2;
     for (i=0;i<nSmooth;++i) {
@@ -1105,7 +1105,7 @@ void VelDisp2Sym(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     float fNorm,ih2,r2,rs,fMassQ,fMassP,tv,tv2;
     int i;
 
-    pvel = pkdField(p,pkd->oVelSmooth);
+    pvel = pkdField(p,pkd->oFieldOffset[oVelSmooth]);
     fMassP = pkdMass(pkd,p);
     ih2 = 4.0/(BALL2(fBall));
     fNorm = 0.5*M_1_PI*sqrt(ih2)*ih2;
@@ -1115,7 +1115,7 @@ void VelDisp2Sym(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 	rs *= fNorm;
 	q = nnList[i].pPart;
 	qv = pkdVel(pkd,q);
-	qvel = pkdField(q,pkd->oVelSmooth);
+	qvel = pkdField(q,pkd->oFieldOffset[oVelSmooth]);
 	fMassQ = pkdMass(pkd,q);
 
 	tv = qv[0] - pvel->vmean[0] - pvel->divv*nnList[i].dx;
@@ -1139,7 +1139,7 @@ void AddRelaxation(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     vel_t *v;
     double *pRelax;
 
-    pRelax = pkdField(p,pkd->oRelaxation);
+    pRelax = pkdField(p,pkd->oFieldOffset[oRelaxation]);
 
     beta = 10.0; /* pmax=beta*l, large beta parameter reduces eps dependence  */
     gamma = 0.17; /* gamma scales overall relaxation time */

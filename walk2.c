@@ -749,7 +749,7 @@ static void initGravWalk(PKD pkd,double dTime,double dThetaMin,int bPeriodic,int
 	assert(pkd->oNodeAcceleration);
 	if (iTimeStepCrit == 1) {
 	    assert(pkd->oNodeVelocity);
-	    assert(pkd->oVelocity);
+	    assert(pkd->oFieldOffset[oVelocity]);
 	    }
 	}
 

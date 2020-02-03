@@ -15,4 +15,4 @@ ENTRYPOINT ["/usr/local/bin/pkdgrav3"]
 COPY --from=builder /usr/local/bin/pkdgrav3 /usr/local/bin/
 COPY --from=builder /usr/local/lib/libmpi.so.12.1.1 /usr/local/lib/
 RUN ln -s libmpi.so.12.1.1 /usr/local/lib/libmpi.so.12 && ln -s libmpi.so.12.1.1 /usr/local/lib/libmpi.so && ldconfig
-RUN apt-get update && apt-get install -y --no-install-recommends libgsl23 libhdf5-100 libmemkind0 libhwloc5 libpython3.6 && apt-get clean all
+RUN apt-get update && apt-get install -y --no-install-recommends libgsl23 libhdf5-100 libmemkind0 libhwloc5 libpython3.6 python3-numpy && apt-get clean all

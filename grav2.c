@@ -105,13 +105,13 @@ void pkdParticleWorkDone(workParticle *wp) {
 	    p = wp->pPart[i];
 	    pkdGetPos1(pkd,p,r);
 	    m = pkdMass(pkd,p);
-	    if (pkd->oAcceleration) {
+	    if (pkd->oFieldOffset[oAcceleration]) {
 		a = pkdAccel(pkd,p);
 		a[0] = wp->pInfoOut[i].a[0];
 		a[1] = wp->pInfoOut[i].a[1];
 		a[2] = wp->pInfoOut[i].a[2];
 		}
-	    if (pkd->oPotential) {
+	    if (pkd->oFieldOffset[oPotential]) {
 		float *pPot = pkdPot(pkd,p);
 		*pPot = wp->pInfoOut[i].fPot;
 		}
@@ -195,7 +195,7 @@ void pkdParticleWorkDone(workParticle *wp) {
 	    ** p->uRung = uNewRung could be done here, but we let the outside 
 	    ** code handle this.
 	    */
-	    if (pkd->oVelocity) {
+	    if (pkd->oFieldOffset[oVelocity]) {
 		v = pkdVel(pkd,p);
 		if (wp->kick && wp->kick->bKickClose) {
 		    v[0] += wp->kick->dtClose[p->uRung]*wp->pInfoOut[i].a[0];
@@ -468,7 +468,7 @@ int pkdGravInteract(PKD pkd,
 	wp->pInfoIn[nP].r[0]  = (float)(r[0] - ilp->cx);
 	wp->pInfoIn[nP].r[1]  = (float)(r[1] - ilp->cy);
 	wp->pInfoIn[nP].r[2]  = (float)(r[2] - ilp->cz);
-	if (pkd->oAcceleration) {
+	if (pkd->oFieldOffset[oAcceleration]) {
 	    ap = pkdAccel(pkd,p);
 	    wp->pInfoIn[nP].a[0]  = ap[0];
 	    wp->pInfoIn[nP].a[1]  = ap[1];

@@ -16,6 +16,11 @@
  */
 #include <string>
 #include <Python.h>
+#define USE_NUMPY
+#ifdef USE_NUMPY
+#define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
+#include <numpy/arrayobject.h>
+#endif
 #include <structmember.h> // for PyMemberDef
 #include "m_parse.h"
 
@@ -23,6 +28,7 @@
 #include "csmpython.h"
 
 #define MASTER_MODULE_NAME "MASTER"
+#define MASTER_TYPE_NAME "MSR"
 
 /******************************************************************************\
 *   Copy parameters from Python to pkdgrav3 (may go away eventually)
@@ -133,10 +139,10 @@ void MSR::SaveParameters() {
 *   MSR Module methods
 \******************************************************************************/
 
-typedef struct {
+struct MSRINSTANCE {
     PyObject_HEAD
     MSR *msr;
-    } MSRINSTANCE;
+    };
 
 /********** Initial Condition Generation **********/
 
@@ -380,6 +386,50 @@ ppy_msr_MeasurePk(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     return Py_BuildValue("(NNN)",ListK,ListPk,ListPkAll);
     }
 
+
+/********** Analysis: Retrieve the values for all particles (DANGER! not memory friendly) **********/
+
+#ifdef USE_NUMPY
+static PyObject *
+ppy_msr_GetArray(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    static char const *kwlist[]={"field","time",NULL};
+    PKD_FIELD field;
+    double dTime = 1.0;
+
+    if ( !PyArg_ParseTupleAndKeywords(
+	     args, kwobj, "i|d:GetArray", const_cast<char **>(kwlist),
+	     &field, &dTime ) )
+	return NULL;
+    npy_intp N[2];
+    int typenum = NPY_FLOAT32;
+    int iUnitSize = sizeof(float);
+    N[0] = self->msr->N;
+    N[1] = 1;
+    switch(field) {
+	case oPosition:     N[1]=3; typenum = NPY_FLOAT64; iUnitSize = sizeof(double);  break;
+	case oAcceleration: N[1]=3; break;
+	case oVelocity:     N[1]=3; break;
+	case oPotential:    break;
+	case oGroup:                 typenum = NPY_UINT32; iUnitSize = sizeof(uint32_t); break;
+	case oMass:         break;
+	case oSoft:         break;
+	case oDensity:      break;
+	case oBall:         break;
+	case oParticleID:            typenum = NPY_UINT64; iUnitSize = sizeof(uint64_t); break;
+	default: abort();
+//	oSph, /* Sph structure */
+//	oStar, /* Star structure */
+//	oRelaxation,
+//	oVelSmooth,
+//	oRungDest, /* Destination processor for each rung */
+	}
+    auto array = PyArray_SimpleNew(N[1]>1?2:1, N, typenum);
+    auto data = reinterpret_cast<double*>(PyArray_DATA(reinterpret_cast<PyArrayObject*>(array)));
+    self->msr->RecvArray(data,field,N[1]*iUnitSize,dTime);
+    return array;
+    }
+#endif
+
 /******************************************************************************\
 *   MSR Module methods list
 \******************************************************************************/
@@ -413,6 +463,10 @@ static PyMethodDef msr_methods[] = {
     {"MeasurePk", (PyCFunction)ppy_msr_MeasurePk, METH_VARARGS|METH_KEYWORDS,
      "Measure the power spectrum"},
 
+#ifdef USE_NUMPY
+    {"GetArray", (PyCFunction)ppy_msr_GetArray, METH_VARARGS|METH_KEYWORDS,
+     "Get a complete array of the given value"},
+#endif
     {NULL, NULL, 0, NULL}
 };
 
@@ -468,7 +522,7 @@ static PyGetSetDef msr_getseters[] = {
 
 static PyTypeObject msrType = {
     PyVarObject_HEAD_INIT(NULL,0)
-    "MSR", /*tp_name*/
+    MASTER_MODULE_NAME "." MASTER_TYPE_NAME, /*tp_name*/
     sizeof(MSRINSTANCE), /*tp_basicsize */
     0, /*tp_itemsize*/
     (destructor)msr_dealloc, /*tp_dealloc*/
@@ -517,12 +571,15 @@ static PyObject * initModuleMSR(void) {
     auto msr_module = PyState_FindModule(&msrModule); // We created this already
     auto moduleState = reinterpret_cast<struct msrModuleState*>(PyModule_GetState(msr_module));
     moduleState->bImported = true;
+#ifdef USE_NUMPY
+    import_array();
+#endif
     //auto mainModule = PyImport_AddModule("__main__"); // Borrowed reference
     //PyObject *mainDict = PyModule_GetDict(mainModule);
     //setConstants(mainDict);
     if (PyType_Ready(&msrType) >= 0) { // Initialize "MSR" object as well.
 	Py_INCREF(&msrType);
-	PyModule_AddObject(msr_module, "MSR", (PyObject *)&msrType);
+	PyModule_AddObject(msr_module, MASTER_TYPE_NAME, (PyObject *)&msrType);
 	}
     return msr_module;
     }

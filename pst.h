@@ -96,6 +96,7 @@ enum pst_service {
     PST_LOCALORDER,
     PST_COMPRESSASCII,
     PST_SENDPARTICLES,
+    PST_SENDARRAY,
     PST_WRITEASCII,
     PST_WRITE,
     PST_OUTPUT,
@@ -417,6 +418,15 @@ int pstWrite(PST,void *,int,void *,int);
 
 /* PST_SENDPARTICLES */
 int pstSendParticles(PST,void *,int,void *,int);
+
+/* PST_SENDARRAY */
+struct inSendArray {
+    double dvFac;
+    int iTo;
+    int field;
+    int iUnitSize;
+    };
+int pstSendArray(PST,void *,int,void *,int);
 
 /* PST_CHECKPOINT */
 int pstCheckpoint(PST,void *,int,void *,int);
