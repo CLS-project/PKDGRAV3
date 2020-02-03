@@ -5,6 +5,7 @@ import math
 import unittest
 from ddt import ddt, data, file_data, unpack
 import xmlrunner
+import os
 
 @ddt
 class TestCosmology(unittest.TestCase):
@@ -56,6 +57,7 @@ class TestCosmology(unittest.TestCase):
         self.assertAlmostEqual(f2, 1.7962589373634128,places=15)
 
 # This needs an HDF5 file
+@unittest.skipIf(not os.path.isfile('euclid_flagship_500.hdf5'), "missing euclid_flagship_500.hdf5")
 class TestCosmologyClass(unittest.TestCase):
     @classmethod
     def setUpClass(self):
