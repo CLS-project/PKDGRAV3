@@ -408,7 +408,7 @@ int MSR::ValidateParameters() {
 	    param.bNewKDK = 1;
 	    }
 	else if (!param.bNewKDK) {
-	    puts("ERROR: bNewKDK must be zero when bMemUnordered is enabled!");
+	    puts("ERROR: bNewKDK must not be zero when bMemUnordered is enabled!");
 	    return 0;
 	    }
 	}
