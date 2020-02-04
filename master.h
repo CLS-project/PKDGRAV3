@@ -84,7 +84,7 @@ public:
     // Gravity
     uint8_t Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
 	double dTime,double dDelta,double dStep,int bKickClose,int bKickOpen,int bEwald,int bGravStep,int nPartRhoLoc,int iTimeStepCrit,
-	int nGroup,int *piSec,uint64_t *pnActive);
+	int nGroup);
 
     // Analysis
     void Smooth(double dTime,double dDelta,int iSmoothType,int bSymmetric,int nSmooth);
@@ -289,7 +289,7 @@ protected:
 	int bDualTree,      /* Should be zero at rung 0! */
 	uint8_t uRung,	/* Rung level */
 	double *pdStep,	/* Current step */
-	uint8_t *puRungMax,int *piSec,int *pbDoCheckpoint,int *pbDoOutput,int *pbNeedKickOpen);
+	uint8_t *puRungMax,int *pbDoCheckpoint,int *pbDoOutput,int *pbNeedKickOpen);
     void TopStepKDK(
 		    double dStep,	/* Current step */
 		    double dTime,	/* Current time */
@@ -297,9 +297,7 @@ protected:
 		    int iRung,		/* Rung level */
 		    int iKickRung,	/* Gravity on all rungs from iRung
 					    to iKickRung */
-		    int iAdjust,		/* Do an adjust? */
-		    double *pdActiveSum,
-		    int *piSec);
+		    int iAdjust);		/* Do an adjust? */
 
     void InitRelaxation();
     void Relaxation(double dTime,double deltaT,int iSmoothType,int bSymmetric);

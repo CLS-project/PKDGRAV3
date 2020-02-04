@@ -145,8 +145,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
 
     int bKickOpen, bKickClose;
     uint8_t uRungMax;
-    uint64_t nActive;
-    int iSec;
+    int iSec = time(0);
 
     if (DoGravity()) {
 	dDelta = SwitchDelta(dTime,dDelta,iStartStep,param.nSteps);
@@ -166,13 +165,13 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
 	    GridDeleteFFT();
         }
 	uRungMax = Gravity(0,MAX_RUNG,ROOT,0,dTime,dDelta,iStartStep,0,bKickOpen,
-	        param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,&iSec,&nActive);
+	        param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup);
 	MemStatus();
 	if (param.bGravStep) {
 	    assert(param.bNewKDK == 0);    /* for now! */
 	    BuildTree(param.bEwald);
 	    Gravity(0,MAX_RUNG,ROOT,0,dTime,dDelta,iStartStep,0,0,
-		    param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,&iSec,&nActive);
+		    param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup);
 	    MemStatus();
 	    }
 	}
@@ -183,13 +182,14 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
 	InitSph(dTime,dDelta);
 	}
 
-    double E=0,T=0,U=0,Eth=0,L[3]={0,0,0},F[3]={0,0,0},W=0,dMultiEff = 1.0;
+    double E=0,T=0,U=0,Eth=0,L[3]={0,0,0},F[3]={0,0,0},W=0;
     CalcEandL(MSR_INIT_E,dTime,&E,&T,&U,&Eth,L,F,&W);
+    iSec = time(0) - iSec;
     if (LogInterval()) {
 	(void) fprintf(fpLog,"%e %e %.16e %e %e %e %.16e %.16e %.16e "
-			"%.16e %.16e %.16e %.16e %i %e\n",dTime,
+			"%.16e %.16e %.16e %.16e %i\n",dTime,
 			1.0/csmTime2Exp(csm,dTime)-1.0,
-			E,T,U,Eth,L[0],L[1],L[2],F[0],F[1],F[2],W,iSec,dMultiEff);
+			E,T,U,Eth,L[0],L[1],L[2],F[0],F[1],F[2],W,iSec);
 	}
     if ( param.bTraceRelaxation) {
 	InitRelaxation();
@@ -200,7 +200,6 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
     for (auto iStep=iStartStep+1;iStep<=nSteps&&!iStop;++iStep) {
 	dDelta = SwitchDelta(dTime,dDelta,iStep-1,param.nSteps);
 	if (Comove()) SwitchTheta(dTime);
-	dMultiEff = 0.0;
 	lPrior = time(0);
 	if (param.bNewKDK) {
 	    double diStep = (double)(iStep-1);
@@ -209,7 +208,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
 		BuildTree(0);
                 LightConeOpen(iStep);  /* open the lightcone */
 		uRungMax = Gravity(0,MAX_RUNG,ROOT,0,ddTime,dDelta,diStep,0,1,
-		        param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,&iSec,&nActive);
+		        param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup);
                 /* Set the grids of the linear species */
                 if (strlen(param.achLinearSpecies) && param.nGridLin > 0){
 		    GridCreateFFT(param.nGridLin);
@@ -221,10 +220,10 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
                     }
 		bKickOpen = 0; /* clear the opening kicking flag */
 		}
-	    NewTopStepKDK(ddTime,dDelta,nSteps,0,0,&diStep,&uRungMax,&iSec,&bDoCheckpoint,&bDoOutput,&bKickOpen);
+	    NewTopStepKDK(ddTime,dDelta,nSteps,0,0,&diStep,&uRungMax,&bDoCheckpoint,&bDoOutput,&bKickOpen);
 	    }
 	else {
-	    TopStepKDK(iStep-1,dTime,dDelta,0,0,1,&dMultiEff,&iSec);
+	    TopStepKDK(iStep-1,dTime,dDelta,0,0,1);
 	    }
 	dTime += dDelta;
 	auto lSec = time(0) - lPrior;
@@ -239,9 +238,9 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
 	if (LogInterval() && iStep%LogInterval() == 0) {
 	    CalcEandL(MSR_STEP_E,dTime,&E,&T,&U,&Eth,L,F,&W);
 	    (void) fprintf(fpLog,"%e %e %.16e %e %e %e %.16e %.16e "
-			    "%.16e %.16e %.16e %.16e %.16e %li %e\n",dTime,
+			    "%.16e %.16e %.16e %.16e %.16e %li\n",dTime,
 			    1.0/csmTime2Exp(csm,dTime)-1.0,
-			    E,T,U,Eth,L[0],L[1],L[2],F[0],F[1],F[2],W,lSec,dMultiEff);
+			    E,T,U,Eth,L[0],L[1],L[2],F[0],F[1],F[2],W,lSec);
 	    }
 	if ( param.bTraceRelaxation) {
 	    ActiveRung(0,1); /* Activate all particles */

@@ -317,7 +317,6 @@ ppy_msr_Gravity(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     double dTime = 0.0;
     double dDelta = 0.0;
     uint64_t nActive;
-    int iSec = 0;
 
     int bEwald = self->msr->param.bEwald;
     int iRungLo    = 0;
@@ -334,7 +333,7 @@ ppy_msr_Gravity(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
 	return NULL;
     uint8_t uRungMax = self->msr->Gravity(iRungLo,iRungHi,iRoot1,iRoot2,dTime,dDelta,dStep,bKickClose,bKickOpen,bEwald,
 	self->msr->param.bGravStep, self->msr->param.nPartRhoLoc, self->msr->param.iTimeStepCrit,
-    	self->msr->param.nGroup,&iSec,&nActive);
+    	self->msr->param.nGroup);
     return Py_BuildValue("i", uRungMax);
     }
 
