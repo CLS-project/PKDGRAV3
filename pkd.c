@@ -2142,9 +2142,8 @@ void pkdPhysicalSoft(PKD pkd,double dSoftMax,double dFac,int bSoftMaxMul) {
 void pkdGravAll(PKD pkd,
     struct pkdKickParameters *kick,struct pkdLightconeParameters *lc,struct pkdTimestepParameters *ts,
     double dTime,int nReps,int bPeriodic,
-    int bEwald,int nPartRhoLoc,int iTimeStepCrit,int nGroup,int iRoot1, int iRoot2,
+    int bEwald,int nGroup,int iRoot1, int iRoot2,
     double fEwCut,double fEwhCut,double dThetaMin,
-    int bLinearSpecies,
     uint64_t *pnActive,
     double *pdPart,double *pdPartNumAccess,double *pdPartMissRatio,
     double *pdCell,double *pdCellNumAccess,double *pdCellMissRatio,
@@ -2194,7 +2193,7 @@ void pkdGravAll(PKD pkd,
     pkd->dFlopSingleGPU = pkd->dFlopDoubleGPU = 0.0;
 
     *pnActive = pkdGravWalk(pkd,kick,lc,ts,
-	dTime,nReps,bPeriodic && bEwald,nPartRhoLoc,iTimeStepCrit,nGroup,
+	dTime,nReps,bPeriodic && bEwald,nGroup,
 	iRoot1,iRoot2,0,dThetaMin,pdFlop,&dPartSum,&dCellSum);
     pkdStopTimer(pkd,1);
 

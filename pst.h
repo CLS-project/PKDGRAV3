@@ -620,15 +620,12 @@ struct inGravity {
     int nReps;
     int bPeriodic;
     int bEwald;
-    int nPartRhoLoc;
-    int iTimeStepCrit;
     int nGroup;
     int iRoot1;
     int iRoot2;
     struct pkdKickParameters kick;
     struct pkdLightconeParameters lc;
     struct pkdTimestepParameters ts;
-    int bLinearSpecies;
     };
 
 

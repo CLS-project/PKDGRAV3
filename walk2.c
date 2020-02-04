@@ -171,7 +171,7 @@ static void addChild(PKD pkd, int iCache, CL cl, int iChild, int id, float *fOff
 static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2, 
     struct pkdKickParameters *kick,struct pkdLightconeParameters *lc,struct pkdTimestepParameters *ts,
     double dTime,int bEwald,
-    double dThetaMin, int iTimeStepCrit, double *pdFlop, double *pdPartSum,double *pdCellSum) {
+    double dThetaMin, double *pdFlop, double *pdPartSum,double *pdCellSum) {
     KDN *k,*c,*kFind;
     int id,idUpper,iCell,iSib,iLower,iUpper,iCheckCell,iCheckLower,iCellDescend;
     PARTICLE *p;
@@ -359,7 +359,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2,
 				    iCidPart = blk->iCache.i[jTile]==CID_CELL ? CID_PARTICLE : CID_PARTICLE2;
 				    if (id == pkd->idSelf) p = pkdParticle(pkd,pj);
 				    else p = CAST(PARTICLE *,mdlFetch(pkd->mdl,iCidPart,pj,id));
-				    if (ts->bGravStep && iTimeStepCrit == 1) v = pkdVel(pkd,p);
+				    if (ts->bGravStep && ts->iTimeStepCrit == 1) v = pkdVel(pkd,p);
 				    pkdGetPos1(pkd,p,r);
 				    if (!bReferenceFound) {
 					bReferenceFound=1;
@@ -394,7 +394,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2,
 					else p = CAST(PARTICLE *,mdlFetch(pkd->mdl,iCidPart,pj,id));
 					fMass = pkdMass(pkd,p);
 					fSoft = pkdSoft(pkd,p);
-					if (ts->bGravStep && iTimeStepCrit == 1) v = pkdVel(pkd,p);
+					if (ts->bGravStep && ts->iTimeStepCrit == 1) v = pkdVel(pkd,p);
 					pkdGetPos1(pkd,p,r);
 					iOrder = pkd->bNoParticleOrder ? 0 : p->iOrder;
 					ilpAppend(pkd->ilp,
@@ -429,7 +429,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2,
 				    pkdGetPos1(pkd,p,r);
 				    fMass = pkdMass(pkd,p);
 				    fSoft = pkdSoft(pkd,p);
-				    if (ts->bGravStep && iTimeStepCrit == 1) v = pkdVel(pkd,p);
+				    if (ts->bGravStep && ts->iTimeStepCrit == 1) v = pkdVel(pkd,p);
 				    clAppend(pkd->clNew,blk->iCache.i[jTile],id,-1 - pj,0,0,0,0,1,0.0,fMass,4.0f*fSoft*fSoft,
 					r,       /* center of mass */
 					fOffset, /* fOffset */
@@ -810,7 +810,7 @@ int pkdGravWalkHop(PKD pkd,double dTime,int nGroup, double dThetaMin,double *pdF
 ** Returns total number of active particles for which gravity was calculated.
 */
 int pkdGravWalk(PKD pkd,struct pkdKickParameters *kick,struct pkdLightconeParameters *lc,struct pkdTimestepParameters *ts,
-    double dTime,int nReps,int bEwald,int nPartRhoLoc,int iTimeStepCrit,int nGroup,
+    double dTime,int nReps,int bEwald,int nGroup,
     int iLocalRoot1, int iLocalRoot2,int iVARoot,
     double dThetaMin,double *pdFlop,double *pdPartSum,double *pdCellSum) {
     int id;
@@ -824,7 +824,7 @@ int pkdGravWalk(PKD pkd,struct pkdKickParameters *kick,struct pkdLightconeParame
     SMF smf;
     int iTop1, iTop2;
 
-    initGravWalk(pkd,dTime,dThetaMin,nReps?1:0,ts->bGravStep,nPartRhoLoc,iTimeStepCrit,&smx,&smf);
+    initGravWalk(pkd,dTime,dThetaMin,nReps?1:0,ts->bGravStep,ts->nPartRhoLoc,ts->iTimeStepCrit,&smx,&smf);
 
     iTop1 = pkd->iTopTree[iLocalRoot1];
     iTop2 = pkd->iTopTree[iLocalRoot2];
@@ -863,7 +863,7 @@ int pkdGravWalk(PKD pkd,struct pkdKickParameters *kick,struct pkdLightconeParame
 		}
 	    }
 	nActive += processCheckList(pkd, smx, smf, iLocalRoot1, iLocalRoot2, kick,lc,ts,
-	    dTime,bEwald, dThetaMin, iTimeStepCrit, pdFlop, pdPartSum, pdCellSum);
+	    dTime,bEwald, dThetaMin, pdFlop, pdPartSum, pdCellSum);
 	}
 #if 0
     /*

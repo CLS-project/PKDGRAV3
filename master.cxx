@@ -2578,8 +2578,6 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
     in.nReps = param.nReplicas;
     in.bPeriodic = param.bPeriodic;
     in.bEwald = bEwald;
-    in.nPartRhoLoc = nPartRhoLoc;
-    in.iTimeStepCrit = iTimeStepCrit;
     in.nGroup = nGroup;
     in.dEwCut = param.dEwCut;
     in.dEwhCut = param.dEwhCut;
@@ -2588,7 +2586,8 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
     in.iRoot2 = iRoot2;
 
 
-    in.ts.iTimeStepCrit = 0;
+    in.ts.iTimeStepCrit = iTimeStepCrit;
+    in.ts.nPartRhoLoc = nPartRhoLoc;
     in.ts.nPartColl = param.nPartColl;
     in.ts.dEccFacMax = param.dEccFacMax;
     if (bGravStep) {
@@ -2663,7 +2662,7 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
 		}
 	    }
 	}
-    in.bLinearSpecies = (strlen(param.achLinearSpecies) > 0);
+
     out_size = nThreads*sizeof(struct outGravityPerProc) + sizeof(struct outGravityReduct);
     out = reinterpret_cast<outGravityPerProc*>(malloc(out_size));
     assert(out != NULL);

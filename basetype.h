@@ -126,6 +126,7 @@ struct pkdTimestepParameters {
     uint8_t uRungLo,uRungHi,uMaxRung;
     uint8_t bGravStep;
     int iTimeStepCrit;
+    int nPartRhoLoc;
     double nPartColl;
     double dEccFacMax;
     };
