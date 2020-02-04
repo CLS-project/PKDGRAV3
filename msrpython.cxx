@@ -313,17 +313,19 @@ ppy_msr_Reorder(MSRINSTANCE *self, PyObject *args) {
 
 static PyObject *
 ppy_msr_Gravity(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    MSR *msr = self->msr;
     static char const *kwlist[]={"time","delta","rung","ewald","step","KickClose","KickOpen", NULL};
     double dTime = 0.0;
     double dDelta = 0.0;
     uint64_t nActive;
 
-    int bEwald = self->msr->param.bEwald;
+    int bEwald = msr->param.bEwald;
     int iRungLo    = 0;
     int iRungHi    = MAX_RUNG;
     int iRoot1 = ROOT;
     int iRoot2 = 0;
     double dStep = 0.0;
+    //double dTheta = msr->getParameterDouble("dTheta");
     int bKickOpen = 1;
     int bKickClose = 1;
 
@@ -331,9 +333,8 @@ ppy_msr_Gravity(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
 	     args, kwobj, "d|dipdpp:Gravity", const_cast<char **>(kwlist),
 	     &dTime, &dDelta, &iRungLo, &bEwald, &dStep, &bKickClose, &bKickOpen ) )
 	return NULL;
-    uint8_t uRungMax = self->msr->Gravity(iRungLo,iRungHi,iRoot1,iRoot2,dTime,dDelta,dStep,bKickClose,bKickOpen,bEwald,
-	self->msr->param.bGravStep, self->msr->param.nPartRhoLoc, self->msr->param.iTimeStepCrit,
-    	self->msr->param.nGroup);
+    uint8_t uRungMax = msr->Gravity(iRungLo,iRungHi,iRoot1,iRoot2,dTime,dDelta,dStep,bKickClose,bKickOpen,bEwald,
+	msr->param.bGravStep, msr->param.nPartRhoLoc, msr->param.iTimeStepCrit, msr->param.nGroup);
     return Py_BuildValue("i", uRungMax);
     }
 
@@ -518,8 +519,19 @@ static PyMemberDef msr_members[] = {
 	{NULL} /* Sentinel */
     };
 
+static PyObject *msr_get_parm(MSRINSTANCE *self, void *) {
+    Py_INCREF(self->msr->arguments);
+    return self->msr->arguments;
+    }
+
+static PyObject *msr_get_spec(MSRINSTANCE *self, void *) {
+    Py_INCREF(self->msr->specified);
+    return self->msr->specified;
+    }
+
 static PyGetSetDef msr_getseters[] = {
-    /*{"son", (getter)Father_getson, (setter)Father_setson, "son", NULL},*/
+	{"parm", (getter)msr_get_parm, NULL, "All parameters", NULL},
+	{"spec", (getter)msr_get_spec, NULL, "If parameters were specified", NULL},
 	{NULL} /* Sentinel */
     };
 
