@@ -11,8 +11,7 @@ import os
 class TestCosmology(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.csm = CSM()
-        cls.csm.SetCosmology(dHubble0=math.sqrt(math.pi*8/3),dOmega0=0.32,dSigma8=0.83,ns=0.96)
+        cls.csm = CSM(dOmega0=0.32,dSigma8=0.83,ns=0.96)
 
     @data(1.0,0.1,0.01)
     def testTimeIdentity(self,a):

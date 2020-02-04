@@ -96,9 +96,12 @@ ppy_csmClassRead(CSMINSTANCE *self, PyObject *args, PyObject *kwobj) {
 static PyObject *
 ppy_csmSetCosmology(CSMINSTANCE *self, PyObject *args, PyObject *kwobj) {
     static char *kwlist[]={ "dHubble0", "dOmega0", "dLambda", "dOmegaRad", "dOmegab", "dOmegaDE",
-			    "w0", "wa", "dSigma8", "As", "ns", "running", "pivot", NULL};
+			    "w0", "wa", "dSigma8", "As", "ns", "running", "pivot", "comoving", NULL};
+    self->csm->val.bComove = 1; /* Cosmology is comoving by default */
+    self->csm->val.dHubble0 = sqrt(8.0 * M_PI / 3.0);
+    self->csm->val.classData.bClass = 0; // Not using CLASS
     if ( !PyArg_ParseTupleAndKeywords(
-	    args, kwobj, "|O&O&O&O&O&O&O&O&O&O&O&O&O&:SetCosmology", kwlist,
+	    args, kwobj, "|O&O&O&O&O&O&O&O&O&O&O&O&O&p:SetCosmology", kwlist,
 	    double_or_none, &self->csm->val.dHubble0,
 	    double_or_none, &self->csm->val.dOmega0,
 	    double_or_none, &self->csm->val.dLambda,
@@ -111,14 +114,13 @@ ppy_csmSetCosmology(CSMINSTANCE *self, PyObject *args, PyObject *kwobj) {
 	    double_or_none, &self->csm->val.dNormalization,
 	    double_or_none, &self->csm->val.dSpectral,
 	    double_or_none, &self->csm->val.dRunning,
-	    double_or_none, &self->csm->val.dPivot ) )
+	    double_or_none, &self->csm->val.dPivot,
+	    &self->csm->val.bComove ) )
 	return NULL;
     if (isnan(self->csm->val.dLambda))
     	self->csm->val.dLambda = 1.0 - self->csm->val.dOmega0
 				     - self->csm->val.dOmegaRad
 				     - self->csm->val.dOmegaDE;
-
-
     Py_INCREF(Py_None);
     return Py_None;
     }
@@ -303,24 +305,16 @@ static void csm_dealloc(CSMINSTANCE *self) {
     }
 
 static PyObject *csm_new(PyTypeObject *type, PyObject *args, PyObject *kwobj) {
-    static char *kwlist[]={"As","ns","comoving",NULL};
-    double As=0.0, ns=0.0;
-    int bComove = 1;
-    if ( !PyArg_ParseTupleAndKeywords(
-	     args, kwobj, "|ddi:CSM", kwlist,
-	     &As, &ns, &bComove ) )
-	return NULL;
-    CSMINSTANCE *self;
-    self = (CSMINSTANCE *)type->tp_alloc(type, 0);
+    CSMINSTANCE *self = (CSMINSTANCE *)type->tp_alloc(type, 0);
     if (self == NULL) { return NULL; }
     csmInitialize(&self->csm);
-    self->csm->val.classData.bClass = 0;
-    self->csm->val.dNormalization = As;
-    self->csm->val.dSpectral = ns;
-    self->csm->val.bComove = bComove;
-    self->csm->val.dHubble0 = sqrt(8.0 * M_PI / 3.0);
-    self->csm->val.dPivot = 0.05;
-    return (PyObject *)self;
+    PyObject *none = ppy_csmSetCosmology(self,args,kwobj);
+    if (none) {
+	Py_XDECREF(none);
+	return (PyObject *)self;
+	}
+    type->tp_free(self);
+    return NULL;
     }
 
 static int csm_init(CSMINSTANCE *self, PyObject *args, PyObject *kwds) {

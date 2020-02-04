@@ -58,7 +58,7 @@ void csmInitialize(CSM *pcsm) {
     csm->val.dNormalization = 0.0;
     csm->val.dSpectral = 0.0;
     csm->val.dRunning = 0.0;
-    csm->val.dPivot = 0.0;
+    csm->val.dPivot = 0.05; /* Normally this never changes */
     csm->val.h = 0.0;
     csm->W = gsl_integration_workspace_alloc(LIMIT);
     csm->val.classData.bClass = 0;
