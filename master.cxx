@@ -300,7 +300,7 @@ void MSR::InitializePStore(uint64_t *nSpecies) {
 	   pkdParticleSize(pkd),ps.nEphemeralBytes,pkdNodeSize(pkd));
     }
 
-void MSR::Restart(int n, const char *baseName, int iStep, double dTime) {
+void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTime, double dDelta) {
     auto sec = MSR::Time();
 
     if (mdlThreads(mdl) != n) {
@@ -343,10 +343,10 @@ void MSR::Restart(int n, const char *baseName, int iStep, double dTime) {
 
     InitCosmology();
     if (prmSpecified(prm,"dSoft")) SetSoft(Soft());
-    Simulate(dTime,iStep);
+    Simulate(dTime,dDelta,iStep,nSteps);
     }
 
-void MSR::writeParameters(const char *baseName,int iStep,double dTime) {
+void MSR::writeParameters(const char *baseName,int iStep,int nSteps,double dTime,double dDelta) {
     PRM_NODE *pn;
     char *p, achOutName[PST_FILENAME_SIZE];
     char szNumber[30];
@@ -397,14 +397,14 @@ void MSR::writeParameters(const char *baseName,int iStep,double dTime) {
     fprintf(fp," ]\n");
     fprintf(fp,"msr=MSR()\n");
     fprintf(fp,"msr.Restart(arguments=arguments, specified=specified, species=species, classes=classes,\n"
-    	       "            n=%d,name='%s',step=%d,time=%.17g,\n"
+    	       "            n=%d,name='%s',step=%d,steps=%d,time=%.17g,delta=%.17g,\n"
     	       "            E=%.17g,U=%.17g,Utime=%.17g)\n",
-    	       mdlThreads(mdl),baseName,iStep,dTime,dEcosmo,dUOld,dTimeOld);
+    	       mdlThreads(mdl),baseName,iStep,nSteps,dTime,dDelta,dEcosmo,dUOld,dTimeOld);
 
     fclose(fp);
     }
 
-void MSR::Checkpoint(int iStep,double dTime) {
+void MSR::Checkpoint(int iStep,int nSteps,double dTime,double dDelta) {
     struct inWrite in;
     double sec,dsec;
     if ( param.achCheckpointPath[0] )
@@ -422,7 +422,7 @@ void MSR::Checkpoint(int iStep,double dTime) {
     sec = MSR::Time();
 
     SaveParameters();
-    writeParameters(in.achOutFile,iStep,dTime);
+    writeParameters(in.achOutFile,iStep,nSteps,dTime,dDelta);
 
     pstCheckpoint(pst,&in,sizeof(in),NULL,0);
 
@@ -1487,106 +1487,40 @@ void MSR::OneNodeRead(struct inReadFile *in, FIO fio) {
     delete[] nParts;
     }
 
-double MSR::SwitchDelta(double dTime,int iStep) {
+double MSR::SwitchDelta(double dTime,double dDelta,int iStep,int nSteps) {
     if (csm->val.bComove && prmSpecified(prm,"dRedTo")
         && prmSpecified(prm,"nSteps") && prmSpecified(prm,"nSteps10")) {
 	double aTo,tTo,z;
-	int nSteps;
 	if (iStep < param.nSteps10) {
 	    aTo = 1.0 / (10.0 + 1.0);
 	    nSteps = param.nSteps10 - iStep;
 	    }
 	else {
 	    aTo = 1.0/(param.dRedTo + 1.0);
-	    nSteps = param.nSteps - iStep;
+	    nSteps = nSteps - iStep;
 	    }
 	assert(nSteps>0);
 	tTo = csmExp2Time(csm,aTo);
-	param.dDelta = (tTo-dTime) / nSteps;
+	dDelta = (tTo-dTime) / nSteps;
 	if (iStep == param.nSteps10 && param.bVDetails)
-	    printf("dDelta changed to %g at z=10\n",param.dDelta);
+	    printf("dDelta changed to %g at z=10\n",dDelta);
 	}
-    return param.dDelta;
+    return dDelta;
     }
 
-double MSR::getTime(double dExpansion, double *dvFac) {
-    double dTime,aTo,tTo,z;
+double MSR::getTime(double dExpansion) {
     if (csm->val.bComove) {
 	if (csm->val.dHubble0 == 0.0) {
 	    printf("No hubble constant specified\n");
 	    Exit(1);
 	    }
-	dTime = csmExp2Time(csm,dExpansion);
-	z = 1.0/dExpansion - 1.0;
-	if (param.bVStart)
-	    printf("Input file, Time:%g Redshift:%g Expansion factor:%g iStartStep:%d\n",
-		   dTime,z,dExpansion,param.iStartStep);
-	if (prmSpecified(prm,"dRedTo")) {
-	    if (param.dRedTo <= -1.0) {
-		printf("Badly specified final redshift (zTo <= -1.0), check -zto parameter.\n");
-		Exit(1);
-		}
-	    if (!prmSpecified(prm,"nSteps") &&
-		    prmSpecified(prm,"dDelta")) {
-		aTo = 1.0/(param.dRedTo + 1.0);
-		tTo = csmExp2Time(csm,aTo);
-		if (param.bVStart)
-		    printf("Simulation to Time:%g Redshift:%g Expansion factor:%g\n",
-			   tTo,1.0/aTo-1.0,aTo);
-		if (tTo < dTime) {
-		    printf("Badly specified final redshift, check -zto parameter.\n");
-		    Exit(1);
-		    }
-		param.nSteps = (int)ceil((tTo-dTime)/param.dDelta);
-		param.dDelta =
-		    (tTo-dTime)/(param.nSteps -
-				 param.iStartStep);
-		}
-	    else if (!prmSpecified(prm,"dDelta") &&
-		     prmSpecified(prm,"nSteps")) {
-		aTo = 1.0/(param.dRedTo + 1.0);
-		tTo = csmExp2Time(csm,aTo);
-		if (param.bVStart)
-		    printf("Simulation to Time:%g Redshift:%g Expansion factor:%g\n",
-			   tTo,1.0/aTo-1.0,aTo);
-		if (tTo < dTime) {
-		    printf("Badly specified final redshift, check -zto parameter.\n");
-		    Exit(1);
-		    }
-		if (param.nSteps != 0)
-		    param.dDelta =
-			(tTo-dTime)/(param.nSteps -
-				     param.iStartStep);
-
-		else
-		    param.dDelta = 0.0;
-		}
-	    }
-	else {
-	    tTo = dTime + param.nSteps*param.dDelta;
-	    aTo = csmTime2Exp(csm,tTo);
-	    if (param.bVStart)
-		printf("Simulation to Time:%g Redshift:%g Expansion factor:%g\n",
-		       tTo,1.0/aTo-1.0,aTo);
-	    }
-	if (csm->val.bComove) {
-	    *dvFac = dExpansion*dExpansion;
-	    }
-	else {
-	    *dvFac = 1.0;
-	    }
+        return csmExp2Time(csm,dExpansion);
 	}
-    else {
-	dTime = dExpansion;
-	if (param.bVStart) printf("Input file, Time:%g iStartStep:%d\n",dTime,param.iStartStep);
-	tTo = dTime + (param.nSteps - param.iStartStep)*param.dDelta;
-	if (param.bVStart) {
-	    printf("Simulation to Time:%g\n",tTo);
-	    }
-	*dvFac = 1.0;
-	}
+    else return dExpansion;
+    }
 
-    return dTime;
+double MSR::getVfactor(double dExpansion) {
+    return csm->val.bComove ? dExpansion*dExpansion : 1.0;
     }
 
 void MSR::RecvArray(void *vBuffer,int field,int iUnitSize,double dTime) {
@@ -2327,7 +2261,7 @@ void MSR::OutVector(const char *pszFile,int iType) {
     OutASCII(pszFile,iType,3);
     }
 
-void MSR::SmoothSetSMF(SMF *smf, double dTime) {
+void MSR::SmoothSetSMF(SMF *smf, double dTime, double dDelta) {
     smf->dTime = dTime;
     smf->iMaxRung = param.iMaxRung;
     if (Comove()) {
@@ -2343,7 +2277,7 @@ void MSR::SmoothSetSMF(SMF *smf, double dTime) {
     smf->alpha = param.dConstAlpha;
     smf->beta = param.dConstBeta;
     smf->gamma = param.dConstGamma;
-    smf->dDelta = param.dDelta;
+    smf->dDelta = dDelta;
     smf->dEtaCourant = param.dEtaCourant;
     smf->iViscosityLimiter = param.iViscosityLimiter;
     smf->iDiffusion = param.iDiffusion;
@@ -2362,14 +2296,14 @@ void MSR::SmoothSetSMF(SMF *smf, double dTime) {
 	/(param.SFdvFB/param.dKmPerSecUnit);
     }
 
-void MSR::Smooth(double dTime,int iSmoothType,int bSymmetric,int nSmooth) {
+void MSR::Smooth(double dTime,double dDelta,int iSmoothType,int bSymmetric,int nSmooth) {
     struct inSmooth in;
 
     in.nSmooth = nSmooth;
     in.bPeriodic = param.bPeriodic;
     in.bSymmetric = bSymmetric;
     in.iSmoothType = iSmoothType;
-    SmoothSetSMF(&(in.smf), dTime);
+    SmoothSetSMF(&(in.smf), dTime, dDelta);
     if (param.bVStep) {
 	double sec,dsec;
 	printf("Smoothing...\n");
@@ -2385,14 +2319,14 @@ void MSR::Smooth(double dTime,int iSmoothType,int bSymmetric,int nSmooth) {
 
 
 #ifdef FAST_GAS
-void MSR::FastGasPhase1(double dTime,int iSmoothType) {
+void MSR::FastGasPhase1(double dTime,double dDelta,int iSmoothType) {
     struct inSmooth in;
 
     in.nSmooth = param.nSmooth;
     in.bPeriodic = param.bPeriodic;
     in.bSymmetric = 0;
     in.iSmoothType = iSmoothType;
-    SmoothSetSMF(&(in.smf), dTime);
+    SmoothSetSMF(&(in.smf), dTime, dDelta);
     if (param.bVStep) {
 	double sec,dsec;
 	printf("FastGas Phase 1 Smoothing...\n");
@@ -2407,14 +2341,14 @@ void MSR::FastGasPhase1(double dTime,int iSmoothType) {
     }
 
 
-void MSR::FastGasPhase2(double dTime,int iSmoothType) {
+void MSR::FastGasPhase2(double dTime,double dDelta,int iSmoothType) {
     struct inSmooth in;
 
     in.nSmooth = param.nSmooth;
     in.bPeriodic = param.bPeriodic;
     in.bSymmetric = 0;
     in.iSmoothType = iSmoothType;
-    SmoothSetSMF(&(in.smf), dTime);
+    SmoothSetSMF(&(in.smf), dTime, dDelta);
     if (param.bVStep) {
 	double sec,dsec;
 	printf("FastGas Phase 2 Smoothing...\n");
@@ -2429,14 +2363,14 @@ void MSR::FastGasPhase2(double dTime,int iSmoothType) {
     }
 #endif
 
-void MSR::ReSmooth(double dTime,int iSmoothType,int bSymmetric) {
+void MSR::ReSmooth(double dTime,double dDelta,int iSmoothType,int bSymmetric) {
     struct inSmooth in;
 
     in.nSmooth = param.nSmooth;
     in.bPeriodic = param.bPeriodic;
     in.bSymmetric = bSymmetric;
     in.iSmoothType = iSmoothType;
-    SmoothSetSMF(&(in.smf), dTime);
+    SmoothSetSMF(&(in.smf), dTime, dDelta);
     if (param.bVStep) {
 	double sec,dsec;
 	printf("ReSmoothing...\n");
@@ -2560,7 +2494,7 @@ void msrPrintStat(STAT *ps,char const *pszPrefix,int p) {
 
 
 uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
-    double dTime, double dStep,int bKickClose,int bKickOpen,int bEwald,int bGravStep,int nPartRhoLoc,int iTimeStepCrit,
+    double dTime, double dDelta, double dStep,int bKickClose,int bKickOpen,int bEwald,int bGravStep,int nPartRhoLoc,int iTimeStepCrit,
     int nGroup,int *piSec,uint64_t *pnActive) {
     struct inGravity in;
     struct outGravityPerProc *out;
@@ -2595,7 +2529,7 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
 	in.ts.dRhoFac = 1.0/(a*a*a);
 	}
     else in.ts.dRhoFac = 0.0;
-    in.ts.dDelta = param.dDelta;
+    in.ts.dDelta = dDelta;
     in.ts.dEta = param.dEta;
     in.ts.dPreFacRhoLoc = param.dPreFacRhoLoc;
     in.ts.bGravStep = bGravStep;
@@ -2615,7 +2549,7 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
     */
     in.kick.bKickClose = bKickClose;
     in.kick.bKickOpen = bKickOpen;
-    for (i=0,dt=0.5*param.dDelta;i<=param.iMaxRung;++i,dt*=0.5) {
+    for (i=0,dt=0.5*dDelta;i<=param.iMaxRung;++i,dt*=0.5) {
 	in.kick.dtClose[i] = 0.0;
 	in.kick.dtOpen[i] = 0.0;
 	if (i>=uRungLo) {
@@ -2648,7 +2582,7 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
     /*
     ** Note that in this loop we initialize dt with the full step, not a half step!
     */
-    for (i=0,dt=param.dDelta;i<=param.iMaxRung;++i,dt*=0.5) {
+    for (i=0,dt=dDelta;i<=param.iMaxRung;++i,dt*=0.5) {
 	in.lc.dtLCDrift[i] = 0.0;
 	in.lc.dtLCKick[i] = 0.0;
 	if (i>=uRungLo) {
@@ -2902,7 +2836,7 @@ int cmpTime(const void *v1,const void *v2) {
     else return(1);
     }
 
-void MSR::ReadOuts(double dTime) {
+void MSR::ReadOuts(double dTime,double dDelta) {
     char achFile[PST_FILENAME_SIZE];
     char ach[PST_FILENAME_SIZE];
     LCL *plcl = &lcl;
@@ -2945,7 +2879,7 @@ void MSR::ReadOuts(double dTime) {
 	case 'n':
 	    ret = sscanf(&achIn[1],"%lf",&n);
 	    if (ret != 1) goto NoMoreOuts;
-	    dOutTimes.push_back(dTime + (n-0.5)*Delta());
+	    dOutTimes.push_back(dTime + (n-0.5)*dDelta);
 	    break;
 	default:
 	    ret = sscanf(achIn,"%lf",&z);
@@ -3058,7 +2992,7 @@ int MSR::CountRungs(uint64_t *nRungs) {
     return iMaxRung;
     }
 
-void MSR::AccelStep(uint8_t uRungLo,uint8_t uRungHi,double dTime) {
+void MSR::AccelStep(uint8_t uRungLo,uint8_t uRungHi,double dTime,double dDelta) {
     struct inAccelStep in;
     double a;
 
@@ -3073,7 +3007,7 @@ void MSR::AccelStep(uint8_t uRungLo,uint8_t uRungHi,double dTime) {
     in.dAccFac = 1.0/(a*a*a);
     in.bDoGravity = DoGravity();
     in.bEpsAcc = param.bEpsAccStep;
-    in.dDelta = param.dDelta;
+    in.dDelta = dDelta;
     in.iMaxRung = param.iMaxRung;
     in.uRungLo = uRungLo;
     in.uRungHi = uRungHi;
@@ -3081,7 +3015,7 @@ void MSR::AccelStep(uint8_t uRungLo,uint8_t uRungHi,double dTime) {
     }
 
 /* Requires full forces and full udot (i.e. sph and cooling both done) */
-void MSR::SphStep(uint8_t uRungLo,uint8_t uRungHi,double dTime) {
+void MSR::SphStep(uint8_t uRungLo,uint8_t uRungHi,double dTime,double dDelta) {
     struct inSphStep in;
     double a;
 
@@ -3091,20 +3025,20 @@ void MSR::SphStep(uint8_t uRungLo,uint8_t uRungHi,double dTime) {
     in.dEtaUDot = param.dEtaUDot;
     in.uRungLo = uRungLo;
     in.uRungHi = uRungHi;
-    in.dDelta = param.dDelta;
+    in.dDelta = dDelta;
     in.iMaxRung = param.iMaxRung;
     pstSphStep(pst,&in,sizeof(in),NULL,0);
     }
 
-void MSR::DensityStep(uint8_t uRungLo,uint8_t uRungHi,double dTime) {
+void MSR::DensityStep(uint8_t uRungLo,uint8_t uRungHi,double dTime,double dDelta) {
     struct inDensityStep in;
     double expand;
     int bSymmetric;
 
     msrprintf("Calculating Rung Densities...\n");
     bSymmetric = 0;
-    Smooth(dTime,SMX_DENSITY,bSymmetric,param.nSmooth);
-    in.dDelta = param.dDelta;
+    Smooth(dTime,dDelta,SMX_DENSITY,bSymmetric,param.nSmooth);
+    in.dDelta = dDelta;
     in.iMaxRung = param.iMaxRung;
     in.dEta = Eta();
     expand = csmTime2Exp(csm,dTime);
@@ -3212,7 +3146,7 @@ void MSR::LightConeVel() {
 
 
 /* True if we should omit the opening kick */
-int MSR::CheckForOutput(int iStep,double dTime,int *pbDoCheckpoint,int *pbDoOutput) {
+int MSR::CheckForOutput(int iStep,int nSteps,double dTime,int *pbDoCheckpoint,int *pbDoOutput) {
     int iStop, iCheck;
     long lSec = time(0) - lPrior;
 
@@ -3261,7 +3195,7 @@ int MSR::CheckForOutput(int iStep,double dTime,int *pbDoCheckpoint,int *pbDoOutp
 	|| (OutInterval() > 0 &&
 		(bGlobalOutput
 		|| iStop
-		|| iStep == Steps()
+		|| iStep == nSteps
 		|| (iStep%OutInterval() == 0))) ) {
 	bGlobalOutput = 0;
 	*pbDoOutput = 1  | (iStop<<1);
@@ -3272,14 +3206,16 @@ int MSR::CheckForOutput(int iStep,double dTime,int *pbDoCheckpoint,int *pbDoOutp
 
 
 int MSR::NewTopStepKDK(
+    double &dTime,	/* MODIFIED: Current simulation time */
+    double dDelta,
+    int nSteps,
     int bDualTree,      /* Should be zero at rung 0! */
     uint8_t uRung,	/* Rung level */
     double *pdStep,	/* Current step */
-    double *pdTime,	/* Current time */
     uint8_t *puRungMax,
     int *piSec,int *pbDoCheckpoint,int *pbDoOutput,int *pbNeedKickOpen) {
     uint64_t nActive;
-    double dDelta,dTimeFixed;
+    double dDeltaRung,dTimeFixed;
     uint32_t uRoot2=0;
     char achFile[256];
     int bKickOpen=1;
@@ -3293,7 +3229,7 @@ int MSR::NewTopStepKDK(
 	if ( param.bDualTree && uRung < *puRungMax) {
 	    /* HACK: FIXME: Don't use the dual tree before z=2; the overlap region is too large */
 	    /* better would be to construct the tree matching remote processor shape as well as local */
-	    double a = csmTime2Exp(csm,*pdTime);
+	    double a = csmTime2Exp(csm,dTime);
 	    if (a < (1.0/3.0)) bDualTree = 0;
 	    else {
 		bDualTree = 1;
@@ -3302,33 +3238,33 @@ int MSR::NewTopStepKDK(
 		dump.uRungDD = iRungDT;
 		pstDumpTrees(pst,&dump,sizeof(dump),NULL,0);
 		msrprintf("Half Drift, uRung: %d\n",iRungDT);
-		dDelta = param.dDelta/(1 << iRungDT); // Main tree step
-		Drift(*pdTime,0.5 * dDelta,FIXROOT);
-		dTimeFixed = *pdTime + 0.5 * dDelta;
+		dDeltaRung = dDelta/(1 << iRungDT); // Main tree step
+		Drift(dTime,0.5 * dDeltaRung,FIXROOT);
+		dTimeFixed = dTime + 0.5 * dDeltaRung;
 		BuildTreeFixed(param.bEwald,iRungDT);
 		}
 	    }
 	else bDualTree = 0;
 	}
     if (uRung < *puRungMax) {
-	bDualTree = NewTopStepKDK(bDualTree,uRung+1,pdStep,pdTime,puRungMax,piSec,pbDoCheckpoint,pbDoOutput,pbNeedKickOpen);
+	bDualTree = NewTopStepKDK(dTime,dDelta,nSteps,bDualTree,uRung+1,pdStep,puRungMax,piSec,pbDoCheckpoint,pbDoOutput,pbNeedKickOpen);
 	}
 
     /* Drift the "ROOT" (active) tree or all particle */
-    dDelta = param.dDelta/(1 << *puRungMax);
+    dDeltaRung = dDelta/(1 << *puRungMax);
     if (bDualTree) {
 	msrprintf("Drift very actives, uRung: %d\n",*puRungMax);
-	Drift(*pdTime,dDelta,ROOT);
+	Drift(dTime,dDeltaRung,ROOT);
 	}
     else {
 	msrprintf("Drift, uRung: %d\n",*puRungMax);
-	Drift(*pdTime,dDelta,-1);
+	Drift(dTime,dDeltaRung,-1);
 	}
-    *pdTime += dDelta;
+    dTime += dDeltaRung;
     *pdStep += 1.0/(1 << *puRungMax);
 
     ActiveRung(uRung,1);
-    UpdateSoft(*pdTime);
+    UpdateSoft(dTime);
     if (bDualTree && uRung > iRungDT) {
 	uRoot2 = FIXROOT;
 	BuildTreeActive(param.bEwald,iRungDT);
@@ -3340,11 +3276,11 @@ int MSR::NewTopStepKDK(
 	}
 
     if (!uRung && param.iPkInterval && iStep%param.iPkInterval == 0) {
-	OutputPk(iStep,*pdTime);
+	OutputPk(iStep,dTime);
 	}
 
     if (!uRung) {
-	bKickOpen = !CheckForOutput(iStep,*pdTime,pbDoCheckpoint,pbDoOutput);	
+	bKickOpen = !CheckForOutput(iStep,nSteps,dTime,pbDoCheckpoint,pbDoOutput);	
 	}
     else bKickOpen = 1;
     *pbNeedKickOpen = !bKickOpen;
@@ -3362,19 +3298,19 @@ int MSR::NewTopStepKDK(
     /* Compute the grids of linear species at main timesteps, before gravity is called */
     if (!uRung && strlen(param.achLinearSpecies) && param.nGridLin){
 	GridCreateFFT(param.nGridLin);
-        SetLinGrid(*pdTime, param.nGridLin,1,bKickOpen);
+        SetLinGrid(dTime,dDelta,param.nGridLin,1,bKickOpen);
         if (param.bDoLinPkOutput)
-            OutputLinPk( *pdStep, *pdTime);
-	LinearKick(*pdTime,1,bKickOpen);
+            OutputLinPk( *pdStep, dTime);
+	LinearKick(dTime,dDelta,1,bKickOpen);
 	GridDeleteFFT();
 	}
 
-    if (!uRung && param.bFindGroups) NewFof(*pdTime);
+    if (!uRung && param.bFindGroups) NewFof(dTime);
 
     // We need to make sure we descend all the way to the bucket with the
     // active tree, or we can get HUGE group cells, and hence too much P-P/P-C
     int nGroup = (bDualTree && uRung > iRungDT) ? 1 : param.nGroup;
-    *puRungMax = Gravity(uRung,MaxRung(),ROOT,uRoot2,*pdTime,
+    *puRungMax = Gravity(uRung,MaxRung(),ROOT,uRoot2,dTime,dDelta,
 	*pdStep,1,bKickOpen,param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,nGroup,piSec,&nActive);
 
     if (!uRung && param.bFindGroups) {
@@ -3384,11 +3320,11 @@ int MSR::NewTopStepKDK(
 	HopWrite(achFile);
 	}
 
-    if (uRung && uRung < *puRungMax) bDualTree = NewTopStepKDK(bDualTree,uRung+1,pdStep,pdTime,puRungMax,piSec,pbDoCheckpoint,pbDoOutput,pbNeedKickOpen);
+    if (uRung && uRung < *puRungMax) bDualTree = NewTopStepKDK(dTime,dDelta,nSteps,bDualTree,uRung+1,pdStep,puRungMax,piSec,pbDoCheckpoint,pbDoOutput,pbNeedKickOpen);
     if (bDualTree && uRung==iRungDT+1) {
 	msrprintf("Half Drift, uRung: %d\n",iRungDT);
-	dDelta = param.dDelta/(1 << iRungDT);
-	Drift(dTimeFixed,0.5 * dDelta,FIXROOT);
+	dDeltaRung = dDelta/(1 << iRungDT);
+	Drift(dTimeFixed,0.5 * dDeltaRung,FIXROOT);
 	}
     return bDualTree;
     }
@@ -3396,53 +3332,52 @@ int MSR::NewTopStepKDK(
 void MSR::TopStepKDK(
 		   double dStep,	/* Current step */
 		   double dTime,	/* Current time */
-		   double dDelta,	/* Time step */
+		   double dDeltaRung,	/* Time step */
 		   int iRung,		/* Rung level */
 		   int iKickRung,	/* Gravity on all rungs from iRung to iKickRung */
 		   int iAdjust,		/* Do an adjust? */
 		   double *pdActiveSum,
 		   int *piSec) {
     uint64_t nActive;
+    double dDeltaStep = dDeltaRung * (1 << iRung);
 
     if (iAdjust && (iRung < MaxRung()-1)) {
 	msrprintf("%*cAdjust, iRung: %d\n",2*iRung+2,' ',iRung);
 	/* JW: Note -- can't trash uRungNew here! Force calcs set values for it! */
 	ActiveRung( iRung, 1);
-	if (param.bAccelStep) AccelStep(iRung,MAX_RUNG,dTime);
-	if (DoGas()) {
-	    SphStep(iRung,MAX_RUNG,dTime);
-	    }
+	if (param.bAccelStep) AccelStep(iRung,MAX_RUNG,dTime,dDeltaStep);
+	if (DoGas()) SphStep(iRung,MAX_RUNG,dTime,dDeltaStep);
 	if (param.bDensityStep) {
 	    DomainDecomp(iRung);
 	    ActiveRung(iRung,1);
 	    BuildTree(0);
-	    DensityStep(iRung,MAX_RUNG,dTime);
+	    DensityStep(iRung,MAX_RUNG,dTime,dDeltaStep);
 	    }
 	UpdateRung(iRung);
         }
 
     msrprintf("%*cmsrKickOpen  at iRung: %d 0.5*dDelta: %g\n",
-	      2*iRung+2,' ',iRung,0.5*dDelta);
-    KickKDKOpen(dTime,0.5*dDelta,iRung,iRung);
+	      2*iRung+2,' ',iRung,0.5*dDeltaRung);
+    KickKDKOpen(dTime,0.5*dDeltaRung,iRung,iRung);
     if (CurrMaxRung() > iRung) {
 	/*
 	** Recurse.
 	*/
-	TopStepKDK(dStep,dTime,0.5*dDelta,iRung+1,iRung+1,0,
+	TopStepKDK(dStep,dTime,0.5*dDeltaRung,iRung+1,iRung+1,0,
 		      pdActiveSum,piSec);
-	dTime += 0.5*dDelta;
+	dTime += 0.5*dDeltaRung;
 	dStep += 1.0/(2 << iRung);
 
 	ActiveRung(iRung,0); /* is this call even needed? */
 
-	TopStepKDK(dStep,dTime,0.5*dDelta,iRung+1,iKickRung,1,
+	TopStepKDK(dStep,dTime,0.5*dDeltaRung,iRung+1,iKickRung,1,
 		      pdActiveSum,piSec);
 	}
     else if (CurrMaxRung() == iRung) {
 	/* This Drifts everybody */
 	msrprintf("%*cDrift, iRung: %d\n",2*iRung+2,' ',iRung);
-	Drift(dTime,dDelta,ROOT);
-	dTime += dDelta;
+	Drift(dTime,dDeltaRung,ROOT);
+	dTime += dDeltaRung;
 	dStep += 1.0/(1 << iRung);
 
 	ActiveRung(iKickRung,1);
@@ -3457,39 +3392,39 @@ void MSR::TopStepKDK(
 	    BuildTree(param.bEwald);
 	    }
 	if (DoGravity()) {
-	    Gravity(iKickRung,MAX_RUNG,ROOT,0,dTime,dStep,0,0,
+	    Gravity(iKickRung,MAX_RUNG,ROOT,0,dTime,dDeltaStep,dStep,0,0,
 	    	param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,
 	    	param.nGroup,piSec,&nActive);
 	    *pdActiveSum += (double)nActive/N;
 	    }
 	
 	if (DoGas()) {
-	    Sph(dTime,dStep);  /* dTime = Time at end of kick */
+	    Sph(dTime,dDeltaStep,dStep);  /* dTime = Time at end of kick */
 	    Cooling(dTime,dStep,0,
 		       (iKickRung<=param.iRungCoolTableUpdate ? 1:0),0);
-	}
+	    }
 	/*
 	 * move time back to 1/2 step so that KickClose can integrate
 	 * from 1/2 through the timestep to the end.
 	 */
-	dTime -= 0.5*dDelta;
+	dTime -= 0.5*dDeltaRung;
 	}
     else { abort(); }
 
     msrprintf("%*cKickClose, iRung: %d, 0.5*dDelta: %g\n",
-	      2*iRung+2,' ',iRung, 0.5*dDelta);
-    KickKDKClose(dTime,0.5*dDelta,iRung,iRung); /* uses dTime-0.5*dDelta */
+	      2*iRung+2,' ',iRung, 0.5*dDeltaRung);
+    KickKDKClose(dTime,0.5*dDeltaRung,iRung,iRung); /* uses dTime-0.5*dDelta */
 
-    dTime += 0.5*dDelta; /* Important to have correct time at step end for SF! */
+    dTime += 0.5*dDeltaRung; /* Important to have correct time at step end for SF! */
     /* JW: Creating/Deleting/Merging is best done outside (before or after) KDK cycle 
        -- Tree should still be valid from last force eval (only Drifts + Deletes invalidate it) */
     if (iKickRung == iRung) { /* Do all co-incident kicked p's in one go */
-	StarForm(dTime, iKickRung); /* re-eval timesteps as needed for next step 
+	StarForm(dTime, dDeltaStep, iKickRung); /* re-eval timesteps as needed for next step 
 					    -- apply to all neighbours */
 	}
     }
 
-void MSR::StarForm(double dTime, int iRung) {
+void MSR::StarForm(double dTime, double dDelta, int iRung) {
     struct inStarForm in;
     struct outStarForm out;
     double a,d1,d2;
@@ -3499,7 +3434,7 @@ void MSR::StarForm(double dTime, int iRung) {
     sec = MSR::Time();
 
     a = csmTime2Exp(csm,dTime);
-    in.dDelta = param.dDelta;
+    in.dDelta = dDelta;
     /* Convert input parameters to code units */
     in.dRateCoeff = param.SFdEfficiency*sqrt(32/(3*M_PI)/pow(a,3)); /* G=1 */
     in.dTMax = param.SFdTMax;
@@ -3534,7 +3469,7 @@ void MSR::StarForm(double dTime, int iRung) {
 	//msrSelDstDeleted(msr); /* Select only deleted particles */
 	ActiveRung(0,1); /* costs nothing -- may be redundant */
 /*	BuildTree(param.bEwald);*/
-	Smooth(dTime, SMX_DIST_DELETED_GAS, 1,param.nSmooth); /* use full smooth to account for deleted */
+	Smooth(dTime, dDelta, SMX_DIST_DELETED_GAS, 1,param.nSmooth); /* use full smooth to account for deleted */
 	//msrSelSrcAll(msr);
 	//msrSelDstAll(msr);
 	}
@@ -3554,7 +3489,7 @@ void MSR::StarForm(double dTime, int iRung) {
  	//msrSelSrcGas(msr); /* Not really sure what the setting here needs to be */
 	//msrSelDstStar(msr,1,dTime); /* Select only stars that have FB to do */ 
 /*	BuildTree(param.bEwald);*/
-	Smooth(dTime, SMX_DIST_SN_ENERGY, 1, param.nSmooth); /* full smooth for stars */
+	Smooth(dTime, dDelta, SMX_DIST_SN_ENERGY, 1, param.nSmooth); /* full smooth for stars */
 	//msrSelSrcAll(msr);
 	//msrSelDstAll(msr);
 
@@ -3632,7 +3567,7 @@ void MSR::AddDelParticles() {
 
 /* Gas routines */
 
-void MSR::InitSph(double dTime) {
+void MSR::InitSph(double dTime,double dDelta) {
     /* Init gas, internal energy -- correct estimate from dTuFac */
     ActiveRung(0,1);
     /* Very important NOT to do this if starting from a checkpoint */
@@ -3642,7 +3577,7 @@ void MSR::InitSph(double dTime) {
 
  	//msrSelSrcGas(msr); /* Not really sure what the setting here needs to be */
 	//msrSelDstGas(msr);  
-	Smooth(dTime,SMX_DENDVDX,0,param.nSmooth);  
+	Smooth(dTime,dDelta,SMX_DENDVDX,0,param.nSmooth);  
 	//msrSelSrcAll(msr);
 	//msrSelDstAll(msr);
 
@@ -3664,12 +3599,12 @@ void MSR::InitSph(double dTime) {
     
     /* Init forces, ... */
     ActiveRung(0,1);
-    Sph(dTime,0);
-    SphStep(0,MAX_RUNG,dTime); /* Requires SPH */
+    Sph(dTime,dDelta,0);
+    SphStep(0,MAX_RUNG,dTime,dDelta); /* Requires SPH */
     Cooling(dTime,0,0,1,1); /* Interate cooling for consistent dt */
 }
 
-void MSR::Sph(double dTime, double dStep) {
+void MSR::Sph(double dTime, double dDelta, double dStep) {
     double sec,dsec;
 
     if (param.bVStep) printf("Calculating Sph, Step:%f\n",dStep);
@@ -3680,8 +3615,8 @@ void MSR::Sph(double dTime, double dStep) {
 
     //msrSelSrcGas(msr); /* Not really sure what the setting here needs to be */
     //msrSelDstGas(msr);  
-    Smooth(dTime,SMX_DENDVDX,0,param.nSmooth);  
-    Smooth(dTime,SMX_SPHFORCES,1,param.nSmooth); /* Should be a resmooth */
+    Smooth(dTime,dDelta,SMX_DENDVDX,0,param.nSmooth);  
+    Smooth(dTime,dDelta,SMX_SPHFORCES,1,param.nSmooth); /* Should be a resmooth */
     //msrSelSrcAll(msr);
     //msrSelDstAll(msr);
 
@@ -3731,7 +3666,7 @@ void MSR::HopWrite(const char *fname) {
 
     }
 
-void MSR::Hop(double dTime) {
+void MSR::Hop(double dTime, double dDelta) {
     struct inSmooth in;
     struct inHopLink h;
     struct outHopJoin j;
@@ -3754,8 +3689,8 @@ void MSR::Hop(double dTime) {
     h.smf.a      = in.smf.a = dTime;
     h.smf.dTau2  = in.smf.dTau2 = 0.0;
     h.smf.nMinMembers = in.smf.nMinMembers = param.nMinMembers;
-    SmoothSetSMF(&(in.smf), dTime);
-    SmoothSetSMF(&(h.smf), dTime);
+    SmoothSetSMF(&(in.smf), dTime, dDelta);
+    SmoothSetSMF(&(h.smf), dTime, dDelta);
 
     if (param.bVStep) {
 	if (h.dHopTau<0.0)
@@ -3990,7 +3925,6 @@ double MSR::GenerateIC() {
     uint64_t nSpecies[FIO_SPECIES_LAST];
     int nOut;
     double sec,dsec;
-    double dvFac;
     double mean, rms;
     uint64_t nTotal;
     int j;
@@ -4078,7 +4012,7 @@ double MSR::GenerateIC() {
     msrprintf("IC Generation Complete @ a=%g, Wallclock: %f secs\n\n",out.dExpansion,dsec);
     msrprintf("Mean of noise same is %g, RMS %g.\n",mean,rms);
 
-    return getTime(out.dExpansion,&dvFac);
+    return getTime(out.dExpansion);
     }
 #endif
 
@@ -4141,8 +4075,9 @@ double MSR::Read(const char *achInFile) {
     printf("Reading %" PRIu64 " particles from %d file%s using %d processor%s\n",
 	N, j, (j==1?"":"s"), read->nProcessors, (read->nProcessors==1?"":"s") );
 
-    dTime = getTime(dExpansion,&read->dvFac);
+    dTime = getTime(dExpansion);
     if (param.bInFileLC) read->dvFac = 1.0;
+    else read->dvFac = getVfactor(dExpansion);
     read->dTuFac = dTuFac;
     
     if (nGas && !prmSpecified(prm,"bDoGas")) param.bDoGas = 1;
@@ -4193,12 +4128,6 @@ double MSR::Read(const char *achInFile) {
 	BND bnd;
 	CalcBound(&bnd);
 	}
-
-    /*
-    ** Now read in the output points, passing the initial time.
-    ** We do this only if nSteps is not equal to zero.
-    */
-    if (Steps() > 0) ReadOuts(dTime);
 
     return dTime;
     }
@@ -4350,7 +4279,7 @@ void MSR::OutputLinPk(int iStep,double dTime) {
 **  This routine will output all requested files and fields
 */
 
-void MSR::Output(int iStep, double dTime, int bCheckpoint) {
+void MSR::Output(int iStep, double dTime, double dDelta, int bCheckpoint) {
 #ifdef _MSC_VER
     char achFile[MAX_PATH];
 #else
@@ -4389,15 +4318,15 @@ void MSR::Output(int iStep, double dTime, int bCheckpoint) {
 	BuildTree(0);
 
 	//msrSelSrcGas(msr);  /* FOR TESTING!! of gas active particles */
-	FastGasPhase1(dTime,SMX_DENSITY);
-	FastGasPhase2(dTime,SMX_PRINTNN);
+	FastGasPhase1(dTime,dDelta,SMX_DENSITY);
+	FastGasPhase2(dTime,dDelta,SMX_PRINTNN);
 	//msrSelSrcAll(msr);  /* FOR TESTING!! of gas active particles */
 #else
 	ActiveRung(0,1); /* Activate all particles */
 	DomainDecomp(-1);
 	BuildTree(0);
 	bSymmetric = 0;  /* should be set in param file! */
-	Smooth(dTime,SMX_DENSITY,bSymmetric,param.nSmooth);
+	Smooth(dTime,dDelta,SMX_DENSITY,bSymmetric,param.nSmooth);
 #endif
 	}
     if ( param.bFindGroups ) {
@@ -4412,7 +4341,7 @@ void MSR::Output(int iStep, double dTime, int bCheckpoint) {
 	ActiveRung(0,1); /* Activate all particles */
 	DomainDecomp(-1);
 	BuildTree(0);
-	Hop(dTime);
+	Hop(dTime,dDelta);
 	Reorder();
 
 	BuildName(achFile,iStep);
@@ -4917,7 +4846,7 @@ void MSR::MeasureLinPk(int nGrid, double dA, double dBoxSize,
     printf("P_lin(k) Calculated, Wallclock: %f secs\n\n",dsec);
     }
 
-void MSR::SetLinGrid(double dTime, int nGrid, int bKickClose, int bKickOpen){
+void MSR::SetLinGrid(double dTime, double dDelta,int nGrid, int bKickClose, int bKickOpen){
     printf("Setting force grids of linear species with nGridLin = %d \n", nGrid);
     double sec, dsec;
     sec = MSR::Time();
@@ -4928,8 +4857,8 @@ void MSR::SetLinGrid(double dTime, int nGrid, int bKickClose, int bKickOpen){
     int do_DeltaRho_lin_avg = 1;
     in.a0 = in.a1 = in.a = csmTime2Exp(csm, dTime);
     if (do_DeltaRho_lin_avg) {
-	if (bKickClose) in.a0 = csmTime2Exp(csm, dTime - 0.5*Delta());
-	if (bKickOpen)  in.a1 = csmTime2Exp(csm, dTime + 0.5*Delta());
+	if (bKickClose) in.a0 = csmTime2Exp(csm, dTime - 0.5*dDelta);
+	if (bKickOpen)  in.a1 = csmTime2Exp(csm, dTime + 0.5*dDelta);
 	}
 
     in.dBSize = param.dBoxSize;
@@ -4944,9 +4873,9 @@ void MSR::SetLinGrid(double dTime, int nGrid, int bKickClose, int bKickOpen){
     }
 
 /* First call SetLinGrid() to setup the grid */
-void MSR::LinearKick(double dTime, int bKickClose, int bKickOpen) {
+void MSR::LinearKick(double dTime, double dDelta, int bKickClose, int bKickOpen) {
     struct inLinearKick in;
-    double dt = 0.5*param.dDelta;
+    double dt = 0.5*dDelta;
     double sec, dsec;
 
     printf("Applying Linear Kick...\n");

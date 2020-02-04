@@ -45,18 +45,70 @@ double MSR::LoadOrGenerateIC() {
     return dTime;
     }
 
+
+/******************************************************************************\
+*   Calculate dDelta and nSteps from: iStartStep, nSteps, dRedTo, dDelta
+\******************************************************************************/
+
+bool MSR::getDeltaSteps(double dTime,int iStartStep,double &dDelta,int &nSteps) {
+    dDelta = param.dDelta;
+    nSteps = param.nSteps;
+    if (!csm->val.bComove) {
+	if (prmSpecified(prm,"dRedTo")) {
+	    printf("WARNING: dRedTo is meaningless for non-cosmological simulations, ignoring.\n");
+	    }
+	}
+    else if (!prmSpecified(prm,"dRedTo")) {}
+    else if (prmSpecified(prm,"dDelta") && prmSpecified(prm,"nSteps")) {
+	printf("Specify at most two of: dDelta, nSteps, dRedTo -- all three were specified\n");
+	return false;
+        }
+    else if (prmSpecified(prm,"dDelta")) {
+	auto aTo = 1.0/(param.dRedTo + 1.0);
+	auto tTo = csmExp2Time(csm,aTo);
+	if (tTo < dTime) {
+	    printf("Badly specified final redshift, check -zto parameter.\n");
+	    return false;
+	    }
+	nSteps = (int)ceil((tTo-dTime)/param.dDelta);
+	dDelta = (tTo-dTime)/(nSteps - iStartStep);
+	}
+    else if (prmSpecified(prm,"nSteps")) {
+	auto aTo = 1.0/(param.dRedTo + 1.0);
+	auto tTo = csmExp2Time(csm,aTo);
+	if (tTo < dTime) {
+	    printf("Badly specified final redshift, check -zto parameter.\n");
+	    return false;
+	    }
+	if (param.nSteps == 0) dDelta = 0.0;
+	else dDelta = (tTo-dTime) / (nSteps - iStartStep);
+	}
+    return true;
+    }
+
 /******************************************************************************\
 *   Simulation Mode: normal operation mode for pkdgrav
 \******************************************************************************/
 void MSR::Simulate(double dTime) {
-    return Simulate(dTime,param.iStartStep);
+    double dDelta;
+    int nSteps;
+    getDeltaSteps(dTime,param.iStartStep, /* OUTPUT -> */ dDelta,nSteps);
+    return Simulate(dTime,dDelta,param.iStartStep,nSteps);
     }
-void MSR::Simulate(double dTime,int iStartStep) {
+void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
     FILE *fpLog = NULL;
 
     InitCosmology();
     if (prmSpecified(prm,"dSoft")) SetSoft(Soft());
     if (Comove()) SwitchTheta(dTime); // Adjust theta for gravity calculations.
+
+
+    /*
+    ** Now read in the output points, passing the initial time.
+    ** We do this only if nSteps is not equal to zero.
+    */
+    if (nSteps > 0) ReadOuts(dTime,dDelta);
+
     /*
     ** Now we have all the parameters for the simulation we can make a
     ** log file entry.
@@ -97,7 +149,7 @@ void MSR::Simulate(double dTime,int iStartStep) {
     int iSec;
 
     if (DoGravity()) {
-	SwitchDelta(dTime,iStartStep);
+	dDelta = SwitchDelta(dTime,dDelta,iStartStep,param.nSteps);
 	if (param.bNewKDK) {
 	    LightConeOpen(iStartStep + 1);
 	    bKickOpen = 1;
@@ -107,19 +159,19 @@ void MSR::Simulate(double dTime,int iStartStep) {
         /* Compute the grids of the linear species before doing gravity */
         if (strlen(param.achLinearSpecies) && param.nGridLin > 0){
 	    GridCreateFFT(param.nGridLin);
-            SetLinGrid(dTime, param.nGridLin,bKickClose,bKickOpen);
+            SetLinGrid(dTime,dDelta,param.nGridLin,bKickClose,bKickOpen);
             if (param.bDoLinPkOutput)
                 OutputLinPk( iStartStep, dTime);
-	    LinearKick(dTime,bKickClose,bKickOpen);
+	    LinearKick(dTime,dDelta,bKickClose,bKickOpen);
 	    GridDeleteFFT();
         }
-	uRungMax = Gravity(0,MAX_RUNG,ROOT,0,dTime,iStartStep,0,bKickOpen,
+	uRungMax = Gravity(0,MAX_RUNG,ROOT,0,dTime,dDelta,iStartStep,0,bKickOpen,
 	        param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,&iSec,&nActive);
 	MemStatus();
 	if (param.bGravStep) {
 	    assert(param.bNewKDK == 0);    /* for now! */
 	    BuildTree(param.bEwald);
-	    Gravity(0,MAX_RUNG,ROOT,0,dTime,iStartStep,0,0,
+	    Gravity(0,MAX_RUNG,ROOT,0,dTime,dDelta,iStartStep,0,0,
 		    param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,&iSec,&nActive);
 	    MemStatus();
 	    }
@@ -128,7 +180,7 @@ void MSR::Simulate(double dTime,int iStartStep) {
 	/* Initialize SPH, Cooling and SF/FB and gas time step */
 	CoolSetup(dTime);
 	/* Fix dTuFac conversion of T in InitSPH */
-	InitSph(dTime);
+	InitSph(dTime,dDelta);
 	}
 
     double E=0,T=0,U=0,Eth=0,L[3]={0,0,0},F[3]={0,0,0},W=0,dMultiEff = 1.0;
@@ -145,8 +197,8 @@ void MSR::Simulate(double dTime,int iStartStep) {
 
     bKickOpen = 0;
     int iStop=0, bDoCheckpoint=0, bDoOutput=0;
-    for (auto iStep=iStartStep+1;iStep<=Steps()&&!iStop;++iStep) {
-	SwitchDelta(dTime,iStep-1);
+    for (auto iStep=iStartStep+1;iStep<=nSteps&&!iStop;++iStep) {
+	dDelta = SwitchDelta(dTime,dDelta,iStep-1,param.nSteps);
 	if (Comove()) SwitchTheta(dTime);
 	dMultiEff = 0.0;
 	lPrior = time(0);
@@ -156,25 +208,25 @@ void MSR::Simulate(double dTime,int iStartStep) {
 	    if (bKickOpen) {
 		BuildTree(0);
                 LightConeOpen(iStep);  /* open the lightcone */
-		uRungMax = Gravity(0,MAX_RUNG,ROOT,0,ddTime,diStep,0,1,
+		uRungMax = Gravity(0,MAX_RUNG,ROOT,0,ddTime,dDelta,diStep,0,1,
 		        param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,&iSec,&nActive);
                 /* Set the grids of the linear species */
                 if (strlen(param.achLinearSpecies) && param.nGridLin > 0){
 		    GridCreateFFT(param.nGridLin);
-		    SetLinGrid(dTime, param.nGridLin,bKickClose,bKickOpen);
+		    SetLinGrid(dTime,dDelta,param.nGridLin,bKickClose,bKickOpen);
                     if (param.bDoLinPkOutput)
                         OutputLinPk( iStartStep, dTime);
-		    LinearKick(dTime,bKickClose,bKickOpen);
+		    LinearKick(dTime,dDelta,bKickClose,bKickOpen);
 		    GridDeleteFFT();
                     }
 		bKickOpen = 0; /* clear the opening kicking flag */
 		}
-	    NewTopStepKDK(0,0,&diStep,&ddTime,&uRungMax,&iSec,&bDoCheckpoint,&bDoOutput,&bKickOpen);
+	    NewTopStepKDK(ddTime,dDelta,nSteps,0,0,&diStep,&uRungMax,&iSec,&bDoCheckpoint,&bDoOutput,&bKickOpen);
 	    }
 	else {
-	    TopStepKDK(iStep-1,dTime,Delta(),0,0,1,&dMultiEff,&iSec);
+	    TopStepKDK(iStep-1,dTime,dDelta,0,0,1,&dMultiEff,&iSec);
 	    }
-	dTime += Delta();
+	dTime += dDelta;
 	auto lSec = time(0) - lPrior;
 	MemStatus();
 
@@ -195,18 +247,18 @@ void MSR::Simulate(double dTime,int iStartStep) {
 	    ActiveRung(0,1); /* Activate all particles */
 	    DomainDecomp();
 	    BuildTree(0);
-	    Relaxation(dTime,Delta(),SMX_RELAXATION,0);
+	    Relaxation(dTime,dDelta,SMX_RELAXATION,0);
 	    }
 	if (!param.bNewKDK) {
-	    CheckForOutput(iStep,dTime,&bDoCheckpoint,&bDoOutput);
+	    CheckForOutput(iStep,nSteps,dTime,&bDoCheckpoint,&bDoOutput);
 	    }
 	iStop = (bDoCheckpoint&2) || (bDoOutput&2);
 	if (bDoCheckpoint) {
-	    Checkpoint(iStep,dTime);
+	    Checkpoint(iStep,nSteps,dTime,dDelta);
 	    bDoCheckpoint = 0;
 	    }
 	if (bDoOutput) {
-	    Output(iStep,dTime,0);
+	    Output(iStep,dTime,param.dDelta,0);
 	    bDoOutput = 0;
 	    if (param.bNewKDK) {
 		DomainDecomp();

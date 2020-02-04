@@ -202,27 +202,29 @@ ppy_msr_Checkpoint(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     static char const *kwlist[]={/*"name",*/"step","time",NULL};
 //    const char *fname;
     int iStep = 0;
+    int nSteps = 0;
     double dTime = 1.0;
+    double dDelta = 0.0;
     if ( !PyArg_ParseTupleAndKeywords(
-	     args, kwobj, "|id:Checkpoint", const_cast<char **>(kwlist),
-	     /*&fname,*/&iStep,&dTime ) )
+	     args, kwobj, "|iidd:Checkpoint", const_cast<char **>(kwlist),
+	     /*&fname,*/&iStep,&nSteps,&dTime,&dDelta ) )
 	return NULL;
-    self->msr->Checkpoint(iStep,dTime);
+    self->msr->Checkpoint(iStep,nSteps,dTime,dDelta);
     Py_RETURN_NONE;
     }
 
 static PyObject *
 ppy_msr_Restart(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     MSR *msr = self->msr;
-    static char const *kwlist[]={"arguments","specified","species","classes","n","name","step","time","E","U", "Utime", NULL};
+    static char const *kwlist[]={"arguments","specified","species","classes","n","name","step","steps","time","delta","E","U", "Utime", NULL};
     PyObject *species, *classes;
-    int n, iStep;
+    int n, iStep, nSteps;
     const char *name;
-    double dTime;
+    double dTime, dDelta;
     if ( !PyArg_ParseTupleAndKeywords(
-	     args, kwobj, "OOOOisidddd:Restart", const_cast<char **>(kwlist),
+	     args, kwobj, "OOOOisiiddddd:Restart", const_cast<char **>(kwlist),
 	     &msr->arguments,&msr->specified,&species,&classes,&n,&name,
-	     &iStep,&dTime,&msr->dEcosmo,&msr->dUOld, &msr->dTimeOld ) )
+	     &iStep,&nSteps,&dTime,&dDelta,&msr->dEcosmo,&msr->dUOld, &msr->dTimeOld ) )
 	return NULL;
 
     // Create a vector of number of species
@@ -261,7 +263,7 @@ ppy_msr_Restart(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
 
     ppy2prm(msr->prm,msr->arguments,msr->specified);
 
-    msr->Restart(n, name, iStep, dTime);
+    msr->Restart(n, name, iStep, nSteps, dTime, dDelta);
 
     Py_RETURN_NONE;
     }
@@ -311,8 +313,9 @@ ppy_msr_Reorder(MSRINSTANCE *self, PyObject *args) {
 
 static PyObject *
 ppy_msr_Gravity(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
-    static char const *kwlist[]={"time","rung","ewald","step","KickClose","KickOpen", NULL};
+    static char const *kwlist[]={"time","delta","rung","ewald","step","KickClose","KickOpen", NULL};
     double dTime = 0.0;
+    double dDelta = 0.0;
     uint64_t nActive;
     int iSec = 0;
 
@@ -326,10 +329,10 @@ ppy_msr_Gravity(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     int bKickClose = 1;
 
     if ( !PyArg_ParseTupleAndKeywords(
-	     args, kwobj, "d|ipdpp:Gravity", const_cast<char **>(kwlist),
-	     &dTime, &iRungLo, &bEwald, &dStep, &bKickClose, &bKickOpen ) )
+	     args, kwobj, "d|dipdpp:Gravity", const_cast<char **>(kwlist),
+	     &dTime, &dDelta, &iRungLo, &bEwald, &dStep, &bKickClose, &bKickOpen ) )
 	return NULL;
-    uint8_t uRungMax = self->msr->Gravity(iRungLo,iRungHi,iRoot1,iRoot2,dTime,dStep,bKickClose,bKickOpen,bEwald,
+    uint8_t uRungMax = self->msr->Gravity(iRungLo,iRungHi,iRoot1,iRoot2,dTime,dDelta,dStep,bKickClose,bKickOpen,bEwald,
 	self->msr->param.bGravStep, self->msr->param.nPartRhoLoc, self->msr->param.iTimeStepCrit,
     	self->msr->param.nGroup,&iSec,&nActive);
     return Py_BuildValue("i", uRungMax);
@@ -339,19 +342,20 @@ ppy_msr_Gravity(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
 
 static PyObject *
 ppy_msr_Smooth(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
-    static char const *kwlist[]={"type","n","symmetric","time","resmooth",NULL};
+    static char const *kwlist[]={"type","n","symmetric","time","delta","resmooth",NULL};
     int iSmoothType;
     int bSymmetric = 0;
     int bResmooth = 0;
     double dTime = 0.0;
+    double dDelta = 0.0;
     int nSmooth = self->msr->param.nSmooth;
 
     if ( !PyArg_ParseTupleAndKeywords(
-	     args, kwobj, "i|ipdp:Smooth", const_cast<char **>(kwlist),
-	     &iSmoothType,&nSmooth,&bSymmetric, &dTime, &bResmooth ) )
+	     args, kwobj, "i|ipddp:Smooth", const_cast<char **>(kwlist),
+	     &iSmoothType,&nSmooth,&bSymmetric, &dTime, &dDelta, &bResmooth ) )
 	return NULL;
-    if (bResmooth) self->msr->ReSmooth(dTime,iSmoothType,bSymmetric);
-    else self->msr->Smooth(dTime,iSmoothType,bSymmetric,nSmooth);
+    if (bResmooth) self->msr->ReSmooth(dTime,dDelta,iSmoothType,bSymmetric);
+    else self->msr->Smooth(dTime,dDelta,iSmoothType,bSymmetric,nSmooth);
     Py_RETURN_NONE;
     }
 

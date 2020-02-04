@@ -49,7 +49,7 @@ public:
     void MemStatus();
     int GetLock();
     double LoadOrGenerateIC();
-    void Simulate(double dTime,int iStartStep);
+    void Simulate(double dTime,double dDelta,int iStartStep,int nSteps);
     void Simulate(double dTime);
 public:
     // Parameters
@@ -63,13 +63,13 @@ public:
 
     // I/O and IC Generation
     double GenerateIC();
-    void Restart(int n, const char *baseName, int iStep, double dTime);
+    void Restart(int n, const char *baseName, int iStep, int nSteps, double dTime, double dDelta);
     double Read(const char *achInFile);
-    void Checkpoint(int iStep, double dTime);
+    void Checkpoint(int iStep, int nSteps, double dTime, double dDelta);
     void Write(const char *pszFileName,double dTime,int bCheckpoint);
     void OutArray(const char *,int);
     void OutVector(const char *,int);
-    void Output(int iStep, double dTime, int bCheckpoint);
+    void Output(int iStep, double dTime, double dDelta, int bCheckpoint);
 
     void RecvArray(void *vBuffer,int field,int iUnitSize,double dTime);
 
@@ -83,14 +83,14 @@ public:
 
     // Gravity
     uint8_t Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
-	double dTime,double dStep,int bKickClose,int bKickOpen,int bEwald,int bGravStep,int nPartRhoLoc,int iTimeStepCrit,
+	double dTime,double dDelta,double dStep,int bKickClose,int bKickOpen,int bEwald,int bGravStep,int nPartRhoLoc,int iTimeStepCrit,
 	int nGroup,int *piSec,uint64_t *pnActive);
 
     // Analysis
-    void Smooth(double dTime,int iSmoothType,int bSymmetric,int nSmooth);
-    void ReSmooth(double dTime,int iSmoothType,int bSymmetric);
+    void Smooth(double dTime,double dDelta,int iSmoothType,int bSymmetric,int nSmooth);
+    void ReSmooth(double dTime,double dDelta,int iSmoothType,int bSymmetric);
     void NewFof(double exp);
-    void Hop(double exp);
+    void Hop(double dTime,double dDelta);
     void GroupStats();
     void HopWrite(const char *fname);
     void MeasurePk(int iAssignment,int bInterlace,int nGrid,double a,int nBins,uint64_t *nPk,float *fK,float *fPk,float *fPkAll);
@@ -186,11 +186,13 @@ protected:
     static void Leader();
     static void Trailer();
     static void MakePath(const char *dir,const char *base,char *path);
-    double getTime(double dExpansion, double *dvFac);
+
+    double getTime(double dExpansion); // Return simulation time
+    double getVfactor(double dTime);
+    bool getDeltaSteps(double dTime,int iStartStep,double &dDelta,int &nSteps);
 
     const char *OutName() const { return param.achOutName;}
-    int Steps()           const { return param.nSteps; }
-    double Delta()        const { return param.dDelta; }
+    //int Steps()           const { return param.nSteps; }
     int LogInterval()     const { return param.iLogInterval; }
     int OutInterval()     const { return param.iOutInterval; }
     int CheckInterval()   const { return param.iCheckInterval; }
@@ -207,13 +209,13 @@ protected:
     char *BuildName(char *achFile,int iStep,char *defaultPath);
     char *BuildName(char *achFile,int iStep);
     char *BuildIoName(char *achFile,int iStep);
-    void ReadOuts(double dTime);
+    void ReadOuts(double dTime,double dDelta);
     void msrprintf(const char *Format, ... ) const;
     void Exit(int status);
     uint64_t getMemoryModel();
     void InitializePStore(uint64_t *nSpecies);
     int CheckForStop(const char *achStopFile);
-    int CheckForOutput(int iStep,double dTime,int *pbDoCheckpoint,int *pbDoOutput);
+    int CheckForOutput(int iStep,int nSteps,double dTime,int *pbDoCheckpoint,int *pbDoOutput);
     bool OutTime(double dTime);
     void SetClasses();
     void SwapClasses(int id);
@@ -221,7 +223,7 @@ protected:
     void AllNodeWrite(const char *pszFileName, double dTime, double dvFac, int bDouble);
     uint64_t CalcWriteStart();
     void SwitchTheta(double);
-    double SwitchDelta(double dTime,int iStep);
+    double SwitchDelta(double dTime,double dDelta,int iStep,int nSteps);
     void InitCosmology();
     void BuildTree(int bNeedEwald,uint32_t uRoot,uint32_t utRoot);
     void ActiveRung(int iRung, int bGreater);
@@ -242,33 +244,33 @@ protected:
     void LightConeVel();
 #ifdef MDL_FFTW
     void AssignMass(int iAssignment,int nGrid);
-    void SetLinGrid(double dTime, int nGrid, int bKickClose, int bKickOpen);
-    void LinearKick(double dTime, int bKickClose, int bKickOpen);
+    void SetLinGrid(double dTime, double dDelta, int nGrid, int bKickClose, int bKickOpen);
+    void LinearKick(double dTime, double dDelta, int bKickClose, int bKickOpen);
 #endif
     void CalcEandL(int bFirst,double dTime,double *E,double *T,double *U,double *Eth,double *L,double *F,double *W);
     void Drift(double dTime,double dDelta,int iRoot);
 
-    void SmoothSetSMF(SMF *smf, double dTime);
+    void SmoothSetSMF(SMF *smf, double dTime, double dDelta);
     void ZeroNewRung(uint8_t uRungLo, uint8_t uRungHi, int uRung);
     void KickKDKOpen(double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi);
     void KickKDKClose(double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi);
     void UpdateRung(uint8_t uRung);
-    void AccelStep(uint8_t uRungLo,uint8_t uRungHi,double dTime);
-    void SphStep(uint8_t uRungLo,uint8_t uRungHi,double dTime);
-    void DensityStep(uint8_t uRungLo,uint8_t uRungHi,double dTime);
+    void AccelStep(uint8_t uRungLo,uint8_t uRungHi,double dTime,double dDelta);
+    void SphStep(uint8_t uRungLo,uint8_t uRungHi,double dTime,double dDelta);
+    void DensityStep(uint8_t uRungLo,uint8_t uRungHi,double dTime,double dDelta);
 
-    void FastGasPhase1(double dTime,int iSmoothType);
-    void FastGasPhase2(double dTime,int iSmoothType);
+    void FastGasPhase1(double dTime,double dDelta,int iSmoothType);
+    void FastGasPhase2(double dTime,double dDelta,int iSmoothType);
     void CoolSetup(double dTime);
     void Cooling(double dTime,double dStep,int bUpdateState, int bUpdateTable,int bInterateDt);
     void AddDelParticles();
-    void StarForm(double dTime, int iRung);
-    void InitSph(double dTime);
-    void Sph(double dTime, double dStep);
+    void StarForm(double dTime, double dDelta, int iRung);
+    void InitSph(double dTime,double dDelta);
+    void Sph(double dTime, double dDelta, double dStep);
     uint64_t CountDistance(double dRadius2Inner, double dRadius2Outer);
 
     int Initialize();
-    void writeParameters(const char *baseName,int iStep,double dTime);
+    void writeParameters(const char *baseName,int iStep,int nSteps,double dTime,double dDelta);
     void OutASCII(const char *pszFile,int iType,int nDims);
     void DomainDecompOld(int iRung);
 
@@ -281,10 +283,12 @@ protected:
     void OutputLinPk(int iStep, double dTime);
 
     int NewTopStepKDK(
+	double &dTime,	/* MODIFIED: Current simulation time */
+	double dDelta,
+	int nSteps,
 	int bDualTree,      /* Should be zero at rung 0! */
 	uint8_t uRung,	/* Rung level */
 	double *pdStep,	/* Current step */
-	double *pdTime,	/* Current time */
 	uint8_t *puRungMax,int *piSec,int *pbDoCheckpoint,int *pbDoOutput,int *pbNeedKickOpen);
     void TopStepKDK(
 		    double dStep,	/* Current step */
