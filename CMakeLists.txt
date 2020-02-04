@@ -151,6 +151,7 @@ target_sources(${PROJECT_NAME} PRIVATE
 	fof.c hop.c group.c groupstats.c RngStream.c listcomp.c healpix.c
 	gridinfo.cxx assignmass.cxx measurepk.cxx whitenoise.cxx pmforces.cxx
 )
+set_property(SOURCE fio.c APPEND PROPERTY COMPILE_DEFINITIONS "USE_PTHREAD")
 add_executable(tostd tostd.c fio.c)
 add_executable(psout psout.c cosmo.c)
 
