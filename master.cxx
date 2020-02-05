@@ -1506,17 +1506,20 @@ double MSR::getVfactor(double dExpansion) {
     return csm->val.bComove ? dExpansion*dExpansion : 1.0;
     }
 
-void MSR::RecvArray(void *vBuffer,int field,int iUnitSize,double dTime) {
+void MSR::RecvArray(void *vBuffer,int field,int iUnitSize,double dTime,bool bMarked) {
     PKD pkd = pst->plcl->pkd;
     inSendArray in;
     in.field = field;
     in.iUnitSize = iUnitSize;
+    in.bMarked = bMarked;
     if (csm->val.bComove) {
 	auto dExp = csmTime2Exp(csm,dTime);
 	in.dvFac = 1.0/(dExp*dExp);
 	}
     else in.dvFac = 1.0;
-    vBuffer = pkdPackArray(pkd,vBuffer,0,pkd->nLocal,field,iUnitSize,in.dvFac);
+    int iIndex = 0;
+    vBuffer = pkdPackArray(pkd,iUnitSize*pkd->nLocal,vBuffer,&iIndex,pkd->nLocal,field,iUnitSize,in.dvFac,in.bMarked);
+    assert (iIndex==pkd->nLocal);
     for(auto i=1; i<nThreads; ++i) {
 	in.iTo = 0;
 	auto rID = mdlReqService(pkd->mdl,i,PST_SENDARRAY,&in,sizeof(in));
@@ -2087,9 +2090,47 @@ void MSR::BuildTreeActive(int bNeedEwald,uint8_t uRungDD) {
 	}
     }
 
-void MSR::BuildTreeMarked() {
+void MSR::BuildTreeMarked(int bNeedEwald) {
+    struct inDumpTrees dump;
+    dump.bOnlyVA = 0;
+    dump.uRungDD = IRUNGMAX;
+    pstDumpTrees(pst,&dump,sizeof(dump),NULL,0);
+
     pstTreeInitMarked(pst,NULL,0,NULL,0);
-    BuildTree(0,ROOT,0);
+    BuildTree(bNeedEwald,FIXROOT,0);
+    BuildTree(bNeedEwald,ROOT,FIXROOT);
+
+    /* For ewald we have to shift and combine the individual tree moments */
+    if (bNeedEwald) {
+	struct ioDistribRoot droot;
+	MOMC momc;
+	double *com1 = momTreeCom[FIXROOT];
+	double    m1 = momTreeRoot[FIXROOT].m;
+	double *com2 = momTreeCom[ROOT];
+	double    m2 = momTreeRoot[ROOT].m;
+	double ifMass = 1.0 / (m1 + m2);
+	double x, y, z;
+	int j;
+
+	/* New Center of Mass, then shift and scale the moments */
+	for (j=0;j<3;++j) droot.r[j] = ifMass*(m1*com1[j] + m2*com2[j]);
+
+	droot.momc = momTreeRoot[FIXROOT];
+	x = com1[0] - droot.r[0];
+	y = com1[1] - droot.r[1];
+	z = com1[2] - droot.r[2];
+	momShiftMomc(&droot.momc,x,y,z);
+
+	momc = momTreeRoot[ROOT];
+	x = com2[0] - droot.r[0];
+	y = com2[1] - droot.r[1];
+	z = com2[2] - droot.r[2];
+	momShiftMomc(&momc,x,y,z);
+
+	momAddMomc(&droot.momc, &momc);
+
+	pstDistribRoot(pst,&droot,sizeof(struct ioDistribRoot),NULL,0);
+	}
     }
 
 void MSR::Reorder() {
@@ -4380,6 +4421,11 @@ void MSR::Output(int iStep, double dTime, double dDelta, int bCheckpoint) {
     while (OutTime(dTime));
     }
 
+uint64_t MSR::CountSelected() {
+    uint64_t n;
+    pstCountSelected(pst, NULL, 0, &n, sizeof(n));
+    return n;
+    }
 void MSR::SelAll() {
     pstSelAll(pst, NULL, 0, NULL, 0 );
     }
@@ -4388,6 +4434,9 @@ void MSR::SelGas() {
     }
 void MSR::SelStar() {
     pstSelStar(pst, NULL, 0, NULL, 0 );
+    }
+void MSR::SelBlackholes() {
+    pstSelBlackholes(pst, NULL, 0, NULL, 0 );
     }
 void MSR::SelDeleted() {
     pstSelDeleted(pst, NULL, 0, NULL, 0 );
@@ -4428,7 +4477,7 @@ uint64_t MSR::SelPhaseDensity(double dMinPhaseDensity,double dMaxPhaseDensity,in
     pstSelPhaseDensity(pst, &in, sizeof(in), &out, sizeof(out));
     return out.nSelected;
     }
-uint64_t MSR::SelBox(double *dCenter, double *dSize,int setIfTrue,int clearIfFalse) {
+uint64_t MSR::SelBox(double *dCenter, double *dSize,bool setIfTrue,bool clearIfFalse) {
     struct inSelBox in;
     struct outSelBox out;
     int nOut;

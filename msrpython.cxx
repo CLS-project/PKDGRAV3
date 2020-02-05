@@ -305,15 +305,17 @@ ppy_msr_DomainDecomp(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
 
 static PyObject *
 ppy_msr_BuildTree(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
-    static char const *kwlist[]={"ewald","rung","active",NULL};
+    static char const *kwlist[]={"ewald","rung","active","marked",NULL};
     int bEwald = self->msr->param.bEwald;
     uint8_t uRungDT = 0; /* Zero rung means build a single tree */
     int bActive = 0;
+    int bMarked = 0;
     if ( !PyArg_ParseTupleAndKeywords(
-	     args, kwobj, "|iBi:BuildTree", const_cast<char **>(kwlist),
-	     &bEwald, &uRungDT, &bActive ) )
+	     args, kwobj, "|pBpp:BuildTree", const_cast<char **>(kwlist),
+	     &bEwald, &uRungDT, &bActive, &bMarked ) )
 	return NULL;
-    if (uRungDT) {
+    if (bMarked) self->msr->BuildTreeMarked();
+    else if (uRungDT) {
 	if (bActive) self->msr->BuildTreeActive(bEwald,uRungDT);
 	else self->msr->BuildTreeFixed(bEwald,uRungDT);
 	}
@@ -333,7 +335,7 @@ ppy_msr_Reorder(MSRINSTANCE *self, PyObject *args) {
 static PyObject *
 ppy_msr_Gravity(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     MSR *msr = self->msr;
-    static char const *kwlist[]={"time","delta","theta","rung","ewald","step","KickClose","KickOpen", NULL};
+    static char const *kwlist[]={"time","delta","theta","rung","ewald","step","KickClose","KickOpen", "onlyMarked", NULL};
     double dTime = 0.0;
     double dDelta = 0.0;
     double dTheta = msr->param.dTheta;
@@ -348,12 +350,14 @@ ppy_msr_Gravity(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     //double dTheta = msr->getParameterDouble("dTheta");
     int bKickOpen = 1;
     int bKickClose = 1;
-
+    int onlyMarked = 0;
 
     if ( !PyArg_ParseTupleAndKeywords(
-	     args, kwobj, "d|ddipdpp:Gravity", const_cast<char **>(kwlist),
-	     &dTime, &dDelta, &dTheta, &iRungLo, &bEwald, &dStep, &bKickClose, &bKickOpen ) )
+	     args, kwobj, "d|ddipdppp:Gravity", const_cast<char **>(kwlist),
+	     &dTime, &dDelta, &dTheta, &iRungLo, &bEwald, &dStep, &bKickClose, &bKickOpen, &onlyMarked ) )
 	return NULL;
+    if (onlyMarked) iRoot2 = FIXROOT;
+
     uint8_t uRungMax = msr->Gravity(iRungLo,iRungHi,iRoot1,iRoot2,dTime,dDelta,dStep,dTheta,bKickClose,bKickOpen,bEwald,
 	msr->param.bGravStep, msr->param.nPartRhoLoc, msr->param.iTimeStepCrit, msr->param.nGroup);
     return Py_BuildValue("i", uRungMax);
@@ -411,19 +415,39 @@ ppy_msr_MeasurePk(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     return Py_BuildValue("(NNN)",ListK,ListPk,ListPkAll);
     }
 
+/********** Analysis: Mark particles **********/
+
+static PyObject *
+ppy_msr_MarkBox(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    static char const *kwlist[]={"center","radius",NULL};
+    double center[3], radius[3];
+    if ( !PyArg_ParseTupleAndKeywords(
+	     args, kwobj, "(ddd)(ddd)|:MarkBox", const_cast<char **>(kwlist),
+	     &center[0], &center[1], &center[2], &radius[0], &radius[1], &radius[2] ) )
+	return NULL;
+    auto n = self->msr->SelBox(center,radius);
+    return Py_BuildValue("L",n);
+    }
+
+static PyObject *
+ppy_msr_MarkBlackholes(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    self->msr->SelBlackholes();
+    Py_RETURN_NONE;
+    }
 
 /********** Analysis: Retrieve the values for all particles (DANGER! not memory friendly) **********/
 
 #ifdef USE_NUMPY
 static PyObject *
 ppy_msr_GetArray(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
-    static char const *kwlist[]={"field","time",NULL};
+    static char const *kwlist[]={"field","time","marked",NULL};
     PKD_FIELD field;
     double dTime = 1.0;
+    int bMarked = 0;
 
     if ( !PyArg_ParseTupleAndKeywords(
-	     args, kwobj, "i|d:GetArray", const_cast<char **>(kwlist),
-	     &field, &dTime ) )
+	     args, kwobj, "i|dp:GetArray", const_cast<char **>(kwlist),
+	     &field, &dTime, &bMarked ) )
 	return NULL;
     npy_intp N[2];
     int typenum = NPY_FLOAT32;
@@ -448,9 +472,10 @@ ppy_msr_GetArray(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
 //	oVelSmooth,
 //	oRungDest, /* Destination processor for each rung */
 	}
+    if (bMarked) N[0] = self->msr->CountSelected();
     auto array = PyArray_SimpleNew(N[1]>1?2:1, N, typenum);
     auto data = reinterpret_cast<double*>(PyArray_DATA(reinterpret_cast<PyArrayObject*>(array)));
-    self->msr->RecvArray(data,field,N[1]*iUnitSize,dTime);
+    self->msr->RecvArray(data,field,N[1]*iUnitSize,dTime,bMarked);
     return array;
     }
 #endif
@@ -491,6 +516,10 @@ static PyMethodDef msr_methods[] = {
     {"MeasurePk", (PyCFunction)ppy_msr_MeasurePk, METH_VARARGS|METH_KEYWORDS,
      "Measure the power spectrum"},
 
+    {"MarkBox", (PyCFunction)ppy_msr_MarkBox, METH_VARARGS|METH_KEYWORDS,
+     "Mark particles in a box"},
+    {"MarkBlackholes", (PyCFunction)ppy_msr_MarkBlackholes, METH_NOARGS,
+     "Marks all blackholes"},
 #ifdef USE_NUMPY
     {"GetArray", (PyCFunction)ppy_msr_GetArray, METH_VARARGS|METH_KEYWORDS,
      "Get a complete array of the given value"},

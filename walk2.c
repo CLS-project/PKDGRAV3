@@ -233,7 +233,6 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2,
     */
     k = pkdTreeNode(pkd,iCell = iRoot);
     pkdNodeGetPos(pkd,k,k_r);
-
     while (1) {
 #ifdef ILP_ILC_CAN_BE_NON_EMPTY
 	/*
@@ -833,7 +832,8 @@ int pkdGravWalk(PKD pkd,struct pkdKickParameters *kick,struct pkdLightconeParame
     /*
     ** Walk tree 1 against trees 1 (and optionally 2) if there are active particles
     */
-    if (pkdIsCellActive(pkdTreeNode(pkd,iLocalRoot1),ts->uRungLo,ts->uRungHi)) {
+    KDN *k = pkdTreeNode(pkd,iLocalRoot1);
+    if (k->pLower<=k->pUpper && pkdIsCellActive(k,ts->uRungLo,ts->uRungHi)) {
 	/*
 	** Initially we set our cell pointer to
 	** point to the top tree.

@@ -72,7 +72,7 @@ public:
     void OutVector(const char *,int);
     void Output(int iStep, double dTime, double dDelta, int bCheckpoint);
 
-    void RecvArray(void *vBuffer,int field,int iUnitSize,double dTime);
+    void RecvArray(void *vBuffer,int field,int iUnitSize,double dTime,bool bMarked=false);
 
     // Particle order, domains, trees
     void Reorder();
@@ -80,7 +80,7 @@ public:
     void BuildTree(int bNeedEwald);
     void BuildTreeFixed(int bNeedEwald,uint8_t uRungDD);
     void BuildTreeActive(int bNeedEwald,uint8_t uRungDD);
-    void BuildTreeMarked();
+    void BuildTreeMarked(int bNeedEwald=0);
 
     // Gravity
     uint8_t Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
@@ -307,19 +307,23 @@ protected:
     void CalcDistance(const double *dCenter, double dRadius );
     void CalcCOM(const double *dCenter, double dRadius,
 		double *com, double *vcm, double *L, double *M);
+
+public:
     void Profile(
 	const PROFILEBIN **pBins, int *pnBins, double *r,
 	double dMinRadius, double dLogRadius, double dMaxRadius,
 	int nPerBin, int nBins, int nAccuracy );
 
+    uint64_t CountSelected();
     void SelAll();
     void SelGas();
     void SelStar();
+    void SelBlackholes();
     void SelDeleted();
     uint64_t SelMass(double dMinMass,double dMaxMass,int setIfTrue,int ClearIfFalse);
     uint64_t SelById(uint64_t idStart,uint64_t idEnd,int setIfTrue,int clearIfFalse);
     uint64_t SelPhaseDensity(double dMinPhaseDensity,double dMaxPhaseDensity,int setIfTrue,int clearIfFalse);
-    uint64_t SelBox(double *dCenter, double *dSize,int setIfTrue,int clearIfFalse);
+    uint64_t SelBox(double *dCenter, double *dSize,bool setIfTrue=true,bool clearIfFalse=true);
     uint64_t SelSphere(double *r, double dRadius,int setIfTrue,int clearIfFalse);
     uint64_t SelCylinder(double *dP1, double *dP2, double dRadius, int setIfTrue, int clearIfFalse );
     };

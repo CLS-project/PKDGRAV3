@@ -251,6 +251,8 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_SWAPCLASSES,pst,(fcnService_t*)pstSwapClasses,
 		  PKD_MAX_CLASSES*sizeof(PARTCLASS),
 		  PKD_MAX_CLASSES*sizeof(PARTCLASS));
+    mdlAddService(mdl,PST_COUNTSELECTED,pst,(fcnService_t*)pstCountSelected,
+		  0, sizeof(uint64_t) );
     mdlAddService(mdl,PST_SELALL,pst,(fcnService_t*)pstSelAll,
 		  0, 0 );
     mdlAddService(mdl,PST_SELGAS,pst,(fcnService_t*)pstSelGas,
@@ -273,6 +275,8 @@ void pstAddServices(PST pst,MDL mdl) {
 		  sizeof(struct inSelCylinder), sizeof(struct outSelCylinder));
     mdlAddService(mdl,PST_SELGROUP,pst,(fcnService_t*)pstSelGroup,
 		  sizeof(int), 0);
+    mdlAddService(mdl,PST_SELBLACKHOLES,pst,(fcnService_t*)pstSelBlackholes,
+		  0, 0);
     mdlAddService(mdl,PST_PROFILE,pst,(fcnService_t*)pstProfile,
 		  sizeof(struct inProfile), 0); 
     mdlAddService(mdl,PST_CALCDISTANCE,pst,(fcnService_t*)pstCalcDistance,
@@ -2026,7 +2030,7 @@ int pstSendParticles(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
 int pstSendArray(PST pst,void *vin,int nIn,void *vout,int nOut) {
     struct inSendArray *in = vin;
-    pkdSendArray(pst->plcl->pkd, in->iTo, in->field, in->iUnitSize, in->dvFac);
+    pkdSendArray(pst->plcl->pkd, in->iTo, in->field, in->iUnitSize, in->dvFac, in->bMarked);
     return 0;
     }
 
@@ -3481,6 +3485,21 @@ int pstSwapClasses(PST pst,void *vin,int nIn,void *vout,int nOut) {
     return nOut;
     }
 
+int pstCountSelected(PST pst,void *vin,int nIn,void *vout,int nOut) {
+    LCL *plcl = pst->plcl;
+    uint64_t outUpper, *out = vout;
+    assert(nOut==sizeof(uint64_t));
+    if (pst->nLeaves > 1) {
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_COUNTSELECTED,vin,nIn);
+	pstCountSelected(pst->pstLower,vin,nIn,vout,nOut);
+	mdlGetReply(pst->mdl,rID,&outUpper,&nOut);
+	*out += outUpper;
+	}
+    else {
+	*out = pkdCountSelected(plcl->pkd);
+	}
+    return nOut;
+    }
 
 int pstSelAll(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
@@ -3667,6 +3686,20 @@ int pstSelGroup(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	}
     else {
 	pkdSelGroup(plcl->pkd, *in);
+	}
+    return 0;
+    }
+
+int pstSelBlackholes(PST pst,void *vin,int nIn,void *vout,int nOut) {
+    LCL *plcl = pst->plcl;
+    assert( nIn==0 );
+    if (pst->nLeaves > 1) {
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SELBLACKHOLES,vin,nIn);
+	pstSelBlackholes(pst->pstLower,vin,nIn,NULL,0);
+	mdlGetReply(pst->mdl,rID,NULL,NULL);
+	}
+    else {
+	pkdSelBlackholes(plcl->pkd);
 	}
     return 0;
     }

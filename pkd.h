@@ -1412,8 +1412,8 @@ void pkdRestore(PKD pkd,const char *fname);
 uint32_t pkdWriteFIO(PKD pkd,FIO fio,double dvFac,double dTuFac,BND *bnd);
 void pkdWriteFromNode(PKD pkd,int iNode, FIO fio,double dvFac,double dTuFac,BND *bnd);
 void pkdWriteViaNode(PKD pkd, int iNode);
-void *pkdPackArray(PKD pkd,void *vBuff,int iIndex,int n,int field,int iUnitSize,double dvFac);
-void pkdSendArray(PKD pkd, int iNode, int field, int iUnitSize,double dvFac);
+char *pkdPackArray(PKD pkd,int iSize,void *vBuff,int *piIndex,int n,int field,int iUnitSize,double dvFac,int bMarked);
+void pkdSendArray(PKD pkd, int iNode, int field, int iUnitSize,double dvFac,int bMarked);
 void *pkdRecvArray(PKD pkd,int iNode, void *pDest, int iUnitSize);
 void pkdGravAll(PKD pkd,
     struct pkdKickParameters *kick,struct pkdLightconeParameters *lc,struct pkdTimestepParameters *ts,
@@ -1514,11 +1514,13 @@ int pkdGetClasses( PKD pkd, int nMax, PARTCLASS *pClass );
 void pkdSetClasses( PKD pkd, int n, PARTCLASS *pClass, int bUpdate );
 void pkdSetClass( PKD pkd, float fMass, float fSoft, FIO_SPECIES eSpecies, PARTICLE *p );
 
+int pkdCountSelected(PKD pkd);
 int pkdSelAll(PKD pkd);
 int pkdSelGas(PKD pkd);
 int pkdSelStar(PKD pkd);
 int pkdSelDeleted(PKD pkd);
 int pkdSelGroup(PKD pkd, int iGroup);
+int pkdSelBlackholes(PKD pkd);
 int pkdSelMass(PKD pkd,double dMinMass, double dMaxMass, int setIfTrue, int clearIfFalse );
 int pkdSelById(PKD pkd,uint64_t idStart, uint64_t idEnd, int setIfTrue, int clearIfFalse );
 int pkdSelPhaseDensity(PKD pkd,double dMinDensity, double dMaxDensity, int setIfTrue, int clearIfFalse );

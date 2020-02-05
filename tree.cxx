@@ -78,6 +78,7 @@ static KDN *InitializeRootCommon(PKD pkd,uint32_t uRoot) {
 */
 void pkdTreeInitMarked(PKD pkd) {
     KDN *pRoot   = InitializeRootCommon(pkd,ROOT);
+    KDN *pRootFix = InitializeRootCommon(pkd,FIXROOT);
     PARTICLE *pMarked, *pNot = NULL;
     local_t iLast;
     int i;
@@ -90,9 +91,16 @@ void pkdTreeInitMarked(PKD pkd) {
 	pMarked=pkdParticle(pkd,++i),pNot=pkdParticle(pkd,--iLast),
 	pkdSwapParticle(pkd,pMarked,pNot),
 	pMarked->bMarked!=0,pNot->bMarked==0);
-
     pRoot->pLower = 0;
-    pRoot->pUpper = iLast;
+    pRoot->pUpper = i-1;
+    pRootFix->pLower = i;
+    pRootFix->pUpper = pkd->nLocal - 1;
+
+    pkd->nNodes = NRESERVED_NODES;
+    pRoot->iLower = 0;
+    pRoot->bGroup = 1;
+    pRootFix->iLower = 0;
+    pRootFix->bGroup = 1;
     }
 
 void pkdDumpTrees(PKD pkd,int bOnlyVA, uint8_t uRungDD) {

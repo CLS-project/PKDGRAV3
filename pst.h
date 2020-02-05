@@ -193,6 +193,7 @@ enum pst_service {
     PST_GETCLASSES,
     PST_SETCLASSES,
     PST_SWAPCLASSES,
+    PST_COUNTSELECTED,
     PST_SELALL,
     PST_SELGAS,
     PST_SELSTAR,
@@ -204,6 +205,7 @@ enum pst_service {
     PST_SELBOX,
     PST_SELSPHERE,
     PST_SELCYLINDER,
+    PST_SELBLACKHOLES,
 
     PST_PROFILE,
     PST_CALCDISTANCE,
@@ -425,6 +427,7 @@ struct inSendArray {
     int iTo;
     int field;
     int iUnitSize;
+    int bMarked;
     };
 int pstSendArray(PST,void *,int,void *,int);
 
@@ -1092,6 +1095,8 @@ int pstSetClasses(PST,void *,int,void *,int);
 /* PST_SWAPCLASSES - Input PARTCLASS[] - Output PARTCLASS[] */
 int pstSwapClasses(PST,void *,int,void *,int);
 
+/* PST_COUNTSELECTED */
+int pstCountSelected(PST pst,void *vin,int nIn,void *vout,int nOut);
 
 /* PST_SELALL */
 int pstSelAll(PST pst,void *vin,int nIn,void *vout,int nOut);
@@ -1180,6 +1185,9 @@ int pstSelCylinder(PST pst,void *vin,int nIn,void *vout,int nOut);
 
 /* PST_SECGROUP */
 int pstSelGroup(PST pst,void *vin,int nIn,void *vout,int nOut);
+
+/* PST_SECGROUP */
+int pstSelBlackholes(PST pst,void *vin,int nIn,void *vout,int nOut);
 
 /* PST_PROFILE */
 #define PST_MAX_PROFILE_BINS 1000000

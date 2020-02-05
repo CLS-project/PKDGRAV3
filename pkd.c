@@ -2035,13 +2035,17 @@ struct packArrayCtx {
     int iIndex;
     int field;
     int iUnitSize;
+    int bMarked;
     };
 
-void *pkdPackArray(PKD pkd,void *vBuff,int iIndex,int n,int field,int iUnitSize,double dvFac) {
+char *pkdPackArray(PKD pkd,int iSize,void *vBuff,int *piIndex,int n,int field,int iUnitSize,double dvFac,int bMarked) {
     char *pBuff = vBuff;
     int oOffset = pkd->oFieldOffset[field];
-    while(n-- > 0) {
-	PARTICLE *p = pkdParticle(pkd,iIndex);
+    int iIndex = *piIndex;
+
+    while(iIndex<n && iSize>=iUnitSize) {
+	PARTICLE *p = pkdParticle(pkd,iIndex++);
+	if (bMarked && !p->bMarked) continue;
 	if (field==oPosition) {
 	    double *d = (double *)pBuff;
 	    pkdGetPos1(pkd,p,d);
@@ -2058,32 +2062,29 @@ void *pkdPackArray(PKD pkd,void *vBuff,int iIndex,int n,int field,int iUnitSize,
 	    memcpy(pBuff,src,iUnitSize);
 	    }
 	pBuff += iUnitSize;
-	++iIndex;
+	iSize -= iUnitSize;
 	}
+    *piIndex = iIndex;
     return pBuff;
     }
 
 static int packArray(void *vctx, int *id, size_t nSize, void *vBuff) {
     struct packArrayCtx *ctx = (struct packArrayCtx *)vctx;
-    char *pBuff = (char*)vBuff;
     PKD pkd = ctx->pkd;
-    int nLeft = pkd->nLocal - ctx->iIndex;
-    int n = nSize / ctx->iUnitSize;
-    if ( n > nLeft ) n = nLeft;
-    nSize = n*ctx->iUnitSize;
-    pkdPackArray(pkd,pBuff,ctx->iIndex,n,ctx->field,ctx->iUnitSize,ctx->dvFac);
-    ctx->iIndex += n;
-    return nSize;
+    char *pBuff = (char*)vBuff;
+    char *pEnd = pkdPackArray(pkd,nSize,pBuff,&ctx->iIndex,pkd->nLocal,ctx->field,ctx->iUnitSize,ctx->dvFac,ctx->bMarked);
+    return pEnd-pBuff;
     }
 
 /* Send all particled data to the specified node for writing */
-void pkdSendArray(PKD pkd, int iNode, int field, int iUnitSize,double dvFac) {
+void pkdSendArray(PKD pkd, int iNode, int field, int iUnitSize,double dvFac,int bMarked) {
     struct packArrayCtx ctx;
     ctx.pkd = pkd;
     ctx.dvFac = dvFac;
     ctx.field = field;
     ctx.iUnitSize = iUnitSize;
     ctx.iIndex = 0;
+    ctx.bMarked = bMarked;
 #ifdef MPI_VERSION
     mdlSend(pkd->mdl,iNode,packArray, &ctx);
 #endif
@@ -3224,6 +3225,14 @@ static inline int isSelected( int predicate, int setIfTrue, int clearIfFalse, in
     return (~s&~c&value) | (s&~(c&value));
     }
 
+int pkdCountSelected(PKD pkd) {
+    int i;
+    int n=pkdLocal(pkd);
+    int N=0;
+    for( i=0; i<n; i++ ) if(pkdParticle(pkd,i)->bMarked) ++N;
+    return N;
+    }
+
 int pkdSelAll(PKD pkd) {
     int i;
     int n=pkdLocal(pkd);
@@ -3392,6 +3401,20 @@ int pkdSelGroup(PKD pkd, int iGroup) {
     for( i=0; i<n; i++ ) {
 	p=pkdParticle(pkd,i);
 	p->bMarked = pkdGetGroup(pkd,p)==iGroup;
+	}
+    return n;
+    }
+int pkdSelBlackholes(PKD pkd) {
+    int i;
+    int n=pkdLocal(pkd);
+    assert(pkd->oFieldOffset[oStar]);
+    for( i=0; i<n; i++ ) {
+	PARTICLE *p=pkdParticle(pkd,i);
+	if (pkdIsStar(pkd, p)) {
+	    STARFIELDS *pStar = pkdStar(pkd,p);
+	    p->bMarked = pStar->fTimer < 0;
+	    }
+	else p->bMarked = 0;
 	}
     return n;
     }
