@@ -276,7 +276,7 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_SELGROUP,pst,(fcnService_t*)pstSelGroup,
 		  sizeof(int), 0);
     mdlAddService(mdl,PST_SELBLACKHOLES,pst,(fcnService_t*)pstSelBlackholes,
-		  0, 0);
+		  0, sizeof(uint64_t));
     mdlAddService(mdl,PST_PROFILE,pst,(fcnService_t*)pstProfile,
 		  sizeof(struct inProfile), 0); 
     mdlAddService(mdl,PST_CALCDISTANCE,pst,(fcnService_t*)pstCalcDistance,
@@ -3704,7 +3704,7 @@ int pstSelBlackholes(PST pst,void *vin,int nIn,void *vout,int nOut) {
     else {
 	*out = pkdSelBlackholes(plcl->pkd);
 	}
-    return 0;
+    return nOut;
     }
 
 int pstProfile(PST pst,void *vin,int nIn,void *vout,int nOut) {
