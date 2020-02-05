@@ -3692,14 +3692,17 @@ int pstSelGroup(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
 int pstSelBlackholes(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
+    uint64_t outUpper, *out = vout;
     assert( nIn==0 );
+    assert( nOut==sizeof(uint64_t) );
     if (pst->nLeaves > 1) {
 	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SELBLACKHOLES,vin,nIn);
-	pstSelBlackholes(pst->pstLower,vin,nIn,NULL,0);
-	mdlGetReply(pst->mdl,rID,NULL,NULL);
+	pstSelBlackholes(pst->pstLower,vin,nIn,vout,nOut);
+	mdlGetReply(pst->mdl,rID,&outUpper,&nOut);
+	*out += outUpper;
 	}
     else {
-	pkdSelBlackholes(plcl->pkd);
+	*out = pkdSelBlackholes(plcl->pkd);
 	}
     return 0;
     }

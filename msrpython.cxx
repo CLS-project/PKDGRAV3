@@ -157,10 +157,12 @@ ppy_msr_setParameters(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
 	if (auto n = PyObject_GetAttr(msr->arguments,key)) {
 	    Py_DECREF(n);
 	    PyObject_SetAttr(msr->arguments,key,value);
+	    PyObject_SetAttr(msr->specified,key,Py_True);
 	    }
 	else return PyErr_Format(PyExc_TypeError,"setParameters() invalid parameter %A",key);
 	}
     ppy2prm(msr->prm,msr->arguments,msr->specified);
+    msr->ValidateParameters();
     Py_RETURN_NONE;
     }
 /********** Initial Condition Generation **********/
@@ -431,8 +433,8 @@ ppy_msr_MarkBox(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
 
 static PyObject *
 ppy_msr_MarkBlackholes(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
-    self->msr->SelBlackholes();
-    Py_RETURN_NONE;
+    auto n = self->msr->SelBlackholes();
+    return Py_BuildValue("L",n);
     }
 
 /********** Analysis: Retrieve the values for all particles (DANGER! not memory friendly) **********/

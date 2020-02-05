@@ -222,7 +222,7 @@ uint64_t MSR::getMemoryModel() {
     return mMemoryModel;
     }
 
-void MSR::InitializePStore(uint64_t *nSpecies) {
+void MSR::InitializePStore(uint64_t *nSpecies,uint64_t mMemoryModel) {
     struct inInitializePStore ps;
     double dStorageAmount = (1.0+param.dExtraStore);
     int i;
@@ -236,7 +236,7 @@ void MSR::InitializePStore(uint64_t *nSpecies) {
     ps.fPeriod[0] = param.dxPeriod;
     ps.fPeriod[1] = param.dyPeriod;
     ps.fPeriod[2] = param.dzPeriod;
-    ps.mMemoryModel = getMemoryModel() | PKD_MODEL_VELOCITY;
+    ps.mMemoryModel = mMemoryModel | PKD_MODEL_VELOCITY;
     ps.bLightCone  = param.bLightCone;
     ps.bLightConeParticles  = param.bLightConeParticles;    
 
@@ -322,7 +322,7 @@ void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTi
     nSpecies[FIO_SPECIES_SPH]  = nGas;
     nSpecies[FIO_SPECIES_DARK] = nDark;
     nSpecies[FIO_SPECIES_STAR] = nStar;
-    InitializePStore(nSpecies);
+    InitializePStore(nSpecies,getMemoryModel());
 
     struct inRestore restore;
     restore.nProcessors = param.bParaRead==0?1:(param.nParaRead<=1 ? nThreads:param.nParaRead);
@@ -3960,7 +3960,7 @@ double MSR::GenerateIC() {
 
     for( j=0; j<FIO_SPECIES_LAST; j++) nSpecies[j] = 0;
     nSpecies[FIO_SPECIES_ALL] = nSpecies[FIO_SPECIES_DARK] = nTotal;
-    InitializePStore(nSpecies);
+    InitializePStore(nSpecies,getMemoryModel());
     InitCosmology();
 
     assert(param.dRedFrom >= 0.0 );
@@ -4091,6 +4091,7 @@ double MSR::Read(const char *achInFile) {
     if (!fioGetAttr(fio,"nFiles",FIO_TYPE_UINT32,&j)) j = 1;
     printf("Reading %" PRIu64 " particles from %d file%s using %d processor%s\n",
 	N, j, (j==1?"":"s"), read->nProcessors, (read->nProcessors==1?"":"s") );
+    printf("  Dark: %" PRIu64 " Gas: %" PRIu64 " Star: %" PRIu64 "\n", nDark, nGas, nStar );
 
     dTime = getTime(dExpansion);
     if (param.bInFileLC) read->dvFac = 1.0;
@@ -4106,7 +4107,7 @@ double MSR::Read(const char *achInFile) {
 
 
     for( auto s=FIO_SPECIES_ALL; s<FIO_SPECIES_LAST; s=FIO_SPECIES(s+1)) nSpecies[s] = fioGetN(fio,s);
-    InitializePStore(nSpecies);
+    InitializePStore(nSpecies,mMemoryModel);
 
     read->dOmega0 = csm->val.dOmega0;
     read->dOmegab = csm->val.dOmegab;
@@ -4435,8 +4436,10 @@ void MSR::SelGas() {
 void MSR::SelStar() {
     pstSelStar(pst, NULL, 0, NULL, 0 );
     }
-void MSR::SelBlackholes() {
-    pstSelBlackholes(pst, NULL, 0, NULL, 0 );
+uint64_t MSR::SelBlackholes() {
+    uint64_t n;
+    pstSelBlackholes(pst, NULL, 0, &n, sizeof(n) );
+    return n;
     }
 void MSR::SelDeleted() {
     pstSelDeleted(pst, NULL, 0, NULL, 0 );

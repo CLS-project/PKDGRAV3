@@ -3407,6 +3407,7 @@ int pkdSelGroup(PKD pkd, int iGroup) {
 int pkdSelBlackholes(PKD pkd) {
     int i;
     int n=pkdLocal(pkd);
+    int N = 0;
     assert(pkd->oFieldOffset[oStar]);
     for( i=0; i<n; i++ ) {
 	PARTICLE *p=pkdParticle(pkd,i);
@@ -3415,8 +3416,9 @@ int pkdSelBlackholes(PKD pkd) {
 	    p->bMarked = pStar->fTimer < 0;
 	    }
 	else p->bMarked = 0;
+	if (p->bMarked) ++N;
 	}
-    return n;
+    return N;
     }
 void pkdOutPsGroup(PKD pkd,char *pszFileName,int iType)
 {

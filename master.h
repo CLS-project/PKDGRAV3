@@ -213,7 +213,7 @@ protected:
     void msrprintf(const char *Format, ... ) const;
     void Exit(int status);
     uint64_t getMemoryModel();
-    void InitializePStore(uint64_t *nSpecies);
+    void InitializePStore(uint64_t *nSpecies,uint64_t mMemoryModel);
     int CheckForStop(const char *achStopFile);
     int CheckForOutput(int iStep,int nSteps,double dTime,int *pbDoCheckpoint,int *pbDoOutput);
     bool OutTime(double dTime);
@@ -318,7 +318,7 @@ public:
     void SelAll();
     void SelGas();
     void SelStar();
-    void SelBlackholes();
+    uint64_t SelBlackholes();
     void SelDeleted();
     uint64_t SelMass(double dMinMass,double dMaxMass,int setIfTrue,int ClearIfFalse);
     uint64_t SelById(uint64_t idStart,uint64_t idEnd,int setIfTrue,int clearIfFalse);
