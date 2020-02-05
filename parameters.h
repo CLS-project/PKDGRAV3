@@ -186,11 +186,6 @@ struct parameters {
     int	nMinMembers;
     double dHopTau;
     double dTau;
-    int	nBins;
-    int	iCenterType;
-    double binFactor;
-    double fMinRadius;
-    int bLogBins;
     int	bTraceRelaxation;
     /*
     ** Parameters for group stats.

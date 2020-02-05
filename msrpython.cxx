@@ -100,6 +100,7 @@ static int ppy2prm(PRM prm,PyObject *arguments, PyObject *specified) {
 		}
 	    Py_DECREF(v);
 	    }
+	else {PyErr_Clear();}
 	}
     return bOK;
     }

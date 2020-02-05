@@ -834,21 +834,6 @@ int MSR::Initialize() {
     param.dEnvironment1 = -1.0;
     prmAddParam(prm,"dEnvironment1",2,&param.dEnvironment1,sizeof(double),"dEnv1",
 		"<second radius for density environment about a group> = -1.0 (disabled)");
-    param.nBins = 0;
-    prmAddParam(prm,"nBins",1,&param.nBins,sizeof(int),"nBins",
-		"<number of bin in profiles, no profiles if 0 or negative> = 0");
-    param.iCenterType = 2;
-    prmAddParam(prm,"iCenterType",1,&param.iCenterType,sizeof(int),"iCenterType",
-		"<sets center type for group finder: 0 com; 1 potmin; 2 denmax> = 2");
-    param.binFactor = 0.2;
-    prmAddParam(prm,"binFactor",2,&param.binFactor,sizeof(double),"binFactor",
-		"<ratio of largest spherical bin to fof determined group radius> = 0.2");
-    param.fMinRadius = 1.0e-5;
-    prmAddParam(prm,"fMinRadius",2,&param.fMinRadius,sizeof(double),"fMinRadius",
-                "<radius of first, smallest spherical bin in the group profiles> = 1.0e-5");
-    param.bLogBins = 1;
-    prmAddParam(prm,"bLogBins",0,&param.bLogBins,
-		sizeof(int),"bLogBins","use logaritmic bins instead of linear = +bLogBins");
     param.bTraceRelaxation = 0;
     prmAddParam(prm,"bTraceRelaxation",0,&param.bTraceRelaxation,sizeof(int),
 		"rtrace","<enable/disable relaxation tracing> = -rtrace");
@@ -1001,7 +986,7 @@ int MSR::Initialize() {
     prmAddParam(prm,"dEtaCourant",2,&param.dEtaCourant,sizeof(double),"etaC",
 				"<Courant criterion> = 0.4");
     param.dEtaUDot = 0.25;
-    prmAddParam(prm,"dEtauDot",2,&param.dEtaUDot,sizeof(double),"etau",
+    prmAddParam(prm,"dEtaUDot",2,&param.dEtaUDot,sizeof(double),"etau",
 		"<uDot timestep criterion> = 0.25");
     param.dConstAlpha = 1.0; 
     prmAddParam(prm,"dConstAlpha",2,&param.dConstAlpha,
@@ -1301,9 +1286,6 @@ void msrLogParams(MSR &msr,FILE *fp) {
     fprintf(fp," dTau: %g",param.dTau);
     fprintf(fp," nMinMembers: %d",param.nMinMembers);
     fprintf(fp," nBins: %d",param.nBins);
-    fprintf(fp," iCenterType: %d",param.iCenterType);
-    fprintf(fp," binFactor: %g",param.binFactor);
-    fprintf(fp," fMinRadius: %g",param.fMinRadius);
     fprintf(fp," bLogBins: %d",param.bLogBins);
     fprintf(fp,"\n# Relaxation estimate: bTraceRelaxation: %d",param.bTraceRelaxation);
     fprintf(fp," dTheta: %f",param.dTheta);
