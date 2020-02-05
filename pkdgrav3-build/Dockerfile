@@ -16,5 +16,5 @@ RUN cd /build && wget http://www.fftw.org/fftw-${FFTW_VERSION}.tar.gz\
   && make && make install && make clean && rm -rf /build/fftw-${FFTW_VERSION}.tar.gz /build/fftw-${FFTW_VERSION}
 RUN apt-get install -y python3-dev python3-pip python3-numpy && apt-get clean all && pip3 install xmlrunner ddt
 WORKDIR /build
-COPY euclid_flagship_500.hdf5 ./
+COPY euclid_flagship_500.hdf5 b0-final.std b0-final-np-asym-k1.acc.npy b0-final-p0.10-asym-k1.acc.npy ./
 ENTRYPOINT /bin/bash
