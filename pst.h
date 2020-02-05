@@ -532,7 +532,7 @@ struct inHopGravity {
     double dTime;
     double dEwCut;
     double dEwhCut;
-    double dThetaMin;
+    double dTheta;
     int bPeriodic;
     int nGroup;
     uint8_t uRungLo;
@@ -616,7 +616,7 @@ struct inGravity {
     double dTime;
     double dEwCut;
     double dEwhCut;
-    double dThetaMin;
+    double dTheta;
     int nReps;
     int bPeriodic;
     int bEwald;

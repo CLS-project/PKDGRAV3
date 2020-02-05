@@ -143,7 +143,25 @@ struct MSRINSTANCE {
     PyObject_HEAD
     MSR *msr;
     };
+/********** Set Internal parameters **********/
 
+static PyObject *
+ppy_msr_setParameters(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    MSR *msr = self->msr;
+    int n = PyTuple_Size(args);
+    if (n) return PyErr_Format(PyExc_TypeError,"setParameters() takes 0 positional arguments but %d %s given",n,n==1?"was":"were");
+    PyObject *key, *value;
+    Py_ssize_t pos = 0;
+    while (PyDict_Next(kwobj, &pos, &key, &value)) {
+	if (auto n = PyObject_GetAttr(msr->arguments,key)) {
+	    Py_DECREF(n);
+	    PyObject_SetAttr(msr->arguments,key,value);
+	    }
+	else return PyErr_Format(PyExc_TypeError,"setParameters() invalid parameter %A",key);
+	}
+    ppy2prm(msr->prm,msr->arguments,msr->specified);
+    Py_RETURN_NONE;
+    }
 /********** Initial Condition Generation **********/
 
 static PyObject *
@@ -314,9 +332,10 @@ ppy_msr_Reorder(MSRINSTANCE *self, PyObject *args) {
 static PyObject *
 ppy_msr_Gravity(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     MSR *msr = self->msr;
-    static char const *kwlist[]={"time","delta","rung","ewald","step","KickClose","KickOpen", NULL};
+    static char const *kwlist[]={"time","delta","theta","rung","ewald","step","KickClose","KickOpen", NULL};
     double dTime = 0.0;
     double dDelta = 0.0;
+    double dTheta = msr->param.dTheta;
     uint64_t nActive;
 
     int bEwald = msr->param.bEwald;
@@ -329,11 +348,12 @@ ppy_msr_Gravity(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     int bKickOpen = 1;
     int bKickClose = 1;
 
+
     if ( !PyArg_ParseTupleAndKeywords(
-	     args, kwobj, "d|dipdpp:Gravity", const_cast<char **>(kwlist),
-	     &dTime, &dDelta, &iRungLo, &bEwald, &dStep, &bKickClose, &bKickOpen ) )
+	     args, kwobj, "d|ddipdpp:Gravity", const_cast<char **>(kwlist),
+	     &dTime, &dDelta, &dTheta, &iRungLo, &bEwald, &dStep, &bKickClose, &bKickOpen ) )
 	return NULL;
-    uint8_t uRungMax = msr->Gravity(iRungLo,iRungHi,iRoot1,iRoot2,dTime,dDelta,dStep,bKickClose,bKickOpen,bEwald,
+    uint8_t uRungMax = msr->Gravity(iRungLo,iRungHi,iRoot1,iRoot2,dTime,dDelta,dStep,dTheta,bKickClose,bKickOpen,bEwald,
 	msr->param.bGravStep, msr->param.nPartRhoLoc, msr->param.iTimeStepCrit, msr->param.nGroup);
     return Py_BuildValue("i", uRungMax);
     }
@@ -439,6 +459,9 @@ ppy_msr_GetArray(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
 \******************************************************************************/
 
 static PyMethodDef msr_methods[] = {
+    {"setParameters", (PyCFunction)ppy_msr_setParameters, METH_VARARGS|METH_KEYWORDS,
+     "Set global MSR parameters for future function calls"},
+
     {"GenerateIC", (PyCFunction)ppy_msr_GenerateIC, METH_VARARGS|METH_KEYWORDS,
      "Generate Initial Condition"},
 
@@ -737,6 +760,9 @@ int MSR::Python(int argc, char *argv[]) {
     specified = PyTuple_GetItem(result,1); /* If it was explicitely specified */
     PyObject *script = PyObject_GetAttrString(arguments,"script");
 
+    ppy2prm(prm,arguments,specified); // Update the pkdgrav parameter state
+    bVDetails = getParameterBoolean("bVDetails");
+
     // If a script was specified then we run it.
     if (script != Py_None) {
     	char *filename;
@@ -763,6 +789,7 @@ int MSR::Python(int argc, char *argv[]) {
 	PyObject_CallObject(update,args); // Copy and variables into the arguments Namespace
 	if (PyErr_Occurred()) { PyErr_Print(); exit(1); }
 	ppy2prm(prm,arguments,specified); // Update the pkdgrav parameter state
+	bVDetails = getParameterBoolean("bVDetails");
 	}
 
     return moduleState->bImported;

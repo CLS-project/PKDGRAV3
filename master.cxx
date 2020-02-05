@@ -76,7 +76,7 @@
 
 void MSR::msrprintf(const char *Format, ... ) const {
     va_list ap;
-    if (param.bVDetails) {
+    if (bVDetails) {
 	va_start(ap,Format);
 	vprintf(Format,ap);
 	va_end(ap);
@@ -310,6 +310,7 @@ void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTi
 	Exit(1);
 	}
 
+    bVDetails = getParameterBoolean("bVDetails");
     if (param.bVStart)
 	printf("Restoring from checkpoint\n");
 
@@ -1189,7 +1190,7 @@ void msrLogParams(MSR &msr,FILE *fp) {
     fprintf(fp," bDiag: %d",param.bDiag);
     fprintf(fp," Verbosity flags: (%d,%d,%d,%d,%d)",param.bVWarnings,
 	    param.bVStart,param.bVStep,param.bVRungStat,
-	    param.bVDetails);
+	    bVDetails);
     fprintf(fp,"\n# bPeriodic: %d",param.bPeriodic);
     fprintf(fp," bComove: %d",csm->val.bComove);
     fprintf(fp,"\n# bRestart: %d",param.bRestart);
@@ -1502,7 +1503,7 @@ double MSR::SwitchDelta(double dTime,double dDelta,int iStep,int nSteps) {
 	assert(nSteps>0);
 	tTo = csmExp2Time(csm,aTo);
 	dDelta = (tTo-dTime) / nSteps;
-	if (iStep == param.nSteps10 && param.bVDetails)
+	if (iStep == param.nSteps10 && bVDetails)
 	    printf("dDelta changed to %g at z=10\n",dDelta);
 	}
     return dDelta;
@@ -2449,7 +2450,7 @@ void MSR::Hostname() {
 void MSR::MemStatus() {
     struct outMemStatus *out;
     int i;
-    if (param.bVDetails) {
+    if (bVDetails) {
 	out = new struct outMemStatus[nThreads];
 	pstMemStatus(pst,0,0,out,nThreads*sizeof(struct outMemStatus));
 #ifdef __linux__
@@ -2494,8 +2495,8 @@ void msrPrintStat(STAT *ps,char const *pszPrefix,int p) {
 
 
 uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
-    double dTime, double dDelta, double dStep,int bKickClose,int bKickOpen,int bEwald,int bGravStep,int nPartRhoLoc,int iTimeStepCrit,
-    int nGroup) {
+	double dTime, double dDelta, double dStep, double dTheta,
+	int bKickClose,int bKickOpen,int bEwald,int bGravStep,int nPartRhoLoc,int iTimeStepCrit,int nGroup) {
     struct inGravity in;
     struct outGravityPerProc *out;
     struct outGravityPerProc *outend;
@@ -2509,17 +2510,19 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
 
     if (param.bVStep) printf("Calculating Gravity, Step:%f (rung %d)\n",dStep,uRungLo);
     in.dTime = dTime;
-    in.nReps = param.nReplicas;
-    in.bPeriodic = param.bPeriodic;
-    in.bEwald = bEwald;
-    in.nGroup = nGroup;
-    in.dEwCut = param.dEwCut;
-    in.dEwhCut = param.dEwhCut;
-    in.dThetaMin = dThetaMin;
     in.iRoot1 = iRoot1;
     in.iRoot2 = iRoot2;
 
+    in.nReps = param.nReplicas;
+    in.nGroup = nGroup;
+    in.dTheta = dTheta;
 
+    in.bPeriodic = param.bPeriodic;
+    in.bEwald = bEwald;
+    in.dEwCut = param.dEwCut;
+    in.dEwhCut = param.dEwhCut;
+
+    // Parameters related to timestepping
     in.ts.iTimeStepCrit = iTimeStepCrit;
     in.ts.nPartRhoLoc = nPartRhoLoc;
     in.ts.nPartColl = param.nPartColl;
@@ -2674,7 +2677,7 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
 	/*
 	** Now comes the really verbose output for each processor.
 	*/
-	if (param.bVDetails) {
+	if (bVDetails) {
 	    printf("Walk Timings:\n");
 	    PRINTGRID(8,"% 8.2f",dWalkTime);
 	    }
@@ -2908,21 +2911,20 @@ char *MSR::BuildIoName(char *achFile,int iStep) {
 **   at z=2 to dTheta2
 ** We also adjust the number of replicas if the accuracy warrants it.
 */
-void MSR::SwitchTheta(double dTime) {
-    double a = csmTime2Exp(csm,dTime);
-    double dNewTheta;
-    if (a < (1.0/21.0)) dNewTheta = param.dTheta;
-    else if (a < (1.0/3.0)) dNewTheta = param.dTheta20;
-    else dNewTheta = param.dTheta2;
-    if (dThetaMin != dNewTheta) {
-	dThetaMin = dNewTheta;
-	if (param.bVDetails)
-	    printf("Theta changed to %g at z=%g\n",dNewTheta,1.0/a - 1.0);
+double MSR::getTheta(double dTime) {
+    if (Comove()) {
+	double a = csmTime2Exp(csm,dTime);
+	double dTheta;
+	if (a < (1.0/21.0)) dTheta = param.dTheta;
+	else if (a < (1.0/3.0)) dTheta = param.dTheta20;
+	else dTheta = param.dTheta2;
+	if ( !prmSpecified(prm,"nReplicas") && param.nReplicas>=1 ) {
+	    if ( dTheta < 0.52 ) param.nReplicas = 2;
+	    else param.nReplicas = 1;
+	    }
+	return dTheta;
 	}
-    if ( !prmSpecified(prm,"nReplicas") && param.nReplicas>=1 ) {
-	if ( dThetaMin < 0.52 ) param.nReplicas = 2;
-	else param.nReplicas = 1;
-	}
+    else return param.dTheta;
     }
 
 void MSR::InitCosmology() {
@@ -3205,6 +3207,7 @@ int MSR::CheckForOutput(int iStep,int nSteps,double dTime,int *pbDoCheckpoint,in
 int MSR::NewTopStepKDK(
     double &dTime,	/* MODIFIED: Current simulation time */
     double dDelta,
+    double dTheta,
     int nSteps,
     int bDualTree,      /* Should be zero at rung 0! */
     uint8_t uRung,	/* Rung level */
@@ -3243,7 +3246,7 @@ int MSR::NewTopStepKDK(
 	else bDualTree = 0;
 	}
     if (uRung < *puRungMax) {
-	bDualTree = NewTopStepKDK(dTime,dDelta,nSteps,bDualTree,uRung+1,pdStep,puRungMax,pbDoCheckpoint,pbDoOutput,pbNeedKickOpen);
+	bDualTree = NewTopStepKDK(dTime,dDelta,dTheta,nSteps,bDualTree,uRung+1,pdStep,puRungMax,pbDoCheckpoint,pbDoOutput,pbNeedKickOpen);
 	}
 
     /* Drift the "ROOT" (active) tree or all particle */
@@ -3306,8 +3309,8 @@ int MSR::NewTopStepKDK(
     // We need to make sure we descend all the way to the bucket with the
     // active tree, or we can get HUGE group cells, and hence too much P-P/P-C
     int nGroup = (bDualTree && uRung > iRungDT) ? 1 : param.nGroup;
-    *puRungMax = Gravity(uRung,MaxRung(),ROOT,uRoot2,dTime,dDelta,
-	*pdStep,1,bKickOpen,param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,nGroup);
+    *puRungMax = Gravity(uRung,MaxRung(),ROOT,uRoot2,dTime,dDelta,*pdStep,dTheta,
+    	1,bKickOpen,param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,nGroup);
 
     if (!uRung && param.bFindGroups) {
 	GroupStats();
@@ -3316,7 +3319,7 @@ int MSR::NewTopStepKDK(
 	HopWrite(achFile);
 	}
 
-    if (uRung && uRung < *puRungMax) bDualTree = NewTopStepKDK(dTime,dDelta,nSteps,bDualTree,uRung+1,pdStep,puRungMax,pbDoCheckpoint,pbDoOutput,pbNeedKickOpen);
+    if (uRung && uRung < *puRungMax) bDualTree = NewTopStepKDK(dTime,dDelta,dTheta,nSteps,bDualTree,uRung+1,pdStep,puRungMax,pbDoCheckpoint,pbDoOutput,pbNeedKickOpen);
     if (bDualTree && uRung==iRungDT+1) {
 	msrprintf("Half Drift, uRung: %d\n",iRungDT);
 	dDeltaRung = dDelta/(1 << iRungDT);
@@ -3329,6 +3332,7 @@ void MSR::TopStepKDK(
 		   double dStep,	/* Current step */
 		   double dTime,	/* Current time */
 		   double dDeltaRung,	/* Time step */
+		   double dTheta,
 		   int iRung,		/* Rung level */
 		   int iKickRung,	/* Gravity on all rungs from iRung to iKickRung */
 		   int iAdjust) {	/* Do an adjust? */
@@ -3356,13 +3360,13 @@ void MSR::TopStepKDK(
 	/*
 	** Recurse.
 	*/
-	TopStepKDK(dStep,dTime,0.5*dDeltaRung,iRung+1,iRung+1,0);
+	TopStepKDK(dStep,dTime,0.5*dDeltaRung,dTheta,iRung+1,iRung+1,0);
 	dTime += 0.5*dDeltaRung;
 	dStep += 1.0/(2 << iRung);
 
 	ActiveRung(iRung,0); /* is this call even needed? */
 
-	TopStepKDK(dStep,dTime,0.5*dDeltaRung,iRung+1,iKickRung,1);
+	TopStepKDK(dStep,dTime,0.5*dDeltaRung,dTheta,iRung+1,iKickRung,1);
 	}
     else if (CurrMaxRung() == iRung) {
 	/* This Drifts everybody */
@@ -3383,7 +3387,7 @@ void MSR::TopStepKDK(
 	    BuildTree(param.bEwald);
 	    }
 	if (DoGravity()) {
-	    Gravity(iKickRung,MAX_RUNG,ROOT,0,dTime,dDeltaStep,dStep,0,0,
+	    Gravity(iKickRung,MAX_RUNG,ROOT,0,dTime,dDeltaStep,dStep,dTheta,0,0,
 	    	param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,
 	    	param.nGroup);
 	    }
@@ -3446,11 +3450,11 @@ void MSR::StarForm(double dTime, double dDelta, int iRung) {
     in.dTuFac = dTuFac;
     in.bGasCooling = param.bGasCooling;
 
-    if (param.bVDetails) printf("Star Form ... ");
+    if (bVDetails) printf("Star Form ... ");
     
     ActiveRung(iRung,1); /* important to limit to active gas only */
     pstStarForm(pst, &in, sizeof(in), &out, sizeof(out));
-    if (param.bVDetails)
+    if (bVDetails)
 	printf("%d Stars formed with mass %g, %d gas deleted\n",
 	       out.nFormed, out.dMassFormed, out.nDeleted);
     
@@ -3752,7 +3756,7 @@ void MSR::Hop(double dTime, double dDelta) {
     inGravity.dEwhCut = param.dEwhCut;
     inGravity.uRungLo = 0;
     inGravity.uRungHi = MAX_RUNG;
-    inGravity.dThetaMin = dThetaMin;
+    inGravity.dTheta = dThetaMin;
 
     inUnbind.iIteration=0;
     do {
@@ -4118,6 +4122,8 @@ double MSR::Read(const char *achInFile) {
 	BND bnd;
 	CalcBound(&bnd);
 	}
+
+    InitCosmology();
 
     return dTime;
     }

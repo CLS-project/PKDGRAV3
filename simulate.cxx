@@ -100,8 +100,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
 
     InitCosmology();
     if (prmSpecified(prm,"dSoft")) SetSoft(Soft());
-    if (Comove()) SwitchTheta(dTime); // Adjust theta for gravity calculations.
-
+    auto dTheta = getTheta(dTime); // Adjust theta for gravity calculations.
 
     /*
     ** Now read in the output points, passing the initial time.
@@ -164,13 +163,13 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
 	    LinearKick(dTime,dDelta,bKickClose,bKickOpen);
 	    GridDeleteFFT();
         }
-	uRungMax = Gravity(0,MAX_RUNG,ROOT,0,dTime,dDelta,iStartStep,0,bKickOpen,
+	uRungMax = Gravity(0,MAX_RUNG,ROOT,0,dTime,dDelta,iStartStep,dTheta,0,bKickOpen,
 	        param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup);
 	MemStatus();
 	if (param.bGravStep) {
 	    assert(param.bNewKDK == 0);    /* for now! */
 	    BuildTree(param.bEwald);
-	    Gravity(0,MAX_RUNG,ROOT,0,dTime,dDelta,iStartStep,0,0,
+	    Gravity(0,MAX_RUNG,ROOT,0,dTime,dDelta,iStartStep,dTheta,0,0,
 		    param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup);
 	    MemStatus();
 	    }
@@ -199,7 +198,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
     int iStop=0, bDoCheckpoint=0, bDoOutput=0;
     for (auto iStep=iStartStep+1;iStep<=nSteps&&!iStop;++iStep) {
 	dDelta = SwitchDelta(dTime,dDelta,iStep-1,param.nSteps);
-	if (Comove()) SwitchTheta(dTime);
+	dTheta = getTheta(dTime);
 	lPrior = time(0);
 	if (param.bNewKDK) {
 	    double diStep = (double)(iStep-1);
@@ -207,7 +206,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
 	    if (bKickOpen) {
 		BuildTree(0);
                 LightConeOpen(iStep);  /* open the lightcone */
-		uRungMax = Gravity(0,MAX_RUNG,ROOT,0,ddTime,dDelta,diStep,0,1,
+		uRungMax = Gravity(0,MAX_RUNG,ROOT,0,ddTime,dDelta,diStep,dTheta,0,1,
 		        param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup);
                 /* Set the grids of the linear species */
                 if (strlen(param.achLinearSpecies) && param.nGridLin > 0){
@@ -220,10 +219,10 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
                     }
 		bKickOpen = 0; /* clear the opening kicking flag */
 		}
-	    NewTopStepKDK(ddTime,dDelta,nSteps,0,0,&diStep,&uRungMax,&bDoCheckpoint,&bDoOutput,&bKickOpen);
+	    NewTopStepKDK(ddTime,dDelta,dTheta,nSteps,0,0,&diStep,&uRungMax,&bDoCheckpoint,&bDoOutput,&bKickOpen);
 	    }
 	else {
-	    TopStepKDK(iStep-1,dTime,dDelta,0,0,1);
+	    TopStepKDK(iStep-1,dTime,dDelta,dTheta,0,0,1);
 	    }
 	dTime += dDelta;
 	auto lSec = time(0) - lPrior;
@@ -566,13 +565,6 @@ int MSR::ValidateParameters() {
 	param.dComovingGmPerCcUnit = 1;
 	param.dGmPerCcUnit = 1;
 	param.dErgPerGmUnit = 1;
-	}
-
-    /* Determine current opening angle  */
-    dThetaMin = param.dTheta;
-    if ( !prmSpecified(prm,"nReplicas") && param.nReplicas>=1 ) {
-	if ( dThetaMin < 0.52 ) param.nReplicas = 2;
-	else param.nReplicas = 1;
 	}
 
     if (csm->val.classData.bClass){

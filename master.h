@@ -39,8 +39,9 @@ class MSR {
 protected:
     const PST pst;
     const MDL mdl;
+    bool bVDetails;
 public:
-    explicit MSR(MDL mdl,PST pst) : pst(pst), mdl(mdl) {}
+    explicit MSR(MDL mdl,PST pst) : pst(pst), mdl(mdl), bVDetails(false) {}
     ~MSR();
 public:
     int Python(int argc, char *argv[]);
@@ -83,8 +84,8 @@ public:
 
     // Gravity
     uint8_t Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
-	double dTime,double dDelta,double dStep,int bKickClose,int bKickOpen,int bEwald,int bGravStep,int nPartRhoLoc,int iTimeStepCrit,
-	int nGroup);
+    	double dTime,double dDelta,double dStep,double dTheta,
+    	int bKickClose,int bKickOpen,int bEwald,int bGravStep,int nPartRhoLoc,int iTimeStepCrit,int nGroup);
 
     // Analysis
     void Smooth(double dTime,double dDelta,int iSmoothType,int bSymmetric,int nSmooth);
@@ -134,7 +135,6 @@ public:
     uint64_t nStar;
     uint64_t nMaxOrder;		/* Order number of last particle */
     int iCurrMaxRung;
-    double dThetaMin;
 
     /*
     ** Tree moments (for Ewald)
@@ -223,6 +223,7 @@ protected:
     void AllNodeWrite(const char *pszFileName, double dTime, double dvFac, int bDouble);
     uint64_t CalcWriteStart();
     void SwitchTheta(double);
+    double getTheta(double dTime);
     double SwitchDelta(double dTime,double dDelta,int iStep,int nSteps);
     void InitCosmology();
     void BuildTree(int bNeedEwald,uint32_t uRoot,uint32_t utRoot);
@@ -285,6 +286,7 @@ protected:
     int NewTopStepKDK(
 	double &dTime,	/* MODIFIED: Current simulation time */
 	double dDelta,
+	double dTheta,
 	int nSteps,
 	int bDualTree,      /* Should be zero at rung 0! */
 	uint8_t uRung,	/* Rung level */
@@ -294,6 +296,7 @@ protected:
 		    double dStep,	/* Current step */
 		    double dTime,	/* Current time */
 		    double dDelta,	/* Time step */
+		    double dTheta,
 		    int iRung,		/* Rung level */
 		    int iKickRung,	/* Gravity on all rungs from iRung
 					    to iKickRung */
