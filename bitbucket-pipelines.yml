@@ -8,3 +8,4 @@ pipelines:
           - make
           - ln -s /build/euclid_flagship_500.hdf5
           - ./pkdgrav3 tests/cosmology.py
+          - ./pkdgrav3 tests/gravity.py
