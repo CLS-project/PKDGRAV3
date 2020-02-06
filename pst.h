@@ -1100,6 +1100,11 @@ int pstCountSelected(PST pst,void *vin,int nIn,void *vout,int nOut);
 int pstSelAll(PST pst,void *vin,int nIn,void *vout,int nOut);
 
 /* PST_SELSPECIES */
+struct inSelSpecies {
+    uint64_t mSpecies;
+    int setIfTrue;
+    int clearIfFalse;
+    };
 int pstSelSpecies(PST pst,void *vin,int nIn,void *vout,int nOut);
 
 /* PST_SELMASS */
@@ -1176,9 +1181,18 @@ struct outSelCylinder {
 int pstSelCylinder(PST pst,void *vin,int nIn,void *vout,int nOut);
 
 /* PST_SECGROUP */
+struct inSelGroup {
+    int iGroup;
+    int setIfTrue;
+    int clearIfFalse;
+    };
 int pstSelGroup(PST pst,void *vin,int nIn,void *vout,int nOut);
 
 /* PST_SECGROUP */
+struct inSelBlackholes {
+    int setIfTrue;
+    int clearIfFalse;
+    };
 int pstSelBlackholes(PST pst,void *vin,int nIn,void *vout,int nOut);
 
 /* PST_PROFILE */

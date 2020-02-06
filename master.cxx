@@ -4427,42 +4427,40 @@ uint64_t MSR::CountSelected() {
     pstCountSelected(pst, NULL, 0, &n, sizeof(n));
     return n;
     }
-uint64_t MSR::SelAll() {
-    uint64_t mSpecies, N;
-    mSpecies = 1 << FIO_SPECIES_ALL;
-    pstSelSpecies(pst, &mSpecies, sizeof(mSpecies), &N, sizeof(N) );
+uint64_t MSR::SelSpecies(uint64_t mSpecies,bool setIfTrue,bool clearIfFalse) {
+    uint64_t N;
+    struct inSelSpecies in;
+    in.setIfTrue = setIfTrue;
+    in.clearIfFalse = clearIfFalse;
+    in.mSpecies = mSpecies;
+    pstSelSpecies(pst, &in, sizeof(in), &N, sizeof(N) );
     return N;
     }
-uint64_t MSR::SelGas() {
-    uint64_t mSpecies, N;
-    mSpecies = 1 << FIO_SPECIES_SPH;
-    pstSelSpecies(pst, &mSpecies, sizeof(mSpecies), &N, sizeof(N) );
-    return N;
+uint64_t MSR::SelAll(bool setIfTrue,bool clearIfFalse) {
+    return SelSpecies(1<<FIO_SPECIES_ALL,setIfTrue,clearIfFalse);
     }
-uint64_t MSR::SelStar() {
-    uint64_t mSpecies, N;
-    mSpecies = 1 << FIO_SPECIES_STAR;
-    pstSelSpecies(pst, &mSpecies, sizeof(mSpecies), &N, sizeof(N) );
-    return N;
+uint64_t MSR::SelGas(bool setIfTrue,bool clearIfFalse) {
+    return SelSpecies(1<<FIO_SPECIES_SPH,setIfTrue,clearIfFalse);
     }
-uint64_t MSR::SelDark() {
-    uint64_t mSpecies, N;
-    mSpecies = 1 << FIO_SPECIES_DARK;
-    pstSelSpecies(pst, &mSpecies, sizeof(mSpecies), &N, sizeof(N) );
-    return N;
+uint64_t MSR::SelStar(bool setIfTrue,bool clearIfFalse) {
+    return SelSpecies(1<<FIO_SPECIES_STAR,setIfTrue,clearIfFalse);
     }
-uint64_t MSR::SelDeleted() {
-    uint64_t mSpecies, N;
-    mSpecies = 1 << FIO_SPECIES_LAST; // This is how deleted particles are marked
-    pstSelSpecies(pst, &mSpecies, sizeof(mSpecies), &N, sizeof(N) );
-    return N;
+uint64_t MSR::SelDark(bool setIfTrue,bool clearIfFalse) {
+    return SelSpecies(1<<FIO_SPECIES_DARK,setIfTrue,clearIfFalse);
     }
-uint64_t MSR::SelBlackholes() {
+uint64_t MSR::SelDeleted(bool setIfTrue,bool clearIfFalse) {
+    // The "LAST" species (normally invalid) marks deleted particles
+    return SelSpecies(1<<FIO_SPECIES_LAST,setIfTrue,clearIfFalse);
+    }
+uint64_t MSR::SelBlackholes(bool setIfTrue,bool clearIfFalse) {
+    struct inSelBlackholes in;
     uint64_t n;
-    pstSelBlackholes(pst, NULL, 0, &n, sizeof(n) );
+    in.setIfTrue = setIfTrue;
+    in.clearIfFalse = clearIfFalse;
+    pstSelBlackholes(pst, &in, sizeof(in), &n, sizeof(n) );
     return n;
     }
-uint64_t MSR::SelGroup(int iGroup) {
+uint64_t MSR::SelGroup(int iGroup,bool setIfTrue,bool clearIfFalse) {
     uint64_t n;
     pstSelGroup(pst, &iGroup, sizeof(iGroup), &n, sizeof(n) );
     return n;

@@ -1515,9 +1515,9 @@ void pkdSetClasses( PKD pkd, int n, PARTCLASS *pClass, int bUpdate );
 void pkdSetClass( PKD pkd, float fMass, float fSoft, FIO_SPECIES eSpecies, PARTICLE *p );
 
 int pkdCountSelected(PKD pkd);
-int pkdSelSpecies(PKD pkd,uint64_t mSpecies);
-int pkdSelGroup(PKD pkd, int iGroup);
-int pkdSelBlackholes(PKD pkd);
+int pkdSelSpecies(PKD pkd,uint64_t mSpecies, int setIfTrue, int clearIfFalse);
+int pkdSelGroup(PKD pkd, int iGroup, int setIfTrue, int clearIfFalse);
+int pkdSelBlackholes(PKD pkd, int setIfTrue, int clearIfFalse);
 int pkdSelMass(PKD pkd,double dMinMass, double dMaxMass, int setIfTrue, int clearIfFalse );
 int pkdSelById(PKD pkd,uint64_t idStart, uint64_t idEnd, int setIfTrue, int clearIfFalse );
 int pkdSelPhaseDensity(PKD pkd,double dMinDensity, double dMaxDensity, int setIfTrue, int clearIfFalse );

@@ -315,13 +315,14 @@ public:
 	int nPerBin, int nBins, int nAccuracy );
 
     uint64_t CountSelected();
-    uint64_t SelAll();
-    uint64_t SelGas();
-    uint64_t SelStar();
-    uint64_t SelDark();
-    uint64_t SelBlackholes();
-    uint64_t SelGroup(int iGroup);
-    uint64_t SelDeleted();
+    uint64_t SelSpecies(uint64_t mSpecies,bool setIfTrue=true,bool clearIfFalse=true);
+    uint64_t SelAll(bool setIfTrue=true,bool clearIfFalse=true);
+    uint64_t SelGas(bool setIfTrue=true,bool clearIfFalse=true);
+    uint64_t SelStar(bool setIfTrue=true,bool clearIfFalse=true);
+    uint64_t SelDark(bool setIfTrue=true,bool clearIfFalse=true);
+    uint64_t SelDeleted(bool setIfTrue=true,bool clearIfFalse=true);
+    uint64_t SelBlackholes(bool setIfTrue=true,bool clearIfFalse=true);
+    uint64_t SelGroup(int iGroup,bool setIfTrue=true,bool clearIfFalse=true);
     uint64_t SelMass(double dMinMass,double dMaxMass,int setIfTrue,int ClearIfFalse);
     uint64_t SelById(uint64_t idStart,uint64_t idEnd,int setIfTrue,int clearIfFalse);
     uint64_t SelPhaseDensity(double dMinPhaseDensity,double dMaxPhaseDensity,int setIfTrue,int clearIfFalse);

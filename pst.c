@@ -254,7 +254,7 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_COUNTSELECTED,pst,(fcnService_t*)pstCountSelected,
 		  0, sizeof(uint64_t) );
     mdlAddService(mdl,PST_SELSPECIES,pst,(fcnService_t*)pstSelSpecies,
-		  sizeof(uint64_t), sizeof(uint64_t) );
+		  sizeof(struct inSelSpecies), sizeof(uint64_t) );
     mdlAddService(mdl,PST_SELBYID,pst,(fcnService_t*)pstSelById,
 		  sizeof(struct inSelById), sizeof(struct outSelById));
     mdlAddService(mdl,PST_SELMASS,pst,(fcnService_t*)pstSelMass,
@@ -268,9 +268,9 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_SELCYLINDER,pst,(fcnService_t*)pstSelCylinder,
 		  sizeof(struct inSelCylinder), sizeof(struct outSelCylinder));
     mdlAddService(mdl,PST_SELGROUP,pst,(fcnService_t*)pstSelGroup,
-		  sizeof(int), sizeof(uint64_t));
+		  sizeof(struct inSelGroup), sizeof(uint64_t));
     mdlAddService(mdl,PST_SELBLACKHOLES,pst,(fcnService_t*)pstSelBlackholes,
-		  0, sizeof(uint64_t));
+		  sizeof(struct inSelBlackholes), sizeof(uint64_t));
     mdlAddService(mdl,PST_PROFILE,pst,(fcnService_t*)pstProfile,
 		  sizeof(struct inProfile), 0); 
     mdlAddService(mdl,PST_CALCDISTANCE,pst,(fcnService_t*)pstCalcDistance,
@@ -3497,8 +3497,9 @@ int pstCountSelected(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
 int pstSelSpecies(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
-    uint64_t outUpper, *out = vout, *in = vin;
-    assert(nIn==sizeof(uint64_t));
+    struct inSelSpecies *in = vin;
+    uint64_t outUpper, *out = vout;
+    assert(nIn==sizeof(struct inSelSpecies));
     assert(nOut==sizeof(uint64_t));
     if (pst->nLeaves > 1) {
 	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SELSPECIES,vin,nIn);
@@ -3507,7 +3508,7 @@ int pstSelSpecies(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	*out += outUpper;
 	}
     else {
-	*out = pkdSelSpecies(plcl->pkd,*in);
+	*out = pkdSelSpecies(plcl->pkd,in->mSpecies,in->setIfTrue,in->clearIfFalse);
 	}
     return nOut;
     }
@@ -3635,10 +3636,10 @@ int pstSelCylinder(PST pst,void *vin,int nIn,void *vout,int nOut) {
     }
 
 int pstSelGroup(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    int *in = vin;
+    struct inSelGroup *in = vin;
     uint64_t outUpper, *out = vout;
     LCL *plcl = pst->plcl;
-    assert( nIn==sizeof(int) );
+    assert( nIn==sizeof(struct inSelGroup) );
     assert( nOut==sizeof(uint64_t) );
     if (pst->nLeaves > 1) {
 	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SELGROUP,vin,nIn);
@@ -3647,15 +3648,16 @@ int pstSelGroup(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	*out += outUpper;
 	}
     else {
-	*out = pkdSelGroup(plcl->pkd, *in);
+	*out = pkdSelGroup(plcl->pkd, in->iGroup, in->setIfTrue, in->clearIfFalse);
 	}
     return nOut;
     }
 
 int pstSelBlackholes(PST pst,void *vin,int nIn,void *vout,int nOut) {
+    struct inSelBlackholes *in = vin;
     LCL *plcl = pst->plcl;
     uint64_t outUpper, *out = vout;
-    assert( nIn==0 );
+    assert( nIn==sizeof(struct inSelBlackholes) );
     assert( nOut==sizeof(uint64_t) );
     if (pst->nLeaves > 1) {
 	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SELBLACKHOLES,vin,nIn);
@@ -3664,7 +3666,7 @@ int pstSelBlackholes(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	*out += outUpper;
 	}
     else {
-	*out = pkdSelBlackholes(plcl->pkd);
+	*out = pkdSelBlackholes(plcl->pkd,in->setIfTrue,in->clearIfFalse);
 	}
     return nOut;
     }

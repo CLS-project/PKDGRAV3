@@ -3233,14 +3233,14 @@ int pkdCountSelected(PKD pkd) {
     return N;
     }
 
-int pkdSelSpecies(PKD pkd,uint64_t mSpecies) {
+int pkdSelSpecies(PKD pkd,uint64_t mSpecies, int setIfTrue, int clearIfFalse) {
     int i;
     int n=pkdLocal(pkd);
     int N=0;
     if (mSpecies&(1<<FIO_SPECIES_ALL)) mSpecies = 0xffffffffu;
     for( i=0; i<n; i++ ) {
 	PARTICLE *p=pkdParticle(pkd,i);
-	p->bMarked = ( (1<<pkdSpecies(pkd,p)) & mSpecies ) ? 1 : 0;
+	p->bMarked = isSelected((1<<pkdSpecies(pkd,p)) & mSpecies,setIfTrue,clearIfFalse,p->bMarked);
 	if (p->bMarked) ++N;
 	}
     return N;
@@ -3369,18 +3369,18 @@ int pkdSelCylinder(PKD pkd,double *dP1, double *dP2, double dRadius,
 	}
     return nSelected;
     }
-int pkdSelGroup(PKD pkd, int iGroup) {
+int pkdSelGroup(PKD pkd, int iGroup, int setIfTrue, int clearIfFalse) {
     int i;
     int n=pkdLocal(pkd);
     int N=0;
     for( i=0; i<n; i++ ) {
 	PARTICLE *p=pkdParticle(pkd,i);
-	p->bMarked = pkdGetGroup(pkd,p)==iGroup;
+	p->bMarked = isSelected(pkdGetGroup(pkd,p)==iGroup,setIfTrue,clearIfFalse,p->bMarked);
 	if (p->bMarked) ++N;
 	}
     return N;
     }
-int pkdSelBlackholes(PKD pkd) {
+int pkdSelBlackholes(PKD pkd, int setIfTrue, int clearIfFalse) {
     int i;
     int n=pkdLocal(pkd);
     int N = 0;
@@ -3389,7 +3389,7 @@ int pkdSelBlackholes(PKD pkd) {
 	PARTICLE *p=pkdParticle(pkd,i);
 	if (pkdIsStar(pkd, p)) {
 	    STARFIELDS *pStar = pkdStar(pkd,p);
-	    p->bMarked = pStar->fTimer < 0;
+	    p->bMarked = isSelected(pStar->fTimer < 0,setIfTrue,clearIfFalse,p->bMarked);
 	    }
 	else p->bMarked = 0;
 	if (p->bMarked) ++N;
