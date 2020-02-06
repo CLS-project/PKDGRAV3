@@ -393,7 +393,12 @@ int MSR::ValidateParameters() {
 	    }
 	}
 
-    if (!prmSpecified(prm,"dFracNoDomainDecomp")) param.dFracDualTree = param.dFracNoDomainDecomp;
+    if (!prmSpecified(prm,"dFracNoDomainRootFind") && param.dFracNoDomainRootFind > param.dFracNoDomainDimChoice) param.dFracNoDomainRootFind = param.dFracNoDomainDimChoice; 
+    if (!prmSpecified(prm,"dFracNoDomainDecomp") && param.dFracNoDomainDecomp > param.dFracNoDomainRootFind) param.dFracNoDomainDecomp = param.dFracNoDomainRootFind; 
+    if (!prmSpecified(prm,"dFracDualTree") && param.dFracDualTree > param.dFracNoDomainDecomp) param.dFracDualTree = param.dFracNoDomainDecomp; 
+    if (!prmSpecified(prm,"dFracNoDomainDecomp") && param.dFracNoDomainDecomp < param.dFracDualTree) param.dFracNoDomainDecomp = param.dFracDualTree; 
+    if (!prmSpecified(prm,"dFracNoDomainRootFind") && param.dFracNoDomainRootFind < param.dFracNoDomainDecomp) param.dFracNoDomainRootFind = param.dFracNoDomainDecomp; 
+    if (!prmSpecified(prm,"dFracNoDomainDimChoice") && param.dFracNoDomainDimChoice < param.dFracNoDomainRootFind) param.dFracNoDomainDimChoice = param.dFracNoDomainRootFind; 
     if ( param.dFracDualTree > param.dFracNoDomainDecomp
 	|| param.dFracNoDomainDecomp > param.dFracNoDomainRootFind
 	|| param.dFracNoDomainRootFind > param.dFracNoDomainDimChoice

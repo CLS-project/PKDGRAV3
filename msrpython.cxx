@@ -146,23 +146,42 @@ struct MSRINSTANCE {
     };
 /********** Set Internal parameters **********/
 
+static bool setParameters(MSR *msr,PyObject *kwobj,bool bIgnoreUnknown=false) {
+    bool bSuccess = true;
+    PyObject *key, *value;
+    Py_ssize_t pos = 0;
+    auto allow = PyDict_GetItemString(kwobj,"bIgnoreUnknown");
+    if (allow) bIgnoreUnknown = PyObject_IsTrue(allow)>0;
+
+    while (PyDict_Next(kwobj, &pos, &key, &value)) {
+	const char *keyString;
+	if (PyUnicode_Check(key)) {
+	    PyObject *ascii = PyUnicode_AsASCIIString(key);
+	    keyString = PyBytes_AsString(ascii);
+	    Py_DECREF(ascii);
+	    if (keyString[0]=='_') continue;
+	    }
+	if (PyObject_HasAttr(msr->arguments,key)) {
+	    PyObject_SetAttr(msr->arguments,key,value);
+	    PyObject_SetAttr(msr->specified,key,Py_True);
+	    }
+	else if (!bIgnoreUnknown) {
+	    PyErr_Format(PyExc_AttributeError,"invalid parameter %A",key);
+	    PyErr_Print();
+	    bSuccess=false;
+	    }
+	}
+    ppy2prm(msr->prm,msr->arguments,msr->specified);
+    msr->ValidateParameters();
+    return bSuccess;
+    }
+
 static PyObject *
 ppy_msr_setParameters(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     MSR *msr = self->msr;
     int n = PyTuple_Size(args);
     if (n) return PyErr_Format(PyExc_TypeError,"setParameters() takes 0 positional arguments but %d %s given",n,n==1?"was":"were");
-    PyObject *key, *value;
-    Py_ssize_t pos = 0;
-    while (PyDict_Next(kwobj, &pos, &key, &value)) {
-	if (auto n = PyObject_GetAttr(msr->arguments,key)) {
-	    Py_DECREF(n);
-	    PyObject_SetAttr(msr->arguments,key,value);
-	    PyObject_SetAttr(msr->specified,key,Py_True);
-	    }
-	else return PyErr_Format(PyExc_TypeError,"setParameters() invalid parameter %A",key);
-	}
-    ppy2prm(msr->prm,msr->arguments,msr->specified);
-    msr->ValidateParameters();
+    if (!setParameters(msr,kwobj)) return PyErr_Format(PyExc_AttributeError,"invalid parameters specified");
     Py_RETURN_NONE;
     }
 /********** Initial Condition Generation **********/
@@ -798,10 +817,10 @@ int MSR::Python(int argc, char *argv[]) {
     // If a script was specified then we run it.
     if (script != Py_None) {
     	char *filename;
-	PyObject *ascii;
 	if (PyUnicode_Check(script)) {
-	    ascii = PyUnicode_AsASCIIString(script);
+	    PyObject *ascii = PyUnicode_AsASCIIString(script);
 	    filename = PyBytes_AsString(ascii);
+	    Py_DECREF(ascii);
 	    }
 	else { fprintf(stderr,"INTERNAL ERROR: script filename is invalid\n"); abort();	}
 	FILE *fp = fopen(filename,"r");
@@ -809,7 +828,6 @@ int MSR::Python(int argc, char *argv[]) {
 	auto s = PyRun_FileEx(fp,filename,Py_file_input,globals,locals,1); // fp is closed on return
 	if (PyErr_Occurred()) { PyErr_Print(); exit(1); }
 	Py_DECREF(s);
-	Py_DECREF(ascii);
 	}
 
     // If "MASTER" was imported then we are done -- the script should have done its job
