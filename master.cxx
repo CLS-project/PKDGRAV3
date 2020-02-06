@@ -4427,22 +4427,45 @@ uint64_t MSR::CountSelected() {
     pstCountSelected(pst, NULL, 0, &n, sizeof(n));
     return n;
     }
-void MSR::SelAll() {
-    pstSelAll(pst, NULL, 0, NULL, 0 );
+uint64_t MSR::SelAll() {
+    uint64_t mSpecies, N;
+    mSpecies = 1 << FIO_SPECIES_ALL;
+    pstSelSpecies(pst, &mSpecies, sizeof(mSpecies), &N, sizeof(N) );
+    return N;
     }
-void MSR::SelGas() {
-    pstSelGas(pst, NULL, 0, NULL, 0 );
+uint64_t MSR::SelGas() {
+    uint64_t mSpecies, N;
+    mSpecies = 1 << FIO_SPECIES_SPH;
+    pstSelSpecies(pst, &mSpecies, sizeof(mSpecies), &N, sizeof(N) );
+    return N;
     }
-void MSR::SelStar() {
-    pstSelStar(pst, NULL, 0, NULL, 0 );
+uint64_t MSR::SelStar() {
+    uint64_t mSpecies, N;
+    mSpecies = 1 << FIO_SPECIES_STAR;
+    pstSelSpecies(pst, &mSpecies, sizeof(mSpecies), &N, sizeof(N) );
+    return N;
+    }
+uint64_t MSR::SelDark() {
+    uint64_t mSpecies, N;
+    mSpecies = 1 << FIO_SPECIES_DARK;
+    pstSelSpecies(pst, &mSpecies, sizeof(mSpecies), &N, sizeof(N) );
+    return N;
+    }
+uint64_t MSR::SelDeleted() {
+    uint64_t mSpecies, N;
+    mSpecies = 1 << FIO_SPECIES_LAST; // This is how deleted particles are marked
+    pstSelSpecies(pst, &mSpecies, sizeof(mSpecies), &N, sizeof(N) );
+    return N;
     }
 uint64_t MSR::SelBlackholes() {
     uint64_t n;
     pstSelBlackholes(pst, NULL, 0, &n, sizeof(n) );
     return n;
     }
-void MSR::SelDeleted() {
-    pstSelDeleted(pst, NULL, 0, NULL, 0 );
+uint64_t MSR::SelGroup(int iGroup) {
+    uint64_t n;
+    pstSelGroup(pst, &iGroup, sizeof(iGroup), &n, sizeof(n) );
+    return n;
     }
 uint64_t MSR::SelById(uint64_t idStart,uint64_t idEnd,int setIfTrue,int clearIfFalse) {
     struct inSelById in;

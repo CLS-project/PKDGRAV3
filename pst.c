@@ -253,14 +253,8 @@ void pstAddServices(PST pst,MDL mdl) {
 		  PKD_MAX_CLASSES*sizeof(PARTCLASS));
     mdlAddService(mdl,PST_COUNTSELECTED,pst,(fcnService_t*)pstCountSelected,
 		  0, sizeof(uint64_t) );
-    mdlAddService(mdl,PST_SELALL,pst,(fcnService_t*)pstSelAll,
-		  0, 0 );
-    mdlAddService(mdl,PST_SELGAS,pst,(fcnService_t*)pstSelGas,
-		  0, 0 );
-    mdlAddService(mdl,PST_SELSTAR,pst,(fcnService_t*)pstSelStar,
-		  0, 0 );
-    mdlAddService(mdl,PST_SELDELETED,pst,(fcnService_t*)pstSelDeleted,
-		  0, 0 );
+    mdlAddService(mdl,PST_SELSPECIES,pst,(fcnService_t*)pstSelSpecies,
+		  sizeof(uint64_t), sizeof(uint64_t) );
     mdlAddService(mdl,PST_SELBYID,pst,(fcnService_t*)pstSelById,
 		  sizeof(struct inSelById), sizeof(struct outSelById));
     mdlAddService(mdl,PST_SELMASS,pst,(fcnService_t*)pstSelMass,
@@ -274,7 +268,7 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_SELCYLINDER,pst,(fcnService_t*)pstSelCylinder,
 		  sizeof(struct inSelCylinder), sizeof(struct outSelCylinder));
     mdlAddService(mdl,PST_SELGROUP,pst,(fcnService_t*)pstSelGroup,
-		  sizeof(int), 0);
+		  sizeof(int), sizeof(uint64_t));
     mdlAddService(mdl,PST_SELBLACKHOLES,pst,(fcnService_t*)pstSelBlackholes,
 		  0, sizeof(uint64_t));
     mdlAddService(mdl,PST_PROFILE,pst,(fcnService_t*)pstProfile,
@@ -3501,56 +3495,21 @@ int pstCountSelected(PST pst,void *vin,int nIn,void *vout,int nOut) {
     return nOut;
     }
 
-int pstSelAll(PST pst,void *vin,int nIn,void *vout,int nOut) {
+int pstSelSpecies(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
+    uint64_t outUpper, *out = vout, *in = vin;
+    assert(nIn==sizeof(uint64_t));
+    assert(nOut==sizeof(uint64_t));
     if (pst->nLeaves > 1) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SELALL,vin,nIn);
-	pstSelAll(pst->pstLower,vin,nIn,NULL,0);
-	mdlGetReply(pst->mdl,rID,NULL,NULL);
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SELSPECIES,vin,nIn);
+	pstSelSpecies(pst->pstLower,vin,nIn,vout,nOut);
+	mdlGetReply(pst->mdl,rID,&outUpper,&nOut);
+	*out += outUpper;
 	}
     else {
-	pkdSelAll(plcl->pkd);
+	*out = pkdSelSpecies(plcl->pkd,*in);
 	}
-    return 0;
-    }
-
-int pstSelGas(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    LCL *plcl = pst->plcl;
-    if (pst->nLeaves > 1) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SELGAS,vin,nIn);
-	pstSelGas(pst->pstLower,vin,nIn,NULL,0);
-	mdlGetReply(pst->mdl,rID,NULL,NULL);
-	}
-    else {
-	pkdSelGas(plcl->pkd);
-	}
-    return 0;
-    }
-
-int pstSelStar(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    LCL *plcl = pst->plcl;
-    if (pst->nLeaves > 1) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SELSTAR,vin,nIn);
-	pstSelStar(pst->pstLower,vin,nIn,NULL,0);
-	mdlGetReply(pst->mdl,rID,NULL,NULL);
-	}
-    else {
-	pkdSelStar(plcl->pkd);
-	}
-    return 0;
-    }
-
-int pstSelDeleted(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    LCL *plcl = pst->plcl;
-    if (pst->nLeaves > 1) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SELDELETED,vin,nIn);
-	pstSelDeleted(pst->pstLower,vin,nIn,NULL,0);
-	mdlGetReply(pst->mdl,rID,NULL,NULL);
-	}
-    else {
-	pkdSelDeleted(plcl->pkd);
-	}
-    return 0;
+    return nOut;
     }
 
 int pstSelById(PST pst,void *vin,int nIn,void *vout,int nOut) {
@@ -3677,17 +3636,20 @@ int pstSelCylinder(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
 int pstSelGroup(PST pst,void *vin,int nIn,void *vout,int nOut) {
     int *in = vin;
+    uint64_t outUpper, *out = vout;
     LCL *plcl = pst->plcl;
     assert( nIn==sizeof(int) );
+    assert( nOut==sizeof(uint64_t) );
     if (pst->nLeaves > 1) {
 	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SELGROUP,vin,nIn);
-	pstSelGroup(pst->pstLower,vin,nIn,NULL,0);
-	mdlGetReply(pst->mdl,rID,NULL,NULL);
+	pstSelGroup(pst->pstLower,vin,nIn,vout,nOut);
+	mdlGetReply(pst->mdl,rID,&outUpper,&nOut);
+	*out += outUpper;
 	}
     else {
-	pkdSelGroup(plcl->pkd, *in);
+	*out = pkdSelGroup(plcl->pkd, *in);
 	}
-    return 0;
+    return nOut;
     }
 
 int pstSelBlackholes(PST pst,void *vin,int nIn,void *vout,int nOut) {

@@ -3233,42 +3233,17 @@ int pkdCountSelected(PKD pkd) {
     return N;
     }
 
-int pkdSelAll(PKD pkd) {
+int pkdSelSpecies(PKD pkd,uint64_t mSpecies) {
     int i;
     int n=pkdLocal(pkd);
-    for( i=0; i<n; i++ ) pkdParticle(pkd,i)->bMarked = 1;
-    return n;
-    }
-
-int pkdSelGas(PKD pkd) {
-    int i;
-    int n=pkdLocal(pkd);
-    PARTICLE *p;
+    int N=0;
+    if (mSpecies&(1<<FIO_SPECIES_ALL)) mSpecies = 0xffffffffu;
     for( i=0; i<n; i++ ) {
-	p=pkdParticle(pkd,i);
-	p->bMarked = pkdIsGas(pkd,p) ? 1 : 0;
+	PARTICLE *p=pkdParticle(pkd,i);
+	p->bMarked = ( (1<<pkdSpecies(pkd,p)) & mSpecies ) ? 1 : 0;
+	if (p->bMarked) ++N;
 	}
-    return n;
-    }
-int pkdSelStar(PKD pkd) {
-    int i;
-    int n=pkdLocal(pkd);
-    PARTICLE *p;
-    for( i=0; i<n; i++ ) {
-	p=pkdParticle(pkd,i);
-	p->bMarked = pkdIsStar(pkd,p) ? 1 : 0;
-	}
-    return n;
-    }
-int pkdSelDeleted(PKD pkd) {
-    int i;
-    int n=pkdLocal(pkd);
-    PARTICLE *p;
-    for( i=0; i<n; i++ ) {
-	p=pkdParticle(pkd,i);
-	p->bMarked = pkdIsDeleted(pkd,p) ? 1 : 0;
-	}
-    return n;
+    return N;
     }
 int pkdSelMass(PKD pkd,double dMinMass, double dMaxMass, int setIfTrue, int clearIfFalse ) {
     PARTICLE *p;
@@ -3397,12 +3372,13 @@ int pkdSelCylinder(PKD pkd,double *dP1, double *dP2, double dRadius,
 int pkdSelGroup(PKD pkd, int iGroup) {
     int i;
     int n=pkdLocal(pkd);
-    PARTICLE *p;
+    int N=0;
     for( i=0; i<n; i++ ) {
-	p=pkdParticle(pkd,i);
+	PARTICLE *p=pkdParticle(pkd,i);
 	p->bMarked = pkdGetGroup(pkd,p)==iGroup;
+	if (p->bMarked) ++N;
 	}
-    return n;
+    return N;
     }
 int pkdSelBlackholes(PKD pkd) {
     int i;

@@ -195,9 +195,7 @@ enum pst_service {
     PST_SWAPCLASSES,
     PST_COUNTSELECTED,
     PST_SELALL,
-    PST_SELGAS,
-    PST_SELSTAR,
-    PST_SELDELETED,
+    PST_SELSPECIES,
     PST_SELMASS,
     PST_SELBYID,
     PST_SELPHASEDENSITY,
@@ -1101,14 +1099,8 @@ int pstCountSelected(PST pst,void *vin,int nIn,void *vout,int nOut);
 /* PST_SELALL */
 int pstSelAll(PST pst,void *vin,int nIn,void *vout,int nOut);
 
-/* PST_SELGAS */
-int pstSelGas(PST pst,void *vin,int nIn,void *vout,int nOut);
-
-/* PST_SELSTAR */
-int pstSelStar(PST pst,void *vin,int nIn,void *vout,int nOut);
-
-/* PST_SELDELETED */
-int pstSelDeleted(PST pst,void *vin,int nIn,void *vout,int nOut);
+/* PST_SELSPECIES */
+int pstSelSpecies(PST pst,void *vin,int nIn,void *vout,int nOut);
 
 /* PST_SELMASS */
 struct inSelMass {
