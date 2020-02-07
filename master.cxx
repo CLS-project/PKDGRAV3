@@ -1388,6 +1388,7 @@ int MSR::CheckForStop(const char *achStopFile) {
 MSR::~MSR() {
     csmFinish(csm);
     prmFinish(prm);
+    if (Py_IsInitialized()) Py_Finalize();
     }
 
 void MSR::SetClasses() {

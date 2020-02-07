@@ -30,6 +30,28 @@
 #define MASTER_MODULE_NAME "MASTER"
 #define MASTER_TYPE_NAME "MSR"
 
+
+/******************************************************************************\
+*   Flush stdout and stderr
+\******************************************************************************/
+static void flush_std_files(void) {
+    auto out = PySys_GetObject("stdout");
+    auto err = PySys_GetObject("stderr");
+    PyObject *tmp;
+
+    if (out != NULL && out != Py_None) {
+        auto tmp = PyObject_CallMethod(out, "flush", "");
+        if (tmp == NULL) PyErr_WriteUnraisable(out);
+        else Py_DECREF(tmp);
+	}
+
+    if (err != NULL && err != Py_None) {
+        auto tmp = PyObject_CallMethod(err, "flush", "");
+        if (tmp == NULL) PyErr_Clear();
+        else Py_DECREF(tmp);
+	}
+    }
+
 /******************************************************************************\
 *   Copy parameters from Python to pkdgrav3 (may go away eventually)
 \******************************************************************************/
@@ -178,6 +200,7 @@ static bool setParameters(MSR *msr,PyObject *kwobj,bool bIgnoreUnknown=false) {
 
 static PyObject *
 ppy_msr_setParameters(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    flush_std_files();
     MSR *msr = self->msr;
     int n = PyTuple_Size(args);
     if (n) return PyErr_Format(PyExc_ValueError,"setParameters() takes 0 positional arguments but %d %s given",n,n==1?"was":"were");
@@ -188,6 +211,7 @@ ppy_msr_setParameters(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
 
 static PyObject *
 ppy_msr_GenerateIC(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    flush_std_files();
     static char const *kwlist[]={"csm","z","grid","seed","L",NULL};
     int nGrid, iSeed;
     double dBoxSize = 1.0;
@@ -210,6 +234,7 @@ ppy_msr_GenerateIC(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
 
 static PyObject *
 ppy_msr_Load(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    flush_std_files();
     static char const *kwlist[]={"filename",NULL};
     const char *fname;
     double dTime;
@@ -224,6 +249,7 @@ ppy_msr_Load(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
 
 static PyObject *
 ppy_msr_Save(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    flush_std_files();
     static char const *kwlist[]={"name","time",NULL};
     const char *fname;
     double dTime = 1.0;
@@ -237,6 +263,7 @@ ppy_msr_Save(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
 
 static PyObject *
 ppy_msr_WriteArray(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    flush_std_files();
     static char const *kwlist[]={"name","field","binary",NULL};
     const char *fname;
     int iField = 0;
@@ -251,6 +278,7 @@ ppy_msr_WriteArray(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
 
 static PyObject *
 ppy_msr_WriteVector(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    flush_std_files();
     static char const *kwlist[]={"name","field","binary",NULL};
     const char *fname;
     int iField = 0;
@@ -267,6 +295,7 @@ ppy_msr_WriteVector(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
 
 static PyObject *
 ppy_msr_Checkpoint(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    flush_std_files();
     static char const *kwlist[]={/*"name",*/"step","time",NULL};
 //    const char *fname;
     int iStep = 0;
@@ -283,6 +312,7 @@ ppy_msr_Checkpoint(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
 
 static PyObject *
 ppy_msr_Restart(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    flush_std_files();
     MSR *msr = self->msr;
     static char const *kwlist[]={"arguments","specified","species","classes","n","name","step","steps","time","delta","E","U", "Utime", NULL};
     PyObject *species, *classes;
@@ -340,6 +370,7 @@ ppy_msr_Restart(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
 
 static PyObject *
 ppy_msr_DomainDecomp(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    flush_std_files();
     static char const *kwlist[]={"rung",NULL};
     int iRung    = 0;
     int bOthers  = 0;
@@ -354,6 +385,7 @@ ppy_msr_DomainDecomp(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
 
 static PyObject *
 ppy_msr_BuildTree(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    flush_std_files();
     static char const *kwlist[]={"ewald","rung","active","marked",NULL};
     int bEwald = self->msr->param.bEwald;
     uint8_t uRungDT = 0; /* Zero rung means build a single tree */
@@ -375,6 +407,7 @@ ppy_msr_BuildTree(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
 
 static PyObject *
 ppy_msr_Reorder(MSRINSTANCE *self, PyObject *args) {
+    flush_std_files();
     self->msr->Reorder();
     Py_RETURN_NONE;
     }
@@ -383,6 +416,7 @@ ppy_msr_Reorder(MSRINSTANCE *self, PyObject *args) {
 
 static PyObject *
 ppy_msr_Gravity(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    flush_std_files();
     MSR *msr = self->msr;
     static char const *kwlist[]={"time","delta","theta","rung","ewald","step","KickClose","KickOpen", "onlyMarked", NULL};
     double dTime = 0.0;
@@ -416,6 +450,7 @@ ppy_msr_Gravity(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
 
 static PyObject *
 ppy_msr_Smooth(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    flush_std_files();
     static char const *kwlist[]={"type","n","symmetric","time","delta","resmooth",NULL};
     int iSmoothType;
     int bSymmetric = 0;
@@ -437,6 +472,7 @@ ppy_msr_Smooth(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
 
 static PyObject *
 ppy_msr_MeasurePk(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    flush_std_files();
     static char const *kwlist[]={"grid","bins","a",NULL};
     double a = 1.0;
     int nBins = -1;
@@ -468,6 +504,7 @@ ppy_msr_MeasurePk(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
 
 static PyObject *
 ppy_msr_MarkSpecies(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    flush_std_files();
     static char const *kwlist[]={"species","setIfTrue","clearIfFalse",NULL};
     PyObject *species;
     int setIfTrue=1, clearIfFalse=1;
@@ -500,6 +537,7 @@ ppy_msr_MarkSpecies(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
 
 static PyObject *
 ppy_msr_MarkBox(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    flush_std_files();
     static char const *kwlist[]={"center","size","setIfTrue","clearIfFalse",NULL};
     double center[3], size[3];
     int setIfTrue=1, clearIfFalse=1;
@@ -513,6 +551,7 @@ ppy_msr_MarkBox(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
 
 static PyObject *
 ppy_msr_MarkSphere(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    flush_std_files();
     static char const *kwlist[]={"center","radius","setIfTrue","clearIfFalse",NULL};
     double center[3], radius;
     int setIfTrue=1, clearIfFalse=1;
@@ -526,6 +565,7 @@ ppy_msr_MarkSphere(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
 
 static PyObject *
 ppy_msr_MarkCylinder(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    flush_std_files();
     static char const *kwlist[]={"point1","point2","radius","setIfTrue","clearIfFalse",NULL};
     double point1[3], point2[3], radius;
     int setIfTrue=1, clearIfFalse=1;
@@ -539,6 +579,7 @@ ppy_msr_MarkCylinder(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
 
 static PyObject *
 ppy_msr_MarkBlackholes(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    flush_std_files();
     static char const *kwlist[]={"setIfTrue","clearIfFalse",NULL};
     int setIfTrue=1, clearIfFalse=1;
     if ( !PyArg_ParseTupleAndKeywords(
@@ -554,6 +595,7 @@ ppy_msr_MarkBlackholes(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
 #ifdef USE_NUMPY
 static PyObject *
 ppy_msr_GetArray(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    flush_std_files();
     static char const *kwlist[]={"field","time","marked",NULL};
     PKD_FIELD field;
     double dTime = 1.0;
