@@ -180,7 +180,7 @@ static PyObject *
 ppy_msr_setParameters(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     MSR *msr = self->msr;
     int n = PyTuple_Size(args);
-    if (n) return PyErr_Format(PyExc_TypeError,"setParameters() takes 0 positional arguments but %d %s given",n,n==1?"was":"were");
+    if (n) return PyErr_Format(PyExc_ValueError,"setParameters() takes 0 positional arguments but %d %s given",n,n==1?"was":"were");
     if (!setParameters(msr,kwobj)) return PyErr_Format(PyExc_AttributeError,"invalid parameters specified");
     Py_RETURN_NONE;
     }
@@ -232,6 +232,34 @@ ppy_msr_Save(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
 	     &fname,&dTime ) )
 	return NULL;
     self->msr->Write(fname,dTime,0);
+    Py_RETURN_NONE;
+    }
+
+static PyObject *
+ppy_msr_WriteArray(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    static char const *kwlist[]={"name","field","binary",NULL};
+    const char *fname;
+    int iField = 0;
+    int bBinary = 0;
+    if ( !PyArg_ParseTupleAndKeywords(
+	     args, kwobj, "si|p:WriteArray", const_cast<char **>(kwlist),
+	     &fname,&iField,&bBinary ) )
+	return NULL;
+    self->msr->OutArray(fname,iField,bBinary);
+    Py_RETURN_NONE;
+    }
+
+static PyObject *
+ppy_msr_WriteVector(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    static char const *kwlist[]={"name","field","binary",NULL};
+    const char *fname;
+    int iField = 0;
+    int bBinary = 0;
+    if ( !PyArg_ParseTupleAndKeywords(
+	     args, kwobj, "si|p:WriteVector", const_cast<char **>(kwlist),
+	     &fname,&iField,&bBinary ) )
+	return NULL;
+    self->msr->OutVector(fname,iField,bBinary);
     Py_RETURN_NONE;
     }
 
@@ -340,7 +368,7 @@ ppy_msr_BuildTree(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
 	if (bActive) self->msr->BuildTreeActive(bEwald,uRungDT);
 	else self->msr->BuildTreeFixed(bEwald,uRungDT);
 	}
-    else if (bActive) return PyErr_Format(PyExc_TypeError,"Building an active tree requires a valid rung");
+    else if (bActive) return PyErr_Format(PyExc_ValueError,"Building an active tree requires a valid rung");
     else self->msr->BuildTree(bEwald);
     Py_RETURN_NONE;
     }
@@ -439,20 +467,85 @@ ppy_msr_MeasurePk(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
 /********** Analysis: Mark particles **********/
 
 static PyObject *
-ppy_msr_MarkBox(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
-    static char const *kwlist[]={"center","radius",NULL};
-    double center[3], radius[3];
+ppy_msr_MarkSpecies(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    static char const *kwlist[]={"species","setIfTrue","clearIfFalse",NULL};
+    PyObject *species;
+    int setIfTrue=1, clearIfFalse=1;
     if ( !PyArg_ParseTupleAndKeywords(
-	     args, kwobj, "(ddd)(ddd)|:MarkBox", const_cast<char **>(kwlist),
-	     &center[0], &center[1], &center[2], &radius[0], &radius[1], &radius[2] ) )
+	     args, kwobj, "O|pp:MarkSpecies", const_cast<char **>(kwlist),
+	     &species, &setIfTrue, &clearIfFalse ) )
 	return NULL;
-    auto n = self->msr->SelBox(center,radius);
+    uint64_t mSpecies = 0;
+
+    if (PyNumber_Check(species)) {
+	if (auto o = PyNumber_Long(species)) {
+	    mSpecies |= 1 << PyLong_AsLongLong(o);
+	    Py_DECREF(o);
+	    }
+	}
+    else if (PySequence_Check(species)) {
+	species = PySequence_Fast(species,"Expected a single species or a list of species");
+	if (species==NULL) return NULL;
+	int nSpecies = PySequence_Fast_GET_SIZE(species);
+	for(auto i=0; i < nSpecies; ++i) {
+            PyObject *item = PySequence_Fast_GET_ITEM(species, i);
+            mSpecies |= 1 << PyNumber_AsSsize_t(item,NULL);
+	    }
+	Py_DECREF(species); // PySequence_Fast creates a new reference
+	}
+    else return PyErr_Format(PyExc_TypeError,"Expected a single species or a list of species");
+    auto n = self->msr->SelSpecies(mSpecies,setIfTrue,clearIfFalse);
+    return Py_BuildValue("L",n);
+    }
+
+static PyObject *
+ppy_msr_MarkBox(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    static char const *kwlist[]={"center","size","setIfTrue","clearIfFalse",NULL};
+    double center[3], size[3];
+    int setIfTrue=1, clearIfFalse=1;
+    if ( !PyArg_ParseTupleAndKeywords(
+	     args, kwobj, "(ddd)(ddd)|pp:MarkBox", const_cast<char **>(kwlist),
+	     &center[0], &center[1], &center[2], &size[0], &size[1], &size[2], &setIfTrue, &clearIfFalse ) )
+	return NULL;
+    auto n = self->msr->SelBox(center,size,setIfTrue,clearIfFalse);
+    return Py_BuildValue("L",n);
+    }
+
+static PyObject *
+ppy_msr_MarkSphere(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    static char const *kwlist[]={"center","radius","setIfTrue","clearIfFalse",NULL};
+    double center[3], radius;
+    int setIfTrue=1, clearIfFalse=1;
+    if ( !PyArg_ParseTupleAndKeywords(
+	     args, kwobj, "(ddd)d|pp:MarkSphere", const_cast<char **>(kwlist),
+	     &center[0], &center[1], &center[2], &radius, &setIfTrue, &clearIfFalse ) )
+	return NULL;
+    auto n = self->msr->SelSphere(center,radius,setIfTrue,clearIfFalse);
+    return Py_BuildValue("L",n);
+    }
+
+static PyObject *
+ppy_msr_MarkCylinder(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    static char const *kwlist[]={"point1","point2","radius","setIfTrue","clearIfFalse",NULL};
+    double point1[3], point2[3], radius;
+    int setIfTrue=1, clearIfFalse=1;
+    if ( !PyArg_ParseTupleAndKeywords(
+	     args, kwobj, "(ddd)(ddd)d|pp:MarkCylinder", const_cast<char **>(kwlist),
+	     &point1[0], &point1[1], &point1[2], &point2[0], &point2[1], &point2[2], &radius, &setIfTrue, &clearIfFalse ) )
+	return NULL;
+    auto n = self->msr->SelCylinder(point1,point2,radius,setIfTrue,clearIfFalse);
     return Py_BuildValue("L",n);
     }
 
 static PyObject *
 ppy_msr_MarkBlackholes(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
-    auto n = self->msr->SelBlackholes();
+    static char const *kwlist[]={"setIfTrue","clearIfFalse",NULL};
+    int setIfTrue=1, clearIfFalse=1;
+    if ( !PyArg_ParseTupleAndKeywords(
+	     args, kwobj, "|pp:MarkBlackholes", const_cast<char **>(kwlist),
+	     &setIfTrue, &clearIfFalse ) )
+	return NULL;
+    auto n = self->msr->SelBlackholes(setIfTrue,clearIfFalse);
     return Py_BuildValue("L",n);
     }
 
@@ -499,6 +592,31 @@ ppy_msr_GetArray(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     self->msr->RecvArray(data,field,N[1]*iUnitSize,dTime,bMarked);
     return array;
     }
+#if 0
+static PyObject *
+ppy_msr_GetParticles(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    static char const *kwlist[]={"time","marked",NULL};
+    double dTime = 1.0;
+    int bMarked = 0;
+
+    if ( !PyArg_ParseTupleAndKeywords(
+	     args, kwobj, "|dp:GetArray", const_cast<char **>(kwlist),
+	     &dTime, &bMarked ) )
+	return NULL;
+    npy_intp N[2];
+    int typenum = NPY_FLOAT32;
+    int iUnitSize = sizeof(float);
+    N[0] = self->msr->N;
+    N[1] = 1;
+    if (bMarked) N[0] = self->msr->CountSelected();
+//    auto array = PyArray_SimpleNew(N[1]>1?2:1, N, typenum);
+//    auto data = reinterpret_cast<double*>(PyArray_DATA(reinterpret_cast<PyArrayObject*>(array)));
+//    self->msr->RecvArray(data,field,N[1]*iUnitSize,dTime,bMarked);
+//    return array;
+    Py_RETURN_NONE; // FOR NOW, FIX
+    }
+#endif
+
 #endif
 
 /******************************************************************************\
@@ -516,6 +634,10 @@ static PyMethodDef msr_methods[] = {
      "Load an input file"},
     {"Save", (PyCFunction)ppy_msr_Save, METH_VARARGS|METH_KEYWORDS,
      "Write a particle output"},
+    {"WriteArray", (PyCFunction)ppy_msr_WriteArray, METH_VARARGS|METH_KEYWORDS,
+     "Write an array of some feld"},
+    {"WriteVector", (PyCFunction)ppy_msr_WriteVector, METH_VARARGS|METH_KEYWORDS,
+     "Write a vector output"},
 
     {"Checkpoint", (PyCFunction)ppy_msr_Checkpoint, METH_VARARGS|METH_KEYWORDS,
      "Write a checkpoint"},
@@ -537,9 +659,15 @@ static PyMethodDef msr_methods[] = {
     {"MeasurePk", (PyCFunction)ppy_msr_MeasurePk, METH_VARARGS|METH_KEYWORDS,
      "Measure the power spectrum"},
 
+    {"MarkSpecies", (PyCFunction)ppy_msr_MarkSpecies, METH_VARARGS|METH_KEYWORDS,
+     "Mark one or more species of particles"},
     {"MarkBox", (PyCFunction)ppy_msr_MarkBox, METH_VARARGS|METH_KEYWORDS,
      "Mark particles in a box"},
-    {"MarkBlackholes", (PyCFunction)ppy_msr_MarkBlackholes, METH_NOARGS,
+    {"MarkSphere", (PyCFunction)ppy_msr_MarkSphere, METH_VARARGS|METH_KEYWORDS,
+     "Mark particles in a sphere"},
+    {"MarkCylinder", (PyCFunction)ppy_msr_MarkCylinder, METH_VARARGS|METH_KEYWORDS,
+     "Mark particles in a cylinder"},
+    {"MarkBlackholes", (PyCFunction)ppy_msr_MarkBlackholes, METH_VARARGS|METH_KEYWORDS,
      "Marks all blackholes"},
 #ifdef USE_NUMPY
     {"GetArray", (PyCFunction)ppy_msr_GetArray, METH_VARARGS|METH_KEYWORDS,

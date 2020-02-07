@@ -2042,11 +2042,7 @@ int pstWrite(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	int nProcessors = in->nProcessors;
 	/* If we are the writer (nProcessors==1) or a producer (==1) keep requesting */
 	if (nProcessors<=1) {
-//	    in->nProcessors = 0;
-//	    int rID = mdlReqService(pst->mdl,pst->idUpper,PST_WRITE,in,nIn);
-//	    in->nProcessors = nProcessors;
 	    pstWrite(pst->pstLower,in,nIn,NULL,0);
-//	    mdlGetReply(pst->mdl,rID,NULL,NULL);
 	    }
 	/* Split writing tasks between child nodes */
 	else {
@@ -2067,19 +2063,7 @@ int pstWrite(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	}
     else {
 	LCL *plcl = pst->plcl;
-//	if (in->nProcessors==0) {
-//	    pkdWriteViaNode(plcl->pkd, in->iLower);
-//	    }
-//	else {
 	if (in->nProcessors!=0) {
-//	    if (in->bStandard==2) {
-//		makeName(achOutFile,in->achOutFile,in->iIndex);
-//		fio = fioGadgetCreate(achOutFile,in->mFlags,in->dTime,in->dBoxSize,
-//		    in->Omega0,in->OmegaLambda,in->HubbleParam,
-//		    int nTypes, const uint64_t *nPart,
-//		    int nFiles, const uint64_t *nAll,
-//		    const double *dMass );
-//		}
 	    if (in->bHDF5) {
 #ifdef USE_HDF5
 		makeName(achOutFile,in->achOutFile,in->iIndex,"");

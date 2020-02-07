@@ -269,6 +269,73 @@ static void storePsGroup(PKD pkd,PKDOUT ctx,PARTICLE *p,int iType,int iDim) {
     }
 
 /******************************************************************************\
+ * Generic binary output - flush needs to be customized
+\******************************************************************************/
+static void storeIntegerBinary(PKD pkd,PKDOUT ctx,PARTICLE *p,int iType,int iDim) {
+    int n = ctx->inOffset - ctx->inBuffer;
+    if ( PKDOUT_BUFFER_SIZE - n < sizeof(int) ) (*ctx->fnFlush)(pkd,ctx,0);
+    *(int *)ctx->inOffset = fetchInteger(pkd,p,iType,iDim);
+    ctx->inOffset += sizeof(int);
+    }
+static void storeFloatBinary(PKD pkd,PKDOUT ctx,PARTICLE *p,int iType,int iDim) {
+    int n = ctx->inOffset - ctx->inBuffer;
+    if ( PKDOUT_BUFFER_SIZE - n < sizeof(float) ) (*ctx->fnFlush)(pkd,ctx,0);
+    *(float *)ctx->inOffset = fetchFloat(pkd,p,iType,iDim);
+    ctx->inOffset += sizeof(float);
+    }
+
+extern uint64_t hilbert2d(float x,float y);
+extern uint64_t hilbert3d(float x,float y,float z);
+static void storeRungDestBinary(PKD pkd,PKDOUT ctx,PARTICLE *p,int iType,int iDim) {
+    assert(0);
+    int iRung;
+    float x,y,z;
+    int64_t lKey;
+    uint16_t *pRungDest;
+    pRungDest = pkdRungDest(pkd,p);
+
+
+    x = pkdPos(pkd,p,0) + 1.5;
+    if (x < 1.0) x = 1.0;
+    else if (x >= 2.0) x = 2.0;
+    y = pkdPos(pkd,p,1) + 1.5;
+    if (y < 1.0) y = 1.0;
+    else if (y >= 2.0) y = 2.0;
+    z = pkdPos(pkd,p,2) + 1.5;
+    if (z < 1.0) z = 1.0;
+    else if (z >= 2.0) z = 2.0;
+
+#if PEANO_HILBERT_KEY_MAX > 0x3ffffffffffll
+    lKey = hilbert3d(x,y,z);
+#else
+    lKey = hilbert2d(x,y);
+#endif
+    if ( PKDOUT_BUFFER_SIZE - (ctx->inOffset-ctx->inBuffer) < 100 )
+	(*ctx->fnFlush)(pkd,ctx,0);
+    sprintf(ctx->inOffset,"%016"PRIx64" %d",lKey,p->uRung);
+    ctx->inOffset += strlen(ctx->inOffset);
+    for(iRung=0; iRung<8; iRung++) {
+	sprintf(ctx->inOffset," %d", pRungDest[iRung]);
+	ctx->inOffset += strlen(ctx->inOffset);
+	}
+    *ctx->inOffset++ = '\n';
+    }
+static void storeHdrBinary(PKD pkd,PKDOUT ctx,uint64_t N) {
+    int n = ctx->inOffset - ctx->inBuffer;
+    if ( PKDOUT_BUFFER_SIZE - n < sizeof(int) ) (*ctx->fnFlush)(pkd,ctx,0);
+    *(int *)ctx->inOffset = N;
+    ctx->inOffset += sizeof(int);
+    }
+static void storePsGroupBinary(PKD pkd,PKDOUT ctx,PARTICLE *p,int iType,int iDim) {
+    assert(0);
+    if ( PKDOUT_BUFFER_SIZE - (ctx->inOffset-ctx->inBuffer) < 40 )
+	(*ctx->fnFlush)(pkd,ctx,0);
+    sprintf(ctx->inOffset,"%"PRIu64" %i\n",(uint64_t)p->iOrder, pkdGetGroup(pkd,p));
+    assert(strlen(ctx->inOffset) < 40 );
+    while( *ctx->inOffset ) ++ctx->inOffset;
+    }
+
+/******************************************************************************\
  * Regular ASCII
 \******************************************************************************/
 
@@ -466,27 +533,51 @@ PKDOUT pkdStartOutASCII(PKD pkd,int iFile, int iType) {
     assert(ctx->inBuffer!=NULL);
     ctx->nBytes = 0;
 
-    switch(getType(iType)) {
-    case OUTTYPE_INTEGER:
-	ctx->fnOut = storeInteger;
-	break;
-    case OUTTYPE_FLOAT:
-	ctx->fnOut = storeFloat;
-	break;
-    case OUTTYPE_RUNGDEST:
-	ctx->fnOut = storeRungDest;
-	break;
-    case OUTTYPE_PSGROUP:
-	ctx->fnOut = storePsGroup;
-	break;
+    if (iFile == PKDOUT_TYPE_BINARY) {
+	switch(getType(iType)) {
+	case OUTTYPE_INTEGER:
+	    ctx->fnOut = storeIntegerBinary;
+	    break;
+	case OUTTYPE_FLOAT:
+	    ctx->fnOut = storeFloatBinary;
+	    break;
+	case OUTTYPE_RUNGDEST:
+	    ctx->fnOut = storeRungDestBinary;
+	    break;
+	case OUTTYPE_PSGROUP:
+	    ctx->fnOut = storePsGroupBinary;
+	    break;
 
-    default:
-	assert(0);
+	default:
+	    assert(0);
+	    }
+	ctx->fnHdr = storeHdrBinary;    	
 	}
-    ctx->fnHdr = storeHdr;
+    else {
+	switch(getType(iType)) {
+	case OUTTYPE_INTEGER:
+	    ctx->fnOut = storeInteger;
+	    break;
+	case OUTTYPE_FLOAT:
+	    ctx->fnOut = storeFloat;
+	    break;
+	case OUTTYPE_RUNGDEST:
+	    ctx->fnOut = storeRungDest;
+	    break;
+	case OUTTYPE_PSGROUP:
+	    ctx->fnOut = storePsGroup;
+	    break;
+
+	default:
+	    assert(0);
+	    }
+	ctx->fnHdr = storeHdr;
+	}
     ctx->fnClose = finish;
 
     switch(iFile) {
+    case PKDOUT_TYPE_BINARY:
+	break;
 #ifdef HAVE_LIBBZ2
     case PKDOUT_TYPE_BZIP2:
 	setupBZ2(pkd,ctx);
@@ -560,24 +651,45 @@ PKDOUT pkdOpenOutASCII(PKD pkd,char *pszFileName,const char *mode,int iFile,int 
     ctx->nBytes = 0;
 
     /* Determine how to handle the header and data */
-    switch(getType(iType)) {
-    case OUTTYPE_INTEGER:
-	ctx->fnOut = storeInteger;
-	break;
-    case OUTTYPE_FLOAT:
-	ctx->fnOut = storeFloat;
-	break;
-    case OUTTYPE_RUNGDEST:
-	ctx->fnOut = storeRungDest;
-	break;
-    case OUTTYPE_PSGROUP:
-	ctx->fnOut = storePsGroup;
-	break;
-    default:
-	assert(0);
-	}
-    ctx->fnHdr = storeHdr;
+    if (iFile == PKDOUT_TYPE_BINARY) {
+	switch(getType(iType)) {
+	case OUTTYPE_INTEGER:
+	    ctx->fnOut = storeIntegerBinary;
+	    break;
+	case OUTTYPE_FLOAT:
+	    ctx->fnOut = storeFloatBinary;
+	    break;
+	case OUTTYPE_RUNGDEST:
+	    ctx->fnOut = storeRungDestBinary;
+	    break;
+	case OUTTYPE_PSGROUP:
+	    ctx->fnOut = storePsGroupBinary;
+	    break;
 
+	default:
+	    assert(0);
+	    }
+	ctx->fnHdr = storeHdrBinary;    	
+	}
+    else {
+	switch(getType(iType)) {
+	case OUTTYPE_INTEGER:
+	    ctx->fnOut = storeInteger;
+	    break;
+	case OUTTYPE_FLOAT:
+	    ctx->fnOut = storeFloat;
+	    break;
+	case OUTTYPE_RUNGDEST:
+	    ctx->fnOut = storeRungDest;
+	    break;
+	case OUTTYPE_PSGROUP:
+	    ctx->fnOut = storePsGroup;
+	    break;
+	default:
+	    assert(0);
+	    }
+	ctx->fnHdr = storeHdr;
+	}
     ctx->fp = fopen (pszFileName,mode);
     assert(ctx->fp != NULL);
     /*WTF: corrupts!!! setvbuf(ctx->fp,NULL,_IOFBF,PKDOUT_BUFFER_SIZE);*/

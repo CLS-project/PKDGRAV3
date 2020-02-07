@@ -68,8 +68,10 @@ public:
     double Read(const char *achInFile);
     void Checkpoint(int iStep, int nSteps, double dTime, double dDelta);
     void Write(const char *pszFileName,double dTime,int bCheckpoint);
-    void OutArray(const char *,int);
-    void OutVector(const char *,int);
+    void OutArray(const char *pszFile,int iType,int iFileType);
+    void OutArray(const char *pszFile,int iType);
+    void OutVector(const char *pszFile,int iType,int iFileType);
+    void OutVector(const char *pszFile,int iType);
     void Output(int iStep, double dTime, double dDelta, int bCheckpoint);
 
     void RecvArray(void *vBuffer,int field,int iUnitSize,double dTime,bool bMarked=false);
@@ -272,7 +274,7 @@ protected:
 
     int Initialize();
     void writeParameters(const char *baseName,int iStep,int nSteps,double dTime,double dDelta);
-    void OutASCII(const char *pszFile,int iType,int nDims);
+    void OutASCII(const char *pszFile,int iType,int nDims,int iFileType);
     void DomainDecompOld(int iRung);
 
     void SaveParameters();

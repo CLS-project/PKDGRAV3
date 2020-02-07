@@ -56,9 +56,10 @@
 #define OUT_PSGROUP_ARRAY      122
 #define OUT_PSGROUP_STATS      123
 
-#define PKDOUT_TYPE_ASCII 0
-#define PKDOUT_TYPE_ZLIB  1
-#define PKDOUT_TYPE_BZIP2 2
+#define PKDOUT_TYPE_ASCII  0
+#define PKDOUT_TYPE_BINARY 1
+#define PKDOUT_TYPE_ZLIB   2
+#define PKDOUT_TYPE_BZIP2  3
 
 #ifdef HAVE_LIBBZ2
 #include <bzlib.h>

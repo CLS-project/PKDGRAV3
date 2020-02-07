@@ -2157,7 +2157,7 @@ void MSR::Reorder() {
 	}
     }
 
-void MSR::OutASCII(const char *pszFile,int iType,int nDims) {
+void MSR::OutASCII(const char *pszFile,int iType,int nDims,int iFileType) {
 
     char achOutFile[PST_FILENAME_SIZE];
     LCL *plcl;
@@ -2170,8 +2170,8 @@ void MSR::OutASCII(const char *pszFile,int iType,int nDims) {
     int rID;
 
     switch(nDims) {
-    case 1: arrayOrVector = "vector"; break; /* JW -- seems like a bug */
-    case 3: arrayOrVector = "array";  break;
+    case 1: arrayOrVector = "array";  break;
+    case 3: arrayOrVector = "vector"; break;
     default:arrayOrVector = NULL;
 	    assert(nDims==1 || nDims==3);
 	}
@@ -2189,7 +2189,7 @@ void MSR::OutASCII(const char *pszFile,int iType,int nDims) {
 	*/
 	MSR::MakePath(param.achDataSubPath,pszFile,achOutFile);
 
-	switch(param.iCompress) {
+	switch(iFileType) {
 #ifdef HAVE_LIBBZ2
 	case PKDOUT_TYPE_BZIP2:
 	    strcat(achOutFile,".bz2");
@@ -2212,7 +2212,7 @@ void MSR::OutASCII(const char *pszFile,int iType,int nDims) {
 	return;
 	}
 
-    if (param.bParaWrite && param.iCompress) {
+    if (param.bParaWrite && iFileType>1) {
 	struct inCompressASCII in;
 	struct outCompressASCII out;
 	struct inWriteASCII inWrite;
@@ -2229,7 +2229,7 @@ void MSR::OutASCII(const char *pszFile,int iType,int nDims) {
 	inWrite.nFileOffset = 0;
 	for( iDim=0; iDim<nDims; iDim++ ) {
 	    in.nTotal = total.nTotal;
-	    in.iFile = param.iCompress;
+	    in.iFile = iFileType;
 	    in.iType = iType;
 	    in.iDim = iDim;
 	    pstCompressASCII(pst,&in,sizeof(in),&out,sizeof(out));
@@ -2239,7 +2239,7 @@ void MSR::OutASCII(const char *pszFile,int iType,int nDims) {
 	    }
 	}
     else {
-	pkdout = pkdOpenOutASCII(plcl->pkd,achOutFile,"wb",param.iCompress,iType);
+	pkdout = pkdOpenOutASCII(plcl->pkd,achOutFile,"wb",iFileType,iType);
 	if (!pkdout) {
 	    printf("Could not open %s Output File:%s\n",arrayOrVector,achOutFile);
 	    Exit(1);
@@ -2277,12 +2277,18 @@ void MSR::OutASCII(const char *pszFile,int iType,int nDims) {
 	}
     }
 
+void MSR::OutArray(const char *pszFile,int iType,int iFileType) {
+    OutASCII(pszFile,iType,1,iFileType);
+    }
 void MSR::OutArray(const char *pszFile,int iType) {
-    OutASCII(pszFile,iType,1);
+    OutArray(pszFile,iType,param.iCompress);
     }
 
+void MSR::OutVector(const char *pszFile,int iType,int iFileType) {
+    OutASCII(pszFile,iType,3,iFileType);
+    }
 void MSR::OutVector(const char *pszFile,int iType) {
-    OutASCII(pszFile,iType,3);
+    OutVector(pszFile,iType,param.iCompress);
     }
 
 void MSR::SmoothSetSMF(SMF *smf, double dTime, double dDelta) {
