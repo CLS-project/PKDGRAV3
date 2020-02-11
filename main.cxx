@@ -80,7 +80,7 @@ void worker_done(MDL mdl, void *ctx) {
 /*
 ** This is invoked for the "master" process after the worker has been setup.
 */
-void master(MDL mdl,void *vpst) {
+int master(MDL mdl,void *vpst) {
     auto pst = reinterpret_cast<PST>(vpst);
     int argc = mdlGetArgc(mdl);
     char **argv = mdlGetArgv(mdl);
@@ -98,20 +98,23 @@ void master(MDL mdl,void *vpst) {
 #endif
 
     MSR msr(mdl,pst);
-    if (!msr.Python(argc,argv)) {
+    auto rc = msr.Python(argc,argv);
+    if (rc < 0) {
 	printf("%s using Python %d.%d.%d\n", PACKAGE_STRING, PY_MAJOR_VERSION, PY_MINOR_VERSION, PY_MICRO_VERSION );
 	msr.ValidateParameters();
 
 	/* Establish safety lock. */
 	if (!msr.GetLock()) {
-	    return;
+	    return 1;
 	    }
 
 	msr.Hostname(); // List all host names
 
 	auto dTime = msr.LoadOrGenerateIC();
 	if (dTime != -HUGE_VAL) msr.Simulate(dTime);
+	rc = 0;
 	}
+    return rc;
     }
 
 int main(int argc,char **argv) {
@@ -126,7 +129,5 @@ int main(int argc,char **argv) {
     setbuf(stdout,(char *) NULL);
 #endif
 
-    mdlLaunch(argc,argv,master,worker_init,worker_done);
-
-    return 0;
+    return mdlLaunch(argc,argv,master,worker_init,worker_done);
     }

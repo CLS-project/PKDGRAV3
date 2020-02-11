@@ -690,7 +690,7 @@ void mpiClass::MessageCacheClose(mdlMessageCacheClose *message) {
 *
 \*****************************************************************************/
 
-mpiClass::mpiClass(void (*fcnMaster)(MDL,void *),void * (*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *),int argc, char **argv)
+mpiClass::mpiClass(int (*fcnMaster)(MDL,void *),void * (*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *),int argc, char **argv)
     : mdlClass(this,fcnMaster,fcnWorkerInit,fcnWorkerDone,argc,argv) {
     }
 
@@ -1034,13 +1034,14 @@ static void TERM_handler(int signo) {
     }
 
 extern "C"
-void mdlLaunch(int argc,char **argv,void (*fcnMaster)(MDL,void *),void * (*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *)) {
+int mdlLaunch(int argc,char **argv,int (*fcnMaster)(MDL,void *),void * (*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *)) {
     mpiClass mdl(fcnMaster,fcnWorkerInit,fcnWorkerDone,argc,argv);
-    mdl.Launch(argc,argv,fcnMaster,fcnWorkerInit,fcnWorkerDone);
+    return mdl.Launch(argc,argv,fcnMaster,fcnWorkerInit,fcnWorkerDone);
     }
-void mpiClass::Launch(int argc,char **argv,void (*fcnMaster)(MDL,void *),void * (*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *)) {
+int mpiClass::Launch(int argc,char **argv,int (*fcnMaster)(MDL,void *),void * (*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *)) {
     int i,n,bDiag,bThreads,bDedicated,thread_support,rc,flag,*piTagUB;
     char *p, ach[256];
+    int exit_code = 0;
 #ifdef USE_HWLOC
     hwloc_topology_t topology;
     hwloc_cpuset_t set_proc, set_thread;
@@ -1282,14 +1283,16 @@ void mpiClass::Launch(int argc,char **argv,void (*fcnMaster)(MDL,void *),void * 
 	pthread_setspecific(worker_key, worker_ctx);
 	CommitServices();
 	if (Self()) Handler();
-	else run_master();
+	else exit_code = run_master();
 	(*fcnWorkerDone)(reinterpret_cast<MDL>(static_cast<mdlClass *>(this)),worker_ctx);
 	}
     drainMPI();
 
     pthread_barrier_destroy(&barrier);
     for (i = iCoreMPI+1; i < Cores(); ++i) {
-	pthread_join(threadid[i],0);
+	int *result = NULL;
+	pthread_join(threadid[i],reinterpret_cast<void**>(&result));
+	if (result) exit_code = *result;
 	delete pmdl[i];
 	}
     delete[] (pmdl-1);
@@ -1301,6 +1304,7 @@ void mpiClass::Launch(int argc,char **argv,void (*fcnMaster)(MDL,void *),void * 
 
     MPI_Barrier(commMDL);
     MPI_Finalize();
+    return exit_code;
     }
 
 void mpiClass::enqueue(mdlMessage &M) {
@@ -1576,7 +1580,7 @@ mdlClass::mdlClass(class mpiClass *mdl, int iMDL)
     init();
     }
 
-mdlClass::mdlClass(class mpiClass *mdl, void (*fcnMaster)(MDL,void *),void * (*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *),int argc, char **argv)
+mdlClass::mdlClass(class mpiClass *mdl, int (*fcnMaster)(MDL,void *),void * (*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *),int argc, char **argv)
 	: mpi(mdl), mdlBASE(argc,argv), fcnWorkerInit(fcnWorkerInit), fcnWorkerDone(fcnWorkerDone), fcnMaster(fcnMaster) {
     init();
     }
@@ -1591,17 +1595,18 @@ void mdlClass::drainMPI() {
 	}
     }
 
-void mdlClass::run_master() {
-    (*fcnMaster)(reinterpret_cast<MDL>(this),worker_ctx);
+int mdlClass::run_master() {
+    auto rc = (*fcnMaster)(reinterpret_cast<MDL>(this),worker_ctx);
     int id;
     for (id=1;id<Threads();++id) {
 	int rID = ReqService(id,SRV_STOP,NULL,0);
 	GetReply(rID,NULL,NULL);
 	}
+    return rc;
     }
 
 void *mdlClass::WorkerThread() {
-    void *result;
+    void *result = NULL;
 #ifdef USE_ITT
     char szName[20];
     sprintf(szName,"ID %d", Core());
@@ -1612,7 +1617,10 @@ void *mdlClass::WorkerThread() {
     pthread_setspecific(worker_key, worker_ctx);
     CommitServices();
     if (Self()) Handler();
-    else run_master();
+    else {
+        exit_code = run_master();
+        result = &exit_code;
+	}
     (*fcnWorkerDone)(reinterpret_cast<MDL>(this),worker_ctx);
 
     if (Core() != iCoreMPI) {

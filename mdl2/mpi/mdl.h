@@ -138,6 +138,7 @@ public:
     };
 
 class mdlClass : public mdlBASE {
+    int exit_code; // Only used by the worker thread
     friend class CACHE;
 protected:
     friend class mdlMessageFlushToCore;
@@ -147,7 +148,7 @@ public:
     class mpiClass *mpi;
     void * (*fcnWorkerInit)(MDL mdl);
     void   (*fcnWorkerDone)(MDL mdl, void *ctx);
-    void   (*fcnMaster)(    MDL mdl, void *ctx);
+    int    (*fcnMaster)(    MDL mdl, void *ctx);
 
     void *worker_ctx;
     mdlMessageQueue threadBarrierQueue;
@@ -201,7 +202,7 @@ public:
 protected:
     void CommitServices();
     void Handler();
-    void run_master();
+    int run_master();
     void mdl_MPI_Ssend(void *buf, int count, MPI_Datatype datatype, int dest, int tag);
     int mdl_MPI_Sendrecv(
 	void *sendbuf, int sendcount, MPI_Datatype sendtype,
@@ -232,7 +233,7 @@ private:
 public:
     explicit mdlClass(class mpiClass *mpi, int iMDL);
     explicit mdlClass(class mpiClass *mpi,
-		void (*fcnMaster)(MDL,void *),void * (*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *),
+		int (*fcnMaster)(MDL,void *),void * (*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *),
 		int argc=0, char **argv=0);
     virtual ~mdlClass();
 
@@ -371,10 +372,10 @@ protected:
     void finishRequests();
     int swapall(const char *buffer,int count,int datasize,/*const*/ int *counts);
 public:
-    explicit mpiClass(void (*fcnMaster)(MDL,void *),void * (*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *),
+    explicit mpiClass(int (*fcnMaster)(MDL,void *),void * (*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *),
     	     int argc=0, char **argv=0);
     virtual ~mpiClass();
-    void Launch(int argc,char **argv,void (*fcnMaster)(MDL,void *),void * (*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *));
+    int Launch(int argc,char **argv,int (*fcnMaster)(MDL,void *),void * (*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *));
     void enqueue(mdlMessage &M);
     void enqueue(const mdlMessage &M, mdlMessageQueue &replyTo, bool bWait=false);
     void pthreadBarrierWait();
@@ -391,7 +392,7 @@ int mdlThreadToProc(MDL mdl, int iThread);
 /*
  ** General Functions
  */
-void mdlLaunch(int,char **,void (*)(MDL,void *),void * (*)(MDL),void (*)(MDL,void *));
+int mdlLaunch(int,char **,int (*)(MDL,void *),void * (*)(MDL),void (*)(MDL,void *));
 MDL   mdlMDL(void);
 void *mdlWORKER(void);
 

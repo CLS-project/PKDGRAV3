@@ -37,8 +37,6 @@
 static void flush_std_files(void) {
     auto out = PySys_GetObject("stdout");
     auto err = PySys_GetObject("stderr");
-    PyObject *tmp;
-
     if (out != NULL && out != Py_None) {
         auto tmp = PyObject_CallMethod(out, "flush", "");
         if (tmp == NULL) PyErr_WriteUnraisable(out);
@@ -996,8 +994,23 @@ int MSR::Python(int argc, char *argv[]) {
 	FILE *fp = fopen(filename,"r");
 	if (fp == NULL) { perror(filename); exit(errno); }
 	auto s = PyRun_FileEx(fp,filename,Py_file_input,globals,locals,1); // fp is closed on return
-	if (PyErr_Occurred()) { PyErr_Print(); exit(1); }
-	Py_DECREF(s);
+	Py_XDECREF(s);
+	if (PyErr_Occurred()) {
+	    int rc = 1;
+	    if(PyErr_ExceptionMatches(PyExc_SystemExit)) {
+		PyObject *etype, *evalue, *etrace;
+		PyErr_Fetch(&etype, &evalue, &etrace);
+		if (auto o = PyNumber_Long(evalue)) {
+		    rc = PyLong_AsLong(o);
+		    Py_DECREF(o);
+		    }
+		Py_DECREF(etype);
+		Py_DECREF(evalue);
+		Py_DECREF(etrace);
+		}
+	    else PyErr_Print();
+	    return rc;
+	    }
 	}
 
     // If "MASTER" was imported then we are done -- the script should have done its job
@@ -1012,5 +1025,5 @@ int MSR::Python(int argc, char *argv[]) {
 	bVDetails = getParameterBoolean("bVDetails");
 	}
 
-    return moduleState->bImported;
+    return moduleState->bImported ? 0 : -1;
     }

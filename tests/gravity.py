@@ -101,4 +101,4 @@ class TestGravityB0Periodic(unittest.TestCase):
 
 if __name__ == '__main__':
     print('Running test')
-    unittest.main(exit=False,verbosity=2,testRunner=xmlrunner.XMLTestRunner(output='test-reports'))
+    unittest.main(verbosity=2,testRunner=xmlrunner.XMLTestRunner(output='test-reports'))
