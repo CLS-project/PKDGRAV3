@@ -1472,7 +1472,7 @@ static inline uint8_t pkdDtToRungInverse(float fT, float fiDelta, uint8_t uMaxRu
 	    } ieee;
 	} T;
     int iRung;
-    T.f = fiDelta*fT;
+    T.f = fabsf(fiDelta)*fT;
     if (T.f>=1.0) return 0;
     iRung = 126 - T.ieee.exponent; /* -log2(d) */
     if (iRung > uMaxRung) return uMaxRung;

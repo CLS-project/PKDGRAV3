@@ -1681,6 +1681,10 @@ static void queue_dio(asyncInfo *info,int i,int bWrite) {
     rc = io_submit(info->ctx,1,&pcb);
     if (rc<0) { perror("io_submit"); abort(); }
 #else
+    memset(&info->cb[i],0,sizeof(info->cb[i]));
+    info->cb[i].aio_fildes = info->fd;
+    info->cb[i].aio_sigevent.sigev_notify = SIGEV_NONE;
+    info->cb[i].aio_lio_opcode = LIO_NOP;
     info->cb[i].aio_buf = info->pSource;
     info->cb[i].aio_offset = info->iFilePosition;
     info->cb[i].aio_nbytes = nBytesWrite;
@@ -3005,7 +3009,7 @@ uint8_t pkdDtToRung(double dT, double dDelta, uint8_t uMaxRung) {
 	    } ieee;
 	} T;
     int iRung;
-    T.d = dDelta/dT;
+    T.d = fabs(dDelta)/dT;
     if (T.d<=1.0) return 0;
     iRung = T.ieee.exponent - 1023; /* log2(d) */
     if (iRung > uMaxRung) return uMaxRung;
