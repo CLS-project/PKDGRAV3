@@ -151,7 +151,7 @@ def parse():
     add_flag(cosmop,'Om',default=1.0, dest='dOmega0', type=float, help='dOmega0')
     add_flag(cosmop,'Lambda',default=0, dest='dLambda', type=float, help='dLambda')
     add_flag(cosmop,'omDE',default=0, dest='dOmegaDE', type=float, help='Omega for Dark Energy using w0 and wa parameters: <dOmegaDE')
-    add_flag(cosmop,'w0',default=0, dest='w0', type=float, help='w0 parameter for Dark Energy <w0')
+    add_flag(cosmop,'w0',default=-1, dest='w0', type=float, help='w0 parameter for Dark Energy <w0')
     add_flag(cosmop,'wa',default=0.0, dest='wa', type=float, help='wa parameter for Dark Energy <wa')
     add_flag(cosmop,'Omrad',default=0.0, dest='dOmegaRad', type=float, help='dOmegaRad')
     add_flag(cosmop,'Omb',default=0.0, dest='dOmegab', type=float, help='dOmegab')
