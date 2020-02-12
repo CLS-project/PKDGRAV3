@@ -2728,9 +2728,6 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
              dr[2] = 0.0;
 #endif
 
-#ifdef GRAV_RT
-             if ( (pkdPos(pkd,p,1)<-0.4) | (pkdPos(pkd,p,1)>0.4) ) continue;
-#endif
 
 
 	    pkdGetPos1(pkd,p,r0);
@@ -2739,10 +2736,6 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
                }
 
 
-#ifdef GRAV_RT
-//             if (pkdPos(pkd,p,1) > 0.4) { pkdSetPos(pkd,p,1, 0.8 - pkdPos(pkd,p,1) ); pkdVel(pkd,p)[1] *= -1;}
-//             if (pkdPos(pkd,p,1) <-0.4) { pkdSetPos(pkd,p,1,-0.8 - pkdPos(pkd,p,1) ); pkdVel(pkd,p)[1] *= -1; }
-#endif
              pkdMinMax(rfinal,dMin,dMax);
          }
       }else{
@@ -2874,68 +2867,6 @@ void pkdApplyGravWork(PKD pkd,double dTime,double dDelta,double dDeltaVPred,doub
     int i,j;
     double gravE, gravEdm, fac, pDelta;
     float* pv, *pa;
-/*
-    assert(pkd->oVelocity);
-    assert(pkd->oMass);
-
-    for (i=0;i<pkdLocal(pkd);++i) { 
-      p = pkdParticle(pkd,i);
-      if (pkdIsGas(pkd,p) && pkdIsRungRange(p,uRungLo,uRungHi)   ) { 
-         psph = pkdSph(pkd, p);
-         pv = pkdVel(pkd,p);
-         pa = pkdAccel(pkd,p);
-
-
-#ifdef GRAV_KEPLER
-            // Analytical gravity for the keplerian ring:
-               double eps = 0.0;
-               double r = sqrt(pkdPos(pkd,p,0)*pkdPos(pkd,p,0)  +  pkdPos(pkd,p,1)*pkdPos(pkd,p,1) + eps*eps);
-               double GM = 1.;
-               double r3 = r*r*r;
-
-               if (r > 0.35 ){
-               pa[0] = -GM*pkdPos(pkd,p,0)/r3;
-               pa[1] = -GM*pkdPos(pkd,p,1)/r3;
-               pa[2] = 0.0; 
-               }else{
-                  pa[0] = 0.0; //GM*pkdPos(pkd,p,0)/r3 * ( 1. - pow(r/0.35,2) - r/0.35 );
-                  pa[1] = 0.0; //GM*pkdPos(pkd,p,1)/r3 * ( 1. - pow(r/0.35,2) - r/0.35 );
-                  pa[2] = 0.;
-               }
-#endif
-
-#ifdef GRAV_RT
-//               if ( (pkdPos(pkd,p,1) > 0.4) | (pkdPos(pkd,p,1) < -0.4) ) continue;
-              pa[0] = 0.0;
-              pa[1] = -.5; 
-              pa[2] = 0.0;
-#endif             
-
-         pDelta = dTime - psph->lastUpdateTime; //dDelta *(1 << (uRungHi-p->uRung));
-      
-            gravE = 0.0;
-            for (j=0;j<3;j++){
-               psph->mom[j] += 0.5*pDelta*(psph->lastMass*psph->lastAcc[j] + pkdMass(pkd,p)*pa[j]); 
-               pkdVel(pkd,p)[j] = psph->mom[j]/pkdMass(pkd,p);
-
-               gravE += 0.5*pDelta*( psph->lastMass*psph->lastV[j]*psph->lastAcc[j] + pkdMass(pkd,p)*pkdVel(pkd,p)[j]*pa[j]  );
-            }
-
-            psph->E += pDelta*gravE;// + gravEdm;
-
-            //IA: Now we set the last values
-           for (j=0;j<3;j++){
-              psph->lastAcc[j] = pkdAccel(pkd,p)[j];   
-              psph->lastV[j] = psph->mom[j];
-           } 
-
-            psph->vPred[0] = pkdVel(pkd,p)[0];
-            psph->vPred[1] = pkdVel(pkd,p)[1];
-            psph->vPred[2] = pkdVel(pkd,p)[2];
-      }
-    }
-    
-*/
     }
 
 
@@ -2995,9 +2926,6 @@ void pkdComputePrimVars(PKD pkd,int iRoot, double dTime, double dDelta) {
          if (pkdIsGas(pkd,p)  && pkdIsActive(pkd, p)  ) { //IA: We only update those which are active, as in AREPO
             psph = pkdSph(pkd, p);
 
-#ifdef GRAV_RT
-             if ( dTime != 1 & ((pkdPos(pkd,p,1)<-0.4) | (pkdPos(pkd,p,1)>0.4)) ) continue;
-#endif
              if (dDelta > 0){ 
                 pDelta = dTime - psph->lastUpdateTime; //dDelta *(1 << (uRungHi-p->uRung));
              }else{
@@ -3030,10 +2958,8 @@ void pkdComputePrimVars(PKD pkd,int iRoot, double dTime, double dDelta) {
 
             // ##### Expansion effects
             //  E^{n+1} = E^{n} + dE_flux - dt*(H^{n} E^n + H^{n+1} E^{n+1})
-            // The last one may be more accurate but requires saving the old momentum/energy
             if (pkd->param.csm->val.bComove){
                psph->E = (psph->E - psph->lastHubble*pDelta*psph->lastE)/(1.+pDelta*dHubble);
-               //printf("E (%e - %e / %e  \n", psph->E, pDelta, (1.+pDelta*dHubble));
                psph->Uint = (psph->Uint - psph->lastHubble*1.5*pDelta*psph->lastUint*(pkd->param.dConstGamma - 1.))/(1.+1.5*pDelta*dHubble*(pkd->param.dConstGamma - 1.));
                
                for (j=0; j<3; j++){ 
@@ -3075,10 +3001,8 @@ void pkdComputePrimVars(PKD pkd,int iRoot, double dTime, double dDelta) {
 
             if (fracHtoCM > 1.1){
                for (j=0;j<3;j++) corrVel[j] = psph->cellCM[j]/d;
-               //printf("Regularizing \n");
             }else if (fracHtoCM > 0.9){
                for (j=0;j<3;j++) corrVel[j] = psph->cellCM[j]/d * (d - 0.9*ETA*pkdBall(pkd,p)*2.) / (0.2* ETA * 2.*pkdBall(pkd,p)) ;
-               //printf("Regularizing \n");
             }else{
                for (j=0;j<3;j++) corrVel[j] = 0.;
             }

@@ -3660,8 +3660,8 @@ void msrUpdatePrimVars(MSR msr,double dTime,double dDelta,int iRoot){
           nSmoothed = msrReSmooth(msr,dTime,SMX_FIRSTHYDROLOOP,0,0);
           msrSetFirstHydroLoop(msr, 0);
           it++;
-          if (it>4)
-             msrIncreaseNeighborsStd(msr);
+          //if (it>4)
+          //   msrIncreaseNeighborsStd(msr);
        }
        if (nSmoothed >0) { /* IA: If we reach the maximum iteration number without full convergence, we compute the smoothing length
                             * as the mean of the surrounding particles which have already converged.
