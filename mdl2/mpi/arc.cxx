@@ -113,7 +113,7 @@ void ARC::initialize(uint32_t uCacheSizeInBytes,uint32_t uLineSizeInBytes,uint32
 
     // Calculate the size of the hash table
     uHashMask = swar32(3*nCache-1);
-    HashFree.resize(nCache);
+    HashFree.resize(2*nCache);
     HashChains.resize(uHashMask+1);
 
     target_T1 = nCache/2;   /* is this ok? */
@@ -316,6 +316,7 @@ void *ARC::fetch(uint32_t uIndex, int uId, int bLock,int bModify,bool bVirtual) 
 	    uint32_t nInCache = T1.size() + T2.size() + B1.size() + B2.size();
 	    if (nInCache >= nCache) {         /* cache full? */
 		/* Yes, cache full: */
+		auto data = replace(inB2); // Careful: replace() can take from T1
 		if (nInCache == 2*nCache) {
 		    /* directory is full: */
 		    tempX = remove_from_hash(B2);
@@ -325,7 +326,7 @@ void *ARC::fetch(uint32_t uIndex, int uId, int bLock,int bModify,bool bVirtual) 
 		    T1.splice(T1.end(),ArcFree,ArcFree.begin());
 		    assert(T1.back().data == NULL);
 		}
-		T1.back().data = replace(inB2);                                /* new place for page */
+		T1.back().data = data;
 	    } else {                                                      /* cache not full, easy case */
 		T1.splice(T1.end(),ArcFree,ArcFree.begin());
 		assert(T1.back().data != NULL);               /* This CDB should have an unused page associated with it */
@@ -336,7 +337,9 @@ void *ARC::fetch(uint32_t uIndex, int uId, int bLock,int bModify,bool bVirtual) 
 	tempX->uId = uId;                  /* temp->dirty = dirty;  p->ARC_where = _T1_; as well! */
 	tempX->uPage = uLine;
 	finishRequest(uLine,uId,bVirtual,tempX->data);
+	assert(!HashFree.empty());
 	Hash.splice_after(Hash.before_begin(),HashFree,HashFree.before_begin());
+	assert(!Hash.empty());
 	Hash.front() = tempX;
     }
     if (bLock) {
