@@ -16,6 +16,8 @@
  */
 
 #include "mdl.h"
+using namespace mdl;
+
 #include <algorithm>
 
 static inline int size_t_to_int(size_t v) {

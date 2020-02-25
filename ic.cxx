@@ -30,6 +30,7 @@
 #include "gridinfo.hpp"
 using namespace gridinfo;
 using namespace blitz;
+using namespace mdl;
 static const std::complex<float> I(0,1);
 
 typedef blitz::Array<basicParticle,3> basicParticleArray;

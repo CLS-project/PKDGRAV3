@@ -4,9 +4,9 @@
 #include "mdl_config.h"
 #include "mpi.h"
 #include "mdlfft.h"
-#include "opa_queue.h"
+#include "basicmessage.h"
 #include <vector>
-
+namespace mdl {
 enum class CacheMessageType : uint8_t {
     UNKNOWN = 0,
     REQUEST = 1,
@@ -53,26 +53,14 @@ public:
     bool addBuffer(int nSize, const CacheHeader *pData);
     };
 
-class mdlMessage {
-    friend class mdlMessageQueue;
-    OPA_Queue_element_hdr_t hdr;
-    struct mdlMessageQueue *replyQueue;
+class mdlMessage : public basicMessage {
 public:
     mdlMessage();
-    void sendBack();
     virtual void action(class mpiClass *mpi) {sendBack();}
     virtual void result(class mdlClass *mdl);
     };
-
-struct mdlMessageQueue : public OPA_Queue_info_t {
-    mdlMessageQueue();
-    mdlMessage &wait();
-    void enqueue(mdlMessage *M) { OPA_Queue_enqueue(this,  M, mdlMessage, hdr); }
-    void enqueue(mdlMessage &M) { OPA_Queue_enqueue(this, &M, mdlMessage, hdr); }
-    void enqueue(const mdlMessage &M,mdlMessageQueue &Q, bool bWait=false);
-    void enqueueAndWait(const mdlMessage &M);
-    mdlMessage &dequeue() { mdlMessage *M; OPA_Queue_dequeue(this, M, mdlMessage, hdr); return * M; }
-    bool empty() {return OPA_Queue_is_empty(this);}
+struct mdlMessageQueue : public basicQueue<mdlMessage> {
+    mdlMessageQueue() : basicQueue<mdlMessage>() {}
     };
 
 // Used to hold a sequence of cache lines to send to the MPI thread for processing
@@ -322,5 +310,5 @@ public:
     explicit mdlMessageCacheRequest(uint8_t cid, int32_t idFrom, uint16_t nItems, int32_t idTo, int32_t iLine, void *pLine);
     mdlMessageCacheRequest & makeCacheRequest(uint16_t nItems, int32_t idTo, int32_t iLine, void *pLine);
     };
-
+} // namespace mdl
 #endif

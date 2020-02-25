@@ -59,6 +59,7 @@
 #endif
 #include <sys/stat.h>
 #include <algorithm>
+#include <functional>
 #ifdef HAVE_SYS_PARAM_H
 #include <sys/param.h> /* for MAXHOSTNAMELEN, if available */
 #endif

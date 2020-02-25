@@ -1,52 +1,11 @@
 #include "mdlmessages.h"
 #include "mdl.h"
 #include <string.h>
-
-mdlMessageQueue::mdlMessageQueue() {
-    OPA_Queue_init(this);
-    }
-
-mdlMessage &mdlMessageQueue::wait() {
-    while (OPA_Queue_is_empty(this)) {
-	// This is important in the case where we have oversubscribed the CPU
-#ifdef _MSC_VER
-	SwitchToThread();
-#else
-	sched_yield();
-#endif
-	}
-    return dequeue();
-    }
-
-void mdlMessageQueue::enqueue(const mdlMessage &C,mdlMessageQueue &Q, bool bWait) {
-    // We do modify "M", but we are done before we return. Promise.
-    mdlMessage &M = const_cast<mdlMessage&>(C);
-    M.replyQueue = &Q;
-    OPA_Queue_enqueue(this, &M, mdlMessage, hdr);
-    if (bWait) {
-    	wait();
-	Q.dequeue();
-	}
-    }
-
-void mdlMessageQueue::enqueueAndWait(const mdlMessage &M) {
-    // We do modify "M", but we are done before we return. Promise.
-    mdlMessageQueue wait;
-    enqueue(M,wait,true);
-    }
+namespace mdl {
+mdlMessage::mdlMessage() : basicMessage() {}
 
 // Some messages don't need a result action, so this is the default
 void mdlMessage::result(class mdlClass *mdl) {}
-
-// Unless otherwise specified, no reply is necessary (but this is the exception)
-mdlMessage::mdlMessage() : replyQueue(NULL) {}
-
-// Send this message back to the requested reply queue
-void mdlMessage::sendBack() {
-    if (replyQueue) OPA_Queue_enqueue(replyQueue, this, mdlMessage, hdr);
-
-    //replyQueue->enqueue(*this);
-    }
 
 FlushBuffer::FlushBuffer(uint32_t nSize,CacheMessageType mid) : nBuffer(0),Buffer(nSize),mid(mid) {}
 
@@ -212,3 +171,5 @@ mdlMessageCacheRequest & mdlMessageCacheRequest::makeCacheRequest(uint16_t nItem
 // You would think that the "request" MPI send would complete before the response message is received,
 // but this is NOT ALWAYS THE CASE. Care must be take if new/delete is used on this type of message.
 void mdlMessageCacheRequest::finish(class mpiClass *mdl, const MPI_Status &status) {}
+
+} // namespace mdl

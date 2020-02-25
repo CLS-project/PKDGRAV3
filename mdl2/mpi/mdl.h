@@ -65,7 +65,7 @@ typedef int (*mdlPack)(void *,int *,size_t,void*);
 typedef void * MDL;
 
 #ifdef __cplusplus
-
+namespace mdl {
 typedef struct mdl_wq_node {
     /* We can put this on different types of queues */
     union {
@@ -380,6 +380,7 @@ public:
     void enqueue(const mdlMessage &M, mdlMessageQueue &replyTo, bool bWait=false);
     void pthreadBarrierWait();
     };
+} // namespace mdl
 #endif
 
 #ifdef __cplusplus
