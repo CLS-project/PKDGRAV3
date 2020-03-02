@@ -154,6 +154,27 @@ typedef struct velsmooth {
     float veldisp2;
     } VELSMOOTH;
 
+#define KBOLTZ	1.3806485e-16     /* bolzman constant in cgs */
+#define MHYDR 1.6735575e-24       /* mass of hydrogen atom in grams */
+#define MSOLG 1.98847e33        /* solar mass in grams */
+#define GCGS 6.67408e-8         /* G in cgs */
+#define KPCCM 3.085678e21    /* kiloparsec in centimeters */
+#define SIGMAT 6.6524e-25    /* Thompson cross-section (cm^2) */
+#define LIGHTSPEED 2.9979e10 /* Speed of Light cm/s */
+
+enum chemistry_element {
+  chemistry_element_H = 0,
+  chemistry_element_He,
+  chemistry_element_C,
+  chemistry_element_N,
+  chemistry_element_O,
+  chemistry_element_Ne,
+  chemistry_element_Mg,
+  chemistry_element_Si,
+  chemistry_element_Fe,
+  chemistry_element_count
+};
+
 typedef struct sphfields {
     char *pNeighborList; /* pointer to nearest neighbor list - compressed */
     double vPred[3];
@@ -219,6 +240,12 @@ typedef struct sphfields {
 
     /* IA: TODO temporarly */
     uint8_t uNewRung; 
+
+#ifdef COOLING
+    float chemistry[chemistry_element_count];
+    double lastCooling;
+    float cooling_dudt;
+#endif
 
 #if defined(MAKE_GLASS) || defined(REGULARIZE_MESH)
     double cellCM[3];

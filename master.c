@@ -1620,6 +1620,22 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     prmAddParam(msr->prm,"dNeighborsStd", 2, &msr->param.dNeighborsStd0,
 		sizeof(double), "neighstd",
 		"Maximum deviation from desired number of neighbors");
+#ifdef COOLING
+    prmAddParam(msr->prm,"strCoolingTables",3,msr->param.strCoolingTables,256,"coolingtables",
+		"Path to cooling tables");
+    msr->param.fH_reion_z = 1;
+    prmAddParam(msr->prm,"fH_reion_z", 2, &msr->param.fH_reion_z,
+		sizeof(float), "H_reion_z",
+		"Redshift of Hydrogen reionization");
+    msr->param.fHe_reion_z_centre = 1;
+    prmAddParam(msr->prm,"fHe_reion_z_centre", 2, &msr->param.fHe_reion_z_centre,
+		sizeof(float), "He_reion_z_centre",
+		"Redshift of Hydrogen reionization");
+    msr->param.fHe_reion_z_sigma = 1;
+    prmAddParam(msr->prm,"fHe_reion_z_sigma", 2, &msr->param.fHe_reion_z_sigma,
+		sizeof(float), "He_reion_z_sigma",
+		"Redshift of Hydrogen reionization");
+#endif
     /* END of new params */
 
     msr->param.bAccelStep = 0;
@@ -1653,13 +1669,6 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 	if (!validateParameters(mdl,msr->prm,&msr->param)) _msrExit(msr,1);
 	}
 
-#define KBOLTZ	1.3806485e-16     /* bolzman constant in cgs */
-#define MHYDR 1.6735575e-24       /* mass of hydrogen atom in grams */
-#define MSOLG 1.98847e33        /* solar mass in grams */
-#define GCGS 6.67408e-8         /* G in cgs */
-#define KPCCM 3.085678e21    /* kiloparsec in centimeters */
-#define SIGMAT 6.6524e-25    /* Thompson cross-section (cm^2) */
-#define LIGHTSPEED 2.9979e10 /* Speed of Light cm/s */
     /*
     ** Convert kboltz/mhydrogen to system units, assuming that
     ** G == 1.
@@ -1670,6 +1679,8 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 	    /MHYDR/GCGS/msr->param.dMsolUnit/MSOLG;
 	/* code energy per unit mass --> erg per g */
 	msr->param.dErgPerGmUnit = GCGS*msr->param.dMsolUnit*MSOLG/(msr->param.dKpcUnit*KPCCM);
+      /* code energy --> erg IA: TODO be sure about this*/
+	msr->param.dErgUnit = GCGS*pow(msr->param.dMsolUnit*MSOLG,2.0)/(msr->param.dKpcUnit*KPCCM);
 	/* code density --> g per cc */
 	msr->param.dGmPerCcUnit = (msr->param.dMsolUnit*MSOLG)/pow(msr->param.dKpcUnit*KPCCM,3.0);
 	/* code time --> seconds */
@@ -1685,6 +1696,7 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 	msr->param.dComovingGmPerCcUnit = 1;
 	msr->param.dGmPerCcUnit = 1;
 	msr->param.dErgPerGmUnit = 1;
+      msr->param.dErgUnit = 1;
 	}
     msr->param.dTuFac = msr->param.dGasConst/(msr->param.dConstGamma - 1)/
 		msr->param.dMeanMolWeight;
@@ -4635,6 +4647,9 @@ void msrTopStepKDK(MSR msr,
 	msrDrift(msr,dTime,dDelta,ROOT);
 	dTime += dDelta;
 	dStep += 1.0/(1 << iRung);
+      if (msr->param.csm->val.bComove){
+         msr->param.dComovingGmPerCcUnit = msr->param.dGmPerCcUnit/pow(csmTime2Exp(msr->param.csm,dTime),3.);
+      }
 
       printf("dTime %e \n", dTime);
 	msrActiveRung(msr,iKickRung,1);

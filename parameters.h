@@ -136,6 +136,7 @@ struct parameters {
     double dGmPerCcUnit;
     double dComovingGmPerCcUnit;
     double dErgPerGmUnit;
+    double dErgUnit;
     double dSecUnit;
     double dKmPerSecUnit;
     double dhMinOverSoft;
@@ -243,6 +244,21 @@ struct parameters {
      */
     int bGlobalDt;
     double dFixedDelta;
+
+#ifdef COOLING
+    /*
+     * IA: Cooling parameters
+     */
+    char strCoolingTables[256];
+    float fH_reion_z;
+    float fH_reion_eV_p_H;
+    float fHe_reion_z_centre;
+    float fHe_reion_z_sigma;
+    float fHe_reion_eV_p_H;
+    float fCa_over_Si_in_Solar;
+    float fS_over_Si_in_Solar;
+    float fT_CMB_0;
+#endif
 
 #ifdef MDL_FFTW
     int nGridPk;

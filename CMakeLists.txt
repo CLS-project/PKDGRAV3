@@ -266,6 +266,12 @@ else(FIXED_SMOOTH_STRICT)
    endif(FIXED_NSMOOTH_RELAXED)
 endif(FIXED_NSMOOTH_STRICT)
 
+option(COOLING "Activate the chemistry and the cooling for the gas particles" OFF)
+if (COOLING)
+   target_sources(${PROJECT_NAME} PRIVATE  cooling/cooling.c cooling/cooling_tables.c )
+   target_compile_options(${PROJECT_NAME} PRIVATE -DCOOLING)
+   message("-- Cooling is ACTIVE")
+endif(COOLING)
 
 CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/pkd_config.h.in ${CMAKE_CURRENT_BINARY_DIR}/pkd_config.h)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_BINARY_DIR})

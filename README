@@ -156,6 +156,13 @@ We have not found any significant difference among the latter approaches.
       It set the fluxes in the z and y directions to zero and ignores interactions among particles with different positions in the z-axis.
       This, however, does not change the neighbor search or the tree construction, which is still done in 3D and thus is highly inefficient!
 
+### Cooling
+  * `COOLING` (default=off):
+      It allows for the tracking of different chemical species and H/He+metal cooling following Wiersma+2009.
+      The code for this part has been adapted from the EAGLE model inside the SWIFT code.
+      The Wiersma+2009 HDF5 tables are needed.
+
+
 ### Others
   * `MAKE_GLASS` (default=off)
       Flag for creating glass-like distribution within an arbitrary-sized box.
