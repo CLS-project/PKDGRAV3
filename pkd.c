@@ -38,11 +38,11 @@
 #include <limits.h>
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
-//#ifdef __linux__
-//#include <linux/fs.h>
-//#else
+#ifdef __linux__
+#include <linux/fs.h>
+#else
 #define O_DIRECT 0
-//#endif
+#endif
 #endif
 #ifdef HAVE_SYS_TIME_H
 #include <sys/time.h>
@@ -1872,13 +1872,13 @@ static void asyncCheckpoint(PKD pkd,const char *fname,int bWrite) {
     int i, rc;
 
     if (bWrite) {
-	info.fd = open(fname,O_DIRECT|O_CREAT|O_WRONLY|O_TRUNC,FILE_PROTECTION);
+	info.fd = open(fname,O_CREAT|O_WRONLY|O_TRUNC,FILE_PROTECTION);
 	if (info.fd<0) { perror(fname); abort(); }
 	nFileSize = pkdParticleSize(pkd) * pkd->nLocal;
 	}
     else {
 	struct stat s;
-	info.fd = open(fname,O_DIRECT|O_RDONLY);
+	info.fd = open(fname,O_RDONLY);
 	if (info.fd<0) { perror(fname); abort(); }
 	if ( fstat(info.fd,&s) != 0 ) { perror(fname); abort(); }
 	nFileSize = s.st_size;
