@@ -38,11 +38,11 @@
 #include <limits.h>
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
-#ifdef __linux__
-#include <linux/fs.h>
-#else
+//#ifdef __linux__
+//#include <linux/fs.h>
+//#else
 #define O_DIRECT 0
-#endif
+//#endif
 #endif
 #ifdef HAVE_SYS_TIME_H
 #include <sys/time.h>
