@@ -975,6 +975,12 @@ typedef struct pkdContext {
     */
     struct parameters param;
 
+#ifdef COOLING
+    // IA: we add here the needed cooling information available to all procs
+    struct cooling_function_data *cooling;
+    struct cooling_tables *cooling_table;
+#endif
+
 #ifdef USE_CUDA
     void *cudaCtx;
 #endif

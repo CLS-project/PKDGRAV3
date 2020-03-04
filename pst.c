@@ -223,6 +223,14 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_SETGLOBALDT,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstSetGlobalDt,
 		  sizeof(struct outGetMinDt),0);
+#ifdef COOLING
+    mdlAddService(mdl,PST_COOLINGUPDATE,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstCoolingUpdate,
+		  sizeof(struct inCoolUpdate),0);
+    mdlAddService(mdl,PST_COOLINGINIT,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstCoolingInit,
+		  0,0);
+#endif 
     //
     mdlAddService(mdl,PST_SCALEVEL,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstScaleVel,
@@ -3133,6 +3141,37 @@ void pstPredictSmoothing(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     if (pnOut) *pnOut = 0;
     }
 
+#ifdef COOLING
+void pstCoolingInit(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+
+    if (pst->nLeaves > 1) {
+       int rID = mdlReqService(pst->mdl,pst->idUpper,PST_COOLINGINIT,NULL,NULL);
+       pstCoolingInit(pst->pstLower,NULL,NULL,NULL,NULL);
+       mdlGetReply(pst->mdl,rID,NULL,NULL);
+       }
+    else {
+       cooling_init_backend(plcl->pkd);
+       }
+    if (pnOut) *pnOut = 0;
+    }
+
+void pstCoolingUpdate(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    struct inCoolUpdate *in = vin;
+
+    mdlassert(pst->mdl,nIn == sizeof(struct inCoolUpdate));
+    if (pst->nLeaves > 1) {
+       int rID = mdlReqService(pst->mdl,pst->idUpper,PST_COOLINGUPDATE,in,nIn);
+       pstCoolingUpdate(pst->pstLower,in,nIn,NULL,NULL);
+       mdlGetReply(pst->mdl,rID,NULL,NULL);
+       }
+    else {
+       cooling_update(plcl->pkd, in->redshift);
+       }
+    if (pnOut) *pnOut = 0;
+    }
+#endif 
 
 void pstScaleVel(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;

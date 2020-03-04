@@ -129,12 +129,10 @@ inline void get_redshift_index(
  * @param s The space data, including a pointer to array of particles
  *
  *
- * IA changelog:
- *    - Now the cosmological parameters are passed as arguments 
  */
-void cooling_update(PKD pkd,const float redshift,
-                    struct cooling_function_data *cooling) {
+void cooling_update(PKD pkd,const float redshift) {
 
+   struct cooling_function_data *cooling = pkd->cooling;
   /* Current redshift */
   //const float redshift = cosmo->z;
 
@@ -713,8 +711,12 @@ void cooling_Hydrogen_reionization(PKD pkd,
  * @param hydro_props The properties of the hydro scheme.
  * @param cooling #cooling_function_data struct to initialize
  */
-void cooling_init_backend(PKD pkd,
-                          struct cooling_function_data *cooling) {
+void cooling_init_backend(PKD pkd) {
+
+  /* IA: Allocate the needed structs */
+  pkd->cooling = (struct cooling_function_data *) malloc(sizeof(struct cooling_function_data));
+  struct cooling_function_data *cooling = pkd->cooling;
+
 
   /* Read model parameters */
 

@@ -125,7 +125,11 @@ enum pst_service {
     PST_DRIFT,
     PST_APPLYGRAVWORK,
     PST_UPDATECONSVARS, //IA: hopefully this wont break anything..
-    PST_COMPUTEPRIMVARS, //IA: hopefully this wont break anything..
+    PST_COMPUTEPRIMVARS, 
+#ifdef COOLING
+    PST_COOLINGUPDATE,
+    PST_COOLINGINIT,
+#endif
     PST_PREDICTSMOOTH,
     PST_DRIFTINACTIVE,
     PST_SCALEVEL,
@@ -613,10 +617,18 @@ struct inSmooth {
     int iSmoothType;
     SMF smf;
     };
-struct outSmooth { //IA
+struct outSmooth { 
    int nSmoothed;
 };
 void pstSmooth(PST,void *,int,void *,int *);
+
+#ifdef COOLING
+struct inCoolUpdate {
+   float redshift;
+    };
+void pstCoolingUpdate(PST,void *,int,void *,int *);
+void pstCoolingInit(PST,void *,int,void *,int *);
+#endif
 
 /* PST_RESMOOTH */
 void pstReSmooth(PST,void *,int,void *,int *);

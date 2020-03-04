@@ -4648,7 +4648,14 @@ void msrTopStepKDK(MSR msr,
 	dTime += dDelta;
 	dStep += 1.0/(1 << iRung);
       if (msr->param.csm->val.bComove){
-         msr->param.dComovingGmPerCcUnit = msr->param.dGmPerCcUnit/pow(csmTime2Exp(msr->param.csm,dTime),3.);
+         const float a = csmTime2Exp(msr->param.csm,dTime);
+#ifdef COOLING
+         const float z = 1./a - 1.;
+
+         msrCoolingUpdate(msr, z);
+#endif
+
+         msr->param.dComovingGmPerCcUnit = msr->param.dGmPerCcUnit/pow(a,3.);
       }
 
       printf("dTime %e \n", dTime);
@@ -4657,7 +4664,6 @@ void msrTopStepKDK(MSR msr,
 	msrDomainDecomp(msr,iKickRung,0,bSplitVA);
 
 	/* JW: Good place to zero uNewRung  IA: not really... This is done in the init call of smSmooth*/ 
-	//if (!msrMeshlessHydro(msr)) msrZeroNewRung(msr,iKickRung,MAX_RUNG,iKickRung); /* brute force */
 	msrZeroNewRung(msr,iKickRung,MAX_RUNG,iKickRung); /* brute force */
 
 
@@ -4672,7 +4678,6 @@ void msrTopStepKDK(MSR msr,
 	    msrBuildTree(msr,dTime,msr->param.bEwald);
 	    }
 	if (msrDoGravity(msr)) {
-      // IA: FIXME TODO Commented for analytical gravity
 	    msrGravity(msr,iKickRung,MAX_RUNG,ROOT,0,dTime,dStep,0,0,msr->param.bEwald,msr->param.nGroup,piSec,&nActive);
 	    *pdActiveSum += (double)nActive/msr->N;
 	    }
@@ -5111,6 +5116,18 @@ void msrCoolSetup(MSR msr, double dTime) {
 
 void msrCooling(MSR msr,double dTime,double dStep,int bUpdateState, int bUpdateTable, int bIterateDt) {
     }
+#ifdef COOLING
+void msrCoolingUpdate(MSR msr,float redshift) {
+   struct inCoolUpdate in;
+   in.redshift = redshift;
+   pstCoolingUpdate(msr->pst, &in, sizeof(in), NULL, NULL);
+    }
+void msrCoolingInit(MSR msr,double dTime,double dStep,int bUpdateState, int bUpdateTable, int bIterateDt) {
+    pstCoolingInit(msr->pst,NULL,0,NULL,NULL);
+    }
+void msrCoolingEnd(MSR msr,double dTime,double dStep,int bUpdateState, int bUpdateTable, int bIterateDt) {
+    }
+#endif
 
 /* END Gas routines */
 

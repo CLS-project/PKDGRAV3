@@ -73,6 +73,9 @@
 #include "parameters.h"
 #include "cosmo.h"
 #include "healpix.h"
+#ifdef COOLING
+#include "cooling/cooling.h"
+#endif
 
 #ifdef _MSC_VER
 #define FILE_PROTECTION (_S_IREAD | _S_IWRITE)
@@ -884,6 +887,9 @@ void pkdFinish(PKD pkd) {
     if (pkd->pHealpixData) free(pkd->pHealpixData);
     io_free(&pkd->afiLightCone);
     csmFinish(pkd->param.csm);
+#ifdef COOLING
+    cooling_clean(pkd->cooling); 
+#endif
     SIMD_free(pkd);
     }
 
@@ -1158,6 +1164,14 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             pSph->drDotFrho[2] = 0.;
             pSph->fLastBall = 0.0;
             pSph->lastUpdateTime = -1.;
+#ifdef COOLING
+            for (j=0; j<chemistry_element_count; j++) pSph->chemistry[j] = 0.;
+            // Primordial abundances
+            pSph->chemistry[chemistry_element_H] = 0.75;
+            pSph->chemistry[chemistry_element_He] = 0.25;
+            pSph->lastCooling = 0.;
+            pSph->cooling_dudt = 0.;
+#endif
 		}
 	    break;
 	case FIO_SPECIES_DARK:
@@ -2152,6 +2166,10 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,BND *bnd,PARTICLE *p) {
 	assert(pSph);
 	assert(pkd->param.dTuFac>0.0);
 	    {
+#ifdef COOLING
+            // IA: The temperature is computed from psph->Uint;
+           //float temperature =  cooling_get_temperature(pkd, dRedshift, pkd->cooling, p, pSph);
+#endif 
 	    fioWriteSph(fio,iParticleID,r,v,fMass,pkdBall(pkd,p),*pPot,
 		fDensity,pSph->P,pSph->E);
 	    }
@@ -2904,7 +2922,7 @@ void pkdComputePrimVars(PKD pkd,int iRoot, double dTime, double dDelta) {
     PARTICLE *p;
     SPHFIELDS *psph;
     int i,j;
-    double gravE, gravE_dmdt, pDelta, dScaleFac, dHubble, pa[3];
+    double gravE, gravE_dmdt, pDelta, dScaleFac, dRedshift, dHubble, pa[3];
 
 
     mdlDiag(pkd->mdl, "Into pkdComputePrimiteVars\n");
@@ -2916,6 +2934,7 @@ void pkdComputePrimVars(PKD pkd,int iRoot, double dTime, double dDelta) {
     */
     if (pkd->param.csm->val.bComove){
        dScaleFac = csmTime2Exp(pkd->param.csm,dTime);
+       dRedshift = 1./dScaleFac - 1.;
        dHubble = csmTime2Hub(pkd->param.csm,dTime);
     }
     if (pkd->param.bDoGas) {
@@ -2968,6 +2987,12 @@ void pkdComputePrimVars(PKD pkd,int iRoot, double dTime, double dDelta) {
                psph->lastHubble = dHubble; 
             }
 
+#ifdef COOLING
+            const float delta_redshift = -pDelta * dHubble * (dRedshift + 1.);
+            cooling_cool_part(pkd, pkd->cooling, p, psph, pDelta, dTime, delta_redshift, dRedshift);
+#endif
+
+
             // ##### Pressure
 
             double Ekin = 0.5*( psph->mom[0]*psph->mom[0] + psph->mom[1]*psph->mom[1] + psph->mom[2]*psph->mom[2] ) / pkdMass(pkd,p);
@@ -2976,7 +3001,7 @@ void pkdComputePrimVars(PKD pkd,int iRoot, double dTime, double dDelta) {
 //                  psph->P = psph->Uint*psph->omega*(pkd->param.dConstGamma -1.);
 //            }else{
                   psph->P = (psph->E - Ekin )*psph->omega*(pkd->param.dConstGamma -1.);
-//                  psph->Uint = psph->P/(psph->omega*(pkd->param.dConstGamma -1.)); // IA: Synchronize the energies
+                  psph->Uint = psph->P/(psph->omega*(pkd->param.dConstGamma -1.)); 
 //            }     
             if (psph->P < 0){
                psph->P = 0.;

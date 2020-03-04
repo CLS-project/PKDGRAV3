@@ -30,8 +30,7 @@
 #include "pkd.h"
 
 
-void cooling_update(PKD pkd, const float redshift,
-                    struct cooling_function_data *cooling);
+void cooling_update(PKD pkd, const float redshift);
 
 void cooling_cool_part(PKD pkd,
                        const struct cooling_function_data *cooling,
@@ -49,8 +48,7 @@ float cooling_get_temperature(PKD pkd, const float redshift,
 void cooling_Hydrogen_reionization(PKD pkd,
                                    const struct cooling_function_data *cooling);
 
-void cooling_init_backend(PKD pkd,
-                          struct cooling_function_data *cooling);
+void cooling_init_backend(PKD pkd);
 
 void cooling_clean(struct cooling_function_data *data);
 
