@@ -49,6 +49,7 @@
 
 /* IA: PKDGRAV3 includes */
 #include "pkd.h"
+#include "pkd_config.h"
 #include <stdio.h>
 
 /* Maximum number of iterations for bisection scheme */
@@ -205,147 +206,146 @@ void cooling_update(PKD pkd,const float redshift) {
  * @param cooling #cooling_function_data structure.
  * @param abundance_ratio Array of ratios of metal abundance to solar.
  * @param dt_cgs timestep in CGS.
- * @param ID ID of the particle (for debugging).
  */
-//INLINE static double bisection_iter(
-//    const double u_ini_cgs, const double n_H_cgs, const double redshift,
-//    const int n_H_index, const float d_n_H, const int He_index,
-//    const float d_He, const double Lambda_He_reion_cgs,
-//    const double ratefact_cgs,
-//    const struct cooling_function_data *restrict cooling,
-//    const float abundance_ratio[eagle_cooling_N_abundances],
-//    const double dt_cgs, const long long ID) {
-//
-//  /* Bracketing */
-//  double u_lower_cgs = u_ini_cgs;
-//  double u_upper_cgs = u_ini_cgs;
-//
-//  /*************************************/
-//  /* Let's get a first guess           */
-//  /*************************************/
-//
-//  double LambdaNet_cgs =
-//      Lambda_He_reion_cgs +
-//      eagle_cooling_rate(log10(u_ini_cgs), redshift, n_H_cgs, abundance_ratio,
-//                         n_H_index, d_n_H, He_index, d_He, cooling);
-//
-//  /*************************************/
-//  /* Let's try to bracket the solution */
-//  /*************************************/
-//
-//  if (LambdaNet_cgs < 0) {
-//
-//    /* we're cooling! */
-//    u_lower_cgs /= bracket_factor;
-//    u_upper_cgs *= bracket_factor;
-//
-//    /* Compute a new rate */
-//    LambdaNet_cgs = Lambda_He_reion_cgs +
-//                    eagle_cooling_rate(log10(u_lower_cgs), redshift, n_H_cgs,
-//                                       abundance_ratio, n_H_index, d_n_H,
-//                                       He_index, d_He, cooling);
-//
-//    int i = 0;
-//    while (u_lower_cgs - u_ini_cgs - LambdaNet_cgs * ratefact_cgs * dt_cgs >
-//               0 &&
-//           i < bisection_max_iterations) {
-//
-//      u_lower_cgs /= bracket_factor;
-//      u_upper_cgs /= bracket_factor;
-//
-//      /* Compute a new rate */
-//      LambdaNet_cgs = Lambda_He_reion_cgs +
-//                      eagle_cooling_rate(log10(u_lower_cgs), redshift, n_H_cgs,
-//                                         abundance_ratio, n_H_index, d_n_H,
-//                                         He_index, d_He, cooling);
-//      i++;
-//    }
-//
-//    if (i >= bisection_max_iterations) {
-//      error(
-//          "particle %llu exceeded max iterations searching for bounds when "
-//          "cooling, u_ini_cgs %.5e n_H_cgs %.5e",
-//          ID, u_ini_cgs, n_H_cgs);
-//    }
-//  } else {
-//
-//    /* we are heating! */
-//    u_lower_cgs /= bracket_factor;
-//    u_upper_cgs *= bracket_factor;
-//
-//    /* Compute a new rate */
-//    LambdaNet_cgs = Lambda_He_reion_cgs +
-//                    eagle_cooling_rate(log10(u_upper_cgs), redshift, n_H_cgs,
-//                                       abundance_ratio, n_H_index, d_n_H,
-//                                       He_index, d_He, cooling);
-//
-//    int i = 0;
-//    while (u_upper_cgs - u_ini_cgs - LambdaNet_cgs * ratefact_cgs * dt_cgs <
-//               0 &&
-//           i < bisection_max_iterations) {
-//
-//      u_lower_cgs *= bracket_factor;
-//      u_upper_cgs *= bracket_factor;
-//
-//      /* Compute a new rate */
-//      LambdaNet_cgs = Lambda_He_reion_cgs +
-//                      eagle_cooling_rate(log10(u_upper_cgs), redshift, n_H_cgs,
-//                                         abundance_ratio, n_H_index, d_n_H,
-//                                         He_index, d_He, cooling);
-//      i++;
-//    }
-//
-//    if (i >= bisection_max_iterations) {
-//      error(
-//          "particle %llu exceeded max iterations searching for bounds when "
-//          "heating, u_ini_cgs %.5e n_H_cgs %.5e",
-//          ID, u_ini_cgs, n_H_cgs);
-//    }
-//  }
-//
-//  /********************************************/
-//  /* We now have an upper and lower bound.    */
-//  /* Let's iterate by reducing the bracketing */
-//  /********************************************/
-//
-//  /* bisection iteration */
-//  int i = 0;
-//  double u_next_cgs;
-//
-//  do {
-//
-//    /* New guess */
-//    u_next_cgs = 0.5 * (u_lower_cgs + u_upper_cgs);
-//
-//    /* New rate */
-//    LambdaNet_cgs = Lambda_He_reion_cgs +
-//                    eagle_cooling_rate(log10(u_next_cgs), redshift, n_H_cgs,
-//                                       abundance_ratio, n_H_index, d_n_H,
-//                                       He_index, d_He, cooling);
-//#ifdef SWIFT_DEBUG_CHECKS
-//    if (u_next_cgs <= 0)
-//      error(
-//          "Got negative energy! u_next_cgs=%.5e u_upper=%.5e u_lower=%.5e "
-//          "Lambda=%.5e",
-//          u_next_cgs, u_upper_cgs, u_lower_cgs, LambdaNet_cgs);
-//#endif
-//
-//    /* Where do we go next? */
-//    if (u_next_cgs - u_ini_cgs - LambdaNet_cgs * ratefact_cgs * dt_cgs > 0.0) {
-//      u_upper_cgs = u_next_cgs;
-//    } else {
-//      u_lower_cgs = u_next_cgs;
-//    }
-//
-//    i++;
-//  } while (fabs(u_upper_cgs - u_lower_cgs) / u_next_cgs > bisection_tolerance &&
-//           i < bisection_max_iterations);
-//
-//  if (i >= bisection_max_iterations)
-//    error("Particle id %llu failed to converge", ID);
-//
-//  return u_upper_cgs;
-//}
+inline static double bisection_iter(
+    const double u_ini_cgs, const double n_H_cgs, const double redshift,
+    const int n_H_index, const float d_n_H, const int He_index,
+    const float d_He, const double Lambda_He_reion_cgs,
+    const double ratefact_cgs,
+    const struct cooling_function_data *restrict cooling,
+    const float abundance_ratio[eagle_cooling_N_abundances],
+    const double dt_cgs) {
+
+  /* Bracketing */
+  double u_lower_cgs = u_ini_cgs;
+  double u_upper_cgs = u_ini_cgs;
+
+  /*************************************/
+  /* Let's get a first guess           */
+  /*************************************/
+
+  double LambdaNet_cgs =
+      Lambda_He_reion_cgs +
+      eagle_cooling_rate(log10(u_ini_cgs), redshift, n_H_cgs, abundance_ratio,
+                         n_H_index, d_n_H, He_index, d_He, cooling);
+
+  /*************************************/
+  /* Let's try to bracket the solution */
+  /*************************************/
+
+  if (LambdaNet_cgs < 0) {
+
+    /* we're cooling! */
+    u_lower_cgs /= bracket_factor;
+    u_upper_cgs *= bracket_factor;
+
+    /* Compute a new rate */
+    LambdaNet_cgs = Lambda_He_reion_cgs +
+                    eagle_cooling_rate(log10(u_lower_cgs), redshift, n_H_cgs,
+                                       abundance_ratio, n_H_index, d_n_H,
+                                       He_index, d_He, cooling);
+
+    int i = 0;
+    while (u_lower_cgs - u_ini_cgs - LambdaNet_cgs * ratefact_cgs * dt_cgs >
+               0 &&
+           i < bisection_max_iterations) {
+
+      u_lower_cgs /= bracket_factor;
+      u_upper_cgs /= bracket_factor;
+
+      /* Compute a new rate */
+      LambdaNet_cgs = Lambda_He_reion_cgs +
+                      eagle_cooling_rate(log10(u_lower_cgs), redshift, n_H_cgs,
+                                         abundance_ratio, n_H_index, d_n_H,
+                                         He_index, d_He, cooling);
+      i++;
+    }
+
+    if (i >= bisection_max_iterations) {
+      printf(
+          "particle exceeded max iterations searching for bounds when "
+          "cooling, u_ini_cgs %.5e n_H_cgs %.5e",
+          u_ini_cgs, n_H_cgs);
+    }
+  } else {
+
+    /* we are heating! */
+    u_lower_cgs /= bracket_factor;
+    u_upper_cgs *= bracket_factor;
+
+    /* Compute a new rate */
+    LambdaNet_cgs = Lambda_He_reion_cgs +
+                    eagle_cooling_rate(log10(u_upper_cgs), redshift, n_H_cgs,
+                                       abundance_ratio, n_H_index, d_n_H,
+                                       He_index, d_He, cooling);
+
+    int i = 0;
+    while (u_upper_cgs - u_ini_cgs - LambdaNet_cgs * ratefact_cgs * dt_cgs <
+               0 &&
+           i < bisection_max_iterations) {
+
+      u_lower_cgs *= bracket_factor;
+      u_upper_cgs *= bracket_factor;
+
+      /* Compute a new rate */
+      LambdaNet_cgs = Lambda_He_reion_cgs +
+                      eagle_cooling_rate(log10(u_upper_cgs), redshift, n_H_cgs,
+                                         abundance_ratio, n_H_index, d_n_H,
+                                         He_index, d_He, cooling);
+      i++;
+    }
+
+    if (i >= bisection_max_iterations) {
+      printf(
+          "particle exceeded max iterations searching for bounds when "
+          "heating, u_ini_cgs %.5e n_H_cgs %.5e \n",
+          u_ini_cgs, n_H_cgs);
+    }
+  }
+
+  /********************************************/
+  /* We now have an upper and lower bound.    */
+  /* Let's iterate by reducing the bracketing */
+  /********************************************/
+
+  /* bisection iteration */
+  int i = 0;
+  double u_next_cgs;
+
+  do {
+
+    /* New guess */
+    u_next_cgs = 0.5 * (u_lower_cgs + u_upper_cgs);
+
+    /* New rate */
+    LambdaNet_cgs = Lambda_He_reion_cgs +
+                    eagle_cooling_rate(log10(u_next_cgs), redshift, n_H_cgs,
+                                       abundance_ratio, n_H_index, d_n_H,
+                                       He_index, d_He, cooling);
+#ifdef SWIFT_DEBUG_CHECKS
+    if (u_next_cgs <= 0)
+      error(
+          "Got negative energy! u_next_cgs=%.5e u_upper=%.5e u_lower=%.5e "
+          "Lambda=%.5e",
+          u_next_cgs, u_upper_cgs, u_lower_cgs, LambdaNet_cgs);
+#endif
+
+    /* Where do we go next? */
+    if (u_next_cgs - u_ini_cgs - LambdaNet_cgs * ratefact_cgs * dt_cgs > 0.0) {
+      u_upper_cgs = u_next_cgs;
+    } else {
+      u_lower_cgs = u_next_cgs;
+    }
+
+    i++;
+  } while (fabs(u_upper_cgs - u_lower_cgs) / u_next_cgs > bisection_tolerance &&
+           i < bisection_max_iterations);
+
+  if (i >= bisection_max_iterations)
+    printf("Particle failed to converge \n");
+
+  return u_upper_cgs;
+}
 
 /**
  * @brief Apply the cooling function to a particle.
@@ -415,11 +415,13 @@ void cooling_cool_part(PKD pkd,
 //  u_0 = max(u_0, hydro_properties->minimal_internal_energy);
 
   /* IA: In our case we are using operator splitting so this is simpler */
-  double u_0 = psph->Uint;
+  double u_0 = psph->Uint / pkdMass(pkd,p);
   
 
   /* Convert to CGS units */
-  const double u_0_cgs = u_0 * cooling->internal_energy_to_cgs;
+  double u_0_cgs = u_0 * cooling->internal_energy_to_cgs;
+  if (u_0_cgs < 1e10)  u_0_cgs = 1e10;
+
   const double dt_cgs =  pkd->param.dSecUnit * dt;
 
   /* Change in redshift over the course of this time-step
@@ -444,9 +446,8 @@ void cooling_cool_part(PKD pkd,
   const float HeFrac = XHe / (XH + XHe);
 
   /* convert Hydrogen mass fraction into physical Hydrogen number density */
-  const double n_H =
-      //hydro_get_physical_density(p, cosmo) * XH / phys_const->const_proton_mass;
-      pkdDensity(pkd,p)*pkd->param.dComovingGmPerCcUnit * XH / MHYDR ;
+  const float rho = pkdDensity(pkd,p) * pow(1.+redshift,3.); // TODO: why does not work with dComovingGmPerCcUnit?
+  const double n_H = rho * XH / MHYDR * pkd->param.dMsolUnit * MSOLG;
   const double n_H_cgs = n_H * cooling->number_density_to_cgs;
 
   /* ratefact = n_H * n_H / rho; Might lead to round-off error: replaced by
@@ -486,23 +487,27 @@ void cooling_cool_part(PKD pkd,
                          n_H_index, d_n_H, He_index, d_He, cooling);
 
   /* if cooling rate is small, take the explicit solution */
-//  if (fabs(ratefact_cgs * LambdaNet_cgs * dt_cgs) <
-//      explicit_tolerance * u_0_cgs) {
+  if (fabs(ratefact_cgs * LambdaNet_cgs * dt_cgs) <
+      explicit_tolerance * u_0_cgs) {
 
-    //u_final_cgs = u_0_cgs + ratefact_cgs * LambdaNet_cgs * dt_cgs;
-    u_final_cgs = u_0_cgs + 0.5*(ratefact_cgs * LambdaNet_cgs + psph->lastCooling)* dt_cgs;
+    u_final_cgs = u_0_cgs + ratefact_cgs * LambdaNet_cgs * dt_cgs;
+    //IA: This would be the second order scheme
+    //u_final_cgs = u_0_cgs + 0.5*(ratefact_cgs * LambdaNet_cgs + psph->lastCooling)* dt_cgs;
 
-//  } else {
-//
-//    /* Otherwise, go the bisection route. */
-//    u_final_cgs =
-//        bisection_iter(u_0_cgs, n_H_cgs, cosmo->z, n_H_index, d_n_H, He_index,
-//                       d_He, Lambda_He_reion_cgs, ratefact_cgs, cooling,
-//                       abundance_ratio, dt_cgs, p->id);
-//  }
+  } else {
+
+    /* Otherwise, go the bisection route. */
+    u_final_cgs =
+        bisection_iter(u_0_cgs, n_H_cgs, redshift, n_H_index, d_n_H, He_index,
+                       d_He, Lambda_He_reion_cgs, ratefact_cgs, cooling,
+                       abundance_ratio, dt_cgs);
+  }
 
   /* Convert back to internal units */
+  // IA: We set a minimum internal energy to avoid reaching the end of the table (~100 K)
+  if (u_final_cgs < 1e10) u_final_cgs = 2e10;
   double u_final = u_final_cgs * cooling->internal_energy_from_cgs;
+  psph->Uint = u_final * pkdMass(pkd,p);
 
   /* We now need to check that we are not going to go below any of the limits */
 
@@ -610,8 +615,10 @@ float cooling_get_temperature(PKD pkd, const float redshift,
 #endif
 
   /* Get physical internal energy */
-  const float u = psph->Uint;
-  const double u_cgs = u * cooling->internal_energy_to_cgs;
+  const float u = psph->Uint /pkdMass(pkd,p);
+  double u_cgs = u * cooling->internal_energy_to_cgs;
+  if (u_cgs < 1e10) return psph->P/pkdDensity(pkd,p) / pkd->param.dGasConst *1.14 ;
+  //printf("u_cgs %e \n", u_cgs);
 
   /* Get the Hydrogen and Helium mass fractions */
   const float *const metal_fraction = psph->chemistry;
@@ -624,9 +631,11 @@ float cooling_get_temperature(PKD pkd, const float redshift,
   const float HeFrac = XHe / (XH + XHe);
 
   /* Convert Hydrogen mass fraction into Hydrogen number density */
-  const float rho = pkdDensity(pkd,p) * pkd->param.dComovingGmPerCcUnit;
-  const double n_H = rho * XH / MHYDR;
+  const float rho = pkdDensity(pkd,p) * pow(1.+redshift,3.); // TODO: why does not work with dComovingGmPerCcUnit?
+  //printf("dComovingGmPerCcUnit %e \n",pkd->param.dComovingGmPerCcUnit);
+  const double n_H = rho * XH / MHYDR * pkd->param.dMsolUnit * MSOLG;
   const double n_H_cgs = n_H * cooling->number_density_to_cgs;
+  //printf("n_H %e \t n_to_cgs %e \t n_H_cgs %e \n", n_H, cooling->number_density_to_cgs, n_H_cgs);
 
   /* compute hydrogen number density and helium fraction table indices and
    * offsets */
@@ -685,7 +694,7 @@ void cooling_Hydrogen_reionization(PKD pkd,
   const float extra_heat =
       cooling->H_reion_heat_cgs * cooling->internal_energy_from_cgs;
 
-  printf("Applying extra energy for H reionization!\n");
+  printf("Applying extra energy for H reionization! %e %e \n", cooling->H_reion_heat_cgs, cooling->internal_energy_from_cgs);
 
   /* Loop through particles and set new heat */
   for (int i=0;i<pkdLocal(pkd);++i) { 
@@ -697,7 +706,9 @@ void cooling_Hydrogen_reionization(PKD pkd,
 
     //hydro_set_physical_internal_energy(p, xp, cosmo, new_u);
     //hydro_set_drifted_physical_internal_energy(p, cosmo, new_u);
+    //printf("old_u %e \t new_u %e \t du %e \n", old_u, new_u, extra_heat);
     psph->Uint = new_u;
+    psph->E += extra_heat;
     /* IA: TODO: Can this cause problems as now lastUint and Uint can be very different? */
   }
 }
@@ -712,6 +723,7 @@ void cooling_Hydrogen_reionization(PKD pkd,
  * @param cooling #cooling_function_data struct to initialize
  */
 void cooling_init_backend(PKD pkd) {
+   printf("Initializing cooling2 \n");
 
   /* IA: Allocate the needed structs */
   pkd->cooling = (struct cooling_function_data *) malloc(sizeof(struct cooling_function_data));
@@ -752,16 +764,14 @@ void cooling_init_backend(PKD pkd) {
    * multiplying by 'eV/m_H' in internal units, then converting to cgs units.
    * Note that the dimensions of these quantities are energy/mass = velocity^2
    */
-#define EV_CGS 6.2415e11
+#define EV_CGS 1.602e-12
 
   cooling->H_reion_heat_cgs *=
-      (EV_CGS*pkd->param.dErgUnit) / (MHYDR/MSOLG *pkd->param.dMsolUnit) *
-      pkd->param.dErgPerGmUnit;
+      (EV_CGS) / (MHYDR);
       //units_cgs_conversion_factor(us, UNIT_CONV_ENERGY_PER_UNIT_MASS);
 
   cooling->He_reion_heat_cgs *=
-      (EV_CGS*pkd->param.dErgUnit) / (MHYDR/MSOLG *pkd->param.dMsolUnit)  *
-      pkd->param.dErgPerGmUnit;
+      (EV_CGS) / (MHYDR) ;
 
   /* Read in the list of redshifts */
   get_cooling_redshifts(cooling);
@@ -778,7 +788,7 @@ void cooling_init_backend(PKD pkd) {
   cooling->internal_energy_to_cgs = pkd->param.dErgPerGmUnit;
       //units_cgs_conversion_factor(us, UNIT_CONV_ENERGY_PER_UNIT_MASS);
   cooling->internal_energy_from_cgs = 1. / cooling->internal_energy_to_cgs;
-  cooling->number_density_to_cgs = pkd->param.dGmPerCcUnit;
+  cooling->number_density_to_cgs = pow(pkd->param.dKpcUnit*KPCCM,-3.);
       //units_cgs_conversion_factor(us, UNIT_CONV_NUMBER_DENSITY);
 
   /* Store some constants in CGS units */

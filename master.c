@@ -1623,18 +1623,43 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 #ifdef COOLING
     prmAddParam(msr->prm,"strCoolingTables",3,msr->param.strCoolingTables,256,"coolingtables",
 		"Path to cooling tables");
-    msr->param.fH_reion_z = 1;
+
+    /// Hydrogen reionization
+    msr->param.fH_reion_z = 11.5;
     prmAddParam(msr->prm,"fH_reion_z", 2, &msr->param.fH_reion_z,
-		sizeof(float), "H_reion_z",
+		sizeof(double), "H_reion_z",
 		"Redshift of Hydrogen reionization");
-    msr->param.fHe_reion_z_centre = 1;
+
+    msr->param.fH_reion_eV_p_H = 2.0;
+    prmAddParam(msr->prm,"fH_reion_eV_p_H", 2, &msr->param.fH_reion_eV_p_H,
+		sizeof(double), "H_reion_eV_p_H",
+		"Energy (in eV) injected per proton during H reionization");
+
+    /// Helium reionization
+    msr->param.fHe_reion_eV_p_H = 2.0;
+    prmAddParam(msr->prm,"fHe_reion_eV_p_H", 2, &msr->param.fHe_reion_eV_p_H,
+		sizeof(double), "He_reion_eV_p_H",
+		"Energy (in eV) injected per proton during He reionization");
+
+    msr->param.fHe_reion_z_centre = 3.5;
     prmAddParam(msr->prm,"fHe_reion_z_centre", 2, &msr->param.fHe_reion_z_centre,
-		sizeof(float), "He_reion_z_centre",
-		"Redshift of Hydrogen reionization");
-    msr->param.fHe_reion_z_sigma = 1;
+		sizeof(double), "He_reion_z_centre",
+		"Mean redshift of Helium reionization");
+
+    msr->param.fHe_reion_z_sigma = 0.5;
     prmAddParam(msr->prm,"fHe_reion_z_sigma", 2, &msr->param.fHe_reion_z_sigma,
-		sizeof(float), "He_reion_z_sigma",
-		"Redshift of Hydrogen reionization");
+		sizeof(double), "He_reion_z_sigma",
+		"Redshift interval for Helium reionization");
+
+    /// Relatives abundances of Ca and S
+    msr->param.fCa_over_Si_in_Solar = 1.;
+    msr->param.fS_over_Si_in_Solar = 1.;
+
+    /// Temperature of the CMB at z=0
+    msr->param.fT_CMB_0 = 2.725;
+    prmAddParam(msr->prm,"fT_CMB_0", 2, &msr->param.fT_CMB_0,
+		sizeof(float), "fT_CMB_0",
+		"Temperature of the CMB at z=0");
 #endif
     /* END of new params */
 
@@ -4655,7 +4680,6 @@ void msrTopStepKDK(MSR msr,
          msrCoolingUpdate(msr, z);
 #endif
 
-         msr->param.dComovingGmPerCcUnit = msr->param.dGmPerCcUnit/pow(a,3.);
       }
 
       printf("dTime %e \n", dTime);
@@ -5122,10 +5146,8 @@ void msrCoolingUpdate(MSR msr,float redshift) {
    in.redshift = redshift;
    pstCoolingUpdate(msr->pst, &in, sizeof(in), NULL, NULL);
     }
-void msrCoolingInit(MSR msr,double dTime,double dStep,int bUpdateState, int bUpdateTable, int bIterateDt) {
+void msrCoolingInit(MSR msr) {
     pstCoolingInit(msr->pst,NULL,0,NULL,NULL);
-    }
-void msrCoolingEnd(MSR msr,double dTime,double dStep,int bUpdateState, int bUpdateTable, int bIterateDt) {
     }
 #endif
 

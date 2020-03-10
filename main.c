@@ -276,6 +276,11 @@ void * master_ch(MDL mdl) {
 		1.0/csmComoveLookbackTime2Exp(msr->param.csm,1.0 / dLightSpeedSim(2*msr->param.dBoxSize)) - 1.0,
 		1.0/csmComoveLookbackTime2Exp(msr->param.csm,1.0 / dLightSpeedSim(3*msr->param.dBoxSize)) - 1.0 );
 	    }
+#ifdef COOLING
+      msrCoolingInit(msr);
+      msrCoolingUpdate(msr, 1./dTime - 1.);
+#endif
+
 
 	/*
 	** Build tree, activating all particles first (just in case).

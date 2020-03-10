@@ -250,14 +250,14 @@ struct parameters {
      * IA: Cooling parameters
      */
     char strCoolingTables[256];
-    float fH_reion_z;
-    float fH_reion_eV_p_H;
-    float fHe_reion_z_centre;
-    float fHe_reion_z_sigma;
-    float fHe_reion_eV_p_H;
-    float fCa_over_Si_in_Solar;
-    float fS_over_Si_in_Solar;
-    float fT_CMB_0;
+    double fH_reion_z;
+    double fH_reion_eV_p_H;
+    double fHe_reion_z_centre;
+    double fHe_reion_z_sigma;
+    double fHe_reion_eV_p_H;
+    double fCa_over_Si_in_Solar;
+    double fS_over_Si_in_Solar;
+    double fT_CMB_0;
 #endif
 
 #ifdef MDL_FFTW

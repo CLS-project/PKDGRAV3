@@ -272,6 +272,14 @@ void msrInitSph(MSR,double);
 void msrSph(MSR msr, double dTime, double dStep);
 void msrSphStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime);
 void msrHydroStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime); //IA
+/* IA: COOLING */
+
+#ifdef COOLING
+void msrCoolingUpdate(MSR msr,float redshift);
+void msrCoolingInit(MSR msr);
+#endif
+
+/**/
 void msrCoolSetup(MSR msr, double);
 void msrCooling(MSR msr,double dTime,double dStep,int bUpdateState, int bUpdateTable,int bInterateDt);
 void msrStarForm( MSR, double, int);

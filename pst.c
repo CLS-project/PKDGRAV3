@@ -53,6 +53,10 @@
 #include "group.h"
 #include "groupstats.h"
 
+#ifdef COOLING
+#include "cooling/cooling.h"
+#endif
+
 void pstAddServices(PST pst,MDL mdl) {
     int nThreads;
 
@@ -3146,8 +3150,8 @@ void pstCoolingInit(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
 
     if (pst->nLeaves > 1) {
-       int rID = mdlReqService(pst->mdl,pst->idUpper,PST_COOLINGINIT,NULL,NULL);
-       pstCoolingInit(pst->pstLower,NULL,NULL,NULL,NULL);
+       int rID = mdlReqService(pst->mdl,pst->idUpper,PST_COOLINGINIT,NULL,0);
+       pstCoolingInit(pst->pstLower,NULL,0,NULL,NULL);
        mdlGetReply(pst->mdl,rID,NULL,NULL);
        }
     else {

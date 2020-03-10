@@ -34,6 +34,7 @@
 #include "cooling_tables.h"
 //#include "error.h"
 #include "interpolate.h"
+#include "pkd_config.h"
 
 /**
  * @brief Names of the elements in the order they are stored in the files
@@ -79,11 +80,11 @@ void get_cooling_redshifts(struct cooling_function_data *cooling) {
 
   /* Read the list of table redshifts */
   char redshift_filename[eagle_table_path_name_length + 16];
-  printf(redshift_filename, "%s/redshifts.dat", cooling->cooling_table_path);
+  sprintf(redshift_filename, "%s/redshifts.dat", cooling->cooling_table_path);
 
   FILE *infile = fopen(redshift_filename, "r");
   if (infile == NULL) {
-    printf("Cannot open the list of cooling table redshifts (%s)",
+    printf("Cannot open the list of cooling table redshifts (%s) \n",
           redshift_filename);
   }
 
@@ -98,16 +99,16 @@ void get_cooling_redshifts(struct cooling_function_data *cooling) {
     if (fgets(buffer, 50, infile) != NULL){
       N_Redshifts = atoi(buffer);
     }else{
-      printf("Impossible to read the number of redshifts");
+      printf("Impossible to read the number of redshifts\n");
       abort();
     }
 
     /* Be verbose about it */
-    printf("Found cooling tables at %d redhsifts", N_Redshifts);
+    printf("Found cooling tables at %d redhsifts\n", N_Redshifts);
 
     /* Check value */
     if (N_Redshifts != eagle_cooling_N_redshifts){
-      printf("Invalid redshift length array.");
+      printf("Invalid redshift length array.\n");
       abort();
     }
 
@@ -136,12 +137,12 @@ void get_cooling_redshifts(struct cooling_function_data *cooling) {
     if (count != N_Redshifts) {
       printf(
           "Redshift file (%s) does not contain the correct number of redshifts "
-          "(%d vs. %d)",
+          "(%d vs. %d)\n",
           redshift_filename, count, N_Redshifts);
       abort();
     }
   } else {
-    printf("Redshift file (%s) is empty!", redshift_filename);
+    printf("Redshift file (%s) is empty!\n", redshift_filename);
     abort();
   }
 
@@ -464,14 +465,14 @@ void get_redshift_invariant_table(
   char filename[eagle_table_path_name_length + 21];
   if (photodis) {
     sprintf(filename, "%sz_photodis.hdf5", cooling->cooling_table_path);
-    message("Reading cooling table 'z_photodis.hdf5'");
+    printf("Reading cooling table 'z_photodis.hdf5'\n");
   } else {
     sprintf(filename, "%sz_8.989nocompton.hdf5", cooling->cooling_table_path);
-    message("Reading cooling table 'z_8.989nocompton.hdf5'");
+    printf("Reading cooling table 'z_8.989nocompton.hdf5' \n");
   }
 
   hid_t file_id = H5Fopen(filename, H5F_ACC_RDONLY, H5P_DEFAULT);
-  if (file_id < 0) error("unable to open file %s\n", filename);
+  if (file_id < 0) printf("unable to open file %s\n", filename);
 
   char set_name[64];
 
@@ -483,9 +484,9 @@ void get_redshift_invariant_table(
     hid_t dataset = H5Dopen(file_id, set_name, H5P_DEFAULT);
     herr_t status = H5Dread(dataset, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL,
                             H5P_DEFAULT, net_cooling_rate);
-    if (status < 0) error("error reading metal cooling rate table");
+    if (status < 0) printf("error reading metal cooling rate table");
     status = H5Dclose(dataset);
-    if (status < 0) error("error closing cooling dataset");
+    if (status < 0) printf("error closing cooling dataset");
 
     /* Transpose from order tables are stored in (temperature, nH)
      * to (metal species, nH, temperature) where fastest
@@ -575,9 +576,9 @@ void get_redshift_invariant_table(
   dataset = H5Dopen(file_id, set_name, H5P_DEFAULT);
   status = H5Dread(dataset, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT,
                    electron_abundance);
-  if (status < 0) error("error reading solar electron density table");
+  if (status < 0) printf("error reading solar electron density table");
   status = H5Dclose(dataset);
-  if (status < 0) error("error closing cooling dataset");
+  if (status < 0) printf("error closing cooling dataset");
 
   /* Transpose from order tables are stored in (temperature, nH) to
    * (nH, temperature) where fastest varying index is on right. */
@@ -608,7 +609,7 @@ void get_redshift_invariant_table(
   free(he_electron_abundance);
 
 #ifdef SWIFT_DEBUG_CHECKS
-  message("done reading in redshift invariant table");
+  printf("done reading in redshift invariant table\n");
 #endif
 
 #else

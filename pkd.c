@@ -2168,10 +2168,14 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,BND *bnd,PARTICLE *p) {
 	    {
 #ifdef COOLING
             // IA: The temperature is computed from psph->Uint;
-           //float temperature =  cooling_get_temperature(pkd, dRedshift, pkd->cooling, p, pSph);
-#endif 
+            // TODO: obtain more elegantly the redshift
+           const double dRedshift = sqrt(dvFac) - 1.;
+           float temperature =  cooling_get_temperature(pkd, dRedshift, pkd->cooling, p, pSph);
+#else
+          float temperature = pSph->E; 
+#endif
 	    fioWriteSph(fio,iParticleID,r,v,fMass,pkdBall(pkd,p),*pPot,
-		fDensity,pSph->P,pSph->E);
+		fDensity,pSph->P,temperature);
 	    }
 	break;
     case FIO_SPECIES_DARK:
@@ -2998,10 +3002,11 @@ void pkdComputePrimVars(PKD pkd,int iRoot, double dTime, double dDelta) {
             double Ekin = 0.5*( psph->mom[0]*psph->mom[0] + psph->mom[1]*psph->mom[1] + psph->mom[2]*psph->mom[2] ) / pkdMass(pkd,p);
             //printf("E %e \t Uint %e \t Ekin %e \n", psph->E, psph->Uint, Ekin);
 //            if (Ekin > 0.0*psph->E ){
-//                  psph->P = psph->Uint*psph->omega*(pkd->param.dConstGamma -1.);
+                  psph->P = psph->Uint*psph->omega*(pkd->param.dConstGamma -1.);
+                  psph->E = psph->Uint + Ekin;
 //            }else{
-                  psph->P = (psph->E - Ekin )*psph->omega*(pkd->param.dConstGamma -1.);
-                  psph->Uint = psph->P/(psph->omega*(pkd->param.dConstGamma -1.)); 
+//                  psph->P = (psph->E - Ekin )*psph->omega*(pkd->param.dConstGamma -1.);
+//                  psph->Uint = psph->P/(psph->omega*(pkd->param.dConstGamma -1.)); 
 //            }     
             if (psph->P < 0){
                psph->P = 0.;
