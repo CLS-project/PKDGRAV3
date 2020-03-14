@@ -1082,6 +1082,7 @@ void hydroStep(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     uNewRung = pkdDtToRung(dtEst,smf->dDelta,MAX_RUNG);
     if (uNewRung > p->uNewRung ) p->uNewRung = uNewRung; 
 
+    if ( p->uNewRung < pkd->param.dMinDt ) p->uNewRung = pkd->param.dMinDt;
     // IA: Timestep limiter that imposes that I must have a dt which is at most, 
     // four times (i.e., 2 rungs) the smallest dt of my neighbours
 

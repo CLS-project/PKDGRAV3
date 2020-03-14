@@ -1620,6 +1620,12 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     prmAddParam(msr->prm,"dNeighborsStd", 2, &msr->param.dNeighborsStd0,
 		sizeof(double), "neighstd",
 		"Maximum deviation from desired number of neighbors");
+
+    msr->param.dMinDt = 0.;
+    prmAddParam(msr->prm,"dMinDt", 2, &msr->param.dMinDt,
+		sizeof(double), "minDt",
+		"Minimum allowed timestep for the particles (in code units)");
+
 #ifdef COOLING
     prmAddParam(msr->prm,"strCoolingTables",3,msr->param.strCoolingTables,256,"coolingtables",
 		"Path to cooling tables");
@@ -1660,6 +1666,17 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     prmAddParam(msr->prm,"fT_CMB_0", 2, &msr->param.fT_CMB_0,
 		sizeof(float), "fT_CMB_0",
 		"Temperature of the CMB at z=0");
+#endif
+#ifdef STAR_FORMATION
+    msr->param.SFdMinOverDensity = 0.;
+    prmAddParam(msr->prm,"SFdMinOverDensity", 2, &msr->param.SFdMinOverDensity,
+		sizeof(double), "SFdMinOverDensity",
+		"Minimium overdensity for allowing star formation");
+
+    msr->param.SFdGasFraction = 0.;
+    prmAddParam(msr->prm,"SFdGasFraction", 2, &msr->param.SFdGasFraction,
+		sizeof(double), "SFdGasFraction",
+		"Gas fraction (assumed constant) for the star formation");
 #endif
     /* END of new params */
 
@@ -1726,6 +1743,18 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.dTuFac = msr->param.dGasConst/(msr->param.dConstGamma - 1)/
 		msr->param.dMeanMolWeight;
 
+    // We convert the minimum dt to rung
+    msr->param.dMinDt = ceil( log2(msr->param.dDelta/msr->param.dMinDt) );
+#ifdef COOLING
+    // We convert the parameters of the entropy floor into code units
+    msr->param.dJeansFloorIndex -= 1.; 
+    msr->param.dJeansFloorDen *=  MHYDR / (msr->param.dMsolUnit * MSOLG ) / 0.75 ; // Now in rho
+    msr->param.dJeansFlooru *= msr->param.dGasConst/(msr->param.dConstGamma - 1.)/1.22; // Now in internal energy per unit mass (assuming neutral gas here with primordial abundances)
+
+    msr->param.dCoolingFloorDen *= MHYDR / (msr->param.dMsolUnit * MSOLG ) / 0.75;
+    msr->param.dCoolingFlooru *= msr->param.dGasConst/(msr->param.dConstGamma - 1.)/1.22;
+
+#endif
 
     /* Gas parameter checks */
 #ifdef CLASSICAL_FOPEN
@@ -2481,7 +2510,9 @@ void msrSetSmooth(MSR msr) {
     struct inSetSoft in;  // For simplicty we reuse this struct
 
     double V = msr->param.dxPeriod * msr->param.dyPeriod * msr->param.dzPeriod;
-    double dSmooth = pow( 3.*V/(4.*3.1415*msr->N), 1./3. );
+    double dSmooth = pow( 3.*V/(4.*M_PI*msr->N), 1./3. );
+
+    printf("Setting initial smoothing length to %e \n", dSmooth);
 
     in.dSoft = dSmooth;
     pstSetSmooth(msr->pst,&in,sizeof(in),NULL,NULL);
@@ -4835,84 +4866,91 @@ void msrTopStepKDK(MSR msr,
 
     /* JW: Creating/Deleting/Merging is best done outside (before or after) KDK cycle 
        -- Tree should still be valid from last force eval (only Drifts + Deletes invalidate it) */
-    if (iKickRung == iRung) { /* Do all co-incident kicked p's in one go */
-	msrStarForm(msr, dTime, iKickRung); /* re-eval timesteps as needed for next step 
-					    -- apply to all neighbours */
-	}
+//    if (iKickRung == iRung) { /* Do all co-incident kicked p's in one go */
+//	msrStarForm(msr, dTime, iKickRung); /* re-eval timesteps as needed for next step 
+//					    -- apply to all neighbours */
+//	}
+
+#ifdef STAR_FORMATION
+      msrStarForm(msr, dTime, iKickRung);
+#endif
+
     }
 
-void msrStarForm(MSR msr, double dTime, int iRung)
-    {
-    struct inStarForm in;
-    struct outStarForm out;
-    double a,d1,d2;
-    double sec,sec1,dsec;
 
-    if(!msr->param.bStarForm) return;
-    sec = msrTime();
 
-    a = csmTime2Exp(msr->param.csm,dTime);
-    in.dDelta = 0;
-    /* Convert input parameters to code units */
-    in.dRateCoeff = msr->param.SFdEfficiency*sqrt(32/(3*M_PI)/pow(a,3)); /* G=1 */
-    in.dTMax = msr->param.SFdTMax;
-    d1 = msr->param.SFdComovingDenMin;
-    d2 = msr->param.SFdPhysDenMin/msr->param.dGmPerCcUnit*pow(a,3);
-    in.dDenMin = (d1>d2 ? d1 : d2);
-    
-    in.dTime = dTime;
-    in.dInitStarMass = msr->param.SFdInitStarMass;
-    in.dESNPerStarMass = msr->param.SFdESNPerStarMass/msr->param.dErgPerGmUnit;
-#define SECONDSPERYEAR   31557600.
-    in.dtCoolingShutoff = msr->param.SFdtCoolingShutoff*SECONDSPERYEAR/msr->param.dSecUnit;
-    in.dtFeedbackDelay = msr->param.SFdtFeedbackDelay*1.0000013254678*SECONDSPERYEAR/msr->param.dSecUnit;
-    in.dMassLossPerStarMass = msr->param.SFdMassLossPerStarMass;
-    in.dZMassPerStarMass = msr->param.SFdZMassPerStarMass;
-    in.dInitStarMass = msr->param.SFdInitStarMass;
-    in.dMinGasMass = msr->param.SFdMinGasMass;
-    in.bdivv = msr->param.SFbdivv;
-    
-    if (msr->param.bVDetails) printf("Star Form ... ");
-    
-    msrActiveRung(msr,iRung,1); /* important to limit to active gas only */
-    pstStarForm(msr->pst, &in, sizeof(in), &out, NULL);
-    if (msr->param.bVDetails)
-	printf("%d Stars formed with mass %g, %d gas deleted\n",
-	       out.nFormed, out.dMassFormed, out.nDeleted);
-    
-    if (out.nDeleted) {
-	//msrSelSrcGas(msr); /* Not really sure what the setting here needs to be */
-	//msrSelDstDeleted(msr); /* Select only deleted particles */
-	msrActiveRung(msr,0,1); /* costs nothing -- may be redundant */
-/*	msrBuildTree(msr,dTime,msr->param.bEwald);*/
-	msrSmooth(msr, dTime, SMX_DIST_DELETED_GAS, 1,msr->param.nSmooth); /* use full smooth to account for deleted */
-	//msrSelSrcAll(msr);
-	//msrSelDstAll(msr);
-	}
-
-    /* Strictly speaking adding/deleting particles invalidates the tree 
-       In practice we can find deleted particles (and ignore them) and we aren't looking for 
-       any new star particles so we should be able to function with an old tree for FB 
-       Could do FB before the AddDel call if careful to exclude deleted particles */
-    if (out.nDeleted || out.nFormed) msrAddDelParticles(msr);
-    
-    sec1 = msrTime();
-    dsec = sec1 - sec;
-    printf("Star Formation Calculated, Wallclock: %f secs\n\n",dsec);
-
-    if (msr->param.bFeedback) {
-	msrActiveRung(msr,iRung,1); /* costs nothing -- important to limit to active stars only */
- 	//msrSelSrcGas(msr); /* Not really sure what the setting here needs to be */
-	//msrSelDstStar(msr,1,dTime); /* Select only stars that have FB to do */ 
-/*	msrBuildTree(msr,dTime,msr->param.bEwald);*/
-	msrSmooth(msr, dTime, SMX_DIST_SN_ENERGY, 1, msr->param.nSmooth); /* full smooth for stars */
-	//msrSelSrcAll(msr);
-	//msrSelDstAll(msr);
-
-	dsec = msrTime() - sec1;
-	printf("Feedback Calculated, Wallclock: %f secs\n\n",dsec);
-	}
-    }
+//void msrStarForm(MSR msr, double dTime, int iRung)
+//    {
+//    struct inStarForm in;
+//    struct outStarForm out;
+//    double a,d1,d2;
+//    double sec,sec1,dsec;
+//
+//    if(!msr->param.bStarForm) return;
+//    sec = msrTime();
+//
+//    a = csmTime2Exp(msr->param.csm,dTime);
+//    in.dDelta = 0;
+//    /* Convert input parameters to code units */
+//    in.dRateCoeff = msr->param.SFdEfficiency*sqrt(32/(3*M_PI)/pow(a,3)); /* G=1 */
+//    in.dTMax = msr->param.SFdTMax;
+//    d1 = msr->param.SFdComovingDenMin;
+//    d2 = msr->param.SFdPhysDenMin/msr->param.dGmPerCcUnit*pow(a,3);
+//    in.dDenMin = (d1>d2 ? d1 : d2);
+//    
+//    in.dTime = dTime;
+//    in.dInitStarMass = msr->param.SFdInitStarMass;
+//    in.dESNPerStarMass = msr->param.SFdESNPerStarMass/msr->param.dErgPerGmUnit;
+//#define SECONDSPERYEAR   31557600.
+//    in.dtCoolingShutoff = msr->param.SFdtCoolingShutoff*SECONDSPERYEAR/msr->param.dSecUnit;
+//    in.dtFeedbackDelay = msr->param.SFdtFeedbackDelay*1.0000013254678*SECONDSPERYEAR/msr->param.dSecUnit;
+//    in.dMassLossPerStarMass = msr->param.SFdMassLossPerStarMass;
+//    in.dZMassPerStarMass = msr->param.SFdZMassPerStarMass;
+//    in.dInitStarMass = msr->param.SFdInitStarMass;
+//    in.dMinGasMass = msr->param.SFdMinGasMass;
+//    in.bdivv = msr->param.SFbdivv;
+//    
+//    if (msr->param.bVDetails) printf("Star Form ... ");
+//    
+//    msrActiveRung(msr,iRung,1); /* important to limit to active gas only */
+//    pstStarForm(msr->pst, &in, sizeof(in), &out, NULL);
+//    if (msr->param.bVDetails)
+//	printf("%d Stars formed with mass %g, %d gas deleted\n",
+//	       out.nFormed, out.dMassFormed, out.nDeleted);
+//    
+//    if (out.nDeleted) {
+//	//msrSelSrcGas(msr); /* Not really sure what the setting here needs to be */
+//	//msrSelDstDeleted(msr); /* Select only deleted particles */
+//	msrActiveRung(msr,0,1); /* costs nothing -- may be redundant */
+///*	msrBuildTree(msr,dTime,msr->param.bEwald);*/
+//	msrSmooth(msr, dTime, SMX_DIST_DELETED_GAS, 1,msr->param.nSmooth); /* use full smooth to account for deleted */
+//	//msrSelSrcAll(msr);
+//	//msrSelDstAll(msr);
+//	}
+//
+//    /* Strictly speaking adding/deleting particles invalidates the tree 
+//       In practice we can find deleted particles (and ignore them) and we aren't looking for 
+//       any new star particles so we should be able to function with an old tree for FB 
+//       Could do FB before the AddDel call if careful to exclude deleted particles */
+//    if (out.nDeleted || out.nFormed) msrAddDelParticles(msr);
+//    
+//    sec1 = msrTime();
+//    dsec = sec1 - sec;
+//    printf("Star Formation Calculated, Wallclock: %f secs\n\n",dsec);
+//
+//    if (msr->param.bFeedback) {
+//	msrActiveRung(msr,iRung,1); /* costs nothing -- important to limit to active stars only */
+// 	//msrSelSrcGas(msr); /* Not really sure what the setting here needs to be */
+//	//msrSelDstStar(msr,1,dTime); /* Select only stars that have FB to do */ 
+///*	msrBuildTree(msr,dTime,msr->param.bEwald);*/
+//	msrSmooth(msr, dTime, SMX_DIST_SN_ENERGY, 1, msr->param.nSmooth); /* full smooth for stars */
+//	//msrSelSrcAll(msr);
+//	//msrSelDstAll(msr);
+//
+//	dsec = msrTime() - sec1;
+//	printf("Feedback Calculated, Wallclock: %f secs\n\n",dsec);
+//	}
+//    }
 
 void msrStepVeryActiveKDK(MSR msr, double dStep, double dTime, double dDelta,
 		     int iRung) {

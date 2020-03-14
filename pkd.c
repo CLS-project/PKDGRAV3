@@ -1073,6 +1073,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
     __itt_string_handle* shMyTask = __itt_string_handle_create("Read");
      __itt_task_begin(domain, __itt_null, __itt_null, shMyTask);
 #endif
+    //IA: What is this?!
     if (pkd->oStar) {
 	/* Make sure star class established -- how do all procs know of these classes? How do we ensure they agree on the class identifiers? */
 	p = pkdParticle(pkd,pkd->nLocal);
@@ -2954,6 +2955,60 @@ void pkdComputePrimVars(PKD pkd,int iRoot, double dTime, double dDelta) {
              }else{
                 pDelta = 0.0;
              }
+
+            // ##### Analytical gravity
+            
+/* Determine the position relative to the centre of the potential */
+//             V200 = cbrt(10. * M200 * G_newton * H0);
+//             const double RS = R200 / concentration;
+//    potential->al = RS * sqrt(1. * (log(1. + concentration) -
+//                                    concentration / (1. + concentration)));
+//        const double Mdisk = M200 * diskfraction;
+//    const double Mbulge = M200 * bulgefraction;
+//
+//    /* Store the mass of the DM halo */
+//    potential->mass = M200 - Mdisk - Mbulge;
+
+
+    const double concentration = 9.0;
+    const double M200 = 137.0; // / pkd->param.dMsolUnit;
+    const double V200 = cbrt(10.*M200*70.4/ pkd->param.dKmPerSecUnit * ( pkd->param.dKpcUnit / 1e3));
+    const double R200 = V200/(10.*70.4/ pkd->param.dKmPerSecUnit * ( pkd->param.dKpcUnit / 1e3));
+    const double RS = R200 / concentration;
+
+    const double al = RS * sqrt(1. * (log(1. + concentration) -
+                                    concentration / (1. + concentration)));
+
+    const double mass = M200*(1.-0.04-0.014);
+    const double epsilon =  0.2/pkd->param.dKpcUnit;
+    const double epsilon2 = epsilon*epsilon;
+
+
+
+
+  const float dx = pkdPos(pkd,p,0); //- potential->x[0];
+  const float dy = pkdPos(pkd,p,1); //- potential->x[1];
+  const float dz = pkdPos(pkd,p,1); //- potential->x[2];
+
+  /* Calculate the acceleration */
+  const float r = sqrtf(dx * dx + dy * dy + dz * dz + epsilon2);
+  const float r_plus_a_inv = 1.f / (r + al);
+  const float r_plus_a_inv2 = r_plus_a_inv * r_plus_a_inv;
+  const float term = -mass * r_plus_a_inv2 / r;
+
+  /* Orbital time */
+  const float sqrtgm = sqrtf(mass);
+  const float orbtime = 2.f * sqrtf(epsilon) * al * M_PI *
+                       (1. + epsilon / al) / sqrtgm;
+  //printf("Orbital period %e \n", orbtime);
+
+
+  pkdAccel(pkd,p)[0] += term * dx;
+  pkdAccel(pkd,p)[1] += term * dy;
+  pkdAccel(pkd,p)[2] += term * dz;
+            //
+
+
       
             // ##### GRAVITY
             gravE = 0.0;
@@ -3462,6 +3517,7 @@ void pkdAccelStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
 		}
 	    uNewRung = pkdDtToRung(dT,pkd->param.dDelta,pkd->param.iMaxRung);
 	    if (uNewRung > p->uNewRung) p->uNewRung = uNewRung;
+	    if ( p->uNewRung < pkd->param.dMinDt ) p->uNewRung = pkd->param.dMinDt;
 	    }
 	}
     }
@@ -3513,94 +3569,94 @@ void pkdSphStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,double dAccFac) {
 
 
 
-void pkdStarForm(PKD pkd, double dRateCoeff, double dTMax, double dDenMin,
-		 double dDelta, double dTime,
-		 double dInitStarMass, double dESNPerStarMass, double dtCoolingShutoff,
-		 double dtFeedbackDelay,  double dMassLossPerStarMass,    
-		 double dZMassPerStarMass, double dMinGasMass,
-		 int bdivv,
-		 int *nFormed, /* number of stars formed */
-		 double *dMassFormed,	/* mass of stars formed */
-		 int *nDeleted) /* gas particles deleted */ {
-
-    PARTICLE *p;
-    SPHFIELDS *sph;
-    double T, E, dmstar, dt, prob;
-    PARTICLE *starp;
-    int i;
-    
-    assert(pkd->oStar);
-    assert(pkd->oSph);
-    assert(pkd->oMass);
-
-    *nFormed = 0;
-    *nDeleted = 0;
-    *dMassFormed = 0.0;
-    starp = (PARTICLE *) malloc(pkdParticleSize(pkd));
-    assert(starp != NULL);
-
-    printf("pkdSF calc dTime %g\n",dTime);
-    for (i=0;i<pkdLocal(pkd);++i) {
-	p = pkdParticle(pkd,i);
-	
-	if (pkdIsActive(pkd,p) && pkdIsGas(pkd,p)) {
-	    sph = pkdSph(pkd,p);
-	    dt = pkd->param.dDelta/(1<<p->uRung); /* Actual Rung */
-	    pkdStar(pkd,p)->totaltime += dt;
-	    if (pkdDensity(pkd,p) < dDenMin || (bdivv && sph->divv >= 0.0)) continue;
-	    E = sph->uPred;
-	    T=E/pkd->param.dTuFac;
-	    if (T > dTMax) continue;
-	    
-            /* Note: Ramses allows for multiple stars per step -- but we have many particles
-	      and he has one cell that may contain many times m_particle */
-	    if (pkd->param.bGasCooling) {
-		if (fabs(pkdStar(pkd,p)->totaltime-dTime) > 1e-3*dt) {
-		    printf("total time error: %"PRIu64",  %g %g %g\n",
-                (uint64_t)p->iOrder,pkdStar(pkd,p)->totaltime,dTime,dt);
-		    assert(0);
-		    }
-		}
-
-	    dmstar = dRateCoeff*sqrt(pkdDensity(pkd,p))*pkdMass(pkd,p)*dt;
-	    prob = 1.0 - exp(-dmstar/dInitStarMass); 
-	    
-	    /* Star formation event? */
-	    if (rand()<RAND_MAX*prob) {
-		float *starpMass = pkdField(starp,pkd->oMass);
-		float *pMass = pkdField(p,pkd->oMass);
-		pkdCopyParticle(pkd, starp, p);	/* grab copy */
-		*pMass -= dInitStarMass;
-		*starpMass = dInitStarMass;
-/*		pkdStar(pkd,starp)->iGasOrder = p->iOrder;*/
-		if (*pMass < 0) {
-		    *starpMass += *pMass;
-		    *pMass = 0;
-		    }
-	        if (*pMass < dMinGasMass) {
-		    pkdDeleteParticle(pkd, p);
-		    (*nDeleted)++;
-		    }
-
-                /* Time formed  
-		   -- in principle it could have formed any time between dTime-dt and dTime 
-		   so dTime-0.5*dt is good -- just check it's less that dtFB */
-		if (dt < dtFeedbackDelay) pkdStar(pkd,starp)->fTimer = dTime-dt*.5;
-		else pkdStar(pkd,starp)->fTimer = dTime-0.5*dtFeedbackDelay;
-		pkdSph(pkd,starp)->u = 1; /* no FB yet */
-		
-		pkdSetClass(pkd,pkdMass(pkd,starp),pkdSoft(pkd,starp),FIO_SPECIES_STAR,starp); /* How do I make a new particle? -- this is bad it rewrites mass and soft for particle */
-		/* JW: If class doesn't exist this is very bad -- what is the soft? 
-		   For now force softening to exist to get around this */
-		(*nFormed)++;
-		*dMassFormed += *starpMass;
-		pkdNewParticle(pkd, starp);    
-		}
-	    }
-	}
-
-    free(starp);
-}
+//void pkdStarForm(PKD pkd, double dRateCoeff, double dTMax, double dDenMin,
+//		 double dDelta, double dTime,
+//		 double dInitStarMass, double dESNPerStarMass, double dtCoolingShutoff,
+//		 double dtFeedbackDelay,  double dMassLossPerStarMass,    
+//		 double dZMassPerStarMass, double dMinGasMass,
+//		 int bdivv,
+//		 int *nFormed, /* number of stars formed */
+//		 double *dMassFormed,	/* mass of stars formed */
+//		 int *nDeleted) /* gas particles deleted */ {
+//
+//    PARTICLE *p;
+//    SPHFIELDS *sph;
+//    double T, E, dmstar, dt, prob;
+//    PARTICLE *starp;
+//    int i;
+//    
+//    assert(pkd->oStar);
+//    assert(pkd->oSph);
+//    assert(pkd->oMass);
+//
+//    *nFormed = 0;
+//    *nDeleted = 0;
+//    *dMassFormed = 0.0;
+//    starp = (PARTICLE *) malloc(pkdParticleSize(pkd));
+//    assert(starp != NULL);
+//
+//    printf("pkdSF calc dTime %g\n",dTime);
+//    for (i=0;i<pkdLocal(pkd);++i) {
+//	p = pkdParticle(pkd,i);
+//	
+//	if (pkdIsActive(pkd,p) && pkdIsGas(pkd,p)) {
+//	    sph = pkdSph(pkd,p);
+//	    dt = pkd->param.dDelta/(1<<p->uRung); /* Actual Rung */
+//	    pkdStar(pkd,p)->totaltime += dt;
+//	    if (pkdDensity(pkd,p) < dDenMin || (bdivv && sph->divv >= 0.0)) continue;
+//	    E = sph->uPred;
+//	    T=E/pkd->param.dTuFac;
+//	    if (T > dTMax) continue;
+//	    
+//            /* Note: Ramses allows for multiple stars per step -- but we have many particles
+//	      and he has one cell that may contain many times m_particle */
+//	    if (pkd->param.bGasCooling) {
+//		if (fabs(pkdStar(pkd,p)->totaltime-dTime) > 1e-3*dt) {
+//		    printf("total time error: %"PRIu64",  %g %g %g\n",
+//                (uint64_t)p->iOrder,pkdStar(pkd,p)->totaltime,dTime,dt);
+//		    assert(0);
+//		    }
+//		}
+//
+//	    dmstar = dRateCoeff*sqrt(pkdDensity(pkd,p))*pkdMass(pkd,p)*dt;
+//	    prob = 1.0 - exp(-dmstar/dInitStarMass); 
+//	    
+//	    /* Star formation event? */
+//	    if (rand()<RAND_MAX*prob) {
+//		float *starpMass = pkdField(starp,pkd->oMass);
+//		float *pMass = pkdField(p,pkd->oMass);
+//		pkdCopyParticle(pkd, starp, p);	/* grab copy */
+//		*pMass -= dInitStarMass;
+//		*starpMass = dInitStarMass;
+///*		pkdStar(pkd,starp)->iGasOrder = p->iOrder;*/
+//		if (*pMass < 0) {
+//		    *starpMass += *pMass;
+//		    *pMass = 0;
+//		    }
+//	        if (*pMass < dMinGasMass) {
+//		    pkdDeleteParticle(pkd, p);
+//		    (*nDeleted)++;
+//		    }
+//
+//                /* Time formed  
+//		   -- in principle it could have formed any time between dTime-dt and dTime 
+//		   so dTime-0.5*dt is good -- just check it's less that dtFB */
+//		if (dt < dtFeedbackDelay) pkdStar(pkd,starp)->fTimer = dTime-dt*.5;
+//		else pkdStar(pkd,starp)->fTimer = dTime-0.5*dtFeedbackDelay;
+//		pkdSph(pkd,starp)->u = 1; /* no FB yet */
+//		
+//		pkdSetClass(pkd,pkdMass(pkd,starp),pkdSoft(pkd,starp),FIO_SPECIES_STAR,starp); /* How do I make a new particle? -- this is bad it rewrites mass and soft for particle */
+//		/* JW: If class doesn't exist this is very bad -- what is the soft? 
+//		   For now force softening to exist to get around this */
+//		(*nFormed)++;
+//		*dMassFormed += *starpMass;
+//		pkdNewParticle(pkd, starp);    
+//		}
+//	    }
+//	}
+//
+//    free(starp);
+//}
 
 
 void pkdCooling(PKD pkd, double dTime, double z, int bUpdateState, int bUpdateTable, int bIterateDt, int bIsothermal )

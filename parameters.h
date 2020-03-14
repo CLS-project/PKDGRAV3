@@ -143,6 +143,7 @@ struct parameters {
     double dMetalDiffusionCoeff;
     double dThermalDiffusionCoeff;
     /* StarForm and Feedback */
+    //IA: We keep most of them for compatibility reasons I guess? But should be cleaned! TODO
     double SFdEfficiency;
     double SFdTMax;
     double SFdPhysDenMin;
@@ -157,6 +158,10 @@ struct parameters {
     double SFdMinGasMass;
     double SFdvFB;
     int SFbdivv;
+
+    /* IA: Star formation */
+    double SFdMinOverDensity; 
+    double SFdGasFraction;
     
     /* END Gas Parameters */
     double dEta;
@@ -244,6 +249,7 @@ struct parameters {
      */
     int bGlobalDt;
     double dFixedDelta;
+    double dMinDt;
 
 #ifdef COOLING
     /*
@@ -258,6 +264,15 @@ struct parameters {
     double fCa_over_Si_in_Solar;
     double fS_over_Si_in_Solar;
     double fT_CMB_0;
+
+    /*
+     * IA: Internal energy floor parameters
+     */
+    double dJeansFloorIndex;
+    double dJeansFloorDen;
+    double dJeansFlooru;
+    double dCoolingFloorDen;
+    double dCoolingFlooru;
 #endif
 
 #ifdef MDL_FFTW

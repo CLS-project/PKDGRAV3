@@ -929,6 +929,7 @@ void pstSphStep(PST,void *,int,void *,int *);
 /* PST_STARFORM */
 struct inStarForm
     {
+    /* IA: I will reuse this
     double dRateCoeff;
     double dTMax;
     double dDenMin;
@@ -944,6 +945,11 @@ struct inStarForm
     double dZMassPerStarMass;
     double dMinGasMass;
     int bdivv;
+    */
+    double dTime;
+    double dDenMin;
+    double dDenCrit;
+
     };
 
 struct outStarForm 

@@ -313,9 +313,11 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_SPHSTEP,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstSphStep,
 		  sizeof(struct inSphStep), 0);
+#ifdef STAR_FORMATION
     mdlAddService(mdl,PST_STARFORM,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstStarForm,
 		  sizeof(struct inStarForm),sizeof(struct outStarForm));
+#endif
     mdlAddService(mdl,PST_SETRUNGVERYACTIVE,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstSetRungVeryActive,
 		  sizeof(struct inSetRung),0);
@@ -3497,7 +3499,7 @@ pstSphStep(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     }
 
 
-
+#ifdef STAR_FORMATION
 void
 pstStarForm(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     {
@@ -3517,17 +3519,14 @@ pstStarForm(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	out->dMassFormed += fsStats.dMassFormed;
 		}
     else {
-	pkdStarForm(pst->plcl->pkd, in->dRateCoeff, in->dTMax, in->dDenMin, in->dDelta, 
-		    in->dTime,
-		     in->dInitStarMass, in->dESNPerStarMass, in->dtCoolingShutoff,
-		    in->dtFeedbackDelay,    in->dMassLossPerStarMass,    
-		    in->dZMassPerStarMass,    in->dMinGasMass,
-		    in->bdivv,
+	pkdStarForm(pst->plcl->pkd,
+		    in->dTime, in->dDenMin, in->dDenCrit,
 		     &out->nFormed, &out->dMassFormed, &out->nDeleted);
 	}
     
     if (pnOut) *pnOut = sizeof(struct outStarForm);
     }
+#endif
 
 void
 pstDensityStep(PST pst,void *vin,int nIn,void *vout,int *pnOut) {

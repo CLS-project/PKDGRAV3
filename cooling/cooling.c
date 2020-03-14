@@ -35,6 +35,7 @@
 #include "cooling_rates.h"
 #include "cooling_struct.h"
 #include "cooling_tables.h"
+#include "entropy_floor.h"
 //#include "entropy_floor.h"
 //#include "error.h"
 //#include "exp10.h"
@@ -523,6 +524,7 @@ void cooling_cool_part(PKD pkd,
   //    gas_internal_energy_from_entropy(rho_physical, A_floor);
   //u_final = max(u_final, u_floor);
   double u_floor = 0.;
+  internalEnergyFloor(pkd, p, psph);
 
   /* Expected change in energy over the next kick step
      (assuming no change in dt) */
@@ -532,7 +534,7 @@ void cooling_cool_part(PKD pkd,
   const float cooling_du_dt = delta_u / dt;
 
   /* Update the internal energy time derivative */
-  //hydro_set_physical_internal_energy_dt(p, cosmo, cooling_du_dt);
+  // IA: TODO, do we use this?
   psph->cooling_dudt = cooling_du_dt;
 
   /* Store the radiated energy */
