@@ -725,7 +725,7 @@ void cooling_Hydrogen_reionization(PKD pkd,
  * @param cooling #cooling_function_data struct to initialize
  */
 void cooling_init_backend(PKD pkd) {
-   printf("Initializing cooling2 \n");
+   printf("Initializing cooling \n");
 
   /* IA: Allocate the needed structs */
   pkd->cooling = (struct cooling_function_data *) malloc(sizeof(struct cooling_function_data));

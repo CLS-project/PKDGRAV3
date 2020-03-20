@@ -5180,6 +5180,7 @@ void msrCooling(MSR msr,double dTime,double dStep,int bUpdateState, int bUpdateT
     }
 #ifdef COOLING
 void msrCoolingUpdate(MSR msr,float redshift) {
+   printf("Updating cooling.. \n");
    struct inCoolUpdate in;
    in.redshift = redshift;
    pstCoolingUpdate(msr->pst, &in, sizeof(in), NULL, NULL);

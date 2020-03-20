@@ -3635,7 +3635,7 @@ static int hdf5WriteStar(
 	field_create(&base->fldFields[STAR_METALS],base->group_id,
 		     FIELD_METALS, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, 1 );
 	}
-
+    class_add(base,iParticleID,fMass,0.0);
     ioorder_add(base,iParticleID);
     field_add_double(pdPos,&base->fldFields[DARK_POSITION],base->iIndex);
     field_add_double(pdVel,&base->fldFields[DARK_VELOCITY],base->iIndex);

@@ -2378,6 +2378,59 @@ pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 
     for (i=0;i<=IRUNGMAX;++i) pnRung[i] = pkd->nRung[i];
 
+    // IA: Analytical gravity
+    PARTICLE *p;
+      for (i=0;i<pkdLocal(pkd);++i) { 
+      p = pkdParticle(pkd,i);
+         if ( pkdIsActive(pkd, p)  ) {
+             const double const_reduced_hubble_cgs = 3.2407789e-18;
+             //const double H0 = 0.704 * const_reduced_hubble_cgs * pkd->param.dSecUnit;
+             const double H0 = 70.4/ pkd->param.dKmPerSecUnit * ( pkd->param.dKpcUnit / 1e3);
+
+             const double concentration = 9.0;
+             const double M200 = 135.28423603962767; //137.0; // / pkd->param.dMsolUnit;
+             const double V200 = cbrt(10.*M200*H0);
+             //const double R200 = V200/(H0);
+             const double R200 = cbrt(M200/(100.*H0*H0));
+             const double RS = R200 / concentration;
+
+             const double al = RS * sqrt(2. * (log(1. + concentration) -
+                                             concentration / (1. + concentration)));
+
+             //const double mass = M200*(1.-0.04-0.014);
+             const double mass = M200*(1.-0.041);
+             const double epsilon =  0.2/pkd->param.dKpcUnit;
+             const double epsilon2 = epsilon*epsilon;
+
+
+
+
+           const float dx = pkdPos(pkd,p,0); //- potential->x[0];
+           const float dy = pkdPos(pkd,p,1); //- potential->x[1];
+           const float dz = pkdPos(pkd,p,2); //- potential->x[2];
+
+           /* Calculate the acceleration */
+           const float r = sqrtf(dx * dx + dy * dy + dz * dz + epsilon2);
+           const float r_plus_a_inv = 1.f / (r + al);
+           const float r_plus_a_inv2 = r_plus_a_inv * r_plus_a_inv;
+           const float term = -mass * r_plus_a_inv2 / r;
+
+           /* Orbital time */
+           const float sqrtgm = sqrtf(mass);
+           const float orbtime = 2.f * sqrtf(epsilon) * al * M_PI *
+                                (1. + epsilon / al) / sqrtgm;
+           //printf("Orbital period %e \n", orbtime);
+
+
+           pkdAccel(pkd,p)[0] += term * dx;
+           pkdAccel(pkd,p)[1] += term * dy;
+           pkdAccel(pkd,p)[2] += term * dz;
+            //
+         }
+      }
+
+
+
 #ifdef USE_ITT
     __itt_task_end(domain);
 #endif
@@ -2956,58 +3009,6 @@ void pkdComputePrimVars(PKD pkd,int iRoot, double dTime, double dDelta) {
                 pDelta = 0.0;
              }
 
-            // ##### Analytical gravity
-            
-/* Determine the position relative to the centre of the potential */
-//             V200 = cbrt(10. * M200 * G_newton * H0);
-//             const double RS = R200 / concentration;
-//    potential->al = RS * sqrt(1. * (log(1. + concentration) -
-//                                    concentration / (1. + concentration)));
-//        const double Mdisk = M200 * diskfraction;
-//    const double Mbulge = M200 * bulgefraction;
-//
-//    /* Store the mass of the DM halo */
-//    potential->mass = M200 - Mdisk - Mbulge;
-
-
-    const double concentration = 9.0;
-    const double M200 = 137.0; // / pkd->param.dMsolUnit;
-    const double V200 = cbrt(10.*M200*70.4/ pkd->param.dKmPerSecUnit * ( pkd->param.dKpcUnit / 1e3));
-    const double R200 = V200/(10.*70.4/ pkd->param.dKmPerSecUnit * ( pkd->param.dKpcUnit / 1e3));
-    const double RS = R200 / concentration;
-
-    const double al = RS * sqrt(1. * (log(1. + concentration) -
-                                    concentration / (1. + concentration)));
-
-    const double mass = M200*(1.-0.04-0.014);
-    const double epsilon =  0.2/pkd->param.dKpcUnit;
-    const double epsilon2 = epsilon*epsilon;
-
-
-
-
-  const float dx = pkdPos(pkd,p,0); //- potential->x[0];
-  const float dy = pkdPos(pkd,p,1); //- potential->x[1];
-  const float dz = pkdPos(pkd,p,1); //- potential->x[2];
-
-  /* Calculate the acceleration */
-  const float r = sqrtf(dx * dx + dy * dy + dz * dz + epsilon2);
-  const float r_plus_a_inv = 1.f / (r + al);
-  const float r_plus_a_inv2 = r_plus_a_inv * r_plus_a_inv;
-  const float term = -mass * r_plus_a_inv2 / r;
-
-  /* Orbital time */
-  const float sqrtgm = sqrtf(mass);
-  const float orbtime = 2.f * sqrtf(epsilon) * al * M_PI *
-                       (1. + epsilon / al) / sqrtgm;
-  //printf("Orbital period %e \n", orbtime);
-
-
-  pkdAccel(pkd,p)[0] += term * dx;
-  pkdAccel(pkd,p)[1] += term * dy;
-  pkdAccel(pkd,p)[2] += term * dz;
-            //
-
 
       
             // ##### GRAVITY
@@ -3517,6 +3518,54 @@ void pkdAccelStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
 		}
 	    uNewRung = pkdDtToRung(dT,pkd->param.dDelta,pkd->param.iMaxRung);
 	    if (uNewRung > p->uNewRung) p->uNewRung = uNewRung;
+
+    // IA: Timestep criteria based on the Hernsquist potential
+    
+    const double const_reduced_hubble_cgs = 3.2407789e-18;
+    //const double H0 = 0.704 * const_reduced_hubble_cgs * pkd->param.dSecUnit;
+    const double H0 = 70.4/ pkd->param.dKmPerSecUnit * ( pkd->param.dKpcUnit / 1e3);
+
+    const double concentration = 9.0;
+    const double M200 = 135.28423603962767; //137.0 ; // / pkd->param.dMsolUnit;
+    const double V200 = cbrt(M200*10.*H0);
+    const double R200 = V200/(10.*H0);
+    //const double R200 = cbrt(M200/(100.*H0*H0));
+
+
+    const double RS = R200 / concentration;
+
+    const double al = RS * sqrt(2. * (log(1. + concentration) -
+                                    concentration / (1. + concentration)));
+    
+    //printf("V200 %e \t R200 %e \t RS %e \t a %e \n", V200*pkd->param.dKmPerSecUnit, R200*pkd->param.dKpcUnit, RS, al);
+    //abort();
+
+    const double mass = M200*(1.-0.041);
+
+  /* Calculate the relative potential with respect to the centre of the
+   * potential */
+  const double dx = pkdPos(pkd,p,0); //- potential->x[0];
+  const double dy = pkdPos(pkd,p,1); //- potential->x[1];
+  const double dz = pkdPos(pkd,p,2); //- potential->x[2];
+
+  /* calculate the radius  */
+    const double epsilon =  0.2/pkd->param.dKpcUnit;
+    const double epsilon2 = epsilon*epsilon;
+  const float r = sqrtf(dx * dx + dy * dy + dz * dz + epsilon2);
+  const float sqrtgm_inv = 1.f / sqrtf(mass);
+
+  /* Calculate the circular orbital period */
+  const float period = 2.f * M_PI * sqrtf(r) * al *
+                       (1 + r / al) * sqrtgm_inv;
+
+  /* Time-step as a fraction of the cirecular orbital time */
+  double time_step = 0.01 * period;
+	    uNewRung = pkdDtToRung(time_step,pkd->param.dDelta,pkd->param.iMaxRung);
+	    if (uNewRung > p->uNewRung) p->uNewRung = uNewRung;
+
+
+
+
 	    if ( p->uNewRung < pkd->param.dMinDt ) p->uNewRung = pkd->param.dMinDt;
 	    }
 	}

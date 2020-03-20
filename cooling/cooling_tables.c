@@ -118,6 +118,8 @@ void get_cooling_redshifts(struct cooling_function_data *cooling) {
                        eagle_cooling_N_redshifts * sizeof(float)) != 0){ 
        printf("ERROR: Failed to allocate redshift table\n");
        abort();
+    }else{
+       printf("Allocated redshift values\n");
     }
     //if (swift_memalign("cooling", (void **)&cooling->Redshifts,
     //                   SWIFT_STRUCT_ALIGNMENT,
@@ -140,6 +142,8 @@ void get_cooling_redshifts(struct cooling_function_data *cooling) {
           "(%d vs. %d)\n",
           redshift_filename, count, N_Redshifts);
       abort();
+    }else{
+       printf("Correctly read redshift files\n");
     }
   } else {
     printf("Redshift file (%s) is empty!\n", redshift_filename);
@@ -148,6 +152,7 @@ void get_cooling_redshifts(struct cooling_function_data *cooling) {
 
   /* We are done with this file */
   fclose(infile);
+  printf("Done reading redshift file\n");
 
   /* EAGLE cooling assumes cooling->Redshifts table is in increasing order. Test
    * this. */
@@ -171,10 +176,12 @@ void read_cooling_header(const char *fname,
                          struct cooling_function_data *cooling) {
 
 
+  printf("Reading hdf5 header of %s \n", fname);
   int N_Temp, N_nH, N_He, N_SolarAbundances, N_Elements;
 
   /* read sizes of array dimensions */
   hid_t tempfile_id = H5Fopen(fname, H5F_ACC_RDONLY, H5P_DEFAULT);
+  printf("Reading hdf5 header of %s (2) \n", fname);
   if (tempfile_id < 0) printf("unable to open file %s\n", fname);
 
   /* read size of each table of values */
@@ -311,6 +318,7 @@ void read_cooling_header(const char *fname,
   for (int i = 0; i < N_SolarAbundances; ++i) {
     cooling->SolarAbundances_inv[i] = 1.f / cooling->SolarAbundances[i];
   }
+  status = H5Fclose(tempfile_id);
 
 }
 

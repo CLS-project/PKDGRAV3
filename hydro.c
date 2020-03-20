@@ -1061,6 +1061,45 @@ void hydroStep(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
     }
 
+    // IA: Timestep criteria based on the Hernsquist potential
+    
+    const double const_reduced_hubble_cgs = 3.2407789e-18;
+    //const double H0 = 0.704 * const_reduced_hubble_cgs * pkd->param.dSecUnit;
+    const double H0 = 70.4/ pkd->param.dKmPerSecUnit * ( pkd->param.dKpcUnit / 1e3);
+
+    const double concentration = 9.0;
+    const double M200 = 135.28423603962767; //137.0 ; // / pkd->param.dMsolUnit;
+    const double V200 = cbrt(M200*H0);
+    //const double R200 = V200/(H0);
+    const double R200 = cbrt(M200/(100.*H0*H0));
+    const double RS = R200 / concentration;
+
+    const double al = RS * sqrt(2. * (log(1. + concentration) -
+                                    concentration / (1. + concentration)));
+
+    const double mass = M200;(1.-0.041);
+
+  /* Calculate the relative potential with respect to the centre of the
+   * potential */
+  dx = pkdPos(pkd,p,0); //- potential->x[0];
+  dy = pkdPos(pkd,p,1); //- potential->x[1];
+  dz = pkdPos(pkd,p,2); //- potential->x[2];
+
+  /* calculate the radius  */
+    const double epsilon =  0.2/pkd->param.dKpcUnit;
+    const double epsilon2 = epsilon*epsilon;
+  const float r = sqrtf(dx * dx + dy * dy + dz * dz + epsilon2);
+  const float sqrtgm_inv = 1.f / sqrtf(mass);
+
+  /* Calculate the circular orbital period */
+  const float period = 2.f * M_PI * sqrtf(r) * al *
+                       (1 + r / al) * sqrtgm_inv;
+
+  /* Time-step as a fraction of the cirecular orbital time */
+  double time_step = 0.01 * period;
+
+  if (time_step < dtEst) dtEst = time_step;
+
 
 
 
