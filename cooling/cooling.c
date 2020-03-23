@@ -50,6 +50,7 @@
 
 /* IA: PKDGRAV3 includes */
 #include "pkd.h"
+#include "master.h"
 #include "pkd_config.h"
 #include <stdio.h>
 
@@ -132,9 +133,9 @@ inline void get_redshift_index(
  *
  *
  */
-void cooling_update(PKD pkd,const float redshift) {
+void cooling_update(MSR msr,const float redshift) {
 
-   struct cooling_function_data *cooling = pkd->cooling;
+   struct cooling_function_data *cooling = msr->cooling;
   /* Current redshift */
   //const float redshift = cosmo->z;
 
@@ -144,8 +145,11 @@ void cooling_update(PKD pkd,const float redshift) {
   get_redshift_index(redshift, &z_index, &dz, cooling);
   cooling->dz = dz;
 
+  // We update dz in each process
+  pstCoolingUpdateZ(msr->pst, &dz, sizeof(float), NULL, NULL);
+
   /* Extra energy for reionization? */
-  if (!cooling->H_reion_done) {
+  if (!cooling->H_reion_done && redshift !=0.0) {
 
     /* Does this timestep straddle Hydrogen reionization? If so, we need to
      * input extra heat */
@@ -155,7 +159,7 @@ void cooling_update(PKD pkd,const float redshift) {
       //if (s == NULL) error("Trying to do H reionization on an empty space!");
 
       /* Inject energy to all particles */
-      cooling_Hydrogen_reionization(pkd, cooling);
+      pstCoolingHydReion(msr->pst, NULL, 0, NULL, NULL);
 
       /* Flag that reionization happened */
       cooling->H_reion_done = 1;
@@ -190,6 +194,29 @@ void cooling_update(PKD pkd,const float redshift) {
 
   /* Store the currently loaded index */
   cooling->z_index = z_index;
+  // We send the newly loaded table
+  printf("Sending cooling tables...\n");
+  struct inCoolUpdate in;
+  in.z_index = cooling->z_index;
+  in.previous_z_index = cooling->previous_z_index;
+  in.dz = cooling->dz;
+
+  for (int i;i<eagle_cooling_N_loaded_redshifts * num_elements_metal_heating ;i++) 
+     in.metal_heating[i] = msr->cooling->table.metal_heating[i];
+
+  for (int i;i<eagle_cooling_N_loaded_redshifts * num_elements_HpHe_heating; i++) 
+     in.H_plus_He_heating[i] = msr->cooling->table.H_plus_He_heating[i];
+
+  for (int i;i<eagle_cooling_N_loaded_redshifts * num_elements_HpHe_electron_abundance;i++) 
+     in.H_plus_He_electron_abundance[i] = msr->cooling->table.H_plus_He_electron_abundance[i];
+
+  for (int i;i<eagle_cooling_N_loaded_redshifts * num_elements_temperature;i++) 
+     in.temperature[i] = msr->cooling->table.temperature[i];
+
+  for (int i;i<eagle_cooling_N_loaded_redshifts * num_elements_electron_abundance;i++) 
+     in.electron_abundance[i] = msr->cooling->table.electron_abundance[i];
+
+  pstCoolingUpdate(msr->pst, &in, sizeof(in), NULL, NULL);
 }
 
 /**
@@ -517,12 +544,6 @@ void cooling_cool_part(PKD pkd,
   u_final = fmax(u_final, u_minimal);
 
   /* Limit imposed by the entropy floor */
-  //IA: TODO IMPLEMENT
-  //const double A_floor = entropy_floor(p, cosmo, floor_props);
-  //const double rho_physical = hydro_get_physical_density(p, cosmo);
-  //const double u_floor =
-  //    gas_internal_energy_from_entropy(rho_physical, A_floor);
-  //u_final = max(u_final, u_floor);
   double u_floor = 0.;
   internalEnergyFloor(pkd, p, psph);
 
@@ -637,7 +658,6 @@ float cooling_get_temperature(PKD pkd, const float redshift,
   //printf("dComovingGmPerCcUnit %e \n",pkd->param.dComovingGmPerCcUnit);
   const double n_H = rho * XH / MHYDR * pkd->param.dMsolUnit * MSOLG;
   const double n_H_cgs = n_H * cooling->number_density_to_cgs;
-  //printf("n_H %e \t n_to_cgs %e \t n_H_cgs %e \n", n_H, cooling->number_density_to_cgs, n_H_cgs);
 
   /* compute hydrogen number density and helium fraction table indices and
    * offsets */
@@ -647,6 +667,8 @@ float cooling_get_temperature(PKD pkd, const float redshift,
                &d_He);
   get_index_1d(cooling->nH, eagle_cooling_N_density, log10(n_H_cgs), &n_H_index,
                &d_n_H);
+  //printf("n_H %e \t n_to_cgs %e \t n_H_cgs %e \n", n_H, cooling->number_density_to_cgs, n_H_cgs);
+  //abort();
 
   /* Compute the log10 of the temperature by interpolating the table */
   const double log_10_T = eagle_convert_u_to_temp(
@@ -687,17 +709,18 @@ float cooling_get_temperature(PKD pkd, const float redshift,
  * @param cosmo The cosmological model.
  * @param s The #space containing the particles.
  */
-void cooling_Hydrogen_reionization(PKD pkd,
-                                   const struct cooling_function_data *cooling) {
+void cooling_Hydrogen_reionization(PKD pkd) {
 
   PARTICLE* p; 
   SPHFIELDS* psph;
+  struct cooling_function_data * cooling = pkd->cooling;
   /* Energy to inject in internal units */
   const float extra_heat =
       cooling->H_reion_heat_cgs * cooling->internal_energy_from_cgs;
 
   printf("Applying extra energy for H reionization! %e %e \n", cooling->H_reion_heat_cgs, cooling->internal_energy_from_cgs);
 
+   cooling->H_reion_done = 1;
   /* Loop through particles and set new heat */
   for (int i=0;i<pkdLocal(pkd);++i) { 
     p = pkdParticle(pkd,i);
@@ -724,12 +747,12 @@ void cooling_Hydrogen_reionization(PKD pkd,
  * @param hydro_props The properties of the hydro scheme.
  * @param cooling #cooling_function_data struct to initialize
  */
-void cooling_init_backend(PKD pkd) {
+void cooling_init_backend(MSR msr) {
    printf("Initializing cooling \n");
 
   /* IA: Allocate the needed structs */
-  pkd->cooling = (struct cooling_function_data *) malloc(sizeof(struct cooling_function_data));
-  struct cooling_function_data *cooling = pkd->cooling;
+  msr->cooling = (struct cooling_function_data *) malloc(sizeof(struct cooling_function_data));
+  struct cooling_function_data *cooling = msr->cooling;
 
 
   /* Read model parameters */
@@ -737,28 +760,28 @@ void cooling_init_backend(PKD pkd) {
   /* Directory for cooling tables */
   //parser_get_param_string(parameter_file, "EAGLECooling:dir_name",
   //                        cooling->cooling_table_path);
-  strcpy(cooling->cooling_table_path, pkd->param.strCoolingTables);
+  strcpy(cooling->cooling_table_path, msr->param.strCoolingTables);
 
   /* Despite the names, the values of H_reion_heat_cgs and He_reion_heat_cgs
    * that are read in are actually in units of electron volts per proton mass.
    * We later convert to units just below */
 
   cooling->H_reion_done = 0;
-  cooling->H_reion_z = pkd->param.fH_reion_z;
+  cooling->H_reion_z = msr->param.fH_reion_z;
 //      parser_get_param_float(parameter_file, "EAGLECooling:H_reion_z");
-  cooling->H_reion_heat_cgs = pkd->param.fH_reion_eV_p_H;
+  cooling->H_reion_heat_cgs = msr->param.fH_reion_eV_p_H;
 //      parser_get_param_float(parameter_file, "EAGLECooling:H_reion_eV_p_H");
-  cooling->He_reion_z_centre = pkd->param.fHe_reion_z_centre;
+  cooling->He_reion_z_centre = msr->param.fHe_reion_z_centre;
 //      parser_get_param_float(parameter_file, "EAGLECooling:He_reion_z_centre");
-  cooling->He_reion_z_sigma = pkd->param.fHe_reion_z_sigma;
+  cooling->He_reion_z_sigma = msr->param.fHe_reion_z_sigma;
 //      parser_get_param_float(parameter_file, "EAGLECooling:He_reion_z_sigma");
-  cooling->He_reion_heat_cgs = pkd->param.fHe_reion_eV_p_H;
+  cooling->He_reion_heat_cgs = msr->param.fHe_reion_eV_p_H;
 //      parser_get_param_float(parameter_file, "EAGLECooling:He_reion_eV_p_H");
 
   /* Optional parameters to correct the abundances */
-  cooling->Ca_over_Si_ratio_in_solar = pkd->param.fCa_over_Si_in_Solar;
+  cooling->Ca_over_Si_ratio_in_solar = msr->param.fCa_over_Si_in_Solar;
 //      parameter_file, "EAGLECooling:Ca_over_Si_in_solar", 1.f);
-  cooling->S_over_Si_ratio_in_solar = pkd->param.fS_over_Si_in_Solar;
+  cooling->S_over_Si_ratio_in_solar = msr->param.fS_over_Si_in_Solar;
 //      parameter_file, "EAGLECooling:S_over_Si_in_solar", 1.f);
 
   /* Convert H_reion_heat_cgs and He_reion_heat_cgs to cgs
@@ -787,10 +810,10 @@ void cooling_init_backend(PKD pkd) {
   allocate_cooling_tables(cooling);
 
   /* Compute conversion factors */
-  cooling->internal_energy_to_cgs = pkd->param.dErgPerGmUnit;
+  cooling->internal_energy_to_cgs = msr->param.dErgPerGmUnit;
       //units_cgs_conversion_factor(us, UNIT_CONV_ENERGY_PER_UNIT_MASS);
   cooling->internal_energy_from_cgs = 1. / cooling->internal_energy_to_cgs;
-  cooling->number_density_to_cgs = pow(pkd->param.dKpcUnit*KPCCM,-3.);
+  cooling->number_density_to_cgs = pow(msr->param.dKpcUnit*KPCCM,-3.);
       //units_cgs_conversion_factor(us, UNIT_CONV_NUMBER_DENSITY);
 
   /* Store some constants in CGS units */
@@ -798,7 +821,7 @@ void cooling_init_backend(PKD pkd) {
 //      phys_const->const_proton_mass *
 //      units_cgs_conversion_factor(us, UNIT_CONV_MASS);
   cooling->inv_proton_mass_cgs = 1. / proton_mass_cgs;
-  cooling->T_CMB_0 = pkd->param.fT_CMB_0;
+  cooling->T_CMB_0 = msr->param.fT_CMB_0;
 
   /* Compute the coefficient at the front of the Compton cooling expression */
 //  const double radiation_constant =
@@ -835,6 +858,76 @@ void cooling_init_backend(PKD pkd) {
   /* set previous_z_index and to last value of redshift table*/
   cooling->previous_z_index = eagle_cooling_N_redshifts - 2;
 }
+
+
+
+
+
+/* IA:
+ * The master process will send us the cooling_function_data, which we then need to allocate
+ *  in each process and copy everything, taking special care of other arrays (deep copy)
+ */
+void pkd_cooling_init_backend(PKD pkd, struct cooling_function_data in_cooling_data,
+  float Redshifts[eagle_cooling_N_redshifts],
+  float nH[eagle_cooling_N_density],
+  float Temp[eagle_cooling_N_temperature],
+  float HeFrac[eagle_cooling_N_He_frac],
+  float Therm[eagle_cooling_N_temperature],
+  float SolarAbundances[eagle_cooling_N_temperature],
+  float SolarAbundances_inv[eagle_cooling_N_temperature]
+      ) {
+   printf("Initializing in a single process \n");
+
+  /* IA: Allocate the needed structs */
+  pkd->cooling = (struct cooling_function_data *) malloc(sizeof(struct cooling_function_data));
+  //struct cooling_function_data *cooling = pkd->cooling;
+
+  *(pkd->cooling) = in_cooling_data;
+
+#define ALLOC_AND_COPY(arr, n) \
+  pkd->cooling->arr = (float *) malloc(sizeof(float)*n); \
+  for (int i; i<n; i++) pkd->cooling->arr[i] = arr[i];
+
+  ALLOC_AND_COPY(Redshifts, eagle_cooling_N_redshifts)
+  ALLOC_AND_COPY(nH, eagle_cooling_N_density)
+  ALLOC_AND_COPY(Temp, eagle_cooling_N_temperature)
+  ALLOC_AND_COPY(HeFrac, eagle_cooling_N_He_frac)
+  ALLOC_AND_COPY(Therm, eagle_cooling_N_temperature)
+  ALLOC_AND_COPY(SolarAbundances, eagle_cooling_N_abundances)
+  ALLOC_AND_COPY(SolarAbundances_inv, eagle_cooling_N_abundances)
+
+#undef ALLOC_AND_COPY
+
+  /* Allocate space for cooling tables */
+  allocate_cooling_tables(pkd->cooling);
+}
+
+void pkd_cooling_update(PKD pkd, struct inCoolUpdate *in){
+
+   printf("Updating in a single process \n");
+
+   pkd->cooling->z_index = in->z_index;
+   pkd->cooling->previous_z_index = in->previous_z_index;
+   pkd->cooling->dz  = in->dz;
+   
+
+  for (int i;i<eagle_cooling_N_loaded_redshifts * num_elements_metal_heating ;i++) 
+     pkd->cooling->table.metal_heating[i] = in->metal_heating[i];
+
+  for (int i;i<eagle_cooling_N_loaded_redshifts * num_elements_HpHe_heating; i++) 
+     pkd->cooling->table.H_plus_He_heating[i] = in->H_plus_He_heating[i];
+
+  for (int i;i<eagle_cooling_N_loaded_redshifts * num_elements_HpHe_electron_abundance;i++) 
+     pkd->cooling->table.H_plus_He_electron_abundance[i] = in->H_plus_He_electron_abundance[i];
+
+  for (int i;i<eagle_cooling_N_loaded_redshifts * num_elements_temperature;i++) 
+     pkd->cooling->table.temperature[i] = in->temperature[i];
+
+  for (int i;i<eagle_cooling_N_loaded_redshifts * num_elements_electron_abundance;i++) 
+     pkd->cooling->table.electron_abundance[i] = in->electron_abundance[i];
+
+}
+
 
 /**
  * @brief Restore cooling tables (if applicable) after

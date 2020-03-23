@@ -231,8 +231,14 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_COOLINGUPDATE,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstCoolingUpdate,
 		  sizeof(struct inCoolUpdate),0);
+    mdlAddService(mdl,PST_COOLINGUPDATEZ,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstCoolingUpdateZ,
+		  sizeof(float),0);
     mdlAddService(mdl,PST_COOLINGINIT,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstCoolingInit,
+		  sizeof(struct inCoolInit),0);
+    mdlAddService(mdl,PST_COOLINGHYDREION,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstCoolingHydReion,
 		  0,0);
 #endif 
     //
@@ -3150,14 +3156,23 @@ void pstPredictSmoothing(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 #ifdef COOLING
 void pstCoolingInit(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
+    struct inCoolInit *in = vin;
 
+    mdlassert(pst->mdl,nIn == sizeof(struct inCoolInit));
     if (pst->nLeaves > 1) {
-       int rID = mdlReqService(pst->mdl,pst->idUpper,PST_COOLINGINIT,NULL,0);
-       pstCoolingInit(pst->pstLower,NULL,0,NULL,NULL);
+       int rID = mdlReqService(pst->mdl,pst->idUpper,PST_COOLINGINIT,in,nIn);
+       pstCoolingInit(pst->pstLower,in,nIn,NULL,NULL);
        mdlGetReply(pst->mdl,rID,NULL,NULL);
        }
     else {
-       cooling_init_backend(plcl->pkd);
+       pkd_cooling_init_backend(plcl->pkd, in->in_cooling_data,
+           in->Redshifts,
+           in->nH,
+           in->Temp,
+           in->HeFrac,
+           in->Therm,
+           in->SolarAbundances,
+           in->SolarAbundances_inv);
        }
     if (pnOut) *pnOut = 0;
     }
@@ -3173,7 +3188,35 @@ void pstCoolingUpdate(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
        mdlGetReply(pst->mdl,rID,NULL,NULL);
        }
     else {
-       cooling_update(plcl->pkd, in->redshift);
+       pkd_cooling_update(plcl->pkd, in);
+       }
+    if (pnOut) *pnOut = 0;
+    }
+void pstCoolingUpdateZ(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    float *in = vin;
+
+    if (pst->nLeaves > 1) {
+       int rID = mdlReqService(pst->mdl,pst->idUpper,PST_COOLINGUPDATEZ,in,nIn);
+       pstCoolingUpdateZ(pst->pstLower,in,nIn,NULL,NULL);
+       mdlGetReply(pst->mdl,rID,NULL,NULL);
+       }
+    else {
+       plcl->pkd->cooling->dz = *in;
+       }
+    if (pnOut) *pnOut = 0;
+    }
+
+void pstCoolingHydReion(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+
+    if (pst->nLeaves > 1) {
+       int rID = mdlReqService(pst->mdl,pst->idUpper,PST_COOLINGHYDREION,NULL,0);
+       pstCoolingHydReion(pst->pstLower,NULL,0,NULL,NULL);
+       mdlGetReply(pst->mdl,rID,NULL,NULL);
+       }
+    else {
+       cooling_Hydrogen_reionization(plcl->pkd);
        }
     if (pnOut) *pnOut = 0;
     }

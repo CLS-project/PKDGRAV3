@@ -21,6 +21,63 @@
 
 #define eagle_table_path_name_length 256
 
+
+
+
+/*! Number of different bins along the redhsift axis of the tables */
+#define eagle_cooling_N_redshifts 49
+
+/*! Number of redshift bins loaded at any given point int time */
+#define eagle_cooling_N_loaded_redshifts 2
+
+/*! Number of different bins along the temperature axis of the tables */
+#define eagle_cooling_N_temperature 176
+
+/*! Number of different bins along the density axis of the tables */
+#define eagle_cooling_N_density 41
+
+/*! Number of different bins along the metal axis of the tables */
+#define eagle_cooling_N_metal 9
+
+/*! Number of different bins along the metal axis of the tables */
+#define eagle_cooling_N_He_frac 7
+
+/*! Number of different bins along the abundances axis of the tables */
+#define eagle_cooling_N_abundances 11
+
+
+/**
+ * @brief Names of the elements in the order they are stored in the files
+ */
+static const char *eagle_tables_element_names[eagle_cooling_N_metal] = {
+    "Carbon",  "Nitrogen", "Oxygen",  "Neon", "Magnesium",
+    "Silicon", "Sulphur",  "Calcium", "Iron"};
+
+/*! Number of elements in a z-slice of the H+He cooling rate tables */
+#define num_elements_cooling_rate ( eagle_cooling_N_temperature * eagle_cooling_N_density)
+
+/*! Number of elements in a z-slice of the metal cooling rate tables */
+#define num_elements_metal_heating (eagle_cooling_N_metal * eagle_cooling_N_temperature * eagle_cooling_N_density)
+
+/*! Number of elements in a z-slice of the metal electron abundance tables */
+#define num_elements_electron_abundance (eagle_cooling_N_temperature * eagle_cooling_N_density)
+
+/*! Number of elements in a z-slice of the temperature tables */
+#define num_elements_temperature (eagle_cooling_N_He_frac * eagle_cooling_N_temperature * eagle_cooling_N_density)
+
+/*! Number of elements in a z-slice of the H+He cooling rate tables */
+#define num_elements_HpHe_heating (eagle_cooling_N_He_frac * eagle_cooling_N_temperature * eagle_cooling_N_density)
+
+/*! Number of elements in a z-slice of the H+He electron abundance tables */
+#define num_elements_HpHe_electron_abundance (eagle_cooling_N_He_frac * eagle_cooling_N_temperature * eagle_cooling_N_density)
+
+
+
+
+
+
+
+
 /**
  * @brief struct containing cooling tables
  */

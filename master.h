@@ -26,6 +26,9 @@
 #include "pst.h"
 #include "mdl.h"
 #include "parameters.h"
+#ifdef COOLING
+#include "cooling/cooling_struct.h"
+#endif
 
 #define MSR_INIT_E		1
 #define MSR_STEP_E		0
@@ -50,6 +53,11 @@ typedef struct msrContext {
     PST pst;
     MDL mdl;
     LCL lcl;
+#ifdef COOLING
+    // IA: we add here the needed cooling information which will be then copied to the processors
+    struct cooling_function_data *cooling;
+    struct cooling_tables *cooling_table;
+#endif
     double fCenter[6];
     /*
     ** Parameters.

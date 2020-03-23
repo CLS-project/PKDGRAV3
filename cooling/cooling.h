@@ -28,9 +28,11 @@
 #include "cooling_struct.h"
 /* IA: PKDGRAV3 includes */
 #include "pkd.h"
+#include "master.h"
 
 
-void cooling_update(PKD pkd, const float redshift);
+void cooling_update(MSR msr, const float redshift);
+void pkd_cooling_update(PKD pkd, struct inCoolUpdate *in);
 
 void cooling_cool_part(PKD pkd,
                        const struct cooling_function_data *cooling,
@@ -45,10 +47,17 @@ float cooling_get_temperature(PKD pkd, const float redshift,
     PARTICLE* p, SPHFIELDS* psph);
 
 
-void cooling_Hydrogen_reionization(PKD pkd,
-                                   const struct cooling_function_data *cooling);
+void cooling_Hydrogen_reionization(PKD pkd);
 
-void cooling_init_backend(PKD pkd);
+void cooling_init_backend(MSR msr);
+void pkd_cooling_init_backend(PKD pkd, struct cooling_function_data in_cooling_data,
+  float Redshifts[eagle_cooling_N_redshifts],
+  float nH[eagle_cooling_N_density],
+  float Temp[eagle_cooling_N_temperature],
+  float HeFrac[eagle_cooling_N_He_frac],
+  float Therm[eagle_cooling_N_temperature],
+  float SolarAbundances[eagle_cooling_N_abundances],
+  float SolarAbundances_inv[eagle_cooling_N_abundances]); 
 
 void cooling_clean(struct cooling_function_data *data);
 

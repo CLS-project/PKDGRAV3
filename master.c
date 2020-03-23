@@ -69,6 +69,9 @@
 #include "outtype.h"
 #include "smoothfcn.h"
 #include "fio.h"
+#ifdef COOLING
+#include "cooling/cooling.h"
+#endif
 
 #define LOCKFILE ".lockfile"	/* for safety lock */
 #define STOPFILE "STOP"			/* for user interrupt */
@@ -1666,6 +1669,33 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     prmAddParam(msr->prm,"fT_CMB_0", 2, &msr->param.fT_CMB_0,
 		sizeof(float), "fT_CMB_0",
 		"Temperature of the CMB at z=0");
+
+
+    /* Parameters for the internal energy floor */
+    msr->param.dJeansFloorIndex = 4./3.; // This gives a Jeans Mass independent of density (see Schaye & Dalla Vecchia 2008
+    prmAddParam(msr->prm,"dJeansFloorIndex", 2, &msr->param.dJeansFloorIndex,
+		sizeof(double), "dJeansFloorIndex",
+		"Index of the polytropic effective EOS");
+
+    msr->param.dJeansFloorDen = 0.1;
+    prmAddParam(msr->prm,"dJeansFloorDen", 2, &msr->param.dJeansFloorDen,
+		sizeof(double), "dJeansFloorDen",
+		"Minimum density at which the effective EOS will be applied (in nH [cm-3])");
+
+    msr->param.dJeansFlooru = 8000.;
+    prmAddParam(msr->prm,"dJeansFloorTemp", 2, &msr->param.dJeansFlooru,
+		sizeof(double), "dJeansFloorTemp",
+		"Temperature at the density threshold for the effective EOS");
+
+    msr->param.dCoolingFloorDen = 1e-5;
+    prmAddParam(msr->prm,"dCoolingFloorDen", 2, &msr->param.dCoolingFloorDen,
+		sizeof(double), "dCoolingFloorDen",
+		"Minimum density at which the internal energy floor will be applied (in nH [cm-3])");
+
+    msr->param.dCoolingFlooru = 8000.;
+    prmAddParam(msr->prm,"dCoolingFloorTemp", 2, &msr->param.dCoolingFlooru,
+		sizeof(double), "dCoolingFloorTemp",
+		"Temperature at the internal energy floor");
 #endif
 #ifdef STAR_FORMATION
     msr->param.SFdMinOverDensity = 0.;
@@ -1748,12 +1778,14 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 #ifdef COOLING
     // We convert the parameters of the entropy floor into code units
     msr->param.dJeansFloorIndex -= 1.; 
-    msr->param.dJeansFloorDen *=  MHYDR / (msr->param.dMsolUnit * MSOLG ) / 0.75 ; // Now in rho
+    msr->param.dJeansFloorDen *=  MHYDR / (msr->param.dMsolUnit * MSOLG ) / 0.75 * pow(msr->param.dKpcUnit*KPCCM,3); // Now in rho
     msr->param.dJeansFlooru *= msr->param.dGasConst/(msr->param.dConstGamma - 1.)/1.22; // Now in internal energy per unit mass (assuming neutral gas here with primordial abundances)
 
-    msr->param.dCoolingFloorDen *= MHYDR / (msr->param.dMsolUnit * MSOLG ) / 0.75;
+    msr->param.dCoolingFloorDen *= MHYDR / (msr->param.dMsolUnit * MSOLG ) / 0.75 * pow(msr->param.dKpcUnit*KPCCM,3) ;
     msr->param.dCoolingFlooru *= msr->param.dGasConst/(msr->param.dConstGamma - 1.)/1.22;
 
+    printf("dCoolingFloorDen %e \t dCoolingFlooru %e \n", msr->param.dCoolingFloorDen, msr->param.dCoolingFlooru);
+    printf("dJeansFloorDen %e \t dJeansFlooru %e \n", msr->param.dJeansFloorDen, msr->param.dJeansFlooru);
 #endif
 
     /* Gas parameter checks */
@@ -4703,15 +4735,17 @@ void msrTopStepKDK(MSR msr,
 	msrDrift(msr,dTime,dDelta,ROOT);
 	dTime += dDelta;
 	dStep += 1.0/(1 << iRung);
+#ifdef COOLING
       if (msr->param.csm->val.bComove){
          const float a = csmTime2Exp(msr->param.csm,dTime);
-#ifdef COOLING
          const float z = 1./a - 1.;
 
          msrCoolingUpdate(msr, z);
+      }else{
+         msrCoolingUpdate(msr, 0.);
+      }
 #endif
 
-      }
 
       printf("dTime %e \n", dTime);
 	msrActiveRung(msr,iKickRung,1);
@@ -5180,13 +5214,26 @@ void msrCooling(MSR msr,double dTime,double dStep,int bUpdateState, int bUpdateT
     }
 #ifdef COOLING
 void msrCoolingUpdate(MSR msr,float redshift) {
-   printf("Updating cooling.. \n");
-   struct inCoolUpdate in;
-   in.redshift = redshift;
-   pstCoolingUpdate(msr->pst, &in, sizeof(in), NULL, NULL);
+   printf("Updating cooling.. %f \n", redshift);
+   cooling_update(msr, redshift);
+   //pstCoolingUpdate(msr->pst, &in, sizeof(in), NULL, NULL);
     }
 void msrCoolingInit(MSR msr) {
-    pstCoolingInit(msr->pst,NULL,0,NULL,NULL);
+    cooling_init_backend(msr);
+
+    // We prepare the data to be scattered among the processes
+    struct inCoolInit in;
+    in.in_cooling_data = *(msr->cooling);
+    for (int i;i<eagle_cooling_N_redshifts;i++) in.Redshifts[i] = msr->cooling->Redshifts[i];
+    for (int i;i<eagle_cooling_N_density;i++) in.nH[i] = msr->cooling->nH[i];
+    for (int i;i<eagle_cooling_N_He_frac;i++) in.HeFrac[i] = msr->cooling->HeFrac[i];
+    for (int i;i<eagle_cooling_N_temperature;i++) in.Temp[i] = msr->cooling->Temp[i];
+    for (int i;i<eagle_cooling_N_temperature;i++) in.Therm[i] = msr->cooling->Therm[i];
+    for (int i;i<eagle_cooling_N_abundances;i++) in.SolarAbundances[i] = msr->cooling->SolarAbundances[i];
+    for (int i;i<eagle_cooling_N_abundances;i++) in.SolarAbundances_inv[i] = msr->cooling->SolarAbundances_inv[i];
+
+
+    pstCoolingInit(msr->pst,&in,sizeof(in),NULL,NULL);
     }
 #endif
 

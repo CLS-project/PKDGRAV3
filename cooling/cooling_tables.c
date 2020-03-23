@@ -37,41 +37,6 @@
 #include "pkd_config.h"
 
 /**
- * @brief Names of the elements in the order they are stored in the files
- */
-static const char *eagle_tables_element_names[eagle_cooling_N_metal] = {
-    "Carbon",  "Nitrogen", "Oxygen",  "Neon", "Magnesium",
-    "Silicon", "Sulphur",  "Calcium", "Iron"};
-
-/*! Number of elements in a z-slice of the H+He cooling rate tables */
-static const size_t num_elements_cooling_rate =
-    eagle_cooling_N_temperature * eagle_cooling_N_density;
-
-/*! Number of elements in a z-slice of the metal cooling rate tables */
-static const size_t num_elements_metal_heating = eagle_cooling_N_metal *
-                                                 eagle_cooling_N_temperature *
-                                                 eagle_cooling_N_density;
-
-/*! Number of elements in a z-slice of the metal electron abundance tables */
-static const size_t num_elements_electron_abundance =
-    eagle_cooling_N_temperature * eagle_cooling_N_density;
-
-/*! Number of elements in a z-slice of the temperature tables */
-static const size_t num_elements_temperature = eagle_cooling_N_He_frac *
-                                               eagle_cooling_N_temperature *
-                                               eagle_cooling_N_density;
-
-/*! Number of elements in a z-slice of the H+He cooling rate tables */
-static const size_t num_elements_HpHe_heating = eagle_cooling_N_He_frac *
-                                                eagle_cooling_N_temperature *
-                                                eagle_cooling_N_density;
-
-/*! Number of elements in a z-slice of the H+He electron abundance tables */
-static const size_t num_elements_HpHe_electron_abundance =
-    eagle_cooling_N_He_frac * eagle_cooling_N_temperature *
-    eagle_cooling_N_density;
-
-/**
  * @brief Reads in EAGLE table of redshift values
  *
  * @param cooling #cooling_function_data structure

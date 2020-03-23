@@ -278,7 +278,11 @@ void * master_ch(MDL mdl) {
 	    }
 #ifdef COOLING
       msrCoolingInit(msr);
-      msrCoolingUpdate(msr, 1./dTime - 1.);
+      if ((msr->param.csm->val.bComove))
+         msrCoolingUpdate(msr, 1./dTime - 1.);
+      else
+         msrCoolingUpdate(msr, 0.);
+
 #endif
 
 

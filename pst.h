@@ -128,7 +128,9 @@ enum pst_service {
     PST_COMPUTEPRIMVARS, 
 #ifdef COOLING
     PST_COOLINGUPDATE,
+    PST_COOLINGUPDATEZ,
     PST_COOLINGINIT,
+    PST_COOLINGHYDREION,
 #endif
     PST_PREDICTSMOOTH,
     PST_DRIFTINACTIVE,
@@ -623,11 +625,31 @@ struct outSmooth {
 void pstSmooth(PST,void *,int,void *,int *);
 
 #ifdef COOLING
+#include "cooling/cooling_struct.h"
 struct inCoolUpdate {
-   float redshift;
+  int z_index;
+  int previous_z_index;
+  float dz;
+  float metal_heating[eagle_cooling_N_loaded_redshifts * num_elements_metal_heating ];
+  float H_plus_He_heating[eagle_cooling_N_loaded_redshifts * num_elements_HpHe_heating];
+  float H_plus_He_electron_abundance[eagle_cooling_N_loaded_redshifts * num_elements_HpHe_electron_abundance];
+  float temperature[eagle_cooling_N_loaded_redshifts * num_elements_temperature];
+  float electron_abundance[eagle_cooling_N_loaded_redshifts * num_elements_electron_abundance];
     };
 void pstCoolingUpdate(PST,void *,int,void *,int *);
+void pstCoolingUpdateZ(PST,void *,int,void *,int *);
+struct inCoolInit{
+   struct cooling_function_data in_cooling_data;
+   float Redshifts[eagle_cooling_N_redshifts];
+   float nH[eagle_cooling_N_density];
+   float Temp[eagle_cooling_N_temperature];
+   float HeFrac[eagle_cooling_N_He_frac];
+   float Therm[eagle_cooling_N_temperature];
+   float SolarAbundances[eagle_cooling_N_temperature];
+   float SolarAbundances_inv[eagle_cooling_N_temperature];
+   }; 
 void pstCoolingInit(PST,void *,int,void *,int *);
+void pstCoolingHydReion(PST,void *,int,void *,int *);
 #endif
 
 /* PST_RESMOOTH */
