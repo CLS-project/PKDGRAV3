@@ -254,8 +254,8 @@ typedef struct sphfields {
     } SPHFIELDS;
 
 typedef struct starfields {
-    float fTimer;  /* For gas -- cooling shutoff, for stars -- when formed */
-    double totaltime; /* diagnostic -- get rid of it */
+    float fTimer;  /* Time of formation */
+    int hasExploded; /* Has exploded as a supernova? */
     } STARFIELDS;   
 
 
@@ -1528,7 +1528,7 @@ void pkdAccelStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
 		  double dEta,double dVelFac,double dAccFac,
 		  int bDoGravity,int bEpsAcc,double dhMinOverSoft);
 void pkdSphStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,double dAccFac);
-void pkdStarForm(PKD pkd, double dTime, double dDenMin, double dDenCrit,
+void pkdStarForm(PKD pkd, double dTime, double dDelta, double dDenMin, double dDenCrit,
 		 int *nFormed, double *dMassFormed, int *nDeleted);
 void pkdCooling(PKD pkd,double,double,int,int,int,int);
 #define CORRECTENERGY_IN 1

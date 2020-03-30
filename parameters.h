@@ -159,9 +159,6 @@ struct parameters {
     double SFdvFB;
     int SFbdivv;
 
-    /* IA: Star formation */
-    double SFdMinOverDensity; 
-    double SFdGasFraction;
     
     /* END Gas Parameters */
     double dEta;
@@ -274,6 +271,21 @@ struct parameters {
     double dCoolingFloorDen;
     double dCoolingFlooru;
 #endif
+#ifdef STAR_FORMATION
+    /* IA: Star formation */
+    double dSFMinOverDensity; 
+    double dSFGasFraction;
+    double dSFThresholdDen;
+    double dSFThresholdu;
+    double dSFindexKS;
+    double dSFnormalizationKS;
+#endif
+#ifdef FEEDBACK
+    double dFeedbackDelay;
+    double dFeedbackEfficiency;
+    double dFeedbackDu;
+    double dNumberSNIIperMass;
+#endif 
 
 #ifdef MDL_FFTW
     int nGridPk;

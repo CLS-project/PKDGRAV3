@@ -290,7 +290,7 @@ void msrCoolingInit(MSR msr);
 /**/
 void msrCoolSetup(MSR msr, double);
 void msrCooling(MSR msr,double dTime,double dStep,int bUpdateState, int bUpdateTable,int bInterateDt);
-void msrStarForm( MSR, double, int);
+void msrStarForm( MSR, double, double, int);
 /* END Gas routines */
 
 void msrHostname(MSR msr);

@@ -492,6 +492,7 @@ void pkdInitialize(
 	pkd->oStar = pkdParticleAddStruct(pkd,sizeof(STARFIELDS));
     else
 	pkd->oStar = 0;
+    
 
     if ( mMemoryModel & PKD_MODEL_VELSMOOTH )
 	pkd->oVelSmooth = pkdParticleAddStruct(pkd,sizeof(VELSMOOTH));
@@ -1188,7 +1189,10 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 		pSph->vPred[1] = vel[1]*dvFac;
 		pSph->vPred[2] = vel[2]*dvFac;
 		}
-	    if (pStar) pStar->fTimer = fTimer;
+	    if (pStar) {
+             pStar->fTimer = 0.;
+             pStar->hasExploded = 1; // IA: We avoid that star in the IC could explode
+          }
 	    break;
 	default:
 	    fprintf(stderr,"Unsupported particle type: %d\n",eSpecies);

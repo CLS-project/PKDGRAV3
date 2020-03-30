@@ -971,6 +971,7 @@ struct inStarForm
     double dTime;
     double dDenMin;
     double dDenCrit;
+    double dDelta;
 
     };
 

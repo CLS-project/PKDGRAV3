@@ -2836,7 +2836,7 @@ void pstReSmooth(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 
 	smInitialize(&smx,plcl->pkd,&in->smf,in->nSmooth,
 		     in->bPeriodic,in->bSymmetric,in->iSmoothType);
-	out->nSmoothed = smReSmooth(smx,&in->smf);
+	out->nSmoothed = smReSmooth(smx,&in->smf, in->iSmoothType);
 	smFinish(smx,&in->smf);
 	}
     if (pnOut) *pnOut = sizeof(struct outSmooth);
@@ -3563,7 +3563,7 @@ pstStarForm(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 		}
     else {
 	pkdStarForm(pst->plcl->pkd,
-		    in->dTime, in->dDenMin, in->dDenCrit,
+		    in->dTime, in->dDelta, in->dDenMin, in->dDenCrit,
 		     &out->nFormed, &out->dMassFormed, &out->nDeleted);
 	}
     

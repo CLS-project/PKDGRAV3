@@ -34,6 +34,9 @@
 #include "pkd.h"
 #include "rbtree.h"
 #include "hydro.h"
+#ifdef FEEDBACK
+#include "starformation/feedback.h"
+#endif
 #include <sys/stat.h>
 
 #define ASSERT_CONCAT_(a, b) a##b
@@ -349,6 +352,15 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
 	comb = combHydroStep;
 	smx->fcnPost = NULL;
 	break;
+#ifdef FEEDBACK
+    case SMX_SN_FEEDBACK:
+	smx->fcnSmooth = smFeedback;
+	initParticle = NULL; /* Original Particle */
+	init = NULL; /* Cached copies */ 
+	comb = NULL;
+	smx->fcnPost = NULL;
+	break;
+#endif
     case SMX_DIST_DELETED_GAS:
 	assert(bSymmetric != 0);
 	smx->fcnSmooth = DistDeletedGas;
@@ -2609,28 +2621,74 @@ void smReSmoothSingle(SMX smx,SMF *smf,PARTICLE *p,double fBall) {
     }
 }
 
-int  smReSmooth(SMX smx,SMF *smf) {
+
+int  smReSmooth(SMX smx,SMF *smf, int iSmoothType) {
     PKD pkd = smx->pkd;
     PARTICLE *p;
     int pi, nSmoothed=0;
 
     smf->pfDensity = NULL;
-    if (smf->FirstHydroLoop){
-       for (pi=0;pi<pkd->nLocal;++pi) {
-         p = pkdParticle(pkd,pi);
-         if (pkdIsActive(pkd,p) && p->bMarked && pkdIsGas(pkd,p)){
-            smReSmoothSingle(smx,smf,p,2.*pkdBall(pkd,p));
-            nSmoothed++;
-         }
-       }
-    }else{
-       for (pi=0;pi<pkd->nLocal;++pi) {
-         p = pkdParticle(pkd,pi);
-         if (pkdIsActive(pkd,p) && pkdIsGas(pkd,p)){
-            smReSmoothSingle(smx,smf,p, 2.*pkdBall(pkd,p));
-            nSmoothed++;
-         }
-       }
+    switch (iSmoothType)
+    {
+       case SMX_FIRSTHYDROLOOP:
+          for (pi=0;pi<pkd->nLocal;++pi) {
+            p = pkdParticle(pkd,pi);
+            if (pkdIsActive(pkd,p) && p->bMarked && (pkdIsGas(pkd,p)||pkdIsStar(pkd,p))){
+
+               // We follow the density of stars that has not yet exploded to have a proper fBall
+               if (pkdIsStar(pkd,p) && (pkdStar(pkd,p)->hasExploded==1)) continue; 
+
+               smReSmoothSingle(smx,smf,p,2.*pkdBall(pkd,p));
+               nSmoothed++;
+            }
+          }
+         break;
+#ifdef FEEDBACK
+       /* IA: If computing the hydrostep, we also do the smooth over the newly formed stars that has not yet exploded, such that
+        *  they can increase the rung of the neighbouring gas particles before exploding
+        */
+       case SMX_HYDROSTEP:
+           for (pi=0;pi<pkd->nLocal;++pi) {
+             p = pkdParticle(pkd,pi);
+             if (pkdIsActive(pkd,p) && (pkdIsGas(pkd,p) || pkdIsStar(pkd,p)) ){
+                if (pkdIsStar(pkd,p)) continue;
+//                    if ( (pkdStar(pkd,p)->hasExploded==1) ||
+//                       ( (smf->dTime-pkdStar(pkd,p)->fTimer) < 0.95*pkd->param.dFeedbackDelay) ) continue; 
+                //if (pkdIsStar(pkd,p)) printf("SN dt\n");
+                smReSmoothSingle(smx,smf,p, 2.*pkdBall(pkd,p));
+                nSmoothed++;
+             }
+           }
+           break;
+
+       case SMX_SN_FEEDBACK:
+
+          for (pi=0;pi<pkd->nLocal;++pi) {
+            p = pkdParticle(pkd,pi);
+            if (pkdIsActive(pkd,p) && pkdIsStar(pkd,p)){ /* TODO: Does it have to be active? */
+               if ( (pkdStar(pkd,p)->hasExploded == 0) && 
+                    ((smf->dTime-pkdStar(pkd,p)->fTimer) > pkd->param.dFeedbackDelay) ){
+                  printf("BOOM! \n");
+                  smReSmoothSingle(smx,smf,p, 2.*pkdBall(pkd,p)); // Here we assume that the neighborhood has not
+                                                                  // changed a lot before it explodes
+                                                                  
+                  pkdStar(pkd,p)->hasExploded = 1;
+
+                  nSmoothed++;
+               }
+            }
+          }
+          break;
+#endif
+       default:
+          for (pi=0;pi<pkd->nLocal;++pi) {
+            p = pkdParticle(pkd,pi);
+            if (pkdIsActive(pkd,p) && pkdIsGas(pkd,p)){
+               smReSmoothSingle(smx,smf,p, 2.*pkdBall(pkd,p));
+               nSmoothed++;
+            }
+          }
     }
+    
     return nSmoothed;
 }

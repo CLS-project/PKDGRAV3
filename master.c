@@ -224,6 +224,9 @@ static uint64_t getMemoryModel(MSR msr) {
     if (msr->param.bMemNodeMoment)       mMemoryModel |= PKD_MODEL_NODE_MOMENT;
     if (msr->param.bMemNodeSphBounds)    mMemoryModel |= PKD_MODEL_NODE_SPHBNDS;
     if (msr->param.bDoGas)               mMemoryModel |= (PKD_MODEL_SPH | PKD_MODEL_NODE_SPHBNDS | PKD_MODEL_ACCELERATION);
+#ifdef STAR_FORMATION
+    mMemoryModel |= PKD_MODEL_STAR;
+#endif
 
     if (msr->param.bMemNodeBnd)          mMemoryModel |= PKD_MODEL_NODE_BND;
     if (msr->param.bMemNodeVBnd)         mMemoryModel |= PKD_MODEL_NODE_VBND;
@@ -1672,7 +1675,7 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 
 
     /* Parameters for the internal energy floor */
-    msr->param.dJeansFloorIndex = 4./3.; // This gives a Jeans Mass independent of density (see Schaye & Dalla Vecchia 2008
+    msr->param.dJeansFloorIndex = 4./3.; // This gives a Jeans Mass independent of density (see Schaye & Dalla Vecchia 2008)
     prmAddParam(msr->prm,"dJeansFloorIndex", 2, &msr->param.dJeansFloorIndex,
 		sizeof(double), "dJeansFloorIndex",
 		"Index of the polytropic effective EOS");
@@ -1682,7 +1685,7 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 		sizeof(double), "dJeansFloorDen",
 		"Minimum density at which the effective EOS will be applied (in nH [cm-3])");
 
-    msr->param.dJeansFlooru = 8000.;
+    msr->param.dJeansFlooru = 1e4;
     prmAddParam(msr->prm,"dJeansFloorTemp", 2, &msr->param.dJeansFlooru,
 		sizeof(double), "dJeansFloorTemp",
 		"Temperature at the density threshold for the effective EOS");
@@ -1692,21 +1695,61 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 		sizeof(double), "dCoolingFloorDen",
 		"Minimum density at which the internal energy floor will be applied (in nH [cm-3])");
 
-    msr->param.dCoolingFlooru = 8000.;
+    msr->param.dCoolingFlooru = 1e4;
     prmAddParam(msr->prm,"dCoolingFloorTemp", 2, &msr->param.dCoolingFlooru,
 		sizeof(double), "dCoolingFloorTemp",
 		"Temperature at the internal energy floor");
 #endif
 #ifdef STAR_FORMATION
-    msr->param.SFdMinOverDensity = 0.;
-    prmAddParam(msr->prm,"SFdMinOverDensity", 2, &msr->param.SFdMinOverDensity,
-		sizeof(double), "SFdMinOverDensity",
+    msr->param.dSFThresholdDen = 0.1;
+    prmAddParam(msr->prm,"dSFThresholdDen", 2, &msr->param.dSFThresholdDen,
+		sizeof(double), "dSFThresholdDen",
+		"Minimum density at which the star formation can happen (in nH [cm-3])");
+
+    msr->param.dSFThresholdu = 1e5;
+    prmAddParam(msr->prm,"dSFThresholdTemp", 2, &msr->param.dSFThresholdu,
+		sizeof(double), "dSFThresholdTemp",
+		"Maximum temperature of a gas element to for stars [K]");
+    msr->param.dSFMinOverDensity = 0.;
+    prmAddParam(msr->prm,"dSFMinOverDensity", 2, &msr->param.dSFMinOverDensity,
+		sizeof(double), "dSFMinOverDensity",
 		"Minimium overdensity for allowing star formation");
 
-    msr->param.SFdGasFraction = 0.;
-    prmAddParam(msr->prm,"SFdGasFraction", 2, &msr->param.SFdGasFraction,
-		sizeof(double), "SFdGasFraction",
+    msr->param.dSFGasFraction = 0.3;
+    prmAddParam(msr->prm,"dSFGasFraction", 2, &msr->param.dSFGasFraction,
+		sizeof(double), "dSFGasFraction",
 		"Gas fraction (assumed constant) for the star formation");
+
+    msr->param.dSFindexKS = 1.4;
+    prmAddParam(msr->prm,"dSFindexKS", 2, &msr->param.dSFindexKS,
+		sizeof(double), "dSFindexKS",
+		"Index of the KS law for star formation");
+
+    msr->param.dSFnormalizationKS = 2.5e-4;
+    prmAddParam(msr->prm,"dSFnormalizationKS", 2, &msr->param.dSFnormalizationKS,
+		sizeof(double), "dSFnormalizationKS",
+		"Normalization of the KS law for star formation [Mo / yr / kpc2]");
+#endif
+#ifdef FEEDBACK
+    msr->param.dFeedbackDu = 31622776.60168379; // 10^7.5 K
+    prmAddParam(msr->prm,"dFeedbackDT", 2, &msr->param.dFeedbackDu,
+		sizeof(double), "dFeedbackDT",
+		"Increment in temperature injected per supernova event [K]");
+
+    msr->param.dFeedbackEfficiency = 1.;
+    prmAddParam(msr->prm,"dFeedbackEfficiency", 2, &msr->param.dFeedbackEfficiency,
+		sizeof(double), "dFeedbackEfficiency",
+		"Efficiency of the feedback process");
+
+    msr->param.dFeedbackDelay = 3e7;
+    prmAddParam(msr->prm,"dFeedbackDelay", 2, &msr->param.dFeedbackDelay,
+		sizeof(double), "dFeedbackDelay",
+		"Time between formation of the star and injection of energy from SNII supernova [yr]");
+
+    msr->param.dNumberSNIIperMass = 1.736e-2;
+    prmAddParam(msr->prm,"dNumberSNIIperMass", 2, &msr->param.dNumberSNIIperMass,
+		sizeof(double), "dNumberSNIIperMass",
+		"Number of stars that will end their life as SNII events, per mass [1/Mo]");
 #endif
     /* END of new params */
 
@@ -1747,6 +1790,7 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     */
     if(prmSpecified(msr->prm, "dMsolUnit") &&
        prmSpecified(msr->prm, "dKpcUnit")) {
+      /* code KBOLTZ/MHYDR */
 	msr->param.dGasConst = msr->param.dKpcUnit*KPCCM*KBOLTZ
 	    /MHYDR/GCGS/msr->param.dMsolUnit/MSOLG;
 	/* code energy per unit mass --> erg per g */
@@ -1775,17 +1819,37 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 
     // We convert the minimum dt to rung
     msr->param.dMinDt = ceil( log2(msr->param.dDelta/msr->param.dMinDt) );
+
+
+    // IA: In the following convertions, we will typically assume a primordial hydrogen fraction X_H = 0.75
+    //  and mu=0.59, typical of a fully ionized gas with primordial composition
 #ifdef COOLING
     // We convert the parameters of the entropy floor into code units
     msr->param.dJeansFloorIndex -= 1.; 
     msr->param.dJeansFloorDen *=  MHYDR / (msr->param.dMsolUnit * MSOLG ) / 0.75 * pow(msr->param.dKpcUnit*KPCCM,3); // Now in rho
-    msr->param.dJeansFlooru *= msr->param.dGasConst/(msr->param.dConstGamma - 1.)/1.22; // Now in internal energy per unit mass (assuming neutral gas here with primordial abundances)
+    msr->param.dJeansFlooru *= msr->param.dGasConst/(msr->param.dConstGamma - 1.)/0.59; // Now in internal energy per unit mass 
 
     msr->param.dCoolingFloorDen *= MHYDR / (msr->param.dMsolUnit * MSOLG ) / 0.75 * pow(msr->param.dKpcUnit*KPCCM,3) ;
-    msr->param.dCoolingFlooru *= msr->param.dGasConst/(msr->param.dConstGamma - 1.)/1.22;
+    msr->param.dCoolingFlooru *= msr->param.dGasConst/(msr->param.dConstGamma - 1.)/0.59;
 
     printf("dCoolingFloorDen %e \t dCoolingFlooru %e \n", msr->param.dCoolingFloorDen, msr->param.dCoolingFlooru);
     printf("dJeansFloorDen %e \t dJeansFlooru %e \n", msr->param.dJeansFloorDen, msr->param.dJeansFlooru);
+#endif
+#ifdef STAR_FORMATION
+    msr->param.dSFThresholdDen *= MHYDR / (msr->param.dMsolUnit * MSOLG ) * pow(msr->param.dKpcUnit*KPCCM,3); // Now in rho_H
+    msr->param.dSFThresholdu *= msr->param.dGasConst/(msr->param.dConstGamma - 1.)/0.59; // Now in internal energy per unit mass
+   
+    const double Msolpcm2 = 1. / msr->param.dMsolUnit * pow(msr->param.dKpcUnit*1e3, 2);
+    msr->param.dSFnormalizationKS *= 1. / msr->param.dMsolUnit 
+                   * msr->param.dSecUnit/(3600*24*365) * pow(msr->param.dKpcUnit, 2) * pow(Msolpcm2,-msr->param.dSFindexKS);
+    msr->param.dSFindexKS = (msr->param.dSFindexKS-1.)/2.;
+
+#endif
+
+#ifdef FEEDBACK
+    msr->param.dFeedbackDu *= msr->param.dGasConst/ 0.59 / (msr->param.dConstGamma - 1); 
+    msr->param.dFeedbackDelay *=  (3600*24*365)/msr->param.dSecUnit ;
+    msr->param.dNumberSNIIperMass *= 8.73e15 / msr->param.dErgPerGmUnit / 1.736e-2;
 #endif
 
     /* Gas parameter checks */
@@ -4771,11 +4835,17 @@ void msrTopStepKDK(MSR msr,
 	    *pdActiveSum += (double)nActive/msr->N;
 	    }
 	
-	if (msrDoGas(msr) && !msrMeshlessHydro(msr)) {
+	if (msrDoGas(msr) && !msrMeshlessHydro(msr)) { //IA: OLD PKDGRAV3 CODE
 	    msrSph(msr,dTime,dStep);  /* dTime = Time at end of kick */
 	    msrCooling(msr,dTime,dStep,0,
 		       (iKickRung<=msr->param.iRungCoolTableUpdate ? 1:0),0);
 	}
+
+#ifdef FEEDBACK
+      msrActiveRung(msr,iKickRung,0);
+      msrReSmooth(msr,dTime,SMX_SN_FEEDBACK,0,0);
+      msrActiveRung(msr,iKickRung,1);
+#endif
 
 
       if (msrDoGas(msr) && msrMeshlessHydro(msr)){
@@ -4906,7 +4976,7 @@ void msrTopStepKDK(MSR msr,
 //	}
 
 #ifdef STAR_FORMATION
-      msrStarForm(msr, dTime, iKickRung);
+      msrStarForm(msr, dTime, dDelta, iRung);
 #endif
 
     }
