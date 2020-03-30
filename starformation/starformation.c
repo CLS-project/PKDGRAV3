@@ -129,8 +129,8 @@ void pkdStarForm(PKD pkd,
           const double n = 1.4;
           const double dmstar = A *  pow(Msolpcm2, -n)  *  pkdMass(pkd,p) *
                                      pow( pkd->param.dConstGamma * pkd->param.dSFGasFraction * psph->P, (n-1.)/2.  );
-             */
-          const double dmstar = pkd->param.dSFnormalizationKS * 
+  */           
+          const double dmstar = pkd->param.dSFnormalizationKS * pkdMass(pkd,p) * 
                         pow( pkd->param.dConstGamma * pkd->param.dSFGasFraction * psph->P, pkd->param.dSFindexKS);
           //printf("mstar %e mass_Mo %e P_kb %e \t\t prob %e \n", dmstar*dt, mass_Mo, P_kb, dmstar*dt/mass_Mo);
           //printf("dConstGamma %e \t SFGasFraction %e \n", pkd->param.dConstGamma, pkd->param.dSFGasFraction);

@@ -224,7 +224,7 @@ static uint64_t getMemoryModel(MSR msr) {
     if (msr->param.bMemNodeMoment)       mMemoryModel |= PKD_MODEL_NODE_MOMENT;
     if (msr->param.bMemNodeSphBounds)    mMemoryModel |= PKD_MODEL_NODE_SPHBNDS;
     if (msr->param.bDoGas)               mMemoryModel |= (PKD_MODEL_SPH | PKD_MODEL_NODE_SPHBNDS | PKD_MODEL_ACCELERATION);
-#ifdef STAR_FORMATION
+#if  defined(STAR_FORMATION) || defined(FEEDBACK)
     mMemoryModel |= PKD_MODEL_STAR;
 #endif
 
@@ -1843,7 +1843,6 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.dSFnormalizationKS *= 1. / msr->param.dMsolUnit 
                    * msr->param.dSecUnit/(3600*24*365) * pow(msr->param.dKpcUnit, 2) * pow(Msolpcm2,-msr->param.dSFindexKS);
     msr->param.dSFindexKS = (msr->param.dSFindexKS-1.)/2.;
-
 #endif
 
 #ifdef FEEDBACK

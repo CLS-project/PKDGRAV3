@@ -2633,10 +2633,16 @@ int  smReSmooth(SMX smx,SMF *smf, int iSmoothType) {
        case SMX_FIRSTHYDROLOOP:
           for (pi=0;pi<pkd->nLocal;++pi) {
             p = pkdParticle(pkd,pi);
-            if (pkdIsActive(pkd,p) && p->bMarked && (pkdIsGas(pkd,p)||pkdIsStar(pkd,p))){
+#ifdef FEEDBACK 
+            // We follow the density of stars that has not yet exploded to have a proper fBall
+            if (pkdIsActive(pkd,p) && p->bMarked && (pkdIsGas(pkd,p) || pkdIsStar(pkd,p))){
+               if (pkdIsStar(pkd,p) && (pkdStar(pkd,p)->hasExploded==1)) continue;
+#else
+            if (pkdIsActive(pkd,p) && p->bMarked && pkdIsGas(pkd,p)){
+#endif
 
-               // We follow the density of stars that has not yet exploded to have a proper fBall
-               if (pkdIsStar(pkd,p) && (pkdStar(pkd,p)->hasExploded==1)) continue; 
+
+               //if (pkdIsStar(pkd,p)) printf("%d \n",pkdStar(pkd,p)->hasExploded);
 
                smReSmoothSingle(smx,smf,p,2.*pkdBall(pkd,p));
                nSmoothed++;
