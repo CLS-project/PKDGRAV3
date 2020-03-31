@@ -2383,6 +2383,7 @@ pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     for (i=0;i<=IRUNGMAX;++i) pnRung[i] = pkd->nRung[i];
 
     // IA: Analytical gravity
+#ifdef HERNQUIST_POTENTIAL
     PARTICLE *p;
       for (i=0;i<pkdLocal(pkd);++i) { 
       p = pkdParticle(pkd,i);
@@ -2432,6 +2433,7 @@ pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
             //
          }
       }
+#endif
 
 
 

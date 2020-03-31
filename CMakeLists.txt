@@ -287,6 +287,12 @@ if (FEEDBACK)
    message("-- Feedback from SNII is ACTIVE")
 endif(FEEDBACK)
 
+option(HERNQUIST_POTENTIAL "Add the contribution of DM using a Hernquist potential" OFF)
+if (HERNQUIST_POTENTIAL)
+  target_compile_options(${PROJECT_NAME} PRIVATE -DHERNQUIST_POTENTIAL)
+  message("-- Analytical gravity ACTIVE -> Hernquist potential")
+endif(HERNQUIST_POTENTIAL)
+
 CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/pkd_config.h.in ${CMAKE_CURRENT_BINARY_DIR}/pkd_config.h)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
 target_link_libraries(${PROJECT_NAME} mdl2 openpa)

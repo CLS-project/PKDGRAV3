@@ -1061,8 +1061,8 @@ void hydroStep(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
     }
 
+#ifdef HERNQUIST_POTENTIAL
     // IA: Timestep criteria based on the Hernsquist potential
-    
     const double const_reduced_hubble_cgs = 3.2407789e-18;
     //const double H0 = 0.704 * const_reduced_hubble_cgs * pkd->param.dSecUnit;
     const double H0 = 70.4/ pkd->param.dKmPerSecUnit * ( pkd->param.dKpcUnit / 1e3);
@@ -1095,10 +1095,11 @@ void hydroStep(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
   const float period = 2.f * M_PI * sqrtf(r) * al *
                        (1 + r / al) * sqrtgm_inv;
 
-  /* Time-step as a fraction of the cirecular orbital time */
+  /* Time-step as a fraction of the circular orbital time */
   double time_step = 0.01 * period;
 
   if (time_step < dtEst) dtEst = time_step;
+#endif
 
 
 
