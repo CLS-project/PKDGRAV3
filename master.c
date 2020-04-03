@@ -1818,7 +1818,8 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 		msr->param.dMeanMolWeight;
 
     // We convert the minimum dt to rung
-    msr->param.dMinDt = ceil( log2(msr->param.dDelta/msr->param.dMinDt) );
+    if (msr->param.dMinDt)
+       msr->param.dMinDt = ceil( log2(msr->param.dDelta/msr->param.dMinDt) );
 
 
     // IA: In the following convertions, we will typically assume a primordial hydrogen fraction X_H = 0.75

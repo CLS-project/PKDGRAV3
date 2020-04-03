@@ -34,6 +34,7 @@ void smFeedback(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
              q = nnList[i].pPart;
              qsph = pkdSph(pkd,q);
              qsph->Uint += pkd->param.dFeedbackDu * pkdMass(pkd,q);
+             qsph->E += pkd->param.dFeedbackDu * pkdMass(pkd,q);
              printf("Adding SN energy! \n");
              // Lets just to this, but probably need to figure out how to 'wake' up the particle
           }

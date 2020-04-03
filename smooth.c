@@ -2656,13 +2656,20 @@ int  smReSmooth(SMX smx,SMF *smf, int iSmoothType) {
        case SMX_HYDROSTEP:
            for (pi=0;pi<pkd->nLocal;++pi) {
              p = pkdParticle(pkd,pi);
-             if (pkdIsActive(pkd,p) && (pkdIsGas(pkd,p) || pkdIsStar(pkd,p)) ){
-                if (pkdIsStar(pkd,p)) continue;
-//                    if ( (pkdStar(pkd,p)->hasExploded==1) ||
-//                       ( (smf->dTime-pkdStar(pkd,p)->fTimer) < 0.95*pkd->param.dFeedbackDelay) ) continue; 
-                //if (pkdIsStar(pkd,p)) printf("SN dt\n");
-                smReSmoothSingle(smx,smf,p, 2.*pkdBall(pkd,p));
-                nSmoothed++;
+             if (pkdIsGas(pkd,p)){
+                if (pkdIsActive(pkd,p)){
+                   smReSmoothSingle(smx,smf,p, 2.*pkdBall(pkd,p));
+                   nSmoothed++;
+                }
+             }
+             if (pkdIsStar(pkd,p)){
+                if (pkdStar(pkd,p)->hasExploded==0){
+                   //if ( (smf->dTime/*+pkd->param.dDelta/(1<<p->uRung)*/-pkdStar(pkd,p)->fTimer) < 0.95*pkd->param.dFeedbackDelay)
+                      if (pkdIsStar(pkd,p)) printf("SN dt\n");
+                      smReSmoothSingle(smx,smf,p, 2.*pkdBall(pkd,p));
+                      nSmoothed++;
+                   //}
+                }
              }
            }
            break;
@@ -2671,7 +2678,7 @@ int  smReSmooth(SMX smx,SMF *smf, int iSmoothType) {
 
           for (pi=0;pi<pkd->nLocal;++pi) {
             p = pkdParticle(pkd,pi);
-            if (pkdIsActive(pkd,p) && pkdIsStar(pkd,p)){ /* TODO: Does it have to be active? */
+            if (pkdIsStar(pkd,p)){ 
                if ( (pkdStar(pkd,p)->hasExploded == 0) && 
                     ((smf->dTime-pkdStar(pkd,p)->fTimer) > pkd->param.dFeedbackDelay) ){
                   printf("BOOM! \n");

@@ -2277,7 +2277,7 @@ void pkdSetSmooth(PKD pkd,double dSmooth) {
     int i;
     for (i=0;i<pkdLocal(pkd);++i) {
        p = pkdParticle(pkd,i);
-       if (pkdIsGas(pkd,p) && pkdBall(pkd,p)==0.0)
+       if ((pkdIsGas(pkd,p)||pkdIsStar(pkd,p)) && pkdBall(pkd,p)==0.0)
           pkdSetBall(pkd,p,dSmooth);
     }
     }
@@ -3525,8 +3525,8 @@ void pkdAccelStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
 	    uNewRung = pkdDtToRung(dT,pkd->param.dDelta,pkd->param.iMaxRung);
 	    if (uNewRung > p->uNewRung) p->uNewRung = uNewRung;
 
+#ifdef HERNQUIST_POTENTIAL
     // IA: Timestep criteria based on the Hernsquist potential
-    
     const double const_reduced_hubble_cgs = 3.2407789e-18;
     //const double H0 = 0.704 * const_reduced_hubble_cgs * pkd->param.dSecUnit;
     const double H0 = 70.4/ pkd->param.dKmPerSecUnit * ( pkd->param.dKpcUnit / 1e3);
@@ -3568,6 +3568,7 @@ void pkdAccelStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
   double time_step = 0.01 * period;
 	    uNewRung = pkdDtToRung(time_step,pkd->param.dDelta,pkd->param.iMaxRung);
 	    if (uNewRung > p->uNewRung) p->uNewRung = uNewRung;
+#endif
 
 
 
