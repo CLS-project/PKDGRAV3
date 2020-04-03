@@ -59,7 +59,8 @@ void msrStarForm(MSR msr, double dTime, double dDelta, int iRung)
     if (msr->param.bVDetails)
 	printf("%d Stars formed with mass %g, %d gas deleted\n",
 	       out.nFormed, out.dMassFormed, out.nDeleted);
-    
+    msr->massFormed += out.dMassFormed;
+    msr->starFormed += out.nFormed;    
     
     sec1 = msrTime();
     dsec = sec1 - sec;

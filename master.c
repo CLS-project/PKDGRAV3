@@ -1954,6 +1954,47 @@ void msrLogParams(MSR msr,FILE *fp) {
 #ifdef _REENTRANT
     fprintf(fp," _REENTRANT");
 #endif
+    /* IA: new macros */
+#ifdef USE_MFM
+   fprintf(fp," USE_MFM"); 
+#endif
+#ifdef FORCE_2D
+   fprintf(fp," FORCE_2D"); 
+#endif
+#ifdef FORCE_1D
+   fprintf(fp," FORCE_1D"); 
+#endif
+#ifdef LIMITER_BARTH
+   fprintf(fp," LIMITER_BARTH"); 
+#endif
+#ifdef LIMITER_CONDBARTH
+   fprintf(fp," LIMITER_CONDBARTH"); 
+#endif
+#ifdef MAKE_GLASS
+   fprintf(fp," MAKE_GLASS"); 
+#endif
+#ifdef REGULARIZE_MESH
+   fprintf(fp," REGULARIZE_MESH"); 
+#endif
+#ifdef FIXED_NSMOOTH_RELAXED
+   fprintf(fp," FIXED_NSMOOTH_RELAXED"); 
+#endif
+#ifdef FIXED_NSMOOTH_STRICT
+   fprintf(fp," FIXED_NSMOOTH_STRICT"); 
+#endif
+#ifdef COOLING
+   fprintf(fp," COOLING"); 
+#endif
+#ifdef STAR_FORMATION
+   fprintf(fp," STAR_FORMATION"); 
+#endif
+#ifdef FEEDBACK
+   fprintf(fp," FEEDBACK"); 
+#endif
+#ifdef HERNQUIST_POTENTIAL
+   fprintf(fp," HERNQUIST_POTENTIAL"); 
+#endif
+   /* End of new macros */
 #if defined(MAXHOSTNAMELEN) && defined(HAVE_GETHOSTNAME)
     fprintf(fp,"\n# Master host: ");
     if (gethostname(hostname,MAXHOSTNAMELEN))
@@ -3803,6 +3844,39 @@ void msrMeshlessFluxes(MSR msr,double dTime,double dDelta,int iRoot){
     }
 }
 
+void msrOutputFineStatistics(MSR msr, double dStep, double dTime){
+    if (dTime==-1){
+       char achFile[256];
+       /* Initialization */
+	 sprintf(achFile,"%s.finelog",msrOutName(msr));
+	 msr->fpFineLog = fopen(achFile,"a");
+       assert(msr->fpFineLog != NULL);
+       setbuf(msr->fpFineLog,(char *) NULL); /* no buffering */
+
+      /* Write the header */
+	 fprintf(msr->fpFineLog, "#First line:\n#dStep dTime ");
+#ifdef STAR_FORMATION
+       fprintf(msr->fpFineLog, "starsFormed massFormed ");
+#endif
+       fprintf(msr->fpFineLog, "\n");
+
+       fprintf(msr->fpFineLog, "#Second line:\n#nRung[0] nRung[1] nRung[...] nRung[iCurrMaxRung]\n");
+    }else{
+       /* First, we add a line with relevant statistics */
+       fprintf(msr->fpFineLog, "%e %e ", dStep, dTime);
+#ifdef STAR_FORMATION
+       fprintf(msr->fpFineLog, "%d %e ", msr->starFormed, msr->massFormed);
+#endif
+       fprintf(msr->fpFineLog, "\n");
+
+       /* Second, we add the rung distribution */
+       for (int i=0; i<msr->iCurrMaxRung; i++)
+          fprintf(msr->fpFineLog, "%d ", msr->nRung[i]);
+       fprintf(msr->fpFineLog, "\n");
+
+    }
+
+}
 
 void msrUpdatePrimVars(MSR msr,double dTime,double dDelta,int iRoot){
     struct inDrift in; //IA: TODO new struct for this, as I am using more space than needed
@@ -4772,6 +4846,16 @@ void msrTopStepKDK(MSR msr,
     //      msrApplyGravWork(msr,dTime,0.0,iRung,iRung); 
       }
     if ((msrCurrMaxRung(msr) > iRung) && (iRungVeryActive > iRung)) {
+      /* IA: If the next rung that is the first one with actives particles, we
+       *   are sure that all particles are synchronized, thus we can output some statistics with
+       *   finer time resolution whilst being accurate.
+       *
+       *   We assume that there is no 'sandwiched' rung, i.e., the differences in dt are smooth
+       */
+      if ( (msr->nRung[0]!=0 && iRung==0) || (msr->nRung[iRung] == 0) && (msr->nRung[iRung+1] > 0))
+         msrOutputFineStatistics(msr, dStep, dTime);
+	
+
 	/*
 	** Recurse.
 	*/
@@ -4784,7 +4868,7 @@ void msrTopStepKDK(MSR msr,
 
 	msrTopStepKDK(msr,dStep,dTime,0.5*dDelta,iRung+1,iKickRung,iRungVeryActive,1,
 		      pdActiveSum,piSec);
-	}
+      }
     else if (msrCurrMaxRung(msr) == iRung) {
       if (msrDoGas(msr) && msrMeshlessHydro(msr)){
          msrActiveRung(msr,iKickRung,1); //IA: The repeated call after msrDrift would not be needed

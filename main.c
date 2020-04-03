@@ -282,8 +282,12 @@ void * master_ch(MDL mdl) {
          msrCoolingUpdate(msr, 1./dTime - 1.);
       else
          msrCoolingUpdate(msr, 0.);
-
 #endif
+#ifdef STAR_FORMATION
+      msr->starFormed = 0.;
+      msr->massFormed = 0.;
+#endif 
+      msrOutputFineStatistics(msr, 0, -1);
 
 
 	/*

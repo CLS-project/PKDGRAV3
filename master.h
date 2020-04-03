@@ -58,6 +58,15 @@ typedef struct msrContext {
     struct cooling_function_data *cooling;
     struct cooling_tables *cooling_table;
 #endif
+#ifdef STAR_FORMATION
+    int starFormed;
+    double massFormed;
+#endif
+    /*
+     * File for the fine-grained output
+     */
+    FILE* fpFineLog;
+
     double fCenter[6];
     /*
     ** Parameters.
@@ -127,6 +136,7 @@ extern "C" {
 double msrTime();
 int msrInitialize(MSR *,MDL,int,char **);
 void msrLogParams(MSR msr, FILE *fp);
+void msrOutputFineStatistics(MSR msr, double dStep, double dTime);
 void msrprintf(MSR msr, const char *Format, ... );
 int msrGetLock(MSR msr);
 int msrCheckForStop(MSR msr, const char *achStopFile);
