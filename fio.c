@@ -27,6 +27,12 @@
 #define _FILE_OFFSET_BITS 64
 #endif
 
+#ifdef COOLING
+#define NUMBER_METALS     9 //IA: This should be, at most, chemistry_element_count, but can be decreased if needed 
+#else
+#define NUMBER_METALS     1
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -207,19 +213,6 @@ static int safe_fseek(FILE *fp,uint64_t lStart) {
 #endif
     }
 
-/*
-** This is used for the HDF5 group name.
-*/
-const char *fioSpeciesName(FIO_SPECIES eSpecies) {
-    switch(eSpecies) {
-    case FIO_SPECIES_DARK: return "dark";
-    case FIO_SPECIES_SPH:  return "sph";
-    case FIO_SPECIES_STAR: return "star";
-    default:
-	break;
-	}
-    return NULL;
-    }
 
 static void fileScanFree(fioFileList *list) {
     if (list->fileInfo) {
@@ -378,7 +371,8 @@ static int fioNoWriteSph(
     const double *UNUSED(pdPos),const double *UNUSED(pdVel),
     float UNUSED(fMass),float UNUSED(fSoft),
     float UNUSED(fPot),float UNUSED(fDen),
-    float UNUSED(fTemp),float UNUSED(fMetals)) {
+    float UNUSED(fTemp),float *UNUSED(fMetals),
+    float UNUSED(fBall), float UNUSED(fIntEnergy)) {
     fprintf(stderr,"Writing SPH particles is not supported\n");
     abort();
     return 0;
@@ -389,21 +383,21 @@ static int fioNoWriteStar(
     const double *UNUSED(pdPos),const double *UNUSED(pdVel),
     float UNUSED(fMass),float UNUSED(fSoft),
     float UNUSED(fPot),float UNUSED(fDen),
-    float UNUSED(fMetals),float UNUSED(fTform)) {
+    float *UNUSED(fMetals),float UNUSED(fTform)) {
     fprintf(stderr,"Writing star particles is not supported\n");
     abort();
     return 0;
     }
 
 static int fioNoGetAttr(
-    FIO UNUSED(fio),const char *UNUSED(attr),
+    FIO UNUSED(fio), const int UNUSED(mode), const int UNUSED(groupType), const char *UNUSED(attr),
     FIO_TYPE UNUSED(dataType), void *UNUSED(data)) {
     return 0;
     }
 
 static int fioNoSetAttr(
-    FIO UNUSED(fio),const char *UNUSED(attr),
-    FIO_TYPE UNUSED(dataType), void *UNUSED(data)) {
+    FIO UNUSED(fio), int UNUSED(mode), int UNUSED(groupType),
+    const char *UNUSED(attr), FIO_TYPE UNUSED(dataType), int UNUSED(size), void *UNUSED(data)) {
     return 0;
     }
 
@@ -566,13 +560,13 @@ static void listClose(FIO fio) {
     free(vio);
     }
 
-static int listGetAttr(FIO fio,const char *attr, FIO_TYPE dataType, void *data) {
+static int listGetAttr(FIO fio, const int mode, const int groupType, const char *attr, FIO_TYPE dataType, void *data) {
     fioList *vio = (fioList *)fio;
     assert(fio->eFormat == FIO_FORMAT_MULTIPLE);
     uint64_t v;
 
     if ( strcmp(attr,"nFiles")==0 ) v = vio->fio.fileList.nFiles;
-    else return fioGetAttr(vio->fioCurrent,attr,dataType,data);
+    else return fioGetAttr(vio->fioCurrent, mode, groupType,attr,dataType,data);
 
     switch(dataType) {
     case FIO_TYPE_UINT32: *(uint32_t *)(data) = v; break;
@@ -735,7 +729,7 @@ static int xdrHeader(XDR *pxdr,tipsyHdr *ph) {
     return 1;
     }
 
-static int tipsyGetAttr(FIO fio,
+static int tipsyGetAttr(FIO fio, const int mode, const int groupType,
     const char *attr, FIO_TYPE dataType, void *data) {
     fioTipsy *tio = (fioTipsy *)fio;
     assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_READING);
@@ -1047,7 +1041,7 @@ static int tipsyReadNativeSph(
     rc = fread(pfDen,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     rc = fread(pfTemp,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     rc = fread(pfSoft,sizeof(float),1,tio->fp); if (rc!=1) return 0;
-    rc = fread(pfMetals,sizeof(float),1,tio->fp); if (rc!=1) return 0;
+    rc = fread(pfMetals,sizeof(float),NUMBER_METALS,tio->fp); if (rc!=NUMBER_METALS) return 0;
     rc = fread(pfPot,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     return 1;
     }
@@ -1056,7 +1050,8 @@ static int tipsyReadNativeSph(
 static int tipsyWriteNativeSph(
     struct fioInfo *fio,uint64_t UNUSED(iParticleID),const double *pdPos,const double *pdVel,
     float fMass,float fSoft,float fPot,float fDen,
-    float fTemp,float fMetals) {
+    float fTemp,float *fMetals,
+    float fBall, float IntEnergy) {
     fioTipsy *tio = (fioTipsy *)fio;
     int rc;
     int d;
@@ -1081,7 +1076,7 @@ static int tipsyWriteNativeSph(
     rc = fwrite(&fDen,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     rc = fwrite(&fTemp,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     rc = fwrite(&fSoft,sizeof(float),1,tio->fp); if (rc!=1) return 0;
-    rc = fwrite(&fMetals,sizeof(float),1,tio->fp); if (rc!=1) return 0;
+    rc = fwrite(fMetals,sizeof(float),NUMBER_METALS,tio->fp); if (rc!=NUMBER_METALS) return 0;
     rc = fwrite(&fPot,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     return 1;
     }
@@ -1119,15 +1114,16 @@ static int tipsyReadStandardSph(
     if (!xdr_float(&tio->xdr,pfDen)) return 0;
     if (!xdr_float(&tio->xdr,pfTemp)) return 0;
     if (!xdr_float(&tio->xdr,pfSoft)) return 0;
-    if (!xdr_float(&tio->xdr,pfMetals)) return 0;
+    for (d=0; d<NUMBER_METALS;d++)
+       if (!xdr_float(&tio->xdr,pfMetals+d)) return 0;
     if (!xdr_float(&tio->xdr,pfPot)) return 0;
     return 1;
     }
 
 static int tipsyWriteStandardSph(
-    struct fioInfo *fio,uint64_t UNUSED(iParticleID),const double *pdPos,const double *pdVel,
+    struct fioInfo *fio,uint64_t iParticleID,const double *pdPos,const double *pdVel,
     float fMass,float fSoft,float fPot,float fDen,
-    float fTemp,float fMetals) {
+    float fTemp,float* fMetals, float fBall, float fIntEnergy) {
     fioTipsy *tio = (fioTipsy *)fio;
     int d;
     float fTmp;
@@ -1158,7 +1154,10 @@ static int tipsyWriteStandardSph(
     if (!xdr_float(&tio->xdr,&fDen)) return 0;
     if (!xdr_float(&tio->xdr,&fTemp)) return 0;
     if (!xdr_float(&tio->xdr,&fSoft)) return 0;
-    if (!xdr_float(&tio->xdr,&fMetals)) return 0;
+    for (d=0; d<NUMBER_METALS;d++){
+       fTmp = fMetals[d];
+       if (!xdr_float(&tio->xdr,&fTmp)) return 0;
+    }
     if (!xdr_float(&tio->xdr,&fPot)) return 0;
     return 1;
     }
@@ -1191,7 +1190,7 @@ static int tipsyReadNativeStar(
 	rc = fread(fTmp,sizeof(float),3,tio->fp); if (rc!=3) return 0;
 	for(d=0;d<3;d++) pdVel[d] = fTmp[d];
 	}
-    rc = fread(pfMetals,sizeof(float),1,tio->fp); if (rc!=1) return 0;
+    rc = fread(pfMetals,sizeof(float),NUMBER_METALS,tio->fp); if (rc!=NUMBER_METALS) return 0;
     rc = fread(pfTform,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     rc = fread(pfSoft,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     rc = fread(pfPot,sizeof(float),1,tio->fp); if (rc!=1) return 0;
@@ -1201,7 +1200,7 @@ static int tipsyReadNativeStar(
 
 static int tipsyWriteNativeStar(
     struct fioInfo *fio,uint64_t UNUSED(iParticleID),const double *pdPos,const double *pdVel,
-    float fMass,float fSoft,float fPot,float UNUSED(fDen),float fMetals,float fTform) {
+    float fMass,float fSoft,float fPot,float UNUSED(fDen),float *fMetals,float fTform) {
     fioTipsy *tio = (fioTipsy *)fio;
     int rc;
     int d;
@@ -1223,7 +1222,7 @@ static int tipsyWriteNativeStar(
 	for(d=0;d<3;d++) fTmp[d] = pdVel[d];
 	rc = fwrite(fTmp,sizeof(float),3,tio->fp); if (rc!=3) return 0;
 	}
-    rc = fwrite(&fMetals,sizeof(float),1,tio->fp); if (rc!=1) return 0;
+    rc = fwrite(&fMetals,sizeof(float),NUMBER_METALS,tio->fp); if (rc!=NUMBER_METALS) return 0;
     rc = fwrite(&fTform,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     rc = fwrite(&fSoft,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     rc = fwrite(&fPot,sizeof(float),1,tio->fp); if (rc!=1) return 0;
@@ -1260,7 +1259,8 @@ static int tipsyReadStandardStar(
 	    pdVel[d] = fTmp;
 	    }
 	}
-    if (!xdr_float(&tio->xdr,pfMetals)) return 0;
+    for(d=0;d<NUMBER_METALS;d++)
+       if (!xdr_float(&tio->xdr,pfMetals+d)) return 0;
     if (!xdr_float(&tio->xdr,pfTform)) return 0;
     if (!xdr_float(&tio->xdr,pfSoft)) return 0;
     if (!xdr_float(&tio->xdr,pfPot)) return 0;
@@ -1270,7 +1270,7 @@ static int tipsyReadStandardStar(
 
 static int tipsyWriteStandardStar(
     struct fioInfo *fio,uint64_t UNUSED(iParticleID),const double *pdPos,const double *pdVel,
-    float fMass,float fSoft,float fPot,float UNUSED(fDen),float fMetals,float fTform) {
+    float fMass,float fSoft,float fPot,float UNUSED(fDen),float *fMetals,float fTform) {
     fioTipsy *tio = (fioTipsy *)fio;
     int d;
     float fTmp;
@@ -1298,7 +1298,10 @@ static int tipsyWriteStandardStar(
 	    if (!xdr_float(&tio->xdr,&fTmp)) return 0;
 	    }
 	}
-    if (!xdr_float(&tio->xdr,&fMetals)) return 0;
+    for (d=0;d<NUMBER_METALS;d++){
+       fTmp = fMetals[d];
+       if (!xdr_float(&tio->xdr,fMetals)) return 0;
+    }
     if (!xdr_float(&tio->xdr,&fTform)) return 0;
     if (!xdr_float(&tio->xdr,&fSoft)) return 0;
     if (!xdr_float(&tio->xdr,&fPot)) return 0;
@@ -1839,7 +1842,7 @@ typedef struct {
     int mFlags;
     } fioGADGET;
 
-static int gadgetGetAttr(FIO fio,
+static int gadgetGetAttr(FIO fio, const int mode, const int groupType,
     const char *attr, FIO_TYPE dataType, void *data) {
     fioGADGET *gio = (fioGADGET *)fio;
     double v;
@@ -1995,7 +1998,8 @@ static int gadgetWriteNativeSph(
     struct fioInfo *fio,
     uint64_t iParticleID,const double *pdPos,const double *pdVel,float fMass,
     float UNUSED(fSoft),float UNUSED(fPot),float UNUSED(fDen),
-    float UNUSED(fTemp),float UNUSED(fMetals)) {
+    float UNUSED(fTemp),float *UNUSED(fMetals),
+    float UNUSED(fBall),float UNUSED(fIntEnergy)) {
     fioGADGET *gio = (fioGADGET *)fio;
     return gadgetWriteNative(gio,iParticleID,pdPos,pdVel,fMass);
     }
@@ -2003,7 +2007,7 @@ static int gadgetWriteNativeStar(
     struct fioInfo *fio,
     uint64_t iParticleID,const double *pdPos,const double *pdVel,float fMass,
     float UNUSED(fSoft),float UNUSED(fPot),float UNUSED(fDen),
-    float UNUSED(fMetals),float UNUSED(fTform)) {
+    float *UNUSED(fMetals),float UNUSED(fTform)) {
     fioGADGET *gio = (fioGADGET *)fio;
     return gadgetWriteNative(gio,iParticleID,pdPos,pdVel,fMass);
     }
@@ -2611,16 +2615,57 @@ static void readSet(
 
 /* Add an attribute to a group */
 static int writeAttribute( hid_t groupID, const char *name,
-			    hid_t dataType, void *data ) {
+			    hid_t dataType, int size, void *data ) {
     hid_t dataSpace, attrID;
     herr_t rc;
 
     dataSpace = H5Screate(H5S_SCALAR); assert(dataSpace!=H5I_INVALID_HID);
+    if (size>1){
+       hsize_t dim[1] = {size};
+       H5Sset_extent_simple(dataSpace, 1, dim, NULL);
+    }
     attrID = H5Acreate( groupID,name,dataType,dataSpace,H5P_DEFAULT );
     assert(attrID!=H5I_INVALID_HID);
     rc = H5Awrite( attrID, dataType, data ); assert(rc>=0);
     rc = H5Aclose( attrID ); assert(rc>=0);
     rc = H5Sclose(dataSpace); assert(rc>=0);
+    return 1;
+    }
+
+/* IA: Add data to the Header, as a dataset instead of as a attribute 
+ *   This may be useful, or not. 
+ *   TODO: probably erase it
+ */
+static int writeDataset( hid_t groupID, const char *name,
+			    hid_t dataType, int size, void *data ) {
+    hid_t diskSpace, dataSpace, datasetID;
+    herr_t rc;
+
+    dataSpace = H5Screate(H5S_SCALAR); assert(dataSpace!=H5I_INVALID_HID);
+    if (size>1){
+       hsize_t dim[1] = {size};
+       H5Sset_extent_simple(dataSpace, 1, dim, NULL);
+    }
+    datasetID = H5Dcreate( groupID,name,dataType,dataSpace,H5P_DEFAULT );
+    diskSpace = H5Dget_space(datasetID);
+    assert(datasetID!=H5I_INVALID_HID);
+
+    rc = H5Dwrite( datasetID , dataType, dataSpace, diskSpace,H5P_DEFAULT,data); assert(rc>=0);
+
+    rc = H5Dclose( datasetID ); assert(rc>=0);
+    rc = H5Sclose(dataSpace); assert(rc>=0);
+    return 1;
+    }
+
+static int readDataset( hid_t groupID, const char *name,
+			  hid_t dataType, void *data ) {
+    hid_t datasetID;
+    herr_t rc;
+
+    datasetID = H5Dopen( groupID,name );
+    if ( datasetID == H5I_INVALID_HID ) return 0;
+    rc = H5Dread( datasetID, dataType, H5S_ALL, H5S_ALL, H5P_DEFAULT, data ); assert(rc>=0);
+    rc = H5Dclose( datasetID ); assert(rc>=0);
     return 1;
     }
 
@@ -2677,21 +2722,27 @@ static void writeSet(
 
 #define CHUNK_SIZE (65536)
 
-#define GROUP_PARAMETERS "parameters"
+#define GROUP_HEADER "Header"
+#define GROUP_COSMO "Cosmology"
+#define GROUP_UNITS "Units"
+#define GROUP_PARAMS "Parameters"
 
 #define ATTR_IORDER      "iOrder"
 
-#define FIELD_POSITION    "position"
-#define FIELD_VELOCITY    "velocity"
-#define FIELD_MASS        "mass"
-#define FIELD_SOFTENING   "softening"
-#define FIELD_SMOOTHING   "smoothing"
-#define FIELD_POTENTIAL   "potential"
-#define FIELD_DENSITY     "density"
-#define FIELD_TEMPERATURE "temperature"
-#define FIELD_METALS      "metals"
+#define FIELD_POSITION    "Coordinates"
+#define FIELD_VELOCITY    "Velocities"
+#define FIELD_MASS        "Masses"
+#define FIELD_SOFTENING   "Softening"
+#define FIELD_SMOOTHING   "SmoothingLength"
+#define FIELD_POTENTIAL   "Potential"
+#define FIELD_DENSITY     "Density"
+#define FIELD_TEMPERATURE "Temperature"
+#define FIELD_INTERNALENERGY "InternalEnergy"
+#define FIELD_METALS      "Metallicity"
+#define FIELD_AGE         "StellarFormationTime"
 
-#define FIELD_ORDER      "order"
+
+#define FIELD_ORDER      "ParticlesIDs"
 #define FIELD_CLASS      "class"
 #define FIELD_CLASSES    "classes"
 /*
@@ -2728,6 +2779,7 @@ enum SPH_FIELDS{
    SPH_TEMPERATURE ,
    SPH_METALS      ,
    SPH_SMOOTHING   ,
+   SPH_INTERNALENERGY,
    SPH_N           ,
 };
 
@@ -2738,6 +2790,7 @@ enum STAR_FIEDS{
    STAR_POTENTIAL   ,
    STAR_DENSITY     ,
    STAR_METALS      ,
+   STAR_AGE         ,
    STAR_N           ,
 };
 
@@ -2796,12 +2849,29 @@ typedef struct {
 typedef struct {
     struct fioInfo fio;
     hid_t fileID;
-    hid_t parametersID;
+    hid_t headerID;
+    hid_t cosmoID;
+    hid_t unitsID;
+    hid_t paramsID;
     hid_t stringType;
     int mFlags;
     FIO_SPECIES eCurrent;
     IOBASE base[FIO_SPECIES_LAST];
     } fioHDF5;
+
+
+const char *fioSpeciesName(FIO_SPECIES eSpecies) {
+    switch(eSpecies) {
+    case FIO_SPECIES_DARK: return "PartType1";
+    case FIO_SPECIES_SPH:  return "PartType0";
+    case FIO_SPECIES_STAR: return "PartType4";
+    default:
+	break;
+	}
+    return NULL;
+    }
+
+
 
 static hid_t fio2hdf(FIO_TYPE dataType,fioHDF5 *hio) {
     switch(dataType) {
@@ -3212,7 +3282,7 @@ static void ioorder_flush(IOBASE *base) {
     else {
 	hid_t dataType = sizeof(PINDEX)==4 ? H5T_NATIVE_UINT32 : H5T_NATIVE_UINT64;
 	writeAttribute( base->group_id, ATTR_IORDER,
-	    dataType, &order->iStart );
+	    dataType, 1, &order->iStart );
 	}
     }
 
@@ -3220,33 +3290,107 @@ static void ioorder_flush(IOBASE *base) {
 ** hdf5 interface
 */
 
+/* IA:
+ * Read an attribute (mode=0) or a dataset (mode=1) from the file.
+ * The information can be stored in different groups:
+ *    Header      - headerGroup=0
+ *    Cosmology   - headerGroup=1
+ *    Units       - headerGroup=2
+ *    Parameters  - headerGroup=3
+ */
 static int hdf5GetAttr(
-    FIO fio,
+    FIO fio, const int mode, const int headerGroup,
     const char *attr, FIO_TYPE dataType, void *data) {
     fioHDF5 *hio = (fioHDF5 *)fio;
     H5E_auto_t save_func;
     void *     save_data;
+    hid_t * groupID;
     int rc;
 
     assert(fio->eFormat == FIO_FORMAT_HDF5);
     assert(fio->eMode == FIO_MODE_READING);
 
+    switch(headerGroup){
+       case 0:
+          groupID = &hio->headerID;
+          break;
+       case 1:
+          groupID = &hio->cosmoID;
+          break;
+       case 2:
+          groupID = &hio->unitsID;
+          break;
+       case 3:
+          groupID = &hio->paramsID;
+          break;
+       default:
+          printf("Not valid headerGroup\n");
+          abort();
+    }
+
     H5Eget_auto(&save_func,&save_data);
     H5Eset_auto(0,0);
-    rc = readAttribute(hio->parametersID,attr,fio2hdf(dataType,hio),data);
+
+    switch(mode){
+       case 0:
+          rc = readAttribute(*groupID,attr,fio2hdf(dataType,hio),data);
+          break;
+       case 1:
+          rc = readDataset(*groupID,attr,fio2hdf(dataType,hio),data);
+          break;
+       default:
+          printf("Not valid mode\n");
+          abort();
+    }
+
     H5Eset_auto(save_func,save_data);
     return rc;
     }
 
+/*
+ * Same as hdf5GetAttr, but for writing
+ */
 static int hdf5SetAttr(
-    FIO fio,
-    const char *attr, FIO_TYPE dataType, void *data) {
+    FIO fio, const int mode, const int headerGroup,
+    const char *attr, FIO_TYPE dataType, int size, void *data) {
     fioHDF5 *hio = (fioHDF5 *)fio;
+    hid_t * groupID;
+    int rc;
 
     assert(fio->eFormat == FIO_FORMAT_HDF5);
     assert(fio->eMode == FIO_MODE_WRITING);
 
-    return writeAttribute(hio->parametersID,attr,fio2hdf(dataType,hio),data);
+    switch(headerGroup){
+       case 0:
+          groupID = &hio->headerID;
+          break;
+       case 1:
+          groupID = &hio->cosmoID;
+          break;
+       case 2:
+          groupID = &hio->unitsID;
+          break;
+       case 3:
+          groupID = &hio->paramsID;
+          break;
+       default:
+          printf("Not valid headerGroup\n");
+          abort();
+    }
+
+    
+    switch(mode){
+       case 0:
+          rc = writeAttribute(*groupID,attr,fio2hdf(dataType,hio), size, data);
+          break;
+       case 1:
+          rc = writeDataset(*groupID,attr,fio2hdf(dataType,hio), size, data);
+          break;
+       default:
+          printf("Not valid mode\n");
+          abort();
+    }
+      
     }
 
 static FIO_SPECIES hdf5Species (struct fioInfo *fio) {
@@ -3278,7 +3422,11 @@ static void hdf5Close(FIO fio) {
 	    H5Gclose(base->group_id);
 	    }
 	}
-    H5Gclose(hio->parametersID);
+    H5Gclose(hio->headerID);
+    //If not defined in the IC, this will give a warning
+    H5Gclose(hio->cosmoID);
+    H5Gclose(hio->unitsID);
+    H5Gclose(hio->paramsID);
     H5Fflush(hio->fileID,H5F_SCOPE_GLOBAL);
     assert(H5Fget_obj_count(hio->fileID,H5F_OBJ_ALL)==1);
     H5Fclose(hio->fileID);
@@ -3411,7 +3559,6 @@ static int hdf5ReadDark(
 
     /* If each particles has a unique class, use that */
     if ( !field_get_float(pfMass,&base->fldFields[DARK_MASS],base->iIndex) )
-       abort();
        class_get(pfMass,pfSoft,&base->ioClass,*piParticleID,base->iIndex);
 
     /*
@@ -3469,8 +3616,8 @@ static int hdf5ReadSph(
 	*pfDen = 0.0f;
 
     /* Metals is optional */
-    if ( !field_get_float(pfPot,&base->fldFields[SPH_METALS],base->iIndex) )
-	*pfMetals = 0.0f;
+    if ( !field_get_float(pfMetals,&base->fldFields[SPH_METALS],base->iIndex) )
+	for (i=0;i<NUMBER_METALS;i++) pfMetals[i] = 0.0f;
 
     /* iOrder is either sequential, or is listed for each particle */
     *piParticleID = ioorder_get(&base->ioOrder,base->iOffset,base->iIndex);
@@ -3530,8 +3677,12 @@ static int hdf5ReadStar(
 	*pfDen = 0.0f;
 
     /* Metals is optional */
-    if ( !field_get_float(pfPot,&base->fldFields[STAR_METALS],base->iIndex) )
+    if ( !field_get_float(pfMetals,&base->fldFields[STAR_METALS],base->iIndex) )
 	*pfMetals = 0.0f;
+
+    /* Formation time is optional */
+    if ( !field_get_float(pfTform,&base->fldFields[STAR_AGE],base->iIndex) )
+	*pfTform = 0.0f;
 
     /* iOrder is either sequential, or is listed for each particle */
     *piParticleID = ioorder_get(&base->ioOrder,base->iOffset,base->iIndex);
@@ -3586,7 +3737,7 @@ static int  hdf5WriteDark(
 static int hdf5WriteSph(
     struct fioInfo *fio,uint64_t iParticleID,const double *pdPos,const double *pdVel,
     float fMass,float fSoft,float fPot,float fDen,
-    float fTemp,float fMetals) {
+    float fIntEnergy,float* fMetals, float fBall, float fTemp) {
     fioHDF5 *hio = (fioHDF5 *)(fio);
     IOBASE *base = &hio->base[FIO_SPECIES_SPH];
     assert(fio->eFormat == FIO_FORMAT_HDF5);
@@ -3597,22 +3748,25 @@ static int hdf5WriteSph(
 	base_create(hio,base,FIO_SPECIES_SPH,SPH_N,iParticleID);
 	field_create(&base->fldFields[SPH_TEMPERATURE],base->group_id,
 		     FIELD_TEMPERATURE, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, 1 );
+	field_create(&base->fldFields[SPH_INTERNALENERGY],base->group_id,
+		     FIELD_INTERNALENERGY, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, 1 );
+	field_create(&base->fldFields[SPH_SMOOTHING],base->group_id,
+		     FIELD_SMOOTHING, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, 1 );
 	field_create(&base->fldFields[SPH_METALS],base->group_id,
-		     FIELD_METALS, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, 1 );
+		     FIELD_METALS, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, NUMBER_METALS);
 	}
 
     ioorder_add(base,iParticleID);
-    class_add(base,iParticleID,fMass,0.0); //IA: To avoid the creation of multiple classes (if nClasses>256 it crashes)
-                                           //   we manually set fSoft = 0. This should be a temporal solution. Ideally we could
-                                           //   save here fBall and fSoft as classes. This would require changes to WriteSph routines;
-                                           //   or, simply, do not save fSoft for gas particles
-                                           //
+    class_add(base,iParticleID,fMass,fSoft); 
+
     field_add_double(pdPos,&base->fldFields[DARK_POSITION],base->iIndex);
     field_add_double(pdVel,&base->fldFields[DARK_VELOCITY],base->iIndex);
     field_add_float(&fPot,&base->fldFields[DARK_POTENTIAL],base->iIndex);
     field_add_float(&fDen,&base->fldFields[DARK_DENSITY],base->iIndex);
     field_add_float(&fTemp,&base->fldFields[SPH_TEMPERATURE],base->iIndex);
-    field_add_float(&fMetals,&base->fldFields[SPH_METALS],base->iIndex);
+    field_add_float(&fIntEnergy,&base->fldFields[SPH_INTERNALENERGY],base->iIndex);
+    field_add_float(&fBall,&base->fldFields[SPH_SMOOTHING],base->iIndex);
+    field_add_float(fMetals,&base->fldFields[SPH_METALS],base->iIndex);
 
     /* If we have exhausted our buffered data, read more */
     if (++base->iIndex == CHUNK_SIZE) {
@@ -3623,7 +3777,7 @@ static int hdf5WriteSph(
 
 static int hdf5WriteStar(
     struct fioInfo *fio,uint64_t iParticleID,const double *pdPos,const double *pdVel,
-    float fMass,float fSoft,float fPot,float fDen,float fMetals,float fTform) {
+    float fMass,float fSoft,float fPot,float fDen,float *fMetals,float fTform) {
     fioHDF5 *hio = (fioHDF5 *)(fio);
     IOBASE *base = &hio->base[FIO_SPECIES_STAR];
     assert(fio->eFormat == FIO_FORMAT_HDF5);
@@ -3633,15 +3787,19 @@ static int hdf5WriteStar(
     if (base->group_id == H5I_INVALID_HID) {
 	base_create(hio,base,FIO_SPECIES_STAR,STAR_N,iParticleID);
 	field_create(&base->fldFields[STAR_METALS],base->group_id,
-		     FIELD_METALS, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, 1 );
+		     FIELD_METALS, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, NUMBER_METALS );
+	field_create(&base->fldFields[STAR_AGE],base->group_id,
+		     FIELD_AGE, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, 1 );
 	}
     class_add(base,iParticleID,fMass,0.0);
     ioorder_add(base,iParticleID);
     field_add_double(pdPos,&base->fldFields[DARK_POSITION],base->iIndex);
     field_add_double(pdVel,&base->fldFields[DARK_VELOCITY],base->iIndex);
     field_add_float(&fPot,&base->fldFields[DARK_POTENTIAL],base->iIndex);
-    field_add_float(&fDen,&base->fldFields[DARK_DENSITY],base->iIndex);
-    field_add_float(&fMetals,&base->fldFields[STAR_METALS],base->iIndex);
+    // IA: No need for this I think
+    //field_add_float(&fDen,&base->fldFields[DARK_DENSITY],base->iIndex);
+    field_add_float(fMetals,&base->fldFields[STAR_METALS],base->iIndex);
+    field_add_float(&fTform,&base->fldFields[STAR_AGE],base->iIndex);
 
     /* If we have exhausted our buffered data, read more */
     if (++base->iIndex == CHUNK_SIZE) {
@@ -3674,12 +3832,15 @@ static FIO hdf5OpenOne(const char *fname,int iFile) {
 	}
 
     /* Global parameters (dTime,etc.) are stored here */
-    hio->parametersID = H5Gopen( hio->fileID, GROUP_PARAMETERS );
-    if ( hio->parametersID == H5I_INVALID_HID ) {
+    hio->headerID = H5Gopen( hio->fileID, GROUP_HEADER );
+    if ( hio->headerID == H5I_INVALID_HID ) {
 	perror(fname);
 	abort();
 	return NULL;
 	}
+    hio->cosmoID = H5Gopen( hio->fileID, GROUP_COSMO );
+    hio->unitsID = H5Gopen( hio->fileID, GROUP_UNITS );
+    hio->paramsID = H5Gopen( hio->fileID, GROUP_PARAMS );
 
     /* Now open all of the available groups.  It's okay if some aren't there. */
     H5Eget_auto(&save_func,&save_data);
@@ -3843,10 +4004,13 @@ FIO fioHDF5Create(const char *fileName, int mFlags) {
     H5Tset_size(hio->stringType, 256);
 
     /* Global parameters (dTime,etc.) are stored here */
-    hio->parametersID = H5Gcreate( hio->fileID, GROUP_PARAMETERS, 0 );
-    if ( hio->parametersID == H5I_INVALID_HID ) {
+    hio->headerID = H5Gcreate( hio->fileID, GROUP_HEADER, 0 );
+    if ( hio->headerID == H5I_INVALID_HID ) {
 	abort();
 	}
+    hio->cosmoID = H5Gcreate( hio->fileID, GROUP_COSMO, 0 );
+    hio->unitsID = H5Gcreate( hio->fileID, GROUP_UNITS, 0 );
+    hio->paramsID = H5Gcreate( hio->fileID, GROUP_PARAMS, 0 );
 
     for( i=1; i<FIO_SPECIES_LAST; i++) {
 	IOBASE *base = hio->base+i;
@@ -4283,7 +4447,7 @@ static void graficSeekFile(graficFile *gf,uint64_t iPart,uint64_t iAbs) {
 	}
     }
 
-static int graficGetAttr(FIO fio,
+static int graficGetAttr(FIO fio, const int mode, const int groupType,
     const char *attr, FIO_TYPE dataType, void *data) {
     fioGrafic *gio = (fioGrafic *)fio;
     assert(fio->eFormat == FIO_FORMAT_GRAFIC);

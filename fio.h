@@ -185,16 +185,16 @@ typedef struct fioInfo {
     int  (*fcnWriteSph) (
 	struct fioInfo *fio,uint64_t iParticleID,const double *pdPos,const double *pdVel,
 	float fMass,float fSoft,float fPot,float fDen,
-	float fTemp,float fMetals);
+      float fTemp,float* fMetals, float fBall, float fIntEnergy);
     int  (*fcnWriteStar) (struct fioInfo *fio,
 	uint64_t iParticleID,const double *pdPos,const double *pdVel,
 	float fMass,float fSoft,float fPot,float fDen,
-	float fMetals,float fTform);
+	float *fMetals,float fTform);
 
-    int  (*fcnGetAttr)(struct fioInfo *fio,
+    int  (*fcnGetAttr)(struct fioInfo *fio, const int mode, const int groupType,
 	const char *attr, FIO_TYPE dataType, void *data);
-    int  (*fcnSetAttr)(struct fioInfo *fio,
-	const char *attr, FIO_TYPE dataType, void *data);
+    int  (*fcnSetAttr)(struct fioInfo *fio, const int mode, const int groupType,
+	const char *attr, FIO_TYPE dataType, int size, void *data);
     } *FIO;
 
 /******************************************************************************\
@@ -287,14 +287,14 @@ static inline int fioWriteDark(
 static inline int  fioWriteSph(
     FIO fio,uint64_t iParticleID,const double *pdPos,const double *pdVel,
     float fMass,float fSoft,float fPot,float fDen,
-    float fTemp,float fMetals) {
+    float fTemp,float* fMetals, float fBall, float fIntEnergy) {
     return (*fio->fcnWriteSph)(fio,iParticleID,pdPos,pdVel,fMass,fSoft,fPot,fDen,
-			      fTemp,fMetals);
+			      fTemp, fMetals, fBall, fIntEnergy);
     }
 static inline int fioWriteStar(
     FIO fio,uint64_t iParticleID,const double *pdPos,const double *pdVel,
     float fMass,float fSoft,float fPot,float fDen,
-    float fMetals,float fTform) {
+    float* fMetals,float fTform) {
     return (*fio->fcnWriteStar)(fio,iParticleID,pdPos,pdVel,fMass,fSoft,fPot,fDen,
 			       fMetals,fTform);
     }
@@ -302,18 +302,18 @@ static inline int fioWriteStar(
 ** Returns the value of a given attribute.  Only "dTime" is available for
 ** Tipsy files, but HDF5 supports the inclusion of any arbitary attribute.
 */
-static inline int fioGetAttr(FIO fio,
+static inline int fioGetAttr(FIO fio, int mode, int groupType,
     const char *attr, FIO_TYPE dataType, void *data) {
-    return (*fio->fcnGetAttr)(fio,attr,dataType,data);
+    return (*fio->fcnGetAttr)(fio,mode, groupType, attr,dataType,data);
     }
 
 /*
 ** Sets an arbitrary attribute.  Only supported for HDF5; other formats
 ** return 0 indicating that it was not successful.
 */
-static inline int fioSetAttr(FIO fio,
-    const char *attr, FIO_TYPE dataType, void *data) {
-    return (*fio->fcnSetAttr)(fio,attr,dataType,data);
+static inline int fioSetAttr(FIO fio, int mode, int groupType,
+    const char *attr, FIO_TYPE dataType, int size, void *data) {
+    return (*fio->fcnSetAttr)(fio,mode, groupType, attr,dataType,size,data);
     }
 
 static inline int fioGetFlags(FIO fio) {

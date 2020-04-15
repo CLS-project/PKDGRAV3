@@ -535,7 +535,9 @@ void cooling_cool_part(PKD pkd,
   // IA: We set a minimum internal energy to avoid reaching the end of the table (~100 K)
   if (u_final_cgs < 1e10) u_final_cgs = 2e10;
   double u_final = u_final_cgs * cooling->internal_energy_from_cgs;
+  psph->E = psph->E - psph->Uint;
   psph->Uint = u_final * pkdMass(pkd,p);
+  psph->E = psph->E + psph->Uint;
 
   /* We now need to check that we are not going to go below any of the limits */
 
@@ -865,7 +867,9 @@ void cooling_init_backend(MSR msr) {
 
 /* IA:
  * The master process will send us the cooling_function_data, which we then need to allocate
- *  in each process and copy everything, taking special care of other arrays (deep copy)
+ *  in each process and copy everything, taking special care of other arrays (deep copy).
+ *
+ *  Furthermore, we initialize the abundances if needed
  */
 void pkd_cooling_init_backend(PKD pkd, struct cooling_function_data in_cooling_data,
   float Redshifts[eagle_cooling_N_redshifts],
@@ -900,6 +904,24 @@ void pkd_cooling_init_backend(PKD pkd, struct cooling_function_data in_cooling_d
 
   /* Allocate space for cooling tables */
   allocate_cooling_tables(pkd->cooling);
+
+  PARTICLE* p;
+  SPHFIELDS* psph;
+    for (int i=0;i<pkd->nLocal;++i) {
+	p = pkdParticle(pkd,i);
+      psph = pkdSph(pkd,p);
+      if (psph->chemistry[chemistry_element_H] == 0.){
+         psph->chemistry[chemistry_element_H] = pkd->param.dInitialH;
+         psph->chemistry[chemistry_element_He] = pkd->param.dInitialHe;
+         psph->chemistry[chemistry_element_C] = pkd->param.dInitialC;
+         psph->chemistry[chemistry_element_N] = pkd->param.dInitialN;
+         psph->chemistry[chemistry_element_O] = pkd->param.dInitialO;
+         psph->chemistry[chemistry_element_Ne] = pkd->param.dInitialNe;
+         psph->chemistry[chemistry_element_Mg] = pkd->param.dInitialMg;
+         psph->chemistry[chemistry_element_Si] = pkd->param.dInitialSi;
+         psph->chemistry[chemistry_element_Fe] = pkd->param.dInitialFe;
+      }
+    }
 }
 
 void pkd_cooling_update(PKD pkd, struct inCoolUpdate *in){

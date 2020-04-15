@@ -270,6 +270,19 @@ struct parameters {
     double dJeansFlooru;
     double dCoolingFloorDen;
     double dCoolingFlooru;
+
+    /*
+     * IA: Initial abundances 
+     */
+    double dInitialH;
+    double dInitialHe;
+    double dInitialC;
+    double dInitialN;
+    double dInitialO;
+    double dInitialNe;
+    double dInitialMg;
+    double dInitialSi;
+    double dInitialFe;
 #endif
 #ifdef STAR_FORMATION
     /* IA: Star formation */

@@ -1699,6 +1699,44 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     prmAddParam(msr->prm,"dCoolingFloorTemp", 2, &msr->param.dCoolingFlooru,
 		sizeof(double), "dCoolingFloorTemp",
 		"Temperature at the internal energy floor");
+
+    /* Parameters for the initial abundances */
+    msr->param.dInitialH = 0.75;
+    prmAddParam(msr->prm,"dInitialH", 2, &msr->param.dInitialH,
+		sizeof(double), "dInitialH",
+		"Initial Hydrogen abundance");
+    msr->param.dInitialHe = 0.25;
+    prmAddParam(msr->prm,"dInitialHe", 2, &msr->param.dInitialHe,
+		sizeof(double), "dInitialHe",
+		"Initial Helium abundance");
+    msr->param.dInitialC = 0.0;
+    prmAddParam(msr->prm,"dInitialC", 2, &msr->param.dInitialC,
+		sizeof(double), "dInitialC",
+		"Initial Carbon abundance");
+    msr->param.dInitialN = 0.0;
+    prmAddParam(msr->prm,"dInitialN", 2, &msr->param.dInitialN,
+		sizeof(double), "dInitialN",
+		"Initial Nitrogen abundance");
+    msr->param.dInitialO = 0.0;
+    prmAddParam(msr->prm,"dInitialO", 2, &msr->param.dInitialO,
+		sizeof(double), "dInitialO",
+		"Initial Oxygen abundance");
+    msr->param.dInitialNe = 0.0;
+    prmAddParam(msr->prm,"dInitialNe", 2, &msr->param.dInitialNe,
+		sizeof(double), "dInitialNe",
+		"Initial Neon abundance");
+    msr->param.dInitialMg = 0.0;
+    prmAddParam(msr->prm,"dInitialMg", 2, &msr->param.dInitialMg,
+		sizeof(double), "dInitialMg",
+		"Initial Magnesium abundance");
+    msr->param.dInitialSi = 0.0;
+    prmAddParam(msr->prm,"dInitialSi", 2, &msr->param.dInitialSi,
+		sizeof(double), "dInitialSi",
+		"Initial Silicon abundance");
+    msr->param.dInitialFe = 0.0;
+    prmAddParam(msr->prm,"dInitialFe", 2, &msr->param.dInitialFe,
+		sizeof(double), "dInitialFe",
+		"Initial Iron abundance");
 #endif
 #ifdef STAR_FORMATION
     msr->param.dSFThresholdDen = 0.1;
@@ -5834,15 +5872,17 @@ double msrRead(MSR msr, const char *achInFile) {
 	}
     nBytes = fioDump(fio,nBytes,read+1);
 
-    if (!fioGetAttr(fio,"dTime",FIO_TYPE_DOUBLE,&dExpansion)) dExpansion = 0.0;
-    if (!fioGetAttr(fio,"dEcosmo",FIO_TYPE_DOUBLE,&msr->dEcosmo)) msr->dEcosmo = 0.0;
-    if (!fioGetAttr(fio,"dTimeOld",FIO_TYPE_DOUBLE,&msr->dTimeOld)) msr->dTimeOld = 0.0;
-    if (!fioGetAttr(fio,"dUOld",FIO_TYPE_DOUBLE,&msr->dUOld)) msr->dUOld = 0.0;
+    if (!fioGetAttr(fio,0,0,"dTime",FIO_TYPE_DOUBLE,&dExpansion)) dExpansion = 0.0;
+    if (!fioGetAttr(fio,0,0,"dEcosmo",FIO_TYPE_DOUBLE,&msr->dEcosmo)) msr->dEcosmo = 0.0;
+    if (!fioGetAttr(fio,0,0,"dTimeOld",FIO_TYPE_DOUBLE,&msr->dTimeOld)) msr->dTimeOld = 0.0;
+    if (!fioGetAttr(fio,0,0,"dUOld",FIO_TYPE_DOUBLE,&msr->dUOld)) msr->dUOld = 0.0;
 
-    if(!prmSpecified(msr->prm, "dOmega0")) fioGetAttr(fio,"dOmega0",FIO_TYPE_DOUBLE,&msr->param.csm->val.dOmega0);
-    if(!prmSpecified(msr->prm, "dLambda")) fioGetAttr(fio,"dLambda",FIO_TYPE_DOUBLE,&msr->param.csm->val.dLambda);
-    if(!prmSpecified(msr->prm, "dBoxSize")) fioGetAttr(fio,"dBoxSize",FIO_TYPE_DOUBLE,&msr->param.dBoxSize);
-    if(!prmSpecified(msr->prm, "h")) fioGetAttr(fio,"h",FIO_TYPE_DOUBLE,&msr->param.h);
+    if (msr->param.csm->val.bComove){
+       if(!prmSpecified(msr->prm, "dOmega0")) fioGetAttr(fio,0,1,"Omega_m",FIO_TYPE_DOUBLE,&msr->param.csm->val.dOmega0);
+       if(!prmSpecified(msr->prm, "dLambda")) fioGetAttr(fio,0,1,"Omega_Lambda",FIO_TYPE_DOUBLE,&msr->param.csm->val.dLambda);
+       if(!prmSpecified(msr->prm, "dBoxSize")) fioGetAttr(fio,0,0,"BoxSize",FIO_TYPE_DOUBLE,&msr->param.dBoxSize);
+       if(!prmSpecified(msr->prm, "h")) fioGetAttr(fio,0,1,"HubbleParam",FIO_TYPE_DOUBLE,&msr->param.h);
+    }
 
     msr->N     = fioGetN(fio,FIO_SPECIES_ALL);
     msr->nGas  = fioGetN(fio,FIO_SPECIES_SPH);
@@ -5852,7 +5892,7 @@ double msrRead(MSR msr, const char *achInFile) {
 
     read->nProcessors = msr->param.bParaRead==0?1:(msr->param.nParaRead<=1 ? msr->nThreads:msr->param.nParaRead);
 
-    if (!fioGetAttr(fio,"nFiles",FIO_TYPE_UINT32,&j)) j = 1;
+    if (!fioGetAttr(fio, 0,0, "NumFilesPerSnapshot",FIO_TYPE_UINT32,&j)) j = 1;
     printf("Reading %"PRIu64" particles from %d file%s using %d processor%s\n",
 	msr->N, j, (j==1?"":"s"), read->nProcessors, (read->nProcessors==1?"":"s") );
 

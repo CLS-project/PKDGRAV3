@@ -2331,11 +2331,9 @@ void pstWrite(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 		perror(in->achOutFile);
 		mdlassert(pst->mdl,fio!=NULL);
 		}
-	    fioSetAttr(fio, "dTime",    FIO_TYPE_DOUBLE, &in->dTime);
-	    /* Restart information */
-	    fioSetAttr(fio, "dEcosmo",  FIO_TYPE_DOUBLE, &in->dEcosmo );
-	    fioSetAttr(fio, "dTimeOld", FIO_TYPE_DOUBLE, &in->dTimeOld );
-	    fioSetAttr(fio, "dUOld",    FIO_TYPE_DOUBLE, &in->dUOld );
+          
+
+          pkdWriteHeaderFIO(plcl->pkd, fio, in->dTime);
 
 	    pkdWriteFIO(plcl->pkd,fio,in->dvFac,&in->bnd);
 

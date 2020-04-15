@@ -33,10 +33,10 @@ void smFeedback(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 	    if (rand()<RAND_MAX*prob) { // We have a supernova explosion!
              q = nnList[i].pPart;
              qsph = pkdSph(pkd,q);
+             //printf("Uint %e extra %e \n", qsph->Uint, pkd->param.dFeedbackDu * pkdMass(pkd,q));
              qsph->Uint += pkd->param.dFeedbackDu * pkdMass(pkd,q);
              qsph->E += pkd->param.dFeedbackDu * pkdMass(pkd,q);
              printf("Adding SN energy! \n");
-             // Lets just to this, but probably need to figure out how to 'wake' up the particle
           }
 
     }

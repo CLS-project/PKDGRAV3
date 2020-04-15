@@ -2664,10 +2664,12 @@ int  smReSmooth(SMX smx,SMF *smf, int iSmoothType) {
              }
              if (pkdIsStar(pkd,p)){
                 if (pkdStar(pkd,p)->hasExploded==0){
+                   // IA: In principle this does NOT improve the Isolated Galaxy case, as we wait until the end of the 
+                   // step to update the primitive variables
                    //if ( (smf->dTime/*+pkd->param.dDelta/(1<<p->uRung)*/-pkdStar(pkd,p)->fTimer) < 0.95*pkd->param.dFeedbackDelay)
-                      if (pkdIsStar(pkd,p)) printf("SN dt\n");
-                      smReSmoothSingle(smx,smf,p, 2.*pkdBall(pkd,p));
-                      nSmoothed++;
+                      //if (pkdIsStar(pkd,p)) printf("SN dt\n");
+                      //smReSmoothSingle(smx,smf,p, 2.*pkdBall(pkd,p));
+                      //nSmoothed++;
                    //}
                 }
              }

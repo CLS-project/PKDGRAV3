@@ -1063,7 +1063,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
     float *pPot, dummypot;
     double r[3];
     double vel[3];
-    float fMass, fSoft,fDensity,u,fMetals,fTimer;
+    float fMass, fSoft,fDensity,u,fMetals[chemistry_element_count],fTimer;
     FIO_SPECIES eSpecies;
     uint64_t iParticleID;
 
@@ -1108,7 +1108,10 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	if (pkd->oSph) {
 	    pSph = pkdField(p,pkd->oSph);
 	    pSph->u = pSph->uPred = pSph->uDot = pSph->c = pSph->divv = pSph->BalsaraSwitch
-		= pSph->fMetals = pSph->diff = pSph->fMetalsPred = pSph->fMetalsDot = 0.0;
+		= pSph->diff = pSph->fMetals = pSph->fMetalsPred = pSph->fMetalsDot = 0.0;
+#ifdef COOLING
+          for (j=0;j<chemistry_element_count;j++ ) pSph->chemistry[j]=0.;
+#endif
 	    }
 	else pSph = NULL;
 
@@ -1125,14 +1128,16 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	case FIO_SPECIES_SPH:
 	    assert(dTuFac>0.0);
 	    fioReadSph(fio,&iParticleID,r,vel,&fMass,&fSoft,pPot,
-			     &fDensity/*?*/,&u,&fMetals); //IA: misreading, u means temperature
+			     &fDensity/*?*/,&u,&fMetals[0]); //IA: misreading, u means temperature
 	    pkdSetDensity(pkd,p,fDensity);
           pkdSetBall(pkd,p,fSoft);
 	    if (pSph) {
 		pSph->u = u * dTuFac; /* Can't do precise conversion until density known IA: ¿?*/
+            /* IA: -unused- variables 
 		pSph->fMetals = fMetals;
 		pSph->uPred = pSph->u;
 		pSph->fMetalsPred = pSph->fMetals;
+            */
 		pSph->vPred[0] = vel[0]*sqrt(dvFac);  //*dvFac;  TODO: Compute sqrt(dvFac only once)
 		pSph->vPred[1] = vel[1]*sqrt(dvFac);  //*dvFac;
 		pSph->vPred[2] = vel[2]*sqrt(dvFac);  //*dvFac; 
@@ -1167,10 +1172,8 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             pSph->fLastBall = 0.0;
             pSph->lastUpdateTime = -1.;
 #ifdef COOLING
-            for (j=0; j<chemistry_element_count; j++) pSph->chemistry[j] = 0.;
-            // Primordial abundances
-            pSph->chemistry[chemistry_element_H] = 0.75;
-            pSph->chemistry[chemistry_element_He] = 0.25;
+            for (j=0; j<chemistry_element_count; j++) pSph->chemistry[j] = fMetals[j];
+
             pSph->lastCooling = 0.;
             pSph->cooling_dudt = 0.;
 #endif
@@ -1181,13 +1184,19 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	    pkdSetDensity(pkd,p,fDensity);
 	    break;
 	case FIO_SPECIES_STAR:
-	    fioReadStar(fio,&iParticleID,r,vel,&fMass,&fSoft,pPot,&fDensity,&fMetals,&fTimer);
+	    fioReadStar(fio,&iParticleID,r,vel,&fMass,&fSoft,pPot,&fDensity,fMetals,&fTimer);
 	    pkdSetDensity(pkd,p,fDensity);
 	    if (pSph) {
-		pSph->fMetals = fMetals;
+		//pSph->fMetals = fMetals;
 		pSph->vPred[0] = vel[0]*dvFac;
 		pSph->vPred[1] = vel[1]*dvFac;
 		pSph->vPred[2] = vel[2]*dvFac;
+            //pSph->Uint = fMass * 1e5 / 0.59 / (5./3. - 1);//pkd->param.dFeedbackDu;
+            //printf("dFeedBackDu %e", pSph->Uint);
+            //abort();
+            //pSph->P = pSph->Uint*pSph->omega*(pkd->param.dConstGamma -1.);
+            // We add the sound speed to wake particles when we are close to exploding
+            pSph->c = sqrt(pSph->Uint/fMass*5./3.*(5./3. -1.));
 		}
 	    if (pStar) {
              pStar->fTimer = 0.;
@@ -2114,7 +2123,7 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,BND *bnd,PARTICLE *p) {
     SPHFIELDS *pSph;
     float *pPot, dummypot;
     double v[3],r[3];
-    float fMass, fSoft, fDensity, fMetals, fTimer;
+    float fMass, fSoft, fDensity,fMetals[chemistry_element_count], fTimer, fBall;
     uint64_t iParticleID;
     int j;
 
@@ -2172,25 +2181,35 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,BND *bnd,PARTICLE *p) {
 	assert(pkd->param.dTuFac>0.0);
 	    {
 #ifdef COOLING
-            // IA: The temperature is computed from psph->Uint;
             // TODO: obtain more elegantly the redshift
-           const double dRedshift = sqrt(dvFac) - 1.;
-           float temperature =  cooling_get_temperature(pkd, dRedshift, pkd->cooling, p, pSph);
+          const double dRedshift = sqrt(dvFac) - 1.;
+          float temperature =  cooling_get_temperature(pkd, dRedshift, pkd->cooling, p, pSph);
+          for (int k=0; k<chemistry_element_count;k++) fMetals[k] = pSph->chemistry[k];
 #else
-          float temperature = pSph->E; 
+          float temperature = 0; 
+          for (int k=0; k<chemistry_element_count;k++) fMetals[k] = 0.;
 #endif
-	    fioWriteSph(fio,iParticleID,r,v,fMass,pkdBall(pkd,p),*pPot,
-		fDensity,pSph->P,temperature);
+
+          fBall = pkdBall(pkd,p);
+
+	     fioWriteSph(fio,iParticleID,r,v,fMass,fSoft,*pPot,
+	 	fDensity,pSph->Uint/fMass, &fMetals[0], fBall, temperature);
 	    }
 	break;
     case FIO_SPECIES_DARK:
 	fioWriteDark(fio,iParticleID,r,v,fMass,fSoft,*pPot,fDensity);
 	break;
     case FIO_SPECIES_STAR:
-	fMetals = pSph ? pSph->fMetals : 0;
+      if (pSph){
+#ifdef COOLING
+          for (int k=0; k<chemistry_element_count;k++) fMetals[k] = pSph->chemistry[k];
+#else
+          for (int k=0; k<chemistry_element_count;k++) fMetals[k] = 0.;
+#endif
+      }
 	fTimer = pStar ? pStar->fTimer : 0;
 	fioWriteStar(fio,iParticleID,r,v,fMass,fSoft,*pPot,fDensity,
-	    fMetals,fTimer);
+	    &fMetals[0],fTimer);
 	break;
     default:
 	fprintf(stderr,"Unsupported particle type: %d\n",pkdSpecies(pkd,p));
@@ -2254,6 +2273,105 @@ void pkdWriteViaNode(PKD pkd, int iNode) {
     mdlSend(pkd->mdl,iNode,packWrite, &ctx);
 #endif
     }
+
+void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dTime){
+   /* Restart information IA: Unused?*/
+   //fioSetAttr(fio, "dEcosmo",  FIO_TYPE_DOUBLE, &in->dEcosmo );
+   //fioSetAttr(fio, "dTimeOld", FIO_TYPE_DOUBLE, &in->dTimeOld );
+   //fioSetAttr(fio, "dUOld",    FIO_TYPE_DOUBLE, &in->dUOld );
+
+   fioSetAttr(fio, 0, 0, "Time", FIO_TYPE_DOUBLE, 1, &dTime);
+   if (pkd->param.csm->val.bComove){
+      double z = 1./dTime - 1.;
+      fioSetAttr(fio, 0, 0, "Redshift", FIO_TYPE_DOUBLE, 1, &z);
+   }
+   int flag;
+#ifdef STAR_FORMATION
+   flag=1;
+#else
+   flag=0;
+#endif
+   fioSetAttr(fio, 0, 0, "Flag_Sfr", FIO_TYPE_INT, 1, &flag);
+
+#ifdef FEEDBACK
+   flag=1;
+#else
+   flag=0;
+#endif
+   fioSetAttr(fio, 0, 0, "Flag_Feedback", FIO_TYPE_INT, 1, &flag);
+
+#ifdef COOLING
+   flag=1;
+#else
+   flag=0;
+#endif
+   fioSetAttr(fio, 0, 0, "Flag_Cooling", FIO_TYPE_INT, 1, &flag);
+
+   fioSetAttr(fio, 0, 0, "BoxSize", FIO_TYPE_DOUBLE, 1, &pkd->param.dBoxSize);
+   int nProcessors = pkd->param.bParaWrite==0?1:(pkd->param.nParaWrite<=1 ? pkd->nThreads:pkd->param.nParaWrite);
+   fioSetAttr(fio, 0, 0, "NumFilesPerSnapshot", FIO_TYPE_INT, 1, &nProcessors);
+
+   /* Prepare the particle information in tables 
+    * For now, we only support one file per snapshot,
+    * this bParaWrite=0
+    *
+    * TODO: Check and debug parallel HDF5
+    * TODO: Check that this particle count changes when there is SF
+    */
+   int numPart_file[6];
+   //int numPart_all[6];
+
+   numPart_file[0] = pkd->nGas;
+   numPart_file[1] = pkd->nDark;
+   numPart_file[2] = 0;
+   numPart_file[3] = 0;
+   numPart_file[4] = pkd->nStar;
+   numPart_file[5] = 0;
+    
+   fioSetAttr(fio, 0, 0, "NumPart_ThisFile", FIO_TYPE_INT, 6, &numPart_file[0]);
+   fioSetAttr(fio, 0, 0, "NumPart_Total", FIO_TYPE_INT, 6, &numPart_file[0]);
+
+   double massTable[6] = {0,0,0,0,0,0};
+   fioSetAttr(fio, 0, 0, "NumPart_Total_HighWord", FIO_TYPE_INT, 6, &massTable[0]);
+   if (!pkd->oMass){
+      printf("Save mass table into hdf5 header not yet supported!\n"); //TODO
+      abort();
+   }
+   fioSetAttr(fio, 0, 0, "MassTable", FIO_TYPE_DOUBLE, 6, &massTable[0]);
+
+   /*
+    * Cosmology header
+    */
+   if (pkd->param.csm->val.bComove){
+      fioSetAttr(fio, 0, 1, "Omega_m", FIO_TYPE_DOUBLE, 1, &pkd->param.csm->val.dOmega0);
+      fioSetAttr(fio, 0, 1, "Omega_lambda", FIO_TYPE_DOUBLE, 1, &pkd->param.csm->val.dLambda);
+      fioSetAttr(fio, 0, 1, "Hubble0", FIO_TYPE_DOUBLE, 1, &pkd->param.csm->val.dHubble0);
+      flag = 1;
+      fioSetAttr(fio, 0, 1, "Cosmological run", FIO_TYPE_INT, 1, &flag);
+   }else{
+      flag = 0;
+      fioSetAttr(fio, 0, 1, "Cosmological run", FIO_TYPE_INT, 1, &flag);
+   }
+
+   
+   /*
+    * Units header
+    */
+   fioSetAttr(fio, 0, 2, "MsolUnit", FIO_TYPE_DOUBLE, 1, &pkd->param.dMsolUnit);
+   fioSetAttr(fio, 0, 2, "KpcUnit", FIO_TYPE_DOUBLE, 1, &pkd->param.dKpcUnit);
+   fioSetAttr(fio, 0, 2, "SecUnit", FIO_TYPE_DOUBLE, 1, &pkd->param.dSecUnit);
+   fioSetAttr(fio, 0, 2, "KmPerSecUnit", FIO_TYPE_DOUBLE, 1, &pkd->param.dKmPerSecUnit);
+   fioSetAttr(fio, 0, 2, "GmPerCcUnit", FIO_TYPE_DOUBLE, 1, &pkd->param.dGmPerCcUnit);
+   fioSetAttr(fio, 0, 2, "ErgPerGmUnit", FIO_TYPE_DOUBLE, 1, &pkd->param.dErgPerGmUnit);
+   fioSetAttr(fio, 0, 2, "ErgUnit", FIO_TYPE_DOUBLE, 1, &pkd->param.dErgUnit);
+   fioSetAttr(fio, 0, 2, "GasConst", FIO_TYPE_DOUBLE, 1, &pkd->param.dGasConst);
+
+   /*
+    * Dump of all the parameters
+    */
+   //prmSave(prm, fio) TODO?
+
+}
 
 uint32_t pkdWriteFIO(PKD pkd,FIO fio,double dvFac,BND *bnd) {
     PARTICLE *p;
@@ -3063,13 +3181,13 @@ void pkdComputePrimVars(PKD pkd,int iRoot, double dTime, double dDelta) {
 
             double Ekin = 0.5*( psph->mom[0]*psph->mom[0] + psph->mom[1]*psph->mom[1] + psph->mom[2]*psph->mom[2] ) / pkdMass(pkd,p);
             //printf("E %e \t Uint %e \t Ekin %e \n", psph->E, psph->Uint, Ekin);
-//            if (Ekin > 0.0*psph->E ){
+            if (Ekin > 0.99*psph->E ){
                   psph->P = psph->Uint*psph->omega*(pkd->param.dConstGamma -1.);
                   psph->E = psph->Uint + Ekin;
-//            }else{
-//                  psph->P = (psph->E - Ekin )*psph->omega*(pkd->param.dConstGamma -1.);
-//                  psph->Uint = psph->P/(psph->omega*(pkd->param.dConstGamma -1.)); 
-//            }     
+            }else{
+                  psph->P = (psph->E - Ekin )*psph->omega*(pkd->param.dConstGamma -1.);
+                  psph->Uint = psph->P/(psph->omega*(pkd->param.dConstGamma -1.)); 
+            }     
             if (psph->P < 0){
                psph->P = 0.;
                psph->Uint = 0.;
