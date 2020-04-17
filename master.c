@@ -5872,7 +5872,7 @@ double msrRead(MSR msr, const char *achInFile) {
 	}
     nBytes = fioDump(fio,nBytes,read+1);
 
-    if (!fioGetAttr(fio,0,0,"dTime",FIO_TYPE_DOUBLE,&dExpansion)) dExpansion = 0.0;
+    if (!fioGetAttr(fio,0,0,"Time",FIO_TYPE_DOUBLE,&dExpansion)) dExpansion = 0.0;
     if (!fioGetAttr(fio,0,0,"dEcosmo",FIO_TYPE_DOUBLE,&msr->dEcosmo)) msr->dEcosmo = 0.0;
     if (!fioGetAttr(fio,0,0,"dTimeOld",FIO_TYPE_DOUBLE,&msr->dTimeOld)) msr->dTimeOld = 0.0;
     if (!fioGetAttr(fio,0,0,"dUOld",FIO_TYPE_DOUBLE,&msr->dUOld)) msr->dUOld = 0.0;

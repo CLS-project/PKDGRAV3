@@ -28,7 +28,7 @@
 #endif
 
 #ifdef COOLING
-#define NUMBER_METALS     9 //IA: This should be, at most, chemistry_element_count, but can be decreased if needed 
+#define NUMBER_METALS     2 //IA: This should be, at most, chemistry_element_count, but can be modified if needed 
 #else
 #define NUMBER_METALS     1
 #endif
@@ -2742,7 +2742,7 @@ static void writeSet(
 #define FIELD_AGE         "StellarFormationTime"
 
 
-#define FIELD_ORDER      "ParticlesIDs"
+#define FIELD_ORDER      "ParticleIDs"
 #define FIELD_CLASS      "class"
 #define FIELD_CLASSES    "classes"
 /*

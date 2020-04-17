@@ -2318,7 +2318,8 @@ void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dTime){
     * TODO: Check and debug parallel HDF5
     * TODO: Check that this particle count changes when there is SF
     */
-   int numPart_file[6];
+   unsigned int numPart_file[6] = {0,0,0,0,0,0};
+   fioSetAttr(fio, 0, 0, "NumPart_Total_HighWord", FIO_TYPE_UINT32, 6, &numPart_file[0]);
    //int numPart_all[6];
 
    numPart_file[0] = pkd->nGas;
@@ -2328,11 +2329,10 @@ void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dTime){
    numPart_file[4] = pkd->nStar;
    numPart_file[5] = 0;
     
-   fioSetAttr(fio, 0, 0, "NumPart_ThisFile", FIO_TYPE_INT, 6, &numPart_file[0]);
-   fioSetAttr(fio, 0, 0, "NumPart_Total", FIO_TYPE_INT, 6, &numPart_file[0]);
+   fioSetAttr(fio, 0, 0, "NumPart_ThisFile", FIO_TYPE_UINT32, 6, &numPart_file[0]);
+   fioSetAttr(fio, 0, 0, "NumPart_Total", FIO_TYPE_UINT32, 6, &numPart_file[0]);
 
    double massTable[6] = {0,0,0,0,0,0};
-   fioSetAttr(fio, 0, 0, "NumPart_Total_HighWord", FIO_TYPE_INT, 6, &massTable[0]);
    if (!pkd->oMass){
       printf("Save mass table into hdf5 header not yet supported!\n"); //TODO
       abort();
@@ -2348,6 +2348,8 @@ void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dTime){
       fioSetAttr(fio, 0, 1, "Hubble0", FIO_TYPE_DOUBLE, 1, &pkd->param.csm->val.dHubble0);
       flag = 1;
       fioSetAttr(fio, 0, 1, "Cosmological run", FIO_TYPE_INT, 1, &flag);
+      double h = 1;
+      fioSetAttr(fio, 0, 1, "HubbleParam", FIO_TYPE_DOUBLE, 1, &h); // Not used
    }else{
       flag = 0;
       fioSetAttr(fio, 0, 1, "Cosmological run", FIO_TYPE_INT, 1, &flag);
