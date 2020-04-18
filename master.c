@@ -2566,7 +2566,7 @@ void msrAllNodeWrite(MSR msr, const char *pszFileName, double dTime, double dvFa
     in.HubbleParam= msr->param.h;
 
     in.nDark = msr->nDark;
-    in.nSph  = msr->nGas;
+    in.nGas  = msr->nGas;
     in.nStar = msr->nStar;
 
     in.bHDF5 = msr->param.bHDF5;
@@ -2582,7 +2582,7 @@ void msrAllNodeWrite(MSR msr, const char *pszFileName, double dTime, double dvFa
 	fio = fioTipsyCreate(in.achOutFile,
 			     in.mFlags&FIO_FLAG_CHECKPOINT,
 			     in.bStandard,in.dTime,
-			     in.nSph, in.nDark, in.nStar);
+			     in.nGas, in.nDark, in.nStar);
 	fioClose(fio);
 	}
     in.iLower = 0;

@@ -1482,7 +1482,7 @@ void pkdLocalOrder(PKD,uint64_t iMinOrder,uint64_t iMaxOrder);
 void pkdCheckpoint(PKD pkd,const char *fname);
 void pkdRestore(PKD pkd,const char *fname);
 uint32_t pkdWriteFIO(PKD pkd,FIO fio,double dvFac,BND *bnd);
-void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dTime);
+void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dTime, uint64_t nDark, uint64_t nGas, uint64_t nStar);
 void pkdWriteFromNode(PKD pkd,int iNode, FIO fio,double dvFac,BND *bnd);
 void pkdWriteViaNode(PKD pkd, int iNode);
 void pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,

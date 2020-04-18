@@ -61,6 +61,9 @@ void msrStarForm(MSR msr, double dTime, double dDelta, int iRung)
 	       out.nFormed, out.dMassFormed, out.nDeleted);
     msr->massFormed += out.dMassFormed;
     msr->starFormed += out.nFormed;    
+
+    msr->nGas -= out.nFormed;
+    msr->nStar += out.nFormed;
     
     sec1 = msrTime();
     dsec = sec1 - sec;

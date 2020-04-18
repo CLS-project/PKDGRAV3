@@ -437,7 +437,7 @@ struct inWrite {
     double Omega0;
     double OmegaLambda;
     double HubbleParam;
-    uint64_t nSph;
+    uint64_t nGas;
     uint64_t nDark;
     uint64_t nStar;
     int bStandard;

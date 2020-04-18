@@ -2317,7 +2317,7 @@ void pstWrite(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 		    makeName(achOutFile,in->achOutFile,in->iIndex,"");
 		    fio = fioTipsyCreatePart(achOutFile,0,in->mFlags&FIO_FLAG_CHECKPOINT,
 			in->bStandard, in->dTime, 
-			in->nSph, in->nDark, in->nStar, plcl->nWriteStart);
+			in->nGas, in->nDark, in->nStar, plcl->nWriteStart);
 		    }
 		else {
 		    fio = fioTipsyAppend(in->achOutFile,in->mFlags&FIO_FLAG_CHECKPOINT,in->bStandard);
@@ -2333,7 +2333,7 @@ void pstWrite(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 		}
           
 
-          pkdWriteHeaderFIO(plcl->pkd, fio, in->dTime);
+          pkdWriteHeaderFIO(plcl->pkd, fio, in->dTime, in->nDark, in->nGas, in->nStar);
 
 	    pkdWriteFIO(plcl->pkd,fio,in->dvFac,&in->bnd);
 

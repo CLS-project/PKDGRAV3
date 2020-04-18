@@ -2175,6 +2175,18 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,BND *bnd,PARTICLE *p) {
 		(r[j] < bnd->fCenter[j] + bnd->fMax[j])));
 	
 	}
+
+    /* IA: In the case of cosmological boxes, it is typical to have a box not centered on the origin.
+     *  Such boxes are defined in the (+,+,+) octant. To convert to that system of reference, 
+     *  we just add half the box size to all positions.
+     *
+     *  Another option would be to change fCenter, but I do not if that could break other parts of the code...
+     */
+    if (pkd->param.csm->val.bComove){
+       for (j=0;j<3;++j){
+         r[j] += bnd->fMax[j];
+       }
+    }
     switch(pkdSpecies(pkd,p)) {
     case FIO_SPECIES_SPH:
 	assert(pSph);
@@ -2274,7 +2286,7 @@ void pkdWriteViaNode(PKD pkd, int iNode) {
 #endif
     }
 
-void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dTime){
+void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dTime, uint64_t nDark, uint64_t nGas, uint64_t nStar){
    /* Restart information IA: Unused?*/
    //fioSetAttr(fio, "dEcosmo",  FIO_TYPE_DOUBLE, &in->dEcosmo );
    //fioSetAttr(fio, "dTimeOld", FIO_TYPE_DOUBLE, &in->dTimeOld );
@@ -2322,11 +2334,11 @@ void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dTime){
    fioSetAttr(fio, 0, 0, "NumPart_Total_HighWord", FIO_TYPE_UINT32, 6, &numPart_file[0]);
    //int numPart_all[6];
 
-   numPart_file[0] = pkd->nGas;
-   numPart_file[1] = pkd->nDark;
+   numPart_file[0] = nGas;
+   numPart_file[1] = nDark;
    numPart_file[2] = 0;
    numPart_file[3] = 0;
-   numPart_file[4] = pkd->nStar;
+   numPart_file[4] = nStar;
    numPart_file[5] = 0;
     
    fioSetAttr(fio, 0, 0, "NumPart_ThisFile", FIO_TYPE_UINT32, 6, &numPart_file[0]);
@@ -2338,6 +2350,8 @@ void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dTime){
       abort();
    }
    fioSetAttr(fio, 0, 0, "MassTable", FIO_TYPE_DOUBLE, 6, &massTable[0]);
+   float fSoft = pkdSoft(pkd,pkdParticle(pkd,0)); // we take any particle
+   fioSetAttr(fio, 0, 0, "Softening", FIO_TYPE_FLOAT, 1, &fSoft);
 
    /*
     * Cosmology header
