@@ -3790,7 +3790,9 @@ void msrCalcEandL(MSR msr,int bFirst,double dTime,double *E,double *T,double *U,
 
 void msrDrift(MSR msr,double dTime,double dDelta,int iRoot) {
     struct inDrift in;
+    double sec, dsec;
 
+    sec = msrTime();
     if (msr->param.csm->val.bComove) {
 	in.dDelta = csmComoveDriftFac(msr->param.csm,dTime,dDelta);
 	in.dDeltaVPred = csmComoveKickFac(msr->param.csm,dTime,dDelta);
@@ -3803,7 +3805,10 @@ void msrDrift(MSR msr,double dTime,double dDelta,int iRoot) {
     in.dDeltaUPred = dDelta;
     in.iRoot = iRoot;
     pstDrift(msr->pst,&in,sizeof(in),NULL,NULL);
+    dsec = msrTime()-sec;
+    print("Drift took %.5f secons \n", dsec);
     }
+
 /* IA
  * We add the gravitational work following a second-order scheme (e.g., equations H1 and H2 of Hopkins 2015)
  * To that end, we need the gradient of the gravitational potential at the begining and end of the timestep.
@@ -4474,8 +4479,11 @@ void msrSphStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime) {
 /* IA: Computes the dt criteria being known the fluxes and the signal velocities */
 void msrHydroStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime) {
     int bSymmetric = 0; 
+    double sec, dsec;
 
-    printf("Computing hydro time step... \n");
+    printf("Computing hydro time step... ");
+
+    sec = msrTime();
     msrReSmooth(msr,dTime,SMX_HYDROSTEP,1, 0);
 
     if (msr->param.bGlobalDt){
@@ -4487,6 +4495,8 @@ void msrHydroStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime) {
           msrSetGlobalDt(msr, minDt);
        }
     }
+    dsec = msrTime() - sec;
+    printf("took %.5f seconds\n", dsec)
 }
 
 uint8_t msrGetMinDt(MSR msr){
@@ -4946,7 +4956,6 @@ void msrTopStepKDK(MSR msr,
 #endif
 
 
-      printf("dTime %e \n", dTime);
 	msrActiveRung(msr,iKickRung,1);
 	bSplitVA = 0;
 	msrDomainDecomp(msr,iKickRung,0,bSplitVA);
