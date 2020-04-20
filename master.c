@@ -3838,7 +3838,6 @@ void msrUpdateConsVars(MSR msr,double dTime,double dDelta,int iRoot) {
 
     assert(iRoot!=0); //IA: Dual tree not implemented
 
-    printf("(msrUpdateConsVars) Begin \n");
     if (msr->param.csm->val.bComove) {
 	in.dDelta = csmComoveDriftFac(msr->param.csm,dTime,dDelta);
 	in.dDeltaVPred = csmComoveKickFac(msr->param.csm,dTime,dDelta);
@@ -3851,18 +3850,22 @@ void msrUpdateConsVars(MSR msr,double dTime,double dDelta,int iRoot) {
     in.dDeltaUPred = dDelta;
     in.iRoot = iRoot;
     pstUpdateConsVars(msr->pst,&in,sizeof(in),NULL,NULL);
-    printf("(msrUpdateConsVars) End \n");
     }
 
 
 
 void msrMeshlessGradients(MSR msr,double dTime,double dDelta,int iRoot){
-    printf("Computing gradients... \n");
+   double sec, dsec;
+    printf("Computing gradients... ");
+
+    sec = msrTime();
     if (msr->param.bConservativeReSmooth){
        msrReSmooth(msr,dTime,SMX_SECONDHYDROLOOP,0,0);
     }else{
        msrSmooth(msr,dTime,SMX_SECONDHYDROLOOP,0, msr->param.nSmooth);
     }
+    dsec = msrTime() - sec;
+    printf("took %.5f seconds\n", dsec);
 }
 
 
@@ -3870,7 +3873,9 @@ void msrMeshlessFluxes(MSR msr,double dTime,double dDelta,int iRoot){
 #ifdef MAKE_GLASS
     return;
 #endif
-    printf("Computing fluxes... \n");
+    double sec, dsec;
+    printf("Computing fluxes... ");
+    sec = msrTime();
     if (msr->param.bConservativeReSmooth){
        if (dDelta==0.0){
           msrReSmooth(msr,dTime,SMX_THIRDHYDROLOOP,1,1); 
@@ -3880,6 +3885,8 @@ void msrMeshlessFluxes(MSR msr,double dTime,double dDelta,int iRoot){
     }else{
        msrSmooth(msr,dTime,SMX_THIRDHYDROLOOP,0,msr->param.nSmooth);
     }
+    dsec = msrTime()-sec;
+    printf("took %.5f seconds\n", dsec);
 }
 
 void msrOutputFineStatistics(MSR msr, double dStep, double dTime){
@@ -3922,9 +3929,11 @@ void msrUpdatePrimVars(MSR msr,double dTime,double dDelta,int iRoot){
     in.iRoot = iRoot;
     in.dTime = dTime;
     in.dDelta = dDelta;
+    double sec, dsec;
 
     // IA: We also update the particles densities here (i.e., first hydro loop)
     printf("Computing density... \n");
+    sec = msrTime();
     if (msr->param.bIterativeSmoothingLength){
        msrSelAll(msr); // We set all particles as "not converged"
        msrResetNeighborsStd(msr);
@@ -3949,15 +3958,19 @@ void msrUpdatePrimVars(MSR msr,double dTime,double dDelta,int iRoot){
          // msrSetFirstHydroLoop(msr, 0);
          printf("Smoothing length did not converge for %d particles\n", nSmoothed);
        } 
-       printf("Computing h took %d iterations \n", it);
+       dsec = msrTime()-sec;
+       printf("Computing h took %d iterations and %.5f seconds \n", it, dsec);
     }else{
        msrSetFirstHydroLoop(msr, 1); // 1-> we update the particle's h ; 0-> we dont
        msrSmooth(msr,dTime,SMX_FIRSTHYDROLOOP,0,msr->param.nSmooth);
        msrSetFirstHydroLoop(msr, 0);
     }
 
-    printf("Computing primitive variables... \n");
+    printf("Computing primitive variables... ");
+    sec = msrTime();
     pstComputePrimVars(msr->pst,&in,sizeof(in),NULL,NULL); 
+    dsec = msrTime()-sec;
+    printf("took %.5f seconds\n",dsec);
 }
 
 
