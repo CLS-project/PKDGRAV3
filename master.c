@@ -3806,7 +3806,7 @@ void msrDrift(MSR msr,double dTime,double dDelta,int iRoot) {
     in.iRoot = iRoot;
     pstDrift(msr->pst,&in,sizeof(in),NULL,NULL);
     dsec = msrTime()-sec;
-    print("Drift took %.5f secons \n", dsec);
+    printf("Drift took %.5f seconds \n", dsec);
     }
 
 /* IA
@@ -4496,7 +4496,7 @@ void msrHydroStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime) {
        }
     }
     dsec = msrTime() - sec;
-    printf("took %.5f seconds\n", dsec)
+    printf("took %.5f seconds\n", dsec);
 }
 
 uint8_t msrGetMinDt(MSR msr){
