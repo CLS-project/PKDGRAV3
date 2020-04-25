@@ -3,7 +3,7 @@
 # docker image build --memory=1g --memory-swap=1g -t dpotter/pkdgrav3-build:latest pkdgrav3-build
 FROM nvidia/cuda:10.1-devel-ubuntu18.04 as pkdgrav3-build-mpich
 LABEL maintainer="douglas.potter@uzh.ch"
-ARG MPICH_VERSION=3.2.1
+ARG MPICH_VERSION=3.1.4
 ARG FFTW_VERSION=3.3.8
 RUN apt-get update && apt-get install -y autoconf automake pkg-config cmake gcc g++ make gfortran wget git libgsl0-dev libhdf5-dev libmemkind-dev libhwloc-dev && apt-get clean all
 RUN mkdir /build
