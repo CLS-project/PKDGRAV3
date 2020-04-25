@@ -168,6 +168,14 @@ char *MSR::BuildName(char *achFile,int iStep,char *defaultPath) {
     return achFile;
     }
 
+size_t MSR::getLocalGridMemory(int nGrid) {
+    struct inGetFFTMaxSizes inFFTSizes;
+    struct outGetFFTMaxSizes outFFTSizes;
+    inFFTSizes.nx = inFFTSizes.ny = inFFTSizes.nz = nGrid;
+    pstGetFFTMaxSizes(pst,&inFFTSizes,sizeof(inFFTSizes),&outFFTSizes,sizeof(outFFTSizes));
+    return outFFTSizes.nMaxLocal*sizeof(FFTW3(real));
+    }
+
 void MSR::MakePath(const char *dir,const char *base,char *path) {
     /*
     ** Prepends "dir" to "base" and returns the result in "path". It is the
@@ -293,12 +301,25 @@ void MSR::InitializePStore(uint64_t *nSpecies,uint64_t mMemoryModel) {
 	ps.nMinTotalStore = 10*outFFTSizes.nMaxLocal*sizeof(FFTW3(real));
 	}
 #endif
-       pstInitializePStore(pst,&ps,sizeof(ps),NULL,0);
-       PKD pkd = pst->plcl->pkd;
-       printf("Allocated %lu MB for particle store on each processor.\n",
-	   pkdParticleMemory(pkd)/(1024*1024));
-       printf("Particles: %lu bytes (persistent) + %d bytes (ephemeral), Nodes: %lu bytes\n",
-	   pkdParticleSize(pkd),ps.nEphemeralBytes,pkdNodeSize(pkd));
+    // Check all registered Python analysis routines and account for their memory requirements
+    for( msr_analysis_callback & i : analysis_callbacks) {
+	auto attr_per_node = PyObject_GetAttrString(i.memory,"bytes_per_node");
+	auto attr_per_part = PyObject_GetAttrString(i.memory,"bytes_per_particle");
+	auto per_node = PyLong_AsSize_t(attr_per_node);
+	auto per_part = PyLong_AsSize_t(attr_per_part);
+	if (ps.nEphemeralBytes < per_part) ps.nEphemeralBytes = per_part;
+	if (ps.nMinEphemeral < per_node) ps.nMinEphemeral = per_node;
+	Py_DECREF(attr_per_node);
+	Py_DECREF(attr_per_part);
+	}
+    pstInitializePStore(pst,&ps,sizeof(ps),NULL,0);
+    PKD pkd = pst->plcl->pkd;
+    printf("Allocated %lu MB for particle store on each processor.\n",
+	pkdParticleMemory(pkd)/(1024*1024));
+    printf("Particles: %lu bytes (persistent) + %d bytes (ephemeral), Nodes: %lu bytes\n",
+	pkdParticleSize(pkd),ps.nEphemeralBytes,pkdNodeSize(pkd));
+    if (ps.nMinEphemeral)
+	printf("Ephemeral will be at least %llu MB per node.\n",ps.nMinEphemeral/(1024*1024));
     }
 
 void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTime, double dDelta) {
@@ -4191,8 +4212,7 @@ void MSR::OutputPk(int iStep,double dTime) {
 
     if (param.nGridPk == 0) return;
 
-    GridCreateFFT(param.nGridPk);
-
+//    GridCreateFFT(param.nGridPk);
 
     fK = new float[param.nBinsPk];
     fPk = new float[param.nBinsPk];
@@ -4247,7 +4267,7 @@ void MSR::OutputPk(int iStep,double dTime) {
 	dsec = MSR::Time() - sec;
 	msrprintf("Delta(k) has been successfully written, Wallclock: %f secs.\n\n", dsec);
 	}
-    GridDeleteFFT();
+//    GridDeleteFFT();
     }
 
 
@@ -4833,6 +4853,8 @@ void MSR::MeasurePk(int iAssignment,int bInterlace,int nGrid,double a,int nBins,
     double fftNormalize;
     double sec,dsec;
 
+    GridCreateFFT(nGrid);
+
     if (nGrid/2 < nBins) nBins = nGrid/2;
     assert(nBins <= PST_MAX_K_BINS);
 
@@ -4865,6 +4887,8 @@ void MSR::MeasurePk(int iAssignment,int bInterlace,int nGrid,double a,int nBins,
 	}
     /* At this point, dPk[] needs to be corrected by the box size */
     delete out;
+
+    GridDeleteFFT();
 
     dsec = MSR::Time() - sec;
     printf("P(k) Calculated, Wallclock: %f secs\n\n",dsec);

@@ -50,3 +50,5 @@ bEpsAccStep	= 1     # Choose eps/a timestep criteria
 dTheta  	= 0.40	# accuracy of forces for z > 20
 dTheta20  	= 0.55	# accuracy of forces for z > 2
 dTheta2         = 0.70	# accuracy of forces for z <= 2
+
+del math

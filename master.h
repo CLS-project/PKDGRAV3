@@ -35,6 +35,11 @@
 extern time_t timeGlobalSignalTime;
 extern int bGlobalOutput;
 
+struct MSRINSTANCE {
+    PyObject_HEAD
+    class MSR *msr;
+    };
+
 class MSR {
 protected:
     const PST pst;
@@ -61,6 +66,8 @@ public:
     void      setParameter(         const char *name,bool v,     int bSpecified=false);
     void      setParameter(         const char *name,double v,   int bSpecified=false);
     void      setParameter(         const char *name,long long v,int bSpecified=false);
+
+    size_t getLocalGridMemory(int nGrid);
 
     // I/O and IC Generation
     double GenerateIC();
@@ -116,6 +123,27 @@ private:
 	MSR *msr;
 	} SHELLCTX;
     static double countShell(double rInner,void *vctx);
+
+public:
+    struct msr_analysis_callback {
+	PyObject *callback;
+	struct MSRINSTANCE *msr;
+	PyObject *memory;
+	explicit msr_analysis_callback(PyObject *callback,MSRINSTANCE *msr,PyObject *memory) {
+	    this->callback = callback;
+	    this->msr = msr;
+	    this->memory = memory;
+	    Py_INCREF(callback);
+	    Py_INCREF(memory);
+	    }
+//	~msr_analysis_callback() {
+//	    Py_DECREF(callback);
+//	    }
+	};
+    void addAnalysis(PyObject *callback,MSRINSTANCE *msr,PyObject *memory);
+    void runAnalysis(int iStep,double dTime);
+protected:
+    std::list<msr_analysis_callback> analysis_callbacks;
 
 public:
     PRM prm;
@@ -246,7 +274,7 @@ protected:
     void LightConeClose(int iStep);
     void LightConeVel();
 #ifdef MDL_FFTW
-    void AssignMass(int iAssignment,int nGrid);
+    void AssignMass(int nGrid,int iAssignment=4,int iGrid=0);
     void SetLinGrid(double dTime, double dDelta, int nGrid, int bKickClose, int bKickOpen);
     void LinearKick(double dTime, double dDelta, int bKickClose, int bKickOpen);
 #endif

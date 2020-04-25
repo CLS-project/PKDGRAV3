@@ -27,29 +27,19 @@ using namespace gridinfo;
 
 #include <vector>
 
-static void initPk(void *vpkd, void *g) {
-    FFTW3(real) * r = (FFTW3(real) *)g;
-    *r = 0.0;
-    }
-static void combPk(void *vpkd, void *g1, void *g2) {
-    FFTW3(real) * r1 = (FFTW3(real) *)g1;
-    FFTW3(real) * r2 = (FFTW3(real) *)g2;
-    *r1 += *r2;
-    }
-
-static void assign_mass(PKD pkd, int iAssignment, double dTotalMass, double fDelta, MDLFFT fft, FFTW3(real) *fftData) {
+static void assign_mass(PKD pkd, int iAssignment, double dTotalMass, double fDelta, int iGrid) {
+    auto fft = pkd->fft;
     int nGrid = fft->rgrid->n1;
     double fftNormalize = 1.0 / (1.0*nGrid*nGrid*nGrid);
     mdlGridCoord first, last;
     int i, j;
     double r[3];
 
-    mdlGridCoordFirstLast(pkd->mdl,fft->rgrid,&first,&last,1);
-    for( i=first.i; i<last.i; ++i ) fftData[i] = 0.0;
-    mdlCOcache(pkd->mdl,CID_PK,NULL,fftData,sizeof(FFTW3(real)),last.i,pkd,initPk,combPk);
-    pkdAssignMass(pkd, ROOT, nGrid, fDelta, iAssignment);
-    mdlFinishCache(pkd->mdl,CID_PK);
+    pkdAssignMass(pkd, ROOT, nGrid, fDelta, iAssignment, iGrid);
 
+    mdlGridCoordFirstLast(pkd->mdl,fft->rgrid,&first,&last,1);
+    auto fftData = reinterpret_cast<FFTW3(real) *>(pkd->pLite);
+    fftData = reinterpret_cast<FFTW3(real) *>(mdlSetArray(pkd->mdl,last.i,sizeof(FFTW3(real)),fftData + iGrid*fft->rgrid->nLocal));
     for( i=first.i; i<last.i; ++i ) {
 	assert(fftData[i] >= 0.0);
 	}
@@ -144,9 +134,9 @@ void pkdMeasurePk(PKD pkd, double dTotalMass, int iAssignment, int bInterlace,
     auto fftData1 = reinterpret_cast<FFTW3(real) *>(mdlSetArray(pkd->mdl,last.i,sizeof(FFTW3(real)),pkd->pLite));
     auto fftData2 = reinterpret_cast<FFTW3(real) *>(mdlSetArray(pkd->mdl,last.i,sizeof(FFTW3(real)),fftData1 + fft->rgrid->nLocal));
 
-    assign_mass(pkd,iAssignment,dTotalMass,0.0f,fft,fftData1);
+    assign_mass(pkd,iAssignment,dTotalMass,0.0f,0);
     if (bInterlace) {
-	assign_mass(pkd,iAssignment,dTotalMass,0.5f,fft,fftData2);
+	assign_mass(pkd,iAssignment,dTotalMass,0.5f,1);
 	}
 
     complex_array_t K1,K2;

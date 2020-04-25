@@ -138,6 +138,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
     DomainDecomp();
     UpdateSoft(dTime);
     BuildTree(param.bEwald);
+    runAnalysis(iStartStep,dTime); // Run any registered Python analysis tasks
     OutputOrbits(iStartStep,dTime);
     if (param.nGridPk>0) OutputPk(iStartStep,dTime);
 
@@ -228,6 +229,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
 	auto lSec = time(0) - lPrior;
 	MemStatus();
 
+	runAnalysis(iStep,dTime); // Run any registered Python analysis tasks
 	OutputOrbits(iStep,dTime);
 
 	/*

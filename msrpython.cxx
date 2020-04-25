@@ -157,13 +157,175 @@ void MSR::SaveParameters() {
     }
 
 /******************************************************************************\
-*   MSR Module methods
+*   MSR Module Definition
 \******************************************************************************/
 
-struct MSRINSTANCE {
-    PyObject_HEAD
+struct msrModuleState {
     MSR *msr;
+    bool bImported;
     };
+
+static struct PyModuleDef msrModule = { 
+    PyModuleDef_HEAD_INIT,
+    MASTER_MODULE_NAME,
+    "pkdgrav3 orchestration module",
+    sizeof(struct msrModuleState),
+    NULL, // Methods
+    NULL, // Slots
+    NULL, NULL, NULL
+};
+
+
+/******************************************************************************\
+*   Ephemeral OBJECT Instance
+\******************************************************************************/
+
+struct EPHEMERALINSTANCE {
+    PyObject_HEAD
+    class MSR *msr;
+    size_t nBytesPerNode;
+    size_t nBytesPerParticle;
+    };
+
+/******************************************************************************\
+*   Ephemeral Object methods
+\******************************************************************************/
+static PyObject *
+ephemeral_enter(EPHEMERALINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    if (!PyArg_ParseTuple(args, "")) return NULL;
+    Py_INCREF(self);
+    return reinterpret_cast<PyObject*>(self);
+    }
+
+static PyObject *
+ephemeral_exit(EPHEMERALINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    Py_RETURN_FALSE;
+    }
+
+static PyObject *
+ppy_ephemeral_add_grid(EPHEMERALINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    MSR *msr = self->msr;
+    static char const *kwlist[]={"grid","count",NULL};
+    int grid, count=1;
+    if ( !PyArg_ParseTupleAndKeywords(
+	     args, kwobj, "i|i:add_grid", const_cast<char **>(kwlist),
+	     &grid,&count) )
+	return NULL;
+    auto nBytes = msr->getLocalGridMemory(grid) * count;
+    self->nBytesPerNode += nBytes;
+    return Py_BuildValue("L",nBytes);
+    }
+
+/******************************************************************************\
+*   Ephemeral object methods list
+\******************************************************************************/
+
+static PyMethodDef ephemeral_methods[] = {
+    {"__enter__",(PyCFunction)ephemeral_enter,METH_VARARGS,"__enter__"},
+    {"__exit__", (PyCFunction)ephemeral_exit, METH_VARARGS,"__exit__"},
+
+    {"add_grid", (PyCFunction)ppy_ephemeral_add_grid, METH_VARARGS|METH_KEYWORDS,
+     "Add Ephemeral memory for one or more grids"},
+    {NULL, NULL, 0, NULL}
+};
+/******************************************************************************\
+*   Ephemeral OBJECT Boilerplate code - Keeps track of home much Ephemeral
+\******************************************************************************/
+
+static void ephemeral_dealloc(EPHEMERALINSTANCE *self) {
+    Py_TYPE(self)->tp_free((PyObject*)self);
+    }
+
+static PyObject *ephemeral_new(PyTypeObject *type, PyObject *args, PyObject *kwds) {
+    auto self = reinterpret_cast<EPHEMERALINSTANCE *>(type->tp_alloc(type, 0));
+    if (self == NULL) { return NULL; }
+    // Make a copy of the MSR object
+    auto msr_module = PyState_FindModule(&msrModule); // We created this already
+    auto moduleState = reinterpret_cast<struct msrModuleState*>(PyModule_GetState(msr_module));
+    self->msr = moduleState->msr;
+    return reinterpret_cast<PyObject *>(self);
+    }
+
+static int ephemeral_init(EPHEMERALINSTANCE *self, PyObject *args, PyObject *kwds) {
+    MSR *msr = self->msr;
+    self->nBytesPerNode = 0;
+    self->nBytesPerParticle = 0;
+    static char const *kwlist[]={"grid","count","per_particle",NULL};
+    int grid=0, count=1, per_particle=0;
+    if ( !PyArg_ParseTupleAndKeywords(
+	     args, kwds, "|iii:ephemeral", const_cast<char **>(kwlist),
+	     &grid, &count, &per_particle) )
+	return -1;
+    if (grid) self->nBytesPerNode += msr->getLocalGridMemory(grid) * count;
+    self->nBytesPerParticle = per_particle;
+    return 0;
+    }
+
+static PyMemberDef ephemeral_members[] = {
+	{NULL} /* Sentinel */
+    };
+
+static PyObject *ephemeral_get_bytes_per_node(EPHEMERALINSTANCE *self, void *) {
+    return PyLong_FromSize_t(self->nBytesPerNode);
+    }
+
+static PyObject *ephemeral_get_bytes_per_particle(EPHEMERALINSTANCE *self, void *) {
+    return PyLong_FromSize_t(self->nBytesPerParticle);
+    }
+
+static PyGetSetDef ephemeral_getseters[] = {
+	{"bytes_per_node", (getter)ephemeral_get_bytes_per_node, NULL,
+	    "Number of bytes of ephemeral needed for each node", NULL},
+	{"bytes_per_particle", (getter)ephemeral_get_bytes_per_particle, NULL,
+	    "Number of bytes of ephemeral needed for each particle", NULL},
+	{NULL} /* Sentinel */
+    };
+
+static PyTypeObject ephemeralType = {
+    PyVarObject_HEAD_INIT(NULL,0)
+    MASTER_MODULE_NAME ".ephemeral", /*tp_name*/
+    sizeof(EPHEMERALINSTANCE), /*tp_basicsize */
+    0, /*tp_itemsize*/
+    (destructor)ephemeral_dealloc, /*tp_dealloc*/
+    0, /*tp_print*/
+    0, /*tp_getattr*/
+    0, /*tp_setattr*/
+    0, /*tp_compare*/
+    0, /*tp_repr*/
+    0, /*tp_as_number*/
+    0, /*tp_as_sequence*/
+    0, /*tp_as_mapping*/
+    0, /*tp_hash */
+    0, /*tp_call*/
+    0, /*tp_str*/
+    0, /*tp_getattro*/
+    0, /*tp_setattro*/
+    0, /*tp_as_buffer*/
+    Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE, /*tp_flags*/
+    "Ephemeral objects", /* tp_doc */
+    0, /* tp_traverse */
+    0, /* tp_clear */
+    0, /* tp_richcompare */
+    0, /* tp_weaklistoffset */
+    0, /* tp_iter */
+    0, /* tp_iternext */
+    ephemeral_methods, /* tp_methods */
+    ephemeral_members, /* tp_members */
+    ephemeral_getseters, /* tp_getset */
+    0, /* tp_base */
+    0, /* tp_dict */
+    0, /* tp_descr_get */
+    0, /* tp_descr_set */
+    0, /* tp_dictoffset */
+    (initproc)ephemeral_init, /* tp_init */
+    0, /* tp_alloc */
+    ephemeral_new, /* tp_new */
+    };
+
+/******************************************************************************\
+*   MSR Object method
+\******************************************************************************/
+
 /********** Set Internal parameters **********/
 
 static bool setParameters(MSR *msr,PyObject *kwobj,bool bIgnoreUnknown=false) {
@@ -205,6 +367,47 @@ ppy_msr_setParameters(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     if (!setParameters(msr,kwobj)) return PyErr_Format(PyExc_AttributeError,"invalid parameters specified");
     Py_RETURN_NONE;
     }
+
+/********** Analysis Hooks **********/
+
+static PyObject *
+ppy_msr_ephemeral(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    MSR *msr = self->msr;
+    auto ephemeral = reinterpret_cast<EPHEMERALINSTANCE *>(PyObject_Call(reinterpret_cast<PyObject *>(&ephemeralType),args,kwobj));
+    if (ephemeral) ephemeral->msr = msr;
+    return reinterpret_cast<PyObject *>(ephemeral);
+    }
+
+static PyObject *
+ppy_msr_add_analysis(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    flush_std_files();
+    MSR *msr = self->msr;
+    static char const *kwlist[]={"callback","memory",NULL};
+    PyObject *callback, *memory;
+    if ( !PyArg_ParseTupleAndKeywords(
+	     args, kwobj, "OO:add_analysis", const_cast<char **>(kwlist),
+	     &callback, &memory) )
+	return NULL;
+    if (!PyCallable_Check(callback)) return PyErr_Format(PyExc_AttributeError,"callback must be callable");
+    msr->addAnalysis(callback,self,memory);
+    Py_RETURN_NONE;
+    }
+
+/********** Start normal simulation **********/
+
+static PyObject *
+ppy_msr_simulate(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    MSR *msr = self->msr;
+    static char const *kwlist[]={NULL};
+    if ( !PyArg_ParseTupleAndKeywords(
+	     args, kwobj, ":simulate", const_cast<char **>(kwlist)) )
+	return NULL;
+    msr->Hostname(); // List all host names
+    auto dTime = msr->LoadOrGenerateIC();
+    if (dTime != -HUGE_VAL) msr->Simulate(dTime);
+    Py_RETURN_NONE;
+    }
+
 /********** Initial Condition Generation **********/
 
 static PyObject *
@@ -476,26 +679,30 @@ ppy_msr_MeasurePk(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     int nBins = -1;
     int nGrid, i;
     std::vector<float> fK,fPk,fPkAll;
+    std::vector<uint64_t> nK;
 
     if ( !PyArg_ParseTupleAndKeywords(
-	     args, kwobj, "i|ia:MeasurePk", const_cast<char **>(kwlist),
-	     &nGrid ) )
+	     args, kwobj, "i|id:MeasurePk", const_cast<char **>(kwlist),
+	     &nGrid, &nBins, &a ) )
 	return NULL;
     if (nBins<0) nBins = nGrid/2;
 
     fPk.resize(nBins+1);
     fPkAll.resize(nBins+1);
     fK.resize(nBins+1);
-    self->msr->MeasurePk(4,1,nGrid,a,nGrid/2,NULL,fK.data(),fPk.data(),fPkAll.data());
+    nK.resize(nBins+1);
+    self->msr->MeasurePk(4,1,nGrid,a,nBins,nK.data(),fK.data(),fPk.data(),fPkAll.data());
     auto ListK = PyList_New( nBins+1 );
     auto ListPk = PyList_New( nBins+1 );
     auto ListPkAll = PyList_New( nBins+1 );
+    auto ListNk = PyList_New( nBins+1 );
     for( i=0; i<=nBins; i++ ) {
 	PyList_SetItem(ListK,i,Py_BuildValue("f",fK[i]));
 	PyList_SetItem(ListPk,i,Py_BuildValue("f",fPk[i]));
+	PyList_SetItem(ListNk,i,Py_BuildValue("L",nK[i]));
 	PyList_SetItem(ListPkAll,i,Py_BuildValue("f",fPkAll[i]));
 	}
-    return Py_BuildValue("(NNN)",ListK,ListPk,ListPkAll);
+    return Py_BuildValue("(NNNN)",ListK,ListPk,ListNk,ListPkAll);
     }
 
 /********** Analysis: Mark particles **********/
@@ -660,12 +867,20 @@ ppy_msr_GetParticles(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
 #endif
 
 /******************************************************************************\
-*   MSR Module methods list
+*   MSR Object methods list
 \******************************************************************************/
 
 static PyMethodDef msr_methods[] = {
     {"setParameters", (PyCFunction)ppy_msr_setParameters, METH_VARARGS|METH_KEYWORDS,
      "Set global MSR parameters for future function calls"},
+
+    {"add_analysis", (PyCFunction)ppy_msr_add_analysis, METH_VARARGS|METH_KEYWORDS,
+     "Add an analysis callback hook"},
+    {"ephemeral", (PyCFunction)ppy_msr_ephemeral, METH_VARARGS|METH_KEYWORDS,
+     "Return an Ephemeral class for memory management"},
+
+    {"simulate", (PyCFunction)ppy_msr_simulate, METH_VARARGS|METH_KEYWORDS,
+     "Start a regular simulation"},
 
     {"GenerateIC", (PyCFunction)ppy_msr_GenerateIC, METH_VARARGS|METH_KEYWORDS,
      "Generate Initial Condition"},
@@ -714,25 +929,6 @@ static PyMethodDef msr_methods[] = {
      "Get a complete array of the given value"},
 #endif
     {NULL, NULL, 0, NULL}
-};
-
-/******************************************************************************\
-*   MSR Module Definition
-\******************************************************************************/
-
-struct msrModuleState {
-    MSR *msr;
-    bool bImported;
-    };
-
-static struct PyModuleDef msrModule = { 
-    PyModuleDef_HEAD_INIT,
-    MASTER_MODULE_NAME,
-    "pkdgrav3 orchestration module",
-    sizeof(struct msrModuleState),
-    NULL, // Methods
-    NULL, // Slots
-    NULL, NULL, NULL
 };
 
 /******************************************************************************\
@@ -838,7 +1034,39 @@ static PyObject * initModuleMSR(void) {
 	Py_INCREF(&msrType);
 	PyModule_AddObject(msr_module, MASTER_TYPE_NAME, (PyObject *)&msrType);
 	}
+    PyType_Ready(&ephemeralType);
     return msr_module;
+    }
+
+
+/******************************************************************************\
+*   Analysis callback
+\******************************************************************************/
+
+void MSR::addAnalysis(PyObject *callback,MSRINSTANCE *msr, PyObject *memory) {
+    analysis_callbacks.emplace_back(callback,msr,memory);
+    }
+
+void MSR::runAnalysis(int iStep,double dTime) {
+    PyObject *call_args = PyTuple_New(1);
+    PyObject *kwargs = PyDict_New();
+    PyObject *step, *time, *a = NULL;
+
+    PyDict_SetItemString(kwargs, "step", step=PyLong_FromLong(iStep));
+    PyDict_SetItemString(kwargs, "time", time=PyFloat_FromDouble(dTime));
+    if (csm->val.bComove) PyDict_SetItemString(kwargs, "a", a=PyFloat_FromDouble(csmTime2Exp(csm,dTime)));
+
+    for( msr_analysis_callback & i : analysis_callbacks) {
+	PyTuple_SetItem(call_args,0,reinterpret_cast<PyObject *>(i.msr));
+	PyObject_Call(i.callback,call_args,kwargs);
+	if (PyErr_Occurred()) PyErr_Print();
+	}
+    PyDict_Clear(kwargs);
+    Py_DECREF(step);
+    Py_DECREF(time);
+    Py_XDECREF(a);
+    Py_DECREF(kwargs);
+    Py_DECREF(call_args);
     }
 
 /******************************************************************************\
