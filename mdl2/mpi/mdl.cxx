@@ -855,15 +855,26 @@ void mpiClass::MessageFFT_Sizes(mdlMessageFFT_Sizes *sizes) {
     }
 
 void mpiClass::MessageFFT_Plans(mdlMessageFFT_Plans *plans) {
-    plans->nLocal = 2*FFTW3(mpi_local_size_3d_transposed)
-	(plans->n3,plans->n2,plans->n1/2+1,commMDL,
-	&plans->nz,&plans->sz,&plans->ny,&plans->sy);
-    plans->fplan = FFTW3(mpi_plan_dft_r2c_3d)(
-	plans->n3,plans->n2,plans->n1,plans->data,plans->kdata,
-	commMDL,FFTW_MPI_TRANSPOSED_OUT | (plans->data==NULL?FFTW_ESTIMATE:FFTW_MEASURE) );
-    plans->iplan = FFTW3(mpi_plan_dft_c2r_3d)(
-	plans->n3,plans->n2,plans->n1,plans->kdata,plans->data,
-	commMDL,FFTW_MPI_TRANSPOSED_IN  | (plans->kdata==NULL?FFTW_ESTIMATE:FFTW_MEASURE) );
+    auto result = fft_plans.emplace(fft_plan_key(plans->n1,plans->n2,plans->n3),fft_plan_information());
+    auto &info = result.first->second;
+    if (result.second) { // Just inserted: we need to create the plan!
+	info.nLocal = 2*FFTW3(mpi_local_size_3d_transposed)
+	    (plans->n3,plans->n2,plans->n1/2+1,commMDL,
+	    &info.nz,&info.sz,&info.ny,&info.sy);
+	info.fplan = FFTW3(mpi_plan_dft_r2c_3d)(
+	    plans->n3,plans->n2,plans->n1,plans->data,plans->kdata,
+	    commMDL,FFTW_MPI_TRANSPOSED_OUT | (plans->data==NULL?FFTW_ESTIMATE:FFTW_MEASURE) );
+	info.iplan = FFTW3(mpi_plan_dft_c2r_3d)(
+	    plans->n3,plans->n2,plans->n1,plans->kdata,plans->data,
+	    commMDL,FFTW_MPI_TRANSPOSED_IN  | (plans->kdata==NULL?FFTW_ESTIMATE:FFTW_MEASURE) );
+        }
+    plans->nLocal = info.nLocal;
+    plans->nz = info.nz;
+    plans->sz = info.sz;
+    plans->ny = info.ny;
+    plans->sy = info.sy;
+    plans->fplan = info.fplan;
+    plans->iplan = info.iplan;
     plans->sendBack();
     }
 
@@ -2144,8 +2155,6 @@ MDLFFT mdlFFTInitialize(MDL cmdl,int n1,int n2,int n3,int bMeasure,FFTW3(real) *
 
 void mdlFFTNodeFinish( MDL cmdl, MDLFFT fft ) {
     mdlClass *mdl = reinterpret_cast<mdlClass *>(cmdl);
-    FFTW3(destroy_plan)(fft->fplan);
-    FFTW3(destroy_plan)(fft->iplan);
     mdlGridFinish(cmdl,fft->kgrid);
     mdlGridFinish(cmdl,fft->rgrid);
     free(fft);

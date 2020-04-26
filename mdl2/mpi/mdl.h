@@ -33,9 +33,11 @@
 #ifdef __cplusplus
 #include "arc.h"
 #include "mdlmessages.h"
+#include <tuple>
 #include <vector>
 #include <list>
 #include <forward_list>
+#include <map>
 #endif
 
 #ifndef MPI_VERSION
@@ -308,6 +310,14 @@ protected:
 
     mdlMessageCacheReceive *pReqRcv;
     std::list<mdlMessageCacheReply *> freeCacheReplies;
+
+    // Cached FFTW plans
+    struct fft_plan_information {
+	ptrdiff_t nz, sz, ny, sy, nLocal;
+	FFTW3(plan) fplan, iplan;
+	};
+    typedef std::tuple<ptrdiff_t,ptrdiff_t,ptrdiff_t> fft_plan_key; 
+    std::map<fft_plan_key,fft_plan_information> fft_plans;
 
 protected:
     // These are functions that are called as a result of a worker thread sending
