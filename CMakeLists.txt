@@ -149,7 +149,7 @@ target_sources(${PROJECT_NAME} PRIVATE
 	walk2.c grav2.c ewald.cxx ic.cxx tree.cxx opening.cxx pp.cxx pc.cxx cl.c
 	lst.c moments.c ilp.c ilc.c iomodule.c
 	fof.c hop.c group.c groupstats.c RngStream.c listcomp.c healpix.c
-	gridinfo.cxx assignmass.cxx measurepk.cxx whitenoise.cxx pmforces.cxx
+	gridinfo.cxx interlace.cxx contrast.cxx assignmass.cxx measurepk.cxx whitenoise.cxx pmforces.cxx
 )
 set_property(SOURCE fio.c APPEND PROPERTY COMPILE_DEFINITIONS "USE_PTHREAD")
 add_executable(tostd tostd.c fio.c)

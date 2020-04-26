@@ -77,28 +77,6 @@ static void flush_masses(PKD pkd,int nGrid,const mass_array_t &masses, const sha
 	}
     }
 
-
-#if 0
-extern "C"
-void dumpDensity(float *fftData,int nGrid){
-    blitz::Array<float,3> raw(fftData,blitz::shape(nGrid+2,nGrid,nGrid),blitz::neverDeleteData,RegularArray());
-    blitz::Array<float,3> masses = raw(blitz::Range(0,nGrid-1),blitz::Range(0,nGrid-1),blitz::Range(0,nGrid-1));
-
-    int i, j, k;
-    for(k=0; k<nGrid; ++k) {
-        for(j=0; j<nGrid; ++j) {
-            float m = 0.0;
-	    for(i=0; i<nGrid; ++i) {
-	    //for(i=10; i<20; ++i) {
-	    	if (masses(i,j,k) > m) m = masses(i,j,k);
-		}
-	    std::clog << k << " " << j << " " << m << std::endl;
-	    }
-	std::clog << std::endl;
-	}
-    }
-#endif
-
 static void initPk(void *vpkd, void *g) {
     FFTW3(real) * r = (FFTW3(real) *)g;
     *r = 0.0;
@@ -110,8 +88,8 @@ static void combPk(void *vpkd, void *g1, void *g2) {
     }
 
 extern "C"
-void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int nGrid, float fDelta, int iAssignment, int iGrid) {
-    auto fft = pkd->fft;
+void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int nGrid, int iAssignment, int iGrid, float fDelta) {
+    auto fft = mdlFFTInitialize(pkd->mdl, nGrid, nGrid, nGrid, 0, 0);
     const std::size_t maxSize = 100000; // We would like this to remain in L2 cache
     std::vector<float> data;
     data.reserve(maxSize); // Reserve maximum number
@@ -180,6 +158,7 @@ void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int nGrid, float fDelta, int iA
 	    }
 	}
     mdlFinishCache(pkd->mdl,CID_PK);
+    mdlFFTFinish(pkd->mdl,fft);
     }
 
 extern "C"
@@ -193,12 +172,12 @@ int pstAssignMass(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	mdlGetReply(pst->mdl,rID,NULL,NULL);
 	}
     else {
-    	pkdAssignMass(plcl->pkd,ROOT,in->nGrid,0.0f,in->iAssignment,0);
+    	pkdAssignMass(plcl->pkd,ROOT,in->nGrid,in->iAssignment,in->iGrid,in->fDelta);
 	}
     return 0;
     }
 
-void MSR::AssignMass(int nGrid,int iAssignment,int iGrid) {
+void MSR::AssignMass(int nGrid,int iAssignment,int iGrid,float fDelta) {
     static const char *schemes[] = {
     	"Nearest Grid Point (NGP)", "Cloud in Cell (CIC)",
         "Triangular Shaped Cloud (TSC)", "Piecewise Cubic Spline (PCS)" };
@@ -207,6 +186,8 @@ void MSR::AssignMass(int nGrid,int iAssignment,int iGrid) {
     printf("Assigning mass using %s (order %d)\n",schemes[iAssignment-1],iAssignment);
     mass.nGrid = nGrid;
     mass.iAssignment = iAssignment;
+    mass.iGrid = iGrid;
+    mass.fDelta = fDelta;
     auto sec = MSR::Time();
     pstAssignMass(pst, &mass, sizeof(mass), NULL, 0);
     printf("Mass assignment complete, Wallclock: %f secs\n",MSR::Time() - sec);

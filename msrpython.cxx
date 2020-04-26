@@ -672,6 +672,45 @@ ppy_msr_Smooth(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
 /********** Analysis: Measure P(k) **********/
 
 static PyObject *
+ppy_msr_assign_mass(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    flush_std_files();
+    static char const *kwlist[]={"grid","order","target","delta",NULL};
+    int nGrid, order=4, target=0;
+    double delta = 0.0;
+    if ( !PyArg_ParseTupleAndKeywords(
+	     args, kwobj, "i|iid:assign_mass", const_cast<char **>(kwlist),
+	     &nGrid, &order, &target, &delta ) )
+	return NULL;
+    self->msr->AssignMass(nGrid,order,target,delta);
+    Py_RETURN_NONE;
+    }
+
+static PyObject *
+ppy_msr_density_contrast(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    flush_std_files();
+    static char const *kwlist[]={"target","k",NULL};
+    int target=0, k=0;
+    if ( !PyArg_ParseTupleAndKeywords(
+	     args, kwobj, "|ip:density_contrast", const_cast<char **>(kwlist),
+	     &target, &k ) )
+	return NULL;
+    self->msr->DensityContrast(target,k);
+    Py_RETURN_NONE;
+    }
+
+static PyObject *
+ppy_msr_interlace(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    flush_std_files();
+    static char const *kwlist[]={"target","source",NULL};
+    int target=0, source=1;
+    if ( !PyArg_ParseTupleAndKeywords(
+	     args, kwobj, "ii:interlace", const_cast<char **>(kwlist),
+	     &target, &source ) )
+	return NULL;
+    self->msr->Interlace(target,source);
+    Py_RETURN_NONE;
+    }
+static PyObject *
 ppy_msr_MeasurePk(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     flush_std_files();
     static char const *kwlist[]={"grid","bins","a",NULL};
@@ -911,6 +950,12 @@ static PyMethodDef msr_methods[] = {
     {"Smooth", (PyCFunction)ppy_msr_Smooth, METH_VARARGS|METH_KEYWORDS,
      "Smooth"},
 
+    {"assign_mass", (PyCFunction)ppy_msr_assign_mass, METH_VARARGS|METH_KEYWORDS,
+     "Assign particle mass to a grid"},
+    {"density_contrast", (PyCFunction)ppy_msr_density_contrast, METH_VARARGS|METH_KEYWORDS,
+     "Calculate density contrast (delta)"},
+    {"interlace", (PyCFunction)ppy_msr_interlace, METH_VARARGS|METH_KEYWORDS,
+     "Interlace two k-space delta fields"},
     {"MeasurePk", (PyCFunction)ppy_msr_MeasurePk, METH_VARARGS|METH_KEYWORDS,
      "Measure the power spectrum"},
 

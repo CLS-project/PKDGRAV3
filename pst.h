@@ -218,6 +218,8 @@ enum pst_service {
     PST_LINEARKICK,
 #endif
     PST_ASSIGN_MASS,
+    PST_DENSITY_CONTRAST,
+    PST_INTERLACE,
     PST_TOTALMASS,
     PST_LIGHTCONE_OPEN,
     PST_LIGHTCONE_CLOSE,
@@ -1255,8 +1257,6 @@ int pstGridDeleteFFT(PST pst,void *vin,int nIn,void *vout,int nOut);
 #define PST_MAX_K_BINS 2500
 /* PST_MEASUREPK */
 struct inMeasurePk {
-    double dTotalMass;
-    int bInterlace;
     int iAssignment;
     int nGrid;
     int nBins;
@@ -1278,8 +1278,23 @@ int pstMeasurePk(PST pst,void *vin,int nIn,void *vout,int nOut);
 struct inAssignMass {
     int nGrid;
     int iAssignment;
+    int iGrid;
+    float fDelta;
     };
 int pstAssignMass(PST pst,void *vin,int nIn,void *vout,int nOut);
+/* PST_DENSITY_CONTRAST */
+struct inDensityContrast {
+    int iGrid;
+    int k;
+    double dTotalMass;
+    };
+int pstDensityContrast(PST pst,void *vin,int nIn,void *vout,int nOut);
+/* PST_INTERLACE */
+struct inInterlace {
+    int iGridTarget;
+    int iGridSource;
+    };
+int pstInterlace(PST pst,void *vin,int nIn,void *vout,int nOut);
 /* PST_LINEARKICK */
 struct inLinearKick {
     vel_t dtOpen, dtClose;

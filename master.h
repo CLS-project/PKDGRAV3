@@ -104,6 +104,9 @@ public:
     void GroupStats();
     void HopWrite(const char *fname);
     void MeasurePk(int iAssignment,int bInterlace,int nGrid,double a,int nBins,uint64_t *nPk,float *fK,float *fPk,float *fPkAll);
+    void Interlace(int iGridTarget,int iGridSource);
+    void DensityContrast(int nGrid,bool k=true);
+    void AssignMass(int nGrid,int iAssignment=4,int iGrid=0,float fDelta=0.0f);
 
 private:
     typedef struct {
@@ -274,7 +277,6 @@ protected:
     void LightConeClose(int iStep);
     void LightConeVel();
 #ifdef MDL_FFTW
-    void AssignMass(int nGrid,int iAssignment=4,int iGrid=0);
     void SetLinGrid(double dTime, double dDelta, int nGrid, int bKickClose, int bKickOpen);
     void LinearKick(double dTime, double dDelta, int bKickClose, int bKickOpen);
 #endif

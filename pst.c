@@ -288,6 +288,10 @@ void pstAddServices(PST pst,MDL mdl) {
 		  sizeof(struct inMeasurePk), sizeof(struct outMeasurePk));
     mdlAddService(mdl,PST_ASSIGN_MASS,pst,(fcnService_t*)pstAssignMass,
 		  sizeof(struct inAssignMass), 0);
+    mdlAddService(mdl,PST_DENSITY_CONTRAST,pst,(fcnService_t*)pstDensityContrast,
+		  sizeof(struct inDensityContrast), 0);
+    mdlAddService(mdl,PST_INTERLACE,pst,(fcnService_t*)pstInterlace,
+		  sizeof(struct inInterlace), 0);
     mdlAddService(mdl,PST_LINEARKICK, pst,(fcnService_t*)pstLinearKick,
            sizeof(struct inLinearKick), 0);
     mdlAddService(mdl,PST_SETLINGRID, pst,(fcnService_t*)pstSetLinGrid,
@@ -3762,7 +3766,7 @@ int pstMeasurePk(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	free(outUpper);
 	}
     else {
-	pkdMeasurePk(plcl->pkd, in->dTotalMass, in->iAssignment, in->bInterlace,
+	pkdMeasurePk(plcl->pkd, in->iAssignment,
 	    in->bLinear, in->iSeed, in->bFixed, in->fPhase, in->Lbox, in->a,
 	    in->nGrid, in->nBins, out->fK, out->fPower, out->nPower, out->fPowerAll);
 	}

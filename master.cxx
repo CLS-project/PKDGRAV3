@@ -4861,11 +4861,17 @@ void MSR::MeasurePk(int iAssignment,int bInterlace,int nGrid,double a,int nBins,
     sec = MSR::Time();
     printf("Measuring P(k) with grid size %d (%d bins)...\n",nGrid,nBins);
 
+    AssignMass(nGrid,iAssignment,0,0.0);
+    DensityContrast(0);
+    if (bInterlace) {
+	AssignMass(nGrid,iAssignment,1,0.5);
+	DensityContrast(1);
+	Interlace(0,1); // We no longer need grid 1
+	}
+
     in.iAssignment = iAssignment;
-    in.bInterlace = bInterlace;
     in.nGrid = nGrid;
     in.nBins = nBins;
-    in.dTotalMass = TotalMass();
 
     in.bLinear = csm->val.classData.bClass && param.nGridLin>0 && strlen(param.achPowerSpecies) > 0;
     in.iSeed = param.iSeed;

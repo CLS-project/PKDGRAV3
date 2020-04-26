@@ -27,33 +27,6 @@ using namespace gridinfo;
 
 #include <vector>
 
-static void assign_mass(PKD pkd, int iAssignment, double dTotalMass, double fDelta, int iGrid) {
-    auto fft = pkd->fft;
-    int nGrid = fft->rgrid->n1;
-    double fftNormalize = 1.0 / (1.0*nGrid*nGrid*nGrid);
-    mdlGridCoord first, last;
-    int i, j;
-    double r[3];
-
-    pkdAssignMass(pkd, ROOT, nGrid, fDelta, iAssignment, iGrid);
-
-    mdlGridCoordFirstLast(pkd->mdl,fft->rgrid,&first,&last,1);
-    auto fftData = reinterpret_cast<FFTW3(real) *>(pkd->pLite);
-    fftData = reinterpret_cast<FFTW3(real) *>(mdlSetArray(pkd->mdl,last.i,sizeof(FFTW3(real)),fftData + iGrid*fft->rgrid->nLocal));
-    for( i=first.i; i<last.i; ++i ) {
-	assert(fftData[i] >= 0.0);
-	}
-    double dRhoMean = dTotalMass * fftNormalize;
-    double diRhoMean = 1.0 / dRhoMean;
-
-    /*printf( "Calculating density contrast\n" );*/
-    for( i=first.i; i<last.i; ++i ) {
-	fftData[i] = fftData[i]*diRhoMean - 1.0;
-	}
-
-    mdlFFT(pkd->mdl,fft,fftData);
-    }
-
 class Window : public std::vector<float> {
 public:
     Window(int nGrid,int iAssignment);
@@ -120,24 +93,15 @@ void LinearSignal::update(complex_vector_t &pencil,complex_vector_t &noise,int i
     }
 
 extern "C"
-void pkdMeasurePk(PKD pkd, double dTotalMass, int iAssignment, int bInterlace,
+void pkdMeasurePk(PKD pkd, int iAssignment,
     int bLinear, int iSeed, int bFixed, float fPhase, double Lbox, double a,
     int nGrid, int nBins, double *fK, double *fPower, uint64_t *nPower, double *fPowerAll) {
-    mdlGridCoord first, last, index;
+    //mdlGridCoord first, last, index;
     assert(pkd->fft != NULL);
     auto iNyquist = nGrid / 2;
     auto fft = pkd->fft;
     GridInfo G(pkd->mdl,fft);
     Window W(nGrid,iAssignment);
-
-    mdlGridCoordFirstLast(pkd->mdl,fft->rgrid,&first,&last,1);
-    auto fftData1 = reinterpret_cast<FFTW3(real) *>(mdlSetArray(pkd->mdl,last.i,sizeof(FFTW3(real)),pkd->pLite));
-    auto fftData2 = reinterpret_cast<FFTW3(real) *>(mdlSetArray(pkd->mdl,last.i,sizeof(FFTW3(real)),fftData1 + fft->rgrid->nLocal));
-
-    assign_mass(pkd,iAssignment,dTotalMass,0.0f,0);
-    if (bInterlace) {
-	assign_mass(pkd,iAssignment,dTotalMass,0.5f,1);
-	}
 
     complex_array_t K1,K2;
     auto data1 = reinterpret_cast<real_t *>(mdlSetArray(pkd->mdl,0,0,pkd->pLite));
@@ -164,13 +128,6 @@ void pkdMeasurePk(PKD pkd, double dTotalMass, int iAssignment, int bInterlace,
 	auto j = pos[1]>iNyquist ? nGrid - pos[1] : pos[1];
 	auto k = pos[2]>iNyquist ? nGrid - pos[2] : pos[2];
 	auto v1 = *index;
-	if (bInterlace) { // jj,kk can be negative
-	    auto jj = pos[1]>iNyquist ? pos[1] - nGrid : pos[1];
-	    auto kk = pos[2]>iNyquist ? pos[2] - nGrid : pos[2];
-	    float theta = M_PI/nGrid * (i + jj + kk);
-	    auto v2 = K2(index.position()) * complex_t(cosf(theta),sinf(theta));
-	    v1 = complex_t(0.5) * (v1 + v2);
-	    }
 	v1 *= fftNormalize;       // Normalize for FFT
 	v1 *= W[i] * W[j] * W[k]; // Correction for mass assignment
 	*index = v1;
