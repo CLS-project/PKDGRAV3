@@ -88,8 +88,9 @@ static void combPk(void *vpkd, void *g1, void *g2) {
     }
 
 extern "C"
-void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int nGrid, int iAssignment, int iGrid, float fDelta) {
-    auto fft = mdlFFTInitialize(pkd->mdl, nGrid, nGrid, nGrid, 0, 0);
+void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int iAssignment, int iGrid, float fDelta) {
+    auto fft = pkd->fft;
+    int nGrid = fft->rgrid->n1;
     const std::size_t maxSize = 100000; // We would like this to remain in L2 cache
     std::vector<float> data;
     data.reserve(maxSize); // Reserve maximum number
@@ -158,7 +159,6 @@ void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int nGrid, int iAssignment, int
 	    }
 	}
     mdlFinishCache(pkd->mdl,CID_PK);
-    mdlFFTFinish(pkd->mdl,fft);
     }
 
 extern "C"
@@ -172,19 +172,18 @@ int pstAssignMass(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	mdlGetReply(pst->mdl,rID,NULL,NULL);
 	}
     else {
-    	pkdAssignMass(plcl->pkd,ROOT,in->nGrid,in->iAssignment,in->iGrid,in->fDelta);
+    	pkdAssignMass(plcl->pkd,ROOT,in->iAssignment,in->iGrid,in->fDelta);
 	}
     return 0;
     }
 
-void MSR::AssignMass(int nGrid,int iAssignment,int iGrid,float fDelta) {
+void MSR::AssignMass(int iAssignment,int iGrid,float fDelta) {
     static const char *schemes[] = {
     	"Nearest Grid Point (NGP)", "Cloud in Cell (CIC)",
         "Triangular Shaped Cloud (TSC)", "Piecewise Cubic Spline (PCS)" };
     struct inAssignMass mass;
     assert(iAssignment>=1 && iAssignment<=4);
     printf("Assigning mass using %s (order %d)\n",schemes[iAssignment-1],iAssignment);
-    mass.nGrid = nGrid;
     mass.iAssignment = iAssignment;
     mass.iGrid = iGrid;
     mass.fDelta = fDelta;

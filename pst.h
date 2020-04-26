@@ -220,6 +220,8 @@ enum pst_service {
     PST_ASSIGN_MASS,
     PST_DENSITY_CONTRAST,
     PST_INTERLACE,
+    PST_BISPECTRUM_SELECT,
+    PST_BISPECTRUM_CALCULATE,
     PST_TOTALMASS,
     PST_LIGHTCONE_OPEN,
     PST_LIGHTCONE_CLOSE,
@@ -1276,7 +1278,6 @@ struct outMeasurePk {
 int pstMeasurePk(PST pst,void *vin,int nIn,void *vout,int nOut);
 /* PST_ASSIGN_MASS */
 struct inAssignMass {
-    int nGrid;
     int iAssignment;
     int iGrid;
     float fDelta;
@@ -1295,6 +1296,18 @@ struct inInterlace {
     int iGridSource;
     };
 int pstInterlace(PST pst,void *vin,int nIn,void *vout,int nOut);
+/* PST_BISPECTRUM_SELECT */
+struct inBispectrumSelect {
+    int iGridTarget;
+    int iGridSource;
+    double kmin, kmax;
+    };
+int pstBispectrumSelect(PST pst,void *vin,int nIn,void *vout,int nOut);
+/* PST_BISPECTRUM_CALCULATE */
+struct inBispectrumCalculate {
+    int iGrid1, iGrid2, iGrid3;
+    };
+int pstBispectrumCalculate(PST pst,void *vin,int nIn,void *vout,int nOut);
 /* PST_LINEARKICK */
 struct inLinearKick {
     vel_t dtOpen, dtClose;

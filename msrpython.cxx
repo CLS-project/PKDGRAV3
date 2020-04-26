@@ -669,19 +669,75 @@ ppy_msr_Smooth(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     Py_RETURN_NONE;
     }
 
+/********** Analysis: grid management **********/
+
+static PyObject *
+ppy_msr_grid_prepare(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    flush_std_files();
+    static char const *kwlist[]={"grid",NULL};
+    int iGrid;
+    if ( !PyArg_ParseTupleAndKeywords(
+	     args, kwobj, "i:grid_prepare", const_cast<char **>(kwlist),
+	     &iGrid ) )
+	return NULL;
+    self->msr->GridCreateFFT(iGrid);
+    Py_RETURN_NONE;
+    }
+
+static PyObject *
+ppy_msr_grid_release(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    flush_std_files();
+    static char const *kwlist[]={NULL};
+    int iGrid;
+    if ( !PyArg_ParseTupleAndKeywords(
+	     args, kwobj, ":grid_release", const_cast<char **>(kwlist)) )
+	return NULL;
+    self->msr->GridDeleteFFT();
+    Py_RETURN_NONE;
+    }
+
+/********** Analysis: Measure Bispectrum **********/
+
+static PyObject *
+ppy_msr_bispectrum_select(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    flush_std_files();
+    static char const *kwlist[]={"target","source","kmin","kmax",NULL};
+    int target=0, source=1;
+    double kmin, kmax;
+    if ( !PyArg_ParseTupleAndKeywords(
+	     args, kwobj, "iidd:bispectrum_select", const_cast<char **>(kwlist),
+	     &target, &source, &kmin, &kmax ) )
+	return NULL;
+    self->msr->BispectrumSelect(target,source,kmin,kmax);
+    Py_RETURN_NONE;
+    }
+
+static PyObject *
+ppy_msr_bispectrum_calculate(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    flush_std_files();
+    static char const *kwlist[]={"grid1","grid2","grid3",NULL};
+    int grid1, grid2, grid3;
+    if ( !PyArg_ParseTupleAndKeywords(
+	     args, kwobj, "iii:bispectrum_calculate", const_cast<char **>(kwlist),
+	     &grid1, &grid2, &grid3 ) )
+	return NULL;
+    double result = self->msr->BispectrumCalculate(grid1,grid2,grid3);
+    return Py_BuildValue("d", result);
+    }
+
 /********** Analysis: Measure P(k) **********/
 
 static PyObject *
 ppy_msr_assign_mass(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     flush_std_files();
-    static char const *kwlist[]={"grid","order","target","delta",NULL};
+    static char const *kwlist[]={"order","target","delta",NULL};
     int nGrid, order=4, target=0;
     double delta = 0.0;
     if ( !PyArg_ParseTupleAndKeywords(
-	     args, kwobj, "i|iid:assign_mass", const_cast<char **>(kwlist),
-	     &nGrid, &order, &target, &delta ) )
+	     args, kwobj, "|iid:assign_mass", const_cast<char **>(kwlist),
+	     &order, &target, &delta ) )
 	return NULL;
-    self->msr->AssignMass(nGrid,order,target,delta);
+    self->msr->AssignMass(order,target,delta);
     Py_RETURN_NONE;
     }
 
@@ -689,7 +745,7 @@ static PyObject *
 ppy_msr_density_contrast(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     flush_std_files();
     static char const *kwlist[]={"target","k",NULL};
-    int target=0, k=0;
+    int target=0, k=1;
     if ( !PyArg_ParseTupleAndKeywords(
 	     args, kwobj, "|ip:density_contrast", const_cast<char **>(kwlist),
 	     &target, &k ) )
@@ -710,6 +766,7 @@ ppy_msr_interlace(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     self->msr->Interlace(target,source);
     Py_RETURN_NONE;
     }
+
 static PyObject *
 ppy_msr_MeasurePk(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     flush_std_files();
@@ -950,6 +1007,10 @@ static PyMethodDef msr_methods[] = {
     {"Smooth", (PyCFunction)ppy_msr_Smooth, METH_VARARGS|METH_KEYWORDS,
      "Smooth"},
 
+    {"grid_prepare", (PyCFunction)ppy_msr_grid_prepare, METH_VARARGS|METH_KEYWORDS,
+     "Prepare for grid operations"},
+    {"grid_release", (PyCFunction)ppy_msr_grid_release, METH_VARARGS|METH_KEYWORDS,
+     "Release grid resources"},
     {"assign_mass", (PyCFunction)ppy_msr_assign_mass, METH_VARARGS|METH_KEYWORDS,
      "Assign particle mass to a grid"},
     {"density_contrast", (PyCFunction)ppy_msr_density_contrast, METH_VARARGS|METH_KEYWORDS,
@@ -958,6 +1019,10 @@ static PyMethodDef msr_methods[] = {
      "Interlace two k-space delta fields"},
     {"MeasurePk", (PyCFunction)ppy_msr_MeasurePk, METH_VARARGS|METH_KEYWORDS,
      "Measure the power spectrum"},
+    {"bispectrum_select", (PyCFunction)ppy_msr_bispectrum_select, METH_VARARGS|METH_KEYWORDS,
+     "Select a k-space shell for the bispectrum and copy it to a target grid"},
+    {"bispectrum_calculate", (PyCFunction)ppy_msr_bispectrum_calculate, METH_VARARGS|METH_KEYWORDS,
+     "Calculate the bispectrum for three grids"},
 
     {"MarkSpecies", (PyCFunction)ppy_msr_MarkSpecies, METH_VARARGS|METH_KEYWORDS,
      "Mark one or more species of particles"},

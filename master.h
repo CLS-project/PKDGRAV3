@@ -106,7 +106,11 @@ public:
     void MeasurePk(int iAssignment,int bInterlace,int nGrid,double a,int nBins,uint64_t *nPk,float *fK,float *fPk,float *fPkAll);
     void Interlace(int iGridTarget,int iGridSource);
     void DensityContrast(int nGrid,bool k=true);
-    void AssignMass(int nGrid,int iAssignment=4,int iGrid=0,float fDelta=0.0f);
+    void BispectrumSelect(int iGridTarget,int iGridSource,double kmin,double kmax);
+    double BispectrumCalculate(int iGrid1,int iGrid2,int iGrid3);
+    void AssignMass(int iAssignment=4,int iGrid=0,float fDelta=0.0f);
+    void GridCreateFFT(int nGrid);
+    void GridDeleteFFT();
 
 private:
     typedef struct {
@@ -270,8 +274,6 @@ protected:
     void UpdateSoft(double dTime);
     int GetParticles(int nIn, uint64_t *ID, struct outGetParticles *out);
     void OutputOrbits(int iStep,double dTime);
-    void GridCreateFFT(int nGrid);
-    void GridDeleteFFT();
     double TotalMass();
     void LightConeOpen(int iStep);
     void LightConeClose(int iStep);

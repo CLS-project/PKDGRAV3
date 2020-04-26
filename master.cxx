@@ -4861,10 +4861,10 @@ void MSR::MeasurePk(int iAssignment,int bInterlace,int nGrid,double a,int nBins,
     sec = MSR::Time();
     printf("Measuring P(k) with grid size %d (%d bins)...\n",nGrid,nBins);
 
-    AssignMass(nGrid,iAssignment,0,0.0);
+    AssignMass(iAssignment,0,0.0);
     DensityContrast(0);
     if (bInterlace) {
-	AssignMass(nGrid,iAssignment,1,0.5);
+	AssignMass(iAssignment,1,0.5);
 	DensityContrast(1);
 	Interlace(0,1); // We no longer need grid 1
 	}
