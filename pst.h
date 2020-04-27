@@ -219,7 +219,9 @@ enum pst_service {
 #endif
     PST_ASSIGN_MASS,
     PST_DENSITY_CONTRAST,
+    PST_WINDOW_CORRECTION,
     PST_INTERLACE,
+    PST_GRID_BIN_K,
     PST_BISPECTRUM_SELECT,
     PST_BISPECTRUM_CALCULATE,
     PST_TOTALMASS,
@@ -1276,6 +1278,17 @@ struct outMeasurePk {
     double fPowerAll[PST_MAX_K_BINS];
     };
 int pstMeasurePk(PST pst,void *vin,int nIn,void *vout,int nOut);
+/* PST_GRID_BIN_K */
+struct inGridBinK {
+    int nBins;
+    int iGrid;
+    };
+struct outGridBinK {
+    double fK[PST_MAX_K_BINS];
+    double fPower[PST_MAX_K_BINS];
+    uint64_t nPower[PST_MAX_K_BINS];
+    };
+int pstGridBinK(PST pst,void *vin,int nIn,void *vout,int nOut);
 /* PST_ASSIGN_MASS */
 struct inAssignMass {
     int iAssignment;
@@ -1290,6 +1303,12 @@ struct inDensityContrast {
     double dTotalMass;
     };
 int pstDensityContrast(PST pst,void *vin,int nIn,void *vout,int nOut);
+/* PST_WINDOW_CORRECTION */
+struct inWindowCorrection {
+    int iAssignment;
+    int iGrid;
+    };
+int pstWindowCorrection(PST pst,void *vin,int nIn,void *vout,int nOut);
 /* PST_INTERLACE */
 struct inInterlace {
     int iGridTarget;

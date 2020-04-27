@@ -25,23 +25,6 @@
 #include "whitenoise.hpp"
 using namespace gridinfo;
 
-#include <vector>
-
-class Window : public std::vector<float> {
-public:
-    Window(int nGrid,int iAssignment);
-    };
-
-Window::Window(int nGrid,int iAssignment) {
-    reserve(nGrid);
-    for( auto i=0; i<nGrid; ++i) {
-	float win = M_PI * i / nGrid;
-	if(win>0.1) win = win / sinf(win);
-	else win=1.0 / (1.0-win*win/6.0*(1.0-win*win/20.0*(1.0-win*win/76.0)));
-	push_back(powf(win,iAssignment));
-	}
-    }
-
 class LinearSignal : public NoiseGenerator {
 private:
     CSM csm;
@@ -96,18 +79,14 @@ extern "C"
 void pkdMeasurePk(PKD pkd, int iAssignment,
     int bLinear, int iSeed, int bFixed, float fPhase, double Lbox, double a,
     int nGrid, int nBins, double *fK, double *fPower, uint64_t *nPower, double *fPowerAll) {
-    //mdlGridCoord first, last, index;
     assert(pkd->fft != NULL);
     auto iNyquist = nGrid / 2;
     auto fft = pkd->fft;
     GridInfo G(pkd->mdl,fft);
-    Window W(nGrid,iAssignment);
 
-    complex_array_t K1,K2;
+    complex_array_t K1;
     auto data1 = reinterpret_cast<real_t *>(mdlSetArray(pkd->mdl,0,0,pkd->pLite));
-    auto data2 = data1 + fft->rgrid->nLocal;
     G.setupArray(data1,K1);
-    G.setupArray(data2,K2);
 
     for( auto i=0; i<nBins; i++ ) {
 	fK[i] = 0.0;
@@ -128,9 +107,6 @@ void pkdMeasurePk(PKD pkd, int iAssignment,
 	auto j = pos[1]>iNyquist ? nGrid - pos[1] : pos[1];
 	auto k = pos[2]>iNyquist ? nGrid - pos[2] : pos[2];
 	auto v1 = *index;
-	v1 *= fftNormalize;       // Normalize for FFT
-	v1 *= W[i] * W[j] * W[k]; // Correction for mass assignment
-	*index = v1;
 
 	auto ak = sqrt(i*i + j*j + k*k);
 	auto ks = int(ak);
@@ -155,7 +131,7 @@ void pkdMeasurePk(PKD pkd, int iAssignment,
 	LinearSignal ng(pkd->csm,a,Lbox,iSeed,bFixed,fPhase);
 	ng.FillNoise(K1,nGrid);
 	for( auto index=K1.begin(); index!=K1.end(); ++index ) {
-    	 auto pos = index.position();
+            auto pos = index.position();
 	    auto i = pos[0]; // i,j,k are all positive (absolute value)
 	    auto j = pos[1]>iNyquist ? nGrid - pos[1] : pos[1];
 	    auto k = pos[2]>iNyquist ? nGrid - pos[2] : pos[2];
@@ -175,4 +151,104 @@ void pkdMeasurePk(PKD pkd, int iAssignment,
 		}
 	    }
 	}
+    }
+
+void pkdGridBinK(PKD pkd,int nBins, int iGrid, double *fK, double *fPower, uint64_t *nPower) {
+    assert(pkd->fft != NULL);
+    auto fft = pkd->fft;
+    int nGrid = fft->rgrid->n1;
+    auto iNyquist = nGrid / 2;
+    GridInfo G(pkd->mdl,fft);
+
+    complex_array_t K1;
+    auto data1 = reinterpret_cast<real_t *>(mdlSetArray(pkd->mdl,0,0,pkd->pLite)) + fft->rgrid->nLocal * iGrid;
+    G.setupArray(data1,K1);
+
+    for( auto i=0; i<nBins; i++ ) {
+	fK[i] = 0.0;
+	fPower[i] = 0.0;
+	nPower[i] = 0;
+	}
+#ifdef LINEAR_PK
+    double scale = nBins * 1.0 / iNyquist;
+#else
+    double scale = nBins * 1.0 / log(iNyquist+1);
+#endif
+    for( auto index=K1.begin(); index!=K1.end(); ++index ) {
+    	auto pos = index.position();
+	auto i = pos[0]; // i,j,k are all positive (absolute value)
+	auto j = pos[1]>iNyquist ? nGrid - pos[1] : pos[1];
+	auto k = pos[2]>iNyquist ? nGrid - pos[2] : pos[2];
+	auto v1 = *index;
+
+	auto ak = sqrt(i*i + j*j + k*k);
+	auto ks = int(ak);
+	if ( ks >= 1 && ks <= iNyquist ) {
+#ifdef LINEAR_PK
+	    ks = floor((ks-1.0) * scale);
+#else
+	    ks = floor(log(ks) * scale);
+#endif
+	    assert(ks>=0 && ks<nBins);
+	    fK[ks] += log(ak);
+	    fPower[ks] += std::norm(v1);
+	    nPower[ks] += 1;
+	    if (i!=0 && i!=iNyquist) { // Account for negative Kx values
+		fK[ks] += log(ak);
+		fPower[ks] += std::norm(v1);
+		nPower[ks] += 1;
+		}
+	    }
+	}
+    }
+
+int pstGridBinK(PST pst,void *vin,int nIn,void *vout,int nOut) {
+    LCL *plcl = pst->plcl;
+    auto in = reinterpret_cast<struct inGridBinK*>(vin);
+    auto out = reinterpret_cast<struct outGridBinK*>(vout);
+    int i;
+
+    assert( nIn==sizeof(struct inGridBinK) );
+    assert( nOut==sizeof(struct outGridBinK) );
+    if (pstNotCore(pst)) {
+	auto outUpper = new struct outGridBinK;
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_GRID_BIN_K,vin,nIn);
+	pstGridBinK(pst->pstLower,vin,nIn,vout,nOut);
+	mdlGetReply(pst->mdl,rID,outUpper,&nOut);
+	assert(nOut==sizeof(struct outGridBinK));
+
+	for(i=0;i<in->nBins; i++) {
+	    out->fK[i] += outUpper->fK[i];
+	    out->fPower[i] += outUpper->fPower[i];
+	    out->nPower[i] += outUpper->nPower[i];
+	    }
+	delete outUpper;
+	}
+    else {
+	pkdGridBinK(plcl->pkd, in->nBins, in->iGrid, out->fK, out->fPower, out->nPower);
+	}
+    return sizeof(struct outGridBinK);
+    }
+
+void MSR::GridBinK(int nBins, int iGrid,uint64_t *nPk,float *fK,float *fPk) {
+    struct inGridBinK in;
+    auto out = new struct outGridBinK;
+    in.nBins = nBins;
+    in.iGrid = iGrid;
+
+    assert(sizeof(out->nPower)/sizeof(out->nPower[0])>nBins);
+
+#if 1
+    pstGridBinK(pst, &in, sizeof(in), out, sizeof(*out));
+    for( int i=0; i<nBins; i++ ) {
+	if ( out->nPower[i] == 0 ) fK[i] = fPk[i] = 0;
+	else {
+	    if (nPk) nPk[i] = out->nPower[i];
+	    fK[i] = exp(out->fK[i]/out->nPower[i]);
+	    fPk[i] = out->fPower[i]/out->nPower[i];
+	    }
+	}
+#endif
+    /* At this point, dPk[] needs to be corrected by the box size */
+    delete out;
     }

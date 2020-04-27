@@ -3326,37 +3326,43 @@ int MSR::NewTopStepKDK(
 	BuildTree(param.bEwald);
 	}
 
-    if (!uRung && param.iPkInterval && iStep%param.iPkInterval == 0) {
-	OutputPk(iStep,dTime);
-	}
-
     if (!uRung) {
 	bKickOpen = !CheckForOutput(iStep,nSteps,dTime,pbDoCheckpoint,pbDoOutput);	
 	}
     else bKickOpen = 1;
     *pbNeedKickOpen = !bKickOpen;
-    
+
     /*
-    ** We need to write all light cone files (healpix and LCP) at this point before the last
-    ** gravity is called since it will advance the particles in the light cone as part of the
-    ** opening kick! We also need to open
+    ** At this point the particles are in sync. As soon as we call the next gravity it will
+    ** advance the particles as part of the opening kick. For this reason we do the requested
+    ** analysis at this poing while everything is properly synchronized. This includes
+    ** writing the healpix and lightcone particles, as well as measuring P(k) for example.
     */
-    if (!uRung) {
+    if (uRung==0) {
+	runAnalysis(iStep,dTime); // Run any registered Python analysis tasks
+
+	if (param.iPkInterval && iStep%param.iPkInterval == 0) OutputPk(iStep,dTime);
+
+	/*
+	** We need to write all light cone files (healpix and LCP) at this point before the last
+	** gravity is called since it will advance the particles in the light cone as part of the
+	** opening kick! We also need to open
+	*/
 	LightConeClose(iStep);
 	if (bKickOpen) LightConeOpen(iStep+1);
-	}
 
-    /* Compute the grids of linear species at main timesteps, before gravity is called */
-    if (!uRung && strlen(param.achLinearSpecies) && param.nGridLin){
-	GridCreateFFT(param.nGridLin);
-        SetLinGrid(dTime,dDelta,param.nGridLin,1,bKickOpen);
-        if (param.bDoLinPkOutput)
-            OutputLinPk( *pdStep, dTime);
-	LinearKick(dTime,dDelta,1,bKickOpen);
-	GridDeleteFFT();
-	}
+	/* Compute the grids of linear species at main timesteps, before gravity is called */
+	if (strlen(param.achLinearSpecies) && param.nGridLin){
+	    GridCreateFFT(param.nGridLin);
+            SetLinGrid(dTime,dDelta,param.nGridLin,1,bKickOpen);
+            if (param.bDoLinPkOutput)
+        	OutputLinPk( *pdStep, dTime);
+	    LinearKick(dTime,dDelta,1,bKickOpen);
+	    GridDeleteFFT();
+	    }
 
-    if (!uRung && param.bFindGroups) NewFof(dTime);
+	if (param.bFindGroups) NewFof(dTime);
+	}
 
     // We need to make sure we descend all the way to the bucket with the
     // active tree, or we can get HUGE group cells, and hence too much P-P/P-C
@@ -4868,7 +4874,12 @@ void MSR::MeasurePk(int iAssignment,int bInterlace,int nGrid,double a,int nBins,
 	DensityContrast(1);
 	Interlace(0,1); // We no longer need grid 1
 	}
+    WindowCorrection(iAssignment,0);
 
+#if 0
+    GridBinK(nBins,0,nPk,fK,fPk);
+    for(auto i=0; i<nBins; ++i) fPkAll[i] = 0;
+#else
     in.iAssignment = iAssignment;
     in.nGrid = nGrid;
     in.nBins = nBins;
@@ -4881,7 +4892,7 @@ void MSR::MeasurePk(int iAssignment,int bInterlace,int nGrid,double a,int nBins,
     in.a = a;
 
     out = new struct outMeasurePk;
-    pstMeasurePk(pst, &in, sizeof(in), out, sizeof(out));
+    pstMeasurePk(pst, &in, sizeof(in), out, sizeof(*out));
     for( i=0; i<nBins; i++ ) {
 	if ( out->nPower[i] == 0 ) fK[i] = fPk[i] = fPkAll[i] = 0;
 	else {
@@ -4893,7 +4904,7 @@ void MSR::MeasurePk(int iAssignment,int bInterlace,int nGrid,double a,int nBins,
 	}
     /* At this point, dPk[] needs to be corrected by the box size */
     delete out;
-
+#endif
     GridDeleteFFT();
 
     dsec = MSR::Time() - sec;

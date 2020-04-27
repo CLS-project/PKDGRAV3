@@ -224,12 +224,12 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
 	    }
 	else {
 	    TopStepKDK(iStep-1,dTime,dDelta,dTheta,0,0,1);
+	    runAnalysis(iStep,dTime); // Run any registered Python analysis tasks
 	    }
 	dTime += dDelta;
 	auto lSec = time(0) - lPrior;
 	MemStatus();
 
-	runAnalysis(iStep,dTime); // Run any registered Python analysis tasks
 	OutputOrbits(iStep,dTime);
 
 	/*

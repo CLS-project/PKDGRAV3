@@ -290,8 +290,12 @@ void pstAddServices(PST pst,MDL mdl) {
 		  sizeof(struct inAssignMass), 0);
     mdlAddService(mdl,PST_DENSITY_CONTRAST,pst,(fcnService_t*)pstDensityContrast,
 		  sizeof(struct inDensityContrast), 0);
+    mdlAddService(mdl,PST_WINDOW_CORRECTION,pst,(fcnService_t*)pstWindowCorrection,
+		  sizeof(struct inWindowCorrection), 0);
     mdlAddService(mdl,PST_INTERLACE,pst,(fcnService_t*)pstInterlace,
 		  sizeof(struct inInterlace), 0);
+    mdlAddService(mdl,PST_GRID_BIN_K,pst,(fcnService_t*)pstGridBinK,
+		  sizeof(struct inGridBinK), sizeof(struct outGridBinK));
     mdlAddService(mdl,PST_BISPECTRUM_SELECT,pst,(fcnService_t*)pstBispectrumSelect,
 		  sizeof(struct inBispectrumSelect), 0);
     mdlAddService(mdl,PST_BISPECTRUM_CALCULATE,pst,(fcnService_t*)pstBispectrumCalculate,

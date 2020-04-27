@@ -13,17 +13,19 @@ msr.setParameters(**params)
 # Class to perform analysis. It must be "callable".
 class bispectrum:
     grid = 0
+    order = 4
     def __init__(self,grid):
         self.grid = grid
     def __call__(self,msr,step,time,a,**kwargs):
         print('Calculating bispectrum')
         msr.grid_prepare(self.grid)
-        msr.assign_mass(target=0)
+        msr.assign_mass(target=0,order=self.order)
         msr.density_contrast(target=0)
         if True: # Interlace
-            msr.assign_mass(target=1,delta=0.5)
+            msr.assign_mass(target=1,delta=0.5,order=self.order)
             msr.density_contrast(target=1)
             msr.interlace(target=0,source=1)
+        msr.window_correction(target=0,order=self.order)
         msr.bispectrum_select(target=1,source=0,kmin=1.0,kmax=3.0)
         msr.bispectrum_select(target=2,source=0,kmin=3.0,kmax=5.0)
         msr.bispectrum_select(target=3,source=0,kmin=5.0,kmax=7.0)

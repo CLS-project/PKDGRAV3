@@ -104,11 +104,13 @@ public:
     void GroupStats();
     void HopWrite(const char *fname);
     void MeasurePk(int iAssignment,int bInterlace,int nGrid,double a,int nBins,uint64_t *nPk,float *fK,float *fPk,float *fPkAll);
-    void Interlace(int iGridTarget,int iGridSource);
+    void AssignMass(int iAssignment=4,int iGrid=0,float fDelta=0.0f);
     void DensityContrast(int nGrid,bool k=true);
+    void WindowCorrection(int iAssignment,int iGrid);
+    void Interlace(int iGridTarget,int iGridSource);
+    void GridBinK(int nBins, int iGrid,uint64_t *nPk,float *fK,float *fPk);
     void BispectrumSelect(int iGridTarget,int iGridSource,double kmin,double kmax);
     double BispectrumCalculate(int iGrid1,int iGrid2,int iGrid3);
-    void AssignMass(int iAssignment=4,int iGrid=0,float fDelta=0.0f);
     void GridCreateFFT(int nGrid);
     void GridDeleteFFT();
 

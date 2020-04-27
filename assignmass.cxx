@@ -27,12 +27,13 @@
 #include "pst.h"
 #include "master.h"
 #include "aweights.hpp"
+#include "gridinfo.hpp"
+using namespace gridinfo;
 
 typedef blitz::Array<float,3> mass_array_t;
 typedef blitz::TinyVector<int,3> shape_t;
 typedef blitz::TinyVector<double,3> position_t;
 typedef blitz::TinyVector<float,3> float3_t;
-typedef blitz::ColumnMajorArray<3> RegularArray;
 
 struct tree_node : public KDN {
     bool is_cell()   { return iLower!=0; }
@@ -190,4 +191,50 @@ void MSR::AssignMass(int iAssignment,int iGrid,float fDelta) {
     auto sec = MSR::Time();
     pstAssignMass(pst, &mass, sizeof(mass), NULL, 0);
     printf("Mass assignment complete, Wallclock: %f secs\n",MSR::Time() - sec);
+    }
+
+extern "C"
+void pkdWindowCorrection(PKD pkd, int iAssignment, int iGrid) {
+    auto fft = pkd->fft;
+    int nGrid = fft->rgrid->n1;
+    auto iNyquist = nGrid / 2;
+
+    GridInfo G(pkd->mdl,fft);
+    AssignmentWindow W(nGrid,iAssignment);
+
+    complex_array_t K1;
+    auto data1 = reinterpret_cast<real_t *>(mdlSetArray(pkd->mdl,0,0,pkd->pLite)) + fft->rgrid->nLocal * iGrid;
+    G.setupArray(data1,K1);
+
+    for( auto index=K1.begin(); index!=K1.end(); ++index ) {
+    	auto pos = index.position();
+	auto i = pos[0]; // i,j,k are all positive (absolute value)
+	auto j = pos[1]>iNyquist ? nGrid - pos[1] : pos[1];
+	auto k = pos[2]>iNyquist ? nGrid - pos[2] : pos[2];
+	*index *= W[i] * W[j] * W[k]; // Correction for mass assignment
+	}
+    }
+
+extern "C"
+int pstWindowCorrection(PST pst,void *vin,int nIn,void *vout,int nOut) {
+    LCL *plcl = pst->plcl;
+    auto in = reinterpret_cast<struct inWindowCorrection *>(vin);
+    assert (nIn==sizeof(struct inWindowCorrection) );
+    if (pstNotCore(pst)) {
+	int rID = mdlReqService(pst->mdl, pst->idUpper, PST_WINDOW_CORRECTION, vin, nIn);
+	pstWindowCorrection(pst->pstLower, vin, nIn, NULL, 0);
+	mdlGetReply(pst->mdl,rID,NULL,NULL);
+	}
+    else {
+    	pkdWindowCorrection(plcl->pkd,in->iAssignment,in->iGrid);
+	}
+    return 0;
+    }
+
+void MSR::WindowCorrection(int iAssignment,int iGrid) {
+    struct inWindowCorrection in;
+    assert(iAssignment>=1 && iAssignment<=4);
+    in.iAssignment = iAssignment;
+    in.iGrid = iGrid;
+    pstWindowCorrection(pst, &in, sizeof(in), NULL, 0);
     }

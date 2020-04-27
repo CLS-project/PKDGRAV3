@@ -16,6 +16,9 @@
  */
 #ifndef AWEIGHTS_HPP
 #define AWEIGHTS_HPP
+#include <cmath>
+#include <vector>
+
 template<int Order,typename F>
 class AssignmentWeights {
     template <int A, typename B> struct identity {};
@@ -54,5 +57,18 @@ public:
     F H[Order];
     int i;
     AssignmentWeights(F r) { weights(identity<Order,F>(),r); }
+    };
+
+class AssignmentWindow : public std::vector<float> {
+public:
+    AssignmentWindow(int nGrid,int iAssignment) {
+	reserve(nGrid);
+	for( auto i=0; i<nGrid; ++i) {
+	    float win = M_PI * i / nGrid;
+	    if(win>0.1) win = win / sinf(win);
+	    else win=1.0 / (1.0-win*win/6.0*(1.0-win*win/20.0*(1.0-win*win/76.0)));
+	    push_back(powf(win,iAssignment));
+	    }
+	}
     };
 #endif

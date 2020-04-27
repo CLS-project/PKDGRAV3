@@ -730,12 +730,12 @@ ppy_msr_bispectrum_calculate(MSRINSTANCE *self, PyObject *args, PyObject *kwobj)
 static PyObject *
 ppy_msr_assign_mass(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     flush_std_files();
-    static char const *kwlist[]={"order","target","delta",NULL};
+    static char const *kwlist[]={"target","order","delta",NULL};
     int nGrid, order=4, target=0;
     double delta = 0.0;
     if ( !PyArg_ParseTupleAndKeywords(
 	     args, kwobj, "|iid:assign_mass", const_cast<char **>(kwlist),
-	     &order, &target, &delta ) )
+	     &target, &order, &delta ) )
 	return NULL;
     self->msr->AssignMass(order,target,delta);
     Py_RETURN_NONE;
@@ -765,6 +765,47 @@ ppy_msr_interlace(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
 	return NULL;
     self->msr->Interlace(target,source);
     Py_RETURN_NONE;
+    }
+
+static PyObject *
+ppy_msr_window_correction(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    flush_std_files();
+    static char const *kwlist[]={"target","order",NULL};
+    int order=4, target=0;
+    if ( !PyArg_ParseTupleAndKeywords(
+	     args, kwobj, "|ii:interlace", const_cast<char **>(kwlist),
+	     &target, &order ) )
+	return NULL;
+    self->msr->WindowCorrection(order,target);
+    Py_RETURN_NONE;
+    }
+
+static PyObject *
+ppy_msr_grid_bin_k(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    flush_std_files();
+    static char const *kwlist[]={"source", "bins",NULL};
+    int nBins = -1;
+    int iGrid;
+    std::vector<float> fK,fPk;
+    std::vector<uint64_t> nK;
+
+    if ( !PyArg_ParseTupleAndKeywords(
+	     args, kwobj, "ii:grid_bin_k", const_cast<char **>(kwlist),
+	     &iGrid, &nBins ) )
+	return NULL;
+    fPk.resize(nBins+1);
+    fK.resize(nBins+1);
+    nK.resize(nBins+1);
+    self->msr->GridBinK(nBins,iGrid,nK.data(),fK.data(),fPk.data());
+    auto ListK = PyList_New( nBins+1 );
+    auto ListPk = PyList_New( nBins+1 );
+    auto ListNk = PyList_New( nBins+1 );
+    for( auto i=0; i<=nBins; i++ ) {
+	PyList_SetItem(ListK,i,Py_BuildValue("f",fK[i]));
+	PyList_SetItem(ListPk,i,Py_BuildValue("f",fPk[i]));
+	PyList_SetItem(ListNk,i,Py_BuildValue("L",nK[i]));
+	}
+    return Py_BuildValue("(NNN)",ListK,ListPk,ListNk);
     }
 
 static PyObject *
@@ -1017,6 +1058,10 @@ static PyMethodDef msr_methods[] = {
      "Calculate density contrast (delta)"},
     {"interlace", (PyCFunction)ppy_msr_interlace, METH_VARARGS|METH_KEYWORDS,
      "Interlace two k-space delta fields"},
+    {"window_correction", (PyCFunction)ppy_msr_window_correction, METH_VARARGS|METH_KEYWORDS,
+     "Correct k-space grid with mass assignment window function"},
+    {"grid_bin_k", (PyCFunction)ppy_msr_grid_bin_k, METH_VARARGS|METH_KEYWORDS,
+     "Bin the Grid in k space"},
     {"MeasurePk", (PyCFunction)ppy_msr_MeasurePk, METH_VARARGS|METH_KEYWORDS,
      "Measure the power spectrum"},
     {"bispectrum_select", (PyCFunction)ppy_msr_bispectrum_select, METH_VARARGS|METH_KEYWORDS,

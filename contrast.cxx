@@ -23,12 +23,19 @@ static void pkdDensityContrast(PKD pkd,double dTotalMass,int iGrid,bool k=false)
     auto fft = pkd->fft;
     GridInfo G(pkd->mdl,fft);
     int nGrid = fft->rgrid->n1;
-    double diRhoMean = (k?1.0*nGrid*nGrid*nGrid:1.0) / dTotalMass;
     auto data = reinterpret_cast<real_t *>(mdlSetArray(pkd->mdl,0,0,pkd->pLite)) + fft->rgrid->nLocal * iGrid;
     real_array_t R;
     G.setupArray(data,R);
-    R = R * diRhoMean - 1.0;
-    if (k) mdlFFT(pkd->mdl,fft,data);
+    if (k) { // Delta(k): same as Delta(r) below, but apply normalization for the FFT (divide by nGrid^3)
+	real_t diTotalMass = 1.0 / dTotalMass;
+	real_t fftNormalize = 1.0 / (1.0*nGrid*nGrid*nGrid);
+	R = R * diTotalMass - fftNormalize;
+	mdlFFT(pkd->mdl,fft,data);
+	}
+    else { // Delta(r) = rho / rho_bar - 1.0
+	real_t diRhoBar = (1.0*nGrid*nGrid*nGrid) / dTotalMass;
+	R = R * diRhoBar - 1.0;
+	}
     }
 
 int pstDensityContrast(PST pst,void *vin,int nIn,void *vout,int nOut) {
