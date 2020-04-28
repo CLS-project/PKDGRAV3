@@ -713,6 +713,20 @@ ppy_msr_bispectrum_select(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     }
 
 static PyObject *
+ppy_msr_bispectrum_normalize(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    flush_std_files();
+    static char const *kwlist[]={"target","kmin","kmax",NULL};
+    int target=0, source=-1;
+    double kmin, kmax;
+    if ( !PyArg_ParseTupleAndKeywords(
+	     args, kwobj, "idd:bispectrum_select", const_cast<char **>(kwlist),
+	     &target, &kmin, &kmax ) )
+	return NULL;
+    // If source is negative, then we fill with 0 or 1.
+    self->msr->BispectrumSelect(target,source,kmin,kmax);
+    Py_RETURN_NONE;
+    }
+static PyObject *
 ppy_msr_bispectrum_calculate(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     flush_std_files();
     static char const *kwlist[]={"grid1","grid2","grid3",NULL};
@@ -1084,6 +1098,8 @@ static PyMethodDef msr_methods[] = {
      "Measure the power spectrum"},
     {"bispectrum_select", (PyCFunction)ppy_msr_bispectrum_select, METH_VARARGS|METH_KEYWORDS,
      "Select a k-space shell for the bispectrum and copy it to a target grid"},
+    {"bispectrum_normalize", (PyCFunction)ppy_msr_bispectrum_normalize, METH_VARARGS|METH_KEYWORDS,
+     "Fill a k-space shell for the bispectrum with 1 inside and 0 outside"},
     {"bispectrum_calculate", (PyCFunction)ppy_msr_bispectrum_calculate, METH_VARARGS|METH_KEYWORDS,
      "Calculate the bispectrum for three grids"},
 

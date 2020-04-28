@@ -19,6 +19,29 @@
 #include "gridinfo.hpp"
 using namespace gridinfo;
 
+void pkdBispectrumNormalize(PKD pkd, int iGridTarget, double kmin,double kmax) {
+    auto fft = pkd->fft;
+    int nGrid = fft->rgrid->n1;
+    auto iNyquist = nGrid / 2;
+
+    GridInfo G(pkd->mdl,fft);
+
+    complex_array_t K1;
+    auto data1 = reinterpret_cast<real_t *>(mdlSetArray(pkd->mdl,0,0,pkd->pLite)) + fft->rgrid->nLocal * iGridTarget;
+    G.setupArray(data1,K1);
+    double k2min = kmin*kmin;
+    double k2max = kmax*kmax;
+    for( auto index=K1.begin(); index!=K1.end(); ++index ) {
+    	auto pos = index.position();
+	auto i = pos[0]; // i,j,k are all positive (absolute value)
+	auto j = pos[1]>iNyquist ? nGrid - pos[1] : pos[1];
+	auto k = pos[2]>iNyquist ? nGrid - pos[2] : pos[2];
+	auto k2 = i*i + j*j + k*k;
+	*index = (k2>=k2min && k2<k2max) ? 1.0 : 0.0;
+	}
+    mdlIFFT(pkd->mdl,fft,(FFTW3(complex)*)K1.dataFirst());
+    }
+
 void pkdBispectrumSelect(PKD pkd, int iGridTarget, int iGridSource,double kmin,double kmax) {
     auto fft = pkd->fft;
     int nGrid = fft->rgrid->n1;
@@ -56,7 +79,8 @@ int pstBispectrumSelect(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	mdlGetReply(pst->mdl,rID,NULL,NULL);
 	}
     else {
-    	pkdBispectrumSelect(plcl->pkd,in->iGridTarget,in->iGridSource,in->kmin,in->kmax);
+	if (in->iGridSource<0) pkdBispectrumNormalize(plcl->pkd,in->iGridTarget,in->kmin,in->kmax);
+    	else pkdBispectrumSelect(plcl->pkd,in->iGridTarget,in->iGridSource,in->kmin,in->kmax);
 	}
     return 0;
     }
