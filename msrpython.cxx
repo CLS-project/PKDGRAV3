@@ -781,6 +781,22 @@ ppy_msr_window_correction(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     }
 
 static PyObject *
+ppy_msr_add_linear_signal(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    flush_std_files();
+    static char const *kwlist[]={"target","seed","L","a","fixed","phase",NULL};
+    int target, seed, fixed=0;
+    float phase = 0;
+    double L, a;
+    if ( !PyArg_ParseTupleAndKeywords(
+	     args, kwobj, "iidd|pf:add_linear_signal", const_cast<char **>(kwlist),
+	     &target, &seed, &L, &a, &fixed, &phase ) )
+	return NULL;
+    self->msr->AddLinearSignal(target,seed,L,a,fixed,phase);
+    Py_RETURN_NONE;
+    }
+
+
+static PyObject *
 ppy_msr_grid_bin_k(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     flush_std_files();
     static char const *kwlist[]={"source", "bins",NULL};
@@ -1062,6 +1078,8 @@ static PyMethodDef msr_methods[] = {
      "Correct k-space grid with mass assignment window function"},
     {"grid_bin_k", (PyCFunction)ppy_msr_grid_bin_k, METH_VARARGS|METH_KEYWORDS,
      "Bin the Grid in k space"},
+    {"add_linear_signal", (PyCFunction)ppy_msr_add_linear_signal, METH_VARARGS|METH_KEYWORDS,
+     "Add the linear signal to the existing grid"},
     {"MeasurePk", (PyCFunction)ppy_msr_MeasurePk, METH_VARARGS|METH_KEYWORDS,
      "Measure the power spectrum"},
     {"bispectrum_select", (PyCFunction)ppy_msr_bispectrum_select, METH_VARARGS|METH_KEYWORDS,

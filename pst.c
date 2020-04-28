@@ -284,8 +284,8 @@ void pstAddServices(PST pst,MDL mdl) {
 		  sizeof(struct inGridCreateFFT), 0);
     mdlAddService(mdl,PST_GRID_DELETE_FFT,pst,(fcnService_t*)pstGridDeleteFFT,
 		  0, 0);
-    mdlAddService(mdl,PST_MEASUREPK,pst,(fcnService_t*)pstMeasurePk,
-		  sizeof(struct inMeasurePk), sizeof(struct outMeasurePk));
+    mdlAddService(mdl,PST_ADD_LINEAR_SIGNAL,pst,(fcnService_t*)pstAddLinearSignal,
+		  sizeof(struct inAddLinearSignal), 0);
     mdlAddService(mdl,PST_ASSIGN_MASS,pst,(fcnService_t*)pstAssignMass,
 		  sizeof(struct inAssignMass), 0);
     mdlAddService(mdl,PST_DENSITY_CONTRAST,pst,(fcnService_t*)pstDensityContrast,
@@ -3749,38 +3749,6 @@ int pstCountDistance(PST pst,void *vin,int nIn,void *vout,int nOut) {
     }
 
 #ifdef MDL_FFTW
-int pstMeasurePk(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    LCL *plcl = pst->plcl;
-    struct inMeasurePk *in = vin;
-    struct outMeasurePk *out = vout;
-    struct outMeasurePk *outUpper;
-    int i;
-
-    assert( nIn==sizeof(struct inMeasurePk) );
-    if (pstNotCore(pst)) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_MEASUREPK,vin,nIn);
-	pstMeasurePk(pst->pstLower,vin,nIn,vout,nOut);
-	outUpper = malloc(sizeof(struct outMeasurePk));
-	assert(outUpper != NULL);
-	mdlGetReply(pst->mdl,rID,outUpper,&nOut);
-	assert(nOut==sizeof(struct outMeasurePk));
-
-	for(i=0;i<in->nBins; i++) {
-	    out->fK[i] += outUpper->fK[i];
-	    out->fPower[i] += outUpper->fPower[i];
-	    out->fPowerAll[i] += outUpper->fPowerAll[i];
-	    out->nPower[i] += outUpper->nPower[i];
-	    }
-	free(outUpper);
-	}
-    else {
-	pkdMeasurePk(plcl->pkd, in->iAssignment,
-	    in->bLinear, in->iSeed, in->bFixed, in->fPhase, in->Lbox, in->a,
-	    in->nGrid, in->nBins, out->fK, out->fPower, out->nPower, out->fPowerAll);
-	}
-    return sizeof(struct outMeasurePk);
-    }
-
 int pstGridCreateFFT(PST pst,void *vin,int nIn,void *vout,int nOut) {
         LCL *plcl = pst->plcl;
         struct inGridCreateFFT *in = vin;

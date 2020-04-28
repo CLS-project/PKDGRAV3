@@ -4853,10 +4853,6 @@ void MSR::GridDeleteFFT() {
 
 /* Important: call msrGridCreateFFT() before, and msrGridDeleteFFT() after */
 void MSR::MeasurePk(int iAssignment,int bInterlace,int nGrid,double a,int nBins,uint64_t *nPk,float *fK,float *fPk,float *fPkAll) {
-    struct inMeasurePk in;
-    struct outMeasurePk *out;
-    int i;
-    double fftNormalize;
     double sec,dsec;
 
     GridCreateFFT(nGrid);
@@ -4876,35 +4872,15 @@ void MSR::MeasurePk(int iAssignment,int bInterlace,int nGrid,double a,int nBins,
 	}
     WindowCorrection(iAssignment,0);
 
-#if 0
     GridBinK(nBins,0,nPk,fK,fPk);
-    for(auto i=0; i<nBins; ++i) fPkAll[i] = 0;
-#else
-    in.iAssignment = iAssignment;
-    in.nGrid = nGrid;
-    in.nBins = nBins;
-
-    in.bLinear = csm->val.classData.bClass && param.nGridLin>0 && strlen(param.achPowerSpecies) > 0;
-    in.iSeed = param.iSeed;
-    in.bFixed = param.bFixedAmpIC;
-    in.fPhase = param.dFixedAmpPhasePI * M_PI;
-    in.Lbox = param.dBoxSize;
-    in.a = a;
-
-    out = new struct outMeasurePk;
-    pstMeasurePk(pst, &in, sizeof(in), out, sizeof(*out));
-    for( i=0; i<nBins; i++ ) {
-	if ( out->nPower[i] == 0 ) fK[i] = fPk[i] = fPkAll[i] = 0;
-	else {
-	    if (nPk) nPk[i] = out->nPower[i];
-	    fK[i] = exp(out->fK[i]/out->nPower[i]);
-	    fPk[i] = out->fPower[i]/out->nPower[i];
-	    fPkAll[i] = out->fPowerAll[i]/out->nPower[i];
-	    }
+    if (csm->val.classData.bClass && param.nGridLin>0 && strlen(param.achPowerSpecies) > 0) {
+	AddLinearSignal(0,param.iSeed,param.dBoxSize,a,param.bFixedAmpIC,param.dFixedAmpPhasePI * M_PI);
+	GridBinK(nBins,0,nPk,fK,fPkAll);
 	}
-    /* At this point, dPk[] needs to be corrected by the box size */
-    delete out;
-#endif
+    else {
+	for(auto i=0; i<nBins; ++i) fPkAll[i] = 0;
+	}
+
     GridDeleteFFT();
 
     dsec = MSR::Time() - sec;

@@ -53,6 +53,7 @@ LinearSignal::LinearSignal(CSM csm,double a,double Lbox,unsigned long seed,bool 
         logk[i] = log(k);
         field[i] = csmDeltaRho_pk(csm, a, k);
         field[i] /= csmZeta(csm, k);
+	assert(!isnan(field[i]));
     }
     gsl_spline_init(spline, logk, field, size);
     }
@@ -75,82 +76,45 @@ void LinearSignal::update(complex_vector_t &pencil,complex_vector_t &noise,int i
 	}
     }
 
-extern "C"
-void pkdMeasurePk(PKD pkd, int iAssignment,
-    int bLinear, int iSeed, int bFixed, float fPhase, double Lbox, double a,
-    int nGrid, int nBins, double *fK, double *fPower, uint64_t *nPower, double *fPowerAll) {
+void pkdAddLinearSignal(PKD pkd, int iGrid, int iSeed, bool bFixed, float fPhase, double Lbox, double a) {
     assert(pkd->fft != NULL);
-    auto iNyquist = nGrid / 2;
     auto fft = pkd->fft;
+    int nGrid = fft->rgrid->n1;
     GridInfo G(pkd->mdl,fft);
 
     complex_array_t K1;
-    auto data1 = reinterpret_cast<real_t *>(mdlSetArray(pkd->mdl,0,0,pkd->pLite));
+    auto data1 = reinterpret_cast<real_t *>(mdlSetArray(pkd->mdl,0,0,pkd->pLite)) + fft->rgrid->nLocal * iGrid;
     G.setupArray(data1,K1);
 
-    for( auto i=0; i<nBins; i++ ) {
-	fK[i] = 0.0;
-	fPower[i] = 0.0;
-	fPowerAll[i] = 0.0;
-	nPower[i] = 0;
-	}
+    LinearSignal ng(pkd->csm,a,Lbox,iSeed,bFixed,fPhase);
+    ng.FillNoise(K1,nGrid);
+    }
 
-    complex_t fftNormalize = 1.0 / (1.0*nGrid*nGrid*nGrid);
-#ifdef LINEAR_PK
-    double scale = nBins * 1.0 / iNyquist;
-#else
-    double scale = nBins * 1.0 / log(iNyquist+1);
-#endif
-    for( auto index=K1.begin(); index!=K1.end(); ++index ) {
-    	auto pos = index.position();
-	auto i = pos[0]; // i,j,k are all positive (absolute value)
-	auto j = pos[1]>iNyquist ? nGrid - pos[1] : pos[1];
-	auto k = pos[2]>iNyquist ? nGrid - pos[2] : pos[2];
-	auto v1 = *index;
+extern "C"
+int pstAddLinearSignal(PST pst,void *vin,int nIn,void *vout,int nOut) {
+    LCL *plcl = pst->plcl;
+    auto in = reinterpret_cast<struct inAddLinearSignal *>(vin);
+    assert (nIn==sizeof(*in) );
+    if (pstNotCore(pst)) {
+	int rID = mdlReqService(pst->mdl, pst->idUpper, PST_ADD_LINEAR_SIGNAL, vin, nIn);
+	pstAddLinearSignal(pst->pstLower, vin, nIn, NULL, 0);
+	mdlGetReply(pst->mdl,rID,NULL,NULL);
+	}
+    else {
+    	pkdAddLinearSignal(plcl->pkd,in->iGrid,in->iSeed,in->bFixed,in->fPhase,in->Lbox,in->a);
+	}
+    return 0;
+    }
 
-	auto ak = sqrt(i*i + j*j + k*k);
-	auto ks = int(ak);
-	if ( ks >= 1 && ks <= iNyquist ) {
-#ifdef LINEAR_PK
-	    ks = floor((ks-1.0) * scale);
-#else
-	    ks = floor(log(ks) * scale);
-#endif
-	    assert(ks>=0 && ks<nBins);
-	    fK[ks] += log(ak);
-	    fPower[ks] += std::norm(v1);
-	    nPower[ks] += 1;
-	    if (i!=0 && i!=iNyquist) { // Account for negative Kx values
-		fK[ks] += log(ak);
-		fPower[ks] += std::norm(v1);
-		nPower[ks] += 1;
-		}
-	    }
-	}
-    if (bLinear) {
-	LinearSignal ng(pkd->csm,a,Lbox,iSeed,bFixed,fPhase);
-	ng.FillNoise(K1,nGrid);
-	for( auto index=K1.begin(); index!=K1.end(); ++index ) {
-            auto pos = index.position();
-	    auto i = pos[0]; // i,j,k are all positive (absolute value)
-	    auto j = pos[1]>iNyquist ? nGrid - pos[1] : pos[1];
-	    auto k = pos[2]>iNyquist ? nGrid - pos[2] : pos[2];
-	    auto ak = sqrt(i*i + j*j + k*k);
-	    auto ks = int(ak);
-	    if ( ks >= 1 && ks <= iNyquist ) {
-    #ifdef LINEAR_PK
-		ks = floor((ks-1.0) * scale);
-    #else
-		ks = floor(log(ks) * scale);
-    #endif
-		assert(ks>=0 && ks<nBins);
-		fPowerAll[ks] += std::norm(*index);
-		if (i!=0 && i!=iNyquist) { // Account for negative Kx values
-		    fPowerAll[ks] += std::norm(*index);
-		    }
-		}
-	    }
-	}
+void MSR::AddLinearSignal(int iGrid, int iSeed, double Lbox, double a, bool bFixed, float fPhase) {
+    struct inAddLinearSignal in;
+    in.iGrid = iGrid;
+    in.iSeed = iSeed;
+    in.bFixed = bFixed;
+    in.fPhase = fPhase;
+    in.Lbox = Lbox;
+    in.a = a;
+    pstAddLinearSignal(pst, &in, sizeof(in), NULL, 0);
     }
 
 void pkdGridBinK(PKD pkd,int nBins, int iGrid, double *fK, double *fPower, uint64_t *nPower) {

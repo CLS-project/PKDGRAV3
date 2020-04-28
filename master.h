@@ -108,6 +108,7 @@ public:
     void DensityContrast(int nGrid,bool k=true);
     void WindowCorrection(int iAssignment,int iGrid);
     void Interlace(int iGridTarget,int iGridSource);
+    void AddLinearSignal(int iGrid, int iSeed, double Lbox, double a, bool bFixed=false, float fPhase=0);
     void GridBinK(int nBins, int iGrid,uint64_t *nPk,float *fK,float *fPk);
     void BispectrumSelect(int iGridTarget,int iGridSource,double kmin,double kmax);
     double BispectrumCalculate(int iGrid1,int iGrid2,int iGrid3);

@@ -1538,9 +1538,6 @@ void pkdCalcCOM(PKD pkd, double *dCenter, double dRadius, int bPeriodic,
 #ifdef MDL_FFTW
 void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int iAssignment, int iGrid, float dDelta);
 void pkdInterlace(PKD pkd, int iGridTarget, int iGridSource);
-void pkdMeasurePk(PKD pkd, int iAssignment,
-    int bLinear, int iSeed, int bFixed, float fPhase, double Lbox, double a,
-    int nGrid, int nBins, double *fK, double *fPower, uint64_t *nPower, double *fPowerAll);
 float getLinAcc(PKD pkd, MDLFFT fft,int cid, double r[3]);
 void pkdSetLinGrid(PKD pkd,double a0, double a, double a1, double dBSize, int nGrid, int iSeed,
     int bFixed, float fPhase);

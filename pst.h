@@ -212,7 +212,7 @@ enum pst_service {
 #ifdef MDL_FFTW
     PST_GRID_CREATE_FFT,
     PST_GRID_DELETE_FFT,
-    PST_MEASUREPK,
+    PST_ADD_LINEAR_SIGNAL,
     PST_MEASURELINPK,
     PST_SETLINGRID,
     PST_LINEARKICK,
@@ -1258,26 +1258,17 @@ int pstGridCreateFFT(PST pst,void *vin,int nIn,void *vout,int nOut);
 int pstGridDeleteFFT(PST pst,void *vin,int nIn,void *vout,int nOut);
 
 #ifdef MDL_FFTW
-#define PST_MAX_K_BINS 2500
-/* PST_MEASUREPK */
-struct inMeasurePk {
-    int iAssignment;
-    int nGrid;
-    int nBins;
-    int bLinear;
+/* PST_ADD_LINEAR_SIGNAL */
+struct inAddLinearSignal {
+    int iGrid;
     int iSeed;
     int bFixed;
     float fPhase;
     double Lbox;
     double a;
     };
-struct outMeasurePk {
-    double fK[PST_MAX_K_BINS];
-    double fPower[PST_MAX_K_BINS];
-    uint64_t nPower[PST_MAX_K_BINS];
-    double fPowerAll[PST_MAX_K_BINS];
-    };
-int pstMeasurePk(PST pst,void *vin,int nIn,void *vout,int nOut);
+int pstAddLinearSignal(PST pst,void *vin,int nIn,void *vout,int nOut);
+#define PST_MAX_K_BINS 2500
 /* PST_GRID_BIN_K */
 struct inGridBinK {
     int nBins;
