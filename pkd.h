@@ -241,6 +241,10 @@ typedef struct sphfields {
     /* IA: TODO temporarly */
     uint8_t uNewRung; 
 
+#ifdef STAR_FORMATION
+    double SFR;
+#endif
+
 #ifdef COOLING
     float chemistry[chemistry_element_count];
     double lastCooling;
@@ -1482,7 +1486,7 @@ void pkdLocalOrder(PKD,uint64_t iMinOrder,uint64_t iMaxOrder);
 void pkdCheckpoint(PKD pkd,const char *fname);
 void pkdRestore(PKD pkd,const char *fname);
 uint32_t pkdWriteFIO(PKD pkd,FIO fio,double dvFac,BND *bnd);
-void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dTime, uint64_t nDark, uint64_t nGas, uint64_t nStar);
+void pkdWriteHeaderFIO(PKD pkd, FIO fio, double ScaleFactor, double dTime, uint64_t nDark, uint64_t nGas, uint64_t nStar);
 void pkdWriteFromNode(PKD pkd,int iNode, FIO fio,double dvFac,BND *bnd);
 void pkdWriteViaNode(PKD pkd, int iNode);
 void pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
@@ -1529,7 +1533,7 @@ void pkdAccelStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
 		  double dEta,double dVelFac,double dAccFac,
 		  int bDoGravity,int bEpsAcc,double dhMinOverSoft);
 void pkdSphStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,double dAccFac);
-void pkdStarForm(PKD pkd, double dTime, double dDelta, double dDenMin, double dDenCrit,
+void pkdStarForm(PKD pkd, double dTime, double dDelta, double dScaleFactor, double dDenMin, double dDenCrit,
 		 int *nFormed, double *dMassFormed, int *nDeleted);
 void pkdCooling(PKD pkd,double,double,int,int,int,int);
 #define CORRECTENERGY_IN 1

@@ -126,14 +126,15 @@ inline void get_index_1d(
     /* Normal case */
     *i = (x - table[0]) * delta;
 
-#ifdef SWIFT_DEBUG_CHECKS
+//#ifdef SWIFT_DEBUG_CHECKS
     if (*i > size || *i < 0) {
-      error(
+      printf(
           "trying to get index for value outside table range. Table size: %d, "
           "calculated index: %d, value: %.5e, table[0]: %.5e, grid size: %.5e",
           size, *i, x, table[0], delta);
+      abort();
     }
-#endif
+//#endif
 
     *dx = (x - table[*i]) * delta;
   } else {

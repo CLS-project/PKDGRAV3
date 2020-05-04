@@ -302,7 +302,7 @@ void hydroDensity(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
        c = nSmooth;
        // Check if we have enough neighbors, otherwise increse fBall
        if (c <  pkd->param.nSmooth){
-          pkdSetBall(pkd,p,fBall * pow(  pkd->param.nSmooth/c  ,0.3333333333));
+          pkdSetBall(pkd,p,fBall * pow(  1.2*pkd->param.nSmooth/c  ,0.3333333333));
        }else if (c >= pkd->param.nSmooth){
           // Now we look for the distance to the nSmooth-th neighbor
           minR2 = HUGE_VAL;

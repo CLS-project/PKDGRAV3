@@ -999,6 +999,9 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.dSoftMax = 0.0;
     prmAddParam(msr->prm,"dSoftMax",2,&msr->param.dSoftMax,sizeof(double),"eMax",
 		"<maximum comoving gravitational softening length (abs or multiplier)> = 0.0");
+    msr->param.dMaxPhysicalSoft = 0.0;
+    prmAddParam(msr->prm,"dMaxPhysicalSoft",2,&msr->param.dMaxPhysicalSoft,sizeof(double),"eMaxPhys",
+		"<maximum softening in physical coordinataes> = 0.0");
     msr->param.bPhysicalSoft = 0;
     prmAddParam(msr->prm,"bPhysicalSoft",0,&msr->param.bPhysicalSoft,sizeof(int),"PhysSoft",
 		"<Physical gravitational softening length> -PhysSoft");
@@ -2528,13 +2531,13 @@ void msrAllNodeWrite(MSR msr, const char *pszFileName, double dTime, double dvFa
     */
     nProcessors = msr->param.bParaWrite==0?1:(msr->param.nParaWrite<=1 ? msr->nThreads:msr->param.nParaWrite);
     in.iIndex = 0;
-
+	
+    in.dTime = dTime;
     if (msr->param.csm->val.bComove) {
-	in.dTime = csmTime2Exp(msr->param.csm,dTime);
-	in.dvFac = 1.0/(in.dTime*in.dTime);
+      const double a = csmTime2Exp(msr->param.csm,dTime); 
+	in.dvFac = 1.0/(a*a);
 	}
     else {
-	in.dTime = dTime;
 	in.dvFac = 1.0;
 	}
 
@@ -3403,7 +3406,6 @@ int msrReSmooth(MSR msr,double dTime,int iSmoothType,int bSymmetric, int bFirstS
     }
 
 void msrUpdateSoft(MSR msr,double dTime) {
-    if (!(msr->param.bPhysicalSoft)) return;
     if (msr->param.bPhysicalSoft) {
 	struct inPhysicalSoft in;
 
@@ -3415,6 +3417,11 @@ void msrUpdateSoft(MSR msr,double dTime) {
 
 	pstPhysicalSoft(msr->pst,&in,sizeof(in),NULL,NULL);
 	}
+    if (msr->param.dMaxPhysicalSoft > 0){
+      double dFac = csmTime2Exp(msr->param.csm,dTime);
+      if (msr->param.dSoft*dFac > msr->param.dMaxPhysicalSoft)
+         msrSetSoft(msr, msr->param.dMaxPhysicalSoft/dFac); 
+    }
     }
 
 #define PRINTGRID(w,FRM,VAR) {						\
@@ -4907,13 +4914,14 @@ void msrTopStepKDK(MSR msr,
     //      msrApplyGravWork(msr,dTime,0.0,iRung,iRung); 
       }
     if ((msrCurrMaxRung(msr) > iRung) && (iRungVeryActive > iRung)) {
+
       /* IA: If the next rung that is the first one with actives particles, we
        *   are sure that all particles are synchronized, thus we can output some statistics with
        *   finer time resolution whilst being accurate.
        *
        *   We assume that there is no 'sandwiched' rung, i.e., the differences in dt are smooth
        */
-      if ( (msr->nRung[0]!=0 && iRung==0) || (msr->nRung[iRung] == 0) && (msr->nRung[iRung+1] > 0))
+      if ( (msr->nRung[0]!=0 && iRung==0) || ( (msr->nRung[iRung] == 0) && (msr->nRung[iRung+1] > 0) ))
          msrOutputFineStatistics(msr, dStep, dTime);
 	
 
@@ -4945,13 +4953,14 @@ void msrTopStepKDK(MSR msr,
 	dTime += dDelta;
 	dStep += 1.0/(1 << iRung);
 #ifdef COOLING
+      int sync = (msr->nRung[0]!=0 && iRung==0) || ( (msr->nRung[iKickRung] > 0) && (msr->nRung[iKickRung-1] == 0) );
       if (msr->param.csm->val.bComove){
          const float a = csmTime2Exp(msr->param.csm,dTime);
          const float z = 1./a - 1.;
 
-         msrCoolingUpdate(msr, z);
+         msrCoolingUpdate(msr, z, sync);
       }else{
-         msrCoolingUpdate(msr, 0.);
+         msrCoolingUpdate(msr, 0., sync);
       }
 #endif
 
@@ -5427,9 +5436,9 @@ void msrCoolSetup(MSR msr, double dTime) {
 void msrCooling(MSR msr,double dTime,double dStep,int bUpdateState, int bUpdateTable, int bIterateDt) {
     }
 #ifdef COOLING
-void msrCoolingUpdate(MSR msr,float redshift) {
-   printf("Updating cooling.. %f \n", redshift);
-   cooling_update(msr, redshift);
+void msrCoolingUpdate(MSR msr,float redshift, int sync) {
+   printf("Updating cooling.. z=%f (sync=%d) \n", redshift, sync);
+   cooling_update(msr, redshift, sync);
    //pstCoolingUpdate(msr->pst, &in, sizeof(in), NULL, NULL);
     }
 void msrCoolingInit(MSR msr) {

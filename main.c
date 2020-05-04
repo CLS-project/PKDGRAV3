@@ -278,10 +278,12 @@ void * master_ch(MDL mdl) {
 	    }
 #ifdef COOLING
       msrCoolingInit(msr);
-      if ((msr->param.csm->val.bComove))
-         msrCoolingUpdate(msr, 1./dTime - 1.);
-      else
-         msrCoolingUpdate(msr, 0.);
+      if ((msr->param.csm->val.bComove)){
+         const float a = csmTime2Exp(msr->param.csm,dTime);
+         msrCoolingUpdate(msr, 1./a - 1., 1);
+      }else{
+         msrCoolingUpdate(msr, 0., 1);
+      }
 #endif
 #ifdef STAR_FORMATION
       msr->starFormed = 0.;

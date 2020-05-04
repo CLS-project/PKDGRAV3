@@ -26,6 +26,7 @@ void msrStarForm(MSR msr, double dTime, double dDelta, int iRung)
     in.dDenMin = (d1>d2 ? d1 : d2);
     */
     
+    in.dScaleFactor = a;
     in.dTime = dTime;
     in.dDelta = dDelta;
     /*
@@ -45,12 +46,12 @@ void msrStarForm(MSR msr, double dTime, double dDelta, int iRung)
     // We convert the threshold density (given in cgs in the parameters file) in code units
     //  NOTE: We still have to divide by the hydrogen fraction of each particle!
     if (msr->param.csm->val.bComove)
-       in.dDenMin = msr->param.dSFThresholdDen*pow(a,-3);
+       in.dDenMin = msr->param.dSFThresholdDen*pow(a,3);
     else
        in.dDenMin = msr->param.dSFThresholdDen;
 
     // Critical density of the Universe, in code units
-    in.dDenCrit = 3.*H*H*M_1_PI/8.;
+    in.dDenCrit = 1.*0.048; // TODO: Read from parameters
 
     if (msr->param.bVDetails) printf("Star Form ... ");
     
@@ -69,6 +70,7 @@ void msrStarForm(MSR msr, double dTime, double dDelta, int iRung)
     dsec = sec1 - sec;
     printf("Star Formation Calculated, Wallclock: %f secs\n\n",dsec);
 
+
     }
 
 
@@ -78,6 +80,7 @@ void msrStarForm(MSR msr, double dTime, double dDelta, int iRung)
 void pkdStarForm(PKD pkd, 
              double dTime,
              double dDelta,
+             double dScaleFactor,
              double dDenMin, /* Threshold for SF in code units  */
              double dDenCrit, /* Multiple of the critical density needed for SF*/
 		 int *nFormed, /* number of stars formed */
@@ -87,6 +90,7 @@ void pkdStarForm(PKD pkd,
     PARTICLE *p;
     SPHFIELDS *psph;
     double T, E, dt, prob;
+    float* pv;
     PARTICLE *starp;
     int i;
     
@@ -98,6 +102,9 @@ void pkdStarForm(PKD pkd,
     *nDeleted = 0;
     *dMassFormed = 0.0;
     //assert(starp != NULL);
+
+    double a_m2 = 1./(dScaleFactor*dScaleFactor);
+    double a_m3 = a_m2/dScaleFactor;
 
     for (i=0;i<pkdLocal(pkd);++i) {
 	p = pkdParticle(pkd,i);
@@ -115,14 +122,23 @@ void pkdStarForm(PKD pkd,
 #endif
 
           // Gas too hot is not allowed to form stars
-          if (psph->Uint > pkd->param.dSFThresholdu*pkdMass(pkd,p)) continue;
-
+          if (psph->Uint > pkd->param.dSFThresholdu*pkdMass(pkd,p)){ 
+             psph->SFR=0.; 
+             continue;
+          }
           // Thresholds for star formation
-	    if (pkd->param.csm->val.bComove &&  (pkdDensity(pkd,p) > pkd->param.dSFMinOverDensity*dDenCrit) ) continue;
-          if (rho_H < dDenMin) continue;
+	    if (pkd->param.csm->val.bComove &&  (pkdDensity(pkd,p) < pkd->param.dSFMinOverDensity*dDenCrit) ){
+             psph->SFR=0.; 
+             continue;
+          }
+          if (rho_H < dDenMin){
+             psph->SFR=0.; 
+             continue;
+          }
 
-          const double mass_Mo = pkdMass(pkd,p) * pkd->param.dMsolUnit;
-          const double P_kb = psph->P * pkd->param.dErgUnit * pow(pkd->param.dKpcUnit*KPCCM, -3)/ KBOLTZ; 
+          //const double mass_Mo = pkdMass(pkd,p) * pkd->param.dMsolUnit;
+
+          //const double P_kb = psph->P * pkd->param.dErgUnit * pow(pkd->param.dKpcUnit*KPCCM, -3)/ KBOLTZ /a3; 
 
 
 /*
@@ -134,19 +150,26 @@ void pkdStarForm(PKD pkd,
           const double dmstar = A *  pow(Msolpcm2, -n)  *  pkdMass(pkd,p) *
                                      pow( pkd->param.dConstGamma * pkd->param.dSFGasFraction * psph->P, (n-1.)/2.  );
   */           
-          const double dmstar = pkd->param.dSFnormalizationKS * pkdMass(pkd,p) * 
-                        pow( pkd->param.dConstGamma * pkd->param.dSFGasFraction * psph->P, pkd->param.dSFindexKS);
+          const double dmstar = pkd->param.dSFnormalizationKS*  pkdMass(pkd,p) *  pow(a_m2, 1.4) *
+                        pow( pkd->param.dConstGamma * pkd->param.dSFGasFraction * psph->P*a_m3, pkd->param.dSFindexKS);
+          psph->SFR = dmstar;
           //printf("mstar %e mass_Mo %e P_kb %e \t\t prob %e \n", dmstar*dt, mass_Mo, P_kb, dmstar*dt/mass_Mo);
           //printf("dConstGamma %e \t SFGasFraction %e \n", pkd->param.dConstGamma, pkd->param.dSFGasFraction);
 	    const double prob = 1.0 - exp(-dmstar*dt/pkdMass(pkd,p)); 
-          //printf("%e %e \n", prob, 1. - exp(-dmstar0/mass_Mo * dt* pkd->param.dSecUnit / 3600. / 24. / 365.) ); Dan lo mismo!
+          //printf("%e \n", prob);
 	    
 	    /* Star formation event? */
 	    if (rand()<RAND_MAX*prob) {
 
              // We just change the class of the particle to stellar one
-            pkdSetClass(pkd, pkdMass(pkd,p), pkdSoft(pkd,p), FIO_SPECIES_STAR, p);
+            pkdSetClass(pkd, pkdMass(pkd,p), 0., FIO_SPECIES_STAR, p);
 
+            // When changing the class, we have to take into account that the code velocity
+            // has different scale factor dependencies for dm/star particles and gas particles
+            pv = pkdVel(pkd,p);
+            for (int j=0; j<3; j++){
+               pv[j] *= dScaleFactor;
+            }
             // We log statistics about the formation time
             pkdStar(pkd, p)->fTimer = dTime;
             pkdStar(pkd, p)->hasExploded = 0;
@@ -160,10 +183,12 @@ void pkdStarForm(PKD pkd,
             //
             //  Note that we can do this because, although the class of p is a star, 
             //  it still holds the SPHFIELD struct (which is suboptimal, but hey, we can take it as an advantage)
+            /*
             psph->Uint += pkdMass(pkd,p) * pkd->param.dFeedbackDu;
             psph->P = psph->Uint*psph->omega*(pkd->param.dConstGamma -1.);
             psph->c = sqrt(psph->Uint*pkd->param.dConstGamma/pkdMass(pkd,p)/(pkd->param.dConstGamma -1.));
             psph->c *= 4.; // Even more tight constraint
+            */
 #endif
 		(*nFormed)++;
 		*dMassFormed += pkdMass(pkd,p);

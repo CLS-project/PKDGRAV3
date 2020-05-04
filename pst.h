@@ -969,6 +969,7 @@ struct inStarForm
     int bdivv;
     */
     double dTime;
+    double dScaleFactor;
     double dDenMin;
     double dDenCrit;
     double dDelta;

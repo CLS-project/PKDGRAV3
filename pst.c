@@ -2333,7 +2333,7 @@ void pstWrite(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 		}
           
 
-          pkdWriteHeaderFIO(plcl->pkd, fio, in->dTime, in->nDark, in->nGas, in->nStar);
+          pkdWriteHeaderFIO(plcl->pkd, fio, 1./sqrt(in->dvFac), in->dTime, in->nDark, in->nGas, in->nStar);
 
 	    pkdWriteFIO(plcl->pkd,fio,in->dvFac,&in->bnd);
 
@@ -3561,7 +3561,7 @@ pstStarForm(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 		}
     else {
 	pkdStarForm(pst->plcl->pkd,
-		    in->dTime, in->dDelta, in->dDenMin, in->dDenCrit,
+		    in->dTime, in->dDelta, in->dScaleFactor, in->dDenMin, in->dDenCrit,
 		     &out->nFormed, &out->dMassFormed, &out->nDeleted);
 	}
     

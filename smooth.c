@@ -2684,9 +2684,7 @@ int  smReSmooth(SMX smx,SMF *smf, int iSmoothType) {
                if ( (pkdStar(pkd,p)->hasExploded == 0) && 
                     ((smf->dTime-pkdStar(pkd,p)->fTimer) > pkd->param.dFeedbackDelay) ){
                   printf("BOOM! \n");
-                  smReSmoothSingle(smx,smf,p, 2.*pkdBall(pkd,p)); // Here we assume that the neighborhood has not
-                                                                  // changed a lot before it explodes
-                                                                  
+                  smReSmoothSingle(smx,smf,p, 2.*pkdBall(pkd,p));                                                                   
                   pkdStar(pkd,p)->hasExploded = 1;
 
                   nSmoothed++;

@@ -293,7 +293,7 @@ void msrHydroStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime); //IA
 /* IA: COOLING */
 
 #ifdef COOLING
-void msrCoolingUpdate(MSR msr,float redshift);
+void msrCoolingUpdate(MSR msr,float redshift, int sync);
 void msrCoolingInit(MSR msr);
 #endif
 

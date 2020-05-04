@@ -133,7 +133,7 @@ inline void get_redshift_index(
  *
  *
  */
-void cooling_update(MSR msr,const float redshift) {
+void cooling_update(MSR msr,const float redshift, int sync) {
 
    struct cooling_function_data *cooling = msr->cooling;
   /* Current redshift */
@@ -154,7 +154,7 @@ void cooling_update(MSR msr,const float redshift) {
     /* Does this timestep straddle Hydrogen reionization? If so, we need to
      * input extra heat */
     //if (cosmo->z <= cooling->H_reion_z && cosmo->z_old > cooling->H_reion_z) {
-    if (redshift <= cooling->H_reion_z /* IA: && cosmo->z_old > cooling->H_reion_z */) {
+    if (redshift <= cooling->H_reion_z && sync /* IA: && cosmo->z_old > cooling->H_reion_z */) {
 
       //if (s == NULL) error("Trying to do H reionization on an empty space!");
 
@@ -474,7 +474,8 @@ void cooling_cool_part(PKD pkd,
   const float HeFrac = XHe / (XH + XHe);
 
   /* convert Hydrogen mass fraction into physical Hydrogen number density */
-  const float rho = pkdDensity(pkd,p) * pow(1.+redshift,3.); // TODO: why does not work with dComovingGmPerCcUnit?
+  const float a_m3 = pow(1.+redshift,3.);
+  const float rho = pkdDensity(pkd,p) * a_m3 ; // TODO: why does not work with dComovingGmPerCcUnit?
   const double n_H = rho * XH / MHYDR * pkd->param.dMsolUnit * MSOLG;
   const double n_H_cgs = n_H * cooling->number_density_to_cgs;
 
@@ -496,8 +497,9 @@ void cooling_cool_part(PKD pkd,
      re-ionization as this needs to be added on no matter what */
 
   /* Get helium and hydrogen reheating term */
-  const double Helium_reion_heat_cgs =
-      eagle_helium_reionization_extraheat(redshift, delta_redshift, cooling);
+  const double Helium_reion_heat_cgs =  0.;
+      //eagle_helium_reionization_extraheat(redshift, delta_redshift, cooling);
+
 
   /* Convert this into a rate */
   const double Lambda_He_reion_cgs =
@@ -547,7 +549,7 @@ void cooling_cool_part(PKD pkd,
 
   /* Limit imposed by the entropy floor */
   double u_floor = 0.;
-  internalEnergyFloor(pkd, p, psph);
+  internalEnergyFloor(pkd, p, psph, a_m3);
 
   /* Expected change in energy over the next kick step
      (assuming no change in dt) */
@@ -717,10 +719,9 @@ void cooling_Hydrogen_reionization(PKD pkd) {
   SPHFIELDS* psph;
   struct cooling_function_data * cooling = pkd->cooling;
   /* Energy to inject in internal units */
-  const float extra_heat =
-      cooling->H_reion_heat_cgs * cooling->internal_energy_from_cgs;
+  const double extra_heat_per_proton =
+      cooling->H_reion_heat_cgs * cooling->internal_energy_from_cgs ;
 
-  printf("Applying extra energy for H reionization! %e %e \n", cooling->H_reion_heat_cgs, cooling->internal_energy_from_cgs);
 
    cooling->H_reion_done = 1;
   /* Loop through particles and set new heat */
@@ -728,8 +729,13 @@ void cooling_Hydrogen_reionization(PKD pkd) {
     p = pkdParticle(pkd,i);
     psph = pkdSph(pkd, p);
 
-    const float old_u = psph->Uint ;
-    const float new_u = old_u + extra_heat;
+    const double old_u = psph->Uint ;
+
+    /* IA: Mass in hydrogen */
+    const double extra_heat = extra_heat_per_proton * pkdMass(pkd,p) * psph->chemistry[chemistry_element_H];
+    const double new_u = old_u + extra_heat;
+    
+    //printf("Applying extra energy for H reionization! U=%e dU=%e \n", old_u, extra_heat);
 
     //hydro_set_physical_internal_energy(p, xp, cosmo, new_u);
     //hydro_set_drifted_physical_internal_energy(p, cosmo, new_u);

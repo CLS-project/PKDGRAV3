@@ -372,7 +372,7 @@ static int fioNoWriteSph(
     float UNUSED(fMass),float UNUSED(fSoft),
     float UNUSED(fPot),float UNUSED(fDen),
     float UNUSED(fTemp),float *UNUSED(fMetals),
-    float UNUSED(fBall), float UNUSED(fIntEnergy)) {
+    float UNUSED(fBall), float UNUSED(fIntEnergy), float UNUSED(fSFR)) {
     fprintf(stderr,"Writing SPH particles is not supported\n");
     abort();
     return 0;
@@ -1051,7 +1051,7 @@ static int tipsyWriteNativeSph(
     struct fioInfo *fio,uint64_t UNUSED(iParticleID),const double *pdPos,const double *pdVel,
     float fMass,float fSoft,float fPot,float fDen,
     float fTemp,float *fMetals,
-    float fBall, float IntEnergy) {
+    float fBall, float IntEnergy, float fSFR) {
     fioTipsy *tio = (fioTipsy *)fio;
     int rc;
     int d;
@@ -1123,7 +1123,7 @@ static int tipsyReadStandardSph(
 static int tipsyWriteStandardSph(
     struct fioInfo *fio,uint64_t iParticleID,const double *pdPos,const double *pdVel,
     float fMass,float fSoft,float fPot,float fDen,
-    float fTemp,float* fMetals, float fBall, float fIntEnergy) {
+    float fTemp,float* fMetals, float fBall, float fIntEnergy, float fSFR) {
     fioTipsy *tio = (fioTipsy *)fio;
     int d;
     float fTmp;
@@ -1999,7 +1999,7 @@ static int gadgetWriteNativeSph(
     uint64_t iParticleID,const double *pdPos,const double *pdVel,float fMass,
     float UNUSED(fSoft),float UNUSED(fPot),float UNUSED(fDen),
     float UNUSED(fTemp),float *UNUSED(fMetals),
-    float UNUSED(fBall),float UNUSED(fIntEnergy)) {
+    float UNUSED(fBall),float UNUSED(fIntEnergy), float UNUSED(fSFR)) {
     fioGADGET *gio = (fioGADGET *)fio;
     return gadgetWriteNative(gio,iParticleID,pdPos,pdVel,fMass);
     }
@@ -2739,6 +2739,7 @@ static void writeSet(
 #define FIELD_TEMPERATURE "Temperature"
 #define FIELD_INTERNALENERGY "InternalEnergy"
 #define FIELD_METALS      "Metallicity"
+#define FIELD_SFR         "StarFormationRate"
 #define FIELD_AGE         "StellarFormationTime"
 
 
@@ -2778,6 +2779,7 @@ enum SPH_FIELDS{
    SPH_DENSITY     ,
    SPH_TEMPERATURE ,
    SPH_METALS      ,
+   SPH_SFR         ,
    SPH_SMOOTHING   ,
    SPH_INTERNALENERGY,
    SPH_N           ,
@@ -3619,6 +3621,7 @@ static int hdf5ReadSph(
     if ( !field_get_float(pfMetals,&base->fldFields[SPH_METALS],base->iIndex) )
 	for (i=0;i<NUMBER_METALS;i++) pfMetals[i] = 0.0f;
 
+
     /* iOrder is either sequential, or is listed for each particle */
     *piParticleID = ioorder_get(&base->ioOrder,base->iOffset,base->iIndex);
 
@@ -3737,7 +3740,7 @@ static int  hdf5WriteDark(
 static int hdf5WriteSph(
     struct fioInfo *fio,uint64_t iParticleID,const double *pdPos,const double *pdVel,
     float fMass,float fSoft,float fPot,float fDen,
-    float fIntEnergy,float* fMetals, float fBall, float fTemp) {
+    float fIntEnergy,float* fMetals, float fBall, float fTemp, float fSFR) {
     fioHDF5 *hio = (fioHDF5 *)(fio);
     IOBASE *base = &hio->base[FIO_SPECIES_SPH];
     assert(fio->eFormat == FIO_FORMAT_HDF5);
@@ -3754,6 +3757,10 @@ static int hdf5WriteSph(
 		     FIELD_SMOOTHING, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, 1 );
 	field_create(&base->fldFields[SPH_METALS],base->group_id,
 		     FIELD_METALS, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, NUMBER_METALS);
+#ifdef STAR_FORMATION
+	field_create(&base->fldFields[SPH_SFR],base->group_id,
+		     FIELD_SFR, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, 1);
+#endif
 	}
 
     ioorder_add(base,iParticleID);
@@ -3767,6 +3774,9 @@ static int hdf5WriteSph(
     field_add_float(&fIntEnergy,&base->fldFields[SPH_INTERNALENERGY],base->iIndex);
     field_add_float(&fBall,&base->fldFields[SPH_SMOOTHING],base->iIndex);
     field_add_float(fMetals,&base->fldFields[SPH_METALS],base->iIndex);
+#ifdef STAR_FORMATION
+    field_add_float(&fSFR,&base->fldFields[SPH_SFR],base->iIndex);
+#endif
 
     /* If we have exhausted our buffered data, read more */
     if (++base->iIndex == CHUNK_SIZE) {

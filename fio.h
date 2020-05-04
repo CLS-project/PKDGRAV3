@@ -185,7 +185,7 @@ typedef struct fioInfo {
     int  (*fcnWriteSph) (
 	struct fioInfo *fio,uint64_t iParticleID,const double *pdPos,const double *pdVel,
 	float fMass,float fSoft,float fPot,float fDen,
-      float fTemp,float* fMetals, float fBall, float fIntEnergy);
+      float fTemp,float* fMetals, float fBall, float fIntEnergy, float fSFR);
     int  (*fcnWriteStar) (struct fioInfo *fio,
 	uint64_t iParticleID,const double *pdPos,const double *pdVel,
 	float fMass,float fSoft,float fPot,float fDen,
@@ -287,9 +287,9 @@ static inline int fioWriteDark(
 static inline int  fioWriteSph(
     FIO fio,uint64_t iParticleID,const double *pdPos,const double *pdVel,
     float fMass,float fSoft,float fPot,float fDen,
-    float fTemp,float* fMetals, float fBall, float fIntEnergy) {
+    float fTemp,float* fMetals, float fBall, float fIntEnergy, float fSFR) {
     return (*fio->fcnWriteSph)(fio,iParticleID,pdPos,pdVel,fMass,fSoft,fPot,fDen,
-			      fTemp, fMetals, fBall, fIntEnergy);
+			      fTemp, fMetals, fBall, fIntEnergy, fSFR);
     }
 static inline int fioWriteStar(
     FIO fio,uint64_t iParticleID,const double *pdPos,const double *pdVel,

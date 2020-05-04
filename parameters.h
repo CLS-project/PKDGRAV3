@@ -165,6 +165,7 @@ struct parameters {
     double dExtraStore;
     double dSoft;
     double dSoftMax;
+    double dMaxPhysicalSoft;
     double dDelta;
     double dEwCut;
     double dEwhCut;

@@ -270,7 +270,7 @@ void Riemann_solver(PKD pkd, struct Input_vec_Riemann Riemann_vec, struct Rieman
     if((Riemann_out->P_M<=0)||(isnan(Riemann_out->P_M)))
         Riemann_solver_Rusanov(pkd, Riemann_vec, Riemann_out, n_unit, v_line_L, v_line_R, cs_L, cs_R, h_L, h_R);
 #else
-#if !defined(COOLING) && !defined(GALSF)
+//#if !defined(COOLING) && !defined(GALSF)
     /* go straight to the expensive but exact solver (only for hydro with polytropic eos!) */
     if((Riemann_out->P_M<=0)||(isnan(Riemann_out->P_M))||(Riemann_out->P_M>press_tot_limiter))
     {
@@ -289,7 +289,7 @@ void Riemann_solver(PKD pkd, struct Input_vec_Riemann Riemann_vec, struct Rieman
         Riemann_out->Face_Density = 0.5*(Riemann_vec.L.rho + Riemann_vec.R.rho);
 #endif
     }
-#endif // cooling/galsf
+//#endif // cooling/galsf
 #endif // eos_general
 #endif // magnetic
 

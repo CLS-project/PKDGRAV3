@@ -1171,6 +1171,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             pSph->drDotFrho[2] = 0.;
             pSph->fLastBall = 0.0;
             pSph->lastUpdateTime = -1.;
+            pSph->nLastNeighs = 100;
 #ifdef COOLING
             for (j=0; j<chemistry_element_count; j++) pSph->chemistry[j] = fMetals[j];
 
@@ -2118,7 +2119,7 @@ void pkdRestore(PKD pkd,const char *fname) {
 #endif
     }
 
-static void writeParticle(PKD pkd,FIO fio,double dvFac,BND *bnd,PARTICLE *p) {
+static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,BND *bnd,PARTICLE *p) {
     STARFIELDS *pStar;
     SPHFIELDS *pSph;
     float *pPot, dummypot;
@@ -2132,16 +2133,22 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,BND *bnd,PARTICLE *p) {
     if ( pkd->oPotential) pPot = pkdPot(pkd,p);
     else pPot = &dummypot;
     if (pkd->oVelocity) {
+       /* IA: the gas velocity in the code is v = a \dot x
+        *  and the dm/star velocity v = a^2 \dot x
+        *
+        *  However, we save both as \dot x such that 
+        *  they can be be directly compared at the output
+        */
       if (!pkdIsGas(pkd,p)){ 
          vel_t *pV = pkdVel(pkd,p);
          v[0] = pV[0] * dvFac;
          v[1] = pV[1] * dvFac;
          v[2] = pV[2] * dvFac;
-      }else{ //IA: we save the gas velocity as v = a dotx
+      }else{ 
          vel_t *pV = pkdVel(pkd,p);
-         v[0] = pV[0] * sqrt(dvFac);
-         v[1] = pV[1] * sqrt(dvFac);
-         v[2] = pV[2] * sqrt(dvFac);
+         v[0] = pV[0] * dvFacGas;
+         v[1] = pV[1] * dvFacGas;
+         v[2] = pV[2] * dvFacGas;
       }
 	}
     else v[0] = v[1] = v[2] = 0.0;
@@ -2193,8 +2200,7 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,BND *bnd,PARTICLE *p) {
 	assert(pkd->param.dTuFac>0.0);
 	    {
 #ifdef COOLING
-            // TODO: obtain more elegantly the redshift
-          const double dRedshift = sqrt(dvFac) - 1.;
+          const double dRedshift = dvFacGas - 1.;
           float temperature =  cooling_get_temperature(pkd, dRedshift, pkd->cooling, p, pSph);
           for (int k=0; k<chemistry_element_count;k++) fMetals[k] = pSph->chemistry[k];
 #else
@@ -2202,10 +2208,16 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,BND *bnd,PARTICLE *p) {
           for (int k=0; k<chemistry_element_count;k++) fMetals[k] = 0.;
 #endif
 
-          fBall = pkdBall(pkd,p);
+#ifdef STAR_FORMATION
+          float SFR = pSph->SFR;
+#else
+          float SFR=0.;
+#endif
+
+          fBall = pSph->nLastNeighs; //pkdBall(pkd,p);
 
 	     fioWriteSph(fio,iParticleID,r,v,fMass,fSoft,*pPot,
-	 	fDensity,pSph->Uint/fMass, &fMetals[0], fBall, temperature);
+	 	fDensity,pSph->Uint/fMass, &fMetals[0], fBall, temperature, SFR);
 	    }
 	break;
     case FIO_SPECIES_DARK:
@@ -2243,9 +2255,10 @@ static int unpackWrite(void *vctx, int *id, size_t nSize, void *vBuff) {
     PARTICLE *p = (PARTICLE *)vBuff;
     int n = nSize / pkdParticleSize(pkd);
     int i;
+    double dvFacGas = sqrt(ctx->dvFac);
     assert( n*pkdParticleSize(pkd) == nSize);
     for(i=0; i<n; ++i) {
-	writeParticle(pkd,ctx->fio,ctx->dvFac,ctx->bnd,pkdParticleGet(pkd,p,i));
+	writeParticle(pkd,ctx->fio,ctx->dvFac,dvFacGas,ctx->bnd,pkdParticleGet(pkd,p,i));
 	}
     return 1;
     }
@@ -2286,15 +2299,15 @@ void pkdWriteViaNode(PKD pkd, int iNode) {
 #endif
     }
 
-void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dTime, uint64_t nDark, uint64_t nGas, uint64_t nStar){
+void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dScaleFactor, double dTime, uint64_t nDark, uint64_t nGas, uint64_t nStar){
    /* Restart information IA: Unused?*/
    //fioSetAttr(fio, "dEcosmo",  FIO_TYPE_DOUBLE, &in->dEcosmo );
    //fioSetAttr(fio, "dTimeOld", FIO_TYPE_DOUBLE, &in->dTimeOld );
    //fioSetAttr(fio, "dUOld",    FIO_TYPE_DOUBLE, &in->dUOld );
-
+   
    fioSetAttr(fio, 0, 0, "Time", FIO_TYPE_DOUBLE, 1, &dTime);
    if (pkd->param.csm->val.bComove){
-      double z = 1./dTime - 1.;
+      double z = 1./dScaleFactor - 1.;
       fioSetAttr(fio, 0, 0, "Redshift", FIO_TYPE_DOUBLE, 1, &z);
    }
    int flag;
@@ -2328,7 +2341,6 @@ void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dTime, uint64_t nDark, uint64_t 
     * this bParaWrite=0
     *
     * TODO: Check and debug parallel HDF5
-    * TODO: Check that this particle count changes when there is SF
     */
    unsigned int numPart_file[6] = {0,0,0,0,0,0};
    fioSetAttr(fio, 0, 0, "NumPart_Total_HighWord", FIO_TYPE_UINT32, 6, &numPart_file[0]);
@@ -2393,10 +2405,11 @@ uint32_t pkdWriteFIO(PKD pkd,FIO fio,double dvFac,BND *bnd) {
     PARTICLE *p;
     int i;
     uint32_t nCount;
+    double dvFacGas = sqrt(dvFac);
     nCount = 0;
     for (i=0;i<pkdLocal(pkd);++i) {
 	p = pkdParticle(pkd,i);
-	writeParticle(pkd,fio,dvFac,bnd,p);
+	writeParticle(pkd,fio,dvFac,dvFacGas,bnd,p);
 	nCount++;
 	}
     return nCount;
@@ -3102,13 +3115,15 @@ void pkdPredictSmoothing(PKD pkd,int iRoot, double dTime, double dDelta) {
             psph = pkdSph(pkd, p);
 
             double pdivv = psph->gradVx[0] + psph->gradVy[1] + psph->gradVz[2];
-            if (pkd->param.csm->val.bComove){
-               pdivv /= dScaleFac;
-            }
-            float fBall = pkdBall(pkd,p);
-            float newBall = fBall*exp(0.3333333*pdivv*(dTime - psph->lastUpdateTime));
+            if (pdivv > 0){
+               if (pkd->param.csm->val.bComove){
+                  pdivv /= dScaleFac;
+               }
+               float fBall = pkdBall(pkd,p);
+               float newBall = fBall*exp(0.3333333*pdivv*(dTime - psph->lastUpdateTime));
 
-            pkdSetBall(pkd,p, newBall);
+               pkdSetBall(pkd,p, newBall);
+            }
          }
        }
     }
@@ -3196,7 +3211,7 @@ void pkdComputePrimVars(PKD pkd,int iRoot, double dTime, double dDelta) {
             // ##### Pressure
 
             double Ekin = 0.5*( psph->mom[0]*psph->mom[0] + psph->mom[1]*psph->mom[1] + psph->mom[2]*psph->mom[2] ) / pkdMass(pkd,p);
-            //printf("E %e \t Uint %e \t Ekin %e \n", psph->E, psph->Uint, Ekin);
+            //if (fabs((psph->E-Ekin-psph->Uint)/psph->Uint)>0.1) printf("E %e \t Uint %e \t Ekin %e \n", psph->E, psph->Uint, Ekin);
             if (Ekin > 0.99*psph->E ){
                   psph->P = psph->Uint*psph->omega*(pkd->param.dConstGamma -1.);
                   psph->E = psph->Uint + Ekin;
