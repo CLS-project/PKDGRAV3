@@ -273,6 +273,9 @@ static PyObject *ephemeral_get_bytes_per_particle(EPHEMERALINSTANCE *self, void 
     return PyLong_FromSize_t(self->nBytesPerParticle);
     }
 
+// This warning should be fixed in newer Python versions
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wwrite-strings"
 static PyGetSetDef ephemeral_getseters[] = {
 	{"bytes_per_node", (getter)ephemeral_get_bytes_per_node, NULL,
 	    "Number of bytes of ephemeral needed for each node", NULL},
@@ -280,6 +283,7 @@ static PyGetSetDef ephemeral_getseters[] = {
 	    "Number of bytes of ephemeral needed for each particle", NULL},
 	{NULL} /* Sentinel */
     };
+#pragma GCC diagnostic pop
 
 static PyTypeObject ephemeralType = {
     PyVarObject_HEAD_INIT(NULL,0)
@@ -1156,11 +1160,15 @@ static PyObject *msr_get_spec(MSRINSTANCE *self, void *) {
     return self->msr->specified;
     }
 
+// This warning should be fixed in newer Python versions
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wwrite-strings"
 static PyGetSetDef msr_getseters[] = {
 	{"parm", (getter)msr_get_parm, NULL, "All parameters", NULL},
 	{"spec", (getter)msr_get_spec, NULL, "If parameters were specified", NULL},
 	{NULL} /* Sentinel */
     };
+#pragma GCC diagnostic pop
 
 static PyTypeObject msrType = {
     PyVarObject_HEAD_INIT(NULL,0)
