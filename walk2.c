@@ -210,8 +210,6 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2,
 #endif
     double dFlop;
 
-    void *cudaCtx = mdlGetCudaContext(pkd->mdl);
-
     pkd->dFlop = 0.0; /* Flops are accumulated here! */
     iStack = -1;
 
@@ -714,10 +712,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2,
 	}
 doneCheckList:
 #ifdef USE_CUDA
-    if (cudaCtx) {
-	CUDA_sendWork(cudaCtx);
-	CUDA_flushEwald(cudaCtx);
-	}
+    CudaClientFlush(pkd->cudaClient);
 #endif
     mdlCompleteAllWork(pkd->mdl);
     *pdFlop += pkd->dFlop; /* Accumulate work flops (notably Ewald) */

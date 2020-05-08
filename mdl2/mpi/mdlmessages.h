@@ -59,8 +59,8 @@ public:
     virtual void action(class mpiClass *mpi) {sendBack();}
     virtual void result(class mdlClass *mdl);
     };
-struct mdlMessageQueue : public basicQueue<mdlMessage> {
-    mdlMessageQueue() : basicQueue<mdlMessage>() {}
+struct mdlMessageQueue : public messageQueue<mdlMessage> {
+    mdlMessageQueue() : messageQueue<mdlMessage>() {}
     };
 
 // Used to hold a sequence of cache lines to send to the MPI thread for processing

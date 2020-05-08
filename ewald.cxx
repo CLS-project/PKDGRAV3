@@ -36,6 +36,9 @@
 #ifdef USE_SIMD_EWALD
 #include "vmath.h"
 #endif/*USE_SIMD_EWALD*/
+#ifdef USE_CUDA
+#include "cudautil.h"
+#endif
 
 template<class F,class E,class M>
 static int evalEwald(
@@ -514,10 +517,7 @@ void pkdEwaldInit(PKD pkd,int nReps,double fEwCut,double fhCut) {
     mdlThreadBarrier(pkd->mdl);
 #endif
 #ifdef USE_CUDA
-    void *cudaCtx = mdlGetCudaContext(pkd->mdl);
-    if (cudaCtx) {
-	cudaEwaldInit(cudaCtx,ew,ewt);
-	mdlThreadBarrier(pkd->mdl);
-	}
+    auto cuda = reinterpret_cast<CudaClient *>(pkd->cudaClient);
+    cuda->setupEwald(ew,ewt);
 #endif
     }

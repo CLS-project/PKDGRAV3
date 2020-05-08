@@ -54,9 +54,6 @@ static inline int size_t_to_int(size_t v) {
 #include <sys/resource.h>
 #endif
 #include "mpi.h"
-#ifdef USE_CUDA
-#include "cudautil.h"
-#endif
 #ifdef USE_CL
 #include "clutil.h"
 #endif
@@ -1031,11 +1028,8 @@ void mpiClass::processMessages() {
 int mpiClass::checkMPI() {
     /* Start any CUDA work packages */
 #ifdef USE_CUDA
-    if (cudaCtx) {
-	CUDA_registerBuffers(cudaCtx, &queueREGISTER);
-        CUDA_startWork(cudaCtx, &queueWORK);
-	CUDA_flushDone(cudaCtx);
-	}
+    flushCompletedCUDA();
+    cuda.initiate();
 #endif
     processMessages();
     finishRequests(); // Check for non-block MPI requests (send, receive, barrier, etc.)
@@ -1202,8 +1196,7 @@ int mpiClass::Launch(int argc,char **argv,int (*fcnMaster)(MDL,void *),void * (*
 
 /* All GPU work is funneled through the MPI thread */
 #ifdef USE_CUDA
-    inCudaBufSize = outCudaBufSize = 0;
-    cudaCtx = CUDA_initialize(0,-1,NULL,NULL);
+    cuda.initialize();
 #endif
 
     iRequestTarget = 0;
@@ -1320,12 +1313,18 @@ int mpiClass::Launch(int argc,char **argv,int (*fcnMaster)(MDL,void *),void * (*
     return exit_code;
     }
 
+#ifdef USE_CUDA
+void mpiClass::enqueue(const cudaMessage &M, basicQueue &replyTo) {
+    cuda.enqueue(M,replyTo);
+    }
+#endif
+
 void mpiClass::enqueue(mdlMessage &M) {
     queueMPInew.enqueue(M);
     }
 
-void mpiClass::enqueue(const mdlMessage &M, mdlMessageQueue &replyTo, bool bWait) {
-    queueMPInew.enqueue(M,replyTo,false);
+void mpiClass::enqueue(const mdlMessage &M, basicQueue &replyTo, bool bWait) {
+    queueMPInew.enqueue(M,replyTo);
     if (bWait) waitQueue(replyTo);
     }
 
@@ -1334,16 +1333,8 @@ void mdlAbort(MDL mdl) {
     }
 
 mdlClass::~mdlClass() {
-#ifdef USE_CUDA
-    if (cudaCtx) CUDA_finish(cudaCtx);
-#endif
-
-    /*
-     ** Close Diagnostic file.
-     */
-    if (bDiag) {
-	fclose(fpDiag);
-	}
+    // Close Diagnostic file.
+    if (bDiag) fclose(fpDiag);
     }
 
 /*****************************************************************************\
@@ -1362,9 +1353,6 @@ void mdlClass::combine_all_incoming() {
     }
 
 void mdlClass::bookkeeping() {
-#ifdef USE_CUDA
-    if (cudaCtx) CUDA_checkForRecovery(cudaCtx);
-#endif
     combine_all_incoming();
     }
 
@@ -1404,10 +1392,53 @@ void mdlClass::CompleteAllWork() {
     while(CL_flushDone(clCtx)) {}
 #endif
 #ifdef USE_CUDA
-    if (cudaCtx) while(CUDA_flushDone(cudaCtx)) {}
+    while(flushCompletedCUDA()) {}
 #endif
     }
 
+basicMessage &mdlClass::waitQueue(basicQueue &wait) {
+    while(wait.empty()) {
+	checkMPI(); // Only does something on the MPI thread
+	bookkeeping();
+	if (DoSomeWork() == 0) {
+	    // This is important in the case where we have oversubscribed the CPU
+#ifdef _MSC_VER
+	    SwitchToThread();
+#else
+	    sched_yield();
+#endif
+	    }
+	}
+    return wait.dequeue();
+    }
+
+#ifdef USE_CUDA
+int mdlClass::flushCompletedCUDA() {
+    while(!cudaDone.empty()) {
+    	auto &M = cudaDone.dequeue();
+	M.finish();
+	--nCUDA;
+	}
+    return nCUDA;
+    }
+
+void mdlClass::enqueue(const cudaMessage &M) {
+    ++nCUDA;
+    mpi->enqueue(M,cudaDone);
+    }
+
+void mdlClass::enqueue(const cudaMessage &M, basicQueue &replyTo) {
+    mpi->enqueue(M,replyTo);
+    }
+
+// Send the message to the MPI thread and wait for the response
+void mdlClass::enqueueAndWait(const cudaMessage &M) {
+    cudaMessageQueue wait;
+    enqueue(M,wait);
+    waitQueue(wait);
+    }
+#endif
+#if 0
 // Wait for a message to appear in the queue doing any background work
 mdlMessage &mdlClass::waitQueue(mdlMessageQueue &wait) {
     while(wait.empty()) {
@@ -1424,12 +1455,13 @@ mdlMessage &mdlClass::waitQueue(mdlMessageQueue &wait) {
 	}
     return wait.dequeue();
     }
+#endif
 
 void mdlClass::enqueue(mdlMessage &M) {
     mpi->enqueue(M);
     }
 
-void mdlClass::enqueue(const mdlMessage &M, mdlMessageQueue &replyTo, bool bWait) {
+void mdlClass::enqueue(const mdlMessage &M, basicQueue &replyTo, bool bWait) {
     mpi->enqueue(M,replyTo,false);
     if (bWait) waitQueue(replyTo);
     }
@@ -1554,10 +1586,6 @@ void mdlClass::init(bool bDiag) {
 
     queueReceive.resize(Cores()); // A separate receive queue from each core
 
-#ifdef USE_CUDA
-    inCudaBufSize = outCudaBufSize = 0;
-    cudaCtx = CUDA_initialize(Cores(), Core(), &mpi->queueWORK, &mpi->queueREGISTER);
-#endif
 #ifdef USE_CL
     clCtx = CL_initialize(clContext,Cores(),Core());
 #endif
@@ -2219,9 +2247,9 @@ void mdlClass::Alltoallv(int dataSize,void *sbuff,int *scount,int *sdisps,void *
     }
 #if defined(USE_CUDA) || defined(USE_CL)
 void mdlSetCudaBufferSize(MDL cmdl,int inBufSize, int outBufSize) {
-    mdlClass *mdl = reinterpret_cast<mdlClass *>(cmdl);
-    if (mdl->inCudaBufSize < inBufSize) mdl->inCudaBufSize = inBufSize;
-    if (mdl->outCudaBufSize < outBufSize) mdl->outCudaBufSize = outBufSize;
+//    mdlClass *mdl = reinterpret_cast<mdlClass *>(cmdl);
+//    if (mdl->inCudaBufSize < inBufSize) mdl->inCudaBufSize = inBufSize;
+//    if (mdl->outCudaBufSize < outBufSize) mdl->outCudaBufSize = outBufSize;
     }
 #endif
 
@@ -2230,9 +2258,6 @@ void mdlSetWorkQueueSize(MDL cmdl,int wqMaxSize,int cudaSize) {
     MDLwqNode *work;
     int i;
 
-#ifdef USE_CUDA
-    if (mdl->cudaCtx) CUDA_SetQueueSize(mdl->cudaCtx,cudaSize,mdl->inCudaBufSize,mdl->outCudaBufSize);
-#endif
 #ifdef USE_CL
     CL_SetQueueSize(mdl->clCtx,cudaSize,mdl->inCudaBufSize,mdl->outCudaBufSize);
 #endif
@@ -2269,11 +2294,6 @@ void mdlAddWork(MDL cmdl, void *ctx,
     MDLwqNode *work;
     int i;
 
-    /* We prefer to let CUDA do the work */
-#ifdef USE_CUDA
-    assert(initWork==NULL && checkWork==NULL); // obsolete
-//    if (CUDA_queue(mdl->cudaCtx,ctx,initWork,checkWork)) return;
-#endif
     /* Obviously, we can only queue work if we have a free queue element */
     if (!OPA_Queue_is_empty(&mdl->wqFree)) {
 	/* We have some room, so save work for later */
@@ -2337,17 +2357,10 @@ void mdlprintf(MDL cmdl, const char *format, ...) {
     va_end(args);
     }
 
+bool mdlClass::isCudaActive() {return mpi->isCudaActive(); }
 int mdlCudaActive(MDL mdl) {
 #ifdef USE_CUDA
-    return reinterpret_cast<mdlClass *>(mdl)->cudaCtx != NULL;
-#else
-    return 0;
-#endif
-    }
-
-void *mdlGetCudaContext(MDL mdl) {
-#ifdef USE_CUDA
-    return reinterpret_cast<mdlClass *>(mdl)->cudaCtx;
+    return reinterpret_cast<mdlClass *>(mdl)->isCudaActive();
 #else
     return 0;
 #endif

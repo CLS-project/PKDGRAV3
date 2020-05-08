@@ -21,14 +21,5 @@
 #include "cudautil.h"
 #include "ilp.h"
 #include "ilc.h"
-#ifdef __cplusplus
-extern "C" {
-#endif
-    int CUDA_queuePP(void *cudaCtx,workParticle *wp, ILPTILE tile, int bGravStep);
-    int CUDA_queuePC(void *cudaCtx,workParticle *wp, ILCTILE tile, int bGravStep);
-    void CUDA_sendWork(void *cudaCtx);
-#ifdef __cplusplus
-    }
-#endif
 #endif
 #endif

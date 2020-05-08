@@ -899,6 +899,7 @@ typedef struct pkdContext {
 
 #ifdef USE_CUDA
     void *cudaCtx;
+    void *cudaClient;
 #endif
 #ifdef MDL_FFTW
     MDLFFT fft;
@@ -1577,7 +1578,7 @@ extern "C" {
     extern int CUDAcheckWorkPC( void *vpp, void *vwork );
     extern int CUDAinitWorkEwald( void *vpp, void *vwork );
     extern int CUDAcheckWorkEwald( void *vpp, void *vwork );
-    extern void cudaEwaldInit(void *cudaCtx, struct EwaldVariables *ewIn, EwaldTable *ewt );
+    void *pkdCudaClientInitialize(PKD pkd);
 #endif
 #ifdef USE_CL
     extern int CLinitWorkEwald( void *vcl, void *ve, void *vwork );

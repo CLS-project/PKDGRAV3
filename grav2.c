@@ -283,10 +283,9 @@ int doneWorkPP(void *vpp) {
 static void queuePP( PKD pkd, workParticle *wp, ILP ilp, int bGravStep ) {
     ILPTILE tile;
     workPP *pp;
-    void *cudaCtx = mdlGetCudaContext(pkd->mdl);
     ILP_LOOP(ilp,tile) {
 #ifdef USE_CUDA
-	if (cudaCtx && CUDA_queuePP(cudaCtx,wp,tile,bGravStep)) continue;
+	if (CudaClientQueuePP(pkd->cudaClient,wp,tile,bGravStep)) continue;
 #endif
 	pp = malloc(sizeof(workPP));
 	assert(pp!=NULL);
@@ -347,11 +346,10 @@ int doneWorkPC(void *vpc) {
 static void queuePC( PKD pkd,  workParticle *wp, ILC ilc, int bGravStep ) {
     ILCTILE tile;
     workPC *pc;
-    void *cudaCtx = mdlGetCudaContext(pkd->mdl);
 
     ILC_LOOP(ilc,tile) {
 #ifdef USE_CUDA
-	if (cudaCtx && CUDA_queuePC(cudaCtx,wp,tile,bGravStep)) continue;
+        if (CudaClientQueuePC(pkd->cudaClient,wp,tile,bGravStep)) continue;
 #endif
 	pc = malloc(sizeof(workPC));
 	assert(pc!=NULL);
@@ -370,8 +368,7 @@ static void queuePC( PKD pkd,  workParticle *wp, ILC ilc, int bGravStep ) {
 static void queueEwald( PKD pkd, workParticle *wp ) {
     int i;
 #ifdef USE_CUDA
-    void *cudaCtx = mdlGetCudaContext(pkd->mdl);
-    int nQueued = cudaCtx ? CUDA_queueEwald(cudaCtx,wp) : 0;
+    int nQueued = CudaClientQueueEwald(pkd->cudaClient,wp);
 #else
     int nQueued = 0;
 #endif
@@ -450,9 +447,6 @@ int pkdGravInteract(PKD pkd,
     wp->ts = ts;
     wp->lc = lc;
     wp->kick = kick;
-#ifdef USE_CUDA
-    wp->cudaCtx = pkd->cudaCtx;
-#endif
 
     for (i=pkdn->pLower;i<=pkdn->pUpper;++i) {
 	p = pkdParticle(pkd,i);

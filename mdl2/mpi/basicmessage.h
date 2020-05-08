@@ -5,18 +5,45 @@
 
 namespace mdl {
 
+// IMPORTANT: Message queues internally queue only a basicMessage and not the
+// derived type. When the message is dequeued, it is dynamically cast correctly.
+// This allows messages to be put on more or less specific queues as required
+// and the "replyQueue" can be generic. For example,
+//   ewaldMessage -> cudaMessage -> basicMessage
+// An ewaldMessage is sent to the CUDA thread which accepts a cudaMessage.
+// When returned, it goes onto a queue that accepts an ewaldMessage.
+
 struct basicMessage {
     OPA_Queue_element_hdr_t hdr;
     struct OPA_Queue_info_t *replyQueue;
     basicMessage() : replyQueue(0) {OPA_Queue_header_init(&hdr);}
-    virtual ~basicMessage() {} // This needs to be polymorphic
+    virtual ~basicMessage() {} // This class needs to be polymorphic (so dynamic_cast works)
     void sendBack() {if (replyQueue) OPA_Queue_enqueue(replyQueue, this, basicMessage, hdr);}
     };
 
-template<class messageType>
 struct basicQueue : public OPA_Queue_info_t {
     basicQueue() { OPA_Queue_init(this); }
     bool empty() {return OPA_Queue_is_empty(this);}
+
+    void enqueue(basicMessage *m) { OPA_Queue_enqueue(this,  m, basicMessage, hdr); }
+    void enqueue(basicMessage &m) { enqueue(&m); }
+    void enqueue(const basicMessage &C,basicQueue &Q) {
+	// We do modify "M", but we are done before we return. Promise.
+	// This allows patterns like Q.enqueueAndWait(MessageType(...))
+	basicMessage &M = const_cast<basicMessage&>(C);
+	M.replyQueue = &Q;
+	enqueue(M);
+	}
+
+    basicMessage &dequeue() {
+	basicMessage *M;
+	OPA_Queue_dequeue(this, M, basicMessage, hdr);
+	return *M;
+	}
+    };
+
+template<class messageType>
+struct messageQueue : public basicQueue {
 
     messageType &wait() {
 	while (OPA_Queue_is_empty(this)) {
@@ -29,24 +56,9 @@ struct basicQueue : public OPA_Queue_info_t {
 	    }
 	return dequeue();
 	}
-    void enqueue(messageType *M) { basicMessage *m = M; OPA_Queue_enqueue(this,  M, basicMessage, hdr); }
-    void enqueue(messageType &M) { enqueue(&M); }
-    void enqueue(const messageType &C,basicQueue<messageType> &Q, bool bWait=false) {
-	// We do modify "M", but we are done before we return. Promise.
-	messageType &M = const_cast<messageType&>(C);
-	M.replyQueue = &Q;
-	enqueue(M);
-//	OPA_Queue_enqueue(this, &M, messageType, hdr);
-	if (bWait) Q.wait();
-	}
-    void enqueueAndWait(const messageType &M){
-	basicQueue<messageType> wait;
-	enqueue(M,wait,true);
-	}
     messageType &dequeue() {
-	basicMessage *M;
-	OPA_Queue_dequeue(this, M, basicMessage, hdr);
-	return * dynamic_cast<messageType*>(M);
+	basicMessage &M = basicQueue::dequeue();
+	return dynamic_cast<messageType&>(M);
 	}
     };
 } // namespace mdl

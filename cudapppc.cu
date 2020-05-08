@@ -44,15 +44,13 @@
 ** but we need to be able to alter their sizes.
 */
 
-template<int n>
-struct ilpBlk {
+template <int n,class TILE> struct Blk;
+template <int n> struct Blk<n,ilpTile> {
     float dx[n], dy[n], dz[n];    /* Offset from ilp->cx, cy, cz */
     float m[n];             /* Mass */
     float fourh2[n];        /* Softening: calculated */
     };
-
-template<int n>
-struct ilcBlk {
+template <int n> struct Blk<n,ilcTile> {
     float dx[n],dy[n],dz[n];
     float xxxx[n],xxxy[n],xxxz[n],xxyz[n],xxyy[n],yyyz[n],xyyz[n],xyyy[n],yyyy[n];
     float xxx[n],xyy[n],xxy[n],yyy[n],xxz[n],yyz[n],xyz[n];
@@ -91,18 +89,6 @@ struct __align__(32) ppResult {
 #define NP_ALIGN (128/sizeof(ppResult))
 #define NP_ALIGN_MASK (NP_ALIGN-1)
 
-template<typename BLK>
-static void dumpWork(struct cuda_wq_node *work) {
-    BLK * __restrict__ blkHost = reinterpret_cast<BLK*>(work->pHostBufToGPU);
-    ppWorkUnit * __restrict__ wuHost = reinterpret_cast<ppWorkUnit *>(blkHost + work->ppnBlocks);
-    int i;
-    fprintf(stderr,"kernel %s has %d work units\n", work->kernelName,work->pppc.nGrid);
-    for( i=0; i<work->pppc.nGrid; ++i) {
-        fprintf(stderr,"%4d %5d %5d %5d\n", i, wuHost[i].nP, wuHost[i].nI, wuHost[i].iP/*, wuHost[i].iB*/);
-        }
-
-    }
-
 /*
 ** Occupancy (theoretical):
 **   Compute 2.x:  8 (blocks) * PP_THREADS (128) = 1024 (2/3 MAX)
@@ -136,7 +122,7 @@ template <int nWarps,int nWarpsPerWU,int nSyncRate,int bGravStep>
 __global__ void cudaInteract(
     const ppWorkUnit * __restrict__ work,
     const ppInput * __restrict__ pPart,
-    const ilpBlk<WIDTH> * __restrict__ blk,
+    const Blk<WIDTH,ilpTile> * __restrict__ blk,
     ppResult *out) {
     int i, iSync;
     int iWork, iI, iWarp;
@@ -269,7 +255,7 @@ template <int nWarps,int nWarpsPerWU,int nSyncRate,int bGravStep>
 __global__ void cudaInteract(
     const ppWorkUnit * __restrict__ work,
     const ppInput * __restrict__ pPart,
-    const ilcBlk<WIDTH> * __restrict__ blk,
+    const Blk<WIDTH,ilcTile> * __restrict__ blk,
     ppResult *out) {
     int i, iSync;
     int iWork, iI, iWarp;
@@ -438,18 +424,250 @@ __global__ void cudaInteract(
 extern "C"
 void pkdParticleWorkDone(workParticle *wp);
 
-template<int nIntPerWU>
-int CUDAcheckWorkInteraction( void *vpp, void *vwork ) {
-    CUDAwqNode *work = reinterpret_cast<CUDAwqNode *>(vwork);
-    ppResult *pR       = reinterpret_cast<ppResult *>(work->pHostBufFromGPU);
-    int ib, iw, ip;
+/*****************************************************************************\
+*   CudaClient interface (new!)
+\*****************************************************************************/
 
-    for( ib=0; ib<work->ppnBuffered; ++ib) {
-        workParticle *wp = work->ppWP[ib];
-        PINFOOUT *pInfoOut = wp->pInfoOut;
-        int nWork = (work->ppNI[ib] + nIntPerWU - 1) / nIntPerWU;
-        for(iw=0; iw<nWork; ++iw) {
-            for(ip=0; ip<wp->nP; ++ip) {
+
+extern "C"
+int CudaClientQueuePP(void *vcudaClient, workParticle *work, struct ilpTile *tile, int bGravStep) {
+    auto cuda = reinterpret_cast<CudaClient *>(vcudaClient);
+    return cuda->queuePP(work,tile,bGravStep);
+    }
+
+int CudaClient::queuePP(workParticle *work, ilpTile *tile, bool bGravStep) {
+    if (pp) {
+    	if (pp->queue(work,tile,bGravStep)) return work->nP; // Sucessfully queued
+	flushPP(); // The buffer is full, so sent it
+	}
+    if (freePP.empty()) return 0; // No buffers so the CPU has to do this part
+    pp = & freePP.dequeue();
+    if (pp->queue(work,tile,bGravStep)) return work->nP; // Sucessfully queued
+    return 0; // Not sure how this would happen, but okay.
+    }
+void CudaClient::flushPP() {
+    if (pp) {
+    	mdl.enqueue(pp->prepare());
+        pp = nullptr;
+	}
+    }
+
+extern "C"
+int CudaClientQueuePC(void *vcudaClient, workParticle *work, struct ilcTile *tile, int bGravStep) {
+    auto cuda = reinterpret_cast<CudaClient *>(vcudaClient);
+    return cuda->queuePC(work,tile,bGravStep);
+    }
+
+int CudaClient::queuePC(workParticle *work, ilcTile *tile, bool bGravStep) {
+    if (pc) {
+    	if (pc->queue(work,tile,bGravStep)) return work->nP; // Sucessfully queued
+	flushPC(); // The buffer is full, so sent it
+	}
+    if (freePC.empty()) return 0; // No buffers so the CPU has to do this part
+    pc = & freePC.dequeue();
+    if (pc->queue(work,tile,bGravStep)) return work->nP; // Sucessfully queued
+    return 0; // Not sure how this would happen, but okay.
+    }
+void CudaClient::flushPC() {
+    if (pc) {
+    	mdl.enqueue(pc->prepare());
+        pc = nullptr;
+	}
+    }
+
+/*****************************************************************************\
+*   DATA LAYOUT
+*
+*   The memory block sent to the GPU has three distinct sections:
+*   1. An array of interaction blocks
+*   2. An array of interaction block descriptors
+*   3. An array of particles
+*
+*   When an interaction list is queued, we:
+*   1. Make sure that the additional interaction blocks and the pending
+*      descriptors and particles will fit, returning false if they won't.
+*   2. The individual blocks are copied into the output buffer.
+*   3. The workParticle structure is saved for later use
+\*****************************************************************************/
+
+template<class TILE,int nIntPerTB, int nIntPerWU>
+MessagePPPC<TILE,nIntPerTB,nIntPerWU>::MessagePPPC(mdl::messageQueue<MessagePPPC> &freeQueue)
+    : freeQueue(freeQueue), requestBufferCount(0), resultsBufferCount(0), nInteractionBlocks(0) {
+    work.reserve(CUDA_WP_MAX_BUFFERED);
+    }
+
+// This function empties the message for subsequent queue requests
+template<class TILE,int nIntPerTB, int nIntPerWU>
+void MessagePPPC<TILE,nIntPerTB,nIntPerWU>::clear() {
+    work.clear();
+    requestBufferCount = resultsBufferCount = 0;
+    nInteractionBlocks = 0;
+    }
+
+template<int n,class TILE>
+int copyBLKs2(Blk<n,TILE> *out, TILE *in,const int nIlp) {
+    assert(n==ILP_PART_PER_BLK);
+    int i, nBlk = (nIlp+n-1) / n;
+    for(i=0; i<nBlk; ++i) memcpy(&out[i],&in->blk[i],sizeof(out[i]));
+    return nBlk;
+    }
+
+// Add the interactions to this list
+template<class TILE,int nIntPerTB, int nIntPerWU>
+bool MessagePPPC<TILE,nIntPerTB,nIntPerWU>::queue(workParticle *wp, TILE *tile, bool bGravStep) {
+    if (work.size() == CUDA_WP_MAX_BUFFERED) return false; // Too many work packages
+    this->bGravStep = bGravStep;
+
+    typedef Blk<WIDTH,TILE> BLK;
+
+    const int nBlkPerWU = nIntPerWU / WIDTH;
+    const int nP = wp->nP;
+    const int nPaligned = (nP+NP_ALIGN_MASK) & ~NP_ALIGN_MASK;
+    const int nBlocks = tile->lstTile.nBlocks + (tile->lstTile.nInLast?1:0);
+    const int nBlocksAligned = (nBlocks + nBlkPerWU - 1) & ~(nBlkPerWU - 1);
+    const int nInteract = tile->lstTile.nBlocks*ILP_PART_PER_BLK + tile->lstTile.nInLast;
+    const int nWork = nBlocksAligned / nBlkPerWU;
+    const int nBytesIn = nPaligned * sizeof(ppInput) + nBlocksAligned*sizeof(BLK) + nWork*sizeof(ppWorkUnit);
+    const int nBytesOut = nP * sizeof(ppResult) * nWork;
+    assert(nWork*nBlkPerWU == nBlocksAligned);
+
+    if ( requestBufferCount + nBytesIn + 8*sizeof(ppWorkUnit) > requestBufferSize || resultsBufferCount + nBytesOut > resultsBufferSize) return false;
+    requestBufferCount += nBytesIn;
+    resultsBufferCount += nBytesOut;
+
+    // Copy in the interactions. The ILP tiles can then be freed/reused.
+    auto blk = reinterpret_cast<Blk<WIDTH,TILE> *>(pHostBufIn);
+
+    copyBLKs2(blk+nInteractionBlocks,tile,nInteract);
+    nInteractionBlocks += nBlocksAligned;
+    work.emplace_back(wp,nInteract);
+    ++wp->nRefs;
+
+    return true;
+    }
+
+// Final preparation before sending this message to the GPU thread.
+// We need to setup the descriptors and add the particles.
+template<class TILE,int nIntPerTB, int nIntPerWU>
+MessagePPPC<TILE,nIntPerTB,nIntPerWU> & MessagePPPC<TILE,nIntPerTB,nIntPerWU>::prepare() {
+    typedef Blk<WIDTH,TILE> BLK;
+    int iI=0, iP=0, iO=0;
+    const int nBlkPer = nIntPerWU / WIDTH;
+    const int nWork = nInteractionBlocks / nBlkPer;
+
+    // The interation blocks -- already copied to the host memory
+    auto * __restrict__ blkHost = reinterpret_cast<BLK*>(pHostBufIn);
+
+    // The interaction block descriptors
+    auto * __restrict__ wuHost = reinterpret_cast<ppWorkUnit *>(blkHost + nInteractionBlocks);
+
+    // The particle information
+    auto * __restrict__ partHost = reinterpret_cast<ppInput *>(wuHost + ((nWork+7)&~7));
+
+    size_t nOutputBytes = 0;
+    for ( auto &w : work ) {
+        auto nP = w.wp->nP;
+        auto *pInfoIn = w.wp->pInfoIn;
+        int nPaligned = (nP+NP_ALIGN_MASK) & ~NP_ALIGN_MASK;
+        int nInteract = w.nInteractions;
+        int nBlocks = (nInteract+nIntPerWU-1) / nIntPerWU;
+
+        // Generate a interaction block descriptor for each block
+        for(auto j=0; j<nBlocks; ++j) {
+            wuHost->nP = nP;
+            wuHost->iP = iP;
+            wuHost->nI = nInteract > nIntPerWU ? nIntPerWU : nInteract;
+            wuHost->iO = iO;
+	    //wuHost->iB = iI;
+            iO += nP;
+            nInteract -= wuHost->nI;
+            ++wuHost;
+            ++iI;
+            nOutputBytes += nP * sizeof(ppResult);
+            }
+        assert(nInteract==0);
+        // Copy in nP particles
+        for(auto j=0; j<nP; ++j) {
+            partHost[j].dx =  pInfoIn[j].r[0];
+            partHost[j].dy =  pInfoIn[j].r[1];
+            partHost[j].dz =  pInfoIn[j].r[2];
+            partHost[j].ax =  pInfoIn[j].a[0];
+            partHost[j].ay =  pInfoIn[j].a[1];
+            partHost[j].az =  pInfoIn[j].a[2];
+            partHost[j].fSoft2 = pInfoIn[j].fSmooth2;
+            /*partHost[j].dImaga = 0;*/
+            }
+        partHost += nPaligned;
+        iP += nPaligned;
+	}
+    assert(resultsBufferCount == nOutputBytes);
+    assert(iI == nInteractionBlocks/nBlkPer);
+    /* Pad the work out so all work units have valid data */
+    const int nWUPerTB = nIntPerTB/nIntPerWU;
+    while((iI&(nWUPerTB-1)) != 0) {
+        wuHost->nP = 0;
+        wuHost->iP = 0;
+        wuHost->nI = 0;
+        wuHost->iO = iO;
+        ++wuHost;
+        ++iI;
+        }
+
+    assert((iI & (nWUPerTB-1)) == 0);
+    nGrid = iI/nWUPerTB;
+    requestBufferCount = reinterpret_cast<char *>(partHost) - reinterpret_cast<char *>(pHostBufIn);
+    assert(requestBufferCount <= requestBufferSize);
+    assert(resultsBufferCount <= resultsBufferSize);
+
+    return *this;
+    }
+
+template<class TILE,int nIntPerTB, int nIntPerWU>
+void MessagePPPC<TILE,nIntPerTB,nIntPerWU>::launch(cudaStream_t stream,void *pCudaBufIn, void *pCudaBufOut) {
+    typedef Blk<WIDTH,TILE> BLK;
+    const int nBlkPer = nIntPerWU / WIDTH;
+    const int nWork = nInteractionBlocks / nBlkPer;
+
+    // The interation blocks -- already copied to the host memory
+    auto * __restrict__ blkCuda = reinterpret_cast<BLK*>(pCudaBufIn);
+
+    // The interaction block descriptors
+    auto * __restrict__ wuCuda = reinterpret_cast<ppWorkUnit *>(blkCuda + nInteractionBlocks);
+
+    // The particle information
+    auto * __restrict__ partCuda = reinterpret_cast<ppInput *>(wuCuda + ((nWork+7)&~7));
+
+    auto *pCudaOutput = reinterpret_cast<ppResult *>(pCudaBufOut);
+
+    CUDA_CHECK(cudaMemcpyAsync,(pCudaBufIn, pHostBufIn, requestBufferCount, cudaMemcpyHostToDevice, stream));
+    dim3 dimBlock( WIDTH, nIntPerWU/WIDTH, nIntPerTB/nIntPerWU );
+    dim3 dimGrid( nGrid, 1,1);
+
+    if (bGravStep) {
+        cudaInteract<WARPS,nIntPerWU/32,SYNC_RATE*nIntPerWU/nIntPerTB,1>
+            <<<dimGrid, dimBlock, 0, stream>>>
+            (wuCuda,partCuda,blkCuda,pCudaOutput );
+        }
+    else {
+        cudaInteract<WARPS,nIntPerWU/32,SYNC_RATE*nIntPerWU/nIntPerTB,0>
+            <<<dimGrid, dimBlock, 0, stream>>>
+            (wuCuda,partCuda,blkCuda,pCudaOutput );
+        }
+
+    CUDA_CHECK(cudaMemcpyAsync,(pHostBufOut, pCudaBufOut, resultsBufferCount, cudaMemcpyDeviceToHost, stream) );
+    }
+
+template<class TILE,int nIntPerTB, int nIntPerWU>
+void MessagePPPC<TILE,nIntPerTB,nIntPerWU>::finish() {
+    auto *pR = reinterpret_cast<ppResult *>(pHostBufOut);
+
+    for ( auto &w : work ) {
+        auto nP = w.wp->nP;
+        auto *pInfoOut = w.wp->pInfoOut;
+
+        int nWork = (w.nInteractions + nIntPerWU - 1) / nIntPerWU;
+        for(auto iw=0; iw<nWork; ++iw) {
+            for(auto ip=0; ip<nP; ++ip) {
                 pInfoOut[ip].a[0]    += pR[ip].ax;
                 pInfoOut[ip].a[1]    += pR[ip].ay;
                 pInfoOut[ip].a[2]    += pR[ip].az;
@@ -457,302 +675,21 @@ int CUDAcheckWorkInteraction( void *vpp, void *vwork ) {
                 pInfoOut[ip].dirsum  += pR[ip].dirsum;
                 pInfoOut[ip].normsum += pR[ip].normsum;
                 }
-            pR += wp->nP;
+            pR += nP;
             }
-        pkdParticleWorkDone(wp);
-
-        }
-    return 0;
+        pkdParticleWorkDone(w.wp);
+	}
+    clear();
+    freeQueue.enqueue(*this);
     }
 
-extern "C"
-void CUDAsetupPP(void) {
-    //cudaFuncSetCacheConfig(cudaPP,cudaFuncCachePreferL1);
-    }
+/*****************************************************************************\
+*   Explicit instantiation for methods we need.
+\*****************************************************************************/
 
-/* If this returns an error, then the caller must attempt recovery or abort */
-template<int nIntPerTB, int nIntPerWU, typename BLK>
-int initWork( void *ve, void *vwork ) {
-    CUDAwqNode *work = reinterpret_cast<CUDAwqNode *>(vwork);
-    const int nBlkPer = nIntPerWU / WIDTH;
-    const int nWork = work->ppnBlocks/nBlkPer;
-
-    // The interation blocks -- already copied to the host memory
-    BLK * __restrict__ blkCuda = reinterpret_cast<BLK*>(work->pCudaBufIn);
-
-    // The interaction block descriptors
-    ppWorkUnit * __restrict__ wuCuda = reinterpret_cast<ppWorkUnit *>(blkCuda + work->ppnBlocks);
-
-    // The particle information
-    ppInput * __restrict__ partCuda = reinterpret_cast<ppInput *>(wuCuda + ((nWork+7)&~7));
-
-    ppResult *pCudaBufOut = reinterpret_cast<ppResult *>(work->pCudaBufOut);
-
-    CUDA_RETURN(cudaMemcpyAsync,(blkCuda, work->pHostBufToGPU, work->pppc.nBufferIn, cudaMemcpyHostToDevice, work->stream));
-    CUDA_RETURN(cudaEventRecord,(work->eventCopyDone,work->stream));
-
-    dim3 dimBlock( WIDTH, nIntPerWU/WIDTH, nIntPerTB/nIntPerWU );
-    dim3 dimGrid( work->pppc.nGrid, 1,1);
-    work->dimBlock = dimBlock;
-    work->dimGrid = dimGrid;
-    if (work->bGravStep) {
-        cudaInteract<WARPS,nIntPerWU/32,SYNC_RATE*nIntPerWU/nIntPerTB,1>
-            <<<dimGrid, dimBlock, 0, work->stream>>>
-            (wuCuda,partCuda,blkCuda,pCudaBufOut );
-        }
-    else {
-        cudaInteract<WARPS,nIntPerWU/32,SYNC_RATE*nIntPerWU/nIntPerTB,0>
-            <<<dimGrid, dimBlock, 0, work->stream>>>
-            (wuCuda,partCuda,blkCuda,pCudaBufOut );
-        }
-    CUDA_RETURN(cudaEventRecord,(work->eventKernelDone,work->stream));
-    CUDA_RETURN(cudaMemcpyAsync,(work->pHostBufFromGPU, work->pCudaBufOut, work->pppc.nBufferOut, cudaMemcpyDeviceToHost, work->stream) );
-#ifdef USE_CUDA_EVENTS
-    CUDA_RETURN(cudaEventRecord,(work->event,work->stream));
-#endif
-
-    return cudaSuccess;
-    }
-
-template<int nIntPerTB, int nIntPerWU, typename BLK>
-void CUDA_sendWork(CUDACTX cuda,CUDAwqNode **head) {
-    CUDAwqNode *work = *head;
-    if (work != NULL) {
-        int i, j;
-        int iI=0, iP=0, iO=0;
-        const int nBlkPer = nIntPerWU / WIDTH;
-        const int nWork = work->ppnBlocks/nBlkPer;
-
-        // The interation blocks -- already copied to the host memory
-        BLK * __restrict__ blkHost = reinterpret_cast<BLK*>(work->pHostBufToGPU);
-
-        // The interaction block descriptors
-        ppWorkUnit * __restrict__ wuHost = reinterpret_cast<ppWorkUnit *>(blkHost + work->ppnBlocks);
-
-        // The particle information
-        ppInput * __restrict__ partHost = reinterpret_cast<ppInput *>(wuHost + ((nWork+7)&~7));
-
-        work->pppc.nBufferOut = 0;
-        for( i=0; i<work->ppnBuffered; ++i) {
-            const int nP = work->ppWP[i]->nP;
-            PINFOIN *pInfoIn = work->ppWP[i]->pInfoIn;
-            int nPaligned = (nP+NP_ALIGN_MASK) & ~NP_ALIGN_MASK;
-            int nInteract = work->ppNI[i];
-            int nBlocks = (nInteract+nIntPerWU-1) / nIntPerWU;
-
-            // Generate a interaction block descriptor for each block
-            for(j=0; j<nBlocks; ++j) {
-                wuHost->nP = nP;
-                wuHost->iP = iP;
-                wuHost->nI = nInteract > nIntPerWU ? nIntPerWU : nInteract;
-                wuHost->iO = iO;
-//                wuHost->iB = iI;
-                iO += nP;
-                nInteract -= wuHost->nI;
-                ++wuHost;
-                ++iI;
-                work->pppc.nBufferOut += nP * sizeof(ppResult);
-                }
-            assert(nInteract==0);
-
-            // Copy in nP particles
-            for(j=0; j<nP; ++j) {
-                partHost[j].dx =  pInfoIn[j].r[0];
-                partHost[j].dy =  pInfoIn[j].r[1];
-                partHost[j].dz =  pInfoIn[j].r[2];
-                partHost[j].ax =  pInfoIn[j].a[0];
-                partHost[j].ay =  pInfoIn[j].a[1];
-                partHost[j].az =  pInfoIn[j].a[2];
-                partHost[j].fSoft2 = pInfoIn[j].fSmooth2;
-                /*partHost[j].dImaga = 0;*/
-                }
-            partHost += nPaligned;
-            iP += nPaligned;
-            }
-        assert(iI == work->ppnBlocks/nBlkPer);
-        /* Pad the work out so all work units have valid data */
-        const int nWUPerTB = nIntPerTB/nIntPerWU;
-        while((iI&(nWUPerTB-1)) != 0) {
-            wuHost->nP = 0;
-            wuHost->iP = 0;
-            wuHost->nI = 0;
-            wuHost->iO = iO;
-            ++wuHost;
-            ++iI;
-            }
-
-        assert((iI & (nWUPerTB-1)) == 0);
-        work->pppc.nGrid = iI/nWUPerTB;
-        work->pppc.nBufferIn = reinterpret_cast<char *>(partHost) - reinterpret_cast<char *>(work->pHostBufToGPU);
-
-        work->startTime = CUDA_getTime();
-#ifdef CUDA_STREAMS
-        OPA_Queue_enqueue(cuda->queueWORK, work, CUDAwqNode, q.hdr);
-#else
-        work->q.next = cuda->wqCudaBusy;
-        cuda->wqCudaBusy = work;
-        cudaError_t rc = static_cast<cudaError_t>((*work->initFcn)(work->ctx,work));
-        if ( rc != cudaSuccess) CUDA_attempt_recovery(cuda,rc);
-#endif
-        *head = NULL;
-        }
-    }
-
-extern "C"
-void CUDA_sendWork(void *cudaCtx) {
-    CUDACTX cuda = reinterpret_cast<CUDACTX>(cudaCtx);
-    CUDA_sendWork< TB_THREADS, PP_WU, ilpBlk<WIDTH> >(cuda,&cuda->nodePP);
-    CUDA_sendWork< TB_THREADS, PC_WU, ilcBlk<WIDTH> >(cuda,&cuda->nodePC);
-    }
-
-/*
-** These functions allow us to send part (or all) of the work directly to the CPU.
-** The idea is that "extra" bits get done directly instead of by the GPU.
-*/
-extern "C"
-void pkdGravEvalPP(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINFOOUT *pOut );
-extern "C"
-void pkdGravEvalPC(PINFOIN *pPart, int nBlocks, int nInLast, ILC_BLK *blk,  PINFOOUT *pOut );
-
-static void GravEval(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINFOOUT *pOut) {
-    pkdGravEvalPP(pPart,nBlocks,nInLast,blk,pOut);
-    }
-static void GravEval(PINFOIN *pPart, int nBlocks, int nInLast, ILC_BLK *blk,  PINFOOUT *pOut) {
-    pkdGravEvalPC(pPart,nBlocks,nInLast,blk,pOut);
-    }
-
-template<typename BLK>
-static void finishGravity(workParticle *wp, int nBlocks, int nInLast, BLK *blk ) {
-    int i;
-    for(i=0; i<wp->nP; ++i ) {
-        PINFOIN *pPart = &wp->pInfoIn[i];
-        PINFOOUT *pOut = &wp->pInfoOut[i];
-        GravEval(pPart,nBlocks,nInLast,blk,pOut);
-        }
-    ++wp->nRefs;
-    pkdParticleWorkDone(wp);
-    }
-
-/*
-** The following routines copy interactions from an ILP or ILC
-** to a CUDA interaction block. The sizes may not be different.
-*/
-template<int n>
-int copyBLKs(ilpBlk<n> *out, ILP_BLK *in,int nIlp) {
-    assert(n==ILP_PART_PER_BLK);
-    int i, nBlk = (nIlp+n-1) / n;
-    for(i=0; i<nBlk; ++i) memcpy(&out[i],&in[i],sizeof(out[i]));
-    return nBlk;
-    }
-
-template<int n>
-int copyBLKs(ilcBlk<n> *out, ILC_BLK *in,int nIlp) {
-    assert(n==ILC_PART_PER_BLK);
-    int i, nBlk = (nIlp+n-1) / n;
-    for(i=0; i<nBlk; ++i) memcpy(&out[i],&in[i],sizeof(out[i]));
-    return nBlk;
-    }
-
-// nIntPer: number of interactions handled per work unit: e.g., 128
-template<int nIntPerTB, int nIntPerWU, typename TILE,typename BLK>
-int CUDA_queue(CUDACTX cuda,CUDAwqNode **head,workParticle *wp, TILE tile, int bGravStep, const char *kernelName) {
-    /* Refuse the work if it looks like we will overwhelm the GPU with nonsense */
-    if (cuda->nWorkQueueSize == 0) return 0;
-    assert(cuda->nWorkQueueBusy >=0 && cuda->nWorkQueueBusy <= cuda->nWorkQueueSize);
-
-    // If the work queue is half used, and there are fewer than 2 particles let the CPU handle it
-//    if (cuda->nWorkQueueBusy > cuda->nWorkQueueSize-3 && wp->nP <= 2) return 0;
-
-    CUDAwqNode *work = *head;
-    /*const int nBlkPerTB = nIntPerTB / WIDTH;*/
-    const int nBlkPerWU = nIntPerWU / WIDTH;
-    const int nP = wp->nP;
-    const int nPaligned = (nP+NP_ALIGN_MASK) & ~NP_ALIGN_MASK;
-    const int nBlocks = tile->lstTile.nBlocks + (tile->lstTile.nInLast?1:0);
-    int nBlocksAligned,nInteract;
-
-    // If there are too few free blocks then the CPU does the "hair"
-//    if (cuda->nWorkQueueBusy > cuda->nWorkQueueSize-3) {
-//        nBlocksAligned = (tile->lstTile.nBlocks + (tile->lstTile.nInLast==32?1:0) ) & ~(nBlkPerWU - 1);
-//        nInteract = nBlocksAligned * ILP_PART_PER_BLK;
-//        }
-//    else {
-        nBlocksAligned = (nBlocks + nBlkPerWU - 1) & ~(nBlkPerWU - 1);
-        nInteract = tile->lstTile.nBlocks*ILP_PART_PER_BLK + tile->lstTile.nInLast;
-//        }
-    const int nWork = nBlocksAligned / nBlkPerWU;
-    const int nBytesIn = nPaligned * sizeof(ppInput) + nBlocksAligned*sizeof(BLK) + nWork*sizeof(ppWorkUnit);
-    const int nBytesOut = nP * sizeof(ppResult) * nWork;
-
-    assert(nWork*nBlkPerWU == nBlocksAligned);
-
-    // Figure out the total amount of space we need, and see if there is enough
-    // in the current block. If not, send it to the GPU and get another.
-    // Space: nPaligned * 4 (float) * 7 (coordinates)
-    //        nBlocks * sizeof(ILP_BLK)
-    //
-    if (work!=NULL && (work->ppSizeIn + nBytesIn + 8*sizeof(ppWorkUnit) > cuda->inCudaBufSize || work->ppSizeOut + nBytesOut > cuda->outCudaBufSize) ) {
-        CUDA_sendWork<nIntPerTB,nIntPerWU,BLK>(cuda,head);
-        work = NULL;
-        assert(*head==NULL);
-        }
-
-    // If we don't have a PP work element, try to grab one
-    if (work==NULL) {
-        *head = work = getNode(cuda);
-        if (work==NULL) return 0;
-        work->ctx = NULL;
-        work->doneFcn = CUDAcheckWorkInteraction<nIntPerWU>;
-        work->initFcn = initWork<nIntPerTB,nIntPerWU,BLK>;
-        work->dumpFcn = dumpWork<BLK>;
-        work->kernelName = kernelName;
-        work->ppSizeIn = 0;
-        work->ppSizeOut = 0;
-        work->ppnBuffered = 0;
-        work->ppnBlocks = 0;
-        work->bGravStep = bGravStep;
-        }
-    if (work==NULL) return 0;
-
-    if (nBlocksAligned>0) {
-        // Copy in the interactions. The ILP tiles can then be freed/reused.
-        BLK *blk = reinterpret_cast<BLK *>(work->pHostBufToGPU);
-        //for(i=0; i<nBlocks; ++i) blk[work->ppnBlocks++] = tile->blk[i];
-        copyBLKs(blk+work->ppnBlocks,tile->blk,nInteract);
-        work->ppnBlocks += nBlocksAligned;
-
-        work->ppSizeIn += nBytesIn;
-        work->ppSizeOut += nBytesOut;
-        work->ppNI[work->ppnBuffered] = nInteract;
-        work->ppWP[work->ppnBuffered] = wp;
-        ++wp->nRefs;
-
-        if ( ++work->ppnBuffered == CUDA_WP_MAX_BUFFERED) CUDA_sendWork<nIntPerTB,nIntPerWU,BLK>(cuda,head);
-        }
-    // Evaluate the "hair" on the CPU
-    if (nBlocks > nBlocksAligned) {
-        finishGravity(wp,tile->lstTile.nBlocks-nBlocksAligned,tile->lstTile.nInLast,tile->blk+nBlocksAligned);
-        }
-    return 1;
-    }
-
-extern "C"
-int CUDA_queuePP(void *cudaCtx,workParticle *wp, ILPTILE tile, int bGravStep) {
-    CUDACTX cuda = reinterpret_cast<CUDACTX>(cudaCtx);
-    if(CUDA_queue< TB_THREADS, PP_WU, ILPTILE,ilpBlk<WIDTH> >(cuda,&cuda->nodePP,wp,tile,bGravStep,"PP")) {
-        wp->dFlopSingleGPU += COST_FLOP_PP*wp->nP*(tile->lstTile.nBlocks*ILP_PART_PER_BLK  + tile->lstTile.nInLast);
-        return 1;
-        }
-    return 0;
-    }
-
-extern "C"
-int CUDA_queuePC(void *cudaCtx,workParticle *wp, ILCTILE tile, int bGravStep) {
-    CUDACTX cuda = reinterpret_cast<CUDACTX>(cudaCtx);
-    if (CUDA_queue< TB_THREADS, PC_WU, ILCTILE,ilcBlk<WIDTH> >(cuda,&cuda->nodePC,wp,tile,bGravStep,"PC")) {
-        wp->dFlopSingleGPU += COST_FLOP_PC*wp->nP*(tile->lstTile.nBlocks*ILC_PART_PER_BLK  + tile->lstTile.nInLast);
-        return 1;
-        }
-    return 0;
-    }
-
+template MessagePP::MessagePPPC(mdl::messageQueue<MessagePPPC> &free);
+template MessagePC::MessagePPPC(mdl::messageQueue<MessagePPPC> &free);
+template void MessagePP::finish();
+template void MessagePC::finish();
+template void MessagePP::launch(cudaStream_t stream,void *pCudaBufIn, void *pCudaBufOut);
+template void MessagePC::launch(cudaStream_t stream,void *pCudaBufIn, void *pCudaBufOut);

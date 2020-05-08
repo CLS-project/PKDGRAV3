@@ -167,9 +167,6 @@ typedef struct {
 
     double dTime;
 
-#ifdef USE_CUDA
-    void *cudaCtx;
-#endif
     double dFlopSingleCPU;
     double dFlopSingleGPU;
     double dFlopDoubleCPU;
@@ -208,6 +205,6 @@ typedef struct {
     momFloat Y[EWALD_ALIGN];
     momFloat Z[EWALD_ALIGN];
     momFloat Pot[EWALD_ALIGN];
-    momFloat Flop[EWALD_ALIGN];
+    momFloat FlopDouble[EWALD_ALIGN];
     } gpuEwaldOutput;
 #endif

@@ -33,6 +33,9 @@
 #ifdef __cplusplus
 #include "arc.h"
 #include "mdlmessages.h"
+#ifdef USE_CUDA
+#include "mdlcuda.h"
+#endif
 #include <tuple>
 #include <vector>
 #include <list>
@@ -192,9 +195,6 @@ public:
 
     int nFlushOutBytes;
 
-#ifdef USE_CUDA
-    void *cudaCtx;
-#endif
 #if defined(USE_CUDA) || defined(USE_CL)
     int inCudaBufSize, outCudaBufSize;
 #endif
@@ -224,11 +224,19 @@ protected:
   
 protected:
     void flush_core_buffer();
-    mdlMessage & waitQueue(mdlMessageQueue &wait);
+    basicMessage & waitQueue(basicQueue &wait);
     void enqueue(mdlMessage &M);
-    void enqueue(const mdlMessage &M, mdlMessageQueue &replyTo, bool bWait=false);
+    void enqueue(const mdlMessage &M, basicQueue &replyTo, bool bWait=false);
     void enqueueAndWait(const mdlMessage &M);
-
+public:
+#ifdef USE_CUDA
+    int nCUDA;
+    cudaMessageQueue cudaDone;
+    int flushCompletedCUDA(); // Returns how many are still outstanding
+    void enqueue(const cudaMessage &M);
+    void enqueue(const cudaMessage &M, basicQueue &replyTo);
+    void enqueueAndWait(const cudaMessage &M);
+#endif
 private:
     void init(bool bDiag = false);
 
@@ -255,6 +263,7 @@ public:
     void CacheBarrier(int cid);
     void ThreadBarrier(bool bGlobal=false);
     void CompleteAllWork();
+    bool isCudaActive();
 
     void *Access(int cid, uint32_t uIndex, int uId, int bLock,int bModify,bool bVirtual);
 
@@ -276,16 +285,10 @@ protected:
     MPI_Comm commMDL;             /* Current active communicator */
     pthread_barrier_t barrier;
 #ifdef USE_CUDA
-    void *cudaCtx;
-    mdlMessageQueue queueCUDA;
-#endif
-#if defined(USE_CUDA) || defined(USE_CL)
-    int inCudaBufSize, outCudaBufSize;
+    CUDA cuda;
 #endif
     mdlMessageQueue queueMPInew;     // Queue of work sent to MPI task
     std::vector<mdlMessageCacheRequest*> CacheRequestMessages;
-
-    mdlMessageQueue queueMPI;
 
     // Used to buffer incoming flush requests before sending them to each core
     mdlMessageQueue localFlushBuffers;
@@ -386,8 +389,14 @@ public:
     	     int argc=0, char **argv=0);
     virtual ~mpiClass();
     int Launch(int argc,char **argv,int (*fcnMaster)(MDL,void *),void * (*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *));
+#ifdef USE_CUDA
+    void enqueue(const cudaMessage &M, basicQueue &replyTo);
+    bool isCudaActive() {return cuda.isActive(); }
+#else
+    bool isCudaActive() {return false; }
+#endif
     void enqueue(mdlMessage &M);
-    void enqueue(const mdlMessage &M, mdlMessageQueue &replyTo, bool bWait=false);
+    void enqueue(const mdlMessage &M, basicQueue &replyTo, bool bWait=false);
     void pthreadBarrierWait();
     };
 } // namespace mdl
@@ -540,7 +549,6 @@ double mdlCollRatio(MDL,int);
 void mdlSetWorkQueueSize(MDL,int,int);
 void mdlSetCudaBufferSize(MDL,int,int);
 int mdlCudaActive(MDL mdl);
-void *mdlGetCudaContext(MDL mdl);
 void mdlAddWork(MDL mdl, void *ctx,
     int (*initWork)(void *ctx,void *vwork),
     int (*checkWork)(void *ctx,void *vwork),

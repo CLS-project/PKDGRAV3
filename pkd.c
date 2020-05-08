@@ -724,6 +724,7 @@ void pkdInitialize(
     // This is cheeserific - chooses the largest specified
 
 #if defined(USE_CUDA) || defined(USE_CL)
+    pkd->cudaClient = CudaClientInitialize(pkd->mdl);
     mdlSetCudaBufferSize(pkd->mdl,PP_CUDA_MEMORY_LIMIT,PP_CUDA_MEMORY_LIMIT);
 #endif
     mdlSetWorkQueueSize(pkd->mdl,iWorkQueueSize,iCUDAQueueSize);
