@@ -266,7 +266,7 @@ extern "C" void pkdParticleWorkDone(workParticle *work);
 // This function will queue a message to the CUDA/MDL thread to setup the values.
 void CudaClient::setupEwald(struct EwaldVariables * const ew, EwaldTable * const ewt) {
     nEwhLoop = ew->nEwhLoop;
-    if (mdl.Core()==0) mdl.enqueueAndWait(MessageEwaldSetup(ew,ewt));
+    if (mdl.Core()==0 && mdl.isCudaActive()) mdl.enqueueAndWait(MessageEwaldSetup(ew,ewt));
     mdl.ThreadBarrier();
     }
 
