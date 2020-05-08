@@ -8,6 +8,4 @@ pipelines:
           - make
           - ln -s /build/euclid_flagship_500.hdf5
           - ln -s /build/b0-final* ./
-          - ./pkdgrav3 tests/cosmology.py
-          - ./pkdgrav3 tests/gravity.py
-          - mpirun -n 2 ./pkdgrav3 tests/gravity.py
+          - env GTEST_OUTPUT="xml:test-reports/" make test ARGS=--verbose
