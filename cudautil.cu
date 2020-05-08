@@ -106,12 +106,14 @@ void *CudaClientInitialize(MDL vmdl) {
     }
 
 CudaClient::CudaClient(mdl::mdlClass &mdl) : mdl(mdl), ewald(nullptr), pp(nullptr), pc(nullptr) {
-    freeEwald.enqueue(new MessageEwald(*this));
-    freeEwald.enqueue(new MessageEwald(*this));
-    freePP.enqueue(new MessagePP(freePP));
-    freePP.enqueue(new MessagePP(freePP));
-    freePC.enqueue(new MessagePC(freePC));
-    freePC.enqueue(new MessagePC(freePC));
+    if (mdl.isCudaActive()) {
+	freeEwald.enqueue(new MessageEwald(*this));
+	freeEwald.enqueue(new MessageEwald(*this));
+	freePP.enqueue(new MessagePP(freePP));
+	freePP.enqueue(new MessagePP(freePP));
+	freePC.enqueue(new MessagePC(freePC));
+	freePC.enqueue(new MessagePC(freePC));
+	}
     }
 
 extern "C"
