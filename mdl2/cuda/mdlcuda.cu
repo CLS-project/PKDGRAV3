@@ -29,16 +29,12 @@ void CUDA::initialize(int nStreamsPerDevice) {
 // If we can start some work then do so.
 void CUDA::initiate() {
     while (!empty()) { // A message is waiting. Find a stream if we can.
-	assert(devices.size()>0); // This would be bad
-	Device &device = devices.front();
-	if (!device.empty()) {
+	assert(devices.size()>0); // This would be odd at this point. No progress could be made.
+	// Find the device with the fewest busy streams (most idle streams)
+	auto device = std::min_element(devices.begin(),devices.end(),Device::compareBusy);
+	if (device != devices.end() && !device->empty()) {
 	    cudaMessage &M = dequeue();
-	    device.launch(M); // Launch message M on the given device.
-	    // Now move this device to priority location in the devices list
-	    // auto n = device.free(); // number of free streams: find one with fewer
-	    // auto isless = [&](Device &i) {return i.free()<n;};
-	    // auto iless = std::find_if(devices.begin(),devices.end(),isless);
-	    // devices.splice(iless,devices,devices.begin());
+	    device->launch(M); // Launch message M on the given device.
 	    }
 	else break; // No free streams to launch work at this time
 	}
@@ -48,7 +44,7 @@ void CUDA::initiate() {
 * Device : Control for a single device
 \*****************************************************************************/
 
-Device::Device(int iDevice, int nStreams) : iDevice(iDevice), nStreams(nStreams) {
+Device::Device(int iDevice, int nStreams) : iDevice(iDevice), nStreams(nStreams), busy_streams(0) {
     for(auto i=0; i<nStreams; ++i) {
     	free_streams.enqueue(new Stream(this));
 	}
@@ -57,8 +53,9 @@ Device::Device(int iDevice, int nStreams) : iDevice(iDevice), nStreams(nStreams)
 void Device::launch(cudaMessage &M) {
     if (free_streams.empty()) abort();
     auto &stream = free_streams.dequeue();
-    auto stm = stream.getStream(); // the CUDA stream
+    auto stm = stream.getStream(); // the CUDA stream (cudaSetDevice is called)
     stream.message = &M; // Save the message (for kernel_finished)
+    ++busy_streams; // This is atomic
     M.launch(stm,stream.pCudaBufIn,stream.pCudaBufOut); // message specific launch operation
     // Ask CUDA to notify us when the prior queued work has finished
     cudaLaunchHostFunc(stm,Device::kernel_finished,&stream);
@@ -75,6 +72,7 @@ void CUDART_CB Device::kernel_finished( void*  userData ) {
 void Device::kernel_finished( Stream *stream ) {
     stream->message->sendBack();
     stream->message = NULL;
+    --busy_streams; // This is atomic
     free_streams.enqueue(stream);
     }
 

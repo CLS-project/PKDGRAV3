@@ -7,6 +7,7 @@
 
 #include <vector>
 #include <list>
+#include <atomic>
 
 namespace mdl {
 
@@ -47,11 +48,14 @@ public:
 
 class Device {
     friend class Stream;
+    friend class CUDA;
 protected:
     static void CUDART_CB kernel_finished( void*  userData );
     void kernel_finished( Stream *stream );
     StreamQueue free_streams;
+    std::atomic_int busy_streams;
     int iDevice, nStreams;
+    static bool compareBusy(const Device &lhs,const Device &rhs) {return lhs.busy_streams < rhs.busy_streams; }
 public:
     explicit Device(int iDevice,int nStreams);
     bool empty() {return free_streams.empty();}
