@@ -1438,24 +1438,6 @@ void mdlClass::enqueueAndWait(const cudaMessage &M) {
     waitQueue(wait);
     }
 #endif
-#if 0
-// Wait for a message to appear in the queue doing any background work
-mdlMessage &mdlClass::waitQueue(mdlMessageQueue &wait) {
-    while(wait.empty()) {
-	checkMPI(); // Only does something on the MPI thread
-	bookkeeping();
-	if (DoSomeWork() == 0) {
-	    // This is important in the case where we have oversubscribed the CPU
-#ifdef _MSC_VER
-	    SwitchToThread();
-#else
-	    sched_yield();
-#endif
-	    }
-	}
-    return wait.dequeue();
-    }
-#endif
 
 void mdlClass::enqueue(mdlMessage &M) {
     mpi->enqueue(M);
