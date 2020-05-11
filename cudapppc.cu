@@ -64,7 +64,6 @@ struct ppWorkUnit {
     uint32_t nP;   // Number of particles
     uint32_t nI;   // Number of interactions in the block
     uint32_t iP;   // Index of first particle
-//    uint32_t iB;   // Index of the interaction block
     uint32_t iO;   // Index of the output block
     };
 
@@ -428,28 +427,13 @@ void pkdParticleWorkDone(workParticle *wp);
 *   CudaClient interface (new!)
 \*****************************************************************************/
 
-
 extern "C"
 int CudaClientQueuePP(void *vcudaClient, workParticle *work, struct ilpTile *tile, int bGravStep) {
     auto cuda = reinterpret_cast<CudaClient *>(vcudaClient);
     return cuda->queuePP(work,tile,bGravStep);
     }
-
 int CudaClient::queuePP(workParticle *work, ilpTile *tile, bool bGravStep) {
-    if (pp) {
-    	if (pp->queue(work,tile,bGravStep)) return work->nP; // Sucessfully queued
-	flushPP(); // The buffer is full, so sent it
-	}
-    if (freePP.empty()) return 0; // No buffers so the CPU has to do this part
-    pp = & freePP.dequeue();
-    if (pp->queue(work,tile,bGravStep)) return work->nP; // Sucessfully queued
-    return 0; // Not sure how this would happen, but okay.
-    }
-void CudaClient::flushPP() {
-    if (pp) {
-    	mdl.enqueue(pp->prepare());
-        pp = nullptr;
-	}
+    return queue(pp,freePP,work,tile,bGravStep);
     }
 
 extern "C"
@@ -457,21 +441,27 @@ int CudaClientQueuePC(void *vcudaClient, workParticle *work, struct ilcTile *til
     auto cuda = reinterpret_cast<CudaClient *>(vcudaClient);
     return cuda->queuePC(work,tile,bGravStep);
     }
-
 int CudaClient::queuePC(workParticle *work, ilcTile *tile, bool bGravStep) {
-    if (pc) {
-    	if (pc->queue(work,tile,bGravStep)) return work->nP; // Sucessfully queued
-	flushPC(); // The buffer is full, so sent it
+    return queue(pc,freePC,work,tile,bGravStep);
+    }
+
+template<class MESSAGE,class QUEUE,class TILE>
+int CudaClient::queue(MESSAGE * &M,QUEUE &Q, workParticle *work, TILE *tile, bool bGravStep) {
+    if (M) { // If we are in the middle of building data for a kernel
+	if (M->queue(work,tile,bGravStep)) return work->nP; // Successfully queued
+	flush(M); // The buffer is full, so send it
 	}
-    if (freePC.empty()) return 0; // No buffers so the CPU has to do this part
-    pc = & freePC.dequeue();
-    if (pc->queue(work,tile,bGravStep)) return work->nP; // Sucessfully queued
+    if (Q.empty()) return 0; // No buffers so the CPU has to do this part
+    M = & Q.dequeue();
+    if (M->queue(work,tile,bGravStep)) return work->nP; // Successfully queued
     return 0; // Not sure how this would happen, but okay.
     }
-void CudaClient::flushPC() {
-    if (pc) {
-    	mdl.enqueue(pc->prepare());
-        pc = nullptr;
+
+template<class MESSAGE>
+void CudaClient::flush(MESSAGE * &M) {
+    if (M) {
+	mdl.enqueue(M->prepare());
+	M = nullptr;
 	}
     }
 
@@ -684,7 +674,7 @@ void MessagePPPC<TILE,nIntPerTB,nIntPerWU>::finish() {
     }
 
 /*****************************************************************************\
-*   Explicit instantiation for methods we need.
+*   Explicit instantiation for methods we need elsewhere
 \*****************************************************************************/
 
 template MessagePP::MessagePPPC(mdl::messageQueue<MessagePPPC> &free);
@@ -693,3 +683,5 @@ template void MessagePP::finish();
 template void MessagePC::finish();
 template void MessagePP::launch(cudaStream_t stream,void *pCudaBufIn, void *pCudaBufOut);
 template void MessagePC::launch(cudaStream_t stream,void *pCudaBufIn, void *pCudaBufOut);
+template void CudaClient::flush(MessagePP * &M);
+template void CudaClient::flush(MessagePC * &M);

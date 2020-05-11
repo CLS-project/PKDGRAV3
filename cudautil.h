@@ -111,13 +111,14 @@ protected:
     std::list<MessageEwald> free_Ewald, busy_Ewald;
     mdl::mdlClass &mdl;
 protected:
-    void flushPP();
-    void flushPC();
+    template<class MESSAGE> void flush(MESSAGE * &M);
+    template<class MESSAGE,class QUEUE,class TILE>
+    int queue(MESSAGE * &m, QUEUE &Q, workParticle *wp, TILE *tile, bool bGravStep);
 public:
     explicit CudaClient(mdl::mdlClass &mdl);
     void flushCUDA();
-    int  queuePP(   workParticle *wp, ilpTile *tile, bool bGravStep);
-    int  queuePC(   workParticle *wp, ilcTile *tile, bool bGravStep);
+    int  queuePP(workParticle *wp, ilpTile *tile, bool bGravStep);
+    int  queuePC(workParticle *wp, ilcTile *tile, bool bGravStep);
     int  queueEwald(workParticle *wp);
     void setupEwald(struct EwaldVariables * const ew, EwaldTable * const ewt);
     };

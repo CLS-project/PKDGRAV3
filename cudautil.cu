@@ -124,8 +124,8 @@ void CudaClientFlush(void *vcudaClient) {
 
 void CudaClient::flushCUDA() {
     if (ewald) { mdl.enqueue(*ewald);        ewald = nullptr; }
-    flushPP();
-    flushPC();
+    flush(pp);
+    flush(pc);
     }
 
 cudaDataMessage::cudaDataMessage() {
