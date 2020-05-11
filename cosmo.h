@@ -113,6 +113,7 @@ struct classGslStruct{
 	double dSpectral;
 	double dRunning;
 	double dPivot;
+	double h;
 	struct classDataStruct classData;
 	};
 

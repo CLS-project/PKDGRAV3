@@ -855,7 +855,7 @@ static int validateParameters(MDL mdl,PRM prm,struct parameters *param) {
     }
 
 
-int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
+int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
     MSR msr;
     int i,j,ret;
     struct inSetAdd inAdd;
@@ -865,7 +865,7 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr = (MSR)malloc(sizeof(struct msrContext));
     assert(msr != NULL);
     msr->mdl = mdl;
-    msr->pst = NULL;
+    msr->pst = pst;
     msr->lcl.pkd = NULL;
     *pmsr = msr;
     csmInitialize(&msr->param.csm);
@@ -1217,9 +1217,6 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.dRedshiftLCP = 0;
     prmAddParam(msr->prm,"dRedshiftLCP",2,&msr->param.dRedshiftLCP,sizeof(double),"zlcp",
 		"starting redshift to output light cone particles = 0");
-    msr->param.bCenterOfMassExpand = 1;
-    prmAddParam(msr->prm,"bCenterOfMassExpand",0,&msr->param.bCenterOfMassExpand,sizeof(int),"CoM",
-		"use multipole expansions about the center of mass = +CoM");
     msr->param.dRedTo = 0.0;
     prmAddParam(msr->prm,"dRedTo",2,&msr->param.dRedTo,sizeof(double),"zto",
 		"specifies final redshift for the simulation");
@@ -1624,10 +1621,6 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 
     msr->param.bAccelStep = 0;
 
-#ifndef USE_DIAPOLE
-    msr->param.bCenterOfMassExpand = 1;
-#endif
-
     /*
     ** Set the box center to (0,0,0) for now!
     */
@@ -1709,10 +1702,6 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->pdOutTime = malloc(msr->nMaxOuts*sizeof(double));
     assert(msr->pdOutTime != NULL);
     msr->nOuts = msr->iOut = 0;
-
-
-    pstInitialize(&msr->pst,msr->mdl,&msr->lcl);
-    pstAddServices(msr->pst,msr->mdl);
 
     msr->nThreads = mdlThreads(mdl);
 
@@ -2029,14 +2018,6 @@ int msrCheckForStop(MSR msr,const char *achStopFile) {
     }
 
 void msrFinish(MSR msr) {
-   int id;
-   
-   for (id=1;id<msr->nThreads;++id) {
-	int rID;
-	rID = mdlReqService(msr->mdl,id,SRV_STOP,NULL,0);
-	mdlGetReply(msr->mdl,rID,NULL,NULL);
-	}
-    pstFinish(msr->pst);
     csmFinish(msr->param.csm);
     /*
     ** finish with parameter stuff, deallocate and exit.

@@ -68,6 +68,7 @@ void csmInitialize(CSM *pcsm) {
     csm->val.dSpectral = 0.0;
     csm->val.dRunning = 0.0;
     csm->val.dPivot = 0.0;
+    csm->val.h = 0.0;
     csm->W = gsl_integration_workspace_alloc(LIMIT);
     csm->val.classData.bClass = 0;
     csm->val.classData.achFilename[0] = 0;
@@ -324,9 +325,9 @@ void csmClassRead(CSM csm, double dBoxSize, double h){
     if (conflicts != 0) abort();
 
     /* The pivot scale dPivot is specified in 1/Mpc in the
-    ** parameter file, but we need it in h/Mpc. Do the conversion.
+    ** parameter file, but we need it in h/Mpc. Save h for later.
     */
-    csm->val.dPivot /= h;
+    csm->val.h = h;
 
     /* Read in the background, excluding densities of linear species */
     if (H5LTget_dataset_info(file, "/background/a", &size_bg, NULL, NULL) < 0) abort();
@@ -994,7 +995,10 @@ double csmZeta(CSM csm, double k){
     double A_s     = csm->val.dNormalization;
     double n_s     = csm->val.dSpectral;
     double alpha_s = csm->val.dRunning;
-    double k_pivot = csm->val.dPivot;
+    /* The pivot scale dPivot is specified in 1/Mpc in the
+    ** parameter file, but we need it in h/Mpc. Do the conversion.
+    */
+    double k_pivot = csm->val.dPivot / csm->val.h;
     zeta = M_PI*sqrt(2*A_s)*pow(k, -1.5)*pow(k/k_pivot, 0.5*(n_s - 1));
     if (alpha_s != 0.0)
         zeta *= exp(0.25*alpha_s*pow(log(k/k_pivot), 2));

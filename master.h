@@ -117,7 +117,7 @@ typedef struct msrContext {
 extern "C" {
 #endif
 double msrTime();
-int msrInitialize(MSR *,MDL,int,char **);
+int msrInitialize(MSR *,MDL,void *,int,char **);
 void msrLogParams(MSR msr, FILE *fp);
 void msrprintf(MSR msr, const char *Format, ... );
 int msrGetLock(MSR msr);

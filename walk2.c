@@ -529,12 +529,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2, ui
 					d2 += dx[j]*dx[j];
 					}
 				    dir = 1.0/sqrt(d2);
-				    if (pkd->param.bCenterOfMassExpand) { 
-					dFlop = momLocrAddFmomr5cm(&L,pkdNodeMom(pkd,c),c->bMax,dir,dx[0],dx[1],dx[2],&tax,&tay,&taz);
-					}
-				    else {
-					dFlop = momLocrAddFmomr5(&L,pkdNodeMom(pkd,c),c->bMax,dir,dx[0],dx[1],dx[2],&tax,&tay,&taz);
-					}
+				    dFlop = momLocrAddFmomr5cm(&L,pkdNodeMom(pkd,c),c->bMax,dir,dx[0],dx[1],dx[2],&tax,&tay,&taz);
 				    *pdFlop += dFlop;
 				    pkd->dFlopDoubleCPU += dFlop;
 				    if (bGravStep) {

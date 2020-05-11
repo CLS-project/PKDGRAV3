@@ -212,32 +212,6 @@ double pkdGetDistance2(PKD pkd,PARTICLE *p, const double *dCenter ) {
     return d2;
     }
 
-/*
-** Count the number of particles in a given shell from
-** [dMinRadius,dMaxRadius).
-*/
-int pkdShellCount(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
-		  double *dCenter, double dMinRadius, double dMaxRadius ) {
-    PARTICLE *p;
-    int n, i, iCount;
-    double d2,r2min, r2max;
-
-    r2min = dMinRadius*dMinRadius;
-    r2max = dMaxRadius*dMaxRadius;
-    n = pkdLocal(pkd);
-    iCount = 0;
-    for (i=0;i<n;++i) {
-	p = pkdParticle(pkd,i);
-	if (pkdIsRungRange(p,uRungLo,uRungHi)) {
-	    d2 = pkdGetDistance2(pkd,p,dCenter);
-	    if ( d2>=r2min || d2 < r2max )
-		iCount ++;
-	    }
-	}
-
-    return iCount;
-    }
-
 typedef struct {
     float d2;
     uint32_t i;
@@ -638,32 +612,6 @@ void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
 	mdlRelease(pkd->mdl,CID_BIN,pBin);
 	}
     mdlFinishCache(pkd->mdl,CID_BIN);
-    }
-
-/*
-** Perform a transformation on all particles.  The source position is taken
-** from the oSource field (normally r[]) and the result is put into the
-** oResult field (which can also be r[]).
-*/
-void pkdTransform(PKD pkd, int oSource, int oResult, const double *dRotCenter,
-		  const double *dRotate, const double *dRecenter) {
-    PARTICLE *p;
-    double *ps, *pr;
-    double r[3];
-    int i,j;
-
-    assert(0);
-    for (i=0;i<pkd->nLocal;++i) {
-	p = pkdParticle(pkd,i);
-	ps = pkdField(p,oSource);
-	pr = pkdField(p,oResult);
-
-	for(j=0; j<3; j++) r[j] = ps[j] - dRotCenter[j];
-
-
-
-	for(j=0; j<3; j++) pr[j] = r[j] + dRotCenter[j] - dRecenter[j];
-	}
     }
 
 /*#ifdef HAVE_LIBPNG*/
