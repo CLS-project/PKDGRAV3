@@ -1,14 +1,57 @@
+/*  This file is part of PKDGRAV3 (http://www.pkdgrav.org/).
+ *  Copyright (c) 2001-2020 Douglas Potter & Joachim Stadel
+ *
+ *  PKDGRAV3 is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  PKDGRAV3 is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with PKDGRAV3.  If not, see <http://www.gnu.org/licenses/>.
+ */
 #include "arc.h"
-#include <assert.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include <cassert>
+#include <iostream>
 #include <algorithm>
 
-static inline uint32_t murmur2(const uint32_t *key, int len) {
+namespace mdl {
+
+using std::uint32_t;
+using std::uint64_t;
+using std::size_t;
+
+namespace murmur {
+template<int len>
+uint64_t murmur(const uint64_t *key) {
+    const uint64_t m = 0xc6a4a7935bd1e995;
+    const int r = 47;
+    uint64_t h = 0xdeadbeefdeadbeef;
+    for(auto i=0; i<len; ++i) {
+	uint64_t k = *key++;
+	k *= m;
+	k ^= k >> r;
+	k *= m;
+	h ^= k;
+	h *= m;
+	}
+    h ^= h >> r;
+    h *= m;
+    h ^= h >> r;
+    return h;
+    }
+
+template<int len>
+uint32_t murmur2(const uint32_t *key) {
     const uint32_t m = 0x5bd1e995;
     const int r = 24;
     uint32_t h = 0xdeadbeef /*^ len : len will be the same */;
-    while(len--) {
+    for(auto i=0; i<len; ++i) {
+//    while(len--) {
 	uint32_t k = *key++;
 	k *= m;
 	k ^= k >> r;
@@ -20,7 +63,7 @@ static inline uint32_t murmur2(const uint32_t *key, int len) {
     h *= m;
     h ^= h >> 15;
     return h;
-    } 
+    }
 
 /*
 ** This makes the following assumptions (changed from regular hash)
@@ -28,9 +71,10 @@ static inline uint32_t murmur2(const uint32_t *key, int len) {
 **   2. length is always identical (so don't need to mix in the length)
 **   3. We will always use the same seed
 */
-static inline uint32_t murmur3(const uint32_t* key, size_t len) {
+template<int len>
+uint32_t murmur3(const uint32_t* key) {
     uint32_t h = 0xdeadbeef;
-    do {
+    for(auto i=0; i<len; ++i) {
 	uint32_t k = *key++;
 	k *= 0xcc9e2d51;
 	k = (k << 15) | (k >> 17);
@@ -38,44 +82,12 @@ static inline uint32_t murmur3(const uint32_t* key, size_t len) {
 	h ^= k;
 	h = (h << 13) | (h >> 19);
 	h = h * 5 + 0xe6546b64;
-	} while (--len);
+	}
     h ^= h >> 16;
     h *= 0x85ebca6b;
     h ^= h >> 13;
     h *= 0xc2b2ae35;
     h ^= h >> 16;
-    return h;
-    }
-
-/*
-** MurmurHash2, by Austin Appleby
-** adapted for hashing 2 uint32_t variables for mdl2
-*/
-static inline uint32_t MurmurHash2(uint32_t a,uint32_t b) {
-    /* 
-    ** 'm' and 'r' are mixing constants generated offline.
-    ** They're not really 'magic', they just happen to work well.
-    */
-    const uint32_t m = 0x5bd1e995;
-    const int r = 24;
-    uint32_t h = 0xdeadbeef;
-
-    /* Mix the 2 32-bit words into the hash */
-    a *= m; 
-    b *= m; 
-    a ^= a >> r; 
-    b ^= b >> r; 
-    a *= m; 	
-    b *= m; 	
-    /* now work on the hash */
-    h ^= a;
-    h *= m; 
-    h ^= b;	
-    /* Do a few final mixes of the hash to ensure the last few
-    ** bytes are well-incorporated. */
-    h ^= h >> 13;
-    h *= m;
-    h ^= h >> 15;
     return h;
     }
 
@@ -87,16 +99,109 @@ static uint32_t swar32(uint32_t x) {
     x |= (x >> 16);
     return(x);
     }
+} // namespace murmur
 
-ARC::ARC()
-    : nCache(0), uLineSizeInWords(0), uLineSizeInBytes(0), uDataSizeInBytes(0),
-      nLineBits(0), nLineMask(0), uHashMask(0), target_T1(0) {}
+/*****************************************************************************\
+* HASH table
+\*****************************************************************************/
 
-ARC::ARC(uint32_t uCacheSizeInBytes,uint32_t uLineSizeInBytes,uint32_t nLineBits) {
-    initialize(uCacheSizeInBytes,uLineSizeInBytes,nLineBits);
+namespace hash {
+template<>
+uint32_t HASH<>::hash(uint32_t uLine,uint32_t uId) {
+    uint32_t key[] = {uLine,uId,uLine,uId,uLine,uId,uLine,uId};
+    return murmur::murmur2<2>(key) & uHashMask;
     }
 
-void ARC::initialize(uint32_t uCacheSizeInBytes,uint32_t uLineSizeInBytes,uint32_t nLineBits) {
+// Remove the CDB entry (given by a list iterator) from the hash table
+template<>
+HASH<>::CDBL::iterator HASH<>::remove(const CDBL::iterator p) {
+    auto &cdb = std::get<0>(*p);
+    uint32_t uHash = hash(cdb.uPage,cdb.getId());
+    auto & Hash = HashChains[uHash];
+    assert(!Hash.empty());
+    // Move the matching hash table entry to the start of the collision chain, then move it to the free list
+    std::partition(Hash.begin(), Hash.end(), [&](const CDBL::iterator & i) { return i == p; });
+    assert(Hash.front() == p);
+    HashFree.splice_after(HashFree.before_begin(),Hash,Hash.before_begin());
+    return p;
+    }
+
+// Typically we want to remove the LRU (front) element from a list, in anticipation of reusing the entry
+template<>
+HASH<>::CDBL::iterator HASH<>::remove(uint32_t iTarget) {
+    return remove(L[iTarget].begin());
+    }
+
+/*****************************************************************************\
+* Generic interface: Deals with elements that have a key
+\*****************************************************************************/
+template<>
+void HASH<>::drop_all() {
+    HASH::clear();
+    }
+
+template<>
+void * HASH<>::lookup(uint32_t uHash, const void *vKey) {
+    auto key = reinterpret_cast<const uint32_t*>(vKey);
+    auto uLine = key[0];
+    auto uId = key[1];
+    auto &Hash = HashChains[uHash&uHashMask];
+    auto iskey = [uLine,uId](CDBL::iterator &i) {return std::get<0>(*i).uPage == uLine && (std::get<0>(*i).getId()) == uId;};
+    auto match = std::find_if(Hash.begin(),Hash.end(),iskey);
+    if (match != Hash.end()) return std::get<0>(**match).data;
+    else return nullptr;
+    }
+
+template<>
+void HASH<>::insert(uint32_t uHash, const void *vKey, void *data) {
+    auto key = reinterpret_cast<const uint32_t*>(vKey);
+    auto uLine = key[0];
+    auto uId = key[1];
+    auto &Hash = HashChains[uHash&uHashMask];
+    auto item = move(0);
+    auto &cdb = std::get<0>(*item);
+    cdb.uId = uId;
+    cdb.uPage = uLine;
+    cdb.data = reinterpret_cast<uint64_t*>(data);
+    assert(!HashFree.empty());
+    Hash.splice_after(Hash.before_begin(),HashFree,HashFree.before_begin());
+    assert(!Hash.empty());
+    Hash.front() = item;
+    }
+
+template<>
+void HASH<>::remove(uint32_t uHash, const void *vKey) {
+    auto key = reinterpret_cast<const uint32_t*>(vKey);
+    auto uLine = key[0];
+    auto uId = key[1];
+    auto &Hash = HashChains[uHash&uHashMask];
+    auto iskey = [uLine,uId](CDBL::iterator &i) {return std::get<0>(*i).uPage == uLine && (std::get<0>(*i).getId()) == uId;};
+    auto match = std::find_if(Hash.begin(),Hash.end(),iskey);
+    if (match != Hash.end()) {
+	// Move the matching hash table entry to the start of the collision chain, then move it to the free list
+	std::partition(Hash.begin(), Hash.end(), [match](const CDBL::iterator & i) { return i == *match; });
+	HashFree.splice_after(HashFree.before_begin(),Hash,Hash.before_begin());
+	free(*match);
+	}
+    }
+
+/*****************************************************************************\
+* Factory method: Contruct a suitable ARC cache for this HASH table.
+\*****************************************************************************/
+
+template<>
+ARC * HASH<>::clone(int nMaxElements) {
+    return nullptr;
+    }
+
+} // namespace hash
+
+/*****************************************************************************\
+* ARC cache
+\*****************************************************************************/
+
+template<>
+void ARC<>::initialize(uint32_t uCacheSizeInBytes,uint32_t uLineSizeInBytes,uint32_t nLineBits) {
     this->uLineSizeInWords = (uLineSizeInBytes+7) >> 3;       // Size of a cache line (aligned properly)
     // Calculate nCache based on the number of cache lines that will fit in out cache buffer
     // Account for the "magic" number before the cache line.
@@ -108,26 +213,31 @@ void ARC::initialize(uint32_t uCacheSizeInBytes,uint32_t uLineSizeInBytes,uint32
     this->nLineMask = (1 << nLineBits) - 1;
     this->nCache = nCache;
 
+    HASH::resize(nCache*2);
+
     // Allocate the total possible amount of storage. If we change cache types we won't have to reallocate.
     dataBase.resize(uCacheSizeInBytes >> 3);
 
-    // Calculate the size of the hash table
-    uHashMask = swar32(3*nCache-1);
-    HashFree.resize(2*nCache);
-    HashChains.resize(uHashMask+1);
-
-    target_T1 = nCache/2;   /* is this ok? */
-
-    // Setup the CDB entries on the free list. The first "nCache" elements have data; the rest don't.
-    ArcFree.clear();
-    for (auto i=0;i<nCache;++i) ArcFree.emplace_back(&dataBase[i*(uLineSizeInWords+1)+1]);
-    ArcFree.resize(2*nCache);
+    //target_T1 = nCache/2;   /* is this ok? */
+    target_T1 = 0;
     }
 
-ARC::~ARC() {
+template<>
+ARC<>::ARC()
+    : uLineSizeInWords(0), uLineSizeInBytes(0), uDataSizeInBytes(0),
+      nCache(0), nLineBits(0), nLineMask(0), target_T1(0) {}
+
+template<>
+ARC<>::ARC(uint32_t uCacheSizeInBytes,uint32_t uLineSizeInBytes,uint32_t nLineBits) {
+    initialize(uCacheSizeInBytes,uLineSizeInBytes,nLineBits);
     }
 
-void ARC::lock(void *vp) {
+template<>
+ARC<>::~ARC() {
+    }
+
+template<>
+void ARC<>::lock(void *vp) {
     uint64_t *p = reinterpret_cast<uint64_t*>(vp);
     if (p>&dataBase.front() && p<=&dataBase.back()) { // Might have been a fast, read-only grab. If so ignore it.
 	/* We will be given an element, but this needs to be turned into a cache line */
@@ -136,7 +246,8 @@ void ARC::lock(void *vp) {
 	}
     }
 
-void ARC::release(void *vp) {
+template<>
+void ARC<>::release(void *vp) {
     uint64_t *p = reinterpret_cast<uint64_t*>(vp);
     if (p>&dataBase.front() && p<=&dataBase.back()) { // Might have been a fast, read-only grab. If so ignore it.
 	/* We will be given an element, but this needs to be turned into a cache line */
@@ -147,151 +258,115 @@ void ARC::release(void *vp) {
 	}
     }
 
-ARC::CDB::CDB(uint64_t *data) : uId(0xdeadbeef), data(data) {}
+template<>
+void ARC<>::destage(const char *data,uint32_t uIndex,uint32_t uId) {}
 
-uint32_t ARC::hash(uint32_t uLine,uint32_t uId) {
-    return MurmurHash2(uLine,uId) & uHashMask;
+template<>
+void ARC<>::evict(ENTRY &temp) {
+    auto &cdb = std::get<0>(temp);
+    if (cdb.dirty()) {
+    	destage(cdb.getData(),cdb.getPage(),cdb.getId());
+	cdb.setClean();    /* No longer dirty */
+	}
     }
 
-// Remove the CDB entry (given by a list iterator) from the hash table
-ARC::CDBL::iterator ARC::remove_from_hash(const CDBL::iterator p) {
-    uint32_t uHash = hash(p->uPage,p->getId());
-    auto & Hash = HashChains[uHash];
-    assert(!Hash.empty());
-    // Move the matching hash table entry to the start of the collision chain, then move it to the free list
-    std::partition(Hash.begin(), Hash.end(), [&](const CDBL::iterator & i) { return i == p; });
-    assert(Hash.front() == p);
-    HashFree.splice_after(HashFree.before_begin(),Hash,Hash.before_begin());
-    return p;
-    }
-
-// Typically we want to remove the LRU (front) element from a list, in anticipation of reusing the entry
-ARC::CDBL::iterator ARC::remove_from_hash(CDBL &list) {
-    return remove_from_hash(list.begin());
-    }
-
-void ARC::destage(CDB &temp) {}
-
-uint64_t *ARC::replace(bool bInB2) {
-    uint64_t *data;
-    uint32_t max = (target_T1 > 1)?(target_T1+(bInB2?0:1)):1;
-    auto unlocked = [](CDB&i) {return i.data[-1] == _ARC_MAGIC_;}; // True if there are no locks
-    CDBL::iterator tempX;
-    if (T1.size() >= max) { // T1’s size exceeds target?
-	tempX = std::find_if(T1.begin(),T1.end(),unlocked); // Grab the oldest unlocked entry
-	if (tempX != T1.end()) goto replace_T1;
-	tempX = std::find_if(T2.begin(),T2.end(),unlocked); // Try the same in T2 if all T1 entries are locked
-	if (tempX != T2.end()) goto replace_T2;
-	}
-    else { // no: T1 is not too big
-	tempX = std::find_if(T2.begin(),T2.end(),unlocked); // Try the same in T2 if all T1 entries are locked
-	if (tempX != T2.end()) goto replace_T2;
-	tempX = std::find_if(T1.begin(),T1.end(),unlocked); // Grab the oldest unlocked entry
-	if (tempX != T1.end()) goto replace_T1;
-	}
-    fprintf(stderr,"ERROR: all ARC entries are locked, aborting\n");
-    abort();
-    if (0) {  /* using a Duff's device to handle the replacement */
-    replace_T1:
-	destage(*tempX);     /* if dirty, evict before overwrite */
-	data = tempX->data;
-	tempX->data = NULL; /*GHOST*/
-	tempX->uId = (tempX->getId())|_B1_;  /* need to be careful here because it could have been _P1_ */
-	B1.splice(B1.end(),T1,tempX); // Move element from T1 to B1
-	}
-    if (0) {
-    replace_T2:
-	destage(*tempX);     /* if dirty, evict before overwrite */
-	data = tempX->data;
-	tempX->data = NULL; /*GHOST*/
-        tempX->uId |= _B2_;          /* note that fact */
-	B2.splice(B2.end(),T2,tempX); // Move element from T2 to B2
-	}
+template<>
+uint64_t *ARC<>::replace(WHERE iTarget, CDBL::iterator item) {
+    evict(*item);     /* if dirty, evict before overwrite */
+    auto &cdb = std::get<0>(*item);
+    auto data = cdb.data;
+    cdb.data = NULL; /*GHOST*/
+    cdb.setClean();
+    move(iTarget,item);
     return data;
     }
 
-void ARC::RemoveAll() {
-    for(auto &i : T1) { destage(i); } // Flush any dirty (modified) cache entries
-    for(auto &i : T2) { destage(i); }
-    for(auto &i : HashChains) { HashFree.splice_after(HashFree.before_begin(),i); } // Empty the hash table
-    ArcFree.splice(ArcFree.begin(),T1); // Finally empty the lists making sure entries with data are at the start
-    ArcFree.splice(ArcFree.begin(),T2);
-    ArcFree.splice(ArcFree.end(),  B1); // B lists have no data so add them to the end
-    ArcFree.splice(ArcFree.end(),  B2);
+template<>
+uint64_t *ARC<>::replace(bool bInB2) {
+    uint64_t *data;
+    uint32_t max = (target_T1 > 1)?(target_T1+(bInB2?0:1)):1;
+    auto unlocked = [](ENTRY&i) {return std::get<0>(i).data[-1] == _ARC_MAGIC_;}; // True if there are no locks
+    CDBL::iterator item;
+    if (L[T1].size() >= max) { // T1’s size exceeds target?
+	item = std::find_if(L[T1].begin(),L[T1].end(),unlocked); // Grab the oldest unlocked entry
+	if (item != L[T1].end()) return replace(B1,item);
+	item = std::find_if(L[T2].begin(),L[T2].end(),unlocked); // Try the same in T2 if all T1 entries are locked
+	if (item != L[T2].end()) return replace(B2,item);
+	}
+    else { // no: T1 is not too big
+	item = std::find_if(L[T2].begin(),L[T2].end(),unlocked); // Grab the oldest unlocked entry
+	if (item != L[T2].end()) return replace(B2,item);
+	item = std::find_if(L[T1].begin(),L[T1].end(),unlocked); // Try the same in T1 if all T2 entries are locked
+	if (item != L[T1].end()) return replace(B1,item);
+	}
+    std::cerr << "ERROR: all ARC entries are locked, aborting" << std::endl;
+    abort();
     }
 
-void *ARC::fetch(uint32_t uIndex, int uId, int bLock,int bModify,bool bVirtual) {
+template<>
+void ARC<>::RemoveAll() {
+    for(auto &i : L[T1]) { evict(i); } // Flush any dirty (modified) cache entries
+    for(auto &i : L[T2]) { evict(i); }
+    drop_all();
+    }
+
+template<>
+void *ARC<>::fetch(uint32_t uIndex, int uId, int bLock,int bModify,bool bVirtual) {
     auto uLine = uIndex >> nLineBits;
     auto iInLine = uIndex & nLineMask;
-    auto tuId = uId&_IDMASK_;
     uint32_t rat;
-    bool inB2=false;
 
     /* First check our own cache */
-    auto uHash = hash(uLine,tuId);
-    CDBL::iterator tempX;
+    auto uHash = hash(uLine,uId);
+    CDBL::iterator item;
     auto &Hash = HashChains[uHash];
-    auto iskey = [&](CDBL::iterator &i) {return i->uPage == uLine && (i->getId()) == tuId;};
+    auto iskey = [uLine,uId](CDBL::iterator &i) {return std::get<0>(*i).uPage == uLine && (std::get<0>(*i).getId()) == uId;};
     auto match = std::find_if(Hash.begin(),Hash.end(),iskey);
     if (match != Hash.end()) {                       /* found in cache directory? */
-	tempX = *match;
-	switch (tempX->where()) {                   /* yes, which list? */
-	case _P1_:
-	    tempX->uId = uId;     /* clears prefetch flag and sets WHERE = _T1_ (zero) and dirty bit */
-	    T1.splice(T1.end(),T1,tempX);
-	    goto cachehit;
-	case _T1_:
-	    tempX->uId |= _T2_ | uId;
-	    T2.splice(T2.end(),T1,tempX);
-	    goto cachehit;
-	case _T2_:
-	    tempX->uId |= uId;          /* if the dirty bit is now set we need to record this */
-	    T2.splice(T2.end(),T2,tempX);
-	cachehit:
-	    if (bLock) {
-		/*
-		** We don't have to check if the lock counter rolls over, since it will increment the  
-		** magic number first. This in turn will cause this page to be locked in a way that it 
-		** cannot be unlocked without an error condition.
-		*/
-		++tempX->data[-1];       /* increase lock count */
-		}
-	    /*
-	    ** Get me outa here.
-	    */
-	    return reinterpret_cast<char*>(tempX->data) + uDataSizeInBytes*iInLine;
-	case _B1_:                            /* B1 hit: favor recency */
-	    if (tempX->absent()) { // We return "not found" (NULL)
-		B2.splice(B2.end(),B1,tempX);
+	item = *match;
+	auto &cdb = std::get<0>(**match);
+	switch (cdb.where()) {                   /* yes, which list? */
+	// If the element is in P1, T1 or T2 then we have a cache hit
+	case P1: // Prefetched (this is an extension to ARC)
+	    move(T1,item);
+	    if (bLock) ++cdb.data[-1]; // Increase the lock count if requested
+	    return reinterpret_cast<char*>(cdb.data) + uDataSizeInBytes*iInLine;
+	case T1:
+	case T2:
+	    move(T2,item);
+	    if (bLock) ++cdb.data[-1]; // Increase the lock count if requested
+	    return reinterpret_cast<char*>(cdb.data) + uDataSizeInBytes*iInLine;
+	case B1:                            /* B1 hit: favor recency */
+	    if (cdb.absent()) { // We return "not found" (NULL)
+		move(B2,item);
 		return NULL;
 		}
-	    rat = B2.size()/B1.size();
+	    rat = L[B2].size() / L[B1].size();
 	    if (rat < 1) rat = 1;
 	    target_T1 += rat;
 	    if (target_T1 > nCache) target_T1 = nCache;
-	    /* adapt the target size */
-	    T2.splice(T2.end(),B1,tempX);
-	    goto doBcase;
-	case _B2_:                            /* B2 hit: favor frequency */
-	    if (tempX->absent()) { // We return "not found" (NULL)
-		B2.splice(B2.end(),B2,tempX);
+	    break;
+	case B2:                            /* B2 hit: favor frequency */
+	    if (cdb.absent()) { // We return "not found" (NULL)
+		move(B2,item);
 		return NULL;
 		}
-	    rat = B1.size()/B2.size();
+	    rat = L[B1].size() / L[B2].size();
 	    if (rat < 1) rat = 1;
 	    if (rat > target_T1) target_T1 = 0;
 	    else target_T1 = target_T1 - rat;
-	    /* adapt the target size */
-	    inB2=true;
-	    T2.splice(T2.end(),B2,tempX);
-	doBcase:
-	    invokeRequest(uLine,uId,bVirtual); // Request the element be fetched
-	    tempX->data = replace(inB2);                                /* find a place to put new page */
-	    tempX->uId = _T2_|uId;     /* temp->ARC_where = _T2_; and set the dirty bit for this page */
-	    tempX->uPage = uLine;                          /* bookkeep */
-	    finishRequest(uLine,uId,bVirtual,tempX->data);
 	    break;
+	default:
+	    std::cerr << "FATAL: found element in list " << cdb.where() << " which is invalid" << std::endl;
+	    abort();
 	    }
+	// We only get here if the element was in B1 or B2
+	move(T2,item);
+	invokeRequest(uLine,uId,bVirtual); // Request the element be fetched
+	cdb.data = replace(cdb.where()==B2);                                /* find a place to put new page */
+	cdb.uId = uId;     /* temp->ARC_where = _T2_; and set the dirty bit for this page */
+	cdb.uPage = uLine;                          /* bookkeep */
+	finishRequest(uLine,uId,bVirtual,cdb.data);
 	}
 
     else {                                                              /* page is not in cache directory */
@@ -299,59 +374,53 @@ void *ARC::fetch(uint32_t uIndex, int uId, int bLock,int bModify,bool bVirtual) 
 	** Can initiate the data request right here, and do the rest while waiting...
 	*/
 	invokeRequest(uLine,uId,bVirtual);
-	auto L1Length = T1.size() + B1.size();
+	auto L1Length = L[T1].size() + L[B1].size();
 	if (L1Length == nCache) {                                   /* B1 + T1 full? */
-	    if (T1.size() < nCache) {                                           /* Still room in T1? */
-		tempX = remove_from_hash(B1);        /* yes: take page off B1 */
-		tempX->data = replace();                                /* find new place to put page */
-		T1.splice(T1.end(),B1,tempX);
+	    if (L[T1].size() < nCache) {                                           /* Still room in T1? */
+		item = HASH::remove(B1);        /* yes: take page off B1 */
+		auto &cdb = std::get<0>(*item);
+		cdb.data = replace();                                /* find new place to put page */
+		move(T1,item);
 		}
 	    else {                                                      /* no: B1 must be empty */
-		tempX = remove_from_hash(T1);       /* take page off T1 */
-		destage(*tempX);     /* if dirty, evict before overwrite */
-		T1.splice(T1.end(),T1,tempX);
+		item = HASH::remove(T1);       /* take page off T1 */
+		evict(*item);     /* if dirty, evict before overwrite */
+		move(T1,item);
 		}
 	    }
 	else {                                                          /* B1 + T1 have less than c pages */
-	    uint32_t nInCache = T1.size() + T2.size() + B1.size() + B2.size();
-	    if (nInCache >= nCache) {         /* cache full? */
-		/* Yes, cache full: */
-		auto data = replace(inB2); // Careful: replace() can take from T1
-		if (nInCache == 2*nCache) {
-		    /* directory is full: */
-		    tempX = remove_from_hash(B2);
-		    T1.splice(T1.end(),B2,tempX);
-		    inB2=true;
-		} else {                                                   /* cache directory not full, easy case */
-		    T1.splice(T1.end(),ArcFree,ArcFree.begin());
-		    assert(T1.back().data == NULL);
+	    uint32_t nInCache = L[T1].size() + L[T2].size() + L[B1].size() + L[B2].size();
+	    if (nInCache >= nCache) { // Cache is full
+		auto data = replace(); // Careful: replace() can take from T1
+		if (nInCache == 2*nCache) item = move(T1,remove(B2)); // Directory full so remove from B2
+		else item = move(T1);                                 // cache directory not full, easy case
+		auto &cdb = std::get<0>(*item);
+		cdb.data = data;
 		}
-		T1.back().data = data;
-	    } else {                                                      /* cache not full, easy case */
-		T1.splice(T1.end(),ArcFree,ArcFree.begin());
-		assert(T1.back().data != NULL);               /* This CDB should have an unused page associated with it */
-		T1.back().data[-1] = _ARC_MAGIC_; /* this also sets nLock to zero */
+	    else { // Cache is not full; just grab an element and point to our internal storage
+		item = move(T1);
+		auto &cdb = std::get<0>(*item);
+		cdb.data = &dataBase[nInCache*(uLineSizeInWords+1)+1];
+		cdb.data[-1] = _ARC_MAGIC_; /* this also sets nLock to zero */
 		}
 	    }
-	tempX = --T1.end();
-	tempX->uId = uId;                  /* temp->dirty = dirty;  p->ARC_where = _T1_; as well! */
-	tempX->uPage = uLine;
-	finishRequest(uLine,uId,bVirtual,tempX->data);
+	assert(item == std::prev(L[T1].end()));
+	auto &cdb = std::get<0>(*item);
+	cdb.uId = uId;                  /* temp->dirty = dirty;  p->ARC_where = _T1_; as well! */
+	cdb.uPage = uLine;
+	finishRequest(uLine,uId,bVirtual,cdb.data);
 	assert(!HashFree.empty());
 	Hash.splice_after(Hash.before_begin(),HashFree,HashFree.before_begin());
 	assert(!Hash.empty());
-	Hash.front() = tempX;
+	Hash.front() = item;
     }
-    if (bLock) {
-	/*
-	** We don't have to check if the lock counter rolls over, since it will increment the  
-	** magic number first. This in turn will cause this page to be locked in a way that it 
-	** cannot be unlocked without an error condition.
-	*/
-	++tempX->data[-1];       /* increase lock count */
-    }
-    /* If we will modify the element, then it must eventually be flushed. */
-    if (bModify) tempX->setDirty();
+    auto &cdb = std::get<0>(*item);
+    if (bLock) ++cdb.data[-1]; // Increase the lock count if requested
+    // If we will modify the element, then it must eventually be flushed.
+    // It is possible that we don't mark this dirty, but that it is already dirty.
+    if (bModify) cdb.setDirty();
 
-    return reinterpret_cast<char*>(tempX->data) + uDataSizeInBytes*iInLine;
+    return reinterpret_cast<char*>(cdb.data) + uDataSizeInBytes*iInLine;
     }
+
+} // namespace mdl

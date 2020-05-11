@@ -192,7 +192,6 @@ void mpiClass::FinishCacheReceive(mdlMessageCacheReceive *message, const MPI_Sta
     /* Well, could be any threads cache */
     int iCore = ph->idTo - Self();
     assert(iCore>=0 && iCore<Cores());
-    CACHE *c = &pmdl[iCore]->cache[ph->cid];
 
     switch (ph->mid) {
     case CacheMessageType::REQUEST: CacheReceiveRequest(count,ph); break;
@@ -336,7 +335,6 @@ void mpiClass::CacheReceiveRequest(int count, const CacheHeader *ph) {
     assert( count == sizeof(CacheHeader) );
     int iCore = ph->idTo - Self();
     assert(iCore>=0 && iCore<Cores());
-    CACHE *c = &pmdl[iCore]->cache[ph->cid];
     int iRankFrom = ThreadToProc(ph->idFrom); /* Can use iRankFrom */
     mdlMessageCacheReply *reply;
     if (freeCacheReplies.empty()) reply = new mdlMessageCacheReply(iReplyBufSize);
@@ -344,6 +342,7 @@ void mpiClass::CacheReceiveRequest(int count, const CacheHeader *ph) {
     reply->emptyBuffer();
     reply->setRankTo(iRankFrom);
     reply->addBuffer(ph->cid,Self(),ph->idFrom,ph->iLine);
+    CACHE *c = &pmdl[iCore]->cache[ph->cid];
     int s = ph->iLine << c->nLineBits;
     int n = s + c->nLineElements;
     int iLineSize = c->iLineSize;
@@ -437,14 +436,9 @@ void mdlClass::finishCacheRequest(uint32_t uLine, uint32_t uId, int cid, void *d
 \*****************************************************************************/
 
 // When we need to evict an element (especially at the end) this routine is called by the ARC cache.
-void CACHE::destage(CDB &temp) {
-    assert(temp.getData() != NULL);
-
-    if (temp.dirty()) {     /* if dirty, evict before free */
-	if (!mdl->coreFlushBuffer->canBuffer(iLineSize)) mdl->flush_core_buffer();
-	mdl->coreFlushBuffer->addBuffer(iCID,mdlSelf(mdl),temp.getId(),temp.getPage(),iLineSize,temp.getData());
-	temp.setClean();    /* No longer dirty */
-	}
+void CACHE::destage(const char *data,uint32_t uIndex,uint32_t uId) {
+    if (!mdl->coreFlushBuffer->canBuffer(iLineSize)) mdl->flush_core_buffer();
+    mdl->coreFlushBuffer->addBuffer(iCID,mdlSelf(mdl),uId,uIndex,iLineSize,data);
     }
 
 // This sends our local flush buffer to the MPI thread to be flushed (if it's full for example)
