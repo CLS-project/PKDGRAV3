@@ -373,7 +373,7 @@ void MessageEwald::finish() {
             out->a[1] += fromGPU[ij].Y[ii];
             out->a[2] += fromGPU[ij].Z[ii];
             out->fPot += fromGPU[ij].Pot[ii];
-//            wp->dFlopSingleGPU += COST_FLOP_HLOOP*cuda->ewIn->nEwhLoop;
+            wp->dFlopSingleGPU += COST_FLOP_HLOOP * cuda.nEwhLoop;
             wp->dFlopDoubleGPU += fromGPU[ij].FlopDouble[ii];
             }
         pkdParticleWorkDone(wp);
