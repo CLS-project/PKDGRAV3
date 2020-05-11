@@ -502,6 +502,13 @@ int copyBLKs2(Blk<n,TILE> *out, TILE *in,const int nIlp) {
     return nBlk;
     }
 
+static double getFlops(workParticle *wp,ilpTile *tile) {
+    return COST_FLOP_PP*wp->nP*(tile->lstTile.nBlocks*ILP_PART_PER_BLK + tile->lstTile.nInLast);
+    }
+static double getFlops(workParticle *wp,ilcTile *tile) {
+    return COST_FLOP_PC*wp->nP*(tile->lstTile.nBlocks*ILP_PART_PER_BLK + tile->lstTile.nInLast);
+    }
+
 // Add the interactions to this list
 template<class TILE,int nIntPerTB, int nIntPerWU>
 bool MessagePPPC<TILE,nIntPerTB,nIntPerWU>::queue(workParticle *wp, TILE *tile, bool bGravStep) {
@@ -532,7 +539,7 @@ bool MessagePPPC<TILE,nIntPerTB,nIntPerWU>::queue(workParticle *wp, TILE *tile, 
     nInteractionBlocks += nBlocksAligned;
     work.emplace_back(wp,nInteract);
     ++wp->nRefs;
-
+    wp->dFlopSingleGPU += getFlops(wp,tile);
     return true;
     }
 
