@@ -692,7 +692,7 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
           qDeltaHalf = 0.0; // For the initialization step we do not extrapolate because we dont have a reliable dDelta
           pDeltaHalf = 0.0;
        }
-       if(pkd->param.csm->val.bComove)
+       if(pkd->csm->val.bComove)
        {
           qDeltaHalf /= smf->a;
           pDeltaHalf /= smf->a;
@@ -830,7 +830,7 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
       
       double temp;
-      if(pkd->param.csm->val.bComove){
+      if(pkd->csm->val.bComove){
          
          for (j=0;j<3;j++){
             temp = smf->H * pDeltaHalf * smf->a * pv[j];
@@ -921,7 +921,7 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
        if (riemann_output.Fluxes.p!=riemann_output.Fluxes.p) riemann_output.Fluxes.p = 0.;//abort(); 
 
 
-       if(pkd->param.csm->val.bComove){ 
+       if(pkd->csm->val.bComove){ 
           minDt /= smf->a; // 1/a term before \nabla
           /*
           modApq *= smf->a*smf->a; 
@@ -952,7 +952,7 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
        qmass = pkdField(q,pkd->oMass);
 
        /*
-       if(pkd->param.csm->val.bComove){ 
+       if(pkd->csm->val.bComove){ 
           for (j=0;j<3;j++) riemann_output.Fluxes.v[j] *= smf->a;
           riemann_output.Fluxes.p *= smf->a*smf->a;
        }

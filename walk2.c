@@ -770,7 +770,7 @@ static void initGravWalk(PKD pkd,double dTime,double dThetaMin,int bPeriodic,int
     ** Precalculate RhoFac if required.
     */
     if (bGravStep) {
-	double a = csmTime2Exp(pkd->param.csm,dTime);
+	double a = csmTime2Exp(pkd->csm,dTime);
 	*dRhoFac = 1.0/(a*a*a);
 	}
     else *dRhoFac = 0.0;

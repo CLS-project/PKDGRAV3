@@ -22,6 +22,7 @@
 #include "pst.h"
 #include "master.h"
 #include "gridinfo.hpp"
+#include "whitenoise.hpp"
 using namespace gridinfo;
 
 #include <vector>
@@ -78,9 +79,60 @@ Window::Window(int nGrid,int iAssignment) {
 	}
     }
 
+class LinearSignal : public NoiseGenerator {
+private:
+    CSM csm;
+    gsl_interp_accel *acc;
+    gsl_spline *spline;
+    double iLbox;
+    double *logk, *field;
+protected:
+    virtual void update(gridinfo::complex_vector_t &pencil,gridinfo::complex_vector_t &noise,int j,int k);
+public:
+    explicit LinearSignal(CSM csm,double a,double Lbox,unsigned long seed,bool bFixed=false,float fPhase=0);
+    virtual ~LinearSignal();
+    };
+
+LinearSignal::LinearSignal(CSM csm,double a,double Lbox,unsigned long seed,bool bFixed,float fPhase)
+    : NoiseGenerator(seed,bFixed,fPhase) {
+    auto size = csm->val.classData.perturbations.size_k;
+    this->csm = csm;
+    iLbox = 2*M_PI / Lbox;
+    acc = gsl_interp_accel_alloc();
+    spline = gsl_spline_alloc(gsl_interp_cspline, size);
+    logk = (double*)malloc(sizeof(double)*size);
+    field = (double*)malloc(sizeof(double)*size);
+    for (auto i = 0; i < size; i++){
+        auto k = csm->val.classData.perturbations.k[i];
+        logk[i] = log(k);
+        field[i] = csmDeltaRho_pk(csm, a, k);
+        field[i] /= csmZeta(csm, k);
+    }
+    gsl_spline_init(spline, logk, field, size);
+    }
+
+LinearSignal::~LinearSignal() {
+    gsl_interp_accel_free(acc);
+    gsl_spline_free(spline);
+    }
+
+void LinearSignal::update(complex_vector_t &pencil,complex_vector_t &noise,int iy,int iz) {
+    float k2jk = iy*iy + iz*iz;
+    for( auto index=noise.begin(); index!=noise.end(); ++index ) {
+	auto ix = index.position()[0];
+	auto k = sqrt(k2jk + ix*ix) * iLbox;
+	if (k>0) {
+	    float signal = csmZeta(csm, k)*gsl_spline_eval(spline, log(k), acc);
+	    auto wnoise = *index;
+            pencil(index.position()) += wnoise*signal;
+	    }
+	}
+    }
+
 extern "C"
 void pkdMeasurePk(PKD pkd, double dTotalMass, int iAssignment, int bInterlace,
-    int nGrid, int nBins, double *fK, double *fPower, uint64_t *nPower) {
+    int bLinear, int iSeed, int bFixed, float fPhase, double Lbox, double a,
+    int nGrid, int nBins, double *fK, double *fPower, uint64_t *nPower, double *fPowerAll) {
     mdlGridCoord first, last, index;
     assert(pkd->fft != NULL);
     auto iNyquist = nGrid / 2;
@@ -106,6 +158,7 @@ void pkdMeasurePk(PKD pkd, double dTotalMass, int iAssignment, int bInterlace,
     for( auto i=0; i<nBins; i++ ) {
 	fK[i] = 0.0;
 	fPower[i] = 0.0;
+	fPowerAll[i] = 0.0;
 	nPower[i] = 0;
 	}
 
@@ -144,6 +197,35 @@ void pkdMeasurePk(PKD pkd, double dTotalMass, int iAssignment, int bInterlace,
 	    fK[ks] += log(ak);
 	    fPower[ks] += std::norm(v1);
 	    nPower[ks] += 1;
+	    if (i!=0 && i!=iNyquist) { // Account for negative Kx values
+		fK[ks] += log(ak);
+		fPower[ks] += std::norm(v1);
+		nPower[ks] += 1;
+		}
+	    }
+	}
+    if (bLinear) {
+	LinearSignal ng(pkd->csm,a,Lbox,iSeed,bFixed,fPhase);
+	ng.FillNoise(K1,nGrid);
+	for( auto index=K1.begin(); index!=K1.end(); ++index ) {
+    	 auto pos = index.position();
+	    auto i = pos[0]; // i,j,k are all positive (absolute value)
+	    auto j = pos[1]>iNyquist ? nGrid - pos[1] : pos[1];
+	    auto k = pos[2]>iNyquist ? nGrid - pos[2] : pos[2];
+	    auto ak = sqrt(i*i + j*j + k*k);
+	    auto ks = int(ak);
+	    if ( ks >= 1 && ks <= iNyquist ) {
+    #ifdef LINEAR_PK
+		ks = floor((ks-1.0) * scale);
+    #else
+		ks = floor(log(ks) * scale);
+    #endif
+		assert(ks>=0 && ks<nBins);
+		fPowerAll[ks] += std::norm(*index);
+		if (i!=0 && i!=iNyquist) { // Account for negative Kx values
+		    fPowerAll[ks] += std::norm(*index);
+		    }
+		}
 	    }
 	}
     }

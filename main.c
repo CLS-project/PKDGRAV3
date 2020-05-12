@@ -41,6 +41,21 @@
 #include "pkdpython.h"
 #endif
 
+time_t timeGlobalSignalTime = 0;
+int bGlobalOutput = 0;
+
+#ifndef _MSC_VER
+static inline void USR1_handler(int signo) {
+    signal(SIGUSR1,USR1_handler);
+    timeGlobalSignalTime = time(0);
+    }
+
+static inline void USR2_handler(int signo) {
+    signal(SIGUSR2,USR2_handler);
+    bGlobalOutput = 1;
+    }
+#endif
+
 /*
 ** This function is called at the very start by every thread.
 ** It returns the "worker context"; in this case the PST.
@@ -124,7 +139,8 @@ void master(MDL mdl,void *pst) {
     if (bRestore) {
 	dTime = msrRestore(msr);
 	iStartStep = msr->iCheckpointStep;
-	msrInitStep(msr);
+	msrSetParameters(msr);
+	msrInitCosmology(msr);
 	if (prmSpecified(msr->prm,"dSoft")) msrSetSoft(msr,msrSoft(msr));
 	iStep = msrSteps(msr); /* 0=analysis, >1=simulate, <0=python */
 	uRungMax = msr->iCurrMaxRung;
@@ -144,7 +160,8 @@ void master(MDL mdl,void *pst) {
 	msrFinish(msr);
 	return;
 #endif
-	msrInitStep(msr);
+	msrSetParameters(msr);
+	msrInitCosmology(msr);
 	if (prmSpecified(msr->prm,"dSoft")) msrSetSoft(msr,msrSoft(msr));
 	iStep = msrSteps(msr); /* 0=analysis, >1=simulate, <0=python */
 	}
@@ -153,19 +170,19 @@ void master(MDL mdl,void *pst) {
     else if ( msr->param.achInFile[0] ) {
 	iStartStep = msr->param.iStartStep; /* Should be zero */
 	dTime = msrRead(msr,msr->param.achInFile); /* May change nSteps/dDelta */
-	msrInitStep(msr);
+	msrSetParameters(msr);
+	msrInitCosmology(msr);
 	if (msr->param.bAddDelete) msrGetNParts(msr);
-      // IA: I do not understand this... So
-//    if (prmSpecified(msr->prm,"dRedFrom")) {
-//        double aOld, aNew;
-//        aOld = csmTime2Exp(msr->param.csm,dTime);
-//        aNew = 1.0 / (1.0 + msr->param.dRedFrom);
-//        dTime = msrAdjustTime(msr,aOld,aNew);
-//        /* Seriously, we shouldn't need to send parameters *again*.
-//           When we remove sending parameters, we should remove this. */
-//        msrInitStep(msr);
-//        }
-    if (prmSpecified(msr->prm,"dSoft")) msrSetSoft(msr,msrSoft(msr));
+	if (prmSpecified(msr->prm,"dRedFrom")) {
+	    double aOld, aNew;
+	    aOld = csmTime2Exp(msr->csm,dTime);
+	    aNew = 1.0 / (1.0 + msr->param.dRedFrom);
+	    dTime = msrAdjustTime(msr,aOld,aNew);
+	    /* Seriously, we shouldn't need to send parameters *again*.
+	       When we remove sending parameters, we should remove this. */
+	    msrSetParameters(msr);
+	    }
+	if (prmSpecified(msr->prm,"dSoft")) msrSetSoft(msr,msrSoft(msr));
 	iStep = msrSteps(msr); /* 0=analysis, >1=simulate, <0=python */
 	}
 #ifdef USE_PYTHON
@@ -207,7 +224,7 @@ void master(MDL mdl,void *pst) {
 		}
 #endif
 	    if (msr->param.bFindGroups) {
-		msrNewFof(msr,csmTime2Exp(msr->param.csm,dTime));
+		msrNewFof(msr,csmTime2Exp(msr->csm,dTime));
 		}
 	    if (msrDoGravity(msr)) {
 		msrGravity(msr,0,MAX_RUNG,ROOT,0,dTime,iStartStep,0,0,
@@ -269,9 +286,9 @@ void master(MDL mdl,void *pst) {
 
 	if (msr->param.bLightCone && msrComove(msr)) {
 	    printf("One, Two, Three replica depth is z=%.10g, %.10g, %.10g\n",
-		1.0/csmComoveLookbackTime2Exp(msr->param.csm,1.0 / dLightSpeedSim(1*msr->param.dBoxSize)) - 1.0,
-		1.0/csmComoveLookbackTime2Exp(msr->param.csm,1.0 / dLightSpeedSim(2*msr->param.dBoxSize)) - 1.0,
-		1.0/csmComoveLookbackTime2Exp(msr->param.csm,1.0 / dLightSpeedSim(3*msr->param.dBoxSize)) - 1.0 );
+		1.0/csmComoveLookbackTime2Exp(msr->csm,1.0 / dLightSpeedSim(1*msr->param.dBoxSize)) - 1.0,
+		1.0/csmComoveLookbackTime2Exp(msr->csm,1.0 / dLightSpeedSim(2*msr->param.dBoxSize)) - 1.0,
+		1.0/csmComoveLookbackTime2Exp(msr->csm,1.0 / dLightSpeedSim(3*msr->param.dBoxSize)) - 1.0 );
 	    }
 
 	/*
@@ -289,6 +306,8 @@ void master(MDL mdl,void *pst) {
 	    }
 #endif
 	if (msrDoGravity(msr)) {
+	    msrSwitchDelta(msr,dTime,iStartStep);
+	    msrSetParameters(msr);
 	    if (msr->param.bNewKDK) {
 		msrLightConeOpen(msr,iStartStep + 1);
 		bKickOpen = 1;
@@ -296,7 +315,7 @@ void master(MDL mdl,void *pst) {
 	    else bKickOpen = 0;
 
             /* Compute the grids of the linear species before doing gravity */
-            if (strlen(msr->param.csm->val.classData.achLinSpecies) && msr->param.nGridLin > 0){
+            if (strlen(msr->param.achLinearSpecies) && msr->param.nGridLin > 0){
 		msrGridCreateFFT(msr,msr->param.nGridLin);
                 msrSetLinGrid(msr,dTime, msr->param.nGridLin,bKickClose,bKickOpen);
                 if (msr->param.bDoLinPkOutput)
@@ -325,7 +344,7 @@ void master(MDL mdl,void *pst) {
 	if (msrLogInterval(msr)) {
 		(void) fprintf(fpLog,"%e %e %.16e %e %e %e %.16e %.16e %.16e "
 			       "%.16e %.16e %.16e %.16e %i %e\n",dTime,
-			       1.0/csmTime2Exp(msr->param.csm,dTime)-1.0,
+			       1.0/csmTime2Exp(msr->csm,dTime)-1.0,
 			       E,T,U,Eth,L[0],L[1],L[2],F[0],F[1],F[2],W,iSec,dMultiEff);
 	    }
 	if ( msr->param.bTraceRelaxation) {
@@ -335,9 +354,11 @@ void master(MDL mdl,void *pst) {
 	bKickOpen = 0;
 	msrOutput(msr,0,dTime,0);  // IA: Save the IC after computing density 
 	for (iStep=iStartStep+1;iStep<=msrSteps(msr)&&!iStop;++iStep) {
+	    msrSwitchDelta(msr,dTime,iStep-1);
+	    msrSetParameters(msr);
 	    if (msrComove(msr)) msrSwitchTheta(msr,dTime);
 	    dMultiEff = 0.0;
-	    lSec = time(0);
+	    msr->lPrior = time(0);
 	    if (msr->param.bNewKDK) {
 		diStep = (double)(iStep-1);
 		ddTime = dTime;
@@ -346,7 +367,7 @@ void master(MDL mdl,void *pst) {
                     msrLightConeOpen(msr,iStep);  /* open the lightcone */
 		    uRungMax = msrGravity(msr,0,MAX_RUNG,ROOT,0,ddTime,diStep,0,1,msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
                     /* Set the grids of the linear species */
-                    if (strlen(msr->param.csm->val.classData.achLinSpecies) && msr->param.nGridLin > 0){
+                    if (strlen(msr->param.achLinearSpecies) && msr->param.nGridLin > 0){
 			msrGridCreateFFT(msr,msr->param.nGridLin);
 		        msrSetLinGrid(msr, dTime, msr->param.nGridLin,bKickClose,bKickOpen);
                         if (msr->param.bDoLinPkOutput)
@@ -356,8 +377,7 @@ void master(MDL mdl,void *pst) {
                         }
 		    bKickOpen = 0; /* clear the opening kicking flag */
 		    }
-		msrNewTopStepKDK(msr,0,0,&diStep,&ddTime,&uRungMax,&iSec,&bDoCheckpoint,&bDoOutput);
-		bKickOpen = bDoCheckpoint || bDoOutput;
+		msrNewTopStepKDK(msr,0,0,&diStep,&ddTime,&uRungMax,&iSec,&bDoCheckpoint,&bDoOutput,&bKickOpen);
 		}
 	    else {
 		msrTopStepKDK(msr,iStep-1,dTime,
@@ -365,7 +385,7 @@ void master(MDL mdl,void *pst) {
 		    &dMultiEff,&iSec);
 		}
 	    dTime += msrDelta(msr);
-	    lSec = time(0) - lSec;
+	    lSec = time(0) - msr->lPrior;
 	    msrMemStatus(msr);
 
 	    msrOutputOrbits(msr,iStep,dTime);
@@ -378,7 +398,7 @@ void master(MDL mdl,void *pst) {
 		msrCalcEandL(msr,MSR_STEP_E,dTime,&E,&T,&U,&Eth,L,F,&W);
 		(void) fprintf(fpLog,"%e %e %.16e %e %e %e %.16e %.16e "
 			       "%.16e %.16e %.16e %.16e %.16e %li %e\n",dTime,
-			       1.0/csmTime2Exp(msr->param.csm,dTime)-1.0,
+			       1.0/csmTime2Exp(msr->csm,dTime)-1.0,
 			       E,T,U,Eth,L[0],L[1],L[2],F[0],F[1],F[2],W,lSec,dMultiEff);
 		}
 	    if ( msr->param.bTraceRelaxation) {
@@ -390,6 +410,7 @@ void master(MDL mdl,void *pst) {
 	    if (!msr->param.bNewKDK) {
 		msrCheckForOutput(msr,iStep,dTime,&bDoCheckpoint,&bDoOutput);
 		}
+	    iStop = (bDoCheckpoint&2) || (bDoOutput&2);
 	    if (bDoCheckpoint) {
 		msrCheckpoint(msr,iStep,dTime);
 		bDoCheckpoint = 0;

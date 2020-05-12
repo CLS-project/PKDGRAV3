@@ -947,9 +947,10 @@ typedef struct pkdContext {
 
     /*
     ** Oh heck, just put all the parameters in here!
-    ** This is set in pkdInitStep.
+    ** This is set in pkdSetParameters.
     */
     struct parameters param;
+    CSM csm;
 
 #ifdef USE_CUDA
     void *cudaCtx;
@@ -1469,7 +1470,8 @@ void pkdCalcEandL(PKD pkd,double *T,double *U,double *Eth,double *L,double *F,do
 #ifdef __cplusplus
 extern "C" {
 #endif
-void pkdProcessLightCone(PKD pkd,PARTICLE *p,float fPot,double dLookbackFac,double dLookbackFacLCP,double dDriftDelta,double dKickDelta);
+void pkdProcessLightCone(PKD pkd,PARTICLE *p,float fPot,double dLookbackFac,double dLookbackFacLCP,
+			double dDriftDelta,double dKickDelta,double dBoxSize,int bLightConeParticles);
 void pkdGravEvalPP(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINFOOUT *pOut );
 void pkdGravEvalPC(PINFOIN *pPart, int nBlocks, int nInLast, ILC_BLK *blk,  PINFOOUT *pOut );
 #ifdef __cplusplus
@@ -1477,7 +1479,7 @@ void pkdGravEvalPC(PINFOIN *pPart, int nBlocks, int nInLast, ILC_BLK *blk,  PINF
 #endif
 void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double,double);
 void pkdApplyGravWork(PKD pkd,double dTime,double dDelta,double,double,double,uint8_t uRungLo,uint8_t uRungHi);
-void pkdUpdateConsVars(PKD pkd,int iRoot,double dTime,double dDelta,double,double);
+void pkdResetFluxes(PKD pkd,int iRoot,double dTime,double dDelta,double,double);
 void pkdComputePrimVars(PKD pkd,int iRoot, double dTime, double dDelta);
 void pkdPredictSmoothing(PKD pkd,int iRoot, double dTime, double dDelta);
 void pkdScaleVel(PKD pkd,double dvFac);
@@ -1489,7 +1491,8 @@ void pkdKickKDKClose(PKD pkd,double dTime,double dDelta,uint8_t uRungLo,uint8_t 
 void pkdKick(PKD pkd,double dTime,double dDelta,double,double,double,uint8_t uRungLo,uint8_t uRungHi);
 void pkdKickTree(PKD pkd,double dTime,double dDelta,double,double,double,int iRoot);
 void pkdSwapAll(PKD pkd, int idSwap);
-void pkdInitStep(PKD pkd,struct parameters *p,struct csmVariables *cosmo);
+void pkdSetParameters(PKD pkd,struct parameters *p);
+void pkdInitCosmology(PKD pkd,struct csmVariables *cosmo);
 void pkdSetRung(PKD pkd,uint8_t uRungLo, uint8_t uRungHi, uint8_t uRung);
 void pkdZeroNewRung(PKD pkd,uint8_t uRungLo, uint8_t uRungHi, uint8_t uRung);
 void pkdActiveRung(PKD pkd, int iRung, int bGreater);
@@ -1596,7 +1599,8 @@ void pkdGridProject(PKD pkd);
 #ifdef MDL_FFTW
 void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int nGrid, float dDelta, int iAssignment);
 void pkdMeasurePk(PKD pkd, double dTotalMass, int iAssignment, int bInterlace,
-    int nGrid, int nBins, double *fK, double *fPower, uint64_t *nPower);
+    int bLinear, int iSeed, int bFixed, float fPhase, double Lbox, double a,
+    int nGrid, int nBins, double *fK, double *fPower, uint64_t *nPower, double *fPowerAll);
 float getLinAcc(PKD pkd, MDLFFT fft,int cid, double r[3]);
 void pkdSetLinGrid(PKD pkd,double a0, double a, double a1, double dBSize, int nGrid, int iSeed,
     int bFixed, float fPhase);

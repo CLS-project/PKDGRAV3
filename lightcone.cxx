@@ -31,8 +31,9 @@ extern "C" void addToLightCone(PKD pkd,double *r,float fPot,PARTICLE *p,int bPar
 #define NBOX 184
 
 extern "C"
-void pkdProcessLightCone(PKD pkd,PARTICLE *p,float fPot,double dLookbackFac,double dLookbackFacLCP,double dDriftDelta,double dKickDelta) {
-    const double dLightSpeed = dLightSpeedSim(pkd->param.dBoxSize);
+void pkdProcessLightCone(PKD pkd,PARTICLE *p,float fPot,double dLookbackFac,double dLookbackFacLCP,
+			double dDriftDelta,double dKickDelta,double dBoxSize,int bLightConeParticles) {
+    const double dLightSpeed = dLightSpeedSim(dBoxSize);
     const double mrLCP = dLightSpeed*dLookbackFacLCP;
 
     int nBox = NBOX; /* Check all 184 by default */
@@ -192,7 +193,7 @@ void pkdProcessLightCone(PKD pkd,PARTICLE *p,float fPot,double dLookbackFac,doub
 			    ** Create a new light cone particle.
 			    */
 			    double mr = sqrt(r[0]*r[0] + r[1]*r[1] + r[2]*r[2]);
-			    addToLightCone(pkd,r,fPot,p,pkd->param.bLightConeParticles && (mr <= mrLCP));
+			    addToLightCone(pkd,r,fPot,p,bLightConeParticles && (mr <= mrLCP));
 			    }
 			}
 		    }
