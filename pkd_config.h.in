@@ -53,6 +53,6 @@
 #define USE_SIMD_PC 1
 #define NAIVE_DOMAIN_DECOMP 1
 
-#define PACKAGE_VERSION "3.0.1"
-#define PACKAGE_STRING "pkdgrav 3.0.1"
+#define PACKAGE_VERSION "3.0.2"
+#define PACKAGE_STRING "pkdgrav 3.0.2"
 #define FLOAT_MAXVAL HUGE_VAL
