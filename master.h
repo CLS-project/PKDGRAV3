@@ -350,6 +350,7 @@ public:
 	const PROFILEBIN **pBins, int *pnBins, double *r,
 	double dMinRadius, double dLogRadius, double dMaxRadius,
 	int nPerBin, int nBins, int nAccuracy );
+    void OutputGrid(const char *filename, bool k=false, int iGrid=0, int nParaWrite=0);
 
     uint64_t CountSelected();
     uint64_t SelSpecies(uint64_t mSpecies,bool setIfTrue=true,bool clearIfFalse=true);

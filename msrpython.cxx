@@ -876,6 +876,20 @@ ppy_msr_MeasurePk(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     return Py_BuildValue("(NNNN)",ListK,ListPk,ListNk,ListPkAll);
     }
 
+static PyObject *
+ppy_msr_write_grid(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    flush_std_files();
+    static char const *kwlist[]={"name","source","k",NULL};
+    const char *name;
+    int source=0, k=0;
+    if ( !PyArg_ParseTupleAndKeywords(
+	     args, kwobj, "s|ip:write_grid", const_cast<char **>(kwlist),
+	     &name, &source, &k ) )
+	return NULL;
+    self->msr->OutputGrid(name, k, source, 1);
+    Py_RETURN_NONE;
+    }
+
 /********** Analysis: Mark particles **********/
 
 static PyObject *
@@ -1064,6 +1078,8 @@ static PyMethodDef msr_methods[] = {
      "Write an array of some feld"},
     {"WriteVector", (PyCFunction)ppy_msr_WriteVector, METH_VARARGS|METH_KEYWORDS,
      "Write a vector output"},
+    {"write_grid", (PyCFunction)ppy_msr_write_grid, METH_VARARGS|METH_KEYWORDS,
+     "Write a grid output"},
 
     {"Checkpoint", (PyCFunction)ppy_msr_Checkpoint, METH_VARARGS|METH_KEYWORDS,
      "Write a checkpoint"},

@@ -22,17 +22,18 @@
 #endif
 #include "output.h"
 #include "pst.h"
-#include <complex.h>
-#define COMPLEX float complex
+#include <complex>
+#define COMPLEX std::complex<float>
 
 /* Generic context: all things/stuff from iIndex (starts at zero) */
 struct packCtx {
     PKD pkd;
-    int iIndex;
+    size_t iIndex;
+    int iGrid;
     };
 
 static int unpackWrite(void *vctx, int *id, size_t nSize, void *vBuff) {
-    asyncFileInfo *info = vctx;
+    auto info = reinterpret_cast<asyncFileInfo *>(vctx);
     io_write(info,vBuff,nSize);
     return 1;
     }
@@ -50,18 +51,36 @@ static int packGroupStats(void *vctx, int *id, size_t nSize, void *vBuff) {
     return n*sizeof(TinyGroupTable);
     }
 
-static int packGrid(void *vctx, int *id, size_t nSize, void *vBuff) {
+static int packGridK(void *vctx, int *id, size_t nSize, void *vBuff) {
     struct packCtx *ctx = (struct packCtx *)vctx;
     PKD pkd = ctx->pkd;
     if (mdlCore(pkd->mdl) == 0) {
-	COMPLEX *fftData = pkd->pLite;
+	auto fftData = reinterpret_cast<COMPLEX *>(pkd->pLite) + ctx->iGrid * pkd->fft->kgrid->nLocal;
 	size_t nLocal = 1ul * pkd->fft->kgrid->a1 * pkd->fft->kgrid->n2 * pkd->fft->kgrid->nSlab;
-	int nLeft = nLocal - ctx->iIndex;
-	int n = nSize / sizeof(COMPLEX);
+	size_t nLeft = nLocal - ctx->iIndex;
+	size_t n = nSize / sizeof(*fftData);
 	if ( n > nLeft ) n = nLeft;
-	memcpy(vBuff,fftData + ctx->iIndex, n*sizeof(COMPLEX) );
+	memcpy(vBuff,fftData + ctx->iIndex, n*sizeof(*fftData) );
 	ctx->iIndex += n;
-	return n*sizeof(COMPLEX);
+	return n*sizeof(*fftData);
+	}
+    else return 0;
+    }
+
+static int packGridR(void *vctx, int *id, size_t nSize, void *vBuff) {
+    struct packCtx *ctx = (struct packCtx *)vctx;
+    PKD pkd = ctx->pkd;
+    if (mdlCore(pkd->mdl) == 0) {
+	auto fftData = reinterpret_cast<float *>(pkd->pLite) + ctx->iGrid * pkd->fft->rgrid->nLocal;
+	auto pOutput = reinterpret_cast<float *>(vBuff);
+	size_t nLocal = 1ul * pkd->fft->rgrid->a1 * pkd->fft->rgrid->n2 * pkd->fft->rgrid->nSlab;
+	size_t iOutput = 0;
+	while(ctx->iIndex < nLocal && iOutput + pkd->fft->rgrid->n1 <= nSize ) {
+	    memcpy(pOutput+iOutput,fftData + ctx->iIndex, pkd->fft->rgrid->n1 * sizeof(*fftData) );
+	    iOutput += pkd->fft->rgrid->n1;
+	    ctx->iIndex += pkd->fft->rgrid->a1;
+	    }
+	return iOutput*sizeof(*fftData);
 	}
     else return 0;
     }
@@ -70,17 +89,21 @@ static int packGrid(void *vctx, int *id, size_t nSize, void *vBuff) {
 ** We do not do the write, rather we send to another thread.
 */
 
-void pkdOutputSend(PKD pkd, outType eOutputType, int iPartner) {
+void pkdOutputSend(PKD pkd, outType eOutputType, int iPartner, int iGrid) {
     struct packCtx ctx;
     mdlPack pack;
     ctx.pkd = pkd;
     ctx.iIndex = 0;
+    ctx.iGrid = iGrid;
     switch(eOutputType) {
     case OUT_TINY_GROUP:
 	pack = packGroupStats;
 	break;
     case OUT_KGRID:
-	pack = packGrid;
+	pack = packGridK;
+	break;
+    case OUT_RGRID:
+	pack = packGridR;
 	break;
     default:
 	fprintf(stderr,"ERROR: invalid output type %d\n", eOutputType);
@@ -90,8 +113,8 @@ void pkdOutputSend(PKD pkd, outType eOutputType, int iPartner) {
     }
 
 int pstOutputSend(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    struct inOutputSend *in = vin;
-    pkdOutputSend(pst->plcl->pkd, in->eOutputType, in->iPartner);
+    auto in = reinterpret_cast<struct inOutputSend *>(vin);
+    pkdOutputSend(pst->plcl->pkd, in->eOutputType, in->iPartner, in->iGrid);
     return 0;
     }
 
@@ -99,8 +122,23 @@ int pstOutputSend(PST pst,void *vin,int nIn,void *vout,int nOut) {
 ** We are the writer. We may need to receive as well.
 */
 
+static void localWrite(PKD pkd,mdlPack unpack,void *info,mdlPack pack,int iGrid) {
+    const size_t SEND_BUFFER_SIZE = 1*1024*1024;
+    packCtx ctx;
+    ctx.pkd = pkd;
+    ctx.iIndex = 0;
+    ctx.iGrid = iGrid;
+    int id = 0;
+
+    auto vOut = new char[SEND_BUFFER_SIZE];
+    while( auto n = (*pack)(&ctx,&id,SEND_BUFFER_SIZE,vOut) ) {
+	(*unpack)(info,&id,n,vOut);
+	}
+    delete[] vOut;
+    }
+
 void pkdOutput(PKD pkd, outType eOutputType, int iProcessor,int nProcessor,
-    int iPartner,int nPartner, const char *fname ) {
+    int iPartner,int nPartner, const char *fname, int iGrid ) {
     struct packCtx ctx = {pkd,0};
     mdlPack unpack;
     asyncFileInfo info;
@@ -116,10 +154,11 @@ void pkdOutput(PKD pkd, outType eOutputType, int iProcessor,int nProcessor,
 	unpack = unpackWrite;
 	break;
     case OUT_KGRID:
-	{
-	    size_t nLocal = 1ul * pkd->fft->kgrid->a1 * pkd->fft->kgrid->n2 * pkd->fft->kgrid->nSlab;
-	    io_write(&info,pkd->pLite,sizeof(COMPLEX)*nLocal);
-	    }
+	localWrite(pkd,unpackWrite,&info,packGridK,iGrid);
+	unpack = unpackWrite;
+	break;
+    case OUT_RGRID:
+	localWrite(pkd,unpackWrite,&info,packGridR,iGrid);
 	unpack = unpackWrite;
 	break;
     default:
@@ -131,6 +170,7 @@ void pkdOutput(PKD pkd, outType eOutputType, int iProcessor,int nProcessor,
 	struct inOutputSend send;
 	send.iPartner = pkd->idSelf;
 	send.eOutputType = eOutputType;
+	send.iGrid = iGrid;
 	++iPartner;
 	int rID = mdlReqService(pkd->mdl,iPartner,PST_OUTPUT_SEND,&send,sizeof(send));
 	mdlRecv(pkd->mdl,iPartner,unpack,&info);
@@ -141,7 +181,7 @@ void pkdOutput(PKD pkd, outType eOutputType, int iProcessor,int nProcessor,
     }
 
 int pstOutput(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    struct inOutput *in = vin;
+    auto in = reinterpret_cast<struct inOutput *>(vin);
 
     mdlassert(pst->mdl,nIn >= sizeof(struct inOutput));
     if (pstNotCore(pst)) {
@@ -181,7 +221,7 @@ int pstOutput(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	    }
 	PKD pkd = pst->plcl->pkd;
 	pkdOutput(pkd,in->eOutputType,in->iProcessor,in->nProcessor,
-	    in->iPartner,in->nPartner,in->achOutFile);
+	    in->iPartner,in->nPartner,in->achOutFile, in->iGrid);
 	}
     return 0;
     }

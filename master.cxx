@@ -4203,6 +4203,22 @@ void MSR::CalcVBound(BND *pbnd) {
     pstCalcVBound(pst,NULL,0,pbnd,sizeof(*pbnd));
     }
 
+void MSR::OutputGrid(const char *filename, bool k, int iGrid, int nParaWrite) {
+    struct inOutput out;
+    double dsec, sec = MSR::Time();
+    out.eOutputType = k ? OUT_KGRID : OUT_RGRID;
+    out.iGrid = iGrid;
+    out.iPartner = -1;
+    out.nPartner = -1;
+    out.iProcessor = 0;
+    out.nProcessor = nParaWrite > mdlProcs(mdl) ? mdlProcs(mdl) : nParaWrite;
+    strcpy(out.achOutFile,filename);
+    printf("Writing grid to %s ...\n",out.achOutFile);
+    pstOutput(pst,&out,sizeof(out),NULL,0);
+    dsec = MSR::Time() - sec;
+    msrprintf("Grid has been successfully written, Wallclock: %f secs.\n\n", dsec);
+    }
+
 #ifdef MDL_FFTW
 void MSR::OutputPk(int iStep,double dTime) {
 #ifdef _MSC_VER
@@ -4217,8 +4233,6 @@ void MSR::OutputPk(int iStep,double dTime) {
     int i;
 
     if (param.nGridPk == 0) return;
-
-//    GridCreateFFT(param.nGridPk);
 
     fK = new float[param.nBinsPk];
     fPk = new float[param.nBinsPk];
@@ -4256,24 +4270,11 @@ void MSR::OutputPk(int iStep,double dTime) {
     delete[] nPk;
     /* Output the k-grid if requested */
     z = 1/a - 1;
-    if (param.iDeltakInterval && (iStep % param.iDeltakInterval == 0) &&
-	z < param.dDeltakRedshift) {
-	struct inOutput out;
-	double dsec, sec = MSR::Time();
-	out.eOutputType = OUT_KGRID;
-	out.iPartner = -1;
-	out.nPartner = -1;
-	out.iProcessor = 0;
-	out.nProcessor = param.bParaWrite==0?1:(param.nParaWrite<=1 ? nThreads:param.nParaWrite);
-	if (out.nProcessor > mdlProcs(mdl)) out.nProcessor = mdlProcs(mdl); 
-	BuildName(out.achOutFile,iStep);
-	strncat(out.achOutFile,".deltak",256);
-        printf("Writing Delta(k) to %s ...\n",out.achOutFile);
-	pstOutput(pst,&out,sizeof(out),NULL,0);
-	dsec = MSR::Time() - sec;
-	msrprintf("Delta(k) has been successfully written, Wallclock: %f secs.\n\n", dsec);
+    if (param.iDeltakInterval && (iStep % param.iDeltakInterval == 0) && z < param.dDeltakRedshift) {
+	BuildName(achFile,iStep);
+	strcat(achFile,".deltak");
+	OutputGrid(achFile,true,0,param.bParaWrite==0?1:(param.nParaWrite<=1 ? nThreads:param.nParaWrite));
 	}
-//    GridDeleteFFT();
     }
 
 

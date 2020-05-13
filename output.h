@@ -22,10 +22,12 @@
 typedef enum {
     OUT_TINY_GROUP,
     OUT_KGRID,
+    OUT_RGRID,
     } outType;
 
 struct inOutputSend {
     int iPartner;     /* Who to send the data to */
+    int iGrid;
     outType eOutputType;  /* What kind of output */
     };
 

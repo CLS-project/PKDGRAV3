@@ -124,6 +124,7 @@ check_symbol_exists(backtrace execinfo.h USE_BT)
 #AC_CHECK_FUNCS([gethrtime read_real_time time_base_to_time clock_gettime mach_absolute_time])
 check_symbol_exists(atexit stdlib.h HAVE_ATEXIT)
 
+add_subdirectory(fmt)
 add_subdirectory(blitz)
 add_subdirectory(mdl2)
 add_subdirectory(tests)
@@ -146,7 +147,7 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 set_property(TARGET ${PROJECT_NAME} APPEND PROPERTY COMPILE_DEFINITIONS _LARGEFILE_SOURCE)
 target_sources(${PROJECT_NAME} PRIVATE
 	main.cxx cosmo.c master.cxx simulate.cxx pst.c fio.c illinois.c param.c
-	pkd.c analysis.c smooth.c smoothfcn.c outtype.c output.c
+	pkd.c analysis.c smooth.c smoothfcn.c outtype.c output.cxx
 	walk2.c grav2.c ewald.cxx ic.cxx tree.cxx opening.cxx pp.cxx pc.cxx cl.c
 	lst.c moments.c ilp.c ilc.c iomodule.c
 	fof.c hop.c group.c groupstats.c RngStream.c listcomp.c healpix.c
@@ -268,7 +269,7 @@ target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
 target_link_libraries(${PROJECT_NAME} mdl2 openpa)
 target_include_directories(${PROJECT_NAME} PRIVATE ${GSL_INCLUDE_DIRS})
 target_link_libraries(${PROJECT_NAME} ${GSL_LIBRARIES})
-target_link_libraries(${PROJECT_NAME} blitz)
+target_link_libraries(${PROJECT_NAME} blitz fmt)
 
 enable_testing()
 add_test(NAME cosmology COMMAND ${PROJECT_NAME} ${CMAKE_CURRENT_SOURCE_DIR}/tests/cosmology.py WORKING_DIRECTORY ${CMAKE_BINARY_DIR})

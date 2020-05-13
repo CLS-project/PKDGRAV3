@@ -51,10 +51,16 @@ typedef struct {
     } asyncFileInfo;
 
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 void io_init(asyncFileInfo *info, size_t nBuffers,size_t nBufferSize);
 void io_free(asyncFileInfo *info);
 int io_create(asyncFileInfo *info, const char *pathname);
 void io_write(asyncFileInfo *info, void *buf, size_t count);
 void io_close(asyncFileInfo *info);
+#ifdef __cplusplus
+}
+#endif
 
 #endif

@@ -444,6 +444,7 @@ struct inOutput {
     int iPartner;     /* Who to send the data to */
     int nPartner;     /* How many partners there are */
     outType eOutputType;  /* What kind of output */
+    int iGrid;        /* Which grid (for grid output) */
     char achOutFile[PST_FILENAME_SIZE];
     };
 
