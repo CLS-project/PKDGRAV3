@@ -124,7 +124,6 @@ check_symbol_exists(backtrace execinfo.h USE_BT)
 #AC_CHECK_FUNCS([gethrtime read_real_time time_base_to_time clock_gettime mach_absolute_time])
 check_symbol_exists(atexit stdlib.h HAVE_ATEXIT)
 
-add_subdirectory(fmt)
 add_subdirectory(blitz)
 add_subdirectory(mdl2)
 add_subdirectory(tests)
