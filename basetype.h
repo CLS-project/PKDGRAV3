@@ -33,11 +33,7 @@
 #define IRUNGMAX ((1<<IRUNGBITS)-1)
 
 typedef float vel_t;
-#ifdef INTEGER_POSITION
-typedef int32_t pos_t;
-#else
 typedef double pos_t;
-#endif
 
 /*
 ** Costs: ADD/SUB/MUL/AND/CMP 1 cycle

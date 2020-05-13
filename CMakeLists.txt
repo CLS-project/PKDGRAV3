@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.1)
-project(pkdgrav3)
+project(pkdgrav3 VERSION 3.0.4)
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/mdl2)
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR})
@@ -125,7 +125,7 @@ set_property(TARGET ${PROJECT_NAME} APPEND PROPERTY COMPILE_DEFINITIONS _LARGEFI
 target_sources(${PROJECT_NAME} PRIVATE
 	main.c cosmo.c master.c pst.c fio.c illinois.c param.c
 	pkd.c analysis.c smooth.c smoothfcn.c outtype.c output.c
-	walk2.c grav2.c ewald.cxx ic.cxx tree.c opening.cxx pp.cxx pc.cxx cl.c
+	walk2.c grav2.c ewald.cxx ic.cxx tree.cxx opening.cxx pp.cxx pc.cxx cl.c
 	lst.c moments.c ilp.c ilc.c iomodule.c
 	fof.c hop.c group.c groupstats.c RngStream.c listcomp.c healpix.c
 	tinypy.c pkdtinypy.c

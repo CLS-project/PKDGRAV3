@@ -96,8 +96,14 @@ typedef struct clContext {
 #define clCount(cl) lstCount(&(cl)->lst)
 #define clClone(dst,src) lstClone(&(dst)->lst,&(src)->lst)
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 void clInitialize(CL *cl,LSTFREELIST *clFreeList);
 void clDestroy(CL cl);
+#ifdef __cplusplus
+}
+#endif
 
 static inline void clAppendAll(
     CL cl,int iCache,int idCell,int iCell, int idLower,int iLower,int idUpper,int iUpper,int nc,

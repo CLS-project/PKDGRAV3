@@ -440,7 +440,7 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnviro
 	    assert(pkd->ga[gid].iMinPart < pkd->nLocal);
 	    p = pkdParticle(pkd,pkd->ga[gid].iMinPart);
 	    for (j=0;j<3;++j) {
-		pkd->tinyGroupTable[gid].rPot[j] = pkdPosRaw(pkd,p,j);
+		pkd->tinyGroupTable[gid].rPot[j] = pkdPos(pkd,p,j);
 		pkd->tinyGroupTable[gid].rcen[j] = 0.0; /* relative to rPot */
 		}
 	    }
@@ -510,12 +510,6 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnviro
 	    }	   
 	}
     mdlFinishCache(mdl,CID_GROUP);
-/*
-** Check center...
-    for (gid=1;gid<pkd->nGroups;++gid)
-	printf("%d gid:%d %.10f %.10f %.10f\n",pkd->idSelf,gid,pkdPosToDbl(pkd,pkd->tinyGroupTable[gid].rPot[0]),pkdPosToDbl(pkd,pkd->tinyGroupTable[gid].rPot[1]),pkdPosToDbl(pkd,pkd->tinyGroupTable[gid].rPot[2]));
-*/
-
     /*
     ** Now find rcom and rMax and total mass locally.
     */
@@ -528,7 +522,7 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnviro
 	if (gid > 0) {
 	    r2 = 0.0;
 	    for (j=0;j<3;++j) {
-		r[j] =  pkdPosToDbl(pkd,pkdPosRaw(pkd,p,j) - pkd->tinyGroupTable[gid].rPot[j]);
+		r[j] =  pkdPos(pkd,p,j) - pkd->tinyGroupTable[gid].rPot[j];
 		if      (r[j] < -dHalf[j]) r[j] += dPeriod[j];
 		else if (r[j] > +dHalf[j]) r[j] -= dPeriod[j];
 		dAccumulate[4*gid+j] += fMass*r[j];
@@ -585,7 +579,7 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnviro
             /*
 	    ** If we want absolute rcom instead of relative to the minimum potential then we
 	    ** need to uncomment the line below.
-	    ** pkd->tinyGroupTable[gid].rcom[j] += pkdPosToDbl(pkd,pkd->tinyGroupTable[gid].rPot[j]);
+	    ** pkd->tinyGroupTable[gid].rcom[j] += pkd->tinyGroupTable[gid].rPot[j];
 	    */
 	    v2 += pkd->tinyGroupTable[gid].vcom[j]*pkd->tinyGroupTable[gid].vcom[j];
 	    }
@@ -614,7 +608,7 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnviro
 	    if (gid > 0) {
 		r2 = 0.0;
 		for (j=0;j<3;++j) {
-		    r[j] =  pkdPosToDbl(pkd,pkdPosRaw(pkd,p,j) - pkd->tinyGroupTable[gid].rPot[j]);
+		    r[j] =  pkdPos(pkd,p,j) - pkd->tinyGroupTable[gid].rPot[j];
 		    if      (r[j] < -dHalf[j]) r[j] += dPeriod[j];
 		    else if (r[j] > +dHalf[j]) r[j] -= dPeriod[j];
 		    /*
@@ -686,7 +680,7 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnviro
 		if (shrink[gid].nEnclosed < 0) continue; /* skip this particle */
 		r2 = 0.0;
 		for (j=0;j<3;++j) {
-		    r[j] =  pkdPosToDbl(pkd,pkdPosRaw(pkd,p,j) - pkd->tinyGroupTable[gid].rPot[j]);
+		    r[j] =  pkdPos(pkd,p,j) - pkd->tinyGroupTable[gid].rPot[j];
 		    if      (r[j] < -dHalf[j]) r[j] += dPeriod[j];
 		    else if (r[j] > +dHalf[j]) r[j] -= dPeriod[j];
 		    r[j] -= pkd->tinyGroupTable[gid].rcen[j];
@@ -735,12 +729,9 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnviro
 	    for (gid=1;gid<pkd->nGroups;++gid) {
 		if (shrink[gid].nEnclosed > 0) {
 		    assert(shrink[gid].fMass > 0.0);
-//		    if (pkd->idSelf==0) printf("gid:%d radius:%g nEnclosed:%d ",gid,sqrt(f2)*pkd->tinyGroupTable[gid].rMax,shrink[gid].nEnclosed);
 		    for (j=0;j<3;++j) {
 			pkd->tinyGroupTable[gid].rcen[j] = shrink[gid].rcom[j];
-//			if (pkd->idSelf==0) printf("%.10g ",pkd->tinyGroupTable[gid].rcen[j]+pkdPosToDbl(pkd,pkd->tinyGroupTable[gid].rPot[j]));
 			}
-//		    if (pkd->idSelf==0) printf("\n");
 		    }
 		}
 	    }
@@ -756,7 +747,7 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnviro
 	    fMass = pkdMass(pkd,p);
 	    v = pkdVel(pkd,p);
 	    for (j=0;j<3;++j) {
-		r[j] =  pkdPosToDbl(pkd,pkdPosRaw(pkd,p,j) - pkd->tinyGroupTable[gid].rPot[j]);
+		r[j] =  pkdPos(pkd,p,j) - pkd->tinyGroupTable[gid].rPot[j];
 		if      (r[j] < -dHalf[j]) r[j] += dPeriod[j];
 		else if (r[j] > +dHalf[j]) r[j] -= dPeriod[j];
 		r[j] -= pkd->tinyGroupTable[gid].rcen[j];
@@ -781,7 +772,7 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnviro
 	if (gid > 0) {
 	    fMass = pkdMass(pkd,p);
 	    for (j=0;j<3;++j) {
-		r[j] =  pkdPosToDbl(pkd,pkdPosRaw(pkd,p,j) - pkd->tinyGroupTable[gid].rPot[j]);
+		r[j] =  pkdPos(pkd,p,j) - pkd->tinyGroupTable[gid].rPot[j];
 		if      (r[j] < -dHalf[j]) r[j] += dPeriod[j];
 		else if (r[j] > +dHalf[j]) r[j] -= dPeriod[j];
 		r[j] -= pkd->tinyGroupTable[gid].rcen[j];
@@ -803,7 +794,7 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnviro
 	if (gid > 0) {
 	    fMass = pkdMass(pkd,p);
 	    for (j=1;j<3;++j) {  /* careful, this loop skips r[0]! */
-		r[j] =  pkdPosToDbl(pkd,pkdPosRaw(pkd,p,j) - pkd->tinyGroupTable[gid].rPot[j]);
+		r[j] =  pkdPos(pkd,p,j) - pkd->tinyGroupTable[gid].rPot[j];
 		if      (r[j] < -dHalf[j]) r[j] += dPeriod[j];
 		else if (r[j] > +dHalf[j]) r[j] -= dPeriod[j];
 		r[j] -= pkd->tinyGroupTable[gid].rcen[j];
@@ -845,7 +836,7 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnviro
     diVol0 = 3.0/4.0*M_1_PI*pow(rEnvironment[0],-3);
     diVol1 = 3.0/4.0*M_1_PI*pow(rEnvironment[1],-3);
     for (gid=1;gid<=nLocalGroups;++gid) {
-	for (j=0;j<3;++j) r[j] = pkdPosToDbl(pkd,pkd->tinyGroupTable[gid].rPot[j]);
+	for (j=0;j<3;++j) r[j] = pkd->tinyGroupTable[gid].rPot[j];
 	if (rEnvironment[0] > 0.0) {
 	    pkd->tinyGroupTable[gid].fEnvironDensity0 = 
 		pkdGatherMass(pkd,S,rEnvironment[0],r,bPeriodic,dPeriod)*diVol0;
@@ -903,7 +894,7 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnviro
 	rMax = pkd->tinyGroupTable[gid].rMax;
 	for (j=0;j<3;++j) {
 	    double rt = pkd->bndInterior.fMax[j] - 
-		fabs(pkd->bndInterior.fCenter[j] - pkdPosToDbl(pkd,pkd->tinyGroupTable[gid].rPot[j]));
+		fabs(pkd->bndInterior.fCenter[j] - pkd->tinyGroupTable[gid].rPot[j]);
 	    if (rt < rMax) rMax = rt;
 	    }
 	n = 0;
@@ -912,7 +903,7 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnviro
 	    assert(gid == pkdGetGroup(pkd,p)); /* make sure it is really in group order */
 	    r2 = 0.0;
 	    for (j=0;j<3;++j) {
-		r[j] =  pkdPosToDbl(pkd,pkdPosRaw(pkd,p,j) - pkd->tinyGroupTable[gid].rPot[j]);
+		r[j] =  pkdPos(pkd,p,j) - pkd->tinyGroupTable[gid].rPot[j];
 		if      (r[j] < -dHalf[j]) r[j] += dPeriod[j];
 		else if (r[j] > +dHalf[j]) r[j] -= dPeriod[j];
 		r[j] -= pkd->tinyGroupTable[gid].rcen[j];
@@ -968,7 +959,7 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnviro
 	    assert(gid == pkdGetGroup(pkd,p)); /* make sure it is really in group order */
 	    r2 = 0.0;
 	    for (j=0;j<3;++j) {
-		r[j] =  pkdPosToDbl(pkd,pkdPosRaw(pkd,p,j) - pkd->tinyGroupTable[gid].rPot[j]);
+		r[j] =  pkdPos(pkd,p,j) - pkd->tinyGroupTable[gid].rPot[j];
 		if      (r[j] < -dHalf[j]) r[j] += dPeriod[j];
 		else if (r[j] > +dHalf[j]) r[j] -= dPeriod[j];
 		r[j] -= pkd->tinyGroupTable[gid].rcen[j];

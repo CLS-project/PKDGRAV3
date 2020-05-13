@@ -95,6 +95,9 @@ typedef struct flocReduced {
     float xxxxx,xyyyy,xxxxy,yyyyy,xxxxz,yyyyz,xxxyy,xxyyy,xxxyz,xyyyz,xxyyz;
     } FLOCR;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 /*
 ** Multipole moment generating functions.
 */
@@ -171,6 +174,8 @@ void momPrintMomr(MOMR *m);
 void momPrintFmomr(FMOMR *m,float u);
 void momPrintLocr(LOCR *l);
 void momPrintFlocr(FLOCR *l,float v);
-
+#ifdef __cplusplus
+}
+#endif
 
 #endif
