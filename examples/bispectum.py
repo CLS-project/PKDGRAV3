@@ -27,6 +27,7 @@ class Bispectrum:
         print(normalization)
 
         msr.assign_mass(target=0,order=self.order)
+        # msr.write_grid(source=0,name="test.grid")
         msr.density_contrast(target=0)
         if True: # Interlace
             msr.assign_mass(target=1,delta=0.5,order=self.order)
@@ -59,4 +60,6 @@ if False:
 else:
     msr.setParameters(bMemUnordered=False) # We half multimasses
     time = msr.Load('../pkdgrav3-build/b0-final.std')
+    msr.DomainDecomp()		# CAREFUL: Mass assignment needs a tree
+    msr.BuildTree()
     bispectrum(msr,0,time)
