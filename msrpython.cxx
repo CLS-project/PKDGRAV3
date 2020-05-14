@@ -51,6 +51,91 @@ static void flush_std_files(void) {
     }
 
 /******************************************************************************\
+*   Modern, safe, direct from Python parameter fetching
+\******************************************************************************/
+
+int64_t MSR::getScalarInteger(const char *name, PyObject *v) {
+    if (PyLong_Check(v)) return PyLong_AsLong(v);
+    else if (PyFloat_Check(v)) return static_cast<int64_t>(PyFloat_AsDouble(v));
+    else throw std::domain_error(name);
+    }
+int64_t MSR::getScalarInteger(const char *name) {
+    int64_t result;
+    auto v = PyObject_GetAttrString(arguments, name);
+    result = getScalarInteger(name,v);
+    Py_DECREF(v);
+    return result;
+    }
+std::vector<int64_t> MSR::getVectorInteger(const char *name) {
+    std::vector<int64_t> result;
+    auto v = PyObject_GetAttrString(arguments, name);
+    if (PyList_Check(v)) {
+    	auto n = PyList_Size(v);
+	result.reserve(n);
+	for(auto i=0; i<n; ++i) result.push_back(getScalarInteger(name,PyList_GetItem(v,i)));
+	}
+    else result.push_back(getScalarInteger(name));
+    Py_DECREF(v);
+    return result;
+    }
+
+double MSR::getScalarNumber(const char *name, PyObject *v) {
+    if (PyFloat_Check(v)) return PyFloat_AsDouble(v);
+    else if (PyLong_Check(v)) return PyLong_AsLong(v);
+    else throw std::domain_error(name);
+    }
+double MSR::getScalarNumber(const char *name) {
+    double result;
+    auto v = PyObject_GetAttrString(arguments, name);
+    result = getScalarNumber(name,v);
+    Py_DECREF(v);
+    return result;
+    }
+std::vector<double> MSR::getVectorNumber(const char *name) {
+    std::vector<double> result;
+    auto v = PyObject_GetAttrString(arguments, name);
+    if (PyList_Check(v)) {
+    	auto n = PyList_Size(v);
+	result.reserve(n);
+	for(auto i=0; i<n; ++i) result.push_back(getScalarNumber(name,PyList_GetItem(v,i)));
+	}
+    else result.push_back(getScalarNumber(name));
+    Py_DECREF(v);
+    return result;
+    }
+
+std::string MSR::getScalarString(const char *name, PyObject *v) {
+    std::string result;
+    if (PyUnicode_Check(v)) {
+	auto ascii = PyUnicode_AsASCIIString(v);
+	result = PyBytes_AsString(ascii);
+	Py_DECREF(ascii);
+	}
+    else throw std::domain_error(name);
+    return result;
+    }
+std::string MSR::getScalarString(const char *name) {
+    std::string result;
+    auto v = PyObject_GetAttrString(arguments, name);
+    result = getScalarString(name,v);
+    Py_DECREF(v);
+    return result;
+    }
+std::vector<std::string> MSR::getVectorString(const char *name) {
+    std::vector<std::string> result;
+    auto v = PyObject_GetAttrString(arguments, name);
+    if (PyList_Check(v)) {
+    	auto n = PyList_Size(v);
+	result.reserve(n);
+	for(auto i=0; i<n; ++i) result.push_back(getScalarString(name,PyList_GetItem(v,i)));
+	}
+    else result.push_back(getScalarString(name));
+    Py_DECREF(v);
+    return result;
+    }
+
+
+/******************************************************************************\
 *   Copy parameters from Python to pkdgrav3 (may go away eventually)
 \******************************************************************************/
 
@@ -332,7 +417,7 @@ static PyTypeObject ephemeralType = {
 
 /********** Set Internal parameters **********/
 
-static bool setParameters(MSR *msr,PyObject *kwobj,bool bIgnoreUnknown=false) {
+bool MSR::setParameters(PyObject *kwobj,bool bIgnoreUnknown) {
     bool bSuccess = true;
     PyObject *key, *value;
     Py_ssize_t pos = 0;
@@ -347,9 +432,9 @@ static bool setParameters(MSR *msr,PyObject *kwobj,bool bIgnoreUnknown=false) {
 	    Py_DECREF(ascii);
 	    if (keyString[0]=='_') continue;
 	    }
-	if (PyObject_HasAttr(msr->arguments,key)) {
-	    PyObject_SetAttr(msr->arguments,key,value);
-	    PyObject_SetAttr(msr->specified,key,Py_True);
+	if (PyObject_HasAttr(arguments,key)) {
+	    PyObject_SetAttr(arguments,key,value);
+	    PyObject_SetAttr(specified,key,Py_True);
 	    }
 	else if (!bIgnoreUnknown) {
 	    PyErr_Format(PyExc_AttributeError,"invalid parameter %A",key);
@@ -357,8 +442,8 @@ static bool setParameters(MSR *msr,PyObject *kwobj,bool bIgnoreUnknown=false) {
 	    bSuccess=false;
 	    }
 	}
-    ppy2prm(msr->prm,msr->arguments,msr->specified);
-    msr->ValidateParameters();
+    ppy2prm(prm,arguments,specified);
+    ValidateParameters();
     return bSuccess;
     }
 
@@ -368,7 +453,7 @@ ppy_msr_setParameters(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     MSR *msr = self->msr;
     int n = PyTuple_Size(args);
     if (n) return PyErr_Format(PyExc_ValueError,"setParameters() takes 0 positional arguments but %d %s given",n,n==1?"was":"were");
-    if (!setParameters(msr,kwobj)) return PyErr_Format(PyExc_AttributeError,"invalid parameters specified");
+    if (!msr->setParameters(kwobj)) return PyErr_Format(PyExc_AttributeError,"invalid parameters specified");
     Py_RETURN_NONE;
     }
 

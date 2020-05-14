@@ -63,6 +63,7 @@
 #ifdef HAVE_SYS_PARAM_H
 #include <sys/param.h> /* for MAXHOSTNAMELEN, if available */
 #endif
+#include "fmt/format.h" // This will be part of c++20
 
 #include "master.h"
 #include "illinois.h"
@@ -123,49 +124,23 @@ void MSR::Exit(int status) {
     exit(status);
     }
 
-char *MSR::BuildName(char *achFile,int iStep,char *defaultPath) {
-    char achOutPath[256], *p;
-    int n;
-
-    if ( defaultPath[0] ) {
-	strcpy( achOutPath, defaultPath );
-	p = strstr( achOutPath, "&N" );
-	if ( p ) {
-	    n = p - achOutPath;
-	    strcpy( p, OutName() );
-	    strcat( p+2, defaultPath + n + 2 );
-	    }
-	else {
-	    n = strlen(achOutPath);
-	    if ( !n || achOutPath[n-1]!='/' )
-		achOutPath[n++] = '/';
-	    strcpy(achOutPath+n,OutName());
-	    }
-	}
-    else {
-	strcpy(achOutPath,OutName());
-	}
-
-    p = strstr( achOutPath, "&S" );
-    if ( p ) {
-	n = p - achOutPath;
-	strncpy( achFile, achOutPath, n );
-	sprintf( achFile+n, "%05d", iStep );
-	strcat( achFile+n, p+2 );
-	}
-    else {
-	char achDigitMask[20];
-	sprintf(achDigitMask,"%%s.%%0%ii",param.nDigits);
-	sprintf(achFile,achDigitMask,OutName(),iStep);
-	}
-    for(p=achFile+1; *p; ++p) {
-	if ( *p == '/') {
-	    *p = 0;
-	    mkdir(achFile,0755);
-	    *p = '/';
-	    }
-	}
-    return achFile;
+std::string MSR::BuildName(const char *path,int iStep,const char *type) {
+    using namespace fmt::literals;
+    if (!path[0]) path = "{name}.{step:05d}{type}";
+    return fmt::format(path,"name"_a=OutName(),"step"_a=iStep,"type"_a=type);
+    }
+std::string MSR::BuildName(int iStep,const char *type) {
+    return BuildName(param.achOutPath,iStep,type);
+    }
+std::string MSR::BuildIoName(int iStep,const char *type) {
+    if ( param.achIoPath[0] )
+	return BuildName(param.achIoPath,iStep,type);
+    else return BuildName(iStep,type);
+    }
+std::string MSR::BuildCpName(int iStep,const char *type) {
+    if ( param.achCheckpointPath[0] )
+	return BuildName(param.achCheckpointPath,iStep,type);
+    else return BuildName(iStep,type);
     }
 
 size_t MSR::getLocalGridMemory(int nGrid) {
@@ -177,6 +152,9 @@ size_t MSR::getLocalGridMemory(int nGrid) {
     }
 
 void MSR::MakePath(const char *dir,const char *base,char *path) {
+ //    auto r = fmt::format("Hello {name}, are you {state}?",
+	// fmt::arg("name","Doug"),fmt::arg("state",nullptr) );
+
     /*
     ** Prepends "dir" to "base" and returns the result in "path". It is the
     ** caller's responsibility to ensure enough memory has been allocated
@@ -319,7 +297,7 @@ void MSR::InitializePStore(uint64_t *nSpecies,uint64_t mMemoryModel) {
     printf("Particles: %lu bytes (persistent) + %d bytes (ephemeral), Nodes: %lu bytes\n",
 	pkdParticleSize(pkd),ps.nEphemeralBytes,pkdNodeSize(pkd));
     if (ps.nMinEphemeral)
-	printf("Ephemeral will be at least %llu MB per node.\n",ps.nMinEphemeral/(1024*1024));
+	printf("Ephemeral will be at least %" PRIu64 " MB per node.\n",ps.nMinEphemeral/(1024*1024));
     }
 
 void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTime, double dDelta) {
@@ -430,10 +408,10 @@ void MSR::writeParameters(const char *baseName,int iStep,int nSteps,double dTime
 void MSR::Checkpoint(int iStep,int nSteps,double dTime,double dDelta) {
     struct inWrite in;
     double sec,dsec;
-    if ( param.achCheckpointPath[0] )
-	BuildName(in.achOutFile,iStep, param.achCheckpointPath);
-    else
-	BuildName(in.achOutFile,iStep, param.achOutPath);
+
+    auto filename = BuildCpName(iStep,".chk");
+    assert(filename.size() < sizeof(in.achOutFile));
+    strcpy(in.achOutFile,filename.c_str());
     in.nProcessors = param.bParaWrite==0?1:(param.nParaWrite<=1 ? nThreads:param.nParaWrite);
     if (csm->val.bComove) {
 	double dExp = csmTime2Exp(csm,dTime);
@@ -2946,17 +2924,6 @@ NoMoreOuts:
     std::sort(dOutTimes.begin(),dOutTimes.end(),std::greater<double>());
     }
 
-char *MSR::BuildName(char *achFile,int iStep) {
-    return BuildName(achFile,iStep, param.achOutPath);
-    }
-
-char *MSR::BuildIoName(char *achFile,int iStep) {
-    if ( param.achIoPath[0] )
-	return BuildName(achFile,iStep, param.achIoPath);
-    else
-	return BuildName(achFile,iStep);
-    }
-
 /*
 ** Theta switch. Default is to use dTheta, then switch:
 **   at z=20 to dTheta20
@@ -3160,8 +3127,10 @@ void MSR::UpdateRung(uint8_t uRung) {
 void MSR::LightConeOpen(int iStep) {
     if (param.bLightCone) {
 	struct inLightConeOpen lc;
-	if (param.bLightConeParticles )
-	    BuildName(lc.achOutFile,iStep);
+	if (param.bLightConeParticles ) {
+	    auto filename = BuildName(iStep);
+	    strcpy(lc.achOutFile,filename.c_str());
+	    }
 	else lc.achOutFile[0] = 0;
 	lc.nSideHealpix = param.nSideHealpix;
 	pstLightConeOpen(pst,&lc,sizeof(lc),NULL,0);
@@ -3175,7 +3144,8 @@ void MSR::LightConeOpen(int iStep) {
 void MSR::LightConeClose(int iStep) {
     if (param.bLightCone) {
 	struct inLightConeClose lc;
-	BuildName(lc.achOutFile,iStep);
+	auto filename = BuildName(iStep);
+	strcpy(lc.achOutFile,filename.c_str());
 	pstLightConeClose(pst,&lc,sizeof(lc),NULL,0);
 	}
     }
@@ -3372,9 +3342,7 @@ int MSR::NewTopStepKDK(
 
     if (!uRung && param.bFindGroups) {
 	GroupStats();
-	BuildName(achFile,iStep);
-	strncat(achFile,".fofstats",256);
-	HopWrite(achFile);
+	HopWrite(BuildName(iStep,".fofstats").c_str());
 	}
 
     if (uRung && uRung < *puRungMax) bDualTree = NewTopStepKDK(dTime,dDelta,dTheta,nSteps,bDualTree,uRung+1,pdStep,puRungMax,pbDoCheckpoint,pbDoOutput,pbNeedKickOpen);
@@ -4221,14 +4189,10 @@ void MSR::OutputGrid(const char *filename, bool k, int iGrid, int nParaWrite) {
 
 #ifdef MDL_FFTW
 void MSR::OutputPk(int iStep,double dTime) {
-#ifdef _MSC_VER
-    char achFile[MAX_PATH];
-#else
-    char achFile[PATH_MAX];
-#endif
     float *fK, *fPk, *fPkAll;
     uint64_t *nPk;
     double a, z, vfact, kfact;
+    std::string filename;
     FILE *fp;
     int i;
 
@@ -4245,18 +4209,16 @@ void MSR::OutputPk(int iStep,double dTime) {
 
     MeasurePk(param.iPkOrder,param.bPkInterlace,param.nGridPk,a,param.nBinsPk,nPk,fK,fPk,fPkAll);
 
-    BuildName(achFile,iStep);
-    strncat(achFile,".pk",256);
-
     /* If the Box Size (in mpc/h) was specified, then we can scale the output power spectrum measurement */
     if ( prmSpecified(prm,"dBoxSize") && param.dBoxSize > 0.0 ) kfact = param.dBoxSize;
     else kfact = 1.0;
     vfact = kfact * kfact * kfact;
     kfact = 1.0 / kfact;
 
-    fp = fopen(achFile,"w");
+    filename = BuildName(iStep,".pk");
+    fp = fopen(filename.c_str(),"w");
     if ( fp==NULL) {
-	printf("Could not create P(k) File:%s\n",achFile);
+	printf("Could not create P(k) File:%s\n",filename.c_str());
 	Exit(1);
 	}
     for(i=0; i<param.nBinsPk; ++i) {
@@ -4271,19 +4233,14 @@ void MSR::OutputPk(int iStep,double dTime) {
     /* Output the k-grid if requested */
     z = 1/a - 1;
     if (param.iDeltakInterval && (iStep % param.iDeltakInterval == 0) && z < param.dDeltakRedshift) {
-	BuildName(achFile,iStep);
-	strcat(achFile,".deltak");
-	OutputGrid(achFile,true,0,param.bParaWrite==0?1:(param.nParaWrite<=1 ? nThreads:param.nParaWrite));
+	auto filename = BuildName(iStep,".deltak");
+	OutputGrid(filename.c_str(),true,0,param.bParaWrite==0?1:(param.nParaWrite<=1 ? nThreads:param.nParaWrite));
 	}
     }
 
 
 void MSR::OutputLinPk(int iStep,double dTime) {
-#ifdef _MSC_VER
-    char achFile[MAX_PATH];
-#else
-    char achFile[PATH_MAX];
-#endif
+    std::string filename;
     float *fK, *fPk;
     uint64_t *nPk;
     double a, vfact, kfact;
@@ -4302,9 +4259,6 @@ void MSR::OutputLinPk(int iStep,double dTime) {
 
     MeasureLinPk(param.nGridLin,a,param.dBoxSize,nPk,fK,fPk);
 
-    BuildName(achFile,iStep);
-    strncat(achFile,".lin_pk",256);
-
     if (!csm->val.bComove) a = 1.0;
     else a = csmTime2Exp(csm,dTime);
 
@@ -4313,9 +4267,10 @@ void MSR::OutputLinPk(int iStep,double dTime) {
     vfact = kfact * kfact * kfact;
     kfact = 1.0 / kfact;
 
-    fp = fopen(achFile,"w");
+    filename = BuildName(iStep,".lin_pk");
+    fp = fopen(filename.c_str(),"w");
     if ( fp==NULL) {
-	printf("Could not create P_lin(k) File:%s\n",achFile);
+	printf("Could not create P_lin(k) File:%s\n",filename.c_str());
 	Exit(1);
 	}
     for(i=0; i<param.nBinsLinPk; ++i) {
@@ -4335,35 +4290,20 @@ void MSR::OutputLinPk(int iStep,double dTime) {
 */
 
 void MSR::Output(int iStep, double dTime, double dDelta, int bCheckpoint) {
-#ifdef _MSC_VER
-    char achFile[MAX_PATH];
-#else
-    char achFile[PATH_MAX];
-#endif
     int bSymmetric;
     int nFOFsDone;
     int i,iSec=0;
     uint64_t nActive;
 
     printf( "Writing output for step %d\n", iStep );
-    BuildIoName(achFile,iStep);
-
-    if ( iStep ) Write(achFile,dTime,bCheckpoint );
+    if ( iStep ) Write(BuildIoName(iStep).c_str(),dTime,bCheckpoint );
 
     if (DoGas() && !param.nSteps) {  /* Diagnostic Gas */ 
 	Reorder();
-	BuildName(achFile,iStep);
-	strncat(achFile,".uDot",256);
-	OutArray(achFile,OUT_UDOT_ARRAY);
-	BuildName(achFile,iStep);
-	strncat(achFile,".u",256);
-	OutArray(achFile,OUT_U_ARRAY);
-	BuildName(achFile,iStep);
-	strncat(achFile,".c",256);
-	OutArray(achFile,OUT_C_ARRAY);
-	BuildName(achFile,iStep);
-	strncat(achFile,".hsph",256);
-	OutArray(achFile,OUT_HSPH_ARRAY);
+	OutArray(BuildName(iStep,".uDot").c_str(),OUT_UDOT_ARRAY);
+	OutArray(BuildName(iStep,".u").c_str(),OUT_U_ARRAY);
+	OutArray(BuildName(iStep,".c").c_str(),OUT_C_ARRAY);
+	OutArray(BuildName(iStep,".hsph").c_str(),OUT_HSPH_ARRAY);
 	}
 
     if (DoDensity()) {
@@ -4388,9 +4328,7 @@ void MSR::Output(int iStep, double dTime, double dDelta, int bCheckpoint) {
 	Reorder();
 	//sprintf(achFile,"%s.fof",OutName());
 	//OutArray(achFile,OUT_GROUP_ARRAY);
-	BuildName(achFile,iStep);
-	strncat(achFile,".fofstats",256);
-	HopWrite(achFile);
+	HopWrite(BuildName(iStep,".fofstats").c_str());
 	}
     if ( param.bFindHopGroups ) {
 	ActiveRung(0,1); /* Activate all particles */
@@ -4398,58 +4336,38 @@ void MSR::Output(int iStep, double dTime, double dDelta, int bCheckpoint) {
 	BuildTree(0);
 	Hop(dTime,dDelta);
 	Reorder();
-
-	BuildName(achFile,iStep);
-	//strncat(achFile,".hopgrp",256);
-	//OutArray(achFile,OUT_GROUP_ARRAY);
-
-	BuildName(achFile,iStep);
-	strncat(achFile,".hopstats",256);
-	HopWrite(achFile);
+	//OutArray(BuildName(iStep,".hopgrp").c_str(),OUT_GROUP_ARRAY);
+	HopWrite(BuildName(iStep,".hopstats").c_str());
 	}
 
     if (param.bDoAccOutput) {
 	Reorder();
-	BuildName(achFile,iStep);
-	strncat(achFile,".acc",256);
-	OutVector(achFile,OUT_ACCEL_VECTOR);
+	OutVector(BuildName(iStep,".acc").c_str(),OUT_ACCEL_VECTOR);
 	}
     if (param.bDoPotOutput) {
 	Reorder();
-	BuildName(achFile,iStep);
-	strncat(achFile,".pot",256);
-	OutArray(achFile,OUT_POT_ARRAY);
+	OutArray(BuildName(iStep,".pot").c_str(),OUT_POT_ARRAY);
 	}
 
     if ( param.bTraceRelaxation) {
 	Reorder();
-	BuildName(achFile,iStep);
-	strncat(achFile,".relax",256);
-	OutArray(achFile,OUT_RELAX_ARRAY);
+	OutArray(BuildName(iStep,".relax").c_str(),OUT_RELAX_ARRAY);
 	}
     if ( DoDensity() ) {
 	Reorder();
-	BuildName(achFile,iStep);
-	strncat(achFile,".den",256);
-	OutArray(achFile,OUT_DENSITY_ARRAY);
+	OutArray(BuildName(iStep,".den").c_str(),OUT_DENSITY_ARRAY);
 	}
     if (param.bDoRungOutput) {
 	Reorder();
-	BuildName(achFile,iStep);
-	strncat(achFile,".rung",256);
-	OutArray(achFile,OUT_RUNG_ARRAY);
+	OutArray(BuildName(iStep,".rung").c_str(),OUT_RUNG_ARRAY);
 	}
     if (param.bDoRungDestOutput) {
 	Reorder();
-	BuildName(achFile,iStep);
-	strncat(achFile,".rd",256);
-	OutArray(achFile,OUT_RUNGDEST_ARRAY);
+	OutArray(BuildName(iStep,".rd").c_str(),OUT_RUNGDEST_ARRAY);
 	}
     if (param.bDoSoftOutput) {
 	Reorder();
-	BuildName(achFile,iStep);
-	strncat(achFile,".soft",256);
-	OutArray(achFile,OUT_SOFT_ARRAY);
+	OutArray(BuildName(iStep,".soft").c_str(),OUT_SOFT_ARRAY);
 	}
     /*
     ** Don't allow duplicate outputs.
@@ -4979,11 +4897,6 @@ int MSR::GetParticles(int nIn, uint64_t *ID, struct outGetParticles *out) {
     }
 
 void MSR::OutputOrbits(int iStep,double dTime) {
-#ifdef _MSC_VER
-    char achFile[MAX_PATH];
-#else
-    char achFile[PATH_MAX];
-#endif
     FILE *fp;
     int i;
 
@@ -5001,12 +4914,11 @@ void MSR::OutputOrbits(int iStep,double dTime) {
 	    }
 
 	GetParticles(param.nOutputParticles,param.iOutputParticles,particles);
-	BuildName(achFile,iStep);
-	strncat(achFile,".orb",256);
 
-	fp = fopen(achFile,"w");
+	auto filename = BuildName(iStep,".orb");
+	fp = fopen(filename.c_str(),"w");
 	if ( fp==NULL) {
-	    printf("Could not create orbit File:%s\n",achFile);
+	    printf("Could not create orbit File:%s\n",filename.c_str());
 	    Exit(1);
 	    }
 	fprintf(fp,"%d %f\n",param.nOutputParticles,dExp);

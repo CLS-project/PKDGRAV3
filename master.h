@@ -155,6 +155,22 @@ public:
 protected:
     std::list<msr_analysis_callback> analysis_callbacks;
 
+// Parameters from Python interface
+private:
+    int64_t     getScalarInteger(const char *name, PyObject *v);
+    double      getScalarNumber(const char *name, PyObject *v);
+    std::string getScalarString(const char *name, PyObject *v);
+public: // should be private
+    PyObject *arguments, *specified;
+public:
+    int64_t                  getScalarInteger(const char *name);
+    double                   getScalarNumber(const char *name);
+    std::string              getScalarString(const char *name);
+    std::vector<int64_t>     getVectorInteger(const char *name);
+    std::vector<double>      getVectorNumber(const char *name);
+    std::vector<std::string> getVectorString(const char *name);
+    bool setParameters(PyObject *kwobj,bool bIgnoreUnknown=false);
+
 public:
     PRM prm;
     LCL lcl;
@@ -162,7 +178,6 @@ public:
     /*
     ** Parameters.
     */
-    PyObject *arguments, *specified;
     struct parameters param;
     CSM csm;
     /*
@@ -246,9 +261,11 @@ protected:
     uint64_t MaxOrder()   const { return nMaxOrder; }
     int CurrMaxRung()     const { return iCurrMaxRung; }
 
-    char *BuildName(char *achFile,int iStep,char *defaultPath);
-    char *BuildName(char *achFile,int iStep);
-    char *BuildIoName(char *achFile,int iStep);
+    std::string BuildName(const char *path,int iStep,const char *type="");
+    std::string BuildName(int iStep,const char *type=""); // With achOutPath
+    std::string BuildIoName(int iStep,const char *type="");
+    std::string BuildCpName(int iStep,const char *type="");
+
     void ReadOuts(double dTime,double dDelta);
     void msrprintf(const char *Format, ... ) const;
     void Exit(int status);

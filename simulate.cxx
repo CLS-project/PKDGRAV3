@@ -18,7 +18,7 @@
 #include <string>
 #include <cmath>
 #include "master.h"
-
+#include "fmt/format.h"
 
 /******************************************************************************\
 *   Simulation Mode: normal method of populating the simulation data
@@ -28,9 +28,7 @@ double MSR::LoadOrGenerateIC() {
     if (prmSpecified(prm,"nGrid")) {
 	dTime = GenerateIC(); /* May change nSteps/dDelta */
 	if ( param.bWriteIC ) {
-	    char achFile[256];			/*DEBUG use MAXPATHLEN here (& elsewhere)? -- DCR*/
-	    BuildIoName(achFile,0);
-	    Write(achFile,dTime,param.bWriteIC-1);
+	    Write(BuildIoName(0).c_str(),dTime,param.bWriteIC-1);
 	    }
 	}
 
@@ -113,9 +111,8 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
     ** log file entry.
     */
     if (LogInterval()) {
-	char achFile[256];			/*DEBUG use MAXPATHLEN here (& elsewhere)? -- DCR*/
-    	sprintf(achFile,"%s.log",OutName());
-	fpLog = fopen(achFile,"a");
+	std::string filename = std::string(OutName()) + ".log";
+	fpLog = fopen(filename.c_str(),"a");
 	assert(fpLog != NULL);
 	setbuf(fpLog,(char *) NULL); /* no buffering */
 	// fprintf(fpLog,"# ");
@@ -286,10 +283,43 @@ static int parseSpeciesNames(const char *aSpecies[], char *achSpecies) {
     return nSpecies;
     }
 
+// Check to see if a path specification is valid. Paths are constructed using
+// the Python/Format string formats and may contain the following fields.
+//   {name} - replaced with the name of the simulation
+//   {step} - replaced with the current step number
+//   {type} - replaced with the file type, including the leading dot
+// The default is:
+//   {name}.{step:05d}{type}
+static void validate_path(const char *name,const char *path) {
+    if (path && path[0]) {
+	using namespace fmt::literals;
+	auto r1 = fmt::format(path,"name"_a="name","step"_a=1,"type"_a=".dat");
+	if (r1 == fmt::format(path,"name"_a="name","step"_a=1,"type"_a=".XXX"))
+	    throw fmt::format_error(std::string(name) + ": " + path);
+	if (r1 == fmt::format(path,"name"_a="name","step"_a=9,"type"_a=".dat"))
+	    throw fmt::format_error(std::string(name) + ": " + path);
+	if (r1 == fmt::format(path,"name"_a="XXXX","step"_a=1,"type"_a=".dat"))
+	    throw fmt::format_error(std::string(name) + ": " + path);
+	}
+    }
+
 /*
 ** This routine validates the given parameters and makes any adjustments.
 */
 int MSR::ValidateParameters() {
+    try {
+	validate_path("achOutPath",       param.achOutPath);
+	validate_path("achCheckpointPath",param.achCheckpointPath);
+	validate_path("achIoPath",        param.achIoPath);
+	}
+    catch(fmt::format_error &e) {
+	fprintf(stderr,"ERROR: %s\n",e.what());
+	fprintf(stderr,"       When specified must contain {name}, {step} and {type} and no other fields\n");
+	fprintf(stderr,"       Default: {name}.{step:05d}{type}\n");
+	fprintf(stderr,"       Example: /path/to/output/{step:05d}/{name}.{step:05d}{type}\n");
+	return 0;
+	}
+
     if (prmSpecified(prm, "dMetalDiffsionCoeff") || prmSpecified(prm,"dThermalDiffusionCoeff")) {
 	if (!prmSpecified(prm, "iDiffusion")) param.iDiffusion=1;
 	}
