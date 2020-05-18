@@ -171,6 +171,7 @@ void combThirdHydroLoop(void *vpkd, void *p1,void *p2) {
     psph1->mom[1] += psph2->mom[1];
     psph1->mom[2] += psph2->mom[2];
     psph1->E += psph2->E;
+    psph1->Uint += psph2->Uint;
 //    if (((PARTICLE *) p2)->uNewRung > ((PARTICLE *) p1)->uNewRung) 
 //       ((PARTICLE *) p1)->uNewRung = ((PARTICLE *) p2)->uNewRung;
     }
@@ -220,20 +221,22 @@ void initHydroFluxesCached(void *vpkd, void *vp) {
     int i;
 
     float *pmass = pkdField(p,pkd->oMass);
-//    *pmass = 0.0;
-//    psph->mom[0] = 0.;
-//    psph->mom[1] = 0.;
-//    psph->mom[2] = 0.;
-//    psph->E = 0.;
+    *pmass = 0.0;
+    psph->mom[0] = 0.;
+    psph->mom[1] = 0.;
+    psph->mom[2] = 0.;
+    psph->E = 0.;
+    psph->Uint = 0.;
 
-//    if (pkdIsActive(pkd,p)) {
-//      psph->Frho = 0.0;
-//      psph->Fene = 0.0;
-//      psph->uNewRung = 0;
-//      for (i=0;i<3;i++) { 
-//         psph->Fmom[i] = 0.0;
-//	}
+    if (pkdIsActive(pkd,p)) {
+      psph->Frho = 0.0;
+      psph->Fene = 0.0;
+      psph->uNewRung = 0;
+      for (i=0;i<3;i++) { 
+         psph->Fmom[i] = 0.0;
+	}
     }
+}
 
 void initHydroGradients(void *vpkd, void *vp) {
     PKD pkd = (PKD) vpkd;
