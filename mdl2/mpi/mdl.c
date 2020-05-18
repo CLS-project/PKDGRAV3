@@ -2922,6 +2922,7 @@ void *mdlAccess(MDL mdl, int cid, uint32_t uIndex, int uId, int bLock,int bModif
 		*/
 		++temp->data[-1];       /* increase lock count */
 		}
+          if (bModify) temp->uId |= _DIRTY_;
 	    /*
 	    ** Get me outa here.
 	    */
