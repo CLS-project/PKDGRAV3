@@ -4396,8 +4396,13 @@ int msrNewTopStepKDK(MSR msr,
 	bDualTree = msrNewTopStepKDK(msr,bDualTree,uRung+1,pdStep,pdTime,puRungMax,piSec,pbDoCheckpoint,pbDoOutput,pbNeedKickOpen);
 	}
 
-    /* Drift the "ROOT" (active) tree or all particle */
     dDelta = msr->param.dDelta/(1 << *puRungMax);
+
+    msrActiveRung(msr,uRung,1);
+   msrResetFluxes(msr, *pdTime, dDelta, ROOT);
+   msrMeshlessFluxes(msr, *pdTime, dDelta, ROOT);
+
+    /* Drift the "ROOT" (active) tree or all particle */
     if (bDualTree) {
 	msrprintf(msr,"Drift very actives, uRung: %d\n",*puRungMax);
 	msrDrift(msr,*pdTime,dDelta,ROOT);
@@ -4454,11 +4459,28 @@ int msrNewTopStepKDK(MSR msr,
 
     if (!uRung && msr->param.bFindGroups) msrNewFof(msr,*pdTime);
 
+    msrZeroNewRung(msr,uRung,MAX_RUNG,uRung); /* IA: Probably not ideal */
+
     // We need to make sure we descend all the way to the bucket with the
     // active tree, or we can get HUGE group cells, and hence too much P-P/P-C
     int nGroup = (bDualTree && uRung > iRungDT) ? 1 : msr->param.nGroup;
+    if (msr->param.bDoGravity){
     *puRungMax = msrGravity(msr,uRung,msrMaxRung(msr),ROOT,uRoot2,*pdTime,
-	*pdStep,1,bKickOpen,msr->param.bEwald,nGroup,piSec,&nActive);
+      *pdStep,1,bKickOpen,msr->param.bEwald,nGroup,piSec,&nActive);
+    }
+
+
+    msrActiveRung(msr,uRung,1);
+      if (msrDoGas(msr) && msrMeshlessHydro(msr)){
+         msrUpdatePrimVars(msr, *pdTime, dDelta, ROOT);
+         msrMeshlessGradients(msr, *pdTime, dDelta, ROOT);
+      }
+
+    uint8_t minDt;
+    msrHydroStep(msr,uRung, MAX_RUNG, *pdTime);
+          msrUpdateRung(msr, uRung) ;
+          minDt = msrGetMinDt(msr);
+          *puRungMax = minDt;
 
     if (!uRung && msr->param.bFindGroups) {
 	msrGroupStats(msr);
@@ -4919,7 +4941,7 @@ void msrSetFirstHydroLoop(MSR msr, int value) {
     msr->param.bFirstHydroLoop = value;
     }
 
-void msrInitSph(MSR msr,double dTime)
+uint8_t msrInitSph(MSR msr,double dTime)
     {
     if (!msrMeshlessHydro(msr)){
     /* Init gas, internal energy -- correct estimate from dTuFac */
@@ -4962,11 +4984,14 @@ void msrInitSph(MSR msr,double dTime)
         msrUpdatePrimVars(msr, dTime, 0.0, ROOT);
         msrMeshlessGradients(msr, dTime, 0.0, ROOT);
         msrMeshlessFluxes(msr, dTime, 0.0, ROOT);
-	msrZeroNewRung(msr,0,MAX_RUNG,0); 
+	//msrZeroNewRung(msr,0,MAX_RUNG,0); 
         msrHydroStep(msr,0,MAX_RUNG,dTime); // We do this twice because we need to have uNewRung for the time limiter
         msrHydroStep(msr,0,MAX_RUNG,dTime);  // of Durier & Dalla Vecchia
         msrResetFluxes(msr, dTime, 0.0, ROOT); // Reset the fluxes
     }
+    msrUpdateRung(msr, 0) ;
+    uint8_t uRungMax = msrGetMinDt(msr);
+    return uRungMax;
 }
 
 void msrSph(MSR msr,double dTime, double dStep) {
