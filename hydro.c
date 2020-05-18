@@ -1075,7 +1075,8 @@ void hydroStep(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     for (j=0;j<3;j++) { a[j] = pa[j] + (-pkdVel(pkd,p)[j]*psph->Frho + psph->Fmom[j])/pkdMass(pkd,p); }
     acc = sqrt(a[0]*a[0] + a[1]*a[1] + a[2]*a[2]);
 
-    dtAcc = cfl*sqrt(2*fBall/acc);
+    float h = pkd->param.bDoGravity ? (fBall < pkdSoft(pkd,p) ? fBall : pkdSoft(pkd,p) ) : fBall;
+    dtAcc = cfl*sqrt(2*h/acc);
     
 
     if (dtAcc < dtEst) dtEst = dtAcc;
