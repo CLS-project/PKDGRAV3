@@ -19,6 +19,8 @@
 #If environment variable FFTWDIR is specified, it has same effect as FFTW_ROOT
 if( NOT FFTW_ROOT AND ENV{FFTWDIR} )
   set( FFTW_ROOT $ENV{FFTWDIR} )
+elseif( NOT FFTW_ROOT AND ENV{FFTW3_ROOT_DIR} )
+  set( FFTW_ROOT $ENV{FFTW3_ROOT_DIR} )
 endif()
 
 # Check if we can use PkgConfig
@@ -78,27 +80,26 @@ else()
   find_library(
     FFTWF_LIB
     NAMES "fftw3f"
-    PATHS ${PKG_FFTW_LIBRARY_DIRS} ${LIB_INSTALL_DIR}
+    PATHS ${PKG_FFTW_LIBRARY_DIRS} $ENV{FFTW_DIR} ${LIB_INSTALL_DIR}
   )
 
    find_library(
     FFTWF_MPI_LIB
     NAMES "fftw3f_mpi"
-    PATHS ${PKG_FFTW_LIBRARY_DIRS} ${LIB_INSTALL_DIR}
+    PATHS ${PKG_FFTW_LIBRARY_DIRS} $ENV{FFTW_DIR} ${LIB_INSTALL_DIR}
   )
 
    find_library(
     FFTWF_THREADS_LIB
     NAMES "fftw3f_threads"
-    PATHS ${PKG_FFTW_LIBRARY_DIRS} ${LIB_INSTALL_DIR}
+    PATHS ${PKG_FFTW_LIBRARY_DIRS} $ENV{FFTW_DIR} ${LIB_INSTALL_DIR}
   )
 
   find_path(
     FFTW_INCLUDES
     NAMES "fftw3-mpi.h"
-    PATHS ${PKG_FFTW_INCLUDE_DIRS} ${INCLUDE_INSTALL_DIR}
+    PATHS ${PKG_FFTW_INCLUDE_DIRS} $ENV{FFTW_INC} ${INCLUDE_INSTALL_DIR}
   )
-
 endif( FFTW_ROOT )
 
 set(FFTW_LIBRARIES ${FFTWF_MPI_LIB} ${FFTWF_THREADS_LIB} ${FFTWF_LIB})

@@ -146,7 +146,7 @@ void cooling_update(MSR msr,const float redshift, int sync) {
   cooling->dz = dz;
 
   // We update dz in each process
-  pstCoolingUpdateZ(msr->pst, &dz, sizeof(float), NULL, NULL);
+  pstCoolingUpdateZ(msr->pst, &dz, sizeof(float), NULL, 0);
 
   /* Extra energy for reionization? */
   if (!cooling->H_reion_done && redshift !=0.0) {
@@ -159,7 +159,7 @@ void cooling_update(MSR msr,const float redshift, int sync) {
       //if (s == NULL) error("Trying to do H reionization on an empty space!");
 
       /* Inject energy to all particles */
-      pstCoolingHydReion(msr->pst, NULL, 0, NULL, NULL);
+      pstCoolingHydReion(msr->pst, NULL, 0, NULL, 0);
 
       /* Flag that reionization happened */
       cooling->H_reion_done = 1;
@@ -216,7 +216,7 @@ void cooling_update(MSR msr,const float redshift, int sync) {
   for (int i;i<eagle_cooling_N_loaded_redshifts * num_elements_electron_abundance;i++) 
      in.electron_abundance[i] = msr->cooling->table.electron_abundance[i];
 
-  pstCoolingUpdate(msr->pst, &in, sizeof(in), NULL, NULL);
+  pstCoolingUpdate(msr->pst, &in, sizeof(in), NULL, 0);
 }
 
 /**
@@ -928,6 +928,7 @@ void pkd_cooling_init_backend(PKD pkd, struct cooling_function_data in_cooling_d
          psph->chemistry[chemistry_element_Fe] = pkd->param.dInitialFe;
       }
     }
+   printf("END Initializing in a single process \n");
 }
 
 void pkd_cooling_update(PKD pkd, struct inCoolUpdate *in){

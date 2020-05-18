@@ -220,11 +220,11 @@ void initHydroFluxesCached(void *vpkd, void *vp) {
     int i;
 
     float *pmass = pkdField(p,pkd->oMass);
-//    *pmass = 0.0;
-//    psph->mom[0] = 0.;
-//    psph->mom[1] = 0.;
-//    psph->mom[2] = 0.;
-//    psph->E = 0.;
+    *pmass = 0.0;
+    psph->mom[0] = 0.;
+    psph->mom[1] = 0.;
+    psph->mom[2] = 0.;
+    psph->E = 0.;
 
 //    if (pkdIsActive(pkd,p)) {
 //      psph->Frho = 0.0;
@@ -692,7 +692,7 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
           qDeltaHalf = 0.0; // For the initialization step we do not extrapolate because we dont have a reliable dDelta
           pDeltaHalf = 0.0;
        }
-       if(pkd->param.csm->val.bComove)
+       if(pkd->csm->val.bComove)
        {
           qDeltaHalf /= smf->a;
           pDeltaHalf /= smf->a;
@@ -822,15 +822,17 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
       //   TODO: One possible solution is extrapolate the variables at PrimVar (or equivalent) and use them
       //   directly here. This also would reduce the computational cost, as we are doing the exact same
       //   temporal extrapolation ~2 nSmooth times instead of just once.
+      /*
       genericPairwiseLimiter(pkdDensity(pkd,p), pkdDensity(pkd,q), &riemann_input.L.rho, &riemann_input.R.rho);
       genericPairwiseLimiter(psph->P, qsph->P, &riemann_input.L.p, &riemann_input.R.p);
       genericPairwiseLimiter(pv[0], qv[0], &riemann_input.L.v[0], &riemann_input.R.v[0]);
       genericPairwiseLimiter(pv[1], qv[1], &riemann_input.L.v[1], &riemann_input.R.v[1]);
       genericPairwiseLimiter(pv[2], qv[2], &riemann_input.L.v[2], &riemann_input.R.v[2]);
+      */
 
       
       double temp;
-      if(pkd->param.csm->val.bComove){
+      if(pkd->csm->val.bComove){
          
          for (j=0;j<3;j++){
             temp = smf->H * pDeltaHalf * smf->a * pv[j];
@@ -875,6 +877,11 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
       riemann_input.L.p -= pkd->param.dConstGamma*psph->P*pdivv;
       riemann_input.R.p -= pkd->param.dConstGamma*qsph->P*qdivv;
 
+      genericPairwiseLimiter(pkdDensity(pkd,p), pkdDensity(pkd,q), &riemann_input.L.rho, &riemann_input.R.rho);
+      genericPairwiseLimiter(psph->P, qsph->P, &riemann_input.L.p, &riemann_input.R.p);
+      genericPairwiseLimiter(pv[0], qv[0], &riemann_input.L.v[0], &riemann_input.R.v[0]);
+      genericPairwiseLimiter(pv[1], qv[1], &riemann_input.L.v[1], &riemann_input.R.v[1]);
+      genericPairwiseLimiter(pv[2], qv[2], &riemann_input.L.v[2], &riemann_input.R.v[2]);
        
        // IA: DEBUG: Tests for the riemann solver extracted from Toro (10.1007/b79761)
        // Test 1
@@ -921,7 +928,7 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
        if (riemann_output.Fluxes.p!=riemann_output.Fluxes.p) riemann_output.Fluxes.p = 0.;//abort(); 
 
 
-       if(pkd->param.csm->val.bComove){ 
+       if(pkd->csm->val.bComove){ 
           minDt /= smf->a; // 1/a term before \nabla
           /*
           modApq *= smf->a*smf->a; 
@@ -952,7 +959,7 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
        qmass = pkdField(q,pkd->oMass);
 
        /*
-       if(pkd->param.csm->val.bComove){ 
+       if(pkd->csm->val.bComove){ 
           for (j=0;j<3;j++) riemann_output.Fluxes.v[j] *= smf->a;
           riemann_output.Fluxes.p *= smf->a*smf->a;
        }
@@ -1115,7 +1122,8 @@ void hydroStep(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     for (j=0;j<3;j++) { a[j] = pa[j] + (-pkdVel(pkd,p)[j]*psph->Frho + psph->Fmom[j])/pkdMass(pkd,p); }
     acc = sqrt(a[0]*a[0] + a[1]*a[1] + a[2]*a[2]);
 
-    dtAcc = cfl*sqrt(2*fBall/acc);
+    float h = pkd->param.bDoGravity ? (fBall < pkdSoft(pkd,p) ? fBall : pkdSoft(pkd,p) ) : fBall;
+    dtAcc = cfl*sqrt(2*h/acc);
     
 
     if (dtAcc < dtEst) dtEst = dtAcc;

@@ -13,8 +13,8 @@ void msrStarForm(MSR msr, double dTime, double dDelta, int iRung)
 
     sec = msrTime();
 
-    const double a = csmTime2Exp(msr->param.csm,dTime);
-    const double H = csmTime2Hub(msr->param.csm,dTime);
+    const double a = csmTime2Exp(msr->csm,dTime);
+    const double H = csmTime2Hub(msr->csm,dTime);
 
 
     /* Convert input parameters to code units */
@@ -45,7 +45,7 @@ void msrStarForm(MSR msr, double dTime, double dDelta, int iRung)
 
     // We convert the threshold density (given in cgs in the parameters file) in code units
     //  NOTE: We still have to divide by the hydrogen fraction of each particle!
-    if (msr->param.csm->val.bComove)
+    if (msr->csm->val.bComove)
        in.dDenMin = msr->param.dSFThresholdDen*pow(a,3);
     else
        in.dDenMin = msr->param.dSFThresholdDen;
@@ -56,7 +56,7 @@ void msrStarForm(MSR msr, double dTime, double dDelta, int iRung)
     if (msr->param.bVDetails) printf("Star Form ... ");
     
     msrActiveRung(msr,iRung,0); /* important to limit to active gas only */
-    pstStarForm(msr->pst, &in, sizeof(in), &out, NULL);
+    pstStarForm(msr->pst, &in, sizeof(in), &out, 0);
     if (msr->param.bVDetails)
 	printf("%d Stars formed with mass %g, %d gas deleted\n",
 	       out.nFormed, out.dMassFormed, out.nDeleted);
@@ -127,7 +127,7 @@ void pkdStarForm(PKD pkd,
              continue;
           }
           // Thresholds for star formation
-	    if (pkd->param.csm->val.bComove &&  (pkdDensity(pkd,p) < pkd->param.dSFMinOverDensity*dDenCrit) ){
+	    if (pkd->csm->val.bComove &&  (pkdDensity(pkd,p) < pkd->param.dSFMinOverDensity*dDenCrit) ){
              psph->SFR=0.; 
              continue;
           }

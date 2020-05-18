@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 3.1)
-project(pkdgrav3)
+project(pkdgrav3 VERSION 3.0.4)
+
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/mdl2)
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR})
 
 include(CheckFunctionExists)
 
@@ -8,23 +11,20 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set(CMAKE_BUILD_TYPE RelWithDebInfo)
 endif()
 
-CHECK_FUNCTION_EXISTS(pow HAVE_LIBM)
-if(NOT HAVE_LIBM)
-  unset(HAVE_LIBM)
-  list(APPEND CMAKE_REQUIRED_LIBRARIES m)
-  CHECK_FUNCTION_EXISTS(pow HAVE_LIBM)
-endif()
-
 include(CheckCXXCompilerFlag)
-include(CheckCXXCompilerFlag)
-CHECK_CXX_COMPILER_FLAG("-march=native" COMPILER_OPT_ARCH_NATIVE_SUPPORTED)
-if (COMPILER_OPT_ARCH_NATIVE_SUPPORTED)
-  add_compile_options(-march=native)
-endif()
 
-CHECK_CXX_COMPILER_FLAG("/arch:AVX" COMPILER_OPT_ARCH_AVX_SUPPORTED)
-if (COMPILER_OPT_ARCH_AVX_SUPPORTED)
-  add_compile_options(/arch:AVX)
+set(TARGET_ARCHITECTURE "auto" CACHE STRING "CPU architecture to optimize for.")
+if(TARGET_ARCHITECTURE STREQUAL "auto")
+  CHECK_CXX_COMPILER_FLAG("-march=native" COMPILER_OPT_ARCH_NATIVE_SUPPORTED)
+  if (COMPILER_OPT_ARCH_NATIVE_SUPPORTED)
+    add_compile_options(-march=native)
+  endif()
+  CHECK_CXX_COMPILER_FLAG("/arch:AVX" COMPILER_OPT_ARCH_AVX_SUPPORTED)
+  if (COMPILER_OPT_ARCH_AVX_SUPPORTED)
+    add_compile_options(/arch:AVX)
+  endif()
+else()
+    add_compile_options(-march=${TARGET_ARCHITECTURE})
 endif()
 CHECK_CXX_COMPILER_FLAG("-Wall" COMPILER_OPT_WARN_ALL_SUPPORTED)
 if (COMPILER_OPT_WARN_ALL_SUPPORTED)
@@ -33,7 +33,8 @@ if (COMPILER_OPT_WARN_ALL_SUPPORTED)
 endif()
 find_package(CUDA)
 find_package(GSL REQUIRED)      # GNU Scientific Library
-find_package(HDF5 COMPONENTS HL)
+find_package(HDF5 COMPONENTS C HL)
+find_package(FFTW REQUIRED)
 #find_package(PythonLibs)
 # _GNU_SOURCE gives us more options
 INCLUDE(CheckCSourceCompiles)
@@ -79,6 +80,7 @@ endif()
 INCLUDE (CheckIncludeFiles)
 INCLUDE (CheckLibraryExists)
 CHECK_INCLUDE_FILES (malloc.h HAVE_MALLOC_H)
+CHECK_INCLUDE_FILES (signal.h HAVE_SIGNAL_H)
 CHECK_INCLUDE_FILES (sys/time.h HAVE_SYS_TIME_H)
 CHECK_INCLUDE_FILES (sys/stat.h HAVE_SYS_STAT_H)
 CHECK_INCLUDE_FILES (sys/param.h HAVE_SYS_PARAM_H)
@@ -98,6 +100,7 @@ check_symbol_exists(strstr string.h HAVE_STRSTR)
 check_symbol_exists(memmove string.h HAVE_MEMMOVE)
 check_symbol_exists(memset string.h HAVE_MEMSET)
 check_symbol_exists(gettimeofday sys/time.h HAVE_GETTIMEOFDAY)
+check_symbol_exists(posix_memalign stdlib.h HAVE_POSIX_MEMALIGN)
 
 check_symbol_exists(wordexp wordexp.h HAVE_WORDEXP)
 check_symbol_exists(wordfree wordexp.h HAVE_WORDFREE)
@@ -122,7 +125,7 @@ set_property(TARGET ${PROJECT_NAME} APPEND PROPERTY COMPILE_DEFINITIONS _LARGEFI
 target_sources(${PROJECT_NAME} PRIVATE
 	main.c cosmo.c master.c pst.c fio.c illinois.c param.c
 	pkd.c analysis.c smooth.c smoothfcn.c outtype.c output.c
-	walk2.c grav2.c ewald.cxx ic.cxx tree.c opening.cxx pp.cxx pc.cxx cl.c
+	walk2.c grav2.c ewald.cxx ic.cxx tree.cxx opening.cxx pp.cxx pc.cxx cl.c
 	lst.c moments.c ilp.c ilc.c iomodule.c
 	fof.c hop.c group.c groupstats.c RngStream.c listcomp.c healpix.c
 	tinypy.c pkdtinypy.c
@@ -131,6 +134,10 @@ target_sources(${PROJECT_NAME} PRIVATE
 )
 add_executable(tostd tostd.c fio.c)
 add_executable(psout psout.c cosmo.c)
+
+target_link_libraries(${PROJECT_NAME} m)
+target_link_libraries(tostd m)
+target_link_libraries(psout m)
 
 if(USE_BT)
 target_sources(${PROJECT_NAME} PRIVATE bt.c)

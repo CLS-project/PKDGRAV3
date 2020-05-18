@@ -40,25 +40,10 @@ typedef double fftw_real;
 #endif
 #endif
 
-typedef struct  {
+typedef struct CacheDataBucket {
     struct CacheDataBucket *next;      /* for doubly linked list */
     struct CacheDataBucket *prev;      /* for doubly linked list */
-    } CacheDataLinks;
-
-typedef struct CacheDataBucket {
-    /*
-    ** When we are flushing, the element has been removed from all lists,
-    ** and from the hash table. We can "send" the CDB to the MPI node and
-    ** get it returned to us later.
-    */
-    union {
-	CacheDataLinks  links; /* When in the ARC cache */
-	MDLserviceElement svc; /* When sending to/from the MPI thread */
-	} hdr;
-    union {
-	struct CacheDataBucket *coll; /* collision chain for hash table */
-	struct cacheSpace *cache; /* when flushing need to know which cache */
-	} extra;
+    struct CacheDataBucket *coll; /* collision chain for hash table */
     uint64_t *data;      /* page's location in cache */
     uint32_t uId;       /* upper 4 bits encode ARC_where and dirty bit */
     uint32_t uPage;    /* page's ID number */
@@ -121,13 +106,6 @@ typedef struct mdl_wq_node {
     mdlWorkFunction doFcn;
     mdlWorkFunction doneFcn;
     } MDLwqNode;
-
-typedef struct cacheTag {
-    mdlkey_t iKey;
-    int nLock;
-    int iLink;
-    } CTAG;
-
 
 /*
 ** This structure should be "maximally" aligned.
@@ -250,7 +228,10 @@ typedef struct mdlContext {
     struct mdlContext **pmdl;
     pthread_t *threadid;
     pthread_barrier_t barrier;
-    void * (*fcnWorker)(struct mdlContext *mdl);
+    void *worker_ctx;
+    void * (*fcnWorkerInit)(struct mdlContext *mdl);
+    void   (*fcnWorkerDone)(struct mdlContext *mdl, void *ctx);
+    void   (*fcnMaster)(    struct mdlContext *mdl, void *ctx);
 
     OPA_Queue_info_t *inQueue;
     MDLserviceElement inMessage;
@@ -309,7 +290,8 @@ typedef struct mdlContext {
 /*
  ** General Functions
  */
-void mdlLaunch(int,char **,void * (*)(MDL),void * (*)(MDL));
+void mdlLaunch(int,char **,void (*)(MDL,void *),void * (*)(MDL),void (*)(MDL,void *));
+void mdlAbort(MDL);
 void mdlFinish(MDL);
 int  mdlSplitComm(MDL mdl, int nProcs);
 void mdlSetComm(MDL mdl, int iComm);
@@ -317,7 +299,7 @@ int mdlSwap(MDL,int,size_t,void *,size_t,size_t *,size_t *);
 typedef int (*mdlPack)(void *,int *,size_t,void*);
 void mdlSend(MDL mdl,int id,mdlPack pack, void *ctx);
 void mdlRecv(MDL mdl,int id,mdlPack unpack, void *ctx);
-void mdlAddService(MDL,int,void *,void (*)(void *,void *,int,void *,int *),
+void mdlAddService(MDL,int,void *,fcnService_t *fcnService,
 		   int,int);
 void mdlCommitServices(MDL mdl);
 int  mdlReqService(MDL, int, int, void *, int);

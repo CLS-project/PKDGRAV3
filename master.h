@@ -33,20 +33,8 @@
 #define MSR_INIT_E		1
 #define MSR_STEP_E		0
 
-static time_t timeGlobalSignalTime = 0;
-static int bGlobalOutput = 0;
-
-#ifndef _MSC_VER
-static inline void USR1_handler(int signo) {
-    signal(SIGUSR1,USR1_handler);
-    timeGlobalSignalTime = time(0);
-    }
-
-static inline void USR2_handler(int signo) {
-    signal(SIGUSR2,USR2_handler);
-    bGlobalOutput = 1;
-    }
-#endif
+extern time_t timeGlobalSignalTime;
+extern int bGlobalOutput;
 
 typedef struct msrContext {
     PRM prm;
@@ -72,6 +60,7 @@ typedef struct msrContext {
     ** Parameters.
     */
     struct parameters param;
+    CSM csm;
     /*
     ** Other stuff...
     */
@@ -120,7 +109,7 @@ typedef struct msrContext {
     int bSavePending;
 
     long lStart; /* starting time of job */
-
+    long lPrior; /* starting time of last step */
 
     /* Values for a restore from checkpoint */
     double dCheckpointTime;
@@ -134,7 +123,7 @@ typedef struct msrContext {
 extern "C" {
 #endif
 double msrTime();
-int msrInitialize(MSR *,MDL,int,char **);
+int msrInitialize(MSR *,MDL,void *,int,char **);
 void msrLogParams(MSR msr, FILE *fp);
 void msrOutputFineStatistics(MSR msr, double dStep, double dTime);
 void msrprintf(MSR msr, const char *Format, ... );
@@ -184,13 +173,13 @@ double msrReadCheck(MSR,int *);
 void msrWriteCheck(MSR,double,int);
 int msrOutTime(MSR,double);
 void msrReadOuts(MSR,double);
-void msrCheckForOutput(MSR msr,int iStep,double dTime,int *pbDoCheckpoint,int *pbDoOutput);
+int msrCheckForOutput(MSR msr,int iStep,double dTime,int *pbDoCheckpoint,int *pbDoOutput);
 int msrNewTopStepKDK(MSR msr,
     int bDualTree,      /* Should be zero at rung 0! */
     uint8_t uRung,	/* Rung level */
     double *pdStep,	/* Current step */
     double *pdTime,	/* Current time */
-    uint8_t *puRungMax,int *piSec,int *pbDoCheckpoint,int *pbDoOutput);
+    uint8_t *puRungMax,int *piSec,int *pbDoCheckpoint,int *pbDoOutput,int *pbNeedKickOpen);
 void msrTopStepKDK(MSR msr,
 		   double dStep,	/* Current step */
 		   double dTime,	/* Current time */
@@ -271,11 +260,13 @@ int msrDoDensity(MSR);
 int msrPNGResolution(MSR msr);
 #endif
 int msrDoGravity(MSR msr);
-void msrInitStep(MSR msr);
+void msrSetParameters(MSR msr);
+void msrInitCosmology(MSR msr);
 void msrSetRung(MSR msr, uint8_t uRungLo, uint8_t uRungHi, int uRung);
 void msrZeroNewRung(MSR msr, uint8_t uRungLo, uint8_t uRungHi, int uRung);
 int msrMaxRung(MSR msr);
 void msrSwitchTheta(MSR msr,double);
+double msrSwitchDelta(MSR msr,double dTime,int iStep);
 uint64_t msrMaxOrder(MSR msr);
 
 void msrNewFof(MSR msr, double exp);
@@ -336,7 +327,7 @@ void msrGridProject(MSR msr,double x,double y,double z);
 void msrGridCreateFFT(MSR msr, int nGrid);
 void msrGridDeleteFFT(MSR msr);
 void msrAssignMass(MSR msr,int iAssignment,int nGrid);
-void msrMeasurePk(MSR msr,int iAssignment,int bInterlace,int nGrid,int nBins,uint64_t *nPk,float *fK,float *fPk);
+void msrMeasurePk(MSR msr,int iAssignment,int bInterlace,int nGrid,double a,int nBins,uint64_t *nPk,float *fK,float *fPk,float *fPkAll);
 void msrMeasureLinPk(MSR msr,int nGridLin,double a,double dBoxSize,
                 uint64_t *nPk,float *fK,float *fPk);
 void msrSetLinGrid(MSR msr,double dTime, int nGrid, int bKickClose, int bKickOpen);

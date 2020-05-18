@@ -55,7 +55,7 @@ static int packGrid(void *vctx, int *id, size_t nSize, void *vBuff) {
     PKD pkd = ctx->pkd;
     if (mdlCore(pkd->mdl) == 0) {
 	COMPLEX *fftData = pkd->pLite;
-	size_t nLocal = pkd->fft->kgrid->nLocal;
+	size_t nLocal = 1ul * pkd->fft->kgrid->a1 * pkd->fft->kgrid->n2 * pkd->fft->kgrid->nSlab;
 	int nLeft = nLocal - ctx->iIndex;
 	int n = nSize / sizeof(COMPLEX);
 	if ( n > nLeft ) n = nLeft;
@@ -89,10 +89,10 @@ void pkdOutputSend(PKD pkd, outType eOutputType, int iPartner) {
     mdlSend(pkd->mdl,iPartner, pack, &ctx);
     }
 
-void pstOutputSend(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+int pstOutputSend(PST pst,void *vin,int nIn,void *vout,int nOut) {
     struct inOutputSend *in = vin;
     pkdOutputSend(pst->plcl->pkd, in->eOutputType, in->iPartner);
-    if (pnOut) *pnOut = 0;
+    return 0;
     }
 
 /*
@@ -116,7 +116,10 @@ void pkdOutput(PKD pkd, outType eOutputType, int iProcessor,int nProcessor,
 	unpack = unpackWrite;
 	break;
     case OUT_KGRID:
-	io_write(&info,pkd->pLite,sizeof(COMPLEX)*pkd->fft->kgrid->nLocal);
+	{
+	    size_t nLocal = 1ul * pkd->fft->kgrid->a1 * pkd->fft->kgrid->n2 * pkd->fft->kgrid->nSlab;
+	    io_write(&info,pkd->pLite,sizeof(COMPLEX)*nLocal);
+	    }
 	unpack = unpackWrite;
 	break;
     default:
@@ -137,7 +140,7 @@ void pkdOutput(PKD pkd, outType eOutputType, int iProcessor,int nProcessor,
     io_free(&info);
     }
 
-void pstOutput(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+int pstOutput(PST pst,void *vin,int nIn,void *vout,int nOut) {
     struct inOutput *in = vin;
 
     mdlassert(pst->mdl,nIn >= sizeof(struct inOutput));
@@ -156,7 +159,7 @@ void pstOutput(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	    int rID = mdlReqService(pst->mdl,pst->idUpper,PST_OUTPUT,in,nIn);
 	    in->nProcessor = nLower;
 	    in->iProcessor = iProcessor;
-	    pstOutput(pst->pstLower,in,nIn,vout,pnOut);
+	    pstOutput(pst->pstLower,in,nIn,NULL,0);
 	    mdlGetReply(pst->mdl,rID,NULL,NULL);
 	    }
 	/* We are the node that will be the writer for all of the pst children */
@@ -164,10 +167,10 @@ void pstOutput(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	    in->iPartner = pst->idSelf;
 	    in->nPartner = pst->nLeaves;
 	    in->nProcessor = 0;
-	    pstOutput(pst->pstLower,in,nIn,vout,pnOut); /* Keep decending to write */
+	    pstOutput(pst->pstLower,in,nIn,NULL,0); /* Keep decending to write */
 	    }
 	else {
-	    pstOutput(pst->pstLower,in,nIn,vout,pnOut); /* Keep decending to write */
+	    pstOutput(pst->pstLower,in,nIn,NULL,0); /* Keep decending to write */
 	    }
 	}
     else {
@@ -180,4 +183,5 @@ void pstOutput(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	pkdOutput(pkd,in->eOutputType,in->iProcessor,in->nProcessor,
 	    in->iPartner,in->nPartner,in->achOutFile);
 	}
+    return 0;
     }

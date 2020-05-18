@@ -452,6 +452,7 @@ void pkdInitialize(
     ** descending size (i.e., doubles & int64 and then float & int32)
     */
     pkd->bNoParticleOrder = (mMemoryModel&PKD_MODEL_UNORDERED) ? 1 : 0;
+    pkd->bIntegerPosition = (mMemoryModel&PKD_MODEL_INTEGER_POS) ? 1 : 0;
 
     if ( pkd->bNoParticleOrder )
 	pkd->iParticleSize = sizeof(UPARTICLE);
@@ -461,9 +462,7 @@ void pkdInitialize(
     pkd->nParticleAlign = sizeof(float);
     pkd->iTreeNodeSize = sizeof(KDN);
 
-#ifndef INTEGER_POSITION
-    pkd->oPosition = pkdParticleAddDouble(pkd,3);
-#endif
+    if (!pkd->bIntegerPosition) pkd->oPosition = pkdParticleAddDouble(pkd,3);
     if ( mMemoryModel & PKD_MODEL_PARTICLE_ID )
 	pkd->oParticleID = pkdParticleAddInt64(pkd,1);
     else
@@ -475,9 +474,7 @@ void pkdInitialize(
 	    pkd->oVelocity = pkdParticleAddDouble(pkd,3);
 	    }
 	}
-#ifdef INTEGER_POSITION
-    pkd->oPosition = pkdParticleAddInt32(pkd,3);
-#endif
+    if (pkd->bIntegerPosition) pkd->oPosition = pkdParticleAddInt32(pkd,3);
     if ( mMemoryModel & PKD_MODEL_RELAXATION )
 	pkd->oRelaxation = pkdParticleAddDouble(pkd,1);
     else
@@ -539,17 +536,11 @@ void pkdInitialize(
     /*
     ** Tree node memory models
     */
-#ifdef INTEGER_POSITION
-    pkd->oNodePosition = pkdNodeAddInt32(pkd,3);
-#else
-    pkd->oNodePosition = pkdNodeAddDouble(pkd,3);
-#endif
+    if (pkd->bIntegerPosition) pkd->oNodePosition = pkdNodeAddInt32(pkd,3);
+    else pkd->oNodePosition = pkdNodeAddDouble(pkd,3);
     if ( mMemoryModel & PKD_MODEL_NODE_BND ) {
-#ifdef INTEGER_POSITION
-        pkd->oNodeBnd  = pkdNodeAddStruct(pkd,sizeof(IBND));
-#else
-        pkd->oNodeBnd  = pkdNodeAddStruct(pkd,sizeof(BND));
-#endif
+        if (pkd->bIntegerPosition) pkd->oNodeBnd  = pkdNodeAddStruct(pkd,sizeof(IBND));
+        else pkd->oNodeBnd  = pkdNodeAddStruct(pkd,sizeof(BND));
     }
     else {
 	pkd->oNodeBnd  = 0;
@@ -887,7 +878,7 @@ void pkdFinish(PKD pkd) {
         }
     if (pkd->pHealpixData) free(pkd->pHealpixData);
     io_free(&pkd->afiLightCone);
-    csmFinish(pkd->param.csm);
+    csmFinish(pkd->csm);
 #ifdef COOLING
     cooling_clean(pkd->cooling); 
 #endif
@@ -1287,44 +1278,48 @@ void pkdEnforcePeriodic(PKD pkd,BND *pbnd) {
     PARTICLE *p;
     double r;
     int i,j;
-#if defined(USE_SIMD) && defined(__SSE2__) && defined(INTEGER_POSITION)
-    __m128i period = _mm_set1_epi32 (INTEGER_FACTOR);
-    __m128i top = _mm_setr_epi32 ( (INTEGER_FACTOR/2)-1,(INTEGER_FACTOR/2)-1,(INTEGER_FACTOR/2)-1,0x7fffffff );
-    __m128i bot = _mm_setr_epi32 (-(INTEGER_FACTOR/2),-(INTEGER_FACTOR/2),-(INTEGER_FACTOR/2),-0x80000000 );
+#if defined(USE_SIMD) && defined(__SSE2__)
+    if (pkd->bIntegerPosition) {
+	__m128i period = _mm_set1_epi32 (INTEGER_FACTOR);
+	__m128i top = _mm_setr_epi32 ( (INTEGER_FACTOR/2)-1,(INTEGER_FACTOR/2)-1,(INTEGER_FACTOR/2)-1,0x7fffffff );
+	__m128i bot = _mm_setr_epi32 (-(INTEGER_FACTOR/2),-(INTEGER_FACTOR/2),-(INTEGER_FACTOR/2),-0x80000000 );
 
-    char *pPos = pkdField(pkdParticle(pkd,0),pkd->oPosition);
-    const int iSize = pkd->iParticleSize;
-    for (i=0;i<pkd->nLocal;++i) {
-	__m128i v = _mm_loadu_si128((__m128i *)pPos);
-	__m128i *r = (__m128i *)pPos;
-	pPos += iSize;
-	_mm_prefetch(pPos,_MM_HINT_T0);
-	v = _mm_sub_epi32(_mm_add_epi32(v,_mm_and_si128(_mm_cmplt_epi32(v,bot),period)),
-	    _mm_and_si128(_mm_cmpgt_epi32(v,top),period));
-	/* The fourth field (not part of position) is not modified because of bot/top */
-	_mm_storeu_si128(r,v);
-//	r[0] = _mm_extract_epi32 (v,0);
-//	r[1] = _mm_extract_epi32 (v,1);
-//	r[2] = _mm_extract_epi32 (v,2);
-	}
-#else
-    for (i=0;i<pkd->nLocal;++i) {
-	p = pkdParticle(pkd,i);
-	for (j=0;j<3;++j) {
-	    r = pkdPos(pkd,p,j);
-	    if (r < pbnd->fCenter[j] - pbnd->fMax[j]) r += 2*pbnd->fMax[j];
-	    else if (r >= pbnd->fCenter[j] + pbnd->fMax[j]) r -= 2*pbnd->fMax[j];
-	    pkdSetPos(pkd,p,j,r);
-	    /*
-	    ** If it still doesn't lie in the "unit" cell then something has gone quite wrong with the 
-	    ** simulation. Either we have a super fast particle or the initial condition is somehow not conforming
-	    ** to the specified periodic box in a gross way.
-	    */
-//	    mdlassert(pkd->mdl,((r >= pbnd->fCenter[j] - pbnd->fMax[j])&&
-//	    (r < pbnd->fCenter[j] + pbnd->fMax[j])));
+	char *pPos = pkdField(pkdParticle(pkd,0),pkd->oPosition);
+	const int iSize = pkd->iParticleSize;
+	for (i=0;i<pkd->nLocal;++i) {
+	    __m128i v = _mm_loadu_si128((__m128i *)pPos);
+	    __m128i *r = (__m128i *)pPos;
+	    pPos += iSize;
+	    _mm_prefetch(pPos,_MM_HINT_T0);
+	    v = _mm_sub_epi32(_mm_add_epi32(v,_mm_and_si128(_mm_cmplt_epi32(v,bot),period)),
+		_mm_and_si128(_mm_cmpgt_epi32(v,top),period));
+	    /* The fourth field (not part of position) is not modified because of bot/top */
+	    _mm_storeu_si128(r,v);
+	    //	r[0] = _mm_extract_epi32 (v,0);
+	    //	r[1] = _mm_extract_epi32 (v,1);
+	    //	r[2] = _mm_extract_epi32 (v,2);
 	    }
 	}
+    else
 #endif
+    {
+	for (i=0;i<pkd->nLocal;++i) {
+	    p = pkdParticle(pkd,i);
+	    for (j=0;j<3;++j) {
+		r = pkdPos(pkd,p,j);
+		if (r < pbnd->fCenter[j] - pbnd->fMax[j]) r += 2*pbnd->fMax[j];
+		else if (r >= pbnd->fCenter[j] + pbnd->fMax[j]) r -= 2*pbnd->fMax[j];
+		pkdSetPos(pkd,p,j,r);
+		/*
+		** If it still doesn't lie in the "unit" cell then something has gone quite wrong with the 
+		** simulation. Either we have a super fast particle or the initial condition is somehow not conforming
+		** to the specified periodic box in a gross way.
+		*/
+    //	    mdlassert(pkd->mdl,((r >= pbnd->fCenter[j] - pbnd->fMax[j])&&
+    //	    (r < pbnd->fCenter[j] + pbnd->fMax[j])));
+		}
+	    }
+	}
     }
 
 
@@ -2189,7 +2184,7 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,BND *bnd,
      *
      *  Another option would be to change fCenter, but I do not if that could break other parts of the code...
      */
-    if (pkd->param.csm->val.bComove){
+    if (pkd->csm->val.bComove){
        for (j=0;j<3;++j){
          r[j] += bnd->fMax[j];
        }
@@ -2306,7 +2301,7 @@ void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dScaleFactor, double dTime, uint
    //fioSetAttr(fio, "dUOld",    FIO_TYPE_DOUBLE, &in->dUOld );
    
    fioSetAttr(fio, 0, 0, "Time", FIO_TYPE_DOUBLE, 1, &dTime);
-   if (pkd->param.csm->val.bComove){
+   if (pkd->csm->val.bComove){
       double z = 1./dScaleFactor - 1.;
       fioSetAttr(fio, 0, 0, "Redshift", FIO_TYPE_DOUBLE, 1, &z);
    }
@@ -2368,10 +2363,10 @@ void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dScaleFactor, double dTime, uint
    /*
     * Cosmology header
     */
-   if (pkd->param.csm->val.bComove){
-      fioSetAttr(fio, 0, 1, "Omega_m", FIO_TYPE_DOUBLE, 1, &pkd->param.csm->val.dOmega0);
-      fioSetAttr(fio, 0, 1, "Omega_lambda", FIO_TYPE_DOUBLE, 1, &pkd->param.csm->val.dLambda);
-      fioSetAttr(fio, 0, 1, "Hubble0", FIO_TYPE_DOUBLE, 1, &pkd->param.csm->val.dHubble0);
+   if (pkd->csm->val.bComove){
+      fioSetAttr(fio, 0, 1, "Omega_m", FIO_TYPE_DOUBLE, 1, &pkd->csm->val.dOmega0);
+      fioSetAttr(fio, 0, 1, "Omega_lambda", FIO_TYPE_DOUBLE, 1, &pkd->csm->val.dLambda);
+      fioSetAttr(fio, 0, 1, "Hubble0", FIO_TYPE_DOUBLE, 1, &pkd->csm->val.dHubble0);
       flag = 1;
       fioSetAttr(fio, 0, 1, "Cosmological run", FIO_TYPE_INT, 1, &flag);
       double h = 1;
@@ -2714,6 +2709,9 @@ void addToLightCone(PKD pkd,double *r,float fPot,PARTICLE *p,int bParticleOutput
 	pLC[pkd->nLightCone].vel[0] = v[0];
 	pLC[pkd->nLightCone].vel[1] = v[1];
 	pLC[pkd->nLightCone].vel[2] = v[2];
+#ifdef POTENTIAL_IN_LIGHTCONE
+	pLC[pkd->nLightCone].pot    = fPot;
+#endif
 	if (++pkd->nLightCone == pkd->nLightConeMax) flushLightCone(pkd);
 	}
     if (pkd->nSideHealpix) {
@@ -2868,27 +2866,6 @@ void pkdProcessLightCone(PKD pkd,PARTICLE *p,float fPot,double dLookbackFac,doub
 #undef NBOX
 #endif
 
-void pkdLightCone(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dLookbackFac,double dLookbackFacLCP,
-    double *dtLCDrift,double *dtLCKick) {
-    PARTICLE *p;
-    float fPot,*pfPot;
-    int i;
-
-    KDN *kdn = pkdTreeNode(pkd,ROOT);
-    for (i=kdn->pLower;i<=kdn->pUpper;++i) {
-	p = pkdParticle(pkd,i);
-	if ( !pkdIsRungRange(p,uRungLo,uRungHi) ) continue;
-	/*
-	** Now check the particle against the passing light surface.
-	*/
-	pfPot = pkdPot(pkd,p);
-	if (pfPot) fPot = *pfPot;
-	else fPot = 0.0;
-	pkdProcessLightCone(pkd,p,fPot,dLookbackFac,dLookbackFacLCP,dtLCDrift[p->uRung],dtLCKick[p->uRung]);
-	}
-    }
-
-
 /*
 ** Drift particles whose Rung falls between uRungLo (large step) and uRungHi (small step) inclusive,
 ** and those whose destination activity flag is set.
@@ -3008,29 +2985,16 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
     mdlDiag(pkd->mdl, "Out of pkdDrift\n");
     }
 
-/* IA. We update the conserved variables with the *already computed* fluxes, which
- * should be stored in the SPHFIELDS of each particle 
- * (UPDATE 15/04/19) Now this is done during the third hydro loop, so here we just reset
- * the fluxes to zero (and they, indeed, are only needed now for the dt criteria)
- * */
-void pkdUpdateConsVars(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,double dDeltaTime) {
+void pkdResetFluxes(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,double dDeltaTime) {
     PARTICLE *p;
     SPHFIELDS *psph;
     float* pmass;
     int i;
     int pLower, pUpper;
 
-//  if (iRoot>=0) {
-//    KDN *pRoot = pkdTreeNode(pkd,iRoot);
-//    pLower = pRoot->pLower;
-//    pUpper = pRoot->pUpper;
-//  }
-//  else {
-      pLower = 0;
-      pUpper = pkdLocal(pkd); //IA: All particles local to this proccessor
-//      }
+   pLower = 0;
+   pUpper = pkdLocal(pkd); //IA: All particles local to this proccessor
 
-    mdlDiag(pkd->mdl, "Into pkdUpdateConsVars\n");
     assert(pkd->oVelocity);
     assert(pkd->oMass);
 
@@ -3042,42 +3006,8 @@ void pkdUpdateConsVars(PKD pkd,int iRoot,double dTime,double dDelta,double dDelt
       assert(pkd->oSph);
       for (i=pLower;i<pUpper;++i) { 
       p = pkdParticle(pkd,i);
-         if (pkdIsGas(pkd,p) /* && pkdIsActive(pkd,p) */  ) {
+         if (pkdIsGas(pkd,p)  && pkdIsActive(pkd,p)   ) { //IA: TODO: should this be only for actives?
             psph = pkdSph(pkd, p);
-            // Eq 22 Hopkins 2015
-            // For Q = V rho = M
-            pmass = pkdField(p,pkd->oMass);
-//            printf("Previous mass %e \t", *pmass);
-            //*pmass -= dDelta * psph->Frho ;
-//            printf("Frho %e \n", psph->Frho);
-//if(psph->Frho != psph->Frho)            printf("Mass flux %e \n", psph->Frho);
-
-
-            // For Q = V rho v = mv
-//            printf("Momentum flux %e \t %e \t %e \n", psph->Fmom[0], psph->Fmom[1], psph->Fmom[2]);
-//          IA FIXME Test for new velocity update
-//            psph->mom[0] = pkdVel(pkd,p)[0]*(*pmass); //dDelta * psph->Fmom[0] ;
-//            psph->mom[1] = pkdVel(pkd,p)[1]*(*pmass);//dDelta * psph->Fmom[1] ;
-//            psph->mom[2] = pkdVel(pkd,p)[2]*(*pmass);//dDelta * psph->Fmom[2] ;
-//
-
-            //psph->mom[0] -= dDelta * psph->Fmom[0] ;
-            //psph->mom[1] -= dDelta * psph->Fmom[1] ;
-            //psph->mom[2] -= dDelta * psph->Fmom[2] ;
-
-            // For Q = V rho e = E
-//           if (pkdPos(pkd,p,0)==0 && pkdPos(pkd,p,1)==0 && pkdPos(pkd,p,2)==0){
-//    printf("%d - x %e y %e z %e \n", i, pkdPos(pkd,p,0), pkdPos(pkd,p,1), pkdPos(pkd,p,2));
-//            printf("E %e dDelta %e psph->Fene %e \n", psph->E, dDelta, psph->Fene);
-//            }
-            //psph->E -= dDelta * psph->Fene;
-            if (psph->E<0.0){
-               psph->E = 0.;
-            }
-            //assert(psph->E>0.0);
-
-            
-            //IA: We reset the fluxes
             psph->Frho = 0.0;
             psph->Fene = 0.0;
             psph->Fmom[0] = 0.0;
@@ -3087,15 +3017,6 @@ void pkdUpdateConsVars(PKD pkd,int iRoot,double dTime,double dDelta,double dDelt
        }
     }
 
-    mdlDiag(pkd->mdl, "Out of pkdUpdateConsVars\n");
-    }
-
-void pkdApplyGravWork(PKD pkd,double dTime,double dDelta,double dDeltaVPred,double dDeltaU,double dDeltaUPred,uint8_t uRungLo,uint8_t uRungHi) {
-    PARTICLE *p;
-    SPHFIELDS *psph;
-    int i,j;
-    double gravE, gravEdm, fac, pDelta;
-    float* pv, *pa;
     }
 
 
@@ -3104,9 +3025,9 @@ void pkdPredictSmoothing(PKD pkd,int iRoot, double dTime, double dDelta) {
     SPHFIELDS *psph;
     double dScaleFac, dHubble;
 
-    if (pkd->param.csm->val.bComove){
-       dScaleFac = csmTime2Exp(pkd->param.csm,dTime);
-       dHubble = csmTime2Hub(pkd->param.csm,dTime);
+    if (pkd->csm->val.bComove){
+       dScaleFac = csmTime2Exp(pkd->csm,dTime);
+       dHubble = csmTime2Hub(pkd->csm,dTime);
     }
     if (dDelta>0){
        for (int i=0;i<pkdLocal(pkd);++i) {
@@ -3115,15 +3036,14 @@ void pkdPredictSmoothing(PKD pkd,int iRoot, double dTime, double dDelta) {
             psph = pkdSph(pkd, p);
 
             double pdivv = psph->gradVx[0] + psph->gradVy[1] + psph->gradVz[2];
-            if (pdivv > 0){
-               if (pkd->param.csm->val.bComove){
-                  pdivv /= dScaleFac;
-               }
-               float fBall = pkdBall(pkd,p);
-               float newBall = fBall*exp(0.3333333*pdivv*(dTime - psph->lastUpdateTime));
-
-               pkdSetBall(pkd,p, newBall);
+            if (pkd->csm->val.bComove){
+               pdivv /= dScaleFac;
             }
+            float fBall = pkdBall(pkd,p);
+            float newBall = fBall*exp(0.3333333*pdivv*(dTime - psph->lastUpdateTime));
+
+            pkdSetBall(pkd,p, newBall);
+            
          }
        }
     }
@@ -3145,10 +3065,10 @@ void pkdComputePrimVars(PKD pkd,int iRoot, double dTime, double dDelta) {
     /*
     ** Compute the primitive variables (rho, v, p)
     */
-    if (pkd->param.csm->val.bComove){
-       dScaleFac = csmTime2Exp(pkd->param.csm,dTime);
+    if (pkd->csm->val.bComove){
+       dScaleFac = csmTime2Exp(pkd->csm,dTime);
        dRedshift = 1./dScaleFac - 1.;
-       dHubble = csmTime2Hub(pkd->param.csm,dTime);
+       dHubble = csmTime2Hub(pkd->csm,dTime);
     }
     if (pkd->param.bDoGas) {
       assert(pkd->param.bDoGas);    
@@ -3169,7 +3089,7 @@ void pkdComputePrimVars(PKD pkd,int iRoot, double dTime, double dDelta) {
             // ##### GRAVITY
             gravE = 0.0;
             gravE_dmdt = 0.0;
-            if (pkd->param.csm->val.bComove){
+            if (pkd->csm->val.bComove){
                for (j=0;j<3;j++){
                   pa[j] = pkdAccel(pkd,p)[j]/(dScaleFac*dScaleFac); // TODO: Do 1/a2 only once
                }
@@ -3192,7 +3112,7 @@ void pkdComputePrimVars(PKD pkd,int iRoot, double dTime, double dDelta) {
 
             // ##### Expansion effects
             //  E^{n+1} = E^{n} + dE_flux - dt*(H^{n} E^n + H^{n+1} E^{n+1})
-            if (pkd->param.csm->val.bComove){
+            if (pkd->csm->val.bComove){
                psph->E = (psph->E - psph->lastHubble*pDelta*psph->lastE)/(1.+pDelta*dHubble);
                psph->Uint = (psph->Uint - psph->lastHubble*1.5*pDelta*psph->lastUint*(pkd->param.dConstGamma - 1.))/(1.+1.5*pDelta*dHubble*(pkd->param.dConstGamma - 1.));
                
@@ -3303,7 +3223,7 @@ void pkdLightConeVel(PKD pkd) {
     dr = rMax/(nTable-1);
     for (i=0;i<nTable;++i) {
 	rt[i] = i*dr;
-	at_inv[i] = 1.0/csmComoveLookbackTime2Exp(pkd->param.csm,rt[i]/dLightSpeed);
+	at_inv[i] = 1.0/csmComoveLookbackTime2Exp(pkd->csm,rt[i]/dLightSpeed);
 	}
     scale = gsl_spline_alloc(gsl_interp_cspline,nTable);
     gsl_spline_init(scale,rt,at_inv,nTable);
@@ -3359,7 +3279,7 @@ void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, 
 	*/
 	pkdActiveRung(pkd, iRung, 1);
 	if (pkd->param.bAccelStep) {
-	    double a = csmTime2Exp(pkd->param.csm,dTime);
+	    double a = csmTime2Exp(pkd->csm,dTime);
 	    double dVelFac = 1.0/(a*a);
 	    double dAccFac = 1.0/(a*a*a);
 	    double dhMinOverSoft = 0;
@@ -3369,19 +3289,9 @@ void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, 
 	*pnMaxRung = pkdUpdateRung(pkd,iRung,pkd->param.iMaxRung,
 				   iRung,pkd->param.iMaxRung, nRungCount);
 
-
-	if (pkd->param.bVDetails) {
-	    printf("%*cAdjust at iRung: %d, nMaxRung:%d nRungCount[%d]=%"PRIu64"\n",
-		   2*iRung+2,' ',iRung,*pnMaxRung,*pnMaxRung,nRungCount[*pnMaxRung]);
-	    }
-
 	}
     /* skip this if we are entering for the first time: Kick is taken care of in master(). */
     if (iRung > iRungVeryActive) {
-	if (pkd->param.bVDetails) {
-	    printf("%*cVeryActive pkdKickOpen  at iRung: %d, 0.5*dDelta: %g\n",
-		   2*iRung+2,' ',iRung,0.5*dDelta);
-	    }
 	pkdKickKDKOpen(pkd,dTime,0.5*dDelta,iRung,iRung);
 	}
     if (*pnMaxRung > iRung) {
@@ -3399,18 +3309,14 @@ void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, 
 			     dThetaMin,pnMaxRung,aSunInact,adSunInact,dSunMass);
 	}
     else {
-	if (pkd->param.bVDetails) {
-	    printf("%*cVeryActive Drift at iRung: %d, drifting %d and higher with dDelta: %g\n",
-		   2*iRung+2,' ',iRung,iRungVeryActive+1,dDelta);
-	    }
 	/*
 	** We need to account for cosmological drift factor here!
 	** Normally this is done at the MASTER level in msrDrift.
 	** Note that for kicks we have written new "master-like" functions
 	** KickOpen and KickClose which do this same job at PKD level.
 	*/
-	if (pkd->param.csm->val.bComove) {
-	    dDriftFac = csmComoveDriftFac(pkd->param.csm,dTime,dDelta);
+	if (pkd->csm->val.bComove) {
+	    dDriftFac = csmComoveDriftFac(pkd->csm,dTime,dDelta);
 	    }
 	else {
 	    dDriftFac = dDelta;
@@ -3424,11 +3330,6 @@ void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, 
 
 	/* skip this if we are entering for the first time: Kick is taken care of in master(). */
 	if (iKickRung > iRungVeryActive) {
-	    if (pkd->param.bVDetails) {
-		printf("%*cGravityVA: iRung %d Gravity for rungs %d to %d ... ",
-		       2*iRung+2,' ',iRung,iKickRung,*pnMaxRung);
-		}
-
 	    pkdActiveRung(pkd,iKickRung,1);
 //	    pkdVATreeBuild(pkd,pkd->param.nBucket);
 	    pkdGravityVeryActive(pkd,uRungLo,uRungHi,dTime,pkd->param.bEwald && pkd->param.bPeriodic,pkd->param.nGroup,
@@ -3443,10 +3344,6 @@ void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, 
 	}
     /* skip this if we are entering for the first time: Kick is taken care of in master(). */
     if (iKickRung > iRungVeryActive) {
-	if (pkd->param.bVDetails) {
-	    printf("%*cVeryActive pkdKickClose at iRung: %d, 0.5*dDelta: %g\n",
-		   2*iRung+2,' ',iRung,0.5*dDelta);
-	    }
 	pkdKickKDKClose(pkd,dTime,0.5*dDelta,iRung,iRung);
 	}
     }
@@ -3456,15 +3353,15 @@ void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, 
  * Stripped down versions of routines from master.c
  */
 void pkdKickKDKOpen(PKD pkd,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi) {
-    if (pkd->param.csm->val.bComove) {
-	dDelta = csmComoveKickFac(pkd->param.csm,dTime,dDelta);
+    if (pkd->csm->val.bComove) {
+	dDelta = csmComoveKickFac(pkd->csm,dTime,dDelta);
     }
     pkdKick(pkd,dTime,dDelta,0,0,0,uRungLo,uRungHi);
     }
 
 void pkdKickKDKClose(PKD pkd,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi) {
-    if (pkd->param.csm->val.bComove) {
-	dDelta = csmComoveKickFac(pkd->param.csm,dTime,dDelta);
+    if (pkd->csm->val.bComove) {
+	dDelta = csmComoveKickFac(pkd->csm,dTime,dDelta);
     }
     pkdKick(pkd,dTime,dDelta,0,0,0,uRungLo,uRungHi);
     }
@@ -3578,19 +3475,21 @@ void pkdKickTree(PKD pkd,double dTime,double dDelta,double dDeltaVPred,double dD
 	}
     }
 
-void pkdInitStep(PKD pkd, struct parameters *p, struct csmVariables *cosmo) {
-    pkd->param = *p;
+void pkdInitCosmology(PKD pkd, struct csmVariables *cosmo) {
     /*
     ** Need to be careful to correctly copy the cosmo
     ** parameters. This is very ugly!
     */
-    csmInitialize(&pkd->param.csm);
-    pkd->param.csm->val = *cosmo;
-    if (pkd->param.csm->val.classData.bClass){
-        csmClassGslInitialize(pkd->param.csm);
-    }
+    csmInitialize(&pkd->csm);
+    pkd->csm->val = *cosmo;
+    if (pkd->csm->val.classData.bClass){
+        csmClassGslInitialize(pkd->csm);
+	}
     }
 
+void pkdSetParameters(PKD pkd, struct parameters *p) {
+    pkd->param = *p;
+    }
 
 void pkdSetRung(PKD pkd,uint8_t uRungLo, uint8_t uRungHi, uint8_t uRung) {
     PARTICLE *p;
@@ -3773,7 +3672,7 @@ void pkdSphStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,double dAccFac) {
     }
 
 
-
+/* IA: Now unused. TODO: consider removing all these functions */
 //void pkdStarForm(PKD pkd, double dRateCoeff, double dTMax, double dDenMin,
 //		 double dDelta, double dTime,
 //		 double dInitStarMass, double dESNPerStarMass, double dtCoolingShutoff,

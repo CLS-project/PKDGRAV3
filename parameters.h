@@ -18,8 +18,6 @@
 #ifndef PARAMETERS_HINCLUDED
 #define PARAMETERS_HINCLUDED
 
-#include "cosmo.h"
-
 /*
 ** Don't even think about putting a pointer in here!!
 */
@@ -49,7 +47,6 @@ struct parameters {
     int bHDF5;
     int bDoublePos;
     int bDoubleVel;
-    int bCenterOfMassExpand;
     int bGravStep;
     int bEpsAccStep;
     int bAccelStep; /* true if bEpsAccStep */
@@ -80,6 +77,7 @@ struct parameters {
     int nReplicas;
     int iStartStep;
     int nSteps;
+    int nSteps10;
     int nSmooth;
     int iMaxRung;
     int nRungVeryActive;
@@ -179,7 +177,6 @@ struct parameters {
     double dPreFacRhoLoc;
     double dFacExcludePart;
     double dEccFacMax;
-    CSM csm;
     double dRedTo;
     double dRedFrom;
     double dCentMass;
@@ -195,6 +192,9 @@ struct parameters {
     char achScriptFile[256];
 #endif
     char achTfFile[256];
+    char achClassFilename[256];
+    char achLinearSpecies[256];
+    char achPowerSpecies[256];
     double dGrowDeltaM;
     double dGrowStartT;
     double dGrowEndT;
@@ -310,6 +310,7 @@ struct parameters {
     int bDoLinPkOutput;
     int nBinsLinPk;
     int iDeltakInterval;
+  double dDeltakRedshift;
 #endif
 
     int iInflateStep;
@@ -318,6 +319,7 @@ struct parameters {
     /*
     ** Memory models.  Other parameters can force these to be set.
     */
+    int bMemIntegerPosition;
     int bMemUnordered;
     int bMemParticleID;
     int bMemAcceleration;
