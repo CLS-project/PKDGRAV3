@@ -330,11 +330,13 @@ void *ARC<>::fetch(uint32_t uIndex, int uId, int bLock,int bModify,bool bVirtual
 	case P1: // Prefetched (this is an extension to ARC)
 	    move(T1,item);
 	    if (bLock) ++cdb.data[-1]; // Increase the lock count if requested
+	    if (bModify) cdb.setDirty();
 	    return reinterpret_cast<char*>(cdb.data) + uDataSizeInBytes*iInLine;
 	case T1:
 	case T2:
 	    move(T2,item);
 	    if (bLock) ++cdb.data[-1]; // Increase the lock count if requested
+	    if (bModify) cdb.setDirty();
 	    return reinterpret_cast<char*>(cdb.data) + uDataSizeInBytes*iInLine;
 	case B1:                            /* B1 hit: favor recency */
 	    if (cdb.absent()) { // We return "not found" (NULL)

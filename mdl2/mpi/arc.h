@@ -18,6 +18,7 @@
 #define ARC_H
 
 #include <cstdint>
+#include <algorithm>
 #include <vector>
 #include <list>
 #include <tuple>

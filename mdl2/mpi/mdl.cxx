@@ -395,7 +395,6 @@ void mdlClass::finishCacheRequest(uint32_t uLine, uint32_t uId, int cid, void *d
     int iCore = uId - mpi->Self();
     CACHE *c = &cache[cid];
     int i,s,n;
-    char *pData = reinterpret_cast<char *>(data);
     uint32_t iIndex = uLine << c->nLineBits;
 
     s = iIndex;
@@ -403,7 +402,7 @@ void mdlClass::finishCacheRequest(uint32_t uLine, uint32_t uId, int cid, void *d
 
     // A virtual fetch results in an empty cache line (unless init is called below)
     if (bVirtual) {
-	memset(pData,0,c->iLineSize);
+	memset(data,0,c->iLineSize);
 	}
     // Local requests must be from a combiner cache if we get here,
     // otherwise we would have simply returned a reference
@@ -411,6 +410,7 @@ void mdlClass::finishCacheRequest(uint32_t uLine, uint32_t uId, int cid, void *d
 	mdlClass * omdl = pmdl[iCore];
 	CACHE *oc = &omdl->cache[cid];
 	if ( n > oc->nData ) n = oc->nData;
+	auto pData = reinterpret_cast<char *>(data);
 	for(i=s; i<n; i++ ) {
 	    memcpy(pData,oc->getElement(i),oc->iDataSize);
 	    pData += oc->iDataSize;
@@ -419,11 +419,12 @@ void mdlClass::finishCacheRequest(uint32_t uLine, uint32_t uId, int cid, void *d
     // Here we wait for the reply, and copy the data into the ARC cache
     else {
 	waitQueue(queueCacheReply);
-	memcpy(pData,c->OneLine.data(), c->iLineSize);
+	memcpy(data,c->OneLine.data(), c->iLineSize);
 	}
 
     // A combiner cache can intialize some/all of the elements
     if (c->init) {
+	auto pData = reinterpret_cast<char *>(data);
 	for(i=s; i<n; i++ ) {
 	    (*c->init)(c->ctx,pData);
 	    pData += c->iDataSize;

@@ -78,6 +78,7 @@ enum services {
     SET_ADD,
     TEST_RO,
     TEST_FLUSH,
+    TEST_FLUSH_AFTER_READ,
     };
 } // namespace worker
 
@@ -182,6 +183,48 @@ int test_flush(worker::Context *ctx,void *vin,int nIn,void *vout,int nOut) {
     return sizeof(*pnBAD);
     }
 
+int test_flush_after_read(worker::Context *ctx,void *vin,int nIn,void *vout,int nOut) {
+    auto pnBAD = reinterpret_cast<std::uint64_t*>(vout);
+    std::uint64_t nBAD;
+    if (ctx->getLeaves() > 1) {
+        int rID = mdlReqService(ctx->getMDL(),ctx->getUpper(),worker::TEST_FLUSH_AFTER_READ,NULL,0);
+        test_flush_after_read(ctx->getLower(),vin,nIn,vout,nOut);
+        mdlGetReply(ctx->getMDL(),rID,&nBAD,&nOut);
+	*pnBAD += nBAD;
+        }
+    else {
+    	int idSelf = mdlSelf(ctx->getMDL());
+	int nData = cacheSize / 10; // Smaller is fine for this
+	auto pData = new std::uint64_t[nData];
+	for(auto i=0; i<nData; ++i) pData[i] = ((1UL*idSelf)<<33) + 10 + i;
+	mdlCOcache(ctx->getMDL(),0,NULL,pData,sizeof(pData[0]),nData,ctx,initFlush,combFlush);
+
+	for(auto iProc=0; iProc<mdlThreads(ctx->getMDL()); ++iProc) {
+	    for(auto i=0; i<nData; ++i) {
+		auto pRemote = reinterpret_cast<std::uint64_t*>(mdlFetch(ctx->getMDL(),0,i,iProc));
+		}
+	    }
+
+	nBAD = 0;
+	for(auto iProc=0; iProc<mdlThreads(ctx->getMDL()); ++iProc) {
+	    for(auto i=0; i<nData; ++i) {
+		auto pRemote = reinterpret_cast<std::uint64_t*>(mdlAcquire(ctx->getMDL(),0,i,iProc));
+		++*pRemote;
+		mdlRelease(ctx->getMDL(),0,pRemote);
+		}
+	    }
+	mdlFinishCache(ctx->getMDL(),0);
+	auto nThreads = mdlThreads(ctx->getMDL());
+	for(auto i=0; i<nData; ++i) {
+	    if (pData[i] != nThreads + ((1UL*idSelf)<<33) + 10 + i) ++nBAD;
+	    }
+	delete[] pData;
+	*pnBAD = nBAD;
+        }
+
+    return sizeof(*pnBAD);
+    }
+
 /*
 ** This function is called at the very start by every thread.
 ** It returns the "worker context"; in this case the ctx.
@@ -193,6 +236,8 @@ void *worker_init(MDL mdl) {
     mdlAddService(mdl,worker::TEST_RO,ctx,(fcnService_t*)test_ro,
                   0,sizeof(std::uint64_t));
     mdlAddService(mdl,worker::TEST_FLUSH,ctx,(fcnService_t*)test_flush,
+                  0,sizeof(std::uint64_t));
+    mdlAddService(mdl,worker::TEST_FLUSH_AFTER_READ,ctx,(fcnService_t*)test_flush_after_read,
                   0,sizeof(std::uint64_t));
     return ctx;
     }
@@ -226,6 +271,14 @@ TEST_F(CacheTest, CacheFlushWorks) {
     test_flush(ctx,NULL,0,&nBAD,sizeof(nBAD));
     EXPECT_EQ(nBAD,0);
     }
+
+TEST_F(CacheTest, CacheFlushAfterReadWorks) {
+    auto ctx = reinterpret_cast<worker::Context*>(mdlWORKER());
+    std::uint64_t nBAD;
+    test_flush_after_read(ctx,NULL,0,&nBAD,sizeof(nBAD));
+    EXPECT_EQ(nBAD,0);
+    }
+
 
 }  // namespace
 
