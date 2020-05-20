@@ -17,12 +17,12 @@
 #ifndef ARC_H
 #define ARC_H
 
+#include <iostream>
 #include <cstdint>
 #include <algorithm>
 #include <vector>
-#include <list>
 #include <tuple>
-#include <forward_list>
+#include <boost/intrusive/list.hpp>
 
 namespace mdl {
 namespace hash {
@@ -38,6 +38,7 @@ public:
     virtual void   remove(uint32_t uHash, const void *pKey) = 0;
     virtual void   drop_all() = 0;
     virtual size_t key_length() = 0;
+    virtual void   print_statistics() = 0;
     };
 
 // Special case when there is no "key" in the hash table. Instead the index
@@ -69,24 +70,41 @@ struct no_key {
 template<typename KEY=no_key>
 class HASH : public GHASH {
 protected:
-    typedef std::tuple<CDB,KEY> ENTRY;
-    typedef std::list<ENTRY> CDBL;
-    typedef std::forward_list<typename CDBL::iterator> CDBIL; // Memory efficient linked-list
+    struct HashChain { struct HashChain *next; };
+    class ENTRY : public std::tuple<CDB,KEY>, public boost::intrusive::list_base_hook<>, public HashChain {};
+    typedef boost::intrusive::list<ENTRY,boost::intrusive::constant_time_size<true> > CDBL;
 
-private:
+protected:
     uint32_t uHashMask;
+private:
+    std::vector<ENTRY> entries;
     CDBL freeList;
 protected:
-    std::vector<CDBL> L;            // All of our lists: P1, T1, etc.
-    std::vector<CDBIL> HashChains;  // List of hash entries for each value
-    CDBIL HashFree;                 // List of free hash entries (added to HashChains)
+    CDBL L[1<<CDB::whereBits];
+    std::vector<HashChain> HashChains; // Collision chain (one for each hash value)
 protected:
-    typename CDBIL::iterator find_key(CDBIL &Hash,const KEY &key) {
-	auto iskey = [key](const typename CDBL::iterator &i) {return std::get<1>(*i) == key;};
-	auto match = std::find_if(Hash.begin(),Hash.end(),iskey);
-	return match;    
+    // Search for the ENTRY matching the specified key, and return it if found,
+    // or return nullptr if not found. Optionally remove it from the hash chain.
+    ENTRY * find_key(HashChain &Hash,const KEY &key, bool bRemove=false) {
+	for(auto pHash = &Hash; pHash->next != &Hash; pHash = pHash->next) {
+	    auto pEntry = static_cast<ENTRY*>(pHash->next);
+	    if (std::get<1>(*pEntry) == key) {
+	    	if (bRemove) pHash->next = pHash->next->next;     	     
+	    	return pEntry;
+		}
+	    }
+	return nullptr;
 	}
-
+    ENTRY * find_key(HashChain &Hash,uint32_t uLine,uint32_t uId, bool bRemove=false) {
+	for(auto pHash = &Hash; pHash->next != &Hash; pHash = pHash->next) {
+	    auto pEntry = static_cast<ENTRY*>(pHash->next);
+	    if (std::get<0>(*pEntry).uPage == uLine && (std::get<0>(*pEntry).getId()) == uId) {
+	    	if (bRemove) pHash->next = pHash->next->next;     	     
+	    	return pEntry;
+		}
+	    }
+	return nullptr;
+	}
     uint32_t hash(uint32_t uLine,uint32_t uId);
     typename CDBL::iterator move(uint32_t iTarget) {
 	L[iTarget].splice(L[iTarget].end(),freeList,freeList.begin());
@@ -118,9 +136,26 @@ public:
 public:
     class ARC *clone(int nMaxElements);
 
+    virtual void print_statistics() {
+	auto nInUse = entries.size() - freeList.size();
+	std::cout << "Cache Size: " << entries.size()
+	    << ", in use: " << nInUse
+	    << std::endl;
+	size_t nBucketsHit = 0;
+	for(auto &i : HashChains) {
+	    if (i.next != &i) ++nBucketsHit;
+	    }
+	std::cout << "Buckets: " << HashChains.size()
+	    << ", buckets in use: " << nBucketsHit << std::endl;
+	if (nInUse) {
+	    std::cout << "Collisions: " << nInUse - nBucketsHit
+		<< ", collision rate: " << 100.0 - 100.0 * nBucketsHit / nInUse << "%"
+		<< std::endl;
+	    }
+	}
+
     void clear() { // Empty the hash table (by moving all elements to the free list)
-	for(auto &i : HashChains)
-	    HashFree.splice_after(HashFree.before_begin(),i);
+	for(auto &i : HashChains) i.next = &i; // Point to self = empty
 	for(auto &list : L) freeList.splice(freeList.end(),list);
 	}
     void resize(size_t count) {
@@ -131,68 +166,65 @@ public:
 	uHashMask |= (uHashMask >> 4);
 	uHashMask |= (uHashMask >> 8);
 	uHashMask |= (uHashMask >> 16);
-	HashFree.resize(count);         // Preallocate the maximum number of entries
-	HashChains.resize(uHashMask+1); // Collision chains for each possible hashed value
-	freeList.resize(count);
+	HashChains.resize(uHashMask+1);        // Collision chains for each possible hashed value
+	for(auto &i : HashChains) i.next = &i; // Point to self = empty
+	entries.resize(count); // Our complete list of ENTRY elements
+	freeList.clear();      // Add them all to the free list
+	for(auto &i : entries) freeList.push_back(i);
 	}
     virtual ~HASH() = default;
     explicit HASH(int nMaxElements=0) : uHashMask(0) {
-	L.resize(1<<CDB::whereBits); // Maximum number of lists
 	resize(nMaxElements);
 	}
     typename CDBL::iterator remove(const typename CDBL::iterator p);
     typename CDBL::iterator remove(uint32_t iTarget);
+
     };
 
 template<typename KEY>
 void *HASH<KEY>::lookup(uint32_t uHash, const void *vKey) {
     const KEY &key = * reinterpret_cast<const KEY*>(vKey);
-    auto &Hash = HashChains[uHash&uHashMask];     // Hash collision chain
-    auto match = find_key(Hash,key);              // Look for our key here
-    if (match != Hash.end())
-    	return std::get<0>(**match).data;         // Return the data pointer
-    else return nullptr;                          // .. or null if not found
+    auto &Hash2 = HashChains[uHash&uHashMask];
+    auto pEntry = find_key(Hash2,key);
+    if (pEntry) return std::get<0>(*pEntry).data;
+    return nullptr;
     }
 
 template<typename KEY>
 void HASH<KEY>::insert(uint32_t uHash, const void *vKey, void *data) {
     assert(!freeList.empty()); // We cannot insert if the table is full
     const KEY &key = * reinterpret_cast<const KEY*>(vKey);
-    auto &Hash = HashChains[uHash&uHashMask];     // Hash collision chain
-    auto match = find_key(Hash,key);              // Look for our key here
-    assert(match == Hash.end());                  // Duplicate keys are not allowed
     auto item = move(0);                          // Grab a new item from the free list
     auto &cdb = std::get<0>(*item);               // CDB (cache data block)
     cdb.uId = 0;                                  // Should set this to processor id probably
     cdb.uPage = uHash;                            // Page is the hash value for KEY types
     cdb.data = reinterpret_cast<uint64_t*>(data); // Points to the data for this element
     std::get<1>(*item) = key;                     // Record the key
-    assert(!HashFree.empty());                    // Add to the collision chain
-    Hash.splice_after(Hash.before_begin(),HashFree,HashFree.before_begin());
-    Hash.front() = item;
+    auto &Hash2 = HashChains[uHash&uHashMask];
+    assert(find_key(Hash2,key)==nullptr);         // Duplicate keys are not allowed
+    item->next = Hash2.next;
+    Hash2.next = &*item;
     }
 
 template<typename KEY>
 void HASH<KEY>::remove(uint32_t uHash, const void *vKey) {
     const KEY &key = * reinterpret_cast<const KEY*>(vKey);
-    auto &Hash = HashChains[uHash&uHashMask];     // Hash collision chain
-    auto match = find_key(Hash,key);              // Look for our key here
-    assert(match != Hash.end());                  // Removing a missing key is INVALID
-    if (match != Hash.end()) {
-	// Move the matching hash table entry to the start of the collision chain, then move it to the free list
-	std::partition(Hash.begin(), Hash.end(), [match](const typename CDBL::iterator & i) { return i == *match; });
-	HashFree.splice_after(HashFree.before_begin(),Hash,Hash.before_begin());
-	free(*match); // Return the entry to the free list
-	}
+    auto &Hash2 = HashChains[uHash&uHashMask];
+    auto pEntry = find_key(Hash2,key,true);
+    free(CDBL::s_iterator_to(*pEntry));
     }
 
 } // namespace hash
 
+// This class tells the ARC cache how to:
+// 1. Request that a remote element be fetched
+// 2. Finish the request and copy the data into ARC
+// 3. Flush modified cache entries
 class ARChelper {
-protected:
-    virtual void flushElement2( uint32_t uLine, uint32_t uId, void *pKey,          const void *data) = 0;
-    virtual void invokeRequest2(uint32_t uLine, uint32_t uId, void *pKey, bool bVirtual)             = 0;
-    virtual void finishRequest2(uint32_t uLine, uint32_t uId, void *pKey, bool bVirtual, void *data) = 0;
+public:
+    virtual void invokeRequest(uint32_t uLine, uint32_t uId, void *pKey, bool bVirtual)             = 0;
+    virtual void finishRequest(uint32_t uLine, uint32_t uId, void *pKey, bool bVirtual, void *data) = 0;
+    virtual void flushElement( uint32_t uLine, uint32_t uId, void *pKey,          const void *data) = 0;
     };
 
 template<typename ...Keys>
@@ -205,6 +237,7 @@ private:
 	};
 
 private:
+    ARChelper *helper;
     std::vector<uint64_t> dataBase; // Contains all cached data (continguous)
     typedef typename hash::HASH<Keys...>::CDBL CDBL;
     typedef typename hash::HASH<Keys...>::ENTRY ENTRY;
@@ -219,17 +252,11 @@ private:
     uint64_t *replace(WHERE iTarget, typename CDBL::iterator item);
     uint64_t *replace(bool iInB2=false);
     void evict(ENTRY &temp);
-protected:
-    virtual void destage(const char *data,uint32_t uIndex,uint32_t uId);
-    virtual void invokeRequest(uint32_t uLine, uint32_t uId, bool bVirtual) = 0;
-    virtual void finishRequest(uint32_t uLine, uint32_t uId, bool bVirtual, void *data) = 0;
 public:
-    explicit ARC();
-    explicit ARC(uint32_t uCacheSizeInBytes,uint32_t uLineSizeInBytes,uint32_t nLineBits=0);
+    explicit ARC(ARChelper *helper=nullptr);
     virtual ~ARC();
-    void initialize(uint32_t uCacheSizeInBytes,uint32_t uLineSizeInBytes,uint32_t nLineBits=0);
+    void initialize(ARChelper *helper, uint32_t uCacheSizeInBytes,uint32_t uLineSizeInBytes,uint32_t nLineBits=0);
     void *fetch(uint32_t uIndex, int uId, int bLock,int bModify,bool bVirtual);
-    void lock(void *p);
     void release(void *p);
     void RemoveAll();
     };

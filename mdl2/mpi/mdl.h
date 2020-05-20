@@ -92,7 +92,17 @@ typedef struct mdl_wq_node {
 
 #define MDL_CACHE_DATA_SIZE (512)
 
-class CACHE : public ARC<> {
+class CACHE : private ARChelper {
+private:
+    virtual void flushElement( uint32_t uLine, uint32_t uId, void *pKey,          const void *data) override;
+    virtual void invokeRequest(uint32_t uLine, uint32_t uId, void *pKey, bool bVirtual)             override;
+    virtual void finishRequest(uint32_t uLine, uint32_t uId, void *pKey, bool bVirtual, void *data) override;
+    ARC<> *arc;
+public:
+    void *fetch(uint32_t uIndex, int uId, int bLock,int bModify,bool bVirtual)
+	{return arc->fetch(uIndex,uId,bLock,bModify,bVirtual);}
+    void release(void *p) {return arc->release(p);}
+    void RemoveAll() {arc->RemoveAll();}
 public:
     enum class Type : uint16_t {
 	NOCACHE = 0,
@@ -104,9 +114,6 @@ protected:
 protected:
     class mdlClass * const mdl; // MDL is needed for cache operations
     mdlMessageCacheRequest CacheRequest;
-    virtual void invokeRequest(uint32_t uLine, uint32_t uId, bool bVirtual);
-    virtual void finishRequest(uint32_t uLine, uint32_t uId, bool bVirtual, void *data);
-    virtual void destage(const char *data,uint32_t uIndex,uint32_t uId);
 public:
     void initialize(uint32_t cacheSize,
 	void * (*getElt)(void *pData,int i,int iDataSize),

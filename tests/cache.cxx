@@ -231,6 +231,7 @@ int test_flush_after_read(worker::Context *ctx,void *vin,int nIn,void *vout,int 
 */
 void *worker_init(MDL mdl) {
     auto ctx = new worker::Context(mdl);
+    mdlSetCacheSize(ctx->getMDL(),cacheSize); // Small cache to make it faster to test
     mdlAddService(mdl,worker::SET_ADD,ctx,(fcnService_t*)SetAdd::serviceSetAdd,
                   sizeof(SetAdd::inSetAdd),0);
     mdlAddService(mdl,worker::TEST_RO,ctx,(fcnService_t*)test_ro,
@@ -290,9 +291,6 @@ int master(MDL mdl,void *vctx) {
     auto ctx = reinterpret_cast<worker::Context*>(vctx);
     int argc = mdlGetArgc(mdl);
     char **argv = mdlGetArgv(mdl);
-
-    mdlSetCacheSize(ctx->getMDL(),cacheSize); // Small cache to make it faster to test
-
 
     SetAdd::inSetAdd in;
     in.idUpper = mdlThreads(ctx->getMDL());

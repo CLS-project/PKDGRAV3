@@ -24,7 +24,6 @@ static inline int size_t_to_int(size_t v) {
     return (int)v;
     }
 
-
 #ifdef USE_HWLOC
 #include "hwloc.h"
 #endif
@@ -114,7 +113,9 @@ void *mdlWORKER(void) { return pthread_getspecific(worker_key); }
 \*****************************************************************************/
 
 // A list of cache tables is constructed when mdlClass is created. They are all set to NOCACHE.
-CACHE::CACHE(mdlClass * mdl,uint16_t iCID) : mdl(mdl), iType(Type::NOCACHE), iCID(iCID), CacheRequest(iCID,mdl->Self()) {}
+CACHE::CACHE(mdlClass * mdl,uint16_t iCID) : mdl(mdl), iType(Type::NOCACHE), iCID(iCID), CacheRequest(iCID,mdl->Self()) {
+    arc = new ARC<>;
+    }
 
 // This opens a read-only cache. Called from a worker outside of MDL
 extern "C"
@@ -241,7 +242,7 @@ void CACHE::initialize(uint32_t cacheSize,
 
     nAccess = nMiss = nColl = 0; // Clear statistics. Are these even used any more?
 
-    ARC::initialize(cacheSize,iLineSize,nLineBits);
+    arc->initialize(this,cacheSize,iLineSize,nLineBits);
 
     /* Read-only or combiner caches */
     assert( init==NULL && combine==NULL || init!=NULL && combine!=NULL );
@@ -308,7 +309,7 @@ void *mdlClass::Access(int cid, uint32_t uIndex, int uId, int bLock,int bModify,
     }
 
 // When we are missing a cache element then we ask the MPI thread to send a request to the remote node
-void CACHE::invokeRequest(uint32_t uLine, uint32_t uId, bool bVirtual) {
+void CACHE::invokeRequest(uint32_t uLine, uint32_t uId, void *pKey, bool bVirtual) {
     uint32_t uCore = uId - mdl->mpi->Self();
     ++nMiss;
     mdl->TimeAddComputing();
@@ -386,7 +387,7 @@ void mpiClass::CacheReceiveReply(int count, const CacheHeader *ph) {
 
 // Later when we have found an empty cache element, this is called to wait for the result
 // and to copy it into the buffer area.
-void CACHE::finishRequest(uint32_t uLine, uint32_t uId, bool bVirtual, void *data) {
+void CACHE::finishRequest(uint32_t uLine, uint32_t uId, void *pKey, bool bVirtual, void *data) {
     mdl->finishCacheRequest(uLine,uId,iCID,data,bVirtual);
     mdl->TimeAddWaiting();
     }
@@ -437,9 +438,9 @@ void mdlClass::finishCacheRequest(uint32_t uLine, uint32_t uId, int cid, void *d
 \*****************************************************************************/
 
 // When we need to evict an element (especially at the end) this routine is called by the ARC cache.
-void CACHE::destage(const char *data,uint32_t uIndex,uint32_t uId) {
+void CACHE::flushElement( uint32_t uLine, uint32_t uId, void *pKey, const void *data) {
     if (!mdl->coreFlushBuffer->canBuffer(iLineSize)) mdl->flush_core_buffer();
-    mdl->coreFlushBuffer->addBuffer(iCID,mdlSelf(mdl),uId,uIndex,iLineSize,data);
+    mdl->coreFlushBuffer->addBuffer(iCID,mdlSelf(mdl),uId,uLine,iLineSize,(char *)data);
     }
 
 // This sends our local flush buffer to the MPI thread to be flushed (if it's full for example)
@@ -452,7 +453,7 @@ void mdlClass::flush_core_buffer() {
 	}
     }
 
-// Individual cores flush elements from their cache (see ARC::destage). When a
+// Individual cores flush elements from their cache (see flushElement()). When a
 // buffer is filled (or at the very end), this routine is called to flush it.
 // Each element can be destined for a diffent node so we process them separately.
 void mpiClass::MessageFlushFromCore(mdlMessageFlushFromCore *pFlush) {

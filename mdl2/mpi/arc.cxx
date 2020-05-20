@@ -51,7 +51,6 @@ uint32_t murmur2(const uint32_t *key) {
     const int r = 24;
     uint32_t h = 0xdeadbeef /*^ len : len will be the same */;
     for(auto i=0; i<len; ++i) {
-//    while(len--) {
 	uint32_t k = *key++;
 	k *= m;
 	k ^= k >> r;
@@ -106,6 +105,7 @@ static uint32_t swar32(uint32_t x) {
 \*****************************************************************************/
 
 namespace hash {
+
 template<>
 uint32_t HASH<>::hash(uint32_t uLine,uint32_t uId) {
     uint32_t key[] = {uLine,uId,uLine,uId,uLine,uId,uLine,uId};
@@ -116,13 +116,12 @@ uint32_t HASH<>::hash(uint32_t uLine,uint32_t uId) {
 template<>
 HASH<>::CDBL::iterator HASH<>::remove(const CDBL::iterator p) {
     auto &cdb = std::get<0>(*p);
-    uint32_t uHash = hash(cdb.uPage,cdb.getId());
-    auto & Hash = HashChains[uHash];
-    assert(!Hash.empty());
-    // Move the matching hash table entry to the start of the collision chain, then move it to the free list
-    std::partition(Hash.begin(), Hash.end(), [&](const CDBL::iterator & i) { return i == p; });
-    assert(Hash.front() == p);
-    HashFree.splice_after(HashFree.before_begin(),Hash,Hash.before_begin());
+    // Find the hash value by trolling through the chain
+    HashChain *pEntry = &*p;
+    for (pEntry=pEntry->next; pEntry!=&*p && pEntry < &HashChains.front() && pEntry > &HashChains.back(); pEntry=pEntry->next) {}
+    uint32_t uHash = pEntry - &HashChains.front();
+    auto &Hash2 = HashChains[uHash&uHashMask];
+    find_key(Hash2,cdb.uPage,cdb.getId(),true);
     return p;
     }
 
@@ -145,11 +144,10 @@ void * HASH<>::lookup(uint32_t uHash, const void *vKey) {
     auto key = reinterpret_cast<const uint32_t*>(vKey);
     auto uLine = key[0];
     auto uId = key[1];
-    auto &Hash = HashChains[uHash&uHashMask];
-    auto iskey = [uLine,uId](CDBL::iterator &i) {return std::get<0>(*i).uPage == uLine && (std::get<0>(*i).getId()) == uId;};
-    auto match = std::find_if(Hash.begin(),Hash.end(),iskey);
-    if (match != Hash.end()) return std::get<0>(**match).data;
-    else return nullptr;
+    auto &Hash2 = HashChains[uHash&uHashMask];
+    auto pEntry = find_key(Hash2,uLine,uId);
+    if (pEntry) return std::get<0>(*pEntry).data;
+    return nullptr;
     }
 
 template<>
@@ -157,16 +155,14 @@ void HASH<>::insert(uint32_t uHash, const void *vKey, void *data) {
     auto key = reinterpret_cast<const uint32_t*>(vKey);
     auto uLine = key[0];
     auto uId = key[1];
-    auto &Hash = HashChains[uHash&uHashMask];
     auto item = move(0);
     auto &cdb = std::get<0>(*item);
     cdb.uId = uId;
     cdb.uPage = uLine;
     cdb.data = reinterpret_cast<uint64_t*>(data);
-    assert(!HashFree.empty());
-    Hash.splice_after(Hash.before_begin(),HashFree,HashFree.before_begin());
-    assert(!Hash.empty());
-    Hash.front() = item;
+    auto &Hash2 = HashChains[uHash&uHashMask];
+    item->next = Hash2.next;
+    Hash2.next = &*item;
     }
 
 template<>
@@ -174,15 +170,9 @@ void HASH<>::remove(uint32_t uHash, const void *vKey) {
     auto key = reinterpret_cast<const uint32_t*>(vKey);
     auto uLine = key[0];
     auto uId = key[1];
-    auto &Hash = HashChains[uHash&uHashMask];
-    auto iskey = [uLine,uId](CDBL::iterator &i) {return std::get<0>(*i).uPage == uLine && (std::get<0>(*i).getId()) == uId;};
-    auto match = std::find_if(Hash.begin(),Hash.end(),iskey);
-    if (match != Hash.end()) {
-	// Move the matching hash table entry to the start of the collision chain, then move it to the free list
-	std::partition(Hash.begin(), Hash.end(), [match](const CDBL::iterator & i) { return i == *match; });
-	HashFree.splice_after(HashFree.before_begin(),Hash,Hash.before_begin());
-	free(*match);
-	}
+    auto &Hash2 = HashChains[uHash&uHashMask];
+    auto pEntry = find_key(Hash2,uLine,uId,true);
+    free(CDBL::s_iterator_to(*pEntry));
     }
 
 /*****************************************************************************\
@@ -201,7 +191,8 @@ ARC * HASH<>::clone(int nMaxElements) {
 \*****************************************************************************/
 
 template<>
-void ARC<>::initialize(uint32_t uCacheSizeInBytes,uint32_t uLineSizeInBytes,uint32_t nLineBits) {
+void ARC<>::initialize(ARChelper *helper,uint32_t uCacheSizeInBytes,uint32_t uLineSizeInBytes,uint32_t nLineBits) {
+    this->helper = helper;
     this->uLineSizeInWords = (uLineSizeInBytes+7) >> 3;       // Size of a cache line (aligned properly)
     // Calculate nCache based on the number of cache lines that will fit in out cache buffer
     // Account for the "magic" number before the cache line.
@@ -223,27 +214,12 @@ void ARC<>::initialize(uint32_t uCacheSizeInBytes,uint32_t uLineSizeInBytes,uint
     }
 
 template<>
-ARC<>::ARC()
+ARC<>::ARC(ARChelper *helper)
     : uLineSizeInWords(0), uLineSizeInBytes(0), uDataSizeInBytes(0),
-      nCache(0), nLineBits(0), nLineMask(0), target_T1(0) {}
-
-template<>
-ARC<>::ARC(uint32_t uCacheSizeInBytes,uint32_t uLineSizeInBytes,uint32_t nLineBits) {
-    initialize(uCacheSizeInBytes,uLineSizeInBytes,nLineBits);
-    }
+      nCache(0), nLineBits(0), nLineMask(0), target_T1(0), helper(helper) {}
 
 template<>
 ARC<>::~ARC() {
-    }
-
-template<>
-void ARC<>::lock(void *vp) {
-    uint64_t *p = reinterpret_cast<uint64_t*>(vp);
-    if (p>&dataBase.front() && p<=&dataBase.back()) { // Might have been a fast, read-only grab. If so ignore it.
-	/* We will be given an element, but this needs to be turned into a cache line */
-	p = &dataBase[(p - &dataBase.front()) / (uLineSizeInWords+1) * (uLineSizeInWords+1) + 1];
-	++p[-1]; // Increment the lock count
-	}
     }
 
 template<>
@@ -259,13 +235,10 @@ void ARC<>::release(void *vp) {
     }
 
 template<>
-void ARC<>::destage(const char *data,uint32_t uIndex,uint32_t uId) {}
-
-template<>
 void ARC<>::evict(ENTRY &temp) {
     auto &cdb = std::get<0>(temp);
     if (cdb.dirty()) {
-    	destage(cdb.getData(),cdb.getPage(),cdb.getId());
+	helper->flushElement(cdb.getPage(),cdb.getId(),nullptr,cdb.getData());
 	cdb.setClean();    /* No longer dirty */
 	}
     }
@@ -319,12 +292,11 @@ void *ARC<>::fetch(uint32_t uIndex, int uId, int bLock,int bModify,bool bVirtual
     /* First check our own cache */
     auto uHash = hash(uLine,uId);
     CDBL::iterator item;
-    auto &Hash = HashChains[uHash];
-    auto iskey = [uLine,uId](CDBL::iterator &i) {return std::get<0>(*i).uPage == uLine && (std::get<0>(*i).getId()) == uId;};
-    auto match = std::find_if(Hash.begin(),Hash.end(),iskey);
-    if (match != Hash.end()) {                       /* found in cache directory? */
-	item = *match;
-	auto &cdb = std::get<0>(**match);
+    auto &Hash2 = HashChains[uHash&uHashMask];
+    auto  pEntry = find_key(Hash2,uLine,uId);
+    if (pEntry) {
+	item = CDBL::s_iterator_to(*pEntry);
+	auto &cdb = std::get<0>(*item);
 	switch (cdb.where()) {                   /* yes, which list? */
 	// If the element is in P1, T1 or T2 then we have a cache hit
 	case P1: // Prefetched (this is an extension to ARC)
@@ -364,18 +336,18 @@ void *ARC<>::fetch(uint32_t uIndex, int uId, int bLock,int bModify,bool bVirtual
 	    }
 	// We only get here if the element was in B1 or B2
 	move(T2,item);
-	invokeRequest(uLine,uId,bVirtual); // Request the element be fetched
+	helper->invokeRequest(uLine,uId,nullptr,bVirtual); // Request the element be fetched
 	cdb.data = replace(cdb.where()==B2);                                /* find a place to put new page */
 	cdb.uId = uId;     /* temp->ARC_where = _T2_; and set the dirty bit for this page */
 	cdb.uPage = uLine;                          /* bookkeep */
-	finishRequest(uLine,uId,bVirtual,cdb.data);
+	helper->finishRequest(uLine,uId,nullptr,bVirtual,cdb.data);
 	}
 
     else {                                                              /* page is not in cache directory */
 	/*
 	** Can initiate the data request right here, and do the rest while waiting...
 	*/
-	invokeRequest(uLine,uId,bVirtual);
+	helper->invokeRequest(uLine,uId,nullptr,bVirtual);
 	auto L1Length = L[T1].size() + L[B1].size();
 	if (L1Length == nCache) {                                   /* B1 + T1 full? */
 	    if (L[T1].size() < nCache) {                                           /* Still room in T1? */
@@ -410,12 +382,10 @@ void *ARC<>::fetch(uint32_t uIndex, int uId, int bLock,int bModify,bool bVirtual
 	auto &cdb = std::get<0>(*item);
 	cdb.uId = uId;                  /* temp->dirty = dirty;  p->ARC_where = _T1_; as well! */
 	cdb.uPage = uLine;
-	finishRequest(uLine,uId,bVirtual,cdb.data);
-	assert(!HashFree.empty());
-	Hash.splice_after(Hash.before_begin(),HashFree,HashFree.before_begin());
-	assert(!Hash.empty());
-	Hash.front() = item;
-    }
+	helper->finishRequest(uLine,uId,nullptr,bVirtual,cdb.data);
+	item->next = Hash2.next; // Add to hash table
+	Hash2.next = &*item;
+	}
     auto &cdb = std::get<0>(*item);
     if (bLock) ++cdb.data[-1]; // Increase the lock count if requested
     // If we will modify the element, then it must eventually be flushed.
