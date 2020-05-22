@@ -49,9 +49,6 @@
 
 #define SRV_STOP		0
 
-#define MDL_CACHE_SIZE		15000000
-#define MDL_CHECK_MASK  	0x7f
-
 /*                                   MQ   MPI */
 #define MDL_TAG_BARRIER        	1 /* Yes  Yes */
 #define MDL_TAG_SWAPINIT 	2 /* NO   Yes */
@@ -71,6 +68,9 @@ typedef void * MDL;
 
 #ifdef __cplusplus
 namespace mdl {
+    static const auto mdl_cache_size = 15'000'000;
+    static const auto mdl_check_mask = 0x7f;
+
 typedef struct mdl_wq_node {
     /* We can put this on different types of queues */
     union {
@@ -92,17 +92,19 @@ typedef struct mdl_wq_node {
 
 #define MDL_CACHE_DATA_SIZE (512)
 
+//*****************************************************************************
+
 class CACHE : private ARChelper {
 private:
-    virtual void flushElement( uint32_t uLine, uint32_t uId, void *pKey,          const void *data) override;
-    virtual void invokeRequest(uint32_t uLine, uint32_t uId, void *pKey, bool bVirtual)             override;
-    virtual void finishRequest(uint32_t uLine, uint32_t uId, void *pKey, bool bVirtual, void *data) override;
+    virtual void flushElement( uint32_t uLine, uint32_t uId, const void *pKey,          const void *data) override;
+    virtual void invokeRequest(uint32_t uLine, uint32_t uId, const void *pKey, bool bVirtual)             override;
+    virtual void finishRequest(uint32_t uLine, uint32_t uId, const void *pKey, bool bVirtual, void *data) override;
     ARC<> *arc;
 public:
     void *fetch(uint32_t uIndex, int uId, int bLock,int bModify,bool bVirtual)
 	{return arc->fetch(uIndex,uId,bLock,bModify,bVirtual);}
     void release(void *p) {return arc->release(p);}
-    void RemoveAll() {arc->RemoveAll();}
+    void clear() {arc->clear();}
 public:
     enum class Type : uint16_t {
 	NOCACHE = 0,
@@ -128,8 +130,8 @@ public:
     int iDataSize;
     int nData;
     uint32_t nLineBits;
-    uint32_t nLineMask;
-    int nLineElements;
+    uint32_t getLineElementCount() const {return 1 << nLineBits;}
+    uint32_t getLineMask()         const {return getLineElementCount()-1; }
     int iLineSize;
     std::vector<char> OneLine;
 
@@ -141,13 +143,14 @@ public:
      */
     uint64_t nAccess;
     uint64_t nMiss;
-    uint64_t nColl;
 public:
     explicit CACHE(mdlClass * mdl,uint16_t iCID);
     void close();
     Type getType() {return iType;}
     void *getElement(int i) {return (*getElt)(pData,i,iDataSize);}
     };
+
+//*****************************************************************************
 
 class mdlClass : public mdlBASE {
     int exit_code; // Only used by the worker thread
@@ -551,7 +554,6 @@ void mdlCompleteAllWork(MDL);
  */
 double mdlNumAccess(MDL,int);
 double mdlMissRatio(MDL,int);
-double mdlCollRatio(MDL,int);
 
 void mdlSetWorkQueueSize(MDL,int,int);
 void mdlSetCudaBufferSize(MDL,int,int);

@@ -498,17 +498,11 @@ void smFinish(SMX smx,SMF *smf) {
     sprintf(achOut, "    Miss ratio: %g\n",
 	    mdlMissRatio(smx->pkd->mdl,CID_CELL));
     mdlDiag(smx->pkd->mdl, achOut);
-    sprintf(achOut, "    Coll ratio: %g\n",
-	    mdlCollRatio(smx->pkd->mdl,CID_CELL));
-    mdlDiag(smx->pkd->mdl, achOut);
     sprintf(achOut, "Particle Accesses: %g\n",
 	    mdlNumAccess(smx->pkd->mdl,CID_PARTICLE));
     mdlDiag(smx->pkd->mdl, achOut);
     sprintf(achOut, "    Miss ratio: %g\n",
 	    mdlMissRatio(smx->pkd->mdl,CID_PARTICLE));
-    mdlDiag(smx->pkd->mdl, achOut);
-    sprintf(achOut, "    Coll ratio: %g\n",
-	    mdlCollRatio(smx->pkd->mdl,CID_PARTICLE));
     mdlDiag(smx->pkd->mdl, achOut);
     /*
     ** Stop particle caching space.

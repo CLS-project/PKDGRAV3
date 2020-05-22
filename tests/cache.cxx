@@ -201,7 +201,7 @@ int test_flush_after_read(worker::Context *ctx,void *vin,int nIn,void *vout,int 
 
 	for(auto iProc=0; iProc<mdlThreads(ctx->getMDL()); ++iProc) {
 	    for(auto i=0; i<nData; ++i) {
-		auto pRemote = reinterpret_cast<std::uint64_t*>(mdlFetch(ctx->getMDL(),0,i,iProc));
+		auto pRemote = reinterpret_cast<const std::uint64_t*>(mdlFetch(ctx->getMDL(),0,i,iProc));
 		}
 	    }
 
