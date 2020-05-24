@@ -53,18 +53,16 @@ protected:
 	bool        absent()  const {return dirty();} // ... or is absent (data is null)
 	void setDirty() { bDirty = true; }
 	void setClean() { bDirty = false; }
-	// Comparison is meaningless because CDBs are unique, however:
-	// We can compare a tuple with other keys and it will work.
-	bool operator ==(const CDB &b) const {return true;}
 	};
 
 protected:
     struct HashChain { struct HashChain *next; };
-    class ENTRY : public std::tuple<CDB,KEYS...>, public boost::intrusive::list_base_hook<>, public HashChain {};
+    typedef std::tuple<KEYS...> KEY;
+    class ENTRY : public std::tuple<CDB,KEY>, public boost::intrusive::list_base_hook<>, public HashChain {};
     typedef boost::intrusive::list<ENTRY,boost::intrusive::constant_time_size<true> > CDBL;
 
 protected:
-    uint32_t uHashMask;
+    uint32_t uHashMask = 0;
 private:
     std::vector<ENTRY> entries;
     CDBL freeList;
@@ -92,12 +90,17 @@ public:
 
 public:
     class ARC<KEYS...> *clone();
-
     void print_statistics();
     void clear(); // Empty the hash table (by moving all elements to the free list)
     void resize(size_t count);
     virtual ~HASH() = default;
-    explicit HASH() : uHashMask(0) {}
+
+    HASH(const HASH&)=delete;
+    HASH& operator=(const HASH&)=delete;
+    HASH(HASH&&)=delete;
+    HASH& operator=(HASH&&)=delete;
+
+    explicit HASH() = default;
     explicit HASH(int nMaxElements) {
 	resize(nMaxElements);
 	}
@@ -116,10 +119,11 @@ public:
 // 4. Flush modified cache entries
 class ARChelper {
 public:
-    virtual uint32_t getThread(uint32_t uLine, uint32_t uId, const void *pKey) {return uId;}
-    virtual void invokeRequest(uint32_t uLine, uint32_t uId, const void *pKey, bool bVirtual)             = 0;
-    virtual void finishRequest(uint32_t uLine, uint32_t uId, const void *pKey, bool bVirtual, void *data) = 0;
-    virtual void flushElement( uint32_t uLine, uint32_t uId, const void *pKey,          const void *data) = 0;
+    virtual uint32_t  getThread(uint32_t uLine, uint32_t uId, const void *pKey) {return uId;}
+    virtual void  invokeRequest(uint32_t uLine, uint32_t uId, const void *pKey, bool bVirtual)             = 0;
+    virtual void  finishRequest(uint32_t uLine, uint32_t uId, const void *pKey, bool bVirtual, void *data) = 0;
+    virtual void   flushElement(uint32_t uLine, uint32_t uId, const void *pKey,          const void *data) = 0;
+    virtual void combineElement(uint32_t uLine, uint32_t uId, const void *pKey,          const void *data) = 0;
     };
 
 template<typename ...KEYS>
@@ -132,11 +136,12 @@ private:
 	};
 
 private:
-    ARChelper *helper;
+    ARChelper *helper = nullptr;
     std::vector<uint64_t> dataBase; // Contains all cached data (continguous)
     typedef typename hash::HASH<KEYS...> HASH;
     typedef typename HASH::CDB CDB;
     typedef typename HASH::CDBL CDBL;
+    typedef typename HASH::KEY KEY;
     typedef typename HASH::ENTRY ENTRY;
     typedef typename HASH::HashChain HashChain;
     using HASH::L;
@@ -147,10 +152,11 @@ private:
     using HASH::HashChains;
 
     typename std::vector<CDBL>::size_type target_T1;
-    uint32_t nCache;
-    uint32_t nLineBits, nLineMask;
-    uint32_t uLineSizeInWords;
-    uint32_t uDataSizeInBytes;
+    uint32_t nCache = 0;
+    uint32_t nLineBits = 0;
+    uint32_t nLineMask = 0;
+    uint32_t uLineSizeInWords = 0;
+    uint32_t uDataSizeInBytes = 0;
 private:
     // If the entry is marked as dirty, then flush it (send it back to its owner)
     void flush(ENTRY &temp);
@@ -168,9 +174,12 @@ private:
     auto insert(HashChain &Hash);
 
 public:
-    explicit ARC(ARChelper *helper=nullptr)
-    : helper(helper), uLineSizeInWords(0), uDataSizeInBytes(0),
-      nCache(0), nLineBits(0), nLineMask(0), target_T1(0) {}
+    ARC(const ARC&)=delete;
+    ARC& operator=(const ARC&)=delete;
+    ARC(ARC&&)=delete;
+    ARC& operator=(ARC&&)=delete;
+
+    explicit ARC() = default;
     virtual ~ARC() = default;
 
     void initialize(ARChelper *helper, uint32_t uCacheSizeInBytes,uint32_t uLineSizeInBytes,uint32_t nLineBits=0);
@@ -197,10 +206,10 @@ namespace hash {
     // Locate by advanced key
     template<typename... KEYS>
     typename HASH<KEYS...>::ENTRY * HASH<KEYS...>::find_key(HashChain &Hash,const KEYS&... keys, bool bRemove) {
-	auto key = std::make_tuple(CDB(),keys...);
+	auto key = std::make_tuple(keys...);
 	for(auto pHash = &Hash; pHash->next != &Hash; pHash = pHash->next) {
 	    auto pEntry = static_cast<ENTRY*>(pHash->next);
-	    if (*pEntry == key) { // We ignore the CDB() part (see operator==() in CDB)
+	    if (std::get<KEY>(*pEntry) == key) { // We ignore the CDB() part (see operator==() in CDB)
 	    	if (bRemove) pHash->next = pHash->next->next;
 	    	return pEntry;
 		}
@@ -213,7 +222,8 @@ namespace hash {
     typename HASH<KEYS...>::ENTRY * HASH<KEYS...>::find_key(HashChain &Hash,uint32_t uLine,uint32_t uId, bool bRemove) {
 	for(auto pHash = &Hash; pHash->next != &Hash; pHash = pHash->next) {
 	    auto pEntry = static_cast<ENTRY*>(pHash->next);
-	    if (std::get<0>(*pEntry).uPage == uLine && (std::get<0>(*pEntry).getId()) == uId) {
+	    auto const &cdb = std::get<CDB>(*pEntry);
+	    if (cdb.uPage == uLine && (cdb.getId()) == uId) {
 	    	if (bRemove) pHash->next = pHash->next->next;     	     
 	    	return pEntry;
 		}
@@ -244,7 +254,7 @@ namespace hash {
     typename HASH<KEYS...>::CDBL::iterator
     HASH<KEYS...>::move(uint32_t iTarget) {
 	L[iTarget].splice(L[iTarget].end(),freeList,freeList.begin());
-	std::get<0>(L[iTarget].back()).iWhere = iTarget;
+	std::get<CDB>(L[iTarget].back()).iWhere = iTarget;
 	return std::prev(L[iTarget].end());
 	}
 
@@ -252,7 +262,7 @@ namespace hash {
     template<typename... KEYS>
     typename HASH<KEYS...>::CDBL::iterator
     HASH<KEYS...>::move(uint32_t iTarget, typename HASH<KEYS...>::CDBL::iterator item) {
-	auto &cdb = std::get<0>(*item);
+	auto &cdb = std::get<CDB>(*item);
 	L[iTarget].splice(L[iTarget].end(),L[cdb.iWhere],item);
 	cdb.iWhere = iTarget;
 	return item;
@@ -282,7 +292,7 @@ namespace hash {
     template<typename... KEYS>
     typename HASH<KEYS...>::CDBL::iterator
     HASH<KEYS...>::free(typename HASH<KEYS...>::CDBL::iterator item) {
-	auto &cdb = std::get<0>(*item);
+	auto &cdb = std::get<CDB>(*item);
 	freeList.splice(freeList.end(),L[cdb.iWhere],item);
 	return item;
 	}
@@ -314,11 +324,11 @@ namespace hash {
     template<typename... KEYS>
     void HASH<KEYS...>::insert(uint32_t uHash, const KEYS&... keys,void *data) {
 	auto item = move(0);                          // Grab a new item from the free list
-	auto cdb = std::get<0>(*item);                // CDB (cache data block)
+	auto &cdb = std::get<CDB>(*item);             // CDB (cache data block)
 	cdb.uId = 0;                                  // Should set this to processor id probably
 	cdb.uPage = uHash;                            // Page is the hash value for KEY types
 	cdb.data = reinterpret_cast<uint64_t*>(data); // Points to the data for this element
-	static_cast<std::tuple<CDB,KEYS...>&>(*item) = std::make_tuple(cdb,keys...);
+	std::get<KEY>(*item) = std::make_tuple(keys...);
 	auto &Hash = HashChains[uHash&uHashMask];
 	assert(find_key(Hash,keys...)==nullptr);         // Duplicate keys are not allowed
 	item->next = Hash.next;
@@ -329,7 +339,7 @@ namespace hash {
     void *HASH<KEYS...>::lookup(uint32_t uHash, const KEYS&... keys) {
 	auto &Hash = HashChains[uHash&uHashMask];
 	auto pEntry = find_key(Hash,keys...);
-	if (pEntry) return std::get<0>(*pEntry).data;
+	if (pEntry) return std::get<CDB>(*pEntry).data;
 	return nullptr;
 	}
 
@@ -349,7 +359,7 @@ namespace hash {
     // If the entry is marked as dirty, then flush it (send it back to its owner)
     template<typename ...KEYS>
     void ARC<KEYS...>::flush(ENTRY &temp) {
-	auto &cdb = std::get<0>(temp);
+	auto &cdb = std::get<CDB>(temp);
 	if (cdb.dirty()) {
 	    helper->flushElement(cdb.getPage(),cdb.getId(),&cdb+1,cdb.getData());
 	    cdb.setClean();    /* No longer dirty */
@@ -359,7 +369,7 @@ namespace hash {
     template<typename ...KEYS>
     auto ARC<KEYS...>::replace(WHERE iTarget, typename CDBL::iterator item) {
 	flush(*item); // Flush this element if it is dirty
-	auto &cdb = std::get<0>(*item);
+	auto &cdb = std::get<CDB>(*item);
 	auto data = cdb.data;
 	cdb.data = nullptr; /*GHOST*/
 	cdb.setClean();
@@ -372,7 +382,7 @@ namespace hash {
     auto ARC<KEYS...>::replace(bool bInB2) {
 	uint64_t *data;
 	uint32_t max = (target_T1 > 1)?(target_T1+(bInB2?0:1)):1;
-	auto unlocked = [](ENTRY&i) {return std::get<0>(i).data[-1] == _ARC_MAGIC_;}; // True if there are no locks
+	auto unlocked = [](ENTRY&i) {return std::get<CDB>(i).data[-1] == _ARC_MAGIC_;}; // True if there are no locks
 	typename CDBL::iterator item;
 	if (L[T1].size() >= max) { // T1’s size exceeds target?
 	    // Take the oldest unlocked entry in T1 or T2 if T1 is full
@@ -397,7 +407,7 @@ namespace hash {
     template<typename ...KEYS>
     void ARC<KEYS...>::update(typename CDBL::iterator item,bool bLock,bool bModify) {
 	uint32_t rat;
-	auto &cdb = std::get<0>(*item);
+	auto &cdb = std::get<CDB>(*item);
 	switch (cdb.where()) {              // Which list is the element on
 	// If the element is in P1, T1 or T2 then we have a cache hit
 	case P1: // Prefetched (this is an extension to ARC)
@@ -445,7 +455,7 @@ namespace hash {
 	if (L1Length == nCache) {               // T1 + B1 contain entries with data.
 	    if (L[T1].size() < nCache) {  // T1 still has room?
 		item = take(B1);          // Yes, take from B1
-		auto &cdb = std::get<0>(*item);
+		auto &cdb = std::get<CDB>(*item);
 		cdb.data = replace();     // Find a some cache space. Old value is evicted.
 		move(T1,item);            // Move to the end of T1 (MRU)
 		}
@@ -462,12 +472,12 @@ namespace hash {
 		if (nInCache == 2*nCache)
 		    item = move(T1,take(B2));   // Directory full so take from B2
 		else item = move(T1);           // cache directory not full, easy case
-		auto &cdb = std::get<0>(*item);
+		auto &cdb = std::get<CDB>(*item);
 		cdb.data = data;
 		}
 	    else { // Cache is not full; just grab an element and point to our internal storage
 		item = move(T1);
-		auto &cdb = std::get<0>(*item);
+		auto &cdb = std::get<CDB>(*item);
 		cdb.data = &dataBase[nInCache*(uLineSizeInWords+1)+1];
 		cdb.data[-1] = _ARC_MAGIC_; /* this also sets nLock to zero */
 		}
@@ -537,7 +547,7 @@ void *ARC<KEYS...>::fetch(uint32_t uHash, const KEYS&... keys, bool bLock,bool b
     if (pEntry) {   // Page is reference by the cache
 	item = CDBL::s_iterator_to(*pEntry);
 	update(item,bLock,bModify);
-	auto &cdb = std::get<0>(*item);
+	auto &cdb = std::get<CDB>(*item);
 	if (cdb.data == nullptr) {
 	    if (cdb.absent()) return nullptr;
 	    auto uId = helper->getThread(uHash,0,&key);
@@ -553,14 +563,15 @@ void *ARC<KEYS...>::fetch(uint32_t uHash, const KEYS&... keys, bool bLock,bool b
 	helper->invokeRequest(uHash,uId,&key,bVirtual);
 	item = insert(Hash);
 
-	auto cdb = std::get<0>(*item);
+	auto &cdb = std::get<CDB>(*item);
 	cdb.uId = uId;
 	cdb.uPage = uHash;
-	static_cast<std::tuple<CDB,KEYS...>&>(*item) = std::make_tuple(cdb,keys...);
+	std::get<KEY>(*item) = std::make_tuple(keys...);
+
 
 	helper->finishRequest(uHash,uId,&key,bVirtual,cdb.data);
 	}
-    auto &cdb = std::get<0>(*item);
+    auto &cdb = std::get<CDB>(*item);
     if (bLock) ++cdb.data[-1];   // Increase the lock count if requested
     if (bModify) cdb.setDirty(); // Mark page as dirty
 

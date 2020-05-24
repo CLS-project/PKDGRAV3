@@ -96,9 +96,10 @@ typedef struct mdl_wq_node {
 
 class CACHE : private ARChelper {
 private:
-    virtual void flushElement( uint32_t uLine, uint32_t uId, const void *pKey,          const void *data) override;
-    virtual void invokeRequest(uint32_t uLine, uint32_t uId, const void *pKey, bool bVirtual)             override;
-    virtual void finishRequest(uint32_t uLine, uint32_t uId, const void *pKey, bool bVirtual, void *data) override;
+    virtual void   flushElement(uint32_t uLine, uint32_t uId, const void *pKey,          const void *data) override;
+    virtual void  invokeRequest(uint32_t uLine, uint32_t uId, const void *pKey, bool bVirtual)             override;
+    virtual void  finishRequest(uint32_t uLine, uint32_t uId, const void *pKey, bool bVirtual, void *data) override;
+    virtual void combineElement(uint32_t uLine, uint32_t uId, const void *pKey,          const void *data) override;
     ARC<> *arc;
 public:
     void *fetch(uint32_t uIndex, int uId, int bLock,int bModify,bool bVirtual)

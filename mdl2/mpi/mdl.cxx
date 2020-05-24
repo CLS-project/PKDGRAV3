@@ -115,7 +115,7 @@ void *mdlWORKER(void) { return pthread_getspecific(worker_key); }
 // A list of cache tables is constructed when mdlClass is created. They are all set to NOCACHE.
 CACHE::CACHE(mdlClass * mdl,uint16_t iCID)
     : mdl(mdl), iType(Type::NOCACHE), iCID(iCID), CacheRequest(iCID,mdl->Self()) {
-    arc = new ARC<>(this);
+    arc = new ARC<>();
     }
 
 // This opens a read-only cache. Called from a worker outside of MDL
@@ -592,6 +592,11 @@ void mdlClass::MessageFlushToCore(mdlMessageFlushToCore *pFlush) {
     pFlush->emptyBuffer();
     pFlush->sendBack();
     }
+
+void CACHE::combineElement(uint32_t uLine, uint32_t uId, const void *pKey, const void *data) {
+	
+    }
+
 
 /*****************************************************************************\
 * The following are used to end or synchronize a cache
