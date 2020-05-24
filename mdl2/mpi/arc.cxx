@@ -124,7 +124,7 @@ void *ARC<>::fetch(uint32_t uIndex, int uId, bool bLock,bool bModify,bool bVirtu
     if (pEntry) {   // Page is reference by the cache
 	item = CDBL::s_iterator_to(*pEntry);
 	update(item,bLock,bModify);
-	auto &cdb = std::get<0>(*item);
+	auto &cdb = get<CDB>(*item);
 	if (cdb.data == nullptr) {
 	    if (cdb.absent()) return nullptr;
 	    helper->invokeRequest(uLine,uId,nullptr,bVirtual); // Request the element be fetched
@@ -137,12 +137,12 @@ void *ARC<>::fetch(uint32_t uIndex, int uId, bool bLock,bool bModify,bool bVirtu
     else {          // Page is not in the cache
 	helper->invokeRequest(uLine,uId,nullptr,bVirtual);
 	item = insert(Hash);
-	auto &cdb = std::get<0>(*item);
+	auto &cdb = get<CDB>(*item);
 	cdb.uId = uId;
 	cdb.uPage = uLine;
 	helper->finishRequest(uLine,uId,nullptr,bVirtual,cdb.data);
 	}
-    auto &cdb = std::get<0>(*item);
+    auto &cdb = get<CDB>(*item);
     if (bLock) ++cdb.data[-1];   // Increase the lock count if requested
     if (bModify) cdb.setDirty(); // Mark page as dirty
 
