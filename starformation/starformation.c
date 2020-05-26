@@ -53,9 +53,9 @@ void msrStarForm(MSR msr, double dTime, double dDelta, int iRung)
     // Critical density of the Universe, in code units
     in.dDenCrit = 1.*0.048; // TODO: Read from parameters
 
-    if (msr->param.bVDetails) printf("Star Form ... ");
+    if (msr->param.bVDetails) printf("Star Form (rung: %d) ... ", iRung);
     
-    msrActiveRung(msr,iRung,0); /* important to limit to active gas only */
+    msrActiveRung(msr,iRung,1);
     pstStarForm(msr->pst, &in, sizeof(in), &out, 0);
     if (msr->param.bVDetails)
 	printf("%d Stars formed with mass %g, %d gas deleted\n",
@@ -101,7 +101,6 @@ void pkdStarForm(PKD pkd,
     *nFormed = 0;
     *nDeleted = 0;
     *dMassFormed = 0.0;
-    //assert(starp != NULL);
 
     double a_m2 = 1./(dScaleFactor*dScaleFactor);
     double a_m3 = a_m2/dScaleFactor;
@@ -111,9 +110,8 @@ void pkdStarForm(PKD pkd,
 	
 	if (pkdIsActive(pkd,p) && pkdIsGas(pkd,p)) {
 	    psph = pkdSph(pkd,p);
-	    dt = pkd->param.dDelta/(1<<p->uRung); //* pkd->param.dSecUnit / 3600. / 24. / 365.; 
-          //printf("%d %e %e \n", p->uRung, dt, dDelta);
-          assert(fabs(dt-dDelta)<1e-6);
+	    dt = pkd->param.dDelta/(1<<p->uRung); 
+          dt = dTime - psph->lastUpdateTime;
 
 #ifdef COOLING
           const double rho_H = pkdDensity(pkd,p) * psph->chemistry[chemistry_element_H];
@@ -135,26 +133,9 @@ void pkdStarForm(PKD pkd,
              psph->SFR=0.; 
              continue;
           }
-
-          //const double mass_Mo = pkdMass(pkd,p) * pkd->param.dMsolUnit;
-
-          //const double P_kb = psph->P * pkd->param.dErgUnit * pow(pkd->param.dKpcUnit*KPCCM, -3)/ KBOLTZ /a3; 
-
-
-/*
-	    const double dmstar0 = 5.99e-10*mass_Mo*pow( pkd->param.dSFGasFraction * P_kb * 1e-3  , 0.2);
-
-          const double Msolpcm2 = 1. / pkd->param.dMsolUnit * pow(pkd->param.dKpcUnit*1e3, 2);
-          const double A = 2.5e-4 / pkd->param.dMsolUnit * pkd->param.dSecUnit/(3600*24*365) * pow(pkd->param.dKpcUnit, 2);
-          const double n = 1.4;
-          const double dmstar = A *  pow(Msolpcm2, -n)  *  pkdMass(pkd,p) *
-                                     pow( pkd->param.dConstGamma * pkd->param.dSFGasFraction * psph->P, (n-1.)/2.  );
-  */           
           const double dmstar = pkd->param.dSFnormalizationKS*  pkdMass(pkd,p) *  pow(a_m2, 1.4) *
                         pow( pkd->param.dConstGamma * pkd->param.dSFGasFraction * psph->P*a_m3, pkd->param.dSFindexKS);
           psph->SFR = dmstar;
-          //printf("mstar %e mass_Mo %e P_kb %e \t\t prob %e \n", dmstar*dt, mass_Mo, P_kb, dmstar*dt/mass_Mo);
-          //printf("dConstGamma %e \t SFGasFraction %e \n", pkd->param.dConstGamma, pkd->param.dSFGasFraction);
 	    const double prob = 1.0 - exp(-dmstar*dt/pkdMass(pkd,p)); 
           //printf("%e \n", prob);
 	    
@@ -177,19 +158,7 @@ void pkdStarForm(PKD pkd,
             // Safety check, TODO: remove if nothing happens:
             assert(pkdIsStar(pkd,p));
             assert(!pkdIsGas(pkd,p));
-#ifdef FEEDBACK
-            // We set the internal energy to that of a exploding particle, which will be used to set the timestep
-            //  of the neighbours just before exploding. This way we avoid 'waking up' particles
-            //
-            //  Note that we can do this because, although the class of p is a star, 
-            //  it still holds the SPHFIELD struct (which is suboptimal, but hey, we can take it as an advantage)
-            /*
-            psph->Uint += pkdMass(pkd,p) * pkd->param.dFeedbackDu;
-            psph->P = psph->Uint*psph->omega*(pkd->param.dConstGamma -1.);
-            psph->c = sqrt(psph->Uint*pkd->param.dConstGamma/pkdMass(pkd,p)/(pkd->param.dConstGamma -1.));
-            psph->c *= 4.; // Even more tight constraint
-            */
-#endif
+
 		(*nFormed)++;
 		*dMassFormed += pkdMass(pkd,p);
 		}

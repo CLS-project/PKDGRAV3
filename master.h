@@ -277,7 +277,7 @@ void msrDeleteGroups(MSR msr);
 void msrInitRelaxation(MSR msr);
 void msrRelaxation(MSR msr,double dTime,double deltaT,int iSmoothType,int bSymmetric);
 /* Gas routines */
-void msrInitSph(MSR,double);
+uint8_t msrInitSph(MSR,double);
 void msrSph(MSR msr, double dTime, double dStep);
 void msrSphStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime);
 void msrHydroStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime); //IA

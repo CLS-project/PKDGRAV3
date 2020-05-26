@@ -351,7 +351,7 @@ void master(MDL mdl,void *pst) {
 	    /* Initialize SPH, Cooling and SF/FB and gas time step */
 	    msrCoolSetup(msr,dTime);
 	    /* Fix dTuFac conversion of T in InitSPH */
-	    msrInitSph(msr,dTime);
+	    uRungMax = msrInitSph(msr,dTime);
 	    }
 
 	msrCalcEandL(msr,MSR_INIT_E,dTime,&E,&T,&U,&Eth,L,F,&W);
@@ -380,7 +380,9 @@ void master(MDL mdl,void *pst) {
 		if (bKickOpen) {
 		    msrBuildTree(msr,dTime,0);
                     msrLightConeOpen(msr,iStep);  /* open the lightcone */
+                    if (msr->param.bDoGravity){
 		    uRungMax = msrGravity(msr,0,MAX_RUNG,ROOT,0,ddTime,diStep,0,1,msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
+                    }
                     /* Set the grids of the linear species */
                     if (strlen(msr->param.achLinearSpecies) && msr->param.nGridLin > 0){
 			msrGridCreateFFT(msr,msr->param.nGridLin);

@@ -4469,7 +4469,7 @@ void msrUpdateRungByTree(MSR msr, uint8_t uRung, int iRoot) {
     in.uMaxRung = msrMaxRung(msr);
     pstUpdateRungByTree(msr->pst, &in, sizeof(in), &out, sizeof(out));
     for (iTempRung=uRung;iTempRung < msrMaxRung(msr);++iTempRung) msr->nRung[iTempRung] = out.nRungCount[iTempRung];
-    if (msr->param.bVRungStat) {
+    if (msr->param.bVRungStat && !msr->param.bNewKDK) {
 	printf("Rung distribution:\n");
 	printf("\n");
 	for (iTempRung=0;iTempRung <= msr->iCurrMaxRung;++iTempRung) {
@@ -4678,6 +4678,15 @@ int msrNewTopStepKDK(MSR msr,
     */
     int iStep = (int)(*pdStep) + 1;
 
+      /* IA: If the next rung that is the first one with actives particles, we
+       *   are sure that all particles are synchronized, thus we can output some statistics with
+       *   finer time resolution whilst being accurate.
+       *
+       *   We assume that there is no 'sandwiched' rung, i.e., the differences in dt are smooth
+       */
+      if ( (msr->nRung[0]!=0 && uRung==0) || ( (msr->nRung[uRung] == 0) && (msr->nRung[uRung+1] > 0) ))
+         msrOutputFineStatistics(msr, *pdStep, *pdTime);
+
     if (uRung == iRungDT+1) {
 	if ( msr->param.bDualTree && uRung < *puRungMax) {
 	    /* HACK: FIXME: Don't use the dual tree before z=2; the overlap region is too large */
@@ -4703,8 +4712,14 @@ int msrNewTopStepKDK(MSR msr,
 	bDualTree = msrNewTopStepKDK(msr,bDualTree,uRung+1,pdStep,pdTime,puRungMax,piSec,pbDoCheckpoint,pbDoOutput,pbNeedKickOpen);
 	}
 
-    /* Drift the "ROOT" (active) tree or all particle */
     dDelta = msr->param.dDelta/(1 << *puRungMax);
+
+    msrActiveRung(msr,uRung,1);
+   msrResetFluxes(msr, *pdTime, dDelta, ROOT);
+   msrMeshlessFluxes(msr, *pdTime, dDelta, ROOT);
+   if (msr->param.bVStep) printf("Step:%f (uMaxRung %d) (uRung %d) \n",*pdStep,*puRungMax, uRung);
+
+    /* Drift the "ROOT" (active) tree or all particle */
     if (bDualTree) {
 	msrprintf(msr,"Drift very actives, uRung: %d\n",*puRungMax);
 	msrDrift(msr,*pdTime,dDelta,ROOT);
@@ -4715,6 +4730,17 @@ int msrNewTopStepKDK(MSR msr,
 	}
     *pdTime += dDelta;
     *pdStep += 1.0/(1 << *puRungMax);
+#ifdef COOLING
+      int sync = (msr->nRung[0]!=0 && uRung==0) || ( (msr->nRung[uRung] > 0) && (msr->nRung[uRung-1] == 0) );
+      if (msr->csm->val.bComove){
+         const float a = csmTime2Exp(msr->csm,*pdTime);
+         const float z = 1./a - 1.;
+
+         msrCoolingUpdate(msr, z, sync);
+      }else{
+         msrCoolingUpdate(msr, 0., sync);
+      }
+#endif
 
     msrActiveRung(msr,uRung,1);
     msrUpdateSoft(msr,*pdTime);
@@ -4761,11 +4787,39 @@ int msrNewTopStepKDK(MSR msr,
 
     if (!uRung && msr->param.bFindGroups) msrNewFof(msr,*pdTime);
 
+    msrZeroNewRung(msr,uRung,MAX_RUNG,uRung); /* IA: Probably not ideal */
+
     // We need to make sure we descend all the way to the bucket with the
     // active tree, or we can get HUGE group cells, and hence too much P-P/P-C
     int nGroup = (bDualTree && uRung > iRungDT) ? 1 : msr->param.nGroup;
+    if (msr->param.bDoGravity){
     *puRungMax = msrGravity(msr,uRung,msrMaxRung(msr),ROOT,uRoot2,*pdTime,
-	*pdStep,1,bKickOpen,msr->param.bEwald,nGroup,piSec,&nActive);
+      *pdStep,1,bKickOpen,msr->param.bEwald,nGroup,piSec,&nActive);
+    }
+
+#ifdef FEEDBACK
+      msrActiveRung(msr,uRung,0);
+      msrReSmooth(msr,*pdTime,SMX_SN_FEEDBACK,0,0);
+      msrActiveRung(msr,uRung,1);
+#endif
+#ifdef STAR_FORMATION
+      double dDeltaRung = msr->param.dDelta/(1 << uRung);
+      msrStarForm(msr, *pdTime, dDeltaRung, uRung);
+#endif
+
+    msrActiveRung(msr,uRung,1);
+      if (msrDoGas(msr) && msrMeshlessHydro(msr)){
+         msrUpdatePrimVars(msr, *pdTime, dDelta, ROOT);
+         msrMeshlessGradients(msr, *pdTime, dDelta, ROOT);
+      }
+
+    msrHydroStep(msr,uRung, MAX_RUNG, *pdTime);
+    msrUpdateRung(msr, uRung) ;
+    uint8_t iTempRung;
+    for (iTempRung=0;iTempRung <= msr->iCurrMaxRung;++iTempRung) {
+       if (msr->nRung[iTempRung] == 0) continue;
+       *puRungMax = iTempRung;
+    }
 
     if (!uRung && msr->param.bFindGroups) {
 	msrGroupStats(msr);
@@ -4774,12 +4828,15 @@ int msrNewTopStepKDK(MSR msr,
 	msrHopWrite(msr,achFile);
 	}
 
+
     if (uRung && uRung < *puRungMax) bDualTree = msrNewTopStepKDK(msr,bDualTree,uRung+1,pdStep,pdTime,puRungMax,piSec,pbDoCheckpoint,pbDoOutput,pbNeedKickOpen);
     if (bDualTree && uRung==iRungDT+1) {
 	msrprintf(msr,"Half Drift, uRung: %d\n",iRungDT);
 	dDelta = msr->param.dDelta/(1 << iRungDT);
 	msrDrift(msr,dTimeFixed,0.5 * dDelta,FIXROOT);
 	}
+
+
     return bDualTree;
     }
 
@@ -4910,6 +4967,9 @@ void msrTopStepKDK(MSR msr,
       msrReSmooth(msr,dTime,SMX_SN_FEEDBACK,0,0);
       msrActiveRung(msr,iKickRung,1);
 #endif
+#ifdef STAR_FORMATION
+      msrStarForm(msr, dTime, dDelta, iKickRung);
+#endif
 
 
       if (msrDoGas(msr) && msrMeshlessHydro(msr)){
@@ -5033,9 +5093,6 @@ void msrTopStepKDK(MSR msr,
 //					    -- apply to all neighbours */
 //	}
 
-#ifdef STAR_FORMATION
-      msrStarForm(msr, dTime, dDelta, iRung);
-#endif
 
     }
 
@@ -5258,7 +5315,7 @@ void msrSetFirstHydroLoop(MSR msr, int value) {
     msr->param.bFirstHydroLoop = value;
     }
 
-void msrInitSph(MSR msr,double dTime)
+uint8_t msrInitSph(MSR msr,double dTime)
     {
     if (!msrMeshlessHydro(msr)){
     /* Init gas, internal energy -- correct estimate from dTuFac */
@@ -5301,11 +5358,14 @@ void msrInitSph(MSR msr,double dTime)
         msrUpdatePrimVars(msr, dTime, 0.0, ROOT);
         msrMeshlessGradients(msr, dTime, 0.0, ROOT);
         msrMeshlessFluxes(msr, dTime, 0.0, ROOT);
-	msrZeroNewRung(msr,0,MAX_RUNG,0); 
+	//msrZeroNewRung(msr,0,MAX_RUNG,0); 
         msrHydroStep(msr,0,MAX_RUNG,dTime); // We do this twice because we need to have uNewRung for the time limiter
         msrHydroStep(msr,0,MAX_RUNG,dTime);  // of Durier & Dalla Vecchia
         msrResetFluxes(msr, dTime, 0.0, ROOT); // Reset the fluxes
     }
+    msrUpdateRung(msr, 0) ;
+    uint8_t uRungMax = msrGetMinDt(msr);
+    return uRungMax;
 }
 
 void msrSph(MSR msr,double dTime, double dStep) {

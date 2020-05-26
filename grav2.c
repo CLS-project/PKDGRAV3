@@ -105,6 +105,52 @@ void pkdParticleWorkDone(workParticle *wp) {
 	    p = wp->pPart[i];
 	    pkdGetPos1(pkd,p,r);
 	    m = pkdMass(pkd,p);
+
+#ifdef HERNQUIST_POTENTIAL
+             const double const_reduced_hubble_cgs = 3.2407789e-18;
+             //const double H0 = 0.704 * const_reduced_hubble_cgs * pkd->param.dSecUnit;
+             const double H0 = 70.4/ pkd->param.dKmPerSecUnit * ( pkd->param.dKpcUnit / 1e3);
+
+             const double concentration = 9.0;
+             const double M200 = 135.28423603962767; //137.0; // / pkd->param.dMsolUnit;
+             const double V200 = cbrt(10.*M200*H0);
+             //const double R200 = V200/(H0);
+             const double R200 = cbrt(M200/(100.*H0*H0));
+             const double RS = R200 / concentration;
+
+             const double al = RS * sqrt(2. * (log(1. + concentration) -
+                                             concentration / (1. + concentration)));
+
+             //const double mass = M200*(1.-0.04-0.014);
+             const double mass = M200*(1.-0.041);
+             const float sqrtgm_inv = 1.f / sqrtf(mass);
+             const double epsilon =  0.2/pkd->param.dKpcUnit;
+             const double epsilon2 = epsilon*epsilon;
+
+
+
+
+           const float dx = pkdPos(pkd,p,0); //- potential->x[0];
+           const float dy = pkdPos(pkd,p,1); //- potential->x[1];
+           const float dz = pkdPos(pkd,p,2); //- potential->x[2];
+
+           /* Calculate the acceleration */
+           const float rr = sqrtf(dx * dx + dy * dy + dz * dz + epsilon2);
+           const float r_plus_a_inv = 1.f / (rr + al);
+           const float r_plus_a_inv2 = r_plus_a_inv * r_plus_a_inv;
+           const float term = -mass * r_plus_a_inv2 / rr;
+
+           /* Calculate the circular orbital period */
+           const float period = 2.f * M_PI * sqrtf(rr) * al *
+                             (1 + rr / al) * sqrtgm_inv;
+
+
+
+           wp->pInfoOut[i].a[0] += term * dx;
+           wp->pInfoOut[i].a[1] += term * dy;
+           wp->pInfoOut[i].a[2] += term * dz;
+            //
+#endif
 	    if (pkd->oAcceleration) {
 		a = pkdAccel(pkd,p);
 		a[0] = wp->pInfoOut[i].a[0];
@@ -173,6 +219,12 @@ void pkdParticleWorkDone(workParticle *wp) {
 		    }
 		else uNewRung = 0;
 		}
+#ifdef HERNQUIST_POTENTIAL
+           /* Time-step as a fraction of the circular orbital time */
+           double time_step = 0.01 * period;
+	     uint8_t hernquist_uNewRung = pkdDtToRungInverse(time_step,fiDelta,pkd->param.iMaxRung-1);
+           if (hernquist_uNewRung > uNewRung) uNewRung = hernquist_uNewRung;
+#endif
 	    /*
 	    ** Here we must make sure we do not try to take a larger opening
 	    ** timestep than the current active particles involved in the
