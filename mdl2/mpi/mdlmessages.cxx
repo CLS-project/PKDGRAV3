@@ -1,6 +1,7 @@
 #include "mdlmessages.h"
 #include "mdl.h"
 #include <string.h>
+
 namespace mdl {
 mdlMessage::mdlMessage() : basicMessage() {}
 
@@ -9,7 +10,7 @@ void mdlMessage::result(class mdlClass *mdl) {}
 
 FlushBuffer::FlushBuffer(uint32_t nSize,CacheMessageType mid) : nBuffer(0),Buffer(nSize),mid(mid) {}
 
-bool FlushBuffer::addBuffer(int nSize, const char *pData) {
+bool FlushBuffer::addBuffer(int nSize, const void *pData) {
     if (nBuffer+nSize > Buffer.size()) return false;
     if (pData) memcpy(&Buffer[nBuffer],pData,nSize);
     else memset(&Buffer[nBuffer],0,nSize);
@@ -139,7 +140,7 @@ mdlMessageSendReply & mdlMessageSendReply::makeReply(int32_t idFrom,int16_t repl
     }
 
 mdlMessageCacheRequest::mdlMessageCacheRequest(uint8_t cid, int32_t idFrom) 
-    : mdlMessageBufferedMPI(&header,sizeof(header),MPI_BYTE,0,MDL_TAG_CACHECOM), pLine(NULL) {
+    : mdlMessageBufferedMPI(&header,sizeof(header),MPI_BYTE,0,MDL_TAG_CACHECOM) {
     header.cid   = cid;
     header.mid   = CacheMessageType::REQUEST;
     header.nItems= 0;
@@ -158,11 +159,19 @@ mdlMessageCacheRequest::mdlMessageCacheRequest(uint8_t cid, int32_t idFrom, uint
     header.iLine = iLine;
     }
 
-mdlMessageCacheRequest & mdlMessageCacheRequest::makeCacheRequest(uint16_t nItems, int32_t idTo, int32_t iLine, void *pLine) {
+mdlMessageCacheRequest & mdlMessageCacheRequest::makeCacheRequest(uint16_t nItems, int32_t idTo, int32_t iLine, uint32_t size, const void *pKey, void *pLine) {
+    static_assert(offsetof(mdlCacheRequestData, header) + sizeof(header) == offsetof(mdlCacheRequestData, key), 
+    	"The header and key are not adjacent in memory. This shouldn't happen.");
     header.nItems= nItems;
     header.idTo  =  idTo;
     header.iLine = iLine;
     this->pLine = pLine;
+    key_size = size;
+    if (size) {
+	assert(size <= sizeof(key));
+	if (size <= sizeof(key)) memcpy(key,pKey,size);
+	else abort();
+	}
     return * this;
     }
 

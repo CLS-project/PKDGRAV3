@@ -95,17 +95,29 @@ typedef struct mdl_wq_node {
 //*****************************************************************************
 
 class CACHE : private ARChelper {
+    friend class mdlClass;
+    friend class mpiClass;
 private:
-    virtual void   flushElement(uint32_t uLine, uint32_t uId, const void *pKey,          const void *data) override;
-    virtual void  invokeRequest(uint32_t uLine, uint32_t uId, const void *pKey, bool bVirtual)             override;
-    virtual void  finishRequest(uint32_t uLine, uint32_t uId, const void *pKey, bool bVirtual, void *data) override;
-    virtual void combineElement(uint32_t uLine, uint32_t uId, const void *pKey,          const void *data) override;
-    ARC<> *arc;
+    virtual uint32_t  getThread(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey)                            override;
+    virtual void   flushElement(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey,          const void *data) override;
+    virtual void  invokeRequest(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey, bool bVirtual)             override;
+    virtual bool  finishRequest(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey, bool bVirtual, void *data) override;
+    virtual void combineElement(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey,          const void *data) override;
+    hash::GHASH *hash_table = nullptr;
+    GARC *arc_cache = nullptr;
+
+protected:
+    auto lookup(uint32_t uHash, const void *pKey) {
+    	return hash_table->lookup(uHash,pKey);
+	}
+
 public:
-    void *fetch(uint32_t uIndex, int uId, int bLock,int bModify,bool bVirtual)
-	{return arc->fetch(uIndex,uId,bLock,bModify,bVirtual);}
-    void release(void *p) {return arc->release(p);}
-    void clear() {arc->clear();}
+    auto fetch(uint32_t uIndex, int uId, int bLock,int bModify,bool bVirtual)
+	{return arc_cache->fetch(uIndex,uId,bLock,bModify,bVirtual);}
+    auto fetch(uint32_t uHash, void *pKey, int bLock,int bModify,bool bVirtual)
+	{return arc_cache->fetch(uHash,pKey,bLock,bModify,bVirtual);}
+    void release(void *p) {return arc_cache->release(p);}
+    void clear() {arc_cache->clear();}
 public:
     enum class Type : uint16_t {
 	NOCACHE = 0,
@@ -122,6 +134,8 @@ public:
 	void * (*getElt)(void *pData,int i,int iDataSize),
 	void *pData,int iDataSize,int nData,
 	void *ctx,void (*init)(void *,void *),void (*combine)(void *,void *,void *));
+    void initialize_advanced(uint32_t cacheSize,hash::GHASH *hash,int iDataSize);
+
 protected:
     void * (*getElt)(void *pData,int i,int iDataSize);
     void *pData;
@@ -231,7 +245,7 @@ protected:
 
     int DoSomeWork();
     void bookkeeping();
-    void finishCacheRequest(uint32_t uLine, uint32_t uId, int cid, void *data, bool bVirtual);
+    bool finishCacheRequest(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey, int cid, void *data, bool bVirtual);
   
 protected:
     void flush_core_buffer();
@@ -262,6 +276,8 @@ public:
 	void * (*getElt)(void *pData,int i,int iDataSize),
 	void *pData,int iDataSize,int nData,
 	void *ctx,void (*init)(void *,void *),void (*combine)(void *,void *,void *));
+    CACHE *AdvancedCacheInitialize(int cid,hash::GHASH *hash,int iDataSize);
+
     void FlushCache(int cid);
     void FinishCache(int cid);
     int ReqService(int id,int sid,void *vin,int nInBytes);
@@ -276,7 +292,8 @@ public:
     void CompleteAllWork();
     bool isCudaActive();
 
-    void *Access(int cid, uint32_t uIndex, int uId, int bLock,int bModify,bool bVirtual);
+    void *Access(int cid, uint32_t uIndex,  int uId, bool bLock,bool bModify,bool bVirtual);
+    void *Access(int cid, uint32_t uHash,void *pKey, bool bLock,bool bModify,bool bVirtual);
 
     size_t FFTlocalCount(int n1,int n2,int n3,int *nz,int *sz,int *ny,int*sy);
     MDLFFT FFTNodeInitialize(int n1,int n2,int n3,int bMeasure,FFTW3(real) *data);
@@ -539,12 +556,14 @@ void mdlCOcache(MDL mdl,int cid,
 		void * (*getElt)(void *pData,int i,int iDataSize),
 		void *pData,int iDataSize,int nData,
 		void *ctx,void (*init)(void *,void *),void (*combine)(void *,void *,void *));
+void mdlAdvancedCacheRO(MDL mdl,int cid,void *pHash,int iDataSize);
 void mdlFinishCache(MDL,int);
 void mdlCacheCheck(MDL);
 void mdlCacheBarrier(MDL,int);
 void mdlPrefetch(MDL mdl,int cid,int iIndex, int id);
 void *mdlAcquire(MDL mdl,int cid,int iIndex,int id);
 void *mdlFetch(MDL mdl,int cid,int iIndex,int id);
+void *mdlKeyFetch(MDL mdl,int cid,uint32_t uHash, void *pKey);
 void *mdlVirtualFetch(MDL mdl,int cid,int iIndex,int id);
 void mdlRelease(MDL,int,void *);
 void mdlFlushCache(MDL,int);

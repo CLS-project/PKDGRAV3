@@ -20,8 +20,11 @@
 
 #include <assert.h>
 #include <cstdint>
+#include <array>
 
-static const int cacheSize = 64 * 1024;
+namespace {
+
+constexpr int cacheSize = 64 * 1024;
 
 namespace worker {
 class Context {
@@ -76,9 +79,11 @@ Context *Context::split(int idLast) {
 enum services {
     STOP,
     SET_ADD,
+    TEST_HASH,
     TEST_RO,
     TEST_FLUSH,
     TEST_FLUSH_AFTER_READ,
+    TEST_ADVANCED_RO,
     };
 } // namespace worker
 
@@ -102,128 +107,321 @@ int serviceSetAdd(worker::Context *ctx,void *vin,int nIn,void *vout,int nOut) {
     }
 } // namespace
 
-int test_ro(worker::Context *ctx,void *vin,int nIn,void *vout,int nOut) {
-    auto pnBAD = reinterpret_cast<std::uint64_t*>(vout);
-    std::uint64_t nBAD;
-    if (ctx->getLeaves() > 1) {
-        int rID = mdlReqService(ctx->getMDL(),ctx->getUpper(),worker::TEST_RO,NULL,0);
-        test_ro(ctx->getLower(),vin,nIn,vout,nOut);
-        mdlGetReply(ctx->getMDL(),rID,&nBAD,&nOut);
-	*pnBAD += nBAD;
-        }
-    else {
-    	int idSelf = mdlSelf(ctx->getMDL());
-	int nData = cacheSize;
-	auto pData = new std::uint64_t[nData];
-	for(auto i=0; i<nData; ++i) pData[i] = ((1UL*idSelf)<<33) + 10 + i;
-	mdlROcache(ctx->getMDL(),0,NULL,pData,sizeof(pData[0]),nData);
+namespace test {
 
-	nBAD = 0;
-	for(auto iProc=0; iProc<mdlThreads(ctx->getMDL()); ++iProc) {
+namespace hash {
+
+    constexpr int SERVICE = worker::TEST_HASH;
+    typedef std::array<uint64_t,4> KEY;
+    typedef mdl::hash::HASH<KEY> HASH;
+
+    int test(worker::Context *ctx,void *vin,int nIn,void *vout,int nOut) {
+	auto pnBAD = reinterpret_cast<std::uint64_t*>(vout);
+	std::uint64_t nBAD;
+	if (ctx->getLeaves() > 1) {
+            int rID = mdlReqService(ctx->getMDL(),ctx->getUpper(),SERVICE,NULL,0);
+            test(ctx->getLower(),vin,nIn,vout,nOut);
+            mdlGetReply(ctx->getMDL(),rID,&nBAD,&nOut);
+	    *pnBAD += nBAD;
+            }
+	else {
+	    uint32_t idSelf = mdlSelf(ctx->getMDL());
+	    uint32_t nData = cacheSize;
+
+	    nBAD = 0;
+
+	    // Construct a hash table filled with data
+	    HASH hash(nData);
+	    std::vector<uint64_t> values;
+	    values.reserve(nData);
 	    for(auto i=0; i<nData; ++i) {
-		auto pRemote = reinterpret_cast<std::uint64_t*>(mdlAcquire(ctx->getMDL(),0,i,iProc));
-		auto expect = ((1UL*iProc)<<33) + 10 + i;
-		if (*pRemote != expect) ++nBAD;
-		mdlRelease(ctx->getMDL(),0,pRemote);
+	    	values.push_back(0xdeadbeef ^ idSelf ^ i);
+	    	KEY key = {static_cast<uint64_t>(idSelf),static_cast<uint64_t>(i),static_cast<uint64_t>(values.back()),static_cast<uint64_t>(nData-i)};
+	    	auto uHash = mdl::murmur::murmur<4>(key.data());
+		hash.insert(uHash,key,&values.back());
 		}
-	    }
-	mdlFinishCache(ctx->getMDL(),0);
-	delete[] pData;
-	*pnBAD = nBAD;
-        }
 
-    return sizeof(*pnBAD);
-    }
+	    // Check the even keys
+	    for(auto i=0; i<nData; i+=2) {
+	    	KEY key = {static_cast<uint64_t>(idSelf),static_cast<uint64_t>(i),static_cast<uint64_t>(values[i]),static_cast<uint64_t>(nData-i)};
+	    	auto uHash = mdl::murmur::murmur<4>(key.data());
+		auto data = hash.lookup(uHash,key);
+		if (data == nullptr || data!=&values[i]) ++nBAD;
+		}
 
-static void initFlush(void *vctx, void *g) {
-    //auto ctx = reinterpret_cast<worker::Context*>(vctx);
-    auto p1 = reinterpret_cast<std::uint64_t*>(g);
-    *p1 = 0;
-    }
+	    // Check the odd keys (and remove)
+	    for(auto i=1; i<nData; i+=2) {
+	    	KEY key = {static_cast<uint64_t>(idSelf),static_cast<uint64_t>(i),static_cast<uint64_t>(values[i]),static_cast<uint64_t>(nData-i)};
+	    	auto uHash = mdl::murmur::murmur<4>(key.data());
+		auto data = hash.lookup(uHash,key);
+		if (data == nullptr || data!=&values[i]) ++nBAD;
+		hash.remove(uHash,key);
+		}
 
-static void combFlush(void *vctx, void *g1, void *g2) {
-    //auto ctx = reinterpret_cast<worker::Context*>(vctx);
-    auto p1 = reinterpret_cast<std::uint64_t*>(g1);
-    auto p2 = reinterpret_cast<std::uint64_t*>(g2);
-    *p1 += *p2;
-    }
+	    // Check the even keys again
+	    for(auto i=0; i<nData; i+=2) {
+	    	KEY key = {static_cast<uint64_t>(idSelf),static_cast<uint64_t>(i),static_cast<uint64_t>(values[i]),static_cast<uint64_t>(nData-i)};
+	    	auto uHash = mdl::murmur::murmur<4>(key.data());
+		auto data = hash.lookup(uHash,key);
+		if (data == nullptr || data!=&values[i]) ++nBAD;
+		}
 
-int test_flush(worker::Context *ctx,void *vin,int nIn,void *vout,int nOut) {
-    auto pnBAD = reinterpret_cast<std::uint64_t*>(vout);
-    std::uint64_t nBAD;
-    if (ctx->getLeaves() > 1) {
-        int rID = mdlReqService(ctx->getMDL(),ctx->getUpper(),worker::TEST_FLUSH,NULL,0);
-        test_flush(ctx->getLower(),vin,nIn,vout,nOut);
-        mdlGetReply(ctx->getMDL(),rID,&nBAD,&nOut);
-	*pnBAD += nBAD;
-        }
-    else {
-    	int idSelf = mdlSelf(ctx->getMDL());
-	int nData = cacheSize;
-	auto pData = new std::uint64_t[nData];
-	for(auto i=0; i<nData; ++i) pData[i] = ((1UL*idSelf)<<33) + 10 + i;
-	mdlCOcache(ctx->getMDL(),0,NULL,pData,sizeof(pData[0]),nData,ctx,initFlush,combFlush);
+	    // Check that the odd keys are gone
+	    for(auto i=1; i<nData; i+=2) {
+	    	KEY key = {static_cast<uint64_t>(idSelf),static_cast<uint64_t>(i),static_cast<uint64_t>(values[i]),static_cast<uint64_t>(nData-i)};
+	    	auto uHash = mdl::murmur::murmur<4>(key.data());
+		auto data = hash.lookup(uHash,key);
+		if (data != nullptr) ++nBAD;
+		}
 
-	nBAD = 0;
-	for(auto iProc=0; iProc<mdlThreads(ctx->getMDL()); ++iProc) {
+	    *pnBAD = nBAD;
+            }
+
+	return sizeof(*pnBAD);
+	}
+
+    class HashTest : public ::testing::Test {};
+
+    TEST_F(HashTest, HashTestKeys) {
+	auto ctx = reinterpret_cast<worker::Context*>(mdlWORKER());
+	std::uint64_t nBAD;
+	test::hash::test(ctx,NULL,0,&nBAD,sizeof(nBAD));
+	EXPECT_EQ(nBAD,0);
+	}
+
+
+    } // namespace hash
+
+class CacheTest : public ::testing::Test {};
+
+namespace ro {
+    constexpr int SERVICE = worker::TEST_RO;
+    int test(worker::Context *ctx,void *vin,int nIn,void *vout,int nOut) {
+	auto pnBAD = reinterpret_cast<std::uint64_t*>(vout);
+	std::uint64_t nBAD;
+	if (ctx->getLeaves() > 1) {
+            int rID = mdlReqService(ctx->getMDL(),ctx->getUpper(),SERVICE,NULL,0);
+            test(ctx->getLower(),vin,nIn,vout,nOut);
+            mdlGetReply(ctx->getMDL(),rID,&nBAD,&nOut);
+	    *pnBAD += nBAD;
+            }
+	else {
+	    int idSelf = mdlSelf(ctx->getMDL());
+	    int nData = cacheSize;
+	    auto pData = new std::uint64_t[nData];
+	    for(auto i=0; i<nData; ++i) pData[i] = ((1UL*idSelf)<<33) + 10 + i;
+	    mdlROcache(ctx->getMDL(),0,NULL,pData,sizeof(pData[0]),nData);
+
+	    nBAD = 0;
+	    for(auto iProc=0; iProc<mdlThreads(ctx->getMDL()); ++iProc) {
+		for(auto i=0; i<nData; ++i) {
+		    auto pRemote = reinterpret_cast<std::uint64_t*>(mdlAcquire(ctx->getMDL(),0,i,iProc));
+		    auto expect = ((1UL*iProc)<<33) + 10 + i;
+		    if (*pRemote != expect) ++nBAD;
+		    mdlRelease(ctx->getMDL(),0,pRemote);
+		    }
+		}
+	    mdlFinishCache(ctx->getMDL(),0);
+	    delete[] pData;
+	    *pnBAD = nBAD;
+            }
+
+	return sizeof(*pnBAD);
+	}
+    TEST_F(CacheTest, CacheReadWorks) {
+	auto ctx = reinterpret_cast<worker::Context*>(mdlWORKER());
+	std::uint64_t nBAD;
+	test::ro::test(ctx,NULL,0,&nBAD,sizeof(nBAD));
+	EXPECT_EQ(nBAD,0);
+	}
+    } // namespace test_ro
+
+namespace flush {
+    static void initFlush(void *vctx, void *g) {
+	//auto ctx = reinterpret_cast<worker::Context*>(vctx);
+	auto p1 = reinterpret_cast<std::uint64_t*>(g);
+	*p1 = 0;
+	}
+
+    static void combFlush(void *vctx, void *g1, void *g2) {
+	//auto ctx = reinterpret_cast<worker::Context*>(vctx);
+	auto p1 = reinterpret_cast<std::uint64_t*>(g1);
+	auto p2 = reinterpret_cast<std::uint64_t*>(g2);
+	*p1 += *p2;
+	}
+
+    constexpr int SERVICE = worker::TEST_FLUSH;
+
+    int test(worker::Context *ctx,void *vin,int nIn,void *vout,int nOut) {
+	auto pnBAD = reinterpret_cast<std::uint64_t*>(vout);
+	std::uint64_t nBAD;
+	if (ctx->getLeaves() > 1) {
+            int rID = mdlReqService(ctx->getMDL(),ctx->getUpper(),SERVICE,NULL,0);
+            test(ctx->getLower(),vin,nIn,vout,nOut);
+            mdlGetReply(ctx->getMDL(),rID,&nBAD,&nOut);
+	    *pnBAD += nBAD;
+            }
+	else {
+    	 int idSelf = mdlSelf(ctx->getMDL());
+	    int nData = cacheSize;
+	    auto pData = new std::uint64_t[nData];
+	    for(auto i=0; i<nData; ++i) pData[i] = ((1UL*idSelf)<<33) + 10 + i;
+	    mdlCOcache(ctx->getMDL(),0,NULL,pData,sizeof(pData[0]),nData,ctx,initFlush,combFlush);
+
+	    nBAD = 0;
+	    for(auto iProc=0; iProc<mdlThreads(ctx->getMDL()); ++iProc) {
+		for(auto i=0; i<nData; ++i) {
+		    auto pRemote = reinterpret_cast<std::uint64_t*>(mdlVirtualFetch(ctx->getMDL(),0,i,iProc));
+		    ++*pRemote;
+		    }
+		}
+	    mdlFinishCache(ctx->getMDL(),0);
+	    auto nThreads = mdlThreads(ctx->getMDL());
 	    for(auto i=0; i<nData; ++i) {
-		auto pRemote = reinterpret_cast<std::uint64_t*>(mdlVirtualFetch(ctx->getMDL(),0,i,iProc));
-		++*pRemote;
+		if (pData[i] != nThreads + ((1UL*idSelf)<<33) + 10 + i) ++nBAD;
 		}
-	    }
-	mdlFinishCache(ctx->getMDL(),0);
-	auto nThreads = mdlThreads(ctx->getMDL());
-	for(auto i=0; i<nData; ++i) {
-	    if (pData[i] != nThreads + ((1UL*idSelf)<<33) + 10 + i) ++nBAD;
-	    }
-	delete[] pData;
-	*pnBAD = nBAD;
-        }
+	    delete[] pData;
+	    *pnBAD = nBAD;
+            }
 
-    return sizeof(*pnBAD);
-    }
+	return sizeof(*pnBAD);
+	}
+    TEST_F(CacheTest, CacheFlushWorks) {
+	auto ctx = reinterpret_cast<worker::Context*>(mdlWORKER());
+	std::uint64_t nBAD;
+	test::flush::test(ctx,NULL,0,&nBAD,sizeof(nBAD));
+	EXPECT_EQ(nBAD,0);
+	}
 
-int test_flush_after_read(worker::Context *ctx,void *vin,int nIn,void *vout,int nOut) {
-    auto pnBAD = reinterpret_cast<std::uint64_t*>(vout);
-    std::uint64_t nBAD;
-    if (ctx->getLeaves() > 1) {
-        int rID = mdlReqService(ctx->getMDL(),ctx->getUpper(),worker::TEST_FLUSH_AFTER_READ,NULL,0);
-        test_flush_after_read(ctx->getLower(),vin,nIn,vout,nOut);
-        mdlGetReply(ctx->getMDL(),rID,&nBAD,&nOut);
-	*pnBAD += nBAD;
-        }
-    else {
-    	int idSelf = mdlSelf(ctx->getMDL());
-	int nData = cacheSize / 10; // Smaller is fine for this
-	auto pData = new std::uint64_t[nData];
-	for(auto i=0; i<nData; ++i) pData[i] = ((1UL*idSelf)<<33) + 10 + i;
-	mdlCOcache(ctx->getMDL(),0,NULL,pData,sizeof(pData[0]),nData,ctx,initFlush,combFlush);
+    namespace after_read {
+    constexpr int SERVICE = worker::TEST_FLUSH_AFTER_READ;
 
-	for(auto iProc=0; iProc<mdlThreads(ctx->getMDL()); ++iProc) {
-	    for(auto i=0; i<nData; ++i) {
-		auto pRemote = reinterpret_cast<const std::uint64_t*>(mdlFetch(ctx->getMDL(),0,i,iProc));
-		}
+	int test(worker::Context *ctx,void *vin,int nIn,void *vout,int nOut) {
+	    auto pnBAD = reinterpret_cast<std::uint64_t*>(vout);
+	    std::uint64_t nBAD;
+	    if (ctx->getLeaves() > 1) {
+        	int rID = mdlReqService(ctx->getMDL(),ctx->getUpper(),SERVICE,NULL,0);
+        	test(ctx->getLower(),vin,nIn,vout,nOut);
+        	mdlGetReply(ctx->getMDL(),rID,&nBAD,&nOut);
+		*pnBAD += nBAD;
+        	}
+	    else {
+    	     int idSelf = mdlSelf(ctx->getMDL());
+		int nData = cacheSize / 10; // Smaller is fine for this
+		auto pData = new std::uint64_t[nData];
+		for(auto i=0; i<nData; ++i) pData[i] = ((1UL*idSelf)<<33) + 10 + i;
+		mdlCOcache(ctx->getMDL(),0,NULL,pData,sizeof(pData[0]),nData,ctx,initFlush,combFlush);
+
+		for(auto iProc=0; iProc<mdlThreads(ctx->getMDL()); ++iProc) {
+		    for(auto i=0; i<nData; ++i) {
+			auto pRemote = reinterpret_cast<const std::uint64_t*>(mdlFetch(ctx->getMDL(),0,i,iProc));
+			}
+		    }
+
+		nBAD = 0;
+		for(auto iProc=0; iProc<mdlThreads(ctx->getMDL()); ++iProc) {
+		    for(auto i=0; i<nData; ++i) {
+			auto pRemote = reinterpret_cast<std::uint64_t*>(mdlAcquire(ctx->getMDL(),0,i,iProc));
+			++*pRemote;
+			mdlRelease(ctx->getMDL(),0,pRemote);
+			}
+		    }
+		mdlFinishCache(ctx->getMDL(),0);
+		auto nThreads = mdlThreads(ctx->getMDL());
+		for(auto i=0; i<nData; ++i) {
+		    if (pData[i] != nThreads + ((1UL*idSelf)<<33) + 10 + i) ++nBAD;
+		    }
+		delete[] pData;
+		*pnBAD = nBAD;
+        	}
+
+	    return sizeof(*pnBAD);
+	    }
+	TEST_F(CacheTest, CacheFlushAfterReadWorks) {
+	    auto ctx = reinterpret_cast<worker::Context*>(mdlWORKER());
+	    std::uint64_t nBAD;
+	    test::flush::after_read::test(ctx,NULL,0,&nBAD,sizeof(nBAD));
+	    EXPECT_EQ(nBAD,0);
 	    }
 
-	nBAD = 0;
-	for(auto iProc=0; iProc<mdlThreads(ctx->getMDL()); ++iProc) {
-	    for(auto i=0; i<nData; ++i) {
-		auto pRemote = reinterpret_cast<std::uint64_t*>(mdlAcquire(ctx->getMDL(),0,i,iProc));
-		++*pRemote;
-		mdlRelease(ctx->getMDL(),0,pRemote);
-		}
-	    }
-	mdlFinishCache(ctx->getMDL(),0);
-	auto nThreads = mdlThreads(ctx->getMDL());
-	for(auto i=0; i<nData; ++i) {
-	    if (pData[i] != nThreads + ((1UL*idSelf)<<33) + 10 + i) ++nBAD;
-	    }
-	delete[] pData;
-	*pnBAD = nBAD;
-        }
+	} // namespace after_read
+    } // namespace flush
 
-    return sizeof(*pnBAD);
-    }
+    namespace advanced {
+	class AdvancedCache : public ::testing::Test {};
+
+
+	namespace ro {
+
+	constexpr int SERVICE = worker::TEST_ADVANCED_RO;
+	typedef std::array<uint64_t,4> KEY;
+	typedef mdl::hash::HASH<KEY> HASH;
+
+	int test(worker::Context *ctx,void *vin,int nIn,void *vout,int nOut) {
+	    auto pnBAD = reinterpret_cast<std::uint64_t*>(vout);
+	    std::uint64_t nBAD;
+	    if (ctx->getLeaves() > 1) {
+        	int rID = mdlReqService(ctx->getMDL(),ctx->getUpper(),SERVICE,NULL,0);
+        	test(ctx->getLower(),vin,nIn,vout,nOut);
+        	mdlGetReply(ctx->getMDL(),rID,&nBAD,&nOut);
+		*pnBAD += nBAD;
+        	}
+	    else {
+		auto mdl = ctx->getMDL();
+		uint32_t idSelf = mdlSelf(mdl);
+		uint32_t nThreads = mdlThreads(mdl);
+		uint32_t nData = cacheSize;
+
+		nBAD = 0;
+
+		// Construct a hash table filled with data
+		HASH hash(nData);
+		std::vector<uint64_t> values;
+		values.reserve(nData);
+		for(auto i=0; i<nData; ++i) {
+		    values.push_back(0xdeadbeef ^ idSelf ^ i);
+		    KEY key = {static_cast<uint64_t>(idSelf),static_cast<uint64_t>(i),static_cast<uint64_t>(values.back()),static_cast<uint64_t>(nData-i)};
+		    auto uHash = mdl::murmur::murmur<4>(key.data());
+		    hash.insert(uHash,key,&values.back());
+		    }
+
+		mdlAdvancedCacheRO(mdl,0,&hash,sizeof(values.front()));
+		auto idNext = (idSelf+1) % nThreads;
+		// These should be cache hits
+		for(auto i=idSelf; i<nData; i += nThreads) {
+		    auto expected = (0xdeadbeef ^ idNext ^ i);
+		    KEY key = {static_cast<uint64_t>(idNext),static_cast<uint64_t>(i),static_cast<uint64_t>(expected),static_cast<uint64_t>(nData-i)};
+		    auto uHash = mdl::murmur::murmur<4>(key.data());
+		    auto data = static_cast<uint64_t*>(mdlKeyFetch(mdl,0,uHash,&key));
+		    if (data == nullptr || *data != expected) ++nBAD;
+		    }
+#if 1
+		// These should be cache misses
+		for(auto i=idSelf; i<nData; i += nThreads) {
+		    auto expected = (0xfacefeed ^ idNext ^ i);
+		    KEY key = {static_cast<uint64_t>(idNext),static_cast<uint64_t>(i),static_cast<uint64_t>(expected),static_cast<uint64_t>(nData-i)};
+		    auto uHash = mdl::murmur::murmur<4>(key.data());
+		    auto data = static_cast<uint64_t*>(mdlKeyFetch(mdl,0,uHash,&key));
+		    if (data != nullptr) ++nBAD;
+		    }
+#endif
+		mdlFinishCache(ctx->getMDL(),0);
+
+		*pnBAD = nBAD;
+        	}
+
+	    return sizeof(*pnBAD);
+	    }
+
+	TEST_F(AdvancedCache, ReadOnly) {
+	    auto ctx = reinterpret_cast<worker::Context*>(mdlWORKER());
+	    std::uint64_t nBAD;
+	    test(ctx,NULL,0,&nBAD,sizeof(nBAD));
+	    EXPECT_EQ(nBAD,0);
+	    }
+	} // namespace ro
+    } // namespace advanced
+} // namespace test
 
 /*
 ** This function is called at the very start by every thread.
@@ -232,14 +430,12 @@ int test_flush_after_read(worker::Context *ctx,void *vin,int nIn,void *vout,int 
 void *worker_init(MDL mdl) {
     auto ctx = new worker::Context(mdl);
     mdlSetCacheSize(ctx->getMDL(),cacheSize); // Small cache to make it faster to test
-    mdlAddService(mdl,worker::SET_ADD,ctx,(fcnService_t*)SetAdd::serviceSetAdd,
-                  sizeof(SetAdd::inSetAdd),0);
-    mdlAddService(mdl,worker::TEST_RO,ctx,(fcnService_t*)test_ro,
-                  0,sizeof(std::uint64_t));
-    mdlAddService(mdl,worker::TEST_FLUSH,ctx,(fcnService_t*)test_flush,
-                  0,sizeof(std::uint64_t));
-    mdlAddService(mdl,worker::TEST_FLUSH_AFTER_READ,ctx,(fcnService_t*)test_flush_after_read,
-                  0,sizeof(std::uint64_t));
+    mdlAddService(mdl,worker::SET_ADD,ctx,(fcnService_t*)SetAdd::serviceSetAdd, sizeof(SetAdd::inSetAdd),0);
+    mdlAddService(mdl,test::hash::SERVICE,ctx,(fcnService_t*)test::hash::test, 0,sizeof(std::uint64_t));
+    mdlAddService(mdl,test::ro::SERVICE,ctx,(fcnService_t*)test::ro::test,0,sizeof(std::uint64_t));
+    mdlAddService(mdl,test::flush::SERVICE,ctx,(fcnService_t*)test::flush::test, 0,sizeof(std::uint64_t));
+    mdlAddService(mdl,test::flush::after_read::SERVICE,ctx,(fcnService_t*)test::flush::after_read::test,0,sizeof(std::uint64_t));
+    mdlAddService(mdl,test::advanced::ro::SERVICE,ctx,(fcnService_t*)test::advanced::ro::test,0,sizeof(std::uint64_t));
     return ctx;
     }
 
@@ -252,34 +448,6 @@ void worker_done(MDL mdl, void *vctx) {
 
     delete ctx;
     }
-
-namespace {
-
-class CacheTest : public ::testing::Test {
-    };
-
-
-TEST_F(CacheTest, CacheReadWorks) {
-    auto ctx = reinterpret_cast<worker::Context*>(mdlWORKER());
-    std::uint64_t nBAD;
-    test_ro(ctx,NULL,0,&nBAD,sizeof(nBAD));
-    EXPECT_EQ(nBAD,0);
-    }
-
-TEST_F(CacheTest, CacheFlushWorks) {
-    auto ctx = reinterpret_cast<worker::Context*>(mdlWORKER());
-    std::uint64_t nBAD;
-    test_flush(ctx,NULL,0,&nBAD,sizeof(nBAD));
-    EXPECT_EQ(nBAD,0);
-    }
-
-TEST_F(CacheTest, CacheFlushAfterReadWorks) {
-    auto ctx = reinterpret_cast<worker::Context*>(mdlWORKER());
-    std::uint64_t nBAD;
-    test_flush_after_read(ctx,NULL,0,&nBAD,sizeof(nBAD));
-    EXPECT_EQ(nBAD,0);
-    }
-
 
 }  // namespace
 

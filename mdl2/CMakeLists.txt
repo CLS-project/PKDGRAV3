@@ -40,7 +40,6 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 
 target_sources(${PROJECT_NAME}
   PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/mpi/mdl.cxx
-          ${CMAKE_CURRENT_SOURCE_DIR}/mpi/arc.cxx
           ${CMAKE_CURRENT_SOURCE_DIR}/mpi/mdlmessages.cxx
           ${CMAKE_CURRENT_SOURCE_DIR}/mdlbase.cxx
   PUBLIC  ${CMAKE_CURRENT_SOURCE_DIR}/mpi/mdl.h

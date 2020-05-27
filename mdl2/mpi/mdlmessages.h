@@ -15,6 +15,7 @@ enum class CacheMessageType : uint8_t {
     };
 
 #define MDL_FLUSH_DATA_SIZE	32000
+#define MDL_MAX_KEY_SIZE 128
 
 struct ServiceHeader {
     int32_t idFrom;      /* Global thread ID */
@@ -48,7 +49,7 @@ public:
     void emptyBuffer() {nBuffer=0;}
     void setRankTo(uint32_t iRank) { iRankTo=iRank; }
     bool canBuffer(int nSize) { return nBuffer+nSize+sizeof(ServiceHeader) <= MDL_FLUSH_DATA_SIZE; }
-    bool addBuffer(int nSize, const char *pData=0);
+    bool addBuffer(int nSize, const void *pData=0);
     bool addBuffer(uint8_t cid, int32_t idFrom, int32_t idTo, int32_t iLine, int nSize=0, const char *pData=0);
     bool addBuffer(int nSize, const CacheHeader *pData);
     };
@@ -297,18 +298,23 @@ public:
     mdlMessageSendReply & makeReply(int32_t idFrom,int16_t replyTag,int16_t sid,int target,int32_t count);
     };
 
-class mdlMessageCacheRequest : public mdlMessageBufferedMPI {
+struct mdlCacheRequestData {
+    CacheHeader header;         // Request header
+    char key[MDL_MAX_KEY_SIZE]; // Optional advanced key
+    };
+
+class mdlMessageCacheRequest : public mdlMessageBufferedMPI, protected mdlCacheRequestData {
 protected:
     friend class mdlClass;
     friend class mpiClass;
-    CacheHeader header;
-    void *pLine;
+    void *pLine = nullptr;
+    uint32_t key_size = 0;
 public:
     virtual void action(class mpiClass *mdl);
     virtual void finish(class mpiClass *mdl, const MPI_Status &status);
     explicit mdlMessageCacheRequest(uint8_t cid, int32_t idFrom);
     explicit mdlMessageCacheRequest(uint8_t cid, int32_t idFrom, uint16_t nItems, int32_t idTo, int32_t iLine, void *pLine);
-    mdlMessageCacheRequest & makeCacheRequest(uint16_t nItems, int32_t idTo, int32_t iLine, void *pLine);
+    mdlMessageCacheRequest & makeCacheRequest(uint16_t nItems, int32_t idTo, int32_t iLine, uint32_t size, const void *pKey, void *pLine);
     };
 } // namespace mdl
 #endif

@@ -115,7 +115,6 @@ void *mdlWORKER(void) { return pthread_getspecific(worker_key); }
 // A list of cache tables is constructed when mdlClass is created. They are all set to NOCACHE.
 CACHE::CACHE(mdlClass * mdl,uint16_t iCID)
     : mdl(mdl), iType(Type::NOCACHE), iCID(iCID), CacheRequest(iCID,mdl->Self()) {
-    arc = new ARC<>();
     }
 
 // This opens a read-only cache. Called from a worker outside of MDL
@@ -160,6 +159,30 @@ CACHE *mdlClass::CacheInitialize(
     enqueueAndWait(mdlMessageCacheOpen());
 
     return(c);
+    }
+
+extern "C"
+void mdlAdvancedCacheRO(MDL mdl,int cid,void *pHash,int iDataSize) {
+    auto hash = reinterpret_cast<hash::GHASH*>(pHash);
+    reinterpret_cast<mdlClass *>(mdl)->AdvancedCacheInitialize(cid,hash,iDataSize);
+    }
+
+CACHE *mdlClass::AdvancedCacheInitialize(int cid,hash::GHASH *hash,int iDataSize) {
+    assert(cid >= 0 && cid <cache.size());
+    if (cid<0 || cid >= cache.size()) abort();
+    auto c = &cache[cid];
+    c->initialize_advanced(cacheSize,hash,iDataSize);
+
+    /* Nobody should start using this cache until all threads have started it! */
+    ThreadBarrier(true);
+
+    /* We might need to resize the cache buffer */
+    enqueueAndWait(mdlMessageCacheOpen());
+
+    return(c);
+
+
+    return nullptr;
     }
 
 // Open the cache by posting the receive if required
@@ -221,11 +244,13 @@ void CACHE::initialize(uint32_t cacheSize,
     void *ctx,void (*init)(void *,void *),void (*combine)(void *,void *,void *) ) {
 
     assert(iType == Type::NOCACHE);
+    assert(arc_cache==NULL);
+    arc_cache = new ARC<>();
 
     this->getElt = getElt==NULL ? getArrayElement : getElt;
     this->pData = pData;
-    this->iDataSize = iDataSize;
     this->nData = nData;
+    this->iDataSize = iDataSize;
 
     if (iDataSize > MDL_CACHE_DATA_SIZE) nLineBits = 0;
     else nLineBits = log2(MDL_CACHE_DATA_SIZE / iDataSize);
@@ -241,7 +266,7 @@ void CACHE::initialize(uint32_t cacheSize,
 
     nAccess = nMiss = 0; // Clear statistics. Are these even used any more?
 
-    arc->initialize(this,cacheSize,iLineSize,nLineBits);
+    arc_cache->initialize(this,cacheSize,iLineSize,nLineBits);
 
     /* Read-only or combiner caches */
     assert( init==NULL && combine==NULL || init!=NULL && combine!=NULL );
@@ -251,9 +276,28 @@ void CACHE::initialize(uint32_t cacheSize,
     this->ctx = ctx;
     }
 
+void CACHE::initialize_advanced(uint32_t cacheSize,hash::GHASH *hash,int iDataSize) {
+    hash_table = hash;
+    arc_cache = hash_table->clone();
+    this->pData = nullptr;
+    this->nData = 0;
+
+    this->iDataSize = this->iLineSize = iDataSize;
+    nLineBits = 0;
+    nAccess = nMiss = 0; // Clear statistics. Are these even used any more?
+
+    arc_cache->initialize(this,cacheSize,iLineSize,nLineBits);
+    this->iType = Type::ROCACHE;
+    this->init = nullptr;
+    this->combine = nullptr;
+    }
+
 // When we are finished using the cache, it is marked as complete. All elements should have been flushed by now.
 void CACHE::close() {
     iType = Type::NOCACHE;
+    delete arc_cache;
+    arc_cache = nullptr;
+    hash_table = nullptr;
     }
 
 /*****************************************************************************\
@@ -263,33 +307,41 @@ void CACHE::close() {
 /* Does not lock the element */
 extern "C"
 void *mdlFetch(MDL mdl,int cid,int iIndex,int id) {
-    const int lock = 0;  /* we never lock in fetch */
-    const int modify = 0; /* fetch can never modify */
-    const bool virt = false; /* really fetch the element */
+    const bool lock   = false; // we never lock in fetch
+    const bool modify = false; // fetch can never modify
+    const bool virt   = false; // really fetch the element
     return reinterpret_cast<mdlClass *>(mdl)->Access(cid, iIndex, id, lock, modify, virt);
+    }
+
+extern "C"
+void *mdlKeyFetch(MDL mdl,int cid,uint32_t uHash, void *pKey) {
+    const bool lock   = false; // we never lock in fetch
+    const bool modify = false; // fetch can never modify
+    const bool virt   = false; // really fetch the element
+    return reinterpret_cast<mdlClass *>(mdl)->Access(cid, uHash, pKey, lock, modify, virt);
     }
 
 /* Locks, so mdlRelease must be called eventually */
 extern "C"
 void *mdlAcquire(MDL cmdl,int cid,int iIndex,int id) {
     mdlClass *mdl = reinterpret_cast<mdlClass *>(cmdl);
-    const int lock = 1;  /* we always lock in acquire */
-    const int modify = (mdl->cache[cid].getType() == CACHE::Type::COCACHE);
-    const bool virt = false; /* really fetch the element */
+    const bool lock   = true;  // we always lock in acquire
+    const bool modify = (mdl->cache[cid].getType() == CACHE::Type::COCACHE);
+    const bool virt   = false; // really fetch the element
     return mdl->Access(cid, iIndex, id, lock, modify, virt);
     }
 
 /* Locks the element, but does not fetch or initialize */
 extern "C"
 void *mdlVirtualFetch(MDL mdl,int cid,int iIndex,int id) {
-    const int lock = 0; /* fetch never locks */
-    const int modify = 1; /* virtual always modifies */
-    const bool virt = true; /* do not fetch the element */
+    const int lock   = false; // fetch never locks
+    const int modify = true;  // virtual always modifies
+    const bool virt  = true;  // do not fetch the element
     return reinterpret_cast<mdlClass *>(mdl)->Access(cid, iIndex, id, lock, modify, virt);
     }
 
 // main routine to perform an immediate cache request. Does not return until the cache element is present
-void *mdlClass::Access(int cid, uint32_t uIndex, int uId, int bLock,int bModify,bool bVirtual) {
+void *mdlClass::Access(int cid, uint32_t uIndex, int uId, bool bLock,bool bModify,bool bVirtual) {
     CACHE *c = &cache[cid];
 
     if (!(++c->nAccess & mdl_check_mask)) CacheCheck(); // For non-dedicated MPI thread we periodically check for messages
@@ -301,19 +353,33 @@ void *mdlClass::Access(int cid, uint32_t uIndex, int uId, int bLock,int bModify,
 	c = &omdl->cache[cid];
 	return c->getElement(uIndex);
 	}
-
     // Retreive the element from the ARC cache. If it is not present then the ARC class will
     // call invokeRequest to initiate the fetch, then finishRequest to copy the result into the cache
     return c->fetch(uIndex,uId,bLock,bModify,bVirtual); // Otherwise we look it up in the cache, or fetch it remotely
     }
 
+// main routine to perform an immediate cache request. Does not return until the cache element is present
+void *mdlClass::Access(int cid, uint32_t uHash, void *pKey, bool bLock,bool bModify,bool bVirtual) {
+    CACHE *c = &cache[cid];
+
+    if (!(++c->nAccess & mdl_check_mask)) CacheCheck(); // For non-dedicated MPI thread we periodically check for messages
+
+    // Retreive the element from the ARC cache. If it is not present then the ARC class will
+    // call invokeRequest to initiate the fetch, then finishRequest to copy the result into the cache
+    return c->fetch(uHash,pKey,bLock,bModify,bVirtual); // Otherwise we look it up in the cache, or fetch it remotely
+    }
+
+uint32_t CACHE::getThread(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey) {
+    return * static_cast<const uint64_t*>(pKey); // FIXME: not correct -- TESTING
+    }
+
 // When we are missing a cache element then we ask the MPI thread to send a request to the remote node
-void CACHE::invokeRequest(uint32_t uLine, uint32_t uId, const void *pKey, bool bVirtual) {
+void CACHE::invokeRequest(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey, bool bVirtual) {
     uint32_t uCore = uId - mdl->mpi->Self();
     ++nMiss;
     mdl->TimeAddComputing();
     if (!bVirtual && uCore >= mdl->Cores()) { // Only send a request if non-Virtual and remote
-	mdl->enqueue(CacheRequest.makeCacheRequest(getLineElementCount(), uId, uLine, OneLine.data()), mdl->queueCacheReply);
+	mdl->enqueue(CacheRequest.makeCacheRequest(getLineElementCount(), uId, uLine, size, pKey, OneLine.data()), mdl->queueCacheReply);
 	}
     }
 
@@ -324,7 +390,7 @@ void mpiClass::MessageCacheRequest(mdlMessageCacheRequest *message) {
     iProc = ThreadToProc(message->header.idTo);
     SendReceiveRequests.emplace_back();
     SendReceiveMessages.push_back(message);
-    MPI_Isend(&message->header,sizeof(message->header),MPI_BYTE,iProc,MDL_TAG_CACHECOM, commMDL,&SendReceiveRequests.back());
+    MPI_Isend(&message->header,sizeof(message->header)+message->key_size,MPI_BYTE,iProc,MDL_TAG_CACHECOM, commMDL,&SendReceiveRequests.back());
     }
 
 // On the remote node, the message is received, and a response is constructed with the data
@@ -332,7 +398,8 @@ void mpiClass::MessageCacheRequest(mdlMessageCacheRequest *message) {
 // to remotely "read" part of an element that is also being modified. Results are "unpredictable".
 // Instead, one is expected to initialize such data via the "init" function.
 void mpiClass::CacheReceiveRequest(int count, const CacheHeader *ph) {
-    assert( count == sizeof(CacheHeader) );
+    assert( count >= sizeof(CacheHeader) );
+    auto key_size = count - sizeof(CacheHeader);
     int iCore = ph->idTo - Self();
     assert(iCore>=0 && iCore<Cores());
     int iRankFrom = ThreadToProc(ph->idFrom); /* Can use iRankFrom */
@@ -343,12 +410,19 @@ void mpiClass::CacheReceiveRequest(int count, const CacheHeader *ph) {
     reply->setRankTo(iRankFrom);
     reply->addBuffer(ph->cid,Self(),ph->idFrom,ph->iLine);
     CACHE *c = &pmdl[iCore]->cache[ph->cid];
-    int s = ph->iLine << c->nLineBits;
-    int n = s + c->getLineElementCount();
     int iLineSize = c->iLineSize;
-    for(auto i=s; i<n; i++ ) {
-	char *t = (i<c->nData) ? reinterpret_cast<char *>(c->getElement(i)) : NULL;
-	reply->addBuffer(c->iDataSize,t);
+    if (key_size) { // ADVANCED KEY
+	assert(c->hash_table);
+	void *data = c->hash_table->lookup(ph->iLine,ph+1);
+	if (data) reply->addBuffer(iLineSize,data);
+	}
+    else { // SIMPLE KEY
+	int s = ph->iLine << c->nLineBits;
+	int n = s + c->getLineElementCount();
+	for(auto i=s; i<n; i++ ) {
+	    char *t = (i<c->nData) ? reinterpret_cast<char *>(c->getElement(i)) : NULL;
+	    reply->addBuffer(c->iDataSize,t);
+	    }
 	}
     reply->action(this); // MessageCacheReply()
     }
@@ -374,24 +448,27 @@ void mpiClass::CacheReceiveReply(int count, const CacheHeader *ph) {
     assert(iCore>=0 && iCore<Cores());
     CACHE *c = &pmdl[iCore]->cache[ph->cid];
     int iLineSize = c->iLineSize;
-    assert( count == sizeof(CacheHeader) + iLineSize );
+    assert( count == sizeof(CacheHeader) + iLineSize || count == sizeof(CacheHeader));
     if (CacheRequestMessages[iCore]) { // This better be true (unless we implement prefetch)
 	mdlMessageCacheRequest *pRequest = CacheRequestMessages[iCore];
 	CacheRequestMessages[iCore] = NULL;
-	pRequest->header.nItems = ph->nItems;
-	memcpy(pRequest->pLine,ph+1,iLineSize);
+	if (count == sizeof(CacheHeader) + iLineSize) {
+	    pRequest->header.nItems = ph->nItems;
+	    memcpy(pRequest->pLine,ph+1,iLineSize);
+	    }
+	else pRequest->header.nItems = 0;
 	pRequest->sendBack();
 	}
     }
 
 // Later when we have found an empty cache element, this is called to wait for the result
 // and to copy it into the buffer area.
-void CACHE::finishRequest(uint32_t uLine, uint32_t uId, const void *pKey, bool bVirtual, void *data) {
-    mdl->finishCacheRequest(uLine,uId,iCID,data,bVirtual);
+bool CACHE::finishRequest(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey, bool bVirtual, void *data) {
+    return mdl->finishCacheRequest(uLine,uId,size,pKey,iCID,data,bVirtual);
     mdl->TimeAddWaiting();
     }
 
-void mdlClass::finishCacheRequest(uint32_t uLine, uint32_t uId, int cid, void *data, bool bVirtual) {
+bool mdlClass::finishCacheRequest(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey, int cid, void *data, bool bVirtual) {
     int iCore = uId - mpi->Self();
     CACHE *c = &cache[cid];
     int i,s,n;
@@ -409,16 +486,26 @@ void mdlClass::finishCacheRequest(uint32_t uLine, uint32_t uId, int cid, void *d
     else if (iCore >= 0 && iCore < Cores() ) {
 	mdlClass * omdl = pmdl[iCore];
 	CACHE *oc = &omdl->cache[cid];
-	if ( n > oc->nData ) n = oc->nData;
-	auto pData = reinterpret_cast<char *>(data);
-	for(i=s; i<n; i++ ) {
-	    memcpy(pData,oc->getElement(i),oc->iDataSize);
-	    pData += oc->iDataSize;
+	if (size) {
+	    auto pData = oc->lookup(uLine,pKey);
+	    if (pData) memcpy(data,pData,oc->iLineSize);
+	    else return false;
+	    }
+	else {
+	    if ( n > oc->nData ) n = oc->nData;
+	    auto pData = reinterpret_cast<char *>(data);
+	    for(i=s; i<n; i++ ) {
+		memcpy(pData,oc->getElement(i),oc->iDataSize);
+		pData += oc->iDataSize;
+		}
 	    }
 	}
     // Here we wait for the reply, and copy the data into the ARC cache
     else {
-	waitQueue(queueCacheReply);
+	mdlMessageCacheRequest &M = dynamic_cast<mdlMessageCacheRequest&>(waitQueue(queueCacheReply));
+	if (M.header.nItems==0) return false;
+//	waitQueue(queueCacheReply);
+
 	memcpy(data,c->OneLine.data(), c->iLineSize);
 	}
 
@@ -430,6 +517,7 @@ void mdlClass::finishCacheRequest(uint32_t uLine, uint32_t uId, int cid, void *d
 	    pData += c->iDataSize;
 	    }
 	}
+    return true;
     }
 
 /*****************************************************************************\
@@ -437,7 +525,7 @@ void mdlClass::finishCacheRequest(uint32_t uLine, uint32_t uId, int cid, void *d
 \*****************************************************************************/
 
 // When we need to evict an element (especially at the end) this routine is called by the ARC cache.
-void CACHE::flushElement( uint32_t uLine, uint32_t uId, const void *pKey, const void *data) {
+void CACHE::flushElement( uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey, const void *data) {
     if (!mdl->coreFlushBuffer->canBuffer(iLineSize)) mdl->flush_core_buffer();
     mdl->coreFlushBuffer->addBuffer(iCID,mdlSelf(mdl),uId,uLine,iLineSize,(char *)data);
     }
@@ -593,7 +681,7 @@ void mdlClass::MessageFlushToCore(mdlMessageFlushToCore *pFlush) {
     pFlush->sendBack();
     }
 
-void CACHE::combineElement(uint32_t uLine, uint32_t uId, const void *pKey, const void *data) {
+void CACHE::combineElement(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey, const void *data) {
 	
     }
 
