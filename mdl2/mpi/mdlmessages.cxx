@@ -10,6 +10,13 @@ void mdlMessage::result(class mdlClass *mdl) {}
 
 FlushBuffer::FlushBuffer(uint32_t nSize,CacheMessageType mid) : nBuffer(0),Buffer(nSize),mid(mid) {}
 
+void*FlushBuffer::getBuffer(int nSize) {
+    if (nBuffer+nSize > Buffer.size()) return nullptr;
+    auto data = &Buffer[nBuffer];
+    nBuffer += nSize;
+    return data;
+    }
+
 bool FlushBuffer::addBuffer(int nSize, const void *pData) {
     if (nBuffer+nSize > Buffer.size()) return false;
     if (pData) memcpy(&Buffer[nBuffer],pData,nSize);
@@ -18,7 +25,7 @@ bool FlushBuffer::addBuffer(int nSize, const void *pData) {
     return true;
     }
 
-bool FlushBuffer::addBuffer(uint8_t cid, int32_t idFrom, int32_t idTo, int32_t iLine, int nSize, const char *pData) {
+bool FlushBuffer::addBuffer(uint8_t cid, int32_t idFrom, int32_t idTo, int32_t iLine, int nSize, const void *pData) {
     if (!canBuffer(nSize)) return false;
     CacheHeader *ca = reinterpret_cast<CacheHeader*>(&Buffer.front() + nBuffer);
     char *pBuffer = reinterpret_cast<char *>(ca+1);

@@ -88,9 +88,9 @@ static void initMinPot(void *vpkd,void *v) {
     g->minPot = HUGE_VALF;  /* make sure it is always set */
     }
 
-static void combMinPot(void *vpkd, void *v1, void *v2) {
+static void combMinPot(void *vpkd, void *v1, const void *v2) {
     TinyGroupTable *g1 = (TinyGroupTable *)v1;
-    TinyGroupTable *g2 = (TinyGroupTable *)v2;
+    const TinyGroupTable *g2 = (const TinyGroupTable *)v2;
     int j;
    
     if (g2->minPot < g1->minPot) {
@@ -114,9 +114,9 @@ static void initTinyGroup(void *vpkd, void *v) {
     g->rMax =  0.0;
     }
 
-static void combTinyGroup(void *vpkd, void *v1, void *v2) {
+static void combTinyGroup(void *vpkd, void *v1, const void *v2) {
     TinyGroupTable *g1 = (TinyGroupTable *)v1;
-    TinyGroupTable *g2 = (TinyGroupTable *)v2;
+    const TinyGroupTable *g2 = (const TinyGroupTable *)v2;
     float x;
     int j;
 
@@ -137,9 +137,9 @@ static void initTinyRmax(void *vpkd, void *v) {
     g->rMax =  0.0;
     }
 
-static void combTinyRmax(void *vpkd, void *v1, void *v2) {
+static void combTinyRmax(void *vpkd, void *v1, const void *v2) {
     TinyGroupTable *g1 = (TinyGroupTable *)v1;
-    TinyGroupTable *g2 = (TinyGroupTable *)v2;
+    const TinyGroupTable *g2 = (const TinyGroupTable *)v2;
 
     if (g2->rMax > g1->rMax) g1->rMax = g2->rMax;
     }
@@ -161,9 +161,9 @@ static void initShrink(void *vpkd, void *v) {
     g->nEnclosed = 0;
     }
 
-static void combShrink(void *vpkd, void *v1, void *v2) {
+static void combShrink(void *vpkd, void *v1, const void *v2) {
     ShrinkStruct *g1 = (ShrinkStruct *)v1;
-    ShrinkStruct *g2 = (ShrinkStruct *)v2;
+    const ShrinkStruct *g2 = (const ShrinkStruct *)v2;
     float x;
     int j;
 
@@ -188,9 +188,9 @@ static void initAngular(void *vpkd, void *v) {
 	}
     }
 
-static void combAngular(void *vpkd, void *v1, void *v2) {
+static void combAngular(void *vpkd, void *v1, const void *v2) {
     TinyGroupTable *g1 = (TinyGroupTable *)v1;
-    TinyGroupTable *g2 = (TinyGroupTable *)v2;
+    const TinyGroupTable *g2 = (const TinyGroupTable *)v2;
     float x;
     int j;
 
@@ -215,9 +215,9 @@ static void initRoot(void *vpkd, void *v) {
     g->fMass = 0.0;
     }
 
-static void combRoot(void *vpkd, void *v1, void *v2) {
+static void combRoot(void *vpkd, void *v1, const void *v2) {
     MassRadius *g1 = (MassRadius *)v1;
-    MassRadius *g2 = (MassRadius *)v2;
+    const MassRadius *g2 = (const MassRadius *)v2;
 
     g1->fMass += g2->fMass;
     }

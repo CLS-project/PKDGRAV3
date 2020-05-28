@@ -24,10 +24,10 @@
 #include <math.h>
 
 static void initJoinLoops(void *vctx, void *v) {}
-static void combJoinLoops(void *vctx, void *v1, void *v2) {
+static void combJoinLoops(void *vctx, void *v1, const void *v2) {
     SMF *smf = (SMF *)vctx;
     GHtmpGroupTable * g1 = (GHtmpGroupTable *)v1;
-    GHtmpGroupTable * g2 = (GHtmpGroupTable *)v2;
+    const GHtmpGroupTable * g2 = (const GHtmpGroupTable *)v2;
     if ( g1->iPid>g2->iPid || (g1->iPid==g2->iPid && g1->iIndex>g2->iIndex) ) {
 	g1->iPid = g2->iPid;
 	g1->iIndex = g2->iIndex;
@@ -36,10 +36,10 @@ static void combJoinLoops(void *vctx, void *v1, void *v2) {
     }
 
 static void initSetArc(void *vpkd, void *v) {}
-static void combSetArc(void *vpkd, void *v1, void *v2) {
+static void combSetArc(void *vpkd, void *v1, const void *v2) {
     PKD pkd = (PKD) vpkd;
     PARTICLE * p1 = (PARTICLE *)v1;
-    PARTICLE * p2 = (PARTICLE *)v2;
+    const PARTICLE * p2 = (const PARTICLE *)v2;
     if (p2->bMarked) p1->bMarked = 1;
     assert( pkdGetGroup(pkd,p1) == pkdGetGroup(pkd,p2) );
     }
@@ -463,10 +463,10 @@ static void initHopGetRoots(void *vpkd, void *v) {
     g->iGlobalId = 0;
     }
 
-static void combHopGetRoots(void *vctx, void *v1, void *v2) {
+static void combHopGetRoots(void *vctx, void *v1, const void *v2) {
     PKD pkd = (PKD)vctx;
     HopGroupTable * g1 = (HopGroupTable *)v1;
-    HopGroupTable * g2 = (HopGroupTable *)v2;
+    const HopGroupTable * g2 = (const HopGroupTable *)v2;
 
     if (g2->iGlobalId) {
 	int gid = g1 - pkd->hopGroups;
@@ -607,9 +607,9 @@ static int cmpEE(const void *p1,const void *p2) {
     }
 
 static void initMaxHopEnergy(void *vpkd, void *v) {}
-static void combMaxHopEnergy(void *vctx, void *v1, void *v2) {
+static void combMaxHopEnergy(void *vctx, void *v1, const void *v2) {
     HopGroupTable * g1 = (HopGroupTable *)v1;
-    HopGroupTable * g2 = (HopGroupTable *)v2;
+    const HopGroupTable * g2 = (const HopGroupTable *)v2;
     if (g2->dEnergy > g1->dEnergy) g1->dEnergy = g2->dEnergy;
     }
 

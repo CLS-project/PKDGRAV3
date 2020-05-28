@@ -161,9 +161,9 @@ int pkdGroupCombineDuplicateIds(PKD pkd, int nGroups, struct smGroupArray *ga,in
 
 
 static void initMaxnGroup(void *vpkd, void *v) {}
-static void combMaxnGroup(void *vctx, void *v1, void *v2) {
+static void combMaxnGroup(void *vctx, void *v1, const void *v2) {
     struct smGroupArray * g1 = (struct smGroupArray *)v1;
-    struct smGroupArray * g2 = (struct smGroupArray *)v2;
+    const struct smGroupArray * g2 = (const struct smGroupArray *)v2;
     /* Remember: nTotal is really MAX(nLocal) here. */
     if (g2->nTotal > g1->nTotal) {
 	g1->nTotal = g2->nTotal;
@@ -227,9 +227,9 @@ static void initTotalnGroup(void *vpkd, void *v) {
     struct smGroupArray * g = (struct smGroupArray *)v;
     g->nTotal = 0;
     }
-static void combTotalnGroup(void *vctx, void *v1, void *v2) {
+static void combTotalnGroup(void *vctx, void *v1, const void *v2) {
     struct smGroupArray * g1 = (struct smGroupArray *)v1;
-    struct smGroupArray * g2 = (struct smGroupArray *)v2;
+    const struct smGroupArray * g2 = (const struct smGroupArray *)v2;
     g1->nTotal += g2->nTotal;
     }
 

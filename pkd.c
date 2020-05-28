@@ -2297,10 +2297,10 @@ static uint32_t SumWithSaturate(uint32_t a,uint32_t b) {
     else return sum;
     }
 
-static void combHealpix(void *vctx, void *v1, void *v2) {
+static void combHealpix(void *vctx, void *v1, const void *v2) {
     PKD pkd = (PKD)vctx;
     healpixData * m1 = (healpixData *)v1;
-    healpixData * m2 = (healpixData *)v2;
+    const healpixData * m2 = (const healpixData *)v2;
     m1->nGrouped = SumWithSaturate(m1->nGrouped,m2->nGrouped);
     m1->nUngrouped = SumWithSaturate(m1->nUngrouped,m2->nUngrouped);
     m1->fPotential += m2->fPotential;

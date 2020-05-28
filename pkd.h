@@ -1153,6 +1153,12 @@ static inline void pkdSwapParticle(PKD pkd, PARTICLE *a, PARTICLE *b) {
     pkdLoadParticle(pkd,b);
     }
 
+static inline const void *pkdFieldRO( const PARTICLE *p, int iOffset ) {
+    const char *v = (const char *)p;
+    /*assert(iOffset);*/ /* Remove this for better performance */
+    return (const void *)(v + iOffset);
+    }
+
 static inline void *pkdField( PARTICLE *p, int iOffset ) {
     char *v = (char *)p;
     /*assert(iOffset);*/ /* Remove this for better performance */
@@ -1169,10 +1175,10 @@ static inline int pkdIsFieldPresent(PKD pkd, enum PKD_FIELD field) {
     return pkd->oFieldOffset[field] != 0;
     }
 
-static inline int32_t pkdGetGroup( PKD pkd, PARTICLE *p ) {
-    if (pkd->bNoParticleOrder) return ((UPARTICLE *)p)->iGroup;
+static inline int32_t pkdGetGroup( PKD pkd, const PARTICLE *p ) {
+    if (pkd->bNoParticleOrder) return ((const UPARTICLE *)p)->iGroup;
     assert(pkd->oFieldOffset[oGroup]);
-    return CAST(int32_t *, pkdField(p,pkd->oFieldOffset[oGroup]))[0];
+    return CAST(const int32_t *, pkdFieldRO(p,pkd->oFieldOffset[oGroup]))[0];
     }
 
 static inline void pkdSetGroup( PKD pkd, PARTICLE *p, uint32_t gid ) {
@@ -1180,9 +1186,9 @@ static inline void pkdSetGroup( PKD pkd, PARTICLE *p, uint32_t gid ) {
     else if (pkd->oFieldOffset[oGroup]) CAST(int32_t *, pkdField(p,pkd->oFieldOffset[oGroup]))[0] = gid;
     }
 
-static inline float pkdDensity( PKD pkd, PARTICLE *p ) {
+static inline float pkdDensity( PKD pkd, const PARTICLE *p ) {
     assert(pkd->oFieldOffset[oDensity]);
-    return * CAST(float *, pkdField(p,pkd->oFieldOffset[oDensity]));
+    return * CAST(const float *, pkdFieldRO(p,pkd->oFieldOffset[oDensity]));
     }
 static inline void pkdSetDensity( PKD pkd, PARTICLE *p, float fDensity ) {
     if (pkd->oFieldOffset[oDensity]) *CAST(float *, pkdField(p,pkd->oFieldOffset[oDensity])) = fDensity;
@@ -1261,6 +1267,9 @@ static inline vel_t *pkdVel( PKD pkd, PARTICLE *p ) {
 static inline float *pkdAccel( PKD pkd, PARTICLE *p ) {
     return CAST(float *,pkdField(p,pkd->oFieldOffset[oAcceleration]));
     }
+static inline const float *pkdAccelRO( PKD pkd, const PARTICLE *p ) {
+    return CAST(const float *,pkdFieldRO(p,pkd->oFieldOffset[oAcceleration]));
+    }
 static inline float *pkdPot( PKD pkd, PARTICLE *p ) {
     return pkd->oFieldOffset[oPotential] ? CAST(float *,pkdField(p,pkd->oFieldOffset[oPotential])) : NULL;
     }
@@ -1273,6 +1282,9 @@ static inline uint64_t *pkdParticleID( PKD pkd, PARTICLE *p ) {
 /* Sph variables */
 static inline SPHFIELDS *pkdSph( PKD pkd, PARTICLE *p ) {
     return ((SPHFIELDS *) pkdField(p,pkd->oFieldOffset[oSph]));
+    }
+static inline const SPHFIELDS *pkdSphRO( PKD pkd, const PARTICLE *p ) {
+    return ((const SPHFIELDS *) pkdFieldRO(p,pkd->oFieldOffset[oSph]));
     }
 static inline STARFIELDS *pkdStar( PKD pkd, PARTICLE *p ) {
     return ((STARFIELDS *) pkdField(p,pkd->oFieldOffset[oStar]));

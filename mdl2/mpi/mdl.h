@@ -36,6 +36,7 @@
 #ifdef USE_CUDA
 #include "mdlcuda.h"
 #endif
+#include <memory>
 #include <tuple>
 #include <vector>
 #include <list>
@@ -94,9 +95,37 @@ typedef struct mdl_wq_node {
 
 //*****************************************************************************
 
+// This tell the cach how to marshall data
+//     pack - pack data from a table to an outgoing buffer
+//   unpack - expand data from a buffer to a cache element
+//     init - For a combiner cache perform the initialization of the element
+//            This is also called for a virtual fetch (pack/unpack skipped)
+//    flush - pack data from the cache into a buffer for flushing
+//  combine - expand data from the buffer into the original table
+class CACHEhelper {
+    friend class mdlClass;
+    friend class mpiClass;
+    friend class CACHE;
+protected:
+    uint32_t nData;   // Size of a data element in bytes
+    bool     bModify; // If this cache will be modified (and thus flushed)
+    virtual void    pack(void *dst, const void *src) { if (src) memcpy(dst,src,nData); else memset(dst,0,nData); }
+    virtual void  unpack(void *dst, const void *src) { memcpy(dst,src,nData); }
+    virtual void    init(void *dst) {}
+    virtual void   flush(void *dst, const void *src) { memcpy(dst,src,nData); }
+    virtual void combine(void *dst, const void *src) { memcpy(dst,src,nData); }
+    virtual void *create(uint32_t size, const void *pKey) { return nullptr; }
+    virtual uint32_t getThread(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey) {return uId;}
+    virtual bool  modify() {return bModify; }
+public:
+    explicit CACHEhelper(uint32_t nData, bool bModify=false) : nData(nData), bModify(bModify) {}
+    };
+
 class CACHE : private ARChelper {
     friend class mdlClass;
     friend class mpiClass;
+    std::shared_ptr<CACHEhelper> cache_helper;
+    std::unique_ptr<GARC> arc_cache;
 private:
     virtual uint32_t  getThread(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey)                            override;
     virtual void   flushElement(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey,          const void *data) override;
@@ -104,7 +133,6 @@ private:
     virtual bool  finishRequest(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey, bool bVirtual, void *data) override;
     virtual void combineElement(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey,          const void *data) override;
     hash::GHASH *hash_table = nullptr;
-    GARC *arc_cache = nullptr;
 
 protected:
     auto lookup(uint32_t uHash, const void *pKey) {
@@ -118,12 +146,6 @@ public:
 	{return arc_cache->fetch(uHash,pKey,bLock,bModify,bVirtual);}
     void release(void *p) {return arc_cache->release(p);}
     void clear() {arc_cache->clear();}
-public:
-    enum class Type : uint16_t {
-	NOCACHE = 0,
-	ROCACHE = 1,
-	COCACHE = 2,
-	};
 protected:
     static void *getArrayElement(void *vData,int i,int iDataSize);
 protected:
@@ -133,13 +155,13 @@ public:
     void initialize(uint32_t cacheSize,
 	void * (*getElt)(void *pData,int i,int iDataSize),
 	void *pData,int iDataSize,int nData,
-	void *ctx,void (*init)(void *,void *),void (*combine)(void *,void *,void *));
-    void initialize_advanced(uint32_t cacheSize,hash::GHASH *hash,int iDataSize);
+	std::shared_ptr<CACHEhelper> helper);
+
+    void initialize_advanced(uint32_t cacheSize,hash::GHASH *hash,int iDataSize,std::shared_ptr<CACHEhelper> helper);
 
 protected:
     void * (*getElt)(void *pData,int i,int iDataSize);
     void *pData;
-    Type iType;
     uint16_t iCID;
 public:
     int iDataSize;
@@ -149,10 +171,6 @@ public:
     uint32_t getLineMask()         const {return getLineElementCount()-1; }
     int iLineSize;
     std::vector<char> OneLine;
-
-    void *ctx;
-    void (*init)(void *,void *);
-    void (*combine)(void *,void *,void *);
     /*
      ** Statistics stuff.
      */
@@ -161,7 +179,9 @@ public:
 public:
     explicit CACHE(mdlClass * mdl,uint16_t iCID);
     void close();
-    Type getType() {return iType;}
+    bool isActive() {return cache_helper.get() != nullptr; }
+    bool modify() {return cache_helper->modify();}
+    uint32_t key_size() {return arc_cache->key_size();}
     void *getElement(int i) {return (*getElt)(pData,i,iDataSize);}
     };
 
@@ -275,8 +295,8 @@ public:
     CACHE *CacheInitialize(int cid,
 	void * (*getElt)(void *pData,int i,int iDataSize),
 	void *pData,int iDataSize,int nData,
-	void *ctx,void (*init)(void *,void *),void (*combine)(void *,void *,void *));
-    CACHE *AdvancedCacheInitialize(int cid,hash::GHASH *hash,int iDataSize);
+	std::shared_ptr<CACHEhelper> helper);
+    CACHE *AdvancedCacheInitialize(int cid,hash::GHASH *hash,int iDataSize,std::shared_ptr<CACHEhelper> helper);
 
     void FlushCache(int cid);
     void FinishCache(int cid);
@@ -555,16 +575,19 @@ void mdlROcache(MDL mdl,int cid,
 void mdlCOcache(MDL mdl,int cid,
 		void * (*getElt)(void *pData,int i,int iDataSize),
 		void *pData,int iDataSize,int nData,
-		void *ctx,void (*init)(void *,void *),void (*combine)(void *,void *,void *));
+		void *ctx,void (*init)(void *,void *),void (*combine)(void *,void *,const void *));
 void mdlAdvancedCacheRO(MDL mdl,int cid,void *pHash,int iDataSize);
+void mdlAdvancedCacheCO(MDL mdl,int cid,void *pHash,int iDataSize,
+	void *ctx,void (*init)(void *,void *),void (*combine)(void *,void *,const void *));
 void mdlFinishCache(MDL,int);
 void mdlCacheCheck(MDL);
 void mdlCacheBarrier(MDL,int);
 void mdlPrefetch(MDL mdl,int cid,int iIndex, int id);
 void *mdlAcquire(MDL mdl,int cid,int iIndex,int id);
 void *mdlFetch(MDL mdl,int cid,int iIndex,int id);
-void *mdlKeyFetch(MDL mdl,int cid,uint32_t uHash, void *pKey);
 void *mdlVirtualFetch(MDL mdl,int cid,int iIndex,int id);
+const void *mdlKeyFetch(MDL mdl,int cid,uint32_t uHash, void *pKey);
+void *mdlKeyAcquire(MDL mdl,int cid,uint32_t uHash, void *pKey);
 void mdlRelease(MDL,int,void *);
 void mdlFlushCache(MDL,int);
 void mdlThreadBarrier(MDL);

@@ -48,9 +48,10 @@ public:
     bool isEmpty() {return nBuffer==0;}
     void emptyBuffer() {nBuffer=0;}
     void setRankTo(uint32_t iRank) { iRankTo=iRank; }
-    bool canBuffer(int nSize) { return nBuffer+nSize+sizeof(ServiceHeader) <= MDL_FLUSH_DATA_SIZE; }
-    bool addBuffer(int nSize, const void *pData=0);
-    bool addBuffer(uint8_t cid, int32_t idFrom, int32_t idTo, int32_t iLine, int nSize=0, const char *pData=0);
+    bool canBuffer(int nSize) { return nBuffer+nSize+sizeof(ServiceHeader) <= Buffer.size(); }
+    void*getBuffer(int nSize);
+    bool addBuffer(int nSize, const void *pData);
+    bool addBuffer(uint8_t cid, int32_t idFrom, int32_t idTo, int32_t iLine, int nSize=0, const void *pData=0);
     bool addBuffer(int nSize, const CacheHeader *pData);
     };
 

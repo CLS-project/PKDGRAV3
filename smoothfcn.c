@@ -101,7 +101,7 @@ void initDensity(void *vpkd, void *p) {
     pkdSetDensity(vpkd,(PARTICLE *)p,0.0);
     }
 
-void combDensity(void *vpkd, void *p1,void *p2) {
+void combDensity(void *vpkd, void *p1,const void *p2) {
     pkdSetDensity(vpkd,p1,pkdDensity(vpkd,p1)+pkdDensity(vpkd,p2));
     }
 
@@ -287,7 +287,7 @@ void initDenDVDX(void *vpkd, void *p)
 {
 	}
 
-void combDenDVDX(void *vpkd, void *p1,void *p2)
+void combDenDVDX(void *vpkd, void *p1,const void *p2)
 {
 	}
 
@@ -416,12 +416,14 @@ void initSphForces(void *vpkd, void *vp) {
 	}
     }
 
-void combSphForces(void *vpkd, void *p1,void *p2) {
+void combSphForces(void *vpkd, void *p1,const void *p2) {
     PKD pkd = (PKD) vpkd;
     assert(!pkd->bNoParticleOrder);
     if (pkdIsActive(pkd,p1)) {
-	SPHFIELDS *psph1 = pkdSph(pkd,p1), *psph2 = pkdSph(pkd,p2);
-	float *a1 = pkdAccel(pkd,p1), *a2 = pkdAccel(pkd,p2);
+	SPHFIELDS *psph1 = pkdSph(pkd,p1);
+	const SPHFIELDS *psph2 = pkdSphRO(pkd,p2);
+	float *a1 = pkdAccel(pkd,p1);
+	const float *a2 = pkdAccelRO(pkd,p2);
 	psph1->uDot += psph2->uDot;
 	psph1->fMetalsDot += psph2->fMetalsDot;
 	a1[0] += a2[0];  
@@ -610,11 +612,12 @@ void initDistDeletedGas(void *vpkd,void *vp)
     }
 
 
-void combDistDeletedGas(void *vpkd,void *vp1,void *vp2)
+void combDistDeletedGas(void *vpkd,void *vp1,const void *vp2)
     {
     PKD pkd = (PKD) vpkd;
-    PARTICLE *p1 = vp1,*p2=vp2;
-    float *p1mass, *p2mass;
+    PARTICLE *p1 = vp1,*p2 = (void *)vp2;
+    float *p1mass;
+    const float *p2mass;
     double f1,f2,m;
     /*
      * Distribute u, v, and fMetals for particles returning from cache
@@ -622,7 +625,7 @@ void combDistDeletedGas(void *vpkd,void *vp1,void *vp2)
      */
     if (pkdIsDeleted(pkd,p1)) return; /* deleted */
 
-    p2mass = pkdField(p2,pkd->oFieldOffset[oMass]);
+    p2mass = pkdFieldRO(p2,pkd->oFieldOffset[oMass]);
     if (*p2mass > 0) {	
 	p1mass = pkdField(p1,pkd->oFieldOffset[oMass]);
 	m = (*p1mass+*p2mass);
@@ -743,10 +746,10 @@ void initDistSNEnergy(void *vpkd,void *vp)
     pkdSph(pkd,p)->fMetalsPred = 0;
     }
 
-void combDistSNEnergy(void *vpkd,void *vp1,void *vp2)
+void combDistSNEnergy(void *vpkd,void *vp1,const void *vp2)
     {
     PKD pkd = (PKD) vpkd;
-    PARTICLE *p1 = vp1,*p2=vp2;
+    PARTICLE *p1 = vp1,*p2=(void *)vp2;
     float *p1mass, *p2mass;
     double f1,f2,m;
     /*
@@ -906,16 +909,17 @@ void initMeanVel(void *vpkd, void *pvoid) {
     for(j=0;j<3;++j) pvel->vmean[j] = 0.0;
     }
 
-void combMeanVel(void *vpkd, void *p1void,void *p2void) {
+void combMeanVel(void *vpkd, void *p1void,const void *p2void) {
     PKD pkd = (PKD)vpkd;
     PARTICLE *p1 = p1void;
-    PARTICLE *p2 = p2void;
-    VELSMOOTH *p1vel, *p2vel;
+    const PARTICLE *p2 = p2void;
+    VELSMOOTH *p1vel;
+    const VELSMOOTH *p2vel;
     int j;
 
     assert(pkd);
     p1vel = pkdField(p1,pkd->oFieldOffset[oVelSmooth]);
-    p2vel = pkdField(p2,pkd->oFieldOffset[oVelSmooth]);
+    p2vel = pkdFieldRO(p2,pkd->oFieldOffset[oVelSmooth]);
 
     for (j=0;j<3;++j) p1vel->vmean[j] += p2vel->vmean[j];
     }
@@ -982,14 +986,15 @@ void initDivv(void *vpkd, void *pvoid) {
     pvel->divv = 0.0;
     }
 
-void combDivv(void *vpkd, void *p1void,void *p2void) {
+void combDivv(void *vpkd, void *p1void,const void *p2void) {
     PKD pkd = (PKD)vpkd;
-    VELSMOOTH *p1vel,*p2vel;
+    VELSMOOTH *p1vel;
+    const VELSMOOTH *p2vel;
     PARTICLE *p1 = p1void;
-    PARTICLE *p2 = p2void;
+    const PARTICLE *p2 = p2void;
     assert(pkd);
     p1vel = pkdField(p1,pkd->oFieldOffset[oVelSmooth]);
-    p2vel = pkdField(p2,pkd->oFieldOffset[oVelSmooth]);
+    p2vel = pkdFieldRO(p2,pkd->oFieldOffset[oVelSmooth]);
     p1vel->divv += p2vel->divv;
     }
 
@@ -1056,14 +1061,15 @@ void initVelDisp2(void *vpkd, void *pvoid) {
     pvel->veldisp2 = 0.0;
     }
 
-void combVelDisp2(void *vpkd, void *p1void,void *p2void) {
+void combVelDisp2(void *vpkd, void *p1void,const void *p2void) {
     PKD pkd = (PKD)vpkd;
     PARTICLE *p1 = p1void;
-    PARTICLE *p2 = p2void;
-    VELSMOOTH *p1vel,*p2vel;
+    const PARTICLE *p2 = p2void;
+    VELSMOOTH *p1vel;
+    const VELSMOOTH *p2vel;
     assert(pkd);
     p1vel = pkdField(p1,pkd->oFieldOffset[oVelSmooth]);
-    p2vel = pkdField(p2,pkd->oFieldOffset[oVelSmooth]);
+    p2vel = pkdFieldRO(p2,pkd->oFieldOffset[oVelSmooth]);
     p1vel->veldisp2 += p2vel->veldisp2;
     }
 

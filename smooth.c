@@ -226,7 +226,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
     SMX smx;
     void (*initParticle)(void *,void *) = NULL;
     void (*init)(void *,void *) = NULL;
-    void (*comb)(void *,void *,void *) = NULL;
+    void (*comb)(void *,void *,const void *) = NULL;
     int i,pi,j;
     int nTree;
     int iTopDepth;

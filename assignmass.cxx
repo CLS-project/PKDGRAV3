@@ -82,9 +82,9 @@ static void initPk(void *vpkd, void *g) {
     FFTW3(real) * r = (FFTW3(real) *)g;
     *r = 0.0;
     }
-static void combPk(void *vpkd, void *g1, void *g2) {
-    FFTW3(real) * r1 = (FFTW3(real) *)g1;
-    FFTW3(real) * r2 = (FFTW3(real) *)g2;
+static void combPk(void *vpkd, void *g1, const void *g2) {
+    auto r1 = (FFTW3(real) *)g1;
+    auto r2 = (const FFTW3(real) *)g2;
     *r1 += *r2;
     }
 

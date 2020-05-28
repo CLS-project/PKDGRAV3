@@ -128,9 +128,9 @@ static void jacobi(double a[4][4],int n,double d[4],double v[4][4], int *nrot) {
 /*
 ** Combiner cache functions
 */
-static void combProfileBins1(void *vpkd, void *b1, void *b2) {
+static void combProfileBins1(void *vpkd, void *b1, const void *b2) {
     PROFILEBIN * pBin1 = (PROFILEBIN *)b1;
-    PROFILEBIN * pBin2 = (PROFILEBIN *)b2;
+    const PROFILEBIN * pBin2 = (const PROFILEBIN *)b2;
 
     pBin1->dMassInBin += pBin2->dMassInBin;
     pBin1->nParticles += pBin2->nParticles;
@@ -149,9 +149,9 @@ static void initProfileBins1(void *vpkd, void *b) {
     pBin->nParticles = 0;
     }
 
-static void combProfileBins2(void *vpkd, void *b1, void *b2) {
+static void combProfileBins2(void *vpkd, void *b1, const void *b2) {
     PROFILEBIN * pBin1 = (PROFILEBIN *)b1;
-    PROFILEBIN * pBin2 = (PROFILEBIN *)b2;
+    const PROFILEBIN * pBin2 = (const PROFILEBIN *)b2;
     pBin1->vel_tang_sigma += pBin2->vel_tang_sigma;
     }
 
@@ -161,9 +161,9 @@ static void initProfileBins2(void *vpkd, void *b) {
     }
 
 #ifdef SHAPES
-static void combShapesBins1(void *vpkd, void *b1, void *b2) {
+static void combShapesBins1(void *vpkd, void *b1, const void *b2) {
     SHAPESBIN * pBin1 = (SHAPESBIN *)b1;
-    SHAPESBIN * pBin2 = (SHAPESBIN *)b2;
+    const SHAPESBIN * pBin2 = (const SHAPESBIN *)b2;
     int j,k;
     pBin1->dMassEnclosed += pBin2->dMassEnclosed;
     for (j=0; j<3; j++) {

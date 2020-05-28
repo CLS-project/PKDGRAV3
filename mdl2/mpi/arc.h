@@ -51,6 +51,7 @@ public:
     virtual void initialize(ARChelper *helper, uint32_t uCacheSizeInBytes,uint32_t uLineSizeInBytes,uint32_t nLineBits=0) = 0;
     virtual void release(void *vp) = 0;
     virtual void clear() = 0;
+    virtual uint32_t key_size() = 0;
     };
 
 namespace murmur {
@@ -302,6 +303,7 @@ public:
 
     virtual void initialize(ARChelper *helper, uint32_t uCacheSizeInBytes,uint32_t uLineSizeInBytes,uint32_t nLineBits=0) override;
     virtual void clear() override; // Empty the cache. Evict/flush any dirty elements.
+    virtual uint32_t key_size() override {return std::tuple_size<KEY>::value ? sizeof(KEY) : 0;}
 
     // Decrements the lock count of an element. When the lock count is zero then it is eligible to be flushed.
     virtual void release(void *vp) override;

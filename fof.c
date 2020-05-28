@@ -685,9 +685,9 @@ static void initNames(void *vctx, void *v) {
     g->id.iPid = INT32_MAX;
     g->id.iIndex = INT32_MAX;
     }
-static void combNames(void *vctx, void *v1, void *v2) {
+static void combNames(void *vctx, void *v1, const void *v2) {
     struct smGroupArray *g1 = (struct smGroupArray *)v1;
-    struct smGroupArray *g2 = (struct smGroupArray *)v2;
+    const struct smGroupArray *g2 = (const struct smGroupArray *)v2;
     if ( g1->id.iPid>g2->id.iPid || (g1->id.iPid==g2->id.iPid && g1->id.iIndex>g2->id.iIndex) ) {
 	g1->id.iPid = g2->id.iPid;
 	g1->id.iIndex = g2->id.iIndex;
