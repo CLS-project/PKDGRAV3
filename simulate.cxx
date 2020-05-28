@@ -140,7 +140,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
     if (param.nGridPk>0) OutputPk(iStartStep,dTime);
 
 
-    int bKickOpen, bKickClose;
+    int bKickOpen, bKickClose=0;
     uint8_t uRungMax;
     int iSec = time(0);
 
