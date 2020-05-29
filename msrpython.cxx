@@ -1480,6 +1480,7 @@ int MSR::Python(int argc, char *argv[]) {
     auto wargv = new wchar_t *[argc];
     for(int i=0; i<argc; ++i) wargv[i] = Py_DecodeLocale(argv[i],NULL);
     PySys_SetArgv(argc, wargv);
+    delete[] wargv;
 
     PyObject * main_module = PyImport_ImportModule("__main__");
     auto globals = PyModule_GetDict(main_module);
@@ -1501,8 +1502,13 @@ int MSR::Python(int argc, char *argv[]) {
     // Retrieve the results
     int n = PyTuple_Size(result);
     if (n!=2) { fprintf(stderr,"INTERNAL ERROR: parse.parse() MUST return a tuple\n"); abort();	}
+    Py_XDECREF(arguments);
     arguments = PyTuple_GetItem(result,0); /* Values of each parameter */
+    Py_INCREF(arguments);
+    Py_XDECREF(specified);
     specified = PyTuple_GetItem(result,1); /* If it was explicitely specified */
+    Py_INCREF(specified);
+    Py_DECREF(result);
     PyObject *script = PyObject_GetAttrString(arguments,"script");
 
     ppy2prm(prm,arguments,specified); // Update the pkdgrav parameter state
@@ -1538,6 +1544,7 @@ int MSR::Python(int argc, char *argv[]) {
 	    return rc;
 	    }
 	}
+    Py_DECREF(script);
 
     // If "MASTER" was imported then we are done -- the script should have done its job
     if (!moduleState->bImported) { // We must prepare for a normal legacy execution

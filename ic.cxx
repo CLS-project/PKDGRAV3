@@ -69,6 +69,7 @@ class Power {
 	} varianceParameters;
     static double variance_integrand(double ak, void * params);
 public:
+    virtual ~Power() = default;
     virtual double getAmplitude(double k) = 0;
     double variance(double dRadius,double k0,double k1);
     };
@@ -109,6 +110,7 @@ class PowerTransfer : public Power {
 public:
     virtual double getAmplitude(double k);
     PowerTransfer(CSM csm, double a,int nTf, double *tk, double *tf);
+    virtual ~PowerTransfer();
     double variance(double dRadius);
     };
 
@@ -128,6 +130,11 @@ double PowerTransfer::getAmplitude(double k) {
 
 double PowerTransfer::variance(double dRadius) {
     return Power::variance(dRadius,tk[0], tk[nTf-1]);
+    }
+
+PowerTransfer::~PowerTransfer() {
+    gsl_interp_accel_free(acc);
+    gsl_spline_free(spline);
     }
 
 PowerTransfer::PowerTransfer(CSM csm, double a,int nTf, double *tk, double *tf) {

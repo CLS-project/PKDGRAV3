@@ -161,7 +161,7 @@ private:
     double      getScalarNumber(const char *name, PyObject *v);
     std::string getScalarString(const char *name, PyObject *v);
 public: // should be private
-    PyObject *arguments, *specified;
+    PyObject *arguments=nullptr, *specified=nullptr;
 public:
     int64_t                  getScalarInteger(const char *name);
     double                   getScalarNumber(const char *name);

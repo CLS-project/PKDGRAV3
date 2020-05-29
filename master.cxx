@@ -40,9 +40,6 @@
 #endif
 #include <limits.h>
 #include <stdarg.h>
-#ifdef HAVE_MALLOC_H
-#include <malloc.h>
-#endif
 #include <assert.h>
 #include <time.h>
 #ifdef HAVE_SYS_TIME_H
@@ -60,10 +57,14 @@
 #include <sys/stat.h>
 #include <algorithm>
 #include <functional>
+#include <fstream>
 #ifdef HAVE_SYS_PARAM_H
 #include <sys/param.h> /* for MAXHOSTNAMELEN, if available */
 #endif
-#include "fmt/format.h" // This will be part of c++20
+#include "fmt/format.h"  // This will be part of c++20
+#include "fmt/ostream.h"
+using namespace fmt::literals; // Gives us ""_a and ""_format literals
+
 
 #include "master.h"
 #include "illinois.h"
@@ -125,7 +126,6 @@ void MSR::Exit(int status) {
     }
 
 std::string MSR::BuildName(const char *path,int iStep,const char *type) {
-    using namespace fmt::literals;
     if (!path[0]) path = "{name}.{step:05d}{type}";
     return fmt::format(path,"name"_a=OutName(),"step"_a=iStep,"type"_a=type);
     }
@@ -152,9 +152,6 @@ size_t MSR::getLocalGridMemory(int nGrid) {
     }
 
 void MSR::MakePath(const char *dir,const char *base,char *path) {
- //    auto r = fmt::format("Hello {name}, are you {state}?",
-	// fmt::arg("name","Doug"),fmt::arg("state",nullptr) );
-
     /*
     ** Prepends "dir" to "base" and returns the result in "path". It is the
     ** caller's responsibility to ensure enough memory has been allocated
@@ -1388,6 +1385,8 @@ int MSR::CheckForStop(const char *achStopFile) {
 MSR::~MSR() {
     csmFinish(csm);
     prmFinish(prm);
+    Py_XDECREF(arguments);
+    Py_XDECREF(specified);
     if (Py_IsInitialized()) Py_Finalize();
     }
 
@@ -1404,18 +1403,15 @@ void MSR::SetClasses() {
 void MSR::SwapClasses(int id) {
     LCL *plcl = pst->plcl;
     PST pst0 = pst;
-    PARTCLASS *pClass;
     int n;
     int rID;
 
-    pClass = new PARTCLASS[PKD_MAX_CLASSES];
-
-    n = pkdGetClasses( plcl->pkd, PKD_MAX_CLASSES, pClass );
-    rID = mdlReqService(pst0->mdl,id,PST_SWAPCLASSES,pClass,n*sizeof(PARTCLASS));
-    mdlGetReply(pst0->mdl,rID,pClass,&n);
+    std::unique_ptr<PARTCLASS[]> pClass {new PARTCLASS[PKD_MAX_CLASSES]};
+    n = pkdGetClasses( plcl->pkd, PKD_MAX_CLASSES, pClass.get() );
+    rID = mdlReqService(pst0->mdl,id,PST_SWAPCLASSES,pClass.get(),n*sizeof(PARTCLASS));
+    mdlGetReply(pst0->mdl,rID,pClass.get(),&n);
     n = n / sizeof(PARTCLASS);
-    pkdSetClasses( plcl->pkd, n, pClass, 0 );
-    delete[] pClass;
+    pkdSetClasses( plcl->pkd, n, pClass.get(), 0 );
     }
 
 void MSR::OneNodeRead(struct inReadFile *in, FIO fio) {
@@ -1428,14 +1424,13 @@ void MSR::OneNodeRead(struct inReadFile *in, FIO fio) {
     int inswap;
     int rID;
 
-    int *nParts = new int[nThreads];
-
+    std::unique_ptr<int[]> nParts {new int[nThreads]};
     for (id=0;id<nThreads;++id) {
 	nParts[id] = -1;
 	}
 
-    nid = pstOneNodeReadInit(pst, in, sizeof(*in), nParts, nThreads*sizeof(*nParts));
-    assert((size_t)nid == nThreads*sizeof(*nParts));
+    nid = pstOneNodeReadInit(pst, in, sizeof(*in), nParts.get(), nThreads*sizeof(nParts[0]));
+    assert((size_t)nid == nThreads*sizeof(nParts[0]));
     for (id=0;id<nThreads;++id) {
 	assert(nParts[id] > 0);
 	}
@@ -1467,8 +1462,6 @@ void MSR::OneNodeRead(struct inReadFile *in, FIO fio) {
      * Now read our own particles.
      */
     pkdReadFIO(plcl->pkd, fio, 0, nParts[0], in->dvFac, in->dTuFac);
-
-    delete[] nParts;
     }
 
 double MSR::SwitchDelta(double dTime,double dDelta,int iStep,int nSteps) {
@@ -1972,8 +1965,8 @@ void MSR::BuildTree(int bNeedEwald,uint32_t uRoot,uint32_t utRoot) {
     pkd = plcl->pkd;
 
     nTopTree = pkdNodeSize(pkd) * (2*nThreads-1);
-    pDistribTop = reinterpret_cast<inDistribTopTree*>(malloc( sizeof(struct inDistribTopTree) + nTopTree ));
-    assert(pDistribTop != NULL);
+    std::unique_ptr<char[]> buffer {new char[sizeof(struct inDistribTopTree) + nTopTree]};
+    pDistribTop = new (buffer.get()) struct inDistribTopTree;
     pDistribTop->uRoot = uRoot;
     pkdn = (KDN *)(pDistribTop + 1);
 
@@ -2009,8 +2002,6 @@ void MSR::BuildTree(int bNeedEwald,uint32_t uRoot,uint32_t utRoot) {
 	momTreeCom[uRoot][1] = kdn_r[1];
 	momTreeCom[uRoot][2] = kdn_r[2];
 	}
-
-    free(pDistribTop);
     }
 
 void MSR::BuildTree(int bNeedEwald) {
@@ -2466,23 +2457,20 @@ void MSR::UpdateSoft(double dTime) {
 }
 
 void MSR::Hostname() {
-    struct outHostname *out;
     int i;
-    out = new struct outHostname[nThreads];
-    pstHostname(pst,0,0,out,nThreads*sizeof(struct outHostname));
+    std::unique_ptr<struct outHostname[]> out {new struct outHostname[nThreads]};
+    pstHostname(pst,0,0,out.get(),nThreads*sizeof(struct outHostname));
     printf("Host Names:\n");
     PRINTGRID(12,"%12.12s",szHostname);
     printf("MPI Rank:\n");
     PRINTGRID(8,"% 8d",iMpiID);
-    delete[] out;
     }
 
 void MSR::MemStatus() {
-    struct outMemStatus *out;
     int i;
     if (bVDetails) {
-	out = new struct outMemStatus[nThreads];
-	pstMemStatus(pst,0,0,out,nThreads*sizeof(struct outMemStatus));
+	std::unique_ptr<struct outMemStatus[]> out {new struct outMemStatus[nThreads]};
+	pstMemStatus(pst,0,0,out.get(),nThreads*sizeof(struct outMemStatus));
 #ifdef __linux__
 	printf("Resident (MB):\n");
 	PRINTGRID(8,"%8" PRIu64,rss);
@@ -2497,7 +2485,6 @@ void MSR::MemStatus() {
 	PRINTGRID(8,"%8" PRIu64,nBytesIlp/1024);
 	printf("Cell List size (KB):\n");
 	PRINTGRID(8,"%8" PRIu64,nBytesIlc/1024);
-	delete[] out;
 	}
     }
 
@@ -2528,9 +2515,6 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
 	double dTime, double dDelta, double dStep, double dTheta,
 	int bKickClose,int bKickOpen,int bEwald,int bGravStep,int nPartRhoLoc,int iTimeStepCrit,int nGroup) {
     struct inGravity in;
-    struct outGravityPerProc *out;
-    struct outGravityPerProc *outend;
-    struct outGravityReduct *outr;
     uint64_t nRungSum[IRUNGMAX+1];
     int i,id,out_size;
     double sec,dsec,dTotFlop,dt,a;
@@ -2631,10 +2615,9 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
 	}
 
     out_size = nThreads*sizeof(struct outGravityPerProc) + sizeof(struct outGravityReduct);
-    out = reinterpret_cast<outGravityPerProc*>(malloc(out_size));
-    assert(out != NULL);
-    outend = out + nThreads;
-    outr = (struct outGravityReduct *)outend;
+    std::unique_ptr<char[]> buffer {new char[out_size]};
+    auto out  = new (buffer.get()) outGravityPerProc[nThreads];
+    auto outr = new (out + nThreads) outGravityReduct;
 
     sec = MSR::Time();
     pstGravity(pst,&in,sizeof(in),out,out_size);
@@ -2730,7 +2713,6 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
 	    }
 	printf("\n");
 	}
-    free(out);
     return(uRungMax);
     }
 
@@ -3543,12 +3525,14 @@ void MSR::AddDelParticles() {
     int i;
 
     msrprintf("Changing Particle number\n");
-    auto pColNParts = new struct outColNParts[nThreads];
-    pstColNParts(pst, NULL, 0, pColNParts, nThreads*sizeof(*pColNParts));
+
+
+    std::unique_ptr<struct outColNParts[]> pColNParts {new struct outColNParts[nThreads]};
+    pstColNParts(pst, NULL, 0, pColNParts.get(), nThreads*sizeof(pColNParts[0]));
     /*
      * Assign starting numbers for new particles in each processor.
      */
-    auto pNewOrder = new uint64_t[nThreads];
+    std::unique_ptr<uint64_t[]> pNewOrder {new uint64_t[nThreads]};
     for (i=0;i<nThreads;i++) {
 	/*
 	 * Detect any changes in particle number, and force a tree
@@ -3571,7 +3555,7 @@ void MSR::AddDelParticles() {
 
     /*nMaxOrderDark = nMaxOrder;*/
 
-    pstNewOrder(pst,pNewOrder,(int)sizeof(*pNewOrder)*nThreads,NULL,0);
+    pstNewOrder(pst,pNewOrder.get(),(int)sizeof(pNewOrder[0])*nThreads,NULL,0);
 
     msrprintf("New numbers of particles: %" PRIu64 " gas %" PRIu64 " dark %" PRIu64 " star\n",
 	      nGas, nDark, nStar);
@@ -3580,9 +3564,6 @@ void MSR::AddDelParticles() {
     in.nDark = nDark;
     in.nStar = nStar;
     pstSetNParts(pst,&in,sizeof(in),NULL,0);
-
-    delete[] pNewOrder;
-    delete[] pColNParts;
     }
 
 /* Gas routines */
@@ -4041,9 +4022,7 @@ double MSR::Read(const char *achInFile) {
     FIO fio;
     int j;
     double sec,dsec;
-    struct inReadFile *read;
     uint64_t nSpecies[FIO_SPECIES_LAST];
-    size_t nBytes;
     inReadFileFilename achFilename;
     uint64_t mMemoryModel = 0;
     LCL *plcl;
@@ -4058,13 +4037,12 @@ double MSR::Read(const char *achInFile) {
 
     sec = MSR::Time();
 
-    nBytes = PST_MAX_FILES*(sizeof(fioSpeciesList)+PST_FILENAME_SIZE);
-    read = reinterpret_cast<struct inReadFile*>(malloc(sizeof(struct inReadFile) + nBytes));
-    assert(read != NULL);
+    auto nBytes = PST_MAX_FILES*(sizeof(fioSpeciesList)+PST_FILENAME_SIZE);
+    std::unique_ptr<char[]> buffer {new char[sizeof(inReadFile) + nBytes]};
+    auto read = new (buffer.get()) inReadFile;
 
     /* Add Data Subpath for local and non-local names. */
     MSR::MakePath(param.achDataSubPath,achInFile,achFilename);
-//    strcpy(read.achFilename,achFilename);
     fio = fioOpen(achFilename,csm->val.dOmega0,csm->val.dOmegab);
     if (fio==NULL) {
 	fprintf(stderr,"ERROR: unable to open input file\n");
@@ -4136,8 +4114,6 @@ double MSR::Read(const char *achInFile) {
     SetClasses();
     printf("Input file has been successfully read, Wallclock: %f secs.\n", dsec);
 
-    free(read);
-
     /*
     ** If this is a non-periodic box, then we must precalculate the bounds.
     ** We throw away the result, but PKD will keep track for later.
@@ -4189,25 +4165,21 @@ void MSR::OutputGrid(const char *filename, bool k, int iGrid, int nParaWrite) {
 
 #ifdef MDL_FFTW
 void MSR::OutputPk(int iStep,double dTime) {
-    float *fK, *fPk, *fPkAll;
-    uint64_t *nPk;
     double a, z, vfact, kfact;
     std::string filename;
-    FILE *fp;
     int i;
 
     if (param.nGridPk == 0) return;
 
-    fK = new float[param.nBinsPk];
-    fPk = new float[param.nBinsPk];
-    fPkAll = new float [param.nBinsPk];
-    nPk = new uint64_t[param.nBinsPk];
-    assert(nPk != NULL);
+    std::unique_ptr<float[]>    fK    {new float[param.nBinsPk]};
+    std::unique_ptr<float[]>    fPk   {new float[param.nBinsPk]};
+    std::unique_ptr<float[]>    fPkAll{new float[param.nBinsPk]};
+    std::unique_ptr<uint64_t[]> nPk   {new uint64_t[param.nBinsPk]};
 
     if (!csm->val.bComove) a = 1.0;
     else a = csmTime2Exp(csm,dTime);
 
-    MeasurePk(param.iPkOrder,param.bPkInterlace,param.nGridPk,a,param.nBinsPk,nPk,fK,fPk,fPkAll);
+    MeasurePk(param.iPkOrder,param.bPkInterlace,param.nGridPk,a,param.nBinsPk,nPk.get(),fK.get(),fPk.get(),fPkAll.get());
 
     /* If the Box Size (in mpc/h) was specified, then we can scale the output power spectrum measurement */
     if ( prmSpecified(prm,"dBoxSize") && param.dBoxSize > 0.0 ) kfact = param.dBoxSize;
@@ -4216,20 +4188,20 @@ void MSR::OutputPk(int iStep,double dTime) {
     kfact = 1.0 / kfact;
 
     filename = BuildName(iStep,".pk");
-    fp = fopen(filename.c_str(),"w");
-    if ( fp==NULL) {
-	printf("Could not create P(k) File:%s\n",filename.c_str());
-	Exit(1);
+    std::ofstream fs(filename);
+    if (fs.fail()) {
+	std::cerr << "Could not create P(k) file: " << filename << std::endl;
+	perror(filename.c_str());
+	Exit(errno);
 	}
     for(i=0; i<param.nBinsPk; ++i) {
-	if (fPk[i] > 0.0) fprintf(fp,"%g %g %" PRIu64 " %g\n",
- 	    kfact * fK[i] * 2.0 * M_PI,vfact * fPk[i], nPk[i],vfact * fPkAll[i]);
+	if (fPk[i] > 0.0) fmt::print(fs,"{k} {pk} {nk} {all}\n",
+		"k"_a   = kfact * fK[i] * 2.0 * M_PI,
+		"pk"_a  = vfact * fPk[i],
+		"nk"_a  = nPk[i],
+		"all"_a = vfact * fPkAll[i]);
 	}
-    fclose(fp);
-    delete[] fK;
-    delete[] fPk;
-    delete[] fPkAll;
-    delete[] nPk;
+    fs.close();
     /* Output the k-grid if requested */
     z = 1/a - 1;
     if (param.iDeltakInterval && (iStep % param.iDeltakInterval == 0) && z < param.dDeltakRedshift) {
@@ -4238,26 +4210,22 @@ void MSR::OutputPk(int iStep,double dTime) {
 	}
     }
 
-
 void MSR::OutputLinPk(int iStep,double dTime) {
     std::string filename;
-    float *fK, *fPk;
-    uint64_t *nPk;
     double a, vfact, kfact;
-    FILE *fp;
     int i;
 
     if (param.nGridLin == 0) return;
     if (!csm->val.bComove) return;
     if (!prmSpecified(prm, "dBoxSize")) return; 
-    fK = new float[param.nBinsLinPk];
 
-    fPk = new float[param.nBinsLinPk];
-    nPk = new uint64_t[param.nBinsLinPk];
+    std::unique_ptr<float[]>    fK    {new float[param.nBinsLinPk]};
+    std::unique_ptr<float[]>    fPk   {new float[param.nBinsLinPk]};
+    std::unique_ptr<uint64_t[]> nPk   {new uint64_t[param.nBinsLinPk]};
 
     a = csmTime2Exp(csm, dTime);
 
-    MeasureLinPk(param.nGridLin,a,param.dBoxSize,nPk,fK,fPk);
+    MeasureLinPk(param.nGridLin,a,param.dBoxSize,nPk.get(),fK.get(),fPk.get());
 
     if (!csm->val.bComove) a = 1.0;
     else a = csmTime2Exp(csm,dTime);
@@ -4268,19 +4236,19 @@ void MSR::OutputLinPk(int iStep,double dTime) {
     kfact = 1.0 / kfact;
 
     filename = BuildName(iStep,".lin_pk");
-    fp = fopen(filename.c_str(),"w");
-    if ( fp==NULL) {
-	printf("Could not create P_lin(k) File:%s\n",filename.c_str());
-	Exit(1);
-	}
+    std::ofstream fs(filename);
+    if (fs.fail()) {
+	    std::cerr << "Could not create P_lin(k) file: " << filename << std::endl;
+	    perror(filename.c_str());
+	    Exit(errno);
+	    }
     for(i=0; i<param.nBinsLinPk; ++i) {
-	if (fPk[i] > 0.0) fprintf(fp,"%g %g %" PRIu64 "\n",
- 	    kfact * fK[i] * 2.0 * M_PI,vfact * fPk[i], nPk[i]);
+	if (fPk[i] > 0.0) fmt::print(fs,"{k} {pk} {nk}\n",
+		"k"_a   = kfact * fK[i] * 2.0 * M_PI,
+		"pk"_a  = vfact * fPk[i],
+		"nk"_a  = nPk[i]);
 	}
-    fclose(fp);
-    delete[] fK;
-    delete[] fPk;
-    delete[] nPk;
+    fs.close();
     }
 
 #endif
@@ -4600,7 +4568,6 @@ void MSR::Profile( const PROFILEBIN **ppBins, int *pnBins,
     PROFILEBIN *pBins;
     double sec, dsec;
     double com[3], vcm[3], L[3], M;
-    struct inProfile *in;
     size_t inSize;
     int i,j;
     int nBinsInner;
@@ -4663,9 +4630,9 @@ void MSR::Profile( const PROFILEBIN **ppBins, int *pnBins,
 	dLogRadius = dMinRadius;
 	}
 
-    inSize = sizeof(struct inProfile)-sizeof(in->dRadii[0])*(sizeof(in->dRadii)/sizeof(in->dRadii[0])-nBins-nBinsInner-1);
-    in = reinterpret_cast<inProfile*>(malloc(inSize));
-    assert(in!=NULL);
+    inSize = sizeof(inProfile)-sizeof(inProfile::dRadii[0])*(sizeof(inProfile::dRadii)/sizeof(inProfile::dRadii[0])-nBins-nBinsInner-1);
+    std::unique_ptr<char[]> buffer {new char[inSize]};
+    auto in = new (buffer.get()) inProfile;
 
     in->dRadii[0] = dMinRadius;
 
@@ -4731,7 +4698,6 @@ void MSR::Profile( const PROFILEBIN **ppBins, int *pnBins,
     in->uRungLo = 0;
     in->uRungHi = MaxRung()-1;
     pstProfile(pst, in, inSize, NULL, 0);
-    free(in);
 
     /*
     ** Finalize bin values
@@ -4809,7 +4775,6 @@ void MSR::MeasurePk(int iAssignment,int bInterlace,int nGrid,double a,int nBins,
 void MSR::MeasureLinPk(int nGrid, double dA, double dBoxSize,
                     uint64_t *nPk,float *fK,float *fPk) {
     struct inMeasureLinPk in;
-    struct outMeasureLinPk *out;
     int i;
     double sec,dsec;
 
@@ -4823,9 +4788,9 @@ void MSR::MeasureLinPk(int nGrid, double dA, double dBoxSize,
     in.bFixed = param.bFixedAmpIC;
     in.fPhase = param.dFixedAmpPhasePI * M_PI;
 
-    out = new struct outMeasureLinPk;
+    std::unique_ptr<struct outMeasureLinPk> out {new struct outMeasureLinPk};
     printf("Measuring P_lin(k) with grid size %d (%d bins)...\n",in.nGrid,in.nBins);
-    pstMeasureLinPk(pst, &in, sizeof(in), out, sizeof(out));
+    pstMeasureLinPk(pst, &in, sizeof(in), out.get(), sizeof(*out));
     for( i=0; i<in.nBins; i++ ) {
 	if ( out->nPower[i] == 0 ) fK[i] = fPk[i] = 0;
 	else {
@@ -4835,7 +4800,6 @@ void MSR::MeasureLinPk(int nGrid, double dA, double dBoxSize,
 	    }
 	}
     /* At this point, dPk[] needs to be corrected by the box size */
-    delete out;
 
     dsec = Time() - sec;
     printf("P_lin(k) Calculated, Wallclock: %f secs\n\n",dsec);
@@ -4897,7 +4861,6 @@ int MSR::GetParticles(int nIn, uint64_t *ID, struct outGetParticles *out) {
     }
 
 void MSR::OutputOrbits(int iStep,double dTime) {
-    FILE *fp;
     int i;
 
     if (param.nOutputParticles) {
@@ -4916,19 +4879,19 @@ void MSR::OutputOrbits(int iStep,double dTime) {
 	GetParticles(param.nOutputParticles,param.iOutputParticles,particles);
 
 	auto filename = BuildName(iStep,".orb");
-	fp = fopen(filename.c_str(),"w");
-	if ( fp==NULL) {
-	    printf("Could not create orbit File:%s\n",filename.c_str());
-	    Exit(1);
+	std::ofstream fs(filename);
+	if (fs.fail()) {
+	    std::cerr << "Could not create orbit file: " << filename << std::endl;
+	    perror(filename.c_str());
+	    Exit(errno);
 	    }
-	fprintf(fp,"%d %f\n",param.nOutputParticles,dExp);
+	fmt::print(fs,"{n} {a}\n","n"_a=param.nOutputParticles, "a"_a=dExp);
 	for(i=0; i<param.nOutputParticles; ++i) {
-	    fprintf(fp,"%" PRIu64 " %.8e %.16e %.16e %.16e %.8e %.8e %.8e %.8e\n",
-		particles[i].id, particles[i].mass,
-		particles[i].r[0], particles[i].r[1], particles[i].r[2],
-		particles[i].v[0]*dvFac, particles[i].v[1]*dvFac, particles[i].v[2]*dvFac,
-		particles[i].phi);
+	    fmt::print(fs,"{id} {mass:.8e} {x:.16e} {y:.16e} {z:.16e} {vx:.8e} {vy:.8e} {vz:.8e} {phi:.8e}\n",
+		"id"_a=particles[i].id, "mass"_a=particles[i].mass, "phi"_a=particles[i].phi,
+		"x"_a=particles[i].r[0], "y"_a=particles[i].r[1], "z"_a=particles[i].r[2],
+		"vx"_a=particles[i].v[0]*dvFac, "vy"_a=particles[i].v[1]*dvFac, "vz"_a=particles[i].v[2]*dvFac);
 	    }
-	fclose(fp);
+	fs.close();
 	}
     }

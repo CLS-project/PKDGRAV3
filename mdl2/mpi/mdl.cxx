@@ -1443,6 +1443,20 @@ int mpiClass::Launch(int argc,char **argv,int (*fcnMaster)(MDL,void *),void * (*
     freeCacheReplies.clear();
     delete pReqRcv;
 
+    while(!localFlushBuffers.empty())
+        delete &static_cast<mdlMessageFlushToCore&>(localFlushBuffers.dequeue());
+    for(auto i : flushHeadFree) delete i;
+
+    // Cleanup for FFTW
+    for(auto &plan : fft_plans) {
+	auto &info = plan.second;
+	FFTW3(destroy_plan)(info.fplan);
+	FFTW3(destroy_plan)(info.iplan);
+	}
+    fft_plans.clear();
+    if (Cores()>1) FFTW3(cleanup_threads)();
+    FFTW3(cleanup)();
+
     MPI_Barrier(commMDL);
     MPI_Finalize();
     return exit_code;
@@ -1468,6 +1482,9 @@ void mdlAbort(MDL mdl) {
     }
 
 mdlClass::~mdlClass() {
+    while(!coreFlushBuffers.empty())
+	delete &static_cast<mdlMessageFlushFromCore&>(coreFlushBuffers.dequeue());
+    delete coreFlushBuffer;
     // Close Diagnostic file.
     if (bDiag) fclose(fpDiag);
     }

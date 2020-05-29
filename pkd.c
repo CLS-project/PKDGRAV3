@@ -415,6 +415,7 @@ void pkdInitialize(
     pkd = (PKD)SIMD_malloc(sizeof(struct pkdContext));
     mdlassert(mdl,pkd != NULL);
     pkd->mdl = mdl;
+    pkd->csm = NULL;
     pkd->idSelf = mdlSelf(mdl);
     pkd->nThreads = mdlThreads(mdl);
     pkd->kdNodeListPRIVATE = NULL;
@@ -870,7 +871,7 @@ void pkdFinish(PKD pkd) {
         }
     if (pkd->pHealpixData) free(pkd->pHealpixData);
     io_free(&pkd->afiLightCone);
-    csmFinish(pkd->csm);
+    if (pkd->csm) { csmFinish(pkd->csm); pkd->csm = NULL; }
     SIMD_free(pkd);
     }
 
@@ -2750,6 +2751,7 @@ void pkdInitCosmology(PKD pkd, struct csmVariables *cosmo) {
     ** Need to be careful to correctly copy the cosmo
     ** parameters. This is very ugly!
     */
+    if (pkd->csm) csmFinish(pkd->csm);
     csmInitialize(&pkd->csm);
     pkd->csm->val = *cosmo;
     if (pkd->csm->val.classData.bClass){
