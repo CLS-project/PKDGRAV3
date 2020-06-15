@@ -315,6 +315,10 @@ void msrInitializePStore(MSR msr, uint64_t *nSpecies) {
 	   pkdParticleMemory(pkd)/(1024*1024));
        printf("Particles: %lu bytes (persistent) + %d bytes (ephemeral), Nodes: %lu bytes\n",
 	   pkdParticleSize(pkd),ps.nEphemeralBytes,pkdNodeSize(pkd));
+       if (pkdParticleSize(pkd) > MDL_CACHE_DATA_SIZE){
+          printf("ERROR! MDL_CACHE_DATA_SIZE (%d bytes) is too small for the given particle size, please increasing it\n", MDL_CACHE_DATA_SIZE);
+          abort();
+       }
     }
 
 static char *formatKey(char *buf,char *fmt,int i) {
@@ -2551,6 +2555,7 @@ void msrAllNodeWrite(MSR msr, const char *pszFileName, double dTime, double dvFa
 	    }
 	}
 
+    in.bComove    = msr->csm->val.bComove;
     in.dEcosmo    = msr->dEcosmo;
     in.dTimeOld   = msr->dTimeOld;
     in.dUOld      = msr->dUOld;
@@ -4715,8 +4720,10 @@ int msrNewTopStepKDK(MSR msr,
     dDelta = msr->param.dDelta/(1 << *puRungMax);
 
     msrActiveRung(msr,uRung,1);
-   msrResetFluxes(msr, *pdTime, dDelta, ROOT);
-   msrMeshlessFluxes(msr, *pdTime, dDelta, ROOT);
+   if (msrDoGas(msr) && msrMeshlessHydro(msr)){
+      msrResetFluxes(msr, *pdTime, dDelta, ROOT);
+      msrMeshlessFluxes(msr, *pdTime, dDelta, ROOT);
+   }
    if (msr->param.bVStep) printf("Step:%f (uMaxRung %d) (uRung %d) \n",*pdStep,*puRungMax, uRung);
 
     /* Drift the "ROOT" (active) tree or all particle */
@@ -4813,13 +4820,15 @@ int msrNewTopStepKDK(MSR msr,
          msrMeshlessGradients(msr, *pdTime, dDelta, ROOT);
       }
 
-    msrHydroStep(msr,uRung, MAX_RUNG, *pdTime);
-    msrUpdateRung(msr, uRung) ;
-    uint8_t iTempRung;
-    for (iTempRung=0;iTempRung <= msr->iCurrMaxRung;++iTempRung) {
-       if (msr->nRung[iTempRung] == 0) continue;
-       *puRungMax = iTempRung;
-    }
+      if (msrDoGas(msr) && msrMeshlessHydro(msr)){
+          msrHydroStep(msr,uRung, MAX_RUNG, *pdTime);
+          msrUpdateRung(msr, uRung) ;
+          uint8_t iTempRung;
+          for (iTempRung=0;iTempRung <= msr->iCurrMaxRung;++iTempRung) {
+             if (msr->nRung[iTempRung] == 0) continue;
+             *puRungMax = iTempRung;
+          }
+      }
 
     if (!uRung && msr->param.bFindGroups) {
 	msrGroupStats(msr);

@@ -2183,12 +2183,14 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,BND *bnd,
      *  we just add half the box size to all positions.
      *
      *  Another option would be to change fCenter, but I do not if that could break other parts of the code...
+     *  15/06/19: I have stoped using this as this can lead problems with mpi because we do not 
+     *  have available pkd->csm. This should be easy to fix for all halo-finder and post-process routines.
      */
-    if (pkd->csm->val.bComove){
-       for (j=0;j<3;++j){
-         r[j] += bnd->fMax[j];
-       }
-    }
+    //if (bComove){
+    //   for (j=0;j<3;++j){
+    //     r[j] += bnd->fMax[j];
+    //   }
+    //}
     switch(pkdSpecies(pkd,p)) {
     case FIO_SPECIES_SPH:
 	assert(pSph);
@@ -2294,14 +2296,14 @@ void pkdWriteViaNode(PKD pkd, int iNode) {
 #endif
     }
 
-void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dScaleFactor, double dTime, uint64_t nDark, uint64_t nGas, uint64_t nStar){
+void pkdWriteHeaderFIO(PKD pkd, FIO fio, int bComove, double dScaleFactor, double dTime, uint64_t nDark, uint64_t nGas, uint64_t nStar){
    /* Restart information IA: Unused?*/
    //fioSetAttr(fio, "dEcosmo",  FIO_TYPE_DOUBLE, &in->dEcosmo );
    //fioSetAttr(fio, "dTimeOld", FIO_TYPE_DOUBLE, &in->dTimeOld );
    //fioSetAttr(fio, "dUOld",    FIO_TYPE_DOUBLE, &in->dUOld );
    
    fioSetAttr(fio, 0, 0, "Time", FIO_TYPE_DOUBLE, 1, &dTime);
-   if (pkd->csm->val.bComove){
+   if (bComove){
       double z = 1./dScaleFactor - 1.;
       fioSetAttr(fio, 0, 0, "Redshift", FIO_TYPE_DOUBLE, 1, &z);
    }
@@ -2363,7 +2365,7 @@ void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dScaleFactor, double dTime, uint
    /*
     * Cosmology header
     */
-   if (pkd->csm->val.bComove){
+   if (bComove){
       fioSetAttr(fio, 0, 1, "Omega_m", FIO_TYPE_DOUBLE, 1, &pkd->csm->val.dOmega0);
       fioSetAttr(fio, 0, 1, "Omega_lambda", FIO_TYPE_DOUBLE, 1, &pkd->csm->val.dLambda);
       fioSetAttr(fio, 0, 1, "Hubble0", FIO_TYPE_DOUBLE, 1, &pkd->csm->val.dHubble0);
