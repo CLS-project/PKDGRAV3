@@ -3361,8 +3361,8 @@ static int hdf5SetAttr(
        case 0:
           rc = writeAttribute(*groupID,attr,fio2hdf(dataType,hio), size, data);
           break;
-       case 1:
-          rc = writeDataset(*groupID,attr,fio2hdf(dataType,hio), size, data);
+       case 1: // IA: Now unused, TODO: remove 'mode'
+          //rc = writeDataset(*groupID,attr,fio2hdf(dataType,hio), size, data);
           break;
        default:
           printf("Not valid mode\n");
