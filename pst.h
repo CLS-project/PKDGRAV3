@@ -440,7 +440,6 @@ struct inWrite {
     uint64_t nGas;
     uint64_t nDark;
     uint64_t nStar;
-    int bComove;
     int bStandard;
     int iIndex;
     int nProcessors;

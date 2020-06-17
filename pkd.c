@@ -2296,14 +2296,14 @@ void pkdWriteViaNode(PKD pkd, int iNode) {
 #endif
     }
 
-void pkdWriteHeaderFIO(PKD pkd, FIO fio, int bComove, double dScaleFactor, double dTime, uint64_t nDark, uint64_t nGas, uint64_t nStar){
+void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dScaleFactor, double dTime, uint64_t nDark, uint64_t nGas, uint64_t nStar){
    /* Restart information IA: Unused?*/
    //fioSetAttr(fio, "dEcosmo",  FIO_TYPE_DOUBLE, &in->dEcosmo );
    //fioSetAttr(fio, "dTimeOld", FIO_TYPE_DOUBLE, &in->dTimeOld );
    //fioSetAttr(fio, "dUOld",    FIO_TYPE_DOUBLE, &in->dUOld );
    
    fioSetAttr(fio, 0, 0, "Time", FIO_TYPE_DOUBLE, 1, &dTime);
-   if (bComove){
+   if (pkd->csm->val.bComove){
       double z = 1./dScaleFactor - 1.;
       fioSetAttr(fio, 0, 0, "Redshift", FIO_TYPE_DOUBLE, 1, &z);
    }
@@ -2355,17 +2355,17 @@ void pkdWriteHeaderFIO(PKD pkd, FIO fio, int bComove, double dScaleFactor, doubl
 
    double massTable[6] = {0,0,0,0,0,0};
    if (!pkd->oMass){
-      printf("Save mass table into hdf5 header not yet supported!\n"); //TODO
-      abort();
+      //printf("Save mass table into hdf5 header not yet supported!\n"); //TODO
+      //fioSetAttr(fio, 0, 0, "MassTable", FIO_TYPE_DOUBLE, 6, &massTable[0]);
+      //abort();
    }
-   fioSetAttr(fio, 0, 0, "MassTable", FIO_TYPE_DOUBLE, 6, &massTable[0]);
    float fSoft = pkdSoft(pkd,pkdParticle(pkd,0)); // we take any particle
    fioSetAttr(fio, 0, 0, "Softening", FIO_TYPE_FLOAT, 1, &fSoft);
 
    /*
     * Cosmology header
     */
-   if (bComove){
+   if (pkd->csm->val.bComove){
       fioSetAttr(fio, 0, 1, "Omega_m", FIO_TYPE_DOUBLE, 1, &pkd->csm->val.dOmega0);
       fioSetAttr(fio, 0, 1, "Omega_lambda", FIO_TYPE_DOUBLE, 1, &pkd->csm->val.dLambda);
       fioSetAttr(fio, 0, 1, "Hubble0", FIO_TYPE_DOUBLE, 1, &pkd->csm->val.dHubble0);

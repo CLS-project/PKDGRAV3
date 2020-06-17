@@ -2555,7 +2555,6 @@ void msrAllNodeWrite(MSR msr, const char *pszFileName, double dTime, double dvFa
 	    }
 	}
 
-    in.bComove    = msr->csm->val.bComove;
     in.dEcosmo    = msr->dEcosmo;
     in.dTimeOld   = msr->dTimeOld;
     in.dUOld      = msr->dUOld;
