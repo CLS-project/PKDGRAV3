@@ -28,7 +28,7 @@
 #endif
 
 #ifdef COOLING
-#define NUMBER_METALS     2 //IA: This should be, at most, chemistry_element_count, but can be modified if needed 
+#define NUMBER_METALS     9 //IA: This should be, at most, chemistry_element_count, but can be modified if needed 
 #else
 #define NUMBER_METALS     1
 #endif
@@ -2632,30 +2632,6 @@ static int writeAttribute( hid_t groupID, const char *name,
     return 1;
     }
 
-/* IA: Add data to the Header, as a dataset instead of as a attribute 
- *   This may be useful, or not. 
- *   TODO: probably erase it
- */
-static int writeDataset( hid_t groupID, const char *name,
-			    hid_t dataType, int size, void *data ) {
-    hid_t diskSpace, dataSpace, datasetID;
-    herr_t rc;
-
-    dataSpace = H5Screate(H5S_SCALAR); assert(dataSpace!=H5I_INVALID_HID);
-    if (size>1){
-       hsize_t dim[1] = {size};
-       H5Sset_extent_simple(dataSpace, 1, dim, NULL);
-    }
-    datasetID = H5Dcreate( groupID,name,dataType,dataSpace,H5P_DEFAULT );
-    diskSpace = H5Dget_space(datasetID);
-    assert(datasetID!=H5I_INVALID_HID);
-
-    rc = H5Dwrite( datasetID , dataType, dataSpace, diskSpace,H5P_DEFAULT,data); assert(rc>=0);
-
-    rc = H5Dclose( datasetID ); assert(rc>=0);
-    rc = H5Sclose(dataSpace); assert(rc>=0);
-    return 1;
-    }
 
 static int readDataset( hid_t groupID, const char *name,
 			  hid_t dataType, void *data ) {
@@ -3560,6 +3536,8 @@ static int hdf5ReadDark(
     *piParticleID = ioorder_get(&base->ioOrder,base->iOffset,base->iIndex);
 
     /* If each particles has a unique class, use that */
+    *pfSoft = 0.0; //IA: In the case that there is DARK_MASS, we set the softening to zero,
+                   //        hoping that it is set in the parameters file.. not ideal!! TODO
     if ( !field_get_float(pfMass,&base->fldFields[DARK_MASS],base->iIndex) )
        class_get(pfMass,pfSoft,&base->ioClass,*piParticleID,base->iIndex);
 
@@ -3870,6 +3848,8 @@ static FIO hdf5OpenOne(const char *fname,int iFile) {
 			   FIELD_POSITION, H5T_NATIVE_DOUBLE,3 );
 		field_open(&base->fldFields[DARK_VELOCITY],base->group_id,
 			   FIELD_VELOCITY, H5T_NATIVE_DOUBLE,3 );
+		field_open(&base->fldFields[DARK_MASS],base->group_id,
+			   FIELD_MASS, H5T_NATIVE_FLOAT,1 );
 		field_open(&base->fldFields[DARK_POTENTIAL],base->group_id,
 			   FIELD_POTENTIAL, H5T_NATIVE_FLOAT,1 );
 		if (base->fldFields[DARK_POTENTIAL].setId == H5I_INVALID_HID)

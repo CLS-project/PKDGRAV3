@@ -1122,6 +1122,9 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 			     &fDensity/*?*/,&u,&fMetals[0]); //IA: misreading, u means temperature
 	    pkdSetDensity(pkd,p,fDensity);
           pkdSetBall(pkd,p,fSoft);
+          fSoft = 0.0;
+          // IA: The fSoft that we have read is actually the smoothing lenght, in order to avoid confusion
+          //  with the classes, we set it to zero now
 	    if (pSph) {
 		pSph->u = u * dTuFac; /* Can't do precise conversion until density known IA: ¿?*/
             /* IA: -unused- variables 
@@ -2209,7 +2212,7 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,BND *bnd,
           float SFR=0.;
 #endif
 
-          fBall = pSph->nLastNeighs; //pkdBall(pkd,p);
+          fBall = pkdBall(pkd,p);
 
 	     fioWriteSph(fio,iParticleID,r,v,fMass,fSoft,*pPot,
 	 	fDensity,pSph->Uint/fMass, &fMetals[0], fBall, temperature, SFR);
@@ -3068,28 +3071,22 @@ void pkdComputePrimVars(PKD pkd,int iRoot, double dTime, double dDelta) {
                psph->lastHubble = dHubble; 
             }
 
-#ifdef COOLING
-            const float delta_redshift = -pDelta * dHubble * (dRedshift + 1.);
-            cooling_cool_part(pkd, pkd->cooling, p, psph, pDelta, dTime, delta_redshift, dRedshift);
-#endif
 
 
             // ##### Pressure
 
             double Ekin = 0.5*( psph->mom[0]*psph->mom[0] + psph->mom[1]*psph->mom[1] + psph->mom[2]*psph->mom[2] ) / pkdMass(pkd,p);
             if (Ekin > 0.99*psph->E ){
-                  psph->P = psph->Uint*psph->omega*(pkd->param.dConstGamma -1.);
                   psph->E = psph->Uint + Ekin;
             }else{
-                  psph->P = (psph->E - Ekin )*psph->omega*(pkd->param.dConstGamma -1.);
-                  psph->Uint = psph->P/(psph->omega*(pkd->param.dConstGamma -1.)); 
+                  psph->Uint = psph->E - Ekin; 
             }     
-            if (psph->P < 0){
-               psph->P = 0.;
-               psph->Uint = 0.;
-               psph->E = Ekin;
-            }
+#ifdef COOLING
+            const float delta_redshift = -pDelta * dHubble * (dRedshift + 1.);
+            cooling_cool_part(pkd, pkd->cooling, p, psph, pDelta, dTime, delta_redshift, dRedshift);
+#endif
 
+            psph->P = psph->Uint*psph->omega*(pkd->param.dConstGamma -1.);
             psph->c = sqrt(psph->P*pkd->param.dConstGamma/pkdDensity(pkd,p));
 
             pkdVel(pkd,p)[0] = psph->mom[0]/pkdMass(pkd,p);
