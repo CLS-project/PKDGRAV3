@@ -2186,12 +2186,14 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,BND *bnd,
      *  we just add half the box size to all positions.
      *
      *  Another option would be to change fCenter, but I do not if that could break other parts of the code...
+     *  15/06/19: I have stoped using this as this can lead problems with mpi because we do not 
+     *  have available pkd->csm. This should be easy to fix for all halo-finder and post-process routines.
      */
-    if (pkd->csm->val.bComove){
-       for (j=0;j<3;++j){
-         r[j] += bnd->fMax[j];
-       }
-    }
+    //if (bComove){
+    //   for (j=0;j<3;++j){
+    //     r[j] += bnd->fMax[j];
+    //   }
+    //}
     switch(pkdSpecies(pkd,p)) {
     case FIO_SPECIES_SPH:
 	assert(pSph);
@@ -2356,10 +2358,10 @@ void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dScaleFactor, double dTime, uint
 
    double massTable[6] = {0,0,0,0,0,0};
    if (!pkd->oMass){
-      printf("Save mass table into hdf5 header not yet supported!\n"); //TODO
-      abort();
+      //printf("Save mass table into hdf5 header not yet supported!\n"); //TODO
+      //fioSetAttr(fio, 0, 0, "MassTable", FIO_TYPE_DOUBLE, 6, &massTable[0]);
+      //abort();
    }
-   fioSetAttr(fio, 0, 0, "MassTable", FIO_TYPE_DOUBLE, 6, &massTable[0]);
    float fSoft = pkdSoft(pkd,pkdParticle(pkd,0)); // we take any particle
    fioSetAttr(fio, 0, 0, "Softening", FIO_TYPE_FLOAT, 1, &fSoft);
 

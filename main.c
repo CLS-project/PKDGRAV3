@@ -151,6 +151,8 @@ void master(MDL mdl,void *pst) {
 	iStartStep = msr->param.iStartStep; /* Should be zero */
 #ifdef MDL_FFTW
 	dTime = msrGenerateIC(msr); /* May change nSteps/dDelta */
+	msrSetParameters(msr);
+	msrInitCosmology(msr);
 	if ( msr->param.bWriteIC ) {
 	    msrBuildIoName(msr,achFile,0);
 	    msrWrite( msr,achFile,dTime,msr->param.bWriteIC-1);
@@ -160,8 +162,6 @@ void master(MDL mdl,void *pst) {
 	msrFinish(msr);
 	return;
 #endif
-	msrSetParameters(msr);
-	msrInitCosmology(msr);
 	if (prmSpecified(msr->prm,"dSoft")) msrSetSoft(msr,msrSoft(msr));
 	iStep = msrSteps(msr); /* 0=analysis, >1=simulate, <0=python */
 	}

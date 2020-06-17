@@ -2213,8 +2213,8 @@ int pstWrite(PST pst,void *vin,int nIn,void *vout,int nOut) {
 		}
           
 
-          pkdWriteHeaderFIO(plcl->pkd, fio, 1./sqrt(in->dvFac), in->dTime, in->nDark, in->nGas, in->nStar);
 
+          pkdWriteHeaderFIO(plcl->pkd, fio, 1./sqrt(in->dvFac), in->dTime, in->nDark, in->nGas, in->nStar);
 	    pkdWriteFIO(plcl->pkd,fio,in->dvFac,&in->bnd);
 
 	    for(i=in->iLower+1; i<in->iUpper; ++i ) {
