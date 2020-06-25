@@ -300,6 +300,29 @@ if (HERNQUIST_POTENTIAL)
   message("-- Analytical gravity ACTIVE -> Hernquist potential")
 endif(HERNQUIST_POTENTIAL)
 
+
+#### OPTIMIZATION OPTIONS
+option(OPTIM_CACHED_FLUXES "Save a flux cache per particle to reduce duplicated flux computations" OFF)
+if(OPTIM_CACHED_FLUXES)
+   target_compile_options(${PROJECT_NAME} PRIVATE -DOPTIM_CACHED_FLUXES)
+   message("-- OPTIM: flux cache per particle is ACTIVE")
+endif(OPTIM_CACHED_FLUXES)
+
+option(OPTIM_REMOVE_UNUSED "Remove unused variables in SPHFIELDS" OFF)
+if(OPTIM_REMOVE_UNUSED)
+   target_compile_options(${PROJECT_NAME} PRIVATE -DOPTIM_REMOVE_UNUSED)
+   message("-- OPTIM: Removed unused variables in particle structs")
+endif(OPTIM_REMOVE_UNUSED)
+
+option(OPTIM_REDUCE_PRECISION "Reduce precision of certain variable types to save memory" OFF)
+if (OPTIM_REDUCE_PRECISION)
+   target_compile_options(${PROJECT_NAME} PRIVATE -DOPTIM_REDUCE_PRECISION)
+   message("-- OPTIM: Reduced precision to decrease particle size")
+endif(OPTIM_REDUCE_PRECISION)
+
+####
+
+
 CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/pkd_config.h.in ${CMAKE_CURRENT_BINARY_DIR}/pkd_config.h)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
 target_link_libraries(${PROJECT_NAME} mdl2 openpa)

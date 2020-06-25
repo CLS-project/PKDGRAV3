@@ -74,7 +74,12 @@ static int getType(int iType) {
     case OUT_MEANVEL_VECTOR:
     case OUT_ACCEL_VECTOR:
 	return OUTTYPE_FLOAT;
-
+    case OUT_CACHEFLUX_ARRAY:
+      return OUTTYPE_INTEGER;
+    case OUT_CACHECOLL_ARRAY:
+      return OUTTYPE_INTEGER;
+    case OUT_AVOIDEDFLUXES_ARRAY:
+      return OUTTYPE_INTEGER;
     case OUT_RUNGDEST_ARRAY:
 	return OUTTYPE_RUNGDEST;
 
@@ -102,6 +107,27 @@ static uint64_t fetchInteger(PKD pkd,PARTICLE *p,int iType,int iDim) {
 	/*v = pkd->psGroupData[pkdGetGroup(pkd,p)].iGlobalId;*/
 	v = pkdGetGroup(pkd,p);
 	break;
+    case OUT_CACHEFLUX_ARRAY:
+      if (pkdIsGas(pkd,p)){
+         v = pkdSph(pkd,p)->flux_cache;
+      }else{
+         v = 0;
+      }
+      break;
+    case OUT_CACHECOLL_ARRAY:
+      if (pkdIsGas(pkd,p)){
+         v = pkdSph(pkd,p)->coll_cache;
+      }else{
+         v = 0;
+      }
+      break;
+    case OUT_AVOIDEDFLUXES_ARRAY:
+      if (pkdIsGas(pkd,p)){
+         v = (uint64_t)(pkdSph(pkd,p)->avoided_fluxes);
+      }else{
+         v = 0;
+      }
+      break;
     default:
 	v = 0;
 	}
@@ -158,12 +184,14 @@ static double fetchFloat(PKD pkd,PARTICLE *p,int iType,int iDim) {
 	pvel = pkdField(p,pkd->oVelSmooth);
 	v = pkdDensity(pkd,p)*pow(pvel->veldisp2,-1.5);
 	break;
+#ifndef OPTIM_REMOVE_UNUSED
     case OUT_UDOT_ARRAY:
 	v = pkdSph(pkd,p)->uDot;
 	break;
     case OUT_U_ARRAY:
 	v = pkdSph(pkd,p)->u;
 	break;
+#endif
     case OUT_C_ARRAY:
 	v = pkdSph(pkd,p)->c;
 	break;
@@ -199,11 +227,11 @@ static double fetchFloat(PKD pkd,PARTICLE *p,int iType,int iDim) {
 \******************************************************************************/
 static void storeInteger(PKD pkd,PKDOUT ctx,PARTICLE *p,int iType,int iDim) {
     int n = ctx->inOffset - ctx->inBuffer;
-    if ( PKDOUT_BUFFER_SIZE - n < 20 ) {
+    if ( PKDOUT_BUFFER_SIZE - n < 24 ) {
 	(*ctx->fnFlush)(pkd,ctx,0);
 	}
     sprintf(ctx->inOffset,"%"PRIu64"\n",fetchInteger(pkd,p,iType,iDim));
-    assert(strlen(ctx->inOffset) < 20 );
+    assert(strlen(ctx->inOffset) < 24 );
     while( *ctx->inOffset ) ++ctx->inOffset;
     }
 static void storeFloat(PKD pkd,PKDOUT ctx,PARTICLE *p,int iType,int iDim) {

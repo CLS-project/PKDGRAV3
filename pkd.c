@@ -1098,8 +1098,10 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	/* Initialize SPH fields if present */
 	if (pkd->oSph) {
 	    pSph = pkdField(p,pkd->oSph);
+#ifndef OPTIM_REMOVE_UNUSED
 	    pSph->u = pSph->uPred = pSph->uDot = pSph->c = pSph->divv = pSph->BalsaraSwitch
 		= pSph->diff = pSph->fMetals = pSph->fMetalsPred = pSph->fMetalsDot = 0.0;
+#endif
 #ifdef COOLING
           for (j=0;j<chemistry_element_count;j++ ) pSph->chemistry[j]=0.;
 #endif
@@ -1126,7 +1128,9 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
           // IA: The fSoft that we have read is actually the smoothing lenght, in order to avoid confusion
           //  with the classes, we set it to zero now
 	    if (pSph) {
+#ifndef OPTIM_REMOVE_UNUSED
 		pSph->u = u * dTuFac; /* Can't do precise conversion until density known IA: ¿?*/
+#endif
             /* IA: -unused- variables 
 		pSph->fMetals = fMetals;
 		pSph->uPred = pSph->u;
@@ -1157,12 +1161,14 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             pSph->lastAcc[0] = 0.;
             pSph->lastAcc[1] = 0.;
             pSph->lastAcc[2] = 0.;
+#ifndef USE_MFM
             pSph->lastDrDotFrho[0] = 0.;
             pSph->lastDrDotFrho[1] = 0.;
             pSph->lastDrDotFrho[2] = 0.;
             pSph->drDotFrho[0] = 0.;
             pSph->drDotFrho[1] = 0.;
             pSph->drDotFrho[2] = 0.;
+#endif
             pSph->fLastBall = 0.0;
             pSph->lastUpdateTime = -1.;
             pSph->nLastNeighs = 100;
@@ -1171,6 +1177,11 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 
             pSph->lastCooling = 0.;
             pSph->cooling_dudt = 0.;
+#endif
+#ifdef OPTIM_CACHED_FLUXES
+            pSph->flux_cache = 0x00000000ULL;
+            pSph->coll_cache = 0x00000000ULL;
+            pSph->avoided_fluxes = 0;
 #endif
 		}
 	    break;
@@ -2554,7 +2565,7 @@ void pkdCalcEandL(PKD pkd,double *T,double *U,double *Eth,double *L,double *F,do
 	for (i=0;i<n;++i) {
 	    PARTICLE *p = pkdParticle(pkd,i);
 	    float fMass = pkdMass(pkd,p);
-	    if (pkdIsGas(pkd,p)) *Eth += fMass*pkdSph(pkd,p)->u;
+	    if (pkdIsGas(pkd,p)) *Eth += pkdSph(pkd,p)->E;
 	    }
 	}
     }
@@ -2910,8 +2921,10 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
                for (j=0;j<3;++j) { /* NB: Pred quantities must be done before std. */
                    sph->vPred[j] += a[j]*dDeltaVPred;
                    }
+#ifndef OPTIM_REMOVE_UNUSED
                sph->uPred += sph->uDot*dDeltaUPred;
                sph->fMetalsPred += sph->fMetalsDot*dDeltaUPred;
+#endif
                }
              for (j=0;j<3;++j) {
                pkdSetPos(pkd,p,j,rfinal[j] = pkdPos(pkd,p,j) + dDelta*v[j]);
@@ -2966,6 +2979,14 @@ void pkdResetFluxes(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVP
             psph->Fmom[0] = 0.0;
             psph->Fmom[1] = 0.0;
             psph->Fmom[2] = 0.0;
+         }
+         if (pkdIsGas(pkd,p)){
+#ifdef OPTIM_CACHED_FLUXES
+            psph = pkdSph(pkd, p);
+            psph->flux_cache = 0x00000000ULL;
+            psph->coll_cache = 0x00000000ULL;
+            psph->avoided_fluxes = 0;
+#endif
          }
        }
     }
@@ -3052,8 +3073,9 @@ void pkdComputePrimVars(PKD pkd,int iRoot, double dTime, double dDelta) {
             for (j=0;j<3;j++){
                psph->mom[j] += 0.5*pDelta*(psph->lastMass*psph->lastAcc[j] + pkdMass(pkd,p)*pa[j]); 
                pkdVel(pkd,p)[j] = psph->mom[j]/pkdMass(pkd,p);
-
+#ifndef USE_MFM
                gravE_dmdt +=  0.5*( psph->lastAcc[j]*psph->lastDrDotFrho[j] + pa[j]*psph->drDotFrho[j] ) ;
+#endif
                gravE += 0.5*pDelta*( psph->lastMom[j]*psph->lastAcc[j] + pkdMass(pkd,p)*pkdVel(pkd,p)[j]*pa[j]  );
             }
             if (dTime==1) gravE_dmdt = 0.;
@@ -3124,11 +3146,12 @@ void pkdComputePrimVars(PKD pkd,int iRoot, double dTime, double dDelta) {
             psph->vPred[1] = pkdVel(pkd,p)[1];
             psph->vPred[2] = pkdVel(pkd,p)[2];
             
-
+#ifndef USE_MFM
             for (j=0; j<3;j++){
                psph->lastDrDotFrho[j] = psph->drDotFrho[j];
                psph->drDotFrho[j] = 0.;
             }
+#endif
            for (j=0;j<3;j++){
               psph->lastAcc[j] = pa[j];   
               psph->lastMom[j] = psph->mom[j];
@@ -3356,6 +3379,7 @@ void pkdKick(PKD pkd,double dTime,double dDelta,double dDeltaVPred,double dDelta
                v = pkdVel(pkd,p);
                if (pkdIsGas(pkd,p)) {
                    sph = pkdSph(pkd,p);
+#ifndef OPTIM_REMOVE_UNUSED
                    for (j=0;j<3;++j) { /* NB: Pred quantities must be done before std. */
                      sph->vPred[j] = v[j] + a[j]*dDeltaVPred;
                      }
@@ -3363,6 +3387,7 @@ void pkdKick(PKD pkd,double dTime,double dDelta,double dDeltaVPred,double dDelta
                    sph->u += sph->uDot*dDeltaU;
                    sph->fMetalsPred = sph->fMetals + sph->fMetalsDot*dDeltaUPred;
                    sph->fMetals += sph->fMetalsDot*dDeltaU;
+#endif
                    }
                for (j=0;j<3;++j) {
                    v[j] += a[j]*dDelta;
@@ -3538,6 +3563,7 @@ void pkdSphStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,double dAccFac) {
     assert(pkd->oSph);
     assert(!pkd->bNoParticleOrder);
 
+#ifndef OPTIM_REMOVE_UNUSED
     for (i=0;i<pkdLocal(pkd);++i) {
 	p = pkdParticle(pkd,i);
 	if (pkdIsActive(pkd,p)) {
@@ -3568,8 +3594,8 @@ void pkdSphStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,double dAccFac) {
 		}
 	    }
 	}
+#endif //OPTIM_REMOVE_UNUSED
     }
-
 
 /* IA: Now unused. TODO: consider removing all these functions */
 //void pkdStarForm(PKD pkd, double dRateCoeff, double dTMax, double dDenMin,
@@ -3662,6 +3688,7 @@ void pkdSphStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,double dAccFac) {
 //}
 
 
+#ifndef OPTIM_REMOVE_UNUSED
 void pkdCooling(PKD pkd, double dTime, double z, int bUpdateState, int bUpdateTable, int bIterateDt, int bIsothermal )
     {
     PARTICLE *p;
@@ -3729,6 +3756,7 @@ void pkdCooling(PKD pkd, double dTime, double z, int bUpdateState, int bUpdateTa
 	}
     pkdStopTimer(pkd,1);
     }
+#endif //OPTIM_REMOVE_UNUSED
 
 void pkdCorrectEnergy(PKD pkd, double dTuFac, double z, double dTime, int iDirection )
     {

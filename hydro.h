@@ -24,5 +24,5 @@ void hydroGradients(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf);
 void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf);
 void hydroStep(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf);
 void BarthJespersenLimiter(double* limVar, double* gradVar, double var_max, double var_min, double dx, double dy, double dz);
-void ConditionedBarthJespersenLimiter(double* limVar, double* gradVar, double var_max, double var_min, double dx, double dy, double dz, double Ncrit, double Ncond);
+void ConditionedBarthJespersenLimiter(double* limVar, myreal* gradVar, double var_max, double var_min, double dx, double dy, double dz, double Ncrit, double Ncond);
 void genericPairwiseLimiter(double Lstate, double Rstate, double *Lstate_face, double *Rstate_face);

@@ -649,7 +649,11 @@ int pkdHopUnbind(PKD pkd, double dTime, int nMinGroupSize, int bPeriodic, double
 	    ee[i].dPot = *pkdPot(pkd,p) * ia;
 	    if (pkdIsGas(pkd,p) && pkd->oSph) {  /* TODO: is this correct? */
 		SPHFIELDS *pSph = pkdSph(pkd,p);
+#ifndef OPTIM_REMOVE_UNUSED
 		ee[i].dPot += pSph->u;
+#else
+            ee[i].dPot += pSph->Uint/pkdMass(pkd,p);
+#endif
 		}
 	    ee[i].dSqrtKin = a*sqrt(0.5*dv2);
 	    ee[i].dTot = 0.5*a2*dv2 + ee[i].dPot;

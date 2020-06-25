@@ -48,6 +48,10 @@
 #define OUT_RUNGDEST_ARRAY      30
 #define OUT_MARKED_ARRAY        31
 
+#define OUT_CACHEFLUX_ARRAY   32
+#define OUT_CACHECOLL_ARRAY   33
+#define OUT_AVOIDEDFLUXES_ARRAY   34
+
 #define OUT_HOP_STATS          100
 
 #define OUT_GROUP_ARRAY	       112

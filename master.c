@@ -5369,7 +5369,7 @@ uint8_t msrInitSph(MSR msr,double dTime)
 	//msrZeroNewRung(msr,0,MAX_RUNG,0); 
         msrHydroStep(msr,0,MAX_RUNG,dTime); // We do this twice because we need to have uNewRung for the time limiter
         msrHydroStep(msr,0,MAX_RUNG,dTime);  // of Durier & Dalla Vecchia
-        msrResetFluxes(msr, dTime, 0.0, ROOT); // Reset the fluxes
+        //msrResetFluxes(msr, dTime, 0.0, ROOT); // Reset the fluxes
     }
     msrUpdateRung(msr, 0) ;
     uint8_t uRungMax = msrGetMinDt(msr);
@@ -6124,6 +6124,19 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
 
     // IA: I want to do this even at step 0
     /*if ( iStep )*/ msrWrite(msr,achFile,dTime,bCheckpoint );
+
+    msrBuildName(msr,achFile,iStep);
+    strncat(achFile,".flux_cache",256);
+    msrOutArray(msr,achFile,OUT_CACHEFLUX_ARRAY);
+
+
+    msrBuildName(msr,achFile,iStep);
+    strncat(achFile,".coll_cache",256);
+    msrOutArray(msr,achFile,OUT_CACHECOLL_ARRAY);
+
+    msrBuildName(msr,achFile,iStep);
+    strncat(achFile,".avoided_fluxes",256);
+    msrOutArray(msr,achFile,OUT_AVOIDEDFLUXES_ARRAY);
 
     if (msrDoGas(msr) && !msr->param.nSteps) {  /* Diagnostic Gas */ 
 	msrReorder(msr);

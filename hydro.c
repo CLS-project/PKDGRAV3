@@ -66,8 +66,6 @@ void initHydroLoop(void *vpkd, void *vp) {
     assert(!pkd->bNoParticleOrder);
 //    if (pkdIsActive(pkd,p)) {
 	SPHFIELDS *psph = pkdSph(pkd,p);
-	psph->uDot = 0;
-	psph->fMetalsDot = 0;
 //      for (i=0;i<6;i++) { psph->B[i] = 0.0; }
 //      p->uNewRung = 0;
 //      for (i=0;i<3;i++) { 
@@ -93,8 +91,6 @@ void initHydroLoopCached(void *vpkd, void *vp) {
     int i;
 //    if (pkdIsActive(pkd,p)) {
 	SPHFIELDS *psph = pkdSph(pkd,p);
-	psph->uDot = 0;
-	psph->fMetalsDot = 0;
 //      for (i=0;i<6;i++) { psph->B[i] = 0.0; }
 //      p->uNewRung = 0;
 //      for (i=0;i<3;i++) { 
@@ -615,7 +611,7 @@ void BarthJespersenLimiter(double* limVar, double* gradVar, double var_max, doub
 }
 
 // IA: In this version we take into account the condition number, which give us an idea about how 'well aligned' are the particles
-void ConditionedBarthJespersenLimiter(double* limVar, double* gradVar, double var_max, double var_min, double dx, double dy, double dz, double Ncrit, double Ncond){
+void ConditionedBarthJespersenLimiter(double* limVar, myreal* gradVar, double var_max, double var_min, double dx, double dy, double dz, double Ncrit, double Ncond){
     double diff, lim, beta;
 
     diff = Ncrit/Ncond;
@@ -669,6 +665,79 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     pDensity = pkdDensity(pkd,p);
 
     dtEst = HUGE_VAL;
+    
+#ifdef OPTIM_CACHED_FLUXES
+
+    // TEST
+    /*
+    for (uint64_t i=0; i<64; i++){
+          uint64_t prueba = 0x00000001ULL<<i;
+
+       printf("prueba %" PRIu64 "  \t"
+           PRINTF_BINARY_PATTERN_INT64 "\n", prueba,
+           PRINTF_BYTE_TO_BINARY_INT64(prueba));
+    }
+    abort();
+    */
+
+
+    for (i=0;i<nSmooth;++i){
+	 q = nnList[i].pPart;
+       if (!pkdIsActive(pkd,q)) continue;
+	 dx = nnList[i].dx;
+	 dy = nnList[i].dy;
+	 dz = nnList[i].dz;
+       if (dx==0 && dy==0 && dz==0) continue;
+
+       int j_cache_index_i = *pkdParticleID(pkd,p) % (sizeof(cache_t)*8);
+       if ( (get_bit(&(pkdSph(pkd,q)->flux_cache), j_cache_index_i)!= 0) &&
+            (get_bit(&(pkdSph(pkd,q)->coll_cache), j_cache_index_i)== 0) &&
+            (nnList[i].iPid == pkd->idSelf)){
+          //printf("Avoiding flux!\n");
+          /*
+          uint64_t prueba = 0x00000001ULL<<j_cache_index_i;
+       printf("prueba   \t"
+           PRINTF_BINARY_PATTERN_INT64 "\n",
+           PRINTF_BYTE_TO_BINARY_INT64(prueba));
+       printf("get_bit flux\t"
+           PRINTF_BINARY_PATTERN_INT64 "\n",
+           PRINTF_BYTE_TO_BINARY_INT64(get_bit(&(pkdSph(pkd,q)->flux_cache),j_cache_index_i)));
+       printf("get_bit coll\t"
+           PRINTF_BINARY_PATTERN_INT64 "\n",
+           PRINTF_BYTE_TO_BINARY_INT64(get_bit(&(pkdSph(pkd,q)->coll_cache),j_cache_index_i)));
+       printf("Flux cache \t"
+           PRINTF_BINARY_PATTERN_INT64 "\n",
+           PRINTF_BYTE_TO_BINARY_INT64(pkdSph(pkd,q)->flux_cache));
+       printf("Coll cache \t"
+           PRINTF_BINARY_PATTERN_INT64 "\n\n",
+           PRINTF_BYTE_TO_BINARY_INT64(pkdSph(pkd,q)->coll_cache));
+           */
+          continue;
+       }
+
+       int i_cache_index_j = *pkdParticleID(pkd,q) % (sizeof(cache_t)*8);
+
+       //printf("%" PRIu64 " %d %d \n", *pkdParticleID(pkd,q), sizeof(cache_t)*8, i_cache_index_j);
+       //printf("%" PRIu64 " \n", get_bit(&(psph->flux_cache), i_cache_index_j));
+       if (nnList[i].iPid == pkd->idSelf){
+          if (get_bit(&(psph->flux_cache), i_cache_index_j)==0){
+             set_bit(&(psph->flux_cache), i_cache_index_j);
+          }else{
+             set_bit(&(psph->coll_cache), i_cache_index_j);
+          }
+       }
+
+    }
+    
+    /*
+       printf("Flux cache "
+           PRINTF_BINARY_PATTERN_INT64 "\n",
+           PRINTF_BYTE_TO_BINARY_INT64(psph->flux_cache));
+       printf("Coll cache "
+           PRINTF_BINARY_PATTERN_INT64 "\n",
+           PRINTF_BYTE_TO_BINARY_INT64(psph->coll_cache));
+      */     
+#endif
 
     for (i=0;i<nSmooth;++i){
 
@@ -677,6 +746,16 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
        qh = pkdBall(pkd,q); 
 
 
+#ifdef OPTIM_CACHED_FLUXES
+       int j_cache_index_i = *pkdParticleID(pkd,p) % (sizeof(cache_t)*8);
+       if ( (get_bit(&(qsph->flux_cache), j_cache_index_i)!= 0) &&
+            (get_bit(&(qsph->coll_cache), j_cache_index_i)== 0) &&
+            (nnList[i].iPid == pkd->idSelf) &&
+            pkdIsActive(pkd,q)){
+          psph->avoided_fluxes += 1;
+          continue;
+       }
+#endif
        /* IA: We update the conservatives variables taking the minimum timestep between the particles, as in AREPO */
        if (!pkdIsActive(pkd,q)) { // If q is not active we now that p has the smallest dt 
           minDt = smf->dDelta/(1<<p->uRung) ;
@@ -967,9 +1046,20 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
           riemann_output.Fluxes.p *= smf->a*smf->a;
        }
        */
+#ifdef OPTIM_CACHED_FLUXES
+       int j_cache_index_i = *pkdParticleID(pkd,p) % (sizeof(cache_t)*8);
+       int i_cache_index_j = *pkdParticleID(pkd,q) % (sizeof(cache_t)*8);
+       if (((get_bit(&(psph->flux_cache), i_cache_index_j)!=0) &&
+            (get_bit(&(psph->coll_cache), i_cache_index_j)==0) &&
+            (get_bit(&(qsph->flux_cache), j_cache_index_i)==0) &&
+            (nnList[i].iPid == pkd->idSelf) &&
+            pkdIsActive(pkd,q)) | (!pkdIsActive(pkd,q)) )
+       {
+#else //OPTIM_CACHED_FLUXES
 
        
        if ( (2.*qh < rpq) | !pkdIsActive(pkd,q)){  
+#endif
             *qmass += minDt * riemann_output.Fluxes.rho ;
 
             qsph->mom[0] += minDt * riemann_output.Fluxes.v[0] ;
@@ -982,11 +1072,17 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
                                                             - riemann_output.Fluxes.v[1]*qsph->vPred[1]
                                                             - riemann_output.Fluxes.v[2]*qsph->vPred[2]
                                   + 0.5*(qsph->vPred[0]*qsph->vPred[0] + qsph->vPred[1]*qsph->vPred[1] + qsph->vPred[2]*qsph->vPred[2]) * riemann_output.Fluxes.rho );
-
+#ifndef USE_MFM
             qsph->drDotFrho[0] += minDt * riemann_output.Fluxes.rho * dx;
             qsph->drDotFrho[1] += minDt * riemann_output.Fluxes.rho * dy;
             qsph->drDotFrho[2] += minDt * riemann_output.Fluxes.rho * dz;
+#endif
+
+          qsph->Frho -= riemann_output.Fluxes.rho;
+          qsph->Fene -= riemann_output.Fluxes.p;
+          for(j=0;j<3;j++){ qsph->Fmom[j] -= riemann_output.Fluxes.v[j]; }
        } 
+
             *pmass -= minDt * riemann_output.Fluxes.rho ;
 
             psph->mom[0] -= minDt * riemann_output.Fluxes.v[0] ;
@@ -999,11 +1095,11 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
                                                             - riemann_output.Fluxes.v[1]*psph->vPred[1]
                                                             - riemann_output.Fluxes.v[2]*psph->vPred[2]
                                   + 0.5*(psph->vPred[0]*psph->vPred[0] + psph->vPred[1]*psph->vPred[1] + psph->vPred[2]*psph->vPred[2]) * riemann_output.Fluxes.rho );
-
+#ifndef USE_MFM
             psph->drDotFrho[0] += minDt * riemann_output.Fluxes.rho * dx;
             psph->drDotFrho[1] += minDt * riemann_output.Fluxes.rho * dy;
             psph->drDotFrho[2] += minDt * riemann_output.Fluxes.rho * dz;
-
+#endif
        }
 /*IA:  Old fluxes update (see 15/04/19 ) 
  * TODO: This is not needed for the update of the conserved variables. Instead,
@@ -1015,11 +1111,6 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
        psph->Fene += riemann_output.Fluxes.p; 
        for(j=0;j<3;j++) {psph->Fmom[j] += riemann_output.Fluxes.v[j];} 
 
-       if (!pkdIsActive(pkd,q)){
-          qsph->Frho -= riemann_output.Fluxes.rho;
-          qsph->Fene -= riemann_output.Fluxes.p;
-          for(j=0;j<3;j++){ qsph->Fmom[j] -= riemann_output.Fluxes.v[j]; }
-       }
     } // IA: End of loop over neighbors
 
 

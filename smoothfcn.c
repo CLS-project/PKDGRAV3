@@ -293,6 +293,7 @@ void combDenDVDX(void *vpkd, void *p1,void *p2)
 
 /* Gather only version */
 /* JW: What types should dx etc... have -- why is NN using FLOAT ? */
+#ifndef OPTIM_REMOVE_UNUSED
 void DenDVDX(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf)
     {
     PKD pkd = smf->pkd;
@@ -1308,3 +1309,6 @@ void DrmininDrift(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
 
 #endif
+
+#endif //OPTIM_REMOVE_UNUSED
+

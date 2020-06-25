@@ -303,23 +303,6 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
 	comb = NULL;
 	smx->fcnPost = NULL;
 	break;
-    case SMX_DENDVDX:
-	assert( pkd->oSph ); /* Validate memory model */
-	smx->fcnSmooth = DenDVDX;
-	initParticle = NULL; /* Original Particle */
-	init = initDenDVDX; /* Cached copies */
-	comb = combDenDVDX;
-	smx->fcnPost = NULL;
-	break;
-    case SMX_SPHFORCES:
-	assert( pkd->oSph ); /* Validate memory model */
-	assert( pkd->oAcceleration ); /* Validate memory model */
-	smx->fcnSmooth = SphForces;
-	initParticle = initSphForcesParticle; /* Original Particle */
-	init = initSphForces; /* Cached copies */
-	comb = combSphForces;
-	smx->fcnPost = NULL;
-	break;
     case SMX_FIRSTHYDROLOOP:
 	assert( pkd->oSph ); /* Validate memory model */
 	smx->fcnSmooth = hydroDensity;
@@ -361,6 +344,24 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
 	smx->fcnPost = NULL;
 	break;
 #endif
+#ifndef OPTIM_REMOVE_UNUSED
+    case SMX_DENDVDX:
+	assert( pkd->oSph ); /* Validate memory model */
+	smx->fcnSmooth = DenDVDX;
+	initParticle = NULL; /* Original Particle */
+	init = initDenDVDX; /* Cached copies */
+	comb = combDenDVDX;
+	smx->fcnPost = NULL;
+	break;
+    case SMX_SPHFORCES:
+	assert( pkd->oSph ); /* Validate memory model */
+	assert( pkd->oAcceleration ); /* Validate memory model */
+	smx->fcnSmooth = SphForces;
+	initParticle = initSphForcesParticle; /* Original Particle */
+	init = initSphForces; /* Cached copies */
+	comb = combSphForces;
+	smx->fcnPost = NULL;
+	break;
     case SMX_DIST_DELETED_GAS:
 	assert(bSymmetric != 0);
 	smx->fcnSmooth = DistDeletedGas;
@@ -418,6 +419,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
 	comb = NULL;
 	smx->fcnPost = NULL;
 	break;
+#endif //OPTIM_REMOVE_UNUSED
 #ifdef SYMBA
     case SMX_SYMBA:
 	assert(bSymmetric == 0);
