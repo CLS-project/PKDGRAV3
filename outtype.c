@@ -80,6 +80,8 @@ static int getType(int iType) {
       return OUTTYPE_INTEGER;
     case OUT_AVOIDEDFLUXES_ARRAY:
       return OUTTYPE_INTEGER;
+    case OUT_COMPUTEDFLUXES_ARRAY:
+      return OUTTYPE_INTEGER;
     case OUT_RUNGDEST_ARRAY:
 	return OUTTYPE_RUNGDEST;
 
@@ -124,6 +126,13 @@ static uint64_t fetchInteger(PKD pkd,PARTICLE *p,int iType,int iDim) {
     case OUT_AVOIDEDFLUXES_ARRAY:
       if (pkdIsGas(pkd,p)){
          v = (uint64_t)(pkdSph(pkd,p)->avoided_fluxes);
+      }else{
+         v = 0;
+      }
+      break;
+    case OUT_COMPUTEDFLUXES_ARRAY:
+      if (pkdIsGas(pkd,p)){
+         v = (uint64_t)(pkdSph(pkd,p)->computed_fluxes);
       }else{
          v = 0;
       }

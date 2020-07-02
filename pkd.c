@@ -1182,6 +1182,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             pSph->flux_cache = 0x00000000ULL;
             pSph->coll_cache = 0x00000000ULL;
             pSph->avoided_fluxes = 0;
+            pSph->computed_fluxes = 0;
 #endif
 		}
 	    break;
@@ -2986,6 +2987,7 @@ void pkdResetFluxes(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVP
             psph->flux_cache = 0x00000000ULL;
             psph->coll_cache = 0x00000000ULL;
             psph->avoided_fluxes = 0;
+            psph->computed_fluxes = 0;
 #endif
          }
        }
@@ -2993,6 +2995,17 @@ void pkdResetFluxes(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVP
 
     }
 
+void pkdFluxStats(PKD pkd, int* computed, int* avoided){
+    PARTICLE* p;
+    SPHFIELDS* psph;
+       
+    for (int i=0;i<pkdLocal(pkd);++i) { 
+       p = pkdParticle(pkd,i);
+       psph = pkdSph(pkd,p);
+       *avoided += psph->avoided_fluxes;
+       *computed += psph->computed_fluxes;
+    }
+}
 
 void pkdPredictSmoothing(PKD pkd,int iRoot, double dTime, double dDelta) {
     PARTICLE *p;

@@ -745,6 +745,28 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
        qsph = pkdSph(pkd, q);
        qh = pkdBall(pkd,q); 
 
+	 dx = nnList[i].dx;
+	 dy = nnList[i].dy;
+	 dz = nnList[i].dz;
+#ifdef FORCE_1D
+       if (dz!=0) continue;
+       if (dy!=0) continue;
+#endif
+#ifdef FORCE_2D
+       if (dz!=0) continue;
+#endif
+
+       /* IA: in the nnList there is a 'copy' of the own particle, which we can omit as there are no fluxes
+        * to be computed here */
+       if (dx==0 && dy==0 && dz==0) continue;
+
+       // Face where the riemann problem will be solved
+       hpq = ph;
+       rpq = sqrt(nnList[i].fDist2);
+       if (qh/0.50 < rpq) continue;
+
+       Wpq = cubicSplineKernel(rpq, hpq); 
+       if (Wpq==0.0){/*printf("hpq %e rpq %e \t %e \n", hpq, rpq, rpq/hpq); */continue; }
 
 #ifdef OPTIM_CACHED_FLUXES
        int j_cache_index_i = *pkdParticleID(pkd,p) % (sizeof(cache_t)*8);
@@ -755,6 +777,7 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
           psph->avoided_fluxes += 1;
           continue;
        }
+       psph->computed_fluxes += 1;
 #endif
        /* IA: We update the conservatives variables taking the minimum timestep between the particles, as in AREPO */
        if (!pkdIsActive(pkd,q)) { // If q is not active we now that p has the smallest dt 
@@ -779,32 +802,10 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
           qDeltaHalf /= smf->a;
           pDeltaHalf /= smf->a;
        }
-
-
 //       printf("pDeltaHalf %e qDeltaHalf %e \n", pDeltaHalf, qDeltaHalf);
 
-	 dx = nnList[i].dx;
-	 dy = nnList[i].dy;
-	 dz = nnList[i].dz;
-#ifdef FORCE_1D
-       if (dz!=0) continue;
-       if (dy!=0) continue;
-#endif
-#ifdef FORCE_2D
-       if (dz!=0) continue;
-#endif
 
-       /* IA: in the nnList there is a 'copy' of the own particle, which we can omit as there are no fluxes
-        * to be computed here */
-       if (dx==0 && dy==0 && dz==0) continue;
 
-       // Face where the riemann problem will be solved
-       hpq = ph;
-       rpq = sqrt(nnList[i].fDist2);
-       if (qh/0.50 < rpq) continue;
-
-       Wpq = cubicSplineKernel(rpq, hpq); 
-       if (Wpq==0.0){/*printf("hpq %e rpq %e \t %e \n", hpq, rpq, rpq/hpq); */continue; }
 
        // \tilde{\psi}_j (x_i)
        psi = -cubicSplineKernel(rpq, ph)/psph->omega;   

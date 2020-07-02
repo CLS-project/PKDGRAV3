@@ -3834,6 +3834,20 @@ void msrMeshlessFluxes(MSR msr,double dTime,double dDelta,int iRoot){
     printf("took %.5f seconds\n", dsec);
 }
 
+void msrFluxStats(MSR msr, double dTime, double dDelta, double dStep, uint8_t uRungMax, int iRoot){
+   struct inFluxStats in;
+   struct outFluxStats out;
+
+   out.nAvoided = 0;
+   out.nComputed = 0;
+
+   pstFluxStats(msr->pst, &in, sizeof(in), &out, sizeof(out));
+
+   printf("Flux stats @ Step= %f Rung= %d :: nAvoided= %d nComputed= %d \n", dStep, uRungMax, out.nAvoided, out.nComputed);
+
+
+}
+
 void msrOutputFineStatistics(MSR msr, double dStep, double dTime){
     if (dTime==-1){
        char achFile[256];
@@ -4722,6 +4736,7 @@ int msrNewTopStepKDK(MSR msr,
    if (msrDoGas(msr) && msrMeshlessHydro(msr)){
       msrResetFluxes(msr, *pdTime, dDelta, ROOT);
       msrMeshlessFluxes(msr, *pdTime, dDelta, ROOT);
+      msrFluxStats(msr, *pdTime, dDelta, *pdStep, uRung, ROOT);
    }
    if (msr->param.bVStep) printf("Step:%f (uMaxRung %d) (uRung %d) \n",*pdStep,*puRungMax, uRung);
 
@@ -5366,6 +5381,7 @@ uint8_t msrInitSph(MSR msr,double dTime)
         msrUpdatePrimVars(msr, dTime, 0.0, ROOT);
         msrMeshlessGradients(msr, dTime, 0.0, ROOT);
         msrMeshlessFluxes(msr, dTime, 0.0, ROOT);
+        msrFluxStats(msr, dTime, 0.0, 0, 0, ROOT);
 	//msrZeroNewRung(msr,0,MAX_RUNG,0); 
         msrHydroStep(msr,0,MAX_RUNG,dTime); // We do this twice because we need to have uNewRung for the time limiter
         msrHydroStep(msr,0,MAX_RUNG,dTime);  // of Durier & Dalla Vecchia
@@ -6137,6 +6153,10 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
     msrBuildName(msr,achFile,iStep);
     strncat(achFile,".avoided_fluxes",256);
     msrOutArray(msr,achFile,OUT_AVOIDEDFLUXES_ARRAY);
+
+    msrBuildName(msr,achFile,iStep);
+    strncat(achFile,".computed_fluxes",256);
+    msrOutArray(msr,achFile,OUT_COMPUTEDFLUXES_ARRAY);
 
     if (msrDoGas(msr) && !msr->param.nSteps) {  /* Diagnostic Gas */ 
 	msrReorder(msr);

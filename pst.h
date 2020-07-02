@@ -125,6 +125,7 @@ enum pst_service {
     PST_DRIFT,
     PST_RESETFLUXES, 
     PST_COMPUTEPRIMVARS, 
+    PST_FLUXSTATS, 
 #ifdef COOLING
     PST_COOLINGUPDATE,
     PST_COOLINGUPDATEZ,
@@ -761,6 +762,14 @@ struct inDrift {
 int pstDrift(PST,void *,int,void *,int);
 int pstResetFluxes(PST,void *,int,void *,int); 
 int pstComputePrimVars(PST,void *,int,void *,int);
+struct inFluxStats{
+   // Empty but could be used in the future?
+};
+struct outFluxStats{
+   int nAvoided;
+   int nComputed;
+};
+int pstFluxStats(PST, void*, int, void*, int);
 int pstPredictSmoothing(PST,void *,int,void *,int);
 
 /* PST_DRIFT */

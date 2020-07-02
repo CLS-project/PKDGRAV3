@@ -169,6 +169,9 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_COMPUTEPRIMVARS,pst,
 		  (fcnService_t*) pstComputePrimVars,
 		  sizeof(struct inDrift),0);
+    mdlAddService(mdl,PST_FLUXSTATS,pst,
+		  (fcnService_t*) pstFluxStats,
+		  sizeof(struct inFluxStats), sizeof(struct outFluxStats));
     mdlAddService(mdl,PST_PREDICTSMOOTH,pst,
               (fcnService_t*) pstPredictSmoothing,
               sizeof(struct inDrift),0);
@@ -2941,6 +2944,31 @@ int pstResetFluxes(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	pkdResetFluxes(plcl->pkd,in->iRoot,in->dTime,in->dDelta,in->dDeltaVPred,in->dDeltaUPred);
 	}
     return 0;
+    }
+
+int pstFluxStats(PST pst,void *vin,int nIn,void *vout,int nOut) {
+    struct inFluxStats *in = vin;
+    struct outFluxStats *out = vout;
+    struct outFluxStats outUpper;
+
+    if (pst->nLeaves > 1) {
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_FLUXSTATS,in,nIn);
+	pstFluxStats(pst->pstLower,vin,nIn,vout,nOut);
+	mdlGetReply(pst->mdl,rID,&outUpper,&nOut);
+	assert(nOut==sizeof(struct outFluxStats));
+      out->nAvoided += outUpper.nAvoided;
+      out->nComputed += outUpper.nComputed;
+	}
+    else {
+	LCL *plcl = pst->plcl;
+
+      int avoided = 0;
+      int computed = 0;
+	pkdFluxStats(plcl->pkd, &computed, &avoided);
+      out->nAvoided = avoided;
+      out->nComputed = computed;
+	}
+    return sizeof(struct outFluxStats);
     }
 
 int pstComputePrimVars(PST pst,void *vin,int nIn,void *vout,int nOut) {

@@ -225,6 +225,7 @@ typedef struct sphfields {
     cache_t flux_cache;
     cache_t coll_cache;
     uint8_t avoided_fluxes; // Just for measuring performance gains
+    uint8_t computed_fluxes;
 #endif
 
 
@@ -1590,6 +1591,7 @@ void pkdGravEvalPC(PINFOIN *pPart, int nBlocks, int nInLast, ILC_BLK *blk,  PINF
 void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double,double);
 void pkdApplyGravWork(PKD pkd,double dTime,double dDelta,double,double,double,uint8_t uRungLo,uint8_t uRungHi);
 void pkdResetFluxes(PKD pkd,int iRoot,double dTime,double dDelta,double,double);
+void pkdFluxStats(PKD pkd, int* avoided, int* computed);
 void pkdComputePrimVars(PKD pkd,int iRoot, double dTime, double dDelta);
 void pkdPredictSmoothing(PKD pkd,int iRoot, double dTime, double dDelta);
 void pkdScaleVel(PKD pkd,double dvFac);
