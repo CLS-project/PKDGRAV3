@@ -3835,6 +3835,7 @@ void msrMeshlessFluxes(MSR msr,double dTime,double dDelta,int iRoot){
 }
 
 void msrFluxStats(MSR msr, double dTime, double dDelta, double dStep, uint8_t uRungMax, int iRoot){
+#ifdef OPTIM_CACHED_FLUXES
    struct inFluxStats in;
    struct outFluxStats out;
 
@@ -3844,8 +3845,9 @@ void msrFluxStats(MSR msr, double dTime, double dDelta, double dStep, uint8_t uR
    pstFluxStats(msr->pst, &in, sizeof(in), &out, sizeof(out));
 
    printf("Flux stats @ Step= %f Rung= %d :: nAvoided= %d nComputed= %d \n", dStep, uRungMax, out.nAvoided, out.nComputed);
-
-
+#else
+   return;
+#endif
 }
 
 void msrOutputFineStatistics(MSR msr, double dStep, double dTime){

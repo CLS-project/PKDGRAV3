@@ -2995,6 +2995,7 @@ void pkdResetFluxes(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVP
 
     }
 
+#ifdef OPTIM_CACHED_FLUXES
 void pkdFluxStats(PKD pkd, int* computed, int* avoided){
     PARTICLE* p;
     SPHFIELDS* psph;
@@ -3006,6 +3007,7 @@ void pkdFluxStats(PKD pkd, int* computed, int* avoided){
        *computed += psph->computed_fluxes;
     }
 }
+#endif
 
 void pkdPredictSmoothing(PKD pkd,int iRoot, double dTime, double dDelta) {
     PARTICLE *p;

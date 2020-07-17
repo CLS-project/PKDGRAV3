@@ -169,9 +169,11 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_COMPUTEPRIMVARS,pst,
 		  (fcnService_t*) pstComputePrimVars,
 		  sizeof(struct inDrift),0);
+#ifdef OPTIM_CACHED_FLUXES
     mdlAddService(mdl,PST_FLUXSTATS,pst,
 		  (fcnService_t*) pstFluxStats,
 		  sizeof(struct inFluxStats), sizeof(struct outFluxStats));
+#endif
     mdlAddService(mdl,PST_PREDICTSMOOTH,pst,
               (fcnService_t*) pstPredictSmoothing,
               sizeof(struct inDrift),0);
@@ -2946,6 +2948,7 @@ int pstResetFluxes(PST pst,void *vin,int nIn,void *vout,int nOut) {
     return 0;
     }
 
+#ifdef OPTIM_CACHED_FLUXES
 int pstFluxStats(PST pst,void *vin,int nIn,void *vout,int nOut) {
     struct inFluxStats *in = vin;
     struct outFluxStats *out = vout;
@@ -2970,6 +2973,7 @@ int pstFluxStats(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	}
     return sizeof(struct outFluxStats);
     }
+#endif
 
 int pstComputePrimVars(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
