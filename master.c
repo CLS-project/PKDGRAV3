@@ -2049,6 +2049,18 @@ void msrLogParams(MSR msr,FILE *fp) {
 #ifdef HERNQUIST_POTENTIAL
    fprintf(fp," HERNQUIST_POTENTIAL"); 
 #endif
+#ifdef OPTIM_CACHED_FLUXES
+   fprintf(fp," OPTIM_CACHED_FLUXES"); 
+#endif
+#ifdef OPTIM_REMOVE_UNUSED
+   fprintf(fp," OPTIM_REMOVE_UNUSED"); 
+#endif
+#ifdef OPTIM_REDUCE_PRECISION
+   fprintf(fp," OPTIM_REDUCE_PRECISION"); 
+#endif
+#ifdef OPTIM_DENSITY_REITER
+   fprintf(fp," OPTIM_DENSITY_REITER"); 
+#endif
    /* End of new macros */
 #if defined(MAXHOSTNAMELEN) && defined(HAVE_GETHOSTNAME)
     fprintf(fp,"\n# Master host: ");

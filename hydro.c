@@ -271,7 +271,7 @@ void hydroDensity(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 #endif //OPTIM_DENSITY_REITER
     for (i=0; i<nSmooth; ++i){
 #ifdef OPTIM_DENSITY_REITER
-       if (rpq > maxr) maxr = rpq;
+       if (nnList[i].fDist2> maxr) maxr =nnList[i].fDist2;
 #else
        q = nnList[i].pPart;
 
@@ -287,8 +287,10 @@ void hydroDensity(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
      *    - Particles not marked are those with a correct smoothing length
      */
 #ifdef OPTIM_DENSITY_REITER
+    maxr = sqrt(maxr);
     while (p->bMarked){
        psph->omega=0.0;
+       ph = pkdBall(pkd,p);
        for (i=0; i<nSmooth; ++i){
           q = nnList[i].pPart;
 
@@ -302,7 +304,7 @@ void hydroDensity(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 #endif //OPTIM_DENSITY_REITER
 
 #ifndef FIXED_NSMOOTH_RELAXED
-       c = 4.*M_PI/3. * psph->omega *fBall*fBall*fBall*8.; 
+       c = 4.*M_PI/3. * psph->omega *ph*ph*ph*8.; 
 #else
        c = nSmooth;
 #endif
@@ -310,11 +312,11 @@ void hydroDensity(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
           p->bMarked = 0;
        }else{
           float newBall;
-          newBall = fBall * pow(  pkd->param.nSmooth/c  ,0.3333333333);
+          newBall = ph * pow(  pkd->param.nSmooth/c  ,0.3333333333);
        //   if (nSmooth <= 1) newBall *= 2.*fBall;
        
-          pkdSetBall(pkd,p, 0.5*(newBall+fBall));
-          psph->fLastBall = fBall;
+          pkdSetBall(pkd,p, 0.5*(newBall+ph));
+          psph->fLastBall = ph;
 
 #ifdef OPTIM_DENSITY_REITER
           // If the suggested new radius does not enclose all our neighbors, we need to reiterate
