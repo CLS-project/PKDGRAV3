@@ -320,6 +320,11 @@ if (OPTIM_REDUCE_PRECISION)
    message("-- OPTIM: Reduced precision to decrease particle size")
 endif(OPTIM_REDUCE_PRECISION)
 
+option(OPTIM_DENSITY_REITER "Reduce the number of density iterations when we have neighbors than expected" OFF)
+if (OPTIM_DENSITY_REITER)
+   target_compile_options(${PROJECT_NAME} PRIVATE -DOPTIM_DENSITY_REITER)
+   message("-- OPTIM: Reduced number of density iterations when we have a larger fBall than expected")
+endif(OPTIM_DENSITY_REITER)
 ####
 
 

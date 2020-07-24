@@ -266,20 +266,41 @@ void hydroDensity(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     /* IA: Compute the \omega(x_i) normalization factor */
     psph->omega = 0.0;
     ph = pkdBall(pkd,p);
+#ifdef OPTIM_DENSITY_REITER
+    float maxr = 0.0;
+#endif //OPTIM_DENSITY_REITER
     for (i=0; i<nSmooth; ++i){
+#ifdef OPTIM_DENSITY_REITER
+       if (rpq > maxr) maxr = rpq;
+#else
        q = nnList[i].pPart;
 
        rpq = sqrt(nnList[i].fDist2);
        hpq = ph; 
 
        psph->omega += cubicSplineKernel(rpq, hpq);
+#endif //OPTIM_DENSITY_REITER
     }
     
     /* IA: If we are using a iterative procedure for computing the smoothing length, then:
      *    - Particles marked are those which still needs iterations
      *    - Particles not marked are those with a correct smoothing length
      */
+#ifdef OPTIM_DENSITY_REITER
+    while (p->bMarked){
+       psph->omega=0.0;
+       for (i=0; i<nSmooth; ++i){
+          q = nnList[i].pPart;
+
+          rpq = sqrt(nnList[i].fDist2);
+          hpq = ph; 
+
+          psph->omega += cubicSplineKernel(rpq, hpq);
+       }
+#else
     if (pkd->param.bIterativeSmoothingLength && p->bMarked){
+#endif //OPTIM_DENSITY_REITER
+
 #ifndef FIXED_NSMOOTH_RELAXED
        c = 4.*M_PI/3. * psph->omega *fBall*fBall*fBall*8.; 
 #else
@@ -294,6 +315,11 @@ void hydroDensity(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
        
           pkdSetBall(pkd,p, 0.5*(newBall+fBall));
           psph->fLastBall = fBall;
+
+#ifdef OPTIM_DENSITY_REITER
+          // If the suggested new radius does not enclose all our neighbors, we need to reiterate
+          if (pkdBall(pkd,p)>maxr) break;
+#endif
           
 #else // FIXED_NSMOOTH_STRICT
     double minR2, lastMin;
