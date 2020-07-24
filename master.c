@@ -3877,7 +3877,7 @@ void msrOutputFineStatistics(MSR msr, double dStep, double dTime){
 
        /* Second, we add the rung distribution */
        for (int i=0; i<msr->iCurrMaxRung; i++)
-          fprintf(msr->fpFineLog, "%d ", msr->nRung[i]);
+          fprintf(msr->fpFineLog, "%"PRIu64" ", msr->nRung[i]);
        fprintf(msr->fpFineLog, "\n");
 
     }
@@ -4940,6 +4940,7 @@ void msrTopStepKDK(MSR msr,
          if (msr->param.bVStep) printf("Step:%f (iKickRung %d) (iRung %d) \n",dStep,iKickRung, iRung);
          msrResetFluxes(msr, dTime, dDelta, ROOT);
          msrMeshlessFluxes(msr, dTime, dDelta, ROOT);
+         msrFluxStats(msr, dTime, dDelta, dStep, iKickRung, ROOT);
       }
 
 

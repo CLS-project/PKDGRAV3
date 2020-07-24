@@ -3126,6 +3126,7 @@ void pkdComputePrimVars(PKD pkd,int iRoot, double dTime, double dDelta) {
 #endif
 
             psph->P = psph->Uint*psph->omega*(pkd->param.dConstGamma -1.);
+            if (psph->P<0.0) psph->P=0.0;
             psph->c = sqrt(psph->P*pkd->param.dConstGamma/pkdDensity(pkd,p));
 
             pkdVel(pkd,p)[0] = psph->mom[0]/pkdMass(pkd,p);

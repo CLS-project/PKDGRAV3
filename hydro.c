@@ -307,7 +307,7 @@ void hydroDensity(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
           minR2 = HUGE_VAL;
           lastMin = 0.;
 
-          for (int n; n<pkd->param.nSmooth-2; n++){
+          for (int n=0; n<pkd->param.nSmooth-2; n++){
              minR2 = HUGE_VAL;
              for (i=0; i<nSmooth; i++){
                 if (nnList[i].fDist2 < minR2)
@@ -1214,8 +1214,14 @@ void hydroStep(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     double cfl = smf->dCFLacc, dtAcc;
     
     double pdt = smf->dDelta/(1<<p->uRung) ;
-    for (j=0;j<3;j++) { a[j] = pa[j] + (-pkdVel(pkd,p)[j]*psph->Frho + psph->Fmom[j])/pkdMass(pkd,p); }
+    //for (j=0;j<3;j++) { a[j] = pa[j] + (-pkdVel(pkd,p)[j]*psph->Frho + psph->Fmom[j])/pkdMass(pkd,p); }
+    //acc = sqrt(a[0]*a[0] + a[1]*a[1] + a[2]*a[2]);
+
+    for (j=0;j<3;j++) { a[j] = pa[j]; }
     acc = sqrt(a[0]*a[0] + a[1]*a[1] + a[2]*a[2]);
+    for (j=0;j<3;j++) { a[j] = psph->Fmom[j]/pkdMass(pkd,p); }
+    acc += sqrt(a[0]*a[0] + a[1]*a[1] + a[2]*a[2]);
+
 
     float h = pkd->param.bDoGravity ? (fBall < pkdSoft(pkd,p) ? fBall : pkdSoft(pkd,p) ) : fBall;
     dtAcc = cfl*sqrt(2*h/acc);

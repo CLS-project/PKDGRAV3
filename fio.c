@@ -3368,6 +3368,7 @@ static int hdf5SetAttr(
           printf("Not valid mode\n");
           abort();
     }
+    return rc;
       
     }
 
