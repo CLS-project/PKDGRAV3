@@ -180,13 +180,13 @@ typedef double myreal;
 
 #ifdef OPTIM_CACHED_FLUXES
 typedef uint64_t cache_t;
-inline void set_bit(cache_t *cache, int index){
+extern inline void set_bit(cache_t *cache, int index){
    *cache |=  0x00000001ULL<<index;
 }
-inline void clear_bit(cache_t *cache, int index){
+extern inline void clear_bit(cache_t *cache, int index){
    *cache &= ~( 0x00000001ULL<<index);
 }
-inline uint64_t get_bit(cache_t *cache, int index){
+extern inline uint64_t get_bit(cache_t *cache, int index){
    return *cache & ( 0x00000001ULL<<index);
 }
 

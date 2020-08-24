@@ -78,7 +78,7 @@ static const double bracket_factor = 1.5;
  * @param dz (return) Difference in redshift between z and table[z_index].
  * @param cooling #cooling_function_data structure containing redshift table.
  */
-inline void get_redshift_index(
+static inline void get_redshift_index(
     const float z, int *z_index, float *dz,
     struct cooling_function_data *restrict cooling) {
 
@@ -201,19 +201,19 @@ void cooling_update(MSR msr,const float redshift, int sync) {
   in.previous_z_index = cooling->previous_z_index;
   in.dz = cooling->dz;
 
-  for (int i;i<eagle_cooling_N_loaded_redshifts * num_elements_metal_heating ;i++) 
+  for (int i=0;i<eagle_cooling_N_loaded_redshifts * num_elements_metal_heating ;i++) 
      in.metal_heating[i] = msr->cooling->table.metal_heating[i];
 
-  for (int i;i<eagle_cooling_N_loaded_redshifts * num_elements_HpHe_heating; i++) 
+  for (int i=0;i<eagle_cooling_N_loaded_redshifts * num_elements_HpHe_heating; i++) 
      in.H_plus_He_heating[i] = msr->cooling->table.H_plus_He_heating[i];
 
-  for (int i;i<eagle_cooling_N_loaded_redshifts * num_elements_HpHe_electron_abundance;i++) 
+  for (int i=0;i<eagle_cooling_N_loaded_redshifts * num_elements_HpHe_electron_abundance;i++) 
      in.H_plus_He_electron_abundance[i] = msr->cooling->table.H_plus_He_electron_abundance[i];
 
-  for (int i;i<eagle_cooling_N_loaded_redshifts * num_elements_temperature;i++) 
+  for (int i=0;i<eagle_cooling_N_loaded_redshifts * num_elements_temperature;i++) 
      in.temperature[i] = msr->cooling->table.temperature[i];
 
-  for (int i;i<eagle_cooling_N_loaded_redshifts * num_elements_electron_abundance;i++) 
+  for (int i=0;i<eagle_cooling_N_loaded_redshifts * num_elements_electron_abundance;i++) 
      in.electron_abundance[i] = msr->cooling->table.electron_abundance[i];
 
   pstCoolingUpdate(msr->pst, &in, sizeof(in), NULL, 0);
@@ -292,7 +292,7 @@ inline static double bisection_iter(
     if (i >= bisection_max_iterations) {
       printf(
           "particle exceeded max iterations searching for bounds when "
-          "cooling, u_ini_cgs %.5e n_H_cgs %.5e",
+          "cooling, u_ini_cgs %.5e n_H_cgs %.5e \n" ,
           u_ini_cgs, n_H_cgs);
     }
   } else {
@@ -883,20 +883,22 @@ void pkd_cooling_init_backend(PKD pkd, struct cooling_function_data in_cooling_d
   float Temp[eagle_cooling_N_temperature],
   float HeFrac[eagle_cooling_N_He_frac],
   float Therm[eagle_cooling_N_temperature],
-  float SolarAbundances[eagle_cooling_N_temperature],
-  float SolarAbundances_inv[eagle_cooling_N_temperature]
+  float SolarAbundances[eagle_cooling_N_abundances],
+  float SolarAbundances_inv[eagle_cooling_N_abundances]
       ) {
-   printf("Initializing in a single process \n");
+   //printf("Initializing in a single process \n");
 
   /* IA: Allocate the needed structs */
   pkd->cooling = (struct cooling_function_data *) malloc(sizeof(struct cooling_function_data));
+  if (pkd->cooling == NULL) printf("Error allocating cooling_function_data\n");
   //struct cooling_function_data *cooling = pkd->cooling;
 
-  *(pkd->cooling) = in_cooling_data;
+  memcpy(pkd->cooling, &in_cooling_data, sizeof(struct cooling_function_data));
 
 #define ALLOC_AND_COPY(arr, n) \
   pkd->cooling->arr = (float *) malloc(sizeof(float)*n); \
-  for (int i; i<n; i++) pkd->cooling->arr[i] = arr[i];
+  if (pkd->cooling->arr == NULL) printf("Error allocating (arr) with %d elements \n", n); \
+  for (int i=0; i<n; i++) pkd->cooling->arr[i] = arr[i];
 
   ALLOC_AND_COPY(Redshifts, eagle_cooling_N_redshifts)
   ALLOC_AND_COPY(nH, eagle_cooling_N_density)
@@ -911,48 +913,53 @@ void pkd_cooling_init_backend(PKD pkd, struct cooling_function_data in_cooling_d
   /* Allocate space for cooling tables */
   allocate_cooling_tables(pkd->cooling);
 
-  PARTICLE* p;
-  SPHFIELDS* psph;
+
     for (int i=0;i<pkd->nLocal;++i) {
+      PARTICLE* p;
 	p = pkdParticle(pkd,i);
-      psph = pkdSph(pkd,p);
-      if (psph->chemistry[chemistry_element_H] == 0.){
-         psph->chemistry[chemistry_element_H] = pkd->param.dInitialH;
-         psph->chemistry[chemistry_element_He] = pkd->param.dInitialHe;
-         psph->chemistry[chemistry_element_C] = pkd->param.dInitialC;
-         psph->chemistry[chemistry_element_N] = pkd->param.dInitialN;
-         psph->chemistry[chemistry_element_O] = pkd->param.dInitialO;
-         psph->chemistry[chemistry_element_Ne] = pkd->param.dInitialNe;
-         psph->chemistry[chemistry_element_Mg] = pkd->param.dInitialMg;
-         psph->chemistry[chemistry_element_Si] = pkd->param.dInitialSi;
-         psph->chemistry[chemistry_element_Fe] = pkd->param.dInitialFe;
+      if (pkdIsGas(pkd,p)) {
+         SPHFIELDS* psph;
+         psph = pkdSph(pkd,p);
+         if (psph->chemistry[chemistry_element_H] == 0.){
+            psph->chemistry[chemistry_element_H] = pkd->param.dInitialH;
+            psph->chemistry[chemistry_element_He] = pkd->param.dInitialHe;
+            psph->chemistry[chemistry_element_C] = pkd->param.dInitialC;
+            psph->chemistry[chemistry_element_N] = pkd->param.dInitialN;
+            psph->chemistry[chemistry_element_O] = pkd->param.dInitialO;
+            psph->chemistry[chemistry_element_Ne] = pkd->param.dInitialNe;
+            psph->chemistry[chemistry_element_Mg] = pkd->param.dInitialMg;
+            psph->chemistry[chemistry_element_Si] = pkd->param.dInitialSi;
+            psph->chemistry[chemistry_element_Fe] = pkd->param.dInitialFe;
+         }
       }
     }
-   printf("END Initializing in a single process \n");
+    
 }
+
+
+
 
 void pkd_cooling_update(PKD pkd, struct inCoolUpdate *in){
 
-   printf("Updating in a single process \n");
 
    pkd->cooling->z_index = in->z_index;
    pkd->cooling->previous_z_index = in->previous_z_index;
    pkd->cooling->dz  = in->dz;
    
 
-  for (int i;i<eagle_cooling_N_loaded_redshifts * num_elements_metal_heating ;i++) 
+  for (int i=0;i<eagle_cooling_N_loaded_redshifts * num_elements_metal_heating ;i++) 
      pkd->cooling->table.metal_heating[i] = in->metal_heating[i];
 
-  for (int i;i<eagle_cooling_N_loaded_redshifts * num_elements_HpHe_heating; i++) 
+  for (int i=0;i<eagle_cooling_N_loaded_redshifts * num_elements_HpHe_heating; i++) 
      pkd->cooling->table.H_plus_He_heating[i] = in->H_plus_He_heating[i];
 
-  for (int i;i<eagle_cooling_N_loaded_redshifts * num_elements_HpHe_electron_abundance;i++) 
+  for (int i=0;i<eagle_cooling_N_loaded_redshifts * num_elements_HpHe_electron_abundance;i++) 
      pkd->cooling->table.H_plus_He_electron_abundance[i] = in->H_plus_He_electron_abundance[i];
 
-  for (int i;i<eagle_cooling_N_loaded_redshifts * num_elements_temperature;i++) 
+  for (int i=0;i<eagle_cooling_N_loaded_redshifts * num_elements_temperature;i++) 
      pkd->cooling->table.temperature[i] = in->temperature[i];
 
-  for (int i;i<eagle_cooling_N_loaded_redshifts * num_elements_electron_abundance;i++) 
+  for (int i=0;i<eagle_cooling_N_loaded_redshifts * num_elements_electron_abundance;i++) 
      pkd->cooling->table.electron_abundance[i] = in->electron_abundance[i];
 
 }

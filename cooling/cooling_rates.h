@@ -49,7 +49,7 @@
  * @param cooling #cooling_function_data struct.
  * @param ratio_solar (return) Array of ratios to solar abundances.
  */
-inline static void abundance_ratio_to_solar(PARTICLE* p, SPHFIELDS* psph,
+static inline void abundance_ratio_to_solar(PARTICLE* p, SPHFIELDS* psph,
     const struct cooling_function_data *cooling,
     float ratio_solar[eagle_cooling_N_abundances]) {
 
@@ -108,7 +108,7 @@ inline static void abundance_ratio_to_solar(PARTICLE* p, SPHFIELDS* psph,
  * @param cooling The #cooling_function_data used in the run.
  * @return Helium reionization energy in CGS units.
  */
-inline double
+extern inline double
 eagle_helium_reionization_extraheat(
     const double z, const double delta_z,
     const struct cooling_function_data *cooling) {
@@ -164,7 +164,7 @@ eagle_helium_reionization_extraheat(
  *
  * @return log_10 of the temperature.
  */
-inline double eagle_convert_u_to_temp(
+extern inline double eagle_convert_u_to_temp(
     const double log_10_u_cgs, const float redshift, const int n_H_index,
     const int He_index, const float d_n_H, const float d_He,
     const struct cooling_function_data *cooling) {
@@ -222,7 +222,7 @@ inline double eagle_convert_u_to_temp(
  * @param temperature The temperature.
  * @param electron_abundance The electron abundance.
  */
-inline double eagle_Compton_cooling_rate(
+extern inline double eagle_Compton_cooling_rate(
     const struct cooling_function_data *cooling, const double redshift,
     const double n_H_cgs, const double temperature,
     const double electron_abundance) {
@@ -303,7 +303,7 @@ inline double eagle_Compton_cooling_rate(
  *
  * @return The cooling rate
  */
-inline static double eagle_metal_cooling_rate(
+static inline double eagle_metal_cooling_rate(
     const double log10_u_cgs, const double redshift, const double n_H_cgs,
     const float solar_ratio[eagle_cooling_N_abundances], const int n_H_index,
     const float d_n_H, const int He_index, const float d_He,
@@ -527,7 +527,7 @@ inline static double eagle_metal_cooling_rate(
  *
  * @return The cooling rate
  */
-inline static double eagle_cooling_rate(
+static inline double eagle_cooling_rate(
     const double log10_u_cgs, const double redshift, const double n_H_cgs,
     const float abundance_ratio[eagle_cooling_N_abundances],
     const int n_H_index, const float d_n_H, const int He_index,
