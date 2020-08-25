@@ -108,7 +108,7 @@ static inline void abundance_ratio_to_solar(PARTICLE* p, SPHFIELDS* psph,
  * @param cooling The #cooling_function_data used in the run.
  * @return Helium reionization energy in CGS units.
  */
-extern inline double
+INLINE double
 eagle_helium_reionization_extraheat(
     const double z, const double delta_z,
     const struct cooling_function_data *cooling) {
@@ -164,7 +164,7 @@ eagle_helium_reionization_extraheat(
  *
  * @return log_10 of the temperature.
  */
-extern inline double eagle_convert_u_to_temp(
+INLINE double eagle_convert_u_to_temp(
     const double log_10_u_cgs, const float redshift, const int n_H_index,
     const int He_index, const float d_n_H, const float d_He,
     const struct cooling_function_data *cooling) {
@@ -222,7 +222,7 @@ extern inline double eagle_convert_u_to_temp(
  * @param temperature The temperature.
  * @param electron_abundance The electron abundance.
  */
-extern inline double eagle_Compton_cooling_rate(
+INLINE double eagle_Compton_cooling_rate(
     const struct cooling_function_data *cooling, const double redshift,
     const double n_H_cgs, const double temperature,
     const double electron_abundance) {

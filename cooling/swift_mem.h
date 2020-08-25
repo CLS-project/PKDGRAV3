@@ -1,6 +1,13 @@
  /*
  * IA: Extracted from align.h and memuse.h
  */
+#ifndef INLINE
+#if defined(__INTEL_COMPILER)
+#define INLINE extern inline
+#else
+#define INLINE inline
+#endif
+#endif
 
 
 /**
@@ -14,7 +21,7 @@
  * @param size the quantity of bytes to allocate.
  * @result zero on success, otherwise an error code.
  */
-extern inline int swift_memalign(const char *label,
+INLINE int swift_memalign(const char *label,
                                           void **memptr,
                                           size_t alignment,
                                           size_t size) {
