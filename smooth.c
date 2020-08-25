@@ -2420,7 +2420,7 @@ void pkdFastGasCleanup(PKD pkd) {
 }
 #endif
 
-void smGather(SMX smx,double fBall2,double r[3]) {
+void smGather(SMX smx,double fBall2,double r[3], PARTICLE * p) {
     KDN *kdn;
     PKD pkd = smx->pkd;
     MDL mdl = pkd->mdl;
@@ -2430,13 +2430,41 @@ void smGather(SMX smx,double fBall2,double r[3]) {
     int iCell,id;
     int sp = 0;
     BND bnd;
-    PARTICLE *p;
     double p_r[3];
     double dx, dy, dz, fDist2;
     int pj, pEnd, nCnt;
 
     nCnt = smx->nnListSize;
+
+#ifdef OPTIM_INVERSE_WALK
+/* IA: Instead of starting from the ROOT node, we look for the smallest node which
+ * fully contains a sphere of radius fBall centred on the particle.
+ *
+ * Then, we take this node as the ROOT and proceed as usual.
+ *
+ * If the particle is really close to the boundary, we can not do more, because it may overlap with nodes in other domains
+ */
+
+    double fBall = sqrt(fBall2);
+    id = idSelf;
+    kdn = pkdTreeNode(pkd,pkdParent(pkd,p));
+    bnd = pkdNodeGetBnd(pkd,kdn);
+
+
+    while((( bnd.fMax[0] - fabs(bnd.fCenter[0] - r[0]) - fBall < 0  )||
+          ( bnd.fMax[1] - fabs(bnd.fCenter[1] - r[1]) - fBall < 0  )||
+          ( bnd.fMax[2] - fabs(bnd.fCenter[2] - r[2]) - fBall < 0  ))&&
+          (pkdNodeParent(pkd,kdn)!=0)){
+       //printf("%d %e %e %e %e \t %e \n", pkdNodeParent(pkd,kdn), bnd.fMax[0], bnd.fCenter[0], r[0], fBall, bnd.fMax[0] - fabs(bnd.fCenter[0] - r[0]) - fBall);
+       //printf("%d %e %e %e %e \t %e \n", pkdNodeParent(pkd,kdn), bnd.fMax[1], bnd.fCenter[1], r[1], fBall, bnd.fMax[1] - fabs(bnd.fCenter[1] - r[1]) - fBall);
+       //printf("%d %e %e %e %e \t %e \n", pkdNodeParent(pkd,kdn), bnd.fMax[2], bnd.fCenter[2], r[2], fBall, bnd.fMax[2] - fabs(bnd.fCenter[2] - r[2]) - fBall);
+       kdn = pkdTreeNode(pkd, pkdNodeParent(pkd,kdn));
+       bnd = pkdNodeGetBnd(pkd,kdn);
+    }
+#else 
     kdn = getCell(pkd,iCell=pkd->iTopTree[ROOT],id = idSelf);
+#endif
+
     while (1) {
         bnd = pkdNodeGetBnd(pkd, kdn);
 	MINDIST(&bnd,r,min2);
@@ -2597,13 +2625,13 @@ void smReSmoothSingle(SMX smx,SMF *smf,PARTICLE *p,double fBall) {
 		r[1] = R[1] - iy*pkd->fPeriod[1];
 		for (iz=iStart[2];iz<=iEnd[2];++iz) {
 		    r[2] = R[2] - iz*pkd->fPeriod[2];
-		    smGather(smx,fBall*fBall,r);
+		    smGather(smx,fBall*fBall,r, p);
 		}
 	    }
 	}
     }
     else {
-	smGather(smx,fBall*fBall,R);
+	smGather(smx,fBall*fBall,R, p);
     }
     /*
     ** Apply smooth funtion to the neighbor list.

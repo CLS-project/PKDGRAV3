@@ -2989,6 +2989,9 @@ static void BuildTree(MSR msr,int bNeedEwald,uint32_t uRoot,uint32_t utRoot) {
     pDistribTop->nTop = nTopTree / pkdNodeSize(pkd);
     assert(pDistribTop->nTop == (2*msr->nThreads-1));
     pstDistribTopTree(msr->pst,pDistribTop,sizeof(struct inDistribTopTree) + nTopTree,NULL,0);
+#ifdef OPTIM_INVERSE_WALK
+    msrSetParticleParent(msr);
+#endif
     dsec = msrTime() - sec;
     printf("Tree built, Wallclock: %f secs\n\n",dsec);
 
@@ -3786,6 +3789,12 @@ void msrDrift(MSR msr,double dTime,double dDelta,int iRoot) {
     }
 
 
+
+#ifdef OPTIM_INVERSE_WALK
+void msrSetParticleParent(MSR msr){
+   pstSetParticleParent(msr->pst, NULL, 0, NULL, 0);
+}
+#endif
 
 /* IA: TODO: This function probably can be eliminated, and the fluxes reset when 
  *   starting the ReSmooth 

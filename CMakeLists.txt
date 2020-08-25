@@ -325,6 +325,12 @@ if (OPTIM_DENSITY_REITER)
    target_compile_options(${PROJECT_NAME} PRIVATE -DOPTIM_DENSITY_REITER)
    message("-- OPTIM: Reduced number of density iterations when we have a larger fBall than expected")
 endif(OPTIM_DENSITY_REITER)
+
+option(OPTIM_INVERSE_WALK "When searching neighbours, start walking the tree from the leaves" OFF)
+if (OPTIM_INVERSE_WALK)
+   target_compile_options(${PROJECT_NAME} PRIVATE -DOPTIM_INVERSE_WALK)
+   message("-- OPTIM: When searching neighbours, start walking the tree from the leaves")
+endif (OPTIM_INVERSE_WALK)
 ####
 
 

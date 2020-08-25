@@ -938,7 +938,9 @@ typedef struct pkdContext {
     int oVelSmooth;
     int oRungDest; /* Destination processor for each rung */
     int oParticleID;
-
+#ifdef OPTIM_INVERSE_WALK
+    int oParent;
+#endif
     /*
     ** Advanced memory models - Tree Nodes
     */
@@ -950,6 +952,9 @@ typedef struct pkdContext {
     int oNodeBnd;
     int oNodeSphBounds; /* Three Bounds */
     int oNodeVBnd; /* Velocity bounds */
+#ifdef OPTIM_INVERSE_WALK
+    int oNodeParent;
+#endif
 
     /*
     ** Tree walk variables.
@@ -1218,6 +1223,16 @@ static inline void pkdNodeSetBndMinMax( PKD pkd, KDN *n, double *dMin, double *d
     pkdNodeSetBnd(pkd,n,&bnd);
     }
 
+#ifdef OPTIM_INVERSE_WALK
+static inline void pkdNodeSetParent(  PKD pkd, KDN *n, int pParent){
+    *CAST(int*, pkdNodeField(n, pkd->oNodeParent)) = pParent;
+    }
+
+static inline int pkdNodeParent( PKD pkd, KDN *n ){
+   return *CAST(int *, pkdNodeField(n, pkd->oNodeParent));
+   }
+#endif
+
 static inline BND *pkdNodeVBnd( PKD pkd, KDN *n ) {
     return CAST(BND *,pkdNodeField(n,pkd->oNodeVBnd));
     }
@@ -1347,6 +1362,16 @@ static inline float pkdBall( PKD pkd, PARTICLE *p ) {
 static inline void pkdSetBall(PKD pkd, PARTICLE *p, float fBall) {
     if (pkd->oBall) *CAST(float *, pkdField(p,pkd->oBall)) = fBall;
     }
+
+#ifdef OPTIM_INVERSE_WALK
+static inline void pkdSetParent(PKD pkd, PARTICLE *p, int iParent) {
+   if (pkd->oParent) *CAST(int *, pkdField(p, pkd->oParent)) = iParent;
+}
+
+static inline int pkdParent(PKD pkd, PARTICLE *p){
+   return *CAST(int *, pkdField(p, pkd->oParent));
+}
+#endif
 
 /* Here is the new way of getting mass and softening */
 static inline float pkdMass( PKD pkd, PARTICLE *p ) {
@@ -1589,6 +1614,9 @@ void pkdProcessLightCone(PKD pkd,PARTICLE *p,float fPot,double dLookbackFac,doub
 void pkdGravEvalPP(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINFOOUT *pOut );
 void pkdGravEvalPC(PINFOIN *pPart, int nBlocks, int nInLast, ILC_BLK *blk,  PINFOOUT *pOut );
 void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double,double);
+#ifdef OPTIM_INVERSE_WALK
+void pkdSetParticleParent(PKD pkd);
+#endif
 void pkdApplyGravWork(PKD pkd,double dTime,double dDelta,double,double,double,uint8_t uRungLo,uint8_t uRungHi);
 void pkdResetFluxes(PKD pkd,int iRoot,double dTime,double dDelta,double,double);
 void pkdFluxStats(PKD pkd, int* avoided, int* computed);

@@ -533,6 +533,9 @@ void pkdInitialize(
 	}
     else pkd->oPotential = 0;
 
+#ifdef OPTIM_INVERSE_WALK
+    pkd->oParent = pkdParticleAddInt32(pkd,1);
+#endif
     /*
     ** Tree node memory models
     */
@@ -556,6 +559,9 @@ void pkdInitialize(
     pkd->oNodeVelocity = 0;
     if ( (mMemoryModel & PKD_MODEL_NODE_VEL) && sizeof(vel_t) == sizeof(double))
 	    pkd->oNodeVelocity = pkdNodeAddDouble(pkd,3);
+#ifdef OPTIM_INVERSE_WALK
+    pkd->oNodeParent = pkdNodeAddInt32(pkd,1);
+#endif
     /*
     ** Three extra bounds are required by the fast gas SPH code.
     */
@@ -3006,6 +3012,21 @@ void pkdFluxStats(PKD pkd, int* computed, int* avoided){
        *avoided += psph->avoided_fluxes;
        *computed += psph->computed_fluxes;
     }
+}
+#endif
+
+#ifdef OPTIM_INVERSE_WALK
+void pkdSetParticleParent(PKD pkd){
+   KDN *node;
+   for (int i=0; i<pkd->nNodes-1; i++){
+      node = pkdTreeNode(pkd,i);
+      if (node->iLower==0){
+         //printf("Node %d \t %d %d \t %d \n", i, node->pLower, node->pUpper, node->iLower);
+         for (int p=node->pLower; p<=node->pUpper; p++){
+            pkdSetParent(pkd, pkdParticle(pkd,p), i);
+         }
+      }
+   }
 }
 #endif
 

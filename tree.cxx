@@ -288,6 +288,10 @@ void BuildTemp(PKD pkd,int iNode,int M,int nGroup,double dMaxMax) {
 	    pNode->iLower = iLeft;
 	    pNode->bGroup = pNode->pUpper - pNode->pLower < nGroup;
 
+#ifdef OPTIM_INVERSE_WALK
+          pkdNodeSetParent(pkd, pLeft, iNode);
+          pkdNodeSetParent(pkd, pRight, iNode);
+#endif
 	    /*
 	    ** Now deal with the bounds.
 	    */

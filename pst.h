@@ -123,6 +123,9 @@ enum pst_service {
     PST_CALCEANDL,
     PST_CALCEANDLEXT,
     PST_DRIFT,
+#ifdef OPTIM_INVERSE_WALK
+    PST_PARTICLEPARENT,
+#endif
     PST_RESETFLUXES, 
     PST_COMPUTEPRIMVARS, 
     PST_FLUXSTATS, 
@@ -760,6 +763,9 @@ struct inDrift {
     int iRoot;
     };
 int pstDrift(PST,void *,int,void *,int);
+#ifdef OPTIM_INVERSE_WALK
+int pstSetParticleParent(PST,void *,int,void *,int); 
+#endif
 int pstResetFluxes(PST,void *,int,void *,int); 
 int pstComputePrimVars(PST,void *,int,void *,int);
 struct inFluxStats{
