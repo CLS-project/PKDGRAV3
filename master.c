@@ -5010,9 +5010,15 @@ void msrTopStepKDK(MSR msr,
 	}
 
 #ifdef FEEDBACK
+   double sec, dsec;
+    printf("Computing feedback... ");
+
+    sec = msrTime();
       msrActiveRung(msr,iKickRung,0);
       msrReSmooth(msr,dTime,SMX_SN_FEEDBACK,0,0);
       msrActiveRung(msr,iKickRung,1);
+    dsec = msrTime() - sec;
+    printf("took %.5f seconds\n", dsec);
 #endif
 #ifdef STAR_FORMATION
       msrStarForm(msr, dTime, dDelta, iKickRung);

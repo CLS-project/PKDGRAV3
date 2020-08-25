@@ -14,7 +14,7 @@
  * @param size the quantity of bytes to allocate.
  * @result zero on success, otherwise an error code.
  */
-inline int swift_memalign(const char *label,
+extern inline int swift_memalign(const char *label,
                                           void **memptr,
                                           size_t alignment,
                                           size_t size) {
