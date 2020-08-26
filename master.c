@@ -5461,13 +5461,13 @@ void msrCoolingInit(MSR msr) {
     // We prepare the data to be scattered among the processes
     struct inCoolInit in;
     in.in_cooling_data = *(msr->cooling);
-    for (int i;i<eagle_cooling_N_redshifts;i++) in.Redshifts[i] = msr->cooling->Redshifts[i];
-    for (int i;i<eagle_cooling_N_density;i++) in.nH[i] = msr->cooling->nH[i];
-    for (int i;i<eagle_cooling_N_He_frac;i++) in.HeFrac[i] = msr->cooling->HeFrac[i];
-    for (int i;i<eagle_cooling_N_temperature;i++) in.Temp[i] = msr->cooling->Temp[i];
-    for (int i;i<eagle_cooling_N_temperature;i++) in.Therm[i] = msr->cooling->Therm[i];
-    for (int i;i<eagle_cooling_N_abundances;i++) in.SolarAbundances[i] = msr->cooling->SolarAbundances[i];
-    for (int i;i<eagle_cooling_N_abundances;i++) in.SolarAbundances_inv[i] = msr->cooling->SolarAbundances_inv[i];
+    for (int i=0;i<eagle_cooling_N_redshifts;i++) in.Redshifts[i] = msr->cooling->Redshifts[i];
+    for (int i=0;i<eagle_cooling_N_density;i++) in.nH[i] = msr->cooling->nH[i];
+    for (int i=0;i<eagle_cooling_N_He_frac;i++) in.HeFrac[i] = msr->cooling->HeFrac[i];
+    for (int i=0;i<eagle_cooling_N_temperature;i++) in.Temp[i] = msr->cooling->Temp[i];
+    for (int i=0;i<eagle_cooling_N_temperature;i++) in.Therm[i] = msr->cooling->Therm[i];
+    for (int i=0;i<eagle_cooling_N_abundances;i++) in.SolarAbundances[i] = msr->cooling->SolarAbundances[i];
+    for (int i=0;i<eagle_cooling_N_abundances;i++) in.SolarAbundances_inv[i] = msr->cooling->SolarAbundances_inv[i];
 
 
     pstCoolingInit(msr->pst,&in,sizeof(in),NULL,0);
