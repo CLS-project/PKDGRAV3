@@ -3414,6 +3414,34 @@ int msrReSmooth(MSR msr,double dTime,int iSmoothType,int bSymmetric, int bFirstS
     return out.nSmoothed;
     }
 
+#ifdef OPTIM_SMOOTH_NODE
+int msrReSmoothNode(MSR msr,double dTime,int iSmoothType,int bSymmetric, int bFirstStep) {
+    struct inSmooth in;
+    struct outSmooth out;
+    int nOut;
+
+    in.nSmooth = msr->param.nSmooth;
+    in.bPeriodic = msr->param.bPeriodic;
+    in.bSymmetric = bSymmetric;
+    in.iSmoothType = iSmoothType;
+    msrSmoothSetSMF(msr, &(in.smf), dTime);
+    if (bFirstStep) in.smf.dDelta = 0.0; // Avoid adding fluxes and doing the spatial extrapolation
+
+    if (msr->param.bVStep) {
+	double sec,dsec;
+	//printf("ReSmoothing...\n");
+	sec = msrTime();
+	pstReSmoothNode(msr->pst,&in,sizeof(in),&out,sizeof(struct outSmooth));
+	dsec = msrTime() - sec;
+	//printf("ReSmooth Calculated on %d particles, Wallclock: %f secs\n\n", out.nSmoothed, dsec);
+	}
+    else {
+	pstReSmoothNode(msr->pst,&in,sizeof(in),&out,sizeof(struct outSmooth));
+	}
+    return out.nSmoothed;
+    }
+#endif
+
 void msrUpdateSoft(MSR msr,double dTime) {
     if (msr->param.bPhysicalSoft) {
 	struct inPhysicalSoft in;
@@ -3826,7 +3854,11 @@ void msrMeshlessGradients(MSR msr,double dTime,double dDelta,int iRoot){
 
     sec = msrTime();
     if (msr->param.bConservativeReSmooth){
+#ifdef OPTIM_SMOOTH_NODE
+       msrReSmoothNode(msr,dTime,SMX_SECONDHYDROLOOP,0,0);
+#else
        msrReSmooth(msr,dTime,SMX_SECONDHYDROLOOP,0,0);
+#endif
     }else{
        msrSmooth(msr,dTime,SMX_SECONDHYDROLOOP,0, msr->param.nSmooth);
     }
@@ -3844,9 +3876,17 @@ void msrMeshlessFluxes(MSR msr,double dTime,double dDelta,int iRoot){
     sec = msrTime();
     if (msr->param.bConservativeReSmooth){
        if (dDelta==0.0){
-          msrReSmooth(msr,dTime,SMX_THIRDHYDROLOOP,1,1); 
+#ifdef OPTIM_SMOOTH_NODE
+          msrReSmoothNode(msr,dTime,SMX_THIRDHYDROLOOP,1,1);
+#else
+          msrReSmooth(msr,dTime,SMX_THIRDHYDROLOOP,1,1);
+#endif
        }else{
+#ifdef OPTIM_SMOOTH_NODE
+          msrReSmoothNode(msr,dTime,SMX_THIRDHYDROLOOP,1,0);
+#else
           msrReSmooth(msr,dTime,SMX_THIRDHYDROLOOP,1,0); 
+#endif
        }
     }else{
        msrSmooth(msr,dTime,SMX_THIRDHYDROLOOP,0,msr->param.nSmooth);
@@ -3924,7 +3964,11 @@ void msrUpdatePrimVars(MSR msr,double dTime,double dDelta,int iRoot){
 
        while (nSmoothed>0 && it <= maxit){
           msrSetFirstHydroLoop(msr, 1); // 1-> we care if the particle is marked ; 0-> we dont
+#ifdef OPTIM_SMOOTH_NODE
+          nSmoothed = msrReSmoothNode(msr,dTime,SMX_FIRSTHYDROLOOP,0,0);
+#else
           nSmoothed = msrReSmooth(msr,dTime,SMX_FIRSTHYDROLOOP,0,0);
+#endif
           msrSetFirstHydroLoop(msr, 0);
           it++;
           //if (it>4)
@@ -4450,7 +4494,11 @@ void msrHydroStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime) {
     printf("Computing hydro time step... ");
 
     sec = msrTime();
+#ifdef OPTIM_SMOOTH_NODE
+    msrReSmoothNode(msr,dTime,SMX_HYDROSTEP,1, 0);
+#else
     msrReSmooth(msr,dTime,SMX_HYDROSTEP,1, 0);
+#endif
 
     if (msr->param.bGlobalDt){
        if (msr->param.dFixedDelta != 0.0){

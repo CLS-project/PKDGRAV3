@@ -961,6 +961,7 @@ typedef struct pkdContext {
     int oNodeVBnd; /* Velocity bounds */
 #ifdef OPTIM_INVERSE_WALK
     int oNodeParent;
+    int oNodeBall;
 #endif
 
     /*
@@ -1238,6 +1239,12 @@ static inline void pkdNodeSetParent(  PKD pkd, KDN *n, int pParent){
 static inline int pkdNodeParent( PKD pkd, KDN *n ){
    return *CAST(int *, pkdNodeField(n, pkd->oNodeParent));
    }
+static inline double pkdNodeBall( PKD pkd, KDN* n){
+   return *CAST(double *, pkdNodeField(n, pkd->oNodeBall));
+   }
+static inline void pkdNodeSetBall(  PKD pkd, KDN *n, double ball){
+    *CAST(double*, pkdNodeField(n, pkd->oNodeBall)) = ball;
+    }
 #endif
 
 static inline BND *pkdNodeVBnd( PKD pkd, KDN *n ) {

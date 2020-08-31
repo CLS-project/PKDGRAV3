@@ -2732,3 +2732,389 @@ int  smReSmooth(SMX smx,SMF *smf, int iSmoothType) {
     
     return nSmoothed;
 }
+
+#ifdef OPTIM_SMOOTH_NODE
+/* IA: In this version, we loop over the buckets, rather than over the particles.
+ *
+ * For each bucket, we look for all the surroiding buckets that may interact with any particle in said bucket.
+ * Then, we put all those particles (including the own bucket) in a interaction list.
+ */
+#define MAX(X, Y)  ((X) > (Y) ? (X) : (Y))
+int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
+    PKD pkd = smx->pkd;
+    MDL mdl = pkd->mdl;
+    int pj, pk, nCnt, nCnt_own, id;
+    double dx, dy, dz;
+    double p_r[3], r[3], fDist2;
+    PARTICLE* p;
+    int nSmoothed=0;
+
+   smx->nnListSize = 0;
+   int nnListMax_p = NNLIST_INCREMENT;
+    KDN *node;
+    BND bnd_node;
+
+    NN* nnList_p;
+    nnList_p = (NN*)malloc(sizeof(NN)*nnListMax_p); // TODO: Should be enough, but exceptions need to be handled
+
+
+    for (int i=NRESERVED_NODES; i<pkd->nNodes-1; i++){
+      node = pkdTreeNode(pkd,i);
+      if (!node->iLower){ // We are in a bucket
+
+         // Prepare the interaction list
+
+         bnd_node = pkdNodeGetBnd(pkd,node);
+
+
+         //printf("fBall %e nodeBall %e \n", fBall, pkdNodeBall(pkd,node));
+         // Size of the ball that contains all possible particle interacting with this bucket
+
+         double r[3];
+         r[0] = bnd_node.fCenter[0];
+         r[1] = bnd_node.fCenter[1];
+         r[2] = bnd_node.fCenter[2];
+
+         // First, we add all the particles in the bucket to the interaction list, and track how many there are
+         int nActive = 0;
+         float nodeBall = 0.;
+         nCnt = 0;
+         for (pj=node->pLower;pj<=node->pUpper;++pj) {
+             p = pkdParticle(pkd,pj);
+
+             //if (iSmoothType==SMX_FIRSTHYDROLOOP) {
+             //   // TODO, for now we do not compute the density using this
+
+             if (iSmoothType==SMX_FIRSTHYDROLOOP) {
+                if ( (!p->bMarked) || (!pkdIsGas(pkd,p)) ) continue;
+             }else{
+                if (!pkdIsGas(pkd,p) ) continue;
+             }
+
+
+             if (pkdIsActive(pkd,p)) {
+                nActive++;
+                if (nodeBall<pkdBall(pkd,p)) nodeBall=pkdBall(pkd,p);
+             }
+             pkdGetPos1(pkd,p,p_r);
+             dx = r[0] - p_r[0];
+             dy = r[1] - p_r[1];
+             dz = r[2] - p_r[2];
+             if (nCnt >= smx->nnListMax) {
+                 smx->nnListMax += NNLIST_INCREMENT;
+                 smx->nnList = realloc(smx->nnList,smx->nnListMax*sizeof(NN));
+                 assert(smx->nnList != NULL);
+                 }
+             //smx->nnList[nCnt].fDist2 = fDist2;
+             smx->nnList[nCnt].dx = dx;
+             smx->nnList[nCnt].dy = dy;
+             smx->nnList[nCnt].dz = dz;
+             smx->nnList[nCnt].pPart = p;
+             smx->nnList[nCnt].iIndex = pj;
+             smx->nnList[nCnt].iPid = pkd->idSelf;
+             ++nCnt;
+
+          }
+         //printf("%e %e \n", 2.*nodeBall, pkdNodeBall(pkd,node));
+         int nCnt_own = nCnt;
+         if (nActive==0) continue; // There is no elligible particle in this bucket, go to the next
+            // printf("start node %d %d \n", pkd->idSelf, i);
+
+         nodeBall *= 2.;
+
+
+         double const fBall_x = bnd_node.fMax[0]+nodeBall;
+         double const fBall_y = bnd_node.fMax[1]+nodeBall;
+         double const fBall_z = bnd_node.fMax[2]+nodeBall;
+         double fBall2 = fBall_x*fBall_x + fBall_y*fBall_y + fBall_z*fBall_z;
+         //fBall = sqrt(fBall2);
+
+         bnd_node.fMax[0] += nodeBall;
+         bnd_node.fMax[1] += nodeBall;
+         bnd_node.fMax[2] += nodeBall;
+
+         //printf("nCnt_own %d \n", nCnt_own);
+    if (smx->bPeriodic) {
+       double iStart[3], iEnd[3];
+	for (int j=0;j<3;++j) {
+	    iStart[j] = d2i(floor((r[j] - bnd_node.fMax[j])/pkd->fPeriod[j] + 0.5));
+	    iEnd[j] = d2i(floor((r[j] + bnd_node.fMax[j])/pkd->fPeriod[j] + 0.5));
+	}
+	for (int ix=iStart[0];ix<=iEnd[0];++ix) {
+	    r[0] = bnd_node.fCenter[0] - ix*pkd->fPeriod[0];
+	    for (int iy=iStart[1];iy<=iEnd[1];++iy) {
+		r[1] = bnd_node.fCenter[1] - iy*pkd->fPeriod[1];
+		for (int iz=iStart[2];iz<=iEnd[2];++iz) {
+		    r[2] = bnd_node.fCenter[2] - iz*pkd->fPeriod[2];
+                buildInteractionList(smx, smf, node, bnd_node, &nCnt, r, fBall2, ix, iy, iz);
+		}
+	    }
+	}
+    }else{
+       buildInteractionList(smx, smf, node, bnd_node, &nCnt, r, fBall2, 0, 0, 0);
+    }
+
+
+
+              //printf("interaction list completed nCnt %d nCnt_own %d nActive  %d \n", nCnt, nCnt_own, nActive);
+
+
+          // Now we should have inside nnList all the particles in the bucket (0,nCnt_own) and those of which can
+          //  interact with them from other buckets (nCnt_own+1, nCnt)
+          //
+          // We just have to proceed to compute the correct dx, dy, dz and pass that nnList to the smoothfcn routine
+          // However, we have different options to do so:
+          // 1) Naive: we pass the whole nnList
+          // In a very dirty way, we check here if we are computing the density within this loop
+          if (iSmoothType==SMX_FIRSTHYDROLOOP){
+             for (pj=0; pj<nCnt_own; pj++){
+                PARTICLE * partj = smx->nnList[pj].pPart;
+                if (!pkdIsActive(pkd,partj) || !p->bMarked) continue;
+
+                do{
+                   float ph = pkdBall(pkd,partj);
+                   float fBall2_p = 4.*ph*ph;
+                   int nCnt_p = 0;
+                   SPHFIELDS* psph = pkdSph(pkd,partj);
+                   psph->omega = 0.0;
+                   for (pk=0;pk<nCnt;pk++){
+                      // As both dr vector are relative to the cell, we can do:
+                      dx = smx->nnList[pj].dx - smx->nnList[pk].dx;
+                      dy = smx->nnList[pj].dy - smx->nnList[pk].dy;
+                      dz = smx->nnList[pj].dz - smx->nnList[pk].dz;
+
+                      fDist2 = dx*dx + dy*dy + dz*dz;
+                      if (fDist2 <= fBall2_p){
+                         //printf("adding\n");
+                         double rpq = sqrt(fDist2);
+
+                         psph->omega += cubicSplineKernel(rpq, ph);
+                      }
+
+                   }
+                   double c = 4.*M_PI/3. * psph->omega *ph*ph*ph*8.;
+                   if (fabs(c-pkd->param.nSmooth) < pkd->param.dNeighborsStd0){
+                      partj->bMarked = 0;
+                      pkdSetDensity(pkd, partj, pkdMass(pkd,partj)*psph->omega);
+                      //printf("converged \n");
+                   }else{
+                      float newBall;
+                      newBall = ph * pow(  pkd->param.nSmooth/c  ,0.3333333333);
+                      pkdSetBall(pkd,partj, 0.5*(newBall+ph));
+                      //printf("Setting new fBall %e %e %e \n", c, ph, pkdBall(pkd,partj));
+
+                      if (newBall>ph){
+                         float ph = pkdBall(pkd,partj);
+                         // We check that the proposed ball is enclosed within the node search region
+                         if((fabs(smx->nnList[pj].dx) + ph > bnd_node.fMax[0])||
+                            (fabs(smx->nnList[pj].dy) + ph > bnd_node.fMax[1])||
+                            (fabs(smx->nnList[pj].dz) + ph > bnd_node.fMax[2])){
+                            //printf("Outside of fetched domain\n");
+                            break;
+                         }
+                      }
+
+                   }
+
+                }while(partj->bMarked);
+
+             }
+
+          }else{
+             for (pj=0; pj<nCnt_own; pj++){
+                PARTICLE * partj = smx->nnList[pj].pPart;
+                if (!pkdIsActive(pkd,partj)) continue;
+                float fBall2_p = 4.*pkdBall(pkd,partj)*pkdBall(pkd,partj);
+
+                int nCnt_p = 0;
+                for (pk=0;pk<nCnt;pk++){
+                   // As both dr vector are relative to the cell, we can do:
+                   dx = smx->nnList[pj].dx - smx->nnList[pk].dx;
+                   dy = smx->nnList[pj].dy - smx->nnList[pk].dy;
+                   dz = smx->nnList[pj].dz - smx->nnList[pk].dz;
+
+                   fDist2 = dx*dx + dy*dy + dz*dz;
+                   if (fDist2 <= fBall2_p){
+                      if (nCnt_p >= nnListMax_p) {
+                          nnListMax_p += NNLIST_INCREMENT;
+                          nnList_p = realloc(nnList_p,nnListMax_p*sizeof(NN));
+                          assert(nnList_p != NULL);
+                          //printf("realloc nnList_p\n");
+                          }
+                      //printf("adding\n");
+                      nnList_p[nCnt_p].fDist2 = fDist2;
+                      nnList_p[nCnt_p].dx = -dx;
+                      nnList_p[nCnt_p].dy = -dy;
+                      nnList_p[nCnt_p].dz = -dz;
+                      nnList_p[nCnt_p].pPart = smx->nnList[pk].pPart;
+                      nnList_p[nCnt_p].iIndex = smx->nnList[pk].iIndex;
+                      nnList_p[nCnt_p].iPid = smx->nnList[pk].iPid;
+                      nCnt_p++;
+                   }
+
+                }
+
+                //abort();
+                //printf("nCnt_p %d \n", nCnt_p);
+                //assert(nCnt_p<200);
+
+                smx->fcnSmooth(partj,pkdBall(pkd,partj),nCnt_p,nnList_p,smf);
+                //printf("wtf\n");
+
+             }
+          }
+
+
+
+          nSmoothed += nCnt_own;
+
+          for (pk=0;pk<nCnt;++pk) {
+            if (smx->nnList[pk].iPid != pkd->idSelf) {
+                mdlRelease(pkd->mdl,CID_PARTICLE,smx->nnList[pk].pPart);
+            }
+          }
+
+             //printf("end node %d %d \n", pkd->idSelf, i);
+      }
+   }
+    free(nnList_p);
+    //printf("nSmoothed %d \n", nSmoothed);
+    return nSmoothed;
+}
+
+
+
+void buildInteractionList(SMX smx, SMF *smf, KDN* node, BND bnd_node, int *nCnt_tot, double r[3], double fBall2, int ix, int iy, int iz){
+    PKD pkd = smx->pkd;
+    MDL mdl = pkd->mdl;
+    PARTICLE *p;
+    int id, sp, iCell, pEnd, pj;
+    double dx, dy, dz, p_r[3], fDist2;
+    KDN* kdn;
+    BND bnd;
+    struct stStack *S = smx->ST;
+    int nCnt = *nCnt_tot;
+
+   // We look for the biggest node that encloses the needed domain
+   id = pkd->idSelf;
+   kdn = pkdTreeNode(pkd,pkdNodeParent(pkd,node));
+   bnd = pkdNodeGetBnd(pkd,kdn);
+
+ // We can only take advantage of this if we are are in the original cell
+#ifdef OPTIM_INVERSE_WALK
+   if (ix==0 && iy==0 && iz==0){
+      while((( fabs(bnd.fCenter[0] - r[0]) - bnd.fMax[0] + bnd_node.fMax[0] > 0  )||
+             ( fabs(bnd.fCenter[1] - r[1]) - bnd.fMax[1] + bnd_node.fMax[1] > 0  )||
+             ( fabs(bnd.fCenter[2] - r[2]) - bnd.fMax[2] + bnd_node.fMax[2] > 0  ))&&
+             (pkdNodeParent(pkd,kdn)!=0)){
+          kdn = pkdTreeNode(pkd, pkdNodeParent(pkd,kdn));
+          bnd = pkdNodeGetBnd(pkd,kdn);
+      }
+   }else{
+       kdn = getCell(pkd,iCell=pkd->iTopTree[ROOT],id = pkd->idSelf);
+   }
+#else
+   kdn = getCell(pkd,iCell=pkd->iTopTree[ROOT],id = pkd->idSelf);
+#endif
+
+   //  Now we start the walk as usual
+   sp = 0;
+    while (1) {
+        bnd = pkdNodeGetBnd(pkd, kdn);
+      //MINDIST(&bnd,r,min2);
+      //if (min2 > fBall2) {
+      //    goto NoIntersect;
+      //}
+      for (int bnd_j=0; bnd_j<3; bnd_j++){
+         if (fabs(bnd.fCenter[bnd_j]-r[bnd_j]) - bnd.fMax[bnd_j] - bnd_node.fMax[bnd_j] > 0. ) goto NoIntersect;
+      }
+
+
+      /*
+      ** We have an intersection to test.
+      */
+      if (kdn->iLower) {
+          int idUpper,iUpper;
+          pkdGetChildCells(kdn,id,id,iCell,idUpper,iUpper);
+          kdn = getCell(pkd,iCell,id);
+          S[sp].id = idUpper;
+          S[sp].iCell = iUpper;
+          S[sp].min = 0.0;
+          ++sp;
+          continue;
+      }
+      else {
+          if (id == pkd->idSelf) {
+            if (kdn!=node) { // The own node contribution was already added in the first place
+            pEnd = kdn->pUpper;
+            for (pj=kdn->pLower;pj<=pEnd;++pj) {
+                p = pkdParticle(pkd,pj);
+                if (!pkdIsGas(pkd,p)) continue;
+                pkdGetPos1(pkd,p,p_r);
+                dx = r[0] - p_r[0];
+                dy = r[1] - p_r[1];
+                dz = r[2] - p_r[2];
+                fDist2 = dx*dx + dy*dy + dz*dz;
+                if (fDist2 <= fBall2) {
+                  if (nCnt >= smx->nnListMax) {
+                      smx->nnListMax += NNLIST_INCREMENT;
+                      smx->nnList = realloc(smx->nnList,smx->nnListMax*sizeof(NN));
+                      //printf("realloc \n");
+                      assert(smx->nnList != NULL);
+                      }
+                  smx->nnList[nCnt].fDist2 = fDist2;
+                  smx->nnList[nCnt].dx = dx;
+                  smx->nnList[nCnt].dy = dy;
+                  smx->nnList[nCnt].dz = dz;
+                  smx->nnList[nCnt].pPart = p;
+                  smx->nnList[nCnt].iIndex = pj;
+                  smx->nnList[nCnt].iPid = pkd->idSelf;
+                  ++nCnt;
+                  }
+                }
+            }
+            }
+          else {
+            pEnd = kdn->pUpper;
+            for (pj=kdn->pLower;pj<=pEnd;++pj) {
+                p = mdlFetch(mdl,CID_PARTICLE,pj,id);
+                if (!pkdIsGas(pkd,p)) continue;
+                pkdGetPos1(pkd,p,p_r);
+                dx = r[0] - p_r[0];
+                dy = r[1] - p_r[1];
+                dz = r[2] - p_r[2];
+                fDist2 = dx*dx + dy*dy + dz*dz;
+                if (fDist2 <= fBall2) {
+                  if (nCnt >= smx->nnListMax) {
+                      smx->nnListMax += NNLIST_INCREMENT;
+                      smx->nnList = realloc(smx->nnList,smx->nnListMax*sizeof(NN));
+                      //printf("realloc \n");
+                      assert(smx->nnList != NULL);
+                      }
+
+                  smx->nnList[nCnt].fDist2 = fDist2;
+                  smx->nnList[nCnt].dx = dx;
+                  smx->nnList[nCnt].dy = dy;
+                  smx->nnList[nCnt].dz = dz;
+                  smx->nnList[nCnt].pPart = mdlAcquire(mdl,CID_PARTICLE,pj,id);
+                  smx->nnList[nCnt].iIndex = pj;
+                  smx->nnList[nCnt].iPid = id;
+                  ++nCnt;
+                  }
+                }
+            }
+          }
+    NoIntersect:
+      if (sp) {
+          --sp;
+          id = S[sp].id;
+          iCell = S[sp].iCell;
+          kdn = getCell(pkd,iCell,id);
+          }
+      else break;
+    }
+
+    *nCnt_tot = nCnt;
+
+}
+#endif //OPTIM_SMOOTH_NODE

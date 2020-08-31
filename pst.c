@@ -267,6 +267,10 @@ void pstAddServices(PST pst,MDL mdl) {
 		  sizeof(struct inSetRung),0);
     mdlAddService(mdl,PST_RESMOOTH,pst,(fcnService_t*) pstReSmooth,
 		  sizeof(struct inSmooth),sizeof(struct outSmooth));
+#ifdef OPTIM_SMOOTH_NODE
+    mdlAddService(mdl,PST_RESMOOTHNODE,pst,(fcnService_t*) pstReSmoothNode,
+		  sizeof(struct inSmooth),sizeof(struct outSmooth));
+#endif
     mdlAddService(mdl,PST_UPDATERUNG,pst,(fcnService_t*)pstUpdateRung,
 		  sizeof(struct inUpdateRung),sizeof(struct outUpdateRung));
     mdlAddService(mdl,PST_UPDATERUNGBYTREE,pst,(fcnService_t*)pstUpdateRungByTree,
@@ -2708,6 +2712,32 @@ int pstReSmooth(PST pst,void *vin,int nIn,void *vout,int nOut) {
     return sizeof(struct outSmooth);
     }
 
+#ifdef OPTIM_SMOOTH_NODE
+int pstReSmoothNode(PST pst,void *vin,int nIn,void *vout,int nOut) {
+    struct inSmooth *in = vin;
+    struct outSmooth *out = vout;
+    struct outSmooth outUpper;
+
+//    mdlassert(pst->mdl,nIn == sizeof(struct inSmooth));
+    if (pst->nLeaves > 1) {
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_RESMOOTHNODE,in,nIn);
+	pstReSmoothNode(pst->pstLower,vin,nIn,vout,nOut);
+	mdlGetReply(pst->mdl,rID,&outUpper,&nOut);
+	assert(nOut==sizeof(struct outSmooth));
+      out->nSmoothed += outUpper.nSmoothed;
+	}
+    else {
+	LCL *plcl = pst->plcl;
+	SMX smx;
+
+	smInitialize(&smx,plcl->pkd,&in->smf,in->nSmooth,
+		     in->bPeriodic,in->bSymmetric,in->iSmoothType);
+	out->nSmoothed = smReSmoothNode(smx,&in->smf, in->iSmoothType);
+	smFinish(smx,&in->smf);
+	}
+    return sizeof(struct outSmooth);
+    }
+#endif
 
 void pstInitStat(STAT *ps,int id) {
     ps->idMax = id;

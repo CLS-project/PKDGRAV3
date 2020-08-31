@@ -331,6 +331,12 @@ if (OPTIM_INVERSE_WALK)
    target_compile_options(${PROJECT_NAME} PRIVATE -DOPTIM_INVERSE_WALK)
    message("-- OPTIM: When searching neighbours, start walking the tree from the leaves")
 endif (OPTIM_INVERSE_WALK)
+
+option(OPTIM_SMOOTH_NODE "Do the smooth operator for a whole node at once, rather than particle by particle" OFF)
+if (OPTIM_SMOOTH_NODE)
+   target_compile_options(${PROJECT_NAME} PRIVATE -DOPTIM_SMOOTH_NODE)
+   message("-- OPTIM: Do the smooth operator for a whole node at once, rather than particle by particle")
+endif (OPTIM_SMOOTH_NODE)
 ####
 
 

@@ -598,7 +598,7 @@ void Create(PKD pkd,int iRoot) {
     SPHBNDS *bn;
     BND bnd;
     double kdn_r[3];
-    double fSoft,x,y,z,ax,ay,az,ft[3],d2,d2Max,dih2,bmin,b;
+    double fSoft,x,y,z,ax,ay,az,ft[3],d2,d2Max,dih2,ball,bmin,b;
     float *a, m, fMass, fBall;
     vel_t *v, vx, vy, vz;
     int pj,d,nDepth,ism;
@@ -711,6 +711,10 @@ void Create(PKD pkd,int iRoot) {
 	v = pkd->oVelocity ? pkdVel(pkd,p) : zeroV;
 	fMass = m;
 	dih2 = fSoft;
+#ifdef OPTIM_INVERSE_WALK
+      if (pkdIsGas(pkd,p)) ball = pkdBall(pkd,p);
+      else ball = 0.0;
+#endif
 	pkdGetPos3(pkd,p,x,y,z);
 	x *= m;
 	y *= m;
@@ -730,6 +734,9 @@ void Create(PKD pkd,int iRoot) {
 	    v = pkd->oVelocity ? pkdVel(pkd,p) : zeroV;
 	    fMass += m;
 	    if (fSoft>dih2) dih2=fSoft;
+#ifdef OPTIM_INVERSE_WALK
+	    if ( (pkdIsGas(pkd,p)) && (pkdBall(pkd,p)>ball) ) ball=pkdBall(pkd,p);
+#endif
 	    pkdGetPos1(pkd,p,ft);
 	    x += m*ft[0];
 	    y += m*ft[1];
@@ -761,6 +768,9 @@ void Create(PKD pkd,int iRoot) {
 	    pAcc[2] = m*az;
 	    }
 	pkdn->fSoft2 = dih2*dih2;
+#ifdef OPTIM_INVERSE_WALK
+      pkdNodeSetBall(pkd, pkdn, 2.*ball);
+#endif
 	d2Max = 0.0;
 	for (pj=pkdn->pLower;pj<=pkdn->pUpper;++pj) {
 	    p = pkdParticle(pkd,pj);

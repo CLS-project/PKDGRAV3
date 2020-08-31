@@ -560,6 +560,7 @@ void pkdInitialize(
     if ( (mMemoryModel & PKD_MODEL_NODE_VEL) && sizeof(vel_t) == sizeof(double))
 	    pkd->oNodeVelocity = pkdNodeAddDouble(pkd,3);
 #ifdef OPTIM_INVERSE_WALK
+    pkd->oNodeBall = pkdNodeAddDouble(pkd,3);
     pkd->oNodeParent = pkdNodeAddInt32(pkd,1);
 #endif
     /*
