@@ -963,6 +963,9 @@ typedef struct pkdContext {
     int oNodeParent;
     int oNodeBall;
 #endif
+#ifdef OPTIM_SMOOTH_NODE
+    int oNodeNgas;
+#endif
 
     /*
     ** Tree walk variables.
@@ -1244,6 +1247,14 @@ static inline double pkdNodeBall( PKD pkd, KDN* n){
    }
 static inline void pkdNodeSetBall(  PKD pkd, KDN *n, double ball){
     *CAST(double*, pkdNodeField(n, pkd->oNodeBall)) = ball;
+    }
+#endif
+#ifdef OPTIM_SMOOTH_NODE
+static inline int pkdNodeNgas( PKD pkd, KDN* n){
+   return *CAST(int *, pkdNodeField(n, pkd->oNodeNgas));
+   }
+static inline void pkdNodeSetNgas(  PKD pkd, KDN *n, int ball){
+    *CAST(int*, pkdNodeField(n, pkd->oNodeNgas)) = ball;
     }
 #endif
 
@@ -1630,6 +1641,9 @@ void pkdGravEvalPC(PINFOIN *pPart, int nBlocks, int nInLast, ILC_BLK *blk,  PINF
 void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double,double);
 #ifdef OPTIM_INVERSE_WALK
 void pkdSetParticleParent(PKD pkd);
+#endif
+#ifdef OPTIM_SMOOTH_NODES
+void pkdReorderWithinNodes(PKD pkd);
 #endif
 void pkdApplyGravWork(PKD pkd,double dTime,double dDelta,double,double,double,uint8_t uRungLo,uint8_t uRungHi);
 void pkdResetFluxes(PKD pkd,int iRoot,double dTime,double dDelta,double,double);

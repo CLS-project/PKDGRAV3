@@ -175,6 +175,7 @@ enum pst_service {
     PST_RESMOOTH,
 #ifdef OPTIM_SMOOTH_NODE
     PST_RESMOOTHNODE,
+    PST_REORDERINNODES,
 #endif
     PST_INITACCEL,
     PST_UPDATERUNG,
@@ -663,6 +664,7 @@ int pstCoolingHydReion(PST,void *,int,void *,int);
 int pstReSmooth(PST,void *,int,void *,int);
 #ifdef OPTIM_SMOOTH_NODE
 int pstReSmoothNode(PST,void *,int,void *,int);
+int pstReorderWithinNodes(PST,void *,int,void *,int);
 #endif
 
 #ifdef FAST_GAS

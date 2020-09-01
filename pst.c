@@ -270,6 +270,8 @@ void pstAddServices(PST pst,MDL mdl) {
 #ifdef OPTIM_SMOOTH_NODE
     mdlAddService(mdl,PST_RESMOOTHNODE,pst,(fcnService_t*) pstReSmoothNode,
 		  sizeof(struct inSmooth),sizeof(struct outSmooth));
+    mdlAddService(mdl,PST_REORDERINNODES,pst,(fcnService_t*) pstReorderWithinNodes,
+		  0,0);
 #endif
     mdlAddService(mdl,PST_UPDATERUNG,pst,(fcnService_t*)pstUpdateRung,
 		  sizeof(struct inUpdateRung),sizeof(struct outUpdateRung));
@@ -2977,6 +2979,22 @@ int pstSetParticleParent(PST pst,void *vin,int nIn,void *vout,int nOut){
 	}
     else {
 	pkdSetParticleParent(plcl->pkd);
+	}
+    return 0;
+}
+#endif
+
+#ifdef OPTIM_SMOOTH_NODE
+int pstReorderWithinNodes(PST pst,void *vin,int nIn,void *vout,int nOut){
+    LCL *plcl = pst->plcl;
+
+    if (pst->nLeaves > 1) {
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_REORDERINNODES,NULL,0);
+	pstReorderWithinNodes(pst->pstLower,NULL,0,NULL,0);
+	mdlGetReply(pst->mdl,rID,NULL,NULL);
+	}
+    else {
+	pkdReorderWithinNodes(plcl->pkd);
 	}
     return 0;
 }

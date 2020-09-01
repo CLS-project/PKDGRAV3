@@ -162,6 +162,7 @@ void msrFastGasPhase2(MSR,double,int);
 int  msrReSmooth(MSR,double,int,int,int);
 #ifdef OPTIM_SMOOTH_NODE
 int  msrReSmoothNode(MSR,double,int,int,int);
+void msrReorderWithinNodes(MSR);
 #endif
 void msrUpdateSoft(MSR,double);
 uint8_t msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,

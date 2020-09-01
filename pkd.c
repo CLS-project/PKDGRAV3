@@ -563,6 +563,9 @@ void pkdInitialize(
     pkd->oNodeBall = pkdNodeAddDouble(pkd,3);
     pkd->oNodeParent = pkdNodeAddInt32(pkd,1);
 #endif
+#ifdef OPTIM_SMOOTH_NODE
+    pkd->oNodeNgas = pkdNodeAddInt32(pkd,1);
+#endif
     /*
     ** Three extra bounds are required by the fast gas SPH code.
     */
@@ -3028,6 +3031,40 @@ void pkdSetParticleParent(PKD pkd){
          }
       }
    }
+}
+#endif
+
+#ifdef OPTIM_SMOOTH_NODE
+void pkdReorderWithinNodes(PKD pkd){
+   KDN *node;
+   for (int i=NRESERVED_NODES; i<pkd->nNodes-1; i++){
+      int nGas = 0;
+      node = pkdTreeNode(pkd,i);
+      if (!node->iLower){ // We are in a bucket
+         for (int pj=node->pLower;pj<=node->pUpper;++pj) {
+            if (pkdIsGas(pkd, pkdParticle(pkd,pj))) {
+               if (nGas!=pj) pkdSwapParticle(pkd, pkdParticle(pkd,pj) , pkdParticle(pkd,node->pLower+nGas) );
+               nGas++;
+            }
+
+         }
+         pkdNodeSetNgas(pkd, node, nGas);
+      }
+   }
+   // Check that this works
+   /*
+   for (int i=NRESERVED_NODES; i<pkd->nNodes; i++){
+      node = pkdTreeNode(pkd,i);
+      if (!node->iLower){ // We are in a bucket
+         printf("Start node %d\n",i);
+         for (int pj=node->pLower;pj<=node->pUpper;++pj) {
+            if (pkdIsGas(pkd, pkdParticle(pkd,pj)) ) printf("%d is Gas \n", pj);
+            if (pkdIsStar(pkd, pkdParticle(pkd,pj)) ) printf("%d is Star \n", pj);
+            if (pkdIsDark(pkd, pkdParticle(pkd,pj)) ) printf("%d is DM \n", pj);
+         }
+      }
+   }
+   */
 }
 #endif
 

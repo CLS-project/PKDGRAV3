@@ -3035,6 +3035,7 @@ void msrBuildTree(MSR msr,double dTime,int bNeedEwald) {
 	droot.r[2] = msr->momTreeCom[ROOT][2];
 	pstDistribRoot(msr->pst,&droot,sizeof(struct ioDistribRoot),NULL,0);
 	}
+    msrReorderWithinNodes(msr);
     }
 
 /*
@@ -3440,6 +3441,15 @@ int msrReSmoothNode(MSR msr,double dTime,int iSmoothType,int bSymmetric, int bFi
 	}
     return out.nSmoothed;
     }
+
+void msrReorderWithinNodes(MSR msr){
+   double sec,dsec;
+   sec = msrTime();
+   pstReorderWithinNodes(msr->pst,NULL,0,NULL,0);
+   dsec = msrTime() - sec;
+   printf("Reordering nodes took %e secs \n", dsec);
+
+}
 #endif
 
 void msrUpdateSoft(MSR msr,double dTime) {

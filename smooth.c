@@ -2755,7 +2755,11 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
     BND bnd_node;
 
     NN* nnList_p;
-    nnList_p = (NN*)malloc(sizeof(NN)*nnListMax_p); // TODO: Should be enough, but exceptions need to be handled
+    nnList_p = (NN*)malloc(sizeof(NN)*nnListMax_p);
+
+    // Here we store the pointers to the particle whose interaction need to be computed
+    PARTICLE** sinks;
+    sinks = malloc(64*sizeof(PARTICLE*)); // At most, the size of the bucket
 
 
     for (int i=NRESERVED_NODES; i<pkd->nNodes-1; i++){
@@ -2775,49 +2779,30 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
          r[1] = bnd_node.fCenter[1];
          r[2] = bnd_node.fCenter[2];
 
-         // First, we add all the particles in the bucket to the interaction list, and track how many there are
+         // First, we add all the particles whose interactions need to be computed
          int nActive = 0;
          float nodeBall = 0.;
-         nCnt = 0;
-         for (pj=node->pLower;pj<=node->pUpper;++pj) {
+         int pEnd = node->pLower + pkdNodeNgas(pkd,node);
+         for (pj=node->pLower;pj<pEnd;++pj) {
              p = pkdParticle(pkd,pj);
-
-             //if (iSmoothType==SMX_FIRSTHYDROLOOP) {
-             //   // TODO, for now we do not compute the density using this
-
-             if (iSmoothType==SMX_FIRSTHYDROLOOP) {
-                if ( (!p->bMarked) || (!pkdIsGas(pkd,p)) ) continue;
-             }else{
-                if (!pkdIsGas(pkd,p) ) continue;
-             }
+             assert(pkdIsGas(pkd,p));
 
 
              if (pkdIsActive(pkd,p)) {
-                nActive++;
-                if (nodeBall<pkdBall(pkd,p)) nodeBall=pkdBall(pkd,p);
-             }
-             pkdGetPos1(pkd,p,p_r);
-             dx = r[0] - p_r[0];
-             dy = r[1] - p_r[1];
-             dz = r[2] - p_r[2];
-             if (nCnt >= smx->nnListMax) {
-                 smx->nnListMax += NNLIST_INCREMENT;
-                 smx->nnList = realloc(smx->nnList,smx->nnListMax*sizeof(NN));
-                 assert(smx->nnList != NULL);
-                 }
-             //smx->nnList[nCnt].fDist2 = fDist2;
-             smx->nnList[nCnt].dx = dx;
-             smx->nnList[nCnt].dy = dy;
-             smx->nnList[nCnt].dz = dz;
-             smx->nnList[nCnt].pPart = p;
-             smx->nnList[nCnt].iIndex = pj;
-             smx->nnList[nCnt].iPid = pkd->idSelf;
-             ++nCnt;
+                if (iSmoothType==SMX_FIRSTHYDROLOOP) 
+                   if (!p->bMarked) continue;
 
+                if (nodeBall<pkdBall(pkd,p)) nodeBall=pkdBall(pkd,p);
+                sinks[nActive] = p; 
+                nActive++;
+             }
           }
-         //printf("%e %e \n", 2.*nodeBall, pkdNodeBall(pkd,node));
-         int nCnt_own = nCnt;
          if (nActive==0) continue; // There is no elligible particle in this bucket, go to the next
+
+         //printf("nodeBall %e nActive %d \n", nodeBall, nActive);
+         nCnt = 0;
+         //printf("%e %e \n", 2.*nodeBall, pkdNodeBall(pkd,node));
+         int nCnt_own = nActive;
             // printf("start node %d %d \n", pkd->idSelf, i);
 
          nodeBall *= 2.;
@@ -2868,8 +2853,11 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
           // In a very dirty way, we check here if we are computing the density within this loop
           if (iSmoothType==SMX_FIRSTHYDROLOOP){
              for (pj=0; pj<nCnt_own; pj++){
-                PARTICLE * partj = smx->nnList[pj].pPart;
-                if (!pkdIsActive(pkd,partj) || !p->bMarked) continue;
+                PARTICLE * partj = sinks[pj];
+
+                float dx_node = fabs(pkdPos(pkd,partj,0)-bnd_node.fCenter[0]);
+                float dy_node = fabs(pkdPos(pkd,partj,1)-bnd_node.fCenter[1]);
+                float dz_node = fabs(pkdPos(pkd,partj,2)-bnd_node.fCenter[2]);
 
                 do{
                    float ph = pkdBall(pkd,partj);
@@ -2879,9 +2867,12 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
                    psph->omega = 0.0;
                    for (pk=0;pk<nCnt;pk++){
                       // As both dr vector are relative to the cell, we can do:
-                      dx = smx->nnList[pj].dx - smx->nnList[pk].dx;
-                      dy = smx->nnList[pj].dy - smx->nnList[pk].dy;
-                      dz = smx->nnList[pj].dz - smx->nnList[pk].dz;
+                      //dx = smx->nnList[pj].dx - smx->nnList[pk].dx;
+                      //dy = smx->nnList[pj].dy - smx->nnList[pk].dy;
+                      //dz = smx->nnList[pj].dz - smx->nnList[pk].dz;
+                      dx = pkdPos(pkd,partj,0) - pkdPos(pkd,smx->nnList[pk].pPart, 0);
+                      dy = pkdPos(pkd,partj,1) - pkdPos(pkd,smx->nnList[pk].pPart, 1);
+                      dz = pkdPos(pkd,partj,2) - pkdPos(pkd,smx->nnList[pk].pPart, 2);
 
                       fDist2 = dx*dx + dy*dy + dz*dz;
                       if (fDist2 <= fBall2_p){
@@ -2906,11 +2897,11 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
                       if (newBall>ph){
                          float ph = pkdBall(pkd,partj);
                          // We check that the proposed ball is enclosed within the node search region
-                         if((fabs(smx->nnList[pj].dx) + ph > bnd_node.fMax[0])||
-                            (fabs(smx->nnList[pj].dy) + ph > bnd_node.fMax[1])||
-                            (fabs(smx->nnList[pj].dz) + ph > bnd_node.fMax[2])){
+                         if((dx_node + ph > bnd_node.fMax[0])||
+                            (dy_node + ph > bnd_node.fMax[1])||
+                            (dz_node + ph > bnd_node.fMax[2])){
                             //printf("Outside of fetched domain\n");
-                            break;
+                            continue;
                          }
                       }
 
@@ -2922,16 +2913,14 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
 
           }else{
              for (pj=0; pj<nCnt_own; pj++){
-                PARTICLE * partj = smx->nnList[pj].pPart;
-                if (!pkdIsActive(pkd,partj)) continue;
+                PARTICLE * partj = sinks[pj];
                 float fBall2_p = 4.*pkdBall(pkd,partj)*pkdBall(pkd,partj);
 
                 int nCnt_p = 0;
                 for (pk=0;pk<nCnt;pk++){
-                   // As both dr vector are relative to the cell, we can do:
-                   dx = smx->nnList[pj].dx - smx->nnList[pk].dx;
-                   dy = smx->nnList[pj].dy - smx->nnList[pk].dy;
-                   dz = smx->nnList[pj].dz - smx->nnList[pk].dz;
+                   dx = pkdPos(pkd,partj,0) - pkdPos(pkd,smx->nnList[pk].pPart, 0);
+                   dy = pkdPos(pkd,partj,1) - pkdPos(pkd,smx->nnList[pk].pPart, 1);
+                   dz = pkdPos(pkd,partj,2) - pkdPos(pkd,smx->nnList[pk].pPart, 2);
 
                    fDist2 = dx*dx + dy*dy + dz*dz;
                    if (fDist2 <= fBall2_p){
@@ -2997,11 +2986,11 @@ void buildInteractionList(SMX smx, SMF *smf, KDN* node, BND bnd_node, int *nCnt_
 
    // We look for the biggest node that encloses the needed domain
    id = pkd->idSelf;
-   kdn = pkdTreeNode(pkd,pkdNodeParent(pkd,node));
-   bnd = pkdNodeGetBnd(pkd,kdn);
 
  // We can only take advantage of this if we are are in the original cell
 #ifdef OPTIM_INVERSE_WALK
+   kdn = pkdTreeNode(pkd,pkdNodeParent(pkd,node));
+   bnd = pkdNodeGetBnd(pkd,kdn);
    if (ix==0 && iy==0 && iz==0){
       while((( fabs(bnd.fCenter[0] - r[0]) - bnd.fMax[0] + bnd_node.fMax[0] > 0  )||
              ( fabs(bnd.fCenter[1] - r[1]) - bnd.fMax[1] + bnd_node.fMax[1] > 0  )||
@@ -3045,11 +3034,11 @@ void buildInteractionList(SMX smx, SMF *smf, KDN* node, BND bnd_node, int *nCnt_
       }
       else {
           if (id == pkd->idSelf) {
-            if (kdn!=node) { // The own node contribution was already added in the first place
-            pEnd = kdn->pUpper;
-            for (pj=kdn->pLower;pj<=pEnd;++pj) {
+            pEnd = kdn->pLower+pkdNodeNgas(pkd,kdn);
+            //printf("pEnd %d \n", pEnd);
+            for (pj=kdn->pLower;pj<pEnd;++pj) {
                 p = pkdParticle(pkd,pj);
-                if (!pkdIsGas(pkd,p)) continue;
+                assert(pkdIsGas(pkd,p));
                 pkdGetPos1(pkd,p,p_r);
                 dx = r[0] - p_r[0];
                 dy = r[1] - p_r[1];
@@ -3073,12 +3062,10 @@ void buildInteractionList(SMX smx, SMF *smf, KDN* node, BND bnd_node, int *nCnt_
                   }
                 }
             }
-            }
           else {
-            pEnd = kdn->pUpper;
-            for (pj=kdn->pLower;pj<=pEnd;++pj) {
+            pEnd = kdn->pLower+pkdNodeNgas(pkd,kdn);
+            for (pj=kdn->pLower;pj<pEnd;++pj) {
                 p = mdlFetch(mdl,CID_PARTICLE,pj,id);
-                if (!pkdIsGas(pkd,p)) continue;
                 pkdGetPos1(pkd,p,p_r);
                 dx = r[0] - p_r[0];
                 dy = r[1] - p_r[1];
