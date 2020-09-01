@@ -2783,14 +2783,23 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
          int nActive = 0;
          float nodeBall = 0.;
          int pEnd = node->pLower + pkdNodeNgas(pkd,node);
+#if defined(STAR_FORMATION) && defined(FEEDBACK)
+         if (iSmoothType==SMX_FIRSTHYDROLOOP) pEnd += pkdNodeNstar(pkd,node);
+#endif
+         //pEnd = node->pUpper+1;
          for (pj=node->pLower;pj<pEnd;++pj) {
              p = pkdParticle(pkd,pj);
-             assert(pkdIsGas(pkd,p));
+             //assert(pkdIsGas(pkd,p));
+         //if (!pkdIsGas(pkd,p)) continue;
 
 
              if (pkdIsActive(pkd,p)) {
-                if (iSmoothType==SMX_FIRSTHYDROLOOP) 
+                if (iSmoothType==SMX_FIRSTHYDROLOOP) {
                    if (!p->bMarked) continue;
+#if defined(STAR_FORMATION) && defined(FEEDBACK)
+                   if (pkdIsStar(pkd,p) && (pkdStar(pkd,p)->hasExploded==1)) continue;
+#endif
+                }
 
                 if (nodeBall<pkdBall(pkd,p)) nodeBall=pkdBall(pkd,p);
                 sinks[nActive] = p; 
@@ -2855,38 +2864,38 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
              for (pj=0; pj<nCnt_own; pj++){
                 PARTICLE * partj = sinks[pj];
 
-                float dx_node = fabs(pkdPos(pkd,partj,0)-bnd_node.fCenter[0]);
-                float dy_node = fabs(pkdPos(pkd,partj,1)-bnd_node.fCenter[1]);
-                float dz_node = fabs(pkdPos(pkd,partj,2)-bnd_node.fCenter[2]);
+                float dx_node = -pkdPos(pkd,partj,0)+bnd_node.fCenter[0];
+                float dy_node = -pkdPos(pkd,partj,1)+bnd_node.fCenter[1];
+                float dz_node = -pkdPos(pkd,partj,2)+bnd_node.fCenter[2];
 
                 do{
                    float ph = pkdBall(pkd,partj);
                    float fBall2_p = 4.*ph*ph;
                    int nCnt_p = 0;
-                   SPHFIELDS* psph = pkdSph(pkd,partj);
-                   psph->omega = 0.0;
+                   double* omega = pkdIsGas(pkd,partj) ? &(pkdSph(pkd,partj)->omega) : &(pkdStar(pkd,partj)->omega); // Assuming *only* stars and gas
+                   *omega = 0.0;
                    for (pk=0;pk<nCnt;pk++){
                       // As both dr vector are relative to the cell, we can do:
-                      //dx = smx->nnList[pj].dx - smx->nnList[pk].dx;
-                      //dy = smx->nnList[pj].dy - smx->nnList[pk].dy;
-                      //dz = smx->nnList[pj].dz - smx->nnList[pk].dz;
-                      dx = pkdPos(pkd,partj,0) - pkdPos(pkd,smx->nnList[pk].pPart, 0);
-                      dy = pkdPos(pkd,partj,1) - pkdPos(pkd,smx->nnList[pk].pPart, 1);
-                      dz = pkdPos(pkd,partj,2) - pkdPos(pkd,smx->nnList[pk].pPart, 2);
+                      dx = dx_node - smx->nnList[pk].dx;
+                      dy = dy_node - smx->nnList[pk].dy;
+                      dz = dz_node - smx->nnList[pk].dz;
+                      //dx = pkdPos(pkd,partj,0) - pkdPos(pkd,smx->nnList[pk].pPart, 0);
+                      //dy = pkdPos(pkd,partj,1) - pkdPos(pkd,smx->nnList[pk].pPart, 1);
+                      //dz = pkdPos(pkd,partj,2) - pkdPos(pkd,smx->nnList[pk].pPart, 2);
 
                       fDist2 = dx*dx + dy*dy + dz*dz;
                       if (fDist2 <= fBall2_p){
                          //printf("adding\n");
                          double rpq = sqrt(fDist2);
 
-                         psph->omega += cubicSplineKernel(rpq, ph);
+                         *omega += cubicSplineKernel(rpq, ph);
                       }
 
                    }
-                   double c = 4.*M_PI/3. * psph->omega *ph*ph*ph*8.;
+                   double c = 4.*M_PI/3. * (*omega) *ph*ph*ph*8.;
                    if (fabs(c-pkd->param.nSmooth) < pkd->param.dNeighborsStd0){
                       partj->bMarked = 0;
-                      pkdSetDensity(pkd, partj, pkdMass(pkd,partj)*psph->omega);
+                      pkdSetDensity(pkd, partj, pkdMass(pkd,partj)*(*omega));
                       //printf("converged \n");
                    }else{
                       float newBall;
@@ -2897,11 +2906,11 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
                       if (newBall>ph){
                          float ph = pkdBall(pkd,partj);
                          // We check that the proposed ball is enclosed within the node search region
-                         if((dx_node + ph > bnd_node.fMax[0])||
-                            (dy_node + ph > bnd_node.fMax[1])||
-                            (dz_node + ph > bnd_node.fMax[2])){
+                         if((fabs(dx_node) + ph > bnd_node.fMax[0])||
+                            (fabs(dy_node) + ph > bnd_node.fMax[1])||
+                            (fabs(dz_node) + ph > bnd_node.fMax[2])){
                             //printf("Outside of fetched domain\n");
-                            continue;
+                            break;
                          }
                       }
 
@@ -2915,12 +2924,15 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
              for (pj=0; pj<nCnt_own; pj++){
                 PARTICLE * partj = sinks[pj];
                 float fBall2_p = 4.*pkdBall(pkd,partj)*pkdBall(pkd,partj);
+                float dx_node = -pkdPos(pkd,partj,0)+bnd_node.fCenter[0];
+                float dy_node = -pkdPos(pkd,partj,1)+bnd_node.fCenter[1];
+                float dz_node = -pkdPos(pkd,partj,2)+bnd_node.fCenter[2];
 
                 int nCnt_p = 0;
                 for (pk=0;pk<nCnt;pk++){
-                   dx = pkdPos(pkd,partj,0) - pkdPos(pkd,smx->nnList[pk].pPart, 0);
-                   dy = pkdPos(pkd,partj,1) - pkdPos(pkd,smx->nnList[pk].pPart, 1);
-                   dz = pkdPos(pkd,partj,2) - pkdPos(pkd,smx->nnList[pk].pPart, 2);
+                   dx = -dx_node + smx->nnList[pk].dx;
+                   dy = -dy_node + smx->nnList[pk].dy;
+                   dz = -dz_node + smx->nnList[pk].dz;
 
                    fDist2 = dx*dx + dy*dy + dz*dz;
                    if (fDist2 <= fBall2_p){
@@ -2932,9 +2944,9 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
                           }
                       //printf("adding\n");
                       nnList_p[nCnt_p].fDist2 = fDist2;
-                      nnList_p[nCnt_p].dx = -dx;
-                      nnList_p[nCnt_p].dy = -dy;
-                      nnList_p[nCnt_p].dz = -dz;
+                      nnList_p[nCnt_p].dx = dx;
+                      nnList_p[nCnt_p].dy = dy;
+                      nnList_p[nCnt_p].dz = dz;
                       nnList_p[nCnt_p].pPart = smx->nnList[pk].pPart;
                       nnList_p[nCnt_p].iIndex = smx->nnList[pk].iIndex;
                       nnList_p[nCnt_p].iPid = smx->nnList[pk].iPid;
@@ -3035,10 +3047,11 @@ void buildInteractionList(SMX smx, SMF *smf, KDN* node, BND bnd_node, int *nCnt_
       else {
           if (id == pkd->idSelf) {
             pEnd = kdn->pLower+pkdNodeNgas(pkd,kdn);
+            //pEnd = kdn->pUpper+1;
             //printf("pEnd %d \n", pEnd);
             for (pj=kdn->pLower;pj<pEnd;++pj) {
                 p = pkdParticle(pkd,pj);
-                assert(pkdIsGas(pkd,p));
+            //if (!pkdIsGas(pkd,p)) continue;
                 pkdGetPos1(pkd,p,p_r);
                 dx = r[0] - p_r[0];
                 dy = r[1] - p_r[1];
@@ -3064,8 +3077,10 @@ void buildInteractionList(SMX smx, SMF *smf, KDN* node, BND bnd_node, int *nCnt_
             }
           else {
             pEnd = kdn->pLower+pkdNodeNgas(pkd,kdn);
+            //pEnd = kdn->pUpper+1;
             for (pj=kdn->pLower;pj<pEnd;++pj) {
                 p = mdlFetch(mdl,CID_PARTICLE,pj,id);
+            //if (!pkdIsGas(pkd,p)) continue;
                 pkdGetPos1(pkd,p,p_r);
                 dx = r[0] - p_r[0];
                 dy = r[1] - p_r[1];

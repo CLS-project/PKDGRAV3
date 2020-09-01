@@ -322,6 +322,7 @@ typedef struct sphfields {
     } SPHFIELDS;
 
 typedef struct starfields {
+    double omega;
     float fTimer;  /* Time of formation */
     int hasExploded; /* Has exploded as a supernova? */
     } STARFIELDS;   
@@ -965,6 +966,9 @@ typedef struct pkdContext {
 #endif
 #ifdef OPTIM_SMOOTH_NODE
     int oNodeNgas;
+#if defined(STAR_FORMATION) && defined(FEEDBACK)
+    int oNodeNstar;
+#endif
 #endif
 
     /*
@@ -1253,9 +1257,18 @@ static inline void pkdNodeSetBall(  PKD pkd, KDN *n, double ball){
 static inline int pkdNodeNgas( PKD pkd, KDN* n){
    return *CAST(int *, pkdNodeField(n, pkd->oNodeNgas));
    }
-static inline void pkdNodeSetNgas(  PKD pkd, KDN *n, int ball){
-    *CAST(int*, pkdNodeField(n, pkd->oNodeNgas)) = ball;
+static inline void pkdNodeSetNgas(  PKD pkd, KDN *n, int ngas){
+    *CAST(int*, pkdNodeField(n, pkd->oNodeNgas)) = ngas;
     }
+#if defined(STAR_FORMATION) && defined(FEEDBACK)
+static inline int pkdNodeNstar( PKD pkd, KDN* n){
+   return *CAST(int *, pkdNodeField(n, pkd->oNodeNstar));
+   }
+static inline void pkdNodeSetNstar(  PKD pkd, KDN *n, int nstar){
+    *CAST(int*, pkdNodeField(n, pkd->oNodeNstar)) = nstar;
+    }
+
+#endif
 #endif
 
 static inline BND *pkdNodeVBnd( PKD pkd, KDN *n ) {

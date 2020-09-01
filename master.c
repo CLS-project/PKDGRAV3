@@ -4843,6 +4843,10 @@ int msrNewTopStepKDK(MSR msr,
          msrCoolingUpdate(msr, 0., sync);
       }
 #endif
+#ifdef STAR_FORMATION
+      double dDeltaRung = msr->param.dDelta/(1 << uRung);
+      msrStarForm(msr, *pdTime, dDeltaRung, uRung);
+#endif
 
     msrActiveRung(msr,uRung,1);
     msrUpdateSoft(msr,*pdTime);
@@ -4903,10 +4907,6 @@ int msrNewTopStepKDK(MSR msr,
       msrActiveRung(msr,uRung,0);
       msrReSmooth(msr,*pdTime,SMX_SN_FEEDBACK,0,0);
       msrActiveRung(msr,uRung,1);
-#endif
-#ifdef STAR_FORMATION
-      double dDeltaRung = msr->param.dDelta/(1 << uRung);
-      msrStarForm(msr, *pdTime, dDeltaRung, uRung);
 #endif
 
     msrActiveRung(msr,uRung,1);
@@ -5048,6 +5048,9 @@ void msrTopStepKDK(MSR msr,
 	/* JW: Good place to zero uNewRung  IA: not really... This is done in the init call of smSmooth*/ 
 	msrZeroNewRung(msr,iKickRung,MAX_RUNG,iKickRung); /* brute force */
 
+#ifdef STAR_FORMATION
+      msrStarForm(msr, dTime, dDelta, iKickRung);
+#endif
 
 
 	if (msrDoGravity(msr) || msrDoGas(msr)) {
@@ -5077,9 +5080,6 @@ void msrTopStepKDK(MSR msr,
       msrActiveRung(msr,iKickRung,1);
     dsec = msrTime() - sec;
     printf("took %.5f seconds\n", dsec);
-#endif
-#ifdef STAR_FORMATION
-      msrStarForm(msr, dTime, dDelta, iKickRung);
 #endif
 
 

@@ -565,6 +565,9 @@ void pkdInitialize(
 #endif
 #ifdef OPTIM_SMOOTH_NODE
     pkd->oNodeNgas = pkdNodeAddInt32(pkd,1);
+#if defined(STAR_FORMATION) && defined(FEEDBACK)
+    pkd->oNodeNstar = pkdNodeAddInt32(pkd,1);
+#endif
 #endif
     /*
     ** Three extra bounds are required by the fast gas SPH code.
@@ -3037,34 +3040,48 @@ void pkdSetParticleParent(PKD pkd){
 #ifdef OPTIM_SMOOTH_NODE
 void pkdReorderWithinNodes(PKD pkd){
    KDN *node;
-   for (int i=NRESERVED_NODES; i<pkd->nNodes-1; i++){
+   for (int i=NRESERVED_NODES; i<pkd->nNodes; i++){
       int nGas = 0;
       node = pkdTreeNode(pkd,i);
       if (!node->iLower){ // We are in a bucket
          for (int pj=node->pLower;pj<=node->pUpper;++pj) {
             if (pkdIsGas(pkd, pkdParticle(pkd,pj))) {
-               if (nGas!=pj) pkdSwapParticle(pkd, pkdParticle(pkd,pj) , pkdParticle(pkd,node->pLower+nGas) );
+               pkdSwapParticle(pkd, pkdParticle(pkd,pj) , pkdParticle(pkd,node->pLower+nGas) );
                nGas++;
             }
 
          }
          pkdNodeSetNgas(pkd, node, nGas);
+#if defined(STAR_FORMATION) && defined(FEEDBACK)
+         // We perform another swap, just ot have nGas->nStar->DM
+         int nStar = 0;
+         for (int pj=node->pLower+nGas;pj<=node->pUpper;++pj) {
+            if (pkdIsStar(pkd, pkdParticle(pkd,pj))) {
+               pkdSwapParticle(pkd, pkdParticle(pkd,pj) , pkdParticle(pkd,node->pLower+nGas+nStar) );
+               nStar++;
+            }
+
+         }
+         pkdNodeSetNstar(pkd, node, nStar);
+#endif
       }
    }
-   // Check that this works
-   /*
+   /* // Check that this works
    for (int i=NRESERVED_NODES; i<pkd->nNodes; i++){
       node = pkdTreeNode(pkd,i);
       if (!node->iLower){ // We are in a bucket
-         printf("Start node %d\n",i);
+         if (pkdNodeNstar(pkd,node)>0){
+         printf("Start node %d (%d, %d)\n",i, node->pLower, node->pUpper);
+         //abort();
          for (int pj=node->pLower;pj<=node->pUpper;++pj) {
             if (pkdIsGas(pkd, pkdParticle(pkd,pj)) ) printf("%d is Gas \n", pj);
             if (pkdIsStar(pkd, pkdParticle(pkd,pj)) ) printf("%d is Star \n", pj);
             if (pkdIsDark(pkd, pkdParticle(pkd,pj)) ) printf("%d is DM \n", pj);
          }
+         }
       }
    }
-   */
+*/
 }
 #endif
 
