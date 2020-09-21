@@ -290,6 +290,11 @@ void master(MDL mdl,void *pst) {
 		1.0/csmComoveLookbackTime2Exp(msr->csm,1.0 / dLightSpeedSim(2*msr->param.dBoxSize)) - 1.0,
 		1.0/csmComoveLookbackTime2Exp(msr->csm,1.0 / dLightSpeedSim(3*msr->param.dBoxSize)) - 1.0 );
 	    }
+#ifdef STAR_FORMATION
+      msr->starFormed = 0.;
+      msr->massFormed = 0.;
+      msrStarFormInit(msr, dTime);
+#endif
 #ifdef COOLING
       msrCoolingInit(msr);
       if ((msr->csm->val.bComove)){
@@ -299,10 +304,6 @@ void master(MDL mdl,void *pst) {
          msrCoolingUpdate(msr, 0., 1);
       }
 #endif
-#ifdef STAR_FORMATION
-      msr->starFormed = 0.;
-      msr->massFormed = 0.;
-#endif 
       msrOutputFineStatistics(msr, 0, -1);
 
 
@@ -353,6 +354,9 @@ void master(MDL mdl,void *pst) {
 	    /* Fix dTuFac conversion of T in InitSPH */
 	    uRungMax = msrInitSph(msr,dTime);
 	    }
+      if (msr->param.bFindGroups) {
+         msrNewFof(msr,csmTime2Exp(msr->csm,dTime));
+        }
 
 	msrCalcEandL(msr,MSR_INIT_E,dTime,&E,&T,&U,&Eth,L,F,&W);
 	dMultiEff = 1.0;

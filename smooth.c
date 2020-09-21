@@ -2739,8 +2739,16 @@ int  smReSmooth(SMX smx,SMF *smf, int iSmoothType) {
  * For each bucket, we look for all the surroiding buckets that may interact with any particle in said bucket.
  * Then, we put all those particles (including the own bucket) in a interaction list.
  */
-#define MAX(X, Y)  ((X) > (Y) ? (X) : (Y))
-int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
+
+// IA: I know this is a very dirty solution, but in general we will always use OPTIM_FLUX_VEC if OPTIM_SMOOTH_NODE is enabled.
+//    I think this is better than adding a lot of #ifdef's inside this function.
+#ifdef OPTIM_FLUX_VEC
+#define FLUX_VEC 1
+#else
+#define FLUX_VEC 0
+#endif
+
+int  smReSmoothNode(SMX smx,SMF *smf, int bSymmetric, int iSmoothType) {
     PKD pkd = smx->pkd;
     MDL mdl = pkd->mdl;
     int pj, pk, nCnt, nCnt_own, id;
@@ -2760,6 +2768,36 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
     // Here we store the pointers to the particle whose interaction need to be computed
     PARTICLE** sinks;
     sinks = malloc(64*sizeof(PARTICLE*)); // At most, the size of the bucket
+
+
+    /* IA: For allowing vectorization, it is better to use an structure of arrays rather than an array of structures.
+     *  In our case, the structure is just an array of pointers to the locations in the buffer where a given array of variables starts.
+     *
+     *  Having everything in the same buffer can be advantageous as it should be in cache, but it was painful to code...
+     */
+    my_real *flux_input_buffer;
+    my_real **flux_input_pointers;
+    my_real *flux_output_buffer;
+    my_real **flux_output_pointers;
+    if (iSmoothType==SMX_THIRDHYDROLOOP){
+       //IA: We align the memory for improving vectorization performance. This is compiler dependent! FIXME
+       flux_input_buffer = (my_real*)_mm_malloc(nnListMax_p*q_last*sizeof(my_real), 64);
+       flux_input_pointers = (my_real**)_mm_malloc(q_last*sizeof(my_real*), 64);
+       assert(flux_input_buffer!=NULL);
+       assert(flux_input_pointers!=NULL);
+       for (int i=0; i<q_last; i++)
+          flux_input_pointers[i] = &flux_input_buffer[i*nnListMax_p];
+
+
+       flux_output_buffer = (my_real*)_mm_malloc(nnListMax_p*out_last*sizeof(my_real), 64);
+       flux_output_pointers = (my_real**)_mm_malloc(out_last*sizeof(my_real*), 64);
+       assert(flux_output_buffer!=NULL);
+       assert(flux_output_pointers!=NULL);
+       for (int i=0; i<out_last; i++)
+          flux_output_pointers[i] = &flux_output_buffer[i*nnListMax_p];
+    }
+
+
 
 
     for (int i=NRESERVED_NODES; i<pkd->nNodes-1; i++){
@@ -2782,24 +2820,32 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
          // First, we add all the particles whose interactions need to be computed
          int nActive = 0;
          float nodeBall = 0.;
+#ifdef OPTIM_REORDER_IN_NODES
          int pEnd = node->pLower + pkdNodeNgas(pkd,node);
 #if defined(STAR_FORMATION) && defined(FEEDBACK)
          if (iSmoothType==SMX_FIRSTHYDROLOOP) pEnd += pkdNodeNstar(pkd,node);
 #endif
-         //pEnd = node->pUpper+1;
+#else
+         int pEnd = node->pUpper+1;
+#endif
+
          for (pj=node->pLower;pj<pEnd;++pj) {
              p = pkdParticle(pkd,pj);
-             //assert(pkdIsGas(pkd,p));
-         //if (!pkdIsGas(pkd,p)) continue;
 
 
              if (pkdIsActive(pkd,p)) {
                 if (iSmoothType==SMX_FIRSTHYDROLOOP) {
                    if (!p->bMarked) continue;
 #if defined(STAR_FORMATION) && defined(FEEDBACK)
-                   if (pkdIsStar(pkd,p) && (pkdStar(pkd,p)->hasExploded==1)) continue;
+                   if (pkdIsStar(pkd,p) && (pkdStar(pkd,p)->hasExploded==1)) continue; // We keep track of the density of star particle that have not exploded
 #endif
+
+#ifndef OPTIM_REORDER_IN_NODES
+                   if (!pkdIsGas(pkd,p) && !pkdIsStar(pkd,p)) continue;
+                }else{
+                   if (!pkdIsGas(pkd,p)) continue;
                 }
+#endif
 
                 if (nodeBall<pkdBall(pkd,p)) nodeBall=pkdBall(pkd,p);
                 sinks[nActive] = p; 
@@ -2812,54 +2858,63 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
          nCnt = 0;
          //printf("%e %e \n", 2.*nodeBall, pkdNodeBall(pkd,node));
          int nCnt_own = nActive;
-            // printf("start node %d %d \n", pkd->idSelf, i);
+         //printf("start node %d %d \n", pkd->idSelf, i);
 
-         nodeBall *= 2.;
+         nodeBall *= 2.; // Remember! pkdBall gives HALF the radius of the enclosing sphere!
 
 
          double const fBall_x = bnd_node.fMax[0]+nodeBall;
          double const fBall_y = bnd_node.fMax[1]+nodeBall;
          double const fBall_z = bnd_node.fMax[2]+nodeBall;
          double fBall2 = fBall_x*fBall_x + fBall_y*fBall_y + fBall_z*fBall_z;
-         //fBall = sqrt(fBall2);
 
          bnd_node.fMax[0] += nodeBall;
          bnd_node.fMax[1] += nodeBall;
          bnd_node.fMax[2] += nodeBall;
 
-         //printf("nCnt_own %d \n", nCnt_own);
-    if (smx->bPeriodic) {
-       double iStart[3], iEnd[3];
-	for (int j=0;j<3;++j) {
-	    iStart[j] = d2i(floor((r[j] - bnd_node.fMax[j])/pkd->fPeriod[j] + 0.5));
-	    iEnd[j] = d2i(floor((r[j] + bnd_node.fMax[j])/pkd->fPeriod[j] + 0.5));
-	}
-	for (int ix=iStart[0];ix<=iEnd[0];++ix) {
-	    r[0] = bnd_node.fCenter[0] - ix*pkd->fPeriod[0];
-	    for (int iy=iStart[1];iy<=iEnd[1];++iy) {
-		r[1] = bnd_node.fCenter[1] - iy*pkd->fPeriod[1];
-		for (int iz=iStart[2];iz<=iEnd[2];++iz) {
-		    r[2] = bnd_node.fCenter[2] - iz*pkd->fPeriod[2];
-                buildInteractionList(smx, smf, node, bnd_node, &nCnt, r, fBall2, ix, iy, iz);
-		}
-	    }
-	}
-    }else{
-       buildInteractionList(smx, smf, node, bnd_node, &nCnt, r, fBall2, 0, 0, 0);
-    }
+    
+         if (smx->bPeriodic) {
+            double iStart[3], iEnd[3];
+            for (int j=0;j<3;++j) {
+                iStart[j] = d2i(floor((r[j] - bnd_node.fMax[j])/pkd->fPeriod[j] + 0.5));
+                iEnd[j] = d2i(floor((r[j] + bnd_node.fMax[j])/pkd->fPeriod[j] + 0.5));
+            }
+            for (int ix=iStart[0];ix<=iEnd[0];++ix) {
+                r[0] = bnd_node.fCenter[0] - ix*pkd->fPeriod[0];
+                for (int iy=iStart[1];iy<=iEnd[1];++iy) {
+                  r[1] = bnd_node.fCenter[1] - iy*pkd->fPeriod[1];
+                  for (int iz=iStart[2];iz<=iEnd[2];++iz) {
+                      r[2] = bnd_node.fCenter[2] - iz*pkd->fPeriod[2];
+                          buildInteractionList(smx, smf, bSymmetric, node, bnd_node, &nCnt, r, fBall2, ix, iy, iz);
+                  }
+                }
+            }
+         }else{
+            buildInteractionList(smx, smf, bSymmetric, node, bnd_node, &nCnt, r, fBall2, 0, 0, 0);
+         }
 
 
 
               //printf("interaction list completed nCnt %d nCnt_own %d nActive  %d \n", nCnt, nCnt_own, nActive);
 
-
-          // Now we should have inside nnList all the particles in the bucket (0,nCnt_own) and those of which can
-          //  interact with them from other buckets (nCnt_own+1, nCnt)
+          // IA: Now we should have inside nnList all the particles in the bucket (sinks) and those of which can
+          //  interact with them from other buckets (smx->nnList)
           //
           // We just have to proceed to compute the correct dx, dy, dz and pass that nnList to the smoothfcn routine
+          //
           // However, we have different options to do so:
           // 1) Naive: we pass the whole nnList
-          // In a very dirty way, we check here if we are computing the density within this loop
+          //
+          // 2) Sorting: we could follow Gonnet, 2007 (10.1002/jcc.20563) to reduce the number of distance computations, but this is troublesome in our case
+          //    because:
+          //      a) we need to compute the distance anyway for sorting
+          //      b) we could sort relative to the cell, but this is suboptimal
+          //      c) we are not computing cell-cell interactions, so there is no well-defined axis that could be used for projection
+          //
+
+
+
+         // This is quite dirty, but we could just do the density loop here instead of doing it in hydro.c! FIXME
           if (iSmoothType==SMX_FIRSTHYDROLOOP){
              for (pj=0; pj<nCnt_own; pj++){
                 PARTICLE * partj = sinks[pj];
@@ -2868,35 +2923,38 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
                 float dy_node = -pkdPos(pkd,partj,1)+bnd_node.fCenter[1];
                 float dz_node = -pkdPos(pkd,partj,2)+bnd_node.fCenter[2];
 
+                int niter = 0;
                 do{
                    float ph = pkdBall(pkd,partj);
                    float fBall2_p = 4.*ph*ph;
                    int nCnt_p = 0;
+#ifdef OPTIM_UNION_EXTRAFIELDS
                    double* omega = pkdIsGas(pkd,partj) ? &(pkdSph(pkd,partj)->omega) : &(pkdStar(pkd,partj)->omega); // Assuming *only* stars and gas
+#else
+                   double* omega = &(pkdSph(pkd,partj)->omega); // Assuming *only* stars and gas
+#endif
                    *omega = 0.0;
                    for (pk=0;pk<nCnt;pk++){
                       // As both dr vector are relative to the cell, we can do:
                       dx = dx_node - smx->nnList[pk].dx;
                       dy = dy_node - smx->nnList[pk].dy;
                       dz = dz_node - smx->nnList[pk].dz;
-                      //dx = pkdPos(pkd,partj,0) - pkdPos(pkd,smx->nnList[pk].pPart, 0);
-                      //dy = pkdPos(pkd,partj,1) - pkdPos(pkd,smx->nnList[pk].pPart, 1);
-                      //dz = pkdPos(pkd,partj,2) - pkdPos(pkd,smx->nnList[pk].pPart, 2);
 
                       fDist2 = dx*dx + dy*dy + dz*dz;
                       if (fDist2 <= fBall2_p){
-                         //printf("adding\n");
                          double rpq = sqrt(fDist2);
 
                          *omega += cubicSplineKernel(rpq, ph);
+                         nCnt_p++;
                       }
-
                    }
+
+
+                   // Check if it has converged
                    double c = 4.*M_PI/3. * (*omega) *ph*ph*ph*8.;
                    if (fabs(c-pkd->param.nSmooth) < pkd->param.dNeighborsStd0){
                       partj->bMarked = 0;
                       pkdSetDensity(pkd, partj, pkdMass(pkd,partj)*(*omega));
-                      //printf("converged \n");
                    }else{
                       float newBall;
                       newBall = ph * pow(  pkd->param.nSmooth/c  ,0.3333333333);
@@ -2909,11 +2967,32 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
                          if((fabs(dx_node) + ph > bnd_node.fMax[0])||
                             (fabs(dy_node) + ph > bnd_node.fMax[1])||
                             (fabs(dz_node) + ph > bnd_node.fMax[2])){
-                            //printf("Outside of fetched domain\n");
+                            nSmoothed-=1; // We explicitly say that this particle was not succesfully smoothed
                             break;
                          }
                       }
 
+                   }
+                   niter++;
+
+
+                   // At this point, we probably have a particle with plenty of neighbours, and a small increase/decrease
+                   //  in the radius causes omega to fluctuate around the desired value.
+                   //
+                   // In this cases, we need to stop iterating and make sure that omega is between reasonable bounds
+                   if (niter>100){
+                      partj->bMarked = 0;
+                      /*
+                      if (fabs(c-pkd->param.nSmooth) < pkd->param.nSmooth*0.1){
+
+                         printf("More than 100 iters but converged (%d): %d\t %e\t %e\n", niter, nCnt_p, pkdBall(pkd,partj), c);
+                         //break;
+                      }else{
+                         printf("More than 100 iters (%d): %d\t %e\t %e\n", niter, nCnt_p, pkdBall(pkd,partj), c);
+                         printf("r/h mean %e \n", mean_r/pkdBall(pkd,partj));
+                         break;
+                      }
+                      */
                    }
 
                 }while(partj->bMarked);
@@ -2923,10 +3002,48 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
           }else{
              for (pj=0; pj<nCnt_own; pj++){
                 PARTICLE * partj = sinks[pj];
+                SPHFIELDS* psph = pkdSph(pkd, partj);
                 float fBall2_p = 4.*pkdBall(pkd,partj)*pkdBall(pkd,partj);
                 float dx_node = -pkdPos(pkd,partj,0)+bnd_node.fCenter[0];
                 float dy_node = -pkdPos(pkd,partj,1)+bnd_node.fCenter[1];
                 float dz_node = -pkdPos(pkd,partj,2)+bnd_node.fCenter[2];
+
+#ifdef OPTIM_CACHED_FLUXES
+                // We build the particle cache
+                if (iSmoothType==SMX_THIRDHYDROLOOP){
+                   for (pk=0;pk<nCnt;pk++){
+                      dx = -dx_node + smx->nnList[pk].dx;
+                      dy = -dy_node + smx->nnList[pk].dy;
+                      dz = -dz_node + smx->nnList[pk].dz;
+
+                      fDist2 = dx*dx + dy*dy + dz*dz;
+                      if (fDist2 <= fBall2_p){
+                         if (fDist2==0.)continue;
+                         float qh = pkdBall(pkd,smx->nnList[pk].pPart);
+                         if ( (iSmoothType==SMX_THIRDHYDROLOOP) & (4.*qh*qh < fDist2)) {continue;}
+
+                         PARTICLE *q = smx->nnList[pk].pPart;
+                         int j_cache_index_i = *pkdParticleID(pkd,partj) % (sizeof(cache_t)*8);
+                         if ( (get_bit(&(pkdSph(pkd,q)->flux_cache), j_cache_index_i)!= 0) &&
+                              (get_bit(&(pkdSph(pkd,q)->coll_cache), j_cache_index_i)== 0) &&
+                              (smx->nnList[pk].iPid == pkd->idSelf)){
+                            continue;
+                         }
+
+                         int i_cache_index_j = *pkdParticleID(pkd,q) % (sizeof(cache_t)*8);
+                         
+                         if (smx->nnList[pk].iPid == pkd->idSelf){
+                            if (get_bit(&(psph->flux_cache), i_cache_index_j)==0){
+                               set_bit(&(psph->flux_cache), i_cache_index_j);
+                            }else{
+                               set_bit(&(psph->coll_cache), i_cache_index_j);
+                            }
+                         }
+                      }
+                   }
+                }
+#endif
+
 
                 int nCnt_p = 0;
                 for (pk=0;pk<nCnt;pk++){
@@ -2936,11 +3053,48 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
 
                    fDist2 = dx*dx + dy*dy + dz*dz;
                    if (fDist2 <= fBall2_p){
+                      if (fDist2==0.)continue;
+                      float qh = pkdBall(pkd,smx->nnList[pk].pPart);
+                      if ( (iSmoothType==SMX_THIRDHYDROLOOP) & (4.*qh*qh < fDist2)) {continue;}
+#ifdef OPTIM_CACHED_FLUXES
+                      if (iSmoothType==SMX_THIRDHYDROLOOP){
+                         int j_cache_index_i = *pkdParticleID(pkd,partj) % (sizeof(cache_t)*8);
+                         SPHFIELDS* qsph = pkdSph(pkd,smx->nnList[pk].pPart);
+                         if ( (get_bit(&(qsph->flux_cache), j_cache_index_i)!= 0) &&
+                              (get_bit(&(qsph->coll_cache), j_cache_index_i)== 0) &&
+                              (smx->nnList[pk].iPid == pkd->idSelf) &&
+                              pkdIsActive(pkd,smx->nnList[pk].pPart)){
+#ifdef DEBUG_CACHED_FLUXES
+                              psph->avoided_fluxes += 1; 
+#endif
+                            continue;
+                         }
+#ifdef DEBUG_CACHED_FLUXES
+                         psph->computed_fluxes += 1; 
+#endif
+                      }
+#endif
+
                       if (nCnt_p >= nnListMax_p) {
                           nnListMax_p += NNLIST_INCREMENT;
                           nnList_p = realloc(nnList_p,nnListMax_p*sizeof(NN));
                           assert(nnList_p != NULL);
                           //printf("realloc nnList_p\n");
+                            if (iSmoothType==SMX_THIRDHYDROLOOP){
+                               //TODO
+                               printf("Trying to reallocate aligned memory.. not implemented!\n");
+                               abort();
+                               /*
+                               flux_input_buffer = realloc(flux_input_buffer, nnListMax_p*q_last*sizeof(my_real));
+                               for (int i=0; i<q_last; i++)
+                                  flux_input_pointers[i] = &flux_input_buffer[i*nnListMax_p];
+
+
+                               flux_output_buffer = realloc(flux_output_buffer, nnListMax_p*out_last*sizeof(my_real));
+                               for (int i=0; i<out_last; i++)
+                                  flux_output_pointers[i] = &flux_output_buffer[i*nnListMax_p];
+                                  */
+                            }
                           }
                       //printf("adding\n");
                       nnList_p[nCnt_p].fDist2 = fDist2;
@@ -2948,8 +3102,57 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
                       nnList_p[nCnt_p].dy = dy;
                       nnList_p[nCnt_p].dz = dz;
                       nnList_p[nCnt_p].pPart = smx->nnList[pk].pPart;
-                      nnList_p[nCnt_p].iIndex = smx->nnList[pk].iIndex;
+                      nnList_p[nCnt_p].iIndex = pkdIsActive(pkd,smx->nnList[pk].pPart); //smx->nnList[pk].iIndex;
                       nnList_p[nCnt_p].iPid = smx->nnList[pk].iPid;
+
+                      if (iSmoothType==SMX_THIRDHYDROLOOP){
+                         PARTICLE *q = nnList_p[nCnt_p].pPart;
+                         SPHFIELDS* qsph = pkdSph(pkd,q);
+
+                         //printf("filling data\n");
+                           flux_input_pointers[q_mass][nCnt_p] = pkdMass(pkd,q);
+                           flux_input_pointers[q_ball][nCnt_p] = qh;
+                           flux_input_pointers[q_dx][nCnt_p] = nnList_p[nCnt_p].dx;
+                           flux_input_pointers[q_dy][nCnt_p] = nnList_p[nCnt_p].dy;
+                           flux_input_pointers[q_dz][nCnt_p] = nnList_p[nCnt_p].dz;
+                           flux_input_pointers[q_dr][nCnt_p] = sqrt(fDist2);
+                           flux_input_pointers[q_rung][nCnt_p] = smf->dDelta/(1<<q->uRung);
+                           flux_input_pointers[q_rho][nCnt_p] = pkdDensity(pkd,q);
+                           flux_input_pointers[q_P][nCnt_p] = qsph->P;
+                           flux_input_pointers[q_vx][nCnt_p] = qsph->vPred[0];
+                           flux_input_pointers[q_vy][nCnt_p] = qsph->vPred[1];
+                           flux_input_pointers[q_vz][nCnt_p] = qsph->vPred[2];
+                           flux_input_pointers[q_gradRhoX][nCnt_p] = qsph->gradRho[0];
+                           flux_input_pointers[q_gradRhoY][nCnt_p] = qsph->gradRho[1];
+                           flux_input_pointers[q_gradRhoZ][nCnt_p] = qsph->gradRho[2];
+                           flux_input_pointers[q_gradPX][nCnt_p] = qsph->gradP[0];
+                           flux_input_pointers[q_gradPY][nCnt_p] = qsph->gradP[1];
+                           flux_input_pointers[q_gradPZ][nCnt_p] = qsph->gradP[2];
+                           flux_input_pointers[q_gradVxX][nCnt_p] = qsph->gradVx[0];
+                           flux_input_pointers[q_gradVxY][nCnt_p] = qsph->gradVx[1];
+                           flux_input_pointers[q_gradVxZ][nCnt_p] = qsph->gradVx[2];
+                           flux_input_pointers[q_gradVyX][nCnt_p] = qsph->gradVy[0];
+                           flux_input_pointers[q_gradVyY][nCnt_p] = qsph->gradVy[1];
+                           flux_input_pointers[q_gradVyZ][nCnt_p] = qsph->gradVy[2];
+                           flux_input_pointers[q_gradVzX][nCnt_p] = qsph->gradVz[0];
+                           flux_input_pointers[q_gradVzY][nCnt_p] = qsph->gradVz[1];
+                           flux_input_pointers[q_gradVzZ][nCnt_p] = qsph->gradVz[2];
+                           flux_input_pointers[q_lastUpdateTime][nCnt_p] = qsph->lastUpdateTime;
+                           flux_input_pointers[q_lastAccX][nCnt_p] = qsph->lastAcc[0];
+                           flux_input_pointers[q_lastAccY][nCnt_p] = qsph->lastAcc[1];
+                           flux_input_pointers[q_lastAccZ][nCnt_p] = qsph->lastAcc[2];
+                           flux_input_pointers[q_B_XX][nCnt_p] = qsph->B[0];
+                           flux_input_pointers[q_B_YY][nCnt_p] = qsph->B[3];
+                           flux_input_pointers[q_B_ZZ][nCnt_p] = qsph->B[5];
+                           flux_input_pointers[q_B_XY][nCnt_p] = qsph->B[1];
+                           flux_input_pointers[q_B_XZ][nCnt_p] = qsph->B[2];
+                           flux_input_pointers[q_B_YZ][nCnt_p] = qsph->B[4];
+                           flux_input_pointers[q_omega][nCnt_p] = qsph->omega;
+                        
+
+                      }
+
+
                       nCnt_p++;
                    }
 
@@ -2959,8 +3162,88 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
                 //printf("nCnt_p %d \n", nCnt_p);
                 //assert(nCnt_p<200);
 
-                smx->fcnSmooth(partj,pkdBall(pkd,partj),nCnt_p,nnList_p,smf);
-                //printf("wtf\n");
+                if (iSmoothType==SMX_THIRDHYDROLOOP && FLUX_VEC){
+                   hydroRiemann_vec(partj,pkdBall(pkd,partj),nCnt_p,flux_input_pointers, flux_output_pointers, smf);
+
+                   if (smf->dDelta>0){
+                     float *pmass = pkdField(partj,pkd->oMass);
+                      for (pk=0;pk<nCnt_p;pk++){
+
+                           *pmass -= flux_output_pointers[out_minDt][pk] * flux_output_pointers[out_Frho][pk] ;
+
+                           psph->mom[0] -= flux_output_pointers[out_minDt][pk] * flux_output_pointers[out_FmomX][pk] ;
+                           psph->mom[1] -= flux_output_pointers[out_minDt][pk] * flux_output_pointers[out_FmomY][pk] ;
+                           psph->mom[2] -= flux_output_pointers[out_minDt][pk] * flux_output_pointers[out_FmomZ][pk] ;
+
+                           psph->E -= flux_output_pointers[out_minDt][pk] * flux_output_pointers[out_Fene][pk];
+
+                           psph->Uint -= flux_output_pointers[out_minDt][pk] * ( flux_output_pointers[out_Fene][pk] - flux_output_pointers[out_FmomX][pk]*psph->vPred[0] 
+                                                                           - flux_output_pointers[out_FmomY][pk]*psph->vPred[1]
+                                                                           - flux_output_pointers[out_FmomZ][pk]*psph->vPred[2]
+                                                 + 0.5*(psph->vPred[0]*psph->vPred[0] + psph->vPred[1]*psph->vPred[1] + psph->vPred[2]*psph->vPred[2]) * flux_output_pointers[out_Frho][pk] );
+                           
+#ifndef USE_MFM
+                           psph->drDotFrho[0] += flux_output_pointers[out_minDt][pk] * flux_output_pointers[out_Frho][pk] * dx;
+                           psph->drDotFrho[1] += flux_output_pointers[out_minDt][pk] * flux_output_pointers[out_Frho][pk] * dy;
+                           psph->drDotFrho[2] += flux_output_pointers[out_minDt][pk] * flux_output_pointers[out_Frho][pk] * dz;
+#endif
+
+                        psph->Frho += flux_output_pointers[out_Frho][pk];
+                        psph->Fene += flux_output_pointers[out_Fene][pk];
+                        psph->Fmom[0] += flux_output_pointers[out_FmomX][pk]; 
+                        psph->Fmom[1] += flux_output_pointers[out_FmomY][pk]; 
+                        psph->Fmom[2] += flux_output_pointers[out_FmomZ][pk]; 
+
+
+#ifdef OPTIM_CACHED_FLUXES
+                         PARTICLE* q = nnList_p[pk].pPart;
+                         SPHFIELDS* qsph = pkdSph(pkd,q);
+                         int j_cache_index_i = *pkdParticleID(pkd,partj) % (sizeof(cache_t)*8);
+                         int i_cache_index_j = *pkdParticleID(pkd,q) % (sizeof(cache_t)*8);
+                         if (((get_bit(&(psph->flux_cache), i_cache_index_j)!=0) &&
+                              (get_bit(&(psph->coll_cache), i_cache_index_j)==0) &&
+                              (get_bit(&(qsph->flux_cache), j_cache_index_i)==0) &&
+                              (nnList_p[pk].iPid == pkd->idSelf) &&
+                              pkdIsActive(pkd,q)) | (!pkdIsActive(pkd,q)  ) )
+                         {
+#else 
+                         if (!pkdIsActive(pkd,nnList_p[pk].pPart) /* | (2.*flux_input_pointers[q_ball][pk] < flux_input_pointers[q_dr][pk]) */){ // not active
+#endif
+                            //printf("%e %e %e \n", flux_output_pointers[out_minDt][pk], flux_output_pointers[out_Frho][pk], flux_output_pointers[out_Fene][pk]);
+
+                              float *qmass = pkdField(nnList_p[pk].pPart,pkd->oMass);
+                              SPHFIELDS* qsph = pkdSph(pkd,nnList_p[pk].pPart);
+                              *qmass += flux_output_pointers[out_minDt][pk] * flux_output_pointers[out_Frho][pk] ;
+
+                              qsph->mom[0] += flux_output_pointers[out_minDt][pk] * flux_output_pointers[out_FmomX][pk] ;
+                              qsph->mom[1] += flux_output_pointers[out_minDt][pk] * flux_output_pointers[out_FmomY][pk] ;
+                              qsph->mom[2] += flux_output_pointers[out_minDt][pk] * flux_output_pointers[out_FmomZ][pk] ;
+
+                              qsph->E += flux_output_pointers[out_minDt][pk] * flux_output_pointers[out_Fene][pk];
+
+                              qsph->Uint += flux_output_pointers[out_minDt][pk] * ( flux_output_pointers[out_Fene][pk] - flux_output_pointers[out_FmomX][pk]*qsph->vPred[0] 
+                                                                              -                                flux_output_pointers[out_FmomY][pk]*qsph->vPred[1]
+                                                                              -                                flux_output_pointers[out_FmomZ][pk]*qsph->vPred[2]
+                                                    + 0.5*(qsph->vPred[0]*qsph->vPred[0] + qsph->vPred[1]*qsph->vPred[1] + qsph->vPred[2]*qsph->vPred[2]) * flux_output_pointers[out_Frho][pk]  );
+
+#ifndef USE_MFM
+                              qsph->drDotFrho[0] += flux_output_pointers[out_minDt][pk] * flux_output_pointers[out_Frho][pk] * flux_input_pointers[q_dx][pk];
+                              qsph->drDotFrho[1] += flux_output_pointers[out_minDt][pk] * flux_output_pointers[out_Frho][pk] * flux_input_pointers[q_dy][pk];
+                              qsph->drDotFrho[2] += flux_output_pointers[out_minDt][pk] * flux_output_pointers[out_Frho][pk] * flux_input_pointers[q_dz][pk];
+#endif
+                              qsph->Frho -= flux_output_pointers[out_Frho][pk];
+                              qsph->Fene -= flux_output_pointers[out_Fene][pk];
+                              qsph->Fmom[0] -= flux_output_pointers[out_FmomX][pk]; 
+                              qsph->Fmom[1] -= flux_output_pointers[out_FmomY][pk]; 
+                              qsph->Fmom[2] -= flux_output_pointers[out_FmomZ][pk]; 
+
+                         }
+                      }
+                   }
+
+                }else{
+                   smx->fcnSmooth(partj,pkdBall(pkd,partj),nCnt_p,nnList_p,smf);
+                }
 
              }
           }
@@ -2969,23 +3252,32 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
 
           nSmoothed += nCnt_own;
 
-          for (pk=0;pk<nCnt;++pk) {
-            if (smx->nnList[pk].iPid != pkd->idSelf) {
-                mdlRelease(pkd->mdl,CID_PARTICLE,smx->nnList[pk].pPart);
-            }
+          if (bSymmetric){
+             for (pk=0;pk<nCnt;++pk) {
+               if (smx->nnList[pk].iPid != pkd->idSelf) {
+                   mdlRelease(pkd->mdl,CID_PARTICLE,smx->nnList[pk].pPart);
+               }
+             }
           }
 
              //printf("end node %d %d \n", pkd->idSelf, i);
       }
    }
+    if (iSmoothType==SMX_THIRDHYDROLOOP){
+       _mm_free( flux_input_buffer);
+       _mm_free( flux_input_pointers);
+       _mm_free( flux_output_buffer);
+       _mm_free( flux_output_pointers);
+    }
     free(nnList_p);
+    free(sinks);
     //printf("nSmoothed %d \n", nSmoothed);
     return nSmoothed;
 }
 
 
 
-void buildInteractionList(SMX smx, SMF *smf, KDN* node, BND bnd_node, int *nCnt_tot, double r[3], double fBall2, int ix, int iy, int iz){
+void buildInteractionList(SMX smx, SMF *smf, int bSymmetric, KDN* node, BND bnd_node, int *nCnt_tot, double r[3], double fBall2, int ix, int iy, int iz){
     PKD pkd = smx->pkd;
     MDL mdl = pkd->mdl;
     PARTICLE *p;
@@ -3046,12 +3338,17 @@ void buildInteractionList(SMX smx, SMF *smf, KDN* node, BND bnd_node, int *nCnt_
       }
       else {
           if (id == pkd->idSelf) {
+#ifdef OPTIM_REORDER_IN_NODES
             pEnd = kdn->pLower+pkdNodeNgas(pkd,kdn);
-            //pEnd = kdn->pUpper+1;
+#else
+            pEnd = kdn->pUpper+1;
+#endif
             //printf("pEnd %d \n", pEnd);
             for (pj=kdn->pLower;pj<pEnd;++pj) {
                 p = pkdParticle(pkd,pj);
-            //if (!pkdIsGas(pkd,p)) continue;
+#ifndef OPTIM_REORDER_IN_NODES
+            if (!pkdIsGas(pkd,p)) continue;
+#endif
                 pkdGetPos1(pkd,p,p_r);
                 dx = r[0] - p_r[0];
                 dy = r[1] - p_r[1];
@@ -3076,11 +3373,16 @@ void buildInteractionList(SMX smx, SMF *smf, KDN* node, BND bnd_node, int *nCnt_
                 }
             }
           else {
+#ifdef OPTIM_REORDER_IN_NODES
             pEnd = kdn->pLower+pkdNodeNgas(pkd,kdn);
-            //pEnd = kdn->pUpper+1;
+#else
+            pEnd = kdn->pUpper+1;
+#endif
             for (pj=kdn->pLower;pj<pEnd;++pj) {
                 p = mdlFetch(mdl,CID_PARTICLE,pj,id);
-            //if (!pkdIsGas(pkd,p)) continue;
+#ifndef OPTIM_REORDER_IN_NODES
+            if (!pkdIsGas(pkd,p)) continue;
+#endif
                 pkdGetPos1(pkd,p,p_r);
                 dx = r[0] - p_r[0];
                 dy = r[1] - p_r[1];
@@ -3098,7 +3400,7 @@ void buildInteractionList(SMX smx, SMF *smf, KDN* node, BND bnd_node, int *nCnt_
                   smx->nnList[nCnt].dx = dx;
                   smx->nnList[nCnt].dy = dy;
                   smx->nnList[nCnt].dz = dz;
-                  smx->nnList[nCnt].pPart = mdlAcquire(mdl,CID_PARTICLE,pj,id);
+                  smx->nnList[nCnt].pPart = bSymmetric ? mdlAcquire(mdl,CID_PARTICLE,pj,id) : p;
                   smx->nnList[nCnt].iIndex = pj;
                   smx->nnList[nCnt].iPid = id;
                   ++nCnt;

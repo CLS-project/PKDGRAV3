@@ -107,8 +107,8 @@ void smSmooth(SMX,SMF *);
 void smReSmoothSingle(SMX smx,SMF *smf,PARTICLE *p,double fBall);
 int  smReSmooth(SMX,SMF *, int);
 #ifdef OPTIM_SMOOTH_NODE
-int  smReSmoothNode(SMX,SMF *, int);
-void buildInteractionList(SMX smx, SMF *smf, KDN* node, BND bnd_node, int *nCnt, double r[3], double fBall, int ix, int iy, int iz);
+int  smReSmoothNode(SMX,SMF *, int, int);
+void buildInteractionList(SMX smx, SMF *smf, int bSymmetric, KDN* node, BND bnd_node, int *nCnt, double r[3], double fBall, int ix, int iy, int iz);
 #endif
 
 void smFastGasPhase1(SMX smx,SMF *smf);

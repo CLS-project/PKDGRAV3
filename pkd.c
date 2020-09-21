@@ -481,12 +481,20 @@ void pkdInitialize(
 	pkd->oRelaxation = 0;
 
     if ( mMemoryModel & PKD_MODEL_SPH )
+#ifdef OPTIM_UNION_EXTRAFIELDS
+	pkd->oSph = pkdParticleAddStruct(pkd,sizeof(EXTRAFIELDS));
+#else
 	pkd->oSph = pkdParticleAddStruct(pkd,sizeof(SPHFIELDS));
+#endif
     else
 	pkd->oSph = 0;
 
     if ( mMemoryModel & PKD_MODEL_STAR )
+#ifdef OPTIM_UNION_EXTRAFIELDS // IA: We assume here that there will be always gas particle when stars are present, which will be usually the case
+	pkd->oStar = 1;          //   this value is of no relevance as long as it is >0
+#else
 	pkd->oStar = pkdParticleAddStruct(pkd,sizeof(STARFIELDS));
+#endif
     else
 	pkd->oStar = 0;
     
@@ -563,7 +571,7 @@ void pkdInitialize(
     pkd->oNodeBall = pkdNodeAddDouble(pkd,3);
     pkd->oNodeParent = pkdNodeAddInt32(pkd,1);
 #endif
-#ifdef OPTIM_SMOOTH_NODE
+#ifdef OPTIM_REORDER_IN_NODES
     pkd->oNodeNgas = pkdNodeAddInt32(pkd,1);
 #if defined(STAR_FORMATION) && defined(FEEDBACK)
     pkd->oNodeNstar = pkdNodeAddInt32(pkd,1);
@@ -1123,8 +1131,9 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 
 	/* Initialize Star fields if present */
 	if (pkd->oStar) {
-	    pStar = pkdField(p,pkd->oStar);
+	    pStar = pkdStar(pkd, p);
 	    pStar->fTimer = 0;
+          pStar->hasExploded = 1;
 /*	    pStar->iGasOrder = IORDERMAX;*/
 	    }
 	else pStar = NULL;
@@ -1141,6 +1150,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
           // IA: The fSoft that we have read is actually the smoothing lenght, in order to avoid confusion
           //  with the classes, we set it to zero now
 	    if (pSph) {
+            u = (u<0.0) ? -u*dTuFac : u; // If the value is negative, means that it is a temperature
 #ifndef OPTIM_REMOVE_UNUSED
 		pSph->u = u * dTuFac; /* Can't do precise conversion until density known IA: ¿?*/
 #endif
@@ -1157,9 +1167,9 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             pSph->Fmom[1] = 0.0;
             pSph->Fmom[2] = 0.0;
             pSph->Fene = 0.0;
-            pSph->E = u*dTuFac + 0.5*(pSph->vPred[0]*pSph->vPred[0] + pSph->vPred[1]*pSph->vPred[1] + pSph->vPred[2]*pSph->vPred[2]); 
+            pSph->E = u + 0.5*(pSph->vPred[0]*pSph->vPred[0] + pSph->vPred[1]*pSph->vPred[1] + pSph->vPred[2]*pSph->vPred[2]); 
             pSph->E *= fMass;
-            pSph->Uint = u*dTuFac*fMass;
+            pSph->Uint = u*fMass;
             assert(pSph->E>0);
             pSph->mom[0] = fMass*vel[0]*sqrt(dvFac);
             pSph->mom[1] = fMass*vel[1]*sqrt(dvFac);
@@ -1194,8 +1204,10 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 #ifdef OPTIM_CACHED_FLUXES
             pSph->flux_cache = 0x00000000ULL;
             pSph->coll_cache = 0x00000000ULL;
+#ifdef DEBUG_CACHED_FLUXES
             pSph->avoided_fluxes = 0;
             pSph->computed_fluxes = 0;
+#endif
 #endif
 		}
 	    break;
@@ -1219,7 +1231,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             pSph->c = sqrt(pSph->Uint/fMass*5./3.*(5./3. -1.));
 		}
 	    if (pStar) {
-             pStar->fTimer = 0.;
+             pStar->fTimer = fTimer;
              pStar->hasExploded = 1; // IA: We avoid that star in the IC could explode
           }
 	    break;
@@ -2177,9 +2189,9 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,BND *bnd,
     else v[0] = v[1] = v[2] = 0.0;
  
     /* Initialize SPH fields if present */
-    if (pkd->oSph) pSph = pkdField(p,pkd->oSph);
+    if (pkd->oSph) pSph = pkdSph(pkd,p);
     else pSph = NULL;
-    if (pkd->oStar) pStar = pkdField(p,pkd->oStar);
+    if (pkd->oStar) pStar = pkdStar(pkd, p);
     else pStar = NULL;
     fMass = pkdMass(pkd,p);
     fSoft = pkdSoft0(pkd,p);
@@ -2999,8 +3011,10 @@ void pkdResetFluxes(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVP
             psph = pkdSph(pkd, p);
             psph->flux_cache = 0x00000000ULL;
             psph->coll_cache = 0x00000000ULL;
+#ifdef DEBUG_CACHED_FLUXES
             psph->avoided_fluxes = 0;
             psph->computed_fluxes = 0;
+#endif
 #endif
          }
        }
@@ -3008,16 +3022,17 @@ void pkdResetFluxes(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVP
 
     }
 
-#ifdef OPTIM_CACHED_FLUXES
+#ifdef DEBUG_CACHED_FLUXES
 void pkdFluxStats(PKD pkd, int* computed, int* avoided){
     PARTICLE* p;
     SPHFIELDS* psph;
-       
-    for (int i=0;i<pkdLocal(pkd);++i) { 
+    for (int i=0;i<pkdLocal(pkd);++i) {
        p = pkdParticle(pkd,i);
-       psph = pkdSph(pkd,p);
-       *avoided += psph->avoided_fluxes;
-       *computed += psph->computed_fluxes;
+       if (pkdIsActive(pkd,p)) {
+          psph = pkdSph(pkd,p);
+          *avoided += psph->avoided_fluxes;
+          *computed += psph->computed_fluxes;
+       }
     }
 }
 #endif
@@ -3037,7 +3052,7 @@ void pkdSetParticleParent(PKD pkd){
 }
 #endif
 
-#ifdef OPTIM_SMOOTH_NODE
+#ifdef OPTIM_REORDER_IN_NODES
 void pkdReorderWithinNodes(PKD pkd){
    KDN *node;
    for (int i=NRESERVED_NODES; i<pkd->nNodes; i++){
@@ -3053,7 +3068,7 @@ void pkdReorderWithinNodes(PKD pkd){
          }
          pkdNodeSetNgas(pkd, node, nGas);
 #if defined(STAR_FORMATION) && defined(FEEDBACK)
-         // We perform another swap, just ot have nGas->nStar->DM
+         // We perform another swap, just to have nGas->nStar->DM
          int nStar = 0;
          for (int pj=node->pLower+nGas;pj<=node->pUpper;++pj) {
             if (pkdIsStar(pkd, pkdParticle(pkd,pj))) {

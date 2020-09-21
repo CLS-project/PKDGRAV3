@@ -1040,6 +1040,7 @@ static int tipsyReadNativeSph(
 	}
     rc = fread(pfDen,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     rc = fread(pfTemp,sizeof(float),1,tio->fp); if (rc!=1) return 0;
+    *pfTemp = -(*pfTemp);
     rc = fread(pfSoft,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     rc = fread(pfMetals,sizeof(float),NUMBER_METALS,tio->fp); if (rc!=NUMBER_METALS) return 0;
     rc = fread(pfPot,sizeof(float),1,tio->fp); if (rc!=1) return 0;
@@ -1113,6 +1114,7 @@ static int tipsyReadStandardSph(
 	}
     if (!xdr_float(&tio->xdr,pfDen)) return 0;
     if (!xdr_float(&tio->xdr,pfTemp)) return 0;
+    *(pfTemp) = -(*pfTemp);
     if (!xdr_float(&tio->xdr,pfSoft)) return 0;
     for (d=0; d<NUMBER_METALS;d++)
        if (!xdr_float(&tio->xdr,pfMetals+d)) return 0;
@@ -3579,7 +3581,6 @@ static int hdf5ReadSph(
     /* Position and Velocity are always present */
     field_get_double(pdPos,&base->fldFields[SPH_POSITION],base->iIndex);
     field_get_double(pdVel,&base->fldFields[SPH_VELOCITY],base->iIndex);
-    field_get_float(pfTemp,&base->fldFields[SPH_TEMPERATURE],base->iIndex);
 
     /* If each particles has a unique class, use that */
     if ( !field_get_float(pfMass,&base->fldFields[SPH_MASS],base->iIndex) )
@@ -3599,6 +3600,20 @@ static int hdf5ReadSph(
     /* Metals is optional */
     if ( !field_get_float(pfMetals,&base->fldFields[SPH_METALS],base->iIndex) )
 	for (i=0;i<NUMBER_METALS;i++) pfMetals[i] = 0.0f;
+
+    /* We need either temperature or internal energy */
+    if ( !field_get_float(pfTemp,&base->fldFields[SPH_INTERNALENERGY],base->iIndex) ){
+       if ( !field_get_float(pfTemp,&base->fldFields[SPH_TEMPERATURE],base->iIndex) ){
+          printf("There is no internal energy/temperature field at the IC!\n");
+          abort();
+       }else{
+          // IA: There is temperature, in this case we need to assume a conversion to internal energy. This should be avoided unless we know what we are doing!
+          *pfTemp = -(*pfTemp); // A negative values hints pkdReadSph that we are dealing with temperatures, rather than internal energies
+          printf("WARNING: Reading temperature input data \n");
+       }
+    }else{
+       // There is internal energy, do nothing?
+    }
 
 
     /* iOrder is either sequential, or is listed for each particle */
@@ -3883,6 +3898,8 @@ static FIO hdf5OpenOne(const char *fname,int iFile) {
 			   FIELD_MASS, H5T_NATIVE_FLOAT,1 );
 		field_open(&base->fldFields[SPH_TEMPERATURE],base->group_id,
 			   FIELD_TEMPERATURE, H5T_NATIVE_FLOAT,1 );
+		field_open(&base->fldFields[SPH_INTERNALENERGY],base->group_id,
+			   FIELD_INTERNALENERGY, H5T_NATIVE_FLOAT,1 );
 		field_open(&base->fldFields[SPH_SMOOTHING],base->group_id,
 			   FIELD_SMOOTHING, H5T_NATIVE_FLOAT,1 );
 		if (base->fldFields[SPH_POTENTIAL].setId == H5I_INVALID_HID)
@@ -3913,6 +3930,8 @@ static FIO hdf5OpenOne(const char *fname,int iFile) {
 			   FIELD_POTENTIAL, H5T_NATIVE_FLOAT,1 );
 		field_open(&base->fldFields[STAR_MASS],base->group_id,
 			   FIELD_MASS, H5T_NATIVE_FLOAT,1 );
+            field_open(&base->fldFields[STAR_AGE],base->group_id,
+                     FIELD_AGE, H5T_NATIVE_FLOAT,1 );
 		if (base->fldFields[STAR_POTENTIAL].setId == H5I_INVALID_HID)
 		    hio->fio.mFlags &= ~FIO_FLAG_POTENTIAL;
 		field_open(&base->fldFields[STAR_DENSITY],base->group_id,

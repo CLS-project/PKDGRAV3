@@ -305,38 +305,64 @@ endif(HERNQUIST_POTENTIAL)
 option(OPTIM_CACHED_FLUXES "Save a flux cache per particle to reduce duplicated flux computations" OFF)
 if(OPTIM_CACHED_FLUXES)
    target_compile_options(${PROJECT_NAME} PRIVATE -DOPTIM_CACHED_FLUXES)
-   message("-- OPTIM: flux cache per particle is ACTIVE")
+   message("-- OPTIM_CACHED_FLUXES: \t Save a flux cache per particle to reduce duplicated flux computations")
 endif(OPTIM_CACHED_FLUXES)
+
+option(DEBUG_CACHED_FLUXES "Enable debug output when using OPTIM_CACHED_FLUXES" OFF)
+if(DEBUG_CACHED_FLUXES)
+   target_compile_options(${PROJECT_NAME} PRIVATE -DDEBUG_CACHED_FLUXES)
+   message("-- DEBUG_CACHED_FLUXES: \t Enable debug output when using OPTIM_CACHED_FLUXES")
+endif(DEBUG_CACHED_FLUXES)
 
 option(OPTIM_REMOVE_UNUSED "Remove unused variables in SPHFIELDS" OFF)
 if(OPTIM_REMOVE_UNUSED)
    target_compile_options(${PROJECT_NAME} PRIVATE -DOPTIM_REMOVE_UNUSED)
-   message("-- OPTIM: Removed unused variables in particle structs")
+   message("-- OPTIM_REMOVE_UNUSED: \t Removed unused variables in particle structs")
 endif(OPTIM_REMOVE_UNUSED)
 
 option(OPTIM_REDUCE_PRECISION "Reduce precision of certain variable types to save memory" OFF)
 if (OPTIM_REDUCE_PRECISION)
    target_compile_options(${PROJECT_NAME} PRIVATE -DOPTIM_REDUCE_PRECISION)
-   message("-- OPTIM: Reduced precision to decrease particle size")
+   message("-- OPTIM_REDUCE_PRECISION: \t Reduced precision to decrease particle size")
 endif(OPTIM_REDUCE_PRECISION)
 
 option(OPTIM_DENSITY_REITER "Reduce the number of density iterations when we have neighbors than expected" OFF)
 if (OPTIM_DENSITY_REITER)
    target_compile_options(${PROJECT_NAME} PRIVATE -DOPTIM_DENSITY_REITER)
-   message("-- OPTIM: Reduced number of density iterations when we have a larger fBall than expected")
+   message("-- OPTIM_DENSITY_REITER: \t Reduced number of density iterations when we have a larger fBall than expected")
 endif(OPTIM_DENSITY_REITER)
 
 option(OPTIM_INVERSE_WALK "When searching neighbours, start walking the tree from the leaves" OFF)
 if (OPTIM_INVERSE_WALK)
    target_compile_options(${PROJECT_NAME} PRIVATE -DOPTIM_INVERSE_WALK)
-   message("-- OPTIM: When searching neighbours, start walking the tree from the leaves")
+   message("-- OPTIM_INVERSE_WALK: \t When searching neighbours, start walking the tree from the leaves (*NOTE*: broken for parallel runs)")
 endif (OPTIM_INVERSE_WALK)
 
 option(OPTIM_SMOOTH_NODE "Do the smooth operator for a whole node at once, rather than particle by particle" OFF)
 if (OPTIM_SMOOTH_NODE)
    target_compile_options(${PROJECT_NAME} PRIVATE -DOPTIM_SMOOTH_NODE)
-   message("-- OPTIM: Do the smooth operator for a whole node at once, rather than particle by particle")
+   message("-- OPTIM_SMOOTH_NODE: \t\t Do the smooth operator for a whole node at once, rather than particle by particle. This overrrides other density loop optimizations!")
 endif (OPTIM_SMOOTH_NODE)
+
+option(OPTIM_REORDER_IN_NODES "Reorder the particle within the each cell memory space to decrease branching in hydrodynamic loops" OFF)
+if (OPTIM_REORDER_IN_NODES)
+   target_compile_options(${PROJECT_NAME} PRIVATE -DOPTIM_REORDER_IN_NODES)
+   message("-- OPTIM_REORDER_IN_NODES: \t Reorder the particle within the each cell memory space to decrease branching in hydrodynamic loops (only useful if OPTIM_SMOOTH_NODE is set).")
+endif (OPTIM_REORDER_IN_NODES)
+
+option(OPTIM_FLUX_VEC "Reorganize the flux interactions such that they can be vectorized by the compiler" OFF)
+if (OPTIM_FLUX_VEC)
+   target_compile_options(${PROJECT_NAME} PRIVATE -DOPTIM_FLUX_VEC)
+   message("-- OPTIM_FLUX_VEC: \t\t Reorganize the flux interactions such that they can be vectorized by the compiler (requires OPTIM_SMOOTH_NODE=on, USE_MFM=on)")
+endif (OPTIM_FLUX_VEC)
+
+option(OPTIM_UNION_EXTRAFIELDS "Use a union of structures to decrease memory footprint in simulations with different particle types")
+if (OPTIM_UNION_EXTRAFIELDS)
+   target_compile_options(${PROJECT_NAME} PRIVATE -DOPTIM_UNION_EXTRAFIELDS)
+   message("-- OPTIM_UNION_EXTRAFIELDS: \t Use a union of structures to decrease memory footprint in simulations with different particle types. Requires OPTIM_SMOOTH_NODE.")
+endif (OPTIM_UNION_EXTRAFIELDS)
+
+
 ####
 
 

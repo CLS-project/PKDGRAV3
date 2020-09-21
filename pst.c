@@ -174,7 +174,7 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_COMPUTEPRIMVARS,pst,
 		  (fcnService_t*) pstComputePrimVars,
 		  sizeof(struct inDrift),0);
-#ifdef OPTIM_CACHED_FLUXES
+#ifdef DEBUG_CACHED_FLUXES
     mdlAddService(mdl,PST_FLUXSTATS,pst,
 		  (fcnService_t*) pstFluxStats,
 		  sizeof(struct inFluxStats), sizeof(struct outFluxStats));
@@ -262,6 +262,9 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_STARFORM,pst,
 		  (fcnService_t*) pstStarForm,
 		  sizeof(struct inStarForm),sizeof(struct outStarForm));
+    mdlAddService(mdl,PST_STARFORMINIT,pst,
+                 (fcnService_t*) pstStarFormInit,
+                 sizeof(struct inStarForm),sizeof(struct outStarForm));
 #endif
     mdlAddService(mdl,PST_SETRUNGVERYACTIVE,pst,(fcnService_t*)pstSetRungVeryActive,
 		  sizeof(struct inSetRung),0);
@@ -270,6 +273,8 @@ void pstAddServices(PST pst,MDL mdl) {
 #ifdef OPTIM_SMOOTH_NODE
     mdlAddService(mdl,PST_RESMOOTHNODE,pst,(fcnService_t*) pstReSmoothNode,
 		  sizeof(struct inSmooth),sizeof(struct outSmooth));
+#endif
+#ifdef OPTIM_REORDER_IN_NODES
     mdlAddService(mdl,PST_REORDERINNODES,pst,(fcnService_t*) pstReorderWithinNodes,
 		  0,0);
 #endif
@@ -2734,7 +2739,7 @@ int pstReSmoothNode(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
 	smInitialize(&smx,plcl->pkd,&in->smf,in->nSmooth,
 		     in->bPeriodic,in->bSymmetric,in->iSmoothType);
-	out->nSmoothed = smReSmoothNode(smx,&in->smf, in->iSmoothType);
+	out->nSmoothed = smReSmoothNode(smx,&in->smf, in->bSymmetric, in->iSmoothType);
 	smFinish(smx,&in->smf);
 	}
     return sizeof(struct outSmooth);
@@ -2984,7 +2989,7 @@ int pstSetParticleParent(PST pst,void *vin,int nIn,void *vout,int nOut){
 }
 #endif
 
-#ifdef OPTIM_SMOOTH_NODE
+#ifdef OPTIM_REORDER_IN_NODES
 int pstReorderWithinNodes(PST pst,void *vin,int nIn,void *vout,int nOut){
     LCL *plcl = pst->plcl;
 
@@ -3016,7 +3021,7 @@ int pstResetFluxes(PST pst,void *vin,int nIn,void *vout,int nOut) {
     return 0;
     }
 
-#ifdef OPTIM_CACHED_FLUXES
+#ifdef DEBUG_CACHED_FLUXES
 int pstFluxStats(PST pst,void *vin,int nIn,void *vout,int nOut) {
     struct inFluxStats *in = vin;
     struct outFluxStats *out = vout;
@@ -3474,6 +3479,25 @@ int pstSphStep(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
 
 #ifdef STAR_FORMATION
+int pstStarFormInit(PST pst,void *vin,int nIn,void *vout,int nOut) {
+    struct inStarForm *in = vin;
+    struct outStarForm *out = vout;
+    int rID;
+
+    mdlassert(pst->mdl,nIn == sizeof(struct inStarForm));
+    if (pst->nLeaves > 1) {
+       struct outStarForm fsStats;
+
+       rID = mdlReqService(pst->mdl,pst->idUpper,PST_STARFORMINIT,in,nIn);
+       pstStarFormInit(pst->pstLower,in,nIn,vout,nOut);
+       mdlGetReply(pst->mdl,rID,&fsStats,NULL);
+       out->nFormed += fsStats.nFormed;
+       }
+    else {
+       pkdStarFormInit(pst->plcl->pkd, in->dTime, &out->nFormed);
+       }
+    return sizeof(struct outStarForm);
+    }
 int pstStarForm(PST pst,void *vin,int nIn,void *vout,int nOut) {
     struct inStarForm *in = vin;
     struct outStarForm *out = vout;

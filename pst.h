@@ -128,7 +128,9 @@ enum pst_service {
 #endif
     PST_RESETFLUXES, 
     PST_COMPUTEPRIMVARS, 
-    PST_FLUXSTATS, 
+#ifdef DEBUG_CACHED_FLUXES
+    PST_FLUXSTATS,
+#endif
 #ifdef COOLING
     PST_COOLINGUPDATE,
     PST_COOLINGUPDATEZ,
@@ -168,6 +170,7 @@ enum pst_service {
     PST_ACCELSTEP,
     PST_SPHSTEP,
     PST_STARFORM,
+    PST_STARFORMINIT,
     PST_DENSITYSTEP,
     PST_CORRECTENERGY,
     PST_SETRUNGVERYACTIVE,
@@ -175,6 +178,8 @@ enum pst_service {
     PST_RESMOOTH,
 #ifdef OPTIM_SMOOTH_NODE
     PST_RESMOOTHNODE,
+#endif
+#ifdef OPTIM_REORDER_IN_NODES
     PST_REORDERINNODES,
 #endif
     PST_INITACCEL,
@@ -664,6 +669,8 @@ int pstCoolingHydReion(PST,void *,int,void *,int);
 int pstReSmooth(PST,void *,int,void *,int);
 #ifdef OPTIM_SMOOTH_NODE
 int pstReSmoothNode(PST,void *,int,void *,int);
+#endif
+#ifdef OPTIM_REORDER_IN_NODES
 int pstReorderWithinNodes(PST,void *,int,void *,int);
 #endif
 
@@ -783,7 +790,9 @@ struct outFluxStats{
    int nAvoided;
    int nComputed;
 };
+#ifdef DEBUG_CACHED_FLUXES
 int pstFluxStats(PST, void*, int, void*, int);
+#endif
 int pstPredictSmoothing(PST,void *,int,void *,int);
 
 /* PST_DRIFT */
@@ -994,6 +1003,7 @@ struct outStarForm
     };
 
 int pstStarForm(PST,void *,int,void *,int);
+int pstStarFormInit(PST,void *,int,void *,int);
 
 /* PST_DENSITYSTEP */
 struct inDensityStep {

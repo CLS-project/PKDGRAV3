@@ -81,8 +81,8 @@ struct kernel_hydra
 };
 
 // From proto.h
-static inline double DMAX(double a, double b) { return (a > b) ? a : b; }
-static inline double DMIN(double a, double b) { return (a < b) ? a : b; }
+inline double DMAX(double a, double b) { return (a > b) ? a : b; }
+inline double DMIN(double a, double b) { return (a < b) ? a : b; }
 static inline int IMAX(int a, int b) { return (a > b) ? a : b; }
 static inline int IMIN(int a, int b) { return (a < b) ? a : b; }
 static inline double MINMOD(double a, double b) {return (a>0) ? ((b<0) ? 0 : DMIN(a,b)) : ((b>=0) ? 0 : DMAX(a,b));}
@@ -598,7 +598,7 @@ void Riemann_solver_exact(PKD pkd, struct Input_vec_Riemann Riemann_vec, struct 
         if(Riemann_vec.R.rho>0)
             sample_reimann_vaccum_left(pkd, 0.0,Riemann_vec,Riemann_out,n_unit,v_line_L,v_line_R,cs_L,cs_R);
     }
-#ifdef HYDRO_MESHLESS_FINITE_VOLUME
+#ifndef USE_MFM
     /* if we got a valid solution, this solver returns face states: need to convert these to fluxes */
     convert_face_to_flux(pkd, Riemann_out, n_unit);
 #endif

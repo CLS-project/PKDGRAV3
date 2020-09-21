@@ -109,7 +109,7 @@ static uint64_t fetchInteger(PKD pkd,PARTICLE *p,int iType,int iDim) {
 	/*v = pkd->psGroupData[pkdGetGroup(pkd,p)].iGlobalId;*/
 	v = pkdGetGroup(pkd,p);
 	break;
-#ifdef OPTIM_CACHED_FLUXES
+#ifdef DEBUG_CACHED_FLUXES
     case OUT_CACHEFLUX_ARRAY:
       if (pkdIsGas(pkd,p)){
          v = pkdSph(pkd,p)->flux_cache;

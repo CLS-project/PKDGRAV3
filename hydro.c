@@ -6,8 +6,18 @@
 #include "pkd.h"
 #include "smoothfcn.h"
 #include "hydro.h" 
+
+#ifdef OPTIM_FLUX_VEC
+#include "riemann_own.h"
+#else
 #include "riemann.h"
+#endif
+
 #include <stdio.h>
+
+#define SIGN(x) (((x) > 0) ? 1 : (((x) < 0) ? -1 : 0) )
+#define MIN(X, Y)  ((X) < (Y) ? (X) : (Y))
+#define MAX(X, Y)  ((X) > (Y) ? (X) : (Y))
 
 //IA: Ref https://pysph.readthedocs.io/en/latest/reference/kernels.html
 double cubicSplineKernel(double r, double h) {
@@ -35,14 +45,6 @@ void inverseMatrix(double* E, double* B){
    det = E[XX]*E[YY]*E[ZZ] + 2.0*E[XY]*E[YZ]*E[XZ] //+ E[XZ]*E[XY]*E[YZ] 
         -E[XX]*E[YZ]*E[YZ] - E[ZZ]*E[XY]*E[XY] - E[YY]*E[XZ]*E[XZ];
 
-   B[XX] = (E[YY]*E[ZZ] - E[YZ]*E[YZ])/det;
-   B[YY] = (E[XX]*E[ZZ] - E[XZ]*E[XZ])/det;
-   B[ZZ] = (E[YY]*E[XX] - E[XY]*E[XY])/det;
-
-   B[XY] = -(E[XY]*E[ZZ] - E[YZ]*E[XZ])/det;
-   B[XZ] = (E[XY]*E[YZ] - E[YY]*E[XZ])/det;
-   B[YZ] = -(E[XX]*E[YZ] - E[XY]*E[XZ])/det;
-
    if (det==0) {
       printf("Singular matrix!\n");
       printf("XX %e \nXY %e \t YY %e \nXZ %e \t YZ %e \t ZZ %e \n", E[XX], E[XY], E[YY], E[XZ], E[YZ], E[ZZ]);
@@ -54,6 +56,17 @@ void inverseMatrix(double* E, double* B){
       B[XZ] = 0.;
       B[YZ] = 0.;
    }
+
+   det = 1./det;
+
+   B[XX] = (E[YY]*E[ZZ] - E[YZ]*E[YZ])*det;
+   B[YY] = (E[XX]*E[ZZ] - E[XZ]*E[XZ])*det;
+   B[ZZ] = (E[YY]*E[XX] - E[XY]*E[XY])*det;
+
+   B[XY] = -(E[XY]*E[ZZ] - E[YZ]*E[XZ])*det;
+   B[XZ] = (E[XY]*E[YZ] - E[YY]*E[XZ])*det;
+   B[YZ] = -(E[XX]*E[YZ] - E[XY]*E[XZ])*det;
+
 
 }
 
@@ -667,6 +680,18 @@ void ConditionedBarthJespersenLimiter(double* limVar, myreal* gradVar, double va
 //    *limVar = 0.0;
 }
 
+// Equation 10.39
+inline void compute_Ustar(double rho_K, double S_K, double v_K, double p_K, double h_K, double S_s, 
+                          double *rho_sK, double *rhov_sK, double *e_sK){
+   double fac = rho_K * (S_K - v_K)/(S_K-S_s);
+
+   *rho_sK = fac;
+
+   *rhov_sK = S_s * fac;
+
+   double e_K = rho_K*h_K - p_K;
+   *e_sK = fac * ( e_K/rho_K + (S_s - v_K)*(S_s + p_K/(rho_K*(S_K - v_K))) );
+}
 
 
 /* IA: This routine will extrapolate the primitives to the 'faces' and solve the 1D riemann problem. 
@@ -802,10 +827,14 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
             (get_bit(&(qsph->coll_cache), j_cache_index_i)== 0) &&
             (nnList[i].iPid == pkd->idSelf) &&
             pkdIsActive(pkd,q)){
+#ifdef DEBUG_CACHED_FLUXED
           psph->avoided_fluxes += 1;
+#endif
           continue;
        }
+#ifdef DEBUG_CACHED_FLUXES
        psph->computed_fluxes += 1;
+#endif
 #endif
        /* IA: We update the conservatives variables taking the minimum timestep between the particles, as in AREPO */
        if (!pkdIsActive(pkd,q)) { // If q is not active we now that p has the smallest dt 
@@ -1005,18 +1034,123 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
        if (riemann_input.R.p < 0) {riemann_input.R.p = qsph->P;  /*  printf("WARNING, R.p < 0 : using first-order scheme \n");*/ }
 
 
-       Riemann_solver(pkd, riemann_input, &riemann_output, face_unit, /*double press_tot_limiter TODO For now, just p>0: */ 0.0);
+       //Riemann_solver(pkd, riemann_input, &riemann_output, face_unit, /*double press_tot_limiter TODO For now, just p>0: */ 0.0);
+    double cs_L = sqrt(GAMMA * riemann_input.L.p / riemann_input.L.rho);
+    double cs_R = sqrt(GAMMA * riemann_input.R.p / riemann_input.R.rho);
+    riemann_input.L.u  = riemann_input.L.p / (GAMMA_MINUS1 * riemann_input.L.rho);
+    riemann_input.R.u  = riemann_input.R.p / (GAMMA_MINUS1 * riemann_input.R.rho);
+    double h_L = riemann_input.L.p/riemann_input.L.rho + riemann_input.L.u + 0.5*(riemann_input.L.v[0]*riemann_input.L.v[0]+riemann_input.L.v[1]*riemann_input.L.v[1]+riemann_input.L.v[2]*riemann_input.L.v[2]);
+    double h_R = riemann_input.R.p/riemann_input.R.rho + riemann_input.R.u + 0.5*(riemann_input.R.v[0]*riemann_input.R.v[0]+riemann_input.R.v[1]*riemann_input.R.v[1]+riemann_input.R.v[2]*riemann_input.R.v[2]);
+
+    double v_line_L = riemann_input.L.v[0]*face_unit[0] + riemann_input.L.v[1]*face_unit[1] + riemann_input.L.v[2]*face_unit[2];
+    double v_line_R = riemann_input.R.v[0]*face_unit[0] + riemann_input.R.v[1]*face_unit[1] + riemann_input.R.v[2]*face_unit[2];
+    /* HLLC solver from Toro 2009 (Sec. 10.4) */
+
+    // We need some kind of approximation for the signal speeds, S_L, S_R.
+    // The simplest:
+    /*
+    double S_L = MIN(v_line_L,v_line_R) - MAX(cs_L,cs_R);
+    double S_R = MAX(v_line_L,v_line_R) + MAX(cs_L,cs_R);
+    */
+
+
+    // Roe averaged equations 10.49-10.51:
+/* 
+    const double sq_rho_L = sqrt(riemann_input.L.rho);
+    const double sq_rho_R = sqrt(riemann_input.R.rho);
+
+    const double den = 1./(sq_rho_L + sq_rho_R);
+    const double u_tilde = (sq_rho_L * v_line_L + sq_rho_R * v_line_R)*den;
+
+    const double h_tilde = (sq_rho_L * h_L + sq_rho_R * h_R)*den;
+    const double a_tilde = sqrt( (GAMMA-1)*(h_tilde-0.5*u_tilde*u_tilde) );
+
+    double S_L = u_tilde - a_tilde;
+    double S_R = u_tilde + a_tilde;
+    
+
+
+    // Equation 10.37
+    riemann_output.S_M = ( riemann_input.R.p - riemann_input.L.p + riemann_input.L.rho*v_line_L*(S_L - v_line_L) - 
+                                                                   riemann_input.R.rho*v_line_R*(S_R - v_line_R)  )
+                              /( riemann_input.L.rho*(S_L - v_line_L) - riemann_input.R.rho*(S_R - v_line_R)  );
+
+    // Equation 10.36
+    riemann_output.P_M = riemann_input.L.p + riemann_input.L.rho*(S_L - v_line_L)*(riemann_output.S_M - v_line_L);
+
+    // TEST for pressure limiter
+    double delta_v2 = v_line_R - v_line_L;
+    delta_v2 *= delta_v2;
+    double max_rho = MAX(riemann_input.L.rho, riemann_input.R.rho);
+    double max_p = MAX(riemann_input.L.p, riemann_input.R.p);
+    double max_P_M = max_p + 0.5*(GAMMA-1)*max_rho*delta_v2;
+*/
+//    if ( (riemann_output.P_M>max_p)||(riemann_output.P_M<=0)||(isnan(riemann_output.P_M)) ){
+       //printf("P_M %e \t max %e \t ratio %e \n", riemann_output.P_M, max_P_M, ratio);
+#ifndef OPTIM_FLUX_VEC
+       Riemann_solver_exact(pkd, riemann_input, &riemann_output, face_unit, v_line_L, v_line_R, cs_L, cs_R, h_L, h_R);
+#endif // We just remove this to avoid the compiler from screaming. This function is never called in this case.
+//    }
       
-       // IA: MFM
 #ifdef USE_MFM
+       /*
        if (riemann_output.Fluxes.rho != 0){
           printf("Frho %e \n",riemann_output.Fluxes.rho);
           abort();
        }
+       */
         riemann_output.Fluxes.rho = 0.;
         riemann_output.Fluxes.p = riemann_output.P_M * riemann_output.S_M;
         for(j=0;j<3;j++)
             riemann_output.Fluxes.v[j] = riemann_output.P_M * face_unit[j];
+#else // MFV
+        /*
+    if ( (riemann_output.P_M>max_p)||(riemann_output.P_M<=0)||(isnan(riemann_output.P_M)) ){
+
+        // In this case we need to check for conditions 10.26 to compute the fluxes
+        // We use eq. 10.39 to compute the star states, and 10.38 for the fluxes
+
+        if (0.0 <= S_L){
+           // F_L
+           riemann_output.Fluxes.rho = riemann_input.L.rho * v_line_L;
+           riemann_output.Fluxes.p = riemann_input.L.rho * h_L * v_line_L;
+           for(j=0;j<3;j++)
+               riemann_output.Fluxes.v[j] = riemann_output.Fluxes.rho * riemann_input.L.v[j] + riemann_input.L.p * face_unit[j];
+           
+        }else if ( (S_L<=0.0)&&(0.0<=riemann_output.S_M) ){
+           // F_starL
+           double rho_sL, rhov_sL, e_sL;
+
+           compute_Ustar( riemann_input.L.rho, S_L, v_line_L, riemann_input.L.p, h_L, riemann_output.S_M, &rho_sL, &rhov_sL, &e_sL  );
+
+           riemann_output.Fluxes.rho = riemann_input.L.rho * v_line_L  + S_L*(rho_sL - riemann_input.L.rho);
+           riemann_output.Fluxes.p = riemann_input.L.rho * h_L * v_line_L + S_L*(e_sL - h_L*riemann_input.L.rho + riemann_input.L.p);
+           for(j=0;j<3;j++)
+               riemann_output.Fluxes.v[j] = riemann_output.Fluxes.rho * riemann_input.L.v[j] + riemann_input.L.p * face_unit[j] + S_L*(rhov_sL - riemann_input.L.rho*v_line_L)*face_unit[j];
+
+
+        }else if ( (riemann_output.S_M<=0.0)&&(0.0<=S_R) ){
+           // F_starR
+           double rho_sR, rhov_sR, e_sR;
+
+           compute_Ustar( riemann_input.R.rho, S_R, v_line_R, riemann_input.R.p, h_R, riemann_output.S_M, &rho_sR, &rhov_sR, &e_sR  );
+
+           riemann_output.Fluxes.rho = riemann_input.R.rho * v_line_R  + S_R*(rho_sR - riemann_input.R.rho);
+           riemann_output.Fluxes.p = riemann_input.R.rho * h_R * v_line_R + S_R*(e_sR - h_R*riemann_input.R.rho + riemann_input.R.p);
+           for(j=0;j<3;j++)
+               riemann_output.Fluxes.v[j] = riemann_output.Fluxes.rho * riemann_input.R.v[j] + riemann_input.R.p * face_unit[j] + S_R*(rhov_sR - riemann_input.R.rho*v_line_R)*face_unit[j];
+
+        }else if ( 0.0<=S_R){
+           // F_R
+           riemann_output.Fluxes.rho = riemann_input.R.rho * v_line_R;
+           riemann_output.Fluxes.p = riemann_input.R.rho * h_R * v_line_R ;
+           for(j=0;j<3;j++)
+               riemann_output.Fluxes.v[j] = riemann_output.Fluxes.rho * riemann_input.R.v[j] + riemann_input.R.p * face_unit[j];
+           
+        }
+
+    }
+    */
 #endif       
        // IA: End MFM
 
@@ -1282,9 +1416,6 @@ void hydroStep(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
 #define psi1 0.5
 #define psi2 0.25
-#define SIGN(x) (((x) > 0) ? 1 : (((x) < 0) ? -1 : 0) )
-#define MIN(X, Y)  ((X) < (Y) ? (X) : (Y))
-#define MAX(X, Y)  ((X) > (Y) ? (X) : (Y))
 void genericPairwiseLimiter(double Lstate, double Rstate, double *Lstate_face, double *Rstate_face){
    double phi_max, phi_min, d1, d2, phi_mean, phi_p, phi_m;
 
@@ -1325,3 +1456,519 @@ void genericPairwiseLimiter(double Lstate, double Rstate, double *Lstate_face, d
 
 
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#ifdef OPTIM_FLUX_VEC
+// IA: vectorizable version of the riemann solver.
+//
+// There are a few differences with respect the previous one, the most importants:
+//   a) we use the input buffer directly, rather than accessing the particle data directly
+//   b) we omit all claused that could terminate the loop (continue, abort, etc...). If, for example, FORCE_2D is used, the loop may not be vectorized
+//
+// Now we have two hydroRiemann routines, which means that there is A LOT of code duplication. This can cause bugs and deteriorate readability.
+// At some point, one of them must be discontinued TODO
+void hydroRiemann_vec(PARTICLE *p,float fBall,int nSmooth, my_real** restrict input_buffer, my_real** restrict output_buffer, SMF *smf) {
+    PKD pkd = smf->pkd;
+    int i,j;
+
+    SPHFIELDS* psph = pkdSph(pkd, p);   
+    my_real ph = pkdBall(pkd, p); 
+
+    my_real pDensity = pkdDensity(pkd,p);
+    my_real p_omega = psph->omega;
+
+
+#ifdef __INTEL_COMPILER
+    __assume_aligned(input_buffer, 64);
+    __assume_aligned(input_buffer[0], 64);
+#pragma simd
+#pragma vector aligned
+#endif
+#ifdef __GNUC__
+//TODO
+#endif
+    for (i=0;i<nSmooth;++i){
+
+       my_real qh = input_buffer[q_ball][i];
+
+	 my_real dx = input_buffer[q_dx][i];
+	 my_real dy = input_buffer[q_dy][i];
+	 my_real dz = input_buffer[q_dz][i];
+       
+#ifdef FORCE_1D
+       if (dz!=0) continue;
+       if (dy!=0) continue;
+#endif
+#ifdef FORCE_2D
+       if (dz!=0) continue;
+#endif
+       
+
+
+       // Face where the riemann problem will be solved
+       my_real rpq = input_buffer[q_dr][i];
+
+
+       /* IA: We update the conservatives variables taking the minimum timestep between the particles, as in AREPO */
+       my_real p_dt = smf->dDelta/(1<<p->uRung);
+       my_real q_dt = input_buffer[q_rung][i];
+       my_real minDt =  p_dt > q_dt ? q_dt : p_dt;
+       minDt /=  smf->a;
+       
+
+       my_real qDeltaHalf=0.0, pDeltaHalf=0.0;
+       if (smf->dDelta > 0) {
+          pDeltaHalf = (smf->dTime - psph->lastUpdateTime + 0.5*p_dt)/smf->a;
+          qDeltaHalf = (smf->dTime - input_buffer[q_lastUpdateTime][i] + 0.5*q_dt)/smf->a;
+       }
+       
+       
+       
+       
+       
+
+//       printf("pDeltaHalf %e qDeltaHalf %e \n", pDeltaHalf, qDeltaHalf);
+
+
+
+       my_real omega_q = input_buffer[q_omega][i];
+
+       // \tilde{\psi}_j (x_i)
+       my_real psi = -cubicSplineKernel(rpq, ph)/p_omega;   
+       my_real psiTilde_p[3], psiTilde_q[3];
+       psiTilde_p[0] = (psph->B[XX]*dx + psph->B[XY]*dy + psph->B[XZ]*dz)*psi;
+       psiTilde_p[1] = (psph->B[XY]*dx + psph->B[YY]*dy + psph->B[YZ]*dz)*psi;
+       psiTilde_p[2] = (psph->B[XZ]*dx + psph->B[YZ]*dy + psph->B[ZZ]*dz)*psi;
+
+       // \tilde{\psi}_i (x_j)
+       psi = cubicSplineKernel(rpq, qh)/omega_q; // IA: minus because we are 'looking from' the other particle, thus -dr
+       psiTilde_q[0] = (input_buffer[q_B_XX][i]*dx + input_buffer[q_B_XY][i]*dy + input_buffer[q_B_XZ][i]*dz)*psi;
+       psiTilde_q[1] = (input_buffer[q_B_XY][i]*dx + input_buffer[q_B_YY][i]*dy + input_buffer[q_B_YZ][i]*dz)*psi;
+       psiTilde_q[2] = (input_buffer[q_B_XZ][i]*dx + input_buffer[q_B_YZ][i]*dy + input_buffer[q_B_ZZ][i]*dz)*psi;
+
+       my_real modApq = 0.0;
+       my_real Apq[3];
+       for (j=0; j<3; j++){
+          Apq[j] = psiTilde_p[j]/p_omega - psiTilde_q[j]/omega_q;
+          modApq += Apq[j]*Apq[j];
+       }
+       modApq = sqrt(modApq);
+
+       /* DEBUG
+       if (modApq<=0.0) {
+          printf("dx %e \t dy %e \t dz %e \n", dx, dy, dz);
+          printf("rpq %e hpq %e ratio %e Wpq %e \n", rpq, hpq, rpq/hpq, Wpq);
+       }
+       assert(modApq>0.0); // Area should be positive!
+       */
+
+
+       my_real face_unit[3];
+       for (j=0; j<3; j++){
+          face_unit[j] = Apq[j]/modApq;
+       }
+
+
+
+       // Velocity of the quadrature mid-point 
+       my_real vFrame[3];
+       vFrame[0] = 0.5*(psph->vPred[0]+input_buffer[q_vx][i]);
+       vFrame[1] = 0.5*(psph->vPred[1]+input_buffer[q_vy][i]);
+       vFrame[2] = 0.5*(psph->vPred[2]+input_buffer[q_vz][i]);
+
+       my_real pv[3], qv[3];
+       for (j=0; j<3; j++){
+          // We boost to the reference of the p-q 'face'
+          pv[j] = psph->vPred[j] - vFrame[j];
+       }
+ 
+       qv[0] = input_buffer[q_vx][i] - vFrame[0];
+       qv[1] = input_buffer[q_vy][i] - vFrame[1];
+       qv[2] = input_buffer[q_vz][i] - vFrame[2];
+
+       // Mid-point rule 
+       my_real dr[3];
+       dr[0] = -0.5*dx;
+       dr[1] = -0.5*dy;
+       dr[2] = -0.5*dz;
+
+       //dr[0] = 0.0;
+       //dr[1] = 0.0;
+       //dr[2] = 0.0;
+
+      // Divergence of the velocity field for the forward in time prediction
+      my_real pdivv = (psph->gradVx[0] + psph->gradVy[1] + psph->gradVz[2])*pDeltaHalf;
+      my_real qdivv = (input_buffer[q_gradVxX][i] + input_buffer[q_gradVyY][i] + input_buffer[q_gradVzZ][i])*qDeltaHalf;
+
+      // At some point we should erase the need for this structs... FIXME
+      struct Input_vec_Riemann riemann_input;
+      struct Riemann_outputs riemann_output;
+
+      riemann_input.L.rho = pDensity;
+      riemann_input.R.rho = input_buffer[q_rho][i];
+      riemann_input.L.v[0] = pv[0];
+      riemann_input.R.v[0] = qv[0];
+      riemann_input.L.v[1] = pv[1];
+      riemann_input.R.v[1] = qv[1];
+      riemann_input.L.v[2] = pv[2];
+      riemann_input.R.v[2] = qv[2];
+      riemann_input.L.p = psph->P;
+      riemann_input.R.p = input_buffer[q_P][i];
+
+//      printf("1) L.rho %e \t R.rho %e \n", riemann_input.L.rho, riemann_input.R.rho);     
+//      printf("1) L.p %e \t R.p %e \n", riemann_input.L.p, riemann_input.R.p);
+
+      // We add the gradients terms (from extrapolation and forward prediction)
+      for (j=0; j<3; j++) {
+         riemann_input.L.rho += ( dr[j] - pDeltaHalf*pv[j])*psph->gradRho[j];
+
+         riemann_input.L.v[0] += ( dr[j]*psph->gradVx[j]);
+                                                   
+         riemann_input.L.v[1] += ( dr[j]*psph->gradVy[j]);
+                                                   
+         riemann_input.L.v[2] += ( dr[j]*psph->gradVz[j]);
+
+         riemann_input.L.p += ( dr[j] - pDeltaHalf*pv[j])*psph->gradP[j];
+      }
+
+
+
+         riemann_input.R.rho += (-dr[0] - qDeltaHalf*qv[0])*input_buffer[q_gradRhoX][i];
+         riemann_input.R.rho += (-dr[1] - qDeltaHalf*qv[1])*input_buffer[q_gradRhoY][i];
+         riemann_input.R.rho += (-dr[2] - qDeltaHalf*qv[2])*input_buffer[q_gradRhoZ][i];
+
+         riemann_input.R.v[0] += (-dr[0]*input_buffer[q_gradVxX][i]); 
+         riemann_input.R.v[0] += (-dr[1]*input_buffer[q_gradVxY][i]); 
+         riemann_input.R.v[0] += (-dr[2]*input_buffer[q_gradVxZ][i]); 
+
+         riemann_input.R.v[1] += (-dr[0]*input_buffer[q_gradVyX][i]); 
+         riemann_input.R.v[1] += (-dr[1]*input_buffer[q_gradVyY][i]); 
+         riemann_input.R.v[1] += (-dr[2]*input_buffer[q_gradVyZ][i]); 
+
+         riemann_input.R.v[2] += (-dr[0]*input_buffer[q_gradVzX][i]); 
+         riemann_input.R.v[2] += (-dr[1]*input_buffer[q_gradVzY][i]); 
+         riemann_input.R.v[2] += (-dr[2]*input_buffer[q_gradVzZ][i]); 
+         
+         riemann_input.R.p += (-dr[0] - qDeltaHalf*qv[0])*input_buffer[q_gradPX][i];
+         riemann_input.R.p += (-dr[1] - qDeltaHalf*qv[1])*input_buffer[q_gradPY][i];
+         riemann_input.R.p += (-dr[2] - qDeltaHalf*qv[2])*input_buffer[q_gradPZ][i];
+
+
+
+//      printf("2) L.rho %e \t R.rho %e \n", riemann_input.L.rho, riemann_input.R.rho);
+//      printf("2) L.p %e \t R.p %e \n", riemann_input.L.p, riemann_input.R.p);
+      
+
+      
+      my_real temp;
+      if(pkd->csm->val.bComove){
+         
+         for (j=0;j<3;j++){
+            temp = smf->H * pDeltaHalf * smf->a * pv[j];
+            riemann_input.L.v[j] -= temp;
+            vFrame[j] -= 0.5*temp;
+
+            temp = smf->H * qDeltaHalf * smf->a * qv[j];
+            riemann_input.R.v[j] -= temp;
+            vFrame[j] -= 0.5*temp;
+         }
+         
+         riemann_input.L.p -= 3. * smf->H * pDeltaHalf * smf->a * (pkd->param.dConstGamma - 1.) * psph->P;
+         riemann_input.R.p -= 3. * smf->H * qDeltaHalf * smf->a * (pkd->param.dConstGamma - 1.) * input_buffer[q_P][i];
+         
+      }
+
+
+
+
+      for (j=0; j<3; j++){ // Forward extrapolation of velocity
+         temp = pv[j]*pdivv + psph->gradP[j]/pDensity*pDeltaHalf;
+         riemann_input.L.v[j] -= temp;
+         vFrame[j] -= 0.5*temp;
+      }
+
+         temp = qv[0]*qdivv + input_buffer[q_gradPX][i]/input_buffer[q_rho][i]*qDeltaHalf;
+         riemann_input.R.v[0] -= temp;
+         vFrame[0] -= 0.5*temp;
+
+         temp = qv[1]*qdivv + input_buffer[q_gradPY][i]/input_buffer[q_rho][i]*qDeltaHalf;
+         riemann_input.R.v[1] -= temp;
+         vFrame[1] -= 0.5*temp;
+
+         temp = qv[2]*qdivv + input_buffer[q_gradPZ][i]/input_buffer[q_rho][i]*qDeltaHalf;
+         riemann_input.R.v[2] -= temp;
+         vFrame[2] -= 0.5*temp;
+     
+
+      for (j=0; j<3; j++){
+         temp = psph->lastAcc[j]*pDeltaHalf;
+         riemann_input.L.v[j] += temp;
+         vFrame[j] += 0.5*temp;
+
+      }
+         temp = input_buffer[q_lastAccX][i]*qDeltaHalf;
+         riemann_input.R.v[0] += temp;
+         vFrame[0] += 0.5*temp;
+
+         temp = input_buffer[q_lastAccY][i]*qDeltaHalf;
+         riemann_input.R.v[1] += temp;
+         vFrame[1] += 0.5*temp;
+
+         temp = input_buffer[q_lastAccZ][i]*qDeltaHalf;
+         riemann_input.R.v[2] += temp;
+         vFrame[2] += 0.5*temp;
+
+      riemann_input.L.rho -= pDensity*pdivv;
+      riemann_input.R.rho -= input_buffer[q_rho][i]*qdivv;
+      riemann_input.L.p -= pkd->param.dConstGamma*psph->P*pdivv;
+      riemann_input.R.p -= pkd->param.dConstGamma*input_buffer[q_P][i]*qdivv;
+
+      genericPairwiseLimiter(pDensity, input_buffer[q_rho][i], &riemann_input.L.rho, &riemann_input.R.rho);
+      genericPairwiseLimiter(psph->P, input_buffer[q_P][i], &riemann_input.L.p, &riemann_input.R.p);
+      genericPairwiseLimiter(pv[0], qv[0], &riemann_input.L.v[0], &riemann_input.R.v[0]);
+      genericPairwiseLimiter(pv[1], qv[1], &riemann_input.L.v[1], &riemann_input.R.v[1]);
+      genericPairwiseLimiter(pv[2], qv[2], &riemann_input.L.v[2], &riemann_input.R.v[2]);
+       
+       // IA: DEBUG: Tests for the riemann solver extracted from Toro (10.1007/b79761)
+       // Test 1
+//       riemann_input.L.rho = 1.0; riemann_input.L.p = 1.0; riemann_input.L.v[0] = 0.0;
+//       riemann_input.L.rho = 0.125; riemann_input.L.p = 0.1; riemann_input.L.v[0] = 0.0;
+
+       if (riemann_input.L.rho < 0) {riemann_input.L.rho = pDensity; /* printf("WARNING, L.rho < 0 : using first-order scheme \n");*/ }
+       if (riemann_input.R.rho < 0) {riemann_input.R.rho = input_buffer[q_rho][i]; /* printf("WARNING, R.rho < 0 : using first-order scheme \n");*/ }
+       if (riemann_input.L.p < 0) {riemann_input.L.p = psph->P;  /*  printf("WARNING, L.p < 0 : using first-order scheme \n");*/ }
+       if (riemann_input.R.p < 0) {riemann_input.R.p = input_buffer[q_P][i];  /*  printf("WARNING, R.p < 0 : using first-order scheme \n");*/ }
+
+
+       double cs_L = sqrt(GAMMA * riemann_input.L.p / riemann_input.L.rho);
+       double cs_R = sqrt(GAMMA * riemann_input.R.p / riemann_input.R.rho);
+       riemann_input.L.u  = riemann_input.L.p / (GAMMA_MINUS1 * riemann_input.L.rho);
+       riemann_input.R.u  = riemann_input.R.p / (GAMMA_MINUS1 * riemann_input.R.rho);
+       double h_L = riemann_input.L.p/riemann_input.L.rho + riemann_input.L.u + 0.5*(riemann_input.L.v[0]*riemann_input.L.v[0]+riemann_input.L.v[1]*riemann_input.L.v[1]+riemann_input.L.v[2]*riemann_input.L.v[2]);
+       double h_R = riemann_input.R.p/riemann_input.R.rho + riemann_input.R.u + 0.5*(riemann_input.R.v[0]*riemann_input.R.v[0]+riemann_input.R.v[1]*riemann_input.R.v[1]+riemann_input.R.v[2]*riemann_input.R.v[2]);
+
+       double v_line_L = riemann_input.L.v[0]*face_unit[0] + riemann_input.L.v[1]*face_unit[1] + riemann_input.L.v[2]*face_unit[2];
+       double v_line_R = riemann_input.R.v[0]*face_unit[0] + riemann_input.R.v[1]*face_unit[1] + riemann_input.R.v[2]*face_unit[2];
+
+    /* HLLC solver from Toro 2009 (Sec. 10.4) */
+
+    // We need some kind of approximation for the signal speeds, S_L, S_R.
+    // The simplest:
+    /*
+    double S_L = MIN(v_line_L,v_line_R) - MAX(cs_L,cs_R);
+    double S_R = MAX(v_line_L,v_line_R) + MAX(cs_L,cs_R);
+    */
+
+
+    // Roe averaged equations 10.49-10.51:
+ 
+
+    const double sq_rho_L = sqrt(riemann_input.L.rho);
+    const double sq_rho_R = sqrt(riemann_input.R.rho);
+
+    const double den = 1./(sq_rho_L + sq_rho_R);
+    const double u_tilde = (sq_rho_L * v_line_L + sq_rho_R * v_line_R)*den;
+
+    const double h_tilde = (sq_rho_L * h_L + sq_rho_R * h_R)*den;
+    const double a_tilde = sqrt( (GAMMA-1)*(h_tilde-0.5*u_tilde*u_tilde) );
+
+    double S_L = u_tilde - a_tilde;
+    double S_R = u_tilde + a_tilde;
+    
+
+    // Equation 10.37
+    riemann_output.S_M = ( riemann_input.R.p - riemann_input.L.p + riemann_input.L.rho*v_line_L*(S_L - v_line_L) - 
+                                                                   riemann_input.R.rho*v_line_R*(S_R - v_line_R)  )
+                              /( riemann_input.L.rho*(S_L - v_line_L) - riemann_input.R.rho*(S_R - v_line_R)  );
+
+    // Equation 10.36
+    riemann_output.P_M = riemann_input.L.p + riemann_input.L.rho*(S_L - v_line_L)*(riemann_output.S_M - v_line_L);
+
+    // TEST for pressure limiter
+    double delta_v2 = v_line_R - v_line_L;
+    delta_v2 *= delta_v2;
+    double upwind_p_L = riemann_input.L.p + delta_v2*riemann_input.L.rho;
+    double upwind_p_R = riemann_input.R.p + delta_v2*riemann_input.R.rho;
+    double max_P_M = 1.01*MAX( upwind_p_L, upwind_p_R );
+    
+    //double max_rho = MAX(riemann_input.L.rho, riemann_input.R.rho);
+    //double max_p = MAX(riemann_input.L.p, riemann_input.R.p);
+    //double max_P_M = max_p + 0.5*(GAMMA-1)*max_rho*delta_v2;
+
+    if ( (riemann_output.P_M>max_P_M)||(riemann_output.P_M<=0)||(isnan(riemann_output.P_M)) ){
+       //printf("P_M %e \t max %e \t ratio %e \n", riemann_output.P_M, max_P_M, riemann_output.P_M/max_P_M);
+       //psph->avoided_fluxes += 1;
+       //Riemann_solver_exact(pkd, riemann_input, &riemann_output, face_unit, v_line_L, v_line_R, cs_L, cs_R, h_L, h_R);
+       Riemann_solver_exact(pkd, riemann_input.R.rho, riemann_input.R.p, riemann_input.L.rho, riemann_input.L.p, 
+             &riemann_output.P_M, &riemann_output.S_M, 
+             face_unit, v_line_L, v_line_R, cs_L, cs_R, h_L, h_R);
+    }
+      
+#ifdef USE_MFM
+        riemann_output.Fluxes.rho = 0.;
+        riemann_output.Fluxes.p = riemann_output.P_M * riemann_output.S_M;
+        for(j=0;j<3;j++)
+            riemann_output.Fluxes.v[j] = riemann_output.P_M * face_unit[j];
+#else // MFV
+        
+    // IA: from convert_face_to_flux
+    double rho, P, v[3], v_line=0, h=0;
+    rho = riemann_output.Fluxes.rho;
+    P = riemann_output.Fluxes.p;
+    for(j=0;j<3;j++){
+        v[j] = riemann_output.Fluxes.v[j];
+        v_line += v[j] * face_unit[j];
+        h += v[j] * v[j];
+    }
+    h *= 0.5 * rho; /* h is the kinetic energy density */
+    h += (GAMMA/GAMMA_MINUS1) * P; /* now h is the enthalpy */
+    /* now we just compute the standard fluxes for a given face state */
+    riemann_output.Fluxes.p = h * v_line;
+    riemann_output.Fluxes.rho = rho * v_line;
+    for(j=0;j<3;j++)
+        riemann_output.Fluxes.v[j] = riemann_output.Fluxes.rho * v[j] + P * face_unit[j];
+        
+/* For the HLLC solver
+    if ( (riemann_output.P_M>max_p)||(riemann_output.P_M<=0)||(isnan(riemann_output.P_M)) ){
+
+        // In this case we need to check for conditions 10.26 to compute the fluxes
+        // We use eq. 10.39 to compute the star states, and 10.38 for the fluxes
+
+        if (0.0 <= S_L){
+           // F_L
+           riemann_output.Fluxes.rho = riemann_input.L.rho * v_line_L;
+           riemann_output.Fluxes.p = riemann_input.L.rho * h_L * v_line_L;
+           for(j=0;j<3;j++)
+               riemann_output.Fluxes.v[j] = riemann_output.Fluxes.rho * riemann_input.L.v[j] + riemann_input.L.p * face_unit[j];
+           
+        }else if ( (S_L<=0.0)&&(0.0<=riemann_output.S_M) ){
+           // F_starL
+           double rho_sL, rhov_sL, e_sL;
+
+           compute_Ustar( riemann_input.L.rho, S_L, v_line_L, riemann_input.L.p, h_L, riemann_output.S_M, &rho_sL, &rhov_sL, &e_sL  );
+
+           riemann_output.Fluxes.rho = riemann_input.L.rho * v_line_L  + S_L*(rho_sL - riemann_input.L.rho);
+           riemann_output.Fluxes.p = riemann_input.L.rho * h_L * v_line_L + S_L*(e_sL - h_L*riemann_input.L.rho + riemann_input.L.p);
+           for(j=0;j<3;j++)
+               riemann_output.Fluxes.v[j] = riemann_output.Fluxes.rho * riemann_input.L.v[j] + riemann_input.L.p * face_unit[j] + S_L*(rhov_sL - riemann_input.L.rho*v_line_L)*face_unit[j];
+
+
+        }else if ( (riemann_output.S_M<=0.0)&&(0.0<=S_R) ){
+           // F_starR
+           double rho_sR, rhov_sR, e_sR;
+
+           compute_Ustar( riemann_input.R.rho, S_R, v_line_R, riemann_input.R.p, h_R, riemann_output.S_M, &rho_sR, &rhov_sR, &e_sR  );
+
+           riemann_output.Fluxes.rho = riemann_input.R.rho * v_line_R  + S_R*(rho_sR - riemann_input.R.rho);
+           riemann_output.Fluxes.p = riemann_input.R.rho * h_R * v_line_R + S_R*(e_sR - h_R*riemann_input.R.rho + riemann_input.R.p);
+           for(j=0;j<3;j++)
+               riemann_output.Fluxes.v[j] = riemann_output.Fluxes.rho * riemann_input.R.v[j] + riemann_input.R.p * face_unit[j] + S_R*(rhov_sR - riemann_input.R.rho*v_line_R)*face_unit[j];
+
+        }else if ( 0.0<=S_R){
+           // F_R
+           riemann_output.Fluxes.rho = riemann_input.R.rho * v_line_R;
+           riemann_output.Fluxes.p = riemann_input.R.rho * h_R * v_line_R ;
+           for(j=0;j<3;j++)
+               riemann_output.Fluxes.v[j] = riemann_output.Fluxes.rho * riemann_input.R.v[j] + riemann_input.R.p * face_unit[j];
+           
+        }
+
+    }
+*/
+#endif       
+       // IA: End MFM
+
+       // Force 2D
+#ifdef FORCE_1D
+       riemann_output.Fluxes.v[2] = 0.;
+       riemann_output.Fluxes.v[1] = 0.;
+#endif
+#ifdef FORCE_2D
+       riemann_output.Fluxes.v[2] = 0.;
+#endif
+      
+
+
+       // IA: DEBUG
+//       abort();
+
+       // Check for NAN fluxes
+       if (riemann_output.Fluxes.rho!=riemann_output.Fluxes.rho) riemann_output.Fluxes.rho = 0.;//abort();
+       if (riemann_output.Fluxes.p!=riemann_output.Fluxes.p) riemann_output.Fluxes.p = 0.;//abort(); 
+
+
+
+
+       // Now we de-boost the fluxes following Eq. A8 Hopkins 2015 (From hydra_core_meshless.h):
+       /* the fluxes have been calculated in the rest frame of the interface: we need to de-boost to the 'simulation frame'
+        which we do following Pakmor et al. 2011 */
+       for(j=0;j<3;j++)
+       {
+           riemann_output.Fluxes.p += vFrame[j] * riemann_output.Fluxes.v[j];
+           riemann_output.Fluxes.p += (0.5*vFrame[j]*vFrame[j])*riemann_output.Fluxes.rho;
+       }
+
+       // IA: Now we just multiply by the face area
+       riemann_output.Fluxes.p *= modApq;
+       riemann_output.Fluxes.rho *= modApq;
+       for (j=0;j<3;j++) {riemann_output.Fluxes.v[j] *= modApq; riemann_output.Fluxes.v[j] += vFrame[j]*riemann_output.Fluxes.rho;  } // De-boost (modApq included in Fluxes.rho)
+
+
+       
+       
+       // We fill the output buffer with the fluxes, which then will be added to the corresponding particles
+       output_buffer[out_Frho][i] = riemann_output.Fluxes.rho;
+       output_buffer[out_Fene][i] = riemann_output.Fluxes.p;
+       output_buffer[out_FmomX][i] = riemann_output.Fluxes.v[0];
+       output_buffer[out_FmomY][i] = riemann_output.Fluxes.v[1];
+       output_buffer[out_FmomZ][i] = riemann_output.Fluxes.v[2];
+       output_buffer[out_minDt][i] = minDt;
+
+    } // IA: End of loop over neighbors
+
+
+
+
+
+}
+#endif

@@ -231,8 +231,10 @@ typedef struct sphfields {
 #ifdef OPTIM_CACHED_FLUXES
     cache_t flux_cache;
     cache_t coll_cache;
+#ifdef DEBUG_CACHED_FLUXES
     uint8_t avoided_fluxes; // Just for measuring performance gains
     uint8_t computed_fluxes;
+#endif
 #endif
 
 
@@ -327,6 +329,12 @@ typedef struct starfields {
     int hasExploded; /* Has exploded as a supernova? */
     } STARFIELDS;   
 
+#ifdef OPTIM_UNION_EXTRAFIELDS
+typedef union extrafields {
+    SPHFIELDS sph;
+    STARFIELDS star;
+} EXTRAFIELDS;
+#endif
 
 typedef struct partLightCone {
     float pos[3];
@@ -964,7 +972,7 @@ typedef struct pkdContext {
     int oNodeParent;
     int oNodeBall;
 #endif
-#ifdef OPTIM_SMOOTH_NODE
+#ifdef OPTIM_REORDER_IN_NODES
     int oNodeNgas;
 #if defined(STAR_FORMATION) && defined(FEEDBACK)
     int oNodeNstar;
@@ -1253,7 +1261,7 @@ static inline void pkdNodeSetBall(  PKD pkd, KDN *n, double ball){
     *CAST(double*, pkdNodeField(n, pkd->oNodeBall)) = ball;
     }
 #endif
-#ifdef OPTIM_SMOOTH_NODE
+#ifdef OPTIM_REORDER_IN_NODES
 static inline int pkdNodeNgas( PKD pkd, KDN* n){
    return *CAST(int *, pkdNodeField(n, pkd->oNodeNgas));
    }
@@ -1490,7 +1498,11 @@ static inline SPHFIELDS *pkdSph( PKD pkd, PARTICLE *p ) {
     return ((SPHFIELDS *) pkdField(p,pkd->oSph));
     }
 static inline STARFIELDS *pkdStar( PKD pkd, PARTICLE *p ) {
+#ifdef OPTIM_UNION_EXTRAFIELDS
+    return ((STARFIELDS *) pkdField(p,pkd->oSph));
+#else
     return ((STARFIELDS *) pkdField(p,pkd->oStar));
+#endif
     }
 static inline double *pkd_vPred( PKD pkd, PARTICLE *p ) {
     return &(((SPHFIELDS *) pkdField(p,pkd->oSph))->vPred[0]);
@@ -1655,12 +1667,14 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double,double);
 #ifdef OPTIM_INVERSE_WALK
 void pkdSetParticleParent(PKD pkd);
 #endif
-#ifdef OPTIM_SMOOTH_NODES
+#ifdef OPTIM_REORDER_IN_NODES
 void pkdReorderWithinNodes(PKD pkd);
 #endif
 void pkdApplyGravWork(PKD pkd,double dTime,double dDelta,double,double,double,uint8_t uRungLo,uint8_t uRungHi);
 void pkdResetFluxes(PKD pkd,int iRoot,double dTime,double dDelta,double,double);
+#ifdef DEBUG_CACHED_FLUXES
 void pkdFluxStats(PKD pkd, int* avoided, int* computed);
+#endif
 void pkdComputePrimVars(PKD pkd,int iRoot, double dTime, double dDelta);
 void pkdPredictSmoothing(PKD pkd,int iRoot, double dTime, double dDelta);
 void pkdScaleVel(PKD pkd,double dvFac);
@@ -1684,6 +1698,7 @@ void pkdAccelStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
 void pkdSphStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,double dAccFac);
 void pkdStarForm(PKD pkd, double dTime, double dDelta, double dScaleFactor, double dDenMin, double dDenCrit,
 		 int *nFormed, double *dMassFormed, int *nDeleted);
+void pkdStarFormInit(PKD pkd, double dTime, int *nFormed);
 void pkdCooling(PKD pkd,double,double,int,int,int,int);
 #define CORRECTENERGY_IN 1
 #define CORRECTENERGY_OUT 2

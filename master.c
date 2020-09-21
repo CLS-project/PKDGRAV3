@@ -2052,6 +2052,9 @@ void msrLogParams(MSR msr,FILE *fp) {
 #ifdef OPTIM_CACHED_FLUXES
    fprintf(fp," OPTIM_CACHED_FLUXES"); 
 #endif
+#ifdef DEBUG_CACHED_FLUXES
+   fprintf(fp," DEBUG_CACHED_FLUXES"); 
+#endif
 #ifdef OPTIM_REMOVE_UNUSED
    fprintf(fp," OPTIM_REMOVE_UNUSED"); 
 #endif
@@ -2060,6 +2063,21 @@ void msrLogParams(MSR msr,FILE *fp) {
 #endif
 #ifdef OPTIM_DENSITY_REITER
    fprintf(fp," OPTIM_DENSITY_REITER"); 
+#endif
+#ifdef OPTIM_INVERSE_WALK
+   fprintf(fp,"OPTIM_INVERSE_WALK");
+#endif
+#ifdef OPTIM_SMOOTH_NODE
+   fprintf(fp,"OPTIM_SMOOTH_NODE");
+#endif
+#ifdef OPTIM_REORDER_IN_NODES
+   fprintf(fp,"OPTIM_REORDER_IN_NODES");
+#endif
+#ifdef OPTIM_FLUX_VEC
+   fprintf(fp,"OPTIM_FLUX_VEC");
+#endif
+#ifdef OPTIM_UNION_EXTRAFIELDS
+   fprintf(fp,"OPTIM_UNION_EXTRAFIELDS");
 #endif
    /* End of new macros */
 #if defined(MAXHOSTNAMELEN) && defined(HAVE_GETHOSTNAME)
@@ -3035,7 +3053,9 @@ void msrBuildTree(MSR msr,double dTime,int bNeedEwald) {
 	droot.r[2] = msr->momTreeCom[ROOT][2];
 	pstDistribRoot(msr->pst,&droot,sizeof(struct ioDistribRoot),NULL,0);
 	}
+#ifdef OPTIM_REORDER_IN_NODES
     msrReorderWithinNodes(msr);
+#endif
     }
 
 /*
@@ -3441,7 +3461,9 @@ int msrReSmoothNode(MSR msr,double dTime,int iSmoothType,int bSymmetric, int bFi
 	}
     return out.nSmoothed;
     }
+#endif
 
+#ifdef OPTIM_REORDER_IN_NODES
 void msrReorderWithinNodes(MSR msr){
    double sec,dsec;
    sec = msrTime();
@@ -3905,8 +3927,8 @@ void msrMeshlessFluxes(MSR msr,double dTime,double dDelta,int iRoot){
     printf("took %.5f seconds\n", dsec);
 }
 
+#ifdef DEBUG_CACHED_FLUXES
 void msrFluxStats(MSR msr, double dTime, double dDelta, double dStep, uint8_t uRungMax, int iRoot){
-#ifdef OPTIM_CACHED_FLUXES
    struct inFluxStats in;
    struct outFluxStats out;
 
@@ -3916,10 +3938,9 @@ void msrFluxStats(MSR msr, double dTime, double dDelta, double dStep, uint8_t uR
    pstFluxStats(msr->pst, &in, sizeof(in), &out, sizeof(out));
 
    printf("Flux stats @ Step= %f Rung= %d :: nAvoided= %d nComputed= %d \n", dStep, uRungMax, out.nAvoided, out.nComputed);
-#else
    return;
-#endif
 }
+#endif
 
 void msrOutputFineStatistics(MSR msr, double dStep, double dTime){
     if (dTime==-1){
@@ -4585,6 +4606,9 @@ void msrUpdateRungByTree(MSR msr, uint8_t uRung, int iRoot) {
 ** Returns the Very Active rung based on the number of very active particles desired,
 ** or the fixed rung that was specified in the parameters.
 */
+#ifdef __INTEL_COMPILER
+#pragma optimize("", off)
+#endif
 int msrUpdateRung(MSR msr, uint8_t uRung) {
     struct inUpdateRung in;
     struct outUpdateRung out;
@@ -4606,17 +4630,24 @@ int msrUpdateRung(MSR msr, uint8_t uRung) {
     while (out.nRungCount[iTempRung] == 0 && iTempRung > 0) --iTempRung;
     iOutMaxRung = iTempRung;
 
+    /* IA: Removed because it causes seg fault when compiling with intel @MareNostrum with O2 or higher.
+     * Also, it does not seem to be used
+     */
+    /*
     while (out.nRungCount[iOutMaxRung] <= msr->param.nTruncateRung && iOutMaxRung > uRung) {
 	msrprintf(msr,"n_CurrMaxRung = %"PRIu64"  (iCurrMaxRung = %d):  Promoting particles to iCurrMaxrung = %d\n",
 		  out.nRungCount[iOutMaxRung],iOutMaxRung,iOutMaxRung-1);
 
-	in.uMaxRung = iOutMaxRung; /* Note this is the forbidden rung so no -1 here */
+	in.uMaxRung = iOutMaxRung; // Note this is the forbidden rung so no -1 here 
 	pstUpdateRung(msr->pst, &in, sizeof(in), &out, sizeof(out));
 
 	iTempRung =msrMaxRung(msr)-1;
 	while (out.nRungCount[iTempRung] == 0 && iTempRung > 0) --iTempRung;
 	iOutMaxRung = iTempRung;
 	}
+    */
+
+
     /*
     ** Now copy the rung distribution to the msr structure!
     */
@@ -4656,6 +4687,9 @@ int msrUpdateRung(MSR msr, uint8_t uRung) {
     msrSetRungVeryActive(msr, iRungVeryActive);
     return(iRungVeryActive);
     }
+#ifdef __INTEL_COMPILER
+#pragma optimize("", on)
+#endif
 
 
 /*
@@ -4817,7 +4851,9 @@ int msrNewTopStepKDK(MSR msr,
    if (msrDoGas(msr) && msrMeshlessHydro(msr)){
       msrResetFluxes(msr, *pdTime, dDelta, ROOT);
       msrMeshlessFluxes(msr, *pdTime, dDelta, ROOT);
+#ifdef DEBUG_CACHED_FLUXES
       msrFluxStats(msr, *pdTime, dDelta, *pdStep, uRung, ROOT);
+#endif
    }
    if (msr->param.bVStep) printf("Step:%f (uMaxRung %d) (uRung %d) \n",*pdStep,*puRungMax, uRung);
 
@@ -5019,7 +5055,9 @@ void msrTopStepKDK(MSR msr,
          if (msr->param.bVStep) printf("Step:%f (iKickRung %d) (iRung %d) \n",dStep,iKickRung, iRung);
          msrResetFluxes(msr, dTime, dDelta, ROOT);
          msrMeshlessFluxes(msr, dTime, dDelta, ROOT);
+#ifdef DEBUG_CACHED_FLUXES
          msrFluxStats(msr, dTime, dDelta, dStep, iKickRung, ROOT);
+#endif
       }
 
 
@@ -5044,6 +5082,7 @@ void msrTopStepKDK(MSR msr,
 	msrActiveRung(msr,iKickRung,1);
 	bSplitVA = 0;
 	msrDomainDecomp(msr,iKickRung,0,bSplitVA);
+      if (!iKickRung && msr->param.bFindGroups) msrNewFof(msr,dTime);
 
 	/* JW: Good place to zero uNewRung  IA: not really... This is done in the init call of smSmooth*/ 
 	msrZeroNewRung(msr,iKickRung,MAX_RUNG,iKickRung); /* brute force */
@@ -5469,7 +5508,9 @@ uint8_t msrInitSph(MSR msr,double dTime)
         msrUpdatePrimVars(msr, dTime, 0.0, ROOT);
         msrMeshlessGradients(msr, dTime, 0.0, ROOT);
         msrMeshlessFluxes(msr, dTime, 0.0, ROOT);
+#ifdef DEBUG_CACHED_FLUXES
         msrFluxStats(msr, dTime, 0.0, 0, 0, ROOT);
+#endif
 	//msrZeroNewRung(msr,0,MAX_RUNG,0); 
         msrHydroStep(msr,0,MAX_RUNG,dTime); // We do this twice because we need to have uNewRung for the time limiter
         msrHydroStep(msr,0,MAX_RUNG,dTime);  // of Durier & Dalla Vecchia
@@ -5975,7 +6016,14 @@ double msrRead(MSR msr, const char *achInFile) {
 	}
     nBytes = fioDump(fio,nBytes,read+1);
 
-    if (!fioGetAttr(fio,0,0,"Time",FIO_TYPE_DOUBLE,&dExpansion)) dExpansion = 0.0;
+    // IA: If we have the 'Redshift' field, we take that.
+    //  If not, we assume that the 'Time' field contains the expansion factor
+    if (!fioGetAttr(fio,0,0,"Redshift",FIO_TYPE_DOUBLE,&dExpansion)){ 
+       if (!fioGetAttr(fio,0,0,"Time",FIO_TYPE_DOUBLE,&dExpansion))
+          dExpansion = 0.0;
+    }else{
+       dExpansion = 1.0/(dExpansion+1.0);
+    }
     if (!fioGetAttr(fio,0,0,"dEcosmo",FIO_TYPE_DOUBLE,&msr->dEcosmo)) msr->dEcosmo = 0.0;
     if (!fioGetAttr(fio,0,0,"dTimeOld",FIO_TYPE_DOUBLE,&msr->dTimeOld)) msr->dTimeOld = 0.0;
     if (!fioGetAttr(fio,0,0,"dUOld",FIO_TYPE_DOUBLE,&msr->dUOld)) msr->dUOld = 0.0;
@@ -6229,10 +6277,10 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
     // IA: I want to do this even at step 0
     /*if ( iStep )*/ msrWrite(msr,achFile,dTime,bCheckpoint );
 
+#ifdef DEBUG_CACHED_FLUXES
     msrBuildName(msr,achFile,iStep);
     strncat(achFile,".flux_cache",256);
     msrOutArray(msr,achFile,OUT_CACHEFLUX_ARRAY);
-
 
     msrBuildName(msr,achFile,iStep);
     strncat(achFile,".coll_cache",256);
@@ -6245,6 +6293,7 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
     msrBuildName(msr,achFile,iStep);
     strncat(achFile,".computed_fluxes",256);
     msrOutArray(msr,achFile,OUT_COMPUTEDFLUXES_ARRAY);
+#endif
 
     if (msrDoGas(msr) && !msr->param.nSteps) {  /* Diagnostic Gas */ 
 	msrReorder(msr);
