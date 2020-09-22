@@ -362,6 +362,11 @@ if (OPTIM_UNION_EXTRAFIELDS)
    message("-- OPTIM_UNION_EXTRAFIELDS: \t Use a union of structures to decrease memory footprint in simulations with different particle types. Requires OPTIM_SMOOTH_NODE.")
 endif (OPTIM_UNION_EXTRAFIELDS)
 
+option(DEBUG_FLUX_INFO "Show cache debug information for the flux computation")
+if (DEBUG_FLUX_INFO)
+   target_compile_options(${PROJECT_NAME} PRIVATE -DDEBUG_FLUX_INFO)
+   message("-- DEBUG_FLUX_INFO: \t\t Show cache debug information for the flux computation")
+endif (DEBUG_FLUX_INFO)
 
 ####
 

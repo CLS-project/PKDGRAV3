@@ -2732,6 +2732,16 @@ int pstReSmoothNode(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	mdlGetReply(pst->mdl,rID,&outUpper,&nOut);
 	assert(nOut==sizeof(struct outSmooth));
       out->nSmoothed += outUpper.nSmoothed;
+#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER) && defined(DEBUG_FLUX_INFO)
+      struct outSmooth tmp = *out;
+	pstCombStat(&out->sComputing,&tmp.sComputing);
+	pstCombStat(&out->sWaiting,&tmp.sWaiting);
+	pstCombStat(&out->sSynchronizing,&tmp.sSynchronizing);
+	pstCombStat(&out->sPartNumAccess,&tmp.sPartNumAccess);
+	pstCombStat(&out->sPartMissRatio,&tmp.sPartMissRatio);
+	pstCombStat(&out->sCellNumAccess,&tmp.sCellNumAccess);
+	pstCombStat(&out->sCellMissRatio,&tmp.sCellMissRatio);
+#endif
 	}
     else {
 	LCL *plcl = pst->plcl;
@@ -2741,6 +2751,28 @@ int pstReSmoothNode(PST pst,void *vin,int nIn,void *vout,int nOut) {
 		     in->bPeriodic,in->bSymmetric,in->iSmoothType);
 	out->nSmoothed = smReSmoothNode(smx,&in->smf, in->bSymmetric, in->iSmoothType);
 	smFinish(smx,&in->smf);
+#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER) && defined(DEBUG_FLUX_INFO)
+      if (out->nSmoothed) {
+         out->sCellNumAccess.dSum = mdlNumAccess(pst->mdl,CID_CELL)/out->nSmoothed;
+         out->sPartNumAccess.dSum = mdlNumAccess(pst->mdl,CID_PARTICLE)/out->nSmoothed;
+      }
+      else {
+         out->sCellNumAccess.dSum = 0;
+         out->sPartNumAccess.dSum = 0;
+      }
+      out->sCellMissRatio.dSum = 100.0*mdlMissRatio(pst->mdl,CID_CELL);      /* as a percentage */
+      out->sPartMissRatio.dSum = 100.0*mdlMissRatio(pst->mdl,CID_PARTICLE);  /* as a percentage */
+	out->sComputing.dSum     = mdlTimeComputing(pst->mdl);
+	out->sWaiting.dSum       = mdlTimeWaiting(pst->mdl);
+	out->sSynchronizing.dSum = mdlTimeSynchronizing(pst->mdl);
+	pstInitStat(&out->sComputing,pst->idSelf);
+	pstInitStat(&out->sWaiting,pst->idSelf);
+	pstInitStat(&out->sSynchronizing,pst->idSelf);
+	pstInitStat(&out->sPartNumAccess,pst->idSelf);
+	pstInitStat(&out->sPartMissRatio,pst->idSelf);
+	pstInitStat(&out->sCellNumAccess,pst->idSelf);
+	pstInitStat(&out->sCellMissRatio,pst->idSelf);
+#endif
 	}
     return sizeof(struct outSmooth);
     }

@@ -3459,6 +3459,19 @@ int msrReSmoothNode(MSR msr,double dTime,int iSmoothType,int bSymmetric, int bFi
     else {
 	pstReSmoothNode(msr->pst,&in,sizeof(in),&out,sizeof(struct outSmooth));
 	}
+
+#if defined(INSTRUMENT) && defined(DEBUG_FLUX_INFO)
+    if (iSmoothType==SMX_THIRDHYDROLOOP){
+	printf("  (cache access statistics are given per active particle)\n");
+	msrPrintStat(&out.sPartNumAccess, "  P-cache access:",1);
+	msrPrintStat(&out.sCellNumAccess, "  C-cache access:",1);
+	msrPrintStat(&out.sPartMissRatio, "  P-cache miss %:",2);
+	msrPrintStat(&out.sCellMissRatio, "  C-cache miss %:",2);
+	msrPrintStat(&out.sComputing,     "     % computing:",3);
+	msrPrintStat(&out.sWaiting,       "     %   waiting:",3);
+	msrPrintStat(&out.sSynchronizing, "     %   syncing:",3);
+    }
+#endif
     return out.nSmoothed;
     }
 #endif

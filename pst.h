@@ -264,6 +264,13 @@ void pstAddServices(PST,MDL);
 void pstInitialize(PST *,MDL,LCL *);
 void pstFinish(PST);
 
+typedef struct StatsCollector {
+    double dSum;
+    double dSum2;
+    double dMax;
+    int idMax;
+    int n;
+    } STAT;
 /* PST_SETADD */
 
 struct inSetAdd {
@@ -634,6 +641,16 @@ struct inSmooth {
     };
 struct outSmooth { 
    int nSmoothed;
+#if defined(INSTRUMENT) && defined(DEBUG_FLUX_INFO)
+   STAT sPartNumAccess;
+   STAT sPartMissRatio;
+   STAT sCell;
+   STAT sCellNumAccess;
+   STAT sCellMissRatio;
+   STAT sComputing;
+   STAT sWaiting;
+   STAT sSynchronizing;
+#endif
 };
 int pstSmooth(PST,void *,int,void *,int);
 
@@ -712,13 +729,6 @@ struct inGravity {
     };
 
 
-typedef struct StatsCollector {
-    double dSum;
-    double dSum2;
-    double dMax;
-    int idMax;
-    int n;
-    } STAT;
 
 /*
 ** The outGravityReduct structure is at the beginning of the output message, 
