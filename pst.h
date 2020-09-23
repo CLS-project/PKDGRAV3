@@ -224,6 +224,7 @@ enum pst_service {
     PST_SETCLASSES,
     PST_SWAPCLASSES,
     PST_SELALL,
+    PST_SELACTIVE,
     PST_SELGAS,
     PST_SELSTAR,
     PST_SELDELETED,
@@ -1250,6 +1251,9 @@ int pstSwapClasses(PST,void *,int,void *,int);
 
 /* PST_SELALL */
 int pstSelAll(PST pst,void *vin,int nIn,void *vout,int nOut);
+
+/* PST_SELACTIVE */
+int pstSelActive(PST pst,void *vin,int nIn,void *vout,int nOut);
 
 /* PST_SELGAS */
 int pstSelGas(PST pst,void *vin,int nIn,void *vout,int nOut);

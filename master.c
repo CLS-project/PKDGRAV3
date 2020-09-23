@@ -3900,6 +3900,9 @@ void msrMeshlessGradients(MSR msr,double dTime,double dDelta,int iRoot){
     sec = msrTime();
     if (msr->param.bConservativeReSmooth){
 #ifdef OPTIM_SMOOTH_NODE
+#ifdef OPTIM_AVOID_IS_ACTIVE
+       msrSelActive(msr);
+#endif
        msrReSmoothNode(msr,dTime,SMX_SECONDHYDROLOOP,0,0);
 #else
        msrReSmooth(msr,dTime,SMX_SECONDHYDROLOOP,0,0);
@@ -3928,6 +3931,9 @@ void msrMeshlessFluxes(MSR msr,double dTime,double dDelta,int iRoot){
 #endif
        }else{
 #ifdef OPTIM_SMOOTH_NODE
+#ifdef OPTIM_AVOID_IS_ACTIVE
+          msrSelActive(msr);
+#endif
           msrReSmoothNode(msr,dTime,SMX_THIRDHYDROLOOP,1,0);
 #else
           msrReSmooth(msr,dTime,SMX_THIRDHYDROLOOP,1,0); 
@@ -4001,7 +4007,11 @@ void msrUpdatePrimVars(MSR msr,double dTime,double dDelta,int iRoot){
     printf("Computing density... \n");
     sec = msrTime();
     if (msr->param.bIterativeSmoothingLength){
+#ifdef OPTIM_AVOID_IS_ACTIVE
+       msrSelActive(msr);
+#else
        msrSelAll(msr); // We set all particles as "not converged"
+#endif
        msrResetNeighborsStd(msr);
 
        //pstPredictSmoothing(msr->pst,&in,sizeof(in),NULL,NULL);
@@ -4539,6 +4549,9 @@ void msrHydroStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime) {
 
     sec = msrTime();
 #ifdef OPTIM_SMOOTH_NODE
+#ifdef OPTIM_AVOID_IS_ACTIVE
+       msrSelActive(msr);
+#endif
     msrReSmoothNode(msr,dTime,SMX_HYDROSTEP,1, 0);
 #else
     msrReSmooth(msr,dTime,SMX_HYDROSTEP,1, 0);
@@ -6417,6 +6430,9 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
 
 void msrSelAll(MSR msr) {
     pstSelAll(msr->pst, NULL, 0, NULL, 0 );
+    }
+void msrSelActive(MSR msr) {
+    pstSelActive(msr->pst, NULL, 0, NULL, 0 );
     }
 void msrSelGas(MSR msr) {
     pstSelGas(msr->pst, NULL, 0, NULL, 0 );

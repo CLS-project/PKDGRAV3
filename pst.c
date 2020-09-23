@@ -326,6 +326,8 @@ void pstAddServices(PST pst,MDL mdl) {
 		  PKD_MAX_CLASSES*sizeof(PARTCLASS));
     mdlAddService(mdl,PST_SELALL,pst,(fcnService_t*)pstSelAll,
 		  0, 0 );
+    mdlAddService(mdl,PST_SELACTIVE,pst,(fcnService_t*)pstSelActive,
+		  0, 0 );
     mdlAddService(mdl,PST_SELGAS,pst,(fcnService_t*)pstSelGas,
 		  0, 0 );
     mdlAddService(mdl,PST_SELSTAR,pst,(fcnService_t*)pstSelStar,
@@ -4007,6 +4009,19 @@ int pstSelAll(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	}
     else {
 	pkdSelAll(plcl->pkd);
+	}
+    return 0;
+    }
+
+int pstSelActive(PST pst,void *vin,int nIn,void *vout,int nOut) {
+    LCL *plcl = pst->plcl;
+    if (pst->nLeaves > 1) {
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SELACTIVE,vin,nIn);
+	pstSelActive(pst->pstLower,vin,nIn,NULL,0);
+	mdlGetReply(pst->mdl,rID,NULL,NULL);
+	}
+    else {
+	pkdSelActive(plcl->pkd);
 	}
     return 0;
     }

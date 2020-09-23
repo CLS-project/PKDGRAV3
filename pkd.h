@@ -1764,6 +1764,7 @@ void pkdSetClasses( PKD pkd, int n, PARTCLASS *pClass, int bUpdate );
 void pkdSetClass( PKD pkd, float fMass, float fSoft, FIO_SPECIES eSpecies, PARTICLE *p );
 
 int pkdSelAll(PKD pkd);
+int pkdSelActive(PKD pkd);
 int pkdSelGas(PKD pkd);
 int pkdSelStar(PKD pkd);
 int pkdSelDeleted(PKD pkd);

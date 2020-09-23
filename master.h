@@ -307,6 +307,7 @@ void msrMemStatus(MSR msr);
 
 
 void msrSelAll(MSR msr);
+void msrSelActive(MSR msr);
 void msrSelGas(MSR msr);
 void msrSelStar(MSR msr);
 void msrSelDeleted(MSR msr);

@@ -368,6 +368,11 @@ if (DEBUG_FLUX_INFO)
    message("-- DEBUG_FLUX_INFO: \t\t Show cache debug information for the flux computation")
 endif (DEBUG_FLUX_INFO)
 
+option(OPTIM_AVOID_IS_ACTIVE "Select particles rather than repeatedly using pkdIsActive")
+if (OPTIM_AVOID_IS_ACTIVE)
+   target_compile_options(${PROJECT_NAME} PRIVATE -DOPTIM_AVOID_IS_ACTIVE)
+   message("-- OPTIM_AVOID_IS_ACTIVE: \t Select particles rather than repeatedly using pkdIsActive")
+endif (OPTIM_AVOID_IS_ACTIVE)
 ####
 
 

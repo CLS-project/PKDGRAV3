@@ -4246,6 +4246,16 @@ int pkdSelAll(PKD pkd) {
     return n;
     }
 
+int pkdSelActive(PKD pkd) {
+    int i;
+    int n=pkdLocal(pkd);
+    PARTICLE *p;
+    for( i=0; i<n; i++ ) {
+	p=pkdParticle(pkd,i);
+	p->bMarked = pkdIsActive(pkd,p) ? 1 : 0;
+	}
+    return n;
+    }
 int pkdSelGas(PKD pkd) {
     int i;
     int n=pkdLocal(pkd);

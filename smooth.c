@@ -2829,13 +2829,22 @@ int  smReSmoothNode(SMX smx,SMF *smf, int bSymmetric, int iSmoothType) {
          int pEnd = node->pUpper+1;
 #endif
 
+         double fMax_shrink_x = 0.; 
+         double fMax_shrink_y = 0.; 
+         double fMax_shrink_z = 0.; 
          for (pj=node->pLower;pj<pEnd;++pj) {
              p = pkdParticle(pkd,pj);
 
 
+#ifdef OPTIM_AVOID_IS_ACTIVE
+             if (p->bMarked){
+                if (iSmoothType==SMX_FIRSTHYDROLOOP){
+#else
              if (pkdIsActive(pkd,p)) {
                 if (iSmoothType==SMX_FIRSTHYDROLOOP) {
                    if (!p->bMarked) continue;
+#endif
+
 #if defined(STAR_FORMATION) && defined(FEEDBACK)
                    if (pkdIsStar(pkd,p) && (pkdStar(pkd,p)->hasExploded==1)) continue; // We keep track of the density of star particle that have not exploded
 #endif
@@ -2845,7 +2854,18 @@ int  smReSmoothNode(SMX smx,SMF *smf, int bSymmetric, int iSmoothType) {
                 }else{
                    if (!pkdIsGas(pkd,p)) continue;
                 }
+#else
+             }
 #endif
+
+                const double x_disp = fabs(pkdPos(pkd,p,0) - bnd_node.fCenter[0]) + pkdBall(pkd,p)*2.;
+                fMax_shrink_x = (x_disp > fMax_shrink_x) ? x_disp : fMax_shrink_x;
+
+                const double y_disp = fabs(pkdPos(pkd,p,1) - bnd_node.fCenter[1]) + pkdBall(pkd,p)*2.;
+                fMax_shrink_y = (y_disp > fMax_shrink_y) ? y_disp : fMax_shrink_y;
+
+                const double z_disp = fabs(pkdPos(pkd,p,2) - bnd_node.fCenter[2]) + pkdBall(pkd,p)*2.;
+                fMax_shrink_z = (z_disp > fMax_shrink_z) ? z_disp : fMax_shrink_z;
 
                 if (nodeBall<pkdBall(pkd,p)) nodeBall=pkdBall(pkd,p);
                 sinks[nActive] = p; 
@@ -2867,11 +2887,18 @@ int  smReSmoothNode(SMX smx,SMF *smf, int bSymmetric, int iSmoothType) {
          double const fBall_y = bnd_node.fMax[1]+nodeBall;
          double const fBall_z = bnd_node.fMax[2]+nodeBall;
          double fBall2 = fBall_x*fBall_x + fBall_y*fBall_y + fBall_z*fBall_z;
+         double fBall2_shrink = fMax_shrink_x*fMax_shrink_x + fMax_shrink_y*fMax_shrink_y + fMax_shrink_z*fMax_shrink_z;
+
 
          bnd_node.fMax[0] += nodeBall;
          bnd_node.fMax[1] += nodeBall;
          bnd_node.fMax[2] += nodeBall;
 
+         //printf("%e \t %e \t %e \n", fBall2, fBall2_shrink, fBall2/fBall2_shrink);
+         fBall2 = fBall2_shrink;
+         bnd_node.fMax[0] = fMax_shrink_x;
+         bnd_node.fMax[1] = fMax_shrink_y;
+         bnd_node.fMax[2] = fMax_shrink_z;
     
          if (smx->bPeriodic) {
             double iStart[3], iEnd[3];
@@ -3019,10 +3046,10 @@ int  smReSmoothNode(SMX smx,SMF *smf, int bSymmetric, int iSmoothType) {
                       fDist2 = dx*dx + dy*dy + dz*dz;
                       if (fDist2 <= fBall2_p){
                          if (fDist2==0.)continue;
-                         float qh = pkdBall(pkd,smx->nnList[pk].pPart);
+                         PARTICLE * restrict q = smx->nnList[pk].pPart;
+                         float qh = pkdBall(pkd, q);
                          if ( (iSmoothType==SMX_THIRDHYDROLOOP) & (4.*qh*qh < fDist2)) {continue;}
 
-                         PARTICLE *q = smx->nnList[pk].pPart;
                          int j_cache_index_i = *pkdParticleID(pkd,partj) % (sizeof(cache_t)*8);
                          if ( (get_bit(&(pkdSph(pkd,q)->flux_cache), j_cache_index_i)!= 0) &&
                               (get_bit(&(pkdSph(pkd,q)->coll_cache), j_cache_index_i)== 0) &&
@@ -3054,19 +3081,28 @@ int  smReSmoothNode(SMX smx,SMF *smf, int bSymmetric, int iSmoothType) {
                    fDist2 = dx*dx + dy*dy + dz*dz;
                    if (fDist2 <= fBall2_p){
                       if (fDist2==0.)continue;
-                      float qh = pkdBall(pkd,smx->nnList[pk].pPart);
+                      // Try pointer to pPart declared as restrict, to check if compiler does something better
+                      PARTICLE * restrict q = smx->nnList[pk].pPart;
+                      float qh = pkdBall(pkd,q);
                       if ( (iSmoothType==SMX_THIRDHYDROLOOP) & (4.*qh*qh < fDist2)) {continue;}
 #ifdef OPTIM_CACHED_FLUXES
                       if (iSmoothType==SMX_THIRDHYDROLOOP){
                          int j_cache_index_i = *pkdParticleID(pkd,partj) % (sizeof(cache_t)*8);
-                         SPHFIELDS* qsph = pkdSph(pkd,smx->nnList[pk].pPart);
+                         SPHFIELDS* qsph = pkdSph(pkd,q);
                          if ( (get_bit(&(qsph->flux_cache), j_cache_index_i)!= 0) &&
                               (get_bit(&(qsph->coll_cache), j_cache_index_i)== 0) &&
                               (smx->nnList[pk].iPid == pkd->idSelf) &&
-                              pkdIsActive(pkd,smx->nnList[pk].pPart)){
+#ifdef OPTIM_AVOID_IS_ACTIVE
+                              q->bMarked){
+#else
+                              pkdIsActive(pkd,q) ){
+#endif
+
+
 #ifdef DEBUG_CACHED_FLUXES
                               psph->avoided_fluxes += 1; 
 #endif
+
                             continue;
                          }
 #ifdef DEBUG_CACHED_FLUXES
@@ -3102,11 +3138,11 @@ int  smReSmoothNode(SMX smx,SMF *smf, int bSymmetric, int iSmoothType) {
                       nnList_p[nCnt_p].dy = dy;
                       nnList_p[nCnt_p].dz = dz;
                       nnList_p[nCnt_p].pPart = smx->nnList[pk].pPart;
-                      nnList_p[nCnt_p].iIndex = pkdIsActive(pkd,smx->nnList[pk].pPart); //smx->nnList[pk].iIndex;
+                      nnList_p[nCnt_p].iIndex = smx->nnList[pk].iIndex;
                       nnList_p[nCnt_p].iPid = smx->nnList[pk].iPid;
 
                       if (iSmoothType==SMX_THIRDHYDROLOOP){
-                         PARTICLE *q = nnList_p[nCnt_p].pPart;
+                         PARTICLE * restrict q = nnList_p[nCnt_p].pPart;
                          SPHFIELDS* qsph = pkdSph(pkd,q);
 
                          //printf("filling data\n");
@@ -3196,7 +3232,7 @@ int  smReSmoothNode(SMX smx,SMF *smf, int bSymmetric, int iSmoothType) {
 
 
 #ifdef OPTIM_CACHED_FLUXES
-                         PARTICLE* q = nnList_p[pk].pPart;
+                         PARTICLE* restrict q = nnList_p[pk].pPart;
                          SPHFIELDS* qsph = pkdSph(pkd,q);
                          int j_cache_index_i = *pkdParticleID(pkd,partj) % (sizeof(cache_t)*8);
                          int i_cache_index_j = *pkdParticleID(pkd,q) % (sizeof(cache_t)*8);
@@ -3204,11 +3240,20 @@ int  smReSmoothNode(SMX smx,SMF *smf, int bSymmetric, int iSmoothType) {
                               (get_bit(&(psph->coll_cache), i_cache_index_j)==0) &&
                               (get_bit(&(qsph->flux_cache), j_cache_index_i)==0) &&
                               (nnList_p[pk].iPid == pkd->idSelf) &&
+#ifdef OPTIM_AVOID_IS_ACTIVE
+                              q->bMarked) | !q->bMarked  ) 
+#else
                               pkdIsActive(pkd,q)) | (!pkdIsActive(pkd,q)  ) )
+#endif
                          {
 #else 
-                         if (!pkdIsActive(pkd,nnList_p[pk].pPart) /* | (2.*flux_input_pointers[q_ball][pk] < flux_input_pointers[q_dr][pk]) */){ // not active
+#ifdef OPTIM_AVOID_IS_ACTIVE
+                         if (!nnList_p[pk].pPart->bMarked) /* | (2.*flux_input_pointers[q_ball][pk] < flux_input_pointers[q_dr][pk]) */){ // not active
+#else
+
+                         if (!pkdIsActive(pkd,nnList_p[pk].pPart)) /* | (2.*flux_input_pointers[q_ball][pk] < flux_input_pointers[q_dr][pk]) */){ // not active
 #endif
+#endif // OPTIM_CACHED_FLUXES
                             //printf("%e %e %e \n", flux_output_pointers[out_minDt][pk], flux_output_pointers[out_Frho][pk], flux_output_pointers[out_Fene][pk]);
 
                               float *qmass = pkdField(nnList_p[pk].pPart,pkd->oMass);
@@ -3400,7 +3445,13 @@ void buildInteractionList(SMX smx, SMF *smf, int bSymmetric, KDN* node, BND bnd_
                   smx->nnList[nCnt].dx = dx;
                   smx->nnList[nCnt].dy = dy;
                   smx->nnList[nCnt].dz = dz;
-                  smx->nnList[nCnt].pPart = bSymmetric ? mdlAcquire(mdl,CID_PARTICLE,pj,id) : p;
+                  //smx->nnList[nCnt].pPart = bSymmetric ? mdlAcquire(mdl,CID_PARTICLE,pj,id) : p;
+#ifdef OPTIM_AVOID_IS_ACTIVE
+                  smx->nnList[nCnt].pPart = (bSymmetric && !p->bMarked) ? mdlAcquire(mdl,CID_PARTICLE,pj,id) : p;
+#else
+                  smx->nnList[nCnt].pPart = (bSymmetric && !pkdIsActive(pkd,p)) ? mdlAcquire(mdl,CID_PARTICLE,pj,id) : p;
+#endif
+                  // This should be faster regarding caching and memory transfer, but the call to pkdIsActive can be a bottleneck here!
                   smx->nnList[nCnt].iIndex = pj;
                   smx->nnList[nCnt].iPid = id;
                   ++nCnt;
