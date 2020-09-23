@@ -3300,7 +3300,11 @@ int  smReSmoothNode(SMX smx,SMF *smf, int bSymmetric, int iSmoothType) {
           if (bSymmetric){
              for (pk=0;pk<nCnt;++pk) {
                if (smx->nnList[pk].iPid != pkd->idSelf) {
-                   mdlRelease(pkd->mdl,CID_PARTICLE,smx->nnList[pk].pPart);
+#ifdef OPTIM_AVOID_IS_ACTIVE
+                   if (!smx->nnList[pk].pPart->bMarked) mdlRelease(pkd->mdl,CID_PARTICLE,smx->nnList[pk].pPart);
+#else
+                   if (!pkdIsActive(pkd,smx->nnList[pk].pPart->bMarked)) mdlRelease(pkd->mdl,CID_PARTICLE,smx->nnList[pk].pPart);
+#endif
                }
              }
           }
