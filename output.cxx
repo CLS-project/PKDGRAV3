@@ -74,8 +74,9 @@ static int packGridR(void *vctx, int *id, size_t nSize, void *vBuff) {
 	auto fftData = reinterpret_cast<float *>(pkd->pLite) + ctx->iGrid * pkd->fft->rgrid->nLocal;
 	auto pOutput = reinterpret_cast<float *>(vBuff);
 	size_t nLocal = 1ul * pkd->fft->rgrid->a1 * pkd->fft->rgrid->n2 * pkd->fft->rgrid->nSlab;
+	size_t n = nSize / sizeof(*fftData);
 	size_t iOutput = 0;
-	while(ctx->iIndex < nLocal && iOutput + pkd->fft->rgrid->n1 <= nSize ) {
+	while(ctx->iIndex < nLocal && iOutput + pkd->fft->rgrid->n1 <= n ) {
 	    memcpy(pOutput+iOutput,fftData + ctx->iIndex, pkd->fft->rgrid->n1 * sizeof(*fftData) );
 	    iOutput += pkd->fft->rgrid->n1;
 	    ctx->iIndex += pkd->fft->rgrid->a1;
