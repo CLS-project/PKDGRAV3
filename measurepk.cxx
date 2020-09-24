@@ -53,7 +53,7 @@ LinearSignal::LinearSignal(CSM csm,double a,double Lbox,unsigned long seed,bool 
         logk[i] = log(k);
         field[i] = csmDeltaRho_pk(csm, a, k);
         field[i] /= csmZeta(csm, k);
-	assert(!isnan(field[i]));
+	assert(!std::isnan(field[i]));
     }
     gsl_spline_init(spline, logk, field, size);
     }
