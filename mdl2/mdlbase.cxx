@@ -52,8 +52,6 @@ int mdlBASE::SERVICE::operator()(int nIn, char *pszIn, char *pszOut) {
 
 
 mdlBASE::mdlBASE(int argc,char **argv) {
-    int i;
-
 #ifdef _MSC_VER
     WSADATA wsaData;
     WSAStartup(0x202, &wsaData);

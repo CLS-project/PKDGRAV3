@@ -58,7 +58,7 @@ public:
     public:
 	SERVICE() : nInBytes(0), nOutBytes(0), p1(0), fcnService(0) {}
 	SERVICE(fcnService_t *fcnService, void *p1=0, int nInBytes=0, int nOutBytes=0)
-	    :fcnService(fcnService), p1(p1), nInBytes(nInBytes), nOutBytes(nOutBytes) {}
+	    : nInBytes(nInBytes), nOutBytes(nOutBytes), p1(p1), fcnService(fcnService) {}
 	int operator()(int nIn, char *pszIn, char *pszOut);
     };
 
