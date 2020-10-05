@@ -1,5 +1,13 @@
-cmake_minimum_required(VERSION 3.1)
-cmake_policy(VERSION 3.1...3.14)
+cmake_minimum_required(VERSION 3.6)
+cmake_policy(VERSION 3.6...3.14)
+
+# cmake uses -isysroot to specify the SDK, but this removes /usr/local/lib
+# from consideration. We need this for the dependant libraries of Python3,
+# most specifically libintl.
+if (APPLE)
+  link_directories(/usr/local/lib)
+endif(APPLE)
+
 project(pkdgrav3 VERSION 3.0.4)
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/mdl2)
@@ -231,7 +239,7 @@ else(${CMAKE_VERSION} VERSION_LESS "3.12")
   if (Python3_Development_FOUND)
     set(USE_PYTHON TRUE)
     target_include_directories(${PROJECT_NAME} PUBLIC ${Python3_INCLUDE_DIRS})
-    target_link_libraries(${PROJECT_NAME} ${Python3_LIBRARIES})
+    target_link_libraries(${PROJECT_NAME} Python3::Python)
     target_sources(${PROJECT_NAME} PRIVATE msrpython.cxx m_parse.h csmpython.c)
     if (Python3_NumPy_FOUND)
       target_include_directories(${PROJECT_NAME} PUBLIC ${Python3_NumPy_INCLUDE_DIRS})
