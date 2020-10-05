@@ -2473,6 +2473,25 @@ double mdlTimeComputing(MDL mdl)       { return reinterpret_cast<mdlClass *>(mdl
 double mdlTimeSynchronizing(MDL mdl)   { return reinterpret_cast<mdlClass *>(mdl)->TimeSynchronizing(); }
 double mdlTimeWaiting(MDL mdl)         { return reinterpret_cast<mdlClass *>(mdl)->TimeWaiting(); }
 
+#ifdef _MSC_VER
+double mdlWallTime(void *mdl) {
+    FILETIME ft;
+    uint64_t clock;
+    GetSystemTimeAsFileTime(&ft);
+    clock = ft.dwHighDateTime;
+    clock <<= 32;
+    clock |= ft.dwLowDateTime;
+    /* clock is in 100 nano-second units */
+    return clock / 10000000.0;
+    }
+#else
+double mdlWallTime(void *mdl) {
+    struct timeval tv;
+    gettimeofday(&tv,NULL);
+    return (tv.tv_sec+(tv.tv_usec*1e-6));
+    }
+#endif
+
 void mdlprintf(MDL cmdl, const char *format, ...) {
     mdlClass *mdl = reinterpret_cast<mdlClass *>(cmdl);
     va_list args;

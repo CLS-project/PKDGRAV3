@@ -611,6 +611,7 @@ void mdlTimeReset(MDL mdl);
 double mdlTimeComputing(MDL mdl);
 double mdlTimeSynchronizing(MDL mdl);
 double mdlTimeWaiting(MDL mdl);
+double mdlWallTime(MDL mdl);
 void mdlprintf(MDL mdl, const char *format, ...);
 
 #ifdef __cplusplus

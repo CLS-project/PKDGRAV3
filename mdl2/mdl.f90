@@ -132,6 +132,11 @@ module mdl_module
       integer(c_int), VALUE :: iThread
     end function mdl_thread_to_proc
 
+    real(c_double) function mdlWallTime(mdl) BIND(C,NAME="mdlWallTime")
+      USE, INTRINSIC :: ISO_C_BINDING, ONLY : C_DOUBLE, C_PTR
+      type(c_ptr),value::mdl
+    end function mdlWallTime
+
     ! =============================================================================
 
     subroutine cache_open_read_only(mdl,cid,pHash,nDataSize) BIND(C,NAME="mdlAdvancedCacheRO")
@@ -235,6 +240,11 @@ module mdl_module
       type(mdl_t)::mdl
       mdl_procs = mdlProcs(mdl%mdl2)
     end function mdl_procs
+
+    double precision function mdl_wtime(mdl)
+      type(mdl_t)::mdl
+      mdl_wtime = mdlWallTime(mdl%mdl2)
+    end function mdl_wtime
 !##############################################################
 !##############################################################
 !##############################################################
