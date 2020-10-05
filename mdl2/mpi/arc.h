@@ -491,6 +491,7 @@ namespace hash {
     void HASH<KEYS...>::remove(uint32_t uHash, const KEY& key) {
 	auto &Hash = HashChains[uHash&uHashMask];
 	auto pEntry = find_key(Hash,key,true);
+	assert(pEntry);
 	free(CDBL::s_iterator_to(*pEntry));
 	}
     template<typename... KEYS>
