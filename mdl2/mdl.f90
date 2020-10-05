@@ -20,7 +20,8 @@ module mdl_module
   interface
     recursive subroutine mdl_callback_function(p1,input,input_size,output,output_size) BIND(C)
       USE, INTRINSIC :: ISO_C_BINDING, ONLY : C_INT, C_PTR
-      integer(c_int),VALUE::input_size,output_size
+      integer(c_int),VALUE::input_size
+      integer(c_int)::output_size
       type(c_ptr),VALUE::input,output,p1
     end subroutine mdl_callback_function
   end interface
@@ -246,7 +247,6 @@ module mdl_module
       integer,intent(in)::target_cpu,input_size,output_size
       integer,intent(in),dimension(1:input_size),target::input_array
 
-      write(*,*) target_cpu-1
       mdl_send_request_array = mdlReqService(mdl%mdl2,target_cpu-1,mdl_function_id,C_LOC(input_array),input_size*4)
     end function mdl_send_request_array
 
@@ -263,7 +263,6 @@ module mdl_module
       else
         size = 0
       end if
-      write(*,*) target_cpu-1
       mdl_send_request_scalar = mdlReqService(mdl%mdl2,target_cpu-1,mdl_function_id,C_LOC(input),size*4)
     end function mdl_send_request_scalar
 !##############################################################
