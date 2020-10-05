@@ -5,7 +5,7 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   message(STATUS "Release build with debug info selected")
   set(CMAKE_BUILD_TYPE RelWithDebInfo)
 endif()
-project(mdl2)
+project(mdl2 LANGUAGES C CXX Fortran)
 add_subdirectory(openpa)	# Lockless queue support
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}")
 include(FindPkgConfig)
