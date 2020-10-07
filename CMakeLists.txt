@@ -373,6 +373,12 @@ if (OPTIM_AVOID_IS_ACTIVE)
    target_compile_options(${PROJECT_NAME} PRIVATE -DOPTIM_AVOID_IS_ACTIVE)
    message("-- OPTIM_AVOID_IS_ACTIVE: \t Select particles rather than repeatedly using pkdIsActive")
 endif (OPTIM_AVOID_IS_ACTIVE)
+
+option(OPTIM_EXTRA "Activate extra, small, optimizations")
+if (OPTIM_EXTRA)
+   target_compile_options(${PROJECT_NAME} PRIVATE -DOPTIM_EXTRA)
+   message("-- OPTIM_AVOID_IS_ACTIVE: \t Activate extra, small, optimizations")
+endif (OPTIM_EXTRA)
 ####
 
 

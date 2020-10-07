@@ -300,12 +300,12 @@ typedef struct sphfields {
     double P;
 
     /* IA: fBall from the last iteration. Used for the bisection algorithm */
-    float fLastBall;
+    //float fLastBall;
     /* IA: Number of neighbors correspoding to that fBall */
-    int nLastNeighs;
+    //int nLastNeighs;
 
     /* IA: TODO temporarly */
-    uint8_t uNewRung; 
+    //uint8_t uNewRung; 
 
 #ifdef STAR_FORMATION
     myreal SFR;

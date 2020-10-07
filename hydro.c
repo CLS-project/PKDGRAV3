@@ -240,7 +240,7 @@ void initHydroFluxesCached(void *vpkd, void *vp) {
     if (pkdIsActive(pkd,p)) {
       psph->Frho = 0.0;
       psph->Fene = 0.0;
-      psph->uNewRung = 0;
+      //psph->uNewRung = 0;
       for (i=0;i<3;i++) { 
          psph->Fmom[i] = 0.0;
 	}
@@ -329,7 +329,7 @@ void hydroDensity(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
        //   if (nSmooth <= 1) newBall *= 2.*fBall;
        
           pkdSetBall(pkd,p, 0.5*(newBall+ph));
-          psph->fLastBall = ph;
+          //psph->fLastBall = ph;
 
 #ifdef OPTIM_DENSITY_REITER
           // If the suggested new radius does not enclose all our neighbors, we need to reiterate
@@ -401,7 +401,7 @@ void hydroGradients(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
 //    printf("(hydroGradients) BEGIN \n");
 
-    psph->nLastNeighs = nSmooth;
+    //psph->nLastNeighs = nSmooth;
     /* IA: Compute the E matrix (Hopkins 2015, eq 14) */
     for (i=0; i<6;++i){
        E[i] = 0.0; 
@@ -827,7 +827,7 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
             (get_bit(&(qsph->coll_cache), j_cache_index_i)== 0) &&
             (nnList[i].iPid == pkd->idSelf) &&
             pkdIsActive(pkd,q)){
-#ifdef DEBUG_CACHED_FLUXED
+#ifdef DEBUG_CACHED_FLUXES
           psph->avoided_fluxes += 1;
 #endif
           continue;

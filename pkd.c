@@ -1192,9 +1192,9 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             pSph->drDotFrho[1] = 0.;
             pSph->drDotFrho[2] = 0.;
 #endif
-            pSph->fLastBall = 0.0;
+            //pSph->fLastBall = 0.0;
             pSph->lastUpdateTime = -1.;
-            pSph->nLastNeighs = 100;
+           // pSph->nLastNeighs = 100;
 #ifdef COOLING
             for (j=0; j<chemistry_element_count; j++) pSph->chemistry[j] = fMetals[j];
 
@@ -3464,10 +3464,10 @@ void pkdKick(PKD pkd,double dTime,double dDelta,double dDeltaVPred,double dDelta
              if (pkdIsRungRange(p,uRungLo,uRungHi)) {
                v = pkdVel(pkd,p);
                if (pkdIsGas(pkd,p)){
-                  sph = pkdSph(pkd,p);
-                  sph->vPred[0] = v[0];
-                  sph->vPred[1] = v[1];
-                  sph->vPred[2] = v[2];
+                  //sph = pkdSph(pkd,p);
+                  //sph->vPred[0] = v[0];
+                  //sph->vPred[1] = v[1];
+                  //sph->vPred[2] = v[2];
                }else{
                   a = pkdAccel(pkd,p);
                   for (j=0;j<3;++j) {
