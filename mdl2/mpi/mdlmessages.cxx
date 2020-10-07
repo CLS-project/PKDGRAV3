@@ -8,7 +8,7 @@ mdlMessage::mdlMessage() : basicMessage() {}
 // Some messages don't need a result action, so this is the default
 void mdlMessage::result(class mdlClass *mdl) {}
 
-FlushBuffer::FlushBuffer(uint32_t nSize,CacheMessageType mid) : nBuffer(0),Buffer(nSize),mid(mid) {}
+FlushBuffer::FlushBuffer(uint32_t nSize,CacheMessageType mid) : nBuffer(0),mid(mid),Buffer(nSize) {}
 
 void*FlushBuffer::getBuffer(int nSize) {
     if (nBuffer+nSize > Buffer.size()) return nullptr;
@@ -111,9 +111,9 @@ mdlMessageFFT_Sizes::mdlMessageFFT_Sizes(int n1, int n2, int n3)
 mdlMessageFFT_Plans::mdlMessageFFT_Plans(int n1, int n2, int n3,FFTW3(real) *data,FFTW3(complex) *kdata)
     : mdlMessageFFT_Sizes(n1,n2,n3), data(data), kdata(kdata) {}
 mdlMessageAlltoallv::mdlMessageAlltoallv(int dataSize,void *sbuff,int *scount,int *sdisps,void *rbuff,int *rcount,int *rdisps)
-    : dataSize(dataSize), sbuff(sbuff), scount(scount), sdisps(sdisps), rbuff(rbuff), rcount(rcount), rdisps(rdisps) {}
+    : dataSize(dataSize), sbuff(sbuff), rbuff(rbuff), scount(scount), sdisps(sdisps), rcount(rcount), rdisps(rdisps) {}
 mdlMessageBufferedMPI::mdlMessageBufferedMPI(void *buf, int count, MPI_Datatype datatype, int target, int tag)
-    : buf(buf), count(count), datatype(datatype), target(target), tag(tag) {}
+    : buf(buf), count(count), target(target), tag(tag), datatype(datatype) {}
 mdlMessageSend::mdlMessageSend(void *buf,int32_t count,MPI_Datatype datatype, int source, int tag)
     : mdlMessageBufferedMPI(buf,count,datatype,source,tag) {}
 mdlMessageReceive::mdlMessageReceive(void *buf,int32_t count,MPI_Datatype datatype, int source, int tag, int iCoreFrom)
