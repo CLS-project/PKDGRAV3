@@ -476,7 +476,9 @@ void CACHE::invokeRequest(uint32_t uLine, uint32_t uId, uint32_t size, const voi
 // The MPI thread sends this to the remote node. This will not be returned until the reply has been received.
 void mpiClass::MessageCacheRequest(mdlMessageCacheRequest *message) {
     int iCoreFrom = message->header.idFrom - Self();
+    assert(CacheRequestMessages[iCoreFrom]==nullptr);
     CacheRequestMessages[iCoreFrom] = message;
+    assert(message->pLine);
     iProc = ThreadToProc(message->header.idTo);
     SendReceiveRequests.emplace_back();
     SendReceiveMessages.push_back(message);
@@ -545,6 +547,7 @@ void mpiClass::CacheReceiveReply(int count, const CacheHeader *ph) {
     if (CacheRequestMessages[iCore]) { // This better be true (unless we implement prefetch)
 	mdlMessageCacheRequest *pRequest = CacheRequestMessages[iCore];
 	CacheRequestMessages[iCore] = NULL;
+	assert(pRequest->pLine);
 	if (count == sizeof(CacheHeader) + iLineSize) {
 	    pRequest->header.nItems = ph->nItems;
 	    memcpy(pRequest->pLine,ph+1,iLineSize);

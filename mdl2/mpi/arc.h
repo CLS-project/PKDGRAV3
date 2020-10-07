@@ -125,7 +125,7 @@ using std::uint32_t;
 using std::uint64_t;
 using std::size_t;
 
-static uint32_t hash(uint32_t uLine,uint32_t uId) {
+static inline uint32_t hash(uint32_t uLine,uint32_t uId) {
     uint32_t key[] = {uLine,uId};
     return murmur::murmur2<2>(key);
     }

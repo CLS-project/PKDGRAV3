@@ -182,7 +182,7 @@ public:
     explicit CACHE(mdlClass * mdl,uint16_t iCID);
     void close();
     bool isActive() {return cache_helper.get() != nullptr; }
-    bool modify() {return cache_helper->modify();}
+    bool modify() {assert(cache_helper); return cache_helper->modify();}
     uint32_t key_size() {return arc_cache->key_size();}
     void *getElement(int i) {return (*getElt)(pData,i,iDataSize);}
     };
