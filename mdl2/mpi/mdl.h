@@ -196,7 +196,7 @@ protected:
     friend class mdlMessageFlushToCore;
     void MessageFlushToCore(mdlMessageFlushToCore *message);
 public:
-    struct mdlClass **pmdl;
+    class mdlClass **pmdl;
     class mpiClass *mpi;
     void * (*fcnWorkerInit)(MDL mdl);
     void   (*fcnWorkerDone)(MDL mdl, void *ctx);
