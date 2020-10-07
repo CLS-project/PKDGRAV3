@@ -119,6 +119,7 @@ protected:
     virtual bool  modify() {return bModify; }
 public:
     explicit CACHEhelper(uint32_t nData, bool bModify=false) : nData(nData), bModify(bModify) {}
+    virtual ~CACHEhelper() = default;
     };
 
 class CACHE : private ARChelper {
