@@ -330,10 +330,7 @@ void *mdlFetch(MDL mdl,int cid,int iIndex,int id) {
     }
 
 extern "C"
-const void *mdlKeyFetch(MDL mdl,int cid,uint32_t uHash, void *pKey) {
-    const bool lock   = false; // we never lock in fetch
-    const bool modify = false; // fetch can never modify
-    const bool virt   = false; // really fetch the element
+const void *mdlKeyFetch(MDL mdl,int cid,uint32_t uHash, void *pKey,int lock,int modify,int virt) {
     return static_cast<mdlClass *>(mdl)->Access(cid, uHash, pKey, lock, modify, virt);
     }
 

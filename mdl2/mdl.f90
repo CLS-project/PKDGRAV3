@@ -152,14 +152,14 @@ module mdl_module
       integer(c_int), VALUE :: cid
     end subroutine cache_close
 
-    pure function cache_fetch(mdl,cid,hash,key,lock,modify,virtual) BIND(C,NAME="mdlKeyFetch")
+    function cache_fetch(mdl,cid,hash,key,lock,modify,virtual) BIND(C,NAME="mdlKeyFetch")
       USE, INTRINSIC :: ISO_C_BINDING, ONLY : C_INT64_T, C_INT32_T, C_BOOL, C_PTR, C_INT
       type(c_ptr)                                    :: cache_fetch
       type(c_ptr),value                              :: mdl
       integer(c_int), VALUE                          :: cid
       integer(kind=4),value                          :: hash
       integer(kind=8), dimension(0:NDIM), intent(in) :: key
-      logical(c_bool),value                       :: lock,modify,virtual
+      logical(c_bool),value                          :: lock,modify,virtual
     end function cache_fetch
 
   end interface

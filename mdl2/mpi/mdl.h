@@ -589,7 +589,7 @@ void mdlPrefetch(MDL mdl,int cid,int iIndex, int id);
 void *mdlAcquire(MDL mdl,int cid,int iIndex,int id);
 void *mdlFetch(MDL mdl,int cid,int iIndex,int id);
 void *mdlVirtualFetch(MDL mdl,int cid,int iIndex,int id);
-const void *mdlKeyFetch(MDL mdl,int cid,uint32_t uHash, void *pKey);
+const void *mdlKeyFetch(MDL mdl,int cid,uint32_t uHash, void *pKey,int lock,int modify,int virt);
 void *mdlKeyAcquire(MDL mdl,int cid,uint32_t uHash, void *pKey);
 void mdlRelease(MDL,int,void *);
 void mdlFlushCache(MDL,int);
