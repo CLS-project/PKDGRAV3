@@ -11,6 +11,7 @@ void mdlMessage::result(class mdlClass *mdl) {}
 FlushBuffer::FlushBuffer(uint32_t nSize,CacheMessageType mid) : nBuffer(0),mid(mid),Buffer(nSize) {}
 
 void*FlushBuffer::getBuffer(int nSize) {
+    assert(nBuffer+nSize <= Buffer.size());
     if (nBuffer+nSize > Buffer.size()) return nullptr;
     auto data = &Buffer[nBuffer];
     nBuffer += nSize;
