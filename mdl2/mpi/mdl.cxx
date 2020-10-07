@@ -268,8 +268,6 @@ void CACHE::initialize(uint32_t cacheSize,
     std::shared_ptr<CACHEhelper> helper) {
 
     assert(!cache_helper);
-    assert(!arc_cache);
-    arc_cache.reset(new ARC<>());
 
     this->getElt = getElt==NULL ? getArrayElement : getElt;
     this->pData = pData;
@@ -291,12 +289,13 @@ void CACHE::initialize(uint32_t cacheSize,
 
     nAccess = nMiss = 0; // Clear statistics. Are these even used any more?
 
+    assert(!arc_cache);
+    arc_cache.reset(new ARC<>());
     arc_cache->initialize(this,cacheSize,iLineSize,nLineBits);
     }
 
 void CACHE::initialize_advanced(uint32_t cacheSize,hash::GHASH *hash,int iDataSize,std::shared_ptr<CACHEhelper> helper) {
     hash_table = hash;
-    arc_cache.reset(hash_table->clone());
     this->iDataSize = this->iLineSize = iDataSize;
     assert(helper);
     this->cache_helper = helper;
@@ -304,8 +303,10 @@ void CACHE::initialize_advanced(uint32_t cacheSize,hash::GHASH *hash,int iDataSi
     this->nData = 0;
 
     nLineBits = 0;
+    OneLine.resize(iDataSize);
     nAccess = nMiss = 0; // Clear statistics. Are these even used any more?
 
+    arc_cache.reset(hash_table->clone());
     arc_cache->initialize(this,cacheSize,iLineSize,nLineBits);
     }
 
