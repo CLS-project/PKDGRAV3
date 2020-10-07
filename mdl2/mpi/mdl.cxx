@@ -229,14 +229,13 @@ void mpiClass::MessageCacheReceive(mdlMessageCacheReceive *message) {
 // then restart the receive.
 void mpiClass::FinishCacheReceive(mdlMessageCacheReceive *message, const MPI_Status &status) {
     int cancelled;
-    int count, iProc, s, n, iLineSize;
+    int count;
 
     MPI_Test_cancelled(&status,&cancelled);
     if (cancelled) return;
 
     CacheHeader *ph = reinterpret_cast<CacheHeader *>(message->getBuffer());
-    char *pszRcv = reinterpret_cast<char *>(ph+1);
-    int iRankFrom = status.MPI_SOURCE;
+    //int iRankFrom = status.MPI_SOURCE;
     MPI_Get_count(&status, MPI_BYTE, &count);
 
     /* Well, could be any threads cache */
@@ -769,7 +768,7 @@ void mdlClass::FlushCache(int cid) {
 
 // This sends all incomplete buffers to the correct rank
 void mpiClass::MessageCacheFlushOut(mdlMessageCacheFlushOut *message) {
-    std:fill(flushBuffersByRank.begin(),flushBuffersByRank.end(),flushHeadBusy.end());
+    std::fill(flushBuffersByRank.begin(),flushBuffersByRank.end(),flushHeadBusy.end());
     for (auto pFlush : flushHeadBusy) { pFlush->action(this); }
     flushHeadBusy.clear();
     while(flushHeadFree.size() < flushBuffCount) {
@@ -784,7 +783,6 @@ void mpiClass::MessageCacheFlushOut(mdlMessageCacheFlushOut *message) {
 void mpiClass::MessageCacheFlushLocal(mdlMessageCacheFlushLocal *message) {
     mdlMessageFlushToCore *flush;
     for(int iCore=0; iCore<Cores(); ++iCore) {
-	mdlClass * mdl1 = pmdl[iCore];
 	if ((flush=flushBuffersByCore[iCore])) {
             pmdl[iCore]->wqCacheFlush.enqueue(* flush, localFlushBuffers);
 	    flushBuffersByCore[iCore] = NULL;
@@ -1737,7 +1735,7 @@ void mdlClass::init(bool bDiag) {
     }
 
 mdlClass::mdlClass(class mpiClass *mdl, int iMDL)
-	: mpi(mdl), mdlBASE(mdl->argc,mdl->argv)  {
+	: mdlBASE(mdl->argc,mdl->argv), mpi(mdl) {
     iCore = iMDL;
     idSelf = mdl->Self() + iMDL;
     nThreads = mdl->Threads();
@@ -1756,7 +1754,7 @@ mdlClass::mdlClass(class mpiClass *mdl, int iMDL)
     }
 
 mdlClass::mdlClass(class mpiClass *mdl, int (*fcnMaster)(MDL,void *),void * (*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *),int argc, char **argv)
-	: mpi(mdl), mdlBASE(argc,argv), fcnWorkerInit(fcnWorkerInit), fcnWorkerDone(fcnWorkerDone), fcnMaster(fcnMaster) {
+	: mdlBASE(argc,argv), mpi(mdl), fcnWorkerInit(fcnWorkerInit), fcnWorkerDone(fcnWorkerDone), fcnMaster(fcnMaster) {
     init();
     }
 
@@ -1997,7 +1995,7 @@ void mdlClass::GetReply(int rID,void *vout,int *pnOutBytes) {
 void mdlClass::Handler() {
     SRVHEAD *phi = (SRVHEAD *)(&input_buffer.front());
     char *pszIn = (char *)(phi + 1);
-    int sid,id,tag,nOutBytes,nBytes;
+    int sid,id,nOutBytes,nBytes;
     mdlMessageSendReply reply(nMaxSrvBytes);
 
     do {
@@ -2160,7 +2158,7 @@ void mdlGridInitialize(MDL cmdl,MDLGRID *pgrid,int n1,int n2,int n3,int a1) {
     }
 
 void mdlGridFinish(MDL cmdl, MDLGRID grid) {
-    mdlClass *mdl = reinterpret_cast<mdlClass *>(cmdl);
+    //mdlClass *mdl = reinterpret_cast<mdlClass *>(cmdl);
     if (grid->rs) free(grid->rs);
     if (grid->rn) free(grid->rn);
     if (grid->id) free(grid->id);
@@ -2168,7 +2166,7 @@ void mdlGridFinish(MDL cmdl, MDLGRID grid) {
     }
 
 void mdlGridSetLocal(MDL cmdl,MDLGRID grid,int s, int n, uint64_t nLocal) {
-    mdlClass *mdl = reinterpret_cast<mdlClass *>(cmdl);
+    //mdlClass *mdl = reinterpret_cast<mdlClass *>(cmdl);
     assert( s>=0 && s<grid->n3);
     assert( n>=0 && s+n<=grid->n3);
     grid->sSlab = s;
@@ -2306,7 +2304,7 @@ MDLFFT mdlFFTInitialize(MDL cmdl,int n1,int n2,int n3,int bMeasure,FFTW3(real) *
     }
 
 void mdlFFTNodeFinish( MDL cmdl, MDLFFT fft ) {
-    mdlClass *mdl = reinterpret_cast<mdlClass *>(cmdl);
+    //mdlClass *mdl = reinterpret_cast<mdlClass *>(cmdl);
     mdlGridFinish(cmdl,fft->kgrid);
     mdlGridFinish(cmdl,fft->rgrid);
     free(fft);
