@@ -401,7 +401,7 @@ namespace flush {
 		    auto expected = (0xdeadbeef ^ idNext ^ i);
 		    KEY key = {static_cast<uint64_t>(idNext),static_cast<uint64_t>(i),static_cast<uint64_t>(expected),static_cast<uint64_t>(nData-i)};
 		    auto uHash = mdl::murmur::murmur<4>(key.data());
-		    auto data = static_cast<const uint64_t*>(mdlKeyFetch(mdl,0,uHash,&key));
+		    auto data = static_cast<const uint64_t*>(mdlKeyFetch(mdl,0,uHash,&key,0,0,0));
 		    if (data == nullptr || *data != expected) ++nBAD;
 		    }
 
@@ -410,7 +410,7 @@ namespace flush {
 		    auto expected = (0xfacefeed ^ idNext ^ i);
 		    KEY key = {static_cast<uint64_t>(idNext),static_cast<uint64_t>(i),static_cast<uint64_t>(expected),static_cast<uint64_t>(nData-i)};
 		    auto uHash = mdl::murmur::murmur<4>(key.data());
-		    auto data = static_cast<const uint64_t*>(mdlKeyFetch(mdl,0,uHash,&key));
+		    auto data = static_cast<const uint64_t*>(mdlKeyFetch(mdl,0,uHash,&key,0,0,0));
 		    if (data != nullptr) ++nBAD;
 		    }
 
@@ -438,7 +438,7 @@ namespace flush {
 		auto p1 = reinterpret_cast<std::uint64_t*>(dst);
 		*p1 = 0;
 		}
-	    virtual void combine(void *dst, const void *src) override {
+	    virtual void combine(void *dst, const void *src, const void *key) override {
 		auto p1 = reinterpret_cast<std::uint64_t*>(dst);
 		auto p2 = reinterpret_cast<const std::uint64_t*>(src);
 		*p1 += *p2;
@@ -504,7 +504,7 @@ namespace flush {
 		    auto expected = (0xdeadbeef ^ idNext ^ i);
 		    KEY key = {static_cast<uint64_t>(idNext),static_cast<uint64_t>(i),static_cast<uint64_t>(expected),static_cast<uint64_t>(nData-i)};
 		    auto uHash = mdl::murmur::murmur<4>(key.data());
-		    auto data = static_cast<const uint64_t*>(mdlKeyFetch(mdl,0,uHash,&key));
+		    auto data = static_cast<const uint64_t*>(mdlKeyFetch(mdl,0,uHash,&key,0,0,0));
 		    if (data == nullptr || *data != 0) ++nBAD;
 		    }
 
@@ -514,8 +514,8 @@ namespace flush {
 			KEY key = {static_cast<uint64_t>(iProc),static_cast<uint64_t>(i),static_cast<uint64_t>(expected),static_cast<uint64_t>(nData-i)};
 			auto uHash = mdl::murmur::murmur<4>(key.data());
 			auto data = static_cast<uint64_t*>(mdlKeyAcquire(mdl,0,uHash,&key));
-			if (data == nullptr || *data != 0) ++nBAD;
-			++*data;
+			if (data == nullptr) ++nBAD;
+			else ++*data;
 			mdlRelease(mdl,0,data);
 			}
 		    }

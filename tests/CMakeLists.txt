@@ -2,15 +2,36 @@ cmake_minimum_required(VERSION 3.5)
 cmake_policy(VERSION 3.5...3.14)
 
 project(tests)
-find_package(GTest)
 
-if (GTEST_FOUND)
-  enable_testing()
+# Download and unpack googletest at configure time
+configure_file(CMakeLists.txt.in googletest-download/CMakeLists.txt)
+execute_process(COMMAND ${CMAKE_COMMAND} -G "${CMAKE_GENERATOR}" .
+  RESULT_VARIABLE result
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/googletest-download )
+if(result)
+  message(FATAL_ERROR "CMake step for googletest failed: ${result}")
+endif()
+execute_process(COMMAND ${CMAKE_COMMAND} --build .
+  RESULT_VARIABLE result
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/googletest-download )
+if(result)
+  message(FATAL_ERROR "Build step for googletest failed: ${result}")
+endif()
 
-  add_executable(cache cache.cxx)
-  set_target_properties(cache PROPERTIES CXX_STANDARD 14 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO)
-  target_link_libraries(cache mdl2 GTest::GTest)
-  add_test(NAME cache COMMAND $<TARGET_FILE:cache> WORKING_DIRECTORY ${CMAKE_BINARY_DIR}) 
-  add_test(NAME mpicache COMMAND mpirun -n 2 $<TARGET_FILE:cache> WORKING_DIRECTORY ${CMAKE_BINARY_DIR}) 
+# Prevent overriding the parent project's compiler/linker
+# settings on Windows
+set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 
-endif(GTEST_FOUND)
+# Add googletest directly to our build. This defines
+# the gtest and gtest_main targets.
+add_subdirectory(${CMAKE_CURRENT_BINARY_DIR}/googletest-src
+                 ${CMAKE_CURRENT_BINARY_DIR}/googletest-build
+                 EXCLUDE_FROM_ALL)
+
+enable_testing()
+
+add_executable(cache cache.cxx)
+set_target_properties(cache PROPERTIES CXX_STANDARD 14 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO)
+target_link_libraries(cache mdl2 gtest_main)
+add_test(NAME cache COMMAND $<TARGET_FILE:cache> WORKING_DIRECTORY ${CMAKE_BINARY_DIR}) 
+add_test(NAME mpicache COMMAND mpirun -n 2 $<TARGET_FILE:cache> WORKING_DIRECTORY ${CMAKE_BINARY_DIR}) 
