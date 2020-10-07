@@ -381,6 +381,13 @@ void *mdlClass::Access(int cid, uint32_t uIndex, int uId, bool bLock,bool bModif
     return c->fetch(uIndex,uId,bLock,bModify,bVirtual); // Otherwise we look it up in the cache, or fetch it remotely
     }
 
+void *CACHE::fetch(uint32_t uHash, void *pKey, int bLock,int bModify,bool bVirtual) {
+    void *data;
+     if (!hash_table || !(data=hash_table->lookup(uHash,pKey)))     // Local data we just return
+	data = arc_cache->fetch(uHash,pKey,bLock,bModify,bVirtual); // Otherwise find it remotely
+    return data;
+    }
+
 // main routine to perform an immediate cache request. Does not return until the cache element is present
 void *mdlClass::Access(int cid, uint32_t uHash, void *pKey, bool bLock,bool bModify,bool bVirtual) {
     CACHE *c = &cache[cid];

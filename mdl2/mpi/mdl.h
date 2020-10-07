@@ -145,8 +145,7 @@ protected:
 public:
     auto fetch(uint32_t uIndex, int uId, int bLock,int bModify,bool bVirtual)
 	{return arc_cache->fetch(uIndex,uId,bLock,bModify,bVirtual);}
-    auto fetch(uint32_t uHash, void *pKey, int bLock,int bModify,bool bVirtual)
-	{return arc_cache->fetch(uHash,pKey,bLock,bModify,bVirtual);}
+    void *fetch(uint32_t uHash, void *pKey, int bLock,int bModify,bool bVirtual);
     void release(void *p) {return arc_cache->release(p);}
     void clear() {arc_cache->clear();}
 protected:
