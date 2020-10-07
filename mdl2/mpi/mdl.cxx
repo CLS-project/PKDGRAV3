@@ -1739,7 +1739,7 @@ void mdlClass::init(bool bDiag) {
     clCtx = CL_initialize(clContext,Cores(),Core());
 #endif
 
-    bDiag = bDiag;
+    this->bDiag = bDiag;
     if (bDiag) {
 	char achDiag[256], ach[256];
 	const char *tmp = strrchr(argv[0], '/');
@@ -2212,7 +2212,7 @@ void mdlClass::GridShare(MDLGRID grid) {
 ** Retrieve the first and last element for the calling thread.
 */
 void mdlGridCoordFirstLast(MDL cmdl,MDLGRID grid,mdlGridCoord *f,mdlGridCoord *l,int bCacheAlign) {
-    mdlClass *mdl = reinterpret_cast<mdlClass *>(cmdl);
+    mdlClass *mdl = static_cast<mdlClass *>(cmdl);
     uint64_t nPerCore, nThisCore;
     uint64_t nLocal = (uint64_t)(grid->a1) * grid->n2 * grid->nSlab;
 
