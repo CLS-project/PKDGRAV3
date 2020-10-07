@@ -112,8 +112,8 @@ protected:
     void *ctx;
     void (*init_function)(void *,void *);
     void (*combine_function)(void *,void *,const void *);
-    virtual void    init(void *dst) {(*init_function)(ctx,dst);}
-    virtual void combine(void *dst, const void *src) {(*combine_function)(ctx,dst,src); }
+    virtual void    init(void *dst)                                  override {(*init_function)(ctx,dst);}
+    virtual void combine(void *dst, const void *src,const void *key) override {(*combine_function)(ctx,dst,src); }
 public:
     explicit legacyCACHEhelper( uint32_t nData,void *ctx,
     	     	 	 	void (*init_function)(void *,void *),
@@ -525,7 +525,7 @@ bool mdlClass::finishCacheRequest(uint32_t uLine, uint32_t uId, uint32_t size, c
 	    auto pData = static_cast<char *>(data);
 	    for(auto i=s; i<n; i++ ) {
 		//FIXME: not unpack!
-		c->cache_helper->unpack(pData,oc->getElement(i));
+		c->cache_helper->unpack(pData,oc->getElement(i),pKey);
 		pData += oc->iDataSize;
 		}
 	    }
@@ -537,7 +537,7 @@ bool mdlClass::finishCacheRequest(uint32_t uLine, uint32_t uId, uint32_t size, c
 	auto nLine = c->getLineElementCount();
 	auto pData = static_cast<char *>(data);
 	for(auto i=0; i<nLine; ++i) {
-	    c->cache_helper->unpack(&pData[i*c->iDataSize],&c->OneLine[i*pack_size]);
+	    c->cache_helper->unpack(&pData[i*c->iDataSize],&c->OneLine[i*pack_size],pKey);
 	    }
 	}
 
@@ -719,7 +719,7 @@ void mdlClass::MessageFlushToCore(mdlMessageFlushToCore *pFlush) {
 	    if (!data && (data=c->cache_helper->create(key_size,pData)) )
 		c->hash_table->insert(ca->iLine,pData,data);
 	    if (data) {
-		c->cache_helper->combine(data,pData+key_size);
+		c->cache_helper->combine(data,pData+key_size,pData);
 		}
 	    pData += key_size + c->cache_helper->flush_size();
 	    }
@@ -729,7 +729,7 @@ void mdlClass::MessageFlushToCore(mdlMessageFlushToCore *pFlush) {
 	    int n = s + c->getLineElementCount();
 	    for(int i=s; i<n; i++ ) {
 		if (i<c->nData)
-		    c->cache_helper->combine(c->getElement(i),pData);
+		    c->cache_helper->combine(c->getElement(i),pData,nullptr);
 		pData += c->iDataSize;
 		}
 	    }
