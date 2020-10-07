@@ -139,18 +139,23 @@ module mdl_module
 
     ! =============================================================================
 
-    subroutine cache_open_read_only(mdl,cid,pHash,nDataSize) BIND(C,NAME="mdlAdvancedCacheRO")
-      USE, INTRINSIC :: ISO_C_BINDING, ONLY : C_INT, C_PTR
+    subroutine mdl_cache_open(mdl,cid,hash,nDataSize,modify,ctx,get_thread,&
+                          pack_size,pack,unpack,init,flush_size,flush,combine,create)&
+                          BIND(C,NAME="mdlAdvancedCache")
+      USE, INTRINSIC :: ISO_C_BINDING, ONLY : C_INT, C_BOOL, C_PTR, C_FUNPTR
       type(c_ptr),value::mdl
-      integer(c_int), VALUE :: cid,nDataSize
-      type(c_ptr), VALUE :: pHash
-    end subroutine cache_open_read_only
+      integer(c_int), VALUE             :: cid,nDataSize,pack_size,flush_size
+      logical(c_bool),value             :: modify
+      type(c_ptr),value                 :: hash
+      type(*),target                    :: ctx
+      type(c_funptr), intent(in), VALUE :: get_thread,pack,unpack,init,flush,combine,create
+    end subroutine mdl_cache_open
 
-    subroutine cache_close(mdl,cid) BIND(C,NAME="mdlFinishCache")
+    subroutine mdl_cache_close(mdl,cid) BIND(C,NAME="mdlFinishCache")
       USE, INTRINSIC :: ISO_C_BINDING, ONLY : C_INT, C_PTR
       type(c_ptr),value::mdl
       integer(c_int), VALUE :: cid
-    end subroutine cache_close
+    end subroutine mdl_cache_close
 
     function cache_fetch(mdl,cid,hash,key,lock,modify,virtual) BIND(C,NAME="mdlKeyFetch")
       USE, INTRINSIC :: ISO_C_BINDING, ONLY : C_INT64_T, C_INT32_T, C_BOOL, C_PTR, C_INT
@@ -161,6 +166,13 @@ module mdl_module
       integer(kind=8), dimension(0:NDIM), intent(in) :: key
       logical(c_bool),value                          :: lock,modify,virtual
     end function cache_fetch
+
+    subroutine mdl_release(mdl,cid,data) BIND(C,NAME="mdlRelease")
+      USE, INTRINSIC :: ISO_C_BINDING, ONLY : C_INT64_T, C_INT32_T, C_BOOL, C_PTR, C_INT
+      type(c_ptr),value                              :: mdl
+      integer(c_int), VALUE                          :: cid
+      type(*)                                        :: data
+    end subroutine mdl_release
 
   end interface
 
@@ -300,5 +312,14 @@ module mdl_module
       integer(c_int)::dummy
       call mdlGetReply(mdl%mdl2,rid,C_LOC(output_array),dummy)
     end subroutine mdl_get_reply_array
+!##############################################################
+!##############################################################
+!##############################################################
+!##############################################################
+    subroutine cache_close(mdl,cid)
+      type(mdl_t)::mdl
+      integer, VALUE :: cid
+      call mdl_cache_close(mdl%mdl2,cid)
+    end subroutine cache_close
 
 end module mdl_module
