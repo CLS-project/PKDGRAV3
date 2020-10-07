@@ -117,6 +117,8 @@ protected:
     virtual void *create(uint32_t size, const void *pKey) { return nullptr; }
     virtual uint32_t getThread(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey) {return uId;}
     virtual bool  modify() {return bModify; }
+    virtual uint32_t pack_size() {return nData;}
+    virtual uint32_t flush_size() {return nData;}
 public:
     explicit CACHEhelper(uint32_t nData, bool bModify=false) : nData(nData), bModify(bModify) {}
     virtual ~CACHEhelper() = default;

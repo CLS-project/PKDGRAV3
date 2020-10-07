@@ -436,18 +436,19 @@ void mpiClass::CacheReceiveRequest(int count, const CacheHeader *ph) {
     reply->setRankTo(iRankFrom);
     reply->addBuffer(ph->cid,Self(),ph->idFrom,ph->iLine);
     CACHE *c = &pmdl[iCore]->cache[ph->cid];
-    int iLineSize = c->iLineSize;
+    auto pack_size = c->cache_helper->pack_size();
+    assert(pack_size <= MDL_CACHE_DATA_SIZE);
     if (key_size) { // ADVANCED KEY
 	assert(c->hash_table);
-	void *data = c->hash_table->lookup(ph->iLine,ph+1);
-	if (data) c->cache_helper->pack(reply->getBuffer(iLineSize),data);
+	const void *data = c->hash_table->lookup(ph->iLine,ph+1);
+	if (data) c->cache_helper->pack(reply->getBuffer(pack_size),data);
 	}
     else { // SIMPLE KEY
 	int s = ph->iLine << c->nLineBits;
 	int n = s + c->getLineElementCount();
 	for(auto i=s; i<n; i++ ) {
 	    char *t = (i<c->nData) ? static_cast<char *>(c->getElement(i)) : NULL;
-	    c->cache_helper->pack(reply->getBuffer(c->iDataSize),t);
+	    c->cache_helper->pack(reply->getBuffer(pack_size),t);
 	    }
 	}
     reply->action(this); // MessageCacheReply()
@@ -473,7 +474,9 @@ void mpiClass::CacheReceiveReply(int count, const CacheHeader *ph) {
     int iCore = ph->idTo - Self();
     assert(iCore>=0 && iCore<Cores());
     CACHE *c = &pmdl[iCore]->cache[ph->cid];
-    int iLineSize = c->iLineSize;
+    auto pack_size = c->cache_helper->pack_size();
+    assert(pack_size <= MDL_CACHE_DATA_SIZE);
+    int iLineSize = c->getLineElementCount() * pack_size;
     assert( count == sizeof(CacheHeader) + iLineSize || count == sizeof(CacheHeader));
     if (CacheRequestMessages[iCore]) { // This better be true (unless we implement prefetch)
 	mdlMessageCacheRequest *pRequest = CacheRequestMessages[iCore];
@@ -490,15 +493,17 @@ void mpiClass::CacheReceiveReply(int count, const CacheHeader *ph) {
 // Later when we have found an empty cache element, this is called to wait for the result
 // and to copy it into the buffer area.
 bool CACHE::finishRequest(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey, bool bVirtual, void *data) {
-    return mdl->finishCacheRequest(uLine,uId,size,pKey,iCID,data,bVirtual);
+    auto success = mdl->finishCacheRequest(uLine,uId,size,pKey,iCID,data,bVirtual);
     mdl->TimeAddWaiting();
+    return success;
     }
 
 bool mdlClass::finishCacheRequest(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey, int cid, void *data, bool bVirtual) {
     int iCore = uId - mpi->Self();
     CACHE *c = &cache[cid];
-    int i,s,n;
+    int s,n;
     uint32_t iIndex = uLine << c->nLineBits;
+    auto pack_size = c->cache_helper->pack_size();
 
     s = iIndex;
     n = s + c->getLineElementCount();
@@ -514,14 +519,16 @@ bool mdlClass::finishCacheRequest(uint32_t uLine, uint32_t uId, uint32_t size, c
 	CACHE *oc = &omdl->cache[cid];
 	if (size) {
 	    auto pData = oc->lookup(uLine,pKey);
-	    if (pData) memcpy(data,pData,oc->iLineSize);
+	    //if (pData) c->cache_helper->unpack(data,pData,pKey);
+	    if (pData) memcpy(data,pData,oc->iDataSize);
 	    else return false;
 	    }
 	else {
 	    if ( n > oc->nData ) n = oc->nData;
 	    auto pData = static_cast<char *>(data);
-	    for(i=s; i<n; i++ ) {
-		oc->cache_helper->unpack(pData,oc->getElement(i));
+	    for(auto i=s; i<n; i++ ) {
+		//FIXME: not unpack!
+		c->cache_helper->unpack(pData,oc->getElement(i));
 		pData += oc->iDataSize;
 		}
 	    }
@@ -530,13 +537,16 @@ bool mdlClass::finishCacheRequest(uint32_t uLine, uint32_t uId, uint32_t size, c
     else {
 	mdlMessageCacheRequest &M = dynamic_cast<mdlMessageCacheRequest&>(waitQueue(queueCacheReply));
 	if (M.header.nItems==0) return false;
-
-	memcpy(data,c->OneLine.data(), c->iLineSize);
+	auto nLine = c->getLineElementCount();
+	auto pData = static_cast<char *>(data);
+	for(auto i=0; i<nLine; ++i) {
+	    c->cache_helper->unpack(&pData[i*c->iDataSize],&c->OneLine[i*pack_size]);
+	    }
 	}
 
     // A combiner cache can intialize some/all of the elements
     auto pData = static_cast<char *>(data);
-    for(i=s; i<n; i++ ) {
+    for(auto i=s; i<n; i++ ) {
 	c->cache_helper->init(pData);
 	pData += c->iDataSize;
 	}
@@ -549,12 +559,12 @@ bool mdlClass::finishCacheRequest(uint32_t uLine, uint32_t uId, uint32_t size, c
 
 // When we need to evict an element (especially at the end) this routine is called by the ARC cache.
 void CACHE::flushElement( uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey, const void *data) {
-    if (!mdl->coreFlushBuffer->canBuffer(iLineSize+size)) mdl->flush_core_buffer();
+    if (!mdl->coreFlushBuffer->canBuffer(getLineElementCount()*cache_helper->flush_size()+size)) mdl->flush_core_buffer();
     mdl->coreFlushBuffer->addBuffer(iCID,mdlSelf(mdl),uId,uLine);
     mdl->coreFlushBuffer->addBuffer(size,pKey);
     auto pData = static_cast<const char *>(data);
     for(auto i=0; i<getLineElementCount(); ++i) {
-	cache_helper->flush(mdl->coreFlushBuffer->getBuffer(iDataSize),pData);
+	cache_helper->flush(mdl->coreFlushBuffer->getBuffer(cache_helper->flush_size()),pData);
 	pData += iDataSize;
 	}
     }
@@ -573,13 +583,14 @@ void mdlClass::flush_core_buffer() {
 // buffer is filled (or at the very end), this routine is called to flush it.
 // Each element can be destined for a diffent node so we process them separately.
 void mpiClass::MessageFlushFromCore(mdlMessageFlushFromCore *pFlush) {
-    CacheHeader *ca;
     char *pData;
     int count;
     count = pFlush->getCount();
-    ca = reinterpret_cast<CacheHeader*>(pFlush->getBuffer());
+    auto ca = reinterpret_cast<CacheHeader*>(pFlush->getBuffer());
+    auto &c = pmdl[0]->cache[ca->cid];
     while(count > 0) {
-	int iSize = pmdl[0]->cache[ca->cid].iLineSize + pmdl[0]->cache[ca->cid].key_size();
+	int iLineSize = c.getLineElementCount() * c.cache_helper->flush_size();
+	int iSize = iLineSize + c.key_size();
 	pData = (char *)(ca+1);
 	flush_element(ca,iSize);
 	pData += iSize;
@@ -655,7 +666,9 @@ void mpiClass::CacheReceiveFlush(int count, CacheHeader *ph) {
 	CACHE *c = &pmdl[iCore]->cache[ph->cid];
 	assert(c->modify());
 	auto key_size = c->key_size();
+	auto iLineSize = c->getLineElementCount() * c->cache_helper->flush_size();
 	if (key_size==0) {
+	    assert(c->iLineSize==iLineSize);
 	    int iIndex = ph->iLine << c->nLineBits;
 	    while(iIndex >= c->nData) {
 		iIndex -= c->nData;
@@ -666,9 +679,9 @@ void mpiClass::CacheReceiveFlush(int count, CacheHeader *ph) {
 	    }
 	ph->idTo = iCore;
 	queue_local_flush(ph);
-	pszRcv += c->iLineSize + key_size;
+	pszRcv += iLineSize + key_size;
 	ph = (CacheHeader *)(pszRcv);
-	count -= sizeof(CacheHeader) + c->iLineSize + key_size;
+	count -= sizeof(CacheHeader) + iLineSize + key_size;
 	}
     assert(count==0);
     }
@@ -681,12 +694,13 @@ void mpiClass::queue_local_flush(CacheHeader *ph) {
     auto key_size = c->key_size();
     mdlMessageFlushToCore *flush = flushBuffersByCore[iCore];
     if (flush==NULL) flush = & dynamic_cast<mdlMessageFlushToCore&>(localFlushBuffers.wait());
-    if (!flush->canBuffer(c->iLineSize+key_size)) {
+    auto iLineSize = c->getLineElementCount() * c->cache_helper->flush_size();
+    if (!flush->canBuffer(iLineSize+key_size)) {
 	mdl1->wqCacheFlush.enqueue(* flush, localFlushBuffers);
 	flush = & dynamic_cast<mdlMessageFlushToCore&>(localFlushBuffers.wait());
 	assert(flush->getCount()==0);
 	}
-    flush->addBuffer(c->iLineSize+key_size,ph);
+    flush->addBuffer(iLineSize+key_size,ph);
     flushBuffersByCore[iCore] = flush;
     }
 
@@ -698,16 +712,19 @@ void mdlClass::MessageFlushToCore(mdlMessageFlushToCore *pFlush) {
 	char *pData = reinterpret_cast<char *>(ca+1);
 	CACHE *c = &cache[ca->cid];
 	auto key_size = c->key_size();
+	auto iLineSize = c->getLineElementCount() * c->cache_helper->flush_size();
 	if (key_size) { // We are updating an advanced key
 	    assert(c->hash_table);
+	    assert(c->getLineElementCount()==1);
 	    void *data = c->hash_table->lookup(ca->iLine,pData);
-	    // If we found the element, or if we are able to insert a new element
-	    if (data || (data=c->cache_helper->create(key_size,pData))) {
-		pData += key_size;
-		c->cache_helper->combine(data,pData);
-		pData += c->iDataSize;
+	    // If we don't have an element, try to insert it and then add it to the hash table
+	    // Create can return nullptr in which case we just ignore it.
+	    if (!data && (data=c->cache_helper->create(key_size,pData)) )
+		c->hash_table->insert(ca->iLine,pData,data);
+	    if (data) {
+		c->cache_helper->combine(data,pData+key_size);
 		}
-	    else abort();
+	    pData += key_size + c->cache_helper->flush_size();
 	    }
 	else {
 	    uint32_t uIndex = ca->iLine << c->nLineBits;
@@ -719,7 +736,7 @@ void mdlClass::MessageFlushToCore(mdlMessageFlushToCore *pFlush) {
 		pData += c->iDataSize;
 		}
 	    }
-	count -= sizeof(CacheHeader) + c->iLineSize + key_size;
+	count -= sizeof(CacheHeader) + iLineSize + key_size;
 	ca = (CacheHeader *)pData;
 	}
     assert(count == 0);
