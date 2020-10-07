@@ -180,6 +180,65 @@ CACHE *mdlClass::CacheInitialize(
     return(c);
     }
 
+class advancedCACHEhelper : public CACHEhelper {
+protected:
+    uint32_t nPack, nFlush;
+    void *ctx;
+    void (*pack_function)   (void *,void *,const void *);
+    void (*unpack_function) (void *,void *,const void *);
+    void (*init_function)   (void *,void *);
+    void (*flush_function)  (void *,void *,const void *);
+    void (*combine_function)(void *,void *,const void *);
+    uint32_t (*get_thread)  (void *,uint32_t,uint32_t,const void *);
+    void* (*create_function) (void *,uint32_t,const void *);
+
+    virtual void    pack(void *dst, const void *src)                  override { (*pack_function)(ctx,dst,src); }
+    virtual void  unpack(void *dst, const void *src, const void *key) override { (*unpack_function)(ctx,dst,src); }
+    virtual void    init(void *dst)                                   override { if (init_function)   (*init_function)(ctx,dst); }
+    virtual void   flush(void *dst, const void *src)                  override { if (flush_function)  (*flush_function)(ctx,dst,src); }
+    virtual void combine(void *dst, const void *src, const void *key) override { if (combine_function)(*combine_function)(ctx,dst,src); }
+    virtual void *create(uint32_t size, const void *pKey) override
+	{ return (*create_function)(ctx,size,pKey); }
+    virtual uint32_t getThread(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey) override
+	{ return (*get_thread)(ctx,uLine,size,pKey); }
+    virtual uint32_t pack_size()  override {return nPack;}
+    virtual uint32_t flush_size() override {return nFlush;}
+public:
+    explicit advancedCACHEhelper(uint32_t nData,bool bModify,void *ctx,
+				uint32_t (*get_thread)  (void *,uint32_t,uint32_t,const void *),
+				uint32_t pack_size,
+				void (*pack_function)   (void *,void *,const void *),
+				void (*unpack_function) (void *,void *,const void *),
+				void (*init_function)   (void *,void *),
+				uint32_t flush_size,
+				void (*flush_function)  (void *,void *,const void *),
+				void (*combine_function)(void *,void *,const void *),
+				void* (*create_function) (void *,uint32_t,const void *))
+	: CACHEhelper(nData,bModify), nPack(pack_size), nFlush(flush_size), ctx(ctx),
+		get_thread(get_thread),
+		pack_function(pack_function),unpack_function(unpack_function),
+		init_function(init_function),flush_function(flush_function),
+		combine_function(combine_function),create_function(create_function) {}
+    };
+
+extern "C"
+void mdlAdvancedCache(MDL mdl,int cid,void *pHash,int iDataSize,bool bModify,void *ctx,
+				uint32_t (*get_thread)  (void *,uint32_t,uint32_t,const void *),
+				uint32_t pack_size,
+				void (*pack_function)   (void *,void *,const void *),
+				void (*unpack_function) (void *,void *,const void *),
+				void (*init_function)   (void *,void *),
+				uint32_t flush_size,
+				void (*flush_function)  (void *,void *,const void *),
+				void (*combine_function)(void *,void *,const void *),
+				void* (*create_function) (void *,uint32_t,const void *)) {
+    auto hash = static_cast<hash::GHASH*>(pHash);
+    static_cast<mdlClass *>(mdl)->AdvancedCacheInitialize(cid,hash,iDataSize,
+		std::make_shared<advancedCACHEhelper>(iDataSize,bModify,ctx,get_thread,
+		pack_size,pack_function,unpack_function,init_function,
+		flush_size,flush_function,combine_function,create_function));
+    }
+
 extern "C"
 void mdlAdvancedCacheRO(MDL mdl,int cid,void *pHash,int iDataSize) {
     auto hash = static_cast<hash::GHASH*>(pHash);
