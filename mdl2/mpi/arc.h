@@ -37,6 +37,7 @@ template<typename... KEYS> class ARC;
 class ARChelper {
 public:
     virtual uint32_t  getThread(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey) {return uId;}
+    virtual void * getLocalData(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey) {return nullptr;}
     virtual void  invokeRequest(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey, bool bVirtual)             = 0;
     virtual bool  finishRequest(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey, bool bVirtual, void *data) = 0;
     virtual void   flushElement(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey,          const void *data) = 0;
@@ -736,7 +737,13 @@ void *ARC<KEYS...>::fetch(uint32_t uIndex, uint32_t uId, const KEY& key, bool bL
 	    }
 	}
     else {          // Page is not in the cache
-	if (key_size) uId = helper->getThread(uIndex,uId,key_size,&key);
+	if (key_size) {
+	    uId = helper->getThread(uIndex,uId,key_size,&key);
+	    if (!bModify) {
+		auto data = helper->getLocalData(uIndex,uId,key_size,&key);
+		if (data) return data;
+		}
+	    }
 	helper->invokeRequest(uIndex,uId,key_size,&key,bVirtual);
 	if (true) { // We allow empty values, so it is a bit more complicated.
 	    if (helper->finishRequest(uIndex,uId,key_size,&key,bVirtual,cacheLine.data())) {

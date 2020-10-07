@@ -463,6 +463,18 @@ uint32_t CACHE::getThread(uint32_t uLine, uint32_t uId, uint32_t size, const voi
     return cache_helper->getThread(uLine,uId,size,pKey);
     }
 
+void * CACHE::getLocalData(uint32_t uHash, uint32_t uId, uint32_t size, const void *pKey) {
+    auto mpi = mdl->mpi;
+    void *data = nullptr;
+    uint32_t uCore = uId - mpi->Self();
+    if (uCore < mdl->Cores()) {
+	mdlClass * omdl = mdl->pmdl[uCore];
+	auto & c = omdl->cache[iCID];
+	if (c.hash_table) data=c.hash_table->lookup(uHash,pKey);
+	}
+    return data;
+    }
+
 // When we are missing a cache element then we ask the MPI thread to send a request to the remote node
 void CACHE::invokeRequest(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey, bool bVirtual) {
     uint32_t uCore = uId - mdl->mpi->Self();

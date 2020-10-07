@@ -131,6 +131,7 @@ class CACHE : private ARChelper {
     std::unique_ptr<GARC> arc_cache;
 private:
     virtual uint32_t  getThread(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey)                            override;
+    virtual void * getLocalData(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey)                            override;
     virtual void   flushElement(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey,          const void *data) override;
     virtual void  invokeRequest(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey, bool bVirtual)             override;
     virtual bool  finishRequest(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey, bool bVirtual, void *data) override;
