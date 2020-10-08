@@ -476,13 +476,19 @@ void * CACHE::getLocalData(uint32_t uHash, uint32_t uId, uint32_t size, const vo
     }
 
 // When we are missing a cache element then we ask the MPI thread to send a request to the remote node
-void CACHE::invokeRequest(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey, bool bVirtual) {
+void * CACHE::invokeRequest(uint32_t uLine, uint32_t uId, uint32_t key_size, const void *pKey, bool bVirtual) {
     uint32_t uCore = uId - mdl->mpi->Self();
+    void *data = nullptr;
     ++nMiss;
     mdl->TimeAddComputing();
-    if (!bVirtual && uCore >= mdl->Cores()) { // Only send a request if non-Virtual and remote
-	mdl->enqueue(CacheRequest.makeCacheRequest(getLineElementCount(), uId, uLine, size, pKey, OneLine.data()), mdl->queueCacheReply);
+
+    if (bVirtual) data = nullptr;
+    else if (uCore < mdl->Cores()) data = getLocalData(uLine,uId,key_size,pKey);
+    else { // Only send a request if non-Virtual and remote
+	mdl->enqueue(CacheRequest.makeCacheRequest(getLineElementCount(), uId, uLine, key_size, pKey, OneLine.data()), mdl->queueCacheReply);
+	data = nullptr;
 	}
+    return data; // non-null means we located it locally
     }
 
 // The MPI thread sends this to the remote node. This will not be returned until the reply has been received.
@@ -571,13 +577,13 @@ void mpiClass::CacheReceiveReply(int count, const CacheHeader *ph) {
 
 // Later when we have found an empty cache element, this is called to wait for the result
 // and to copy it into the buffer area.
-bool CACHE::finishRequest(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey, bool bVirtual, void *data) {
-    auto success = mdl->finishCacheRequest(uLine,uId,size,pKey,iCID,data,bVirtual);
+void * CACHE::finishRequest(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey, bool bVirtual, void *dst, const void *src) {
+    auto success = mdl->finishCacheRequest(iCID,uLine,uId,size,pKey,bVirtual,dst,src);
     mdl->TimeAddWaiting();
     return success;
     }
 
-bool mdlClass::finishCacheRequest(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey, int cid, void *data, bool bVirtual) {
+void *mdlClass::finishCacheRequest(int cid,uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey, bool bVirtual, void *data, const void *src) {
     int iCore = uId - mpi->Self();
     CACHE *c = &cache[cid];
     int s,n;
@@ -589,6 +595,7 @@ bool mdlClass::finishCacheRequest(uint32_t uLine, uint32_t uId, uint32_t size, c
 
     // A virtual fetch results in an empty cache line (unless init is called below)
     if (bVirtual) {
+	assert(!src);
 	memset(data,0,c->iLineSize);
 	}
     // Local requests must be from a combiner cache if we get here,
@@ -597,10 +604,8 @@ bool mdlClass::finishCacheRequest(uint32_t uLine, uint32_t uId, uint32_t size, c
 	mdlClass * omdl = pmdl[iCore];
 	CACHE *oc = &omdl->cache[cid];
 	if (size) {
-	    auto pData = oc->lookup(uLine,pKey);
-	    //if (pData) c->cache_helper->unpack(data,pData,pKey);
-	    if (pData) memcpy(data,pData,oc->iDataSize);
-	    else return false;
+	    if (!src) return nullptr;
+	    memcpy(data,src,oc->iDataSize);
 	    }
 	else {
 	    if ( n > oc->nData ) n = oc->nData;
@@ -614,8 +619,9 @@ bool mdlClass::finishCacheRequest(uint32_t uLine, uint32_t uId, uint32_t size, c
 	}
     // Here we wait for the reply, and copy the data into the ARC cache
     else {
+	assert(!src);
 	mdlMessageCacheRequest &M = dynamic_cast<mdlMessageCacheRequest&>(waitQueue(queueCacheReply));
-	if (M.header.nItems==0) return false;
+	if (M.header.nItems==0) return nullptr;
 	auto nLine = c->getLineElementCount();
 	auto pData = static_cast<char *>(data);
 	for(auto i=0; i<nLine; ++i) {
@@ -629,7 +635,7 @@ bool mdlClass::finishCacheRequest(uint32_t uLine, uint32_t uId, uint32_t size, c
 	c->cache_helper->init(pData);
 	pData += c->iDataSize;
 	}
-    return true;
+    return data;
     }
 
 /*****************************************************************************\

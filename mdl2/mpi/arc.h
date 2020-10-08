@@ -38,8 +38,8 @@ class ARChelper {
 public:
     virtual uint32_t  getThread(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey) {return uId;}
     virtual void * getLocalData(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey) {return nullptr;}
-    virtual void  invokeRequest(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey, bool bVirtual)             = 0;
-    virtual bool  finishRequest(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey, bool bVirtual, void *data) = 0;
+    virtual void *invokeRequest(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey, bool bVirtual)             = 0;
+    virtual void *finishRequest(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey, bool bVirtual, void *dst, const void *src) = 0;
     virtual void   flushElement(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey,          const void *data) = 0;
     virtual void combineElement(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey,          const void *data) = 0;
     };
@@ -713,6 +713,7 @@ void *ARC<KEYS...>::fetch(uint32_t uIndex, uint32_t uId, const KEY& key, bool bL
     auto uHash = uIndex;
     auto key_size = sizeof(PAIR) == sizeof(CDB) ? 0 : sizeof(KEY);
     uint32_t iInLine = 0;
+    void *data;
 
     if (key_size==0) {                  // SIMPLE KEY
 	iInLine = uIndex & nLineMask;   // Which element in the cache line
@@ -731,34 +732,22 @@ void *ARC<KEYS...>::fetch(uint32_t uIndex, uint32_t uId, const KEY& key, bool bL
 	auto &cdb = get<CDB>(*item);
 	if (cdb.data == nullptr) {
 	    if (cdb.where()==A1) return nullptr; // Absent
-	    helper->invokeRequest(cdb.uPage,cdb.uId,key_size,&key,bVirtual); // Request the element be fetched
+	    data = helper->invokeRequest(cdb.uPage,cdb.uId,key_size,&key,bVirtual); // Request the element be fetched
 	    cdb.data = replace(cdb.where()==B2);
-	    helper->finishRequest(cdb.uPage,cdb.uId,key_size,&key,bVirtual,cdb.data);
+	    helper->finishRequest(cdb.uPage,cdb.uId,key_size,&key,bVirtual,cdb.data,data);
 	    }
 	}
     else {          // Page is not in the cache
-	if (key_size) {
-	    uId = helper->getThread(uIndex,uId,key_size,&key);
-	    if (!bModify) {
-		auto data = helper->getLocalData(uIndex,uId,key_size,&key);
-		if (data) return data;
-		}
-	    }
-	helper->invokeRequest(uIndex,uId,key_size,&key,bVirtual);
-	if (true) { // We allow empty values, so it is a bit more complicated.
-	    if (helper->finishRequest(uIndex,uId,key_size,&key,bVirtual,cacheLine.data())) {
-		item = insert(Hash);
-		auto &cdb = get<CDB>(*item);
-		std::memcpy(cdb.data,cacheLine.data(),uLineSizeInWords*sizeof(uint64_t));
-		}
-//	    else return nullptr; // Something gets messed up with A1???
-	    else item = insert_absent(Hash); // Whelp, no remote element
-	    }
-	else {
+	if (key_size) uId = helper->getThread(uIndex,uId,key_size,&key);
+	data = helper->invokeRequest(uIndex,uId,key_size,&key,bVirtual);
+	if (!bModify && !bVirtual && data) return data; // Simple local case
+	data = helper->finishRequest(uIndex,uId,key_size,&key,bVirtual,cacheLine.data(),data);
+	if (data) {
 	    item = insert(Hash);
 	    auto &cdb = get<CDB>(*item);
-	    helper->finishRequest(uIndex,uId,key_size,&key,bVirtual,cdb.data);
+	    std::memcpy(cdb.data,data,uLineSizeInWords*sizeof(uint64_t));
 	    }
+	else item = insert_absent(Hash); // Whelp, no remote element
 	auto &cdb = get<CDB>(*item);
 	cdb.uId   = uId;                        // Remote processor that owns this entry
 	cdb.uPage = uIndex;                     // Remote array index (simple) or hash id (advanced)

@@ -133,8 +133,8 @@ private:
     virtual uint32_t  getThread(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey)                            override;
     virtual void * getLocalData(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey)                            override;
     virtual void   flushElement(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey,          const void *data) override;
-    virtual void  invokeRequest(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey, bool bVirtual)             override;
-    virtual bool  finishRequest(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey, bool bVirtual, void *data) override;
+    virtual void *invokeRequest(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey, bool bVirtual)             override;
+    virtual void *finishRequest(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey, bool bVirtual, void *dst, const void *src) override;
     virtual void combineElement(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey,          const void *data) override;
     hash::GHASH *hash_table = nullptr;
 
@@ -268,7 +268,7 @@ protected:
 
     int DoSomeWork();
     void bookkeeping();
-    bool finishCacheRequest(uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey, int cid, void *data, bool bVirtual);
+    void *finishCacheRequest(int cid,uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey, bool bVirtual, void *dst, const void *src);
   
 protected:
     void flush_core_buffer();

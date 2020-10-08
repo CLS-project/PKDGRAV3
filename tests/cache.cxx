@@ -496,7 +496,6 @@ namespace flush {
 		    }
 
 		mdl->AdvancedCacheInitialize(0,&hash,sizeof(values.front()),std::make_shared<test_helper>(sizeof(values.front()),true));
-		//mdlAdvancedCacheCO(mdl,0,&hash,sizeof(values.front()),ctx,initFlush,combFlush);
 		auto idNext = (idSelf+1) % nThreads;
 
 		// These should be cache hits
@@ -504,9 +503,10 @@ namespace flush {
 		    auto expected = (0xdeadbeef ^ idNext ^ i);
 		    KEY key = {static_cast<uint64_t>(idNext),static_cast<uint64_t>(i),static_cast<uint64_t>(expected),static_cast<uint64_t>(nData-i)};
 		    auto uHash = mdl::murmur::murmur<4>(key.data());
-		    auto data = static_cast<const uint64_t*>(mdlKeyFetch(mdl,0,uHash,&key,0,0,0));
+		    auto data = static_cast<const uint64_t*>(mdlKeyFetch(mdl,0,uHash,&key,0,1,0));
 		    if (data == nullptr || *data != 0) ++nBAD;
 		    }
+		mdl->CacheBarrier(0);
 
 		for(auto i=0; i<nData; ++i) {
 		    for(auto iProc=0; iProc<mdlThreads(ctx->getMDL()); ++iProc) {
