@@ -3227,8 +3227,8 @@ double pkdTotalMass(PKD pkd) {
 ** Conflicting options (e.g., setIfTrue and setIfFalse) result in a toggle.
 */
 static inline int isSelected( int predicate, int setIfTrue, int clearIfFalse, int value ) {
-    int s = ((predicate!=0)&(setIfTrue>0)) | (~(predicate!=0)&(clearIfFalse<0));
-    int c = ((predicate!=0)&(setIfTrue<0)) | (~(predicate!=0)&(clearIfFalse>0));
+    int s = ((predicate!=0)&(setIfTrue>0)) | (!(predicate!=0)&(clearIfFalse<0));
+    int c = ((predicate!=0)&(setIfTrue<0)) | (!(predicate!=0)&(clearIfFalse>0));
     return (~s&~c&value) | (s&~(c&value));
     }
 
