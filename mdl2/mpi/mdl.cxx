@@ -348,8 +348,8 @@ void CACHE::initialize(uint32_t cacheSize,
 
     nAccess = nMiss = 0; // Clear statistics. Are these even used any more?
 
-    assert(!arc_cache);
-    arc_cache.reset(new ARC<>());
+    auto arc = arc_cache.get();
+    if (!arc || typeid(*arc)!=typeid(ARC<>)) arc_cache.reset(new ARC<>());
     arc_cache->initialize(this,cacheSize,iLineSize,nLineBits);
     }
 
@@ -365,13 +365,15 @@ void CACHE::initialize_advanced(uint32_t cacheSize,hash::GHASH *hash,int iDataSi
     OneLine.resize(iDataSize);
     nAccess = nMiss = 0; // Clear statistics. Are these even used any more?
 
-    arc_cache.reset(hash_table->clone());
+    // Clone the table if it is not the same type as what we have
+    auto arc = hash_table->clone(arc_cache.get());
+    if (arc) arc_cache.reset(arc);
     arc_cache->initialize(this,cacheSize,iLineSize,nLineBits);
     }
 
 // When we are finished using the cache, it is marked as complete. All elements should have been flushed by now.
 void CACHE::close() {
-    arc_cache.reset();    // Unique: will be deleted
+    // Keep the arc cache for performance reasonses: arc_cache.reset();
     cache_helper.reset(); // Shared: we are finished with this
     hash_table = nullptr;
     }

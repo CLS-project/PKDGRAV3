@@ -134,7 +134,7 @@ static inline uint32_t hash(uint32_t uLine,uint32_t uId) {
 class GHASH {
 public:
     virtual ~GHASH() = default;
-    virtual class GARC *clone() = 0;
+    virtual class GARC *clone(GARC *arc=nullptr) = 0;
     virtual void  insert(uint32_t uHash, const void *pKey, void *data) = 0;
     virtual void *lookup(uint32_t uHash, const void *pKey) = 0;
     virtual void  remove(uint32_t uHash, const void *pKey) = 0;
@@ -210,7 +210,7 @@ private:
     virtual void  remove(uint32_t uHash, const void *pKey) override;
 
 public:
-    virtual class GARC *clone() override;
+    virtual class GARC *clone(GARC *arc=nullptr) override;
     void print_statistics();
     void clear(); // Empty the hash table (by moving all elements to the free list)
     void resize(size_t count);
@@ -320,9 +320,11 @@ public:
 \*****************************************************************************/
 namespace hash {
 
+    // conditionally clone
     template<typename... KEYS>
-    class GARC *HASH<KEYS...>::clone() {
-    	return new ARC<KEYS...>;
+    class GARC *HASH<KEYS...>::clone(GARC *arc) {
+	if (arc && typeid(*arc) == typeid(ARC<KEYS...>)) return nullptr;
+	return new ARC<KEYS...>;
 	}
 
     // Locate by advanced key
@@ -431,7 +433,9 @@ namespace hash {
 
     template<typename... KEYS>
     void HASH<KEYS...>::resize(size_t count) {
-	clear();
+//	clear();
+	for(auto &list : L) list.clear();
+	freeList.clear();
 	uHashMask = count + count/2;    // Reserve extra for collision resolution
 	uHashMask |= (uHashMask >> 1);  // Calculate the bitmask for the next higher
 	uHashMask |= (uHashMask >> 2);  //   power of two so we can mask for an index.
@@ -442,7 +446,6 @@ namespace hash {
 	for(auto &i : HashChains) i.next = &i; // Point to self = empty
 	entries.reserve(count);
 	entries.resize(count); // Our complete list of ENTRY elements
-	freeList.clear();      // Add them all to the free list
 	for(auto &i : entries) freeList.push_back(i);
 	}
 
@@ -663,22 +666,21 @@ namespace hash {
 	this->helper = helper;
 	// Size of a cache line (aligned properly)
         this->uLineSizeInWords = (uLineSizeInBytes+sizeof(uint64_t)-1) / sizeof(uint64_t);
+	cacheLine.resize(this->uLineSizeInWords);
 	// Calculate nCache based on the number of cache lines that will fit in our cache buffer
 	// Account for the "magic" number before the cache line.
 	auto nCache = (uCacheSizeInBytes/sizeof(uint64_t)) / (this->uLineSizeInWords+1);
-	if (this->nCache == nCache) return; // Already setup
-	this->uDataSizeInBytes = (uLineSizeInBytes) >> nLineBits; // Size of a single element
-	this->nLineBits = nLineBits;
-	this->nLineMask = (1 << nLineBits) - 1;
-	this->nCache = nCache;
-	this->nGhost = nCache;
-	this->nAbsent= nCache;
-
-	HASH::resize(nCache + nGhost + nAbsent);
-
-	// Allocate the total possible amount of storage. If we change cache types we won't have to reallocate.
-	dataBase.resize(uCacheSizeInBytes / sizeof(uint64_t));
-	cacheLine.resize(this->uLineSizeInWords);
+	if (this->nCache != nCache) {
+	    this->uDataSizeInBytes = (uLineSizeInBytes) >> nLineBits; // Size of a single element
+	    this->nLineBits = nLineBits;
+	    this->nLineMask = (1 << nLineBits) - 1;
+	    this->nCache = nCache;
+	    this->nGhost = nCache;
+	    this->nAbsent= nCache;
+	    HASH::resize(nCache + nGhost + nAbsent);
+	    // Allocate the total possible amount of storage. If we change cache types we won't have to reallocate.
+	    dataBase.resize(uCacheSizeInBytes / sizeof(uint64_t));
+	    }
 	//target_T1 = nCache/2;   /* is this ok? */
 	target_T1 = 0;
 	}
