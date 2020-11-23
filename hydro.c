@@ -1,6 +1,6 @@
 /* File added by Isaac Alonso for computing
  * the hydrodynamical part using a mesh-free
- * method, following the work of Hopkins 2015
+ * method, following Lanson&Vila 2008, Gaburov&Nitadori 2011 and Hopkins 2015
  */
 
 #include "pkd.h"

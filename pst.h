@@ -137,6 +137,10 @@ enum pst_service {
     PST_COOLINGINIT,
     PST_COOLINGHYDREION,
 #endif
+#ifdef BLACKHOLES
+    PST_BH_PLACESEED,
+    PST_BH_REPOSITION,
+#endif
     PST_PREDICTSMOOTH,
     PST_DRIFTINACTIVE,
     PST_SCALEVEL,
@@ -228,6 +232,7 @@ enum pst_service {
     PST_SELGAS,
     PST_SELSTAR,
     PST_SELDELETED,
+    PST_MOVEDELETED,
     PST_SELMASS,
     PST_SELBYID,
     PST_SELPHASEDENSITY,
@@ -461,6 +466,7 @@ struct inWrite {
     uint64_t nGas;
     uint64_t nDark;
     uint64_t nStar;
+    uint64_t nBH;
     int bStandard;
     int iIndex;
     int nProcessors;
@@ -681,6 +687,19 @@ struct inCoolInit{
    }; 
 int pstCoolingInit(PST,void *,int,void *,int);
 int pstCoolingHydReion(PST,void *,int,void *,int);
+#endif
+#ifdef BLACKHOLES
+struct inPlaceBHSeed {
+   double dTime;
+   double dScaleFactor;
+   double dDenMin;
+   uint8_t uRungMax;
+};
+struct outPlaceBHSeed {
+   int nBHs;
+};
+int pstPlaceBHSeed(PST,void *,int,void *,int);
+int pstRepositionBH(PST,void *,int,void *,int);
 #endif
 
 /* PST_RESMOOTH */
@@ -1087,6 +1106,7 @@ struct outColNParts {
     int nDeltaGas;
     int nDeltaDark;
     int nDeltaStar;
+    int nDeltaBH  ;
     };
 int pstColNParts(PST, void *, int, void *, int);
 
@@ -1109,6 +1129,7 @@ struct inSetNParts {
     uint64_t nGas;
     uint64_t nDark;
     uint64_t nStar;
+    uint64_t nBH;
     };
 int pstSetNParts(PST, void *, int, void *, int);
 
@@ -1263,6 +1284,8 @@ int pstSelStar(PST pst,void *vin,int nIn,void *vout,int nOut);
 
 /* PST_SELDELETED */
 int pstSelDeleted(PST pst,void *vin,int nIn,void *vout,int nOut);
+
+int pstMoveDeletedParticles(PST pst,void *vin,int nIn,void *vout,int nOut);
 
 /* PST_SELMASS */
 struct inSelMass {

@@ -399,7 +399,7 @@ void initLightConeOffsets(PKD pkd) {
 void pkdInitialize(
     PKD *ppkd,MDL mdl,int nStore,uint64_t nMinTotalStore,uint64_t nMinEphemeral,uint32_t nEphemeralBytes,
     int nTreeBitsLo, int nTreeBitsHi,
-    int iCacheSize,int iWorkQueueSize,int iCUDAQueueSize,double *fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,
+    int iCacheSize,int iWorkQueueSize,int iCUDAQueueSize,double *fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,uint64_t nBH,
     uint64_t mMemoryModel, int bLightCone, int bLightConeParticles) {
     PKD pkd;
     PARTICLE *p;
@@ -427,6 +427,7 @@ void pkdInitialize(
     pkd->nLocal = 0;
     pkd->nDark = nDark;
     pkd->nGas = nGas;
+    pkd->nBH = nBH;
     pkd->nStar = nStar;
     pkd->nRejects = 0;
     for (j=0;j<3;++j) {
@@ -440,6 +441,7 @@ void pkdInitialize(
 
     pkd->psGroupTable.nGroups = 0;
     pkd->psGroupTable.pGroup = NULL;
+    pkd->veryTinyGroupTable = NULL;
 
 #ifdef MDL_FFTW
     pkd->fft = NULL;
@@ -489,15 +491,29 @@ void pkdInitialize(
     else
 	pkd->oSph = 0;
 
-    if ( mMemoryModel & PKD_MODEL_STAR )
-#ifdef OPTIM_UNION_EXTRAFIELDS // IA: We assume here that there will be always gas particle when stars are present, which will be usually the case
-	pkd->oStar = 1;          //   this value is of no relevance as long as it is >0
+    if ( mMemoryModel & PKD_MODEL_STAR ){
+#ifdef OPTIM_UNION_EXTRAFIELDS 
+	pkd->oStar = 1;          // IA: this value is of no relevance as long as it is >0
+      if (!pkd->oSph)
+         pkd->oSph = pkdParticleAddStruct(pkd, sizeof(EXTRAFIELDS));
 #else
 	pkd->oStar = pkdParticleAddStruct(pkd,sizeof(STARFIELDS));
 #endif
-    else
+    }else
 	pkd->oStar = 0;
     
+#ifdef BLACKHOLES
+    if ( mMemoryModel & PKD_MODEL_BH ){
+#ifdef OPTIM_UNION_EXTRAFIELDS 
+	pkd->oBH = 1;          // IA: this value is of no relevance as long as it is >0
+      if (!pkd->oSph)
+         pkd->oSph = pkdParticleAddStruct(pkd, sizeof(EXTRAFIELDS));
+#else
+	pkd->oBH = pkdParticleAddStruct(pkd,sizeof(BHFIELDS));
+#endif
+    }else
+	pkd->oBH = 0;
+#endif // BLACKHOLES
 
     if ( mMemoryModel & PKD_MODEL_VELSMOOTH )
 	pkd->oVelSmooth = pkdParticleAddStruct(pkd,sizeof(VELSMOOTH));
@@ -576,6 +592,7 @@ void pkdInitialize(
 #if defined(STAR_FORMATION) && defined(FEEDBACK)
     pkd->oNodeNstar = pkdNodeAddInt32(pkd,1);
 #endif
+    pkd->oNodeNbh = pkdNodeAddInt32(pkd,1);
 #endif
     /*
     ** Three extra bounds are required by the fast gas SPH code.
@@ -1072,10 +1089,12 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
     PARTICLE *p;
     STARFIELDS *pStar;
     SPHFIELDS *pSph;
+    BHFIELDS* pBH;
     float *pPot, dummypot;
     double r[3];
     double vel[3];
     float fMass, fSoft,fDensity,u,fMetals[chemistry_element_count],fTimer;
+    float otherData[2];
     FIO_SPECIES eSpecies;
     uint64_t iParticleID;
 
@@ -1092,6 +1111,11 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	p = pkdParticle(pkd,pkd->nLocal);
 	pkdSetClass(pkd,0,0,FIO_SPECIES_STAR,p);
 	}
+#ifdef BLACKHOLES
+    assert(pkd->oMass);
+    p = pkdParticle(pkd, pkd->nLocal);
+    pkdSetClass(pkd,0,0,FIO_SPECIES_BH, p);
+#endif
 
     fioSeek(fio,iFirst,FIO_SPECIES_ALL);
     for (i=0;i<nLocal;++i) {
@@ -1137,6 +1161,11 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 /*	    pStar->iGasOrder = IORDERMAX;*/
 	    }
 	else pStar = NULL;
+
+      if (pkd->oBH) {
+         pBH = pkdBH(pkd,p);
+         pBH->fTimer = 0.;
+      }else pBH = NULL;
 
 	eSpecies = fioSpecies(fio);
 	switch(eSpecies) {
@@ -1235,6 +1264,20 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
              pStar->hasExploded = 1; // IA: We avoid that star in the IC could explode
           }
 	    break;
+      case FIO_SPECIES_BH:
+	    fioReadBH(fio,&iParticleID,r,vel,&fMass,&fSoft,pPot,&fDensity,otherData,&fTimer);
+          pkdSetBall(pkd,p,pkdSoft(pkd,p));
+          if (pBH) {
+             pBH->fTimer = fTimer;
+             pBH->pLowPot = NULL;
+             pBH->newPos[0] = -1;
+             pBH->lastUpdateTime = -1.;
+             pBH->dInternalMass = otherData[0];
+             pBH->dAccretionRate = otherData[1];
+             pBH->dAccEnergy = 0.0;
+             pBH->dFeedbackRate = 0.0;
+          }
+          break;
 	default:
 	    fprintf(stderr,"Unsupported particle type: %d\n",eSpecies);
 	    assert(0);
@@ -1254,7 +1297,6 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	    for (j=0;j<3;++j) pkdVel(pkd,p)[j] = vel[j]*sqrt(dvFac);
         }
       }
-
 
 	}
     
@@ -2157,6 +2199,7 @@ void pkdRestore(PKD pkd,const char *fname) {
 static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,BND *bnd,PARTICLE *p) {
     STARFIELDS *pStar;
     SPHFIELDS *pSph;
+    BHFIELDS *pBH;
     float *pPot, dummypot;
     double v[3],r[3];
     float fMass, fSoft, fDensity,fMetals[chemistry_element_count], fTimer, fBall;
@@ -2189,10 +2232,10 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,BND *bnd,
     else v[0] = v[1] = v[2] = 0.0;
  
     /* Initialize SPH fields if present */
-    if (pkd->oSph) pSph = pkdSph(pkd,p);
-    else pSph = NULL;
-    if (pkd->oStar) pStar = pkdStar(pkd, p);
-    else pStar = NULL;
+    //if (pkd->oSph) pSph = pkdSph(pkd,p);
+    //else pSph = NULL;
+    //if (pkd->oStar) pStar = pkdStar(pkd, p);
+    //else pStar = NULL;
     fMass = pkdMass(pkd,p);
     fSoft = pkdSoft0(pkd,p);
     if (pkd->oParticleID) iParticleID = *pkdParticleID(pkd,p);
@@ -2233,6 +2276,7 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,BND *bnd,
     //}
     switch(pkdSpecies(pkd,p)) {
     case FIO_SPECIES_SPH:
+      pSph = pkdSph(pkd,p);
 	assert(pSph);
 	assert(pkd->param.dTuFac>0.0);
 	    {
@@ -2252,26 +2296,52 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,BND *bnd,
 #endif
 
           fBall = pkdBall(pkd,p);
+          float otherData[2];
+          otherData[0] = SFR;
+          // We may have problem if the number of groups increses more than 2^24, but should be enough
+          otherData[1] = pkd->oGroup ? (float)pkdGetGroup(pkd,p) : 0 ;
 
 	     fioWriteSph(fio,iParticleID,r,v,fMass,fSoft,*pPot,
-	 	fDensity,pSph->Uint/fMass, &fMetals[0], fBall, temperature, SFR);
+	 	fDensity,pSph->Uint/fMass, &fMetals[0], fBall, temperature, &otherData[0]);
 	    }
 	break;
     case FIO_SPECIES_DARK:
-	fioWriteDark(fio,iParticleID,r,v,fMass,fSoft,*pPot,fDensity);
+      {
+      float otherData[2];
+      otherData[0] = pkd->oGroup ? (float)pkdGetGroup(pkd,p) : 0 ;
+	fioWriteDark(fio,iParticleID,r,v,fMass,fSoft,*pPot,fDensity, &otherData[0]);
+      }
 	break;
     case FIO_SPECIES_STAR:
-      if (pSph){
+      pStar = pkdStar(pkd,p);
 #ifdef COOLING
-          for (int k=0; k<chemistry_element_count;k++) fMetals[k] = pSph->chemistry[k];
+      for (int k=0; k<chemistry_element_count;k++) fMetals[k] = pStar->chemistry[k];
 #else
-          for (int k=0; k<chemistry_element_count;k++) fMetals[k] = 0.;
+      for (int k=0; k<chemistry_element_count;k++) fMetals[k] = 0.;
 #endif
-      }
-	fTimer = pStar ? pStar->fTimer : 0;
+      float otherData[2];
+      otherData[0] = pStar->fTimer;
+      otherData[1] = pkd->oGroup ? (float)pkdGetGroup(pkd,p) : 0 ;
 	fioWriteStar(fio,iParticleID,r,v,fMass,fSoft,*pPot,fDensity,
-	    &fMetals[0],fTimer);
+	    &fMetals[0],&otherData[0]);
 	break;
+    case FIO_SPECIES_BH:
+      {
+      pBH = pkdBH(pkd,p);
+	fTimer = pBH->fTimer;
+      float otherData[6];
+      otherData[0] = pBH->dInternalMass;
+      otherData[1] = pBH->dAccretionRate;
+      otherData[2] = pBH->dEddingtonRatio;
+      otherData[3] = pBH->dFeedbackRate;
+      otherData[4] = pBH->dAccEnergy;
+      otherData[5] = pkd->oGroup ? (float)pkdGetGroup(pkd,p) : 0 ;
+	fioWriteBH(fio,iParticleID,r,v,fMass,fSoft,*pPot,fDensity,
+	    otherData,fTimer);
+      }
+      break;
+    case FIO_SPECIES_LAST:
+      break;
     default:
 	fprintf(stderr,"Unsupported particle type: %d\n",pkdSpecies(pkd,p));
 	assert(0);
@@ -2336,7 +2406,7 @@ void pkdWriteViaNode(PKD pkd, int iNode) {
 #endif
     }
 
-void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dScaleFactor, double dTime, uint64_t nDark, uint64_t nGas, uint64_t nStar){
+void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dScaleFactor, double dTime, uint64_t nDark, uint64_t nGas, uint64_t nStar, uint64_t nBH){
    /* Restart information IA: Unused?*/
    //fioSetAttr(fio, "dEcosmo",  FIO_TYPE_DOUBLE, &in->dEcosmo );
    //fioSetAttr(fio, "dTimeOld", FIO_TYPE_DOUBLE, &in->dTimeOld );
@@ -2386,7 +2456,7 @@ void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dScaleFactor, double dTime, uint
    numPart_file[0] = nGas;
    numPart_file[1] = nDark;
    numPart_file[2] = 0;
-   numPart_file[3] = 0;
+   numPart_file[3] = nBH; //TODO, random assigment, ask Claudio
    numPart_file[4] = nStar;
    numPart_file[5] = 0;
     
@@ -2461,7 +2531,7 @@ void pkdSetSmooth(PKD pkd,double dSmooth) {
     int i;
     for (i=0;i<pkdLocal(pkd);++i) {
        p = pkdParticle(pkd,i);
-       if ((pkdIsGas(pkd,p)||pkdIsStar(pkd,p)) && pkdBall(pkd,p)==0.0)
+       if ((pkdIsGas(pkd,p)||pkdIsStar(pkd,p)||pkdIsBH(pkd,p)) && pkdBall(pkd,p)==0.0)
           pkdSetBall(pkd,p,dSmooth);
     }
     }
@@ -3059,26 +3129,41 @@ void pkdReorderWithinNodes(PKD pkd){
       int nGas = 0;
       node = pkdTreeNode(pkd,i);
       if (!node->iLower){ // We are in a bucket
+         int start = node->pLower;
          for (int pj=node->pLower;pj<=node->pUpper;++pj) {
             if (pkdIsGas(pkd, pkdParticle(pkd,pj))) {
-               pkdSwapParticle(pkd, pkdParticle(pkd,pj) , pkdParticle(pkd,node->pLower+nGas) );
+               pkdSwapParticle(pkd, pkdParticle(pkd,pj) , pkdParticle(pkd,start+nGas) );
                nGas++;
             }
 
          }
          pkdNodeSetNgas(pkd, node, nGas);
+         start += nGas;
 #if defined(STAR_FORMATION) && defined(FEEDBACK)
          // We perform another swap, just to have nGas->nStar->DM
          int nStar = 0;
-         for (int pj=node->pLower+nGas;pj<=node->pUpper;++pj) {
+         for (int pj=start;pj<=node->pUpper;++pj) {
             if (pkdIsStar(pkd, pkdParticle(pkd,pj))) {
-               pkdSwapParticle(pkd, pkdParticle(pkd,pj) , pkdParticle(pkd,node->pLower+nGas+nStar) );
+               pkdSwapParticle(pkd, pkdParticle(pkd,pj) , pkdParticle(pkd,start+nStar) );
                nStar++;
             }
 
          }
          pkdNodeSetNstar(pkd, node, nStar);
+         start += nStar;
 #endif
+         
+         // We perform another swap, just to have nGas->nStar->BH->DM
+         int nBH = 0;
+         for (int pj=start;pj<=node->pUpper;++pj) {
+            if (pkdIsBH(pkd, pkdParticle(pkd,pj))) {
+               pkdSwapParticle(pkd, pkdParticle(pkd,pj) , pkdParticle(pkd,start+nBH) );
+               nBH++;
+            }
+
+         }
+         pkdNodeSetNBH(pkd, node, nBH);
+         
       }
    }
    /* // Check that this works
@@ -3149,6 +3234,10 @@ void pkdComputePrimVars(PKD pkd,int iRoot, double dTime, double dDelta) {
        dScaleFac = csmTime2Exp(pkd->csm,dTime);
        dRedshift = 1./dScaleFac - 1.;
        dHubble = csmTime2Hub(pkd->csm,dTime);
+    }else{
+       dScaleFac = 1.0;
+       dRedshift = 0.0;
+       dHubble = 0.0;
     }
     if (pkd->param.bDoGas) {
       assert(pkd->param.bDoGas);    
@@ -3268,7 +3357,21 @@ void pkdComputePrimVars(PKD pkd,int iRoot, double dTime, double dDelta) {
             psph->lastUint = psph->Uint;
             psph->lastMass = pkdMass(pkd,p);
 
+         } else if (pkdIsBH(pkd,p) && pkdIsActive(pkd,p)){
+            BHFIELDS* pBH = pkdBH(pkd,p);
+
+            if (dDelta > 0){ 
+               pDelta = dTime - pBH->lastUpdateTime; 
+            }else{
+               pDelta = 0.0;
+            }
+#ifdef BLACKHOLES
+            pBH->dInternalMass += pBH->dAccretionRate  * pDelta * (1.-pkd->param.dBHRadiativeEff);
+            pBH->dAccEnergy += pBH->dFeedbackRate * pDelta;
+            pBH->lastUpdateTime = dTime;
+#endif
          }
+         
        }
     }
 
@@ -3961,8 +4064,110 @@ int pkdUpdateRung(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 
 void pkdDeleteParticle(PKD pkd, PARTICLE *p) {
     /* p->iOrder = -2 - p->iOrder; JW: Not needed -- just preserve iOrder */
-    pkdSetClass(pkd,pkdMass(pkd,p),pkdSoft(pkd,p),FIO_SPECIES_LAST,p); /* Special "DELETED" class == FIO_SPECIES_LAST */
+    int pSpecies = pkdSpecies(pkd,p);
+    //pkdSetClass(pkd,pkdMass(pkd,p),pkdSoft(pkd,p),FIO_SPECIES_LAST,p); /* Special "DELETED" class == FIO_SPECIES_LAST */
+    pkdSetClass(pkd,0.0,0.0,FIO_SPECIES_LAST,p); /* Special "DELETED" class == FIO_SPECIES_LAST */
+
+    // IA: We copy the last particle into this position, the tree will no longer be valid!!!
+    //
+    // If we do something else with the tree before a reconstruction (such as finishing the particle loop), we need to be extra careful and:
+    //   * check that the particle is marked
+    //   * check that the particle type correspond to its placing inside the node
+    //
+    // Even with this, some weird bugs may appear, so seriously, be EXTRA careful!!
+    //PARTICLE* lastp = pkdParticle(pkd, pkd->nLocal - 1);
+    
+    //
+    //assert(!pkdIsDeleted(pkd,lastp));
+    // IA: We can encounter a case where the last particle is the one being deleted; workaround:
+    //while (pkdIsDeleted(pkd,lastp) || lastp==p){
+    //   lastp--;
+    //}
+
+    //pkdCopyParticle(pkd,p, lastp);
+    //pkd->nLocal -= 1;
+    //pkdTreeNode(pkd,ROOT)->pUpper -= 1;
+    switch(pSpecies){
+      case FIO_SPECIES_DARK:
+          pkd->nDark -= 1;
+          break;
+      case FIO_SPECIES_SPH:
+          pkd->nGas -= 1;
+          break;
+      case FIO_SPECIES_STAR:
+          pkd->nStar -= 1;
+          break;
+      case FIO_SPECIES_BH:
+          pkd->nBH -= 1;
+          break;
+      default:
+          printf("Deleting particle with unknown type");
+          abort();
     }
+   p->bMarked = 0;
+}
+
+
+/* IA: We replace the deleted particles with those at the end of the particle array (which are still valid), making the tree
+ *  no longer usable, unless *extreme* care is taken.
+ *
+ *  We also update the number of particles in the master level, assuming that the values in PKD are correct (i.e., pkdDeleteParticle was called correctly)
+ */
+void pkdMoveDeletedParticles(PKD pkd, total_t *n, total_t *nGas, total_t *nDark, total_t *nStar, total_t *nBH){
+   int nLocal = pkd->nLocal;
+
+   //printf("Deleting particles...\n");
+   for (int i=nLocal-1; i>=0; i--){
+      PARTICLE *p = pkdParticle(pkd,i);
+      //printf("Checking %d \t %d \t",i, p);
+      if (pkdIsDeleted(pkd,p)){
+         //printf("Deleting %d \n", i);
+         PARTICLE* lastp = pkdParticle(pkd, pkd->nLocal - 1);
+          
+         // IA: We can encounter a case where the last particle is deleted; workaround:
+         int back_position=0;
+         while (pkdIsDeleted(pkd,lastp)){
+            //lastp--;  We can't do this because sizeof(PARTICLE) != pkdParticleSize(pkd) !!!!
+            back_position++;
+            lastp = pkdParticle(pkd, pkd->nLocal-1-back_position);
+         }
+         //printf("Had to go back to %d (back_position %d) %d \n", pkd->nLocal-1-back_position,back_position, lastp);
+         if (lastp>=p) { // Double check that this has the expected behaviour
+
+            //printf("This is at the right of/at i\n");
+            assert(back_position==0);
+            // If we start from the end, back_position should always? be zero 
+            pkd->nLocal -= back_position+1;
+            pkdCopyParticle(pkd, p, lastp);
+            
+            assert(!pkdIsDeleted(pkd,p));
+         }else{ // All the particles between p (or more to the left) and the end of the array are being deleted, so no copying is needed
+            //printf("This is at the left of i; ");
+            pkd->nLocal -= back_position;
+            i = pkd->nLocal;
+            //printf("New nLocal %d \n", pkd->nLocal);
+         }
+
+         assert(lastp > pkdParticle(pkd,0));
+         
+
+      }
+
+   }
+
+   pkdTreeNode(pkd,ROOT)->pUpper = pkd->nLocal - 1;
+
+   *n  = pkd->nLocal;
+   //printf("Final nLocal %d \n", *n);
+   *nGas = pkd->nGas;
+   *nDark = pkd->nDark;
+   *nStar = pkd->nStar;
+   *nBH = pkd->nBH;
+
+}
+
+
+
 
 void pkdNewParticle(PKD pkd, PARTICLE *p) {
     PARTICLE *newp;
@@ -4054,6 +4259,7 @@ pkdGetNParts(PKD pkd, struct outGetNParts *out )
     int nGas;
     int nDark;
     int nStar;
+    int nBH;
     total_t iMaxOrder;
     total_t iOrder;
     PARTICLE *p;
@@ -4062,6 +4268,7 @@ pkdGetNParts(PKD pkd, struct outGetNParts *out )
     nGas = 0;
     nDark = 0;
     nStar = 0;
+    nBH = 0;
     iMaxOrder = 0;
     for(pi = 0; pi < pkdLocal(pkd); pi++) {
 	p = pkdParticle(pkd,pi);
@@ -4077,17 +4284,25 @@ pkdGetNParts(PKD pkd, struct outGetNParts *out )
 	else if(pkdIsStar(pkd, p)) {
 	    ++nStar;
 	    }
+	else if(pkdIsBH(pkd, p)) {
+	    ++nBH;
+	    }
 	}
     
     out->n  = n;
     out->nGas = nGas;
     out->nDark = nDark;
     out->nStar = nStar;
+    out->nBH = nBH;
     out->nMaxOrder = iMaxOrder;
+
+      printf("%d \t %d %d %d %d %d \n", pkd->idSelf, n, nDark, nGas, nStar, nBH);
+
+    pkdSetNParts(pkd, nGas, nDark, nStar, nBH);
 }
 
 
-void pkdSetNParts(PKD pkd,int nGas,int nDark,int nStar) {
+void pkdSetNParts(PKD pkd,int nGas,int nDark,int nStar, int nBH) {
     pkd->nGas = nGas;
     pkd->nDark = nDark;
     pkd->nStar = nStar;
@@ -4109,6 +4324,10 @@ int pkdIsDark(PKD pkd,PARTICLE *p) {
 
 int pkdIsStar(PKD pkd,PARTICLE *p) {
     return pkdSpecies(pkd,p) == FIO_SPECIES_STAR;
+    }
+
+int pkdIsBH(PKD pkd,PARTICLE *p) {
+    return pkdSpecies(pkd,p) == FIO_SPECIES_BH;
     }
 
 void pkdInitRelaxation(PKD pkd) {

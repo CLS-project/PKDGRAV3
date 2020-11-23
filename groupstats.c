@@ -106,6 +106,10 @@ static void initTinyGroup(void *vpkd, void *v) {
     int j;
 
     g->fMass = 0.0;
+    g->nBH = 0;
+    g->nDM = 0;
+    g->nGas = 0;
+    g->nStar = 0;
     for (j=0;j<3;j++) {
 	g->rcom[j] = 0.0;
 	g->vcom[j] = 0.0;
@@ -128,6 +132,11 @@ static void combTinyGroup(void *vpkd, void *v1, void *v2) {
 	}
     g1->sigma = (1-x)*g1->sigma + x*g2->sigma;
     if (g2->rMax > g1->rMax) g1->rMax = g2->rMax;
+    g1->nBH += g2->nBH;
+    g1->nDM += g2->nDM;
+    g1->nGas += g2->nGas;
+    g1->nStar += g2->nStar;
+    //printf("g1 %d \t g2 %d \n", g1->nBH, g2->nBH);
     }
 
 static void initTinyRmax(void *vpkd, void *v) {
@@ -445,6 +454,10 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnviro
 		}
 	    }
 	pkd->tinyGroupTable[gid].rMax = 0;
+      pkd->tinyGroupTable[gid].nBH = 0;
+      pkd->tinyGroupTable[gid].nDM = 0;
+      pkd->tinyGroupTable[gid].nGas = 0;
+      pkd->tinyGroupTable[gid].nStar = 0;
 	dAccumulate[4*gid] = 0;
 	dAccumulate[4*gid+1] = 0;
 	dAccumulate[4*gid+2] = 0;
@@ -518,6 +531,23 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnviro
 	p = pkdParticle(pkd,i);
 	gid = pkdGetGroup(pkd,p);
 	fMass = pkdMass(pkd,p);
+      int pSpecies = pkdSpecies(pkd,p);
+      switch (pSpecies){
+         case FIO_SPECIES_BH:
+            pkd->tinyGroupTable[gid].nBH++;
+            break;
+         case FIO_SPECIES_DARK:
+            pkd->tinyGroupTable[gid].nDM++;
+            break;
+         case FIO_SPECIES_SPH:
+            pkd->tinyGroupTable[gid].nGas++;
+            break;
+         case FIO_SPECIES_STAR:
+            pkd->tinyGroupTable[gid].nStar++;
+            break;
+         default: // Maybe a deleted particle, skip it
+            continue;
+      }
 	dAccumulate[4*gid+3] += fMass;
 	if (gid > 0) {
 	    r2 = 0.0;
@@ -551,6 +581,11 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnviro
 	TinyGroupTable *g;
 	g = mdlVirtualFetch(mdl,CID_GROUP,pkd->ga[gid].id.iIndex,pkd->ga[gid].id.iPid);
 	g->fMass += pkd->tinyGroupTable[gid].fMass;
+      g->nBH += pkd->tinyGroupTable[gid].nBH;
+      g->nDM += pkd->tinyGroupTable[gid].nDM;
+      g->nGas += pkd->tinyGroupTable[gid].nGas;
+      g->nStar += pkd->tinyGroupTable[gid].nStar;
+      //printf("g->nBH %d \t pkd %d \n", g->nBH, pkd->tinyGroupTable[gid].nBH);
 	for (j=0;j<3;j++) {
 	    g->rcom[j] += pkd->tinyGroupTable[gid].rcom[j];
 	    g->vcom[j] += pkd->tinyGroupTable[gid].vcom[j];
@@ -564,6 +599,10 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnviro
 	TinyGroupTable *g;
 	g = mdlFetch(mdl,CID_GROUP,pkd->ga[gid].id.iIndex,pkd->ga[gid].id.iPid);
 	pkd->tinyGroupTable[gid].fMass = g->fMass;
+      pkd->tinyGroupTable[gid].nBH = g->nBH;
+      pkd->tinyGroupTable[gid].nDM = g->nDM;
+      pkd->tinyGroupTable[gid].nGas = g->nGas;
+      pkd->tinyGroupTable[gid].nStar = g->nStar;
 	for (j=0;j<3;j++) {
 	    pkd->tinyGroupTable[gid].rcom[j] = g->rcom[j];
 	    pkd->tinyGroupTable[gid].vcom[j] = g->vcom[j];
@@ -1094,6 +1133,23 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnviro
     ** Important to really make sure pkd->nLocalGroups is set correctly before output!
     */
     pkd->nLocalGroups = nLocalGroups;
+
+
+    /*
+    ** IA: We copy part of the stats to a even smaller structure that will survive later in memory
+    **  such that it can be used for planting the BH seeds
+    */
+    if (pkd->veryTinyGroupTable!=NULL) free(pkd->veryTinyGroupTable);
+    pkd->veryTinyGroupTable = (VeryTinyGroupTable *) malloc( (1+nLocalGroups) * sizeof(VeryTinyGroupTable)  );
+    for (gid=1; gid<=nLocalGroups; gid++){
+       pkd->veryTinyGroupTable[gid].rPot[0] = pkd->tinyGroupTable[gid].rPot[0];
+       pkd->veryTinyGroupTable[gid].rPot[1] = pkd->tinyGroupTable[gid].rPot[1];
+       pkd->veryTinyGroupTable[gid].rPot[2] = pkd->tinyGroupTable[gid].rPot[2];
+       pkd->veryTinyGroupTable[gid].fMass = pkd->tinyGroupTable[gid].fMass;
+       pkd->veryTinyGroupTable[gid].nBH = pkd->tinyGroupTable[gid].nBH;
+    }
+
+
     /*
     ** Clear pkd->ga so that later gravity calculations don't set the minimum potential again.
     ** This means we cannot directly output ga and could use this space for something else.

@@ -37,6 +37,10 @@
 #ifdef FEEDBACK
 #include "starformation/feedback.h"
 #endif
+#ifdef BLACKHOLES
+#include "blackhole/merger.h"
+#include "blackhole/drift.h"
+#endif
 #include <sys/stat.h>
 
 #define ASSERT_CONCAT_(a, b) a##b
@@ -341,6 +345,22 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
 	initParticle = NULL; /* Original Particle */
 	init = NULL; /* Cached copies */ 
 	comb = NULL;
+	smx->fcnPost = NULL;
+	break;
+#endif
+#ifdef BLACKHOLES
+    case SMX_BH_MERGER:
+      smx->fcnSmooth = smBHmerger;
+	initParticle = NULL; /* Original Particle */
+	init = NULL; /* Cached copies */ 
+	comb = combBHmerger;
+	smx->fcnPost = NULL;
+	break;
+    case SMX_BH_DRIFT:
+      smx->fcnSmooth = smBHdrift;
+	initParticle = NULL; /* Original Particle */
+	init = initBHdrift; /* Cached copies */ 
+	comb = combBHdrift;
 	smx->fcnPost = NULL;
 	break;
 #endif
@@ -2420,7 +2440,8 @@ void pkdFastGasCleanup(PKD pkd) {
 }
 #endif
 
-void smGather(SMX smx,double fBall2,double r[3], PARTICLE * p) {
+void smGather(SMX smx,double fBall2,double r[3], PARTICLE * pp) {
+    PARTICLE* p;
     KDN *kdn;
     PKD pkd = smx->pkd;
     MDL mdl = pkd->mdl;
@@ -2636,7 +2657,6 @@ void smReSmoothSingle(SMX smx,SMF *smf,PARTICLE *p,double fBall) {
     /*
     ** Apply smooth funtion to the neighbor list.
     */
-    //printf("smx->nnList %d \n", smx->nnListSize);
     smx->fcnSmooth(p,0.5*fBall,smx->nnListSize,smx->nnList,smf);
     /*
     ** Release acquired pointers.
@@ -2676,6 +2696,17 @@ int  smReSmooth(SMX smx,SMF *smf, int iSmoothType) {
             }
           }
          break;
+       case SMX_BH_DRIFT:
+          for (pi=0;pi<pkd->nLocal;++pi) {
+            p = pkdParticle(pkd,pi);
+            if (pkdIsBH(pkd,p)){
+               
+               smReSmoothSingle(smx,smf,p,2.*pkdBall(pkd,p));
+               nSmoothed++;
+            }
+          }
+         break;
+
 #ifdef FEEDBACK
        /* IA: If computing the hydrostep, we also do the smooth over the newly formed stars that has not yet exploded, such that
         *  they can increase the rung of the neighbouring gas particles before exploding
@@ -2710,7 +2741,6 @@ int  smReSmooth(SMX smx,SMF *smf, int iSmoothType) {
             if (pkdIsStar(pkd,p)){ 
                if ( (pkdStar(pkd,p)->hasExploded == 0) && 
                     ((smf->dTime-pkdStar(pkd,p)->fTimer) > pkd->param.dFeedbackDelay) ){
-                  printf("BOOM! \n");
                   smReSmoothSingle(smx,smf,p, 2.*pkdBall(pkd,p));                                                                   
                   pkdStar(pkd,p)->hasExploded = 1;
 
@@ -2838,7 +2868,10 @@ int  smReSmoothNode(SMX smx,SMF *smf, int bSymmetric, int iSmoothType) {
 #if defined(STAR_FORMATION) && defined(FEEDBACK)
          if (iSmoothType==SMX_FIRSTHYDROLOOP) pEnd += pkdNodeNstar(pkd,node);
 #endif
-#else
+#ifdef BLACKHOLES
+         if (iSmoothType==SMX_FIRSTHYDROLOOP) pEnd += pkdNodeNbh(pkd,node);
+#endif
+#else // OPTIM_REORDER_IN_NODES
          int pEnd = node->pUpper+1;
 #endif
 
@@ -2970,7 +3003,11 @@ int  smReSmoothNode(SMX smx,SMF *smf, int bSymmetric, int iSmoothType) {
                    float fBall2_p = 4.*ph*ph;
                    int nCnt_p = 0;
 #ifdef OPTIM_UNION_EXTRAFIELDS
-                   double* omega = pkdIsGas(pkd,partj) ? &(pkdSph(pkd,partj)->omega) : &(pkdStar(pkd,partj)->omega); // Assuming *only* stars and gas
+                   //double* omega = pkdIsGas(pkd,partj) ? &(pkdSph(pkd,partj)->omega) : &(pkdStar(pkd,partj)->omega); // Assuming *only* stars and gas
+                   double *omega = NULL;
+                   omega = pkdIsGas(pkd,partj)  ? &(pkdSph(pkd,partj)->omega) : omega;
+                   omega = pkdIsStar(pkd,partj) ? &(pkdStar(pkd,partj)->omega) : omega;
+                   omega = pkdIsBH(pkd,partj)   ? &(pkdBH(pkd,partj)->omega) : omega;
 #else
                    double* omega = &(pkdSph(pkd,partj)->omega); // Assuming *only* stars and gas
 #endif
@@ -2998,9 +3035,11 @@ int  smReSmoothNode(SMX smx,SMF *smf, int bSymmetric, int iSmoothType) {
                       pkdSetDensity(pkd, partj, pkdMass(pkd,partj)*(*omega));
                    }else{
                       float newBall;
-                      newBall = ph * pow(  pkd->param.nSmooth/c  ,0.3333333333);
+                      newBall = (c!=0.0) ? ph * pow(  pkd->param.nSmooth/c  ,0.3333333333) : ph*4.0;
+                      
                       pkdSetBall(pkd,partj, 0.5*(newBall+ph));
                       //printf("Setting new fBall %e %e %e \n", c, ph, pkdBall(pkd,partj));
+                      
 
                       if (newBall>ph){
                          float ph = pkdBall(pkd,partj);
@@ -3008,7 +3047,8 @@ int  smReSmoothNode(SMX smx,SMF *smf, int bSymmetric, int iSmoothType) {
                          if((fabs(dx_node) + ph > bnd_node.fMax[0])||
                             (fabs(dy_node) + ph > bnd_node.fMax[1])||
                             (fabs(dz_node) + ph > bnd_node.fMax[2])){
-                            nSmoothed-=1; // We explicitly say that this particle was not succesfully smoothed
+                            // Removed this, see notes 29/10/20
+                            //nSmoothed-=1; // We explicitly say that this particle was not succesfully smoothed
                             break;
                          }
                       }

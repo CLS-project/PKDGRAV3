@@ -145,7 +145,7 @@ typedef struct mdl_flush_buffer {
     } MDLflushBuffer;
 /* followed by CAHEAD, element, CAHEAD, element, etc. */
 
-#define MDL_CACHE_DATA_SIZE (512)
+#define MDL_CACHE_DATA_SIZE (1024)
 typedef struct cache_reply_data {
     union {
 	struct cache_reply_data *next;

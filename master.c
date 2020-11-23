@@ -72,6 +72,10 @@
 #ifdef COOLING
 #include "cooling/cooling.h"
 #endif
+#ifdef BLACKHOLES
+#include "blackhole/merger.h"
+#include "blackhole/seed.h"
+#endif
 
 #define LOCKFILE ".lockfile"	/* for safety lock */
 #define STOPFILE "STOP"			/* for user interrupt */
@@ -228,6 +232,10 @@ static uint64_t getMemoryModel(MSR msr) {
 #if  defined(STAR_FORMATION) || defined(FEEDBACK)
     mMemoryModel |= PKD_MODEL_STAR;
 #endif
+#if BLACKHOLES
+    mMemoryModel |= PKD_MODEL_BALL;
+    mMemoryModel |= PKD_MODEL_BH;
+#endif
 
     if (msr->param.bMemNodeBnd)          mMemoryModel |= PKD_MODEL_NODE_BND;
     if (msr->param.bMemNodeVBnd)         mMemoryModel |= PKD_MODEL_NODE_VBND;
@@ -259,12 +267,12 @@ void msrInitializePStore(MSR msr, uint64_t *nSpecies) {
     ps.bLightConeParticles  = msr->param.bLightConeParticles;    
 
 #define SHOW(m) ((ps.mMemoryModel&PKD_MODEL_##m)?" " #m:"")
-       printf("Memory Models:%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s\n", 
+       printf("Memory Models:%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s\n", 
 	   msr->param.bMemIntegerPosition ? " INTEGER_POSITION" : " DOUBLE_POSITION",
 	   SHOW(UNORDERED),SHOW(VELOCITY),SHOW(ACCELERATION),SHOW(POTENTIAL),
 	   SHOW(GROUPS),SHOW(RELAXATION),SHOW(MASS),SHOW(DENSITY),
 	   SHOW(BALL),SHOW(SOFTENING),SHOW(VELSMOOTH),SHOW(SPH),
-	   SHOW(STAR),SHOW(PARTICLE_ID));
+	   SHOW(STAR),SHOW(PARTICLE_ID),SHOW(BH));
 #undef SHOW
     ps.nMinEphemeral = 0;
     ps.nMinTotalStore = 0;
@@ -277,6 +285,9 @@ void msrInitializePStore(MSR msr, uint64_t *nSpecies) {
     if (msr->param.bGravStep      && ps.nEphemeralBytes < 8) ps.nEphemeralBytes = 8;
     if (msr->param.bDoGas         && ps.nEphemeralBytes < 8) ps.nEphemeralBytes = 8;
     if (msr->param.bDoDensity     && ps.nEphemeralBytes < 12) ps.nEphemeralBytes = 12;
+#ifdef BLACKHOLES
+    if (ps.nEphemeralBytes < 8) ps.nEphemeralBytes = 8;
+#endif
 #ifdef MDL_FFTW
     if (msr->param.nGridPk>0) {
 	struct inGetFFTMaxSizes inFFTSizes;
@@ -473,6 +484,7 @@ double msrRestore(MSR msr) {
     nSpecies[FIO_SPECIES_SPH]  = msr->nGas;
     nSpecies[FIO_SPECIES_DARK] = msr->nDark;
     nSpecies[FIO_SPECIES_STAR] = msr->nStar;
+    nSpecies[FIO_SPECIES_BH]   = msr->nBH;
     msrInitializePStore(msr,nSpecies);
 
     restore.nProcessors = msr->param.bParaRead==0?1:(msr->param.nParaRead<=1 ? msr->nThreads:msr->param.nParaRead);
@@ -526,6 +538,7 @@ static void writeParameters(MSR msr,const char *baseName,int iStep,double dTime)
     nSpecies[FIO_SPECIES_SPH]  = msr->nGas;
     nSpecies[FIO_SPECIES_DARK] = msr->nDark;
     nSpecies[FIO_SPECIES_STAR] = msr->nStar;
+    nSpecies[FIO_SPECIES_BH]   = msr->nBH;
 
     fprintf(fp,"VERSION=\"%s\"\n",PACKAGE_VERSION);
     fprintf(fp,"iStep=%d\n",iStep);
@@ -1810,6 +1823,52 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
 		sizeof(double), "dNumberSNIIperMass",
 		"Number of stars that will end their life as SNII events, per mass [1/Mo]");
 #endif
+#ifdef BLACKHOLES
+    msr->param.bMerger = 1;
+    prmAddParam(msr->prm,"bMerger", 0, &msr->param.bMerger,
+		sizeof(int), "bMerger",
+		"Activate merger of black hole partices");
+    msr->param.bAccretion = 1;
+    prmAddParam(msr->prm,"bAccretion", 0, &msr->param.bAccretion,
+		sizeof(int), "bAccretion",
+		"Activate the accretion of gas particle into blackholes");
+    msr->param.bBHFeedback = 1;
+    prmAddParam(msr->prm,"bBHFeedback", 0, &msr->param.bBHFeedback,
+		sizeof(int), "bBHFeedback",
+		"Activate the BH feedback");
+    msr->param.dAccretionAlpha = 1.0;
+    prmAddParam(msr->prm,"dAccretionAlpha", 2, &msr->param.dAccretionAlpha,
+		sizeof(double), "dAccretionAlpha",
+		"Accretion efficiency parameter <adimiensional>");
+    msr->param.dBHRadiativeEff = 0.1;
+    prmAddParam(msr->prm,"dBHRadiativeEff", 2, &msr->param.dBHRadiativeEff,
+		sizeof(double), "dBHRadiativeEff",
+		"Radiative efficiency of the BH <adimiensional>");
+    msr->param.dBHFeedbackEff = 0.1;
+    prmAddParam(msr->prm,"dBHFeedbackEff", 2, &msr->param.dBHFeedbackEff,
+		sizeof(double), "dBHFeedbackEff",
+		"Coupling effiency of the BH with its surroundings <adimiensional>");
+    msr->param.dBHFeedbackEcrit = 1e8;
+    prmAddParam(msr->prm,"dBHFeedbackDeltaT", 2, &msr->param.dBHFeedbackEcrit,
+		sizeof(double), "dBHFeedbackDeltaT",
+		"Temperature change in the feedback events");
+    msr->param.dEddingtonFactor = 4.* M_PI * 1.6726219e-27 / 6.652458e-29 / 299792458.;
+    prmAddParam(msr->prm,"dEddingtonFactor", 2, &msr->param.dEddingtonFactor,
+		sizeof(double), "dEddingtonFactor",
+		"4pi * m_p / sigma_T / c <kg m^-3 s>");
+    msr->param.bPlaceBHSeed = 1;
+    prmAddParam(msr->prm,"bPlaceBHSeed", 0, &msr->param.bPlaceBHSeed,
+		sizeof(int), "bPlaceBHSeed",
+		"Place BH seeds in FOF groups");
+    msr->param.dBHSeedMass = 1.0;
+    prmAddParam(msr->prm,"dBHSeedMass", 2, &msr->param.dBHSeedMass,
+		sizeof(double), "dBHSeedMass",
+		"Mass of the BH seed <code units>");
+    msr->param.dMhaloMin = 1.0;
+    prmAddParam(msr->prm,"dMhaloMin", 2, &msr->param.dMhaloMin,
+		sizeof(double), "dMhaloMin",
+		"Minimum mass required to place a BH in a FOF group <code units>");
+#endif
     /* END of new params */
 
     msr->param.bAccelStep = 0;
@@ -1905,6 +1964,18 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
     msr->param.dFeedbackDu *= msr->param.dGasConst/ 0.59 / (msr->param.dConstGamma - 1); 
     msr->param.dFeedbackDelay *=  (3600*24*365)/msr->param.dSecUnit ;
     msr->param.dNumberSNIIperMass *= 8.73e15 / msr->param.dErgPerGmUnit / 1.736e-2;
+#endif
+
+#ifdef BLACKHOLES
+    msr->param.dEddingtonFactor *= (1e3/MSOLG/msr->param.dMsolUnit )  / pow( 100. / KPCCM / msr->param.dKpcUnit, 3) / msr->param.dSecUnit / msr->param.dBHRadiativeEff ;
+    printf("Eddington Factor: %e \n", msr->param.dEddingtonFactor);
+
+    // We precompute the factor such that we only need to multiply AccretionRate by this amount to get E_feed
+    msr->param.dBHFeedbackEff = msr->param.dBHFeedbackEff * msr->param.dBHRadiativeEff * (1. - msr->param.dBHRadiativeEff) * pow( 299792458. /1e3 /msr->param.dKmPerSecUnit ,2);
+    
+    double n_heat = 1.0; // This, in principle, will not be a parameter
+    // We convert from Delta T to energy per mass. This needs to be multiplied by the mass of the gas particle
+    msr->param.dBHFeedbackEcrit *= msr->param.dGasConst/(msr->param.dConstGamma - 1.)/0.58 * n_heat;
 #endif
 
     /* Gas parameter checks */
@@ -2090,6 +2161,7 @@ void msrLogParams(MSR msr,FILE *fp) {
     fprintf(fp,"\n# N: %"PRIu64,msr->N);
     fprintf(fp," ngas: %"PRIu64,msr->nGas);
     fprintf(fp," nstar: %"PRIu64,msr->nStar);
+    fprintf(fp," nbh: %"PRIu64,msr->nBH);
     fprintf(fp," nThreads: %d",msr->nThreads);
     fprintf(fp," bDiag: %d",msr->param.bDiag);
     fprintf(fp," Verbosity flags: (%d,%d,%d,%d,%d)",msr->param.bVWarnings,
@@ -2596,6 +2668,7 @@ void msrAllNodeWrite(MSR msr, const char *pszFileName, double dTime, double dvFa
     in.nDark = msr->nDark;
     in.nGas  = msr->nGas;
     in.nStar = msr->nStar;
+    in.nBH = msr->nBH;
 
     in.bHDF5 = msr->param.bHDF5;
     in.mFlags = FIO_FLAG_POTENTIAL | FIO_FLAG_DENSITY
@@ -3858,7 +3931,17 @@ void msrDrift(MSR msr,double dTime,double dDelta,int iRoot) {
     in.iRoot = iRoot;
     pstDrift(msr->pst,&in,sizeof(in),NULL,0);
     dsec = msrTime()-sec;
+#ifdef BLACKHOLES
+    sec = msrTime();
+    // IA: for this cases, I think that the ReSmoothNode will not provide any important speed up,
+    //  so we can use the old gather. TODO: check if this is indeed true!
+    msrReSmooth(msr,dTime,SMX_BH_DRIFT,1,0);
+    pstRepositionBH(msr->pst, NULL, 0, NULL, 0);
+    double dsecBH = msrTime()-sec;
+    printf("Drift took %.5f (%.5f for BH) seconds \n", dsec, dsecBH);
+#else
     printf("Drift took %.5f seconds \n", dsec);
+#endif
     }
 
 
@@ -4882,6 +4965,13 @@ int msrNewTopStepKDK(MSR msr,
 #endif
    }
    if (msr->param.bVStep) printf("Step:%f (uMaxRung %d) (uRung %d) \n",*pdStep,*puRungMax, uRung);
+    msrZeroNewRung(msr,uRung,MAX_RUNG,uRung);
+    
+#ifdef BLACKHOLES
+    if (msr->param.bPlaceBHSeed /*&& uRung==1*/){ // Dirty workaround to reduce the number of seeds times, as only fof is done in rung 0, but after this call
+       msrPlaceBHSeed(msr, *pdTime, *puRungMax);
+    }
+#endif
 
     /* Drift the "ROOT" (active) tree or all particle */
     if (bDualTree) {
@@ -4920,6 +5010,23 @@ int msrNewTopStepKDK(MSR msr,
 	if (uRung==0) msrInflate(msr,round(*pdStep));
 	msrDomainDecomp(msr,uRung,0,0);
 	uRoot2 = 0;
+#ifdef BLACKHOLES
+    if (msr->param.bMerger){
+       msrSelActive(msr);
+       msrBHmerger(msr, *pdTime);
+    }
+    if (msr->param.bAccretion && !msr->param.bMerger){
+       struct outGetNParts Nout;
+
+       Nout.n = 0;
+       Nout.nDark = 0;
+       Nout.nGas = 0;
+       Nout.nStar = 0;
+       Nout.nBH = 0;
+       pstMoveDeletedParticles(msr->pst, NULL, 0, &Nout, sizeof(struct outGetNParts));
+    }
+
+#endif
 	msrBuildTree(msr,*pdTime,msr->param.bEwald);
 	}
 
@@ -4955,7 +5062,6 @@ int msrNewTopStepKDK(MSR msr,
 
     if (!uRung && msr->param.bFindGroups) msrNewFof(msr,*pdTime);
 
-    msrZeroNewRung(msr,uRung,MAX_RUNG,uRung); /* IA: Probably not ideal */
 
     // We need to make sure we descend all the way to the bucket with the
     // active tree, or we can get HUGE group cells, and hence too much P-P/P-C
@@ -5384,6 +5490,7 @@ void msrGetNParts(MSR msr) { /* JW: Not pretty -- may be better way via fio */
     assert(outget.nGas == msr->nGas);
     assert(outget.nDark == msr->nDark);
     assert(outget.nStar == msr->nStar);
+    assert(outget.nBH == msr->nBH);
     msr->nMaxOrder = outget.nMaxOrder;
 #if 0
     if (outget.iMaxOrderGas > msr->nMaxOrder) {
@@ -5429,20 +5536,22 @@ msrAddDelParticles(MSR msr) {
 	    msr->nGas += pColNParts[i].nDeltaGas;
 	    msr->nDark += pColNParts[i].nDeltaDark;
 	    msr->nStar += pColNParts[i].nDeltaStar;
+	    msr->nBH += pColNParts[i].nDeltaBH;
 	    }
 	}
-    msr->N = msr->nGas + msr->nDark + msr->nStar;
+    msr->N = msr->nGas + msr->nDark + msr->nStar + msr->nBH;
 
     /*msr->nMaxOrderDark = msr->nMaxOrder;*/
 
     pstNewOrder(msr->pst,pNewOrder,(int)sizeof(*pNewOrder)*msr->nThreads,NULL,0);
 
-    msrprintf(msr,"New numbers of particles: %"PRIu64" gas %"PRIu64" dark %"PRIu64" star\n",
-	      msr->nGas, msr->nDark, msr->nStar);
+    msrprintf(msr,"New numbers of particles: %"PRIu64" gas %"PRIu64" dark %"PRIu64" star %"PRIu64"\n",
+	      msr->nGas, msr->nDark, msr->nStar, msr->nBH);
 
     in.nGas = msr->nGas;
     in.nDark = msr->nDark;
     in.nStar = msr->nStar;
+    in.nBH   = msr->nBH  ;
     pstSetNParts(msr->pst,&in,sizeof(in),NULL,0);
 
     free(pNewOrder);
@@ -5942,6 +6051,7 @@ double msrGenerateIC(MSR msr) {
     msr->nGas  = nSpecies[FIO_SPECIES_SPH];
     msr->nDark = nSpecies[FIO_SPECIES_DARK];
     msr->nStar = nSpecies[FIO_SPECIES_STAR];
+    msr->nBH   = nSpecies[FIO_SPECIES_BH];
     msr->nMaxOrder = msr->N;
 
     if (msr->param.bVStart)
@@ -6065,6 +6175,7 @@ double msrRead(MSR msr, const char *achInFile) {
     msr->nGas  = fioGetN(fio,FIO_SPECIES_SPH);
     msr->nDark = fioGetN(fio,FIO_SPECIES_DARK);
     msr->nStar = fioGetN(fio,FIO_SPECIES_STAR);
+    msr->nBH   = fioGetN(fio,FIO_SPECIES_BH);
     msr->nMaxOrder = msr->N;
 
     read->nProcessors = msr->param.bParaRead==0?1:(msr->param.nParaRead<=1 ? msr->nThreads:msr->param.nParaRead);
@@ -6296,6 +6407,10 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
     int nFOFsDone;
     int i,iSec=0;
     uint64_t nActive;
+            
+    // IA: If we allow for adding/deleting particles, we need to recount them to have the 
+    //  correct number of particles per specie
+    if (msr->param.bAddDelete) msrGetNParts(msr);
 
     printf( "Writing output for step %d\n", iStep );
     msrBuildIoName(msr,achFile,iStep);
@@ -6357,6 +6472,8 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
 	}
     if ( msr->param.bFindGroups ) {
 	msrReorder(msr);
+      //IA: I think that this causes problems if newTopStepKDK is used
+	if (!iStep) msrGroupStats(msr);
 	//sprintf(achFile,"%s.fof",msrOutName(msr));
 	//msrOutArray(msr,achFile,OUT_GROUP_ARRAY);
 	msrBuildName(msr,achFile,iStep);

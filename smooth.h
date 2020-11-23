@@ -111,6 +111,7 @@ int  smReSmoothNode(SMX,SMF *, int, int);
 void buildInteractionList(SMX smx, SMF *smf, int bSymmetric, KDN* node, BND bnd_node, int *nCnt, double r[3], double fBall, int ix, int iy, int iz);
 #endif
 
+void smGather(SMX smx,double fBall2,double r[3], PARTICLE * p);
 void smFastGasPhase1(SMX smx,SMF *smf);
 void smFastGasPhase2(SMX smx,SMF *smf);
 void pkdFastGasCleanup(PKD pkd);  /* frees up the neighbor lists */

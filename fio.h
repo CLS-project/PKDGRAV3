@@ -136,6 +136,7 @@ typedef enum {
     FIO_SPECIES_DARK,
     FIO_SPECIES_SPH,
     FIO_SPECIES_STAR,
+    FIO_SPECIES_BH,
     FIO_SPECIES_LAST /* Must be last */
     } FIO_SPECIES;
 
@@ -178,15 +179,25 @@ typedef struct fioInfo {
 	uint64_t *piParticleID,double *pdPos,double *pdVel,
 	 float *pfMass,float *pfSoft,float *pfPot,float *pfDen,
 	float *pfMetals, float *pfTform);
+    /* IA: We left some dummy arguments, that later can be renamed to actual IO variables interesting
+     *  for black holes */
+    int  (*fcnReadBH) (struct fioInfo *fio,
+	uint64_t *piParticleID,double *pdPos,double *pdVel,
+	 float *pfMass,float *pfSoft,float *pfPot,float *pfDen,
+	float *pfMetals, float *pfTform);
 
     int  (*fcnWriteDark) (struct fioInfo *fio,
 	uint64_t iParticleID,const double *pdPos,const double *pdVel,
-	float fMass,float fSoft,float fPot,float fDen);
+	float fMass,float fSoft,float fPot,float fDen, float *pfotherData);
     int  (*fcnWriteSph) (
 	struct fioInfo *fio,uint64_t iParticleID,const double *pdPos,const double *pdVel,
 	float fMass,float fSoft,float fPot,float fDen,
-      float fTemp,float* fMetals, float fBall, float fIntEnergy, float fSFR);
+      float fTemp,float* fMetals, float fBall, float fIntEnergy, float *pfotherData);
     int  (*fcnWriteStar) (struct fioInfo *fio,
+	uint64_t iParticleID,const double *pdPos,const double *pdVel,
+	float fMass,float fSoft,float fPot,float fDen,
+	float *fMetals,float *pfotherData);
+    int  (*fcnWriteBH) (struct fioInfo *fio,
 	uint64_t iParticleID,const double *pdPos,const double *pdVel,
 	float fMass,float fSoft,float fPot,float fDen,
 	float *fMetals,float fTform);
@@ -276,26 +287,40 @@ static inline int fioReadStar(
     return (*fio->fcnReadStar)(fio,piParticleID,pdPos,pdVel,pfMass,pfSoft,pfPot,pfDen,
 			       pfMetals,pfTform);
     }
+static inline int fioReadBH(
+    FIO fio,uint64_t *piParticleID,double *pdPos,double *pdVel,
+    float *pfMass,float *pfSoft,float *pfPot,float *pfDen,
+    float *pfMetals,float *pfTform) {
+    return (*fio->fcnReadBH)(fio,piParticleID,pdPos,pdVel,pfMass,pfSoft,pfPot,pfDen,
+			       pfMetals,pfTform);
+    }
 /*
 ** Write a particle.  Must already be positioned at the appropriate particle.
 */
 static inline int fioWriteDark(
     FIO fio,uint64_t iParticleID,const double *pdPos,const double *pdVel,
-    float fMass,float fSoft,float fPot,float fDen) {
-    return (*fio->fcnWriteDark)(fio,iParticleID,pdPos,pdVel,fMass,fSoft,fPot,fDen);
+    float fMass,float fSoft,float fPot,float fDen, float *pfotherData) {
+    return (*fio->fcnWriteDark)(fio,iParticleID,pdPos,pdVel,fMass,fSoft,fPot,fDen,pfotherData);
     }
 static inline int  fioWriteSph(
     FIO fio,uint64_t iParticleID,const double *pdPos,const double *pdVel,
     float fMass,float fSoft,float fPot,float fDen,
-    float fTemp,float* fMetals, float fBall, float fIntEnergy, float fSFR) {
+    float fTemp,float* fMetals, float fBall, float fIntEnergy, float *pfotherData) {
     return (*fio->fcnWriteSph)(fio,iParticleID,pdPos,pdVel,fMass,fSoft,fPot,fDen,
-			      fTemp, fMetals, fBall, fIntEnergy, fSFR);
+			      fTemp, fMetals, fBall, fIntEnergy, pfotherData);
     }
 static inline int fioWriteStar(
     FIO fio,uint64_t iParticleID,const double *pdPos,const double *pdVel,
     float fMass,float fSoft,float fPot,float fDen,
-    float* fMetals,float fTform) {
+    float* fMetals,float *pfotherData) {
     return (*fio->fcnWriteStar)(fio,iParticleID,pdPos,pdVel,fMass,fSoft,fPot,fDen,
+			       fMetals,pfotherData);
+    }
+static inline int fioWriteBH(
+    FIO fio,uint64_t iParticleID,const double *pdPos,const double *pdVel,
+    float fMass,float fSoft,float fPot,float fDen,
+    float* fMetals,float fTform) {
+    return (*fio->fcnWriteBH)(fio,iParticleID,pdPos,pdVel,fMass,fSoft,fPot,fDen,
 			       fMetals,fTform);
     }
 /*

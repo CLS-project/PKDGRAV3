@@ -56,6 +56,10 @@
 #ifdef COOLING
 #include "cooling/cooling.h"
 #endif
+#ifdef BLACKHOLES
+#include "blackhole/merger.h"
+#include "blackhole/seed.h"
+#endif
 
 void pstAddServices(PST pst,MDL mdl) {
     int nThreads;
@@ -199,6 +203,14 @@ void pstAddServices(PST pst,MDL mdl) {
 		  (fcnService_t*) pstCoolingHydReion,
 		  0,0);
 #endif 
+#ifdef BLACKHOLES
+    mdlAddService(mdl,PST_BH_PLACESEED,pst,
+		  (fcnService_t*) pstPlaceBHSeed,
+		  sizeof(struct inPlaceBHSeed), sizeof(struct outPlaceBHSeed));
+    mdlAddService(mdl,PST_BH_REPOSITION,pst,
+		  (fcnService_t*) pstRepositionBH,
+		  0, 0);
+#endif
     mdlAddService(mdl,PST_GETMINDT,pst,
 		  (fcnService_t*) pstGetMinDt,
 		  0, sizeof(struct outGetMinDt));
@@ -334,6 +346,8 @@ void pstAddServices(PST pst,MDL mdl) {
 		  0, 0 );
     mdlAddService(mdl,PST_SELDELETED,pst,(fcnService_t*)pstSelDeleted,
 		  0, 0 );
+    mdlAddService(mdl,PST_MOVEDELETED,pst,(fcnService_t*)pstMoveDeletedParticles,
+		  0, sizeof(struct outGetNParts) );
     mdlAddService(mdl,PST_SELBYID,pst,(fcnService_t*)pstSelById,
 		  sizeof(struct inSelById), sizeof(struct outSelById));
     mdlAddService(mdl,PST_SELMASS,pst,(fcnService_t*)pstSelMass,
@@ -462,7 +476,7 @@ static void initializePStore(PKD *ppkd,MDL mdl,struct inInitializePStore *in) {
 	ppkd,mdl,in->nStore,in->nMinTotalStore,in->nMinEphemeral,in->nEphemeralBytes,
 	in->nTreeBitsLo,in->nTreeBitsHi,
 	in->iCacheSize,in->iWorkQueueSize,in->iCUDAQueueSize,in->fPeriod,
-	in->nSpecies[FIO_SPECIES_DARK],in->nSpecies[FIO_SPECIES_SPH],in->nSpecies[FIO_SPECIES_STAR],
+	in->nSpecies[FIO_SPECIES_DARK],in->nSpecies[FIO_SPECIES_SPH],in->nSpecies[FIO_SPECIES_STAR], in->nSpecies[FIO_SPECIES_BH],
 	in->mMemoryModel,in->bLightCone,in->bLightConeParticles);
     }
 
@@ -2237,7 +2251,7 @@ int pstWrite(PST pst,void *vin,int nIn,void *vout,int nOut) {
           
 
 
-          pkdWriteHeaderFIO(plcl->pkd, fio, 1./sqrt(in->dvFac), in->dTime, in->nDark, in->nGas, in->nStar);
+          pkdWriteHeaderFIO(plcl->pkd, fio, 1./sqrt(in->dvFac), in->dTime, in->nDark, in->nGas, in->nStar, in->nBH);
 	    pkdWriteFIO(plcl->pkd,fio,in->dvFac,&in->bnd);
 
 	    for(i=in->iLower+1; i<in->iUpper; ++i ) {
@@ -2614,6 +2628,41 @@ int pstGroupStats(PST pst,void *vin,int nIn,void *vout,int nOut) {
     return 0;
     }
 
+#ifdef BLACKHOLES
+int pstPlaceBHSeed(PST pst,void *vin,int nIn,void *vout,int nOut){
+    struct inPlaceBHSeed *in = vin;
+    struct outPlaceBHSeed *out = vout;
+    struct outPlaceBHSeed outUpper;
+    mdlassert(pst->mdl,nIn == sizeof(struct inPlaceBHSeed));
+    if (pst->nLeaves > 1) {
+        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_BH_PLACESEED,in,nIn);
+        pstPlaceBHSeed(pst->pstLower,vin,nIn,vout,nOut);
+        mdlGetReply(pst->mdl,rID,&outUpper,&nOut);
+	  assert(nOut==sizeof(struct outPlaceBHSeed));
+        out->nBHs += outUpper.nBHs;
+        }
+    else {
+	LCL *plcl = pst->plcl;
+        out->nBHs = pkdPlaceBHSeed(plcl->pkd,in->dTime, in->dScaleFactor, in->uRungMax, in->dDenMin);
+        }
+    return sizeof(struct outPlaceBHSeed);
+
+}
+int pstRepositionBH(PST pst,void *vin,int nIn,void *vout,int nOut){
+    if (pst->nLeaves > 1) {
+        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_BH_REPOSITION,NULL,0);
+        pstRepositionBH(pst->pstLower,vin,nIn,vout,nOut);
+        mdlGetReply(pst->mdl,rID,NULL,NULL);
+        }
+    else {
+	LCL *plcl = pst->plcl;
+        pkdRepositionBH(plcl->pkd);
+        }
+    return 0;
+
+}
+#endif
+
 int pstSmooth(PST pst,void *vin,int nIn,void *vout,int nOut) {
     struct inSmooth *in = vin;
 
@@ -2751,7 +2800,12 @@ int pstReSmoothNode(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
 	smInitialize(&smx,plcl->pkd,&in->smf,in->nSmooth,
 		     in->bPeriodic,in->bSymmetric,in->iSmoothType);
-	out->nSmoothed = smReSmoothNode(smx,&in->smf, in->bSymmetric, in->iSmoothType);
+#ifdef BLACKHOLES
+      if (in->iSmoothType == SMX_BH_MERGER)
+      out->nSmoothed = smReSmoothBHNode(smx,&in->smf, in->bSymmetric, in->iSmoothType);
+      else
+#endif
+     	out->nSmoothed = smReSmoothNode(smx,&in->smf, in->bSymmetric, in->iSmoothType);
 	smFinish(smx,&in->smf);
 #if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER) && defined(DEBUG_FLUX_INFO)
       if (out->nSmoothed) {
@@ -3700,6 +3754,7 @@ int pstGetNParts(PST pst,void *vin,int nIn,void *vout,int nOut)
 	out->nGas += outtmp.nGas;
 	out->nDark += outtmp.nDark;
 	out->nStar += outtmp.nStar;
+      out->nBH += outtmp.nBH;
 	if (outtmp.nMaxOrder > out->nMaxOrder) out->nMaxOrder = outtmp.nMaxOrder;
 	}
     else {
@@ -3717,7 +3772,7 @@ int pstSetNParts(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	mdlGetReply(pst->mdl, rID, NULL, NULL);
 	}
     else {
-	pkdSetNParts(pst->plcl->pkd, in->nGas, in->nDark, in->nStar);
+	pkdSetNParts(pst->plcl->pkd, in->nGas, in->nDark, in->nStar, in->nBH);
 	}
     return 0;
     }
@@ -4063,6 +4118,27 @@ int pstSelDeleted(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	pkdSelDeleted(plcl->pkd);
 	}
     return 0;
+    }
+
+int pstMoveDeletedParticles(PST pst,void *vin,int nIn,void *vout,int nOut) {
+    LCL *plcl = pst->plcl;
+    struct outGetNParts *out = vout;
+    struct outGetNParts outUpper;
+
+    if (pst->nLeaves > 1) {
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_MOVEDELETED,vin,nIn);
+	pstMoveDeletedParticles(pst->pstLower,vin,nIn,vout,nOut);
+	mdlGetReply(pst->mdl,rID,&outUpper,&nOut);
+	out->n += outUpper.n;
+	out->nGas += outUpper.nGas;
+	out->nDark += outUpper.nDark;
+	out->nStar += outUpper.nStar;
+      out->nBH += outUpper.nBH;
+	}
+    else {
+	pkdMoveDeletedParticles(plcl->pkd, &out->n, &out->nGas, &out->nDark, &out->nStar, &out->nBH);
+	}
+    return sizeof(struct outGetNParts);
     }
 
 int pstSelById(PST pst,void *vin,int nIn,void *vout,int nOut) {

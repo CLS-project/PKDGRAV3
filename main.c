@@ -196,6 +196,13 @@ void master(MDL mdl,void *pst) {
 	return;
 	}
 
+#if defined(BLACKHOLES) || defined(STAR_FORMATION)
+    // IA: In these cases, it is assumed that the softening is either fixed by
+    // dSoft, or set indidually with oSoft.
+    // If not, star and BH particles may end up having a softening of zero!!
+    assert(prmSpecified(msr->prm,"dSoft") || msr->param.bMemSoft);
+#endif
+
     /* Adjust theta for gravity calculations. */
     if (msrComove(msr)) msrSwitchTheta(msr,dTime);
 
@@ -436,6 +443,18 @@ void master(MDL mdl,void *pst) {
 		msrCheckpoint(msr,iStep,dTime);
 		bDoCheckpoint = 0;
 		}
+          /* IA: at the begining of the KDK we could have some smoothing operator (e.g.m, BH drift),
+           *  but we can not be sure that the tree is valid at that point unless we do this.
+           *
+           *  The tree may be unusable if, for example, msrGroupStats (or any function that reorder particles)
+           *   has been called after the latest tree build.
+           *
+           *  TODO CHECK: behaviour when !bNewKDK
+           */
+	    if (msr->param.bNewKDK && !bDoOutput) {
+	      msrDomainDecomp(msr,0,0,0);
+		msrBuildTree(msr,dTime,msr->param.bEwald);
+          }
 	    if (bDoOutput) {
 		msrOutput(msr,iStep,dTime,0);
 		bDoOutput = 0;

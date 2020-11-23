@@ -111,6 +111,7 @@ static inline int64_t d2u64(double d) {
 #define PKD_MODEL_PARTICLE_ID  (1<<13) /* Particles have a unique ID */
 #define PKD_MODEL_UNORDERED    (1<<14) /* Particles do not have an order */
 #define PKD_MODEL_INTEGER_POS  (1<<15) /* Particles do not have an order */
+#define PKD_MODEL_BH           (1<<16) /* BH fields */
 
 #define PKD_MODEL_NODE_MOMENT  (1<<24) /* Include moment in the tree */
 #define PKD_MODEL_NODE_ACCEL   (1<<25) /* mean accel on cell (for grav step) */
@@ -325,14 +326,31 @@ typedef struct sphfields {
 
 typedef struct starfields {
     double omega;
+#ifdef COOLING
+    float chemistry[chemistry_element_count];
+#endif
     float fTimer;  /* Time of formation */
     int hasExploded; /* Has exploded as a supernova? */
     } STARFIELDS;   
+
+typedef struct blackholefields {
+    PARTICLE *pLowPot;
+    double omega;
+    double dInternalMass;
+    double newPos[3];
+    double lastUpdateTime;
+    double dAccretionRate;
+    double dEddingtonRatio;
+    double dFeedbackRate;
+    double dAccEnergy;
+    float fTimer;    /* Time of formation */
+    } BHFIELDS;   
 
 #ifdef OPTIM_UNION_EXTRAFIELDS
 typedef union extrafields {
     SPHFIELDS sph;
     STARFIELDS star;
+    BHFIELDS bh;
 } EXTRAFIELDS;
 #endif
 
@@ -750,7 +768,20 @@ typedef struct {
     float fEnvironDensity0;
     float fEnvironDensity1;
     float rHalf;
+    int nBH;
+    int nStar;
+    int nGas;
+    int nDM;
     } TinyGroupTable;
+
+/* IA: For the BH seeding, we need a small part of the FoF information
+ *  to survive for a while
+ */
+typedef struct {
+   double rPot[3];
+   float fMass;
+   int nBH;
+    } VeryTinyGroupTable;
 
 //typedef struct {
 //    } SmallGroupTable;
@@ -901,6 +932,7 @@ typedef struct pkdContext {
     uint64_t nDark;
     uint64_t nGas;
     uint64_t nStar;
+    uint64_t nBH;
     double fPeriod[3];
     char **kdNodeListPRIVATE; /* BEWARE: also char instead of KDN */
     int iTopTree[NRESERVED_NODES];
@@ -950,6 +982,7 @@ typedef struct pkdContext {
     int oBall; /* One float */
     int oSph; /* Sph structure */
     int oStar; /* Star structure */
+    int oBH;
     int oRelaxation;
     int oVelSmooth;
     int oRungDest; /* Destination processor for each rung */
@@ -977,6 +1010,7 @@ typedef struct pkdContext {
 #if defined(STAR_FORMATION) && defined(FEEDBACK)
     int oNodeNstar;
 #endif
+    int oNodeNbh;
 #endif
 
     /*
@@ -1044,6 +1078,7 @@ typedef struct pkdContext {
     uint32_t iRemoteGroup,nMaxRemoteGroups;
     FOFRemote *tmpFofRemote;
     TinyGroupTable *tinyGroupTable;
+    VeryTinyGroupTable *veryTinyGroupTable;
 
     GHtmpGroupTable *tmpHopGroups;
     HopGroupTable *hopGroups;
@@ -1277,6 +1312,12 @@ static inline void pkdNodeSetNstar(  PKD pkd, KDN *n, int nstar){
     }
 
 #endif
+static inline int pkdNodeNbh( PKD pkd, KDN* n){
+   return *CAST(int *, pkdNodeField(n, pkd->oNodeNbh));
+   }
+static inline void pkdNodeSetNBH(  PKD pkd, KDN *n, int nbh){
+    *CAST(int*, pkdNodeField(n, pkd->oNodeNbh)) = nbh;
+    }
 #endif
 
 static inline BND *pkdNodeVBnd( PKD pkd, KDN *n ) {
@@ -1504,6 +1545,13 @@ static inline STARFIELDS *pkdStar( PKD pkd, PARTICLE *p ) {
     return ((STARFIELDS *) pkdField(p,pkd->oStar));
 #endif
     }
+static inline BHFIELDS *pkdBH( PKD pkd, PARTICLE *p ) {
+#ifdef OPTIM_UNION_EXTRAFIELDS
+    return ((BHFIELDS *) pkdField(p,pkd->oSph));
+#else
+    return ((BHFIELDS *) pkdField(p,pkd->oBH));
+#endif
+    }
 static inline double *pkd_vPred( PKD pkd, PARTICLE *p ) {
     return &(((SPHFIELDS *) pkdField(p,pkd->oSph))->vPred[0]);
     }
@@ -1585,7 +1633,7 @@ void pkdStopTimer(PKD,int);
 void pkdInitialize(
     PKD *ppkd,MDL mdl,int nStore,uint64_t nMinTotalStore,uint64_t nMinEphemeral,uint32_t nEphemeralBytes,
     int nTreeBitsLo, int nTreeBitsHi,
-    int iCacheSize,int iWorkQueueSize,int iCUDAQueueSize,double *fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,
+    int iCacheSize,int iWorkQueueSize,int iCUDAQueueSize,double *fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,uint64_t nBH,
     uint64_t mMemoryModel, int bLightCone, int bLightConeParticles);
 void pkdFinish(PKD);
 size_t pkdClCount(PKD pkd);
@@ -1644,7 +1692,7 @@ void pkdLocalOrder(PKD,uint64_t iMinOrder,uint64_t iMaxOrder);
 void pkdCheckpoint(PKD pkd,const char *fname);
 void pkdRestore(PKD pkd,const char *fname);
 uint32_t pkdWriteFIO(PKD pkd,FIO fio,double dvFac,BND *bnd);
-void pkdWriteHeaderFIO(PKD pkd, FIO fio, double ScaleFactor, double dTime, uint64_t nDark, uint64_t nGas, uint64_t nStar);
+void pkdWriteHeaderFIO(PKD pkd, FIO fio, double ScaleFactor, double dTime, uint64_t nDark, uint64_t nGas, uint64_t nStar,uint64_t nBH);
 void pkdWriteFromNode(PKD pkd,int iNode, FIO fio,double dvFac,BND *bnd);
 void pkdWriteViaNode(PKD pkd, int iNode);
 void pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
@@ -1735,6 +1783,7 @@ void pkdSetRungVeryActive(PKD pkd, int iRung );
 int pkdIsGas(PKD,PARTICLE *);
 int pkdIsDark(PKD,PARTICLE *);
 int pkdIsStar(PKD,PARTICLE *);
+int pkdIsBH(PKD,PARTICLE *);
 void pkdColNParts(PKD pkd, int *pnNew, int *nDeltaGas, int *nDeltaDark,
 		  int *nDeltaStar);
 void pkdNewOrder(PKD pkd, int nStart);
@@ -1744,6 +1793,7 @@ struct outGetNParts {
     total_t nGas;
     total_t nDark;
     total_t nStar;
+    total_t nBH;
     total_t nMaxOrder;
     };
 
@@ -1751,8 +1801,9 @@ struct outGetNParts {
 extern "C" {
 #endif
 
+void pkdMoveDeletedParticles(PKD pkd, total_t *n, total_t *nGas, total_t *nDark, total_t *nStar, total_t *nBH);
 void pkdGetNParts(PKD pkd, struct outGetNParts *out );
-void pkdSetNParts(PKD pkd, int nGas, int nDark, int nStar);
+void pkdSetNParts(PKD pkd, int nGas, int nDark, int nStar, int nBH);
 void pkdInitRelaxation(PKD pkd);
 
 #ifdef USE_GRAFIC

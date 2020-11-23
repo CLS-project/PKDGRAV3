@@ -552,6 +552,22 @@ static int listReadStar(
     return rc;
     }
 
+static int listReadBH(
+    FIO fio,uint64_t *piParticleID,double *pdPos,double *pdVel,
+    float *pfMass,float *pfSoft,float *pfPot,float *pfDen,
+    float *pfMetals, float *pfTform) {
+    fioList *vio = (fioList *)fio;
+    int rc;
+    assert(fio->eFormat == FIO_FORMAT_MULTIPLE);
+    if (fioSpecies(vio->fioCurrent) != FIO_SPECIES_BH) return 0;
+    rc = fioReadBH(
+	vio->fioCurrent,piParticleID,pdPos,pdVel,
+	pfMass,pfSoft,pfPot,pfDen,
+	pfMetals,pfTform);
+    listNextSpecies(fio);
+    return rc;
+    }
+
 static void listClose(FIO fio) {
     fioList *vio = (fioList *)fio;
     assert(fio->eFormat == FIO_FORMAT_MULTIPLE);
@@ -649,6 +665,7 @@ static FIO listOpen(fioFileList *fileList, FIO (*baseOpen)(const char *fname,int
     vio->fio.fcnReadDark = listReadDark;
     vio->fio.fcnReadSph  = listReadSph;
     vio->fio.fcnReadStar = listReadStar;
+    vio->fio.fcnReadBH   = listReadBH;
     vio->fio.fcnGetAttr  = listGetAttr;
     vio->fio.fcnSpecies  = listSpecies;
 
@@ -2710,6 +2727,7 @@ static void writeSet(
 #define FIELD_POSITION    "Coordinates"
 #define FIELD_VELOCITY    "Velocities"
 #define FIELD_MASS        "Masses"
+#define FIELD_GROUP       "GroupID"
 #define FIELD_SOFTENING   "Softening"
 #define FIELD_SMOOTHING   "SmoothingLength"
 #define FIELD_POTENTIAL   "Potential"
@@ -2719,6 +2737,11 @@ static void writeSet(
 #define FIELD_METALS      "Metallicity"
 #define FIELD_SFR         "StarFormationRate"
 #define FIELD_AGE         "StellarFormationTime"
+#define FIELD_ACCRETION   "AccretionRate"
+#define FIELD_EDD_RATIO   "EddingtonRatio"
+#define FIELD_FEED_RATE   "FeedbackRate"
+#define FIELD_FEED_ENERGY "AccumulatedFeedbackEnergy"
+#define FIELD_BHMASS      "InternalMass"
 
 
 #define FIELD_ORDER      "ParticleIDs"
@@ -2737,6 +2760,7 @@ enum DARK_FIELDS{
    DARK_POTENTIAL   ,
    DARK_DENSITY     ,
    DARK_MASS        ,
+   DARK_GROUP       ,
    DARK_N           ,
 };
 
@@ -2760,6 +2784,7 @@ enum SPH_FIELDS{
    SPH_SFR         ,
    SPH_SMOOTHING   ,
    SPH_INTERNALENERGY,
+   SPH_GROUP       ,
    SPH_N           ,
 };
 
@@ -2771,9 +2796,25 @@ enum STAR_FIEDS{
    STAR_DENSITY     ,
    STAR_METALS      ,
    STAR_AGE         ,
+   STAR_GROUP       ,
    STAR_N           ,
 };
 
+enum BH_FIEDS{
+   BH_POSITION    = 0,
+   BH_VELOCITY    ,
+   BH_MASS        ,
+   BH_POTENTIAL   ,
+   BH_DENSITY     ,
+   BH_ACCRETION   ,
+   BH_EDD_RATIO   ,
+   BH_INT_MASS    ,
+   BH_AGE         ,
+   BH_FEED_RATE   ,
+   BH_FEED_ENERGY ,
+   BH_GROUP       ,
+   BH_N           ,
+};
 
 
 typedef struct {
@@ -2845,6 +2886,7 @@ const char *fioSpeciesName(FIO_SPECIES eSpecies) {
     case FIO_SPECIES_DARK: return "PartType1";
     case FIO_SPECIES_SPH:  return "PartType0";
     case FIO_SPECIES_STAR: return "PartType4";
+    case FIO_SPECIES_BH: return "PartType3";
     default:
 	break;
 	}
@@ -2920,6 +2962,7 @@ DECLARE_FIELD_TYPE(double,H5T_NATIVE_DOUBLE)
 DECLARE_FIELD_TYPE(uint64_t,H5T_NATIVE_UINT64)
 DECLARE_FIELD_TYPE(uint32_t,H5T_NATIVE_UINT32)
 DECLARE_FIELD_TYPE(uint8_t,H5T_NATIVE_UINT8)
+DECLARE_FIELD_TYPE(int32_t,H5T_NATIVE_INT32)
 
 static void field_read(IOFIELD *field, PINDEX iOffset, uint_fast32_t nBuffered) {
     if (field->setId != H5I_INVALID_HID) {
@@ -3308,6 +3351,7 @@ static int hdf5GetAttr(
           abort();
     }
 
+
     H5Eget_auto(&save_func,&save_data);
     H5Eset_auto(0,0);
 
@@ -3405,9 +3449,9 @@ static void hdf5Close(FIO fio) {
 	}
     H5Gclose(hio->headerID);
     //If not defined in the IC, this will give a warning
-    H5Gclose(hio->cosmoID);
-    H5Gclose(hio->unitsID);
-    H5Gclose(hio->paramsID);
+    if (hio->cosmoID != H5I_INVALID_HID) H5Gclose(hio->cosmoID);
+    if (hio->unitsID != H5I_INVALID_HID) H5Gclose(hio->unitsID);
+    if (hio->paramsID != H5I_INVALID_HID) H5Gclose(hio->paramsID);
     H5Fflush(hio->fileID,H5F_SCOPE_GLOBAL);
     assert(H5Fget_obj_count(hio->fileID,H5F_OBJ_ALL)==1);
     H5Fclose(hio->fileID);
@@ -3609,7 +3653,7 @@ static int hdf5ReadSph(
        }else{
           // IA: There is temperature, in this case we need to assume a conversion to internal energy. This should be avoided unless we know what we are doing!
           *pfTemp = -(*pfTemp); // A negative values hints pkdReadSph that we are dealing with temperatures, rather than internal energies
-          printf("WARNING: Reading temperature input data \n");
+          //printf("WARNING: Reading temperature input data \n");
        }
     }else{
        // There is internal energy, do nothing?
@@ -3661,8 +3705,8 @@ static int hdf5ReadStar(
 
     /* If each particles has a unique class, use that */
     if ( !field_get_float(pfMass,&base->fldFields[STAR_MASS],base->iIndex) )
-       abort();
-       //class_get(pfMass,pfSoft,&base->ioClass,*piParticleID,base->iIndex);
+       //abort();
+       class_get(pfMass,pfSoft,&base->ioClass,*piParticleID,base->iIndex);
       
 
     /* Potential is optional */
@@ -3703,9 +3747,84 @@ static int hdf5ReadStar(
     return 1;
     }
 
+static int hdf5ReadBH(
+    FIO fio,uint64_t *piParticleID,double *pdPos,double *pdVel,
+    float *pfMass,float *pfSoft,float *pfPot,float *pfDen,
+    float *pfotherData, float *pfTform) {
+
+    fioHDF5 *hio = (fioHDF5 *)(fio);
+    IOBASE *base = &hio->base[hio->eCurrent];
+    int i;
+
+    assert(fio->eFormat == FIO_FORMAT_HDF5);
+    assert(hio->eCurrent == FIO_SPECIES_BH);
+
+    /* If we have exhausted our buffered data, read more */
+    if (base->iIndex == base->nBuffered) {
+	base_read(hio,base);
+	}
+
+    /* Position and Velocity are always present */
+    field_get_double(pdPos,&base->fldFields[BH_POSITION],base->iIndex);
+    field_get_double(pdVel,&base->fldFields[BH_VELOCITY],base->iIndex);
+
+
+    /* If each particles has a unique class, use that */
+    if ( !field_get_float(pfMass,&base->fldFields[BH_MASS],base->iIndex) )
+       //abort();
+       class_get(pfMass,pfSoft,&base->ioClass,*piParticleID,base->iIndex);
+      
+
+    // IA: We will left for now a few dummy IO fields, that may be used in the future
+    //  If I delete them I will need to add them again... so I will just left them here:)
+
+    /* Potential is optional */
+    //if ( !field_get_float(pfPot,&base->fldFields[BH_POTENTIAL],base->iIndex) )
+	*pfPot = 0.0f;
+
+    /* Density is optional */
+    if ( !field_get_float(pfDen,&base->fldFields[BH_DENSITY],base->iIndex) )
+	*pfDen = 0.0f;
+
+    /* Internal mass is optional, but advised */
+    if ( !field_get_float(&pfotherData[0],&base->fldFields[BH_INT_MASS],base->iIndex) ){
+       printf("Warning! Assuming both BH masses are equal \n");
+       pfotherData[0] = *pfMass;
+       }
+
+    /* Accretion rate is optional */
+    if ( !field_get_float(&pfotherData[1],&base->fldFields[BH_ACCRETION],base->iIndex) )
+	pfotherData[1] = 0.0f;
+
+    /* Formation time is optional */
+    if ( !field_get_float(pfTform,&base->fldFields[BH_AGE],base->iIndex) )
+	*pfTform = 0.0f;
+
+    /* iOrder is either sequential, or is listed for each particle */
+    *piParticleID = ioorder_get(&base->ioOrder,base->iOffset,base->iIndex);
+
+
+    /*
+    ** Next particle.  If we are at the end of this species,
+    ** advance to the start of the next species.
+    */
+    base->iIndex++;
+    if ((base->iIndex+base->iOffset)==base->nTotal) {
+	for( i=hio->eCurrent+1; i<FIO_SPECIES_LAST; i++) {
+	    base = &hio->base[i];
+	    if ( base->nTotal ) {
+		hio->eCurrent = i;
+		base->iOffset = base->iIndex = base->nBuffered = 0;
+		break;
+		}
+	    }
+	}
+    return 1;
+    }
+
 static int  hdf5WriteDark(
     struct fioInfo *fio,uint64_t iParticleID,const double *pdPos,const double *pdVel,
-    float fMass,float fSoft,float fPot,float fDen) {
+    float fMass,float fSoft,float fPot,float fDen, float *pfotherData) {
     fioHDF5 *hio = (fioHDF5 *)(fio);
     IOBASE *base = &hio->base[FIO_SPECIES_DARK];
 
@@ -3715,6 +3834,8 @@ static int  hdf5WriteDark(
     /* First time for this particle type? */
     if (base->group_id == H5I_INVALID_HID) {
 	base_create(hio,base,FIO_SPECIES_DARK,DARK_N,iParticleID);
+	field_create(&base->fldFields[DARK_GROUP],base->group_id,
+		     FIELD_GROUP, H5T_NATIVE_INT32, H5T_NATIVE_INT32, 1);
 	}
 
     ioorder_add(base,iParticleID);
@@ -3723,6 +3844,8 @@ static int  hdf5WriteDark(
     field_add_double(pdVel,&base->fldFields[DARK_VELOCITY],base->iIndex);
     field_add_float(&fPot,&base->fldFields[DARK_POTENTIAL],base->iIndex);
     field_add_float(&fDen,&base->fldFields[DARK_DENSITY],base->iIndex);
+    int32_t iGroup = (int32_t) pfotherData[0];
+    field_add_int32_t(&iGroup,&base->fldFields[DARK_GROUP],base->iIndex);
 
     /* If we have exhausted our buffered data, read more */
     if (++base->iIndex == CHUNK_SIZE) {
@@ -3734,11 +3857,15 @@ static int  hdf5WriteDark(
 static int hdf5WriteSph(
     struct fioInfo *fio,uint64_t iParticleID,const double *pdPos,const double *pdVel,
     float fMass,float fSoft,float fPot,float fDen,
-    float fIntEnergy,float* fMetals, float fBall, float fTemp, float fSFR) {
+    float fIntEnergy,float* fMetals, float fBall, float fTemp, float* pfotherData) {
     fioHDF5 *hio = (fioHDF5 *)(fio);
     IOBASE *base = &hio->base[FIO_SPECIES_SPH];
     assert(fio->eFormat == FIO_FORMAT_HDF5);
     assert(fio->eMode == FIO_MODE_WRITING);
+
+
+    float fSFR = pfotherData[0];
+    int32_t iGroup = (int32_t)pfotherData[1];
 
     /* First time for this particle type? */
     if (base->group_id == H5I_INVALID_HID) {
@@ -3751,6 +3878,8 @@ static int hdf5WriteSph(
 		     FIELD_SMOOTHING, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, 1 );
 	field_create(&base->fldFields[SPH_METALS],base->group_id,
 		     FIELD_METALS, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, NUMBER_METALS);
+	field_create(&base->fldFields[SPH_GROUP],base->group_id,
+		     FIELD_GROUP, H5T_NATIVE_INT32, H5T_NATIVE_INT32, 1);
 #ifdef STAR_FORMATION
 	field_create(&base->fldFields[SPH_SFR],base->group_id,
 		     FIELD_SFR, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, 1);
@@ -3768,6 +3897,7 @@ static int hdf5WriteSph(
     field_add_float(&fIntEnergy,&base->fldFields[SPH_INTERNALENERGY],base->iIndex);
     field_add_float(&fBall,&base->fldFields[SPH_SMOOTHING],base->iIndex);
     field_add_float(fMetals,&base->fldFields[SPH_METALS],base->iIndex);
+    field_add_int32_t(&iGroup,&base->fldFields[SPH_GROUP],base->iIndex);
 #ifdef STAR_FORMATION
     field_add_float(&fSFR,&base->fldFields[SPH_SFR],base->iIndex);
 #endif
@@ -3781,11 +3911,13 @@ static int hdf5WriteSph(
 
 static int hdf5WriteStar(
     struct fioInfo *fio,uint64_t iParticleID,const double *pdPos,const double *pdVel,
-    float fMass,float fSoft,float fPot,float fDen,float *fMetals,float fTform) {
+    float fMass,float fSoft,float fPot,float fDen,float *fMetals,float *pfOtherData ) {
     fioHDF5 *hio = (fioHDF5 *)(fio);
     IOBASE *base = &hio->base[FIO_SPECIES_STAR];
     assert(fio->eFormat == FIO_FORMAT_HDF5);
     assert(fio->eMode == FIO_MODE_WRITING);
+    float fTform = pfOtherData[0];
+    int32_t iGroup = pfOtherData[1];
 
     /* First time for this particle type? */
     if (base->group_id == H5I_INVALID_HID) {
@@ -3794,6 +3926,8 @@ static int hdf5WriteStar(
 		     FIELD_METALS, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, NUMBER_METALS );
 	field_create(&base->fldFields[STAR_AGE],base->group_id,
 		     FIELD_AGE, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, 1 );
+	field_create(&base->fldFields[STAR_GROUP],base->group_id,
+		     FIELD_GROUP, H5T_NATIVE_INT32, H5T_NATIVE_INT32, 1);
 	}
     class_add(base,iParticleID,fMass,0.0);
     ioorder_add(base,iParticleID);
@@ -3804,6 +3938,64 @@ static int hdf5WriteStar(
     //field_add_float(&fDen,&base->fldFields[DARK_DENSITY],base->iIndex);
     field_add_float(fMetals,&base->fldFields[STAR_METALS],base->iIndex);
     field_add_float(&fTform,&base->fldFields[STAR_AGE],base->iIndex);
+    field_add_int32_t(&iGroup,&base->fldFields[STAR_GROUP],base->iIndex);
+
+    /* If we have exhausted our buffered data, read more */
+    if (++base->iIndex == CHUNK_SIZE) {
+	base_write(base);
+	}
+    return 1;
+    }
+
+// IA: Here I have done a very dirty trick as I do not like how the IO is handled.
+// Usually, it is a mess to add one extra output field, so instead what I have done is
+// to pass a *otherData pointer, which can have extra size (I am responsible to be sure
+// that the size and order is correct!!).
+//
+// otherData = {internalMass, accretionRate}
+//
+// This is a bad workaround. But eventually the FIO routines should be refactored, I think.
+static int hdf5WriteBH(
+    struct fioInfo *fio,uint64_t iParticleID,const double *pdPos,const double *pdVel,
+    float fMass,float fSoft,float fPot,float fDen,float *otherData,float fTform) {
+    fioHDF5 *hio = (fioHDF5 *)(fio);
+    IOBASE *base = &hio->base[FIO_SPECIES_BH];
+    assert(fio->eFormat == FIO_FORMAT_HDF5);
+    assert(fio->eMode == FIO_MODE_WRITING);
+
+    int32_t iGroup = (int32_t) otherData[5];
+
+    /* First time for this particle type? */
+    if (base->group_id == H5I_INVALID_HID) {
+	base_create(hio,base,FIO_SPECIES_BH,BH_N,iParticleID);
+	field_create(&base->fldFields[BH_AGE],base->group_id,
+		     FIELD_AGE, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, 1 );
+	field_create(&base->fldFields[BH_INT_MASS],base->group_id,
+		     FIELD_BHMASS, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, 1 );
+	field_create(&base->fldFields[BH_ACCRETION],base->group_id,
+		     FIELD_ACCRETION, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, 1 );
+	field_create(&base->fldFields[BH_EDD_RATIO],base->group_id,
+		     FIELD_EDD_RATIO, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, 1 );
+	field_create(&base->fldFields[BH_FEED_RATE],base->group_id,
+		     FIELD_FEED_RATE, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, 1 );
+	field_create(&base->fldFields[BH_FEED_ENERGY],base->group_id,
+		     FIELD_FEED_ENERGY, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, 1 );
+	field_create(&base->fldFields[BH_GROUP],base->group_id,
+		     FIELD_GROUP, H5T_NATIVE_INT32, H5T_NATIVE_INT32, 1 );
+	}
+    class_add(base,iParticleID,fMass,0.0);
+    ioorder_add(base,iParticleID);
+    field_add_double(pdPos,&base->fldFields[DARK_POSITION],base->iIndex);
+    field_add_double(pdVel,&base->fldFields[DARK_VELOCITY],base->iIndex);
+    field_add_float(&fPot,&base->fldFields[DARK_POTENTIAL],base->iIndex);
+    field_add_float(&fDen,&base->fldFields[DARK_DENSITY],base->iIndex);
+    field_add_float(&otherData[0],&base->fldFields[BH_INT_MASS],base->iIndex);
+    field_add_float(&otherData[1],&base->fldFields[BH_ACCRETION],base->iIndex);
+    field_add_float(&otherData[2],&base->fldFields[BH_EDD_RATIO],base->iIndex);
+    field_add_float(&otherData[3],&base->fldFields[BH_FEED_RATE],base->iIndex);
+    field_add_float(&otherData[4],&base->fldFields[BH_FEED_ENERGY],base->iIndex);
+    field_add_int32_t(&iGroup,&base->fldFields[BH_GROUP],base->iIndex);
+    field_add_float(&fTform,&base->fldFields[BH_AGE],base->iIndex);
 
     /* If we have exhausted our buffered data, read more */
     if (++base->iIndex == CHUNK_SIZE) {
@@ -3842,9 +4034,21 @@ static FIO hdf5OpenOne(const char *fname,int iFile) {
 	abort();
 	return NULL;
 	}
-    hio->cosmoID = H5Gopen( hio->fileID, GROUP_COSMO );
-    hio->unitsID = H5Gopen( hio->fileID, GROUP_UNITS );
-    hio->paramsID = H5Gopen( hio->fileID, GROUP_PARAMS );
+
+    if (H5Lexists( hio->fileID, GROUP_COSMO, H5P_DEFAULT) > 0 )
+       hio->cosmoID = H5Gopen( hio->fileID, GROUP_COSMO );
+    else
+       hio->cosmoID = H5I_INVALID_HID;
+
+    if (H5Lexists( hio->fileID, GROUP_UNITS, H5P_DEFAULT) > 0 )
+       hio->unitsID = H5Gopen( hio->fileID, GROUP_UNITS );
+    else
+       hio->unitsID = H5I_INVALID_HID;
+
+    if (H5Lexists( hio->fileID, GROUP_PARAMS, H5P_DEFAULT) > 0 )
+       hio->paramsID = H5Gopen( hio->fileID, GROUP_PARAMS );
+    else
+       hio->paramsID = H5I_INVALID_HID;
 
     /* Now open all of the available groups.  It's okay if some aren't there. */
     H5Eget_auto(&save_func,&save_data);
@@ -3946,6 +4150,37 @@ static FIO hdf5OpenOne(const char *fname,int iFile) {
 	    else base->nTotal = 0;
 	    break;
 
+      case FIO_SPECIES_BH:
+	    base->group_id = H5Gopen(hio->fileID,fioSpeciesName(i));
+	    if (base->group_id!=H5I_INVALID_HID) {
+		base->iOffset = 0;
+		base->iIndex = base->nBuffered = 0;
+
+		alloc_fields(base,BH_N);
+		field_open(&base->fldFields[BH_POSITION],base->group_id,
+			   FIELD_POSITION, H5T_NATIVE_DOUBLE,3 );
+		field_open(&base->fldFields[BH_VELOCITY],base->group_id,
+			   FIELD_VELOCITY, H5T_NATIVE_DOUBLE,3 );
+		field_open(&base->fldFields[BH_POTENTIAL],base->group_id,
+			   FIELD_POTENTIAL, H5T_NATIVE_FLOAT,1 );
+		field_open(&base->fldFields[BH_MASS],base->group_id,
+			   FIELD_MASS, H5T_NATIVE_FLOAT,1 );
+            field_open(&base->fldFields[BH_AGE],base->group_id,
+                     FIELD_AGE, H5T_NATIVE_FLOAT,1 );
+		//if (base->fldFields[BH_POTENTIAL].setId == H5I_INVALID_HID)
+		//    hio->fio.mFlags &= ~FIO_FLAG_POTENTIAL;
+		//field_open(&base->fldFields[BH_DENSITY],base->group_id,
+		//	   FIELD_DENSITY, H5T_NATIVE_FLOAT,1 );
+		//if (base->fldFields[BH_DENSITY].setId == H5I_INVALID_HID)
+		//    hio->fio.mFlags &= ~FIO_FLAG_DENSITY;
+		base->nTotal = hio->fio.nSpecies[i] = field_size(&base->fldFields[BH_POSITION]);
+		class_open(&base->ioClass,base->group_id);
+		/* iOrder can have a starting value if they are sequential, or a list */
+		ioorder_open(&base->ioOrder,base->group_id);
+		}
+	    else base->nTotal = 0;
+          break;
+
 	default:
 	    hio->fio.nSpecies[i] = 0;
 	    base->group_id = H5I_INVALID_HID;
@@ -3970,9 +4205,11 @@ static FIO hdf5OpenOne(const char *fname,int iFile) {
     hio->fio.fcnReadDark = hdf5ReadDark;
     hio->fio.fcnReadSph  = hdf5ReadSph;
     hio->fio.fcnReadStar = hdf5ReadStar;
+    hio->fio.fcnReadBH   = hdf5ReadBH  ;
     hio->fio.fcnGetAttr  = hdf5GetAttr;
     hio->fio.fcnSetAttr  = hdf5SetAttr;
     hio->fio.fcnSpecies  = hdf5Species;
+
 
     return &hio->fio;
     }
@@ -4033,6 +4270,7 @@ FIO fioHDF5Create(const char *fileName, int mFlags) {
     hio->fio.fcnWriteDark= hdf5WriteDark;
     hio->fio.fcnWriteSph = hdf5WriteSph;
     hio->fio.fcnWriteStar= hdf5WriteStar;
+    hio->fio.fcnWriteBH  = hdf5WriteBH;
     hio->fio.fcnGetAttr  = hdf5GetAttr;
     hio->fio.fcnSetAttr  = hdf5SetAttr;
     hio->fio.fcnSpecies  = hdf5Species;

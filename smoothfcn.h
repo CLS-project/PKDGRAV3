@@ -186,6 +186,9 @@ void SphForces(PARTICLE *,float fBall,int,NN *,SMF *);
 #define SMX_HYDROSTEP         43
 #define SMX_SN_FEEDBACK       44
 
+#define SMX_BH_MERGER         50
+#define SMX_BH_DRIFT          51
+
 #define SMX_DIST_DELETED_GAS                    7
 void initDistDeletedGas(void *,void *p1);
 void combDistDeletedGas(void *,void *p1,void *p2);

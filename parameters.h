@@ -300,6 +300,19 @@ struct parameters {
     double dFeedbackDu;
     double dNumberSNIIperMass;
 #endif 
+#ifdef BLACKHOLES
+    int bMerger;
+    int bPlaceBHSeed;
+    int bAccretion;
+    int bBHFeedback;
+    double dAccretionAlpha;
+    double dEddingtonFactor;
+    double dBHRadiativeEff;
+    double dBHFeedbackEff;
+    double dBHFeedbackEcrit;
+    double dBHSeedMass;
+    double dMhaloMin;
+#endif
 
 #ifdef MDL_FFTW
     int nGridPk;
