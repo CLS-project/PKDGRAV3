@@ -297,6 +297,12 @@ typedef struct sphfields {
     /* IA: Internal energy, which is evolved in parallel and used for updating the pressure if we are in a cold flow */
     double Uint;
 
+#ifdef ENTROPY_SWITCH
+    double S;
+    double lastS;
+    double maxEkin;
+#endif
+
     /* IA: Primitive variables */
     double P;
 

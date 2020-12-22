@@ -12,6 +12,9 @@
             q_rung,
             q_rho,
             q_P,
+#ifdef ENTROPY_SWITCH
+            q_S,
+#endif
             q_vx, q_vy, q_vz,
             q_gradRhoX, q_gradRhoY, q_gradRhoZ,
             q_gradPX, q_gradPY, q_gradPZ,
@@ -28,6 +31,9 @@
             out_Frho,
             out_FmomX,out_FmomY,out_FmomZ,
             out_Fene,
+#ifdef ENTROPY_SWITCH
+            out_FS,
+#endif
             out_last};
 
 

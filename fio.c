@@ -750,7 +750,7 @@ static int tipsyGetAttr(FIO fio, const int mode, const int groupType,
     const char *attr, FIO_TYPE dataType, void *data) {
     fioTipsy *tio = (fioTipsy *)fio;
     assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_READING);
-    if ( strcmp(attr,"dTime")==0 ) {
+    if ( strcmp(attr,"Time")==0 ) {
 	if (!tio->nHdrSize) return 0;
 	switch(dataType) {
 	case FIO_TYPE_FLOAT: *(float *)(data) = tio->dTime; break;

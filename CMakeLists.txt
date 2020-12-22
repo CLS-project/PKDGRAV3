@@ -245,6 +245,12 @@ if (LIMITER_CONDBARTH)
    target_compile_options(${PROJECT_NAME} PRIVATE -DLIMITER_CONDBARTH)
 endif(LIMITER_CONDBARTH)
 
+option(ENTROPY_SWITCH "Assume entropy conservation when a cold flow is detected" OFF)
+if (ENTROPY_SWITCH)
+   message("-- Assuming entropy conservation for smooth cold flows")
+   target_compile_options(${PROJECT_NAME} PRIVATE -DENTROPY_SWITCH)
+endif(ENTROPY_SWITCH)
+
 option(MAKE_GLASS "Create a glass distribution using an approximated Lloyd's algorithm" OFF)
 if (MAKE_GLASS)
    message("-- Compiled to generate GLASS")
@@ -312,6 +318,12 @@ if (BLACKHOLES)
 endif(BLACKHOLES)
 
 #### OPTIMIZATION OPTIONS
+option(OPTIM_NO_REDUNDANT_FLUXES "Avoid any redundant flux computation using the particle IDs" OFF)
+if (OPTIM_NO_REDUNDANT_FLUXES)
+   target_compile_options(${PROJECT_NAME} PRIVATE -DOPTIM_NO_REDUNDANT_FLUXES)
+   message("-- OPTIM_NO_REDUNDANT_FLUXES: \t Avoid all redundant flux computations. Requires unique particleIDs and OPTIM_SMOOTH_NODE.")
+endif(OPTIM_NO_REDUNDANT_FLUXES)
+
 option(OPTIM_CACHED_FLUXES "Save a flux cache per particle to reduce duplicated flux computations" OFF)
 if(OPTIM_CACHED_FLUXES)
    target_compile_options(${PROJECT_NAME} PRIVATE -DOPTIM_CACHED_FLUXES)

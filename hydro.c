@@ -598,11 +598,11 @@ void hydroGradients(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 #endif
 
 #ifdef LIMITER_CONDBARTH
-       ConditionedBarthJespersenLimiter(&limRho, psph->gradRho, rho_max-pkdDensity(pkd,p), rho_min-pkdDensity(pkd,p), dx, dy, dz, 100., psph->Ncond);
-       ConditionedBarthJespersenLimiter(&limVx, psph->gradVx, vx_max-pv[0], vx_min-pv[0], dx, dy, dz, 100., psph->Ncond);
-       ConditionedBarthJespersenLimiter(&limVy, psph->gradVy, vy_max-pv[1], vy_min-pv[1], dx, dy, dz, 100., psph->Ncond);
-       ConditionedBarthJespersenLimiter(&limVz, psph->gradVz, vz_max-pv[2], vz_min-pv[2], dx, dy, dz, 100., psph->Ncond);
-       ConditionedBarthJespersenLimiter(&limP, psph->gradP, p_max-psph->P, p_min-psph->P, dx, dy, dz, 100., psph->Ncond);
+       ConditionedBarthJespersenLimiter(&limRho, psph->gradRho, rho_max-pkdDensity(pkd,p), rho_min-pkdDensity(pkd,p), dx, dy, dz, 10., psph->Ncond);
+       ConditionedBarthJespersenLimiter(&limVx, psph->gradVx, vx_max-pv[0], vx_min-pv[0], dx, dy, dz, 10., psph->Ncond);
+       ConditionedBarthJespersenLimiter(&limVy, psph->gradVy, vy_max-pv[1], vy_min-pv[1], dx, dy, dz, 10., psph->Ncond);
+       ConditionedBarthJespersenLimiter(&limVz, psph->gradVz, vz_max-pv[2], vz_min-pv[2], dx, dy, dz, 10., psph->Ncond);
+       ConditionedBarthJespersenLimiter(&limP, psph->gradP, p_max-psph->P, p_min-psph->P, dx, dy, dz, 10., psph->Ncond);
 #endif
     }
 #endif
@@ -861,6 +861,8 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
        }
 //       printf("pDeltaHalf %e qDeltaHalf %e \n", pDeltaHalf, qDeltaHalf);
 
+       //pDeltaHalf = 0.;
+       //qDeltaHalf = 0.;
 
 
 
@@ -912,6 +914,9 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
        dr[1] = -0.5*dy;
        dr[2] = -0.5*dz;
 
+       //dr[0] = 0.;
+       //dr[1] = 0.;
+       //dr[2] = 0.;
 
       // Divergence of the velocity field for the forward in time prediction
       pdivv = psph->gradVx[0] + psph->gradVy[1] + psph->gradVz[2];
@@ -1003,11 +1008,11 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
       }
 
       for (j=0; j<3; j++){
-         temp = psph->lastAcc[j]*pDeltaHalf;
+         temp = psph->lastAcc[j]*pDeltaHalf*smf->a;
          riemann_input.L.v[j] += temp;
          vFrame[j] += 0.5*temp;
 
-         temp = qsph->lastAcc[j]*qDeltaHalf;
+         temp = qsph->lastAcc[j]*qDeltaHalf*smf->a;
          riemann_input.R.v[j] += temp;
          vFrame[j] += 0.5*temp;
       }
@@ -1221,8 +1226,16 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 #else //OPTIM_CACHED_FLUXES
 
        
+#ifdef OPTIM_NO_REDUNDANT_FLUXES
+       {
+#else
        if ( (2.*qh < rpq) | !pkdIsActive(pkd,q)){  
 #endif
+#endif //OPTIM_CACHED_FLUXES
+
+
+          //printf("%"PRIu64" \t %"PRIu64" \n", *pkdParticleID(pkd,p), *pkdParticleID(pkd,q));
+          //printf("%e %e %e %e %e \n", riemann_output.Fluxes.rho, riemann_output.Fluxes.p, riemann_output.Fluxes.v[0], riemann_output.Fluxes.v[1],riemann_output.Fluxes.v[2] );
             *qmass += minDt * riemann_output.Fluxes.rho ;
 
             qsph->mom[0] += minDt * riemann_output.Fluxes.v[0] ;
@@ -1325,6 +1338,22 @@ void hydroStep(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
     }
 
+#ifdef ENTROPY_SWITCH
+    // Gather the maximum relative kinetic energy
+    psph->maxEkin = 0.0;
+    for (i=0; i<nSmooth;i++){
+	 q = nnList[i].pPart;
+
+       double dv2 =(qsph->vPred[0] - psph->vPred[0])*(qsph->vPred[0] - psph->vPred[0]) + 
+                   (qsph->vPred[1] - psph->vPred[1])*(qsph->vPred[1] - psph->vPred[1]) +
+                   (qsph->vPred[2] - psph->vPred[2])*(qsph->vPred[2] - psph->vPred[2]);
+       double Ekin = 0.5*pkdMass(pkd,p)*dv2;
+
+       psph->maxEkin = (psph->maxEkin < Ekin) ? Ekin : psph->maxEkin;
+
+    }
+#endif
+
 #ifdef HERNQUIST_POTENTIAL
     // IA: Timestep criteria based on the Hernsquist potential
     const double const_reduced_hubble_cgs = 3.2407789e-18;
@@ -1381,7 +1410,7 @@ void hydroStep(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
     for (j=0;j<3;j++) { a[j] = pa[j]; }
     acc = sqrt(a[0]*a[0] + a[1]*a[1] + a[2]*a[2]);
-    for (j=0;j<3;j++) { a[j] = psph->Fmom[j]/pkdMass(pkd,p); }
+    for (j=0;j<3;j++) { a[j] = (-pkdVel(pkd,p)[j]*psph->Frho + psph->Fmom[j])/pkdMass(pkd,p); }
     acc += sqrt(a[0]*a[0] + a[1]*a[1] + a[2]*a[2]);
 
 
@@ -1565,6 +1594,8 @@ void hydroRiemann_vec(PARTICLE *p,float fBall,int nSmooth, my_real** restrict in
        
        
        
+       //pDeltaHalf = 0.;
+       //qDeltaHalf = 0.;
        
 
 //       printf("pDeltaHalf %e qDeltaHalf %e \n", pDeltaHalf, qDeltaHalf);
@@ -1741,20 +1772,20 @@ void hydroRiemann_vec(PARTICLE *p,float fBall,int nSmooth, my_real** restrict in
      
 
       for (j=0; j<3; j++){
-         temp = psph->lastAcc[j]*pDeltaHalf;
+         temp = psph->lastAcc[j]*pDeltaHalf*smf->a;
          riemann_input.L.v[j] += temp;
          vFrame[j] += 0.5*temp;
 
       }
-         temp = input_buffer[q_lastAccX][i]*qDeltaHalf;
+         temp = input_buffer[q_lastAccX][i]*qDeltaHalf*smf->a;
          riemann_input.R.v[0] += temp;
          vFrame[0] += 0.5*temp;
 
-         temp = input_buffer[q_lastAccY][i]*qDeltaHalf;
+         temp = input_buffer[q_lastAccY][i]*qDeltaHalf*smf->a;
          riemann_input.R.v[1] += temp;
          vFrame[1] += 0.5*temp;
 
-         temp = input_buffer[q_lastAccZ][i]*qDeltaHalf;
+         temp = input_buffer[q_lastAccZ][i]*qDeltaHalf*smf->a;
          riemann_input.R.v[2] += temp;
          vFrame[2] += 0.5*temp;
 
@@ -1790,7 +1821,9 @@ void hydroRiemann_vec(PARTICLE *p,float fBall,int nSmooth, my_real** restrict in
        double v_line_L = riemann_input.L.v[0]*face_unit[0] + riemann_input.L.v[1]*face_unit[1] + riemann_input.L.v[2]*face_unit[2];
        double v_line_R = riemann_input.R.v[0]*face_unit[0] + riemann_input.R.v[1]*face_unit[1] + riemann_input.R.v[2]*face_unit[2];
 
-    /* HLLC solver from Toro 2009 (Sec. 10.4) */
+    /* HLLC solver from Toro 2009 (Sec. 10.4) 
+     * TODO: put this in another function 
+     */
 
     // We need some kind of approximation for the signal speeds, S_L, S_R.
     // The simplest:
@@ -1801,8 +1834,6 @@ void hydroRiemann_vec(PARTICLE *p,float fBall,int nSmooth, my_real** restrict in
 
 
     // Roe averaged equations 10.49-10.51:
- 
-
     const double sq_rho_L = sqrt(riemann_input.L.rho);
     const double sq_rho_R = sqrt(riemann_input.R.rho);
 
@@ -1824,55 +1855,39 @@ void hydroRiemann_vec(PARTICLE *p,float fBall,int nSmooth, my_real** restrict in
     // Equation 10.36
     riemann_output.P_M = riemann_input.L.p + riemann_input.L.rho*(S_L - v_line_L)*(riemann_output.S_M - v_line_L);
 
-    // TEST for pressure limiter
+    // TEST for pressure limiter.
+    // We compute the maximum pressure assuming that all the kinetic energy is converted to internal
     double delta_v2 = v_line_R - v_line_L;
     delta_v2 *= delta_v2;
     double upwind_p_L = riemann_input.L.p + delta_v2*riemann_input.L.rho;
     double upwind_p_R = riemann_input.R.p + delta_v2*riemann_input.R.rho;
-    double max_P_M = 1.01*MAX( upwind_p_L, upwind_p_R );
+    double max_P_M = MAX( upwind_p_L, upwind_p_R );
     
     //double max_rho = MAX(riemann_input.L.rho, riemann_input.R.rho);
     //double max_p = MAX(riemann_input.L.p, riemann_input.R.p);
     //double max_P_M = max_p + 0.5*(GAMMA-1)*max_rho*delta_v2;
 
+    // NOTE: Force using exact solver
+    max_P_M = -1.;
+
     if ( (riemann_output.P_M>max_P_M)||(riemann_output.P_M<=0)||(isnan(riemann_output.P_M)) ){
        //printf("P_M %e \t max %e \t ratio %e \n", riemann_output.P_M, max_P_M, riemann_output.P_M/max_P_M);
-       //psph->avoided_fluxes += 1;
-       //Riemann_solver_exact(pkd, riemann_input, &riemann_output, face_unit, v_line_L, v_line_R, cs_L, cs_R, h_L, h_R);
-       Riemann_solver_exact(pkd, riemann_input.R.rho, riemann_input.R.p, riemann_input.L.rho, riemann_input.L.p, 
-             &riemann_output.P_M, &riemann_output.S_M, 
-             face_unit, v_line_L, v_line_R, cs_L, cs_R, h_L, h_R);
-    }
-      
-#ifdef USE_MFM
-        riemann_output.Fluxes.rho = 0.;
-        riemann_output.Fluxes.p = riemann_output.P_M * riemann_output.S_M;
-        for(j=0;j<3;j++)
-            riemann_output.Fluxes.v[j] = riemann_output.P_M * face_unit[j];
-#else // MFV
-        
-    // IA: from convert_face_to_flux
-    double rho, P, v[3], v_line=0, h=0;
-    rho = riemann_output.Fluxes.rho;
-    P = riemann_output.Fluxes.p;
-    for(j=0;j<3;j++){
-        v[j] = riemann_output.Fluxes.v[j];
-        v_line += v[j] * face_unit[j];
-        h += v[j] * v[j];
-    }
-    h *= 0.5 * rho; /* h is the kinetic energy density */
-    h += (GAMMA/GAMMA_MINUS1) * P; /* now h is the enthalpy */
-    /* now we just compute the standard fluxes for a given face state */
-    riemann_output.Fluxes.p = h * v_line;
-    riemann_output.Fluxes.rho = rho * v_line;
-    for(j=0;j<3;j++)
-        riemann_output.Fluxes.v[j] = riemann_output.Fluxes.rho * v[j] + P * face_unit[j];
-        
-/* For the HLLC solver
-    if ( (riemann_output.P_M>max_p)||(riemann_output.P_M<=0)||(isnan(riemann_output.P_M)) ){
 
+       // IA: If including riemann.h, we could still use the non-vectorized version:
+       //Riemann_solver_exact(pkd, riemann_input, &riemann_output, face_unit, v_line_L, v_line_R, cs_L, cs_R, h_L, h_R);
+       
+       int niter = Riemann_solver_exact(pkd, 
+            riemann_input.R.rho, riemann_input.R.p, riemann_input.R.v,
+            riemann_input.L.rho, riemann_input.L.p, riemann_input.L.v, 
+            &riemann_output.P_M, &riemann_output.S_M, &riemann_output.Fluxes.rho, &riemann_output.Fluxes.p, &riemann_output.Fluxes.v[0],
+            face_unit, v_line_L, v_line_R, cs_L, cs_R, h_L, h_R);
+            
+
+    }else{
+#ifndef USE_MFM
         // In this case we need to check for conditions 10.26 to compute the fluxes
         // We use eq. 10.39 to compute the star states, and 10.38 for the fluxes
+        // TODO: put this in another function
 
         if (0.0 <= S_L){
            // F_L
@@ -1912,9 +1927,39 @@ void hydroRiemann_vec(PARTICLE *p,float fBall,int nSmooth, my_real** restrict in
                riemann_output.Fluxes.v[j] = riemann_output.Fluxes.rho * riemann_input.R.v[j] + riemann_input.R.p * face_unit[j];
            
         }
-
+       
+#endif
     }
-*/
+
+
+
+#ifdef ENTROPY_SWITCH 
+
+#ifdef USE_MFM
+    // IA: As we are in a truly lagrangian configuration, there is no advection of entropy among particles.
+    double fluxes_S = 0.;
+#else
+    // IA: riemann_output.Fluxes contains now the face state given by the riemann solver.
+    // We only need that for computing the entropy flux, and then can be overwritten
+    double fluxes_S = 0.;
+    for (j=0; j<3; j++) fluxes_S += riemann_output.Fluxes.v[j]*face_unit[j];
+    if (fluxes_S > 0){
+       // Maybe this values should be properly extrapolated to the faces... but this is expensive!
+       fluxes_S *= psph->S*pDensity/pkdMass(pkd,p);
+    }else{
+       fluxes_S *= input_buffer[q_S][i]*input_buffer[q_rho][i]/input_buffer[q_mass][i];
+    }
+    fluxes_S *= riemann_output.Fluxes.rho*modApq;
+    fluxes_S = 0.;
+
+#endif //USE_MFM
+#endif //ENTROPY_SWITCH
+
+#ifdef USE_MFM
+        riemann_output.Fluxes.rho = 0.;
+        riemann_output.Fluxes.p = riemann_output.P_M * riemann_output.S_M;
+        for(j=0;j<3;j++)
+            riemann_output.Fluxes.v[j] = riemann_output.P_M * face_unit[j];
 #endif       
        // IA: End MFM
 
@@ -1962,6 +2007,9 @@ void hydroRiemann_vec(PARTICLE *p,float fBall,int nSmooth, my_real** restrict in
        output_buffer[out_FmomX][i] = riemann_output.Fluxes.v[0];
        output_buffer[out_FmomY][i] = riemann_output.Fluxes.v[1];
        output_buffer[out_FmomZ][i] = riemann_output.Fluxes.v[2];
+#ifdef ENTROPY_SWITCH
+       output_buffer[out_FS][i] = fluxes_S;
+#endif
        output_buffer[out_minDt][i] = minDt;
 
     } // IA: End of loop over neighbors

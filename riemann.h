@@ -1,4 +1,3 @@
-/* IA FIXME */ 
 #define GAMMA (pkd->param.dConstGamma)//1.6666666666666666666 // 1.4 //1.666666666666
 #define GAMMA_MINUS1 (pkd->param.dConstGamma-1.0) //2./3. //0.4 //0.66666666
 /* END IA */

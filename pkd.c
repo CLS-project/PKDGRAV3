@@ -1207,6 +1207,11 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             pSph->lastMom[1] = 0.; //vel[1];
             pSph->lastMom[2] = 0.; //vel[2];
             pSph->lastE = pSph->E;
+#ifdef ENTROPY_SWITCH
+            pSph->S = 0.0;
+            pSph->lastS = 0.0;
+            pSph->maxEkin = 0.0;
+#endif
             pSph->lastUint = pSph->Uint;
             pSph->lastHubble = 0.0;
             pSph->lastMass = fMass;
@@ -3258,6 +3263,8 @@ void pkdComputePrimVars(PKD pkd,int iRoot, double dTime, double dDelta) {
             gravE_dmdt = 0.0;
             if (pkd->csm->val.bComove){
                for (j=0;j<3;j++){
+                  // IA: One 1/a is from the definition of acceleration in pkdgrav3.
+                  //  The other comes from the shape of the source term, which is proportional to  1/a
                   pa[j] = pkdAccel(pkd,p)[j]/(dScaleFac*dScaleFac); // TODO: Do 1/a2 only once
                }
             }else{
@@ -3269,11 +3276,14 @@ void pkdComputePrimVars(PKD pkd,int iRoot, double dTime, double dDelta) {
                psph->mom[j] += 0.5*pDelta*(psph->lastMass*psph->lastAcc[j] + pkdMass(pkd,p)*pa[j]); 
                pkdVel(pkd,p)[j] = psph->mom[j]/pkdMass(pkd,p);
 #ifndef USE_MFM
-               gravE_dmdt +=  0.5*( psph->lastAcc[j]*psph->lastDrDotFrho[j] + pa[j]*psph->drDotFrho[j] ) ;
+               // IA: Multiplying here by 'a' instead of doing it at hydro.c is simpler and more efficient.
+               // However, it may hinder conservation properties. But doing the time average over two steps is not conservative anyway
+               // In the Zeldovich case I have not found any relevant difference among both options
+               gravE_dmdt +=  0.5*( psph->lastAcc[j]*psph->lastDrDotFrho[j] +  pa[j]*psph->drDotFrho[j]*dScaleFac ) ;
 #endif
                gravE += 0.5*pDelta*( psph->lastMom[j]*psph->lastAcc[j] + pkdMass(pkd,p)*pkdVel(pkd,p)[j]*pa[j]  );
             }
-            if (dTime==1) gravE_dmdt = 0.;
+            if (pDelta==0.) gravE_dmdt = 0.;
 
             psph->E += gravE - 0.5*gravE_dmdt;
 
@@ -3283,6 +3293,9 @@ void pkdComputePrimVars(PKD pkd,int iRoot, double dTime, double dDelta) {
             if (pkd->csm->val.bComove){
                psph->E = (psph->E - psph->lastHubble*pDelta*psph->lastE)/(1.+pDelta*dHubble);
                psph->Uint = (psph->Uint - psph->lastHubble*1.5*pDelta*psph->lastUint*(pkd->param.dConstGamma - 1.))/(1.+1.5*pDelta*dHubble*(pkd->param.dConstGamma - 1.));
+#ifdef ENTROPY_SWITCH
+               psph->S = (psph->S - psph->lastHubble*1.5*pDelta*psph->lastS*(pkd->param.dConstGamma - 1.))/(1.+1.5*pDelta*dHubble*(pkd->param.dConstGamma - 1.));
+#endif
                
                for (j=0; j<3; j++){ 
                   psph->mom[j] = (psph->mom[j] - 0.5*psph->lastHubble*pDelta*psph->lastMom[j])/(1.+0.5*pDelta*dHubble);
@@ -3293,20 +3306,53 @@ void pkdComputePrimVars(PKD pkd,int iRoot, double dTime, double dDelta) {
 
 
             // ##### Pressure
-
-            double Ekin = 0.5*( psph->mom[0]*psph->mom[0] + psph->mom[1]*psph->mom[1] + psph->mom[2]*psph->mom[2] ) / pkdMass(pkd,p);
-            if (Ekin > 0.99*psph->E ){
-                  psph->E = psph->Uint + Ekin;
+            double Ekin = 0.5*(psph->mom[0]*psph->mom[0] + psph->mom[1]*psph->mom[1] +psph->mom[2]*psph->mom[2])/pkdMass(pkd,p);
+            double Egrav = pkdMass(pkd,p)*sqrt(pa[0]*pa[0] + pa[1]*pa[1] + pa[2]*pa[2])*pkdBall(pkd,p);
+            if ( (Ekin+Egrav) > 100.*psph->Uint ){
+               // IA: The fluid is dominated by the kinetic energy, so using Etot may be unreliable to compute the pressure
+#ifdef ENTROPY_SWITCH
+               if ((psph->S>0.) && ( psph->Uint<0.001*(psph->maxEkin+psph->Uint) || psph->Uint<0.001*Egrav )){
+                  // The flow is smooth and/or dominated by gravity, thus the entropy can be used to evolve the pressure
+                  psph->Uint = psph->S * pow(pkdDensity(pkd,p), pkd->param.dConstGamma-1)/(pkd->param.dConstGamma -1.);
+               }else if (psph->Uint > 0.){
+                  psph->S = psph->Uint *(pkd->param.dConstGamma -1.) * pow(pkdDensity(pkd,p), -pkd->param.dConstGamma+1);
+               }else{
+                  printf("WARNING %e \t S %e \t(%e) \t Uint %e ≤t(%e) \n",psph->P,
+                        psph->S,
+                        psph->S / pkdMass(pkd,p) * pow(pkdDensity(pkd,p), pkd->param.dConstGamma),
+                        psph->Uint,
+                        psph->Uint*psph->omega*(pkd->param.dConstGamma -1.) );
+                  psph->S=0.0;
+                  psph->Uint=0.0;
+               } 
+#endif // ENTROPY_SWITCH
+               psph->E = psph->Uint + Ekin;
             }else{
-                  psph->Uint = psph->E - Ekin; 
+               psph->Uint = psph->E - Ekin; 
+#ifdef ENTROPY_SWITCH
+               psph->S = psph->Uint *(pkd->param.dConstGamma -1.) * pow(pkdDensity(pkd,p), -pkd->param.dConstGamma+1);
+#endif
             }     
+
+
 #ifdef COOLING
             const float delta_redshift = -pDelta * dHubble * (dRedshift + 1.);
             cooling_cool_part(pkd, pkd->cooling, p, psph, pDelta, dTime, delta_redshift, dRedshift);
 #endif
 
+            // Temperature minimum of T=0, but could be changed. If cooling is used, the corresponding entropy floor
+            // is applied in cooling_cool_part
+            double minUint = 0. * pkd->param.dTuFac * pkdMass(pkd,p);
+            if (psph->Uint < minUint) {
+               psph->Uint = minUint;
+               psph->E = Ekin + minUint;
+#ifdef ENTROPY_SWITCH
+               psph->S = psph->Uint *(pkd->param.dConstGamma -1.) * pow(pkdDensity(pkd,p), -pkd->param.dConstGamma+1);
+#endif
+            }
             psph->P = psph->Uint*psph->omega*(pkd->param.dConstGamma -1.);
-            if (psph->P<0.0) psph->P=0.0;
+
+
             psph->c = sqrt(psph->P*pkd->param.dConstGamma/pkdDensity(pkd,p));
 
             pkdVel(pkd,p)[0] = psph->mom[0]/pkdMass(pkd,p);
@@ -3341,10 +3387,18 @@ void pkdComputePrimVars(PKD pkd,int iRoot, double dTime, double dDelta) {
             psph->vPred[0] = pkdVel(pkd,p)[0];
             psph->vPred[1] = pkdVel(pkd,p)[1];
             psph->vPred[2] = pkdVel(pkd,p)[2];
+
+#ifdef ENTROPY_SWITCH
+            if (dDelta <= 0){
+                // Initialize the entropy
+                psph->S = pkdMass(pkd,p) * psph->P * pow(pkdDensity(pkd,p), -pkd->param.dConstGamma);
+            }
+            psph->lastS = psph->S;
+#endif
             
 #ifndef USE_MFM
             for (j=0; j<3;j++){
-               psph->lastDrDotFrho[j] = psph->drDotFrho[j];
+               psph->lastDrDotFrho[j] = psph->drDotFrho[j]*dScaleFac;
                psph->drDotFrho[j] = 0.;
             }
 #endif
