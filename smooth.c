@@ -3034,7 +3034,7 @@ int  smReSmoothNode(SMX smx,SMF *smf, int bSymmetric, int iSmoothType) {
                    // Check if it has converged
                    double c = 4.*M_PI/3. * (*omega) *ph*ph*ph*8.;
                    if ((fabs(c-Neff) < pkd->param.dNeighborsStd0) ){
-
+                      /*
                       // Check if the converged density has a low enough condition number
                       float E[6], B[6];
                       for (i=0; i<6; ++i) E[i] = 0.;
@@ -3068,7 +3068,7 @@ int  smReSmoothNode(SMX smx,SMF *smf, int bSymmetric, int iSmoothType) {
                          }
                       }
 
-                      /* IA: Normalize the matrix */
+                      // IA: Normalize the matrix 
                       for (i=0; i<6;++i){
                          E[i] /= *omega; 
                       }
@@ -3089,7 +3089,7 @@ int  smReSmoothNode(SMX smx,SMF *smf, int bSymmetric, int iSmoothType) {
                       B[YZ] = -(E[XX]*E[YZ] - E[XY]*E[XZ])*det;
                        
 
-                       /* IA: Computation of the condition number */
+                       // IA: Computation of the condition number 
                        double modE = 0.;
                        modE += E[XX]*E[XX]; 
                        modE += E[YY]*E[YY]; 
@@ -3116,6 +3116,7 @@ int  smReSmoothNode(SMX smx,SMF *smf, int bSymmetric, int iSmoothType) {
                           niter = 0;
                           continue;
                        }
+                       */
 
 
                       partj->bMarked = 0;
@@ -3152,7 +3153,7 @@ int  smReSmoothNode(SMX smx,SMF *smf, int bSymmetric, int iSmoothType) {
                    // In this cases, we need to stop iterating and make sure that omega is between reasonable bounds
                    if (niter>100){
                       partj->bMarked = 0;
-                      printf("WARNING\n");
+                      printf("WARNING Neff %e c %e \n", Neff, c);
                       /*
                       if (fabs(c-pkd->param.nSmooth) < pkd->param.nSmooth*0.1){
 
