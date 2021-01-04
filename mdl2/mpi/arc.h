@@ -18,6 +18,7 @@
 #define ARC_H
 
 #include <iostream>
+#include <typeinfo>
 #include <cstdint>
 #include <cstring> // memcpy
 #include <algorithm>
