@@ -2782,7 +2782,13 @@ void msrSetSoft(MSR msr,double dSoft) {
 // IA: If the initial condition do not provide information on the smoothing
 //    length of the gas particles, we set it assuming an equipartition of the whole
 //    volume. This will be the first estimate before the iterative computation of fBall
+//
+// UPDATE (07/01/21): This may be a very bad option for restarting simulations which do not have
+//    the smoothing lenght stored in the snapshot... As there may be collapsed structure, equipartition
+//    value will incorporate a HUGE amount of particles and thus will be very very very slow.
+//    Solution: use the smSmooth routine with an empty smooth function to just update the fBall
 void msrSetSmooth(MSR msr) {
+   /*
     struct inSetSoft in;  // For simplicty we reuse this struct
 
     double V = msr->param.dxPeriod * msr->param.dyPeriod * msr->param.dzPeriod;
@@ -2792,6 +2798,13 @@ void msrSetSmooth(MSR msr) {
 
     in.dSoft = dSmooth;
     pstSetSmooth(msr->pst,&in,sizeof(in),NULL,0);
+    */
+
+    printf("Computing a first guess for the smoothing length\n");
+
+    msrSetFirstHydroLoop(msr, 1);
+    msrSmooth(msr, 1., SMX_NULL, 0, msr->param.nSmooth);
+    msrSetFirstHydroLoop(msr, 0);
     }
 
 void msrDomainDecompOld(MSR msr,int iRung,int bSplitVA) {
