@@ -4165,6 +4165,8 @@ static FIO hdf5OpenOne(const char *fname,int iFile) {
 			   FIELD_POTENTIAL, H5T_NATIVE_FLOAT,1 );
 		field_open(&base->fldFields[BH_MASS],base->group_id,
 			   FIELD_MASS, H5T_NATIVE_FLOAT,1 );
+		field_open(&base->fldFields[BH_INT_MASS],base->group_id,
+			   FIELD_BHMASS, H5T_NATIVE_FLOAT,1 );
             field_open(&base->fldFields[BH_AGE],base->group_id,
                      FIELD_AGE, H5T_NATIVE_FLOAT,1 );
 		//if (base->fldFields[BH_POTENTIAL].setId == H5I_INVALID_HID)

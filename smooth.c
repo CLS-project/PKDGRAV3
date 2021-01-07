@@ -3013,6 +3013,8 @@ int  smReSmoothNode(SMX smx,SMF *smf, int bSymmetric, int iSmoothType) {
                    double* omega = &(pkdSph(pkd,partj)->omega); // Assuming *only* stars and gas
 #endif
                    *omega = 0.0;
+                      float E[6], B[6];
+                      for (int j=0; j<6; ++j) E[j] = 0.;
                    for (pk=0;pk<nCnt;pk++){
                       // As both dr vector are relative to the cell, we can do:
                       dx = dx_node - smx->nnList[pk].dx;
@@ -3020,35 +3022,13 @@ int  smReSmoothNode(SMX smx,SMF *smf, int bSymmetric, int iSmoothType) {
                       dz = dz_node - smx->nnList[pk].dz;
 
                       fDist2 = dx*dx + dy*dy + dz*dz;
+                      //smx->nnList[pk].fDist2 = fDist2;
                       if (fDist2 <= fBall2_p){
                          double rpq = sqrt(fDist2);
                          double Wpq = cubicSplineKernel(rpq, ph);
 
                          *omega += Wpq;
-                         nCnt_p++;
-                      }
-                   }
-                   
-
-
-                   // Check if it has converged
-                   double c = 4.*M_PI/3. * (*omega) *ph*ph*ph*8.;
-                   if ((fabs(c-Neff) < pkd->param.dNeighborsStd0) ){
-                      /*
-                      // Check if the converged density has a low enough condition number
-                      float E[6], B[6];
-                      for (i=0; i<6; ++i) E[i] = 0.;
-                      for (pk=0;pk<nCnt;pk++){
-
-                         // As both dr vector are relative to the cell, we can do:
-                         dx = dx_node - smx->nnList[pk].dx;
-                         dy = dy_node - smx->nnList[pk].dy;
-                         dz = dz_node - smx->nnList[pk].dz;
-
-                         fDist2 = dx*dx + dy*dy + dz*dz;
-                         if (fDist2 <= fBall2_p){
-                            double rpq = sqrt(fDist2);
-                            double Wpq = cubicSplineKernel(rpq, ph);
+                         
 #define XX 0
 #define YY 3
 #define ZZ 5
@@ -3063,14 +3043,21 @@ int  smReSmoothNode(SMX smx,SMF *smf, int bSymmetric, int iSmoothType) {
                             E[XY] += dy*dx*Wpq;
                             E[XZ] += dz*dx*Wpq;
                             E[YZ] += dy*dz*Wpq;
-
-                            nCnt_p++;
-                         }
+                            
+                         nCnt_p++;
                       }
+                   }
+                   
 
+
+                   // Check if it has converged
+                   double c = 4.*M_PI/3. * (*omega) *ph*ph*ph*8.;
+                   if ((fabs(c-Neff) < pkd->param.dNeighborsStd0) ){
+                      // Check if the converged density has a low enough condition number
+                      
                       // IA: Normalize the matrix 
-                      for (i=0; i<6;++i){
-                         E[i] /= *omega; 
+                      for (int j=0; j<6;++j){
+                         E[j] /= *omega; 
                       }
 
                       //inverseMatrix(E, psph->B);
@@ -3088,7 +3075,6 @@ int  smReSmoothNode(SMX smx,SMF *smf, int bSymmetric, int iSmoothType) {
                       B[XZ] = (E[XY]*E[YZ] - E[YY]*E[XZ])*det;
                       B[YZ] = -(E[XX]*E[YZ] - E[XY]*E[XZ])*det;
                        
-
                        // IA: Computation of the condition number 
                        double modE = 0.;
                        modE += E[XX]*E[XX]; 
@@ -3107,7 +3093,8 @@ int  smReSmoothNode(SMX smx,SMF *smf, int bSymmetric, int iSmoothType) {
                        modB += 2.*B[YZ]*B[YZ]; 
 
                        double Ncond = sqrt(modB*modE)/3.;
-                       // TODO: Assign this here and void computing it in hydroGradients
+                       assert(Ncond==Ncond);
+                       // TODO: Assign this here and void computing it in hydroGradients, same for B
                        //if (pkdIsSph(pkd,p)) psph->Ncond = Ncond;
 
 
@@ -3116,7 +3103,7 @@ int  smReSmoothNode(SMX smx,SMF *smf, int bSymmetric, int iSmoothType) {
                           niter = 0;
                           continue;
                        }
-                       */
+                       
 
 
                       partj->bMarked = 0;
@@ -3151,7 +3138,7 @@ int  smReSmoothNode(SMX smx,SMF *smf, int bSymmetric, int iSmoothType) {
                    //  in the radius causes omega to fluctuate around the desired value.
                    //
                    // In this cases, we need to stop iterating and make sure that omega is between reasonable bounds
-                   if (niter>100){
+                   if (niter>1000){
                       partj->bMarked = 0;
                       printf("WARNING Neff %e c %e \n", Neff, c);
                       /*
