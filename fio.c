@@ -3796,6 +3796,9 @@ static int hdf5ReadBH(
     if ( !field_get_float(&pfotherData[1],&base->fldFields[BH_ACCRETION],base->iIndex) )
 	pfotherData[1] = 0.0f;
 
+    if ( !field_get_float(&pfotherData[2],&base->fldFields[BH_FEED_ENERGY],base->iIndex) )
+	pfotherData[2] = 0.0f;
+
     /* Formation time is optional */
     if ( !field_get_float(pfTform,&base->fldFields[BH_AGE],base->iIndex) )
 	*pfTform = 0.0f;
@@ -4167,6 +4170,8 @@ static FIO hdf5OpenOne(const char *fname,int iFile) {
 			   FIELD_MASS, H5T_NATIVE_FLOAT,1 );
 		field_open(&base->fldFields[BH_INT_MASS],base->group_id,
 			   FIELD_BHMASS, H5T_NATIVE_FLOAT,1 );
+		field_open(&base->fldFields[BH_FEED_ENERGY],base->group_id,
+			   FIELD_FEED_ENERGY, H5T_NATIVE_FLOAT,1 );
             field_open(&base->fldFields[BH_AGE],base->group_id,
                      FIELD_AGE, H5T_NATIVE_FLOAT,1 );
 		//if (base->fldFields[BH_POTENTIAL].setId == H5I_INVALID_HID)

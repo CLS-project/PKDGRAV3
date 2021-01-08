@@ -1094,7 +1094,6 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
     double r[3];
     double vel[3];
     float fMass, fSoft,fDensity,u,fMetals[chemistry_element_count],fTimer;
-    float otherData[2];
     FIO_SPECIES eSpecies;
     uint64_t iParticleID;
 
@@ -1270,8 +1269,9 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
           }
 	    break;
       case FIO_SPECIES_BH:
-	    fioReadBH(fio,&iParticleID,r,vel,&fMass,&fSoft,pPot,&fDensity,otherData,&fTimer);
           pkdSetBall(pkd,p,pkdSoft(pkd,p));
+          float otherData[3];
+	    fioReadBH(fio,&iParticleID,r,vel,&fMass,&fSoft,pPot,&fDensity,otherData,&fTimer);
           if (pBH) {
              pBH->fTimer = fTimer;
              pBH->pLowPot = NULL;
@@ -1279,7 +1279,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
              pBH->lastUpdateTime = -1.;
              pBH->dInternalMass = otherData[0];
              pBH->dAccretionRate = otherData[1];
-             pBH->dAccEnergy = 0.0;
+             pBH->dAccEnergy = otherData[2];
              pBH->dFeedbackRate = 0.0;
           }
           break;
