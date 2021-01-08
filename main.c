@@ -379,6 +379,11 @@ void master(MDL mdl,void *pst) {
 
 	bKickOpen = 0;
 	msrOutput(msr,0,dTime,0);  // IA: Save the IC after computing density 
+      if (msr->param.bFindGroups){
+	      msrDomainDecomp(msr,0,0,0);
+		msrBuildTree(msr,dTime,msr->param.bEwald);
+      }
+
 	for (iStep=iStartStep+1;iStep<=msrSteps(msr)&&!iStop;++iStep) {
 	    msrSwitchDelta(msr,dTime,iStep-1);
 	    msrSetParameters(msr);
