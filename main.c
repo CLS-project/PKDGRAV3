@@ -378,7 +378,7 @@ void master(MDL mdl,void *pst) {
 	    }
 
 	bKickOpen = 0;
-	msrOutput(msr,0,dTime,0);  // IA: Save the IC after computing density 
+	msrOutput(msr,iStartStep,dTime,0);  // IA: Save the IC after computing density 
       if (msr->param.bFindGroups){
 	      msrDomainDecomp(msr,0,0,0);
 		msrBuildTree(msr,dTime,msr->param.bEwald);
