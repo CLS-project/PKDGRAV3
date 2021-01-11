@@ -197,7 +197,7 @@ void smBHmerger(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
 
 
-int smReSmoothBHNode(SMX smx,SMF *smf, int bSymmetric, int iSmoothType) {
+int smReSmoothBHNode(SMX smx,SMF *smf, int iSmoothType) {
     PKD pkd = smx->pkd;
     int pj, pk, nCnt;
     double dx, dy, dz;
@@ -314,12 +314,12 @@ int smReSmoothBHNode(SMX smx,SMF *smf, int bSymmetric, int iSmoothType) {
                   r[1] = bnd_node.fCenter[1] - iy*pkd->fPeriod[1];
                   for (int iz=iStart[2];iz<=iEnd[2];++iz) {
                       r[2] = bnd_node.fCenter[2] - iz*pkd->fPeriod[2];
-                          buildCandidateMergerList(smx, smf, bSymmetric, node, bnd_node, &nCnt, r, fBall2, ix, iy, iz);
+                          buildCandidateMergerList(smx, smf, node, bnd_node, &nCnt, r, fBall2, ix, iy, iz);
                   }
                 }
             }
          }else{
-            buildCandidateMergerList(smx, smf, bSymmetric, node, bnd_node, &nCnt, r, fBall2, 0, 0, 0);
+            buildCandidateMergerList(smx, smf, node, bnd_node, &nCnt, r, fBall2, 0, 0, 0);
          }
 
 
@@ -406,7 +406,7 @@ inline static KDN *getCell(PKD pkd, int iCell, int id) {
  *
  * Probably, using C++ templates this could be done avoiding code duplications or extra overheads...
  */
-void buildCandidateMergerList(SMX smx, SMF *smf, int bSymmetric, KDN* node, BND bnd_node, int *nCnt_tot, double r[3], double fBall2, int ix, int iy, int iz){
+void buildCandidateMergerList(SMX smx, SMF *smf, KDN* node, BND bnd_node, int *nCnt_tot, double r[3], double fBall2, int ix, int iy, int iz){
     PKD pkd = smx->pkd;
     MDL mdl = pkd->mdl;
     PARTICLE *p;
@@ -540,9 +540,8 @@ void buildCandidateMergerList(SMX smx, SMF *smf, int bSymmetric, KDN* node, BND 
                   smx->nnList[nCnt].dy = dy;
                   smx->nnList[nCnt].dz = dz;
 
-                  /* In principle, we will not acquire remote BH particles until we now for certain that we are going to have a merger */
-                  //smx->nnList[nCnt].pPart = p ; //mdlAcquire(mdl,CID_PARTICLE,pj,id);
-                  smx->nnList[nCnt].pPart = mdlAcquire(mdl,CID_PARTICLE,pj,id);
+                  // IA: As we do not allow merger across boundaries, we do not need to acquire the remote particle
+                  smx->nnList[nCnt].pPart = p ;
 
                   smx->nnList[nCnt].iIndex = pj;
                   smx->nnList[nCnt].iPid = id;

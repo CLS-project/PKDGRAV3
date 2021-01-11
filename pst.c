@@ -2802,10 +2802,10 @@ int pstReSmoothNode(PST pst,void *vin,int nIn,void *vout,int nOut) {
 		     in->bPeriodic,in->bSymmetric,in->iSmoothType);
 #ifdef BLACKHOLES
       if (in->iSmoothType == SMX_BH_MERGER)
-      out->nSmoothed = smReSmoothBHNode(smx,&in->smf, in->bSymmetric, in->iSmoothType);
+      out->nSmoothed = smReSmoothBHNode(smx,&in->smf, in->iSmoothType);
       else
 #endif
-     	out->nSmoothed = smReSmoothNode(smx,&in->smf, in->bSymmetric, in->iSmoothType);
+     	out->nSmoothed = smReSmoothNode(smx,&in->smf, in->iSmoothType);
 	smFinish(smx,&in->smf);
 #if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER) && defined(DEBUG_FLUX_INFO)
       if (out->nSmoothed) {

@@ -247,6 +247,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
     if (smf != NULL) smf->pkd = pkd;
     smx->nSmooth = nSmooth;
     smx->bPeriodic = bPeriodic;
+    smx->bSymmetric  = bSymmetric;
     /*
     ** Initialize the context for compressed nearest neighbor lists.
     */
@@ -2553,7 +2554,7 @@ void smGather(SMX smx,double fBall2,double r[3], PARTICLE * pp) {
 			smx->nnList[nCnt].dx = dx;
 			smx->nnList[nCnt].dy = dy;
 			smx->nnList[nCnt].dz = dz;
-			smx->nnList[nCnt].pPart = mdlAcquire(mdl,CID_PARTICLE,pj,id);
+			smx->nnList[nCnt].pPart = smx->bSymmetric ? mdlAcquire(mdl,CID_PARTICLE,pj,id) : p;
 			smx->nnList[nCnt].iIndex = pj;
 			smx->nnList[nCnt].iPid = id;
 			++nCnt;
@@ -2778,7 +2779,7 @@ int  smReSmooth(SMX smx,SMF *smf, int iSmoothType) {
 #define FLUX_VEC 0
 #endif
 
-int  smReSmoothNode(SMX smx,SMF *smf, int bSymmetric, int iSmoothType) {
+int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
     PKD pkd = smx->pkd;
     MDL mdl = pkd->mdl;
     int pj, pk, nCnt, nCnt_own, id;
@@ -2959,12 +2960,12 @@ int  smReSmoothNode(SMX smx,SMF *smf, int bSymmetric, int iSmoothType) {
                   r[1] = bnd_node.fCenter[1] - iy*pkd->fPeriod[1];
                   for (int iz=iStart[2];iz<=iEnd[2];++iz) {
                       r[2] = bnd_node.fCenter[2] - iz*pkd->fPeriod[2];
-                          buildInteractionList(smx, smf, bSymmetric, node, bnd_node, &nCnt, r, fBall2, ix, iy, iz);
+                          buildInteractionList(smx, smf, node, bnd_node, &nCnt, r, fBall2, ix, iy, iz);
                   }
                 }
             }
          }else{
-            buildInteractionList(smx, smf, bSymmetric, node, bnd_node, &nCnt, r, fBall2, 0, 0, 0);
+            buildInteractionList(smx, smf, node, bnd_node, &nCnt, r, fBall2, 0, 0, 0);
          }
 
 
@@ -3468,7 +3469,7 @@ int  smReSmoothNode(SMX smx,SMF *smf, int bSymmetric, int iSmoothType) {
 
           nSmoothed += nCnt_own;
 
-          if (bSymmetric){
+          if (smx->bSymmetric){
              for (pk=0;pk<nCnt;++pk) {
                if (smx->nnList[pk].iPid != pkd->idSelf) {
 #ifdef OPTIM_EXTRA
@@ -3501,7 +3502,7 @@ int  smReSmoothNode(SMX smx,SMF *smf, int bSymmetric, int iSmoothType) {
 
 
 
-void buildInteractionList(SMX smx, SMF *smf, int bSymmetric, KDN* node, BND bnd_node, int *nCnt_tot, double r[3], double fBall2, int ix, int iy, int iz){
+void buildInteractionList(SMX smx, SMF *smf, KDN* node, BND bnd_node, int *nCnt_tot, double r[3], double fBall2, int ix, int iy, int iz){
     PKD pkd = smx->pkd;
     MDL mdl = pkd->mdl;
     PARTICLE *p;
@@ -3626,12 +3627,12 @@ void buildInteractionList(SMX smx, SMF *smf, int bSymmetric, KDN* node, BND bnd_
                   smx->nnList[nCnt].dz = dz;
 #ifdef OPTIM_EXTRA
 #ifdef OPTIM_AVOID_IS_ACTIVE
-                  smx->nnList[nCnt].pPart = (bSymmetric && !p->bMarked) ? mdlAcquire(mdl,CID_PARTICLE,pj,id) : p;
+                  smx->nnList[nCnt].pPart = (smx->bSymmetric && !p->bMarked) ? mdlAcquire(mdl,CID_PARTICLE,pj,id) : p;
 #else
-                  smx->nnList[nCnt].pPart = (bSymmetric && !pkdIsActive(pkd,p)) ? mdlAcquire(mdl,CID_PARTICLE,pj,id) : p;
+                  smx->nnList[nCnt].pPart = (smx->bSymmetric && !pkdIsActive(pkd,p)) ? mdlAcquire(mdl,CID_PARTICLE,pj,id) : p;
 #endif
 #else // OPTIM_EXTRA
-                  smx->nnList[nCnt].pPart = bSymmetric ? mdlAcquire(mdl,CID_PARTICLE,pj,id) : p;
+                  smx->nnList[nCnt].pPart = smx->bSymmetric ? mdlAcquire(mdl,CID_PARTICLE,pj,id) : p;
 #endif             
 
                   // This should be faster regarding caching and memory transfer, but the call to pkdIsActive can be a bottleneck here!
