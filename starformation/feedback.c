@@ -7,7 +7,7 @@
 /* Function that will be called with the information of all the neighbors. 
  * Here we compute the probability of explosion, and we add the energy to the surroinding gas particles
  */
-void smFeedback(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
+void smSNFeedback(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
     PARTICLE *q;
     SPHFIELDS *qsph;
@@ -34,11 +34,51 @@ void smFeedback(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
              q = nnList[i].pPart;
              qsph = pkdSph(pkd,q);
              //printf("Uint %e extra %e \n", qsph->Uint, pkd->param.dFeedbackDu * pkdMass(pkd,q));
-             qsph->Uint += pkd->param.dFeedbackDu * pkdMass(pkd,q);
-             qsph->E += pkd->param.dFeedbackDu * pkdMass(pkd,q);
+             
+             const double feed_energy = pkd->param.dFeedbackDu * pkdMass(pkd,q);
+             qsph->Uint += feed_energy;
+             qsph->E += feed_energy;
+#ifdef ENTROPY_SWITCH
+             qsph->S += feed_energy*(pkd->param.dConstGamma-1.)*pow(pkdDensity(pkd,q), -pkd->param.dConstGamma+1);
+#endif
+             //
              printf("Adding SN energy! \n");
           }
 
     }
 }
+
+
+
+void initSNFeedback(void *vpkd, void *vp){
+   PKD pkd = (PKD) vpkd;
+
+   PARTICLE *p = vp;
+
+   SPHFIELDS *psph = pkdSph(pkd,p);
+
+   psph->Uint = 0.;
+   psph->E = 0.;
+#ifdef ENTROPY_SWITCH
+   psph->S = 0.;
+#endif
+
+}
+
+
+void combSNFeedback(void *vpkd, void *p1,void *p2){
+   PKD pkd = (PKD) vpkd;
+
+   
+   SPHFIELDS *psph1 = pkdSph(pkd,p1), *psph2 = pkdSph(pkd,p2);
+
+   psph1->Uint += psph2->Uint;
+   psph1->E += psph2->E;
+#ifdef ENTROPY_SWITCH
+   psph1->S += psph2->S;
+#endif
+
+
+}
+
 #endif

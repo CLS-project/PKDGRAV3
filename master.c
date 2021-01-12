@@ -5086,7 +5086,7 @@ int msrNewTopStepKDK(MSR msr,
 
 #ifdef FEEDBACK
       msrActiveRung(msr,uRung,0);
-      msrReSmooth(msr,*pdTime,SMX_SN_FEEDBACK,0,0);
+      msrReSmooth(msr,*pdTime,SMX_SN_FEEDBACK,1,0);
       msrActiveRung(msr,uRung,1);
 #endif
 
@@ -5260,7 +5260,7 @@ void msrTopStepKDK(MSR msr,
 
     sec = msrTime();
       msrActiveRung(msr,iKickRung,0);
-      msrReSmooth(msr,dTime,SMX_SN_FEEDBACK,0,0);
+      msrReSmooth(msr,dTime,SMX_SN_FEEDBACK,1,0);
       msrActiveRung(msr,iKickRung,1);
     dsec = msrTime() - sec;
     printf("took %.5f seconds\n", dsec);

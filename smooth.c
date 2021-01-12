@@ -342,10 +342,10 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
 	break;
 #ifdef FEEDBACK
     case SMX_SN_FEEDBACK:
-	smx->fcnSmooth = smFeedback;
+	smx->fcnSmooth = smSNFeedback;
 	initParticle = NULL; /* Original Particle */
-	init = NULL; /* Cached copies */ 
-	comb = NULL;
+	init = initSNFeedback; /* Cached copies */ 
+	comb = combSNFeedback;
 	smx->fcnPost = NULL;
 	break;
 #endif
@@ -2662,10 +2662,12 @@ void smReSmoothSingle(SMX smx,SMF *smf,PARTICLE *p,double fBall) {
     /*
     ** Release acquired pointers.
     */
-    for (i=0;i<smx->nnListSize;++i) {
-	if (smx->nnList[i].iPid != pkd->idSelf) {
-	    mdlRelease(pkd->mdl,CID_PARTICLE,smx->nnList[i].pPart);
-	}
+    if (smx->bSymmetric){
+       for (i=0;i<smx->nnListSize;++i) {
+         if (smx->nnList[i].iPid != pkd->idSelf) {
+             mdlRelease(pkd->mdl,CID_PARTICLE,smx->nnList[i].pPart);
+         }
+       }
     }
 }
 
