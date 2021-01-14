@@ -140,6 +140,7 @@ enum pst_service {
 #ifdef BLACKHOLES
     PST_BH_PLACESEED,
     PST_BH_REPOSITION,
+    PST_BH_INIT,
 #endif
     PST_PREDICTSMOOTH,
     PST_DRIFTINACTIVE,
@@ -699,6 +700,7 @@ struct outPlaceBHSeed {
    int nBHs;
 };
 int pstPlaceBHSeed(PST,void *,int,void *,int);
+int pstBHInit(PST,void *,int,void *,int);
 int pstRepositionBH(PST,void *,int,void *,int);
 #endif
 

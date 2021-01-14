@@ -1,7 +1,6 @@
 
 #include "smooth.h"
 #include "pkd.h"
-#include "smooth.h"
 #include "master.h"
 
 void msrPlaceBHSeed(MSR msr, double dTime, uint8_t uRungMax);

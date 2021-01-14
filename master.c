@@ -75,6 +75,7 @@
 #ifdef BLACKHOLES
 #include "blackhole/merger.h"
 #include "blackhole/seed.h"
+#include "blackhole/init.h"
 #endif
 
 #define LOCKFILE ".lockfile"	/* for safety lock */
@@ -3946,8 +3947,9 @@ void msrDrift(MSR msr,double dTime,double dDelta,int iRoot) {
     dsec = msrTime()-sec;
 #ifdef BLACKHOLES
     sec = msrTime();
-    // IA: for this cases, I think that the ReSmoothNode will not provide any important speed up,
-    //  so we can use the old gather. TODO: check if this is indeed true!
+    // IA: for this cases, I think that the ReSmoothNode will not provide 
+    // any important speed up, so we can use the old gather. 
+    // TODO: check if this is indeed true!
     msrReSmooth(msr,dTime,SMX_BH_DRIFT,1,0);
     pstRepositionBH(msr->pst, NULL, 0, NULL, 0);
     double dsecBH = msrTime()-sec;
@@ -5204,7 +5206,14 @@ void msrTopStepKDK(MSR msr,
          msrFluxStats(msr, dTime, dDelta, dStep, iKickRung, ROOT);
 #endif
       }
+	msrZeroNewRung(msr,iKickRung,MAX_RUNG,iKickRung); /* brute force */
 
+#ifdef BLACKHOLES
+      if (msr->param.bPlaceBHSeed){
+         // TODO: This could be improved to be called just once per step, instead that every drift!
+         msrPlaceBHSeed(msr, dTime, iRung);
+      }
+#endif
 
 	/* This Drifts everybody */
 	msrprintf(msr,"%*cDrift, iRung: %d\n",2*iRung+2,' ',iRung);
@@ -5227,15 +5236,35 @@ void msrTopStepKDK(MSR msr,
 	msrActiveRung(msr,iKickRung,1);
 	bSplitVA = 0;
 	msrDomainDecomp(msr,iKickRung,0,bSplitVA);
-      if (!iKickRung && msr->param.bFindGroups) msrNewFof(msr,dTime);
 
-	/* JW: Good place to zero uNewRung  IA: not really... This is done in the init call of smSmooth*/ 
-	msrZeroNewRung(msr,iKickRung,MAX_RUNG,iKickRung); /* brute force */
 
 #ifdef STAR_FORMATION
       msrStarForm(msr, dTime, dDelta, iKickRung);
 #endif
 
+#ifdef BLACKHOLES
+      if (msr->param.bMerger){
+         msrSelActive(msr);
+         msrBHmerger(msr, dTime);
+      }
+      if (msr->param.bAccretion && !msr->param.bMerger){
+         // If there are mergers, this was already done in msrBHMerger, so
+         // there is no need to repeat this.
+         struct outGetNParts Nout;
+  
+         Nout.n = 0;
+         Nout.nDark = 0;
+         Nout.nGas = 0;
+         Nout.nStar = 0;
+         Nout.nBH = 0;
+         pstMoveDeletedParticles(msr->pst, NULL, 0, &Nout, sizeof(struct outGetNParts));
+         msr->N = Nout.n;
+         msr->nDark = Nout.nDark;
+         msr->nGas = Nout.nGas;
+         msr->nStar = Nout.nStar;
+         msr->nBH = Nout.nBH;
+      }
+#endif
 
 	if (msrDoGravity(msr) || msrDoGas(msr)) {
 	    msrActiveRung(msr,iKickRung,1);
@@ -5243,6 +5272,9 @@ void msrTopStepKDK(MSR msr,
 	    msrprintf(msr,"%*cForces, iRung: %d to %d\n",2*iRung+2,' ',iKickRung,iRung);
 	    msrBuildTree(msr,dTime,msr->param.bEwald);
 	    }
+
+      if (!iKickRung && msr->param.bFindGroups) msrNewFof(msr,dTime);
+
 	if (msrDoGravity(msr)) {
 	    msrGravity(msr,iKickRung,MAX_RUNG,ROOT,0,dTime,dStep,0,0,msr->param.bEwald,msr->param.nGroup,piSec,&nActive);
 	    *pdActiveSum += (double)nActive/msr->N;
@@ -6485,8 +6517,7 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
 	}
     if ( msr->param.bFindGroups ) {
 	msrReorder(msr);
-      //IA: I think that this causes problems if newTopStepKDK is used
-	if (!iStep) msrGroupStats(msr);
+	if (!msr->param.bNewKDK) msrGroupStats(msr);
 	//sprintf(achFile,"%s.fof",msrOutName(msr));
 	//msrOutArray(msr,achFile,OUT_GROUP_ARRAY);
 	msrBuildName(msr,achFile,iStep);

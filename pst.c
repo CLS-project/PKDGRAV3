@@ -59,6 +59,7 @@
 #ifdef BLACKHOLES
 #include "blackhole/merger.h"
 #include "blackhole/seed.h"
+#include "blackhole/init.h"
 #endif
 
 void pstAddServices(PST pst,MDL mdl) {
@@ -207,6 +208,9 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_BH_PLACESEED,pst,
 		  (fcnService_t*) pstPlaceBHSeed,
 		  sizeof(struct inPlaceBHSeed), sizeof(struct outPlaceBHSeed));
+    mdlAddService(mdl,PST_BH_INIT,pst,
+		  (fcnService_t*) pstBHInit,
+		  sizeof(struct inPlaceBHSeed), 0);
     mdlAddService(mdl,PST_BH_REPOSITION,pst,
 		  (fcnService_t*) pstRepositionBH,
 		  0, 0);
@@ -2646,6 +2650,21 @@ int pstPlaceBHSeed(PST pst,void *vin,int nIn,void *vout,int nOut){
         out->nBHs = pkdPlaceBHSeed(plcl->pkd,in->dTime, in->dScaleFactor, in->uRungMax, in->dDenMin);
         }
     return sizeof(struct outPlaceBHSeed);
+
+}
+int pstBHInit(PST pst,void *vin,int nIn,void *vout,int nOut){
+    struct inPlaceBHSeed *in = vin;
+    mdlassert(pst->mdl,nIn == sizeof(struct inPlaceBHSeed));
+    if (pst->nLeaves > 1) {
+        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_BH_INIT,in,nIn);
+        pstPlaceBHSeed(pst->pstLower,vin,nIn,vout,nOut);
+        mdlGetReply(pst->mdl,rID,NULL,NULL);
+        }
+    else {
+	LCL *plcl = pst->plcl;
+        pkdBHInit(plcl->pkd,in->uRungMax);
+        }
+    return 0;
 
 }
 int pstRepositionBH(PST pst,void *vin,int nIn,void *vout,int nOut){

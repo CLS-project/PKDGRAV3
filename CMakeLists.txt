@@ -314,6 +314,7 @@ if (BLACKHOLES)
   target_sources(${PROJECT_NAME} PRIVATE  blackhole/merger.c)
   target_sources(${PROJECT_NAME} PRIVATE  blackhole/seed.c)
   target_sources(${PROJECT_NAME} PRIVATE  blackhole/drift.c)
+  target_sources(${PROJECT_NAME} PRIVATE  blackhole/init.c)
   message("-- Black holes are ACTIVE")
 endif(BLACKHOLES)
 

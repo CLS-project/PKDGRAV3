@@ -37,6 +37,9 @@
 #include "master.h"
 #include "outtype.h"
 #include "smoothfcn.h"
+#ifdef BLACKHOLES
+#include "blackhole/init.h"
+#endif
 #ifdef USE_PYTHON
 #include "pkdpython.h"
 #endif
@@ -361,6 +364,14 @@ void master(MDL mdl,void *pst) {
 	    /* Fix dTuFac conversion of T in InitSPH */
 	    uRungMax = msrInitSph(msr,dTime);
 	    }
+#ifdef BLACKHOLES
+      if (msr->nBH > 0 && msrDoGas(msr)){
+         // We assign the BH to the highest rung possible for the first step
+         msrBHInit(msr, uRungMax);
+         msrUpdateRung(msr, 0) ;
+      }
+
+#endif
       if (msr->param.bFindGroups) {
          msrNewFof(msr,csmTime2Exp(msr->csm,dTime));
         }
@@ -448,11 +459,13 @@ void master(MDL mdl,void *pst) {
 		msrCheckpoint(msr,iStep,dTime);
 		bDoCheckpoint = 0;
 		}
-          /* IA: at the begining of the KDK we could have some smoothing operator (e.g.m, BH drift),
-           *  but we can not be sure that the tree is valid at that point unless we do this.
+          /* IA: at the begining of the KDK we could have some smoothing operator 
+           * (e.g.m, BH drift), but we can not be sure that the tree is valid
+           * at that point unless we do this.
            *
-           *  The tree may be unusable if, for example, msrGroupStats (or any function that reorder particles)
-           *   has been called after the latest tree build.
+           *  The tree may be unusable if, for example, msrGroupStats (or any i
+           *  function that reorder particles) has been called after the 
+           *  latest tree build.
            *
            *  TODO CHECK: behaviour when !bNewKDK
            */
