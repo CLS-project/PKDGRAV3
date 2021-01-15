@@ -476,7 +476,9 @@ void master(MDL mdl,void *pst) {
 	    if (bDoOutput) {
 		msrOutput(msr,iStep,dTime,0);
 		bDoOutput = 0;
-		if (msr->param.bNewKDK) {
+		if (msr->param.bFindGroups) {
+               // IA: Calling msrGroupStats rearranges the particles in memory,
+               // so we need to build the tree again after this operation.
 		    msrDomainDecomp(msr,0,0,0);
 		    msrBuildTree(msr,dTime,msr->param.bEwald);
 		    }
