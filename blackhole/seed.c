@@ -25,6 +25,12 @@ void msrPlaceBHSeed(MSR msr, double dTime, uint8_t uRungMax) {
    msr->nBH += out.nBHs;
    printf("Planted %d BH seeds \n", out.nBHs);
 
+
+#ifdef OPTIM_REORDER_IN_NODES
+   if (out.nBHs > 0)
+       msrReorderWithinNodes(msr);
+#endif
+
 }
 
 
@@ -119,7 +125,9 @@ int pkdPlaceBHSeed(PKD pkd, double dTime, double dScaleFactor, uint8_t uRungMax,
          pBH->dAccEnergy = 0.0;
          pBH->fTimer = dTime;
          
-         pLowPot->uNewRung = uRungMax;
+         // IA: As the particle that was converted to a BH lies in a very dense environment
+         // it will probably have a high rung, so this is not required
+         //pLowPot->uNewRung = uRungMax;
          
          printf("New BH pos %e %e %e \n", pkdPos(pkd,pLowPot, 0), pkdPos(pkd,pLowPot, 1), pkdPos(pkd,pLowPot, 2));
 

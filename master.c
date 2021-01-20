@@ -5143,6 +5143,11 @@ void msrTopStepKDK(MSR msr,
 		   int *piSec) {
     uint64_t nActive;
     int bSplitVA;
+#ifdef BLACKHOLES
+      if (!iKickRung && !iRung && msr->param.bPlaceBHSeed){
+         msrPlaceBHSeed(msr, dTime, iRung);
+      }
+#endif
 
     if (iAdjust && (iRung < msrMaxRung(msr)-1)) {
 	msrprintf(msr,"%*cAdjust, iRung: %d\n",2*iRung+2,' ',iRung);
@@ -5208,12 +5213,6 @@ void msrTopStepKDK(MSR msr,
       }
 	msrZeroNewRung(msr,iKickRung,MAX_RUNG,iKickRung); /* brute force */
 
-#ifdef BLACKHOLES
-      if (msr->param.bPlaceBHSeed){
-         // TODO: This could be improved to be called just once per step, instead that every drift!
-         msrPlaceBHSeed(msr, dTime, iRung);
-      }
-#endif
 
 	/* This Drifts everybody */
 	msrprintf(msr,"%*cDrift, iRung: %d\n",2*iRung+2,' ',iRung);
@@ -5273,7 +5272,6 @@ void msrTopStepKDK(MSR msr,
 	    msrBuildTree(msr,dTime,msr->param.bEwald);
 	    }
 
-      if (!iKickRung && msr->param.bFindGroups) msrNewFof(msr,dTime);
 
 	if (msrDoGravity(msr)) {
 	    msrGravity(msr,iKickRung,MAX_RUNG,ROOT,0,dTime,dStep,0,0,msr->param.bEwald,msr->param.nGroup,piSec,&nActive);
@@ -5405,11 +5403,17 @@ void msrTopStepKDK(MSR msr,
 
     dTime += 0.5*dDelta; /* Important to have correct time at step end for SF! */
 
-//      if (msrDoGas(msr) && msrMeshlessHydro(msr)){
-//	   msrActiveRung(msr,iRung,0);
-//         msrUpdatePrimVars(msr, dTime, dDelta, ROOT);
-//         msrMeshlessGradients(msr, dTime, dDelta, ROOT);
-//      }
+    if (!iKickRung && !iRung && msr->param.bFindGroups) {
+      msrNewFof(msr,dTime);
+      char achFile[256];
+	msrGroupStats(msr);
+	msrBuildName(msr,achFile,dStep+1);
+	strncat(achFile,".fofstats",256);
+	msrHopWrite(msr,achFile);
+
+      //msrDomainDecomp(msr,0,0,0);
+      msrBuildTree(msr,dTime,msr->param.bEwald);
+	}
 
 
 
@@ -6515,6 +6519,7 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
 	msrSmooth(msr,dTime,SMX_DENSITY,bSymmetric,msr->param.nSmooth);
 #endif
 	}
+    /*
     if ( msr->param.bFindGroups ) {
 	msrReorder(msr);
 	if (!msr->param.bNewKDK) msrGroupStats(msr);
@@ -6524,6 +6529,7 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
 	strncat(achFile,".fofstats",256);
 	msrHopWrite(msr,achFile);
 	}
+      */
     if ( msr->param.bFindHopGroups ) {
 	msrActiveRung(msr,0,1); /* Activate all particles */
 	msrDomainDecomp(msr,-1,0,0);
