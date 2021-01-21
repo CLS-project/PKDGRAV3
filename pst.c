@@ -2657,7 +2657,7 @@ int pstBHInit(PST pst,void *vin,int nIn,void *vout,int nOut){
     mdlassert(pst->mdl,nIn == sizeof(struct inPlaceBHSeed));
     if (pst->nLeaves > 1) {
         int rID = mdlReqService(pst->mdl,pst->idUpper,PST_BH_INIT,in,nIn);
-        pstPlaceBHSeed(pst->pstLower,vin,nIn,vout,nOut);
+        pstBHInit(pst->pstLower,vin,nIn,vout,nOut);
         mdlGetReply(pst->mdl,rID,NULL,NULL);
         }
     else {
