@@ -154,12 +154,15 @@ void smBHdrift(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf){
                 // Otherwise, just 1./nSmooth would do just fine
                 double prob = 1./nSmooth;//pkdMass(pkd,q) / massSum;
                 if (rand()<RAND_MAX*prob) {
-                   printf("BH eedback event!\n");
+                   printf("BH feedback event!\n");
                    SPHFIELDS* qsph = pkdSph(pkd,q);
                    //printf("Uint %e extra %e \n", qsph->Uint, pkd->param.dFeedbackDu * pkdMass(pkd,q));
                    double energy = pkd->param.dBHFeedbackEcrit * pkdMass(pkd,q) ;
                    qsph->Uint += energy;
                    qsph->E += energy;
+#ifdef ENTROPY_SWITCH
+                   qsph->S += energy*(pkd->param.dConstGamma-1.)*pow(pkdDensity(pkd,q), -pkd->param.dConstGamma+1);
+#endif
 
                    pBH->dAccEnergy -= energy;
                    break;
@@ -232,6 +235,9 @@ void combBHdrift(void *vpkd, void *vp1,void *vp2) {
 
           psph1->Uint += psph2->Uint;
           psph1->E += psph2->E;
+#ifdef ENTROPY_SWITCH
+          psph1->S += psph2->S;
+#endif
 
        }
 
@@ -255,6 +261,9 @@ void initBHdrift(void *vpkd,void *vp){
 
      psph->Uint = 0.0;
      psph->E = 0.0;
+#ifdef ENTROPY_SWITCH
+     psph->S = 0.;
+#endif
   }
 
 }
