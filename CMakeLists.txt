@@ -319,7 +319,7 @@ if (BLACKHOLES)
 endif(BLACKHOLES)
 
 #### OPTIMIZATION OPTIONS
-option(OPTIM_NO_REDUNDANT_FLUXES "Avoid any redundant flux computation using the particle IDs" OFF)
+option(OPTIM_NO_REDUNDANT_FLUXES "Avoid any redundant flux computation using the particle IDs" ON)
 if (OPTIM_NO_REDUNDANT_FLUXES)
    target_compile_options(${PROJECT_NAME} PRIVATE -DOPTIM_NO_REDUNDANT_FLUXES)
    message("-- OPTIM_NO_REDUNDANT_FLUXES: \t Avoid all redundant flux computations. Requires unique particleIDs and OPTIM_SMOOTH_NODE.")
