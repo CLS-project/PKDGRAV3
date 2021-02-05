@@ -40,6 +40,9 @@
 #ifdef BLACKHOLES
 #include "blackhole/init.h"
 #endif
+#if defined(STAR_FORMATION) | defined(FEEDBACK)
+#include "starformation/init.h"
+#endif
 #ifdef USE_PYTHON
 #include "pkdpython.h"
 #endif
@@ -300,11 +303,14 @@ void master(MDL mdl,void *pst) {
 		1.0/csmComoveLookbackTime2Exp(msr->csm,1.0 / dLightSpeedSim(2*msr->param.dBoxSize)) - 1.0,
 		1.0/csmComoveLookbackTime2Exp(msr->csm,1.0 / dLightSpeedSim(3*msr->param.dBoxSize)) - 1.0 );
 	    }
+#if defined(STAR_FORMATION) || defined(FEEDBACK)
+      msrStarFormInit(msr, dTime);
 #ifdef STAR_FORMATION
       msr->starFormed = 0.;
       msr->massFormed = 0.;
-      msrStarFormInit(msr, dTime);
 #endif
+#endif
+
 #ifdef COOLING
       msrCoolingInit(msr);
       if ((msr->csm->val.bComove)){

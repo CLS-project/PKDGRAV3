@@ -1,19 +1,9 @@
-
 #ifdef  STAR_FORMATION
 #include "master.h"
 #include "pkd.h"
 
 /* IA: MSR layer
  */
-void msrStarFormInit(MSR msr, double dTime){
-   struct inStarForm in;
-   struct outStarForm out;
-   in.dTime = dTime;
-
-   pstStarFormInit(msr->pst, &in, sizeof(in), &out, sizeof(out));
-
-   printf("%d star particles are about to explode in this IC\n", out.nFormed);
-}
 
 void msrStarForm(MSR msr, double dTime, double dDelta, int iRung)
     {
@@ -85,23 +75,6 @@ void msrStarForm(MSR msr, double dTime, double dDelta, int iRung)
 
 
 
-/* IA: PKD layer
- */
-void pkdStarFormInit(PKD pkd, double dTime, int *nFormed){
-    *nFormed = 0;
-    for (int i=0;i<pkdLocal(pkd);++i) {
-       PARTICLE *p = pkdParticle(pkd,i);
-      if (pkdIsStar(pkd,p)){
-          STARFIELDS* pStar = pkdStar(pkd,p);
-          if (pStar->fTimer != 0){
-            if ( (dTime-pStar->fTimer) < pkd->param.dFeedbackDelay){
-               pStar->hasExploded = 0; // This particle did not explode before the last snapshot
-               *nFormed += 1;
-            }
-          }
-      }
-    }
-}
 
 
 
