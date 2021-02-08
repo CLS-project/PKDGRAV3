@@ -128,6 +128,7 @@ enum pst_service {
 #endif
     PST_RESETFLUXES, 
     PST_COMPUTEPRIMVARS, 
+    PST_WAKEPARTICLES,
 #ifdef DEBUG_CACHED_FLUXES
     PST_FLUXSTATS,
 #endif
@@ -815,6 +816,7 @@ int pstSetParticleParent(PST,void *,int,void *,int);
 #endif
 int pstResetFluxes(PST,void *,int,void *,int); 
 int pstComputePrimVars(PST,void *,int,void *,int);
+int pstWakeParticles(PST,void *,int,void *,int);
 struct inFluxStats{
    // Empty but could be used in the future?
 };

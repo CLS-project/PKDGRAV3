@@ -179,6 +179,9 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_COMPUTEPRIMVARS,pst,
 		  (fcnService_t*) pstComputePrimVars,
 		  sizeof(struct inDrift),0);
+    mdlAddService(mdl,PST_WAKEPARTICLES,pst,
+		  (fcnService_t*) pstWakeParticles,
+		  sizeof(struct inDrift),0);
 #ifdef DEBUG_CACHED_FLUXES
     mdlAddService(mdl,PST_FLUXSTATS,pst,
 		  (fcnService_t*) pstFluxStats,
@@ -3169,6 +3172,22 @@ int pstComputePrimVars(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	}
     else {
 	pkdComputePrimVars(plcl->pkd,in->iRoot, in->dTime, in->dDelta);
+	}
+    return 0;
+    }
+
+int pstWakeParticles(PST pst,void *vin,int nIn,void *vout,int nOut) {
+    LCL *plcl = pst->plcl;
+    struct inDrift *in = vin;
+
+    mdlassert(pst->mdl,nIn == sizeof(struct inDrift));
+    if (pst->nLeaves > 1) {
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_WAKEPARTICLES,in,nIn);
+	pstWakeParticles(pst->pstLower,in,nIn,NULL,0);
+	mdlGetReply(pst->mdl,rID,NULL,NULL);
+	}
+    else {
+	pkdWakeParticles(plcl->pkd,in->iRoot, in->dTime, in->dDelta);
 	}
     return 0;
     }

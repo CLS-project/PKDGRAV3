@@ -328,6 +328,8 @@ typedef struct sphfields {
     double cellCM[3];
 #endif
 
+    uint8_t uWake;
+
     } SPHFIELDS;
 
 typedef struct starfields {

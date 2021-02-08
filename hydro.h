@@ -43,6 +43,8 @@
 typedef double my_real;
 
 
+void pkdWakeParticles(PKD pkd,int iRoot, double dTime, double dDelta);
+
 double cubicSplineKernel(double r, double h);
 void inverseMatrix(double* E, double* B);
 

@@ -4666,6 +4666,12 @@ void msrHydroStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime) {
     }
     dsec = msrTime() - sec;
     printf("took %.5f seconds\n", dsec);
+
+    struct inDrift in;
+    in.iRoot = 0; // Not used
+    in.dTime = dTime;
+    in.dDelta = 0; // Not used
+    pstWakeParticles(msr->pst,&in,sizeof(in),NULL,0); 
 }
 
 uint8_t msrGetMinDt(MSR msr){

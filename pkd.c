@@ -1242,6 +1242,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             pSph->computed_fluxes = 0;
 #endif
 #endif
+            pSph->uWake = 0;
 		}
 	    break;
 	case FIO_SPECIES_DARK:

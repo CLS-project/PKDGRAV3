@@ -1434,7 +1434,14 @@ void hydroStep(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
         //if (uNewRung > p->uNewRung ) p->uNewRung = uNewRung; 
 
 
-        if ( (p->uNewRung - q->uNewRung) > 2) q->uNewRung = p->uNewRung-1;
+        if ( (p->uNewRung - q->uNewRung) > 2){
+          q->uNewRung = p->uNewRung-1;
+          if (!pkdIsActive(pkd,q)) {
+             // DEBUG: The number of wake up request and IDs must match!
+             //printf("Need to wake up! %"PRIu64" \n", *pkdParticleID(pkd,q));
+             pkdSph(pkd,q)->uWake = p->uNewRung;
+          }
+        }
 
     }
     
@@ -1499,7 +1506,54 @@ void genericPairwiseLimiter(double Lstate, double Rstate, double *Lstate_face, d
 
 
 
+/* Wake the particles whose uWake is greater than zero (see hydroStep)
+ * 
+ * TODO: clean unused function arguments
+ */
+void pkdWakeParticles(PKD pkd,int iRoot, double dTime, double dDelta) {
+   for (int i=0;i<pkdLocal(pkd);++i) { 
+      PARTICLE* p = pkdParticle(pkd,i);
+      if (pkdIsGas(pkd,p)){
+         uint8_t uWake = pkdSph(pkd,p)->uWake;
+         if (uWake){
+            SPHFIELDS* psph = pkdSph(pkd,p);
 
+            p->uRung = uWake;
+            p->uNewRung = uWake;
+            psph->uWake = 0;
+
+            psph->lastUpdateTime = dTime;
+
+            // We revert to the state at the end of the previous timestep
+            psph->E    = psph->lastE;
+            psph->Uint = psph->lastUint;
+            float *mass = pkdField(p, pkd->oMass);
+            *mass = psph->lastMass;
+
+            for (int j=0;j<3;j++){
+               psph->mom[j] = psph->lastMom[j];
+            } 
+
+            // NOTE: What do we do with the variables?
+            //  We could integrate the source terms without major problems.
+            //  However, with the hydrodynamics is not that easy.
+            //
+            //
+            //  The Fene/mom are unusable at this time because the particle is
+            //  not synced. At most, we could use the previous hydro derivatives
+            //  to extrapolate up to this time... but they are also unusable
+            //
+            //  Storing them would be adding more variables that will be
+            //  rarely used... And even doing that... this will not be
+            //  conservative!!
+
+            // DEBUG: The number of wake up request and IDs must match!
+            //printf("Waking up %"PRIu64" \n", *pkdParticleID(pkd,p));
+         }
+      }
+   }
+
+}
 
 
 
