@@ -269,6 +269,19 @@ CACHE *mdlClass::AdvancedCacheInitialize(int cid,hash::GHASH *hash,int iDataSize
     return c;
     }
 
+// This function save the message on the SendReceiveMessages list,
+// and creates a MPI_Request on the SendReceiveRequests list.
+// This is returned and used by an MPI route (e.g., MPI_Isend).
+// When complete message->finish() will be called (see finishRequests).
+MPI_Request *mpiClass::newRequest(mdlMessageMPI*message) {
+    SendReceiveRequests.emplace_back();
+    SendReceiveMessages.push_back(message);
+#ifndef NDEBUG
+    ++nRequestsCreated;
+#endif
+    return &SendReceiveRequests.back();
+    }
+
 // Open the cache by posting the receive if required
 void mpiClass::MessageCacheOpen(mdlMessageCacheOpen *message) {
     if (nOpenCaches==0) pReqRcv->action(this); // MessageCacheReceive()
@@ -278,10 +291,8 @@ void mpiClass::MessageCacheOpen(mdlMessageCacheOpen *message) {
 
 // Post the recieve. Receive will continue to be reposted as message are recieved.
 void mpiClass::MessageCacheReceive(mdlMessageCacheReceive *message) {
-    SendReceiveRequests.emplace_back();
-    SendReceiveMessages.push_back(message);
     MPI_Irecv(message->getBuffer(),iCacheBufSize, MPI_BYTE, MPI_ANY_SOURCE,
-	      MDL_TAG_CACHECOM, commMDL, &SendReceiveRequests.back());
+	      MDL_TAG_CACHECOM, commMDL, newRequest(message));
     }
 
 // Called when the receive finishes. Decode the type of message and process it,
@@ -500,9 +511,7 @@ void mpiClass::MessageCacheRequest(mdlMessageCacheRequest *message) {
     CacheRequestMessages[iCoreFrom] = message;
     assert(message->pLine);
     iProc = ThreadToProc(message->header.idTo);
-    SendReceiveRequests.emplace_back();
-    SendReceiveMessages.push_back(message);
-    MPI_Isend(&message->header,sizeof(message->header)+message->key_size,MPI_BYTE,iProc,MDL_TAG_CACHECOM, commMDL,&SendReceiveRequests.back());
+    MPI_Isend(&message->header,sizeof(message->header)+message->key_size,MPI_BYTE,iProc,MDL_TAG_CACHECOM, commMDL,newRequest(message));
     }
 
 // On the remote node, the message is received, and a response is constructed with the data
@@ -543,10 +552,8 @@ void mpiClass::CacheReceiveRequest(int count, const CacheHeader *ph) {
 // The reply message is sent back to the origin node, and added to the MPI request tracker.
 // This is the "action" routine.
 void mpiClass::MessageCacheReply(mdlMessageCacheReply *pFlush) {
-    SendReceiveRequests.emplace_back();
-    SendReceiveMessages.push_back(pFlush);
     MPI_Issend(pFlush->getBuffer(),pFlush->getCount(),MPI_BYTE,pFlush->getRankTo(),
-	MDL_TAG_CACHECOM,commMDL,&SendReceiveRequests.back());
+	MDL_TAG_CACHECOM,commMDL,newRequest(pFlush));
     }
 
 // When the send finishes, the buffer is added back to the list of free reply buffers
@@ -730,10 +737,8 @@ void mpiClass::flush_element(CacheHeader *pHdr,int iSize) {
 // Called to flush a buffer full of cache data to a particular rank
 void mpiClass::MessageFlushToRank(mdlMessageFlushToRank *pFlush) {
     if (pFlush->getCount()>0) {
-	SendReceiveRequests.emplace_back();
-	SendReceiveMessages.push_back(pFlush);
 	MPI_Issend(pFlush->getBuffer(),pFlush->getCount(),MPI_BYTE,pFlush->getRankTo(),
-	    MDL_TAG_CACHECOM,commMDL,&SendReceiveRequests.back());
+	    MDL_TAG_CACHECOM,commMDL,newRequest(pFlush));
 	}
     else FinishFlushToRank(pFlush);
     }
@@ -1054,9 +1059,7 @@ void mpiClass::MessageSTOP(mdlMessageSTOP *message) {
     }
 
 void mpiClass::MessageBarrierMPI(mdlMessageBarrierMPI *message) {
-    SendReceiveRequests.emplace_back();
-    SendReceiveMessages.push_back(message);
-    MPI_Ibarrier(commMDL,&SendReceiveRequests.back());
+    MPI_Ibarrier(commMDL,newRequest(message));
     }
 
 void mpiClass::MessageGridShare(mdlMessageGridShare *share) {
@@ -1116,12 +1119,10 @@ void mpiClass::MessageAlltoallv(mdlMessageAlltoallv *a2a) {
     MPI_Datatype mpitype;
     MPI_Type_contiguous(a2a->dataSize,MPI_BYTE,&mpitype);
     MPI_Type_commit(&mpitype);
-    SendReceiveRequests.emplace_back();
-    SendReceiveMessages.push_back(a2a);
     MPI_Ialltoallv(
 	a2a->sbuff, a2a->scount, a2a->sdisps, mpitype,
 	a2a->rbuff, a2a->rcount, a2a->rdisps, mpitype,
-	commMDL, &SendReceiveRequests.back());
+	commMDL, newRequest(a2a));
     MPI_Type_free(&mpitype);
     }
 
@@ -1150,9 +1151,7 @@ void mpiClass::MessageSendRequest(mdlMessageSendRequest *send) {
     MPI_Datatype datatype;
     MPI_Type_create_struct (2, blocklen, disp, type, &datatype);
     MPI_Type_commit (&datatype);
-    SendReceiveRequests.emplace_back();
-    SendReceiveMessages.push_back(send);
-    MPI_Isend(&send->header,1,datatype,iProc,tag,commMDL,&SendReceiveRequests.back());
+    MPI_Isend(&send->header,1,datatype,iProc,tag,commMDL,newRequest(send));
     MPI_Type_free (&datatype);
     }
 
@@ -1171,9 +1170,7 @@ void mpiClass::MessageSendReply(mdlMessageSendReply *send) {
     MPI_Datatype datatype;
     MPI_Type_create_struct (2, blocklen, disp, type, &datatype);
     MPI_Type_commit (&datatype);
-    SendReceiveRequests.emplace_back();
-    SendReceiveMessages.push_back(send);
-    MPI_Isend(&send->header,1,datatype,iProc,tag,commMDL,&SendReceiveRequests.back());
+    MPI_Isend(&send->header,1,datatype,iProc,tag,commMDL,newRequest(send));
     MPI_Type_free (&datatype);
     }
 
@@ -1182,9 +1179,7 @@ void mpiClass::MessageSend(mdlMessageSend *send) {
     int iCore = send->target - ProcToThread(iProc);
     assert(iCore>=0);
     int tag = send->tag + MDL_TAG_THREAD_OFFSET * iCore;
-    SendReceiveRequests.emplace_back();
-    SendReceiveMessages.push_back(send);
-    MPI_Issend(send->buf,send->count,send->datatype,iProc,tag,commMDL,&SendReceiveRequests.back());
+    MPI_Issend(send->buf,send->count,send->datatype,iProc,tag,commMDL,newRequest(send));
     }
 
 void mpiClass::MessageReceive(mdlMessageReceive *send) {
@@ -1192,9 +1187,7 @@ void mpiClass::MessageReceive(mdlMessageReceive *send) {
     int iCore = send->iCoreFrom;
     assert(iCore>=0);
     int tag = send->tag + MDL_TAG_THREAD_OFFSET * iCore;
-    SendReceiveRequests.emplace_back();
-    SendReceiveMessages.push_back(send);
-    MPI_Irecv(send->buf,send->count,send->datatype,iProc,tag,commMDL,&SendReceiveRequests.back());
+    MPI_Irecv(send->buf,send->count,send->datatype,iProc,tag,commMDL,newRequest(send));
     }
 
 void mpiClass::MessageReceiveReply(mdlMessageReceiveReply *send) {
@@ -1202,8 +1195,6 @@ void mpiClass::MessageReceiveReply(mdlMessageReceiveReply *send) {
     int tag = MDL_TAG_RPL + MDL_TAG_THREAD_OFFSET * send->target;
     int iProc = pRequestTargets[send->target];
 
-    SendReceiveRequests.emplace_back();
-    SendReceiveMessages.push_back(send);
     if (send->buf) {
 	MPI_Aint disp[2];
 	MPI_Get_address(&send->header, &disp[0]);
@@ -1214,10 +1205,10 @@ void mpiClass::MessageReceiveReply(mdlMessageReceiveReply *send) {
 	MPI_Datatype datatype;
 	MPI_Type_create_struct (2, blocklen, disp, type, &datatype);
 	MPI_Type_commit (&datatype);
-	MPI_Irecv(&send->header,1,datatype,iProc,tag,commMDL,&SendReceiveRequests.back());
+	MPI_Irecv(&send->header,1,datatype,iProc,tag,commMDL,newRequest(send));
 	MPI_Type_free (&datatype);
 	}
-    else MPI_Irecv(&send->header,sizeof(ServiceHeader),MPI_BYTE,iProc,tag,commMDL,&SendReceiveRequests.back());
+    else MPI_Irecv(&send->header,sizeof(ServiceHeader),MPI_BYTE,iProc,tag,commMDL,newRequest(send));
     }
 
 void mpiClass::FinishReceiveReply(mdlMessageReceiveReply *send) {
@@ -1229,25 +1220,31 @@ void mpiClass::FinishReceiveReply(mdlMessageReceiveReply *send) {
 void mpiClass::finishRequests() {
     // If there are MPI send/recieve message pending then check if they are complete
     if (!SendReceiveRequests.empty()) {
-	int nDone;
+	int nDone = MPI_UNDEFINED;
 	// Should be sufficent, but resize if necessary
-	if (SendReceiveIndices.size() < SendReceiveRequests.size())
-	        SendReceiveIndices.resize(SendReceiveRequests.size());
-	if (SendReceiveStatuses.size() < SendReceiveRequests.size())
-	        SendReceiveStatuses.resize(SendReceiveRequests.size());
-	MPI_Testsome(SendReceiveRequests.size(), &SendReceiveRequests.front(),
+	if (SendReceiveIndices.size() < SendReceiveRequests.size())  SendReceiveIndices.resize(SendReceiveRequests.size());
+	if (SendReceiveStatuses.size() < SendReceiveRequests.size()) SendReceiveStatuses.resize(SendReceiveRequests.size());
+	auto rc = MPI_Testsome(SendReceiveRequests.size(), &SendReceiveRequests.front(),
 	        &nDone, &SendReceiveIndices.front(), &SendReceiveStatuses.front() );
+	assert(rc==MPI_SUCCESS);
+	assert(nDone != MPI_UNDEFINED);
 	if (nDone) { // If one or more of the requests has completed
+#ifndef NDEBUG
+	    nRequestsReaped += nDone;
+#endif
+	    assert(SendReceiveMessages.size() == SendReceiveRequests.size()); // basic sanity
 	    for(int i=0; i<nDone; ++i) {
-		int indx = SendReceiveIndices[i];
+		unsigned indx = SendReceiveIndices[i];
+		assert(indx < SendReceiveMessages.size());
 		mdlMessageMPI *M = SendReceiveMessages[indx];
-		SendReceiveMessages[indx] = 0; // Mark as done
-		SendReceiveRequests[indx] = MPI_REQUEST_NULL; // Mark as done
-		M->finish(this,SendReceiveStatuses[i]);
+		SendReceiveMessages[indx] = 0; // Mark as done (removed below)
+		assert(SendReceiveRequests[indx] == MPI_REQUEST_NULL); // set by Testsome
+		M->finish(this,SendReceiveStatuses[i]); // Finish request (which could create/add more requests)
 		}
-	    // Now remove the "marked" elements
+	    // Now remove the "marked" elements. The "finish" routines above could have added new entries at the end (but that is valid).
 	    SendReceiveMessages.erase(std::remove(SendReceiveMessages.begin(), SendReceiveMessages.end(), (mdlMessageMPI*)0), SendReceiveMessages.end());
 	    SendReceiveRequests.erase(std::remove(SendReceiveRequests.begin(), SendReceiveRequests.end(), MPI_REQUEST_NULL),  SendReceiveRequests.end());
+	    assert(SendReceiveMessages.size() == SendReceiveRequests.size()); // Should have removed the same number from each list
 	    }
 	}
     }
@@ -1484,6 +1481,9 @@ int mpiClass::Launch(int argc,char **argv,int (*fcnMaster)(MDL,void *),void * (*
     SendReceiveStatuses.resize(Cores()*2);
     SendReceiveIndices.resize(Cores()*2);
     CacheRequestMessages.resize(Cores()); // Each core can have ONE request
+#ifndef NDEBUG
+    nRequestsCreated = nRequestsReaped = 0;
+#endif
 
     /* Ring buffer of requests */
     iRequestTarget = 0;

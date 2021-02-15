@@ -362,6 +362,10 @@ protected:
     std::vector<MPI_Status>     SendReceiveStatuses;
     std::vector<int>            SendReceiveIndices;
     std::vector<mdlMessageMPI*> SendReceiveMessages;
+#ifndef NDEBUG
+    uint64_t nRequestsCreated, nRequestsReaped;
+#endif
+    MPI_Request *newRequest(mdlMessageMPI*message);
 
     mdlMessageCacheReceive *pReqRcv;
     std::list<mdlMessageCacheReply *> freeCacheReplies;
