@@ -44,9 +44,10 @@
 typedef int (fcnService_t)(void *p1, void *vin, int nIn, void *vout, int nOut);
 
 #ifdef __cplusplus
+#include "mdlbt.h"
 #include <vector>
 #define MAX_NODE_NAME_LENGTH      256
-class mdlBASE {
+class mdlBASE : protected mdlbt {
 protected:
     class SERVICE {
     	friend class mdlBASE;

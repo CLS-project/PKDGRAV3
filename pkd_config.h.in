@@ -36,7 +36,6 @@
 #cmakedefine HAVE_ATEXIT 1
 #cmakedefine HAVE_POSIX_MEMALIGN 1
 
-#cmakedefine USE_BT 1
 #cmakedefine _GNU_SOURCE 1
 #cmakedefine USE_CUDA 1
 #cmakedefine USE_HDF5 1

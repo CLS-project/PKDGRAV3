@@ -1149,8 +1149,6 @@ void msrLogParams(MSR &msr,FILE *fp) {
     fprintf(fp,"# with SSE support\n");
 #endif
 
-#ifdef USE_BT
-#endif
     fprintf(fp,"# Preprocessor macros:");
 #ifdef DEBUG
     fprintf(fp," DEBUG");

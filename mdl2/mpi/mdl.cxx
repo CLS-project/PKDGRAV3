@@ -1277,6 +1277,24 @@ static void TERM_handler(int signo) {
     MPI_Abort(MPI_COMM_WORLD,130);
     }
 
+static void MDL_signal_handler(int signo) {
+    auto mdl = static_cast<mdlClass *>(pthread_getspecific(mdl_key));
+    signal(signo,MDL_signal_handler);
+    mdl->Backtrace();
+    }
+
+static void MPI_signal_handler(int signo) {
+    auto mdl = static_cast<mdlClass *>(pthread_getspecific(mdl_key));
+    signal(signo,MPI_signal_handler);
+    mdl->Backtrace();
+    mdl->mpi->KillAll(signo);
+    }
+
+void mpiClass::KillAll(int signo) {
+    for (auto i = 0; i < Cores(); ++i)
+	if (i!=Core()) pthread_kill(threadid[i], signo);
+    }
+
 extern "C"
 int mdlLaunch(int argc,char **argv,int (*fcnMaster)(MDL,void *),void * (*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *)) {
     mpiClass mdl(fcnMaster,fcnWorkerInit,fcnWorkerDone,argc,argv);
@@ -1482,7 +1500,7 @@ int mpiClass::Launch(int argc,char **argv,int (*fcnMaster)(MDL,void *),void * (*
     __itt_thread_set_name("MPI");
 #endif
 
-    std::vector<pthread_t> threadid(Cores());
+    threadid.resize(Cores());
 
     /* Launch threads: if dedicated MPI thread then launch all worker threads. */
 #ifdef USE_ITT
@@ -1520,6 +1538,9 @@ int mpiClass::Launch(int argc,char **argv,int (*fcnMaster)(MDL,void *),void * (*
     hwloc_bitmap_free(set_thread);
     hwloc_bitmap_free(set_proc);
     hwloc_topology_destroy(topology);
+#endif
+#ifdef USE_BT
+    register_backtrace();
 #endif
     if (!bDedicated) {
 	worker_ctx = (*fcnWorkerInit)(static_cast<MDL>(static_cast<mdlClass *>(this)));
@@ -1890,6 +1911,9 @@ void *mdlClass::WorkerThread() {
     __itt_thread_set_name(szName);
 #endif
     pthread_setspecific(mdl_key, this);
+#ifdef USE_BT
+    register_backtrace();
+#endif
     worker_ctx = (*fcnWorkerInit)(static_cast<MDL>(this));
     pthread_setspecific(worker_key, worker_ctx);
     CommitServices();

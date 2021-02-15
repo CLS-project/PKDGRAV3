@@ -40,7 +40,6 @@
 #include <tuple>
 #include <vector>
 #include <list>
-#include <forward_list>
 #include <map>
 #endif
 
@@ -314,6 +313,7 @@ public:
     void ThreadBarrier(bool bGlobal=false);
     void CompleteAllWork();
     bool isCudaActive();
+    void Backtrace() {show_backtrace();}
 
     void *Access(int cid, uint32_t uIndex,  int uId, bool bLock,bool bModify,bool bVirtual);
     void *Access(int cid, uint32_t uHash,void *pKey, bool bLock,bool bModify,bool bVirtual);
@@ -335,6 +335,7 @@ public:
 protected:
     MPI_Comm commMDL;             /* Current active communicator */
     pthread_barrier_t barrier;
+    std::vector<pthread_t> threadid;
 #ifdef USE_CUDA
     CUDA cuda;
 #endif
@@ -440,6 +441,7 @@ public:
     	     int argc=0, char **argv=0);
     virtual ~mpiClass();
     int Launch(int argc,char **argv,int (*fcnMaster)(MDL,void *),void * (*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *));
+    void KillAll(int signo);
 #ifdef USE_CUDA
     void enqueue(const cudaMessage &M, basicQueue &replyTo);
     bool isCudaActive() {return cuda.isActive(); }

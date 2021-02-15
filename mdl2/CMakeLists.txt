@@ -26,9 +26,13 @@ CHECK_INCLUDE_FILES (stdint.h HAVE_STDINT_H)
 INCLUDE(CheckLibraryExists)
 CHECK_LIBRARY_EXISTS(memkind hbw_posix_memalign "" HAVE_MEMKIND)
 
+INCLUDE(CheckSymbolExists)
+check_symbol_exists(backtrace execinfo.h USE_BT)
+
 find_package(Threads REQUIRED)
 find_package(MPI REQUIRED)	# MPI support
 find_package(CUDA)
+find_package(elfutils)
 
 add_library(${PROJECT_NAME} STATIC "")
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_auto_type cxx_range_for cxx_lambdas cxx_strong_enums)
@@ -46,6 +50,13 @@ target_sources(${PROJECT_NAME}
           ${CMAKE_CURRENT_SOURCE_DIR}/mdlbase.h
           ${CMAKE_CURRENT_BINARY_DIR}/mdl_config.h
 )
+if(USE_BT)
+  target_sources(${PROJECT_NAME}
+	  PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/mdlbt.cxx
+	  PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/mdlbt.h)
+  set(USE_BT TRUE)
+endif()
+
 if (HWLOC_FOUND)
   find_library(HWLOC_LIBRARY hwloc HINTS ${HWLOC_LIBDIR})
   CHECK_LIBRARY_EXISTS(hwloc hwloc_topology_init ${HWLOC_LIBDIR} HAVE_HWLOC)
@@ -59,6 +70,11 @@ if (HWLOC_FOUND)
 	" On Cray you can try: export CRAYPE_LINK_TYPE=dynamic")
   endif()
 endif()
+if (elfutils_FOUND)
+   set(USE_ELFUTILS TRUE)
+   target_link_libraries(${PROJECT_NAME} elfutils::dw elfutils::elf)
+endif()
+
 if (APPLE)
   target_sources(${PROJECT_NAME}
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/mac/pthread_barrier.c

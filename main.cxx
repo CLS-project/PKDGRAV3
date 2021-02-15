@@ -31,9 +31,6 @@
 #include <time.h>
 #include <assert.h>
 #include "mdl.h"
-#ifdef USE_BT
-#include "bt.h"
-#endif
 #include "master.h"
 #include "outtype.h"
 #include "smoothfcn.h"
@@ -118,9 +115,6 @@ int master(MDL mdl,void *vpst) {
     }
 
 int main(int argc,char **argv) {
-#ifdef USE_BT
-    bt_initialize();
-#endif
 #ifdef ENABLE_FE
     feenableexcept(FE_INVALID|FE_DIVBYZERO|FE_OVERFLOW);
 #endif
