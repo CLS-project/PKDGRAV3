@@ -132,7 +132,7 @@ extern "C"
 double pkdParticleEwald(PKD pkd,double *r, float *pa, float *pPot,double *pdFlopSingle, double *pdFlopDouble) {
     struct EwaldVariables &ew = pkd->ew;
     EwaldTable *ewt = &pkd->ewt;
-    const MOMC restrict &mom = ew.mom;
+    const MOMC & restrict mom = ew.mom;
     double L,Pot,ax,ay,az,dx,dy,dz,x,y,z,r2;
 #ifdef USE_SIMD_EWALD
     dvec dPot,dax,day,daz;
