@@ -727,22 +727,24 @@ void cooling_Hydrogen_reionization(PKD pkd) {
   /* Loop through particles and set new heat */
   for (int i=0;i<pkdLocal(pkd);++i) { 
     p = pkdParticle(pkd,i);
-    psph = pkdSph(pkd, p);
+    if (pkdIsGas(pkd,p)){
+       psph = pkdSph(pkd, p);
 
-    const double old_u = psph->Uint ;
+       const double old_u = psph->Uint ;
 
-    /* IA: Mass in hydrogen */
-    const double extra_heat = extra_heat_per_proton * pkdMass(pkd,p) * psph->chemistry[chemistry_element_H];
-    const double new_u = old_u + extra_heat;
-    
-    //printf("Applying extra energy for H reionization! U=%e dU=%e \n", old_u, extra_heat);
+       /* IA: Mass in hydrogen */
+       const double extra_heat = extra_heat_per_proton * pkdMass(pkd,p) * psph->chemistry[chemistry_element_H];
+       const double new_u = old_u + extra_heat;
+       
+       //printf("Applying extra energy for H reionization! U=%e dU=%e \n", old_u, extra_heat);
 
-    //hydro_set_physical_internal_energy(p, xp, cosmo, new_u);
-    //hydro_set_drifted_physical_internal_energy(p, cosmo, new_u);
-    //printf("old_u %e \t new_u %e \t du %e \n", old_u, new_u, extra_heat);
-    psph->Uint = new_u;
-    psph->E += extra_heat;
-    /* IA: TODO: Can this cause problems as now lastUint and Uint can be very different? */
+       //hydro_set_physical_internal_energy(p, xp, cosmo, new_u);
+       //hydro_set_drifted_physical_internal_energy(p, cosmo, new_u);
+       //printf("old_u %e \t new_u %e \t du %e \n", old_u, new_u, extra_heat);
+       psph->Uint = new_u;
+       psph->E += extra_heat;
+       /* IA: TODO: Can this cause problems as now lastUint and Uint can be very different? */
+    }
   }
 }
 

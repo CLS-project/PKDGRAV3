@@ -108,16 +108,6 @@ void combThirdHydroLoop(void *vpkd, void *p1,void *p2) {
 void initHydroFluxes(void *vpkd, void *vp) {
     PKD pkd = (PKD) vpkd;
     PARTICLE *p = vp;
-    assert(!pkd->bNoParticleOrder);
-    int i;
-//    if (pkdIsActive(pkd,p)) {
-	SPHFIELDS *psph = pkdSph(pkd,p);
-//      psph->Frho = 0.0;
-//      psph->Fene = 0.0;
-//      psph->uNewRung = 0;
-//      for (i=0;i<3;i++) { 
-//         psph->Fmom[i] = 0.0;
-//	}
     }
 
 void initHydroStep(void *vpkd, void *vp) {
