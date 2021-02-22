@@ -1657,6 +1657,11 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
 		sizeof(int), "iterh",
 		"Use an iterative scheme to obtain h");
 
+    msr->param.bWakeUpParticles = 0;
+    prmAddParam(msr->prm,"bWakeUpParticles", 0, &msr->param.bWakeUpParticles,
+		sizeof(int), "wakeup",
+		"Wake the particles when there is a big rung difference");
+
     msr->param.dNeighborsStd0 = 1;
     prmAddParam(msr->prm,"dNeighborsStd", 2, &msr->param.dNeighborsStd0,
 		sizeof(double), "neighstd",
@@ -4667,11 +4672,13 @@ void msrHydroStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime) {
     dsec = msrTime() - sec;
     printf("took %.5f seconds\n", dsec);
 
-    struct inDrift in;
-    in.iRoot = 0; // Not used
-    in.dTime = dTime;
-    in.dDelta = 0; // Not used
-    pstWakeParticles(msr->pst,&in,sizeof(in),NULL,0); 
+    if (msr->param.bWakeUpParticles){
+       struct inDrift in;
+       in.iRoot = 0; // Not used
+       in.dTime = dTime;
+       in.dDelta = 0; // Not used
+       pstWakeParticles(msr->pst,&in,sizeof(in),NULL,0); 
+    }
 }
 
 uint8_t msrGetMinDt(MSR msr){

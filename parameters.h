@@ -239,6 +239,7 @@ struct parameters {
     int bFirstHydroLoop;
     int bConservativeReSmooth;
     int bIterativeSmoothingLength;
+    int bWakeUpParticles;
     double dNeighborsStd0;
     double dNeighborsStd;
 
