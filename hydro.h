@@ -54,8 +54,6 @@ void initHydroFluxes(void *vpkd, void *vp);
 void initHydroStep(void *vpkd, void *vp);
 void initHydroFluxesCached(void *vpkd, void *vp);
 void initHydroGradients(void *vpkd, void *vp);
-void combFirstHydroLoop(void *vpkd, void *p1,void *p2);
-void combSecondHydroLoop(void *vpkd, void *p1,void *p2);
 void combThirdHydroLoop(void *vpkd, void *p1,void *p2);
 void combHydroStep(void *vpkd, void *p1,void *p2);
 void hydroDensity(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf);

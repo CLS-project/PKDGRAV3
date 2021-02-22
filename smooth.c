@@ -313,7 +313,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
 	smx->fcnSmooth = hydroDensity;
 	initParticle = initHydroLoop; /* Original Particle */
 	init = initHydroLoopCached; /* Cached copies */
-	comb = combFirstHydroLoop;
+	comb = NULL;
 	smx->fcnPost = NULL;
 	break;
     case SMX_SECONDHYDROLOOP:
@@ -321,7 +321,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
 	smx->fcnSmooth = hydroGradients;
 	initParticle = initHydroGradients; /* Original Particle */
 	init = initHydroGradients; /* Cached copies */ 
-	comb = combSecondHydroLoop;
+	comb = NULL;
 	smx->fcnPost = NULL;
 	break;
     case SMX_THIRDHYDROLOOP:
