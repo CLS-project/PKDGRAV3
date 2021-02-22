@@ -5159,6 +5159,16 @@ void msrTopStepKDK(MSR msr,
 #ifdef BLACKHOLES
       if (!iKickRung && !iRung && msr->param.bPlaceBHSeed){
          msrPlaceBHSeed(msr, dTime, iRung);
+
+#ifdef OPTIM_REORDER_IN_NODES
+         // This is kind of overkill. Ideally just reseting the CID_CELL
+         // cache would work.
+         //
+         // This is done to prevent a mismatch between the fetched and true
+         // cell data, as it may have been updated if a BH has been placed
+         // into that node
+         msrBuildTree(msr,dTime,msr->param.bEwald);
+#endif
       }
 #endif
 
