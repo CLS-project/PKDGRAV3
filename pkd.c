@@ -1139,32 +1139,6 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	else pPot = &dummypot;
         pkdSetGroup(pkd,p,0);
 
-	/* Initialize SPH fields if present */
-	if (pkd->oSph) {
-	    pSph = pkdField(p,pkd->oSph);
-#ifndef OPTIM_REMOVE_UNUSED
-	    pSph->u = pSph->uPred = pSph->uDot = pSph->c = pSph->divv = pSph->BalsaraSwitch
-		= pSph->diff = pSph->fMetals = pSph->fMetalsPred = pSph->fMetalsDot = 0.0;
-#endif
-#ifdef COOLING
-          for (j=0;j<chemistry_element_count;j++ ) pSph->chemistry[j]=0.;
-#endif
-	    }
-	else pSph = NULL;
-
-	/* Initialize Star fields if present */
-	if (pkd->oStar) {
-	    pStar = pkdStar(pkd, p);
-	    pStar->fTimer = 0;
-          pStar->hasExploded = 1;
-/*	    pStar->iGasOrder = IORDERMAX;*/
-	    }
-	else pStar = NULL;
-
-      if (pkd->oBH) {
-         pBH = pkdBH(pkd,p);
-         pBH->fTimer = 0.;
-      }else pBH = NULL;
 
 	eSpecies = fioSpecies(fio);
 	switch(eSpecies) {
@@ -1177,7 +1151,15 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
           fSoft = 0.0;
           // IA: The fSoft that we have read is actually the smoothing lenght, in order to avoid confusion
           //  with the classes, we set it to zero now
-	    if (pSph) {
+	    if (pkd->oSph) {
+            pSph = pkdField(p,pkd->oSph);
+#ifndef OPTIM_REMOVE_UNUSED
+            pSph->u = pSph->uPred = pSph->uDot = pSph->c = pSph->divv = pSph->BalsaraSwitch
+               = pSph->diff = pSph->fMetals = pSph->fMetalsPred = pSph->fMetalsDot = 0.0;
+#endif
+#ifdef COOLING
+            for (j=0;j<chemistry_element_count;j++ ) pSph->chemistry[j]=0.;
+#endif
             u = (u<0.0) ? -u*dTuFac : u; // If the value is negative, means that it is a temperature
 #ifndef OPTIM_REMOVE_UNUSED
 		pSph->u = u * dTuFac; /* Can't do precise conversion until density known IA: ¿?*/
@@ -1252,19 +1234,8 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	case FIO_SPECIES_STAR:
 	    fioReadStar(fio,&iParticleID,r,vel,&fMass,&fSoft,pPot,&fDensity,fMetals,&fTimer);
 	    pkdSetDensity(pkd,p,fDensity);
-	    if (pSph) {
-		//pSph->fMetals = fMetals;
-		pSph->vPred[0] = vel[0]*dvFac;
-		pSph->vPred[1] = vel[1]*dvFac;
-		pSph->vPred[2] = vel[2]*dvFac;
-            //pSph->Uint = fMass * 1e5 / 0.59 / (5./3. - 1);//pkd->param.dFeedbackDu;
-            //printf("dFeedBackDu %e", pSph->Uint);
-            //abort();
-            //pSph->P = pSph->Uint*pSph->omega*(pkd->param.dConstGamma -1.);
-            // We add the sound speed to wake particles when we are close to exploding
-            pSph->c = sqrt(pSph->Uint/fMass*5./3.*(5./3. -1.));
-		}
-	    if (pStar) {
+	    if (pkd->oStar) {
+             pStar = pkdStar(pkd,p);
              pStar->fTimer = fTimer;
              pStar->hasExploded = 1; // IA: We avoid that star in the IC could explode
           }
@@ -1273,7 +1244,8 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
           pkdSetBall(pkd,p,pkdSoft(pkd,p));
           float otherData[3];
 	    fioReadBH(fio,&iParticleID,r,vel,&fMass,&fSoft,pPot,&fDensity,otherData,&fTimer);
-          if (pBH) {
+          if (pkd->oBH) {
+             pBH = pkdBH(pkd,p);
              pBH->fTimer = fTimer;
              pBH->pLowPot = NULL;
              pBH->newPos[0] = -1;
