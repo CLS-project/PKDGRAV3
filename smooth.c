@@ -3164,7 +3164,6 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
           }else{ 
              for (pj=0; pj<nCnt_own; pj++){
                 PARTICLE * partj = sinks[pj];
-                SPHFIELDS* psph = pkdSph(pkd,partj);
                 const int j_cache_index_i = *pkdParticleID(pkd,partj) % (64);
                 //uint64_t *const i_flux = (uint64_t*)((char*)partj + flux_offset);
                 //uint64_t *const i_coll = (uint64_t*)((char*)partj + coll_offset);
@@ -3174,6 +3173,7 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
                 float dz_node = -pkdPos(pkd,partj,2)+bnd_node.fCenter[2];
 
 #if defined(OPTIM_CACHED_FLUXES) && defined(OPTIM_FLUX_VEC)
+                SPHFIELDS* psph = pkdSph(pkd,partj);
                 // We build the particle cache
                 uint64_t i_flux = 0x00000000ULL;
                 uint64_t i_coll = 0x00000000ULL;
@@ -3368,6 +3368,7 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
                 //assert(nCnt_p<200);
 
                 if (iSmoothType==SMX_THIRDHYDROLOOP && FLUX_VEC){
+                   SPHFIELDS* psph = pkdSph(pkd,partj);
                    hydroRiemann_vec(partj,pkdBall(pkd,partj),nCnt_p,flux_input_pointers, flux_output_pointers, smf);
 
 

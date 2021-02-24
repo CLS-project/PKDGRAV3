@@ -1146,6 +1146,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	    assert(dTuFac>0.0);
 	    fioReadSph(fio,&iParticleID,r,vel,&fMass,&fSoft,pPot,
 			     &fDensity/*?*/,&u,&fMetals[0]); //IA: misreading, u means temperature
+          pkdSetClass(pkd,fMass,fSoft,eSpecies,p);
 	    pkdSetDensity(pkd,p,fDensity);
           pkdSetBall(pkd,p,fSoft);
           fSoft = 0.0;
@@ -1229,10 +1230,12 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	    break;
 	case FIO_SPECIES_DARK:
 	    fioReadDark(fio,&iParticleID,r,vel,&fMass,&fSoft,pPot,&fDensity);
+          pkdSetClass(pkd,fMass,fSoft,eSpecies,p);
 	    pkdSetDensity(pkd,p,fDensity);
 	    break;
 	case FIO_SPECIES_STAR:
 	    fioReadStar(fio,&iParticleID,r,vel,&fMass,&fSoft,pPot,&fDensity,fMetals,&fTimer);
+          pkdSetClass(pkd,fMass,fSoft,eSpecies,p);
 	    pkdSetDensity(pkd,p,fDensity);
 	    if (pkd->oStar) {
              pStar = pkdStar(pkd,p);
@@ -1244,6 +1247,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
           pkdSetBall(pkd,p,pkdSoft(pkd,p));
           float otherData[3];
 	    fioReadBH(fio,&iParticleID,r,vel,&fMass,&fSoft,pPot,&fDensity,otherData,&fTimer);
+          pkdSetClass(pkd,fMass,fSoft,eSpecies,p);
           if (pkd->oBH) {
              pBH = pkdBH(pkd,p);
              pBH->fTimer = fTimer;
@@ -1267,7 +1271,6 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	if (!pkd->bNoParticleOrder) p->iOrder = iFirst++;
 	if (pkd->oParticleID) *pkdParticleID(pkd,p) = iParticleID;
 
-	pkdSetClass(pkd,fMass,fSoft,eSpecies,p);
 	if (pkd->oVelocity){
         if (!pkdIsGas(pkd,p)) { // IA: dvFac = a*a, and for the gas we already provide the peculiar velocity in the IC
 	    for (j=0;j<3;++j) pkdVel(pkd,p)[j] = vel[j]*dvFac;
