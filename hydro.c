@@ -71,94 +71,14 @@ void inverseMatrix(double* E, double* B){
 }
 
 
-/* IA: We need to clear the SPHFIELD for all particles */
 void initHydroLoop(void *vpkd, void *vp) {
-    PKD pkd = (PKD) vpkd;
-    PARTICLE *p = vp;
-    int i;
-    assert(!pkd->bNoParticleOrder);
-//    if (pkdIsActive(pkd,p)) {
-	SPHFIELDS *psph = pkdSph(pkd,p);
-//      for (i=0;i<6;i++) { psph->B[i] = 0.0; }
-//      p->uNewRung = 0;
-//      for (i=0;i<3;i++) { 
-//         psph->Fmom[i] = 0.0;
-//	   pkdAccel(pkd,p)[i] = 0;
-//	   pkdAccel(pkd,p)[i] = 0;
-//	   pkdAccel(pkd,p)[i] = 0;
-//	}
-	
-
-//      psph->Frho = 0.0;
-//      psph->Fene = 0.0;
-//      psph->uNewRung = 0;
-//      for (i=0;i<3;i++) { 
-//         psph->Fmom[i] = 0.0;
-//	}
     }
 
 void initHydroLoopCached(void *vpkd, void *vp) {
-    PKD pkd = (PKD) vpkd;
-    PARTICLE *p = vp;
-    assert(!pkd->bNoParticleOrder);
-    int i;
-//    if (pkdIsActive(pkd,p)) {
-	SPHFIELDS *psph = pkdSph(pkd,p);
-//      for (i=0;i<6;i++) { psph->B[i] = 0.0; }
-//      p->uNewRung = 0;
-//      for (i=0;i<3;i++) { 
-//         psph->Fmom[i] = 0.0;
-//	   pkdAccel(pkd,p)[i] = 0;
-//	   pkdAccel(pkd,p)[i] = 0;
-//	   pkdAccel(pkd,p)[i] = 0;
-//	}
-    }
-
-/* IA: I guess that this is called when we 'merge' information coming from different processors
- * about the same particle.. For the first hydro loop, all quantities are aditives so easy!
- */
-void combFirstHydroLoop(void *vpkd, void *p1,void *p2) {
-    PKD pkd = (PKD) vpkd;
-    assert(!pkd->bNoParticleOrder);
-    /*
-    if (pkdIsActive(pkd,p1)) {
-	SPHFIELDS *psph1 = pkdSph(pkd,p1), *psph2 = pkdSph(pkd,p2);
-	float *a1 = pkdAccel(pkd,p1), *a2 = pkdAccel(pkd,p2);
-	psph1->uDot += psph2->uDot;
-	psph1->fMetalsDot += psph2->fMetalsDot;
-	a1[0] += a2[0];  
-	a1[1] += a2[1];  
-	a1[2] += a2[2]; 
-	if (((PARTICLE *) p2)->uNewRung > ((PARTICLE *) p1)->uNewRung) 
-	    ((PARTICLE *) p1)->uNewRung = ((PARTICLE *) p2)->uNewRung;
-	} */
-    SPHFIELDS *psph1 = pkdSph(pkd,p1), *psph2 = pkdSph(pkd,p2);
-    int i;
-
-    psph1->omega += psph2->omega;
-
-
     }
 
 
-void combSecondHydroLoop(void *vpkd, void *p1,void *p2) {
-    PKD pkd = (PKD) vpkd;
-    assert(!pkd->bNoParticleOrder);
-    SPHFIELDS *psph1 = pkdSph(pkd,p1), *psph2 = pkdSph(pkd,p2);
-    int i;
 
-    // IA: Not sure about this.. what if one side has been limited?
-    /*
-    for (i=0;i<3;i++){ 
-       psph1->gradRho[i] += psph2->gradRho[i];
-       psph1->gradVx[i] += psph2->gradVx[i];
-       psph1->gradVy[i] += psph2->gradVy[i];
-       psph1->gradVz[i] += psph2->gradVz[i];
-       psph1->gradP[i] += psph2->gradP[i];
-       }
-    for (i=0;i<6;i++){ psph1->B[i] += psph2->B[i]; }
-    */
-    }
 
 
 void combThirdHydroLoop(void *vpkd, void *p1,void *p2) {
@@ -188,16 +108,6 @@ void combThirdHydroLoop(void *vpkd, void *p1,void *p2) {
 void initHydroFluxes(void *vpkd, void *vp) {
     PKD pkd = (PKD) vpkd;
     PARTICLE *p = vp;
-    assert(!pkd->bNoParticleOrder);
-    int i;
-//    if (pkdIsActive(pkd,p)) {
-	SPHFIELDS *psph = pkdSph(pkd,p);
-//      psph->Frho = 0.0;
-//      psph->Fene = 0.0;
-//      psph->uNewRung = 0;
-//      for (i=0;i<3;i++) { 
-//         psph->Fmom[i] = 0.0;
-//	}
     }
 
 void initHydroStep(void *vpkd, void *vp) {
@@ -248,18 +158,6 @@ void initHydroFluxesCached(void *vpkd, void *vp) {
 }
 
 void initHydroGradients(void *vpkd, void *vp) {
-    PKD pkd = (PKD) vpkd;
-    PARTICLE *p = vp;
-    assert(!pkd->bNoParticleOrder);
-    SPHFIELDS *psph = pkdSph(pkd,p);
-    int j;
-//    for (j=0; j<3;j++){
-//      psph->gradRho[j] = 0.0;
-//      psph->gradVx[j] = 0.0;
-//      psph->gradVy[j] = 0.0;
-//      psph->gradVz[j] = 0.0;
-//      psph->gradP[j] = 0.0;
-//      }
     }
 
 

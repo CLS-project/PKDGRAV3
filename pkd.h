@@ -1544,10 +1544,18 @@ static inline uint64_t *pkdParticleID( PKD pkd, PARTICLE *p ) {
     }
 /* Sph variables */
 static inline SPHFIELDS *pkdSph( PKD pkd, PARTICLE *p ) {
+#ifdef OPTIM_UNION_EXTRAFIELDS
+#ifdef DEBUG_UNION_EXTRAFIELDS
+    assert( pkdSpecies(pkd,p)==FIO_SPECIES_SPH);
+#endif //DEBUG
+#endif
     return ((SPHFIELDS *) pkdField(p,pkd->oSph));
     }
 static inline STARFIELDS *pkdStar( PKD pkd, PARTICLE *p ) {
 #ifdef OPTIM_UNION_EXTRAFIELDS
+#ifdef DEBUG_UNION_EXTRAFIELDS
+    assert( pkdSpecies(pkd,p)==FIO_SPECIES_STAR);
+#endif //DEBUG
     return ((STARFIELDS *) pkdField(p,pkd->oSph));
 #else
     return ((STARFIELDS *) pkdField(p,pkd->oStar));
@@ -1555,6 +1563,9 @@ static inline STARFIELDS *pkdStar( PKD pkd, PARTICLE *p ) {
     }
 static inline BHFIELDS *pkdBH( PKD pkd, PARTICLE *p ) {
 #ifdef OPTIM_UNION_EXTRAFIELDS
+#ifdef DEBUG_UNION_EXTRAFIELDS
+    assert( pkdSpecies(pkd,p)==FIO_SPECIES_BH);
+#endif //DEBUG
     return ((BHFIELDS *) pkdField(p,pkd->oSph));
 #else
     return ((BHFIELDS *) pkdField(p,pkd->oBH));
