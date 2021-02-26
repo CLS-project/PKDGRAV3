@@ -84,26 +84,28 @@ void initHydroLoopCached(void *vpkd, void *vp) {
 void combThirdHydroLoop(void *vpkd, void *p1,void *p2) {
     PKD pkd = (PKD) vpkd;
     assert(!pkd->bNoParticleOrder);
-    SPHFIELDS *psph1 = pkdSph(pkd,p1), *psph2 = pkdSph(pkd,p2);
-    int i;
+    if (pkdIsGas(pkd,p1) && pkdIsGas(pkd,p2)){
+       SPHFIELDS *psph1 = pkdSph(pkd,p1), *psph2 = pkdSph(pkd,p2);
+       int i;
 
-    for (i=0;i<3;i++){ psph1->Fmom[i] += psph2->Fmom[i]; }
-    psph1->Frho += psph2->Frho;
-    psph1->Fene += psph2->Fene;
-   
-    
-    float *p1mass = pkdField(p1,pkd->oMass);
-    float *p2mass = pkdField(p2,pkd->oMass);
-    *p1mass += *p2mass;
+       for (i=0;i<3;i++){ psph1->Fmom[i] += psph2->Fmom[i]; }
+       psph1->Frho += psph2->Frho;
+       psph1->Fene += psph2->Fene;
+      
+       
+       float *p1mass = pkdField(p1,pkd->oMass);
+       float *p2mass = pkdField(p2,pkd->oMass);
+       *p1mass += *p2mass;
 
-    psph1->mom[0] += psph2->mom[0];
-    psph1->mom[1] += psph2->mom[1];
-    psph1->mom[2] += psph2->mom[2];
-    psph1->E += psph2->E;
-    psph1->Uint += psph2->Uint;
-//    if (((PARTICLE *) p2)->uNewRung > ((PARTICLE *) p1)->uNewRung) 
-//       ((PARTICLE *) p1)->uNewRung = ((PARTICLE *) p2)->uNewRung;
+       psph1->mom[0] += psph2->mom[0];
+       psph1->mom[1] += psph2->mom[1];
+       psph1->mom[2] += psph2->mom[2];
+       psph1->E += psph2->E;
+       psph1->Uint += psph2->Uint;
+   //    if (((PARTICLE *) p2)->uNewRung > ((PARTICLE *) p1)->uNewRung) 
+   //       ((PARTICLE *) p1)->uNewRung = ((PARTICLE *) p2)->uNewRung;
     }
+   }
 
 void initHydroFluxes(void *vpkd, void *vp) {
     PKD pkd = (PKD) vpkd;
@@ -119,41 +121,49 @@ void initHydroStep(void *vpkd, void *vp) {
 void combHydroStep(void *vpkd, void *p1,void *p2) {
     PKD pkd = (PKD) vpkd;
     assert(!pkd->bNoParticleOrder);
-    SPHFIELDS *psph1 = pkdSph(pkd,p1), *psph2 = pkdSph(pkd,p2);
+    if (pkdIsGas(pkd,p1) && pkdIsGas(pkd,p2)){
+       SPHFIELDS *psph1 = pkdSph(pkd,p1), *psph2 = pkdSph(pkd,p2);
 
        if (((PARTICLE *) p2)->uNewRung > ((PARTICLE *) p1)->uNewRung)
            ((PARTICLE *) p1)->uNewRung = ((PARTICLE *) p2)->uNewRung;
+    }
 }
 
 
-/* IA: If this works as I think it works, I should put to zero all the 
- * conserved quantities, which will be updated during the hydro loop.
+/* IA: Zero all the conserved quantities, which will be updated 
+ * during the hydro loop.
+ *
  * Then those will be merged with the actual particle information inside
  * combThirdHydroLoop
- * However, the comb does not seem to be called... But everything seems
- * to work just fine.. (chuckles) I'm in danger */
+ */
 void initHydroFluxesCached(void *vpkd, void *vp) {
     PKD pkd = (PKD) vpkd;
     PARTICLE *p = vp;
     assert(!pkd->bNoParticleOrder);
-    SPHFIELDS *psph = pkdSph(pkd,p);
-    int i;
+    // IA: For the init*Cached and comb functions we still have to explicitly
+    // check if we are handling gas particles even ifdef OPTIM_REORDER_IN_NODES
+    // because these operations are done in a cache-line basis, and a line may
+    // contain other particles that are not of interest!
+    if (pkdIsGas(pkd,p)){
+       SPHFIELDS *psph = pkdSph(pkd,p);
+       int i;
 
-    float *pmass = pkdField(p,pkd->oMass);
-    *pmass = 0.0;
-    psph->mom[0] = 0.;
-    psph->mom[1] = 0.;
-    psph->mom[2] = 0.;
-    psph->E = 0.;
-    psph->Uint = 0.;
+       float *pmass = pkdField(p,pkd->oMass);
+       *pmass = 0.0;
+       psph->mom[0] = 0.;
+       psph->mom[1] = 0.;
+       psph->mom[2] = 0.;
+       psph->E = 0.;
+       psph->Uint = 0.;
 
-    if (pkdIsActive(pkd,p)) {
-      psph->Frho = 0.0;
-      psph->Fene = 0.0;
-      //psph->uNewRung = 0;
-      for (i=0;i<3;i++) { 
-         psph->Fmom[i] = 0.0;
-	}
+       if (pkdIsActive(pkd,p)) {
+         psph->Frho = 0.0;
+         psph->Fene = 0.0;
+         //psph->uNewRung = 0;
+         for (i=0;i<3;i++) { 
+            psph->Fmom[i] = 0.0;
+         }
+       }
     }
 }
 

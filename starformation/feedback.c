@@ -55,13 +55,15 @@ void initSNFeedback(void *vpkd, void *vp){
 
    PARTICLE *p = vp;
 
-   SPHFIELDS *psph = pkdSph(pkd,p);
+   if (pkdIsGas(pkd,p)){
+      SPHFIELDS *psph = pkdSph(pkd,p);
 
-   psph->Uint = 0.;
-   psph->E = 0.;
+      psph->Uint = 0.;
+      psph->E = 0.;
 #ifdef ENTROPY_SWITCH
-   psph->S = 0.;
+      psph->S = 0.;
 #endif
+   }
 
 }
 
@@ -69,15 +71,17 @@ void initSNFeedback(void *vpkd, void *vp){
 void combSNFeedback(void *vpkd, void *p1,void *p2){
    PKD pkd = (PKD) vpkd;
 
+   if (pkdIsGas(pkd,p1) && pkdIsGas(pkd,p2)){
    
-   SPHFIELDS *psph1 = pkdSph(pkd,p1), *psph2 = pkdSph(pkd,p2);
+      SPHFIELDS *psph1 = pkdSph(pkd,p1), *psph2 = pkdSph(pkd,p2);
 
-   psph1->Uint += psph2->Uint;
-   psph1->E += psph2->E;
+      psph1->Uint += psph2->Uint;
+      psph1->E += psph2->E;
 #ifdef ENTROPY_SWITCH
-   psph1->S += psph2->S;
+      psph1->S += psph2->S;
 #endif
 
+   }
 
 }
 
