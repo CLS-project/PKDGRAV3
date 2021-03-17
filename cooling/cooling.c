@@ -475,7 +475,7 @@ void cooling_cool_part(PKD pkd,
 
   /* convert Hydrogen mass fraction into physical Hydrogen number density */
   const float a_m3 = pow(1.+redshift,3.);
-  const float rho = pkdDensity(pkd,p) * a_m3 ; // TODO: why does not work with dComovingGmPerCcUnit?
+  const float rho = pkdDensity(pkd,p) * a_m3 ; 
   const double n_H = rho * XH / MHYDR * pkd->param.dMsolUnit * MSOLG;
   const double n_H_cgs = n_H * cooling->number_density_to_cgs;
 

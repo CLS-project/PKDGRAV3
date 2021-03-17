@@ -3625,6 +3625,8 @@ int pstStarFormInit(PST pst,void *vin,int nIn,void *vout,int nOut) {
        }
     return sizeof(struct outStarForm);
     }
+
+
 #endif
 #ifdef STAR_FORMATION
 int pstStarForm(PST pst,void *vin,int nIn,void *vout,int nOut) {
@@ -3645,7 +3647,7 @@ int pstStarForm(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	}
     else {
 	pkdStarForm(pst->plcl->pkd,
-		    in->dTime, in->dDelta, in->dScaleFactor, in->dDenMin, in->dDenCrit,
+		    in->dTime, in->dDelta, in->dScaleFactor, in->dDenMin,
 		     &out->nFormed, &out->dMassFormed, &out->nDeleted);
 	}
     return sizeof(struct outStarForm);

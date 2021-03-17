@@ -15,43 +15,24 @@ void msrStarForm(MSR msr, double dTime, double dDelta, int iRung)
 
     const double a = csmTime2Exp(msr->csm,dTime);
     const double H = csmTime2Hub(msr->csm,dTime);
-
-
-    /* Convert input parameters to code units */
-    /*
-    in.dRateCoeff = msr->param.SFdEfficiency*sqrt(32/(3*M_PI)/pow(a,3)); 
-    in.dTMax = msr->param.SFdTMax;
-    d1 = msr->param.SFdComovingDenMin;
-    d2 = msr->param.SFdPhysDenMin/msr->param.dGmPerCcUnit*pow(a,3);
-    in.dDenMin = (d1>d2 ? d1 : d2);
-    */
     
     in.dScaleFactor = a;
     in.dTime = dTime;
     in.dDelta = dDelta;
-    /*
-    in.dInitStarMass = msr->param.SFdInitStarMass;
-    in.dESNPerStarMass = msr->param.SFdESNPerStarMass/msr->param.dErgPerGmUnit;
-#define SECONDSPERYEAR   31557600.
-    in.dtCoolingShutoff = msr->param.SFdtCoolingShutoff*SECONDSPERYEAR/msr->param.dSecUnit;
-    in.dtFeedbackDelay = msr->param.SFdtFeedbackDelay*1.0000013254678*SECONDSPERYEAR/msr->param.dSecUnit;
-    in.dMassLossPerStarMass = msr->param.SFdMassLossPerStarMass;
-    in.dZMassPerStarMass = msr->param.SFdZMassPerStarMass;
-    in.dInitStarMass = msr->param.SFdInitStarMass;
-    in.dMinGasMass = msr->param.SFdMinGasMass;
-    in.bdivv = msr->param.SFbdivv;
-    */
 
-
-    // We convert the threshold density (given in cgs in the parameters file) in code units
+    // Here we set the minium density a particle must have to be SF
     //  NOTE: We still have to divide by the hydrogen fraction of each particle!
-    if (msr->csm->val.bComove)
+    if (msr->csm->val.bComove){
        in.dDenMin = msr->param.dSFThresholdDen*pow(a,3);
-    else
-       in.dDenMin = msr->param.dSFThresholdDen;
+       assert(msr->csm->val.dOmegab  > 0.);
 
-    // Critical density of the Universe, in code units
-    in.dDenCrit = 1.*0.048; // TODO: Read from parameters
+       // It is assumed that for cosmo runs, rho_crit=1 in code units
+       double min_cosmo_den = msr->csm->val.dOmegab * msr->param.dSFMinOverDensity;
+       in.dDenMin = (in.dDenMin > min_cosmo_den) ? in.dDenMin : min_cosmo_den;
+    }else{
+       in.dDenMin = msr->param.dSFThresholdDen;
+    }
+
 
     if (msr->param.bVDetails) printf("Star Form (rung: %d) ... ", iRung);
     
@@ -83,7 +64,6 @@ void pkdStarForm(PKD pkd,
              double dDelta,
              double dScaleFactor,
              double dDenMin, /* Threshold for SF in code units  */
-             double dDenCrit, /* Multiple of the critical density needed for SF*/
 		 int *nFormed, /* number of stars formed */
 		 double *dMassFormed,	/* mass of stars formed */
 		 int *nDeleted) /* gas particles deleted */ {
@@ -114,40 +94,51 @@ void pkdStarForm(PKD pkd,
 	    dt = pkd->param.dDelta/(1<<p->uRung); 
           dt = dTime - psph->lastUpdateTime;
 
+          // If no information, assume primoridal abundance
 #ifdef COOLING
-          const double rho_H = pkdDensity(pkd,p) * psph->chemistry[chemistry_element_H];
+          const double hyd_abun = psph->chemistry[chemistry_element_H];
 #else
-          const double rho_H = pkdDensity(pkd,p) * 0.75; // If no information, assume primoridal abundance
+          const double rho_H = 0.75; 
 #endif
 
-          // Gas too hot is not allowed to form stars (but if it is too collapses, we allow to form stars as it is in the EoS
-          if ( (psph->Uint > pkd->param.dSFThresholdu*pkdMass(pkd,p)) && (rho_H*a_m3<10*pkd->param.dCoolingFloorDen) ){
-             psph->SFR=0.; 
+          const double rho_H = pkdDensity(pkd,p) * hyd_abun;
+
+
+          // Two SF thresholds are applied:
+          //      a) minimum density, computed at the master level
+          //      b) Maximum temperature of a
+          //            factor 0.5 dex (i.e., 3.1622) above the eEOS
+          double dens = pkdDensity(pkd,p) * a_m3;
+          double maxUint = 3.16228 * pkdMass(pkd,p) * pkd->param.dJeansFlooru *
+           pow( dens/pkd->param.dJeansFloorDen , pkd->param.dJeansFloorIndex );
+            
+          if (psph->Uint > maxUint || rho_H < dDenMin) {
+             psph->SFR = 0.;
              continue;
           }
-          // Thresholds for star formation
-	    if (pkd->csm->val.bComove &&  (pkdDensity(pkd,p) < pkd->param.dSFMinOverDensity*dDenCrit) ){
-             psph->SFR=0.; 
-             continue;
-          }
-          if (rho_H < dDenMin){
-             psph->SFR=0.; 
-             continue;
-          }
-          const double dmstar = pkd->param.dSFnormalizationKS*  pkdMass(pkd,p) *  pow(a_m2, 1.4) *
-                        pow( pkd->param.dConstGamma * pkd->param.dSFGasFraction * psph->P*a_m3, pkd->param.dSFindexKS);
+
+
+          const double dmstar = 
+             pkd->param.dSFnormalizationKS * pkdMass(pkd,p) *  pow(a_m2, 1.4) *
+             pow( pkd->param.dConstGamma * pkd->param.dSFGasFraction * psph->P*a_m3,
+                  pkd->param.dSFindexKS);
+
           psph->SFR = dmstar;
+
 	    const double prob = 1.0 - exp(-dmstar*dt/pkdMass(pkd,p)); 
           //printf("%e \n", prob);
 	    
-	    /* Star formation event? */
+	    // Star formation event?
 	    if (rand()<RAND_MAX*prob) {
 
-             // We just change the class of the particle to stellar one
+            //printf("STARFORM %e %e %e \n", dScaleFactor, rho_H, psph->Uint);
+
+            // We just change the class of the particle to stellar one
             pkdSetClass(pkd, pkdMass(pkd,p), 0., FIO_SPECIES_STAR, p);
 
-            // When changing the class, we have to take into account that the code velocity
-            // has different scale factor dependencies for dm/star particles and gas particles
+            // When changing the class, we have to take into account that 
+            // the code velocity has different scale factor dependencies for
+            // dm/star particles and gas particles
             pv = pkdVel(pkd,p);
             for (int j=0; j<3; j++){
                pv[j] *= dScaleFactor;
@@ -156,7 +147,7 @@ void pkdStarForm(PKD pkd,
             pkdStar(pkd, p)->fTimer = dTime;
             pkdStar(pkd, p)->hasExploded = 0;
 
-            // Safety check, TODO: remove if nothing happens:
+            // Safety check
             assert(pkdIsStar(pkd,p));
             assert(!pkdIsGas(pkd,p));
 

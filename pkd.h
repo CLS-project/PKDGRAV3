@@ -1763,7 +1763,7 @@ void pkdAccelStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
 		  double dEta,double dVelFac,double dAccFac,
 		  int bDoGravity,int bEpsAcc,double dhMinOverSoft);
 void pkdSphStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,double dAccFac);
-void pkdStarForm(PKD pkd, double dTime, double dDelta, double dScaleFactor, double dDenMin, double dDenCrit,
+void pkdStarForm(PKD pkd, double dTime, double dDelta, double dScaleFactor, double dDenMin,
 		 int *nFormed, double *dMassFormed, int *nDeleted);
 void pkdStarFormInit(PKD pkd, double dTime, int *nFormed);
 void pkdCooling(PKD pkd,double,double,int,int,int,int);

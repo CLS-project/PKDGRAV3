@@ -1024,7 +1024,6 @@ struct inStarForm
     double dTime;
     double dScaleFactor;
     double dDenMin;
-    double dDenCrit;
     double dDelta;
 
     };
