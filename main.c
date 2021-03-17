@@ -238,6 +238,7 @@ void master(MDL mdl,void *pst) {
 #endif
 	    if (msr->param.bFindGroups) {
 		msrNewFof(msr,csmTime2Exp(msr->csm,dTime));
+            msrGroupStats(msr);
 		}
 	    if (msrDoGravity(msr)) {
 		msrGravity(msr,0,MAX_RUNG,ROOT,0,dTime,iStartStep,0,0,
@@ -380,6 +381,7 @@ void master(MDL mdl,void *pst) {
 #endif
       if (msr->param.bFindGroups) {
          msrNewFof(msr,csmTime2Exp(msr->csm,dTime));
+         msrGroupStats(msr);
         }
 
 	msrCalcEandL(msr,MSR_INIT_E,dTime,&E,&T,&U,&Eth,L,F,&W);
