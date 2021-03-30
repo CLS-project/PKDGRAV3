@@ -1241,7 +1241,7 @@ void hydroStep(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
           vsig_pq = psph->c + qsph->c;
        }
 
-       dt2 = 2.*smf->dEtaCourant * fBall /vsig_pq;	
+       dt2 = 2.*smf->dEtaCourant * fBall * smf->a /vsig_pq;
 	 if (dt2 < dtEst) dtEst=dt2;
 
     }
@@ -1316,10 +1316,18 @@ void hydroStep(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     //for (j=0;j<3;j++) { a[j] = pa[j] + (-pkdVel(pkd,p)[j]*psph->Frho + psph->Fmom[j])/pkdMass(pkd,p); }
     //acc = sqrt(a[0]*a[0] + a[1]*a[1] + a[2]*a[2]);
 
-    for (j=0;j<3;j++) { a[j] = pa[j]; }
-    acc = sqrt(a[0]*a[0] + a[1]*a[1] + a[2]*a[2]);
-    for (j=0;j<3;j++) { a[j] = (-pkdVel(pkd,p)[j]*psph->Frho + psph->Fmom[j])/pkdMass(pkd,p); }
-    acc += sqrt(a[0]*a[0] + a[1]*a[1] + a[2]*a[2]);
+    for (j=0;j<3;j++) { a[j] = pa[j] - smf->a*(-pkdVel(pkd,p)[j]*psph->Frho + psph->Fmom[j])/pkdMass(pkd,p); }
+    // 1/a^3 from grav2.c:217
+    // Explanation:
+    // 1/a from different acceleration definition
+    // 1/a in grav source term (ie. kick)
+    // 1/a from the drift
+    // But for the hydro, it is 1/a2:
+    // 1/a from hydro eqs (included normally in minDt)
+    // 1/a from pkdVel, which is normally incorporated in the drift
+    double aFac = 1./(smf->a * smf->a * smf->a);
+
+    acc = sqrt(a[0]*a[0] + a[1]*a[1] + a[2]*a[2]) * aFac;
 
 
     float h = pkd->param.bDoGravity ? (fBall < pkdSoft(pkd,p) ? fBall : pkdSoft(pkd,p) ) : fBall;
