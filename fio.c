@@ -28,7 +28,9 @@
 #endif
 
 #ifdef COOLING
-#define NUMBER_METALS     9 //IA: This should be, at most, chemistry_element_count, but can be modified if needed 
+//IA: This should be, at most, chemistry_element_count, 
+// but can be modified if needed to save memory
+#define NUMBER_METALS     9 
 #else
 #define NUMBER_METALS     1
 #endif
@@ -390,13 +392,13 @@ static int fioNoWriteStar(
     }
 
 static int fioNoGetAttr(
-    FIO UNUSED(fio), const int UNUSED(mode), const int UNUSED(groupType), const char *UNUSED(attr),
+    FIO UNUSED(fio), const int UNUSED(headerType), const char *UNUSED(attr),
     FIO_TYPE UNUSED(dataType), void *UNUSED(data)) {
     return 0;
     }
 
 static int fioNoSetAttr(
-    FIO UNUSED(fio), int UNUSED(mode), int UNUSED(groupType),
+    FIO UNUSED(fio), int UNUSED(headerType),
     const char *UNUSED(attr), FIO_TYPE UNUSED(dataType), int UNUSED(size), void *UNUSED(data)) {
     return 0;
     }
@@ -576,13 +578,13 @@ static void listClose(FIO fio) {
     free(vio);
     }
 
-static int listGetAttr(FIO fio, const int mode, const int groupType, const char *attr, FIO_TYPE dataType, void *data) {
+static int listGetAttr(FIO fio, const int headerType, const char *attr, FIO_TYPE dataType, void *data) {
     fioList *vio = (fioList *)fio;
     assert(fio->eFormat == FIO_FORMAT_MULTIPLE);
     uint64_t v;
 
     if ( strcmp(attr,"nFiles")==0 ) v = vio->fio.fileList.nFiles;
-    else return fioGetAttr(vio->fioCurrent, mode, groupType,attr,dataType,data);
+    else return fioGetAttr(vio->fioCurrent, headerType,attr,dataType,data);
 
     switch(dataType) {
     case FIO_TYPE_UINT32: *(uint32_t *)(data) = v; break;
@@ -746,7 +748,7 @@ static int xdrHeader(XDR *pxdr,tipsyHdr *ph) {
     return 1;
     }
 
-static int tipsyGetAttr(FIO fio, const int mode, const int groupType,
+static int tipsyGetAttr(FIO fio, const int headerType,
     const char *attr, FIO_TYPE dataType, void *data) {
     fioTipsy *tio = (fioTipsy *)fio;
     assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_READING);
@@ -1861,7 +1863,7 @@ typedef struct {
     int mFlags;
     } fioGADGET;
 
-static int gadgetGetAttr(FIO fio, const int mode, const int groupType,
+static int gadgetGetAttr(FIO fio, const int headerType,
     const char *attr, FIO_TYPE dataType, void *data) {
     fioGADGET *gio = (fioGADGET *)fio;
     double v;
@@ -3080,13 +3082,12 @@ static void class_read(IOCLASS *ioClass, PINDEX iOffset, uint_fast32_t nBuffered
     field_read(&ioClass->fldClasses,iOffset,nBuffered);
     }
 
-    /* IA: This would need to be changed for the MFV if we allow for variable masses as
-     * we are not using classes! 
+    /* IA: This would need to be changed for the MFV if we allow for 
+     * variable masses as we are not using classes! 
      *
-     * This whole classes stuff would need to be revised, as would be useful to have classes
-     * for DM particles (thus no need to store mass), but individual masses for gas particles
-     *
-     * TODO: ADD this to TRELLO
+     * This whole classes stuff would need to be revised, as would be 
+     * useful to have classes for DM particles (thus no need to store mass), 
+     * but individual masses for gas particles
      * */
 static void class_add( IOBASE *base, PINDEX iOrder, float fMass, float fSoft ) {
     IOCLASS *ioClass = &base->ioClass;
@@ -3314,15 +3315,15 @@ static void ioorder_flush(IOBASE *base) {
 */
 
 /* IA:
- * Read an attribute (mode=0) or a dataset (mode=1) from the file.
+ * Read an attribute from the file.
  * The information can be stored in different groups:
- *    Header      - headerGroup=0
- *    Cosmology   - headerGroup=1
- *    Units       - headerGroup=2
- *    Parameters  - headerGroup=3
+ *    Header      - headerType=0
+ *    Cosmology   - headerType=1
+ *    Units       - headerType=2
+ *    Parameters  - headerType=3
  */
 static int hdf5GetAttr(
-    FIO fio, const int mode, const int headerGroup,
+    FIO fio, const int headerType,
     const char *attr, FIO_TYPE dataType, void *data) {
     fioHDF5 *hio = (fioHDF5 *)fio;
     H5E_auto_t save_func;
@@ -3333,7 +3334,7 @@ static int hdf5GetAttr(
     assert(fio->eFormat == FIO_FORMAT_HDF5);
     assert(fio->eMode == FIO_MODE_READING);
 
-    switch(headerGroup){
+    switch(headerType){
        case 0:
           groupID = &hio->headerID;
           break;
@@ -3347,7 +3348,7 @@ static int hdf5GetAttr(
           groupID = &hio->paramsID;
           break;
        default:
-          printf("Not valid headerGroup\n");
+          printf("Not valid headerType\n");
           abort();
     }
 
@@ -3355,17 +3356,7 @@ static int hdf5GetAttr(
     H5Eget_auto(&save_func,&save_data);
     H5Eset_auto(0,0);
 
-    switch(mode){
-       case 0:
-          rc = readAttribute(*groupID,attr,fio2hdf(dataType,hio),data);
-          break;
-       case 1:
-          rc = readDataset(*groupID,attr,fio2hdf(dataType,hio),data);
-          break;
-       default:
-          printf("Not valid mode\n");
-          abort();
-    }
+    rc = readAttribute(*groupID,attr,fio2hdf(dataType,hio),data);
 
     H5Eset_auto(save_func,save_data);
     return rc;
@@ -3375,7 +3366,7 @@ static int hdf5GetAttr(
  * Same as hdf5GetAttr, but for writing
  */
 static int hdf5SetAttr(
-    FIO fio, const int mode, const int headerGroup,
+    FIO fio, const int headerType,
     const char *attr, FIO_TYPE dataType, int size, void *data) {
     fioHDF5 *hio = (fioHDF5 *)fio;
     hid_t * groupID;
@@ -3384,7 +3375,7 @@ static int hdf5SetAttr(
     assert(fio->eFormat == FIO_FORMAT_HDF5);
     assert(fio->eMode == FIO_MODE_WRITING);
 
-    switch(headerGroup){
+    switch(headerType){
        case 0:
           groupID = &hio->headerID;
           break;
@@ -3398,22 +3389,13 @@ static int hdf5SetAttr(
           groupID = &hio->paramsID;
           break;
        default:
-          printf("Not valid headerGroup\n");
+          printf("Not valid headerType\n");
           abort();
     }
 
     
-    switch(mode){
-       case 0:
-          rc = writeAttribute(*groupID,attr,fio2hdf(dataType,hio), size, data);
-          break;
-       case 1: // IA: Now unused, TODO: remove 'mode'
-          //rc = writeDataset(*groupID,attr,fio2hdf(dataType,hio), size, data);
-          break;
-       default:
-          printf("Not valid mode\n");
-          abort();
-    }
+    rc = writeAttribute(*groupID,attr,fio2hdf(dataType,hio), size, data);
+
     return rc;
       
     }
@@ -4702,7 +4684,7 @@ static void graficSeekFile(graficFile *gf,uint64_t iPart,uint64_t iAbs) {
 	}
     }
 
-static int graficGetAttr(FIO fio, const int mode, const int groupType,
+static int graficGetAttr(FIO fio, const int headerType,
     const char *attr, FIO_TYPE dataType, void *data) {
     fioGrafic *gio = (fioGrafic *)fio;
     assert(fio->eFormat == FIO_FORMAT_GRAFIC);

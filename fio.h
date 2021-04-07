@@ -202,9 +202,9 @@ typedef struct fioInfo {
 	float fMass,float fSoft,float fPot,float fDen,
 	float *fMetals,float fTform);
 
-    int  (*fcnGetAttr)(struct fioInfo *fio, const int mode, const int groupType,
+    int  (*fcnGetAttr)(struct fioInfo *fio, const int headerType,
 	const char *attr, FIO_TYPE dataType, void *data);
-    int  (*fcnSetAttr)(struct fioInfo *fio, const int mode, const int groupType,
+    int  (*fcnSetAttr)(struct fioInfo *fio, const int headerType,
 	const char *attr, FIO_TYPE dataType, int size, void *data);
     } *FIO;
 
@@ -327,18 +327,18 @@ static inline int fioWriteBH(
 ** Returns the value of a given attribute.  Only "dTime" is available for
 ** Tipsy files, but HDF5 supports the inclusion of any arbitary attribute.
 */
-static inline int fioGetAttr(FIO fio, int mode, int groupType,
+static inline int fioGetAttr(FIO fio, int headerType,
     const char *attr, FIO_TYPE dataType, void *data) {
-    return (*fio->fcnGetAttr)(fio,mode, groupType, attr,dataType,data);
+    return (*fio->fcnGetAttr)(fio, headerType, attr,dataType,data);
     }
 
 /*
 ** Sets an arbitrary attribute.  Only supported for HDF5; other formats
 ** return 0 indicating that it was not successful.
 */
-static inline int fioSetAttr(FIO fio, int mode, int groupType,
+static inline int fioSetAttr(FIO fio, int headerType,
     const char *attr, FIO_TYPE dataType, int size, void *data) {
-    return (*fio->fcnSetAttr)(fio,mode, groupType, attr,dataType,size,data);
+    return (*fio->fcnSetAttr)(fio, headerType, attr,dataType,size,data);
     }
 
 static inline int fioGetFlags(FIO fio) {

@@ -167,18 +167,18 @@ void prmSave(PRM prm, FIO fio) {
 	case 0:
 	case 1:
 	    assert(pn->iSize == sizeof(int));
-	    fioSetAttr(fio,0,3,pn->pszName,FIO_TYPE_INT,1,pn->pValue);
+	    fioSetAttr(fio,3,pn->pszName,FIO_TYPE_INT,1,pn->pValue);
 	    break;
 	case 2:
 	    assert(pn->iSize == sizeof(double));
-	    fioSetAttr(fio,0,3,pn->pszName,FIO_TYPE_DOUBLE,1,pn->pValue);
+	    fioSetAttr(fio,3,pn->pszName,FIO_TYPE_DOUBLE,1,pn->pValue);
 	    break;
 	case 3:
-	    fioSetAttr(fio,0,3,pn->pszName,FIO_TYPE_STRING,1,pn->pValue);
+	    fioSetAttr(fio,3,pn->pszName,FIO_TYPE_STRING,1,pn->pValue);
 	    break;
 	case 4:
 	    assert(pn->iSize == sizeof(uint64_t));
-	    fioSetAttr(fio,0,3,pn->pszName,FIO_TYPE_UINT64,1,pn->pValue);
+	    fioSetAttr(fio,3,pn->pszName,FIO_TYPE_UINT64,1,pn->pValue);
 	    break;
 	    }
 	}

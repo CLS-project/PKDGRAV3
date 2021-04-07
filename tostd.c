@@ -207,7 +207,7 @@ int main( int argc, char *argv[] ) {
     nSph  = fioGetN(fioIn,FIO_SPECIES_SPH);
     nDark = fioGetN(fioIn,FIO_SPECIES_DARK);
     nStar = fioGetN(fioIn,FIO_SPECIES_STAR);
-    if (!fioGetAttr(fioIn,0,0,"dTime",FIO_TYPE_DOUBLE,&dTime)) dTime = 0.0;
+    if (!fioGetAttr(fioIn,0,"dTime",FIO_TYPE_DOUBLE,&dTime)) dTime = 0.0;
 
     printf("dTime=%g\n",dTime);
 
@@ -244,7 +244,7 @@ int main( int argc, char *argv[] ) {
 	perror(outName);
 	exit(errno);
 	}
-    fioSetAttr(fioOut,0,0,"dTime",FIO_TYPE_DOUBLE,1,&dTime);
+    fioSetAttr(fioOut,0,"dTime",FIO_TYPE_DOUBLE,1,&dTime);
 
     for( i=0; i<N; i++ ) {
         eSpecies = fioSpecies(fioIn);
