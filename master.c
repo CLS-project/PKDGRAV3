@@ -2102,6 +2102,9 @@ void msrLogParams(MSR msr,FILE *fp) {
 #ifdef LIMITER_CONDBARTH
    fprintf(fp," LIMITER_CONDBARTH"); 
 #endif
+#ifdef ENTROPY_SWITCH
+   fprintf(fp," ENTROPY_SWITCH");
+#endif
 #ifdef MAKE_GLASS
    fprintf(fp," MAKE_GLASS"); 
 #endif
@@ -2126,6 +2129,12 @@ void msrLogParams(MSR msr,FILE *fp) {
 #ifdef HERNQUIST_POTENTIAL
    fprintf(fp," HERNQUIST_POTENTIAL"); 
 #endif
+#ifdef BLACKHOLES
+   fprintf(fp," BLACKHOLES"); 
+#endif
+#ifdef OPTIM_NO_REDUNDANT_FLUXES
+   fprintf(fp," OPTIM_NO_REDUNDANT_FLUXES"); 
+#endif
 #ifdef OPTIM_CACHED_FLUXES
    fprintf(fp," OPTIM_CACHED_FLUXES"); 
 #endif
@@ -2142,19 +2151,31 @@ void msrLogParams(MSR msr,FILE *fp) {
    fprintf(fp," OPTIM_DENSITY_REITER"); 
 #endif
 #ifdef OPTIM_INVERSE_WALK
-   fprintf(fp,"OPTIM_INVERSE_WALK");
+   fprintf(fp," OPTIM_INVERSE_WALK");
 #endif
 #ifdef OPTIM_SMOOTH_NODE
-   fprintf(fp,"OPTIM_SMOOTH_NODE");
+   fprintf(fp," OPTIM_SMOOTH_NODE");
 #endif
 #ifdef OPTIM_REORDER_IN_NODES
-   fprintf(fp,"OPTIM_REORDER_IN_NODES");
+   fprintf(fp," OPTIM_REORDER_IN_NODES");
 #endif
 #ifdef OPTIM_FLUX_VEC
-   fprintf(fp,"OPTIM_FLUX_VEC");
+   fprintf(fp," OPTIM_FLUX_VEC");
 #endif
 #ifdef OPTIM_UNION_EXTRAFIELDS
-   fprintf(fp,"OPTIM_UNION_EXTRAFIELDS");
+   fprintf(fp," OPTIM_UNION_EXTRAFIELDS");
+#endif
+#ifdef DEBUG_UNION_EXTRAFIELDS
+   fprintf(fp," DEBUG_UNION_EXTRAFIELDS");
+#endif
+#ifdef DEBUG_FLUX_INFO
+   fprintf(fp," DEBUG_FLUX_INFO");
+#endif
+#ifdef OPTIM_AVOID_IS_ACTIVE
+   fprintf(fp," OPTIM_AVOID_IS_ACTIVE");
+#endif
+#ifdef OPTIM_EXTRA
+   fprintf(fp," OPTIM_EXTRA");
 #endif
    /* End of new macros */
 #if defined(MAXHOSTNAMELEN) && defined(HAVE_GETHOSTNAME)
