@@ -201,6 +201,7 @@ def parse():
     add_bool(memory,'MNsph',default=False,dest='bMemNodeSphBounds', help='Tree nodes support fast-gas bounds')
     add_bool(memory,'MNbnd',default=True,dest='bMemNodeBnd', help='Tree nodes support 3D bounds')
     add_bool(memory,'MNvbnd',default=False,dest='bMemNodeVBnd', help='Tree nodes support velocity bounds')
+    add_bool(memory,'MBall',default=False,dest='bMemBall', help='Particles have ball')
 
     # /* Gas Parameters */
     gas = parser.add_argument_group('Gas Parameters')

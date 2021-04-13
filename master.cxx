@@ -203,6 +203,8 @@ uint64_t MSR::getMemoryModel() {
     if (param.bMemNodeBnd)          mMemoryModel |= PKD_MODEL_NODE_BND;
     if (param.bMemNodeVBnd)         mMemoryModel |= PKD_MODEL_NODE_VBND;
 
+    if (param.bMemBall)             mMemoryModel |= PKD_MODEL_BALL;
+
     return mMemoryModel;
     }
 
@@ -242,6 +244,7 @@ void MSR::InitializePStore(uint64_t *nSpecies,uint64_t mMemoryModel) {
     if (param.iPkInterval    && ps.nEphemeralBytes < 4) ps.nEphemeralBytes = 4;
     if (param.bGravStep      && ps.nEphemeralBytes < 8) ps.nEphemeralBytes = 8;
     if (param.bDoGas         && ps.nEphemeralBytes < 8) ps.nEphemeralBytes = 8;
+    if (param.bMemBall       && ps.nEphemeralBytes < 8) ps.nEphemeralBytes = 8;
     if (param.bDoDensity     && ps.nEphemeralBytes < 12) ps.nEphemeralBytes = 12;
 #ifdef MDL_FFTW
     if (param.nGridPk>0) {
@@ -953,6 +956,10 @@ int MSR::Initialize() {
     param.bMemNodeVBnd = 0;
     prmAddParam(prm,"bMemNodeVBnd",0,&param.bMemNodeVBnd,
 		sizeof(int),"MNvbnd","<Tree nodes support velocity bounds> = 0");
+
+    param.bMemBall = 0;
+    prmAddParam(prm,"bMemBall",0,&param.bMemBall,
+		sizeof(int),"MBall","<Particles have ball> = 0");
 
 /* Gas Parameters */
     param.bDoGas = 0;
@@ -4271,6 +4278,14 @@ void MSR::Output(int iStep, double dTime, double dDelta, int bCheckpoint) {
 	OutArray(BuildName(iStep,".c").c_str(),OUT_C_ARRAY);
 	OutArray(BuildName(iStep,".hsph").c_str(),OUT_HSPH_ARRAY);
 	}
+    if (param.bMemBall) {
+    ActiveRung(0,1); /* Activate all particles */
+    DomainDecomp(-1);
+    BuildTree(0);
+    bSymmetric = 0;  /* should be set in param file! */
+    Smooth(dTime,dDelta,SMX_BALL,bSymmetric,param.nSmooth);
+    OutArray(BuildName(iStep,".ball").c_str(),OUT_BALL_ARRAY);
+    }
 
     if (DoDensity()) {
 #ifdef FAST_GAS

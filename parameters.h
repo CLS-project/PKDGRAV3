@@ -235,6 +235,7 @@ struct parameters {
     int bMemNodeSphBounds;
     int bMemNodeBnd;
     int bMemNodeVBnd;
+    int bMemBall;
     };
 
 #endif

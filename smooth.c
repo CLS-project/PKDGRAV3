@@ -252,6 +252,13 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
 	comb = NULL;
 	smx->fcnPost = NULL;
 	break;
+    case SMX_BALL:
+	smx->fcnSmooth = BallSmooth;
+	initParticle = initBall; /* Original Particle */
+	init = initBall; /* Cached copies */
+	comb = NULL;
+	smx->fcnPost = NULL;
+	break;
     case SMX_DENSITY:
 	smx->fcnSmooth = bSymmetric?DensitySym:Density;
 	initParticle = initDensity; /* Original Particle */
@@ -763,6 +770,7 @@ float smSmoothSingle(SMX smx,SMF *smf,PARTICLE *p,int iRoot1, int iRoot2) {
     ** Apply smooth funtion to the neighbor list.
     */
     smx->fcnSmooth(p,fBall,smx->nSmooth,smx->pq,smf);
+    pkdSetBall(pkd,p,fBall);
     return fBall;
     }
 

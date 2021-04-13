@@ -97,6 +97,15 @@
 void NullSmooth(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     }
 
+void initBall(void *vpkd, void *p) {
+    pkdSetBall(vpkd,(PARTICLE *)p,0.0);
+    }
+
+void BallSmooth(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
+    PKD pkd = smf->pkd;
+    pkdSetBall(pkd,p,fBall);
+    }
+
 void initDensity(void *vpkd, void *p) {
     pkdSetDensity(vpkd,(PARTICLE *)p,0.0);
     }
