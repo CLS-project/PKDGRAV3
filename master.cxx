@@ -4284,6 +4284,7 @@ void MSR::Output(int iStep, double dTime, double dDelta, int bCheckpoint) {
     BuildTree(0);
     bSymmetric = 0;  /* should be set in param file! */
     Smooth(dTime,dDelta,SMX_BALL,bSymmetric,param.nSmooth);
+    Reorder();
     OutArray(BuildName(iStep,".ball").c_str(),OUT_BALL_ARRAY);
     }
 
