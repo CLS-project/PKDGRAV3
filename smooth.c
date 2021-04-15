@@ -252,13 +252,6 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
 	comb = NULL;
 	smx->fcnPost = NULL;
 	break;
-    case SMX_BALL:
-	smx->fcnSmooth = BallSmooth;
-	initParticle = initBall; /* Original Particle */
-	init = initBall; /* Cached copies */
-	comb = NULL;
-	smx->fcnPost = NULL;
-	break;
     case SMX_DENSITY:
 	smx->fcnSmooth = bSymmetric?DensitySym:Density;
 	initParticle = initDensity; /* Original Particle */
@@ -377,6 +370,14 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
 	smx->fcnSmooth = AddRelaxation;
 	initParticle = NULL;
 	init = NULL;
+	comb = NULL;
+	smx->fcnPost = NULL;
+	break;
+    case SMX_BALL:
+    assert(pkd->oFieldOffset[oBall]);
+	smx->fcnSmooth = BallSmooth;
+	initParticle = initBall; /* Original Particle */
+	init = initBall; /* Cached copies */
 	comb = NULL;
 	smx->fcnPost = NULL;
 	break;
