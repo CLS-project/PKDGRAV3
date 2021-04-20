@@ -771,7 +771,6 @@ float smSmoothSingle(SMX smx,SMF *smf,PARTICLE *p,int iRoot1, int iRoot2) {
     ** Apply smooth funtion to the neighbor list.
     */
     smx->fcnSmooth(p,fBall,smx->nSmooth,smx->pq,smf);
-    //pkdSetBall(pkd,p,fBall);
     return fBall;
     }
 
