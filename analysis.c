@@ -278,6 +278,21 @@ void pkdCalcCOM(PKD pkd, double *dCenter, double dRadius, int bPeriodic,
     }
 
 /*
+** Return the mass of all particles
+*/
+void pkdCalcCOM_2(PKD pkd,double *M, uint64_t *N) {
+    int i;
+    *M = 0.0;
+    *N = 0;
+    for (i=0;i<pkd->nLocal;++i) {
+	PARTICLE *p = pkdParticle(pkd,i);
+	double m = pkdMass(pkd,p);
+	*M += m;
+	(*N)++;
+	}
+    }
+
+/*
 ** Count the number of elements that are interior to r2
 */
 uint_fast32_t pkdCountDistance(PKD pkd, double r2i, double r2o ) {

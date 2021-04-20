@@ -129,6 +129,40 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
 	}
 
     /*
+     * Calculate the mean particle mass in the most hideous way possible
+     * using the CalcCOM function but only using the total Mass it gives back
+     * while giving dMaxRadius of HUGE_VAL;
+     * But it works to demonstrate that we can get this value at this point in
+     * the simulation, even though there should not be a tree.
+     * To actually use this, we want to create a new function that calculates only
+     * the total mass of the gas particles, because only they matter for this.
+     * The target mass in the kernel is then this mean mass times nSmooth.
+     *
+     */
+    const double r[] = {0,0,0};
+    double dMaxRadius = HUGE_VAL;
+    double com[3], vcm[3], L1[3], M;
+    CalcCOM(r,dMaxRadius,com,vcm,L1,&M);
+    printf("M: %.15f\n",M);
+    printf("Ntotal: %" PRIu64 "\n", N);
+    printf("Mean particle mass: %.15f\n",M/N);
+    printf("M_tot as proposed: %.15f\n",M/N*param.nSmooth);
+
+    /*
+     * Do the same thing as above, but with my own function CalcCOM_2 that only
+     * calculates M and also N, so that we may at a later point also pass the particle type
+     * and directly get the answer for only this particle type
+     *
+     */
+    double M_new;
+    uint64_t N_new;
+    CalcCOM_2(&M_new, &N_new);
+    printf("M: %.15f\n",M_new);
+    printf("Ntotal: %" PRIu64 "\n", N_new);
+    printf("Mean particle mass: %.15f\n",M_new/N_new);
+    printf("M_tot as proposed: %.15f\n",M_new/N_new*param.nSmooth);
+
+    /*
     ** Build tree, activating all particles first (just in case).
     */
     ActiveRung(0,1); /* Activate all particles */
