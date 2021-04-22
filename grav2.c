@@ -261,7 +261,48 @@ int CPUdoWorkPP(void *vpp) {
     else return 1;
     }
 
+int CPUdoWorkDensity(void *vpp) {
+    workPP *pp = vpp;
+    workParticle *wp = pp->work;
+    ILPTILE tile = pp->tile;
+    ILP_BLK *blk = tile->blk;
+    PINFOIN *pPart = &pp->work->pInfoIn[pp->i];
+    PINFOOUT *pOut = &pp->pInfoOut[pp->i];
+    int nBlocks = tile->lstTile.nBlocks;
+    int nInLast = tile->lstTile.nInLast;
+
+    pOut->a[0] = 0.0;
+    pOut->a[1] = 0.0;
+    pOut->a[2] = 0.0;
+    pOut->fPot = 0.0;
+    pOut->dirsum = 0.0;
+    pOut->normsum = 0.0;
+    //pkdDensityEval(pPart,nBlocks,nInLast,blk,pOut);
+    //wp->dFlopSingleCPU += COST_FLOP_PP*(tile->lstTile.nBlocks*ILP_PART_PER_BLK  + tile->lstTile.nInLast);
+    if ( ++pp->i == pp->work->nP ) return 0;
+    else return 1;
+    }
+
 int doneWorkPP(void *vpp) {
+    workPP *pp = vpp;
+    int i;
+
+    for(i=0; i<pp->work->nP; ++i) {
+	pp->work->pInfoOut[i].a[0] += pp->pInfoOut[i].a[0];
+	pp->work->pInfoOut[i].a[1] += pp->pInfoOut[i].a[1];
+	pp->work->pInfoOut[i].a[2] += pp->pInfoOut[i].a[2];
+	pp->work->pInfoOut[i].fPot += pp->pInfoOut[i].fPot;
+	pp->work->pInfoOut[i].dirsum += pp->pInfoOut[i].dirsum;
+	pp->work->pInfoOut[i].normsum += pp->pInfoOut[i].normsum;
+	}
+    lstFreeTile(&pp->ilp->lst,&pp->tile->lstTile);
+    pkdParticleWorkDone(pp->work);
+    free(pp->pInfoOut);
+    free(pp);
+    return 0;
+    }
+
+int doneWorkDensity(void *vpp) {
     workPP *pp = vpp;
     int i;
 
@@ -298,6 +339,27 @@ static void queuePP( PKD pkd, workParticle *wp, ILP ilp, int bGravStep ) {
 	tile->lstTile.nRefs++;
 	wp->nRefs++;
 	mdlAddWork(pkd->mdl,pp,NULL,NULL,CPUdoWorkPP,doneWorkPP);
+	}
+    }
+
+static void queueDensity( PKD pkd, workParticle *wp, ILP ilp, int bGravStep ) {
+    ILPTILE tile;
+    workPP *pp;
+    ILP_LOOP(ilp,tile) {
+#ifdef USE_CUDA
+	assert(0);
+#endif
+	pp = malloc(sizeof(workPP));
+	assert(pp!=NULL);
+	pp->pInfoOut = malloc(sizeof(PINFOOUT) * wp->nP);
+	assert(pp->pInfoOut!=NULL);
+	pp->work = wp;
+	pp->ilp = ilp;
+	pp->tile = tile;
+	pp->i = 0;
+	tile->lstTile.nRefs++;
+	wp->nRefs++;
+	mdlAddWork(pkd->mdl,pp,NULL,NULL,CPUdoWorkDensity,doneWorkDensity);
 	}
     }
 
@@ -548,6 +610,11 @@ int pkdGravInteract(PKD pkd,
     ** Evaluate the P-P interactions
     */
     queuePP( pkd, wp, ilp, ts->bGravStep );
+
+    /*
+    ** Evaluate the Density on the P-P interactions
+    */
+    //queueDensity( pkd, wp, ilp, ts->bGravStep );
 
     /*
     ** Calculate the Ewald correction for this particle, if it is required.
