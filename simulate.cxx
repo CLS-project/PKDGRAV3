@@ -161,6 +161,20 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
     printf("Ntotal: %" PRIu64 "\n", N_new);
     printf("Mean particle mass: %.15f\n",M_new/N_new);
     printf("M_tot as proposed: %.15f\n",M_new/N_new*param.nSmooth);
+    pst->plcl->pkd->Mtot = M_new/N_new*param.nSmooth;
+
+    /*
+    ** Initialize fBall
+    */
+    Reorder();
+    OutArray(BuildName(0,".ballbefore").c_str(),OUT_BALL_ARRAY);
+    ActiveRung(0,1); /* Activate all particles */
+    DomainDecomp(-1);
+    BuildTree(0);
+    int bSymmetric = 0;  /* should be set in param file! */
+    Smooth(dTime,dDelta,SMX_BALL,bSymmetric,param.nSmooth);
+    Reorder();
+    OutArray(BuildName(0,".ball_after").c_str(),OUT_BALL_ARRAY);
 
     /*
     ** Build tree, activating all particles first (just in case).

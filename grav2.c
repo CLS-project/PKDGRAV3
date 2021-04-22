@@ -349,6 +349,7 @@ static void queueDensity( PKD pkd, workParticle *wp, ILP ilp, int bGravStep ) {
 #ifdef USE_CUDA
 	assert(0);
 #endif
+    printf("Mtot = %.15f\n",pkd->Mtot);
 	pp = malloc(sizeof(workPP));
 	assert(pp!=NULL);
 	pp->pInfoOut = malloc(sizeof(PINFOOUT) * wp->nP);
@@ -614,7 +615,7 @@ int pkdGravInteract(PKD pkd,
     /*
     ** Evaluate the Density on the P-P interactions
     */
-    //queueDensity( pkd, wp, ilp, ts->bGravStep );
+    queueDensity( pkd, wp, ilp, ts->bGravStep );
 
     /*
     ** Calculate the Ewald correction for this particle, if it is required.
