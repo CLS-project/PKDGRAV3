@@ -81,6 +81,7 @@ typedef struct {
     float a[3];
     float fSmooth2;
     float fDensity;
+    float fBall;
 /*    float v[3];*/
 /*    float fMass;*/
 /*    float fSoft;*/

@@ -58,3 +58,18 @@ CUDA_DEVICE void EvalPP(
 	ir = dir * norm;
 	}
     }
+
+template<class F,class M,bool bGravStep>
+CUDA_DEVICE void EvalDensity(
+	const F &Pdx, const F &Pdy, const F &Pdz, const F &Psmooth2,     // Particle
+	const F &Idx, const F &Idy, const F &Idz, const F &fourh2, const F &Im, // Interaction(s)
+	F &ax, F &ay, F &az, F &pot,         // results
+	const F &Pax, const F &Pay, const F &Paz,const F &imaga, F &ir, F &norm) {
+    static const float minSoftening = 1e-18f;
+    F dx = Idx + Pdx;
+    F dy = Idy + Pdy;
+    F dz = Idz + Pdz;
+    F d2 = dx*dx + dy*dy + dz*dz;
+    ax = 1.0f;
+    ay = 1.0f;
+    }

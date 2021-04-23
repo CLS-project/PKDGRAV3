@@ -210,8 +210,10 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
 	    LinearKick(dTime,dDelta,bKickClose,bKickOpen);
 	    GridDeleteFFT();
         }
+    OutArray(BuildName(0,".den_before").c_str(),OUT_DENSITY_ARRAY);
 	uRungMax = Gravity(0,MAX_RUNG,ROOT,0,dTime,dDelta,iStartStep,dTheta,0,bKickOpen,
 	        param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup);
+    OutArray(BuildName(0,".den_after").c_str(),OUT_DENSITY_ARRAY);
 	MemStatus();
 	if (param.bGravStep) {
 	    assert(param.bNewKDK == 0);    /* for now! */
@@ -240,6 +242,8 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
     if ( param.bTraceRelaxation) {
 	InitRelaxation();
 	}
+
+    assert(0);
 
     bKickOpen = 0;
     int iStop=0, bDoCheckpoint=0, bDoOutput=0;

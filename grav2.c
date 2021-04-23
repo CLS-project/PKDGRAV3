@@ -103,6 +103,9 @@ void pkdParticleWorkDone(workParticle *wp) {
 	pkd->dFlopDoubleGPU += wp->dFlopDoubleGPU;
 	for( i=0; i<wp->nP; i++ ) {
 	    p = wp->pPart[i];
+
+        pkdSetDensity(pkd,p,wp->pInfoOut[i].rho);
+
 	    pkdGetPos1(pkd,p,r);
 	    m = pkdMass(pkd,p);
 	    if (pkd->oFieldOffset[oAcceleration]) {
@@ -273,7 +276,7 @@ int CPUdoWorkDensity(void *vpp) {
 
     pOut->rho = 0.0;
     pOut->drhodh = 0.0;
-    //pkdDensityEval(pPart,nBlocks,nInLast,blk,pOut);
+    pkdDensityEval(pPart,nBlocks,nInLast,blk,pOut);
     //wp->dFlopSingleCPU += COST_FLOP_PP*(tile->lstTile.nBlocks*ILP_PART_PER_BLK  + tile->lstTile.nInLast);
     if ( ++pp->i == pp->work->nP ) return 0;
     else return 1;
@@ -351,7 +354,7 @@ static void queueDensity( PKD pkd, workParticle *wp, ILP ilp, int bGravStep ) {
 #ifdef USE_CUDA
 	assert(0);
 #endif
-    printf("Mkerneltarget = %.15f\n",pkd->fMkerneltarget);
+    //printf("Mkerneltarget = %.15f\n",pkd->fMkerneltarget);
 	pp = malloc(sizeof(workPP));
 	assert(pp!=NULL);
 	pp->pInfoOut = malloc(sizeof(PINFOOUT) * wp->nP);
@@ -542,6 +545,7 @@ int pkdGravInteract(PKD pkd,
 	wp->pInfoIn[nP].r[0]  = (float)(r[0] - ilp->cx);
 	wp->pInfoIn[nP].r[1]  = (float)(r[1] - ilp->cy);
 	wp->pInfoIn[nP].r[2]  = (float)(r[2] - ilp->cz);
+    wp->pInfoIn[nP].fBall = pkdBall(pkd,p);
 	if (pkd->oFieldOffset[oAcceleration]) {
 	    ap = pkdAccel(pkd,p);
 	    wp->pInfoIn[nP].a[0]  = ap[0];
