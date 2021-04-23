@@ -277,8 +277,8 @@ void pstAddServices(PST pst,MDL mdl) {
 		  sizeof(struct inCalcDistance), 0);
     mdlAddService(mdl,PST_CALCCOM,pst,(fcnService_t*)pstCalcCOM,
 		  sizeof(struct inCalcCOM), sizeof(struct outCalcCOM));
-    mdlAddService(mdl,PST_CALCCOM_2,pst,(fcnService_t*)pstCalcCOM_2,
-		  sizeof(struct inCalcCOM_2), sizeof(struct outCalcCOM_2));
+    mdlAddService(mdl,PST_CALCMTOT,pst,(fcnService_t*)pstCalcMtot,
+		  sizeof(struct inCalcMtot), sizeof(struct outCalcMtot));
     mdlAddService(mdl,PST_COUNTDISTANCE,pst,(fcnService_t*)pstCountDistance,
 		  sizeof(struct inCountDistance), sizeof(struct outCountDistance));
 #ifdef MDL_FFTW
@@ -3730,26 +3730,26 @@ int pstCalcCOM(PST pst,void *vin,int nIn,void *vout,int nOut) {
     return sizeof(struct outCalcCOM);
     }
 
-int pstCalcCOM_2(PST pst,void *vin,int nIn,void *vout,int nOut) {
+int pstCalcMtot(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
-    struct inCalcCOM_2 *in = vin;
-    struct outCalcCOM_2 *out = vout;
-    struct outCalcCOM_2 outUpper;
+    struct inCalcMtot *in = vin;
+    struct outCalcMtot *out = vout;
+    struct outCalcMtot outUpper;
     int i;
 
-    assert( nIn==sizeof(struct inCalcCOM_2) );
+    assert( nIn==sizeof(struct inCalcMtot) );
     assert( vout != NULL );
     if (pst->nLeaves > 1) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_CALCCOM_2,vin,nIn);
-	pstCalcCOM_2(pst->pstLower,vin,nIn,vout,nOut);
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_CALCMTOT,vin,nIn);
+	pstCalcMtot(pst->pstLower,vin,nIn,vout,nOut);
 	mdlGetReply(pst->mdl,rID,&outUpper,NULL);
 	out->N += outUpper.N;
 	out->M += outUpper.M;
 	}
     else {
-	pkdCalcCOM_2(plcl->pkd,&out->M, &out->N);
+	pkdCalcMtot(plcl->pkd,&out->M, &out->N);
 	}
-    return sizeof(struct outCalcCOM_2);
+    return sizeof(struct outCalcMtot);
     }
 
 int pstCountDistance(PST pst,void *vin,int nIn,void *vout,int nOut) {

@@ -208,7 +208,7 @@ enum pst_service {
     PST_PROFILE,
     PST_CALCDISTANCE,
     PST_CALCCOM,
-    PST_CALCCOM_2,
+    PST_CALCMTOT,
     PST_COUNTDISTANCE,
 #ifdef MDL_FFTW
     PST_GRID_CREATE_FFT,
@@ -1240,15 +1240,15 @@ struct outCalcCOM {
     };
 int pstCalcCOM(PST pst,void *vin,int nIn,void *vout,int nOut);
 
-/* PST_CALCCOM_2 */
-struct inCalcCOM_2 {
+/* PST_CALCMTOT */
+struct inCalcMtot {
     int a; //placeholder as struct can't be empty, later may be particle type here?
     };
-struct outCalcCOM_2 {
+struct outCalcMtot {
     double M;
     uint64_t N;
     };
-int pstCalcCOM_2(PST pst,void *vin,int nIn,void *vout,int nOut);
+int pstCalcMtot(PST pst,void *vin,int nIn,void *vout,int nOut);
 
 /* PST_COUNTDISTANCE */
 struct inCountDistance {

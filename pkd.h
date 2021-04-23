@@ -1550,7 +1550,7 @@ uint_fast32_t pkdCountDistance(PKD pkd, double r2i, double r2o );
 void pkdCalcCOM(PKD pkd, double *dCenter, double dRadius, int bPeriodic,
 		double *com, double *vcm, double *L,
 		double *M, uint64_t *N);
-void pkdCalcCOM_2(PKD pkd, double *M, uint64_t *N);
+void pkdCalcMtot(PKD pkd, double *M, uint64_t *N);
 #ifdef MDL_FFTW
 void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int iAssignment, int iGrid, float dDelta);
 void pkdInterlace(PKD pkd, int iGridTarget, int iGridSource);

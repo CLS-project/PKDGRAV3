@@ -280,7 +280,7 @@ void pkdCalcCOM(PKD pkd, double *dCenter, double dRadius, int bPeriodic,
 /*
 ** Return the mass of all particles
 */
-void pkdCalcCOM_2(PKD pkd,double *M, uint64_t *N) {
+void pkdCalcMtot(PKD pkd,double *M, uint64_t *N) {
     int i;
     *M = 0.0;
     *N = 0;

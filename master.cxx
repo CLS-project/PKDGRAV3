@@ -4525,12 +4525,12 @@ void MSR::CalcCOM(const double *dCenter, double dRadius,
 	}
     }
 
-void MSR::CalcCOM_2(double *M, uint64_t *N) {
-    struct inCalcCOM_2 in;
-    struct outCalcCOM_2 out;
+void MSR::CalcMtot(double *M, uint64_t *N) {
+    struct inCalcMtot in;
+    struct outCalcMtot out;
     int nOut;
 
-    nOut = pstCalcCOM_2(pst, &in, sizeof(in), &out, sizeof(out));
+    nOut = pstCalcMtot(pst, &in, sizeof(in), &out, sizeof(out));
     assert( nOut == sizeof(out) );
 
     *M = out.M;

@@ -139,29 +139,29 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
      * The target mass in the kernel is then this mean mass times nSmooth.
      *
      */
-    const double r[] = {0,0,0};
-    double dMaxRadius = HUGE_VAL;
-    double com[3], vcm[3], L1[3], M;
-    CalcCOM(r,dMaxRadius,com,vcm,L1,&M);
-    printf("M: %.15f\n",M);
-    printf("Ntotal: %" PRIu64 "\n", N);
-    printf("Mean particle mass: %.15f\n",M/N);
-    printf("M_tot as proposed: %.15f\n",M/N*param.nSmooth);
+    // const double r[] = {0,0,0};
+    // double dMaxRadius = HUGE_VAL;
+    // double com[3], vcm[3], L1[3], M;
+    // CalcCOM(r,dMaxRadius,com,vcm,L1,&M);
+    // printf("M: %.15f\n",M);
+    // printf("Ntotal: %" PRIu64 "\n", N);
+    // printf("Mean particle mass: %.15f\n",M/N);
+    // printf("M_tot as proposed: %.15f\n",M/N*param.nSmooth);
 
     /*
-     * Do the same thing as above, but with my own function CalcCOM_2 that only
+     * Do the same thing as above, but with my own function CalcMtot that only
      * calculates M and also N, so that we may at a later point also pass the particle type
      * and directly get the answer for only this particle type
      *
      */
-    double M_new;
-    uint64_t N_new;
-    CalcCOM_2(&M_new, &N_new);
-    printf("M: %.15f\n",M_new);
-    printf("Ntotal: %" PRIu64 "\n", N_new);
-    printf("Mean particle mass: %.15f\n",M_new/N_new);
-    printf("M_tot as proposed: %.15f\n",M_new/N_new*param.nSmooth);
-    pst->plcl->pkd->Mtot = M_new/N_new*param.nSmooth;
+    double Mtot;
+    uint64_t Ntot;
+    CalcMtot(&Mtot, &Ntot);
+    printf("M: %.15f\n",Mtot);
+    printf("Ntotal: %" PRIu64 "\n", Mtot);
+    printf("Mean particle mass: %.15f\n",Mtot/Ntot);
+    printf("M_tot as proposed: %.15f\n",Mtot/Ntot*param.nSmooth);
+    pst->plcl->pkd->Mtot = Mtot/Ntot*param.nSmooth;
 
     /*
     ** Initialize fBall
