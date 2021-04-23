@@ -158,7 +158,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
     uint64_t Ntot;
     CalcMtot(&Mtot, &Ntot);
     printf("M: %.15f\n",Mtot);
-    printf("Ntotal: %" PRIu64 "\n", Mtot);
+    printf("Ntotal: %" PRIu64 "\n", Ntot);
     printf("Mean particle mass: %.15f\n",Mtot/Ntot);
     printf("M_tot as proposed: %.15f\n",Mtot/Ntot*param.nSmooth);
     // Set this value to all pkds

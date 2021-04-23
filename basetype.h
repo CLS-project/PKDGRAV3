@@ -91,6 +91,7 @@ typedef struct {
     float fPot;
     float dirsum, normsum;
     float rhopmax;
+    float rho, drhodh;
     } PINFOOUT;
 
 

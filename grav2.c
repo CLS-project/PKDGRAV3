@@ -271,12 +271,8 @@ int CPUdoWorkDensity(void *vpp) {
     int nBlocks = tile->lstTile.nBlocks;
     int nInLast = tile->lstTile.nInLast;
 
-    pOut->a[0] = 0.0;
-    pOut->a[1] = 0.0;
-    pOut->a[2] = 0.0;
-    pOut->fPot = 0.0;
-    pOut->dirsum = 0.0;
-    pOut->normsum = 0.0;
+    pOut->rho = 0.0;
+    pOut->drhodh = 0.0;
     //pkdDensityEval(pPart,nBlocks,nInLast,blk,pOut);
     //wp->dFlopSingleCPU += COST_FLOP_PP*(tile->lstTile.nBlocks*ILP_PART_PER_BLK  + tile->lstTile.nInLast);
     if ( ++pp->i == pp->work->nP ) return 0;
@@ -307,12 +303,8 @@ int doneWorkDensity(void *vpp) {
     int i;
 
     for(i=0; i<pp->work->nP; ++i) {
-	pp->work->pInfoOut[i].a[0] += pp->pInfoOut[i].a[0];
-	pp->work->pInfoOut[i].a[1] += pp->pInfoOut[i].a[1];
-	pp->work->pInfoOut[i].a[2] += pp->pInfoOut[i].a[2];
-	pp->work->pInfoOut[i].fPot += pp->pInfoOut[i].fPot;
-	pp->work->pInfoOut[i].dirsum += pp->pInfoOut[i].dirsum;
-	pp->work->pInfoOut[i].normsum += pp->pInfoOut[i].normsum;
+	pp->work->pInfoOut[i].rho += pp->pInfoOut[i].rho;
+	pp->work->pInfoOut[i].drhodh += pp->pInfoOut[i].drhodh;
 	}
     lstFreeTile(&pp->ilp->lst,&pp->tile->lstTile);
     pkdParticleWorkDone(pp->work);
@@ -345,6 +337,16 @@ static void queuePP( PKD pkd, workParticle *wp, ILP ilp, int bGravStep ) {
 static void queueDensity( PKD pkd, workParticle *wp, ILP ilp, int bGravStep ) {
     ILPTILE tile;
     workPP *pp;
+    // initialize kernel mass deviation so the loop runs at least once
+
+    // start while loop
+
+    // Zero density and density derivative
+    for( int i=0; i<wp->nP; i++ ) {
+        wp->pInfoOut[i].rho = 0.0f;
+        wp->pInfoOut[i].drhodh = 0.0f;
+    }
+
     ILP_LOOP(ilp,tile) {
 #ifdef USE_CUDA
 	assert(0);
@@ -362,6 +364,21 @@ static void queueDensity( PKD pkd, workParticle *wp, ILP ilp, int bGravStep ) {
 	wp->nRefs++;
 	mdlAddWork(pkd->mdl,pp,NULL,NULL,CPUdoWorkDensity,doneWorkDensity);
 	}
+
+    // we have to wait for all work to have finished here
+
+    // don't forget the contribution of the particle itself
+
+    // calculate maximum kernel mass deviation
+
+    /*
+    ** decide if loop has to continue
+    ** if true, calculate new fBall for all particles
+    ** else, exit loop
+    */
+
+    // end while loop
+
     }
 
 int CPUdoWorkPC(void *vpc) {
