@@ -349,7 +349,7 @@ static void queueDensity( PKD pkd, workParticle *wp, ILP ilp, int bGravStep ) {
 #ifdef USE_CUDA
 	assert(0);
 #endif
-    printf("Mtot = %.15f\n",pkd->Mtot);
+    printf("Mkerneltarget = %.15f\n",pkd->fMkerneltarget);
 	pp = malloc(sizeof(workPP));
 	assert(pp!=NULL);
 	pp->pInfoOut = malloc(sizeof(PINFOOUT) * wp->nP);

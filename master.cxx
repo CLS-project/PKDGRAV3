@@ -1712,6 +1712,14 @@ void MSR::SetSoft(double dSoft) {
     pstSetSoft(pst,&in,sizeof(in),NULL,0);
     }
 
+void MSR::SetMkerneltarget(double dMkerneltarget) {
+    struct inSetMkerneltarget in;
+
+    msrprintf("Set Kernel target mass...\n");
+    in.dMkerneltarget = dMkerneltarget;
+    pstSetMkerneltarget(pst,&in,sizeof(in),NULL,0);
+    }
+
 
 void MSR::DomainDecompOld(int iRung) {
     struct inDomainDecomp in;

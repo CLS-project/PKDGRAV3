@@ -135,6 +135,7 @@ enum pst_service {
     PST_KICK,
     PST_KICKTREE,
     PST_SETSOFT,
+    PST_SETMKERNELTARGET,
     PST_PHYSICALSOFT,
     PST_SETTOTAL,
     PST_ONENODEREADINIT,
@@ -764,6 +765,12 @@ struct inSetSoft {
     double dSoft;
     };
 int pstSetSoft(PST,void *,int,void *,int);
+
+/* PST_SETMKERNELTARGET */
+struct inSetMkerneltarget {
+    double dMkerneltarget;
+    };
+int pstSetMkerneltarget(PST,void *,int,void *,int);
 
 /* PST_PHYSICALSOFT */
 struct inPhysicalSoft {
