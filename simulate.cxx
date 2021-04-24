@@ -168,14 +168,17 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
     ** Initialize fBall
     */
     Reorder();
-    OutArray(BuildName(0,".ballbefore").c_str(),OUT_BALL_ARRAY);
+    OutArray(BuildName(0,".ball_before_initializing").c_str(),OUT_BALL_ARRAY);
     ActiveRung(0,1); /* Activate all particles */
     DomainDecomp(-1);
     BuildTree(0);
     int bSymmetric = 0;  /* should be set in param file! */
     Smooth(dTime,dDelta,SMX_BALL,bSymmetric,param.nSmooth);
+
+    // write out the ball and density before the gravity pass
     Reorder();
-    OutArray(BuildName(0,".ball_after").c_str(),OUT_BALL_ARRAY);
+    OutArray(BuildName(0,".ball_after_initializing").c_str(),OUT_BALL_ARRAY);
+    OutArray(BuildName(0,".den_before_gravity_pass").c_str(),OUT_DENSITY_ARRAY);
 
     /*
     ** Build tree, activating all particles first (just in case).
@@ -210,11 +213,27 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
 	    LinearKick(dTime,dDelta,bKickClose,bKickOpen);
 	    GridDeleteFFT();
         }
-    OutArray(BuildName(0,".den_before").c_str(),OUT_DENSITY_ARRAY);
 	uRungMax = Gravity(0,MAX_RUNG,ROOT,0,dTime,dDelta,iStartStep,dTheta,0,bKickOpen,
 	        param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup);
-    OutArray(BuildName(0,".den_after").c_str(),OUT_DENSITY_ARRAY);
 	MemStatus();
+
+    // write out ball and density after the gravity pass
+    Reorder();
+    OutArray(BuildName(0,".ball_after_gravity_pass").c_str(),OUT_BALL_ARRAY);
+    OutArray(BuildName(0,".den_after_gravity_pass").c_str(),OUT_DENSITY_ARRAY);
+
+
+    // calculate density with a smooth for comparison
+    ActiveRung(0,1); /* Activate all particles */
+	DomainDecomp(-1);
+	BuildTree(0);
+	bSymmetric = 0;  /* should be set in param file! */
+	Smooth(dTime,dDelta,SMX_DENSITY,bSymmetric,param.nSmooth);
+    Reorder();
+    OutArray(BuildName(0,".den_from_smooth").c_str(),OUT_DENSITY_ARRAY);
+
+    assert(0);
+
 	if (param.bGravStep) {
 	    assert(param.bNewKDK == 0);    /* for now! */
 	    BuildTree(param.bEwald);
@@ -242,8 +261,6 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
     if ( param.bTraceRelaxation) {
 	InitRelaxation();
 	}
-
-    assert(0);
 
     bKickOpen = 0;
     int iStop=0, bDoCheckpoint=0, bDoOutput=0;

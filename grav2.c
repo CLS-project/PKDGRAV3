@@ -105,6 +105,7 @@ void pkdParticleWorkDone(workParticle *wp) {
 	    p = wp->pPart[i];
 
         pkdSetDensity(pkd,p,wp->pInfoOut[i].rho);
+        pkdSetBall(pkd,p,wp->pInfoOut[i].fBall);
 
 	    pkdGetPos1(pkd,p,r);
 	    m = pkdMass(pkd,p);
@@ -369,6 +370,8 @@ static void queueDensity( PKD pkd, workParticle *wp, ILP ilp, int bGravStep ) {
 	}
 
     // we have to wait for all work to have finished here
+    // all this only makes sense if we are not asynchronous
+    assert(wp->nRefs == 1);
 
     // don't forget the contribution of the particle itself
 
@@ -381,6 +384,11 @@ static void queueDensity( PKD pkd, workParticle *wp, ILP ilp, int bGravStep ) {
     */
 
     // end while loop
+
+    for( int i=0; i<wp->nP; i++ ) {
+        // only for testing, here save the new fBall for each particle
+        wp->pInfoOut[i].fBall = 2.0 * wp->pInfoIn[i].fBall;
+    }
 
     }
 
