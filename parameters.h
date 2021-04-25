@@ -314,6 +314,17 @@ struct parameters {
     double dBHSeedMass;
     double dMhaloMin;
 #endif
+#ifdef STELLAR_EVOLUTION
+    char achStEvolPath[256];
+    char achSNIa_DTDtype[32];
+    char achIMFtype[32];
+    double dCCSN_MinMass;
+    double dSNIa_MaxMass;
+    double dSNIa_Norm;
+    double dSNIa_Scale;
+    double dSNIa_Norm_ti;
+    double dSNIa_Norm_tf;
+#endif
 
 #ifdef MDL_FFTW
     int nGridPk;

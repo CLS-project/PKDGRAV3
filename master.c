@@ -1876,6 +1876,49 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
 		sizeof(double), "dMhaloMin",
 		"Minimum mass required to place a BH in a FOF group <code units>");
 #endif
+#ifdef STELLAR_EVOLUTION
+    strcpy(msr->param.achStEvolPath, "");
+    prmAddParam(msr->prm, "achStEvolPath", 3, msr->param.achStEvolPath, 256, "stevtables",
+		"Path to stellar evolution tables");
+
+    strcpy(msr->param.achSNIa_DTDtype, "exponential");
+    prmAddParam(msr->prm, "achSNIa_DTDtype", 3, msr->param.achSNIa_DTDtype, 32, "dtdtype",
+		"Type of Delay Time Distribution function for SNIa events");
+
+    strcpy(msr->param.achIMFtype, "chabrier");
+    prmAddParam(msr->prm, "achIMFtype", 3, msr->param.achIMFtype, 32, "imftype",
+		"Type of Initial Mass Function");
+
+    msr->param.dCCSN_MinMass = 6.0;
+    prmAddParam(msr->prm, "dCCSN_MinMass", 2, &msr->param.dCCSN_MinMass,
+		sizeof(double), "ccsnminmass",
+		"Minimum mass for a star to end its life as a Core Collapse Supernova");
+
+    msr->param.dSNIa_MaxMass = 8.0;
+    prmAddParam(msr->prm, "dSNIa_MaxMass", 2, &msr->param.dSNIa_MaxMass,
+		sizeof(double), "sniamaxmass",
+		"Maximum mass for the likely progenitors of SNIa events");
+
+    msr->param.dSNIa_Norm = 2e-3;
+    prmAddParam(msr->prm, "dSNIa_Norm", 2, &msr->param.dSNIa_Norm,
+		sizeof(double), "snianorm",
+		"Normalization of the Delay Time Distribution function");
+
+    msr->param.dSNIa_Scale = 2e9;
+    prmAddParam(msr->prm, "dSNIa_Scale", 2, &msr->param.dSNIa_Scale,
+		sizeof(double), "sniascale",
+		"Scale of the Delay Time Distribution function");
+
+    msr->param.dSNIa_Norm_ti = 40e6;
+    prmAddParam(msr->prm, "dSNIa_Norm_ti", 2, &msr->param.dSNIa_Norm_ti,
+		sizeof(double), "sniati",
+		"Initial time for the normalization of the Delay Time Distribution function");
+
+    msr->param.dSNIa_Norm_tf = 13.7e9;
+    prmAddParam(msr->prm, "dSNIa_Norm_tf", 2, &msr->param.dSNIa_Norm_tf,
+		sizeof(double), "sniatf",
+		"Final time for the normalization of the Delay Time Distribution function");
+#endif
     /* END of new params */
 
     msr->param.bAccelStep = 0;
@@ -1983,6 +2026,17 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
     double n_heat = 1.0; // This, in principle, will not be a parameter
     // We convert from Delta T to energy per mass. This needs to be multiplied by the mass of the gas particle
     msr->param.dBHFeedbackEcrit *= msr->param.dGasConst/(msr->param.dConstGamma - 1.)/0.58 * n_heat;
+#endif
+
+#ifdef STELLAR_EVOLUTION
+#define SECPERYEAR 31557600.0   /* Seconds in a Julian year */
+    msr->param.dCCSN_MinMass /= msr->param.dMsolUnit;
+    msr->param.dSNIa_MaxMass /= msr->param.dMsolUnit;
+    msr->param.dSNIa_Norm    *= msr->param.dMsolUnit;
+    msr->param.dSNIa_Norm_ti *= SECPERYEAR / msr->param.dSecUnit;
+    msr->param.dSNIa_Norm_tf *= SECPERYEAR / msr->param.dSecUnit;
+    if (strcmp(msr->param.achSNIa_DTDtype, "exponential") == 0)
+       msr->param.dSNIa_Scale *= SECPERYEAR / msr->param.dSecUnit;
 #endif
 
     /* Gas parameter checks */
