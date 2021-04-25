@@ -318,6 +318,8 @@ struct parameters {
     char achStEvolPath[256];
     char achSNIa_DTDtype[32];
     char achIMFtype[32];
+    double dIMF_MinMass;
+    double dIMF_MaxMass;
     double dCCSN_MinMass;
     double dSNIa_MaxMass;
     double dSNIa_Norm;

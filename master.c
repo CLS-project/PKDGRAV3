@@ -1889,6 +1889,16 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
     prmAddParam(msr->prm, "achIMFtype", 3, msr->param.achIMFtype, 32, "imftype",
 		"Type of Initial Mass Function");
 
+    msr->param.dIMF_MinMass = 0.1;
+    prmAddParam(msr->prm, "dIMF_MinMass", 2, &msr->param.dIMF_MinMass,
+		sizeof(double), "imfminmass",
+		"Lower mass limit of the Initial Mass Function");
+
+    msr->param.dIMF_MaxMass = 100.0;
+    prmAddParam(msr->prm, "dIMF_MaxMass", 2, &msr->param.dIMF_MaxMass,
+		sizeof(double), "imfmaxmass",
+		"Upper mass limit of the Initial Mass Function");
+
     msr->param.dCCSN_MinMass = 6.0;
     prmAddParam(msr->prm, "dCCSN_MinMass", 2, &msr->param.dCCSN_MinMass,
 		sizeof(double), "ccsnminmass",
