@@ -343,8 +343,7 @@ static void queueDensity( PKD pkd, workParticle *wp, ILP ilp, int bGravStep ) {
     workPP *pp;
     // initialize kernel mass deviation so the loop runs at least once
 
-    // start while loop
-
+    while(1) {// start while loop
     // Zero density and density derivative
     for( int i=0; i<wp->nP; i++ ) {
         wp->pInfoOut[i].rho = 0.0f;
@@ -355,7 +354,6 @@ static void queueDensity( PKD pkd, workParticle *wp, ILP ilp, int bGravStep ) {
 #ifdef USE_CUDA
 	assert(0);
 #endif
-    //printf("Mkerneltarget = %.15f\n",pkd->fMkerneltarget);
 	pp = malloc(sizeof(workPP));
 	assert(pp!=NULL);
 	pp->pInfoOut = malloc(sizeof(PINFOOUT) * wp->nP);
@@ -373,23 +371,37 @@ static void queueDensity( PKD pkd, workParticle *wp, ILP ilp, int bGravStep ) {
     // all this only makes sense if we are not asynchronous
     assert(wp->nRefs == 1);
 
-    // don't forget the contribution of the particle itself
-
+    float maxkernelmassdeviation = 0.0f;
     // calculate maximum kernel mass deviation
+    for (int i=0; i<wp->nP; i++) {
+        float kernelmassdeviation = 4.0f/3.0f*M_PI*8*wp->pInfoIn[i].fBall*wp->pInfoIn[i].fBall*wp->pInfoIn[i].fBall*wp->pInfoOut[i].rho - pkd->fMkerneltarget;
+        kernelmassdeviation = kernelmassdeviation>0?kernelmassdeviation:-kernelmassdeviation;
+        maxkernelmassdeviation = (kernelmassdeviation > maxkernelmassdeviation)?kernelmassdeviation:maxkernelmassdeviation;
+    }
 
     /*
     ** decide if loop has to continue
     ** if true, calculate new fBall for all particles
     ** else, exit loop
     */
-
-    // end while loop
-
-    for( int i=0; i<wp->nP; i++ ) {
-        // only for testing, here save the new fBall for each particle
-        wp->pInfoOut[i].fBall = 2.0 * wp->pInfoIn[i].fBall;
+    if (maxkernelmassdeviation/pkd->fMkerneltarget > 1e-4f) {
+        // do another loop
+        for (int i=0; i<wp->nP; i++) {
+            float fx = 4.0f/3.0f*M_PI*8*wp->pInfoIn[i].fBall*wp->pInfoIn[i].fBall*wp->pInfoIn[i].fBall*wp->pInfoOut[i].rho - pkd->fMkerneltarget;
+            float dfdx = 4.0f/3.0f*M_PI*8*3*wp->pInfoIn[i].fBall*wp->pInfoIn[i].fBall*wp->pInfoOut[i].rho + 4.0f/3.0f*M_PI*8*wp->pInfoIn[i].fBall*wp->pInfoIn[i].fBall*wp->pInfoIn[i].fBall*wp->pInfoOut[i].drhodh;
+            wp->pInfoIn[i].fBall -= fx / dfdx;
+        }
+    } else {
+        // finish
+        break;
     }
 
+    }// end while loop
+
+    for( int i=0; i<wp->nP; i++ ) {
+        // save the new fBall for each particle
+        wp->pInfoOut[i].fBall = wp->pInfoIn[i].fBall;
+    }
     }
 
 int CPUdoWorkPC(void *vpc) {

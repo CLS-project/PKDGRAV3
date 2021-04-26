@@ -61,15 +61,79 @@ CUDA_DEVICE void EvalPP(
 
 template<class F,class M,bool bGravStep>
 CUDA_DEVICE void EvalDensity(
-	const F &Pdx, const F &Pdy, const F &Pdz, const F &Psmooth2,     // Particle
-	const F &Idx, const F &Idy, const F &Idz, const F &fourh2, const F &Im, // Interaction(s)
-	F &ax, F &ay, F &az, F &pot,         // results
-	const F &Pax, const F &Pay, const F &Paz,const F &imaga, F &ir, F &norm) {
-    static const float minSoftening = 1e-18f;
+	const F &Pdx, const F &Pdy, const F &Pdz,     // Particle
+	const F &Idx, const F &Idy, const F &Idz, const F &Im, const F & fBall, // Interaction(s)
+	F &arho, F &adrhodh         // results
+    ) {
     F dx = Idx + Pdx;
     F dy = Idy + Pdy;
     F dz = Idz + Pdz;
     F d2 = dx*dx + dy*dy + dz*dz;
-    ax = 1.0f;
-    ay = 1.0f;
+
+    F ar2, ak, adk;
+    F ifBall2;
+
+    F onefourth = 1.0f/4.0f;
+    F threefourths = 3.0f/4.0f;
+    F one = 1.0f;
+    F two = 2.0f;
+    F four = 4.0f;
+    F three = 3.0f;
+    F ninefourths = 9.0f/4.0f;
+
+    F t1 = 0.0f;
+    F t2 = 0.0f;
+    F t3 = 0.0f;
+
+    ifBall2 = four / (fBall * fBall);
+    ar2 = d2 * ifBall2;
+
+    M ar2stone = ar2 < one;
+    M ar2stfour = ar2 < four;
+
+    if (!testz(ar2stfour)){
+    // There is some work to do
+
+    // Evaluate the kernel
+
+    //ak = 2.0 - sqrt(ar2)
+    t1 = two - sqrt(ar2);
+
+    //if (ar2 < 1.0) ak = (1.0 - 0.75*ak*ar2)
+    t2 = (one - threefourths * t1 * ar2);
+
+    //else if (ar2 < 4.0) ak = 0.25*ak*ak*ak
+    t3 = onefourth * t1 * t1 * t1;
+
+    // else ak = 0;
+
+    ak = maskz_mov(ar2stfour,t3);
+    ak = mask_mov(ak,ar2stone,t2);
+
+    // Evaluate the kernel derivative
+
+    // adk = sqrt(ar2)
+    t1 = sqrt(ar2);
+
+    // if (ar2 < 1.0) adk = -3 + 2.25*adk;
+    t2 = - three + ninefourths * t1;
+
+    // else if (ar2 < 4.0) adk = -0.75*(2.0-adk)*(2.0-adk)/adk;
+    t3 = - threefourths * (two - t1) * (two - t1) / t1;
+
+    // else adk = 0;
+
+    adk = maskz_mov(ar2stfour,t3);
+    adk = mask_mov(adk,ar2stone,t2);
+
+    // return the density scaled with the volume
+    arho = M_1_PI*sqrt(ifBall2)*ifBall2 * Im * ak;
+
+    // return the derivative of the density wrt fBall
+    adrhodh = M_1_PI*sqrt(ifBall2)*ifBall2 * Im * adk * (- four) * d2 / (fBall * fBall * fBall);
+    } else {
+    // No work to do
+    arho = 0.0f;
+    adrhodh = 0.0f;
+    }
     }
