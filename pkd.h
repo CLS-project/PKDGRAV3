@@ -1742,7 +1742,6 @@ void pkdResetFluxes(PKD pkd,int iRoot,double dTime,double dDelta,double,double);
 #ifdef DEBUG_CACHED_FLUXES
 void pkdFluxStats(PKD pkd, int* avoided, int* computed);
 #endif
-void pkdComputePrimVars(PKD pkd,int iRoot, double dTime, double dDelta);
 void pkdPredictSmoothing(PKD pkd,int iRoot, double dTime, double dDelta);
 void pkdScaleVel(PKD pkd,double dvFac);
 void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, double dTime, double dDelta,

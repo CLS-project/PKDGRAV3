@@ -33,7 +33,7 @@
 #include "smooth.h"
 #include "pkd.h"
 #include "rbtree.h"
-#include "hydro.h"
+#include "hydro/hydro.h"
 #ifdef FEEDBACK
 #include "starformation/feedback.h"
 #endif
@@ -311,16 +311,16 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
     case SMX_FIRSTHYDROLOOP:
 	assert( pkd->oSph ); /* Validate memory model */
 	smx->fcnSmooth = hydroDensity;
-	initParticle = initHydroLoop; /* Original Particle */
-	init = initHydroLoopCached; /* Cached copies */
+	initParticle = NULL; /* Original Particle */
+	init = NULL; /* Cached copies */
 	comb = NULL;
 	smx->fcnPost = NULL;
 	break;
     case SMX_SECONDHYDROLOOP:
 	assert( pkd->oSph ); /* Validate memory model */
 	smx->fcnSmooth = hydroGradients;
-	initParticle = initHydroGradients; /* Original Particle */
-	init = initHydroGradients; /* Cached copies */ 
+	initParticle = NULL; /* Original Particle */
+	init = NULL; /* Cached copies */ 
 	comb = NULL;
 	smx->fcnPost = NULL;
 	break;

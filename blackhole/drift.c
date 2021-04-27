@@ -1,5 +1,5 @@
 #include "blackhole/drift.h"
-#include "hydro.h"
+#include "hydro/hydro.h"
 
 
 void smBHdrift(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf){

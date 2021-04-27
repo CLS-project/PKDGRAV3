@@ -4119,63 +4119,6 @@ void msrOutputFineStatistics(MSR msr, double dStep, double dTime){
 
 }
 
-void msrUpdatePrimVars(MSR msr,double dTime,double dDelta,int iRoot){
-    struct inDrift in; //IA: TODO new struct for this, as I am using more space than needed
-    int nSmoothed = 1, it=0, maxit = 100;  
-    in.iRoot = iRoot;
-    in.dTime = dTime;
-    in.dDelta = dDelta;
-    double sec, dsec;
-
-    // IA: We also update the particles densities here (i.e., first hydro loop)
-    printf("Computing density... \n");
-    sec = msrTime();
-    if (msr->param.bIterativeSmoothingLength){
-#ifdef OPTIM_AVOID_IS_ACTIVE
-       msrSelActive(msr);
-#else
-       msrSelAll(msr); // We set all particles as "not converged"
-#endif
-       msrResetNeighborsStd(msr);
-
-       //pstPredictSmoothing(msr->pst,&in,sizeof(in),NULL,NULL);
-
-       while (nSmoothed>0 && it <= maxit){
-          msrSetFirstHydroLoop(msr, 1); // 1-> we care if the particle is marked ; 0-> we dont
-#ifdef OPTIM_SMOOTH_NODE
-          nSmoothed = msrReSmoothNode(msr,dTime,SMX_FIRSTHYDROLOOP,0,0);
-#else
-          nSmoothed = msrReSmooth(msr,dTime,SMX_FIRSTHYDROLOOP,0,0);
-#endif
-          msrSetFirstHydroLoop(msr, 0);
-          it++;
-          //if (it>4)
-          //   msrIncreaseNeighborsStd(msr);
-       }
-       if (nSmoothed >0) { /* IA: If we reach the maximum iteration number without full convergence, we compute the smoothing length
-                            * as the mean of the surrounding particles which have already converged.
-                            * If there are none, the fBall is unmodified 
-                            */
-                              
-         // msrSetFirstHydroLoop(msr, 1); // 1-> we care if the particle is marked ; 0-> we dont
-         // nSmoothed = msrReSmooth(msr,dTime,SMX_MEANSMOOTHING,0);
-         // msrSetFirstHydroLoop(msr, 0);
-         printf("Smoothing length did not converge for %d particles\n", nSmoothed);
-       } 
-       dsec = msrTime()-sec;
-       printf("Computing h took %d iterations and %.5f seconds \n", it, dsec);
-    }else{
-       msrSetFirstHydroLoop(msr, 1); // 1-> we update the particle's h ; 0-> we dont
-       msrSmooth(msr,dTime,SMX_FIRSTHYDROLOOP,0,msr->param.nSmooth);
-       msrSetFirstHydroLoop(msr, 0);
-    }
-
-    printf("Computing primitive variables... ");
-    sec = msrTime();
-    pstComputePrimVars(msr->pst,&in,sizeof(in),NULL,0); 
-    dsec = msrTime()-sec;
-    printf("took %.5f seconds\n",dsec);
-}
 
 
 
