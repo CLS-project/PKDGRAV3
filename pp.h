@@ -92,49 +92,50 @@ CUDA_DEVICE void EvalDensity(
     M ar2stfour = ar2 < four;
 
     if (!testz(ar2stfour)){
-    // There is some work to do
+        // There is some work to do
 
-    // Evaluate the kernel
+        // Evaluate the kernel
 
-    //ak = 2.0 - sqrt(ar2)
-    t1 = two - sqrt(ar2);
+        //ak = 2.0 - sqrt(ar2)
+        t1 = two - sqrt(ar2);
 
-    //if (ar2 < 1.0) ak = (1.0 - 0.75*ak*ar2)
-    t2 = (one - threefourths * t1 * ar2);
+        //if (ar2 < 1.0) ak = (1.0 - 0.75*ak*ar2)
+        t2 = (one - threefourths * t1 * ar2);
 
-    //else if (ar2 < 4.0) ak = 0.25*ak*ak*ak
-    t3 = onefourth * t1 * t1 * t1;
+        //else if (ar2 < 4.0) ak = 0.25*ak*ak*ak
+        t3 = onefourth * t1 * t1 * t1;
 
-    // else ak = 0;
+        // else ak = 0;
 
-    ak = maskz_mov(ar2stfour,t3);
-    ak = mask_mov(ak,ar2stone,t2);
+        ak = maskz_mov(ar2stfour,t3);
+        ak = mask_mov(ak,ar2stone,t2);
 
-    // Evaluate the kernel derivative
+        // Evaluate the kernel derivative
 
-    // adk = sqrt(ar2)
-    t1 = sqrt(ar2);
+        // adk = sqrt(ar2)
+        t1 = sqrt(ar2);
 
-    // if (ar2 < 1.0) adk = -3 + 2.25*adk;
-    t2 = - three + ninefourths * t1;
+        // if (ar2 < 1.0) adk = -3 + 2.25*adk;
+        t2 = - three + ninefourths * t1;
 
-    // else if (ar2 < 4.0) adk = -0.75*(2.0-adk)*(2.0-adk)/adk;
-    t3 = - threefourths * (two - t1) * (two - t1) / t1;
+        // else if (ar2 < 4.0) adk = -0.75*(2.0-adk)*(2.0-adk)/adk;
+        t3 = - threefourths * (two - t1) * (two - t1) / t1;
 
-    // else adk = 0;
+        // else adk = 0;
 
-    adk = maskz_mov(ar2stfour,t3);
-    adk = mask_mov(adk,ar2stone,t2);
+        adk = maskz_mov(ar2stfour,t3);
+        adk = mask_mov(adk,ar2stone,t2);
 
-    // return the density scaled with the volume
-    arho = M_1_PI*sqrt(ifBall2)*ifBall2 * Im * ak;
+        F normalization = M_1_PI*sqrt(ifBall2)*ifBall2;
+        // return the density scaled with the volume
+        arho = normalization * Im * ak;
 
-    // return the derivative of the density wrt fBall
-    // the four is actually an 8 but it also should be adk/2
-    adrhodh = M_1_PI*sqrt(ifBall2)*ifBall2 * Im * adk * (- four) * d2 / (fBall * fBall * fBall);
+        // return the derivative of the density wrt fBall
+        // the four is actually an 8 but it also should be adk/2
+        adrhodh = normalization * Im * adk * (- four) * d2 / (fBall * fBall * fBall);
     } else {
     // No work to do
-    arho = 0.0f;
-    adrhodh = 0.0f;
+        arho = 0.0f;
+        adrhodh = 0.0f;
     }
     }
