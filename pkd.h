@@ -1115,6 +1115,9 @@ typedef struct pkdContext {
     struct cooling_function_data *cooling;
     struct cooling_tables *cooling_table;
 #endif
+#ifdef STELLAR_EVOLUTION
+    STEV_DATA StelEvolData;
+#endif
 
 #ifdef USE_CUDA
     void *cudaCtx;

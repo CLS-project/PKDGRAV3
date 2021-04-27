@@ -61,6 +61,9 @@
 #include "blackhole/seed.h"
 #include "blackhole/init.h"
 #endif
+#ifdef STELLAR_EVOLUTION
+#include "stellarevolution/stellarevolution.h"
+#endif
 
 void pstAddServices(PST pst,MDL mdl) {
     int nThreads;
@@ -298,6 +301,11 @@ void pstAddServices(PST pst,MDL mdl) {
 #ifdef OPTIM_REORDER_IN_NODES
     mdlAddService(mdl,PST_REORDERINNODES,pst,(fcnService_t*) pstReorderWithinNodes,
 		  0,0);
+#endif
+#ifdef STELLAR_EVOLUTION
+    mdlAddService(mdl,PST_STELLAREVOLUTIONINIT,pst,
+		  (fcnService_t*) pstStellarEvolutionInit,
+		  sizeof(struct inStellarEvolution),0);
 #endif
     mdlAddService(mdl,PST_UPDATERUNG,pst,(fcnService_t*)pstUpdateRung,
 		  sizeof(struct inUpdateRung),sizeof(struct outUpdateRung));

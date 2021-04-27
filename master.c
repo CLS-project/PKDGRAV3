@@ -2047,6 +2047,14 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
     msr->param.dSNIa_Norm_tf *= SECPERYEAR / msr->param.dSecUnit;
     if (strcmp(msr->param.achSNIa_DTDtype, "exponential") == 0)
        msr->param.dSNIa_Scale *= SECPERYEAR / msr->param.dSecUnit;
+    else if (strcmp(msr->param.achSNIa_DTDtype, "powerlaw") == 0)
+       msr->param.dSNIa_Norm /= (pow(msr->param.dSNIa_Norm_tf, msr->param.dSNIa_Scale + 1.0) -
+				 pow(msr->param.dSNIa_Norm_ti, msr->param.dSNIa_Scale + 1.0));
+    else {
+       printf("ERROR: Undefined DTD type has been given in achSNIa_DTDtype parameter: %s\n",
+	      msr->param.achSNIa_DTDtype);
+       abort();
+    }
 #endif
 
     /* Gas parameter checks */

@@ -8,65 +8,180 @@
 #include <hdf5.h>
 
 #include "stellarevolution.h"
+#include "interpolate.h"
 
 
 void msrStellarEvolutionInit(MSR msr) {
+   int i;
    char achPath[256];
+   STEV_RAWDATA *CCSNdata, *AGBdata, *SNIadata, *LifetimesData;
 
-
-   STEV_RAWDATA *CCSNdata;
-   CCSNdata = (STEV_RAWDATA *) malloc(sizeof(STEV_RAWDATA));
-   assert(CCSNdata != NULL);
 
    sprintf(achPath, "%s/SNII.hdf5", msr->param.achStEvolPath);
    char *pszCCSNFields[] = {"Z_0.0004", "Z_0.004", "Z_0.008", "Z_0.02", "Z_0.05"};
    int nCCSNFields = 5;
-
-   stevReadTable(CCSNdata, achPath, pszCCSNFields, nCCSNFields);
-
+   CCSNdata = stevReadTable(achPath, pszCCSNFields, nCCSNFields);
    assert(CCSNdata->nZs == STEV_CCSN_N_METALLICITY);
    assert(CCSNdata->nMasses == STEV_CCSN_N_MASS);
    assert(CCSNdata->nSpecs == STEV_N_ELEM);
 
 
-   STEV_RAWDATA *AGBdata;
-   AGBdata = (STEV_RAWDATA *) malloc(sizeof(STEV_RAWDATA));
-   assert(AGBdata != NULL);
-
    sprintf(achPath, "%s/AGB.hdf5", msr->param.achStEvolPath);
    char *pszAGBFields[] = {"Z_0.004", "Z_0.008", "Z_0.019"};
    int nAGBFields = 3;
-
-   stevReadTable(AGBdata, achPath, pszAGBFields, nAGBFields);
-
+   AGBdata = stevReadTable(achPath, pszAGBFields, nAGBFields);
    assert(AGBdata->nZs == STEV_AGB_N_METALLICITY);
    assert(AGBdata->nMasses == STEV_AGB_N_MASS);
    assert(AGBdata->nSpecs == STEV_N_ELEM);
 
 
-   STEV_RAWDATA *SNIadata;
-   SNIadata = (STEV_RAWDATA *) malloc(sizeof(STEV_RAWDATA));
-   assert(SNIadata != NULL);
-
    sprintf(achPath, "%s/SNIa.hdf5", msr->param.achStEvolPath);
-   stevReadSNIaTable(SNIadata, achPath);
-
+   SNIadata = stevReadSNIaTable(achPath);
    assert(SNIadata->nSpecs == STEV_N_ELEM);
 
 
-   STEV_RAWDATA *LifetimesData;
-   LifetimesData = (STEV_RAWDATA *) malloc(sizeof(STEV_RAWDATA));
-   assert(LifetimesData != NULL);
-
    sprintf(achPath, "%s/Lifetimes.hdf5", msr->param.achStEvolPath);
-   stevReadLifetimesTable(LifetimesData, achPath);
-
+   LifetimesData = stevReadLifetimesTable(achPath);
    assert(LifetimesData->nZs == STEV_LIFETIMES_N_METALLICITY);
    assert(LifetimesData->nMasses == STEV_LIFETIMES_N_MASS);
 
 
-   status = H5Fclose(file_id);
-   assert(status >= 0);
+   for (i = 0; i < CCSNdata->nMasses; i++)
+      CCSNdata->pfMasses[i] = log10(CCSNdata->pfMasses[i]);
+   for (i = 0; i < AGBdata->nMasses; i++)
+      AGBdata->pfMasses[i] = log10(AGBdata->pfMasses[i]);
+
+
+   STEV_DATA buffer;
+
+   {
+   double MinMass =  msr->param.dIMF_MinMass;
+   double MaxMass =  msr->param.dIMF_MaxMass;
+   double dMass = pow(10.0, (log10(MaxMass) - log10(MinMass)) / (STEV_INTERP_N_MASS - 1));
+   double Mass;
+   for (i = 0, Mass = MinMass; i < STEV_INTERP_N_MASS; i++, Mass *= dMass)
+      buffer.afMasses[i] = Mass;
+
+   if (strcmp(msr->param.achIMFtype, "chabrier") == 0)
+      stevChabrierIMF(buffer.afIMF, buffer.afMasses, STEV_INTERP_N_MASS, MinMass, MaxMass);
+   else {
+      printf("ERROR: Undefined IMF type has been given in achIMFtype parameter: %s\n",
+	     msr->param.achIMFtype);
+      abort();
+   }
+   }
+
+   /* WARNING: This assumes table masses in log and buffer masses not in log */
+   {
+   int iM, i, j, k, idxTable, idxBuffer;
+   float dM, Mass, Mtrans;
+   Mtrans = msr->param.dCCSN_MinMass;
+   for (i = 0; i < STEV_INTERP_N_MASS; i++) {
+      Mass = buffer.afMasses[i];
+      if (Mass < Mtrans) {
+	 stevGetIndex1D(AGBdata->pfMasses, AGBdata->nMasses, log10(Mass), &iM, &dM);
+
+	 for (j = 0; j < STEV_N_ELEM; j++) {
+	    for (k = 0; k < STEV_CCSN_N_METALLICITY; k++) {
+	       idxBuffer = row_major_index_3d(k, j, i, CCSNdata->nZs, CCSNdata->nSpecs, STEV_INTERP_N_MASS);
+
+	       buffer.afCCSN_Yields[idxBuffer] = 0.0f;
+	    }
+
+	    for (k = 0; k < STEV_AGB_N_METALLICITY; k++) {
+	       idxTable  = row_major_index_3d(k, j, iM, AGBdata->nZs, AGBdata->nSpecs, AGBdata->nMasses);
+	       idxBuffer = row_major_index_3d(k, j,  i, AGBdata->nZs, AGBdata->nSpecs, STEV_INTERP_N_MASS);
+
+	       /* WARNING: The following formula is correct only when mass is the last index
+		  in the tables */
+	       buffer.afAGB_Yields[idxBuffer] = AGBdata->pfYields[idxTable] * (1.0 - dM) + \
+		                                AGBdata->pfYields[idxTable + 1] * dM;
+	    }
+	 }
+
+	 for (k = 0; k < STEV_CCSN_N_METALLICITY; k++) {
+	    idxBuffer = row_major_index_2d(k, i, CCSNdata->nZs, STEV_INTERP_N_MASS);
+
+	    buffer.afCCSN_MetalYield[idxBuffer] = 0.0f;
+	    buffer.afCCSN_EjectedMass[idxBuffer] = 0.0f;
+	 }
+
+	 for (k = 0; k < STEV_AGB_N_METALLICITY; k++) {
+	    idxTable  = row_major_index_2d(k, iM, AGBdata->nZs, AGBdata->nMasses);
+	    idxBuffer = row_major_index_2d(k,  i, AGBdata->nZs, STEV_INTERP_N_MASS);
+
+	    /* WARNING: The following formulas are correct only when mass is the last index
+	       in the tables */
+	    buffer.afAGB_MetalYield[idxBuffer] = AGBdata->pfMetalYield[idxTable] * (1.0 - dM) + \
+		                                 AGBdata->pfMetalYield[idxTable + 1] * dM;
+	    buffer.afAGB_EjectedMass[idxBuffer] = AGBdata->pfEjectedMass[idxTable] * (1.0 - dM) + \
+		                                  AGBdata->pfEjectedMass[idxTable + 1] * dM;
+	 }
+      }
+      else {
+	 stevGetIndex1D(CCSNdata->pfMasses, CCSNdata->nMasses, log10(Mass), &iM, &dM);
+
+	 for (j = 0; j < STEV_N_ELEM; j++) {
+	    for (k = 0; k < STEV_CCSN_N_METALLICITY; k++) {
+	       idxTable  = row_major_index_3d(k, j, iM, CCSNdata->nZs, CCSNdata->nSpecs, CCSNdata->nMasses);
+	       idxBuffer = row_major_index_3d(k, j,  i, CCSNdata->nZs, CCSNdata->nSpecs, STEV_INTERP_N_MASS);
+
+	       /* WARNING: The following formula is correct only when mass is the last index
+		  in the tables */
+	       buffer.afCCSN_Yields[idxBuffer] = CCSNdata->pfYields[idxTable] * (1.0 - dM) + \
+		                                 CCSNdata->pfYields[idxTable + 1] * dM;
+	    }
+
+	    for (k = 0; k < STEV_AGB_N_METALLICITY; k++) {
+	       idxBuffer = row_major_index_3d(k, j, i, AGBdata->nZs, AGBdata->nSpecs, STEV_INTERP_N_MASS);
+
+	       buffer.afAGB_Yields[idxBuffer] = 0.0f;
+	    }
+	 }
+
+	 for (k = 0; k < STEV_CCSN_N_METALLICITY; k++) {
+	    idxTable  = row_major_index_2d(k, iM, CCSNdata->nZs, CCSNdata->nMasses);
+	    idxBuffer = row_major_index_2d(k,  i, CCSNdata->nZs, STEV_INTERP_N_MASS);
+
+	    /* WARNING: The following formulas are correct only when mass is the last index
+	       in the tables */
+	    buffer.afCCSN_MetalYield[idxBuffer] = CCSNdata->pfMetalYield[idxTable] * (1.0 - dM) + \
+		                                  CCSNdata->pfMetalYield[idxTable + 1] * dM;
+	    buffer.afCCSN_EjectedMass[idxBuffer] = CCSNdata->pfEjectedMass[idxTable] * (1.0 - dM) + \
+		                                   CCSNdata->pfEjectedMass[idxTable + 1] * dM;
+	 }
+
+	 for (k = 0; k < STEV_AGB_N_METALLICITY; k++) {
+	    idxBuffer = row_major_index_2d(k, i, AGBdata->nZs, STEV_INTERP_N_MASS);
+
+	    buffer.afAGB_MetalYield[idxBuffer] = 0.0f;
+	    buffer.afAGB_EjectedMass[idxBuffer] = 0.0f;
+	 }
+      }
+   }
+   }
+
+
+   for (i = 0; i < STEV_CCSN_N_METALLICITY; i++)
+      buffer.afCCSN_Zs[i] = CCSNdata->pfZs[i];
+
+   for (i = 0; i < STEV_AGB_N_METALLICITY; i++)
+      buffer.afAGB_Zs[i] = AGBdata->pfZs[i];
+
+   for (i = 0; i < STEV_N_ELEM; i++)
+      buffer.afSNIa_EjectedMass[i] = SNIadata->pfEjectedMass[i];
+   buffer.fSNIa_EjectedMetalMass = *SNIadata->pfMetalYield;
+
+   for (i = 0; i < STEV_LIFETIMES_N_METALLICITY; i++)
+      buffer.afLifetimes_Zs[i] = LifetimesData->pfZs[i];
+   for (i = 0; i < STEV_LIFETIMES_N_MASS; i++)
+      buffer.afLifetimes_Masses[i] = LifetimesData->pfMasses[i];
+   for (i = 0; i < STEV_LIFETIMES_N_METALLICITY * STEV_LIFETIMES_N_MASS; i++)
+      buffer.afLifetimes[i] = LifetimesData->pfLifetimes[i];
+
+
+   pstStellarEvolutionInit(msr->pst, (void *) &buffer, sizeof(buffer), NULL, 0);
+
 
    stevFreeTable(CCSNdata);
    stevFreeTable(AGBdata);
@@ -75,7 +190,39 @@ void msrStellarEvolutionInit(MSR msr) {
 }
 
 
-void stevReadTable(STEV_RAWDATA *RawData, char *pszPath, char **pszFields, int nFields) {
+int pstStellarEvolutionInit(PST pst, void *vin, int nIn, void *vout, int nOut) {
+   mdlassert(pst->mdl, nIn == sizeof(struct inStellarEvolution));
+   if (pst->nLeaves > 1) {
+      int rID = mdlReqService(pst->mdl, pst->idUpper, STELLAREVOLUTIONINIT, vin, nIn);
+      pstStellarEvolutionInit(pst->pstLower, vin, nIn, NULL, 0);
+      mdlGetReply(pst->mdl, rID, NULL, NULL);
+   }
+   else {
+      struct inStellarEvolution *in = vin;
+      pkdStellarEvolutionInit(pst->plcl->pkd, in);
+   }
+
+   return 0;
+}
+
+
+int pkdStellarEvolutionInit(PKD pkd, STEV_DATA *data) {
+   pkd->StelEvolData = *data;
+
+   if (strcmp(pkd->param.achSNIa_DTDtype, "exponential") == 0)
+      pkd->StelEvolData.fcnNumSNIa = stevExponentialNumSNIa;
+   else if (strcmp(pkd->param.achSNIa_DTDtype, "powerlaw") == 0)
+      pkd->StelEvolData.fcnNumSNIa = stevPowerlawNumSNIa;
+
+   return 0;
+}
+
+
+STEV_RAWDATA *stevReadTable(char *pszPath, char **pszFields, int nFields) {
+   STEV_RAWDATA *RawData = malloc(sizeof(STEV_RAWDATA));
+   assert(RawData != NULL);
+
+
    hid_t file_id = H5Fopen(pszPath, H5F_ACC_RDONLY, H5P_DEFAULT);
    assert(file_id >= 0);
 
@@ -114,22 +261,22 @@ void stevReadTable(STEV_RAWDATA *RawData, char *pszPath, char **pszFields, int n
    assert(RawData->nZs == nFields);
 
 
-   RawData->Zs = (float *) malloc(RawData->nZs * sizeof(float));
-   assert(RawData->Zs != NULL);
-   RawData->Masses = (float *) malloc(RawData->nMasses * sizeof(float));
-   assert(RawData->Masses != NULL);
-   RawData->Yields = (float *) malloc(RawData->nZs * RawData->nSpecs * RawData->nMasses * sizeof(float));
-   assert(RawData->Yields != NULL);
-   RawData->MetalYield = (float *) malloc(RawData->nZs * RawData->nMasses * sizeof(float));
-   assert(RawData->MetalYield != NULL);
-   RawData->EjectedMass = (float *) malloc(RawData->nZs * RawData->nMasses * sizeof(float));
-   assert(RawData->EjectedMass != NULL);
+   RawData->pfZs = (float *) malloc(RawData->nZs * sizeof(float));
+   assert(RawData->pfZs != NULL);
+   RawData->pfMasses = (float *) malloc(RawData->nMasses * sizeof(float));
+   assert(RawData->pfMasses != NULL);
+   RawData->pfYields = (float *) malloc(RawData->nZs * RawData->nSpecs * RawData->nMasses * sizeof(float));
+   assert(RawData->pfYields != NULL);
+   RawData->pfMetalYield = (float *) malloc(RawData->nZs * RawData->nMasses * sizeof(float));
+   assert(RawData->pfMetalYield != NULL);
+   RawData->pfEjectedMass = (float *) malloc(RawData->nZs * RawData->nMasses * sizeof(float));
+   assert(RawData->pfEjectedMass != NULL);
 
 
    dataset = H5Dopen(file_id, "/Metallicities", H5P_DEFAULT);
    datatype = H5Dget_type(dataset);
    assert(H5Tequal(datatype, H5T_NATIVE_FLOAT));
-   status = H5Dread(dataset, datatype, H5S_ALL, H5S_ALL, H5P_DEFAULT, RawData->Zs);
+   status = H5Dread(dataset, datatype, H5S_ALL, H5S_ALL, H5P_DEFAULT, RawData->pfZs);
    assert(status >= 0);
    status = H5Tclose(datatype);
    assert(status >= 0);
@@ -139,7 +286,7 @@ void stevReadTable(STEV_RAWDATA *RawData, char *pszPath, char **pszFields, int n
    dataset = H5Dopen(file_id, "/Masses", H5P_DEFAULT);
    datatype = H5Dget_type(dataset);
    assert(H5Tequal(datatype, H5T_NATIVE_FLOAT));
-   status = H5Dread(dataset, datatype, H5S_ALL, H5S_ALL, H5P_DEFAULT, RawData->Masses);
+   status = H5Dread(dataset, datatype, H5S_ALL, H5S_ALL, H5P_DEFAULT, RawData->pfMasses);
    assert(status >= 0);
    status = H5Tclose(datatype);
    assert(status >= 0);
@@ -155,7 +302,7 @@ void stevReadTable(STEV_RAWDATA *RawData, char *pszPath, char **pszFields, int n
       dataset = H5Dopen(file_id, achField, H5P_DEFAULT);
       datatype = H5Dget_type(dataset);
       assert(H5Tequal(datatype, H5T_NATIVE_FLOAT));
-      status = H5Dread(dataset, datatype, H5S_ALL, H5S_ALL, H5P_DEFAULT, RawData->Yields + n);
+      status = H5Dread(dataset, datatype, H5S_ALL, H5S_ALL, H5P_DEFAULT, RawData->pfYields + n);
       assert(status >= 0);
       status = H5Tclose(datatype);
       assert(status >= 0);
@@ -169,7 +316,7 @@ void stevReadTable(STEV_RAWDATA *RawData, char *pszPath, char **pszFields, int n
       dataset = H5Dopen(file_id, achField, H5P_DEFAULT);
       datatype = H5Dget_type(dataset);
       assert(H5Tequal(datatype, H5T_NATIVE_FLOAT));
-      status = H5Dread(dataset, datatype, H5S_ALL, H5S_ALL, H5P_DEFAULT, RawData->MetalYield + n);
+      status = H5Dread(dataset, datatype, H5S_ALL, H5S_ALL, H5P_DEFAULT, RawData->pfMetalYield + n);
       assert(status >= 0);
       status = H5Tclose(datatype);
       assert(status >= 0);
@@ -180,7 +327,7 @@ void stevReadTable(STEV_RAWDATA *RawData, char *pszPath, char **pszFields, int n
       dataset = H5Dopen(file_id, achField, H5P_DEFAULT);
       datatype = H5Dget_type(dataset);
       assert(H5Tequal(datatype, H5T_NATIVE_FLOAT));
-      status = H5Dread(dataset, datatype, H5S_ALL, H5S_ALL, H5P_DEFAULT, RawData->EjectedMass + n);
+      status = H5Dread(dataset, datatype, H5S_ALL, H5S_ALL, H5P_DEFAULT, RawData->pfEjectedMass + n);
       assert(status >= 0);
       status = H5Tclose(datatype);
       assert(status >= 0);
@@ -190,22 +337,18 @@ void stevReadTable(STEV_RAWDATA *RawData, char *pszPath, char **pszFields, int n
 
    status = H5Fclose(file_id);
    assert(status >= 0);
-}
 
-
-void stevFreeTable(STEV_RAWDATA *RawData) {
-   free(RawData->Zs);
-   free(RawData->Masses);
-   free(RawData->Yields);
-   free(RawData->MetalYield);
-   free(RawData->EjectedMass);
-   free(RawData);
+   return RawData;
 }
 
 
 /* This function assumes that the table of mass ejected from Type Ia SN is independent of
    the progenitor's initial mass and metallicity */
-void stevReadSNIaTable(STEV_RAWDATA *RawData, char *pszPath) {
+STEV_RAWDATA *stevReadSNIaTable(char *pszPath) {
+   STEV_RAWDATA *RawData = malloc(sizeof(STEV_RAWDATA));
+   assert(RawData != NULL);
+
+
    hid_t file_id = H5Fopen(pszPath, H5F_ACC_RDONLY, H5P_DEFAULT);
    assert(file_id >= 0);
 
@@ -221,16 +364,16 @@ void stevReadSNIaTable(STEV_RAWDATA *RawData, char *pszPath) {
    assert(status >= 0);
 
 
-   RawData->MetalYield = (float *) malloc(sizeof(float));
-   assert(RawData->MetalYield != NULL);
-   RawData->EjectedMass = (float *) malloc(RawData->nSpecs * sizeof(float));
-   assert(RawData->EjectedMass != NULL);
+   RawData->pfMetalYield = (float *) malloc(sizeof(float));
+   assert(RawData->pfMetalYield != NULL);
+   RawData->pfEjectedMass = (float *) malloc(RawData->nSpecs * sizeof(float));
+   assert(RawData->pfEjectedMass != NULL);
 
 
    dataset = H5Dopen(file_id, "/Yield", H5P_DEFAULT);
    datatype = H5Dget_type(dataset);
    assert(H5Tequal(datatype, H5T_NATIVE_FLOAT));
-   status = H5Dread(dataset, datatype, H5S_ALL, H5S_ALL, H5P_DEFAULT, RawData->EjectedMass);
+   status = H5Dread(dataset, datatype, H5S_ALL, H5S_ALL, H5P_DEFAULT, RawData->pfEjectedMass);
    assert(status >= 0);
    status = H5Tclose(datatype);
    assert(status >= 0);
@@ -240,7 +383,7 @@ void stevReadSNIaTable(STEV_RAWDATA *RawData, char *pszPath) {
    dataset = H5Dopen(file_id, "/Total_Metals", H5P_DEFAULT);
    datatype = H5Dget_type(dataset);
    assert(H5Tequal(datatype, H5T_NATIVE_FLOAT));
-   status = H5Dread(dataset, datatype, H5S_ALL, H5S_ALL, H5P_DEFAULT, RawData->MetalYield);
+   status = H5Dread(dataset, datatype, H5S_ALL, H5S_ALL, H5P_DEFAULT, RawData->pfMetalYield);
    assert(status >= 0);
    status = H5Tclose(datatype);
    assert(status >= 0);
@@ -250,17 +393,16 @@ void stevReadSNIaTable(STEV_RAWDATA *RawData, char *pszPath) {
 
    status = H5Fclose(file_id);
    assert(status >= 0);
+
+   return RawData;
 }
 
 
-void stevFreeSNIaTable(STEV_RAWDATA *RawData) {
-   free(RawData->MetalYield);
-   free(RawData->EjectedMass);
-   free(RawData);
-}
+STEV_RAWDATA *stevReadLifetimesTable(char *pszPath) {
+   STEV_RAWDATA *RawData = malloc(sizeof(STEV_RAWDATA));
+   assert(RawData != NULL);
 
 
-void stevReadLifetimesTable(STEV_RAWDATA *RawData, char *pszPath) {
    hid_t file_id = H5Fopen(pszPath, H5F_ACC_RDONLY, H5P_DEFAULT);
    assert(file_id >= 0);
 
@@ -286,18 +428,18 @@ void stevReadLifetimesTable(STEV_RAWDATA *RawData, char *pszPath) {
    assert(status >= 0);
 
 
-   RawData->Zs = (float *) malloc(RawData->nZs * sizeof(float));
-   assert(RawData->Zs != NULL);
-   RawData->Masses = (float *) malloc(RawData->nMasses * sizeof(float));
-   assert(RawData->Masses != NULL);
-   RawData->Lifetimes = (float *) malloc(RawData->nZs * RawData->nMasses * sizeof(float));
-   assert(RawData->Lifetimes != NULL);
+   RawData->pfZs = (float *) malloc(RawData->nZs * sizeof(float));
+   assert(RawData->pfZs != NULL);
+   RawData->pfMasses = (float *) malloc(RawData->nMasses * sizeof(float));
+   assert(RawData->pfMasses != NULL);
+   RawData->pfLifetimes = (float *) malloc(RawData->nZs * RawData->nMasses * sizeof(float));
+   assert(RawData->pfLifetimes != NULL);
 
 
    dataset = H5Dopen(file_id, "/Metallicities", H5P_DEFAULT);
    datatype = H5Dget_type(dataset);
    assert(H5Tequal(datatype, H5T_NATIVE_FLOAT));
-   status = H5Dread(dataset, datatype, H5S_ALL, H5S_ALL, H5P_DEFAULT, RawData->Zs);
+   status = H5Dread(dataset, datatype, H5S_ALL, H5S_ALL, H5P_DEFAULT, RawData->pfZs);
    assert(status >= 0);
    status = H5Tclose(datatype);
    assert(status >= 0);
@@ -307,7 +449,7 @@ void stevReadLifetimesTable(STEV_RAWDATA *RawData, char *pszPath) {
    dataset = H5Dopen(file_id, "/Masses", H5P_DEFAULT);
    datatype = H5Dget_type(dataset);
    assert(H5Tequal(datatype, H5T_NATIVE_FLOAT));
-   status = H5Dread(dataset, datatype, H5S_ALL, H5S_ALL, H5P_DEFAULT, RawData->Masses);
+   status = H5Dread(dataset, datatype, H5S_ALL, H5S_ALL, H5P_DEFAULT, RawData->pfMasses);
    assert(status >= 0);
    status = H5Tclose(datatype);
    assert(status >= 0);
@@ -317,7 +459,7 @@ void stevReadLifetimesTable(STEV_RAWDATA *RawData, char *pszPath) {
    dataset = H5Dopen(file_id, "/Lifetimes", H5P_DEFAULT);
    datatype = H5Dget_type(dataset);
    assert(H5Tequal(datatype, H5T_NATIVE_FLOAT));
-   status = H5Dread(dataset, datatype, H5S_ALL, H5S_ALL, H5P_DEFAULT, RawData->Lifetimes);
+   status = H5Dread(dataset, datatype, H5S_ALL, H5S_ALL, H5P_DEFAULT, RawData->pfLifetimes);
    assert(status >= 0);
    status = H5Tclose(datatype);
    assert(status >= 0);
@@ -327,14 +469,60 @@ void stevReadLifetimesTable(STEV_RAWDATA *RawData, char *pszPath) {
 
    status = H5Fclose(file_id);
    assert(status >= 0);
+
+   return RawData;
+}
+
+
+void stevFreeTable(STEV_RAWDATA *RawData) {
+   free(RawData->pfZs);
+   free(RawData->pfMasses);
+   free(RawData->pfYields);
+   free(RawData->pfMetalYield);
+   free(RawData->pfEjectedMass);
+   free(RawData);
+}
+
+
+void stevFreeSNIaTable(STEV_RAWDATA *RawData) {
+   free(RawData->pfMetalYield);
+   free(RawData->pfEjectedMass);
+   free(RawData);
 }
 
 
 void stevFreeLifetimesTable(STEV_RAWDATA *RawData) {
-   free(RawData->Zs);
-   free(RawData->Masses);
-   free(RawData->Lifetimes);
+   free(RawData->pfZs);
+   free(RawData->pfMasses);
+   free(RawData->pfLifetimes);
    free(RawData);
+}
+
+
+/* This functions assume that the compiler can find the erf() function and the M_PI value
+   of pi. In POSIX-compliant systems, math.h should declare them */
+void stevChabrierIMF(float *pfIMF, float *pfMasses, int nSize, double fMinMass, double fMaxMass) {
+   double Mc = 0.079;
+   double Sigma = 0.69;
+   double Slope = -2.3;
+
+   double logMc = log10(Mc);
+   double Sigma2 = pow(Sigma, 2.0);
+   double C = exp(-0.5 * pow(-logMc, 2.0) / Sigma2);
+   double ln10 = log(10.0);
+
+   double I1 = sqrt(0.5 * M_PI) * exp(0.5 * Sigma2 * pow(ln10, 2.0)) * ln10 * Sigma * Mc * \
+      (erf((-logMc / Sigma - ln10 * Sigma) / sqrt(2.0)) -
+       erf(((log10(fMinMass) - logMc) / Sigma - ln10 * Sigma) / sqrt(2.0)));
+   double I2 = C * (pow(fMaxMass, Slope + 2.0) - 1.0) / (Slope + 2.0);
+
+   double A = 1.0 / (I1 + I2);
+   double B = A * C;
+   for (int i = 0; i < nSize; i++)
+      if (pfMasses[i] < 1.0)
+	 pfIMF[i] = A * exp(-0.5 * pow(log10(pfMasses[i]) - logMc, 2.0) / Sigma2) / pfMasses[i];
+      else
+	 pfIMF[i] = B * pow(pfMasses[i], Slope);
 }
 
 

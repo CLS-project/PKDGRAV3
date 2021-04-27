@@ -76,6 +76,9 @@
 #ifdef COOLING
 #include "cooling/cooling.h"
 #endif
+#ifdef STELLAR_EVOLUTION
+#include "stellarevolution/stellarevolution.h"
+#endif
 
 #ifdef _MSC_VER
 #define FILE_PROTECTION (_S_IREAD | _S_IWRITE)
