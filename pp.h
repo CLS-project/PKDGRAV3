@@ -63,7 +63,7 @@ template<class F,class M,bool bGravStep>
 CUDA_DEVICE void EvalDensity(
 	const F &Pdx, const F &Pdy, const F &Pdz,     // Particle
 	const F &Idx, const F &Idy, const F &Idz, const F &Im, const F & fBall, // Interaction(s)
-	F &arho, F &adrhodh         // results
+	F &arho, F &adrhodfball         // results
     ) {
     F dx = Idx + Pdx;
     F dy = Idy + Pdy;
@@ -95,47 +95,32 @@ CUDA_DEVICE void EvalDensity(
         // There is some work to do
 
         // Evaluate the kernel
-
-        //ak = 2.0 - sqrt(ar2)
         t1 = two - sqrt(ar2);
-
-        //if (ar2 < 1.0) ak = (1.0 - 0.75*ak*ar2)
         t2 = (one - threefourths * t1 * ar2);
-
-        //else if (ar2 < 4.0) ak = 0.25*ak*ak*ak
         t3 = onefourth * t1 * t1 * t1;
-
-        // else ak = 0;
 
         ak = maskz_mov(ar2stfour,t3);
         ak = mask_mov(ak,ar2stone,t2);
 
         // Evaluate the kernel derivative
-
-        // adk = sqrt(ar2)
         t1 = sqrt(ar2);
-
-        // if (ar2 < 1.0) adk = -3 + 2.25*adk;
-        t2 = - three + ninefourths * t1;
-
-        // else if (ar2 < 4.0) adk = -0.75*(2.0-adk)*(2.0-adk)/adk;
-        t3 = - threefourths * (two - t1) * (two - t1) / t1;
-
-        // else adk = 0;
+        t2 = ninefourths * t1 * t1 - three * t1;
+        t3 = - threefourths * (two - t1) * (two - t1);
 
         adk = maskz_mov(ar2stfour,t3);
         adk = mask_mov(adk,ar2stone,t2);
 
         F normalization = M_1_PI*sqrt(ifBall2)*ifBall2;
-        // return the density scaled with the volume
+        F twentyfouroverpi = 24.0f * M_1_PI;
+
+        // return the density
         arho = normalization * Im * ak;
 
         // return the derivative of the density wrt fBall
-        // the four is actually an 8 but it also should be adk/2
-        adrhodh = normalization * Im * adk * (- four) * d2 / (fBall * fBall * fBall);
+        adrhodfball = Im * (- twentyfouroverpi / (fBall * fBall * fBall * fBall) * ak + normalization * adk * (-two * sqrt(d2) / (fBall * fBall)));
     } else {
     // No work to do
         arho = 0.0f;
-        adrhodh = 0.0f;
+        adrhodfball = 0.0f;
     }
     }

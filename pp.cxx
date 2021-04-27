@@ -110,9 +110,9 @@ void pkdGravEvalPP(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINF
 extern "C"
 void pkdDensityEval(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINFOOUT *pOut ) {
     fvec t1, t2;
-    fvec parho, padrhodh, pfx, pfy, pfz, pfBall;
+    fvec parho, padrhodfball, pfx, pfy, pfz, pfBall;
 
-    float arho, adrhodh;
+    float arho, adrhodfball;
 
     float fx = pPart->r[0];
     float fy = pPart->r[1];
@@ -136,7 +136,7 @@ void pkdDensityEval(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PIN
     pfz     = fz;
     pfBall  = fBall;
 
-    parho = padrhodh = 0.0f;
+    parho = padrhodfball = 0.0f;
 
     for( nLeft=nBlocks; nLeft >= 0; --nLeft,++blk ) {
 	int n = (nLeft ? ILP_PART_PER_BLK : nInLast+fvec::mask()) >> SIMD_BITS;
@@ -147,13 +147,13 @@ void pkdDensityEval(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PIN
 	    fvec Im = blk->m.p[j];
 	    EvalDensity<fvec,fmask,true>(pfx,pfy,pfz,Idx,Idy,Idz,Im,pfBall,t1,t2);
 	    parho += t1;
-	    padrhodh += t2;
+	    padrhodfball += t2;
 	    }
 	}
     arho = hadd(parho);
-    adrhodh = hadd(padrhodh);
+    adrhodfball = hadd(padrhodfball);
 
     pOut->rho += arho;
-    pOut->drhodh += adrhodh;
+    pOut->drhodh += adrhodfball;
 }
 #endif/*USE_SIMD_PP*/

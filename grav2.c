@@ -375,7 +375,7 @@ static void queueDensity( PKD pkd, workParticle *wp, ILP ilp, int bGravStep ) {
     float maxkernelmassdeviation = 0.0f;
     // calculate maximum kernel mass deviation
     for (int i=0; i<wp->nP; i++) {
-        float kernelmassdeviation = 4.0f/3.0f*M_PI*8*wp->pInfoIn[i].fBall*wp->pInfoIn[i].fBall*wp->pInfoIn[i].fBall*wp->pInfoOut[i].rho - pkd->fMkerneltarget;
+        float kernelmassdeviation = 4.0f/3.0f*M_PI*wp->pInfoIn[i].fBall*wp->pInfoIn[i].fBall*wp->pInfoIn[i].fBall*wp->pInfoOut[i].rho - pkd->fMkerneltarget;
         kernelmassdeviation = (kernelmassdeviation > 0) ? kernelmassdeviation : -kernelmassdeviation;
         maxkernelmassdeviation = (kernelmassdeviation > maxkernelmassdeviation) ? kernelmassdeviation : maxkernelmassdeviation;
     }
@@ -388,10 +388,10 @@ static void queueDensity( PKD pkd, workParticle *wp, ILP ilp, int bGravStep ) {
     if (maxkernelmassdeviation/pkd->fMkerneltarget > 1e-6f) {
         // do another loop
         for (int i=0; i<wp->nP; i++) {
-            float prefac = 4.0f/3.0f*M_PI*8.0f;
-            float h = wp->pInfoIn[i].fBall;
-            float fx = prefac * h * h * h * wp->pInfoOut[i].rho - pkd->fMkerneltarget;
-            float dfdx = prefac * 3.0f * h * h * wp->pInfoOut[i].rho + prefac * h * h * h * wp->pInfoOut[i].drhodh;
+            float prefac = 4.0f/3.0f*M_PI;
+            float fBall = wp->pInfoIn[i].fBall;
+            float fx = prefac * fBall * fBall * fBall * wp->pInfoOut[i].rho - pkd->fMkerneltarget;
+            float dfdx = prefac * 3.0f * fBall * fBall * wp->pInfoOut[i].rho + prefac * fBall * fBall * fBall * wp->pInfoOut[i].drhodh;
             wp->pInfoIn[i].fBall -= fx / dfdx;
         }
     } else {
