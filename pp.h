@@ -130,6 +130,7 @@ CUDA_DEVICE void EvalDensity(
     arho = M_1_PI*sqrt(ifBall2)*ifBall2 * Im * ak;
 
     // return the derivative of the density wrt fBall
+    // the four is actually an 8 but it also should be adk/2
     adrhodh = M_1_PI*sqrt(ifBall2)*ifBall2 * Im * adk * (- four) * d2 / (fBall * fBall * fBall);
     } else {
     // No work to do

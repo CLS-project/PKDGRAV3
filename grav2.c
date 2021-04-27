@@ -342,8 +342,9 @@ static void queueDensity( PKD pkd, workParticle *wp, ILP ilp, int bGravStep ) {
     ILPTILE tile;
     workPP *pp;
     // initialize kernel mass deviation so the loop runs at least once
-
+    int loopcount = 0;
     while(1) {// start while loop
+    loopcount++;
     // Zero density and density derivative
     for( int i=0; i<wp->nP; i++ ) {
         wp->pInfoOut[i].rho = 0.0f;
@@ -375,8 +376,8 @@ static void queueDensity( PKD pkd, workParticle *wp, ILP ilp, int bGravStep ) {
     // calculate maximum kernel mass deviation
     for (int i=0; i<wp->nP; i++) {
         float kernelmassdeviation = 4.0f/3.0f*M_PI*8*wp->pInfoIn[i].fBall*wp->pInfoIn[i].fBall*wp->pInfoIn[i].fBall*wp->pInfoOut[i].rho - pkd->fMkerneltarget;
-        kernelmassdeviation = kernelmassdeviation>0?kernelmassdeviation:-kernelmassdeviation;
-        maxkernelmassdeviation = (kernelmassdeviation > maxkernelmassdeviation)?kernelmassdeviation:maxkernelmassdeviation;
+        kernelmassdeviation = (kernelmassdeviation > 0) ? kernelmassdeviation : -kernelmassdeviation;
+        maxkernelmassdeviation = (kernelmassdeviation > maxkernelmassdeviation) ? kernelmassdeviation : maxkernelmassdeviation;
     }
 
     /*
@@ -384,15 +385,18 @@ static void queueDensity( PKD pkd, workParticle *wp, ILP ilp, int bGravStep ) {
     ** if true, calculate new fBall for all particles
     ** else, exit loop
     */
-    if (maxkernelmassdeviation/pkd->fMkerneltarget > 1e-4f) {
+    if (maxkernelmassdeviation/pkd->fMkerneltarget > 1e-6f) {
         // do another loop
         for (int i=0; i<wp->nP; i++) {
-            float fx = 4.0f/3.0f*M_PI*8*wp->pInfoIn[i].fBall*wp->pInfoIn[i].fBall*wp->pInfoIn[i].fBall*wp->pInfoOut[i].rho - pkd->fMkerneltarget;
-            float dfdx = 4.0f/3.0f*M_PI*8*3*wp->pInfoIn[i].fBall*wp->pInfoIn[i].fBall*wp->pInfoOut[i].rho + 4.0f/3.0f*M_PI*8*wp->pInfoIn[i].fBall*wp->pInfoIn[i].fBall*wp->pInfoIn[i].fBall*wp->pInfoOut[i].drhodh;
+            float prefac = 4.0f/3.0f*M_PI*8.0f;
+            float h = wp->pInfoIn[i].fBall;
+            float fx = prefac * h * h * h * wp->pInfoOut[i].rho - pkd->fMkerneltarget;
+            float dfdx = prefac * 3.0f * h * h * wp->pInfoOut[i].rho + prefac * h * h * h * wp->pInfoOut[i].drhodh;
             wp->pInfoIn[i].fBall -= fx / dfdx;
         }
     } else {
         // finish
+        // printf("loopcount = %d, deviation = %.6e\n",loopcount,maxkernelmassdeviation/pkd->fMkerneltarget);
         break;
     }
 
