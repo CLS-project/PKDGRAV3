@@ -70,56 +70,48 @@ CUDA_DEVICE void EvalDensity(
     F dz = Idz + Pdz;
     F d2 = dx*dx + dy*dy + dz*dz;
 
-    F ar2, ak, adk;
-    F ifBall2;
+    F p, w, dwdp;
+    F ifBall;
+    F t1, t2, t3;
 
-    F onefourth = 1.0f/4.0f;
-    F threefourths = 3.0f/4.0f;
     F one = 1.0f;
     F two = 2.0f;
-    F four = 4.0f;
     F three = 3.0f;
-    F ninefourths = 9.0f/4.0f;
+    F six = 6.0f;
+    F eight = 8.0f;
 
-    F t1 = 0.0f;
-    F t2 = 0.0f;
-    F t3 = 0.0f;
+    ifBall = one / fBall;
+    p = sqrt(d2) * ifBall;
 
-    ifBall2 = four / (fBall * fBall);
-    ar2 = d2 * ifBall2;
+    M pltone = p < one;
 
-    M ar2stone = ar2 < one;
-    M ar2stfour = ar2 < four;
-
-    if (!testz(ar2stfour)){
+    if (!testz(pltone)) {
         // There is some work to do
+        M pltonehalf = p < (one / two);
+        t1 = p - one;
 
         // Evaluate the kernel
-        t1 = two - sqrt(ar2);
-        t2 = (one - threefourths * t1 * ar2);
-        t3 = onefourth * t1 * t1 * t1;
-
-        ak = maskz_mov(ar2stfour,t3);
-        ak = mask_mov(ak,ar2stone,t2);
+        t2 = one + six * p * p * t1;
+        t3 = - two * t1 * t1 * t1;
+        w = maskz_mov(pltone,t3);
+        w = mask_mov(w,pltonehalf,t2);
 
         // Evaluate the kernel derivative
-        t1 = sqrt(ar2);
-        t2 = ninefourths * t1 * t1 - three * t1;
-        t3 = - threefourths * (two - t1) * (two - t1);
+        t2 = six * p * (three * p - two);
+        t3 = - six * t1 * t1;
+        dwdp = maskz_mov(pltone,t3);
+        dwdp = mask_mov(dwdp,pltonehalf,t2);
 
-        adk = maskz_mov(ar2stfour,t3);
-        adk = mask_mov(adk,ar2stone,t2);
-
-        F normalization = M_1_PI*sqrt(ifBall2)*ifBall2;
-        F twentyfouroverpi = 24.0f * M_1_PI;
+        // Normalization factor
+        F C = eight * M_1_PI * ifBall * ifBall * ifBall;
 
         // return the density
-        arho = normalization * Im * ak;
+        arho = Im * C * w;
 
-        // return the derivative of the density wrt fBall
-        adrhodfball = Im * (- twentyfouroverpi / (fBall * fBall * fBall * fBall) * ak + normalization * adk * (-two * sqrt(d2) / (fBall * fBall)));
+        // return the density derivative
+        adrhodfball = - Im * C * ifBall * (three * w + dwdp * p);
     } else {
-    // No work to do
+        // No work to do
         arho = 0.0f;
         adrhodfball = 0.0f;
     }
