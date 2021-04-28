@@ -177,7 +177,7 @@ void pstAddServices(PST pst,MDL mdl) {
 		  (fcnService_t*) pstResetFluxes,
 		  sizeof(struct inDrift),0);
     mdlAddService(mdl,PST_COMPUTEPRIMVARS,pst,
-		  (fcnService_t*) pstComputePrimVars,
+		  (fcnService_t*) pstEndTimestepIntegration,
 		  sizeof(struct inDrift),0);
     mdlAddService(mdl,PST_WAKEPARTICLES,pst,
 		  (fcnService_t*) pstWakeParticles,
@@ -3160,18 +3160,18 @@ int pstFluxStats(PST pst,void *vin,int nIn,void *vout,int nOut) {
     }
 #endif
 
-int pstComputePrimVars(PST pst,void *vin,int nIn,void *vout,int nOut) {
+int pstEndTimestepIntegration(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
     struct inDrift *in = vin;
 
     mdlassert(pst->mdl,nIn == sizeof(struct inDrift));
     if (pst->nLeaves > 1) {
 	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_COMPUTEPRIMVARS,in,nIn);
-	pstComputePrimVars(pst->pstLower,in,nIn,NULL,0);
+	pstEndTimestepIntegration(pst->pstLower,in,nIn,NULL,0);
 	mdlGetReply(pst->mdl,rID,NULL,NULL);
 	}
     else {
-	pkdComputePrimVars(plcl->pkd,in->iRoot, in->dTime, in->dDelta);
+	pkdEndTimestepIntegration(plcl->pkd,in->iRoot, in->dTime, in->dDelta);
 	}
     return 0;
     }

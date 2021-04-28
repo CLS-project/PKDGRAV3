@@ -3197,6 +3197,114 @@ void pkdPredictSmoothing(PKD pkd,int iRoot, double dTime, double dDelta) {
 }
 
 
+void pkdEndTimestepIntegration(PKD pkd,int iRoot, double dTime, double dDelta) {
+    PARTICLE *p;
+    SPHFIELDS *psph;
+    int i;
+    double pDelta, dScaleFactor, dRedshift, dHubble, pa[3];
+
+    int bComove = pkd->csm->val.bComove;
+
+    mdlDiag(pkd->mdl, "Into pkdComputePrimiteVars\n");
+    assert(pkd->oVelocity);
+    assert(pkd->oMass);
+
+    if (bComove){
+       dScaleFactor = csmTime2Exp(pkd->csm,dTime);
+       dRedshift = 1./dScaleFactor - 1.;
+       dHubble = csmTime2Hub(pkd->csm,dTime);
+    }else{
+       dScaleFactor = 1.0;
+       dRedshift = 0.0;
+       dHubble = 0.0;
+    }
+    if (pkd->param.bDoGas) {
+      assert(pkd->param.bDoGas);
+      assert(pkd->oSph);
+      for (i=0;i<pkdLocal(pkd);++i) {
+         p = pkdParticle(pkd,i);
+         if (pkdIsGas(pkd,p) && pkdIsActive(pkd, p)  ) {
+            psph = pkdSph(pkd, p);
+
+             if (dDelta > 0){
+                pDelta = dTime - psph->lastUpdateTime;
+             }else{
+                pDelta = 0.0;
+             }
+
+            // ##### Gravity
+            hydroSourceGravity(pkd, p, psph,
+                               pDelta, &pa[0], dScaleFactor, bComove);
+
+
+            // ##### Expansion effects
+            hydroSourceExpansion(pkd, p, psph,
+                                 pDelta, dScaleFactor, dHubble, bComove);
+
+
+
+            // ##### Synchronize Uint, Etot (and possibly S)
+            hydroSyncEnergies(pkd, p, psph, pa);
+
+
+            // ##### Cooling
+#ifdef COOLING
+            const float delta_redshift = -pDelta * dHubble * (dRedshift + 1.);
+            cooling_cool_part(pkd, pkd->cooling, p, psph, pDelta, dTime, delta_redshift, dRedshift);
+#endif
+
+            // Actually set the primitive variables
+            hydroSetPrimitives(pkd, p, psph);
+
+#ifdef REGULARIZE_MESH // TODO: Deprecated, delete!
+            // IA: We add a small velocity which will tend to slowly
+            // move the particle to the approximated local center of mass
+            //  We use eq 63 of Springel 2010 but instead of using the radius
+            //  from the volume we take it directly to be the kernel size
+#define ETA 0.05
+
+            double d = sqrt(psph->cellCM[0]*psph->cellCM[0] + psph->cellCM[1]*psph->cellCM[1] + psph->cellCM[2]*psph->cellCM[2]);
+            double fracHtoCM = d/(ETA*pkdBall(pkd,p)*2.);
+            vel_t  corrVel[3];
+
+            if (fracHtoCM > 1.1){
+               for (j=0;j<3;j++) corrVel[j] = psph->cellCM[j]/d;
+            }else if (fracHtoCM > 0.9){
+               for (j=0;j<3;j++) corrVel[j] = psph->cellCM[j]/d * (d - 0.9*ETA*pkdBall(pkd,p)*2.) / (0.2* ETA * 2.*pkdBall(pkd,p)) ;
+            }else{
+               for (j=0;j<3;j++) corrVel[j] = 0.;
+            }
+
+            for (j=0;j<3;j++) pkdVel(pkd,p)[j] += psph->c*corrVel[j];
+
+
+
+#endif
+
+            // Set 'last*' variables for next timestep
+            hydroSetLastVars(pkd, p, psph, pa, dScaleFactor, dTime, dDelta);
+
+
+         } else if (pkdIsBH(pkd,p) && pkdIsActive(pkd,p)){
+            // TODO: Sent this to BH module!
+            BHFIELDS* pBH = pkdBH(pkd,p);
+
+            if (dDelta > 0){
+               pDelta = dTime - pBH->lastUpdateTime;
+            }else{
+               pDelta = 0.0;
+            }
+#ifdef BLACKHOLES
+            pBH->dInternalMass += pBH->dAccretionRate  * pDelta * (1.-pkd->param.dBHRadiativeEff);
+            pBH->dAccEnergy += pBH->dFeedbackRate * pDelta;
+            pBH->lastUpdateTime = dTime;
+#endif
+         }
+       }
+    }
+
+    mdlDiag(pkd->mdl, "Out of pkdComputePrimitiveVars\n");
+    }
 
 
 

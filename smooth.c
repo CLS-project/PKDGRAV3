@@ -2744,7 +2744,7 @@ int  smReSmooth(SMX smx,SMF *smf, int iSmoothType) {
             if (pkdIsStar(pkd,p)){ 
                if ( (pkdStar(pkd,p)->hasExploded == 0) && 
                     ((smf->dTime-pkdStar(pkd,p)->fTimer) > pkd->param.dFeedbackDelay) ){
-                  smReSmoothSingle(smx,smf,p, 2.*pkdBall(pkd,p));                                                                   
+                  smReSmoothSingle(smx,smf,p, 2.*pkdBall(pkd,p));
                   pkdStar(pkd,p)->hasExploded = 1;
 
                   nSmoothed++;
@@ -2769,12 +2769,16 @@ int  smReSmooth(SMX smx,SMF *smf, int iSmoothType) {
 #ifdef OPTIM_SMOOTH_NODE
 /* IA: In this version, we loop over the buckets, rather than over the particles.
  *
- * For each bucket, we look for all the surroiding buckets that may interact with any particle in said bucket.
- * Then, we put all those particles (including the own bucket) in a interaction list.
+ * For each bucket, we look for all the surroiding buckets that may interact
+ * with any particle in said bucket.
+ *
+ * Then, we put all those particles (including the own bucket)
+ * in a interaction list.
  */
 
-// IA: I know this is a very dirty solution, but in general we will always use OPTIM_FLUX_VEC if OPTIM_SMOOTH_NODE is enabled.
-//    I think this is better than adding a lot of #ifdef's inside this function.
+// IA: I know this is a very dirty solution, but in general we will always use
+//     OPTIM_FLUX_VEC if OPTIM_SMOOTH_NODE is enabled.
+//     I think this is better than adding a lot of #ifdef's inside this function.
 #ifdef OPTIM_FLUX_VEC
 #define FLUX_VEC 1
 #else
@@ -2798,7 +2802,8 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
     NN* nnList_p;
     nnList_p = (NN*)malloc(sizeof(NN)*nnListMax_p);
 
-    // Here we store the pointers to the particle whose interaction need to be computed
+    // Here we store the pointers to the particle whose interaction
+    // need to be computed
     PARTICLE** sinks;
     sinks = malloc(64*sizeof(PARTICLE*)); // At most, the size of the bucket
 #ifdef OPTIM_CACHED_FLUXES
@@ -2816,17 +2821,22 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
     //abort();
 #endif
 
-    /* IA: For allowing vectorization, it is better to use an structure of arrays rather than an array of structures.
-     *  In our case, the structure is just an array of pointers to the locations in the buffer where a given array of variables starts.
+    /* IA: For allowing vectorization, it is better to use an structure of
+     *  arrays rather than an array of structures.
      *
-     *  Having everything in the same buffer can be advantageous as it should be in cache, but it was painful to code...
+     *  In our case, the structure is just an array of pointers to the locations
+     *  in the buffer where a given array of variables starts.
+     *
+     *  Having everything in the same buffer can be advantageous as it should
+     *  be in cache, but it was painful to code...
      */
     my_real *flux_input_buffer;
     my_real **flux_input_pointers;
     my_real *flux_output_buffer;
     my_real **flux_output_pointers;
     if (iSmoothType==SMX_THIRDHYDROLOOP){
-       //IA: We align the memory for improving vectorization performance. This is compiler dependent! FIXME
+       //IA: We align the memory for improving vectorization performance.
+       // This is compiler dependent! FIXME
        flux_input_buffer = (my_real*)_mm_malloc(nnListMax_p*q_last*sizeof(my_real), 64);
        flux_input_pointers = (my_real**)_mm_malloc(q_last*sizeof(my_real*), 64);
        assert(flux_input_buffer!=NULL);
@@ -2856,7 +2866,8 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
 
 
          //printf("fBall %e nodeBall %e \n", fBall, pkdNodeBall(pkd,node));
-         // Size of the ball that contains all possible particle interacting with this bucket
+         // Size of the ball that contains all possible particles
+         // interacting with this bucket
 
          double r[3];
          r[0] = bnd_node.fCenter[0];
@@ -2895,11 +2906,15 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
 #endif
 
 #if defined(STAR_FORMATION) && defined(FEEDBACK)
-                   if (pkdIsStar(pkd,p) && (pkdStar(pkd,p)->hasExploded==1)) continue; // We keep track of the density of star particle that have not exploded
+                   // We keep track of the density of star particles
+                   // that have not exploded
+                   if (pkdIsStar(pkd,p) && (pkdStar(pkd,p)->hasExploded==1))
+                      continue;
 #endif
 
 #ifndef OPTIM_REORDER_IN_NODES
-                   if (!pkdIsGas(pkd,p) && !pkdIsStar(pkd,p)) continue;
+                   if (!pkdIsGas(pkd,p) && !pkdIsStar(pkd,p))
+                      continue;
                 }else{
                    if (!pkdIsGas(pkd,p)) continue;
                 }
@@ -2917,11 +2932,12 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
                 fMax_shrink_z = (z_disp > fMax_shrink_z) ? z_disp : fMax_shrink_z;
 
                 if (nodeBall<pkdBall(pkd,p)) nodeBall=pkdBall(pkd,p);
-                sinks[nActive] = p; 
+                sinks[nActive] = p;
                 nActive++;
              }
           }
-         if (nActive==0) continue; // There is no elligible particle in this bucket, go to the next
+         // There are no elligibles particle in this bucket, go to the next
+         if (nActive==0) continue;
 
          //printf("nodeBall %e nActive %d \n", nodeBall, nActive);
          nCnt = 0;
@@ -2929,14 +2945,17 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
          int nCnt_own = nActive;
          //printf("start node %d %d \n", pkd->idSelf, i);
 
-         nodeBall *= 2.; // Remember! pkdBall gives HALF the radius of the enclosing sphere!
+         // Remember! pkdBall gives HALF the radius of the enclosing sphere!
+         nodeBall *= 2.;
 
 
          double const fBall_x = bnd_node.fMax[0]+nodeBall;
          double const fBall_y = bnd_node.fMax[1]+nodeBall;
          double const fBall_z = bnd_node.fMax[2]+nodeBall;
          double fBall2 = fBall_x*fBall_x + fBall_y*fBall_y + fBall_z*fBall_z;
-         double fBall2_shrink = fMax_shrink_x*fMax_shrink_x + fMax_shrink_y*fMax_shrink_y + fMax_shrink_z*fMax_shrink_z;
+         double fBall2_shrink = fMax_shrink_x*fMax_shrink_x +
+                                fMax_shrink_y*fMax_shrink_y +
+                                fMax_shrink_z*fMax_shrink_z;
 
 
          bnd_node.fMax[0] += nodeBall;
@@ -2949,7 +2968,6 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
          bnd_node.fMax[1] = fMax_shrink_y;
          bnd_node.fMax[2] = fMax_shrink_z;
 #endif
-    
          if (smx->bPeriodic) {
             double iStart[3], iEnd[3];
             for (int j=0;j<3;++j) {
@@ -2974,194 +2992,35 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
 
               //printf("interaction list completed nCnt %d nCnt_own %d nActive  %d \n", nCnt, nCnt_own, nActive);
 
-          // IA: Now we should have inside nnList all the particles in the bucket (sinks) and those of which can
-          //  interact with them from other buckets (smx->nnList)
+          // IA: Now we should have inside nnList all the particles in the
+          //  bucket (sinks) and those of which can interact with them
+          //  from other buckets (smx->nnList)
           //
-          // We just have to proceed to compute the correct dx, dy, dz and pass that nnList to the smoothfcn routine
+          // We just have to proceed to compute the correct dx, dy, dz and
+          // pass that nnList to the smoothfcn routine
           //
           // However, we have different options to do so:
           // 1) Naive: we pass the whole nnList
           //
-          // 2) Sorting: we could follow Gonnet, 2007 (10.1002/jcc.20563) to reduce the number of distance computations, but this is troublesome in our case
-          //    because:
+          // 2) Sorting: we could follow Gonnet, 2007 (10.1002/jcc.20563) to
+          // reduce the number of distance computations, but this is troublesome
+          // in our case because:
           //      a) we need to compute the distance anyway for sorting
           //      b) we could sort relative to the cell, but this is suboptimal
-          //      c) we are not computing cell-cell interactions, so there is no well-defined axis that could be used for projection
+          //      c) we are not computing cell-cell interactions, so there is
+          //            no well-defined axis that could be used for projection
           //
 
 
 
-         // This is quite dirty, but we could just do the density loop here instead of doing it in hydro.c! FIXME
+         // For the smoothing length determination we can bypass the typical
+         //  flow of calling fcnsmooth, as probably we have gathered more
+         //  neighbours than needed and thus the iterative procedure should be
+         //  faster
           if (iSmoothType==SMX_FIRSTHYDROLOOP){
-             for (pj=0; pj<nCnt_own; pj++){
-                PARTICLE * partj = sinks[pj];
-
-                float dx_node = -pkdPos(pkd,partj,0)+bnd_node.fCenter[0];
-                float dy_node = -pkdPos(pkd,partj,1)+bnd_node.fCenter[1];
-                float dz_node = -pkdPos(pkd,partj,2)+bnd_node.fCenter[2];
-
-                int niter = 0;
-                float Neff = pkd->param.nSmooth;
-                do{
-                   float ph = pkdBall(pkd,partj);
-                   float fBall2_p = 4.*ph*ph;
-                   int nCnt_p = 0;
-#ifdef OPTIM_UNION_EXTRAFIELDS
-                   //double* omega = pkdIsGas(pkd,partj) ? &(pkdSph(pkd,partj)->omega) : &(pkdStar(pkd,partj)->omega); // Assuming *only* stars and gas
-                   double *omega = NULL;
-                   omega = pkdIsGas(pkd,partj)  ? &(pkdSph(pkd,partj)->omega) : omega;
-                   omega = pkdIsStar(pkd,partj) ? &(pkdStar(pkd,partj)->omega) : omega;
-                   omega = pkdIsBH(pkd,partj)   ? &(pkdBH(pkd,partj)->omega) : omega;
-#else
-                   double* omega = &(pkdSph(pkd,partj)->omega); // Assuming *only* stars and gas
-#endif
-                   *omega = 0.0;
-                      float E[6], B[6];
-                      for (int j=0; j<6; ++j) E[j] = 0.;
-                   for (pk=0;pk<nCnt;pk++){
-                      // As both dr vector are relative to the cell, we can do:
-                      dx = dx_node - smx->nnList[pk].dx;
-                      dy = dy_node - smx->nnList[pk].dy;
-                      dz = dz_node - smx->nnList[pk].dz;
-
-                      fDist2 = dx*dx + dy*dy + dz*dz;
-                      //smx->nnList[pk].fDist2 = fDist2;
-                      if (fDist2 <= fBall2_p){
-                         double rpq = sqrt(fDist2);
-                         double Wpq = cubicSplineKernel(rpq, ph);
-
-                         *omega += Wpq;
-                         
-#define XX 0
-#define YY 3
-#define ZZ 5
-#define XY 1
-#define XZ 2
-#define YZ 4
-
-                            E[XX] += dx*dx*Wpq;
-                            E[YY] += dy*dy*Wpq;
-                            E[ZZ] += dz*dz*Wpq;
-
-                            E[XY] += dy*dx*Wpq;
-                            E[XZ] += dz*dx*Wpq;
-                            E[YZ] += dy*dz*Wpq;
-                            
-                         nCnt_p++;
-                      }
-                   }
-                   
-
-
-                   // Check if it has converged
-                   double c = 4.*M_PI/3. * (*omega) *ph*ph*ph*8.;
-                   if ((fabs(c-Neff) < pkd->param.dNeighborsStd0) ){
-                      // Check if the converged density has a low enough condition number
-                      
-                      // IA: Normalize the matrix 
-                      for (int j=0; j<6;++j){
-                         E[j] /= *omega; 
-                      }
-
-                      //inverseMatrix(E, psph->B);
-                      double det = E[XX]*E[YY]*E[ZZ] + 2.0*E[XY]*E[YZ]*E[XZ] //+ E[XZ]*E[XY]*E[YZ] 
-                           -E[XX]*E[YZ]*E[YZ] - E[ZZ]*E[XY]*E[XY] - E[YY]*E[XZ]*E[XZ];
-
-
-                      det = 1./det;
-
-                      B[XX] = (E[YY]*E[ZZ] - E[YZ]*E[YZ])*det;
-                      B[YY] = (E[XX]*E[ZZ] - E[XZ]*E[XZ])*det;
-                      B[ZZ] = (E[YY]*E[XX] - E[XY]*E[XY])*det;
-
-                      B[XY] = -(E[XY]*E[ZZ] - E[YZ]*E[XZ])*det;
-                      B[XZ] = (E[XY]*E[YZ] - E[YY]*E[XZ])*det;
-                      B[YZ] = -(E[XX]*E[YZ] - E[XY]*E[XZ])*det;
-                       
-                       // IA: Computation of the condition number 
-                       double modE = 0.;
-                       modE += E[XX]*E[XX]; 
-                       modE += E[YY]*E[YY]; 
-                       modE += E[ZZ]*E[ZZ]; 
-                       modE += 2.*E[XY]*E[XY]; 
-                       modE += 2.*E[XZ]*E[XZ]; 
-                       modE += 2.*E[YZ]*E[YZ]; 
-
-                       double modB = 0.;
-                       modB += B[XX]*B[XX]; 
-                       modB += B[YY]*B[YY]; 
-                       modB += B[ZZ]*B[ZZ]; 
-                       modB += 2.*B[XY]*B[XY]; 
-                       modB += 2.*B[XZ]*B[XZ]; 
-                       modB += 2.*B[YZ]*B[YZ]; 
-
-                       double Ncond = sqrt(modB*modE)/3.;
-                       assert(Ncond==Ncond);
-                       // TODO: Assign this here and void computing it in hydroGradients, same for B
-                       //if (pkdIsSph(pkd,p)) psph->Ncond = Ncond;
-
-
-                       if (Ncond > 100){
-                          Neff *= 1.2;
-                          niter = 0;
-                          continue;
-                       }
-                       
-
-
-                      partj->bMarked = 0;
-                      pkdSetDensity(pkd, partj, pkdMass(pkd,partj)*(*omega));
-                   }else{
-                      float newBall;
-
-
-                      newBall = (c!=0.0) ? ph * pow(  Neff/c  ,0.3333333333) : ph*4.0;
-                      
-                      pkdSetBall(pkd,partj, 0.5*(newBall+ph));
-                      //printf("Setting new fBall %e %e %e \n", c, ph, pkdBall(pkd,partj));
-                      
-
-                      if (newBall>ph){
-                         float ph = pkdBall(pkd,partj);
-                         // We check that the proposed ball is enclosed within the node search region
-                         if((fabs(dx_node) + ph > bnd_node.fMax[0])||
-                            (fabs(dy_node) + ph > bnd_node.fMax[1])||
-                            (fabs(dz_node) + ph > bnd_node.fMax[2])){
-                            // Removed this, see notes 29/10/20
-                            //nSmoothed-=1; // We explicitly say that this particle was not succesfully smoothed
-                            break;
-                         }
-                      }
-
-                   }
-                   niter++;
-
-
-                   // At this point, we probably have a particle with plenty of neighbours, and a small increase/decrease
-                   //  in the radius causes omega to fluctuate around the desired value.
-                   //
-                   // In this cases, we need to stop iterating and make sure that omega is between reasonable bounds
-                   if (niter>1000){
-                      partj->bMarked = 0;
-                      printf("WARNING Neff %e c %e \n", Neff, c);
-                      /*
-                      if (fabs(c-pkd->param.nSmooth) < pkd->param.nSmooth*0.1){
-
-                         printf("More than 100 iters but converged (%d): %d\t %e\t %e\n", niter, nCnt_p, pkdBall(pkd,partj), c);
-                         //break;
-                      }else{
-                         printf("More than 100 iters (%d): %d\t %e\t %e\n", niter, nCnt_p, pkdBall(pkd,partj), c);
-                         printf("r/h mean %e \n", mean_r/pkdBall(pkd,partj));
-                         break;
-                      }
-                      */
-                   }
-
-                }while(partj->bMarked);
-
-             }
-
-          }else{ 
+             hydroDensity_node(pkd, bnd_node, sinks, smx->nnList,
+                               nCnt_own, nCnt);
+          }else{
              for (pj=0; pj<nCnt_own; pj++){
                 PARTICLE * partj = sinks[pj];
                 const int j_cache_index_i = *pkdParticleID(pkd,partj) % (64);
@@ -3202,16 +3061,13 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
                                const int i_cache_index_j = *pkdParticleID(pkd,q) % (64);
 
                                uint64_t* offset = (get_bit(&i_flux, i_cache_index_j)) ? &i_coll : &i_flux;
-                                
                                set_bit(offset, i_cache_index_j);
 
-                               
                               // if (!get_bit((uint64_t*)((char*)partj + flux_offset), i_cache_index_j)){
                               //    set_bit((uint64_t*)((char*)partj + flux_offset), i_cache_index_j);
                               // }else{
                               //    set_bit((uint64_t*)((char*)partj + coll_offset), i_cache_index_j);
                               // }
-                               
                             }
                          }
                       }

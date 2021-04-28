@@ -4017,58 +4017,8 @@ void msrResetFluxes(MSR msr,double dTime,double dDelta,int iRoot) {
 
 
 
-void msrMeshlessGradients(MSR msr,double dTime,double dDelta,int iRoot){
-   double sec, dsec;
-    printf("Computing gradients... ");
-
-    sec = msrTime();
-    if (msr->param.bConservativeReSmooth){
-#ifdef OPTIM_SMOOTH_NODE
-#ifdef OPTIM_AVOID_IS_ACTIVE
-       msrSelActive(msr);
-#endif
-       msrReSmoothNode(msr,dTime,SMX_SECONDHYDROLOOP,0,0);
-#else
-       msrReSmooth(msr,dTime,SMX_SECONDHYDROLOOP,0,0);
-#endif
-    }else{
-       msrSmooth(msr,dTime,SMX_SECONDHYDROLOOP,0, msr->param.nSmooth);
-    }
-    dsec = msrTime() - sec;
-    printf("took %.5f seconds\n", dsec);
-}
 
 
-void msrMeshlessFluxes(MSR msr,double dTime,double dDelta,int iRoot){
-#ifdef MAKE_GLASS
-    return;
-#endif
-    double sec, dsec;
-    printf("Computing fluxes... ");
-    sec = msrTime();
-    if (msr->param.bConservativeReSmooth){
-       if (dDelta==0.0){
-#ifdef OPTIM_SMOOTH_NODE
-          msrReSmoothNode(msr,dTime,SMX_THIRDHYDROLOOP,1,1);
-#else
-          msrReSmooth(msr,dTime,SMX_THIRDHYDROLOOP,1,1);
-#endif
-       }else{
-#ifdef OPTIM_SMOOTH_NODE
-#ifdef OPTIM_AVOID_IS_ACTIVE
-          msrSelActive(msr);
-#endif
-          msrReSmoothNode(msr,dTime,SMX_THIRDHYDROLOOP,1,0);
-#else
-          msrReSmooth(msr,dTime,SMX_THIRDHYDROLOOP,1,0); 
-#endif
-       }
-    }else{
-       msrSmooth(msr,dTime,SMX_THIRDHYDROLOOP,0,msr->param.nSmooth);
-    }
-    dsec = msrTime()-sec;
-    printf("took %.5f seconds\n", dsec);
-}
 
 #ifdef DEBUG_CACHED_FLUXES
 void msrFluxStats(MSR msr, double dTime, double dDelta, double dStep, uint8_t uRungMax, int iRoot){
@@ -4120,6 +4070,21 @@ void msrOutputFineStatistics(MSR msr, double dStep, double dTime){
 }
 
 
+void msrEndTimestepIntegration(MSR msr,double dTime,double dDelta,int iRoot){
+    struct inDrift in; //IA: TODO new struct for this, now using more space than needed
+    in.iRoot = iRoot;
+    in.dTime = dTime;
+    in.dDelta = dDelta;
+    double sec, dsec;
+
+    msrComputeSmoothing(msr, dTime);
+
+    printf("Computing primitive variables... ");
+    sec = msrTime();
+    pstEndTimestepIntegration(msr->pst,&in,sizeof(in),NULL,0);
+    dsec = msrTime()-sec;
+    printf("took %.5f seconds\n",dsec);
+}
 
 
 void msrScaleVel(MSR msr,double dvFac) {
@@ -5071,8 +5036,8 @@ int msrNewTopStepKDK(MSR msr,
 
     msrActiveRung(msr,uRung,1);
       if (msrDoGas(msr) && msrMeshlessHydro(msr)){
-         msrUpdatePrimVars(msr, *pdTime, dDelta, ROOT);
-         msrMeshlessGradients(msr, *pdTime, dDelta, ROOT);
+         msrEndTimestepIntegration(msr, *pdTime, dDelta, ROOT);
+         msrMeshlessGradients(msr, *pdTime);
       }
 
       if (msrDoGas(msr) && msrMeshlessHydro(msr)){
@@ -5285,8 +5250,8 @@ void msrTopStepKDK(MSR msr,
 
 
       if (msrDoGas(msr) && msrMeshlessHydro(msr)){
-         msrUpdatePrimVars(msr, dTime, dDelta, ROOT);
-         msrMeshlessGradients(msr, dTime, dDelta, ROOT);
+         msrEndTimestepIntegration(msr, dTime, dDelta, ROOT);
+         msrMeshlessGradients(msr, dTime);
       }
 
 	/*
@@ -5676,8 +5641,8 @@ uint8_t msrInitSph(MSR msr,double dTime)
     }else{ //IA: we set the initial rungs of the particles
         msrActiveRung(msr,0,1);
         msrSetSmooth(msr);
-        msrUpdatePrimVars(msr, dTime, 0.0, ROOT);
-        msrMeshlessGradients(msr, dTime, 0.0, ROOT);
+        msrEndTimestepIntegration(msr, dTime, 0.0, ROOT);
+        msrMeshlessGradients(msr, dTime);
         msrMeshlessFluxes(msr, dTime, 0.0, ROOT);
 #ifdef DEBUG_CACHED_FLUXES
         msrFluxStats(msr, dTime, 0.0, 0, 0, ROOT);
