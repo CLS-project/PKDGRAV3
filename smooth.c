@@ -39,7 +39,7 @@
 #endif
 #ifdef BLACKHOLES
 #include "blackhole/merger.h"
-#include "blackhole/drift.h"
+#include "blackhole/evolve.h"
 #endif
 #include <sys/stat.h>
 
@@ -320,7 +320,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
 	assert( pkd->oSph ); /* Validate memory model */
 	smx->fcnSmooth = hydroGradients;
 	initParticle = NULL; /* Original Particle */
-	init = NULL; /* Cached copies */ 
+	init = NULL; /* Cached copies */
 	comb = NULL;
 	smx->fcnPost = NULL;
 	break;
@@ -328,7 +328,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
 	assert( pkd->oSph ); /* Validate memory model */
 	smx->fcnSmooth = hydroRiemann;
 	initParticle = initHydroFluxes; /* Original Particle */
-	init = initHydroFluxesCached; /* Cached copies */ 
+	init = initHydroFluxesCached; /* Cached copies */
 	comb = combThirdHydroLoop;
 	smx->fcnPost = NULL;
 	break;
@@ -336,7 +336,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
 	assert( pkd->oSph ); /* Validate memory model */
 	smx->fcnSmooth = hydroStep;
 	initParticle = initHydroStep; /* Original Particle */
-	init = initHydroStep; /* Cached copies */ 
+	init = initHydroStep; /* Cached copies */
 	comb = combHydroStep;
 	smx->fcnPost = NULL;
 	break;
@@ -344,7 +344,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
     case SMX_SN_FEEDBACK:
 	smx->fcnSmooth = smSNFeedback;
 	initParticle = NULL; /* Original Particle */
-	init = initSNFeedback; /* Cached copies */ 
+	init = initSNFeedback; /* Cached copies */
 	comb = combSNFeedback;
 	smx->fcnPost = NULL;
 	break;
@@ -353,15 +353,15 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
     case SMX_BH_MERGER:
       smx->fcnSmooth = smBHmerger;
 	initParticle = NULL; /* Original Particle */
-	init = NULL; /* Cached copies */ 
+	init = NULL; /* Cached copies */
 	comb = combBHmerger;
 	smx->fcnPost = NULL;
 	break;
     case SMX_BH_DRIFT:
-      smx->fcnSmooth = smBHdrift;
+      smx->fcnSmooth = smBHevolve;
 	initParticle = NULL; /* Original Particle */
-	init = initBHdrift; /* Cached copies */ 
-	comb = combBHdrift;
+	init = initBHevolve; /* Cached copies */
+	comb = combBHevolve;
 	smx->fcnPost = NULL;
 	break;
 #endif

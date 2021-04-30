@@ -3133,7 +3133,7 @@ void pkdReorderWithinNodes(PKD pkd){
          pkdNodeSetNstar(pkd, node, nStar);
          start += nStar;
 #endif
-         
+
          // We perform another swap, just to have nGas->nStar->BH->DM
          int nBH = 0;
          for (int pj=start;pj<=node->pUpper;++pj) {
@@ -3144,7 +3144,7 @@ void pkdReorderWithinNodes(PKD pkd){
 
          }
          pkdNodeSetNBH(pkd, node, nBH);
-         
+
       }
    }
    /* // Check that this works
@@ -3189,7 +3189,7 @@ void pkdPredictSmoothing(PKD pkd,int iRoot, double dTime, double dDelta) {
             float newBall = fBall*exp(0.3333333*pdivv*(dTime - psph->lastUpdateTime));
 
             pkdSetBall(pkd,p, newBall);
-            
+
          }
        }
     }
@@ -3286,18 +3286,8 @@ void pkdEndTimestepIntegration(PKD pkd,int iRoot, double dTime, double dDelta) {
 
 
          } else if (pkdIsBH(pkd,p) && pkdIsActive(pkd,p)){
-            // TODO: Sent this to BH module!
-            BHFIELDS* pBH = pkdBH(pkd,p);
-
-            if (dDelta > 0){
-               pDelta = dTime - pBH->lastUpdateTime;
-            }else{
-               pDelta = 0.0;
-            }
 #ifdef BLACKHOLES
-            pBH->dInternalMass += pBH->dAccretionRate  * pDelta * (1.-pkd->param.dBHRadiativeEff);
-            pBH->dAccEnergy += pBH->dFeedbackRate * pDelta;
-            pBH->lastUpdateTime = dTime;
+            pkdBHIntegrate(pkd, p, dTime, dDelta);
 #endif
          }
        }
