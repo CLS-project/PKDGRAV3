@@ -109,10 +109,12 @@ void pkdGravEvalPP(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINF
 
 extern "C"
 void pkdDensityEval(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINFOOUT *pOut ) {
-    fvec t1, t2;
+    fvec t1, t2, t3;
     fvec parho, padrhodfball, pfx, pfy, pfz, pfBall;
+    fvec pnSmooth;
 
     float arho, adrhodfball;
+    float anSmooth;
 
     float fx = pPart->r[0];
     float fy = pPart->r[1];
@@ -137,6 +139,7 @@ void pkdDensityEval(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PIN
     pfBall  = fBall;
 
     parho = padrhodfball = 0.0f;
+    pnSmooth = 0.0f;
 
     for( nLeft=nBlocks; nLeft >= 0; --nLeft,++blk ) {
 	int n = (nLeft ? ILP_PART_PER_BLK : nInLast+fvec::mask()) >> SIMD_BITS;
@@ -145,15 +148,18 @@ void pkdDensityEval(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PIN
 	    fvec Idy = blk->dy.p[j];
 	    fvec Idz = blk->dz.p[j];
 	    fvec Im = blk->m.p[j];
-	    EvalDensity<fvec,fmask,true>(pfx,pfy,pfz,Idx,Idy,Idz,Im,pfBall,t1,t2);
+	    EvalDensity<fvec,fmask,true>(pfx,pfy,pfz,Idx,Idy,Idz,Im,pfBall,t1,t2,t3);
 	    parho += t1;
 	    padrhodfball += t2;
+        pnSmooth += t3;
 	    }
 	}
     arho = hadd(parho);
     adrhodfball = hadd(padrhodfball);
+    anSmooth = hadd(pnSmooth);
 
     pOut->rho += arho;
-    pOut->drhodh += adrhodfball;
+    pOut->drhodfball += adrhodfball;
+    pOut->nSmooth += anSmooth;
 }
 #endif/*USE_SIMD_PP*/

@@ -276,7 +276,8 @@ int CPUdoWorkDensity(void *vpp) {
     int nInLast = tile->lstTile.nInLast;
 
     pOut->rho = 0.0;
-    pOut->drhodh = 0.0;
+    pOut->drhodfball = 0.0;
+    pOut->nSmooth = 0.0;
     pkdDensityEval(pPart,nBlocks,nInLast,blk,pOut);
     //wp->dFlopSingleCPU += COST_FLOP_PP*(tile->lstTile.nBlocks*ILP_PART_PER_BLK  + tile->lstTile.nInLast);
     if ( ++pp->i == pp->work->nP ) return 0;
@@ -308,7 +309,8 @@ int doneWorkDensity(void *vpp) {
 
     for(i=0; i<pp->work->nP; ++i) {
 	pp->work->pInfoOut[i].rho += pp->pInfoOut[i].rho;
-	pp->work->pInfoOut[i].drhodh += pp->pInfoOut[i].drhodh;
+	pp->work->pInfoOut[i].drhodfball += pp->pInfoOut[i].drhodfball;
+    pp->work->pInfoOut[i].nSmooth += pp->pInfoOut[i].nSmooth;
 	}
     lstFreeTile(&pp->ilp->lst,&pp->tile->lstTile);
     pkdParticleWorkDone(pp->work);
@@ -348,7 +350,8 @@ static void queueDensity( PKD pkd, workParticle *wp, ILP ilp, int bGravStep ) {
     // Zero density and density derivative
     for( int i=0; i<wp->nP; i++ ) {
         wp->pInfoOut[i].rho = 0.0f;
-        wp->pInfoOut[i].drhodh = 0.0f;
+        wp->pInfoOut[i].drhodfball = 0.0f;
+        wp->pInfoOut[i].nSmooth = 0.0f;
     }
 
     ILP_LOOP(ilp,tile) {
@@ -391,7 +394,7 @@ static void queueDensity( PKD pkd, workParticle *wp, ILP ilp, int bGravStep ) {
             float prefac = 4.0f/3.0f*M_PI;
             float fBall = wp->pInfoIn[i].fBall;
             float fx = prefac * fBall * fBall * fBall * wp->pInfoOut[i].rho - pkd->fMkerneltarget;
-            float dfdx = prefac * 3.0f * fBall * fBall * wp->pInfoOut[i].rho + prefac * fBall * fBall * fBall * wp->pInfoOut[i].drhodh;
+            float dfdx = prefac * 3.0f * fBall * fBall * wp->pInfoOut[i].rho + prefac * fBall * fBall * fBall * wp->pInfoOut[i].drhodfball;
             wp->pInfoIn[i].fBall -= fx / dfdx;
         }
     } else {
