@@ -1731,6 +1731,7 @@ void pkdProcessLightCone(PKD pkd,PARTICLE *p,float fPot,double dLookbackFac,doub
 void pkdGravEvalPP(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINFOOUT *pOut );
 void pkdGravEvalPC(PINFOIN *pPart, int nBlocks, int nInLast, ILC_BLK *blk,  PINFOOUT *pOut );
 void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double,double);
+void pkdEndTimestepIntegration(PKD pkd,int iRoot, double dTime, double dDelta); 
 #ifdef OPTIM_INVERSE_WALK
 void pkdSetParticleParent(PKD pkd);
 #endif

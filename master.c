@@ -69,6 +69,7 @@
 #include "outtype.h"
 #include "smoothfcn.h"
 #include "fio.h"
+#include "hydro/hydro.h"
 #ifdef COOLING
 #include "cooling/cooling.h"
 #endif
