@@ -395,7 +395,12 @@ static void queueDensity( PKD pkd, workParticle *wp, ILP ilp, int bGravStep ) {
             float fBall = wp->pInfoIn[i].fBall;
             float fx = prefac * fBall * fBall * fBall * wp->pInfoOut[i].rho - pkd->fMkerneltarget;
             float dfdx = prefac * 3.0f * fBall * fBall * wp->pInfoOut[i].rho + prefac * fBall * fBall * fBall * wp->pInfoOut[i].drhodfball;
-            wp->pInfoIn[i].fBall -= fx / dfdx;
+            float newfBall = wp->pInfoIn[i].fBall - fx / dfdx;
+            if (newfBall < 0.5f * wp->pInfoIn[i].fBall) {
+                wp->pInfoIn[i].fBall = 0.5f * wp->pInfoIn[i].fBall;
+            } else {
+                wp->pInfoIn[i].fBall = newfBall;
+            }
         }
     } else {
         // finish
