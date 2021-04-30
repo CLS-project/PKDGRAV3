@@ -711,6 +711,7 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
 	a = pkd->oFieldOffset[oAcceleration] ? pkdAccel(pkd,p) : zeroF;
 	m = pkdMass(pkd,p);
 	fSoft = pkdSoft(pkd,p);
+    fSoft = fSoft > 1.5f * pkdBall(pkd,p) ? fSoft : 1.5f * pkdBall(pkd,p);
 	v = pkd->oFieldOffset[oVelocity] ? pkdVel(pkd,p) : zeroV;
 	fMass = m;
 	dih2 = fSoft;
@@ -730,6 +731,7 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
 	    a = pkd->oFieldOffset[oAcceleration] ? pkdAccel(pkd,p) : zeroF;
 	    m = pkdMass(pkd,p);
 	    fSoft = pkdSoft(pkd,p);
+        fSoft = fSoft > 1.5f * pkdBall(pkd,p) ? fSoft : 1.5f * pkdBall(pkd,p);
 	    v = pkd->oFieldOffset[oVelocity] ? pkdVel(pkd,p) : zeroV;
 	    fMass += m;
 	    if (fSoft>dih2) dih2=fSoft;

@@ -408,6 +408,7 @@ static void queueDensity( PKD pkd, workParticle *wp, ILP ilp, int bGravStep ) {
     for( int i=0; i<wp->nP; i++ ) {
         // save the new fBall for each particle
         wp->pInfoOut[i].fBall = wp->pInfoIn[i].fBall;
+        // wp->pInfoOut[i].fBall = wp->pInfoOut[i].nSmooth;
     }
     }
 
