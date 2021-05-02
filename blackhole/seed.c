@@ -79,7 +79,7 @@ int pkdPlaceBHSeed(PKD pkd, double dTime, double dScaleFactor,
          // IA: We require the density to be above the SF threshold
 #ifdef COOLING
          const double rho_H = pkdDensity(pkd,pLowPot) *
-                          pkdSph(pkd,pLowPot)->chemistry[chemistry_element_H];
+	    pkdSph(pkd,pLowPot)->chemistry[chemistry_element_H] / pkdMass(pkd,pLowPot);
 #else
          // If no information, assume primoridal abundance
          const double rho_H = pkdDensity(pkd,pLowPot) * 0.75;

@@ -1161,8 +1161,11 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             pSph->u = pSph->uPred = pSph->uDot = pSph->c = pSph->divv = pSph->BalsaraSwitch
                = pSph->diff = pSph->fMetals = pSph->fMetalsPred = pSph->fMetalsDot = 0.0;
 #endif
-#ifdef COOLING
+#if defined(COOLING) || defined(STELLAR_EVOLUTION)
             for (j=0;j<chemistry_element_count;j++ ) pSph->chemistry[j]=0.;
+#endif
+#ifdef STELLAR_EVOLUTION
+	    pSph->chemistryZ = 0.0;
 #endif
             u = (u<0.0) ? -u*dTuFac : u; // If the value is negative, means that it is a temperature
 #ifndef OPTIM_REMOVE_UNUSED
@@ -1214,9 +1217,10 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             //pSph->fLastBall = 0.0;
             pSph->lastUpdateTime = -1.;
            // pSph->nLastNeighs = 100;
+#if defined(COOLING) || defined(STELLAR_EVOLUTION)
+            for (j=0; j<chemistry_element_count; j++) pSph->chemistry[j] = fMetals[j] * fMass;
+#endif
 #ifdef COOLING
-            for (j=0; j<chemistry_element_count; j++) pSph->chemistry[j] = fMetals[j];
-
             pSph->lastCooling = 0.;
             pSph->cooling_dudt = 0.;
 #endif
@@ -2267,7 +2271,7 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,BND *bnd,
 #ifdef COOLING
           const double dRedshift = dvFacGas - 1.;
           float temperature =  cooling_get_temperature(pkd, dRedshift, pkd->cooling, p, pSph);
-          for (int k=0; k<chemistry_element_count;k++) fMetals[k] = pSph->chemistry[k];
+          for (int k=0; k<chemistry_element_count;k++) fMetals[k] = pSph->chemistry[k] / fMass;
 #else
           float temperature = 0; 
           for (int k=0; k<chemistry_element_count;k++) fMetals[k] = 0.;
@@ -2298,8 +2302,10 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,BND *bnd,
 	break;
     case FIO_SPECIES_STAR:
       pStar = pkdStar(pkd,p);
-#ifdef COOLING
-      for (int k=0; k<chemistry_element_count;k++) fMetals[k] = pStar->chemistry[k];
+#ifdef STELLAR_EVOLUTION
+      for (int k=0; k<chemistry_element_count;k++) fMetals[k] = pStar->chemistry[k] / pStar->fInitialMass;
+#elif defined(COOLING)
+      for (int k=0; k<chemistry_element_count;k++) fMetals[k] = pStar->chemistry[k] / fMass;
 #else
       for (int k=0; k<chemistry_element_count;k++) fMetals[k] = 0.;
 #endif

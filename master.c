@@ -1740,7 +1740,8 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
     prmAddParam(msr->prm,"dCoolingFloorTemp", 2, &msr->param.dCoolingFlooru,
 		sizeof(double), "dCoolingFloorTemp",
 		"Temperature at the internal energy floor");
-
+#endif
+#if defined(COOLING) || defined(STELLAR_EVOLUTION)
     /* Parameters for the initial abundances */
     msr->param.dInitialH = 0.75;
     prmAddParam(msr->prm,"dInitialH", 2, &msr->param.dInitialH,
@@ -1892,42 +1893,42 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
     msr->param.dIMF_MinMass = 0.1;
     prmAddParam(msr->prm, "dIMF_MinMass", 2, &msr->param.dIMF_MinMass,
 		sizeof(double), "imfminmass",
-		"Lower mass limit of the Initial Mass Function");
+		"Lower mass limit of the Initial Mass Function <Mo>");
 
     msr->param.dIMF_MaxMass = 100.0;
     prmAddParam(msr->prm, "dIMF_MaxMass", 2, &msr->param.dIMF_MaxMass,
 		sizeof(double), "imfmaxmass",
-		"Upper mass limit of the Initial Mass Function");
+		"Upper mass limit of the Initial Mass Function <Mo>");
 
     msr->param.dCCSN_MinMass = 6.0;
     prmAddParam(msr->prm, "dCCSN_MinMass", 2, &msr->param.dCCSN_MinMass,
 		sizeof(double), "ccsnminmass",
-		"Minimum mass for a star to end its life as a Core Collapse Supernova");
+		"Minimum mass for a star to end its life as a Core Collapse Supernova <Mo>");
 
     msr->param.dSNIa_MaxMass = 8.0;
     prmAddParam(msr->prm, "dSNIa_MaxMass", 2, &msr->param.dSNIa_MaxMass,
 		sizeof(double), "sniamaxmass",
-		"Maximum mass for the likely progenitors of SNIa events");
+		"Maximum mass for the likely progenitors of SNIa events <Mo>");
 
     msr->param.dSNIa_Norm = 2e-3;
     prmAddParam(msr->prm, "dSNIa_Norm", 2, &msr->param.dSNIa_Norm,
 		sizeof(double), "snianorm",
-		"Normalization of the Delay Time Distribution function");
+		"Normalization of the Delay Time Distribution function <1/Mo>");
 
     msr->param.dSNIa_Scale = 2e9;
     prmAddParam(msr->prm, "dSNIa_Scale", 2, &msr->param.dSNIa_Scale,
 		sizeof(double), "sniascale",
-		"Scale of the Delay Time Distribution function");
+		"Scale of the Delay Time Distribution function (Exponential <yr>, Powerlaw <dimensionless>)");
 
     msr->param.dSNIa_Norm_ti = 40e6;
     prmAddParam(msr->prm, "dSNIa_Norm_ti", 2, &msr->param.dSNIa_Norm_ti,
 		sizeof(double), "sniati",
-		"Initial time for the normalization of the Delay Time Distribution function");
+		"Initial time for the normalization of the Delay Time Distribution function <yr>");
 
     msr->param.dSNIa_Norm_tf = 13.7e9;
     prmAddParam(msr->prm, "dSNIa_Norm_tf", 2, &msr->param.dSNIa_Norm_tf,
 		sizeof(double), "sniatf",
-		"Final time for the normalization of the Delay Time Distribution function");
+		"Final time for the normalization of the Delay Time Distribution function <yr>");
 #endif
     /* END of new params */
 
@@ -2039,17 +2040,21 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
 #endif
 
 #ifdef STELLAR_EVOLUTION
-#define SECPERYEAR 31557600.0   /* Seconds in a Julian year */
+    /* Conversion of parameters dIMF_MinMass and dIMF_MaxMass into code units is intentionally omitted here.
+       Conversion of relevant quantities is performed just before distributing the tables to all processes. */
     msr->param.dCCSN_MinMass /= msr->param.dMsolUnit;
     msr->param.dSNIa_MaxMass /= msr->param.dMsolUnit;
     msr->param.dSNIa_Norm    *= msr->param.dMsolUnit;
     msr->param.dSNIa_Norm_ti *= SECPERYEAR / msr->param.dSecUnit;
     msr->param.dSNIa_Norm_tf *= SECPERYEAR / msr->param.dSecUnit;
-    if (strcmp(msr->param.achSNIa_DTDtype, "exponential") == 0)
+
+    if (strcmp(msr->param.achSNIa_DTDtype, "exponential") == 0) {
        msr->param.dSNIa_Scale *= SECPERYEAR / msr->param.dSecUnit;
-    else if (strcmp(msr->param.achSNIa_DTDtype, "powerlaw") == 0)
+    }
+    else if (strcmp(msr->param.achSNIa_DTDtype, "powerlaw") == 0) {
        msr->param.dSNIa_Norm /= (pow(msr->param.dSNIa_Norm_tf, msr->param.dSNIa_Scale + 1.0) -
 				 pow(msr->param.dSNIa_Norm_ti, msr->param.dSNIa_Scale + 1.0));
+    }
     else {
        printf("ERROR: Undefined DTD type has been given in achSNIa_DTDtype parameter: %s\n",
 	      msr->param.achSNIa_DTDtype);

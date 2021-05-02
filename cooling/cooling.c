@@ -443,7 +443,8 @@ void cooling_cool_part(PKD pkd,
 //  u_0 = max(u_0, hydro_properties->minimal_internal_energy);
 
   /* IA: In our case we are using operator splitting so this is simpler */
-  double u_0 = psph->Uint / pkdMass(pkd,p);
+  const float fMass = pkdMass(pkd,p);
+  double u_0 = psph->Uint / fMass;
   
 
   /* Convert to CGS units */
@@ -461,13 +462,13 @@ void cooling_cool_part(PKD pkd,
    * by the particles themselves.
    * The order is [H, He, C, N, O, Ne, Mg, Si, S, Ca, Fe] */
   float abundance_ratio[eagle_cooling_N_abundances];
-  abundance_ratio_to_solar(p, psph, cooling, abundance_ratio);
+  abundance_ratio_to_solar(psph, fMass, cooling, abundance_ratio);
 
   /* Get the Hydrogen and Helium mass fractions */
-  const float *const metal_fraction = psph->chemistry;
+  const float *const elem_mass = psph->chemistry;
       //chemistry_get_metal_mass_fraction_for_cooling(p);
-  const float XH = metal_fraction[chemistry_element_H];
-  const float XHe = metal_fraction[chemistry_element_He];
+  const float XH = elem_mass[chemistry_element_H] / fMass;
+  const float XHe = elem_mass[chemistry_element_He] / fMass;
 
   /* Get the Helium mass fraction. Note that this is He / (H + He), i.e. a
    * metal-free Helium mass fraction as per the Wiersma+08 definition */
@@ -538,7 +539,7 @@ void cooling_cool_part(PKD pkd,
   if (u_final_cgs < 1e10) u_final_cgs = 2e10;
   double u_final = u_final_cgs * cooling->internal_energy_from_cgs;
   psph->E = psph->E - psph->Uint;
-  psph->Uint = u_final * pkdMass(pkd,p);
+  psph->Uint = u_final * fMass;
   psph->E = psph->E + psph->Uint;
 
   /* We now need to check that we are not going to go below any of the limits */
@@ -642,16 +643,17 @@ float cooling_get_temperature(PKD pkd, const float redshift,
 #endif
 
   /* Get physical internal energy */
-  const float u = psph->Uint /pkdMass(pkd,p);
+  const float fMass = pkdMass(pkd,p);
+  const float u = psph->Uint / fMass;
   double u_cgs = u * cooling->internal_energy_to_cgs;
   if (u_cgs < 1e10) return psph->P/pkdDensity(pkd,p) / pkd->param.dGasConst *1.14 ;
   //printf("u_cgs %e \n", u_cgs);
 
   /* Get the Hydrogen and Helium mass fractions */
-  const float *const metal_fraction = psph->chemistry;
+  const float *const elem_mass = psph->chemistry;
       //chemistry_get_metal_mass_fraction_for_cooling(p);
-  const float XH = metal_fraction[chemistry_element_H];
-  const float XHe = metal_fraction[chemistry_element_He];
+  const float XH = elem_mass[chemistry_element_H] / fMass;
+  const float XHe = elem_mass[chemistry_element_He] / fMass;
 
   /* Get the Helium mass fraction. Note that this is He / (H + He), i.e. a
    * metal-free Helium mass fraction as per the Wiersma+08 definition */
@@ -733,7 +735,7 @@ void cooling_Hydrogen_reionization(PKD pkd) {
        const double old_u = psph->Uint ;
 
        /* IA: Mass in hydrogen */
-       const double extra_heat = extra_heat_per_proton * pkdMass(pkd,p) * psph->chemistry[chemistry_element_H];
+       const double extra_heat = extra_heat_per_proton * psph->chemistry[chemistry_element_H];
        const double new_u = old_u + extra_heat;
        
        //printf("Applying extra energy for H reionization! U=%e dU=%e \n", old_u, extra_heat);
@@ -922,16 +924,17 @@ void pkd_cooling_init_backend(PKD pkd, struct cooling_function_data in_cooling_d
       if (pkdIsGas(pkd,p)) {
          SPHFIELDS* psph;
          psph = pkdSph(pkd,p);
+	 float fMass = pkdMass(pkd, p);
          if (psph->chemistry[chemistry_element_H] == 0.){
-            psph->chemistry[chemistry_element_H] = pkd->param.dInitialH;
-            psph->chemistry[chemistry_element_He] = pkd->param.dInitialHe;
-            psph->chemistry[chemistry_element_C] = pkd->param.dInitialC;
-            psph->chemistry[chemistry_element_N] = pkd->param.dInitialN;
-            psph->chemistry[chemistry_element_O] = pkd->param.dInitialO;
-            psph->chemistry[chemistry_element_Ne] = pkd->param.dInitialNe;
-            psph->chemistry[chemistry_element_Mg] = pkd->param.dInitialMg;
-            psph->chemistry[chemistry_element_Si] = pkd->param.dInitialSi;
-            psph->chemistry[chemistry_element_Fe] = pkd->param.dInitialFe;
+            psph->chemistry[chemistry_element_H]  = pkd->param.dInitialH  * fMass;
+            psph->chemistry[chemistry_element_He] = pkd->param.dInitialHe * fMass;
+            psph->chemistry[chemistry_element_C]  = pkd->param.dInitialC  * fMass;
+            psph->chemistry[chemistry_element_N]  = pkd->param.dInitialN  * fMass;
+            psph->chemistry[chemistry_element_O]  = pkd->param.dInitialO  * fMass;
+            psph->chemistry[chemistry_element_Ne] = pkd->param.dInitialNe * fMass;
+            psph->chemistry[chemistry_element_Mg] = pkd->param.dInitialMg * fMass;
+            psph->chemistry[chemistry_element_Si] = pkd->param.dInitialSi * fMass;
+            psph->chemistry[chemistry_element_Fe] = pkd->param.dInitialFe * fMass;
          }
       }
     }

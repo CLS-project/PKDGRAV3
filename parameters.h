@@ -272,7 +272,8 @@ struct parameters {
     double dJeansFlooru;
     double dCoolingFloorDen;
     double dCoolingFlooru;
-
+#endif
+#if defined(COOLING) || defined(STELLAR_EVOLUTION)
     /*
      * IA: Initial abundances 
      */

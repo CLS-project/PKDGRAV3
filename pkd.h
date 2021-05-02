@@ -158,6 +158,7 @@ typedef struct velsmooth {
 #define KPCCM 3.085678e21    /* kiloparsec in centimeters */
 #define SIGMAT 6.6524e-25    /* Thompson cross-section (cm^2) */
 #define LIGHTSPEED 2.9979e10 /* Speed of Light cm/s */
+#define SECPERYEAR 31557600.0   /* Seconds in a Julian year */
 
 enum chemistry_element {
   chemistry_element_H = 0,
@@ -318,10 +319,17 @@ typedef struct sphfields {
     myreal SFR;
 #endif
 
-#ifdef COOLING
+#if defined(COOLING) || defined(STELLAR_EVOLUTION)
     float chemistry[chemistry_element_count];
+#endif
+
+#ifdef COOLING
     myreal lastCooling;
     float cooling_dudt;
+#endif
+
+#ifdef STELLAR_EVOLUTION
+    float chemistryZ;
 #endif
 
 #if defined(MAKE_GLASS) || defined(REGULARIZE_MESH)
@@ -334,9 +342,26 @@ typedef struct sphfields {
 
 typedef struct starfields {
     double omega;
-#ifdef COOLING
+#if defined(COOLING) || defined(STELLAR_EVOLUTION)
     float chemistry[chemistry_element_count];
 #endif
+
+#ifdef STELLAR_EVOLUTION
+    float chemistryZ;
+    float afEjMass[chemistry_element_count];
+    float fEjMassZ;
+    float fInitialMass;
+    float fLastEnrichTime;
+    float fLastEnrichMass;
+    int iLastEnrichMassIdx;
+    struct {
+       int iIdxZ;
+       float fDeltaZ;
+    } CCSN, AGB, Lifetimes;
+    float fTimeCCSN;
+    float fTimeSNIa;
+#endif
+
     float fTimer;  /* Time of formation */
     int hasExploded; /* Has exploded as a supernova? */
     } STARFIELDS;   
@@ -1116,7 +1141,7 @@ typedef struct pkdContext {
     struct cooling_tables *cooling_table;
 #endif
 #ifdef STELLAR_EVOLUTION
-    STEV_DATA StelEvolData;
+    STEV_DATA *StelEvolData;
 #endif
 
 #ifdef USE_CUDA
