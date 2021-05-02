@@ -1,5 +1,6 @@
 #ifdef STELLAR_EVOLUTION
 
+
 #include "master.h"
 
 
@@ -7,23 +8,19 @@
    - El segundo argumento de la funcion prmAddParam define el nombre con el cual se busca un
    parametro en el archivo de parametros. El sexto argumento define como se puede especificar
    el parametro desde la linea de comandos.
-   - Estoy convirtiendo los parametros a unidades internas en msrInitialize.
-   - Los parametros son accesibles a traves de pkd->param
-   - Include de stellarevolution.h en archivos .c en pst y pkd
- */
+   - Al momento de distribuir las tablas, todas las cantidades y parametros relevantes (tiempos
+   y masas) han sido convertidos a unidades internas del codigo.
+*/
 
 
 /* TODOs y DUDAS:
-   - Armar archivos hdf5. Excluyo S y Ca?
-   - Entender como se guardan y leen archivos de restart.
-   - Imponer conservacion de energia cinetica y momento lineal al distribuir la masa?
-   - Preguntar a Isaac sobre si la funcion stevFreeTable esta liberando la memoria
-   correctamente
-   - Es correcto normalizar la IMF entre 0.1 y 100.0 Msol y despues utilizar tablas desde
-   120 Msun?
-   - Volver a verificar que las tablas se estan leyendo correctamente
-   - Transponer buffers?
- */
+   - Armar archivos hdf5
+   - Implementar la inicializacion cuando se empieza de un archivo restart o de una snapshot
+   - Considerar cambiar a float parametros que se usan bastante
+   - Convertir parametros de masa a log?
+   - Por que no estoy utilizando las funciones de interpolacion de interpolate.h?
+   - Adicionar free(pkd->StelEvolData) en algun lado
+*/
 
 
 #define STEV_CCSN_N_METALLICITY               5
@@ -32,7 +29,7 @@
 #define STEV_AGB_N_MASS                      23
 #define STEV_LIFETIMES_N_METALLICITY          6
 #define STEV_LIFETIMES_N_MASS                30
-#define STEV_N_ELEM     chemistry_element_count   /* Defined in pkd.h */
+#define STEV_N_ELEM                           9
 
 #define STEV_INTERP_N_MASS                  200
 
@@ -45,7 +42,7 @@
 
 typedef struct inStellarEvolution {
    /* Pointer to the function that gives the number of SNIa in [dTime, dTime + dDelta] */
-   float (*fcnNumSNIa)(double dTime, double dDelta, double norm, double scale);
+   float (*fcnNumSNIa)(PKD pkd, STARFIELDS *pStar, float fTime);
 
    /* Initial mass array for CCSN and AGB tables */
    float afMasses[STEV_INTERP_N_MASS];
@@ -55,13 +52,13 @@ typedef struct inStellarEvolution {
 
    /* Core Collapse SNe arrays */
    float afCCSN_Zs[STEV_CCSN_N_METALLICITY];
-   float afCCSN_Yields[STEV_CCSN_N_METALLICITY * STEV_N_ELEM * STEV_INTERP_N_MASS];
+   float afCCSN_Yields[STEV_N_ELEM * STEV_CCSN_N_METALLICITY * STEV_INTERP_N_MASS];
    float afCCSN_MetalYield[STEV_CCSN_N_METALLICITY * STEV_INTERP_N_MASS];
    float afCCSN_EjectedMass[STEV_CCSN_N_METALLICITY * STEV_INTERP_N_MASS];
 
    /* AGB arrays */
    float afAGB_Zs[STEV_AGB_N_METALLICITY];
-   float afAGB_Yields[STEV_AGB_N_METALLICITY * STEV_N_ELEM * STEV_INTERP_N_MASS];
+   float afAGB_Yields[STEV_N_ELEM * STEV_AGB_N_METALLICITY * STEV_INTERP_N_MASS];
    float afAGB_MetalYield[STEV_AGB_N_METALLICITY * STEV_INTERP_N_MASS];
    float afAGB_EjectedMass[STEV_AGB_N_METALLICITY * STEV_INTERP_N_MASS];
 
@@ -98,7 +95,7 @@ typedef struct StellarEvolutionRawData {
 
 void msrStellarEvolutionInit(MSR);
 int pstStellarEvolutionInit(PST, void *, int, void *, int);
-int pkdStellarEvolutionInit(PKD, /* ADD NECESSARY ARGUMENTS */);
+int pkdStellarEvolutionInit(PKD, STEV_DATA *);
 
 void smChemEnrich(PARTICLE *p, float fBall, int nSmooth, NN *nnList, SMF *smf);
 void initChemEnrich(void *vpkd, void *vp);
@@ -119,13 +116,13 @@ void stevFreeTable(STEV_RAWDATA *);
 void stevFreeSNIaTable(STEV_RAWDATA *);
 void stevFreeLifetimesTable(STEV_RAWDATA *);
 
-void stevChabrierIMF(float *, float *, int, double, double);
-float stevExponentialNumSNIa(double dTime, double dDelta, double norm, double scale);
-float stevPowerlawNumSNIa(double dTime, double dDelta, double norm, double scale);
+void stevChabrierIMF(float *, int, double, double, float *);
+float stevExponentialNumSNIa(PKD, STARFIELDS *, float);
+float stevPowerlawNumSNIa(PKD, STARFIELDS *, float);
 
 
-static inline stevGetIndex1D(const float *restrict pfTable, const int nSize, const float fVal,
-			     int *piIdx, float *restrict pfDelta) {
+static inline void stevGetIndex1D(const float *restrict pfTable, const int nSize,
+				  const float fVal, int *piIdx, float *restrict pfDelta) {
    const float epsilon = 1e-4f;
 
    if (fVal < pfTable[0] + epsilon) {
@@ -147,6 +144,55 @@ static inline stevGetIndex1D(const float *restrict pfTable, const int nSize, con
       *piIdx = --i;
       *pfDelta = (fVal - pfTable[i]) / (pfTable[i + 1] - pfTable[i]);
    }
+}
+
+/* Por ahora voy a asumir que todo esta en log, excepto fMass */
+static inline float stevLifetimeFunction(PKD pkd, STARFIELDS *pStar, float fMass) {
+   int iIdxMass;
+   float fDeltaMass;
+   stevGetIndex1D(pkd->StelEvolData->afLifetimes_Masses, STEV_LIFETIMES_N_MASS,
+		  log10(fMass), &iIdxMass, &fDeltaMass);
+
+   int oLowerZ = pStar->Lifetimes.iIdxZ * STEV_LIFETIMES_N_MASS;
+   float fDeltaZ = pStar->Lifetimes.fDeltaZ;
+
+   float *afTimesLowerZ = pkd->StelEvolData->afLifetimes + oLowerZ;
+   float *afTimesUpperZ = afTimesLowerZ + STEV_LIFETIMES_N_MASS;
+
+   float fLogTime = afTimesLowerZ[iIdxMass] * (1.0f - fDeltaZ) * (1.0f - fDeltaMass);
+   fLogTime += afTimesLowerZ[iIdxMass + 1] * (1.0f - fDeltaZ) * fDeltaMass;
+   fLogTime += afTimesUpperZ[iIdxMass] * fDeltaZ * (1.0f - fDeltaMass);
+   fLogTime += afTimesUpperZ[iIdxMass + 1] * fDeltaZ * fDeltaMass;
+
+   return pow(10.0, fLogTime);
+}
+
+/* Por ahora voy a asumir que todo esta en log, excepto fTime */
+static inline float stevInverseLifetimeFunction(PKD pkd, STARFIELDS *pStar, float fTime) {
+   int oLowerZ = pStar->Lifetimes.iIdxZ * STEV_LIFETIMES_N_MASS;
+   float fDeltaZ = pStar->Lifetimes.fDeltaZ;
+
+   float *afTimesLowerZ = pkd->StelEvolData->afLifetimes + oLowerZ;
+   float *afTimesUpperZ = afTimesLowerZ + STEV_LIFETIMES_N_MASS;
+
+   int iIdxTimeLowerZ;
+   float fDeltaTimeLowerZ;
+   stevGetIndex1D(afTimesLowerZ, STEV_LIFETIMES_N_MASS, log10(fTime),
+		  &iIdxTimeLowerZ, &fDeltaTimeLowerZ);
+
+   int iIdxTimeUpperZ;
+   float fDeltaTimeUpperZ;
+   stevGetIndex1D(afTimesUpperZ, STEV_LIFETIMES_N_MASS, log10(fTime),
+		  &iIdxTimeUpperZ, &fDeltaTimeUpperZ);
+
+   float *afMasses = pkd->StelEvolData->afLifetimes_Masses;
+
+   float fLogMass = afMasses[iIdxTimeLowerZ] * (1.0f - fDeltaZ) * (1.0f - fDeltaTimeLowerZ);
+   fLogMass += afMasses[iIdxTimeLowerZ + 1] * (1.0f - fDeltaZ) * fDeltaTimeLowerZ;
+   fLogMass += afMasses[iIdxTimeUpperZ] * fDeltaZ * (1.0f - fDeltaTimeUpperZ);
+   fLogMass += afMasses[iIdxTimeUpperZ + 1] * fDeltaZ * fDeltaTimeUpperZ;
+
+   return pow(10.0, fLogMass);
 }
 
 
