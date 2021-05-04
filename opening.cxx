@@ -77,7 +77,8 @@ void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin ) {
 	iEnd = nLeft ? cl->lst.nPerBlock : tile->lstTile.nInLast;
 	iEnd = (iEnd+fvec::mask()) >> SIMD_BITS;
 	for(i=0; i<iEnd; ++i) {
-	    fourh2 = blk->fourh2.p[i];
+	    // fourh2 = blk->fourh2.p[i];
+	    fourh2 = k->fSoft2;
 	    xc = fvec(blk->x.p[i]) + fvec(blk->xOffset.p[i]);
 	    yc = fvec(blk->y.p[i]) + fvec(blk->yOffset.p[i]);
 	    zc = fvec(blk->z.p[i]) + fvec(blk->zOffset.p[i]);
