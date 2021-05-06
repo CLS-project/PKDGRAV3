@@ -54,45 +54,45 @@ static inline void abundance_ratio_to_solar(SPHFIELDS* psph, float fMass,
     float ratio_solar[eagle_cooling_N_abundances]) {
 
   /* Get individual element masses from the particle */
-  const float *const elem_mass = psph->chemistry;
+  const float *const elem_mass = psph->afElemMass;
 //      chemistry_get_metal_mass_fraction_for_cooling(p);
   const float inv_mass = 1.0f / fMass;
 
-  ratio_solar[0] = elem_mass[chemistry_element_H] * inv_mass *
+  ratio_solar[0] = elem_mass[ELEMENT_H] * inv_mass *
                    cooling->SolarAbundances_inv[0 /* H */];
 
-  ratio_solar[1] = elem_mass[chemistry_element_He] * inv_mass *
+  ratio_solar[1] = elem_mass[ELEMENT_He] * inv_mass *
                    cooling->SolarAbundances_inv[1 /* He */];
 
-  ratio_solar[2] = elem_mass[chemistry_element_C] * inv_mass *
+  ratio_solar[2] = elem_mass[ELEMENT_C] * inv_mass *
                    cooling->SolarAbundances_inv[2 /* C */];
 
-  ratio_solar[3] = elem_mass[chemistry_element_N] * inv_mass *
+  ratio_solar[3] = elem_mass[ELEMENT_N] * inv_mass *
                    cooling->SolarAbundances_inv[3 /* N */];
 
-  ratio_solar[4] = elem_mass[chemistry_element_O] * inv_mass *
+  ratio_solar[4] = elem_mass[ELEMENT_O] * inv_mass *
                    cooling->SolarAbundances_inv[4 /* O */];
 
-  ratio_solar[5] = elem_mass[chemistry_element_Ne] * inv_mass *
+  ratio_solar[5] = elem_mass[ELEMENT_Ne] * inv_mass *
                    cooling->SolarAbundances_inv[5 /* Ne */];
 
-  ratio_solar[6] = elem_mass[chemistry_element_Mg] * inv_mass *
+  ratio_solar[6] = elem_mass[ELEMENT_Mg] * inv_mass *
                    cooling->SolarAbundances_inv[6 /* Mg */];
 
-  ratio_solar[7] = elem_mass[chemistry_element_Si] * inv_mass *
+  ratio_solar[7] = elem_mass[ELEMENT_Si] * inv_mass *
                    cooling->SolarAbundances_inv[7 /* Si */];
 
   /* For S, we use the same ratio as Si */
-  ratio_solar[8] = elem_mass[chemistry_element_Si] * inv_mass *
+  ratio_solar[8] = elem_mass[ELEMENT_Si] * inv_mass *
                    cooling->SolarAbundances_inv[7 /* Si */] *
                    cooling->S_over_Si_ratio_in_solar;
 
   /* For Ca, we use the same ratio as Si */
-  ratio_solar[9] = elem_mass[chemistry_element_Si] * inv_mass *
+  ratio_solar[9] = elem_mass[ELEMENT_Si] * inv_mass *
                    cooling->SolarAbundances_inv[7 /* Si */] *
                    cooling->Ca_over_Si_ratio_in_solar;
 
-  ratio_solar[10] = elem_mass[chemistry_element_Fe] * inv_mass *
+  ratio_solar[10] = elem_mass[ELEMENT_Fe] * inv_mass *
                     cooling->SolarAbundances_inv[10 /* Fe */];
 }
 

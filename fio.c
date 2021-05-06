@@ -28,9 +28,9 @@
 #endif
 
 #ifdef COOLING
-//IA: This should be, at most, chemistry_element_count, 
+//IA: This should be, at most, ELEMENT_COUNT,
 // but can be modified if needed to save memory
-#define NUMBER_METALS     9 
+#define NUMBER_METALS     9
 #else
 #define NUMBER_METALS     1
 #endif

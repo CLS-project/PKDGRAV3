@@ -160,17 +160,17 @@ typedef struct velsmooth {
 #define LIGHTSPEED 2.9979e10 /* Speed of Light cm/s */
 #define SECPERYEAR 31557600.0   /* Seconds in a Julian year */
 
-enum chemistry_element {
-  chemistry_element_H = 0,
-  chemistry_element_He,
-  chemistry_element_C,
-  chemistry_element_N,
-  chemistry_element_O,
-  chemistry_element_Ne,
-  chemistry_element_Mg,
-  chemistry_element_Si,
-  chemistry_element_Fe,
-  chemistry_element_count
+enum chemical_elements {
+  ELEMENT_H = 0,
+  ELEMENT_He,
+  ELEMENT_C,
+  ELEMENT_N,
+  ELEMENT_O,
+  ELEMENT_Ne,
+  ELEMENT_Mg,
+  ELEMENT_Si,
+  ELEMENT_Fe,
+  ELEMENT_COUNT
 };
 
 
@@ -320,7 +320,7 @@ typedef struct sphfields {
 #endif
 
 #if defined(COOLING) || defined(STELLAR_EVOLUTION)
-    float chemistry[chemistry_element_count];
+    float afElemMass[ELEMENT_COUNT];
 #endif
 
 #ifdef COOLING
@@ -329,7 +329,7 @@ typedef struct sphfields {
 #endif
 
 #ifdef STELLAR_EVOLUTION
-    float chemistryZ;
+    float fMetalMass;
 #endif
 
 #if defined(MAKE_GLASS) || defined(REGULARIZE_MESH)
@@ -343,23 +343,23 @@ typedef struct sphfields {
 typedef struct starfields {
     double omega;
 #if defined(COOLING) || defined(STELLAR_EVOLUTION)
-    float chemistry[chemistry_element_count];
+    float afElemMass[ELEMENT_COUNT];
 #endif
 
 #ifdef STELLAR_EVOLUTION
-    float chemistryZ;
-    float afEjMass[chemistry_element_count];
-    float fEjMassZ;
+    float fMetalMass;
+    float afElemAbun[ELEMENT_COUNT];
+    float fMetalAbun;
     float fInitialMass;
     float fLastEnrichTime;
     float fLastEnrichMass;
     int iLastEnrichMassIdx;
     struct {
-       int iIdxZ;
+       int oZ;
        float fDeltaZ;
     } CCSN, AGB, Lifetimes;
-    float fTimeCCSN;
-    float fTimeSNIa;
+    float fCCSNOnsetTime;
+    float fSNIaOnsetTime;
 #endif
 
     float fTimer;  /* Time of formation */

@@ -99,9 +99,9 @@ void pkdStarForm(PKD pkd,
 	  float fMass = pkdMass(pkd, p);
           // If no information, assume primoridal abundance
 #ifdef COOLING
-          const double hyd_abun = psph->chemistry[chemistry_element_H] / fMass;
+          const double hyd_abun = psph->afElemMass[ELEMENT_H] / fMass;
 #else
-          const double hyd_abun = 0.75;
+          const double hyd_abun = 0.75; 
 #endif
 
           const double rho_H = pkdDensity(pkd,p) * hyd_abun;
@@ -137,11 +137,11 @@ void pkdStarForm(PKD pkd,
             //printf("STARFORM %e %e %e \n", dScaleFactor, rho_H, psph->Uint);
 
 #ifdef STELLAR_EVOLUTION
-	    float chemistry[chemistry_element_count];
-	    float chemistryZ;
-	    for (j = 0; j < chemistry_element_count; j++)
-	       chemistry[j] = psph->chemistry[j];
-	    chemistryZ = psph->chemistryZ;
+	    float afElemMass[ELEMENT_COUNT];
+	    float fMetalMass;
+	    for (j = 0; j < ELEMENT_COUNT; j++)
+	       afElemMass[j] = psph->afElemMass[j];
+	    fMetalMass = psph->fMetalMass;
 #endif
 
             // We just change the class of the particle to stellar one
@@ -158,30 +158,38 @@ void pkdStarForm(PKD pkd,
             }
 
 #ifdef STELLAR_EVOLUTION
-	    for (j = 0; j < chemistry_element_count; j++)
-	       pStar->chemistry[j] = chemistry[j];
-	    pStar->chemistryZ = chemistryZ;
-
-	    for (j = 0; j < chemistry_element_count; j++)
-	       pStar->afEjMass[j] = 0.0f;
-	    pStar->fEjMassZ = 0.0f;
+	    for (j = 0; j < ELEMENT_COUNT; j++) {
+	       pStar->afElemMass[j] = afElemMass[j];
+	       pStar->afElemAbun[j] = afElemMass[j] / fMass;
+	    }
+	    pStar->fMetalMass = fMetalMass;
+	    pStar->fMetalAbun = fMetalMass / fMass;
 
 	    pStar->fInitialMass = fMass;
 
 	    pStar->fLastEnrichTime = -1.0f;
 	    pStar->fLastEnrichMass = -1.0f;
-	    pStar->iLastEnrichMassIdx = -1;
+	    pStar->iLastEnrichMassIdx = STEV_INTERP_N_MASS - 1;
 
-	    /* WARNING: Buffer metallicities not in log */
+	    int iIdxZ;
+	    float fLogZ;
+	    if (pStar->fMetalAbun > 0.0f)
+	       fLogZ = log10(pStar->fMetalAbun);
+	    else
+	       fLogZ = STEV_MIN_LOG_METALLICITY;
+
 	    stevGetIndex1D(pkd->StelEvolData->afCCSN_Zs, STEV_CCSN_N_METALLICITY,
-			   chemistryZ / fMass, &pStar->CCSN.iIdxZ, &pStar->CCSN.fDeltaZ);
+			   fLogZ, &iIdxZ, &pStar->CCSN.fDeltaZ);
+	    pStar->CCSN.oZ = iIdxZ * STEV_INTERP_N_MASS;
 	    stevGetIndex1D(pkd->StelEvolData->afAGB_Zs, STEV_AGB_N_METALLICITY,
-			   chemistryZ / fMass, &pStar->AGB.iIdxZ, &pStar->AGB.fDeltaZ);
+			   fLogZ, &iIdxZ, &pStar->AGB.fDeltaZ);
+	    pStar->AGB.oZ = iIdxZ * STEV_INTERP_N_MASS;
 	    stevGetIndex1D(pkd->StelEvolData->afLifetimes_Zs, STEV_LIFETIMES_N_METALLICITY,
-			   chemistryZ / fMass, &pStar->Lifetimes.iIdxZ, &pStar->Lifetimes.fDeltaZ);
+			   fLogZ, &iIdxZ, &pStar->Lifetimes.fDeltaZ);
+	    pStar->Lifetimes.oZ = iIdxZ * STEV_LIFETIMES_N_MASS;
 
-	    pStar->fTimeCCSN = stevLifetimeFunction(pkd, pStar, pkd->param.dCCSN_MinMass);
-	    pStar->fTimeSNIa = stevLifetimeFunction(pkd, pStar, pkd->param.dSNIa_MaxMass);
+	    pStar->fCCSNOnsetTime = stevLifetimeFunction(pkd, pStar, pkd->param.dIMF_MaxMass);
+	    pStar->fSNIaOnsetTime = stevLifetimeFunction(pkd, pStar, pkd->param.fSNIa_MaxMass);
 #endif
 
             // We log statistics about the formation time

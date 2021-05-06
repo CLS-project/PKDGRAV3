@@ -923,6 +923,9 @@ void pkdFinish(PKD pkd) {
 #ifdef COOLING
     cooling_clean(pkd->cooling); 
 #endif
+#ifdef STELLAR_EVOLUTION
+    free(pkd->StelEvolData);
+#endif
     SIMD_free(pkd);
     }
 
@@ -1096,7 +1099,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
     float *pPot, dummypot;
     double r[3];
     double vel[3];
-    float fMass, fSoft,fDensity,u,fMetals[chemistry_element_count],fTimer;
+    float fMass, fSoft,fDensity,u,fMetals[ELEMENT_COUNT],fTimer;
     FIO_SPECIES eSpecies;
     uint64_t iParticleID;
 
@@ -1162,10 +1165,10 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
                = pSph->diff = pSph->fMetals = pSph->fMetalsPred = pSph->fMetalsDot = 0.0;
 #endif
 #if defined(COOLING) || defined(STELLAR_EVOLUTION)
-            for (j=0;j<chemistry_element_count;j++ ) pSph->chemistry[j]=0.;
+            for (j=0;j<ELEMENT_COUNT;j++ ) pSph->afElemMass[j]=0.;
 #endif
 #ifdef STELLAR_EVOLUTION
-	    pSph->chemistryZ = 0.0;
+	    pSph->fMetalMass = 0.0;
 #endif
             u = (u<0.0) ? -u*dTuFac : u; // If the value is negative, means that it is a temperature
 #ifndef OPTIM_REMOVE_UNUSED
@@ -1218,7 +1221,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             pSph->lastUpdateTime = -1.;
            // pSph->nLastNeighs = 100;
 #if defined(COOLING) || defined(STELLAR_EVOLUTION)
-            for (j=0; j<chemistry_element_count; j++) pSph->chemistry[j] = fMetals[j] * fMass;
+            for (j=0; j<ELEMENT_COUNT; j++) pSph->afElemMass[j] = fMetals[j] * fMass;
 #endif
 #ifdef COOLING
             pSph->lastCooling = 0.;
@@ -2190,7 +2193,7 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,BND *bnd,
     BHFIELDS *pBH;
     float *pPot, dummypot;
     double v[3],r[3];
-    float fMass, fSoft, fDensity,fMetals[chemistry_element_count], fTimer, fBall;
+    float fMass, fSoft, fDensity,fMetals[ELEMENT_COUNT], fTimer, fBall;
     uint64_t iParticleID;
     int j;
 
@@ -2271,10 +2274,10 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,BND *bnd,
 #ifdef COOLING
           const double dRedshift = dvFacGas - 1.;
           float temperature =  cooling_get_temperature(pkd, dRedshift, pkd->cooling, p, pSph);
-          for (int k=0; k<chemistry_element_count;k++) fMetals[k] = pSph->chemistry[k] / fMass;
+          for (int k=0; k<ELEMENT_COUNT;k++) fMetals[k] = pSph->afElemMass[k] / fMass;
 #else
           float temperature = 0; 
-          for (int k=0; k<chemistry_element_count;k++) fMetals[k] = 0.;
+          for (int k=0; k<ELEMENT_COUNT;k++) fMetals[k] = 0.;
 #endif
 
 #ifdef STAR_FORMATION
@@ -2302,12 +2305,10 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,BND *bnd,
 	break;
     case FIO_SPECIES_STAR:
       pStar = pkdStar(pkd,p);
-#ifdef STELLAR_EVOLUTION
-      for (int k=0; k<chemistry_element_count;k++) fMetals[k] = pStar->chemistry[k] / pStar->fInitialMass;
-#elif defined(COOLING)
-      for (int k=0; k<chemistry_element_count;k++) fMetals[k] = pStar->chemistry[k] / fMass;
+#if defined(COOLING) || defined(STELLAR_EVOLUTION)
+      for (int k=0; k<ELEMENT_COUNT;k++) fMetals[k] = pStar->afElemMass[k] / fMass;
 #else
-      for (int k=0; k<chemistry_element_count;k++) fMetals[k] = 0.;
+      for (int k=0; k<ELEMENT_COUNT;k++) fMetals[k] = 0.;
 #endif
       float otherData[2];
       otherData[0] = pStar->fTimer;
