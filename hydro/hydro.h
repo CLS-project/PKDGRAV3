@@ -82,6 +82,7 @@ void hydroRiemann_vec(PARTICLE *p,float fBall,int nSmooth,
 void combThirdHydroLoop(void *vpkd, void *p1,void *p2);
 
 /* Time step loop */
+void msrHydroStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime);
 void initHydroStep(void *vpkd, void *vp);
 void hydroStep(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf);
 void combHydroStep(void *vpkd, void *p1,void *p2);

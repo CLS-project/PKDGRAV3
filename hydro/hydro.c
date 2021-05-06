@@ -1830,6 +1830,43 @@ void combThirdHydroLoop(void *vpkd, void *p1,void *p2) {
  */
 
 
+void msrHydroStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime) {
+    int bSymmetric = 0; 
+    double sec, dsec;
+
+    printf("Computing hydro time step... ");
+
+    sec = msrTime();
+#ifdef OPTIM_SMOOTH_NODE
+#ifdef OPTIM_AVOID_IS_ACTIVE
+       msrSelActive(msr);
+#endif
+    msrReSmoothNode(msr,dTime,SMX_HYDROSTEP,1, 0);
+#else
+    msrReSmooth(msr,dTime,SMX_HYDROSTEP,1, 0);
+#endif
+
+    if (msr->param.bGlobalDt){
+       if (msr->param.dFixedDelta != 0.0){
+          msrSetGlobalDt(msr, msr->param.dFixedDelta);
+       }else{
+          uint8_t minDt;
+          minDt = msrGetMinDt(msr);
+          msrSetGlobalDt(msr, minDt);
+       }
+    }
+    dsec = msrTime() - sec;
+    printf("took %.5f seconds\n", dsec);
+
+    if (msr->param.bWakeUpParticles){
+       struct inDrift in;
+       in.iRoot = 0; // Not used
+       in.dTime = dTime;
+       in.dDelta = 0; // Not used
+       pstWakeParticles(msr->pst,&in,sizeof(in),NULL,0); 
+    }
+}
+
 void initHydroStep(void *vpkd, void *vp) {
 }
 
