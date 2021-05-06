@@ -1,4 +1,4 @@
-/*  This file is part of PKDGRAV3 (http://www.pkdgrav.org/).
+p/*  This file is part of PKDGRAV3 (http://www.pkdgrav.org/).
  *  Copyright (c) 2001-2018 Joachim Stadel & Douglas Potter
  *
  *  PKDGRAV3 is free software: you can redistribute it and/or modify
@@ -40,6 +40,9 @@
 #ifdef BLACKHOLES
 #include "blackhole/merger.h"
 #include "blackhole/evolve.h"
+#endif
+#ifdef STELLAR_EVOLUTION
+#include "stellarevolution/stellarevolution.h"
 #endif
 #include <sys/stat.h>
 
@@ -362,6 +365,15 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
 	initParticle = NULL; /* Original Particle */
 	init = initBHevolve; /* Cached copies */
 	comb = combBHevolve;
+	smx->fcnPost = NULL;
+	break;
+#endif
+#ifdef STELLAR_EVOLUTION
+    case SMX_CHEM_ENRICHMENT:
+        smx->fcnSmooth = smChemEnrich;
+	initParticle = NULL;
+	init = initChemEnrich;
+	comb = combChemEnrich;
 	smx->fcnPost = NULL;
 	break;
 #endif
@@ -2752,6 +2764,20 @@ int  smReSmooth(SMX smx,SMF *smf, int iSmoothType) {
             }
           }
           break;
+#endif
+#ifdef STELLAR_EVOLUTION
+       case SMX_CHEM_ENRICHMENT:
+	  for (pi = 0; pi < pkd->nLocal; ++pi) {
+	     p = pkdParticle(pkd, pi);
+	     if (pkdIsStar(pkd, p)) {
+		STARFIELDS *pStar = pkdStar(pkd, p);
+		if ((float)smf->dTime - pStar->fTimer > pStar->fCCSNOnsetTime) {
+		   smReSmoothSingle(smx, smf, p, 2.0 * pkdBall(pkd, p));
+		   nSmoothed++;
+		}
+	     }
+	  }
+	  break;
 #endif
        default:
           for (pi=0;pi<pkd->nLocal;++pi) {

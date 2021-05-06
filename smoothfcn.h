@@ -189,6 +189,10 @@ void SphForces(PARTICLE *,float fBall,int,NN *,SMF *);
 #define SMX_BH_MERGER         50
 #define SMX_BH_DRIFT          51
 
+#ifdef STELLAR_EVOLUTION
+#define SMX_CHEM_ENRICHMENT   60
+#endif
+
 #define SMX_DIST_DELETED_GAS                    7
 void initDistDeletedGas(void *,void *p1);
 void combDistDeletedGas(void *,void *p1,void *p2);
