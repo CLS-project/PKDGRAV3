@@ -1900,13 +1900,13 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
 		sizeof(double), "imfmaxmass",
 		"Upper mass limit of the Initial Mass Function <Mo>");
 
-    msr->param.dCCSN_MinMass = 6.0;
-    prmAddParam(msr->prm, "dCCSN_MinMass", 2, &msr->param.dCCSN_MinMass,
+    msr->param.fCCSN_MinMass = 6.0;
+    prmAddParam(msr->prm, "fCCSN_MinMass", 2, &msr->param.fCCSN_MinMass,
 		sizeof(double), "ccsnminmass",
 		"Minimum mass for a star to end its life as a Core Collapse Supernova <Mo>");
 
-    msr->param.dSNIa_MaxMass = 8.0;
-    prmAddParam(msr->prm, "dSNIa_MaxMass", 2, &msr->param.dSNIa_MaxMass,
+    msr->param.fSNIa_MaxMass = 8.0;
+    prmAddParam(msr->prm, "fSNIa_MaxMass", 2, &msr->param.fSNIa_MaxMass,
 		sizeof(double), "sniamaxmass",
 		"Maximum mass for the likely progenitors of SNIa events <Mo>");
 
@@ -2040,11 +2040,6 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
 #endif
 
 #ifdef STELLAR_EVOLUTION
-    /* Conversion of parameters dIMF_MinMass and dIMF_MaxMass into code units is intentionally omitted here.
-       Conversion of relevant quantities is performed just before distributing the tables to all processes. */
-    msr->param.dCCSN_MinMass /= msr->param.dMsolUnit;
-    msr->param.dSNIa_MaxMass /= msr->param.dMsolUnit;
-    msr->param.dSNIa_Norm    *= msr->param.dMsolUnit;
     msr->param.dSNIa_Norm_ti *= SECPERYEAR / msr->param.dSecUnit;
     msr->param.dSNIa_Norm_tf *= SECPERYEAR / msr->param.dSecUnit;
 
@@ -2058,7 +2053,7 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
     else {
        printf("ERROR: Undefined DTD type has been given in achSNIa_DTDtype parameter: %s\n",
 	      msr->param.achSNIa_DTDtype);
-       abort();
+       assert(0);
     }
 #endif
 

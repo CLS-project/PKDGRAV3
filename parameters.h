@@ -321,8 +321,8 @@ struct parameters {
     char achIMFtype[32];
     double dIMF_MinMass;
     double dIMF_MaxMass;
-    double dCCSN_MinMass;
-    double dSNIa_MaxMass;
+    double fCCSN_MinMass;
+    double fSNIa_MaxMass;
     double dSNIa_Norm;
     double dSNIa_Scale;
     double dSNIa_Norm_ti;
