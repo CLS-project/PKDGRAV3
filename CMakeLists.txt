@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.1)
 project(pkdgrav3 VERSION 3.0.4)
 
+cmake_policy(SET CMP0074 NEW)
+
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/mdl2)
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR})
 
@@ -301,6 +303,13 @@ if (FEEDBACK)
    target_compile_options(${PROJECT_NAME} PRIVATE -DFEEDBACK)
    message("-- Feedback from SNII is ACTIVE")
 endif(FEEDBACK)
+
+option(STELLAR_EVOLUTION "Activate time-resolved mass return from star particles into their surrounding media" OFF)
+if (STELLAR_EVOLUTION)
+   target_sources(${PROJECT_NAME} PRIVATE  stellarevolution/stellarevolution.c) 
+   target_compile_options(${PROJECT_NAME} PRIVATE -DSTELLAR_EVOLUTION)
+   message("-- Stellar evolution is ACTIVE")
+endif(STELLAR_EVOLUTION)
 
 option(HERNQUIST_POTENTIAL "Add the contribution of DM using a Hernquist potential" OFF)
 if (HERNQUIST_POTENTIAL)

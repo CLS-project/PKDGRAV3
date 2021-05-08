@@ -9,14 +9,15 @@
 #include <hdf5.h>
 
 #include "stellarevolution.h"
-#include "interpolate.h"
+#include "cooling/interpolate.h"
+#include "hydro/hydro.h"
 
 
 void msrStellarEvolutionInit(MSR msr) {
    assert(STEV_N_ELEM == ELEMENT_COUNT);
 
    int i;
-   char achPath[256];
+   char achPath[280];
    STEV_RAWDATA *CCSNdata, *AGBdata, *SNIadata, *LifetimesData;
 
 
@@ -225,7 +226,7 @@ void msrStellarEvolutionInit(MSR msr) {
 int pstStellarEvolutionInit(PST pst, void *vin, int nIn, void *vout, int nOut) {
    mdlassert(pst->mdl, nIn == sizeof(struct inStellarEvolution));
    if (pst->nLeaves > 1) {
-      int rID = mdlReqService(pst->mdl, pst->idUpper, STELLAREVOLUTIONINIT, vin, nIn);
+      int rID = mdlReqService(pst->mdl, pst->idUpper, PST_STELLAREVOLUTIONINIT, vin, nIn);
       pstStellarEvolutionInit(pst->pstLower, vin, nIn, NULL, 0);
       mdlGetReply(pst->mdl, rID, NULL, NULL);
    }
@@ -254,18 +255,18 @@ int pkdStellarEvolutionInit(PKD pkd, STEV_DATA *data) {
    for (int i = 0; i < pkd->nLocal; ++i) {
       PARTICLE *p = pkdParticle(pkd,i);
       if (pkdIsGas(pkd, p)) {
-         SPHFIELDS *psph = pkdSph(pkd,p);
+         SPHFIELDS *pSph = pkdSph(pkd,p);
 	 float fMass = pkdMass(pkd, p);
-         if (psph->afElemMass[ELEMENT_H] == 0.0f) { /* TODO: Why this?????? */
-            psph->afElemMass[ELEMENT_H]  = pkd->param.dInitialH  * fMass;
-            psph->afElemMass[ELEMENT_He] = pkd->param.dInitialHe * fMass;
-            psph->afElemMass[ELEMENT_C]  = pkd->param.dInitialC  * fMass;
-            psph->afElemMass[ELEMENT_N]  = pkd->param.dInitialN  * fMass;
-            psph->afElemMass[ELEMENT_O]  = pkd->param.dInitialO  * fMass;
-            psph->afElemMass[ELEMENT_Ne] = pkd->param.dInitialNe * fMass;
-            psph->afElemMass[ELEMENT_Mg] = pkd->param.dInitialMg * fMass;
-            psph->afElemMass[ELEMENT_Si] = pkd->param.dInitialSi * fMass;
-            psph->afElemMass[ELEMENT_Fe] = pkd->param.dInitialFe * fMass;
+         if (pSph->afElemMass[ELEMENT_H] == 0.0f) { /* TODO: Why this?????? */
+            pSph->afElemMass[ELEMENT_H]  = pkd->param.dInitialH  * fMass;
+            pSph->afElemMass[ELEMENT_He] = pkd->param.dInitialHe * fMass;
+            pSph->afElemMass[ELEMENT_C]  = pkd->param.dInitialC  * fMass;
+            pSph->afElemMass[ELEMENT_N]  = pkd->param.dInitialN  * fMass;
+            pSph->afElemMass[ELEMENT_O]  = pkd->param.dInitialO  * fMass;
+            pSph->afElemMass[ELEMENT_Ne] = pkd->param.dInitialNe * fMass;
+            pSph->afElemMass[ELEMENT_Mg] = pkd->param.dInitialMg * fMass;
+            pSph->afElemMass[ELEMENT_Si] = pkd->param.dInitialSi * fMass;
+            pSph->afElemMass[ELEMENT_Fe] = pkd->param.dInitialFe * fMass;
          }
       }
    }
@@ -282,10 +283,10 @@ void initChemEnrich(void *vpkd, void *vp) {
    if (pkdIsGas(pkd, p)) {
       *((float *) pkdField(p, pkd->oMass)) = 0.0f;
 
-      SPHFIELDS *psph = pkdSph(pkd,p);
+      SPHFIELDS *pSph = pkdSph(pkd,p);
       for (int j = 0; j < ELEMENT_COUNT; j++)
-	 psph->afElemMass[j]  = 0.0f;
-      psph->fMetalMass = 0.0f;
+	 pSph->afElemMass[j]  = 0.0f;
+      pSph->fMetalMass = 0.0f;
    }
 }
 
@@ -296,13 +297,13 @@ void combChemEnrich(void *vpkd, void *vp1, void *vp2) {
    PARTICLE *p2 = vp2;
 
    if (pkdIsGas(pkd, p1) && pkdIsGas(pkd, p2)) {
-      *((float *) pkdField(p1, pkd->oMass)) += *((float *) pkdField(p2, pkd->oMass));
+      *((float *) pkdField(p1, pkd->oMass)) += pkdMass(pkd, p2);
 
-      SPHFIELDS *psph1 = pkdSph(pkd, p1);
-      SPHFIELDS *psph2 = pkdSph(pkd, p2);
+      SPHFIELDS *pSph1 = pkdSph(pkd, p1);
+      SPHFIELDS *pSph2 = pkdSph(pkd, p2);
       for (int j = 0; j < ELEMENT_COUNT; j++)
-	 psph1->afElemMass[j] += psph2->afElemMass[j];
-      psph1->fMetalMass += psph2->fMetalMass;
+	 pSph1->afElemMass[j] += pSph2->afElemMass[j];
+      pSph1->fMetalMass += pSph2->fMetalMass;
    }
 }
 
@@ -340,7 +341,7 @@ void smChemEnrich(PARTICLE *p, float fBall, int nSmooth, NN *nnList, SMF *smf) {
       idxMi = pStar->iLastEnrichMassIdx + 1;
    }
 
-   const float tf = (float)smf->dTime - pStar->ftimer;
+   const float tf = (float)smf->dTime - pStar->fTimer;
    const float Mf = stevInverseLifetimeFunction(pkd, pStar, tf);
    const int idxMf = stevGetIMFMassIndex(pkd->StelEvolData->afMasses, STEV_INTERP_N_MASS,
 					 Mf, idxMi);
@@ -434,17 +435,38 @@ void smChemEnrich(PARTICLE *p, float fBall, int nSmooth, NN *nnList, SMF *smf) {
 
    PARTICLE *q;
    SPHFIELDS *qSph;
+   float fWeightSum = 0.0f;
    for (i = 0; i < nSmooth; i++) {
       q = nnList[i].pPart;
 
       /* Three alternatives to ignore the star particle */
-      if (!pkdIsGas(q)) continue;
+      if (!pkdIsGas(pkd, q)) continue;
+      if (q == p) continue;
+      if (nnList[i].dx == 0.0f && nnList[i].dy == 0.0f && nnList[i].dz == 0.0f) continue;
+
+      const double dRpq = sqrt(nnList[i].fDist2);
+      const float fWeight = (float)cubicSplineKernel(dRpq, fBall) / pkdDensity(pkd, q);
+
+      qSph = pkdSph(pkd, q);
+      for (int j = 0; j < STEV_N_ELEM; j++)
+	 qSph->afElemMass[j] += fWeight * afElemMass[j];
+      qSph->fMetalMass += fWeight * fMetalMass;
+
+      fWeightSum += fWeight;
+   }
+
+   for (i = 0; i < nSmooth; i++) {
+      q = nnList[i].pPart;
+
+      /* Three alternatives to ignore the star particle */
+      if (!pkdIsGas(pkd, q)) continue;
       if (q == p) continue;
       if (nnList[i].dx == 0.0f && nnList[i].dy == 0.0f && nnList[i].dz == 0.0f) continue;
 
       qSph = pkdSph(pkd, q);
-
-      /* INSERT MASS DISTRIBUTION PLEASE */
+      for (int j = 0; j < STEV_N_ELEM; j++)
+	 qSph->afElemMass[j] /= fWeightSum;
+      qSph->fMetalMass /= fWeightSum;
    }
 }
 
@@ -731,8 +753,6 @@ void stevFreeLifetimesTable(STEV_RAWDATA *RawData) {
 }
 
 
-/* This function assumes that the compiler can find the erf() function and the M_PI value
-   of pi. In POSIX-compliant systems, math.h should declare them */
 void stevChabrierIMF(float *pfMasses, int nSize, double fMinMass, double fMaxMass, float *pfIMF) {
    double Mc = 0.079;
    double Sigma = 0.69;
@@ -767,8 +787,8 @@ float stevExponentialNumSNIa(PKD pkd, STARFIELDS *pStar, float fInitialTime, flo
       fInitialTime = pStar->fSNIaOnsetTime;
    }
 
-   return pkd->param.dSNIa_Norm * (exp(-(ti / pkd->param.dSNIa_Scale)) -
-				   exp(-(tf / pkd->param.dSNIa_Scale)));
+   return pkd->param.dSNIa_Norm * (exp(-(fInitialTime / pkd->param.dSNIa_Scale)) -
+				   exp(-(fFinalTime / pkd->param.dSNIa_Scale)));
 }
 
 

@@ -21,6 +21,7 @@
    - Implementar la inicializacion cuando se empieza de un archivo restart o de una snapshot
    - Analizar pros y contras de hacer la integracion en logaritmos
    - Considerar almacenar valores interpolados del final del ultimo timestep en STARFIELDS
+   - msrLogParams incluir el STELLAR_EVOLUTION
 
    - Por que no estoy utilizando las funciones de interpolacion de interpolate.h?
 */
@@ -46,7 +47,7 @@
  */
 
 typedef struct inStellarEvolution {
-   /* Pointer to the function that gives the number of SNIa in [dTime, dTime + dDelta] */
+   /* Pointer to the function that gives the number of SNIa in [fInitialTime, fFinalTime] */
    float (*fcnNumSNIa)(PKD pkd, STARFIELDS *pStar, float fInitialTime, float fFinalTime);
 
    /* Initial mass array for CCSN and AGB tables */
@@ -184,7 +185,7 @@ static inline void stevInterpolateXAxis(const float *restrict pfTable, const int
    const float *pfLower = pfTable + iOffset * nZ;
    const float *pfUpper = pfLower + nY * nZ;
 
-   float *const pfLowerEnd = pfLower + nSize * nZ;
+   const float *pfLowerEnd = pfLower + nSize * nZ;
    while(pfLower < pfLowerEnd)
       *pfResult++ = *pfLower++ * (1.0f - fWeight) + *pfUpper++ * fWeight;
 }
@@ -202,8 +203,8 @@ static inline void stevComputeAndCorrectEjecta(const float *restrict pfYields,
    int i;
    for (i = 0; i < nElems; i++) {
       pfElemEjMass[i] = pfYields[i] + pfElemAbun[i] * fEjectedMass;
-      if (pfElemEjMass[i] < 0.0f && i != ELEMENT_H && i != ELEMENT_He) {
-	 *pfMetalEjMass -= pfElemEjMass[i];
+      if (pfElemEjMass[i] < 0.0f) {
+	 if (i != ELEMENT_H && i != ELEMENT_He) *pfMetalEjMass -= pfElemEjMass[i];
 	 pfElemEjMass[i] = 0.0f;
       }
    }
@@ -284,7 +285,7 @@ static inline void stevComputeMassToEject(const float *restrict pfYields,
    assert(fDeltaM >= 0.0f);
    for (i = 0; i < nElems; i++) {
       pfElemMass[i] -= (afElemEjMass[i] * (2.0f - fDeltaM) +
-			afElemEjMass[i + nElem] * fDeltaM) *
+			afElemEjMass[i + nElems] * fDeltaM) *
 	               (fMassStart - pfMasses[0]);
    }
    *pfMetalMass -= (afMetalEjMass[0] * (2.0f - fDeltaM) +
@@ -295,9 +296,9 @@ static inline void stevComputeMassToEject(const float *restrict pfYields,
    fDeltaM = (fMassEnd - pfMasses[nSize - 2]) / (pfMasses[nSize - 1] - pfMasses[nSize - 2]);
    assert(fDeltaM >= 0.0f);
    for (i = 0; i < nElems; i++) {
-      j = i + nElem * (nSize - 2);
+      j = i + nElems * (nSize - 2);
       pfElemMass[i] -= (afElemEjMass[j] * (1.0f - fDeltaM) +
-			afElemEjMass[j + nElem] * (1.0f + fDeltaM)) *
+			afElemEjMass[j + nElems] * (1.0f + fDeltaM)) *
 	               (pfMasses[nSize - 1] - fMassEnd);
    }
    *pfMetalMass -= (afMetalEjMass[nSize - 2] * (1.0f - fDeltaM) +

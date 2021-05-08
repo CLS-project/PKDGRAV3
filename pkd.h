@@ -1141,7 +1141,7 @@ typedef struct pkdContext {
     struct cooling_tables *cooling_table;
 #endif
 #ifdef STELLAR_EVOLUTION
-    STEV_DATA *StelEvolData;
+    struct inStellarEvolution *StelEvolData;
 #endif
 
 #ifdef USE_CUDA
