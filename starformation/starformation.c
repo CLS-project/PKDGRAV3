@@ -14,8 +14,7 @@ void msrStarForm(MSR msr, double dTime, double dDelta, int iRung)
     sec = msrTime();
 
     const double a = csmTime2Exp(msr->csm,dTime);
-    const double H = csmTime2Hub(msr->csm,dTime);
-    
+
     in.dScaleFactor = a;
     in.dTime = dTime;
     in.dDelta = dDelta;
@@ -35,18 +34,18 @@ void msrStarForm(MSR msr, double dTime, double dDelta, int iRung)
 
 
     if (msr->param.bVDetails) printf("Star Form (rung: %d) ... ", iRung);
-    
+
     msrActiveRung(msr,iRung,1);
     pstStarForm(msr->pst, &in, sizeof(in), &out, 0);
     if (msr->param.bVDetails)
 	printf("%d Stars formed with mass %g, %d gas deleted\n",
 	       out.nFormed, out.dMassFormed, out.nDeleted);
     msr->massFormed += out.dMassFormed;
-    msr->starFormed += out.nFormed;    
+    msr->starFormed += out.nFormed;
 
     msr->nGas -= out.nFormed;
     msr->nStar += out.nFormed;
-    
+
     sec1 = msrTime();
     dsec = sec1 - sec;
     printf("Star Formation Calculated, Wallclock: %f secs\n\n",dsec);
@@ -59,7 +58,7 @@ void msrStarForm(MSR msr, double dTime, double dDelta, int iRung)
 
 
 
-void pkdStarForm(PKD pkd, 
+void pkdStarForm(PKD pkd,
              double dTime,
              double dDelta,
              double dScaleFactor,
@@ -70,11 +69,10 @@ void pkdStarForm(PKD pkd,
 
     PARTICLE *p;
     SPHFIELDS *psph;
-    double T, E, dt, prob;
+    double dt;
     float* pv;
-    PARTICLE *starp;
     int i;
-    
+
     assert(pkd->oStar);
     assert(pkd->oSph);
     assert(pkd->oMass);
@@ -88,17 +86,17 @@ void pkdStarForm(PKD pkd,
 
     for (i=0;i<pkdLocal(pkd);++i) {
 	p = pkdParticle(pkd,i);
-	
+
 	if (pkdIsActive(pkd,p) && pkdIsGas(pkd,p)) {
 	    psph = pkdSph(pkd,p);
-	    dt = pkd->param.dDelta/(1<<p->uRung); 
+	    dt = pkd->param.dDelta/(1<<p->uRung);
           dt = dTime - psph->lastUpdateTime;
 
           // If no information, assume primoridal abundance
 #ifdef COOLING
           const double hyd_abun = psph->chemistry[chemistry_element_H];
 #else
-          const double rho_H = 0.75; 
+          const double hyd_abun = 0.75;
 #endif
 
           const double rho_H = pkdDensity(pkd,p) * hyd_abun;
@@ -111,23 +109,23 @@ void pkdStarForm(PKD pkd,
           double dens = pkdDensity(pkd,p) * a_m3;
           double maxUint = 3.16228 * pkdMass(pkd,p) * pkd->param.dJeansFlooru *
            pow( dens/pkd->param.dJeansFloorDen , pkd->param.dJeansFloorIndex );
-            
+
           if (psph->Uint > maxUint || rho_H < dDenMin) {
              psph->SFR = 0.;
              continue;
           }
 
 
-          const double dmstar = 
-             pkd->param.dSFnormalizationKS * pkdMass(pkd,p) *  pow(a_m2, 1.4) *
-             pow( pkd->param.dConstGamma * pkd->param.dSFGasFraction * psph->P*a_m3,
-                  pkd->param.dSFindexKS);
+          const double dmstar =
+          pkd->param.dSFnormalizationKS * pkdMass(pkd,p) * pow(a_m2, 1.4) *
+          pow( pkd->param.dConstGamma*pkd->param.dSFGasFraction*psph->P*a_m3,
+               pkd->param.dSFindexKS);
 
           psph->SFR = dmstar;
 
-	    const double prob = 1.0 - exp(-dmstar*dt/pkdMass(pkd,p)); 
+	    const double prob = 1.0 - exp(-dmstar*dt/pkdMass(pkd,p));
           //printf("%e \n", prob);
-	    
+
 	    // Star formation event?
 	    if (rand()<RAND_MAX*prob) {
 
@@ -136,7 +134,7 @@ void pkdStarForm(PKD pkd,
             // We just change the class of the particle to stellar one
             pkdSetClass(pkd, pkdMass(pkd,p), 0., FIO_SPECIES_STAR, p);
 
-            // When changing the class, we have to take into account that 
+            // When changing the class, we have to take into account that
             // the code velocity has different scale factor dependencies for
             // dm/star particles and gas particles
             pv = pkdVel(pkd,p);
@@ -161,4 +159,4 @@ void pkdStarForm(PKD pkd,
 	}
 
 }
-#endif 
+#endif
