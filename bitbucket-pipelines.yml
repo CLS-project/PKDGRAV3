@@ -11,3 +11,14 @@ pipelines:
         script: # Modify the commands below to build your repository.
           - cmake .
           - make
+  branches:
+   IA_dev_optim:
+     - step:
+        script: # Compile with all the new modules
+           - >
+             cmake -DCOOLING=on
+             -DSTAR_FORMATION=on
+             -DFEEDBACK=on
+             -DBLACKHOLES=on
+             .
+           - make
