@@ -1,4 +1,4 @@
-# This is a sample build configuration for C++ – Make.
+# This is a sample build configuration for C++ ï¿½ Make.
 # Check our guides at https://confluence.atlassian.com/x/5Q4SMw for more examples.
 # Only use spaces to indent your .yml configuration.
 # -----
@@ -12,13 +12,14 @@ pipelines:
           - cmake .
           - make
   branches:
-   IA_dev_optim:
-     - step:
-        script: # Compile with all the new modules
-           - >
-             cmake -DCOOLING=on
-             -DSTAR_FORMATION=on
-             -DFEEDBACK=on
-             -DBLACKHOLES=on
-             .
-           - make
+     AM_stev:
+       - step:
+           script:
+             - >
+               cmake -DCOOLING=on
+               -DSTAR_FORMATION=on
+               -DFEEDBACK=on
+               -DBLACKHOLES=on
+               -DSTELLAR_EVOLUTION=on
+               .
+             - make
