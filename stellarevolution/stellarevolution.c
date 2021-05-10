@@ -1,11 +1,7 @@
 #ifdef STELLAR_EVOLUTION
 
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include <math.h>
-#include <assert.h>
 #include <hdf5.h>
 
 #include "stellarevolution.h"

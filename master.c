@@ -2199,6 +2199,9 @@ void msrLogParams(MSR msr,FILE *fp) {
 #ifdef FEEDBACK
    fprintf(fp," FEEDBACK"); 
 #endif
+#ifdef STELLAR_EVOLUTION
+   fprintf(fp," STELLAR_EVOLUTION");
+#endif
 #ifdef HERNQUIST_POTENTIAL
    fprintf(fp," HERNQUIST_POTENTIAL"); 
 #endif
@@ -5064,10 +5067,15 @@ int msrNewTopStepKDK(MSR msr,
       *pdStep,1,bKickOpen,msr->param.bEwald,nGroup,piSec,&nActive);
     }
 
+#if defined(FEEDBACK) || defined(STELLAR_EVOLUTION)
+    msrActiveRung(msr,uRung,0);
 #ifdef FEEDBACK
-      msrActiveRung(msr,uRung,0);
-      msrReSmooth(msr,*pdTime,SMX_SN_FEEDBACK,1,0);
-      msrActiveRung(msr,uRung,1);
+    msrReSmooth(msr,*pdTime,SMX_SN_FEEDBACK,1,0);
+#endif
+#ifdef STELLAR_EVOLUTION
+    msrReSmooth(msr, *pdTime, SMX_CHEM_ENRICHMENT, 1, 0);
+#endif
+    msrActiveRung(msr,uRung,1);
 #endif
 
     msrActiveRung(msr,uRung,1);
@@ -5272,16 +5280,21 @@ void msrTopStepKDK(MSR msr,
 		       (iKickRung<=msr->param.iRungCoolTableUpdate ? 1:0),0);
 	}
 
+#if defined(FEEDBACK) || defined(STELLAR_EVOLUTION)
+	msrActiveRung(msr,iKickRung,0);
 #ifdef FEEDBACK
-   double sec, dsec;
-    printf("Computing feedback... ");
+	double sec, dsec;
+	printf("Computing feedback... ");
 
-    sec = msrTime();
-      msrActiveRung(msr,iKickRung,0);
-      msrReSmooth(msr,dTime,SMX_SN_FEEDBACK,1,0);
-      msrActiveRung(msr,iKickRung,1);
-    dsec = msrTime() - sec;
-    printf("took %.5f seconds\n", dsec);
+	sec = msrTime();
+	msrReSmooth(msr,dTime,SMX_SN_FEEDBACK,1,0);
+	dsec = msrTime() - sec;
+	printf("took %.5f seconds\n", dsec);
+#endif
+#ifdef STELLAR_EVOLUTION
+	msrReSmooth(msr, dTime, SMX_CHEM_ENRICHMENT, 1, 0);
+#endif
+	msrActiveRung(msr,iKickRung,1);
 #endif
 
 

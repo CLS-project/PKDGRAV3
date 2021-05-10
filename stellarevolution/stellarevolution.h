@@ -5,9 +5,6 @@
 
 
 /* NOTAS:
-   - El segundo argumento de la funcion prmAddParam define el nombre con el cual se busca un
-   parametro en el archivo de parametros. El sexto argumento define como se puede especificar
-   el parametro desde la linea de comandos.
    - En EAGLE se impone conservacion de momento y energia al distribuir la masa (Schaye 2015).
    - Arrays del buffer que estan en logaritmo: 
       - CCSN y AGB: Metalicidades
@@ -21,7 +18,8 @@
    - Implementar la inicializacion cuando se empieza de un archivo restart o de una snapshot
    - Analizar pros y contras de hacer la integracion en logaritmos
    - Considerar almacenar valores interpolados del final del ultimo timestep en STARFIELDS
-   - msrLogParams incluir el STELLAR_EVOLUTION
+   - Llamada redundante a msrActiveRung(msr,uRung,1) en msrNewTopStepKDK despues de hacer
+   el feedback.
 
    - Por que no estoy utilizando las funciones de interpolacion de interpolate.h?
 */

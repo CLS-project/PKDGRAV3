@@ -43,6 +43,9 @@
 #if defined(STAR_FORMATION) | defined(FEEDBACK)
 #include "starformation/init.h"
 #endif
+#ifdef STELLAR_EVOLUTION
+#include "stellarevolution/stellarevolution.h"
+#endif
 #ifdef USE_PYTHON
 #include "pkdpython.h"
 #endif
@@ -320,6 +323,9 @@ void master(MDL mdl,void *pst) {
       }else{
          msrCoolingUpdate(msr, 0., 1);
       }
+#endif
+#ifdef STELLAR_EVOLUTION
+      msrStellarEvolutionInit(msr);
 #endif
       msrOutputFineStatistics(msr, 0, -1);
 

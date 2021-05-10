@@ -1,7 +1,9 @@
 cmake_minimum_required(VERSION 3.1)
 project(pkdgrav3 VERSION 3.0.4)
 
+if (CMAKE_VERSION VERSION_GREATER "3.19")
 cmake_policy(SET CMP0074 NEW)
+endif()
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/mdl2)
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR})
