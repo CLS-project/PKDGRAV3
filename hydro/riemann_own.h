@@ -35,44 +35,44 @@ struct Riemann_outputs
     struct Conserved_var_Riemann Fluxes;
 };
 
-inline double DMAX(double a, double b) { return (a > b) ? a : b; }
-inline double DMIN(double a, double b) { return (a < b) ? a : b; }
-inline int Riemann_solver_exact(PKD pkd, 
+INLINE double DMAX(double a, double b) { return (a > b) ? a : b; }
+INLINE double DMIN(double a, double b) { return (a < b) ? a : b; }
+INLINE int Riemann_solver_exact(PKD pkd, 
       double R_rho, double R_p, double R_v[3], double L_rho,double L_p, double L_v[3],
       double *P_M, double *S_M, double *rho_f, double *p_f, double *v_f,
       double n_unit[3], double v_line_L, double v_line_R, double cs_L, double cs_R, double h_L, double h_R);
 
-inline int iterative_Riemann_solver(PKD pkd, 
+INLINE int iterative_Riemann_solver(PKD pkd, 
       double R_rho,double R_p,double L_rho,double L_p,
       double *P_M, double *S_M, 
       double v_line_L, double v_line_R, double cs_L, double cs_R);
 
-inline void convert_face_to_flux(PKD pkd, 
+INLINE void convert_face_to_flux(PKD pkd, 
       double *rho_f, double *p_f, double *v_f, 
       double n_unit[3]);
 
 
-inline double guess_for_pressure(PKD pkd, 
+INLINE double guess_for_pressure(PKD pkd, 
       double R_rho,double R_p,double L_rho,double L_p,
       double *P_M, double *S_M, 
       double v_line_L, double v_line_R, double cs_L, double cs_R);
 
-inline void sample_reimann_vaccum_internal(PKD pkd, double S, 
+INLINE void sample_reimann_vaccum_internal(PKD pkd, double S, 
       double R_rho,double R_p, double R_v[3],double L_rho,double L_p, double L_v[3],
       double *P_M, double *S_M, double *rho_f, double *p_f, double *v_f,
       double n_unit[3], double v_line_L, double v_line_R, double cs_L, double cs_R);
 
-inline void sample_reimann_standard(PKD pkd, double S, 
+INLINE void sample_reimann_standard(PKD pkd, double S, 
       double R_rho,double R_p, double R_v[3],double L_rho,double L_p, double L_v[3],
       double P_M, double S_M, double *rho_f, double *p_f, double *v_f, 
       double n_unit[3], double v_line_L, double v_line_R, double cs_L, double cs_R);
 
-inline void sample_reimann_vaccum_right(PKD pkd, double S, 
+INLINE void sample_reimann_vaccum_right(PKD pkd, double S, 
                                 double R_rho,double R_p, double R_v[3],double L_rho,double L_p, double L_v[3],
                                 double *P_M, double *S_M, double *rho_f, double *p_f, double *v_f, 
                                 double n_unit[3], double v_line_L, double v_line_R, double cs_L, double cs_R);
 
-inline void sample_reimann_vaccum_left(PKD pkd, double S, 
+INLINE void sample_reimann_vaccum_left(PKD pkd, double S, 
                                 double R_rho,double R_p, double R_v[3],double L_rho,double L_p, double L_v[3],
                                 double *P_M, double *S_M, double *rho_f, double *p_f, double *v_f, 
                                 double n_unit[3], double v_line_L, double v_line_R, double cs_L, double cs_R);
