@@ -890,11 +890,13 @@ void pkdFinish(PKD pkd) {
     if (pkd->oSph) {
 	for (pi=0;pi<(pkd->nStore+1);++pi) {
 	    p = pkdParticle(pkd,pi);
-	    ppCList = pkd_pNeighborList(pkd,p);
-	    if (*ppCList) {
-		free(*ppCList);
-		*ppCList = NULL;
-	    }
+          if (pkdIsGas(pkd,p)){
+             ppCList = pkd_pNeighborList(pkd,p);
+             if (*ppCList) {
+               free(*ppCList);
+               *ppCList = NULL;
+             }
+          }
 	}
     }
     /* Only thread zero allocated this memory block  */
