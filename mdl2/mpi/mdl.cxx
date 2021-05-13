@@ -1295,10 +1295,11 @@ void mpiClass::KillAll(int signo) {
 extern "C"
 int mdlLaunch(int argc,char **argv,int (*fcnMaster)(MDL,void *),void * (*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *)) {
     mpiClass mdl(fcnMaster,fcnWorkerInit,fcnWorkerDone,argc,argv);
-    return mdl.Launch(argc,argv,fcnMaster,fcnWorkerInit,fcnWorkerDone);
+    return mdl.Launch(fcnMaster,fcnWorkerInit,fcnWorkerDone);
     }
-int mpiClass::Launch(int argc,char **argv,int (*fcnMaster)(MDL,void *),void * (*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *)) {
-    int i,n,bDiag,bThreads,bDedicated,thread_support,rc,flag,*piTagUB;
+int mpiClass::Launch(int (*fcnMaster)(MDL,void *),void * (*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *)) {
+    int i,j,n,bDiag,bDedicated,thread_support,rc,flag,*piTagUB;
+    bool bThreads = false;
     char *p, ach[256];
     int exit_code = 0;
 #ifdef USE_HWLOC
@@ -1326,36 +1327,40 @@ int mpiClass::Launch(int argc,char **argv,int (*fcnMaster)(MDL,void *),void * (*
     ** diagnostic flag!
     */
     bDiag = 0;
-    bThreads = 0;
     bDedicated = -1;
     if(argv) {
-	for (argc = 0; argv[argc]; argc++);
-	i = 1;
-	while (argv[i]) {
-	    if (!strcmp(argv[i], "-sz") && !bThreads) {
-		++i;
-		nCores = atoi(argv[i]);
-		if (argv[i]) bThreads = 1;
+	for (argc = 0; argv[argc]; argc++) {}
+	;
+	for(i = j = 1; i<argc; ++i) {
+	    if (!strcmp(argv[i], "-sz")) {
+		if (argv[++i]) {
+		    nCores = atoi(argv[i]);
+		    bThreads = true;
+		    }
 		}
-	    if (!strcmp(argv[i], "-dedicated")) {
+	    else if (!strcmp(argv[i], "-dedicated")) {
 		if (bDedicated<1) bDedicated = 0;
 		}
-	    if (!strcmp(argv[i], "+dedicated")) {
+	    else if (!strcmp(argv[i], "+dedicated")) {
 		if (bDedicated<1) bDedicated = 1;
 		}
-	    if (!strcmp(argv[i], "+sharedmpi")) {
+	    else if (!strcmp(argv[i], "+sharedmpi")) {
 		bDedicated = 2;
 		}
-	    if (!strcmp(argv[i], "+d") && !bDiag) {
+	    else if (!strcmp(argv[i], "+d") && !bDiag) {
 		p = getenv("MDL_DIAGNOSTIC");
 		if (!p) p = getenv("HOME");
 		if (!p) sprintf(ach, "/tmp");
 		else sprintf(ach, "%s", p);
 		bDiag = 1;
 		}
-	    ++i;
+	    else {
+		if (i!=j) argv[j] = argv[i];
+		++j;
+		}
 	    }
-	argc = i;
+	argc = j;
+	argv[argc] = nullptr;
 	}
     if (!bThreads) {
 	if ( (p=getenv("SLURM_CPUS_PER_TASK")) != NULL ) nCores = atoi(p);
@@ -1535,9 +1540,11 @@ int mpiClass::Launch(int argc,char **argv,int (*fcnMaster)(MDL,void *),void * (*
     __itt_task_end(domain);
 #endif
 #ifdef USE_HWLOC
-    hwloc_bitmap_free(set_thread);
-    hwloc_bitmap_free(set_proc);
-    hwloc_topology_destroy(topology);
+    if (bDedicated) {
+	hwloc_bitmap_free(set_thread);
+	hwloc_bitmap_free(set_proc);
+	hwloc_topology_destroy(topology);
+	}
 #endif
 #ifdef USE_BT
     register_backtrace();
