@@ -91,8 +91,8 @@ static void iOpenOutcomeCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin) {
 	for(i=0; i<n; ++i) {
 	    if (blk->m.f[i] <= 0) iOpen = 10;  /* ignore this cell */
 	    else {
-		// fourh2 = blk->fourh2.f[i];
-        fourh2 = k->fSoft2;
+		fourh2 = blk->fourh2.f[i];
+        fourh2 = fourh2 > k->fBoBr2 ? fourh2 : k->fBoBr2;
 		xc = blk->x.f[i] + blk->xOffset.f[i];
 		yc = blk->y.f[i] + blk->yOffset.f[i];
 		zc = blk->z.f[i] + blk->zOffset.f[i];

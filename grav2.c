@@ -388,7 +388,7 @@ static void queueDensity( PKD pkd, workParticle *wp, ILP ilp, int bGravStep ) {
     ** if true, calculate new fBall for all particles
     ** else, exit loop
     */
-    if (maxkernelmassdeviation/pkd->fMkerneltarget > 1e-6f) {
+    if (maxkernelmassdeviation/pkd->fMkerneltarget > 1e6f) {
         // do another loop
         for (int i=0; i<wp->nP; i++) {
             float prefac = 4.0f/3.0f*M_PI;

@@ -44,6 +44,7 @@ void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin ) {
     fvec k_xCenter, k_yCenter, k_zCenter, k_xMax, k_yMax, k_zMax;
     fvec k_xMinBnd, k_yMinBnd, k_zMinBnd, k_xMaxBnd, k_yMaxBnd, k_zMaxBnd;
     fvec k_x, k_y, k_z, k_bMax, k_Open;
+    fvec k_fBoBr2;
     fmask k_notgrp;
     double k_r[3];
     pkdNodeGetPos(pkd,k,k_r);
@@ -71,14 +72,16 @@ void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin ) {
     k_bMax = k->bMax;
     k_notgrp = cvt_fvec(i32v(k->bGroup)) == 0.0;
     k_Open = 1.5f*k_bMax*diCrit;
+    k_fBoBr2 = k->fBoBr2;
 
     blk = tile->blk;
     for(nLeft=tile->lstTile.nBlocks; nLeft>=0; --nLeft,blk++) {
 	iEnd = nLeft ? cl->lst.nPerBlock : tile->lstTile.nInLast;
 	iEnd = (iEnd+fvec::mask()) >> SIMD_BITS;
 	for(i=0; i<iEnd; ++i) {
-	    // fourh2 = blk->fourh2.p[i];
-	    fourh2 = k->fSoft2;
+	    fourh2 = blk->fourh2.p[i];
+        T0 = fourh2 > k_fBoBr2;
+        fourh2 = mask_mov(k_fBoBr2,T0,fourh2);
 	    xc = fvec(blk->x.p[i]) + fvec(blk->xOffset.p[i]);
 	    yc = fvec(blk->y.p[i]) + fvec(blk->yOffset.p[i]);
 	    zc = fvec(blk->z.p[i]) + fvec(blk->zOffset.p[i]);

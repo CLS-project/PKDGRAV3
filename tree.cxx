@@ -602,6 +602,7 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
     BND bnd;
     double kdn_r[3];
     double fSoft,x,y,z,ax,ay,az,ft[3],d2,d2Max,dih2,bmin,b;
+    double dx,dy,dz,fBoBr,fBoBrq;
     float *a, m, fMass, fBall;
     vel_t *v, vx, vy, vz;
     int pj,d,nDepth,ism;
@@ -711,11 +712,17 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
 	a = pkd->oFieldOffset[oAcceleration] ? pkdAccel(pkd,p) : zeroF;
 	m = pkdMass(pkd,p);
 	fSoft = pkdSoft(pkd,p);
-    fSoft = fSoft > 1.5f * pkdBall(pkd,p) ? fSoft : 1.5f * pkdBall(pkd,p);
 	v = pkd->oFieldOffset[oVelocity] ? pkdVel(pkd,p) : zeroV;
 	fMass = m;
 	dih2 = fSoft;
 	pkdGetPos3(pkd,p,x,y,z);
+
+    /* calculate ball of balls */
+    dx = bnd.fCenter[0] - x;
+    dy = bnd.fCenter[1] - y;
+    dz = bnd.fCenter[2] - z;
+    fBoBr = sqrt(dx*dx + dy*dy + dz*dz) + pkdBall(pkd,p);
+
 	x *= m;
 	y *= m;
 	z *= m;
@@ -731,11 +738,18 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
 	    a = pkd->oFieldOffset[oAcceleration] ? pkdAccel(pkd,p) : zeroF;
 	    m = pkdMass(pkd,p);
 	    fSoft = pkdSoft(pkd,p);
-        fSoft = fSoft > 1.5f * pkdBall(pkd,p) ? fSoft : 1.5f * pkdBall(pkd,p);
 	    v = pkd->oFieldOffset[oVelocity] ? pkdVel(pkd,p) : zeroV;
 	    fMass += m;
 	    if (fSoft>dih2) dih2=fSoft;
 	    pkdGetPos1(pkd,p,ft);
+
+        /* calculate ball of balls */
+        dx = bnd.fCenter[0] - ft[0];
+        dy = bnd.fCenter[1] - ft[1];
+        dz = bnd.fCenter[2] - ft[2];
+        fBoBrq = sqrt(dx*dx + dy*dy + dz*dz) + pkdBall(pkd,p);
+        fBoBr = fBoBrq > fBoBr ? fBoBrq : fBoBr;
+
 	    x += m*ft[0];
 	    y += m*ft[1];
 	    z += m*ft[2];
@@ -766,6 +780,7 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
 	    pAcc[2] = m*az;
 	    }
 	pkdn->fSoft2 = dih2*dih2;
+    pkdn->fBoBr2 = fBoBr*fBoBr;
 	d2Max = 0.0;
 	for (pj=pkdn->pLower;pj<=pkdn->pUpper;++pj) {
 	    p = pkdParticle(pkd,pj);
@@ -983,6 +998,7 @@ void pkdCombineCells1(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
 		= ifMass*(m1*pkdNodeAccel(pkd,p1)[j] + m2*pkdNodeAccel(pkd,p2)[j]);
 	}
     pkdn->fSoft2 = p1->fSoft2 > p2->fSoft2 ? p1->fSoft2 : p2->fSoft2;
+    pkdn->fBoBr2 = p1->fBoBr2 > p2->fBoBr2 ? p1->fBoBr2 : p2->fBoBr2; // TM: this is probably wrong
     pkdn->uMinRung = p1->uMinRung < p2->uMinRung ? p1->uMinRung : p2->uMinRung;
     pkdn->uMaxRung = p1->uMaxRung > p2->uMaxRung ? p1->uMaxRung : p2->uMaxRung;
     }

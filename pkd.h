@@ -415,6 +415,8 @@ typedef struct kdNode {
     uint32_t bRemote    : 1; /* children are remote */
     float bMax;
     float fSoft2;
+    float fBoBr2;       /* Ball of Balls radius squared */
+    float test;         /* needed for alignment reasons */
     } KDN;
 
 typedef struct sphBounds {
