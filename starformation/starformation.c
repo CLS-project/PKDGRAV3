@@ -159,17 +159,13 @@ void pkdStarForm(PKD pkd,
 
 #ifdef STELLAR_EVOLUTION
 	    for (j = 0; j < ELEMENT_COUNT; j++) {
-	       pStar->afElemMass[j] = afElemMass[j];
 	       pStar->afElemAbun[j] = afElemMass[j] / fMass;
+	       pStar->afCumElemMassEj[j] = 0.0f;
 	    }
-	    pStar->fMetalMass = fMetalMass;
 	    pStar->fMetalAbun = fMetalMass / fMass;
+	    pStar->fCumMetalMassEj = 0.0f;
 
 	    pStar->fInitialMass = fMass;
-
-	    pStar->fLastEnrichTime = -1.0f;
-	    pStar->fLastEnrichMass = -1.0f;
-	    pStar->iLastEnrichMassIdx = STEV_INTERP_N_MASS - 1;
 
 	    int iIdxZ;
 	    float fLogZ;
@@ -190,6 +186,10 @@ void pkdStarForm(PKD pkd,
 
 	    pStar->fCCSNOnsetTime = stevLifetimeFunction(pkd, pStar, pkd->param.dIMF_MaxMass);
 	    pStar->fSNIaOnsetTime = stevLifetimeFunction(pkd, pStar, pkd->param.fSNIa_MaxMass);
+
+	    pStar->fLastEnrichTime = pStar->fCCSNOnsetTime;
+	    pStar->fLastEnrichMass = pkd->param.dIMF_MaxMass;
+	    pStar->iLastEnrichMassIdx = STEV_INTERP_N_MASS - 1;
 #endif
 
             // We log statistics about the formation time

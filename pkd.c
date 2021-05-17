@@ -2306,7 +2306,7 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,BND *bnd,
     case FIO_SPECIES_STAR:
       pStar = pkdStar(pkd,p);
 #if defined(COOLING) || defined(STELLAR_EVOLUTION)
-      for (int k=0; k<ELEMENT_COUNT;k++) fMetals[k] = pStar->afElemMass[k] / fMass;
+      for (int k=0; k<ELEMENT_COUNT;k++) fMetals[k] = pStar->afElemAbun[k];
 #else
       for (int k=0; k<ELEMENT_COUNT;k++) fMetals[k] = 0.;
 #endif

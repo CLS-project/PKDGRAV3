@@ -343,13 +343,13 @@ typedef struct sphfields {
 typedef struct starfields {
     double omega;
 #if defined(COOLING) || defined(STELLAR_EVOLUTION)
-    float afElemMass[ELEMENT_COUNT];
+    float afElemAbun[ELEMENT_COUNT]; /* Formation abundances */
 #endif
 
 #ifdef STELLAR_EVOLUTION
-    float fMetalMass;
-    float afElemAbun[ELEMENT_COUNT];
-    float fMetalAbun;
+    float fMetalAbun;		/* Formation metallicity */
+    float afCumElemMassEj[ELEMENT_COUNT];
+    float fCumMetalMassEj;
     float fInitialMass;
     float fLastEnrichTime;
     float fLastEnrichMass;
