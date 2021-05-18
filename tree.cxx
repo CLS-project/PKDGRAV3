@@ -998,9 +998,24 @@ void pkdCombineCells1(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
 		= ifMass*(m1*pkdNodeAccel(pkd,p1)[j] + m2*pkdNodeAccel(pkd,p2)[j]);
 	}
     pkdn->fSoft2 = p1->fSoft2 > p2->fSoft2 ? p1->fSoft2 : p2->fSoft2;
-    pkdn->fBoBr2 = p1->fBoBr2 > p2->fBoBr2 ? p1->fBoBr2 : p2->fBoBr2; // TM: this is probably wrong
     pkdn->uMinRung = p1->uMinRung < p2->uMinRung ? p1->uMinRung : p2->uMinRung;
     pkdn->uMaxRung = p1->uMaxRung > p2->uMaxRung ? p1->uMaxRung : p2->uMaxRung;
+
+    /* Combine ball of balls */
+    float fBoBr_1, fBoBr_2, dx, dy, dz, fdistCenter_1, fdistCenter_2, fBoBrp1, fBoBrp2;
+    fBoBr_1 = sqrt(p1->fBoBr2);
+    fBoBr_2 = sqrt(p2->fBoBr2);
+    dx = p1bnd.fCenter[0] - bnd.fCenter[0];
+    dy = p1bnd.fCenter[1] - bnd.fCenter[1];
+    dz = p1bnd.fCenter[2] - bnd.fCenter[2];
+    fdistCenter_1 = sqrt(dx*dx + dy*dy + dz*dz);
+    dx = p2bnd.fCenter[0] - bnd.fCenter[0];
+    dy = p2bnd.fCenter[1] - bnd.fCenter[1];
+    dz = p2bnd.fCenter[2] - bnd.fCenter[2];
+    fdistCenter_2 = sqrt(dx*dx + dy*dy + dz*dz);
+    fBoBrp1 = fBoBr_1 + fdistCenter_1;
+    fBoBrp2 = fBoBr_2 + fdistCenter_2;
+    pkdn->fBoBr2 = fBoBrp1 > fBoBrp2 ? fBoBrp1*fBoBrp1 : fBoBrp2*fBoBrp2;
     }
 
 
