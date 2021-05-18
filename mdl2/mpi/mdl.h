@@ -444,7 +444,7 @@ public:
     explicit mpiClass(int (*fcnMaster)(MDL,void *),void * (*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *),
     	     int argc=0, char **argv=0);
     virtual ~mpiClass();
-    int Launch(int argc,char **argv,int (*fcnMaster)(MDL,void *),void * (*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *));
+    int Launch(int (*fcnMaster)(MDL,void *),void * (*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *));
     void KillAll(int signo);
 #ifdef USE_CUDA
     void enqueue(const cudaMessage &M, basicQueue &replyTo);
