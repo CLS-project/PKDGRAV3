@@ -168,7 +168,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
     ** Initialize fBall
     */
     Reorder();
-    OutArray(BuildName(0,".ball_before_initializing").c_str(),OUT_BALL_ARRAY);
+    // OutArray(BuildName(0,".ball_before_initializing").c_str(),OUT_BALL_ARRAY);
     ActiveRung(0,1); /* Activate all particles */
     DomainDecomp(-1);
     BuildTree(0);
@@ -177,8 +177,8 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
 
     // write out the ball and density before the gravity pass
     Reorder();
-    OutArray(BuildName(0,".ball_after_initializing").c_str(),OUT_BALL_ARRAY);
-    OutArray(BuildName(0,".den_before_gravity_pass").c_str(),OUT_DENSITY_ARRAY);
+    // OutArray(BuildName(0,".ball_after_initializing").c_str(),OUT_BALL_ARRAY);
+    // OutArray(BuildName(0,".den_before_gravity_pass").c_str(),OUT_DENSITY_ARRAY);
 
     /*
     ** Build tree, activating all particles first (just in case).
@@ -219,7 +219,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
 
     // write out ball and density after the gravity pass
     Reorder();
-    OutArray(BuildName(0,".ball_after_gravity_pass").c_str(),OUT_BALL_ARRAY);
+    // OutArray(BuildName(0,".ball_after_gravity_pass").c_str(),OUT_BALL_ARRAY);
     OutArray(BuildName(0,".den_after_gravity_pass").c_str(),OUT_DENSITY_ARRAY);
 
 
