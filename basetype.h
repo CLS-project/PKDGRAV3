@@ -173,6 +173,8 @@ typedef struct {
     double dFlopSingleGPU;
     double dFlopDoubleCPU;
     double dFlopDoubleGPU;
+
+    int SPHoptions;
     } workParticle;
 
 /*

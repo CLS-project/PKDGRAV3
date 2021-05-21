@@ -2526,7 +2526,7 @@ void msrPrintStat(STAT *ps,char const *pszPrefix,int p) {
 
 uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
 	double dTime, double dDelta, double dStep, double dTheta,
-	int bKickClose,int bKickOpen,int bEwald,int bGravStep,int nPartRhoLoc,int iTimeStepCrit,int nGroup) {
+	int bKickClose,int bKickOpen,int bEwald,int bGravStep,int nPartRhoLoc,int iTimeStepCrit,int nGroup,int SPHoptions) {
     struct inGravity in;
     uint64_t nRungSum[IRUNGMAX+1];
     int i,id,out_size;
@@ -2626,6 +2626,8 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
 		}
 	    }
 	}
+
+    in.SPHoptions = SPHoptions;
 
     out_size = nThreads*sizeof(struct outGravityPerProc) + sizeof(struct outGravityReduct);
     std::unique_ptr<char[]> buffer {new char[out_size]};
@@ -3230,7 +3232,7 @@ int MSR::NewTopStepKDK(
     uint8_t uRung,	/* Rung level */
     double *pdStep,	/* Current step */
     uint8_t *puRungMax,
-    int *pbDoCheckpoint,int *pbDoOutput,int *pbNeedKickOpen) {
+    int *pbDoCheckpoint,int *pbDoOutput,int *pbNeedKickOpen,int SPHoptions) {
     double dDeltaRung,dTimeFixed;
     uint32_t uRoot2=0;
     char achFile[256];
@@ -3263,7 +3265,7 @@ int MSR::NewTopStepKDK(
 	else bDualTree = 0;
 	}
     if (uRung < *puRungMax) {
-	bDualTree = NewTopStepKDK(dTime,dDelta,dTheta,nSteps,bDualTree,uRung+1,pdStep,puRungMax,pbDoCheckpoint,pbDoOutput,pbNeedKickOpen);
+	bDualTree = NewTopStepKDK(dTime,dDelta,dTheta,nSteps,bDualTree,uRung+1,pdStep,puRungMax,pbDoCheckpoint,pbDoOutput,pbNeedKickOpen,SPHoptions);
 	}
 
     /* Drift the "ROOT" (active) tree or all particle */
@@ -3333,14 +3335,14 @@ int MSR::NewTopStepKDK(
     // active tree, or we can get HUGE group cells, and hence too much P-P/P-C
     int nGroup = (bDualTree && uRung > iRungDT) ? 1 : param.nGroup;
     *puRungMax = Gravity(uRung,MaxRung(),ROOT,uRoot2,dTime,dDelta,*pdStep,dTheta,
-    	1,bKickOpen,param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,nGroup);
+    	1,bKickOpen,param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,nGroup,SPHoptions);
 
     if (!uRung && param.bFindGroups) {
 	GroupStats();
 	HopWrite(BuildName(iStep,".fofstats").c_str());
 	}
 
-    if (uRung && uRung < *puRungMax) bDualTree = NewTopStepKDK(dTime,dDelta,dTheta,nSteps,bDualTree,uRung+1,pdStep,puRungMax,pbDoCheckpoint,pbDoOutput,pbNeedKickOpen);
+    if (uRung && uRung < *puRungMax) bDualTree = NewTopStepKDK(dTime,dDelta,dTheta,nSteps,bDualTree,uRung+1,pdStep,puRungMax,pbDoCheckpoint,pbDoOutput,pbNeedKickOpen,SPHoptions);
     if (bDualTree && uRung==iRungDT+1) {
 	msrprintf("Half Drift, uRung: %d\n",iRungDT);
 	dDeltaRung = dDelta/(1 << iRungDT);
@@ -3408,9 +3410,10 @@ void MSR::TopStepKDK(
 	    BuildTree(param.bEwald);
 	    }
 	if (DoGravity()) {
+        int SPHoptions = 1;
 	    Gravity(iKickRung,MAX_RUNG,ROOT,0,dTime,dDeltaStep,dStep,dTheta,0,0,
 	    	param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,
-	    	param.nGroup);
+	    	param.nGroup,SPHoptions);
 	    }
 	
 	if (DoGas()) {

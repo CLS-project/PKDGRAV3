@@ -511,7 +511,7 @@ int pkdGravInteract(PKD pkd,
     struct pkdKickParameters *kick,struct pkdLightconeParameters *lc,struct pkdTimestepParameters *ts,
     KDN *pBucket,LOCR *pLoc,ILP ilp,ILC ilc,
     float dirLsum,float normLsum,int bEwald,double *pdFlop,
-    SMX smx,SMF *smf,int iRoot1,int iRoot2) {
+    SMX smx,SMF *smf,int iRoot1,int iRoot2,int SPHoptions) {
     PARTICLE *p;
     KDN *pkdn = pBucket;
     double r[3], kdn_r[3];
@@ -563,6 +563,8 @@ int pkdGravInteract(PKD pkd,
     wp->ts = ts;
     wp->lc = lc;
     wp->kick = kick;
+
+    wp->SPHoptions = SPHoptions;
 
     for (i=pkdn->pLower;i<=pkdn->pUpper;++i) {
 	p = pkdParticle(pkd,i);

@@ -2154,7 +2154,7 @@ void pkdGravAll(PKD pkd,
     struct pkdKickParameters *kick,struct pkdLightconeParameters *lc,struct pkdTimestepParameters *ts,
     double dTime,int nReps,int bPeriodic,
     int bEwald,int nGroup,int iRoot1, int iRoot2,
-    double fEwCut,double fEwhCut,double dThetaMin,
+    double fEwCut,double fEwhCut,double dThetaMin,int SPHoptions,
     uint64_t *pnActive,
     double *pdPart,double *pdPartNumAccess,double *pdPartMissRatio,
     double *pdCell,double *pdCellNumAccess,double *pdCellMissRatio,
@@ -2205,7 +2205,7 @@ void pkdGravAll(PKD pkd,
 
     *pnActive = pkdGravWalk(pkd,kick,lc,ts,
 	dTime,nReps,bPeriodic && bEwald,nGroup,
-	iRoot1,iRoot2,0,dThetaMin,pdFlop,&dPartSum,&dCellSum);
+	iRoot1,iRoot2,0,dThetaMin,pdFlop,&dPartSum,&dCellSum,SPHoptions);
     pkdStopTimer(pkd,1);
 
     dActive = (double)(*pnActive);

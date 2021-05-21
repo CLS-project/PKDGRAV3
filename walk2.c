@@ -61,7 +61,7 @@ static inline int getCell(PKD pkd,int iCache,int iCell,int id,float *pcOpen,KDN 
 
 
 #ifdef USE_SIMD_OPEN
-void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin );
+void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,int SPHoptions);
 #endif
 #if 1
 /*
@@ -71,7 +71,7 @@ void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin );
 **
 ** This version has been changed by adding the ability to open buckets.
 */
-static void iOpenOutcomeCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin) {
+static void iOpenOutcomeCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,int SPHoptions) {
     const int walk_min_multipole = 3;
     float dx,dy,dz,mink2,d2,d2Open,xc,yc,zc,fourh2,minbnd2,kOpen,cOpen,diCrit;
     int i;
@@ -172,7 +172,7 @@ static void addChild(PKD pkd, int iCache, CL cl, int iChild, int id, float *fOff
 static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2, 
     struct pkdKickParameters *kick,struct pkdLightconeParameters *lc,struct pkdTimestepParameters *ts,
     double dTime,int bEwald,
-    double dThetaMin, double *pdFlop, double *pdPartSum,double *pdCellSum) {
+    double dThetaMin, double *pdFlop, double *pdPartSum,double *pdCellSum,int SPHoptions) {
     KDN *k,*c,*kFind;
     int id,idUpper,iCell,iSib,iLower,iUpper,iCheckCell,iCheckLower,iCellDescend;
     PARTICLE *p;
@@ -325,10 +325,10 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2,
 	    do {
 		CL_LOOP(pkd->cl,cltile) {
 #ifdef USE_SIMD_OPEN
-		    iOpenOutcomeSIMD(pkd,k,pkd->cl,cltile,dThetaMin);
+		    iOpenOutcomeSIMD(pkd,k,pkd->cl,cltile,dThetaMin,SPHoptions);
 		    /*Verify:iOpenOutcomeNewCL(pkd,k,pkd->cl,cltile,dThetaMin);*/
 #else
-		    iOpenOutcomeCL(pkd,k,pkd->cl,cltile,dThetaMin);
+		    iOpenOutcomeCL(pkd,k,pkd->cl,cltile,dThetaMin,SPHoptions);
 #endif
 		    }
 		clClear(pkd->clNew);
@@ -674,7 +674,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2,
 	*/
 	nActive = pkdGravInteract(pkd,kick,lc,ts,
 	    k,&L,pkd->ilp,pkd->ilc,dirLsum,normLsum,bEwald,pdFlop,
-	    smx, &smf, iRoot, iRoot2);
+	    smx, &smf, iRoot, iRoot2, SPHoptions);
 	/*
 	** Update the limit for a shift of the center here based on the opening radius of this
 	** cell (the one we just evaluated).
@@ -807,7 +807,7 @@ int pkdGravWalkHop(PKD pkd,double dTime,int nGroup, double dThetaMin,double *pdF
 int pkdGravWalk(PKD pkd,struct pkdKickParameters *kick,struct pkdLightconeParameters *lc,struct pkdTimestepParameters *ts,
     double dTime,int nReps,int bEwald,int nGroup,
     int iLocalRoot1, int iLocalRoot2,int iVARoot,
-    double dThetaMin,double *pdFlop,double *pdPartSum,double *pdCellSum) {
+    double dThetaMin,double *pdFlop,double *pdPartSum,double *pdCellSum,int SPHoptions) {
     int id;
     float fOffset[3];
     int ix,iy,iz,bRep;
@@ -859,7 +859,7 @@ int pkdGravWalk(PKD pkd,struct pkdKickParameters *kick,struct pkdLightconeParame
 		}
 	    }
 	nActive += processCheckList(pkd, smx, smf, iLocalRoot1, iLocalRoot2, kick,lc,ts,
-	    dTime,bEwald, dThetaMin, pdFlop, pdPartSum, pdCellSum);
+	    dTime,bEwald, dThetaMin, pdFlop, pdPartSum, pdCellSum, SPHoptions);
 	}
 #if 0
     /*
@@ -887,7 +887,7 @@ int pkdGravWalk(PKD pkd,struct pkdKickParameters *kick,struct pkdLightconeParame
 		}
 	    }
 	nActive += processCheckList(pkd, smx, smf, iLocalRoot2, iLocalRoot1,
-	    kick,lc,ts,dTime,0, dThetaMin, pdFlop, pdPartSum, pdCellSum);
+	    kick,lc,ts,dTime,0, dThetaMin, pdFlop, pdPartSum, pdCellSum, SPHoptions);
 	}
 #endif
     doneGravWalk(pkd,smx,&smf);

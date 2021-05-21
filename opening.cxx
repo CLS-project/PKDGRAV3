@@ -32,7 +32,7 @@
 ** This version will also open buckets ("new" criteria)
 */
 extern "C"
-void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin ) {
+void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,int SPHoptions) {
     const float walk_min_multipole = 3;
     fmask T0,T1,T2,T3,T4,T6,T7;
     i32v P1,P2,P3,P4;
