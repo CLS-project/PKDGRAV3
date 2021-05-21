@@ -174,7 +174,7 @@ typedef struct {
     double dFlopDoubleCPU;
     double dFlopDoubleGPU;
 
-    int SPHoptions;
+    uint64_t SPHoptions;
     } workParticle;
 
 /*

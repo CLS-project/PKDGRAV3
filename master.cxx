@@ -2526,7 +2526,7 @@ void msrPrintStat(STAT *ps,char const *pszPrefix,int p) {
 
 uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
 	double dTime, double dDelta, double dStep, double dTheta,
-	int bKickClose,int bKickOpen,int bEwald,int bGravStep,int nPartRhoLoc,int iTimeStepCrit,int nGroup,int SPHoptions) {
+	int bKickClose,int bKickOpen,int bEwald,int bGravStep,int nPartRhoLoc,int iTimeStepCrit,int nGroup,uint64_t SPHoptions) {
     struct inGravity in;
     uint64_t nRungSum[IRUNGMAX+1];
     int i,id,out_size;
@@ -3232,7 +3232,7 @@ int MSR::NewTopStepKDK(
     uint8_t uRung,	/* Rung level */
     double *pdStep,	/* Current step */
     uint8_t *puRungMax,
-    int *pbDoCheckpoint,int *pbDoOutput,int *pbNeedKickOpen,int SPHoptions) {
+    int *pbDoCheckpoint,int *pbDoOutput,int *pbNeedKickOpen,uint64_t SPHoptions) {
     double dDeltaRung,dTimeFixed;
     uint32_t uRoot2=0;
     char achFile[256];
@@ -3410,7 +3410,7 @@ void MSR::TopStepKDK(
 	    BuildTree(param.bEwald);
 	    }
 	if (DoGravity()) {
-        int SPHoptions = 1;
+        uint64_t SPHoptions = 1UL;
 	    Gravity(iKickRung,MAX_RUNG,ROOT,0,dTime,dDeltaStep,dStep,dTheta,0,0,
 	    	param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,
 	    	param.nGroup,SPHoptions);

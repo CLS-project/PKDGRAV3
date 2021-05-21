@@ -511,7 +511,7 @@ int pkdGravInteract(PKD pkd,
     struct pkdKickParameters *kick,struct pkdLightconeParameters *lc,struct pkdTimestepParameters *ts,
     KDN *pBucket,LOCR *pLoc,ILP ilp,ILC ilc,
     float dirLsum,float normLsum,int bEwald,double *pdFlop,
-    SMX smx,SMF *smf,int iRoot1,int iRoot2,int SPHoptions) {
+    SMX smx,SMF *smf,int iRoot1,int iRoot2,uint64_t SPHoptions) {
     PARTICLE *p;
     KDN *pkdn = pBucket;
     double r[3], kdn_r[3];
@@ -657,6 +657,7 @@ int pkdGravInteract(PKD pkd,
 	    }
 	}
 
+    if ((SPHoptions >> 0) & 1UL) {
     /*
     ** Evaluate the P-C interactions
     */
@@ -667,18 +668,21 @@ int pkdGravInteract(PKD pkd,
     ** Evaluate the P-P interactions
     */
     queuePP( pkd, wp, ilp, ts->bGravStep );
+    }
 
     /*
     ** Evaluate the Density on the P-P interactions
     */
     queueDensity( pkd, wp, ilp, ts->bGravStep );
 
+    if ((SPHoptions >> 0) & 1UL) {
     /*
     ** Calculate the Ewald correction for this particle, if it is required.
     */
     if (bEwald) {
 	queueEwald( pkd,  wp );
 	}
+    }
 
 #ifdef TIMESTEP_CRITICAL
     for( i=0; i<wp->nP; i++ ) {

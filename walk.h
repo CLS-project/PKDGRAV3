@@ -36,7 +36,7 @@ static inline int pkdIsCellActive(KDN *c,uint8_t uRungLo,uint8_t uRungHi) {
 */
 int pkdGravWalk(PKD pkd,struct pkdKickParameters *kick,struct pkdLightconeParameters *lc,struct pkdTimestepParameters *ts,
     double dTime,int nReps,int bEwald,int nGroup, int iRoot1, int iRoot2,
-    int iVARoot, double dThetaMin,double *pdFlop,double *pdPartSum,double *pdCellSum,int SPHoptions);
+    int iVARoot, double dThetaMin,double *pdFlop,double *pdPartSum,double *pdCellSum,uint64_t SPHoptions);
 
 int pkdGravWalkGroups(PKD pkd,double dTime,int nGroup, double dThetaMin,double *pdFlop,double *pdPartSum,double *pdCellSum);
 
