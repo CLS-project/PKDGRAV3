@@ -25,6 +25,7 @@
 #include <stdint.h>
 #include "ilp.h"
 #include "ilc.h"
+#include "SPHOptions.h"
 
 #define IORDERBITS 43
 #define IORDERMAX ((((uint64_t) 1)<<IORDERBITS)-1)
@@ -174,7 +175,7 @@ typedef struct {
     double dFlopDoubleCPU;
     double dFlopDoubleGPU;
 
-    uint64_t SPHoptions;
+    SPHOptions SPHoptions;
     } workParticle;
 
 /*

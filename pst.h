@@ -636,7 +636,7 @@ struct inGravity {
     struct pkdKickParameters kick;
     struct pkdLightconeParameters lc;
     struct pkdTimestepParameters ts;
-    uint64_t SPHoptions;
+    SPHOptions SPHoptions;
     };
 
 

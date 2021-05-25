@@ -19,6 +19,7 @@
 #include <cmath>
 #include "master.h"
 #include "fmt/format.h"
+#include "SPHOptions.h"
 
 /******************************************************************************\
 *   Simulation Mode: normal method of populating the simulation data
@@ -162,8 +163,14 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
     printf("Mean particle mass: %.15f\n",Mtot/Ntot);
     printf("M_tot as proposed: %.15f\n",Mtot/Ntot*param.nSmooth);
     // Set this value to all pkds
-    // SetKerneltarget(Mtot/Ntot*param.nSmooth);
-    SetKerneltarget(param.nSmooth);
+    {
+    SPHOptions SPHoptions = initializeSPHOptions(param);
+    if (SPHoptions.useNumDen) {
+        SetKerneltarget(param.nSmooth);
+    } else {
+        SetKerneltarget(Mtot/Ntot*param.nSmooth);
+    }
+    }
 
     /*
     ** Initialize fBall
@@ -214,7 +221,9 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
 	    LinearKick(dTime,dDelta,bKickClose,bKickOpen);
 	    GridDeleteFFT();
         }
-    uint64_t SPHoptions = 1UL;
+    SPHOptions SPHoptions = initializeSPHOptions(param);
+    SPHoptions.doGravity = 1;
+    SPHoptions.doDensity = 1;
 	uRungMax = Gravity(0,MAX_RUNG,ROOT,0,dTime,dDelta,iStartStep,dTheta,0,bKickOpen,
 	        param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,SPHoptions);
 	MemStatus();
@@ -239,7 +248,8 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
 	if (param.bGravStep) {
 	    assert(param.bNewKDK == 0);    /* for now! */
 	    BuildTree(param.bEwald);
-        uint64_t SPHoptions = 1UL;
+        SPHOptions SPHoptions = initializeSPHOptions(param);
+        SPHoptions.doGravity = 1;
 	    Gravity(0,MAX_RUNG,ROOT,0,dTime,dDelta,iStartStep,dTheta,0,0,
 		    param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,SPHoptions);
 	    MemStatus();
@@ -277,7 +287,8 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
 	    if (bKickOpen) {
 		BuildTree(0);
                 LightConeOpen(iStep);  /* open the lightcone */
-        uint64_t SPHoptions = 1UL;
+        SPHOptions SPHoptions = initializeSPHOptions(param);
+        SPHoptions.doGravity = 1;
 		uRungMax = Gravity(0,MAX_RUNG,ROOT,0,ddTime,dDelta,diStep,dTheta,0,1,
 		        param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,SPHoptions);
                 /* Set the grids of the linear species */
@@ -291,7 +302,8 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
                     }
 		bKickOpen = 0; /* clear the opening kicking flag */
 		}
-        uint64_t SPHoptions = 1UL;
+        SPHOptions SPHoptions = initializeSPHOptions(param);
+        SPHoptions.doGravity = 1;
 	    NewTopStepKDK(ddTime,dDelta,dTheta,nSteps,0,0,&diStep,&uRungMax,&bDoCheckpoint,&bDoOutput,&bKickOpen,SPHoptions);
 	    }
 	else {

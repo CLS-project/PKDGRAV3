@@ -63,8 +63,8 @@ template<class F,class M,bool bGravStep>
 CUDA_DEVICE void EvalDensity(
 	const F &Pdx, const F &Pdy, const F &Pdz,     // Particle
 	const F &Idx, const F &Idy, const F &Idz, const F &Im, const F & fBall, // Interaction(s)
-	F &arho, F &adrhodfball, F &anden, F& adndendfball, F &anSmooth         // results
-    ) {
+	F &arho, F &adrhodfball, F &anden, F& adndendfball, F &anSmooth,         // results
+    SPHOptions SPHoptions) {
     F dx = Idx + Pdx;
     F dy = Idy + Pdy;
     F dz = Idz + Pdz;

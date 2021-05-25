@@ -157,7 +157,7 @@ target_sources(${PROJECT_NAME} PRIVATE
 	main.cxx cosmo.c master.cxx simulate.cxx pst.c fio.c illinois.c param.c
 	pkd.c analysis.c smooth.c smoothfcn.c outtype.c output.cxx
 	walk2.c grav2.c ewald.cxx ic.cxx tree.cxx opening.cxx pp.cxx pc.cxx cl.c
-	lst.c moments.c ilp.c ilc.c iomodule.c
+	lst.c moments.c ilp.c ilc.c iomodule.c SPHOptions.c
 	fof.c hop.c group.c groupstats.c RngStream.c listcomp.c healpix.c
 	gridinfo.cxx interlace.cxx contrast.cxx assignmass.cxx measurepk.cxx bispectrum.cxx whitenoise.cxx pmforces.cxx
 )

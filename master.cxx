@@ -72,6 +72,7 @@ using namespace fmt::literals; // Gives us ""_a and ""_format literals
 #include "outtype.h"
 #include "smoothfcn.h"
 #include "fio.h"
+#include "SPHOptions.h"
 
 #define LOCKFILE ".lockfile"	/* for safety lock */
 #define STOPFILE "STOP"			/* for user interrupt */
@@ -2526,7 +2527,7 @@ void msrPrintStat(STAT *ps,char const *pszPrefix,int p) {
 
 uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
 	double dTime, double dDelta, double dStep, double dTheta,
-	int bKickClose,int bKickOpen,int bEwald,int bGravStep,int nPartRhoLoc,int iTimeStepCrit,int nGroup,uint64_t SPHoptions) {
+	int bKickClose,int bKickOpen,int bEwald,int bGravStep,int nPartRhoLoc,int iTimeStepCrit,int nGroup,SPHOptions SPHoptions) {
     struct inGravity in;
     uint64_t nRungSum[IRUNGMAX+1];
     int i,id,out_size;
@@ -3232,7 +3233,7 @@ int MSR::NewTopStepKDK(
     uint8_t uRung,	/* Rung level */
     double *pdStep,	/* Current step */
     uint8_t *puRungMax,
-    int *pbDoCheckpoint,int *pbDoOutput,int *pbNeedKickOpen,uint64_t SPHoptions) {
+    int *pbDoCheckpoint,int *pbDoOutput,int *pbNeedKickOpen,SPHOptions SPHoptions) {
     double dDeltaRung,dTimeFixed;
     uint32_t uRoot2=0;
     char achFile[256];
@@ -3410,7 +3411,8 @@ void MSR::TopStepKDK(
 	    BuildTree(param.bEwald);
 	    }
 	if (DoGravity()) {
-        uint64_t SPHoptions = 1UL;
+        SPHOptions SPHoptions = initializeSPHOptions(param);
+        SPHoptions.doGravity = 1;
 	    Gravity(iKickRung,MAX_RUNG,ROOT,0,dTime,dDeltaStep,dStep,dTheta,0,0,
 	    	param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,
 	    	param.nGroup,SPHoptions);
