@@ -107,6 +107,7 @@ void pkdParticleWorkDone(workParticle *wp) {
 
         pkdSetDensity(pkd,p,wp->pInfoOut[i].rho);
         pkdSetBall(pkd,p,wp->pInfoOut[i].fBall);
+        // float omega = 1.0f + wp->pInfoOut[i].fBall/(3.0f * wp->pInfoOut[i].rho)*wp->pInfoOut[i].drhodfball;
 
 	    pkdGetPos1(pkd,p,r);
 	    m = pkdMass(pkd,p);
