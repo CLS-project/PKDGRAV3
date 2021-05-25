@@ -1712,12 +1712,12 @@ void MSR::SetSoft(double dSoft) {
     pstSetSoft(pst,&in,sizeof(in),NULL,0);
     }
 
-void MSR::SetMkerneltarget(double dMkerneltarget) {
-    struct inSetMkerneltarget in;
+void MSR::SetKerneltarget(double dKerneltarget) {
+    struct inSetKerneltarget in;
 
     msrprintf("Set Kernel target mass...\n");
-    in.dMkerneltarget = dMkerneltarget;
-    pstSetMkerneltarget(pst,&in,sizeof(in),NULL,0);
+    in.dKerneltarget = dKerneltarget;
+    pstSetKerneltarget(pst,&in,sizeof(in),NULL,0);
     }
 
 

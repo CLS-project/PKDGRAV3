@@ -172,8 +172,8 @@ void pstAddServices(PST pst,MDL mdl) {
 		  sizeof(struct inKickTree),sizeof(struct outKickTree));
     mdlAddService(mdl,PST_SETSOFT,pst,(fcnService_t*)pstSetSoft,
 		  sizeof(struct inSetSoft),0);
-    mdlAddService(mdl,PST_SETMKERNELTARGET,pst,(fcnService_t*)pstSetMkerneltarget,
-		  sizeof(struct inSetMkerneltarget),0);
+    mdlAddService(mdl,PST_SETKERNELTARGET,pst,(fcnService_t*)pstSetKerneltarget,
+		  sizeof(struct inSetKerneltarget),0);
     mdlAddService(mdl,PST_PHYSICALSOFT,pst,(fcnService_t*)pstPhysicalSoft,
 		  sizeof(struct inPhysicalSoft),0);
     mdlAddService(mdl,PST_SETTOTAL,pst,(fcnService_t*)pstSetTotal,
@@ -2143,18 +2143,18 @@ int pstSetSoft(PST pst,void *vin,int nIn,void *vout,int nOut) {
     return 0;
     }
 
-int pstSetMkerneltarget(PST pst,void *vin,int nIn,void *vout,int nOut) {
+int pstSetKerneltarget(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
-    struct inSetMkerneltarget *in = vin;
+    struct inSetKerneltarget *in = vin;
 
-    mdlassert(pst->mdl,nIn == sizeof(struct inSetMkerneltarget));
+    mdlassert(pst->mdl,nIn == sizeof(struct inSetKerneltarget));
     if (pst->nLeaves > 1) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SETMKERNELTARGET,in,nIn);
-	pstSetMkerneltarget(pst->pstLower,in,nIn,NULL,0);
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SETKERNELTARGET,in,nIn);
+	pstSetKerneltarget(pst->pstLower,in,nIn,NULL,0);
 	mdlGetReply(pst->mdl,rID,NULL,NULL);
 	}
     else {
-	pkdSetMkerneltarget(plcl->pkd,in->dMkerneltarget);
+	pkdSetKerneltarget(plcl->pkd,in->dKerneltarget);
 	}
     return 0;
     }

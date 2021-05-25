@@ -375,12 +375,12 @@ static void queueDensity( PKD pkd, workParticle *wp, ILP ilp, int bGravStep ) {
     // all this only makes sense if we are not asynchronous
     assert(wp->nRefs == 1);
 
-    float maxkernelmassdeviation = 0.0f;
+    float maxkerneldeviation = 0.0f;
     // calculate maximum kernel mass deviation
     for (int i=0; i<wp->nP; i++) {
-        float kernelmassdeviation = 4.0f/3.0f*M_PI*wp->pInfoIn[i].fBall*wp->pInfoIn[i].fBall*wp->pInfoIn[i].fBall*wp->pInfoOut[i].rho - pkd->fMkerneltarget;
-        kernelmassdeviation = (kernelmassdeviation > 0) ? kernelmassdeviation : -kernelmassdeviation;
-        maxkernelmassdeviation = (kernelmassdeviation > maxkernelmassdeviation) ? kernelmassdeviation : maxkernelmassdeviation;
+        float kerneldeviation = 4.0f/3.0f*M_PI*wp->pInfoIn[i].fBall*wp->pInfoIn[i].fBall*wp->pInfoIn[i].fBall*wp->pInfoOut[i].rho - pkd->fKerneltarget;
+        kerneldeviation = (kerneldeviation > 0) ? kerneldeviation : -kerneldeviation;
+        maxkerneldeviation = (kerneldeviation > maxkerneldeviation) ? kerneldeviation : maxkerneldeviation;
     }
 
     /*
@@ -388,12 +388,12 @@ static void queueDensity( PKD pkd, workParticle *wp, ILP ilp, int bGravStep ) {
     ** if true, calculate new fBall for all particles
     ** else, exit loop
     */
-    if (maxkernelmassdeviation/pkd->fMkerneltarget > 1e6f) {
+    if (maxkerneldeviation/pkd->fKerneltarget > 1e-6f) {
         // do another loop
         for (int i=0; i<wp->nP; i++) {
             float prefac = 4.0f/3.0f*M_PI;
             float fBall = wp->pInfoIn[i].fBall;
-            float fx = prefac * fBall * fBall * fBall * wp->pInfoOut[i].rho - pkd->fMkerneltarget;
+            float fx = prefac * fBall * fBall * fBall * wp->pInfoOut[i].rho - pkd->fKerneltarget;
             float dfdx = prefac * 3.0f * fBall * fBall * wp->pInfoOut[i].rho + prefac * fBall * fBall * fBall * wp->pInfoOut[i].drhodfball;
             float newfBall = wp->pInfoIn[i].fBall - fx / dfdx;
             if (newfBall < 0.5f * wp->pInfoIn[i].fBall) {
@@ -404,7 +404,7 @@ static void queueDensity( PKD pkd, workParticle *wp, ILP ilp, int bGravStep ) {
         }
     } else {
         // finish
-        // printf("loopcount = %d, deviation = %.6e\n",loopcount,maxkernelmassdeviation/pkd->fMkerneltarget);
+        // printf("loopcount = %d, deviation = %.6e\n",loopcount,maxkernelmassdeviation/pkd->fKerneltarget);
         break;
     }
 

@@ -332,7 +332,7 @@ protected:
     void SaveParameters();
     int CountRungs(uint64_t *nRungs);
     void SetSoft(double);
-    void SetMkerneltarget(double);
+    void SetKerneltarget(double);
 
     void MeasureLinPk(int nGridLin,double a,double dBoxSize, uint64_t *nPk,float *fK,float *fPk);
     void OutputPk(int iStep,double dTime);

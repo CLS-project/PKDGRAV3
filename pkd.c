@@ -2141,8 +2141,8 @@ void pkdSetSoft(PKD pkd,double dSoft) {
     pkd->fSoftFix = dSoft;
     }
 
-void pkdSetMkerneltarget(PKD pkd,double dMkerneltarget) {
-    pkd->fMkerneltarget = dMkerneltarget;
+void pkdSetKerneltarget(PKD pkd,double dKerneltarget) {
+    pkd->fKerneltarget = dKerneltarget;
     }
 
 void pkdPhysicalSoft(PKD pkd,double dSoftMax,double dFac,int bSoftMaxMul) {
