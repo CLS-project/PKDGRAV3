@@ -63,7 +63,7 @@ template<class F,class M,bool bGravStep>
 CUDA_DEVICE void EvalDensity(
 	const F &Pdx, const F &Pdy, const F &Pdz,     // Particle
 	const F &Idx, const F &Idy, const F &Idz, const F &Im, const F & fBall, // Interaction(s)
-	F &arho, F &adrhodfball, F &anSmooth         // results
+	F &arho, F &adrhodfball, F &anden, F& adndendfball, F &anSmooth         // results
     ) {
     F dx = Idx + Pdx;
     F dy = Idy + Pdy;
@@ -106,10 +106,12 @@ CUDA_DEVICE void EvalDensity(
         F C = eight * M_1_PI * ifBall * ifBall * ifBall;
 
         // return the density
-        arho = Im * C * w;
+        anden = C * w;
+        arho = Im * anden;
 
         // return the density derivative
-        adrhodfball = - Im * C * ifBall * (three * w + dwdp * p);
+        adndendfball = - C * ifBall * (three * w + dwdp * p);
+        adrhodfball = Im * adndendfball;
 
         // return the number of particles used
         anSmooth = maskz_mov(pltone,one);
@@ -117,6 +119,8 @@ CUDA_DEVICE void EvalDensity(
         // No work to do
         arho = 0.0f;
         adrhodfball = 0.0f;
+        anden = 0.0f;
+        adndendfball = 0.0f;
         anSmooth = 0.0f;
     }
     }
