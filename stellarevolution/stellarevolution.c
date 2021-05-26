@@ -270,13 +270,14 @@ int pkdStellarEvolutionInit(PKD pkd, STEV_DATA *data) {
       pkd->StelEvolData->fcnNumSNIa = stevPowerlawNumSNIa;
    }
 
-#ifndef COOLING
-   for (int i = 0; i < pkd->nLocal; ++i) {
-      PARTICLE *p = pkdParticle(pkd,i);
-      if (pkdIsGas(pkd, p)) {
-         SPHFIELDS *pSph = pkdSph(pkd,p);
-	 float fMass = pkdMass(pkd, p);
-         if (pSph->afElemMass[ELEMENT_H] == 0.0f) { /* TODO: Why this?????? */
+   if (pkd->param.nGrid > 0) {
+      /* ICs have been generated */
+      for (int i = 0; i < pkd->nLocal; ++i) {
+	 PARTICLE *p = pkdParticle(pkd,i);
+	 if (pkdIsGas(pkd, p)) {
+	    SPHFIELDS *pSph = pkdSph(pkd,p);
+	    float fMass = pkdMass(pkd, p);
+
             pSph->afElemMass[ELEMENT_H]  = pkd->param.dInitialH  * fMass;
             pSph->afElemMass[ELEMENT_He] = pkd->param.dInitialHe * fMass;
             pSph->afElemMass[ELEMENT_C]  = pkd->param.dInitialC  * fMass;
@@ -286,10 +287,52 @@ int pkdStellarEvolutionInit(PKD pkd, STEV_DATA *data) {
             pSph->afElemMass[ELEMENT_Mg] = pkd->param.dInitialMg * fMass;
             pSph->afElemMass[ELEMENT_Si] = pkd->param.dInitialSi * fMass;
             pSph->afElemMass[ELEMENT_Fe] = pkd->param.dInitialFe * fMass;
-         }
+
+	    pSph->fMetalMass = pkd->param.dInitialMetallicity * fMass;
+	 }
       }
    }
-#endif
+   else if (pkd->param.achInFile[0]) {
+      /* Input file has been read */
+      for (int i = 0; i < pkd->nLocal; ++i) {
+	 PARTICLE *p = pkdParticle(pkd,i);
+	 if (pkdIsStar(pkd, p)) {
+	    STARFIELDS *pStar = pkdStar(pkd, p);
+
+	    for (int j = 0; j < ELEMENT_COUNT; j++)
+	       pStar->afCumElemMassEj[j] = 0.0f;
+	    pStar->fCumMetalMassEj = 0.0f;
+
+	    int iIdxZ;
+	    float fLogZ;
+	    if (pStar->fMetalAbun > 0.0f)
+	       fLogZ = log10(pStar->fMetalAbun);
+	    else
+	       fLogZ = STEV_MIN_LOG_METALLICITY;
+
+	    stevGetIndex1D(pkd->StelEvolData->afCCSN_Zs, STEV_CCSN_N_METALLICITY,
+			   fLogZ, &iIdxZ, &pStar->CCSN.fDeltaZ);
+	    pStar->CCSN.oZ = iIdxZ * STEV_INTERP_N_MASS;
+	    stevGetIndex1D(pkd->StelEvolData->afAGB_Zs, STEV_AGB_N_METALLICITY,
+			   fLogZ, &iIdxZ, &pStar->AGB.fDeltaZ);
+	    pStar->AGB.oZ = iIdxZ * STEV_INTERP_N_MASS;
+	    stevGetIndex1D(pkd->StelEvolData->afLifetimes_Zs, STEV_LIFETIMES_N_METALLICITY,
+			   fLogZ, &iIdxZ, &pStar->Lifetimes.fDeltaZ);
+	    pStar->Lifetimes.oZ = iIdxZ * STEV_LIFETIMES_N_MASS;
+
+	    pStar->fCCSNOnsetTime = stevLifetimeFunction(pkd, pStar, pkd->param.dIMF_MaxMass);
+	    pStar->fSNIaOnsetTime = stevLifetimeFunction(pkd, pStar, pkd->param.fSNIa_MaxMass);
+
+	    assert(pStar->fLastEnrichTime >= pStar->fCCSNOnsetTime);
+
+	    pStar->fLastEnrichMass =
+	       stevInverseLifetimeFunction(pkd, pStar, pStar->fLastEnrichTime);
+	    pStar->iLastEnrichMassIdx =
+	       stevGetIMFMassIndex(pkd->StelEvolData->afMasses, STEV_INTERP_N_MASS,
+				   pStar->fLastEnrichMass, STEV_INTERP_N_MASS - 1) + 1;
+	 }
+      }
+   }
 
    return 0;
 }

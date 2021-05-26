@@ -1714,8 +1714,18 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
 		sizeof(float), "fT_CMB_0",
 		"Temperature of the CMB at z=0");
 
-
     /* Parameters for the internal energy floor */
+    msr->param.dCoolingFloorDen = 1e-5;
+    prmAddParam(msr->prm,"dCoolingFloorDen", 2, &msr->param.dCoolingFloorDen,
+		sizeof(double), "dCoolingFloorDen",
+		"Minimum density at which the internal energy floor will be applied (in nH [cm-3])");
+
+    msr->param.dCoolingFlooru = 1e4;
+    prmAddParam(msr->prm,"dCoolingFloorTemp", 2, &msr->param.dCoolingFlooru,
+		sizeof(double), "dCoolingFloorTemp",
+		"Temperature at the internal energy floor");
+#endif
+#if defined(COOLING) || defined(STAR_FORMATION)
     msr->param.dJeansFloorIndex = 4./3.; // This gives a Jeans Mass independent of density (see Schaye & Dalla Vecchia 2008)
     prmAddParam(msr->prm,"dJeansFloorIndex", 2, &msr->param.dJeansFloorIndex,
 		sizeof(double), "dJeansFloorIndex",
@@ -1730,16 +1740,6 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
     prmAddParam(msr->prm,"dJeansFloorTemp", 2, &msr->param.dJeansFlooru,
 		sizeof(double), "dJeansFloorTemp",
 		"Temperature at the density threshold for the effective EOS");
-
-    msr->param.dCoolingFloorDen = 1e-5;
-    prmAddParam(msr->prm,"dCoolingFloorDen", 2, &msr->param.dCoolingFloorDen,
-		sizeof(double), "dCoolingFloorDen",
-		"Minimum density at which the internal energy floor will be applied (in nH [cm-3])");
-
-    msr->param.dCoolingFlooru = 1e4;
-    prmAddParam(msr->prm,"dCoolingFloorTemp", 2, &msr->param.dCoolingFlooru,
-		sizeof(double), "dCoolingFloorTemp",
-		"Temperature at the internal energy floor");
 #endif
 #if defined(COOLING) || defined(STELLAR_EVOLUTION)
     /* Parameters for the initial abundances */
@@ -1779,6 +1779,12 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
     prmAddParam(msr->prm,"dInitialFe", 2, &msr->param.dInitialFe,
 		sizeof(double), "dInitialFe",
 		"Initial Iron abundance");
+#endif
+#ifdef STELLAR_EVOLUTION
+    msr->param.dInitialMetallicity = 0.0;
+    prmAddParam(msr->prm,"dInitialMetallicity", 2, &msr->param.dInitialMetallicity,
+		sizeof(double), "dInitialMetallicity",
+		"Initial metallicity");
 #endif
 #ifdef STAR_FORMATION
     msr->param.dSFThresholdDen = 0.1;
@@ -2001,14 +2007,16 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
     //  and mu=0.59, typical of a fully ionized gas with primordial composition
 #ifdef COOLING
     // We convert the parameters of the entropy floor into code units
-    msr->param.dJeansFloorIndex -= 1.; 
-    msr->param.dJeansFloorDen *=  MHYDR / (msr->param.dMsolUnit * MSOLG ) / 0.75 * pow(msr->param.dKpcUnit*KPCCM,3); // Now in rho
-    msr->param.dJeansFlooru *= msr->param.dGasConst/(msr->param.dConstGamma - 1.)/0.59; // Now in internal energy per unit mass 
-
     msr->param.dCoolingFloorDen *= MHYDR / (msr->param.dMsolUnit * MSOLG ) / 0.75 * pow(msr->param.dKpcUnit*KPCCM,3) ;
     msr->param.dCoolingFlooru *= msr->param.dGasConst/(msr->param.dConstGamma - 1.)/0.59;
 
     printf("dCoolingFloorDen %e \t dCoolingFlooru %e \n", msr->param.dCoolingFloorDen, msr->param.dCoolingFlooru);
+#endif
+#if defined(COOLING) || defined(STAR_FORMATION)
+    msr->param.dJeansFloorIndex -= 1.; 
+    msr->param.dJeansFloorDen *=  MHYDR / (msr->param.dMsolUnit * MSOLG ) / 0.75 * pow(msr->param.dKpcUnit*KPCCM,3); // Now in rho
+    msr->param.dJeansFlooru *= msr->param.dGasConst/(msr->param.dConstGamma - 1.)/0.59; // Now in internal energy per unit mass
+
     printf("dJeansFloorDen %e \t dJeansFlooru %e \n", msr->param.dJeansFloorDen, msr->param.dJeansFlooru);
 #endif
 #ifdef STAR_FORMATION

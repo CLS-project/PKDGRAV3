@@ -917,7 +917,7 @@ void pkd_cooling_init_backend(PKD pkd, struct cooling_function_data in_cooling_d
   /* Allocate space for cooling tables */
   allocate_cooling_tables(pkd->cooling);
 
-
+#ifndef STELLAR_EVOLUTION
     for (int i=0;i<pkd->nLocal;++i) {
       PARTICLE* p;
 	p = pkdParticle(pkd,i);
@@ -938,7 +938,7 @@ void pkd_cooling_init_backend(PKD pkd, struct cooling_function_data in_cooling_d
          }
       }
     }
-    
+#endif
 }
 
 

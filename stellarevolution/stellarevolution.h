@@ -1,12 +1,15 @@
 #ifdef STELLAR_EVOLUTION
 
-#ifndef MASTER_HINCLUDED
 #include "master.h"
-#endif
 
 
 /* NOTAS:
-   - En EAGLE se impone conservacion de momento y energia al distribuir la masa (Schaye 2015).
+   - En SWIFT, al distribuir la masa, se impone la conservacion de:
+      - Momento: Se desprecia la velocidad de los vientos.
+      - Energia: U_new_j = U_old_j - dK_j + dE * w_j; dE = dK_AGB + dK_star + dE_SNIa
+      swiftsim/src/feedback/EAGLE_thermal/feedback.c -> compute_stellar_evolution
+                          ./EAGLE/enrichment.h -> evolve_SNIa
+                          ./EAGLE_thermal/feedback_iact.h -> runner_iact_nonsym_feedback_apply
    - Arrays del buffer que estan en logaritmo: 
       - CCSN y AGB: Metalicidades (array de masas tanto en lineal como en log)
       - Lifetimes: Todo
@@ -18,14 +21,13 @@
 
 
 /* TODOs y DUDAS:
-   - Implementar la inicializacion cuando se empieza de un archivo restart o de una snapshot
+   - No es necesario convertir unidades al leer/escribir snapshots?
+   - Cuando se generan ICs, pueden haber particulas de estrella inicialmente?
    - Se puede mejorar la lectura de las tablas. Los nombres de los datasets para cada 
    metalicidad estan especificados bajo Yield_names. Se puede leer el tamano de un dataset 
    directamente?
    - Considerar interpolar usando gsl
 
-   - Llamada redundante a msrActiveRung(msr,uRung,1) en msrNewTopStepKDK despues de hacer
-   el feedback
    - Por que no estoy utilizando las funciones de interpolacion de interpolate.h?
 */
 

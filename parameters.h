@@ -267,11 +267,13 @@ struct parameters {
     /*
      * IA: Internal energy floor parameters
      */
+    double dCoolingFloorDen;
+    double dCoolingFlooru;
+#endif
+#if defined(COOLING) || defined(STAR_FORMATION)
     double dJeansFloorIndex;
     double dJeansFloorDen;
     double dJeansFlooru;
-    double dCoolingFloorDen;
-    double dCoolingFlooru;
 #endif
 #if defined(COOLING) || defined(STELLAR_EVOLUTION)
     /*
@@ -286,6 +288,9 @@ struct parameters {
     double dInitialMg;
     double dInitialSi;
     double dInitialFe;
+#endif
+#ifdef STELLAR_EVOLUTION
+    double dInitialMetallicity;
 #endif
 #ifdef STAR_FORMATION
     /* IA: Star formation */
