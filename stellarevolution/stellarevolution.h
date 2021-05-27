@@ -21,8 +21,6 @@
 
 
 /* TODOs y DUDAS:
-   - No es necesario convertir unidades al leer/escribir snapshots?
-   - Cuando se generan ICs, pueden haber particulas de estrella inicialmente?
    - Se puede mejorar la lectura de las tablas. Los nombres de los datasets para cada 
    metalicidad estan especificados bajo Yield_names. Se puede leer el tamano de un dataset 
    directamente?

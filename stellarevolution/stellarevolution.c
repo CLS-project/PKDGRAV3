@@ -349,6 +349,9 @@ void initChemEnrich(void *vpkd, void *vp) {
       for (int j = 0; j < ELEMENT_COUNT; j++)
 	 pSph->afElemMass[j]  = 0.0f;
       pSph->fMetalMass = 0.0f;
+
+      pSph->mom[0] = pSph->mom[1] = pSph->mom[2] = 0.0;
+      pSph->E = 0.0;
    }
 }
 
@@ -359,13 +362,30 @@ void combChemEnrich(void *vpkd, void *vp1, void *vp2) {
    PARTICLE *p2 = vp2;
 
    if (pkdIsGas(pkd, p1) && pkdIsGas(pkd, p2)) {
+      const float fOldMassInv = 1.0f / pkdMass(pkd, p1);
       *((float *) pkdField(p1, pkd->oMass)) += pkdMass(pkd, p2);
+      const float fNewMassInv = 1.0f / pkdMass(pkd, p1);
 
       SPHFIELDS *pSph1 = pkdSph(pkd, p1);
       SPHFIELDS *pSph2 = pkdSph(pkd, p2);
       for (int j = 0; j < ELEMENT_COUNT; j++)
 	 pSph1->afElemMass[j] += pSph2->afElemMass[j];
       pSph1->fMetalMass += pSph2->fMetalMass;
+
+      const float fOldK = 0.5f * fOldMassInv * (pSph1->mom[0] * pSph1->mom[0] +
+			  pSph1->mom[1] * pSph1->mom[1] + pSph1->mom[2] * pSph1->mom[2]);
+
+      vel_t *pGasVel = pkdVel(pkd, p1);
+      for (int i = 0; i < 3; i++) {
+	 pSph1->mom[i] += pSph2->mom[i];
+	 pGasVel[i] = pSph1->mom[i] * fNewMassInv;
+      }
+
+      const float fNewK = 0.5f * fNewMassInv * (pSph1->mom[0] * pSph1->mom[0] +
+			  pSph1->mom[1] * pSph1->mom[1] + pSph1->mom[2] * pSph1->mom[2]);
+
+      pSph1->E += pSph2->E;
+      pSph1->Uint += pSph2->E - (fNewK - fOldK);
    }
 }
 
@@ -408,8 +428,9 @@ void smChemEnrich(PARTICLE *p, float fBall, int nSmooth, NN *nnList, SMF *smf) {
 
    /* Note: The parameter pStar->[AGB,CCSN,Lifetimes].oZ contains the index of the 
       interpolation's lower metallicity array multiplied by the number of mass bins.
-      Since this multiplication must always be made, it is done once and for all in the
-      the function pkdStarForm. */
+      Since this multiplication must always be made, it is done once and for all in
+      pkdStarForm or pkdStellarEvolutionInit, depending on whether we are dealing with
+      a star particle born during the run or one that was already in the ICs. */
 
    float afElemMass[STEV_N_ELEM];
    float fMetalMass;
@@ -485,10 +506,15 @@ void smChemEnrich(PARTICLE *p, float fBall, int nSmooth, NN *nnList, SMF *smf) {
    *((float *) pkdField(p, pkd->oMass)) -= fTotalMass;
    assert(pkdMass(pkd, p) > 0.0f);
 
+   const float fScaleFactorInv = 1.0 / csmTime2Exp(pkd->csm, smf->dTime);
+   vel_t *pStarVel = pkdVel(pkd, p);
+   const float fStarDeltaK = 0.5f * fTotalMass * (pStarVel[0] * pStarVel[0] +
+	        	     pStarVel[1] * pStarVel[1] + pStarVel[2] * pStarVel[2]) *
+                             (fScaleFactorInv * fScaleFactorInv);
 
    PARTICLE *q;
    SPHFIELDS *qSph;
-   float fWeightSum = 0.0f;
+   float fNormFactor = 0.0f;
    for (i = 0; i < nSmooth; i++) {
       q = nnList[i].pPart;
 
@@ -500,15 +526,19 @@ void smChemEnrich(PARTICLE *p, float fBall, int nSmooth, NN *nnList, SMF *smf) {
       const double dRpq = sqrt(nnList[i].fDist2);
       const float fWeight = (float)cubicSplineKernel(dRpq, fBall) / pkdDensity(pkd, q);
 
+      *((float *) pkdField(q, pkd->oMass)) += fWeight * fTotalMass;
+
       qSph = pkdSph(pkd, q);
       for (int j = 0; j < STEV_N_ELEM; j++)
 	 qSph->afElemMass[j] += fWeight * afElemMass[j];
       qSph->fMetalMass += fWeight * fMetalMass;
 
-      *((float *) pkdField(q, pkd->oMass)) += fWeight * fTotalMass;
+      qSph->E += fWeight * fStarDeltaK;
 
-      fWeightSum += fWeight;
+      fNormFactor += fWeight;
    }
+
+   fNormFactor = 1.0f / fNormFactor;
 
    for (i = 0; i < nSmooth; i++) {
       q = nnList[i].pPart;
@@ -518,12 +548,19 @@ void smChemEnrich(PARTICLE *p, float fBall, int nSmooth, NN *nnList, SMF *smf) {
       if (q == p) continue;
       if (nnList[i].dx == 0.0f && nnList[i].dy == 0.0f && nnList[i].dz == 0.0f) continue;
 
+      float *pfDeltaMass = pkdField(q, pkd->oMass);
+      *pfDeltaMass *= fNormFactor;
+
       qSph = pkdSph(pkd, q);
       for (int j = 0; j < STEV_N_ELEM; j++)
-	 qSph->afElemMass[j] /= fWeightSum;
-      qSph->fMetalMass /= fWeightSum;
+	 qSph->afElemMass[j] *= fNormFactor;
+      qSph->fMetalMass *= fNormFactor;
 
-      *((float *) pkdField(q, pkd->oMass)) /= fWeightSum;
+      qSph->mom[0] += *pfDeltaMass * pStarVel[0] * fScaleFactorInv;
+      qSph->mom[1] += *pfDeltaMass * pStarVel[1] * fScaleFactorInv;
+      qSph->mom[2] += *pfDeltaMass * pStarVel[2] * fScaleFactorInv;
+
+      qSph->E *= fNormFactor;
    }
 }
 
