@@ -16,7 +16,6 @@
    - Masas se estan interpolando en "semilog", Lifetimes en "loglog".
    - El array de masas inicia en 0.7 Mo. La IMF se normaliza en su rango normal, [0.1,100].
    Esto significa que no se puede verificar la normalizacion usando el array de masas.
-   - Se esta siendo poco preciso en la integracion alrededor de la masa de transicion CCSN-AGB.
 */
 
 
@@ -103,7 +102,7 @@ typedef struct StellarEvolutionRawData {
  * --------------
  */
 
-void msrStellarEvolutionInit(MSR);
+void msrStellarEvolutionInit(MSR, double);
 int pstStellarEvolutionInit(PST, void *, int, void *, int);
 int pkdStellarEvolutionInit(PKD, STEV_DATA *);
 
@@ -137,9 +136,9 @@ float stevPowerlawNumSNIa(PKD, STARFIELDS *, float, float);
  * -------
  */
 
-static inline void stevPopulateInitialMassArrays(const double dMinMass, const double dMaxMass,
-						 const int nSize, float *restrict pfMasses,
-						 float *restrict pfLogMasses) {
+static inline void stevComputeIMFSamplingPoints(const double dMinMass, const double dMaxMass,
+						const int nSize, float *restrict pfMasses,
+						float *restrict pfLogMasses) {
 
    const double dDeltaLog = (log10(dMaxMass) - log10(dMinMass)) / (nSize - 1);
    const double dDelta = pow(10.0, dDeltaLog);
@@ -254,6 +253,152 @@ static inline int stevGetIMFMassIndex(const float *restrict pfTable, const int n
       ;
 
    return pfTemp - pfTable;
+}
+
+
+static inline void stevInterpToIMFSampling(STEV_DATA *const Data, STEV_RAWDATA *const CCSN,
+					   STEV_RAWDATA *const AGB, const float fCCSNMinMass) {
+
+   /* Yields array in the buffer is ordered as (Metallicities, Masses, Elements). MetalYield
+      and EjectedMass arrays, on the other hand, are ordered as (Metallicities, Masses).
+      To change this, the arguments of every call to stevRowMajorIndex that set the variable
+      idxData must be swapped appropriately. */
+   int i, j, k, idxMass, idxTable, idxData;
+   float fDeltaMass, fLogMass;
+
+   int idxCCSNMinMass = stevGetIMFMassIndex(Data->afMasses, STEV_INTERP_N_MASS, fCCSNMinMass,
+					    STEV_INTERP_N_MASS - 1);
+
+   for (i = 0; i < STEV_INTERP_N_MASS; i++) {
+      fLogMass = Data->afLogMasses[i];
+      if (i <= idxCCSNMinMass) {
+	 stevGetIndex1D(AGB->pfMasses, STEV_AGB_N_MASS, fLogMass, &idxMass, &fDeltaMass);
+
+	 for (j = 0; j < STEV_N_ELEM; j++) {
+	    for (k = 0; k < STEV_CCSN_N_METALLICITY; k++) {
+	       idxData = stevRowMajorIndex(k, i, j, STEV_CCSN_N_METALLICITY,
+					   STEV_INTERP_N_MASS, STEV_N_ELEM);
+	       if (i < idxCCSNMinMass) {
+		  Data->afCCSN_Yields[idxData] = 0.0f;
+	       }
+	       else {
+		  idxTable = stevRowMajorIndex(k, j, 0, STEV_CCSN_N_METALLICITY,
+					       STEV_N_ELEM, STEV_CCSN_N_MASS);
+		  Data->afCCSN_Yields[idxData] = CCSN->pfYields[idxTable];
+	       }
+	    }
+
+	    for (k = 0; k < STEV_AGB_N_METALLICITY; k++) {
+	       idxTable  = stevRowMajorIndex(k, j, idxMass, STEV_AGB_N_METALLICITY, STEV_N_ELEM,
+					     STEV_AGB_N_MASS);
+	       idxData = stevRowMajorIndex(k, i, j, STEV_AGB_N_METALLICITY,
+					   STEV_INTERP_N_MASS, STEV_N_ELEM);
+
+	       /* WARNING: The following formula is correct only when mass is the last index
+		  in the tables */
+	       Data->afAGB_Yields[idxData] =
+		  AGB->pfYields[idxTable] * (1.0 - fDeltaMass) +
+		  AGB->pfYields[idxTable + 1] * fDeltaMass;
+	    }
+	 }
+
+	 for (k = 0; k < STEV_CCSN_N_METALLICITY; k++) {
+	    idxData = stevRowMajorIndex(k, i, 0, STEV_CCSN_N_METALLICITY,
+					STEV_INTERP_N_MASS, 1);
+	    if (i < idxCCSNMinMass) {
+	       Data->afCCSN_MetalYield[idxData]  = 0.0f;
+	       Data->afCCSN_EjectedMass[idxData] = 0.0f;
+	    }
+	    else {
+	       idxTable = stevRowMajorIndex(k, 0, 0, STEV_CCSN_N_METALLICITY,
+					    STEV_CCSN_N_MASS, 1);
+	       Data->afCCSN_MetalYield[idxData]  = CCSN->pfMetalYield[idxTable];
+	       Data->afCCSN_EjectedMass[idxData] = CCSN->pfEjectedMass[idxTable];
+	    }
+	 }
+
+	 for (k = 0; k < STEV_AGB_N_METALLICITY; k++) {
+	    idxTable  = stevRowMajorIndex(k, idxMass, 0, STEV_AGB_N_METALLICITY,
+					  STEV_AGB_N_MASS, 1);
+	    idxData = stevRowMajorIndex(k, i, 0, STEV_AGB_N_METALLICITY,
+					STEV_INTERP_N_MASS, 1);
+
+	    /* WARNING: The following formulas are correct only when mass is the last index
+	       in the tables */
+	    Data->afAGB_MetalYield[idxData] =
+	       AGB->pfMetalYield[idxTable] * (1.0 - fDeltaMass) +
+	       AGB->pfMetalYield[idxTable + 1] * fDeltaMass;
+
+	    Data->afAGB_EjectedMass[idxData] =
+	       AGB->pfEjectedMass[idxTable] * (1.0 - fDeltaMass) +
+	       AGB->pfEjectedMass[idxTable + 1] * fDeltaMass;
+	 }
+      }
+      else {
+	 stevGetIndex1D(CCSN->pfMasses, STEV_CCSN_N_MASS, fLogMass, &idxMass, &fDeltaMass);
+
+	 for (j = 0; j < STEV_N_ELEM; j++) {
+	    for (k = 0; k < STEV_CCSN_N_METALLICITY; k++) {
+	       idxTable  = stevRowMajorIndex(k, j, idxMass, STEV_CCSN_N_METALLICITY,
+					     STEV_N_ELEM, STEV_CCSN_N_MASS);
+	       idxData = stevRowMajorIndex(k, i, j, STEV_CCSN_N_METALLICITY,
+					   STEV_INTERP_N_MASS, STEV_N_ELEM);
+
+	       /* WARNING: The following formula is correct only when mass is the last index
+		  in the tables */
+	       Data->afCCSN_Yields[idxData] =
+		  CCSN->pfYields[idxTable] * (1.0 - fDeltaMass) +
+		  CCSN->pfYields[idxTable + 1] * fDeltaMass;
+	    }
+
+	    for (k = 0; k < STEV_AGB_N_METALLICITY; k++) {
+	       idxData = stevRowMajorIndex(k, i, j, STEV_AGB_N_METALLICITY,
+					   STEV_INTERP_N_MASS, STEV_N_ELEM);
+	       if (i > idxCCSNMinMass + 1) {
+		  Data->afAGB_Yields[idxData] = 0.0f;
+	       }
+	       else {
+		  idxTable = stevRowMajorIndex(k, j, STEV_AGB_N_MASS - 1,
+					       STEV_AGB_N_METALLICITY, STEV_N_ELEM,
+					       STEV_AGB_N_MASS);
+		  Data->afAGB_Yields[idxData] = AGB->pfYields[idxTable];
+	       }
+	    }
+	 }
+
+	 for (k = 0; k < STEV_CCSN_N_METALLICITY; k++) {
+	    idxTable  = stevRowMajorIndex(k, idxMass, 0, STEV_CCSN_N_METALLICITY,
+					  STEV_CCSN_N_MASS, 1);
+	    idxData = stevRowMajorIndex(k, i, 0, STEV_CCSN_N_METALLICITY,
+					STEV_INTERP_N_MASS, 1);
+
+	    /* WARNING: The following formulas are correct only when mass is the last index
+	       in the tables */
+	    Data->afCCSN_MetalYield[idxData] =
+	       CCSN->pfMetalYield[idxTable] * (1.0 - fDeltaMass) +
+	       CCSN->pfMetalYield[idxTable + 1] * fDeltaMass;
+
+	    Data->afCCSN_EjectedMass[idxData] =
+	       CCSN->pfEjectedMass[idxTable] * (1.0 - fDeltaMass) +
+	       CCSN->pfEjectedMass[idxTable + 1] * fDeltaMass;
+	 }
+
+	 for (k = 0; k < STEV_AGB_N_METALLICITY; k++) {
+	    idxData = stevRowMajorIndex(k, i, 0, STEV_AGB_N_METALLICITY,
+					STEV_INTERP_N_MASS, 1);
+	    if (i > idxCCSNMinMass + 1) {
+	       Data->afAGB_MetalYield[idxData]  = 0.0f;
+	       Data->afAGB_EjectedMass[idxData] = 0.0f;
+	    }
+	    else {
+	       idxTable  = stevRowMajorIndex(k, STEV_AGB_N_MASS - 1, 0,
+					     STEV_AGB_N_METALLICITY, STEV_AGB_N_MASS, 1);
+	       Data->afAGB_MetalYield[idxData]  = AGB->pfMetalYield[idxTable];
+	       Data->afAGB_EjectedMass[idxData] = AGB->pfEjectedMass[idxTable];
+	    }
+	 }
+      }
+   }
 }
 
 

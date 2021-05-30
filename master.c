@@ -5083,7 +5083,6 @@ int msrNewTopStepKDK(MSR msr,
 #ifdef STELLAR_EVOLUTION
     msrReSmooth(msr, *pdTime, SMX_CHEM_ENRICHMENT, 1, 0);
 #endif
-    msrActiveRung(msr,uRung,1);
 #endif
 
     msrActiveRung(msr,uRung,1);

@@ -925,7 +925,7 @@ void pkd_cooling_init_backend(PKD pkd, struct cooling_function_data in_cooling_d
          SPHFIELDS* psph;
          psph = pkdSph(pkd,p);
 	 float fMass = pkdMass(pkd, p);
-         if (psph->afElemMass[ELEMENT_H] == 0.){
+         if (psph->afElemMass[ELEMENT_H] < 0.0f){
             psph->afElemMass[ELEMENT_H]  = pkd->param.dInitialH  * fMass;
             psph->afElemMass[ELEMENT_He] = pkd->param.dInitialHe * fMass;
             psph->afElemMass[ELEMENT_C]  = pkd->param.dInitialC  * fMass;

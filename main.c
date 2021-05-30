@@ -325,7 +325,7 @@ void master(MDL mdl,void *pst) {
       }
 #endif
 #ifdef STELLAR_EVOLUTION
-      msrStellarEvolutionInit(msr);
+      msrStellarEvolutionInit(msr, dTime);
 #endif
       msrOutputFineStatistics(msr, 0, -1);
 

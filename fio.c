@@ -2744,7 +2744,7 @@ static void writeSet(
 #define FIELD_TEMPERATURE "Temperature"
 #define FIELD_INTERNALENERGY "InternalEnergy"
 #define FIELD_ABUNDANCES  "Abundances"
-#define FIELD_METALS      "Metallicity"
+#define FIELD_METALLICITY "Metallicity"
 #define FIELD_SFR         "StarFormationRate"
 #define FIELD_AGE         "StellarFormationTime"
 #define FIELD_ACCRETION   "AccretionRate"
@@ -2753,7 +2753,6 @@ static void writeSet(
 #define FIELD_FEED_ENERGY "AccumulatedFeedbackEnergy"
 #define FIELD_BHMASS      "InternalMass"
 #define FIELD_INITIALMASS "InitialMass"
-#define FIELD_LASTENRICH  "LastEnrichTime"
 
 
 #define FIELD_ORDER      "ParticleIDs"
@@ -2768,9 +2767,9 @@ static void writeSet(
 */
 enum DARK_FIELDS{
    DARK_POSITION    = 0,
-   DARK_VELOCITY    ,
-   DARK_POTENTIAL   ,
-   DARK_DENSITY     ,
+   DARK_VELOCITY    = 1,
+   DARK_POTENTIAL   = 2,
+   DARK_DENSITY     = 3,
    DARK_MASS        ,
    DARK_GROUP       ,
    DARK_N           ,
@@ -2787,14 +2786,14 @@ enum DARK_FIELDS{
 */
 enum SPH_FIELDS{
    SPH_POSITION    = 0,
-   SPH_VELOCITY    ,
+   SPH_VELOCITY    = 1,
+   SPH_POTENTIAL   = 2,
+   SPH_DENSITY     = 3,
    SPH_MASS        ,
-   SPH_POTENTIAL   ,
-   SPH_DENSITY     ,
    SPH_TEMPERATURE ,
    SPH_ABUNDANCES  ,
 #ifdef STELLAR_EVOLUTION
-   SPH_METALS      ,
+   SPH_METALLICITY ,
 #endif
    SPH_SFR         ,
    SPH_SMOOTHING   ,
@@ -2805,15 +2804,14 @@ enum SPH_FIELDS{
 
 enum STAR_FIELDS{
    STAR_POSITION    = 0,
-   STAR_VELOCITY    ,
+   STAR_VELOCITY    = 1,
+   STAR_POTENTIAL   = 2,
+   STAR_DENSITY     = 3,
    STAR_MASS        ,
-   STAR_POTENTIAL   ,
-   STAR_DENSITY     ,
    STAR_ABUNDANCES  ,
 #ifdef STELLAR_EVOLUTION
-   STAR_METALS      ,
+   STAR_METALLICITY ,
    STAR_INITIALMASS ,
-   STAR_LASTENRICH  ,
 #endif
    STAR_AGE         ,
    STAR_GROUP       ,
@@ -2822,10 +2820,10 @@ enum STAR_FIELDS{
 
 enum BH_FIEDS{
    BH_POSITION    = 0,
-   BH_VELOCITY    ,
+   BH_VELOCITY    = 1,
+   BH_POTENTIAL   = 2,
+   BH_DENSITY     = 3,
    BH_MASS        ,
-   BH_POTENTIAL   ,
-   BH_DENSITY     ,
    BH_ACCRETION   ,
    BH_EDD_RATIO   ,
    BH_INT_MASS    ,
@@ -3641,28 +3639,23 @@ static int hdf5ReadSph(
     if ( !field_get_float(pfDen,&base->fldFields[SPH_DENSITY],base->iIndex) )
 	*pfDen = 0.0f;
 
-    /* Element abundances are optional when stellar evolution is off */
-    if ( !field_get_float(pfMetals,&base->fldFields[SPH_ABUNDANCES],base->iIndex) )
+    /* Element abundances are optional */
+    if ( !field_get_float(pfMetals,&base->fldFields[SPH_ABUNDANCES],base->iIndex) ) {
 #ifdef STELLAR_EVOLUTION
-    {
-        printf("ERROR: Input file does not contain the field %s/%s. If you want "
-	       "to run the simulation using this file, you need to recompile "
-	       "the code with -DSTELLAR_EVOLUTION=off.\n",
+        printf("WARNING: Input file does not contain the field %s/%s. Gas particles' "
+	       "elemental abundances will be set to the values given in the parameter file\n",
 	       fioSpeciesName(hio->eCurrent), FIELD_ABUNDANCES);
-	assert(0);
-    }
-#else
-	for (i=0;i<NUMBER_METALS;i++) pfMetals[i] = 0.0f;
 #endif
+	for (i = 0; i < NUMBER_METALS; i++) pfMetals[i] = -1.0f;
+    }
 
 #ifdef STELLAR_EVOLUTION    
     /* Metallicity */
-    if ( !field_get_float(&pfOtherData[0],&base->fldFields[SPH_METALS],base->iIndex) ) {
-        printf("ERROR: Input file does not contain the field %s/%s. If you want "
-	       "to run the simulation using this file, you need to recompile "
-	       "the code with -DSTELLAR_EVOLUTION=off.\n",
-	       fioSpeciesName(hio->eCurrent), FIELD_METALS);
-	assert(0);
+    if ( !field_get_float(&pfOtherData[0],&base->fldFields[SPH_METALLICITY],base->iIndex) ) {
+        printf("WARNING: Input file does not contain the field %s/%s. Gas particles' "
+	       "metallicity will be set to the value given in the parameter file\n",
+	       fioSpeciesName(hio->eCurrent), FIELD_METALLICITY);
+	pfOtherData[0] = -1.0f;
         }
 #endif
 
@@ -3738,60 +3731,43 @@ static int hdf5ReadStar(
     if ( !field_get_float(pfDen,&base->fldFields[STAR_DENSITY],base->iIndex) )
 	*pfDen = 0.0f;
 
-    /* Element abundances are optional when stellar evolution is off */
-    if ( !field_get_float(pfMetals,&base->fldFields[STAR_ABUNDANCES],base->iIndex) )
+    /* Element abundances are optional */
+    if ( !field_get_float(pfMetals,&base->fldFields[STAR_ABUNDANCES],base->iIndex) ) {
 #ifdef STELLAR_EVOLUTION
-    {
-        printf("ERROR: Input file does not contain the field %s/%s. If you want "
-	       "to run the simulation using this file, you need to recompile "
-	       "the code with -DSTELLAR_EVOLUTION=off.\n",
+        printf("WARNING: Input file does not contain the field %s/%s. Star particles' "
+	       "elemental abundances will be set to the values given in the parameter file\n",
 	       fioSpeciesName(hio->eCurrent), FIELD_ABUNDANCES);
-	assert(0);
-    }
-#else
-        for (i = 0; i < NUMBER_METALS; i++) pfMetals[i] = 0.0f;
 #endif
+        for (i = 0; i < NUMBER_METALS; i++) pfMetals[i] = -1.0f;
+    }
 
-    /* Formation time is optional when stellar evolution is off */
-    if ( !field_get_float(pfTform,&base->fldFields[STAR_AGE],base->iIndex) )
+    /* Formation time is optional */
+    if ( !field_get_float(pfTform,&base->fldFields[STAR_AGE],base->iIndex) ) {
 #ifdef STELLAR_EVOLUTION
-    {
-        printf("ERROR: Input file does not contain the field %s/%s. If you want "
-	       "to run the simulation using this file, you need to recompile "
-	       "the code with -DSTELLAR_EVOLUTION=off.\n",
+        printf("WARNING: Input file does not contain the field %s/%s. Star particles' "
+	       "formation time will be set to the initial time of the simulation\n",
 	       fioSpeciesName(hio->eCurrent), FIELD_AGE);
-	assert(0);
-    }
-#else
-	*pfTform = 0.0f;
 #endif
+	/* Here we can't set it to -1 because that signals a star particle in the ICs
+	   that is not supposed to explode, we set it to 0 instead. See pkdStarFormInit */
+	*pfTform = 0.0f;
+    }
 
 #ifdef STELLAR_EVOLUTION
     /* Metallicity */
-    if ( !field_get_float(&pfOtherData[0],&base->fldFields[STAR_METALS],base->iIndex) ) {
-        printf("ERROR: Input file does not contain the field %s/%s. If you want "
-	       "to run the simulation using this file, you need to recompile "
-	       "the code with -DSTELLAR_EVOLUTION=off.\n",
-	       fioSpeciesName(hio->eCurrent), FIELD_METALS);
-	assert(0);
+    if ( !field_get_float(&pfOtherData[0],&base->fldFields[STAR_METALLICITY],base->iIndex) ) {
+        printf("WARNING: Input file does not contain the field %s/%s. Star particles' "
+	       "metallicity will be set to the value given in the parameter file\n",
+	       fioSpeciesName(hio->eCurrent), FIELD_METALLICITY);
+	pfOtherData[0] = -1.0f;
         }
 
     /* Initial mass */
     if ( !field_get_float(&pfOtherData[1],&base->fldFields[STAR_INITIALMASS],base->iIndex) ) {
-        printf("ERROR: Input file does not contain the field %s/%s. If you want "
-	       "to run the simulation using this file, you need to recompile "
-	       "the code with -DSTELLAR_EVOLUTION=off.\n",
+        printf("WARNING: Input file does not contain the field %s/%s. Star particles' "
+	       "formation mass will be set to their current mass\n",
 	       fioSpeciesName(hio->eCurrent), FIELD_INITIALMASS);
-	assert(0);
-        }
-
-    /* Last enrichment time */
-    if ( !field_get_float(&pfOtherData[2],&base->fldFields[STAR_LASTENRICH],base->iIndex) ) {
-        printf("ERROR: Input file does not contain the field %s/%s. If you want "
-	       "to run the simulation using this file, you need to recompile "
-	       "the code with -DSTELLAR_EVOLUTION=off.\n",
-	       fioSpeciesName(hio->eCurrent), FIELD_LASTENRICH);
-	assert(0);
+	pfOtherData[1] = -1.0f;
         }
 #endif
 
@@ -3961,8 +3937,8 @@ static int hdf5WriteSph(
 		     FIELD_SFR, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, 1);
 #endif
 #ifdef STELLAR_EVOLUTION
-	field_create(&base->fldFields[SPH_METALS],base->group_id,
-		     FIELD_METALS, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, 1);
+	field_create(&base->fldFields[SPH_METALLICITY],base->group_id,
+		     FIELD_METALLICITY, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, 1);
 #endif
 	}
 
@@ -3982,7 +3958,7 @@ static int hdf5WriteSph(
     field_add_float(&fSFR,&base->fldFields[SPH_SFR],base->iIndex);
 #endif
 #ifdef STELLAR_EVOLUTION
-    field_add_float(&fMetallicity,&base->fldFields[SPH_METALS],base->iIndex);
+    field_add_float(&fMetallicity,&base->fldFields[SPH_METALLICITY],base->iIndex);
 #endif
 
     /* If we have exhausted our buffered data, read more */
@@ -4005,7 +3981,6 @@ static int hdf5WriteStar(
 #ifdef STELLAR_EVOLUTION
     float fMetallicity = pfOtherData[2];
     float fInitialMass = pfOtherData[3];
-    float fLastEnrichTime = pfOtherData[4];
 #endif
 
     /* First time for this particle type? */
@@ -4018,12 +3993,10 @@ static int hdf5WriteStar(
 	field_create(&base->fldFields[STAR_GROUP],base->group_id,
 		     FIELD_GROUP, H5T_NATIVE_INT32, H5T_NATIVE_INT32, 1);
 #ifdef STELLAR_EVOLUTION
-	field_create(&base->fldFields[STAR_METALS],base->group_id,
-		     FIELD_METALS, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, 1);
+	field_create(&base->fldFields[STAR_METALLICITY],base->group_id,
+		     FIELD_METALLICITY, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, 1);
 	field_create(&base->fldFields[STAR_INITIALMASS],base->group_id,
 		     FIELD_INITIALMASS, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, 1);
-	field_create(&base->fldFields[STAR_LASTENRICH],base->group_id,
-		     FIELD_LASTENRICH, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, 1);
 #endif
 	}
     class_add(base,iParticleID,fMass,0.0);
@@ -4037,9 +4010,8 @@ static int hdf5WriteStar(
     field_add_float(&fTform,&base->fldFields[STAR_AGE],base->iIndex);
     field_add_int32_t(&iGroup,&base->fldFields[STAR_GROUP],base->iIndex);
 #ifdef STELLAR_EVOLUTION
-    field_add_float(&fMetallicity,&base->fldFields[STAR_METALS],base->iIndex);
+    field_add_float(&fMetallicity,&base->fldFields[STAR_METALLICITY],base->iIndex);
     field_add_float(&fInitialMass,&base->fldFields[STAR_INITIALMASS],base->iIndex);
-    field_add_float(&fLastEnrichTime,&base->fldFields[STAR_LASTENRICH],base->iIndex);
 #endif
 
     /* If we have exhausted our buffered data, read more */
@@ -4217,8 +4189,8 @@ static FIO hdf5OpenOne(const char *fname,int iFile) {
 #ifdef STELLAR_EVOLUTION
 		field_open(&base->fldFields[SPH_ABUNDANCES],base->group_id,
 			   FIELD_ABUNDANCES,H5T_NATIVE_FLOAT,NUMBER_METALS);
-		field_open(&base->fldFields[SPH_METALS],base->group_id,
-			   FIELD_METALS,H5T_NATIVE_FLOAT,1);
+		field_open(&base->fldFields[SPH_METALLICITY],base->group_id,
+			   FIELD_METALLICITY,H5T_NATIVE_FLOAT,1);
 #endif
 		base->nTotal = hio->fio.nSpecies[i] = field_size(&base->fldFields[SPH_POSITION]);
 		class_open(&base->ioClass,base->group_id);
@@ -4253,12 +4225,10 @@ static FIO hdf5OpenOne(const char *fname,int iFile) {
 #ifdef STELLAR_EVOLUTION
 		field_open(&base->fldFields[STAR_ABUNDANCES],base->group_id,
 			   FIELD_ABUNDANCES,H5T_NATIVE_FLOAT,NUMBER_METALS);
-		field_open(&base->fldFields[STAR_METALS],base->group_id,
-			   FIELD_METALS,H5T_NATIVE_FLOAT,1);
+		field_open(&base->fldFields[STAR_METALLICITY],base->group_id,
+			   FIELD_METALLICITY,H5T_NATIVE_FLOAT,1);
 		field_open(&base->fldFields[STAR_INITIALMASS], base->group_id,
 			   FIELD_INITIALMASS,H5T_NATIVE_FLOAT,1);
-		field_open(&base->fldFields[STAR_LASTENRICH], base->group_id,
-			   FIELD_LASTENRICH,H5T_NATIVE_FLOAT,1);
 #endif
 		base->nTotal = hio->fio.nSpecies[i] = field_size(&base->fldFields[STAR_POSITION]);
 		class_open(&base->ioClass,base->group_id);

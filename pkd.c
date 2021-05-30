@@ -1243,7 +1243,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	    break;
 	case FIO_SPECIES_STAR:
 	    ;
-	    float afStarOtherData[3];
+	    float afStarOtherData[2];
 	    fioReadStar(fio,&iParticleID,r,vel,&fMass,&fSoft,pPot,&fDensity,
 			fMetals,&fTimer,afStarOtherData);
 	    pkdSetClass(pkd,fMass,fSoft,eSpecies,p);
@@ -1260,7 +1260,6 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 #ifdef STELLAR_EVOLUTION
 	       pStar->fMetalAbun = afStarOtherData[0];
 	       pStar->fInitialMass = afStarOtherData[1];
-	       pStar->fLastEnrichTime = afStarOtherData[2];
 #endif
 	    }
 	    break;
@@ -2328,13 +2327,12 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,BND *bnd,
 #else
       for (int k = 0; k < ELEMENT_COUNT; k++) fMetals[k] = 0.0f;
 #endif
-      float otherData[5];
+      float otherData[4];
       otherData[0] = pStar->fTimer;
       otherData[1] = pkd->oGroup ? (float)pkdGetGroup(pkd,p) : 0 ;
 #ifdef STELLAR_EVOLUTION
       otherData[2] = pStar->fMetalAbun;
       otherData[3] = pStar->fInitialMass;
-      otherData[4] = pStar->fLastEnrichTime;
 #endif
 	fioWriteStar(fio,iParticleID,r,v,fMass,fSoft,*pPot,fDensity,
 	    &fMetals[0],&otherData[0]);
