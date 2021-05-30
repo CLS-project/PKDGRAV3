@@ -1896,6 +1896,11 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
     prmAddParam(msr->prm, "achIMFtype", 3, msr->param.achIMFtype, 32, "imftype",
 		"Type of Initial Mass Function");
 
+    msr->param.bChemEnrich = 1;
+    prmAddParam(msr->prm, "bChemEnrich", 0, &msr->param.bChemEnrich,
+		sizeof(int), "bChemEnrich",
+		"Activate chemical enrichment of gas particles surrounding a star particle");
+
     msr->param.dIMF_MinMass = 0.1;
     prmAddParam(msr->prm, "dIMF_MinMass", 2, &msr->param.dIMF_MinMass,
 		sizeof(double), "imfminmass",
@@ -1906,12 +1911,12 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
 		sizeof(double), "imfmaxmass",
 		"Upper mass limit of the Initial Mass Function <Mo>");
 
-    msr->param.fCCSN_MinMass = 6.0;
+    msr->param.fCCSN_MinMass = 6.0f;
     prmAddParam(msr->prm, "fCCSN_MinMass", 2, &msr->param.fCCSN_MinMass,
 		sizeof(double), "ccsnminmass",
 		"Minimum mass for a star to end its life as a Core Collapse Supernova <Mo>");
 
-    msr->param.fSNIa_MaxMass = 8.0;
+    msr->param.fSNIa_MaxMass = 8.0f;
     prmAddParam(msr->prm, "fSNIa_MaxMass", 2, &msr->param.fSNIa_MaxMass,
 		sizeof(double), "sniamaxmass",
 		"Maximum mass for the likely progenitors of SNIa events <Mo>");
@@ -1924,17 +1929,20 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
     msr->param.dSNIa_Scale = 2e9;
     prmAddParam(msr->prm, "dSNIa_Scale", 2, &msr->param.dSNIa_Scale,
 		sizeof(double), "sniascale",
-		"Scale of the Delay Time Distribution function (Exponential <yr>, Powerlaw <dimensionless>)");
+		"Scale of the Delay Time Distribution function (Exponential <yr>, "
+		"Powerlaw <dimensionless>)");
 
     msr->param.dSNIa_Norm_ti = 40e6;
     prmAddParam(msr->prm, "dSNIa_Norm_ti", 2, &msr->param.dSNIa_Norm_ti,
 		sizeof(double), "sniati",
-		"Initial time for the normalization of the Delay Time Distribution function <yr>");
+		"Initial time for the normalization of the Delay Time Distribution "
+		"function <yr>");
 
     msr->param.dSNIa_Norm_tf = 13.7e9;
     prmAddParam(msr->prm, "dSNIa_Norm_tf", 2, &msr->param.dSNIa_Norm_tf,
 		sizeof(double), "sniatf",
-		"Final time for the normalization of the Delay Time Distribution function <yr>");
+		"Final time for the normalization of the Delay Time Distribution "
+		"function <yr>");
 #endif
     /* END of new params */
 

@@ -422,6 +422,9 @@ void smChemEnrich(PARTICLE *p, float fBall, int nSmooth, NN *nnList, SMF *smf) {
    pStar->fCumMetalMassEj += fMetalMass;
 
 
+   if (pkd->param.bChemEnrich == 0) return;
+
+
    const float fTotalMass = afElemMass[ELEMENT_H] + afElemMass[ELEMENT_He] + fMetalMass;
    *((float *) pkdField(p, pkd->oMass)) -= fTotalMass;
    assert(pkdMass(pkd, p) > 0.0f);

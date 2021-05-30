@@ -324,10 +324,11 @@ struct parameters {
     char achStEvolPath[256];
     char achSNIa_DTDtype[32];
     char achIMFtype[32];
+    int bChemEnrich;
     double dIMF_MinMass;
     double dIMF_MaxMass;
-    double fCCSN_MinMass;
-    double fSNIa_MaxMass;
+    float fCCSN_MinMass;
+    float fSNIa_MaxMass;
     double dSNIa_Norm;
     double dSNIa_Scale;
     double dSNIa_Norm_ti;
