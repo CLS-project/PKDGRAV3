@@ -600,7 +600,7 @@ int pstReadFile(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	mdlGetReply(pst->mdl,rID,NULL,NULL);
 	}
     else {
-	int *nParts = malloc(pst->nLeaves * sizeof(nParts));
+	int *nParts = malloc(pst->nLeaves * sizeof(*nParts));
 	int i;
 	uint64_t nStart;
 	PKD pkd;
@@ -608,7 +608,7 @@ int pstReadFile(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	PST pst0;
 
 	assert(nParts!=NULL);
-	pstOneNodeReadInit(pst,in,sizeof(*in),nParts,pst->nLeaves * sizeof(nParts));
+	pstOneNodeReadInit(pst,in,sizeof(*in),nParts,pst->nLeaves * sizeof(*nParts));
 	pkd = plcl->pkd;
 	mdl = pkd->mdl;
 
