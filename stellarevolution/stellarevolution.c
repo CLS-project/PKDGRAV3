@@ -301,7 +301,12 @@ void combChemEnrich(void *vpkd, void *vp1, void *vp2) {
 			      pSph1->mom[2] * pSph1->mom[2]) / (2.0f * fNewMass);
 
       pSph1->E += pSph2->E;
-      pSph1->Uint += pSph2->E - (fNewEkin - fOldEkin);
+      const float fDeltaUint = pSph2->E - (fNewEkin - fOldEkin);
+      pSph1->Uint += fDeltaUint;
+#ifdef ENTROPY_SWITCH
+      pSph1->S += fDeltaUint * (pkd->param.dConstGamma - 1.0) *
+	          pow(pkdDensity(pkd, p1), 1.0 - pkd->param.dConstGamma);
+#endif
 
       for (int j = 0; j < ELEMENT_COUNT; j++)
 	 pSph1->afElemMass[j] += pSph2->afElemMass[j];
@@ -483,7 +488,12 @@ void smChemEnrich(PARTICLE *p, float fBall, int nSmooth, NN *nnList, SMF *smf) {
 	 const float fNewMass = pkdMass(pkd, q);
 	 const float fNewEkin = (qSph->mom[0] * qSph->mom[0] + qSph->mom[1] * qSph->mom[1] +
 				 qSph->mom[2] * qSph->mom[2]) / (2.0f * fNewMass);
-	 qSph->Uint += fWeights[i] * fStarDeltaEkin - (fNewEkin - fOldEkin);
+	 const float fDeltaUint = fWeights[i] * fStarDeltaEkin - (fNewEkin - fOldEkin);
+	 qSph->Uint += fDeltaUint;
+#ifdef ENTROPY_SWITCH
+	 qSph->S += fDeltaUint * (pkd->param.dConstGamma - 1.0) *
+	            pow(pkdDensity(pkd, q), 1.0 - pkd->param.dConstGamma);
+#endif
       }
 
       qSph->E += fWeights[i] * fStarDeltaEkin;
