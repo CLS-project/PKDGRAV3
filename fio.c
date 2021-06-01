@@ -2768,9 +2768,9 @@ static void writeSet(
 */
 enum DARK_FIELDS{
    DARK_POSITION    = 0,
-   DARK_VELOCITY    ,
-   DARK_POTENTIAL   ,
-   DARK_DENSITY     ,
+   DARK_VELOCITY    = 1,
+   DARK_POTENTIAL   = 2,
+   DARK_DENSITY     = 3,
    DARK_MASS        ,
    DARK_GROUP       ,
    DARK_N           ,
@@ -2787,10 +2787,10 @@ enum DARK_FIELDS{
 */
 enum SPH_FIELDS{
    SPH_POSITION    = 0,
-   SPH_VELOCITY    ,
+   SPH_VELOCITY    = 1,
+   SPH_POTENTIAL   = 2,
+   SPH_DENSITY     = 3,
    SPH_MASS        ,
-   SPH_POTENTIAL   ,
-   SPH_DENSITY     ,
    SPH_TEMPERATURE ,
    SPH_ABUNDANCES  ,
    SPH_SFR         ,
@@ -2802,10 +2802,10 @@ enum SPH_FIELDS{
 
 enum STAR_FIELDS{
    STAR_POSITION    = 0,
-   STAR_VELOCITY    ,
+   STAR_VELOCITY    = 1,
+   STAR_POTENTIAL   = 2,
+   STAR_DENSITY     = 3,
    STAR_MASS        ,
-   STAR_POTENTIAL   ,
-   STAR_DENSITY     ,
    STAR_ABUNDANCES  ,
    STAR_AGE         ,
    STAR_GROUP       ,
@@ -3575,10 +3575,10 @@ static int hdf5ReadDark(
     *piParticleID = ioorder_get(&base->ioOrder,base->iOffset,base->iIndex);
 
     /* If each particles has a unique class, use that */
-    *pfSoft = 0.0; //IA: In the case that there is DARK_MASS, we set the softening to zero,
-                   //        hoping that it is set in the parameters file.. not ideal!! TODO
-    if ( !field_get_float(pfMass,&base->fldFields[DARK_MASS],base->iIndex) )
-       class_get(pfMass,pfSoft,&base->ioClass,*piParticleID,base->iIndex);
+    class_get(pfMass,pfSoft,&base->ioClass,*piParticleID,base->iIndex);
+
+    /* But the mass can still be overriden by that given in the input file */
+    field_get_float(pfMass,&base->fldFields[DARK_MASS],base->iIndex);
 
     /*
     ** Next particle.  If we are at the end of this species,
@@ -3619,11 +3619,13 @@ static int hdf5ReadSph(
     field_get_double(pdVel,&base->fldFields[SPH_VELOCITY],base->iIndex);
 
     /* If each particles has a unique class, use that */
-    if ( !field_get_float(pfMass,&base->fldFields[SPH_MASS],base->iIndex) )
-       class_get(pfMass,pfSoft,&base->ioClass,*piParticleID,base->iIndex);
-      
-    if ( !field_get_float(pfSoft,&base->fldFields[SPH_SMOOTHING],base->iIndex) )
-       *pfSoft = 0.0f;
+    class_get(pfMass,pfSoft,&base->ioClass,*piParticleID,base->iIndex);
+
+    /* But the mass can still be overriden by that given in the input file */
+    field_get_float(pfMass,&base->fldFields[SPH_MASS],base->iIndex);
+
+    if ( !field_get_float(pfOtherData,&base->fldFields[SPH_SMOOTHING],base->iIndex) )
+       pfOtherData[0] = 0.0f;
 
     /* Potential is optional */
     if ( !field_get_float(pfPot,&base->fldFields[SPH_POTENTIAL],base->iIndex) )
@@ -3644,14 +3646,14 @@ static int hdf5ReadSph(
           printf("There is no internal energy/temperature field at the IC!\n");
           abort();
        }else{
-          // IA: There is temperature, in this case we need to assume a conversion to internal energy. This should be avoided unless we know what we are doing!
-          *pfTemp = -(*pfTemp); // A negative values hints pkdReadSph that we are dealing with temperatures, rather than internal energies
-          //printf("WARNING: Reading temperature input data \n");
+          // There is only temperature, in this case we need to assume a
+          // conversion to internal energy. This should be avoided unless we
+          // know what we are doing!
+          *pfTemp = -(*pfTemp); // A negative values hints pkdReadFIO that we
+                                // are dealing with temperatures, rather
+                                // than internal energies
        }
-    }else{
-       // There is internal energy, do nothing?
     }
-
 
     /* iOrder is either sequential, or is listed for each particle */
     *piParticleID = ioorder_get(&base->ioOrder,base->iOffset,base->iIndex);
