@@ -1146,8 +1146,9 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	switch(eSpecies) {
 	case FIO_SPECIES_SPH:
 	    assert(dTuFac>0.0);
+	    float afSphOtherData[1];
 	    fioReadSph(fio,&iParticleID,r,vel,&fMass,&fSoft,pPot,
-			     &fDensity/*?*/,&u,&fMetals[0]); //IA: misreading, u means temperature
+		       &fDensity/*?*/,&u,&fMetals[0],afSphOtherData); //IA: misreading, u means temperature
           pkdSetClass(pkd,fMass,fSoft,eSpecies,p);
 	    pkdSetDensity(pkd,p,fDensity);
           pkdSetBall(pkd,p,fSoft);
@@ -1236,14 +1237,22 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	    pkdSetDensity(pkd,p,fDensity);
 	    break;
 	case FIO_SPECIES_STAR:
-	    fioReadStar(fio,&iParticleID,r,vel,&fMass,&fSoft,pPot,&fDensity,fMetals,&fTimer);
-          pkdSetClass(pkd,fMass,fSoft,eSpecies,p);
+	    ;
+	    float afStarOtherData[3];
+	    fioReadStar(fio,&iParticleID,r,vel,&fMass,&fSoft,pPot,&fDensity,
+			fMetals,&fTimer,afStarOtherData);
+	    pkdSetClass(pkd,fMass,fSoft,eSpecies,p);
 	    pkdSetDensity(pkd,p,fDensity);
 	    if (pkd->oStar) {
-             pStar = pkdStar(pkd,p);
-             pStar->fTimer = fTimer;
-             pStar->hasExploded = 1; // IA: We avoid that star in the IC could explode
-          }
+	       pStar = pkdStar(pkd,p);
+	       pStar->fTimer = fTimer;
+	       pStar->hasExploded = 1; // IA: We avoid that star in the IC could explode
+
+#if defined(COOLING)
+	       for (j = 0; j < ELEMENT_COUNT; j++)
+		  pStar->afElemAbun[j] = fMetals[j];
+#endif
+	    }
 	    break;
       case FIO_SPECIES_BH:
           pkdSetBall(pkd,p,pkdSoft(pkd,p));

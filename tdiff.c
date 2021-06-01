@@ -63,11 +63,11 @@ int main( int argc, char **argv ) {
 
     uint64_t iOrder1;
     double r1[3], v1[3];
-    float fMass1, fSoft1, fPot1, fRho1, u1, fMetals1, fTimer1;
+    float fMass1, fSoft1, fPot1, fRho1, u1, fMetals1, fTimer1, afOtherData1[3];
 
     uint64_t iOrder2;
     double r2[3], v2[3];
-    float fMass2, fSoft2, fPot2, fRho2, u2, fMetals2, fTimer2;
+    float fMass2, fSoft2, fPot2, fRho2, u2, fMetals2, fTimer2, afOtherData2[3];
 
     double v, vMin, vMax;
 
@@ -169,16 +169,20 @@ int main( int argc, char **argv ) {
         eSpecies = fioSpecies(fioIn1);
         switch(eSpecies) {
         case FIO_SPECIES_SPH:
-            fioReadSph(fioIn1,&iOrder1,r1,v1,&fMass1,&fSoft1,&fPot1,&fRho1,&u1,&fMetals1);
-            fioReadSph(fioIn2,&iOrder2,r2,v2,&fMass2,&fSoft2,&fPot2,&fRho2,&u2,&fMetals2);
+            fioReadSph(fioIn1,&iOrder1,r1,v1,&fMass1,&fSoft1,&fPot1,&fRho1,&u1,
+		       &fMetals1,afOtherData1);
+            fioReadSph(fioIn2,&iOrder2,r2,v2,&fMass2,&fSoft2,&fPot2,&fRho2,&u2,
+		       &fMetals2,afOtherData2);
             break;
         case FIO_SPECIES_DARK:
             fioReadDark(fioIn1,&iOrder1,r1,v1,&fMass1,&fSoft1,&fPot1,&fRho1);
             fioReadDark(fioIn2,&iOrder2,r2,v2,&fMass2,&fSoft2,&fPot2,&fRho2);
             break;
         case FIO_SPECIES_STAR:
-            fioReadStar(fioIn1,&iOrder1,r1,v1,&fMass1,&fSoft1,&fPot1,&fRho1,&fMetals1,&fTimer1);
-            fioReadStar(fioIn2,&iOrder2,r2,v2,&fMass2,&fSoft2,&fPot2,&fRho2,&fMetals2,&fTimer2);
+            fioReadStar(fioIn1,&iOrder1,r1,v1,&fMass1,&fSoft1,&fPot1,&fRho1,
+			&fMetals1,&fTimer1,afOtherData1);
+            fioReadStar(fioIn2,&iOrder2,r2,v2,&fMass2,&fSoft2,&fPot2,&fRho2,
+			&fMetals2,&fTimer2,afOtherData2);
             break;
         default:
             fprintf(stderr,"Unsupported particle type: %d\n",eSpecies);
