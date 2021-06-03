@@ -1911,13 +1911,13 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
 		sizeof(double), "imfmaxmass",
 		"Upper mass limit of the Initial Mass Function <Mo>");
 
-    msr->param.fCCSN_MinMass = 6.0f;
-    prmAddParam(msr->prm, "fCCSN_MinMass", 2, &msr->param.fCCSN_MinMass,
+    msr->param.dCCSN_MinMass = 6.0;
+    prmAddParam(msr->prm, "dCCSN_MinMass", 2, &msr->param.dCCSN_MinMass,
 		sizeof(double), "ccsnminmass",
 		"Minimum mass for a star to end its life as a Core Collapse Supernova <Mo>");
 
-    msr->param.fSNIa_MaxMass = 8.0f;
-    prmAddParam(msr->prm, "fSNIa_MaxMass", 2, &msr->param.fSNIa_MaxMass,
+    msr->param.dSNIa_MaxMass = 8.0;
+    prmAddParam(msr->prm, "dSNIa_MaxMass", 2, &msr->param.dSNIa_MaxMass,
 		sizeof(double), "sniamaxmass",
 		"Maximum mass for the likely progenitors of SNIa events <Mo>");
 
@@ -1943,6 +1943,16 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
 		sizeof(double), "sniatf",
 		"Final time for the normalization of the Delay Time Distribution "
 		"function <yr>");
+
+    msr->param.dSNIaEnergy = 1e51;
+    prmAddParam(msr->prm, "dSNIaEnergy", 2, &msr->param.dSNIaEnergy,
+		sizeof(double), "sniaenergy",
+		"SNIa event energy <erg>");
+
+    double dStellarWindSpeed = 10.0;
+    prmAddParam(msr->prm, "dStellarWindSpeed", 2, &dStellarWindSpeed,
+		sizeof(double), "windspeed",
+		"Stellar wind speed <km/s>");
 #endif
     /* END of new params */
 
@@ -2058,6 +2068,9 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
 #ifdef STELLAR_EVOLUTION
     msr->param.dSNIa_Norm_ti *= SECPERYEAR / msr->param.dSecUnit;
     msr->param.dSNIa_Norm_tf *= SECPERYEAR / msr->param.dSecUnit;
+    msr->param.dSNIaEnergy /= msr->param.dErgUnit;
+    dStellarWindSpeed /= msr->param.dKmPerSecUnit;
+    msr->param.dWindSpecificEkin = 0.5 * dStellarWindSpeed * dStellarWindSpeed;
 
     if (strcmp(msr->param.achSNIa_DTDtype, "exponential") == 0) {
        msr->param.dSNIa_Scale *= SECPERYEAR / msr->param.dSecUnit;

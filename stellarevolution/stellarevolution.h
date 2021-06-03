@@ -16,6 +16,8 @@
    - Masas se estan interpolando en "semilog", Lifetimes en "loglog".
    - El array de masas inicia en 0.7 Mo. La IMF se normaliza en su rango normal, [0.1,100].
    Esto significa que no se puede verificar la normalizacion usando el array de masas.
+   - Los parametros en [msr,pkd]->param no pueden estar en float (prmAddParam, readParameters).
+   - msr->param.fT_CMB_0 tiene sizeof(float) en msrInitialize.
 */
 
 
@@ -548,11 +550,11 @@ static inline void stevComputeMassToEject(
 }
 
 
-static inline float stevLifetimeFunction(PKD pkd, STARFIELDS *pStar, const float fMass) {
+static inline float stevLifetimeFunction(PKD pkd, STARFIELDS *pStar, const double dMass) {
    int iIdxMass;
    float fDeltaMass;
    stevGetIndex1D(pkd->StelEvolData->afLifetimes_Masses, STEV_LIFETIMES_N_MASS,
-		  log10(fMass), &iIdxMass, &fDeltaMass);
+		  log10(dMass), &iIdxMass, &fDeltaMass);
 
    const float fDeltaZ = pStar->Lifetimes.fDeltaZ;
 

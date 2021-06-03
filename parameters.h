@@ -327,12 +327,14 @@ struct parameters {
     int bChemEnrich;
     double dIMF_MinMass;
     double dIMF_MaxMass;
-    float fCCSN_MinMass;
-    float fSNIa_MaxMass;
+    double dCCSN_MinMass;
+    double dSNIa_MaxMass;
     double dSNIa_Norm;
     double dSNIa_Scale;
     double dSNIa_Norm_ti;
     double dSNIa_Norm_tf;
+    double dSNIaEnergy;
+    double dWindSpecificEkin;
 #endif
 
 #ifdef MDL_FFTW

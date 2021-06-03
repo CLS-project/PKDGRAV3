@@ -185,7 +185,7 @@ void pkdStarForm(PKD pkd,
 	    pStar->Lifetimes.oZ = iIdxZ * STEV_LIFETIMES_N_MASS;
 
 	    pStar->fCCSNOnsetTime = stevLifetimeFunction(pkd, pStar, pkd->param.dIMF_MaxMass);
-	    pStar->fSNIaOnsetTime = stevLifetimeFunction(pkd, pStar, pkd->param.fSNIa_MaxMass);
+	    pStar->fSNIaOnsetTime = stevLifetimeFunction(pkd, pStar, pkd->param.dSNIa_MaxMass);
 
 	    pStar->fLastEnrichTime = pStar->fCCSNOnsetTime;
 	    pStar->fLastEnrichMass = pkd->param.dIMF_MaxMass;

@@ -90,7 +90,7 @@ void msrStellarEvolutionInit(MSR msr, double dTime) {
    }
 
 
-   stevInterpToIMFSampling(buffer, CCSNdata, AGBdata, msr->param.fCCSN_MinMass);
+   stevInterpToIMFSampling(buffer, CCSNdata, AGBdata, msr->param.dCCSN_MinMass);
 
 
    for (i = 0; i < STEV_CCSN_N_METALLICITY; i++) {
@@ -236,7 +236,7 @@ int pkdStellarEvolutionInit(PKD pkd, STEV_DATA *data) {
 	 pStar->Lifetimes.oZ = iIdxZ * STEV_LIFETIMES_N_MASS;
 
 	 pStar->fCCSNOnsetTime = stevLifetimeFunction(pkd, pStar, pkd->param.dIMF_MaxMass);
-	 pStar->fSNIaOnsetTime = stevLifetimeFunction(pkd, pStar, pkd->param.fSNIa_MaxMass);
+	 pStar->fSNIaOnsetTime = stevLifetimeFunction(pkd, pStar, pkd->param.dSNIa_MaxMass);
 
 	 pStar->fLastEnrichTime = (float)dTime - pStar->fTimer;
 	 if (pStar->fLastEnrichTime < pStar->fCCSNOnsetTime) {
@@ -363,7 +363,7 @@ void smChemEnrich(PARTICLE *p, float fBall, int nSmooth, NN *nnList, SMF *smf) {
       afElemMass[i] = 0.0f;
    fMetalMass = 0.0f;
 
-   const float Mtrans = pkd->param.fCCSN_MinMass;
+   const float Mtrans = pkd->param.dCCSN_MinMass;
    if (Mf > Mtrans) {
       /* CCSN only */
       stevComputeMassToEject(pkd->StelEvolData->afCCSN_Yields,
@@ -435,6 +435,20 @@ void smChemEnrich(PARTICLE *p, float fBall, int nSmooth, NN *nnList, SMF *smf) {
    assert(pkdMass(pkd, p) > 0.0f);
 
 
+   const float fScaleFactorInv = 1.0 / csmTime2Exp(pkd->csm, smf->dTime);
+   const float fScaleFactorInvSq = fScaleFactorInv * fScaleFactorInv;
+   vel_t *pStarVel = pkdVel(pkd, p);
+
+   const float fStarDeltaEkin = 0.5f * fTotalMass * (pStarVel[0] * pStarVel[0] +
+				pStarVel[1] * pStarVel[1] + pStarVel[2] * pStarVel[2]);
+   const float fWindEkin = (float)pkd->param.dWindSpecificEkin * fTotalMass;
+   const float fSNIaEjEnergy = (fNumSNIa * (float)pkd->param.dMsolUnit) * pStar->fInitialMass *
+                               (float)pkd->param.dSNIaEnergy;
+
+   const float fStarEjEnergy = (fStarDeltaEkin + fWindEkin) * fScaleFactorInvSq +
+                               fSNIaEjEnergy;
+
+
    PARTICLE *q;
    float fWeights[nSmooth];
    float fNormFactor = 0.0f;
@@ -453,11 +467,6 @@ void smChemEnrich(PARTICLE *p, float fBall, int nSmooth, NN *nnList, SMF *smf) {
    fNormFactor = 1.0f / fNormFactor;
 
 
-   const float fScaleFactorInv = 1.0 / csmTime2Exp(pkd->csm, smf->dTime);
-   vel_t *pStarVel = pkdVel(pkd, p);
-   const float fStarDeltaEkin = 0.5f * fTotalMass * (pStarVel[0] * pStarVel[0] +
-	        	        pStarVel[1] * pStarVel[1] + pStarVel[2] * pStarVel[2]) *
-                                (fScaleFactorInv * fScaleFactorInv);
    for (i = 0; i < nSmooth; i++) {
       q = nnList[i].pPart;
 
@@ -488,7 +497,7 @@ void smChemEnrich(PARTICLE *p, float fBall, int nSmooth, NN *nnList, SMF *smf) {
 	 const float fNewMass = pkdMass(pkd, q);
 	 const float fNewEkin = (qSph->mom[0] * qSph->mom[0] + qSph->mom[1] * qSph->mom[1] +
 				 qSph->mom[2] * qSph->mom[2]) / (2.0f * fNewMass);
-	 const float fDeltaUint = fWeights[i] * fStarDeltaEkin - (fNewEkin - fOldEkin);
+	 const float fDeltaUint = fWeights[i] * fStarEjEnergy - (fNewEkin - fOldEkin);
 	 qSph->Uint += fDeltaUint;
 #ifdef ENTROPY_SWITCH
 	 qSph->S += fDeltaUint * (pkd->param.dConstGamma - 1.0) *
@@ -496,7 +505,7 @@ void smChemEnrich(PARTICLE *p, float fBall, int nSmooth, NN *nnList, SMF *smf) {
 #endif
       }
 
-      qSph->E += fWeights[i] * fStarDeltaEkin;
+      qSph->E += fWeights[i] * fStarEjEnergy;
 
       for (int j = 0; j < STEV_N_ELEM; j++)
 	 qSph->afElemMass[j] += fWeights[i] * afElemMass[j];
