@@ -160,7 +160,7 @@ static void addChildFof(PKD pkd, CL cl, int iChild, int id, float *fOffset) {
     cOpen = cbnd.fMax[0] + cbnd.fMax[1] + cbnd.fMax[2]; /* Manhatten metric */
     pkdGetChildCells(c,id,idLower,iLower,idUpper,iUpper);
     clAppend(cl,iCache,id,iChild,idLower,iLower,idUpper,iUpper,nc,cOpen,
-	pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c_r,fOffset,cbnd.fCenter,cbnd.fMax);
+	pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c_r,fOffset,cbnd.fCenter,cbnd.fMax,c->fBoBr2);
     }
 
 

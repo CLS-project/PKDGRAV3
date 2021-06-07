@@ -164,7 +164,7 @@ static void addChild(PKD pkd, int iCache, CL cl, int iChild, int id, float *fOff
     BND cbnd = pkdNodeGetBnd(pkd,c);
     pkdGetChildCells(c,id,idLower,iLower,idUpper,iUpper);
     clAppend(cl,iCache,id,iChild,idLower,iLower,idUpper,iUpper,nc,cOpen,
-	pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c_r,fOffset,cbnd.fCenter,cbnd.fMax);
+	pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c_r,fOffset,cbnd.fCenter,cbnd.fMax,c->fBoBr2);
     }
 /*
 ** Returns total number of active particles for which gravity was calculated.
@@ -432,7 +432,8 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2,
 					r,       /* center of mass */
 					fOffset, /* fOffset */
 					r,       /* center of box */
-					fZero3); /* size of box */
+					fZero3,  /* size of box */
+                    blk->fBoBr2.f[jTile]);
 				    }
 				break;
 			    case 3:

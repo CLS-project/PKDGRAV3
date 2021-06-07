@@ -80,6 +80,7 @@ void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,SPHOption
 	iEnd = (iEnd+fvec::mask()) >> SIMD_BITS;
 	for(i=0; i<iEnd; ++i) {
 	    fourh2 = blk->fourh2.p[i];
+        fvec fBoBr2blk = blk->fBoBr2.p[i];
         T0 = fourh2 > k_fBoBr2;
         fourh2 = mask_mov(k_fBoBr2,T0,fourh2);
 	    xc = fvec(blk->x.p[i]) + fvec(blk->xOffset.p[i]);
