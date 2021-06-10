@@ -3640,23 +3640,13 @@ static int hdf5ReadSph(
 	*pfDen = 0.0f;
 
     /* Element abundances are optional */
-    if ( !field_get_float(pfMetals,&base->fldFields[SPH_ABUNDANCES],base->iIndex) ) {
-#ifdef STELLAR_EVOLUTION
-        printf("WARNING: Input file does not contain the field %s/%s. Gas particles' "
-	       "elemental abundances will be set to the values given in the parameter file\n",
-	       fioSpeciesName(hio->eCurrent), FIELD_ABUNDANCES);
-#endif
+    if ( !field_get_float(pfMetals,&base->fldFields[SPH_ABUNDANCES],base->iIndex) )
 	for (i = 0; i < NUMBER_METALS; i++) pfMetals[i] = -1.0f;
-    }
 
 #ifdef STELLAR_EVOLUTION    
-    /* Metallicity */
-    if ( !field_get_float(&pfOtherData[0],&base->fldFields[SPH_METALLICITY],base->iIndex) ) {
-        printf("WARNING: Input file does not contain the field %s/%s. Gas particles' "
-	       "metallicity will be set to the value given in the parameter file\n",
-	       fioSpeciesName(hio->eCurrent), FIELD_METALLICITY);
+    /* Metallicity is optional */
+    if ( !field_get_float(&pfOtherData[0],&base->fldFields[SPH_METALLICITY],base->iIndex) )
 	pfOtherData[0] = -1.0f;
-        }
 #endif
 
     /* We need either temperature or internal energy */
@@ -3732,43 +3722,23 @@ static int hdf5ReadStar(
 	*pfDen = 0.0f;
 
     /* Element abundances are optional */
-    if ( !field_get_float(pfMetals,&base->fldFields[STAR_ABUNDANCES],base->iIndex) ) {
-#ifdef STELLAR_EVOLUTION
-        printf("WARNING: Input file does not contain the field %s/%s. Star particles' "
-	       "elemental abundances will be set to the values given in the parameter file\n",
-	       fioSpeciesName(hio->eCurrent), FIELD_ABUNDANCES);
-#endif
+    if ( !field_get_float(pfMetals,&base->fldFields[STAR_ABUNDANCES],base->iIndex) )
         for (i = 0; i < NUMBER_METALS; i++) pfMetals[i] = -1.0f;
-    }
 
     /* Formation time is optional */
-    if ( !field_get_float(pfTform,&base->fldFields[STAR_AGE],base->iIndex) ) {
-#ifdef STELLAR_EVOLUTION
-        printf("WARNING: Input file does not contain the field %s/%s. Star particles' "
-	       "formation time will be set to the initial time of the simulation\n",
-	       fioSpeciesName(hio->eCurrent), FIELD_AGE);
-#endif
+    if ( !field_get_float(pfTform,&base->fldFields[STAR_AGE],base->iIndex) )
 	/* Here we can't set it to -1 because that signals a star particle in the ICs
 	   that is not supposed to explode, we set it to 0 instead. See pkdStarFormInit */
 	*pfTform = 0.0f;
-    }
 
 #ifdef STELLAR_EVOLUTION
-    /* Metallicity */
-    if ( !field_get_float(&pfOtherData[0],&base->fldFields[STAR_METALLICITY],base->iIndex) ) {
-        printf("WARNING: Input file does not contain the field %s/%s. Star particles' "
-	       "metallicity will be set to the value given in the parameter file\n",
-	       fioSpeciesName(hio->eCurrent), FIELD_METALLICITY);
+    /* Metallicity is optional */
+    if ( !field_get_float(&pfOtherData[0],&base->fldFields[STAR_METALLICITY],base->iIndex) )
 	pfOtherData[0] = -1.0f;
-        }
 
-    /* Initial mass */
-    if ( !field_get_float(&pfOtherData[1],&base->fldFields[STAR_INITIALMASS],base->iIndex) ) {
-        printf("WARNING: Input file does not contain the field %s/%s. Star particles' "
-	       "formation mass will be set to their current mass\n",
-	       fioSpeciesName(hio->eCurrent), FIELD_INITIALMASS);
+    /* Initial mass is optional */
+    if ( !field_get_float(&pfOtherData[1],&base->fldFields[STAR_INITIALMASS],base->iIndex) )
 	pfOtherData[1] = -1.0f;
-        }
 #endif
 
     /* iOrder is either sequential, or is listed for each particle */

@@ -52,10 +52,10 @@ void msrStellarEvolutionInit(MSR msr, double dTime) {
 
 
    STEV_DATA *buffer = malloc(sizeof(STEV_DATA) + sizeof(double));
-   /* The lowest value of the initial mass array is chosen such that the corresponding 
-      lifetime is greater than the age of the Universe, for all metallicities. The IMF
-      is still normalized in the range [msr->param.dIMF_MinMass,msr->param.dIMF_MaxMass] */
-   double dMinMass = 0.7;
+   /* The lowest value of the initial mass array is set to the corresponding value
+      of the Lifetimes table that is being used. The IMF is still normalized in the
+      range [msr->param.dIMF_MinMass,msr->param.dIMF_MaxMass] */
+   double dMinMass = LifetimesData->pfMasses[0];
    stevComputeIMFSamplingPoints(dMinMass, msr->param.dIMF_MaxMass, STEV_INTERP_N_MASS,
 				buffer->afMasses, buffer->afLogMasses);
 
