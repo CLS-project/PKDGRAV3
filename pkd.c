@@ -2184,7 +2184,7 @@ void pkdGravAll(PKD pkd,
     /*
     ** Set up Ewald tables and stuff.
     */
-    if (bPeriodic && bEwald) {
+    if (bPeriodic && bEwald && SPHoptions.doGravity) {
 	pkdEwaldInit(pkd,nReps,fEwCut,fEwhCut);	/* ignored in Flop count! */
 	}
     /*

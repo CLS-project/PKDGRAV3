@@ -458,6 +458,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2,
 				** Accept multipole!
 				** Interact += Moment(c);
 				*/
+                if (SPHoptions.doGravity) {
 				iCheckCell = blk->iCell.i[jTile];
 				assert(iCheckCell>=0);
 				id = blk->idCell.i[jTile];
@@ -474,11 +475,13 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2,
 				    pkd->ilc->cx=r[0]; pkd->ilc->cy=r[1]; pkd->ilc->cz=r[2];
 				    }
 				ilcAppend(pkd->ilc,r[0],r[1],r[2],pkdNodeMom(pkd,c),c->bMax);
+                }
 				break;
 			    case 8:
 				/*
 				** Local expansion accepted!
 				*/
+                if (SPHoptions.doGravity) {
 				iCheckCell = blk->iCell.i[jTile];
 				if (iCheckCell<0) {
 				    fOffset[0] = blk->xOffset.f[jTile];
@@ -541,6 +544,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2,
 					}
 #endif
 				    }
+                }
 				break;
 			    case 10:
 				/*

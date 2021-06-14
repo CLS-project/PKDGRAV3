@@ -109,6 +109,7 @@ void pkdParticleWorkDone(workParticle *wp) {
         pkdSetBall(pkd,p,wp->pInfoOut[i].fBall);
         // float omega = 1.0f + wp->pInfoOut[i].fBall/(3.0f * wp->pInfoOut[i].rho)*wp->pInfoOut[i].drhodfball;
 
+        if (wp->SPHoptions.doGravity) {
 	    pkdGetPos1(pkd,p,r);
 	    m = pkdMass(pkd,p);
 	    if (pkd->oFieldOffset[oAcceleration]) {
@@ -236,6 +237,9 @@ void pkdParticleWorkDone(workParticle *wp) {
 			}
 		    }
 		}
+        } else {
+            ++pkd->nRung[p->uRung];
+        }
 	    }
 	free(wp->pPart);
 	free(wp->iPart);
@@ -625,6 +629,7 @@ int pkdGravInteract(PKD pkd,
 	/*
 	** Calculate local density and kernel smoothing length for dynamical time-stepping
 	*/
+    if (SPHoptions.doGravity) {
 	if (ts->bGravStep) {
 	    /*
 	    ** Calculate local density using smooth; this is fast because the particles are
@@ -641,13 +646,14 @@ int pkdGravInteract(PKD pkd,
 	    wp->pInfoIn[nP].fSmooth2 = 0.0;
 	    }
 	}
+    }
 
     nActive += wp->nP;
 
     /*
     ** Evaluate the local expansion.
     */
-    if (pLoc) {
+    if (pLoc && SPHoptions.doGravity) {
 	for( i=0; i<wp->nP; i++ ) {
 	    momFloat ax,ay,az, dPot;
 	    double *c = wp->c;
