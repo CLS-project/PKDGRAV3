@@ -2931,9 +2931,11 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
                    if (!p->bMarked) continue;
 #endif
 
-#if (defined(STAR_FORMATION) && defined(FEEDBACK)) || defined(STELLAR_EVOLUTION)
-                   // We keep track of the density of star particles
-                   // that have not exploded
+#if defined(FEEDBACK) && !defined(STELLAR_EVOLUTION)
+                   // If there is only feedback, once the particle explodes
+                   // there is no need to updated its fBall.
+                   // However, if we have stellar evolution, fBall needs to be
+                   // always updated.
                    if (pkdIsStar(pkd,p) && (pkdStar(pkd,p)->hasExploded==1))
                       continue;
 #endif
