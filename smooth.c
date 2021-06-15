@@ -2905,7 +2905,7 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
          float nodeBall = 0.;
 #ifdef OPTIM_REORDER_IN_NODES
          int pEnd = node->pLower + pkdNodeNgas(pkd,node);
-#if defined(STAR_FORMATION) && defined(FEEDBACK)
+#if (defined(STAR_FORMATION) && defined(FEEDBACK)) || defined(STELLAR_EVOLUTION)
          if (iSmoothType==SMX_FIRSTHYDROLOOP) pEnd += pkdNodeNstar(pkd,node);
 #endif
 #ifdef BLACKHOLES
@@ -2931,7 +2931,7 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
                    if (!p->bMarked) continue;
 #endif
 
-#if defined(STAR_FORMATION) && defined(FEEDBACK)
+#if (defined(STAR_FORMATION) && defined(FEEDBACK)) || defined(STELLAR_EVOLUTION)
                    // We keep track of the density of star particles
                    // that have not exploded
                    if (pkdIsStar(pkd,p) && (pkdStar(pkd,p)->hasExploded==1))

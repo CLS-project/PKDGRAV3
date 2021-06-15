@@ -1040,7 +1040,7 @@ typedef struct pkdContext {
 #endif
 #ifdef OPTIM_REORDER_IN_NODES
     int oNodeNgas;
-#if defined(STAR_FORMATION) && defined(FEEDBACK)
+#if (defined(STAR_FORMATION) && defined(FEEDBACK)) || defined(STELLAR_EVOLUTION)
     int oNodeNstar;
 #endif
     int oNodeNbh;
@@ -1339,7 +1339,7 @@ static inline int pkdNodeNgas( PKD pkd, KDN* n){
 static inline void pkdNodeSetNgas(  PKD pkd, KDN *n, int ngas){
     *CAST(int*, pkdNodeField(n, pkd->oNodeNgas)) = ngas;
     }
-#if defined(STAR_FORMATION) && defined(FEEDBACK)
+#if (defined(STAR_FORMATION) && defined(FEEDBACK)) || defined(STELLAR_EVOLUTION)
 static inline int pkdNodeNstar( PKD pkd, KDN* n){
    return *CAST(int *, pkdNodeField(n, pkd->oNodeNstar));
    }

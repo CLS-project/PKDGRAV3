@@ -592,7 +592,7 @@ void pkdInitialize(
 #endif
 #ifdef OPTIM_REORDER_IN_NODES
     pkd->oNodeNgas = pkdNodeAddInt32(pkd,1);
-#if defined(STAR_FORMATION) && defined(FEEDBACK)
+#if (defined(STAR_FORMATION) && defined(FEEDBACK)) || defined(STELLAR_EVOLUTION)
     pkd->oNodeNstar = pkdNodeAddInt32(pkd,1);
 #endif
     pkd->oNodeNbh = pkdNodeAddInt32(pkd,1);
@@ -3153,7 +3153,7 @@ void pkdReorderWithinNodes(PKD pkd){
          }
          pkdNodeSetNgas(pkd, node, nGas);
          start += nGas;
-#if defined(STAR_FORMATION) && defined(FEEDBACK)
+#if (defined(STAR_FORMATION) && defined(FEEDBACK)) || defined(STELLAR_EVOLUTION)
          // We perform another swap, just to have nGas->nStar->DM
          int nStar = 0;
          for (int pj=start;pj<=node->pUpper;++pj) {
