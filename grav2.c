@@ -105,9 +105,11 @@ void pkdParticleWorkDone(workParticle *wp) {
 	for( i=0; i<wp->nP; i++ ) {
 	    p = wp->pPart[i];
 
+        if (wp->SPHoptions.doDensity) {
         pkdSetDensity(pkd,p,wp->pInfoOut[i].rho);
         pkdSetBall(pkd,p,wp->pInfoOut[i].fBall);
         // float omega = 1.0f + wp->pInfoOut[i].fBall/(3.0f * wp->pInfoOut[i].rho)*wp->pInfoOut[i].drhodfball;
+        }
 
         if (wp->SPHoptions.doGravity) {
 	    pkdGetPos1(pkd,p,r);
@@ -696,10 +698,12 @@ int pkdGravInteract(PKD pkd,
     queuePP( pkd, wp, ilp, ts->bGravStep );
     }
 
+    if (SPHoptions.doDensity) {
     /*
     ** Evaluate the Density on the P-P interactions
     */
     queueDensity( pkd, wp, ilp, ts->bGravStep );
+    }
 
     if (SPHoptions.doGravity) {
     /*
@@ -711,6 +715,7 @@ int pkdGravInteract(PKD pkd,
     }
 
 #ifdef TIMESTEP_CRITICAL
+    if (SPHoptions.doGravity) {
     for( i=0; i<wp->nP; i++ ) {
 	double *c = wp->c;
 	float *in = wp->pInfoIn[i].r;
@@ -775,6 +780,7 @@ int pkdGravInteract(PKD pkd,
 	    wp->pInfoOut[i].rhopmax = rhopmax;
 	    }
         } /* end of i-loop cells & particles */
+    }
 #endif
 
     pkdParticleWorkDone(wp);
