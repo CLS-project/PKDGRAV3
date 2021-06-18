@@ -74,47 +74,41 @@ CUDA_DEVICE void EvalDensity(
     F ifBall;
     F t1, t2, t3;
 
-    F one = 1.0f;
-    F two = 2.0f;
-    F three = 3.0f;
-    F six = 6.0f;
-    F eight = 8.0f;
-
-    ifBall = one / fBall;
+    ifBall = 1.0f / fBall;
     p = sqrt(d2) * ifBall;
 
-    M pltone = p < one;
+    M pltone = p < 1.0f;
 
     if (!testz(pltone)) {
         // There is some work to do
-        M pltonehalf = p < (one / two);
-        t1 = p - one;
+        M pltonehalf = p < 0.5f;
+        t1 = p - 1.0f;
+
+        // Normalization factor
+        F C = 8.0f * M_1_PI * ifBall * ifBall * ifBall;
 
         // Evaluate the kernel
-        t2 = one + six * p * p * t1;
-        t3 = - two * t1 * t1 * t1;
+        t2 = 1.0f + 6.0f * p * p * t1;
+        t3 = - 2.0f * t1 * t1 * t1;
         w = maskz_mov(pltone,t3);
         w = mask_mov(w,pltonehalf,t2);
 
         // Evaluate the kernel derivative
-        t2 = six * p * (three * p - two);
-        t3 = - six * t1 * t1;
+        t2 = 6.0f * p * (3.0f * p - 2.0f);
+        t3 = - 6.0f * t1 * t1;
         dwdp = maskz_mov(pltone,t3);
         dwdp = mask_mov(dwdp,pltonehalf,t2);
-
-        // Normalization factor
-        F C = eight * M_1_PI * ifBall * ifBall * ifBall;
 
         // return the density
         anden = C * w;
         arho = Im * anden;
 
         // return the density derivative
-        adndendfball = - C * ifBall * (three * w + dwdp * p);
+        adndendfball = - C * ifBall * (3.0f * w + dwdp * p);
         adrhodfball = Im * adndendfball;
 
         // return the number of particles used
-        anSmooth = maskz_mov(pltone,one);
+        anSmooth = maskz_mov(pltone,1.0f);
     } else {
         // No work to do
         arho = 0.0f;
