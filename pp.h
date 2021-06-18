@@ -70,45 +70,35 @@ CUDA_DEVICE void EvalDensity(
     F dz = Idz + Pdz;
     F d2 = dx*dx + dy*dy + dz*dz;
 
-    F p, w, dwdp;
-    F ifBall;
+    F r, w, dwdr, dWdfball;
+    F ifBall, C;
     F t1, t2, t3;
+    M mask1;
+
+    int kernelType = SPHoptions.kernelType;
 
     ifBall = 1.0f / fBall;
-    p = sqrt(d2) * ifBall;
+    r = sqrt(d2) * ifBall;
 
-    M pltone = p < 1.0f;
+    M r_lt_one = r < 1.0f;
 
-    if (!testz(pltone)) {
+    if (!testz(r_lt_one)) {
         // There is some work to do
-        M pltonehalf = p < 0.5f;
-        t1 = p - 1.0f;
-
-        // Normalization factor
-        F C = 8.0f * M_1_PI * ifBall * ifBall * ifBall;
-
-        // Evaluate the kernel
-        t2 = 1.0f + 6.0f * p * p * t1;
-        t3 = - 2.0f * t1 * t1 * t1;
-        w = maskz_mov(pltone,t3);
-        w = mask_mov(w,pltonehalf,t2);
-
-        // Evaluate the kernel derivative
-        t2 = 6.0f * p * (3.0f * p - 2.0f);
-        t3 = - 6.0f * t1 * t1;
-        dwdp = maskz_mov(pltone,t3);
-        dwdp = mask_mov(dwdp,pltonehalf,t2);
+        SPHKERNEL_INIT(r, ifBall, C, t1, mask1, kernelType);
+        SPHKERNEL(r, w, t1, t2, t3, r_lt_one, mask1, kernelType);
+        DSPHKERNEL_DR(r, dwdr, t1, t2, t3, r_lt_one, mask1, kernelType);
+        DSPHKERNEL_DFBALL(r, ifBall, w, dwdr, C, dWdfball, kernelType);
 
         // return the density
         anden = C * w;
         arho = Im * anden;
 
         // return the density derivative
-        adndendfball = - C * ifBall * (3.0f * w + dwdp * p);
+        adndendfball = dWdfball;
         adrhodfball = Im * adndendfball;
 
         // return the number of particles used
-        anSmooth = maskz_mov(pltone,1.0f);
+        anSmooth = maskz_mov(r_lt_one,1.0f);
     } else {
         // No work to do
         arho = 0.0f;

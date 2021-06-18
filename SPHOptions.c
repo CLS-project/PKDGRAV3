@@ -28,5 +28,6 @@
 SPHOptions initializeSPHOptions(struct parameters param){
     SPHOptions SPHoptions;
     SPHoptions.useNumDen = 0;
+    SPHoptions.kernelType = 0;
     return SPHoptions;
 }
