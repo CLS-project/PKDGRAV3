@@ -2771,7 +2771,7 @@ int  smReSmooth(SMX smx,SMF *smf, int iSmoothType) {
 	     p = pkdParticle(pkd, pi);
 	     if (pkdIsStar(pkd, p)) {
 		STARFIELDS *pStar = pkdStar(pkd, p);
-		if ((float)smf->dTime - pStar->fTimer > pStar->fCCSNOnsetTime) {
+		if ((float)smf->dTime > pStar->fNextEnrichTime) {
 		   smReSmoothSingle(smx, smf, p, 2.0 * pkdBall(pkd, p));
 		   nSmoothed++;
 		}

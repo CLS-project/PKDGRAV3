@@ -561,10 +561,10 @@ static inline float stevLifetimeFunction(PKD pkd, STARFIELDS *pStar, const doubl
    const float *afTimesLowerZ = pkd->StelEvolData->afLifetimes + pStar->Lifetimes.oZ;
    const float *afTimesUpperZ = afTimesLowerZ + STEV_LIFETIMES_N_MASS;
 
-   float fLogTime = afTimesLowerZ[iIdxMass] * (1.0f - fDeltaZ) * (1.0f - fDeltaMass);
-   fLogTime += afTimesLowerZ[iIdxMass + 1] * (1.0f - fDeltaZ) * fDeltaMass;
-   fLogTime += afTimesUpperZ[iIdxMass] * fDeltaZ * (1.0f - fDeltaMass);
-   fLogTime += afTimesUpperZ[iIdxMass + 1] * fDeltaZ * fDeltaMass;
+   float fLogTime = afTimesLowerZ[iIdxMass] * (1.0f - fDeltaZ) * (1.0f - fDeltaMass) +
+                    afTimesLowerZ[iIdxMass + 1] * (1.0f - fDeltaZ) * fDeltaMass +
+                    afTimesUpperZ[iIdxMass] * fDeltaZ * (1.0f - fDeltaMass) +
+                    afTimesUpperZ[iIdxMass + 1] * fDeltaZ * fDeltaMass;
 
    return pow(10.0, fLogTime);
 }
@@ -587,12 +587,109 @@ static inline float stevInverseLifetimeFunction(PKD pkd, STARFIELDS *pStar, cons
    const float fDeltaZ = pStar->Lifetimes.fDeltaZ;
    const float *afMasses = pkd->StelEvolData->afLifetimes_Masses;
 
-   float fLogMass = afMasses[iIdxTimeLowerZ] * (1.0f - fDeltaZ) * (1.0f - fDeltaTimeLowerZ);
-   fLogMass += afMasses[iIdxTimeLowerZ + 1] * (1.0f - fDeltaZ) * fDeltaTimeLowerZ;
-   fLogMass += afMasses[iIdxTimeUpperZ] * fDeltaZ * (1.0f - fDeltaTimeUpperZ);
-   fLogMass += afMasses[iIdxTimeUpperZ + 1] * fDeltaZ * fDeltaTimeUpperZ;
+   float fLogMass = afMasses[iIdxTimeLowerZ] * (1.0f - fDeltaZ) * (1.0f - fDeltaTimeLowerZ) +
+                    afMasses[iIdxTimeLowerZ + 1] * (1.0f - fDeltaZ) * fDeltaTimeLowerZ +
+                    afMasses[iIdxTimeUpperZ] * fDeltaZ * (1.0f - fDeltaTimeUpperZ) +
+                    afMasses[iIdxTimeUpperZ + 1] * fDeltaZ * fDeltaTimeUpperZ;
 
    return pow(10.0, fLogMass);
+}
+
+
+static inline float stevComputeNextEnrichTime(PKD pkd, STARFIELDS *pStar) {
+   float epsilon = 1e-3f;
+
+   const float *const pfLowestMass = pkd->StelEvolData->afMasses;
+   const float *pfMass = pfLowestMass + pStar->iLastEnrichMassIdx - 1;
+   const float *pfIMF = pkd->StelEvolData->afIMF + pStar->iLastEnrichMassIdx - 1;
+
+   const float fDeltaLogMass = pkd->StelEvolData->afLogMasses[1] -
+                               pkd->StelEvolData->afLogMasses[0];
+   float fMassToEject = 0.0f;
+   if (*pfMass > pkd->param.dCCSN_MinMass) {
+      const float fDeltaZ = pStar->CCSN.fDeltaZ;
+
+      const float *pfEjectaLowerZ = pkd->StelEvolData->afCCSN_EjectedMass +
+                                    pStar->CCSN.oZ + pStar->iLastEnrichMassIdx;
+      const float *pfEjectaUpperZ = pfEjectaLowerZ + STEV_INTERP_N_MASS;
+
+      float fEjectaUpperMass = *pfEjectaLowerZ-- * (1.0f - fDeltaZ) +
+	                       *pfEjectaUpperZ-- * fDeltaZ;
+      float fEjectaLowerMass = *pfEjectaLowerZ-- * (1.0f - fDeltaZ) +
+	                       *pfEjectaUpperZ-- * fDeltaZ;
+
+      fMassToEject += 0.5f * M_LN10 * fDeltaLogMass *
+	             (float)log10(pStar->fLastEnrichMass / pfMass[0]) *
+	             (fEjectaUpperMass * pfIMF[1] * pfMass[1] +
+		      fEjectaLowerMass * pfIMF[0] * pfMass[0]);
+
+      while (fMassToEject < epsilon) {
+	 fEjectaUpperMass = fEjectaLowerMass;
+	 pfMass--;
+	 pfIMF--;
+
+	 if (*pfMass < pkd->param.dCCSN_MinMass) break;
+
+	 fEjectaLowerMass = *pfEjectaLowerZ-- * (1.0f - fDeltaZ) +
+	                    *pfEjectaUpperZ-- * fDeltaZ;
+
+	 fMassToEject += 0.5f * M_LN10 * fDeltaLogMass *
+	                (fEjectaUpperMass * pfIMF[1] * pfMass[1] +
+			 fEjectaLowerMass * pfIMF[0] * pfMass[0]);
+      }
+   }
+
+   if (fMassToEject < epsilon) {
+      const float fDeltaZ = pStar->AGB.fDeltaZ;
+
+      int iLastMassIdx;
+      float fLastMass;
+      if (fMassToEject > 0.0f) {
+	 iLastMassIdx = pfMass - pfLowestMass + 1;
+	 fLastMass = pfMass[1];
+      }
+      else {
+	 iLastMassIdx = pStar->iLastEnrichMassIdx;
+	 fLastMass = pStar->fLastEnrichMass;
+      }
+
+      const float *pfEjectaLowerZ = pkd->StelEvolData->afAGB_EjectedMass +
+                                    pStar->AGB.oZ + iLastMassIdx;
+      const float *pfEjectaUpperZ = pfEjectaLowerZ + STEV_INTERP_N_MASS;
+
+      float fEjectaUpperMass = *pfEjectaLowerZ-- * (1.0f - fDeltaZ) +
+	                       *pfEjectaUpperZ-- * fDeltaZ;
+      float fEjectaLowerMass = *pfEjectaLowerZ-- * (1.0f - fDeltaZ) +
+	                       *pfEjectaUpperZ-- * fDeltaZ;
+
+      fMassToEject += 0.5f * M_LN10 * fDeltaLogMass *
+	             (float)log10(fLastMass / pfMass[0]) *
+	             (fEjectaUpperMass * pfIMF[1] * pfMass[1] +
+		      fEjectaLowerMass * pfIMF[0] * pfMass[0]);
+
+      if (pfMass > pfLowestMass) {
+	 while (fMassToEject < epsilon) {
+	    fEjectaUpperMass = fEjectaLowerMass;
+	    pfMass--;
+	    pfIMF--;
+
+	    fEjectaLowerMass = *pfEjectaLowerZ-- * (1.0f - fDeltaZ) +
+	                       *pfEjectaUpperZ-- * fDeltaZ;
+
+	    fMassToEject += 0.5f * M_LN10 * fDeltaLogMass *
+	                   (fEjectaUpperMass * pfIMF[1] * pfMass[1] +
+			    fEjectaLowerMass * pfIMF[0] * pfMass[0]);
+
+	    if (pfMass == pfLowestMass) break;
+	 }
+      }
+   }
+
+   if (fMassToEject < epsilon) return INFINITY;
+
+   float fTime = stevLifetimeFunction(pkd, pStar, *pfMass);
+   fTime = (fTime > pStar->fLastEnrichTime) ? fTime : pStar->fLastEnrichTime;
+   return fTime + pStar->fTimer;
 }
 
 

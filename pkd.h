@@ -354,6 +354,7 @@ typedef struct starfields {
     float fLastEnrichTime;
     float fLastEnrichMass;
     int iLastEnrichMassIdx;
+    float fNextEnrichTime;
     struct {
        int oZ;
        float fDeltaZ;
