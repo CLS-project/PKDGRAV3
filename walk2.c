@@ -93,10 +93,10 @@ static void iOpenOutcomeCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,SPHO
 	    else {
 		fourh2 = blk->fourh2.f[i];
 
-        if (SPHoptions.doDensity || SPHoptions.doSPHforces) {
+        if (SPHoptions.doDensity || SPHoptions.doSPHForces) {
             fourh2 = fourh2 > k->fBoBr2 ? fourh2 : k->fBoBr2;
         }
-        if (SPHoptions.doSPHforces) {
+        if (SPHoptions.doSPHForces) {
             fourh2 = fourh2 > blk->fBoBr2.f[i] ? fourh2 : blk->fBoBr2.f[i];
         }
 

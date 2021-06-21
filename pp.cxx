@@ -168,4 +168,45 @@ void pkdDensityEval(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PIN
     pOut->dndendfball += adndendfball;
     pOut->nSmooth += anSmooth;
 }
+
+extern "C"
+void pkdSPHForcesEval(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINFOOUT *pOut, SPHOptions SPHoptions ) {
+    fvec t1, t2, t3, t4, t5;
+    fvec parho, padrhodfball, panden, padndendfball, pfx, pfy, pfz, pfBall;
+    fvec pnSmooth;
+
+    float fx = pPart->r[0];
+    float fy = pPart->r[1];
+    float fz = pPart->r[2];
+    float fBall = pPart->fBall;
+    int nLeft, j;
+
+    /*
+    ** This is a little trick to speed up the calculation. By setting
+    ** unused entries in the list to have a zero mass, the resulting
+    ** forces are zero. Setting the distance to a large value avoids
+    ** softening the non-existent forces which is slightly faster.
+    */
+    for( j = nInLast; j&fvec::mask(); j++) {
+	blk[nBlocks].dx.f[j] = blk[nBlocks].dy.f[j] = blk[nBlocks].dz.f[j] = 1e18f;
+	blk[nBlocks].m.f[j] = 0.0f;
+	}
+
+    pfx     = fx;
+    pfy     = fy;
+    pfz     = fz;
+    pfBall  = fBall;
+
+    for( nLeft=nBlocks; nLeft >= 0; --nLeft,++blk ) {
+	int n = (nLeft ? ILP_PART_PER_BLK : nInLast+fvec::mask()) >> SIMD_BITS;
+	for (j=0; j<n; ++j) {
+	    fvec Idx = blk->dx.p[j];
+	    fvec Idy = blk->dy.p[j];
+	    fvec Idz = blk->dz.p[j];
+	    fvec Im = blk->m.p[j];
+	    EvalSPHForces<fvec,fmask,true>(pfx,pfy,pfz,Idx,Idy,Idz,Im,pfBall,SPHoptions);
+	    }
+	}
+
+}
 #endif/*USE_SIMD_PP*/

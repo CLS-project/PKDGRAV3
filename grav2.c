@@ -295,6 +295,23 @@ int CPUdoWorkDensity(void *vpp) {
     else return 1;
     }
 
+int CPUdoWorkSPHForces(void *vpp) {
+    workPP *pp = vpp;
+    workParticle *wp = pp->work;
+    ILPTILE tile = pp->tile;
+    ILP_BLK *blk = tile->blk;
+    PINFOIN *pPart = &pp->work->pInfoIn[pp->i];
+    PINFOOUT *pOut = &pp->pInfoOut[pp->i];
+    int nBlocks = tile->lstTile.nBlocks;
+    int nInLast = tile->lstTile.nInLast;
+    SPHOptions SPHoptions = wp->SPHoptions;
+
+    pkdSPHForcesEval(pPart,nBlocks,nInLast,blk,pOut,SPHoptions);
+    //wp->dFlopSingleCPU += COST_FLOP_PP*(tile->lstTile.nBlocks*ILP_PART_PER_BLK  + tile->lstTile.nInLast);
+    if ( ++pp->i == pp->work->nP ) return 0;
+    else return 1;
+    }
+
 int doneWorkPP(void *vpp) {
     workPP *pp = vpp;
     int i;
@@ -324,6 +341,19 @@ int doneWorkDensity(void *vpp) {
     pp->work->pInfoOut[i].nden += pp->pInfoOut[i].nden;
 	pp->work->pInfoOut[i].dndendfball += pp->pInfoOut[i].dndendfball;
     pp->work->pInfoOut[i].nSmooth += pp->pInfoOut[i].nSmooth;
+	}
+    lstFreeTile(&pp->ilp->lst,&pp->tile->lstTile);
+    pkdParticleWorkDone(pp->work);
+    free(pp->pInfoOut);
+    free(pp);
+    return 0;
+    }
+
+int doneWorkSPHForces(void *vpp) {
+    workPP *pp = vpp;
+    int i;
+
+    for(i=0; i<pp->work->nP; ++i) {
 	}
     lstFreeTile(&pp->ilp->lst,&pp->tile->lstTile);
     pkdParticleWorkDone(pp->work);
@@ -441,6 +471,27 @@ static void queueDensity( PKD pkd, workParticle *wp, ILP ilp, int bGravStep ) {
         wp->pInfoOut[i].fBall = wp->pInfoIn[i].fBall;
         // wp->pInfoOut[i].fBall = wp->pInfoOut[i].nSmooth;
     }
+    }
+
+static void queueSPHForces( PKD pkd, workParticle *wp, ILP ilp, int bGravStep ) {
+    ILPTILE tile;
+    workPP *pp;
+    ILP_LOOP(ilp,tile) {
+#ifdef USE_CUDA
+	assert(0);
+#endif
+	pp = malloc(sizeof(workPP));
+	assert(pp!=NULL);
+	pp->pInfoOut = malloc(sizeof(PINFOOUT) * wp->nP);
+	assert(pp->pInfoOut!=NULL);
+	pp->work = wp;
+	pp->ilp = ilp;
+	pp->tile = tile;
+	pp->i = 0;
+	tile->lstTile.nRefs++;
+	wp->nRefs++;
+	mdlAddWork(pkd->mdl,pp,NULL,NULL,CPUdoWorkSPHForces,doneWorkPP);
+	}
     }
 
 int CPUdoWorkPC(void *vpc) {
@@ -703,6 +754,13 @@ int pkdGravInteract(PKD pkd,
     ** Evaluate the Density on the P-P interactions
     */
     queueDensity( pkd, wp, ilp, ts->bGravStep );
+    }
+
+    if (SPHoptions.doSPHForces) {
+    /*
+    ** Evaluate the SPH forces on the P-P interactions
+    */
+    queueSPHForces( pkd, wp, ilp, ts->bGravStep );
     }
 
     if (SPHoptions.doGravity) {

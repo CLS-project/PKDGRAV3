@@ -108,3 +108,28 @@ CUDA_DEVICE void EvalDensity(
         anSmooth = 0.0f;
     }
     }
+
+template<class F,class M,bool bGravStep>
+CUDA_DEVICE void EvalSPHForces(
+	const F &Pdx, const F &Pdy, const F &Pdz,     // Particle
+	const F &Idx, const F &Idy, const F &Idz, const F &Im, const F & fBall, // Interaction(s)
+    SPHOptions SPHoptions) {
+    F dx = Idx + Pdx;
+    F dy = Idy + Pdy;
+    F dz = Idz + Pdz;
+    F d2 = dx*dx + dy*dy + dz*dz;
+
+    F r;
+    F ifBall;
+
+    ifBall = 1.0f / fBall;
+    r = sqrt(d2) * ifBall;
+
+    M r_lt_one = r < 1.0f;
+
+    if (!testz(r_lt_one)) {
+        // There is some work to do
+    } else {
+        // No work to do
+    }
+    }
