@@ -166,9 +166,9 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
     {
     SPHOptions SPHoptions = initializeSPHOptions(param);
     if (SPHoptions.useNumDen) {
-        SetKerneltarget(param.nSmooth);
+        param.fKernelTarget = param.nSmooth;
     } else {
-        SetKerneltarget(Mtot/Ntot*param.nSmooth);
+        param.fKernelTarget = Mtot/Ntot*param.nSmooth;
     }
     }
 

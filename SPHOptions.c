@@ -27,6 +27,7 @@
 
 SPHOptions initializeSPHOptions(struct parameters param){
     SPHOptions SPHoptions;
+    SPHoptions.fKernelTarget = param.fKernelTarget;
     SPHoptions.doGravity = 0;
     SPHoptions.doDensity = 0;
     SPHoptions.doSPHforces = 0;

@@ -143,6 +143,7 @@ struct parameters {
     double SFdMinGasMass;
     double SFdvFB;
     int SFbdivv;
+    double fKernelTarget;
     
     /* END Gas Parameters */
     double dEta;

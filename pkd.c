@@ -2141,10 +2141,6 @@ void pkdSetSoft(PKD pkd,double dSoft) {
     pkd->fSoftFix = dSoft;
     }
 
-void pkdSetKerneltarget(PKD pkd,double dKerneltarget) {
-    pkd->fKerneltarget = dKerneltarget;
-    }
-
 void pkdPhysicalSoft(PKD pkd,double dSoftMax,double dFac,int bSoftMaxMul) {
     pkd->fSoftFac = dFac;
     pkd->fSoftMax = bSoftMaxMul ? HUGE_VALF : dSoftMax;

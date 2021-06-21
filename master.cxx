@@ -1117,6 +1117,10 @@ int MSR::Initialize() {
     prmAddParam(prm,"SFbdivv", 0, &param.SFbdivv,
 		sizeof(int), "SFbdivv",
 		"<SF Use div v for star formation> = 1");
+
+    param.fKernelTarget = 0;
+    prmAddParam(prm,"fKernelTarget", 0, &param.fKernelTarget,
+        sizeof(double), "fKernelTarget", "Kernel target, either number- or massdensity");
     /* END Gas/Star Parameters */
     param.nOutputParticles = 0;
     prmAddArray(prm,"lstOrbits",4,&param.iOutputParticles,sizeof(uint64_t),&param.nOutputParticles);
@@ -1711,14 +1715,6 @@ void MSR::SetSoft(double dSoft) {
     msrprintf("Set Softening...\n");
     in.dSoft = dSoft;
     pstSetSoft(pst,&in,sizeof(in),NULL,0);
-    }
-
-void MSR::SetKerneltarget(double dKerneltarget) {
-    struct inSetKerneltarget in;
-
-    msrprintf("Set Kernel target mass...\n");
-    in.dKerneltarget = dKerneltarget;
-    pstSetKerneltarget(pst,&in,sizeof(in),NULL,0);
     }
 
 

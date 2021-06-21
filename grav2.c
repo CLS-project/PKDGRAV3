@@ -395,9 +395,9 @@ static void queueDensity( PKD pkd, workParticle *wp, ILP ilp, int bGravStep ) {
     for (int i=0; i<wp->nP; i++) {
         float kerneldeviation = 0.0f;
         if (wp->SPHoptions.useNumDen) {
-            kerneldeviation = 4.0f/3.0f*M_PI*wp->pInfoIn[i].fBall*wp->pInfoIn[i].fBall*wp->pInfoIn[i].fBall*wp->pInfoOut[i].nden - pkd->fKerneltarget;
+            kerneldeviation = 4.0f/3.0f*M_PI*wp->pInfoIn[i].fBall*wp->pInfoIn[i].fBall*wp->pInfoIn[i].fBall*wp->pInfoOut[i].nden - wp->SPHoptions.fKernelTarget;
         } else {
-            kerneldeviation = 4.0f/3.0f*M_PI*wp->pInfoIn[i].fBall*wp->pInfoIn[i].fBall*wp->pInfoIn[i].fBall*wp->pInfoOut[i].rho - pkd->fKerneltarget;
+            kerneldeviation = 4.0f/3.0f*M_PI*wp->pInfoIn[i].fBall*wp->pInfoIn[i].fBall*wp->pInfoIn[i].fBall*wp->pInfoOut[i].rho - wp->SPHoptions.fKernelTarget;
         }
         kerneldeviation = (kerneldeviation > 0) ? kerneldeviation : -kerneldeviation;
         maxkerneldeviation = (kerneldeviation > maxkerneldeviation) ? kerneldeviation : maxkerneldeviation;
@@ -408,17 +408,17 @@ static void queueDensity( PKD pkd, workParticle *wp, ILP ilp, int bGravStep ) {
     ** if true, calculate new fBall for all particles
     ** else, exit loop
     */
-    if (maxkerneldeviation/pkd->fKerneltarget > 1e-6f) {
+    if (maxkerneldeviation/wp->SPHoptions.fKernelTarget > 1e-6f) {
         // do another loop
         for (int i=0; i<wp->nP; i++) {
             float prefac = 4.0f/3.0f*M_PI;
             float fBall = wp->pInfoIn[i].fBall;
             float fx, dfdx;
             if (wp->SPHoptions.useNumDen) {
-                fx = prefac * fBall * fBall * fBall * wp->pInfoOut[i].nden - pkd->fKerneltarget;
+                fx = prefac * fBall * fBall * fBall * wp->pInfoOut[i].nden - wp->SPHoptions.fKernelTarget;
                 dfdx = prefac * 3.0f * fBall * fBall * wp->pInfoOut[i].nden + prefac * fBall * fBall * fBall * wp->pInfoOut[i].dndendfball;
             } else {
-                fx = prefac * fBall * fBall * fBall * wp->pInfoOut[i].rho - pkd->fKerneltarget;
+                fx = prefac * fBall * fBall * fBall * wp->pInfoOut[i].rho - wp->SPHoptions.fKernelTarget;
                 dfdx = prefac * 3.0f * fBall * fBall * wp->pInfoOut[i].rho + prefac * fBall * fBall * fBall * wp->pInfoOut[i].drhodfball;
             }
             float newfBall = wp->pInfoIn[i].fBall - fx / dfdx;
@@ -430,7 +430,7 @@ static void queueDensity( PKD pkd, workParticle *wp, ILP ilp, int bGravStep ) {
         }
     } else {
         // finish
-        // printf("loopcount = %d, deviation = %.6e\n",loopcount,maxkernelmassdeviation/pkd->fKerneltarget);
+        // printf("loopcount = %d, deviation = %.6e\n",loopcount,maxkerneldeviation/wp->SPHoptions.fKernelTarget);
         break;
     }
 

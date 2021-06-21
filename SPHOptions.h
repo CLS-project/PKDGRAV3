@@ -22,6 +22,7 @@
 #include "parameters.h"
 
 typedef struct {
+    float fKernelTarget;
     uint64_t doGravity : 1;
     uint64_t doDensity : 1;
     uint64_t doSPHforces : 1;
