@@ -224,6 +224,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
     SPHOptions SPHoptions = initializeSPHOptions(param);
     SPHoptions.doGravity = 0;
     SPHoptions.doDensity = 1;
+    SPHoptions.doSPHForces = 0;
 	uRungMax = Gravity(0,MAX_RUNG,ROOT,0,dTime,dDelta,iStartStep,dTheta,0,bKickOpen,
 	        param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,SPHoptions);
     MemStatus();

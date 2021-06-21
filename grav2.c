@@ -490,7 +490,7 @@ static void queueSPHForces( PKD pkd, workParticle *wp, ILP ilp, int bGravStep ) 
 	pp->i = 0;
 	tile->lstTile.nRefs++;
 	wp->nRefs++;
-	mdlAddWork(pkd->mdl,pp,NULL,NULL,CPUdoWorkSPHForces,doneWorkPP);
+	mdlAddWork(pkd->mdl,pp,NULL,NULL,CPUdoWorkSPHForces,doneWorkSPHForces);
 	}
     }
 
