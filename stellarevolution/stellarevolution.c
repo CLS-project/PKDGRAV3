@@ -247,6 +247,7 @@ int pkdStellarEvolutionInit(PKD pkd, STEV_DATA *data) {
 	    pStar->fLastEnrichTime = pStar->fCCSNOnsetTime;
 	    pStar->fLastEnrichMass = pkd->param.dIMF_MaxMass;
 	    pStar->iLastEnrichMassIdx = STEV_INTERP_N_MASS - 1;
+	    pStar->fNextEnrichTime = pStar->fCCSNOnsetTime + pStar->fTimer;
 	 }
 	 else {
 	    pStar->fLastEnrichMass =
@@ -254,9 +255,8 @@ int pkdStellarEvolutionInit(PKD pkd, STEV_DATA *data) {
 	    pStar->iLastEnrichMassIdx =
 	       stevGetIMFMassIndex(pkd->StelEvolData->afMasses, STEV_INTERP_N_MASS,
 				   pStar->fLastEnrichMass, STEV_INTERP_N_MASS - 1) + 1;
+	    pStar->fNextEnrichTime = dTime;
 	 }
-
-	 pStar->fNextEnrichTime = stevComputeNextEnrichTime(pkd, pStar);
       }
    }
 
@@ -355,7 +355,6 @@ void smChemEnrich(PARTICLE *p, float fBall, int nSmooth, NN *nnList, SMF *smf) {
    pStar->fLastEnrichTime = tf;
    pStar->fLastEnrichMass = Mf;
    pStar->iLastEnrichMassIdx = idxMf + 1;
-   pStar->fNextEnrichTime = stevComputeNextEnrichTime(pkd, pStar);
 
 
    /* Note: The parameter pStar->[AGB,CCSN,Lifetimes].oZ contains the index of the 
@@ -517,6 +516,9 @@ void smChemEnrich(PARTICLE *p, float fBall, int nSmooth, NN *nnList, SMF *smf) {
 	 qSph->afElemMass[j] += fWeights[i] * afElemMass[j];
       qSph->fMetalMass += fWeights[i] * fMetalMass;
    }
+
+   pStar->fNextEnrichTime = stevComputeNextEnrichTime(pkd, smf->dTime, pStar->fInitialMass,
+						      fTotalMass, tf - ti);
 }
 
 

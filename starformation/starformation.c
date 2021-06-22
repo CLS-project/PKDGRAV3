@@ -190,7 +190,7 @@ void pkdStarForm(PKD pkd,
 	    pStar->fLastEnrichTime = pStar->fCCSNOnsetTime;
 	    pStar->fLastEnrichMass = pkd->param.dIMF_MaxMass;
 	    pStar->iLastEnrichMassIdx = STEV_INTERP_N_MASS - 1;
-	    pStar->fNextEnrichTime = stevComputeNextEnrichTime(pkd, pStar);
+	    pStar->fNextEnrichTime = dTime + pStar->fCCSNOnsetTime;
 #endif
 
             // We log statistics about the formation time
