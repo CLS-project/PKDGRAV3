@@ -372,12 +372,17 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2,
 					pkd->ilc->cx=r[0]; pkd->ilc->cy=r[1]; pkd->ilc->cz=r[2];
 					}
 				    iOrder = pkd->bNoParticleOrder ? 0 : p->iOrder;
+                    v = pkdVel(pkd,p);
+                    float Omega = 0.0f;                     /* should be the Omega field of the sph fields, nyi */
+                    float P = 0.0f;                         /* should be calculated by the EOS, nyi */
+                    float cs = 0.0f;                        /* should be calculated by the EOS, nyi */
 				    ilpAppend(pkd->ilp,
 					r[0] + blk->xOffset.f[jTile],
 					r[1] + blk->yOffset.f[jTile],
 					r[2] + blk->zOffset.f[jTile],
 					blk->m.f[jTile], blk->fourh2.f[jTile],
-					iOrder, v[0], v[1], v[2]);
+					iOrder, v[0], v[1], v[2],
+                    pkdBall(pkd,p), Omega, pkdDensity(pkd,p), P, cs, pkdSpecies(pkd,p));
 				    }
 				else {
 				    assert(id >= 0);
@@ -402,12 +407,17 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2,
 					if (ts->bGravStep && ts->iTimeStepCrit == 1) v = pkdVel(pkd,p);
 					pkdGetPos1(pkd,p,r);
 					iOrder = pkd->bNoParticleOrder ? 0 : p->iOrder;
+                    v = pkdVel(pkd,p);
+                    float Omega = 0.0f;                 /* should be the Omega field of the sph fields, nyi */
+                    float P = 0.0f;                     /* should be calculated by the EOS, nyi */
+                    float cs = 0.0f;                    /* should be calculated by the EOS, nyi */
 					ilpAppend(pkd->ilp,
 					    r[0] + blk->xOffset.f[jTile],
 					    r[1] + blk->yOffset.f[jTile],
 					    r[2] + blk->zOffset.f[jTile],
 					    fMass, 4*fSoft*fSoft,
-					    iOrder, v[0], v[1], v[2]);
+					    iOrder, v[0], v[1], v[2],
+                        pkdBall(pkd,p), Omega, pkdDensity(pkd,p), P, cs, pkdSpecies(pkd,p));
 					}
 				    }
 				break;

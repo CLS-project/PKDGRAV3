@@ -83,6 +83,12 @@ typedef struct {
     float fSmooth2;
     float fDensity;
     float fBall;
+    float Omega;
+    float v[3];
+    float rho; /* fDensity above is used for different stuff, calculated with different kernel etc */
+    float P;
+    float c;
+    int32_t species;
 /*    float v[3];*/
 /*    float fMass;*/
 /*    float fSoft;*/

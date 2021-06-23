@@ -657,7 +657,6 @@ int pkdGravInteract(PKD pkd,
 	wp->pInfoIn[nP].r[0]  = (float)(r[0] - ilp->cx);
 	wp->pInfoIn[nP].r[1]  = (float)(r[1] - ilp->cy);
 	wp->pInfoIn[nP].r[2]  = (float)(r[2] - ilp->cz);
-    wp->pInfoIn[nP].fBall = pkdBall(pkd,p);
 	if (pkd->oFieldOffset[oAcceleration]) {
 	    ap = pkdAccel(pkd,p);
 	    wp->pInfoIn[nP].a[0]  = ap[0];
@@ -670,6 +669,16 @@ int pkdGravInteract(PKD pkd,
 	    wp->pInfoIn[nP].a[1]  = 0;
 	    wp->pInfoIn[nP].a[2]  = 0;
 	    }
+
+    wp->pInfoIn[nP].fBall = pkdBall(pkd,p);
+    wp->pInfoIn[nP].Omega = 0.0f;                   /* should be the Omega field of the sph fields, nyi */
+    wp->pInfoIn[nP].v[0] = v[0];
+    wp->pInfoIn[nP].v[1] = v[1];
+    wp->pInfoIn[nP].v[2] = v[2];
+    wp->pInfoIn[nP].rho = pkdDensity(pkd,p);
+    wp->pInfoIn[nP].P = 0.0f;                       /* should be calculated by the EOS, nyi */
+    wp->pInfoIn[nP].c = 0.0f;                       /* should be calculated by the EOS, nyi */
+    wp->pInfoIn[nP].species = pkdSpecies(pkd,p);
 
 	wp->pInfoOut[nP].a[0] = 0.0f;
 	wp->pInfoOut[nP].a[1] = 0.0f;
