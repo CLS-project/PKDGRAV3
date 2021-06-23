@@ -172,13 +172,22 @@ void pkdDensityEval(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PIN
 extern "C"
 void pkdSPHForcesEval(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINFOOUT *pOut, SPHOptions SPHoptions ) {
     fvec t1, t2, t3, t4, t5;
-    fvec parho, padrhodfball, panden, padndendfball, pfx, pfy, pfz, pfBall;
-    fvec pnSmooth;
+    fvec PfBall, POmega, Pdx, Pdy, Pdz, Pvx, Pvy, Pvz, Prho, PP, Pc;
+    fvec IfBall, IOmega, Idx, Idy, Idz, Ivx, Ivy, Ivz, Irho, IP, Ic, Im;
+    i32v Pspecies, Ispecies;
 
     float fx = pPart->r[0];
     float fy = pPart->r[1];
     float fz = pPart->r[2];
     float fBall = pPart->fBall;
+    float fOmega = pPart->Omega;
+    float fvx = pPart->v[0];
+    float fvy = pPart->v[1];
+    float fvz = pPart->v[2];
+    float frho = pPart->rho;
+    float fP = pPart->P;
+    float fc = pPart->c;
+    int32_t ispecies = pPart->species;
     int nLeft, j;
 
     /*
@@ -192,10 +201,18 @@ void pkdSPHForcesEval(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  P
 	blk[nBlocks].m.f[j] = 0.0f;
 	}
 
-    pfx     = fx;
-    pfy     = fy;
-    pfz     = fz;
-    pfBall  = fBall;
+    Pdx     = fx;
+    Pdy     = fy;
+    Pdz     = fz;
+    PfBall  = fBall;
+    POmega  = fOmega;
+    Pvx     = fvx;
+    Pvy     = fvy;
+    Pvz     = fvz;
+    Prho    = frho;
+    PP      = fP;
+    Pc      = fc;
+    Pspecies= ispecies;
 
     for( nLeft=nBlocks; nLeft >= 0; --nLeft,++blk ) {
 	int n = (nLeft ? ILP_PART_PER_BLK : nInLast+fvec::mask()) >> SIMD_BITS;
@@ -204,7 +221,19 @@ void pkdSPHForcesEval(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  P
 	    fvec Idy = blk->dy.p[j];
 	    fvec Idz = blk->dz.p[j];
 	    fvec Im = blk->m.p[j];
-	    EvalSPHForces<fvec,fmask,true>(pfx,pfy,pfz,Idx,Idy,Idz,Im,pfBall,SPHoptions);
+        fvec IfBall = blk->fBall.p[j];
+        fvec IOmega = blk->Omega.p[j];
+        fvec Ivx = blk->vx.p[j];
+        fvec Ivy = blk->vy.p[j];
+        fvec Ivz = blk->vz.p[j];
+        fvec Irho = blk->rho.p[j];
+        fvec IP = blk->P.p[j];
+        fvec Ic = blk->c.p[j];
+        i32v Ispecies = blk->species.p[j];
+
+	    EvalSPHForces<fvec,fmask,i32v,true>(Pdx,Pdy,Pdz,PfBall,POmega,Pvx,Pvy,Pvz,Prho,PP,Pc,Pspecies,
+            Idx,Idy,Idz,Im,IfBall,IOmega,Ivx,Ivy,Ivz,Irho,IP,Ic,Ispecies,
+            SPHoptions);
 	    }
 	}
 

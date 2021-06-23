@@ -109,20 +109,27 @@ CUDA_DEVICE void EvalDensity(
     }
     }
 
-template<class F,class M,bool bGravStep>
+template<class F,class M,class Ivec,bool bGravStep>
 CUDA_DEVICE void EvalSPHForces(
-	const F &Pdx, const F &Pdy, const F &Pdz,     // Particle
-	const F &Idx, const F &Idy, const F &Idz, const F &Im, const F & fBall, // Interaction(s)
+	const F &Pdx, const F &Pdy, const F &Pdz, const F &PfBall, const F &POmega,     // Particle
+    const F &Pvx, const F &Pvy, const F &Pvz, const F &Prho, const F &PP, const F &Pc, const Ivec & Pspecies,
+	const F &Idx, const F &Idy, const F &Idz, const F & Im, const F &IfBall, const F &IOmega,     // Interactions
+    const F &Ivx, const F &Ivy, const F &Ivz, const F &Irho, const F &IP, const F &Ic, const Ivec & Ispecies,
     SPHOptions SPHoptions) {
     F dx = Idx + Pdx;
     F dy = Idy + Pdy;
     F dz = Idz + Pdz;
     F d2 = dx*dx + dy*dy + dz*dz;
 
+    // for (int i=0; i<8;i++) {
+        // printf("element: %d, Pdx = %f, Pdy = %f, Pdz = %f, PfBall = %f, POmega = %f, Pvx = %f, Pvy = %f, Pvz = %f, Prho = %f, PP = %f, Pc = %f, Pspecies = %d, Idx = %f, Idy = %f, Idz = %f, Im = %f, IfBall = %f, IOmega = %f, Ivx = %f, Ivy = %f, Ivz = %f, Irho = %f, IP = %f, Ic = %f, Ispecies = %d\n",
+        // i,Pdx[i],Pdy[i],Pdz[i],PfBall[i],POmega[i],Pvx[i],Pvy[i],Pvz[i],Prho[i],PP[i],Pc[i],Pspecies[i],Idx[i],Idy[i],Idz[i],Im[i],IfBall[i],IOmega[i],Ivx[i],Ivy[i],Ivz[i],Irho[i],IP[i],Ic[i],Ispecies[i]);
+    // }
+
     F r;
     F ifBall;
 
-    ifBall = 1.0f / fBall;
+    ifBall = 1.0f / PfBall;
     r = sqrt(d2) * ifBall;
 
     M r_lt_one = r < 1.0f;
