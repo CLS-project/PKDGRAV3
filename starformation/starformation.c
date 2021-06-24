@@ -138,7 +138,7 @@ void pkdStarForm(PKD pkd,
             //printf("STARFORM %e %e %e \n", dScaleFactor, rho_H, psph->Uint);
 
             // We just change the class of the particle to stellar one
-            pkdSetClass(pkd, pkdMass(pkd,p), 0., FIO_SPECIES_STAR, p);
+            pkdSetClass(pkd, pkdMass(pkd,p), pkdSoft0(pkd,p), FIO_SPECIES_STAR, p);
 
             // When changing the class, we have to take into account that
             // the code velocity has different scale factor dependencies for
