@@ -360,9 +360,6 @@ int doneWorkSPHForces(void *vpp) {
     int i;
 
     for(i=0; i<pp->work->nP; ++i) {
-        if (pp->work->pPart[i]->iOrder == 0) {
-            printf("doneWorkSPHForces: udot = %.6e, ax = %.6e, ay = %.6e, az = %.6e, divv = %.6e, dtEst = %.6e\n",pp->pInfoOut[i].udot,pp->pInfoOut[i].a[0],pp->pInfoOut[i].a[1],pp->pInfoOut[i].a[2],pp->pInfoOut[i].divv,pp->pInfoOut[i].dtEst);
-        }
     pp->work->pInfoOut[i].udot += pp->pInfoOut[i].udot;
     pp->work->pInfoOut[i].a[0] += pp->pInfoOut[i].a[0];
 	pp->work->pInfoOut[i].a[1] += pp->pInfoOut[i].a[1];

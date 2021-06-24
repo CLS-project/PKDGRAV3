@@ -125,11 +125,6 @@ CUDA_DEVICE void EvalSPHForces(
     F dvy = Pvy - Ivy;
     F dvz = Pvz - Ivz;
 
-    // for (int i=0; i<8;i++) {
-        // printf("element: %d, Pdx = %f, Pdy = %f, Pdz = %f, PfBall = %f, POmega = %f, Pvx = %f, Pvy = %f, Pvz = %f, Prho = %f, PP = %f, Pc = %f, Pspecies = %d, Idx = %f, Idy = %f, Idz = %f, Im = %f, IfBall = %f, IOmega = %f, Ivx = %f, Ivy = %f, Ivz = %f, Irho = %f, IP = %f, Ic = %f, Ispecies = %d\n",
-        // i,Pdx[i],Pdy[i],Pdz[i],PfBall[i],POmega[i],Pvx[i],Pvy[i],Pvz[i],Prho[i],PP[i],Pc[i],Pspecies[i],Idx[i],Idy[i],Idz[i],Im[i],IfBall[i],IOmega[i],Ivx[i],Ivy[i],Ivz[i],Irho[i],IP[i],Ic[i],Ispecies[i]);
-    // }
-
     F d, Pr, Ir;
     F t1, t2, t3;
     F PifBall, IifBall, PC, IC, Pdwdr, Idwdr, PdWdr, IdWdr;
@@ -169,10 +164,14 @@ CUDA_DEVICE void EvalSPHForces(
         // Kernel gradients, separate at the moment, as i am not sure if we need them separately
         // at some point. If we don't, can save some operations, by combining earlier.
         t1 = PdWdr * PifBall / Pr;
+        mask1 = Pr > 0.0f;
+        t1 = maskz_mov(mask1,t1);
         PdWdx = t1 * dx;
         PdWdy = t1 * dy;
         PdWdz = t1 * dz;
         t1 = IdWdr * IifBall / Ir;
+        mask1 = Ir > 0.0f;
+        t1 = maskz_mov(mask1,t1);
         IdWdx = t1 * dx;
         IdWdy = t1 * dy;
         IdWdz = t1 * dz;
