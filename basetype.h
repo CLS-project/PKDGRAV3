@@ -100,6 +100,7 @@ typedef struct {
     float dirsum, normsum;
     float rhopmax;
     float rho, drhodfball, nden, dndendfball, fBall, nSmooth;
+    float udot, divv, dtEst;
     } PINFOOUT;
 
 

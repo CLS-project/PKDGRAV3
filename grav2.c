@@ -306,6 +306,12 @@ int CPUdoWorkSPHForces(void *vpp) {
     int nInLast = tile->lstTile.nInLast;
     SPHOptions SPHoptions = wp->SPHoptions;
 
+    pOut->udot = 0.0;
+    pOut->a[0] = 0.0;
+    pOut->a[1] = 0.0;
+    pOut->a[2] = 0.0;
+    pOut->divv = 0.0;
+    pOut->dtEst = HUGE_VAL;
     pkdSPHForcesEval(pPart,nBlocks,nInLast,blk,pOut,SPHoptions);
     //wp->dFlopSingleCPU += COST_FLOP_PP*(tile->lstTile.nBlocks*ILP_PART_PER_BLK  + tile->lstTile.nInLast);
     if ( ++pp->i == pp->work->nP ) return 0;
@@ -354,6 +360,15 @@ int doneWorkSPHForces(void *vpp) {
     int i;
 
     for(i=0; i<pp->work->nP; ++i) {
+        if (pp->work->pPart[i]->iOrder == 0) {
+            printf("doneWorkSPHForces: udot = %.6e, ax = %.6e, ay = %.6e, az = %.6e, divv = %.6e, dtEst = %.6e\n",pp->pInfoOut[i].udot,pp->pInfoOut[i].a[0],pp->pInfoOut[i].a[1],pp->pInfoOut[i].a[2],pp->pInfoOut[i].divv,pp->pInfoOut[i].dtEst);
+        }
+    pp->work->pInfoOut[i].udot += pp->pInfoOut[i].udot;
+    pp->work->pInfoOut[i].a[0] += pp->pInfoOut[i].a[0];
+	pp->work->pInfoOut[i].a[1] += pp->pInfoOut[i].a[1];
+	pp->work->pInfoOut[i].a[2] += pp->pInfoOut[i].a[2];
+    pp->work->pInfoOut[i].divv += pp->pInfoOut[i].divv;
+    pp->work->pInfoOut[i].dtEst = fmin(pp->work->pInfoOut[i].dtEst,pp->pInfoOut[i].dtEst);
 	}
     lstFreeTile(&pp->ilp->lst,&pp->tile->lstTile);
     pkdParticleWorkDone(pp->work);
@@ -671,7 +686,7 @@ int pkdGravInteract(PKD pkd,
 	    }
 
     wp->pInfoIn[nP].fBall = pkdBall(pkd,p);
-    wp->pInfoIn[nP].Omega = 0.0f;                   /* should be the Omega field of the sph fields, nyi */
+    wp->pInfoIn[nP].Omega = 1.0f;                   /* should be the Omega field of the sph fields, nyi */
     wp->pInfoIn[nP].v[0] = v[0];
     wp->pInfoIn[nP].v[1] = v[1];
     wp->pInfoIn[nP].v[2] = v[2];
@@ -679,6 +694,16 @@ int pkdGravInteract(PKD pkd,
     wp->pInfoIn[nP].P = 0.0f;                       /* should be calculated by the EOS, nyi */
     wp->pInfoIn[nP].c = 0.0f;                       /* should be calculated by the EOS, nyi */
     wp->pInfoIn[nP].species = pkdSpecies(pkd,p);
+
+    wp->pInfoOut[nP].rho = 0.0f;
+    wp->pInfoOut[nP].drhodfball = 0.0f;
+    wp->pInfoOut[nP].nden = 0.0f;
+    wp->pInfoOut[nP].dndendfball = 0.0f;
+    wp->pInfoOut[nP].fBall = 0.0f;
+    wp->pInfoOut[nP].nSmooth = 0.0f;
+    wp->pInfoOut[nP].udot = 0.0f;
+    wp->pInfoOut[nP].divv = 0.0f;
+    wp->pInfoOut[nP].dtEst = HUGE_VAL;
 
 	wp->pInfoOut[nP].a[0] = 0.0f;
 	wp->pInfoOut[nP].a[1] = 0.0f;

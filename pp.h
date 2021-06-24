@@ -115,28 +115,109 @@ CUDA_DEVICE void EvalSPHForces(
     const F &Pvx, const F &Pvy, const F &Pvz, const F &Prho, const F &PP, const F &Pc, const Ivec & Pspecies,
 	const F &Idx, const F &Idy, const F &Idz, const F & Im, const F &IfBall, const F &IOmega,     // Interactions
     const F &Ivx, const F &Ivy, const F &Ivz, const F &Irho, const F &IP, const F &Ic, const Ivec & Ispecies,
+    F &udot, F &ax, F &ay, F &az, F &divv, F &dtEst,         // results
     SPHOptions SPHoptions) {
     F dx = Idx + Pdx;
     F dy = Idy + Pdy;
     F dz = Idz + Pdz;
     F d2 = dx*dx + dy*dy + dz*dz;
+    F dvx = Pvx - Ivx;
+    F dvy = Pvy - Ivy;
+    F dvz = Pvz - Ivz;
 
     // for (int i=0; i<8;i++) {
         // printf("element: %d, Pdx = %f, Pdy = %f, Pdz = %f, PfBall = %f, POmega = %f, Pvx = %f, Pvy = %f, Pvz = %f, Prho = %f, PP = %f, Pc = %f, Pspecies = %d, Idx = %f, Idy = %f, Idz = %f, Im = %f, IfBall = %f, IOmega = %f, Ivx = %f, Ivy = %f, Ivz = %f, Irho = %f, IP = %f, Ic = %f, Ispecies = %d\n",
         // i,Pdx[i],Pdy[i],Pdz[i],PfBall[i],POmega[i],Pvx[i],Pvy[i],Pvz[i],Prho[i],PP[i],Pc[i],Pspecies[i],Idx[i],Idy[i],Idz[i],Im[i],IfBall[i],IOmega[i],Ivx[i],Ivy[i],Ivz[i],Irho[i],IP[i],Ic[i],Ispecies[i]);
     // }
 
-    F r;
-    F ifBall;
+    F d, Pr, Ir;
+    F t1, t2, t3;
+    F PifBall, IifBall, PC, IC, Pdwdr, Idwdr, PdWdr, IdWdr;
+    F PdWdx, PdWdy, PdWdz, IdWdx, IdWdy, IdWdz, dWdx, dWdy, dWdz;
+    F cij, rhoij, fBallij, dvdotdx, muij, Piij;
+    F PPoverRho2, IPoverRho2, dtC, dtMu;
+    M Pr_lt_one, Ir_lt_one, mask1, dvdotdx_st_zero;
 
-    ifBall = 1.0f / PfBall;
-    r = sqrt(d2) * ifBall;
+    int kernelType = SPHoptions.kernelType;
+    float epsilon = SPHoptions.epsilon;
+    float alpha = SPHoptions.alpha;
+    float beta = SPHoptions.beta;
+    float EtaCourant = SPHoptions.EtaCourant;
+    float a = SPHoptions.a;
+    float H = SPHoptions.H;
 
-    M r_lt_one = r < 1.0f;
+    PifBall = 1.0f / PfBall;
+    IifBall = 1.0f / IfBall;
+    d = sqrt(d2);
+    Pr = d * PifBall;
+    Ir = d * IifBall;
 
-    if (!testz(r_lt_one)) {
+    Pr_lt_one = Pr < 1.0f;
+    Ir_lt_one = Ir < 1.0f;
+
+    if (!testz(Pr_lt_one) || !testz(Ir_lt_one)) {
         // There is some work to do
+
+        // Kernel derivatives
+        SPHKERNEL_INIT(Pr, PifBall, PC, t1, mask1, kernelType);
+        DSPHKERNEL_DR(Pr, Pdwdr, t1, t2, t3, Pr_lt_one, mask1, kernelType);
+        PdWdr = PC * Pdwdr;
+        SPHKERNEL_INIT(Ir, IifBall, IC, t1, mask1, kernelType);
+        DSPHKERNEL_DR(Ir, Idwdr, t1, t2, t3, Ir_lt_one, mask1, kernelType);
+        IdWdr = IC * Idwdr;
+
+        // Kernel gradients, separate at the moment, as i am not sure if we need them separately
+        // at some point. If we don't, can save some operations, by combining earlier.
+        t1 = PdWdr * PifBall / Pr;
+        PdWdx = t1 * dx;
+        PdWdy = t1 * dy;
+        PdWdz = t1 * dz;
+        t1 = IdWdr * IifBall / Ir;
+        IdWdx = t1 * dx;
+        IdWdy = t1 * dy;
+        IdWdz = t1 * dz;
+        dWdx = 0.5f * (PdWdx + IdWdx);
+        dWdy = 0.5f * (PdWdy + IdWdy);
+        dWdz = 0.5f * (PdWdz + IdWdz);
+
+        // PoverRho2
+        PPoverRho2 = PP / (POmega * Prho * Prho);
+        IPoverRho2 = IP / (IOmega * Irho * Irho);
+
+        // Artificial viscosity
+        cij = 0.5f * (Pc + Ic);
+        rhoij = 0.5f * (Prho + Irho);
+        fBallij = 0.25f * (PfBall + IfBall); // here we need h, not fBall
+        dvdotdx = dvx * dx + dvy * dy + dvz * dz;
+        dvdotdx_st_zero = dvdotdx < 0.0f;
+        muij = fBallij * dvdotdx / (d2 + epsilon * fBallij * fBallij);
+        Piij = (-alpha * cij * muij + beta * muij * muij) / rhoij;
+        Piij = maskz_mov(dvdotdx_st_zero,Piij);
+
+        // du/dt
+        // i am not sure if there has to be an Omega in the artificial viscosity part
+        udot = (PPoverRho2 + 0.5f * Piij) * Im * (dvx * dWdx + dvy * dWdy + dvz * dWdz);
+
+        // acceleration
+        // i am not sure if there has to be an Omega in the artificial viscosity part
+        ax = - Im * (PPoverRho2 + IPoverRho2 + Piij) * dWdx;
+        ay = - Im * (PPoverRho2 + IPoverRho2 + Piij) * dWdy;
+        az = - Im * (PPoverRho2 + IPoverRho2 + Piij) * dWdz;
+
+        // divv
+        divv = Im / Irho * (dvx * dWdx + dvy * dWdy + dvz * dWdz);
+
+        // timestep
+        dtC = (1.0f + 0.6f * alpha) / (EtaCourant);
+        dtMu = 0.6f * beta / (EtaCourant);
+        dtEst = 0.5f * PfBall / (dtC * Pc - dtMu * muij);
     } else {
         // No work to do
+        udot = 0.0f;
+        ax = 0.0f;
+        ay = 0.0f;
+        az = 0.0f;
+        divv = 0.0f;
+        dtEst = HUGE_VAL;
     }
     }

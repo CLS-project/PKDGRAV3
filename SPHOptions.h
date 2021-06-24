@@ -23,6 +23,12 @@
 
 typedef struct {
     float fKernelTarget;
+    float epsilon;
+    float alpha;
+    float beta;
+    float EtaCourant;
+    float a;
+    float H;
     uint64_t doGravity : 1;
     uint64_t doDensity : 1;
     uint64_t doSPHForces : 1;

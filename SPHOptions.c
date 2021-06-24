@@ -28,6 +28,10 @@
 SPHOptions initializeSPHOptions(struct parameters param){
     SPHOptions SPHoptions;
     SPHoptions.fKernelTarget = param.fKernelTarget;
+    SPHoptions.epsilon = 0.01f;
+    SPHoptions.alpha = param.dConstAlpha;
+    SPHoptions.beta = param.dConstBeta;
+    SPHoptions.EtaCourant = param.dEtaCourant;
     SPHoptions.doGravity = 0;
     SPHoptions.doDensity = 0;
     SPHoptions.doSPHForces = 0;

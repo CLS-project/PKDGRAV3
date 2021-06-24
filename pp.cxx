@@ -171,10 +171,12 @@ void pkdDensityEval(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PIN
 
 extern "C"
 void pkdSPHForcesEval(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINFOOUT *pOut, SPHOptions SPHoptions ) {
-    fvec t1, t2, t3, t4, t5;
+    fvec t1, t2, t3, t4, t5, t6;
     fvec PfBall, POmega, Pdx, Pdy, Pdz, Pvx, Pvy, Pvz, Prho, PP, Pc;
     fvec IfBall, IOmega, Idx, Idy, Idz, Ivx, Ivy, Ivz, Irho, IP, Ic, Im;
     i32v Pspecies, Ispecies;
+    fvec pudot, pax, pay, paz, pdivv, pdtEst;
+    float audot, aax, aay, aaz, adivv, adtEst;
 
     float fx = pPart->r[0];
     float fy = pPart->r[1];
@@ -214,6 +216,9 @@ void pkdSPHForcesEval(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  P
     Pc      = fc;
     Pspecies= ispecies;
 
+    pudot = pax = pay = paz = pdivv = 0.0f;
+    pdtEst = HUGE_VAL;
+
     for( nLeft=nBlocks; nLeft >= 0; --nLeft,++blk ) {
 	int n = (nLeft ? ILP_PART_PER_BLK : nInLast+fvec::mask()) >> SIMD_BITS;
 	for (j=0; j<n; ++j) {
@@ -233,9 +238,28 @@ void pkdSPHForcesEval(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  P
 
 	    EvalSPHForces<fvec,fmask,i32v,true>(Pdx,Pdy,Pdz,PfBall,POmega,Pvx,Pvy,Pvz,Prho,PP,Pc,Pspecies,
             Idx,Idy,Idz,Im,IfBall,IOmega,Ivx,Ivy,Ivz,Irho,IP,Ic,Ispecies,
+            t1,t2,t3,t4,t5,t6,
             SPHoptions);
+            pudot += t1;
+            pax += t2;
+            pay += t3;
+            paz += t4;
+            pdivv += t5;
+            pdtEst = min(pdtEst,t6);
 	    }
 	}
+    audot = hadd(pudot);
+    aax = hadd(pax);
+    aay = hadd(pay);
+    aaz = hadd(paz);
+    adivv = hadd(pdivv);
+    adtEst = HUGE_VAL; // here should be a horizontal minimum for an fvec, resulting in a float containing the smallest float in the fvec
 
+    pOut->udot += audot;
+    pOut->a[0] += aax;
+    pOut->a[1] += aay;
+    pOut->a[2] += aaz;
+    pOut->divv += adivv;
+    pOut->dtEst = fmin(pOut->dtEst,adtEst);
 }
 #endif/*USE_SIMD_PP*/
