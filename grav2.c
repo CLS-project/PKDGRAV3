@@ -163,6 +163,7 @@ void pkdParticleWorkDone(workParticle *wp) {
 		dtGrav = (wp->pInfoOut[i].rhopmax > dtGrav?wp->pInfoOut[i].rhopmax:dtGrav);
 		if (dtGrav > 0.0) {
 		    dT = fEta * rsqrtf(dtGrav*wp->ts->dRhoFac);
+            dT = fmin(dT,wp->pInfoOut[i].dtEst);
 		    uNewRung = pkdDtToRungInverse(dT,fiDelta,wp->ts->uMaxRung-1);
 		    }
 		else uNewRung = 0; /* Assumes current uNewRung is outdated -- not ideal */
@@ -178,6 +179,7 @@ void pkdParticleWorkDone(workParticle *wp) {
 		if (maga > 0) {
 		    float imaga = rsqrtf(maga) * fiAccFac;
 		    dT = fEta*asqrtf(pkdSoft(pkd,p)*imaga);
+            dT = fmin(dT,wp->pInfoOut[i].dtEst);
 		    uNewRung = pkdDtToRungInverse(dT,fiDelta,wp->ts->uMaxRung-1);
 		    }
 		else uNewRung = 0;

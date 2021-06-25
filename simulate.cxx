@@ -164,7 +164,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
     printf("M_tot as proposed: %.15f\n",Mtot/Ntot*param.nSmooth);
     // Set this value to all pkds
     {
-    SPHOptions SPHoptions = initializeSPHOptions(param);
+    SPHOptions SPHoptions = initializeSPHOptions(param,csmTime2Exp(csm,dTime),csmTime2Hub(csm,dTime));
     if (SPHoptions.useNumDen) {
         param.fKernelTarget = param.nSmooth;
     } else {
@@ -221,7 +221,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
 	    LinearKick(dTime,dDelta,bKickClose,bKickOpen);
 	    GridDeleteFFT();
         }
-    SPHOptions SPHoptions = initializeSPHOptions(param);
+    SPHOptions SPHoptions = initializeSPHOptions(param,csmTime2Exp(csm,dTime),csmTime2Hub(csm,dTime));
     SPHoptions.doGravity = 0;
     SPHoptions.doDensity = 1;
     SPHoptions.doSPHForces = 0;
@@ -256,7 +256,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
 	if (param.bGravStep) {
 	    assert(param.bNewKDK == 0);    /* for now! */
 	    BuildTree(param.bEwald);
-        SPHOptions SPHoptions = initializeSPHOptions(param);
+        SPHOptions SPHoptions = initializeSPHOptions(param,csmTime2Exp(csm,dTime),csmTime2Hub(csm,dTime));
         SPHoptions.doGravity = 1;
 	    Gravity(0,MAX_RUNG,ROOT,0,dTime,dDelta,iStartStep,dTheta,0,0,
 		    param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,SPHoptions);
@@ -295,7 +295,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
 	    if (bKickOpen) {
 		BuildTree(0);
                 LightConeOpen(iStep);  /* open the lightcone */
-        SPHOptions SPHoptions = initializeSPHOptions(param);
+        SPHOptions SPHoptions = initializeSPHOptions(param,csmTime2Exp(csm,dTime),csmTime2Hub(csm,dTime));
         SPHoptions.doGravity = 1;
 		uRungMax = Gravity(0,MAX_RUNG,ROOT,0,ddTime,dDelta,diStep,dTheta,0,1,
 		        param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,SPHoptions);
@@ -310,7 +310,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
                     }
 		bKickOpen = 0; /* clear the opening kicking flag */
 		}
-        SPHOptions SPHoptions = initializeSPHOptions(param);
+        SPHOptions SPHoptions = initializeSPHOptions(param,csmTime2Exp(csm,dTime),csmTime2Hub(csm,dTime));
         SPHoptions.doGravity = 1;
 	    NewTopStepKDK(ddTime,dDelta,dTheta,nSteps,0,0,&diStep,&uRungMax,&bDoCheckpoint,&bDoOutput,&bKickOpen,SPHoptions);
 	    }

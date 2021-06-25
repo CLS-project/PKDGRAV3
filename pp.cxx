@@ -255,6 +255,16 @@ void pkdSPHForcesEval(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  P
     adivv = hadd(pdivv);
     adtEst = HUGE_VAL; // here should be a horizontal minimum for an fvec, resulting in a float containing the smallest float in the fvec
 
+/* HACK, only works for 8 wide vectors */
+#if defined(__AVX__) && defined(USE_SIMD)
+    for (int k = 0; k < 8; k++) {
+        adtEst = fmin(adtEst,pdtEst[k]);
+    }
+    assert(adtEst > 0);
+#else
+    assert(0);
+#endif
+
     pOut->udot += audot;
     pOut->a[0] += aax;
     pOut->a[1] += aay;

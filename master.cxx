@@ -3407,7 +3407,7 @@ void MSR::TopStepKDK(
 	    BuildTree(param.bEwald);
 	    }
 	if (DoGravity()) {
-        SPHOptions SPHoptions = initializeSPHOptions(param);
+        SPHOptions SPHoptions = initializeSPHOptions(param,csmTime2Exp(csm,dTime),csmTime2Hub(csm,dTime));
         SPHoptions.doGravity = 1;
 	    Gravity(iKickRung,MAX_RUNG,ROOT,0,dTime,dDeltaStep,dStep,dTheta,0,0,
 	    	param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,

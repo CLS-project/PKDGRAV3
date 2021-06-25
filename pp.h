@@ -131,6 +131,7 @@ CUDA_DEVICE void EvalSPHForces(
     F PdWdx, PdWdy, PdWdz, IdWdx, IdWdy, IdWdz, dWdx, dWdy, dWdz;
     F cij, rhoij, fBallij, dvdotdx, muij, Piij;
     F PPoverRho2, IPoverRho2, dtC, dtMu;
+    F vFac, aFac;
     M Pr_lt_one, Ir_lt_one, mask1, dvdotdx_st_zero;
 
     int kernelType = SPHoptions.kernelType;
@@ -152,6 +153,13 @@ CUDA_DEVICE void EvalSPHForces(
 
     if (!testz(Pr_lt_one) || !testz(Ir_lt_one)) {
         // There is some work to do
+
+        // First convert velocities
+        aFac = a;
+        vFac = 1.0f / (a * a);
+        dvx = vFac * dvx + dx * H;
+        dvy = vFac * dvy + dz * H;
+        dvz = vFac * dvz + dz * H;
 
         // Kernel derivatives
         SPHKERNEL_INIT(Pr, PifBall, PC, t1, mask1, kernelType);
@@ -189,9 +197,9 @@ CUDA_DEVICE void EvalSPHForces(
         fBallij = 0.25f * (PfBall + IfBall); // here we need h, not fBall
         dvdotdx = dvx * dx + dvy * dy + dvz * dz;
         dvdotdx_st_zero = dvdotdx < 0.0f;
-        muij = fBallij * dvdotdx / (d2 + epsilon * fBallij * fBallij);
+        muij = fBallij * dvdotdx * aFac / (d2 + epsilon * fBallij * fBallij);
+        muij = maskz_mov(dvdotdx_st_zero,muij);
         Piij = (-alpha * cij * muij + beta * muij * muij) / rhoij;
-        Piij = maskz_mov(dvdotdx_st_zero,Piij);
 
         // du/dt
         // i am not sure if there has to be an Omega in the artificial viscosity part
@@ -199,17 +207,19 @@ CUDA_DEVICE void EvalSPHForces(
 
         // acceleration
         // i am not sure if there has to be an Omega in the artificial viscosity part
-        ax = - Im * (PPoverRho2 + IPoverRho2 + Piij) * dWdx;
-        ay = - Im * (PPoverRho2 + IPoverRho2 + Piij) * dWdy;
-        az = - Im * (PPoverRho2 + IPoverRho2 + Piij) * dWdz;
+        ax = - Im * (PPoverRho2 + IPoverRho2 + Piij) * dWdx * aFac;
+        ay = - Im * (PPoverRho2 + IPoverRho2 + Piij) * dWdy * aFac;
+        az = - Im * (PPoverRho2 + IPoverRho2 + Piij) * dWdz * aFac;
 
         // divv
         divv = Im / Irho * (dvx * dWdx + dvy * dWdy + dvz * dWdz);
 
         // timestep
-        dtC = (1.0f + 0.6f * alpha) / (EtaCourant);
-        dtMu = 0.6f * beta / (EtaCourant);
+        dtC = (1.0f + 0.6f * alpha) / (aFac * EtaCourant);
+        dtMu = 0.6f * beta / (aFac * EtaCourant);
         dtEst = 0.5f * PfBall / (dtC * Pc - dtMu * muij);
+        mask1 = Pr_lt_one | Ir_lt_one;
+        dtEst = mask_mov(HUGE_VAL,mask1,dtEst);
     } else {
         // No work to do
         udot = 0.0f;

@@ -39,7 +39,7 @@ typedef struct {
 #ifdef __cplusplus
 extern "C"
 #endif
-SPHOptions initializeSPHOptions(struct parameters param);
+SPHOptions initializeSPHOptions(struct parameters param, float a, float H);
 
 #endif
 
