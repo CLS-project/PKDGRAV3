@@ -2457,7 +2457,7 @@ void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dScaleFactor, double dTime, uint
    int nProcessors = pkd->param.bParaWrite==0?1:(pkd->param.nParaWrite<=1 ? pkd->nThreads:pkd->param.nParaWrite);
    fioSetAttr(fio, 0, "NumFilesPerSnapshot", FIO_TYPE_INT, 1, &nProcessors);
 
-   /* Prepare the particle information in tables 
+   /* Prepare the particle information in tables
     * For now, we only support one file per snapshot,
     * this bParaWrite=0
     *
@@ -2473,16 +2473,16 @@ void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dScaleFactor, double dTime, uint
    numPart_file[3] = nBH; //TODO, random assigment, ask Claudio
    numPart_file[4] = nStar;
    numPart_file[5] = 0;
-    
+
    fioSetAttr(fio, 0, "NumPart_ThisFile", FIO_TYPE_UINT32, 6, &numPart_file[0]);
    fioSetAttr(fio, 0, "NumPart_Total", FIO_TYPE_UINT32, 6, &numPart_file[0]);
 
    double massTable[6] = {0,0,0,0,0,0};
-   if (!pkd->oMass){
-      //printf("Save mass table into hdf5 header not yet supported!\n"); //TODO
-      //fioSetAttr(fio, 0, "MassTable", FIO_TYPE_DOUBLE, 6, &massTable[0]);
-      //abort();
-   }
+   // This is not yet fully supported, as the classes do not have to match the
+   //  six available particle types.
+   // However, we add this in the header so it can be parsed by other tools
+   fioSetAttr(fio, 0, "MassTable", FIO_TYPE_DOUBLE, 6, &massTable[0]);
+
    float fSoft = pkdSoft(pkd,pkdParticle(pkd,0)); // we take any particle
    fioSetAttr(fio, 0, "Softening", FIO_TYPE_FLOAT, 1, &fSoft);
 
@@ -2490,19 +2490,26 @@ void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dScaleFactor, double dTime, uint
     * Cosmology header
     */
    if (pkd->csm->val.bComove){
+      double h = 1;
+      flag = 1;
       fioSetAttr(fio, 1, "Omega_m", FIO_TYPE_DOUBLE, 1, &pkd->csm->val.dOmega0);
       fioSetAttr(fio, 1, "Omega_lambda", FIO_TYPE_DOUBLE, 1, &pkd->csm->val.dLambda);
       fioSetAttr(fio, 1, "Hubble0", FIO_TYPE_DOUBLE, 1, &pkd->csm->val.dHubble0);
-      flag = 1;
       fioSetAttr(fio, 1, "Cosmological run", FIO_TYPE_INT, 1, &flag);
-      double h = 1;
       fioSetAttr(fio, 1, "HubbleParam", FIO_TYPE_DOUBLE, 1, &h); // Not used
+
+      // Keep a copy also in the Header for increased compatibility
+      fioSetAttr(fio, 0, "Omega0", FIO_TYPE_DOUBLE, 1, &pkd->csm->val.dOmega0);
+      fioSetAttr(fio, 0, "OmegaLambda", FIO_TYPE_DOUBLE, 1, &pkd->csm->val.dLambda);
+      fioSetAttr(fio, 0, "Hubble0", FIO_TYPE_DOUBLE, 1, &pkd->csm->val.dHubble0);
+      fioSetAttr(fio, 0, "Cosmological run", FIO_TYPE_INT, 1, &flag);
+      fioSetAttr(fio, 0, "HubbleParam", FIO_TYPE_DOUBLE, 1, &h); // Not used
    }else{
       flag = 0;
       fioSetAttr(fio, 1, "Cosmological run", FIO_TYPE_INT, 1, &flag);
    }
 
-   
+
    /*
     * Units header
     */
