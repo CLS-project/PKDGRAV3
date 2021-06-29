@@ -79,6 +79,7 @@
 #ifdef STELLAR_EVOLUTION
 #include "stellarevolution/stellarevolution.h"
 #endif
+#include <grackle.h>
 
 #ifdef _MSC_VER
 #define FILE_PROTECTION (_S_IREAD | _S_IWRITE)
