@@ -3,34 +3,6 @@
 #include "master.h"
 
 
-/* NOTAS:
-   - En SWIFT, al distribuir la masa, se impone la conservacion de:
-      - Momento: Se desprecia la velocidad de los vientos.
-      - Energia: U_new_j = U_old_j - dK_j + dE * w_j; dE = dK_AGB + dK_star + dE_SNIa
-      swiftsim/src/feedback/EAGLE_thermal/feedback.c -> compute_stellar_evolution
-                          ./EAGLE/enrichment.h -> evolve_SNIa
-                          ./EAGLE_thermal/feedback_iact.h -> runner_iact_nonsym_feedback_apply
-   - Arrays del buffer que estan en logaritmo: 
-      - CCSN y AGB: Metalicidades (array de masas tanto en lineal como en log)
-      - Lifetimes: Todo
-   - Masas se estan interpolando en "semilog", Lifetimes en "loglog".
-   - El array de masas inicia en 0.7 Mo. La IMF se normaliza en su rango normal, [0.1,100].
-   Esto significa que no se puede verificar la normalizacion usando el array de masas.
-   - Los parametros en [msr,pkd]->param no pueden estar en float (prmAddParam, readParameters).
-   - msr->param.fT_CMB_0 tiene sizeof(float) en msrInitialize.
-*/
-
-
-/* TODOs y DUDAS:
-   - Se puede mejorar la lectura de las tablas. Los nombres de los datasets para cada 
-   metalicidad estan especificados bajo Yield_names. Se puede leer el tamano de un dataset 
-   directamente?
-   - Considerar interpolar usando gsl
-
-   - Por que no estoy utilizando las funciones de interpolacion de interpolate.h?
-*/
-
-
 #define STEV_CCSN_N_METALLICITY               5
 #define STEV_CCSN_N_MASS                     11
 #define STEV_AGB_N_METALLICITY                3
@@ -54,12 +26,14 @@ typedef struct inStellarEvolution {
    /* Pointer to function that gives the number of SNIa per Msol in [fInitialTime, fFinalTime] */
    float (*fcnNumSNIa)(PKD pkd, STARFIELDS *pStar, float fInitialTime, float fFinalTime);
 
-   /* Initial mass arrays for CCSN and AGB tables */
+   /* Initial mass array for CCSN and AGB tables */
    float afMasses[STEV_INTERP_N_MASS];
-   float afLogMasses[STEV_INTERP_N_MASS];
 
-   /* Initial Mass Function values array */
-   float afIMF[STEV_INTERP_N_MASS];
+   /* Logarithmic spacing of the values in the CCSN/AGB initial mass array */
+   float fDeltaLogMass;
+
+   /* Logarithmic weights (= IMF * Masses) for ejecta integration array */
+   float afIMFLogWeights[STEV_INTERP_N_MASS];
 
    /* Core Collapse SNe arrays */
    float afCCSN_Zs[STEV_CCSN_N_METALLICITY];
@@ -73,7 +47,7 @@ typedef struct inStellarEvolution {
    float afAGB_MetalYield[STEV_AGB_N_METALLICITY * STEV_INTERP_N_MASS];
    float afAGB_EjectedMass[STEV_AGB_N_METALLICITY * STEV_INTERP_N_MASS];
 
-   /* Type Ia SNe */
+   /* Type Ia SNe arrays */
    float afSNIa_EjectedMass[STEV_N_ELEM];
    float fSNIa_EjectedMetalMass;
 
@@ -120,7 +94,7 @@ void combChemEnrich(void *vpkd, void *vp1, void *vp2);
  * ----------------
  */
 
-STEV_RAWDATA *stevReadTable(char *, char **, int);
+STEV_RAWDATA *stevReadTable(char *);
 STEV_RAWDATA *stevReadSNIaTable(char *);
 STEV_RAWDATA *stevReadLifetimesTable(char *);
 void stevFreeTable(STEV_RAWDATA *);
@@ -138,27 +112,9 @@ float stevPowerlawNumSNIa(PKD, STARFIELDS *, float, float);
  * -------
  */
 
-static inline void stevComputeIMFSamplingPoints(const double dMinMass, const double dMaxMass,
-						const int nSize, float *restrict pfMasses,
-						float *restrict pfLogMasses) {
-
-   const double dDeltaLog = (log10(dMaxMass) - log10(dMinMass)) / (nSize - 1);
-   const double dDelta = pow(10.0, dDeltaLog);
-
-   const float *pfEnd = pfMasses + nSize;
-   double dMass = dMinMass, dLogMass = log10(dMinMass);
-   while (pfMasses < pfEnd) {
-      *pfMasses++ = dMass;
-      *pfLogMasses++ = dLogMass;
-      dMass *= dDelta;
-      dLogMass += dDeltaLog;
-   }
-}
-
-
-static inline void stevChabrierIMF(const float *restrict pfMasses, const int nSize,
+static inline void stevChabrierIMF(const double *restrict pdMasses, const int nSize,
 				   const double dMinMass, const double dMaxMass,
-				   float *restrict pfIMF) {
+				   double *restrict pdIMF) {
    const double Mc = 0.079;
    const double Sigma = 0.69;
    const double Slope = -2.3;
@@ -175,10 +131,10 @@ static inline void stevChabrierIMF(const float *restrict pfMasses, const int nSi
    const double A = 1.0 / (I1 + I2);
    const double B = A * C;
    for (int i = 0; i < nSize; i++) {
-      if (pfMasses[i] < 1.0)
-	 pfIMF[i] = A * exp(-0.5 * pow(log10(pfMasses[i]) - logMc, 2.0) / Sigma2) / pfMasses[i];
+      if (pdMasses[i] < 1.0)
+	 pdIMF[i] = A * exp(-0.5 * pow(log10(pdMasses[i]) - logMc, 2.0) / Sigma2) / pdMasses[i];
       else
-	 pfIMF[i] = B * pow(pfMasses[i], Slope);
+	 pdIMF[i] = B * pow(pdMasses[i], Slope);
    }
 }
 
@@ -268,11 +224,11 @@ static inline void stevInterpToIMFSampling(STEV_DATA *const Data, STEV_RAWDATA *
    int i, j, k, idxMass, idxTable, idxData;
    float fDeltaMass, fLogMass;
 
-   int idxCCSNMinMass = stevGetIMFMassIndex(Data->afMasses, STEV_INTERP_N_MASS, fCCSNMinMass,
-					    STEV_INTERP_N_MASS - 1);
+   const int idxCCSNMinMass = stevGetIMFMassIndex(Data->afMasses, STEV_INTERP_N_MASS,
+						  fCCSNMinMass, STEV_INTERP_N_MASS - 1);
 
    for (i = 0; i < STEV_INTERP_N_MASS; i++) {
-      fLogMass = Data->afLogMasses[i];
+      fLogMass = log10(Data->afMasses[i]);
       if (i <= idxCCSNMinMass) {
 	 stevGetIndex1D(AGB->pfMasses, STEV_AGB_N_MASS, fLogMass, &idxMass, &fDeltaMass);
 
@@ -291,8 +247,8 @@ static inline void stevInterpToIMFSampling(STEV_DATA *const Data, STEV_RAWDATA *
 	    }
 
 	    for (k = 0; k < STEV_AGB_N_METALLICITY; k++) {
-	       idxTable  = stevRowMajorIndex(k, j, idxMass, STEV_AGB_N_METALLICITY, STEV_N_ELEM,
-					     STEV_AGB_N_MASS);
+	       idxTable = stevRowMajorIndex(k, j, idxMass, STEV_AGB_N_METALLICITY, STEV_N_ELEM,
+					    STEV_AGB_N_MASS);
 	       idxData = stevRowMajorIndex(k, i, j, STEV_AGB_N_METALLICITY,
 					   STEV_INTERP_N_MASS, STEV_N_ELEM);
 
@@ -320,8 +276,8 @@ static inline void stevInterpToIMFSampling(STEV_DATA *const Data, STEV_RAWDATA *
 	 }
 
 	 for (k = 0; k < STEV_AGB_N_METALLICITY; k++) {
-	    idxTable  = stevRowMajorIndex(k, idxMass, 0, STEV_AGB_N_METALLICITY,
-					  STEV_AGB_N_MASS, 1);
+	    idxTable = stevRowMajorIndex(k, idxMass, 0, STEV_AGB_N_METALLICITY,
+					 STEV_AGB_N_MASS, 1);
 	    idxData = stevRowMajorIndex(k, i, 0, STEV_AGB_N_METALLICITY,
 					STEV_INTERP_N_MASS, 1);
 
@@ -341,8 +297,8 @@ static inline void stevInterpToIMFSampling(STEV_DATA *const Data, STEV_RAWDATA *
 
 	 for (j = 0; j < STEV_N_ELEM; j++) {
 	    for (k = 0; k < STEV_CCSN_N_METALLICITY; k++) {
-	       idxTable  = stevRowMajorIndex(k, j, idxMass, STEV_CCSN_N_METALLICITY,
-					     STEV_N_ELEM, STEV_CCSN_N_MASS);
+	       idxTable = stevRowMajorIndex(k, j, idxMass, STEV_CCSN_N_METALLICITY,
+					    STEV_N_ELEM, STEV_CCSN_N_MASS);
 	       idxData = stevRowMajorIndex(k, i, j, STEV_CCSN_N_METALLICITY,
 					   STEV_INTERP_N_MASS, STEV_N_ELEM);
 
@@ -369,8 +325,8 @@ static inline void stevInterpToIMFSampling(STEV_DATA *const Data, STEV_RAWDATA *
 	 }
 
 	 for (k = 0; k < STEV_CCSN_N_METALLICITY; k++) {
-	    idxTable  = stevRowMajorIndex(k, idxMass, 0, STEV_CCSN_N_METALLICITY,
-					  STEV_CCSN_N_MASS, 1);
+	    idxTable = stevRowMajorIndex(k, idxMass, 0, STEV_CCSN_N_METALLICITY,
+					 STEV_CCSN_N_MASS, 1);
 	    idxData = stevRowMajorIndex(k, i, 0, STEV_CCSN_N_METALLICITY,
 					STEV_INTERP_N_MASS, 1);
 
@@ -393,8 +349,8 @@ static inline void stevInterpToIMFSampling(STEV_DATA *const Data, STEV_RAWDATA *
 	       Data->afAGB_EjectedMass[idxData] = 0.0f;
 	    }
 	    else {
-	       idxTable  = stevRowMajorIndex(k, STEV_AGB_N_MASS - 1, 0,
-					     STEV_AGB_N_METALLICITY, STEV_AGB_N_MASS, 1);
+	       idxTable = stevRowMajorIndex(k, STEV_AGB_N_MASS - 1, 0,
+					    STEV_AGB_N_METALLICITY, STEV_AGB_N_MASS, 1);
 	       Data->afAGB_MetalYield[idxData]  = AGB->pfMetalYield[idxTable];
 	       Data->afAGB_EjectedMass[idxData] = AGB->pfEjectedMass[idxTable];
 	    }
@@ -444,9 +400,10 @@ static inline void stevComputeAndCorrectSimulEjecta(
       }
       if (*pfMetalEjMass < 0.0f) *pfMetalEjMass = 0.0f;
 
-      float fTotalMass = pfElemEjMass[ELEMENT_H] + pfElemEjMass[ELEMENT_He] + *pfMetalEjMass;
+      const float fTotalMass = pfElemEjMass[ELEMENT_H] + pfElemEjMass[ELEMENT_He] +
+	                       *pfMetalEjMass;
       assert(fTotalMass > 0.0f);
-      float fNormFactor = fEjectedMass / fTotalMass;
+      const float fNormFactor = fEjectedMass / fTotalMass;
       for (i = 0; i < nElems; i++) pfElemEjMass[i] *= fNormFactor;
       *pfMetalEjMass *= fNormFactor;
    }
@@ -462,8 +419,8 @@ static inline void stevComputeMassToEject(
 		       const float *restrict pfMetalYield,
 		       const float *restrict pfEjectedMass,
 		       const float *restrict pfMasses,
-		       const float *restrict pfLogMasses,
-		       const float *restrict pfIMF,
+		       const float *restrict pfIMFLogWeights,
+		       const float fDeltaLogMass,
 		       const int nZs, const int nMasses, const int nElems,
 		       const float *restrict pfElemAbun, const float fMetalAbun,
 		       const int iStart, const int iEnd,
@@ -496,57 +453,59 @@ static inline void stevComputeMassToEject(
 				       afElemSimulEjecta + j, afMetalSimulEjecta + i);
    }
 
-
-   pfIMF += iStart;
+   pfIMFLogWeights += iStart;
    pfMasses += iStart;
-   pfLogMasses += iStart;
-
 
    for (i = 0, j = 0; i < nSize; i++) {
-      float fIMFLogWeight = pfIMF[i] * pfMasses[i];
       for (k = 0; k < nElems; j++, k++)
-	 afElemSimulEjecta[j] *= fIMFLogWeight;
-      afMetalSimulEjecta[i] *= fIMFLogWeight;
+	 afElemSimulEjecta[j] *= pfIMFLogWeights[i];
+      afMetalSimulEjecta[i] *= pfIMFLogWeights[i];
    }
 
-
+   /* Integration is done over the logarithms of the masses. Here, the steps for this are
+      followed in a rather cumbersome way. It is intended to avoid round-off error as much
+      as possible. */
    float afElemMassTemp[nElems], fMetalMassTemp;
-   for (i = 0; i < nElems; i++)
-      afElemMassTemp[i] = 0.0f;
-   fMetalMassTemp = 0.0f;
 
+   /* Contribution from the first and last values */
+   for (i = 0; i < nElems; i++) {
+      afElemMassTemp[i] = 0.5f * (afElemSimulEjecta[i] +
+				  afElemSimulEjecta[i + (nSize - 1) * nElems]);
+   }
+   fMetalMassTemp = 0.5f * (afMetalSimulEjecta[0] + afMetalSimulEjecta[nSize - 1]);
 
-   /* Integration is done over the logarithms of the masses */
-   const float fDeltaLogMass = pfLogMasses[1] - pfLogMasses[0];
-   const float fWeightStart = ((float)log10(fMassStart) - pfLogMasses[0]) / fDeltaLogMass;
-   const float fWeightEnd = (pfLogMasses[nSize - 1] - (float)log10(fMassEnd)) / fDeltaLogMass;
-
-   const float fWeight0 = 0.5f * (1.0f - fWeightStart) * (1.0f - fWeightStart);
-   const float fWeight1 = 0.5f * fWeightStart * fWeightStart;
-   const float fWeightNm2 = 0.5f * fWeightEnd * fWeightEnd;
-   const float fWeightNm1 = 0.5f * (1.0f - fWeightEnd) * (1.0f - fWeightEnd);
-
-
+   /* Contribution from the middle values */
    for (i = 1, j = nElems; i < nSize - 1; i++) {
       for (k = 0; k < nElems; j++, k++)
 	 afElemMassTemp[k] += afElemSimulEjecta[j];
       fMetalMassTemp += afMetalSimulEjecta[i];
    }
 
-   for (i = 0; i < nElems; i++) {
-      afElemMassTemp[i] += fWeight0 * afElemSimulEjecta[i] -
-	                   fWeight1 * afElemSimulEjecta[i + nElems] -
-	                   fWeightNm2 * afElemSimulEjecta[i + (nSize - 2) * nElems] +
-	                   fWeightNm1 * afElemSimulEjecta[i + (nSize - 1) * nElems];
-   }
-   fMetalMassTemp += fWeight0 * afMetalSimulEjecta[0] -
-                     fWeight1 * afMetalSimulEjecta[1] -
-                     fWeightNm2 * afMetalSimulEjecta[nSize - 2] +
-                     fWeightNm1 * afMetalSimulEjecta[nSize - 1];
-
+   /* Multiply by the logarithm of the spacing */
    for (i = 0; i < nElems; i++)
-      pfElemMass[i] += M_LN10 * fDeltaLogMass * afElemMassTemp[i];
-   *pfMetalMass += M_LN10 * fDeltaLogMass * fMetalMassTemp;
+      afElemMassTemp[i] *= fDeltaLogMass;
+   fMetalMassTemp *= fDeltaLogMass;
+
+   /* Correction for initial and final values mismatch */
+   const float fWeightStart = log10f(fMassStart / pfMasses[0]);
+   const float fWeightEnd = log10f(pfMasses[nSize - 1] / fMassEnd);
+   for (i = 0; i < nElems; i++) {
+      afElemMassTemp[i] -=
+	 0.5f * (fWeightStart * (afElemSimulEjecta[i] +
+				 afElemSimulEjecta[i + nElems]) +
+		 fWeightEnd * (afElemSimulEjecta[i + (nSize - 2) * nElems] +
+			       afElemSimulEjecta[i + (nSize - 1) * nElems]));
+   }
+   fMetalMassTemp -=
+      0.5f * (fWeightStart * (afMetalSimulEjecta[0] +
+			      afMetalSimulEjecta[1]) +
+	      fWeightEnd * (afMetalSimulEjecta[nSize - 2] +
+			    afMetalSimulEjecta[nSize - 1]));
+
+   /* Multiply by natural logarithm of 10 */
+   for (i = 0; i < nElems; i++)
+      pfElemMass[i] += M_LN10 * afElemMassTemp[i];
+   *pfMetalMass += M_LN10 * fMetalMassTemp;
 }
 
 
@@ -566,7 +525,7 @@ static inline float stevLifetimeFunction(PKD pkd, STARFIELDS *pStar, const doubl
                     afTimesUpperZ[iIdxMass] * fDeltaZ * (1.0f - fDeltaMass) +
                     afTimesUpperZ[iIdxMass + 1] * fDeltaZ * fDeltaMass;
 
-   return pow(10.0, fLogTime);
+   return powf(10.0f, fLogTime);
 }
 
 
@@ -592,11 +551,12 @@ static inline float stevInverseLifetimeFunction(PKD pkd, STARFIELDS *pStar, cons
                     afMasses[iIdxTimeUpperZ] * fDeltaZ * (1.0f - fDeltaTimeUpperZ) +
                     afMasses[iIdxTimeUpperZ + 1] * fDeltaZ * fDeltaTimeUpperZ;
 
-   return pow(10.0, fLogMass);
+   return powf(10.0f, fLogMass);
 }
 
 
-static inline float stevComputeNextEnrichTime(PKD pkd, float fTime, float fMass, float fEjMass, float fDt) {
+static inline float stevComputeNextEnrichTime(float fTime, float fMass, float fEjMass,
+					      float fDt) {
      const float epsilon = 1e-3f;
      const float fMdot_inv = fDt / fEjMass;
 

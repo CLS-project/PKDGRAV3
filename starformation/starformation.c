@@ -170,7 +170,7 @@ void pkdStarForm(PKD pkd,
 	    int iIdxZ;
 	    float fLogZ;
 	    if (pStar->fMetalAbun > 0.0f)
-	       fLogZ = log10(pStar->fMetalAbun);
+	       fLogZ = log10f(pStar->fMetalAbun);
 	    else
 	       fLogZ = STEV_MIN_LOG_METALLICITY;
 
