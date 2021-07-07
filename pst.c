@@ -305,7 +305,7 @@ void pstAddServices(PST pst,MDL mdl) {
 #ifdef STELLAR_EVOLUTION
     mdlAddService(mdl,PST_STELLAREVOLUTIONINIT,pst,
 		  (fcnService_t*) pstStellarEvolutionInit,
-		  sizeof(struct inStellarEvolution),0);
+		  sizeof(struct inStellarEvolution) + sizeof(double),0);
 #endif
     mdlAddService(mdl,PST_UPDATERUNG,pst,(fcnService_t*)pstUpdateRung,
 		  sizeof(struct inUpdateRung),sizeof(struct outUpdateRung));
