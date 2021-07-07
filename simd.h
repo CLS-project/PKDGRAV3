@@ -849,6 +849,11 @@ inline vec<float,float> mask_mov(vec<float,float> const &src,bool const &p,vec<f
 	return p ? a : src;
     }
 
+inline vec<double,double> min(vec<double,double> const &a,vec<double,double> const &b) { return a<b?a:b; }
+inline vec<double,double> max(vec<double,double> const &a,vec<double,double> const &b) { return a>b?a:b; }
+inline int movemask(mmask<bool> const &k) { return (int)(k); }
+
+
 /**********************************************************************\
 * 32-bit integer
 \**********************************************************************/

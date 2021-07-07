@@ -248,17 +248,16 @@ else(${CMAKE_VERSION} VERSION_LESS "3.12")
     target_sources(${PROJECT_NAME} PRIVATE tinypy.c pkdtinypy.c)
   endif(Python3_Development_FOUND)
 endif()
-#if USE_SIMD
+
+set(USE_SIMD "yes" CACHE STRING "Should SIMD be used.")
+if(USE_SIMD)
 #if USE_SIMD_FMM
 target_sources(${PROJECT_NAME} PRIVATE vmoments.cxx)
 #endif
 #if USE_SIMD_LC
 target_sources(${PROJECT_NAME} PRIVATE lightcone.cxx)
 #endif
-#endif
-
-
-
+endif()
 
 foreach(flag_var
         CMAKE_C_FLAGS CMAKE_C_FLAGS_DEBUG CMAKE_C_FLAGS_RELEASE
