@@ -50,6 +50,7 @@ public:
     virtual ~GARC() = default;
     virtual void *fetch(uint32_t uIndex,    uint32_t uId,bool bLock,bool bModify,bool bVirtual) = 0;
     virtual void *fetch(uint32_t uHash, const void *pKey,bool bLock,bool bModify,bool bVirtual) = 0;
+    virtual void *inject(uint32_t uHash, uint32_t uId, const void *pKey) = 0;
     virtual void initialize(ARChelper *helper, uint32_t uCacheSizeInBytes,uint32_t uLineSizeInBytes,uint32_t nLineBits=0) = 0;
     virtual void release(void *vp) = 0;
     virtual void clear() = 0;
@@ -293,6 +294,7 @@ private:
     auto insert_absent(HashChain &Hash);
 
     void *fetch(uint32_t uHash,uint32_t uId,const KEY &key,bool bLock,bool bModify,bool bVirtual);
+    void *inject(uint32_t uHash, uint32_t uId, const KEY &key);
 
 public:
     ARC(const ARC&)=delete;
@@ -314,6 +316,7 @@ public:
     void *fetch(uint32_t uHash,        const KEYS&... keys,bool bLock,bool bModify,bool bVirtual);
     virtual void *fetch(uint32_t uIndex,    uint32_t uId,bool bLock,bool bModify,bool bVirtual) override;
     virtual void *fetch(uint32_t uHash, const void *pKey,bool bLock,bool bModify,bool bVirtual) override;
+    virtual void *inject(uint32_t uHash, uint32_t uId, const void *pKey) override;
     };
 
 /*****************************************************************************\
@@ -708,6 +711,30 @@ namespace hash {
 	}
 
 /*****************************************************************************\
+* ARC inject
+\*****************************************************************************/
+
+template<typename... KEYS>
+void *ARC<KEYS...>::inject(uint32_t uHash, uint32_t uId, const KEY& key) {
+    int uIndex = uHash;
+    auto key_size = sizeof(PAIR) == sizeof(CDB) ? 0 : sizeof(KEY);
+    auto &Hash = HashChains[uHash&uHashMask];
+    auto pEntry = key_size ? find_key(Hash,key) : find_key(Hash,uIndex,uId);
+    if (pEntry) return nullptr; // Already have a cached value
+    auto item = insert(Hash);
+    auto &cdb = get<CDB>(*item);
+    cdb.uId   = uId;                        // Remote processor that owns this entry
+    cdb.uPage = uIndex;                     // Remote array index (simple) or hash id (advanced)
+    if (key_size) get<KEY>(*item) = key;    // Advanced key (or nothing)
+    return cdb.data; // Data is not initialized here
+    }
+
+template<typename... KEYS>
+void *ARC<KEYS...>::inject(uint32_t uHash, uint32_t uId, const void *pKey) {
+    return inject(uHash,uId,*static_cast<const KEY*>(pKey));
+    }
+
+/*****************************************************************************\
 * ARC fetch
 \*****************************************************************************/
 
@@ -743,7 +770,7 @@ void *ARC<KEYS...>::fetch(uint32_t uIndex, uint32_t uId, const KEY& key, bool bL
     else {          // Page is not in the cache
 	if (key_size) uId = helper->getThread(uIndex,uId,key_size,&key);
 	data = helper->invokeRequest(uIndex,uId,key_size,&key,bVirtual);
-	if (!bModify && !bVirtual && data) return data; // Simple local case
+	if (!bModify && !bVirtual && data && key_size==0) return data; // Simple local case
 	data = helper->finishRequest(uIndex,uId,key_size,&key,bVirtual,cacheLine.data(),data);
 	if (data) {
 	    item = insert(Hash);
