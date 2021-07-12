@@ -33,6 +33,7 @@
 #include <unistd.h>
 #endif
 #include <stdarg.h>
+#include <string.h>
 
 #define MDL_DEFAULT_SERVICES	120
 
@@ -121,11 +122,11 @@ int32_t mdlBASE::ThreadToProc(int32_t iThread) const {
 
 void mdlBASE::AddService(int sid, void *p1,
     fcnService_t *fcnService,
-    int nInBytes, int nOutBytes) {
+    int nInBytes, int nOutBytes, const char *name) {
     if (nInBytes  > nMaxInBytes)  nMaxInBytes  = nInBytes;
     if (nOutBytes > nMaxOutBytes) nMaxOutBytes = nOutBytes;
     if (sid >= services.size()) services.resize(sid+9);
-    services[sid] = SERVICE(fcnService,p1,nInBytes,nOutBytes);
+    services[sid] = SERVICE(fcnService,p1,nInBytes,nOutBytes,name?strdup(name):nullptr);
 }
 
 void mdlBASE::yield() {
