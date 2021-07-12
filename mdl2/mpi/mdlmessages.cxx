@@ -26,13 +26,13 @@ bool FlushBuffer::addBuffer(int nSize, const void *pData) {
     return true;
     }
 
-bool FlushBuffer::addBuffer(uint8_t cid, int32_t idFrom, int32_t idTo, int32_t iLine, int nSize, const void *pData) {
-    if (!canBuffer(nSize)) return false;
+bool FlushBuffer::addBuffer(uint8_t cid, int32_t idFrom, int32_t idTo, int32_t iLine, int nItems, int nSize, const void *pData) {
+    if (!canBuffer(nSize + sizeof(CacheHeader))) return false;
     CacheHeader *ca = reinterpret_cast<CacheHeader*>(&Buffer.front() + nBuffer);
     char *pBuffer = reinterpret_cast<char *>(ca+1);
     ca->cid = cid;
     ca->mid = mid;
-    ca->nItems = 1;
+    ca->nItems = nItems;
     ca->idFrom = idFrom;
     ca->idTo = idTo;
     ca->iLine = iLine;

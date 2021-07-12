@@ -51,7 +51,7 @@ public:
     bool canBuffer(int nSize) { return nBuffer+nSize+sizeof(ServiceHeader) <= Buffer.size(); }
     void*getBuffer(int nSize);
     bool addBuffer(int nSize, const void *pData);
-    bool addBuffer(uint8_t cid, int32_t idFrom, int32_t idTo, int32_t iLine, int nSize=0, const void *pData=0);
+    bool addBuffer(uint8_t cid, int32_t idFrom, int32_t idTo, int32_t iLine, int nItems=1, int nSize=0, const void *pData=0);
     bool addBuffer(int nSize, const CacheHeader *pData);
     };
 
