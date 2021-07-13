@@ -82,6 +82,7 @@ typedef struct {
     float a[3];
     float fSmooth2;
     float fDensity;
+    /* SPH fields follow */
     float fBall;
     float Omega;
     float v[3];
@@ -99,6 +100,7 @@ typedef struct {
     float fPot;
     float dirsum, normsum;
     float rhopmax;
+    /* SPH fields follow */
     float rho, drhodfball, nden, dndendfball, fBall, nSmooth;
     float udot, divv, dtEst;
     } PINFOOUT;

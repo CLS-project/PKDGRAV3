@@ -62,6 +62,7 @@ typedef struct {
     ilpFloat dx, dy, dz;    /* Offset from ilp->cx, cy, cz */
     ilpFloat m;             /* Mass */
     ilpFloat fourh2;        /* Softening: calculated */
+    /* SPH fields follow */
     ilpFloat fBall, Omega;  /* Ball and correction factor */
     ilpFloat vx, vy, vz;    /* Velocity */
     ilpFloat rho;           /* Density */
