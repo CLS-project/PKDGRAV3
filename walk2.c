@@ -308,7 +308,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2,
 	    if (ts->bGravStep) a = pkdNodeAccel(pkd,k);
 	    else a = fzero;
 #else
-	    if (bGravStep) {
+	    if (ts->bGravStep) {
 		a = pkdNodeAccel(pkd,k);
 		imaga = 1.0 / sqrtf(a[0]*a[0] + a[1]*a[1] + a[2]*a[2]);
 	    }
@@ -496,7 +496,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2,
 				    dFlop = momLocrAddMono5(&L,blk->m.f[jTile],dir,dx[0],dx[1],dx[2],&tax,&tay,&taz);
 				    *pdFlop += dFlop;
 				    pkd->dFlopDoubleCPU += dFlop;
-				    if (bGravStep) {
+				    if (ts->bGravStep) {
 					adotai = a[0]*tax + a[1]*tay + a[2]*taz;
 					if (adotai > 0) {
 					    adotai *= imaga;
@@ -529,7 +529,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2,
 				    dFlop = momLocrAddFmomr5cm(&L,pkdNodeMom(pkd,c),c->bMax,dir,dx[0],dx[1],dx[2],&tax,&tay,&taz);
 				    *pdFlop += dFlop;
 				    pkd->dFlopDoubleCPU += dFlop;
-				    if (bGravStep) {
+				    if (ts->bGravStep) {
 					adotai = a[0]*tax + a[1]*tay + a[2]*taz;
 					if (adotai > 0) {
 					    adotai *= imaga;

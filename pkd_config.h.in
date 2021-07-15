@@ -45,13 +45,15 @@
 #cmakedefine HAVE_AIO_H 1
 #cmakedefine POTENTIAL_IN_LIGHTCONE
 
-#define USE_SIMD 1
+#cmakedefine USE_SIMD 1
+#ifdef USE_SIMD
 #define USE_SIMD_OPEN 1
 #define USE_SIMD_FMM 1
 #define USE_SIMD_LC 1
 #define USE_SIMD_EWALD 1
 #define USE_SIMD_PP 1
 #define USE_SIMD_PC 1
+#endif
 #define NAIVE_DOMAIN_DECOMP 1
 
 #define PACKAGE_VERSION "@PROJECT_VERSION@"
