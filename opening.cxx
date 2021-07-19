@@ -36,7 +36,7 @@ void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,SPHOption
     const float walk_min_multipole = 3;
     fmask T0,T1,T2,T3,T4,T6,T7;
     i32v P1,P2,P3,P4;
-    fvec xc,yc,zc,dx,dy,dz,d2,diCrit,cOpen,cOpen2,d2Open,mink2,minbnd2,fourh2;
+    fvec xc,yc,zc,dx,dy,dz,d2,diCrit,cOpen,cOpen2,d2Open,mink2,minbnd2,fourh2,distk2,distc2;
     int i,iEnd,nLeft;
     CL_BLK *blk;
     i32v iOpen,iOpenA,iOpenB;
@@ -73,6 +73,8 @@ void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,SPHOption
     k_notgrp = cvt_fvec(i32v(k->bGroup)) == 0.0;
     k_Open = 1.5f*k_bMax*diCrit;
     k_fBoBr2 = k->fBoBr2;
+    distk2 = HUGE_VAL;
+    distc2 = HUGE_VAL;
 
     blk = tile->blk;
     for(nLeft=tile->lstTile.nBlocks; nLeft>=0; --nLeft,blk++) {
@@ -82,13 +84,39 @@ void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,SPHOption
 	    fourh2 = blk->fourh2.p[i];
 
         if (SPHoptions.doDensity || SPHoptions.doSPHForces) {
-            T0 = fourh2 > k_fBoBr2;
-            fourh2 = mask_mov(k_fBoBr2,T0,fourh2);
+            distk2 = 0.0f;
+            dx = kbnd.fCenter[0] - fvec(blk->xCenter.p[i]) - fvec(blk->xOffset.p[i]) - fvec(blk->xMax.p[i]);
+            distk2 += maskz_mov(dx>0,dx*dx);
+            dx = fvec(blk->xCenter.p[i]) + fvec(blk->xOffset.p[i]) - fvec(blk->xMax.p[i]) - kbnd.fCenter[0];
+            distk2 += maskz_mov(dx>0,dx*dx);
+
+            dx = kbnd.fCenter[1] - fvec(blk->yCenter.p[i]) - fvec(blk->yOffset.p[i]) - fvec(blk->yMax.p[i]);
+            distk2 += maskz_mov(dx>0,dx*dx);
+            dx = fvec(blk->yCenter.p[i]) + fvec(blk->yOffset.p[i]) - fvec(blk->yMax.p[i]) - kbnd.fCenter[1];
+            distk2 += maskz_mov(dx>0,dx*dx);
+
+            dx = kbnd.fCenter[2] - fvec(blk->zCenter.p[i]) - fvec(blk->zOffset.p[i]) - fvec(blk->zMax.p[i]);
+            distk2 += maskz_mov(dx>0,dx*dx);
+            dx = fvec(blk->zCenter.p[i]) + fvec(blk->zOffset.p[i]) - fvec(blk->zMax.p[i]) - kbnd.fCenter[2];
+            distk2 += maskz_mov(dx>0,dx*dx);
         }
         if (SPHoptions.doSPHForces) {
             blk_fBoBr2 = blk->fBoBr2.p[i];
-            T0 = fourh2 > blk_fBoBr2;
-            fourh2 = mask_mov(blk_fBoBr2,T0,fourh2);
+            distc2 = 0.0f;
+            dx = k_xMinBnd - fvec(blk->xCenter.p[i]) - fvec(blk->xOffset.p[i]);
+            distc2 += maskz_mov(dx>0,dx*dx);
+            dx = fvec(blk->xCenter.p[i]) + fvec(blk->xOffset.p[i]) - k_xMaxBnd;
+            distc2 += maskz_mov(dx>0,dx*dx);
+
+            dx = k_yMinBnd - fvec(blk->yCenter.p[i]) - fvec(blk->yOffset.p[i]);
+            distc2 += maskz_mov(dx>0,dx*dx);
+            dx = fvec(blk->yCenter.p[i]) + fvec(blk->yOffset.p[i]) - k_yMaxBnd;
+            distc2 += maskz_mov(dx>0,dx*dx);
+
+            dx = k_zMinBnd - fvec(blk->zCenter.p[i]) - fvec(blk->zOffset.p[i]);
+            distc2 += maskz_mov(dx>0,dx*dx);
+            dx = fvec(blk->zCenter.p[i]) + fvec(blk->zOffset.p[i]) - k_zMaxBnd;
+            distc2 += maskz_mov(dx>0,dx*dx);
         }
 
 	    xc = fvec(blk->x.p[i]) + fvec(blk->xOffset.p[i]);
@@ -129,10 +157,10 @@ void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,SPHOption
 	    minbnd2 += maskz_mov(dx>0,dx*dx);
 
 	    T0 = fvec(blk->m.p[i]) > fvec(0.0f);
-	    T1 = (d2>d2Open) & (minbnd2>fourh2);
+	    T1 = (d2>d2Open) & (minbnd2>fourh2) & (distk2 > k_fBoBr2) & (distc2 > blk_fBoBr2);
 	    T2 = cvt_fvec(i32v(blk->iLower.p[i])) == 0.0;
 	    T3 = (walk_min_multipole > cvt_fvec(i32v(blk->nc.p[i]))) | (mink2<=cOpen2);
-	    T4 = minbnd2 > fourh2;
+	    T4 = (minbnd2 > fourh2) & (distk2 > k_fBoBr2) & (distc2 > blk_fBoBr2);
 	    T6 = cOpen > k_Open;
 	    T7 = k_notgrp;
  	    iOpenA = mask_mov(i32v(3),T2,i32v(1));

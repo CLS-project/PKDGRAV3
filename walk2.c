@@ -73,13 +73,16 @@ void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,SPHOption
 */
 static void iOpenOutcomeCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,SPHOptions SPHoptions) {
     const int walk_min_multipole = 3;
-    float dx,dy,dz,mink2,d2,d2Open,xc,yc,zc,fourh2,minbnd2,kOpen,cOpen,diCrit;
+    float dx,dy,dz,mink2,d2,d2Open,xc,yc,zc,fourh2,minbnd2,kOpen,cOpen,diCrit,distk2,distc2;
     int i;
     int iOpen,iOpenA,iOpenB;
     CL_BLK *blk;
     int n, nLeft;
     BND kbnd;
     double k_r[3];
+
+    distk2 = HUGE_VAL;
+    distc2 = HUGE_VAL;
 
     kbnd = pkdNodeGetBnd(pkd,k);
     pkdNodeGetPos(pkd,k,k_r);
@@ -94,10 +97,36 @@ static void iOpenOutcomeCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,SPHO
 		fourh2 = blk->fourh2.f[i];
 
         if (SPHoptions.doDensity || SPHoptions.doSPHForces) {
-            fourh2 = fourh2 > k->fBoBr2 ? fourh2 : k->fBoBr2;
+            dx = kbnd.fCenter[0] -  blk->xCenter.f[i] - blk->xOffset.f[i] - blk->xMax.f[i];
+            if (dx > 0) distk2 += dx*dx;
+            dx = blk->xCenter.f[i] + blk->xOffset.f[i] - blk->xMax.f[i] - kbnd.fCenter[0];
+            if (dx > 0) distk2 += dx*dx;
+
+            dx = kbnd.fCenter[1] - blk->yCenter.f[i] - blk->yOffset.f[i] - blk->yMax.f[i];
+            if (dx > 0) distk2 += dx*dx;
+            dx = blk->yCenter.f[i] + blk->yOffset.f[i] - blk->yMax.f[i] - kbnd.fCenter[1];
+            if (dx > 0) distk2 += dx*dx;
+
+            dx = kbnd.fCenter[2] - blk->zCenter.f[i] - blk->zOffset.f[i] - blk->zMax.f[i];
+            if (dx > 0) distk2 += dx*dx;
+            dx = blk->zCenter.f[i] + blk->zOffset.f[i] - blk->zMax.f[i] - kbnd.fCenter[2];
+            if (dx > 0) distk2 += dx*dx;
         }
         if (SPHoptions.doSPHForces) {
-            fourh2 = fourh2 > blk->fBoBr2.f[i] ? fourh2 : blk->fBoBr2.f[i];
+            dx = kbnd.fCenter[0] - kbnd.fMax[0] -  blk->xCenter.f[i] - blk->xOffset.f[i];
+            if (dx > 0) distc2 += dx*dx;
+            dx = blk->xCenter.f[i] + blk->xOffset.f[i] - kbnd.fCenter[0] - kbnd.fMax[0];
+            if (dx > 0) distc2 += dx*dx;
+
+            dx = kbnd.fCenter[1] - kbnd.fMax[1] - blk->yCenter.f[i] - blk->yOffset.f[i];
+            if (dx > 0) distc2 += dx*dx;
+            dx = blk->yCenter.f[i] + blk->yOffset.f[i] - kbnd.fCenter[1] - kbnd.fMax[1];
+            if (dx > 0) distc2 += dx*dx;
+
+            dx = kbnd.fCenter[2] - kbnd.fMax[2] - blk->zCenter.f[i] - blk->zOffset.f[i];
+            if (dx > 0) distc2 += dx*dx;
+            dx = blk->zCenter.f[i] + blk->zOffset.f[i] - kbnd.fCenter[2] - kbnd.fMax[2];
+            if (dx > 0) distc2 += dx*dx;
         }
 
 		xc = blk->x.f[i] + blk->xOffset.f[i];
@@ -128,7 +157,7 @@ static void iOpenOutcomeCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,SPHO
 		dx = blk->zCenter.f[i] + blk->zOffset.f[i] - blk->zMax.f[i] - kbnd.fCenter[2] - kbnd.fMax[2];
 		if (dx > 0) minbnd2 += dx*dx;
 
-		if (d2 > d2Open && minbnd2 > fourh2) iOpen = 8;
+		if (d2 > d2Open && minbnd2 > fourh2 && distk2 > k->fBoBr2 && distc2 > blk->fBoBr2.f[i]) iOpen = 8;
 		else if (cOpen > kOpen) {
 		    if (blk->iLower.i[i]) iOpen = 3;
 		    else iOpen = 2;
@@ -137,7 +166,7 @@ static void iOpenOutcomeCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,SPHO
 		    if (blk->iLower.i[i] == 0) iOpenA = 1;
 		    else iOpenA = 3;
 		    if (blk->nc.i[i] < walk_min_multipole || mink2 <= cOpen*cOpen) iOpenB = iOpenA;
-		    else if (minbnd2 > fourh2) iOpenB = 4;
+		    else if (minbnd2 > fourh2 && distk2 > k->fBoBr2 && distc2 > blk->fBoBr2.f[i]) iOpenB = 4;
 		    else iOpenB = iOpenA;
 		    if (!k->bGroup) iOpen = 0;
 		    else iOpen = iOpenB;
