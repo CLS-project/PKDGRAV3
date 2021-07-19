@@ -76,10 +76,12 @@
 #ifdef COOLING
 #include "cooling/cooling.h"
 #endif
+#ifdef GRACKLE
+#include "cooling_grackle/cooling_grackle.h"
+#endif
 #ifdef STELLAR_EVOLUTION
 #include "stellarevolution/stellarevolution.h"
 #endif
-#include <grackle.h>
 
 #ifdef _MSC_VER
 #define FILE_PROTECTION (_S_IREAD | _S_IWRITE)
@@ -1169,8 +1171,9 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 #if defined(COOLING) || defined(STELLAR_EVOLUTION)
             for (j = 0; j < ELEMENT_COUNT; j++) pSph->afElemMass[j] = fMetals[j] * fMass;
 #endif
-#ifdef STELLAR_EVOLUTION
-	    pSph->fMetalMass = afSphOtherData[0] * fMass;
+#if defined(STELLAR_EVOLUTION) || defined(GRACKLE)
+            if (afSphOtherData[1] > 0)
+               pSph->fMetalMass = afSphOtherData[1] * fMass;
 #endif
             // If the value is negative, means that it is a temperature
             u = (u<0.0) ? -u*dTuFac : u;
@@ -2288,11 +2291,30 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,BND *bnd,
 	assert(pSph);
 	assert(pkd->param.dTuFac>0.0);
 	    {
-#ifdef COOLING
+#if defined(COOLING)
           const double dRedshift = dvFacGas - 1.;
           float temperature =  cooling_get_temperature(pkd, dRedshift, pkd->cooling, p, pSph);
+#elif defined(GRACKLE)
+          gr_float fDensity = pkdDensity(pkd,p);
+          gr_float fMetalDensity = pSph->fMetalMass*pSph->omega;
+          gr_float fSpecificUint = pSph->Uint/pkdMass(pkd,p);
+
+          // Set field arrays.
+          pkd->grackle_field->density[0]         = fDensity;
+          pkd->grackle_field->internal_energy[0] = fSpecificUint;
+          pkd->grackle_field->x_velocity[0]      = 1.; // Velocity input is not used
+          pkd->grackle_field->y_velocity[0]      = 1.;
+          pkd->grackle_field->z_velocity[0]      = 1.;
+          // for metal_cooling = 1
+          pkd->grackle_field->metal_density[0]   = fMetalDensity;
+
+          int err;
+          gr_float temperature;
+          err = local_calculate_temperature(pkd->grackle_data, pkd->grackle_rates, pkd->grackle_units, pkd->grackle_field,
+                                 &temperature);
+          if (err == 0) fprintf(stderr, "Error in calculate_temperature.\n");
 #else
-          float temperature = 0; 
+          float temperature = 0;
 #endif
 
 #if defined(COOLING) || defined(STELLAR_EVOLUTION)
@@ -2312,7 +2334,7 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,BND *bnd,
           otherData[0] = SFR;
           // We may have problem if the number of groups increses more than 2^24, but should be enough
           otherData[1] = pkd->oGroup ? (float)pkdGetGroup(pkd,p) : 0 ;
-#ifdef STELLAR_EVOLUTION
+#if defined(STELLAR_EVOLUTION) || defined(GRACKLE)
 	  otherData[2] = pSph->fMetalMass / fMass;
 #endif
 
@@ -3263,6 +3285,11 @@ void pkdEndTimestepIntegration(PKD pkd,int iRoot, double dTime, double dDelta) {
        dRedshift = 0.0;
        dHubble = 0.0;
     }
+#ifdef GRACKLE
+    pkdGrackleUpdate(pkd, dScaleFactor);
+#endif
+
+
     if (pkd->param.bDoGas) {
       assert(pkd->param.bDoGas);
       assert(pkd->oSph);
@@ -3296,6 +3323,9 @@ void pkdEndTimestepIntegration(PKD pkd,int iRoot, double dTime, double dDelta) {
 #ifdef COOLING
             const float delta_redshift = -pDelta * dHubble * (dRedshift + 1.);
             cooling_cool_part(pkd, pkd->cooling, p, psph, pDelta, dTime, delta_redshift, dRedshift);
+#endif
+#ifdef GRACKLE
+            pkdGrackleCooling(pkd, p, pDelta);
 #endif
 
             // Actually set the primitive variables

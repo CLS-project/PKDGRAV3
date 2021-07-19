@@ -73,6 +73,9 @@
 #ifdef COOLING
 #include "cooling/cooling.h"
 #endif
+#ifdef GRACKLE
+#include "cooling_grackle/cooling_grackle.h"
+#endif
 #ifdef BLACKHOLES
 #include "blackhole/merger.h"
 #include "blackhole/seed.h"
@@ -1673,10 +1676,12 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
 		sizeof(double), "minDt",
 		"Minimum allowed timestep for the particles (in code units)");
 
-#ifdef COOLING
+#if defined(COOLING) || defined(GRACKLE)
     prmAddParam(msr->prm,"strCoolingTables",3,msr->param.strCoolingTables,256,"coolingtables",
 		"Path to cooling tables");
+#endif
 
+#ifdef COOLING
     /// Hydrogen reionization
     msr->param.fH_reion_z = 11.5;
     prmAddParam(msr->prm,"fH_reion_z", 2, &msr->param.fH_reion_z,
@@ -1796,7 +1801,7 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
     prmAddParam(msr->prm,"dSFThresholdTemp", 2, &msr->param.dSFThresholdu,
 		sizeof(double), "dSFThresholdTemp",
 		"Maximum temperature of a gas element to for stars [K]");
-    msr->param.dSFMinOverDensity = 0.;
+    msr->param.dSFMinOverDensity = 57.7;
     prmAddParam(msr->prm,"dSFMinOverDensity", 2, &msr->param.dSFMinOverDensity,
 		sizeof(double), "dSFMinOverDensity",
 		"Minimium overdensity for allowing star formation");
