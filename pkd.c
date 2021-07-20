@@ -75,6 +75,7 @@
 #include "healpix.h"
 #ifdef COOLING
 #include "cooling/cooling.h"
+#include "eEOS/eEOS.h"
 #endif
 
 #ifdef _MSC_VER
@@ -3230,6 +3231,7 @@ void pkdEndTimestepIntegration(PKD pkd,int iRoot, double dTime, double dDelta) {
        dRedshift = 0.0;
        dHubble = 0.0;
     }
+    const float a_m3 = pow(1.+dRedshift,3);
     if (pkd->param.bDoGas) {
       assert(pkd->param.bDoGas);
       assert(pkd->oSph);
@@ -3263,6 +3265,11 @@ void pkdEndTimestepIntegration(PKD pkd,int iRoot, double dTime, double dDelta) {
 #ifdef COOLING
             const float delta_redshift = -pDelta * dHubble * (dRedshift + 1.);
             cooling_cool_part(pkd, pkd->cooling, p, psph, pDelta, dTime, delta_redshift, dRedshift);
+#endif
+
+            // ##### Effective Equation Of State
+#if defined(COOLING)
+            internalEnergyFloor(pkd, p, psph, a_m3);
 #endif
 
             // Actually set the primitive variables
