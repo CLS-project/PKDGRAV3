@@ -3188,7 +3188,10 @@ static void class_open(IOCLASS *ioClass, hid_t groupID) {
 	H5Dclose(set);
 	H5Tclose(tid);
 	}
-    else field_reset(&ioClass->fldClasses);
+    else {
+       field_reset(&ioClass->fldClasses);
+       ioClass->nClasses = 0;
+    }
     field_open(&ioClass->fldMass,groupID, FIELD_MASS, H5T_NATIVE_FLOAT, 1 );
     field_open(&ioClass->fldSoft,groupID, FIELD_SOFTENING, H5T_NATIVE_FLOAT, 1 );
     }
@@ -3216,22 +3219,30 @@ static void class_close(IOCLASS *ioClass) {
 static void class_get(float *pfMass,float *pfSoft,IOCLASS *ioClass,PINDEX iOrder,uint_fast32_t iIndex) {
     uint8_t iClass;
 
-    /* The particles were sorted by class to save space */
     if (field_isopen(&ioClass->fldClasses)) {
+      /* If there is a 'class' field, use that */
 	field_get_uint8_t(&iClass,&ioClass->fldClasses,iIndex);
 	assert( iClass < ioClass->nClasses );
+
+      *pfMass = ioClass->Class[iClass].fMass;
+      *pfSoft = ioClass->Class[iClass].fSoft;
 	}
-    else {
+    else if (ioClass->nClasses>0) {
+      /* If there is a not a 'class' field, but 'classes', the mass/softening
+       * pairs are inferred from the order */
 	assert(ioClass->nClasses>=1);
 	for ( iClass=0; iClass<ioClass->nClasses; iClass++ )
 	    if ( ioClass->Class[iClass].iOrderStart > iOrder )
 		break;
 	assert( iClass>0 );
 	--iClass;
-	}
-    *pfMass = ioClass->Class[iClass].fMass;
-    *pfSoft = ioClass->Class[iClass].fSoft;
 
+      *pfMass = ioClass->Class[iClass].fMass;
+      *pfSoft = ioClass->Class[iClass].fSoft;
+	}
+
+    /* In all cases, these can be overriden if the mass or softening are set
+     * in a particle-by-particle basis */
     if (field_isopen(&ioClass->fldMass)) {
 	field_get_float(pfMass,&ioClass->fldMass,iIndex);
 	}
@@ -3653,6 +3664,7 @@ static int hdf5ReadSph(
 	pfOtherData[1] = -1.0f;
 #endif
 
+
     /* We need either temperature or internal energy */
     if ( !field_get_float(pfTemp,&base->fldFields[SPH_INTERNALENERGY],base->iIndex) ){
        if ( !field_get_float(pfTemp,&base->fldFields[SPH_TEMPERATURE],base->iIndex) ){
@@ -3729,7 +3741,7 @@ static int hdf5ReadStar(
     if ( !field_get_float(pfMetals,&base->fldFields[STAR_ABUNDANCES],base->iIndex) )
         for (i = 0; i < NUMBER_METALS; i++) pfMetals[i] = -1.0f;
 
-    /* Formation time is optional */
+    /* Formation time is optional when stellar evolution is off */
     if ( !field_get_float(pfTform,&base->fldFields[STAR_AGE],base->iIndex) )
 	/* Here we can't set it to -1 because that signals a star particle in the ICs
 	   that is not supposed to explode, we set it to 0 instead. See pkdStarFormInit */

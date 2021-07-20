@@ -2566,7 +2566,7 @@ void smGather(SMX smx,double fBall2,double r[3], PARTICLE * pp) {
 			smx->nnList[nCnt].dx = dx;
 			smx->nnList[nCnt].dy = dy;
 			smx->nnList[nCnt].dz = dz;
-			smx->nnList[nCnt].pPart = smx->bSymmetric ? mdlAcquire(mdl,CID_PARTICLE,pj,id) : p;
+			smx->nnList[nCnt].pPart = mdlAcquire(mdl,CID_PARTICLE,pj,id);
 			smx->nnList[nCnt].iIndex = pj;
 			smx->nnList[nCnt].iPid = id;
 			++nCnt;
@@ -2674,12 +2674,10 @@ void smReSmoothSingle(SMX smx,SMF *smf,PARTICLE *p,double fBall) {
     /*
     ** Release acquired pointers.
     */
-    if (smx->bSymmetric){
-       for (i=0;i<smx->nnListSize;++i) {
-         if (smx->nnList[i].iPid != pkd->idSelf) {
-             mdlRelease(pkd->mdl,CID_PARTICLE,smx->nnList[i].pPart);
-         }
-       }
+    for (i=0;i<smx->nnListSize;++i) {
+      if (smx->nnList[i].iPid != pkd->idSelf) {
+          mdlRelease(pkd->mdl,CID_PARTICLE,smx->nnList[i].pPart);
+      }
     }
 }
 
@@ -3356,20 +3354,18 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
 
           nSmoothed += nCnt_own;
 
-          if (smx->bSymmetric){
-             for (pk=0;pk<nCnt;++pk) {
-               if (smx->nnList[pk].iPid != pkd->idSelf) {
+          for (pk=0;pk<nCnt;++pk) {
+            if (smx->nnList[pk].iPid != pkd->idSelf) {
 #ifdef OPTIM_EXTRA
 #ifdef OPTIM_AVOID_IS_ACTIVE
-                   if (!smx->nnList[pk].pPart->bMarked) mdlRelease(pkd->mdl,CID_PARTICLE,smx->nnList[pk].pPart);
+                if (!smx->nnList[pk].pPart->bMarked) mdlRelease(pkd->mdl,CID_PARTICLE,smx->nnList[pk].pPart);
 #else
-                   if (!pkdIsActive(pkd,smx->nnList[pk].pPart)) mdlRelease(pkd->mdl,CID_PARTICLE,smx->nnList[pk].pPart);
+                if (!pkdIsActive(pkd,smx->nnList[pk].pPart)) mdlRelease(pkd->mdl,CID_PARTICLE,smx->nnList[pk].pPart);
 #endif
 #else //OPTIM_EXTRA
-                   mdlRelease(pkd->mdl,CID_PARTICLE,smx->nnList[pk].pPart);
+                mdlRelease(pkd->mdl,CID_PARTICLE,smx->nnList[pk].pPart);
 #endif
-               }
-             }
+            }
           }
 
              //printf("end node %d %d \n", pkd->idSelf, i);
@@ -3519,7 +3515,7 @@ void buildInteractionList(SMX smx, SMF *smf, KDN* node, BND bnd_node, int *nCnt_
                   smx->nnList[nCnt].pPart = (smx->bSymmetric && !pkdIsActive(pkd,p)) ? mdlAcquire(mdl,CID_PARTICLE,pj,id) : p;
 #endif
 #else // OPTIM_EXTRA
-                  smx->nnList[nCnt].pPart = smx->bSymmetric ? mdlAcquire(mdl,CID_PARTICLE,pj,id) : p;
+                  smx->nnList[nCnt].pPart = mdlAcquire(mdl,CID_PARTICLE,pj,id);
 #endif             
 
                   // This should be faster regarding caching and memory transfer, but the call to pkdIsActive can be a bottleneck here!

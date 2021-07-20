@@ -183,8 +183,8 @@ typedef float myreal;
 typedef double myreal;
 #endif //OPTIM_REDUCE_PRECISION
 
+
 #ifdef OPTIM_CACHED_FLUXES
-typedef uint64_t cache_t;
 #ifndef INLINE
 #if defined(__INTEL_COMPILER)
 #define INLINE extern inline
@@ -192,6 +192,7 @@ typedef uint64_t cache_t;
 #define INLINE inline
 #endif
 #endif
+typedef uint64_t cache_t;
 INLINE void set_bit(cache_t *cache, int index){
    *cache |=  0x00000001ULL<<index;
 }

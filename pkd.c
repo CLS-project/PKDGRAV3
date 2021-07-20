@@ -75,6 +75,7 @@
 #include "healpix.h"
 #ifdef COOLING
 #include "cooling/cooling.h"
+#include "eEOS/eEOS.h"
 #endif
 #ifdef GRACKLE
 #include "cooling_grackle/cooling_grackle.h"
@@ -3288,8 +3289,7 @@ void pkdEndTimestepIntegration(PKD pkd,int iRoot, double dTime, double dDelta) {
 #ifdef GRACKLE
     pkdGrackleUpdate(pkd, dScaleFactor);
 #endif
-
-
+    const float a_m3 = pow(1.+dRedshift,3);
     if (pkd->param.bDoGas) {
       assert(pkd->param.bDoGas);
       assert(pkd->oSph);
@@ -3326,6 +3326,11 @@ void pkdEndTimestepIntegration(PKD pkd,int iRoot, double dTime, double dDelta) {
 #endif
 #ifdef GRACKLE
             pkdGrackleCooling(pkd, p, pDelta);
+#endif
+
+            // ##### Effective Equation Of State
+#if defined(COOLING)
+            internalEnergyFloor(pkd, p, psph, a_m3);
 #endif
 
             // Actually set the primitive variables
