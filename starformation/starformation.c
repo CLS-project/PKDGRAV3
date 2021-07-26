@@ -22,7 +22,8 @@ void msrStarForm(MSR msr, double dTime, double dDelta, int iRung)
     // Here we set the minium density a particle must have to be SF
     //  NOTE: We still have to divide by the hydrogen fraction of each particle!
     if (msr->csm->val.bComove){
-       in.dDenMin = msr->param.dSFThresholdDen*pow(a,3);
+       double a3 = a*a*a;
+       in.dDenMin = msr->param.dSFThresholdDen*a3;
        assert(msr->csm->val.dOmegab  > 0.);
 
        // It is assumed that for cosmo runs, rho_crit=1 in code units
@@ -59,10 +60,10 @@ void msrStarForm(MSR msr, double dTime, double dDelta, int iRung)
 
 
 void pkdStarForm(PKD pkd,
-             double dTime,
-             double dDelta,
-             double dScaleFactor,
-             double dDenMin, /* Threshold for SF in code units  */
+		 double dTime,
+		 double dDelta,
+		 double dScaleFactor,
+		 double dDenMin, /* Threshold for SF in code units  */
 		 int *nFormed, /* number of stars formed */
 		 double *dMassFormed,	/* mass of stars formed */
 		 int *nDeleted) /* gas particles deleted */ {
@@ -81,8 +82,9 @@ void pkdStarForm(PKD pkd,
     *nDeleted = 0;
     *dMassFormed = 0.0;
 
-    double a_m2 = 1./(dScaleFactor*dScaleFactor);
-    double a_m3 = a_m2/dScaleFactor;
+    double a_m1 = 1.0/dScaleFactor;
+    double a_m2 = a_m1*a_m1;
+    double a_m3 = a_m2*a_m1;
 
     for (i=0;i<pkdLocal(pkd);++i) {
 	p = pkdParticle(pkd,i);
@@ -96,6 +98,10 @@ void pkdStarForm(PKD pkd,
 #ifdef COOLING
           const double hyd_abun = psph->chemistry[chemistry_element_H];
 #else
+	  // CAIUS: The hydrogen fraction should be set as simulation parameter,
+	  //        and should correspond to the helium fraction used to compute
+	  //        the linear power spectrum or transfer function used to
+	  //        generate the ICs.
           const double hyd_abun = 0.75;
 #endif
 
@@ -117,17 +123,17 @@ void pkdStarForm(PKD pkd,
 
 
           const double dmstar =
-          pkd->param.dSFnormalizationKS * pkdMass(pkd,p) * pow(a_m2, 1.4) *
+          pkd->param.dSFnormalizationKS * pkdMass(pkd,p) *
           pow( pkd->param.dConstGamma*pkd->param.dSFGasFraction*psph->P*a_m3,
                pkd->param.dSFindexKS);
 
           psph->SFR = dmstar;
 
-	    const double prob = 1.0 - exp(-dmstar*dt/pkdMass(pkd,p));
+	  const double prob = 1.0 - exp(-dmstar*dt/pkdMass(pkd,p));
           //printf("%e \n", prob);
 
-	    // Star formation event?
-	    if (rand()<RAND_MAX*prob) {
+	  // Star formation event?
+	  if (rand()<RAND_MAX*prob) {
 
             //printf("STARFORM %e %e %e \n", dScaleFactor, rho_H, psph->Uint);
 
@@ -139,7 +145,7 @@ void pkdStarForm(PKD pkd,
             // dm/star particles and gas particles
             pv = pkdVel(pkd,p);
             for (int j=0; j<3; j++){
-               pv[j] *= dScaleFactor;
+	      pv[j] *= dScaleFactor;
             }
             // We log statistics about the formation time
             pkdStar(pkd, p)->fTimer = dTime;
@@ -149,14 +155,14 @@ void pkdStarForm(PKD pkd,
             assert(pkdIsStar(pkd,p));
             assert(!pkdIsGas(pkd,p));
 
-		(*nFormed)++;
-		*dMassFormed += pkdMass(pkd,p);
+	    (*nFormed)++;
+	    *dMassFormed += pkdMass(pkd,p);
 
             pkd->nGas -= 1;
             pkd->nStar += 1;
-		}
-	    }
+	  }
 	}
+    }
 
 }
 #endif
