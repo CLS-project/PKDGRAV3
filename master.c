@@ -1964,7 +1964,6 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
     const double Msolpcm2 = 1. / msr->param.dMsolUnit * pow(msr->param.dKpcUnit*1e3, 2);
     msr->param.dSFnormalizationKS *= 1. / msr->param.dMsolUnit 
                    * msr->param.dSecUnit/(3600*24*365) * pow(msr->param.dKpcUnit, 2) * pow(Msolpcm2,-msr->param.dSFindexKS);
-    msr->param.dSFindexKS = (msr->param.dSFindexKS-1.)/2.;
 #endif
 
 #ifdef FEEDBACK
