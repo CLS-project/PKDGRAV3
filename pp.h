@@ -115,7 +115,7 @@ CUDA_DEVICE void EvalSPHForces(
     const F &Pvx, const F &Pvy, const F &Pvz, const F &Prho, const F &PP, const F &Pc, const Ivec & Pspecies,
 	const F &Idx, const F &Idy, const F &Idz, const F & Im, const F &IfBall, const F &IOmega,     // Interactions
     const F &Ivx, const F &Ivy, const F &Ivz, const F &Irho, const F &IP, const F &Ic, const Ivec & Ispecies,
-    F &udot, F &ax, F &ay, F &az, F &divv, F &dtEst,         // results
+    F &thetaDot, F &ax, F &ay, F &az, F &divv, F &dtEst,         // results
     SPHOptions SPHoptions) {
     F dx = Idx + Pdx;
     F dy = Idy + Pdy;
@@ -203,7 +203,7 @@ CUDA_DEVICE void EvalSPHForces(
 
         // du/dt
         // i am not sure if there has to be an Omega in the artificial viscosity part
-        udot = (PPoverRho2 + 0.5f * Piij) * Im * (dvx * dWdx + dvy * dWdy + dvz * dWdz);
+        thetaDot = (PPoverRho2 + 0.5f * Piij) * Im * (dvx * dWdx + dvy * dWdy + dvz * dWdz);
 
         // acceleration
         // i am not sure if there has to be an Omega in the artificial viscosity part
@@ -222,7 +222,7 @@ CUDA_DEVICE void EvalSPHForces(
         dtEst = mask_mov(HUGE_VAL,mask1,dtEst);
     } else {
         // No work to do
-        udot = 0.0f;
+        thetaDot = 0.0f;
         ax = 0.0f;
         ay = 0.0f;
         az = 0.0f;

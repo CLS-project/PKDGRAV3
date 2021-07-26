@@ -165,7 +165,6 @@ typedef struct sphfields {
     float uPred;	/* predicted thermal energy */
     float uDot;
     float c;		/* sound speed */
-    float divv;		
     float BalsaraSwitch;    /* Balsara viscosity reduction */
     float fMetals;	    /* mass fraction in metals, a.k.a, Z - tipsy output variable */
 
@@ -174,6 +173,11 @@ typedef struct sphfields {
     float fMetalsPred;
     float fMetalsDot;
 
+    /* These are the fields that stay */
+    float Omega;        /* Correction factor */
+    float divv;         /* Divergence of v */
+    float theta;        /* Thermodynamical variable, can be T, A(s) or u */
+    float thetaDot;     /* Derivative of the thermodynamical variable */
     } SPHFIELDS;
 
 typedef struct starfields {
