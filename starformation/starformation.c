@@ -66,7 +66,7 @@ void pkdStarForm(PKD pkd,
 		 double dTime,
 		 double dDelta,
 		 double dScaleFactor,
-		 double dDenMin, /* Threshold for SF in code units  */
+		 double dDenMin, /* co-moving threshold for SF in code units  */
 		 int *nFormed, /* number of stars formed */
 		 double *dMassFormed,	/* mass of stars formed */
 		 int *nDeleted) /* gas particles deleted */ {
