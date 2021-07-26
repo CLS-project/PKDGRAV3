@@ -158,6 +158,7 @@ typedef struct velsmooth {
 #define KPCCM 3.085678e21    /* kiloparsec in centimeters */
 #define SIGMAT 6.6524e-25    /* Thompson cross-section (cm^2) */
 #define LIGHTSPEED 2.9979e10 /* Speed of Light cm/s */
+#define SECONDSPERYEAR 31557600.
 
 enum chemistry_element {
   chemistry_element_H = 0,

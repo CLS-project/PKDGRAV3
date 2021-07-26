@@ -1954,21 +1954,19 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
     msr->param.dCoolingFloorDen *= MHYDR / (msr->param.dMsolUnit * MSOLG ) / 0.75 * pow(msr->param.dKpcUnit*KPCCM,3) ;
     msr->param.dCoolingFlooru *= msr->param.dGasConst/(msr->param.dConstGamma - 1.)/0.59;
 
-    printf("dCoolingFloorDen %e \t dCoolingFlooru %e \n", msr->param.dCoolingFloorDen, msr->param.dCoolingFlooru);
-    printf("dJeansFloorDen %e \t dJeansFlooru %e \n", msr->param.dJeansFloorDen, msr->param.dJeansFlooru);
 #endif
 #ifdef STAR_FORMATION
     msr->param.dSFThresholdDen *= MHYDR / (msr->param.dMsolUnit * MSOLG ) * pow(msr->param.dKpcUnit*KPCCM,3); // Now in rho_H
     msr->param.dSFThresholdu *= msr->param.dGasConst/(msr->param.dConstGamma - 1.)/0.59; // Now in internal energy per unit mass
-   
+
     const double Msolpcm2 = 1. / msr->param.dMsolUnit * pow(msr->param.dKpcUnit*1e3, 2);
-    msr->param.dSFnormalizationKS *= 1. / msr->param.dMsolUnit 
-                   * msr->param.dSecUnit/(3600*24*365) * pow(msr->param.dKpcUnit, 2) * pow(Msolpcm2,-msr->param.dSFindexKS);
+    msr->param.dSFnormalizationKS *= 1. / msr->param.dMsolUnit
+                   * msr->param.dSecUnit/SECONDSPERYEAR * pow(msr->param.dKpcUnit, 2) * pow(Msolpcm2,-msr->param.dSFindexKS);
 #endif
 
 #ifdef FEEDBACK
-    msr->param.dFeedbackDu *= msr->param.dGasConst/ 0.59 / (msr->param.dConstGamma - 1); 
-    msr->param.dFeedbackDelay *=  (3600*24*365)/msr->param.dSecUnit ;
+    msr->param.dFeedbackDu *= msr->param.dGasConst/ 0.59 / (msr->param.dConstGamma - 1);
+    msr->param.dFeedbackDelay *=  SECONDSPERYEAR/msr->param.dSecUnit ;
     msr->param.dNumberSNIIperMass *= 8.73e15 / msr->param.dErgPerGmUnit / 1.736e-2;
 #endif
 
@@ -3440,7 +3438,6 @@ void msrSmoothSetSMF(MSR msr, SMF *smf, double dTime) {
     smf->dMetalDiffusionCoeff = msr->param.dMetalDiffusionCoeff;
     smf->dThermalDiffusionCoeff = msr->param.dThermalDiffusionCoeff;
     /* For SF & FB in code units */
-#define SECONDSPERYEAR   31557600.
     if (msr->param.bGasIsothermal) smf->SFdESNPerStarMass = 0;
     else smf->SFdESNPerStarMass = msr->param.SFdESNPerStarMass/msr->param.dErgPerGmUnit;
     smf->SFdtCoolingShutoff = msr->param.SFdtCoolingShutoff*SECONDSPERYEAR/msr->param.dSecUnit;
