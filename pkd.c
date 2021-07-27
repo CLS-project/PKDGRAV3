@@ -75,6 +75,8 @@
 #include "healpix.h"
 #ifdef COOLING
 #include "cooling/cooling.h"
+#endif
+#if defined(COOLING) && defined(STAR_FORMATION)
 #include "eEOS/eEOS.h"
 #endif
 
@@ -3268,7 +3270,7 @@ void pkdEndTimestepIntegration(PKD pkd,int iRoot, double dTime, double dDelta) {
 #endif
 
             // ##### Effective Equation Of State
-#if defined(COOLING)
+#if defined(COOLING) && defined(STAR_FORMATION)
             internalEnergyFloor(pkd, p, psph, a_m3);
 #endif
 
