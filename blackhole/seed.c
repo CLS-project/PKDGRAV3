@@ -82,7 +82,7 @@ int pkdPlaceBHSeed(PKD pkd, double dTime, double dScaleFactor,
                           pkdSph(pkd,pLowPot)->chemistry[chemistry_element_H];
 #else
          // If no information, assume primoridal abundance
-         const double rho_H = pkdDensity(pkd,pLowPot) * 0.75;
+         const double rho_H = pkdDensity(pkd,pLowPot) * pkd->param.dInitialH;
 #endif
          if (rho_H < dDenMin) continue;
 

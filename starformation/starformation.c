@@ -30,7 +30,8 @@ void msrStarForm(MSR msr, double dTime, double dDelta, int iRung)
        double rhoCrit0 = 3. * msr->csm->val.dHubble0 * msr->csm->val.dHubble0 /
                               (8. * M_PI);
        double denCosmoMin = rhoCrit0 * msr->csm->val.dOmegab *
-                                 msr->param.dSFMinOverDensity * 0.75; // TODO
+                                 msr->param.dSFMinOverDensity *
+                                 msr->param.dInitialH;
        in.dDenMin = (in.dDenMin > denCosmoMin) ? in.dDenMin : denCosmoMin;
     }else{
        in.dDenMin = msr->param.dSFThresholdDen;
@@ -107,7 +108,7 @@ void pkdStarForm(PKD pkd,
 	  //        and should correspond to the helium fraction used to compute
 	  //        the linear power spectrum or transfer function used to
 	  //        generate the ICs.
-          const double hyd_abun = 0.75;
+          const double hyd_abun = pkd->param.dInitialH;
 #endif
 
           const double rho_H = pkdDensity(pkd,p) * hyd_abun;

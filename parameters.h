@@ -276,7 +276,6 @@ struct parameters {
     /*
      * IA: Initial abundances 
      */
-    double dInitialH;
     double dInitialHe;
     double dInitialC;
     double dInitialN;
@@ -286,6 +285,7 @@ struct parameters {
     double dInitialSi;
     double dInitialFe;
 #endif
+    double dInitialH;
 #ifdef STAR_FORMATION
     /* IA: Star formation */
     double dSFMinOverDensity; 
