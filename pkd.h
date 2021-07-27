@@ -348,8 +348,6 @@ typedef struct starfields {
 
 #ifdef STELLAR_EVOLUTION
     float fMetalAbun;		/* Formation metallicity */
-    float afCumElemMassEj[ELEMENT_COUNT];
-    float fCumMetalMassEj;
     float fInitialMass;
     float fLastEnrichTime;
     float fLastEnrichMass;

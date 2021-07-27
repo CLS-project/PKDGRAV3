@@ -158,39 +158,40 @@ void pkdStarForm(PKD pkd,
             }
 
 #ifdef STELLAR_EVOLUTION
-	    for (j = 0; j < ELEMENT_COUNT; j++) {
+	    for (j = 0; j < ELEMENT_COUNT; j++)
 	       pStar->afElemAbun[j] = afElemMass[j] / fMass;
-	       pStar->afCumElemMassEj[j] = 0.0f;
-	    }
 	    pStar->fMetalAbun = fMetalMass / fMass;
-	    pStar->fCumMetalMassEj = 0.0f;
 
 	    pStar->fInitialMass = fMass;
 
-	    int iIdxZ;
-	    float fLogZ;
-	    if (pStar->fMetalAbun > 0.0f)
-	       fLogZ = log10f(pStar->fMetalAbun);
+	    if (pkd->param.bChemEnrich) {
+	       int iIdxZ;
+	       float fLogZ;
+	       if (pStar->fMetalAbun > 0.0f)
+		  fLogZ = log10f(pStar->fMetalAbun);
+	       else
+		  fLogZ = STEV_MIN_LOG_METALLICITY;
+
+	       stevGetIndex1D(pkd->StelEvolData->afCCSN_Zs, STEV_CCSN_N_METALLICITY,
+			      fLogZ, &iIdxZ, &pStar->CCSN.fDeltaZ);
+	       pStar->CCSN.oZ = iIdxZ * STEV_INTERP_N_MASS;
+	       stevGetIndex1D(pkd->StelEvolData->afAGB_Zs, STEV_AGB_N_METALLICITY,
+			      fLogZ, &iIdxZ, &pStar->AGB.fDeltaZ);
+	       pStar->AGB.oZ = iIdxZ * STEV_INTERP_N_MASS;
+	       stevGetIndex1D(pkd->StelEvolData->afLifetimes_Zs, STEV_LIFETIMES_N_METALLICITY,
+			      fLogZ, &iIdxZ, &pStar->Lifetimes.fDeltaZ);
+	       pStar->Lifetimes.oZ = iIdxZ * STEV_LIFETIMES_N_MASS;
+
+	       pStar->fCCSNOnsetTime = stevLifetimeFunction(pkd, pStar, pkd->param.dIMF_MaxMass);
+	       pStar->fSNIaOnsetTime = stevLifetimeFunction(pkd, pStar, pkd->param.dSNIa_MaxMass);
+
+	       pStar->fLastEnrichTime = pStar->fCCSNOnsetTime;
+	       pStar->fLastEnrichMass = pkd->param.dIMF_MaxMass;
+	       pStar->iLastEnrichMassIdx = STEV_INTERP_N_MASS - 1;
+	       pStar->fNextEnrichTime = dTime + pStar->fCCSNOnsetTime;
+	    }
 	    else
-	       fLogZ = STEV_MIN_LOG_METALLICITY;
-
-	    stevGetIndex1D(pkd->StelEvolData->afCCSN_Zs, STEV_CCSN_N_METALLICITY,
-			   fLogZ, &iIdxZ, &pStar->CCSN.fDeltaZ);
-	    pStar->CCSN.oZ = iIdxZ * STEV_INTERP_N_MASS;
-	    stevGetIndex1D(pkd->StelEvolData->afAGB_Zs, STEV_AGB_N_METALLICITY,
-			   fLogZ, &iIdxZ, &pStar->AGB.fDeltaZ);
-	    pStar->AGB.oZ = iIdxZ * STEV_INTERP_N_MASS;
-	    stevGetIndex1D(pkd->StelEvolData->afLifetimes_Zs, STEV_LIFETIMES_N_METALLICITY,
-			   fLogZ, &iIdxZ, &pStar->Lifetimes.fDeltaZ);
-	    pStar->Lifetimes.oZ = iIdxZ * STEV_LIFETIMES_N_MASS;
-
-	    pStar->fCCSNOnsetTime = stevLifetimeFunction(pkd, pStar, pkd->param.dIMF_MaxMass);
-	    pStar->fSNIaOnsetTime = stevLifetimeFunction(pkd, pStar, pkd->param.dSNIa_MaxMass);
-
-	    pStar->fLastEnrichTime = pStar->fCCSNOnsetTime;
-	    pStar->fLastEnrichMass = pkd->param.dIMF_MaxMass;
-	    pStar->iLastEnrichMassIdx = STEV_INTERP_N_MASS - 1;
-	    pStar->fNextEnrichTime = dTime + pStar->fCCSNOnsetTime;
+	       pStar->fNextEnrichTime = INFINITY;
 #endif
 
             // We log statistics about the formation time

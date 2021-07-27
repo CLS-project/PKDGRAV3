@@ -388,29 +388,21 @@ static inline void stevComputeAndCorrectSimulEjecta(
 		       float *restrict pfMetalEjMass) {
 
    int i;
-   if (fEjectedMass > 0.0f) {
-      *pfMetalEjMass = fMetalYield + fMetalAbun * fEjectedMass;
-
-      for (i = 0; i < nElems; i++) {
-	 pfElemEjMass[i] = pfYields[i] + pfElemAbun[i] * fEjectedMass;
-	 if (pfElemEjMass[i] < 0.0f) {
-	    if (i != ELEMENT_H && i != ELEMENT_He) *pfMetalEjMass -= pfElemEjMass[i];
-	    pfElemEjMass[i] = 0.0f;
-	 }
+   *pfMetalEjMass = fMetalYield + fMetalAbun * fEjectedMass;
+   for (i = 0; i < nElems; i++) {
+      pfElemEjMass[i] = pfYields[i] + pfElemAbun[i] * fEjectedMass;
+      if (pfElemEjMass[i] < 0.0f) {
+	 if (i != ELEMENT_H && i != ELEMENT_He) *pfMetalEjMass -= pfElemEjMass[i];
+	 pfElemEjMass[i] = 0.0f;
       }
-      if (*pfMetalEjMass < 0.0f) *pfMetalEjMass = 0.0f;
+   }
+   if (*pfMetalEjMass < 0.0f) *pfMetalEjMass = 0.0f;
 
-      const float fTotalMass = pfElemEjMass[ELEMENT_H] + pfElemEjMass[ELEMENT_He] +
-	                       *pfMetalEjMass;
-      assert(fTotalMass > 0.0f);
-      const float fNormFactor = fEjectedMass / fTotalMass;
-      for (i = 0; i < nElems; i++) pfElemEjMass[i] *= fNormFactor;
-      *pfMetalEjMass *= fNormFactor;
-   }
-   else {
-      for (i = 0; i < nElems; i++) pfElemEjMass[i] = 0.0f;
-      *pfMetalEjMass = 0.0f;
-   }
+   const float fTotalMass = pfElemEjMass[ELEMENT_H] + pfElemEjMass[ELEMENT_He] +
+			    *pfMetalEjMass;
+   const float fNormFactor = fEjectedMass / fTotalMass;
+   for (i = 0; i < nElems; i++) pfElemEjMass[i] *= fNormFactor;
+   *pfMetalEjMass *= fNormFactor;
 }
 
 

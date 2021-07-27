@@ -226,6 +226,11 @@ int pkdStellarEvolutionInit(PKD pkd, STEV_DATA *data) {
 	 if (pStar->fInitialMass < 0.0f)
 	    pStar->fInitialMass = pkdMass(pkd, p);
 
+	 if (pkd->param.bChemEnrich == 0) {
+	    pStar->fNextEnrichTime = INFINITY;
+	    continue;
+	 }
+
 	 if (pStar->fTimer <= 0.0f) {
 	    pStar->fTimer = dTime;
 	    pStar->fLastEnrichTime = 0.0f;
@@ -233,10 +238,6 @@ int pkdStellarEvolutionInit(PKD pkd, STEV_DATA *data) {
 	 else {
 	    pStar->fLastEnrichTime = (float)dTime - pStar->fTimer;
 	 }
-
-	 for (int j = 0; j < ELEMENT_COUNT; j++)
-	    pStar->afCumElemMassEj[j] = 0.0f;
-	 pStar->fCumMetalMassEj = 0.0f;
 
 	 int iIdxZ;
 	 float fLogZ;
@@ -346,14 +347,12 @@ void combChemEnrich(void *vpkd, void *vp1, void *vp2) {
    compared and/or operated directly with the times in the simulation, they must all be in 
    code units. 
    Hence, here all the masses from the tables (pkd->StelEvolData) and the relevant parameters
-   in pkd->param are in Msol. Conversely, pStar->[fInitialMass,afCumElemMassEj,fCumMetalMassEj]
-   and pkdMass(pkd,p) are in code units. Furthermore, all times are in code units.
+   in pkd->param are in Msol. Conversely, pStar->fInitialMass and pkdMass(pkd,p) are in code
+   units. Furthermore, all times are in code units.
 */
 void smChemEnrich(PARTICLE *p, float fBall, int nSmooth, NN *nnList, SMF *smf) {
    int i;
    PKD pkd = smf->pkd;
-
-   assert(pkdIsStar(pkd, p));
    STARFIELDS *pStar = pkdStar(pkd, p);
 
    const float ti = pStar->fLastEnrichTime;
@@ -438,18 +437,14 @@ void smChemEnrich(PARTICLE *p, float fBall, int nSmooth, NN *nnList, SMF *smf) {
    for (i = 0; i < STEV_N_ELEM; i++) {
       afElemMass[i] += fNumSNIa * pkd->StelEvolData->afSNIa_EjectedMass[i];
       afElemMass[i] *= pStar->fInitialMass;
-      pStar->afCumElemMassEj[i] += afElemMass[i];
    }
-
    fMetalMass += fNumSNIa * pkd->StelEvolData->fSNIa_EjectedMetalMass;
    fMetalMass *= pStar->fInitialMass;
-   pStar->fCumMetalMassEj += fMetalMass;
-
-
-   if (pkd->param.bChemEnrich == 0) return;
 
 
    const float fTotalMass = afElemMass[ELEMENT_H] + afElemMass[ELEMENT_He] + fMetalMass;
+   pStar->fNextEnrichTime = stevComputeNextEnrichTime(smf->dTime, pStar->fInitialMass,
+						      fTotalMass, tf - ti);
    *((float *) pkdField(p, pkd->oMass)) -= fTotalMass;
    assert(pkdMass(pkd, p) > 0.0f);
 
@@ -521,9 +516,6 @@ void smChemEnrich(PARTICLE *p, float fBall, int nSmooth, NN *nnList, SMF *smf) {
 	 qSph->afElemMass[j] += fWeights[i] * afElemMass[j];
       qSph->fMetalMass += fWeights[i] * fMetalMass;
    }
-
-   pStar->fNextEnrichTime = stevComputeNextEnrichTime(smf->dTime, pStar->fInitialMass,
-						      fTotalMass, tf - ti);
 }
 
 
