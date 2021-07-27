@@ -106,12 +106,12 @@ void pkdParticleWorkDone(workParticle *wp) {
 	    p = wp->pPart[i];
 
         if (wp->SPHoptions.doDensity) {
-        SPHFIELDS *pSph = pkdSph(pkd,p);
+        //SPHFIELDS *pSph = pkdSph(pkd,p);
         pkdSetDensity(pkd,p,wp->pInfoOut[i].rho);
         pkdSetBall(pkd,p,wp->pInfoOut[i].fBall);
-        pSph->Omega = 1.0f + wp->pInfoOut[i].fBall/(3.0f * wp->pInfoOut[i].rho)*wp->pInfoOut[i].drhodfball;
-        pSph->divv = wp->pInfoOut[i].divv;
-        pSph->thetaDot = wp->pInfoOut[i].thetaDot;
+        //pSph->Omega = 1.0f + wp->pInfoOut[i].fBall/(3.0f * wp->pInfoOut[i].rho)*wp->pInfoOut[i].drhodfball;
+        //pSph->divv = wp->pInfoOut[i].divv;
+        //pSph->thetaDot = wp->pInfoOut[i].thetaDot;
         }
 
         if (wp->SPHoptions.doGravity) {
@@ -687,9 +687,9 @@ int pkdGravInteract(PKD pkd,
 	    wp->pInfoIn[nP].a[2]  = 0;
 	    }
 
-    SPHFIELDS *pSph = pkdSph(pkd,p);
+    //SPHFIELDS *pSph = pkdSph(pkd,p);
     wp->pInfoIn[nP].fBall = pkdBall(pkd,p);
-    wp->pInfoIn[nP].Omega = pSph->Omega;
+    wp->pInfoIn[nP].Omega = 1.0f; //pSph->Omega;
     wp->pInfoIn[nP].v[0] = v[0];
     wp->pInfoIn[nP].v[1] = v[1];
     wp->pInfoIn[nP].v[2] = v[2];
