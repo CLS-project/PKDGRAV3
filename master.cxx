@@ -2595,6 +2595,38 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
 	    }
 	}
 
+    /*
+    ** Create the deltas for the on-the-fly prediction of velocity and the
+    ** thermodynamical variable.
+    */
+    for (i = 0; i <= param.iMaxRung; ++i) {
+        if (i < uRungLo) {
+            /*
+            ** For particles with a step larger than the current rung, the temporal position of
+            ** the velocity in relation to the current time is nontrivial, so we calculate it here
+            */
+            double dtPredDrift, TPredDrift;
+            TPredDrift = 0.0;
+            dtPredDrift = dTime - TPredDrift;
+            /* Now that we know how much we have to drift, we can calculate the corresponding
+            ** drift factor
+            */
+            if (csm->val.bComove) {
+                in.kick.dtPredDrift[i] = csmComoveKickFac(csm,TPredDrift,dtPredDrift);
+            } else {
+                in.kick.dtPredDrift[i] = dtPredDrift;
+            }
+        } else {
+            /*
+            ** In this case, all particles are synchronized, which means that
+            ** velocity and the thermodynamical variable are either a half step behind
+            ** or ahead, so all information is contained in dtOpen and dtClose and the
+            ** bMarked flag.
+            */
+            in.kick.dtPredDrift[i] = 0.0;
+        }
+    }
+
     in.lc.bLightConeParticles = param.bLightConeParticles;
     in.lc.dBoxSize = param.dBoxSize;
     if (param.bLightCone) {
