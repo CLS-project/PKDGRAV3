@@ -1743,10 +1743,6 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
 #endif
 #if defined(COOLING) || defined(STELLAR_EVOLUTION)
     /* Parameters for the initial abundances */
-    msr->param.dInitialH = 0.75;
-    prmAddParam(msr->prm,"dInitialH", 2, &msr->param.dInitialH,
-		sizeof(double), "dInitialH",
-		"Initial Hydrogen abundance");
     msr->param.dInitialHe = 0.25;
     prmAddParam(msr->prm,"dInitialHe", 2, &msr->param.dInitialHe,
 		sizeof(double), "dInitialHe",
@@ -1786,6 +1782,10 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
 		sizeof(double), "dInitialMetallicity",
 		"Initial metallicity");
 #endif
+    msr->param.dInitialH = 0.75;
+    prmAddParam(msr->prm,"dInitialH", 2, &msr->param.dInitialH,
+		sizeof(double), "dInitialH",
+		"Initial Hydrogen abundance");
 #ifdef STAR_FORMATION
     msr->param.dSFThresholdDen = 0.1;
     prmAddParam(msr->prm,"dSFThresholdDen", 2, &msr->param.dSFThresholdDen,
@@ -2021,35 +2021,31 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
        msr->param.dMinDt = ceil( log2(msr->param.dDelta/msr->param.dMinDt) );
 
 
-    // IA: In the following convertions, we will typically assume a primordial hydrogen fraction X_H = 0.75
-    //  and mu=0.59, typical of a fully ionized gas with primordial composition
+    const double dHydFrac = msr->param.dInitialH;
+    const double dnHToRho = MHYDR * dHydFrac / msr->param.dGmPerCcUnit;
 #ifdef COOLING
     // We convert the parameters of the entropy floor into code units
-    msr->param.dCoolingFloorDen *= MHYDR / (msr->param.dMsolUnit * MSOLG ) / 0.75 * pow(msr->param.dKpcUnit*KPCCM,3) ;
-    msr->param.dCoolingFlooru *= msr->param.dGasConst/(msr->param.dConstGamma - 1.)/0.59;
-
-    printf("dCoolingFloorDen %e \t dCoolingFlooru %e \n", msr->param.dCoolingFloorDen, msr->param.dCoolingFlooru);
-#endif
-#if defined(COOLING) || defined(STAR_FORMATION)
-    msr->param.dJeansFloorIndex -= 1.; 
-    msr->param.dJeansFloorDen *=  MHYDR / (msr->param.dMsolUnit * MSOLG ) / 0.75 * pow(msr->param.dKpcUnit*KPCCM,3); // Now in rho
-    msr->param.dJeansFlooru *= msr->param.dGasConst/(msr->param.dConstGamma - 1.)/0.59; // Now in internal energy per unit mass
-
-    printf("dJeansFloorDen %e \t dJeansFlooru %e \n", msr->param.dJeansFloorDen, msr->param.dJeansFlooru);
+    msr->param.dJeansFloorIndex -= 1.;
+    msr->param.dJeansFloorDen *=  dnHToRho; // Code density
+    msr->param.dJeansFlooru *= msr->param.dTuFac; // Code internal energy per unit mass
+    msr->param.dCoolingFloorDen *= dnHToRho;
+    msr->param.dCoolingFlooru *= msr->param.dTuFac;
 #endif
 #ifdef STAR_FORMATION
-    msr->param.dSFThresholdDen *= MHYDR / (msr->param.dMsolUnit * MSOLG ) * pow(msr->param.dKpcUnit*KPCCM,3); // Now in rho_H
-    msr->param.dSFThresholdu *= msr->param.dGasConst/(msr->param.dConstGamma - 1.)/0.59; // Now in internal energy per unit mass
-   
-    const double Msolpcm2 = 1. / msr->param.dMsolUnit * pow(msr->param.dKpcUnit*1e3, 2);
-    msr->param.dSFnormalizationKS *= 1. / msr->param.dMsolUnit 
-                   * msr->param.dSecUnit/(3600*24*365) * pow(msr->param.dKpcUnit, 2) * pow(Msolpcm2,-msr->param.dSFindexKS);
-    msr->param.dSFindexKS = (msr->param.dSFindexKS-1.)/2.;
+    msr->param.dSFThresholdDen *= dnHToRho*dHydFrac; // Code hydrogen density
+    msr->param.dSFThresholdu *= msr->param.dTuFac;
+
+    const double Msolpcm2 = 1. / msr->param.dMsolUnit *
+       pow(msr->param.dKpcUnit*1e3, 2);
+    msr->param.dSFnormalizationKS *= 1. / msr->param.dMsolUnit *
+       msr->param.dSecUnit/SECONDSPERYEAR *
+       pow(msr->param.dKpcUnit, 2) *
+       pow(Msolpcm2,-msr->param.dSFindexKS);
 #endif
 
 #ifdef FEEDBACK
-    msr->param.dFeedbackDu *= msr->param.dGasConst/ 0.59 / (msr->param.dConstGamma - 1); 
-    msr->param.dFeedbackDelay *=  (3600*24*365)/msr->param.dSecUnit ;
+    msr->param.dFeedbackDu *= msr->param.dTuFac;
+    msr->param.dFeedbackDelay *=  SECONDSPERYEAR/msr->param.dSecUnit ;
     msr->param.dNumberSNIIperMass *= 8.73e15 / msr->param.dErgPerGmUnit / 1.736e-2;
 #endif
 
@@ -2059,7 +2055,7 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
 
     // We precompute the factor such that we only need to multiply AccretionRate by this amount to get E_feed
     msr->param.dBHFeedbackEff = msr->param.dBHFeedbackEff * msr->param.dBHRadiativeEff * (1. - msr->param.dBHRadiativeEff) * pow( 299792458. /1e3 /msr->param.dKmPerSecUnit ,2);
-    
+
     double n_heat = 1.0; // This, in principle, will not be a parameter
     // We convert from Delta T to energy per mass. This needs to be multiplied by the mass of the gas particle
     msr->param.dBHFeedbackEcrit *= msr->param.dGasConst/(msr->param.dConstGamma - 1.)/0.58 * n_heat;
@@ -3545,7 +3541,6 @@ void msrSmoothSetSMF(MSR msr, SMF *smf, double dTime) {
     smf->dMetalDiffusionCoeff = msr->param.dMetalDiffusionCoeff;
     smf->dThermalDiffusionCoeff = msr->param.dThermalDiffusionCoeff;
     /* For SF & FB in code units */
-#define SECONDSPERYEAR   31557600.
     if (msr->param.bGasIsothermal) smf->SFdESNPerStarMass = 0;
     else smf->SFdESNPerStarMass = msr->param.SFdESNPerStarMass/msr->param.dErgPerGmUnit;
     smf->SFdtCoolingShutoff = msr->param.SFdtCoolingShutoff*SECONDSPERYEAR/msr->param.dSecUnit;

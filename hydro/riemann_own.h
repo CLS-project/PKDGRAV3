@@ -35,234 +35,10 @@ struct Riemann_outputs
     struct Conserved_var_Riemann Fluxes;
 };
 
-inline double DMAX(double a, double b) { return (a > b) ? a : b; }
-inline double DMIN(double a, double b) { return (a < b) ? a : b; }
-inline int Riemann_solver_exact(PKD pkd, 
-      double R_rho, double R_p, double R_v[3], double L_rho,double L_p, double L_v[3],
-      double *P_M, double *S_M, double *rho_f, double *p_f, double *v_f,
-      double n_unit[3], double v_line_L, double v_line_R, double cs_L, double cs_R, double h_L, double h_R);
+static inline double DMAX(double a, double b) { return (a > b) ? a : b; }
+static inline double DMIN(double a, double b) { return (a < b) ? a : b; }
 
-inline int iterative_Riemann_solver(PKD pkd, 
-      double R_rho,double R_p,double L_rho,double L_p,
-      double *P_M, double *S_M, 
-      double v_line_L, double v_line_R, double cs_L, double cs_R);
-
-inline void convert_face_to_flux(PKD pkd, 
-      double *rho_f, double *p_f, double *v_f, 
-      double n_unit[3]);
-
-
-inline double guess_for_pressure(PKD pkd, 
-      double R_rho,double R_p,double L_rho,double L_p,
-      double *P_M, double *S_M, 
-      double v_line_L, double v_line_R, double cs_L, double cs_R);
-
-inline void sample_reimann_vaccum_internal(PKD pkd, double S, 
-      double R_rho,double R_p, double R_v[3],double L_rho,double L_p, double L_v[3],
-      double *P_M, double *S_M, double *rho_f, double *p_f, double *v_f,
-      double n_unit[3], double v_line_L, double v_line_R, double cs_L, double cs_R);
-
-inline void sample_reimann_standard(PKD pkd, double S, 
-      double R_rho,double R_p, double R_v[3],double L_rho,double L_p, double L_v[3],
-      double P_M, double S_M, double *rho_f, double *p_f, double *v_f, 
-      double n_unit[3], double v_line_L, double v_line_R, double cs_L, double cs_R);
-
-inline void sample_reimann_vaccum_right(PKD pkd, double S, 
-                                double R_rho,double R_p, double R_v[3],double L_rho,double L_p, double L_v[3],
-                                double *P_M, double *S_M, double *rho_f, double *p_f, double *v_f, 
-                                double n_unit[3], double v_line_L, double v_line_R, double cs_L, double cs_R);
-
-inline void sample_reimann_vaccum_left(PKD pkd, double S, 
-                                double R_rho,double R_p, double R_v[3],double L_rho,double L_p, double L_v[3],
-                                double *P_M, double *S_M, double *rho_f, double *p_f, double *v_f, 
-                                double n_unit[3], double v_line_L, double v_line_R, double cs_L, double cs_R);
-
-inline int Riemann_solver_exact(PKD pkd, 
-            double R_rho,double R_p, double R_v[3], double L_rho,double L_p, double L_v[3],
-            double *P_M, double *S_M, double *rho_f, double *p_f, double *v_f,
-            double n_unit[3], double v_line_L, double v_line_R, double cs_L, double cs_R, double h_L, double h_R)
-{
-    //printf("Going for the exact Riemann Solver \n");
-    /* first, we need to check for all the special/exceptional cases that will cause things to go haywire */
-   int niter = 0;
-    if((L_p == 0 && L_p == 0) || (L_rho==0 && R_rho==0))
-    {
-        /* we're in a Vaccuum! */
-        *P_M = 0.;
-        *S_M = 0.;
-#ifndef USE_MFM
-        //*rho_f = *p_f = v_f[0] = v_f[1] = v_f[2] = 0;
-        *rho_f = 0.;
-        *p_f = 0.;
-        v_f[0] = 0.;
-        v_f[1] = 0.;
-        v_f[2] = 0.;
-#endif
-        //printf("VACCUUM!\n");
-        return 0;
-    }
-    /* the usual situation is here:: */
-    if((L_rho > 0) && (R_rho > 0))
-    {
-        niter=iterative_Riemann_solver(pkd, R_rho, R_p, L_rho, L_p, P_M, S_M, v_line_L, v_line_R, cs_L, cs_R);
-        if(niter)
-        {
-//           printf("Normal Riemann solution %e \n", Riemann_out->Fluxes.rho);
-            /* this is the 'normal' Reimann solution */
-
-#ifndef USE_MFM
-            sample_reimann_standard(pkd, 0.0,
-                  R_rho, R_p, R_v,
-                  L_rho, L_p, L_v,
-                  *P_M, *S_M,
-                  rho_f, p_f, v_f,
-                  n_unit,v_line_L,v_line_R,cs_L,cs_R);
-#endif
-            //
-//           printf("Normal Riemann solution %e \n", Riemann_out->Fluxes.rho);
-        }
-        else
-        {
-            /* ICs lead to vacuum, need to sample vacuum solution */
-            sample_reimann_vaccum_internal(pkd, 0.0,R_rho, R_p, R_v, L_rho, L_p, L_v, P_M, S_M, rho_f, p_f, v_f, n_unit,v_line_L,v_line_R,cs_L,cs_R);
-        }
-    } else {
-        /* one of the densities is zero or negative */
-        if((L_rho<0)||(R_rho<0))
-            assert(0);
-        if(L_rho>0){
-             sample_reimann_vaccum_right(pkd,  0.0,
-                      R_rho, R_p,  R_v,  L_rho, L_p,  L_v,
-                      P_M,  S_M,  rho_f,  p_f,  v_f,
-                      n_unit,  v_line_L,  v_line_R,  cs_L,  cs_R);
-        }
-        if(R_rho>0){
-             sample_reimann_vaccum_left(pkd, 0.0,
-                      R_rho, R_p,  R_v,  L_rho, L_p,  L_v,
-                      P_M,  S_M,  rho_f,  p_f,  v_f,
-                      n_unit,  v_line_L,  v_line_R,  cs_L,  cs_R);
-        }
-    }
-#ifndef USE_MFM
-    /* if we got a valid solution, this solver returns face states: need to convert these to fluxes */
-    convert_face_to_flux(pkd, rho_f, p_f, v_f, n_unit);
-#endif
-    return niter;
-}
-
-
-inline int iterative_Riemann_solver(PKD pkd, 
-      double R_rho,double R_p,double L_rho,double L_p,
-      double *P_M, double *S_M, 
-      double v_line_L, double v_line_R, double cs_L, double cs_R)
-{
-    /* before going on, let's compare this to an exact Riemann solution calculated iteratively */
-    double Pg,Pg_prev,W_L,W_R,Z_L,Z_R,tol,pratio; int niter_Riemann=0;
-    double a0,a1,a2,dvel,check_vel;
-    dvel = v_line_R - v_line_L;
-    check_vel = GAMMA_G4 * (cs_R + cs_L) - dvel;
-    /* if check_vel<0, this will produce a vacuum: need to use vacuum-specific subroutine */
-    if(check_vel < 0) return 0;
-    
-    tol=100.0;
-    Pg = guess_for_pressure(pkd, R_rho, R_p, L_rho, L_p, P_M, S_M, v_line_L, v_line_R, cs_L, cs_R);
-    while((tol>TOL_ITER)&&(niter_Riemann<NMAX_ITER))
-    {
-        Pg_prev=Pg;
-        if(Pg>L_p)
-        {
-            /* shock wave */
-            a0 = GAMMA_G5 / L_rho;
-            a1 = GAMMA_G6 * L_p;
-            a2 = sqrt(a0 / (Pg+a1));
-            W_L = (Pg-L_p) * a2;
-            Z_L = a2 * (1.0 - 0.5*(Pg-L_p)/(a1+Pg));
-        } else {
-            /* rarefaction wave */
-            pratio = Pg / L_p;
-            W_L = GAMMA_G4 * cs_L * (pow(pratio, GAMMA_G1)-1);
-            Z_L = 1 / (L_rho*cs_L) * pow(Pg/L_p, -GAMMA_G2);
-        }
-        if(Pg>R_p)
-        {
-            /* shock wave */
-            a0 = GAMMA_G5 / R_rho;
-            a1 = GAMMA_G6 * R_p;
-            a2 = sqrt(a0 / (Pg+a1));
-            W_R = (Pg-R_p) * a2;
-            Z_R = a2 * (1.0 - 0.5*(Pg-R_p)/(a1+Pg));
-        } else {
-            /* rarefaction wave */
-            pratio = Pg / R_p;
-            W_R = GAMMA_G4 * cs_R * (pow(pratio, GAMMA_G1)-1);
-            Z_R = 1 / (R_rho*cs_R) * pow(pratio, -GAMMA_G2);
-        }
-        if(niter_Riemann < NMAX_ITER / 2)
-            Pg -= (W_L + W_R + dvel) / (Z_L + Z_R);
-        else
-            Pg -= 0.5 * (W_L + W_R + dvel) / (Z_L + Z_R);
-        
-        if(Pg < 0.1 * Pg_prev)
-            Pg = 0.1 * Pg_prev;
-        
-        tol = 2.0 * fabs((Pg-Pg_prev)/(Pg+Pg_prev));
-//        printf("tol %e \n", tol);
-        niter_Riemann++;
-    }
-    if(niter_Riemann<NMAX_ITER)
-    {
-        *P_M = Pg;
-        *S_M = 0.5*(v_line_L+v_line_R) + 0.5*(W_R-W_L);
-//        printf("Convergence! P_M %e \t S_M %e \n", Riemann_out->P_M, Riemann_out->S_M);
-        return niter_Riemann;
-    } else {
-        return 0;
-    }
-}
-
-
-
-
-inline void sample_reimann_vaccum_internal(PKD pkd, double S, 
-      double R_rho,double R_p, double R_v[3],double L_rho,double L_p, double L_v[3],
-      double *P_M, double *S_M, double *rho_f, double *p_f, double *v_f,
-      double n_unit[3], double v_line_L, double v_line_R, double cs_L, double cs_R)
-{
-    double S_L = v_line_L + GAMMA_G4 * cs_L;
-    double S_R = v_line_R - GAMMA_G4 * cs_R;
-    if(S <= S_L)
-    {
-        /* left fan */
-       sample_reimann_vaccum_right(pkd,  S,
-                R_rho, R_p,  R_v,  L_rho, L_p,  L_v,
-                P_M,  S_M,  rho_f,  p_f,  v_f,
-                n_unit,  v_line_L,  v_line_R,  cs_L,  cs_R);
-    }
-    else if(S >= S_R)
-    {
-        /* right fan */
-       sample_reimann_vaccum_left(pkd,  S,
-                R_rho, R_p,  R_v,  L_rho, L_p,  L_v,
-                P_M,  S_M,  rho_f,  p_f,  v_f,
-                n_unit,  v_line_L,  v_line_R,  cs_L,  cs_R);
-    }
-    else
-    {
-        /* vacuum in between */
-        *P_M = 0;
-        *S_M = S;
-#ifndef USE_MFM
-        *rho_f = 0;
-        *p_f = *P_M;
-        int k;
-        for(k=0;k<3;k++)
-            v_f[k] = (L_v[k] + (R_v[k]-L_v[k]) * (S-S_L)/(S_R-S_L)) *
-            (1-n_unit[k]) + S * n_unit[k];
-#endif
-    }
-}
-
-inline double guess_for_pressure(PKD pkd, 
+static inline double guess_for_pressure(PKD pkd, 
       double R_rho,double R_p,double L_rho,double L_p,
       double *P_M, double *S_M, 
       double v_line_L, double v_line_R, double cs_L, double cs_R)
@@ -307,7 +83,7 @@ inline double guess_for_pressure(PKD pkd,
 /*  This is the "normal" Riemann fan, with no vacuum on L or R state! */
 /*  (written by V. Springel for AREPO) */
 /* --------------------------------------------------------------------------------- */
-inline void sample_reimann_standard(PKD pkd, double S, 
+static inline void sample_reimann_standard(PKD pkd, double S, 
       double R_rho,double R_p, double R_v[3],double L_rho,double L_p, double L_v[3],
       double P_M, double S_M, double *rho_f, double *p_f, double *v_f, 
       double n_unit[3], double v_line_L, double v_line_R, double cs_L, double cs_R)
@@ -464,44 +240,13 @@ inline void sample_reimann_standard(PKD pkd, double S,
     }
 }
 
-/* -------------------------------------------------------------------------------------------------------------- */
-/*  Part of exact Riemann solver: */
- /*    take the face state we have calculated from the exact Riemann solution and get the corresponding fluxes */
-/*   (written by V. Springel for AREPO, with minor modifications) */
- /* -------------------------------------------------------------------------------------------------------------- */
-void convert_face_to_flux(PKD pkd, 
-      double *rho_f, double *p_f, double *v_f, 
-      double n_unit[3])
-{
-    double rho, P, v[3], v_line=0, v_frame=0, h=0; int k;
-    rho = *rho_f;
-    P = *p_f;
-    for(k=0;k<3;k++)
-    {
-        v[k] = v_f[k];
-        v_line += v[k] * n_unit[k];
-        h += v[k] * v[k];
-    }
-    v_line -= v_frame;
-    h *= 0.5 * rho; /* h is the kinetic energy density */
-    h += (GAMMA/GAMMA_MINUS1) * P; /* now h is the enthalpy */
-    /* now we just compute the standard fluxes for a given face state */
-    *p_f = h * v_line;
-    *rho_f = rho * v_line;
-    for(k=0;k<3;k++)
-        v_f[k] = (*rho_f) * v[k] + P * n_unit[k];
-    return;
-}
-
-
-
 
 /* --------------------------------------------------------------------------------- */
 /* Part of exact Riemann solver: */
 /* right state is a vacuum, but left state is not: sample the fan appropriately */
 /*  (written by V. Springel for AREPO) */
 /* --------------------------------------------------------------------------------- */
-void sample_reimann_vaccum_right(PKD pkd, double S, 
+static inline void sample_reimann_vaccum_right(PKD pkd, double S, 
                                 double R_rho,double R_p, double R_v[3],double L_rho,double L_p, double L_v[3],
                                 double *P_M, double *S_M, double *rho_f, double *p_f, double *v_f, 
                                 double n_unit[3], double v_line_L, double v_line_R, double cs_L, double cs_R)
@@ -554,7 +299,7 @@ void sample_reimann_vaccum_right(PKD pkd, double S,
 /* left state is a vacuum, but right state is not: sample the fan appropriately */
 /*  (written by V. Springel for AREPO) */
 /* --------------------------------------------------------------------------------- */
-void sample_reimann_vaccum_left(PKD pkd, double S, 
+static inline void sample_reimann_vaccum_left(PKD pkd, double S, 
                                 double R_rho,double R_p, double R_v[3],double L_rho,double L_p, double L_v[3],
                                 double *P_M, double *S_M, double *rho_f, double *p_f, double *v_f, 
                                 double n_unit[3], double v_line_L, double v_line_R, double cs_L, double cs_R)
@@ -597,4 +342,221 @@ void sample_reimann_vaccum_left(PKD pkd, double S,
     for(k=0;k<3;k++)
         v_f[k] = R_v[k] + (*S_M - v_line_R) * n_unit[k];
     return;
+}
+
+
+static inline int iterative_Riemann_solver(PKD pkd, 
+      double R_rho,double R_p,double L_rho,double L_p,
+      double *P_M, double *S_M, 
+      double v_line_L, double v_line_R, double cs_L, double cs_R)
+{
+    /* before going on, let's compare this to an exact Riemann solution calculated iteratively */
+    double Pg,Pg_prev,W_L,W_R,Z_L,Z_R,tol,pratio; int niter_Riemann=0;
+    double a0,a1,a2,dvel,check_vel;
+    dvel = v_line_R - v_line_L;
+    check_vel = GAMMA_G4 * (cs_R + cs_L) - dvel;
+    /* if check_vel<0, this will produce a vacuum: need to use vacuum-specific subroutine */
+    if(check_vel < 0) return 0;
+    
+    tol=100.0;
+    Pg = guess_for_pressure(pkd, R_rho, R_p, L_rho, L_p, P_M, S_M, v_line_L, v_line_R, cs_L, cs_R);
+    while((tol>TOL_ITER)&&(niter_Riemann<NMAX_ITER))
+    {
+        Pg_prev=Pg;
+        if(Pg>L_p)
+        {
+            /* shock wave */
+            a0 = GAMMA_G5 / L_rho;
+            a1 = GAMMA_G6 * L_p;
+            a2 = sqrt(a0 / (Pg+a1));
+            W_L = (Pg-L_p) * a2;
+            Z_L = a2 * (1.0 - 0.5*(Pg-L_p)/(a1+Pg));
+        } else {
+            /* rarefaction wave */
+            pratio = Pg / L_p;
+            W_L = GAMMA_G4 * cs_L * (pow(pratio, GAMMA_G1)-1);
+            Z_L = 1 / (L_rho*cs_L) * pow(Pg/L_p, -GAMMA_G2);
+        }
+        if(Pg>R_p)
+        {
+            /* shock wave */
+            a0 = GAMMA_G5 / R_rho;
+            a1 = GAMMA_G6 * R_p;
+            a2 = sqrt(a0 / (Pg+a1));
+            W_R = (Pg-R_p) * a2;
+            Z_R = a2 * (1.0 - 0.5*(Pg-R_p)/(a1+Pg));
+        } else {
+            /* rarefaction wave */
+            pratio = Pg / R_p;
+            W_R = GAMMA_G4 * cs_R * (pow(pratio, GAMMA_G1)-1);
+            Z_R = 1 / (R_rho*cs_R) * pow(pratio, -GAMMA_G2);
+        }
+        if(niter_Riemann < NMAX_ITER / 2)
+            Pg -= (W_L + W_R + dvel) / (Z_L + Z_R);
+        else
+            Pg -= 0.5 * (W_L + W_R + dvel) / (Z_L + Z_R);
+        
+        if(Pg < 0.1 * Pg_prev)
+            Pg = 0.1 * Pg_prev;
+        
+        tol = 2.0 * fabs((Pg-Pg_prev)/(Pg+Pg_prev));
+//        printf("tol %e \n", tol);
+        niter_Riemann++;
+    }
+    if(niter_Riemann<NMAX_ITER)
+    {
+        *P_M = Pg;
+        *S_M = 0.5*(v_line_L+v_line_R) + 0.5*(W_R-W_L);
+//        printf("Convergence! P_M %e \t S_M %e \n", Riemann_out->P_M, Riemann_out->S_M);
+        return niter_Riemann;
+    } else {
+        return 0;
+    }
+}
+
+
+
+
+static inline void sample_reimann_vaccum_internal(PKD pkd, double S, 
+      double R_rho,double R_p, double R_v[3],double L_rho,double L_p, double L_v[3],
+      double *P_M, double *S_M, double *rho_f, double *p_f, double *v_f,
+      double n_unit[3], double v_line_L, double v_line_R, double cs_L, double cs_R)
+{
+    double S_L = v_line_L + GAMMA_G4 * cs_L;
+    double S_R = v_line_R - GAMMA_G4 * cs_R;
+    if(S <= S_L)
+    {
+        /* left fan */
+       sample_reimann_vaccum_right(pkd,  S,
+                R_rho, R_p,  R_v,  L_rho, L_p,  L_v,
+                P_M,  S_M,  rho_f,  p_f,  v_f,
+                n_unit,  v_line_L,  v_line_R,  cs_L,  cs_R);
+    }
+    else if(S >= S_R)
+    {
+        /* right fan */
+       sample_reimann_vaccum_left(pkd,  S,
+                R_rho, R_p,  R_v,  L_rho, L_p,  L_v,
+                P_M,  S_M,  rho_f,  p_f,  v_f,
+                n_unit,  v_line_L,  v_line_R,  cs_L,  cs_R);
+    }
+    else
+    {
+        /* vacuum in between */
+        *P_M = 0;
+        *S_M = S;
+#ifndef USE_MFM
+        *rho_f = 0;
+        *p_f = *P_M;
+        int k;
+        for(k=0;k<3;k++)
+            v_f[k] = (L_v[k] + (R_v[k]-L_v[k]) * (S-S_L)/(S_R-S_L)) *
+            (1-n_unit[k]) + S * n_unit[k];
+#endif
+    }
+}
+
+
+
+/* -------------------------------------------------------------------------------------------------------------- */
+/*  Part of exact Riemann solver: */
+ /*    take the face state we have calculated from the exact Riemann solution and get the corresponding fluxes */
+/*   (written by V. Springel for AREPO, with minor modifications) */
+ /* -------------------------------------------------------------------------------------------------------------- */
+static void convert_face_to_flux(PKD pkd, 
+      double *rho_f, double *p_f, double *v_f, 
+      double n_unit[3])
+{
+    double rho, P, v[3], v_line=0, v_frame=0, h=0; int k;
+    rho = *rho_f;
+    P = *p_f;
+    for(k=0;k<3;k++)
+    {
+        v[k] = v_f[k];
+        v_line += v[k] * n_unit[k];
+        h += v[k] * v[k];
+    }
+    v_line -= v_frame;
+    h *= 0.5 * rho; /* h is the kinetic energy density */
+    h += (GAMMA/GAMMA_MINUS1) * P; /* now h is the enthalpy */
+    /* now we just compute the standard fluxes for a given face state */
+    *p_f = h * v_line;
+    *rho_f = rho * v_line;
+    for(k=0;k<3;k++)
+        v_f[k] = (*rho_f) * v[k] + P * n_unit[k];
+    return;
+}
+
+
+static inline int Riemann_solver_exact(PKD pkd, 
+            double R_rho,double R_p, double R_v[3], double L_rho,double L_p, double L_v[3],
+            double *P_M, double *S_M, double *rho_f, double *p_f, double *v_f,
+            double n_unit[3], double v_line_L, double v_line_R, double cs_L, double cs_R, double h_L, double h_R)
+{
+    //printf("Going for the exact Riemann Solver \n");
+    /* first, we need to check for all the special/exceptional cases that will cause things to go haywire */
+   int niter = 0;
+    if((L_p == 0 && L_p == 0) || (L_rho==0 && R_rho==0))
+    {
+        /* we're in a Vaccuum! */
+        *P_M = 0.;
+        *S_M = 0.;
+#ifndef USE_MFM
+        //*rho_f = *p_f = v_f[0] = v_f[1] = v_f[2] = 0;
+        *rho_f = 0.;
+        *p_f = 0.;
+        v_f[0] = 0.;
+        v_f[1] = 0.;
+        v_f[2] = 0.;
+#endif
+        //printf("VACCUUM!\n");
+        return 0;
+    }
+    /* the usual situation is here:: */
+    if((L_rho > 0) && (R_rho > 0))
+    {
+        niter=iterative_Riemann_solver(pkd, R_rho, R_p, L_rho, L_p, P_M, S_M, v_line_L, v_line_R, cs_L, cs_R);
+        if(niter)
+        {
+//           printf("Normal Riemann solution %e \n", Riemann_out->Fluxes.rho);
+            /* this is the 'normal' Reimann solution */
+
+#ifndef USE_MFM
+            sample_reimann_standard(pkd, 0.0,
+                  R_rho, R_p, R_v,
+                  L_rho, L_p, L_v,
+                  *P_M, *S_M,
+                  rho_f, p_f, v_f,
+                  n_unit,v_line_L,v_line_R,cs_L,cs_R);
+#endif
+            //
+//           printf("Normal Riemann solution %e \n", Riemann_out->Fluxes.rho);
+        }
+        else
+        {
+            /* ICs lead to vacuum, need to sample vacuum solution */
+            sample_reimann_vaccum_internal(pkd, 0.0,R_rho, R_p, R_v, L_rho, L_p, L_v, P_M, S_M, rho_f, p_f, v_f, n_unit,v_line_L,v_line_R,cs_L,cs_R);
+        }
+    } else {
+        /* one of the densities is zero or negative */
+        if((L_rho<0)||(R_rho<0))
+            assert(0);
+        if(L_rho>0){
+             sample_reimann_vaccum_right(pkd,  0.0,
+                      R_rho, R_p,  R_v,  L_rho, L_p,  L_v,
+                      P_M,  S_M,  rho_f,  p_f,  v_f,
+                      n_unit,  v_line_L,  v_line_R,  cs_L,  cs_R);
+        }
+        if(R_rho>0){
+             sample_reimann_vaccum_left(pkd, 0.0,
+                      R_rho, R_p,  R_v,  L_rho, L_p,  L_v,
+                      P_M,  S_M,  rho_f,  p_f,  v_f,
+                      n_unit,  v_line_L,  v_line_R,  cs_L,  cs_R);
+        }
+    }
+#ifndef USE_MFM
+    /* if we got a valid solution, this solver returns face states: need to convert these to fluxes */
+    convert_face_to_flux(pkd, rho_f, p_f, v_f, n_unit);
+#endif
+    return niter;
 }

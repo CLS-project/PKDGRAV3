@@ -35,7 +35,6 @@
 #include "cooling_rates.h"
 #include "cooling_struct.h"
 #include "cooling_tables.h"
-#include "entropy_floor.h"
 //#include "entropy_floor.h"
 //#include "error.h"
 //#include "exp10.h"
@@ -548,12 +547,9 @@ void cooling_cool_part(PKD pkd,
   const double u_minimal = 0.0; /* IA: TODO define minimum temperature */ //hydro_properties->minimal_internal_energy;
   u_final = fmax(u_final, u_minimal);
 
-  /* Limit imposed by the entropy floor */
-  double u_floor = 0.;
-  internalEnergyFloor(pkd, p, psph, a_m3);
-
   /* Expected change in energy over the next kick step
      (assuming no change in dt) */
+  const double u_floor = 0.;
   const double delta_u = u_final - fmax(u_start, u_floor);
 
   /* Turn this into a rate of change (including cosmology term) */

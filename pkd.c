@@ -79,6 +79,9 @@
 #ifdef STELLAR_EVOLUTION
 #include "stellarevolution/stellarevolution.h"
 #endif
+#if defined(COOLING) && defined(STAR_FORMATION)
+#include "eEOS/eEOS.h"
+#endif
 
 #ifdef _MSC_VER
 #define FILE_PROTECTION (_S_IREAD | _S_IWRITE)
@@ -1154,18 +1157,16 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	    assert(dTuFac>0.0);
 	    float afSphOtherData[1];
 	    fioReadSph(fio,&iParticleID,r,vel,&fMass,&fSoft,pPot,
-		       &fDensity/*?*/,&u,&fMetals[0],afSphOtherData); //IA: misreading, u means temperature
+		       &fDensity,&u,&fMetals[0],afSphOtherData);
           pkdSetClass(pkd,fMass,fSoft,eSpecies,p);
 	    pkdSetDensity(pkd,p,fDensity);
-          pkdSetBall(pkd,p,fSoft);
-          fSoft = 0.0;
-          // IA: The fSoft that we have read is actually the smoothing lenght, in order to avoid confusion
-          //  with the classes, we set it to zero now
+          pkdSetBall(pkd,p,afSphOtherData[0]);
 	    if (pkd->oSph) {
             pSph = pkdField(p,pkd->oSph);
 #ifndef OPTIM_REMOVE_UNUSED
-            pSph->u = pSph->uPred = pSph->uDot = pSph->c = pSph->divv = pSph->BalsaraSwitch
-               = pSph->diff = pSph->fMetals = pSph->fMetalsPred = pSph->fMetalsDot = 0.0;
+            pSph->u = pSph->uPred = pSph->uDot = pSph->c = pSph->divv =
+               pSph->BalsaraSwitch = pSph->diff =
+               pSph->fMetals = pSph->fMetalsPred = pSph->fMetalsDot = 0.0;
 #endif
 #if defined(COOLING) || defined(STELLAR_EVOLUTION)
             for (j = 0; j < ELEMENT_COUNT; j++) pSph->afElemMass[j] = fMetals[j] * fMass;
@@ -1173,24 +1174,27 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 #ifdef STELLAR_EVOLUTION
 	    pSph->fMetalMass = afSphOtherData[0] * fMass;
 #endif
-            u = (u<0.0) ? -u*dTuFac : u; // If the value is negative, means that it is a temperature
+            // If the value is negative, means that it is a temperature
+            u = (u<0.0) ? -u*dTuFac : u;
 #ifndef OPTIM_REMOVE_UNUSED
-		pSph->u = u * dTuFac; /* Can't do precise conversion until density known IA: ¿?*/
+		pSph->u = u * dTuFac;
 #endif
-            /* IA: -unused- variables 
+            /* IA: -unused- variables
 		pSph->fMetals = fMetals;
 		pSph->uPred = pSph->u;
 		pSph->fMetalsPred = pSph->fMetals;
             */
-		pSph->vPred[0] = vel[0]*sqrt(dvFac);  //*dvFac;  TODO: Compute sqrt(dvFac only once)
-		pSph->vPred[1] = vel[1]*sqrt(dvFac);  //*dvFac;
-		pSph->vPred[2] = vel[2]*sqrt(dvFac);  //*dvFac; 
+		pSph->vPred[0] = vel[0]*sqrt(dvFac);
+		pSph->vPred[1] = vel[1]*sqrt(dvFac);
+		pSph->vPred[2] = vel[2]*sqrt(dvFac);
             pSph->Frho = 0.0;
             pSph->Fmom[0] = 0.0;
             pSph->Fmom[1] = 0.0;
             pSph->Fmom[2] = 0.0;
             pSph->Fene = 0.0;
-            pSph->E = u + 0.5*(pSph->vPred[0]*pSph->vPred[0] + pSph->vPred[1]*pSph->vPred[1] + pSph->vPred[2]*pSph->vPred[2]); 
+            pSph->E = u + 0.5*(pSph->vPred[0]*pSph->vPred[0] +
+                               pSph->vPred[1]*pSph->vPred[1] +
+                               pSph->vPred[2]*pSph->vPred[2]);
             pSph->E *= fMass;
             pSph->Uint = u*fMass;
             assert(pSph->E>0);
@@ -1253,7 +1257,8 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	    if (pkd->oStar) {
 	       pStar = pkdStar(pkd,p);
 	       pStar->fTimer = fTimer;
-	       pStar->hasExploded = 1; // IA: We avoid that star in the IC could explode
+             // We avoid that star in the IC could explode
+	       pStar->hasExploded = 1;
 
 #if defined(COOLING) || defined(STELLAR_EVOLUTION)
 	       for (j = 0; j < ELEMENT_COUNT; j++)
@@ -1268,7 +1273,8 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
       case FIO_SPECIES_BH:
           pkdSetBall(pkd,p,pkdSoft(pkd,p));
           float otherData[3];
-	    fioReadBH(fio,&iParticleID,r,vel,&fMass,&fSoft,pPot,&fDensity,otherData,&fTimer);
+	    fioReadBH(fio,&iParticleID,r,vel,&fMass,&fSoft,pPot,
+                &fDensity,otherData,&fTimer);
           pkdSetClass(pkd,fMass,fSoft,eSpecies,p);
           if (pkd->oBH) {
              pBH = pkdBH(pkd,p);
@@ -1294,7 +1300,9 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	if (pkd->oParticleID) *pkdParticleID(pkd,p) = iParticleID;
 
 	if (pkd->oVelocity){
-        if (!pkdIsGas(pkd,p)) { // IA: dvFac = a*a, and for the gas we already provide the peculiar velocity in the IC
+        if (!pkdIsGas(pkd,p)) {
+          // IA: dvFac = a*a, and for the gas we already provide
+          // the peculiar velocity in the IC
 	    for (j=0;j<3;++j) pkdVel(pkd,p)[j] = vel[j]*dvFac;
 	  }else{
 	    for (j=0;j<3;++j) pkdVel(pkd,p)[j] = vel[j]*sqrt(dvFac);
@@ -1302,7 +1310,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
       }
 
 	}
-    
+
     pkd->nLocal += nLocal;
     pkd->nActive += nLocal;
 
@@ -3251,6 +3259,7 @@ void pkdEndTimestepIntegration(PKD pkd,int iRoot, double dTime, double dDelta) {
        dRedshift = 0.0;
        dHubble = 0.0;
     }
+    const float a_m3 = pow(1.+dRedshift,3);
     if (pkd->param.bDoGas) {
       assert(pkd->param.bDoGas);
       assert(pkd->oSph);
@@ -3284,6 +3293,11 @@ void pkdEndTimestepIntegration(PKD pkd,int iRoot, double dTime, double dDelta) {
 #ifdef COOLING
             const float delta_redshift = -pDelta * dHubble * (dRedshift + 1.);
             cooling_cool_part(pkd, pkd->cooling, p, psph, pDelta, dTime, delta_redshift, dRedshift);
+#endif
+
+            // ##### Effective Equation Of State
+#if defined(COOLING) && defined(STAR_FORMATION)
+            internalEnergyFloor(pkd, p, psph, a_m3);
 #endif
 
             // Actually set the primitive variables

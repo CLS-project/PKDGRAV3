@@ -16,10 +16,13 @@ void pkdStarFormInit(PKD pkd, double dTime, int *nFormed){
        PARTICLE *p = pkdParticle(pkd,i);
       if (pkdIsStar(pkd,p)){
           STARFIELDS* pStar = pkdStar(pkd,p);
-          if (pStar->fTimer >= 0){ // fTimer < 0 can be used for stars 
-                                   //   in the IC that are not supossed to explode
-            if ( (dTime-pStar->fTimer) < pkd->param.dFeedbackDelay){
-               pStar->hasExploded = 0; // This particle has not exploded before 
+          if (pStar->fTimer >= 0){// fTimer < 0 can be used for stars
+                                  // in the IC that are not supossed to explode
+#ifdef FEEDBACK
+            if ( (dTime-pStar->fTimer) < pkd->param.dFeedbackDelay)
+#endif
+            {
+               pStar->hasExploded = 0; // This particle has not exploded before
                *nFormed += 1;
             }
           }
