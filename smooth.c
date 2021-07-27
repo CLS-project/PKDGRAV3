@@ -462,9 +462,9 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
     ** to this particle should end up being replaced in the priority queue
     ** as long as there are nSmooth particles.
     */
-    double far = pkd->bIntegerPosition ? 0.5 : HUGE_VAL; /* Integerized must be periodic with box size 1.0 */
     for (j=0;j<3;++j) {
-	pkdSetPos(pkd,smx->pSentinel,j,far);
+	if (pkd->bIntegerPosition) pkdSetPosRaw(pkd,smx->pSentinel,j,INT32_MAX);
+	else pkdSetPos(pkd,smx->pSentinel,j,HUGE_VAL);
     }
     /*
     ** Need to cast the pLite to an array of extra stuff.
