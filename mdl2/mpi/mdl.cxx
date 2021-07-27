@@ -284,8 +284,7 @@ MPI_Request *mpiClass::newRequest(mdlMessageMPI*message) {
 
 // Open the cache by posting the receive if required
 void mpiClass::MessageCacheOpen(mdlMessageCacheOpen *message) {
-    // If we are opening the first cache, and will be using MPI the post receive
-    if (nOpenCaches==0 && Procs()>1) pReqRcv->action(this); // MessageCacheReceive()
+    if (nOpenCaches==0) pReqRcv->action(this); // MessageCacheReceive()
     ++nOpenCaches;
     message->sendBack();
     }
@@ -918,7 +917,7 @@ void mdlClass::FinishCache(int cid) {
 void mpiClass::MessageCacheClose(mdlMessageCacheClose *message) {
     assert(nOpenCaches > 0);
     --nOpenCaches;
-    if (nOpenCaches == 0 && Procs()>1) { // If all caches are closed and we are using MPI
+    if (nOpenCaches == 0) {
 	auto it = std::find(SendReceiveMessages.begin(), SendReceiveMessages.end(), pReqRcv);
 	assert(it!=SendReceiveMessages.end());
 	MPI_Cancel(&SendReceiveRequests[it-SendReceiveMessages.begin()]);
