@@ -3968,13 +3968,13 @@ static int hdf5WriteStar(
     /* First time for this particle type? */
     if (base->group_id == H5I_INVALID_HID) {
 	base_create(hio,base,FIO_SPECIES_STAR,STAR_N,iParticleID);
-	field_create(&base->fldFields[STAR_ABUNDANCES],base->group_id,
-		     FIELD_ABUNDANCES, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, NUMBER_METALS );
 	field_create(&base->fldFields[STAR_AGE],base->group_id,
 		     FIELD_AGE, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, 1 );
 	field_create(&base->fldFields[STAR_GROUP],base->group_id,
 		     FIELD_GROUP, H5T_NATIVE_INT32, H5T_NATIVE_INT32, 1);
 #ifdef STELLAR_EVOLUTION
+	field_create(&base->fldFields[STAR_ABUNDANCES],base->group_id,
+		     FIELD_ABUNDANCES, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, NUMBER_METALS );
 	field_create(&base->fldFields[STAR_METALLICITY],base->group_id,
 		     FIELD_METALLICITY, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, 1);
 	field_create(&base->fldFields[STAR_INITIALMASS],base->group_id,
@@ -3988,10 +3988,10 @@ static int hdf5WriteStar(
     field_add_float(&fPot,&base->fldFields[STAR_POTENTIAL],base->iIndex);
     // IA: No need for this I think
     //field_add_float(&fDen,&base->fldFields[STAR_DENSITY],base->iIndex);
-    field_add_float(pfMetals,&base->fldFields[STAR_ABUNDANCES],base->iIndex);
     field_add_float(&fTform,&base->fldFields[STAR_AGE],base->iIndex);
     field_add_int32_t(&iGroup,&base->fldFields[STAR_GROUP],base->iIndex);
 #ifdef STELLAR_EVOLUTION
+    field_add_float(pfMetals,&base->fldFields[STAR_ABUNDANCES],base->iIndex);
     field_add_float(&fMetallicity,&base->fldFields[STAR_METALLICITY],base->iIndex);
     field_add_float(&fInitialMass,&base->fldFields[STAR_INITIALMASS],base->iIndex);
 #endif
