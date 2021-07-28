@@ -2062,14 +2062,14 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
 #endif
 
 #ifdef STELLAR_EVOLUTION
-    msr->param.dSNIa_Norm_ti *= SECPERYEAR / msr->param.dSecUnit;
-    msr->param.dSNIa_Norm_tf *= SECPERYEAR / msr->param.dSecUnit;
+    msr->param.dSNIa_Norm_ti *= SECONDSPERYEAR / msr->param.dSecUnit;
+    msr->param.dSNIa_Norm_tf *= SECONDSPERYEAR / msr->param.dSecUnit;
     msr->param.dSNIaEnergy /= msr->param.dErgUnit;
     dStellarWindSpeed /= msr->param.dKmPerSecUnit;
     msr->param.dWindSpecificEkin = 0.5 * dStellarWindSpeed * dStellarWindSpeed;
 
     if (strcmp(msr->param.achSNIa_DTDtype, "exponential") == 0) {
-       msr->param.dSNIa_Scale *= SECPERYEAR / msr->param.dSecUnit;
+       msr->param.dSNIa_Scale *= SECONDSPERYEAR / msr->param.dSecUnit;
     }
     else if (strcmp(msr->param.achSNIa_DTDtype, "powerlaw") == 0) {
        msr->param.dSNIa_Norm /= (pow(msr->param.dSNIa_Norm_tf, msr->param.dSNIa_Scale + 1.0) -

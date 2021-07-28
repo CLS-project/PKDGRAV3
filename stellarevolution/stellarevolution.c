@@ -131,7 +131,7 @@ void msrStellarEvolutionInit(MSR msr, double dTime) {
    for (i = 0; i < STEV_LIFETIMES_N_MASS; i++)
       buffer->afLifetimes_Masses[i] = log10(LifetimesData->pfMasses[i]);
    for (i = 0; i < STEV_LIFETIMES_N_METALLICITY * STEV_LIFETIMES_N_MASS; i++) {
-      buffer->afLifetimes[i] = log10(LifetimesData->pfLifetimes[i] * SECPERYEAR /
+      buffer->afLifetimes[i] = log10(LifetimesData->pfLifetimes[i] * SECONDSPERYEAR /
 				     msr->param.dSecUnit);
    }
 
