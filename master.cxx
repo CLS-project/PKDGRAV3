@@ -2599,15 +2599,18 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
     ** Create the deltas for the on-the-fly prediction of velocity and the
     ** thermodynamical variable.
     */
+    double substepWeAreAt = dStep - floor(dStep);
+    double stepStartTime = dTime - substepWeAreAt * dDelta;
     for (i = 0; i <= param.iMaxRung; ++i) {
         if (i < uRungLo) {
             /*
             ** For particles with a step larger than the current rung, the temporal position of
             ** the velocity in relation to the current time is nontrivial, so we calculate it here
             */
-            double dtPredDrift, TPredDrift;
-            TPredDrift = 0.0;
-            dtPredDrift = dTime - TPredDrift;
+            double substepSize = 1.0 / pow(2,i); // 1.0 / (1 << i);
+            double substepsDoneAtThisSize = floor(substepWeAreAt / substepSize);
+            double TPredDrift = stepStartTime + (substepsDoneAtThisSize + 0.5) * substepSize * dDelta;
+            double dtPredDrift = dTime - TPredDrift;
             /* Now that we know how much we have to drift, we can calculate the corresponding
             ** drift factor
             */
