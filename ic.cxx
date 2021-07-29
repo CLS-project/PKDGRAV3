@@ -604,6 +604,10 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	icUp.fMass = in->fMass;
 	icUp.fSoft = in->fSoft;
 	icUp.nGrid = in->nGrid;
+      icUp.bICgas = in->bICgas;
+      icUp.dExpansion = in->dExpansion;
+      icUp.dOmegaRate = in->dOmegaRate;
+      icUp.dTuFac = in->dTuFac;
 	icUp.nInflateFactor = in->nInflateFactor;
 
 	int rID = mdlReqService(pst->mdl,pst->idUpper,PLT_MOVEIC,&icUp,nIn);
@@ -615,6 +619,8 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	assert(in->nInflateFactor>0);
 	assert(in->nMove <= (pkd->nStore/in->nInflateFactor));
 	double inGrid = 1.0 / in->nGrid;
+      float fGasMass = 2.0*in->fMass*in->dOmegaRate;
+      float fDarkMass = 2.0*in->fMass*(1.0 - in->dOmegaRate);
 	for(i=in->nMove-1; i>=0; --i) {
 	    PARTICLE *p = pkdParticle(pkd,i);
 	    vel_t *pVel = pkdVel(pkd,p);
@@ -644,16 +650,104 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
 		if (!pkd->bNoParticleOrder)
 		    p->iOrder = temp.ix + in->nGrid*(temp.iy + 1ul*in->nGrid*temp.iz);
 		}
-	    pkdSetClass(pkd,in->fMass,in->fSoft,FIO_SPECIES_DARK,p);
+	    pkdSetClass(pkd,fDarkMass,in->fSoft,FIO_SPECIES_DARK,p);
 	    p->bMarked = 1;
 	    p->uRung = 0;
 	    if (pkd->bNoParticleOrder) ((UPARTICLE *)p)->iGroup = 0;
 	    else p->uNewRung = 0;
 	    float *pPot = pkdPot(pkd,p);
 	    if (pPot) pPot = 0;
+          if (in->bICgas){
+             PARTICLE *pgas = pkdParticle(pkd, i+in->nMove);
+             pkdCopyParticle(pkd, pgas, p);
+             pkdSetClass(pkd, fGasMass, in->fSoft, FIO_SPECIES_SPH, pgas);
+
+             vel_t *pVelGas = pkdVel(pkd,pgas);
+             // Change the scale factor dependency
+             double a_m1 = 1./in->dExpansion;
+             pVelGas[0] *= a_m1;
+             pVelGas[1] *= a_m1;
+             pVelGas[2] *= a_m1;
+
+             /* Fill the SPHFIELDS with some initial values */
+             double u = 100. * in->dTuFac; // TODO
+             assert(pkd->oSph);
+             SPHFIELDS* pSph = pkdSph(pkd,pgas);
+#ifndef OPTIM_REMOVE_UNUSED
+             pSph->u = pSph->uPred = pSph->uDot = pSph->c = pSph->divv =
+               pSph->BalsaraSwitch = pSph->diff =
+               pSph->fMetals = pSph->fMetalsPred = pSph->fMetalsDot = 0.0;
+#endif
+#ifdef COOLING
+             for (j=0;j<chemistry_element_count;j++ ) pSph->chemistry[j]=0.;
+#endif
+            pSph->vPred[0] = pVelGas[0];
+		pSph->vPred[1] = pVelGas[1];
+		pSph->vPred[2] = pVelGas[2];
+            pSph->Frho = 0.0;
+            pSph->Fmom[0] = 0.0;
+            pSph->Fmom[1] = 0.0;
+            pSph->Fmom[2] = 0.0;
+            pSph->Fene = 0.0;
+            pSph->E = u + 0.5*(pSph->vPred[0]*pSph->vPred[0] +
+                               pSph->vPred[1]*pSph->vPred[1] +
+                               pSph->vPred[2]*pSph->vPred[2]);
+            pSph->E *= fGasMass;
+            pSph->Uint = u*fGasMass;
+            assert(pSph->E>0);
+            pSph->mom[0] = fGasMass*pVelGas[0];
+            pSph->mom[1] = fGasMass*pVelGas[1];
+            pSph->mom[2] = fGasMass*pVelGas[2];
+            pSph->lastMom[0] = 0.; // vel[0];
+            pSph->lastMom[1] = 0.; //vel[1];
+            pSph->lastMom[2] = 0.; //vel[2];
+            pSph->lastE = pSph->E;
+#ifdef ENTROPY_SWITCH
+            pSph->S = 0.0;
+            pSph->lastS = 0.0;
+            pSph->maxEkin = 0.0;
+#endif
+            pSph->lastUint = pSph->Uint;
+            pSph->lastHubble = 0.0;
+            pSph->lastMass = fGasMass;
+            pSph->lastAcc[0] = 0.;
+            pSph->lastAcc[1] = 0.;
+            pSph->lastAcc[2] = 0.;
+#ifndef USE_MFM
+            pSph->lastDrDotFrho[0] = 0.;
+            pSph->lastDrDotFrho[1] = 0.;
+            pSph->lastDrDotFrho[2] = 0.;
+            pSph->drDotFrho[0] = 0.;
+            pSph->drDotFrho[1] = 0.;
+            pSph->drDotFrho[2] = 0.;
+#endif
+            //pSph->fLastBall = 0.0;
+            pSph->lastUpdateTime = -1.;
+           // pSph->nLastNeighs = 100;
+#ifdef COOLING
+            for (j=0; j<chemistry_element_count; j++)
+               pSph->chemistry[j] = fMetals[j];
+
+            pSph->lastCooling = 0.;
+            pSph->cooling_dudt = 0.;
+#endif
+#ifdef OPTIM_CACHED_FLUXES
+            pSph->flux_cache = 0x00000000ULL;
+            pSph->coll_cache = 0x00000000ULL;
+#ifdef DEBUG_CACHED_FLUXES
+            pSph->avoided_fluxes = 0;
+            pSph->computed_fluxes = 0;
+#endif
+#endif
+            pSph->uWake = 0;
+          }
 	    }
 	pkd->nLocal = pkd->nActive = in->nMove;
+      if (in->bICgas){
+         pkd->nLocal *= 2;
+         pkd->nActive *= 2;
 	}
+    }
     return 0;
     }
 
@@ -774,6 +868,10 @@ int pstMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	move.fMass = in->dBoxMass;
 	move.fSoft = 1.0 / (50.0*in->nGrid);
 	move.nGrid = in->nGrid;
+      move.bICgas = in->bICgas;
+      move.dExpansion = in->dExpansion;
+      move.dOmegaRate = in->dOmegaRate;
+      move.dTuFac = in->dTuFac;
 	move.nInflateFactor = in->nInflateFactor;
 	pltMoveIC(pst,&move,sizeof(move),NULL,0);
 	}

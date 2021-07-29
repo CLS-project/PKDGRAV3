@@ -1462,6 +1462,9 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
     msr->param.b2LPT = 1;
     prmAddParam(msr->prm,"b2LPT",0,&msr->param.b2LPT,
 		sizeof(int),"2lpt","<Enable/disable 2LPT> = 1");
+    msr->param.bICgas = 0;
+    prmAddParam(msr->prm,"bICgas",0,&msr->param.bICgas,
+		sizeof(int),"ICgas","<Enable/disable gas in the ICs> = 0");
 #ifdef USE_PYTHON
     strcpy(msr->param.achScriptFile,"");
     prmAddParam(msr->prm,"achScript",3,msr->param.achScriptFile,256,"script",
@@ -1982,7 +1985,37 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
 	/* code comoving density --> g per cc = msr->param.dGmPerCcUnit (1+z)^3 */
 	msr->param.dComovingGmPerCcUnit = msr->param.dGmPerCcUnit;
 	}
-    else {
+    else if (msr->param.bICgas) {
+      // We need to properly set a unit system, we do so following the
+      // convention: G=1, rho=Omega0 in code units
+      msr->param.dKpcUnit = msr->param.dBoxSize*1e3 / msr->param.h;
+      // The mass unit is set such that we recover a correct dHubble0 in code units
+      // and 100h in physical
+      msr->param.dMsolUnit = pow( msr->param.h * 100.0 * 1e5 * msr->param.dKpcUnit/
+            (1e3*msr->csm->val.dHubble0), 2) * msr->param.dKpcUnit*KPCCM/(GCGS*MSOLG);
+
+	msr->param.dGasConst = msr->param.dKpcUnit*KPCCM*KBOLTZ
+	    /MHYDR/GCGS/msr->param.dMsolUnit/MSOLG;
+	/* code energy per unit mass --> erg per g */
+	msr->param.dErgPerGmUnit = GCGS*msr->param.dMsolUnit*MSOLG/(msr->param.dKpcUnit*KPCCM);
+      /* code energy --> erg IA: TODO be sure about this*/
+	msr->param.dErgUnit = GCGS*pow(msr->param.dMsolUnit*MSOLG,2.0)/(msr->param.dKpcUnit*KPCCM);
+	/* code density --> g per cc */
+	msr->param.dGmPerCcUnit = (msr->param.dMsolUnit*MSOLG)/pow(msr->param.dKpcUnit*KPCCM,3.0);
+	/* code time --> seconds */
+	msr->param.dSecUnit = sqrt(1/(msr->param.dGmPerCcUnit*GCGS));
+	/* code speed --> km/s */
+	msr->param.dKmPerSecUnit = sqrt(GCGS*msr->param.dMsolUnit*MSOLG/(msr->param.dKpcUnit*KPCCM))/1e5;
+	/* code comoving density --> g per cc = msr->param.dGmPerCcUnit (1+z)^3 */
+	msr->param.dComovingGmPerCcUnit = msr->param.dGmPerCcUnit;
+
+      // Some safety checks
+      double H0 = msr->param.h * 100. / msr->param.dKmPerSecUnit *
+         msr->param.dKpcUnit/1e3;
+      double rhoCrit = 3.*H0*H0/(8.*M_PI);
+      assert( fabs(H0-msr->csm->val.dHubble0)/H0 < 0.01 );
+      assert( fabs(rhoCrit-1.0) < 0.01 );
+    }else{
 	msr->param.dSecUnit = 1;
 	msr->param.dKmPerSecUnit = 1;
 	msr->param.dComovingGmPerCcUnit = 1;
@@ -6054,6 +6087,9 @@ double msrGenerateIC(MSR msr) {
     in.fPhase = msr->param.dFixedAmpPhasePI * M_PI;
     in.nGrid = msr->param.nGrid;
     in.b2LPT = msr->param.b2LPT;
+    in.bICgas = msr->param.bICgas;
+    in.dOmegaRate = msr->csm->val.dOmegab/msr->csm->val.dOmega0;
+    in.dTuFac = msr->param.dTuFac;
     in.bClass = msr->csm->val.classData.bClass;
     in.cosmo = msr->csm->val;
     in.nInflateFactor = msr->param.nInflateReps + 1;
@@ -6062,10 +6098,17 @@ double msrGenerateIC(MSR msr) {
     nTotal  = in.nGrid; /* Careful: 32 bit integer cubed => 64 bit integer */
     nTotal *= in.nGrid;
     nTotal *= in.nGrid;
+    if (in.bICgas) nTotal *= 2;
     in.dBoxMass = msr->csm->val.dOmega0 / nTotal;
 
     for( j=0; j<FIO_SPECIES_LAST; j++) nSpecies[j] = 0;
-    nSpecies[FIO_SPECIES_ALL] = nSpecies[FIO_SPECIES_DARK] = nTotal;
+    if (in.bICgas) {
+       nSpecies[FIO_SPECIES_ALL] = nTotal;
+       nSpecies[FIO_SPECIES_SPH] = nTotal/2;
+       nSpecies[FIO_SPECIES_DARK]= nTotal/2;
+    }else{
+       nSpecies[FIO_SPECIES_ALL] = nSpecies[FIO_SPECIES_DARK] = nTotal;
+    }
     msrInitializePStore(msr,nSpecies);
 
     if (prmSpecified(msr->prm,"dRedFrom")) {
@@ -6214,11 +6257,11 @@ double msrRead(MSR msr, const char *achInFile) {
     dTime = getTime(msr,dExpansion,&read->dvFac);
     if (msr->param.bInFileLC) read->dvFac = 1.0;
     read->dTuFac = msr->param.dTuFac;
-    
+
     if (msr->nGas && !prmSpecified(msr->prm,"bDoGas")) msr->param.bDoGas = 1;
-    if (msrDoGas(msr) || msr->nGas) mMemoryModel |= (PKD_MODEL_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_NODE_SPHBNDS);		
+    if (msrDoGas(msr) || msr->nGas) mMemoryModel |= (PKD_MODEL_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_NODE_SPHBNDS);
     if (msr->param.bStarForm || msr->nStar) mMemoryModel |= (PKD_MODEL_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_MASS|PKD_MODEL_SOFTENING|PKD_MODEL_STAR);
-    
+
     read->nNodeStart = 0;
     read->nNodeEnd = msr->N - 1;
 

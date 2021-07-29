@@ -3222,7 +3222,9 @@ void pkdEndTimestepIntegration(PKD pkd,int iRoot, double dTime, double dDelta) {
 
     mdlDiag(pkd->mdl, "Into pkdComputePrimiteVars\n");
     assert(pkd->oVelocity);
+#ifndef USE_MFM
     assert(pkd->oMass);
+#endif
 
     if (bComove){
        dScaleFactor = csmTime2Exp(pkd->csm,dTime);

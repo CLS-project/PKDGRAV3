@@ -1195,6 +1195,7 @@ struct inGenerateIC {
     uint64_t nPerNode;
     double dBoxSize;
     double dBoxMass;
+    double dOmegaRate;
 //    double omegam;
 //    double omegab;
 //    double omegav;
@@ -1207,6 +1208,8 @@ struct inGenerateIC {
     float fPhase;
     int nGrid;
     int b2LPT;
+    int bICgas;
+    double dTuFac;
     int bComove;
     int bClass;
     int nTf;
@@ -1238,6 +1241,10 @@ struct inMoveIC {
     float fSoft;
     int nGrid;
     int nInflateFactor;
+    int bICgas;
+    double dExpansion;
+    double dOmegaRate;
+    double dTuFac;
     };
 int pltMoveIC(PST,void *,int,void *,int);
 int pstMoveIC(PST,void *,int,void *,int);
