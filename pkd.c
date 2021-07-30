@@ -3054,7 +3054,7 @@ void pkdResetFluxes(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVP
    pUpper = pkdLocal(pkd); //IA: All particles local to this proccessor
 
     assert(pkd->oVelocity);
-    assert(pkd->oMass);
+    //assert(pkd->oMass);
 
     /*
     ** Add the computed flux to the conserved variables for each gas particle

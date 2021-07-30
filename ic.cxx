@@ -647,6 +647,10 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
 		pkdSetPos(pkd,p,2,temp.dr[2] + (temp.iz+0.5) * inGrid - 0.5);
 		pkdSetPos(pkd,p,1,temp.dr[1] + (temp.iy+0.5) * inGrid - 0.5);
 		pkdSetPos(pkd,p,0,temp.dr[0] + (temp.ix+0.5) * inGrid - 0.5);
+            if (pkd->oParticleID){
+               uint64_t *pID = pkdParticleID(pkd,p);
+               *pID = temp.ix + in->nGrid*(temp.iy + 1ul*in->nGrid*temp.iz);
+            }
 		if (!pkd->bNoParticleOrder)
 		    p->iOrder = temp.ix + in->nGrid*(temp.iy + 1ul*in->nGrid*temp.iz);
 		}
@@ -661,6 +665,11 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
              PARTICLE *pgas = pkdParticle(pkd, i+in->nMove);
              pkdCopyParticle(pkd, pgas, p);
              pkdSetClass(pkd, fGasMass, in->fSoft, FIO_SPECIES_SPH, pgas);
+
+             if (pkd->oParticleID){
+                uint64_t *pID = pkdParticleID(pkd,p);
+                *pID = 2*(*pID);
+             }
 
              vel_t *pVelGas = pkdVel(pkd,pgas);
              // Change the scale factor dependency
