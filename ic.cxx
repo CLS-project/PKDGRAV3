@@ -621,6 +621,8 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	double inGrid = 1.0 / in->nGrid;
       float fGasMass = 2.0*in->fMass*in->dOmegaRate;
       float fDarkMass = 2.0*in->fMass*(1.0 - in->dOmegaRate);
+      float fGasSoft = in->fSoft * sqrt(in->dOmegaRate);
+      float fDarkSoft = in->fSoft;
 	for(i=in->nMove-1; i>=0; --i) {
 	    PARTICLE *p = pkdParticle(pkd,i);
 	    vel_t *pVel = pkdVel(pkd,p);
@@ -654,7 +656,7 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
 		if (!pkd->bNoParticleOrder)
 		    p->iOrder = temp.ix + in->nGrid*(temp.iy + 1ul*in->nGrid*temp.iz);
 		}
-	    pkdSetClass(pkd,fDarkMass,in->fSoft,FIO_SPECIES_DARK,p);
+	    pkdSetClass(pkd,fDarkMass,fDarkSoft,FIO_SPECIES_DARK,p);
 	    p->bMarked = 1;
 	    p->uRung = 0;
 	    if (pkd->bNoParticleOrder) ((UPARTICLE *)p)->iGroup = 0;
@@ -664,7 +666,7 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
           if (in->bICgas){
              PARTICLE *pgas = pkdParticle(pkd, i+in->nMove);
              pkdCopyParticle(pkd, pgas, p);
-             pkdSetClass(pkd, fGasMass, in->fSoft, FIO_SPECIES_SPH, pgas);
+             pkdSetClass(pkd, fGasMass, fGasSoft, FIO_SPECIES_SPH, pgas);
 
              if (pkd->oParticleID){
                 uint64_t *pID = pkdParticleID(pkd,p);
