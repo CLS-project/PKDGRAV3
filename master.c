@@ -921,6 +921,12 @@ static int validateParameters(MDL mdl,CSM csm,PRM prm,struct parameters *param) 
 	}
     }
 
+#ifdef OPTIM_NO_REDUNDANT_FLUXES
+    if (!param->bMemParticleID){
+       fprintf(stderr, "WARNING: OPTIM_NO_REDUNDANT_FLUXES requires bMemParticleID");
+       return 0;
+    }
+#endif
 
 
     return 1;
