@@ -540,6 +540,12 @@ void cooling_cool_part(PKD pkd,
   psph->Uint = u_final * pkdMass(pkd,p);
   psph->E = psph->E + psph->Uint;
 
+#ifdef ENTROPY_SWITCH
+  psph->S = psph->Uint *
+            (pkd->param.dConstGamma -1.) *
+            pow(pkdDensity(pkd,p), -pkd->param.dConstGamma+1);
+#endif
+
   /* We now need to check that we are not going to go below any of the limits */
 
   /* Absolute minimum */
