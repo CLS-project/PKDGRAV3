@@ -36,6 +36,7 @@
 #ifdef USE_CUDA
 #include "mdlcuda.h"
 #endif
+#include "rwlock.h"
 #include <memory>
 #include <tuple>
 #include <vector>
@@ -165,6 +166,8 @@ protected:
     void * (*getElt)(void *pData,int i,int iDataSize);
     void *pData;
     uint16_t iCID;
+    // Fast lock to allow local updates while cache is active
+    RWLock rwlock;
 public:
     int iDataSize;
     int nData;
@@ -185,6 +188,8 @@ public:
     bool modify() {assert(cache_helper); return cache_helper->modify();}
     uint32_t key_size() {return arc_cache->key_size();}
     void *getElement(int i) {return (*getElt)(pData,i,iDataSize);}
+    void *WriteLock(int iIndex) {rwlock.lock_write(); return getElement(iIndex);}
+    void WriteUnlock(const void *p) {rwlock.unlock_write();}
     };
 
 //*****************************************************************************
@@ -299,6 +304,14 @@ public:
 	void *pData,int iDataSize,int nData,
 	std::shared_ptr<CACHEhelper> helper);
     CACHE *AdvancedCacheInitialize(int cid,hash::GHASH *hash,int iDataSize,std::shared_ptr<CACHEhelper> helper);
+
+    void *AcquireWrite(int cid,int iIndex) {
+	return cache[cid]->WriteLock(iIndex);
+	}
+
+    void ReleaseWrite(int cid,void *p) {
+	cache[cid]->WriteUnlock(p);
+	}
 
     void FlushCache(int cid);
     void FinishCache(int cid);
@@ -601,6 +614,8 @@ void mdlRelease(MDL,int,void *);
 void mdlFlushCache(MDL,int);
 void mdlThreadBarrier(MDL);
 void mdlCompleteAllWork(MDL);
+void *mdlAcquireWrite(MDL mdl, int cid, int iIndex);
+void mdlReleaseWrite(MDL mdl,int cid,void *p);
 /*
  ** Cache statistics functions.
  */

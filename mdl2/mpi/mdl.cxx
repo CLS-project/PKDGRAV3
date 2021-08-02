@@ -390,6 +390,21 @@ void CACHE::close() {
     }
 
 /*****************************************************************************\
+* Functions to allow writing to a local element when the cache is active
+\*****************************************************************************/
+
+extern "C"
+void *mdlAcquireWrite(MDL cmdl,int cid,int iIndex) {
+    mdlClass *mdl = static_cast<mdlClass *>(cmdl);
+    return mdl->AcquireWrite(cid, iIndex);
+    }
+
+void mdlReleaseWrite(MDL cmdl,int cid,void *p) {
+    mdlClass *mdl = static_cast<mdlClass *>(cmdl);
+    mdl->ReleaseWrite(cid,p);
+    }
+
+/*****************************************************************************\
 * Here we follow a Cache Request
 \*****************************************************************************/
 
