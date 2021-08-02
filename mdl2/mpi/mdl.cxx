@@ -843,9 +843,12 @@ void mdlClass::MessageFlushToCore(mdlMessageFlushToCore *pFlush) {
 	    int n = s + c->getLineElementCount();
 	    for(int i=s; i<n; i++ ) {
 		if (i<c->nData) {
-		    auto p = c->ReadLock(i);
+		    // Here we update a local element that has been flushed back to us.
+		    // The danger here is another thread may want to read the value and
+		    // end up with an inconsistent view so we lock for write.
+		    auto p = c->WriteLock(i);
 		    c->cache_helper->combine(p,pData,nullptr);
-		    c->ReadUnlock(p);
+		    c->WriteUnlock(p);
 		    }
 		pData += c->iDataSize;
 		}
