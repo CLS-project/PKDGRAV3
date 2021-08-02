@@ -190,6 +190,8 @@ public:
     void *getElement(int i) {return (*getElt)(pData,i,iDataSize);}
     void *WriteLock(int iIndex) {rwlock.lock_write(); return getElement(iIndex);}
     void WriteUnlock(const void *p) {rwlock.unlock_write();}
+    void *ReadLock(int iIndex) {rwlock.lock_read(); return getElement(iIndex);}
+    void ReadUnlock(const void *p) {rwlock.unlock_read();}
     };
 
 //*****************************************************************************

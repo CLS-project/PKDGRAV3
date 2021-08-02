@@ -462,7 +462,7 @@ void *mdlClass::Access(int cid, uint32_t uIndex, int uId, bool bLock,bool bModif
     if (uCore < Cores() && !c->modify() ) {
 	mdlClass * omdl = pmdl[uCore];
 	auto c = omdl->cache[cid].get();
-	return c->getElement(uIndex);
+	return c->getElement(uIndex); // Careful; we don't allow updates here (see ReadLock)
 	}
     // Retreive the element from the ARC cache. If it is not present then the ARC class will
     // call invokeRequest to initiate the fetch, then finishRequest to copy the result into the cache
@@ -557,8 +557,10 @@ void mpiClass::CacheReceiveRequest(int count, const CacheHeader *ph) {
 	int s = ph->iLine << c->nLineBits;
 	int n = s + c->getLineElementCount();
 	for(auto i=s; i<n; i++ ) {
-	    char *t = (i<c->nData) ? static_cast<char *>(c->getElement(i)) : NULL;
+	    auto p = c->ReadLock(i);
+	    char *t = (i<c->nData) ? static_cast<char *>(p) : NULL;
 	    c->cache_helper->pack(reply->getBuffer(pack_size),t);
+	    c->ReadUnlock(p);
 	    }
 	}
     reply->action(this); // MessageCacheReply()
@@ -636,7 +638,9 @@ void *mdlClass::finishCacheRequest(int cid,uint32_t uLine, uint32_t uId, uint32_
 	    auto pData = static_cast<char *>(data);
 	    for(auto i=s; i<n; i++ ) {
 		//FIXME: not unpack!
-		c->cache_helper->unpack(pData,oc->getElement(i),pKey);
+		auto p = oc->ReadLock(i);
+		c->cache_helper->unpack(pData,p,pKey);
+		oc->ReadUnlock(p);
 		pData += oc->iDataSize;
 		}
 	    }
@@ -838,8 +842,11 @@ void mdlClass::MessageFlushToCore(mdlMessageFlushToCore *pFlush) {
 	    int s = uIndex;
 	    int n = s + c->getLineElementCount();
 	    for(int i=s; i<n; i++ ) {
-		if (i<c->nData)
-		    c->cache_helper->combine(c->getElement(i),pData,nullptr);
+		if (i<c->nData) {
+		    auto p = c->ReadLock(i);
+		    c->cache_helper->combine(p,pData,nullptr);
+		    c->ReadUnlock(p);
+		    }
 		pData += c->iDataSize;
 		}
 	    }
