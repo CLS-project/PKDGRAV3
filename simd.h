@@ -740,14 +740,14 @@ inline vec<__m128i,int32_t> mask_mov(vec<__m128i,int32_t> const &src,vec<__m128i
 #ifdef __SSE4_1__
     return _mm_blendv_epi8(src,a,p);
 #else
-    return _mm_or_ps(_mm_and_ps(_mm_castsi128_ps(p),_mm_castsi128_ps(a)),_mm_andnot_ps(_mm_castsi128_ps(p),_mm_castsi128_ps(src)));
+    return _mm_castps_si128(_mm_or_ps(_mm_and_ps(_mm_castsi128_ps(p),_mm_castsi128_ps(a)),_mm_andnot_ps(_mm_castsi128_ps(p),_mm_castsi128_ps(src))));
 #endif
     }
 inline vec<__m128i,int32_t> mask_mov(vec<__m128i,int32_t> const &src,vec<__m128,float> const &p,vec<__m128i,int32_t> const &a) {
 #ifdef __SSE4_1__
     return _mm_blendv_epi8(src,a,_mm_castps_si128(p));
 #else
-    return _mm_or_ps(_mm_and_ps(p,_mm_castsi128_ps(a)),_mm_andnot_ps(p,_mm_castsi128_ps(src)));
+    return _mm_castps_si128(_mm_or_ps(_mm_and_ps(p,_mm_castsi128_ps(a)),_mm_andnot_ps(p,_mm_castsi128_ps(src))));
 #endif
     }
 
@@ -848,6 +848,11 @@ inline vec<float,float> mask_mov(vec<float,float> const &src,mmask<bool> const &
 inline vec<float,float> mask_mov(vec<float,float> const &src,bool const &p,vec<float,float> const &a) {
 	return p ? a : src;
     }
+
+inline vec<double,double> min(vec<double,double> const &a,vec<double,double> const &b) { return a<b?a:b; }
+inline vec<double,double> max(vec<double,double> const &a,vec<double,double> const &b) { return a>b?a:b; }
+inline int movemask(mmask<bool> const &k) { return (int)(k); }
+
 
 /**********************************************************************\
 * 32-bit integer

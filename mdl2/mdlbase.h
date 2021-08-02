@@ -56,10 +56,11 @@ public:
 	int nOutBytes;
 	void *p1;
 	fcnService_t *fcnService;
+	const char *name;
     public:
-	SERVICE() : nInBytes(0), nOutBytes(0), p1(0), fcnService(0) {}
-	SERVICE(fcnService_t *fcnService, void *p1=0, int nInBytes=0, int nOutBytes=0)
-	    : nInBytes(nInBytes), nOutBytes(nOutBytes), p1(p1), fcnService(fcnService) {}
+	SERVICE() : nInBytes(0), nOutBytes(0), p1(0), fcnService(0), name(nullptr) {}
+	SERVICE(fcnService_t *fcnService, void *p1=0, int nInBytes=0, int nOutBytes=0, const char *name=nullptr)
+	    : nInBytes(nInBytes), nOutBytes(nOutBytes), p1(p1), fcnService(fcnService), name(name) {}
 	int operator()(int nIn, char *pszIn, char *pszOut);
     };
 
@@ -119,7 +120,7 @@ public:
     int32_t ProcToThread(int32_t iProc) const;
     int32_t ThreadToProc(int32_t iThread) const;
     void yield();
-    void AddService(int sid, void *p1, fcnService_t *fcnService, int nInBytes, int nOutBytes);
+    void AddService(int sid, void *p1, fcnService_t *fcnService, int nInBytes, int nOutBytes, const char *name=nullptr);
     };
 int mdlBaseProcToThread(mdlBASE *base, int iProc);
 int mdlBaseThreadToProc(mdlBASE *base, int iThread);
