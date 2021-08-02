@@ -237,7 +237,7 @@ public:
     mdlMessageFlushFromCore *coreFlushBuffer; // Active buffer
 
     mdlMessageQueue queueCacheReply; // Replies to cache requests
-    std::vector<CACHE> cache;
+    std::vector< std::unique_ptr<CACHE> >cache;
     mdlMessageQueue wqCacheFlush;
 
     int nFlushOutBytes;
