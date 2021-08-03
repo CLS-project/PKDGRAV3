@@ -2599,7 +2599,7 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
     ** Create the deltas for the on-the-fly prediction of velocity and the
     ** thermodynamical variable.
     */
-    double substepWeAreAt = dStep - floor(dStep);
+    double substepWeAreAt = dStep - floor(dStep); // use fmod instead
     double stepStartTime = dTime - substepWeAreAt * dDelta;
     for (i = 0; i <= param.iMaxRung; ++i) {
         if (i < uRungLo) {
@@ -2615,6 +2615,12 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
             ** drift factor
             */
             if (csm->val.bComove) {
+                /*
+                ** This gives the correct result, even if dtPredDrift is negative
+                ** but we still may want to use
+                ** -csmComoveKickFac(csm,TPredDrift + dtPredDrift,-dtPredDrift);
+                ** if dtPredDrift is negative, just to be sure
+                */
                 in.kick.dtPredDrift[i] = csmComoveKickFac(csm,TPredDrift,dtPredDrift);
             } else {
                 in.kick.dtPredDrift[i] = dtPredDrift;
