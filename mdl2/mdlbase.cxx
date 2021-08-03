@@ -41,8 +41,6 @@ static int _srvNull(void *p1, void *vin, int nIn, void *vout, int nOut) {
     return 0;
     }
 
-
-
 int mdlBASE::SERVICE::operator()(int nIn, char *pszIn, char *pszOut) {
     assert(nIn <= nInBytes);
     assert(fcnService != NULL);
@@ -92,7 +90,7 @@ mdlBASE::mdlBASE(int argc,char **argv) {
     ** Provide a 'null' service for sid = 0, so that stopping the
     ** service handler is well defined!
     */
-    services[0] = SERVICE(_srvNull);
+    services[0] = std::make_unique<SERVICE>(_srvNull);
     }
 
 mdlBASE::~mdlBASE() {
@@ -126,8 +124,15 @@ void mdlBASE::AddService(int sid, void *p1,
     if (nInBytes  > nMaxInBytes)  nMaxInBytes  = nInBytes;
     if (nOutBytes > nMaxOutBytes) nMaxOutBytes = nOutBytes;
     if (sid >= services.size()) services.resize(sid+9);
-    services[sid] = SERVICE(fcnService,p1,nInBytes,nOutBytes,name?strdup(name):nullptr);
-}
+    assert(services[sid]==nullptr);
+    services[sid] = std::make_unique<SERVICE>(fcnService,p1,nInBytes,nOutBytes,name?strdup(name):nullptr);
+    }
+
+int mdlBASE::RunService(int sid,int nIn, char *pszIn, char *pszOut){
+    assert(sid < services.size());
+    assert(services[sid] != nullptr);
+    return (*services[sid])(nIn,pszIn,pszOut);
+    }
 
 void mdlBASE::yield() {
 #ifdef _MSC_VER

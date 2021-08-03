@@ -80,7 +80,7 @@ public:
     /* Services information */
     int nMaxInBytes;
     int nMaxOutBytes;
-    std::vector<SERVICE> services;
+    std::vector< std::unique_ptr<SERVICE> > services;
 
     /* Maps a give process (Proc) to the first global thread ID */
     std::vector<int> iProcToThread; /* [0,nProcs] (note inclusive extra element) */
@@ -121,6 +121,7 @@ public:
     int32_t ThreadToProc(int32_t iThread) const;
     void yield();
     void AddService(int sid, void *p1, fcnService_t *fcnService, int nInBytes, int nOutBytes, const char *name=nullptr);
+    int  RunService(int sid, int nIn, char *pszIn, char *pszOut);
     };
 int mdlBaseProcToThread(mdlBASE *base, int iProc);
 int mdlBaseThreadToProc(mdlBASE *base, int iThread);

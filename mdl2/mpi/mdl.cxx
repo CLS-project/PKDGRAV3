@@ -2167,8 +2167,8 @@ void mdlClass::Handler() {
 	assert(nBytes == phi->nInBytes + sizeof(SRVHEAD));
 	id = phi->idFrom;
 	sid = phi->sid;
-	assert(sid < services.size());
-	nOutBytes = services[sid](phi->nInBytes,pszIn,&reply.Buffer.front());
+
+	nOutBytes = RunService(sid,phi->nInBytes,pszIn,&reply.Buffer.front());
 	enqueueAndWait(reply.makeReply(Self(),phi->replyTag,sid,id,nOutBytes));
 	} while (sid != SRV_STOP);
     }
