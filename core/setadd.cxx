@@ -16,6 +16,10 @@
  */
 #include "setadd.h"
 
+// Make sure that the communication structure is a simple data structure
+#include <type_traits>
+static_assert(std::is_standard_layout<ServiceSetAdd::input>(),"not POD");
+
 // This is a weird service. Normally we use TraversePST, but here
 // we are actually setting up the PST structure.
 int ServiceSetAdd::operator()(int nIn, void *pIn, void *pOut) {

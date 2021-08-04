@@ -437,7 +437,6 @@ void MSR::Checkpoint(int iStep,int nSteps,double dTime,double dDelta) {
 
 int MSR::Initialize() {
     int i,j,ret;
-    ServiceSetAdd::input inAdd;
     char ach[256];
     int bDoRestore;
 
@@ -1119,13 +1118,11 @@ int MSR::Initialize() {
     /*
     ** Create the processor subset tree.
     */
-    inAdd.idLower = 0;
-    inAdd.idUpper = nThreads;
-    if (nThreads > 1)
-	msrprintf("Adding %d through %d to the PST\n",
-		  inAdd.idLower+1,inAdd.idUpper-1);
-    mdl->RunService(PST_SETADD,sizeof(inAdd),&inAdd);
-
+    if (nThreads > 1) {
+	msrprintf("Adding %d through %d to the PST\n",1,nThreads);
+	ServiceSetAdd::input inAdd(nThreads);
+	mdl->RunService(PST_SETADD,sizeof(inAdd),&inAdd);
+	}
     return bDoRestore;
     }
 

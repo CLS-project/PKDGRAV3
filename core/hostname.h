@@ -18,10 +18,10 @@
 
 class ServiceHostname : public TraversePST {
 public:
-    typedef struct {
+    struct output {
 	int  iMpiID;
 	char szHostname[20];
-	} output;
+	};
     explicit ServiceHostname(PST pst)
 	: TraversePST(pst,PST_HOSTNAME,0,
 		mdlThreads(pst->mdl)*sizeof(output),"Hostname") {}

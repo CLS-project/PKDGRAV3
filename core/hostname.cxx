@@ -16,6 +16,10 @@
  */
 #include "hostname.h"
 
+// Make sure that the communication structure is a simple data structure
+#include <type_traits>
+static_assert(std::is_standard_layout<ServiceHostname::output>(),"not POD");
+
 int ServiceHostname::Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto out = static_cast<output *>(vout);
     auto outUp = out + pst->idUpper-pst->idSelf;

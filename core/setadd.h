@@ -19,10 +19,13 @@
 class ServiceSetAdd : public mdl::BasicService {
     PST node_pst;
 public:
-    typedef struct {
+    struct input {
 	int idLower;
 	int idUpper;
-	} input;
+	input() = default;
+	input(int idUpper) : idLower(0), idUpper(idUpper) {}
+	input(int idLower, int idUpper) : idLower(idLower), idUpper(idUpper) {}
+	};
     explicit ServiceSetAdd(PST node_pst)
 	: BasicService(PST_SETADD, sizeof(input), 0, "SetAdd"), node_pst(node_pst) {}
 protected:
