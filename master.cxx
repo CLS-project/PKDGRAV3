@@ -74,6 +74,7 @@ using namespace fmt::literals; // Gives us ""_a and ""_format literals
 #include "fio.h"
 
 #include "core/setadd.h"
+#include "core/hostname.h"
 
 #define LOCKFILE ".lockfile"	/* for safety lock */
 #define STOPFILE "STOP"			/* for user interrupt */
@@ -2458,8 +2459,8 @@ void MSR::UpdateSoft(double dTime) {
 
 void MSR::Hostname() {
     int i;
-    std::unique_ptr<struct outHostname[]> out {new struct outHostname[nThreads]};
-    pstHostname(pst,0,0,out.get(),nThreads*sizeof(struct outHostname));
+    std::unique_ptr<ServiceHostname::output[]> out {new ServiceHostname::output[nThreads]};
+    mdl->RunService(PST_HOSTNAME,0,nullptr,out.get());
     printf("Host Names:\n");
     PRINTGRID(12,"%12.12s",szHostname);
     printf("MPI Rank:\n");

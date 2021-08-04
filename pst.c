@@ -238,8 +238,6 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_MOVEIC,pst,(fcnService_t*)pstMoveIC,
 		  sizeof(struct inGenerateIC),0);
 #endif
-    mdlAddService(mdl,PST_HOSTNAME,pst,(fcnService_t*)pstHostname,
-		  0,nThreads*sizeof(struct outHostname));
     mdlAddService(mdl,PST_MEMSTATUS,pst,(fcnService_t*)pstMemStatus,
 		  0,nThreads*sizeof(struct outMemStatus));
     mdlAddService(mdl,PST_GETCLASSES,pst,(fcnService_t*)pstGetClasses,
@@ -3280,27 +3278,6 @@ int pstGetFFTMaxSizes(PST pst,void *vin,int nIn,void *vout,int nOut) {
     return sizeof(struct outGetFFTMaxSizes);
     }
 #endif
-
-int pstHostname(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    struct outHostname *out = vout;
-    struct outHostname *outUp = out + pst->idUpper-pst->idSelf;
-
-    mdlassert(pst->mdl,nIn == 0);
-    if (pst->nLeaves > 1) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_HOSTNAME,vin,nIn);
-	pstHostname(pst->pstLower,vin,nIn,out,nOut);
-	mdlGetReply(pst->mdl,rID,outUp,NULL);
-	}
-    else {
-	char *p;
-	out->iMpiID = mdlSelf(pst->mdl);
-	strncpy(out->szHostname,mdlName(pst->mdl),sizeof(out->szHostname));
-	out->szHostname[sizeof(out->szHostname)-1] = 0;
-	p = strchr(out->szHostname,'.');
-	if (p) *p = 0;
-	}
-    return pst->nLeaves*sizeof(struct outHostname);
-    }
 
 int pstMemStatus(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;

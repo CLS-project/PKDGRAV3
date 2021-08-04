@@ -78,8 +78,7 @@ typedef struct pstContext {
 #define PST_MAX_FILES           16384
 
 enum pst_service {
-    PST_SRV_STOP,
-    PST_SPLITIO,
+    PST_SRV_STOP=0, /* service 0 is always STOP and handled by MDL */
     PST_SETADD,
     PST_READFILE,
     PST_DOMAINDECOMP,
@@ -1062,13 +1061,6 @@ struct inMoveIC {
 int pltMoveIC(PST,void *,int,void *,int);
 int pstMoveIC(PST,void *,int,void *,int);
 #endif
-
-/* PST_HOSTNAME */
-struct outHostname {
-    int  iMpiID;
-    char szHostname[20];
-    };
-int pstHostname(PST,void *,int,void *,int);
 
 /* PST_MEMSTATUS */
 struct outMemStatus {

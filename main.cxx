@@ -35,6 +35,7 @@
 #include "outtype.h"
 #include "smoothfcn.h"
 #include "core/setadd.h"
+#include "core/hostname.h"
 
 time_t timeGlobalSignalTime = 0;
 int bGlobalOutput = 0;
@@ -63,6 +64,7 @@ void *worker_init(MDL vmdl) {
     pstInitialize(&pst,vmdl,plcl);
     pstAddServices(pst,vmdl);
     mdl->AddService(std::make_unique<ServiceSetAdd>(pst));
+    mdl->AddService(std::make_unique<ServiceHostname>(pst));
     return pst;
     }
 
