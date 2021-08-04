@@ -43,10 +43,10 @@ struct MSRINSTANCE {
 class MSR {
 protected:
     const PST pst;
-    const MDL mdl;
+    mdl::mdlClass *mdl;
     bool bVDetails;
 public:
-    explicit MSR(MDL mdl,PST pst) : pst(pst), mdl(mdl), bVDetails(false) {}
+    explicit MSR(MDL mdl,PST pst) : pst(pst), mdl(static_cast<mdl::mdlClass *>(mdl)), bVDetails(false) {}
     ~MSR();
 public:
     int Python(int argc, char *argv[]);

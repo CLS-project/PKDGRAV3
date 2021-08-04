@@ -369,7 +369,7 @@ int MSR::ValidateParameters() {
     /*
     ** CUDA likes a larger group size
     */
-    if (mdlCudaActive(mdl) && param.iCUDAQueueSize>0 && !prmSpecified(prm,"nGroup") && param.nGroup<256)
+    if (mdl->isCudaActive() && param.iCUDAQueueSize>0 && !prmSpecified(prm,"nGroup") && param.nGroup<256)
 	param.nGroup = 256;
 
 
