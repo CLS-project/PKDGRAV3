@@ -47,6 +47,7 @@ typedef int (fcnService_t)(void *p1, void *vin, int nIn, void *vout, int nOut);
 #include "mdlbt.h"
 #include <vector>
 #include <string>
+#include <memory>
 #define MAX_NODE_NAME_LENGTH      256
 
 namespace mdl {
