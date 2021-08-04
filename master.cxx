@@ -2927,7 +2927,7 @@ double MSR::getTheta(double dTime) {
     }
 
 void MSR::InitCosmology() {
-    pstInitCosmology(pst, &csm->val, sizeof(csm->val), NULL, 0);
+    mdl->RunService(PST_INITCOSMOLOGY,sizeof(csm->val),&csm->val);
     }
 
 void MSR::ZeroNewRung(uint8_t uRungLo, uint8_t uRungHi, int uRung) {

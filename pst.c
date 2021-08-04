@@ -185,8 +185,6 @@ void pstAddServices(PST pst,MDL mdl) {
 		  sizeof(int),0);
     mdlAddService(mdl,PST_ACTIVEORDER,pst,(fcnService_t*)pstActiveOrder,
 		  0,sizeof(uint64_t));
-    mdlAddService(mdl,PST_INITCOSMOLOGY,pst,(fcnService_t*)pstInitCosmology,
-		  sizeof(struct csmVariables),0);
     mdlAddService(mdl,PST_ZERONEWRUNG,pst,(fcnService_t*)pstZeroNewRung,
 		  sizeof(struct inZeroNewRung),0);
     mdlAddService(mdl,PST_ACTIVERUNG,pst,(fcnService_t*)pstActiveRung,
@@ -2918,22 +2916,6 @@ int pstZeroNewRung(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	}
     else {
 	pkdZeroNewRung(plcl->pkd,in->uRungLo,in->uRungHi,in->uRung);
-	}
-    return 0;
-    }
-
-int pstInitCosmology(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    LCL *plcl = pst->plcl;
-
-    mdlassert(pst->mdl,nIn == sizeof(struct csmVariables));
-    if (pst->nLeaves > 1) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_INITCOSMOLOGY,vin,nIn);
-	pstInitCosmology(pst->pstLower,vin,nIn,NULL,0);
-	mdlGetReply(pst->mdl,rID,NULL,NULL);
-	}
-    else {
-	struct csmVariables *cosmo = vin;
-	pkdInitCosmology(plcl->pkd,cosmo);
 	}
     return 0;
     }

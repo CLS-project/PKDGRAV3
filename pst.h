@@ -786,9 +786,6 @@ struct inZeroNewRung {
     };
 int pstZeroNewRung(PST,void *,int,void *,int);
 
-/* PST_INITCOSMOLOGY: struct csmVariables as input */
-int pstInitCosmology(PST,void *,int,void *,int);
-
 struct inDensCheck {
     int iRung;
     int bGreater;
