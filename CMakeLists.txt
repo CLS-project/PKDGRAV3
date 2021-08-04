@@ -154,12 +154,13 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 )
 set_property(TARGET ${PROJECT_NAME} APPEND PROPERTY COMPILE_DEFINITIONS _LARGEFILE_SOURCE)
 target_sources(${PROJECT_NAME} PRIVATE
-	main.cxx cosmo.c master.cxx simulate.cxx pst.c fio.c illinois.c param.c
+	main.cxx cosmo.c master.cxx simulate.cxx pst.c TraversePST.cxx fio.c illinois.c param.c
 	pkd.c analysis.c smooth.c smoothfcn.c outtype.c output.cxx
 	walk2.c grav2.c ewald.cxx ic.cxx tree.cxx opening.cxx pp.cxx pc.cxx cl.c
 	lst.c moments.c ilp.c ilc.c iomodule.c
 	fof.c hop.c group.c groupstats.c RngStream.c listcomp.c healpix.c
 	gridinfo.cxx interlace.cxx contrast.cxx assignmass.cxx measurepk.cxx bispectrum.cxx whitenoise.cxx pmforces.cxx
+        core/setadd.cxx
 )
 set_property(SOURCE fio.c APPEND PROPERTY COMPILE_DEFINITIONS "USE_PTHREAD")
 add_executable(tostd tostd.c fio.c)

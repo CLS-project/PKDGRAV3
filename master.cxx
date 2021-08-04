@@ -73,6 +73,8 @@ using namespace fmt::literals; // Gives us ""_a and ""_format literals
 #include "smoothfcn.h"
 #include "fio.h"
 
+#include "core/setadd.h"
+
 #define LOCKFILE ".lockfile"	/* for safety lock */
 #define STOPFILE "STOP"			/* for user interrupt */
 #define CHECKFILE "CHECKPOINT"		/* for user interrupt */
@@ -434,7 +436,7 @@ void MSR::Checkpoint(int iStep,int nSteps,double dTime,double dDelta) {
 
 int MSR::Initialize() {
     int i,j,ret;
-    struct inSetAdd inAdd;
+    ServiceSetAdd::input inAdd;
     char ach[256];
     int bDoRestore;
 
@@ -1121,7 +1123,7 @@ int MSR::Initialize() {
     if (nThreads > 1)
 	msrprintf("Adding %d through %d to the PST\n",
 		  inAdd.idLower+1,inAdd.idUpper-1);
-    pstSetAdd(pst,&inAdd,sizeof(inAdd),NULL,0);
+    mdl->RunService(PST_SETADD,sizeof(inAdd),&inAdd);
 
     return bDoRestore;
     }

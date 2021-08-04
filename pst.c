@@ -58,8 +58,6 @@ void pstAddServices(PST pst,MDL mdl) {
 
     nThreads = mdlThreads(mdl);
 
-    mdlAddService(mdl,PST_SETADD,pst,(fcnService_t*)pstSetAdd,
-		  sizeof(struct inSetAdd),0);
     mdlAddService(mdl,PST_READFILE,pst,(fcnService_t*)pstReadFile,
 	          sizeof(struct inReadFile) + PST_MAX_FILES*(sizeof(fioSpeciesList)+PST_FILENAME_SIZE),0);
     mdlAddService(mdl,PST_DOMAINDECOMP,pst,(fcnService_t*)pstDomainDecomp,
@@ -348,40 +346,6 @@ void pstFinish(PST pst) {
 	pst = pst->pstLower;
 	free(pstKill);
 	}
-    }
-
-int pstSetAdd(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    PST pstNew;
-    struct inSetAdd *in = vin;
-    int n, idMiddle,iProcLower,iProcUpper;
-    mdlassert(pst->mdl,nIn == sizeof(struct inSetAdd));
-    mdlassert(pst->mdl,pst->nLeaves==1);
-    mdlassert(pst->mdl,in->idLower==mdlSelf(pst->mdl));
-    n = in->idUpper - in->idLower;
-    idMiddle = (in->idUpper + in->idLower) / 2;
-    if ( n > 1 ) {
-	int rID;
-	/* Make sure that the pst lands on core zero */
-	iProcLower = mdlThreadToProc(pst->mdl,in->idLower);
-	iProcUpper = mdlThreadToProc(pst->mdl,in->idUpper-1);
-	if (iProcLower!=iProcUpper) {
-	    idMiddle = mdlProcToThread(pst->mdl,mdlThreadToProc(pst->mdl,idMiddle));
-	    }
-	pst->nLeaves += n - 1;
-	pst->nLower = idMiddle - in->idLower;
-	pst->nUpper = in->idUpper - idMiddle;
-
-	in->idLower = idMiddle;
-	pst->idUpper = in->idLower;
-	rID = mdlReqService(pst->mdl,pst->idUpper,PST_SETADD,in,nIn);
-	in->idLower = mdlSelf(pst->mdl);
-	in->idUpper = idMiddle;
-	pstInitialize(&pstNew,pst->mdl,pst->plcl);
-	pst->pstLower = pstNew;
-	pstSetAdd(pst->pstLower,in,nIn,NULL,0);
-	mdlGetReply(pst->mdl,rID,NULL,NULL);
-	}
-    return 0;
     }
 
 static void initializePStore(PKD *ppkd,MDL mdl,struct inInitializePStore *in) {

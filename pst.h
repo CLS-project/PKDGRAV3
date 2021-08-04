@@ -239,14 +239,6 @@ void pstAddServices(PST,MDL);
 void pstInitialize(PST *,MDL,LCL *);
 void pstFinish(PST);
 
-/* PST_SETADD */
-
-struct inSetAdd {
-    int idLower;
-    int idUpper;
-    };
-int pstSetAdd(PST,void *,int,void *,int);
-
 /* PST_INITIALIZEPSTORE */
 struct inInitializePStore {
     uint64_t mMemoryModel;

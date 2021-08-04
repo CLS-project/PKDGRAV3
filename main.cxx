@@ -34,6 +34,7 @@
 #include "master.h"
 #include "outtype.h"
 #include "smoothfcn.h"
+#include "core/setadd.h"
 
 time_t timeGlobalSignalTime = 0;
 int bGlobalOutput = 0;
@@ -54,12 +55,14 @@ static inline void USR2_handler(int signo) {
 ** This function is called at the very start by every thread.
 ** It returns the "worker context"; in this case the PST.
 */
-void *worker_init(MDL mdl) {
+void *worker_init(MDL vmdl) {
+    auto mdl = reinterpret_cast<mdl::mdlClass *>(vmdl);
     PST pst;
     LCL *plcl = new LCL;
     plcl->pkd = NULL;
-    pstInitialize(&pst,mdl,plcl);
-    pstAddServices(pst,mdl);
+    pstInitialize(&pst,vmdl,plcl);
+    pstAddServices(pst,vmdl);
+    mdl->AddService(std::make_unique<ServiceSetAdd>(pst));
     return pst;
     }
 
