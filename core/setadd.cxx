@@ -16,9 +16,10 @@
  */
 #include "setadd.h"
 
-// Make sure that the communication structure is a simple data structure
-#include <type_traits>
-static_assert(std::is_standard_layout<ServiceSetAdd::input>(),"not POD");
+// Make sure that the communication structure is "trivial" so that it
+// can be moved around with "memcpy" which is required for MDL.
+static_assert(std::is_void<ServiceSetAdd::input>()  || std::is_trivial<ServiceSetAdd::input>());
+static_assert(std::is_void<ServiceSetAdd::output>() || std::is_trivial<ServiceSetAdd::output>());
 
 // This is a weird service. Normally we use TraversePST, but here
 // we are actually setting up the PST structure.

@@ -18,6 +18,7 @@
 
 class ServiceHostname : public TraversePST {
 public:
+    typedef void input;
     struct output {
 	int  iMpiID;
 	char szHostname[20];

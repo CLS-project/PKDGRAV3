@@ -26,6 +26,7 @@ public:
 	input(int idUpper) : idLower(0), idUpper(idUpper) {}
 	input(int idLower, int idUpper) : idLower(idLower), idUpper(idUpper) {}
 	};
+    typedef void output;
     explicit ServiceSetAdd(PST node_pst)
 	: BasicService(PST_SETADD, sizeof(input), "SetAdd"), node_pst(node_pst) {}
 protected:

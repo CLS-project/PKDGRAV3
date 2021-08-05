@@ -16,9 +16,10 @@
  */
 #include "hostname.h"
 
-// Make sure that the communication structure is a simple data structure
-#include <type_traits>
-static_assert(std::is_standard_layout<ServiceHostname::output>(),"not POD");
+// Make sure that the communication structure is "trivial" so that it
+// can be moved around with "memcpy" which is required for MDL.
+static_assert(std::is_void<ServiceHostname::input>()  || std::is_trivial<ServiceHostname::input>());
+static_assert(std::is_void<ServiceHostname::output>() || std::is_trivial<ServiceHostname::output>());
 
 int ServiceHostname::Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto out = static_cast<output *>(vout);

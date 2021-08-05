@@ -18,7 +18,12 @@
 #define TRAVERSEPST_H
 #include "pst.h"
 #include <string>
+#include <type_traits>
 
+// This class will traverse the PST calling Recurse() at each level.
+// The Recurse method is responsible for making a request,
+// calling and calling Traverse() recursively. When a leaf is reach
+// the Service() function is called.
 class TraversePST : public mdl::BasicService {
     PST node_pst;
 public:
@@ -41,6 +46,8 @@ protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) = 0;
     };
 
+// This class is for services where the input does not change as the PST is walked,
+// but where a customized Combine for a fixed size output is needed.
 class TraverseCombinePST : public TraversePST {
 public:
     explicit TraverseCombinePST(PST node_pst,int service_id,
