@@ -619,10 +619,16 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	assert(in->nInflateFactor>0);
 	assert(in->nMove <= (pkd->nStore/in->nInflateFactor));
 	double inGrid = 1.0 / in->nGrid;
-      float fGasMass = 2.0*in->fMass*in->dOmegaRate;
-      float fDarkMass = 2.0*in->fMass*(1.0 - in->dOmegaRate);
-      float fGasSoft = in->fSoft * sqrt(in->dOmegaRate);
-      float fDarkSoft = in->fSoft;
+      float fGasMass, fDarkMass, fGasSoft, fDarkSoft;
+      if (in->bICgas){
+         fGasMass = 2.0*in->fMass*in->dOmegaRate;
+         fDarkMass = 2.0*in->fMass*(1.0 - in->dOmegaRate);
+         fGasSoft = in->fSoft * sqrt(in->dOmegaRate);
+         fDarkSoft = in->fSoft;
+      }else{
+         fDarkMass = in->fMass;
+         fDarkSoft = in->fSoft;
+      }
 	for(i=in->nMove-1; i>=0; --i) {
 	    PARTICLE *p = pkdParticle(pkd,i);
 	    vel_t *pVel = pkdVel(pkd,p);
@@ -669,9 +675,14 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
              pkdSetClass(pkd, fGasMass, fGasSoft, FIO_SPECIES_SPH, pgas);
 
              if (pkd->oParticleID){
-                uint64_t *pID = pkdParticleID(pkd,p);
+                uint64_t *pID = pkdParticleID(pkd,pgas);
                 *pID = 2*(*pID);
              }
+             pkdSetPos(pkd,pgas,2,pkdPos(pkd,pgas, 2)+inGrid*0.5);
+             pkdSetPos(pkd,pgas,1,pkdPos(pkd,pgas, 1)+inGrid*0.5);
+             pkdSetPos(pkd,pgas,0,pkdPos(pkd,pgas, 0)+inGrid*0.5);
+
+             *pkd_pNeighborList(pkd,pgas) = NULL;
 
              vel_t *pVelGas = pkdVel(pkd,pgas);
              // Change the scale factor dependency

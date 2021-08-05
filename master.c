@@ -1991,7 +1991,7 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
 	/* code comoving density --> g per cc = msr->param.dGmPerCcUnit (1+z)^3 */
 	msr->param.dComovingGmPerCcUnit = msr->param.dGmPerCcUnit;
 	}
-    else if (msr->param.bICgas) {
+    else if (msr->param.bICgas || msr->param.nGrid) {
       // We need to properly set a unit system, we do so following the
       // convention: G=1, rho=Omega0 in code units
       msr->param.dKpcUnit = msr->param.dBoxSize*1e3 / msr->param.h;
