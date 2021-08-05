@@ -1115,32 +1115,6 @@ void pkdCalcBound(PKD pkd,BND *pbnd) {
 	}
     }
 
-void pkdCalcVBound(PKD pkd,BND *pbnd) {
-    double dMin[3],dMax[3];
-    PARTICLE *p;
-    vel_t *v;
-    int i = 0;
-    int j;
-
-    mdlassert(pkd->mdl,pkd->nLocal > 0);
-    p = pkdParticle(pkd,i);
-    v = pkdVel(pkd,p);
-    for (j=0;j<3;++j) {
-	dMin[j] = v[j];
-	dMax[j] = v[j];
-	}
-    for (++i;i<pkd->nLocal;++i) {
-	p = pkdParticle(pkd,i);
-	v = pkdVel(pkd,p);
-	pkdMinMax(v,dMin,dMax);
-	}
-    for (j=0;j<3;++j) {
-	pbnd->fCenter[j] = pkd->vbnd.fCenter[j] = 0.5*(dMin[j] + dMax[j]);
-	pbnd->fMax[j] = pkd->vbnd.fMax[j] = 0.5*(dMax[j] - dMin[j]);
-	}
-    }
-
-
 void pkdEnforcePeriodic(PKD pkd,BND *pbnd) {
     PARTICLE *p;
     double r;

@@ -331,7 +331,7 @@ void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTi
     pstRestore(pst,&restore,sizeof(restore),NULL,0);
     pstSetClasses(pst,aCheckpointClasses,nCheckpointClasses*sizeof(PARTCLASS),NULL,0);
     BND bnd;
-    pstCalcBound(pst,NULL,0,&bnd,sizeof(bnd));
+    CalcBound(bnd);
     CountRungs(NULL);
 
     auto dsec = MSR::Time() - sec;
@@ -430,7 +430,7 @@ void MSR::Checkpoint(int iStep,int nSteps,double dTime,double dDelta) {
 
     /* This is not necessary, but it means the bounds will be identical upon restore */
     BND bnd;
-    pstCalcBound(pst,NULL,0,&bnd,sizeof(BND));
+    CalcBound(bnd);
 
     dsec = MSR::Time() - sec;
     msrprintf("Checkpoint has been successfully written, Wallclock: %f secs.\n", dsec);
@@ -1909,7 +1909,7 @@ void MSR::DomainDecompOld(int iRung) {
 	pstEnforcePeriodic(pst,&in.bnd,sizeof(BND),NULL,0);
 	}
     else {
-	pstCombineBound(pst,NULL,0,&in.bnd,sizeof(in.bnd));
+	mdl->RunService(PST_COMBINEBOUND,0,NULL,&in.bnd);
 	}
     /*
     ** If we are doing SPH we need to make absolutely certain to clear
@@ -4119,7 +4119,7 @@ double MSR::Read(const char *achInFile) {
 	    param.dyPeriod >= FLOAT_MAXVAL ||
 	    param.dzPeriod >= FLOAT_MAXVAL) {
 	BND bnd;
-	CalcBound(&bnd);
+	CalcBound(bnd);
 	}
 
     InitCosmology();
@@ -4127,20 +4127,9 @@ double MSR::Read(const char *achInFile) {
     return dTime;
     }
 
-
-void MSR::CalcBound(BND *pbnd) {
-    /*
-    ** This sets the local pkd->bnd.
-    */
-    pstCalcBound(pst,NULL,0,pbnd,sizeof(*pbnd));
-    }
-
-//JDP: unused
-void MSR::CalcVBound(BND *pbnd) {
-    /*
-    ** This sets the local pkd->bnd.
-    */
-    pstCalcVBound(pst,NULL,0,pbnd,sizeof(*pbnd));
+// This sets the local pkd->bnd.
+void MSR::CalcBound(BND &bnd) {
+    mdl->RunService(PST_CALCBOUND,0,NULL,&bnd);
     }
 
 void MSR::OutputGrid(const char *filename, bool k, int iGrid, int nParaWrite) {

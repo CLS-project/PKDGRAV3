@@ -62,12 +62,6 @@ void pstAddServices(PST pst,MDL mdl) {
 	          sizeof(struct inReadFile) + PST_MAX_FILES*(sizeof(fioSpeciesList)+PST_FILENAME_SIZE),0);
     mdlAddService(mdl,PST_DOMAINDECOMP,pst,(fcnService_t*)pstDomainDecomp,
 		  sizeof(struct inDomainDecomp),0);
-    mdlAddService(mdl,PST_CALCBOUND,pst,(fcnService_t*)pstCalcBound,
-		  0,sizeof(BND));
-    mdlAddService(mdl,PST_CALCVBOUND,pst,(fcnService_t*)pstCalcVBound,
-		  0,sizeof(BND));
-    mdlAddService(mdl,PST_COMBINEBOUND,pst,(fcnService_t*)pstCombineBound,
-		  0,sizeof(BND));
     mdlAddService(mdl,PST_WEIGHT,pst,(fcnService_t*)pstWeight,
 		  sizeof(struct inWeight),sizeof(struct outWeight));
     mdlAddService(mdl,PST_WEIGHTWRAP,pst,(fcnService_t*)pstWeightWrap,
@@ -1265,65 +1259,6 @@ int pstDomainDecomp(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	}
     return 0;
     }
-
-
-int pstCalcBound(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    LCL *plcl = pst->plcl;
-    BND *out = vout;
-    BND outBnd;
-
-    mdlassert(pst->mdl,nIn == 0);
-    mdlassert(pst->mdl,nOut >= sizeof(BND));
-    if (pst->nLeaves > 1) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_CALCBOUND,NULL,0);
-	pstCalcBound(pst->pstLower,NULL,0,out,nOut);
-	mdlGetReply(pst->mdl,rID,&outBnd,NULL);
-	BND_COMBINE(out,out,&outBnd);
-	}
-    else {
-	pkdCalcBound(plcl->pkd,out);
-	}
-    return sizeof(BND);
-    }
-
-int pstCalcVBound(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    LCL *plcl = pst->plcl;
-    BND *out = vout;
-    BND outBnd;
-
-    mdlassert(pst->mdl,nIn == 0);
-    mdlassert(pst->mdl,nOut >= sizeof(BND));
-    if (pst->nLeaves > 1) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_CALCVBOUND,NULL,0);
-	pstCalcVBound(pst->pstLower,NULL,0,out,nOut);
-	mdlGetReply(pst->mdl,rID,&outBnd,NULL);
-	BND_COMBINE(out,out,&outBnd);
-	}
-    else {
-	pkdCalcVBound(plcl->pkd,out);
-	}
-    return sizeof(BND);
-    }
-
-int pstCombineBound(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    LCL *plcl = pst->plcl;
-    BND *out = vout;
-    BND outBnd;
-
-    mdlassert(pst->mdl,nIn == 0);
-    mdlassert(pst->mdl,nOut >= sizeof(BND));
-    if (pst->nLeaves > 1) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_COMBINEBOUND,NULL,0);
-	pstCombineBound(pst->pstLower,NULL,0,out,nOut);
-	mdlGetReply(pst->mdl,rID,&outBnd,NULL);
-	BND_COMBINE(out,out,&outBnd);
-	}
-    else {
-        *out = plcl->pkd->bnd;
-	}
-    return sizeof(BND);
-    }
-
 
 /*
 ** Make sure that the local particles are split into active and inactive

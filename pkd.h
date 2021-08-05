@@ -1380,7 +1380,6 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 void pkdSetSoft(PKD pkd,double dSoft);
 void pkdSetCrit(PKD pkd,double dCrit);
 void pkdCalcBound(PKD,BND *);
-void pkdCalcVBound(PKD,BND *);
 void pkdEnforcePeriodic(PKD,BND *);
 void pkdPhysicalSoft(PKD pkd,double dSoftMax,double dFac,int bSoftMaxMul);
 int pkdWeight(PKD,int,double,int,int,int,int *,int *,double *,double *);

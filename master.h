@@ -286,8 +286,7 @@ protected:
     void BuildTree(int bNeedEwald,uint32_t uRoot,uint32_t utRoot);
     void ActiveRung(int iRung, int bGreater);
     void ActiveOrder();
-    void CalcBound(BND *pbnd);
-    void CalcVBound(BND *pbnd);
+    void CalcBound(BND &bnd);
     void GetNParts();
     void ScaleVel(double dvFac);
     double AdjustTime(double aOld, double aNew);

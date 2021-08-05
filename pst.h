@@ -83,7 +83,6 @@ enum pst_service {
     PST_READFILE,
     PST_DOMAINDECOMP,
     PST_CALCBOUND,
-    PST_CALCVBOUND,
     PST_COMBINEBOUND,
     PST_WEIGHT,
     PST_WEIGHTWRAP,
@@ -282,15 +281,6 @@ struct inDomainDecomp {
     uint64_t nTotal;
     };
 int pstDomainDecomp(PST,void *,int,void *,int);
-
-/* PST_CALCBOUND */
-int pstCalcBound(PST,void *,int,void *,int);
-
-/* PST_CALCVBOUND */
-int pstCalcVBound(PST,void *,int,void *,int);
-
-/* PST_COMBINEBOUND */
-int pstCombineBound(PST,void *,int,void *,int);
 
 /* PST_WEIGHT */
 struct inWeight {
