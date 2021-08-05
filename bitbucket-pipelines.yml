@@ -3,6 +3,7 @@ image: dpotter/pkdgrav3-build
 pipelines:
   default:
     - step:
+        runs-on: self.hosted
         script:
           - cmake .
           - make
