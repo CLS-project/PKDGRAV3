@@ -1471,6 +1471,9 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
     msr->param.bICgas = 0;
     prmAddParam(msr->prm,"bICgas",0,&msr->param.bICgas,
 		sizeof(int),"ICgas","<Enable/disable gas in the ICs> = 0");
+    msr->param.dInitialT = 100.0;
+    prmAddParam(msr->prm,"dInitialT",2,&msr->param.dInitialT,
+		sizeof(double),"InitialT","<Initial temperature of the IC-generated gas> = 100");
 #ifdef USE_PYTHON
     strcpy(msr->param.achScriptFile,"");
     prmAddParam(msr->prm,"achScript",3,msr->param.achScriptFile,256,"script",
@@ -6094,6 +6097,18 @@ double msrGenerateIC(MSR msr) {
     in.nGrid = msr->param.nGrid;
     in.b2LPT = msr->param.b2LPT;
     in.bICgas = msr->param.bICgas;
+    in.dInitialT = msr->param.dInitialT;
+    in.dInitialH = msr->param.dInitialH;
+#ifdef COOLING
+    in.dInitialHe = msr->param.dInitialHe;
+    in.dInitialC = msr->param.dInitialC;
+    in.dInitialN = msr->param.dInitialN;
+    in.dInitialO = msr->param.dInitialO;
+    in.dInitialNe = msr->param.dInitialNe;
+    in.dInitialMg = msr->param.dInitialMg;
+    in.dInitialSi = msr->param.dInitialSi;
+    in.dInitialFe = msr->param.dInitialFe;
+#endif
     in.dOmegaRate = msr->csm->val.dOmegab/msr->csm->val.dOmega0;
     in.dTuFac = msr->param.dTuFac;
     in.bClass = msr->csm->val.classData.bClass;

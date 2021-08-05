@@ -231,6 +231,7 @@ struct parameters {
     double dFixedAmpPhasePI;
     int b2LPT;
     int bICgas;
+    double dInitialT;
 
     /*
      * IA: Parameters for the meshless hydrodynamics

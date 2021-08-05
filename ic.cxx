@@ -605,6 +605,18 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	icUp.fSoft = in->fSoft;
 	icUp.nGrid = in->nGrid;
       icUp.bICgas = in->bICgas;
+      icUp.dInitialT = in->dInitialT;
+      icUp.dInitialH = in->dInitialH;
+#ifdef COOLING
+      icUp.dInitialHe = in->dInitialHe;
+      icUp.dInitialC = in->dInitialC;
+      icUp.dInitialN = in->dInitialN;
+      icUp.dInitialO = in->dInitialO;
+      icUp.dInitialNe = in->dInitialNe;
+      icUp.dInitialMg = in->dInitialMg;
+      icUp.dInitialSi = in->dInitialSi;
+      icUp.dInitialFe = in->dInitialFe;
+#endif
       icUp.dExpansion = in->dExpansion;
       icUp.dOmegaRate = in->dOmegaRate;
       icUp.dTuFac = in->dTuFac;
@@ -692,7 +704,7 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
              pVelGas[2] *= a_m1;
 
              /* Fill the SPHFIELDS with some initial values */
-             double u = 100. * in->dTuFac; // TODO
+             double u = in->dInitialT * in->dTuFac;
              assert(pkd->oSph);
              SPHFIELDS* pSph = pkdSph(pkd,pgas);
 #ifndef OPTIM_REMOVE_UNUSED
@@ -701,67 +713,72 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
                pSph->fMetals = pSph->fMetalsPred = pSph->fMetalsDot = 0.0;
 #endif
 #ifdef COOLING
-             for (j=0;j<chemistry_element_count;j++ ) pSph->chemistry[j]=0.;
+             pSph->chemistry[ chemistry_element_H ] = in->dInitialH    ;
+             pSph->chemistry[ chemistry_element_He] = in->dInitialHe   ;
+             pSph->chemistry[ chemistry_element_C ] = in->dInitialC    ;
+             pSph->chemistry[ chemistry_element_N ] = in->dInitialN    ;
+             pSph->chemistry[ chemistry_element_O ] = in->dInitialO    ;
+             pSph->chemistry[ chemistry_element_Ne] = in->dInitialNe   ;
+             pSph->chemistry[ chemistry_element_Mg] = in->dInitialMg   ;
+             pSph->chemistry[ chemistry_element_Si] = in->dInitialSi   ;
+             pSph->chemistry[ chemistry_element_Fe] = in->dInitialFe   ;
 #endif
-            pSph->vPred[0] = pVelGas[0];
-		pSph->vPred[1] = pVelGas[1];
-		pSph->vPred[2] = pVelGas[2];
-            pSph->Frho = 0.0;
-            pSph->Fmom[0] = 0.0;
-            pSph->Fmom[1] = 0.0;
-            pSph->Fmom[2] = 0.0;
-            pSph->Fene = 0.0;
-            pSph->E = u + 0.5*(pSph->vPred[0]*pSph->vPred[0] +
-                               pSph->vPred[1]*pSph->vPred[1] +
-                               pSph->vPred[2]*pSph->vPred[2]);
-            pSph->E *= fGasMass;
-            pSph->Uint = u*fGasMass;
-            assert(pSph->E>0);
-            pSph->mom[0] = fGasMass*pVelGas[0];
-            pSph->mom[1] = fGasMass*pVelGas[1];
-            pSph->mom[2] = fGasMass*pVelGas[2];
-            pSph->lastMom[0] = 0.; // vel[0];
-            pSph->lastMom[1] = 0.; //vel[1];
-            pSph->lastMom[2] = 0.; //vel[2];
-            pSph->lastE = pSph->E;
+             pSph->vPred[0] = pVelGas[0];
+             pSph->vPred[1] = pVelGas[1];
+             pSph->vPred[2] = pVelGas[2];
+             pSph->Frho = 0.0;
+             pSph->Fmom[0] = 0.0;
+             pSph->Fmom[1] = 0.0;
+             pSph->Fmom[2] = 0.0;
+             pSph->Fene = 0.0;
+             pSph->E = u + 0.5*(pSph->vPred[0]*pSph->vPred[0] +
+                                pSph->vPred[1]*pSph->vPred[1] +
+                                pSph->vPred[2]*pSph->vPred[2]);
+             pSph->E *= fGasMass;
+             pSph->Uint = u*fGasMass;
+             assert(pSph->E>0);
+             pSph->mom[0] = fGasMass*pVelGas[0];
+             pSph->mom[1] = fGasMass*pVelGas[1];
+             pSph->mom[2] = fGasMass*pVelGas[2];
+             pSph->lastMom[0] = 0.; // vel[0];
+             pSph->lastMom[1] = 0.; //vel[1];
+             pSph->lastMom[2] = 0.; //vel[2];
+             pSph->lastE = pSph->E;
 #ifdef ENTROPY_SWITCH
-            pSph->S = 0.0;
-            pSph->lastS = 0.0;
-            pSph->maxEkin = 0.0;
+             pSph->S = 0.0;
+             pSph->lastS = 0.0;
+             pSph->maxEkin = 0.0;
 #endif
-            pSph->lastUint = pSph->Uint;
-            pSph->lastHubble = 0.0;
-            pSph->lastMass = fGasMass;
-            pSph->lastAcc[0] = 0.;
-            pSph->lastAcc[1] = 0.;
-            pSph->lastAcc[2] = 0.;
+             pSph->lastUint = pSph->Uint;
+             pSph->lastHubble = 0.0;
+             pSph->lastMass = fGasMass;
+             pSph->lastAcc[0] = 0.;
+             pSph->lastAcc[1] = 0.;
+             pSph->lastAcc[2] = 0.;
 #ifndef USE_MFM
-            pSph->lastDrDotFrho[0] = 0.;
-            pSph->lastDrDotFrho[1] = 0.;
-            pSph->lastDrDotFrho[2] = 0.;
-            pSph->drDotFrho[0] = 0.;
-            pSph->drDotFrho[1] = 0.;
-            pSph->drDotFrho[2] = 0.;
+             pSph->lastDrDotFrho[0] = 0.;
+             pSph->lastDrDotFrho[1] = 0.;
+             pSph->lastDrDotFrho[2] = 0.;
+             pSph->drDotFrho[0] = 0.;
+             pSph->drDotFrho[1] = 0.;
+             pSph->drDotFrho[2] = 0.;
 #endif
-            //pSph->fLastBall = 0.0;
-            pSph->lastUpdateTime = -1.;
-           // pSph->nLastNeighs = 100;
+             //pSph->fLastBall = 0.0;
+             pSph->lastUpdateTime = -1.;
+            // pSph->nLastNeighs = 100;
 #ifdef COOLING
-            for (j=0; j<chemistry_element_count; j++)
-               pSph->chemistry[j] = fMetals[j];
-
-            pSph->lastCooling = 0.;
-            pSph->cooling_dudt = 0.;
+             pSph->lastCooling = 0.;
+             pSph->cooling_dudt = 0.;
 #endif
 #ifdef OPTIM_CACHED_FLUXES
-            pSph->flux_cache = 0x00000000ULL;
-            pSph->coll_cache = 0x00000000ULL;
+             pSph->flux_cache = 0x00000000ULL;
+             pSph->coll_cache = 0x00000000ULL;
 #ifdef DEBUG_CACHED_FLUXES
-            pSph->avoided_fluxes = 0;
-            pSph->computed_fluxes = 0;
+             pSph->avoided_fluxes = 0;
+             pSph->computed_fluxes = 0;
 #endif
 #endif
-            pSph->uWake = 0;
+             pSph->uWake = 0;
           }
 	    }
 	pkd->nLocal = pkd->nActive = in->nMove;
@@ -891,6 +908,18 @@ int pstMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	move.fSoft = 1.0 / (50.0*in->nGrid);
 	move.nGrid = in->nGrid;
       move.bICgas = in->bICgas;
+      move.dInitialT = in->dInitialT;
+      move.dInitialH = in->dInitialH;
+#ifdef COOLING
+      move.dInitialHe = in->dInitialHe;
+      move.dInitialC = in->dInitialC;
+      move.dInitialN = in->dInitialN;
+      move.dInitialO = in->dInitialO;
+      move.dInitialNe = in->dInitialNe;
+      move.dInitialMg = in->dInitialMg;
+      move.dInitialSi = in->dInitialSi;
+      move.dInitialFe = in->dInitialFe;
+#endif
       move.dExpansion = in->dExpansion;
       move.dOmegaRate = in->dOmegaRate;
       move.dTuFac = in->dTuFac;

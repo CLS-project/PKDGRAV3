@@ -1209,6 +1209,18 @@ struct inGenerateIC {
     int nGrid;
     int b2LPT;
     int bICgas;
+    double dInitialT;
+    double dInitialH;
+#ifdef COOLING
+    double dInitialHe;
+    double dInitialC;
+    double dInitialN;
+    double dInitialO;
+    double dInitialNe;
+    double dInitialMg;
+    double dInitialSi;
+    double dInitialFe;
+#endif
     double dTuFac;
     int bComove;
     int bClass;
@@ -1242,6 +1254,18 @@ struct inMoveIC {
     int nGrid;
     int nInflateFactor;
     int bICgas;
+    double dInitialT;
+    double dInitialH;
+#ifdef COOLING
+    double dInitialHe;
+    double dInitialC;
+    double dInitialN;
+    double dInitialO;
+    double dInitialNe;
+    double dInitialMg;
+    double dInitialSi;
+    double dInitialFe;
+#endif
     double dExpansion;
     double dOmegaRate;
     double dTuFac;
