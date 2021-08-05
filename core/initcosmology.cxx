@@ -22,6 +22,7 @@ static_assert(std::is_standard_layout<ServiceInitCosmology::input>(),"not POD");
 
 int ServiceInitCosmology::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto cosmo = static_cast<input *>(vin);
+    assert(nIn==sizeof(input));
     pkdInitCosmology(pst->plcl->pkd,cosmo);
     return 0;
     }
