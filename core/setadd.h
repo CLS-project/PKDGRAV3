@@ -27,7 +27,7 @@ public:
 	input(int idLower, int idUpper) : idLower(idLower), idUpper(idUpper) {}
 	};
     explicit ServiceSetAdd(PST node_pst)
-	: BasicService(PST_SETADD, sizeof(input), 0, "SetAdd"), node_pst(node_pst) {}
+	: BasicService(PST_SETADD, sizeof(input), "SetAdd"), node_pst(node_pst) {}
 protected:
     virtual int operator()(int nIn, void *pIn, void *pOut) override;
     void SetAdd(PST pst,input *in);

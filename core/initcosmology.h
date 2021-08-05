@@ -20,7 +20,7 @@ class ServiceInitCosmology : public TraversePST {
 public:
     typedef struct csmVariables input;
     explicit ServiceInitCosmology(PST pst)
-	: TraversePST(pst,PST_INITCOSMOLOGY,sizeof(input),0,"InitCosmology") {}
+	: TraversePST(pst,PST_INITCOSMOLOGY,sizeof(input),"InitCosmology") {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut);
     };
