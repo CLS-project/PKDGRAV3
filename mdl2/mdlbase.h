@@ -59,8 +59,12 @@ private:
     int service_id;
     std::string service_name;
 public:
-    explicit BasicService(int service_id, int nInBytes=0, int nOutBytes=0, const char *service_name="")
+    explicit BasicService(int service_id, int nInBytes, int nOutBytes, const char *service_name="")
 	: nInBytes(nInBytes), nOutBytes(nOutBytes), service_id(service_id),service_name(service_name) {}
+    explicit BasicService(int service_id, int nInBytes, const char *service_name="")
+	: nInBytes(nInBytes), nOutBytes(0), service_id(service_id),service_name(service_name) {}
+    explicit BasicService(int service_id, const char *service_name="")
+	: nInBytes(0), nOutBytes(0), service_id(service_id),service_name(service_name) {}
     virtual ~BasicService() = default;
     int getServiceID()  {return service_id;}
     int getMaxBytesIn() {return nInBytes;}

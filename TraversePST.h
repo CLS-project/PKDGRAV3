@@ -23,11 +23,16 @@ class TraversePST : public mdl::BasicService {
     PST node_pst;
 public:
     explicit TraversePST(PST node_pst,int service_id,
-    	int nInBytes=0, int nOutBytes=0, const char *service_name=nullptr)
+	int nInBytes, int nOutBytes, const char *service_name="")
 	: BasicService(service_id, nInBytes, nOutBytes, service_name), node_pst(node_pst) {}
+    explicit TraversePST(PST node_pst,int service_id,
+	int nInBytes, const char *service_name="")
+	: BasicService(service_id, nInBytes, 0, service_name), node_pst(node_pst) {}
+    explicit TraversePST(PST node_pst,int service_id,const char *service_name="")
+	: BasicService(service_id, 0, 0, service_name), node_pst(node_pst) {}
     virtual ~TraversePST() = default;
 protected:
-    virtual int operator()(int nIn, void *pIn, void *pOut) override;
+    virtual int operator()(int nIn, void *pIn, void *pOut) final;
     virtual int Traverse(PST pst,void *vin,int nIn,void *vout,int nOut);
 
     virtual int OffNode(PST pst,void *vin,int nIn,void *vout,int nOut) {return Recurse(pst,vin,nIn,vout,nOut);}
