@@ -75,6 +75,7 @@ using namespace fmt::literals; // Gives us ""_a and ""_format literals
 
 #include "core/setadd.h"
 #include "core/hostname.h"
+#include "core/calcroot.h"
 
 #define LOCKFILE ".lockfile"	/* for safety lock */
 #define STOPFILE "STOP"			/* for user interrupt */
@@ -1944,8 +1945,6 @@ void MSR::DomainDecomp(int iRung) {
 */
 void MSR::BuildTree(int bNeedEwald,uint32_t uRoot,uint32_t utRoot) {
     struct inBuildTree in;
-    struct inCalcRoot calc;
-    struct outCalcRoot root;
     struct inDistribTopTree *pDistribTop;
     const double ddHonHLimit = param.ddHonHLimit;
     int i;
@@ -1988,17 +1987,16 @@ void MSR::BuildTree(int bNeedEwald,uint32_t uRoot,uint32_t utRoot) {
 	** could add to the mass and because it probably is not important to
 	** update the root so frequently.
 	*/
-	double kdn_r[3];
-	pkdNodeGetPos(pkd,pkdn,kdn_r);
-	calc.com[0] = kdn_r[0];
-	calc.com[1] = kdn_r[1];
-	calc.com[2] = kdn_r[2];
+	ServiceCalcRoot::input calc;
+	ServiceCalcRoot::output root;
+	pkdNodeGetPos(pkd,pkdn,calc.com);
 	calc.uRoot = uRoot;
-	pstCalcRoot(pst,&calc,sizeof(calc),&root,sizeof(root));
+
+	mdl->RunService(PST_CALCROOT,sizeof(calc),&calc,&root);
 	momTreeRoot[uRoot] = root.momc;
-	momTreeCom[uRoot][0] = kdn_r[0];
-	momTreeCom[uRoot][1] = kdn_r[1];
-	momTreeCom[uRoot][2] = kdn_r[2];
+	momTreeCom[uRoot][0] = calc.com[0];
+	momTreeCom[uRoot][1] = calc.com[1];
+	momTreeCom[uRoot][2] = calc.com[2];
 	}
     }
 

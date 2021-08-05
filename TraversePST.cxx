@@ -37,3 +37,15 @@ int TraversePST::Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) {
     mdl->GetReply(rID,vout,&nOut);
     return nOut;
     }
+
+// This class is used for services that pass the same input (or none),
+// and need to combine output results of the same size and type.
+int TraverseCombinePST::Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) {
+    auto mdl = reinterpret_cast<mdl::mdlClass *>(pst->mdl);
+    auto rID = mdl->ReqService(pst->idUpper,getServiceID(),vin,nIn);
+    Traverse(pst->pstLower,vin,nIn,vout,nOut);
+    void *vout2 = alloca(nOut);
+    mdl->GetReply(rID,vout2,&nOut);
+    Combine(vout,vout2);
+    return nOut;
+    }

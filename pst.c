@@ -117,8 +117,6 @@ void pstAddServices(PST pst,MDL mdl) {
 	          sizeof(struct inDumpTrees),0);
     mdlAddService(mdl,PST_TREEINITMARKED,pst,(fcnService_t*)pstTreeInitMarked,
 	          0,0);
-    mdlAddService(mdl,PST_CALCROOT,pst,(fcnService_t*)pstCalcRoot,
-	          sizeof(struct inCalcRoot),sizeof(struct outCalcRoot));
     mdlAddService(mdl,PST_DISTRIBROOT,pst,(fcnService_t*)pstDistribRoot,
 		  sizeof(struct ioDistribRoot),0);
     mdlAddService(mdl,PST_ENFORCEPERIODIC,pst,(fcnService_t*)pstEnforcePeriodic,
@@ -2206,26 +2204,6 @@ int pstBuildTree(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	nOut = pkdNodeSize(pkd);
 	}
     return nOut;
-    }
-
-int pstCalcRoot(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    LCL *plcl = pst->plcl;
-    struct inCalcRoot *in = vin;
-    struct outCalcRoot *out = vout;
-    struct outCalcRoot temp;
-
-    mdlassert(pst->mdl,nIn == sizeof(struct inCalcRoot) );
-    mdlassert(pst->mdl,nOut == sizeof(struct outCalcRoot) );
-    if (pst->nLeaves > 1) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_CALCROOT,vin,nIn);
-	pstCalcRoot(pst->pstLower,vin,nIn,out,nOut);
-	mdlGetReply(pst->mdl,rID,&temp,NULL);
-	momAddMomc(&out->momc,&temp.momc);
-	}
-    else {
-	pkdCalcRoot(plcl->pkd,in->uRoot,in->com,&out->momc);
-	}
-    return sizeof(struct outCalcRoot);
     }
 
 int pstDistribRoot(PST pst,void *vin,int nIn,void *vout,int nOut) {

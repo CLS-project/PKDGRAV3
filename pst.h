@@ -472,16 +472,6 @@ int pstDumpTrees(PST,void *,int,void *,int);
 /* PST_TREEINITMARKED */
 int pstTreeInitMarked(PST,void *,int,void *,int);
 
-/* PST_CALCROOT */
-struct inCalcRoot {
-    double com[3];
-    uint32_t uRoot;
-    };
-struct outCalcRoot {
-    MOMC momc;
-    };
-int pstCalcRoot(PST,void *,int,void *,int);
-
 /* PST_DISTRIBROOT */
 struct ioDistribRoot {
     double r[3];

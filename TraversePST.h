@@ -41,4 +41,14 @@ protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) = 0;
     };
 
+class TraverseCombinePST : public TraversePST {
+public:
+    explicit TraverseCombinePST(PST node_pst,int service_id,
+        int nInBytes=0, int nOutBytes=0, const char *service_name="")
+	: TraversePST(node_pst,service_id, nInBytes, nOutBytes, service_name) {}
+    virtual ~TraverseCombinePST() = default;
+protected:
+    virtual int Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) final;
+    virtual int Combine(void *vout,void *vout2) = 0;
+    };
 #endif

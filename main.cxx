@@ -37,6 +37,7 @@
 #include "core/setadd.h"
 #include "core/hostname.h"
 #include "core/initcosmology.h"
+#include "core/calcroot.h"
 
 time_t timeGlobalSignalTime = 0;
 int bGlobalOutput = 0;
@@ -67,6 +68,7 @@ void *worker_init(MDL vmdl) {
     mdl->AddService(std::make_unique<ServiceSetAdd>(pst));
     mdl->AddService(std::make_unique<ServiceHostname>(pst));
     mdl->AddService(std::make_unique<ServiceInitCosmology>(pst));
+    mdl->AddService(std::make_unique<ServiceCalcRoot>(pst));
     return pst;
     }
 
