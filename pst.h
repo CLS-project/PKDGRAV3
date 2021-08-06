@@ -732,9 +732,6 @@ int pstSetTotal(PST,void *,int,void *,int);
 /* PST_ONENODEREADINIT */
 int pstOneNodeReadInit(PST pst,void *vin,int nIn,void *vout,int nOut);
 
-/* PST_SWAPALL */
-int pstSwapAll(PST pst,void *vin,int nIn,void *vout,int nOut);
-
 /* PST_ACTIVEORDER */
 int pstActiveOrder(PST,void *,int,void *,int);
 

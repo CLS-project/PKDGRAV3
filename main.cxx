@@ -36,6 +36,7 @@
 #include "smoothfcn.h"
 
 #include "core/setadd.h"
+#include "core/swapall.h"
 #include "core/hostname.h"
 #include "core/initcosmology.h"
 #include "core/calcroot.h"
@@ -74,6 +75,7 @@ void *worker_init(MDL vmdl) {
     pstInitialize(&pst,vmdl,plcl);
     pstAddServices(pst,vmdl);
     mdl->AddService(std::make_unique<ServiceSetAdd>(pst));
+    mdl->AddService(std::make_unique<ServiceSwapAll>(pst));
     mdl->AddService(std::make_unique<ServiceHostname>(pst));
     mdl->AddService(std::make_unique<ServiceInitCosmology>(pst));
     mdl->AddService(std::make_unique<ServiceCalcRoot>(pst));

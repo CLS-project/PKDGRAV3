@@ -167,8 +167,6 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_ONENODEREADINIT,pst,(fcnService_t*)pstOneNodeReadInit,
 	          sizeof(struct inReadFile) + PST_MAX_FILES*(sizeof(fioSpeciesList)+PST_FILENAME_SIZE),
 	          nThreads*sizeof(int));
-    mdlAddService(mdl,PST_SWAPALL,pst,(fcnService_t*)pstSwapAll,
-		  sizeof(int),0);
     mdlAddService(mdl,PST_ACTIVEORDER,pst,(fcnService_t*)pstActiveOrder,
 		  0,sizeof(uint64_t));
     mdlAddService(mdl,PST_ZERONEWRUNG,pst,(fcnService_t*)pstZeroNewRung,
@@ -1562,24 +1560,6 @@ int pstSwapRejects(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	}
     /*	pkdStopTimer(plcl->pkd,8); */
     }
-
-/*
- * Routine to swap all particles.  Note that this does not walk the pst
- * but simply works with one other processor.
- */
-int pstSwapAll(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    LCL *plcl;
-    int *pidSwap = vin;
-    PST lpst;
-
-    mdlassert(pst->mdl,nIn == sizeof(*pidSwap));
-    lpst = pst;
-    while (lpst->nLeaves > 1) lpst = lpst->pstLower;
-    plcl = lpst->plcl;
-    pkdSwapAll(plcl->pkd, *pidSwap);
-    return 0;
-    }
-
 
 uint64_t _pstOrdSplit(PST pst,uint64_t iMinOrder,uint64_t iMaxOrder) {
     struct outFreeStore outFree;

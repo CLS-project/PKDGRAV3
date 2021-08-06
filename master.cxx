@@ -74,6 +74,7 @@ using namespace fmt::literals; // Gives us ""_a and ""_format literals
 #include "fio.h"
 
 #include "core/setadd.h"
+#include "core/swapall.h"
 #include "core/hostname.h"
 #include "core/calcroot.h"
 
@@ -1425,7 +1426,7 @@ void MSR::OneNodeRead(struct inReadFile *in, FIO fio) {
     LCL *plcl;
     char achInFile[PST_FILENAME_SIZE];
     int nid;
-    int inswap;
+    ServiceSwapAll::input inswap;
     int rID;
 
     std::unique_ptr<int[]> nParts {new int[nThreads]};
@@ -1456,8 +1457,9 @@ void MSR::OneNodeRead(struct inReadFile *in, FIO fio) {
 	 * Now shove them over to the remote processor.
 	 */
 	SwapClasses(id);
-	inswap = 0;
-	rID = mdlReqService(pst0->mdl,id,PST_SWAPALL,&inswap,sizeof(inswap));
+	inswap.idSwap = 0;
+	rID = mdl->ReqService(id,PST_SWAPALL,&inswap,sizeof(inswap));
+	//rID = mdlReqService(pst0->mdl,id,PST_SWAPALL,&inswap,sizeof(inswap));
 	pkdSwapAll(plcl->pkd, id);
 	mdlGetReply(pst0->mdl,rID,NULL,NULL);
 	}
@@ -2153,7 +2155,7 @@ void MSR::OutASCII(const char *pszFile,int iType,int nDims,int iFileType) {
     LCL *plcl;
     PST pst0;
     int id,iDim;
-    int inswap;
+    ServiceSwapAll::input inswap;
     PKDOUT pkdout;
     const char *arrayOrVector;
     struct outSetTotal total;
@@ -2246,8 +2248,9 @@ void MSR::OutASCII(const char *pszFile,int iType,int nDims,int iFileType) {
 		/*
 		 * Swap particles with the remote processor.
 		 */
-		inswap = 0;
-		rID = mdlReqService(pst0->mdl,id,PST_SWAPALL,&inswap,sizeof(inswap));
+		inswap.idSwap = 0;
+		rID = mdl->ReqService(id,PST_SWAPALL,&inswap,sizeof(inswap));
+		//rID = mdlReqService(pst0->mdl,id,PST_SWAPALL,&inswap,sizeof(inswap));
 		pkdSwapAll(plcl->pkd, id);
 		mdlGetReply(pst0->mdl,rID,NULL,NULL);
 		/*
@@ -2257,8 +2260,9 @@ void MSR::OutASCII(const char *pszFile,int iType,int nDims,int iFileType) {
 		/*
 		 * Swap them back again.
 		 */
-		inswap = 0;
-		rID = mdlReqService(pst0->mdl,id,PST_SWAPALL,&inswap,sizeof(inswap));
+		inswap.idSwap = 0;
+		rID = mdl->ReqService(id,PST_SWAPALL,&inswap,sizeof(inswap));
+		//rID = mdlReqService(pst0->mdl,id,PST_SWAPALL,&inswap,sizeof(inswap));
 		pkdSwapAll(plcl->pkd,id);
 		mdlGetReply(pst0->mdl,rID,NULL,NULL);
 		}
