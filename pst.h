@@ -445,13 +445,6 @@ struct inBuildTree {
     };
 int pstBuildTree(PST,void *,int,void *,int);
 
-/* PST_DISTRIBTOPTREE */
-struct inDistribTopTree {
-    uint32_t uRoot; /* Which root node to use */
-    uint32_t nTop;
-    };
-int pstDistribTopTree(PST,void *,int,void *,int);
-
 /* PST_DUMPTREES */
 struct inDumpTrees {
     int bOnlyVA;

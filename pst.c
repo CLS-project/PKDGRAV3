@@ -105,8 +105,6 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_BUILDTREE,pst,(fcnService_t*)pstBuildTree,
 	sizeof(struct inBuildTree),
 	(nThreads==1?1:2*nThreads-1)*pkdMaxNodeSize());
-    mdlAddService(mdl,PST_DISTRIBTOPTREE,pst,(fcnService_t*)pstDistribTopTree,
-	sizeof(struct inDistribTopTree) + (nThreads==1?1:2*nThreads-1)*pkdMaxNodeSize(),0);
     mdlAddService(mdl,PST_DUMPTREES,pst,(fcnService_t*)pstDumpTrees,
 	          sizeof(struct inDumpTrees),0);
     mdlAddService(mdl,PST_TREEINITMARKED,pst,(fcnService_t*)pstTreeInitMarked,
@@ -2061,22 +2059,6 @@ int pstTreeInitMarked(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	}
     else {
 	pkdTreeInitMarked(pkd);
-	}
-    return 0;
-    }
-
-int pstDistribTopTree(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    LCL *plcl = pst->plcl;
-    PKD pkd = plcl->pkd;
-    KDN *pTop = vin;
-    struct inDistribTopTree *in = vin;
-    if (pst->nLeaves > 1) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_DISTRIBTOPTREE,vin,nIn);
-	pstDistribTopTree(pst->pstLower,vin,nIn,NULL,0);
-	mdlGetReply(pst->mdl,rID,NULL,NULL);
-	}
-    else {
-	pkdDistribTopTree(pkd,in->uRoot,in->nTop,(KDN *)(in+1));
 	}
     return 0;
     }

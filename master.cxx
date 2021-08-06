@@ -77,6 +77,8 @@ using namespace fmt::literals; // Gives us ""_a and ""_format literals
 #include "core/hostname.h"
 #include "core/calcroot.h"
 
+#include "domains/distribtoptree.h"
+
 #define LOCKFILE ".lockfile"	/* for safety lock */
 #define STOPFILE "STOP"			/* for user interrupt */
 #define CHECKFILE "CHECKPOINT"		/* for user interrupt */
@@ -1945,14 +1947,11 @@ void MSR::DomainDecomp(int iRung) {
 */
 void MSR::BuildTree(int bNeedEwald,uint32_t uRoot,uint32_t utRoot) {
     struct inBuildTree in;
-    struct inDistribTopTree *pDistribTop;
     const double ddHonHLimit = param.ddHonHLimit;
     int i;
     PST pst0;
     LCL *plcl;
     PKD pkd;
-    KDN *pkdn;
-    int nTopTree;
     double sec,dsec;
 
     pst0 = pst;
@@ -1961,11 +1960,13 @@ void MSR::BuildTree(int bNeedEwald,uint32_t uRoot,uint32_t utRoot) {
     plcl = pst0->plcl;
     pkd = plcl->pkd;
 
-    nTopTree = pkdNodeSize(pkd) * (2*nThreads-1);
-    std::unique_ptr<char[]> buffer {new char[sizeof(struct inDistribTopTree) + nTopTree]};
-    pDistribTop = new (buffer.get()) struct inDistribTopTree;
+    auto nTopTree = pkdNodeSize(pkd) * (2*nThreads-1);
+    auto nMsgSize = sizeof(ServiceDistribTopTree::input) + nTopTree;
+
+    std::unique_ptr<char[]> buffer {new char[nMsgSize]};
+    auto pDistribTop = new (buffer.get()) struct ServiceDistribTopTree::input;
+    auto pkdn = reinterpret_cast<KDN*>(pDistribTop + 1);
     pDistribTop->uRoot = uRoot;
-    pkdn = (KDN *)(pDistribTop + 1);
 
     in.nBucket = param.nBucket;
     in.nGroup = param.nGroup;
@@ -1976,7 +1977,7 @@ void MSR::BuildTree(int bNeedEwald,uint32_t uRoot,uint32_t utRoot) {
     nTopTree = pstBuildTree(pst,&in,sizeof(in),pkdn,nTopTree);
     pDistribTop->nTop = nTopTree / pkdNodeSize(pkd);
     assert(pDistribTop->nTop == (2*nThreads-1));
-    pstDistribTopTree(pst,pDistribTop,sizeof(struct inDistribTopTree) + nTopTree,NULL,0);
+    mdl->RunService(PST_DISTRIBTOPTREE,nMsgSize,pDistribTop);
     dsec = MSR::Time() - sec;
     printf("Tree built, Wallclock: %f secs\n\n",dsec);
 

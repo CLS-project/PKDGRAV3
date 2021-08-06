@@ -34,12 +34,15 @@
 #include "master.h"
 #include "outtype.h"
 #include "smoothfcn.h"
+
 #include "core/setadd.h"
 #include "core/hostname.h"
 #include "core/initcosmology.h"
 #include "core/calcroot.h"
+
 #include "domains/calcbound.h"
 #include "domains/combinebound.h"
+#include "domains/distribtoptree.h"
 
 time_t timeGlobalSignalTime = 0;
 int bGlobalOutput = 0;
@@ -73,6 +76,7 @@ void *worker_init(MDL vmdl) {
     mdl->AddService(std::make_unique<ServiceCalcRoot>(pst));
     mdl->AddService(std::make_unique<ServiceCalcBound>(pst));
     mdl->AddService(std::make_unique<ServiceCombineBound>(pst));
+    mdl->AddService(std::make_unique<ServiceDistribTopTree>(pst));
     return pst;
     }
 
