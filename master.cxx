@@ -2777,13 +2777,6 @@ void MSR::Drift(double dTime,double dDelta,int iRoot) {
     pstDrift(pst,&in,sizeof(in),NULL,0);
     }
 
-void MSR::ScaleVel(double dvFac) {
-    struct inScaleVel in;
-
-    in.dvFac = dvFac;
-    pstScaleVel(pst,&in,sizeof(in),NULL,0);
-    }
-
 /*
  * For gas, updates predicted velocities to beginning of timestep.
  */

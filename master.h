@@ -288,7 +288,6 @@ protected:
     void ActiveOrder();
     void CalcBound(BND &bnd);
     void GetNParts();
-    void ScaleVel(double dvFac);
     double AdjustTime(double aOld, double aNew);
     void UpdateSoft(double dTime);
     int GetParticles(int nIn, uint64_t *ID, struct outGetParticles *out);

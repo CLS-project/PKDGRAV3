@@ -121,7 +121,6 @@ enum pst_service {
     PST_CALCEANDLEXT,
     PST_DRIFT,
     PST_DRIFTINACTIVE,
-    PST_SCALEVEL,
     PST_CACHEBARRIER,
     PST_ROPARTICLECACHE,
     PST_PARTICLECACHEFINISH,
@@ -661,12 +660,6 @@ struct inDrift {
     int bDoGas;
     };
 int pstDrift(PST,void *,int,void *,int);
-
-/* PST_ */
-struct inScaleVel {
-    double dvFac;
-    };
-int pstScaleVel(PST,void *,int,void *,int);
 
 /* PST_ROPARTICLECACHE */
 

@@ -2239,20 +2239,6 @@ void pkdCalcEandL(PKD pkd,double *T,double *U,double *Eth,double *L,double *F,do
 	}
     }
 
-
-void pkdScaleVel(PKD pkd,double dvFac) {
-    PARTICLE *p;
-    vel_t *v;
-    int i,j,n;
-    n = pkdLocal(pkd);
-    for (i=0;i<n;++i) {
-	p = pkdParticle(pkd,i);
-	v = pkdVel(pkd,p);
-	for (j=0;j<3;++j) v[j] *= dvFac;
-	}
-    }
-
-
 static void flushLightCone(PKD pkd) {
     size_t count = pkd->nLightCone * sizeof(LIGHTCONEP);
     io_write(&pkd->afiLightCone,pkd->pLightCone,count);
