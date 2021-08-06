@@ -4211,6 +4211,9 @@ double msrAdjustTime(MSR msr, double aOld, double aNew) {
 void msrKickKDKOpen(MSR msr,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi) {
     struct inKick in;
     struct outKick out;
+    double sec, dsec;
+
+    sec = msrTime();
 
     in.dTime = dTime;
     if (msr->csm->val.bComove) {
@@ -4226,8 +4229,8 @@ void msrKickKDKOpen(MSR msr,double dTime,double dDelta,uint8_t uRungLo,uint8_t u
     in.uRungLo = uRungLo;
     in.uRungHi = uRungHi;
     pstKick(msr->pst,&in,sizeof(in),&out,sizeof(out));
-    msrprintf(msr,"KickOpen: Avg Wallclock %f, Max Wallclock %f\n",
-	      out.SumTime/out.nSum,out.MaxTime);
+    dsec = msrTime() - sec;
+    msrprintf(msr,"KickOpen: Wallclock %f secs\n", dsec);
     }
 
 /*
@@ -4236,6 +4239,9 @@ void msrKickKDKOpen(MSR msr,double dTime,double dDelta,uint8_t uRungLo,uint8_t u
 void msrKickKDKClose(MSR msr,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi) {
     struct inKick in;
     struct outKick out;
+    double sec, dsec;
+
+    sec = msrTime();
 
     in.dTime = dTime;
     if (msr->csm->val.bComove) {
@@ -4251,8 +4257,8 @@ void msrKickKDKClose(MSR msr,double dTime,double dDelta,uint8_t uRungLo,uint8_t 
     in.uRungLo = uRungLo;
     in.uRungHi = uRungHi;
     pstKick(msr->pst,&in,sizeof(in),&out,sizeof(out));
-    msrprintf(msr,"KickClose: Avg Wallclock %f, Max Wallclock %f\n",
-	      out.SumTime/out.nSum,out.MaxTime);
+    dsec = msrTime() - sec;
+    msrprintf(msr,"KickClose: Wallclock %f secs\n", dsec);
     }
 
 int msrOutTime(MSR msr,double dTime) {
