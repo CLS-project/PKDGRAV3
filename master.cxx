@@ -1912,7 +1912,7 @@ void MSR::DomainDecompOld(int iRung) {
 	pstEnforcePeriodic(pst,&in.bnd,sizeof(BND),NULL,0);
 	}
     else {
-	mdl->RunService(PST_COMBINEBOUND,0,NULL,&in.bnd);
+	mdl->RunService(PST_COMBINEBOUND,&in.bnd);
 	}
     /*
     ** If we are doing SPH we need to make absolutely certain to clear
@@ -2457,7 +2457,7 @@ void MSR::UpdateSoft(double dTime) {
 void MSR::Hostname() {
     int i;
     std::unique_ptr<ServiceHostname::output[]> out {new ServiceHostname::output[nThreads]};
-    mdl->RunService(PST_HOSTNAME,0,nullptr,out.get());
+    mdl->RunService(PST_HOSTNAME,out.get());
     printf("Host Names:\n");
     PRINTGRID(12,"%12.12s",szHostname);
     printf("MPI Rank:\n");
@@ -4131,7 +4131,7 @@ double MSR::Read(const char *achInFile) {
 
 // This sets the local pkd->bnd.
 void MSR::CalcBound(BND &bnd) {
-    mdl->RunService(PST_CALCBOUND,0,NULL,&bnd);
+    mdl->RunService(PST_CALCBOUND,&bnd);
     }
 
 void MSR::OutputGrid(const char *filename, bool k, int iGrid, int nParaWrite) {

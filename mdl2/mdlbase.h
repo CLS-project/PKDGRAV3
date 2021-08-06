@@ -133,6 +133,7 @@ public:
     void AddService(int sid, void *p1, fcnService_t *fcnService, int nInBytes, int nOutBytes, const char *name="");
     void AddService(std::unique_ptr<BasicService> && service);
     int  RunService(int sid, int nIn, void *pIn, void *pOut=nullptr);
+    int  RunService(int sid, void *pOut) { return RunService(sid,0,nullptr,pOut); }
     };
 int mdlBaseProcToThread(mdlBASE *base, int iProc);
 int mdlBaseThreadToProc(mdlBASE *base, int iThread);
