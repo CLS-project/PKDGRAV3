@@ -82,6 +82,9 @@ using namespace fmt::literals; // Gives us ""_a and ""_format literals
 #include "domains/distribroot.h"
 
 #include "gravity/setsoft.h"
+#include "gravity/activerung.h"
+#include "gravity/countrungs.h"
+#include "gravity/zeronewrung.h"
 
 #define LOCKFILE ".lockfile"	/* for safety lock */
 #define STOPFILE "STOP"			/* for user interrupt */
@@ -2935,23 +2938,16 @@ void MSR::InitCosmology() {
     }
 
 void MSR::ZeroNewRung(uint8_t uRungLo, uint8_t uRungHi, int uRung) {
-    struct inZeroNewRung in;
-
-    in.uRung = uRung;
-    in.uRungLo = uRungLo;
-    in.uRungHi = uRungHi;
-    pstZeroNewRung(pst, &in, sizeof(in), NULL, 0);
+    ServiceZeroNewRung::input in(uRung,uRungLo, uRungHi);
+    mdl->RunService(PST_ZERONEWRUNG,sizeof(in),&in);
     }
 
 /*
  * bGreater = 1 => activate all particles at this rung and greater.
  */
 void MSR::ActiveRung(int iRung, int bGreater) {
-    struct inActiveRung in;
-
-    in.iRung = iRung;
-    in.bGreater = bGreater;
-    pstActiveRung(pst, &in, sizeof(in), NULL, 0);
+    ServiceActiveRung::input in(iRung,bGreater);
+    mdl->RunService(PST_ACTIVERUNG,sizeof(in),&in);
 
     if ( iRung==0 && bGreater )
 	nActive = N;
@@ -2970,9 +2966,9 @@ void MSR::ActiveOrder() {
     }
 
 int MSR::CountRungs(uint64_t *nRungs) {
-    struct outCountRungs out;
+    ServiceCountRungs::output out;
     int i, iMaxRung=0;
-    pstCountRungs(pst, NULL, 0, &out, sizeof(out));
+    mdl->RunService(PST_COUNTRUNGS,&out);
     for(i=0; i<=MAX_RUNG; ++i) {
 	nRung[i] = out.nRungs[i];
 	if (nRung[i]) iMaxRung = i;

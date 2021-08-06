@@ -735,14 +735,6 @@ int pstOneNodeReadInit(PST pst,void *vin,int nIn,void *vout,int nOut);
 /* PST_ACTIVEORDER */
 int pstActiveOrder(PST,void *,int,void *,int);
 
-/* PST_ZERONEWRUNG */
-struct inZeroNewRung {
-    uint8_t uRung;
-    uint8_t uRungLo;
-    uint8_t uRungHi;
-    };
-int pstZeroNewRung(PST,void *,int,void *,int);
-
 struct inDensCheck {
     int iRung;
     int bGreater;
@@ -756,20 +748,6 @@ struct outDensCheck {
     };
 
 void pstDensCheck(PST,void *,int,void *,int *);
-
-/* PST_ACTIVERUNG */
-struct inActiveRung {
-    int iRung;
-    int bGreater;
-    };
-
-int pstActiveRung(PST,void *,int,void *,int);
-
-/* PST_COUNTRUNGS */
-struct outCountRungs {
-    uint64_t nRungs[MAX_RUNG+1];
-    };
-int pstCountRungs(PST,void *,int,void *,int);
 
 /* PST_ACCELSTEP */
 struct inAccelStep {

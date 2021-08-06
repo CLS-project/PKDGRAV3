@@ -169,12 +169,6 @@ void pstAddServices(PST pst,MDL mdl) {
 	          nThreads*sizeof(int));
     mdlAddService(mdl,PST_ACTIVEORDER,pst,(fcnService_t*)pstActiveOrder,
 		  0,sizeof(uint64_t));
-    mdlAddService(mdl,PST_ZERONEWRUNG,pst,(fcnService_t*)pstZeroNewRung,
-		  sizeof(struct inZeroNewRung),0);
-    mdlAddService(mdl,PST_ACTIVERUNG,pst,(fcnService_t*)pstActiveRung,
-		  sizeof(struct inActiveRung),0);
-    mdlAddService(mdl,PST_COUNTRUNGS,pst,(fcnService_t*)pstCountRungs,
-		  0,sizeof(struct outCountRungs));
     mdlAddService(mdl,PST_DENSITYSTEP,pst,(fcnService_t*)pstDensityStep,
 		  sizeof(struct inDensityStep),0);
     mdlAddService(mdl,PST_CORRECTENERGY,pst,(fcnService_t*)pstCorrectEnergy,
@@ -2740,54 +2734,6 @@ int pstSetWriteStart(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	plcl->nWriteStart = nWriteStart;
 	}
     return 0;
-    }
-
-int pstZeroNewRung(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    LCL *plcl = pst->plcl;
-    struct inZeroNewRung *in = vin;
-
-    mdlassert(pst->mdl,nIn == sizeof(*in));
-    if (pst->nLeaves > 1) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_ZERONEWRUNG,vin,nIn);
-	pstZeroNewRung(pst->pstLower,vin,nIn,NULL,0);
-	mdlGetReply(pst->mdl,rID,NULL,NULL);
-	}
-    else {
-	pkdZeroNewRung(plcl->pkd,in->uRungLo,in->uRungHi,in->uRung);
-	}
-    return 0;
-    }
-
-int pstActiveRung(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    LCL *plcl = pst->plcl;
-    struct inActiveRung *in = vin;
-
-    mdlassert(pst->mdl,nIn == sizeof(*in));
-    if (pst->nLeaves > 1) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_ACTIVERUNG,vin,nIn);
-	pstActiveRung(pst->pstLower,vin,nIn,NULL,0);
-	mdlGetReply(pst->mdl,rID,NULL,NULL);
-	}
-    else {
-	pkdActiveRung(plcl->pkd, in->iRung, in->bGreater);
-	}
-    return 0;
-    }
-
-int pstCountRungs(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    LCL *plcl = pst->plcl;
-    struct outCountRungs *out = vout, outUpper;
-    int i;
-    if (pst->nLeaves > 1) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_COUNTRUNGS,vin,nIn);
-	pstCountRungs(pst->pstLower,vin,nIn,vout,nOut);
-	mdlGetReply(pst->mdl,rID,&outUpper,NULL);
-	for(i=0; i<=MAX_RUNG; ++i) out->nRungs[i] += outUpper.nRungs[i];
-	}
-    else {
-	pkdCountRungs(plcl->pkd, out->nRungs);
-	}
-    return sizeof(*out);
     }
 
 int pstAccelStep(PST pst,void *vin,int nIn,void *vout,int nOut) {
