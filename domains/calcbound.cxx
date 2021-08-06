@@ -22,7 +22,8 @@ static_assert(std::is_void<ServiceCalcBound::input>()  || std::is_trivial<Servic
 static_assert(std::is_void<ServiceCalcBound::output>() || std::is_trivial<ServiceCalcBound::output>());
 
 int ServiceCalcBound::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    auto out  = static_cast<output*>(vout);
+    auto in = static_cast<input*>(vin);
+    auto out = static_cast<output*>(vout);
     assert(nIn==0);
     assert(nOut==sizeof(output));
     pkdCalcBound(pst->plcl->pkd,out);

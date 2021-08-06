@@ -22,8 +22,9 @@ static_assert(std::is_void<ServiceInitCosmology::input>()  || std::is_trivial<Se
 static_assert(std::is_void<ServiceInitCosmology::output>() || std::is_trivial<ServiceInitCosmology::output>());
 
 int ServiceInitCosmology::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    auto cosmo = static_cast<input *>(vin);
+    auto in = static_cast<input *>(vin);
+    auto put = static_cast<output *>(vout);
     assert(nIn==sizeof(input));
-    pkdInitCosmology(pst->plcl->pkd,cosmo);
+    pkdInitCosmology(pst->plcl->pkd,in);
     return 0;
     }

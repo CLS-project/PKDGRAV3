@@ -21,7 +21,7 @@ public:
     typedef void input;
     typedef BND output;
     explicit ServiceCombineBound(PST pst)
-	: TraverseCombinePST(pst,PST_COMBINEBOUND,0,sizeof(output),"Hostname") {}
+	: TraverseCombinePST(pst,PST_COMBINEBOUND,0,sizeof(output),"CombineBound") {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut);
     virtual int Combine(void *vout,void *vout2);

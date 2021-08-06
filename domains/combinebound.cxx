@@ -22,7 +22,8 @@ static_assert(std::is_void<ServiceCombineBound::input>()  || std::is_trivial<Ser
 static_assert(std::is_void<ServiceCombineBound::output>() || std::is_trivial<ServiceCombineBound::output>());
 
 int ServiceCombineBound::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    auto out  = static_cast<output*>(vout);
+    auto in = static_cast<input*>(vin);
+    auto out = static_cast<output*>(vout);
     assert(nIn==0);
     assert(nOut==sizeof(output));
     *out = pst->plcl->pkd->bnd;
