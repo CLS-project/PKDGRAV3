@@ -46,6 +46,7 @@
 #include "domains/distribtoptree.h"
 #include "domains/distribroot.h"
 #include "domains/dumptrees.h"
+#include "domains/enforceperiodic.h"
 
 #include "gravity/setsoft.h"
 #include "gravity/activerung.h"
@@ -88,6 +89,7 @@ void *worker_init(MDL vmdl) {
     mdl->AddService(std::make_unique<ServiceDistribTopTree>(pst));
     mdl->AddService(std::make_unique<ServiceDistribRoot>(pst));
     mdl->AddService(std::make_unique<ServiceDumpTrees>(pst));
+    mdl->AddService(std::make_unique<ServiceEnforcePeriodic>(pst));
     mdl->AddService(std::make_unique<ServiceSetSoft>(pst));
     mdl->AddService(std::make_unique<ServiceActiveRung>(pst));
     mdl->AddService(std::make_unique<ServiceCountRungs>(pst));

@@ -107,8 +107,6 @@ void pstAddServices(PST pst,MDL mdl) {
 	(nThreads==1?1:2*nThreads-1)*pkdMaxNodeSize());
     mdlAddService(mdl,PST_TREEINITMARKED,pst,(fcnService_t*)pstTreeInitMarked,
 	          0,0);
-    mdlAddService(mdl,PST_ENFORCEPERIODIC,pst,(fcnService_t*)pstEnforcePeriodic,
-		  sizeof(BND),0);
     mdlAddService(mdl,PST_HOP_LINK,pst,(fcnService_t*)pstHopLink,
 	          sizeof(struct inHopLink),sizeof(uint64_t));
     mdlAddService(mdl,PST_HOP_JOIN,pst,(fcnService_t*)pstHopJoin,
@@ -2053,22 +2051,6 @@ int pstBuildTree(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	nOut = pkdNodeSize(pkd);
 	}
     return nOut;
-    }
-
-int pstEnforcePeriodic(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    LCL *plcl = pst->plcl;
-    BND *in = vin;
-
-    mdlassert(pst->mdl,nIn == sizeof(BND));
-    if (pst->nLeaves > 1) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_ENFORCEPERIODIC,vin,nIn);
-	pstEnforcePeriodic(pst->pstLower,vin,nIn,NULL,0);
-	mdlGetReply(pst->mdl,rID,NULL,NULL);
-	}
-    else {
-	pkdEnforcePeriodic(plcl->pkd,in);
-	}
-    return 0;
     }
 
 int pstPhysicalSoft(PST pst,void *vin,int nIn,void *vout,int nOut) {

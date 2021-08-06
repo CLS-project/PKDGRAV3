@@ -1915,7 +1915,7 @@ void MSR::DomainDecompOld(int iRung) {
 	in.bnd.fMax[1] = 0.5*param.dyPeriod;
 	in.bnd.fMax[2] = 0.5*param.dzPeriod;
 
-	pstEnforcePeriodic(pst,&in.bnd,sizeof(BND),NULL,0);
+	mdl->RunService(PST_ENFORCEPERIODIC,sizeof(in.bnd),&in.bnd);
 	}
     else {
 	mdl->RunService(PST_COMBINEBOUND,&in.bnd);
