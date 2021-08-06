@@ -715,12 +715,6 @@ struct outKickTree {
     };
 int pstKickTree(PST,void *,int,void *,int);
 
-/* PST_SETSOFT */
-struct inSetSoft {
-    double dSoft;
-    };
-int pstSetSoft(PST,void *,int,void *,int);
-
 /* PST_PHYSICALSOFT */
 struct inPhysicalSoft {
     double dSoftMax;

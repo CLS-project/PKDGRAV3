@@ -80,6 +80,8 @@ using namespace fmt::literals; // Gives us ""_a and ""_format literals
 #include "domains/distribtoptree.h"
 #include "domains/distribroot.h"
 
+#include "gravity/setsoft.h"
+
 #define LOCKFILE ".lockfile"	/* for safety lock */
 #define STOPFILE "STOP"			/* for user interrupt */
 #define CHECKFILE "CHECKPOINT"		/* for user interrupt */
@@ -1702,11 +1704,9 @@ void MSR::Write(const char *pszFileName,double dTime,int bCheckpoint) {
 
 
 void MSR::SetSoft(double dSoft) {
-    struct inSetSoft in;
-
     msrprintf("Set Softening...\n");
-    in.dSoft = dSoft;
-    pstSetSoft(pst,&in,sizeof(in),NULL,0);
+    ServiceSetSoft::input in(dSoft);
+    mdl->RunService(PST_SETSOFT,sizeof(in),&in);
     }
 
 

@@ -156,8 +156,6 @@ void pstAddServices(PST pst,MDL mdl) {
 		  sizeof(struct inKick),sizeof(struct outKick));
     mdlAddService(mdl,PST_KICKTREE,pst,(fcnService_t*)pstKickTree,
 		  sizeof(struct inKickTree),sizeof(struct outKickTree));
-    mdlAddService(mdl,PST_SETSOFT,pst,(fcnService_t*)pstSetSoft,
-		  sizeof(struct inSetSoft),0);
     mdlAddService(mdl,PST_PHYSICALSOFT,pst,(fcnService_t*)pstPhysicalSoft,
 		  sizeof(struct inPhysicalSoft),0);
     mdlAddService(mdl,PST_SETTOTAL,pst,(fcnService_t*)pstSetTotal,
@@ -2011,22 +2009,6 @@ int pstWrite(PST pst,void *vin,int nIn,void *vout,int nOut) {
     return 0;
     }
 
-
-int pstSetSoft(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    LCL *plcl = pst->plcl;
-    struct inSetSoft *in = vin;
-
-    mdlassert(pst->mdl,nIn == sizeof(struct inSetSoft));
-    if (pst->nLeaves > 1) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SETSOFT,in,nIn);
-	pstSetSoft(pst->pstLower,in,nIn,NULL,0);
-	mdlGetReply(pst->mdl,rID,NULL,NULL);
-	}
-    else {
-	pkdSetSoft(plcl->pkd,in->dSoft);
-	}
-    return 0;
-    }
 
 int pstDumpTrees(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
