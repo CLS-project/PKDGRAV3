@@ -78,6 +78,7 @@ using namespace fmt::literals; // Gives us ""_a and ""_format literals
 #include "core/calcroot.h"
 
 #include "domains/distribtoptree.h"
+#include "domains/distribroot.h"
 
 #define LOCKFILE ".lockfile"	/* for safety lock */
 #define STOPFILE "STOP"			/* for user interrupt */
@@ -2011,12 +2012,12 @@ void MSR::BuildTree(int bNeedEwald) {
     BuildTree(bNeedEwald,ROOT,0);
 
     if (bNeedEwald) {
-	struct ioDistribRoot droot;
+	ServiceDistribRoot::input droot;
 	droot.momc = momTreeRoot[ROOT];
 	droot.r[0] = momTreeCom[ROOT][0];
 	droot.r[1] = momTreeCom[ROOT][1];
 	droot.r[2] = momTreeCom[ROOT][2];
-	pstDistribRoot(pst,&droot,sizeof(struct ioDistribRoot),NULL,0);
+	mdl->RunService(PST_DISTRIBROOT,sizeof(droot),&droot);
 	}
     }
 
@@ -2048,7 +2049,7 @@ void MSR::BuildTreeActive(int bNeedEwald,uint8_t uRungDD) {
 
     /* For ewald we have to shift and combine the individual tree moments */
     if (bNeedEwald) {
-	struct ioDistribRoot droot;
+	ServiceDistribRoot::input droot;
 	MOMC momc;
 	double *com1 = momTreeCom[FIXROOT];
 	double    m1 = momTreeRoot[FIXROOT].m;
@@ -2075,7 +2076,7 @@ void MSR::BuildTreeActive(int bNeedEwald,uint8_t uRungDD) {
 
 	momAddMomc(&droot.momc, &momc);
 
-	pstDistribRoot(pst,&droot,sizeof(struct ioDistribRoot),NULL,0);
+	mdl->RunService(PST_DISTRIBROOT,sizeof(droot),&droot);
 	}
     }
 
@@ -2091,7 +2092,7 @@ void MSR::BuildTreeMarked(int bNeedEwald) {
 
     /* For ewald we have to shift and combine the individual tree moments */
     if (bNeedEwald) {
-	struct ioDistribRoot droot;
+	ServiceDistribRoot::input droot;
 	MOMC momc;
 	double *com1 = momTreeCom[FIXROOT];
 	double    m1 = momTreeRoot[FIXROOT].m;
@@ -2118,7 +2119,7 @@ void MSR::BuildTreeMarked(int bNeedEwald) {
 
 	momAddMomc(&droot.momc, &momc);
 
-	pstDistribRoot(pst,&droot,sizeof(struct ioDistribRoot),NULL,0);
+	mdl->RunService(PST_DISTRIBROOT,sizeof(droot),&droot);
 	}
     }
 

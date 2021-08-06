@@ -455,13 +455,6 @@ int pstDumpTrees(PST,void *,int,void *,int);
 /* PST_TREEINITMARKED */
 int pstTreeInitMarked(PST,void *,int,void *,int);
 
-/* PST_DISTRIBROOT */
-struct ioDistribRoot {
-    double r[3];
-    MOMC momc;
-    };
-int pstDistribRoot(PST,void *,int,void *,int);
-
 /* PST_ENFORCEPERIODIC */
 int pstEnforcePeriodic(PST,void *,int,void *,int);
 

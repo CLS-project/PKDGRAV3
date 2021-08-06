@@ -109,8 +109,6 @@ void pstAddServices(PST pst,MDL mdl) {
 	          sizeof(struct inDumpTrees),0);
     mdlAddService(mdl,PST_TREEINITMARKED,pst,(fcnService_t*)pstTreeInitMarked,
 	          0,0);
-    mdlAddService(mdl,PST_DISTRIBROOT,pst,(fcnService_t*)pstDistribRoot,
-		  sizeof(struct ioDistribRoot),0);
     mdlAddService(mdl,PST_ENFORCEPERIODIC,pst,(fcnService_t*)pstEnforcePeriodic,
 		  sizeof(BND),0);
     mdlAddService(mdl,PST_HOP_LINK,pst,(fcnService_t*)pstHopLink,
@@ -2122,23 +2120,6 @@ int pstBuildTree(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	}
     return nOut;
     }
-
-int pstDistribRoot(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    LCL *plcl = pst->plcl;
-    struct ioDistribRoot *in = vin;
-
-    mdlassert(pst->mdl,nIn == sizeof(struct ioDistribRoot));
-    if (pst->nLeaves > 1) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_DISTRIBROOT,vin,nIn);
-	pstDistribRoot(pst->pstLower,vin,nIn,NULL,0);
-	mdlGetReply(pst->mdl,rID,NULL,NULL);
-	}
-    else {
-	pkdDistribRoot(plcl->pkd,in->r,&in->momc);
-	}
-    return 0;
-    }
-
 
 int pstEnforcePeriodic(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;

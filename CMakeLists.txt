@@ -161,7 +161,7 @@ target_sources(${PROJECT_NAME} PRIVATE
 	fof.c hop.c group.c groupstats.c RngStream.c listcomp.c healpix.c
 	gridinfo.cxx interlace.cxx contrast.cxx assignmass.cxx measurepk.cxx bispectrum.cxx whitenoise.cxx pmforces.cxx
 	core/setadd.cxx core/hostname.cxx core/initcosmology.cxx core/calcroot.cxx
-	domains/calcbound.cxx domains/combinebound.cxx domains/distribtoptree.cxx
+	domains/calcbound.cxx domains/combinebound.cxx domains/distribtoptree.cxx domains/distribroot.cxx
 )
 set_property(SOURCE fio.c APPEND PROPERTY COMPILE_DEFINITIONS "USE_PTHREAD")
 add_executable(tostd tostd.c fio.c)

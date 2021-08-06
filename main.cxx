@@ -43,6 +43,7 @@
 #include "domains/calcbound.h"
 #include "domains/combinebound.h"
 #include "domains/distribtoptree.h"
+#include "domains/distribroot.h"
 
 time_t timeGlobalSignalTime = 0;
 int bGlobalOutput = 0;
@@ -77,6 +78,7 @@ void *worker_init(MDL vmdl) {
     mdl->AddService(std::make_unique<ServiceCalcBound>(pst));
     mdl->AddService(std::make_unique<ServiceCombineBound>(pst));
     mdl->AddService(std::make_unique<ServiceDistribTopTree>(pst));
+    mdl->AddService(std::make_unique<ServiceDistribRoot>(pst));
     return pst;
     }
 
