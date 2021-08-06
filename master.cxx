@@ -80,6 +80,7 @@ using namespace fmt::literals; // Gives us ""_a and ""_format literals
 
 #include "domains/distribtoptree.h"
 #include "domains/distribroot.h"
+#include "domains/dumptrees.h"
 
 #include "gravity/setsoft.h"
 #include "gravity/activerung.h"
@@ -2010,10 +2011,8 @@ void MSR::BuildTree(int bNeedEwald,uint32_t uRoot,uint32_t utRoot) {
 void MSR::BuildTree(int bNeedEwald) {
     msrprintf("Building local trees...\n\n");
 
-    struct inDumpTrees dump;
-    dump.bOnlyVA = 0;
-    dump.uRungDD = IRUNGMAX;
-    pstDumpTrees(pst,&dump,sizeof(dump),NULL,0);
+    ServiceDumpTrees::input dump(IRUNGMAX);
+    mdl->RunService(PST_DUMPTREES,sizeof(dump),&dump);
     BuildTree(bNeedEwald,ROOT,0);
 
     if (bNeedEwald) {
@@ -2044,10 +2043,8 @@ void MSR::BuildTreeActive(int bNeedEwald,uint8_t uRungDD) {
 
     msrprintf("Building active local trees...\n\n");
 
-    struct inDumpTrees dump;
-    dump.bOnlyVA = 1;
-    dump.uRungDD = uRungDD;
-    pstDumpTrees(pst,&dump,sizeof(dump),NULL,0);
+    ServiceDumpTrees::input dump(uRungDD,true);
+    mdl->RunService(PST_DUMPTREES,sizeof(dump),&dump);
 
     /* New build the very active tree */
     BuildTree(bNeedEwald,ROOT,FIXROOT);
@@ -2086,10 +2083,8 @@ void MSR::BuildTreeActive(int bNeedEwald,uint8_t uRungDD) {
     }
 
 void MSR::BuildTreeMarked(int bNeedEwald) {
-    struct inDumpTrees dump;
-    dump.bOnlyVA = 0;
-    dump.uRungDD = IRUNGMAX;
-    pstDumpTrees(pst,&dump,sizeof(dump),NULL,0);
+    ServiceDumpTrees::input dump(IRUNGMAX);
+    mdl->RunService(PST_DUMPTREES,sizeof(dump),&dump);
 
     pstTreeInitMarked(pst,NULL,0,NULL,0);
     BuildTree(bNeedEwald,FIXROOT,0);
@@ -3227,10 +3222,8 @@ int MSR::NewTopStepKDK(
 	    if (a < (1.0/3.0)) bDualTree = 0;
 	    else {
 		bDualTree = 1;
-		struct inDumpTrees dump;
-		dump.bOnlyVA = 0;
-		dump.uRungDD = iRungDT;
-		pstDumpTrees(pst,&dump,sizeof(dump),NULL,0);
+		ServiceDumpTrees::input dump(iRungDT);
+		mdl->RunService(PST_DUMPTREES,sizeof(dump),&dump);
 		msrprintf("Half Drift, uRung: %d\n",iRungDT);
 		dDeltaRung = dDelta/(1 << iRungDT); // Main tree step
 		Drift(dTime,0.5 * dDeltaRung,FIXROOT);

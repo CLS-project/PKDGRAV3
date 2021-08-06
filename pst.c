@@ -105,8 +105,6 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_BUILDTREE,pst,(fcnService_t*)pstBuildTree,
 	sizeof(struct inBuildTree),
 	(nThreads==1?1:2*nThreads-1)*pkdMaxNodeSize());
-    mdlAddService(mdl,PST_DUMPTREES,pst,(fcnService_t*)pstDumpTrees,
-	          sizeof(struct inDumpTrees),0);
     mdlAddService(mdl,PST_TREEINITMARKED,pst,(fcnService_t*)pstTreeInitMarked,
 	          0,0);
     mdlAddService(mdl,PST_ENFORCEPERIODIC,pst,(fcnService_t*)pstEnforcePeriodic,
@@ -1978,24 +1976,6 @@ int pstWrite(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	    }
 	}
 
-    return 0;
-    }
-
-
-int pstDumpTrees(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    LCL *plcl = pst->plcl;
-    PKD pkd = plcl->pkd;
-    struct inDumpTrees *in = (struct inDumpTrees *)vin;
-    mdlassert(pst->mdl,nIn == sizeof(struct inDumpTrees));
-
-    if (pst->nLeaves > 1) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_DUMPTREES,vin,nIn);
-	pstDumpTrees(pst->pstLower,vin,nIn,NULL,0);
-	mdlGetReply(pst->mdl,rID,NULL,NULL);
-	}
-    else {
-	pkdDumpTrees(pkd,in->bOnlyVA,in->uRungDD);
-	}
     return 0;
     }
 
