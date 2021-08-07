@@ -135,7 +135,7 @@ void pstAddServices(PST pst,MDL mdl) {
 #endif
     mdlAddService(mdl,PST_GRAVITY,pst,(fcnService_t*)pstGravity,
 	          sizeof(struct inGravity),
-	          nThreads*sizeof(struct outGravityPerProc) + sizeof(struct outGravityReduct));
+	          sizeof(struct outGravityReduct));
     mdlAddService(mdl,PST_CALCEANDL,pst,(fcnService_t*)pstCalcEandL,
 		  0,sizeof(struct outCalcEandL));
     mdlAddService(mdl,PST_DRIFT,pst,(fcnService_t*)pstDrift,
@@ -147,9 +147,9 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_PARTICLECACHEFINISH,pst,(fcnService_t*)pstParticleCacheFinish,
 		  0,0);
     mdlAddService(mdl,PST_KICK,pst,(fcnService_t*)pstKick,
-		  sizeof(struct inKick),sizeof(struct outKick));
+		  sizeof(struct inKick),0);
     mdlAddService(mdl,PST_KICKTREE,pst,(fcnService_t*)pstKickTree,
-		  sizeof(struct inKickTree),sizeof(struct outKickTree));
+		  sizeof(struct inKickTree),0);
     mdlAddService(mdl,PST_PHYSICALSOFT,pst,(fcnService_t*)pstPhysicalSoft,
 		  sizeof(struct inPhysicalSoft),0);
     mdlAddService(mdl,PST_SETTOTAL,pst,(fcnService_t*)pstSetTotal,
@@ -185,8 +185,6 @@ void pstAddServices(PST pst,MDL mdl) {
 		  0,sizeof(struct outGetNParts));
     mdlAddService(mdl,PST_SETNPARTS,pst,(fcnService_t*)pstSetNParts,
 		  sizeof(struct inSetNParts),0);
-    mdlAddService(mdl,PST_CLEARTIMER,pst,(fcnService_t*)pstClearTimer,
-		  sizeof(struct inClearTimer),0);
     mdlAddService(mdl,PST_NEW_FOF,pst,(fcnService_t*)pstNewFof,
 		  sizeof(struct inNewFof),0);
     mdlAddService(mdl,PST_FOF_PHASES,pst,(fcnService_t*)pstFofPhases,
@@ -2343,10 +2341,7 @@ void pstCombStat(STAT *ps,STAT *pa) {
 int pstGravity(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
     struct inGravity *in = vin;
-    struct outGravityPerProc *out = vout;
-    struct outGravityPerProc *outup = out + pst->idUpper - pst->idSelf;
-    struct outGravityPerProc *outend = out + mdlThreads(pst->mdl) - pst->idSelf;
-    struct outGravityReduct *outr = (struct outGravityReduct *)outend;
+    struct outGravityReduct *outr = vout;
     struct outGravityReduct tmp;
     int i;
 
@@ -2354,13 +2349,12 @@ int pstGravity(PST pst,void *vin,int nIn,void *vout,int nOut) {
     mdlassert(pst->mdl,nIn == sizeof(struct inGravity));
     if (pst->nLeaves > 1) {
 	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_GRAVITY,in,nIn);
-	pstGravity(pst->pstLower,in,nIn,out,nOut);
+	pstGravity(pst->pstLower,in,nIn,vout,nOut);
 	/*
 	** Make a temporary copy of the reduct part of the out buffer before setting it as the 
 	** reply buffer. The reduct part follows at the end of all the outGravityPerProc entries.
 	*/
-	tmp = *outr;  /* copy the whole GravityReduct structure */
-	mdlGetReply(pst->mdl,rID,outup,NULL);
+	mdlGetReply(pst->mdl,rID,&tmp,NULL);
 	/*
 	** Now combine in the tempory copy of the lower branch reduct part.
 	*/
@@ -2485,9 +2479,8 @@ int pstGravity(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	    outr->sCellNumAccess.n = 0;
 	    outr->sCellMissRatio.n = 0;	    
 	    }
-	out->dWalkTime = pkdGetWallClockTimer(plcl->pkd,1);
 	}
-    return (mdlThreads(pst->mdl) - pst->idSelf)*sizeof(struct outGravityPerProc) + sizeof(struct outGravityReduct);
+    return sizeof(struct outGravityReduct);
     }
 
 int pstCalcEandL(PST pst,void *vin,int nIn,void *vout,int nOut) {
@@ -2587,55 +2580,35 @@ int pstParticleCacheFinish(PST pst,void *vin,int nIn,void *vout,int nOut) {
 int pstKick(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
     struct inKick *in = vin;
-    struct outKick *out = vout;
-    struct outKick outUp;
 
     mdlassert(pst->mdl,nIn == sizeof(struct inKick));
 
     if (pst->nLeaves > 1) {
 	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_KICK,in,nIn);
-	pstKick(pst->pstLower,in,nIn,out,nOut);
-	mdlGetReply(pst->mdl,rID,&outUp,NULL);
-
-	out->SumTime += outUp.SumTime;
-	out->nSum += outUp.nSum;
-	if (outUp.MaxTime > out->MaxTime) out->MaxTime = outUp.MaxTime;
+	pstKick(pst->pstLower,in,nIn,vout,nOut);
+	mdlGetReply(pst->mdl,rID,NULL,NULL);
 	}
     else {
 	pkdKick(plcl->pkd,in->dTime,in->dDelta,in->bDoGas,in->dDeltaVPred,in->dDeltaU,in->dDeltaUPred,in->uRungLo,in->uRungHi);
-	out->Time = pkdGetTimer(plcl->pkd,1);
-	out->MaxTime = out->Time;
-	out->SumTime = out->Time;
-	out->nSum = 1;
 	}
-    return sizeof(struct outKick);
+    return 0;
     }
 
 int pstKickTree(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
     struct inKickTree *in = vin;
-    struct outKickTree *out = vout;
-    struct outKickTree outUp;
 
     mdlassert(pst->mdl,nIn == sizeof(struct inKick));
 
     if (pst->nLeaves > 1) {
 	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_KICKTREE,in,nIn);
-	pstKickTree(pst->pstLower,in,nIn,out,nOut);
-	mdlGetReply(pst->mdl,rID,&outUp,NULL);
-
-	out->SumTime += outUp.SumTime;
-	out->nSum += outUp.nSum;
-	if (outUp.MaxTime > out->MaxTime) out->MaxTime = outUp.MaxTime;
+	pstKickTree(pst->pstLower,in,nIn,vout,nOut);
+	mdlGetReply(pst->mdl,rID,NULL,NULL);
 	}
     else {
 	pkdKickTree(plcl->pkd,in->dTime,in->dDelta,in->dDeltaVPred,in->dDeltaU,in->dDeltaUPred,in->iRoot);
-	out->Time = pkdGetTimer(plcl->pkd,1);
-	out->MaxTime = out->Time;
-	out->SumTime = out->Time;
-	out->nSum = 1;
 	}
-    return sizeof(struct outKickTree);
+    return 0;
     }
 
 int pstSetTotal(PST pst,void *vin,int nIn,void *vout,int nOut) {
@@ -2869,22 +2842,6 @@ int pstSetNParts(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	}
     return 0;
     }
-
-int pstClearTimer(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    struct inClearTimer *in = vin;
-
-    mdlassert(pst->mdl,nIn == sizeof(struct inClearTimer));
-    if (pst->nLeaves > 1) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_CLEARTIMER,in,nIn);
-	pstClearTimer(pst->pstLower,in,nIn,NULL,0);
-	mdlGetReply(pst->mdl,rID,NULL,NULL);
-	}
-    else {
-	pkdClearTimer(pst->plcl->pkd,in->iTimer);
-	}
-    return 0;
-    }
-
 
 int pstNewFof(PST pst,void *vin,int nIn,void *vout,int nOut) {
     struct inNewFof *in = vin;

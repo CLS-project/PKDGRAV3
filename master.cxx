@@ -2614,18 +2614,15 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
 	    }
 	}
 
-    out_size = nThreads*sizeof(struct outGravityPerProc) + sizeof(struct outGravityReduct);
-    std::unique_ptr<char[]> buffer {new char[out_size]};
-    auto out  = new (buffer.get()) outGravityPerProc[nThreads];
-    auto outr = new (out + nThreads) outGravityReduct;
+    outGravityReduct outr;
 
     sec = MSR::Time();
-    pstGravity(pst,&in,sizeof(in),out,out_size);
+    pstGravity(pst,&in,sizeof(in),&outr,sizeof(outr));
     dsec = MSR::Time() - sec;
 
     if (bKickOpen) {
 	for (i=IRUNGMAX;i>=uRungLo;--i) {
-	    if (outr->nRung[i]) break;
+	    if (outr.nRung[i]) break;
 	    }
 	assert(i >= uRungLo);
 	uRungMax = i;
@@ -2635,7 +2632,7 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
 	** We need to go all the way to IRUNGMAX to clear any prior counts at rungs 
 	** deeper than the current uRungMax!
 	*/
-	for (i=uRungLo;i<=IRUNGMAX;++i) nRung[i] = outr->nRung[i];
+	for (i=uRungLo;i<=IRUNGMAX;++i) nRung[i] = outr.nRung[i];
 
 	const uint64_t nDT = d2u64(N*param.dFracDualTree);
 	const uint64_t nDD = d2u64(N*param.dFracNoDomainDecomp);
@@ -2652,49 +2649,41 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
 	/*
 	** Output some info...
 	*/
-	dTotFlop = outr->sFlop.dSum;
+	dTotFlop = outr.sFlop.dSum;
 	if (dsec > 0.0) {
 	    double dGFlops = dTotFlop/dsec;
 	    printf("Gravity Calculated, Wallclock: %f secs, Gflops:%.1f, Total Gflop:%.3g\n",
 		   dsec,dGFlops,dTotFlop);
 	    printf("  Gflops: CPU:%.1f,%.1f GPU:%.1f,%.1f",
-		outr->dFlopSingleCPU/dsec,outr->dFlopDoubleCPU/dsec,
-		outr->dFlopSingleGPU/dsec,outr->dFlopDoubleGPU/dsec);
+		outr.dFlopSingleCPU/dsec,outr.dFlopDoubleCPU/dsec,
+		outr.dFlopSingleGPU/dsec,outr.dFlopDoubleGPU/dsec);
 	    }
 	else {
 	    printf("Gravity Calculated, Wallclock: %f secs, Gflops:unknown, Total Gflop:%.3g\n",
 		   dsec,dTotFlop);
 	    }
 	printf("  Gflop: CPU:%.3g,%.3g GPU:%.3g,%.3g\n",
-	    outr->dFlopSingleCPU,outr->dFlopDoubleCPU,
-	    outr->dFlopSingleGPU,outr->dFlopDoubleGPU);
-	msrPrintStat(&outr->sLocal,         "  particle  load:",0);
-	msrPrintStat(&outr->sActive,        "  actives   load:",0);
-	msrPrintStat(&outr->sFlop,          "  Gflop     load:",1);
-	msrPrintStat(&outr->sPart,          "  P-P per active:",2);
-	msrPrintStat(&outr->sCell,          "  P-C per active:",2);
+	    outr.dFlopSingleCPU,outr.dFlopDoubleCPU,
+	    outr.dFlopSingleGPU,outr.dFlopDoubleGPU);
+	msrPrintStat(&outr.sLocal,         "  particle  load:",0);
+	msrPrintStat(&outr.sActive,        "  actives   load:",0);
+	msrPrintStat(&outr.sFlop,          "  Gflop     load:",1);
+	msrPrintStat(&outr.sPart,          "  P-P per active:",2);
+	msrPrintStat(&outr.sCell,          "  P-C per active:",2);
 #ifdef INSTRUMENT
-	msrPrintStat(&outr->sComputing,     "     % computing:",3);
-	msrPrintStat(&outr->sWaiting,       "     %   waiting:",3);
-	msrPrintStat(&outr->sSynchronizing, "     %   syncing:",3);
+	msrPrintStat(&outr.sComputing,     "     % computing:",3);
+	msrPrintStat(&outr.sWaiting,       "     %   waiting:",3);
+	msrPrintStat(&outr.sSynchronizing, "     %   syncing:",3);
 #endif
 #ifdef __linux__
-	msrPrintStat(&outr->sFreeMemory, "free memory (GB):", 3);
-	msrPrintStat(&outr->sRSS,           "   resident size:",3);
+	msrPrintStat(&outr.sFreeMemory,    "free memory (GB):", 3);
+	msrPrintStat(&outr.sRSS,           "   resident size:",3);
 #endif
 	printf("  (cache access statistics are given per active particle)\n");
-	msrPrintStat(&outr->sPartNumAccess, "  P-cache access:",1);
-	msrPrintStat(&outr->sCellNumAccess, "  C-cache access:",1);
-	msrPrintStat(&outr->sPartMissRatio, "  P-cache miss %:",2);
-	msrPrintStat(&outr->sCellMissRatio, "  C-cache miss %:",2);
-	/*
-	** Now comes the really verbose output for each processor.
-	*/
-	if (bVDetails) {
-	    printf("Walk Timings:\n");
-	    PRINTGRID(8,"% 8.2f",dWalkTime);
-	    }
-	}
+	msrPrintStat(&outr.sPartNumAccess, "  P-cache access:",1);
+	msrPrintStat(&outr.sCellNumAccess, "  C-cache access:",1);
+	msrPrintStat(&outr.sPartMissRatio, "  P-cache miss %:",2);
+	msrPrintStat(&outr.sCellMissRatio, "  C-cache miss %:",2);
     if (param.bVRungStat && bKickOpen) {
 	printf("Rung distribution:\n");
 	printf("\n");
@@ -2777,7 +2766,6 @@ void MSR::Drift(double dTime,double dDelta,int iRoot) {
  */
 void MSR::KickKDKOpen(double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi) {
     struct inKick in;
-    struct outKick out;
 
     in.dTime = dTime;
     if (csm->val.bComove) {
@@ -2793,9 +2781,7 @@ void MSR::KickKDKOpen(double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi
     in.uRungLo = uRungLo;
     in.uRungHi = uRungHi;
     in.bDoGas = param.bDoGas;
-    pstKick(pst,&in,sizeof(in),&out,sizeof(out));
-    msrprintf("KickOpen: Avg Wallclock %f, Max Wallclock %f\n",
-	      out.SumTime/out.nSum,out.MaxTime);
+    pstKick(pst,&in,sizeof(in),NULL,0);
     }
 
 /*
@@ -2803,7 +2789,6 @@ void MSR::KickKDKOpen(double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi
  */
 void MSR::KickKDKClose(double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi) {
     struct inKick in;
-    struct outKick out;
 
     in.dTime = dTime;
     if (csm->val.bComove) {
@@ -2819,9 +2804,7 @@ void MSR::KickKDKClose(double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungH
     in.uRungLo = uRungLo;
     in.uRungHi = uRungHi;
     in.bDoGas = param.bDoGas;
-    pstKick(pst,&in,sizeof(in),&out,sizeof(out));
-    msrprintf("KickClose: Avg Wallclock %f, Max Wallclock %f\n",
-	      out.SumTime/out.nSum,out.MaxTime);
+    pstKick(pst,&in,sizeof(in),NULL,0);
     }
 
 bool MSR::OutTime(double dTime) {

@@ -178,7 +178,6 @@ enum pst_service {
     PST_GROUP_STATS2,
     PST_GROUPPROFILES,
     PST_INITRELAXATION,
-    PST_CLEARTIMER,
     PST_INITIALIZEPSTORE,
     PST_GETFFTMAXSIZES,
     PST_GENERATEIC,
@@ -621,12 +620,6 @@ struct outGravityReduct {
     uint64_t nActive;
     uint64_t nRung[IRUNGMAX+1];
     };
-struct outGravityPerProc {
-    /*
-    ** Collected CPU time.
-    */
-    double dWalkTime;
-    };
 int pstGravity(PST,void *,int,void *,int);
 
 /* PST_CALCEANDL */
@@ -673,12 +666,6 @@ struct inKick {
     uint8_t uRungLo;
     uint8_t uRungHi;
     };
-struct outKick {
-    double Time;
-    double MaxTime;
-    double SumTime;
-    int nSum;
-    };
 int pstKick(PST,void *,int,void *,int);
 
 /* PST_KICKTREE */
@@ -689,12 +676,6 @@ struct inKickTree {
     double dDeltaU;
     double dDeltaUPred;
     int iRoot;
-    };
-struct outKickTree {
-    double Time;
-    double MaxTime;
-    double SumTime;
-    int nSum;
     };
 int pstKickTree(PST,void *,int,void *,int);
 
@@ -889,13 +870,6 @@ struct inMarkSmooth {
     };
 void pstMarkSmooth(PST,void *,int,void *,int *);
 
-
-/* PST_CLEARTIMER */
-struct inClearTimer {
-    int iTimer;
-    };
-
-int pstClearTimer(PST,void *,int,void *,int);
 
 /* PST_NEW_FOF */
 struct inNewFof {

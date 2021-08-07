@@ -1044,8 +1044,6 @@ void pkdTreeBuild(PKD pkd,int nBucket, int nGroup, uint32_t uRoot,uint32_t uTemp
 #ifdef USE_ITT
      __itt_task_begin(domain, __itt_null, __itt_null, shMyTask);
 #endif
-    pkdClearTimer(pkd,0);
-    pkdStartTimer(pkd,0);
 
     /*
     ** The KDN at "uRoot" (e.g., ROOT) is already setup (pLower and pUpper are correct)
@@ -1055,7 +1053,6 @@ void pkdTreeBuild(PKD pkd,int nBucket, int nGroup, uint32_t uRoot,uint32_t uTemp
     if (uTemp==0) BuildTemp(pkd,uRoot,nBucket,nGroup,HUGE_VAL);
     else  BuildFromTemplate(pkd,uRoot,nBucket,nGroup,uTemp);
     Create(pkd,uRoot,ddHonHLimit);
-    pkdStopTimer(pkd,0);
 
     if (uRoot == FIXROOT) {
 #ifndef SINGLE_CACHES

@@ -84,117 +84,6 @@ typedef int ssize_t;
 #define FILE_PROTECTION (S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP)
 #endif
 
-double pkdGetTimer(PKD pkd,int iTimer) {
-    return(pkd->ti[iTimer].sec);
-    }
-
-double pkdGetSystemTimer(PKD pkd,int iTimer) {
-    return(pkd->ti[iTimer].system_sec);
-    }
-
-double pkdGetWallClockTimer(PKD pkd,int iTimer) {
-    return(pkd->ti[iTimer].wallclock_sec);
-    }
-
-
-void pkdClearTimer(PKD pkd,int iTimer) {
-   int i;
-
-    if (iTimer >= 0) {
-	pkd->ti[iTimer].sec = 0.0;
-	pkd->ti[iTimer].system_sec = 0.0;
-	pkd->ti[iTimer].wallclock_sec = 0.0;
-	pkd->ti[iTimer].iActive = 0;
-	}
-    else {
-	for (i=0;i<MAX_TIMERS;++i) {
-	    pkd->ti[i].sec = 0.0;
-	    pkd->ti[i].system_sec = 0.0;
-	    pkd->ti[i].wallclock_sec = 0.0;
-	    pkd->ti[i].iActive = 0;
-	    }
-	}
-    }
-
-
-void pkdStartTimer(PKD pkd,int iTimer) {
-    struct timeval tv;
-
-    pkd->ti[iTimer].iActive++;
-
-    if (pkd->ti[iTimer].iActive == 1) {
-#ifdef _MSC_VER
-        FILETIME ft;
-        uint64_t clock;
-	GetSystemTimeAsFileTime(&ft);
-	clock = ft.dwHighDateTime;
-	clock <<= 32;
-	clock |= ft.dwLowDateTime;
-	/* clock is in 100 nano-second units */
-	pkd->ti[iTimer].wallclock_stamp = clock / 10000000.0;
-#else
-	gettimeofday(&tv,NULL);
-	pkd->ti[iTimer].wallclock_stamp = tv.tv_sec + 1e-6*(double) tv.tv_usec;
-#endif
-	pkd->ti[iTimer].stamp = mdlCpuTimer(pkd->mdl);
-#ifdef __linux__
-	{
-	    struct rusage ru;
-
-	    getrusage(RUSAGE_SELF,&ru);
-	    pkd->ti[iTimer].system_stamp = (double)ru.ru_stime.tv_sec + 1e-6*(double)ru.ru_stime.tv_usec;
-	    }
-#endif
-	}
-    }
-
-
-void pkdStopTimer(PKD pkd,int iTimer) {
-    double sec;
-#ifdef _MSC_VER
-    FILETIME ft;
-    uint64_t clock;
-#else
-    struct timeval tv;
-#endif
-    sec = -pkd->ti[iTimer].stamp;
-    pkd->ti[iTimer].stamp = mdlCpuTimer(pkd->mdl);
-    sec += pkd->ti[iTimer].stamp;
-    if (sec < 0.0) sec = 0.0;
-    pkd->ti[iTimer].sec += sec;
-
-    sec = -pkd->ti[iTimer].wallclock_stamp;
-
-#ifdef _MSC_VER
-    GetSystemTimeAsFileTime(&ft);
-    clock = ft.dwHighDateTime;
-    clock <<= 32;
-    clock |= ft.dwLowDateTime;
-    /* clock is in 100 nano-second units */
-    pkd->ti[iTimer].wallclock_stamp = clock / 10000000.0;
-#else
-    gettimeofday(&tv,NULL);
-    pkd->ti[iTimer].wallclock_stamp = tv.tv_sec + 1e-6*(double) tv.tv_usec;
-#endif
-    sec += pkd->ti[iTimer].wallclock_stamp;
-    if (sec < 0.0) sec = 0.0;
-    pkd->ti[iTimer].wallclock_sec += sec;
-
-#ifdef __linux__
-	{
-	struct rusage ru;
-
-	sec = -pkd->ti[iTimer].system_stamp;
-	getrusage(RUSAGE_SELF,&ru);
-	pkd->ti[iTimer].system_stamp = ((double)ru.ru_stime.tv_sec + 1e-6*(double)ru.ru_stime.tv_usec);
-	sec += pkd->ti[iTimer].system_stamp;
-	if (sec < 0.0) sec = 0.0;
-	pkd->ti[iTimer].system_sec += sec;
-	}
-#endif
-    pkd->ti[iTimer].iActive--;
-    }
-
 /* Add a NODE structure: assume double alignment */
 static int pkdNodeAddStruct(PKD pkd,int n) {
     int iOffset = pkd->iTreeNodeSize;
@@ -2145,8 +2034,7 @@ void pkdGravAll(PKD pkd,
     ** Clear all the rung counters to be safe.
     */
     for (i=0;i<=IRUNGMAX;++i) pkd->nRung[i] = 0;
-     
-    pkdClearTimer(pkd,1);
+
 #if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
     mdlTimeReset(pkd->mdl);
 #endif
@@ -2169,14 +2057,12 @@ void pkdGravAll(PKD pkd,
     *pdFlop = 0.0;
     dPartSum = 0.0;
     dCellSum = 0.0;
-    pkdStartTimer(pkd,1);
     pkd->dFlopSingleCPU = pkd->dFlopDoubleCPU = 0.0;
     pkd->dFlopSingleGPU = pkd->dFlopDoubleGPU = 0.0;
 
     *pnActive = pkdGravWalk(pkd,kick,lc,ts,
 	dTime,nReps,bPeriodic && bEwald,nGroup,
 	iRoot1,iRoot2,0,dThetaMin,pdFlop,&dPartSum,&dCellSum);
-    pkdStopTimer(pkd,1);
 
     dActive = (double)(*pnActive);
     if (*pnActive) {
@@ -2636,9 +2522,6 @@ void pkdKick(PKD pkd,double dTime,double dDelta,int bDoGas,double dDeltaVPred,do
     assert(pkd->oFieldOffset[oVelocity]);
     assert(pkd->oFieldOffset[oAcceleration]);
 
-    pkdClearTimer(pkd,1);
-    pkdStartTimer(pkd,1);
-
     if (bDoGas) {
 	assert(pkd->oFieldOffset[oSph]);
 	n = pkdLocal(pkd);
@@ -2677,8 +2560,6 @@ void pkdKick(PKD pkd,double dTime,double dDelta,int bDoGas,double dDeltaVPred,do
 	    }
 	}
 
-
-    pkdStopTimer(pkd,1);
     mdlDiag(pkd->mdl, "Done pkdkick\n");
     }
 

@@ -856,18 +856,6 @@ typedef struct pkdContext {
     ewaldSIMD es;
 #endif
 
-    /*
-    ** Timers stuff.
-    */
-    struct timer {
-	double sec;
-	double stamp;
-	double system_sec;
-	double system_stamp;
-	double wallclock_sec;
-	double wallclock_stamp;
-	int iActive;
-	} ti[MAX_TIMERS];
     struct psGroupTable psGroupTable;
 
     int nGroups, nLocalGroups;
@@ -1358,12 +1346,6 @@ void pkdTreeBuildByGroup(PKD pkd, int nBucket, int nGroup);
 /*
 ** From pkd.c:
 */
-double pkdGetTimer(PKD,int);
-double pkdGetSystemTimer(PKD,int);
-double pkdGetWallClockTimer(PKD,int);
-void pkdClearTimer(PKD,int);
-void pkdStartTimer(PKD,int);
-void pkdStopTimer(PKD,int);
 void pkdInitialize(
     PKD *ppkd,MDL mdl,int nStore,uint64_t nMinTotalStore,uint64_t nMinEphemeral,uint32_t nEphemeralBytes,
     int nTreeBitsLo, int nTreeBitsHi,
