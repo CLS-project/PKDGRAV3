@@ -190,7 +190,6 @@ enum pst_service {
     PST_SETCLASSES,
     PST_SWAPCLASSES,
     PST_COUNTSELECTED,
-    PST_SELALL,
     PST_SELSPECIES,
     PST_SELMASS,
     PST_SELBYID,
@@ -972,108 +971,6 @@ int pstSetClasses(PST,void *,int,void *,int);
 
 /* PST_SWAPCLASSES - Input PARTCLASS[] - Output PARTCLASS[] */
 int pstSwapClasses(PST,void *,int,void *,int);
-
-/* PST_COUNTSELECTED */
-int pstCountSelected(PST pst,void *vin,int nIn,void *vout,int nOut);
-
-/* PST_SELALL */
-int pstSelAll(PST pst,void *vin,int nIn,void *vout,int nOut);
-
-/* PST_SELSPECIES */
-struct inSelSpecies {
-    uint64_t mSpecies;
-    int setIfTrue;
-    int clearIfFalse;
-    };
-int pstSelSpecies(PST pst,void *vin,int nIn,void *vout,int nOut);
-
-/* PST_SELMASS */
-struct inSelMass {
-    double dMinMass;
-    double dMaxMass;
-    int setIfTrue;
-    int clearIfFalse;
-    };
-struct outSelMass {
-    uint64_t nSelected;
-    };
-int pstSelMass(PST pst,void *vin,int nIn,void *vout,int nOut);
-
-/* PST_SELBYID */
-struct inSelById {
-    uint64_t idStart;
-    uint64_t idEnd;
-    int setIfTrue;
-    int clearIfFalse;
-    };
-struct outSelById {
-    uint64_t nSelected;
-    };
-int pstSelById(PST pst,void *vin,int nIn,void *vout,int nOut);
-
-/* PST_SELPHASEDENSITY */
-struct inSelPhaseDensity {
-    double dMinDensity;
-    double dMaxDensity;
-    int setIfTrue;
-    int clearIfFalse;
-    };
-struct outSelPhaseDensity {
-    uint64_t nSelected;
-    };
-int pstSelPhaseDensity(PST pst,void *vin,int nIn,void *vout,int nOut);
-
-/* PST_SELBOX */
-struct inSelBox {
-    double dCenter[3];
-    double dSize[3];
-    int setIfTrue;
-    int clearIfFalse;
-    };
-struct outSelBox {
-    uint64_t nSelected;
-    };
-int pstSelBox(PST pst,void *vin,int nIn,void *vout,int nOut);
-
-/* PST_SELSPHERE */
-struct inSelSphere {
-    double r[3];
-    double dRadius;
-    int setIfTrue;
-    int clearIfFalse;
-    };
-struct outSelSphere {
-    uint64_t nSelected;
-    };
-int pstSelSphere(PST pst,void *vin,int nIn,void *vout,int nOut);
-
-/* PST_SELCYLINDER */
-struct inSelCylinder {
-    double dP1[3];
-    double dP2[3];
-    double dRadius;
-    int setIfTrue;
-    int clearIfFalse;
-    };
-struct outSelCylinder {
-    uint64_t nSelected;
-    };
-int pstSelCylinder(PST pst,void *vin,int nIn,void *vout,int nOut);
-
-/* PST_SECGROUP */
-struct inSelGroup {
-    int iGroup;
-    int setIfTrue;
-    int clearIfFalse;
-    };
-int pstSelGroup(PST pst,void *vin,int nIn,void *vout,int nOut);
-
-/* PST_SECGROUP */
-struct inSelBlackholes {
-    int setIfTrue;
-    int clearIfFalse;
-    };
-int pstSelBlackholes(PST pst,void *vin,int nIn,void *vout,int nOut);
 
 /* PST_PROFILE */
 #define PST_MAX_PROFILE_BINS 1000000

@@ -40,6 +40,7 @@
 #include "core/hostname.h"
 #include "core/initcosmology.h"
 #include "core/calcroot.h"
+#include "core/select.h"
 
 #include "domains/calcbound.h"
 #include "domains/combinebound.h"
@@ -84,6 +85,16 @@ void *worker_init(MDL vmdl) {
     mdl->AddService(std::make_unique<ServiceHostname>(pst));
     mdl->AddService(std::make_unique<ServiceInitCosmology>(pst));
     mdl->AddService(std::make_unique<ServiceCalcRoot>(pst));
+    mdl->AddService(std::make_unique<ServiceCountSelected>(pst));
+    mdl->AddService(std::make_unique<ServiceSelBlackholes>(pst));
+    mdl->AddService(std::make_unique<ServiceSelSpecies>(pst));
+    mdl->AddService(std::make_unique<ServiceSelGroup>(pst));
+    mdl->AddService(std::make_unique<ServiceSelMass>(pst));
+    mdl->AddService(std::make_unique<ServiceSelPhaseDensity>(pst));
+    mdl->AddService(std::make_unique<ServiceSelById>(pst));
+    mdl->AddService(std::make_unique<ServiceSelBox>(pst));
+    mdl->AddService(std::make_unique<ServiceSelSphere>(pst));
+    mdl->AddService(std::make_unique<ServiceSelCylinder>(pst));
     mdl->AddService(std::make_unique<ServiceCalcBound>(pst));
     mdl->AddService(std::make_unique<ServiceCombineBound>(pst));
     mdl->AddService(std::make_unique<ServiceDistribTopTree>(pst));

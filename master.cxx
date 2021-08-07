@@ -77,6 +77,7 @@ using namespace fmt::literals; // Gives us ""_a and ""_format literals
 #include "core/swapall.h"
 #include "core/hostname.h"
 #include "core/calcroot.h"
+#include "core/select.h"
 
 #include "domains/distribtoptree.h"
 #include "domains/distribroot.h"
@@ -4301,17 +4302,14 @@ void MSR::Output(int iStep, double dTime, double dDelta, int bCheckpoint) {
     }
 
 uint64_t MSR::CountSelected() {
-    uint64_t n;
-    pstCountSelected(pst, NULL, 0, &n, sizeof(n));
-    return n;
+    uint64_t N;
+    mdl->RunService(PST_COUNTSELECTED,&N);
+    return N;
     }
 uint64_t MSR::SelSpecies(uint64_t mSpecies,bool setIfTrue,bool clearIfFalse) {
     uint64_t N;
-    struct inSelSpecies in;
-    in.setIfTrue = setIfTrue;
-    in.clearIfFalse = clearIfFalse;
-    in.mSpecies = mSpecies;
-    pstSelSpecies(pst, &in, sizeof(in), &N, sizeof(N) );
+    ServiceSelSpecies::input in(mSpecies,setIfTrue,clearIfFalse);
+    mdl->RunService(PST_SELSPECIES,sizeof(in),&in,&N);
     return N;
     }
 uint64_t MSR::SelAll(bool setIfTrue,bool clearIfFalse) {
@@ -4331,99 +4329,53 @@ uint64_t MSR::SelDeleted(bool setIfTrue,bool clearIfFalse) {
     return SelSpecies(1<<FIO_SPECIES_LAST,setIfTrue,clearIfFalse);
     }
 uint64_t MSR::SelBlackholes(bool setIfTrue,bool clearIfFalse) {
-    struct inSelBlackholes in;
-    uint64_t n;
-    in.setIfTrue = setIfTrue;
-    in.clearIfFalse = clearIfFalse;
-    pstSelBlackholes(pst, &in, sizeof(in), &n, sizeof(n) );
-    return n;
+    uint64_t N;
+    ServiceSelBlackholes::input in(setIfTrue,clearIfFalse);
+    mdl->RunService(PST_SELBLACKHOLES,sizeof(in),&in,&N);
+    return N;
     }
 uint64_t MSR::SelGroup(int iGroup,bool setIfTrue,bool clearIfFalse) {
-    uint64_t n;
-    pstSelGroup(pst, &iGroup, sizeof(iGroup), &n, sizeof(n) );
-    return n;
+    uint64_t N;
+    ServiceSelGroup::input in(iGroup,setIfTrue,clearIfFalse);
+    mdl->RunService(PST_SELGROUP,sizeof(in),&in,&N);
+    return N;
     }
 uint64_t MSR::SelById(uint64_t idStart,uint64_t idEnd,int setIfTrue,int clearIfFalse) {
-    struct inSelById in;
-    struct outSelById out;
-    int nOut;
-
-    in.idStart = idStart;
-    in.idEnd = idEnd;
-    in.setIfTrue = setIfTrue;
-    in.clearIfFalse = clearIfFalse;
-    pstSelById(pst, &in, sizeof(in), &out, sizeof(out));
-    return out.nSelected;
+    uint64_t N;
+    ServiceSelById::input in(idStart,idEnd,setIfTrue,clearIfFalse);
+    mdl->RunService(PST_SELBYID,sizeof(in),&in,&N);
+    return N;
     }
 uint64_t MSR::SelMass(double dMinMass,double dMaxMass,int setIfTrue,int clearIfFalse) {
-    struct inSelMass in;
-    struct outSelMass out;
-    int nOut;
-
-    in.dMinMass = dMinMass;
-    in.dMaxMass = dMaxMass;
-    in.setIfTrue = setIfTrue;
-    in.clearIfFalse = clearIfFalse;
-    pstSelMass(pst, &in, sizeof(in), &out, sizeof(out));
-    return out.nSelected;
+    uint64_t N;
+    ServiceSelMass::input in(dMinMass,dMaxMass,setIfTrue,clearIfFalse);
+    mdl->RunService(PST_SELMASS,sizeof(in),&in,&N);
+    return N;
     }
 uint64_t MSR::SelPhaseDensity(double dMinPhaseDensity,double dMaxPhaseDensity,int setIfTrue,int clearIfFalse) {
-    struct inSelPhaseDensity in;
-    struct outSelPhaseDensity out;
-    int nOut;
-
-    in.dMinDensity = dMinPhaseDensity;
-    in.dMaxDensity = dMaxPhaseDensity;
-    in.setIfTrue = setIfTrue;
-    in.clearIfFalse = clearIfFalse;
-    pstSelPhaseDensity(pst, &in, sizeof(in), &out, sizeof(out));
-    return out.nSelected;
+    uint64_t N;
+    ServiceSelPhaseDensity::input in(dMinPhaseDensity,dMaxPhaseDensity,setIfTrue,clearIfFalse);
+    mdl->RunService(PST_SELPHASEDENSITY,sizeof(in),&in,&N);
+    return N;
     }
 uint64_t MSR::SelBox(double *dCenter, double *dSize,bool setIfTrue,bool clearIfFalse) {
-    struct inSelBox in;
-    struct outSelBox out;
-    int nOut;
-
-    in.dCenter[0] = dCenter[0];
-    in.dCenter[1] = dCenter[1];
-    in.dCenter[2] = dCenter[2];
-    in.dSize[0] = dSize[0];
-    in.dSize[1] = dSize[1];
-    in.dSize[2] = dSize[2];
-    in.setIfTrue = setIfTrue;
-    in.clearIfFalse = clearIfFalse;
-    pstSelBox(pst, &in, sizeof(in), &out, sizeof(out));
-    return out.nSelected;
+    uint64_t N;
+    ServiceSelBox::input in(dCenter,dSize,setIfTrue,clearIfFalse);
+    mdl->RunService(PST_SELBOX,sizeof(in),&in,&N);
+    return N;
     }
 uint64_t MSR::SelSphere(double *r, double dRadius,int setIfTrue,int clearIfFalse) {
-    struct inSelSphere in;
-    struct outSelSphere out;
-    int nOut;
-
-    in.r[0] = r[0];
-    in.r[1] = r[1];
-    in.r[2] = r[2];
-    in.dRadius = dRadius;
-    in.setIfTrue = setIfTrue;
-    in.clearIfFalse = clearIfFalse;
-    pstSelSphere(pst, &in, sizeof(in), &out, sizeof(out));
-    return out.nSelected;
+    uint64_t N;
+    ServiceSelSphere::input in(r,dRadius,setIfTrue,clearIfFalse);
+    mdl->RunService(PST_SELBOX,sizeof(in),&in,&N);
+    return N;
     }
 uint64_t MSR::SelCylinder(double *dP1, double *dP2, double dRadius,
 			   int setIfTrue, int clearIfFalse ) {
-    struct inSelCylinder in;
-    struct outSelCylinder out;
-    int nOut,j;
-
-    for(j=0;j<3;j++) {
-	in.dP1[j] = dP1[j];
-	in.dP2[j] = dP2[j];
-	}
-    in.dRadius = dRadius;
-    in.setIfTrue = setIfTrue;
-    in.clearIfFalse = clearIfFalse;
-    pstSelCylinder(pst, &in, sizeof(in), &out, sizeof(out));
-    return out.nSelected;
+    uint64_t N;
+    ServiceSelCylinder::input in(dP1,dP2,dRadius,setIfTrue,clearIfFalse);
+    mdl->RunService(PST_SELCYLINDER,sizeof(in),&in,&N);
+    return N;
     }
 
 double MSR::TotalMass() {
