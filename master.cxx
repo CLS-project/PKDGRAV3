@@ -2684,6 +2684,7 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
 	msrPrintStat(&outr.sCellNumAccess, "  C-cache access:",1);
 	msrPrintStat(&outr.sPartMissRatio, "  P-cache miss %:",2);
 	msrPrintStat(&outr.sCellMissRatio, "  C-cache miss %:",2);
+	}
     if (param.bVRungStat && bKickOpen) {
 	printf("Rung distribution:\n");
 	printf("\n");
