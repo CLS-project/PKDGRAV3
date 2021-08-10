@@ -11,7 +11,7 @@ void msrStarForm(MSR msr, double dTime, double dDelta, int iRung)
     struct outStarForm out;
     double sec,sec1,dsec;
 
-    sec = msrTime();
+    msrTimerStart(msr, TIMER_STARFORM);
 
     const double a = csmTime2Exp(msr->csm,dTime);
 
@@ -51,8 +51,8 @@ void msrStarForm(MSR msr, double dTime, double dDelta, int iRung)
     msr->nGas -= out.nFormed;
     msr->nStar += out.nFormed;
 
-    sec1 = msrTime();
-    dsec = sec1 - sec;
+    msrTimerStop(msr, TIMER_STARFORM);
+    dsec = msrTimerGet(msr, TIMER_STARFORM);
     printf("Star Formation Calculated, Wallclock: %f secs\n\n",dsec);
 
 

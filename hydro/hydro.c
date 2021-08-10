@@ -28,7 +28,7 @@ void msrComputeSmoothing(MSR msr,double dTime){
     int nSmoothed = 1, it=0, maxit = 100;
 
     printf("Computing density... \n");
-    double sec = msrTime();
+    msrTimerStart(msr, TIMER_DENSITY);
     if (msr->param.bIterativeSmoothingLength){
 #ifdef OPTIM_AVOID_IS_ACTIVE
        msrSelActive(msr);
@@ -59,7 +59,9 @@ void msrComputeSmoothing(MSR msr,double dTime){
 
          printf("Smoothing length did not converge for %d particles\n", nSmoothed);
        }
-       double dsec = msrTime()-sec;
+
+       msrTimerStop(msr, TIMER_DENSITY);
+       double dsec = msrTimerGet(msr, TIMER_DENSITY);
        printf("Computing h took %d iterations and %.5f seconds \n", it, dsec);
     }else{
        msrSetFirstHydroLoop(msr, 1);
@@ -333,7 +335,7 @@ void msrMeshlessGradients(MSR msr,double dTime){
    double sec, dsec;
     printf("Computing gradients... ");
 
-    sec = msrTime();
+    msrTimerStart(msr, TIMER_GRADIENTS);
     if (msr->param.bConservativeReSmooth){
 #ifdef OPTIM_SMOOTH_NODE
 #ifdef OPTIM_AVOID_IS_ACTIVE
@@ -346,7 +348,9 @@ void msrMeshlessGradients(MSR msr,double dTime){
     }else{
        msrSmooth(msr,dTime,SMX_SECONDHYDROLOOP,0, msr->param.nSmooth);
     }
-    dsec = msrTime() - sec;
+
+    msrTimerStop(msr, TIMER_GRADIENTS);
+    dsec = msrTimerGet(msr, TIMER_GRADIENTS);
     printf("took %.5f seconds\n", dsec);
 }
 
@@ -593,7 +597,7 @@ void msrMeshlessFluxes(MSR msr,double dTime,double dDelta,int iRoot){
 #endif
     double sec, dsec;
     printf("Computing fluxes... ");
-    sec = msrTime();
+    msrTimerStart(msr, TIMER_FLUXES);
     if (msr->param.bConservativeReSmooth){
        if (dDelta==0.0){
 #ifdef OPTIM_SMOOTH_NODE
@@ -614,7 +618,9 @@ void msrMeshlessFluxes(MSR msr,double dTime,double dDelta,int iRoot){
     }else{
        msrSmooth(msr,dTime,SMX_THIRDHYDROLOOP,0,msr->param.nSmooth);
     }
-    dsec = msrTime()-sec;
+
+    msrTimerStop(msr, TIMER_FLUXES);
+    dsec = msrTimerGet(msr, TIMER_FLUXES);
     printf("took %.5f seconds\n", dsec);
 }
 
@@ -1836,7 +1842,7 @@ void msrHydroStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime) {
 
     printf("Computing hydro time step... ");
 
-    sec = msrTime();
+    msrTimerStart(msr, TIMER_TIMESTEP);
 #ifdef OPTIM_SMOOTH_NODE
 #ifdef OPTIM_AVOID_IS_ACTIVE
        msrSelActive(msr);
@@ -1855,7 +1861,9 @@ void msrHydroStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime) {
           msrSetGlobalDt(msr, minDt);
        }
     }
-    dsec = msrTime() - sec;
+   
+    msrTimerStop(msr, TIMER_TIMESTEP);
+    dsec = msrTimerGet(msr, TIMER_TIMESTEP);
     printf("took %.5f seconds\n", dsec);
 
     if (msr->param.bWakeUpParticles){
