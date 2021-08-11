@@ -1440,7 +1440,7 @@ void pkdGravAll(PKD pkd,
     struct pkdKickParameters *kick,struct pkdLightconeParameters *lc,struct pkdTimestepParameters *ts,
     double dTime,int nReps,int bPeriodic,
     int bEwald,int nGroup,int iRoot1, int iRoot2,
-    double fEwCut,double fEwhCut,double dThetaMin,SPHOptions SPHoptions,
+    double fEwCut,double fEwhCut,double dThetaMin,SPHOptions *SPHoptions,
     uint64_t *pnActive,
     double *pdPart,double *pdPartNumAccess,double *pdPartMissRatio,
     double *pdCell,double *pdCellNumAccess,double *pdCellMissRatio,
@@ -1449,8 +1449,8 @@ void pkdCalcEandL(PKD pkd,double *T,double *U,double *Eth,double *L,double *F,do
 void pkdProcessLightCone(PKD pkd,PARTICLE *p,float fPot,double dLookbackFac,double dLookbackFacLCP,
 			double dDriftDelta,double dKickDelta,double dBoxSize,int bLightConeParticles);
 void pkdGravEvalPP(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINFOOUT *pOut );
-void pkdDensityEval(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINFOOUT *pOut, SPHOptions SPHoptions);
-void pkdSPHForcesEval(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINFOOUT *pOut, SPHOptions SPHoptions);
+void pkdDensityEval(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINFOOUT *pOut, SPHOptions *SPHoptions);
+void pkdSPHForcesEval(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINFOOUT *pOut, SPHOptions *SPHoptions);
 void pkdGravEvalPC(PINFOIN *pPart, int nBlocks, int nInLast, ILC_BLK *blk,  PINFOOUT *pOut );
 void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double,double,int bDoGas);
 void pkdScaleVel(PKD pkd,double dvFac);

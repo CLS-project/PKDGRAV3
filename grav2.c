@@ -105,7 +105,7 @@ void pkdParticleWorkDone(workParticle *wp) {
 	for( i=0; i<wp->nP; i++ ) {
 	    p = wp->pPart[i];
 
-        if (wp->SPHoptions.doDensity) {
+        if (wp->SPHoptions->doDensity) {
         //SPHFIELDS *pSph = pkdSph(pkd,p);
         pkdSetDensity(pkd,p,wp->pInfoOut[i].rho);
         pkdSetBall(pkd,p,wp->pInfoOut[i].fBall);
@@ -114,7 +114,7 @@ void pkdParticleWorkDone(workParticle *wp) {
         //pSph->thetaDot = wp->pInfoOut[i].thetaDot;
         }
 
-        if (wp->SPHoptions.doGravity) {
+        if (wp->SPHoptions->doGravity) {
 	    pkdGetPos1(pkd,p,r);
 	    m = pkdMass(pkd,p);
 	    if (pkd->oFieldOffset[oAcceleration]) {
@@ -287,7 +287,7 @@ int CPUdoWorkDensity(void *vpp) {
     PINFOOUT *pOut = &pp->pInfoOut[pp->i];
     int nBlocks = tile->lstTile.nBlocks;
     int nInLast = tile->lstTile.nInLast;
-    SPHOptions SPHoptions = wp->SPHoptions;
+    SPHOptions *SPHoptions = wp->SPHoptions;
 
     pOut->rho = 0.0;
     pOut->drhodfball = 0.0;
@@ -309,7 +309,7 @@ int CPUdoWorkSPHForces(void *vpp) {
     PINFOOUT *pOut = &pp->pInfoOut[pp->i];
     int nBlocks = tile->lstTile.nBlocks;
     int nInLast = tile->lstTile.nInLast;
-    SPHOptions SPHoptions = wp->SPHoptions;
+    SPHOptions *SPHoptions = wp->SPHoptions;
 
     pOut->thetaDot = 0.0;
     pOut->a[0] = 0.0;
@@ -441,10 +441,10 @@ static void queueDensity( PKD pkd, workParticle *wp, ILP ilp, int bGravStep ) {
     // calculate maximum kernel mass deviation
     for (int i=0; i<wp->nP; i++) {
         float kerneldeviation = 0.0f;
-        if (wp->SPHoptions.useNumDen) {
-            kerneldeviation = 4.0f/3.0f*M_PI*wp->pInfoIn[i].fBall*wp->pInfoIn[i].fBall*wp->pInfoIn[i].fBall*wp->pInfoOut[i].nden - wp->SPHoptions.fKernelTarget;
+        if (wp->SPHoptions->useNumDen) {
+            kerneldeviation = 4.0f/3.0f*M_PI*wp->pInfoIn[i].fBall*wp->pInfoIn[i].fBall*wp->pInfoIn[i].fBall*wp->pInfoOut[i].nden - wp->SPHoptions->fKernelTarget;
         } else {
-            kerneldeviation = 4.0f/3.0f*M_PI*wp->pInfoIn[i].fBall*wp->pInfoIn[i].fBall*wp->pInfoIn[i].fBall*wp->pInfoOut[i].rho - wp->SPHoptions.fKernelTarget;
+            kerneldeviation = 4.0f/3.0f*M_PI*wp->pInfoIn[i].fBall*wp->pInfoIn[i].fBall*wp->pInfoIn[i].fBall*wp->pInfoOut[i].rho - wp->SPHoptions->fKernelTarget;
         }
         kerneldeviation = (kerneldeviation > 0) ? kerneldeviation : -kerneldeviation;
         maxkerneldeviation = (kerneldeviation > maxkerneldeviation) ? kerneldeviation : maxkerneldeviation;
@@ -455,17 +455,17 @@ static void queueDensity( PKD pkd, workParticle *wp, ILP ilp, int bGravStep ) {
     ** if true, calculate new fBall for all particles
     ** else, exit loop
     */
-    if (maxkerneldeviation/wp->SPHoptions.fKernelTarget > 1e-6f) {
+    if (maxkerneldeviation/wp->SPHoptions->fKernelTarget > 1e-6f) {
         // do another loop
         for (int i=0; i<wp->nP; i++) {
             float prefac = 4.0f/3.0f*M_PI;
             float fBall = wp->pInfoIn[i].fBall;
             float fx, dfdx;
-            if (wp->SPHoptions.useNumDen) {
-                fx = prefac * fBall * fBall * fBall * wp->pInfoOut[i].nden - wp->SPHoptions.fKernelTarget;
+            if (wp->SPHoptions->useNumDen) {
+                fx = prefac * fBall * fBall * fBall * wp->pInfoOut[i].nden - wp->SPHoptions->fKernelTarget;
                 dfdx = prefac * 3.0f * fBall * fBall * wp->pInfoOut[i].nden + prefac * fBall * fBall * fBall * wp->pInfoOut[i].dndendfball;
             } else {
-                fx = prefac * fBall * fBall * fBall * wp->pInfoOut[i].rho - wp->SPHoptions.fKernelTarget;
+                fx = prefac * fBall * fBall * fBall * wp->pInfoOut[i].rho - wp->SPHoptions->fKernelTarget;
                 dfdx = prefac * 3.0f * fBall * fBall * wp->pInfoOut[i].rho + prefac * fBall * fBall * fBall * wp->pInfoOut[i].drhodfball;
             }
             float newfBall = wp->pInfoIn[i].fBall - fx / dfdx;
@@ -477,7 +477,7 @@ static void queueDensity( PKD pkd, workParticle *wp, ILP ilp, int bGravStep ) {
         }
     } else {
         // finish
-        // printf("loopcount = %d, deviation = %.6e\n",loopcount,maxkerneldeviation/wp->SPHoptions.fKernelTarget);
+        // printf("loopcount = %d, deviation = %.6e\n",loopcount,maxkerneldeviation/wp->SPHoptions->fKernelTarget);
         break;
     }
 
@@ -605,7 +605,7 @@ int pkdGravInteract(PKD pkd,
     struct pkdKickParameters *kick,struct pkdLightconeParameters *lc,struct pkdTimestepParameters *ts,
     KDN *pBucket,LOCR *pLoc,ILP ilp,ILC ilc,
     float dirLsum,float normLsum,int bEwald,double *pdFlop,
-    SMX smx,SMF *smf,int iRoot1,int iRoot2,SPHOptions SPHoptions) {
+    SMX smx,SMF *smf,int iRoot1,int iRoot2,SPHOptions *SPHoptions) {
     PARTICLE *p;
     KDN *pkdn = pBucket;
     double r[3], kdn_r[3];
@@ -719,7 +719,7 @@ int pkdGravInteract(PKD pkd,
 	/*
 	** Calculate local density and kernel smoothing length for dynamical time-stepping
 	*/
-    if (SPHoptions.doGravity) {
+    if (SPHoptions->doGravity) {
 	if (ts->bGravStep) {
 	    /*
 	    ** Calculate local density using smooth; this is fast because the particles are
@@ -743,7 +743,7 @@ int pkdGravInteract(PKD pkd,
     /*
     ** Evaluate the local expansion.
     */
-    if (pLoc && SPHoptions.doGravity) {
+    if (pLoc && SPHoptions->doGravity) {
 	for( i=0; i<wp->nP; i++ ) {
 	    momFloat ax,ay,az, dPot;
 	    double *c = wp->c;
@@ -773,7 +773,7 @@ int pkdGravInteract(PKD pkd,
 	    }
 	}
 
-    if (SPHoptions.doGravity) {
+    if (SPHoptions->doGravity) {
     /*
     ** Evaluate the P-C interactions
     */
@@ -786,21 +786,21 @@ int pkdGravInteract(PKD pkd,
     queuePP( pkd, wp, ilp, ts->bGravStep );
     }
 
-    if (SPHoptions.doDensity) {
+    if (SPHoptions->doDensity) {
     /*
     ** Evaluate the Density on the P-P interactions
     */
     queueDensity( pkd, wp, ilp, ts->bGravStep );
     }
 
-    if (SPHoptions.doSPHForces) {
+    if (SPHoptions->doSPHForces) {
     /*
     ** Evaluate the SPH forces on the P-P interactions
     */
     queueSPHForces( pkd, wp, ilp, ts->bGravStep );
     }
 
-    if (SPHoptions.doGravity) {
+    if (SPHoptions->doGravity) {
     /*
     ** Calculate the Ewald correction for this particle, if it is required.
     */
@@ -810,7 +810,7 @@ int pkdGravInteract(PKD pkd,
     }
 
 #ifdef TIMESTEP_CRITICAL
-    if (SPHoptions.doGravity) {
+    if (SPHoptions->doGravity) {
     for( i=0; i<wp->nP; i++ ) {
 	double *c = wp->c;
 	float *in = wp->pInfoIn[i].r;

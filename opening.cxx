@@ -32,7 +32,7 @@
 ** This version will also open buckets ("new" criteria)
 */
 extern "C"
-void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,SPHOptions SPHoptions) {
+void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,SPHOptions *SPHoptions) {
     const float walk_min_multipole = 3;
     fmask T0,T1,T2,T3,T4,T6,T7;
     i32v P1,P2,P3,P4;
@@ -83,7 +83,7 @@ void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,SPHOption
 	for(i=0; i<iEnd; ++i) {
 	    fourh2 = blk->fourh2.p[i];
 
-        if (SPHoptions.doDensity || SPHoptions.doSPHForces) {
+        if (SPHoptions->doDensity || SPHoptions->doSPHForces) {
             distk2 = 0.0f;
             dx = kbnd.fCenter[0] - fvec(blk->xCenter.p[i]) - fvec(blk->xOffset.p[i]) - fvec(blk->xMax.p[i]);
             distk2 += maskz_mov(dx>0,dx*dx);
@@ -100,7 +100,7 @@ void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,SPHOption
             dx = fvec(blk->zCenter.p[i]) + fvec(blk->zOffset.p[i]) - fvec(blk->zMax.p[i]) - kbnd.fCenter[2];
             distk2 += maskz_mov(dx>0,dx*dx);
         }
-        if (SPHoptions.doSPHForces) {
+        if (SPHoptions->doSPHForces) {
             blk_fBoBr2 = blk->fBoBr2.p[i];
             distc2 = 0.0f;
             dx = k_xMinBnd - fvec(blk->xCenter.p[i]) - fvec(blk->xOffset.p[i]);

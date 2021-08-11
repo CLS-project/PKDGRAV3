@@ -61,7 +61,7 @@ static inline int getCell(PKD pkd,int iCache,int iCell,int id,float *pcOpen,KDN 
 
 
 #ifdef USE_SIMD_OPEN
-void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,SPHOptions SPHoptions);
+void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,SPHOptions *SPHoptions);
 #endif
 #if 1
 /*
@@ -71,7 +71,7 @@ void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,SPHOption
 **
 ** This version has been changed by adding the ability to open buckets.
 */
-static void iOpenOutcomeCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,SPHOptions SPHoptions) {
+static void iOpenOutcomeCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,SPHOptions *SPHoptions) {
     const int walk_min_multipole = 3;
     float dx,dy,dz,mink2,d2,d2Open,xc,yc,zc,fourh2,minbnd2,kOpen,cOpen,diCrit,distk2,distc2;
     int i;
@@ -96,7 +96,7 @@ static void iOpenOutcomeCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,SPHO
 	    else {
 		fourh2 = blk->fourh2.f[i];
 
-        if (SPHoptions.doDensity || SPHoptions.doSPHForces) {
+        if (SPHoptions->doDensity || SPHoptions->doSPHForces) {
             dx = kbnd.fCenter[0] -  blk->xCenter.f[i] - blk->xOffset.f[i] - blk->xMax.f[i];
             if (dx > 0) distk2 += dx*dx;
             dx = blk->xCenter.f[i] + blk->xOffset.f[i] - blk->xMax.f[i] - kbnd.fCenter[0];
@@ -112,7 +112,7 @@ static void iOpenOutcomeCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,SPHO
             dx = blk->zCenter.f[i] + blk->zOffset.f[i] - blk->zMax.f[i] - kbnd.fCenter[2];
             if (dx > 0) distk2 += dx*dx;
         }
-        if (SPHoptions.doSPHForces) {
+        if (SPHoptions->doSPHForces) {
             dx = kbnd.fCenter[0] - kbnd.fMax[0] -  blk->xCenter.f[i] - blk->xOffset.f[i];
             if (dx > 0) distc2 += dx*dx;
             dx = blk->xCenter.f[i] + blk->xOffset.f[i] - kbnd.fCenter[0] - kbnd.fMax[0];
@@ -208,7 +208,7 @@ static void addChild(PKD pkd, int iCache, CL cl, int iChild, int id, float *fOff
 static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2, 
     struct pkdKickParameters *kick,struct pkdLightconeParameters *lc,struct pkdTimestepParameters *ts,
     double dTime,int bEwald,
-    double dThetaMin, double *pdFlop, double *pdPartSum,double *pdCellSum,SPHOptions SPHoptions) {
+    double dThetaMin, double *pdFlop, double *pdPartSum,double *pdCellSum,SPHOptions *SPHoptions) {
     KDN *k,*c,*kFind;
     int id,idUpper,iCell,iSib,iLower,iUpper,iCheckCell,iCheckLower,iCellDescend;
     PARTICLE *p;
@@ -506,7 +506,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2,
 				** Accept multipole!
 				** Interact += Moment(c);
 				*/
-                if (SPHoptions.doGravity) {
+                if (SPHoptions->doGravity) {
 				iCheckCell = blk->iCell.i[jTile];
 				assert(iCheckCell>=0);
 				id = blk->idCell.i[jTile];
@@ -529,7 +529,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2,
 				/*
 				** Local expansion accepted!
 				*/
-                if (SPHoptions.doGravity) {
+                if (SPHoptions->doGravity) {
 				iCheckCell = blk->iCell.i[jTile];
 				if (iCheckCell<0) {
 				    fOffset[0] = blk->xOffset.f[jTile];
@@ -860,7 +860,7 @@ int pkdGravWalkHop(PKD pkd,double dTime,int nGroup, double dThetaMin,double *pdF
 int pkdGravWalk(PKD pkd,struct pkdKickParameters *kick,struct pkdLightconeParameters *lc,struct pkdTimestepParameters *ts,
     double dTime,int nReps,int bEwald,int nGroup,
     int iLocalRoot1, int iLocalRoot2,int iVARoot,
-    double dThetaMin,double *pdFlop,double *pdPartSum,double *pdCellSum,SPHOptions SPHoptions) {
+    double dThetaMin,double *pdFlop,double *pdPartSum,double *pdCellSum,SPHOptions *SPHoptions) {
     int id;
     float fOffset[3];
     int ix,iy,iz,bRep;

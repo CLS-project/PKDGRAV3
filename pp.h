@@ -64,7 +64,7 @@ CUDA_DEVICE void EvalDensity(
 	const F &Pdx, const F &Pdy, const F &Pdz,     // Particle
 	const F &Idx, const F &Idy, const F &Idz, const F &Im, const F & fBall, // Interaction(s)
 	F &arho, F &adrhodfball, F &anden, F& adndendfball, F &anSmooth,         // results
-    SPHOptions SPHoptions) {
+    SPHOptions *SPHoptions) {
     F dx = Idx + Pdx;
     F dy = Idy + Pdy;
     F dz = Idz + Pdz;
@@ -75,7 +75,7 @@ CUDA_DEVICE void EvalDensity(
     F t1, t2, t3;
     M mask1;
 
-    int kernelType = SPHoptions.kernelType;
+    int kernelType = SPHoptions->kernelType;
 
     ifBall = 1.0f / fBall;
     r = sqrt(d2) * ifBall;
@@ -116,7 +116,7 @@ CUDA_DEVICE void EvalSPHForces(
 	const F &Idx, const F &Idy, const F &Idz, const F & Im, const F &IfBall, const F &IOmega,     // Interactions
     const F &Ivx, const F &Ivy, const F &Ivz, const F &Irho, const F &IP, const F &Ic, const Ivec & Ispecies,
     F &thetaDot, F &ax, F &ay, F &az, F &divv, F &dtEst,         // results
-    SPHOptions SPHoptions) {
+    SPHOptions *SPHoptions) {
     F dx = Idx + Pdx;
     F dy = Idy + Pdy;
     F dz = Idz + Pdz;
@@ -134,13 +134,13 @@ CUDA_DEVICE void EvalSPHForces(
     F vFac, aFac;
     M Pr_lt_one, Ir_lt_one, mask1, dvdotdx_st_zero;
 
-    int kernelType = SPHoptions.kernelType;
-    float epsilon = SPHoptions.epsilon;
-    float alpha = SPHoptions.alpha;
-    float beta = SPHoptions.beta;
-    float EtaCourant = SPHoptions.EtaCourant;
-    float a = SPHoptions.a;
-    float H = SPHoptions.H;
+    int kernelType = SPHoptions->kernelType;
+    float epsilon = SPHoptions->epsilon;
+    float alpha = SPHoptions->alpha;
+    float beta = SPHoptions->beta;
+    float EtaCourant = SPHoptions->EtaCourant;
+    float a = SPHoptions->a;
+    float H = SPHoptions->H;
 
     PifBall = 1.0f / PfBall;
     IifBall = 1.0f / IfBall;

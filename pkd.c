@@ -2150,7 +2150,7 @@ void pkdGravAll(PKD pkd,
     struct pkdKickParameters *kick,struct pkdLightconeParameters *lc,struct pkdTimestepParameters *ts,
     double dTime,int nReps,int bPeriodic,
     int bEwald,int nGroup,int iRoot1, int iRoot2,
-    double fEwCut,double fEwhCut,double dThetaMin,SPHOptions SPHoptions,
+    double fEwCut,double fEwhCut,double dThetaMin,SPHOptions *SPHoptions,
     uint64_t *pnActive,
     double *pdPart,double *pdPartNumAccess,double *pdPartMissRatio,
     double *pdCell,double *pdCellNumAccess,double *pdCellMissRatio,
@@ -2180,7 +2180,7 @@ void pkdGravAll(PKD pkd,
     /*
     ** Set up Ewald tables and stuff.
     */
-    if (bPeriodic && bEwald && SPHoptions.doGravity) {
+    if (bPeriodic && bEwald && SPHoptions->doGravity) {
 	pkdEwaldInit(pkd,nReps,fEwCut,fEwhCut);	/* ignored in Flop count! */
 	}
     /*

@@ -185,7 +185,7 @@ typedef struct {
     double dFlopDoubleCPU;
     double dFlopDoubleGPU;
 
-    SPHOptions SPHoptions;
+    SPHOptions *SPHoptions;
     } workParticle;
 
 /*
