@@ -297,9 +297,7 @@ void master(MDL mdl,void *pst) {
 	    fprintf(fpLog,"\n");
 	    msrLogParams(msr,fpLog);
 	    }
-#ifdef MSR_TIMERS
       msrTimerHeader(msr);
-#endif
 
 	if (msr->param.bLightCone && msrComove(msr)) {
 	    printf("One, Two, Three replica depth is z=%.10g, %.10g, %.10g\n",
@@ -412,9 +410,7 @@ void master(MDL mdl,void *pst) {
 	    if (msrComove(msr)) msrSwitchTheta(msr,dTime);
 	    dMultiEff = 0.0;
 	    msr->lPrior = time(0);
-#ifdef MSR_TIMERS
           msrTimerRestart(msr);
-#endif
 	    if (msr->param.bNewKDK) {
 		diStep = (double)(iStep-1);
 		ddTime = dTime;
@@ -497,9 +493,7 @@ void master(MDL mdl,void *pst) {
 		    msrBuildTree(msr,dTime,msr->param.bEwald);
 		    }
 		}
-#ifdef MSR_TIMERS
           msrTimerDump(msr, iStep);
-#endif
 	    }
 	if (msrLogInterval(msr)) (void) fclose(fpLog);
 	}
