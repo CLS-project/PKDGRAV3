@@ -1666,8 +1666,8 @@ void mdlLaunch(int argc,char **argv,void (*fcnMaster)(MDL,void *),void * (*fcnWo
     char *p, ach[256];
     mdlContextMPI *mpi;
 #ifdef USE_HWLOC
-    hwloc_topology_t topology;
-    hwloc_cpuset_t set_proc, set_thread;
+    hwloc_topology_t topology=NULL;
+    hwloc_cpuset_t set_proc=NULL, set_thread=NULL;
     hwloc_obj_t t = NULL;
     int iCPU = -1;
 #endif
@@ -1958,9 +1958,9 @@ void mdlLaunch(int argc,char **argv,void (*fcnMaster)(MDL,void *),void * (*fcnWo
     __itt_task_end(domain);
 #endif
 #ifdef USE_HWLOC
-    hwloc_bitmap_free(set_thread);
-    hwloc_bitmap_free(set_proc);
-    hwloc_topology_destroy(topology);
+    if (set_thread!=NULL) hwloc_bitmap_free(set_thread);
+    if (set_proc!=NULL) hwloc_bitmap_free(set_proc);
+    if (topology!=NULL) hwloc_topology_destroy(topology);
 #endif
     if (!bDedicated) {
 	mdl->worker_ctx = (*mdl->fcnWorkerInit)(mdl);
@@ -1970,7 +1970,9 @@ void mdlLaunch(int argc,char **argv,void (*fcnMaster)(MDL,void *),void * (*fcnWo
 	(*mdl->fcnWorkerDone)(mdl,mdl->worker_ctx);
 	}
     drainMPI(mdl);
-    pthread_barrier_destroy(&mdl->pmdl[0]->barrier);
+    if (mdl->base.nCores > 1 || bDedicated) {
+       pthread_barrier_destroy(&mdl->pmdl[0]->barrier);
+    }
     mdlFinish(mdl);
     }
 
