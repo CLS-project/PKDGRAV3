@@ -58,4 +58,21 @@ protected:
     virtual int Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) final;
     virtual int Combine(void *vout,void *vout2) = 0;
     };
+
+// It is common for services to return a count of the number of particles
+// (total or updated) so this provides an appropriate Combine function
+class TraverseCountN : public TraverseCombinePST {
+public:
+    typedef uint64_t output;
+    explicit TraverseCountN(PST pst,int service_id,int nInBytes, const char *service_name="")
+	: TraverseCombinePST(pst,service_id,nInBytes,sizeof(output),service_name) {}
+    explicit TraverseCountN(PST pst,int service_id,const char *service_name="")
+	: TraverseCombinePST(pst,service_id,0,sizeof(output),service_name) {}
+protected:
+    virtual int Combine(void *vout,void *vout2) final;
+    virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override = 0;
+    };
+
+
+
 #endif

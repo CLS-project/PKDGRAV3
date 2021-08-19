@@ -16,18 +16,6 @@
  */
 #include "select.h"
 
-// Make sure that the communication structure is "trivial" so that it
-// can be moved around with "memcpy" which is required for MDL.
-//static_assert(std::is_void<ServiceSelect::input>()  || std::is_trivial<ServiceSelect::input>());
-static_assert(std::is_void<ServiceSelect::output>() || std::is_trivial<ServiceSelect::output>());
-
-int ServiceSelect::Combine(void *vout,void *vout2) {
-    auto out  = static_cast<output*>(vout);
-    auto out2 = static_cast<output*>(vout2);
-    *out += *out2;
-    return sizeof(output);
-    }
-
 static_assert(std::is_void<ServiceCountSelected::input>()  || std::is_trivial<ServiceCountSelected::input>());
 static_assert(std::is_void<ServiceCountSelected::output>() || std::is_trivial<ServiceCountSelected::output>());
 int ServiceCountSelected::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {

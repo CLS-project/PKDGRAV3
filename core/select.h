@@ -16,30 +16,16 @@
  */
 #include "TraversePST.h"
 
-// Base class for particle selection (setting bMark)
-// The output is always the count of the particles selected
-class ServiceSelect : public TraverseCombinePST {
-public:
-    typedef uint64_t output;
-    explicit ServiceSelect(PST pst,int service_id,int nInBytes, const char *service_name="")
-	: TraverseCombinePST(pst,service_id,nInBytes,sizeof(output),service_name) {}
-    explicit ServiceSelect(PST pst,int service_id,const char *service_name="")
-	: TraverseCombinePST(pst,service_id,0,sizeof(output),service_name) {}
-protected:
-    virtual int Combine(void *vout,void *vout2) final;
-    virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override = 0;
-    };
-
-class ServiceCountSelected : public ServiceSelect {
+class ServiceCountSelected : public TraverseCountN {
 public:
     typedef void input;
     explicit ServiceCountSelected(PST pst)
-	: ServiceSelect(pst,PST_COUNTSELECTED,"CountSelected") {}
+	: TraverseCountN(pst,PST_COUNTSELECTED,"CountSelected") {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
     };
 
-class ServiceSelBlackholes : public ServiceSelect {
+class ServiceSelBlackholes : public TraverseCountN {
 public:
     struct input {
 	bool setIfTrue;
@@ -49,12 +35,12 @@ public:
 	    : setIfTrue(setIfTrue), clearIfFalse(clearIfFalse) {}
 	};
     explicit ServiceSelBlackholes(PST pst)
-	: ServiceSelect(pst,PST_SELBLACKHOLES,sizeof(input),"SelectBlackholes") {}
+	: TraverseCountN(pst,PST_SELBLACKHOLES,sizeof(input),"SelectBlackholes") {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
     };
 
-class ServiceSelSpecies : public ServiceSelect {
+class ServiceSelSpecies : public TraverseCountN {
 public:
     struct input {
 	uint64_t mSpecies;
@@ -65,12 +51,12 @@ public:
 	    : mSpecies(mSpecies), setIfTrue(setIfTrue), clearIfFalse(clearIfFalse) {}
 	};
     explicit ServiceSelSpecies(PST pst)
-	: ServiceSelect(pst,PST_SELSPECIES,sizeof(input),"SelSpecies") {}
+	: TraverseCountN(pst,PST_SELSPECIES,sizeof(input),"SelSpecies") {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
     };
 
-class ServiceSelGroup : public ServiceSelect {
+class ServiceSelGroup : public TraverseCountN {
 public:
     struct input {
 	uint64_t iGroup;
@@ -81,12 +67,12 @@ public:
 	    : iGroup(iGroup), setIfTrue(setIfTrue), clearIfFalse(clearIfFalse) {}
 	};
     explicit ServiceSelGroup(PST pst)
-	: ServiceSelect(pst,PST_SELGROUP,sizeof(input),"SelGroup") {}
+	: TraverseCountN(pst,PST_SELGROUP,sizeof(input),"SelGroup") {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
     };
 
-class ServiceSelMass : public ServiceSelect {
+class ServiceSelMass : public TraverseCountN {
 public:
     struct input {
 	double dMinMass;
@@ -98,12 +84,12 @@ public:
 	    : dMinMass(dMinMass), dMaxMass(dMaxMass), setIfTrue(setIfTrue), clearIfFalse(clearIfFalse) {}
 	};
     explicit ServiceSelMass(PST pst)
-	: ServiceSelect(pst,PST_SELMASS,sizeof(input),"SelMass") {}
+	: TraverseCountN(pst,PST_SELMASS,sizeof(input),"SelMass") {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
     };
 
-class ServiceSelPhaseDensity : public ServiceSelect {
+class ServiceSelPhaseDensity : public TraverseCountN {
 public:
     struct input {
 	double dMinDensity;
@@ -115,12 +101,12 @@ public:
 	    : dMinDensity(dMinDensity), dMaxDensity(dMaxDensity), setIfTrue(setIfTrue), clearIfFalse(clearIfFalse) {}
 	};
     explicit ServiceSelPhaseDensity(PST pst)
-	: ServiceSelect(pst,PST_SELPHASEDENSITY,sizeof(input),"SelPhaseDensity") {}
+	: TraverseCountN(pst,PST_SELPHASEDENSITY,sizeof(input),"SelPhaseDensity") {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
     };
 
-class ServiceSelById : public ServiceSelect {
+class ServiceSelById : public TraverseCountN {
 public:
     struct input {
 	uint64_t idStart;
@@ -132,12 +118,12 @@ public:
 	    : idStart(idStart), idEnd(idEnd), setIfTrue(setIfTrue), clearIfFalse(clearIfFalse) {}
 	};
     explicit ServiceSelById(PST pst)
-	: ServiceSelect(pst,PST_SELBYID,sizeof(input),"SelById") {}
+	: TraverseCountN(pst,PST_SELBYID,sizeof(input),"SelById") {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
     };
 
-class ServiceSelBox : public ServiceSelect {
+class ServiceSelBox : public TraverseCountN {
 public:
     struct input {
 	double dCenter[3];
@@ -152,12 +138,12 @@ public:
 	    : dCenter{p0,p1,p2}, dSize{s0,s1,s2}, setIfTrue(setIfTrue), clearIfFalse(clearIfFalse) {}
 	};
     explicit ServiceSelBox(PST pst)
-	: ServiceSelect(pst,PST_SELBOX,sizeof(input),"SelBox") {}
+	: TraverseCountN(pst,PST_SELBOX,sizeof(input),"SelBox") {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
     };
 
-class ServiceSelSphere : public ServiceSelect {
+class ServiceSelSphere : public TraverseCountN {
 public:
     struct input {
 	double r[3];
@@ -171,12 +157,12 @@ public:
 	    : r{r0,r1,r2}, dRadius(dRadius), setIfTrue(setIfTrue), clearIfFalse(clearIfFalse) {}
 	};
     explicit ServiceSelSphere(PST pst)
-	: ServiceSelect(pst,PST_SELSPHERE,sizeof(input),"SelSphere") {}
+	: TraverseCountN(pst,PST_SELSPHERE,sizeof(input),"SelSphere") {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
     };
 
-class ServiceSelCylinder : public ServiceSelect {
+class ServiceSelCylinder : public TraverseCountN {
 public:
     struct input {
 	double dP1[3];
@@ -193,7 +179,7 @@ public:
 	    : dP1{ra0,ra1,ra2}, dP2{rb0,rb1,rb2}, dRadius(dRadius), setIfTrue(setIfTrue), clearIfFalse(clearIfFalse) {}
 	};
     explicit ServiceSelCylinder(PST pst)
-	: ServiceSelect(pst,PST_SELCYLINDER,sizeof(input),"SelCylinder") {}
+	: TraverseCountN(pst,PST_SELCYLINDER,sizeof(input),"SelCylinder") {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
     };
