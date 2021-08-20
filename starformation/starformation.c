@@ -15,7 +15,7 @@ void msrStarForm(MSR msr, double dTime, double dDelta, int iRung)
     struct outStarForm out;
     double sec,sec1,dsec;
 
-    sec = msrTime();
+    msrTimerStart(msr, TIMER_STARFORM);
 
     const double a = csmTime2Exp(msr->csm,dTime);
 
@@ -26,12 +26,17 @@ void msrStarForm(MSR msr, double dTime, double dDelta, int iRung)
     // Here we set the minium density a particle must have to be SF
     //  NOTE: We still have to divide by the hydrogen fraction of each particle!
     if (msr->csm->val.bComove){
-       in.dDenMin = msr->param.dSFThresholdDen*pow(a,3);
+       double a3 = a*a*a;
+       in.dDenMin = msr->param.dSFThresholdDen*a3;
        assert(msr->csm->val.dOmegab  > 0.);
 
-       // It is assumed that for cosmo runs, rho_crit=1 in code units
-       double min_cosmo_den = msr->csm->val.dOmegab * msr->param.dSFMinOverDensity;
-       in.dDenMin = (in.dDenMin > min_cosmo_den) ? in.dDenMin : min_cosmo_den;
+       // If in PKDGRAV3 units, this should always be unity
+       double rhoCrit0 = 3. * msr->csm->val.dHubble0 * msr->csm->val.dHubble0 /
+                              (8. * M_PI);
+       double denCosmoMin = rhoCrit0 * msr->csm->val.dOmegab *
+                                 msr->param.dSFMinOverDensity *
+                                 msr->param.dInitialH;
+       in.dDenMin = (in.dDenMin > denCosmoMin) ? in.dDenMin : denCosmoMin;
     }else{
        in.dDenMin = msr->param.dSFThresholdDen;
     }
@@ -50,8 +55,8 @@ void msrStarForm(MSR msr, double dTime, double dDelta, int iRung)
     msr->nGas -= out.nFormed;
     msr->nStar += out.nFormed;
 
-    sec1 = msrTime();
-    dsec = sec1 - sec;
+    msrTimerStop(msr, TIMER_STARFORM);
+    dsec = msrTimerGet(msr, TIMER_STARFORM);
     printf("Star Formation Calculated, Wallclock: %f secs\n\n",dsec);
 
 
@@ -63,10 +68,10 @@ void msrStarForm(MSR msr, double dTime, double dDelta, int iRung)
 
 
 void pkdStarForm(PKD pkd,
-             double dTime,
-             double dDelta,
-             double dScaleFactor,
-             double dDenMin, /* Threshold for SF in code units  */
+		 double dTime,
+		 double dDelta,
+		 double dScaleFactor,
+		 double dDenMin, /* co-moving threshold for SF in code units  */
 		 int *nFormed, /* number of stars formed */
 		 double *dMassFormed,	/* mass of stars formed */
 		 int *nDeleted) /* gas particles deleted */ {
@@ -85,8 +90,10 @@ void pkdStarForm(PKD pkd,
     *nDeleted = 0;
     *dMassFormed = 0.0;
 
-    double a_m2 = 1./(dScaleFactor*dScaleFactor);
-    double a_m3 = a_m2/dScaleFactor;
+    const double a_m1 = 1.0/dScaleFactor;
+    const double a_m2 = a_m1*a_m1;
+    const double a_m3 = a_m2*a_m1;
+    const double SFexp = (pkd->param.dSFindexKS-1.)/2.;
 
     for (i=0;i<pkdLocal(pkd);++i) {
 	p = pkdParticle(pkd,i);
@@ -96,12 +103,12 @@ void pkdStarForm(PKD pkd,
 	    dt = pkd->param.dDelta/(1<<p->uRung);
           dt = dTime - psph->lastUpdateTime;
 
-	  float fMass = pkdMass(pkd, p);
+          float fMass = pkdMass(pkd, p);
           // If no information, assume primoridal abundance
 #ifdef COOLING
           const double hyd_abun = psph->afElemMass[ELEMENT_H] / fMass;
 #else
-          const double hyd_abun = 0.75; 
+          const double hyd_abun = pkd->param.dInitialH;
 #endif
 
           const double rho_H = pkdDensity(pkd,p) * hyd_abun;
@@ -121,33 +128,31 @@ void pkdStarForm(PKD pkd,
           }
 
 
-          const double dmstar = 
-          pkd->param.dSFnormalizationKS * fMass *  pow(a_m2, 1.4) *
-          pow( pkd->param.dConstGamma * pkd->param.dSFGasFraction * psph->P*a_m3,
-	       pkd->param.dSFindexKS);
+          const double dmstar =
+          pkd->param.dSFnormalizationKS * pkdMass(pkd,p) *
+          pow( pkd->param.dConstGamma*pkd->param.dSFGasFraction*psph->P*a_m3,
+               SFexp);
 
           psph->SFR = dmstar;
 
-	    const double prob = 1.0 - exp(-dmstar*dt/fMass); 
-          //printf("%e \n", prob);
+          const double prob = 1.0 - exp(-dmstar*dt/pkdMass(pkd,p));
 
-	    // Star formation event?
-	    if (rand()<RAND_MAX*prob) {
+          // Star formation event?
+          if (rand()<RAND_MAX*prob) {
 
             //printf("STARFORM %e %e %e \n", dScaleFactor, rho_H, psph->Uint);
 
 #ifdef STELLAR_EVOLUTION
-	    float afElemMass[ELEMENT_COUNT];
-	    float fMetalMass;
-	    for (j = 0; j < ELEMENT_COUNT; j++)
-	       afElemMass[j] = psph->afElemMass[j];
-	    fMetalMass = psph->fMetalMass;
+            float afElemMass[ELEMENT_COUNT];
+            float fMetalMass;
+            for (j = 0; j < ELEMENT_COUNT; j++)
+                afElemMass[j] = psph->afElemMass[j];
+            fMetalMass = psph->fMetalMass;
 #endif
 
             // We just change the class of the particle to stellar one
-            pkdSetClass(pkd, fMass, 0., FIO_SPECIES_STAR, p);
-
-	    STARFIELDS *pStar = pkdStar(pkd, p);
+            pkdSetClass(pkd, pkdMass(pkd,p), pkdSoft0(pkd,p), FIO_SPECIES_STAR, p);
+	      STARFIELDS *pStar = pkdStar(pkd, p);
 
             // When changing the class, we have to take into account that
             // the code velocity has different scale factor dependencies for
@@ -158,39 +163,39 @@ void pkdStarForm(PKD pkd,
             }
 
 #ifdef STELLAR_EVOLUTION
-	    for (j = 0; j < ELEMENT_COUNT; j++) {
-	       pStar->afElemAbun[j] = afElemMass[j] / fMass;
-	       pStar->afCumElemMassEj[j] = 0.0f;
-	    }
-	    pStar->fMetalAbun = fMetalMass / fMass;
-	    pStar->fCumMetalMassEj = 0.0f;
+            for (j = 0; j < ELEMENT_COUNT; j++) {
+               pStar->afElemAbun[j] = afElemMass[j] / fMass;
+               pStar->afCumElemMassEj[j] = 0.0f;
+            }
+            pStar->fMetalAbun = fMetalMass / fMass;
+            pStar->fCumMetalMassEj = 0.0f;
 
-	    pStar->fInitialMass = fMass;
+            pStar->fInitialMass = fMass;
 
-	    int iIdxZ;
-	    float fLogZ;
-	    if (pStar->fMetalAbun > 0.0f)
-	       fLogZ = log10f(pStar->fMetalAbun);
-	    else
-	       fLogZ = STEV_MIN_LOG_METALLICITY;
+            int iIdxZ;
+            float fLogZ;
+            if (pStar->fMetalAbun > 0.0f)
+               fLogZ = log10f(pStar->fMetalAbun);
+            else
+               fLogZ = STEV_MIN_LOG_METALLICITY;
 
-	    stevGetIndex1D(pkd->StelEvolData->afCCSN_Zs, STEV_CCSN_N_METALLICITY,
-			   fLogZ, &iIdxZ, &pStar->CCSN.fDeltaZ);
-	    pStar->CCSN.oZ = iIdxZ * STEV_INTERP_N_MASS;
-	    stevGetIndex1D(pkd->StelEvolData->afAGB_Zs, STEV_AGB_N_METALLICITY,
-			   fLogZ, &iIdxZ, &pStar->AGB.fDeltaZ);
-	    pStar->AGB.oZ = iIdxZ * STEV_INTERP_N_MASS;
-	    stevGetIndex1D(pkd->StelEvolData->afLifetimes_Zs, STEV_LIFETIMES_N_METALLICITY,
-			   fLogZ, &iIdxZ, &pStar->Lifetimes.fDeltaZ);
-	    pStar->Lifetimes.oZ = iIdxZ * STEV_LIFETIMES_N_MASS;
+            stevGetIndex1D(pkd->StelEvolData->afCCSN_Zs, STEV_CCSN_N_METALLICITY,
+                       fLogZ, &iIdxZ, &pStar->CCSN.fDeltaZ);
+            pStar->CCSN.oZ = iIdxZ * STEV_INTERP_N_MASS;
+            stevGetIndex1D(pkd->StelEvolData->afAGB_Zs, STEV_AGB_N_METALLICITY,
+                       fLogZ, &iIdxZ, &pStar->AGB.fDeltaZ);
+            pStar->AGB.oZ = iIdxZ * STEV_INTERP_N_MASS;
+            stevGetIndex1D(pkd->StelEvolData->afLifetimes_Zs, STEV_LIFETIMES_N_METALLICITY,
+                       fLogZ, &iIdxZ, &pStar->Lifetimes.fDeltaZ);
+            pStar->Lifetimes.oZ = iIdxZ * STEV_LIFETIMES_N_MASS;
 
-	    pStar->fCCSNOnsetTime = stevLifetimeFunction(pkd, pStar, pkd->param.dIMF_MaxMass);
-	    pStar->fSNIaOnsetTime = stevLifetimeFunction(pkd, pStar, pkd->param.dSNIa_MaxMass);
+            pStar->fCCSNOnsetTime = stevLifetimeFunction(pkd, pStar, pkd->param.dIMF_MaxMass);
+            pStar->fSNIaOnsetTime = stevLifetimeFunction(pkd, pStar, pkd->param.dSNIa_MaxMass);
 
-	    pStar->fLastEnrichTime = pStar->fCCSNOnsetTime;
-	    pStar->fLastEnrichMass = pkd->param.dIMF_MaxMass;
-	    pStar->iLastEnrichMassIdx = STEV_INTERP_N_MASS - 1;
-	    pStar->fNextEnrichTime = dTime + pStar->fCCSNOnsetTime;
+            pStar->fLastEnrichTime = pStar->fCCSNOnsetTime;
+            pStar->fLastEnrichMass = pkd->param.dIMF_MaxMass;
+            pStar->iLastEnrichMassIdx = STEV_INTERP_N_MASS - 1;
+            pStar->fNextEnrichTime = dTime + pStar->fCCSNOnsetTime;
 #endif
 
             // We log statistics about the formation time
@@ -201,14 +206,13 @@ void pkdStarForm(PKD pkd,
             assert(pkdIsStar(pkd,p));
             assert(!pkdIsGas(pkd,p));
 
-	    (*nFormed)++;
-	    *dMassFormed += fMass;
+            (*nFormed)++;
+            *dMassFormed += fMass;
 
             pkd->nGas -= 1;
             pkd->nStar += 1;
-	    }
-	}
+         }
+      }
     }
-
 }
 #endif

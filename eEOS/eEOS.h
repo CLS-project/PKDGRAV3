@@ -7,7 +7,19 @@ inline static void internalEnergyFloor(PKD pkd, PARTICLE* p,
    const float dens = pkdDensity(pkd,p)*a_m3;
    psph->E -= psph->Uint;
 
-   if ( (dens > pkd->param.dCoolingFloorDen) &&
+   /* Which is only applied if the gas is overdense enough */
+   double denMin = pkd->param.dCoolingFloorDen;
+   if (pkd->csm->val.bComove){
+       double rhoCrit0 = 3. * pkd->csm->val.dHubble0 * pkd->csm->val.dHubble0 /
+                              (8. * M_PI);
+       double denCosmoMin = rhoCrit0 * pkd->csm->val.dOmegab *
+                                 pkd->param.dSFMinOverDensity*
+                                 a_m3; // We do this in proper density
+
+       denMin = ( denCosmoMin > denMin) ? denCosmoMin : denMin;
+   }
+
+   if ( (dens > denMin) &&
         (psph->Uint < pkd->param.dCoolingFlooru*mass ) ){
       psph->Uint = pkd->param.dCoolingFlooru*mass;
    }

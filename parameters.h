@@ -230,6 +230,8 @@ struct parameters {
     int bFixedAmpIC;
     double dFixedAmpPhasePI;
     int b2LPT;
+    int bICgas;
+    double dInitialT;
 
     /*
      * IA: Parameters for the meshless hydrodynamics
@@ -281,7 +283,6 @@ struct parameters {
     /*
      * IA: Initial abundances 
      */
-    double dInitialH;
     double dInitialHe;
     double dInitialC;
     double dInitialN;
@@ -294,6 +295,7 @@ struct parameters {
 #ifdef STELLAR_EVOLUTION
     double dInitialMetallicity;
 #endif
+    double dInitialH;
 #ifdef STAR_FORMATION
     /* IA: Star formation */
     double dSFMinOverDensity; 

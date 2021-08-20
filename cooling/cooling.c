@@ -541,6 +541,12 @@ void cooling_cool_part(PKD pkd,
   psph->Uint = u_final * fMass;
   psph->E = psph->E + psph->Uint;
 
+#ifdef ENTROPY_SWITCH
+  psph->S = psph->Uint *
+            (pkd->param.dConstGamma -1.) *
+            pow(pkdDensity(pkd,p), -pkd->param.dConstGamma+1);
+#endif
+
   /* We now need to check that we are not going to go below any of the limits */
 
   /* Absolute minimum */
@@ -735,6 +741,10 @@ void cooling_Hydrogen_reionization(PKD pkd) {
        const double new_u = old_u + extra_heat;
        
        //printf("Applying extra energy for H reionization! U=%e dU=%e \n", old_u, extra_heat);
+#ifdef ENTROPY_SWITCH
+       psph->S += extra_heat * (pkd->param.dConstGamma-1.) *
+                  pow(pkdDensity(pkd,p), -pkd->param.dConstGamma+1);
+#endif
 
        //hydro_set_physical_internal_energy(p, xp, cosmo, new_u);
        //hydro_set_drifted_physical_internal_energy(p, cosmo, new_u);

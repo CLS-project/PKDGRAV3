@@ -75,6 +75,8 @@
 #include "healpix.h"
 #ifdef COOLING
 #include "cooling/cooling.h"
+#endif
+#if defined(COOLING) && defined(STAR_FORMATION)
 #include "eEOS/eEOS.h"
 #endif
 #ifdef GRACKLE
@@ -3107,7 +3109,7 @@ void pkdResetFluxes(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVP
    pUpper = pkdLocal(pkd); //IA: All particles local to this proccessor
 
     assert(pkd->oVelocity);
-    assert(pkd->oMass);
+    //assert(pkd->oMass);
 
     /*
     ** Add the computed flux to the conserved variables for each gas particle
@@ -3275,7 +3277,9 @@ void pkdEndTimestepIntegration(PKD pkd,int iRoot, double dTime, double dDelta) {
 
     mdlDiag(pkd->mdl, "Into pkdComputePrimiteVars\n");
     assert(pkd->oVelocity);
+#ifndef USE_MFM
     assert(pkd->oMass);
+#endif
 
     if (bComove){
        dScaleFactor = csmTime2Exp(pkd->csm,dTime);
@@ -3329,7 +3333,7 @@ void pkdEndTimestepIntegration(PKD pkd,int iRoot, double dTime, double dDelta) {
 #endif
 
             // ##### Effective Equation Of State
-#if defined(COOLING)
+#if defined(COOLING) && defined(STAR_FORMATION)
             internalEnergyFloor(pkd, p, psph, a_m3);
 #endif
 
