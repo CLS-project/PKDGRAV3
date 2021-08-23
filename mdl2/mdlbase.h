@@ -191,7 +191,7 @@ typedef struct {
 #ifdef MDLTIMER
 void mdlZeroTimer(void * mdl, mdlTimer *);
 void mdlGetTimer(void * mdl, mdlTimer *, mdlTimer *);
-void mdlPrintTimer(void *mdl, char *message, mdlTimer *);
+void mdlPrintTimer(void *mdl, const char *message, mdlTimer *);
 #else
 #define mdlZeroTimer
 #define mdlGetTimer

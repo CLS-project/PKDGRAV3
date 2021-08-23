@@ -296,7 +296,7 @@ void mdlGetTimer(void *mdl, mdlTimer *t0, mdlTimer *t) {
 #endif
     }
 
-void mdlPrintTimer(void *mdl, char *message, mdlTimer *t0) {
+void mdlPrintTimer(void *mdl, const char *message, mdlTimer *t0) {
 #if 0
     mdlBASE *base = reinterpret_cast<mdlBASE *>(mdl);
     mdlTimer lt;
