@@ -547,8 +547,20 @@ static inline float stevInverseLifetimeFunction(PKD pkd, STARFIELDS *pStar, cons
 }
 
 
-static inline float stevComputeNextEnrichTime(float fTime, float fMass, float fEjMass,
-					      float fDt) {
+static inline float stevComputeFirstEnrichTime(PKD pkd, STARFIELDS *pStar) {
+   const float fStep = 1.05f;
+   float fTime = pStar->fLastEnrichTime;
+   float fMass = stevInverseLifetimeFunction(pkd, pStar, fTime);
+   while (fMass > pStar->fLastEnrichMass) {
+      fTime *= fStep;
+      fMass = stevInverseLifetimeFunction(pkd, pStar, fTime);
+   }
+   return pStar->fTimer + fTime;
+}
+
+
+static inline float stevComputeNextEnrichTime(const float fTime, const float fMass,
+                                              const float fEjMass, const float fDt) {
    const float epsilon = 1e-3f;
    const float fMdot_inv = fDt / fEjMass;
 
@@ -582,7 +594,6 @@ static inline void stevStarParticleInit(PKD pkd, STARFIELDS *pStar, float fTime)
       pStar->fLastEnrichTime = fCCSNOnsetTime;
       pStar->fLastEnrichMass = pkd->param.dIMF_MaxMass;
       pStar->iLastEnrichMassIdx = STEV_INTERP_N_MASS - 1;
-      pStar->fNextEnrichTime = pStar->fTimer + fCCSNOnsetTime;
    }
    else {
       pStar->fLastEnrichMass = stevInverseLifetimeFunction(pkd, pStar, pStar->fLastEnrichTime);
@@ -590,15 +601,15 @@ static inline void stevStarParticleInit(PKD pkd, STARFIELDS *pStar, float fTime)
 	 pStar->iLastEnrichMassIdx =
 	    stevGetIMFMassIndex(pkd->StelEvolData->afMasses, STEV_INTERP_N_MASS,
 				pStar->fLastEnrichMass, STEV_INTERP_N_MASS - 1) + 1;
-	 pStar->fNextEnrichTime = fTime;
       }
       else {
 	 pStar->fLastEnrichTime = fCCSNOnsetTime;
 	 pStar->fLastEnrichMass = pkd->param.dIMF_MaxMass;
 	 pStar->iLastEnrichMassIdx = STEV_INTERP_N_MASS - 1;
-	 pStar->fNextEnrichTime = pStar->fTimer + fCCSNOnsetTime;
       }
    }
+
+   pStar->fNextEnrichTime = stevComputeFirstEnrichTime(pkd, pStar);
 }
 
 
