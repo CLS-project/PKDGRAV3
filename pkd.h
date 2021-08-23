@@ -358,7 +358,6 @@ typedef struct starfields {
        int oZ;
        float fDeltaZ;
     } CCSN, AGB, Lifetimes;
-    float fCCSNOnsetTime;
     float fSNIaOnsetTime;
 #endif
 

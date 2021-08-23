@@ -226,53 +226,13 @@ int pkdStellarEvolutionInit(PKD pkd, STEV_DATA *data) {
 	 if (pStar->fInitialMass < 0.0f)
 	    pStar->fInitialMass = pkdMass(pkd, p);
 
-	 if (pkd->param.bChemEnrich == 0) {
-	    pStar->fNextEnrichTime = INFINITY;
-	    continue;
-	 }
-
-	 if (pStar->fTimer <= 0.0f) {
+	 if (pStar->fTimer <= 0.0f)
 	    pStar->fTimer = dTime;
-	    pStar->fLastEnrichTime = 0.0f;
-	 }
-	 else {
-	    pStar->fLastEnrichTime = (float)dTime - pStar->fTimer;
-	 }
 
-	 int iIdxZ;
-	 float fLogZ;
-	 if (pStar->fMetalAbun > 0.0f)
-	    fLogZ = log10f(pStar->fMetalAbun);
+	 if (pkd->param.bChemEnrich)
+	    stevStarParticleInit(pkd, pStar, dTime);
 	 else
-	    fLogZ = STEV_MIN_LOG_METALLICITY;
-
-	 stevGetIndex1D(pkd->StelEvolData->afCCSN_Zs, STEV_CCSN_N_METALLICITY,
-			fLogZ, &iIdxZ, &pStar->CCSN.fDeltaZ);
-	 pStar->CCSN.oZ = iIdxZ * STEV_INTERP_N_MASS;
-	 stevGetIndex1D(pkd->StelEvolData->afAGB_Zs, STEV_AGB_N_METALLICITY,
-			fLogZ, &iIdxZ, &pStar->AGB.fDeltaZ);
-	 pStar->AGB.oZ = iIdxZ * STEV_INTERP_N_MASS;
-	 stevGetIndex1D(pkd->StelEvolData->afLifetimes_Zs, STEV_LIFETIMES_N_METALLICITY,
-			fLogZ, &iIdxZ, &pStar->Lifetimes.fDeltaZ);
-	 pStar->Lifetimes.oZ = iIdxZ * STEV_LIFETIMES_N_MASS;
-
-	 pStar->fCCSNOnsetTime = stevLifetimeFunction(pkd, pStar, pkd->param.dIMF_MaxMass);
-	 pStar->fSNIaOnsetTime = stevLifetimeFunction(pkd, pStar, pkd->param.dSNIa_MaxMass);
-
-	 if (pStar->fLastEnrichTime < pStar->fCCSNOnsetTime) {
-	    pStar->fLastEnrichTime = pStar->fCCSNOnsetTime;
-	    pStar->fLastEnrichMass = pkd->param.dIMF_MaxMass;
-	    pStar->iLastEnrichMassIdx = STEV_INTERP_N_MASS - 1;
-	    pStar->fNextEnrichTime = pStar->fCCSNOnsetTime + pStar->fTimer;
-	 }
-	 else {
-	    pStar->fLastEnrichMass =
-	       stevInverseLifetimeFunction(pkd, pStar, pStar->fLastEnrichTime);
-	    pStar->iLastEnrichMassIdx =
-	       stevGetIMFMassIndex(pkd->StelEvolData->afMasses, STEV_INTERP_N_MASS,
-				   pStar->fLastEnrichMass, STEV_INTERP_N_MASS - 1) + 1;
-	    pStar->fNextEnrichTime = dTime;
-	 }
+	    pStar->fNextEnrichTime = INFINITY;
       }
    }
 
@@ -372,8 +332,7 @@ void smChemEnrich(PARTICLE *p, float fBall, int nSmooth, NN *nnList, SMF *smf) {
    /* Note: The parameter pStar->[AGB,CCSN,Lifetimes].oZ contains the index of the 
       interpolation's lower metallicity array multiplied by the number of mass bins.
       Since this multiplication must always be made, it is done once and for all in
-      pkdStarForm or pkdStellarEvolutionInit, depending on whether we are dealing with
-      a star particle born during the run or one that was already in the ICs. */
+      the function stevStarParticleInit. */
 
    float afElemMass[STEV_N_ELEM];
    float fMetalMass;

@@ -549,10 +549,56 @@ static inline float stevInverseLifetimeFunction(PKD pkd, STARFIELDS *pStar, cons
 
 static inline float stevComputeNextEnrichTime(float fTime, float fMass, float fEjMass,
 					      float fDt) {
-     const float epsilon = 1e-3f;
-     const float fMdot_inv = fDt / fEjMass;
+   const float epsilon = 1e-3f;
+   const float fMdot_inv = fDt / fEjMass;
 
-     return fTime + epsilon * fMass * fMdot_inv;
+   return fTime + epsilon * fMass * fMdot_inv;
+}
+
+
+static inline void stevStarParticleInit(PKD pkd, STARFIELDS *pStar, float fTime) {
+   int iIdxZ;
+   float fLogZ;
+   if (pStar->fMetalAbun > 0.0f)
+      fLogZ = log10f(pStar->fMetalAbun);
+   else
+      fLogZ = STEV_MIN_LOG_METALLICITY;
+
+   stevGetIndex1D(pkd->StelEvolData->afCCSN_Zs, STEV_CCSN_N_METALLICITY,
+		  fLogZ, &iIdxZ, &pStar->CCSN.fDeltaZ);
+   pStar->CCSN.oZ = iIdxZ * STEV_INTERP_N_MASS;
+   stevGetIndex1D(pkd->StelEvolData->afAGB_Zs, STEV_AGB_N_METALLICITY,
+		  fLogZ, &iIdxZ, &pStar->AGB.fDeltaZ);
+   pStar->AGB.oZ = iIdxZ * STEV_INTERP_N_MASS;
+   stevGetIndex1D(pkd->StelEvolData->afLifetimes_Zs, STEV_LIFETIMES_N_METALLICITY,
+		  fLogZ, &iIdxZ, &pStar->Lifetimes.fDeltaZ);
+   pStar->Lifetimes.oZ = iIdxZ * STEV_LIFETIMES_N_MASS;
+
+   pStar->fLastEnrichTime = fTime - pStar->fTimer;
+   pStar->fSNIaOnsetTime = stevLifetimeFunction(pkd, pStar, pkd->param.dSNIa_MaxMass);
+
+   const float fCCSNOnsetTime = stevLifetimeFunction(pkd, pStar, pkd->param.dIMF_MaxMass);
+   if (pStar->fLastEnrichTime < fCCSNOnsetTime) {
+      pStar->fLastEnrichTime = fCCSNOnsetTime;
+      pStar->fLastEnrichMass = pkd->param.dIMF_MaxMass;
+      pStar->iLastEnrichMassIdx = STEV_INTERP_N_MASS - 1;
+      pStar->fNextEnrichTime = pStar->fTimer + fCCSNOnsetTime;
+   }
+   else {
+      pStar->fLastEnrichMass = stevInverseLifetimeFunction(pkd, pStar, pStar->fLastEnrichTime);
+      if (pStar->fLastEnrichMass < pkd->param.dIMF_MaxMass) {
+	 pStar->iLastEnrichMassIdx =
+	    stevGetIMFMassIndex(pkd->StelEvolData->afMasses, STEV_INTERP_N_MASS,
+				pStar->fLastEnrichMass, STEV_INTERP_N_MASS - 1) + 1;
+	 pStar->fNextEnrichTime = fTime;
+      }
+      else {
+	 pStar->fLastEnrichTime = fCCSNOnsetTime;
+	 pStar->fLastEnrichMass = pkd->param.dIMF_MaxMass;
+	 pStar->iLastEnrichMassIdx = STEV_INTERP_N_MASS - 1;
+	 pStar->fNextEnrichTime = pStar->fTimer + fCCSNOnsetTime;
+      }
+   }
 }
 
 
