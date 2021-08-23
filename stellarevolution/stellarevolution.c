@@ -272,23 +272,25 @@ void combChemEnrich(void *vpkd, void *vp1, void *vp2) {
       SPHFIELDS *pSph1 = pkdSph(pkd, p1);
       SPHFIELDS *pSph2 = pkdSph(pkd, p2);
 
-      const float fOldEkin = (pSph1->mom[0] * pSph1->mom[0] + pSph1->mom[1] * pSph1->mom[1] +
-			      pSph1->mom[2] * pSph1->mom[2]) / (2.0f * fOldMass);
+      const double dOldEkin = (pSph1->mom[0] * pSph1->mom[0] + pSph1->mom[1] * pSph1->mom[1] +
+			       pSph1->mom[2] * pSph1->mom[2]) / (2.0 * fOldMass);
 
       pSph1->mom[0] += pSph2->mom[0];
       pSph1->mom[1] += pSph2->mom[1];
       pSph1->mom[2] += pSph2->mom[2];
 
-      const float fNewEkin = (pSph1->mom[0] * pSph1->mom[0] + pSph1->mom[1] * pSph1->mom[1] +
-			      pSph1->mom[2] * pSph1->mom[2]) / (2.0f * fNewMass);
+      const double dNewEkin = (pSph1->mom[0] * pSph1->mom[0] + pSph1->mom[1] * pSph1->mom[1] +
+			       pSph1->mom[2] * pSph1->mom[2]) / (2.0 * fNewMass);
 
       pSph1->E += pSph2->E;
-      const float fDeltaUint = pSph2->E - (fNewEkin - fOldEkin);
-      pSph1->Uint += fDeltaUint;
+      const double dDeltaUint = pSph2->E - (dNewEkin - dOldEkin);
+      if (dDeltaUint > 0.0) {
+	 pSph1->Uint += dDeltaUint;
 #ifdef ENTROPY_SWITCH
-      pSph1->S += fDeltaUint * (pkd->param.dConstGamma - 1.0) *
-	          pow(pkdDensity(pkd, p1), 1.0 - pkd->param.dConstGamma);
+	 pSph1->S += dDeltaUint * (pkd->param.dConstGamma - 1.0) *
+	             pow(pkdDensity(pkd, p1), 1.0 - pkd->param.dConstGamma);
 #endif
+      }
 
       for (int j = 0; j < ELEMENT_COUNT; j++)
 	 pSph1->afElemMass[j] += pSph2->afElemMass[j];
@@ -447,10 +449,10 @@ void smChemEnrich(PARTICLE *p, float fBall, int nSmooth, NN *nnList, SMF *smf) {
 
       SPHFIELDS *qSph = pkdSph(pkd, q);
 
-      float fOldEkin;           /* Gas particles in cache have their mass set to zero */
-      if (fOldMass > 0.0f) {	/* in initChemEnrich */
-	 fOldEkin = (qSph->mom[0] * qSph->mom[0] + qSph->mom[1] * qSph->mom[1] +
-		     qSph->mom[2] * qSph->mom[2]) / (2.0f * fOldMass);
+      double dOldEkin;           /* Gas particles in cache have their mass set to zero */
+      if (fOldMass > 0.0f) {	 /* in initChemEnrich */
+	 dOldEkin = (qSph->mom[0] * qSph->mom[0] + qSph->mom[1] * qSph->mom[1] +
+		     qSph->mom[2] * qSph->mom[2]) / (2.0 * fOldMass);
       }
 
       qSph->mom[0] += fDeltaMass * pStarVel[0] * fScaleFactorInv;
@@ -459,14 +461,16 @@ void smChemEnrich(PARTICLE *p, float fBall, int nSmooth, NN *nnList, SMF *smf) {
 
       if (fOldMass > 0.0f) {
 	 const float fNewMass = pkdMass(pkd, q);
-	 const float fNewEkin = (qSph->mom[0] * qSph->mom[0] + qSph->mom[1] * qSph->mom[1] +
-				 qSph->mom[2] * qSph->mom[2]) / (2.0f * fNewMass);
-	 const float fDeltaUint = fWeights[i] * fStarEjEnergy - (fNewEkin - fOldEkin);
-	 qSph->Uint += fDeltaUint;
+	 const double dNewEkin = (qSph->mom[0] * qSph->mom[0] + qSph->mom[1] * qSph->mom[1] +
+				  qSph->mom[2] * qSph->mom[2]) / (2.0 * fNewMass);
+	 const double dDeltaUint = fWeights[i] * fStarEjEnergy - (dNewEkin - dOldEkin);
+	 if (dDeltaUint > 0.0) {
+	    qSph->Uint += dDeltaUint;
 #ifdef ENTROPY_SWITCH
-	 qSph->S += fDeltaUint * (pkd->param.dConstGamma - 1.0) *
-	            pow(pkdDensity(pkd, q), 1.0 - pkd->param.dConstGamma);
+	    qSph->S += dDeltaUint * (pkd->param.dConstGamma - 1.0) *
+		       pow(pkdDensity(pkd, q), 1.0 - pkd->param.dConstGamma);
 #endif
+	 }
       }
 
       qSph->E += fWeights[i] * fStarEjEnergy;
