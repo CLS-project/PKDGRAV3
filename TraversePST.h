@@ -44,6 +44,8 @@ protected:
     virtual int  AtNode(PST pst,void *vin,int nIn,void *vout,int nOut) {return Recurse(pst,vin,nIn,vout,nOut);}
     virtual int Recurse(PST pst,void *vin,int nIn,void *vout,int nOut);
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) = 0;
+protected:
+    static  int Traverse(unsigned sid, PST pst,void *vin,int nIn,void *vout,int nOut);
     };
 
 // This class is for services where the input does not change as the PST is walked,
