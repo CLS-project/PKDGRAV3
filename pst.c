@@ -1438,10 +1438,10 @@ int pstFreeStore(PST pst,void *vin,int nIn,void *vout,int nOut) {
     if (pst->nLeaves > 1) {
 	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_FREESTORE,NULL,0);
 	pstFreeStore(pst->pstLower,NULL,0,out,nOut);
-	pst->nLowerStore = out->nFreeStore;
+	uint64_t nLowerStore = out->nFreeStore;
 	mdlGetReply(pst->mdl,rID,out,NULL);
-	pst->nUpperStore = out->nFreeStore;
-	out->nFreeStore = pst->nLowerStore + pst->nUpperStore;
+	uint64_t nUpperStore = out->nFreeStore;
+	out->nFreeStore = nLowerStore + nUpperStore;
 	}
     else {
 	out->nFreeStore = pkdFreeStore(plcl->pkd);

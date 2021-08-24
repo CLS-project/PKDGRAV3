@@ -68,8 +68,6 @@ typedef struct pstContext {
     double fSplit;
     double fSplitInactive;
     uint64_t nTotal;
-    uint64_t nLowerStore;
-    uint64_t nUpperStore;
     } * PST;
 
 
