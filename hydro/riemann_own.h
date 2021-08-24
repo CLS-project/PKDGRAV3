@@ -374,8 +374,9 @@ static inline int iterative_Riemann_solver(PKD pkd,
         } else {
             /* rarefaction wave */
             pratio = Pg / L_p;
-            W_L = GAMMA_G4 * cs_L * (pow(pratio, GAMMA_G1)-1);
-            Z_L = 1 / (L_rho*cs_L) * pow(Pg/L_p, -GAMMA_G2);
+            a0 = pow(pratio, GAMMA_G1);
+            W_L = GAMMA_G4 * cs_L * (a0-1);
+            Z_L = 1 / (L_rho*cs_L) * a0/pratio;
         }
         if(Pg>R_p)
         {
@@ -388,8 +389,9 @@ static inline int iterative_Riemann_solver(PKD pkd,
         } else {
             /* rarefaction wave */
             pratio = Pg / R_p;
-            W_R = GAMMA_G4 * cs_R * (pow(pratio, GAMMA_G1)-1);
-            Z_R = 1 / (R_rho*cs_R) * pow(pratio, -GAMMA_G2);
+            a0 = pow(pratio, GAMMA_G1);
+            W_R = GAMMA_G4 * cs_R * (a0-1);
+            Z_R = 1 / (R_rho*cs_R) * a0/pratio;
         }
         if(niter_Riemann < 50)
             Pg -= (W_L + W_R + dvel) / (Z_L + Z_R);
