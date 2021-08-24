@@ -12,7 +12,7 @@
 #define GAMMA_G9 (GAMMA-1.0)
 
 #define TOL_ITER 1.e-6
-#define NMAX_ITER 1000
+#define NMAX_ITER 100
 
 struct Conserved_var_Riemann //IA: TODO: change the name of this struct..!!
 {
@@ -391,7 +391,7 @@ static inline int iterative_Riemann_solver(PKD pkd,
             W_R = GAMMA_G4 * cs_R * (pow(pratio, GAMMA_G1)-1);
             Z_R = 1 / (R_rho*cs_R) * pow(pratio, -GAMMA_G2);
         }
-        if(niter_Riemann < NMAX_ITER / 2)
+        if(niter_Riemann < 50)
             Pg -= (W_L + W_R + dvel) / (Z_L + Z_R);
         else
             Pg -= 0.5 * (W_L + W_R + dvel) / (Z_L + Z_R);
