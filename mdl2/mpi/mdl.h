@@ -318,7 +318,7 @@ public:
     void FlushCache(int cid);
     void FinishCache(int cid);
     int ReqService(int id,int sid,void *vin,int nInBytes);
-    void GetReply(int rID,void *vout,int *pnOutBytes);
+    int GetReply(int rID,void *vout=nullptr);
     void Send(int id,mdlPack pack, void *ctx);
     void Recv(int id,mdlPack unpack, void *ctx);
     int Swap(int id,size_t nBufBytes,void *vBuf,size_t nOutBytes, size_t *pnSndBytes,size_t *pnRcvBytes);

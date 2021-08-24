@@ -1931,7 +1931,7 @@ int mdlClass::run_master() {
     int id;
     for (id=1;id<Threads();++id) {
 	int rID = ReqService(id,SRV_STOP,NULL,0);
-	GetReply(rID,NULL,NULL);
+	GetReply(rID);
 	}
     return rc;
     }
@@ -2146,11 +2146,14 @@ int mdlClass::ReqService(int id,int sid,void *vin,int nInBytes) {
     return request.header.replyTag;
     }
 
-extern "C" void mdlGetReply(MDL mdl,int rID,void *vout,int *pnOutBytes) { static_cast<mdlClass *>(mdl)->GetReply(rID,vout,pnOutBytes); }
-void mdlClass::GetReply(int rID,void *vout,int *pnOutBytes) {
+extern "C" void mdlGetReply(MDL mdl,int rID,void *vout,int *pnOutBytes) {
+    auto nOutBytes = static_cast<mdlClass *>(mdl)->GetReply(rID,vout);
+    if (pnOutBytes) *pnOutBytes = nOutBytes;
+    }
+int mdlClass::GetReply(int rID,void *vout) {
     mdlMessageReceiveReply receive(vout,nMaxSrvBytes,rID,Core());
     enqueueAndWait(receive);
-    if (pnOutBytes) *pnOutBytes = receive.getCount();
+    return receive.getCount();
     }
 
 void mdlClass::Handler() {

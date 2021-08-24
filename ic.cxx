@@ -598,7 +598,7 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	icUp.nGrid = in->nGrid;
 
 	int rID = mdl->ReqService(pst->idUpper,PLT_MOVEIC,&icUp,nIn);
-	mdl->GetReply(rID,NULL,0);
+	mdl->GetReply(rID);
 	pltMoveIC(pst->pstLower,in,nIn,NULL,0);
 	}
     else {
@@ -655,7 +655,7 @@ int pstMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
     if (pstOffNode(pst)) {
 	int rID = mdl->ReqService(pst->idUpper,PST_MOVEIC,vin,nIn);
 	pstMoveIC(pst->pstLower,vin,nIn,NULL,0);
-	mdl->GetReply(rID,NULL,NULL);
+	mdl->GetReply(rID);
 	}
     else {
 	MDLFFT fft = pkd->fft;
@@ -782,7 +782,7 @@ int pltGenerateIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
     if (pstNotCore(pst)) {
 	int rID = mdl->ReqService(pst->idUpper,PLT_GENERATEIC,vin,nIn);
 	pltGenerateIC(pst->pstLower,vin,nIn,vout,nOut);
-	mdl->GetReply(rID,&outUp,NULL);
+	mdl->GetReply(rID,&outUp);
 	out->N += outUp.N;
 	out->noiseMean += outUp.noiseMean;
 	out->noiseCSQ += outUp.noiseCSQ;
@@ -874,7 +874,7 @@ int pstGenerateIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
     else if (pstNotCore(pst)) {
 	int rID = mdl->ReqService(pst->idUpper,PST_GENERATEIC,in,nIn);
 	pstGenerateIC(pst->pstLower,in,nIn,vout,nOut);
-	mdl->GetReply(rID,&outUp,NULL);
+	mdl->GetReply(rID,&outUp);
 	out->N += outUp.N;
 	out->noiseMean += outUp.noiseMean;
 	out->noiseCSQ += outUp.noiseCSQ;
