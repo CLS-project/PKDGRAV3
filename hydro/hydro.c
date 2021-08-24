@@ -1600,63 +1600,6 @@ void hydroRiemann_vec(PARTICLE *p,float fBall,int nSmooth,
        double v_line_L = riemann_input.L.v[0]*face_unit[0] + riemann_input.L.v[1]*face_unit[1] + riemann_input.L.v[2]*face_unit[2];
        double v_line_R = riemann_input.R.v[0]*face_unit[0] + riemann_input.R.v[1]*face_unit[1] + riemann_input.R.v[2]*face_unit[2];
 
-    /* HLLC solver from Toro 2009 (Sec. 10.4)
-     * TODO: put this in another function
-     */
-
-    // We need some kind of approximation for the signal speeds, S_L, S_R.
-    // The simplest:
-    /*
-    double S_L = MIN(v_line_L,v_line_R) - MAX(cs_L,cs_R);
-    double S_R = MAX(v_line_L,v_line_R) + MAX(cs_L,cs_R);
-    */
-
-
-    // Roe averaged equations 10.49-10.51:
-    /*
-    const double sq_rho_L = sqrt(riemann_input.L.rho);
-    const double sq_rho_R = sqrt(riemann_input.R.rho);
-
-    const double den = 1./(sq_rho_L + sq_rho_R);
-    const double u_tilde = (sq_rho_L * v_line_L + sq_rho_R * v_line_R)*den;
-
-    const double h_tilde = (sq_rho_L * h_L + sq_rho_R * h_R)*den;
-    const double a_tilde = sqrt( (GAMMA-1)*(h_tilde-0.5*u_tilde*u_tilde) );
-
-    double S_L = u_tilde - a_tilde;
-    double S_R = u_tilde + a_tilde;
-
-
-    // Equation 10.37
-    riemann_output.S_M = ( riemann_input.R.p - riemann_input.L.p + riemann_input.L.rho*v_line_L*(S_L - v_line_L) -
-                                                                   riemann_input.R.rho*v_line_R*(S_R - v_line_R)  )
-                              /( riemann_input.L.rho*(S_L - v_line_L) - riemann_input.R.rho*(S_R - v_line_R)  );
-
-    // Equation 10.36
-    riemann_output.P_M = riemann_input.L.p + riemann_input.L.rho*(S_L - v_line_L)*(riemann_output.S_M - v_line_L);
-
-    // TEST for pressure limiter.
-    // We compute the maximum pressure assuming that all the kinetic energy is converted to internal
-    double delta_v2 = v_line_R - v_line_L;
-    delta_v2 *= delta_v2;
-    double upwind_p_L = riemann_input.L.p + delta_v2*riemann_input.L.rho;
-    double upwind_p_R = riemann_input.R.p + delta_v2*riemann_input.R.rho;
-    double max_P_M = MAX( upwind_p_L, upwind_p_R );
-    */
-
-    //double max_rho = MAX(riemann_input.L.rho, riemann_input.R.rho);
-    //double max_p = MAX(riemann_input.L.p, riemann_input.R.p);
-    //double max_P_M = max_p + 0.5*(GAMMA-1)*max_rho*delta_v2;
-
-    // IMPORTANT: Force using exact solver
-    //max_P_M = -1.;
-
-    //if ( (riemann_output.P_M>max_P_M)||(riemann_output.P_M<=0)||(isnan(riemann_output.P_M)) ){
-       //printf("P_M %e \t max %e \t ratio %e \n", riemann_output.P_M, max_P_M, riemann_output.P_M/max_P_M);
-
-       // IA: If including riemann.h, we could still use the non-vectorized version:
-       //Riemann_solver_exact(pkd, riemann_input, &riemann_output, face_unit, v_line_L, v_line_R, cs_L, cs_R, h_L, h_R);
-
        int niter = Riemann_solver_exact(pkd,
             riemann_input.R.rho, riemann_input.R.p, riemann_input.R.v,
             riemann_input.L.rho, riemann_input.L.p, riemann_input.L.v,
@@ -1665,53 +1608,6 @@ void hydroRiemann_vec(PARTICLE *p,float fBall,int nSmooth,
             face_unit, v_line_L, v_line_R, cs_L, cs_R, h_L, h_R);
 
 
-    //}else{
-#ifndef USE_MFM
-        // In this case we need to check for conditions 10.26 to compute the fluxes
-        // We use eq. 10.39 to compute the star states, and 10.38 for the fluxes
-        // TODO: put this in another function
-
-        if (0.0 <= S_L){
-           // F_L
-           riemann_output.Fluxes.rho = riemann_input.L.rho * v_line_L;
-           riemann_output.Fluxes.p = riemann_input.L.rho * h_L * v_line_L;
-           for(j=0;j<3;j++)
-               riemann_output.Fluxes.v[j] = riemann_output.Fluxes.rho * riemann_input.L.v[j] + riemann_input.L.p * face_unit[j];
-
-        }else if ( (S_L<=0.0)&&(0.0<=riemann_output.S_M) ){
-           // F_starL
-           double rho_sL, rhov_sL, e_sL;
-
-           compute_Ustar( riemann_input.L.rho, S_L, v_line_L, riemann_input.L.p, h_L, riemann_output.S_M, &rho_sL, &rhov_sL, &e_sL  );
-
-           riemann_output.Fluxes.rho = riemann_input.L.rho * v_line_L  + S_L*(rho_sL - riemann_input.L.rho);
-           riemann_output.Fluxes.p = riemann_input.L.rho * h_L * v_line_L + S_L*(e_sL - h_L*riemann_input.L.rho + riemann_input.L.p);
-           for(j=0;j<3;j++)
-               riemann_output.Fluxes.v[j] = riemann_output.Fluxes.rho * riemann_input.L.v[j] + riemann_input.L.p * face_unit[j] + S_L*(rhov_sL - riemann_input.L.rho*v_line_L)*face_unit[j];
-
-
-        }else if ( (riemann_output.S_M<=0.0)&&(0.0<=S_R) ){
-           // F_starR
-           double rho_sR, rhov_sR, e_sR;
-
-           compute_Ustar( riemann_input.R.rho, S_R, v_line_R, riemann_input.R.p, h_R, riemann_output.S_M, &rho_sR, &rhov_sR, &e_sR  );
-
-           riemann_output.Fluxes.rho = riemann_input.R.rho * v_line_R  + S_R*(rho_sR - riemann_input.R.rho);
-           riemann_output.Fluxes.p = riemann_input.R.rho * h_R * v_line_R + S_R*(e_sR - h_R*riemann_input.R.rho + riemann_input.R.p);
-           for(j=0;j<3;j++)
-               riemann_output.Fluxes.v[j] = riemann_output.Fluxes.rho * riemann_input.R.v[j] + riemann_input.R.p * face_unit[j] + S_R*(rhov_sR - riemann_input.R.rho*v_line_R)*face_unit[j];
-
-        }else if ( 0.0<=S_R){
-           // F_R
-           riemann_output.Fluxes.rho = riemann_input.R.rho * v_line_R;
-           riemann_output.Fluxes.p = riemann_input.R.rho * h_R * v_line_R ;
-           for(j=0;j<3;j++)
-               riemann_output.Fluxes.v[j] = riemann_output.Fluxes.rho * riemann_input.R.v[j] + riemann_input.R.p * face_unit[j];
-
-        }
-
-#endif
-    //}
 
 
 
