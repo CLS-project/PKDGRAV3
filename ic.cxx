@@ -713,15 +713,15 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
                pSph->fMetals = pSph->fMetalsPred = pSph->fMetalsDot = 0.0;
 #endif
 #ifdef COOLING
-             pSph->chemistry[ chemistry_element_H ] = in->dInitialH    ;
-             pSph->chemistry[ chemistry_element_He] = in->dInitialHe   ;
-             pSph->chemistry[ chemistry_element_C ] = in->dInitialC    ;
-             pSph->chemistry[ chemistry_element_N ] = in->dInitialN    ;
-             pSph->chemistry[ chemistry_element_O ] = in->dInitialO    ;
-             pSph->chemistry[ chemistry_element_Ne] = in->dInitialNe   ;
-             pSph->chemistry[ chemistry_element_Mg] = in->dInitialMg   ;
-             pSph->chemistry[ chemistry_element_Si] = in->dInitialSi   ;
-             pSph->chemistry[ chemistry_element_Fe] = in->dInitialFe   ;
+             pSph->afElemMass[ELEMENT_H]  = pkd->param.dInitialH  * fGasMass;
+             pSph->afElemMass[ELEMENT_He] = pkd->param.dInitialHe * fGasMass;
+             pSph->afElemMass[ELEMENT_C]  = pkd->param.dInitialC  * fGasMass;
+             pSph->afElemMass[ELEMENT_N]  = pkd->param.dInitialN  * fGasMass;
+             pSph->afElemMass[ELEMENT_O]  = pkd->param.dInitialO  * fGasMass;
+             pSph->afElemMass[ELEMENT_Ne] = pkd->param.dInitialNe * fGasMass;
+             pSph->afElemMass[ELEMENT_Mg] = pkd->param.dInitialMg * fGasMass;
+             pSph->afElemMass[ELEMENT_Si] = pkd->param.dInitialSi * fGasMass;
+             pSph->afElemMass[ELEMENT_Fe] = pkd->param.dInitialFe * fGasMass;
 #endif
              pSph->vPred[0] = pVelGas[0];
              pSph->vPred[1] = pVelGas[1];

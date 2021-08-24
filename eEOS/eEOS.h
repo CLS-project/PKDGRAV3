@@ -2,12 +2,13 @@
 inline static void internalEnergyFloor(PKD pkd, PARTICLE* p,
                                        SPHFIELDS* psph, const float a_m3){
 
-    /* First, the cooling floor */
    const float mass = pkdMass(pkd,p);
    const float dens = pkdDensity(pkd,p)*a_m3;
    psph->E -= psph->Uint;
 
-   /* Which is only applied if the gas is overdense enough */
+   // First, the cooling floor,
+   // which is only applied if the gas is overdense enough */
+#ifdef COOLING
    double denMin = pkd->param.dCoolingFloorDen;
    if (pkd->csm->val.bComove){
        double rhoCrit0 = 3. * pkd->csm->val.dHubble0 * pkd->csm->val.dHubble0 /
@@ -23,6 +24,7 @@ inline static void internalEnergyFloor(PKD pkd, PARTICLE* p,
         (psph->Uint < pkd->param.dCoolingFlooru*mass ) ){
       psph->Uint = pkd->param.dCoolingFlooru*mass;
    }
+#endif
 
 
    /* Second, the polytropic EoS */
