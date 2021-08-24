@@ -1613,6 +1613,7 @@ void hydroRiemann_vec(PARTICLE *p,float fBall,int nSmooth,
 
 
     // Roe averaged equations 10.49-10.51:
+    /*
     const double sq_rho_L = sqrt(riemann_input.L.rho);
     const double sq_rho_R = sqrt(riemann_input.R.rho);
 
@@ -1641,15 +1642,16 @@ void hydroRiemann_vec(PARTICLE *p,float fBall,int nSmooth,
     double upwind_p_L = riemann_input.L.p + delta_v2*riemann_input.L.rho;
     double upwind_p_R = riemann_input.R.p + delta_v2*riemann_input.R.rho;
     double max_P_M = MAX( upwind_p_L, upwind_p_R );
+    */
 
     //double max_rho = MAX(riemann_input.L.rho, riemann_input.R.rho);
     //double max_p = MAX(riemann_input.L.p, riemann_input.R.p);
     //double max_P_M = max_p + 0.5*(GAMMA-1)*max_rho*delta_v2;
 
     // IMPORTANT: Force using exact solver
-    max_P_M = -1.;
+    //max_P_M = -1.;
 
-    if ( (riemann_output.P_M>max_P_M)||(riemann_output.P_M<=0)||(isnan(riemann_output.P_M)) ){
+    //if ( (riemann_output.P_M>max_P_M)||(riemann_output.P_M<=0)||(isnan(riemann_output.P_M)) ){
        //printf("P_M %e \t max %e \t ratio %e \n", riemann_output.P_M, max_P_M, riemann_output.P_M/max_P_M);
 
        // IA: If including riemann.h, we could still use the non-vectorized version:
@@ -1663,7 +1665,7 @@ void hydroRiemann_vec(PARTICLE *p,float fBall,int nSmooth,
             face_unit, v_line_L, v_line_R, cs_L, cs_R, h_L, h_R);
 
 
-    }else{
+    //}else{
 #ifndef USE_MFM
         // In this case we need to check for conditions 10.26 to compute the fluxes
         // We use eq. 10.39 to compute the star states, and 10.38 for the fluxes
@@ -1709,7 +1711,7 @@ void hydroRiemann_vec(PARTICLE *p,float fBall,int nSmooth,
         }
 
 #endif
-    }
+    //}
 
 
 
