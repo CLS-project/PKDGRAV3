@@ -82,6 +82,7 @@ using namespace fmt::literals; // Gives us ""_a and ""_format literals
 #include "domains/distribtoptree.h"
 #include "domains/distribroot.h"
 #include "domains/dumptrees.h"
+#include "domains/olddd.h"
 
 #include "gravity/setsoft.h"
 #include "gravity/activerung.h"
@@ -1718,7 +1719,7 @@ void MSR::SetSoft(double dSoft) {
 
 
 void MSR::DomainDecompOld(int iRung) {
-    struct inDomainDecomp in;
+    OldDD::ServiceDomainDecomp::input in;
     uint64_t nActive;
     const uint64_t nDT = d2u64(N*param.dFracDualTree);
     const uint64_t nDD = d2u64(N*param.dFracNoDomainDecomp);
@@ -1936,7 +1937,7 @@ void MSR::DomainDecompOld(int iRung) {
     msrprintf("Domain Decomposition... \n");
     sec = MSR::Time();
 
-    pstDomainDecomp(pst,&in,sizeof(in),NULL,0);
+    mdl->RunService(PST_DOMAINDECOMP,sizeof(in),&in);
     dsec = MSR::Time() - sec;
     printf("Domain Decomposition complete, Wallclock: %f secs\n\n",dsec);
     if (bRestoreActive) {
@@ -2126,17 +2127,15 @@ void MSR::BuildTreeMarked(int bNeedEwald) {
 
 void MSR::Reorder() {
     if (!param.bMemUnordered) {
-	struct inDomainOrder in;
 	double sec,dsec;
 
 	msrprintf("Ordering...\n");
 	sec = Time();
-	in.iMinOrder = 0;
-	in.iMaxOrder = MaxOrder()-1;
-	pstDomainOrder(pst,&in,sizeof(in),NULL,0);
-	in.iMinOrder = 0;
-	in.iMaxOrder = MaxOrder()-1;
-	pstLocalOrder(pst,&in,sizeof(in),NULL,0);
+	OldDD::ServiceDomainOrder::input indomain(MaxOrder()-1);
+	mdl->RunService(PST_DOMAINORDER,sizeof(indomain),&indomain);
+
+	OldDD::ServiceLocalOrder::input inlocal(MaxOrder()-1);
+	mdl->RunService(PST_LOCALORDER,sizeof(inlocal),&inlocal);
 	dsec = Time() - sec;
 	msrprintf("Order established, Wallclock: %f secs\n\n",dsec);
 

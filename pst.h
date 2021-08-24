@@ -266,86 +266,6 @@ struct inReadFile {
 typedef char inReadFileFilename[PST_FILENAME_SIZE];
 int pstReadFile(PST,void *,int,void *,int);
 
-/* PST_DOMAINDECOMP */
-struct inDomainDecomp {
-    BND bnd;
-    int nBndWrap[3];
-    int bDoRootFind;
-    int bDoSplitDimFind;
-    uint64_t nActive;
-    uint64_t nTotal;
-    };
-int pstDomainDecomp(PST,void *,int,void *,int);
-
-/* PST_WEIGHT */
-struct inWeight {
-    int iSplitDim;
-    double fSplit;
-    int iSplitSide;
-    int ittr;
-    int pFlag;
-    };
-struct outWeight {
-    uint64_t nLow;
-    uint64_t nHigh;
-    double fLow;
-    double fHigh;
-    };
-int pstWeight(PST,void *,int,void *,int);
-
-/* PST_WEIGHTWRAP */
-struct inWeightWrap {
-    int iSplitDim;
-    double fSplit;
-    double fSplit2;
-    int iSplitSide;
-    int ittr;
-    };
-struct outWeightWrap {
-    uint64_t nLow;
-    uint64_t nHigh;
-    };
-int pstWeightWrap(PST,void *,int,void *,int);
-
-/* PST_FREESTORE */
-struct outFreeStore {
-    uint64_t nFreeStore;
-    };
-int pstFreeStore(PST,void *,int,void *,int);
-
-/*
-** This structure is used by reject collectors and SwapRejects
-*/
-typedef struct outReject {
-    int id;
-    int nRejects;
-    int nSpace;
-    int nLocal;
-    } OREJ;
-
-/* PST_COLREJECTS */
-int pstColRejects(PST,void *,int,void *,int);
-
-/* PST_SWAPREJECTS */
-int pstSwapRejects(PST,void *,int,void *,int);
-
-/* PST_COLORDREJECTS */
-struct inColOrdRejects {
-    uint64_t iOrdSplit;
-    int iSplitSide;
-    };
-int pstColOrdRejects(PST,void *,int,void *,int);
-
-/* PST_DOMAINORDER */
-struct inDomainOrder {
-    uint64_t iMinOrder;
-    uint64_t iMaxOrder;
-    };
-int pstDomainOrder(PST,void *,int,void *,int);
-
-/* PST_LOCALORDER */
-int pstLocalOrder(PST,void *,int,void *,int);
-
 /* PST_COMPRESSASCII */
 struct inCompressASCII {
     uint64_t nTotal;
@@ -800,18 +720,6 @@ struct outUpdateRung {
     uint64_t nRungCount[MAX_RUNG];
     };
 int pstUpdateRung(PST,void *,int,void *,int);
-
-/* PST_ORDWEIGHT */
-struct inOrdWeight {
-    uint64_t iOrdSplit;
-    int iSplitSide;
-    int ittr;
-    };
-struct outOrdWeight {
-    uint64_t nLow;
-    uint64_t nHigh;
-    };
-int pstOrdWeight(PST,void *,int,void *,int);
 
 /* PST_SETWRITESTART */
 struct inSetWriteStart {

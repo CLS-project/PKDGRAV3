@@ -48,6 +48,8 @@
 #include "domains/distribroot.h"
 #include "domains/dumptrees.h"
 #include "domains/enforceperiodic.h"
+#include "domains/freestore.h"
+#include "domains/olddd.h"
 
 #include "gravity/setsoft.h"
 #include "gravity/activerung.h"
@@ -101,10 +103,20 @@ void *worker_init(MDL vmdl) {
     mdl->AddService(std::make_unique<ServiceDistribRoot>(pst));
     mdl->AddService(std::make_unique<ServiceDumpTrees>(pst));
     mdl->AddService(std::make_unique<ServiceEnforcePeriodic>(pst));
+    mdl->AddService(std::make_unique<ServiceFreeStore>(pst));
     mdl->AddService(std::make_unique<ServiceSetSoft>(pst));
     mdl->AddService(std::make_unique<ServiceActiveRung>(pst));
     mdl->AddService(std::make_unique<ServiceCountRungs>(pst));
     mdl->AddService(std::make_unique<ServiceZeroNewRung>(pst));
+    mdl->AddService(std::make_unique<OldDD::ServiceDomainDecomp>(pst));
+    mdl->AddService(std::make_unique<OldDD::ServiceDomainOrder>(pst));
+    mdl->AddService(std::make_unique<OldDD::ServiceLocalOrder>(pst));
+    mdl->AddService(std::make_unique<OldDD::ServiceColRejects>(pst));
+    mdl->AddService(std::make_unique<OldDD::ServiceSwapRejects>(pst));
+    mdl->AddService(std::make_unique<OldDD::ServiceColOrdRejects>(pst));
+    mdl->AddService(std::make_unique<OldDD::ServiceWeight>(pst));
+    mdl->AddService(std::make_unique<OldDD::ServiceWeightWrap>(pst));
+    mdl->AddService(std::make_unique<OldDD::ServiceOrdWeight>(pst));
     return pst;
     }
 
