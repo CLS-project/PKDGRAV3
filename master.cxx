@@ -3898,6 +3898,9 @@ double MSR::GenerateIC() {
     uint64_t nTotal;
     int j;
 
+    // We only support periodic initial conditions
+    param.bPeriodic = 1;
+
     in.dBoxSize = param.dBoxSize;
     in.iSeed = param.iSeed;
     in.bFixed = param.bFixedAmpIC;
