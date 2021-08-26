@@ -202,12 +202,6 @@ void master(MDL mdl,void *pst) {
 	return;
 	}
 
-#if defined(BLACKHOLES) || defined(STAR_FORMATION)
-    // IA: In these cases, it is assumed that the softening is either fixed by
-    // dSoft, or set indidually with oSoft.
-    // If not, star and BH particles may end up having a softening of zero!!
-    assert(prmSpecified(msr->prm,"dSoft") || msr->param.bMemSoft);
-#endif
 
     /* Adjust theta for gravity calculations. */
     if (msrComove(msr)) msrSwitchTheta(msr,dTime);

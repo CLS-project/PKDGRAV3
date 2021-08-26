@@ -939,6 +939,17 @@ static int validateParameters(MDL mdl,CSM csm,PRM prm,struct parameters *param) 
     }
 #endif
 
+#if defined(BLACKHOLES)
+    // In these cases, it is assumed that the softening is either fixed by
+    // dSoft, or set indidually with oSoft.
+    // If not, BH particles may end up having a softening of zero!!
+    if ( !prmSpecified(prm,"dSoft") && !param->bMemSoft ){
+       fprintf(stderr, "ERROR: Setting either dSoft or using bMemSoft is needed for BLACKHOLES");
+       return 0;
+    }
+    // This condition could be relaxed if needed
+#endif
+
 
     return 1;
     }
