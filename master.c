@@ -775,6 +775,17 @@ static int validateParameters(MDL mdl,CSM csm,PRM prm,struct parameters *param) 
 	    puts("ERROR: Box size for IC not specified");
 	    return 0;
 	    }
+      if ( param->bICgas ) {
+         if (!prmSpecified(prm, "dOmegab") ){
+            fprintf(stderr, "ERROR: Can not generate IC with gas if dOmegab is not specified");
+            return 0;
+         }
+         if ( !param->bDoGas ) {
+            fprintf(stderr, "ERROR: Can not generate IC with gas if bDoGas=0");
+            return 0;
+         }
+      }
+
 	}
     /* Set the number of bins for the power spectrum measurement of linear species */
     if (param->nGridLin > 0){
