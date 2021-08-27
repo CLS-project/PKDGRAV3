@@ -32,7 +32,7 @@ check_symbol_exists(backtrace execinfo.h USE_BT)
 find_package(Threads REQUIRED)
 find_package(MPI REQUIRED)	# MPI support
 find_package(CUDA)
-find_package(elfutils)
+find_package(elfutils QUIET)
 
 add_library(${PROJECT_NAME} STATIC "")
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_auto_type cxx_range_for cxx_lambdas cxx_strong_enums)
