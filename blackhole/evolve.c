@@ -105,7 +105,7 @@ static inline void bhDrift(PKD pkd, PARTICLE *p, float pMass,
                            double cs, double dScaleFactor) {
     // In situations where only BH are present, or there is no gravity, pLowPot
     // may be null. In that case, the drift operation in this function makes no
-    // sense. In those cases, the assert should be explicitly removed.
+    // sense.
     //
     // In normal cosmological simulations, the assert may be activated when
     // something has gone really wrong, such as having no gas particle close to
@@ -116,14 +116,18 @@ static inline void bhDrift(PKD pkd, PARTICLE *p, float pMass,
     //   for (int i=0; i<nSmooth; ++i)
     //      printf("%e \n", *pkdPot(pkd, nnList[i].pPart));
     //}
-    p->uNewRung = uMaxRung;
+#ifndef DEBUG_BH_ONLY
     assert(pLowPot!=NULL);
+#endif
+    p->uNewRung = uMaxRung;
     if (pLowPot==NULL) return;
 
     // We only follow exactly that particle if the BH does not
     // have enough mass to dictate the movement of the particles
 
-    //return; //Needed when running TestGrowth
+#ifdef DEBUG_BH_NODRIFT
+    return;
+#endif
     if (pMass < 10.*pkdMass(pkd,pLowPot)){
        double inv_a = 1./dScaleFactor;
        cs *= cs;
