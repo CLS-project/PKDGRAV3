@@ -1155,7 +1155,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	switch(eSpecies) {
 	case FIO_SPECIES_SPH:
 	    assert(dTuFac>0.0);
-	    float afSphOtherData[1];
+	    float afSphOtherData[2];
 	    fioReadSph(fio,&iParticleID,r,vel,&fMass,&fSoft,pPot,
 		       &fDensity,&u,&fMetals[0],afSphOtherData);
           pkdSetClass(pkd,fMass,fSoft,eSpecies,p);
@@ -1172,7 +1172,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             for (j = 0; j < ELEMENT_COUNT; j++) pSph->afElemMass[j] = fMetals[j] * fMass;
 #endif
 #ifdef STELLAR_EVOLUTION
-	    pSph->fMetalMass = afSphOtherData[0] * fMass;
+	    pSph->fMetalMass = afSphOtherData[1] * fMass;
 #endif
             // If the value is negative, means that it is a temperature
             u = (u<0.0) ? -u*dTuFac : u;

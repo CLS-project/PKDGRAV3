@@ -3639,7 +3639,7 @@ static int hdf5ReadSph(
     class_get(pfMass,pfSoft,&base->ioClass,*piParticleID,base->iIndex);
 
 
-    if ( !field_get_float(pfOtherData,&base->fldFields[SPH_SMOOTHING],base->iIndex) )
+    if ( !field_get_float(&pfOtherData[0],&base->fldFields[SPH_SMOOTHING],base->iIndex) )
        pfOtherData[0] = 0.0f;
 
     /* Potential is optional */
@@ -3656,8 +3656,8 @@ static int hdf5ReadSph(
 
 #ifdef STELLAR_EVOLUTION    
     /* Metallicity is optional */
-    if ( !field_get_float(&pfOtherData[0],&base->fldFields[SPH_METALLICITY],base->iIndex) )
-	pfOtherData[0] = -1.0f;
+    if ( !field_get_float(&pfOtherData[1],&base->fldFields[SPH_METALLICITY],base->iIndex) )
+	pfOtherData[1] = -1.0f;
 #endif
 
 
