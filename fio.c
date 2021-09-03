@@ -3113,6 +3113,12 @@ static void class_add( IOBASE *base, PINDEX iOrder, float fMass, float fSoft ) {
 	fSoft = 0.0;
 	}
 
+    // If both mass and soft are being stored,
+    // there is no need for classes anymore
+    if (fSoft==0.0 && fMass==0.0){
+       return;
+    }
+
     /* See if we already have this class: Mass/Softening pair */
     for ( i=0; i<ioClass->nClasses; i++ ) {
 	if ( ioClass->Class[i].fMass == fMass && ioClass->Class[i].fSoft == fSoft )
@@ -3919,7 +3925,7 @@ static int hdf5WriteSph(
 
 static int hdf5WriteStar(
     struct fioInfo *fio,uint64_t iParticleID,const double *pdPos,const double *pdVel,
-    float fMass,float UNUSED(fSoft),float fPot,float UNUSED(fDen),float *pfMetals,
+    float fMass,float fSoft,float fPot,float UNUSED(fDen),float *pfMetals,
     float *pfOtherData) {
     fioHDF5 *hio = (fioHDF5 *)(fio);
     IOBASE *base = &hio->base[FIO_SPECIES_STAR];
@@ -3938,7 +3944,7 @@ static int hdf5WriteStar(
 	field_create(&base->fldFields[STAR_GROUP],base->group_id,
 		     FIELD_GROUP, H5T_NATIVE_INT32, H5T_NATIVE_INT32, 1);
 	}
-    class_add(base,iParticleID,fMass,0.0);
+    class_add(base,iParticleID,fMass,fSoft);
     ioorder_add(base,iParticleID);
     field_add_double(pdPos,&base->fldFields[STAR_POSITION],base->iIndex);
     field_add_double(pdVel,&base->fldFields[STAR_VELOCITY],base->iIndex);
@@ -3966,7 +3972,7 @@ static int hdf5WriteStar(
 // This is a bad workaround. But eventually the FIO routines should be refactored, I think.
 static int hdf5WriteBH(
     struct fioInfo *fio,uint64_t iParticleID,const double *pdPos,const double *pdVel,
-    float fMass,float UNUSED(fSoft),float fPot,float fDen,float *pfOtherData,float fTform) {
+    float fMass,float fSoft,float fPot,float fDen,float *pfOtherData,float fTform) {
     fioHDF5 *hio = (fioHDF5 *)(fio);
     IOBASE *base = &hio->base[FIO_SPECIES_BH];
     assert(fio->eFormat == FIO_FORMAT_HDF5);
@@ -3992,7 +3998,7 @@ static int hdf5WriteBH(
 	field_create(&base->fldFields[BH_GROUP],base->group_id,
 		     FIELD_GROUP, H5T_NATIVE_INT32, H5T_NATIVE_INT32, 1 );
 	}
-    class_add(base,iParticleID,fMass,0.0);
+    class_add(base,iParticleID,fMass,fSoft);
     ioorder_add(base,iParticleID);
     field_add_double(pdPos,&base->fldFields[BH_POSITION],base->iIndex);
     field_add_double(pdVel,&base->fldFields[BH_VELOCITY],base->iIndex);

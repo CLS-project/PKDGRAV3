@@ -2234,6 +2234,7 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,BND *bnd,
     //else pStar = NULL;
     fMass = pkdMass(pkd,p);
     fSoft = pkdSoft0(pkd,p);
+    if (pkd->fSoftFix >= 0.0) fSoft = 0.0;
     if (pkd->oParticleID) iParticleID = *pkdParticleID(pkd,p);
     else if (!pkd->bNoParticleOrder) iParticleID = p->iOrder;
     else iParticleID = 0;
@@ -2484,7 +2485,7 @@ void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dScaleFactor, double dTime, uint
       fioSetAttr(fio, 1, "Cosmological run", FIO_TYPE_INT, 1, &flag);
    }
 
-   
+
    /*
     * Units header
     */
