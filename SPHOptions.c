@@ -25,15 +25,20 @@
 #include "parameters.h"
 #include <stdio.h>
 
-SPHOptions initializeSPHOptions(struct parameters param, float a, float H){
+SPHOptions initializeSPHOptions(struct parameters param, CSM csm, double dTime){
     SPHOptions SPHoptions;
     SPHoptions.fKernelTarget = param.fKernelTarget;
     SPHoptions.epsilon = 0.01f;
     SPHoptions.alpha = param.dConstAlpha;
     SPHoptions.beta = param.dConstBeta;
     SPHoptions.EtaCourant = param.dEtaCourant;
-    SPHoptions.a = a;
-    SPHoptions.H = H;
+    if (csm->val.bComove) {
+        SPHoptions.a = csmTime2Exp(csm,dTime);
+        SPHoptions.H = csmTime2Hub(csm,dTime);
+    } else {
+        SPHoptions.a = 1.0f;
+        SPHoptions.H = 0.0f;
+    }
     SPHoptions.doGravity = 0;
     SPHoptions.doDensity = 0;
     SPHoptions.doSPHForces = 0;

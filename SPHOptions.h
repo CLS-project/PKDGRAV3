@@ -21,6 +21,9 @@
 #include <stdint.h>
 #include "parameters.h"
 
+#include <assert.h>
+#include "cosmo.h"
+
 typedef struct {
     float fKernelTarget;
     float epsilon;
@@ -39,7 +42,7 @@ typedef struct {
 #ifdef __cplusplus
 extern "C"
 #endif
-SPHOptions initializeSPHOptions(struct parameters param, float a, float H);
+SPHOptions initializeSPHOptions(struct parameters param, CSM csm, double dTime);
 
 #endif
 
