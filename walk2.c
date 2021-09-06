@@ -403,6 +403,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2,
 				    iOrder = pkd->bNoParticleOrder ? 0 : p->iOrder;
                     v = pkdVel(pkd,p);
                     //SPHFIELDS *pSph = pkdSph(pkd,p);
+                    float dtPredDrift = getDtPredDrift(kick,p->bMarked,ts->uRungLo,p->uRung);
                     float Omega = 1.0f; //pSph->Omega;                     /* should be the Omega field of the sph fields, nyi */
                     float P = 0.0f;                         /* should be calculated by the EOS, nyi */
                     float cs = 0.0f;                        /* should be calculated by the EOS, nyi */
@@ -439,6 +440,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2,
 					iOrder = pkd->bNoParticleOrder ? 0 : p->iOrder;
                     v = pkdVel(pkd,p);
                     //SPHFIELDS *pSph = pkdSph(pkd,p);
+                    float dtPredDrift = getDtPredDrift(kick,p->bMarked,ts->uRungLo,p->uRung);
                     float Omega = 1.0f; //pSph->Omega;                 /* should be the Omega field of the sph fields, nyi */
                     float P = 0.0f;                     /* should be calculated by the EOS, nyi */
                     float cs = 0.0f;                    /* should be calculated by the EOS, nyi */

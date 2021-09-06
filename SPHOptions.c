@@ -24,6 +24,7 @@
 #include "SPHOptions.h"
 #include "parameters.h"
 #include <stdio.h>
+#include "basetype.h"
 
 SPHOptions initializeSPHOptions(struct parameters param, CSM csm, double dTime){
     SPHOptions SPHoptions;
@@ -45,4 +46,16 @@ SPHOptions initializeSPHOptions(struct parameters param, CSM csm, double dTime){
     SPHoptions.useNumDen = 0;
     SPHoptions.kernelType = 0;
     return SPHoptions;
+}
+
+float getDtPredDrift(struct pkdKickParameters *kick, int bMarked, int uRungLo, int uRung) {
+    if (uRung < uRungLo) {
+        return kick->dtPredDrift[uRung];
+    } else {
+        if (bMarked) {
+            return - kick->dtOpen[uRung];
+        } else {
+            return kick->dtClose[uRung];
+        }
+    }
 }

@@ -24,6 +24,8 @@
 #include <assert.h>
 #include "cosmo.h"
 
+struct pkdKickParameters;
+
 typedef struct {
     float fKernelTarget;
     float epsilon;
@@ -43,6 +45,7 @@ typedef struct {
 extern "C"
 #endif
 SPHOptions initializeSPHOptions(struct parameters param, CSM csm, double dTime);
+float getDtPredDrift(struct pkdKickParameters *kick, int bMarked, int uRungLo, int uRung);
 
 #endif
 

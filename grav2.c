@@ -688,6 +688,7 @@ int pkdGravInteract(PKD pkd,
 	    }
 
     //SPHFIELDS *pSph = pkdSph(pkd,p);
+    float dtPredDrift = getDtPredDrift(kick,p->bMarked,ts->uRungLo,p->uRung);
     wp->pInfoIn[nP].fBall = pkdBall(pkd,p);
     wp->pInfoIn[nP].Omega = 1.0f; //pSph->Omega;
     wp->pInfoIn[nP].v[0] = v[0];
