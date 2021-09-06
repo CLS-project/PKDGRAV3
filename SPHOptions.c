@@ -33,6 +33,7 @@ SPHOptions initializeSPHOptions(struct parameters param, CSM csm, double dTime){
     SPHoptions.alpha = param.dConstAlpha;
     SPHoptions.beta = param.dConstBeta;
     SPHoptions.EtaCourant = param.dEtaCourant;
+    SPHoptions.gamma = param.dConstGamma;
     if (csm->val.bComove) {
         SPHoptions.a = csmTime2Exp(csm,dTime);
         SPHoptions.H = csmTime2Hub(csm,dTime);
@@ -58,4 +59,10 @@ float getDtPredDrift(struct pkdKickParameters *kick, int bMarked, int uRungLo, i
             return kick->dtClose[uRung];
         }
     }
+}
+
+float EOSPCofRhoU(float rho, float u, float *c, SPHOptions *SPHoptions) {
+    u = u / (SPHoptions->gamma - 1.0f) * pow(rho, SPHoptions->gamma - 1.0f);
+    *c = sqrt(SPHoptions->gamma * (SPHoptions->gamma - 1.0f) * u);
+    return (SPHoptions->gamma - 1.0f) * rho * u;
 }

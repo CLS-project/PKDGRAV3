@@ -34,6 +34,7 @@ typedef struct {
     float EtaCourant;
     float a;
     float H;
+    float gamma;
     uint64_t doGravity : 1;
     uint64_t doDensity : 1;
     uint64_t doSPHForces : 1;
@@ -46,6 +47,7 @@ extern "C"
 #endif
 SPHOptions initializeSPHOptions(struct parameters param, CSM csm, double dTime);
 float getDtPredDrift(struct pkdKickParameters *kick, int bMarked, int uRungLo, int uRung);
+float EOSPCofRhoU(float rho, float u, float *c, SPHOptions *SPHoptions);
 
 #endif
 
