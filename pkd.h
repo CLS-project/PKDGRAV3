@@ -119,6 +119,8 @@ static inline int64_t d2u64(double d) {
 #define PKD_MODEL_NODE_BND     (1<<28) /* Include normal bounds in tree */
 #define PKD_MODEL_NODE_VBND    (1<<29) /* Include velocity bounds in tree for phase-space density*/
 
+#define PKD_MODEL_NEW_SPH      (1ULL<<32) /* New Sph Fields */
+
 typedef struct {
     double rscale[3];
     double vscale[3];
@@ -165,6 +167,7 @@ typedef struct sphfields {
     float uPred;	/* predicted thermal energy */
     float uDot;
     float c;		/* sound speed */
+    float divv;
     float BalsaraSwitch;    /* Balsara viscosity reduction */
     float fMetals;	    /* mass fraction in metals, a.k.a, Z - tipsy output variable */
 
@@ -173,12 +176,14 @@ typedef struct sphfields {
     float fMetalsPred;
     float fMetalsDot;
 
-    /* These are the fields that stay */
+    } SPHFIELDS;
+
+typedef struct newsphfields {
     float Omega;        /* Correction factor */
     float divv;         /* Divergence of v */
-    float theta;        /* Thermodynamical variable, can be T, A(s) or u */
-    float thetaDot;     /* Derivative of the thermodynamical variable */
-    } SPHFIELDS;
+    float u;            /* Thermodynamical variable, can be T, A(s) or u */
+    float uDot;         /* Derivative of the thermodynamical variable */
+    } NEWSPHFIELDS;
 
 typedef struct starfields {
     float fTimer;  /* For gas -- cooling shutoff, for stars -- when formed */
@@ -743,6 +748,7 @@ enum PKD_FIELD {
     oDensity, /* One float */
     oBall, /* One float */
     oSph, /* Sph structure */
+    oNewSph, /* NewSph structure */
     oStar, /* Star structure */
     oRelaxation,
     oVelSmooth,
@@ -1291,8 +1297,15 @@ static inline uint64_t *pkdParticleID( PKD pkd, PARTICLE *p ) {
 static inline SPHFIELDS *pkdSph( PKD pkd, PARTICLE *p ) {
     return ((SPHFIELDS *) pkdField(p,pkd->oFieldOffset[oSph]));
     }
+/* NewSph variables */
+static inline NEWSPHFIELDS *pkdNewSph( PKD pkd, PARTICLE *p ) {
+    return ((NEWSPHFIELDS *) pkdField(p,pkd->oFieldOffset[oNewSph]));
+    }
 static inline const SPHFIELDS *pkdSphRO( PKD pkd, const PARTICLE *p ) {
     return ((const SPHFIELDS *) pkdFieldRO(p,pkd->oFieldOffset[oSph]));
+    }
+static inline const NEWSPHFIELDS *pkdNewSphRO( PKD pkd, const PARTICLE *p ) {
+    return ((const NEWSPHFIELDS *) pkdFieldRO(p,pkd->oFieldOffset[oNewSph]));
     }
 static inline STARFIELDS *pkdStar( PKD pkd, PARTICLE *p ) {
     return ((STARFIELDS *) pkdField(p,pkd->oFieldOffset[oStar]));

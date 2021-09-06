@@ -481,6 +481,11 @@ void pkdInitialize(
     else
 	pkd->oFieldOffset[oSph] = 0;
 
+    if ( mMemoryModel & PKD_MODEL_NEW_SPH )
+	pkd->oFieldOffset[oNewSph] = pkdParticleAddStruct(pkd,sizeof(NEWSPHFIELDS));
+    else
+	pkd->oFieldOffset[oNewSph] = 0;
+
     if ( mMemoryModel & PKD_MODEL_STAR )
 	pkd->oFieldOffset[oStar] = pkdParticleAddStruct(pkd,sizeof(STARFIELDS));
     else
@@ -510,10 +515,10 @@ void pkdInitialize(
     else
 	pkd->oFieldOffset[oSoft] = 0;
 
-    if ( mMemoryModel & (PKD_MODEL_SPH|PKD_MODEL_BALL) )
+    if ( mMemoryModel & (PKD_MODEL_SPH|PKD_MODEL_NEW_SPH|PKD_MODEL_BALL) )
 	pkd->oFieldOffset[oBall] = pkdParticleAddFloat(pkd,1);
     else pkd->oFieldOffset[oBall] = 0;
-    if ( mMemoryModel & (PKD_MODEL_SPH|PKD_MODEL_DENSITY) )
+    if ( mMemoryModel & (PKD_MODEL_SPH|PKD_MODEL_NEW_SPH|PKD_MODEL_DENSITY) )
 	pkd->oFieldOffset[oDensity] = pkdParticleAddFloat(pkd,1);
     else pkd->oFieldOffset[oDensity] = 0;
 
