@@ -90,12 +90,10 @@ int pkdPlaceBHSeed(PKD pkd, double dTime, double dScaleFactor,
          assert(pkdIsGas(pkd,pLowPot));
 
          // Now convert this particle into a BH
-         // We just change the class of the particle to stellar one
+         // We just change the class of the particle
          double omega = pkdSph(pkd,pLowPot)->omega;
-         float fmass = pkdMass(pkd,pLowPot);
-         pkdSetClass(pkd, 0., 0., FIO_SPECIES_BH, pLowPot);
-         float *pfmass = pkdField(pLowPot, pkd->oMass);
-         *pfmass = fmass;
+         pkdSetClass(pkd, pkdMass(pkd,pLowPot), pkdSoft0(pkd,pLowPot),
+                     FIO_SPECIES_BH, pLowPot);
 
          BHFIELDS* pBH = pkdBH(pkd,pLowPot);
          // When changing the class, we have to take into account tht
@@ -124,10 +122,6 @@ int pkdPlaceBHSeed(PKD pkd, double dTime, double dScaleFactor,
          // this is not required
          //pLowPot->uNewRung = uRungMax;
 
-         printf("New BH pos %e %e %e \n",
-                     pkdPos(pkd,pLowPot, 0),
-                     pkdPos(pkd,pLowPot, 1),
-                     pkdPos(pkd,pLowPot, 2));
 
          pkd->nBH++;
          pkd->nGas--;

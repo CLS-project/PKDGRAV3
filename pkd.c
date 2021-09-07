@@ -79,6 +79,9 @@
 #if defined(COOLING) && defined(STAR_FORMATION)
 #include "eEOS/eEOS.h"
 #endif
+#ifdef BLACKHOLES
+#include "blackhole/evolve.h"
+#endif
 
 #ifdef _MSC_VER
 #define FILE_PROTECTION (_S_IREAD | _S_IWRITE)
