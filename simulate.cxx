@@ -221,6 +221,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
 	    LinearKick(dTime,dDelta,bKickClose,bKickOpen);
 	    GridDeleteFFT();
         }
+    SelAll(0,1);
     SPHOptions SPHoptions = initializeSPHOptions(param,csm,dTime);
     SPHoptions.doGravity = 0;
     SPHoptions.doDensity = 1;

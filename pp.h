@@ -158,7 +158,7 @@ CUDA_DEVICE void EvalSPHForces(
         aFac = a;
         vFac = 1.0f / (a * a);
         dvx = vFac * dvx + dx * H;
-        dvy = vFac * dvy + dz * H;
+        dvy = vFac * dvy + dy * H;
         dvz = vFac * dvz + dz * H;
 
         // Kernel derivatives
