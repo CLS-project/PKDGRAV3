@@ -323,7 +323,11 @@ void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTi
     nSpecies[FIO_SPECIES_SPH]  = nGas;
     nSpecies[FIO_SPECIES_DARK] = nDark;
     nSpecies[FIO_SPECIES_STAR] = nStar;
-    InitializePStore(nSpecies,getMemoryModel());
+    uint64_t mMemoryModel = 0;
+    mMemoryModel = getMemoryModel();
+    if (nGas && !prmSpecified(prm,"bDoGas")) param.bDoGas = 1;
+    if (DoGas() || nGas) mMemoryModel |= (PKD_MODEL_NEW_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_DENSITY|PKD_MODEL_BALL);
+    InitializePStore(nSpecies,mMemoryModel);
 
     struct inRestore restore;
     restore.nProcessors = param.bParaRead==0?1:(param.nParaRead<=1 ? nThreads:param.nParaRead);
