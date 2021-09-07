@@ -155,6 +155,7 @@ void hydroDensity_node(PKD pkd, BND bnd_node, PARTICLE **sinks, NN *nnList,
              float newBall;
 
              newBall = (c!=0.0) ? ph * pow(  Neff/c  ,0.3333333333) : ph*4.0;
+             if (newBall > 4.0*ph) newBall = ph*4.0;
 
              pkdSetBall(pkd,partj, 0.5*(newBall+ph));
              //printf("Setting new fBall %e %e %e \n", c, ph, pkdBall(pkd,partj));
