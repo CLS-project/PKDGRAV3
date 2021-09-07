@@ -4251,6 +4251,7 @@ void pkdSetNParts(PKD pkd,int nGas,int nDark,int nStar, int nBH) {
     pkd->nGas = nGas;
     pkd->nDark = nDark;
     pkd->nStar = nStar;
+    pkd->nBH = nBH;
     }
 
 
