@@ -175,8 +175,8 @@ void pkdSPHForcesEval(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  P
     fvec PfBall, POmega, Pdx, Pdy, Pdz, Pvx, Pvy, Pvz, Prho, PP, Pc;
     fvec IfBall, IOmega, Idx, Idy, Idz, Ivx, Ivy, Ivz, Irho, IP, Ic, Im;
     i32v Pspecies, Ispecies;
-    fvec pthetaDot, pax, pay, paz, pdivv, pdtEst;
-    float athetaDot, aax, aay, aaz, adivv, adtEst;
+    fvec puDot, pax, pay, paz, pdivv, pdtEst;
+    float auDot, aax, aay, aaz, adivv, adtEst;
 
     float fx = pPart->r[0];
     float fy = pPart->r[1];
@@ -216,7 +216,7 @@ void pkdSPHForcesEval(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  P
     Pc      = fc;
     Pspecies= ispecies;
 
-    pthetaDot = pax = pay = paz = pdivv = 0.0f;
+    puDot = pax = pay = paz = pdivv = 0.0f;
     pdtEst = HUGE_VAL;
 
     for( nLeft=nBlocks; nLeft >= 0; --nLeft,++blk ) {
@@ -240,7 +240,7 @@ void pkdSPHForcesEval(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  P
             Idx,Idy,Idz,Im,IfBall,IOmega,Ivx,Ivy,Ivz,Irho,IP,Ic,Ispecies,
             t1,t2,t3,t4,t5,t6,
             SPHoptions);
-            pthetaDot += t1;
+            puDot += t1;
             pax += t2;
             pay += t3;
             paz += t4;
@@ -248,7 +248,7 @@ void pkdSPHForcesEval(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  P
             pdtEst = min(pdtEst,t6);
 	    }
 	}
-    athetaDot = hadd(pthetaDot);
+    auDot = hadd(puDot);
     aax = hadd(pax);
     aay = hadd(pay);
     aaz = hadd(paz);
@@ -260,7 +260,7 @@ void pkdSPHForcesEval(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  P
     }
     assert(adtEst > 0);
 
-    pOut->thetaDot += athetaDot;
+    pOut->uDot += auDot;
     pOut->a[0] += aax;
     pOut->a[1] += aay;
     pOut->a[2] += aaz;

@@ -102,7 +102,7 @@ typedef struct {
     float rhopmax;
     /* SPH fields follow */
     float rho, drhodfball, nden, dndendfball, fBall, nSmooth;
-    float thetaDot, divv, dtEst;
+    float uDot, divv, dtEst;
     } PINFOOUT;
 
 

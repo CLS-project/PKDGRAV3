@@ -981,6 +981,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
     PARTICLE *p;
     STARFIELDS *pStar;
     SPHFIELDS *pSph;
+    NEWSPHFIELDS *pNewSph;
     float *pPot, dummypot;
     double r[3];
     double vel[3];
@@ -1032,6 +1033,13 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	    }
 	else pSph = NULL;
 
+    /* Initialize New SPH fields if present */
+	if (pkd->oFieldOffset[oNewSph]) {
+	    pNewSph = pkdField(p,pkd->oFieldOffset[oNewSph]);
+	    pNewSph->u = pNewSph->uDot = pNewSph->divv = pNewSph->Omega = 0.0;
+	    }
+	else pNewSph = NULL;
+
 	/* Initialize Star fields if present */
 	if (pkd->oFieldOffset[oStar]) {
 	    pStar = pkdField(p,pkd->oFieldOffset[oStar]);
@@ -1043,18 +1051,11 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	eSpecies = fioSpecies(fio);
 	switch(eSpecies) {
 	case FIO_SPECIES_SPH:
-	    assert(dTuFac>0.0);
 	    fioReadSph(fio,&iParticleID,r,vel,&fMass,&fSoft,pPot,
 			     &fDensity/*?*/,&u,&fMetals);
 	    pkdSetDensity(pkd,p,fDensity);
-	    if (pSph) {
-		pSph->u = u * dTuFac; /* Can't do precise conversion until density known */
-		pSph->fMetals = fMetals;
-		pSph->uPred = pSph->u;
-		pSph->fMetalsPred = pSph->fMetals;
-		pSph->vPred[0] = vel[0]*dvFac;
-		pSph->vPred[1] = vel[1]*dvFac;
-		pSph->vPred[2] = vel[2]*dvFac; /* density, divv, BalsaraSwitch, c set in smooth */
+	    if (pNewSph) {
+		pNewSph->u = u; /* Can't do conversion until density known */
 		}
 	    break;
 	case FIO_SPECIES_DARK:

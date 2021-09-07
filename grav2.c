@@ -105,13 +105,17 @@ void pkdParticleWorkDone(workParticle *wp) {
 	for( i=0; i<wp->nP; i++ ) {
 	    p = wp->pPart[i];
 
-        if (wp->SPHoptions->doDensity) {
-        //SPHFIELDS *pSph = pkdSph(pkd,p);
-        pkdSetDensity(pkd,p,wp->pInfoOut[i].rho);
-        pkdSetBall(pkd,p,wp->pInfoOut[i].fBall);
-        //pSph->Omega = 1.0f + wp->pInfoOut[i].fBall/(3.0f * wp->pInfoOut[i].rho)*wp->pInfoOut[i].drhodfball;
-        //pSph->divv = wp->pInfoOut[i].divv;
-        //pSph->thetaDot = wp->pInfoOut[i].thetaDot;
+        if (pkd->oFieldOffset[oNewSph]) {
+        NEWSPHFIELDS *pNewSph = pkdNewSph(pkd,p);
+            if (wp->SPHoptions->doDensity) {
+            pkdSetDensity(pkd,p,wp->pInfoOut[i].rho);
+            pkdSetBall(pkd,p,wp->pInfoOut[i].fBall);
+            pNewSph->Omega = 1.0f + wp->pInfoOut[i].fBall/(3.0f * wp->pInfoOut[i].rho)*wp->pInfoOut[i].drhodfball;
+            }
+            if (wp->SPHoptions->doSPHForces) {
+            pNewSph->divv = wp->pInfoOut[i].divv;
+            pNewSph->uDot = wp->pInfoOut[i].uDot;
+            }
         }
 
         if (wp->SPHoptions->doGravity) {
@@ -311,7 +315,7 @@ int CPUdoWorkSPHForces(void *vpp) {
     int nInLast = tile->lstTile.nInLast;
     SPHOptions *SPHoptions = wp->SPHoptions;
 
-    pOut->thetaDot = 0.0;
+    pOut->uDot = 0.0;
     pOut->a[0] = 0.0;
     pOut->a[1] = 0.0;
     pOut->a[2] = 0.0;
@@ -365,7 +369,7 @@ int doneWorkSPHForces(void *vpp) {
     int i;
 
     for(i=0; i<pp->work->nP; ++i) {
-    pp->work->pInfoOut[i].thetaDot += pp->pInfoOut[i].thetaDot;
+    pp->work->pInfoOut[i].uDot += pp->pInfoOut[i].uDot;
     pp->work->pInfoOut[i].a[0] += pp->pInfoOut[i].a[0];
 	pp->work->pInfoOut[i].a[1] += pp->pInfoOut[i].a[1];
 	pp->work->pInfoOut[i].a[2] += pp->pInfoOut[i].a[2];
@@ -687,10 +691,10 @@ int pkdGravInteract(PKD pkd,
 	    wp->pInfoIn[nP].a[2]  = 0;
 	    }
 
-    //SPHFIELDS *pSph = pkdSph(pkd,p);
+    NEWSPHFIELDS *pNewSph = pkdNewSph(pkd,p);
     float dtPredDrift = getDtPredDrift(kick,p->bMarked,ts->uRungLo,p->uRung);
     wp->pInfoIn[nP].fBall = pkdBall(pkd,p);
-    wp->pInfoIn[nP].Omega = 1.0f; //pSph->Omega;
+    wp->pInfoIn[nP].Omega = pNewSph->Omega;
     wp->pInfoIn[nP].v[0] = v[0];
     wp->pInfoIn[nP].v[1] = v[1];
     wp->pInfoIn[nP].v[2] = v[2];
@@ -705,7 +709,7 @@ int pkdGravInteract(PKD pkd,
     wp->pInfoOut[nP].dndendfball = 0.0f;
     wp->pInfoOut[nP].fBall = 0.0f;
     wp->pInfoOut[nP].nSmooth = 0.0f;
-    wp->pInfoOut[nP].thetaDot = 0.0f;
+    wp->pInfoOut[nP].uDot = 0.0f;
     wp->pInfoOut[nP].divv = 0.0f;
     wp->pInfoOut[nP].dtEst = HUGE_VAL;
 
