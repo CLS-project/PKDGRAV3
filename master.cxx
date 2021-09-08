@@ -349,6 +349,26 @@ void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTi
 
     InitCosmology();
     if (prmSpecified(prm,"dSoft")) SetSoft(Soft());
+
+    /*
+    ** Initialize kernel target with either the mean mass or nSmooth
+    */
+    sec = MSR::Time();
+    printf("Initializing Kernel target ...\n");
+    {
+    SPHOptions SPHoptions = initializeSPHOptions(param,csm,dTime);
+    if (SPHoptions.useNumDen) {
+        param.fKernelTarget = param.nSmooth;
+    } else {
+        double Mtot;
+        uint64_t Ntot;
+        CalcMtot(&Mtot, &Ntot);
+        param.fKernelTarget = Mtot/Ntot*param.nSmooth;
+    }
+    }
+    dsec = MSR::Time() - sec;
+    printf("Initializing Kernel target complete, Wallclock: %f secs.\n", dsec);
+
     Simulate(dTime,dDelta,iStep,nSteps);
     }
 
@@ -4186,6 +4206,39 @@ double MSR::Read(const char *achInFile) {
 	}
 
     InitCosmology();
+
+    /*
+    ** Initialize kernel target with either the mean mass or nSmooth
+    */
+    sec = MSR::Time();
+    printf("Initializing Kernel target ...\n");
+    {
+    SPHOptions SPHoptions = initializeSPHOptions(param,csm,dTime);
+    if (SPHoptions.useNumDen) {
+        param.fKernelTarget = param.nSmooth;
+    } else {
+        double Mtot;
+        uint64_t Ntot;
+        CalcMtot(&Mtot, &Ntot);
+        param.fKernelTarget = Mtot/Ntot*param.nSmooth;
+    }
+    }
+    dsec = MSR::Time() - sec;
+    printf("Initializing Kernel target complete, Wallclock: %f secs.\n", dsec);
+
+    /*
+    ** Initialize fBall
+    */
+    sec = MSR::Time();
+    printf("Initializing fBall ...\n");
+    Reorder();
+    ActiveRung(0,1); /* Activate all particles */
+    DomainDecomp(-1);
+    BuildTree(0);
+    Smooth(dTime,0.0f,SMX_BALL,0,param.nSmooth);
+    Reorder();
+    dsec = MSR::Time() - sec;
+    printf("Initializing fBall complete, Wallclock: %f secs.\n", dsec);
 
     return dTime;
     }

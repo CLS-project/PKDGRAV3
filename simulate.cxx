@@ -130,65 +130,6 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
 	}
 
     /*
-     * Calculate the mean particle mass in the most hideous way possible
-     * using the CalcCOM function but only using the total Mass it gives back
-     * while giving dMaxRadius of HUGE_VAL;
-     * But it works to demonstrate that we can get this value at this point in
-     * the simulation, even though there should not be a tree.
-     * To actually use this, we want to create a new function that calculates only
-     * the total mass of the gas particles, because only they matter for this.
-     * The target mass in the kernel is then this mean mass times nSmooth.
-     *
-     */
-    // const double r[] = {0,0,0};
-    // double dMaxRadius = HUGE_VAL;
-    // double com[3], vcm[3], L1[3], M;
-    // CalcCOM(r,dMaxRadius,com,vcm,L1,&M);
-    // printf("M: %.15f\n",M);
-    // printf("Ntotal: %" PRIu64 "\n", N);
-    // printf("Mean particle mass: %.15f\n",M/N);
-    // printf("M_tot as proposed: %.15f\n",M/N*param.nSmooth);
-
-    /*
-     * Do the same thing as above, but with my own function CalcMtot that only
-     * calculates M and also N, so that we may at a later point also pass the particle type
-     * and directly get the answer for only this particle type
-     *
-     */
-    double Mtot;
-    uint64_t Ntot;
-    CalcMtot(&Mtot, &Ntot);
-    printf("M: %.15f\n",Mtot);
-    printf("Ntotal: %" PRIu64 "\n", Ntot);
-    printf("Mean particle mass: %.15f\n",Mtot/Ntot);
-    printf("M_tot as proposed: %.15f\n",Mtot/Ntot*param.nSmooth);
-    // Set this value to all pkds
-    {
-    SPHOptions SPHoptions = initializeSPHOptions(param,csm,dTime);
-    if (SPHoptions.useNumDen) {
-        param.fKernelTarget = param.nSmooth;
-    } else {
-        param.fKernelTarget = Mtot/Ntot*param.nSmooth;
-    }
-    }
-
-    /*
-    ** Initialize fBall
-    */
-    Reorder();
-    // OutArray(BuildName(0,".ball_before_initializing").c_str(),OUT_BALL_ARRAY);
-    ActiveRung(0,1); /* Activate all particles */
-    DomainDecomp(-1);
-    BuildTree(0);
-    int bSymmetric = 0;  /* should be set in param file! */
-    Smooth(dTime,dDelta,SMX_BALL,bSymmetric,param.nSmooth);
-
-    // write out the ball and density before the gravity pass
-    Reorder();
-    // OutArray(BuildName(0,".ball_after_initializing").c_str(),OUT_BALL_ARRAY);
-    // OutArray(BuildName(0,".den_before_gravity_pass").c_str(),OUT_DENSITY_ARRAY);
-
-    /*
     ** Build tree, activating all particles first (just in case).
     */
     ActiveRung(0,1); /* Activate all particles */
@@ -239,16 +180,13 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
 
     // write out ball and density after the gravity pass
     Reorder();
-    // OutArray(BuildName(0,".ball_after_gravity_pass").c_str(),OUT_BALL_ARRAY);
     OutArray(BuildName(0,".den_after_gravity_pass").c_str(),OUT_DENSITY_ARRAY);
-
 
     // calculate density with a smooth for comparison
     ActiveRung(0,1); /* Activate all particles */
 	DomainDecomp(-1);
 	BuildTree(0);
-	bSymmetric = 0;  /* should be set in param file! */
-	Smooth(dTime,dDelta,SMX_DENSITY,bSymmetric,param.nSmooth);
+	Smooth(dTime,dDelta,SMX_DENSITY,0,param.nSmooth);
     Reorder();
     OutArray(BuildName(0,".den_from_smooth").c_str(),OUT_DENSITY_ARRAY);
 
