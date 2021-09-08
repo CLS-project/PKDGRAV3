@@ -409,7 +409,9 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2,
                     float Omega = pNewSph->Omega;                     /* should be the Omega field of the sph fields, nyi */
                     float P = 0.0f;                         /* should be calculated by the EOS, nyi */
                     float cs = 0.0f;                        /* should be calculated by the EOS, nyi */
-                    P = EOSPCofRhoU(pkdDensity(pkd,p),pNewSph->u,&cs,SPHoptions);
+                    if (SPHoptions->doSPHForces) {
+                        P = EOSPCofRhoU(pkdDensity(pkd,p),pNewSph->u,&cs,SPHoptions);
+                    }
 				    ilpAppend(pkd->ilp,
 					r[0] + blk->xOffset.f[jTile],
 					r[1] + blk->yOffset.f[jTile],
@@ -447,7 +449,9 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2,
                     float Omega = pNewSph->Omega;                 /* should be the Omega field of the sph fields, nyi */
                     float P = 0.0f;                     /* should be calculated by the EOS, nyi */
                     float cs = 0.0f;                    /* should be calculated by the EOS, nyi */
-                    P = EOSPCofRhoU(pkdDensity(pkd,p),pNewSph->u,&cs,SPHoptions);
+                    if (SPHoptions->doSPHForces) {
+                        P = EOSPCofRhoU(pkdDensity(pkd,p),pNewSph->u,&cs,SPHoptions);
+                    }
 					ilpAppend(pkd->ilp,
 					    r[0] + blk->xOffset.f[jTile],
 					    r[1] + blk->yOffset.f[jTile],

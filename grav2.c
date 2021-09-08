@@ -703,7 +703,12 @@ int pkdGravInteract(PKD pkd,
     wp->pInfoIn[nP].v[1] = v[1];
     wp->pInfoIn[nP].v[2] = v[2];
     wp->pInfoIn[nP].rho = pkdDensity(pkd,p);
-    wp->pInfoIn[nP].P = EOSPCofRhoU(pkdDensity(pkd,p),pNewSph->u,&wp->pInfoIn[nP].c,SPHoptions);
+    if (wp->SPHoptions->doSPHForces) {
+        wp->pInfoIn[nP].P = EOSPCofRhoU(pkdDensity(pkd,p),pNewSph->u,&wp->pInfoIn[nP].c,SPHoptions);
+    } else {
+        wp->pInfoIn[nP].P = 0.0f;
+        wp->pInfoIn[nP].c = 0.0f;
+    }
     wp->pInfoIn[nP].species = pkdSpecies(pkd,p);
 
     wp->pInfoOut[nP].rho = 0.0f;
