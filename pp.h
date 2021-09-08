@@ -157,9 +157,9 @@ CUDA_DEVICE void EvalSPHForces(
         // First convert velocities
         aFac = a;
         vFac = 1.0f / (a * a);
-        dvx = vFac * dvx + dx * H;
-        dvy = vFac * dvy + dy * H;
-        dvz = vFac * dvz + dz * H;
+        dvx = vFac * dvx;
+        dvy = vFac * dvy;
+        dvz = vFac * dvz;
 
         // Kernel derivatives
         SPHKERNEL_INIT(Pr, PifBall, PC, t1, mask1, kernelType);
@@ -195,7 +195,7 @@ CUDA_DEVICE void EvalSPHForces(
         cij = 0.5f * (Pc + Ic);
         rhoij = 0.5f * (Prho + Irho);
         fBallij = 0.25f * (PfBall + IfBall); // here we need h, not fBall
-        dvdotdx = dvx * dx + dvy * dy + dvz * dz;
+        dvdotdx = dvx * dx + dvy * dy + dvz * dz + H * d2;
         dvdotdx_st_zero = dvdotdx < 0.0f;
         muij = fBallij * dvdotdx * aFac / (d2 + epsilon * fBallij * fBallij);
         muij = maskz_mov(dvdotdx_st_zero,muij);
