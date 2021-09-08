@@ -73,8 +73,8 @@ void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,SPHOption
     k_notgrp = cvt_fvec(i32v(k->bGroup)) == 0.0;
     k_Open = 1.5f*k_bMax*diCrit;
     k_fBoBr2 = k->fBoBr2;
-    distk2 = HUGE_VAL;
-    distc2 = HUGE_VAL;
+    distk2 = HUGE_VALF;
+    distc2 = HUGE_VALF;
 
     blk = tile->blk;
     for(nLeft=tile->lstTile.nBlocks; nLeft>=0; --nLeft,blk++) {

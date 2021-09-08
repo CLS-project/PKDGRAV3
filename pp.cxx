@@ -219,7 +219,7 @@ void pkdSPHForcesEval(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  P
     Pspecies= ispecies;
 
     puDot = pax = pay = paz = pdivv = 0.0f;
-    pdtEst = HUGE_VAL;
+    pdtEst = HUGE_VALF;
 
     for( nLeft=nBlocks; nLeft >= 0; --nLeft,++blk ) {
 	int n = (nLeft ? ILP_PART_PER_BLK : nInLast+fvec::mask()) >> SIMD_BITS;
@@ -255,8 +255,8 @@ void pkdSPHForcesEval(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  P
     aay = hadd(pay);
     aaz = hadd(paz);
     adivv = hadd(pdivv);
-    adtEst = HUGE_VAL; // here should be a horizontal minimum for an fvec, resulting in a float containing the smallest float in the fvec
-
+    adtEst = HUGE_VALF; 
+    // This should be a horizontal minimum for an fvec, resulting in a float containing the smallest float in the fvec
     for (int k = 0; k < pdtEst.width(); k++) {
         adtEst = fmin(adtEst,pdtEst[k]);
     }

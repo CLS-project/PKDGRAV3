@@ -81,8 +81,8 @@ static void iOpenOutcomeCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,SPHO
     BND kbnd;
     double k_r[3];
 
-    distk2 = HUGE_VAL;
-    distc2 = HUGE_VAL;
+    distk2 = HUGE_VALF;
+    distc2 = HUGE_VALF;
 
     kbnd = pkdNodeGetBnd(pkd,k);
     pkdNodeGetPos(pkd,k,k_r);
@@ -97,6 +97,7 @@ static void iOpenOutcomeCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,SPHO
 		fourh2 = blk->fourh2.f[i];
 
         if (SPHoptions->doDensity || SPHoptions->doSPHForces) {
+            distk2 = 0.0f;
             dx = kbnd.fCenter[0] -  blk->xCenter.f[i] - blk->xOffset.f[i] - blk->xMax.f[i];
             if (dx > 0) distk2 += dx*dx;
             dx = blk->xCenter.f[i] + blk->xOffset.f[i] - blk->xMax.f[i] - kbnd.fCenter[0];
@@ -113,6 +114,7 @@ static void iOpenOutcomeCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,SPHO
             if (dx > 0) distk2 += dx*dx;
         }
         if (SPHoptions->doSPHForces) {
+            distc2 = 0.0f;
             dx = kbnd.fCenter[0] - kbnd.fMax[0] -  blk->xCenter.f[i] - blk->xOffset.f[i];
             if (dx > 0) distc2 += dx*dx;
             dx = blk->xCenter.f[i] + blk->xOffset.f[i] - kbnd.fCenter[0] - kbnd.fMax[0];

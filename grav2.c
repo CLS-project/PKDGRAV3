@@ -324,7 +324,7 @@ int CPUdoWorkSPHForces(void *vpp) {
     pOut->a[1] = 0.0;
     pOut->a[2] = 0.0;
     pOut->divv = 0.0;
-    pOut->dtEst = HUGE_VAL;
+    pOut->dtEst = HUGE_VALF;
     pkdSPHForcesEval(pPart,nBlocks,nInLast,blk,pOut,SPHoptions);
     //wp->dFlopSingleCPU += COST_FLOP_PP*(tile->lstTile.nBlocks*ILP_PART_PER_BLK  + tile->lstTile.nInLast);
     if ( ++pp->i == pp->work->nP ) return 0;
@@ -714,7 +714,7 @@ int pkdGravInteract(PKD pkd,
     wp->pInfoOut[nP].nSmooth = 0.0f;
     wp->pInfoOut[nP].uDot = 0.0f;
     wp->pInfoOut[nP].divv = 0.0f;
-    wp->pInfoOut[nP].dtEst = HUGE_VAL;
+    wp->pInfoOut[nP].dtEst = HUGE_VALF;
 
 	wp->pInfoOut[nP].a[0] = 0.0f;
 	wp->pInfoOut[nP].a[1] = 0.0f;

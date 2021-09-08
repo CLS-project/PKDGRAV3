@@ -222,7 +222,7 @@ CUDA_DEVICE void EvalSPHForces(
         dtMu = 0.6f * beta / (aFac * EtaCourant);
         dtEst = 0.5f * PfBall / (dtC * Pc - dtMu * muij);
         mask1 = Pr_lt_one | Ir_lt_one;
-        dtEst = mask_mov(HUGE_VAL,mask1,dtEst);
+        dtEst = mask_mov(HUGE_VALF,mask1,dtEst);
     } else {
         // No work to do
         uDot = 0.0f;
@@ -230,6 +230,6 @@ CUDA_DEVICE void EvalSPHForces(
         ay = 0.0f;
         az = 0.0f;
         divv = 0.0f;
-        dtEst = HUGE_VAL;
+        dtEst = HUGE_VALF;
     }
     }

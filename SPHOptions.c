@@ -66,6 +66,6 @@ float EOSPCofRhoU(float rho, float u, float *c, SPHOptions *SPHoptions) {
     if (SPHoptions->useAdiabatic) {
         u = u / (SPHoptions->gamma - 1.0f) * pow(rho, SPHoptions->gamma - 1.0f);
     }
-    *c = sqrt(SPHoptions->gamma * (SPHoptions->gamma - 1.0f) * u);
+    *c = sqrtf(SPHoptions->gamma * (SPHoptions->gamma - 1.0f) * u);
     return (SPHoptions->gamma - 1.0f) * rho * u;
 }
