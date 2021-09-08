@@ -19,7 +19,13 @@
 #define GROUPSTATS_INCLUDED
 #include "pkd.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 void pkdHopSendStats(PKD pkd);
 void pkdCalculateGroupStats(PKD pkd, int bPeriodic,double dPeriod[3],double rEnvironment[2]);
+#ifdef __cplusplus
+}
+#endif
 
 #endif

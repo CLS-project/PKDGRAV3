@@ -248,7 +248,7 @@ QSORT_TYPE *const _base = (char *)(QSORT_BASE);				\
   {									\
   QSORT_TYPE *const _end_ptr = _base + _size*(_elems - 1);		\
     QSORT_TYPE *_tmp_ptr = _base;					\
-    register QSORT_TYPE *_run_ptr;					\
+    QSORT_TYPE *_run_ptr;					\
     QSORT_TYPE *_thresh;						\
 									\
     _thresh = _base + _QSORT_MAX_THRESH*_size;				\
