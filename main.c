@@ -41,7 +41,7 @@
 #include "blackhole/init.h"
 #endif
 #if defined(STAR_FORMATION) | defined(FEEDBACK)
-#include "starformation/init.h"
+#include "starformation/starformation.h"
 #endif
 #ifdef STELLAR_EVOLUTION
 #include "stellarevolution/stellarevolution.h"

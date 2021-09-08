@@ -355,8 +355,6 @@ void msrCoolingInit(MSR msr);
 /**/
 void msrCoolSetup(MSR msr, double);
 void msrCooling(MSR msr,double dTime,double dStep,int bUpdateState, int bUpdateTable,int bInterateDt);
-void msrStarForm( MSR, double, double, int);
-void msrStarFormInit( MSR, double);
 /* END Gas routines */
 void msrChemCompInit(MSR msr);
 

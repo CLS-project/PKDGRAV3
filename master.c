@@ -81,6 +81,9 @@
 #include "blackhole/seed.h"
 #include "blackhole/init.h"
 #endif
+#ifdef STAR_FORMATION
+#include "starformation/starformation.h"
+#endif
 
 #define LOCKFILE ".lockfile"	/* for safety lock */
 #define STOPFILE "STOP"			/* for user interrupt */

@@ -1,10 +1,6 @@
 #ifdef  STAR_FORMATION
-#include "master.h"
-#include "pkd.h"
+#include "starformation/starformation.h"
 
-#ifdef STELLAR_EVOLUTION
-#include "stellarevolution/stellarevolution.h"
-#endif
 
 /* IA: MSR layer
  */
@@ -64,6 +60,30 @@ void msrStarForm(MSR msr, double dTime, double dDelta, int iRung)
 
 
 
+int pstStarForm(PST pst,void *vin,int nIn,void *vout,int nOut) {
+    struct inStarForm *in = vin;
+    struct outStarForm *out = vout;
+    int rID;
+
+    mdlassert(pst->mdl,nIn == sizeof(struct inStarForm));
+    if (pst->nLeaves > 1) {
+	struct outStarForm fsStats;
+
+	rID = mdlReqService(pst->mdl,pst->idUpper,PST_STARFORM,in,nIn);
+	pstStarForm(pst->pstLower,in,nIn,vout,nOut);
+	mdlGetReply(pst->mdl,rID,&fsStats,NULL);
+	out->nFormed += fsStats.nFormed;
+	out->nDeleted += fsStats.nDeleted;
+	out->dMassFormed += fsStats.dMassFormed;
+	}
+    else {
+	pkdStarForm(pst->plcl->pkd,
+		    in->dTime, in->dDelta, in->dScaleFactor, in->dDenMin,
+		     &out->nFormed, &out->dMassFormed, &out->nDeleted);
+	}
+    return sizeof(struct outStarForm);
+    }
+
 
 
 
@@ -93,7 +113,6 @@ void pkdStarForm(PKD pkd,
     const double a_m1 = 1.0/dScaleFactor;
     const double a_m2 = a_m1*a_m1;
     const double a_m3 = a_m2*a_m1;
-    const double SFexp = (pkd->param.dSFindexKS-1.)/2.;
 
     for (i=0;i<pkdLocal(pkd);++i) {
 	p = pkdParticle(pkd,i);
@@ -103,35 +122,7 @@ void pkdStarForm(PKD pkd,
 	    dt = pkd->param.dDelta/(1<<p->uRung);
           dt = dTime - psph->lastUpdateTime;
 
-          float fMass = pkdMass(pkd, p);
-          // If no information, assume primoridal abundance
-#ifdef COOLING
-          const double hyd_abun = psph->afElemMass[ELEMENT_H] / fMass;
-#else
-          const double hyd_abun = pkd->param.dInitialH;
-#endif
-
-          const double rho_H = pkdDensity(pkd,p) * hyd_abun;
-
-
-          // Two SF thresholds are applied:
-          //      a) minimum density, computed at the master level
-          //      b) Maximum temperature of a
-          //            factor 0.5 dex (i.e., 3.1622) above the eEOS
-          double dens = pkdDensity(pkd,p) * a_m3;
-          double maxUint = 3.16228 * fMass * pkd->param.dJeansFlooru *
-             pow(dens/pkd->param.dJeansFloorDen, pkd->param.dJeansFloorIndex);
-
-          if (psph->Uint > maxUint || rho_H < dDenMin) {
-             psph->SFR = 0.;
-             continue;
-          }
-
-
-          const double dmstar =
-          pkd->param.dSFnormalizationKS * pkdMass(pkd,p) *
-          pow( pkd->param.dConstGamma*pkd->param.dSFGasFraction*psph->P*a_m3,
-               SFexp);
+          double dmstar = pressure_SFR(pkd, a_m3, dDenMin, p, psph);
 
           psph->SFR = dmstar;
 
@@ -139,6 +130,7 @@ void pkdStarForm(PKD pkd,
 
           // Star formation event?
           if (rand()<RAND_MAX*prob) {
+            float fMass = pkdMass(pkd, p);
 
             //printf("STARFORM %e %e %e \n", dScaleFactor, rho_H, psph->Uint);
 
@@ -151,7 +143,7 @@ void pkdStarForm(PKD pkd,
 #endif
 
             // We just change the class of the particle to stellar one
-            pkdSetClass(pkd, pkdMass(pkd,p), pkdSoft0(pkd,p), FIO_SPECIES_STAR, p);
+            pkdSetClass(pkd, fMass, pkdSoft0(pkd,p), FIO_SPECIES_STAR, p);
 	      STARFIELDS *pStar = pkdStar(pkd, p);
 
             // When changing the class, we have to take into account that
@@ -194,3 +186,41 @@ void pkdStarForm(PKD pkd,
     }
 }
 #endif
+
+static inline double pressure_SFR(PKD pkd, double a_m3, double dDenMin,
+      PARTICLE *p, SPHFIELDS *psph){
+
+   float fMass = pkdMass(pkd, p);
+
+   // If no information, assume primordial abundance
+#ifdef COOLING
+   const double hyd_abun = psph->afElemMass[ELEMENT_H] / fMass;
+#else
+   const double hyd_abun = pkd->param.dInitialH;
+#endif
+
+   const double rho_H = pkdDensity(pkd,p) * hyd_abun;
+
+
+   // Two SF thresholds are applied:
+   //      a) Minimum density, computed at the master level
+   //      b) Maximum temperature of a
+   //            factor 0.5 dex (i.e., 3.1622) above the eEOS
+   const double dens = pkdDensity(pkd,p) * a_m3;
+   const double maxUint = 3.16228 * fMass * pkd->param.dJeansFlooru *
+   pow( dens/pkd->param.dJeansFloorDen , pkd->param.dJeansFloorIndex );
+
+   if (psph->Uint > maxUint || rho_H < dDenMin) {
+      return 0.0;
+   }
+
+
+   const double SFexp = 0.5*(pkd->param.dSFindexKS-1.);
+
+   const double dmstar =
+   pkd->param.dSFnormalizationKS * pkdMass(pkd,p) *
+   pow( pkd->param.dConstGamma*pkd->param.dSFGasFraction*psph->P*a_m3,
+      SFexp);
+
+   return dmstar;
+}

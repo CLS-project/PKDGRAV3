@@ -67,6 +67,9 @@
 #ifdef STELLAR_EVOLUTION
 #include "stellarevolution/stellarevolution.h"
 #endif
+#ifdef STAR_FORMATION
+#include "starformation/starformation.h"
+#endif
 
 void pstAddServices(PST pst,MDL mdl) {
     int nThreads;
@@ -3656,54 +3659,6 @@ int pstSphStep(PST pst,void *vin,int nIn,void *vout,int nOut) {
     return 0;
     }
 
-#if defined(STAR_FORMATION) || defined(FEEDBACK)
-int pstStarFormInit(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    struct inStarForm *in = vin;
-    struct outStarForm *out = vout;
-    int rID;
-
-    mdlassert(pst->mdl,nIn == sizeof(struct inStarForm));
-    if (pst->nLeaves > 1) {
-       struct outStarForm fsStats;
-
-       rID = mdlReqService(pst->mdl,pst->idUpper,PST_STARFORMINIT,in,nIn);
-       pstStarFormInit(pst->pstLower,in,nIn,vout,nOut);
-       mdlGetReply(pst->mdl,rID,&fsStats,NULL);
-       out->nFormed += fsStats.nFormed;
-       }
-    else {
-       pkdStarFormInit(pst->plcl->pkd, in->dTime, &out->nFormed);
-       }
-    return sizeof(struct outStarForm);
-    }
-
-
-#endif
-#ifdef STAR_FORMATION
-int pstStarForm(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    struct inStarForm *in = vin;
-    struct outStarForm *out = vout;
-    int rID;
-
-    mdlassert(pst->mdl,nIn == sizeof(struct inStarForm));
-    if (pst->nLeaves > 1) {
-	struct outStarForm fsStats;
-	
-	rID = mdlReqService(pst->mdl,pst->idUpper,PST_STARFORM,in,nIn);
-	pstStarForm(pst->pstLower,in,nIn,vout,nOut);
-	mdlGetReply(pst->mdl,rID,&fsStats,NULL);
-	out->nFormed += fsStats.nFormed;
-	out->nDeleted += fsStats.nDeleted;
-	out->dMassFormed += fsStats.dMassFormed;
-	}
-    else {
-	pkdStarForm(pst->plcl->pkd,
-		    in->dTime, in->dDelta, in->dScaleFactor, in->dDenMin,
-		     &out->nFormed, &out->dMassFormed, &out->nDeleted);
-	}
-    return sizeof(struct outStarForm);
-    }
-#endif
 
 int pstDensityStep(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;

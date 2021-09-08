@@ -1016,42 +1016,7 @@ struct inSphStep {
     };
 int pstSphStep(PST,void *,int,void *,int);
 
-/* PST_STARFORM */
-struct inStarForm
-    {
-    /* IA: I will reuse this
-    double dRateCoeff;
-    double dTMax;
-    double dDenMin;
-    double dDelta;
-    
-    double dTime;
-    double dInitStarMass;
-    double dESNPerStarMass;
-    double dtCoolingShutoff;
 
-    double dtFeedbackDelay;
-    double dMassLossPerStarMass;
-    double dZMassPerStarMass;
-    double dMinGasMass;
-    int bdivv;
-    */
-    double dTime;
-    double dScaleFactor;
-    double dDenMin;
-    double dDelta;
-
-    };
-
-struct outStarForm 
-    {
-    int nFormed;
-    int nDeleted;
-    double dMassFormed;
-    };
-
-int pstStarForm(PST,void *,int,void *,int);
-int pstStarFormInit(PST,void *,int,void *,int);
 
 /* PST_DENSITYSTEP */
 struct inDensityStep {
