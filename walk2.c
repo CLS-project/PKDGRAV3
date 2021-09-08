@@ -767,7 +767,6 @@ int pkdGravWalkHop(PKD pkd,double dTime,int nGroup, double dThetaMin,double *pdF
     int nActive;
     int i,j,gid;
     float cOpen;
-    const BND *cbnd;
     int nc;
     SMX smx;
     SMF smf;
@@ -811,7 +810,6 @@ int pkdGravWalk(PKD pkd,struct pkdKickParameters *kick,struct pkdLightconeParame
     float fOffset[3];
     int ix,iy,iz,bRep;
     float cOpen;
-    const BND *cbnd;
     int nc;
     int nActive = 0;
     SMX smx;
@@ -902,7 +900,6 @@ int pkdGravWalkGroups(PKD pkd,double dTime,int nGroup, double dThetaMin,double *
     float fOffset[3];
     int i,j,k;
     float cOpen;
-    const BND *cbnd;
     int nc;
     SMX smx;
     SMF smf;
