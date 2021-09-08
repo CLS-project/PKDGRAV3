@@ -148,7 +148,7 @@ void pkdDensityEval(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PIN
 	    fvec Idy = blk->dy.p[j];
 	    fvec Idz = blk->dz.p[j];
 	    fvec Im = blk->m.p[j];
-	    EvalDensity<fvec,fmask,true>(pfx,pfy,pfz,Idx,Idy,Idz,Im,pfBall,t1,t2,t3,t4,t5,SPHoptions);
+	    EvalDensity<fvec,fmask>(pfx,pfy,pfz,Idx,Idy,Idz,Im,pfBall,t1,t2,t3,t4,t5,SPHoptions);
 	    parho += t1;
 	    padrhodfball += t2;
         panden += t3;
@@ -238,7 +238,7 @@ void pkdSPHForcesEval(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  P
         fvec Ic = blk->c.p[j];
         i32v Ispecies = blk->species.p[j];
 
-	    EvalSPHForces<fvec,fmask,i32v,true>(Pdx,Pdy,Pdz,PfBall,POmega,Pvx,Pvy,Pvz,Prho,PP,Pc,Pspecies,
+	    EvalSPHForces<fvec,fmask,i32v>(Pdx,Pdy,Pdz,PfBall,POmega,Pvx,Pvy,Pvz,Prho,PP,Pc,Pspecies,
             Idx,Idy,Idz,Im,IfBall,IOmega,Ivx,Ivy,Ivz,Irho,IP,Ic,Ispecies,
             t1,t2,t3,t4,t5,t6,
             SPHoptions);

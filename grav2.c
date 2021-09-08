@@ -115,7 +115,7 @@ void pkdParticleWorkDone(workParticle *wp) {
             if (wp->SPHoptions->doSPHForces) {
             pNewSph->divv = wp->pInfoOut[i].divv;
             if (wp->SPHoptions->useAdiabatic) {
-                pNewSph->uDot = (wp->SPHoptions->gamma - 1) / pow(pkdDensity(pkd,p),wp->SPHoptions->gamma - 1) * wp->pInfoOut[i].uDot;
+                pNewSph->uDot = (wp->SPHoptions->gamma - 1.0f) / pow(pkdDensity(pkd,p),wp->SPHoptions->gamma - 1.0f) * wp->pInfoOut[i].uDot;
             } else {
                 pNewSph->uDot = wp->pInfoOut[i].uDot;
             }

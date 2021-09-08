@@ -59,7 +59,7 @@ CUDA_DEVICE void EvalPP(
 	}
     }
 
-template<class F,class M,bool bGravStep>
+template<class F,class M>
 CUDA_DEVICE void EvalDensity(
 	const F &Pdx, const F &Pdy, const F &Pdz,     // Particle
 	const F &Idx, const F &Idy, const F &Idz, const F &Im, const F & fBall, // Interaction(s)
@@ -109,7 +109,7 @@ CUDA_DEVICE void EvalDensity(
     }
     }
 
-template<class F,class M,class Ivec,bool bGravStep>
+template<class F,class M,class Ivec>
 CUDA_DEVICE void EvalSPHForces(
 	const F &Pdx, const F &Pdy, const F &Pdz, const F &PfBall, const F &POmega,     // Particle
     const F &Pvx, const F &Pvy, const F &Pvz, const F &Prho, const F &PP, const F &Pc, const Ivec & Pspecies,
