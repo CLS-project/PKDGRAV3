@@ -177,6 +177,7 @@ void pkdStarForm(PKD pkd,
 	    pStar->fMetalAbun = fMetalMass / fMass;
 
 	    pStar->fInitialMass = fMass;
+	    pStar->fLastEnrichTime = 0.0f;
 
 	    if (pkd->param.bChemEnrich)
 	       stevStarParticleInit(pkd, pStar, dTime);

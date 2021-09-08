@@ -226,6 +226,9 @@ int pkdStellarEvolutionInit(PKD pkd, STEV_DATA *data) {
 	 if (pStar->fInitialMass < 0.0f)
 	    pStar->fInitialMass = pkdMass(pkd, p);
 
+	 if (pStar->fLastEnrichTime < 0.0f)
+	    pStar->fLastEnrichTime = 0.0f;
+
 	 if (pStar->fTimer <= 0.0f)
 	    pStar->fTimer = dTime;
 

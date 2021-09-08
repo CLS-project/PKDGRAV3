@@ -586,7 +586,6 @@ static inline void stevStarParticleInit(PKD pkd, STARFIELDS *pStar, float fTime)
 		  fLogZ, &iIdxZ, &pStar->Lifetimes.fDeltaZ);
    pStar->Lifetimes.oZ = iIdxZ * STEV_LIFETIMES_N_MASS;
 
-   pStar->fLastEnrichTime = fTime - pStar->fTimer;
    pStar->fSNIaOnsetTime = stevLifetimeFunction(pkd, pStar, pkd->param.dSNIa_MaxMass);
 
    const float fCCSNOnsetTime = stevLifetimeFunction(pkd, pStar, pkd->param.dIMF_MaxMass);

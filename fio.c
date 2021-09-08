@@ -2753,6 +2753,7 @@ static void writeSet(
 #define FIELD_FEED_ENERGY "AccumulatedFeedbackEnergy"
 #define FIELD_BHMASS      "InternalMass"
 #define FIELD_INITIALMASS "InitialMass"
+#define FIELD_ENRICHTIME  "LastEnrichTime"
 
 
 #define FIELD_ORDER      "ParticleIDs"
@@ -2812,6 +2813,7 @@ enum STAR_FIELDS{
 #ifdef STELLAR_EVOLUTION
    STAR_METALLICITY ,
    STAR_INITIALMASS ,
+   STAR_ENRICHTIME  ,
 #endif
    STAR_AGE         ,
    STAR_GROUP       ,
@@ -3751,6 +3753,10 @@ static int hdf5ReadStar(
     /* Initial mass is optional */
     if ( !field_get_float(&pfOtherData[1],&base->fldFields[STAR_INITIALMASS],base->iIndex) )
 	pfOtherData[1] = -1.0f;
+
+    /* Last enrichment time is optional */
+    if ( !field_get_float(&pfOtherData[2],&base->fldFields[STAR_ENRICHTIME],base->iIndex) )
+	pfOtherData[2] = -1.0f;
 #endif
 
     /* iOrder is either sequential, or is listed for each particle */
@@ -3963,6 +3969,7 @@ static int hdf5WriteStar(
 #ifdef STELLAR_EVOLUTION
     float fMetallicity = pfOtherData[2];
     float fInitialMass = pfOtherData[3];
+    float fLastEnrichTime = pfOtherData[4];
 #endif
 
     /* First time for this particle type? */
@@ -3979,6 +3986,8 @@ static int hdf5WriteStar(
 		     FIELD_METALLICITY, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, 1);
 	field_create(&base->fldFields[STAR_INITIALMASS],base->group_id,
 		     FIELD_INITIALMASS, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, 1);
+	field_create(&base->fldFields[STAR_ENRICHTIME],base->group_id,
+		     FIELD_ENRICHTIME, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, 1);
 #endif
 	}
     class_add(base,iParticleID,fMass,0.0);
@@ -3994,6 +4003,7 @@ static int hdf5WriteStar(
     field_add_float(pfMetals,&base->fldFields[STAR_ABUNDANCES],base->iIndex);
     field_add_float(&fMetallicity,&base->fldFields[STAR_METALLICITY],base->iIndex);
     field_add_float(&fInitialMass,&base->fldFields[STAR_INITIALMASS],base->iIndex);
+    field_add_float(&fLastEnrichTime,&base->fldFields[STAR_ENRICHTIME],base->iIndex);
 #endif
 
     /* If we have exhausted our buffered data, read more */
@@ -4209,8 +4219,10 @@ static FIO hdf5OpenOne(const char *fname,int iFile) {
 			   FIELD_ABUNDANCES,H5T_NATIVE_FLOAT,NUMBER_METALS);
 		field_open(&base->fldFields[STAR_METALLICITY],base->group_id,
 			   FIELD_METALLICITY,H5T_NATIVE_FLOAT,1);
-		field_open(&base->fldFields[STAR_INITIALMASS], base->group_id,
+		field_open(&base->fldFields[STAR_INITIALMASS],base->group_id,
 			   FIELD_INITIALMASS,H5T_NATIVE_FLOAT,1);
+		field_open(&base->fldFields[STAR_ENRICHTIME],base->group_id,
+			   FIELD_ENRICHTIME,H5T_NATIVE_FLOAT,1);
 #endif
 		base->nTotal = hio->fio.nSpecies[i] = field_size(&base->fldFields[STAR_POSITION]);
 		class_open(&base->ioClass,base->group_id);
