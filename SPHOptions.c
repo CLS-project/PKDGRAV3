@@ -45,6 +45,7 @@ SPHOptions initializeSPHOptions(struct parameters param, CSM csm, double dTime){
     SPHoptions.doDensity = 0;
     SPHoptions.doSPHForces = 0;
     SPHoptions.useNumDen = 0;
+    SPHoptions.useAdiabatic = param.bGasAdiabatic;
     SPHoptions.kernelType = 0;
     return SPHoptions;
 }
@@ -62,7 +63,9 @@ float getDtPredDrift(struct pkdKickParameters *kick, int bMarked, int uRungLo, i
 }
 
 float EOSPCofRhoU(float rho, float u, float *c, SPHOptions *SPHoptions) {
-    u = u / (SPHoptions->gamma - 1.0f) * pow(rho, SPHoptions->gamma - 1.0f);
+    if (SPHoptions->useAdiabatic) {
+        u = u / (SPHoptions->gamma - 1.0f) * pow(rho, SPHoptions->gamma - 1.0f);
+    }
     *c = sqrt(SPHoptions->gamma * (SPHoptions->gamma - 1.0f) * u);
     return (SPHoptions->gamma - 1.0f) * rho * u;
 }

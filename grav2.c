@@ -106,7 +106,7 @@ void pkdParticleWorkDone(workParticle *wp) {
 	    p = wp->pPart[i];
 
         if (pkd->oFieldOffset[oNewSph]) {
-        NEWSPHFIELDS *pNewSph = pkdNewSph(pkd,p);
+            NEWSPHFIELDS *pNewSph = pkdNewSph(pkd,p);
             if (wp->SPHoptions->doDensity) {
             pkdSetDensity(pkd,p,wp->pInfoOut[i].rho);
             pkdSetBall(pkd,p,wp->pInfoOut[i].fBall);
@@ -114,7 +114,11 @@ void pkdParticleWorkDone(workParticle *wp) {
             }
             if (wp->SPHoptions->doSPHForces) {
             pNewSph->divv = wp->pInfoOut[i].divv;
-            pNewSph->uDot = wp->pInfoOut[i].uDot;
+            if (wp->SPHoptions->useAdiabatic) {
+                pNewSph->uDot = (wp->SPHoptions->gamma - 1) / pow(pkdDensity(pkd,p),wp->SPHoptions->gamma - 1) * wp->pInfoOut[i].uDot;
+            } else {
+                pNewSph->uDot = wp->pInfoOut[i].uDot;
+            }
             }
         }
 

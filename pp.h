@@ -202,8 +202,11 @@ CUDA_DEVICE void EvalSPHForces(
         Piij = (-alpha * cij * muij + beta * muij * muij) / rhoij;
 
         // du/dt
-        // i am not sure if there has to be an Omega in the artificial viscosity part
-        uDot = (PPoverRho2 + 0.5f * Piij) * Im * (dvx * dWdx + dvy * dWdy + dvz * dWdz);
+        if (SPHoptions->useAdiabatic) {
+            uDot = 0.5f * Piij * Im * (dvx * dWdx + dvy * dWdy + dvz * dWdz);
+        } else {
+            uDot = (PPoverRho2 + 0.5f * Piij) * Im * (dvx * dWdx + dvy * dWdy + dvz * dWdz);
+        }
 
         // acceleration
         // i am not sure if there has to be an Omega in the artificial viscosity part

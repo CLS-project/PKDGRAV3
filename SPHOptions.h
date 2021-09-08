@@ -39,6 +39,7 @@ typedef struct {
     uint64_t doDensity : 1;
     uint64_t doSPHForces : 1;
     uint64_t useNumDen : 1;
+    uint64_t useAdiabatic : 1;
     uint64_t kernelType : 2;
     } SPHOptions;
 
