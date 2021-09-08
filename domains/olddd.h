@@ -72,7 +72,7 @@ protected:
 class ServiceDomainDecomp : public ServiceDomain {
 public:
     struct input {
-	BND bnd;
+	Bound bnd;
 	int nBndWrap[3];
 	int bDoRootFind;
 	int bDoSplitDimFind;

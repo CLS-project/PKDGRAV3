@@ -342,8 +342,7 @@ void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTi
     strcpy(restore.achInFile,baseName);
     pstRestore(pst,&restore,sizeof(restore),NULL,0);
     pstSetClasses(pst,aCheckpointClasses,nCheckpointClasses*sizeof(PARTCLASS),NULL,0);
-    BND bnd;
-    CalcBound(bnd);
+    CalcBound();
     CountRungs(NULL);
 
     auto dsec = MSR::Time() - sec;
@@ -441,8 +440,7 @@ void MSR::Checkpoint(int iStep,int nSteps,double dTime,double dDelta) {
     pstCheckpoint(pst,&in,sizeof(in),NULL,0);
 
     /* This is not necessary, but it means the bounds will be identical upon restore */
-    BND bnd;
-    CalcBound(bnd);
+    CalcBound();
 
     dsec = MSR::Time() - sec;
     msrprintf("Checkpoint has been successfully written, Wallclock: %f secs.\n", dsec);
@@ -457,7 +455,7 @@ int MSR::Initialize() {
     lcl.pkd = NULL;
     nThreads = mdlThreads(mdl);
     lStart=time(0);
-    for (j=0;j<6;++j) fCenter[j] = 0.0; /* Center is (0,0,0) */
+    fCenter = 0; // Center is at (0,0,0)
     /* Storage for output times*/
     dOutTimes.reserve(100); // Reasonable number
     dOutTimes.push_back(INFINITY); // Sentinal node
@@ -1582,18 +1580,11 @@ void MSR::AllNodeWrite(const char *pszFileName, double dTime, double dvFac, int 
 	    param.dxPeriod < FLOAT_MAXVAL &&
 	    param.dyPeriod < FLOAT_MAXVAL &&
 	    param.dzPeriod < FLOAT_MAXVAL) {
-	for (j=0;j<3;++j) {
-	    in.bnd.fCenter[j] = fCenter[j];
-	    }
-	in.bnd.fMax[0] = 0.5*param.dxPeriod;
-	in.bnd.fMax[1] = 0.5*param.dyPeriod;
-	in.bnd.fMax[2] = 0.5*param.dzPeriod;
+	Bound::coord offset(0.5*param.dxPeriod,0.5*param.dyPeriod,0.5*param.dzPeriod);
+	in.bnd = Bound(fCenter-offset,fCenter+offset);
 	}
     else {
-	for (j=0;j<3;++j) {
-	    in.bnd.fCenter[j] = 0.0;
-	    in.bnd.fMax[j] = FLOAT_MAXVAL;
-	    }
+	in.bnd = Bound(Bound::coord(-std::numeric_limits<double>::max()),Bound::coord(std::numeric_limits<double>::max()));
 	}
 
     in.dEcosmo    = dEcosmo;
@@ -1910,13 +1901,8 @@ void MSR::DomainDecompOld(int iRung) {
 	param.dxPeriod < FLOAT_MAXVAL &&
 	param.dyPeriod < FLOAT_MAXVAL &&
 	param.dzPeriod < FLOAT_MAXVAL) {
-	for (j=0;j<3;++j) {
-	    in.bnd.fCenter[j] = fCenter[j];
-	    }
-	in.bnd.fMax[0] = 0.5*param.dxPeriod;
-	in.bnd.fMax[1] = 0.5*param.dyPeriod;
-	in.bnd.fMax[2] = 0.5*param.dzPeriod;
-
+	Bound::coord offset(0.5*param.dxPeriod,0.5*param.dyPeriod,0.5*param.dzPeriod);
+	in.bnd = Bound(fCenter-offset,fCenter+offset);
 	mdl->RunService(PST_ENFORCEPERIODIC,sizeof(in.bnd),&in.bnd);
 	}
     else {
@@ -4093,8 +4079,7 @@ double MSR::Read(const char *achInFile) {
 	    param.dxPeriod >= FLOAT_MAXVAL ||
 	    param.dyPeriod >= FLOAT_MAXVAL ||
 	    param.dzPeriod >= FLOAT_MAXVAL) {
-	BND bnd;
-	CalcBound(bnd);
+	CalcBound();
 	}
 
     InitCosmology();
@@ -4103,8 +4088,12 @@ double MSR::Read(const char *achInFile) {
     }
 
 // This sets the local pkd->bnd.
-void MSR::CalcBound(BND &bnd) {
+void MSR::CalcBound(Bound &bnd) {
     mdl->RunService(PST_CALCBOUND,&bnd);
+    }
+void MSR::CalcBound() {
+    Bound bnd;
+    CalcBound(bnd);
     }
 
 void MSR::OutputGrid(const char *filename, bool k, int iGrid, int nParaWrite) {

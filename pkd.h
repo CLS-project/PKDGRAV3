@@ -35,6 +35,10 @@
 #include "iomodule.h"
 
 #ifdef __cplusplus
+#include "blitz/array.h"
+#endif
+
+#ifdef __cplusplus
 #define CAST(T,V) reinterpret_cast<T>(V)
 #else
 #define CAST(T,V) ((T)(V))
@@ -200,138 +204,106 @@ typedef struct {
     int32_t fMax[3];
     } IBND;
 
-#define BND_COMBINE(b,b1,b2)\
-{\
-	int BND_COMBINE_j;\
-	for (BND_COMBINE_j=0;BND_COMBINE_j<3;++BND_COMBINE_j) {\
-		double BND_COMBINE_t1,BND_COMBINE_t2,BND_COMBINE_max,BND_COMBINE_min;\
-		BND_COMBINE_t1 = (b1)->fCenter[BND_COMBINE_j] + (b1)->fMax[BND_COMBINE_j];\
-		BND_COMBINE_t2 = (b2)->fCenter[BND_COMBINE_j] + (b2)->fMax[BND_COMBINE_j];\
-		BND_COMBINE_max = (BND_COMBINE_t1 > BND_COMBINE_t2)?BND_COMBINE_t1:BND_COMBINE_t2;\
-		BND_COMBINE_t1 = (b1)->fCenter[BND_COMBINE_j] - (b1)->fMax[BND_COMBINE_j];\
-		BND_COMBINE_t2 = (b2)->fCenter[BND_COMBINE_j] - (b2)->fMax[BND_COMBINE_j];\
-		BND_COMBINE_min = (BND_COMBINE_t1 < BND_COMBINE_t2)?BND_COMBINE_t1:BND_COMBINE_t2;\
-		(b)->fCenter[BND_COMBINE_j] = 0.5*(BND_COMBINE_max + BND_COMBINE_min);\
-		(b)->fMax[BND_COMBINE_j] = 0.5*(BND_COMBINE_max - BND_COMBINE_min);\
-		}\
+#ifdef __cplusplus
+class Bound : public BND {
+public:
+    typedef blitz::TinyVector<double,3> coord;
+public:
+    Bound() = default;
+    Bound(const Bound &) = default;
+    Bound(const BND &bnd) : BND(bnd) {}
+    Bound(coord lower, coord upper)
+	    : BND {{0.5 * (upper[0]+lower[0]), 0.5 * (upper[1]+lower[1]), 0.5 * (upper[2]+lower[2])},
+	           {0.5 * (upper[0]-lower[0]), 0.5 * (upper[1]-lower[1]), 0.5 * (upper[2]-lower[2])}}
+	  {}
+    Bound(const double *lower, const double *upper)
+	    : BND {{0.5 * (upper[0]+lower[0]), 0.5 * (upper[1]+lower[1]), 0.5 * (upper[2]+lower[2])},
+	           {0.5 * (upper[0]-lower[0]), 0.5 * (upper[1]-lower[1]), 0.5 * (upper[2]-lower[2])}}
+	  {}
+    Bound(double lx, double ly, double lz, double ux, double uy, double uz)
+	    : BND {{0.5 * (ux+lx), 0.5 * (uy+ly), 0.5 * (uz+lz)},
+	           {0.5 * (ux-lx), 0.5 * (uy-ly), 0.5 * (uz-lz)}}
+	  {}
+public:
+    void set(int d,double lower,double upper) {
+    	fCenter[d] = 0.5*(upper+lower);
+    	fMax[d] = 0.5*(upper-lower);
+	}
+    void set(coord lower,coord upper) {
+	for(auto d=0; d<coord::length(); ++d)
+	    set(d,lower[d],upper[d]);
+	}
+public:
+    coord  width()       const {return coord(2.0*fMax[0],2.0*fMax[1],2.0*fMax[2]);}
+    double width(int d)  const {return 2.0*fMax[d];}
+    coord  lower()       const {return coord(fCenter[0]-fMax[0],fCenter[1]-fMax[1],fCenter[2]-fMax[2]);}
+    double lower(int d)  const {return fCenter[d]-fMax[d];}
+    coord  upper()       const {return coord(fCenter[0]+fMax[0],fCenter[1]+fMax[1],fCenter[2]+fMax[2]);}
+    double upper(int d)  const {return fCenter[d]+fMax[d];}
+    coord  center()      const {return coord(fCenter[0],fCenter[1],fCenter[2]);}
+    double center(int d) const {return fCenter[d];}
+    double minside()     const {return 2.0*std::min({fMax[2],fMax[1],fMax[0]});}
+    double maxside()     const {return 2.0*std::max({fMax[2],fMax[1],fMax[0]});}
+    int    maxdim()      const {return (fMax[0]>fMax[2]) ? (fMax[0]>fMax[1]?0:1) : (fMax[2]>fMax[1]?2:1);}
+    int    mindim()      const {return (fMax[0]<fMax[2]) ? (fMax[0]<fMax[1]?0:1) : (fMax[2]<fMax[1]?2:1);}
+    double maxdist(coord r) const {
+    	coord x = blitz::abs(coord(fCenter)-r) + coord(fMax);
+    	return blitz::dot(x,x);
+	}
+    double mindist(coord r) const {
+        coord x = blitz::abs(coord(fCenter)-r) - coord(fMax);
+        x = blitz::where(x>0.0,x,0.0);
+        return blitz::dot(x,x);
+        }
+    // Return a new bound that includes both bounds
+    Bound  combine(const Bound &rhs) const {
+        Bound b;
+        for(auto d=0; d<coord::length(); ++d) {
+            auto l = std::min(lower(d),rhs.lower(d));
+            auto u = std::max(upper(d),rhs.upper(d));
+            b.fCenter[d] = 0.5*(u+l);
+            b.fMax[d] = 0.5*(u-l);
+            }
+        return b;
+        }
+    // Return two new bounds split at "split" along dimension d
+    std::pair<Bound,Bound> split(int d,double split) const {
+	Bound l, r;
+	for (auto j=0;j<3;++j) {
+	    if (j == d) {
+		l.fMax[j]    = 0.5 * (split - lower(d));
+		l.fCenter[j] = 0.5 * (split + lower(d));
+		r.fMax[j]    = 0.5 * (upper(d) - split);
+		r.fCenter[j] = 0.5 * (upper(d) + split);
+		}
+	    else {
+		l.fMax[j] = r.fMax[j] = fMax[j];
+		l.fCenter[j] = r.fCenter[j] = fCenter[j];
+		}
+	    }
+	return std::make_pair(l,r);
+	}
+    // Return two new bounds split in half along dimension d
+    std::pair<Bound,Bound> split(int d) const {
+	Bound l, r;
+	for (auto j=0;j<3;++j) {
+	    if (j == d) {
+		r.fMax[j] = l.fMax[j] = 0.5*fMax[j];
+		l.fCenter[j] = fCenter[j] - l.fMax[j];
+		r.fCenter[j] = fCenter[j] + r.fMax[j];
+		}
+	    else {
+		l.fMax[j] = r.fMax[j] = fMax[j];
+		l.fCenter[j] = r.fCenter[j] = fCenter[j];
+		}
+	    }
+	return std::make_pair(l,r);
 	}
 
-static inline int IN_BND(const double *R,const BND *b) {
-    int i;
-    for( i=0; i<3; i++ )
-	if ( R[i]<b->fCenter[i]-b->fMax[i] || R[i]>=b->fCenter[i]+b->fMax[i] )
-	    return 0;
-    return 1;
-    }
-
-
-#if defined(USE_SIMD) && defined(__SSE2__)
-static inline double mindist(const BND *bnd,const double *pos) {
-#ifdef __AVX__
-    typedef union {
-	uint64_t i[4];
-	__m256d p;
-	} vint64;
-    static const vint64 isignmask = {{0x8000000000000000,0x8000000000000000,0x8000000000000000,0x8000000000000000}};
-    static const vint64 zero = {{0,0,0,0}};
-    __m256i justthree = {-1,-1,-1,0};
-    __m256d fCenter = _mm256_maskload_pd(bnd->fCenter,justthree);
-    __m256d fMax = _mm256_maskload_pd(bnd->fMax,justthree);
-    __m256d ppos = _mm256_maskload_pd(pos,justthree);
-    __m128d d;
-    __m256d m = _mm256_max_pd(zero.p,_mm256_sub_pd(_mm256_andnot_pd(isignmask.p,_mm256_sub_pd(fCenter,ppos)),fMax));
-    m = _mm256_mul_pd(m,m);
-    d = _mm_hadd_pd(_mm256_extractf128_pd(m,1),_mm256_castpd256_pd128(m));
-    return _mm_cvtsd_f64(_mm_hadd_pd(d,d));
-#else
-    typedef union {
-	uint64_t i[2];
-	__m128d p;
-	} vint64;
-    static const vint64 isignmask = {{0x8000000000000000,0x8000000000000000}};
-    static const vint64 zero = {{0,0}};
-    __m128d m2,m1;
-    m1 = _mm_max_sd(zero.p,_mm_sub_sd(_mm_andnot_pd(isignmask.p,_mm_sub_sd(_mm_load_sd(bnd->fCenter+0),_mm_load_sd(pos+0))),_mm_load_sd(bnd->fMax+0)));
-    m2 = _mm_mul_sd(m1,m1);
-    m1 = _mm_max_sd(zero.p,_mm_sub_sd(_mm_andnot_pd(isignmask.p,_mm_sub_sd(_mm_load_sd(bnd->fCenter+1),_mm_load_sd(pos+1))),_mm_load_sd(bnd->fMax+1)));
-    m2 = _mm_add_sd(m2,_mm_mul_sd(m1,m1));
-    m1 = _mm_max_sd(zero.p,_mm_sub_sd(_mm_andnot_pd(isignmask.p,_mm_sub_sd(_mm_load_sd(bnd->fCenter+2),_mm_load_sd(pos+2))),_mm_load_sd(bnd->fMax+2)));
-    m2 = _mm_add_sd(m2,_mm_mul_sd(m1,m1));
-    return _mm_cvtsd_f64(m2);
-#endif
-    }
-static inline double maxdist(const BND *bnd,const double *pos) {
-#ifdef __AVX__
-    typedef union {
-	uint64_t i[4];
-	__m256d p;
-	} vint64;
-    static const vint64 isignmask = {{0x8000000000000000,0x8000000000000000,0x8000000000000000,0x8000000000000000}};
-    __m256i justthree = {-1,-1,-1,0};
-    __m256d fCenter = _mm256_maskload_pd(bnd->fCenter,justthree);
-    __m256d fMax = _mm256_maskload_pd(bnd->fMax,justthree);
-    __m256d ppos = _mm256_maskload_pd(pos,justthree);
-    __m128d d;
-    __m256d m = _mm256_add_pd(_mm256_andnot_pd(isignmask.p,_mm256_sub_pd(fCenter,ppos)),fMax);
-    m = _mm256_mul_pd(m,m);
-    d = _mm_hadd_pd(_mm256_extractf128_pd(m,1),_mm256_castpd256_pd128(m));
-    return _mm_cvtsd_f64(_mm_hadd_pd(d,d));
-#else
-    typedef union {
-	uint64_t i[2];
-	__m128d p;
-	} vint64;
-    static const vint64 isignmask = {{0x8000000000000000,0x8000000000000000}};
-     __m128d m2,m1;
-    m1 = _mm_add_sd(_mm_andnot_pd(isignmask.p,_mm_sub_sd(_mm_load_sd(bnd->fCenter+0),_mm_load_sd(pos+0))),_mm_load_sd(bnd->fMax+0));
-    m2 = _mm_mul_sd(m1,m1);
-    m1 = _mm_add_sd(_mm_andnot_pd(isignmask.p,_mm_sub_sd(_mm_load_sd(bnd->fCenter+1),_mm_load_sd(pos+1))),_mm_load_sd(bnd->fMax+1));
-    m2 = _mm_add_sd(m2,_mm_mul_sd(m1,m1));
-    m1 = _mm_add_sd(_mm_andnot_pd(isignmask.p,_mm_sub_sd(_mm_load_sd(bnd->fCenter+2),_mm_load_sd(pos+2))),_mm_load_sd(bnd->fMax+2));
-    m2 = _mm_add_sd(m2,_mm_mul_sd(m1,m1));
-    return _mm_cvtsd_f64(m2);
-#endif
-    }
-//#define MINDIST(bnd,pos,min2) ((min2) = mindist(bnd,pos))
-#define MINDIST(bnd,pos,min2) {\
-    double BND_dMin;\
-    int BND_j;\
-    (min2) = 0;					\
-    for (BND_j=0;BND_j<3;++BND_j) {					\
-	BND_dMin = fabs((bnd)->fCenter[BND_j] - (pos)[BND_j]) - (bnd)->fMax[BND_j]; \
-	if (BND_dMin > 0) (min2) += BND_dMin*BND_dMin;			\
-	}\
-    }
-//#define MAXDIST(bnd,pos,max2) ((max2)=maxdist(bnd,pos))
-#define MAXDIST(bnd,pos,max2) {					\
-    double BND_dMax;							\
-    int BND_j;								\
-    (max2) = 0;							        \
-    for (BND_j=0;BND_j<3;++BND_j) {				        \
-	BND_dMax = fabs((bnd)->fCenter[BND_j] - (pos)[BND_j]) + (bnd)->fMax[BND_j];		\
-	(max2) += BND_dMax*BND_dMax;					\
-	}							        \
-    }
-#else
-#define MINDIST(bnd,pos,min2) {\
-    double BND_dMin;\
-    int BND_j;\
-    (min2) = 0;					\
-    for (BND_j=0;BND_j<3;++BND_j) {					\
-	BND_dMin = fabs((bnd)->fCenter[BND_j] - (pos)[BND_j]) - (bnd)->fMax[BND_j]; \
-	if (BND_dMin > 0) (min2) += BND_dMin*BND_dMin;			\
-	}\
-    }
-#define MAXDIST(bnd,pos,max2) {					\
-    double BND_dMax;							\
-    int BND_j;								\
-    (max2) = 0;							        \
-    for (BND_j=0;BND_j<3;++BND_j) {				        \
-	BND_dMax = fabs((bnd)->fCenter[BND_j] - (pos)[BND_j]) + (bnd)->fMax[BND_j];		\
-	(max2) += BND_dMax*BND_dMax;					\
-	}							        \
-    }
-#endif
+    };
+static_assert(std::is_trivial<Bound>());
+static_assert(std::is_standard_layout<Bound>());
+#endif // __cplusplus
 
 /*
 ** General partition macro
@@ -449,31 +421,24 @@ typedef struct sphBounds {
 	}\
     }
 
-#define CALCAXR(fMax,axr) {					\
-    if ((fMax)[0] < (fMax)[1]) {				\
-	if ((fMax)[1] < (fMax)[2]) {				\
-	    if ((fMax)[0] > 0) axr = (fMax)[2]/(fMax)[0];	\
-	    else axr = 1e6;					\
-	}							\
-	else if ((fMax)[0] < (fMax)[2]) {			\
-	    if ((fMax)[0] > 0) axr = (fMax)[1]/(fMax)[0];	\
-	    else axr = 1e6;					\
-	}							\
-	else if ((fMax)[2] > 0) axr = (fMax)[1]/(fMax)[2];	\
-	else axr = 1e6;						\
-    }								\
-    else if ((fMax)[0] < (fMax)[2]) {				\
-	if ((fMax)[1] > 0) axr = (fMax)[2]/(fMax)[1];		\
-	else axr = 1e6;						\
-    }								\
-    else if ((fMax)[1] < (fMax)[2]) {				\
-	if ((fMax)[1] > 0) axr = (fMax)[0]/(fMax)[1];		\
-	else axr = 1e6;						\
-    }								\
-    else if ((fMax)[2] > 0) axr = (fMax)[0]/(fMax)[2];		\
-    else axr = 1e6;						\
-}
-
+#define MINDIST(bnd,pos,min2) {\
+    double BND_dMin;\
+    int BND_j;\
+    (min2) = 0;					\
+    for (BND_j=0;BND_j<3;++BND_j) {					\
+	BND_dMin = fabs((bnd)->fCenter[BND_j] - (pos)[BND_j]) - (bnd)->fMax[BND_j]; \
+	if (BND_dMin > 0) (min2) += BND_dMin*BND_dMin;			\
+	}\
+    }
+#define MAXDIST(bnd,pos,max2) {					\
+    double BND_dMax;							\
+    int BND_j;								\
+    (max2) = 0;							        \
+    for (BND_j=0;BND_j<3;++BND_j) {				        \
+	BND_dMax = fabs((bnd)->fCenter[BND_j] - (pos)[BND_j]) + (bnd)->fMax[BND_j];		\
+	(max2) += BND_dMax*BND_dMax;					\
+	}							        \
+    }
 
 #define CALCOPEN(pkdn,minside) {					\
         double CALCOPEN_d2 = 0;						\
@@ -482,11 +447,7 @@ typedef struct sphBounds {
 	const BND CALCOPEN_bnd = pkdNodeGetBnd(pkd, pkdn);		\
 	double CALCOPEN_r[3];						\
 	pkdNodeGetPos(pkd, (pkdn), CALCOPEN_r);				\
-        for (CALCOPEN_j=0;CALCOPEN_j<3;++CALCOPEN_j) {                  \
-            double CALCOPEN_d = fabs(CALCOPEN_bnd.fCenter[CALCOPEN_j] - CALCOPEN_r[CALCOPEN_j]) + \
-                CALCOPEN_bnd.fMax[CALCOPEN_j];                          \
-            CALCOPEN_d2 += CALCOPEN_d*CALCOPEN_d;                       \
-            }								\
+	MAXDIST(&CALCOPEN_bnd,CALCOPEN_r,CALCOPEN_d2)			\
 	MAXSIDE(CALCOPEN_bnd.fMax,CALCOPEN_b);				\
 	if (CALCOPEN_b < minside) CALCOPEN_b = minside;			\
 	if (CALCOPEN_b*CALCOPEN_b < CALCOPEN_d2) CALCOPEN_b = sqrt(CALCOPEN_d2); \
@@ -498,11 +459,7 @@ typedef struct sphBounds {
         double CALCOPEN_d2 = 0;						\
         int CALCOPEN_j;							\
 	const BND CALCOPEN_bnd = pkdNodeGetBnd(pkd, pkdn);		\
-        for (CALCOPEN_j=0;CALCOPEN_j<3;++CALCOPEN_j) {                  \
-            double CALCOPEN_d = fabs(CALCOPEN_bnd.fCenter[CALCOPEN_j] - (pkdn)->r[CALCOPEN_j]) + \
-                CALCOPEN_bnd.fMax[CALCOPEN_j];                          \
-            CALCOPEN_d2 += CALCOPEN_d*CALCOPEN_d;                       \
-            }\
+	MAXDIST(&CALCOPEN_bnd,(pkdn)->r,CALCOPEN_d2)			\
         CALCOPEN_d2 = sqrt(CALCOPEN_d2);	  \
         if (CALCOPEN_d2 < (pkdn)->bMax) (pkdn)->bMax = CALCOPEN_d2;	  \
 	}

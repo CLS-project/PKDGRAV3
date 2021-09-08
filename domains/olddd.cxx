@@ -37,7 +37,7 @@ int ServiceDomainDecomp::Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) 
     auto pkd = pst->plcl->pkd;
     assert(nIn == sizeof(input));
 
-    pst->bnd = in->bnd;
+    Bound bnd = pst->bnd = in->bnd;
 
     int nBndWrapd, d=0;
     mdlTimer t;
@@ -60,6 +60,12 @@ int ServiceDomainDecomp::Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) 
     ** NB: Standard bnds don't work for Wrapped dimensions
     */
     if (in->bDoSplitDimFind) {
+	d = bnd.maxdim(); // Find the longest axis
+	// If we already have a split, and the new size isn't significantly different
+	// then just keep the existing split dimension (so less data movement)
+	if (pst->iSplitDim>=0 && bnd.width(d) < bnd.width(pst->iSplitDim)*NEWSPLITDIMCUT)
+	    d = pst->iSplitDim;
+#if 0
 	d = pst->iSplitDim;
 	double dimsize;
 	if (d==-1) {
@@ -67,17 +73,18 @@ int ServiceDomainDecomp::Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) 
 	    nBndWrapd = 0;
 	    }
 	else {
-	    dimsize = pst->bnd.fMax[d]*NEWSPLITDIMCUT;
+	    dimsize = bnd.width(d)*NEWSPLITDIMCUT;
 	    nBndWrapd = in->nBndWrap[d];
 	    }
 
 	for (auto j=0;j<3;++j) {
-	    if (in->nBndWrap[j] < nBndWrapd || pst->bnd.fMax[j] > dimsize) {
+	    if (in->nBndWrap[j] < nBndWrapd || bnd.width(j) > dimsize) {
 		d=j;
-		dimsize = pst->bnd.fMax[d];
+		dimsize = bnd.width(d);
 		nBndWrapd = in->nBndWrap[d];
 		}
 	    }
+#endif
 	}
 
     mdlPrintTimer(pst->mdl,"TIME Mass Check done in pstDomainDecomp",&t);
@@ -88,12 +95,12 @@ int ServiceDomainDecomp::Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) 
     /*
     ** Now go on to DD of next levels, but pass correct wrapping bounds.
     */
-    d = pst->iSplitDim;
-    nBndWrapd = in->nBndWrap[d];
+    assert(d == pst->iSplitDim);
+    //nBndWrapd = in->nBndWrap[d];
 
-    auto l = pst->bnd.fCenter[d] - pst->bnd.fMax[d];
-    auto u = pst->bnd.fCenter[d] + pst->bnd.fMax[d];
-    in->nBndWrap[d] = nBndWrapd;
+    auto l = bnd.lower(d);
+    auto u = bnd.upper(d);
+    //in->nBndWrap[d] = nBndWrapd;
     if (pst->fSplitInactive <= l || pst->fSplitInactive >= u) {
 	l = pst->fSplit;
 	}
@@ -104,13 +111,12 @@ int ServiceDomainDecomp::Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) 
     else
 	in->nBndWrap[d]++;
 
-    in->bnd.fMax[d] = 0.5*(u - l);
-    in->bnd.fCenter[d] = 0.5*(u + l);
+    in->bnd.set(d,l,u);
     auto rID = mdl->ReqService(pst->idUpper,PST_DOMAINDECOMP,vin,sizeof(*in));
 
-    l = pst->bnd.fCenter[d] - pst->bnd.fMax[d];
-    u = pst->bnd.fCenter[d] + pst->bnd.fMax[d];
-    in->nBndWrap[d] = nBndWrapd;
+    l = bnd.lower(d);
+    u = bnd.upper(d);
+    //in->nBndWrap[d] = nBndWrapd;
     if (pst->fSplitInactive <= l || pst->fSplitInactive >= u) {
 	u = pst->fSplit;
 	}
@@ -121,8 +127,7 @@ int ServiceDomainDecomp::Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) 
     else
 	in->nBndWrap[d]++;
 
-    in->bnd.fMax[d] = 0.5*(u - l);
-    in->bnd.fCenter[d] = 0.5*(u + l);
+    in->bnd.set(d,l,u);
     Traverse(pst->pstLower,vin,sizeof(*in),NULL,0);
 
     mdl->GetReply(rID);
@@ -138,18 +143,15 @@ int ServiceDomainDecomp::Service(PST pst,void *vin,int nIn,void *vout,int nOut) 
     auto out  = static_cast<output*>(vout);
     auto pkd = pst->plcl->pkd;
 
-    pst->bnd = in->bnd;
+    // We always set pkd->bnd from pst->bnd.
+    pkd->bnd = in->bnd;
 
-    float offs;
-    /*
-    ** We always set plcl->pkd->bnd from pst->bnd.
-    */
-    pkd->bnd = pst->bnd;   /* This resets the local bounding box, but doesn't squeeze! */
-    offs= 0.5f / (pkd->nLocal*1.0f - 1.0f);
-    for (auto j=0; j < 3; j++) {
-	pst->bnd.fMax[j] += offs;
-	}
-
+    float offs = 0.5f / (pkd->nLocal*1.0f - 1.0f);
+    pst->bnd = Bound(in->bnd.lower()-offs,in->bnd.upper()+offs);
+ //    pst->bnd = in->bnd;
+ //    for (auto j=0; j < 3; j++) {
+	// pst->bnd.fMax[j] += offs;
+	// }
 
     return 0;
     }
@@ -207,9 +209,10 @@ void ServiceDomainDecomp::RootSplit(PST pst,int iSplitDim,int bDoRootFind,int bD
 	pst->iSplitDim = iSplitDim;
 	}
 
+    Bound bnd = pst->bnd;
     d = dBnd = pst->iSplitDim;
-    fl = pst->bnd.fCenter[dBnd] - pst->bnd.fMax[dBnd];
-    fu = pst->bnd.fCenter[dBnd] + pst->bnd.fMax[dBnd];
+    fl = bnd.lower(dBnd);
+    fu = bnd.upper(dBnd);
     fm = pst->fSplit;
     ittr = -1;
 
@@ -297,8 +300,8 @@ void ServiceDomainDecomp::RootSplit(PST pst,int iSplitDim,int bDoRootFind,int bD
     pst->fSplit = fm;
 
     mdlprintf(pst->mdl, "id: %d (%d) Chose split: %f (%f,%f) %d %d\n",
-	      pst->idSelf, pst->iLvl, fm, pst->bnd.fCenter[dBnd] - pst->bnd.fMax[dBnd],
-	      pst->bnd.fCenter[dBnd] + pst->bnd.fMax[dBnd], pst->nLower, pst->nUpper);
+	      pst->idSelf, pst->iLvl, fm, bnd.lower(dBnd),
+	      bnd.upper(dBnd), pst->nLower, pst->nUpper);
     if (ittr != -1)
 	mdlprintf(pst->mdl, "  Low %" PRIu64 " %f,  High %" PRIu64 " %f, ittr=%d\n",
 		  nLow,outWtLow.fLow + outWtHigh.fLow, nHigh,
@@ -316,18 +319,17 @@ void ServiceDomainDecomp::RootSplit(PST pst,int iSplitDim,int bDoRootFind,int bD
     */
     ServiceWeightWrap::input inWtWrap;
     inWtWrap.iSplitDim = d;
-    fl = pst->fSplit + 1e-6*pst->bnd.fMax[dBnd];
-    fu = pst->fSplit - 1e-6*pst->bnd.fMax[dBnd];
+    fl = std::nextafter(pst->fSplit,pst->fSplit + 1.0);
+    fu = std::nextafter(pst->fSplit,pst->fSplit - 1.0);
 
     if (!bDoSplitDimFind) fm = pst->fSplitInactive;
     else {
 	fm = 0.5*(fl+fu);
-	if (fm < pst->bnd.fCenter[dBnd]) fm = pst->bnd.fCenter[dBnd] + 1.000001*pst->bnd.fMax[dBnd];
-	else fm = pst->bnd.fCenter[dBnd] - 1.000001*pst->bnd.fMax[dBnd];
+	if (fm < bnd.center(dBnd)) fm = std::nextafter(bnd.center(dBnd),bnd.center(dBnd) + 1.0);
+	else fm = std::nextafter(bnd.center(dBnd),bnd.center(dBnd) - 1.0);
 	}
     mdlprintf(pst->mdl, "id: %d (%d) Zeroeth guess reverse split: %f (%f,%f)\n",
-	      pst->idSelf, pst->iLvl, fm, pst->bnd.fCenter[dBnd] - pst->bnd.fMax[dBnd],
-	      pst->bnd.fCenter[dBnd] + pst->bnd.fMax[dBnd]);
+	      pst->idSelf, pst->iLvl, fm, bnd.lower(dBnd), bnd.upper(dBnd));
     inWtWrap.fSplit = fm;
     inWtWrap.fSplit2 = pst->fSplit;
     inWtWrap.ittr = 0;
@@ -363,15 +365,14 @@ void ServiceDomainDecomp::RootSplit(PST pst,int iSplitDim,int bDoRootFind,int bD
 	sprintf(ach,"id: %d: nLowTot > nLowerStore-NUM_SAFETY*pst->nLower %" PRIu64 " %" PRIu64 " %d %d\n",
 		pst->idSelf, nLowTot, nLowerStore, NUM_SAFETY, pst->nLower);
 	mdlDiag(pst->mdl,ach);
-	if (fm > pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd]) fm=pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd];
-	if (fm < pst->bnd.fCenter[dBnd]-pst->bnd.fMax[dBnd]) fm=pst->bnd.fCenter[dBnd]-pst->bnd.fMax[dBnd];
+	fm = std::max(std::min(fm,bnd.upper(dBnd)),bnd.lower(dBnd));
 	fl = fm;
+
 	if (fu > fl) fmm = 0.5*(fl+fu);
 	else {
-	    fmm = 0.5*(fl+fu)+pst->bnd.fMax[dBnd];
-	    if (fmm > pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd]) fmm = 0.5*(fl+fu)-pst->bnd.fMax[dBnd];
-	    mdlassert(pst->mdl, fmm >= pst->bnd.fCenter[dBnd]-pst->bnd.fMax[dBnd] &&
-		      fmm <= pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd]);
+	    fmm = 0.5*(fl+fu+bnd.width(dBnd));
+	    if (fmm > bnd.upper(dBnd)) fmm = 0.5*(fl+fu-bnd.width(dBnd));
+	    mdlassert(pst->mdl, fmm >= bnd.lower(dBnd) && fmm <= bnd.upper(dBnd));
 	    }
 	ittr = 1;
 	nLast = nLowTot;
@@ -412,16 +413,14 @@ void ServiceDomainDecomp::RootSplit(PST pst,int iSplitDim,int bDoRootFind,int bD
 		break;
 	    else if (fu > fl) fmm = 0.5*(fl+fu);
 	    else {
-		fmm = 0.5*(fl+fu)+pst->bnd.fMax[dBnd];
-		if (fmm > pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd]) fmm = 0.5*(fl+fu)-pst->bnd.fMax[dBnd];
-		mdlassert(pst->mdl, fmm >= pst->bnd.fCenter[dBnd]-pst->bnd.fMax[dBnd] &&
-			  fmm <= pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd]);
+		fmm = 0.5*(fl+fu+bnd.width(dBnd));
+		if (fmm > bnd.upper(dBnd)) fmm = 0.5*(fl+fu-bnd.width(dBnd));
+		mdlassert(pst->mdl, fmm >= bnd.lower(dBnd) && fmm <= bnd.upper(dBnd));
 		}
 	    ++ittr;
 	    }
 	mdlprintf(pst->mdl, "id: %d (%d) Fix Low %d th guess reverse split: %f (%f,%f) (%f,%f) Low %" PRIu64 " High %" PRIu64 "\n",
-		  pst->idSelf, pst->iLvl, ittr, fm, fl, fu, pst->bnd.fCenter[dBnd]-pst->bnd.fMax[dBnd],
-		  pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd],nLowTot,nHighTot);
+		  pst->idSelf, pst->iLvl, ittr, fm, fl, fu, bnd.lower(dBnd),bnd.upper(dBnd),nLowTot,nHighTot);
 	if (nLowTot != nLowerStore-NUM_SAFETY*pst->nLower) {
 	    if (abs(nDiff) > 1)
 		mdlprintf(pst->mdl, "id: %d delta of %d, check NUM_SAFTEY\n",
@@ -434,15 +433,13 @@ void ServiceDomainDecomp::RootSplit(PST pst,int iSplitDim,int bDoRootFind,int bD
 	sprintf(ach,"id: %d: nHighTot > nUpperStore-NUM_SAFETY*pst->nUpper %" PRIu64 " %" PRIu64 " %d %d\n",
 		pst->idSelf, nHighTot, nUpperStore, NUM_SAFETY, pst->nUpper);
 	mdlDiag(pst->mdl,ach);
-	if (fm > pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd]) fm=pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd];
-	if (fm < pst->bnd.fCenter[dBnd]-pst->bnd.fMax[dBnd]) fm=pst->bnd.fCenter[dBnd]-pst->bnd.fMax[dBnd];
+	fm = std::max(std::min(fm,bnd.upper(dBnd)),bnd.lower(dBnd));
 	fu = fm;
 	if (fu > fl) fmm = 0.5*(fl+fu);
 	else {
-	    fmm = 0.5*(fl+fu)+pst->bnd.fMax[dBnd];
-	    if (fmm > pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd]) fmm = 0.5*(fl+fu)-pst->bnd.fMax[dBnd];
-	    mdlassert(pst->mdl, fmm >= pst->bnd.fCenter[dBnd]-pst->bnd.fMax[dBnd] &&
-		      fmm <= pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd]);
+	    fmm = 0.5*(fl+fu+bnd.width(dBnd));
+	    if (fmm > bnd.upper(dBnd)) fmm = 0.5*(fl+fu-bnd.width(dBnd));
+	    mdlassert(pst->mdl, fmm >= bnd.lower(dBnd) && fmm <= bnd.upper(dBnd));
 	    }
 	ittr = 1;
 	nLast = nLowTot;
@@ -475,16 +472,14 @@ void ServiceDomainDecomp::RootSplit(PST pst,int iSplitDim,int bDoRootFind,int bD
 		break;
 	    else if (fu > fl) fmm = 0.5*(fl+fu);
 	    else {
-		fmm = 0.5*(fl+fu)+pst->bnd.fMax[dBnd];
-		if (fmm > pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd]) fmm = 0.5*(fl+fu)-pst->bnd.fMax[dBnd];
-		mdlassert(pst->mdl, fmm >= pst->bnd.fCenter[dBnd]-pst->bnd.fMax[dBnd] &&
-			  fmm <= pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd]);
+		fmm = 0.5*(fl+fu+bnd.width(dBnd));
+		if (fmm > bnd.upper(dBnd)) fmm = 0.5*(fl+fu-bnd.width(dBnd));
+		mdlassert(pst->mdl, fmm >= bnd.lower(dBnd) && fmm <= bnd.upper(dBnd));
 		}
 	    ++ittr;
 	    }
 	mdlprintf(pst->mdl, "id: %d (%d) Fix High %d th guess reverse split: %f (%f,%f) (%f,%f) Low %" PRIu64 " High %" PRIu64 "\n",
-		  pst->idSelf, pst->iLvl, ittr, fm, fl, fu, pst->bnd.fCenter[dBnd]-pst->bnd.fMax[dBnd],
-		  pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd],nLowTot,nHighTot);
+		  pst->idSelf, pst->iLvl, ittr, fm, fl, fu, bnd.lower(dBnd),bnd.upper(dBnd),nLowTot,nHighTot);
 	if (nHighTot != nUpperStore-NUM_SAFETY*pst->nUpper) {
 	    if (abs(nDiff) > 1)
 		mdlprintf(pst->mdl, "id: %d delta of %d, check NUM_SAFETY\n",
@@ -498,15 +493,13 @@ void ServiceDomainDecomp::RootSplit(PST pst,int iSplitDim,int bDoRootFind,int bD
 	sprintf(ach,"id: %d: nLowTot < NUM_SAFETY*pst->nLower %" PRIu64 " %" PRIu64 " %d %d\n",
 		pst->idSelf, nLowTot, nLowerStore, NUM_SAFETY, pst->nLower);
 	mdlDiag(pst->mdl,ach);
-	if (fm > pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd]) fm=pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd];
-	if (fm < pst->bnd.fCenter[dBnd]-pst->bnd.fMax[dBnd]) fm=pst->bnd.fCenter[dBnd]-pst->bnd.fMax[dBnd];
+	fm = std::max(std::min(fm,bnd.upper(dBnd)),bnd.lower(dBnd));
 	fu = fm;
 	if (fu > fl) fmm = 0.5*(fl+fu);
 	else {
-	    fmm = 0.5*(fl+fu)+pst->bnd.fMax[dBnd];
-	    if (fmm > pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd]) fmm = 0.5*(fl+fu)-pst->bnd.fMax[dBnd];
-	    mdlassert(pst->mdl, fmm >= pst->bnd.fCenter[dBnd]-pst->bnd.fMax[dBnd] &&
-		      fmm <= pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd]);
+	    fmm = 0.5*(fl+fu+bnd.width(dBnd));
+	    if (fmm > bnd.upper(dBnd)) fmm = 0.5*(fl+fu-bnd.width(dBnd));
+	    mdlassert(pst->mdl, fmm >= bnd.lower(dBnd) && fmm <= bnd.upper(dBnd));
 	    }
 	ittr = 1;
 	nLast = nLowTot;
@@ -539,16 +532,14 @@ void ServiceDomainDecomp::RootSplit(PST pst,int iSplitDim,int bDoRootFind,int bD
 		break;
 	    else if (fu > fl) fmm = 0.5*(fl+fu);
 	    else {
-		fmm = 0.5*(fl+fu)+pst->bnd.fMax[dBnd];
-		if (fmm > pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd]) fmm = 0.5*(fl+fu)-pst->bnd.fMax[dBnd];
-		mdlassert(pst->mdl, fmm >= pst->bnd.fCenter[dBnd]-pst->bnd.fMax[dBnd] &&
-			  fmm <= pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd]);
+		fmm = 0.5*(fl+fu+bnd.width(dBnd));
+		if (fmm > bnd.upper(dBnd)) fmm = 0.5*(fl+fu-bnd.width(dBnd));
+		mdlassert(pst->mdl, fmm >= bnd.lower(dBnd) && fmm <= bnd.upper(dBnd));
 		}
 	    ++ittr;
 	    }
 	mdlprintf(pst->mdl, "id: %d (%d) Fix too few Low %d th guess reverse split: %f (%f,%f) (%f,%f) Low %" PRIu64 " High %" PRIu64 "\n",
-		  pst->idSelf, pst->iLvl, ittr, fm, fl, fu, pst->bnd.fCenter[dBnd]-pst->bnd.fMax[dBnd],
-		  pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd],nLowTot,nHighTot);
+		  pst->idSelf, pst->iLvl, ittr, fm, fl, fu, bnd.lower(dBnd),bnd.upper(dBnd),nLowTot,nHighTot);
 	if (nLowTot != nLowerStore-NUM_SAFETY*pst->nLower) {
 	    if (abs(nDiff) > 1)
 		mdlprintf(pst->mdl, "id: %d delta of %d, check NUM_SAFTEY\n",
@@ -561,15 +552,13 @@ void ServiceDomainDecomp::RootSplit(PST pst,int iSplitDim,int bDoRootFind,int bD
 	sprintf(ach,"id: %d: nHighTot > nUpperStore-NUM_SAFETY*pst->nUpper %" PRIu64 " %" PRIu64 " %d %d\n",
 		pst->idSelf, nHighTot, nUpperStore, NUM_SAFETY, pst->nUpper);
 	mdlDiag(pst->mdl,ach);
-	if (fm > pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd]) fm=pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd];
-	if (fm < pst->bnd.fCenter[dBnd]-pst->bnd.fMax[dBnd]) fm=pst->bnd.fCenter[dBnd]-pst->bnd.fMax[dBnd];
+	fm = std::max(std::min(fm,bnd.upper(dBnd)),bnd.lower(dBnd));
 	fl = fm;
 	if (fu > fl) fmm = 0.5*(fl+fu);
 	else {
-	    fmm = 0.5*(fl+fu)+pst->bnd.fMax[dBnd];
-	    if (fmm > pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd]) fmm = 0.5*(fl+fu)-pst->bnd.fMax[dBnd];
-	    mdlassert(pst->mdl, fmm >= pst->bnd.fCenter[dBnd]-pst->bnd.fMax[dBnd] &&
-		      fmm <= pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd]);
+	    fmm = 0.5*(fl+fu+bnd.width(dBnd));
+	    if (fmm > bnd.upper(dBnd)) fmm = 0.5*(fl+fu-bnd.width(dBnd));
+	    mdlassert(pst->mdl, fmm >= bnd.lower(dBnd) && fmm <= bnd.upper(dBnd));
 	    }
 	ittr = 1;
 	nLast = nLowTot;
@@ -602,16 +591,14 @@ void ServiceDomainDecomp::RootSplit(PST pst,int iSplitDim,int bDoRootFind,int bD
 		break;
 	    else if (fu > fl) fmm = 0.5*(fl+fu);
 	    else {
-		fmm = 0.5*(fl+fu)+pst->bnd.fMax[dBnd];
-		if (fmm > pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd]) fmm = 0.5*(fl+fu)-pst->bnd.fMax[dBnd];
-		mdlassert(pst->mdl, fmm >= pst->bnd.fCenter[dBnd]-pst->bnd.fMax[dBnd] &&
-			  fmm <= pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd]);
+		fmm = 0.5*(fl+fu+bnd.width(dBnd));
+		if (fmm > bnd.upper(dBnd)) fmm = 0.5*(fl+fu-bnd.width(dBnd));
+		mdlassert(pst->mdl, fmm >= bnd.lower(dBnd) && fmm <= bnd.upper(dBnd));
 		}
 	    ++ittr;
 	    }
 	mdlprintf(pst->mdl, "id: %d (%d) Fix Too few High %d th guess reverse split: %f (%f,%f) (%f,%f) Low %" PRIu64 " High %" PRIu64 "\n",
-		  pst->idSelf, pst->iLvl, ittr, fm, fl, fu, pst->bnd.fCenter[dBnd]-pst->bnd.fMax[dBnd],
-		  pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd],nLowTot,nHighTot);
+		  pst->idSelf, pst->iLvl, ittr, fm, fl, fu, bnd.lower(dBnd),bnd.upper(dBnd),nLowTot,nHighTot);
 	if (nHighTot != nUpperStore-NUM_SAFETY*pst->nUpper) {
 	    if (abs(nDiff) > 1)
 		mdlprintf(pst->mdl, "id: %d delta of %d, check NUM_SAFETY\n",
@@ -629,8 +616,7 @@ void ServiceDomainDecomp::RootSplit(PST pst,int iSplitDim,int bDoRootFind,int bD
     mdlPrintTimer(pst->mdl,"TIME Total Split _pstRootSplit ",&t);
 
     mdlprintf(pst->mdl, "id: %d (%d) Chose reverse split: %f (%f,%f)\n",
-	      pst->idSelf, pst->iLvl, fm, pst->bnd.fCenter[dBnd]-pst->bnd.fMax[dBnd],
-	      pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd]);
+	      pst->idSelf, pst->iLvl, fm, bnd.lower(dBnd),bnd.upper(dBnd));
     pst->fSplitInactive = fm;
 
     auto pLowerRej = std::make_unique<ServiceColRejects::output[]>(pst->nLower);

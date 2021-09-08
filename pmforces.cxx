@@ -316,10 +316,9 @@ void pkdLinearKick(PKD pkd,vel_t dtOpen,vel_t dtClose, int iAssignment=4) {
     while( !stack.empty()) {
 	tree_node *kdn = reinterpret_cast<tree_node *>(pkdTreeNode(pkd,stack.back()));
 	stack.pop_back(); // Go to the next node in the tree
-	BND bnd = pkdNodeGetBnd(pkd, kdn);
-	position_t fCenter(bnd.fCenter), fMax(bnd.fMax);
-	shape_t ilower = shape_t(floor(((fCenter - fMax) * ifPeriod + 0.5) * nGrid)) - iAssignment/2;
-	shape_t iupper = shape_t(floor(((fCenter + fMax) * ifPeriod + 0.5) * nGrid)) + iAssignment/2;
+	Bound bnd = pkdNodeGetBnd(pkd, kdn);
+	shape_t ilower = shape_t(floor((bnd.lower() * ifPeriod + 0.5) * nGrid)) - iAssignment/2;
+	shape_t iupper = shape_t(floor((bnd.upper() * ifPeriod + 0.5) * nGrid)) + iAssignment/2;
 	shape_t ishape = iupper - ilower + 1;
 	float3_t flower = ilower;
 	std::size_t size = blitz::product(ishape);

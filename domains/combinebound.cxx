@@ -33,6 +33,6 @@ int ServiceCombineBound::Service(PST pst,void *vin,int nIn,void *vout,int nOut) 
 int ServiceCombineBound::Combine(void *vout,void *vout2) {
     auto out  = static_cast<output*>(vout);
     auto out2 = static_cast<output*>(vout2);
-    BND_COMBINE(out,out,out2);
+    *out = out->combine(*out2);
     return sizeof(output);
     }

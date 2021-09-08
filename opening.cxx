@@ -40,7 +40,6 @@ void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin ) {
     int i,iEnd,nLeft;
     CL_BLK *blk;
     i32v iOpen,iOpenA,iOpenB;
-    BND kbnd;
     fvec k_xCenter, k_yCenter, k_zCenter, k_xMax, k_yMax, k_zMax;
     fvec k_xMinBnd, k_yMinBnd, k_zMinBnd, k_xMaxBnd, k_yMaxBnd, k_zMaxBnd;
     fvec k_x, k_y, k_z, k_bMax, k_Open;
@@ -52,19 +51,19 @@ void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin ) {
 
     diCrit = 1.0f/dThetaMin;
 
-    kbnd = pkdNodeGetBnd(pkd,k);
-    k_xMinBnd = kbnd.fCenter[0]-kbnd.fMax[0];
-    k_yMinBnd = kbnd.fCenter[1]-kbnd.fMax[1];
-    k_zMinBnd = kbnd.fCenter[2]-kbnd.fMax[2];
-    k_xMaxBnd = kbnd.fCenter[0]+kbnd.fMax[0];
-    k_yMaxBnd = kbnd.fCenter[1]+kbnd.fMax[1];
-    k_zMaxBnd = kbnd.fCenter[2]+kbnd.fMax[2];
-    k_xCenter = kbnd.fCenter[0];
-    k_yCenter = kbnd.fCenter[1];
-    k_zCenter = kbnd.fCenter[2];
-    k_xMax = kbnd.fMax[0];
-    k_yMax = kbnd.fMax[1];
-    k_zMax = kbnd.fMax[2];
+    Bound kbnd = pkdNodeGetBnd(pkd,k);
+    k_xMinBnd = kbnd.lower(0);
+    k_yMinBnd = kbnd.lower(1);
+    k_zMinBnd = kbnd.lower(2);
+    k_xMaxBnd = kbnd.upper(0);
+    k_yMaxBnd = kbnd.upper(1);
+    k_zMaxBnd = kbnd.upper(2);
+    k_xCenter = kbnd.center(0);
+    k_yCenter = kbnd.center(1);
+    k_zCenter = kbnd.center(2);
+    k_xMax = 0.5*kbnd.width(0);
+    k_yMax = 0.5*kbnd.width(1);
+    k_zMax = 0.5*kbnd.width(2);
     k_x = k_r[0];
     k_y = k_r[1];
     k_z = k_r[2];

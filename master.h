@@ -171,10 +171,10 @@ public:
     std::vector<std::string> getVectorString(const char *name);
     bool setParameters(PyObject *kwobj,bool bIgnoreUnknown=false);
 
-public:
     PRM prm;
     LCL lcl;
-    double fCenter[6];
+    blitz::TinyVector<double,3> fCenter;
+public:
     /*
     ** Parameters.
     */
@@ -286,7 +286,8 @@ protected:
     void BuildTree(int bNeedEwald,uint32_t uRoot,uint32_t utRoot);
     void ActiveRung(int iRung, int bGreater);
     void ActiveOrder();
-    void CalcBound(BND &bnd);
+    void CalcBound(Bound &bnd);
+    void CalcBound();
     void GetNParts();
     double AdjustTime(double aOld, double aNew);
     void UpdateSoft(double dTime);
