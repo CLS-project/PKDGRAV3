@@ -33,15 +33,12 @@ void pkdInterlace(PKD pkd, int iGridTarget, int iGridSource) {
     G.setupArray(data2,K2);
 
     for( auto index=K1.begin(); index!=K1.end(); ++index ) {
-    	auto pos = index.position();
-	auto i = pos[0]; // i,j,k are all positive (absolute value)
-	auto j = pos[1]>iNyquist ? nGrid - pos[1] : pos[1];
-	auto k = pos[2]>iNyquist ? nGrid - pos[2] : pos[2];
 	auto v1 = *index;
-
-	auto jj = pos[1]>iNyquist ? pos[1] - nGrid : pos[1];
-	auto kk = pos[2]>iNyquist ? pos[2] - nGrid : pos[2];
-	float theta = M_PI/nGrid * (i + jj + kk);
+    	auto pos = index.position();
+	auto i = pos[0]; // i is positive; j and k can be negative
+	auto j = pos[1]>iNyquist ? pos[1] - nGrid : pos[1];
+	auto k = pos[2]>iNyquist ? pos[2] - nGrid : pos[2];
+	float theta = M_PI/nGrid * (i + j + k);
 	auto v2 = K2(index.position()) * complex_t(cosf(theta),sinf(theta));
 	v1 = complex_t(0.5) * (v1 + v2);
 	*index = v1;
