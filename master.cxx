@@ -4240,6 +4240,23 @@ double MSR::Read(const char *achInFile) {
     dsec = MSR::Time() - sec;
     printf("Initializing fBall complete, Wallclock: %f secs.\n", dsec);
 
+    /*
+    ** Convert U
+    */
+    sec = MSR::Time();
+    printf("Converting u ...\n");
+    ActiveRung(0,1); /* Activate all particles */
+    DomainDecomp();
+    BuildTree(param.bEwald);
+    SPHOptions SPHoptions = initializeSPHOptions(param,csm,dTime);
+    SPHoptions.doDensity = 1;
+    SPHoptions.doUConversion = 1;
+	Gravity(0,MAX_RUNG,ROOT,0,dTime,0.0f,param.iStartStep,getTheta(dTime),0,1,
+	        param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,SPHoptions);
+    MemStatus();
+    dsec = MSR::Time() - sec;
+    printf("Converting u complete, Wallclock: %f secs.\n", dsec);
+
     return dTime;
     }
 

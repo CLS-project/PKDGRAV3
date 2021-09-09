@@ -111,6 +111,9 @@ void pkdParticleWorkDone(workParticle *wp) {
             pkdSetDensity(pkd,p,wp->pInfoOut[i].rho);
             pkdSetBall(pkd,p,wp->pInfoOut[i].fBall);
             pNewSph->Omega = 1.0f + wp->pInfoOut[i].fBall/(3.0f * wp->pInfoOut[i].rho)*wp->pInfoOut[i].drhodfball;
+            if (wp->SPHoptions->doUConversion) {
+                pNewSph->u = EOSUofRhoT(pkdDensity(pkd,p),pNewSph->u,wp->SPHoptions);
+            }
             }
             if (wp->SPHoptions->doSPHForces) {
             pNewSph->divv = wp->pInfoOut[i].divv;

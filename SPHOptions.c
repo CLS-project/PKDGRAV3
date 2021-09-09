@@ -34,6 +34,7 @@ SPHOptions initializeSPHOptions(struct parameters param, CSM csm, double dTime){
     SPHoptions.beta = param.dConstBeta;
     SPHoptions.EtaCourant = param.dEtaCourant;
     SPHoptions.gamma = param.dConstGamma;
+    SPHoptions.TuFac = param.dGasConst/(param.dConstGamma - 1)/param.dMeanMolWeight;
     if (csm->val.bComove) {
         SPHoptions.a = csmTime2Exp(csm,dTime);
         SPHoptions.H = csmTime2Hub(csm,dTime);
@@ -44,6 +45,7 @@ SPHOptions initializeSPHOptions(struct parameters param, CSM csm, double dTime){
     SPHoptions.doGravity = 0;
     SPHoptions.doDensity = 0;
     SPHoptions.doSPHForces = 0;
+    SPHoptions.doUConversion = 0;
     SPHoptions.useNumDen = 0;
     SPHoptions.useAdiabatic = param.bGasAdiabatic;
     SPHoptions.kernelType = 0;
@@ -68,4 +70,20 @@ float EOSPCofRhoU(float rho, float u, float *c, SPHOptions *SPHoptions) {
     }
     *c = sqrtf(SPHoptions->gamma * (SPHoptions->gamma - 1.0f) * u);
     return (SPHoptions->gamma - 1.0f) * rho * u;
+}
+
+float EOSUofRhoT(float rho, float T, SPHOptions *SPHoptions) {
+    float u = T * SPHoptions->TuFac;
+    if (SPHoptions->useAdiabatic) {
+        u = u * (SPHoptions->gamma - 1.0f) / pow(rho,SPHoptions->gamma - 1.0f);
+    }
+    return u;
+}
+
+float EOSTofRhoU(float rho, float u, SPHOptions *SPHoptions) {
+    if (SPHoptions->useAdiabatic) {
+        u = u / (SPHoptions->gamma - 1.0f) * pow(rho,SPHoptions->gamma - 1.0f);
+    }
+    float T = u / SPHoptions->TuFac;
+    return T;
 }
