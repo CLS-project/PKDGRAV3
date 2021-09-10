@@ -547,24 +547,56 @@ static inline float stevInverseLifetimeFunction(PKD pkd, STARFIELDS *pStar, cons
 }
 
 
+/* Function that estimates the time it will take a star particle to lose all
+ * its initial mass by estimating its current ejecta rate. This is then used
+ * to compute the time it needs to eject fMinMassFrac of its mass. */
 static inline float stevComputeFirstEnrichTime(PKD pkd, STARFIELDS *pStar) {
-   const float fStep = 1.05f;
-   float fTime = pStar->fLastEnrichTime;
-   float fMass = stevInverseLifetimeFunction(pkd, pStar, fTime);
-   while (fMass > pStar->fLastEnrichMass) {
-      fTime *= fStep;
-      fMass = stevInverseLifetimeFunction(pkd, pStar, fTime);
+   const float fMinMassFrac = 1e-3f;
+
+   const int iEnd = pStar->iLastEnrichMassIdx;
+   const int iStart = iEnd - 1;
+   const float fMassStart = pkd->StelEvolData->afMasses[iStart];
+   const float fMassEnd = pkd->StelEvolData->afMasses[iEnd];
+
+   float afTblEjMass[2];
+   if (fMassStart > pkd->param.dCCSN_MinMass) {
+      stevInterpolateXAxis(pkd->StelEvolData->afCCSN_EjectedMass, STEV_INTERP_N_MASS,
+            1, 2, pStar->CCSN.oZ + iStart, pStar->CCSN.fDeltaZ, afTblEjMass);
    }
-   return pStar->fTimer + fTime;
+   else {
+      stevInterpolateXAxis(pkd->StelEvolData->afAGB_EjectedMass, STEV_INTERP_N_MASS,
+            1, 2, pStar->AGB.oZ + iStart, pStar->AGB.fDeltaZ, afTblEjMass);
+   }
+   const float *const pfIMFLogWeights = pkd->StelEvolData->afIMFLogWeights + iStart;
+   const float fEjMassFrac = 0.5f * M_LN10 * pkd->StelEvolData->fDeltaLogMass *
+      (afTblEjMass[0] * pfIMFLogWeights[0] + afTblEjMass[1] * pfIMFLogWeights[1]);
+
+   const float fTimeStart = stevLifetimeFunction(pkd, pStar, fMassEnd);
+   const float fTimeEnd = stevLifetimeFunction(pkd, pStar, fMassStart);
+   const float fDepletionTime = (fTimeEnd - fTimeStart) / fEjMassFrac;
+   float fNextTime = pStar->fLastEnrichTime + fMinMassFrac * fDepletionTime;
+
+   /* Here we make sure fNextTime is beyond the numerical artifacts of the
+    * Lifetime and Inverse Lifetime functions */
+   float fMass = stevInverseLifetimeFunction(pkd, pStar, fNextTime);
+   const float fStep = 1.05f;
+   while (fMass > pStar->fLastEnrichMass) {
+      fNextTime *= fStep;
+      fMass = stevInverseLifetimeFunction(pkd, pStar, fNextTime);
+   }
+
+   return pStar->fTimer + fNextTime;
 }
 
 
-static inline float stevComputeNextEnrichTime(const float fTime, const float fMass,
+/* Given the ejecta rate of a star particle, use it to compute the time it needs to
+ * eject fMinMassFrac of its mass. */
+static inline float stevComputeNextEnrichTime(const float fTime, const float fStarMass,
                                               const float fEjMass, const float fDt) {
-   const float epsilon = 1e-3f;
-   const float fMdot_inv = fDt / fEjMass;
+   const float fMinMassFrac = 1e-3f;
+   const float fEjMassRateInv = fDt / fEjMass;
 
-   return fTime + epsilon * fMass * fMdot_inv;
+   return fTime + fMinMassFrac * fStarMass * fEjMassRateInv;
 }
 
 
