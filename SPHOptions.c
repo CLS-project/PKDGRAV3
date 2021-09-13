@@ -52,6 +52,25 @@ SPHOptions initializeSPHOptions(struct parameters param, CSM csm, double dTime){
     return SPHoptions;
 }
 
+void copySPHOptions(SPHOptions *source, SPHOptions *target) {
+    target->fKernelTarget = source->fKernelTarget;
+    target->epsilon = source->epsilon;
+    target->alpha = source->alpha;
+    target->beta = source->beta;
+    target->EtaCourant = source->EtaCourant;
+    target->gamma = source->gamma;
+    target->TuFac = source->TuFac;
+    target->a = source->a;
+    target->H = source->H;
+    target->doGravity = 0;
+    target->doDensity = 0;
+    target->doSPHForces = 0;
+    target->doUConversion = 0;
+    target->useNumDen = source->useNumDen;
+    target->useAdiabatic = source->useAdiabatic;
+    target->kernelType = source->kernelType;
+}
+
 float getDtPredDrift(struct pkdKickParameters *kick, int bMarked, int uRungLo, int uRung) {
     if (uRung < uRungLo) {
         return kick->dtPredDrift[uRung];

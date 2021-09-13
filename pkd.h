@@ -917,7 +917,7 @@ typedef struct pkdContext {
     MDLFFT fft;
 #endif
 
-    float Mtot;
+    SPHOptions SPHoptions;
 
     } * PKD;
 

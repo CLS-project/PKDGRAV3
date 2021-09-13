@@ -795,6 +795,8 @@ void pkdInitialize(
     pkd->hopGroups = NULL;
     pkd->hopRootIndex = NULL;
     pkd->hopRoots = NULL;
+
+    pkd->SPHoptions.TuFac = -1.0f;
     assert(pkdNodeSize(pkd) > 0);
     }
 
@@ -2204,6 +2206,10 @@ void pkdGravAll(PKD pkd,
     pkdStartTimer(pkd,1);
     pkd->dFlopSingleCPU = pkd->dFlopDoubleCPU = 0.0;
     pkd->dFlopSingleGPU = pkd->dFlopDoubleGPU = 0.0;
+
+    if ( pkd->SPHoptions.TuFac < 0) {
+        copySPHOptions(SPHoptions, &pkd->SPHoptions);
+    }
 
     *pnActive = pkdGravWalk(pkd,kick,lc,ts,
 	dTime,nReps,bPeriodic && bEwald,nGroup,
