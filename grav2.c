@@ -702,12 +702,12 @@ int pkdGravInteract(PKD pkd,
     float dtPredDrift = getDtPredDrift(kick,p->bMarked,ts->uRungLo,p->uRung);
     wp->pInfoIn[nP].fBall = pkdBall(pkd,p);
     wp->pInfoIn[nP].Omega = pNewSph->Omega;
-    wp->pInfoIn[nP].v[0] = v[0];
-    wp->pInfoIn[nP].v[1] = v[1];
-    wp->pInfoIn[nP].v[2] = v[2];
+    wp->pInfoIn[nP].v[0] = v[0] + dtPredDrift * ap[0];
+    wp->pInfoIn[nP].v[1] = v[1] + dtPredDrift * ap[1];
+    wp->pInfoIn[nP].v[2] = v[2] + dtPredDrift * ap[2];
     wp->pInfoIn[nP].rho = pkdDensity(pkd,p);
     if (wp->SPHoptions->doSPHForces) {
-        wp->pInfoIn[nP].P = EOSPCofRhoU(pkdDensity(pkd,p),pNewSph->u,&wp->pInfoIn[nP].c,SPHoptions);
+        wp->pInfoIn[nP].P = EOSPCofRhoU(pkdDensity(pkd,p),pNewSph->u + dtPredDrift * pNewSph->uDot,&wp->pInfoIn[nP].c,SPHoptions);
     } else {
         wp->pInfoIn[nP].P = 0.0f;
         wp->pInfoIn[nP].c = 0.0f;
