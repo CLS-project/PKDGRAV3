@@ -1904,6 +1904,7 @@ void pkdRestore(PKD pkd,const char *fname) {
 static void writeParticle(PKD pkd,FIO fio,double dvFac,double dTuFac,BND *bnd,PARTICLE *p) {
     STARFIELDS *pStar;
     SPHFIELDS *pSph;
+    NEWSPHFIELDS *pNewSph;
     float *pPot, dummypot;
     double v[3],r[3];
     float fMass, fSoft, fDensity, fMetals, fTimer;
@@ -1925,6 +1926,8 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dTuFac,BND *bnd,PA
     /* Initialize SPH fields if present */
     if (pkd->oFieldOffset[oSph]) pSph = pkdField(p,pkd->oFieldOffset[oSph]);
     else pSph = NULL;
+    if (pkd->oFieldOffset[oNewSph]) pNewSph = pkdField(p,pkd->oFieldOffset[oNewSph]);
+    else pNewSph = NULL;
     if (pkd->oFieldOffset[oStar]) pStar = pkdField(p,pkd->oFieldOffset[oStar]);
     else pStar = NULL;
     fMass = pkdMass(pkd,p);
@@ -1953,13 +1956,14 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dTuFac,BND *bnd,PA
 	}
     switch(pkdSpecies(pkd,p)) {
     case FIO_SPECIES_SPH:
-	assert(pSph);
-	assert(dTuFac>0.0);
+	assert(pNewSph);
+	assert(pkd->SPHoptions.TuFac > 0.0f);
 	    {
 	    double T;
-	    T = pSph->u/dTuFac;
+	    T = EOSTofRhoU(fDensity, pNewSph->u, &pkd->SPHoptions);
+        fMetals = 0.0f;
 	    fioWriteSph(fio,iParticleID,r,v,fMass,fSoft,*pPot,
-		fDensity,T,pSph->fMetals);
+		fDensity,T,fMetals);
 	    }
 	break;
     case FIO_SPECIES_DARK:
@@ -2207,7 +2211,7 @@ void pkdGravAll(PKD pkd,
     pkd->dFlopSingleCPU = pkd->dFlopDoubleCPU = 0.0;
     pkd->dFlopSingleGPU = pkd->dFlopDoubleGPU = 0.0;
 
-    if ( pkd->SPHoptions.TuFac < 0) {
+    if ( pkd->SPHoptions.TuFac < 0.0f) {
         copySPHOptions(SPHoptions, &pkd->SPHoptions);
     }
 
