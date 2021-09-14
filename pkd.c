@@ -2552,7 +2552,8 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
     PARTICLE *p;
     vel_t *v;
     float *a;
-    SPHFIELDS *sph;
+    float dfBalldt;
+    NEWSPHFIELDS *NewSph;
     int i,j,k;
     double rfinal[3],r0[3],dMin[3],dMax[3];
     int pLower, pUpper;
@@ -2578,20 +2579,14 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
     ** Update particle positions
     */
     if (bDoGas) {
-	double dDeltaUPred = dDeltaTime;
-	assert(pkd->oFieldOffset[oSph]);
-	assert(pkd->oFieldOffset[oAcceleration]);
+	assert(pkd->oFieldOffset[oNewSph]);
 	for (i=pLower;i<=pUpper;++i) {
 	    p = pkdParticle(pkd,i);
 	    v = pkdVel(pkd,p);
 	    if (pkdIsGas(pkd,p)) {
-		a = pkdAccel(pkd,p);
-		sph = pkdSph(pkd,p);
-		for (j=0;j<3;++j) { /* NB: Pred quantities must be done before std. */
-		    sph->vPred[j] += a[j]*dDeltaVPred;
-		    }
-		sph->uPred += sph->uDot*dDeltaUPred;
-		sph->fMetalsPred += sph->fMetalsDot*dDeltaUPred;
+            NewSph = pkdNewSph(pkd,p);
+            dfBalldt = 1.0f / 3.0f * pkdBall(pkd,p) * pkdDensity(pkd,p) * NewSph->divv;
+            pkdSetBall(pkd,p,pkdBall(pkd,p) + dDelta * dfBalldt);
 		}
 	    for (j=0;j<3;++j) {
 		pkdSetPos(pkd,p,j,rfinal[j] = pkdPos(pkd,p,j) + dDelta*v[j]);

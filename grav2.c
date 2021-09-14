@@ -226,7 +226,11 @@ void pkdParticleWorkDone(workParticle *wp) {
 		    v[0] += wp->kick->dtClose[p->uRung]*wp->pInfoOut[i].a[0];
 		    v[1] += wp->kick->dtClose[p->uRung]*wp->pInfoOut[i].a[1];
 		    v[2] += wp->kick->dtClose[p->uRung]*wp->pInfoOut[i].a[2];
-		    }
+		    if (wp->SPHoptions->doSPHForces) {
+                NEWSPHFIELDS *pNewSph = pkdNewSph(pkd,p);
+                pNewSph->u += wp->kick->dtClose[p->uRung] * pNewSph->uDot;
+            }
+            }
 		v2 = v[0]*v[0] + v[1]*v[1] + v[2]*v[2];
 		/*
 		** Now calculate the kinetic energy term.
@@ -243,7 +247,11 @@ void pkdParticleWorkDone(workParticle *wp) {
 		    v[0] += wp->kick->dtOpen[p->uRung]*wp->pInfoOut[i].a[0];
 		    v[1] += wp->kick->dtOpen[p->uRung]*wp->pInfoOut[i].a[1];
 		    v[2] += wp->kick->dtOpen[p->uRung]*wp->pInfoOut[i].a[2];		    
-		    /*
+		    if (wp->SPHoptions->doSPHForces) {
+                NEWSPHFIELDS *pNewSph = pkdNewSph(pkd,p);
+                pNewSph->u += wp->kick->dtOpen[p->uRung] * pNewSph->uDot;
+            }
+            /*
 		    ** On KickOpen we also always check for intersection with the lightcone
 		    ** surface over the entire next timestep of the particle (not a half
 		    ** timestep as is usual for kicking (we are drifting afterall).
