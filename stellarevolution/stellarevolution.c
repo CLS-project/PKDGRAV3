@@ -41,14 +41,15 @@ void msrStellarEvolutionInit(MSR msr, double dTime) {
       that will store the initial time of the simulation (dTime) */
    STEV_DATA *buffer = malloc(sizeof(STEV_DATA) + sizeof(double));
 
-   /* NOTE: The lowest value of the initial mass array is set to the corresponding
-      value of the Lifetimes table that is being used. The IMF is still normalized
-      in the range [msr->param.dIMF_MinMass,msr->param.dIMF_MaxMass] */
+   /* NOTE: The lowest value of the initial mass array is set to the corresponding value
+      of the Lifetimes table that is being used, while its highest value to the maximum
+      stellar mass for a CCSN to occur, as set in msr->param.dCCSN_MaxMass. The IMF is
+      still normalized in the range [msr->param.dIMF_MinMass,msr->param.dIMF_MaxMass] */
    const double dMinMass = LifetimesData->pfMasses[0];
+   const double dMaxMass = msr->param.dCCSN_MaxMass;
    double adMasses[STEV_INTERP_N_MASS], adIMF[STEV_INTERP_N_MASS];
 
    /* Setup the initial mass array */
-   const double dMaxMass = msr->param.dIMF_MaxMass;
    const double dDeltaLog = (log10(dMaxMass) - log10(dMinMass)) / (STEV_INTERP_N_MASS - 1);
    const double dDelta = pow(10.0, dDeltaLog);
    double dMass = dMinMass;
@@ -76,7 +77,7 @@ void msrStellarEvolutionInit(MSR msr, double dTime) {
    buffer->fDeltaLogMass = dDeltaLog;
 
    /* Verify IMF normalization using the initial mass array, if possible */
-   if (dMinMass == msr->param.dIMF_MinMass) {
+   if (dMinMass == msr->param.dIMF_MinMass && dMaxMass == msr->param.dIMF_MaxMass) {
       double IMFnorm = 0.0;
       for (i = 1; i < STEV_INTERP_N_MASS - 1; i++)
 	 IMFnorm += adMasses[i] * buffer->afIMFLogWeights[i];

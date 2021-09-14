@@ -1916,6 +1916,11 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
 		sizeof(double), "ccsnminmass",
 		"Minimum mass for a star to end its life as a Core Collapse Supernova <Mo>");
 
+    msr->param.dCCSN_MaxMass = 100.0;
+    prmAddParam(msr->prm, "dCCSN_MaxMass", 2, &msr->param.dCCSN_MaxMass,
+		sizeof(double), "ccsnmaxmass",
+		"Maximum mass for a star to end its life as a Core Collapse Supernova <Mo>");
+
     msr->param.dSNIa_MaxMass = 8.0;
     prmAddParam(msr->prm, "dSNIa_MaxMass", 2, &msr->param.dSNIa_MaxMass,
 		sizeof(double), "sniamaxmass",

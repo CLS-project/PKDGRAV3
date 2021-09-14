@@ -620,22 +620,22 @@ static inline void stevStarParticleInit(PKD pkd, STARFIELDS *pStar, float fTime)
 
    pStar->fSNIaOnsetTime = stevLifetimeFunction(pkd, pStar, pkd->param.dSNIa_MaxMass);
 
-   const float fCCSNOnsetTime = stevLifetimeFunction(pkd, pStar, pkd->param.dIMF_MaxMass);
+   const float fCCSNOnsetTime = stevLifetimeFunction(pkd, pStar, pkd->param.dCCSN_MaxMass);
    if (pStar->fLastEnrichTime < fCCSNOnsetTime) {
       pStar->fLastEnrichTime = fCCSNOnsetTime;
-      pStar->fLastEnrichMass = pkd->param.dIMF_MaxMass;
+      pStar->fLastEnrichMass = pkd->param.dCCSN_MaxMass;
       pStar->iLastEnrichMassIdx = STEV_INTERP_N_MASS - 1;
    }
    else {
       pStar->fLastEnrichMass = stevInverseLifetimeFunction(pkd, pStar, pStar->fLastEnrichTime);
-      if (pStar->fLastEnrichMass < pkd->param.dIMF_MaxMass) {
+      if (pStar->fLastEnrichMass < pkd->param.dCCSN_MaxMass) {
 	 pStar->iLastEnrichMassIdx =
 	    stevGetIMFMassIndex(pkd->StelEvolData->afMasses, STEV_INTERP_N_MASS,
 				pStar->fLastEnrichMass, STEV_INTERP_N_MASS - 1) + 1;
       }
       else {
 	 pStar->fLastEnrichTime = fCCSNOnsetTime;
-	 pStar->fLastEnrichMass = pkd->param.dIMF_MaxMass;
+	 pStar->fLastEnrichMass = pkd->param.dCCSN_MaxMass;
 	 pStar->iLastEnrichMassIdx = STEV_INTERP_N_MASS - 1;
       }
    }

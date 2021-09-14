@@ -328,6 +328,7 @@ struct parameters {
     double dIMF_MinMass;
     double dIMF_MaxMass;
     double dCCSN_MinMass;
+    double dCCSN_MaxMass;
     double dSNIa_MaxMass;
     double dSNIa_Norm;
     double dSNIa_Scale;
