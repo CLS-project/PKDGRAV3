@@ -24,9 +24,6 @@
 #include <math.h>
 #include <stdlib.h>
 #include <float.h>
-#ifdef HAVE_MALLOC_H
-#include <malloc.h>
-#endif
 #include <stddef.h>
 #include <assert.h>
 #include <time.h>
@@ -39,6 +36,7 @@
 #include "qeval.h"
 #include "ewald.h"
 #include "grav.h"
+
 #include "cudautil.h"
 #include "cudapppc.h"
 #include "cudaewald.h"
@@ -82,7 +80,7 @@ static inline float rsqrtf(float v) {
 ** If everyone has finished, then the particle is updated.
 */
 void pkdParticleWorkDone(workParticle *wp) {
-    PKD pkd = wp->ctx;
+    auto pkd = static_cast<PKD>(wp->ctx);
     int i,gid;
     PARTICLE *p;
     double r[3];
@@ -231,16 +229,16 @@ void pkdParticleWorkDone(workParticle *wp) {
 		    }
 		}
 	    }
-	free(wp->pPart);
-	free(wp->iPart);
-	free(wp->pInfoIn);
-	free(wp->pInfoOut);
-	free(wp);
+	delete [] wp->pPart;
+	delete [] wp->iPart;
+	delete [] wp->pInfoIn;
+	delete [] wp->pInfoOut;
+	delete wp;
 	}
     }
 
 int CPUdoWorkPP(void *vpp) {
-    workPP *pp = vpp;
+    auto pp = static_cast<workPP*>(vpp);
     workParticle *wp = pp->work;
     ILPTILE tile = pp->tile;
     ILP_BLK *blk = tile->blk;
@@ -262,7 +260,7 @@ int CPUdoWorkPP(void *vpp) {
     }
 
 int doneWorkPP(void *vpp) {
-    workPP *pp = vpp;
+    auto pp = static_cast<workPP*>(vpp);
     int i;
 
     for(i=0; i<pp->work->nP; ++i) {
@@ -275,21 +273,20 @@ int doneWorkPP(void *vpp) {
 	}
     lstFreeTile(&pp->ilp->lst,&pp->tile->lstTile);
     pkdParticleWorkDone(pp->work);
-    free(pp->pInfoOut);
-    free(pp);
+    delete [] pp->pInfoOut;
+    delete pp;
     return 0;
     }
 
 static void queuePP( PKD pkd, workParticle *wp, ILP ilp, int bGravStep ) {
     ILPTILE tile;
-    workPP *pp;
     ILP_LOOP(ilp,tile) {
 #ifdef USE_CUDA
 	if (CudaClientQueuePP(pkd->cudaClient,wp,tile,bGravStep)) continue;
 #endif
-	pp = malloc(sizeof(workPP));
+        auto pp = new workPP;
 	assert(pp!=NULL);
-	pp->pInfoOut = malloc(sizeof(PINFOOUT) * wp->nP);
+	pp->pInfoOut = new PINFOOUT[wp->nP];
 	assert(pp->pInfoOut!=NULL);
 	pp->work = wp;
 	pp->ilp = ilp;
@@ -302,7 +299,7 @@ static void queuePP( PKD pkd, workParticle *wp, ILP ilp, int bGravStep ) {
     }
 
 int CPUdoWorkPC(void *vpc) {
-    workPC *pc = vpc;
+    auto pc = static_cast<workPC*>(vpc);
     workParticle *wp = pc->work;
     ILCTILE tile = pc->tile;
     ILC_BLK *blk = tile->blk;
@@ -324,7 +321,7 @@ int CPUdoWorkPC(void *vpc) {
     }
 
 int doneWorkPC(void *vpc) {
-    workPC *pc = vpc;
+    auto pc = static_cast<workPC*>(vpc);
     int i;
 
     for(i=0; i<pc->work->nP; ++i) {
@@ -338,8 +335,8 @@ int doneWorkPC(void *vpc) {
 
     lstFreeTile(&pc->ilc->lst,&pc->tile->lstTile);
     pkdParticleWorkDone(pc->work);
-    free(pc->pInfoOut);
-    free(pc);
+    delete [] pc->pInfoOut;
+    delete pc;
     return 0;
     }
 
@@ -351,9 +348,9 @@ static void queuePC( PKD pkd,  workParticle *wp, ILC ilc, int bGravStep ) {
 #ifdef USE_CUDA
         if (CudaClientQueuePC(pkd->cudaClient,wp,tile,bGravStep)) continue;
 #endif
-	pc = malloc(sizeof(workPC));
+	pc = new workPC;
 	assert(pc!=NULL);
-	pc->pInfoOut = malloc(sizeof(PINFOOUT) * wp->nP);
+	pc->pInfoOut = new PINFOOUT[wp->nP];
 	assert(pc->pInfoOut!=NULL);
 	pc->work = wp;
 	pc->ilc = ilc;
@@ -416,7 +413,7 @@ int pkdGravInteract(PKD pkd,
     nSoft = 0;
 
     /* Collect the bucket particle information */
-    workParticle *wp = malloc(sizeof(workParticle));
+    auto wp = new workParticle;
     assert(wp!=NULL);
     wp->nRefs = 1; /* I am using it currently */
     wp->ctx = pkd;
@@ -426,10 +423,10 @@ int pkdGravInteract(PKD pkd,
     wp->nP = 0;
 
     nP = pkdn->pUpper - pkdn->pLower + 1;
-    wp->pPart = malloc(sizeof(PARTICLE *) * nP); assert(wp->pPart != NULL);
-    wp->iPart = malloc(sizeof(uint32_t) * nP); assert(wp->iPart != NULL);
-    wp->pInfoIn = malloc(sizeof(PINFOIN) * nP); assert(wp->pInfoIn != NULL);
-    wp->pInfoOut = malloc(sizeof(PINFOOUT) * nP); assert(wp->pInfoOut != NULL);
+    wp->pPart = new PARTICLE *[nP];
+    wp->iPart = new uint32_t[nP];
+    wp->pInfoIn = new PINFOIN[nP];
+    wp->pInfoOut = new PINFOOUT[nP];
     wp->c[0] = ilp->cx; assert(wp->c[0] == ilc->cx);
     wp->c[1] = ilp->cy; assert(wp->c[1] == ilc->cy);
     wp->c[2] = ilp->cz; assert(wp->c[2] == ilc->cz);

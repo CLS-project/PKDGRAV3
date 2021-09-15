@@ -156,7 +156,7 @@ set_property(TARGET ${PROJECT_NAME} APPEND PROPERTY COMPILE_DEFINITIONS _LARGEFI
 target_sources(${PROJECT_NAME} PRIVATE
 	main.cxx cosmo.c master.cxx simulate.cxx pst.c TraversePST.cxx fio.c illinois.c param.c
 	pkd.c analysis.c smooth.c smoothfcn.c outtype.c output.cxx
-	walk2.c grav2.c ewald.cxx ic.cxx tree.cxx opening.cxx pp.cxx pc.cxx cl.c
+	walk2.c grav2.cxx ewald.cxx ic.cxx tree.cxx opening.cxx pp.cxx pc.cxx cl.c
 	lst.c moments.c ilp.c ilc.c iomodule.c
 	fof.cxx hop.c group.cxx groupstats.cxx RngStream.c listcomp.c healpix.c
 	gridinfo.cxx interlace.cxx contrast.cxx assignmass.cxx measurepk.cxx bispectrum.cxx whitenoise.cxx pmforces.cxx

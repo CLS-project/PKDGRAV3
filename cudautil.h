@@ -17,6 +17,7 @@
 
 #ifndef CUDAUTIL_H
 #define CUDAUTIL_H
+#ifdef USE_CUDA
 #include "opa_queue.h"
 #include "basetype.h"
 
@@ -189,5 +190,5 @@ void CUDA_Abort(cudaError_t rc, const char *fname, const char *file, int line);
 double CUDA_getTime();
 
 #endif
-
+#endif
 #endif

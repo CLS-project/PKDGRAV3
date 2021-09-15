@@ -94,6 +94,9 @@ typedef struct smContext {
     } * SMX;
 
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 int smInitialize(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,
 		 int bPeriodic,int bSymmetric,int iSmoothType);
 int smInitializeRO(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,
@@ -109,5 +112,8 @@ void smReSmooth(SMX,SMF *);
 void smFastGasPhase1(SMX smx,SMF *smf);
 void smFastGasPhase2(SMX smx,SMF *smf);
 void pkdFastGasCleanup(PKD pkd);  /* frees up the neighbor lists */
+#ifdef __cplusplus
+}
+#endif
 
 #endif
