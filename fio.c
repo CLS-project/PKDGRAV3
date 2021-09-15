@@ -2833,7 +2833,7 @@ static void alloc_fields(IOBASE *base,int nFields) {
 DECLARE_FIELD_TYPE(float,H5T_NATIVE_FLOAT)
 DECLARE_FIELD_TYPE(double,H5T_NATIVE_DOUBLE)
 DECLARE_FIELD_TYPE(uint64_t,H5T_NATIVE_UINT64)
-DECLARE_FIELD_TYPE(uint32_t,H5T_NATIVE_UINT32)
+/*DECLARE_FIELD_TYPE(uint32_t,H5T_NATIVE_UINT32)*/
 DECLARE_FIELD_TYPE(uint8_t,H5T_NATIVE_UINT8)
 
 static void field_read(IOFIELD *field, PINDEX iOffset, uint_fast32_t nBuffered) {
@@ -3014,10 +3014,6 @@ static void class_add( IOBASE *base, PINDEX iOrder, float fMass, float fSoft ) {
 	field_add_uint8_t(&iClass,&ioClass->fldClasses,base->iIndex);
 	}
     ioClass->Class[i].nCount++;
-    }
-
-static void class_reset(IOCLASS *ioClass) {
-    field_reset(&ioClass->fldClasses);
     }
 
 static void class_open(IOCLASS *ioClass, hid_t groupID) {
@@ -4612,7 +4608,6 @@ size_t fioDump(FIO fio, size_t nBytes, void *pBuffer) {
 
 FIO fioLoad(void *pBuffer,double dOmega0,double dOmegab) {
     fioFileList fileList;
-    char *pBase = pBuffer;
     uint32_t *nInfo = pBuffer;
     uint32_t nFiles = *nInfo++;
     uint32_t nBytes = *nInfo++;

@@ -23,7 +23,7 @@ static_assert(std::is_void<ServiceSetSoft::output>() || std::is_trivial<ServiceS
 
 int ServiceSetSoft::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto in = static_cast<input*>(vin);
-    auto out = static_cast<output*>(vout);
+    static_assert(std::is_void<output>());
     auto pkd = pst->plcl->pkd;
     pkdSetSoft(pkd,in->dSoft);
     return 0;

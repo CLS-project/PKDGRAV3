@@ -314,9 +314,7 @@ namespace flush {
 		mdlCOcache(ctx->getMDL(),0,NULL,pData,sizeof(pData[0]),nData,ctx,initFlush,combFlush);
 
 		for(auto iProc=0; iProc<mdlThreads(ctx->getMDL()); ++iProc) {
-		    for(auto i=0; i<nData; ++i) {
-			auto pRemote = reinterpret_cast<const std::uint64_t*>(mdlFetch(ctx->getMDL(),0,i,iProc));
-			}
+		    for(auto i=0; i<nData; ++i) (void)mdlFetch(ctx->getMDL(),0,i,iProc);
 		    }
 
 		nBAD = 0;
@@ -453,19 +451,6 @@ namespace flush {
 	constexpr int SERVICE = worker::TEST_ADVANCED_FLUSH;
 	typedef std::array<uint64_t,4> KEY;
 	typedef mdl::hash::HASH<KEY> HASH;
-
-	static void initFlush(void *vctx, void *g) {
-	    //auto ctx = reinterpret_cast<worker::Context*>(vctx);
-	    auto p1 = reinterpret_cast<std::uint64_t*>(g);
-	    *p1 = 0;
-	    }
-
-	static void combFlush(void *vctx, void *g1, const void *g2) {
-	    //auto ctx = reinterpret_cast<worker::Context*>(vctx);
-	    auto p1 = reinterpret_cast<std::uint64_t*>(g1);
-	    auto p2 = reinterpret_cast<const std::uint64_t*>(g2);
-	    *p1 += *p2;
-	    }
 
 	int test(worker::Context *ctx,void *vin,int nIn,void *vout,int nOut) {
 	    auto pnBAD = reinterpret_cast<std::uint64_t*>(vout);

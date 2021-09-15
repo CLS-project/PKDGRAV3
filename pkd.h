@@ -443,7 +443,6 @@ typedef struct sphBounds {
 #define CALCOPEN(pkdn,minside) {					\
         double CALCOPEN_d2 = 0;						\
 	double CALCOPEN_b;						\
-        int CALCOPEN_j;							\
 	const BND CALCOPEN_bnd = pkdNodeGetBnd(pkd, pkdn);		\
 	double CALCOPEN_r[3];						\
 	pkdNodeGetPos(pkd, (pkdn), CALCOPEN_r);				\
@@ -457,7 +456,6 @@ typedef struct sphBounds {
 #if (0)
 #define CALCOPEN(pkdn) {						\
         double CALCOPEN_d2 = 0;						\
-        int CALCOPEN_j;							\
 	const BND CALCOPEN_bnd = pkdNodeGetBnd(pkd, pkdn);		\
 	MAXDIST(&CALCOPEN_bnd,(pkdn)->r,CALCOPEN_d2)			\
         CALCOPEN_d2 = sqrt(CALCOPEN_d2);	  \

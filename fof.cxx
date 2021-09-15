@@ -48,7 +48,7 @@ uint32_t pkdFofGatherLocal(PKD pkd,int *S,double fBall2,double r[3],uint32_t iGr
     KDN *kdn;
     PARTICLE *p;
     double p_r[3];
-    double min2,max2,dx,dy,dz,fDist2;
+    double min2,dx,dy,dz,fDist2;
     int sp = 0;
     int iCell,pj,pEnd,j;
     uint32_t iPartGroup;
@@ -164,7 +164,7 @@ static void addChildFof(PKD pkd, CL cl, int iChild, int id, float *fOffset) {
 
 
 void pkdFofRemoteSearch(PKD pkd,double dTau2,int bPeriodic,int nReplicas,int nBucket) {
-    KDN *kdnSelf,*kdn,*c,*k;
+    KDN *kdnSelf,*c,*k;
     PARTICLE *p;
     CLTILE cltile;
     CL clTemp;
@@ -173,7 +173,7 @@ void pkdFofRemoteSearch(PKD pkd,double dTau2,int bPeriodic,int nReplicas,int nBu
     uint32_t pjGroup;
     uint32_t pi,pj;
     int iRemote;    
-    int sp,i,j,ix,iy,iz,bRep;
+    int i,j,ix,iy,iz,bRep;
     int idSelf,iTop,iCell,id,iCellLo,idLo,iCellUp,idUp,iSib,iCheckCell,iCheckLower;
     int jTile,M,iStack;
     float fOffset[3];
@@ -442,7 +442,7 @@ void pkdNewFof(PKD pkd,double dTau2,int nMinMembers,int bPeriodic,int nReplicas,
     MDL mdl = pkd->mdl;
     PARTICLE *p;
     double p_r[3];
-    uint32_t iGroup,*pGroup;
+    uint32_t iGroup;
     int pn,i,j;
     KDN *kdnSelf;
     uint32_t iHead;

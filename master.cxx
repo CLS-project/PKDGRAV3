@@ -346,7 +346,6 @@ void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTi
     CountRungs(NULL);
 
     auto dsec = MSR::Time() - sec;
-    PKD pkd = pst->plcl->pkd;
     double dExp = csmTime2Exp(csm,dTime);
     msrprintf("Checkpoint Restart Complete @ a=%g, Wallclock: %f secs\n\n",dExp,dsec);
 
@@ -360,10 +359,7 @@ void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTi
     }
 
 void MSR::writeParameters(const char *baseName,int iStep,int nSteps,double dTime,double dDelta) {
-    PRM_NODE *pn;
     char *p, achOutName[PST_FILENAME_SIZE];
-    char szNumber[30];
-    double v;
     uint64_t nSpecies[FIO_SPECIES_LAST];
     int i;
     int nBytes;
@@ -446,11 +442,8 @@ void MSR::Checkpoint(int iStep,int nSteps,double dTime,double dDelta) {
     msrprintf("Checkpoint has been successfully written, Wallclock: %f secs.\n", dsec);
     }
 
-int MSR::Initialize() {
-    int i,j,ret;
+void MSR::Initialize() {
     char ach[256];
-    int bDoRestore;
-
 
     lcl.pkd = NULL;
     nThreads = mdlThreads(mdl);
@@ -1134,7 +1127,6 @@ int MSR::Initialize() {
 	ServiceSetAdd::input inAdd(nThreads);
 	mdl->RunService(PST_SETADD,sizeof(inAdd),&inAdd);
 	}
-    return bDoRestore;
     }
 
 #if 0
@@ -1428,7 +1420,6 @@ void MSR::OneNodeRead(struct inReadFile *in, FIO fio) {
     uint64_t nStart;
     PST pst0;
     LCL *plcl;
-    char achInFile[PST_FILENAME_SIZE];
     int nid;
     ServiceSwapAll::input inswap;
     int rID;
@@ -1477,7 +1468,7 @@ void MSR::OneNodeRead(struct inReadFile *in, FIO fio) {
 double MSR::SwitchDelta(double dTime,double dDelta,int iStep,int nSteps) {
     if (csm->val.bComove && prmSpecified(prm,"dRedTo")
         && prmSpecified(prm,"nSteps") && prmSpecified(prm,"nSteps10")) {
-	double aTo,tTo,z;
+	double aTo,tTo;
 	if (iStep < param.nSteps10) {
 	    aTo = 1.0 / (10.0 + 1.0);
 	    nSteps = param.nSteps10 - iStep;
@@ -1542,7 +1533,6 @@ void MSR::AllNodeWrite(const char *pszFileName, double dTime, double dvFac, int 
     PST pst0;
     LCL *plcl;
     struct inWrite in;
-    int j;
 
     pst0 = pst;
     while (pst0->nLeaves > 1)
@@ -1637,7 +1627,6 @@ uint64_t MSR::CalcWriteStart() {
 
 void MSR::Write(const char *pszFileName,double dTime,int bCheckpoint) {
     char achOutFile[PST_FILENAME_SIZE];
-    LCL *plcl = pst->plcl;
     int nProcessors;
     double dvFac, dExp;
     double sec,dsec;
@@ -1718,7 +1707,7 @@ void MSR::DomainDecompOld(int iRung) {
     const uint64_t nSD = d2u64(N*param.dFracNoDomainDimChoice);
     double sec,dsec;
     int iRungDT, iRungDD=0,iRungRT,iRungSD;
-    int i,j;
+    int i;
     int bRestoreActive = 0;
 
     in.bDoRootFind = 1;
@@ -1743,8 +1732,6 @@ void MSR::DomainDecompOld(int iRung) {
 	    }
 	assert(iRungDD >= iRungRT);
 	assert(iRungRT >= iRungSD);
-	iRungDD = iRungDD;
-	iRungDT = iRungDT;
 #ifdef NAIVE_DOMAIN_DECOMP
 	if (iLastRungRT < 0) {
 	    /*
@@ -1885,6 +1872,7 @@ void MSR::DomainDecompOld(int iRung) {
 	    }
 #endif
 	}
+    else nActive = N;
     iLastRungDD = iLastRungRT;
     in.nActive = nActive;
     in.nTotal = N;
@@ -1943,7 +1931,6 @@ void MSR::DomainDecomp(int iRung) {
 void MSR::BuildTree(int bNeedEwald,uint32_t uRoot,uint32_t utRoot) {
     struct inBuildTree in;
     const double ddHonHLimit = param.ddHonHLimit;
-    int i;
     PST pst0;
     LCL *plcl;
     PKD pkd;
@@ -2192,7 +2179,6 @@ void MSR::OutASCII(const char *pszFile,int iType,int nDims,int iFileType) {
 	struct inCompressASCII in;
 	struct outCompressASCII out;
 	struct inWriteASCII inWrite;
-	int nOut;
 	FILE *fp;
 
 	fp = fopen(achOutFile,"wb");
@@ -2502,7 +2488,7 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
 	int bKickClose,int bKickOpen,int bEwald,int bGravStep,int nPartRhoLoc,int iTimeStepCrit,int nGroup) {
     struct inGravity in;
     uint64_t nRungSum[IRUNGMAX+1];
-    int i,id,out_size;
+    int i;
     double sec,dsec,dTotFlop,dt,a;
     double dTimeLCP;
     uint8_t uRungMax=0;
@@ -2813,8 +2799,6 @@ int cmpTime(const void *v1,const void *v2) {
 
 void MSR::ReadOuts(double dTime,double dDelta) {
     char achFile[PST_FILENAME_SIZE];
-    char ach[PST_FILENAME_SIZE];
-    LCL *plcl = &lcl;
     FILE *fp;
     int i,ret;
     double z,a,t,n;
@@ -3012,8 +2996,6 @@ void MSR::UpdateRung(uint8_t uRung) {
     struct inUpdateRung in;
     struct outUpdateRung out;
     int iTempRung,iOutMaxRung;
-    uint64_t sum;
-    char c;
 
     /* If we are called, it is a mistake -- this happens in analysis mode */
     if (param.bMemUnordered) return;
@@ -3176,7 +3158,6 @@ int MSR::NewTopStepKDK(
     int *pbDoCheckpoint,int *pbDoOutput,int *pbNeedKickOpen) {
     double dDeltaRung,dTimeFixed;
     uint32_t uRoot2=0;
-    char achFile[256];
     int bKickOpen=1;
     /*
     ** The iStep variable serves only to give a number to the lightcone and group output files.
@@ -3590,10 +3571,8 @@ void MSR::Cooling(double dTime,double dStep,int bUpdateState, int bUpdateTable, 
 /* END Gas routines */
 
 void MSR::HopWrite(const char *fname) {
-    FILE *fp;
     LCL *plcl;
     PST pst0;
-    int id;
     double sec,dsec;
 
     pst0 = pst;
@@ -3626,10 +3605,6 @@ void MSR::Hop(double dTime, double dDelta) {
     struct inHopLink h;
     struct outHopJoin j;
     struct inHopFinishUp inFinish;
-    struct inHopTreeBuild inTreeBuild;
-    struct inHopGravity inGravity;
-    struct inHopUnbind inUnbind;
-    struct outHopUnbind outUnbind;
     struct inGroupStats inGroupStats;
     int i;
     uint64_t nGroups;
@@ -3703,6 +3678,7 @@ void MSR::Hop(double dTime, double dDelta) {
     if (param.bVStep)
 	printf("Unbinding\n");
 
+    struct inHopUnbind inUnbind;
     inUnbind.dTime = dTime;
     inUnbind.bPeriodic = param.bPeriodic;
     inUnbind.fPeriod[0] = param.dxPeriod;
@@ -3710,6 +3686,7 @@ void MSR::Hop(double dTime, double dDelta) {
     inUnbind.fPeriod[2] = param.dzPeriod;
     inUnbind.nMinGroupSize = param.nMinMembers;
     inUnbind.iIteration = 0;
+    struct inHopGravity inGravity;
     inGravity.dTime = dTime;
     inGravity.bPeriodic = param.bPeriodic;
     inGravity.nGroup = param.nGroup;
@@ -3722,6 +3699,7 @@ void MSR::Hop(double dTime, double dDelta) {
     inUnbind.iIteration=0;
     do {
 	sec = MSR::Time();
+        struct inHopTreeBuild inTreeBuild;
 	inTreeBuild.nBucket = param.nBucket;
 	inTreeBuild.nGroup = param.nGroup;
 	pstHopTreeBuild(pst,&inTreeBuild,sizeof(inTreeBuild),NULL,0);
@@ -3736,6 +3714,7 @@ void MSR::Hop(double dTime, double dDelta) {
 	    printf("... gravity complete, Wallclock: %f secs\n",dsec);
 	
 	sec = MSR::Time();
+        struct outHopUnbind outUnbind;
 	pstHopUnbind(pst,&inUnbind,sizeof(inUnbind),&outUnbind,sizeof(outUnbind));
 	nGroups = outUnbind.nGroups;
 	dsec = MSR::Time() - sec;
@@ -3818,7 +3797,7 @@ void MSR::NewFof(double dTime) {
 
 void MSR::GroupStats() {
     struct inGroupStats inGroupStats;
-    double sec,dsec,ssec;
+    double sec,dsec;
 
     if (param.bVStep)
 	printf("Generating Group statistics\n");
@@ -3878,7 +3857,6 @@ double MSR::GenerateIC() {
     struct inGetFFTMaxSizes inFFTSizes;
     struct outGetFFTMaxSizes outFFTSizes;
     uint64_t nSpecies[FIO_SPECIES_LAST];
-    int nOut;
     double sec,dsec;
     double mean, rms;
     uint64_t nTotal;
@@ -3966,7 +3944,6 @@ double MSR::GenerateIC() {
 
     SetClasses();
     dsec = MSR::Time() - sec;
-    PKD pkd = pst->plcl->pkd;
     msrprintf("IC Generation Complete @ a=%g, Wallclock: %f secs\n\n",out.dExpansion,dsec);
     msrprintf("Mean of noise same is %g, RMS %g.\n",mean,rms);
 
@@ -4208,9 +4185,6 @@ void MSR::OutputLinPk(int iStep,double dTime) {
 
 void MSR::Output(int iStep, double dTime, double dDelta, int bCheckpoint) {
     int bSymmetric;
-    int nFOFsDone;
-    int i,iSec=0;
-    uint64_t nActive;
 
     printf( "Writing output for step %d\n", iStep );
     if ( iStep ) Write(BuildIoName(iStep).c_str(),dTime,bCheckpoint );
@@ -4540,7 +4514,7 @@ void MSR::Profile( const PROFILEBIN **ppBins, int *pnBins,
     ** Inner, fixed size bins
     */
     if ( nBinsInner ) {
-	MSR::Time();
+	sec = Time();
 	msrprintf( "Root finding for %d bins\n", nBinsInner );
 	ctxSphere.nTotal = CountDistance(0.0,dLogRadius*dLogRadius);
 	ctxSphere.nInner = CountDistance(0.0,dMinRadius*dMinRadius);

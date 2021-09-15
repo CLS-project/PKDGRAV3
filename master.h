@@ -323,7 +323,7 @@ protected:
     void Sph(double dTime, double dDelta, double dStep);
     uint64_t CountDistance(double dRadius2Inner, double dRadius2Outer);
 
-    int Initialize();
+    void Initialize();
     void writeParameters(const char *baseName,int iStep,int nSteps,double dTime,double dDelta);
     void OutASCII(const char *pszFile,int iType,int nDims,int iFileType);
     void DomainDecompOld(int iRung);

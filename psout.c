@@ -124,22 +124,9 @@ int main(int argc,char *argv[]) {
     double dSigma8 = csm->val.dSigma8 * D1_a/D1_0;
     P.normalization *= dSigma8*dSigma8 / variance(&P,8.0);
 
-
-    double dBoxSize = 3780;
     double twopi = 2.0 * 4.0 * atan(1.0);
     double twopi3 = pow(twopi,3.0);
-    double itwopi = 1.0 / twopi;
-    double iLbox = twopi / dBoxSize;
-    double iLbox3 = pow(iLbox,3.0);
 
-
-    double kb = 1;
-    double ke = 12600;
-    double lkb = log(kb);
-    double lke = log(ke);
-    double dk = (lke - lkb) / 300;
-
-    double lak;
     while(fgets(buffer,sizeof(buffer),stdin)) {
 	double ak;
 	if (sscanf(buffer,"%lg\n",&ak)!=1) {

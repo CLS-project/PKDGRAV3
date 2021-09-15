@@ -400,18 +400,11 @@ int pkdGravInteract(PKD pkd,
     KDN *pkdn = pBucket;
     double r[3], kdn_r[3];
     vel_t *v;
-    double vx,vy,vz;
     float *ap;
-    float d2,dir,dir2;
     float fMass,fSoft;
-    float fx,fy,fz;
     double dx,dy,dz;
-    float rhopmax,rhopmaxlocal;
-    float summ;
     float fBall;
-    ILPTILE tile;
-    int i,n,nSoft,nActive;
-    float fourh2;
+    int i,nSoft,nActive;
     int nP;
 
     pkdNodeGetPos(pkd,pkdn,kdn_r);
@@ -571,6 +564,15 @@ int pkdGravInteract(PKD pkd,
         ** in this now as well!
         */
         if (ts->bGravStep && wp->ts->iTimeStepCrit == 1) {
+            double vx,vy,vz;
+            float d2,dir,dir2;
+            float fx,fy,fz;
+            float rhopmax,rhopmaxlocal;
+            float summ;
+            float fourh2;
+            int n;
+            ILPTILE tile;
+
 	    /*
 	    ** GravStep if iTimeStepCrit =
 	    ** 0: Mean field regime for dynamical time (normal/standard setting)

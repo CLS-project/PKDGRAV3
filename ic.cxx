@@ -106,7 +106,6 @@ class PowerTransfer : public Power {
     double normalization;
     int nTf;
     double rise0, rise1;
-    double dSigma8;
 public:
     virtual double getAmplitude(double k);
     PowerTransfer(CSM csm, double a,int nTf, double *tk, double *tf);
@@ -175,7 +174,6 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int bFixed,float fPhase,int nGrid
     float inGrid = 1.0 / nGrid;
     float fftNormalize = inGrid*inGrid*inGrid;
     float ix, iy, iz;
-    int iNyquist = nGrid / 2;
     float iLbox = twopi / dBoxSize;
     float iLbox3 = pow(iLbox,3.0);
     float ak, ak2, amp;
@@ -184,7 +182,6 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int bFixed,float fPhase,int nGrid
     double f1_0, f2_0, f1_a, f2_a;
     
     float velFactor; 
-    basicParticle *p;
     int nLocal;
     CSM csm = pkd->csm;
     float dSigma8 = csm->val.dSigma8;
@@ -298,9 +295,7 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int bFixed,float fPhase,int nGrid
 	}
 
     if (b2LPT) {
-        float aeq = csmRadMatEquivalence(csm);
-        float aeqDratio = aeq/D1_a;
-	float D2 = D2_a/pow(D1_a,2);
+ 	float D2 = D2_a/pow(D1_a,2);
 
 	for( auto index=K[6].begin(); index!=K[6].end(); ++index ) {
 	    auto pos = index.position();
@@ -357,23 +352,18 @@ int pkdGenerateClassICm(PKD pkd, MDLFFT fft, int iSeed, int bFixed, float fPhase
     double dBoxSize, double a, double *noiseMean, double *noiseCSQ) {
     mdlClass *mdl = reinterpret_cast<mdlClass *>(pkd->mdl);
     float twopi = 2.0 * 4.0 * atan(1.0);
-    float itwopi = 1.0 / twopi;
     float inGrid = 1.0 / nGrid;
     float fftNormalize = inGrid*inGrid*inGrid;
     float ix, iy, iz;
-    int iNyquist = nGrid / 2;
     float iLbox = twopi / dBoxSize;
-    float iLbox3 = pow(iLbox,3.0);
-    float ak, ak2, amp;
+    float ak2, amp;
     float kx, ky, kz;
     float k2;
-    float dOmega;
     double D1_0, D2_0, D1_a, D2_a; 
     double f1_0, f2_0, f1_a, f2_a;
     
     float velFactor; 
 
-    basicParticle *p;
     int nLocal;
     CSM csm = pkd->csm;
 

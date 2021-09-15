@@ -28,7 +28,6 @@
 
 extern "C"
 void pkdGravEvalPC(PINFOIN *pPart, int nBlocks, int nInLast, ILC_BLK *blk,  PINFOOUT *pOut ) {
-    const fvec onethird = 1.0f/3.0f;
     fvec x,y,z;
     fvec adotai;
     fvec tx,ty,tz;
@@ -36,7 +35,7 @@ void pkdGravEvalPC(PINFOIN *pPart, int nBlocks, int nInLast, ILC_BLK *blk,  PINF
     fvec xxx,xxz,yyy,yyz,xxy,xyy,xyz;
     fvec tax, tay, taz, tpot, ir, norm;
 
-    int j, n, nLeft, nIntr;
+    int j, nLeft, nIntr;
 
     fvec fx = pPart->r[0];
     fvec fy = pPart->r[1];

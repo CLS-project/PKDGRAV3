@@ -51,6 +51,7 @@ static void print_traceback(FILE *fp) {
 
 #define USE_SIGACTION
 
+#ifdef USE_ALARM_SIGNAL
 #ifdef USE_SIGACTION
 static void alarm_handler(int signo, siginfo_t *si, void *unused) {
 #else
@@ -81,6 +82,7 @@ static void alarm_handler(int signo) {
     print_traceback(fp);
     if (fp != stderr) fclose(fp);
     }
+#endif
 
 #ifdef USE_SIGACTION
 static void signal_handler(int signo, siginfo_t *si, void *unused) {
@@ -108,8 +110,10 @@ void bt_initialize(void) {
     if (sigaction(SIGSEGV, &sa, NULL) == -1) abort();
     if (sigaction(SIGABRT, &sa, NULL) == -1) abort();
     if (sigaction(SIGFPE,  &sa, NULL) == -1) abort();
-    //sa.sa_sigaction = alarm_handler;
-    //if (sigaction(SIGWINCH, &sa, NULL) == -1) abort();
+#ifdef USE_ALARM_SIGNAL
+    sa.sa_sigaction = alarm_handler;
+    if (sigaction(SIGWINCH, &sa, NULL) == -1) abort();
+#endif
     }
 #else
 void bt_initialize(void) {

@@ -22,7 +22,7 @@ static_assert(std::is_void<ServiceHostname::input>()  || std::is_trivial<Service
 static_assert(std::is_void<ServiceHostname::output>() || std::is_trivial<ServiceHostname::output>());
 
 int ServiceHostname::Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    auto in = static_cast<input *>(vin);
+    static_assert(std::is_void<input>());
     auto out = static_cast<output *>(vout);
     auto outUp = out + pst->idUpper-pst->idSelf;
     auto rID = mdlReqService(pst->mdl,pst->idUpper,getServiceID(),vin,nIn);
@@ -32,7 +32,7 @@ int ServiceHostname::Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) {
     }
 
 int ServiceHostname::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    auto in = static_cast<input *>(vin);
+    static_assert(std::is_void<input>());
     auto out = static_cast<output *>(vout);
     out->iMpiID = mdlSelf(pst->mdl);
     strncpy(out->szHostname,mdlName(pst->mdl),sizeof(out->szHostname));

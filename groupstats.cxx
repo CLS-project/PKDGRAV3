@@ -132,7 +132,6 @@ static void combTinyGroup(void *vpkd, void *v1, const void *v2) {
 
 static void initTinyRmax(void *vpkd, void *v) {
     TinyGroupTable * g = (TinyGroupTable *)v;
-    int j;
 
     g->rMax =  0.0;
     }
@@ -191,7 +190,6 @@ static void initAngular(void *vpkd, void *v) {
 static void combAngular(void *vpkd, void *v1, const void *v2) {
     TinyGroupTable *g1 = (TinyGroupTable *)v1;
     const TinyGroupTable *g2 = (const TinyGroupTable *)v2;
-    float x;
     int j;
 
     for (j=0;j<3;j++) {
@@ -233,7 +231,6 @@ static double gatherMass(PKD pkd,remoteID *S,double fBall2,double ri2,double ro2
     double min2,max2;
     int iCell,id;
     int sp = 0;
-    BND bnd;
     PARTICLE *p;
     double p_r[3];
     double dx,dy,dz,fDist2;
@@ -304,14 +301,12 @@ static double gatherMass(PKD pkd,remoteID *S,double fBall2,double ri2,double ro2
     return(fMass);
     }
 
-
+#if 0
 static double gatherLocalMass(PKD pkd,remoteID *S,double fBall2,double ri2,double ro2,double r[3]) {
     KDN *kdn;
-    MDL mdl = pkd->mdl;
     double min2,max2;
     int iCell;
     int sp = 0;
-    BND bnd;
     PARTICLE *p;
     double p_r[3];
     double dx,dy,dz,fDist2;
@@ -356,7 +351,7 @@ static double gatherLocalMass(PKD pkd,remoteID *S,double fBall2,double ri2,doubl
 	}
     return(fMass);
     }
-
+#endif
 
 double pkdGatherMass(PKD pkd,remoteID *S,double fBall,double r[3],int bPeriodic,double dPeriod[3]) {
     double rp[3];
@@ -398,7 +393,6 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnviro
     const int bDoShrinkingSphere = 0;
     MDL mdl = pkd->mdl;
     PARTICLE *p;
-    float fPot;
     double fMass;
     double r[3],v2;
     double dHalf[3];
@@ -406,7 +400,6 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnviro
     float r2,rMax;
     int i,j,gid,n;
     vel_t *v;
-    double vrel[3];
     int nLocalGroups;
     double *dAccumulate;
     MassRadius *mr,*mrFree,*rootFunction;

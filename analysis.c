@@ -239,7 +239,6 @@ void pkdCalcDistance(PKD pkd, double *dCenter, int bPeriodic) {
     */
     for (i=0;i<pkd->nLocal;++i) {
 	PARTICLE *p = pkdParticle(pkd,i);
-	double m = pkdMass(pkd,p);
 	pl[i].d2 = pkdGetDistance2(pkd,p,dCenter,bPeriodic);
 	pl[i].i = i;
 	}

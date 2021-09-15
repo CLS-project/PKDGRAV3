@@ -23,8 +23,6 @@
 using namespace gridinfo;
 using namespace blitz;
 
-static const std::complex<float> I(0,1);
-
 // A blitz++ friendly wrap function. returns "ik" given array index
 // Range: (-iNyquist,iNyquist] where iNyquist = m/2
 static float fwrap(float v,float m) {
@@ -80,10 +78,8 @@ void pkdGenerateLinGrid(PKD pkd, MDLFFT fft, double a, double a_next, double Lbo
     spline = gsl_spline_alloc(gsl_interp_cspline, size);
     gsl_spline_init(spline, logk, field, size);
     /* Generate grid */
-    int idx;
     double ix, iy, iz, i2;
     double iLbox = 2*M_PI/Lbox;
-    int iNuquist = fft->rgrid->n3 / 2;
 
     GridInfo G(pkd->mdl,fft);
     complex_array_t K;
@@ -143,7 +139,7 @@ void pkdSetLinGrid(PKD pkd, double a0, double a, double a1, double dBSize, int n
     int bFixed, float fPhase) {
         MDLFFT fft = pkd->fft;
         /* Grid coordinates in real space :      [0, nGrid].[0, nGrid].[0, nGrid] */
-        mdlGridCoord rfirst, rlast, rindex;
+        mdlGridCoord rfirst, rlast;
         /* Grid coordinates in Fourier space : [O, Nyquist].[0, nGrid].[0, nGrid] */
         mdlGridCoord kfirst, klast, kindex;
         /* 

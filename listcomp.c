@@ -251,6 +251,7 @@ static inline void SkipSingle(LCODE ctx) {
     }
 }
 
+#if 0
 static inline int OutSuffix(LCODE ctx,uint32_t uStart) {
     int i;
     for (i=ctx->nSuffix-1;i>=0;--i) {
@@ -271,7 +272,7 @@ static inline void BackSkipSuffix(LCODE ctx) {
 	}
     }
 }
-
+#endif
 
 int lcodeEncode(LCODE ctx,LIST *aList,uint32_t nList,char **ppOutput) {
     uint32_t uPrefix,iPid;

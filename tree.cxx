@@ -215,7 +215,6 @@ static int PartPart(PKD pkd,int pLower,int pUpper,int d,split_t Split) {
 */
 #define TEMP_S_INCREASE 100
 void BuildTemp(PKD pkd,int iNode,int M,int nGroup,double dMaxMax) {
-    PARTICLE *pi, *pj;
     KDN *pNode = pkdTreeNode(pkd,iNode);
     KDN *pLeft, *pRight;
     double lrMax;
@@ -223,7 +222,7 @@ void BuildTemp(PKD pkd,int iNode,int M,int nGroup,double dMaxMax) {
     int s,ns;
     int iLeft,iRight;
     int d;
-    int i,j;
+    int i;
     int nr,nl;
     int lc,rc;
     int nBucket = 0;
@@ -399,7 +398,7 @@ void BuildFromTemplate(PKD pkd,int iNode,int M,int nGroup,int iTemplate) {
     KDN *pTemp, *ptLeft, *ptRight;
 
     int d;
-    int i, j, nr, nl;
+    int i, nr, nl;
     int ns,s;
     double dMaxMax;
     struct buildStack {
@@ -614,10 +613,6 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
     		} vmin,vmax;
 	    vmin.p = _mm256_mul_pd(_mm256_cvtepi32_pd(ivmin),_mm256_set1_pd(1.0/INTEGER_FACTOR) );
 	    vmax.p = _mm256_mul_pd(_mm256_cvtepi32_pd(ivmax),_mm256_set1_pd(1.0/INTEGER_FACTOR) );
-	    union {
-		double d[4];
-		__m256d p;
-    		} dout;
 	    bnd = Bound(vmin.d,vmax.d);
 	    }
 	else
@@ -965,7 +960,6 @@ void pkdCombineCells2(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
 }
 
 void pkdTreeBuild(PKD pkd,int nBucket, int nGroup, uint32_t uRoot,uint32_t uTemp, double ddHonHLimit) {
-    int i;
 #ifdef USE_ITT
     __itt_domain* domain = __itt_domain_create("MyTraces.MyDomain");
     __itt_string_handle* shMyTask = __itt_string_handle_create("Tree Build");
@@ -1003,14 +997,13 @@ void pkdTreeBuild(PKD pkd,int nBucket, int nGroup, uint32_t uRoot,uint32_t uTemp
 ** The array iGrpOffset[i] passed in here must have 2*pkd->nGroups entries!
 */
 void pkdGroupOrder(PKD pkd,uint32_t *iGrpOffset) {
-    PARTICLE *p,*p2;
     uint32_t i,gid,iTree;
     uint32_t *iGrpEnd = &iGrpOffset[pkd->nGroups]; /* tricky because the 0th element is not used! */
 
     /* Count the number of particles in each group */
     for (i=0;i<=pkd->nGroups;++i) iGrpOffset[i] = 0;
     for (i=0;i<pkd->nLocal;++i) {
-	p = pkdParticle(pkd,i);
+	auto p = pkdParticle(pkd,i);
 	gid = pkdGetGroup(pkd,p);
 	++iGrpOffset[gid+1];
 	}
@@ -1023,7 +1016,7 @@ void pkdGroupOrder(PKD pkd,uint32_t *iGrpOffset) {
     /* Reorder the particles into group order */
     for (iTree=1;iTree<pkd->nGroups;++iTree) {
 	for (i=iGrpOffset[iTree];i<iGrpEnd[iTree];) {
-	    p = pkdParticle(pkd,i);
+	    auto p = pkdParticle(pkd,i);
 	    gid = pkdGetGroup(pkd,p);
 	    if (!gid) gid = pkd->nGroups;
 	    if (gid == iTree) ++i;
@@ -1117,7 +1110,6 @@ void pkdTreeBuildByGroup(PKD pkd, int nBucket, int nGroup) {
 	    if (gid==0) break;
 	    iRoot = pkd->hopGroups[gid].iTreeRoot;
 	    pNode = pkdTreeNode(pkd,iRoot);
-	    Bound bnd = pkdNodeGetBnd(pkd, pNode);
 	    
 	    pNode->iLower = 0;
 	    pNode->bGroup = 1;

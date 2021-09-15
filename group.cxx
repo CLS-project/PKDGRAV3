@@ -178,7 +178,7 @@ static void combMaxnGroup(void *vctx, void *v1, const void *v2) {
 int pkdGroupRelocate(PKD pkd,int nGroups,struct smGroupArray *ga) {
     MDL mdl = pkd->mdl;
     PARTICLE *p;
-    int i, gid, n,nLocalGroups;
+    int i, gid, nLocalGroups;
 
     /* Count local members of all groups */
     nLocalGroups = 0;

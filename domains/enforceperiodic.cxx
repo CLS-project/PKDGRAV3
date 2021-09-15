@@ -23,7 +23,7 @@ static_assert(std::is_void<ServiceEnforcePeriodic::output>() || std::is_trivial<
 
 int ServiceEnforcePeriodic::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto in = static_cast<input*>(vin);
-    auto out = static_cast<output*>(vout);
+    static_assert(std::is_void<output>());
     auto pkd = pst->plcl->pkd;
     pkdEnforcePeriodic(pkd,in);
     return 0;

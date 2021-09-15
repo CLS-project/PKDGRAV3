@@ -23,7 +23,7 @@ static_assert(std::is_void<ServiceDistribRoot::output>() || std::is_trivial<Serv
 
 int ServiceDistribRoot::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto in = static_cast<input*>(vin);
-    auto out = static_cast<output*>(vout);
+    static_assert(std::is_void<output>());
     auto pkd = pst->plcl->pkd;
     pkdDistribRoot(pkd,in->r,&in->momc);
     return 0;

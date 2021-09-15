@@ -229,7 +229,6 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
     void (*comb)(void *,void *,const void *) = NULL;
     int i,pi,j;
     int nTree;
-    int iTopDepth;
 
     smx = malloc(sizeof(struct smContext));
     assert(smx != NULL);
@@ -549,9 +548,9 @@ PQ *pqSearch(SMX smx,PQ *pq,double r[3],int iRoot) {
     KDN *kdn;
     int idSelf = smx->pkd->idSelf;
     struct stStack *S = smx->ST;
-    double dMin,min1,min2;
+    double min1,min2;
     double p_r[3];
-    int j,iCell,id;
+    int iCell,id;
     int sp = 0;
     BND bnd;
     int pEnd, pj;

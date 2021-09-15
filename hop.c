@@ -480,10 +480,8 @@ static void combHopGetRoots(void *vctx, void *v1, const void *v2) {
 
 void pkdHopTreeBuild(PKD pkd, int nBucket,int nGroup) {
     MDL mdl = pkd->mdl;
-    int nDomains = mdlThreads(mdl);
     HopGroupTable * g;
     int i, gid, iRoot;
-    int iPid, iLastPid;
     int nRootsTotal;
 
     /*

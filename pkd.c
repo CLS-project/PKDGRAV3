@@ -109,6 +109,7 @@ static int pkdNodeAddFloat(PKD pkd,int n) {
     return iOffset;
     }
 /* Add n 64-bit integers to the node structure */
+#if 0
 static int pkdNodeAddInt64(PKD pkd,int n) {
     int iOffset = pkd->iTreeNodeSize;
     mdlassert( pkd->mdl, pkd->kdNodeListPRIVATE == NULL );
@@ -116,6 +117,7 @@ static int pkdNodeAddInt64(PKD pkd,int n) {
     pkd->iTreeNodeSize += sizeof(int64_t) * n;
     return iOffset;
     }
+#endif
 /* Add n 32-bit integers to the node structure */
 static int pkdNodeAddInt32(PKD pkd,int n) {
     int iOffset = pkd->iTreeNodeSize;
@@ -228,7 +230,7 @@ static int gcd ( int a, int b ) {
     }
 
 static void initLightConeOffsets(PKD pkd) {
-    BND bnd = {0,0,0,0.5,0.5,0.5};
+    BND bnd = {{0,0,0},{0.5,0.5,0.5}};
     double min2;
     int ix,iy,iz,nBox;
 
@@ -1193,7 +1195,7 @@ uint64_t hilbert3d(float x,float y,float z) {
 */
 int pkdWeight(PKD pkd,int d,double fSplit,int iSplitSide,int iFrom,int iTo,
 	      int *pnLow,int *pnHigh,double *pfLow,double *pfHigh) {
-    int i,iPart;
+    int iPart;
     double fLower,fUpper;
 
     /*
@@ -2145,7 +2147,6 @@ static uint32_t SumWithSaturate(uint32_t a,uint32_t b) {
     }
 
 static void combHealpix(void *vctx, void *v1, const void *v2) {
-    PKD pkd = (PKD)vctx;
     healpixData * m1 = (healpixData *)v1;
     const healpixData * m2 = (const healpixData *)v2;
     m1->nGrouped = SumWithSaturate(m1->nGrouped,m2->nGrouped);
@@ -2179,7 +2180,7 @@ void pkdLightConeClose(PKD pkd,const char *healpixname) {
     }
 
 void pkdLightConeOpen(PKD pkd,const char *fname,int nSideHealpix) {
-    int i, rc;
+    int i;
     if (fname[0]) {
 	if (io_create(&pkd->afiLightCone,fname) < 0) { perror(fname); abort(); }
 	}
@@ -2383,7 +2384,7 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
     vel_t *v;
     float *a;
     SPHFIELDS *sph;
-    int i,j,k;
+    int i,j;
     double rfinal[3],r0[3],dMin[3],dMax[3];
     int pLower, pUpper;
 
@@ -2454,7 +2455,7 @@ void pkdLightConeVel(PKD pkd,double dBoxSize) {
     const double rMax=3.0;
     gsl_spline *scale;
     gsl_interp_accel *acc = gsl_interp_accel_alloc();
-    double r,dr,rt[nTable],at_inv[nTable];
+    double dr,rt[nTable],at_inv[nTable];
     PARTICLE *p;
     vel_t *v;
     double dvFac,r2;
@@ -2633,7 +2634,7 @@ void pkdAccelStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
 		  double dEta,double dVelFac,double dAccFac,
 		  int bDoGravity,int bEpsAcc,double dhMinOverSoft) {
     PARTICLE *p;
-    float *a, *pPot;
+    float *a;
     vel_t *v;
     int i,uNewRung;
     double vel;
@@ -2712,7 +2713,7 @@ void pkdSphStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
 		uNewRung = pkdDtToRung(dtNew,dDelta,iMaxRung);
 		if (uNewRung > p->uNewRung) p->uNewRung = uNewRung;
 		if (!(p->iOrder%10000) || (p->uNewRung > 5 && !(p->iOrder%1000))) {
-		    SPHFIELDS *sph = pkdSph(pkd,p);
+		    /*SPHFIELDS *sph = pkdSph(pkd,p);*/
 		    }
 		}
 	    }
@@ -2810,10 +2811,10 @@ void pkdStarForm(PKD pkd, double dRateCoeff, double dTMax, double dDenMin,
 
 void pkdCorrectEnergy(PKD pkd, double dTuFac, double z, double dTime, int iDirection )
     {
-    PARTICLE *p;
+    /*PARTICLE *p;
     SPHFIELDS *sph;
     int i;
-    double T,E;
+    double T,E;*/
     switch(iDirection)  {
     case CORRECTENERGY_IN:
 	break;
@@ -3247,7 +3248,7 @@ int pkdSelBlackholes(PKD pkd, int setIfTrue, int clearIfFalse) {
 void pkdOutPsGroup(PKD pkd,char *pszFileName,int iType)
 {
     FILE *fp;
-    int i,j,nout,lStart;
+    int i;
 
     if (iType == OUT_PSGROUP_STATS) {
 	fp = fopen(pszFileName,"a+");

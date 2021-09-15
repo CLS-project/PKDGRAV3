@@ -503,8 +503,6 @@ static PyObject *
 ppy_msr_GenerateIC(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     flush_std_files();
     static char const *kwlist[]={"csm","z","grid","seed","L",NULL};
-    int nGrid, iSeed;
-    double dBoxSize = 1.0;
     CSMINSTANCE *cosmo = NULL;
     self->msr->param.bPeriodic = 1;
     if ( !PyArg_ParseTupleAndKeywords(
@@ -663,7 +661,6 @@ ppy_msr_DomainDecomp(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     flush_std_files();
     static char const *kwlist[]={"rung",NULL};
     int iRung    = 0;
-    int bOthers  = 0;
 
     if ( !PyArg_ParseTupleAndKeywords(
 	     args, kwobj, "|i:DomainDecomp", const_cast<char **>(kwlist),
@@ -712,7 +709,6 @@ ppy_msr_Gravity(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     double dTime = 0.0;
     double dDelta = 0.0;
     double dTheta = msr->param.dTheta;
-    uint64_t nActive;
 
     int bEwald = msr->param.bEwald;
     int iRungLo    = 0;
@@ -777,7 +773,6 @@ static PyObject *
 ppy_msr_grid_release(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     flush_std_files();
     static char const *kwlist[]={NULL};
-    int iGrid;
     if ( !PyArg_ParseTupleAndKeywords(
 	     args, kwobj, ":grid_release", const_cast<char **>(kwlist)) )
 	return NULL;
@@ -834,7 +829,7 @@ static PyObject *
 ppy_msr_assign_mass(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     flush_std_files();
     static char const *kwlist[]={"target","order","delta",NULL};
-    int nGrid, order=4, target=0;
+    int order=4, target=0;
     double delta = 0.0;
     if ( !PyArg_ParseTupleAndKeywords(
 	     args, kwobj, "|iid:assign_mass", const_cast<char **>(kwlist),
@@ -1493,6 +1488,7 @@ int MSR::Python(int argc, char *argv[]) {
     PyObject *localDict = PyModule_GetDict(PARSE);
     PyDict_SetItemString(localDict, "__builtins__", PyEval_GetBuiltins());
     PyObject *pyValue = PyRun_String(parse_py, Py_file_input, localDict, localDict);
+    Py_XDECREF(pyValue);
     PyObject *parse = PyObject_GetAttrString(PARSE, "parse");
     if (!PyCallable_Check(parse)) { fprintf(stderr,"INTERNAL ERROR: parse.parse() MUST be callable\n"); abort(); }
     PyObject *update = PyObject_GetAttrString(PARSE, "update");

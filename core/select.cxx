@@ -19,7 +19,7 @@
 static_assert(std::is_void<ServiceCountSelected::input>()  || std::is_trivial<ServiceCountSelected::input>());
 static_assert(std::is_void<ServiceCountSelected::output>() || std::is_trivial<ServiceCountSelected::output>());
 int ServiceCountSelected::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    auto in   = static_cast<input*>(vin);
+    static_assert(std::is_void<input>());
     auto out  = static_cast<output*>(vout);
     auto pkd = pst->plcl->pkd;
     assert(nOut==sizeof(output));

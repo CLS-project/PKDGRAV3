@@ -62,8 +62,7 @@ static inline int getCell(PKD pkd,int iCache,int iCell,int id,float *pcOpen,KDN 
 
 #ifdef USE_SIMD_OPEN
 void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin );
-#endif
-#if 1
+#else
 /*
 ** This implements the original pkdgrav2m opening criterion, which has been
 ** well tested, gives good force accuracy, but may not be the most efficient
@@ -172,13 +171,12 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2,
     struct pkdKickParameters *kick,struct pkdLightconeParameters *lc,struct pkdTimestepParameters *ts,
     double dTime,int bEwald,
     double dThetaMin, double *pdFlop, double *pdPartSum,double *pdCellSum) {
-    KDN *k,*c,*kFind;
-    int id,idUpper,iCell,iSib,iLower,iUpper,iCheckCell,iCheckLower,iCellDescend;
+    KDN *k,*c;
+    int id,iCell,iSib,iCheckCell,iCheckLower;
     PARTICLE *p;
     FMOMR monoPole;
     LOCR L;
     FLOCR Lf;
-    double cx,cy,cz,d2c;
     double dShiftFlop;
     const vel_t *v;
     const float *a;
@@ -187,20 +185,17 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2,
     double xParent,yParent,zParent;
     double d2;
     double dx[3],dir;
-    double tax,tay,taz;
     float fOffset[3];
-    float dirLsum,normLsum,adotai;
+    float dirLsum,normLsum;
     float fMass,fSoft;
     int iStack;
     int j,jTile,pj,nActive,nTotActive;
     float cOpen,kOpen;
     static const float  fZero3[] = {0.0f,0.0f,0.0f};
     static const vel_t vZero3[] = {0.0,0.0,0.0};
-    ILPTILE tile;
-    ILCTILE ctile;
     CL clTemp;
     CLTILE cltile;
-    int iCidPart, iCidCell;
+    int iCidPart;
     int bReferenceFound;
     uint64_t iOrder;
 #ifdef USE_SIMD_FMM
@@ -233,12 +228,18 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2,
     pkdNodeGetPos(pkd,k,k_r);
     while (1) {
 #ifdef ILP_ILC_CAN_BE_NON_EMPTY
+        KDN *kFind;
+        ILPTILE tile;
+        ILCTILE ctile;
+        double cx,cy,cz,d2c;
+        int iLower,iUpper;
 	/*
 	** Find the next active particle that will be encountered in the walk algorithm below
 	** in order to set a good initial center for the P-P interaction list.
 	*/
 	kFind = k;
 	while (kFind->iLower) {
+            int iCellDescend;
 	    kFind = pkdTreeNode(pkd,iCellDescend = kFind->iLower);
 	    if (kFind->uMinRung>uRungHi || kFind->uMaxRung < uRungLo) {
 		/*
@@ -493,11 +494,12 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2,
 #else
 				    /* monoPole.m = blk->m.f[jTile];*/
 				    /* *pdFlop += momLocrAddFmomr5cm(&L,&monoPole,0.0,dir,dx[0],dx[1],dx[2],&tax,&tay,&taz);*/
+                                    double tax,tay,taz;
 				    dFlop = momLocrAddMono5(&L,blk->m.f[jTile],dir,dx[0],dx[1],dx[2],&tax,&tay,&taz);
 				    *pdFlop += dFlop;
 				    pkd->dFlopDoubleCPU += dFlop;
 				    if (ts->bGravStep) {
-					adotai = a[0]*tax + a[1]*tay + a[2]*taz;
+					float adotai = a[0]*tax + a[1]*tay + a[2]*taz;
 					if (adotai > 0) {
 					    adotai *= imaga;
 					    dirLsum += dir*adotai*adotai;
@@ -530,7 +532,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2,
 				    *pdFlop += dFlop;
 				    pkd->dFlopDoubleCPU += dFlop;
 				    if (ts->bGravStep) {
-					adotai = a[0]*tax + a[1]*tay + a[2]*taz;
+					float adotai = a[0]*tax + a[1]*tay + a[2]*taz;
 					if (adotai > 0) {
 					    adotai *= imaga;
 					    dirLsum += dir*adotai*adotai;
@@ -728,7 +730,6 @@ static void doneGravWalk(PKD pkd,SMX smx,SMF *smf) {
 
 static void initGravWalk(PKD pkd,double dTime,double dThetaMin,int bPeriodic,int bGravStep,int nPartRhoLoc,int iTimeStepCrit,
     SMX *smx, SMF *smf) {
-    int pi;
 
     pkd->dEnergyU = 0.0;
     pkd->dEnergyT = 0.0;
@@ -761,13 +762,10 @@ static void initGravWalk(PKD pkd,double dTime,double dThetaMin,int bPeriodic,int
 ** Returns total number of active particles for which gravity was calculated.
 */
 int pkdGravWalkHop(PKD pkd,double dTime,int nGroup, double dThetaMin,double *pdFlop,double *pdPartSum,double *pdCellSum) {
-    KDN *c;
     int id,iRoot,iRootSelf;
     float fOffset[3];
     int nActive;
     int i,j,gid;
-    float cOpen;
-    int nc;
     SMX smx;
     SMF smf;
 
@@ -809,8 +807,6 @@ int pkdGravWalk(PKD pkd,struct pkdKickParameters *kick,struct pkdLightconeParame
     int id;
     float fOffset[3];
     int ix,iy,iz,bRep;
-    float cOpen;
-    int nc;
     int nActive = 0;
     SMX smx;
     SMF smf;
@@ -895,12 +891,9 @@ int pkdGravWalk(PKD pkd,struct pkdKickParameters *kick,struct pkdLightconeParame
 ** Returns total number of active particles for which gravity was calculated.
 */
 int pkdGravWalkGroups(PKD pkd,double dTime,int nGroup, double dThetaMin,double *pdFlop,double *pdPartSum,double *pdCellSum) {
-    KDN *c;
     int id,iRoot;
     float fOffset[3];
     int i,j,k;
-    float cOpen;
-    int nc;
     SMX smx;
     SMF smf;
 

@@ -33,13 +33,12 @@ static_assert(std::is_void<ServiceDomainDecomp::output>() || std::is_trivial<Ser
 int ServiceDomainDecomp::Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto mdl = static_cast<mdl::mdlClass *>(pst->mdl);
     auto in = static_cast<input *>(vin);
-    auto out = static_cast<output *>(vout);
-    auto pkd = pst->plcl->pkd;
+    static_assert(std::is_void<output>());
     assert(nIn == sizeof(input));
 
     Bound bnd = pst->bnd = in->bnd;
 
-    int nBndWrapd, d=0;
+    int /*nBndWrapd,*/ d=0;
     mdlTimer t;
 
 #ifdef USE_ITT
@@ -140,7 +139,7 @@ int ServiceDomainDecomp::Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) 
 
 int ServiceDomainDecomp::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto in   = static_cast<input*>(vin);
-    auto out  = static_cast<output*>(vout);
+    static_assert(std::is_void<output>());
     auto pkd = pst->plcl->pkd;
 
     // We always set pkd->bnd from pst->bnd.
@@ -755,7 +754,6 @@ static_assert(std::is_void<ServiceColRejects::output>() || std::is_trivial<Servi
 
 int ServiceColRejects::Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto mdl = static_cast<mdl::mdlClass *>(pst->mdl);
-    auto pkd = pst->plcl->pkd;
     auto pOutRej = static_cast<output*>(vout);
     auto rID = mdl->ReqService(pst->idUpper,PST_COLREJECTS,vin,nIn);
     auto nLower = Traverse(pst->pstLower,vin,nIn,pOutRej,nOut);
@@ -784,7 +782,6 @@ static_assert(std::is_void<ServiceSwapRejects::output>() || std::is_trivial<Serv
 
 int ServiceSwapRejects::Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto mdl = static_cast<mdl::mdlClass *>(pst->mdl);
-    auto pkd = pst->plcl->pkd;
     auto pOutRej = static_cast<output*>(vout);
     auto rID = mdl->ReqService(pst->idUpper,PST_SWAPREJECTS,vin,nIn);
     auto nLower = Traverse(pst->pstLower,vin,nIn,pOutRej,nOut);
@@ -814,7 +811,6 @@ static_assert(std::is_void<ServiceColOrdRejects::output>() || std::is_trivial<Se
 
 int ServiceColOrdRejects::Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto mdl = static_cast<mdl::mdlClass *>(pst->mdl);
-    auto pkd = pst->plcl->pkd;
     auto pOutRej = static_cast<output*>(vout);
     auto rID = mdl->ReqService(pst->idUpper,PST_COLORDREJECTS,vin,nIn);
     auto nLower = Traverse(pst->pstLower,vin,nIn,&pOutRej[0],nOut);
@@ -843,7 +839,6 @@ static_assert(std::is_void<ServiceDomainOrder::output>() || std::is_trivial<Serv
 
 int ServiceDomainOrder::Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto mdl = static_cast<mdl::mdlClass *>(pst->mdl);
-    auto pkd = pst->plcl->pkd;
     auto in = static_cast<input*>(vin);
     int rID;
     uint64_t iMinOrder = in->iMinOrder;
@@ -869,8 +864,6 @@ int ServiceDomainOrder::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
 uint64_t ServiceDomainOrder::OrdSplit(PST pst,uint64_t iMinOrder,uint64_t iMaxOrder) {
     auto mdl = static_cast<mdl::mdlClass *>(pst->mdl);
-    auto pkd = pst->plcl->pkd;
-
     ServiceOrdWeight::input inWt;
     ServiceOrdWeight::output outWtLow,outWtHigh;
     uint64_t im,imm,il,iu;
@@ -975,7 +968,6 @@ static_assert(std::is_void<ServiceLocalOrder::output>() || std::is_trivial<Servi
 
 int ServiceLocalOrder::Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto mdl = static_cast<mdl::mdlClass *>(pst->mdl);
-    auto pkd = pst->plcl->pkd;
     auto in = static_cast<input*>(vin);
     auto iMinOrder = in->iMinOrder;
     auto iMaxOrder = in->iMaxOrder;
@@ -1012,7 +1004,6 @@ static_assert(std::is_void<ServiceWeight::output>() || std::is_trivial<ServiceWe
 
 int ServiceWeight::Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto mdl = static_cast<mdl::mdlClass *>(pst->mdl);
-    auto pkd = pst->plcl->pkd;
     auto in = static_cast<input*>(vin);
     auto out = static_cast<output*>(vout);
     auto rID = mdl->ReqService(pst->idUpper,PST_WEIGHT,in,nIn);
@@ -1115,7 +1106,6 @@ static_assert(std::is_void<ServiceWeightWrap::output>() || std::is_trivial<Servi
 
 int ServiceWeightWrap::Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto mdl = static_cast<mdl::mdlClass *>(pst->mdl);
-    auto pkd = pst->plcl->pkd;
     auto in = static_cast<input*>(vin);
     auto out = static_cast<output*>(vout);
     auto rID = mdl->ReqService(pst->idUpper,PST_WEIGHTWRAP,in,nIn);
@@ -1177,7 +1167,6 @@ static_assert(std::is_void<ServiceOrdWeight::output>() || std::is_trivial<Servic
 
 int ServiceOrdWeight::Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto mdl = static_cast<mdl::mdlClass *>(pst->mdl);
-    auto pkd = pst->plcl->pkd;
     auto in = static_cast<input*>(vin);
     auto out = static_cast<output*>(vout);
     auto rID = mdl->ReqService(pst->idUpper,PST_ORDWEIGHT,in,nIn);

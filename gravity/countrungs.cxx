@@ -22,7 +22,7 @@ static_assert(std::is_void<ServiceCountRungs::input>()  || std::is_trivial<Servi
 static_assert(std::is_void<ServiceCountRungs::output>() || std::is_trivial<ServiceCountRungs::output>());
 
 int ServiceCountRungs::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    auto in = static_cast<input*>(vin);
+    static_assert(std::is_void<input>());
     auto out = static_cast<output*>(vout);
     auto pkd = pst->plcl->pkd;
     pkdCountRungs(pkd, out->nRungs);

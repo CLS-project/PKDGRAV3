@@ -19,7 +19,7 @@
 static_assert(std::is_void<ServiceFreeStore::input>()  || std::is_trivial<ServiceFreeStore::input>());
 static_assert(std::is_void<ServiceFreeStore::output>() || std::is_trivial<ServiceFreeStore::output>());
 int ServiceFreeStore::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    auto in  = static_cast<input*>(vin);
+    static_assert(std::is_void<input>());
     auto out = static_cast<output*>(vout);
     auto pkd = pst->plcl->pkd;
     assert(nOut==sizeof(output));

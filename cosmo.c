@@ -182,14 +182,13 @@ static void readLinearSpecies(CSM csm, double *out_delta, double *out_rho, hid_t
 #define EPSCONFLICT 1e-6
 void csmClassRead(CSM csm, const char *achFilename, double dBoxSize, double h,
 		int nLinear, const char **aLinear, int nPower, const char **aPower){
-    size_t i, j, l, index;
+    size_t i, j;
     int conflicts;
     hid_t file, group, attr, string_type, rhocrit_dataset, rhocrit_dataspace, memspace;
     hsize_t size_bg, size_a, size_k, count[1], offset[1], offset_out[1];
     char *matter_name, hdf5_key[128], *unit_length;
     double h_class, Omega_b, Omega_m, Omega_Lambda, Omega_fld, Omega_g, Omega_ur, w0, wa;
     double a, rho_crit[1], unit_conversion_time, unit_conversion_density;
-    double *loga, *logrho_lin, *deltarho_lin, *rho_lin;
 
     assert(csm->val.classData.bClass);
     if (strlen(achFilename) == 0){

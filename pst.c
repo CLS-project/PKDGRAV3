@@ -300,11 +300,9 @@ int pstInitializePStore(PST pst,void *vin,int nIn,void *vout,int nOut) {
     }
 
 int pstOneNodeReadInit(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    LCL *plcl = pst->plcl;
     struct inReadFile *in = vin;
     int *pout = vout;
     uint64_t nFileStart,nFileEnd,nFileTotal,nFileSplit;
-    int i;
 
     mdlassert(pst->mdl,nIn == sizeof(struct inReadFile));
     nFileStart = in->nNodeStart;
@@ -391,7 +389,6 @@ int pstReadFile(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	uint64_t nStart;
 	PKD pkd;
 	MDL mdl;
-	PST pst0;
 
 	assert(nParts!=NULL);
 	pstOneNodeReadInit(pst,in,sizeof(*in),nParts,pst->nLeaves * sizeof(nParts));
@@ -625,9 +622,7 @@ int pstWrite(PST pst,void *vin,int nIn,void *vout,int nOut) {
     char achOutFile[PST_FILENAME_SIZE];
     struct inWrite *in = vin;
     FIO fio;
-    uint32_t nCount;
     int i;
-    int rID;
 
     mdlassert(pst->mdl,nIn == sizeof(struct inWrite));
 
@@ -640,7 +635,6 @@ int pstWrite(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	/* Split writing tasks between child nodes */
 	else {
 	    int nLeft = nProcessors / 2;
-	    int iUpper = in->iUpper;
 	    assert(in->iLower == mdlSelf(pst->mdl));
 	    in->iLower = pst->idUpper;
 	    in->nProcessors -= nLeft;
@@ -728,8 +722,6 @@ int pstBuildTree(PST pst,void *vin,int nIn,void *vout,int nOut) {
     KDN *pCell1, *pCell2;
     double minside;
     int nOutUpper;
-    int iLower;
-    int i;
 
     /* We need to save our cells so we can update them later */
     if (pst->nLeaves > 1) {
@@ -1504,7 +1496,6 @@ int pstColNParts(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
     struct outColNParts *out = vout;
     struct outColNParts *outUp = out + pst->idUpper-pst->idSelf;
-    int i;
 
     if (pst->nLeaves > 1) {
 	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_COLNPARTS,vin,nIn);
@@ -1647,11 +1638,9 @@ int pstInitRelaxation(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
 #ifdef MDL_FFTW
 int pstGetFFTMaxSizes(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    LCL *plcl = pst->plcl;
     struct inGetFFTMaxSizes *in = vin;
     struct outGetFFTMaxSizes *out = vout;
     struct outGetFFTMaxSizes outUp;
-    uint64_t nTotal, nLocal, nStore;
 
     mdlassert(pst->mdl,nIn == sizeof(struct inGetFFTMaxSizes));
     mdlassert(pst->mdl,vout != NULL);
@@ -1686,11 +1675,11 @@ int pstMemStatus(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	mdlGetReply(pst->mdl,rID,outUp,NULL);
 	}
     else {
+#ifdef __linux__
 	FILE *fp;
 	char buffer[512], *save, *f, *v;
 	int i;
 
-#ifdef __linux__
 	fp = fopen("/proc/self/stat","r");
 	if ( fp != NULL ) {
 	    if (fgets(buffer,sizeof(buffer),fp)==NULL) buffer[0] = '\0';

@@ -140,7 +140,6 @@ static void localWrite(PKD pkd,mdlPack unpack,void *info,mdlPack pack,int iGrid)
 
 void pkdOutput(PKD pkd, outType eOutputType, int iProcessor,int nProcessor,
     int iPartner,int nPartner, const char *fname, int iGrid ) {
-    struct packCtx ctx = {pkd,0};
     mdlPack unpack;
     asyncFileInfo info;
     char achOutFile[256];
