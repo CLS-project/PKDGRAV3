@@ -23,6 +23,7 @@
 #define MPICH_SKIP_MPICXX
 #include "simd.h"
 #include "pkd.h"
+#include "opening.h"
 
 /*
 ** This implements the original pkdgrav2m opening criterion, which has been
@@ -31,7 +32,6 @@
 **
 ** This version will also open buckets ("new" criteria)
 */
-extern "C"
 void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin ) {
     const float walk_min_multipole = 3;
     fmask T0,T1,T2,T3,T4,T6,T7;

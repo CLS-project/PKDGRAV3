@@ -36,9 +36,11 @@
 #include "pkd.h"
 #include "walk.h"
 #include "grav.h"
+#include "hop.h"
 #include "smooth.h"
 #include "moments.h"
 #include "vmoments.h"
+#include "opening.h"
 #include "cl.h"
 #include "cudautil.h"
 #include "cudapppc.h"
@@ -61,7 +63,6 @@ static inline int getCell(PKD pkd,int iCache,int iCell,int id,float *pcOpen,KDN 
 
 
 #ifdef USE_SIMD_OPEN
-void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin );
 #else
 /*
 ** This implements the original pkdgrav2m opening criterion, which has been
