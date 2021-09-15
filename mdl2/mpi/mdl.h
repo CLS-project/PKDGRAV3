@@ -183,6 +183,7 @@ public:
     uint64_t nMiss;
 public:
     explicit CACHE(mdlClass * mdl,uint16_t iCID);
+    virtual ~CACHE() = default;
     void close();
     bool isActive() {return cache_helper.get() != nullptr; }
     bool modify() {assert(cache_helper); return cache_helper->modify();}
