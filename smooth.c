@@ -32,7 +32,6 @@
 #include <assert.h>
 #include "smooth.h"
 #include "pkd.h"
-#include "rbtree.h"
 #include <sys/stat.h>
 
 #define ASSERT_CONCAT_(a, b) a##b
