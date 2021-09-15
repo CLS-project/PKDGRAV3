@@ -127,7 +127,7 @@ public:
 
 // A list of cache tables is constructed when mdlClass is created. They are all set to NOCACHE.
 CACHE::CACHE(mdlClass * mdl,uint16_t iCID)
-    : mdl(mdl), iCID(iCID), CacheRequest(iCID,mdl->Self()) {
+    : mdl(mdl), CacheRequest(iCID,mdl->Self()), iCID(iCID) {
     }
 
 // This opens a read-only cache. Called from a worker outside of MDL
@@ -215,10 +215,10 @@ public:
 				void (*combine_function)(void *,void *,const void *),
 				void* (*create_function) (void *,uint32_t,const void *))
 	: CACHEhelper(nData,bModify), nPack(pack_size), nFlush(flush_size), ctx(ctx),
-		get_thread(get_thread),
 		pack_function(pack_function),unpack_function(unpack_function),
 		init_function(init_function),flush_function(flush_function),
-		combine_function(combine_function),create_function(create_function) {}
+		combine_function(combine_function),
+		get_thread(get_thread), create_function(create_function) {}
     };
 
 extern "C"
@@ -1297,19 +1297,6 @@ int mpiClass::checkMPI() {
 
 static void TERM_handler(int signo) {
     MPI_Abort(MPI_COMM_WORLD,130);
-    }
-
-static void MDL_signal_handler(int signo) {
-    auto mdl = static_cast<mdlClass *>(pthread_getspecific(mdl_key));
-    signal(signo,MDL_signal_handler);
-    mdl->Backtrace();
-    }
-
-static void MPI_signal_handler(int signo) {
-    auto mdl = static_cast<mdlClass *>(pthread_getspecific(mdl_key));
-    signal(signo,MPI_signal_handler);
-    mdl->Backtrace();
-    mdl->mpi->KillAll(signo);
     }
 
 void mpiClass::KillAll(int signo) {
