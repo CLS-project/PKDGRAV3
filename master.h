@@ -345,7 +345,7 @@ protected:
 	int bDualTree,      /* Should be zero at rung 0! */
 	uint8_t uRung,	/* Rung level */
 	double *pdStep,	/* Current step */
-	uint8_t *puRungMax,int *pbDoCheckpoint,int *pbDoOutput,int *pbNeedKickOpen,SPHOptions SPHoptions);
+	uint8_t *puRungMax,int *pbDoCheckpoint,int *pbDoOutput,int *pbNeedKickOpen);
     void TopStepKDK(
 		    double dStep,	/* Current step */
 		    double dTime,	/* Current time */

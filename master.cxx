@@ -2600,6 +2600,7 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
     */
     in.kick.bKickClose = bKickClose;
     in.kick.bKickOpen = bKickOpen;
+    if (SPHoptions.doGravity) {
     for (i=0,dt=0.5*dDelta;i<=param.iMaxRung;++i,dt*=0.5) {
 	in.kick.dtClose[i] = 0.0;
 	in.kick.dtOpen[i] = 0.0;
@@ -2618,11 +2619,13 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
 		}
 	    }
 	}
+    }
 
     /*
     ** Create the deltas for the on-the-fly prediction of velocity and the
     ** thermodynamical variable.
     */
+    if (SPHoptions.doGravity) {
     double substepWeAreAt = dStep - floor(dStep); // use fmod instead
     double stepStartTime = dTime - substepWeAreAt * dDelta;
     for (i = 0; i <= param.iMaxRung; ++i) {
@@ -2658,6 +2661,7 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
             */
             in.kick.dtPredDrift[i] = 0.0;
         }
+    }
     }
 
     in.lc.bLightConeParticles = param.bLightConeParticles;
@@ -3294,7 +3298,7 @@ int MSR::NewTopStepKDK(
     uint8_t uRung,	/* Rung level */
     double *pdStep,	/* Current step */
     uint8_t *puRungMax,
-    int *pbDoCheckpoint,int *pbDoOutput,int *pbNeedKickOpen,SPHOptions SPHoptions) {
+    int *pbDoCheckpoint,int *pbDoOutput,int *pbNeedKickOpen) {
     double dDeltaRung,dTimeFixed;
     uint32_t uRoot2=0;
     char achFile[256];
@@ -3327,7 +3331,7 @@ int MSR::NewTopStepKDK(
 	else bDualTree = 0;
 	}
     if (uRung < *puRungMax) {
-	bDualTree = NewTopStepKDK(dTime,dDelta,dTheta,nSteps,bDualTree,uRung+1,pdStep,puRungMax,pbDoCheckpoint,pbDoOutput,pbNeedKickOpen,SPHoptions);
+	bDualTree = NewTopStepKDK(dTime,dDelta,dTheta,nSteps,bDualTree,uRung+1,pdStep,puRungMax,pbDoCheckpoint,pbDoOutput,pbNeedKickOpen);
 	}
 
     /* Drift the "ROOT" (active) tree or all particle */
@@ -3396,6 +3400,16 @@ int MSR::NewTopStepKDK(
     // We need to make sure we descend all the way to the bucket with the
     // active tree, or we can get HUGE group cells, and hence too much P-P/P-C
     int nGroup = (bDualTree && uRung > iRungDT) ? 1 : param.nGroup;
+    SelAll(0,1);
+    SPHOptions SPHoptions = initializeSPHOptions(param,csm,dTime);
+    SPHoptions.doGravity = 0;
+    SPHoptions.doDensity = 1;
+    SPHoptions.doSPHForces = 0;
+    *puRungMax = Gravity(0,MaxRung(),ROOT,uRoot2,dTime,dDelta,*pdStep,dTheta,
+    	1,bKickOpen,param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,nGroup,SPHoptions);
+    SPHoptions.doGravity = 1;
+    SPHoptions.doDensity = 0;
+    SPHoptions.doSPHForces = 1;
     *puRungMax = Gravity(uRung,MaxRung(),ROOT,uRoot2,dTime,dDelta,*pdStep,dTheta,
     	1,bKickOpen,param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,nGroup,SPHoptions);
 
@@ -3404,7 +3418,7 @@ int MSR::NewTopStepKDK(
 	HopWrite(BuildName(iStep,".fofstats").c_str());
 	}
 
-    if (uRung && uRung < *puRungMax) bDualTree = NewTopStepKDK(dTime,dDelta,dTheta,nSteps,bDualTree,uRung+1,pdStep,puRungMax,pbDoCheckpoint,pbDoOutput,pbNeedKickOpen,SPHoptions);
+    if (uRung && uRung < *puRungMax) bDualTree = NewTopStepKDK(dTime,dDelta,dTheta,nSteps,bDualTree,uRung+1,pdStep,puRungMax,pbDoCheckpoint,pbDoOutput,pbNeedKickOpen);
     if (bDualTree && uRung==iRungDT+1) {
 	msrprintf("Half Drift, uRung: %d\n",iRungDT);
 	dDeltaRung = dDelta/(1 << iRungDT);

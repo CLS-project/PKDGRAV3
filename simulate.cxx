@@ -178,19 +178,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
 	        param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,SPHoptions);
 	MemStatus();
 
-    // write out ball and density after the gravity pass
-    Reorder();
-    OutArray(BuildName(0,".den_after_gravity_pass").c_str(),OUT_DENSITY_ARRAY);
-
-    // calculate density with a smooth for comparison
-    ActiveRung(0,1); /* Activate all particles */
-	DomainDecomp(-1);
-	BuildTree(0);
-	Smooth(dTime,dDelta,SMX_DENSITY,0,param.nSmooth);
-    Reorder();
-    OutArray(BuildName(0,".den_from_smooth").c_str(),OUT_DENSITY_ARRAY);
-
-    assert(0);
+    
 
 	if (param.bGravStep) {
 	    assert(param.bNewKDK == 0);    /* for now! */
@@ -205,8 +193,6 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
     if (DoGas()) {
 	/* Initialize SPH, Cooling and SF/FB and gas time step */
 	CoolSetup(dTime);
-	/* Fix dTuFac conversion of T in InitSPH */
-	InitSph(dTime,dDelta);
 	}
 
     double E=0,T=0,U=0,Eth=0,L[3]={0,0,0},F[3]={0,0,0},W=0;
@@ -234,9 +220,18 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
 	    if (bKickOpen) {
 		BuildTree(0);
                 LightConeOpen(iStep);  /* open the lightcone */
+        SelAll(0,1);
         SPHOptions SPHoptions = initializeSPHOptions(param,csm,dTime);
-        SPHoptions.doGravity = 1;
+        SPHoptions.doGravity = 0;
+        SPHoptions.doDensity = 1;
+        SPHoptions.doSPHForces = 0;
 		uRungMax = Gravity(0,MAX_RUNG,ROOT,0,ddTime,dDelta,diStep,dTheta,0,1,
+		        param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,SPHoptions);
+
+        SPHoptions.doGravity = 1;
+        SPHoptions.doDensity = 0;
+        SPHoptions.doSPHForces = 1;
+        uRungMax = Gravity(0,MAX_RUNG,ROOT,0,ddTime,dDelta,diStep,dTheta,0,1,
 		        param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,SPHoptions);
                 /* Set the grids of the linear species */
                 if (strlen(param.achLinearSpecies) && param.nGridLin > 0){
@@ -251,7 +246,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
 		}
         SPHOptions SPHoptions = initializeSPHOptions(param,csm,dTime);
         SPHoptions.doGravity = 1;
-	    NewTopStepKDK(ddTime,dDelta,dTheta,nSteps,0,0,&diStep,&uRungMax,&bDoCheckpoint,&bDoOutput,&bKickOpen,SPHoptions);
+	    NewTopStepKDK(ddTime,dDelta,dTheta,nSteps,0,0,&diStep,&uRungMax,&bDoCheckpoint,&bDoOutput,&bKickOpen);
 	    }
 	else {
 	    TopStepKDK(iStep-1,dTime,dDelta,dTheta,0,0,1);
