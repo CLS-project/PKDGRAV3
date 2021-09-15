@@ -420,7 +420,6 @@ __global__ void cudaInteract(
         }
     }
 
-extern "C"
 void pkdParticleWorkDone(workParticle *wp);
 
 /*****************************************************************************\

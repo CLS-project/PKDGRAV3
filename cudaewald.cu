@@ -256,7 +256,7 @@ __global__ void cudaEwald(gpuEwaldInput *onGPU,gpuEwaldOutput *outGPU) {
     outGPU[blockIdx.x].FlopDouble[threadIdx.x] = dFlop;
     }
 
-extern "C" void pkdParticleWorkDone(workParticle *work);
+void pkdParticleWorkDone(workParticle *work);
 
 /*****************************************************************************\
 *   CudaClient interface (new!)
