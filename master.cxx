@@ -4402,15 +4402,6 @@ void MSR::Output(int iStep, double dTime, double dDelta, int bCheckpoint) {
 	OutArray(BuildName(iStep,".c").c_str(),OUT_C_ARRAY);
 	OutArray(BuildName(iStep,".hsph").c_str(),OUT_HSPH_ARRAY);
 	}
-    if (param.bMemBall) {
-    ActiveRung(0,1); /* Activate all particles */
-    DomainDecomp(-1);
-    BuildTree(0);
-    bSymmetric = 0;  /* should be set in param file! */
-    Smooth(dTime,dDelta,SMX_BALL,bSymmetric,param.nSmooth);
-    Reorder();
-    OutArray(BuildName(iStep,".ball").c_str(),OUT_BALL_ARRAY);
-    }
 
     if (DoDensity()) {
 #ifdef FAST_GAS
@@ -4422,12 +4413,6 @@ void MSR::Output(int iStep, double dTime, double dDelta, int bCheckpoint) {
 	FastGasPhase1(dTime,dDelta,SMX_DENSITY);
 	FastGasPhase2(dTime,dDelta,SMX_PRINTNN);
 	//msrSelSrcAll(msr);  /* FOR TESTING!! of gas active particles */
-#else
-	ActiveRung(0,1); /* Activate all particles */
-	DomainDecomp(-1);
-	BuildTree(0);
-	bSymmetric = 0;  /* should be set in param file! */
-	Smooth(dTime,dDelta,SMX_DENSITY,bSymmetric,param.nSmooth);
 #endif
 	}
     if ( param.bFindGroups ) {
