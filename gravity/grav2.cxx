@@ -32,7 +32,6 @@
 #endif
 #include "pkd.h"
 #include "moments.h"
-#include "meval.h"
 #include "qeval.h"
 #include "ewald.h"
 #include "grav.h"
