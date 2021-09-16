@@ -33,7 +33,7 @@
 #include "mdl.h"
 #include "master.h"
 #include "outtype.h"
-#include "smoothfcn.h"
+#include "smooth/smoothfcn.h"
 
 #include "core/setadd.h"
 #include "core/swapall.h"

@@ -24,7 +24,7 @@
 #include "mdl.h"
 #include "ilp.h"
 #include "ilc.h"
-#include "cl.h"
+#include "gravity/cl.h"
 #include "moments.h"
 #include "cosmo.h"
 #include "fio.h"

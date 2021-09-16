@@ -21,8 +21,8 @@
 #endif
 #include "pst.h"
 #include "master.h"
-#include "gridinfo.hpp"
-#include "whitenoise.hpp"
+#include "core/gridinfo.hpp"
+#include "ic/whitenoise.hpp"
 using namespace gridinfo;
 
 class LinearSignal : public NoiseGenerator {

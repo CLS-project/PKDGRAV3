@@ -70,7 +70,7 @@ using namespace fmt::literals; // Gives us ""_a and ""_format literals
 #include "illinois.h"
 #include "tipsydefs.h"
 #include "outtype.h"
-#include "smoothfcn.h"
+#include "smooth/smoothfcn.h"
 #include "fio.h"
 
 #include "core/setadd.h"

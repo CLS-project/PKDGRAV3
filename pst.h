@@ -20,14 +20,14 @@
 
 #include "pkd.h"
 #include "mdl.h"
-#include "smoothfcn.h"
+#include "smooth/smoothfcn.h"
 #include "moments.h"
 #include "outtype.h"
 #include "output.h"
 
 #include "parameters.h"
 #include "cosmo.h"
-#include "ic.h"
+#include "ic/ic.h"
 
 #define pstOffNode(pst) ((pst)->nLeaves > mdlCores((pst)->mdl))
 #define pstOnNode(pst) ((pst)->nLeaves <= mdlCores((pst)->mdl))

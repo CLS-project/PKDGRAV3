@@ -29,7 +29,7 @@
 #ifdef USE_ITT
 #include "ittnotify.h"
 #endif
-#include "ic.h"
+#include "ic/ic.h"
 
 #define SHAPES
 #define USE_PCS /* USE_PCS USE_TSC USE_CIC USE_NGP */

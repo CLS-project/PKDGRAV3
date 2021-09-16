@@ -19,7 +19,7 @@
 #include <vector>
 #include "pst.h"
 #include "aweights.hpp"
-#include "whitenoise.hpp"
+#include "ic/whitenoise.hpp"
 using namespace gridinfo;
 using namespace blitz;
 

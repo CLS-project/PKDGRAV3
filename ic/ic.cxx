@@ -27,7 +27,7 @@
 #include "pst.h"
 #include "ic.h"
 #include "whitenoise.hpp"
-#include "gridinfo.hpp"
+#include "core/gridinfo.hpp"
 using namespace gridinfo;
 using namespace blitz;
 using namespace mdl;

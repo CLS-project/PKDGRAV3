@@ -20,7 +20,7 @@
 
 #include "pkd.h"
 #include "moments.h"
-#include "smooth.h"
+#include "smooth/smooth.h"
 
 static inline double softmassweight(double m1,double h12,double m2,double h22) {
     double tmp = h12*h22;

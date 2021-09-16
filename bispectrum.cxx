@@ -16,7 +16,7 @@
  */
 #include "pkd_config.h"
 #include "master.h"
-#include "gridinfo.hpp"
+#include "core/gridinfo.hpp"
 using namespace gridinfo;
 
 void pkdBispectrumNormalize(PKD pkd, int iGridTarget, double kmin,double kmax) {

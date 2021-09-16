@@ -16,7 +16,7 @@
  */
 #include "pkd_config.h"
 #include "master.h"
-#include "gridinfo.hpp"
+#include "core/gridinfo.hpp"
 using namespace gridinfo;
 
 static void pkdDensityContrast(PKD pkd,double dTotalMass,int iGrid,bool k=false) {

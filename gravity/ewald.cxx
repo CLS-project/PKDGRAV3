@@ -32,7 +32,7 @@
 #include "pkd.h"
 #include "qeval.h"
 #include "moments.h"
-#include "grav.h"
+#include "gravity/grav.h"
 #ifdef USE_SIMD_EWALD
 #include "vmath.h"
 #endif/*USE_SIMD_EWALD*/

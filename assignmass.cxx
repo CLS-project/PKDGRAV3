@@ -27,7 +27,7 @@
 #include "pst.h"
 #include "master.h"
 #include "aweights.hpp"
-#include "gridinfo.hpp"
+#include "core/gridinfo.hpp"
 using namespace gridinfo;
 
 typedef blitz::Array<float,3> mass_array_t;

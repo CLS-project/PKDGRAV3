@@ -21,7 +21,6 @@
 #include "listcomp.h"
 #include "pkd.h"
 #include "smoothfcn.h"
-#include "group.h"
 
 #define NNLIST_INCREMENT	200		/* number of extra neighbor elements added to nnList */
 

@@ -17,7 +17,7 @@
 
 #ifndef HOP_H
 #define HOP_H
-#include "smooth.h"
+#include "smooth/smooth.h"
 #include "group.h"
 #ifdef __cplusplus
 extern "C" {

@@ -155,19 +155,19 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 set_property(TARGET ${PROJECT_NAME} APPEND PROPERTY COMPILE_DEFINITIONS _LARGEFILE_SOURCE)
 target_sources(${PROJECT_NAME} PRIVATE
 	main.cxx cosmo.c master.cxx simulate.cxx pst.c TraversePST.cxx fio.c illinois.c param.c
-	pkd.c analysis.c smooth.c smoothfcn.c outtype.c output.cxx
-	walk2.cxx grav2.cxx ewald.cxx ic.cxx tree.cxx opening.cxx pp.cxx pc.cxx cl.c
+	pkd.c analysis.c smooth/smooth.c smooth/smoothfcn.c outtype.c output.cxx
+	gravity/walk2.cxx gravity/grav2.cxx gravity/ewald.cxx ic/ic.cxx tree.cxx gravity/opening.cxx gravity/pp.cxx gravity/pc.cxx gravity/cl.c
 	lst.c moments.c ilp.c ilc.c iomodule.c
-	fof.cxx hop.cxx group.cxx groupstats.cxx RngStream.c listcomp.c healpix.c
-	gridinfo.cxx interlace.cxx contrast.cxx assignmass.cxx measurepk.cxx bispectrum.cxx whitenoise.cxx pmforces.cxx
+	fof.cxx hop.cxx group.cxx groupstats.cxx ic/RngStream.c smooth/listcomp.c healpix.c
+	core/gridinfo.cxx interlace.cxx contrast.cxx assignmass.cxx measurepk.cxx bispectrum.cxx ic/whitenoise.cxx pmforces.cxx
 	core/setadd.cxx core/hostname.cxx core/initcosmology.cxx core/calcroot.cxx core/swapall.cxx core/select.cxx
 	domains/calcbound.cxx domains/combinebound.cxx domains/distribtoptree.cxx domains/distribroot.cxx domains/dumptrees.cxx
 	domains/enforceperiodic.cxx domains/freestore.cxx domains/olddd.cxx
 	gravity/setsoft.cxx gravity/activerung.cxx gravity/countrungs.cxx gravity/zeronewrung.cxx
 )
 set_property(SOURCE fio.c APPEND PROPERTY COMPILE_DEFINITIONS "USE_PTHREAD")
-add_executable(tostd tostd.c fio.c)
-add_executable(psout psout.c cosmo.c)
+add_executable(tostd utility/tostd.c fio.c)
+add_executable(psout utility/psout.c cosmo.c)
 
 target_link_libraries(${PROJECT_NAME} m)
 target_link_libraries(tostd m)
@@ -252,7 +252,7 @@ endif()
 set(USE_SIMD "yes" CACHE STRING "Should SIMD be used.")
 if(USE_SIMD)
 #if USE_SIMD_FMM
-target_sources(${PROJECT_NAME} PRIVATE vmoments.cxx)
+target_sources(${PROJECT_NAME} PRIVATE gravity/vmoments.cxx)
 #endif
 #if USE_SIMD_LC
 target_sources(${PROJECT_NAME} PRIVATE lightcone.cxx)
@@ -282,8 +282,8 @@ enable_testing()
 add_test(NAME cosmology COMMAND ${PROJECT_NAME} ${CMAKE_CURRENT_SOURCE_DIR}/tests/cosmology.py WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
 add_test(NAME gravity   COMMAND ${PROJECT_NAME} ${CMAKE_CURRENT_SOURCE_DIR}/tests/gravity.py   WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
 
-target_include_directories(tostd PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
-target_include_directories(psout PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
+target_include_directories(tostd PUBLIC ${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(psout PUBLIC ${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(psout PRIVATE ${GSL_INCLUDE_DIRS})
 target_link_libraries(psout ${GSL_LIBRARIES})
 

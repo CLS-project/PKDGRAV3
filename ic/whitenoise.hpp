@@ -17,8 +17,8 @@
 #ifndef WHITENOISE_HPP
 #define WHITENOISE_HPP
 
-#include "RngStream.h"
-#include "gridinfo.hpp"
+#include "ic/RngStream.h"
+#include "core/gridinfo.hpp"
 #include "pkd.h"
 
 class NoiseGenerator {

@@ -47,7 +47,7 @@
 #include "mdl.h"
 #include "pst.h"
 #include "pkd.h"
-#include "smooth.h"
+#include "smooth/smooth.h"
 #include "hop.h"
 #include "fof.h"
 #include "group.h"

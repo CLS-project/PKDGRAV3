@@ -64,9 +64,9 @@
 #endif
 #include "cudautil.h"
 #include "pkd.h"
-#include "ewald.h"
-#include "walk.h"
-#include "grav.h"
+#include "gravity/ewald.h"
+#include "gravity/walk.h"
+#include "gravity/grav.h"
 #include "mdl.h"
 #include "tipsydefs.h"
 #include "outtype.h"

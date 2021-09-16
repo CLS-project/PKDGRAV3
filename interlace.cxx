@@ -16,7 +16,7 @@
  */
 #include "pkd_config.h"
 #include "master.h"
-#include "gridinfo.hpp"
+#include "core/gridinfo.hpp"
 using namespace gridinfo;
 
 void pkdInterlace(PKD pkd, int iGridTarget, int iGridSource) {
