@@ -36,9 +36,7 @@
 #ifdef USE_SIMD_EWALD
 #include "core/vmath.h"
 #endif/*USE_SIMD_EWALD*/
-#ifdef USE_CUDA
-#include "cudautil.h"
-#endif
+#include "cuda/cudautil.h"
 
 template<class F,class E,class M>
 static int evalEwald(
