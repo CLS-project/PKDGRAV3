@@ -173,10 +173,6 @@ target_link_libraries(${PROJECT_NAME} m)
 target_link_libraries(tostd m)
 target_link_libraries(psout m)
 
-if(USE_BT)
-target_sources(${PROJECT_NAME} PRIVATE bt.c)
-endif()
-
 if (NOT APPLE)
 CHECK_INCLUDE_FILES(libaio.h HAVE_LIBAIO_H)
 if (HAVE_LIBAIO_H)
