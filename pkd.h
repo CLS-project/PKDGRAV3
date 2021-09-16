@@ -25,14 +25,14 @@
 #include "ilp.h"
 #include "ilc.h"
 #include "gravity/cl.h"
-#include "moments.h"
+#include "gravity/moments.h"
 #include "cosmo.h"
-#include "fio.h"
+#include "io/fio.h"
 #ifdef USE_GRAFIC
 #include "grafic.h"
 #endif
 #include "basetype.h"
-#include "iomodule.h"
+#include "io/iomodule.h"
 
 #ifdef __cplusplus
 #include "blitz/array.h"

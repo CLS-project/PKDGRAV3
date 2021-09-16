@@ -18,7 +18,7 @@
 #ifndef PARAM_HINCLUDED
 #define PARAM_HINCLUDED
 
-#include "fio.h"
+#include "io/fio.h"
 
 typedef struct prmNode {
     struct prmNode *pnNext;

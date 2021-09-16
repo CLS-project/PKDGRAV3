@@ -33,7 +33,6 @@
 #endif
 #include "pkd.h"
 #include "outtype.h"
-#include "tipsydefs.h"
 #ifdef LARGEF
 #include <fcntl.h>
 #endif

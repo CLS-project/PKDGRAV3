@@ -23,7 +23,7 @@
 #include <math.h>
 #include "groupstats.h"
 #include "group.h"
-#include "vqsort.h"
+#include "core/vqsort.h"
 
 
 #if 0

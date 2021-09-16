@@ -24,7 +24,7 @@
 #include <stdlib.h>
 #include <getopt.h>
 #include <errno.h>
-#include "fio.h"
+#include "io/fio.h"
 
 #define BUFFER_SIZE (8*1024*1024)
 

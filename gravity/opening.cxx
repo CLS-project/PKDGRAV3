@@ -21,7 +21,7 @@
 #include "pkd_config.h"
 #endif
 #define MPICH_SKIP_MPICXX
-#include "simd.h"
+#include "core/simd.h"
 #include "pkd.h"
 #include "opening.h"
 

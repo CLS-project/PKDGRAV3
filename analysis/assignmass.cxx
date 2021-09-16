@@ -26,7 +26,7 @@
 #include "blitz/array.h"
 #include "pst.h"
 #include "master.h"
-#include "aweights.hpp"
+#include "core/aweights.hpp"
 #include "core/gridinfo.hpp"
 using namespace gridinfo;
 

@@ -21,9 +21,9 @@
 #include "pkd.h"
 #include "mdl.h"
 #include "smooth/smoothfcn.h"
-#include "moments.h"
-#include "outtype.h"
-#include "output.h"
+#include "gravity/moments.h"
+#include "io/outtype.h"
+#include "io/output.h"
 
 #include "parameters.h"
 #include "cosmo.h"

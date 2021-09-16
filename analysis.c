@@ -24,7 +24,7 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <math.h>
-#include "vqsort.h"
+#include "core/vqsort.h"
 #include "pkd.h"
 #ifdef USE_ITT
 #include "ittnotify.h"

@@ -25,7 +25,7 @@
 #include <immintrin.h>
 #include "ilc.h"
 
-#include "simd.h"
+#include "core/simd.h"
 
 double momFlocrSetVFmomr5cm(FLOCR *l,float v1,ILC ill,const float *a,float *pfdirLsum, float *pfnormLsum) {
     const float onethird = 1.0f/3.0f;

@@ -34,7 +34,7 @@
 #include "moments.h"
 #include "gravity/grav.h"
 #ifdef USE_SIMD_EWALD
-#include "vmath.h"
+#include "core/vmath.h"
 #endif/*USE_SIMD_EWALD*/
 #ifdef USE_CUDA
 #include "cudautil.h"

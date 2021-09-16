@@ -25,7 +25,7 @@
 #else
 #define PRIu64 "llu"
 #endif
-#include "iomodule.h"
+#include "io/iomodule.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <stddef.h>
@@ -68,10 +68,9 @@
 #include "gravity/walk.h"
 #include "gravity/grav.h"
 #include "mdl.h"
-#include "tipsydefs.h"
-#include "outtype.h"
+#include "io/outtype.h"
 #include "cosmo.h"
-#include "healpix.h"
+#include "core/healpix.h"
 
 #ifdef _MSC_VER
 #define FILE_PROTECTION (_S_IREAD | _S_IWRITE)

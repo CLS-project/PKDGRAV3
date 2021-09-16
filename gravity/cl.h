@@ -27,7 +27,7 @@
 #define CL_BLK_PER_TILE (CL_PART_PER_TILE/CL_PART_PER_BLK)
 
 #if !defined(__CUDACC__)
-#include "simd.h"
+#include "core/simd.h"
 #endif
 
 #include "lst.h"

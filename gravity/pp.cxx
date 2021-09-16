@@ -22,7 +22,7 @@
 #endif
 #ifndef xxxUSE_SIMD_PP
 #define MPICH_SKIP_MPICXX
-#include "simd.h"
+#include "core/simd.h"
 #include "pkd.h"
 #include "pp.h"
 

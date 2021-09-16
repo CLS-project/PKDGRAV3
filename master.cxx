@@ -67,11 +67,10 @@ using namespace fmt::literals; // Gives us ""_a and ""_format literals
 
 
 #include "master.h"
-#include "illinois.h"
-#include "tipsydefs.h"
-#include "outtype.h"
+#include "core/illinois.h"
+#include "io/outtype.h"
 #include "smooth/smoothfcn.h"
-#include "fio.h"
+#include "io/fio.h"
 
 #include "core/setadd.h"
 #include "core/swapall.h"

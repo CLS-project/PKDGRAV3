@@ -32,7 +32,7 @@
 #include <assert.h>
 #include "mdl.h"
 #include "master.h"
-#include "outtype.h"
+#include "io/outtype.h"
 #include "smooth/smoothfcn.h"
 
 #include "core/setadd.h"
