@@ -41,7 +41,6 @@
 #include "cudautil.h"
 #include "cudapppc.h"
 #include "cudaewald.h"
-#include "clutil.h"
 
 #if 1
 #if defined(USE_SIMD) && defined(__SSE2__)

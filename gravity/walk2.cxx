@@ -45,7 +45,6 @@
 #include "cudautil.h"
 #include "cudapppc.h"
 #include "cudaewald.h"
-#include "clutil.h"
 
 static inline int getCell(PKD pkd,int iCache,int iCell,int id,float *pcOpen,KDN **pc) {
     KDN *c;
