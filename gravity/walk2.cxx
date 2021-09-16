@@ -42,9 +42,9 @@
 #include "vmoments.h"
 #include "gravity/opening.h"
 #include "cl.h"
-#include "cudautil.h"
-#include "cudapppc.h"
-#include "cudaewald.h"
+#include "cuda/cudautil.h"
+#include "cuda/cudapppc.h"
+#include "cuda/cudaewald.h"
 
 static inline int getCell(PKD pkd,int iCache,int iCell,int id,float *pcOpen,KDN **pc) {
     KDN *c;

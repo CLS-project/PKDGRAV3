@@ -62,7 +62,7 @@
 #ifdef USE_ITT
 #include "ittnotify.h"
 #endif
-#include "cudautil.h"
+#include "cuda/cudautil.h"
 #include "pkd.h"
 #include "gravity/ewald.h"
 #include "gravity/walk.h"

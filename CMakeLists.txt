@@ -197,7 +197,7 @@ if (CUDA_FOUND)
   get_property(OPENPA_INCLUDES TARGET openpa PROPERTY INCLUDE_DIRECTORIES)
 #  target_link_libraries(${PROJECT_NAME} ${CUDA_LIBRARIES})
   CUDA_INCLUDE_DIRECTORIES(${MDL_INCLUDES} ${OPENPA_INCLUDES})
-  CUDA_COMPILE(cuda_files cudaewald.cu cudapppc.cu cudautil.cu
+  CUDA_COMPILE(cuda_files cuda/cudaewald.cu cuda/cudapppc.cu cuda/cudautil.cu
 	OPTIONS -arch compute_35)
   target_sources(${PROJECT_NAME} PRIVATE ${cuda_files})
 endif()

@@ -38,9 +38,9 @@
 #include "grav.h"
 #include "group/hop.h"
 
-#include "cudautil.h"
-#include "cudapppc.h"
-#include "cudaewald.h"
+#include "cuda/cudautil.h"
+#include "cuda/cudapppc.h"
+#include "cuda/cudaewald.h"
 
 #if 1
 #if defined(USE_SIMD) && defined(__SSE2__)
