@@ -29,7 +29,7 @@
 #endif
 #include <stdio.h>
 #include "basetype.h"
-#include "moments.h"
+#include "gravity/moments.h"
 #include "cudautil.h"
 
 #define MAX_TOTAL_REPLICAS (7*7*7)

@@ -136,7 +136,7 @@ extern "C" {
     int CudaClientQueuePC(void *vcudaClient, workParticle *work, struct ilcTile *tile, int bGravStep);
 #else
 #if !defined(__CUDACC__)
-#include "simd.h"
+#include "core/simd.h"
 #define CUDA_malloc SIMD_malloc
 #define CUDA_free SIMD_free
 #endif

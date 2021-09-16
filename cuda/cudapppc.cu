@@ -23,8 +23,8 @@
 #endif
 #include <stdio.h>
 #include "cudapppc.h"
-#include "pp.h"
-#include "pc.h"
+#include "gravity/pp.h"
+#include "gravity/pc.h"
 
 #define SYNC_RATE 16  // Must be: 1, 2, 4, 8, 16
 #define WIDTH 32
