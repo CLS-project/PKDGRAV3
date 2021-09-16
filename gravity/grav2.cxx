@@ -36,7 +36,7 @@
 #include "qeval.h"
 #include "ewald.h"
 #include "grav.h"
-#include "hop.h"
+#include "group/hop.h"
 
 #include "cudautil.h"
 #include "cudapppc.h"

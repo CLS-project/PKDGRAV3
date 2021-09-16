@@ -36,7 +36,7 @@
 #include "pkd.h"
 #include "walk.h"
 #include "gravity/grav.h"
-#include "hop.h"
+#include "group/hop.h"
 #include "smooth/smooth.h"
 #include "moments.h"
 #include "vmoments.h"

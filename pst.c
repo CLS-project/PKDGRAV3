@@ -48,10 +48,10 @@
 #include "pst.h"
 #include "pkd.h"
 #include "smooth/smooth.h"
-#include "hop.h"
-#include "fof.h"
-#include "group.h"
-#include "groupstats.h"
+#include "group/hop.h"
+#include "group/fof.h"
+#include "group/group.h"
+#include "group/groupstats.h"
 
 void pstAddServices(PST pst,MDL mdl) {
     int nThreads;
