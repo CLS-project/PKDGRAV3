@@ -2583,11 +2583,11 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
 	for (i=pLower;i<=pUpper;++i) {
 	    p = pkdParticle(pkd,i);
 	    v = pkdVel(pkd,p);
-	    if (pkdIsGas(pkd,p)) {
-            NewSph = pkdNewSph(pkd,p);
-            dfBalldt = 1.0f / 3.0f * pkdBall(pkd,p) * pkdDensity(pkd,p) * NewSph->divv;
-            pkdSetBall(pkd,p,pkdBall(pkd,p) + dDelta * dfBalldt);
-		}
+	    // if (pkdIsGas(pkd,p)) {
+            // NewSph = pkdNewSph(pkd,p);
+            // dfBalldt = 1.0f / 3.0f * pkdBall(pkd,p) * pkdDensity(pkd,p) * NewSph->divv;
+            // pkdSetBall(pkd,p,pkdBall(pkd,p) + dDelta * dfBalldt);
+		// }
 	    for (j=0;j<3;++j) {
 		pkdSetPos(pkd,p,j,rfinal[j] = pkdPos(pkd,p,j) + dDelta*v[j]);
 		}
