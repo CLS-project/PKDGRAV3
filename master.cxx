@@ -3407,6 +3407,7 @@ int MSR::NewTopStepKDK(
     SPHoptions.doSPHForces = 0;
     *puRungMax = Gravity(0,MaxRung(),ROOT,uRoot2,dTime,dDelta,*pdStep,dTheta,
     	1,bKickOpen,param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,nGroup,SPHoptions);
+    SelAll(0,1);
     SPHoptions.doGravity = 1;
     SPHoptions.doDensity = 0;
     SPHoptions.doSPHForces = 1;

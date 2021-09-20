@@ -262,6 +262,7 @@ void pkdParticleWorkDone(workParticle *wp) {
 				wp->lc->dBoxSize,wp->lc->bLightConeParticles);
 			}
 		    }
+        p->bMarked = 1;
 		}
         } else {
             ++pkd->nRung[p->uRung];
@@ -698,7 +699,7 @@ int pkdGravInteract(PKD pkd,
 	    wp->pInfoIn[nP].a[0]  = ap[0];
 	    wp->pInfoIn[nP].a[1]  = ap[1];
 	    wp->pInfoIn[nP].a[2]  = ap[2];
-	    ap[0] = ap[1] = ap[2] = 0.0;
+	    //ap[0] = ap[1] = ap[2] = 0.0;
 	    }
 	else {
 	    wp->pInfoIn[nP].a[0]  = 0;
@@ -710,9 +711,9 @@ int pkdGravInteract(PKD pkd,
     float dtPredDrift = getDtPredDrift(kick,p->bMarked,ts->uRungLo,p->uRung);
     wp->pInfoIn[nP].fBall = pkdBall(pkd,p);
     wp->pInfoIn[nP].Omega = pNewSph->Omega;
-    wp->pInfoIn[nP].v[0] = v[0] + dtPredDrift * ap[0];
-    wp->pInfoIn[nP].v[1] = v[1] + dtPredDrift * ap[1];
-    wp->pInfoIn[nP].v[2] = v[2] + dtPredDrift * ap[2];
+    wp->pInfoIn[nP].v[0] = v[0] + dtPredDrift * wp->pInfoIn[nP].a[0];
+    wp->pInfoIn[nP].v[1] = v[1] + dtPredDrift * wp->pInfoIn[nP].a[1];
+    wp->pInfoIn[nP].v[2] = v[2] + dtPredDrift * wp->pInfoIn[nP].a[2];
     wp->pInfoIn[nP].rho = pkdDensity(pkd,p);
     if (wp->SPHoptions->doSPHForces) {
         wp->pInfoIn[nP].P = EOSPCofRhoU(pkdDensity(pkd,p),pNewSph->u + dtPredDrift * pNewSph->uDot,&wp->pInfoIn[nP].c,SPHoptions);

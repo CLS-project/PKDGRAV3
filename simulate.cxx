@@ -170,7 +170,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
 	uRungMax = Gravity(0,MAX_RUNG,ROOT,0,dTime,dDelta,iStartStep,dTheta,0,bKickOpen,
 	        param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,SPHoptions);
     MemStatus();
-
+    SelAll(0,1);
     SPHoptions.doGravity = 1;
     SPHoptions.doDensity = 0;
     SPHoptions.doSPHForces = 1;
