@@ -171,13 +171,13 @@ CUDA_DEVICE void EvalSPHForces(
 
         // Kernel gradients, separate at the moment, as i am not sure if we need them separately
         // at some point. If we don't, can save some operations, by combining earlier.
-        t1 = PdWdr * PifBall / Pr;
+        t1 = PdWdr * PifBall / d;
         mask1 = Pr > 0.0f;
         t1 = maskz_mov(mask1,t1);
         PdWdx = t1 * dx;
         PdWdy = t1 * dy;
         PdWdz = t1 * dz;
-        t1 = IdWdr * IifBall / Ir;
+        t1 = IdWdr * IifBall / d;
         mask1 = Ir > 0.0f;
         t1 = maskz_mov(mask1,t1);
         IdWdx = t1 * dx;
