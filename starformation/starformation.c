@@ -180,7 +180,7 @@ void pkdStarForm(PKD pkd,
 	    pStar->fLastEnrichTime = 0.0f;
 
 	    if (pkd->param.bChemEnrich)
-	       stevStarParticleInit(pkd, pStar, dTime);
+	       stevStarParticleInit(pkd, pStar);
 	    else
 	       pStar->fNextEnrichTime = INFINITY;
 #endif

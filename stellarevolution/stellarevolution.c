@@ -234,7 +234,7 @@ int pkdStellarEvolutionInit(PKD pkd, STEV_DATA *data) {
 	    pStar->fTimer = dTime;
 
 	 if (pkd->param.bChemEnrich)
-	    stevStarParticleInit(pkd, pStar, dTime);
+	    stevStarParticleInit(pkd, pStar);
 	 else
 	    pStar->fNextEnrichTime = INFINITY;
       }

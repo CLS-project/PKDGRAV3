@@ -600,7 +600,7 @@ static inline float stevComputeNextEnrichTime(const float fTime, const float fSt
 }
 
 
-static inline void stevStarParticleInit(PKD pkd, STARFIELDS *pStar, float fTime) {
+static inline void stevStarParticleInit(PKD pkd, STARFIELDS *pStar) {
    int iIdxZ;
    float fLogZ;
    if (pStar->fMetalAbun > 0.0f)
