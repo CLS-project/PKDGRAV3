@@ -439,6 +439,15 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2,
 					c = CAST(KDN *,mdlFetch(pkd->mdl,blk->iCache.i[jTile],iCheckCell,id));
 					}
 				    iCidPart = blk->iCache.i[jTile]==CID_CELL ? CID_PARTICLE : CID_PARTICLE2;
+				    if (!bReferenceFound) {
+					bReferenceFound=1;
+					if (id == pkd->idSelf) p = pkdParticle(pkd,c->pLower);
+					else p = CAST(PARTICLE *,mdlFetch(pkd->mdl,iCidPart,c->pLower,id));
+					pkdGetPos1(pkd,p,r);
+					pkd->ilp->cx=r[0]; pkd->ilp->cy=r[1]; pkd->ilp->cz=r[2];
+					pkd->ilc->cx=r[0]; pkd->ilc->cy=r[1]; pkd->ilc->cz=r[2];
+					}
+				    for (pj=c->pLower;pj<=c->pUpper;++pj) {
                     if (SPHoptions->doSetDensityFlags) {
                         if (id == pkd->idSelf) {
                             p = pkdParticle(pkd,pj);
@@ -449,15 +458,6 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2,
                             mdlRelease(pkd->mdl,iCidPart,p);
                         }
                     } else {
-				    if (!bReferenceFound) {
-					bReferenceFound=1;
-					if (id == pkd->idSelf) p = pkdParticle(pkd,c->pLower);
-					else p = CAST(PARTICLE *,mdlFetch(pkd->mdl,iCidPart,c->pLower,id));
-					pkdGetPos1(pkd,p,r);
-					pkd->ilp->cx=r[0]; pkd->ilp->cy=r[1]; pkd->ilp->cz=r[2];
-					pkd->ilc->cx=r[0]; pkd->ilc->cy=r[1]; pkd->ilc->cz=r[2];
-					}
-				    for (pj=c->pLower;pj<=c->pUpper;++pj) {
 					if (id == pkd->idSelf) p = pkdParticle(pkd,pj);
 					else p = CAST(PARTICLE *,mdlFetch(pkd->mdl,iCidPart,pj,id));
 					fMass = pkdMass(pkd,p);
@@ -482,9 +482,9 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2,
 					    fMass, 4*fSoft*fSoft,
 					    iOrder, v[0] + dtPredDrift * ap[0], v[1] + dtPredDrift * ap[1], v[2] + dtPredDrift * ap[2],
                         pkdBall(pkd,p), Omega, pkdDensity(pkd,p), P, cs, pkdSpecies(pkd,p));
+                    }
 					}
 				    }
-                    }
 				break;
 			    case 2:
 				/*
