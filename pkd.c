@@ -2158,6 +2158,14 @@ void pkdPhysicalSoft(PKD pkd,double dSoftMax,double dFac,int bSoftMaxMul) {
     pkd->fSoftMax = bSoftMaxMul ? HUGE_VALF : dSoftMax;
     }
 
+static void initSetMarked(void *vpkd, void *v) {}
+static void combSetMarked(void *vpkd, void *v1, const void *v2) {
+    PKD pkd = (PKD) vpkd;
+    PARTICLE * p1 = (PARTICLE *)v1;
+    const PARTICLE * p2 = (const PARTICLE *)v2;
+    if (p2->bMarked) p1->bMarked = 1;
+    }
+
 void pkdGravAll(PKD pkd,
     struct pkdKickParameters *kick,struct pkdLightconeParameters *lc,struct pkdTimestepParameters *ts,
     double dTime,int nReps,int bPeriodic,
@@ -2198,8 +2206,8 @@ void pkdGravAll(PKD pkd,
     /*
     ** Start particle caching space (cell cache already active).
     */
-    mdlROcache(pkd->mdl,CID_PARTICLE,NULL,pkdParticleBase(pkd),pkdParticleSize(pkd),
-	       pkdLocal(pkd));
+    mdlCOcache(pkd->mdl,CID_PARTICLE,NULL,pkdParticleBase(pkd),pkdParticleSize(pkd),
+	       pkdLocal(pkd),NULL,initSetMarked,combSetMarked);
 
     /*
     ** Calculate newtonian gravity, including replicas if any.

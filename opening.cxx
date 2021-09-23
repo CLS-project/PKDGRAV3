@@ -84,7 +84,7 @@ void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,SPHOption
 	for(i=0; i<iEnd; ++i) {
 	    fourh2 = blk->fourh2.p[i];
 
-        if (SPHoptions->doDensity || SPHoptions->doSPHForces) {
+        if (SPHoptions->doDensity || SPHoptions->doSPHForces || SPHoptions->doSetDensityFlags) {
             distk2 = 0.0f;
             dx = kbnd.fCenter[0] - fvec(blk->xCenter.p[i]) - fvec(blk->xOffset.p[i]) - fvec(blk->xMax.p[i]);
             distk2 += maskz_mov(dx>0,dx*dx);
@@ -101,7 +101,7 @@ void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,SPHOption
             dx = fvec(blk->zCenter.p[i]) + fvec(blk->zOffset.p[i]) - fvec(blk->zMax.p[i]) - kbnd.fCenter[2];
             distk2 += maskz_mov(dx>0,dx*dx);
         }
-        if (SPHoptions->doSPHForces) {
+        if (SPHoptions->doSPHForces || SPHoptions->doSetDensityFlags) {
             blk_fBoBr2 = blk->fBoBr2.p[i];
             distc2 = 0.0f;
             dx = k_xMinBnd - fvec(blk->xCenter.p[i]) - fvec(blk->xOffset.p[i]);

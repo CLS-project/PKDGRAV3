@@ -96,7 +96,7 @@ static void iOpenOutcomeCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,SPHO
 	    else {
 		fourh2 = blk->fourh2.f[i];
 
-        if (SPHoptions->doDensity || SPHoptions->doSPHForces) {
+        if (SPHoptions->doDensity || SPHoptions->doSPHForces || SPHoptions->doSetDensityFlags) {
             distk2 = 0.0f;
             dx = kbnd.fCenter[0] -  blk->xCenter.f[i] - blk->xOffset.f[i] - blk->xMax.f[i];
             if (dx > 0) distk2 += dx*dx;
@@ -113,7 +113,7 @@ static void iOpenOutcomeCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,SPHO
             dx = blk->zCenter.f[i] + blk->zOffset.f[i] - blk->zMax.f[i] - kbnd.fCenter[2];
             if (dx > 0) distk2 += dx*dx;
         }
-        if (SPHoptions->doSPHForces) {
+        if (SPHoptions->doSPHForces || SPHoptions->doSetDensityFlags) {
             distc2 = 0.0f;
             dx = kbnd.fCenter[0] - kbnd.fMax[0] -  blk->xCenter.f[i] - blk->xOffset.f[i];
             if (dx > 0) distc2 += dx*dx;

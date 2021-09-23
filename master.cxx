@@ -3413,6 +3413,7 @@ int MSR::NewTopStepKDK(
         nParticlesOnRung += nRung[i];
     }
     if (nParticlesOnRung/((float) N) < SPHoptions.FastGasFraction) {
+    BuildTree(param.bEwald);
     SPHoptions.doGravity = 0;
     SPHoptions.doDensity = 0;
     SPHoptions.doSPHForces = 0;
