@@ -201,8 +201,10 @@ void pkdSPHForcesEval(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  P
     for( j = nInLast; j&fvec::mask(); j++) {
 	blk[nBlocks].dx.f[j] = blk[nBlocks].dy.f[j] = blk[nBlocks].dz.f[j] = 1e18f;
     blk[nBlocks].fBall.f[j] = blk[nBlocks].Omega.f[j] = blk[nBlocks].rho.f[j] = 1e18f;
+    blk[nBlocks].vx.f[j] = blk[nBlocks].vy.f[j] = blk[nBlocks].vz.f[j] = 0.0f;
 	blk[nBlocks].m.f[j] = 0.0f;
     blk[nBlocks].P.f[j] = 0.0f;
+    blk[nBlocks].c.f[j] = 0.0f;
 	}
 
     Pdx     = fx;
