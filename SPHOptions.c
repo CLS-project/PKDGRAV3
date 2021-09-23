@@ -35,6 +35,7 @@ SPHOptions initializeSPHOptions(struct parameters param, CSM csm, double dTime){
     SPHoptions.EtaCourant = param.dEtaCourant;
     SPHoptions.gamma = param.dConstGamma;
     SPHoptions.TuFac = param.dGasConst/(param.dConstGamma - 1)/param.dMeanMolWeight;
+    SPHoptions.FastGasFraction = 0.5f;
     if (csm->val.bComove) {
         SPHoptions.a = csmTime2Exp(csm,dTime);
         SPHoptions.H = csmTime2Hub(csm,dTime);
@@ -46,8 +47,10 @@ SPHOptions initializeSPHOptions(struct parameters param, CSM csm, double dTime){
     SPHoptions.doDensity = 0;
     SPHoptions.doSPHForces = 0;
     SPHoptions.doUConversion = 0;
+    SPHoptions.doSetDensityFlags = 0;
     SPHoptions.useNumDen = 0;
     SPHoptions.useAdiabatic = param.bGasAdiabatic;
+    SPHoptions.useDensityFlags = 0;
     SPHoptions.kernelType = 0;
     return SPHoptions;
 }
@@ -60,14 +63,17 @@ void copySPHOptions(SPHOptions *source, SPHOptions *target) {
     target->EtaCourant = source->EtaCourant;
     target->gamma = source->gamma;
     target->TuFac = source->TuFac;
+    target->FastGasFraction = source->FastGasFraction;
     target->a = source->a;
     target->H = source->H;
     target->doGravity = 0;
     target->doDensity = 0;
     target->doSPHForces = 0;
     target->doUConversion = 0;
+    target->doSetDensityFlags = 0;
     target->useNumDen = source->useNumDen;
     target->useAdiabatic = source->useAdiabatic;
+    target->useDensityFlags = 0;
     target->kernelType = source->kernelType;
 }
 

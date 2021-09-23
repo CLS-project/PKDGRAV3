@@ -614,6 +614,7 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
 	pkdn->bMax = 1.0;
 	pkdn->uMinRung = MAX_RUNG;
 	pkdn->uMaxRung = 0;
+    pkdn->bHasMarked = 0;
 	if (pkd->oNodeMom) momClearFmomr(pkdNodeMom(pkd,pkdn));
 	return;
 	}
@@ -722,6 +723,8 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
     dy = bnd.fCenter[1] - y;
     dz = bnd.fCenter[2] - z;
     fBoBr = sqrt(dx*dx + dy*dy + dz*dz) + pkdBall(pkd,p);
+    /* initialize marked flag */
+    pkdn->bHasMarked = p->bMarked;
 
 	x *= m;
 	y *= m;
@@ -749,6 +752,7 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
         dz = bnd.fCenter[2] - ft[2];
         fBoBrq = sqrt(dx*dx + dy*dy + dz*dz) + pkdBall(pkd,p);
         fBoBr = fBoBrq > fBoBr ? fBoBrq : fBoBr;
+        if (p->bMarked) pkdn->bHasMarked = 1;
 
 	    x += m*ft[0];
 	    y += m*ft[1];
@@ -1016,6 +1020,8 @@ void pkdCombineCells1(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
     fBoBrp1 = fBoBr_1 + fdistCenter_1;
     fBoBrp2 = fBoBr_2 + fdistCenter_2;
     pkdn->fBoBr2 = fBoBrp1 > fBoBrp2 ? fBoBrp1*fBoBrp1 : fBoBrp2*fBoBrp2;
+    /* Combine marked flag */
+    pkdn->bHasMarked = p1->bHasMarked || p2->bHasMarked;
     }
 
 

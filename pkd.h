@@ -425,7 +425,7 @@ typedef struct kdNode {
     float bMax;
     float fSoft2;
     float fBoBr2;       /* Ball of Balls radius squared */
-    float test;         /* needed for alignment reasons */
+    uint32_t bHasMarked : 1;         /* flag if node has a marked particle, there are still 31 bit left*/
     } KDN;
 
 typedef struct sphBounds {

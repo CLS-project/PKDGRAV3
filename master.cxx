@@ -2556,7 +2556,13 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
     uint8_t uRungMax=0;
     char c;
 
-    if (param.bVStep) printf("Calculating Gravity, Step:%f (rung %d)\n",dStep,uRungLo);
+    if (param.bVStep){
+        if (SPHoptions.doDensity && SPHoptions.useDensityFlags) printf("Calculating Density using FastGas, Step:%f (rung %d)\n",dStep,uRungLo);
+        if (SPHoptions.doDensity && !SPHoptions.useDensityFlags) printf("Calculating Density without FastGas, Step:%f (rung %d)\n",dStep,uRungLo);
+        if (SPHoptions.doGravity && SPHoptions.doSPHForces) printf("Calculating Gravity and SPH forces, Step:%f (rung %d)\n",dStep,uRungLo);
+        if (SPHoptions.doGravity && !SPHoptions.doSPHForces) printf("Calculating Gravity, Step:%f (rung %d)\n",dStep,uRungLo);
+        if (SPHoptions.doSetDensityFlags) printf("Setting Density update flags for FastGas, Step:%f (rung %d)\n",dStep,uRungLo);
+    }
     in.dTime = dTime;
     in.iRoot1 = iRoot1;
     in.iRoot2 = iRoot2;
@@ -3402,15 +3408,37 @@ int MSR::NewTopStepKDK(
     int nGroup = (bDualTree && uRung > iRungDT) ? 1 : param.nGroup;
     SelAll(0,1);
     SPHOptions SPHoptions = initializeSPHOptions(param,csm,dTime);
+    uint64_t nParticlesOnRung = 0;
+    for (int i = MaxRung(); i>=uRung; i--) {
+        nParticlesOnRung += nRung[i];
+    }
+    if (nParticlesOnRung/((float) N) < SPHoptions.FastGasFraction) {
+    SPHoptions.doGravity = 0;
+    SPHoptions.doDensity = 0;
+    SPHoptions.doSPHForces = 0;
+    SPHoptions.doSetDensityFlags = 1;
+    *puRungMax = Gravity(uRung,MaxRung(),ROOT,uRoot2,dTime,dDelta,*pdStep,dTheta,
+    	1,bKickOpen,param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,nGroup,SPHoptions);
+    }
+    SPHoptions.doSetDensityFlags = 0;
     SPHoptions.doGravity = 0;
     SPHoptions.doDensity = 1;
     SPHoptions.doSPHForces = 0;
+    SPHoptions.useDensityFlags = 0;
+    if (nParticlesOnRung/((float) N) < SPHoptions.FastGasFraction) {
+        SPHoptions.useDensityFlags = 1;
+        BuildTree(param.bEwald);
+        *puRungMax = Gravity(uRung,MaxRung(),ROOT,uRoot2,dTime,dDelta,*pdStep,dTheta,
+    	1,bKickOpen,param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,nGroup,SPHoptions);
+    } else {
     *puRungMax = Gravity(0,MaxRung(),ROOT,uRoot2,dTime,dDelta,*pdStep,dTheta,
     	1,bKickOpen,param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,nGroup,SPHoptions);
+    }
     SelAll(0,1);
     SPHoptions.doGravity = 1;
     SPHoptions.doDensity = 0;
     SPHoptions.doSPHForces = 1;
+    SPHoptions.useDensityFlags = 0;
     *puRungMax = Gravity(uRung,MaxRung(),ROOT,uRoot2,dTime,dDelta,*pdStep,dTheta,
     	1,bKickOpen,param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,nGroup,SPHoptions);
 

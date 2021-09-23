@@ -393,6 +393,16 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2,
 				    pj = -1 - iCheckCell;
 				    assert(id >= 0);
 				    iCidPart = blk->iCache.i[jTile]==CID_CELL ? CID_PARTICLE : CID_PARTICLE2;
+                    if (SPHoptions->doSetDensityFlags) {
+                        if (id == pkd->idSelf) {
+                            p = pkdParticle(pkd,pj);
+                            p->bMarked = 1;
+                        } else {
+                            p = CAST(PARTICLE *,mdlAcquire(pkd->mdl,iCidPart,pj,id));
+                            p->bMarked = 1;
+                            mdlRelease(pkd->mdl,iCidPart,p);
+                        }
+                    } else {
 				    if (id == pkd->idSelf) p = pkdParticle(pkd,pj);
 				    else p = CAST(PARTICLE *,mdlFetch(pkd->mdl,iCidPart,pj,id));
 				    if (ts->bGravStep && ts->iTimeStepCrit == 1) v = pkdVel(pkd,p);
@@ -421,6 +431,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2,
 					iOrder, v[0] + dtPredDrift * ap[0], v[1] + dtPredDrift * ap[1], v[2] + dtPredDrift * ap[2],
                     pkdBall(pkd,p), Omega, pkdDensity(pkd,p), P, cs, pkdSpecies(pkd,p));
 				    }
+                    }
 				else {
 				    assert(id >= 0);
 				    if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCheckCell);
@@ -428,6 +439,16 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2,
 					c = CAST(KDN *,mdlFetch(pkd->mdl,blk->iCache.i[jTile],iCheckCell,id));
 					}
 				    iCidPart = blk->iCache.i[jTile]==CID_CELL ? CID_PARTICLE : CID_PARTICLE2;
+                    if (SPHoptions->doSetDensityFlags) {
+                        if (id == pkd->idSelf) {
+                            p = pkdParticle(pkd,pj);
+                            p->bMarked = 1;
+                        } else {
+                            p = CAST(PARTICLE *,mdlAcquire(pkd->mdl,iCidPart,pj,id));
+                            p->bMarked = 1;
+                            mdlRelease(pkd->mdl,iCidPart,p);
+                        }
+                    } else {
 				    if (!bReferenceFound) {
 					bReferenceFound=1;
 					if (id == pkd->idSelf) p = pkdParticle(pkd,c->pLower);
@@ -463,6 +484,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2,
                         pkdBall(pkd,p), Omega, pkdDensity(pkd,p), P, cs, pkdSpecies(pkd,p));
 					}
 				    }
+                    }
 				break;
 			    case 2:
 				/*
@@ -654,14 +676,14 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2,
 	    ** rung check here when we start using tree repair, but
 	    ** for now this is just as good.
 	    */
-	    if (k->uMinRung<=ts->uRungHi && k->uMaxRung >= ts->uRungLo) {
+	    if ((k->uMinRung<=ts->uRungHi && k->uMaxRung >= ts->uRungLo) || (SPHoptions->useDensityFlags && k->bHasMarked)){
 		/*
 		** iCell is active, continue processing it.
 		** Put the sibling onto the checklist.
 		*/
 		iSib = iCell+1;
 		getCell(pkd,-1,iSib,pkd->idSelf,&cOpen,&c);
-		if (c->uMinRung<=ts->uRungHi && c->uMaxRung >= ts->uRungLo) {
+		if ((c->uMinRung<=ts->uRungHi && c->uMaxRung >= ts->uRungLo) || (SPHoptions->useDensityFlags && c->bHasMarked)) {
 		    /*
 		    ** Sibling is active so we need to clone the checklist!
 		    */
@@ -682,7 +704,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2,
 		** have to be careful to not pop the stack when we
 		** hit the sibling.
 		*/
-		if (c->uMinRung<=ts->uRungHi && c->uMaxRung >= ts->uRungLo) {
+		if ((c->uMinRung<=ts->uRungHi && c->uMaxRung >= ts->uRungLo) || (SPHoptions->useDensityFlags && c->bHasMarked)) {
 		    /*
 		    ** Sibling is active as well.
 		    ** Push Checklist for the sibling onto the stack
@@ -894,7 +916,7 @@ int pkdGravWalk(PKD pkd,struct pkdKickParameters *kick,struct pkdLightconeParame
     ** Walk tree 1 against trees 1 (and optionally 2) if there are active particles
     */
     KDN *k = pkdTreeNode(pkd,iLocalRoot1);
-    if (k->pLower<=k->pUpper && pkdIsCellActive(k,ts->uRungLo,ts->uRungHi)) {
+    if (k->pLower<=k->pUpper && (pkdIsCellActive(k,ts->uRungLo,ts->uRungHi) || (SPHoptions->useDensityFlags && k->bHasMarked))) {
 	/*
 	** Initially we set our cell pointer to
 	** point to the top tree.

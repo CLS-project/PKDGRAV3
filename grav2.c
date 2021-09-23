@@ -682,7 +682,7 @@ int pkdGravInteract(PKD pkd,
 
     for (i=pkdn->pLower;i<=pkdn->pUpper;++i) {
 	p = pkdParticle(pkd,i);
-	if (!pkdIsRungRange(p,ts->uRungLo,ts->uRungHi)) continue;
+	if (!pkdIsRungRange(p,ts->uRungLo,ts->uRungHi) && !(SPHoptions->useDensityFlags && p->bMarked)) continue;
 	pkdGetPos1(pkd,p,r);
 	fMass = pkdMass(pkd,p);
 	fSoft = pkdSoft(pkd,p);
