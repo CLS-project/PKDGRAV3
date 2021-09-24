@@ -279,23 +279,37 @@ struct parameters {
     double dJeansFloorDen;
     double dJeansFlooru;
 #endif
-#if defined(COOLING) || defined(STELLAR_EVOLUTION)
     /*
      * IA: Initial abundances 
      */
+    double dInitialH;
+#ifdef HAVE_HELIUM
     double dInitialHe;
+#endif
+#ifdef HAVE_CARBON
     double dInitialC;
+#endif
+#ifdef HAVE_NITROGEN
     double dInitialN;
+#endif
+#ifdef HAVE_OXYGEN
     double dInitialO;
+#endif
+#ifdef HAVE_NEON
     double dInitialNe;
+#endif
+#ifdef HAVE_MAGNESIUM
     double dInitialMg;
+#endif
+#ifdef HAVE_SILICON
     double dInitialSi;
+#endif
+#ifdef HAVE_IRON
     double dInitialFe;
 #endif
-#ifdef STELLAR_EVOLUTION
+#ifdef HAVE_METALLICITY
     double dInitialMetallicity;
 #endif
-    double dInitialH;
 #ifdef STAR_FORMATION
     /* IA: Star formation */
     double dSFMinOverDensity; 

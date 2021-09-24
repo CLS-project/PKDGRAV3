@@ -218,6 +218,9 @@ void pstAddServices(PST pst,MDL mdl) {
 		  (fcnService_t*) pstGrackleInit,
 		  sizeof(struct inGrackleInit),0);
 #endif
+    mdlAddService(mdl,PST_CHEMCOMPINIT,pst,
+		  (fcnService_t*) pstChemCompInit,
+		  0,0);
 #ifdef BLACKHOLES
     mdlAddService(mdl,PST_BH_PLACESEED,pst,
 		  (fcnService_t*) pstPlaceBHSeed,
@@ -3309,6 +3312,21 @@ int pstCoolingHydReion(PST pst,void *vin,int nIn,void *vout,int nOut) {
     return 0;
     }
 #endif 
+
+int pstChemCompInit(PST pst,void *vin,int nIn,void *vout,int nOut) {
+    LCL *plcl = pst->plcl;
+
+    mdlassert(pst->mdl,nIn == 0);
+    if (pst->nLeaves > 1) {
+       int rID = mdlReqService(pst->mdl,pst->idUpper,PST_CHEMCOMPINIT,NULL,0);
+       pstChemCompInit(pst->pstLower,NULL,0,NULL,0);
+       mdlGetReply(pst->mdl,rID,NULL,NULL);
+       }
+    else {
+       pkdChemCompInit(plcl->pkd);
+       }
+    return 0;
+}
 
 int pstScaleVel(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;

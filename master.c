@@ -1823,51 +1823,65 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
 		sizeof(double), "dJeansFloorTemp",
 		"Temperature at the density threshold for the effective EOS");
 #endif
-#if defined(COOLING) || defined(STELLAR_EVOLUTION)
     /* Parameters for the initial abundances */
+    msr->param.dInitialH = 0.75;
+    prmAddParam(msr->prm,"dInitialH", 2, &msr->param.dInitialH,
+		sizeof(double), "dInitialH",
+		"Initial Hydrogen abundance");
+#ifdef HAVE_HELIUM
     msr->param.dInitialHe = 0.25;
     prmAddParam(msr->prm,"dInitialHe", 2, &msr->param.dInitialHe,
 		sizeof(double), "dInitialHe",
 		"Initial Helium abundance");
+#endif
+#ifdef HAVE_CARBON
     msr->param.dInitialC = 0.0;
     prmAddParam(msr->prm,"dInitialC", 2, &msr->param.dInitialC,
 		sizeof(double), "dInitialC",
 		"Initial Carbon abundance");
+#endif
+#ifdef HAVE_NITROGEN
     msr->param.dInitialN = 0.0;
     prmAddParam(msr->prm,"dInitialN", 2, &msr->param.dInitialN,
 		sizeof(double), "dInitialN",
 		"Initial Nitrogen abundance");
+#endif
+#ifdef HAVE_OXYGEN
     msr->param.dInitialO = 0.0;
     prmAddParam(msr->prm,"dInitialO", 2, &msr->param.dInitialO,
 		sizeof(double), "dInitialO",
 		"Initial Oxygen abundance");
+#endif
+#ifdef HAVE_NEON
     msr->param.dInitialNe = 0.0;
     prmAddParam(msr->prm,"dInitialNe", 2, &msr->param.dInitialNe,
 		sizeof(double), "dInitialNe",
 		"Initial Neon abundance");
+#endif
+#ifdef HAVE_MAGNESIUM
     msr->param.dInitialMg = 0.0;
     prmAddParam(msr->prm,"dInitialMg", 2, &msr->param.dInitialMg,
 		sizeof(double), "dInitialMg",
 		"Initial Magnesium abundance");
+#endif
+#ifdef HAVE_SILICON
     msr->param.dInitialSi = 0.0;
     prmAddParam(msr->prm,"dInitialSi", 2, &msr->param.dInitialSi,
 		sizeof(double), "dInitialSi",
 		"Initial Silicon abundance");
+#endif
+#ifdef HAVE_IRON
     msr->param.dInitialFe = 0.0;
     prmAddParam(msr->prm,"dInitialFe", 2, &msr->param.dInitialFe,
 		sizeof(double), "dInitialFe",
 		"Initial Iron abundance");
 #endif
-#ifdef STELLAR_EVOLUTION
+#ifdef HAVE_METALLICITY
     msr->param.dInitialMetallicity = 0.0;
     prmAddParam(msr->prm,"dInitialMetallicity", 2, &msr->param.dInitialMetallicity,
 		sizeof(double), "dInitialMetallicity",
 		"Initial metallicity");
 #endif
-    msr->param.dInitialH = 0.75;
-    prmAddParam(msr->prm,"dInitialH", 2, &msr->param.dInitialH,
-		sizeof(double), "dInitialH",
-		"Initial Hydrogen abundance");
 #ifdef STAR_FORMATION
     msr->param.dSFThresholdDen = 0.1;
     prmAddParam(msr->prm,"dSFThresholdDen", 2, &msr->param.dSFThresholdDen,
@@ -5904,6 +5918,10 @@ void msrCoolingInit(MSR msr) {
     }
 #endif
 
+void msrChemCompInit(MSR msr) {
+    pstChemCompInit(msr->pst, NULL, 0, NULL, 0);
+}
+
 /* END Gas routines */
 
 void msrHopWrite(MSR msr, const char *fname) {
@@ -6236,14 +6254,28 @@ double msrGenerateIC(MSR msr) {
     in.bICgas = msr->param.bICgas;
     in.dInitialT = msr->param.dInitialT;
     in.dInitialH = msr->param.dInitialH;
-#ifdef COOLING
+#ifdef HAVE_HELIUM
     in.dInitialHe = msr->param.dInitialHe;
+#endif
+#ifdef HAVE_CARBON
     in.dInitialC = msr->param.dInitialC;
+#endif
+#ifdef HAVE_NITROGEN
     in.dInitialN = msr->param.dInitialN;
+#endif
+#ifdef HAVE_OXYGEN
     in.dInitialO = msr->param.dInitialO;
+#endif
+#ifdef HAVE_NEON
     in.dInitialNe = msr->param.dInitialNe;
+#endif
+#ifdef HAVE_MAGNESIUM
     in.dInitialMg = msr->param.dInitialMg;
+#endif
+#ifdef HAVE_SILICON
     in.dInitialSi = msr->param.dInitialSi;
+#endif
+#ifdef HAVE_IRON
     in.dInitialFe = msr->param.dInitialFe;
 #endif
     in.dOmegaRate = msr->csm->val.dOmegab/msr->csm->val.dOmega0;

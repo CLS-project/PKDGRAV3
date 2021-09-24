@@ -607,14 +607,28 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
       icUp.bICgas = in->bICgas;
       icUp.dInitialT = in->dInitialT;
       icUp.dInitialH = in->dInitialH;
-#ifdef COOLING
+#ifdef HAVE_HELIUM
       icUp.dInitialHe = in->dInitialHe;
+#endif
+#ifdef HAVE_CARBON
       icUp.dInitialC = in->dInitialC;
+#endif
+#ifdef HAVE_NITROGEN
       icUp.dInitialN = in->dInitialN;
+#endif
+#ifdef HAVE_OXYGEN
       icUp.dInitialO = in->dInitialO;
+#endif
+#ifdef HAVE_NEON
       icUp.dInitialNe = in->dInitialNe;
+#endif
+#ifdef HAVE_MAGNESIUM
       icUp.dInitialMg = in->dInitialMg;
+#endif
+#ifdef HAVE_SILICON
       icUp.dInitialSi = in->dInitialSi;
+#endif
+#ifdef HAVE_IRON
       icUp.dInitialFe = in->dInitialFe;
 #endif
       icUp.dExpansion = in->dExpansion;
@@ -712,15 +726,29 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
                pSph->BalsaraSwitch = pSph->diff =
                pSph->fMetals = pSph->fMetalsPred = pSph->fMetalsDot = 0.0;
 #endif
-#ifdef COOLING
              pSph->afElemMass[ELEMENT_H]  = pkd->param.dInitialH  * fGasMass;
+#ifdef HAVE_HELIUM
              pSph->afElemMass[ELEMENT_He] = pkd->param.dInitialHe * fGasMass;
+#endif
+#ifdef HAVE_CARBON
              pSph->afElemMass[ELEMENT_C]  = pkd->param.dInitialC  * fGasMass;
+#endif
+#ifdef HAVE_NITROGEN
              pSph->afElemMass[ELEMENT_N]  = pkd->param.dInitialN  * fGasMass;
+#endif
+#ifdef HAVE_OXYGEN
              pSph->afElemMass[ELEMENT_O]  = pkd->param.dInitialO  * fGasMass;
+#endif
+#ifdef HAVE_NEON
              pSph->afElemMass[ELEMENT_Ne] = pkd->param.dInitialNe * fGasMass;
+#endif
+#ifdef HAVE_MAGNESIUM
              pSph->afElemMass[ELEMENT_Mg] = pkd->param.dInitialMg * fGasMass;
+#endif
+#ifdef HAVE_SILICON
              pSph->afElemMass[ELEMENT_Si] = pkd->param.dInitialSi * fGasMass;
+#endif
+#ifdef HAVE_IRON
              pSph->afElemMass[ELEMENT_Fe] = pkd->param.dInitialFe * fGasMass;
 #endif
              pSph->vPred[0] = pVelGas[0];
@@ -910,14 +938,28 @@ int pstMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
       move.bICgas = in->bICgas;
       move.dInitialT = in->dInitialT;
       move.dInitialH = in->dInitialH;
-#ifdef COOLING
+#ifdef HAVE_HELIUM
       move.dInitialHe = in->dInitialHe;
+#endif
+#ifdef HAVE_CARBON
       move.dInitialC = in->dInitialC;
+#endif
+#ifdef HAVE_NITROGEN
       move.dInitialN = in->dInitialN;
+#endif
+#ifdef HAVE_OXYGEN
       move.dInitialO = in->dInitialO;
+#endif
+#ifdef HAVE_NEON
       move.dInitialNe = in->dInitialNe;
+#endif
+#ifdef HAVE_MAGNESIUM
       move.dInitialMg = in->dInitialMg;
+#endif
+#ifdef HAVE_SILICON
       move.dInitialSi = in->dInitialSi;
+#endif
+#ifdef HAVE_IRON
       move.dInitialFe = in->dInitialFe;
 #endif
       move.dExpansion = in->dExpansion;

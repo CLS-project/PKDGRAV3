@@ -305,6 +305,10 @@ void master(MDL mdl,void *pst) {
 		1.0/csmComoveLookbackTime2Exp(msr->csm,1.0 / dLightSpeedSim(2*msr->param.dBoxSize)) - 1.0,
 		1.0/csmComoveLookbackTime2Exp(msr->csm,1.0 / dLightSpeedSim(3*msr->param.dBoxSize)) - 1.0 );
 	    }
+
+      if (msrDoGas(msr))
+	 msrChemCompInit(msr);
+
 #if defined(STAR_FORMATION) || defined(FEEDBACK)
       msrStarFormInit(msr, dTime);
 #ifdef STAR_FORMATION

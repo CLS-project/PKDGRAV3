@@ -141,6 +141,7 @@ enum pst_service {
     PST_COOLINGINIT,
     PST_COOLINGHYDREION,
 #endif
+    PST_CHEMCOMPINIT,
 #ifdef BLACKHOLES
     PST_BH_PLACESEED,
     PST_BH_REPOSITION,
@@ -703,6 +704,7 @@ struct inGrackleInit{
 };
 int pstGrackleInit(PST, void *,int,void *,int);
 #endif
+int pstChemCompInit(PST,void *,int,void *,int);
 #ifdef BLACKHOLES
 struct inPlaceBHSeed {
    double dTime;
@@ -1224,14 +1226,28 @@ struct inGenerateIC {
     int bICgas;
     double dInitialT;
     double dInitialH;
-#ifdef COOLING
+#ifdef HAVE_HELIUM
     double dInitialHe;
+#endif
+#ifdef HAVE_CARBON
     double dInitialC;
+#endif
+#ifdef HAVE_NITROGEN
     double dInitialN;
+#endif
+#ifdef HAVE_OXYGEN
     double dInitialO;
+#endif
+#ifdef HAVE_NEON
     double dInitialNe;
+#endif
+#ifdef HAVE_MAGNESIUM
     double dInitialMg;
+#endif
+#ifdef HAVE_SILICON
     double dInitialSi;
+#endif
+#ifdef HAVE_IRON
     double dInitialFe;
 #endif
     double dTuFac;
@@ -1269,14 +1285,28 @@ struct inMoveIC {
     int bICgas;
     double dInitialT;
     double dInitialH;
-#ifdef COOLING
+#ifdef HAVE_HELIUM
     double dInitialHe;
+#endif
+#ifdef HAVE_CARBON
     double dInitialC;
+#endif
+#ifdef HAVE_NITROGEN
     double dInitialN;
+#endif
+#ifdef HAVE_OXYGEN
     double dInitialO;
+#endif
+#ifdef HAVE_NEON
     double dInitialNe;
+#endif
+#ifdef HAVE_MAGNESIUM
     double dInitialMg;
+#endif
+#ifdef HAVE_SILICON
     double dInitialSi;
+#endif
+#ifdef HAVE_IRON
     double dInitialFe;
 #endif
     double dExpansion;

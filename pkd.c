@@ -1174,11 +1174,9 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
                pSph->BalsaraSwitch = pSph->diff =
                pSph->fMetals = pSph->fMetalsPred = pSph->fMetalsDot = 0.0;
 #endif
-#if defined(COOLING) || defined(STELLAR_EVOLUTION)
             for (j = 0; j < ELEMENT_COUNT; j++) pSph->afElemMass[j] = fMetals[j] * fMass;
-#endif
-#ifdef STELLAR_EVOLUTION
-            pSph->fMetalMass = afSphOtherData[1] * fMass;
+#ifdef HAVE_METALLICITY
+	    pSph->fMetalMass = afSphOtherData[1] * fMass;
 #endif
             // If the value is negative, means that it is a temperature
             u = (u<0.0) ? -u*dTuFac : u;
@@ -1266,11 +1264,9 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
              // We avoid that star in the IC could explode
 	       pStar->hasExploded = 1;
 
-#if defined(COOLING) || defined(STELLAR_EVOLUTION)
+#ifdef STELLAR_EVOLUTION
 	       for (j = 0; j < ELEMENT_COUNT; j++)
 		  pStar->afElemAbun[j] = fMetals[j];
-#endif
-#ifdef STELLAR_EVOLUTION
 	       pStar->fMetalAbun = afStarOtherData[0];
 	       pStar->fInitialMass = afStarOtherData[1];
 	       pStar->fLastEnrichTime = afStarOtherData[2];
@@ -2325,11 +2321,7 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,BND *bnd,
           float temperature = 0;
 #endif
 
-#if defined(COOLING) || defined(STELLAR_EVOLUTION)
 	  for (int k = 0; k < ELEMENT_COUNT; k++) fMetals[k] = pSph->afElemMass[k] / fMass;
-#else
-          for (int k = 0; k < ELEMENT_COUNT; k++) fMetals[k] = 0.0f;	  
-#endif
 
 #ifdef STAR_FORMATION
           float SFR = pSph->SFR;
@@ -2342,7 +2334,7 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,BND *bnd,
           otherData[0] = SFR;
           // We may have problem if the number of groups increses more than 2^24, but should be enough
           otherData[1] = pkd->oGroup ? (float)pkdGetGroup(pkd,p) : 0 ;
-#if defined(STELLAR_EVOLUTION) || defined(GRACKLE)
+#ifdef HAVE_METALLICITY
 	  otherData[2] = pSph->fMetalMass / fMass;
 #endif
 
@@ -2359,10 +2351,8 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,BND *bnd,
 	break;
     case FIO_SPECIES_STAR:
       pStar = pkdStar(pkd,p);
-#if defined(COOLING) || defined(STELLAR_EVOLUTION)
+#ifdef STELLAR_EVOLUTION
       for (int k = 0; k < ELEMENT_COUNT; k++) fMetals[k] = pStar->afElemAbun[k];
-#else
-      for (int k = 0; k < ELEMENT_COUNT; k++) fMetals[k] = 0.0f;
 #endif
       float otherData[5];
       otherData[0] = pStar->fTimer;
@@ -3975,6 +3965,86 @@ void pkdCooling(PKD pkd, double dTime, double z, int bUpdateState, int bUpdateTa
     pkdStopTimer(pkd,1);
     }
 #endif //OPTIM_REMOVE_UNUSED
+
+void pkdChemCompInit(PKD pkd) {
+
+   for (int i = 0; i < pkd->nLocal; ++i) {
+      PARTICLE *p = pkdParticle(pkd, i);
+
+      if (pkdIsGas(pkd, p)) {
+	 SPHFIELDS *pSph = pkdSph(pkd,p);
+	 float fMass = pkdMass(pkd, p);
+
+	 if (pSph->afElemMass[ELEMENT_H] < 0.0f) {
+            pSph->afElemMass[ELEMENT_H]  = pkd->param.dInitialH  * fMass;
+#ifdef HAVE_HELIUM
+            pSph->afElemMass[ELEMENT_He] = pkd->param.dInitialHe * fMass;
+#endif
+#ifdef HAVE_CARBON
+            pSph->afElemMass[ELEMENT_C]  = pkd->param.dInitialC  * fMass;
+#endif
+#ifdef HAVE_NITROGEN
+            pSph->afElemMass[ELEMENT_N]  = pkd->param.dInitialN  * fMass;
+#endif
+#ifdef HAVE_OXYGEN
+            pSph->afElemMass[ELEMENT_O]  = pkd->param.dInitialO  * fMass;
+#endif
+#ifdef HAVE_NEON
+            pSph->afElemMass[ELEMENT_Ne] = pkd->param.dInitialNe * fMass;
+#endif
+#ifdef HAVE_MAGNESIUM
+            pSph->afElemMass[ELEMENT_Mg] = pkd->param.dInitialMg * fMass;
+#endif
+#ifdef HAVE_SILICON
+            pSph->afElemMass[ELEMENT_Si] = pkd->param.dInitialSi * fMass;
+#endif
+#ifdef HAVE_IRON
+            pSph->afElemMass[ELEMENT_Fe] = pkd->param.dInitialFe * fMass;
+#endif
+	 }
+#ifdef HAVE_METALLICITY
+	 if (pSph->fMetalMass < 0.0f)
+	    pSph->fMetalMass = pkd->param.dInitialMetallicity * fMass;
+#endif
+      }
+
+#ifdef STELLAR_EVOLUTION
+      else if (pkdIsStar(pkd, p)) {
+	 STARFIELDS *pStar = pkdStar(pkd, p);
+
+	 if (pStar->afElemAbun[ELEMENT_H] < 0.0f) {
+	    pStar->afElemAbun[ELEMENT_H]  = pkd->param.dInitialH;
+#ifdef HAVE_HELIUM
+	    pStar->afElemAbun[ELEMENT_He] = pkd->param.dInitialHe;
+#endif
+#ifdef HAVE_CARBON
+	    pStar->afElemAbun[ELEMENT_C]  = pkd->param.dInitialC;
+#endif
+#ifdef HAVE_NITROGEN
+	    pStar->afElemAbun[ELEMENT_N]  = pkd->param.dInitialN;
+#endif
+#ifdef HAVE_OXYGEN
+	    pStar->afElemAbun[ELEMENT_O]  = pkd->param.dInitialO;
+#endif
+#ifdef HAVE_NEON
+	    pStar->afElemAbun[ELEMENT_Ne] = pkd->param.dInitialNe;
+#endif
+#ifdef HAVE_MAGNESIUM
+	    pStar->afElemAbun[ELEMENT_Mg] = pkd->param.dInitialMg;
+#endif
+#ifdef HAVE_SILICON
+	    pStar->afElemAbun[ELEMENT_Si] = pkd->param.dInitialSi;
+#endif
+#ifdef HAVE_IRON
+	    pStar->afElemAbun[ELEMENT_Fe] = pkd->param.dInitialFe;
+#endif
+	 }
+	 if (pStar->fMetalAbun < 0.0f)
+	    pStar->fMetalAbun = pkd->param.dInitialMetallicity;
+      }
+#endif //STELLAR_EVOLUTION
+   }
+}
 
 void pkdCorrectEnergy(PKD pkd, double dTuFac, double z, double dTime, int iDirection )
     {

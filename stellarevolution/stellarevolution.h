@@ -9,7 +9,6 @@
 #define STEV_AGB_N_MASS                      23
 #define STEV_LIFETIMES_N_METALLICITY          6
 #define STEV_LIFETIMES_N_MASS                30
-#define STEV_N_ELEM                           9
 
 #define STEV_INTERP_N_MASS                  200
 
@@ -37,18 +36,18 @@ typedef struct inStellarEvolution {
 
    /* Core Collapse SNe arrays */
    float afCCSN_Zs[STEV_CCSN_N_METALLICITY];
-   float afCCSN_Yields[STEV_CCSN_N_METALLICITY * STEV_INTERP_N_MASS * STEV_N_ELEM];
+   float afCCSN_Yields[STEV_CCSN_N_METALLICITY * STEV_INTERP_N_MASS * ELEMENT_COUNT];
    float afCCSN_MetalYield[STEV_CCSN_N_METALLICITY * STEV_INTERP_N_MASS];
    float afCCSN_EjectedMass[STEV_CCSN_N_METALLICITY * STEV_INTERP_N_MASS];
 
    /* AGB arrays */
    float afAGB_Zs[STEV_AGB_N_METALLICITY];
-   float afAGB_Yields[STEV_AGB_N_METALLICITY * STEV_INTERP_N_MASS * STEV_N_ELEM];
+   float afAGB_Yields[STEV_AGB_N_METALLICITY * STEV_INTERP_N_MASS * ELEMENT_COUNT];
    float afAGB_MetalYield[STEV_AGB_N_METALLICITY * STEV_INTERP_N_MASS];
    float afAGB_EjectedMass[STEV_AGB_N_METALLICITY * STEV_INTERP_N_MASS];
 
    /* Type Ia SNe arrays */
-   float afSNIa_EjectedMass[STEV_N_ELEM];
+   float afSNIa_EjectedMass[ELEMENT_COUNT];
    float fSNIa_EjectedMetalMass;
 
    /* Stellar lifetimes arrays */
@@ -232,25 +231,25 @@ static inline void stevInterpToIMFSampling(STEV_DATA *const Data, STEV_RAWDATA *
       if (i <= idxCCSNMinMass) {
 	 stevGetIndex1D(AGB->pfMasses, STEV_AGB_N_MASS, fLogMass, &idxMass, &fDeltaMass);
 
-	 for (j = 0; j < STEV_N_ELEM; j++) {
+	 for (j = 0; j < ELEMENT_COUNT; j++) {
 	    for (k = 0; k < STEV_CCSN_N_METALLICITY; k++) {
 	       idxData = stevRowMajorIndex(k, i, j, STEV_CCSN_N_METALLICITY,
-					   STEV_INTERP_N_MASS, STEV_N_ELEM);
+					   STEV_INTERP_N_MASS, ELEMENT_COUNT);
 	       if (i < idxCCSNMinMass) {
 		  Data->afCCSN_Yields[idxData] = 0.0f;
 	       }
 	       else {
 		  idxTable = stevRowMajorIndex(k, j, 0, STEV_CCSN_N_METALLICITY,
-					       STEV_N_ELEM, STEV_CCSN_N_MASS);
+					       ELEMENT_COUNT, STEV_CCSN_N_MASS);
 		  Data->afCCSN_Yields[idxData] = CCSN->pfYields[idxTable];
 	       }
 	    }
 
 	    for (k = 0; k < STEV_AGB_N_METALLICITY; k++) {
-	       idxTable = stevRowMajorIndex(k, j, idxMass, STEV_AGB_N_METALLICITY, STEV_N_ELEM,
+	       idxTable = stevRowMajorIndex(k, j, idxMass, STEV_AGB_N_METALLICITY, ELEMENT_COUNT,
 					    STEV_AGB_N_MASS);
 	       idxData = stevRowMajorIndex(k, i, j, STEV_AGB_N_METALLICITY,
-					   STEV_INTERP_N_MASS, STEV_N_ELEM);
+					   STEV_INTERP_N_MASS, ELEMENT_COUNT);
 
 	       /* WARNING: The following formula is correct only when mass is the last index
 		  in the tables */
@@ -295,12 +294,12 @@ static inline void stevInterpToIMFSampling(STEV_DATA *const Data, STEV_RAWDATA *
       else {
 	 stevGetIndex1D(CCSN->pfMasses, STEV_CCSN_N_MASS, fLogMass, &idxMass, &fDeltaMass);
 
-	 for (j = 0; j < STEV_N_ELEM; j++) {
+	 for (j = 0; j < ELEMENT_COUNT; j++) {
 	    for (k = 0; k < STEV_CCSN_N_METALLICITY; k++) {
 	       idxTable = stevRowMajorIndex(k, j, idxMass, STEV_CCSN_N_METALLICITY,
-					    STEV_N_ELEM, STEV_CCSN_N_MASS);
+					    ELEMENT_COUNT, STEV_CCSN_N_MASS);
 	       idxData = stevRowMajorIndex(k, i, j, STEV_CCSN_N_METALLICITY,
-					   STEV_INTERP_N_MASS, STEV_N_ELEM);
+					   STEV_INTERP_N_MASS, ELEMENT_COUNT);
 
 	       /* WARNING: The following formula is correct only when mass is the last index
 		  in the tables */
@@ -311,13 +310,13 @@ static inline void stevInterpToIMFSampling(STEV_DATA *const Data, STEV_RAWDATA *
 
 	    for (k = 0; k < STEV_AGB_N_METALLICITY; k++) {
 	       idxData = stevRowMajorIndex(k, i, j, STEV_AGB_N_METALLICITY,
-					   STEV_INTERP_N_MASS, STEV_N_ELEM);
+					   STEV_INTERP_N_MASS, ELEMENT_COUNT);
 	       if (i > idxCCSNMinMass + 1) {
 		  Data->afAGB_Yields[idxData] = 0.0f;
 	       }
 	       else {
 		  idxTable = stevRowMajorIndex(k, j, STEV_AGB_N_MASS - 1,
-					       STEV_AGB_N_METALLICITY, STEV_N_ELEM,
+					       STEV_AGB_N_METALLICITY, ELEMENT_COUNT,
 					       STEV_AGB_N_MASS);
 		  Data->afAGB_Yields[idxData] = AGB->pfYields[idxTable];
 	       }

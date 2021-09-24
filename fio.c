@@ -27,14 +27,6 @@
 #define _FILE_OFFSET_BITS 64
 #endif
 
-#if defined(COOLING) || defined(STELLAR_EVOLUTION)
-//IA: This should be, at most, ELEMENT_COUNT,
-// but can be modified if needed to save memory
-#define NUMBER_METALS     9
-#else
-#define NUMBER_METALS     1
-#endif
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -160,6 +152,7 @@ void xdr_destroy(XDR *xdr) {
 #endif
 
 #include "fio.h"
+#include "chemistry.h"
 
 /*
 ** This uses the best available seek routine to move to the specified
@@ -1065,7 +1058,7 @@ static int tipsyReadNativeSph(
     rc = fread(pfTemp,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     *pfTemp = -(*pfTemp);
     rc = fread(pfSoft,sizeof(float),1,tio->fp); if (rc!=1) return 0;
-    rc = fread(pfMetals,sizeof(float),NUMBER_METALS,tio->fp); if (rc!=NUMBER_METALS) return 0;
+    rc = fread(pfMetals,sizeof(float),ELEMENT_COUNT,tio->fp); if (rc!=ELEMENT_COUNT) return 0;
     rc = fread(pfPot,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     return 1;
     }
@@ -1100,7 +1093,7 @@ static int tipsyWriteNativeSph(
     rc = fwrite(&fDen,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     rc = fwrite(&fTemp,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     rc = fwrite(&fSoft,sizeof(float),1,tio->fp); if (rc!=1) return 0;
-    rc = fwrite(pfMetals,sizeof(float),NUMBER_METALS,tio->fp); if (rc!=NUMBER_METALS) return 0;
+    rc = fwrite(pfMetals,sizeof(float),ELEMENT_COUNT,tio->fp); if (rc!=ELEMENT_COUNT) return 0;
     rc = fwrite(&fPot,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     return 1;
     }
@@ -1139,7 +1132,7 @@ static int tipsyReadStandardSph(
     if (!xdr_float(&tio->xdr,pfTemp)) return 0;
     *(pfTemp) = -(*pfTemp);
     if (!xdr_float(&tio->xdr,pfSoft)) return 0;
-    for (d=0; d<NUMBER_METALS;d++)
+    for (d=0; d<ELEMENT_COUNT;d++)
        if (!xdr_float(&tio->xdr,pfMetals+d)) return 0;
     if (!xdr_float(&tio->xdr,pfPot)) return 0;
     return 1;
@@ -1180,7 +1173,7 @@ static int tipsyWriteStandardSph(
     if (!xdr_float(&tio->xdr,&fDen)) return 0;
     if (!xdr_float(&tio->xdr,&fTemp)) return 0;
     if (!xdr_float(&tio->xdr,&fSoft)) return 0;
-    for (d=0; d<NUMBER_METALS;d++){
+    for (d=0; d<ELEMENT_COUNT;d++){
        fTmp = pfMetals[d];
        if (!xdr_float(&tio->xdr,&fTmp)) return 0;
     }
@@ -1216,7 +1209,7 @@ static int tipsyReadNativeStar(
 	rc = fread(fTmp,sizeof(float),3,tio->fp); if (rc!=3) return 0;
 	for(d=0;d<3;d++) pdVel[d] = fTmp[d];
 	}
-    rc = fread(pfMetals,sizeof(float),NUMBER_METALS,tio->fp); if (rc!=NUMBER_METALS) return 0;
+    rc = fread(pfMetals,sizeof(float),ELEMENT_COUNT,tio->fp); if (rc!=ELEMENT_COUNT) return 0;
     rc = fread(pfTform,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     rc = fread(pfSoft,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     rc = fread(pfPot,sizeof(float),1,tio->fp); if (rc!=1) return 0;
@@ -1249,7 +1242,7 @@ static int tipsyWriteNativeStar(
 	for(d=0;d<3;d++) fTmp[d] = pdVel[d];
 	rc = fwrite(fTmp,sizeof(float),3,tio->fp); if (rc!=3) return 0;
 	}
-    rc = fwrite(pfMetals,sizeof(float),NUMBER_METALS,tio->fp); if (rc!=NUMBER_METALS) return 0;
+    rc = fwrite(pfMetals,sizeof(float),ELEMENT_COUNT,tio->fp); if (rc!=ELEMENT_COUNT) return 0;
     //    rc = fwrite(&fTform,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     rc = fwrite(&fSoft,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     rc = fwrite(&fPot,sizeof(float),1,tio->fp); if (rc!=1) return 0;
@@ -1286,7 +1279,7 @@ static int tipsyReadStandardStar(
 	    pdVel[d] = fTmp;
 	    }
 	}
-    for(d=0;d<NUMBER_METALS;d++)
+    for(d=0;d<ELEMENT_COUNT;d++)
        if (!xdr_float(&tio->xdr,pfMetals+d)) return 0;
     if (!xdr_float(&tio->xdr,pfTform)) return 0;
     if (!xdr_float(&tio->xdr,pfSoft)) return 0;
@@ -1326,7 +1319,7 @@ static int tipsyWriteStandardStar(
 	    if (!xdr_float(&tio->xdr,&fTmp)) return 0;
 	    }
 	}
-    for (d=0;d<NUMBER_METALS;d++){
+    for (d=0;d<ELEMENT_COUNT;d++){
        fTmp = pfMetals[d];
        if (!xdr_float(&tio->xdr,&fTmp)) return 0;
     }
@@ -2793,7 +2786,7 @@ enum SPH_FIELDS{
    SPH_MASS        ,
    SPH_TEMPERATURE ,
    SPH_ABUNDANCES  ,
-#if defined(STELLAR_EVOLUTION) || defined(GRACKLE)
+#ifdef HAVE_METALLICITY
    SPH_METALLICITY ,
 #endif
    SPH_SFR         ,
@@ -2809,11 +2802,9 @@ enum STAR_FIELDS{
    STAR_POTENTIAL   = 2,
    STAR_DENSITY     = 3,
    STAR_MASS        ,
-   STAR_ABUNDANCES  ,
-#if defined(STELLAR_EVOLUTION) || defined(GRACKLE)
-   STAR_METALLICITY ,
-#endif
 #ifdef STELLAR_EVOLUTION
+   STAR_ABUNDANCES  ,
+   STAR_METALLICITY ,
    STAR_INITIALMASS ,
    STAR_ENRICHTIME  ,
 #endif
@@ -3664,9 +3655,9 @@ static int hdf5ReadSph(
 
     /* Element abundances are optional */
     if ( !field_get_float(pfMetals,&base->fldFields[SPH_ABUNDANCES],base->iIndex) )
-	for (i = 0; i < NUMBER_METALS; i++) pfMetals[i] = -1.0f;
+	for (i = 0; i < ELEMENT_COUNT; i++) pfMetals[i] = -1.0f;
 
-#if defined(STELLAR_EVOLUTION) || defined(GRACKLE)
+#ifdef HAVE_METALLICITY
     /* Metallicity is optional */
     if ( !field_get_float(&pfOtherData[1],&base->fldFields[SPH_METALLICITY],base->iIndex) )
 	pfOtherData[1] = -1.0f;
@@ -3745,23 +3736,21 @@ static int hdf5ReadStar(
     if ( !field_get_float(pfDen,&base->fldFields[STAR_DENSITY],base->iIndex) )
 	*pfDen = 0.0f;
 
-    /* Element abundances are optional */
-    if ( !field_get_float(pfMetals,&base->fldFields[STAR_ABUNDANCES],base->iIndex) )
-        for (i = 0; i < NUMBER_METALS; i++) pfMetals[i] = -1.0f;
-
     /* Formation time is optional when stellar evolution is off */
     if ( !field_get_float(pfTform,&base->fldFields[STAR_AGE],base->iIndex) )
 	/* Here we can't set it to -1 because that signals a star particle in the ICs
 	   that is not supposed to explode, we set it to 0 instead. See pkdStarFormInit */
 	*pfTform = 0.0f;
 
-#if defined(STELLAR_EVOLUTION) || defined(GRACKLE)
+#ifdef STELLAR_EVOLUTION
+    /* Element abundances are optional */
+    if ( !field_get_float(pfMetals,&base->fldFields[STAR_ABUNDANCES],base->iIndex) )
+        for (i = 0; i < ELEMENT_COUNT; i++) pfMetals[i] = -1.0f;
+
     /* Metallicity is optional */
     if ( !field_get_float(&pfOtherData[0],&base->fldFields[STAR_METALLICITY],base->iIndex) )
 	pfOtherData[0] = -1.0f;
-#endif
 
-#ifdef STELLAR_EVOLUTION
     /* Initial mass is optional */
     if ( !field_get_float(&pfOtherData[1],&base->fldFields[STAR_INITIALMASS],base->iIndex) )
 	pfOtherData[1] = -1.0f;
@@ -3915,7 +3904,7 @@ static int hdf5WriteSph(
 
     float fSFR = pfOtherData[0];
     int32_t iGroup = (int32_t)pfOtherData[1];
-#if defined(STELLAR_EVOLUTION) || defined(GRACKLE)
+#ifdef HAVE_METALLICITY
     float fMetallicity = pfOtherData[2];
 #endif
 
@@ -3929,14 +3918,14 @@ static int hdf5WriteSph(
 	field_create(&base->fldFields[SPH_SMOOTHING],base->group_id,
 		     FIELD_SMOOTHING, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, 1 );
 	field_create(&base->fldFields[SPH_ABUNDANCES],base->group_id,
-		     FIELD_ABUNDANCES, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, NUMBER_METALS);
+		     FIELD_ABUNDANCES, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, ELEMENT_COUNT);
 	field_create(&base->fldFields[SPH_GROUP],base->group_id,
 		     FIELD_GROUP, H5T_NATIVE_INT32, H5T_NATIVE_INT32, 1);
 #ifdef STAR_FORMATION
 	field_create(&base->fldFields[SPH_SFR],base->group_id,
 		     FIELD_SFR, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, 1);
 #endif
-#if defined(STELLAR_EVOLUTION) || defined(GRACKLE)
+#ifdef HAVE_METALLICITY
 	field_create(&base->fldFields[SPH_METALLICITY],base->group_id,
 		     FIELD_METALLICITY, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, 1);
 #endif
@@ -3957,7 +3946,7 @@ static int hdf5WriteSph(
 #ifdef STAR_FORMATION
     field_add_float(&fSFR,&base->fldFields[SPH_SFR],base->iIndex);
 #endif
-#if defined(STELLAR_EVOLUTION) || defined(GRACKLE)
+#ifdef HAVE_METALLICITY
     field_add_float(&fMetallicity,&base->fldFields[SPH_METALLICITY],base->iIndex);
 #endif
 
@@ -3993,7 +3982,7 @@ static int hdf5WriteStar(
 		     FIELD_GROUP, H5T_NATIVE_INT32, H5T_NATIVE_INT32, 1);
 #ifdef STELLAR_EVOLUTION
 	field_create(&base->fldFields[STAR_ABUNDANCES],base->group_id,
-		     FIELD_ABUNDANCES, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, NUMBER_METALS );
+		     FIELD_ABUNDANCES, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, ELEMENT_COUNT );
 	field_create(&base->fldFields[STAR_METALLICITY],base->group_id,
 		     FIELD_METALLICITY, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, 1);
 	field_create(&base->fldFields[STAR_INITIALMASS],base->group_id,
@@ -4190,13 +4179,11 @@ static FIO hdf5OpenOne(const char *fname,int iFile) {
 			   FIELD_DENSITY, H5T_NATIVE_FLOAT,1 );
 		if (base->fldFields[SPH_DENSITY].setId == H5I_INVALID_HID)
 		    hio->fio.mFlags &= ~FIO_FLAG_DENSITY;
-#if defined(STELLAR_EVOLUTION) || defined(GRACKLE)
+		field_open(&base->fldFields[SPH_ABUNDANCES],base->group_id,
+			   FIELD_ABUNDANCES,H5T_NATIVE_FLOAT,ELEMENT_COUNT);
+#ifdef HAVE_METALLICITY
 		field_open(&base->fldFields[SPH_METALLICITY],base->group_id,
 			   FIELD_METALLICITY,H5T_NATIVE_FLOAT,1);
-#endif
-#ifdef STELLAR_EVOLUTION
-		field_open(&base->fldFields[SPH_ABUNDANCES],base->group_id,
-			   FIELD_ABUNDANCES,H5T_NATIVE_FLOAT,NUMBER_METALS);
 #endif
 		base->nTotal = hio->fio.nSpecies[i] = field_size(&base->fldFields[SPH_POSITION]);
 		class_open(&base->ioClass,base->group_id);
@@ -4230,7 +4217,7 @@ static FIO hdf5OpenOne(const char *fname,int iFile) {
 		    hio->fio.mFlags &= ~FIO_FLAG_DENSITY;
 #ifdef STELLAR_EVOLUTION
 		field_open(&base->fldFields[STAR_ABUNDANCES],base->group_id,
-			   FIELD_ABUNDANCES,H5T_NATIVE_FLOAT,NUMBER_METALS);
+			   FIELD_ABUNDANCES,H5T_NATIVE_FLOAT,ELEMENT_COUNT);
 		field_open(&base->fldFields[STAR_METALLICITY],base->group_id,
 			   FIELD_METALLICITY,H5T_NATIVE_FLOAT,1);
 		field_open(&base->fldFields[STAR_INITIALMASS],base->group_id,

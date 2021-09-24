@@ -37,6 +37,7 @@
 #ifdef GRACKLE
 #include <grackle.h>
 #endif
+#include "chemistry.h"
 
 #ifdef __cplusplus
 #define CAST(T,V) reinterpret_cast<T>(V)
@@ -163,20 +164,6 @@ typedef struct velsmooth {
 #define LIGHTSPEED 2.9979e10 /* Speed of Light cm/s */
 #define SECONDSPERYEAR 31557600.
 #define SECPERYEAR 31557600.0   /* Seconds in a Julian year */
-
-enum chemical_elements {
-  ELEMENT_H = 0,
-  ELEMENT_He,
-  ELEMENT_C,
-  ELEMENT_N,
-  ELEMENT_O,
-  ELEMENT_Ne,
-  ELEMENT_Mg,
-  ELEMENT_Si,
-  ELEMENT_Fe,
-  ELEMENT_COUNT
-};
-
 
 #ifdef OPTIM_REDUCE_PRECISION
 typedef float myreal;
@@ -324,16 +311,14 @@ typedef struct sphfields {
     myreal SFR;
 #endif
 
-#if defined(COOLING) || defined(STELLAR_EVOLUTION)
     float afElemMass[ELEMENT_COUNT];
-#endif
 
 #ifdef COOLING
     myreal lastCooling;
     float cooling_dudt;
 #endif
 
-#if defined(GRACKLE) || defined(STELLAR_EVOLUTION)
+#ifdef HAVE_METALLICITY
     float fMetalMass;
 #endif
 
@@ -347,12 +332,9 @@ typedef struct sphfields {
 
 typedef struct starfields {
     double omega;
-#if defined(COOLING) || defined(STELLAR_EVOLUTION)
-    float afElemAbun[ELEMENT_COUNT]; /* Formation abundances */
-#endif
-
 #ifdef STELLAR_EVOLUTION
-    float fMetalAbun;		/* Formation metallicity */
+    float afElemAbun[ELEMENT_COUNT]; /* Formation abundances */
+    float fMetalAbun;		     /* Formation metallicity */
     float fInitialMass;
     float fLastEnrichTime;
     float fLastEnrichMass;
@@ -1804,6 +1786,7 @@ void pkdStarForm(PKD pkd, double dTime, double dDelta, double dScaleFactor, doub
 		 int *nFormed, double *dMassFormed, int *nDeleted);
 void pkdStarFormInit(PKD pkd, double dTime, int *nFormed);
 void pkdCooling(PKD pkd,double,double,int,int,int,int);
+void pkdChemCompInit(PKD pkd);
 #define CORRECTENERGY_IN 1
 #define CORRECTENERGY_OUT 2
 #define CORRECTENERGY_SPECIAL 3

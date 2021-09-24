@@ -303,6 +303,7 @@ option(COOLING "Activate the chemistry and the cooling for the gas particles. Al
 if (COOLING)
    target_sources(${PROJECT_NAME} PRIVATE  cooling/cooling.c cooling/cooling_tables.c )
    target_compile_options(${PROJECT_NAME} PRIVATE -DCOOLING)
+   target_compile_options(${PROJECT_NAME} PRIVATE -DHAVE_HELIUM -DHAVE_CARBON -DHAVE_NITROGEN -DHAVE_OXYGEN -DHAVE_NEON -DHAVE_MAGNESIUM -DHAVE_SILICON -DHAVE_IRON)
    message("-- Cooling is ACTIVE")
 endif(COOLING)
 
@@ -312,6 +313,7 @@ if (GRACKLE)
    target_include_directories(${PROJECT_NAME} PUBLIC ${GRACKLE_INCLUDE})
    target_link_libraries(${PROJECT_NAME} ${GRACKLE_LIBRARY})
    target_compile_options(${PROJECT_NAME} PRIVATE -DGRACKLE -DCONFIG_BFLOAT_8)
+   target_compile_options(${PROJECT_NAME} PRIVATE -DHAVE_METALLICITY)
    target_sources(${PROJECT_NAME} PRIVATE  cooling_grackle/cooling_grackle.c )
    message("-- GRACKLE is ACTIVE")
 endif(GRACKLE)
@@ -334,6 +336,7 @@ option(STELLAR_EVOLUTION "Activate time-resolved mass return from star particles
 if (STELLAR_EVOLUTION)
    target_sources(${PROJECT_NAME} PRIVATE  stellarevolution/stellarevolution.c) 
    target_compile_options(${PROJECT_NAME} PRIVATE -DSTELLAR_EVOLUTION)
+   target_compile_options(${PROJECT_NAME} PRIVATE -DHAVE_HELIUM -DHAVE_CARBON -DHAVE_NITROGEN -DHAVE_OXYGEN -DHAVE_NEON -DHAVE_MAGNESIUM -DHAVE_SILICON -DHAVE_IRON -DHAVE_METALLICITY)
    message("-- Stellar evolution is ACTIVE")
 endif(STELLAR_EVOLUTION)
 
