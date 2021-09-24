@@ -66,8 +66,13 @@ void pkdGrackleInit(PKD pkd, int bComove, double dScaleFactor){
    // Otherwise, altough the density is correctly converted to proper at
    //   solve_rate_cool.F:342, the hydrogen is converted back to comoving because
    //   dom \propto a^3 (see solve_rate_cool.F:342 and cool1d_cloudy_f.F:124)
+   // Furthermore, I need to pass an extra dScaleFactor to length_units to
+   //  compensate for the definition of comoving internal energy inside grackle,
+   //  which has a a^2.
+   // In the current version, length_units is only used for this factor, so it
+   //  is safe, *for now* (changeset 59db82b, 14 Jun 2021)
    pkd->grackle_units->density_units = pkd->param.dGmPerCcUnit*pow(dScaleFactor,-3);
-   pkd->grackle_units->length_units = pkd->param.dKpcUnit * KPCCM;
+   pkd->grackle_units->length_units = pkd->param.dKpcUnit * KPCCM * dScaleFactor;
    pkd->grackle_units->time_units = pkd->param.dSecUnit;
    pkd->grackle_units->velocity_units = pkd->param.dKmPerSecUnit*1e5;
    pkd->grackle_units->a_units = 1.;
