@@ -192,22 +192,15 @@ void hydroDensity_node(PKD pkd, BND bnd_node, PARTICLE **sinks, NN *nnList,
           //  neighbours, and a small increase/decrease in the radius causes
           //  omega to fluctuate around the desired value.
           //
-          // In this cases, we need to stop iterating and make sure that
-          // omega is between reasonable bounds
+          // In this cases, we stop iterating, making sure that we have the
+          //  upper value, which should have more than the expected number of
+          //  neighbours
           if (niter>1000){
-             partj->bMarked = 0;
-             printf("WARNING Neff %e c %e \n", Neff, c);
-             /*
-             if (fabs(c-pkd->param.nSmooth) < pkd->param.nSmooth*0.1){
-
-                printf("More than 100 iters but converged (%d): %d\t %e\t %e\n", niter, nCnt_p, pkdBall(pkd,partj), c);
-                //break;
-             }else{
-                printf("More than 100 iters (%d): %d\t %e\t %e\n", niter, nCnt_p, pkdBall(pkd,partj), c);
-                printf("r/h mean %e \n", mean_r/pkdBall(pkd,partj));
-                break;
+             if (c > Neff){
+                partj->bMarked = 0;
+                pkdSetBall(pkd,partj, ph);
+                printf("WARNING Neff %e c %e \n", Neff, c);
              }
-             */
           }
 
        }while(partj->bMarked);
