@@ -540,7 +540,7 @@ static inline int Riemann_solver_exact(PKD pkd,
     } else {
         /* one of the densities is zero or negative */
         if((L_rho<0)||(R_rho<0))
-            assert(0);
+            //assert(0);
         if(L_rho>0){
              sample_reimann_vaccum_right(pkd,  0.0,
                       R_rho, R_p,  R_v,  L_rho, L_p,  L_v,

@@ -230,6 +230,8 @@ struct parameters {
     int bFixedAmpIC;
     double dFixedAmpPhasePI;
     int b2LPT;
+    int bICgas;
+    double dInitialT;
 
     /*
      * IA: Parameters for the meshless hydrodynamics
@@ -250,11 +252,13 @@ struct parameters {
     double dFixedDelta;
     double dMinDt;
 
+#if defined(COOLING) || defined(GRACKLE)
+    char strCoolingTables[256];
+#endif
 #ifdef COOLING
     /*
      * IA: Cooling parameters
      */
-    char strCoolingTables[256];
     double fH_reion_z;
     double fH_reion_eV_p_H;
     double fHe_reion_z_centre;

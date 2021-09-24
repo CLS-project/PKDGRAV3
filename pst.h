@@ -132,6 +132,9 @@ enum pst_service {
 #ifdef DEBUG_CACHED_FLUXES
     PST_FLUXSTATS,
 #endif
+#ifdef GRACKLE
+    PST_GRACKLEINIT,
+#endif
 #ifdef COOLING
     PST_COOLINGUPDATE,
     PST_COOLINGUPDATEZ,
@@ -693,6 +696,13 @@ struct inCoolInit{
 int pstCoolingInit(PST,void *,int,void *,int);
 int pstCoolingHydReion(PST,void *,int,void *,int);
 #endif
+#ifdef GRACKLE
+struct inGrackleInit{
+   int bComove;
+   double dScaleFactor;
+};
+int pstGrackleInit(PST, void *,int,void *,int);
+#endif
 #ifdef BLACKHOLES
 struct inPlaceBHSeed {
    double dTime;
@@ -1198,6 +1208,7 @@ struct inGenerateIC {
     uint64_t nPerNode;
     double dBoxSize;
     double dBoxMass;
+    double dOmegaRate;
 //    double omegam;
 //    double omegab;
 //    double omegav;
@@ -1210,6 +1221,20 @@ struct inGenerateIC {
     float fPhase;
     int nGrid;
     int b2LPT;
+    int bICgas;
+    double dInitialT;
+    double dInitialH;
+#ifdef COOLING
+    double dInitialHe;
+    double dInitialC;
+    double dInitialN;
+    double dInitialO;
+    double dInitialNe;
+    double dInitialMg;
+    double dInitialSi;
+    double dInitialFe;
+#endif
+    double dTuFac;
     int bComove;
     int bClass;
     int nTf;
@@ -1241,6 +1266,22 @@ struct inMoveIC {
     float fSoft;
     int nGrid;
     int nInflateFactor;
+    int bICgas;
+    double dInitialT;
+    double dInitialH;
+#ifdef COOLING
+    double dInitialHe;
+    double dInitialC;
+    double dInitialN;
+    double dInitialO;
+    double dInitialNe;
+    double dInitialMg;
+    double dInitialSi;
+    double dInitialFe;
+#endif
+    double dExpansion;
+    double dOmegaRate;
+    double dTuFac;
     };
 int pltMoveIC(PST,void *,int,void *,int);
 int pstMoveIC(PST,void *,int,void *,int);

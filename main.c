@@ -46,6 +46,9 @@
 #ifdef STELLAR_EVOLUTION
 #include "stellarevolution/stellarevolution.h"
 #endif
+#ifdef GRACKLE
+#include "cooling_grackle/cooling_grackle.h"
+#endif
 #ifdef USE_PYTHON
 #include "pkdpython.h"
 #endif
@@ -300,6 +303,7 @@ void master(MDL mdl,void *pst) {
 	    fprintf(fpLog,"\n");
 	    msrLogParams(msr,fpLog);
 	    }
+      msrTimerHeader(msr);
 
 	if (msr->param.bLightCone && msrComove(msr)) {
 	    printf("One, Two, Three replica depth is z=%.10g, %.10g, %.10g\n",
@@ -322,6 +326,13 @@ void master(MDL mdl,void *pst) {
          msrCoolingUpdate(msr, 1./a - 1., 1);
       }else{
          msrCoolingUpdate(msr, 0., 1);
+      }
+#endif
+#ifdef GRACKLE
+      if ((msr->csm->val.bComove)){
+         msrGrackleInit(msr, 1, csmTime2Exp(msr->csm,dTime));
+      }else{
+         msrGrackleInit(msr, 0, 1.0);
       }
 #endif
 #ifdef STELLAR_EVOLUTION
@@ -415,6 +426,7 @@ void master(MDL mdl,void *pst) {
 	    if (msrComove(msr)) msrSwitchTheta(msr,dTime);
 	    dMultiEff = 0.0;
 	    msr->lPrior = time(0);
+          msrTimerRestart(msr);
 	    if (msr->param.bNewKDK) {
 		diStep = (double)(iStep-1);
 		ddTime = dTime;
@@ -497,6 +509,7 @@ void master(MDL mdl,void *pst) {
 		    msrBuildTree(msr,dTime,msr->param.bEwald);
 		    }
 		}
+          msrTimerDump(msr, iStep);
 	    }
 	if (msrLogInterval(msr)) (void) fclose(fpLog);
 	}

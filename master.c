@@ -73,6 +73,9 @@
 #ifdef COOLING
 #include "cooling/cooling.h"
 #endif
+#ifdef GRACKLE
+#include "cooling_grackle/cooling_grackle.h"
+#endif
 #ifdef BLACKHOLES
 #include "blackhole/merger.h"
 #include "blackhole/seed.h"
@@ -110,6 +113,59 @@ double msrTime() {
     return (tv.tv_sec+(tv.tv_usec*1e-6));
     }
 #endif
+
+void msrTimerStart(MSR msr, int iTimer){
+   msr->ti[iTimer].sec = msrTime();
+}
+
+void msrTimerStop(MSR msr, int iTimer){
+   msr->ti[iTimer].sec = msrTime() - msr->ti[iTimer].sec;
+   msr->ti[iTimer].acc += msr->ti[iTimer].sec;
+}
+
+// Query the timing of the last call, given that msrTimerStop was called
+// for that iTimer
+double msrTimerGet(MSR msr, int iTimer){
+   return msr->ti[iTimer].sec;
+}
+
+double msrTimerGetAcc(MSR msr, int iTimer){
+   return msr->ti[iTimer].acc;
+}
+
+void msrTimerHeader(MSR msr){
+   char achFile[256];
+   sprintf(achFile,"%s.timing",msrOutName(msr));
+   FILE *fpLog = NULL;
+   fpLog = fopen(achFile,"a");
+   fprintf(fpLog,"# Step");
+   for (int iTimer=0; iTimer<TOTAL_TIMERS; iTimer++){
+      fprintf(fpLog," %s", timer_names[iTimer] );
+   }
+   fprintf(fpLog,"\n");
+   fclose(fpLog);
+}
+
+double msrTimerDump(MSR msr, int iStep){
+   char achFile[256];
+   sprintf(achFile,"%s.timing",msrOutName(msr));
+   FILE *fpLog = NULL;
+   fpLog = fopen(achFile,"a");
+
+   fprintf(fpLog,"%d", iStep);
+   for (int iTimer=0; iTimer<TOTAL_TIMERS; iTimer++){
+      fprintf(fpLog," %f", msrTimerGetAcc(msr, iTimer) );
+   }
+   fprintf(fpLog,"\n");
+   fclose(fpLog);
+}
+
+void msrTimerRestart(MSR msr){
+   for (int iTimer=0; iTimer<TOTAL_TIMERS; iTimer++){
+      msr->ti[iTimer].acc = 0.0;
+      msr->ti[iTimer].sec = 0.0;
+   }
+}
 
 void _msrLeader(void) {
     puts("pkdgrav"PACKAGE_VERSION" Joachim Stadel & Doug Potter Sept 2015");
@@ -477,7 +533,7 @@ double msrRestore(MSR msr) {
 
     if (msr->param.bVStart)
 	printf("Restoring from checkpoint\n");
-    sec = msrTime();
+    msrTimerStart(msr, TIMER_NONE);
 
     msr->nMaxOrder = msr->N;
 
@@ -496,7 +552,8 @@ double msrRestore(MSR msr) {
     pstCalcBound(msr->pst,NULL,0,&bnd,sizeof(bnd));
     msrCountRungs(msr,NULL);
 
-    dsec = msrTime() - sec;
+    msrTimerStop(msr, TIMER_NONE);
+    dsec = msrTimerGet(msr, TIMER_NONE);
     PKD pkd = msr->pst->plcl->pkd;
     double dExp = csmTime2Exp(msr->csm,msr->dCheckpointTime);
     msrprintf(msr,"Checkpoint Restart Complete @ a=%g, Wallclock: %f secs\n\n",dExp,dsec);
@@ -613,7 +670,7 @@ void msrCheckpoint(MSR msr,int iStep,double dTime) {
 	}
     else
 	msrprintf(msr,"Writing checkpoint for Step: %d Time:%g\n",iStep,dTime);
-    sec = msrTime();
+    msrTimerStart(msr, TIMER_IO);
 
     writeParameters(msr,in.achOutFile,iStep,dTime);
 
@@ -623,7 +680,8 @@ void msrCheckpoint(MSR msr,int iStep,double dTime) {
     BND bnd;
     pstCalcBound(msr->pst,NULL,0,&bnd,sizeof(BND));
 
-    dsec = msrTime() - sec;
+    msrTimerStop(msr, TIMER_IO);
+    dsec = msrTimerGet(msr, TIMER_IO);
     msrprintf(msr,"Checkpoint has been successfully written, Wallclock: %f secs.\n", dsec);
     }
 
@@ -866,6 +924,12 @@ static int validateParameters(MDL mdl,CSM csm,PRM prm,struct parameters *param) 
 	}
     }
 
+#ifdef OPTIM_NO_REDUNDANT_FLUXES
+    if (!param->bMemParticleID){
+       fprintf(stderr, "WARNING: OPTIM_NO_REDUNDANT_FLUXES requires bMemParticleID");
+       return 0;
+    }
+#endif
 
 
     return 1;
@@ -1407,6 +1471,12 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
     msr->param.b2LPT = 1;
     prmAddParam(msr->prm,"b2LPT",0,&msr->param.b2LPT,
 		sizeof(int),"2lpt","<Enable/disable 2LPT> = 1");
+    msr->param.bICgas = 0;
+    prmAddParam(msr->prm,"bICgas",0,&msr->param.bICgas,
+		sizeof(int),"ICgas","<Enable/disable gas in the ICs> = 0");
+    msr->param.dInitialT = 100.0;
+    prmAddParam(msr->prm,"dInitialT",2,&msr->param.dInitialT,
+		sizeof(double),"InitialT","<Initial temperature of the IC-generated gas> = 100");
 #ifdef USE_PYTHON
     strcpy(msr->param.achScriptFile,"");
     prmAddParam(msr->prm,"achScript",3,msr->param.achScriptFile,256,"script",
@@ -1673,10 +1743,12 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
 		sizeof(double), "minDt",
 		"Minimum allowed timestep for the particles (in code units)");
 
-#ifdef COOLING
+#if defined(COOLING) || defined(GRACKLE)
     prmAddParam(msr->prm,"strCoolingTables",3,msr->param.strCoolingTables,256,"coolingtables",
 		"Path to cooling tables");
+#endif
 
+#ifdef COOLING
     /// Hydrogen reionization
     msr->param.fH_reion_z = 11.5;
     prmAddParam(msr->prm,"fH_reion_z", 2, &msr->param.fH_reion_z,
@@ -1796,7 +1868,7 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
     prmAddParam(msr->prm,"dSFThresholdTemp", 2, &msr->param.dSFThresholdu,
 		sizeof(double), "dSFThresholdTemp",
 		"Maximum temperature of a gas element to for stars [K]");
-    msr->param.dSFMinOverDensity = 0.;
+    msr->param.dSFMinOverDensity = 57.7;
     prmAddParam(msr->prm,"dSFMinOverDensity", 2, &msr->param.dSFMinOverDensity,
 		sizeof(double), "dSFMinOverDensity",
 		"Minimium overdensity for allowing star formation");
@@ -2010,7 +2082,37 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
 	/* code comoving density --> g per cc = msr->param.dGmPerCcUnit (1+z)^3 */
 	msr->param.dComovingGmPerCcUnit = msr->param.dGmPerCcUnit;
 	}
-    else {
+    else if (msr->param.bICgas || msr->param.nGrid) {
+      // We need to properly set a unit system, we do so following the
+      // convention: G=1, rho=Omega0 in code units
+      msr->param.dKpcUnit = msr->param.dBoxSize*1e3 / msr->param.h;
+      // The mass unit is set such that we recover a correct dHubble0 in code units
+      // and 100h in physical
+      msr->param.dMsolUnit = pow( msr->param.h * 100.0 * 1e5 * msr->param.dKpcUnit/
+            (1e3*msr->csm->val.dHubble0), 2) * msr->param.dKpcUnit*KPCCM/(GCGS*MSOLG);
+
+	msr->param.dGasConst = msr->param.dKpcUnit*KPCCM*KBOLTZ
+	    /MHYDR/GCGS/msr->param.dMsolUnit/MSOLG;
+	/* code energy per unit mass --> erg per g */
+	msr->param.dErgPerGmUnit = GCGS*msr->param.dMsolUnit*MSOLG/(msr->param.dKpcUnit*KPCCM);
+      /* code energy --> erg IA: TODO be sure about this*/
+	msr->param.dErgUnit = GCGS*pow(msr->param.dMsolUnit*MSOLG,2.0)/(msr->param.dKpcUnit*KPCCM);
+	/* code density --> g per cc */
+	msr->param.dGmPerCcUnit = (msr->param.dMsolUnit*MSOLG)/pow(msr->param.dKpcUnit*KPCCM,3.0);
+	/* code time --> seconds */
+	msr->param.dSecUnit = sqrt(1/(msr->param.dGmPerCcUnit*GCGS));
+	/* code speed --> km/s */
+	msr->param.dKmPerSecUnit = sqrt(GCGS*msr->param.dMsolUnit*MSOLG/(msr->param.dKpcUnit*KPCCM))/1e5;
+	/* code comoving density --> g per cc = msr->param.dGmPerCcUnit (1+z)^3 */
+	msr->param.dComovingGmPerCcUnit = msr->param.dGmPerCcUnit;
+
+      // Some safety checks
+      double H0 = msr->param.h * 100. / msr->param.dKmPerSecUnit *
+         msr->param.dKpcUnit/1e3;
+      double rhoCrit = 3.*H0*H0/(8.*M_PI);
+      assert( fabs(H0-msr->csm->val.dHubble0)/H0 < 0.01 );
+      assert( fabs(rhoCrit-1.0) < 0.01 );
+    }else{
 	msr->param.dSecUnit = 1;
 	msr->param.dKmPerSecUnit = 1;
 	msr->param.dComovingGmPerCcUnit = 1;
@@ -2030,11 +2132,13 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
     const double dnHToRho = MHYDR * dHydFrac / msr->param.dGmPerCcUnit;
 #ifdef COOLING
     // We convert the parameters of the entropy floor into code units
+    msr->param.dCoolingFloorDen *= dnHToRho;
+    msr->param.dCoolingFlooru *= msr->param.dTuFac;
+#endif
+#if defined(COOLING) || defined(STAR_FORMATION)
     msr->param.dJeansFloorIndex -= 1.;
     msr->param.dJeansFloorDen *=  dnHToRho; // Code density
     msr->param.dJeansFlooru *= msr->param.dTuFac; // Code internal energy per unit mass
-    msr->param.dCoolingFloorDen *= dnHToRho;
-    msr->param.dCoolingFlooru *= msr->param.dTuFac;
 #endif
 #ifdef STAR_FORMATION
     msr->param.dSFThresholdDen *= dnHToRho*dHydFrac; // Code hydrogen density
@@ -2897,9 +3001,11 @@ void msrWrite(MSR msr,const char *pszFileName,double dTime,int bCheckpoint) {
     else
 	msrprintf(msr,"Time:%g\n",dTime);
 
-    sec = msrTime();
+    msrTimerStart(msr, TIMER_IO);
     msrAllNodeWrite(msr, achOutFile, dTime, dvFac, bCheckpoint);
-    dsec = msrTime() - sec;
+
+    msrTimerStop(msr, TIMER_IO);
+    dsec = msrTimerGet(msr, TIMER_IO);
 
     msrprintf(msr,"Output file has been successfully written, Wallclock: %f secs.\n", dsec);
     }
@@ -3158,10 +3264,12 @@ void msrDomainDecompOld(MSR msr,int iRung,int bSplitVA) {
     msrprintf(msr,"Domain Decomposition: nActive (Rung %d) %"PRIu64" SplitVA:%d\n",
 	msr->iLastRungRT,msr->nActive,bSplitVA);
     msrprintf(msr,"Domain Decomposition... \n");
-    sec = msrTime();
+    msrTimerStart(msr, TIMER_DOMAIN);
 
     pstDomainDecomp(msr->pst,&in,sizeof(in),NULL,0);
-    dsec = msrTime() - sec;
+
+    msrTimerStop(msr, TIMER_DOMAIN);
+    dsec = msrTimerGet(msr, TIMER_DOMAIN);
     printf("Domain Decomposition complete, Wallclock: %f secs\n\n",dsec);
     if (bRestoreActive) {
 	/* Restore Active data */
@@ -3221,7 +3329,7 @@ static void BuildTree(MSR msr,int bNeedEwald,uint32_t uRoot,uint32_t utRoot) {
     in.nGroup = msr->param.nGroup;
     in.uRoot = uRoot;
     in.utRoot = utRoot;
-    sec = msrTime();
+    msrTimerStart(msr, TIMER_TREE);
     nTopTree = pstBuildTree(msr->pst,&in,sizeof(in),pkdn,nTopTree);
     pDistribTop->nTop = nTopTree / pkdNodeSize(pkd);
     assert(pDistribTop->nTop == (2*msr->nThreads-1));
@@ -3229,7 +3337,9 @@ static void BuildTree(MSR msr,int bNeedEwald,uint32_t uRoot,uint32_t utRoot) {
 #ifdef OPTIM_INVERSE_WALK
     msrSetParticleParent(msr);
 #endif
-    dsec = msrTime() - sec;
+
+    msrTimerStop(msr, TIMER_TREE);
+    dsec = msrTimerGet(msr, TIMER_TREE);
     printf("Tree built, Wallclock: %f secs\n\n",dsec);
 
     if (bNeedEwald) {
@@ -3568,17 +3678,7 @@ void msrSmooth(MSR msr,double dTime,int iSmoothType,int bSymmetric,int nSmooth) 
     in.bSymmetric = bSymmetric;
     in.iSmoothType = iSmoothType;
     msrSmoothSetSMF(msr, &(in.smf), dTime);
-    if (msr->param.bVStep) {
-	double sec,dsec;
-	printf("Smoothing...\n");
-	sec = msrTime();
-	pstSmooth(msr->pst,&in,sizeof(in),NULL,0);
-	dsec = msrTime() - sec;
-	printf("Smooth Calculated, Wallclock: %f secs\n\n",dsec);
-	}
-    else {
-	pstSmooth(msr->pst,&in,sizeof(in),NULL,0);
-	}
+    pstSmooth(msr->pst,&in,sizeof(in),NULL,0);
     }
 
 
@@ -3639,17 +3739,7 @@ int msrReSmooth(MSR msr,double dTime,int iSmoothType,int bSymmetric, int bFirstS
     msrSmoothSetSMF(msr, &(in.smf), dTime);
     if (bFirstStep) in.smf.dDelta = 0.0; // Avoid adding fluxes and doing the spatial extrapolation
 
-    if (msr->param.bVStep) {
-	double sec,dsec;
-	//printf("ReSmoothing...\n");
-	sec = msrTime();
-	pstReSmooth(msr->pst,&in,sizeof(in),&out,sizeof(struct outSmooth));
-	dsec = msrTime() - sec;
-	//printf("ReSmooth Calculated on %d particles, Wallclock: %f secs\n\n", out.nSmoothed, dsec);
-	}
-    else {
-	pstReSmooth(msr->pst,&in,sizeof(in),&out,sizeof(struct outSmooth));
-	}
+    pstReSmooth(msr->pst,&in,sizeof(in),&out,sizeof(struct outSmooth));
     return out.nSmoothed;
     }
 
@@ -3666,17 +3756,7 @@ int msrReSmoothNode(MSR msr,double dTime,int iSmoothType,int bSymmetric, int bFi
     msrSmoothSetSMF(msr, &(in.smf), dTime);
     if (bFirstStep) in.smf.dDelta = 0.0; // Avoid adding fluxes and doing the spatial extrapolation
 
-    if (msr->param.bVStep) {
-	double sec,dsec;
-	//printf("ReSmoothing...\n");
-	sec = msrTime();
-	pstReSmoothNode(msr->pst,&in,sizeof(in),&out,sizeof(struct outSmooth));
-	dsec = msrTime() - sec;
-	//printf("ReSmooth Calculated on %d particles, Wallclock: %f secs\n\n", out.nSmoothed, dsec);
-	}
-    else {
-	pstReSmoothNode(msr->pst,&in,sizeof(in),&out,sizeof(struct outSmooth));
-	}
+    pstReSmoothNode(msr->pst,&in,sizeof(in),&out,sizeof(struct outSmooth));
 
 #if defined(INSTRUMENT) && defined(DEBUG_FLUX_INFO)
     if (iSmoothType==SMX_THIRDHYDROLOOP){
@@ -3697,9 +3777,11 @@ int msrReSmoothNode(MSR msr,double dTime,int iSmoothType,int bSymmetric, int bFi
 #ifdef OPTIM_REORDER_IN_NODES
 void msrReorderWithinNodes(MSR msr){
    double sec,dsec;
-   sec = msrTime();
+   msrTimerStart(msr, TIMER_TREE);
    pstReorderWithinNodes(msr->pst,NULL,0,NULL,0);
-   dsec = msrTime() - sec;
+
+   msrTimerStop(msr, TIMER_TREE);
+   dsec = msrTimerGet(msr, TIMER_TREE);
    printf("Reordering nodes took %e secs \n", dsec);
 
 }
@@ -3919,9 +4001,11 @@ uint8_t msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot
     outend = out + msr->nThreads;
     outr = (struct outGravityReduct *)outend;
 
-    sec = msrTime();
+    msrTimerStart(msr, TIMER_GRAVITY);
     pstGravity(msr->pst,&in,sizeof(in),out,out_size);
-    dsec = msrTime() - sec;
+
+    msrTimerStop(msr, TIMER_GRAVITY);
+    dsec = msrTimerGet(msr, TIMER_GRAVITY);
 
     *piSec = d2i(dsec);
     *pnActive = outr->nActive;
@@ -4062,7 +4146,7 @@ void msrDrift(MSR msr,double dTime,double dDelta,int iRoot) {
     struct inDrift in;
     double sec, dsec;
 
-    sec = msrTime();
+    msrTimerStart(msr, TIMER_DRIFT);
     if (msr->csm->val.bComove) {
 	in.dDelta = csmComoveDriftFac(msr->csm,dTime,dDelta);
 	in.dDeltaVPred = csmComoveKickFac(msr->csm,dTime,dDelta);
@@ -4075,15 +4159,19 @@ void msrDrift(MSR msr,double dTime,double dDelta,int iRoot) {
     in.dDeltaUPred = dDelta;
     in.iRoot = iRoot;
     pstDrift(msr->pst,&in,sizeof(in),NULL,0);
-    dsec = msrTime()-sec;
+
+    msrTimerStop(msr, TIMER_DRIFT);
+    dsec = msrTimerGet(msr, TIMER_DRIFT);
 #ifdef BLACKHOLES
-    sec = msrTime();
+    msrTimerStart(msr, TIMER_DRIFT);
     // IA: for this cases, I think that the ReSmoothNode will not provide 
     // any important speed up, so we can use the old gather. 
     // TODO: check if this is indeed true!
     msrReSmooth(msr,dTime,SMX_BH_DRIFT,1,0);
     pstRepositionBH(msr->pst, NULL, 0, NULL, 0);
-    double dsecBH = msrTime()-sec;
+
+    msrTimerStop(msr, TIMER_DRIFT);
+    double dsecBH = msrTimerGet(msr, TIMER_DRIFT);
     printf("Drift took %.5f (%.5f for BH) seconds \n", dsec, dsecBH);
 #else
     printf("Drift took %.5f seconds \n", dsec);
@@ -4185,9 +4273,11 @@ void msrEndTimestepIntegration(MSR msr,double dTime,double dDelta,int iRoot){
     msrComputeSmoothing(msr, dTime);
 
     printf("Computing primitive variables... ");
-    sec = msrTime();
+    msrTimerStart(msr, TIMER_ENDINT);
     pstEndTimestepIntegration(msr->pst,&in,sizeof(in),NULL,0);
-    dsec = msrTime()-sec;
+
+    msrTimerStop(msr, TIMER_ENDINT);
+    dsec = msrTimerGet(msr, TIMER_ENDINT);
     printf("took %.5f seconds\n",dsec);
 }
 
@@ -4318,6 +4408,9 @@ double msrAdjustTime(MSR msr, double aOld, double aNew) {
 void msrKickKDKOpen(MSR msr,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi) {
     struct inKick in;
     struct outKick out;
+    double sec, dsec;
+
+    msrTimerStart(msr, TIMER_KICKO);
 
     in.dTime = dTime;
     if (msr->csm->val.bComove) {
@@ -4333,8 +4426,10 @@ void msrKickKDKOpen(MSR msr,double dTime,double dDelta,uint8_t uRungLo,uint8_t u
     in.uRungLo = uRungLo;
     in.uRungHi = uRungHi;
     pstKick(msr->pst,&in,sizeof(in),&out,sizeof(out));
-    msrprintf(msr,"KickOpen: Avg Wallclock %f, Max Wallclock %f\n",
-	      out.SumTime/out.nSum,out.MaxTime);
+
+    msrTimerStop(msr, TIMER_KICKO);
+    dsec = msrTimerGet(msr, TIMER_KICKO);
+    msrprintf(msr,"KickOpen: Wallclock %f secs\n", dsec);
     }
 
 /*
@@ -4343,6 +4438,9 @@ void msrKickKDKOpen(MSR msr,double dTime,double dDelta,uint8_t uRungLo,uint8_t u
 void msrKickKDKClose(MSR msr,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi) {
     struct inKick in;
     struct outKick out;
+    double sec, dsec;
+
+    msrTimerStart(msr, TIMER_KICKC);
 
     in.dTime = dTime;
     if (msr->csm->val.bComove) {
@@ -4358,8 +4456,10 @@ void msrKickKDKClose(MSR msr,double dTime,double dDelta,uint8_t uRungLo,uint8_t 
     in.uRungLo = uRungLo;
     in.uRungHi = uRungHi;
     pstKick(msr->pst,&in,sizeof(in),&out,sizeof(out));
-    msrprintf(msr,"KickClose: Avg Wallclock %f, Max Wallclock %f\n",
-	      out.SumTime/out.nSum,out.MaxTime);
+
+    msrTimerStop(msr, TIMER_KICKC);
+    dsec = msrTimerGet(msr, TIMER_KICKC);
+    msrprintf(msr,"KickClose: Wallclock %f secs\n", dsec);
     }
 
 int msrOutTime(MSR msr,double dTime) {
@@ -4859,9 +4959,11 @@ void msrLightConeClose(MSR msr,int iStep) {
 void msrLightConeVel(MSR msr) {
     double sec,dsec;
 
-    sec = msrTime();
+    msrTimerStart(msr, TIMER_NONE);
     pstLightConeVel(msr->pst,NULL,0,NULL,0);
-    dsec = msrTime() - sec;
+
+    msrTimerStop(msr, TIMER_NONE);
+    dsec = msrTimerGet(msr, TIMER_NONE);
     printf("Converted lightcone velocities to physical, Wallclock: %f secs.\n", dsec);
     }
 
@@ -5314,16 +5416,18 @@ void msrTopStepKDK(MSR msr,
 #ifdef FEEDBACK
 	printf("Computing feedback... ");
 
-	sec = msrTime();
+      msrTimerStart(msr, TIMER_FEEDBACK);
 	msrReSmooth(msr,dTime,SMX_SN_FEEDBACK,1,0);
-	dsec = msrTime() - sec;
+      msrTimerStop(msr, TIMER_FEEDBACK);
+      dsec = msrTimerGet(msr, TIMER_FEEDBACK);
 	printf("took %.5f seconds\n", dsec);
 #endif
 #ifdef STELLAR_EVOLUTION
 	printf("Computing stellar evolution... ");
-	sec = msrTime();
+      msrTimerStart(msr, TIMER_NONE);
 	msrReSmooth(msr, dTime, SMX_CHEM_ENRICHMENT, 1, 0);
-	dsec = msrTime() - sec;
+      msrTimerStop(msr, TIMER_NONE);
+      dsec = msrTimerGet(msr, TIMER_NONE);
 	printf("took %.5f seconds\n", dsec);
 #endif
 	msrActiveRung(msr,iKickRung,1);
@@ -5807,7 +5911,7 @@ void msrHopWrite(MSR msr, const char *fname) {
 
     if (msr->param.bVStep)
 	printf("Writing group statistics to %s\n", fname );
-    sec = msrTime();
+    msrTimerStart(msr, TIMER_IO);
 
     /* This is the new parallel binary format */
     struct inOutput out;
@@ -5818,7 +5922,9 @@ void msrHopWrite(MSR msr, const char *fname) {
     out.nProcessor = msr->param.bParaWrite==0?1:(msr->param.nParaWrite<=1 ? msr->nThreads:msr->param.nParaWrite);
     strcpy(out.achOutFile,fname);
     pstOutput(msr->pst,&out,sizeof(out),NULL,0);
-    dsec = msrTime() - sec;
+
+    msrTimerStop(msr, TIMER_IO);
+    dsec = msrTimerGet(msr, TIMER_IO);
     if (msr->param.bVStep)
 	printf("Written statistics, Wallclock: %f secs\n",dsec);
 
@@ -5976,7 +6082,7 @@ void msrNewFof(MSR msr, double dTime) {
     uint64_t nGroups;
     double sec,dsec,ssec;
 
-    ssec = msrTime();
+    msrTimerStart(msr, TIMER_FOF);
 
     in.dTau2 = msr->param.dTau*msr->param.dTau;
     in.nMinMembers = msr->param.nMinMembers;
@@ -5984,13 +6090,15 @@ void msrNewFof(MSR msr, double dTime) {
 	printf("Running FoF with fixed linking length %g\n", msr->param.dTau );
 	}
 
-    sec = msrTime();
+    msrTimerStart(msr, TIMER_NONE);
     pstNewFof(msr->pst,&in,sizeof(in),NULL,0);
-    dsec = msrTime() - sec;
+
+    msrTimerStop(msr, TIMER_NONE);
+    dsec = msrTimerGet(msr, TIMER_NONE);
     if (msr->param.bVStep)
 	printf("Initial FoF calculation complete in %f secs\n",dsec);
 
-    sec = msrTime();
+    msrTimerStart(msr, TIMER_NONE);
     i = 0;
     do {
 	++i;
@@ -5999,7 +6107,9 @@ void msrNewFof(MSR msr, double dTime) {
 	if (msr->param.bVStep)
 	    printf("... %d iteration%s\n",i,i==1?"":"s");
 	} while( out.bMadeProgress );
-    dsec = msrTime() - sec;
+
+    msrTimerStop(msr, TIMER_NONE);
+    dsec = msrTimerGet(msr, TIMER_NONE);
     if (msr->param.bVStep)
 	printf("Global merge complete in %f secs\n",dsec);
 
@@ -6009,7 +6119,9 @@ void msrNewFof(MSR msr, double dTime) {
 	printf("Removed groups with fewer than %d particles, %"PRIu64" remain\n",
 	    inFinish.nMinGroupSize, nGroups);
 //    pstGroupRelocate(msr->pst,NULL,0,NULL,0);
-    dsec = msrTime() - ssec;
+
+    msrTimerStop(msr, TIMER_FOF);
+    dsec = msrTimerGet(msr, TIMER_FOF);
     if (msr->param.bVStep)
 	printf("FoF complete, Wallclock: %f secs\n",dsec);
     }
@@ -6021,7 +6133,7 @@ void msrGroupStats(MSR msr) {
 
     if (msr->param.bVStep)
 	printf("Generating Group statistics\n");
-    sec = msrTime();
+    msrTimerStart(msr, TIMER_FOF);
     inGroupStats.bPeriodic = msr->param.bPeriodic;
     inGroupStats.dPeriod[0] = msr->param.dxPeriod;
     inGroupStats.dPeriod[1] = msr->param.dyPeriod;
@@ -6033,7 +6145,9 @@ void msrGroupStats(MSR msr) {
 	inGroupStats.rEnvironment[1] /= msr->param.dBoxSize;
 	}
     pstGroupStats(msr->pst,&inGroupStats,sizeof(inGroupStats),NULL,0);
-    dsec = msrTime() - sec;
+
+    msrTimerStop(msr, TIMER_FOF);
+    dsec = msrTimerGet(msr, TIMER_FOF);
     if (msr->param.bVStep)
 	printf("Group statistics complete, Wallclock: %f secs\n\n",dsec);
     }
@@ -6109,6 +6223,21 @@ double msrGenerateIC(MSR msr) {
     in.fPhase = msr->param.dFixedAmpPhasePI * M_PI;
     in.nGrid = msr->param.nGrid;
     in.b2LPT = msr->param.b2LPT;
+    in.bICgas = msr->param.bICgas;
+    in.dInitialT = msr->param.dInitialT;
+    in.dInitialH = msr->param.dInitialH;
+#ifdef COOLING
+    in.dInitialHe = msr->param.dInitialHe;
+    in.dInitialC = msr->param.dInitialC;
+    in.dInitialN = msr->param.dInitialN;
+    in.dInitialO = msr->param.dInitialO;
+    in.dInitialNe = msr->param.dInitialNe;
+    in.dInitialMg = msr->param.dInitialMg;
+    in.dInitialSi = msr->param.dInitialSi;
+    in.dInitialFe = msr->param.dInitialFe;
+#endif
+    in.dOmegaRate = msr->csm->val.dOmegab/msr->csm->val.dOmega0;
+    in.dTuFac = msr->param.dTuFac;
     in.bClass = msr->csm->val.classData.bClass;
     in.cosmo = msr->csm->val;
     in.nInflateFactor = msr->param.nInflateReps + 1;
@@ -6117,10 +6246,17 @@ double msrGenerateIC(MSR msr) {
     nTotal  = in.nGrid; /* Careful: 32 bit integer cubed => 64 bit integer */
     nTotal *= in.nGrid;
     nTotal *= in.nGrid;
+    if (in.bICgas) nTotal *= 2;
     in.dBoxMass = msr->csm->val.dOmega0 / nTotal;
 
     for( j=0; j<FIO_SPECIES_LAST; j++) nSpecies[j] = 0;
-    nSpecies[FIO_SPECIES_ALL] = nSpecies[FIO_SPECIES_DARK] = nTotal;
+    if (in.bICgas) {
+       nSpecies[FIO_SPECIES_ALL] = nTotal;
+       nSpecies[FIO_SPECIES_SPH] = nTotal/2;
+       nSpecies[FIO_SPECIES_DARK]= nTotal/2;
+    }else{
+       nSpecies[FIO_SPECIES_ALL] = nSpecies[FIO_SPECIES_DARK] = nTotal;
+    }
     msrInitializePStore(msr,nSpecies);
 
     if (prmSpecified(msr->prm,"dRedFrom")) {
@@ -6217,7 +6353,7 @@ double msrRead(MSR msr, const char *achInFile) {
 
     mMemoryModel = getMemoryModel(msr);
 
-    sec = msrTime();
+    msrTimerStart(msr, TIMER_NONE);
 
     nBytes = PST_MAX_FILES*(sizeof(fioSpeciesList)+PST_FILENAME_SIZE);
     read = malloc(sizeof(struct inReadFile) + nBytes);
@@ -6269,11 +6405,11 @@ double msrRead(MSR msr, const char *achInFile) {
     dTime = getTime(msr,dExpansion,&read->dvFac);
     if (msr->param.bInFileLC) read->dvFac = 1.0;
     read->dTuFac = msr->param.dTuFac;
-    
+
     if (msr->nGas && !prmSpecified(msr->prm,"bDoGas")) msr->param.bDoGas = 1;
-    if (msrDoGas(msr) || msr->nGas) mMemoryModel |= (PKD_MODEL_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_NODE_SPHBNDS);		
+    if (msrDoGas(msr) || msr->nGas) mMemoryModel |= (PKD_MODEL_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_NODE_SPHBNDS);
     if (msr->param.bStarForm || msr->nStar) mMemoryModel |= (PKD_MODEL_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_MASS|PKD_MODEL_SOFTENING|PKD_MODEL_STAR);
-    
+
     read->nNodeStart = 0;
     read->nNodeEnd = msr->N - 1;
 
@@ -6301,7 +6437,8 @@ double msrRead(MSR msr, const char *achInFile) {
 	fioClose(fio);
 	}
 
-    dsec = msrTime() - sec;
+    msrTimerStop(msr, TIMER_NONE);
+    dsec = msrTimerGet(msr, TIMER_NONE);
     msrSetClasses(msr);
     printf("Input file has been successfully read, Wallclock: %f secs.\n", dsec);
 
@@ -7053,7 +7190,11 @@ void msrMeasurePk(MSR msr,int iAssignment,int bInterlace,int nGrid,double a,int 
     if (nGrid/2 < nBins) nBins = nGrid/2;
     assert(nBins <= PST_MAX_K_BINS);
 
+#ifdef MSR_TIMERS
+    msrTimerStart(msr, TIMER_NONE);
+#else
     sec = msrTime();
+#endif
     printf("Measuring P(k) with grid size %d (%d bins)...\n",nGrid,nBins);
 
     in.iAssignment = iAssignment;
@@ -7084,7 +7225,12 @@ void msrMeasurePk(MSR msr,int iAssignment,int bInterlace,int nGrid,double a,int 
     /* At this point, dPk[] needs to be corrected by the box size */
     free(out);
 
+#ifdef MSR_TIMERS
+    msrTimerStop(msr, TIMER_NONE);
+    dsec = msrTimerGet(msr, TIMER_NONE);
+#else
     dsec = msrTime() - sec;
+#endif
     printf("P(k) Calculated, Wallclock: %f secs\n\n",dsec);
     }
 
@@ -7095,7 +7241,11 @@ void msrMeasureLinPk(MSR msr,int nGrid, double dA, double dBoxSize,
     int i;
     double sec,dsec;
 
+#ifdef MSR_TIMERS
+    msrTimerStart(msr, TIMER_NONE);
+#else
     sec = msrTime();
+#endif
 
     in.nGrid = nGrid;
     in.nBins = msr->param.nBinsLinPk;
@@ -7119,14 +7269,23 @@ void msrMeasureLinPk(MSR msr,int nGrid, double dA, double dBoxSize,
 	}
     /* At this point, dPk[] needs to be corrected by the box size */
 
+#ifdef MSR_TIMERS
+    msrTimerStop(msr, TIMER_NONE);
+    dsec = msrTimerGet(msr, TIMER_NONE);
+#else
     dsec = msrTime() - sec;
+#endif
     printf("P_lin(k) Calculated, Wallclock: %f secs\n\n",dsec);
     }
 
 void msrSetLinGrid(MSR msr,double dTime, int nGrid, int bKickClose, int bKickOpen){
     printf("Setting force grids of linear species with nGridLin = %d \n", nGrid);
     double sec, dsec;
+#ifdef MSR_TIMERS
+    msrTimerStart(msr, TIMER_NONE);
+#else
     sec = msrTime();
+#endif
 
     struct inSetLinGrid in;
     in.nGrid = nGrid;
@@ -7145,7 +7304,12 @@ void msrSetLinGrid(MSR msr,double dTime, int nGrid, int bKickClose, int bKickOpe
     in.fPhase = msr->param.dFixedAmpPhasePI*M_PI;
     pstSetLinGrid(msr->pst, &in, sizeof(in), NULL, 0);
 
+#ifdef MSR_TIMERS
+    msrTimerStop(msr, TIMER_NONE);
+    dsec = msrTimerGet(msr, TIMER_NONE);
+#else
     dsec = msrTime() - sec;
+#endif
     printf("Force from linear species calculated, Wallclock: %f, secs\n\n", dsec);
     }
 
@@ -7156,7 +7320,11 @@ void msrLinearKick(MSR msr, double dTime, int bKickClose, int bKickOpen) {
     double sec, dsec;
 
     printf("Applying Linear Kick...\n");
+#ifdef MSR_TIMERS
+    msrTimerStart(msr, TIMER_NONE);
+#else
     sec = msrTime();
+#endif
     in.dtOpen = in.dtClose = 0.0;
     if (msr->csm->val.bComove) {
 	if (bKickClose) in.dtClose = csmComoveKickFac(msr->csm,dTime-dt,dt);
@@ -7167,7 +7335,13 @@ void msrLinearKick(MSR msr, double dTime, int bKickClose, int bKickOpen) {
 	if (bKickOpen) in.dtOpen = dt;
 	}
     pstLinearKick(msr->pst, &in, sizeof(in), NULL, 0);
+
+#ifdef MSR_TIMERS
+    msrTimerStop(msr, TIMER_NONE);
+    dsec = msrTimerGet(msr, TIMER_NONE);
+#else
     dsec = msrTime() - sec;
+#endif
     printf("Linear Kick Applied, Wallclock: %f secs\n\n",dsec);
     }
 #endif

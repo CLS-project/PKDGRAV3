@@ -15,7 +15,7 @@ void msrStarForm(MSR msr, double dTime, double dDelta, int iRung)
     struct outStarForm out;
     double sec,sec1,dsec;
 
-    sec = msrTime();
+    msrTimerStart(msr, TIMER_STARFORM);
 
     const double a = csmTime2Exp(msr->csm,dTime);
 
@@ -55,8 +55,8 @@ void msrStarForm(MSR msr, double dTime, double dDelta, int iRung)
     msr->nGas -= out.nFormed;
     msr->nStar += out.nFormed;
 
-    sec1 = msrTime();
-    dsec = sec1 - sec;
+    msrTimerStop(msr, TIMER_STARFORM);
+    dsec = msrTimerGet(msr, TIMER_STARFORM);
     printf("Star Formation Calculated, Wallclock: %f secs\n\n",dsec);
 
 
@@ -108,10 +108,6 @@ void pkdStarForm(PKD pkd,
 #ifdef COOLING
           const double hyd_abun = psph->afElemMass[ELEMENT_H] / fMass;
 #else
-	  // CAIUS: The hydrogen fraction should be set as simulation parameter,
-	  //        and should correspond to the helium fraction used to compute
-	  //        the linear power spectrum or transfer function used to
-	  //        generate the ICs.
           const double hyd_abun = pkd->param.dInitialH;
 #endif
 
@@ -147,24 +143,23 @@ void pkdStarForm(PKD pkd,
             //printf("STARFORM %e %e %e \n", dScaleFactor, rho_H, psph->Uint);
 
 #ifdef STELLAR_EVOLUTION
-	    float afElemMass[ELEMENT_COUNT];
-	    float fMetalMass;
-	    for (j = 0; j < ELEMENT_COUNT; j++)
-	       afElemMass[j] = psph->afElemMass[j];
-	    fMetalMass = psph->fMetalMass;
+            float afElemMass[ELEMENT_COUNT];
+            float fMetalMass;
+            for (j = 0; j < ELEMENT_COUNT; j++)
+                afElemMass[j] = psph->afElemMass[j];
+            fMetalMass = psph->fMetalMass;
 #endif
 
             // We just change the class of the particle to stellar one
             pkdSetClass(pkd, pkdMass(pkd,p), pkdSoft0(pkd,p), FIO_SPECIES_STAR, p);
-
-	    STARFIELDS *pStar = pkdStar(pkd, p);
+	      STARFIELDS *pStar = pkdStar(pkd, p);
 
             // When changing the class, we have to take into account that
             // the code velocity has different scale factor dependencies for
             // dm/star particles and gas particles
             pv = pkdVel(pkd,p);
-            for (int j=0; j<3; j++){
-	      pv[j] *= dScaleFactor;
+            for (j=0; j<3; j++){
+               pv[j] *= dScaleFactor;
             }
 
             // We log statistics about the formation time
@@ -172,17 +167,17 @@ void pkdStarForm(PKD pkd,
             pStar->hasExploded = 0;
 
 #ifdef STELLAR_EVOLUTION
-	    for (j = 0; j < ELEMENT_COUNT; j++)
-	       pStar->afElemAbun[j] = afElemMass[j] / fMass;
-	    pStar->fMetalAbun = fMetalMass / fMass;
+            for (j = 0; j < ELEMENT_COUNT; j++)
+               pStar->afElemAbun[j] = afElemMass[j] / fMass;
+            pStar->fMetalAbun = fMetalMass / fMass;
 
-	    pStar->fInitialMass = fMass;
-	    pStar->fLastEnrichTime = 0.0f;
+            pStar->fInitialMass = fMass;
+            pStar->fLastEnrichTime = 0.0f;
 
-	    if (pkd->param.bChemEnrich)
-	       stevStarParticleInit(pkd, pStar);
-	    else
-	       pStar->fNextEnrichTime = INFINITY;
+            if (pkd->param.bChemEnrich)
+               stevStarParticleInit(pkd, pStar);
+            else
+               pStar->fNextEnrichTime = INFINITY;
 #endif
 
             // Safety check

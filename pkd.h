@@ -34,6 +34,9 @@
 #endif
 #include "basetype.h"
 #include "iomodule.h"
+#ifdef GRACKLE
+#include <grackle.h>
+#endif
 
 #ifdef __cplusplus
 #define CAST(T,V) reinterpret_cast<T>(V)
@@ -159,6 +162,7 @@ typedef struct velsmooth {
 #define SIGMAT 6.6524e-25    /* Thompson cross-section (cm^2) */
 #define LIGHTSPEED 2.9979e10 /* Speed of Light cm/s */
 #define SECONDSPERYEAR 31557600.
+#define SECPERYEAR 31557600.0   /* Seconds in a Julian year */
 
 enum chemical_elements {
   ELEMENT_H = 0,
@@ -329,7 +333,7 @@ typedef struct sphfields {
     float cooling_dudt;
 #endif
 
-#ifdef STELLAR_EVOLUTION
+#if defined(GRACKLE) || defined(STELLAR_EVOLUTION)
     float fMetalMass;
 #endif
 
@@ -1138,6 +1142,12 @@ typedef struct pkdContext {
     // IA: we add here the needed cooling information available to all procs
     struct cooling_function_data *cooling;
     struct cooling_tables *cooling_table;
+#endif
+#ifdef GRACKLE
+    chemistry_data *grackle_data;
+    chemistry_data_storage *grackle_rates;
+    grackle_field_data *grackle_field;
+    code_units *grackle_units;
 #endif
 #ifdef STELLAR_EVOLUTION
     struct inStellarEvolution *StelEvolData;

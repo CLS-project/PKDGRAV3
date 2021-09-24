@@ -36,6 +36,49 @@
 extern time_t timeGlobalSignalTime;
 extern int bGlobalOutput;
 
+enum msrTimers {
+   TIMER_GRAVITY = 0,
+   TIMER_IO,
+   TIMER_TREE,
+   TIMER_DOMAIN,
+   TIMER_KICKO,
+   TIMER_KICKC,
+   TIMER_DENSITY,
+   TIMER_ENDINT,
+   TIMER_GRADIENTS,
+   TIMER_FLUXES,
+   TIMER_TIMESTEP,
+   TIMER_DRIFT,
+   TIMER_FOF,
+#ifdef FEEDBACK
+   TIMER_FEEDBACK,
+#endif
+#ifdef STAR_FORMATION
+   TIMER_STARFORM,
+#endif
+#ifdef BLACKHOLES
+   TIMER_BHS,
+#endif
+   TIMER_NONE,
+   TOTAL_TIMERS
+};
+
+// The order should be the same than in the enumerate above!
+static const char *timer_names[TOTAL_TIMERS] = {
+    "Gravity",  "IO", "Tree", "DomainDecom",  "KickOpen", "KickClose",
+    "Density", "EndTimeStep",  "Gradient", "Flux", "TimeStep", "Drift", "FoF",
+#ifdef FEEDBACK
+    "Feedback",
+#endif
+#ifdef STAR_FORMATION
+    "StarForm",
+#endif
+#ifdef BLACKHOLES
+    "BHs",
+#endif
+    "Others"
+};
+
 typedef struct msrContext {
     PRM prm;
     PST pst;
@@ -73,6 +116,14 @@ typedef struct msrContext {
     uint64_t nMaxOrder;		/* Order number of last particle */
     int iCurrMaxRung;
     double dThetaMin;
+
+    /*
+    ** Timers
+    */
+    struct msrtimer {
+      double sec;
+	double acc;
+	} ti[TOTAL_TIMERS];
 
     /*
     ** Tree moments (for Ewald)
@@ -124,6 +175,12 @@ typedef struct msrContext {
 extern "C" {
 #endif
 double msrTime();
+void msrTimerStart(MSR msr, int iTimer);
+void msrTimerStop(MSR msr, int iTimer);
+double msrTimerGet(MSR msr, int iTimer);
+void msrTimerHeader(MSR msr);
+void msrTimerRestart(MSR msr);
+double msrTimerDump(MSR msr, int iStep);
 int msrInitialize(MSR *,MDL,void *,int,char **);
 void msrLogParams(MSR msr, FILE *fp);
 void msrOutputFineStatistics(MSR msr, double dStep, double dTime);

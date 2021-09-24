@@ -2793,7 +2793,7 @@ enum SPH_FIELDS{
    SPH_MASS        ,
    SPH_TEMPERATURE ,
    SPH_ABUNDANCES  ,
-#ifdef STELLAR_EVOLUTION
+#if defined(STELLAR_EVOLUTION) || defined(GRACKLE)
    SPH_METALLICITY ,
 #endif
    SPH_SFR         ,
@@ -2810,8 +2810,10 @@ enum STAR_FIELDS{
    STAR_DENSITY     = 3,
    STAR_MASS        ,
    STAR_ABUNDANCES  ,
-#ifdef STELLAR_EVOLUTION
+#if defined(STELLAR_EVOLUTION) || defined(GRACKLE)
    STAR_METALLICITY ,
+#endif
+#ifdef STELLAR_EVOLUTION
    STAR_INITIALMASS ,
    STAR_ENRICHTIME  ,
 #endif
@@ -3640,6 +3642,8 @@ static int hdf5ReadSph(
     /* If each particles has a unique class, use that */
     class_get(pfMass,pfSoft,&base->ioClass,*piParticleID,base->iIndex);
 
+    /* But the mass can still be overriden by that given in the input file */
+    field_get_float(pfMass,&base->fldFields[SPH_MASS],base->iIndex);
 
     if ( !field_get_float(&pfOtherData[0],&base->fldFields[SPH_SMOOTHING],base->iIndex) )
        pfOtherData[0] = 0.0f;
@@ -3656,7 +3660,7 @@ static int hdf5ReadSph(
     if ( !field_get_float(pfMetals,&base->fldFields[SPH_ABUNDANCES],base->iIndex) )
 	for (i = 0; i < NUMBER_METALS; i++) pfMetals[i] = -1.0f;
 
-#ifdef STELLAR_EVOLUTION    
+#if defined(STELLAR_EVOLUTION) || defined(GRACKLE)
     /* Metallicity is optional */
     if ( !field_get_float(&pfOtherData[1],&base->fldFields[SPH_METALLICITY],base->iIndex) )
 	pfOtherData[1] = -1.0f;
@@ -3745,11 +3749,13 @@ static int hdf5ReadStar(
 	   that is not supposed to explode, we set it to 0 instead. See pkdStarFormInit */
 	*pfTform = 0.0f;
 
-#ifdef STELLAR_EVOLUTION
+#if defined(STELLAR_EVOLUTION) || defined(GRACKLE)
     /* Metallicity is optional */
     if ( !field_get_float(&pfOtherData[0],&base->fldFields[STAR_METALLICITY],base->iIndex) )
 	pfOtherData[0] = -1.0f;
+#endif
 
+#ifdef STELLAR_EVOLUTION
     /* Initial mass is optional */
     if ( !field_get_float(&pfOtherData[1],&base->fldFields[STAR_INITIALMASS],base->iIndex) )
 	pfOtherData[1] = -1.0f;
@@ -3903,7 +3909,7 @@ static int hdf5WriteSph(
 
     float fSFR = pfOtherData[0];
     int32_t iGroup = (int32_t)pfOtherData[1];
-#ifdef STELLAR_EVOLUTION
+#if defined(STELLAR_EVOLUTION) || defined(GRACKLE)
     float fMetallicity = pfOtherData[2];
 #endif
 
@@ -3924,7 +3930,7 @@ static int hdf5WriteSph(
 	field_create(&base->fldFields[SPH_SFR],base->group_id,
 		     FIELD_SFR, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, 1);
 #endif
-#ifdef STELLAR_EVOLUTION
+#if defined(STELLAR_EVOLUTION) || defined(GRACKLE)
 	field_create(&base->fldFields[SPH_METALLICITY],base->group_id,
 		     FIELD_METALLICITY, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, 1);
 #endif
@@ -3945,7 +3951,7 @@ static int hdf5WriteSph(
 #ifdef STAR_FORMATION
     field_add_float(&fSFR,&base->fldFields[SPH_SFR],base->iIndex);
 #endif
-#ifdef STELLAR_EVOLUTION
+#if defined(STELLAR_EVOLUTION) || defined(GRACKLE)
     field_add_float(&fMetallicity,&base->fldFields[SPH_METALLICITY],base->iIndex);
 #endif
 
@@ -4178,11 +4184,13 @@ static FIO hdf5OpenOne(const char *fname,int iFile) {
 			   FIELD_DENSITY, H5T_NATIVE_FLOAT,1 );
 		if (base->fldFields[SPH_DENSITY].setId == H5I_INVALID_HID)
 		    hio->fio.mFlags &= ~FIO_FLAG_DENSITY;
+#if defined(STELLAR_EVOLUTION) || defined(GRACKLE)
+		field_open(&base->fldFields[SPH_METALLICITY],base->group_id,
+			   FIELD_METALLICITY,H5T_NATIVE_FLOAT,1);
+#endif
 #ifdef STELLAR_EVOLUTION
 		field_open(&base->fldFields[SPH_ABUNDANCES],base->group_id,
 			   FIELD_ABUNDANCES,H5T_NATIVE_FLOAT,NUMBER_METALS);
-		field_open(&base->fldFields[SPH_METALLICITY],base->group_id,
-			   FIELD_METALLICITY,H5T_NATIVE_FLOAT,1);
 #endif
 		base->nTotal = hio->fio.nSpecies[i] = field_size(&base->fldFields[SPH_POSITION]);
 		class_open(&base->ioClass,base->group_id);
