@@ -2206,8 +2206,13 @@ void pkdGravAll(PKD pkd,
     /*
     ** Start particle caching space (cell cache already active).
     */
+    if (SPHoptions->doSetDensityFlags) {
     mdlCOcache(pkd->mdl,CID_PARTICLE,NULL,pkdParticleBase(pkd),pkdParticleSize(pkd),
 	       pkdLocal(pkd),NULL,initSetMarked,combSetMarked);
+    } else {
+    mdlROcache(pkd->mdl,CID_PARTICLE,NULL,pkdParticleBase(pkd),pkdParticleSize(pkd),
+	       pkdLocal(pkd));
+    }
 
     /*
     ** Calculate newtonian gravity, including replicas if any.
