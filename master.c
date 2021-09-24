@@ -1914,6 +1914,10 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
     prmAddParam(msr->prm,"dSFnormalizationKS", 2, &msr->param.dSFnormalizationKS,
 		sizeof(double), "dSFnormalizationKS",
 		"Normalization of the KS law for star formation [Mo / yr / kpc2]");
+    msr->param.dSFEfficiency = 0.0;
+    prmAddParam(msr->prm,"dSFEfficiency", 2, &msr->param.dSFEfficiency,
+		sizeof(double), "dSFEfficiency",
+		"Star formation efficiency per free-fall time; set >0 to use density-based SFR");
 #endif
 #ifdef FEEDBACK
     msr->param.dFeedbackDu = 31622776.60168379; // 10^7.5 K

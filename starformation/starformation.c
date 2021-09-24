@@ -122,7 +122,12 @@ void pkdStarForm(PKD pkd,
 	    dt = pkd->param.dDelta/(1<<p->uRung);
           dt = dTime - psph->lastUpdateTime;
 
-          double dmstar = pressure_SFR(pkd, a_m3, dDenMin, p, psph);
+          double dmstar;
+          if (pkd->param.dSFEfficiency > 0.0){
+             dmstar = density_SFR(pkd, a_m3, dDenMin, p, psph);
+          }else{
+             dmstar = pressure_SFR(pkd, a_m3, dDenMin, p, psph);
+          }
 
           psph->SFR = dmstar;
 
@@ -221,6 +226,41 @@ static inline double pressure_SFR(PKD pkd, double a_m3, double dDenMin,
    pkd->param.dSFnormalizationKS * pkdMass(pkd,p) *
    pow( pkd->param.dConstGamma*pkd->param.dSFGasFraction*psph->P*a_m3,
       SFexp);
+
+   return dmstar;
+}
+
+static inline double density_SFR(PKD pkd, double a_m3, double dDenMin,
+      PARTICLE *p, SPHFIELDS *psph){
+
+   float fMass = pkdMass(pkd, p);
+   float fDens = pkdDensity(pkd, p);
+
+   // If no information, assume primordial abundance
+#ifdef COOLING
+   const double hyd_abun = psph->afElemMass[ELEMENT_H] / fMass;
+#else
+   const double hyd_abun = pkd->param.dInitialH;
+#endif
+
+   const double rho_H = fDens*hyd_abun;
+
+
+   // Two SF thresholds are applied:
+   //      a) Minimum density, computed at the master level
+   //      b) Maximum temperature of a
+   //            factor 0.5 dex (i.e., 3.1622) above the eEOS
+   const double dens = fDens*a_m3;
+   const double maxUint = pkd->param.dSFThresholdu;
+
+   if (psph->Uint > maxUint || rho_H < dDenMin) {
+      return 0.0;
+   }
+
+   const double tff = sqrt(3.*M_PI/(32.*fDens*a_m3));
+
+   const double dmstar = pkd->param.dSFEfficiency * fDens /
+                              (tff * psph->omega);
 
    return dmstar;
 }

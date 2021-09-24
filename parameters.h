@@ -318,6 +318,7 @@ struct parameters {
     double dSFThresholdu;
     double dSFindexKS;
     double dSFnormalizationKS;
+    double dSFEfficiency;
 #endif
 #ifdef FEEDBACK
     double dFeedbackDelay;
