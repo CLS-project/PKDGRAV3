@@ -144,9 +144,18 @@ void hydroDensity_node(PKD pkd, BND bnd_node, PARTICLE **sinks, NN *nnList,
 
 
              if (Ncond > 100){
-                Neff *= 1.2;
-                niter = 0;
-                continue;
+                // In some configurations (outer particles in a isolated galaxy)
+                // the density could have converged but with a very high Ncond
+                // due to anisotropy.
+                // For those cases, we impose a maximum effective ngb number
+                if (Neff>200.) {
+                   partj->bMarked=0;
+                   printf("WARNING Neff %e Ncond %e \n", Neff, Ncond);
+                }else{
+                   Neff *= 1.2;
+                   niter = 0;
+                   continue;
+                }
              }
 
              partj->bMarked = 0;
