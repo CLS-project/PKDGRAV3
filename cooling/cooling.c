@@ -922,29 +922,6 @@ void pkd_cooling_init_backend(PKD pkd, struct cooling_function_data in_cooling_d
 
   /* Allocate space for cooling tables */
   allocate_cooling_tables(pkd->cooling);
-
-#ifndef STELLAR_EVOLUTION
-    for (int i=0;i<pkd->nLocal;++i) {
-      PARTICLE* p;
-	p = pkdParticle(pkd,i);
-      if (pkdIsGas(pkd,p)) {
-         SPHFIELDS* psph;
-         psph = pkdSph(pkd,p);
-	 float fMass = pkdMass(pkd, p);
-         if (psph->afElemMass[ELEMENT_H] < 0.0f){
-            psph->afElemMass[ELEMENT_H]  = pkd->param.dInitialH  * fMass;
-            psph->afElemMass[ELEMENT_He] = pkd->param.dInitialHe * fMass;
-            psph->afElemMass[ELEMENT_C]  = pkd->param.dInitialC  * fMass;
-            psph->afElemMass[ELEMENT_N]  = pkd->param.dInitialN  * fMass;
-            psph->afElemMass[ELEMENT_O]  = pkd->param.dInitialO  * fMass;
-            psph->afElemMass[ELEMENT_Ne] = pkd->param.dInitialNe * fMass;
-            psph->afElemMass[ELEMENT_Mg] = pkd->param.dInitialMg * fMass;
-            psph->afElemMass[ELEMENT_Si] = pkd->param.dInitialSi * fMass;
-            psph->afElemMass[ELEMENT_Fe] = pkd->param.dInitialFe * fMass;
-         }
-      }
-    }
-#endif
 }
 
 

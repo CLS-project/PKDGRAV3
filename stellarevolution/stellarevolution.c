@@ -185,42 +185,8 @@ int pkdStellarEvolutionInit(PKD pkd, STEV_DATA *data) {
    for (int i = 0; i < pkd->nLocal; ++i) {
       PARTICLE *p = pkdParticle(pkd, i);
 
-      if (pkdIsGas(pkd, p)) {
-	 SPHFIELDS *pSph = pkdSph(pkd,p);
-	 float fMass = pkdMass(pkd, p);
-
-	 if (pSph->afElemMass[ELEMENT_H] < 0.0f) {
-            pSph->afElemMass[ELEMENT_H]  = pkd->param.dInitialH  * fMass;
-            pSph->afElemMass[ELEMENT_He] = pkd->param.dInitialHe * fMass;
-            pSph->afElemMass[ELEMENT_C]  = pkd->param.dInitialC  * fMass;
-            pSph->afElemMass[ELEMENT_N]  = pkd->param.dInitialN  * fMass;
-            pSph->afElemMass[ELEMENT_O]  = pkd->param.dInitialO  * fMass;
-            pSph->afElemMass[ELEMENT_Ne] = pkd->param.dInitialNe * fMass;
-            pSph->afElemMass[ELEMENT_Mg] = pkd->param.dInitialMg * fMass;
-            pSph->afElemMass[ELEMENT_Si] = pkd->param.dInitialSi * fMass;
-            pSph->afElemMass[ELEMENT_Fe] = pkd->param.dInitialFe * fMass;
-	 }
-
-	 if (pSph->fMetalMass < 0.0f)
-	    pSph->fMetalMass = pkd->param.dInitialMetallicity * fMass;
-      }
-      else if (pkdIsStar(pkd, p)) {
+      if (pkdIsStar(pkd, p)) {
 	 STARFIELDS *pStar = pkdStar(pkd, p);
-
-	 if (pStar->afElemAbun[ELEMENT_H] < 0.0f) {
-	    pStar->afElemAbun[ELEMENT_H]  = pkd->param.dInitialH;
-	    pStar->afElemAbun[ELEMENT_He] = pkd->param.dInitialHe;
-	    pStar->afElemAbun[ELEMENT_C]  = pkd->param.dInitialC;
-	    pStar->afElemAbun[ELEMENT_N]  = pkd->param.dInitialN;
-	    pStar->afElemAbun[ELEMENT_O]  = pkd->param.dInitialO;
-	    pStar->afElemAbun[ELEMENT_Ne] = pkd->param.dInitialNe;
-	    pStar->afElemAbun[ELEMENT_Mg] = pkd->param.dInitialMg;
-	    pStar->afElemAbun[ELEMENT_Si] = pkd->param.dInitialSi;
-	    pStar->afElemAbun[ELEMENT_Fe] = pkd->param.dInitialFe;
-	 }
-
-	 if (pStar->fMetalAbun < 0.0f)
-	    pStar->fMetalAbun = pkd->param.dInitialMetallicity;
 
 	 if (pStar->fInitialMass < 0.0f)
 	    pStar->fInitialMass = pkdMass(pkd, p);
