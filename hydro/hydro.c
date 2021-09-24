@@ -74,6 +74,15 @@ void hydroDensity_node(PKD pkd, BND bnd_node, PARTICLE **sinks, NN *nnList,
                        int nCnt_own, int nCnt){
     for (int pj=0; pj<nCnt_own; pj++){
        PARTICLE * partj = sinks[pj];
+#ifdef OPTIM_UNION_EXTRAFIELDS
+       double *omega = NULL;
+       omega = pkdIsGas(pkd,partj)  ? &(pkdSph(pkd,partj)->omega) : omega;
+       omega = pkdIsStar(pkd,partj) ? &(pkdStar(pkd,partj)->omega) : omega;
+       omega = pkdIsBH(pkd,partj)   ? &(pkdBH(pkd,partj)->omega) : omega;
+#else
+       // Assuming *only* stars and gas
+       double* omega = &(pkdSph(pkd,partj)->omega);
+#endif
 
        float dx_node = -pkdPos(pkd,partj,0)+bnd_node.fCenter[0];
        float dy_node = -pkdPos(pkd,partj,1)+bnd_node.fCenter[1];
@@ -85,15 +94,6 @@ void hydroDensity_node(PKD pkd, BND bnd_node, PARTICLE **sinks, NN *nnList,
           float ph = pkdBall(pkd,partj);
           float fBall2_p = 4.*ph*ph;
           int nCnt_p = 0;
-#ifdef OPTIM_UNION_EXTRAFIELDS
-          double *omega = NULL;
-          omega = pkdIsGas(pkd,partj)  ? &(pkdSph(pkd,partj)->omega) : omega;
-          omega = pkdIsStar(pkd,partj) ? &(pkdStar(pkd,partj)->omega) : omega;
-          omega = pkdIsBH(pkd,partj)   ? &(pkdBH(pkd,partj)->omega) : omega;
-#else
-          // Assuming *only* stars and gas
-          double* omega = &(pkdSph(pkd,partj)->omega);
-#endif
           *omega = 0.0;
           double E[6], B[6];
           for (int j=0; j<6; ++j) E[j] = 0.;
@@ -204,6 +204,29 @@ void hydroDensity_node(PKD pkd, BND bnd_node, PARTICLE **sinks, NN *nnList,
           }
 
        }while(partj->bMarked);
+
+       // After a converged fBall is obtained, we limit fBall if needed
+       if (pkd->param.dhMinOverSoft > 0.){
+          float newBall = MAX(pkdBall(pkd,partj),
+                              pkd->param.dhMinOverSoft*pkdSoft(pkd,partj));
+          pkdSetBall(pkd, partj, newBall);
+          float fBall2_p = 4.*newBall*newBall;
+          *omega = 0.0;
+          for (int pk=0;pk<nCnt;pk++){
+             float dx = dx_node - nnList[pk].dx;
+             float dy = dy_node - nnList[pk].dy;
+             float dz = dz_node - nnList[pk].dz;
+
+             float fDist2 = dx*dx + dy*dy + dz*dz;
+             if (fDist2 <= fBall2_p){
+                double rpq = sqrt(fDist2);
+                double Wpq = cubicSplineKernel(rpq, newBall);
+
+                *omega += Wpq;
+             }
+          }
+          pkdSetDensity(pkd, partj, pkdMass(pkd,partj)*(*omega));
+       }
 
     }
 }
