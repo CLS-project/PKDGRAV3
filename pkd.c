@@ -76,11 +76,17 @@
 #ifdef COOLING
 #include "cooling/cooling.h"
 #endif
-#if defined(COOLING) && defined(STAR_FORMATION)
+#if ( defined(COOLING) || defined(GRACKLE) ) && defined(STAR_FORMATION)
 #include "eEOS/eEOS.h"
 #endif
 #ifdef BLACKHOLES
 #include "blackhole/evolve.h"
+#endif
+#ifdef GRACKLE
+#include "cooling_grackle/cooling_grackle.h"
+#endif
+#ifdef STELLAR_EVOLUTION
+#include "stellarevolution/stellarevolution.h"
 #endif
 
 #ifdef _MSC_VER
@@ -595,7 +601,7 @@ void pkdInitialize(
 #endif
 #ifdef OPTIM_REORDER_IN_NODES
     pkd->oNodeNgas = pkdNodeAddInt32(pkd,1);
-#if defined(STAR_FORMATION) && defined(FEEDBACK)
+#if (defined(STAR_FORMATION) && defined(FEEDBACK)) || defined(STELLAR_EVOLUTION)
     pkd->oNodeNstar = pkdNodeAddInt32(pkd,1);
 #endif
     pkd->oNodeNbh = pkdNodeAddInt32(pkd,1);
@@ -928,6 +934,9 @@ void pkdFinish(PKD pkd) {
 #ifdef COOLING
     cooling_clean(pkd->cooling); 
 #endif
+#ifdef STELLAR_EVOLUTION
+    free(pkd->StelEvolData);
+#endif
     SIMD_free(pkd);
     }
 
@@ -1101,7 +1110,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
     float *pPot, dummypot;
     double r[3];
     double vel[3];
-    float fMass, fSoft,fDensity,u,fMetals[chemistry_element_count],fTimer;
+    float fMass, fSoft,fDensity,u,fMetals[ELEMENT_COUNT],fTimer;
     FIO_SPECIES eSpecies;
     uint64_t iParticleID;
 
@@ -1152,7 +1161,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	switch(eSpecies) {
 	case FIO_SPECIES_SPH:
 	    assert(dTuFac>0.0);
-	    float afSphOtherData[1];
+	    float afSphOtherData[2];
 	    fioReadSph(fio,&iParticleID,r,vel,&fMass,&fSoft,pPot,
 		       &fDensity,&u,&fMetals[0],afSphOtherData);
           pkdSetClass(pkd,fMass,fSoft,eSpecies,p);
@@ -1165,8 +1174,11 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
                pSph->BalsaraSwitch = pSph->diff =
                pSph->fMetals = pSph->fMetalsPred = pSph->fMetalsDot = 0.0;
 #endif
-#ifdef COOLING
-            for (j=0;j<chemistry_element_count;j++ ) pSph->chemistry[j]=0.;
+#if defined(COOLING) || defined(STELLAR_EVOLUTION)
+            for (j = 0; j < ELEMENT_COUNT; j++) pSph->afElemMass[j] = fMetals[j] * fMass;
+#endif
+#ifdef STELLAR_EVOLUTION
+            pSph->fMetalMass = afSphOtherData[1] * fMass;
 #endif
             // If the value is negative, means that it is a temperature
             u = (u<0.0) ? -u*dTuFac : u;
@@ -1222,9 +1234,6 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             pSph->lastUpdateTime = -1.;
            // pSph->nLastNeighs = 100;
 #ifdef COOLING
-            for (j=0; j<chemistry_element_count; j++)
-               pSph->chemistry[j] = fMetals[j];
-
             pSph->lastCooling = 0.;
             pSph->cooling_dudt = 0.;
 #endif
@@ -1256,6 +1265,16 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	       pStar->fTimer = fTimer;
              // We avoid that star in the IC could explode
 	       pStar->hasExploded = 1;
+
+#if defined(COOLING) || defined(STELLAR_EVOLUTION)
+	       for (j = 0; j < ELEMENT_COUNT; j++)
+		  pStar->afElemAbun[j] = fMetals[j];
+#endif
+#ifdef STELLAR_EVOLUTION
+	       pStar->fMetalAbun = afStarOtherData[0];
+	       pStar->fInitialMass = afStarOtherData[1];
+	       pStar->fLastEnrichTime = afStarOtherData[2];
+#endif
 	    }
 	    break;
       case FIO_SPECIES_BH:
@@ -2201,7 +2220,7 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,BND *bnd,
     BHFIELDS *pBH;
     float *pPot, dummypot;
     double v[3],r[3];
-    float fMass, fSoft, fDensity,fMetals[chemistry_element_count], fTimer, fBall;
+    float fMass, fSoft, fDensity,fMetals[ELEMENT_COUNT], fTimer, fBall;
     uint64_t iParticleID;
     int j;
 
@@ -2280,13 +2299,36 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,BND *bnd,
 	assert(pSph);
 	assert(pkd->param.dTuFac>0.0);
 	    {
-#ifdef COOLING
+#if defined(COOLING)
           const double dRedshift = dvFacGas - 1.;
           float temperature =  cooling_get_temperature(pkd, dRedshift, pkd->cooling, p, pSph);
-          for (int k=0; k<chemistry_element_count;k++) fMetals[k] = pSph->chemistry[k];
+#elif defined(GRACKLE)
+          gr_float fDensity = pkdDensity(pkd,p);
+          gr_float fMetalDensity = pSph->fMetalMass*pSph->omega;
+          gr_float fSpecificUint = pSph->Uint/pkdMass(pkd,p);
+
+          // Set field arrays.
+          pkd->grackle_field->density[0]         = fDensity;
+          pkd->grackle_field->internal_energy[0] = fSpecificUint;
+          pkd->grackle_field->x_velocity[0]      = 1.; // Velocity input is not used
+          pkd->grackle_field->y_velocity[0]      = 1.;
+          pkd->grackle_field->z_velocity[0]      = 1.;
+          // for metal_cooling = 1
+          pkd->grackle_field->metal_density[0]   = fMetalDensity;
+
+          int err;
+          gr_float temperature;
+          err = local_calculate_temperature(pkd->grackle_data, pkd->grackle_rates, pkd->grackle_units, pkd->grackle_field,
+                                 &temperature);
+          if (err == 0) fprintf(stderr, "Error in calculate_temperature.\n");
 #else
-          float temperature = 0; 
-          for (int k=0; k<chemistry_element_count;k++) fMetals[k] = 0.;
+          float temperature = 0;
+#endif
+
+#if defined(COOLING) || defined(STELLAR_EVOLUTION)
+	  for (int k = 0; k < ELEMENT_COUNT; k++) fMetals[k] = pSph->afElemMass[k] / fMass;
+#else
+          for (int k = 0; k < ELEMENT_COUNT; k++) fMetals[k] = 0.0f;	  
 #endif
 
 #ifdef STAR_FORMATION
@@ -2296,10 +2338,13 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,BND *bnd,
 #endif
 
           fBall = pkdBall(pkd,p);
-          float otherData[2];
+          float otherData[3];
           otherData[0] = SFR;
           // We may have problem if the number of groups increses more than 2^24, but should be enough
           otherData[1] = pkd->oGroup ? (float)pkdGetGroup(pkd,p) : 0 ;
+#if defined(STELLAR_EVOLUTION) || defined(GRACKLE)
+	  otherData[2] = pSph->fMetalMass / fMass;
+#endif
 
 	     fioWriteSph(fio,iParticleID,r,v,fMass,fSoft,*pPot,
 	 	fDensity,pSph->Uint/fMass, &fMetals[0], fBall, temperature, &otherData[0]);
@@ -2314,14 +2359,19 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,BND *bnd,
 	break;
     case FIO_SPECIES_STAR:
       pStar = pkdStar(pkd,p);
-#ifdef COOLING
-      for (int k=0; k<chemistry_element_count;k++) fMetals[k] = pStar->chemistry[k];
+#if defined(COOLING) || defined(STELLAR_EVOLUTION)
+      for (int k = 0; k < ELEMENT_COUNT; k++) fMetals[k] = pStar->afElemAbun[k];
 #else
-      for (int k=0; k<chemistry_element_count;k++) fMetals[k] = 0.;
+      for (int k = 0; k < ELEMENT_COUNT; k++) fMetals[k] = 0.0f;
 #endif
-      float otherData[2];
+      float otherData[5];
       otherData[0] = pStar->fTimer;
       otherData[1] = pkd->oGroup ? (float)pkdGetGroup(pkd,p) : 0 ;
+#ifdef STELLAR_EVOLUTION
+      otherData[2] = pStar->fMetalAbun;
+      otherData[3] = pStar->fInitialMass;
+      otherData[4] = pStar->fLastEnrichTime;
+#endif
 	fioWriteStar(fio,iParticleID,r,v,fMass,fSoft,*pPot,fDensity,
 	    &fMetals[0],&otherData[0]);
 	break;
@@ -2443,7 +2493,7 @@ void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dScaleFactor, double dTime, uint
    int nProcessors = pkd->param.bParaWrite==0?1:(pkd->param.nParaWrite<=1 ? pkd->nThreads:pkd->param.nParaWrite);
    fioSetAttr(fio, 0, "NumFilesPerSnapshot", FIO_TYPE_INT, 1, &nProcessors);
 
-   /* Prepare the particle information in tables 
+   /* Prepare the particle information in tables
     * For now, we only support one file per snapshot,
     * this bParaWrite=0
     *
@@ -2459,16 +2509,16 @@ void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dScaleFactor, double dTime, uint
    numPart_file[3] = nBH; //TODO, random assigment, ask Claudio
    numPart_file[4] = nStar;
    numPart_file[5] = 0;
-    
+
    fioSetAttr(fio, 0, "NumPart_ThisFile", FIO_TYPE_UINT32, 6, &numPart_file[0]);
    fioSetAttr(fio, 0, "NumPart_Total", FIO_TYPE_UINT32, 6, &numPart_file[0]);
 
    double massTable[6] = {0,0,0,0,0,0};
-   if (!pkd->oMass){
-      //printf("Save mass table into hdf5 header not yet supported!\n"); //TODO
-      //fioSetAttr(fio, 0, "MassTable", FIO_TYPE_DOUBLE, 6, &massTable[0]);
-      //abort();
-   }
+   // This is not yet fully supported, as the classes do not have to match the
+   //  six available particle types.
+   // However, we add this in the header so it can be parsed by other tools
+   fioSetAttr(fio, 0, "MassTable", FIO_TYPE_DOUBLE, 6, &massTable[0]);
+
    float fSoft = pkdSoft(pkd,pkdParticle(pkd,0)); // we take any particle
    fioSetAttr(fio, 0, "Softening", FIO_TYPE_FLOAT, 1, &fSoft);
 
@@ -2476,13 +2526,20 @@ void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dScaleFactor, double dTime, uint
     * Cosmology header
     */
    if (pkd->csm->val.bComove){
+      double h = 1;
+      flag = 1;
       fioSetAttr(fio, 1, "Omega_m", FIO_TYPE_DOUBLE, 1, &pkd->csm->val.dOmega0);
       fioSetAttr(fio, 1, "Omega_lambda", FIO_TYPE_DOUBLE, 1, &pkd->csm->val.dLambda);
       fioSetAttr(fio, 1, "Hubble0", FIO_TYPE_DOUBLE, 1, &pkd->csm->val.dHubble0);
-      flag = 1;
       fioSetAttr(fio, 1, "Cosmological run", FIO_TYPE_INT, 1, &flag);
-      double h = 1;
       fioSetAttr(fio, 1, "HubbleParam", FIO_TYPE_DOUBLE, 1, &h); // Not used
+
+      // Keep a copy also in the Header for increased compatibility
+      fioSetAttr(fio, 0, "Omega0", FIO_TYPE_DOUBLE, 1, &pkd->csm->val.dOmega0);
+      fioSetAttr(fio, 0, "OmegaLambda", FIO_TYPE_DOUBLE, 1, &pkd->csm->val.dLambda);
+      fioSetAttr(fio, 0, "Hubble0", FIO_TYPE_DOUBLE, 1, &pkd->csm->val.dHubble0);
+      fioSetAttr(fio, 0, "Cosmological run", FIO_TYPE_INT, 1, &flag);
+      fioSetAttr(fio, 0, "HubbleParam", FIO_TYPE_DOUBLE, 1, &h); // Not used
    }else{
       flag = 0;
       fioSetAttr(fio, 1, "Cosmological run", FIO_TYPE_INT, 1, &flag);
@@ -3139,7 +3196,7 @@ void pkdReorderWithinNodes(PKD pkd){
          }
          pkdNodeSetNgas(pkd, node, nGas);
          start += nGas;
-#if defined(STAR_FORMATION) && defined(FEEDBACK)
+#if (defined(STAR_FORMATION) && defined(FEEDBACK)) || defined(STELLAR_EVOLUTION)
          // We perform another swap, just to have nGas->nStar->DM
          int nStar = 0;
          for (int pj=start;pj<=node->pUpper;++pj) {
@@ -3239,6 +3296,9 @@ void pkdEndTimestepIntegration(PKD pkd,int iRoot, double dTime, double dDelta) {
        dRedshift = 0.0;
        dHubble = 0.0;
     }
+#ifdef GRACKLE
+    pkdGrackleUpdate(pkd, dScaleFactor);
+#endif
     const float a_m3 = pow(1.+dRedshift,3);
     if (pkd->param.bDoGas) {
       assert(pkd->param.bDoGas);
@@ -3274,9 +3334,12 @@ void pkdEndTimestepIntegration(PKD pkd,int iRoot, double dTime, double dDelta) {
             const float delta_redshift = -pDelta * dHubble * (dRedshift + 1.);
             cooling_cool_part(pkd, pkd->cooling, p, psph, pDelta, dTime, delta_redshift, dRedshift);
 #endif
+#ifdef GRACKLE
+            pkdGrackleCooling(pkd, p, pDelta);
+#endif
 
             // ##### Effective Equation Of State
-#if defined(COOLING) && defined(STAR_FORMATION)
+#if ( defined(COOLING) || defined(GRACKLE) ) && defined(STAR_FORMATION)
             internalEnergyFloor(pkd, p, psph, a_m3);
 #endif
 

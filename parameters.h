@@ -252,11 +252,13 @@ struct parameters {
     double dFixedDelta;
     double dMinDt;
 
+#if defined(COOLING) || defined(GRACKLE)
+    char strCoolingTables[256];
+#endif
 #ifdef COOLING
     /*
      * IA: Cooling parameters
      */
-    char strCoolingTables[256];
     double fH_reion_z;
     double fH_reion_eV_p_H;
     double fHe_reion_z_centre;
@@ -269,12 +271,15 @@ struct parameters {
     /*
      * IA: Internal energy floor parameters
      */
+    double dCoolingFloorDen;
+    double dCoolingFlooru;
+#endif
+#if defined(COOLING) || defined(STAR_FORMATION)
     double dJeansFloorIndex;
     double dJeansFloorDen;
     double dJeansFlooru;
-    double dCoolingFloorDen;
-    double dCoolingFlooru;
-
+#endif
+#if defined(COOLING) || defined(STELLAR_EVOLUTION)
     /*
      * IA: Initial abundances 
      */
@@ -286,6 +291,9 @@ struct parameters {
     double dInitialMg;
     double dInitialSi;
     double dInitialFe;
+#endif
+#ifdef STELLAR_EVOLUTION
+    double dInitialMetallicity;
 #endif
     double dInitialH;
 #ifdef STAR_FORMATION
@@ -315,6 +323,23 @@ struct parameters {
     double dBHFeedbackEcrit;
     double dBHSeedMass;
     double dMhaloMin;
+#endif
+#ifdef STELLAR_EVOLUTION
+    char achStEvolPath[256];
+    char achSNIa_DTDtype[32];
+    char achIMFtype[32];
+    int bChemEnrich;
+    double dIMF_MinMass;
+    double dIMF_MaxMass;
+    double dCCSN_MinMass;
+    double dCCSN_MaxMass;
+    double dSNIa_MaxMass;
+    double dSNIa_Norm;
+    double dSNIa_Scale;
+    double dSNIa_Norm_ti;
+    double dSNIa_Norm_tf;
+    double dSNIaEnergy;
+    double dWindSpecificEkin;
 #endif
 
 #ifdef MDL_FFTW

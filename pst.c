@@ -56,10 +56,16 @@
 #ifdef COOLING
 #include "cooling/cooling.h"
 #endif
+#ifdef GRACKLE
+#include "cooling_grackle/cooling_grackle.h"
+#endif
 #ifdef BLACKHOLES
 #include "blackhole/merger.h"
 #include "blackhole/seed.h"
 #include "blackhole/init.h"
+#endif
+#ifdef STELLAR_EVOLUTION
+#include "stellarevolution/stellarevolution.h"
 #endif
 
 void pstAddServices(PST pst,MDL mdl) {
@@ -207,6 +213,11 @@ void pstAddServices(PST pst,MDL mdl) {
 		  (fcnService_t*) pstCoolingHydReion,
 		  0,0);
 #endif 
+#ifdef GRACKLE
+    mdlAddService(mdl,PST_GRACKLEINIT,pst,
+		  (fcnService_t*) pstGrackleInit,
+		  sizeof(struct inGrackleInit),0);
+#endif
 #ifdef BLACKHOLES
     mdlAddService(mdl,PST_BH_PLACESEED,pst,
 		  (fcnService_t*) pstPlaceBHSeed,
@@ -298,6 +309,11 @@ void pstAddServices(PST pst,MDL mdl) {
 #ifdef OPTIM_REORDER_IN_NODES
     mdlAddService(mdl,PST_REORDERINNODES,pst,(fcnService_t*) pstReorderWithinNodes,
 		  0,0);
+#endif
+#ifdef STELLAR_EVOLUTION
+    mdlAddService(mdl,PST_STELLAREVOLUTIONINIT,pst,
+		  (fcnService_t*) pstStellarEvolutionInit,
+		  sizeof(struct inStellarEvolution) + sizeof(double),0);
 #endif
     mdlAddService(mdl,PST_UPDATERUNG,pst,(fcnService_t*)pstUpdateRung,
 		  sizeof(struct inUpdateRung),sizeof(struct outUpdateRung));
@@ -592,7 +608,7 @@ int pstReadFile(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	mdlGetReply(pst->mdl,rID,NULL,NULL);
 	}
     else {
-	int *nParts = malloc(pst->nLeaves * sizeof(nParts));
+	int *nParts = malloc(pst->nLeaves * sizeof(*nParts));
 	int i;
 	uint64_t nStart;
 	PKD pkd;
@@ -600,7 +616,7 @@ int pstReadFile(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	PST pst0;
 
 	assert(nParts!=NULL);
-	pstOneNodeReadInit(pst,in,sizeof(*in),nParts,pst->nLeaves * sizeof(nParts));
+	pstOneNodeReadInit(pst,in,sizeof(*in),nParts,pst->nLeaves * sizeof(*nParts));
 	pkd = plcl->pkd;
 	mdl = pkd->mdl;
 
@@ -3207,6 +3223,23 @@ int pstPredictSmoothing(PST pst,void *vin,int nIn,void *vout,int nOut) {
        }
     return 0;
     }
+#ifdef GRACKLE
+int pstGrackleInit(PST pst,void *vin,int nIn,void *vout,int nOut) {
+    LCL *plcl = pst->plcl;
+
+    struct inGrackleInit *in = vin;
+    mdlassert(pst->mdl,nIn == sizeof(struct inGrackleInit));
+    if (pst->nLeaves > 1) {
+       int rID = mdlReqService(pst->mdl,pst->idUpper,PST_GRACKLEINIT,in,nIn);
+       pstGrackleInit(pst->pstLower,in,nIn,NULL,0);
+       mdlGetReply(pst->mdl,rID,NULL,NULL);
+       }
+    else {
+       pkdGrackleInit(plcl->pkd, in->bComove, in->dScaleFactor);
+       }
+    return 0;
+    }
+#endif
 
 #ifdef COOLING
 int pstCoolingInit(PST pst,void *vin,int nIn,void *vout,int nOut) {

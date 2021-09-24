@@ -132,6 +132,9 @@ enum pst_service {
 #ifdef DEBUG_CACHED_FLUXES
     PST_FLUXSTATS,
 #endif
+#ifdef GRACKLE
+    PST_GRACKLEINIT,
+#endif
 #ifdef COOLING
     PST_COOLINGUPDATE,
     PST_COOLINGUPDATEZ,
@@ -187,6 +190,9 @@ enum pst_service {
 #endif
 #ifdef OPTIM_REORDER_IN_NODES
     PST_REORDERINNODES,
+#endif
+#ifdef STELLAR_EVOLUTION
+    PST_STELLAREVOLUTIONINIT,
 #endif
     PST_INITACCEL,
     PST_UPDATERUNG,
@@ -689,6 +695,13 @@ struct inCoolInit{
    }; 
 int pstCoolingInit(PST,void *,int,void *,int);
 int pstCoolingHydReion(PST,void *,int,void *,int);
+#endif
+#ifdef GRACKLE
+struct inGrackleInit{
+   int bComove;
+   double dScaleFactor;
+};
+int pstGrackleInit(PST, void *,int,void *,int);
 #endif
 #ifdef BLACKHOLES
 struct inPlaceBHSeed {

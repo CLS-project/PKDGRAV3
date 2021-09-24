@@ -73,6 +73,9 @@
 #ifdef COOLING
 #include "cooling/cooling.h"
 #endif
+#ifdef GRACKLE
+#include "cooling_grackle/cooling_grackle.h"
+#endif
 #ifdef BLACKHOLES
 #include "blackhole/merger.h"
 #include "blackhole/seed.h"
@@ -284,7 +287,7 @@ static uint64_t getMemoryModel(MSR msr) {
     if (msr->param.bMemNodeMoment)       mMemoryModel |= PKD_MODEL_NODE_MOMENT;
     if (msr->param.bMemNodeSphBounds)    mMemoryModel |= PKD_MODEL_NODE_SPHBNDS;
     if (msr->param.bDoGas)               mMemoryModel |= (PKD_MODEL_SPH | PKD_MODEL_NODE_SPHBNDS | PKD_MODEL_ACCELERATION);
-#if  defined(STAR_FORMATION) || defined(FEEDBACK)
+#if defined(STAR_FORMATION) || defined(FEEDBACK) || defined(STELLAR_EVOLUTION)
     mMemoryModel |= PKD_MODEL_STAR;
 #endif
 #if BLACKHOLES
@@ -1750,10 +1753,12 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
 		sizeof(double), "minDt",
 		"Minimum allowed timestep for the particles (in code units)");
 
-#ifdef COOLING
+#if defined(COOLING) || defined(GRACKLE)
     prmAddParam(msr->prm,"strCoolingTables",3,msr->param.strCoolingTables,256,"coolingtables",
 		"Path to cooling tables");
+#endif
 
+#ifdef COOLING
     /// Hydrogen reionization
     msr->param.fH_reion_z = 11.5;
     prmAddParam(msr->prm,"fH_reion_z", 2, &msr->param.fH_reion_z,
@@ -1791,8 +1796,18 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
 		sizeof(float), "fT_CMB_0",
 		"Temperature of the CMB at z=0");
 
-
     /* Parameters for the internal energy floor */
+    msr->param.dCoolingFloorDen = 1e-5;
+    prmAddParam(msr->prm,"dCoolingFloorDen", 2, &msr->param.dCoolingFloorDen,
+		sizeof(double), "dCoolingFloorDen",
+		"Minimum density at which the internal energy floor will be applied (in nH [cm-3])");
+
+    msr->param.dCoolingFlooru = 1e4;
+    prmAddParam(msr->prm,"dCoolingFloorTemp", 2, &msr->param.dCoolingFlooru,
+		sizeof(double), "dCoolingFloorTemp",
+		"Temperature at the internal energy floor");
+#endif
+#if defined(COOLING) || defined(STAR_FORMATION)
     msr->param.dJeansFloorIndex = 4./3.; // This gives a Jeans Mass independent of density (see Schaye & Dalla Vecchia 2008)
     prmAddParam(msr->prm,"dJeansFloorIndex", 2, &msr->param.dJeansFloorIndex,
 		sizeof(double), "dJeansFloorIndex",
@@ -1807,17 +1822,8 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
     prmAddParam(msr->prm,"dJeansFloorTemp", 2, &msr->param.dJeansFlooru,
 		sizeof(double), "dJeansFloorTemp",
 		"Temperature at the density threshold for the effective EOS");
-
-    msr->param.dCoolingFloorDen = 1e-5;
-    prmAddParam(msr->prm,"dCoolingFloorDen", 2, &msr->param.dCoolingFloorDen,
-		sizeof(double), "dCoolingFloorDen",
-		"Minimum density at which the internal energy floor will be applied (in nH [cm-3])");
-
-    msr->param.dCoolingFlooru = 1e4;
-    prmAddParam(msr->prm,"dCoolingFloorTemp", 2, &msr->param.dCoolingFlooru,
-		sizeof(double), "dCoolingFloorTemp",
-		"Temperature at the internal energy floor");
-
+#endif
+#if defined(COOLING) || defined(STELLAR_EVOLUTION)
     /* Parameters for the initial abundances */
     msr->param.dInitialHe = 0.25;
     prmAddParam(msr->prm,"dInitialHe", 2, &msr->param.dInitialHe,
@@ -1852,6 +1858,12 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
 		sizeof(double), "dInitialFe",
 		"Initial Iron abundance");
 #endif
+#ifdef STELLAR_EVOLUTION
+    msr->param.dInitialMetallicity = 0.0;
+    prmAddParam(msr->prm,"dInitialMetallicity", 2, &msr->param.dInitialMetallicity,
+		sizeof(double), "dInitialMetallicity",
+		"Initial metallicity");
+#endif
     msr->param.dInitialH = 0.75;
     prmAddParam(msr->prm,"dInitialH", 2, &msr->param.dInitialH,
 		sizeof(double), "dInitialH",
@@ -1866,7 +1878,7 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
     prmAddParam(msr->prm,"dSFThresholdTemp", 2, &msr->param.dSFThresholdu,
 		sizeof(double), "dSFThresholdTemp",
 		"Maximum temperature of a gas element to for stars [K]");
-    msr->param.dSFMinOverDensity = 0.;
+    msr->param.dSFMinOverDensity = 57.7;
     prmAddParam(msr->prm,"dSFMinOverDensity", 2, &msr->param.dSFMinOverDensity,
 		sizeof(double), "dSFMinOverDensity",
 		"Minimium overdensity for allowing star formation");
@@ -1952,6 +1964,82 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
     prmAddParam(msr->prm,"dMhaloMin", 2, &msr->param.dMhaloMin,
 		sizeof(double), "dMhaloMin",
 		"Minimum mass required to place a BH in a FOF group <code units>");
+#endif
+#ifdef STELLAR_EVOLUTION
+    strcpy(msr->param.achStEvolPath, "");
+    prmAddParam(msr->prm, "achStEvolPath", 3, msr->param.achStEvolPath, 256, "stevtables",
+		"Path to stellar evolution tables");
+
+    strcpy(msr->param.achSNIa_DTDtype, "exponential");
+    prmAddParam(msr->prm, "achSNIa_DTDtype", 3, msr->param.achSNIa_DTDtype, 32, "dtdtype",
+		"Type of Delay Time Distribution function for SNIa events");
+
+    strcpy(msr->param.achIMFtype, "chabrier");
+    prmAddParam(msr->prm, "achIMFtype", 3, msr->param.achIMFtype, 32, "imftype",
+		"Type of Initial Mass Function");
+
+    msr->param.bChemEnrich = 1;
+    prmAddParam(msr->prm, "bChemEnrich", 0, &msr->param.bChemEnrich,
+		sizeof(int), "bChemEnrich",
+		"Activate chemical enrichment of gas particles surrounding a star particle");
+
+    msr->param.dIMF_MinMass = 0.1;
+    prmAddParam(msr->prm, "dIMF_MinMass", 2, &msr->param.dIMF_MinMass,
+		sizeof(double), "imfminmass",
+		"Lower mass limit of the Initial Mass Function <Mo>");
+
+    msr->param.dIMF_MaxMass = 100.0;
+    prmAddParam(msr->prm, "dIMF_MaxMass", 2, &msr->param.dIMF_MaxMass,
+		sizeof(double), "imfmaxmass",
+		"Upper mass limit of the Initial Mass Function <Mo>");
+
+    msr->param.dCCSN_MinMass = 6.0;
+    prmAddParam(msr->prm, "dCCSN_MinMass", 2, &msr->param.dCCSN_MinMass,
+		sizeof(double), "ccsnminmass",
+		"Minimum mass for a star to end its life as a Core Collapse Supernova <Mo>");
+
+    msr->param.dCCSN_MaxMass = 100.0;
+    prmAddParam(msr->prm, "dCCSN_MaxMass", 2, &msr->param.dCCSN_MaxMass,
+		sizeof(double), "ccsnmaxmass",
+		"Maximum mass for a star to end its life as a Core Collapse Supernova <Mo>");
+
+    msr->param.dSNIa_MaxMass = 8.0;
+    prmAddParam(msr->prm, "dSNIa_MaxMass", 2, &msr->param.dSNIa_MaxMass,
+		sizeof(double), "sniamaxmass",
+		"Maximum mass for the likely progenitors of SNIa events <Mo>");
+
+    msr->param.dSNIa_Norm = 2e-3;
+    prmAddParam(msr->prm, "dSNIa_Norm", 2, &msr->param.dSNIa_Norm,
+		sizeof(double), "snianorm",
+		"Normalization of the Delay Time Distribution function <1/Mo>");
+
+    msr->param.dSNIa_Scale = 2e9;
+    prmAddParam(msr->prm, "dSNIa_Scale", 2, &msr->param.dSNIa_Scale,
+		sizeof(double), "sniascale",
+		"Scale of the Delay Time Distribution function (Exponential <yr>, "
+		"Powerlaw <dimensionless>)");
+
+    msr->param.dSNIa_Norm_ti = 40e6;
+    prmAddParam(msr->prm, "dSNIa_Norm_ti", 2, &msr->param.dSNIa_Norm_ti,
+		sizeof(double), "sniati",
+		"Initial time for the normalization of the Delay Time Distribution "
+		"function <yr>");
+
+    msr->param.dSNIa_Norm_tf = 13.7e9;
+    prmAddParam(msr->prm, "dSNIa_Norm_tf", 2, &msr->param.dSNIa_Norm_tf,
+		sizeof(double), "sniatf",
+		"Final time for the normalization of the Delay Time Distribution "
+		"function <yr>");
+
+    msr->param.dSNIaEnergy = 1e51;
+    prmAddParam(msr->prm, "dSNIaEnergy", 2, &msr->param.dSNIaEnergy,
+		sizeof(double), "sniaenergy",
+		"SNIa event energy <erg>");
+
+    double dStellarWindSpeed = 10.0;
+    prmAddParam(msr->prm, "dStellarWindSpeed", 2, &dStellarWindSpeed,
+		sizeof(double), "windspeed",
+		"Stellar wind speed <km/s>");
 #endif
     /* END of new params */
 
@@ -2054,11 +2142,13 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
     const double dnHToRho = MHYDR * dHydFrac / msr->param.dGmPerCcUnit;
 #ifdef COOLING
     // We convert the parameters of the entropy floor into code units
+    msr->param.dCoolingFloorDen *= dnHToRho;
+    msr->param.dCoolingFlooru *= msr->param.dTuFac;
+#endif
+#if defined(COOLING) || defined(STAR_FORMATION)
     msr->param.dJeansFloorIndex -= 1.;
     msr->param.dJeansFloorDen *=  dnHToRho; // Code density
     msr->param.dJeansFlooru *= msr->param.dTuFac; // Code internal energy per unit mass
-    msr->param.dCoolingFloorDen *= dnHToRho;
-    msr->param.dCoolingFlooru *= msr->param.dTuFac;
 #endif
 #ifdef STAR_FORMATION
     msr->param.dSFThresholdDen *= dnHToRho*dHydFrac; // Code hydrogen density
@@ -2088,6 +2178,27 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
     double n_heat = 1.0; // This, in principle, will not be a parameter
     // We convert from Delta T to energy per mass. This needs to be multiplied by the mass of the gas particle
     msr->param.dBHFeedbackEcrit *= msr->param.dGasConst/(msr->param.dConstGamma - 1.)/0.58 * n_heat;
+#endif
+
+#ifdef STELLAR_EVOLUTION
+    msr->param.dSNIa_Norm_ti *= SECONDSPERYEAR / msr->param.dSecUnit;
+    msr->param.dSNIa_Norm_tf *= SECONDSPERYEAR / msr->param.dSecUnit;
+    msr->param.dSNIaEnergy /= msr->param.dErgUnit;
+    dStellarWindSpeed /= msr->param.dKmPerSecUnit;
+    msr->param.dWindSpecificEkin = 0.5 * dStellarWindSpeed * dStellarWindSpeed;
+
+    if (strcmp(msr->param.achSNIa_DTDtype, "exponential") == 0) {
+       msr->param.dSNIa_Scale *= SECONDSPERYEAR / msr->param.dSecUnit;
+    }
+    else if (strcmp(msr->param.achSNIa_DTDtype, "powerlaw") == 0) {
+       msr->param.dSNIa_Norm /= (pow(msr->param.dSNIa_Norm_tf, msr->param.dSNIa_Scale + 1.0) -
+				 pow(msr->param.dSNIa_Norm_ti, msr->param.dSNIa_Scale + 1.0));
+    }
+    else {
+       printf("ERROR: Undefined DTD type has been given in achSNIa_DTDtype parameter: %s\n",
+	      msr->param.achSNIa_DTDtype);
+       assert(0);
+    }
 #endif
 
     /* Gas parameter checks */
@@ -2231,6 +2342,9 @@ void msrLogParams(MSR msr,FILE *fp) {
 #endif
 #ifdef FEEDBACK
    fprintf(fp," FEEDBACK"); 
+#endif
+#ifdef STELLAR_EVOLUTION
+   fprintf(fp," STELLAR_EVOLUTION");
 #endif
 #ifdef HERNQUIST_POTENTIAL
    fprintf(fp," HERNQUIST_POTENTIAL"); 
@@ -5094,10 +5208,14 @@ int msrNewTopStepKDK(MSR msr,
       *pdStep,1,bKickOpen,msr->param.bEwald,nGroup,piSec,&nActive);
     }
 
+#if defined(FEEDBACK) || defined(STELLAR_EVOLUTION)
+    msrActiveRung(msr,uRung,0);
 #ifdef FEEDBACK
-      msrActiveRung(msr,uRung,0);
-      msrReSmooth(msr,*pdTime,SMX_SN_FEEDBACK,1,0);
-      msrActiveRung(msr,uRung,1);
+    msrReSmooth(msr,*pdTime,SMX_SN_FEEDBACK,1,0);
+#endif
+#ifdef STELLAR_EVOLUTION
+    msrReSmooth(msr, *pdTime, SMX_CHEM_ENRICHMENT, 1, 0);
+#endif
 #endif
 
     msrActiveRung(msr,uRung,1);
@@ -5302,18 +5420,27 @@ void msrTopStepKDK(MSR msr,
 		       (iKickRung<=msr->param.iRungCoolTableUpdate ? 1:0),0);
 	}
 
+#if defined(FEEDBACK) || defined(STELLAR_EVOLUTION)
+	msrActiveRung(msr,iKickRung,0);
+	double sec, dsec;
 #ifdef FEEDBACK
-      double sec, dsec;
-      printf("Computing feedback... ");
+	printf("Computing feedback... ");
 
       msrTimerStart(msr, TIMER_FEEDBACK);
-      msrActiveRung(msr,iKickRung,0);
-      msrReSmooth(msr,dTime,SMX_SN_FEEDBACK,1,0);
-      msrActiveRung(msr,iKickRung,1);
-
+	msrReSmooth(msr,dTime,SMX_SN_FEEDBACK,1,0);
       msrTimerStop(msr, TIMER_FEEDBACK);
       dsec = msrTimerGet(msr, TIMER_FEEDBACK);
-      printf("took %.5f seconds\n", dsec);
+	printf("took %.5f seconds\n", dsec);
+#endif
+#ifdef STELLAR_EVOLUTION
+	printf("Computing stellar evolution... ");
+      msrTimerStart(msr, TIMER_NONE);
+	msrReSmooth(msr, dTime, SMX_CHEM_ENRICHMENT, 1, 0);
+      msrTimerStop(msr, TIMER_NONE);
+      dsec = msrTimerGet(msr, TIMER_NONE);
+	printf("took %.5f seconds\n", dsec);
+#endif
+	msrActiveRung(msr,iKickRung,1);
 #endif
 
 

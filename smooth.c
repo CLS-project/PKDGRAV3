@@ -41,6 +41,9 @@
 #include "blackhole/merger.h"
 #include "blackhole/evolve.h"
 #endif
+#ifdef STELLAR_EVOLUTION
+#include "stellarevolution/stellarevolution.h"
+#endif
 #include <sys/stat.h>
 
 #define ASSERT_CONCAT_(a, b) a##b
@@ -362,6 +365,15 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
 	initParticle = NULL; /* Original Particle */
 	init = initBHevolve; /* Cached copies */
 	comb = combBHevolve;
+	smx->fcnPost = NULL;
+	break;
+#endif
+#ifdef STELLAR_EVOLUTION
+    case SMX_CHEM_ENRICHMENT:
+        smx->fcnSmooth = smChemEnrich;
+	initParticle = NULL;
+	init = initChemEnrich;
+	comb = combChemEnrich;
 	smx->fcnPost = NULL;
 	break;
 #endif
@@ -2751,6 +2763,20 @@ int  smReSmooth(SMX smx,SMF *smf, int iSmoothType) {
           }
           break;
 #endif
+#ifdef STELLAR_EVOLUTION
+       case SMX_CHEM_ENRICHMENT:
+	  for (pi = 0; pi < pkd->nLocal; ++pi) {
+	     p = pkdParticle(pkd, pi);
+	     if (pkdIsStar(pkd, p)) {
+		STARFIELDS *pStar = pkdStar(pkd, p);
+		if ((float)smf->dTime > pStar->fNextEnrichTime) {
+		   smReSmoothSingle(smx, smf, p, 2.0 * pkdBall(pkd, p));
+		   nSmoothed++;
+		}
+	     }
+	  }
+	  break;
+#endif
        default:
           for (pi=0;pi<pkd->nLocal;++pi) {
             p = pkdParticle(pkd,pi);
@@ -2877,7 +2903,7 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
          float nodeBall = 0.;
 #ifdef OPTIM_REORDER_IN_NODES
          int pEnd = node->pLower + pkdNodeNgas(pkd,node);
-#if defined(STAR_FORMATION) && defined(FEEDBACK)
+#if (defined(STAR_FORMATION) && defined(FEEDBACK)) || defined(STELLAR_EVOLUTION)
          if (iSmoothType==SMX_FIRSTHYDROLOOP) pEnd += pkdNodeNstar(pkd,node);
 #endif
 #ifdef BLACKHOLES
@@ -2903,9 +2929,11 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
                    if (!p->bMarked) continue;
 #endif
 
-#if defined(STAR_FORMATION) && defined(FEEDBACK)
-                   // We keep track of the density of star particles
-                   // that have not exploded
+#if defined(FEEDBACK) && !defined(STELLAR_EVOLUTION)
+                   // If there is only feedback, once the particle explodes
+                   // there is no need to updated its fBall.
+                   // However, if we have stellar evolution, fBall needs to be
+                   // always updated.
                    if (pkdIsStar(pkd,p) && (pkdStar(pkd,p)->hasExploded==1))
                       continue;
 #endif

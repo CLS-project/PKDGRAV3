@@ -2,6 +2,10 @@
 #include "master.h"
 #include "pkd.h"
 
+#ifdef STELLAR_EVOLUTION
+#include "stellarevolution/stellarevolution.h"
+#endif
+
 /* IA: MSR layer
  */
 
@@ -76,7 +80,7 @@ void pkdStarForm(PKD pkd,
     SPHFIELDS *psph;
     double dt;
     float* pv;
-    int i;
+    int i, j;
 
     assert(pkd->oStar);
     assert(pkd->oSph);
@@ -102,12 +106,8 @@ void pkdStarForm(PKD pkd,
           float fMass = pkdMass(pkd, p);
           // If no information, assume primoridal abundance
 #ifdef COOLING
-          const double hyd_abun = psph->chemistry[chemistry_element_H];
+          const double hyd_abun = psph->afElemMass[ELEMENT_H] / fMass;
 #else
-	  // CAIUS: The hydrogen fraction should be set as simulation parameter,
-	  //        and should correspond to the helium fraction used to compute
-	  //        the linear power spectrum or transfer function used to
-	  //        generate the ICs.
           const double hyd_abun = pkd->param.dInitialH;
 #endif
 
@@ -142,19 +142,43 @@ void pkdStarForm(PKD pkd,
 
             //printf("STARFORM %e %e %e \n", dScaleFactor, rho_H, psph->Uint);
 
+#ifdef STELLAR_EVOLUTION
+            float afElemMass[ELEMENT_COUNT];
+            float fMetalMass;
+            for (j = 0; j < ELEMENT_COUNT; j++)
+                afElemMass[j] = psph->afElemMass[j];
+            fMetalMass = psph->fMetalMass;
+#endif
+
             // We just change the class of the particle to stellar one
             pkdSetClass(pkd, pkdMass(pkd,p), pkdSoft0(pkd,p), FIO_SPECIES_STAR, p);
+	      STARFIELDS *pStar = pkdStar(pkd, p);
 
             // When changing the class, we have to take into account that
             // the code velocity has different scale factor dependencies for
             // dm/star particles and gas particles
             pv = pkdVel(pkd,p);
-            for (int j=0; j<3; j++){
-	      pv[j] *= dScaleFactor;
+            for (j=0; j<3; j++){
+               pv[j] *= dScaleFactor;
             }
+
             // We log statistics about the formation time
-            pkdStar(pkd, p)->fTimer = dTime;
-            pkdStar(pkd, p)->hasExploded = 0;
+            pStar->fTimer = dTime;
+            pStar->hasExploded = 0;
+
+#ifdef STELLAR_EVOLUTION
+            for (j = 0; j < ELEMENT_COUNT; j++)
+               pStar->afElemAbun[j] = afElemMass[j] / fMass;
+            pStar->fMetalAbun = fMetalMass / fMass;
+
+            pStar->fInitialMass = fMass;
+            pStar->fLastEnrichTime = 0.0f;
+
+            if (pkd->param.bChemEnrich)
+               stevStarParticleInit(pkd, pStar);
+            else
+               pStar->fNextEnrichTime = INFINITY;
+#endif
 
             // Safety check
             assert(pkdIsStar(pkd,p));

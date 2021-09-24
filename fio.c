@@ -27,10 +27,10 @@
 #define _FILE_OFFSET_BITS 64
 #endif
 
-#ifdef COOLING
-//IA: This should be, at most, chemistry_element_count, 
+#if defined(COOLING) || defined(STELLAR_EVOLUTION)
+//IA: This should be, at most, ELEMENT_COUNT,
 // but can be modified if needed to save memory
-#define NUMBER_METALS     9 
+#define NUMBER_METALS     9
 #else
 #define NUMBER_METALS     1
 #endif
@@ -2744,7 +2744,7 @@ static void writeSet(
 #define FIELD_TEMPERATURE "Temperature"
 #define FIELD_INTERNALENERGY "InternalEnergy"
 #define FIELD_ABUNDANCES  "Abundances"
-#define FIELD_METALS      "Metallicity"
+#define FIELD_METALLICITY "Metallicity"
 #define FIELD_SFR         "StarFormationRate"
 #define FIELD_AGE         "StellarFormationTime"
 #define FIELD_ACCRETION   "AccretionRate"
@@ -2753,7 +2753,7 @@ static void writeSet(
 #define FIELD_FEED_ENERGY "AccumulatedFeedbackEnergy"
 #define FIELD_BHMASS      "InternalMass"
 #define FIELD_INITIALMASS "InitialMass"
-#define FIELD_LASTENRICH  "LastEnrichTime"
+#define FIELD_ENRICHTIME  "LastEnrichTime"
 
 
 #define FIELD_ORDER      "ParticleIDs"
@@ -2793,6 +2793,9 @@ enum SPH_FIELDS{
    SPH_MASS        ,
    SPH_TEMPERATURE ,
    SPH_ABUNDANCES  ,
+#if defined(STELLAR_EVOLUTION) || defined(GRACKLE)
+   SPH_METALLICITY ,
+#endif
    SPH_SFR         ,
    SPH_SMOOTHING   ,
    SPH_INTERNALENERGY,
@@ -2807,6 +2810,13 @@ enum STAR_FIELDS{
    STAR_DENSITY     = 3,
    STAR_MASS        ,
    STAR_ABUNDANCES  ,
+#if defined(STELLAR_EVOLUTION) || defined(GRACKLE)
+   STAR_METALLICITY ,
+#endif
+#ifdef STELLAR_EVOLUTION
+   STAR_INITIALMASS ,
+   STAR_ENRICHTIME  ,
+#endif
    STAR_AGE         ,
    STAR_GROUP       ,
    STAR_N           ,
@@ -2814,10 +2824,10 @@ enum STAR_FIELDS{
 
 enum BH_FIEDS{
    BH_POSITION    = 0,
-   BH_VELOCITY    ,
+   BH_VELOCITY    = 1,
+   BH_POTENTIAL   = 2,
+   BH_DENSITY     = 3,
    BH_MASS        ,
-   BH_POTENTIAL   ,
-   BH_DENSITY     ,
    BH_ACCRETION   ,
    BH_EDD_RATIO   ,
    BH_INT_MASS    ,
@@ -3638,8 +3648,10 @@ static int hdf5ReadSph(
     /* If each particles has a unique class, use that */
     class_get(pfMass,pfSoft,&base->ioClass,*piParticleID,base->iIndex);
 
+    /* But the mass can still be overriden by that given in the input file */
+    field_get_float(pfMass,&base->fldFields[SPH_MASS],base->iIndex);
 
-    if ( !field_get_float(pfOtherData,&base->fldFields[SPH_SMOOTHING],base->iIndex) )
+    if ( !field_get_float(&pfOtherData[0],&base->fldFields[SPH_SMOOTHING],base->iIndex) )
        pfOtherData[0] = 0.0f;
 
     /* Potential is optional */
@@ -3650,9 +3662,15 @@ static int hdf5ReadSph(
     if ( !field_get_float(pfDen,&base->fldFields[SPH_DENSITY],base->iIndex) )
 	*pfDen = 0.0f;
 
-    /* Element abundances are optional when stellar evolution is off */
+    /* Element abundances are optional */
     if ( !field_get_float(pfMetals,&base->fldFields[SPH_ABUNDANCES],base->iIndex) )
-	for (i=0;i<NUMBER_METALS;i++) pfMetals[i] = 0.0f;
+	for (i = 0; i < NUMBER_METALS; i++) pfMetals[i] = -1.0f;
+
+#if defined(STELLAR_EVOLUTION) || defined(GRACKLE)
+    /* Metallicity is optional */
+    if ( !field_get_float(&pfOtherData[1],&base->fldFields[SPH_METALLICITY],base->iIndex) )
+	pfOtherData[1] = -1.0f;
+#endif
 
 
     /* We need either temperature or internal energy */
@@ -3727,14 +3745,31 @@ static int hdf5ReadStar(
     if ( !field_get_float(pfDen,&base->fldFields[STAR_DENSITY],base->iIndex) )
 	*pfDen = 0.0f;
 
-    /* Element abundances are optional when stellar evolution is off */
+    /* Element abundances are optional */
     if ( !field_get_float(pfMetals,&base->fldFields[STAR_ABUNDANCES],base->iIndex) )
-        for (i = 0; i < NUMBER_METALS; i++) pfMetals[i] = 0.0f;
+        for (i = 0; i < NUMBER_METALS; i++) pfMetals[i] = -1.0f;
 
     /* Formation time is optional when stellar evolution is off */
     if ( !field_get_float(pfTform,&base->fldFields[STAR_AGE],base->iIndex) )
+	/* Here we can't set it to -1 because that signals a star particle in the ICs
+	   that is not supposed to explode, we set it to 0 instead. See pkdStarFormInit */
 	*pfTform = 0.0f;
 
+#if defined(STELLAR_EVOLUTION) || defined(GRACKLE)
+    /* Metallicity is optional */
+    if ( !field_get_float(&pfOtherData[0],&base->fldFields[STAR_METALLICITY],base->iIndex) )
+	pfOtherData[0] = -1.0f;
+#endif
+
+#ifdef STELLAR_EVOLUTION
+    /* Initial mass is optional */
+    if ( !field_get_float(&pfOtherData[1],&base->fldFields[STAR_INITIALMASS],base->iIndex) )
+	pfOtherData[1] = -1.0f;
+
+    /* Last enrichment time is optional */
+    if ( !field_get_float(&pfOtherData[2],&base->fldFields[STAR_ENRICHTIME],base->iIndex) )
+	pfOtherData[2] = -1.0f;
+#endif
 
     /* iOrder is either sequential, or is listed for each particle */
     *piParticleID = ioorder_get(&base->ioOrder,base->iOffset,base->iIndex);
@@ -3880,6 +3915,9 @@ static int hdf5WriteSph(
 
     float fSFR = pfOtherData[0];
     int32_t iGroup = (int32_t)pfOtherData[1];
+#if defined(STELLAR_EVOLUTION) || defined(GRACKLE)
+    float fMetallicity = pfOtherData[2];
+#endif
 
     /* First time for this particle type? */
     if (base->group_id == H5I_INVALID_HID) {
@@ -3898,6 +3936,10 @@ static int hdf5WriteSph(
 	field_create(&base->fldFields[SPH_SFR],base->group_id,
 		     FIELD_SFR, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, 1);
 #endif
+#if defined(STELLAR_EVOLUTION) || defined(GRACKLE)
+	field_create(&base->fldFields[SPH_METALLICITY],base->group_id,
+		     FIELD_METALLICITY, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, 1);
+#endif
 	}
 
     ioorder_add(base,iParticleID);
@@ -3914,6 +3956,9 @@ static int hdf5WriteSph(
     field_add_int32_t(&iGroup,&base->fldFields[SPH_GROUP],base->iIndex);
 #ifdef STAR_FORMATION
     field_add_float(&fSFR,&base->fldFields[SPH_SFR],base->iIndex);
+#endif
+#if defined(STELLAR_EVOLUTION) || defined(GRACKLE)
+    field_add_float(&fMetallicity,&base->fldFields[SPH_METALLICITY],base->iIndex);
 #endif
 
     /* If we have exhausted our buffered data, read more */
@@ -3933,16 +3978,29 @@ static int hdf5WriteStar(
     assert(fio->eMode == FIO_MODE_WRITING);
     float fTform = pfOtherData[0];
     int32_t iGroup = pfOtherData[1];
+#ifdef STELLAR_EVOLUTION
+    float fMetallicity = pfOtherData[2];
+    float fInitialMass = pfOtherData[3];
+    float fLastEnrichTime = pfOtherData[4];
+#endif
 
     /* First time for this particle type? */
     if (base->group_id == H5I_INVALID_HID) {
 	base_create(hio,base,FIO_SPECIES_STAR,STAR_N,iParticleID);
-	field_create(&base->fldFields[STAR_ABUNDANCES],base->group_id,
-		     FIELD_ABUNDANCES, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, NUMBER_METALS );
 	field_create(&base->fldFields[STAR_AGE],base->group_id,
 		     FIELD_AGE, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, 1 );
 	field_create(&base->fldFields[STAR_GROUP],base->group_id,
 		     FIELD_GROUP, H5T_NATIVE_INT32, H5T_NATIVE_INT32, 1);
+#ifdef STELLAR_EVOLUTION
+	field_create(&base->fldFields[STAR_ABUNDANCES],base->group_id,
+		     FIELD_ABUNDANCES, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, NUMBER_METALS );
+	field_create(&base->fldFields[STAR_METALLICITY],base->group_id,
+		     FIELD_METALLICITY, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, 1);
+	field_create(&base->fldFields[STAR_INITIALMASS],base->group_id,
+		     FIELD_INITIALMASS, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, 1);
+	field_create(&base->fldFields[STAR_ENRICHTIME],base->group_id,
+		     FIELD_ENRICHTIME, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, 1);
+#endif
 	}
     class_add(base,iParticleID,fMass,fSoft);
     ioorder_add(base,iParticleID);
@@ -3951,9 +4009,14 @@ static int hdf5WriteStar(
     field_add_float(&fPot,&base->fldFields[STAR_POTENTIAL],base->iIndex);
     // IA: No need for this I think
     //field_add_float(&fDen,&base->fldFields[STAR_DENSITY],base->iIndex);
-    field_add_float(pfMetals,&base->fldFields[STAR_ABUNDANCES],base->iIndex);
     field_add_float(&fTform,&base->fldFields[STAR_AGE],base->iIndex);
     field_add_int32_t(&iGroup,&base->fldFields[STAR_GROUP],base->iIndex);
+#ifdef STELLAR_EVOLUTION
+    field_add_float(pfMetals,&base->fldFields[STAR_ABUNDANCES],base->iIndex);
+    field_add_float(&fMetallicity,&base->fldFields[STAR_METALLICITY],base->iIndex);
+    field_add_float(&fInitialMass,&base->fldFields[STAR_INITIALMASS],base->iIndex);
+    field_add_float(&fLastEnrichTime,&base->fldFields[STAR_ENRICHTIME],base->iIndex);
+#endif
 
     /* If we have exhausted our buffered data, read more */
     if (++base->iIndex == CHUNK_SIZE) {
@@ -4127,6 +4190,14 @@ static FIO hdf5OpenOne(const char *fname,int iFile) {
 			   FIELD_DENSITY, H5T_NATIVE_FLOAT,1 );
 		if (base->fldFields[SPH_DENSITY].setId == H5I_INVALID_HID)
 		    hio->fio.mFlags &= ~FIO_FLAG_DENSITY;
+#if defined(STELLAR_EVOLUTION) || defined(GRACKLE)
+		field_open(&base->fldFields[SPH_METALLICITY],base->group_id,
+			   FIELD_METALLICITY,H5T_NATIVE_FLOAT,1);
+#endif
+#ifdef STELLAR_EVOLUTION
+		field_open(&base->fldFields[SPH_ABUNDANCES],base->group_id,
+			   FIELD_ABUNDANCES,H5T_NATIVE_FLOAT,NUMBER_METALS);
+#endif
 		base->nTotal = hio->fio.nSpecies[i] = field_size(&base->fldFields[SPH_POSITION]);
 		class_open(&base->ioClass,base->group_id);
 		/* iOrder can have a starting value if they are sequential, or a list */
@@ -4157,6 +4228,16 @@ static FIO hdf5OpenOne(const char *fname,int iFile) {
 			   FIELD_DENSITY, H5T_NATIVE_FLOAT,1 );
 		if (base->fldFields[STAR_DENSITY].setId == H5I_INVALID_HID)
 		    hio->fio.mFlags &= ~FIO_FLAG_DENSITY;
+#ifdef STELLAR_EVOLUTION
+		field_open(&base->fldFields[STAR_ABUNDANCES],base->group_id,
+			   FIELD_ABUNDANCES,H5T_NATIVE_FLOAT,NUMBER_METALS);
+		field_open(&base->fldFields[STAR_METALLICITY],base->group_id,
+			   FIELD_METALLICITY,H5T_NATIVE_FLOAT,1);
+		field_open(&base->fldFields[STAR_INITIALMASS],base->group_id,
+			   FIELD_INITIALMASS,H5T_NATIVE_FLOAT,1);
+		field_open(&base->fldFields[STAR_ENRICHTIME],base->group_id,
+			   FIELD_ENRICHTIME,H5T_NATIVE_FLOAT,1);
+#endif
 		base->nTotal = hio->fio.nSpecies[i] = field_size(&base->fldFields[STAR_POSITION]);
 		class_open(&base->ioClass,base->group_id);
 		/* iOrder can have a starting value if they are sequential, or a list */

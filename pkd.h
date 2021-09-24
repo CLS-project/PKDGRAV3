@@ -34,6 +34,9 @@
 #endif
 #include "basetype.h"
 #include "iomodule.h"
+#ifdef GRACKLE
+#include <grackle.h>
+#endif
 
 #ifdef __cplusplus
 #define CAST(T,V) reinterpret_cast<T>(V)
@@ -159,18 +162,19 @@ typedef struct velsmooth {
 #define SIGMAT 6.6524e-25    /* Thompson cross-section (cm^2) */
 #define LIGHTSPEED 2.9979e10 /* Speed of Light cm/s */
 #define SECONDSPERYEAR 31557600.
+#define SECPERYEAR 31557600.0   /* Seconds in a Julian year */
 
-enum chemistry_element {
-  chemistry_element_H = 0,
-  chemistry_element_He,
-  chemistry_element_C,
-  chemistry_element_N,
-  chemistry_element_O,
-  chemistry_element_Ne,
-  chemistry_element_Mg,
-  chemistry_element_Si,
-  chemistry_element_Fe,
-  chemistry_element_count
+enum chemical_elements {
+  ELEMENT_H = 0,
+  ELEMENT_He,
+  ELEMENT_C,
+  ELEMENT_N,
+  ELEMENT_O,
+  ELEMENT_Ne,
+  ELEMENT_Mg,
+  ELEMENT_Si,
+  ELEMENT_Fe,
+  ELEMENT_COUNT
 };
 
 
@@ -320,10 +324,17 @@ typedef struct sphfields {
     myreal SFR;
 #endif
 
+#if defined(COOLING) || defined(STELLAR_EVOLUTION)
+    float afElemMass[ELEMENT_COUNT];
+#endif
+
 #ifdef COOLING
-    float chemistry[chemistry_element_count];
     myreal lastCooling;
     float cooling_dudt;
+#endif
+
+#if defined(GRACKLE) || defined(STELLAR_EVOLUTION)
+    float fMetalMass;
 #endif
 
 #if defined(MAKE_GLASS) || defined(REGULARIZE_MESH)
@@ -336,9 +347,24 @@ typedef struct sphfields {
 
 typedef struct starfields {
     double omega;
-#ifdef COOLING
-    float chemistry[chemistry_element_count];
+#if defined(COOLING) || defined(STELLAR_EVOLUTION)
+    float afElemAbun[ELEMENT_COUNT]; /* Formation abundances */
 #endif
+
+#ifdef STELLAR_EVOLUTION
+    float fMetalAbun;		/* Formation metallicity */
+    float fInitialMass;
+    float fLastEnrichTime;
+    float fLastEnrichMass;
+    int iLastEnrichMassIdx;
+    float fNextEnrichTime;
+    struct {
+       int oZ;
+       float fDeltaZ;
+    } CCSN, AGB, Lifetimes;
+    float fSNIaOnsetTime;
+#endif
+
     float fTimer;  /* Time of formation */
     int hasExploded; /* Has exploded as a supernova? */
     } STARFIELDS;   
@@ -1017,7 +1043,7 @@ typedef struct pkdContext {
 #endif
 #ifdef OPTIM_REORDER_IN_NODES
     int oNodeNgas;
-#if defined(STAR_FORMATION) && defined(FEEDBACK)
+#if (defined(STAR_FORMATION) && defined(FEEDBACK)) || defined(STELLAR_EVOLUTION)
     int oNodeNstar;
 #endif
     int oNodeNbh;
@@ -1116,6 +1142,15 @@ typedef struct pkdContext {
     // IA: we add here the needed cooling information available to all procs
     struct cooling_function_data *cooling;
     struct cooling_tables *cooling_table;
+#endif
+#ifdef GRACKLE
+    chemistry_data *grackle_data;
+    chemistry_data_storage *grackle_rates;
+    grackle_field_data *grackle_field;
+    code_units *grackle_units;
+#endif
+#ifdef STELLAR_EVOLUTION
+    struct inStellarEvolution *StelEvolData;
 #endif
 
 #ifdef USE_CUDA
@@ -1313,7 +1348,7 @@ static inline int pkdNodeNgas( PKD pkd, KDN* n){
 static inline void pkdNodeSetNgas(  PKD pkd, KDN *n, int ngas){
     *CAST(int*, pkdNodeField(n, pkd->oNodeNgas)) = ngas;
     }
-#if defined(STAR_FORMATION) && defined(FEEDBACK)
+#if (defined(STAR_FORMATION) && defined(FEEDBACK)) || defined(STELLAR_EVOLUTION)
 static inline int pkdNodeNstar( PKD pkd, KDN* n){
    return *CAST(int *, pkdNodeField(n, pkd->oNodeNstar));
    }

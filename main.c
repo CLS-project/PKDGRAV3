@@ -43,6 +43,12 @@
 #if defined(STAR_FORMATION) | defined(FEEDBACK)
 #include "starformation/init.h"
 #endif
+#ifdef STELLAR_EVOLUTION
+#include "stellarevolution/stellarevolution.h"
+#endif
+#ifdef GRACKLE
+#include "cooling_grackle/cooling_grackle.h"
+#endif
 #ifdef USE_PYTHON
 #include "pkdpython.h"
 #endif
@@ -315,6 +321,16 @@ void master(MDL mdl,void *pst) {
       }else{
          msrCoolingUpdate(msr, 0., 1);
       }
+#endif
+#ifdef GRACKLE
+      if ((msr->csm->val.bComove)){
+         msrGrackleInit(msr, 1, csmTime2Exp(msr->csm,dTime));
+      }else{
+         msrGrackleInit(msr, 0, 1.0);
+      }
+#endif
+#ifdef STELLAR_EVOLUTION
+      msrStellarEvolutionInit(msr, dTime);
 #endif
       msrOutputFineStatistics(msr, 0, -1);
 
