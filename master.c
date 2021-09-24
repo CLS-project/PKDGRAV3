@@ -2139,7 +2139,7 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
 
 
     const double dHydFrac = msr->param.dInitialH;
-    const double dnHToRho = MHYDR * dHydFrac / msr->param.dGmPerCcUnit;
+    const double dnHToRho = MHYDR / dHydFrac / msr->param.dGmPerCcUnit;
 #ifdef COOLING
     // We convert the parameters of the entropy floor into code units
     msr->param.dCoolingFloorDen *= dnHToRho;
