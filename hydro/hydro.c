@@ -5,6 +5,7 @@
  */
 
 #include "hydro.h"
+#include "eEOS/eEOS.h"
 
 #ifdef OPTIM_FLUX_VEC
 #include "riemann_own.h"
@@ -712,6 +713,7 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
     pDensity = pkdDensity(pkd,p);
 
+    double a_inv3 = 1./(smf->a * smf->a * smf->a);
 
 #ifdef OPTIM_CACHED_FLUXES
 
@@ -1038,6 +1040,23 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
        if (riemann_input.L.p < 0) {riemann_input.L.p = psph->P;  /*  printf("WARNING, L.p < 0 : using first-order scheme \n");*/ }
        if (riemann_input.R.p < 0) {riemann_input.R.p = qsph->P;  /*  printf("WARNING, R.p < 0 : using first-order scheme \n");*/ }
 
+#ifdef EEOS_POLYTROPE
+       const double pLpoly =
+          polytropicPressureFloor(pkd, a_inv3, riemann_input.L.rho);
+       const double pRpoly =
+          polytropicPressureFloor(pkd, a_inv3, riemann_input.R.rho);
+       riemann_input.L.p = MAX(riemann_input.L.p, pLpoly);
+       riemann_input.R.p = MAX(riemann_input.R.p, pRpoly);
+#endif
+#ifdef EEOS_JEANS
+       const double pLjeans =
+          jeansPressureFloor(pkd, riemann_input.L.rho, ph);
+       const double pRjeans =
+          jeansPressureFloor(pkd, riemann_input.R.rho, qh);
+       riemann_input.L.p = MAX(riemann_input.L.p, pLjeans);
+       riemann_input.R.p = MAX(riemann_input.R.p, pRjeans);
+#endif
+
 
        //Riemann_solver(pkd, riemann_input, &riemann_output, face_unit, /*double press_tot_limiter TODO For now, just p>0: */ 0.0);
        double cs_L = sqrt(GAMMA * riemann_input.L.p / riemann_input.L.rho);
@@ -1341,6 +1360,7 @@ void hydroRiemann_vec(PARTICLE *p,float fBall,int nSmooth,
 
     my_real pDensity = pkdDensity(pkd,p);
     my_real p_omega = psph->omega;
+    double a_inv3 = 1./(smf->a * smf->a * smf->a);
 
 
 #ifdef __INTEL_COMPILER
@@ -1607,6 +1627,22 @@ void hydroRiemann_vec(PARTICLE *p,float fBall,int nSmooth,
        if (riemann_input.L.p < 0) {riemann_input.L.p = psph->P;  /*  printf("WARNING, L.p < 0 : using first-order scheme \n");*/ }
        if (riemann_input.R.p < 0) {riemann_input.R.p = input_buffer[q_P][i];  /*  printf("WARNING, R.p < 0 : using first-order scheme \n");*/ }
 
+#ifdef EEOS_POLYTROPE
+       const double pLpoly =
+          polytropicPressureFloor(pkd, a_inv3, riemann_input.L.rho);
+       const double pRpoly =
+          polytropicPressureFloor(pkd, a_inv3, riemann_input.R.rho);
+       riemann_input.L.p = MAX(riemann_input.L.p, pLpoly);
+       riemann_input.R.p = MAX(riemann_input.R.p, pRpoly);
+#endif
+#ifdef EEOS_JEANS
+       const double pLjeans =
+          jeansPressureFloor(pkd, riemann_input.L.rho, ph);
+       const double pRjeans =
+          jeansPressureFloor(pkd, riemann_input.R.rho, input_buffer[q_ball][i]);
+       riemann_input.L.p = MAX(riemann_input.L.p, pLjeans);
+       riemann_input.R.p = MAX(riemann_input.R.p, pRjeans);
+#endif
 
        double cs_L = sqrt(GAMMA * riemann_input.L.p / riemann_input.L.rho);
        double cs_R = sqrt(GAMMA * riemann_input.R.p / riemann_input.R.rho);
