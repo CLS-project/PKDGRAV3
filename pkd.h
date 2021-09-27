@@ -326,6 +326,11 @@ typedef struct sphfields {
     double cellCM[3];
 #endif
 
+#ifdef FEEDBACK
+    float fAccFBEnergy;
+#endif
+
+
     uint8_t uWake;
 
     } SPHFIELDS;

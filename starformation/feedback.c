@@ -42,14 +42,18 @@ void smSNFeedback(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
              //   qsph->Uint, pkd->param.dFeedbackDu * pkdMass(pkd,q));
 
              const double feed_energy = pkd->param.dFeedbackDu * pkdMass(pkd,q);
+#ifdef OLD_FB_SCHEME
              qsph->Uint += feed_energy;
              qsph->E += feed_energy;
 #ifdef ENTROPY_SWITCH
              qsph->S += feed_energy*(pkd->param.dConstGamma-1.) *
                         pow(pkdDensity(pkd,q), -pkd->param.dConstGamma+1);
 #endif
+#else // OLD_BH_SCHEME
+             qsph->fAccFBEnergy += feed_energy;
+#endif
 
-             printf("Adding SN energy! \n");
+             //printf("Adding SN energy! \n");
           }
 
     }
@@ -65,10 +69,14 @@ void initSNFeedback(void *vpkd, void *vp){
    if (pkdIsGas(pkd,p)){
       SPHFIELDS *psph = pkdSph(pkd,p);
 
+#ifdef OLD_FB_SCHEME
       psph->Uint = 0.;
       psph->E = 0.;
 #ifdef ENTROPY_SWITCH
       psph->S = 0.;
+#endif
+#else // OLD_FB_SCHEME
+      psph->fAccFBEnergy = 0.;
 #endif
    }
 
@@ -82,14 +90,30 @@ void combSNFeedback(void *vpkd, void *p1,void *p2){
 
       SPHFIELDS *psph1 = pkdSph(pkd,p1), *psph2 = pkdSph(pkd,p2);
 
+#ifdef OLD_FB_SCHEME
       psph1->Uint += psph2->Uint;
       psph1->E += psph2->E;
 #ifdef ENTROPY_SWITCH
       psph1->S += psph2->S;
+#endif
+#else //OLD_FB_SCHEME
+      psph1->fAccFBEnergy += psph2->fAccFBEnergy;
 #endif
 
    }
 
 }
 
+inline void pkdAddFBEnergy(PKD pkd, PARTICLE* p, SPHFIELDS *psph){
+#ifndef OLD_FB_SCHEME
+   psph->Uint += psph->fAccFBEnergy;
+   psph->E += psph->fAccFBEnergy;
+#ifdef ENTROPY_SWITCH
+   psph->S += psph->fAccFBEnergy*(pkd->param.dConstGamma-1.) *
+            pow(pkdDensity(pkd,p), -pkd->param.dConstGamma+1);
 #endif
+   psph->fAccFBEnergy = 0.0;
+#endif //OLD_FB_SCHEME
+}
+
+#endif // FEEDBACK

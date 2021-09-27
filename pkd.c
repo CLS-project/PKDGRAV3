@@ -88,6 +88,9 @@
 #ifdef STELLAR_EVOLUTION
 #include "stellarevolution/stellarevolution.h"
 #endif
+#ifdef FEEDBACK
+#include "starformation/feedback.h"
+#endif
 
 #ifdef _MSC_VER
 #define FILE_PROTECTION (_S_IREAD | _S_IWRITE)
@@ -1242,6 +1245,9 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             pSph->avoided_fluxes = 0;
             pSph->computed_fluxes = 0;
 #endif
+#endif
+#ifdef FEEDBACK
+            pSph->fAccFBEnergy = 0.;
 #endif
             pSph->uWake = 0;
 		}
@@ -3325,6 +3331,11 @@ void pkdEndTimestepIntegration(PKD pkd,int iRoot, double dTime, double dDelta) {
 #endif
 #ifdef GRACKLE
             pkdGrackleCooling(pkd, p, pDelta);
+#endif
+
+#ifdef FEEDBACK
+            // ##### Apply feedback
+            pkdAddFBEnergy(pkd, p, psph);
 #endif
 
             // ##### Effective Equation Of State

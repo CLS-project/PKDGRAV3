@@ -806,6 +806,9 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
              pSph->computed_fluxes = 0;
 #endif
 #endif
+#ifdef FEEDBACK
+             pSph->fAccFBEnergy = 0.;
+#endif
              pSph->uWake = 0;
           }
 	    }
