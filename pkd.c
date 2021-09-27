@@ -3289,7 +3289,6 @@ void pkdEndTimestepIntegration(PKD pkd,int iRoot, double dTime, double dDelta) {
 #ifdef GRACKLE
     pkdGrackleUpdate(pkd, dScaleFactor);
 #endif
-    const float a_m3 = pow(1.+dRedshift,3);
     if (pkd->param.bDoGas) {
       assert(pkd->param.bDoGas);
       assert(pkd->oSph);
@@ -3330,7 +3329,7 @@ void pkdEndTimestepIntegration(PKD pkd,int iRoot, double dTime, double dDelta) {
 
             // ##### Effective Equation Of State
 #if ( defined(COOLING) || defined(GRACKLE) ) && defined(STAR_FORMATION)
-            internalEnergyFloor(pkd, p, psph, a_m3);
+            internalEnergyFloor(pkd, p, psph, dScaleFactor);
 #endif
 
             // Actually set the primitive variables

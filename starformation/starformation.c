@@ -212,8 +212,12 @@ static inline double pressure_SFR(PKD pkd, double a_m3, double dDenMin,
    //      b) Maximum temperature of a
    //            factor 0.5 dex (i.e., 3.1622) above the eEOS
    const double dens = pkdDensity(pkd,p) * a_m3;
-   const double maxUint = 3.16228 * fMass * pkd->param.dJeansFlooru *
-   pow( dens/pkd->param.dJeansFloorDen , pkd->param.dJeansFloorIndex );
+#ifdef EEOS_POLYTROPE
+   const double maxUint = 3.16228 * fMass * pkd->param.dEOSPolyFlooru *
+       pow( dens/pkd->param.dEOSPolyFloorDen , pkd->param.dEOSPolyFloorIndex );
+#else
+   const double maxUint = INFINITY;
+#endif
 
    if (psph->Uint > maxUint || rho_H < dDenMin) {
       return 0.0;

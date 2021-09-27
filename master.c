@@ -1810,21 +1810,27 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
 		sizeof(double), "dCoolingFloorTemp",
 		"Temperature at the internal energy floor");
 #endif
-#if defined(COOLING) || defined(STAR_FORMATION)
-    msr->param.dJeansFloorIndex = 4./3.; // This gives a Jeans Mass independent of density (see Schaye & Dalla Vecchia 2008)
-    prmAddParam(msr->prm,"dJeansFloorIndex", 2, &msr->param.dJeansFloorIndex,
-		sizeof(double), "dJeansFloorIndex",
+#ifdef EEOS_POLYTROPE
+    msr->param.dEOSPolyFloorIndex = 4./3.; // This gives a Jeans Mass independent of density (see Schaye & Dalla Vecchia 2008)
+    prmAddParam(msr->prm,"dEOSPolyFloorIndex", 2, &msr->param.dEOSPolyFloorIndex,
+		sizeof(double), "dEOSPolyFloorIndex",
 		"Index of the polytropic effective EOS");
 
-    msr->param.dJeansFloorDen = 0.1;
-    prmAddParam(msr->prm,"dJeansFloorDen", 2, &msr->param.dJeansFloorDen,
-		sizeof(double), "dJeansFloorDen",
+    msr->param.dEOSPolyFloorDen = 0.1;
+    prmAddParam(msr->prm,"dEOSPolyFloorDen", 2, &msr->param.dEOSPolyFloorDen,
+		sizeof(double), "dEOSPolyFloorDen",
 		"Minimum density at which the effective EOS will be applied (in nH [cm-3])");
 
-    msr->param.dJeansFlooru = 1e4;
-    prmAddParam(msr->prm,"dJeansFloorTemp", 2, &msr->param.dJeansFlooru,
-		sizeof(double), "dJeansFloorTemp",
+    msr->param.dEOSPolyFlooru = 1e4;
+    prmAddParam(msr->prm,"dEOSPolyFloorTemp", 2, &msr->param.dEOSPolyFlooru,
+		sizeof(double), "dEOSPolyFloorTemp",
 		"Temperature at the density threshold for the effective EOS");
+#endif
+#ifdef EEOS_JEANS
+    msr->param.dEOSNJeans = 8.75;
+    prmAddParam(msr->prm,"dEOSNJeans", 2, &msr->param.dEOSNJeans,
+		sizeof(double), "dEOSNJeans",
+		"Number of elements to resolve the Jeans length");
 #endif
     /* Parameters for the initial abundances */
     msr->param.dInitialH = 0.75;
@@ -2166,10 +2172,13 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
     msr->param.dCoolingFloorDen *= dnHToRho;
     msr->param.dCoolingFlooru *= msr->param.dTuFac;
 #endif
-#if defined(COOLING) || defined(STAR_FORMATION)
-    msr->param.dJeansFloorIndex -= 1.;
-    msr->param.dJeansFloorDen *=  dnHToRho; // Code density
-    msr->param.dJeansFlooru *= msr->param.dTuFac; // Code internal energy per unit mass
+#ifdef EEOS_POLYTROPE
+    msr->param.dEOSPolyFloorIndex -= 1.;
+    msr->param.dEOSPolyFloorDen *=  dnHToRho; // Code density
+    msr->param.dEOSPolyFlooru *= msr->param.dTuFac; // Code internal energy per unit mass
+#endif
+#ifdef EEOS_JEANS
+    msr->param.dEOSNJeans = pow(msr->param.dEOSNJeans, 0.666666);
 #endif
 #ifdef STAR_FORMATION
     msr->param.dSFThresholdDen *= dnHToRho*dHydFrac; // Code hydrogen density

@@ -274,10 +274,13 @@ struct parameters {
     double dCoolingFloorDen;
     double dCoolingFlooru;
 #endif
-#if defined(COOLING) || defined(STAR_FORMATION)
-    double dJeansFloorIndex;
-    double dJeansFloorDen;
-    double dJeansFlooru;
+#if EEOS_POLYTROPE
+    double dEOSPolyFloorIndex;
+    double dEOSPolyFloorDen;
+    double dEOSPolyFlooru;
+#endif
+#if EEOS_JEANS
+    double dEOSNJeans;
 #endif
     /*
      * IA: Initial abundances 

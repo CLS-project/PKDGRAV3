@@ -1,9 +1,50 @@
+#ifdef EEOS_POLYTROPE
+/*
+ * General polytropic eEOS floor
+ */
+inline static double polytropicEnergyFloor(PKD pkd, float a_inv3, float fDens){
+   return pkd->param.dEOSPolyFlooru *
+          pow( fDens*a_inv3/pkd->param.dEOSPolyFloorDen,
+               pkd->param.dEOSPolyFloorIndex );
+}
+
+inline static double polytropicPressureFloor(PKD pkd, float a_inv3, float fDens){
+   return polytropicEnergyFloor(pkd, a_inv3, fDens) *
+            fDens * (pkd->param.dConstGamma -1.);
+}
+#endif
+
+
+
+#ifdef EEOS_JEANS
+/*
+ * Pressure floor based on the Jeans criterion, where the only parameter is
+ *  the minimum "number" of resolution elements per Jeans length
+ *
+ * It is similar to polytropicPressureFloor with gamma=4/3, but it takes into
+ *  account explicitly the smoothing length
+ */
+inline static double jeansPressureFloor(PKD pkd, float fDens, float fBall){
+   return 1.2/pkd->param.dConstGamma * pkd->param.dEOSNJeans *
+                   fDens * fDens * fBall * fBall;
+
+}
+
+inline static double jeansEnergyFloor(PKD pkd, float fDens, float fBall){
+   return jeansPressureFloor(pkd, fDens, fBall) /
+          (fDens * (pkd->param.dConstGamma - 1.));
+
+}
+#endif
 
 inline static void internalEnergyFloor(PKD pkd, PARTICLE* p,
-                                       SPHFIELDS* psph, const float a_m3){
+                                       SPHFIELDS* psph, const double a){
 
+   const double a_inv = 1./a;
+   const double a_inv3 = a_inv*a_inv*a_inv;
    const float mass = pkdMass(pkd,p);
-   const float dens = pkdDensity(pkd,p)*a_m3;
+   const float dens = pkdDensity(pkd,p);
+   const float fBall = 2.*pkdBall(pkd,p);
    psph->E -= psph->Uint;
 
    // First, the cooling floor,
@@ -27,17 +68,26 @@ inline static void internalEnergyFloor(PKD pkd, PARTICLE* p,
 #endif
 
 
+#ifdef EEOS_POLYTROPE
    /* Second, the polytropic EoS */
-   if (dens > pkd->param.dJeansFloorDen){
+   if (dens > pkd->param.dEOSPolyFloorDen){
 
-       const double minUint = pkd->param.dJeansFlooru*
-          pow( dens/pkd->param.dJeansFloorDen , pkd->param.dJeansFloorIndex )*mass;
+       const double minUint =  polytropicEnergyFloor(pkd, a_inv3, dens)*mass;
 
        if (psph->Uint < minUint) psph->Uint = minUint;
    }
+#endif
+
+#ifdef  EEOS_JEANS
+   const double Ujeans = jeansEnergyFloor(pkd, dens, fBall)*mass;
+
+   if (psph->Uint < Ujeans)
+      psph->Uint = Ujeans;
+#endif
 
 
 
    psph->E += psph->Uint;
 
 }
+

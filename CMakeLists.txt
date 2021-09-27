@@ -325,6 +325,19 @@ if (STAR_FORMATION)
    message("-- Star formation is ACTIVE")
 endif(STAR_FORMATION)
 
+option(EEOS_POLYTROPE "Apply a polytropic effective EOS" OFF)
+if (EEOS_POLYTROPE)
+   target_compile_options(${PROJECT_NAME} PRIVATE -DEEOS_POLYTROPE)
+   message("-- Polytropic effective EOS")
+endif(EEOS_POLYTROPE)
+
+option(EEOS_JEANS "Apply an effective EOS to enforce that the Jeans length is resolved" OFF)
+if (EEOS_JEANS)
+   target_compile_options(${PROJECT_NAME} PRIVATE -DEEOS_JEANS)
+   message("-- Jeans effective EOS")
+endif(EEOS_JEANS)
+
+
 option(FEEDBACK "Allow for spawned star particles to explode as type II supernova" OFF)
 if (FEEDBACK)
    target_sources(${PROJECT_NAME} PRIVATE  starformation/feedback.c starformation/init.c) 
