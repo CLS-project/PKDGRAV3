@@ -12,13 +12,14 @@ pipelines:
           - cmake .
           - make
   branches:
-     AM_stev:
+     IA_dev_optim:
        - step:
            script:
              - >
                cmake -DCOOLING=on
                -DSTAR_FORMATION=on
                -DFEEDBACK=on
+               -DEEOS_POLYTROPE=on
                -DBLACKHOLES=on
                -DSTELLAR_EVOLUTION=on
                .
