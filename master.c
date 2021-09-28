@@ -5452,7 +5452,7 @@ void msrTopStepKDK(MSR msr,
 
 #if defined(FEEDBACK) || defined(STELLAR_EVOLUTION)
 	msrActiveRung(msr,iKickRung,0);
-	double sec, dsec;
+	double dsec;
 #ifdef FEEDBACK
 	printf("Computing feedback... ");
 
@@ -5464,10 +5464,10 @@ void msrTopStepKDK(MSR msr,
 #endif
 #ifdef STELLAR_EVOLUTION
 	printf("Computing stellar evolution... ");
-      msrTimerStart(msr, TIMER_NONE);
+      msrTimerStart(msr, TIMER_STEV);
 	msrReSmooth(msr, dTime, SMX_CHEM_ENRICHMENT, 1, 0);
-      msrTimerStop(msr, TIMER_NONE);
-      dsec = msrTimerGet(msr, TIMER_NONE);
+      msrTimerStop(msr, TIMER_STEV);
+      dsec = msrTimerGet(msr, TIMER_STEV);
 	printf("took %.5f seconds\n", dsec);
 #endif
 	msrActiveRung(msr,iKickRung,1);

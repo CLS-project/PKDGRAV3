@@ -59,6 +59,9 @@ enum msrTimers {
 #ifdef BLACKHOLES
    TIMER_BHS,
 #endif
+#ifdef STELLAR_EVOLUTION
+   TIMER_STEV,
+#endif
    TIMER_NONE,
    TOTAL_TIMERS
 };
@@ -75,6 +78,9 @@ static const char *timer_names[TOTAL_TIMERS] = {
 #endif
 #ifdef BLACKHOLES
     "BHs",
+#endif
+#ifdef STELLAR_EVOLUTION
+    "Stev",
 #endif
     "Others"
 };
