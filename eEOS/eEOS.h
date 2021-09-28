@@ -51,12 +51,17 @@ inline static void internalEnergyFloor(PKD pkd, PARTICLE* p,
    // which is only applied if the gas is overdense enough */
 #ifdef COOLING
    double denMin = pkd->param.dCoolingFloorDen;
+#ifdef STAR_FORMATION
+   double minOverDens = pkd->param.dSFMinOverDensity;
+#else
+   double minOverDens = 57.7;
+#endif
    if (pkd->csm->val.bComove){
        double rhoCrit0 = 3. * pkd->csm->val.dHubble0 * pkd->csm->val.dHubble0 /
                               (8. * M_PI);
        double denCosmoMin = rhoCrit0 * pkd->csm->val.dOmegab *
-                                 pkd->param.dSFMinOverDensity*
-                                 a_m3; // We do this in proper density
+                                 minOverDens *
+                                 a_inv3; // We do this in proper density
 
        denMin = ( denCosmoMin > denMin) ? denCosmoMin : denMin;
    }

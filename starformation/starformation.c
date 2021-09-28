@@ -1,5 +1,6 @@
 #ifdef  STAR_FORMATION
 #include "starformation/starformation.h"
+#include "eEOS/eEOS.h"
 
 
 /* IA: MSR layer
@@ -210,11 +211,10 @@ static inline double pressure_SFR(PKD pkd, double a_m3, double dDenMin,
    // Two SF thresholds are applied:
    //      a) Minimum density, computed at the master level
    //      b) Maximum temperature of a
-   //            factor 0.5 dex (i.e., 3.1622) above the eEOS
-   const double dens = pkdDensity(pkd,p) * a_m3;
+   //            factor 0.5 dex (i.e., 3.1622) above the polytropic eEOS
 #ifdef EEOS_POLYTROPE
-   const double maxUint = 3.16228 * fMass * pkd->param.dEOSPolyFlooru *
-       pow( dens/pkd->param.dEOSPolyFloorDen , pkd->param.dEOSPolyFloorIndex );
+   const double maxUint = 3.16228 * fMass *
+                           polytropicEnergyFloor(pkd, a_m3, pkdDensity(pkd,p));
 #else
    const double maxUint = INFINITY;
 #endif
@@ -252,8 +252,7 @@ static inline double density_SFR(PKD pkd, double a_m3, double dDenMin,
 
    // Two SF thresholds are applied:
    //      a) Minimum density, computed at the master level
-   //      b) Maximum temperature of a
-   //            factor 0.5 dex (i.e., 3.1622) above the eEOS
+   //      b) Maximum temperature set by dSFThresholdTemp
    const double dens = fDens*a_m3;
    const double maxUint = pkd->param.dSFThresholdu;
 
