@@ -1,7 +1,19 @@
 #ifdef  STAR_FORMATION
 #include "starformation/starformation.h"
+#ifdef STELLAR_EVOLUTION
+#include "stellarevolution/stellarevolution.h"
+#endif
 #include "eEOS/eEOS.h"
 
+/*
+ * ---------------------
+ * HELPER FUNCTIONS
+ * ---------------------
+ */
+static inline double pressure_SFR(PKD pkd, double a_m3, double dDenMin,
+      PARTICLE *p, SPHFIELDS *psph);
+static inline double density_SFR(PKD pkd, double a_m3, double dDenMin,
+      PARTICLE *p, SPHFIELDS *psph);
 
 /* IA: MSR layer
  */

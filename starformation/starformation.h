@@ -1,7 +1,4 @@
 #include "master.h"
-#ifdef STELLAR_EVOLUTION
-#include "stellarevolution/stellarevolution.h"
-#endif
 
 /*
  * ---------------------
@@ -38,12 +35,3 @@ struct outStarForm
     double dMassFormed;
     };
 
-/*
- * ---------------------
- * HELPER FUNCTIONS
- * ---------------------
- */
-static inline double pressure_SFR(PKD pkd, double a_m3, double dDenMin,
-      PARTICLE *p, SPHFIELDS *psph);
-static inline double density_SFR(PKD pkd, double a_m3, double dDenMin,
-      PARTICLE *p, SPHFIELDS *psph);
