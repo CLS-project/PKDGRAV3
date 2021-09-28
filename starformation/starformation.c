@@ -198,13 +198,7 @@ static inline double pressure_SFR(PKD pkd, double a_m3, double dDenMin,
 
    float fMass = pkdMass(pkd, p);
 
-   // If no information, assume primordial abundance
-#ifdef COOLING
    const double hyd_abun = psph->afElemMass[ELEMENT_H] / fMass;
-#else
-   const double hyd_abun = pkd->param.dInitialH;
-#endif
-
    const double rho_H = pkdDensity(pkd,p) * hyd_abun;
 
 
@@ -240,13 +234,7 @@ static inline double density_SFR(PKD pkd, double a_m3, double dDenMin,
    float fMass = pkdMass(pkd, p);
    float fDens = pkdDensity(pkd, p);
 
-   // If no information, assume primordial abundance
-#ifdef COOLING
    const double hyd_abun = psph->afElemMass[ELEMENT_H] / fMass;
-#else
-   const double hyd_abun = pkd->param.dInitialH;
-#endif
-
    const double rho_H = fDens*hyd_abun;
 
 
