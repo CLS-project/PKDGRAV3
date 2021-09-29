@@ -40,11 +40,11 @@
 #ifdef BLACKHOLES
 #include "blackhole/init.h"
 #endif
-#if defined(STAR_FORMATION) | defined(FEEDBACK)
-#include "starformation/starformation.h"
-#endif
 #ifdef STELLAR_EVOLUTION
 #include "stellarevolution/stellarevolution.h"
+#endif
+#if defined(STAR_FORMATION) | defined(FEEDBACK)
+#include "starformation/starformation.h"
 #endif
 #ifdef GRACKLE
 #include "cooling_grackle/cooling_grackle.h"

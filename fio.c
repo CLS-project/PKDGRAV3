@@ -2747,6 +2747,7 @@ static void writeSet(
 #define FIELD_BHMASS      "InternalMass"
 #define FIELD_INITIALMASS "InitialMass"
 #define FIELD_ENRICHTIME  "LastEnrichTime"
+#define FIELD_SNEFFICIENCY "FeedbackEfficiency"
 
 
 #define FIELD_ORDER      "ParticleIDs"
@@ -2807,6 +2808,9 @@ enum STAR_FIELDS{
    STAR_METALLICITY ,
    STAR_INITIALMASS ,
    STAR_ENRICHTIME  ,
+#endif
+#ifdef FEEDBACK
+   STAR_SNEFFICIENCY,
 #endif
    STAR_AGE         ,
    STAR_GROUP       ,
@@ -3759,6 +3763,11 @@ static int hdf5ReadStar(
     if ( !field_get_float(&pfOtherData[2],&base->fldFields[STAR_ENRICHTIME],base->iIndex) )
 	pfOtherData[2] = -1.0f;
 #endif
+#ifdef FEEDBACK
+    /* Feedback efficiency is optional */
+    if ( !field_get_float(&pfOtherData[3],&base->fldFields[STAR_SNEFFICIENCY],base->iIndex) )
+	pfOtherData[3] = -1.0f;
+#endif
 
     /* iOrder is either sequential, or is listed for each particle */
     *piParticleID = ioorder_get(&base->ioOrder,base->iOffset,base->iIndex);
@@ -3972,6 +3981,9 @@ static int hdf5WriteStar(
     float fInitialMass = pfOtherData[3];
     float fLastEnrichTime = pfOtherData[4];
 #endif
+#ifdef FEEDBACK
+    float fSNEfficiency = pfOtherData[5];
+#endif
 
     /* First time for this particle type? */
     if (base->group_id == H5I_INVALID_HID) {
@@ -3990,6 +4002,12 @@ static int hdf5WriteStar(
 	field_create(&base->fldFields[STAR_ENRICHTIME],base->group_id,
 		     FIELD_ENRICHTIME, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, 1);
 #endif
+#ifdef FEEDBACK
+      if (fSNEfficiency > 0.0){
+         field_create(&base->fldFields[STAR_SNEFFICIENCY],base->group_id,
+                    FIELD_SNEFFICIENCY, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, 1);
+      }
+#endif
 	}
     class_add(base,iParticleID,fMass,fSoft);
     ioorder_add(base,iParticleID);
@@ -4006,6 +4024,12 @@ static int hdf5WriteStar(
     field_add_float(&fInitialMass,&base->fldFields[STAR_INITIALMASS],base->iIndex);
     field_add_float(&fLastEnrichTime,&base->fldFields[STAR_ENRICHTIME],base->iIndex);
 #endif
+#ifdef FEEDBACK
+    if (fSNEfficiency > 0.0){
+      field_add_float(&fSNEfficiency,&base->fldFields[STAR_SNEFFICIENCY],base->iIndex);
+    }
+#endif
+
 
     /* If we have exhausted our buffered data, read more */
     if (++base->iIndex == CHUNK_SIZE) {
@@ -4224,6 +4248,10 @@ static FIO hdf5OpenOne(const char *fname,int iFile) {
 			   FIELD_INITIALMASS,H5T_NATIVE_FLOAT,1);
 		field_open(&base->fldFields[STAR_ENRICHTIME],base->group_id,
 			   FIELD_ENRICHTIME,H5T_NATIVE_FLOAT,1);
+#endif
+#ifdef FEEDBACK
+		field_open(&base->fldFields[STAR_SNEFFICIENCY],base->group_id,
+			   FIELD_SNEFFICIENCY,H5T_NATIVE_FLOAT,1);
 #endif
 		base->nTotal = hio->fio.nSpecies[i] = field_size(&base->fldFields[STAR_POSITION]);
 		class_open(&base->ioClass,base->group_id);

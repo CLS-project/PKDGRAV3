@@ -26,7 +26,7 @@ void smSNFeedback(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     // (although I think wont make a huge change anyway)
     // There is no need to explicitly convert to solar masses
     // becuse we are doing a ratio
-    const double prob = pkd->param.dFeedbackEfficiency *
+    const double prob = pkdStar(pkd,p)->fSNEfficiency *
                         pkd->param.dNumberSNIIperMass *
                         pkdMass(pkd,p) / (pkd->param.dFeedbackDu*totMass);
 
@@ -114,6 +114,18 @@ inline void pkdAddFBEnergy(PKD pkd, PARTICLE* p, SPHFIELDS *psph){
 #endif
    psph->fAccFBEnergy = 0.0;
 #endif //OLD_FB_SCHEME
+}
+
+inline float SNFeedbackEfficiency(PKD pkd, float Z, float rho){
+   if (pkd->param.dFeedbackMaxEff > 0.0){
+      const double den = 1.0 + pow(Z/0.00127, pkd->param.dFeedbackEffIndex) *
+                  pow(rho/pkd->param.dFeedbackEffnH0,-pkd->param.dFeedbackEffIndex);
+      return pkd->param.dFeedbackEfficiency +
+                  (pkd->param.dFeedbackEfficiency - pkd->param.dFeedbackMaxEff)/
+                  den;
+   }else{
+      return pkd->param.dFeedbackEfficiency;
+   }
 }
 
 #endif // FEEDBACK

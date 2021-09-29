@@ -3,6 +3,9 @@
 #ifdef STELLAR_EVOLUTION
 #include "stellarevolution/stellarevolution.h"
 #endif
+#ifdef FEEDBACK
+#include "starformation/feedback.h"
+#endif
 #include "eEOS/eEOS.h"
 
 /*
@@ -188,6 +191,18 @@ void pkdStarForm(PKD pkd,
                stevStarParticleInit(pkd, pStar);
             else
                pStar->fNextEnrichTime = INFINITY;
+#endif
+
+#ifdef FEEDBACK
+            // Compute the feedback efficiency for this particle based
+            // on the birth information (eq. 7 Schaye 2015)
+#ifdef HAVE_METALLICITY
+            const double fMetalAbun = pStar->fMetalAbun;
+#else
+            const double fMetalAbun = 0.00127; // 0.1 Zsolar
+#endif
+            pStar->fSNEfficiency = SNFeedbackEfficiency(pkd, fMetalAbun,
+                                       pkdDensity(pkd,p)*a_m3);
 #endif
 
             // Safety check

@@ -1953,7 +1953,7 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
     msr->param.dFeedbackEfficiency = 1.;
     prmAddParam(msr->prm,"dFeedbackEfficiency", 2, &msr->param.dFeedbackEfficiency,
 		sizeof(double), "dFeedbackEfficiency",
-		"Efficiency of the feedback process");
+		"Efficiency of the feedback process. Minimum efficiency if dFeedbackMaxEff provided");
 
     msr->param.dFeedbackDelay = 3e7;
     prmAddParam(msr->prm,"dFeedbackDelay", 2, &msr->param.dFeedbackDelay,
@@ -1964,6 +1964,21 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
     prmAddParam(msr->prm,"dNumberSNIIperMass", 2, &msr->param.dNumberSNIIperMass,
 		sizeof(double), "dNumberSNIIperMass",
 		"Number of stars that will end their life as SNII events, per mass [1/Mo]");
+
+    msr->param.dFeedbackMaxEff = 0.0;
+    prmAddParam(msr->prm,"dFeedbackMaxEff", 2, &msr->param.dFeedbackMaxEff,
+		sizeof(double), "dFeedbackMaxEff",
+		"Asymptotic maximum efficiency for SNe II feedback");
+
+    msr->param.dFeedbackEffnH0 = 0.67;
+    prmAddParam(msr->prm,"dFeedbackEffnH0", 2, &msr->param.dFeedbackEffnH0,
+		sizeof(double), "dFeedbackEffnH0",
+		"Hydrogen number density normalization of the feedback efficiency [nH cm-3]");
+
+    msr->param.dFeedbackEffIndex = 0.87;
+    prmAddParam(msr->prm,"dFeedbackEffIndex", 2, &msr->param.dFeedbackEffIndex,
+		sizeof(double), "dFeedbackEffIndex",
+		"Metallicity and density index for the feedback efficiency");
 #endif
 #ifdef BLACKHOLES
     msr->param.bMerger = 1;
@@ -2215,6 +2230,7 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
     msr->param.dFeedbackDu *= msr->param.dTuFac;
     msr->param.dFeedbackDelay *=  SECONDSPERYEAR/msr->param.dSecUnit ;
     msr->param.dNumberSNIIperMass *= 8.73e15 / msr->param.dErgPerGmUnit / 1.736e-2;
+    msr->param.dFeedbackEffnH0 *= dnHToRho;
 #endif
 
 #ifdef BLACKHOLES

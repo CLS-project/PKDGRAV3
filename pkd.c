@@ -1251,7 +1251,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	    break;
 	case FIO_SPECIES_STAR:
 	    ;
-	    float afStarOtherData[3];
+	    float afStarOtherData[4];
 	    fioReadStar(fio,&iParticleID,r,vel,&fMass,&fSoft,pPot,&fDensity,
 			fMetals,&fTimer,afStarOtherData);
 	    pkdSetClass(pkd,fMass,fSoft,eSpecies,p);
@@ -1261,7 +1261,11 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	       pStar->fTimer = fTimer;
              // We avoid that star in the IC could explode
 	       pStar->hasExploded = 1;
-
+#ifdef FEEDBACK
+             pStar->fSNEfficiency = afStarOtherData[3] < 0.0 ?
+                                          pkd->param.dFeedbackEfficiency :
+                                          afStarOtherData[3];
+#endif
 #ifdef STELLAR_EVOLUTION
 	       for (j = 0; j < ELEMENT_COUNT; j++)
 		  pStar->afElemAbun[j] = fMetals[j];
@@ -2352,13 +2356,20 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,BND *bnd,
 #ifdef STELLAR_EVOLUTION
       for (int k = 0; k < ELEMENT_COUNT; k++) fMetals[k] = pStar->afElemAbun[k];
 #endif
-      float otherData[5];
+      float otherData[6];
       otherData[0] = pStar->fTimer;
       otherData[1] = pkd->oGroup ? (float)pkdGetGroup(pkd,p) : 0 ;
 #ifdef STELLAR_EVOLUTION
       otherData[2] = pStar->fMetalAbun;
       otherData[3] = pStar->fInitialMass;
       otherData[4] = pStar->fLastEnrichTime;
+#endif
+#ifdef FEEDBACK
+      if (pkd->param.dFeedbackMaxEff > 0.0){
+         otherData[5] = pStar->fSNEfficiency;
+      }else{
+         otherData[5] = -1.;
+      }
 #endif
 	fioWriteStar(fio,iParticleID,r,v,fMass,fSoft,*pPot,fDensity,
 	    &fMetals[0],&otherData[0]);

@@ -328,7 +328,10 @@ struct parameters {
     double dFeedbackEfficiency;
     double dFeedbackDu;
     double dNumberSNIIperMass;
-#endif 
+    double dFeedbackMaxEff;
+    double dFeedbackEffnH0;
+    double dFeedbackEffIndex;
+#endif
 #ifdef BLACKHOLES
     int bMerger;
     int bPlaceBHSeed;

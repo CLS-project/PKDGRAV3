@@ -298,6 +298,7 @@ typedef struct starfields {
 #endif
 
     float fTimer;  /* Time of formation */
+    float fSNEfficiency;
     int hasExploded; /* Has exploded as a supernova? */
     } STARFIELDS;   
 
