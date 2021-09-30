@@ -186,6 +186,8 @@ typedef struct {
     double dFlopDoubleGPU;
 
     SPHOptions *SPHoptions;
+    ILP ilp;
+    int bGravStep;
     } workParticle;
 
 /*
