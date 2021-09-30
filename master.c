@@ -3841,8 +3841,37 @@ void msrUpdateSoft(MSR msr,double dTime) {
 	}
     if (msr->param.dMaxPhysicalSoft > 0){
       double dFac = csmTime2Exp(msr->csm,dTime);
-      if (msr->param.dSoft*dFac > msr->param.dMaxPhysicalSoft)
-         msrSetSoft(msr, msr->param.dMaxPhysicalSoft/dFac); 
+      if (msr->param.dSoft > 0.0){
+         // Change the global softening
+         if (msr->param.dSoft*dFac > msr->param.dMaxPhysicalSoft)
+            msrSetSoft(msr, msr->param.dMaxPhysicalSoft/dFac);
+      }else{
+         // Individual (either particle or classes) softening are used
+         struct inPhysicalSoft in;
+
+         in.bSoftMaxMul = msr->param.bSoftMaxMul;
+         in.dSoftMax = msr->param.dSoftMax;
+
+         if (msr->param.bSoftMaxMul){
+            const float fPhysFac = dFac; // Factor to convert to physical
+            if (fPhysFac < msr->param.dMaxPhysicalSoft){
+               // nothing happens, still in the comoving softening regime
+               in.dFac = 1.;
+            }else{
+               // late-times, softening limited by physical
+               in.dFac = msr->param.dMaxPhysicalSoft/dFac;
+            }
+         }else{
+            printf("ERROR: Trying to limit individual softenings setting a"
+                 "maximum physical softening rather than a factor...\nThis is"
+                 "not supported.\n Did you mean to use dSoft for a global softening?"
+                 "or bSoftMaxMul for setting the limit as a factor?\n");
+            abort();
+         }
+
+         pstPhysicalSoft(msr->pst, &in, sizeof(in), NULL, 0);
+
+      }
     }
     }
 
