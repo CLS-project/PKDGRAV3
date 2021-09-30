@@ -35,7 +35,7 @@ SPHOptions initializeSPHOptions(struct parameters param, CSM csm, double dTime){
     SPHoptions.EtaCourant = param.dEtaCourant;
     SPHoptions.gamma = param.dConstGamma;
     SPHoptions.TuFac = param.dGasConst/(param.dConstGamma - 1)/param.dMeanMolWeight;
-    SPHoptions.FastGasFraction = 0.5f;
+    SPHoptions.FastGasFraction = param.dFastGasFraction;
     if (csm->val.bComove) {
         SPHoptions.a = csmTime2Exp(csm,dTime);
         SPHoptions.H = csmTime2Hub(csm,dTime);

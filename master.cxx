@@ -1053,6 +1053,10 @@ int MSR::Initialize() {
     prmAddParam(prm,"dThermalDiffusionCoeff",2,&param.dThermalDiffusionCoeff,
 		sizeof(double),"thermaldiff",
 		"<Coefficient in Thermal Diffusion> = 0.0");
+    param.dFastGasFraction = 0.5;
+    prmAddParam(prm,"dFastGasFraction",2,&param.dFastGasFraction,
+		sizeof(double),"dFastGasFraction",
+		"<Fraction for FastGas> = 0.5");
     param.dMsolUnit = 1.0;
     prmAddParam(prm,"dMsolUnit",2,&param.dMsolUnit,
 		sizeof(double),"msu",

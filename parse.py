@@ -223,6 +223,7 @@ def parse():
     add_flag(gas,'hmin',default=0.0, dest='dhMinOverSoft', type=float, help='Minimum h as a fraction of Softening')
     add_flag(gas,'metaldiff',default=0.0, dest='dMetalDiffusionCoeff', type=float, help='Coefficient in Metal Diffusion')
     add_flag(gas,'thermaldiff',default=0.0, dest='dThermalDiffusionCoeff', type=float, help='Coefficient in Thermal Diffusion')
+    add_flag(gas,'FastGasFraction',default=0.5, dest='dFastGasFraction', type=float, help='Fraction for FastGas')
     add_flag(gas,'msu',default=1.0, dest='dMsolUnit', type=float, help='Solar mass/system mass unit')
     add_flag(gas,'kpcu',default=1000.0, dest='dKpcUnit', type=float, help='Kiloparsec/system length unit')
     add_flag(gas,'dhonh',default=0.1, dest='ddHonHLimit', type=float, help='|dH|/H Limiter')

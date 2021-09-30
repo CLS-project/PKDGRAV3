@@ -128,6 +128,7 @@ struct parameters {
     double dhMinOverSoft;
     double dMetalDiffusionCoeff;
     double dThermalDiffusionCoeff;
+    double dFastGasFraction;
     /* StarForm and Feedback */
     double SFdEfficiency;
     double SFdTMax;
