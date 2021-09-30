@@ -475,7 +475,7 @@ static void queueDensity( PKD pkd, workParticle *wp, ILP ilp, int bGravStep ) {
     ** if true, calculate new fBall for all particles
     ** else, exit loop
     */
-    if (maxkerneldeviation/wp->SPHoptions->fKernelTarget > 1e-6f) {
+    if (maxkerneldeviation/wp->SPHoptions->fKernelTarget > 1e-4f) {
         // do another loop
         for (int i=0; i<wp->nP; i++) {
             float prefac = 4.0f/3.0f*M_PI;
@@ -491,6 +491,8 @@ static void queueDensity( PKD pkd, workParticle *wp, ILP ilp, int bGravStep ) {
             float newfBall = wp->pInfoIn[i].fBall - fx / dfdx;
             if (newfBall < 0.5f * wp->pInfoIn[i].fBall) {
                 wp->pInfoIn[i].fBall = 0.5f * wp->pInfoIn[i].fBall;
+            } else if (newfBall > 1.5f * wp->pInfoIn[i].fBall){
+                wp->pInfoIn[i].fBall = 1.5f * wp->pInfoIn[i].fBall;
             } else {
                 wp->pInfoIn[i].fBall = newfBall;
             }
