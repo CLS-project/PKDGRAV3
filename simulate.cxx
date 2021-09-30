@@ -353,18 +353,18 @@ int MSR::ValidateParameters() {
 	if (!prmSpecified(prm, "iDiffusion")) param.iDiffusion=1;
 	}
 
-    {
-	int nCoolingSet=0;
-	if (param.bGasIsothermal) nCoolingSet++; 
-	if (param.bGasCooling) nCoolingSet++; 
-	if (!prmSpecified(prm, "bGasAdiabatic") && nCoolingSet) param.bGasAdiabatic=0;
-	else if (param.bGasAdiabatic) nCoolingSet++;
+    // {
+	// int nCoolingSet=0;
+	// if (param.bGasIsothermal) nCoolingSet++; 
+	// if (param.bGasCooling) nCoolingSet++; 
+	// if (!prmSpecified(prm, "bGasAdiabatic") && nCoolingSet) param.bGasAdiabatic=0;
+	// else if (param.bGasAdiabatic) nCoolingSet++;
 
-	if (nCoolingSet != 1) {
-	    fprintf(stderr,"One of bGasAdiabatic (%d), bGasIsothermal (%d) and bGasCooling (%d) may be set\n", param.bGasAdiabatic, param.bGasIsothermal, param.bGasCooling);
-	    assert(0);
-	    }
-	}
+	// if (nCoolingSet != 1) {
+	    // fprintf(stderr,"One of bGasAdiabatic (%d), bGasIsothermal (%d) and bGasCooling (%d) may be set\n", param.bGasAdiabatic, param.bGasIsothermal, param.bGasCooling);
+	    // assert(0);
+	    // }
+	// }
 
 
 
