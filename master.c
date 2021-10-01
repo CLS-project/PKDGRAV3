@@ -843,6 +843,25 @@ static int validateParameters(MDL mdl,CSM csm,PRM prm,struct parameters *param) 
 	    param->bPhysicalSoft = 0;
 	    }
 	}
+    if (param->bPhysicalSoft && param->dMaxPhysicalSoft>0){
+      fprintf(stderr, "ERROR: Setting both bPhysicalSoft and dMaxPhysicalSoft "
+           "is not allowed.\n Did you mean to limit the physical softening"
+           "with bPhysicalSoft and dSoftMax? or just limit the comoving "
+           "softening with dMaxPhysicalSoft?\n");
+      return 0;
+    }
+    if ( param->dMaxPhysicalSoft>0 && param->dSoft==0.0 && !param->bSoftMaxMul){
+      fprintf(stderr, "ERROR: Trying to limit individual softenings setting a "
+           "maximum physical softening rather than a factor...\nThis is "
+           "not supported.\n Did you mean to use dSoft for a global softening? "
+           "or bSoftMaxMul for setting the limit as a factor?\n");
+      return 0;
+    }
+    if ( param->bPhysicalSoft && param->dSoftMax==0.0) {
+      fprintf(stderr, "ERROR: If setting bPhysicalSoft, dSoftMax should be "
+            "provided to avoid divergences in the early universe.\n");
+      return 0;
+    }
     /*
     ** Determine the period of the box that we are using.
     ** Set the new d[xyz]Period parameters which are now used instead
@@ -1111,7 +1130,7 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
     msr->param.bPhysicalSoft = 0;
     prmAddParam(msr->prm,"bPhysicalSoft",0,&msr->param.bPhysicalSoft,sizeof(int),"PhysSoft",
 		"<Physical gravitational softening length> -PhysSoft");
-    msr->param.bSoftMaxMul = 1;
+    msr->param.bSoftMaxMul = 0;
     prmAddParam(msr->prm,"bSoftMaxMul",0,&msr->param.bSoftMaxMul,sizeof(int),"SMM",
 		"<Use maximum comoving gravitational softening length as a multiplier> +SMM");
     msr->param.nSoftNbr = 32;
@@ -3828,6 +3847,8 @@ void msrReorderWithinNodes(MSR msr){
 #endif
 
 void msrUpdateSoft(MSR msr,double dTime) {
+    // At this point, the softening parameters have been checked to be valid
+    // at validateParameters
     if (msr->param.bPhysicalSoft) {
 	struct inPhysicalSoft in;
 
@@ -3861,12 +3882,6 @@ void msrUpdateSoft(MSR msr,double dTime) {
                // late-times, softening limited by physical
                in.dFac = msr->param.dMaxPhysicalSoft/dFac;
             }
-         }else{
-            printf("ERROR: Trying to limit individual softenings setting a"
-                 "maximum physical softening rather than a factor...\nThis is"
-                 "not supported.\n Did you mean to use dSoft for a global softening?"
-                 "or bSoftMaxMul for setting the limit as a factor?\n");
-            abort();
          }
 
          pstPhysicalSoft(msr->pst, &in, sizeof(in), NULL, 0);
