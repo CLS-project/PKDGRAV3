@@ -4215,7 +4215,7 @@ double MSR::Read(const char *achInFile) {
     Reorder();
     ActiveRung(0,1); /* Activate all particles */
     DomainDecomp(-1);
-    BuildTree(0);
+    BuildTree(param.bEwald);
     Smooth(dTime,0.0f,SMX_BALL,0,param.nSmooth);
     Reorder();
     dsec = MSR::Time() - sec;
@@ -4227,7 +4227,7 @@ double MSR::Read(const char *achInFile) {
     sec = MSR::Time();
     printf("Converting u ...\n");
     ActiveRung(0,1); /* Activate all particles */
-    DomainDecomp();
+    DomainDecomp(-1);
     BuildTree(param.bEwald);
     SPHOptions SPHoptions = initializeSPHOptions(param,csm,dTime);
     SPHoptions.doDensity = 1;
