@@ -203,6 +203,9 @@ void pstAddServices(PST pst,MDL mdl) {
 		  sizeof(struct inCalcCOM), sizeof(struct outCalcCOM));
     mdlAddService(mdl,PST_CALCMTOT,pst,(fcnService_t*)pstCalcMtot,
 		  sizeof(struct inCalcMtot), sizeof(struct outCalcMtot));
+    mdlAddService(mdl,PST_TREEUPDATEMARKEDFLAGS,pst,(fcnService_t*)pstTreeUpdateMarkedFlags,
+	sizeof(struct inBuildTree),
+	(nThreads==1?1:2*nThreads-1)*pkdMaxNodeSize());
     mdlAddService(mdl,PST_COUNTDISTANCE,pst,(fcnService_t*)pstCountDistance,
 		  sizeof(struct inCountDistance), sizeof(struct outCountDistance));
 #ifdef MDL_FFTW
@@ -1883,6 +1886,64 @@ int pstCalcMtot(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	pkdCalcMtot(plcl->pkd,&out->M, &out->N);
 	}
     return sizeof(struct outCalcMtot);
+    }
+
+int pstTreeUpdateMarkedFlags(PST pst,void *vin,int nIn,void *vout,int nOut) {
+    LCL *plcl = pst->plcl;
+    PKD pkd = plcl->pkd;
+    struct inBuildTree *in = vin;
+    uint32_t uRoot = in->uRoot;
+    KDN *pTop = vout;
+    KDN *pCell1, *pCell2;
+    double minside;
+    int nOutUpper;
+
+    /* We need to save our cells so we can update them later */
+    if (pst->nLeaves > 1) {
+	pCell1 = pkdNode(pkd,pTop,1);
+	pCell2 = pkdNode(pkd,pTop,pst->nLower*2);
+
+	/* We will accumulate the top tree here */
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_TREEUPDATEMARKEDFLAGS,vin,nIn);
+	nOut = pstTreeUpdateMarkedFlags(pst->pstLower,vin,nIn,pCell1,(pst->nLower*2-1) * pkdNodeSize(pkd));
+	assert(nOut == (pst->nLower*2-1) * pkdNodeSize(pkd));
+	mdlGetReply(pst->mdl,rID,pCell2,&nOutUpper);
+	assert(nOutUpper == (pst->nUpper*2-1) * pkdNodeSize(pkd));
+	nOut += nOutUpper + pkdNodeSize(pkd);
+
+	/*
+	** Combine Cell1 and Cell2 into pCell
+	** to find cell CoM, bounds and multipoles.
+	** This also computes the opening radius for gravity.
+	*/
+	pTop->bMax = HUGE_VAL;  /* initialize bMax for CombineCells */
+	MINSIDE(pst->bnd.fMax,minside);
+	pkdCombineCells1(pkd,pTop,pCell1,pCell2);
+	CALCOPEN(pTop,minside);
+	pkdCombineCells2(pkd,pTop,pCell1,pCell2);
+
+	/* Get our cell ready */
+	pTop->bTopTree = 1;                         /* The replicated top tree */
+	pTop->bGroup = 0;                           /* top tree can never be a group */
+	pTop->bRemote = 0;                          /* top tree is not remote */
+	pTop->iLower = 1;                           /* Relative index to lower cell */
+	pTop->pUpper = pst->nLower*2;               /* Relative index to upper cell */
+	pTop->pLower = 0;                           /* Not used */
+	}
+    else {
+	KDN *pRoot = pkdTreeNode(pkd,uRoot);
+	pkdTreeAlignNode(pkd);
+	pkdTreeUpdateMarkedFlags(plcl->pkd,uRoot);
+	pkdCopyNode(pkd,pTop,pRoot);
+	/* Get our cell ready */
+	pTop->bTopTree = 1;
+	pTop->bGroup = 0;
+	pTop->bRemote = 1;
+	pTop->pUpper = pTop->pLower = pst->idSelf;
+	/* iLower is valid = ROOT */
+	nOut = pkdNodeSize(pkd);
+	}
+    return nOut;
     }
 
 int pstCountDistance(PST pst,void *vin,int nIn,void *vout,int nOut) {

@@ -39,11 +39,15 @@
 #endif
 
 
-uint32_t pkdDistribTopTree(PKD pkd, uint32_t uRoot, uint32_t nTop, KDN *pTop) {
+uint32_t pkdDistribTopTree(PKD pkd, uint32_t uRoot, uint32_t nTop, KDN *pTop, int allocateMemory) {
     int i, iTop;
     KDN *pLocalRoot = pkdTreeNode(pkd,uRoot);
 
-    iTop = pkd->iTopTree[uRoot] = pkdTreeAllocNodes(pkd, nTop);
+    if (allocateMemory) {
+        iTop = pkd->iTopTree[uRoot] = pkdTreeAllocNodes(pkd, nTop);
+    } else {
+        iTop = pkd->iTopTree[uRoot];
+    }
     for(i=0; i<nTop; ++i) {
 	KDN *pNode = pkdNode(pkd,pTop,i);
 	KDN *pLocal = pkdTreeNode(pkd,iTop+i);
@@ -1259,4 +1263,30 @@ void pkdDistribRoot(PKD pkd,double *r,MOMC *pmom) {
     pkd->ew.r[1] = r[1];
     pkd->ew.r[2] = r[2];
     pkd->ew.mom = *pmom;
+    }
+
+void pkdTreeUpdateMarkedFlags(PKD pkd,uint32_t uRoot) {
+    KDN *c,*cLow,*cUp;
+    int id,idLo,iCellLo,idUp,iCellUp;
+    PARTICLE *p;
+    int pj;
+
+    c = pkdTreeNode(pkd,uRoot);
+
+    if (c->bGroup) {
+        for (pj=c->pLower;pj<=c->pUpper;++pj) {
+		    p = pkdParticle(pkd,pj);
+            if (p->bMarked) {
+                c->bHasMarked = 1;
+                break;
+            }
+        }
+    } else {
+        pkdGetChildCells(c,id,idLo,iCellLo,idUp,iCellUp);
+        pkdTreeUpdateMarkedFlags(pkd,iCellLo);
+        pkdTreeUpdateMarkedFlags(pkd,iCellUp);
+        cLow = pkdTreeNode(pkd,iCellLo);
+        cUp = pkdTreeNode(pkd,iCellUp);
+        c->bHasMarked = cLow->bHasMarked || cUp->bHasMarked;
+    }
     }

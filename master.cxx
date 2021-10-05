@@ -1985,9 +1985,10 @@ void MSR::BuildTree(int bNeedEwald,uint32_t uRoot,uint32_t utRoot) {
     auto nMsgSize = sizeof(ServiceDistribTopTree::input) + nTopTree;
 
     std::unique_ptr<char[]> buffer {new char[nMsgSize]};
-    auto pDistribTop = new (buffer.get()) struct ServiceDistribTopTree::input;
+    ServiceDistribTopTree::input *pDistribTop = new (buffer.get()) struct ServiceDistribTopTree::input;
     auto pkdn = reinterpret_cast<KDN*>(pDistribTop + 1);
     pDistribTop->uRoot = uRoot;
+    pDistribTop->allocateMemory = 1;
 
     in.nBucket = param.nBucket;
     in.nGroup = param.nGroup;
@@ -3302,6 +3303,7 @@ int MSR::NewTopStepKDK(
     else {
 	DomainDecomp(uRung);
 	uRoot2 = 0;
+	SelAll(0,1);
 	BuildTree(param.bEwald);
 	}
 
@@ -3367,7 +3369,8 @@ int MSR::NewTopStepKDK(
     SPHoptions.useDensityFlags = 0;
     if (nParticlesOnRung/((float) N) < SPHoptions.FastGasFraction) {
         SPHoptions.useDensityFlags = 1;
-        BuildTree(param.bEwald);
+        //BuildTree(param.bEwald);
+        TreeUpdateMarkedFlags(param.bEwald,ROOT,0);
         *puRungMax = Gravity(uRung,MaxRung(),ROOT,uRoot2,dTime,dDelta,*pdStep,dTheta,
     	1,bKickOpen,param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,nGroup,SPHoptions);
     } else {
@@ -4566,6 +4569,46 @@ void MSR::CalcMtot(double *M, uint64_t *N) {
 
     *M = out.M;
     *N = out.N;
+    }
+
+void MSR::TreeUpdateMarkedFlags(int bNeedEwald,uint32_t uRoot,uint32_t utRoot) {
+    struct inBuildTree in;
+    const double ddHonHLimit = param.ddHonHLimit;
+    PST pst0;
+    LCL *plcl;
+    PKD pkd;
+    double sec,dsec;
+
+    printf("Update local trees...\n\n");
+
+    pst0 = pst;
+    while (pst0->nLeaves > 1)
+	pst0 = pst0->pstLower;
+    plcl = pst0->plcl;
+    pkd = plcl->pkd;
+
+    auto nTopTree = pkdNodeSize(pkd) * (2*nThreads-1);
+    auto nMsgSize = sizeof(ServiceDistribTopTree::input) + nTopTree;
+
+    std::unique_ptr<char[]> buffer {new char[nMsgSize]};
+    auto pDistribTop = new (buffer.get()) struct ServiceDistribTopTree::input;
+    auto pkdn = reinterpret_cast<KDN*>(pDistribTop + 1);
+    pDistribTop->uRoot = uRoot;
+    pDistribTop->allocateMemory = 0;
+
+    in.nBucket = param.nBucket;
+    in.nGroup = param.nGroup;
+    in.uRoot = uRoot;
+    in.utRoot = utRoot;
+    in.ddHonHLimit = ddHonHLimit;
+    sec = MSR::Time();
+    nTopTree = pstTreeUpdateMarkedFlags(pst,&in,sizeof(in),pkdn,nTopTree);
+    pDistribTop->nTop = nTopTree / pkdNodeSize(pkd);
+    assert(pDistribTop->nTop == (2*nThreads-1));
+    mdl->RunService(PST_DISTRIBTOPTREE,nMsgSize,pDistribTop);
+    dsec = MSR::Time() - sec;
+    printf("Tree updated, Wallclock: %f secs\n\n",dsec);
+
     }
 
 uint64_t MSR::CountDistance(double dRadius2Inner, double dRadius2Outer) {

@@ -27,6 +27,6 @@ int ServiceDistribTopTree::Service(PST pst,void *vin,int nIn,void *vout,int nOut
     auto pkd = pst->plcl->pkd;
     auto pTop = reinterpret_cast<KDN*>(in+1);
     assert(nIn==sizeof(input)+in->nTop*pkdNodeSize(pkd));
-    pkdDistribTopTree(pkd,in->uRoot,in->nTop,pTop);
+    pkdDistribTopTree(pkd,in->uRoot,in->nTop,pTop,in->allocateMemory);
     return 0;
     }

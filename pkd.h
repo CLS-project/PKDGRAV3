@@ -1308,7 +1308,7 @@ extern "C" {
 */
 void pkdVATreeBuild(PKD pkd,int nBucket);
 void pkdTreeBuild(PKD pkd,int nBucket,int nGroup,uint32_t uRoot,uint32_t uTemp,double ddHonHLimit);
-uint32_t pkdDistribTopTree(PKD pkd, uint32_t uRoot, uint32_t nTop, KDN *pTop);
+uint32_t pkdDistribTopTree(PKD pkd, uint32_t uRoot, uint32_t nTop, KDN *pTop, int allocateMemory);
 void pkdOpenCloseCaches(PKD pkd,int bOpen,int bFixed);
 void pkdTreeInitMarked(PKD pkd);
 void pkdDumpTrees(PKD pkd,int bOnlyVA,uint8_t uRungDD);
@@ -1507,6 +1507,7 @@ void pkdCalcCOM(PKD pkd, double *dCenter, double dRadius, int bPeriodic,
 		double *com, double *vcm, double *L,
 		double *M, uint64_t *N);
 void pkdCalcMtot(PKD pkd, double *M, uint64_t *N);
+void pkdTreeUpdateMarkedFlags(PKD pkd,uint32_t uRoot);
 #ifdef MDL_FFTW
 void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int iAssignment, int iGrid, float dDelta);
 void pkdInterlace(PKD pkd, int iGridTarget, int iGridSource);

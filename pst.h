@@ -202,6 +202,7 @@ enum pst_service {
     PST_CALCDISTANCE,
     PST_CALCCOM,
     PST_CALCMTOT,
+    PST_TREEUPDATEMARKEDFLAGS,
     PST_COUNTDISTANCE,
 #ifdef MDL_FFTW
     PST_GRID_CREATE_FFT,
@@ -926,6 +927,7 @@ struct outCalcMtot {
     uint64_t N;
     };
 int pstCalcMtot(PST pst,void *vin,int nIn,void *vout,int nOut);
+int pstTreeUpdateMarkedFlags(PST pst,void *vin,int nIn,void *vout,int nOut);
 
 /* PST_COUNTDISTANCE */
 struct inCountDistance {

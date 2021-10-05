@@ -21,6 +21,7 @@ public:
     struct input {
 	uint32_t uRoot; /* Which root node to use */
 	uint32_t nTop;
+    int allocateMemory;
 	// KDN nodes[]; /* Array of tree nodes follow this structure */
 	};
     typedef void output;
