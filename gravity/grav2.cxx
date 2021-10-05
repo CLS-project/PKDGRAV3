@@ -349,7 +349,7 @@ int CPUdoWorkPP(void *vpp) {
     }
 
 int CPUdoWorkDensity(void *vpp) {
-    workPP *pp = vpp;
+    auto pp = static_cast<workPP*>(vpp);
     workParticle *wp = pp->work;
     ILPTILE tile = pp->tile;
     ILP_BLK *blk = tile->blk;
@@ -371,7 +371,7 @@ int CPUdoWorkDensity(void *vpp) {
     }
 
 int CPUdoWorkSPHForces(void *vpp) {
-    workPP *pp = vpp;
+    auto pp = static_cast<workPP*>(vpp);
     workParticle *wp = pp->work;
     ILPTILE tile = pp->tile;
     ILP_BLK *blk = tile->blk;
@@ -413,7 +413,7 @@ int doneWorkPP(void *vpp) {
     }
 
 int doneWorkDensity(void *vpp) {
-    workPP *pp = vpp;
+    auto pp = static_cast<workPP*>(vpp);
     int i;
 
     for(i=0; i<pp->work->nP; ++i) {
@@ -431,7 +431,7 @@ int doneWorkDensity(void *vpp) {
     }
 
 int doneWorkSPHForces(void *vpp) {
-    workPP *pp = vpp;
+    auto pp = static_cast<workPP*>(vpp);
     int i;
 
     for(i=0; i<pp->work->nP; ++i) {
@@ -487,7 +487,7 @@ static void queueDensity( PKD pkd, workParticle *wp, ILP ilp, int bGravStep ) {
 #endif
 	auto pp = new workPP;
 	assert(pp!=NULL);
-	pp->pInfoOut = malloc(sizeof(PINFOOUT) * wp->nP);
+	pp->pInfoOut = new PINFOOUT[wp->nP];
 	assert(pp->pInfoOut!=NULL);
 	pp->work = wp;
 	pp->ilp = ilp;
@@ -507,7 +507,7 @@ static void queueSPHForces( PKD pkd, workParticle *wp, ILP ilp, int bGravStep ) 
 #endif
 	auto pp = new workPP;
 	assert(pp!=NULL);
-	pp->pInfoOut = malloc(sizeof(PINFOOUT) * wp->nP);
+	pp->pInfoOut = new PINFOOUT[wp->nP];
 	assert(pp->pInfoOut!=NULL);
 	pp->work = wp;
 	pp->ilp = ilp;

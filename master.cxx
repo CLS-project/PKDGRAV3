@@ -2676,16 +2676,9 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
 	    }
 	}
 
-<<<<<<< HEAD
     in.SPHoptions = SPHoptions;
 
-    out_size = nThreads*sizeof(struct outGravityPerProc) + sizeof(struct outGravityReduct);
-    std::unique_ptr<char[]> buffer {new char[out_size]};
-    auto out  = new (buffer.get()) outGravityPerProc[nThreads];
-    auto outr = new (out + nThreads) outGravityReduct;
-=======
     outGravityReduct outr;
->>>>>>> develop
 
     sec = MSR::Time();
     pstGravity(pst,&in,sizeof(in),&outr,sizeof(outr));

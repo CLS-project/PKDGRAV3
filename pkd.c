@@ -2411,14 +2411,9 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
     PARTICLE *p;
     vel_t *v;
     float *a;
-<<<<<<< HEAD
     float dfBalldt;
     NEWSPHFIELDS *NewSph;
-    int i,j,k;
-=======
-    SPHFIELDS *sph;
     int i,j;
->>>>>>> develop
     double rfinal[3],r0[3],dMin[3],dMax[3];
     int pLower, pUpper;
 
