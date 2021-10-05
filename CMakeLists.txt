@@ -231,6 +231,13 @@ foreach(flag_var
    endif(${flag_var} MATCHES "-DNDEBUG")
 endforeach(flag_var)
 
+option(HYDRO "Compile with hydrodynamics support" ON)
+if (HYDRO)
+   message("-- Compiling with hydrodynamics support")
+   target_sources(${PROJECT_NAME} PRIVATE  hydro/hydro.c hydro/density.c 
+                  hydro/gradient.c hydro/flux.c hydro/step.c)
+endif(HYDRO)
+
 option(USE_MFM "Use the MFM hydro scheme instead of MFV" ON)
 if (USE_MFM)
    message("-- Compiling with MFM hydrodynamics")

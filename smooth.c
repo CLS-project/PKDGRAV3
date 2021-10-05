@@ -2831,7 +2831,7 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
     PARTICLE** sinks;
     sinks = malloc(64*sizeof(PARTICLE*)); // At most, the size of the bucket
 
-    /* IA: For allowing vectorization, it is better to use an structure of
+    /* For allowing vectorization, it is better to use an structure of
      *  arrays rather than an array of structures.
      *
      *  In our case, the structure is just an array of pointers to the locations
@@ -2840,27 +2840,13 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
      *  Having everything in the same buffer can be advantageous as it should
      *  be in cache, but it was painful to code...
      */
-    my_real *flux_input_buffer;
-    my_real **flux_input_pointers;
-    my_real *flux_output_buffer;
-    my_real **flux_output_pointers;
+    my_real *input_buffer;
+    my_real **input_pointers;
+    my_real *output_buffer;
+    my_real **output_pointers;
     if (iSmoothType==SMX_THIRDHYDROLOOP){
-       //IA: We align the memory for improving vectorization performance.
-       // This is compiler dependent! FIXME
-       flux_input_buffer = (my_real*)_mm_malloc(nnListMax_p*q_last*sizeof(my_real), 64);
-       flux_input_pointers = (my_real**)_mm_malloc(q_last*sizeof(my_real*), 64);
-       assert(flux_input_buffer!=NULL);
-       assert(flux_input_pointers!=NULL);
-       for (int i=0; i<q_last; i++)
-          flux_input_pointers[i] = &flux_input_buffer[i*nnListMax_p];
-
-
-       flux_output_buffer = (my_real*)_mm_malloc(nnListMax_p*out_last*sizeof(my_real), 64);
-       flux_output_pointers = (my_real**)_mm_malloc(out_last*sizeof(my_real*), 64);
-       assert(flux_output_buffer!=NULL);
-       assert(flux_output_pointers!=NULL);
-       for (int i=0; i<out_last; i++)
-          flux_output_pointers[i] = &flux_output_buffer[i*nnListMax_p];
+       hydroFluxAllocateBuffer(input_buffer, input_pointers,
+                               output_buffer, output_pointers, nnListMax_p);
     }
 
 
@@ -3035,9 +3021,6 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
           }else{
              for (pj=0; pj<nCnt_own; pj++){
                 PARTICLE * partj = sinks[pj];
-                const int j_cache_index_i = *pkdParticleID(pkd,partj) % (64);
-                //uint64_t *const i_flux = (uint64_t*)((char*)partj + flux_offset);
-                //uint64_t *const i_coll = (uint64_t*)((char*)partj + coll_offset);
                 float fBall2_p = 4.*pkdBall(pkd,partj)*pkdBall(pkd,partj);
                 float dx_node = -pkdPos(pkd,partj,0)+bnd_node.fCenter[0];
                 float dy_node = -pkdPos(pkd,partj,1)+bnd_node.fCenter[1];
@@ -3076,14 +3059,14 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
                                printf("Trying to reallocate aligned memory.. not implemented!\n");
                                abort();
                                /*
-                               flux_input_buffer = realloc(flux_input_buffer, nnListMax_p*q_last*sizeof(my_real));
+                               input_buffer = realloc(input_buffer, nnListMax_p*q_last*sizeof(my_real));
                                for (int i=0; i<q_last; i++)
-                                  flux_input_pointers[i] = &flux_input_buffer[i*nnListMax_p];
+                                  input_pointers[i] = &input_buffer[i*nnListMax_p];
 
 
-                               flux_output_buffer = realloc(flux_output_buffer, nnListMax_p*out_last*sizeof(my_real));
+                               output_buffer = realloc(output_buffer, nnListMax_p*out_last*sizeof(my_real));
                                for (int i=0; i<out_last; i++)
-                                  flux_output_pointers[i] = &flux_output_buffer[i*nnListMax_p];
+                                  output_pointers[i] = &output_buffer[i*nnListMax_p];
                                   */
                             }
                           }
@@ -3098,57 +3081,9 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
 
                       if (iSmoothType==SMX_THIRDHYDROLOOP){
                          PARTICLE * q = smx->nnList[pk].pPart;
-                         SPHFIELDS* qsph = pkdSph(pkd,q);
 
-                         //printf("filling data\n");
-                           flux_input_pointers[q_mass][nCnt_p] = pkdMass(pkd,q);
-                           flux_input_pointers[q_ball][nCnt_p] = qh;
-                           flux_input_pointers[q_dx][nCnt_p] = nnList_p[nCnt_p].dx;
-                           flux_input_pointers[q_dy][nCnt_p] = nnList_p[nCnt_p].dy;
-                           flux_input_pointers[q_dz][nCnt_p] = nnList_p[nCnt_p].dz;
-                           flux_input_pointers[q_dr][nCnt_p] = sqrt(fDist2);
-                           flux_input_pointers[q_rung][nCnt_p] = smf->dDelta/(1<<q->uRung);
-                           flux_input_pointers[q_rho][nCnt_p] = pkdDensity(pkd,q);
-                           flux_input_pointers[q_P][nCnt_p] = qsph->P;
-#ifdef ENTROPY_SWITCH
-                           flux_input_pointers[q_S][nCnt_p] = qsph->S;
-#endif
-                           flux_input_pointers[q_vx][nCnt_p] = qsph->vPred[0];
-                           flux_input_pointers[q_vy][nCnt_p] = qsph->vPred[1];
-                           flux_input_pointers[q_vz][nCnt_p] = qsph->vPred[2];
-
-                           flux_input_pointers[q_gradRhoX][nCnt_p] = qsph->gradRho[0];
-                           flux_input_pointers[q_gradRhoY][nCnt_p] = qsph->gradRho[1];
-                           flux_input_pointers[q_gradRhoZ][nCnt_p] = qsph->gradRho[2];
-
-                           flux_input_pointers[q_gradPX][nCnt_p] = qsph->gradP[0];
-                           flux_input_pointers[q_gradPY][nCnt_p] = qsph->gradP[1];
-                           flux_input_pointers[q_gradPZ][nCnt_p] = qsph->gradP[2];
-
-                           flux_input_pointers[q_gradVxX][nCnt_p] = qsph->gradVx[0];
-                           flux_input_pointers[q_gradVxY][nCnt_p] = qsph->gradVx[1];
-                           flux_input_pointers[q_gradVxZ][nCnt_p] = qsph->gradVx[2];
-
-                           flux_input_pointers[q_gradVyX][nCnt_p] = qsph->gradVy[0];
-                           flux_input_pointers[q_gradVyY][nCnt_p] = qsph->gradVy[1];
-                           flux_input_pointers[q_gradVyZ][nCnt_p] = qsph->gradVy[2];
-
-                           flux_input_pointers[q_gradVzX][nCnt_p] = qsph->gradVz[0];
-                           flux_input_pointers[q_gradVzY][nCnt_p] = qsph->gradVz[1];
-                           flux_input_pointers[q_gradVzZ][nCnt_p] = qsph->gradVz[2];
-
-                           flux_input_pointers[q_lastUpdateTime][nCnt_p] = qsph->lastUpdateTime;
-                           flux_input_pointers[q_lastAccX][nCnt_p] = qsph->lastAcc[0];
-                           flux_input_pointers[q_lastAccY][nCnt_p] = qsph->lastAcc[1];
-                           flux_input_pointers[q_lastAccZ][nCnt_p] = qsph->lastAcc[2];
-                           flux_input_pointers[q_B_XX][nCnt_p] = qsph->B[0];
-                           flux_input_pointers[q_B_YY][nCnt_p] = qsph->B[3];
-                           flux_input_pointers[q_B_ZZ][nCnt_p] = qsph->B[5];
-                           flux_input_pointers[q_B_XY][nCnt_p] = qsph->B[1];
-                           flux_input_pointers[q_B_XZ][nCnt_p] = qsph->B[2];
-                           flux_input_pointers[q_B_YZ][nCnt_p] = qsph->B[4];
-                           flux_input_pointers[q_omega][nCnt_p] = qsph->omega;
-                        
+                         hydroFluxFillBuffer(pkd, input_pointers, q, pk,
+                                         smf->dDelta, fDist2, dx, dy, dz);
 
                       }
 
@@ -3164,97 +3099,14 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
 
                 if (iSmoothType==SMX_THIRDHYDROLOOP && FLUX_VEC){
                    SPHFIELDS* psph = pkdSph(pkd,partj);
-                   hydroRiemann_vec(partj,pkdBall(pkd,partj),nCnt_p,flux_input_pointers, flux_output_pointers, smf);
+                   hydroRiemann_vec(partj,pkdBall(pkd,partj),nCnt_p,
+                                    input_pointers, output_pointers, smf);
 
 
-                   float *pmass = (float*)pkdField(partj,pkd->oMass);
                    for (pk=0;pk<nCnt_p;pk++){
-                      PARTICLE* q = nnList_p[pk].pPart;
-                      SPHFIELDS* qsph = pkdSph(pkd,q);
-                      float *qmass = (float*)pkdField(nnList_p[pk].pPart,pkd->oMass);
-                      if (smf->dDelta>0){
-                           *pmass -= flux_output_pointers[out_minDt][pk] * flux_output_pointers[out_Frho][pk] ;
-
-                           psph->mom[0] -= flux_output_pointers[out_minDt][pk] * flux_output_pointers[out_FmomX][pk] ;
-                           psph->mom[1] -= flux_output_pointers[out_minDt][pk] * flux_output_pointers[out_FmomY][pk] ;
-                           psph->mom[2] -= flux_output_pointers[out_minDt][pk] * flux_output_pointers[out_FmomZ][pk] ;
-
-                           psph->E -= flux_output_pointers[out_minDt][pk] * flux_output_pointers[out_Fene][pk];
-
-                           psph->Uint -= flux_output_pointers[out_minDt][pk] * ( flux_output_pointers[out_Fene][pk] - flux_output_pointers[out_FmomX][pk]*psph->vPred[0] 
-                                                                           - flux_output_pointers[out_FmomY][pk]*psph->vPred[1]
-                                                                           - flux_output_pointers[out_FmomZ][pk]*psph->vPred[2]
-                                                 + 0.5*(psph->vPred[0]*psph->vPred[0] + psph->vPred[1]*psph->vPred[1] + psph->vPred[2]*psph->vPred[2]) * flux_output_pointers[out_Frho][pk] );
-                           
-#ifdef ENTROPY_SWITCH
-                           psph->S -= flux_output_pointers[out_minDt][pk] * flux_output_pointers[out_FS][pk];
-#endif
-
-#ifndef USE_MFM
-                           psph->drDotFrho[0] += flux_output_pointers[out_minDt][pk] * flux_output_pointers[out_Frho][pk] * flux_input_pointers[q_dx][pk] * smf->a;
-                           psph->drDotFrho[1] += flux_output_pointers[out_minDt][pk] * flux_output_pointers[out_Frho][pk] * flux_input_pointers[q_dy][pk] * smf->a;
-                           psph->drDotFrho[2] += flux_output_pointers[out_minDt][pk] * flux_output_pointers[out_Frho][pk] * flux_input_pointers[q_dz][pk] * smf->a;
-#endif
-                           psph->Frho +=      flux_output_pointers[out_Frho][pk] ;
-                           psph->Fene +=      flux_output_pointers[out_Fene][pk] ;
-                           psph->Fmom[0] +=   flux_output_pointers[out_FmomX][pk]; 
-                           psph->Fmom[1] +=   flux_output_pointers[out_FmomY][pk]; 
-                           psph->Fmom[2] +=   flux_output_pointers[out_FmomZ][pk]; 
-                      }else{
-                         psph->Frho +=      flux_output_pointers[out_Frho][pk] ;
-                         psph->Fene +=      flux_output_pointers[out_Fene][pk] ;
-                         psph->Fmom[0] +=   flux_output_pointers[out_FmomX][pk]; 
-                         psph->Fmom[1] +=   flux_output_pointers[out_FmomY][pk]; 
-                         psph->Fmom[2] +=   flux_output_pointers[out_FmomZ][pk]; 
-                      }
-
-#ifndef OPTIM_NO_REDUNDANT_FLUXES
-#ifdef OPTIM_AVOID_IS_ACTIVE
-                     if (!pkdIsActive(pkd,q))
-#else
-                     if (!q->bMarked)
-#endif
-#endif
-                     {
-
-                        // If this is not the case, something VERY odd must have happened
-                        assert( qsph->P == flux_input_pointers[q_P][pk] );
-                        if (smf->dDelta>0){
-                           *qmass += flux_output_pointers[out_minDt][pk] * flux_output_pointers[out_Frho][pk] ;
-
-                           qsph->mom[0] += flux_output_pointers[out_minDt][pk] * flux_output_pointers[out_FmomX][pk] ;
-                           qsph->mom[1] += flux_output_pointers[out_minDt][pk] * flux_output_pointers[out_FmomY][pk] ;
-                           qsph->mom[2] += flux_output_pointers[out_minDt][pk] * flux_output_pointers[out_FmomZ][pk] ;
-
-                           qsph->E += flux_output_pointers[out_minDt][pk] * flux_output_pointers[out_Fene][pk];
-
-                           qsph->Uint += flux_output_pointers[out_minDt][pk] * ( flux_output_pointers[out_Fene][pk] - flux_output_pointers[out_FmomX][pk]*qsph->vPred[0] 
-                                                                                                                    - flux_output_pointers[out_FmomY][pk]*qsph->vPred[1]
-                                                                                                                    - flux_output_pointers[out_FmomZ][pk]*qsph->vPred[2]
-                               + 0.5*(qsph->vPred[0]*qsph->vPred[0] + qsph->vPred[1]*qsph->vPred[1] + qsph->vPred[2]*qsph->vPred[2])*flux_output_pointers[out_Frho][pk]  );
-#ifdef ENTROPY_SWITCH
-                           qsph->S += flux_output_pointers[out_minDt][pk] * flux_output_pointers[out_FS][pk];
-#endif
-
-#ifndef USE_MFM
-                           qsph->drDotFrho[0] += flux_output_pointers[out_minDt][pk] * flux_output_pointers[out_Frho][pk] * flux_input_pointers[q_dx][pk] ;
-                           qsph->drDotFrho[1] += flux_output_pointers[out_minDt][pk] * flux_output_pointers[out_Frho][pk] * flux_input_pointers[q_dy][pk] ;
-                           qsph->drDotFrho[2] += flux_output_pointers[out_minDt][pk] * flux_output_pointers[out_Frho][pk] * flux_input_pointers[q_dz][pk] ;
-#endif
-                           qsph->Frho -=      flux_output_pointers[out_Frho][pk] ;
-                           qsph->Fene -=      flux_output_pointers[out_Fene][pk] ;
-                           qsph->Fmom[0] -=   flux_output_pointers[out_FmomX][pk]; 
-                           qsph->Fmom[1] -=   flux_output_pointers[out_FmomY][pk]; 
-                           qsph->Fmom[2] -=   flux_output_pointers[out_FmomZ][pk]; 
-                        }else{
-                           qsph->Frho -=       flux_output_pointers[out_Frho][pk];
-                           qsph->Fene -=       flux_output_pointers[out_Fene][pk];
-                           qsph->Fmom[0] -=    flux_output_pointers[out_FmomX][pk]; 
-                           qsph->Fmom[1] -=    flux_output_pointers[out_FmomY][pk]; 
-                           qsph->Fmom[2] -=    flux_output_pointers[out_FmomZ][pk]; 
-                        }
-
-                     } // q marked/active 
+                      hydroFluxUpdateFromBuffer(pkd, output_pointers,
+                                      input_pointers, partj, nnList_p[pk].pPart,
+                                      pk, smf->dDelta);
                    } // for nCnt_p
                 }else{
                    smx->fcnSmooth(partj,pkdBall(pkd,partj),nCnt_p,nnList_p,smf);
@@ -3285,10 +3137,10 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
       }
    }
     if (iSmoothType==SMX_THIRDHYDROLOOP){
-       _mm_free( flux_input_buffer);
-       _mm_free( flux_input_pointers);
-       _mm_free( flux_output_buffer);
-       _mm_free( flux_output_pointers);
+       _mm_free(input_buffer);
+       _mm_free(input_pointers);
+       _mm_free(output_buffer);
+       _mm_free(output_pointers);
     }
     free(nnList_p);
     free(sinks);
