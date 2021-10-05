@@ -60,7 +60,7 @@ class TestGravityB0Periodic(unittest.TestCase):
         cls.a = np.load('b0-final-p0.10-asym-k1.acc.npy')
         cls.maga = np.linalg.norm(cls.a,axis=1)
 
-    @data([0.70,0.0011],[0.60,0.00055],[0.55,0.0004],[0.40,0.0001],)
+    @data([0.70,0.0012],[0.60,0.00055],[0.55,0.0004],[0.40,0.0001],)
     @unpack
     def testGravityPeriodic(self,theta,target_rms):
         self.msr.setParameters(bPeriodic=True,bEwald=True,nReplicas=2,bEpsAccStep=True)
