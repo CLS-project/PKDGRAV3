@@ -127,7 +127,7 @@ public:
 
 // A list of cache tables is constructed when mdlClass is created. They are all set to NOCACHE.
 CACHE::CACHE(mdlClass * mdl,uint16_t iCID)
-    : mdl(mdl), iCID(iCID), CacheRequest(iCID,mdl->Self()) {
+    : mdl(mdl), CacheRequest(iCID,mdl->Self()), iCID(iCID) {
     }
 
 // This opens a read-only cache. Called from a worker outside of MDL
@@ -167,7 +167,7 @@ CACHE *mdlClass::CacheInitialize(
     assert(cid >= 0 && cid <cache.size());
     if (cid<0 || cid >= cache.size()) abort();
 
-    auto c = &cache[cid];
+    auto c = cache[cid].get();
 //    c->initialize(cacheSize,getElt,pData,iDataSize,nData,ctx,init,combine);
     c->initialize(cacheSize,getElt,pData,iDataSize,nData,helper);
 
@@ -215,10 +215,10 @@ public:
 				void (*combine_function)(void *,void *,const void *),
 				void* (*create_function) (void *,uint32_t,const void *))
 	: CACHEhelper(nData,bModify), nPack(pack_size), nFlush(flush_size), ctx(ctx),
-		get_thread(get_thread),
 		pack_function(pack_function),unpack_function(unpack_function),
 		init_function(init_function),flush_function(flush_function),
-		combine_function(combine_function),create_function(create_function) {}
+		combine_function(combine_function),
+		get_thread(get_thread), create_function(create_function) {}
     };
 
 extern "C"
@@ -257,7 +257,7 @@ void mdlAdvancedCacheCO(MDL mdl,int cid,void *pHash,int iDataSize,
 CACHE *mdlClass::AdvancedCacheInitialize(int cid,hash::GHASH *hash,int iDataSize,std::shared_ptr<CACHEhelper> helper) {
     assert(cid >= 0 && cid <cache.size());
     if (cid<0 || cid >= cache.size()) abort();
-    auto c = &cache[cid];
+    auto c = cache[cid].get();
     c->initialize_advanced(cacheSize,hash,iDataSize,helper);
 
     /* Nobody should start using this cache until all threads have started it! */
@@ -390,6 +390,21 @@ void CACHE::close() {
     }
 
 /*****************************************************************************\
+* Functions to allow writing to a local element when the cache is active
+\*****************************************************************************/
+
+extern "C"
+void *mdlAcquireWrite(MDL cmdl,int cid,int iIndex) {
+    mdlClass *mdl = static_cast<mdlClass *>(cmdl);
+    return mdl->AcquireWrite(cid, iIndex);
+    }
+
+void mdlReleaseWrite(MDL cmdl,int cid,void *p) {
+    mdlClass *mdl = static_cast<mdlClass *>(cmdl);
+    mdl->ReleaseWrite(cid,p);
+    }
+
+/*****************************************************************************\
 * Here we follow a Cache Request
 \*****************************************************************************/
 
@@ -412,7 +427,7 @@ extern "C"
 void *mdlAcquire(MDL cmdl,int cid,int iIndex,int id) {
     mdlClass *mdl = static_cast<mdlClass *>(cmdl);
     const bool lock   = true;  // we always lock in acquire
-    const bool modify = mdl->cache[cid].modify();
+    const bool modify = mdl->cache[cid]->modify();
     const bool virt   = false; // really fetch the element
     return mdl->Access(cid, iIndex, id, lock, modify, virt);
     }
@@ -422,7 +437,7 @@ extern "C"
 void *mdlKeyAcquire(MDL cmdl,int cid,uint32_t uHash, void *pKey) {
     mdlClass *mdl = static_cast<mdlClass *>(cmdl);
     const bool lock   = true;  // we always lock in acquire
-    const bool modify = mdl->cache[cid].modify();
+    const bool modify = mdl->cache[cid]->modify();
     const bool virt   = false; // really fetch the element
     return static_cast<mdlClass *>(mdl)->Access(cid, uHash, pKey, lock, modify, virt);
     }
@@ -438,7 +453,7 @@ void *mdlVirtualFetch(MDL mdl,int cid,int iIndex,int id) {
 
 // main routine to perform an immediate cache request. Does not return until the cache element is present
 void *mdlClass::Access(int cid, uint32_t uIndex, int uId, bool bLock,bool bModify,bool bVirtual) {
-    CACHE *c = &cache[cid];
+    auto c = cache[cid].get();
 
     if (!(++c->nAccess & mdl_check_mask)) CacheCheck(); // For non-dedicated MPI thread we periodically check for messages
 
@@ -446,8 +461,8 @@ void *mdlClass::Access(int cid, uint32_t uIndex, int uId, bool bLock,bool bModif
     uint32_t uCore = uId - mpi->Self();
     if (uCore < Cores() && !c->modify() ) {
 	mdlClass * omdl = pmdl[uCore];
-	c = &omdl->cache[cid];
-	return c->getElement(uIndex);
+	auto c = omdl->cache[cid].get();
+	return c->getElement(uIndex); // Careful; we don't allow updates here (see ReadLock)
 	}
     // Retreive the element from the ARC cache. If it is not present then the ARC class will
     // call invokeRequest to initiate the fetch, then finishRequest to copy the result into the cache
@@ -463,7 +478,7 @@ void *CACHE::fetch(uint32_t uHash, void *pKey, int bLock,int bModify,bool bVirtu
 
 // main routine to perform an immediate cache request. Does not return until the cache element is present
 void *mdlClass::Access(int cid, uint32_t uHash, void *pKey, bool bLock,bool bModify,bool bVirtual) {
-    CACHE *c = &cache[cid];
+    auto c = cache[cid].get();
 
     if (!(++c->nAccess & mdl_check_mask)) CacheCheck(); // For non-dedicated MPI thread we periodically check for messages
 
@@ -482,8 +497,8 @@ void * CACHE::getLocalData(uint32_t uHash, uint32_t uId, uint32_t size, const vo
     uint32_t uCore = uId - mpi->Self();
     if (uCore < mdl->Cores()) {
 	mdlClass * omdl = mdl->pmdl[uCore];
-	auto & c = omdl->cache[iCID];
-	if (c.hash_table) data=c.hash_table->lookup(uHash,pKey);
+	auto c = omdl->cache[iCID].get();
+	if (c->hash_table) data=c->hash_table->lookup(uHash,pKey);
 	}
     return data;
     }
@@ -530,7 +545,7 @@ void mpiClass::CacheReceiveRequest(int count, const CacheHeader *ph) {
     reply->emptyBuffer();
     reply->setRankTo(iRankFrom);
     reply->addBuffer(ph->cid,Self(),ph->idFrom,ph->iLine);
-    CACHE *c = &pmdl[iCore]->cache[ph->cid];
+    auto c = pmdl[iCore]->cache[ph->cid].get();
     auto pack_size = c->cache_helper->pack_size();
     assert(pack_size <= MDL_CACHE_DATA_SIZE);
     if (key_size) { // ADVANCED KEY
@@ -542,8 +557,10 @@ void mpiClass::CacheReceiveRequest(int count, const CacheHeader *ph) {
 	int s = ph->iLine << c->nLineBits;
 	int n = s + c->getLineElementCount();
 	for(auto i=s; i<n; i++ ) {
-	    char *t = (i<c->nData) ? static_cast<char *>(c->getElement(i)) : NULL;
+	    auto p = c->ReadLock(i);
+	    char *t = (i<c->nData) ? static_cast<char *>(p) : NULL;
 	    c->cache_helper->pack(reply->getBuffer(pack_size),t);
+	    c->ReadUnlock(p);
 	    }
 	}
     reply->action(this); // MessageCacheReply()
@@ -566,7 +583,7 @@ void mpiClass::FinishCacheReply(mdlMessageCacheReply *pFlush) {
 void mpiClass::CacheReceiveReply(int count, const CacheHeader *ph) {
     int iCore = ph->idTo - Self();
     assert(iCore>=0 && iCore<Cores());
-    CACHE *c = &pmdl[iCore]->cache[ph->cid];
+    auto c = pmdl[iCore]->cache[ph->cid].get();
     auto pack_size = c->cache_helper->pack_size();
     assert(pack_size <= MDL_CACHE_DATA_SIZE);
     int iLineSize = c->getLineElementCount() * pack_size;
@@ -594,7 +611,7 @@ void * CACHE::finishRequest(uint32_t uLine, uint32_t uId, uint32_t size, const v
 
 void *mdlClass::finishCacheRequest(int cid,uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey, bool bVirtual, void *data, const void *src) {
     int iCore = uId - mpi->Self();
-    CACHE *c = &cache[cid];
+    auto c = cache[cid].get();
     int s,n;
     uint32_t iIndex = uLine << c->nLineBits;
     auto pack_size = c->cache_helper->pack_size();
@@ -611,7 +628,7 @@ void *mdlClass::finishCacheRequest(int cid,uint32_t uLine, uint32_t uId, uint32_
     // otherwise we would have simply returned a reference
     else if (iCore >= 0 && iCore < Cores() ) {
 	mdlClass * omdl = pmdl[iCore];
-	CACHE *oc = &omdl->cache[cid];
+	auto oc = omdl->cache[cid].get();
 	if (size) {
 	    if (!src) return nullptr;
 	    memcpy(data,src,oc->iDataSize);
@@ -621,7 +638,9 @@ void *mdlClass::finishCacheRequest(int cid,uint32_t uLine, uint32_t uId, uint32_
 	    auto pData = static_cast<char *>(data);
 	    for(auto i=s; i<n; i++ ) {
 		//FIXME: not unpack!
-		c->cache_helper->unpack(pData,oc->getElement(i),pKey);
+		auto p = oc->ReadLock(i);
+		c->cache_helper->unpack(pData,p,pKey);
+		oc->ReadUnlock(p);
 		pData += oc->iDataSize;
 		}
 	    }
@@ -681,10 +700,10 @@ void mpiClass::MessageFlushFromCore(mdlMessageFlushFromCore *pFlush) {
     int count;
     count = pFlush->getCount();
     auto ca = reinterpret_cast<CacheHeader*>(pFlush->getBuffer());
-    auto &c = pmdl[0]->cache[ca->cid];
+    auto c = pmdl[0]->cache[ca->cid].get();
     while(count > 0) {
-	int iLineSize = c.getLineElementCount() * c.cache_helper->flush_size();
-	int iSize = iLineSize + c.key_size();
+	int iLineSize = c->getLineElementCount() * c->cache_helper->flush_size();
+	int iSize = iLineSize + c->key_size();
 	pData = (char *)(ca+1);
 	flush_element(ca,iSize);
 	pData += iSize;
@@ -755,7 +774,7 @@ void mpiClass::CacheReceiveFlush(int count, CacheHeader *ph) {
 	assert(count > sizeof(CacheHeader));
 	char *pszRcv = (char *)(ph+1);
 	int iCore = ph->idTo - Self();
-	CACHE *c = &pmdl[iCore]->cache[ph->cid];
+	auto c = pmdl[iCore]->cache[ph->cid].get();
 	assert(c->modify());
 	auto key_size = c->key_size();
 	auto iLineSize = c->getLineElementCount() * c->cache_helper->flush_size();
@@ -765,7 +784,7 @@ void mpiClass::CacheReceiveFlush(int count, CacheHeader *ph) {
 	    while(iIndex >= c->nData) {
 		iIndex -= c->nData;
 		assert(iCore+1<Cores());
-		c = &pmdl[++iCore]->cache[ph->cid];
+		c = pmdl[++iCore]->cache[ph->cid].get();
 		}
 	    ph->iLine = iIndex >> c->nLineBits;
 	    }
@@ -782,7 +801,7 @@ void mpiClass::CacheReceiveFlush(int count, CacheHeader *ph) {
 void mpiClass::queue_local_flush(CacheHeader *ph) {
     int iCore = ph->idTo;
     mdlClass * mdl1 = pmdl[iCore];
-    CACHE *c = &mdl1->cache[ph->cid];
+    auto c = mdl1->cache[ph->cid].get();
     auto key_size = c->key_size();
     mdlMessageFlushToCore *flush = flushBuffersByCore[iCore];
     if (flush==NULL) flush = & dynamic_cast<mdlMessageFlushToCore&>(localFlushBuffers.wait());
@@ -802,7 +821,7 @@ void mdlClass::MessageFlushToCore(mdlMessageFlushToCore *pFlush) {
     int count = pFlush->getCount();
     while(count > 0) {
 	char *pData = reinterpret_cast<char *>(ca+1);
-	CACHE *c = &cache[ca->cid];
+	auto c = cache[ca->cid].get();
 	auto key_size = c->key_size();
 	auto iLineSize = c->getLineElementCount() * c->cache_helper->flush_size();
 	if (key_size) { // We are updating an advanced key
@@ -823,8 +842,14 @@ void mdlClass::MessageFlushToCore(mdlMessageFlushToCore *pFlush) {
 	    int s = uIndex;
 	    int n = s + c->getLineElementCount();
 	    for(int i=s; i<n; i++ ) {
-		if (i<c->nData)
-		    c->cache_helper->combine(c->getElement(i),pData,nullptr);
+		if (i<c->nData) {
+		    // Here we update a local element that has been flushed back to us.
+		    // The danger here is another thread may want to read the value and
+		    // end up with an inconsistent view so we lock for write.
+		    auto p = c->WriteLock(i);
+		    c->cache_helper->combine(p,pData,nullptr);
+		    c->WriteUnlock(p);
+		    }
 		pData += c->iDataSize;
 		}
 	    }
@@ -855,7 +880,7 @@ void mdlClass::CacheBarrier(int cid) {
 // fully flushed and synchonized between all threads on all nodes before it returns.
 extern "C" void mdlFlushCache(MDL mdl,int cid) { static_cast<mdlClass *>(mdl)->FlushCache(cid); }
 void mdlClass::FlushCache(int cid) {
-    CACHE *c = &cache[cid];
+    auto c = cache[cid].get();
 
     TimeAddComputing();
     wqAccepting = 1;
@@ -902,7 +927,7 @@ void mpiClass::MessageCacheFlushLocal(mdlMessageCacheFlushLocal *message) {
 
 extern "C" void mdlFinishCache(MDL mdl,int cid) { static_cast<mdlClass *>(mdl)->FinishCache(cid); }
 void mdlClass::FinishCache(int cid) {
-    CACHE *c = &cache[cid];
+    auto c = cache[cid].get();
 
     TimeAddComputing();
     wqAccepting = 1;
@@ -1272,19 +1297,6 @@ int mpiClass::checkMPI() {
 
 static void TERM_handler(int signo) {
     MPI_Abort(MPI_COMM_WORLD,130);
-    }
-
-static void MDL_signal_handler(int signo) {
-    auto mdl = static_cast<mdlClass *>(pthread_getspecific(mdl_key));
-    signal(signo,MDL_signal_handler);
-    mdl->Backtrace();
-    }
-
-static void MPI_signal_handler(int signo) {
-    auto mdl = static_cast<mdlClass *>(pthread_getspecific(mdl_key));
-    signal(signo,MPI_signal_handler);
-    mdl->Backtrace();
-    mdl->mpi->KillAll(signo);
     }
 
 void mpiClass::KillAll(int signo) {
@@ -1842,7 +1854,8 @@ void mdlClass::init(bool bDiag) {
     */
     cacheSize = mdl_cache_size;
     cache.reserve(MDL_DEFAULT_CACHEIDS);
-    while(cache.size() < MDL_DEFAULT_CACHEIDS) cache.emplace_back(this,cache.size());
+    while(cache.size() < MDL_DEFAULT_CACHEIDS)
+	cache.emplace_back(std::make_unique<CACHE>(this,cache.size()));
     nFlushOutBytes = 0;
 
     for(int i=0; i<9; ++i) coreFlushBuffers.enqueue(new mdlMessageFlushFromCore);
@@ -1905,7 +1918,7 @@ int mdlClass::run_master() {
     int id;
     for (id=1;id<Threads();++id) {
 	int rID = ReqService(id,SRV_STOP,NULL,0);
-	GetReply(rID,NULL,NULL);
+	GetReply(rID);
 	}
     return rc;
     }
@@ -2120,11 +2133,14 @@ int mdlClass::ReqService(int id,int sid,void *vin,int nInBytes) {
     return request.header.replyTag;
     }
 
-extern "C" void mdlGetReply(MDL mdl,int rID,void *vout,int *pnOutBytes) { static_cast<mdlClass *>(mdl)->GetReply(rID,vout,pnOutBytes); }
-void mdlClass::GetReply(int rID,void *vout,int *pnOutBytes) {
+extern "C" void mdlGetReply(MDL mdl,int rID,void *vout,int *pnOutBytes) {
+    auto nOutBytes = static_cast<mdlClass *>(mdl)->GetReply(rID,vout);
+    if (pnOutBytes) *pnOutBytes = nOutBytes;
+    }
+int mdlClass::GetReply(int rID,void *vout) {
     mdlMessageReceiveReply receive(vout,nMaxSrvBytes,rID,Core());
     enqueueAndWait(receive);
-    if (pnOutBytes) *pnOutBytes = receive.getCount();
+    return receive.getCount();
     }
 
 void mdlClass::Handler() {
@@ -2141,8 +2157,8 @@ void mdlClass::Handler() {
 	assert(nBytes == phi->nInBytes + sizeof(SRVHEAD));
 	id = phi->idFrom;
 	sid = phi->sid;
-	assert(sid < services.size());
-	nOutBytes = services[sid](phi->nInBytes,pszIn,&reply.Buffer.front());
+
+	nOutBytes = RunService(sid,phi->nInBytes,pszIn,&reply.Buffer.front());
 	enqueueAndWait(reply.makeReply(Self(),phi->replyTag,sid,id,nOutBytes));
 	} while (sid != SRV_STOP);
     }
@@ -2236,26 +2252,26 @@ int mdlCacheStatus(MDL cmdl,int cid) {
     mdlClass *mdl = static_cast<mdlClass *>(cmdl);
     assert(cid >= 0);
     if (cid >= mdl->cache.size()) return false;
-    CACHE *c = &mdl->cache[cid];
+    auto c = mdl->cache[cid].get();
     return c->isActive();
     }
 
 void mdlRelease(MDL cmdl,int cid,void *p) {
     mdlClass *mdl = static_cast<mdlClass *>(cmdl);
-    CACHE &c = mdl->cache[cid];
-    c.release(p);
+    auto c = mdl->cache[cid].get();
+    c->release(p);
     }
 
 double mdlNumAccess(MDL cmdl,int cid) {
     mdlClass *mdl = static_cast<mdlClass *>(cmdl);
-    CACHE *c = &mdl->cache[cid];
+    auto c = mdl->cache[cid].get();
     return(c->nAccess);
     }
 
 
 double mdlMissRatio(MDL cmdl,int cid) {
     mdlClass *mdl = static_cast<mdlClass *>(cmdl);
-    CACHE *c = &mdl->cache[cid];
+    auto c = mdl->cache[cid].get();
     double dAccess = c->nAccess;
 
     if (dAccess > 0.0) return(c->nMiss/dAccess);

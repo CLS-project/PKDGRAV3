@@ -16,6 +16,8 @@
  */
 
 #include "mdlbase.h"
+using namespace mdl;
+
 //#include <WinSock2.h> /* gethostname */
 #ifdef __linux__
 #include <sys/resource.h>
@@ -35,22 +37,43 @@
 #include <stdarg.h>
 #include <string.h>
 
+/*****************************************************************************\
+* LegacyService
+*
+* This is the legacy MDL service support where a function pointer and parameter
+* are used. RunService() just calls fcnService() with p1 as the first parameter.
+\*****************************************************************************/
+class LegacyService : public BasicService {
+protected:
+    fcnService_t *fcnService;
+    void *p1;
+public:
+    explicit LegacyService(fcnService_t *fcnService,void *p1=nullptr, int service_id=0,
+	int nInBytes=0, int nOutBytes=0, const char *service_name="")
+	: BasicService(service_id, nInBytes, nOutBytes, service_name),
+	fcnService(fcnService), p1(p1) {}
+    virtual ~LegacyService() = default;
+protected:
+    virtual int operator()(int nIn, void *pIn, void *pOut) override;
+    };
+
+int LegacyService::operator()(int nIn, void *pIn, void *pOut) {
+    assert(nIn <= getMaxBytesIn());
+    assert(fcnService != NULL);
+    auto nOut = (*fcnService)(p1, pIn, nIn, pOut, getMaxBytesOut());
+    assert(nOut <= getMaxBytesOut());
+    return nOut;
+    }
+
+/*****************************************************************************\
+* mdlBASE
+\*****************************************************************************/
+
 #define MDL_DEFAULT_SERVICES	120
 
 static int _srvNull(void *p1, void *vin, int nIn, void *vout, int nOut) {
     return 0;
     }
-
-
-
-int mdlBASE::SERVICE::operator()(int nIn, char *pszIn, char *pszOut) {
-    assert(nIn <= nInBytes);
-    assert(fcnService != NULL);
-    int nOut = (*fcnService)(p1, pszIn, nIn, pszOut, nOutBytes);
-    assert(nOut <= nOutBytes);
-    return nOut;
-    }
-
 
 mdlBASE::mdlBASE(int argc,char **argv) {
 #ifdef _MSC_VER
@@ -92,7 +115,7 @@ mdlBASE::mdlBASE(int argc,char **argv) {
     ** Provide a 'null' service for sid = 0, so that stopping the
     ** service handler is well defined!
     */
-    services[0] = SERVICE(_srvNull);
+    services[0] = std::make_unique<LegacyService>(_srvNull);
     }
 
 mdlBASE::~mdlBASE() {
@@ -126,8 +149,24 @@ void mdlBASE::AddService(int sid, void *p1,
     if (nInBytes  > nMaxInBytes)  nMaxInBytes  = nInBytes;
     if (nOutBytes > nMaxOutBytes) nMaxOutBytes = nOutBytes;
     if (sid >= services.size()) services.resize(sid+9);
-    services[sid] = SERVICE(fcnService,p1,nInBytes,nOutBytes,name?strdup(name):nullptr);
-}
+    assert(services[sid]==nullptr);
+    services[sid] = std::make_unique<LegacyService>(fcnService,p1,sid,nInBytes,nOutBytes,name);
+    }
+
+void mdlBASE::AddService(std::unique_ptr<BasicService> && service) {
+    auto sid = service->getServiceID();
+    if (service->getMaxBytesIn()  > nMaxInBytes)  nMaxInBytes  = service->getMaxBytesIn();
+    if (service->getMaxBytesOut() > nMaxOutBytes) nMaxOutBytes = service->getMaxBytesOut();
+    if (sid >= services.size()) services.resize(sid+9);
+    assert(services[sid]==nullptr);
+    services[sid] = std::move(service);
+    }
+
+int mdlBASE::RunService(int sid,int nIn, void *pIn, void *pOut){
+    assert(sid < services.size());
+    assert(services[sid] != nullptr);
+    return (*services[sid])(nIn,pIn,pOut);
+    }
 
 void mdlBASE::yield() {
 #ifdef _MSC_VER
@@ -257,7 +296,7 @@ void mdlGetTimer(void *mdl, mdlTimer *t0, mdlTimer *t) {
 #endif
     }
 
-void mdlPrintTimer(void *mdl, char *message, mdlTimer *t0) {
+void mdlPrintTimer(void *mdl, const char *message, mdlTimer *t0) {
 #if 0
     mdlBASE *base = reinterpret_cast<mdlBASE *>(mdl);
     mdlTimer lt;

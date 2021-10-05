@@ -16,7 +16,7 @@
  */
 
 #include "lst.h"
-#include "simd.h"
+#include "core/simd.h"
 
 #include <stdarg.h>
 #include <assert.h>

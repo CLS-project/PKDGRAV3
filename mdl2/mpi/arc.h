@@ -154,7 +154,7 @@ protected:
 	bool     bDirty :            1; // True if we need to flush
 	uint32_t uPage;                 // page's ID number (or hash id for advanced keys)
 
-	explicit CDB(uint64_t *data=nullptr) : uId(0), iWhere(0), bDirty(0), uPage(0), data(data) {}
+	explicit CDB(uint64_t *data=nullptr) : data(data), uId(0), iWhere(0), bDirty(0), uPage(0) {}
 	uint32_t    where()   const {return iWhere;}
 	uint32_t    getId()   const {return uId;}
 	uint32_t    getPage() const {return uPage;}
@@ -290,7 +290,7 @@ private:
 
     // Here we want to insert a new key that is not in the ARC cache.
     // This routine will return a free entry that we can use.
-    auto insert(HashChain &Hash);
+    auto insert_present(HashChain &Hash);
     auto insert_absent(HashChain &Hash);
 
     void *fetch(uint32_t uHash,uint32_t uId,const KEY &key,bool bLock,bool bModify,bool bVirtual);
@@ -612,7 +612,7 @@ namespace hash {
     // Here we want to insert a new key that is not in the ARC cache.
     // This routine will return a free entry that we can use.
     template<typename ...KEYS>
-    auto ARC<KEYS...>::insert(HashChain &Hash) {
+    auto ARC<KEYS...>::insert_present(HashChain &Hash) {
 	typename CDBL::iterator item;
 	auto L1Length = L[T1].size() + L[B1].size();
 	// If we have used all of the available cache space then we need to evict an entry for reuse
@@ -721,7 +721,7 @@ void *ARC<KEYS...>::inject(uint32_t uHash, uint32_t uId, const KEY& key) {
     auto &Hash = HashChains[uHash&uHashMask];
     auto pEntry = key_size ? find_key(Hash,key) : find_key(Hash,uIndex,uId);
     if (pEntry) return nullptr; // Already have a cached value
-    auto item = insert(Hash);
+    auto item = insert_present(Hash);
     auto &cdb = get<CDB>(*item);
     cdb.uId   = uId;                        // Remote processor that owns this entry
     cdb.uPage = uIndex;                     // Remote array index (simple) or hash id (advanced)
@@ -773,7 +773,7 @@ void *ARC<KEYS...>::fetch(uint32_t uIndex, uint32_t uId, const KEY& key, bool bL
 	if (!bModify && !bVirtual && data && key_size==0) return data; // Simple local case
 	data = helper->finishRequest(uIndex,uId,key_size,&key,bVirtual,cacheLine.data(),data);
 	if (data) {
-	    item = insert(Hash);
+	    item = insert_present(Hash);
 	    auto &cdb = get<CDB>(*item);
 	    std::memcpy(cdb.data,data,uLineSizeInWords*sizeof(uint64_t));
 	    }

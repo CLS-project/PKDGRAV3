@@ -43,10 +43,10 @@ struct MSRINSTANCE {
 class MSR {
 protected:
     const PST pst;
-    const MDL mdl;
+    mdl::mdlClass *mdl;
     bool bVDetails;
 public:
-    explicit MSR(MDL mdl,PST pst) : pst(pst), mdl(mdl), bVDetails(false) {}
+    explicit MSR(MDL mdl,PST pst) : pst(pst), mdl(static_cast<mdl::mdlClass *>(mdl)), bVDetails(false) {}
     ~MSR();
 public:
     int Python(int argc, char *argv[]);
@@ -171,10 +171,10 @@ public:
     std::vector<std::string> getVectorString(const char *name);
     bool setParameters(PyObject *kwobj,bool bIgnoreUnknown=false);
 
-public:
     PRM prm;
     LCL lcl;
-    double fCenter[6];
+    blitz::TinyVector<double,3> fCenter;
+public:
     /*
     ** Parameters.
     */
@@ -286,10 +286,9 @@ protected:
     void BuildTree(int bNeedEwald,uint32_t uRoot,uint32_t utRoot);
     void ActiveRung(int iRung, int bGreater);
     void ActiveOrder();
-    void CalcBound(BND *pbnd);
-    void CalcVBound(BND *pbnd);
+    void CalcBound(Bound &bnd);
+    void CalcBound();
     void GetNParts();
-    void ScaleVel(double dvFac);
     double AdjustTime(double aOld, double aNew);
     void UpdateSoft(double dTime);
     int GetParticles(int nIn, uint64_t *ID, struct outGetParticles *out);
@@ -324,7 +323,7 @@ protected:
     void Sph(double dTime, double dDelta, double dStep);
     uint64_t CountDistance(double dRadius2Inner, double dRadius2Outer);
 
-    int Initialize();
+    void Initialize();
     void writeParameters(const char *baseName,int iStep,int nSteps,double dTime,double dDelta);
     void OutASCII(const char *pszFile,int iType,int nDims,int iFileType);
     void DomainDecompOld(int iRung);

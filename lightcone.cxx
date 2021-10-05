@@ -24,7 +24,7 @@
 #include <math.h>
 #include <immintrin.h>
 #include "pkd.h"
-#include "simd.h"
+#include "core/simd.h"
 
 extern "C" void addToLightCone(PKD pkd,double *r,float fPot,PARTICLE *p,int bParticleOutput);
 

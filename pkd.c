@@ -25,7 +25,7 @@
 #else
 #define PRIu64 "llu"
 #endif
-#include "iomodule.h"
+#include "io/iomodule.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <stddef.h>
@@ -62,16 +62,15 @@
 #ifdef USE_ITT
 #include "ittnotify.h"
 #endif
-#include "cudautil.h"
+#include "cuda/cudautil.h"
 #include "pkd.h"
-#include "ewald.h"
-#include "walk.h"
-#include "grav.h"
+#include "gravity/ewald.h"
+#include "gravity/walk.h"
+#include "gravity/grav.h"
 #include "mdl.h"
-#include "tipsydefs.h"
-#include "outtype.h"
+#include "io/outtype.h"
 #include "cosmo.h"
-#include "healpix.h"
+#include "core/healpix.h"
 
 #ifdef _MSC_VER
 #define FILE_PROTECTION (_S_IREAD | _S_IWRITE)
@@ -83,117 +82,6 @@ typedef int ssize_t;
 #else
 #define FILE_PROTECTION (S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP)
 #endif
-
-double pkdGetTimer(PKD pkd,int iTimer) {
-    return(pkd->ti[iTimer].sec);
-    }
-
-double pkdGetSystemTimer(PKD pkd,int iTimer) {
-    return(pkd->ti[iTimer].system_sec);
-    }
-
-double pkdGetWallClockTimer(PKD pkd,int iTimer) {
-    return(pkd->ti[iTimer].wallclock_sec);
-    }
-
-
-void pkdClearTimer(PKD pkd,int iTimer) {
-   int i;
-
-    if (iTimer >= 0) {
-	pkd->ti[iTimer].sec = 0.0;
-	pkd->ti[iTimer].system_sec = 0.0;
-	pkd->ti[iTimer].wallclock_sec = 0.0;
-	pkd->ti[iTimer].iActive = 0;
-	}
-    else {
-	for (i=0;i<MAX_TIMERS;++i) {
-	    pkd->ti[i].sec = 0.0;
-	    pkd->ti[i].system_sec = 0.0;
-	    pkd->ti[i].wallclock_sec = 0.0;
-	    pkd->ti[i].iActive = 0;
-	    }
-	}
-    }
-
-
-void pkdStartTimer(PKD pkd,int iTimer) {
-    struct timeval tv;
-
-    pkd->ti[iTimer].iActive++;
-
-    if (pkd->ti[iTimer].iActive == 1) {
-#ifdef _MSC_VER
-        FILETIME ft;
-        uint64_t clock;
-	GetSystemTimeAsFileTime(&ft);
-	clock = ft.dwHighDateTime;
-	clock <<= 32;
-	clock |= ft.dwLowDateTime;
-	/* clock is in 100 nano-second units */
-	pkd->ti[iTimer].wallclock_stamp = clock / 10000000.0;
-#else
-	gettimeofday(&tv,NULL);
-	pkd->ti[iTimer].wallclock_stamp = tv.tv_sec + 1e-6*(double) tv.tv_usec;
-#endif
-	pkd->ti[iTimer].stamp = mdlCpuTimer(pkd->mdl);
-#ifdef __linux__
-	{
-	    struct rusage ru;
-
-	    getrusage(RUSAGE_SELF,&ru);
-	    pkd->ti[iTimer].system_stamp = (double)ru.ru_stime.tv_sec + 1e-6*(double)ru.ru_stime.tv_usec;
-	    }
-#endif
-	}
-    }
-
-
-void pkdStopTimer(PKD pkd,int iTimer) {
-    double sec;
-#ifdef _MSC_VER
-    FILETIME ft;
-    uint64_t clock;
-#else
-    struct timeval tv;
-#endif
-    sec = -pkd->ti[iTimer].stamp;
-    pkd->ti[iTimer].stamp = mdlCpuTimer(pkd->mdl);
-    sec += pkd->ti[iTimer].stamp;
-    if (sec < 0.0) sec = 0.0;
-    pkd->ti[iTimer].sec += sec;
-
-    sec = -pkd->ti[iTimer].wallclock_stamp;
-
-#ifdef _MSC_VER
-    GetSystemTimeAsFileTime(&ft);
-    clock = ft.dwHighDateTime;
-    clock <<= 32;
-    clock |= ft.dwLowDateTime;
-    /* clock is in 100 nano-second units */
-    pkd->ti[iTimer].wallclock_stamp = clock / 10000000.0;
-#else
-    gettimeofday(&tv,NULL);
-    pkd->ti[iTimer].wallclock_stamp = tv.tv_sec + 1e-6*(double) tv.tv_usec;
-#endif
-    sec += pkd->ti[iTimer].wallclock_stamp;
-    if (sec < 0.0) sec = 0.0;
-    pkd->ti[iTimer].wallclock_sec += sec;
-
-#ifdef __linux__
-	{
-	struct rusage ru;
-
-	sec = -pkd->ti[iTimer].system_stamp;
-	getrusage(RUSAGE_SELF,&ru);
-	pkd->ti[iTimer].system_stamp = ((double)ru.ru_stime.tv_sec + 1e-6*(double)ru.ru_stime.tv_usec);
-	sec += pkd->ti[iTimer].system_stamp;
-	if (sec < 0.0) sec = 0.0;
-	pkd->ti[iTimer].system_sec += sec;
-	}
-#endif
-    pkd->ti[iTimer].iActive--;
-    }
 
 /* Add a NODE structure: assume double alignment */
 static int pkdNodeAddStruct(PKD pkd,int n) {
@@ -220,6 +108,7 @@ static int pkdNodeAddFloat(PKD pkd,int n) {
     return iOffset;
     }
 /* Add n 64-bit integers to the node structure */
+#if 0
 static int pkdNodeAddInt64(PKD pkd,int n) {
     int iOffset = pkd->iTreeNodeSize;
     mdlassert( pkd->mdl, pkd->kdNodeListPRIVATE == NULL );
@@ -227,6 +116,7 @@ static int pkdNodeAddInt64(PKD pkd,int n) {
     pkd->iTreeNodeSize += sizeof(int64_t) * n;
     return iOffset;
     }
+#endif
 /* Add n 32-bit integers to the node structure */
 static int pkdNodeAddInt32(PKD pkd,int n) {
     int iOffset = pkd->iTreeNodeSize;
@@ -339,7 +229,7 @@ static int gcd ( int a, int b ) {
     }
 
 static void initLightConeOffsets(PKD pkd) {
-    BND bnd = {0,0,0,0.5,0.5,0.5};
+    BND bnd = {{0,0,0},{0.5,0.5,0.5}};
     double min2;
     int ix,iy,iz,nBox;
 
@@ -1123,32 +1013,6 @@ void pkdCalcBound(PKD pkd,BND *pbnd) {
 	}
     }
 
-void pkdCalcVBound(PKD pkd,BND *pbnd) {
-    double dMin[3],dMax[3];
-    PARTICLE *p;
-    vel_t *v;
-    int i = 0;
-    int j;
-
-    mdlassert(pkd->mdl,pkd->nLocal > 0);
-    p = pkdParticle(pkd,i);
-    v = pkdVel(pkd,p);
-    for (j=0;j<3;++j) {
-	dMin[j] = v[j];
-	dMax[j] = v[j];
-	}
-    for (++i;i<pkd->nLocal;++i) {
-	p = pkdParticle(pkd,i);
-	v = pkdVel(pkd,p);
-	pkdMinMax(v,dMin,dMax);
-	}
-    for (j=0;j<3;++j) {
-	pbnd->fCenter[j] = pkd->vbnd.fCenter[j] = 0.5*(dMin[j] + dMax[j]);
-	pbnd->fMax[j] = pkd->vbnd.fMax[j] = 0.5*(dMax[j] - dMin[j]);
-	}
-    }
-
-
 void pkdEnforcePeriodic(PKD pkd,BND *pbnd) {
     PARTICLE *p;
     double r;
@@ -1338,7 +1202,7 @@ uint64_t hilbert3d(float x,float y,float z) {
 */
 int pkdWeight(PKD pkd,int d,double fSplit,int iSplitSide,int iFrom,int iTo,
 	      int *pnLow,int *pnHigh,double *pfLow,double *pfHigh) {
-    int i,iPart;
+    int iPart;
     double fLower,fUpper;
 
     /*
@@ -2192,7 +2056,6 @@ void pkdGravAll(PKD pkd,
     */
     for (i=0;i<=IRUNGMAX;++i) pkd->nRung[i] = 0;
      
-    pkdClearTimer(pkd,1);
 #if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
     mdlTimeReset(pkd->mdl);
 #endif
@@ -2220,7 +2083,6 @@ void pkdGravAll(PKD pkd,
     *pdFlop = 0.0;
     dPartSum = 0.0;
     dCellSum = 0.0;
-    pkdStartTimer(pkd,1);
     pkd->dFlopSingleCPU = pkd->dFlopDoubleCPU = 0.0;
     pkd->dFlopSingleGPU = pkd->dFlopDoubleGPU = 0.0;
 
@@ -2231,7 +2093,6 @@ void pkdGravAll(PKD pkd,
     *pnActive = pkdGravWalk(pkd,kick,lc,ts,
 	dTime,nReps,bPeriodic && bEwald,nGroup,
 	iRoot1,iRoot2,0,dThetaMin,pdFlop,&dPartSum,&dCellSum,SPHoptions);
-    pkdStopTimer(pkd,1);
 
     dActive = (double)(*pnActive);
     if (*pnActive) {
@@ -2294,20 +2155,6 @@ void pkdCalcEandL(PKD pkd,double *T,double *U,double *Eth,double *L,double *F,do
 	}
     }
 
-
-void pkdScaleVel(PKD pkd,double dvFac) {
-    PARTICLE *p;
-    vel_t *v;
-    int i,j,n;
-    n = pkdLocal(pkd);
-    for (i=0;i<n;++i) {
-	p = pkdParticle(pkd,i);
-	v = pkdVel(pkd,p);
-	for (j=0;j<3;++j) v[j] *= dvFac;
-	}
-    }
-
-
 static void flushLightCone(PKD pkd) {
     size_t count = pkd->nLightCone * sizeof(LIGHTCONEP);
     io_write(&pkd->afiLightCone,pkd->pLightCone,count);
@@ -2328,7 +2175,6 @@ static uint32_t SumWithSaturate(uint32_t a,uint32_t b) {
     }
 
 static void combHealpix(void *vctx, void *v1, const void *v2) {
-    PKD pkd = (PKD)vctx;
     healpixData * m1 = (healpixData *)v1;
     const healpixData * m2 = (const healpixData *)v2;
     m1->nGrouped = SumWithSaturate(m1->nGrouped,m2->nGrouped);
@@ -2362,7 +2208,7 @@ void pkdLightConeClose(PKD pkd,const char *healpixname) {
     }
 
 void pkdLightConeOpen(PKD pkd,const char *fname,int nSideHealpix) {
-    int i, rc;
+    int i;
     if (fname[0]) {
 	if (io_create(&pkd->afiLightCone,fname) < 0) { perror(fname); abort(); }
 	}
@@ -2565,9 +2411,14 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
     PARTICLE *p;
     vel_t *v;
     float *a;
+<<<<<<< HEAD
     float dfBalldt;
     NEWSPHFIELDS *NewSph;
     int i,j,k;
+=======
+    SPHFIELDS *sph;
+    int i,j;
+>>>>>>> develop
     double rfinal[3],r0[3],dMin[3],dMax[3];
     int pLower, pUpper;
 
@@ -2632,7 +2483,7 @@ void pkdLightConeVel(PKD pkd,double dBoxSize) {
     const double rMax=3.0;
     gsl_spline *scale;
     gsl_interp_accel *acc = gsl_interp_accel_alloc();
-    double r,dr,rt[nTable],at_inv[nTable];
+    double dr,rt[nTable],at_inv[nTable];
     PARTICLE *p;
     vel_t *v;
     double dvFac,r2;
@@ -2700,9 +2551,6 @@ void pkdKick(PKD pkd,double dTime,double dDelta,int bDoGas,double dDeltaVPred,do
     assert(pkd->oFieldOffset[oVelocity]);
     assert(pkd->oFieldOffset[oAcceleration]);
 
-    pkdClearTimer(pkd,1);
-    pkdStartTimer(pkd,1);
-
     if (bDoGas) {
 	assert(pkd->oFieldOffset[oSph]);
 	n = pkdLocal(pkd);
@@ -2741,8 +2589,6 @@ void pkdKick(PKD pkd,double dTime,double dDelta,int bDoGas,double dDeltaVPred,do
 	    }
 	}
 
-
-    pkdStopTimer(pkd,1);
     mdlDiag(pkd->mdl, "Done pkdkick\n");
     }
 
@@ -2816,7 +2662,7 @@ void pkdAccelStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
 		  double dEta,double dVelFac,double dAccFac,
 		  int bDoGravity,int bEpsAcc,double dhMinOverSoft) {
     PARTICLE *p;
-    float *a, *pPot;
+    float *a;
     vel_t *v;
     int i,uNewRung;
     double vel;
@@ -2895,7 +2741,7 @@ void pkdSphStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
 		uNewRung = pkdDtToRung(dtNew,dDelta,iMaxRung);
 		if (uNewRung > p->uNewRung) p->uNewRung = uNewRung;
 		if (!(p->iOrder%10000) || (p->uNewRung > 5 && !(p->iOrder%1000))) {
-		    SPHFIELDS *sph = pkdSph(pkd,p);
+		    /*SPHFIELDS *sph = pkdSph(pkd,p);*/
 		    }
 		}
 	    }
@@ -2993,10 +2839,10 @@ void pkdStarForm(PKD pkd, double dRateCoeff, double dTMax, double dDenMin,
 
 void pkdCorrectEnergy(PKD pkd, double dTuFac, double z, double dTime, int iDirection )
     {
-    PARTICLE *p;
+    /*PARTICLE *p;
     SPHFIELDS *sph;
     int i;
-    double T,E;
+    double T,E;*/
     switch(iDirection)  {
     case CORRECTENERGY_IN:
 	break;
@@ -3430,7 +3276,7 @@ int pkdSelBlackholes(PKD pkd, int setIfTrue, int clearIfFalse) {
 void pkdOutPsGroup(PKD pkd,char *pszFileName,int iType)
 {
     FILE *fp;
-    int i,j,nout,lStart;
+    int i;
 
     if (iType == OUT_PSGROUP_STATS) {
 	fp = fopen(pszFileName,"a+");

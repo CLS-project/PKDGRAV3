@@ -24,12 +24,12 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <math.h>
-#include "vqsort.h"
+#include "core/vqsort.h"
 #include "pkd.h"
 #ifdef USE_ITT
 #include "ittnotify.h"
 #endif
-#include "ic.h"
+#include "ic/ic.h"
 
 #define SHAPES
 #define USE_PCS /* USE_PCS USE_TSC USE_CIC USE_NGP */
@@ -239,7 +239,6 @@ void pkdCalcDistance(PKD pkd, double *dCenter, int bPeriodic) {
     */
     for (i=0;i<pkd->nLocal;++i) {
 	PARTICLE *p = pkdParticle(pkd,i);
-	double m = pkdMass(pkd,p);
 	pl[i].d2 = pkdGetDistance2(pkd,p,dCenter,bPeriodic);
 	pl[i].i = i;
 	}

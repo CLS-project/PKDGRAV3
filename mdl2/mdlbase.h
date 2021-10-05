@@ -46,24 +46,34 @@ typedef int (fcnService_t)(void *p1, void *vin, int nIn, void *vout, int nOut);
 #ifdef __cplusplus
 #include "mdlbt.h"
 #include <vector>
+#include <string>
+#include <memory>
 #define MAX_NODE_NAME_LENGTH      256
-class mdlBASE : protected mdlbt {
-protected:
-    class SERVICE {
-    	friend class mdlBASE;
+
+namespace mdl {
+class BasicService {
+    friend class mdlBASE;
+private:
+    int nInBytes;
+    int nOutBytes;
+    int service_id;
+    std::string service_name;
 public:
-	int nInBytes;
-	int nOutBytes;
-	void *p1;
-	fcnService_t *fcnService;
-	const char *name;
-    public:
-	SERVICE() : nInBytes(0), nOutBytes(0), p1(0), fcnService(0), name(nullptr) {}
-	SERVICE(fcnService_t *fcnService, void *p1=0, int nInBytes=0, int nOutBytes=0, const char *name=nullptr)
-	    : nInBytes(nInBytes), nOutBytes(nOutBytes), p1(p1), fcnService(fcnService), name(name) {}
-	int operator()(int nIn, char *pszIn, char *pszOut);
+    explicit BasicService(int service_id, int nInBytes, int nOutBytes, const char *service_name="")
+	: nInBytes(nInBytes), nOutBytes(nOutBytes), service_id(service_id),service_name(service_name) {}
+    explicit BasicService(int service_id, int nInBytes, const char *service_name="")
+	: nInBytes(nInBytes), nOutBytes(0), service_id(service_id),service_name(service_name) {}
+    explicit BasicService(int service_id, const char *service_name="")
+	: nInBytes(0), nOutBytes(0), service_id(service_id),service_name(service_name) {}
+    virtual ~BasicService() = default;
+    int getServiceID()  {return service_id;}
+    int getMaxBytesIn() {return nInBytes;}
+    int getMaxBytesOut(){return nOutBytes;}
+protected:
+    virtual int operator()(int nIn, void *pIn, void *pOut) = 0;
     };
 
+class mdlBASE : protected mdlbt {
 public:
     int32_t nThreads; /* Global number of threads (total) */
     int32_t idSelf;   /* Global index of this thread */
@@ -80,7 +90,7 @@ public:
     /* Services information */
     int nMaxInBytes;
     int nMaxOutBytes;
-    std::vector<SERVICE> services;
+    std::vector< std::unique_ptr<BasicService> > services;
 
     /* Maps a give process (Proc) to the first global thread ID */
     std::vector<int> iProcToThread; /* [0,nProcs] (note inclusive extra element) */
@@ -120,10 +130,15 @@ public:
     int32_t ProcToThread(int32_t iProc) const;
     int32_t ThreadToProc(int32_t iThread) const;
     void yield();
-    void AddService(int sid, void *p1, fcnService_t *fcnService, int nInBytes, int nOutBytes, const char *name=nullptr);
+    void AddService(int sid, void *p1, fcnService_t *fcnService, int nInBytes, int nOutBytes, const char *name="");
+    void AddService(std::unique_ptr<BasicService> && service);
+    int  RunService(int sid, int nIn, void *pIn, void *pOut=nullptr);
+    int  RunService(int sid, void *pOut) { return RunService(sid,0,nullptr,pOut); }
+    BasicService *GetService(unsigned sid) {return sid<services.size() ? services[sid].get() : nullptr; }
     };
 int mdlBaseProcToThread(mdlBASE *base, int iProc);
 int mdlBaseThreadToProc(mdlBASE *base, int iThread);
+} // namespace mdl
 
 #endif
 
@@ -177,7 +192,7 @@ typedef struct {
 #ifdef MDLTIMER
 void mdlZeroTimer(void * mdl, mdlTimer *);
 void mdlGetTimer(void * mdl, mdlTimer *, mdlTimer *);
-void mdlPrintTimer(void *mdl, char *message, mdlTimer *);
+void mdlPrintTimer(void *mdl, const char *message, mdlTimer *);
 #else
 #define mdlZeroTimer
 #define mdlGetTimer

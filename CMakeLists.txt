@@ -148,30 +148,30 @@ add_custom_command(
 add_executable(${PROJECT_NAME} "")
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_auto_type cxx_range_for cxx_lambdas cxx_strong_enums)
 set_target_properties(${PROJECT_NAME} PROPERTIES
-    CXX_STANDARD 14
+    CXX_STANDARD 17
     CXX_STANDARD_REQUIRED YES
     CXX_EXTENSIONS NO
 )
 set_property(TARGET ${PROJECT_NAME} APPEND PROPERTY COMPILE_DEFINITIONS _LARGEFILE_SOURCE)
 target_sources(${PROJECT_NAME} PRIVATE
-	main.cxx cosmo.c master.cxx simulate.cxx pst.c fio.c illinois.c param.c
-	pkd.c analysis.c smooth.c smoothfcn.c outtype.c output.cxx
-	walk2.c grav2.c ewald.cxx ic.cxx tree.cxx opening.cxx pp.cxx pc.cxx cl.c
-	lst.c moments.c ilp.c ilc.c iomodule.c SPHOptions.c
-	fof.c hop.c group.c groupstats.c RngStream.c listcomp.c healpix.c
-	gridinfo.cxx interlace.cxx contrast.cxx assignmass.cxx measurepk.cxx bispectrum.cxx whitenoise.cxx pmforces.cxx
+	main.cxx cosmo.c master.cxx simulate.cxx pst.c TraversePST.cxx io/fio.c core/illinois.c param.c
+	pkd.c analysis.c smooth/smooth.c smooth/smoothfcn.c io/outtype.c io/output.cxx
+	gravity/walk2.cxx gravity/grav2.cxx gravity/ewald.cxx ic/ic.cxx domains/tree.cxx gravity/opening.cxx gravity/pp.cxx gravity/pc.cxx gravity/cl.c
+	lst.c gravity/moments.c ilp.c ilc.c io/iomodule.c SPHOptions.c
+	group/fof.cxx group/hop.cxx group/group.cxx group/groupstats.cxx ic/RngStream.c smooth/listcomp.c core/healpix.c
+	core/gridinfo.cxx analysis/interlace.cxx analysis/contrast.cxx analysis/assignmass.cxx analysis/measurepk.cxx bispectrum.cxx ic/whitenoise.cxx gravity/pmforces.cxx
+	core/setadd.cxx core/hostname.cxx core/initcosmology.cxx core/calcroot.cxx core/swapall.cxx core/select.cxx
+	domains/calcbound.cxx domains/combinebound.cxx domains/distribtoptree.cxx domains/distribroot.cxx domains/dumptrees.cxx
+	domains/enforceperiodic.cxx domains/freestore.cxx domains/olddd.cxx
+	gravity/setsoft.cxx gravity/activerung.cxx gravity/countrungs.cxx gravity/zeronewrung.cxx
 )
-set_property(SOURCE fio.c APPEND PROPERTY COMPILE_DEFINITIONS "USE_PTHREAD")
-add_executable(tostd tostd.c fio.c)
-add_executable(psout psout.c cosmo.c)
+set_property(SOURCE io/fio.c APPEND PROPERTY COMPILE_DEFINITIONS "USE_PTHREAD")
+add_executable(tostd utility/tostd.c io/fio.c)
+add_executable(psout utility/psout.c cosmo.c)
 
 target_link_libraries(${PROJECT_NAME} m)
 target_link_libraries(tostd m)
 target_link_libraries(psout m)
-
-if(USE_BT)
-target_sources(${PROJECT_NAME} PRIVATE bt.c)
-endif()
 
 if (NOT APPLE)
 CHECK_INCLUDE_FILES(libaio.h HAVE_LIBAIO_H)
@@ -197,7 +197,7 @@ if (CUDA_FOUND)
   get_property(OPENPA_INCLUDES TARGET openpa PROPERTY INCLUDE_DIRECTORIES)
 #  target_link_libraries(${PROJECT_NAME} ${CUDA_LIBRARIES})
   CUDA_INCLUDE_DIRECTORIES(${MDL_INCLUDES} ${OPENPA_INCLUDES})
-  CUDA_COMPILE(cuda_files cudaewald.cu cudapppc.cu cudautil.cu
+  CUDA_COMPILE(cuda_files cuda/cudaewald.cu cuda/cudapppc.cu cuda/cudautil.cu
 	OPTIONS -arch compute_35)
   target_sources(${PROJECT_NAME} PRIVATE ${cuda_files})
 endif()
@@ -252,7 +252,7 @@ endif()
 set(USE_SIMD "yes" CACHE STRING "Should SIMD be used.")
 if(USE_SIMD)
 #if USE_SIMD_FMM
-target_sources(${PROJECT_NAME} PRIVATE vmoments.cxx)
+target_sources(${PROJECT_NAME} PRIVATE gravity/vmoments.cxx)
 #endif
 #if USE_SIMD_LC
 target_sources(${PROJECT_NAME} PRIVATE lightcone.cxx)
@@ -282,8 +282,8 @@ enable_testing()
 add_test(NAME cosmology COMMAND ${PROJECT_NAME} ${CMAKE_CURRENT_SOURCE_DIR}/tests/cosmology.py WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
 add_test(NAME gravity   COMMAND ${PROJECT_NAME} ${CMAKE_CURRENT_SOURCE_DIR}/tests/gravity.py   WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
 
-target_include_directories(tostd PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
-target_include_directories(psout PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
+target_include_directories(tostd PUBLIC ${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(psout PUBLIC ${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(psout PRIVATE ${GSL_INCLUDE_DIRS})
 target_link_libraries(psout ${GSL_LIBRARIES})
 

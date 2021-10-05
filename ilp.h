@@ -30,7 +30,7 @@
 #endif
 
 #if !defined(__CUDACC__)
-#include "simd.h"
+#include "core/simd.h"
 #endif
 
 /*

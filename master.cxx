@@ -67,12 +67,27 @@ using namespace fmt::literals; // Gives us ""_a and ""_format literals
 
 
 #include "master.h"
-#include "illinois.h"
-#include "tipsydefs.h"
-#include "outtype.h"
-#include "smoothfcn.h"
-#include "fio.h"
+#include "core/illinois.h"
+#include "io/outtype.h"
+#include "smooth/smoothfcn.h"
+#include "io/fio.h"
 #include "SPHOptions.h"
+
+#include "core/setadd.h"
+#include "core/swapall.h"
+#include "core/hostname.h"
+#include "core/calcroot.h"
+#include "core/select.h"
+
+#include "domains/distribtoptree.h"
+#include "domains/distribroot.h"
+#include "domains/dumptrees.h"
+#include "domains/olddd.h"
+
+#include "gravity/setsoft.h"
+#include "gravity/activerung.h"
+#include "gravity/countrungs.h"
+#include "gravity/zeronewrung.h"
 
 #define LOCKFILE ".lockfile"	/* for safety lock */
 #define STOPFILE "STOP"			/* for user interrupt */
@@ -334,12 +349,10 @@ void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTi
     strcpy(restore.achInFile,baseName);
     pstRestore(pst,&restore,sizeof(restore),NULL,0);
     pstSetClasses(pst,aCheckpointClasses,nCheckpointClasses*sizeof(PARTCLASS),NULL,0);
-    BND bnd;
-    pstCalcBound(pst,NULL,0,&bnd,sizeof(bnd));
+    CalcBound();
     CountRungs(NULL);
 
     auto dsec = MSR::Time() - sec;
-    PKD pkd = pst->plcl->pkd;
     double dExp = csmTime2Exp(csm,dTime);
     msrprintf("Checkpoint Restart Complete @ a=%g, Wallclock: %f secs\n\n",dExp,dsec);
 
@@ -373,10 +386,7 @@ void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTi
     }
 
 void MSR::writeParameters(const char *baseName,int iStep,int nSteps,double dTime,double dDelta) {
-    PRM_NODE *pn;
     char *p, achOutName[PST_FILENAME_SIZE];
-    char szNumber[30];
-    double v;
     uint64_t nSpecies[FIO_SPECIES_LAST];
     int i;
     int nBytes;
@@ -453,24 +463,19 @@ void MSR::Checkpoint(int iStep,int nSteps,double dTime,double dDelta) {
     pstCheckpoint(pst,&in,sizeof(in),NULL,0);
 
     /* This is not necessary, but it means the bounds will be identical upon restore */
-    BND bnd;
-    pstCalcBound(pst,NULL,0,&bnd,sizeof(BND));
+    CalcBound();
 
     dsec = MSR::Time() - sec;
     msrprintf("Checkpoint has been successfully written, Wallclock: %f secs.\n", dsec);
     }
 
-int MSR::Initialize() {
-    int i,j,ret;
-    struct inSetAdd inAdd;
+void MSR::Initialize() {
     char ach[256];
-    int bDoRestore;
-
 
     lcl.pkd = NULL;
     nThreads = mdlThreads(mdl);
     lStart=time(0);
-    for (j=0;j<6;++j) fCenter[j] = 0.0; /* Center is (0,0,0) */
+    fCenter = 0; // Center is at (0,0,0)
     /* Storage for output times*/
     dOutTimes.reserve(100); // Reasonable number
     dOutTimes.push_back(INFINITY); // Sentinal node
@@ -1156,14 +1161,11 @@ int MSR::Initialize() {
     /*
     ** Create the processor subset tree.
     */
-    inAdd.idLower = 0;
-    inAdd.idUpper = nThreads;
-    if (nThreads > 1)
-	msrprintf("Adding %d through %d to the PST\n",
-		  inAdd.idLower+1,inAdd.idUpper-1);
-    pstSetAdd(pst,&inAdd,sizeof(inAdd),NULL,0);
-
-    return bDoRestore;
+    if (nThreads > 1) {
+	msrprintf("Adding %d through %d to the PST\n",1,nThreads);
+	ServiceSetAdd::input inAdd(nThreads);
+	mdl->RunService(PST_SETADD,sizeof(inAdd),&inAdd);
+	}
     }
 
 #if 0
@@ -1457,9 +1459,8 @@ void MSR::OneNodeRead(struct inReadFile *in, FIO fio) {
     uint64_t nStart;
     PST pst0;
     LCL *plcl;
-    char achInFile[PST_FILENAME_SIZE];
     int nid;
-    int inswap;
+    ServiceSwapAll::input inswap;
     int rID;
 
     std::unique_ptr<int[]> nParts {new int[nThreads]};
@@ -1490,8 +1491,9 @@ void MSR::OneNodeRead(struct inReadFile *in, FIO fio) {
 	 * Now shove them over to the remote processor.
 	 */
 	SwapClasses(id);
-	inswap = 0;
-	rID = mdlReqService(pst0->mdl,id,PST_SWAPALL,&inswap,sizeof(inswap));
+	inswap.idSwap = 0;
+	rID = mdl->ReqService(id,PST_SWAPALL,&inswap,sizeof(inswap));
+	//rID = mdlReqService(pst0->mdl,id,PST_SWAPALL,&inswap,sizeof(inswap));
 	pkdSwapAll(plcl->pkd, id);
 	mdlGetReply(pst0->mdl,rID,NULL,NULL);
 	}
@@ -1505,7 +1507,7 @@ void MSR::OneNodeRead(struct inReadFile *in, FIO fio) {
 double MSR::SwitchDelta(double dTime,double dDelta,int iStep,int nSteps) {
     if (csm->val.bComove && prmSpecified(prm,"dRedTo")
         && prmSpecified(prm,"nSteps") && prmSpecified(prm,"nSteps10")) {
-	double aTo,tTo,z;
+	double aTo,tTo;
 	if (iStep < param.nSteps10) {
 	    aTo = 1.0 / (10.0 + 1.0);
 	    nSteps = param.nSteps10 - iStep;
@@ -1570,7 +1572,6 @@ void MSR::AllNodeWrite(const char *pszFileName, double dTime, double dvFac, int 
     PST pst0;
     LCL *plcl;
     struct inWrite in;
-    int j;
 
     pst0 = pst;
     while (pst0->nLeaves > 1)
@@ -1608,18 +1609,11 @@ void MSR::AllNodeWrite(const char *pszFileName, double dTime, double dvFac, int 
 	    param.dxPeriod < FLOAT_MAXVAL &&
 	    param.dyPeriod < FLOAT_MAXVAL &&
 	    param.dzPeriod < FLOAT_MAXVAL) {
-	for (j=0;j<3;++j) {
-	    in.bnd.fCenter[j] = fCenter[j];
-	    }
-	in.bnd.fMax[0] = 0.5*param.dxPeriod;
-	in.bnd.fMax[1] = 0.5*param.dyPeriod;
-	in.bnd.fMax[2] = 0.5*param.dzPeriod;
+	Bound::coord offset(0.5*param.dxPeriod,0.5*param.dyPeriod,0.5*param.dzPeriod);
+	in.bnd = Bound(fCenter-offset,fCenter+offset);
 	}
     else {
-	for (j=0;j<3;++j) {
-	    in.bnd.fCenter[j] = 0.0;
-	    in.bnd.fMax[j] = FLOAT_MAXVAL;
-	    }
+	in.bnd = Bound(Bound::coord(-std::numeric_limits<double>::max()),Bound::coord(std::numeric_limits<double>::max()));
 	}
 
     in.dEcosmo    = dEcosmo;
@@ -1672,7 +1666,6 @@ uint64_t MSR::CalcWriteStart() {
 
 void MSR::Write(const char *pszFileName,double dTime,int bCheckpoint) {
     char achOutFile[PST_FILENAME_SIZE];
-    LCL *plcl = pst->plcl;
     int nProcessors;
     double dvFac, dExp;
     double sec,dsec;
@@ -1738,16 +1731,14 @@ void MSR::Write(const char *pszFileName,double dTime,int bCheckpoint) {
 
 
 void MSR::SetSoft(double dSoft) {
-    struct inSetSoft in;
-
     msrprintf("Set Softening...\n");
-    in.dSoft = dSoft;
-    pstSetSoft(pst,&in,sizeof(in),NULL,0);
+    ServiceSetSoft::input in(dSoft);
+    mdl->RunService(PST_SETSOFT,sizeof(in),&in);
     }
 
 
 void MSR::DomainDecompOld(int iRung) {
-    struct inDomainDecomp in;
+    OldDD::ServiceDomainDecomp::input in;
     uint64_t nActive;
     const uint64_t nDT = d2u64(N*param.dFracDualTree);
     const uint64_t nDD = d2u64(N*param.dFracNoDomainDecomp);
@@ -1755,7 +1746,7 @@ void MSR::DomainDecompOld(int iRung) {
     const uint64_t nSD = d2u64(N*param.dFracNoDomainDimChoice);
     double sec,dsec;
     int iRungDT, iRungDD=0,iRungRT,iRungSD;
-    int i,j;
+    int i;
     int bRestoreActive = 0;
 
     in.bDoRootFind = 1;
@@ -1780,8 +1771,6 @@ void MSR::DomainDecompOld(int iRung) {
 	    }
 	assert(iRungDD >= iRungRT);
 	assert(iRungRT >= iRungSD);
-	iRungDD = iRungDD;
-	iRungDT = iRungDT;
 #ifdef NAIVE_DOMAIN_DECOMP
 	if (iLastRungRT < 0) {
 	    /*
@@ -1922,6 +1911,7 @@ void MSR::DomainDecompOld(int iRung) {
 	    }
 #endif
 	}
+    else nActive = N;
     iLastRungDD = iLastRungRT;
     in.nActive = nActive;
     in.nTotal = N;
@@ -1938,17 +1928,12 @@ void MSR::DomainDecompOld(int iRung) {
 	param.dxPeriod < FLOAT_MAXVAL &&
 	param.dyPeriod < FLOAT_MAXVAL &&
 	param.dzPeriod < FLOAT_MAXVAL) {
-	for (j=0;j<3;++j) {
-	    in.bnd.fCenter[j] = fCenter[j];
-	    }
-	in.bnd.fMax[0] = 0.5*param.dxPeriod;
-	in.bnd.fMax[1] = 0.5*param.dyPeriod;
-	in.bnd.fMax[2] = 0.5*param.dzPeriod;
-
-	pstEnforcePeriodic(pst,&in.bnd,sizeof(BND),NULL,0);
+	Bound::coord offset(0.5*param.dxPeriod,0.5*param.dyPeriod,0.5*param.dzPeriod);
+	in.bnd = Bound(fCenter-offset,fCenter+offset);
+	mdl->RunService(PST_ENFORCEPERIODIC,sizeof(in.bnd),&in.bnd);
 	}
     else {
-	pstCombineBound(pst,NULL,0,&in.bnd,sizeof(in.bnd));
+	mdl->RunService(PST_COMBINEBOUND,&in.bnd);
 	}
     /*
     ** If we are doing SPH we need to make absolutely certain to clear
@@ -1965,7 +1950,7 @@ void MSR::DomainDecompOld(int iRung) {
     msrprintf("Domain Decomposition... \n");
     sec = MSR::Time();
 
-    pstDomainDecomp(pst,&in,sizeof(in),NULL,0);
+    mdl->RunService(PST_DOMAINDECOMP,sizeof(in),&in);
     dsec = MSR::Time() - sec;
     printf("Domain Decomposition complete, Wallclock: %f secs\n\n",dsec);
     if (bRestoreActive) {
@@ -1984,16 +1969,10 @@ void MSR::DomainDecomp(int iRung) {
 */
 void MSR::BuildTree(int bNeedEwald,uint32_t uRoot,uint32_t utRoot) {
     struct inBuildTree in;
-    struct inCalcRoot calc;
-    struct outCalcRoot root;
-    struct inDistribTopTree *pDistribTop;
     const double ddHonHLimit = param.ddHonHLimit;
-    int i;
     PST pst0;
     LCL *plcl;
     PKD pkd;
-    KDN *pkdn;
-    int nTopTree;
     double sec,dsec;
 
     pst0 = pst;
@@ -2002,11 +1981,13 @@ void MSR::BuildTree(int bNeedEwald,uint32_t uRoot,uint32_t utRoot) {
     plcl = pst0->plcl;
     pkd = plcl->pkd;
 
-    nTopTree = pkdNodeSize(pkd) * (2*nThreads-1);
-    std::unique_ptr<char[]> buffer {new char[sizeof(struct inDistribTopTree) + nTopTree]};
-    pDistribTop = new (buffer.get()) struct inDistribTopTree;
+    auto nTopTree = pkdNodeSize(pkd) * (2*nThreads-1);
+    auto nMsgSize = sizeof(ServiceDistribTopTree::input) + nTopTree;
+
+    std::unique_ptr<char[]> buffer {new char[nMsgSize]};
+    auto pDistribTop = new (buffer.get()) struct ServiceDistribTopTree::input;
+    auto pkdn = reinterpret_cast<KDN*>(pDistribTop + 1);
     pDistribTop->uRoot = uRoot;
-    pkdn = (KDN *)(pDistribTop + 1);
 
     in.nBucket = param.nBucket;
     in.nGroup = param.nGroup;
@@ -2017,7 +1998,7 @@ void MSR::BuildTree(int bNeedEwald,uint32_t uRoot,uint32_t utRoot) {
     nTopTree = pstBuildTree(pst,&in,sizeof(in),pkdn,nTopTree);
     pDistribTop->nTop = nTopTree / pkdNodeSize(pkd);
     assert(pDistribTop->nTop == (2*nThreads-1));
-    pstDistribTopTree(pst,pDistribTop,sizeof(struct inDistribTopTree) + nTopTree,NULL,0);
+    mdl->RunService(PST_DISTRIBTOPTREE,nMsgSize,pDistribTop);
     dsec = MSR::Time() - sec;
     printf("Tree built, Wallclock: %f secs\n\n",dsec);
 
@@ -2028,36 +2009,33 @@ void MSR::BuildTree(int bNeedEwald,uint32_t uRoot,uint32_t utRoot) {
 	** could add to the mass and because it probably is not important to
 	** update the root so frequently.
 	*/
-	double kdn_r[3];
-	pkdNodeGetPos(pkd,pkdn,kdn_r);
-	calc.com[0] = kdn_r[0];
-	calc.com[1] = kdn_r[1];
-	calc.com[2] = kdn_r[2];
+	ServiceCalcRoot::input calc;
+	ServiceCalcRoot::output root;
+	pkdNodeGetPos(pkd,pkdn,calc.com);
 	calc.uRoot = uRoot;
-	pstCalcRoot(pst,&calc,sizeof(calc),&root,sizeof(root));
+
+	mdl->RunService(PST_CALCROOT,sizeof(calc),&calc,&root);
 	momTreeRoot[uRoot] = root.momc;
-	momTreeCom[uRoot][0] = kdn_r[0];
-	momTreeCom[uRoot][1] = kdn_r[1];
-	momTreeCom[uRoot][2] = kdn_r[2];
+	momTreeCom[uRoot][0] = calc.com[0];
+	momTreeCom[uRoot][1] = calc.com[1];
+	momTreeCom[uRoot][2] = calc.com[2];
 	}
     }
 
 void MSR::BuildTree(int bNeedEwald) {
     msrprintf("Building local trees...\n\n");
 
-    struct inDumpTrees dump;
-    dump.bOnlyVA = 0;
-    dump.uRungDD = IRUNGMAX;
-    pstDumpTrees(pst,&dump,sizeof(dump),NULL,0);
+    ServiceDumpTrees::input dump(IRUNGMAX);
+    mdl->RunService(PST_DUMPTREES,sizeof(dump),&dump);
     BuildTree(bNeedEwald,ROOT,0);
 
     if (bNeedEwald) {
-	struct ioDistribRoot droot;
+	ServiceDistribRoot::input droot;
 	droot.momc = momTreeRoot[ROOT];
 	droot.r[0] = momTreeCom[ROOT][0];
 	droot.r[1] = momTreeCom[ROOT][1];
 	droot.r[2] = momTreeCom[ROOT][2];
-	pstDistribRoot(pst,&droot,sizeof(struct ioDistribRoot),NULL,0);
+	mdl->RunService(PST_DISTRIBROOT,sizeof(droot),&droot);
 	}
     }
 
@@ -2079,17 +2057,15 @@ void MSR::BuildTreeActive(int bNeedEwald,uint8_t uRungDD) {
 
     msrprintf("Building active local trees...\n\n");
 
-    struct inDumpTrees dump;
-    dump.bOnlyVA = 1;
-    dump.uRungDD = uRungDD;
-    pstDumpTrees(pst,&dump,sizeof(dump),NULL,0);
+    ServiceDumpTrees::input dump(uRungDD,true);
+    mdl->RunService(PST_DUMPTREES,sizeof(dump),&dump);
 
     /* New build the very active tree */
     BuildTree(bNeedEwald,ROOT,FIXROOT);
 
     /* For ewald we have to shift and combine the individual tree moments */
     if (bNeedEwald) {
-	struct ioDistribRoot droot;
+	ServiceDistribRoot::input droot;
 	MOMC momc;
 	double *com1 = momTreeCom[FIXROOT];
 	double    m1 = momTreeRoot[FIXROOT].m;
@@ -2116,15 +2092,13 @@ void MSR::BuildTreeActive(int bNeedEwald,uint8_t uRungDD) {
 
 	momAddMomc(&droot.momc, &momc);
 
-	pstDistribRoot(pst,&droot,sizeof(struct ioDistribRoot),NULL,0);
+	mdl->RunService(PST_DISTRIBROOT,sizeof(droot),&droot);
 	}
     }
 
 void MSR::BuildTreeMarked(int bNeedEwald) {
-    struct inDumpTrees dump;
-    dump.bOnlyVA = 0;
-    dump.uRungDD = IRUNGMAX;
-    pstDumpTrees(pst,&dump,sizeof(dump),NULL,0);
+    ServiceDumpTrees::input dump(IRUNGMAX);
+    mdl->RunService(PST_DUMPTREES,sizeof(dump),&dump);
 
     pstTreeInitMarked(pst,NULL,0,NULL,0);
     BuildTree(bNeedEwald,FIXROOT,0);
@@ -2132,7 +2106,7 @@ void MSR::BuildTreeMarked(int bNeedEwald) {
 
     /* For ewald we have to shift and combine the individual tree moments */
     if (bNeedEwald) {
-	struct ioDistribRoot droot;
+	ServiceDistribRoot::input droot;
 	MOMC momc;
 	double *com1 = momTreeCom[FIXROOT];
 	double    m1 = momTreeRoot[FIXROOT].m;
@@ -2159,23 +2133,21 @@ void MSR::BuildTreeMarked(int bNeedEwald) {
 
 	momAddMomc(&droot.momc, &momc);
 
-	pstDistribRoot(pst,&droot,sizeof(struct ioDistribRoot),NULL,0);
+	mdl->RunService(PST_DISTRIBROOT,sizeof(droot),&droot);
 	}
     }
 
 void MSR::Reorder() {
     if (!param.bMemUnordered) {
-	struct inDomainOrder in;
 	double sec,dsec;
 
 	msrprintf("Ordering...\n");
 	sec = Time();
-	in.iMinOrder = 0;
-	in.iMaxOrder = MaxOrder()-1;
-	pstDomainOrder(pst,&in,sizeof(in),NULL,0);
-	in.iMinOrder = 0;
-	in.iMaxOrder = MaxOrder()-1;
-	pstLocalOrder(pst,&in,sizeof(in),NULL,0);
+	OldDD::ServiceDomainOrder::input indomain(MaxOrder()-1);
+	mdl->RunService(PST_DOMAINORDER,sizeof(indomain),&indomain);
+
+	OldDD::ServiceLocalOrder::input inlocal(MaxOrder()-1);
+	mdl->RunService(PST_LOCALORDER,sizeof(inlocal),&inlocal);
 	dsec = Time() - sec;
 	msrprintf("Order established, Wallclock: %f secs\n\n",dsec);
 
@@ -2193,7 +2165,7 @@ void MSR::OutASCII(const char *pszFile,int iType,int nDims,int iFileType) {
     LCL *plcl;
     PST pst0;
     int id,iDim;
-    int inswap;
+    ServiceSwapAll::input inswap;
     PKDOUT pkdout;
     const char *arrayOrVector;
     struct outSetTotal total;
@@ -2246,7 +2218,6 @@ void MSR::OutASCII(const char *pszFile,int iType,int nDims,int iFileType) {
 	struct inCompressASCII in;
 	struct outCompressASCII out;
 	struct inWriteASCII inWrite;
-	int nOut;
 	FILE *fp;
 
 	fp = fopen(achOutFile,"wb");
@@ -2286,8 +2257,9 @@ void MSR::OutASCII(const char *pszFile,int iType,int nDims,int iFileType) {
 		/*
 		 * Swap particles with the remote processor.
 		 */
-		inswap = 0;
-		rID = mdlReqService(pst0->mdl,id,PST_SWAPALL,&inswap,sizeof(inswap));
+		inswap.idSwap = 0;
+		rID = mdl->ReqService(id,PST_SWAPALL,&inswap,sizeof(inswap));
+		//rID = mdlReqService(pst0->mdl,id,PST_SWAPALL,&inswap,sizeof(inswap));
 		pkdSwapAll(plcl->pkd, id);
 		mdlGetReply(pst0->mdl,rID,NULL,NULL);
 		/*
@@ -2297,8 +2269,9 @@ void MSR::OutASCII(const char *pszFile,int iType,int nDims,int iFileType) {
 		/*
 		 * Swap them back again.
 		 */
-		inswap = 0;
-		rID = mdlReqService(pst0->mdl,id,PST_SWAPALL,&inswap,sizeof(inswap));
+		inswap.idSwap = 0;
+		rID = mdl->ReqService(id,PST_SWAPALL,&inswap,sizeof(inswap));
+		//rID = mdlReqService(pst0->mdl,id,PST_SWAPALL,&inswap,sizeof(inswap));
 		pkdSwapAll(plcl->pkd,id);
 		mdlGetReply(pst0->mdl,rID,NULL,NULL);
 		}
@@ -2496,8 +2469,8 @@ void MSR::UpdateSoft(double dTime) {
 
 void MSR::Hostname() {
     int i;
-    std::unique_ptr<struct outHostname[]> out {new struct outHostname[nThreads]};
-    pstHostname(pst,0,0,out.get(),nThreads*sizeof(struct outHostname));
+    std::unique_ptr<ServiceHostname::output[]> out {new ServiceHostname::output[nThreads]};
+    mdl->RunService(PST_HOSTNAME,out.get());
     printf("Host Names:\n");
     PRINTGRID(12,"%12.12s",szHostname);
     printf("MPI Rank:\n");
@@ -2554,7 +2527,7 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
 	int bKickClose,int bKickOpen,int bEwald,int bGravStep,int nPartRhoLoc,int iTimeStepCrit,int nGroup,SPHOptions SPHoptions) {
     struct inGravity in;
     uint64_t nRungSum[IRUNGMAX+1];
-    int i,id,out_size;
+    int i;
     double sec,dsec,dTotFlop,dt,a;
     double dTimeLCP;
     uint8_t uRungMax=0;
@@ -2703,20 +2676,24 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
 	    }
 	}
 
+<<<<<<< HEAD
     in.SPHoptions = SPHoptions;
 
     out_size = nThreads*sizeof(struct outGravityPerProc) + sizeof(struct outGravityReduct);
     std::unique_ptr<char[]> buffer {new char[out_size]};
     auto out  = new (buffer.get()) outGravityPerProc[nThreads];
     auto outr = new (out + nThreads) outGravityReduct;
+=======
+    outGravityReduct outr;
+>>>>>>> develop
 
     sec = MSR::Time();
-    pstGravity(pst,&in,sizeof(in),out,out_size);
+    pstGravity(pst,&in,sizeof(in),&outr,sizeof(outr));
     dsec = MSR::Time() - sec;
 
     if (bKickOpen) {
 	for (i=IRUNGMAX;i>=uRungLo;--i) {
-	    if (outr->nRung[i]) break;
+	    if (outr.nRung[i]) break;
 	    }
 	assert(i >= uRungLo);
 	uRungMax = i;
@@ -2726,7 +2703,7 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
 	** We need to go all the way to IRUNGMAX to clear any prior counts at rungs 
 	** deeper than the current uRungMax!
 	*/
-	for (i=uRungLo;i<=IRUNGMAX;++i) nRung[i] = outr->nRung[i];
+	for (i=uRungLo;i<=IRUNGMAX;++i) nRung[i] = outr.nRung[i];
 
 	const uint64_t nDT = d2u64(N*param.dFracDualTree);
 	const uint64_t nDD = d2u64(N*param.dFracNoDomainDecomp);
@@ -2743,48 +2720,41 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
 	/*
 	** Output some info...
 	*/
-	dTotFlop = outr->sFlop.dSum;
+	dTotFlop = outr.sFlop.dSum;
 	if (dsec > 0.0) {
 	    double dGFlops = dTotFlop/dsec;
 	    printf("Gravity Calculated, Wallclock: %f secs, Gflops:%.1f, Total Gflop:%.3g\n",
 		   dsec,dGFlops,dTotFlop);
 	    printf("  Gflops: CPU:%.1f,%.1f GPU:%.1f,%.1f",
-		outr->dFlopSingleCPU/dsec,outr->dFlopDoubleCPU/dsec,
-		outr->dFlopSingleGPU/dsec,outr->dFlopDoubleGPU/dsec);
+		outr.dFlopSingleCPU/dsec,outr.dFlopDoubleCPU/dsec,
+		outr.dFlopSingleGPU/dsec,outr.dFlopDoubleGPU/dsec);
 	    }
 	else {
 	    printf("Gravity Calculated, Wallclock: %f secs, Gflops:unknown, Total Gflop:%.3g\n",
 		   dsec,dTotFlop);
 	    }
 	printf("  Gflop: CPU:%.3g,%.3g GPU:%.3g,%.3g\n",
-	    outr->dFlopSingleCPU,outr->dFlopDoubleCPU,
-	    outr->dFlopSingleGPU,outr->dFlopDoubleGPU);
-	msrPrintStat(&outr->sLocal,         "  particle  load:",0);
-	msrPrintStat(&outr->sActive,        "  actives   load:",0);
-	msrPrintStat(&outr->sFlop,          "  Gflop     load:",1);
-	msrPrintStat(&outr->sPart,          "  P-P per active:",2);
-	msrPrintStat(&outr->sCell,          "  P-C per active:",2);
+	    outr.dFlopSingleCPU,outr.dFlopDoubleCPU,
+	    outr.dFlopSingleGPU,outr.dFlopDoubleGPU);
+	msrPrintStat(&outr.sLocal,         "  particle  load:",0);
+	msrPrintStat(&outr.sActive,        "  actives   load:",0);
+	msrPrintStat(&outr.sFlop,          "  Gflop     load:",1);
+	msrPrintStat(&outr.sPart,          "  P-P per active:",2);
+	msrPrintStat(&outr.sCell,          "  P-C per active:",2);
 #ifdef INSTRUMENT
-	msrPrintStat(&outr->sComputing,     "     % computing:",3);
-	msrPrintStat(&outr->sWaiting,       "     %   waiting:",3);
-	msrPrintStat(&outr->sSynchronizing, "     %   syncing:",3);
+	msrPrintStat(&outr.sComputing,     "     % computing:",3);
+	msrPrintStat(&outr.sWaiting,       "     %   waiting:",3);
+	msrPrintStat(&outr.sSynchronizing, "     %   syncing:",3);
 #endif
 #ifdef __linux__
-	msrPrintStat(&outr->sFreeMemory, "free memory (GB):", 3);
-	msrPrintStat(&outr->sRSS,           "   resident size:",3);
+	msrPrintStat(&outr.sFreeMemory,    "free memory (GB):", 3);
+	msrPrintStat(&outr.sRSS,           "   resident size:",3);
 #endif
 	printf("  (cache access statistics are given per active particle)\n");
-	msrPrintStat(&outr->sPartNumAccess, "  P-cache access:",1);
-	msrPrintStat(&outr->sCellNumAccess, "  C-cache access:",1);
-	msrPrintStat(&outr->sPartMissRatio, "  P-cache miss %:",2);
-	msrPrintStat(&outr->sCellMissRatio, "  C-cache miss %:",2);
-	/*
-	** Now comes the really verbose output for each processor.
-	*/
-	if (bVDetails) {
-	    printf("Walk Timings:\n");
-	    PRINTGRID(8,"% 8.2f",dWalkTime);
-	    }
+	msrPrintStat(&outr.sPartNumAccess, "  P-cache access:",1);
+	msrPrintStat(&outr.sCellNumAccess, "  C-cache access:",1);
+	msrPrintStat(&outr.sPartMissRatio, "  P-cache miss %:",2);
+	msrPrintStat(&outr.sCellMissRatio, "  C-cache miss %:",2);
 	}
     if (param.bVRungStat && bKickOpen) {
 	printf("Rung distribution:\n");
@@ -2863,19 +2833,11 @@ void MSR::Drift(double dTime,double dDelta,int iRoot) {
     pstDrift(pst,&in,sizeof(in),NULL,0);
     }
 
-void MSR::ScaleVel(double dvFac) {
-    struct inScaleVel in;
-
-    in.dvFac = dvFac;
-    pstScaleVel(pst,&in,sizeof(in),NULL,0);
-    }
-
 /*
  * For gas, updates predicted velocities to beginning of timestep.
  */
 void MSR::KickKDKOpen(double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi) {
     struct inKick in;
-    struct outKick out;
 
     in.dTime = dTime;
     if (csm->val.bComove) {
@@ -2891,9 +2853,7 @@ void MSR::KickKDKOpen(double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi
     in.uRungLo = uRungLo;
     in.uRungHi = uRungHi;
     in.bDoGas = param.bDoGas;
-    pstKick(pst,&in,sizeof(in),&out,sizeof(out));
-    msrprintf("KickOpen: Avg Wallclock %f, Max Wallclock %f\n",
-	      out.SumTime/out.nSum,out.MaxTime);
+    pstKick(pst,&in,sizeof(in),NULL,0);
     }
 
 /*
@@ -2901,7 +2861,6 @@ void MSR::KickKDKOpen(double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi
  */
 void MSR::KickKDKClose(double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi) {
     struct inKick in;
-    struct outKick out;
 
     in.dTime = dTime;
     if (csm->val.bComove) {
@@ -2917,9 +2876,7 @@ void MSR::KickKDKClose(double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungH
     in.uRungLo = uRungLo;
     in.uRungHi = uRungHi;
     in.bDoGas = param.bDoGas;
-    pstKick(pst,&in,sizeof(in),&out,sizeof(out));
-    msrprintf("KickClose: Avg Wallclock %f, Max Wallclock %f\n",
-	      out.SumTime/out.nSum,out.MaxTime);
+    pstKick(pst,&in,sizeof(in),NULL,0);
     }
 
 bool MSR::OutTime(double dTime) {
@@ -2941,8 +2898,6 @@ int cmpTime(const void *v1,const void *v2) {
 
 void MSR::ReadOuts(double dTime,double dDelta) {
     char achFile[PST_FILENAME_SIZE];
-    char ach[PST_FILENAME_SIZE];
-    LCL *plcl = &lcl;
     FILE *fp;
     int i,ret;
     double z,a,t,n;
@@ -3020,27 +2975,20 @@ double MSR::getTheta(double dTime) {
     }
 
 void MSR::InitCosmology() {
-    pstInitCosmology(pst, &csm->val, sizeof(csm->val), NULL, 0);
+    mdl->RunService(PST_INITCOSMOLOGY,sizeof(csm->val),&csm->val);
     }
 
 void MSR::ZeroNewRung(uint8_t uRungLo, uint8_t uRungHi, int uRung) {
-    struct inZeroNewRung in;
-
-    in.uRung = uRung;
-    in.uRungLo = uRungLo;
-    in.uRungHi = uRungHi;
-    pstZeroNewRung(pst, &in, sizeof(in), NULL, 0);
+    ServiceZeroNewRung::input in(uRung,uRungLo, uRungHi);
+    mdl->RunService(PST_ZERONEWRUNG,sizeof(in),&in);
     }
 
 /*
  * bGreater = 1 => activate all particles at this rung and greater.
  */
 void MSR::ActiveRung(int iRung, int bGreater) {
-    struct inActiveRung in;
-
-    in.iRung = iRung;
-    in.bGreater = bGreater;
-    pstActiveRung(pst, &in, sizeof(in), NULL, 0);
+    ServiceActiveRung::input in(iRung,bGreater);
+    mdl->RunService(PST_ACTIVERUNG,sizeof(in),&in);
 
     if ( iRung==0 && bGreater )
 	nActive = N;
@@ -3059,9 +3007,9 @@ void MSR::ActiveOrder() {
     }
 
 int MSR::CountRungs(uint64_t *nRungs) {
-    struct outCountRungs out;
+    ServiceCountRungs::output out;
     int i, iMaxRung=0;
-    pstCountRungs(pst, NULL, 0, &out, sizeof(out));
+    mdl->RunService(PST_COUNTRUNGS,&out);
     for(i=0; i<=MAX_RUNG; ++i) {
 	nRung[i] = out.nRungs[i];
 	if (nRung[i]) iMaxRung = i;
@@ -3147,8 +3095,6 @@ void MSR::UpdateRung(uint8_t uRung) {
     struct inUpdateRung in;
     struct outUpdateRung out;
     int iTempRung,iOutMaxRung;
-    uint64_t sum;
-    char c;
 
     /* If we are called, it is a mistake -- this happens in analysis mode */
     if (param.bMemUnordered) return;
@@ -3311,7 +3257,6 @@ int MSR::NewTopStepKDK(
     int *pbDoCheckpoint,int *pbDoOutput,int *pbNeedKickOpen) {
     double dDeltaRung,dTimeFixed;
     uint32_t uRoot2=0;
-    char achFile[256];
     int bKickOpen=1;
     /*
     ** The iStep variable serves only to give a number to the lightcone and group output files.
@@ -3327,10 +3272,8 @@ int MSR::NewTopStepKDK(
 	    if (a < (1.0/3.0)) bDualTree = 0;
 	    else {
 		bDualTree = 1;
-		struct inDumpTrees dump;
-		dump.bOnlyVA = 0;
-		dump.uRungDD = iRungDT;
-		pstDumpTrees(pst,&dump,sizeof(dump),NULL,0);
+		ServiceDumpTrees::input dump(iRungDT);
+		mdl->RunService(PST_DUMPTREES,sizeof(dump),&dump);
 		msrprintf("Half Drift, uRung: %d\n",iRungDT);
 		dDeltaRung = dDelta/(1 << iRungDT); // Main tree step
 		Drift(dTime,0.5 * dDeltaRung,FIXROOT);
@@ -3762,10 +3705,8 @@ void MSR::Cooling(double dTime,double dStep,int bUpdateState, int bUpdateTable, 
 /* END Gas routines */
 
 void MSR::HopWrite(const char *fname) {
-    FILE *fp;
     LCL *plcl;
     PST pst0;
-    int id;
     double sec,dsec;
 
     pst0 = pst;
@@ -3798,10 +3739,6 @@ void MSR::Hop(double dTime, double dDelta) {
     struct inHopLink h;
     struct outHopJoin j;
     struct inHopFinishUp inFinish;
-    struct inHopTreeBuild inTreeBuild;
-    struct inHopGravity inGravity;
-    struct inHopUnbind inUnbind;
-    struct outHopUnbind outUnbind;
     struct inGroupStats inGroupStats;
     int i;
     uint64_t nGroups;
@@ -3875,6 +3812,7 @@ void MSR::Hop(double dTime, double dDelta) {
     if (param.bVStep)
 	printf("Unbinding\n");
 
+    struct inHopUnbind inUnbind;
     inUnbind.dTime = dTime;
     inUnbind.bPeriodic = param.bPeriodic;
     inUnbind.fPeriod[0] = param.dxPeriod;
@@ -3882,6 +3820,7 @@ void MSR::Hop(double dTime, double dDelta) {
     inUnbind.fPeriod[2] = param.dzPeriod;
     inUnbind.nMinGroupSize = param.nMinMembers;
     inUnbind.iIteration = 0;
+    struct inHopGravity inGravity;
     inGravity.dTime = dTime;
     inGravity.bPeriodic = param.bPeriodic;
     inGravity.nGroup = param.nGroup;
@@ -3894,6 +3833,7 @@ void MSR::Hop(double dTime, double dDelta) {
     inUnbind.iIteration=0;
     do {
 	sec = MSR::Time();
+        struct inHopTreeBuild inTreeBuild;
 	inTreeBuild.nBucket = param.nBucket;
 	inTreeBuild.nGroup = param.nGroup;
 	pstHopTreeBuild(pst,&inTreeBuild,sizeof(inTreeBuild),NULL,0);
@@ -3908,6 +3848,7 @@ void MSR::Hop(double dTime, double dDelta) {
 	    printf("... gravity complete, Wallclock: %f secs\n",dsec);
 	
 	sec = MSR::Time();
+        struct outHopUnbind outUnbind;
 	pstHopUnbind(pst,&inUnbind,sizeof(inUnbind),&outUnbind,sizeof(outUnbind));
 	nGroups = outUnbind.nGroups;
 	dsec = MSR::Time() - sec;
@@ -3990,7 +3931,7 @@ void MSR::NewFof(double dTime) {
 
 void MSR::GroupStats() {
     struct inGroupStats inGroupStats;
-    double sec,dsec,ssec;
+    double sec,dsec;
 
     if (param.bVStep)
 	printf("Generating Group statistics\n");
@@ -4050,11 +3991,13 @@ double MSR::GenerateIC() {
     struct inGetFFTMaxSizes inFFTSizes;
     struct outGetFFTMaxSizes outFFTSizes;
     uint64_t nSpecies[FIO_SPECIES_LAST];
-    int nOut;
     double sec,dsec;
     double mean, rms;
     uint64_t nTotal;
     int j;
+
+    // We only support periodic initial conditions
+    param.bPeriodic = 1;
 
     in.dBoxSize = param.dBoxSize;
     in.iSeed = param.iSeed;
@@ -4135,7 +4078,6 @@ double MSR::GenerateIC() {
 
     SetClasses();
     dsec = MSR::Time() - sec;
-    PKD pkd = pst->plcl->pkd;
     msrprintf("IC Generation Complete @ a=%g, Wallclock: %f secs\n\n",out.dExpansion,dsec);
     msrprintf("Mean of noise same is %g, RMS %g.\n",mean,rms);
 
@@ -4248,8 +4190,7 @@ double MSR::Read(const char *achInFile) {
 	    param.dxPeriod >= FLOAT_MAXVAL ||
 	    param.dyPeriod >= FLOAT_MAXVAL ||
 	    param.dzPeriod >= FLOAT_MAXVAL) {
-	BND bnd;
-	CalcBound(&bnd);
+	CalcBound();
 	}
 
     InitCosmology();
@@ -4307,20 +4248,13 @@ double MSR::Read(const char *achInFile) {
     return dTime;
     }
 
-
-void MSR::CalcBound(BND *pbnd) {
-    /*
-    ** This sets the local pkd->bnd.
-    */
-    pstCalcBound(pst,NULL,0,pbnd,sizeof(*pbnd));
+// This sets the local pkd->bnd.
+void MSR::CalcBound(Bound &bnd) {
+    mdl->RunService(PST_CALCBOUND,&bnd);
     }
-
-//JDP: unused
-void MSR::CalcVBound(BND *pbnd) {
-    /*
-    ** This sets the local pkd->bnd.
-    */
-    pstCalcVBound(pst,NULL,0,pbnd,sizeof(*pbnd));
+void MSR::CalcBound() {
+    Bound bnd;
+    CalcBound(bnd);
     }
 
 void MSR::OutputGrid(const char *filename, bool k, int iGrid, int nParaWrite) {
@@ -4435,9 +4369,6 @@ void MSR::OutputLinPk(int iStep,double dTime) {
 
 void MSR::Output(int iStep, double dTime, double dDelta, int bCheckpoint) {
     int bSymmetric;
-    int nFOFsDone;
-    int i,iSec=0;
-    uint64_t nActive;
 
     printf( "Writing output for step %d\n", iStep );
     if ( iStep ) Write(BuildIoName(iStep).c_str(),dTime,bCheckpoint );
@@ -4514,17 +4445,14 @@ void MSR::Output(int iStep, double dTime, double dDelta, int bCheckpoint) {
     }
 
 uint64_t MSR::CountSelected() {
-    uint64_t n;
-    pstCountSelected(pst, NULL, 0, &n, sizeof(n));
-    return n;
+    uint64_t N;
+    mdl->RunService(PST_COUNTSELECTED,&N);
+    return N;
     }
 uint64_t MSR::SelSpecies(uint64_t mSpecies,bool setIfTrue,bool clearIfFalse) {
     uint64_t N;
-    struct inSelSpecies in;
-    in.setIfTrue = setIfTrue;
-    in.clearIfFalse = clearIfFalse;
-    in.mSpecies = mSpecies;
-    pstSelSpecies(pst, &in, sizeof(in), &N, sizeof(N) );
+    ServiceSelSpecies::input in(mSpecies,setIfTrue,clearIfFalse);
+    mdl->RunService(PST_SELSPECIES,sizeof(in),&in,&N);
     return N;
     }
 uint64_t MSR::SelAll(bool setIfTrue,bool clearIfFalse) {
@@ -4544,99 +4472,53 @@ uint64_t MSR::SelDeleted(bool setIfTrue,bool clearIfFalse) {
     return SelSpecies(1<<FIO_SPECIES_LAST,setIfTrue,clearIfFalse);
     }
 uint64_t MSR::SelBlackholes(bool setIfTrue,bool clearIfFalse) {
-    struct inSelBlackholes in;
-    uint64_t n;
-    in.setIfTrue = setIfTrue;
-    in.clearIfFalse = clearIfFalse;
-    pstSelBlackholes(pst, &in, sizeof(in), &n, sizeof(n) );
-    return n;
+    uint64_t N;
+    ServiceSelBlackholes::input in(setIfTrue,clearIfFalse);
+    mdl->RunService(PST_SELBLACKHOLES,sizeof(in),&in,&N);
+    return N;
     }
 uint64_t MSR::SelGroup(int iGroup,bool setIfTrue,bool clearIfFalse) {
-    uint64_t n;
-    pstSelGroup(pst, &iGroup, sizeof(iGroup), &n, sizeof(n) );
-    return n;
+    uint64_t N;
+    ServiceSelGroup::input in(iGroup,setIfTrue,clearIfFalse);
+    mdl->RunService(PST_SELGROUP,sizeof(in),&in,&N);
+    return N;
     }
 uint64_t MSR::SelById(uint64_t idStart,uint64_t idEnd,int setIfTrue,int clearIfFalse) {
-    struct inSelById in;
-    struct outSelById out;
-    int nOut;
-
-    in.idStart = idStart;
-    in.idEnd = idEnd;
-    in.setIfTrue = setIfTrue;
-    in.clearIfFalse = clearIfFalse;
-    pstSelById(pst, &in, sizeof(in), &out, sizeof(out));
-    return out.nSelected;
+    uint64_t N;
+    ServiceSelById::input in(idStart,idEnd,setIfTrue,clearIfFalse);
+    mdl->RunService(PST_SELBYID,sizeof(in),&in,&N);
+    return N;
     }
 uint64_t MSR::SelMass(double dMinMass,double dMaxMass,int setIfTrue,int clearIfFalse) {
-    struct inSelMass in;
-    struct outSelMass out;
-    int nOut;
-
-    in.dMinMass = dMinMass;
-    in.dMaxMass = dMaxMass;
-    in.setIfTrue = setIfTrue;
-    in.clearIfFalse = clearIfFalse;
-    pstSelMass(pst, &in, sizeof(in), &out, sizeof(out));
-    return out.nSelected;
+    uint64_t N;
+    ServiceSelMass::input in(dMinMass,dMaxMass,setIfTrue,clearIfFalse);
+    mdl->RunService(PST_SELMASS,sizeof(in),&in,&N);
+    return N;
     }
 uint64_t MSR::SelPhaseDensity(double dMinPhaseDensity,double dMaxPhaseDensity,int setIfTrue,int clearIfFalse) {
-    struct inSelPhaseDensity in;
-    struct outSelPhaseDensity out;
-    int nOut;
-
-    in.dMinDensity = dMinPhaseDensity;
-    in.dMaxDensity = dMaxPhaseDensity;
-    in.setIfTrue = setIfTrue;
-    in.clearIfFalse = clearIfFalse;
-    pstSelPhaseDensity(pst, &in, sizeof(in), &out, sizeof(out));
-    return out.nSelected;
+    uint64_t N;
+    ServiceSelPhaseDensity::input in(dMinPhaseDensity,dMaxPhaseDensity,setIfTrue,clearIfFalse);
+    mdl->RunService(PST_SELPHASEDENSITY,sizeof(in),&in,&N);
+    return N;
     }
 uint64_t MSR::SelBox(double *dCenter, double *dSize,bool setIfTrue,bool clearIfFalse) {
-    struct inSelBox in;
-    struct outSelBox out;
-    int nOut;
-
-    in.dCenter[0] = dCenter[0];
-    in.dCenter[1] = dCenter[1];
-    in.dCenter[2] = dCenter[2];
-    in.dSize[0] = dSize[0];
-    in.dSize[1] = dSize[1];
-    in.dSize[2] = dSize[2];
-    in.setIfTrue = setIfTrue;
-    in.clearIfFalse = clearIfFalse;
-    pstSelBox(pst, &in, sizeof(in), &out, sizeof(out));
-    return out.nSelected;
+    uint64_t N;
+    ServiceSelBox::input in(dCenter,dSize,setIfTrue,clearIfFalse);
+    mdl->RunService(PST_SELBOX,sizeof(in),&in,&N);
+    return N;
     }
 uint64_t MSR::SelSphere(double *r, double dRadius,int setIfTrue,int clearIfFalse) {
-    struct inSelSphere in;
-    struct outSelSphere out;
-    int nOut;
-
-    in.r[0] = r[0];
-    in.r[1] = r[1];
-    in.r[2] = r[2];
-    in.dRadius = dRadius;
-    in.setIfTrue = setIfTrue;
-    in.clearIfFalse = clearIfFalse;
-    pstSelSphere(pst, &in, sizeof(in), &out, sizeof(out));
-    return out.nSelected;
+    uint64_t N;
+    ServiceSelSphere::input in(r,dRadius,setIfTrue,clearIfFalse);
+    mdl->RunService(PST_SELBOX,sizeof(in),&in,&N);
+    return N;
     }
 uint64_t MSR::SelCylinder(double *dP1, double *dP2, double dRadius,
 			   int setIfTrue, int clearIfFalse ) {
-    struct inSelCylinder in;
-    struct outSelCylinder out;
-    int nOut,j;
-
-    for(j=0;j<3;j++) {
-	in.dP1[j] = dP1[j];
-	in.dP2[j] = dP2[j];
-	}
-    in.dRadius = dRadius;
-    in.setIfTrue = setIfTrue;
-    in.clearIfFalse = clearIfFalse;
-    pstSelCylinder(pst, &in, sizeof(in), &out, sizeof(out));
-    return out.nSelected;
+    uint64_t N;
+    ServiceSelCylinder::input in(dP1,dP2,dRadius,setIfTrue,clearIfFalse);
+    mdl->RunService(PST_SELCYLINDER,sizeof(in),&in,&N);
+    return N;
     }
 
 double MSR::TotalMass() {
@@ -4822,7 +4704,7 @@ void MSR::Profile( const PROFILEBIN **ppBins, int *pnBins,
     ** Inner, fixed size bins
     */
     if ( nBinsInner ) {
-	MSR::Time();
+	sec = Time();
 	msrprintf( "Root finding for %d bins\n", nBinsInner );
 	ctxSphere.nTotal = CountDistance(0.0,dLogRadius*dLogRadius);
 	ctxSphere.nInner = CountDistance(0.0,dMinRadius*dMinRadius);
