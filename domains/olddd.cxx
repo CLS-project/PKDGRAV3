@@ -324,8 +324,8 @@ void ServiceDomainDecomp::RootSplit(PST pst,int iSplitDim,int bDoRootFind,int bD
     if (!bDoSplitDimFind) fm = pst->fSplitInactive;
     else {
 	fm = 0.5*(fl+fu);
-	if (fm < bnd.center(dBnd)) fm = std::nextafter(bnd.center(dBnd),bnd.center(dBnd) + 1.0);
-	else fm = std::nextafter(bnd.center(dBnd),bnd.center(dBnd) - 1.0);
+	if (fm < bnd.center(dBnd)) fm = bnd.upper(dBnd);
+	else fm = bnd.lower(dBnd);
 	}
     mdlprintf(pst->mdl, "id: %d (%d) Zeroeth guess reverse split: %f (%f,%f)\n",
 	      pst->idSelf, pst->iLvl, fm, bnd.lower(dBnd), bnd.upper(dBnd));
