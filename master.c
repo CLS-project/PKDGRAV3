@@ -2404,12 +2404,6 @@ void msrLogParams(MSR msr,FILE *fp) {
 #ifdef OPTIM_NO_REDUNDANT_FLUXES
    fprintf(fp," OPTIM_NO_REDUNDANT_FLUXES"); 
 #endif
-#ifdef OPTIM_CACHED_FLUXES
-   fprintf(fp," OPTIM_CACHED_FLUXES"); 
-#endif
-#ifdef DEBUG_CACHED_FLUXES
-   fprintf(fp," DEBUG_CACHED_FLUXES"); 
-#endif
 #ifdef OPTIM_REMOVE_UNUSED
    fprintf(fp," OPTIM_REMOVE_UNUSED"); 
 #endif
@@ -4297,20 +4291,6 @@ void msrResetFluxes(MSR msr,double dTime,double dDelta,int iRoot) {
 
 
 
-#ifdef DEBUG_CACHED_FLUXES
-void msrFluxStats(MSR msr, double dTime, double dDelta, double dStep, uint8_t uRungMax, int iRoot){
-   struct inFluxStats in;
-   struct outFluxStats out;
-
-   out.nAvoided = 0;
-   out.nComputed = 0;
-
-   pstFluxStats(msr->pst, &in, sizeof(in), &out, sizeof(out));
-
-   printf("Flux stats @ Step= %f Rung= %d :: nAvoided= %d nComputed= %d \n", dStep, uRungMax, out.nAvoided, out.nComputed);
-   return;
-}
-#endif
 
 void msrOutputFineStatistics(MSR msr, double dStep, double dTime){
     if (dTime==-1){
@@ -5171,9 +5151,6 @@ int msrNewTopStepKDK(MSR msr,
    if (msrDoGas(msr) && msrMeshlessHydro(msr)){
       msrResetFluxes(msr, *pdTime, dDelta, ROOT);
       msrMeshlessFluxes(msr, *pdTime, dDelta, ROOT);
-#ifdef DEBUG_CACHED_FLUXES
-      msrFluxStats(msr, *pdTime, dDelta, *pdStep, uRung, ROOT);
-#endif
    }
    if (msr->param.bVStep) printf("Step:%f (uMaxRung %d) (uRung %d) \n",*pdStep,*puRungMax, uRung);
     msrZeroNewRung(msr,uRung,MAX_RUNG,uRung);
@@ -5417,9 +5394,6 @@ void msrTopStepKDK(MSR msr,
          if (msr->param.bVStep) printf("Step:%f (iKickRung %d) (iRung %d) \n",dStep,iKickRung, iRung);
          msrResetFluxes(msr, dTime, dDelta, ROOT);
          msrMeshlessFluxes(msr, dTime, dDelta, ROOT);
-#ifdef DEBUG_CACHED_FLUXES
-         msrFluxStats(msr, dTime, dDelta, dStep, iKickRung, ROOT);
-#endif
       }
 	msrZeroNewRung(msr,iKickRung,MAX_RUNG,iKickRung); /* brute force */
 
@@ -5913,9 +5887,6 @@ uint8_t msrInitSph(MSR msr,double dTime)
         msrEndTimestepIntegration(msr, dTime, 0.0, ROOT);
         msrMeshlessGradients(msr, dTime);
         msrMeshlessFluxes(msr, dTime, 0.0, ROOT);
-#ifdef DEBUG_CACHED_FLUXES
-        msrFluxStats(msr, dTime, 0.0, 0, 0, ROOT);
-#endif
 	//msrZeroNewRung(msr,0,MAX_RUNG,0); 
         msrHydroStep(msr,0,MAX_RUNG,dTime); // We do this twice because we need to have uNewRung for the time limiter
         msrHydroStep(msr,0,MAX_RUNG,dTime);  // of Durier & Dalla Vecchia
@@ -6739,23 +6710,6 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
     // IA: I want to do this even at step 0
     /*if ( iStep )*/ msrWrite(msr,achFile,dTime,bCheckpoint );
 
-#ifdef DEBUG_CACHED_FLUXES
-    msrBuildName(msr,achFile,iStep);
-    strncat(achFile,".flux_cache",256);
-    msrOutArray(msr,achFile,OUT_CACHEFLUX_ARRAY);
-
-    msrBuildName(msr,achFile,iStep);
-    strncat(achFile,".coll_cache",256);
-    msrOutArray(msr,achFile,OUT_CACHECOLL_ARRAY);
-
-    msrBuildName(msr,achFile,iStep);
-    strncat(achFile,".avoided_fluxes",256);
-    msrOutArray(msr,achFile,OUT_AVOIDEDFLUXES_ARRAY);
-
-    msrBuildName(msr,achFile,iStep);
-    strncat(achFile,".computed_fluxes",256);
-    msrOutArray(msr,achFile,OUT_COMPUTEDFLUXES_ARRAY);
-#endif
 
     if (msrDoGas(msr) && !msr->param.nSteps) {  /* Diagnostic Gas */ 
 	msrReorder(msr);

@@ -386,18 +386,6 @@ if (OPTIM_NO_REDUNDANT_FLUXES)
    message("-- OPTIM_NO_REDUNDANT_FLUXES: \t Avoid all redundant flux computations. Requires unique particleIDs and OPTIM_SMOOTH_NODE.")
 endif(OPTIM_NO_REDUNDANT_FLUXES)
 
-option(OPTIM_CACHED_FLUXES "Save a flux cache per particle to reduce duplicated flux computations" OFF)
-if(OPTIM_CACHED_FLUXES)
-   target_compile_options(${PROJECT_NAME} PRIVATE -DOPTIM_CACHED_FLUXES)
-   message("-- OPTIM_CACHED_FLUXES: \t Save a flux cache per particle to reduce duplicated flux computations")
-endif(OPTIM_CACHED_FLUXES)
-
-option(DEBUG_CACHED_FLUXES "Enable debug output when using OPTIM_CACHED_FLUXES" OFF)
-if(DEBUG_CACHED_FLUXES)
-   target_compile_options(${PROJECT_NAME} PRIVATE -DDEBUG_CACHED_FLUXES)
-   message("-- DEBUG_CACHED_FLUXES: \t Enable debug output when using OPTIM_CACHED_FLUXES")
-endif(DEBUG_CACHED_FLUXES)
-
 option(OPTIM_REMOVE_UNUSED "Remove unused variables in SPHFIELDS" ON)
 if(OPTIM_REMOVE_UNUSED)
    target_compile_options(${PROJECT_NAME} PRIVATE -DOPTIM_REMOVE_UNUSED)

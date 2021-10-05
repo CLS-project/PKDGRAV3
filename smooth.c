@@ -2830,20 +2830,6 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
     // need to be computed
     PARTICLE** sinks;
     sinks = malloc(64*sizeof(PARTICLE*)); // At most, the size of the bucket
-#ifdef OPTIM_CACHED_FLUXES
-    // IA: to optimize the access to the collision and fluxes caches, we can precompute the address
-    // of the variables, such we avoid loading the whole structure in memory
-
-    PARTICLE* p_sample;
-    // We look for the first gas particle
-    int i = 0 ;
-    while (!pkdIsGas(pkd,pkdParticle(pkd,i))) i++;
-    p_sample = pkdParticle(pkd,i);
-    int flux_offset = (char*)(&pkdSph(pkd,p_sample)->flux_cache)  - (char*) p_sample;
-    int coll_offset = (char*)(&pkdSph(pkd,p_sample)->coll_cache)  - (char*) p_sample;
-    //printf("%d %d \n", flux_offset, coll_offset);
-    //abort();
-#endif
 
     /* IA: For allowing vectorization, it is better to use an structure of
      *  arrays rather than an array of structures.
@@ -3057,53 +3043,6 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
                 float dy_node = -pkdPos(pkd,partj,1)+bnd_node.fCenter[1];
                 float dz_node = -pkdPos(pkd,partj,2)+bnd_node.fCenter[2];
 
-#if defined(OPTIM_CACHED_FLUXES) && defined(OPTIM_FLUX_VEC)
-                SPHFIELDS* psph = pkdSph(pkd,partj);
-                // We build the particle cache
-                uint64_t i_flux = 0x00000000ULL;
-                uint64_t i_coll = 0x00000000ULL;
-                if (iSmoothType==SMX_THIRDHYDROLOOP){
-                   for (pk=0;pk<nCnt;pk++){
-                      dx = -dx_node + smx->nnList[pk].dx;
-                      dy = -dy_node + smx->nnList[pk].dy;
-                      dz = -dz_node + smx->nnList[pk].dz;
-
-                      fDist2 = dx*dx + dy*dy + dz*dz;
-                      if ((fDist2 <= fBall2_p) && (fDist2>0.) && (smx->nnList[pk].iPid==pkd->idSelf)){
-                         PARTICLE * const restrict q = smx->nnList[pk].pPart;
-                         float qh = pkdBall(pkd, q);
-                         if ( (4.*qh*qh > fDist2)  ) {
-                            uint64_t *const restrict j_flux = (uint64_t*)((char*)q + flux_offset);
-                            uint64_t *const restrict j_coll = (uint64_t*)((char*)q + coll_offset);
-                            //SPHFIELDS * restrict qsph = pkdSph(pkd,q);
-
-                            //if ( (!get_bit(&(qsph->coll_cache), j_cache_index_i)) &&
-                            //     (get_bit(&(qsph->flux_cache), j_cache_index_i)) ){
-                               //continue;
-                            //}else{
-                            if ( (!get_bit(j_flux, j_cache_index_i)) ||
-                                 ( get_bit(j_coll, j_cache_index_i)) ){
-
-                               const int i_cache_index_j = *pkdParticleID(pkd,q) % (64);
-
-                               uint64_t* offset = (get_bit(&i_flux, i_cache_index_j)) ? &i_coll : &i_flux;
-                               set_bit(offset, i_cache_index_j);
-
-                              // if (!get_bit((uint64_t*)((char*)partj + flux_offset), i_cache_index_j)){
-                              //    set_bit((uint64_t*)((char*)partj + flux_offset), i_cache_index_j);
-                              // }else{
-                              //    set_bit((uint64_t*)((char*)partj + coll_offset), i_cache_index_j);
-                              // }
-                            }
-                         }
-                      }
-                   }
-                }
-                psph->flux_cache = i_flux;
-                psph->coll_cache = i_coll;
-#endif
-
-
                 int nCnt_p = 0;
                 for (pk=0;pk<nCnt;pk++){
                    dx = -dx_node + smx->nnList[pk].dx;
@@ -3126,32 +3065,6 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
 #endif
 
                       // Try pointer to pPart declared as restrict, to check if compiler does something better
-#if defined(OPTIM_CACHED_FLUXES) && defined(OPTIM_FLUX_VEC)
-                      if (iSmoothType==SMX_THIRDHYDROLOOP){
-                         //SPHFIELDS* restrict qsph = pkdSph(pkd,q);
-                         if ( 
-                              (smx->nnList[pk].iPid == pkd->idSelf) &&
-#ifdef OPTIM_AVOID_IS_ACTIVE
-                              q->bMarked &&
-#else
-                              pkdIsActive(pkd,q) &&
-#endif
-                              (get_bit((uint64_t*)((char*)q + flux_offset), j_cache_index_i)) &&
-                              (!get_bit((uint64_t*)((char*)q + coll_offset), j_cache_index_i)) )
-                              {
-
-
-#ifdef DEBUG_CACHED_FLUXES
-                              psph->avoided_fluxes += 1; 
-#endif
-
-                            continue;
-                         }
-#ifdef DEBUG_CACHED_FLUXES
-                         psph->computed_fluxes += 1; 
-#endif
-                      }
-#endif //OPTIM_CACHED_FLUXES
 
                       if (nCnt_p >= nnListMax_p) {
                           nnListMax_p += NNLIST_INCREMENT;

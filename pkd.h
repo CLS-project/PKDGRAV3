@@ -172,66 +172,11 @@ typedef double myreal;
 #endif //OPTIM_REDUCE_PRECISION
 
 
-#ifdef OPTIM_CACHED_FLUXES
-#ifndef INLINE
-#if defined(__INTEL_COMPILER)
-#define INLINE extern inline
-#else
-#define INLINE inline
-#endif
-#endif
-typedef uint64_t cache_t;
-INLINE void set_bit(cache_t *cache, int index){
-   *cache |=  0x00000001ULL<<index;
-}
-INLINE void clear_bit(cache_t *cache, int index){
-   *cache &= ~( 0x00000001ULL<<index);
-}
-INLINE uint64_t get_bit(cache_t *cache, int index){
-   return *cache & ( 0x00000001ULL<<index);
-}
-
-#define PRINTF_BINARY_PATTERN_INT8 "%c%c%c%c%c%c%c%c"
-#define PRINTF_BYTE_TO_BINARY_INT8(i)    \
-    (((i) & 0x80ll) ? '1' : '0'), \
-    (((i) & 0x40ll) ? '1' : '0'), \
-    (((i) & 0x20ll) ? '1' : '0'), \
-    (((i) & 0x10ll) ? '1' : '0'), \
-    (((i) & 0x08ll) ? '1' : '0'), \
-    (((i) & 0x04ll) ? '1' : '0'), \
-    (((i) & 0x02ll) ? '1' : '0'), \
-    (((i) & 0x01ll) ? '1' : '0')
-
-#define PRINTF_BINARY_PATTERN_INT16 \
-    PRINTF_BINARY_PATTERN_INT8              PRINTF_BINARY_PATTERN_INT8
-#define PRINTF_BYTE_TO_BINARY_INT16(i) \
-    PRINTF_BYTE_TO_BINARY_INT8((i) >> 8),   PRINTF_BYTE_TO_BINARY_INT8(i)
-#define PRINTF_BINARY_PATTERN_INT32 \
-    PRINTF_BINARY_PATTERN_INT16             PRINTF_BINARY_PATTERN_INT16
-#define PRINTF_BYTE_TO_BINARY_INT32(i) \
-    PRINTF_BYTE_TO_BINARY_INT16((i) >> 16), PRINTF_BYTE_TO_BINARY_INT16(i)
-#define PRINTF_BINARY_PATTERN_INT64    \
-    PRINTF_BINARY_PATTERN_INT32             PRINTF_BINARY_PATTERN_INT32
-#define PRINTF_BYTE_TO_BINARY_INT64(i) \
-    PRINTF_BYTE_TO_BINARY_INT32((i) >> 32), PRINTF_BYTE_TO_BINARY_INT32(i)
-
-#endif //OPTIM_CACHED_FLUXES
 
 
 typedef struct sphfields {
     char *pNeighborList; /* pointer to nearest neighbor list - compressed */
     double vPred[3];
-
-#ifdef OPTIM_CACHED_FLUXES
-    cache_t flux_cache;
-    cache_t coll_cache;
-#ifdef DEBUG_CACHED_FLUXES
-    uint8_t avoided_fluxes; // Just for measuring performance gains
-    uint8_t computed_fluxes;
-#endif
-#endif
-
-
 
     float c;		/* sound speed */
 #ifndef OPTIM_REMOVE_UNUSED
@@ -1764,9 +1709,6 @@ void pkdReorderWithinNodes(PKD pkd);
 #endif
 void pkdApplyGravWork(PKD pkd,double dTime,double dDelta,double,double,double,uint8_t uRungLo,uint8_t uRungHi);
 void pkdResetFluxes(PKD pkd,int iRoot,double dTime,double dDelta,double,double);
-#ifdef DEBUG_CACHED_FLUXES
-void pkdFluxStats(PKD pkd, int* avoided, int* computed);
-#endif
 void pkdPredictSmoothing(PKD pkd,int iRoot, double dTime, double dDelta);
 void pkdScaleVel(PKD pkd,double dvFac);
 void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, double dTime, double dDelta,

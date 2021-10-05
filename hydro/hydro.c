@@ -715,79 +715,6 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
     double a_inv3 = 1./(smf->a * smf->a * smf->a);
 
-#ifdef OPTIM_CACHED_FLUXES
-
-    // TEST
-    /*
-    for (uint64_t i=0; i<64; i++){
-          uint64_t prueba = 0x00000001ULL<<i;
-
-       printf("prueba %" PRIu64 "  \t"
-           PRINTF_BINARY_PATTERN_INT64 "\n", prueba,
-           PRINTF_BYTE_TO_BINARY_INT64(prueba));
-    }
-    abort();
-    */
-
-
-    for (i=0;i<nSmooth;++i){
-	 q = nnList[i].pPart;
-       if (!pkdIsActive(pkd,q)) continue;
-	 dx = nnList[i].dx;
-	 dy = nnList[i].dy;
-	 dz = nnList[i].dz;
-       if (dx==0 && dy==0 && dz==0) continue;
-
-       int j_cache_index_i = *pkdParticleID(pkd,p) % (sizeof(cache_t)*8);
-       if ( (get_bit(&(pkdSph(pkd,q)->flux_cache), j_cache_index_i)!= 0) &&
-            (get_bit(&(pkdSph(pkd,q)->coll_cache), j_cache_index_i)== 0) &&
-            (nnList[i].iPid == pkd->idSelf)){
-          //printf("Avoiding flux!\n");
-          /*
-          uint64_t prueba = 0x00000001ULL<<j_cache_index_i;
-       printf("prueba   \t"
-           PRINTF_BINARY_PATTERN_INT64 "\n",
-           PRINTF_BYTE_TO_BINARY_INT64(prueba));
-       printf("get_bit flux\t"
-           PRINTF_BINARY_PATTERN_INT64 "\n",
-           PRINTF_BYTE_TO_BINARY_INT64(get_bit(&(pkdSph(pkd,q)->flux_cache),j_cache_index_i)));
-       printf("get_bit coll\t"
-           PRINTF_BINARY_PATTERN_INT64 "\n",
-           PRINTF_BYTE_TO_BINARY_INT64(get_bit(&(pkdSph(pkd,q)->coll_cache),j_cache_index_i)));
-       printf("Flux cache \t"
-           PRINTF_BINARY_PATTERN_INT64 "\n",
-           PRINTF_BYTE_TO_BINARY_INT64(pkdSph(pkd,q)->flux_cache));
-       printf("Coll cache \t"
-           PRINTF_BINARY_PATTERN_INT64 "\n\n",
-           PRINTF_BYTE_TO_BINARY_INT64(pkdSph(pkd,q)->coll_cache));
-           */
-          continue;
-       }
-
-       int i_cache_index_j = *pkdParticleID(pkd,q) % (sizeof(cache_t)*8);
-
-       //printf("%" PRIu64 " %d %d \n", *pkdParticleID(pkd,q), sizeof(cache_t)*8, i_cache_index_j);
-       //printf("%" PRIu64 " \n", get_bit(&(psph->flux_cache), i_cache_index_j));
-       if (nnList[i].iPid == pkd->idSelf){
-          if (get_bit(&(psph->flux_cache), i_cache_index_j)==0){
-             set_bit(&(psph->flux_cache), i_cache_index_j);
-          }else{
-             set_bit(&(psph->coll_cache), i_cache_index_j);
-          }
-       }
-
-    }
-
-    /*
-       printf("Flux cache "
-           PRINTF_BINARY_PATTERN_INT64 "\n",
-           PRINTF_BYTE_TO_BINARY_INT64(psph->flux_cache));
-       printf("Coll cache "
-           PRINTF_BINARY_PATTERN_INT64 "\n",
-           PRINTF_BYTE_TO_BINARY_INT64(psph->coll_cache));
-      */
-#endif
-
     for (i=0;i<nSmooth;++i){
 
 	 q = nnList[i].pPart;
@@ -818,21 +745,6 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
        Wpq = cubicSplineKernel(rpq, hpq);
        if (Wpq==0.0){/*printf("hpq %e rpq %e \t %e \n", hpq, rpq, rpq/hpq); */continue; }
 
-#ifdef OPTIM_CACHED_FLUXES
-       int j_cache_index_i = *pkdParticleID(pkd,p) % (sizeof(cache_t)*8);
-       if ( (get_bit(&(qsph->flux_cache), j_cache_index_i)!= 0) &&
-            (get_bit(&(qsph->coll_cache), j_cache_index_i)== 0) &&
-            (nnList[i].iPid == pkd->idSelf) &&
-            pkdIsActive(pkd,q)){
-#ifdef DEBUG_CACHED_FLUXES
-          psph->avoided_fluxes += 1;
-#endif
-          continue;
-       }
-#ifdef DEBUG_CACHED_FLUXES
-       psph->computed_fluxes += 1;
-#endif
-#endif
        /* IA: We update the conservatives variables taking the minimum timestep
         * between the particles, as in AREPO */
        if (!pkdIsActive(pkd,q)) {
@@ -1242,16 +1154,6 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
        pmass = pkdField(p,pkd->oMass);
        qmass = pkdField(q,pkd->oMass);
 
-#ifdef OPTIM_CACHED_FLUXES
-       int j_cache_index_i = *pkdParticleID(pkd,p) % (sizeof(cache_t)*8);
-       int i_cache_index_j = *pkdParticleID(pkd,q) % (sizeof(cache_t)*8);
-       if (((get_bit(&(psph->flux_cache), i_cache_index_j)!=0) &&
-            (get_bit(&(psph->coll_cache), i_cache_index_j)==0) &&
-            (get_bit(&(qsph->flux_cache), j_cache_index_i)==0) &&
-            (nnList[i].iPid == pkd->idSelf) &&
-            pkdIsActive(pkd,q)) | (!pkdIsActive(pkd,q)) )
-       {
-#else //OPTIM_CACHED_FLUXES
 
 
 #ifdef OPTIM_NO_REDUNDANT_FLUXES
@@ -1259,7 +1161,6 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 #else
        if ( (2.*qh < rpq) | !pkdIsActive(pkd,q)){
 #endif
-#endif //OPTIM_CACHED_FLUXES
 
 
           //printf("%"PRIu64" \t %"PRIu64" \n", *pkdParticleID(pkd,p), *pkdParticleID(pkd,q));

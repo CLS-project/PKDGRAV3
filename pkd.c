@@ -1238,14 +1238,6 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             pSph->lastCooling = 0.;
             pSph->cooling_dudt = 0.;
 #endif
-#ifdef OPTIM_CACHED_FLUXES
-            pSph->flux_cache = 0x00000000ULL;
-            pSph->coll_cache = 0x00000000ULL;
-#ifdef DEBUG_CACHED_FLUXES
-            pSph->avoided_fluxes = 0;
-            pSph->computed_fluxes = 0;
-#endif
-#endif
 #ifdef FEEDBACK
             pSph->fAccFBEnergy = 0.;
 #endif
@@ -3129,36 +3121,11 @@ void pkdResetFluxes(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVP
             psph->Fmom[1] = 0.0;
             psph->Fmom[2] = 0.0;
          }
-         if (pkdIsGas(pkd,p)){
-#ifdef OPTIM_CACHED_FLUXES
-            psph = pkdSph(pkd, p);
-            psph->flux_cache = 0x00000000ULL;
-            psph->coll_cache = 0x00000000ULL;
-#ifdef DEBUG_CACHED_FLUXES
-            psph->avoided_fluxes = 0;
-            psph->computed_fluxes = 0;
-#endif
-#endif
-         }
        }
     }
 
     }
 
-#ifdef DEBUG_CACHED_FLUXES
-void pkdFluxStats(PKD pkd, int* computed, int* avoided){
-    PARTICLE* p;
-    SPHFIELDS* psph;
-    for (int i=0;i<pkdLocal(pkd);++i) {
-       p = pkdParticle(pkd,i);
-       if (pkdIsActive(pkd,p)) {
-          psph = pkdSph(pkd,p);
-          *avoided += psph->avoided_fluxes;
-          *computed += psph->computed_fluxes;
-       }
-    }
-}
-#endif
 
 #ifdef OPTIM_INVERSE_WALK
 void pkdSetParticleParent(PKD pkd){

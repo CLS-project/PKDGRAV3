@@ -798,14 +798,6 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
              pSph->lastCooling = 0.;
              pSph->cooling_dudt = 0.;
 #endif
-#ifdef OPTIM_CACHED_FLUXES
-             pSph->flux_cache = 0x00000000ULL;
-             pSph->coll_cache = 0x00000000ULL;
-#ifdef DEBUG_CACHED_FLUXES
-             pSph->avoided_fluxes = 0;
-             pSph->computed_fluxes = 0;
-#endif
-#endif
 #ifdef FEEDBACK
              pSph->fAccFBEnergy = 0.;
 #endif
