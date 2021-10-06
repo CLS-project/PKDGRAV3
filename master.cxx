@@ -1985,7 +1985,7 @@ void MSR::BuildTree(int bNeedEwald,uint32_t uRoot,uint32_t utRoot) {
     auto nMsgSize = sizeof(ServiceDistribTopTree::input) + nTopTree;
 
     std::unique_ptr<char[]> buffer {new char[nMsgSize]};
-    ServiceDistribTopTree::input *pDistribTop = new (buffer.get()) struct ServiceDistribTopTree::input;
+    auto pDistribTop = new (buffer.get()) ServiceDistribTopTree::input;
     auto pkdn = reinterpret_cast<KDN*>(pDistribTop + 1);
     pDistribTop->uRoot = uRoot;
     pDistribTop->allocateMemory = 1;
