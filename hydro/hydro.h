@@ -44,9 +44,10 @@ void combThirdHydroLoop(void *vpkd, void *p1,void *p2);
 void hydroFluxFillBuffer(PKD pkd, my_real **buffer, PARTICLE* q, int i,
                          double dDelta, double dr2, double dx, double dy, double dz);
 void hydroFluxUpdateFromBuffer(PKD pkd, my_real **out_buffer, my_real **in_buffer,
-                               PARTICLE* p, PARTICLE* q, int i, double dDelta);
-void hydroFluxAllocateBuffer(my_real *input_buffer, my_real **input_pointers,
-                             my_real *output_buffer, my_real**output_pointers,
+                               PARTICLE* p, PARTICLE* q,
+                               int i, double aFac, double dDelta);
+void hydroFluxAllocateBuffer(my_real **input_buffer, my_real ***input_pointers,
+                             my_real **output_buffer,my_real ***output_pointers,
                              int N);
 
 /* Time step loop */

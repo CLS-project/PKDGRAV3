@@ -925,11 +925,11 @@ void hydroRiemann_vec(PARTICLE *p,float fBall,int nSmooth,
                           riemann_input.R.v[2]*face_unit[2];
 
         int niter = Riemann_solver_exact(pkd,
-                                         riemann_input.R.rho, riemann_input.R.p, riemann_input.R.v,
-                                         riemann_input.L.rho, riemann_input.L.p, riemann_input.L.v,
-                                         &riemann_output.P_M, &riemann_output.S_M,
-                                         &riemann_output.Fluxes.rho, &riemann_output.Fluxes.p, &riemann_output.Fluxes.v[0],
-                                         face_unit, v_line_L, v_line_R, cs_L, cs_R, h_L, h_R);
+                 riemann_input.R.rho, riemann_input.R.p, riemann_input.R.v,
+                 riemann_input.L.rho, riemann_input.L.p, riemann_input.L.v,
+                 &riemann_output.P_M, &riemann_output.S_M,
+                 &riemann_output.Fluxes.rho, &riemann_output.Fluxes.p, &riemann_output.Fluxes.v[0],
+                 face_unit, v_line_L, v_line_R, cs_L, cs_R, h_L, h_R);
 
 
 
@@ -1075,8 +1075,10 @@ inline void hydroFluxFillBuffer(PKD pkd, my_real **buffer, PARTICLE* q, int i,
 }
 
 
-inline void hydroFluxUpdateFromBuffer(PKD pkd, my_real **out_buffer, my_real **in_buffer,
-                                      PARTICLE* p, PARTICLE* q, int i, double dDelta)
+inline void hydroFluxUpdateFromBuffer(PKD pkd,
+                                      my_real **out_buffer, my_real **in_buffer,
+                                      PARTICLE* p, PARTICLE* q,
+                                      int i, double aFac, double dDelta)
 {
     SPHFIELDS *psph = pkdSph(pkd,p);
     SPHFIELDS* qsph = pkdSph(pkd,q);
@@ -1101,9 +1103,9 @@ inline void hydroFluxUpdateFromBuffer(PKD pkd, my_real **out_buffer, my_real **i
 #endif
 
 #ifndef USE_MFM
-        psph->drDotFrho[0] += out_buffer[out_minDt][i] * out_buffer[out_Frho][i] * in_buffer[q_dx][i] * smf->a;
-        psph->drDotFrho[1] += out_buffer[out_minDt][i] * out_buffer[out_Frho][i] * in_buffer[q_dy][i] * smf->a;
-        psph->drDotFrho[2] += out_buffer[out_minDt][i] * out_buffer[out_Frho][i] * in_buffer[q_dz][i] * smf->a;
+        psph->drDotFrho[0] += out_buffer[out_minDt][i] * out_buffer[out_Frho][i] * in_buffer[q_dx][i] * aFac;
+        psph->drDotFrho[1] += out_buffer[out_minDt][i] * out_buffer[out_Frho][i] * in_buffer[q_dy][i] * aFac;
+        psph->drDotFrho[2] += out_buffer[out_minDt][i] * out_buffer[out_Frho][i] * in_buffer[q_dz][i] * aFac;
 #endif
         psph->Frho +=      out_buffer[out_Frho][i] ;
         psph->Fene +=      out_buffer[out_Fene][i] ;
@@ -1168,23 +1170,27 @@ inline void hydroFluxUpdateFromBuffer(PKD pkd, my_real **out_buffer, my_real **i
 
 }
 
-inline void hydroFluxAllocateBuffer(my_real *input_buffer, my_real **input_pointers,
-                                    my_real *output_buffer, my_real**output_pointers,
+inline void hydroFluxAllocateBuffer(my_real **p_input_buffer, my_real ***p_input_pointers,
+                                    my_real **p_output_buffer, my_real ***p_output_pointers,
                                     int N)
 {
 
     // We align the memory for improving vectorization performance.
     // This is compiler dependent!
-    input_buffer = (my_real*)_mm_malloc(N*q_last*sizeof(my_real), 64);
-    input_pointers = (my_real**)_mm_malloc(q_last*sizeof(my_real*), 64);
+    *p_input_buffer = (my_real*)_mm_malloc(N*q_last*sizeof(my_real), 64);
+    *p_input_pointers = (my_real**)_mm_malloc(q_last*sizeof(my_real*), 64);
+    myreal *input_buffer = *p_input_buffer;
+    myreal **input_pointers = *p_input_pointers;
     assert(input_buffer!=NULL);
     assert(input_pointers!=NULL);
     for (int i=0; i<q_last; i++)
         input_pointers[i] = &input_buffer[i*N];
 
 
-    output_buffer = (my_real*)_mm_malloc(N*out_last*sizeof(my_real), 64);
-    output_pointers = (my_real**)_mm_malloc(out_last*sizeof(my_real*), 64);
+    *p_output_buffer = (my_real*)_mm_malloc(N*out_last*sizeof(my_real), 64);
+    *p_output_pointers = (my_real**)_mm_malloc(out_last*sizeof(my_real*), 64);
+    myreal *output_buffer = *p_output_buffer;
+    myreal **output_pointers = *p_output_pointers;
     assert(output_buffer!=NULL);
     assert(output_pointers!=NULL);
     for (int i=0; i<out_last; i++)

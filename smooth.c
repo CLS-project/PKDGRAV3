@@ -2845,8 +2845,8 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
     my_real *output_buffer;
     my_real **output_pointers;
     if (iSmoothType==SMX_THIRDHYDROLOOP){
-       hydroFluxAllocateBuffer(input_buffer, input_pointers,
-                               output_buffer, output_pointers, nnListMax_p);
+       hydroFluxAllocateBuffer(&input_buffer, &input_pointers,
+                               &output_buffer, &output_pointers, nnListMax_p);
     }
 
 
@@ -3082,7 +3082,7 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
                       if (iSmoothType==SMX_THIRDHYDROLOOP){
                          PARTICLE * q = smx->nnList[pk].pPart;
 
-                         hydroFluxFillBuffer(pkd, input_pointers, q, pk,
+                         hydroFluxFillBuffer(pkd, input_pointers, q, nCnt_p,
                                          smf->dDelta, fDist2, dx, dy, dz);
 
                       }
@@ -3106,7 +3106,7 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
                    for (pk=0;pk<nCnt_p;pk++){
                       hydroFluxUpdateFromBuffer(pkd, output_pointers,
                                       input_pointers, partj, nnList_p[pk].pPart,
-                                      pk, smf->dDelta);
+                                      pk, smf->a, smf->dDelta);
                    } // for nCnt_p
                 }else{
                    smx->fcnSmooth(partj,pkdBall(pkd,partj),nCnt_p,nnList_p,smf);
