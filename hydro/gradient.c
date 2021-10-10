@@ -45,6 +45,7 @@ void hydroGradients(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf)
     psph = pkdSph(pkd,p);
     ph = fBall;
 
+#ifndef OPTIM_SMOOTH_NODE
     /* Compute the E matrix (Hopkins 2015, eq 14) */
     for (i=0; i<6; ++i) {
         E[i] = 0.0;
@@ -89,6 +90,7 @@ void hydroGradients(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf)
     /* Now, we need to do the inverse */
     inverseMatrix(E, psph->B);
     psph->Ncond = conditionNumber(E, psph->B);
+#endif
 
     // DEBUG: check if E^{-1} = B
     /*

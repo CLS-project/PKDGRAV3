@@ -45,6 +45,43 @@ void msrComputeSmoothing(MSR msr,double dTime)
     }
 }
 
+
+
+static inline void densNodeOmegaE(NN *nnList, double *rpqs, float fBall,
+                    float dx_node, float dy_node, float dz_node, int nCnt,
+                    double *omega, double *E){
+    float fBall2_p = 4.*fBall*fBall;
+    *omega = 0.0;
+    for (int j=0; j<6; ++j)
+        E[j] = 0.;
+    for (int pk=0; pk<nCnt; pk++) {
+        // As both dr vector are relative to the cell, we can do:
+        float dx = dx_node - nnList[pk].dx;
+        float dy = dy_node - nnList[pk].dy;
+        float dz = dz_node - nnList[pk].dz;
+
+        float fDist2 = dx*dx + dy*dy + dz*dz;
+        if (fDist2 <= fBall2_p) {
+            double rpq = rpqs[pk];
+            double Wpq = cubicSplineKernel(rpq, fBall);
+
+            *omega += Wpq;
+
+
+            E[XX] += dx*dx*Wpq;
+            E[YY] += dy*dy*Wpq;
+            E[ZZ] += dz*dz*Wpq;
+
+            E[XY] += dy*dx*Wpq;
+            E[XZ] += dz*dx*Wpq;
+            E[YZ] += dy*dz*Wpq;
+
+        }
+    }
+}
+
+
+
 void hydroDensity_node(PKD pkd, BND bnd_node, PARTICLE **sinks, NN *nnList,
                        int nCnt_own, int nCnt)
 {
@@ -64,42 +101,26 @@ void hydroDensity_node(PKD pkd, BND bnd_node, PARTICLE **sinks, NN *nnList,
         float dy_node = -pkdPos(pkd,partj,1)+bnd_node.fCenter[1];
         float dz_node = -pkdPos(pkd,partj,2)+bnd_node.fCenter[2];
 
+        // The sqrt can be computed just once here, with higher probability
+        // of being vectorized
+        double rpqs[nCnt];
+        for (int pk=0; pk<nCnt; pk++){
+            float dx = dx_node - nnList[pk].dx;
+            float dy = dy_node - nnList[pk].dy;
+            float dz = dz_node - nnList[pk].dz;
+
+            float fDist2 = dx*dx + dy*dy + dz*dz;
+            rpqs[pk] = sqrt(fDist2);
+        }
+
         int niter = 0;
         float Neff = pkd->param.nSmooth;
         do {
             float ph = pkdBall(pkd,partj);
-            float fBall2_p = 4.*ph*ph;
-            int nCnt_p = 0;
-            *omega = 0.0;
             double E[6], B[6];
-            for (int j=0; j<6; ++j) E[j] = 0.;
-            for (int pk=0; pk<nCnt; pk++) {
-                // As both dr vector are relative to the cell, we can do:
-                float dx = dx_node - nnList[pk].dx;
-                float dy = dy_node - nnList[pk].dy;
-                float dz = dz_node - nnList[pk].dz;
 
-                float fDist2 = dx*dx + dy*dy + dz*dz;
-                if (fDist2 <= fBall2_p) {
-                    double rpq = sqrt(fDist2);
-                    double Wpq = cubicSplineKernel(rpq, ph);
-
-                    *omega += Wpq;
-
-
-                    E[XX] += dx*dx*Wpq;
-                    E[YY] += dy*dy*Wpq;
-                    E[ZZ] += dz*dz*Wpq;
-
-                    E[XY] += dy*dx*Wpq;
-                    E[XZ] += dz*dx*Wpq;
-                    E[YZ] += dy*dz*Wpq;
-
-                    nCnt_p++;
-                }
-            }
-
-
+            densNodeOmegaE(nnList, rpqs, ph, dx_node, dy_node, dz_node,
+                           nCnt,omega, E);
 
             // Check if it has converged
             double c = 4.*M_PI/3. * (*omega) *ph*ph*ph*8.;
@@ -114,9 +135,19 @@ void hydroDensity_node(PKD pkd, BND bnd_node, PARTICLE **sinks, NN *nnList,
                 inverseMatrix(E, B);
                 double Ncond = conditionNumber(E, B);
                 assert(Ncond==Ncond);
-                // TODO: Assign this here and void computing it in hydroGradients,
-                // same for B
-                //if (pkdIsSph(pkd,p)) psph->Ncond = Ncond;
+
+                if (pkdIsGas(pkd,partj)){
+                    // We can already set this here, so it can be skipped in
+                    // hydroGradients
+                    SPHFIELDS* psph = pkdSph(pkd,partj);
+                    psph->Ncond = Ncond;
+                    psph->B[XX] = B[XX];
+                    psph->B[YY] = B[YY];
+                    psph->B[ZZ] = B[ZZ];
+                    psph->B[XY] = B[XY];
+                    psph->B[XZ] = B[XZ];
+                    psph->B[YZ] = B[YZ];
+                }
 
 
                 if (Ncond > 100) {
@@ -185,23 +216,35 @@ void hydroDensity_node(PKD pkd, BND bnd_node, PARTICLE **sinks, NN *nnList,
         if (pkd->param.dhMinOverSoft > 0.) {
             float newBall = MAX(pkdBall(pkd,partj),
                                 pkd->param.dhMinOverSoft*pkdSoft(pkd,partj));
-            pkdSetBall(pkd, partj, newBall);
-            float fBall2_p = 4.*newBall*newBall;
-            *omega = 0.0;
-            for (int pk=0; pk<nCnt; pk++) {
-                float dx = dx_node - nnList[pk].dx;
-                float dy = dy_node - nnList[pk].dy;
-                float dz = dz_node - nnList[pk].dz;
+            if (pkdBall(pkd,partj) < pkd->param.dhMinOverSoft*pkdSoft(pkd,partj)){
+                float newBall = pkd->param.dhMinOverSoft*pkdSoft(pkd,partj);
+                pkdSetBall(pkd, partj, newBall);
 
-                float fDist2 = dx*dx + dy*dy + dz*dz;
-                if (fDist2 <= fBall2_p) {
-                    double rpq = sqrt(fDist2);
-                    double Wpq = cubicSplineKernel(rpq, newBall);
-
-                    *omega += Wpq;
+                double E[6], B[6];
+                densNodeOmegaE(nnList, rpqs, newBall, dx_node, dy_node, dz_node,
+                               nCnt,omega, E);
+                // Normalize the matrix
+                for (int j=0; j<6; ++j) {
+                    E[j] /= *omega;
                 }
+
+                inverseMatrix(E, B);
+                double Ncond = conditionNumber(E, B);
+
+                if (pkdIsGas(pkd,partj)){
+                    // We can already set this here, so it can be skipped in
+                    // hydroGradients
+                    SPHFIELDS* psph = pkdSph(pkd,partj);
+                    psph->Ncond = Ncond;
+                    psph->B[XX] = B[XX];
+                    psph->B[YY] = B[YY];
+                    psph->B[ZZ] = B[ZZ];
+                    psph->B[XY] = B[XY];
+                    psph->B[XZ] = B[XZ];
+                    psph->B[YZ] = B[YZ];
+                }
+                pkdSetDensity(pkd, partj, pkdMass(pkd,partj)*(*omega));
             }
-            pkdSetDensity(pkd, partj, pkdMass(pkd,partj)*(*omega));
         }
 
     }
