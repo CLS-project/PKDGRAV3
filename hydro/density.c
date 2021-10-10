@@ -20,9 +20,9 @@ void msrComputeSmoothing(MSR msr,double dTime)
             msrSetFirstHydroLoop(msr, 1); // 1-> we care if the particle is marked
             // 0-> we dont
 #ifdef OPTIM_SMOOTH_NODE
-            nSmoothed = msrReSmoothNode(msr,dTime,SMX_FIRSTHYDROLOOP,0,0);
+            nSmoothed = msrReSmoothNode(msr,dTime,SMX_HYDRO_DENSITY,0,0);
 #else
-            nSmoothed = msrReSmooth(msr,dTime,SMX_FIRSTHYDROLOOP,0,0);
+            nSmoothed = msrReSmooth(msr,dTime,SMX_HYDRO_DENSITY,0,0);
 #endif
             msrSetFirstHydroLoop(msr, 0);
             it++;
@@ -40,7 +40,7 @@ void msrComputeSmoothing(MSR msr,double dTime)
         printf("Computing h took %d iterations and %.5f seconds \n", it, dsec);
     } else {
         msrSetFirstHydroLoop(msr, 1);
-        msrSmooth(msr,dTime,SMX_FIRSTHYDROLOOP,0,msr->param.nSmooth);
+        msrSmooth(msr,dTime,SMX_HYDRO_DENSITY,0,msr->param.nSmooth);
         msrSetFirstHydroLoop(msr, 0);
     }
 }

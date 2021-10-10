@@ -12,12 +12,12 @@ void msrMeshlessGradients(MSR msr,double dTime)
 #ifdef OPTIM_AVOID_IS_ACTIVE
         msrSelActive(msr);
 #endif
-        msrReSmoothNode(msr,dTime,SMX_SECONDHYDROLOOP,0,0);
+        msrReSmoothNode(msr,dTime,SMX_HYDRO_GRADIENT,0,0);
 #else
-        msrReSmooth(msr,dTime,SMX_SECONDHYDROLOOP,0,0);
+        msrReSmooth(msr,dTime,SMX_HYDRO_GRADIENT,0,0);
 #endif
     } else {
-        msrSmooth(msr,dTime,SMX_SECONDHYDROLOOP,0, msr->param.nSmooth);
+        msrSmooth(msr,dTime,SMX_HYDRO_GRADIENT,0, msr->param.nSmooth);
     }
 
     msrTimerStop(msr, TIMER_GRADIENTS);

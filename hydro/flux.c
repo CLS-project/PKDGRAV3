@@ -16,24 +16,24 @@ void msrMeshlessFluxes(MSR msr,double dTime,double dDelta,int iRoot)
     printf("Computing fluxes... ");
     msrTimerStart(msr, TIMER_FLUXES);
     if (msr->param.bConservativeReSmooth) {
-        if (dDelta==0.0) {
-#ifdef OPTIM_SMOOTH_NODE
-            msrReSmoothNode(msr,dTime,SMX_THIRDHYDROLOOP,1,1);
-#else
-            msrReSmooth(msr,dTime,SMX_THIRDHYDROLOOP,1,1);
-#endif
-        } else {
+        int bFirstStep = 0;
+        if (dDelta==0.0)
+            bFirstStep = 1;
+
 #ifdef OPTIM_SMOOTH_NODE
 #ifdef OPTIM_AVOID_IS_ACTIVE
-            msrSelActive(msr);
+        msrSelActive(msr);
 #endif
-            msrReSmoothNode(msr,dTime,SMX_THIRDHYDROLOOP,1,0);
+#ifdef OPTIM_FLUX_VEC
+        msrReSmoothNode(msr,dTime,SMX_HYDRO_FLUX_VEC,1,bFirstStep);
 #else
-            msrReSmooth(msr,dTime,SMX_THIRDHYDROLOOP,1,0);
+        msrReSmoothNode(msr,dTime,SMX_HYDRO_FLUX,1,bFirstStep);
 #endif
-        }
+#else // no OPTIM_SMOOTH_NODE
+        msrReSmooth(msr,dTime,SMX_HYDRO_FLUX,1,bFirstStep);
+#endif
     } else {
-        msrSmooth(msr,dTime,SMX_THIRDHYDROLOOP,0,msr->param.nSmooth);
+        msrSmooth(msr,dTime,SMX_HYDRO_FLUX,0,msr->param.nSmooth);
     }
 
     msrTimerStop(msr, TIMER_FLUXES);
@@ -1081,7 +1081,7 @@ inline void hydroFluxUpdateFromBuffer(PKD pkd,
                                       int i, double aFac, double dDelta)
 {
     SPHFIELDS *psph = pkdSph(pkd,p);
-    SPHFIELDS* qsph = pkdSph(pkd,q);
+    SPHFIELDS *qsph = pkdSph(pkd,q);
     float *qmass = (float*)pkdField(q,pkd->oMass);
     float *pmass = (float*)pkdField(p,pkd->oMass);
     if (dDelta>0) {

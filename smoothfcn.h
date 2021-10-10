@@ -180,14 +180,16 @@ void initSphForces(void *,void *);
 void combSphForces(void *,void *,void *);
 void SphForces(PARTICLE *,float fBall,int,NN *,SMF *);
 
-#define SMX_FIRSTHYDROLOOP    40
-#define SMX_SECONDHYDROLOOP   41
-#define SMX_THIRDHYDROLOOP    42
-#define SMX_HYDROSTEP         43
-#define SMX_SN_FEEDBACK       44
+#define SMX_HYDRO_DENSITY     40
+#define SMX_HYDRO_GRADIENT    41
+#define SMX_HYDRO_FLUX        42
+#define SMX_HYDRO_STEP        43
+#define SMX_HYDRO_FLUX_VEC    44
 
-#define SMX_BH_MERGER         50
-#define SMX_BH_DRIFT          51
+#define SMX_SN_FEEDBACK       50
+
+#define SMX_BH_MERGER         55
+#define SMX_BH_DRIFT          56
 
 #ifdef STELLAR_EVOLUTION
 #define SMX_CHEM_ENRICHMENT   60

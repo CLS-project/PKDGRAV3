@@ -247,6 +247,10 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
     smx->pSentinel = malloc(pkdParticleSize(pkd));
     assert(smx->pSentinel != NULL);
     smx->pkd = pkd;
+    smx->fcnSmoothNode = NULL;
+    smx->fcnSmoothAllocBuffer = NULL;
+    smx->fcnSmoothFillBuffer = NULL;
+    smx->fcnSmoothUpdate = NULL;
     if (smf != NULL) smf->pkd = pkd;
     smx->nSmooth = nSmooth;
     smx->bPeriodic = bPeriodic;
@@ -311,7 +315,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
 	comb = NULL;
 	smx->fcnPost = NULL;
 	break;
-    case SMX_FIRSTHYDROLOOP:
+    case SMX_HYDRO_DENSITY:
 	assert( pkd->oSph ); /* Validate memory model */
 	smx->fcnSmooth = hydroDensity;
 	initParticle = NULL; /* Original Particle */
@@ -319,7 +323,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
 	comb = NULL;
 	smx->fcnPost = NULL;
 	break;
-    case SMX_SECONDHYDROLOOP:
+    case SMX_HYDRO_GRADIENT:
 	assert( pkd->oSph ); /* Validate memory model */
 	smx->fcnSmooth = hydroGradients;
 	initParticle = NULL; /* Original Particle */
@@ -327,7 +331,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
 	comb = NULL;
 	smx->fcnPost = NULL;
 	break;
-    case SMX_THIRDHYDROLOOP:
+    case SMX_HYDRO_FLUX:
 	assert( pkd->oSph ); /* Validate memory model */
 	smx->fcnSmooth = hydroRiemann;
 	initParticle = initHydroFluxes; /* Original Particle */
@@ -335,7 +339,17 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
 	comb = combThirdHydroLoop;
 	smx->fcnPost = NULL;
 	break;
-    case SMX_HYDROSTEP:
+    case SMX_HYDRO_FLUX_VEC:
+        assert (pkd->oSph);
+        smx->fcnSmoothNode = hydroRiemann_vec;
+        smx->fcnSmoothAllocBuffer = hydroFluxAllocateBuffer;
+        smx->fcnSmoothFillBuffer = hydroFluxFillBuffer;
+        smx->fcnSmoothUpdate = hydroFluxUpdateFromBuffer;
+	initParticle = initHydroFluxes; /* Original Particle */
+	init = initHydroFluxesCached; /* Cached copies */
+	comb = combThirdHydroLoop;
+	smx->fcnPost = NULL;
+    case SMX_HYDRO_STEP:
 	assert( pkd->oSph ); /* Validate memory model */
 	smx->fcnSmooth = hydroStep;
 	initParticle = initHydroStep; /* Original Particle */
@@ -466,6 +480,13 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
 
     default:
 	assert(0);
+    }
+
+    if ( (smx->fcnSmoothNode != NULL) && ( (smx->fcnSmoothAllocBuffer == NULL) ||
+         (smx->fcnSmoothFillBuffer == NULL) || (smx->fcnSmoothUpdate == NULL) ) ){
+        fprintf(stderr, "ERROR: Trying to use particle buffer in node smooth,"
+                "but not all the required fuctions are set\n");
+        abort();
     }
     /*
     ** Initialize the ACTIVE particles in the tree.
@@ -2690,7 +2711,7 @@ int  smReSmooth(SMX smx,SMF *smf, int iSmoothType) {
     smf->pfDensity = NULL;
     switch (iSmoothType)
     {
-       case SMX_FIRSTHYDROLOOP:
+       case SMX_HYDRO_DENSITY:
           for (pi=0;pi<pkd->nLocal;++pi) {
             p = pkdParticle(pkd,pi);
 #ifdef FEEDBACK 
@@ -2713,7 +2734,6 @@ int  smReSmooth(SMX smx,SMF *smf, int iSmoothType) {
           for (pi=0;pi<pkd->nLocal;++pi) {
             p = pkdParticle(pkd,pi);
             if (pkdIsBH(pkd,p)){
-               
                smReSmoothSingle(smx,smf,p,2.*pkdBall(pkd,p));
                nSmoothed++;
             }
@@ -2724,7 +2744,7 @@ int  smReSmooth(SMX smx,SMF *smf, int iSmoothType) {
        /* IA: If computing the hydrostep, we also do the smooth over the newly formed stars that has not yet exploded, such that
         *  they can increase the rung of the neighbouring gas particles before exploding
         */
-       case SMX_HYDROSTEP:
+       case SMX_HYDRO_STEP:
            for (pi=0;pi<pkd->nLocal;++pi) {
              p = pkdParticle(pkd,pi);
              if (pkdIsGas(pkd,p)){
@@ -2799,16 +2819,6 @@ int  smReSmooth(SMX smx,SMF *smf, int iSmoothType) {
  * Then, we put all those particles (including the own bucket)
  * in a interaction list.
  */
-
-// IA: I know this is a very dirty solution, but in general we will always use
-//     OPTIM_FLUX_VEC if OPTIM_SMOOTH_NODE is enabled.
-//     I think this is better than adding a lot of #ifdef's inside this function.
-#ifdef OPTIM_FLUX_VEC
-#define FLUX_VEC 1
-#else
-#define FLUX_VEC 0
-#endif
-
 int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
     PKD pkd = smx->pkd;
     MDL mdl = pkd->mdl;
@@ -2844,9 +2854,9 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
     my_real **input_pointers;
     my_real *output_buffer;
     my_real **output_pointers;
-    if (iSmoothType==SMX_THIRDHYDROLOOP){
-       hydroFluxAllocateBuffer(&input_buffer, &input_pointers,
-                               &output_buffer, &output_pointers, nnListMax_p);
+    if (smx->fcnSmoothAllocBuffer){
+       smx->fcnSmoothAllocBuffer(&input_buffer, &input_pointers,
+                                 &output_buffer, &output_pointers, nnListMax_p);
     }
 
 
@@ -2876,29 +2886,34 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
 #ifdef OPTIM_REORDER_IN_NODES
          int pEnd = node->pLower + pkdNodeNgas(pkd,node);
 #if (defined(STAR_FORMATION) && defined(FEEDBACK)) || defined(STELLAR_EVOLUTION)
-         if (iSmoothType==SMX_FIRSTHYDROLOOP) pEnd += pkdNodeNstar(pkd,node);
+         if (iSmoothType==SMX_HYDRO_DENSITY) pEnd += pkdNodeNstar(pkd,node);
 #endif
 #ifdef BLACKHOLES
-         if (iSmoothType==SMX_FIRSTHYDROLOOP) pEnd += pkdNodeNbh(pkd,node);
+         if (iSmoothType==SMX_HYDRO_DENSITY) pEnd += pkdNodeNbh(pkd,node);
 #endif
 #else // OPTIM_REORDER_IN_NODES
          int pEnd = node->pUpper+1;
 #endif
 
-         double fMax_shrink_x = 0.; 
-         double fMax_shrink_y = 0.; 
-         double fMax_shrink_z = 0.; 
+         double fMax_shrink_x = 0.;
+         double fMax_shrink_y = 0.;
+         double fMax_shrink_z = 0.;
          for (pj=node->pLower;pj<pEnd;++pj) {
              p = pkdParticle(pkd,pj);
 
-
 #ifdef OPTIM_AVOID_IS_ACTIVE
-             if (p->bMarked){
-                if (iSmoothType==SMX_FIRSTHYDROLOOP){
+             int pIsActive = p->bMarked;
 #else
-             if (pkdIsActive(pkd,p)) {
-                if (iSmoothType==SMX_FIRSTHYDROLOOP) {
-                   if (!p->bMarked) continue;
+             int pIsActive = pkdIsActive(pkd,p);
+#endif
+
+
+             if (pIsActive){
+                if (iSmoothType==SMX_HYDRO_DENSITY){
+
+#ifndef OPTIM_AVOID_IS_ACTIVE
+                   if (!p->bMarked)
+                       continue;
 #endif
 
 #if defined(FEEDBACK) && !defined(STELLAR_EVOLUTION)
@@ -2911,14 +2926,16 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
 #endif
 
 #ifndef OPTIM_REORDER_IN_NODES
+                   // Explicit check of the types
                    if (!pkdIsGas(pkd,p) && !pkdIsStar(pkd,p))
                       continue;
-                }else{
-                   if (!pkdIsGas(pkd,p)) continue;
-                }
-#else
-                } //SMX_FIRSTHYDROLOOP
 #endif
+                }else{
+#ifndef OPTIM_REORDER_IN_NODES
+                   // Explicit check of the types
+                   if (!pkdIsGas(pkd,p)) continue;
+#endif
+                } //SMX_HYDRO_DENSITY
 
                 const double x_disp = fabs(pkdPos(pkd,p,0) - bnd_node.fCenter[0]) + pkdBall(pkd,p)*2.;
                 fMax_shrink_x = (x_disp > fMax_shrink_x) ? x_disp : fMax_shrink_x;
@@ -3015,7 +3032,7 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
          //  flow of calling fcnsmooth, as probably we have gathered more
          //  neighbours than needed and thus the iterative procedure should be
          //  faster
-          if (iSmoothType==SMX_FIRSTHYDROLOOP){
+          if (iSmoothType==SMX_HYDRO_DENSITY){
              hydroDensity_node(pkd, bnd_node, sinks, smx->nnList,
                                nCnt_own, nCnt);
           }else{
@@ -3036,16 +3053,30 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
                    if (fDist2 < fBall2_p){
                       PARTICLE * q = smx->nnList[pk].pPart;
                       float qh = pkdBall(pkd,q);
-                      if (fDist2==0.)continue;
-                      if (*pkdParticleID(pkd,partj) == *pkdParticleID(pkd,q)) continue;
-                      if ( (iSmoothType==SMX_THIRDHYDROLOOP) && (4.*qh*qh < fDist2)) {continue;}
-#ifdef OPTIM_NO_REDUNDANT_FLUXES
+                      if (fDist2==0.)
+                          continue;
+                      if (*pkdParticleID(pkd,partj) == *pkdParticleID(pkd,q))
+                          continue;
+
+                      // Reasons not to compute this interaction
+                      if ( iSmoothType==SMX_HYDRO_FLUX ||
+                           iSmoothType==SMX_HYDRO_FLUX_VEC){
+
+                          if (4.*qh*qh < fDist2)
+                              continue;
+
 #ifdef OPTIM_AVOID_IS_ACTIVE
-                      if (iSmoothType==SMX_THIRDHYDROLOOP && q->bMarked && *pkdParticleID(pkd,partj)<*pkdParticleID(pkd,q)) continue;
+                          int qIsActive = q->bMarked;
 #else
-                      if (iSmoothType==SMX_THIRDHYDROLOOP && pkdIsActive(pkd,q) && *pkdParticleID(pkd,partj)<*pkdParticleID(pkd,q)) continue;
+                          int qIsActive = pkdIsActive(pkd,q);
 #endif
+
+#ifdef OPTIM_NO_REDUNDANT_FLUXES
+                          if (qIsActive &&
+                              *pkdParticleID(pkd,partj) < *pkdParticleID(pkd,q))
+                              continue;
 #endif
+                      }
 
                       // Try pointer to pPart declared as restrict, to check if compiler does something better
 
@@ -3054,7 +3085,7 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
                           nnList_p = realloc(nnList_p,nnListMax_p*sizeof(NN));
                           assert(nnList_p != NULL);
                           //printf("realloc nnList_p\n");
-                            if (iSmoothType==SMX_THIRDHYDROLOOP){
+                            if (smx->fcnSmoothAllocBuffer){
                                //TODO
                                printf("Trying to reallocate aligned memory.. not implemented!\n");
                                abort();
@@ -3079,12 +3110,11 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
                       nnList_p[nCnt_p].iIndex = smx->nnList[pk].iIndex;
                       nnList_p[nCnt_p].iPid = smx->nnList[pk].iPid;
 
-                      if (iSmoothType==SMX_THIRDHYDROLOOP){
+                      if (smx->fcnSmoothFillBuffer){
                          PARTICLE * q = smx->nnList[pk].pPart;
 
-                         hydroFluxFillBuffer(pkd, input_pointers, q, nCnt_p,
+                         smx->fcnSmoothFillBuffer(pkd, input_pointers, q, nCnt_p,
                                          smf->dDelta, fDist2, dx, dy, dz);
-
                       }
 
 
@@ -3097,21 +3127,17 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
                 //printf("nCnt_p %d \n", nCnt_p);
                 //assert(nCnt_p<200);
 
-                if (iSmoothType==SMX_THIRDHYDROLOOP && FLUX_VEC){
-                   SPHFIELDS* psph = pkdSph(pkd,partj);
-                   hydroRiemann_vec(partj,pkdBall(pkd,partj),nCnt_p,
-                                    input_pointers, output_pointers, smf);
-
-
-                   for (pk=0;pk<nCnt_p;pk++){
-                      hydroFluxUpdateFromBuffer(pkd, output_pointers,
-                                      input_pointers, partj, nnList_p[pk].pPart,
-                                      pk, smf->a, smf->dDelta);
-                   } // for nCnt_p
+                if (smx->fcnSmoothNode){
+                    smx->fcnSmoothNode(partj,pkdBall(pkd,partj),nCnt_p,
+                                       input_pointers, output_pointers, smf);
+                    for (pk=0;pk<nCnt_p;pk++){
+                       smx->fcnSmoothUpdate(pkd, output_pointers,input_pointers,
+                                            partj, nnList_p[pk].pPart, pk,
+                                            smf->a, smf->dDelta);
+                    }
                 }else{
                    smx->fcnSmooth(partj,pkdBall(pkd,partj),nCnt_p,nnList_p,smf);
                 }
-
              }
           }
 
@@ -3121,22 +3147,14 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
 
           for (pk=0;pk<nCnt;++pk) {
             if (smx->nnList[pk].iPid != pkd->idSelf) {
-#ifdef OPTIM_EXTRA
-#ifdef OPTIM_AVOID_IS_ACTIVE
-                if (!smx->nnList[pk].pPart->bMarked) mdlRelease(pkd->mdl,CID_PARTICLE,smx->nnList[pk].pPart);
-#else
-                if (!pkdIsActive(pkd,smx->nnList[pk].pPart)) mdlRelease(pkd->mdl,CID_PARTICLE,smx->nnList[pk].pPart);
-#endif
-#else //OPTIM_EXTRA
                 mdlRelease(pkd->mdl,CID_PARTICLE,smx->nnList[pk].pPart);
-#endif
             }
           }
 
              //printf("end node %d %d \n", pkd->idSelf, i);
       }
    }
-    if (iSmoothType==SMX_THIRDHYDROLOOP){
+    if (smx->fcnSmoothAllocBuffer){
        _mm_free(input_buffer);
        _mm_free(input_pointers);
        _mm_free(output_buffer);
@@ -3273,15 +3291,7 @@ void buildInteractionList(SMX smx, SMF *smf, KDN* node, BND bnd_node, int *nCnt_
                   smx->nnList[nCnt].dx = dx;
                   smx->nnList[nCnt].dy = dy;
                   smx->nnList[nCnt].dz = dz;
-#ifdef OPTIM_EXTRA
-#ifdef OPTIM_AVOID_IS_ACTIVE
-                  smx->nnList[nCnt].pPart = (smx->bSymmetric && !p->bMarked) ? mdlAcquire(mdl,CID_PARTICLE,pj,id) : p;
-#else
-                  smx->nnList[nCnt].pPart = (smx->bSymmetric && !pkdIsActive(pkd,p)) ? mdlAcquire(mdl,CID_PARTICLE,pj,id) : p;
-#endif
-#else // OPTIM_EXTRA
                   smx->nnList[nCnt].pPart = mdlAcquire(mdl,CID_PARTICLE,pj,id);
-#endif             
 
                   // This should be faster regarding caching and memory transfer, but the call to pkdIsActive can be a bottleneck here!
                   smx->nnList[nCnt].iIndex = pj;

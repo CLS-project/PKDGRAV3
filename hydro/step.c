@@ -13,9 +13,9 @@ void msrHydroStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime)
 #ifdef OPTIM_AVOID_IS_ACTIVE
     msrSelActive(msr);
 #endif
-    msrReSmoothNode(msr,dTime,SMX_HYDROSTEP,1, 0);
+    msrReSmoothNode(msr,dTime,SMX_HYDRO_STEP,1, 0);
 #else
-    msrReSmooth(msr,dTime,SMX_HYDROSTEP,1, 0);
+    msrReSmooth(msr,dTime,SMX_HYDRO_STEP,1, 0);
 #endif
 
     if (msr->param.bGlobalDt) {
