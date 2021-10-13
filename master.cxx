@@ -4210,6 +4210,7 @@ double MSR::Read(const char *achInFile) {
     dsec = MSR::Time() - sec;
     printf("Initializing Kernel target complete, Wallclock: %f secs.\n", dsec);
 
+    if (prmSpecified(prm,"dSoft")) SetSoft(Soft());
     /*
     ** Initialize fBall
     */
