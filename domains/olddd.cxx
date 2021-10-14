@@ -318,14 +318,14 @@ void ServiceDomainDecomp::RootSplit(PST pst,int iSplitDim,int bDoRootFind,int bD
     */
     ServiceWeightWrap::input inWtWrap;
     inWtWrap.iSplitDim = d;
-    fl = std::nextafter(pst->fSplit,pst->fSplit + 1.0);
-    fu = std::nextafter(pst->fSplit,pst->fSplit - 1.0);
+    fl = pst->fSplit + 1e-6*bnd.width(dBnd);
+    fu = pst->fSplit - 1e-6*bnd.width(dBnd);
 
     if (!bDoSplitDimFind) fm = pst->fSplitInactive;
     else {
 	fm = 0.5*(fl+fu);
-	if (fm < bnd.center(dBnd)) fm = bnd.upper(dBnd);
-	else fm = bnd.lower(dBnd);
+	if (fm < bnd.center(dBnd)) fm = bnd.upper(dBnd) + 1.000001*bnd.width(dBnd);
+	else fm = bnd.lower(dBnd) - 1.000001*bnd.width(dBnd);
 	}
     mdlprintf(pst->mdl, "id: %d (%d) Zeroeth guess reverse split: %f (%f,%f)\n",
 	      pst->idSelf, pst->iLvl, fm, bnd.lower(dBnd), bnd.upper(dBnd));
