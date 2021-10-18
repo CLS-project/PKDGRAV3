@@ -363,6 +363,7 @@ void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTi
     InitCosmology();
     if (prmSpecified(prm,"dSoft")) SetSoft(Soft());
 
+    if (DoGas()) {
     /*
     ** Initialize kernel target with either the mean mass or nSmooth
     */
@@ -381,6 +382,7 @@ void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTi
     }
     dsec = MSR::Time() - sec;
     printf("Initializing Kernel target complete, Wallclock: %f secs.\n", dsec);
+    }
 
     Simulate(dTime,dDelta,iStep,nSteps);
     }
@@ -3303,7 +3305,9 @@ int MSR::NewTopStepKDK(
     else {
 	DomainDecomp(uRung);
 	uRoot2 = 0;
+    if (DoGas()) {
 	SelAll(0,1);
+    }
 	BuildTree(param.bEwald);
 	}
 
@@ -3348,6 +3352,7 @@ int MSR::NewTopStepKDK(
     // We need to make sure we descend all the way to the bucket with the
     // active tree, or we can get HUGE group cells, and hence too much P-P/P-C
     int nGroup = (bDualTree && uRung > iRungDT) ? 1 : param.nGroup;
+    if (DoGas()) {
     SelAll(0,1);
     SPHOptions SPHoptions = initializeSPHOptions(param,csm,dTime);
     uint64_t nParticlesOnRung = 0;
@@ -3384,7 +3389,12 @@ int MSR::NewTopStepKDK(
     SPHoptions.useDensityFlags = 0;
     *puRungMax = Gravity(uRung,MaxRung(),ROOT,uRoot2,dTime,dDelta,*pdStep,dTheta,
     	1,bKickOpen,param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,nGroup,SPHoptions);
-
+    } else {
+    SPHOptions SPHoptions = initializeSPHOptions(param,csm,dTime);
+    SPHoptions.doGravity = 1;
+    *puRungMax = Gravity(uRung,MaxRung(),ROOT,uRoot2,dTime,dDelta,*pdStep,dTheta,
+    	1,bKickOpen,param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,nGroup,SPHoptions);
+    }
     if (!uRung && param.bFindGroups) {
 	GroupStats();
 	HopWrite(BuildName(iStep,".fofstats").c_str());
@@ -4191,6 +4201,7 @@ double MSR::Read(const char *achInFile) {
 
     InitCosmology();
 
+    if (DoGas()) {
     /*
     ** Initialize kernel target with either the mean mass or nSmooth
     */
@@ -4241,6 +4252,7 @@ double MSR::Read(const char *achInFile) {
     MemStatus();
     dsec = MSR::Time() - sec;
     printf("Converting u complete, Wallclock: %f secs.\n", dsec);
+    }
 
     return dTime;
     }

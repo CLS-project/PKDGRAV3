@@ -648,11 +648,13 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
 	dih2 = fSoft;
 	pkdGetPos3(pkd,p,x,y,z);
 
+    if (pkd->oFieldOffset[oBall]) {
     /* calculate ball of balls */
     dx = bnd.fCenter[0] - x;
     dy = bnd.fCenter[1] - y;
     dz = bnd.fCenter[2] - z;
     fBoBr = sqrt(dx*dx + dy*dy + dz*dz) + pkdBall(pkd,p);
+    }
     /* initialize marked flag */
     pkdn->bHasMarked = p->bMarked;
 
@@ -676,12 +678,14 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
 	    if (fSoft>dih2) dih2=fSoft;
 	    pkdGetPos1(pkd,p,ft);
 
+        if (pkd->oFieldOffset[oBall]){
         /* calculate ball of balls */
         dx = bnd.fCenter[0] - ft[0];
         dy = bnd.fCenter[1] - ft[1];
         dz = bnd.fCenter[2] - ft[2];
         fBoBrq = sqrt(dx*dx + dy*dy + dz*dz) + pkdBall(pkd,p);
         fBoBr = fBoBrq > fBoBr ? fBoBrq : fBoBr;
+        }
         if (p->bMarked) pkdn->bHasMarked = 1;
 
 	    x += m*ft[0];
@@ -714,7 +718,11 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
 	    pAcc[2] = m*az;
 	    }
 	pkdn->fSoft2 = dih2*dih2;
-    pkdn->fBoBr2 = fBoBr*fBoBr;
+    if (pkd->oFieldOffset[oBall]) {
+        pkdn->fBoBr2 = fBoBr*fBoBr;
+    } else {
+        pkdn->fBoBr2 = 0.0f;
+    }
 	d2Max = 0.0;
 	for (pj=pkdn->pLower;pj<=pkdn->pUpper;++pj) {
 	    p = pkdParticle(pkd,pj);
