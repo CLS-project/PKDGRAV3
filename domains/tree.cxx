@@ -942,6 +942,7 @@ void pkdCombineCells1(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
     pkdn->uMinRung = p1->uMinRung < p2->uMinRung ? p1->uMinRung : p2->uMinRung;
     pkdn->uMaxRung = p1->uMaxRung > p2->uMaxRung ? p1->uMaxRung : p2->uMaxRung;
 
+    if (pkd->oFieldOffset[oNewSph]) {
     /* Combine ball of balls */
     float fBoBr_1, fBoBr_2, dx, dy, dz, fdistCenter_1, fdistCenter_2, fBoBrp1, fBoBrp2;
     fBoBr_1 = sqrt(p1->fBoBr2);
@@ -957,6 +958,9 @@ void pkdCombineCells1(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
     fBoBrp1 = fBoBr_1 + fdistCenter_1;
     fBoBrp2 = fBoBr_2 + fdistCenter_2;
     pkdn->fBoBr2 = fBoBrp1 > fBoBrp2 ? fBoBrp1*fBoBrp1 : fBoBrp2*fBoBrp2;
+    } else {
+    pkdn->fBoBr2 = 0.0f;
+    }
     /* Combine marked flag */
     pkdn->bHasMarked = p1->bHasMarked || p2->bHasMarked;
     }
