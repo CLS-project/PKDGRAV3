@@ -653,6 +653,9 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
     dy = bnd.fCenter[1] - y;
     dz = bnd.fCenter[2] - z;
     fBoBr = sqrt(dx*dx + dy*dy + dz*dz) + pkdBall(pkd,p);
+    pkdn->fBoBxCenter = bnd.fCenter[0];
+    pkdn->fBoByCenter = bnd.fCenter[1];
+    pkdn->fBoBzCenter = bnd.fCenter[2];
     /* initialize marked flag */
     pkdn->bHasMarked = p->bMarked;
 
@@ -949,6 +952,9 @@ void pkdCombineCells1(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
     fBoBrp1 = fBoBr_1 + fdistCenter_1;
     fBoBrp2 = fBoBr_2 + fdistCenter_2;
     pkdn->fBoBr2 = fBoBrp1 > fBoBrp2 ? fBoBrp1*fBoBrp1 : fBoBrp2*fBoBrp2;
+    pkdn->fBoBxCenter = bnd.fCenter[0];
+    pkdn->fBoByCenter = bnd.fCenter[1];
+    pkdn->fBoBzCenter = bnd.fCenter[2];
     /* Combine marked flag */
     pkdn->bHasMarked = p1->bHasMarked || p2->bHasMarked;
     }

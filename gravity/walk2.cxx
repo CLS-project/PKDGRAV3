@@ -86,6 +86,7 @@ static void iOpenOutcomeCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,SPHO
 
     kbnd = pkdNodeGetBnd(pkd,k);
     pkdNodeGetPos(pkd,k,k_r);
+    assert(0); // NOT everything implemented
 
     diCrit = 1.0f / dThetaMin;
     blk = tile->blk;
@@ -202,7 +203,7 @@ static void addChild(PKD pkd, int iCache, CL cl, int iChild, int id, float *fOff
     BND cbnd = pkdNodeGetBnd(pkd,c);
     pkdGetChildCells(c,id,idLower,iLower,idUpper,iUpper);
     clAppend(cl,iCache,id,iChild,idLower,iLower,idUpper,iUpper,nc,cOpen,
-	pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c_r,fOffset,cbnd.fCenter,cbnd.fMax,c->fBoBr2);
+	pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c_r,fOffset,cbnd.fCenter,cbnd.fMax,c->fBoBr2,c->fBoBxCenter,c->fBoByCenter,c->fBoBzCenter);
     }
 /*
 ** Returns total number of active particles for which gravity was calculated.
@@ -517,7 +518,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2,
 					fOffset, /* fOffset */
 					r,       /* center of box */
 					fZero3,  /* size of box */
-                    blk->fBoBr2.f[jTile]);
+                    blk->fBoBr2.f[jTile],blk->fBoBxCenter.f[jTile],blk->fBoByCenter.f[jTile],blk->fBoBzCenter.f[jTile]);
 				    }
 				break;
 			    case 3:

@@ -85,37 +85,37 @@ void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,SPHOption
 
         if (SPHoptions->doDensity || SPHoptions->doSPHForces || SPHoptions->doSetDensityFlags) {
             distk2 = 0.0f;
-            dx = k_xCenter - fvec(blk->xCenter.p[i]) - fvec(blk->xOffset.p[i]) - fvec(blk->xMax.p[i]);
+            dx = k->fBoBxCenter - fvec(blk->xCenter.p[i]) - fvec(blk->xOffset.p[i]) - fvec(blk->xMax.p[i]);
             distk2 += maskz_mov(dx>0,dx*dx);
-            dx = fvec(blk->xCenter.p[i]) + fvec(blk->xOffset.p[i]) - fvec(blk->xMax.p[i]) - k_xCenter;
-            distk2 += maskz_mov(dx>0,dx*dx);
-
-            dx = k_yCenter - fvec(blk->yCenter.p[i]) - fvec(blk->yOffset.p[i]) - fvec(blk->yMax.p[i]);
-            distk2 += maskz_mov(dx>0,dx*dx);
-            dx = fvec(blk->yCenter.p[i]) + fvec(blk->yOffset.p[i]) - fvec(blk->yMax.p[i]) - k_yCenter;
+            dx = fvec(blk->xCenter.p[i]) + fvec(blk->xOffset.p[i]) - fvec(blk->xMax.p[i]) - k->fBoBxCenter;
             distk2 += maskz_mov(dx>0,dx*dx);
 
-            dx = k_zCenter - fvec(blk->zCenter.p[i]) - fvec(blk->zOffset.p[i]) - fvec(blk->zMax.p[i]);
+            dx = k->fBoByCenter - fvec(blk->yCenter.p[i]) - fvec(blk->yOffset.p[i]) - fvec(blk->yMax.p[i]);
             distk2 += maskz_mov(dx>0,dx*dx);
-            dx = fvec(blk->zCenter.p[i]) + fvec(blk->zOffset.p[i]) - fvec(blk->zMax.p[i]) - k_zCenter;
+            dx = fvec(blk->yCenter.p[i]) + fvec(blk->yOffset.p[i]) - fvec(blk->yMax.p[i]) - k->fBoByCenter;
+            distk2 += maskz_mov(dx>0,dx*dx);
+
+            dx = k->fBoBzCenter - fvec(blk->zCenter.p[i]) - fvec(blk->zOffset.p[i]) - fvec(blk->zMax.p[i]);
+            distk2 += maskz_mov(dx>0,dx*dx);
+            dx = fvec(blk->zCenter.p[i]) + fvec(blk->zOffset.p[i]) - fvec(blk->zMax.p[i]) - k->fBoBzCenter;
             distk2 += maskz_mov(dx>0,dx*dx);
         }
         if (SPHoptions->doSPHForces || SPHoptions->doSetDensityFlags) {
             blk_fBoBr2 = blk->fBoBr2.p[i];
             distc2 = 0.0f;
-            dx = k_xMinBnd - fvec(blk->xCenter.p[i]) - fvec(blk->xOffset.p[i]);
+            dx = k_xMinBnd - fvec(blk->fBoBxCenter.p[i]) - fvec(blk->xOffset.p[i]);
             distc2 += maskz_mov(dx>0,dx*dx);
-            dx = fvec(blk->xCenter.p[i]) + fvec(blk->xOffset.p[i]) - k_xMaxBnd;
-            distc2 += maskz_mov(dx>0,dx*dx);
-
-            dx = k_yMinBnd - fvec(blk->yCenter.p[i]) - fvec(blk->yOffset.p[i]);
-            distc2 += maskz_mov(dx>0,dx*dx);
-            dx = fvec(blk->yCenter.p[i]) + fvec(blk->yOffset.p[i]) - k_yMaxBnd;
+            dx = fvec(blk->fBoBxCenter.p[i]) + fvec(blk->xOffset.p[i]) - k_xMaxBnd;
             distc2 += maskz_mov(dx>0,dx*dx);
 
-            dx = k_zMinBnd - fvec(blk->zCenter.p[i]) - fvec(blk->zOffset.p[i]);
+            dx = k_yMinBnd - fvec(blk->fBoByCenter.p[i]) - fvec(blk->yOffset.p[i]);
             distc2 += maskz_mov(dx>0,dx*dx);
-            dx = fvec(blk->zCenter.p[i]) + fvec(blk->zOffset.p[i]) - k_zMaxBnd;
+            dx = fvec(blk->fBoByCenter.p[i]) + fvec(blk->yOffset.p[i]) - k_yMaxBnd;
+            distc2 += maskz_mov(dx>0,dx*dx);
+
+            dx = k_zMinBnd - fvec(blk->fBoBzCenter.p[i]) - fvec(blk->zOffset.p[i]);
+            distc2 += maskz_mov(dx>0,dx*dx);
+            dx = fvec(blk->fBoBzCenter.p[i]) + fvec(blk->zOffset.p[i]) - k_zMaxBnd;
             distc2 += maskz_mov(dx>0,dx*dx);
         }
 
