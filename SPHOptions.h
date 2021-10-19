@@ -37,6 +37,8 @@ typedef struct {
     float gamma;
     float TuFac;
     float FastGasFraction;
+    int nSmooth;
+    float factorNSmooth;
     uint64_t doGravity : 1;
     uint64_t doDensity : 1;
     uint64_t doSPHForces : 1;
