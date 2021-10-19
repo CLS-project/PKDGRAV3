@@ -546,7 +546,7 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
     SPHBNDS *bn;
     double kdn_r[3];
     double fSoft,x,y,z,ax,ay,az,ft[3],d2,d2Max,dih2,bmin,b;
-    double dx,dy,dz,fBoBr,fBoBrq;
+    double dx,dy,dz,fBoBr,fBoBxCenter,fBoByCenter,fBoBzCenter;
     float *a, m, fMass, fBall;
     vel_t *v, vx, vy, vz;
     int pj,d,nDepth,ism;
@@ -648,14 +648,11 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
 	dih2 = fSoft;
 	pkdGetPos3(pkd,p,x,y,z);
 
-    /* calculate ball of balls */
-    dx = bnd.fCenter[0] - x;
-    dy = bnd.fCenter[1] - y;
-    dz = bnd.fCenter[2] - z;
-    fBoBr = sqrt(dx*dx + dy*dy + dz*dz) + pkdBall(pkd,p);
-    pkdn->fBoBxCenter = bnd.fCenter[0];
-    pkdn->fBoByCenter = bnd.fCenter[1];
-    pkdn->fBoBzCenter = bnd.fCenter[2];
+    /* initialize ball of balls */
+    fBoBr = pkdBall(pkd,p);
+    fBoBxCenter = x;
+    fBoByCenter = y;
+    fBoBzCenter = z;
     /* initialize marked flag */
     pkdn->bHasMarked = p->bMarked;
 
@@ -680,11 +677,22 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
 	    pkdGetPos1(pkd,p,ft);
 
         /* calculate ball of balls */
-        dx = bnd.fCenter[0] - ft[0];
-        dy = bnd.fCenter[1] - ft[1];
-        dz = bnd.fCenter[2] - ft[2];
-        fBoBrq = sqrt(dx*dx + dy*dy + dz*dz) + pkdBall(pkd,p);
-        fBoBr = fBoBrq > fBoBr ? fBoBrq : fBoBr;
+        // dx = bnd.fCenter[0] - ft[0];
+        // dy = bnd.fCenter[1] - ft[1];
+        // dz = bnd.fCenter[2] - ft[2];
+        // fBoBrq = sqrt(dx*dx + dy*dy + dz*dz) + pkdBall(pkd,p);
+        // fBoBr = fBoBrq > fBoBr ? fBoBrq : fBoBr;
+        blitz::TinyVector<float,3> p1fBoBCenter = blitz::TinyVector<float,3>(fBoBxCenter,fBoByCenter,fBoBzCenter);
+        blitz::TinyVector<float,3> p2fBoBCenter = blitz::TinyVector<float,3>(ft[0],ft[1],ft[2]);
+        blitz::TinyVector<float,3> difference = p1fBoBCenter - p2fBoBCenter;
+        blitz::TinyVector<float,3> direction = difference / sqrtf(blitz::dot(difference,difference));
+        blitz::TinyVector<float,3> point1 = p1fBoBCenter + direction * fBoBr;
+        blitz::TinyVector<float,3> point2 = p2fBoBCenter - direction * pkdBall(pkd,p);
+        blitz::TinyVector<float,3> midpoint = (point1 - point2) / 2.0f + point2;
+        fBoBr = sqrtf(blitz::dot((point1 - point2) / 2.0f,(point1 - point2) / 2.0f));
+        fBoBxCenter = midpoint[0];
+        fBoByCenter = midpoint[1];
+        fBoBzCenter = midpoint[2];
         if (p->bMarked) pkdn->bHasMarked = 1;
 
 	    x += m*ft[0];
@@ -718,6 +726,9 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
 	    }
 	pkdn->fSoft2 = dih2*dih2;
     pkdn->fBoBr2 = fBoBr*fBoBr;
+    pkdn->fBoBxCenter = fBoBxCenter;
+    pkdn->fBoByCenter = fBoByCenter;
+    pkdn->fBoBzCenter = fBoBzCenter;
 	d2Max = 0.0;
 	for (pj=pkdn->pLower;pj<=pkdn->pUpper;++pj) {
 	    p = pkdParticle(pkd,pj);
@@ -938,23 +949,17 @@ void pkdCombineCells1(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
     pkdn->uMaxRung = p1->uMaxRung > p2->uMaxRung ? p1->uMaxRung : p2->uMaxRung;
 
     /* Combine ball of balls */
-    float fBoBr_1, fBoBr_2, dx, dy, dz, fdistCenter_1, fdistCenter_2, fBoBrp1, fBoBrp2;
-    fBoBr_1 = sqrt(p1->fBoBr2);
-    fBoBr_2 = sqrt(p2->fBoBr2);
-    dx = p1bnd.fCenter[0] - bnd.fCenter[0];
-    dy = p1bnd.fCenter[1] - bnd.fCenter[1];
-    dz = p1bnd.fCenter[2] - bnd.fCenter[2];
-    fdistCenter_1 = sqrt(dx*dx + dy*dy + dz*dz);
-    dx = p2bnd.fCenter[0] - bnd.fCenter[0];
-    dy = p2bnd.fCenter[1] - bnd.fCenter[1];
-    dz = p2bnd.fCenter[2] - bnd.fCenter[2];
-    fdistCenter_2 = sqrt(dx*dx + dy*dy + dz*dz);
-    fBoBrp1 = fBoBr_1 + fdistCenter_1;
-    fBoBrp2 = fBoBr_2 + fdistCenter_2;
-    pkdn->fBoBr2 = fBoBrp1 > fBoBrp2 ? fBoBrp1*fBoBrp1 : fBoBrp2*fBoBrp2;
-    pkdn->fBoBxCenter = bnd.fCenter[0];
-    pkdn->fBoByCenter = bnd.fCenter[1];
-    pkdn->fBoBzCenter = bnd.fCenter[2];
+    blitz::TinyVector<float,3> p1fBoBCenter = blitz::TinyVector<float,3>(p1->fBoBxCenter,p1->fBoByCenter,p1->fBoBzCenter);
+    blitz::TinyVector<float,3> p2fBoBCenter = blitz::TinyVector<float,3>(p2->fBoBxCenter,p2->fBoByCenter,p2->fBoBzCenter);
+    blitz::TinyVector<float,3> difference = p1fBoBCenter - p2fBoBCenter;
+    blitz::TinyVector<float,3> direction = difference / sqrtf(blitz::dot(difference,difference));
+    blitz::TinyVector<float,3> point1 = p1fBoBCenter + direction * sqrt(p1->fBoBr2);
+    blitz::TinyVector<float,3> point2 = p2fBoBCenter - direction * sqrt(p2->fBoBr2);
+    blitz::TinyVector<float,3> midpoint = (point1 - point2) / 2.0f + point2;
+    pkdn->fBoBr2 = blitz::dot((point1 - point2) / 2.0f,(point1 - point2) / 2.0f);
+    pkdn->fBoBxCenter = midpoint[0];
+    pkdn->fBoByCenter = midpoint[1];
+    pkdn->fBoBzCenter = midpoint[2];
     /* Combine marked flag */
     pkdn->bHasMarked = p1->bHasMarked || p2->bHasMarked;
     }
