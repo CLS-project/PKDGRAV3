@@ -691,11 +691,13 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
 	dih2 = fSoft;
 	pkdGetPos3(pkd,p,x,y,z);
 
+    if (pkd->oFieldOffset[oBall]) {
     /* initialize ball of balls */
     fBoBr = pkdBall(pkd,p);
     fBoBxCenter = x;
     fBoByCenter = y;
     fBoBzCenter = z;
+    }
     /* initialize marked flag */
     pkdn->bHasMarked = p->bMarked;
 
@@ -719,7 +721,9 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
 	    if (fSoft>dih2) dih2=fSoft;
 	    pkdGetPos1(pkd,p,ft);
 
+        if (pkd->oFieldOffset[oBall]){
         CombineBallOfBalls(fBoBr,fBoBxCenter,fBoByCenter,fBoBzCenter,pkdBall(pkd,p),ft[0],ft[1],ft[2],fBoBr,fBoBxCenter,fBoByCenter,fBoBzCenter);
+        }
         if (p->bMarked) pkdn->bHasMarked = 1;
 
 	    x += m*ft[0];
@@ -752,10 +756,17 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
 	    pAcc[2] = m*az;
 	    }
 	pkdn->fSoft2 = dih2*dih2;
+    if (pkd->oFieldOffset[oBall]) {
     pkdn->fBoBr2 = fBoBr*fBoBr;
     pkdn->fBoBxCenter = fBoBxCenter;
     pkdn->fBoByCenter = fBoByCenter;
     pkdn->fBoBzCenter = fBoBzCenter;
+    } else {
+    pkdn->fBoBr2 = 0.0f;
+    pkdn->fBoBxCenter = 0.0f;
+    pkdn->fBoByCenter = 0.0f;
+    pkdn->fBoBzCenter = 0.0f;
+    }
 	d2Max = 0.0;
 	for (pj=pkdn->pLower;pj<=pkdn->pUpper;++pj) {
 	    p = pkdParticle(pkd,pj);
@@ -975,6 +986,7 @@ void pkdCombineCells1(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
     pkdn->uMinRung = p1->uMinRung < p2->uMinRung ? p1->uMinRung : p2->uMinRung;
     pkdn->uMaxRung = p1->uMaxRung > p2->uMaxRung ? p1->uMaxRung : p2->uMaxRung;
 
+    if (pkd->oFieldOffset[oNewSph]) {
     /* Combine ball of balls */
     double fBoBr,fBoBxCenter,fBoByCenter,fBoBzCenter;
     CombineBallOfBalls(sqrt(p1->fBoBr2),p1->fBoBxCenter,p1->fBoByCenter,p1->fBoBzCenter,sqrt(p2->fBoBr2),p2->fBoBxCenter,p2->fBoByCenter,p2->fBoBzCenter,fBoBr,fBoBxCenter,fBoByCenter,fBoBzCenter);
@@ -982,6 +994,12 @@ void pkdCombineCells1(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
     pkdn->fBoByCenter = fBoByCenter;
     pkdn->fBoBzCenter = fBoBzCenter;
     pkdn->fBoBr2 = fBoBr * fBoBr;
+    } else {
+    pkdn->fBoBxCenter = 0.0f;
+    pkdn->fBoByCenter = 0.0f;
+    pkdn->fBoBzCenter = 0.0f;
+    pkdn->fBoBr2 = 0.0f;
+    }
     /* Combine marked flag */
     pkdn->bHasMarked = p1->bHasMarked || p2->bHasMarked;
     }

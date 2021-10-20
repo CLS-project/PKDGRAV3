@@ -239,7 +239,9 @@ void pkdParticleWorkDone(workParticle *wp) {
 		dtGrav = (wp->pInfoOut[i].rhopmax > dtGrav?wp->pInfoOut[i].rhopmax:dtGrav);
 		if (dtGrav > 0.0) {
 		    dT = fEta * rsqrtf(dtGrav*wp->ts->dRhoFac);
+            if (pkd->oFieldOffset[oNewSph]) {
             dT = fmin(dT,wp->pInfoOut[i].dtEst);
+            }
 		    uNewRung = pkdDtToRungInverse(dT,fiDelta,wp->ts->uMaxRung-1);
 		    }
 		else uNewRung = 0; /* Assumes current uNewRung is outdated -- not ideal */
@@ -255,7 +257,9 @@ void pkdParticleWorkDone(workParticle *wp) {
 		if (maga > 0) {
 		    float imaga = rsqrtf(maga) * fiAccFac;
 		    dT = fEta*asqrtf(pkdSoft(pkd,p)*imaga);
+            if (pkd->oFieldOffset[oNewSph]) {
             dT = fmin(dT,wp->pInfoOut[i].dtEst);
+            }
 		    uNewRung = pkdDtToRungInverse(dT,fiDelta,wp->ts->uMaxRung-1);
 		    }
 		else uNewRung = 0;
@@ -700,6 +704,7 @@ int pkdGravInteract(PKD pkd,
 	    wp->pInfoIn[nP].a[2]  = 0;
 	    }
 
+    if (pkd->oFieldOffset[oNewSph]) {
     NEWSPHFIELDS *pNewSph = pkdNewSph(pkd,p);
     float dtPredDrift = getDtPredDrift(kick,p->bMarked,ts->uRungLo,p->uRung);
     wp->pInfoIn[nP].fBall = pkdBall(pkd,p);
@@ -726,6 +731,7 @@ int pkdGravInteract(PKD pkd,
     wp->pInfoOut[nP].uDot = 0.0f;
     wp->pInfoOut[nP].divv = 0.0f;
     wp->pInfoOut[nP].dtEst = HUGE_VALF;
+    }
 
 	wp->pInfoOut[nP].a[0] = 0.0f;
 	wp->pInfoOut[nP].a[1] = 0.0f;

@@ -162,6 +162,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
 	    LinearKick(dTime,dDelta,bKickClose,bKickOpen);
 	    GridDeleteFFT();
         }
+    if (DoGas()) {
     SelAll(0,1);
     SPHOptions SPHoptions = initializeSPHOptions(param,csm,dTime);
     SPHoptions.doGravity = 0;
@@ -177,8 +178,13 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
     uRungMax = Gravity(0,MAX_RUNG,ROOT,0,dTime,dDelta,iStartStep,dTheta,0,bKickOpen,
 	        param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,SPHoptions);
 	MemStatus();
-
-    
+    } else {
+    SPHOptions SPHoptions = initializeSPHOptions(param,csm,dTime);
+    SPHoptions.doGravity = 1;
+    uRungMax = Gravity(0,MAX_RUNG,ROOT,0,dTime,dDelta,iStartStep,dTheta,0,bKickOpen,
+	        param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,SPHoptions);
+	MemStatus();
+    }
 
 	if (param.bGravStep) {
 	    assert(param.bNewKDK == 0);    /* for now! */
@@ -220,6 +226,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
 	    if (bKickOpen) {
 		BuildTree(0);
                 LightConeOpen(iStep);  /* open the lightcone */
+        if (DoGas()) {
         SelAll(0,1);
         SPHOptions SPHoptions = initializeSPHOptions(param,csm,dTime);
         SPHoptions.doGravity = 0;
@@ -233,6 +240,12 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
         SPHoptions.doSPHForces = 1;
         uRungMax = Gravity(0,MAX_RUNG,ROOT,0,ddTime,dDelta,diStep,dTheta,0,1,
 		        param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,SPHoptions);
+        } else {
+        SPHOptions SPHoptions = initializeSPHOptions(param,csm,dTime);
+        SPHoptions.doGravity = 1;
+        uRungMax = Gravity(0,MAX_RUNG,ROOT,0,ddTime,dDelta,diStep,dTheta,0,1,
+		        param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,SPHoptions);
+        }
                 /* Set the grids of the linear species */
                 if (strlen(param.achLinearSpecies) && param.nGridLin > 0){
 		    GridCreateFFT(param.nGridLin);
@@ -244,8 +257,6 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
                     }
 		bKickOpen = 0; /* clear the opening kicking flag */
 		}
-        SPHOptions SPHoptions = initializeSPHOptions(param,csm,dTime);
-        SPHoptions.doGravity = 1;
 	    NewTopStepKDK(ddTime,dDelta,dTheta,nSteps,0,0,&diStep,&uRungMax,&bDoCheckpoint,&bDoOutput,&bKickOpen);
 	    }
 	else {

@@ -417,6 +417,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2,
 					}
 				    iOrder = pkd->bNoParticleOrder ? 0 : p->iOrder;
                     v = pkdVel(pkd,p);
+                    if (pkd->oFieldOffset[oNewSph]) {
                     NEWSPHFIELDS *pNewSph = pkdNewSph(pkd,p);
                     float dtPredDrift = getDtPredDrift(kick,p->bMarked,ts->uRungLo,p->uRung);
                     float Omega = pNewSph->Omega;                     /* should be the Omega field of the sph fields, nyi */
@@ -433,6 +434,15 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2,
 					blk->m.f[jTile], blk->fourh2.f[jTile],
 					iOrder, v[0] + dtPredDrift * ap[0], v[1] + dtPredDrift * ap[1], v[2] + dtPredDrift * ap[2],
                     pkdBall(pkd,p), Omega, pkdDensity(pkd,p), P, cs, pkdSpecies(pkd,p));
+                    } else {
+                    ilpAppend(pkd->ilp,
+					r[0] + blk->xOffset.f[jTile],
+					r[1] + blk->yOffset.f[jTile],
+					r[2] + blk->zOffset.f[jTile],
+					blk->m.f[jTile], blk->fourh2.f[jTile],
+					iOrder, v[0], v[1], v[2],
+                    0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0);
+                    }
 				    }
                     }
 				else {
@@ -469,6 +479,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2,
 					pkdGetPos1(pkd,p,r);
 					iOrder = pkd->bNoParticleOrder ? 0 : p->iOrder;
                     v = pkdVel(pkd,p);
+                    if (pkd->oFieldOffset[oNewSph]) {
                     NEWSPHFIELDS *pNewSph = pkdNewSph(pkd,p);
                     float dtPredDrift = getDtPredDrift(kick,p->bMarked,ts->uRungLo,p->uRung);
                     float Omega = pNewSph->Omega;                 /* should be the Omega field of the sph fields, nyi */
@@ -485,6 +496,15 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2,
 					    fMass, 4*fSoft*fSoft,
 					    iOrder, v[0] + dtPredDrift * ap[0], v[1] + dtPredDrift * ap[1], v[2] + dtPredDrift * ap[2],
                         pkdBall(pkd,p), Omega, pkdDensity(pkd,p), P, cs, pkdSpecies(pkd,p));
+                    } else {
+                    ilpAppend(pkd->ilp,
+					    r[0] + blk->xOffset.f[jTile],
+					    r[1] + blk->yOffset.f[jTile],
+					    r[2] + blk->zOffset.f[jTile],
+					    fMass, 4*fSoft*fSoft,
+					    iOrder, v[0], v[1], v[2],
+                        0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0);
+                    }
                     }
 					}
 				    }
