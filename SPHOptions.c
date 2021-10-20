@@ -36,6 +36,8 @@ SPHOptions initializeSPHOptions(struct parameters param, CSM csm, double dTime){
     SPHoptions.gamma = param.dConstGamma;
     SPHoptions.TuFac = param.dGasConst/(param.dConstGamma - 1)/param.dMeanMolWeight;
     SPHoptions.FastGasFraction = param.dFastGasFraction;
+    SPHoptions.nSmooth = param.nSmooth;
+    SPHoptions.factorNSmooth = 10.0f;
     if (csm->val.bComove) {
         SPHoptions.a = csmTime2Exp(csm,dTime);
         SPHoptions.H = csmTime2Hub(csm,dTime);
@@ -64,6 +66,8 @@ void copySPHOptions(SPHOptions *source, SPHOptions *target) {
     target->gamma = source->gamma;
     target->TuFac = source->TuFac;
     target->FastGasFraction = source->FastGasFraction;
+    target->nSmooth = source->nSmooth;
+    target->factorNSmooth = source->factorNSmooth;
     target->a = source->a;
     target->H = source->H;
     target->doGravity = 0;

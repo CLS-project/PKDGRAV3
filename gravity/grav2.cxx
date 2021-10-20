@@ -102,6 +102,13 @@ void pkdParticleWorkDone(workParticle *wp) {
                 } else {
                     kerneldeviation = 4.0f/3.0f*M_PI*wp->pInfoIn[i].fBall*wp->pInfoIn[i].fBall*wp->pInfoIn[i].fBall*wp->pInfoOut[i].rho - wp->SPHoptions->fKernelTarget;
                 }
+                if (wp->pInfoIn[i].hasTooManyParticles) {
+                    if (wp->pInfoOut[i].nSmooth > wp->SPHoptions->factorNSmooth * wp->SPHoptions->nSmooth) {
+                        kerneldeviation = 1.0f;
+                    } else {
+                        kerneldeviation = 0.0f;
+                    }
+                }
                 kerneldeviation = (kerneldeviation > 0) ? kerneldeviation : -kerneldeviation;
                 maxkerneldeviation = (kerneldeviation > maxkerneldeviation) ? kerneldeviation : maxkerneldeviation;
             }
@@ -124,7 +131,12 @@ void pkdParticleWorkDone(workParticle *wp) {
                         dfdx = prefac * 3.0f * fBall * fBall * wp->pInfoOut[i].rho + prefac * fBall * fBall * fBall * wp->pInfoOut[i].drhodfball;
                     }
                     float newfBall = wp->pInfoIn[i].fBall - fx / dfdx;
-                    if (newfBall < 0.5f * wp->pInfoIn[i].fBall) {
+                    if (wp->pInfoOut[i].nSmooth > wp->SPHoptions->factorNSmooth * wp->SPHoptions->nSmooth) {
+                        wp->pInfoIn[i].hasTooManyParticles = 1;
+                        wp->pInfoIn[i].fBall = 0.95f * wp->pInfoIn[i].fBall;
+                    } else if (wp->pInfoIn[i].hasTooManyParticles && newfBall > wp->pInfoIn[i].fBall) {
+                        wp->pInfoIn[i].fBall = wp->pInfoIn[i].fBall;
+                    } else if (newfBall < 0.5f * wp->pInfoIn[i].fBall) {
                         wp->pInfoIn[i].fBall = 0.5f * wp->pInfoIn[i].fBall;
                     } else if (newfBall > 1.5f * wp->pInfoIn[i].fBall){
                         wp->pInfoIn[i].fBall = 1.5f * wp->pInfoIn[i].fBall;
@@ -691,6 +703,7 @@ int pkdGravInteract(PKD pkd,
     NEWSPHFIELDS *pNewSph = pkdNewSph(pkd,p);
     float dtPredDrift = getDtPredDrift(kick,p->bMarked,ts->uRungLo,p->uRung);
     wp->pInfoIn[nP].fBall = pkdBall(pkd,p);
+    wp->pInfoIn[nP].hasTooManyParticles = 0;
     wp->pInfoIn[nP].Omega = pNewSph->Omega;
     wp->pInfoIn[nP].v[0] = v[0] + dtPredDrift * wp->pInfoIn[nP].a[0];
     wp->pInfoIn[nP].v[1] = v[1] + dtPredDrift * wp->pInfoIn[nP].a[1];
