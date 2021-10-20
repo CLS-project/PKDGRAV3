@@ -349,6 +349,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
 	init = initHydroFluxesCached; /* Cached copies */
 	comb = combThirdHydroLoop;
 	smx->fcnPost = NULL;
+        break;
     case SMX_HYDRO_STEP:
 	assert( pkd->oSph ); /* Validate memory model */
 	smx->fcnSmooth = hydroStep;
