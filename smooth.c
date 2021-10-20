@@ -3114,8 +3114,8 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
                       if (smx->fcnSmoothFillBuffer){
                          PARTICLE * q = smx->nnList[pk].pPart;
 
-                         smx->fcnSmoothFillBuffer(pkd, input_pointers, q, nCnt_p,
-                                         smf->dDelta, fDist2, dx, dy, dz);
+                         smx->fcnSmoothFillBuffer(input_pointers, q, nCnt_p,
+                                                  fDist2, dx, dy, dz, smf);
                       }
 
 
@@ -3132,9 +3132,8 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
                     smx->fcnSmoothNode(partj,pkdBall(pkd,partj),nCnt_p,
                                        input_pointers, output_pointers, smf);
                     for (pk=0;pk<nCnt_p;pk++){
-                       smx->fcnSmoothUpdate(pkd, output_pointers,input_pointers,
-                                            partj, nnList_p[pk].pPart, pk,
-                                            smf->a, smf->dDelta);
+                       smx->fcnSmoothUpdate(output_pointers,input_pointers,
+                                            partj, nnList_p[pk].pPart, pk, smf);
                     }
                 }else{
                    smx->fcnSmooth(partj,pkdBall(pkd,partj),nCnt_p,nnList_p,smf);

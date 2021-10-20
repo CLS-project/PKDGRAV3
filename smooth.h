@@ -43,10 +43,9 @@ typedef struct smContext {
     void (*fcnSmooth)(PARTICLE *,float,int,NN *,SMF *);
     void (*fcnSmoothNode)(PARTICLE *, float, int, double **, double **, SMF *);
     void (*fcnSmoothAllocBuffer)(double **, double ***, double **, double ***, int);
-    void (*fcnSmoothFillBuffer)(PKD, double **, PARTICLE *, int, 
-                                double, double, double, double, double);
-    void (*fcnSmoothUpdate)(PKD, double **, double **, PARTICLE *, PARTICLE*,
-                                int, double, double);
+    void (*fcnSmoothFillBuffer)(double **, PARTICLE *, int,
+                                double, double, double, double, SMF *);
+    void (*fcnSmoothUpdate)(double **, double **, PARTICLE *, PARTICLE*, int, SMF *);
     void (*fcnPost)(void *,PARTICLE *,SMF *);
     int nSmooth;
     int nQueue;

@@ -1020,9 +1020,11 @@ void hydroRiemann_vec(PARTICLE *p,float fBall,int nSmooth,
 }
 
 
-inline void hydroFluxFillBuffer(PKD pkd, my_real **buffer, PARTICLE* q, int i,
-                                double dDelta, double dr2, double dx, double dy, double dz)
+inline void hydroFluxFillBuffer(my_real **buffer, PARTICLE* q, int i, double dr2,
+                                double dx, double dy, double dz, SMF *smf)
 {
+    PKD pkd = smf->pkd;
+    double dDelta = smf->dDelta;
     float qh = pkdBall(pkd,q);
     SPHFIELDS* qsph = pkdSph(pkd,q);
     buffer[q_mass][i] = pkdMass(pkd,q);
@@ -1075,13 +1077,14 @@ inline void hydroFluxFillBuffer(PKD pkd, my_real **buffer, PARTICLE* q, int i,
 }
 
 
-inline void hydroFluxUpdateFromBuffer(PKD pkd,
-                                      my_real **out_buffer, my_real **in_buffer,
-                                      PARTICLE* p, PARTICLE* q,
-                                      int i, double aFac, double dDelta)
+inline void hydroFluxUpdateFromBuffer(my_real **out_buffer, my_real **in_buffer,
+                                      PARTICLE* p, PARTICLE* q, int i, SMF *smf)
 {
+    PKD pkd = smf->pkd;
     SPHFIELDS *psph = pkdSph(pkd,p);
     SPHFIELDS *qsph = pkdSph(pkd,q);
+    double aFac = smf->a;
+    double dDelta = smf->dDelta;
     float *qmass = (float*)pkdField(q,pkd->oMass);
     float *pmass = (float*)pkdField(p,pkd->oMass);
     if (dDelta>0) {
