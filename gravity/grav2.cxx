@@ -103,7 +103,11 @@ void pkdParticleWorkDone(workParticle *wp) {
                     kerneldeviation = 4.0f/3.0f*M_PI*wp->pInfoIn[i].fBall*wp->pInfoIn[i].fBall*wp->pInfoIn[i].fBall*wp->pInfoOut[i].rho - wp->SPHoptions->fKernelTarget;
                 }
                 if (wp->pInfoIn[i].hasTooManyParticles) {
-                    kerneldeviation = 0.0f;
+                    if (wp->pInfoOut[i].nSmooth > wp->SPHoptions->factorNSmooth * wp->SPHoptions->nSmooth) {
+                        kerneldeviation = 1.0f;
+                    } else {
+                        kerneldeviation = 0.0f;
+                    }
                 }
                 kerneldeviation = (kerneldeviation > 0) ? kerneldeviation : -kerneldeviation;
                 maxkerneldeviation = (kerneldeviation > maxkerneldeviation) ? kerneldeviation : maxkerneldeviation;
@@ -127,9 +131,11 @@ void pkdParticleWorkDone(workParticle *wp) {
                         dfdx = prefac * 3.0f * fBall * fBall * wp->pInfoOut[i].rho + prefac * fBall * fBall * fBall * wp->pInfoOut[i].drhodfball;
                     }
                     float newfBall = wp->pInfoIn[i].fBall - fx / dfdx;
-                    if (wp->pInfoOut[i].nSmooth > wp->SPHoptions->factorNSmooth * wp->SPHoptions->nSmooth && newfBall > wp->pInfoIn[i].fBall) {
+                    if (wp->pInfoOut[i].nSmooth > wp->SPHoptions->factorNSmooth * wp->SPHoptions->nSmooth) {
                         wp->pInfoIn[i].hasTooManyParticles = 1;
-                        wp->pInfoIn[i].fBall = 0.99f * wp->pInfoIn[i].fBall;
+                        wp->pInfoIn[i].fBall = 0.95f * wp->pInfoIn[i].fBall;
+                    } else if (wp->pInfoIn[i].hasTooManyParticles && newfBall > wp->pInfoIn[i].fBall) {
+                        wp->pInfoIn[i].fBall = wp->pInfoIn[i].fBall;
                     } else if (newfBall < 0.5f * wp->pInfoIn[i].fBall) {
                         wp->pInfoIn[i].fBall = 0.5f * wp->pInfoIn[i].fBall;
                     } else if (newfBall > 1.5f * wp->pInfoIn[i].fBall){
