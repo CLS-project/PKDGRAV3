@@ -165,7 +165,7 @@ void pkdParticleWorkDone(workParticle *wp) {
 	pkd->dFlopSingleGPU += wp->dFlopSingleGPU;
 	pkd->dFlopDoubleGPU += wp->dFlopDoubleGPU;
 	for( i=0; i<wp->nP; i++ ) {
-	    p = wp->pPart[i];
+        p = CAST(PARTICLE *,mdlAcquireWrite(pkd->mdl,CID_PARTICLE,wp->iPart[i]));
 
         if (pkd->oFieldOffset[oNewSph]) {
             NEWSPHFIELDS *pNewSph = pkdNewSph(pkd,p);
@@ -333,6 +333,7 @@ void pkdParticleWorkDone(workParticle *wp) {
         } else {
             ++pkd->nRung[p->uRung];
         }
+        mdlReleaseWrite(pkd->mdl,CID_PARTICLE,p);
 	    }
 	delete [] wp->pPart;
 	delete [] wp->iPart;
