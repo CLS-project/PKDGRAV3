@@ -1154,7 +1154,7 @@ void MSR::Initialize() {
 		"<SF Use div v for star formation> = 1");
 
     param.fKernelTarget = 0;
-    prmAddParam(prm,"fKernelTarget", 0, &param.fKernelTarget,
+    prmAddParam(prm,"fKernelTarget", 2, &param.fKernelTarget,
         sizeof(double), "fKernelTarget", "Kernel target, either number- or massdensity");
     /* END Gas/Star Parameters */
     param.nOutputParticles = 0;

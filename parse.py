@@ -245,7 +245,7 @@ def parse():
     add_flag(gas,'SFMGM',default=0.0, dest='SFdMinGasMass', type=float, help='SF MGM')
     add_flag(gas,'SFVFB',default=100, dest='SFdvFB', type=float, help='SF dvFB sound speed in FB region expected, km/s')
     add_bool(gas,'SFbdivv',default=False,dest='SFbdivv',help='SF Use div v for star formation')
-    add_flag(gas,'fKerneltarget',default=0, dest='fKerneltarget', type=float, help='Kernel target, either number- or massdensity')
+    add_flag(gas,'fKernelTarget',default=0, dest='fKernelTarget', type=float, help='Kernel target, either number- or massdensity')
 
     debugp = parser.add_argument_group('Debugging/Testing/Diagnostics')
     add_bool(debugp,'nograv',default=False,dest='bNoGrav', help='enable gravity calulation for testing')
