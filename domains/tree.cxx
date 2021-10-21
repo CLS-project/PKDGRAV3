@@ -1316,7 +1316,7 @@ void pkdDistribRoot(PKD pkd,double *r,MOMC *pmom) {
     pkd->ew.mom = *pmom;
     }
 
-void pkdTreeUpdateMarkedFlags(PKD pkd,uint32_t uRoot) {
+void pkdTreeUpdateMarkedFlagsRecurse(PKD pkd,uint32_t uRoot) {
     KDN *c,*cLow,*cUp;
     int id,idLo,iCellLo,idUp,iCellUp;
     PARTICLE *p;
@@ -1334,10 +1334,16 @@ void pkdTreeUpdateMarkedFlags(PKD pkd,uint32_t uRoot) {
         }
     } else {
         pkdGetChildCells(c,id,idLo,iCellLo,idUp,iCellUp);
-        pkdTreeUpdateMarkedFlags(pkd,iCellLo);
-        pkdTreeUpdateMarkedFlags(pkd,iCellUp);
+        pkdTreeUpdateMarkedFlagsRecurse(pkd,iCellLo);
+        pkdTreeUpdateMarkedFlagsRecurse(pkd,iCellUp);
         cLow = pkdTreeNode(pkd,iCellLo);
         cUp = pkdTreeNode(pkd,iCellUp);
         c->bHasMarked = cLow->bHasMarked || cUp->bHasMarked;
     }
+    }
+
+void pkdTreeUpdateMarkedFlags(PKD pkd,uint32_t uRoot) {
+    if (mdlCacheStatus(pkd->mdl,CID_CELL)) mdlFinishCache(pkd->mdl,CID_CELL);
+    pkdTreeUpdateMarkedFlagsRecurse(pkd, uRoot);
+    mdlROcache(pkd->mdl,CID_CELL,pkdTreeNodeGetElement,pkd,pkd->iTreeNodeSize,pkd->nNodes);
     }
