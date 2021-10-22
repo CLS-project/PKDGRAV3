@@ -288,26 +288,6 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf)
 
 
         double temp;
-        if(pkd->csm->val.bComove) {
-
-            for (j=0; j<3; j++) {
-                temp = smf->H * pDeltaHalf * smf->a * pv[j];
-                riemann_input.L.v[j] -= temp;
-                vFrame[j] -= 0.5*temp;
-
-                temp = smf->H * qDeltaHalf * smf->a * qv[j];
-                riemann_input.R.v[j] -= temp;
-                vFrame[j] -= 0.5*temp;
-            }
-
-            riemann_input.L.p -= 3. * smf->H * pDeltaHalf * smf->a *
-                                 (pkd->param.dConstGamma - 1.) * psph->P;
-
-            riemann_input.R.p -= 3. * smf->H * qDeltaHalf * smf->a *
-                                 (pkd->param.dConstGamma - 1.) * qsph->P;
-
-        }
-
 
 
         // Forward extrapolation of velocity
@@ -341,6 +321,26 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf)
         genericPairwiseLimiter(pv[0], qv[0], &riemann_input.L.v[0], &riemann_input.R.v[0]);
         genericPairwiseLimiter(pv[1], qv[1], &riemann_input.L.v[1], &riemann_input.R.v[1]);
         genericPairwiseLimiter(pv[2], qv[2], &riemann_input.L.v[2], &riemann_input.R.v[2]);
+
+        if(pkd->csm->val.bComove) {
+
+            for (j=0; j<3; j++) {
+                temp = smf->H * pDeltaHalf * smf->a * pv[j];
+                riemann_input.L.v[j] -= temp;
+                vFrame[j] -= 0.5*temp;
+
+                temp = smf->H * qDeltaHalf * smf->a * qv[j];
+                riemann_input.R.v[j] -= temp;
+                vFrame[j] -= 0.5*temp;
+            }
+
+            riemann_input.L.p -= 3. * smf->H * pDeltaHalf * smf->a *
+                                 (pkd->param.dConstGamma - 1.) * psph->P;
+
+            riemann_input.R.p -= 3. * smf->H * qDeltaHalf * smf->a *
+                                 (pkd->param.dConstGamma - 1.) * qsph->P;
+
+        }
 
         // DEBUG: Tests for the riemann solver extracted from Toro (10.1007/b79761)
         // Test 1
@@ -794,23 +794,6 @@ void hydroRiemann_vec(PARTICLE *p,float fBall,int nSmooth,
 
 
         my_real temp;
-        if(pkd->csm->val.bComove) {
-
-            for (j=0; j<3; j++) {
-                temp = smf->H * pDeltaHalf * smf->a * pv[j];
-                riemann_input.L.v[j] -= temp;
-                vFrame[j] -= 0.5*temp;
-
-                temp = smf->H * qDeltaHalf * smf->a * qv[j];
-                riemann_input.R.v[j] -= temp;
-                vFrame[j] -= 0.5*temp;
-            }
-
-            riemann_input.L.p -= 3. * smf->H * pDeltaHalf * smf->a * (pkd->param.dConstGamma - 1.) * psph->P;
-            riemann_input.R.p -= 3. * smf->H * qDeltaHalf * smf->a * (pkd->param.dConstGamma - 1.) * q(P);
-
-        }
-
 
 
 
@@ -860,6 +843,23 @@ void hydroRiemann_vec(PARTICLE *p,float fBall,int nSmooth,
         genericPairwiseLimiter(psph->P, q(P), &riemann_input.L.p, &riemann_input.R.p);
         for (j=0; j<3; j++) {
             genericPairwiseLimiter(pv[j], qv[j], &riemann_input.L.v[j], &riemann_input.R.v[j]);
+        }
+
+        if(pkd->csm->val.bComove) {
+
+            for (j=0; j<3; j++) {
+                temp = smf->H * pDeltaHalf * smf->a * pv[j];
+                riemann_input.L.v[j] -= temp;
+                vFrame[j] -= 0.5*temp;
+
+                temp = smf->H * qDeltaHalf * smf->a * qv[j];
+                riemann_input.R.v[j] -= temp;
+                vFrame[j] -= 0.5*temp;
+            }
+
+            riemann_input.L.p -= 3. * smf->H * pDeltaHalf * smf->a * (pkd->param.dConstGamma - 1.) * psph->P;
+            riemann_input.R.p -= 3. * smf->H * qDeltaHalf * smf->a * (pkd->param.dConstGamma - 1.) * q(P);
+
         }
 
         // DEBUG: Tests for the riemann solver extracted from Toro (10.1007/b79761)
