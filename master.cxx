@@ -4231,7 +4231,7 @@ double MSR::Read(const char *achInFile) {
     ActiveRung(0,1); /* Activate all particles */
     DomainDecomp(-1);
     BuildTree(param.bEwald);
-    Smooth(dTime,0.0f,SMX_BALL,0,param.nSmooth);
+    Smooth(dTime,0.0f,SMX_BALL,0,2 * param.nSmooth);
     Reorder();
     dsec = MSR::Time() - sec;
     printf("Initializing fBall complete, Wallclock: %f secs.\n", dsec);
