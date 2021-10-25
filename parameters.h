@@ -25,10 +25,6 @@ struct parameters {
     /*
     ** Parameters for PKDGRAV.
     */
-    int nThreads;
-    int bDiag;
-    int bDedicatedMPI;
-    int bSharedMPI;
     int bOverwrite;
     int bVWarnings;
     int bVStart;
