@@ -544,10 +544,10 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2,
 					r,       /* center of box */
 					fZero3,  /* size of box */
 #if SPHBALLOFBALLS
-                    blk->fBoBr2.f[jTile],blk->fBoBxCenter.f[jTile],blk->fBoByCenter.f[jTile],blk->fBoBzCenter.f[jTile]);
+                    pkdBall(pkd,p),r[0],r[1],r[2]);
 #endif
 #if SPHBOXOFBALLS
-                    blk->fBoBxMin.f[jTile],blk->fBoBxMax.f[jTile],blk->fBoByMin.f[jTile],blk->fBoByMax.f[jTile],blk->fBoBzMin.f[jTile],blk->fBoBzMax.f[jTile]);
+                    r[0]-pkdBall(pkd,p),r[0]+pkdBall(pkd,p),r[1]-pkdBall(pkd,p),r[1]+pkdBall(pkd,p),r[2]-pkdBall(pkd,p),r[2]+pkdBall(pkd,p));
 #endif
 				    }
 				break;
