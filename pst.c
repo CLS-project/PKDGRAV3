@@ -205,8 +205,8 @@ void pstAddServices(PST pst,MDL mdl) {
 		  sizeof(struct inCalcMtot), sizeof(struct outCalcMtot));
     mdlAddService(mdl,PST_SETSPHOPTIONS,pst,(fcnService_t*)pstSetSPHoptions,
 		  sizeof(struct inSetSPHoptions), 0);
-    mdlAddService(mdl,PST_TREEUPDATEMARKEDFLAGS,pst,(fcnService_t*)pstTreeUpdateMarkedFlags,
-	sizeof(struct inBuildTree),
+    mdlAddService(mdl,PST_TREEUPDATEFLAGBOUNDS,pst,(fcnService_t*)pstTreeUpdateFlagBounds,
+	sizeof(struct inTreeUpdateFlagBounds),
 	(nThreads==1?1:2*nThreads-1)*pkdMaxNodeSize());
     mdlAddService(mdl,PST_COUNTDISTANCE,pst,(fcnService_t*)pstCountDistance,
 		  sizeof(struct inCountDistance), sizeof(struct outCountDistance));
@@ -1907,10 +1907,10 @@ int pstSetSPHoptions(PST pst,void *vin,int nIn,void *vout,int nOut) {
     return 0;
     }
 
-int pstTreeUpdateMarkedFlags(PST pst,void *vin,int nIn,void *vout,int nOut) {
+int pstTreeUpdateFlagBounds(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
     PKD pkd = plcl->pkd;
-    struct inBuildTree *in = vin;
+    struct inTreeUpdateFlagBounds *in = vin;
     uint32_t uRoot = in->uRoot;
     KDN *pTop = vout;
     KDN *pCell1, *pCell2;
@@ -1923,8 +1923,8 @@ int pstTreeUpdateMarkedFlags(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	pCell2 = pkdNode(pkd,pTop,pst->nLower*2);
 
 	/* We will accumulate the top tree here */
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_TREEUPDATEMARKEDFLAGS,vin,nIn);
-	nOut = pstTreeUpdateMarkedFlags(pst->pstLower,vin,nIn,pCell1,(pst->nLower*2-1) * pkdNodeSize(pkd));
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_TREEUPDATEFLAGBOUNDS,vin,nIn);
+	nOut = pstTreeUpdateFlagBounds(pst->pstLower,vin,nIn,pCell1,(pst->nLower*2-1) * pkdNodeSize(pkd));
 	assert(nOut == (pst->nLower*2-1) * pkdNodeSize(pkd));
 	mdlGetReply(pst->mdl,rID,pCell2,&nOutUpper);
 	assert(nOutUpper == (pst->nUpper*2-1) * pkdNodeSize(pkd));
@@ -1952,7 +1952,7 @@ int pstTreeUpdateMarkedFlags(PST pst,void *vin,int nIn,void *vout,int nOut) {
     else {
 	KDN *pRoot = pkdTreeNode(pkd,uRoot);
 	pkdTreeAlignNode(pkd);
-	pkdTreeUpdateMarkedFlags(plcl->pkd,uRoot);
+	pkdTreeUpdateFlagBounds(plcl->pkd,uRoot,&in->SPHoptions);
 	pkdCopyNode(pkd,pTop,pRoot);
 	/* Get our cell ready */
 	pTop->bTopTree = 1;

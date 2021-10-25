@@ -47,11 +47,13 @@ typedef struct {
     float FastGasFraction;
     int nSmooth;
     float factorNSmooth;
+    float fBallFactor;
     uint64_t doGravity : 1;
     uint64_t doDensity : 1;
     uint64_t doSPHForces : 1;
     uint64_t doUConversion : 1;
     uint64_t doSetDensityFlags : 1;
+    uint64_t dofBallFactor : 1;
     uint64_t useNumDen : 1;
     uint64_t useAdiabatic : 1;
     uint64_t useDensityFlags : 1;

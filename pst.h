@@ -203,7 +203,7 @@ enum pst_service {
     PST_CALCCOM,
     PST_CALCMTOT,
     PST_SETSPHOPTIONS,
-    PST_TREEUPDATEMARKEDFLAGS,
+    PST_TREEUPDATEFLAGBOUNDS,
     PST_COUNTDISTANCE,
 #ifdef MDL_FFTW
     PST_GRID_CREATE_FFT,
@@ -933,7 +933,16 @@ struct inSetSPHoptions {
     SPHOptions SPHoptions;
     };
 int pstSetSPHoptions(PST pst,void *vin,int nIn,void *vout,int nOut);
-int pstTreeUpdateMarkedFlags(PST pst,void *vin,int nIn,void *vout,int nOut);
+/* PST_TREEUPDATEFLAGBOUNDS */
+struct inTreeUpdateFlagBounds {
+    int nBucket;      /* Bucket Size */
+    int nGroup;       /* Group Size */
+    uint32_t uRoot;   /* Which root node to use */
+    uint32_t utRoot;  /* Template tree */
+    double ddHonHLimit;
+    SPHOptions SPHoptions;
+    };
+int pstTreeUpdateFlagBounds(PST pst,void *vin,int nIn,void *vout,int nOut);
 
 /* PST_COUNTDISTANCE */
 struct inCountDistance {

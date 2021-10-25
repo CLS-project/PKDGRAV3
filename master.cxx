@@ -3375,8 +3375,8 @@ int MSR::NewTopStepKDK(
     SPHoptions.useDensityFlags = 0;
     if (nParticlesOnRung/((float) N) < SPHoptions.FastGasFraction) {
         SPHoptions.useDensityFlags = 1;
-        //BuildTree(param.bEwald);
-        TreeUpdateMarkedFlags(param.bEwald,ROOT,0);
+        SPHoptions.dofBallFactor = 1;
+        TreeUpdateFlagBounds(param.bEwald,ROOT,0,SPHoptions);
         *puRungMax = Gravity(uRung,MaxRung(),ROOT,uRoot2,dTime,dDelta,*pdStep,dTheta,
     	1,bKickOpen,param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,nGroup,SPHoptions);
     } else {
@@ -3388,6 +3388,8 @@ int MSR::NewTopStepKDK(
     SPHoptions.doDensity = 0;
     SPHoptions.doSPHForces = 1;
     SPHoptions.useDensityFlags = 0;
+    SPHoptions.dofBallFactor = 0;
+    TreeUpdateFlagBounds(param.bEwald,ROOT,0,SPHoptions);
     *puRungMax = Gravity(uRung,MaxRung(),ROOT,uRoot2,dTime,dDelta,*pdStep,dTheta,
     	1,bKickOpen,param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,nGroup,SPHoptions);
     } else {
@@ -4593,8 +4595,8 @@ void MSR::SetSPHoptions() {
     pstSetSPHoptions(pst, &in, sizeof(in), NULL, 0);
 }
 
-void MSR::TreeUpdateMarkedFlags(int bNeedEwald,uint32_t uRoot,uint32_t utRoot) {
-    struct inBuildTree in;
+void MSR::TreeUpdateFlagBounds(int bNeedEwald,uint32_t uRoot,uint32_t utRoot,SPHOptions SPHoptions) {
+    struct inTreeUpdateFlagBounds in;
     const double ddHonHLimit = param.ddHonHLimit;
     PST pst0;
     LCL *plcl;
@@ -4623,8 +4625,9 @@ void MSR::TreeUpdateMarkedFlags(int bNeedEwald,uint32_t uRoot,uint32_t utRoot) {
     in.uRoot = uRoot;
     in.utRoot = utRoot;
     in.ddHonHLimit = ddHonHLimit;
+    in.SPHoptions = SPHoptions;
     sec = MSR::Time();
-    nTopTree = pstTreeUpdateMarkedFlags(pst,&in,sizeof(in),pkdn,nTopTree);
+    nTopTree = pstTreeUpdateFlagBounds(pst,&in,sizeof(in),pkdn,nTopTree);
     pDistribTop->nTop = nTopTree / pkdNodeSize(pkd);
     assert(pDistribTop->nTop == (2*nThreads-1));
     mdl->RunService(PST_DISTRIBTOPTREE,nMsgSize,pDistribTop);

@@ -1521,7 +1521,7 @@ void pkdCalcCOM(PKD pkd, double *dCenter, double dRadius, int bPeriodic,
 		double *com, double *vcm, double *L,
 		double *M, uint64_t *N);
 void pkdCalcMtot(PKD pkd, double *M, uint64_t *N);
-void pkdTreeUpdateMarkedFlags(PKD pkd,uint32_t uRoot);
+void pkdTreeUpdateFlagBounds(PKD pkd,uint32_t uRoot,SPHOptions *SPHoptions);
 #ifdef MDL_FFTW
 void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int iAssignment, int iGrid, float dDelta);
 void pkdInterlace(PKD pkd, int iGridTarget, int iGridSource);

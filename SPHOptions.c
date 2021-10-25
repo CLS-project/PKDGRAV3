@@ -38,6 +38,7 @@ SPHOptions initializeSPHOptions(struct parameters param, CSM csm, double dTime){
     SPHoptions.FastGasFraction = param.dFastGasFraction;
     SPHoptions.nSmooth = param.nSmooth;
     SPHoptions.factorNSmooth = 10.0f;
+    SPHoptions.fBallFactor = 1.1f;
     if (csm->val.bComove) {
         SPHoptions.a = csmTime2Exp(csm,dTime);
         SPHoptions.H = csmTime2Hub(csm,dTime);
@@ -50,6 +51,7 @@ SPHOptions initializeSPHOptions(struct parameters param, CSM csm, double dTime){
     SPHoptions.doSPHForces = 0;
     SPHoptions.doUConversion = 0;
     SPHoptions.doSetDensityFlags = 0;
+    SPHoptions.dofBallFactor = 0;
     SPHoptions.useNumDen = 0;
     SPHoptions.useAdiabatic = param.bGasAdiabatic;
     SPHoptions.useDensityFlags = 0;
@@ -68,6 +70,7 @@ void copySPHOptions(SPHOptions *source, SPHOptions *target) {
     target->FastGasFraction = source->FastGasFraction;
     target->nSmooth = source->nSmooth;
     target->factorNSmooth = source->factorNSmooth;
+    target->fBallFactor = source->fBallFactor;
     target->a = source->a;
     target->H = source->H;
     target->doGravity = 0;
@@ -75,6 +78,7 @@ void copySPHOptions(SPHOptions *source, SPHOptions *target) {
     target->doSPHForces = 0;
     target->doUConversion = 0;
     target->doSetDensityFlags = 0;
+    target->dofBallFactor = 0;
     target->useNumDen = source->useNumDen;
     target->useAdiabatic = source->useAdiabatic;
     target->useDensityFlags = 0;
