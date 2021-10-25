@@ -33,6 +33,7 @@
 #endif
 #include "basetype.h"
 #include "io/iomodule.h"
+#include "SPHOptions.h"
 
 #ifdef __cplusplus
 #include "blitz/array.h"
@@ -396,10 +397,20 @@ typedef struct kdNode {
     uint32_t bRemote    : 1; /* children are remote */
     float bMax;
     float fSoft2;
+#if SPHBALLOFBALLS
     float fBoBr2;       /* Ball of Balls radius squared */
     float fBoBxCenter;
     float fBoByCenter;
     float fBoBzCenter;
+#endif
+#if SPHBOXOFBALLS
+    float fBoBxMin;
+    float fBoBxMax;
+    float fBoByMin;
+    float fBoByMax;
+    float fBoBzMin;
+    float fBoBzMax;
+#endif
     uint64_t bHasMarked : 1;         /* flag if node has a marked particle, there are still 31 bit left*/
     } KDN;
 

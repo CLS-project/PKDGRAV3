@@ -30,6 +30,7 @@
 #include <assert.h>
 #include "pkd.h"
 #include "gravity/moments.h"
+#include "../SPHOptions.h"
 
 #ifdef HAVE_SYS_TIME_H
 #include <sys/time.h>
@@ -538,6 +539,7 @@ void BuildFromTemplate(PKD pkd,int iNode,int M,int nGroup,int iTemplate) {
 static vel_t zeroV[3] = {0.0,0.0,0.0};
 static float  zeroF[3] = {0.0,0.0,0.0};
 
+#if SPHBALLOFBALLS
 void CombineBallOfBalls(double fBall1, double fBoBxCenter1, double fBoByCenter1, double fBoBzCenter1,
     double fBall2, double fBoBxCenter2, double fBoByCenter2, double fBoBzCenter2,
     double &fBallNew, double &fBoBxCenterNew, double &fBoByCenterNew, double &fBoBzCenterNew) {
@@ -580,6 +582,7 @@ void CombineBallOfBalls(double fBall1, double fBoBxCenter1, double fBoByCenter1,
         fBallNew = radius;
     }
     }
+#endif
 
 void Create(PKD pkd,int iRoot,double ddHonHLimit) {
     int iNode = iRoot;
@@ -589,7 +592,13 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
     SPHBNDS *bn;
     double kdn_r[3];
     double fSoft,x,y,z,ax,ay,az,ft[3],d2,d2Max,dih2,bmin,b;
-    double dx,dy,dz,fBoBr,fBoBxCenter,fBoByCenter,fBoBzCenter;
+    double dx,dy,dz;
+#if SPHBALLOFBALLS
+    double fBoBr,fBoBxCenter,fBoByCenter,fBoBzCenter;
+#endif
+#if SPHBOXOFBALLS
+    double fBoBxMin,fBoBxMax,fBoByMin,fBoByMax,fBoBzMin,fBoBzMax;
+#endif
     float *a, m, fMass, fBall;
     vel_t *v, vx, vy, vz;
     int pj,d,nDepth,ism;
@@ -692,11 +701,21 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
 	pkdGetPos3(pkd,p,x,y,z);
 
     if (pkd->oFieldOffset[oBall]) {
-    /* initialize ball of balls */
+    /* initialize ball or box of balls */
+#if SPHBALLOFBALLS
     fBoBr = pkdBall(pkd,p);
     fBoBxCenter = x;
     fBoByCenter = y;
     fBoBzCenter = z;
+#endif
+#if SPHBOXOFBALLS
+    fBoBxMin = x - pkdBall(pkd,p);
+    fBoBxMax = x + pkdBall(pkd,p);
+    fBoByMin = y - pkdBall(pkd,p);
+    fBoByMax = y + pkdBall(pkd,p);
+    fBoBzMin = z - pkdBall(pkd,p);
+    fBoBzMax = z + pkdBall(pkd,p);
+#endif
     }
     /* initialize marked flag */
     pkdn->bHasMarked = p->bMarked;
@@ -722,7 +741,17 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
 	    pkdGetPos1(pkd,p,ft);
 
         if (pkd->oFieldOffset[oBall]){
+#if SPHBALLOFBALLS
         CombineBallOfBalls(fBoBr,fBoBxCenter,fBoByCenter,fBoBzCenter,pkdBall(pkd,p),ft[0],ft[1],ft[2],fBoBr,fBoBxCenter,fBoByCenter,fBoBzCenter);
+#endif
+#if SPHBOXOFBALLS
+        fBoBxMin = fmin(fBoBxMin,ft[0] - pkdBall(pkd,p));
+        fBoBxMax = fmax(fBoBxMax,ft[0] + pkdBall(pkd,p));
+        fBoByMin = fmin(fBoByMin,ft[1] - pkdBall(pkd,p));
+        fBoByMax = fmax(fBoByMax,ft[1] + pkdBall(pkd,p));
+        fBoBzMin = fmin(fBoBzMin,ft[2] - pkdBall(pkd,p));
+        fBoBzMax = fmax(fBoBzMax,ft[2] + pkdBall(pkd,p));
+#endif
         }
         if (p->bMarked) pkdn->bHasMarked = 1;
 
@@ -757,15 +786,35 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
 	    }
 	pkdn->fSoft2 = dih2*dih2;
     if (pkd->oFieldOffset[oBall]) {
+#if SPHBALLOFBALLS
     pkdn->fBoBr2 = fBoBr*fBoBr;
     pkdn->fBoBxCenter = fBoBxCenter;
     pkdn->fBoByCenter = fBoByCenter;
     pkdn->fBoBzCenter = fBoBzCenter;
+#endif
+#if SPHBOXOFBALLS
+    pkdn->fBoBxMin = fBoBxMin;
+    pkdn->fBoBxMax = fBoBxMax;
+    pkdn->fBoByMin = fBoByMin;
+    pkdn->fBoByMax = fBoByMax;
+    pkdn->fBoBzMin = fBoBzMin;
+    pkdn->fBoBzMax = fBoBzMax;
+#endif
     } else {
+#if SPHBALLOFBALLS
     pkdn->fBoBr2 = 0.0f;
     pkdn->fBoBxCenter = 0.0f;
     pkdn->fBoByCenter = 0.0f;
     pkdn->fBoBzCenter = 0.0f;
+#endif
+#if SPHBOXOFBALLS
+    pkdn->fBoBxMin = 0.0f;
+    pkdn->fBoBxMax = 0.0f;
+    pkdn->fBoByMin = 0.0f;
+    pkdn->fBoByMax = 0.0f;
+    pkdn->fBoBzMin = 0.0f;
+    pkdn->fBoBzMax = 0.0f;
+#endif
     }
 	d2Max = 0.0;
 	for (pj=pkdn->pLower;pj<=pkdn->pUpper;++pj) {
@@ -987,18 +1036,38 @@ void pkdCombineCells1(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
     pkdn->uMaxRung = p1->uMaxRung > p2->uMaxRung ? p1->uMaxRung : p2->uMaxRung;
 
     if (pkd->oFieldOffset[oNewSph]) {
-    /* Combine ball of balls */
+    /* Combine ball or box of balls */
+#if SPHBALLOFBALLS
     double fBoBr,fBoBxCenter,fBoByCenter,fBoBzCenter;
     CombineBallOfBalls(sqrt(p1->fBoBr2),p1->fBoBxCenter,p1->fBoByCenter,p1->fBoBzCenter,sqrt(p2->fBoBr2),p2->fBoBxCenter,p2->fBoByCenter,p2->fBoBzCenter,fBoBr,fBoBxCenter,fBoByCenter,fBoBzCenter);
     pkdn->fBoBxCenter = fBoBxCenter;
     pkdn->fBoByCenter = fBoByCenter;
     pkdn->fBoBzCenter = fBoBzCenter;
     pkdn->fBoBr2 = fBoBr * fBoBr;
+#endif
+#if SPHBOXOFBALLS
+    pkdn->fBoBxMin = fmin(p1->fBoBxMin,p2->fBoBxMin);
+    pkdn->fBoBxMax = fmax(p1->fBoBxMax,p2->fBoBxMax);
+    pkdn->fBoByMin = fmin(p1->fBoByMin,p2->fBoByMin);
+    pkdn->fBoByMax = fmax(p1->fBoByMax,p2->fBoByMax);
+    pkdn->fBoBzMin = fmin(p1->fBoBzMin,p2->fBoBzMin);
+    pkdn->fBoBzMax = fmax(p1->fBoBzMax,p2->fBoBzMax);
+#endif
     } else {
+#if SPHBALLOFBALLS
     pkdn->fBoBxCenter = 0.0f;
     pkdn->fBoByCenter = 0.0f;
     pkdn->fBoBzCenter = 0.0f;
     pkdn->fBoBr2 = 0.0f;
+#endif
+#if SPHBOXOFBALLS
+    pkdn->fBoBxMin = 0.0f;
+    pkdn->fBoBxMax = 0.0f;
+    pkdn->fBoByMin = 0.0f;
+    pkdn->fBoByMax = 0.0f;
+    pkdn->fBoBzMin = 0.0f;
+    pkdn->fBoBzMax = 0.0f;
+#endif
     }
     /* Combine marked flag */
     pkdn->bHasMarked = p1->bHasMarked || p2->bHasMarked;

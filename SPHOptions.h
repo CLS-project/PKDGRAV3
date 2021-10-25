@@ -18,6 +18,14 @@
 #ifndef SPHOPTIONS_HINCLUDED
 #define SPHOPTIONS_HINCLUDED
 
+#define SPHBALLOFBALLS 0
+#define SPHBOXOFBALLS 1
+
+#if !(SPHBALLOFBALLS | SPHBOXOFBALLS) | (SPHBALLOFBALLS & SPHBOXOFBALLS)
+#error "Define either SPHBALLOFBALLS or SPHBOXOFBALLS in SPHOptions.h"
+#endif
+
+
 #include <stdint.h>
 #include "parameters.h"
 

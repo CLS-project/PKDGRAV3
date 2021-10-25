@@ -45,7 +45,7 @@
 #include "cuda/cudautil.h"
 #include "cuda/cudapppc.h"
 #include "cuda/cudaewald.h"
-#include "SPHOptions.h"
+#include "../SPHOptions.h"
 
 static inline int getCell(PKD pkd,int iCache,int iCell,int id,float *pcOpen,KDN **pc) {
     KDN *c;
@@ -203,7 +203,12 @@ static void addChild(PKD pkd, int iCache, CL cl, int iChild, int id, float *fOff
     BND cbnd = pkdNodeGetBnd(pkd,c);
     pkdGetChildCells(c,id,idLower,iLower,idUpper,iUpper);
     clAppend(cl,iCache,id,iChild,idLower,iLower,idUpper,iUpper,nc,cOpen,
+#if SPHBALLOFBALLS
 	pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c_r,fOffset,cbnd.fCenter,cbnd.fMax,c->fBoBr2,c->fBoBxCenter,c->fBoByCenter,c->fBoBzCenter);
+#endif
+#if SPHBOXOFBALLS
+    pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c_r,fOffset,cbnd.fCenter,cbnd.fMax,c->fBoBxMin,c->fBoBxMax,c->fBoByMin,c->fBoByMax,c->fBoBzMin,c->fBoBzMax);
+#endif
     }
 /*
 ** Returns total number of active particles for which gravity was calculated.
@@ -538,7 +543,12 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2,
 					fOffset, /* fOffset */
 					r,       /* center of box */
 					fZero3,  /* size of box */
+#if SPHBALLOFBALLS
                     blk->fBoBr2.f[jTile],blk->fBoBxCenter.f[jTile],blk->fBoByCenter.f[jTile],blk->fBoBzCenter.f[jTile]);
+#endif
+#if SPHBOXOFBALLS
+                    blk->fBoBxMin.f[jTile],blk->fBoBxMax.f[jTile],blk->fBoByMin.f[jTile],blk->fBoByMax.f[jTile],blk->fBoBzMin.f[jTile],blk->fBoBzMax.f[jTile]);
+#endif
 				    }
 				break;
 			    case 3:

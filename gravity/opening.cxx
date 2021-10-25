@@ -24,6 +24,7 @@
 #include "core/simd.h"
 #include "pkd.h"
 #include "opening.h"
+#include "../SPHOptions.h"
 
 /*
 ** This implements the original pkdgrav2m opening criterion, which has been
@@ -36,7 +37,13 @@ void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,SPHOption
     const float walk_min_multipole = 3;
     fmask T0,T1,T2,T3,T4,T6,T7;
     i32v P1,P2,P3,P4;
-    fvec xc,yc,zc,dx,dy,dz,d2,diCrit,cOpen,cOpen2,d2Open,mink2,minbnd2,fourh2,distk2,distc2;
+    fvec xc,yc,zc,dx,dy,dz,d2,diCrit,cOpen,cOpen2,d2Open,mink2,minbnd2,fourh2;
+#if SPHBALLOFBALLS
+    fvec distk2,distc2;
+#endif
+#if SPHBOXOFBALLS
+    fvec box1xMin, box1xMax, box1yMin, box1yMax, box1zMin, box1zMax, box2xMin, box2xMax, box2yMin, box2yMax, box2zMin, box2zMax;
+#endif
     int i,iEnd,nLeft;
     CL_BLK *blk;
     i32v iOpen,iOpenA,iOpenB;
@@ -71,10 +78,16 @@ void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,SPHOption
     k_bMax = k->bMax;
     k_notgrp = cvt_fvec(i32v(k->bGroup)) == 0.0;
     k_Open = 1.5f*k_bMax*diCrit;
+#if SPHBALLOFBALLS
     k_fBoBr2 = k->fBoBr2;
     blk_fBoBr2 = 0.0f;
     distk2 = HUGE_VALF;
     distc2 = HUGE_VALF;
+#endif
+
+    fmask intersect1, intersect2;
+    intersect1 = 0;
+    intersect2 = 0;
 
     blk = tile->blk;
     for(nLeft=tile->lstTile.nBlocks; nLeft>=0; --nLeft,blk++) {
@@ -84,6 +97,7 @@ void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,SPHOption
 	    fourh2 = blk->fourh2.p[i];
 
         if (SPHoptions->doDensity || SPHoptions->doSPHForces || SPHoptions->doSetDensityFlags) {
+#if SPHBALLOFBALLS
             distk2 = 0.0f;
             dx = k->fBoBxCenter - fvec(blk->xCenter.p[i]) - fvec(blk->xOffset.p[i]) - fvec(blk->xMax.p[i]);
             distk2 += maskz_mov(dx>0,dx*dx);
@@ -99,8 +113,26 @@ void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,SPHOption
             distk2 += maskz_mov(dx>0,dx*dx);
             dx = fvec(blk->zCenter.p[i]) + fvec(blk->zOffset.p[i]) - fvec(blk->zMax.p[i]) - k->fBoBzCenter;
             distk2 += maskz_mov(dx>0,dx*dx);
+            intersect1 = distk2 < k_fBoBr2;
+#endif
+#if SPHBOXOFBALLS
+            box1xMin = k->fBoBxMin;
+            box1xMax = k->fBoBxMax;
+            box1yMin = k->fBoByMin;
+            box1yMax = k->fBoByMax;
+            box1zMin = k->fBoBzMin;
+            box1zMax = k->fBoBzMax;
+            box2xMin = fvec(blk->xCenter.p[i]) + fvec(blk->xOffset.p[i]) - fvec(blk->xMax.p[i]);
+            box2xMax = fvec(blk->xCenter.p[i]) + fvec(blk->xOffset.p[i]) + fvec(blk->xMax.p[i]);
+            box2yMin = fvec(blk->yCenter.p[i]) + fvec(blk->yOffset.p[i]) - fvec(blk->yMax.p[i]);
+            box2yMax = fvec(blk->yCenter.p[i]) + fvec(blk->yOffset.p[i]) + fvec(blk->yMax.p[i]);
+            box2zMin = fvec(blk->zCenter.p[i]) + fvec(blk->zOffset.p[i]) - fvec(blk->zMax.p[i]);
+            box2zMax = fvec(blk->zCenter.p[i]) + fvec(blk->zOffset.p[i]) + fvec(blk->zMax.p[i]);
+            intersect1 = (box1xMin < box2xMax) & (box2xMin < box1xMax) & (box1yMin < box2yMax) & (box2yMin < box1yMax) & (box1zMin < box2zMax) & (box2zMin < box1zMax);
+#endif
         }
         if (SPHoptions->doSPHForces || SPHoptions->doSetDensityFlags) {
+#if SPHBALLOFBALLS
             blk_fBoBr2 = blk->fBoBr2.p[i];
             distc2 = 0.0f;
             dx = k_xMinBnd - fvec(blk->fBoBxCenter.p[i]) - fvec(blk->xOffset.p[i]);
@@ -117,6 +149,23 @@ void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,SPHOption
             distc2 += maskz_mov(dx>0,dx*dx);
             dx = fvec(blk->fBoBzCenter.p[i]) + fvec(blk->zOffset.p[i]) - k_zMaxBnd;
             distc2 += maskz_mov(dx>0,dx*dx);
+            intersect2 = distc2 < blk_fBoBr2;
+#endif
+#if SPHBOXOFBALLS
+            box1xMin = k_xMinBnd;
+            box1xMax = k_xMaxBnd;
+            box1yMin = k_yMinBnd;
+            box1yMax = k_yMaxBnd;
+            box1zMin = k_zMinBnd;
+            box1zMax = k_zMaxBnd;
+            box2xMin = fvec(blk->fBoBxMin.p[i]) + fvec(blk->xOffset.p[i]);
+            box2xMax = fvec(blk->fBoBxMax.p[i]) + fvec(blk->xOffset.p[i]);
+            box2yMin = fvec(blk->fBoByMin.p[i]) + fvec(blk->yOffset.p[i]);
+            box2yMax = fvec(blk->fBoByMax.p[i]) + fvec(blk->yOffset.p[i]);
+            box2zMin = fvec(blk->fBoBzMin.p[i]) + fvec(blk->zOffset.p[i]);
+            box2zMax = fvec(blk->fBoBzMax.p[i]) + fvec(blk->zOffset.p[i]);
+            intersect2 = (box1xMin < box2xMax) & (box2xMin < box1xMax) & (box1yMin < box2yMax) & (box2yMin < box1yMax) & (box1zMin < box2zMax) & (box2zMin < box1zMax);
+#endif
         }
 
 	    xc = fvec(blk->x.p[i]) + fvec(blk->xOffset.p[i]);
@@ -157,10 +206,10 @@ void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,SPHOption
 	    minbnd2 += maskz_mov(dx>0,dx*dx);
 
 	    T0 = fvec(blk->m.p[i]) > fvec(0.0f);
-	    T1 = (d2>d2Open) & (minbnd2>fourh2) & (distk2 > k_fBoBr2) & (distc2 > blk_fBoBr2);
+	    T1 = (d2>d2Open) & (minbnd2>fourh2) & ~intersect1 & ~intersect2;
 	    T2 = cvt_fvec(i32v(blk->iLower.p[i])) == 0.0;
 	    T3 = (walk_min_multipole > cvt_fvec(i32v(blk->nc.p[i]))) | (mink2<=cOpen2);
-	    T4 = (minbnd2 > fourh2) & (distk2 > k_fBoBr2) & (distc2 > blk_fBoBr2);
+	    T4 = (minbnd2 > fourh2) & ~intersect1 & ~intersect2;
 	    T6 = cOpen > k_Open;
 	    T7 = k_notgrp;
  	    iOpenA = mask_mov(i32v(3),T2,i32v(1));
