@@ -203,6 +203,8 @@ void pstAddServices(PST pst,MDL mdl) {
 		  sizeof(struct inCalcCOM), sizeof(struct outCalcCOM));
     mdlAddService(mdl,PST_CALCMTOT,pst,(fcnService_t*)pstCalcMtot,
 		  sizeof(struct inCalcMtot), sizeof(struct outCalcMtot));
+    mdlAddService(mdl,PST_SETSPHOPTIONS,pst,(fcnService_t*)pstSetSPHoptions,
+		  sizeof(struct inSetSPHoptions), 0);
     mdlAddService(mdl,PST_TREEUPDATEMARKEDFLAGS,pst,(fcnService_t*)pstTreeUpdateMarkedFlags,
 	sizeof(struct inBuildTree),
 	(nThreads==1?1:2*nThreads-1)*pkdMaxNodeSize());
@@ -1886,6 +1888,23 @@ int pstCalcMtot(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	pkdCalcMtot(plcl->pkd,&out->M, &out->N);
 	}
     return sizeof(struct outCalcMtot);
+    }
+
+
+int pstSetSPHoptions(PST pst,void *vin,int nIn,void *vout,int nOut) {
+    LCL *plcl = pst->plcl;
+    struct inSetSPHoptions *in = vin;
+    int i;
+
+    assert( nIn==sizeof(struct inSetSPHoptions) );
+    if (pst->nLeaves > 1) {
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SETSPHOPTIONS,vin,nIn);
+	pstSetSPHoptions(pst->pstLower,vin,nIn,vout,nOut);
+	mdlGetReply(pst->mdl,rID,NULL,NULL);
+    } else {
+    copySPHOptions(&in->SPHoptions, &plcl->pkd->SPHoptions);
+	}
+    return 0;
     }
 
 int pstTreeUpdateMarkedFlags(PST pst,void *vin,int nIn,void *vout,int nOut) {

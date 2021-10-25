@@ -2086,10 +2086,6 @@ void pkdGravAll(PKD pkd,
     pkd->dFlopSingleCPU = pkd->dFlopDoubleCPU = 0.0;
     pkd->dFlopSingleGPU = pkd->dFlopDoubleGPU = 0.0;
 
-    if ( pkd->SPHoptions.TuFac < 0.0f) {
-        copySPHOptions(SPHoptions, &pkd->SPHoptions);
-    }
-
     *pnActive = pkdGravWalk(pkd,kick,lc,ts,
 	dTime,nReps,bPeriodic && bEwald,nGroup,
 	iRoot1,iRoot2,0,dThetaMin,pdFlop,&dPartSum,&dCellSum,SPHoptions);

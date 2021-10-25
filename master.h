@@ -361,6 +361,7 @@ protected:
     void CalcCOM(const double *dCenter, double dRadius,
 		double *com, double *vcm, double *L, double *M);
     void CalcMtot(double *M, uint64_t *N);
+    void SetSPHoptions();
     void TreeUpdateMarkedFlags(int bNeedEwald,uint32_t uRoot,uint32_t utRoot);
 
 public:

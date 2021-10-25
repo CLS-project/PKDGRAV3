@@ -382,6 +382,7 @@ void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTi
     }
     dsec = MSR::Time() - sec;
     printf("Initializing Kernel target complete, Wallclock: %f secs.\n", dsec);
+    SetSPHoptions();
     }
 
     Simulate(dTime,dDelta,iStep,nSteps);
@@ -4221,6 +4222,8 @@ double MSR::Read(const char *achInFile) {
     dsec = MSR::Time() - sec;
     printf("Initializing Kernel target complete, Wallclock: %f secs.\n", dsec);
 
+    SetSPHoptions();
+
     if (prmSpecified(prm,"dSoft")) SetSoft(Soft());
     /*
     ** Initialize fBall
@@ -4583,6 +4586,12 @@ void MSR::CalcMtot(double *M, uint64_t *N) {
     *M = out.M;
     *N = out.N;
     }
+
+void MSR::SetSPHoptions() {
+    struct inSetSPHoptions in;
+    in.SPHoptions = initializeSPHOptions(param,csm,0.0);
+    pstSetSPHoptions(pst, &in, sizeof(in), NULL, 0);
+}
 
 void MSR::TreeUpdateMarkedFlags(int bNeedEwald,uint32_t uRoot,uint32_t utRoot) {
     struct inBuildTree in;
