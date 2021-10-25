@@ -2445,10 +2445,6 @@ void pkdWriteViaNode(PKD pkd, int iNode) {
     }
 
 void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dScaleFactor, double dTime, uint64_t nDark, uint64_t nGas, uint64_t nStar, uint64_t nBH){
-   /* Restart information IA: Unused?*/
-   //fioSetAttr(fio, "dEcosmo",  FIO_TYPE_DOUBLE, &in->dEcosmo );
-   //fioSetAttr(fio, "dTimeOld", FIO_TYPE_DOUBLE, &in->dTimeOld );
-   //fioSetAttr(fio, "dUOld",    FIO_TYPE_DOUBLE, &in->dUOld );
    
    fioSetAttr(fio, 0, "Time", FIO_TYPE_DOUBLE, 1, &dTime);
    if (pkd->csm->val.bComove){
@@ -2477,6 +2473,24 @@ void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dScaleFactor, double dTime, uint
 #endif
    fioSetAttr(fio, 0, "Flag_Cooling", FIO_TYPE_INT, 1, &flag);
 
+#ifdef STAR_FORMATION
+   flag=1;
+#else
+   flag=0;
+#endif
+   fioSetAttr(fio, 0, "Flag_StellarAge", FIO_TYPE_INT, 1, &flag);
+
+#ifdef HAVE_METALLICITY
+   flag=1;
+#else
+   flag=0;
+#endif
+   fioSetAttr(fio, 0, "Flag_Metals", FIO_TYPE_INT, 1, &flag);
+
+   // In HDF5 format the position and velocities are always stored as doubles
+   flag=1;
+   fioSetAttr(fio, 0, "Flag_DoublePrecision", FIO_TYPE_INT, 1, &flag);
+
    fioSetAttr(fio, 0, "BoxSize", FIO_TYPE_DOUBLE, 1, &pkd->param.dBoxSize);
    int nProcessors = pkd->param.bParaWrite==0?1:(pkd->param.nParaWrite<=1 ? pkd->nThreads:pkd->param.nParaWrite);
    fioSetAttr(fio, 0, "NumFilesPerSnapshot", FIO_TYPE_INT, 1, &nProcessors);
@@ -2494,7 +2508,7 @@ void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dScaleFactor, double dTime, uint
    numPart_file[0] = nGas;
    numPart_file[1] = nDark;
    numPart_file[2] = 0;
-   numPart_file[3] = nBH; //TODO, random assigment, ask Claudio
+   numPart_file[3] = nBH;
    numPart_file[4] = nStar;
    numPart_file[5] = 0;
 
