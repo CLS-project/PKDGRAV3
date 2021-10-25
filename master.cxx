@@ -462,24 +462,8 @@ void MSR::Initialize() {
     csmInitialize(&csm);
     /*
     ** Now setup for the input parameters.
-    **
-    ** NOTE: nThreads & bDiag are parsed here, but the actual values are
-    ** read from the command line via mdlInitialize(). This means the
-    ** values of nThreads & bDiag read by prmAddParam() are ignored!
     */
     prmInitialize(&prm,MSR::Leader,MSR::Trailer);
-    param.nThreads = 1;
-    prmAddParam(prm,"nThreads",1,&param.nThreads,sizeof(int),"sz",
-		"<nThreads>");
-    param.bDiag = 0;
-    prmAddParam(prm,"bDiag",0,&param.bDiag,sizeof(int),"d",
-		"enable/disable per thread diagnostic output");
-    param.bDedicatedMPI = 0;
-    prmAddParam(prm,"bDedicatedMPI",0,&param.bDedicatedMPI,sizeof(int),"dedicated",
-		"enable/disable dedicated MPI thread");
-    param.bSharedMPI = 0;
-    prmAddParam(prm,"bSharedMPI",0,&param.bSharedMPI,sizeof(int),"sharedmpi",
-		"enable/disable extra dedicated MPI thread");
     param.bOverwrite = 0;
     prmAddParam(prm,"bOverwrite",0,&param.bOverwrite,sizeof(int),
 		"overwrite","enable/disable overwrite safety lock = -overwrite");
