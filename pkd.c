@@ -1534,16 +1534,16 @@ typedef struct {
 
 static void queue_dio(asyncInfo *info,int i,int bWrite) {
     size_t nBytes = info->nBytes > info->nBufferSize ? info->nBufferSize : info->nBytes;
-    size_t nBytesWrite;
+    size_t nBytesTrans;
     int rc;
 
     /* Align buffer size for direct I/O. File will be truncated before closing if writing */
-    nBytesWrite = (nBytes+info->nPageSize-1) & ~(info->nPageSize-1);
-    memset(info->pSource+nBytes,0,nBytesWrite-nBytes); /* pad buffer */
+    nBytesTrans = bWrite ? (nBytes+info->nPageSize-1) & ~(info->nPageSize-1) : nBytes;
+    memset(info->pSource+nBytes,0,nBytesTrans-nBytes); /* pad buffer */
 #ifdef HAVE_LIBAIO
     struct iocb *pcb = &info->cb[i];
-    if (bWrite) io_prep_pwrite(info->cb+i,info->fd,info->pSource,nBytesWrite,info->iFilePosition);
-    else        io_prep_pread(info->cb+i,info->fd,info->pSource,nBytesWrite,info->iFilePosition);
+    if (bWrite) io_prep_pwrite(info->cb+i,info->fd,info->pSource,nBytesTrans,info->iFilePosition);
+    else        io_prep_pread(info->cb+i,info->fd,info->pSource,nBytesTrans,info->iFilePosition);
     rc = io_submit(info->ctx,1,&pcb);
     if (rc<0) { perror("io_submit"); abort(); }
 #else
@@ -1553,15 +1553,15 @@ static void queue_dio(asyncInfo *info,int i,int bWrite) {
     info->cb[i].aio_lio_opcode = LIO_NOP;
     info->cb[i].aio_buf = info->pSource;
     info->cb[i].aio_offset = info->iFilePosition;
-    info->cb[i].aio_nbytes = nBytesWrite;
+    info->cb[i].aio_nbytes = nBytesTrans;
     if (bWrite) rc = aio_write(&info->cb[i]);
     else rc = aio_read(&info->cb[i]);
     if (rc) { perror("aio_write/read"); abort(); }
 #endif
-    info->iFilePosition += nBytesWrite;
-    if (nBytesWrite < info->nBytes) {
-	info->pSource += nBytesWrite;
-	info->nBytes -= nBytesWrite;
+    info->iFilePosition += nBytesTrans;
+    if (nBytesTrans < info->nBytes) {
+	info->pSource += nBytesTrans;
+	info->nBytes -= nBytesTrans;
 	}
     else info->nBytes = 0;
     }
@@ -1663,8 +1663,8 @@ static void asyncCheckpoint(PKD pkd,const char *fname,int bWrite) {
 		ssize_t nWritten = aio_return(&info.cb[i]);
 		if (nWritten != info.cb[i].aio_nbytes) {
 		    char szError[100];
-		    sprintf(szError,"errno=%d nBytes=%"PRIu64" nBytesWritten=%"PRIi64"\n",
-			errno,(uint64_t)info.cb[i].aio_nbytes,(int64_t)nWritten);
+		    sprintf(szError,"errno=%d offset=%llu nBytes=%"PRIu64" nBytesTrans=%"PRIi64"\n",
+			errno,info.cb[i].aio_offset,(uint64_t)info.cb[i].aio_nbytes,(int64_t)nWritten);
 		    perror(szError);
 		    abort();
 		    }
@@ -1684,8 +1684,7 @@ static void asyncCheckpoint(PKD pkd,const char *fname,int bWrite) {
 	}
     close(info.fd);
     }
-#endif
-
+#else
 #define WRITE_LIMIT (1024*1024*1024)
 static void simpleCheckpoint(PKD pkd,const char *fname) {
     int fd = open(fname,O_CREAT|O_WRONLY|O_TRUNC,FILE_PROTECTION);
@@ -1707,14 +1706,6 @@ static void simpleCheckpoint(PKD pkd,const char *fname) {
 	nBytesToWrite -= nWrite;
 	}
     close(fd);
-    }
-
-void pkdCheckpoint(PKD pkd,const char *fname) {
-#if defined(HAVE_LIBAIO) || defined(HAVE_AIO_H)
-    asyncCheckpoint(pkd,fname,1);
-#else
-    simpleCheckpoint(pkd,fname);
-#endif
     }
 
 #define READ_LIMIT (1024*1024*1024)
@@ -1743,6 +1734,15 @@ static void simpleRestore(PKD pkd,const char *fname) {
 	nBytesToRead -= nRead;
 	}
     close(fd);
+    }
+#endif
+
+void pkdCheckpoint(PKD pkd,const char *fname) {
+#if defined(HAVE_LIBAIO) || defined(HAVE_AIO_H)
+    asyncCheckpoint(pkd,fname,1);
+#else
+    simpleCheckpoint(pkd,fname);
+#endif
     }
 
 void pkdRestore(PKD pkd,const char *fname) {
