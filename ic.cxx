@@ -726,30 +726,30 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
                pSph->BalsaraSwitch = pSph->diff =
                pSph->fMetals = pSph->fMetalsPred = pSph->fMetalsDot = 0.0;
 #endif
-             pSph->afElemMass[ELEMENT_H]  = pkd->param.dInitialH  * fGasMass;
+             pSph->afElemMass[ELEMENT_H]  = in->dInitialH  * fGasMass;
 #ifdef HAVE_HELIUM
-             pSph->afElemMass[ELEMENT_He] = pkd->param.dInitialHe * fGasMass;
+             pSph->afElemMass[ELEMENT_He] = in->dInitialHe * fGasMass;
 #endif
 #ifdef HAVE_CARBON
-             pSph->afElemMass[ELEMENT_C]  = pkd->param.dInitialC  * fGasMass;
+             pSph->afElemMass[ELEMENT_C]  = in->dInitialC  * fGasMass;
 #endif
 #ifdef HAVE_NITROGEN
-             pSph->afElemMass[ELEMENT_N]  = pkd->param.dInitialN  * fGasMass;
+             pSph->afElemMass[ELEMENT_N]  = in->dInitialN  * fGasMass;
 #endif
 #ifdef HAVE_OXYGEN
-             pSph->afElemMass[ELEMENT_O]  = pkd->param.dInitialO  * fGasMass;
+             pSph->afElemMass[ELEMENT_O]  = in->dInitialO  * fGasMass;
 #endif
 #ifdef HAVE_NEON
-             pSph->afElemMass[ELEMENT_Ne] = pkd->param.dInitialNe * fGasMass;
+             pSph->afElemMass[ELEMENT_Ne] = in->dInitialNe * fGasMass;
 #endif
 #ifdef HAVE_MAGNESIUM
-             pSph->afElemMass[ELEMENT_Mg] = pkd->param.dInitialMg * fGasMass;
+             pSph->afElemMass[ELEMENT_Mg] = in->dInitialMg * fGasMass;
 #endif
 #ifdef HAVE_SILICON
-             pSph->afElemMass[ELEMENT_Si] = pkd->param.dInitialSi * fGasMass;
+             pSph->afElemMass[ELEMENT_Si] = in->dInitialSi * fGasMass;
 #endif
 #ifdef HAVE_IRON
-             pSph->afElemMass[ELEMENT_Fe] = pkd->param.dInitialFe * fGasMass;
+             pSph->afElemMass[ELEMENT_Fe] = in->dInitialFe * fGasMass;
 #endif
              pSph->vPred[0] = pVelGas[0];
              pSph->vPred[1] = pVelGas[1];
