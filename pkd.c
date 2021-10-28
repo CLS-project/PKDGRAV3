@@ -600,7 +600,7 @@ void pkdInitialize(
 	else pkd->pLightCone = v;
 #endif
 	mdlassert(mdl,pkd->pLightCone != NULL);
-	io_init(&pkd->afiLightCone,8,2*1024*1024);
+	io_init(&pkd->afiLightCone,8,2*1024*1024,IO_AIO|IO_LIBAIO);
 	}
     else {
 	pkd->afiLightCone.nBuffers = 0;
@@ -1495,262 +1495,45 @@ void pkdLocalOrder(PKD pkd,uint64_t iMinOrder, uint64_t iMaxOrder) {
     /* Above replaces: qsort(pkdParticleBase(pkd),pkdLocal(pkd),pkdParticleSize(pkd),cmpParticles); */
     }
 
-#define MAX_IO_BUFFER_SIZE (256*1024*1024)
-#define ASYNC_COUNT 16
-
-/*
-** This does DIRECT I/O to avoid swamping memory with I/O buffers. Ideally this
-** would not be required, but buffered I/O causes it to CRASH during I/O on the Cray
-** (or any Linux system probably) when the amount of available memory is quite low.
-** The test was performed on Piz Daint and Piz Dora and the memory statistics at
-** the time were:
-** Piz Dora (Cray XC40):
-**   free memory (GB): min=   2.522 @ 1195 avg=   2.797 of  2024 std-dev=   0.257
-**      resident size: max=  57.671 @  129 avg=  57.415 of  2024 std-dev=   0.256
-** Piz Daint (Cray XC30):
-**   free memory (GB): min=   1.599 @21174 avg=   1.870 of 34300 std-dev=   0.029
-**      resident size: max=  27.921 @17709 avg=  27.870 of 34300 std-dev=   0.013
-*/
-
-#if defined(HAVE_LIBAIO) || defined(HAVE_AIO_H)
-
-typedef struct {
-#ifdef HAVE_LIBAIO
-    struct iocb cb[ASYNC_COUNT];
-    struct io_event events[ASYNC_COUNT];
-    io_context_t ctx;
-#else
-    struct aiocb cb[ASYNC_COUNT];
-    struct aiocb const * pcb[ASYNC_COUNT];
-#endif
-    off_t iFilePosition;   /* File position */
-    size_t nBufferSize;
-    char *pSource;         /* Source of particles (in pStore) */
-    size_t nBytes;         /* Number of bytes left to write */
-    int nPageSize;
-    int nBuffers;
-    int fd;
-    } asyncInfo;
-
-static void queue_dio(asyncInfo *info,int i,int bWrite) {
-    size_t nBytes = info->nBytes > info->nBufferSize ? info->nBufferSize : info->nBytes;
-    size_t nBytesTrans;
-    int rc;
-
-    /* Align buffer size for direct I/O. File will be truncated before closing if writing */
-    nBytesTrans = bWrite ? (nBytes+info->nPageSize-1) & ~(info->nPageSize-1) : nBytes;
-    memset(info->pSource+nBytes,0,nBytesTrans-nBytes); /* pad buffer */
-#ifdef HAVE_LIBAIO
-    struct iocb *pcb = &info->cb[i];
-    if (bWrite) io_prep_pwrite(info->cb+i,info->fd,info->pSource,nBytesTrans,info->iFilePosition);
-    else        io_prep_pread(info->cb+i,info->fd,info->pSource,nBytesTrans,info->iFilePosition);
-    rc = io_submit(info->ctx,1,&pcb);
-    if (rc<0) { perror("io_submit"); abort(); }
-#else
-    memset(&info->cb[i],0,sizeof(info->cb[i]));
-    info->cb[i].aio_fildes = info->fd;
-    info->cb[i].aio_sigevent.sigev_notify = SIGEV_NONE;
-    info->cb[i].aio_lio_opcode = LIO_NOP;
-    info->cb[i].aio_buf = info->pSource;
-    info->cb[i].aio_offset = info->iFilePosition;
-    info->cb[i].aio_nbytes = nBytesTrans;
-    if (bWrite) rc = aio_write(&info->cb[i]);
-    else rc = aio_read(&info->cb[i]);
-    if (rc) { perror("aio_write/read"); abort(); }
-#endif
-    info->iFilePosition += nBytesTrans;
-    if (nBytesTrans < info->nBytes) {
-	info->pSource += nBytesTrans;
-	info->nBytes -= nBytesTrans;
-	}
-    else info->nBytes = 0;
-    }
-
-static void asyncCheckpoint(PKD pkd,const char *fname,int bWrite) {
-    size_t nFileSize;
-    asyncInfo info;
-    int i, rc;
-
-    if (bWrite) {
-	info.fd = open(fname,O_DIRECT|O_CREAT|O_WRONLY|O_TRUNC,FILE_PROTECTION);
-	if (info.fd<0) { perror(fname); abort(); }
-	nFileSize = pkdParticleSize(pkd) * pkd->nLocal;
-	}
-    else {
-	struct stat s;
-	info.fd = open(fname,O_DIRECT|O_RDONLY);
-	if (info.fd<0) { perror(fname); abort(); }
-	if ( fstat(info.fd,&s) != 0 ) { perror(fname); abort(); }
-	nFileSize = s.st_size;
-	pkd->nLocal = nFileSize / pkdParticleSize(pkd);
-	}
-
-    /* Align transfers to a page boundary - require for direct I/O */
-    info.nPageSize = sysconf(_SC_PAGESIZE);
-
-    /*
-    ** Calculate buffer size and count. We want at least ASYNC_COUNT
-    ** buffers each of which are multiples of DIRECT_IO_SIZE bytes long.
-    **   Limit: nPageSize <= nBufferSize <= MAX_IO_BUFFER
-    */
-    info.nBufferSize = nFileSize / ASYNC_COUNT;
-    info.nBufferSize = 1 << (int)ceil(log2(info.nBufferSize)); /* Prefer power of two */
-    if (info.nBufferSize < info.nPageSize) info.nBufferSize = info.nPageSize;
-    if (info.nBufferSize > MAX_IO_BUFFER_SIZE) info.nBufferSize = MAX_IO_BUFFER_SIZE;
-    info.nBuffers = nFileSize / info.nBufferSize + 1;
-    if (info.nBuffers > ASYNC_COUNT) info.nBuffers = ASYNC_COUNT;
-
-#ifdef HAVE_LIBAIO
-    info.ctx = 0;
-    rc = io_setup(info.nBuffers, &info.ctx);
-    if (rc<0) { perror("io_setup"); abort(); }
-#else
-    memset(&info.cb,0,sizeof(info.cb));
-    for(i=0; i<info.nBuffers; ++i) {
-	info.pcb[i] = info.cb + i;
-	info.cb[i].aio_fildes = info.fd;
-	info.cb[i].aio_offset = 0;
-	info.cb[i].aio_buf = NULL;
-	info.cb[i].aio_nbytes = 0;
-	info.cb[i].aio_sigevent.sigev_notify = SIGEV_NONE;
-	info.cb[i].aio_lio_opcode = LIO_NOP;
-	}
-#endif
-    info.pSource = (char *)pkdParticleBase(pkd);
-    info.nBytes = nFileSize;
-    /* Queue as many operations as we have buffers */
-    info.iFilePosition = 0;
-    for(i=0; i<info.nBuffers && info.nBytes; ++i) queue_dio(&info,i,bWrite);
-    info.nBuffers = i;
-
-#ifdef HAVE_LIBAIO
-    /* Main loop. Keep going until nothing left to do */
-    int nInFlight = i;
-    while (nInFlight) {
-	int nEvent = io_getevents(info.ctx,1,info.nBuffers,info.events,NULL);
-	if (nEvent<=0) { perror("aio_getevents"); abort(); }
-	for(i=0; i<nEvent; ++i) {
-	    ssize_t nWritten = info.events[i].res;
-	    if (nWritten < 0 || nWritten >  info.events[i].obj->u.c.nbytes) {
-		char szError[100];
-		fprintf(stderr,"errno=%d nBytes=%lu: nWritten=%lu%s\n",
-		    errno,info.events[i].obj->u.c.nbytes,
-		    nWritten,
-		    strerror((long)info.events[i].res));
-		perror(szError);
-		abort();
-		}
-	    else if (info.nBytes) {
-		queue_dio(&info,info.events[i].obj-info.cb,bWrite);
-		}
-	    else --nInFlight;
-	    }
-	}
-    rc = io_destroy(info.ctx);
-    if (rc<0) { perror("io_destroy"); abort(); }
-#else
-    /* Main loop. Keep going until nothing left to do */
-    int bDone;
-    do {
-	rc = aio_suspend(info.pcb,info.nBuffers,NULL);
-	if (rc) { perror("aio_suspend"); abort(); }
-	bDone = 1;
-	for(i=0; i<info.nBuffers; ++i) {
-	    if (info.pcb[i] == NULL) continue;
-	    rc = aio_error(info.pcb[i]);
-	    if (rc == EINPROGRESS) bDone = 0;
-	    else if (rc == 0) {
-		ssize_t nWritten = aio_return(&info.cb[i]);
-		if (nWritten != info.cb[i].aio_nbytes) {
-		    char szError[100];
-		    sprintf(szError,"errno=%d offset=%llu nBytes=%"PRIu64" nBytesTrans=%"PRIi64"\n",
-			errno,info.cb[i].aio_offset,(uint64_t)info.cb[i].aio_nbytes,(int64_t)nWritten);
-		    perror(szError);
-		    abort();
-		    }
-		if (info.nBytes) {
-		    bDone = 0;
-		    queue_dio(&info,i,bWrite);
-		    }
-		else info.pcb[i] = NULL;
-		}
-	    else { perror("aio_error"); abort(); }
-	    }
-	} while(!bDone);
-#endif
-    /* Record the actual file size */
-    if (bWrite) {
-	if (ftruncate(info.fd,nFileSize)) perror("ftruncate");
-	}
-    close(info.fd);
-    }
-#else
-#define WRITE_LIMIT (1024*1024*1024)
-static void simpleCheckpoint(PKD pkd,const char *fname) {
-    int fd = open(fname,O_CREAT|O_WRONLY|O_TRUNC,FILE_PROTECTION);
-    size_t nBytesToWrite = pkdParticleSize(pkd) * pkd->nLocal;
-    char *pBuffer = (char *)pkdParticleBase(pkd);
-    ssize_t nBytesWritten;
-    if (fd<0) { perror(fname); abort(); }
-    while(nBytesToWrite) {
-	size_t nWrite = nBytesToWrite > WRITE_LIMIT ? WRITE_LIMIT : nBytesToWrite;
-	nBytesWritten = write(fd,pBuffer,nWrite);
-	if (nBytesWritten != nWrite) {
-	    char szError[100];
-	    sprintf(szError,"errno=%d nBytes=%"PRIi64" nWrite=%"PRIu64"\n",
-		errno,(int64_t)nBytesWritten,(uint64_t)nWrite);
-	    perror(szError);
-	    abort();
-	    }
-	pBuffer += nWrite;
-	nBytesToWrite -= nWrite;
-	}
-    close(fd);
-    }
-
-#define READ_LIMIT (1024*1024*1024)
-static void simpleRestore(PKD pkd,const char *fname) {
-    int fd = open(fname,O_RDONLY);
-    if (fd<0) { perror(fname); abort(); }
-
-    struct stat s;
-    if ( fstat(fd,&s) != 0 ) { perror(fname); abort(); }
-
-    size_t nBytesToRead = s.st_size;
-    pkd->nLocal = nBytesToRead / pkdParticleSize(pkd);
-    char *pBuffer = (char *)pkdParticleBase(pkd);
-    ssize_t nBytesRead;
-    while(nBytesToRead) {
-	size_t nRead = nBytesToRead > READ_LIMIT ? READ_LIMIT : nBytesToRead;
-	nBytesRead = read(fd,pBuffer,nRead);
-	if (nBytesRead != nRead) {
-	    char szError[100];
-	    sprintf(szError,"errno=%d nBytes=%"PRIi64" nRead=%"PRIu64"\n",
-		errno,(int64_t)nBytesRead,(uint64_t)nRead);
-	    perror(szError);
-	    abort();
-	    }
-	pBuffer += nRead;
-	nBytesToRead -= nRead;
-	}
-    close(fd);
-    }
-#endif
+#define MAX_IO_BUFFER_SIZE (8*1024*1024)
 
 void pkdCheckpoint(PKD pkd,const char *fname) {
-#if defined(HAVE_LIBAIO) || defined(HAVE_AIO_H)
-    asyncCheckpoint(pkd,fname,1);
-#else
-    simpleCheckpoint(pkd,fname);
-#endif
+    asyncFileInfo info;
+    size_t nFileSize;
+    int fd;
+    io_init(&info, IO_MAX_ASYNC_COUNT, 0, IO_AIO|IO_LIBAIO);
+    fd = io_create(&info, fname);
+    if (fd<0) { perror(fname); abort(); }
+    nFileSize = pkdParticleSize(pkd) * pkd->nLocal;
+    char *pBuffer = (char *)pkdParticleBase(pkd);
+    while(nFileSize) {
+        size_t count = nFileSize > MAX_IO_BUFFER_SIZE ? MAX_IO_BUFFER_SIZE : nFileSize;
+        io_write(&info, pBuffer, count);
+        pBuffer += count;
+        nFileSize -= count;
+        }
+    io_close(&info);
     }
 
 void pkdRestore(PKD pkd,const char *fname) {
-#if defined(HAVE_LIBAIO) || defined(HAVE_AIO_H)
-    asyncCheckpoint(pkd,fname,0);
-#else
-    simpleRestore(pkd,fname);
-#endif
+    asyncFileInfo info;
+    size_t nFileSize;
+    int fd;
+    io_init(&info, IO_MAX_ASYNC_COUNT, 0, IO_AIO|IO_LIBAIO);
+    fd = io_open(&info, fname);
+    if (fd<0) { perror(fname); abort(); }
+    struct stat s;
+    if ( fstat(fd,&s) != 0 ) { perror(fname); abort(); }
+    nFileSize = s.st_size;
+    pkd->nLocal = nFileSize / pkdParticleSize(pkd);
+    char *pBuffer = (char *)pkdParticleBase(pkd);
+    while(nFileSize) {
+        size_t count = nFileSize > MAX_IO_BUFFER_SIZE ? MAX_IO_BUFFER_SIZE : nFileSize;
+        io_read(&info, pBuffer, count);
+        pBuffer += count;
+        nFileSize -= count;
+        }
+    io_close(&info);
     }
 
 /*****************************************************************************\
