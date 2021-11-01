@@ -1696,11 +1696,7 @@ basicMessage &mdlClass::waitQueue(basicQueue &wait) {
 	bookkeeping();
 	if (DoSomeWork() == 0) {
 	    // This is important in the case where we have oversubscribed the CPU
-#ifdef _MSC_VER
-	    SwitchToThread();
-#else
-	    sched_yield();
-#endif
+            yield();
 	    }
 	}
     return wait.dequeue();
@@ -1905,11 +1901,7 @@ mdlClass::mdlClass(class mpiClass *mdl, int (*fcnMaster)(MDL,void *),void * (*fc
 
 void mdlClass::drainMPI() {
     while(checkMPI()) {
-#ifdef _MSC_VER
-	SwitchToThread();
-#else
-	sched_yield();
-#endif
+        yield();
 	}
     }
 
