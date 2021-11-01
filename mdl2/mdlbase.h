@@ -97,13 +97,18 @@ public:
 
     char nodeName[MAX_NODE_NAME_LENGTH];
 
+    typedef enum {
+        TIME_WAITING,
+        TIME_COMPUTING,
+        TIME_SYNCHRONIZING,
+        TIME_COUNT
+        } TICK_TIMER;
+
 #if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
 protected:
     ticks nTicks;
 #endif
-    double dWaiting;
-    double dComputing;
-    double dSynchronizing;
+    double dTimer[TIME_COUNT];
 private:
     double TimeFraction() const;
 public:
@@ -111,6 +116,7 @@ public:
     void TimeAddComputing();
     void TimeAddSynchronizing();
     void TimeAddWaiting();
+    double TimeGet(TICK_TIMER which) const { return dTimer[which] * TimeFraction(); }
     double TimeComputing() const;
     double TimeSynchronizing() const;
     double TimeWaiting() const;
