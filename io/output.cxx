@@ -145,7 +145,7 @@ void pkdOutput(PKD pkd, outType eOutputType, int iProcessor,int nProcessor,
     char achOutFile[256];
     strcpy(achOutFile,fname);
     sprintf(achOutFile+strlen(achOutFile),".%d",iProcessor);
-    io_init(&info,4,1024*1024);
+    io_init(&info,4,1024*1024,IO_AIO|IO_LIBAIO);
     if (io_create(&info,achOutFile) < 0) { perror(fname); abort(); }
 
     switch(eOutputType) {

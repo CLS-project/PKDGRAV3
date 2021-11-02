@@ -374,6 +374,7 @@ protected:
     int nOpenCaches;
     int iCacheBufSize;  /* Cache input buffer size */
     int iReplyBufSize;  /* Cache reply buffer size */
+    int iLastMessage = -1;
     std::vector<MPI_Request>    SendReceiveRequests;
     std::vector<MPI_Status>     SendReceiveStatuses;
     std::vector<int>            SendReceiveIndices;
@@ -383,7 +384,7 @@ protected:
 #endif
     MPI_Request *newRequest(mdlMessageMPI*message);
 
-    mdlMessageCacheReceive *pReqRcv;
+    std::vector<mdlMessageCacheReceive *> listCacheReceive;
     std::list<mdlMessageCacheReply *> freeCacheReplies;
 
     // Cached FFTW plans

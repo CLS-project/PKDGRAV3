@@ -36,6 +36,7 @@ using namespace mdl;
 #endif
 #include <stdarg.h>
 #include <string.h>
+#include <numeric>
 
 /*****************************************************************************\
 * LegacyService
@@ -310,7 +311,8 @@ void mdlPrintTimer(void *mdl, const char *message, mdlTimer *t0) {
 
 
 void mdlBASE::TimeReset() {
-    dWaiting = dComputing = dSynchronizing = 0.0;
+    std::fill(dTimer,dTimer+TIME_COUNT,0.0);
+    //dWaiting = dComputing = dSynchronizing = 0.0;
 #if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
     nTicks = getticks();
 #endif
@@ -319,7 +321,7 @@ void mdlBASE::TimeReset() {
 void mdlBASE::TimeAddComputing() {
 #if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
     ticks nTicks = getticks();
-    dComputing += elapsed(nTicks, this->nTicks);
+    dTimer[TIME_COMPUTING] += elapsed(nTicks, this->nTicks);
     this->nTicks = nTicks;
 #endif
     }
@@ -327,7 +329,7 @@ void mdlBASE::TimeAddComputing() {
 void mdlBASE::TimeAddSynchronizing() {
 #if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
     ticks nTicks = getticks();
-    dSynchronizing += elapsed(nTicks, this->nTicks);
+    dTimer[TIME_SYNCHRONIZING] += elapsed(nTicks, this->nTicks);
     this->nTicks = nTicks;
 #endif
     }
@@ -335,27 +337,27 @@ void mdlBASE::TimeAddSynchronizing() {
 void mdlBASE::TimeAddWaiting() {
 #if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
     ticks nTicks = getticks();
-    dWaiting += elapsed(nTicks, this->nTicks);
+    dTimer[TIME_WAITING] += elapsed(nTicks, this->nTicks);
     this->nTicks = nTicks;
 #endif
     }
 
 double mdlBASE::TimeFraction() const {
-    double dTotal = dComputing + dWaiting + dSynchronizing;
+    double dTotal = std::accumulate(dTimer,dTimer+TIME_COUNT,0.0);
     if (dTotal <= 0.0) return 0.0;
     return 100.0 / dTotal;
     }
 
 double mdlBASE::TimeComputing() const {
-    return dComputing * TimeFraction();
+    return dTimer[TIME_COMPUTING] * TimeFraction();
     }
 
 double mdlBASE::TimeSynchronizing() const {
-    return dSynchronizing * TimeFraction();
+    return dTimer[TIME_SYNCHRONIZING] * TimeFraction();
     }
 
 double mdlBASE::TimeWaiting() const {
-    return dWaiting * TimeFraction();
+    return dTimer[TIME_WAITING] * TimeFraction();
     }
 #endif
 
