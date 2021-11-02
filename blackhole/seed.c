@@ -21,7 +21,7 @@ void msrPlaceBHSeed(MSR msr, double dTime, uint8_t uRungMax) {
    assert(msr->param.bFindGroups);
    pstPlaceBHSeed(msr->pst, &in, sizeof(in), &out, sizeof(out));
 
-   msr->N += out.nBHs;
+   msr->nGas -= out.nBHs;
    msr->nBH += out.nBHs;
    printf("Planted %d BH seeds \n", out.nBHs);
 
