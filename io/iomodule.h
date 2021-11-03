@@ -48,6 +48,7 @@ typedef struct {
 #endif
     };
     char *pBuffer[IO_MAX_ASYNC_COUNT];
+    size_t nExpected[IO_MAX_ASYNC_COUNT];
     off_t iFilePosition;   /* File position */
     size_t nBufferSize;    /* Total size of the buffer */
     size_t iByte;          /* Index into current buffer */

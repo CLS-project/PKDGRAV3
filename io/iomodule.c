@@ -161,7 +161,8 @@ static void queue_dio(asyncFileInfo *info,int i,int bWrite) {
     assert(info->nPending <= info->nBuffers);
 
     /* Align buffer size for direct I/O. File will be truncated before closing if writing */
-    nTransfer = bWrite ? (nBytes+info->nPageSize-1) & ~(info->nPageSize-1) : nBytes;
+    nTransfer = (nBytes+info->nPageSize-1) & ~(info->nPageSize-1);
+    info->nExpected[i] = bWrite ? nTransfer : nBytes; // We need to ask for a page size, but could *read* less
 #ifdef HAVE_AIO_H
     if (info->method == IO_AIO) {
         info->aio.pcb[i] = info->aio.cb + i;
@@ -201,10 +202,10 @@ static int wait_complete(asyncFileInfo *info, int nWait) {
                 else if (rc == 0) {
                         iWait = i;
                         info->aio.pcb[i] = NULL;
-                        ssize_t nWritten = aio_return(&info->aio.cb[i]);
-                        if (nWritten != info->aio.cb[i].aio_nbytes) {
-                        sprintf(szError,"errno=%d nBytes=%"PRIu64" nBytesWritten=%"PRIi64"\n",
-                                errno,(uint64_t)info->aio.cb[i].aio_nbytes,(int64_t)nWritten);
+                        ssize_t nBytesTransferred = aio_return(&info->aio.cb[i]);
+                        if (nBytesTransferred != info->nExpected[i]) {
+                        sprintf(szError,"errno=%d nBytesExpected=%" PRIu64 " nBytesTransferred=%" PRIi64 "\n",
+                                errno,(uint64_t)info->nExpected[i],(int64_t)nBytesTransferred);
                         perror(szError);
                         abort();
                         }
