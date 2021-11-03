@@ -4421,8 +4421,8 @@ void MSR::Output(int iStep, double dTime, double dDelta, int bCheckpoint) {
 	OutArray(BuildName(iStep,".relax").c_str(),OUT_RELAX_ARRAY);
 	}
     if ( DoDensity() ) {
-	Reorder();
-	OutArray(BuildName(iStep,".den").c_str(),OUT_DENSITY_ARRAY);
+	//Reorder();
+	//OutArray(BuildName(iStep,".den").c_str(),OUT_DENSITY_ARRAY);
 	}
     if (param.bDoRungOutput) {
 	Reorder();
@@ -4575,7 +4575,7 @@ void MSR::CalcMtot(double *M, uint64_t *N) {
 
 void MSR::SetSPHoptions() {
     struct inSetSPHoptions in;
-    in.SPHoptions = initializeSPHOptions(param,csm,0.0);
+    in.SPHoptions = initializeSPHOptions(param,csm,1.0);
     pstSetSPHoptions(pst, &in, sizeof(in), NULL, 0);
 }
 
