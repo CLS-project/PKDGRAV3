@@ -32,13 +32,14 @@
 #endif
 #define IO_MAX_ASYNC_COUNT 8
 typedef struct {
+#if defined(HAVE_LIBAIO) || defined(HAVE_AIO_H)
     union {
 #if defined(HAVE_LIBAIO)
         struct {
             struct iocb cb[IO_MAX_ASYNC_COUNT];
             struct io_event events[IO_MAX_ASYNC_COUNT];
             io_context_t ctx;
-        } io;
+        } libaio;
 #endif
 #if defined(HAVE_AIO_H)
         struct {
@@ -46,7 +47,8 @@ typedef struct {
             struct aiocb const * pcb[IO_MAX_ASYNC_COUNT];
         } aio;
 #endif
-    };
+    } io;
+#endif
     char *pBuffer[IO_MAX_ASYNC_COUNT];
     size_t nExpected[IO_MAX_ASYNC_COUNT];
     off_t iFilePosition;   /* File position */
