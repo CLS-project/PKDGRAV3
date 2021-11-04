@@ -365,6 +365,10 @@ int fioTipsyIsStandard(FIO fio);
 /*
 ** Create an HDF5 file.
 */
+#define HDF5_HEADER_G 0
+#define HDF5_COSMO_G  1
+#define HDF5_UNITS_G  2
+#define HDF5_PARAM_G  3
 FIO fioHDF5Create(const char *fileName,int mFlags);
 
 /******************************************************************************\

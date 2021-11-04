@@ -2456,8 +2456,8 @@ void pkdWriteViaNode(PKD pkd, int iNode) {
     }
 
 void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dScaleFactor, double dTime, uint64_t nDark, uint64_t nGas, uint64_t nStar, uint64_t nBH){
-   
-   fioSetAttr(fio, 0, "Time", FIO_TYPE_DOUBLE, 1, &dTime);
+
+   fioSetAttr(fio, HDF5_HEADER_G, "Time", FIO_TYPE_DOUBLE, 1, &dTime);
    if (pkd->csm->val.bComove){
       double z = 1./dScaleFactor - 1.;
       fioSetAttr(fio, 0, "Redshift", FIO_TYPE_DOUBLE, 1, &z);
@@ -2468,43 +2468,43 @@ void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dScaleFactor, double dTime, uint
 #else
    flag=0;
 #endif
-   fioSetAttr(fio, 0, "Flag_Sfr", FIO_TYPE_INT, 1, &flag);
+   fioSetAttr(fio, HDF5_HEADER_G, "Flag_Sfr", FIO_TYPE_INT, 1, &flag);
 
 #ifdef FEEDBACK
    flag=1;
 #else
    flag=0;
 #endif
-   fioSetAttr(fio, 0, "Flag_Feedback", FIO_TYPE_INT, 1, &flag);
+   fioSetAttr(fio, HDF5_HEADER_G, "Flag_Feedback", FIO_TYPE_INT, 1, &flag);
 
 #ifdef COOLING
    flag=1;
 #else
    flag=0;
 #endif
-   fioSetAttr(fio, 0, "Flag_Cooling", FIO_TYPE_INT, 1, &flag);
+   fioSetAttr(fio, HDF5_HEADER_G, "Flag_Cooling", FIO_TYPE_INT, 1, &flag);
 
 #ifdef STAR_FORMATION
    flag=1;
 #else
    flag=0;
 #endif
-   fioSetAttr(fio, 0, "Flag_StellarAge", FIO_TYPE_INT, 1, &flag);
+   fioSetAttr(fio, HDF5_HEADER_G, "Flag_StellarAge", FIO_TYPE_INT, 1, &flag);
 
 #ifdef HAVE_METALLICITY
    flag=1;
 #else
    flag=0;
 #endif
-   fioSetAttr(fio, 0, "Flag_Metals", FIO_TYPE_INT, 1, &flag);
+   fioSetAttr(fio, HDF5_HEADER_G, "Flag_Metals", FIO_TYPE_INT, 1, &flag);
 
    // In HDF5 format the position and velocities are always stored as doubles
    flag=1;
-   fioSetAttr(fio, 0, "Flag_DoublePrecision", FIO_TYPE_INT, 1, &flag);
+   fioSetAttr(fio, HDF5_HEADER_G, "Flag_DoublePrecision", FIO_TYPE_INT, 1, &flag);
 
-   fioSetAttr(fio, 0, "BoxSize", FIO_TYPE_DOUBLE, 1, &pkd->param.dBoxSize);
+   fioSetAttr(fio, HDF5_HEADER_G, "BoxSize", FIO_TYPE_DOUBLE, 1, &pkd->param.dBoxSize);
    int nProcessors = pkd->param.bParaWrite==0?1:(pkd->param.nParaWrite<=1 ? pkd->nThreads:pkd->param.nParaWrite);
-   fioSetAttr(fio, 0, "NumFilesPerSnapshot", FIO_TYPE_INT, 1, &nProcessors);
+   fioSetAttr(fio, HDF5_HEADER_G, "NumFilesPerSnapshot", FIO_TYPE_INT, 1, &nProcessors);
 
    /* Prepare the particle information in tables
     * For now, we only support one file per snapshot,
@@ -2513,7 +2513,7 @@ void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dScaleFactor, double dTime, uint
     * TODO: Check and debug parallel HDF5
     */
    unsigned int numPart_file[6] = {0,0,0,0,0,0};
-   fioSetAttr(fio, 0, "NumPart_Total_HighWord", FIO_TYPE_UINT32, 6, &numPart_file[0]);
+   fioSetAttr(fio, HDF5_HEADER_G, "NumPart_Total_HighWord", FIO_TYPE_UINT32, 6, &numPart_file[0]);
    //int numPart_all[6];
 
    numPart_file[0] = nGas;
@@ -2523,17 +2523,17 @@ void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dScaleFactor, double dTime, uint
    numPart_file[4] = nStar;
    numPart_file[5] = 0;
 
-   fioSetAttr(fio, 0, "NumPart_ThisFile", FIO_TYPE_UINT32, 6, &numPart_file[0]);
-   fioSetAttr(fio, 0, "NumPart_Total", FIO_TYPE_UINT32, 6, &numPart_file[0]);
+   fioSetAttr(fio, HDF5_HEADER_G, "NumPart_ThisFile", FIO_TYPE_UINT32, 6, &numPart_file[0]);
+   fioSetAttr(fio, HDF5_HEADER_G, "NumPart_Total", FIO_TYPE_UINT32, 6, &numPart_file[0]);
 
    double massTable[6] = {0,0,0,0,0,0};
    // This is not yet fully supported, as the classes do not have to match the
    //  six available particle types.
    // However, we add this in the header so it can be parsed by other tools
-   fioSetAttr(fio, 0, "MassTable", FIO_TYPE_DOUBLE, 6, &massTable[0]);
+   fioSetAttr(fio, HDF5_HEADER_G, "MassTable", FIO_TYPE_DOUBLE, 6, &massTable[0]);
 
    float fSoft = pkdSoft(pkd,pkdParticle(pkd,0)); // we take any particle
-   fioSetAttr(fio, 0, "Softening", FIO_TYPE_FLOAT, 1, &fSoft);
+   fioSetAttr(fio, HDF5_HEADER_G, "Softening", FIO_TYPE_FLOAT, 1, &fSoft);
 
    /*
     * Cosmology header
@@ -2541,35 +2541,37 @@ void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dScaleFactor, double dTime, uint
    if (pkd->csm->val.bComove){
       double h = 1;
       flag = 1;
-      fioSetAttr(fio, 1, "Omega_m", FIO_TYPE_DOUBLE, 1, &pkd->csm->val.dOmega0);
-      fioSetAttr(fio, 1, "Omega_lambda", FIO_TYPE_DOUBLE, 1, &pkd->csm->val.dLambda);
-      fioSetAttr(fio, 1, "Hubble0", FIO_TYPE_DOUBLE, 1, &pkd->csm->val.dHubble0);
-      fioSetAttr(fio, 1, "Cosmological run", FIO_TYPE_INT, 1, &flag);
-      fioSetAttr(fio, 1, "HubbleParam", FIO_TYPE_DOUBLE, 1, &h); // Not used
+      fioSetAttr(fio, HDF5_COSMO_G, "Omega_m", FIO_TYPE_DOUBLE, 1, &pkd->csm->val.dOmega0);
+      fioSetAttr(fio, HDF5_COSMO_G, "Omega_lambda", FIO_TYPE_DOUBLE, 1, &pkd->csm->val.dLambda);
+      fioSetAttr(fio, HDF5_COSMO_G, "Omega_b", FIO_TYPE_DOUBLE, 1, &pkd->csm->val.dOmegab);
+      fioSetAttr(fio, HDF5_COSMO_G, "Hubble0", FIO_TYPE_DOUBLE, 1, &pkd->csm->val.dHubble0);
+      fioSetAttr(fio, HDF5_COSMO_G, "Cosmological run", FIO_TYPE_INT, 1, &flag);
+      fioSetAttr(fio, HDF5_COSMO_G, "HubbleParam", FIO_TYPE_DOUBLE, 1, &h); // Not used
 
       // Keep a copy also in the Header for increased compatibility
-      fioSetAttr(fio, 0, "Omega0", FIO_TYPE_DOUBLE, 1, &pkd->csm->val.dOmega0);
-      fioSetAttr(fio, 0, "OmegaLambda", FIO_TYPE_DOUBLE, 1, &pkd->csm->val.dLambda);
-      fioSetAttr(fio, 0, "Hubble0", FIO_TYPE_DOUBLE, 1, &pkd->csm->val.dHubble0);
-      fioSetAttr(fio, 0, "Cosmological run", FIO_TYPE_INT, 1, &flag);
-      fioSetAttr(fio, 0, "HubbleParam", FIO_TYPE_DOUBLE, 1, &h); // Not used
+      fioSetAttr(fio, HDF5_HEADER_G, "Omega0", FIO_TYPE_DOUBLE, 1, &pkd->csm->val.dOmega0);
+      fioSetAttr(fio, HDF5_HEADER_G, "OmegaLambda", FIO_TYPE_DOUBLE, 1, &pkd->csm->val.dLambda);
+      fioSetAttr(fio, HDF5_HEADER_G, "OmegaB", FIO_TYPE_DOUBLE, 1, &pkd->csm->val.dOmegab);
+      fioSetAttr(fio, HDF5_HEADER_G, "Hubble0", FIO_TYPE_DOUBLE, 1, &pkd->csm->val.dHubble0);
+      fioSetAttr(fio, HDF5_HEADER_G, "Cosmological run", FIO_TYPE_INT, 1, &flag);
+      fioSetAttr(fio, HDF5_HEADER_G, "HubbleParam", FIO_TYPE_DOUBLE, 1, &h); // Not used
    }else{
       flag = 0;
-      fioSetAttr(fio, 1, "Cosmological run", FIO_TYPE_INT, 1, &flag);
+      fioSetAttr(fio, HDF5_COSMO_G, "Cosmological run", FIO_TYPE_INT, 1, &flag);
    }
 
 
    /*
     * Units header
     */
-   fioSetAttr(fio, 2, "MsolUnit", FIO_TYPE_DOUBLE, 1, &pkd->param.dMsolUnit);
-   fioSetAttr(fio, 2, "KpcUnit", FIO_TYPE_DOUBLE, 1, &pkd->param.dKpcUnit);
-   fioSetAttr(fio, 2, "SecUnit", FIO_TYPE_DOUBLE, 1, &pkd->param.dSecUnit);
-   fioSetAttr(fio, 2, "KmPerSecUnit", FIO_TYPE_DOUBLE, 1, &pkd->param.dKmPerSecUnit);
-   fioSetAttr(fio, 2, "GmPerCcUnit", FIO_TYPE_DOUBLE, 1, &pkd->param.dGmPerCcUnit);
-   fioSetAttr(fio, 2, "ErgPerGmUnit", FIO_TYPE_DOUBLE, 1, &pkd->param.dErgPerGmUnit);
-   fioSetAttr(fio, 2, "ErgUnit", FIO_TYPE_DOUBLE, 1, &pkd->param.dErgUnit);
-   fioSetAttr(fio, 2, "GasConst", FIO_TYPE_DOUBLE, 1, &pkd->param.dGasConst);
+   fioSetAttr(fio, HDF5_UNITS_G, "MsolUnit", FIO_TYPE_DOUBLE, 1, &pkd->param.dMsolUnit);
+   fioSetAttr(fio, HDF5_UNITS_G, "KpcUnit", FIO_TYPE_DOUBLE, 1, &pkd->param.dKpcUnit);
+   fioSetAttr(fio, HDF5_UNITS_G, "SecUnit", FIO_TYPE_DOUBLE, 1, &pkd->param.dSecUnit);
+   fioSetAttr(fio, HDF5_UNITS_G, "KmPerSecUnit", FIO_TYPE_DOUBLE, 1, &pkd->param.dKmPerSecUnit);
+   fioSetAttr(fio, HDF5_UNITS_G, "GmPerCcUnit", FIO_TYPE_DOUBLE, 1, &pkd->param.dGmPerCcUnit);
+   fioSetAttr(fio, HDF5_UNITS_G, "ErgPerGmUnit", FIO_TYPE_DOUBLE, 1, &pkd->param.dErgPerGmUnit);
+   fioSetAttr(fio, HDF5_UNITS_G, "ErgUnit", FIO_TYPE_DOUBLE, 1, &pkd->param.dErgUnit);
+   fioSetAttr(fio, HDF5_UNITS_G, "GasConst", FIO_TYPE_DOUBLE, 1, &pkd->param.dGasConst);
 
    /*
     * Dump of all the parameters

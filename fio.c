@@ -3348,11 +3348,7 @@ static void ioorder_flush(IOBASE *base) {
 
 /* IA:
  * Read an attribute from the file.
- * The information can be stored in different groups:
- *    Header      - headerType=0
- *    Cosmology   - headerType=1
- *    Units       - headerType=2
- *    Parameters  - headerType=3
+ * The information can be stored in different groups, see fio.h
  */
 static int hdf5GetAttr(
     FIO fio, const int headerType,
@@ -3367,16 +3363,16 @@ static int hdf5GetAttr(
     assert(fio->eMode == FIO_MODE_READING);
 
     switch(headerType){
-       case 0:
+       case HDF5_HEADER_G:
           groupID = &hio->headerID;
           break;
-       case 1:
+       case HDF5_COSMO_G:
           groupID = &hio->cosmoID;
           break;
-       case 2:
+       case HDF5_UNITS_G:
           groupID = &hio->unitsID;
           break;
-       case 3:
+       case HDF5_PARAM_G:
           groupID = &hio->paramsID;
           break;
        default:
@@ -3408,16 +3404,16 @@ static int hdf5SetAttr(
     assert(fio->eMode == FIO_MODE_WRITING);
 
     switch(headerType){
-       case 0:
+       case HDF5_HEADER_G:
           groupID = &hio->headerID;
           break;
-       case 1:
+       case HDF5_COSMO_G:
           groupID = &hio->cosmoID;
           break;
-       case 2:
+       case HDF5_UNITS_G:
           groupID = &hio->unitsID;
           break;
-       case 3:
+       case HDF5_PARAM_G:
           groupID = &hio->paramsID;
           break;
        default:

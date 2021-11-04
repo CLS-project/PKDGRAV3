@@ -6461,21 +6461,25 @@ double msrRead(MSR msr, const char *achInFile) {
 
     // IA: If we have the 'Redshift' field, we take that.
     //  If not, we assume that the 'Time' field contains the expansion factor
-    if (!fioGetAttr(fio,0,"Redshift",FIO_TYPE_DOUBLE,&dExpansion)){ 
-       if (!fioGetAttr(fio,0,"Time",FIO_TYPE_DOUBLE,&dExpansion))
+    if (!fioGetAttr(fio,HDF5_HEADER_G,"Redshift",FIO_TYPE_DOUBLE,&dExpansion)){
+       if (!fioGetAttr(fio,HDF5_HEADER_G,"Time",FIO_TYPE_DOUBLE,&dExpansion))
           dExpansion = 0.0;
     }else{
        dExpansion = 1.0/(dExpansion+1.0);
     }
-    if (!fioGetAttr(fio,0,"dEcosmo",FIO_TYPE_DOUBLE,&msr->dEcosmo)) msr->dEcosmo = 0.0;
-    if (!fioGetAttr(fio,0,"dTimeOld",FIO_TYPE_DOUBLE,&msr->dTimeOld)) msr->dTimeOld = 0.0;
-    if (!fioGetAttr(fio,0,"dUOld",FIO_TYPE_DOUBLE,&msr->dUOld)) msr->dUOld = 0.0;
+    if (!fioGetAttr(fio,HDF5_HEADER_G,"dEcosmo",FIO_TYPE_DOUBLE,&msr->dEcosmo)) msr->dEcosmo = 0.0;
+    if (!fioGetAttr(fio,HDF5_HEADER_G,"dTimeOld",FIO_TYPE_DOUBLE,&msr->dTimeOld)) msr->dTimeOld = 0.0;
+    if (!fioGetAttr(fio,HDF5_HEADER_G,"dUOld",FIO_TYPE_DOUBLE,&msr->dUOld)) msr->dUOld = 0.0;
 
     if (msr->csm->val.bComove){
-       if(!prmSpecified(msr->prm, "dOmega0")) fioGetAttr(fio,1,"Omega_m",FIO_TYPE_DOUBLE,&msr->csm->val.dOmega0);
-       if(!prmSpecified(msr->prm, "dLambda")) fioGetAttr(fio,1,"Omega_Lambda",FIO_TYPE_DOUBLE,&msr->csm->val.dLambda);
-       if(!prmSpecified(msr->prm, "dBoxSize")) fioGetAttr(fio,0,"BoxSize",FIO_TYPE_DOUBLE,&msr->param.dBoxSize);
-       if(!prmSpecified(msr->prm, "h")) fioGetAttr(fio,1,"HubbleParam",FIO_TYPE_DOUBLE,&msr->param.h);
+       if(!prmSpecified(msr->prm, "dOmega0"))
+           fioGetAttr(fio,HDF5_COSMO_G,"Omega_m",FIO_TYPE_DOUBLE,&msr->csm->val.dOmega0);
+       if(!prmSpecified(msr->prm, "dLambda"))
+           fioGetAttr(fio,HDF5_COSMO_G,"Omega_Lambda",FIO_TYPE_DOUBLE,&msr->csm->val.dLambda);
+       if(!prmSpecified(msr->prm, "dBoxSize"))
+           fioGetAttr(fio,HDF5_HEADER_G,"BoxSize",FIO_TYPE_DOUBLE,&msr->param.dBoxSize);
+       if(!prmSpecified(msr->prm, "h"))
+           fioGetAttr(fio,HDF5_COSMO_G,"HubbleParam",FIO_TYPE_DOUBLE,&msr->param.h);
     }
 
     msr->N     = fioGetN(fio,FIO_SPECIES_ALL);
@@ -6487,7 +6491,7 @@ double msrRead(MSR msr, const char *achInFile) {
 
     read->nProcessors = msr->param.bParaRead==0?1:(msr->param.nParaRead<=1 ? msr->nThreads:msr->param.nParaRead);
 
-    if (!fioGetAttr(fio,0, "NumFilesPerSnapshot",FIO_TYPE_UINT32,&j)) j = 1;
+    if (!fioGetAttr(fio,HDF5_HEADER_G, "NumFilesPerSnapshot",FIO_TYPE_UINT32,&j)) j = 1;
     printf("Reading %"PRIu64" particles from %d file%s using %d processor%s\n",
 	msr->N, j, (j==1?"":"s"), read->nProcessors, (read->nProcessors==1?"":"s") );
 
