@@ -248,7 +248,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
     assert(smx->pSentinel != NULL);
     smx->pkd = pkd;
     smx->fcnSmoothNode = NULL;
-    smx->fcnSmoothAllocBuffer = NULL;
+    smx->fcnSmoothGetNvars = NULL;
     smx->fcnSmoothFillBuffer = NULL;
     smx->fcnSmoothUpdate = NULL;
     if (smf != NULL) smf->pkd = pkd;
@@ -342,7 +342,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
     case SMX_HYDRO_FLUX_VEC:
         assert (pkd->oSph);
         smx->fcnSmoothNode = hydroRiemann_vec;
-        smx->fcnSmoothAllocBuffer = hydroFluxAllocateBuffer;
+        smx->fcnSmoothGetNvars = hydroFluxGetNvars;
         smx->fcnSmoothFillBuffer = hydroFluxFillBuffer;
         smx->fcnSmoothUpdate = hydroFluxUpdateFromBuffer;
 	initParticle = initHydroFluxes; /* Original Particle */
@@ -483,7 +483,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
 	assert(0);
     }
 
-    if ( (smx->fcnSmoothNode != NULL) && ( (smx->fcnSmoothAllocBuffer == NULL) ||
+    if ( (smx->fcnSmoothNode != NULL) && ( (smx->fcnSmoothGetNvars == NULL) ||
          (smx->fcnSmoothFillBuffer == NULL) || (smx->fcnSmoothUpdate == NULL) ) ){
         fprintf(stderr, "ERROR: Trying to use particle buffer in node smooth,"
                 "but not all the required fuctions are set\n");
@@ -2812,6 +2812,52 @@ int  smReSmooth(SMX smx,SMF *smf, int iSmoothType) {
 }
 
 #ifdef OPTIM_SMOOTH_NODE
+
+/* Allocate a buffer for N particles each one with nVar variables.
+ * Also allocate an array of pointers to the beggining of each variable array
+ *
+ * If oldBuff is present, the new buffer is initialized with the contents of
+ * oldBuff, with a size oldN
+ */
+void static inline allocNodeBuffer(const int N, const int nVar, my_real **p_buff,
+                              my_real ***p_ptrs, my_real *oldBuff, const int oldN){
+
+    assert(oldN < N);
+
+    *p_buff = (my_real*) _mm_malloc(N*nVar*sizeof(my_real), 64);
+    assert(*p_buff!=NULL);
+    if (oldBuff == NULL){
+       *p_ptrs = (my_real**)_mm_malloc(nVar*sizeof(my_real*), 64);
+       assert(*p_ptrs!=NULL);
+    }
+
+    myreal *buff = *p_buff;
+    myreal **ptrs = *p_ptrs;
+
+    // Fill pointer array
+    for (int i=0; i<nVar; i++)
+        ptrs[i] = &buff[i*N];
+
+    // Fill if requested
+    if (oldBuff != NULL)
+       for (int var=0; var<nVar; var++)
+           for (int i=0; i<oldN; i++)
+              buff[var*N + i] =  oldBuff[var*oldN + i];
+
+}
+
+void static inline reallocNodeBuffer(const int N, const int nVar, my_real **p_buff,
+                                     my_real ***p_ptrs, const int oldN){
+
+    my_real *tmp_buffer;
+
+    allocNodeBuffer(N, nVar, &tmp_buffer, p_ptrs, *p_buff, oldN);
+
+    _mm_free(*p_buff);
+
+    *p_buff = tmp_buffer;
+}
+
 /* IA: In this version, we loop over the buckets, rather than over the particles.
  *
  * For each bucket, we look for all the surroiding buckets that may interact
@@ -2851,13 +2897,15 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
      *  Having everything in the same buffer can be advantageous as it should
      *  be in cache, but it was painful to code...
      */
-    my_real *input_buffer;
-    my_real **input_pointers;
-    my_real *output_buffer;
-    my_real **output_pointers;
-    if (smx->fcnSmoothAllocBuffer){
-       smx->fcnSmoothAllocBuffer(&input_buffer, &input_pointers,
-                                 &output_buffer, &output_pointers, nnListMax_p);
+    my_real *input_buffer = NULL;
+    my_real **input_pointers = NULL;
+    my_real *output_buffer = NULL;
+    my_real **output_pointers = NULL;
+    int inNvar, outNvar;
+    if (smx->fcnSmoothGetNvars){
+       smx->fcnSmoothGetNvars(&inNvar, &outNvar);
+       allocNodeBuffer(nnListMax_p, inNvar, &input_buffer, &input_pointers, NULL,0);
+       allocNodeBuffer(nnListMax_p, outNvar, &output_buffer, &output_pointers, NULL,0);
     }
 
 
@@ -3085,24 +3133,17 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
                           nnListMax_p += NNLIST_INCREMENT;
                           nnList_p = realloc(nnList_p,nnListMax_p*sizeof(NN));
                           assert(nnList_p != NULL);
-                          //printf("realloc nnList_p\n");
-                            if (smx->fcnSmoothAllocBuffer){
-                               //TODO
-                               printf("Trying to reallocate aligned memory.. not implemented!\n");
-                               abort();
-                               /*
-                               input_buffer = realloc(input_buffer, nnListMax_p*q_last*sizeof(my_real));
-                               for (int i=0; i<q_last; i++)
-                                  input_pointers[i] = &input_buffer[i*nnListMax_p];
-
-
-                               output_buffer = realloc(output_buffer, nnListMax_p*out_last*sizeof(my_real));
-                               for (int i=0; i<out_last; i++)
-                                  output_pointers[i] = &output_buffer[i*nnListMax_p];
-                                  */
-                            }
+                          if (smx->fcnSmoothGetNvars){
+                             printf("WARNING: Increasing smoothNode buffer size to %d\n",
+                                   nnListMax_p);
+                             int oldListMax = nnListMax_p - NNLIST_INCREMENT;
+                             reallocNodeBuffer(nnListMax_p, inNvar,
+                                   &input_buffer, &input_pointers, oldListMax);
+                             reallocNodeBuffer(nnListMax_p, outNvar,
+                                   &output_buffer, &output_pointers, oldListMax);
                           }
-                      //printf("adding\n");
+                      }
+
                       nnList_p[nCnt_p].fDist2 = fDist2;
                       nnList_p[nCnt_p].dx = dx;
                       nnList_p[nCnt_p].dy = dy;
@@ -3154,7 +3195,7 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
              //printf("end node %d %d \n", pkd->idSelf, i);
       }
    }
-    if (smx->fcnSmoothAllocBuffer){
+    if (smx->fcnSmoothGetNvars){
        _mm_free(input_buffer);
        _mm_free(input_pointers);
        _mm_free(output_buffer);

@@ -42,7 +42,7 @@ typedef struct smContext {
     PARTICLE *pSentinel;
     void (*fcnSmooth)(PARTICLE *,float,int,NN *,SMF *);
     void (*fcnSmoothNode)(PARTICLE *, float, int, double **, double **, SMF *);
-    void (*fcnSmoothAllocBuffer)(double **, double ***, double **, double ***, int);
+    void (*fcnSmoothGetNvars)(int *, int *);
     void (*fcnSmoothFillBuffer)(double **, PARTICLE *, int,
                                 double, double, double, double, SMF *);
     void (*fcnSmoothUpdate)(double **, double **, PARTICLE *, PARTICLE*, int, SMF *);

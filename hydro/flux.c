@@ -1173,31 +1173,10 @@ inline void hydroFluxUpdateFromBuffer(my_real **out_buffer, my_real **in_buffer,
 
 }
 
-inline void hydroFluxAllocateBuffer(my_real **p_input_buffer, my_real ***p_input_pointers,
-                                    my_real **p_output_buffer, my_real ***p_output_pointers,
-                                    int N)
+inline void hydroFluxGetNvars(int *in, int *out)
 {
-
-    // We align the memory for improving vectorization performance.
-    // This is compiler dependent!
-    *p_input_buffer = (my_real*)_mm_malloc(N*q_last*sizeof(my_real), 64);
-    *p_input_pointers = (my_real**)_mm_malloc(q_last*sizeof(my_real*), 64);
-    myreal *input_buffer = *p_input_buffer;
-    myreal **input_pointers = *p_input_pointers;
-    assert(input_buffer!=NULL);
-    assert(input_pointers!=NULL);
-    for (int i=0; i<q_last; i++)
-        input_pointers[i] = &input_buffer[i*N];
-
-
-    *p_output_buffer = (my_real*)_mm_malloc(N*out_last*sizeof(my_real), 64);
-    *p_output_pointers = (my_real**)_mm_malloc(out_last*sizeof(my_real*), 64);
-    myreal *output_buffer = *p_output_buffer;
-    myreal **output_pointers = *p_output_pointers;
-    assert(output_buffer!=NULL);
-    assert(output_pointers!=NULL);
-    for (int i=0; i<out_last; i++)
-        output_pointers[i] = &output_buffer[i*N];
+    *in = q_last;
+    *out = out_last;
 }
 
 

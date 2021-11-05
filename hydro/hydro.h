@@ -45,9 +45,7 @@ void hydroFluxFillBuffer(my_real **buffer, PARTICLE* q, int i,
                          double dr2, double dx, double dy, double dz, SMF *);
 void hydroFluxUpdateFromBuffer(my_real **out_buffer, my_real **in_buffer,
                                PARTICLE* p, PARTICLE* q, int i, SMF *);
-void hydroFluxAllocateBuffer(my_real **input_buffer, my_real ***input_pointers,
-                             my_real **output_buffer,my_real ***output_pointers,
-                             int N);
+void hydroFluxGetNvars(int *in, int *out);
 
 /* Time step loop */
 void msrHydroStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime);
