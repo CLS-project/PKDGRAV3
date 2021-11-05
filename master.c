@@ -2310,6 +2310,7 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
     msr->iRungDT = 0;
     msr->iLastRungRT = -1;
     msr->iLastRungDD = -1;
+    msr->nClasses = 0;
     msr->nRung = malloc((MAX_RUNG+1)*sizeof(uint64_t));
     assert(msr->nRung != NULL);
     for (i=0;i<=MAX_RUNG;++i) msr->nRung[i] = 0;
@@ -2721,10 +2722,13 @@ void msrSetClasses(MSR msr) {
     pClass = malloc(PKD_MAX_CLASSES*sizeof(PARTCLASS));
     assert(pClass!=NULL);
     nClass = pstGetClasses(msr->pst,NULL,0,pClass,PKD_MAX_CLASSES*sizeof(PARTCLASS));
-    n = nClass / sizeof(PARTCLASS);
-    assert(n*sizeof(PARTCLASS)==nClass);
-    qsort(pClass,n,sizeof(PARTCLASS),CmpPC);
-    pstSetClasses(msr->pst,pClass,nClass,NULL,0);
+    if (nClass != msr->nClasses){
+        n = nClass / sizeof(PARTCLASS);
+        assert(n*sizeof(PARTCLASS)==nClass);
+        qsort(pClass,n,sizeof(PARTCLASS),CmpPC);
+        pstSetClasses(msr->pst,pClass,nClass,NULL,0);
+        msr->nClasses = nClass;
+        }
     free(pClass);
     }
 
@@ -3329,6 +3333,12 @@ void msrDomainDecompOld(MSR msr,int iRung,int bSplitVA) {
 	pstFastGasCleanup(msr->pst,NULL,0,NULL,0);
 	}
 #endif
+    /* We make sure that the classes are synchronized among all the domains,
+     * otherwise a new class type being moved to another DD region could cause
+     * very nasty bugs!
+     */
+    msrSetClasses(msr);
+
     in.bSplitVA = bSplitVA;
     msrprintf(msr,"Domain Decomposition: nActive (Rung %d) %"PRIu64" SplitVA:%d\n",
 	msr->iLastRungRT,msr->nActive,bSplitVA);

@@ -120,6 +120,7 @@ typedef struct msrContext {
     uint64_t nStar;
     uint64_t nBH;
     uint64_t nMaxOrder;		/* Order number of last particle */
+    int nClasses;
     int iCurrMaxRung;
     double dThetaMin;
 
