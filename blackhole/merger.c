@@ -226,7 +226,20 @@ int smReSmoothBHNode(SMX smx,SMF *smf, int iSmoothType) {
 
     for (int i=NRESERVED_NODES; i<pkd->nNodes-1; i++){
       node = pkdTreeNode(pkd,i);
-      if (!node->iLower && pkdNodeNbh(pkd,node)){
+      int bBHinNode = 0;
+#ifdef OPTIM_REORDER_IN_NODES
+      bBHinNode = pkdNodeNbh(pkd,node);
+#else
+      if (!node->iLower){
+         for (int pj=node->pLower;pj<=node->pUpper;++pj){
+            if (pkdIsBH(pkd,pkdParticle(pkd,pj))){
+               bBHinNode = 1;
+               continue;
+            }
+         }
+      }
+#endif
+      if (!node->iLower && bBHinNode){
          // We are in a bucket which contains a BH
 
          // Prepare the interaction list
