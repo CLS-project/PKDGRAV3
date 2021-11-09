@@ -75,7 +75,7 @@ inline static void internalEnergyFloor(PKD pkd, PARTICLE* p,
 
 #ifdef EEOS_POLYTROPE
    /* Second, the polytropic EoS */
-   if (dens > pkd->param.dEOSPolyFloorDen){
+   if (dens*a_inv3 > pkd->param.dEOSPolyFloorDen){
 
        const double minUint =  polytropicEnergyFloor(pkd, a_inv3, dens)*mass;
 
