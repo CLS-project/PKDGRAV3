@@ -1124,7 +1124,6 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
     __itt_string_handle* shMyTask = __itt_string_handle_create("Read");
      __itt_task_begin(domain, __itt_null, __itt_null, shMyTask);
 #endif
-    //IA: What is this?!
     if (pkd->oStar) {
 	/* Make sure star class established -- how do all procs know of these classes? How do we ensure they agree on the class identifiers? */
 	p = pkdParticle(pkd,pkd->nLocal);
@@ -1135,6 +1134,10 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
     p = pkdParticle(pkd, pkd->nLocal);
     pkdSetClass(pkd,0,0,FIO_SPECIES_BH, p);
 #endif
+
+    // Protect against uninitialized values
+    fMass = 0.0f;
+    fSoft = 0.0f;
 
     fioSeek(fio,iFirst,FIO_SPECIES_ALL);
     for (i=0;i<nLocal;++i) {
