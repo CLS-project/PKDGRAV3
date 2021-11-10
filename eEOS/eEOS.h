@@ -44,6 +44,7 @@ inline static void internalEnergyFloor(PKD pkd, PARTICLE* p,
    const double a_inv3 = a_inv*a_inv*a_inv;
    const float mass = pkdMass(pkd,p);
    const float dens = pkdDensity(pkd,p);
+   const float dens_phys = pkdDensity(pkd,p)*a_inv3;
    const float fBall = 2.*pkdBall(pkd,p);
    psph->E -= psph->Uint;
 
@@ -66,7 +67,7 @@ inline static void internalEnergyFloor(PKD pkd, PARTICLE* p,
        denMin = ( denCosmoMin > denMin) ? denCosmoMin : denMin;
    }
 
-   if ( (dens > denMin) &&
+   if ( (dens_phys > denMin) &&
         (psph->Uint < pkd->param.dCoolingFlooru*mass ) ){
       psph->Uint = pkd->param.dCoolingFlooru*mass;
    }
@@ -75,7 +76,7 @@ inline static void internalEnergyFloor(PKD pkd, PARTICLE* p,
 
 #ifdef EEOS_POLYTROPE
    /* Second, the polytropic EoS */
-   if (dens*a_inv3 > pkd->param.dEOSPolyFloorDen){
+   if (dens_phys > pkd->param.dEOSPolyFloorDen){
 
        const double minUint =  polytropicEnergyFloor(pkd, a_inv3, dens)*mass;
 
