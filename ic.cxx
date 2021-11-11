@@ -702,7 +702,7 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
              if (pkd->oParticleID){
                 uint64_t *pID = pkdParticleID(pkd,pgas);
-                *pID = 2*(*pID);
+                *pID += in->nGrid*in->nGrid*in->nGrid;
              }
              pkdSetPos(pkd,pgas,2,pkdPos(pkd,pgas, 2)+inGrid*0.5);
              pkdSetPos(pkd,pgas,1,pkdPos(pkd,pgas, 1)+inGrid*0.5);
