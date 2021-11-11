@@ -2357,7 +2357,7 @@ static FIO gadgetOpenOne(const char *fname,int iFile) {
     gio->fp_id.fp  = NULL;
     gio->fp_mass.fp= NULL;
     gio->fp_u.fp   = NULL;
-    gio->fio.mFlags |= FIO_FLAG_DENSITY | FIO_FLAG_POTENTIAL;
+    gio->fio.mFlags |= FIO_FLAG_POTENTIAL;
 
     fp = fopen(fname, "rb");
     if ( fp == NULL ) {
@@ -3556,10 +3556,6 @@ static void base_create(fioHDF5 *hio,IOBASE *base,int iSpecies,int nFields,uint6
 	field_create(&base->fldFields[DARK_POTENTIAL],base->group_id,
 		     FIELD_POTENTIAL, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT,1 );
 	}
-    if ( hio->mFlags&FIO_FLAG_DENSITY) {
-	field_create(&base->fldFields[DARK_DENSITY],base->group_id,
-		     FIELD_DENSITY, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT,1 );
-	}
     }
 
 static int hdf5ReadDark(
@@ -3877,6 +3873,10 @@ static int  hdf5WriteDark(
     /* First time for this particle type? */
     if (base->group_id == H5I_INVALID_HID) {
 	base_create(hio,base,FIO_SPECIES_DARK,DARK_N,iParticleID);
+        if ( hio->mFlags&FIO_FLAG_DENSITY){
+            field_create(&base->fldFields[DARK_DENSITY],base->group_id,
+		     FIELD_DENSITY, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT,1 );
+            }
 	field_create(&base->fldFields[DARK_GROUP],base->group_id,
 		     FIELD_GROUP, H5T_NATIVE_INT32, H5T_NATIVE_INT32, 1);
 	}
@@ -3916,6 +3916,10 @@ static int hdf5WriteSph(
     /* First time for this particle type? */
     if (base->group_id == H5I_INVALID_HID) {
 	base_create(hio,base,FIO_SPECIES_SPH,SPH_N,iParticleID);
+        if ( hio->mFlags&FIO_FLAG_DENSITY){
+            field_create(&base->fldFields[SPH_DENSITY],base->group_id,
+		     FIELD_DENSITY, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT,1 );
+            }
 	field_create(&base->fldFields[SPH_TEMPERATURE],base->group_id,
 		     FIELD_TEMPERATURE, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, 1 );
 	field_create(&base->fldFields[SPH_INTERNALENERGY],base->group_id,
@@ -4010,8 +4014,6 @@ static int hdf5WriteStar(
     field_add_double(pdPos,&base->fldFields[STAR_POSITION],base->iIndex);
     field_add_double(pdVel,&base->fldFields[STAR_VELOCITY],base->iIndex);
     field_add_float(&fPot,&base->fldFields[STAR_POTENTIAL],base->iIndex);
-    // IA: No need for this I think
-    //field_add_float(&fDen,&base->fldFields[STAR_DENSITY],base->iIndex);
     field_add_float(&fTform,&base->fldFields[STAR_AGE],base->iIndex);
     field_add_int32_t(&iGroup,&base->fldFields[STAR_GROUP],base->iIndex);
 #ifdef STELLAR_EVOLUTION
@@ -4055,6 +4057,10 @@ static int hdf5WriteBH(
     /* First time for this particle type? */
     if (base->group_id == H5I_INVALID_HID) {
 	base_create(hio,base,FIO_SPECIES_BH,BH_N,iParticleID);
+        if ( hio->mFlags&FIO_FLAG_DENSITY){
+            field_create(&base->fldFields[BH_DENSITY],base->group_id,
+		     FIELD_DENSITY, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT,1 );
+            }
 	field_create(&base->fldFields[BH_AGE],base->group_id,
 		     FIELD_AGE, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, 1 );
 	field_create(&base->fldFields[BH_INT_MASS],base->group_id,
