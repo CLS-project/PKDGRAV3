@@ -121,7 +121,7 @@ inline float SNFeedbackEfficiency(PKD pkd, float Z, float rho){
       const double den = 1.0 + pow(Z/0.00127, pkd->param.dFeedbackEffIndex) *
                   pow(rho/pkd->param.dFeedbackEffnH0,-pkd->param.dFeedbackEffIndex);
       return pkd->param.dFeedbackEfficiency +
-                  (pkd->param.dFeedbackEfficiency - pkd->param.dFeedbackMaxEff)/
+                  (pkd->param.dFeedbackMaxEff - pkd->param.dFeedbackEfficiency)/
                   den;
    }else{
       return pkd->param.dFeedbackEfficiency;
