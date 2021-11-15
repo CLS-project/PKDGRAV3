@@ -48,9 +48,52 @@ typedef int (fcnService_t)(void *p1, void *vin, int nIn, void *vout, int nOut);
 #include <vector>
 #include <string>
 #include <memory>
+#include <initializer_list>
 #define MAX_NODE_NAME_LENGTH      256
 
 namespace mdl {
+
+// This struct is use to keep track of a variable length buffer for service requests.
+// List all data types and the number of times they are repeated in the constructor.
+//     ServiceBuffer msg {
+//         ServiceBuffer::Field<ServiceWhatever::input>(),
+//         ServiceBuffer::Field<int>(100)
+//         };
+// This would create a message with a single "input", followed by 100 integers.
+// Access the individual fields with "data()".
+//    auto input = static_cast<ServiceWhatever::input*>(msg.data(0));
+//    auto start = static_cast<int*>(msg.data(1));
+// The RunService() method has a overload that takes a ServiceBuffer for input.
+class ServiceBuffer {
+    std::vector<size_t> offsets {0};
+    std::unique_ptr<char[]> buffer;
+protected:
+    class BasicField {
+        int nBytes;
+        public:
+            BasicField(int size) : nBytes(size) {}
+            size_t size() const {return nBytes; }
+        };
+public:
+    template<typename T>
+    class Field : public BasicField {
+        int n;
+        public:
+            Field(int n=1) : BasicField(sizeof(T)*n) {}
+        };
+    public:
+        ServiceBuffer() = delete;
+        ServiceBuffer(const ServiceBuffer &) = delete;
+        ServiceBuffer& operator=(const ServiceBuffer&) = delete;
+        ServiceBuffer(std::initializer_list<BasicField> t) {
+            for(auto &i : t) offsets.push_back(offsets.back() + i.size());
+            buffer = std::make_unique<char[]>(offsets.back());
+            }
+        void *data(int i=0) {return static_cast<void*>(buffer.get() + offsets[i]);}
+        auto size() {return offsets.back();}
+        auto size(int i) {return offsets[i+1]-offsets[i];}
+    };
+
 class BasicService {
     friend class mdlBASE;
 private:
@@ -139,6 +182,7 @@ public:
     void AddService(int sid, void *p1, fcnService_t *fcnService, int nInBytes, int nOutBytes, const char *name="");
     void AddService(std::unique_ptr<BasicService> && service);
     int  RunService(int sid, int nIn, void *pIn, void *pOut=nullptr);
+    int  RunService(int sid, ServiceBuffer &b, void *pOut=nullptr) { return RunService(sid,b.size(),b.data(),pOut);}
     int  RunService(int sid, void *pOut) { return RunService(sid,0,nullptr,pOut); }
     BasicService *GetService(unsigned sid) {return sid<services.size() ? services[sid].get() : nullptr; }
     };
