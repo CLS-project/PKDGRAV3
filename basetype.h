@@ -90,7 +90,7 @@ typedef struct {
     float P;
     float c;
     int32_t species;
-    int hasTooManyParticles;
+    int isTooLarge;
 /*    float v[3];*/
 /*    float fMass;*/
 /*    float fSoft;*/

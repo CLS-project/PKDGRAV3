@@ -46,7 +46,7 @@ typedef struct {
     float TuFac;
     float FastGasFraction;
     int nSmooth;
-    float factorNSmooth;
+    float ballSizeLimit;
     float fBallFactor;
     uint64_t doGravity : 1;
     uint64_t doDensity : 1;
