@@ -81,6 +81,36 @@ static inline void densNodeOmegaE(NN *nnList, double *rpqs, float fBall,
 }
 
 
+static inline double densNodeNcondB(PKD pkd, PARTICLE *p,
+                                    double *E, double omega){
+    double B[6];
+
+    // Normalize the matrix
+    for (int j=0; j<6; ++j) {
+        E[j] /= omega;
+    }
+
+    inverseMatrix(E, B);
+    double Ncond = conditionNumber(E, B);
+    assert(Ncond==Ncond);
+
+    if (pkdIsGas(pkd,p)){
+        // We can already set this here, so it can be skipped in
+        // hydroGradients
+        SPHFIELDS* psph = pkdSph(pkd,p);
+        psph->Ncond = Ncond;
+        psph->B[XX] = B[XX];
+        psph->B[YY] = B[YY];
+        psph->B[ZZ] = B[ZZ];
+        psph->B[XY] = B[XY];
+        psph->B[XZ] = B[XZ];
+        psph->B[YZ] = B[YZ];
+    }
+
+    return Ncond;
+}
+
+
 
 void hydroDensity_node(PKD pkd, BND bnd_node, PARTICLE **sinks, NN *nnList,
                        int nCnt_own, int nCnt)
@@ -117,7 +147,7 @@ void hydroDensity_node(PKD pkd, BND bnd_node, PARTICLE **sinks, NN *nnList,
         float Neff = pkd->param.nSmooth;
         do {
             float ph = pkdBall(pkd,partj);
-            double E[6], B[6];
+            double E[6];
 
             densNodeOmegaE(nnList, rpqs, ph, dx_node, dy_node, dz_node,
                            nCnt,omega, E);
@@ -127,27 +157,7 @@ void hydroDensity_node(PKD pkd, BND bnd_node, PARTICLE **sinks, NN *nnList,
             if ((fabs(c-Neff) < pkd->param.dNeighborsStd0) ) {
                 // Check if the converged density has a low enough condition number
 
-                // Normalize the matrix
-                for (int j=0; j<6; ++j) {
-                    E[j] /= *omega;
-                }
-
-                inverseMatrix(E, B);
-                double Ncond = conditionNumber(E, B);
-                assert(Ncond==Ncond);
-
-                if (pkdIsGas(pkd,partj)){
-                    // We can already set this here, so it can be skipped in
-                    // hydroGradients
-                    SPHFIELDS* psph = pkdSph(pkd,partj);
-                    psph->Ncond = Ncond;
-                    psph->B[XX] = B[XX];
-                    psph->B[YY] = B[YY];
-                    psph->B[ZZ] = B[ZZ];
-                    psph->B[XY] = B[XY];
-                    psph->B[XZ] = B[XZ];
-                    psph->B[YZ] = B[YZ];
-                }
+                double Ncond = densNodeNcondB(pkd, partj, E, *omega);
 
 
                 if (Ncond > 100) {
@@ -202,10 +212,12 @@ void hydroDensity_node(PKD pkd, BND bnd_node, PARTICLE **sinks, NN *nnList,
             // In this cases, we stop iterating, making sure that we have the
             //  upper value, which should have more than the expected number of
             //  neighbours
-            if (niter>1000) {
+            if (niter>1000 && partj->bMarked) {
                 if (c > Neff) {
                     partj->bMarked = 0;
                     pkdSetBall(pkd,partj, ph);
+                    densNodeNcondB(pkd, partj, E, *omega);
+                    pkdSetDensity(pkd, partj, pkdMass(pkd,partj)*(*omega));
                     printf("WARNING Neff %e c %e \n", Neff, c);
                 }
             }
@@ -214,35 +226,16 @@ void hydroDensity_node(PKD pkd, BND bnd_node, PARTICLE **sinks, NN *nnList,
 
         // After a converged fBall is obtained, we limit fBall if needed
         if (pkd->param.dhMinOverSoft > 0.) {
-            float newBall = MAX(pkdBall(pkd,partj),
-                                pkd->param.dhMinOverSoft*pkdSoft(pkd,partj));
             if (pkdBall(pkd,partj) < pkd->param.dhMinOverSoft*pkdSoft(pkd,partj)){
                 float newBall = pkd->param.dhMinOverSoft*pkdSoft(pkd,partj);
                 pkdSetBall(pkd, partj, newBall);
 
-                double E[6], B[6];
+                double E[6];
                 densNodeOmegaE(nnList, rpqs, newBall, dx_node, dy_node, dz_node,
                                nCnt,omega, E);
-                // Normalize the matrix
-                for (int j=0; j<6; ++j) {
-                    E[j] /= *omega;
-                }
 
-                inverseMatrix(E, B);
-                double Ncond = conditionNumber(E, B);
+                densNodeNcondB(pkd, partj, E, *omega);
 
-                if (pkdIsGas(pkd,partj)){
-                    // We can already set this here, so it can be skipped in
-                    // hydroGradients
-                    SPHFIELDS* psph = pkdSph(pkd,partj);
-                    psph->Ncond = Ncond;
-                    psph->B[XX] = B[XX];
-                    psph->B[YY] = B[YY];
-                    psph->B[ZZ] = B[ZZ];
-                    psph->B[XY] = B[XY];
-                    psph->B[XZ] = B[XZ];
-                    psph->B[YZ] = B[YZ];
-                }
                 pkdSetDensity(pkd, partj, pkdMass(pkd,partj)*(*omega));
             }
         }
