@@ -18,8 +18,10 @@ void msrPlaceBHSeed(MSR msr, double dTime, uint8_t uRungMax) {
 #endif
 
    printf("Planting seeds...\n");
+   msrTimerStart(msr, TIMER_BHS);
    assert(msr->param.bFindGroups);
    pstPlaceBHSeed(msr->pst, &in, sizeof(in), &out, sizeof(out));
+   msrTimerStop(msr, TIMER_BHS);
 
    msr->nGas -= out.nBHs;
    msr->nBH += out.nBHs;

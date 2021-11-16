@@ -10,6 +10,8 @@ void msrBHmerger(MSR msr, double dTime) {
     struct outSmooth out;
     struct outGetNParts Nout;
 
+    msrTimerStart(msr, TIMER_BHS);
+
     in.nSmooth = msr->param.nSmooth;
     in.bPeriodic = msr->param.bPeriodic;
     in.bSymmetric = 0;
@@ -31,14 +33,13 @@ void msrBHmerger(MSR msr, double dTime) {
                                         &Nout, sizeof(struct outGetNParts));
       pstRepositionBH(msr->pst, NULL, 0, NULL, 0);
 	dsec = msrTime() - sec;
-	printf("Merging %d BH particle pairs took %f secs\n\n",
-                  out.nSmoothed, dsec);
     } else {
 	pstReSmoothNode(msr->pst,&in,sizeof(in),&out,sizeof(struct outSmooth));
       pstMoveDeletedParticles(msr->pst, NULL, 0, &Nout, sizeof(struct outGetNParts));
       pstRepositionBH(msr->pst, NULL, 0, NULL, 0);
     }
 
+    msrTimerStop(msr, TIMER_BHS);
 
     msr->N = Nout.n;
     msr->nDark = Nout.nDark;
