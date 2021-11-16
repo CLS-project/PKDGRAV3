@@ -784,7 +784,11 @@ void cooling_init_backend(MSR msr) {
    * that are read in are actually in units of electron volts per proton mass.
    * We later convert to units just below */
 
-  cooling->H_reion_done = 0;
+  if (msr->param.dRedFrom < msr->param.fH_reion_z){
+     cooling->H_reion_done = 1;
+  }else{
+     cooling->H_reion_done = 0;
+  }
   cooling->H_reion_z = msr->param.fH_reion_z;
 //      parser_get_param_float(parameter_file, "EAGLECooling:H_reion_z");
   cooling->H_reion_heat_cgs = msr->param.fH_reion_eV_p_H;
