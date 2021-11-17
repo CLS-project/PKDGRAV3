@@ -1,3 +1,11 @@
+#include "pkd.h"
+#include "master.h"
+
+#if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
+void msrSetEOSParam(MSR msr);
+#endif
+
+
 #ifdef EEOS_POLYTROPE
 /*
  * General polytropic eEOS floor
@@ -96,4 +104,3 @@ inline static void internalEnergyFloor(PKD pkd, PARTICLE* p,
    psph->E += psph->Uint;
 
 }
-

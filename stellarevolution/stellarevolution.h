@@ -77,6 +77,7 @@ typedef struct StellarEvolutionRawData {
  * --------------
  */
 
+void msrSetStellarEvolutionParam(MSR);
 void msrStellarEvolutionInit(MSR, double);
 int pstStellarEvolutionInit(PST, void *, int, void *, int);
 int pkdStellarEvolutionInit(PKD, STEV_DATA *);

@@ -31,6 +31,7 @@
 #include "master.h"
 
 
+void msrSetCoolingParam(MSR msr);
 void cooling_update(MSR msr, const float redshift, int sync);
 void pkd_cooling_update(PKD pkd, struct inCoolUpdate *in);
 

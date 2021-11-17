@@ -7,6 +7,27 @@
 #include "stellarevolution.h"
 #include "hydro/hydro.h"
 
+void msrSetStellarEvolutionParam(MSR msr){
+    msr->param.dSNIa_Norm_ti *= SECONDSPERYEAR / msr->param.dSecUnit;
+    msr->param.dSNIa_Norm_tf *= SECONDSPERYEAR / msr->param.dSecUnit;
+    msr->param.dSNIaEnergy /= msr->param.dErgUnit;
+    const double dStellarWindSpeed = msr->param.dWindSpecificEkin /
+                                        msr->param.dKmPerSecUnit;
+    msr->param.dWindSpecificEkin = 0.5 * dStellarWindSpeed * dStellarWindSpeed;
+
+    if (strcmp(msr->param.achSNIa_DTDtype, "exponential") == 0) {
+       msr->param.dSNIa_Scale *= SECONDSPERYEAR / msr->param.dSecUnit;
+    }
+    else if (strcmp(msr->param.achSNIa_DTDtype, "powerlaw") == 0) {
+       msr->param.dSNIa_Norm /= (pow(msr->param.dSNIa_Norm_tf, msr->param.dSNIa_Scale + 1.0) -
+				 pow(msr->param.dSNIa_Norm_ti, msr->param.dSNIa_Scale + 1.0));
+    }
+    else {
+       printf("ERROR: Undefined DTD type has been given in achSNIa_DTDtype parameter: %s\n",
+	      msr->param.achSNIa_DTDtype);
+       assert(0);
+    }
+}
 
 void msrStellarEvolutionInit(MSR msr, double dTime) {
    int i;

@@ -5,6 +5,7 @@
  * MAIN FUNCTIONS
  * ---------------------
  */
+void msrSetStarFormationParam(MSR msr);
 void msrStarFormInit(MSR msr, double dTime);
 int pstStarFormInit(PST,void *,int,void *,int);
 void pkdStarFormInit(PKD pkd, double dTime, int *nFormed);

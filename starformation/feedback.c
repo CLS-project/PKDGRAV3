@@ -3,6 +3,15 @@
 #include "smooth.h"
 #include "starformation/feedback.h"
 
+void msrSetFeedbackParam(MSR msr){
+    const double dHydFrac = msr->param.dInitialH;
+    const double dnHToRho = MHYDR / dHydFrac / msr->param.dGmPerCcUnit;
+    msr->param.dFeedbackDu *= msr->param.dTuFac;
+    msr->param.dFeedbackDelay *=  SECONDSPERYEAR/msr->param.dSecUnit ;
+    msr->param.dNumberSNIIperMass *= 8.73e15 / msr->param.dErgPerGmUnit / 1.736e-2;
+    msr->param.dFeedbackEffnH0 *= dnHToRho;
+}
+
 
 /* Function that will be called with the information of all the neighbors.
  * Here we compute the probability of explosion, and we add the energy to the

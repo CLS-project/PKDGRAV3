@@ -84,6 +84,15 @@
 #ifdef STAR_FORMATION
 #include "starformation/starformation.h"
 #endif
+#ifdef STELLAR_EVOLUTION
+#include "stellarevolution/stellarevolution.h"
+#endif
+#ifdef FEEDBACK
+#include "starformation/feedback.h"
+#endif
+#if ( defined(COOLING) || defined(GRACKLE) ) && defined(STAR_FORMATION)
+#include "eEOS/eEOS.h"
+#endif
 
 #define LOCKFILE ".lockfile"	/* for safety lock */
 #define STOPFILE "STOP"			/* for user interrupt */
@@ -966,6 +975,90 @@ static int validateParameters(MDL mdl,CSM csm,PRM prm,struct parameters *param) 
 
     return 1;
     }
+
+
+static inline void msrSetUnits(MSR msr){
+    /*
+    ** Convert kboltz/mhydrogen to system units, assuming that
+    ** G == 1.
+    */
+    if(prmSpecified(msr->prm, "dMsolUnit") &&
+       prmSpecified(msr->prm, "dKpcUnit")) {
+      /* code KBOLTZ/MHYDR */
+	msr->param.dGasConst = msr->param.dKpcUnit*KPCCM*KBOLTZ
+	    /MHYDR/GCGS/msr->param.dMsolUnit/MSOLG;
+	/* code energy per unit mass --> erg per g */
+	msr->param.dErgPerGmUnit = GCGS*msr->param.dMsolUnit*MSOLG/
+                                        (msr->param.dKpcUnit*KPCCM);
+      /* code energy --> erg */
+	msr->param.dErgUnit = GCGS*pow(msr->param.dMsolUnit*MSOLG,2.0)/
+                                (msr->param.dKpcUnit*KPCCM);
+	/* code density --> g per cc */
+	msr->param.dGmPerCcUnit = (msr->param.dMsolUnit*MSOLG)/
+                                       pow(msr->param.dKpcUnit*KPCCM,3.0);
+	/* code time --> seconds */
+	msr->param.dSecUnit = sqrt(1/(msr->param.dGmPerCcUnit*GCGS));
+	/* code speed --> km/s */
+	msr->param.dKmPerSecUnit = sqrt(GCGS*msr->param.dMsolUnit*MSOLG
+                                        /(msr->param.dKpcUnit*KPCCM))/1e5;
+	/* code comove density -->g per cc = msr->param.dGmPerCcUnit(1+z)^3*/
+	msr->param.dComovingGmPerCcUnit = msr->param.dGmPerCcUnit;
+	}
+    else if (msr->param.bICgas || msr->param.nGrid) {
+        // We need to properly set a unit system, we do so following the
+        // convention: G=1, rho=Omega0 in code units
+        msr->param.dKpcUnit = msr->param.dBoxSize*1e3 / msr->param.h;
+
+        // The mass unit is set such that we recover a correct dHubble0
+        // in code units and 100h in physical
+        const double dHubbleCGS = 100.*msr->param.h*1e5/(1e3*KPCCM); // 1/s
+        msr->param.dMsolUnit = pow( msr->param.dKpcUnit * KPCCM, 3 ) / MSOLG
+                * 3.0 * pow( dHubbleCGS , 2 ) * M_1_PI / 8.0 / GCGS;
+
+
+      /* code KBOLTZ/MHYDR */
+	msr->param.dGasConst = msr->param.dKpcUnit*KPCCM*KBOLTZ
+	    /MHYDR/GCGS/msr->param.dMsolUnit/MSOLG;
+	/* code energy per unit mass --> erg per g */
+	msr->param.dErgPerGmUnit = GCGS*msr->param.dMsolUnit*MSOLG/
+                                        (msr->param.dKpcUnit*KPCCM);
+      /* code energy --> erg */
+	msr->param.dErgUnit = GCGS*pow(msr->param.dMsolUnit*MSOLG,2.0)/
+                                (msr->param.dKpcUnit*KPCCM);
+	/* code density --> g per cc */
+	msr->param.dGmPerCcUnit = (msr->param.dMsolUnit*MSOLG)/
+                                       pow(msr->param.dKpcUnit*KPCCM,3.0);
+	/* code time --> seconds */
+	msr->param.dSecUnit = sqrt(1/(msr->param.dGmPerCcUnit*GCGS));
+	/* code speed --> km/s */
+	msr->param.dKmPerSecUnit = sqrt(GCGS*msr->param.dMsolUnit*MSOLG
+                                        /(msr->param.dKpcUnit*KPCCM))/1e5;
+	/* code comove density -->g per cc = msr->param.dGmPerCcUnit(1+z)^3*/
+	msr->param.dComovingGmPerCcUnit = msr->param.dGmPerCcUnit;
+
+
+        // Some safety checks
+        double H0 = msr->param.h * 100. / msr->param.dKmPerSecUnit *
+           msr->param.dKpcUnit/1e3;
+        double rhoCrit = 3.*H0*H0/(8.*M_PI);
+        assert( fabs(H0-msr->csm->val.dHubble0)/H0 < 0.01 );
+        assert( fabs(rhoCrit-1.0) < 0.01 );
+
+    }else{
+	msr->param.dSecUnit = 1;
+	msr->param.dKmPerSecUnit = 1;
+	msr->param.dComovingGmPerCcUnit = 1;
+	msr->param.dGmPerCcUnit = 1;
+	msr->param.dErgPerGmUnit = 1;
+      msr->param.dErgUnit = 1;
+	}
+    msr->param.dTuFac = msr->param.dGasConst/(msr->param.dConstGamma - 1)/
+		msr->param.dMeanMolWeight;
+
+    // We convert the minimum dt to rung
+    if (msr->param.dMinDt)
+       msr->param.dMinDt = ceil( log2(msr->param.dDelta/msr->param.dMinDt) );
+}
 
 #define MAX_CSM_SPECIES 20
 static int parseSpeciesNames(const char *aSpecies[], char *achSpecies) {
@@ -2097,8 +2190,8 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
 		sizeof(double), "sniaenergy",
 		"SNIa event energy <erg>");
 
-    double dStellarWindSpeed = 10.0;
-    prmAddParam(msr->prm, "dStellarWindSpeed", 2, &dStellarWindSpeed,
+    msr->param.dWindSpecificEkin = 10.0;
+    prmAddParam(msr->prm, "dStellarWindSpeed", 2, &msr->param.dWindSpecificEkin,
 		sizeof(double), "windspeed",
 		"Stellar wind speed <km/s>");
 #endif
@@ -2131,140 +2224,29 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
 	if (!validateParameters(mdl,msr->csm,msr->prm,&msr->param)) _msrExit(msr,1);
 	}
 
-    /*
-    ** Convert kboltz/mhydrogen to system units, assuming that
-    ** G == 1.
-    */
-    if(prmSpecified(msr->prm, "dMsolUnit") &&
-       prmSpecified(msr->prm, "dKpcUnit")) {
-      /* code KBOLTZ/MHYDR */
-	msr->param.dGasConst = msr->param.dKpcUnit*KPCCM*KBOLTZ
-	    /MHYDR/GCGS/msr->param.dMsolUnit/MSOLG;
-	/* code energy per unit mass --> erg per g */
-	msr->param.dErgPerGmUnit = GCGS*msr->param.dMsolUnit*MSOLG/(msr->param.dKpcUnit*KPCCM);
-      /* code energy --> erg IA: TODO be sure about this*/
-	msr->param.dErgUnit = GCGS*pow(msr->param.dMsolUnit*MSOLG,2.0)/(msr->param.dKpcUnit*KPCCM);
-	/* code density --> g per cc */
-	msr->param.dGmPerCcUnit = (msr->param.dMsolUnit*MSOLG)/pow(msr->param.dKpcUnit*KPCCM,3.0);
-	/* code time --> seconds */
-	msr->param.dSecUnit = sqrt(1/(msr->param.dGmPerCcUnit*GCGS));
-	/* code speed --> km/s */
-	msr->param.dKmPerSecUnit = sqrt(GCGS*msr->param.dMsolUnit*MSOLG/(msr->param.dKpcUnit*KPCCM))/1e5;
-	/* code comoving density --> g per cc = msr->param.dGmPerCcUnit (1+z)^3 */
-	msr->param.dComovingGmPerCcUnit = msr->param.dGmPerCcUnit;
-	}
-    else if (msr->param.bICgas || msr->param.nGrid) {
-      // We need to properly set a unit system, we do so following the
-      // convention: G=1, rho=Omega0 in code units
-      msr->param.dKpcUnit = msr->param.dBoxSize*1e3 / msr->param.h;
-      // The mass unit is set such that we recover a correct dHubble0 in code units
-      // and 100h in physical
-      msr->param.dMsolUnit = pow( msr->param.h * 100.0 * 1e5 * msr->param.dKpcUnit/
-            (1e3*msr->csm->val.dHubble0), 2) * msr->param.dKpcUnit*KPCCM/(GCGS*MSOLG);
 
-	msr->param.dGasConst = msr->param.dKpcUnit*KPCCM*KBOLTZ
-	    /MHYDR/GCGS/msr->param.dMsolUnit/MSOLG;
-	/* code energy per unit mass --> erg per g */
-	msr->param.dErgPerGmUnit = GCGS*msr->param.dMsolUnit*MSOLG/(msr->param.dKpcUnit*KPCCM);
-      /* code energy --> erg IA: TODO be sure about this*/
-	msr->param.dErgUnit = GCGS*pow(msr->param.dMsolUnit*MSOLG,2.0)/(msr->param.dKpcUnit*KPCCM);
-	/* code density --> g per cc */
-	msr->param.dGmPerCcUnit = (msr->param.dMsolUnit*MSOLG)/pow(msr->param.dKpcUnit*KPCCM,3.0);
-	/* code time --> seconds */
-	msr->param.dSecUnit = sqrt(1/(msr->param.dGmPerCcUnit*GCGS));
-	/* code speed --> km/s */
-	msr->param.dKmPerSecUnit = sqrt(GCGS*msr->param.dMsolUnit*MSOLG/(msr->param.dKpcUnit*KPCCM))/1e5;
-	/* code comoving density --> g per cc = msr->param.dGmPerCcUnit (1+z)^3 */
-	msr->param.dComovingGmPerCcUnit = msr->param.dGmPerCcUnit;
+    msrSetUnits(msr);
 
-      // Some safety checks
-      double H0 = msr->param.h * 100. / msr->param.dKmPerSecUnit *
-         msr->param.dKpcUnit/1e3;
-      double rhoCrit = 3.*H0*H0/(8.*M_PI);
-      assert( fabs(H0-msr->csm->val.dHubble0)/H0 < 0.01 );
-      assert( fabs(rhoCrit-1.0) < 0.01 );
-    }else{
-	msr->param.dSecUnit = 1;
-	msr->param.dKmPerSecUnit = 1;
-	msr->param.dComovingGmPerCcUnit = 1;
-	msr->param.dGmPerCcUnit = 1;
-	msr->param.dErgPerGmUnit = 1;
-      msr->param.dErgUnit = 1;
-	}
-    msr->param.dTuFac = msr->param.dGasConst/(msr->param.dConstGamma - 1)/
-		msr->param.dMeanMolWeight;
-
-    // We convert the minimum dt to rung
-    if (msr->param.dMinDt)
-       msr->param.dMinDt = ceil( log2(msr->param.dDelta/msr->param.dMinDt) );
-
-
-    const double dHydFrac = msr->param.dInitialH;
-    const double dnHToRho = MHYDR / dHydFrac / msr->param.dGmPerCcUnit;
+#if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
+    msrSetEOSParam(msr);
+#endif
 #ifdef COOLING
-    // We convert the parameters of the entropy floor into code units
-    msr->param.dCoolingFloorDen *= dnHToRho;
-    msr->param.dCoolingFlooru *= msr->param.dTuFac;
+    msrSetCoolingParam(msr);
 #endif
-#ifdef EEOS_POLYTROPE
-    msr->param.dEOSPolyFloorIndex -= 1.;
-    msr->param.dEOSPolyFloorDen *=  dnHToRho; // Code density
-    msr->param.dEOSPolyFlooru *= msr->param.dTuFac; // Code internal energy per unit mass
-#endif
-#ifdef EEOS_JEANS
-    msr->param.dEOSNJeans = pow(msr->param.dEOSNJeans, 0.666666);
+#ifdef BLACKHOLES
+    msrSetBlackholeParam(msr);
 #endif
 #ifdef STAR_FORMATION
-    msr->param.dSFThresholdDen *= dnHToRho*dHydFrac; // Code hydrogen density
-    msr->param.dSFThresholdu *= msr->param.dTuFac;
-
-    const double Msolpcm2 = 1. / msr->param.dMsolUnit *
-       pow(msr->param.dKpcUnit*1e3, 2);
-    msr->param.dSFnormalizationKS *= 1. / msr->param.dMsolUnit *
-       msr->param.dSecUnit/SECONDSPERYEAR *
-       pow(msr->param.dKpcUnit, 2) *
-       pow(Msolpcm2,-msr->param.dSFindexKS);
+    msrSetStarFormationParam(msr);
 #endif
-
 #ifdef FEEDBACK
-    msr->param.dFeedbackDu *= msr->param.dTuFac;
-    msr->param.dFeedbackDelay *=  SECONDSPERYEAR/msr->param.dSecUnit ;
-    msr->param.dNumberSNIIperMass *= 8.73e15 / msr->param.dErgPerGmUnit / 1.736e-2;
-    msr->param.dFeedbackEffnH0 *= dnHToRho;
+    msrSetFeedbackParam(msr);
 #endif
-
-#ifdef BLACKHOLES
-    msr->param.dEddingtonFactor *= (1e3/MSOLG/msr->param.dMsolUnit )  / pow( 100. / KPCCM / msr->param.dKpcUnit, 3) / msr->param.dSecUnit / msr->param.dBHRadiativeEff ;
-    printf("Eddington Factor: %e \n", msr->param.dEddingtonFactor);
-
-    // We precompute the factor such that we only need to multiply AccretionRate by this amount to get E_feed
-    msr->param.dBHFeedbackEff = msr->param.dBHFeedbackEff * msr->param.dBHRadiativeEff * (1. - msr->param.dBHRadiativeEff) * pow( 299792458. /1e3 /msr->param.dKmPerSecUnit ,2);
-
-    double n_heat = 1.0; // This, in principle, will not be a parameter
-    // We convert from Delta T to energy per mass. This needs to be multiplied by the mass of the gas particle
-    msr->param.dBHFeedbackEcrit *= msr->param.dGasConst/(msr->param.dConstGamma - 1.)/0.58 * n_heat;
-#endif
-
 #ifdef STELLAR_EVOLUTION
-    msr->param.dSNIa_Norm_ti *= SECONDSPERYEAR / msr->param.dSecUnit;
-    msr->param.dSNIa_Norm_tf *= SECONDSPERYEAR / msr->param.dSecUnit;
-    msr->param.dSNIaEnergy /= msr->param.dErgUnit;
-    dStellarWindSpeed /= msr->param.dKmPerSecUnit;
-    msr->param.dWindSpecificEkin = 0.5 * dStellarWindSpeed * dStellarWindSpeed;
-
-    if (strcmp(msr->param.achSNIa_DTDtype, "exponential") == 0) {
-       msr->param.dSNIa_Scale *= SECONDSPERYEAR / msr->param.dSecUnit;
-    }
-    else if (strcmp(msr->param.achSNIa_DTDtype, "powerlaw") == 0) {
-       msr->param.dSNIa_Norm /= (pow(msr->param.dSNIa_Norm_tf, msr->param.dSNIa_Scale + 1.0) -
-				 pow(msr->param.dSNIa_Norm_ti, msr->param.dSNIa_Scale + 1.0));
-    }
-    else {
-       printf("ERROR: Undefined DTD type has been given in achSNIa_DTDtype parameter: %s\n",
-	      msr->param.achSNIa_DTDtype);
-       assert(0);
-    }
+    msrSetStellarEvolutionParam(msr);
 #endif
+
+
 
     /* Gas parameter checks */
 #ifdef CLASSICAL_FOPEN

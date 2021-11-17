@@ -61,6 +61,13 @@ static const float explicit_tolerance = 0.05;
 static const float bisection_tolerance = 1.0e-6;
 static const double bracket_factor = 1.5;
 
+void msrSetCoolingParam(MSR msr){
+    const double dHydFrac = msr->param.dInitialH;
+    const double dnHToRho = MHYDR / dHydFrac / msr->param.dGmPerCcUnit;
+    msr->param.dCoolingFloorDen *= dnHToRho;
+    msr->param.dCoolingFlooru *= msr->param.dTuFac;
+}
+
 /**
  * @brief Find the index of the current redshift along the redshift dimension
  * of the cooling tables.

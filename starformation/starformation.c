@@ -18,8 +18,21 @@ static inline double pressure_SFR(PKD pkd, double a_m3, double dDenMin,
 static inline double density_SFR(PKD pkd, double a_m3, double dDenMin,
       PARTICLE *p, SPHFIELDS *psph);
 
-/* IA: MSR layer
+/* MSR layer
  */
+void msrSetStarFormationParam(MSR msr){
+    const double dHydFrac = msr->param.dInitialH;
+    const double dnHToRho = MHYDR / dHydFrac / msr->param.dGmPerCcUnit;
+    msr->param.dSFThresholdDen *= dnHToRho*dHydFrac; // Code hydrogen density
+    msr->param.dSFThresholdu *= msr->param.dTuFac;
+
+    const double Msolpcm2 = 1. / msr->param.dMsolUnit *
+       pow(msr->param.dKpcUnit*1e3, 2);
+    msr->param.dSFnormalizationKS *= 1. / msr->param.dMsolUnit *
+       msr->param.dSecUnit/SECONDSPERYEAR *
+       pow(msr->param.dKpcUnit, 2) *
+       pow(Msolpcm2,-msr->param.dSFindexKS);
+}
 
 void msrStarForm(MSR msr, double dTime, double dDelta, int iRung)
     {

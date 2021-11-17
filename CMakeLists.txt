@@ -144,7 +144,7 @@ target_sources(${PROJECT_NAME} PRIVATE
 	fof.c hop.c group.c groupstats.c RngStream.c listcomp.c healpix.c
 	tinypy.c pkdtinypy.c
 	gridinfo.cxx assignmass.cxx measurepk.cxx whitenoise.cxx pmforces.cxx
-      hydro/hydro.c
+        hydro/hydro.c eEOS/eEOS.c
 )
 add_executable(tostd tostd.c fio.c)
 add_executable(psout psout.c cosmo.c)
