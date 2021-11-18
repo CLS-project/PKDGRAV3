@@ -470,6 +470,7 @@ int readParameters(MSR msr,const char *fileName) {
     else if (fscanf(fp,"nSpecies1=%"PRIu64"\n",&msr->nDark)!=1) bError=1;
     else if (fscanf(fp,"nSpecies2=%"PRIu64"\n",&msr->nGas)!=1) bError=1;
     else if (fscanf(fp,"nSpecies3=%"PRIu64"\n",&msr->nStar)!=1) bError=1;
+    else if (fscanf(fp,"nSpecies4=%"PRIu64"\n",&msr->nBH)!=1) bError=1;
     else if (readParametersClasses(msr,fp)) bError=1;
     else if (fscanf(fp,"nCheckpointFiles=%d\n",&msr->nCheckpointThreads)!=1) bError=1;
     else if (scanString(msr->achCheckpointName,sizeof(msr->achCheckpointName),fp,"achCheckpointName")==0) bError = 1;
@@ -1908,7 +1909,7 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
     /// Temperature of the CMB at z=0
     msr->param.fT_CMB_0 = 2.725;
     prmAddParam(msr->prm,"fT_CMB_0", 2, &msr->param.fT_CMB_0,
-		sizeof(float), "fT_CMB_0",
+		sizeof(double), "fT_CMB_0",
 		"Temperature of the CMB at z=0");
 
     /* Parameters for the internal energy floor */
@@ -2224,27 +2225,32 @@ int msrInitialize(MSR *pmsr,MDL mdl,void *pst,int argc,char **argv) {
 	if (!validateParameters(mdl,msr->csm,msr->prm,&msr->param)) _msrExit(msr,1);
 	}
 
-
     msrSetUnits(msr);
 
+    /* In the case of a restore, all these convertions have already been made
+     * and the checkpoint file has the correct values... so do not touch them!
+     */
+    if (!bDoRestore){
+
 #if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
-    msrSetEOSParam(msr);
+        msrSetEOSParam(msr);
 #endif
 #ifdef COOLING
-    msrSetCoolingParam(msr);
+        msrSetCoolingParam(msr);
 #endif
 #ifdef BLACKHOLES
-    msrSetBlackholeParam(msr);
+        msrSetBlackholeParam(msr);
 #endif
 #ifdef STAR_FORMATION
-    msrSetStarFormationParam(msr);
+        msrSetStarFormationParam(msr);
 #endif
 #ifdef FEEDBACK
-    msrSetFeedbackParam(msr);
+        msrSetFeedbackParam(msr);
 #endif
 #ifdef STELLAR_EVOLUTION
-    msrSetStellarEvolutionParam(msr);
+        msrSetStellarEvolutionParam(msr);
 #endif
+    }
 
 
 
@@ -5890,15 +5896,18 @@ uint8_t msrInitSph(MSR msr,double dTime)
     msrSphStep(msr,0,MAX_RUNG,dTime); /* Requires SPH */
     msrCooling(msr,dTime,0,0,1,1); /* Interate cooling for consistent dt */
     }else{ //IA: we set the initial rungs of the particles
-        msrActiveRung(msr,0,1);
-        msrSetSmooth(msr);
-        msrEndTimestepIntegration(msr, dTime, 0.0, ROOT);
-        msrMeshlessGradients(msr, dTime);
-        msrMeshlessFluxes(msr, dTime, 0.0, ROOT);
-	//msrZeroNewRung(msr,0,MAX_RUNG,0); 
-        msrHydroStep(msr,0,MAX_RUNG,dTime); // We do this twice because we need to have uNewRung for the time limiter
-        msrHydroStep(msr,0,MAX_RUNG,dTime);  // of Durier & Dalla Vecchia
-        //msrResetFluxes(msr, dTime, 0.0, ROOT); // Reset the fluxes
+        if (!msr->param.bRestart) {
+            msrActiveRung(msr,0,1);
+            msrSetSmooth(msr);
+            msrEndTimestepIntegration(msr, dTime, 0.0, ROOT);
+            msrMeshlessGradients(msr, dTime);
+            msrMeshlessFluxes(msr, dTime, 0.0, ROOT);
+            // We do this twice because we need to have uNewRung for the time
+            // limiter of Durier & Dalla Vecchia
+            msrHydroStep(msr,0,MAX_RUNG,dTime);
+            msrHydroStep(msr,0,MAX_RUNG,dTime);
+            //msrResetFluxes(msr, dTime, 0.0, ROOT); // Reset the fluxes
+        }
     }
     msrUpdateRung(msr, 0) ;
     uint8_t uRungMax = msrGetMinDt(msr);
