@@ -159,6 +159,8 @@ void pkdStarForm(PKD pkd,
           }
 
           psph->SFR = dmstar;
+          if (dmstar == 0.0)
+              continue;
 
           const double prob = 1.0 - exp(-dmstar*dt/pkdMass(pkd,p));
 
