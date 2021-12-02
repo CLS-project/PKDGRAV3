@@ -1,9 +1,12 @@
 *~
 \.lockfile
 \.tipsy_history
+\.python-version
+__pycache__
 /config\.h\.in
 /windows*/x64/*
 /windows*/*\.filters
 /windows*/*\.user
 /windows*/*\.filters
-build_*
+build*
+test-reports

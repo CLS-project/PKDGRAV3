@@ -22,9 +22,6 @@
 #else
 #include "mdl_config.h"
 #endif
-#ifdef __cplusplus
-extern "C" {
-#endif
 #ifdef INSTRUMENT
 #include "cycle.h"
 #endif
@@ -32,53 +29,6 @@ extern "C" {
 #include <stdlib.h>
 #include <stdint.h>
 #include "opa_queue.h"
-
-typedef struct {
-    OPA_Queue_element_hdr_t hdr;
-    uint32_t iServiceID;
-    uint32_t iCoreFrom;
-    } MDLserviceElement;
-
-/*
-** A MDL Key must be large enough to hold the largest unique particle key.
-** It must be (several times) larger than the total number of particles.
-** An "unsigned long" is normally 32 bits on a 32 bit machine and
-** 64 bits on a 64 bit machine.  We use uint64_t to be sure.
-*/
-#ifndef MDLKEY
-#define MDLKEY uint64_t
-#endif
-typedef MDLKEY mdlkey_t;
-static const mdlkey_t MDL_INVALID_KEY = (mdlkey_t)(-1);
-
-/*
-** The purpose of this routine is to safely cast a size_t to an int.
-** If this were done inline, the type of "v" would not be checked.
-**
-** We cast for the following reasons:
-** - We have masked a mdlkey_t (to an local id or processor), so we
-**   know it will fit in an integer.
-** - We are taking a part of a memory block to send or receive
-**   through MPI.  MPI takes an "int" parameter.
-** - We have calculated a memory size with pointer subtraction and
-**   know that it must be smaller than 4GB.
-**
-** The compiler will cast automatically, but warnings can be generated unless
-** the cast is done explicitly.  Putting it inline is NOT type safe as in:
-**   char *p;
-**   int i;
-**   i = (int)p;
-** "works", while:
-**   i = size_t_to_int(p);
-** would fail.
-*/
-static inline int size_t_to_int(size_t v) {
-    return (int)v;
-    }
-
-static inline int mdlkey_t_to_int(mdlkey_t v) {
-    return (int)v;
-    }
 
 /*
 * Compile time mdl debugging options
@@ -93,16 +43,81 @@ static inline int mdlkey_t_to_int(mdlkey_t v) {
 
 typedef int (fcnService_t)(void *p1, void *vin, int nIn, void *vout, int nOut);
 
-typedef struct serviceRec {
+#ifdef __cplusplus
+#include "mdlbt.h"
+#include <vector>
+#include <string>
+#include <memory>
+#include <initializer_list>
+#define MAX_NODE_NAME_LENGTH      256
+
+namespace mdl {
+
+// This struct is use to keep track of a variable length buffer for service requests.
+// List all data types and the number of times they are repeated in the constructor.
+//     ServiceBuffer msg {
+//         ServiceBuffer::Field<ServiceWhatever::input>(),
+//         ServiceBuffer::Field<int>(100)
+//         };
+// This would create a message with a single "input", followed by 100 integers.
+// Access the individual fields with "data()".
+//    auto input = static_cast<ServiceWhatever::input*>(msg.data(0));
+//    auto start = static_cast<int*>(msg.data(1));
+// The RunService() method has a overload that takes a ServiceBuffer for input.
+class ServiceBuffer {
+    std::vector<size_t> offsets {0};
+    std::unique_ptr<char[]> buffer;
+protected:
+    class BasicField {
+        int nBytes;
+        public:
+            BasicField(int size) : nBytes(size) {}
+            size_t size() const {return nBytes; }
+        };
+public:
+    template<typename T>
+    class Field : public BasicField {
+        int n;
+        public:
+            Field(int n=1) : BasicField(sizeof(T)*n) {}
+        };
+    public:
+        ServiceBuffer() = delete;
+        ServiceBuffer(const ServiceBuffer &) = delete;
+        ServiceBuffer& operator=(const ServiceBuffer&) = delete;
+        ServiceBuffer(std::initializer_list<BasicField> t) {
+            for(auto &i : t) offsets.push_back(offsets.back() + i.size());
+            buffer = std::make_unique<char[]>(offsets.back());
+            }
+        void *data(int i=0) {return static_cast<void*>(buffer.get() + offsets[i]);}
+        auto size() {return offsets.back();}
+        auto size(int i) {return offsets[i+1]-offsets[i];}
+    };
+
+class BasicService {
+    friend class mdlBASE;
+private:
     int nInBytes;
     int nOutBytes;
-    void *p1;
-    fcnService_t *fcnService;
-//    int (*fcnService)(void *, void *, int, void *, int *);
-} SERVICE;
+    int service_id;
+    std::string service_name;
+public:
+    explicit BasicService(int service_id, int nInBytes, int nOutBytes, const char *service_name="")
+	: nInBytes(nInBytes), nOutBytes(nOutBytes), service_id(service_id),service_name(service_name) {}
+    explicit BasicService(int service_id, int nInBytes, const char *service_name="")
+	: nInBytes(nInBytes), nOutBytes(0), service_id(service_id),service_name(service_name) {}
+    explicit BasicService(int service_id, const char *service_name="")
+	: nInBytes(0), nOutBytes(0), service_id(service_id),service_name(service_name) {}
+    virtual ~BasicService() = default;
+    int getServiceID()  {return service_id;}
+    int getMaxBytesIn() {return nInBytes;}
+    int getMaxBytesOut(){return nOutBytes;}
+protected:
+    virtual int operator()(int nIn, void *pIn, void *pOut) = 0;
+    };
 
-#define MAX_NODE_NAME_LENGTH      256
-typedef struct {
+class mdlBASE : protected mdlbt {
+public:
     int32_t nThreads; /* Global number of threads (total) */
     int32_t idSelf;   /* Global index of this thread */
     int32_t nProcs;   /* Number of global processes (e.g., MPI ranks) */
@@ -116,47 +131,84 @@ typedef struct {
     char **argv;
 
     /* Services information */
-    int nMaxServices;
     int nMaxInBytes;
     int nMaxOutBytes;
-    SERVICE *psrv;
+    std::vector< std::unique_ptr<BasicService> > services;
 
     /* Maps a give process (Proc) to the first global thread ID */
-    int *iProcToThread; /* [0,nProcs] (note inclusive extra element) */
+    std::vector<int> iProcToThread; /* [0,nProcs] (note inclusive extra element) */
 
     char nodeName[MAX_NODE_NAME_LENGTH];
 
+    typedef enum {
+        TIME_WAITING,
+        TIME_COMPUTING,
+        TIME_SYNCHRONIZING,
+        TIME_COUNT
+        } TICK_TIMER;
+
 #if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
+protected:
     ticks nTicks;
-    double dWaiting;
-    double dComputing;
-    double dSynchronizing;
+#endif
+    double dTimer[TIME_COUNT];
+private:
+    double TimeFraction() const;
+public:
+    void TimeReset();
+    void TimeAddComputing();
+    void TimeAddSynchronizing();
+    void TimeAddWaiting();
+    double TimeGet(TICK_TIMER which) const { return dTimer[which] * TimeFraction(); }
+    double TimeComputing() const;
+    double TimeSynchronizing() const;
+    double TimeWaiting() const;
+
+    void mdl_vprintf(const char *format, va_list ap);
+    void mdl_printf(const char *format, ...);
+
+public:
+    explicit mdlBASE(int argc,char **argv);
+    virtual ~mdlBASE();
+    int32_t Threads() const { return nThreads; }
+    int32_t Self()    const { return idSelf; }
+    int16_t Core()    const { return iCore; }
+    int16_t Cores()   const { return nCores; }
+    int32_t Proc()    const { return iProc; }
+    int32_t Procs()   const { return nProcs; }
+    int32_t ProcToThread(int32_t iProc) const;
+    int32_t ThreadToProc(int32_t iThread) const;
+    void yield();
+    void AddService(int sid, void *p1, fcnService_t *fcnService, int nInBytes, int nOutBytes, const char *name="");
+    void AddService(std::unique_ptr<BasicService> && service);
+    int  RunService(int sid, int nIn, void *pIn, void *pOut=nullptr);
+    int  RunService(int sid, ServiceBuffer &b, void *pOut=nullptr) { return RunService(sid,b.size(),b.data(),pOut);}
+    int  RunService(int sid, void *pOut) { return RunService(sid,0,nullptr,pOut); }
+    BasicService *GetService(unsigned sid) {return sid<services.size() ? services[sid].get() : nullptr; }
+    };
+int mdlBaseProcToThread(mdlBASE *base, int iProc);
+int mdlBaseThreadToProc(mdlBASE *base, int iThread);
+} // namespace mdl
+
+#endif
+
+#ifdef __cplusplus
+extern "C" {
 #endif
 
 
-    } mdlBASE;
-
-void mdlBaseInitialize(mdlBASE *base,int argc,char **argv);
-void mdlBaseFinish(mdlBASE *base);
-void mdlBaseAddService(mdlBASE *base, int sid, void *p1,
-    fcnService_t *fcnService,
-    int nInBytes, int nOutBytes);
-
-#define mdlThreads(mdl) ((mdl)->base.nThreads)
-#define mdlSelf(mdl) ((mdl)->base.idSelf)
-#define mdlCore(mdl) ((mdl)->base.iCore)
-#define mdlCores(mdl) ((mdl)->base.nCores)
-#define mdlProc(mdl) ((mdl)->base.iProc)
-#define mdlProcs(mdl) ((mdl)->base.nProcs)
+int mdlThreads(void *mdl);
+int mdlSelf(void *mdl);
+int mdlCore(void *mdl);
+int mdlCores(void *mdl);
+int mdlProc(void *mdl);
+int mdlProcs(void *mdl);
 const char *mdlName(void *mdl);
+int mdlGetArgc(void *mdl);
+char **mdlGetArgv(void *mdl);
 
-int mdlBaseProcToThread(mdlBASE *base, int iProc);
-int mdlBaseThreadToProc(mdlBASE *base, int iThread);
-#define mdlProcToThread(mdl,iProc) mdlBaseProcToThread(&(mdl)->base,iProc)
-#define mdlThreadToProc(mdl,iThread) mdlBaseThreadToProc(&(mdl)->base,iThread)
 
 void mdlDiag(void *mdl, char *psz);
-void mdlprintf(void *mdl, const char *format, ...);
 #ifdef MDLASSERT
 #ifndef __STRING
 #define __STRING( arg )   (("arg"))
@@ -173,28 +225,6 @@ void mdlprintf(void *mdl, const char *format, ...);
 #endif
 
 double mdlCpuTimer(void * mdl);
-
-
-#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
-void mdlTimeReset(void *mdl);
-void mdlTimeAddComputing(void *mdl);
-void mdlTimeAddSynchronizing(void *mdl);
-void mdlTimeAddWaiting(void *mdl);
-double mdlTimeComputing(void *mdl);
-double mdlTimeSynchronizing(void *mdl);
-double mdlTimeWaiting(void *mdl);
-#else
-#define mdlTimeReset(mdl)
-#define mdlTimeAddComputing(mdl)
-#define mdlTimeAddSynchronizing(mdl)
-#define mdlTimeAddWaiting(mdl)
-#define mdlTimeComputing(mdl) 0.0
-#define mdlTimeSynchronizing(mdl) 0.0
-#define mdlTimeWaiting(mdl) 0.0
-#endif
-
-
-
 /*
 * Timer functions active: define MDLTIMER
 * Makes mdl timer functions active
@@ -212,7 +242,7 @@ typedef struct {
 #ifdef MDLTIMER
 void mdlZeroTimer(void * mdl, mdlTimer *);
 void mdlGetTimer(void * mdl, mdlTimer *, mdlTimer *);
-void mdlPrintTimer(void *mdl, char *message, mdlTimer *);
+void mdlPrintTimer(void *mdl, const char *message, mdlTimer *);
 #else
 #define mdlZeroTimer
 #define mdlGetTimer

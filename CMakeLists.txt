@@ -1,5 +1,14 @@
-cmake_minimum_required(VERSION 3.1)
-project(pkdgrav3 VERSION 3.0.4)
+cmake_minimum_required(VERSION 3.6)
+cmake_policy(VERSION 3.6...3.14)
+
+# cmake uses -isysroot to specify the SDK, but this removes /usr/local/lib
+# from consideration. We need this for the dependant libraries of Python3,
+# most specifically libintl.
+if (APPLE)
+  link_directories(/usr/local/lib)
+endif(APPLE)
+
+project(pkdgrav3 VERSION 3.1)
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/mdl2)
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR})
@@ -35,7 +44,14 @@ find_package(CUDA)
 find_package(GSL REQUIRED)      # GNU Scientific Library
 find_package(HDF5 COMPONENTS C HL)
 find_package(FFTW REQUIRED)
-#find_package(PythonLibs)
+if(${CMAKE_VERSION} VERSION_LESS "3.12")
+  find_package(PythonLibs 3 REQUIRED)
+  find_package(PythonInterp 3 REQUIRED)
+  set(PYTHON ${PYTHON_EXECUTABLE})
+else()
+  find_package(Python3 REQUIRED COMPONENTS Interpreter Development NumPy)
+  set(PYTHON ${Python3_EXECUTABLE})
+endif()
 # _GNU_SOURCE gives us more options
 INCLUDE(CheckCSourceCompiles)
 check_c_source_compiles("
@@ -116,32 +132,48 @@ check_symbol_exists(backtrace execinfo.h USE_BT)
 #AC_CHECK_FUNCS([gethrtime read_real_time time_base_to_time clock_gettime mach_absolute_time])
 check_symbol_exists(atexit stdlib.h HAVE_ATEXIT)
 
+add_subdirectory(fmt)
 add_subdirectory(blitz)
 add_subdirectory(mdl2)
+add_subdirectory(tests)
+
+add_custom_command(
+    OUTPUT ${CMAKE_BINARY_DIR}/m_parse.h
+    MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/parse.py
+    COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/make_parse.py ${CMAKE_SOURCE_DIR}/parse.py ${CMAKE_BINARY_DIR}/m_parse.h
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    VERBATIM
+)
 
 add_executable(${PROJECT_NAME} "")
-target_compile_features(${PROJECT_NAME} PRIVATE cxx_auto_type cxx_lambdas)
+target_compile_features(${PROJECT_NAME} PRIVATE cxx_auto_type cxx_range_for cxx_lambdas cxx_strong_enums)
+set_target_properties(${PROJECT_NAME} PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO
+)
 set_property(TARGET ${PROJECT_NAME} APPEND PROPERTY COMPILE_DEFINITIONS _LARGEFILE_SOURCE)
 target_sources(${PROJECT_NAME} PRIVATE
-	main.c cosmo.c master.c pst.c fio.c illinois.c param.c
-	pkd.c analysis.c smooth.c smoothfcn.c outtype.c output.c
-	walk2.c grav2.c ewald.cxx ic.cxx tree.cxx opening.cxx pp.cxx pc.cxx cl.c
-	lst.c moments.c ilp.c ilc.c iomodule.c
-	fof.c hop.c group.c groupstats.c RngStream.c listcomp.c healpix.c
-	tinypy.c pkdtinypy.c
-	gridinfo.cxx assignmass.cxx measurepk.cxx whitenoise.cxx pmforces.cxx
+	main.cxx cosmo.c master.cxx simulate.cxx pst.c TraversePST.cxx io/fio.c core/illinois.c param.c
+	pkd.c analysis.c smooth/smooth.c smooth/smoothfcn.c io/outtype.c io/output.cxx
+	gravity/walk2.cxx gravity/grav2.cxx gravity/ewald.cxx ic/ic.cxx domains/tree.cxx gravity/opening.cxx gravity/pp.cxx gravity/pc.cxx gravity/cl.c
+	lst.c gravity/moments.c ilp.c ilc.c io/iomodule.c
+	group/fof.cxx group/hop.cxx group/group.cxx group/groupstats.cxx ic/RngStream.c smooth/listcomp.c core/healpix.c
+	core/gridinfo.cxx analysis/interlace.cxx analysis/contrast.cxx analysis/assignmass.cxx analysis/measurepk.cxx bispectrum.cxx ic/whitenoise.cxx gravity/pmforces.cxx
+	core/setadd.cxx core/hostname.cxx core/initcosmology.cxx core/calcroot.cxx core/swapall.cxx core/select.cxx
+	domains/calcbound.cxx domains/combinebound.cxx domains/distribtoptree.cxx domains/distribroot.cxx domains/dumptrees.cxx
+	domains/enforceperiodic.cxx domains/freestore.cxx domains/olddd.cxx
+	gravity/setsoft.cxx gravity/activerung.cxx gravity/countrungs.cxx gravity/zeronewrung.cxx
 )
-add_executable(tostd tostd.c fio.c)
-add_executable(psout psout.c cosmo.c)
+set_property(SOURCE io/fio.c APPEND PROPERTY COMPILE_DEFINITIONS "USE_PTHREAD")
+add_executable(tostd utility/tostd.c io/fio.c)
+add_executable(psout utility/psout.c cosmo.c)
 
 target_link_libraries(${PROJECT_NAME} m)
 target_link_libraries(tostd m)
 target_link_libraries(psout m)
 
-if(USE_BT)
-target_sources(${PROJECT_NAME} PRIVATE bt.c)
-endif()
-
+if (NOT APPLE)
 CHECK_INCLUDE_FILES(libaio.h HAVE_LIBAIO_H)
 if (HAVE_LIBAIO_H)
   CHECK_LIBRARY_EXISTS(aio io_setup "" HAVE_LIBAIO)
@@ -157,6 +189,7 @@ if (HAVE_AIO_H)
     target_link_libraries(${PROJECT_NAME} rt)
   endif()
 endif()
+endif()
 
 if (CUDA_FOUND)
   set(USE_CUDA TRUE)
@@ -164,10 +197,8 @@ if (CUDA_FOUND)
   get_property(OPENPA_INCLUDES TARGET openpa PROPERTY INCLUDE_DIRECTORIES)
 #  target_link_libraries(${PROJECT_NAME} ${CUDA_LIBRARIES})
   CUDA_INCLUDE_DIRECTORIES(${MDL_INCLUDES} ${OPENPA_INCLUDES})
-  CUDA_COMPILE(cuda_files cudaewald.cu cudapppc.cu cudautil.cu
-	OPTIONS -arch compute_35
-		-I${CMAKE_CURRENT_SOURCE_DIR}/mdl2/openpa
-		-I${CMAKE_CURRENT_BINARY_DIR})
+  CUDA_COMPILE(cuda_files cuda/cudaewald.cu cuda/cudapppc.cu cuda/cudautil.cu
+	OPTIONS -arch compute_35)
   target_sources(${PROJECT_NAME} PRIVATE ${cuda_files})
 endif()
 if (HDF5_FOUND)
@@ -181,24 +212,52 @@ if (HDF5_FOUND)
   target_include_directories(psout PUBLIC ${HDF5_INCLUDE_DIRS})
   target_link_libraries(psout ${HDF5_LIBRARIES} ${HDF5_HL_LIBRARIES})
 endif(HDF5_FOUND)
-if (PYTHONLIBS_FOUND)
-  set(USE_PYTHON TRUE)
-  target_include_directories(${PROJECT_NAME} PUBLIC ${PYTHON_INCLUDE_DIRS})
-  target_link_libraries(${PROJECT_NAME} ${PYTHON_LIBRARIES})
-  target_sources(${PROJECT_NAME} PRIVATE pkdpython.c)
-endif(PYTHONLIBS_FOUND)
+if(${CMAKE_VERSION} VERSION_LESS "3.12")
+  if (PYTHONLIBS_FOUND)
+    set(USE_PYTHON TRUE)
+    target_include_directories(${PROJECT_NAME} PUBLIC ${PYTHON_INCLUDE_DIRS})
+    target_link_libraries(${PROJECT_NAME} ${PYTHON_LIBRARIES})
+    target_sources(${PROJECT_NAME} PRIVATE msrpython.cxx m_parse.h csmpython.c)
 
-#if USE_SIMD
+    if (PYTHON_EXECUTABLE)
+      # Find out the include path
+      execute_process(
+        COMMAND "${PYTHON_EXECUTABLE}" -c
+                "from __future__ import print_function\ntry: import numpy; print(numpy.get_include(), end='')\nexcept:pass\n"
+                OUTPUT_VARIABLE __numpy_path)
+    endif()
+    find_path(PYTHON_NUMPY_INCLUDE_DIR numpy/arrayobject.h
+      HINTS "${__numpy_path}" "${PYTHON_INCLUDE_PATH}" NO_DEFAULT_PATH)
+    if(PYTHON_NUMPY_INCLUDE_DIR)
+      set(PYTHON_NUMPY_FOUND 1 CACHE INTERNAL "Python numpy found")
+      target_include_directories(${PROJECT_NAME} PUBLIC ${PYTHON_NUMPY_INCLUDE_DIR})
+    endif(PYTHON_NUMPY_INCLUDE_DIR)
+  else()
+    target_sources(${PROJECT_NAME} PRIVATE tinypy.c pkdtinypy.c)
+  endif(PYTHONLIBS_FOUND)
+else(${CMAKE_VERSION} VERSION_LESS "3.12")
+  if (Python3_Development_FOUND)
+    set(USE_PYTHON TRUE)
+    target_include_directories(${PROJECT_NAME} PUBLIC ${Python3_INCLUDE_DIRS})
+    target_link_libraries(${PROJECT_NAME} Python3::Python)
+    target_sources(${PROJECT_NAME} PRIVATE msrpython.cxx m_parse.h csmpython.c)
+    if (Python3_NumPy_FOUND)
+      target_include_directories(${PROJECT_NAME} PUBLIC ${Python3_NumPy_INCLUDE_DIRS})
+    endif()
+  else()
+    target_sources(${PROJECT_NAME} PRIVATE tinypy.c pkdtinypy.c)
+  endif(Python3_Development_FOUND)
+endif()
+
+set(USE_SIMD "yes" CACHE STRING "Should SIMD be used.")
+if(USE_SIMD)
 #if USE_SIMD_FMM
-target_sources(${PROJECT_NAME} PRIVATE vmoments.cxx)
+target_sources(${PROJECT_NAME} PRIVATE gravity/vmoments.cxx)
 #endif
 #if USE_SIMD_LC
 target_sources(${PROJECT_NAME} PRIVATE lightcone.cxx)
 #endif
-#endif
-
-
-
+endif()
 
 foreach(flag_var
         CMAKE_C_FLAGS CMAKE_C_FLAGS_DEBUG CMAKE_C_FLAGS_RELEASE
@@ -217,10 +276,14 @@ target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
 target_link_libraries(${PROJECT_NAME} mdl2 openpa)
 target_include_directories(${PROJECT_NAME} PRIVATE ${GSL_INCLUDE_DIRS})
 target_link_libraries(${PROJECT_NAME} ${GSL_LIBRARIES})
-target_link_libraries(${PROJECT_NAME} blitz)
+target_link_libraries(${PROJECT_NAME} blitz fmt)
 
-target_include_directories(tostd PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
-target_include_directories(psout PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
+enable_testing()
+add_test(NAME cosmology COMMAND ${PROJECT_NAME} ${CMAKE_CURRENT_SOURCE_DIR}/tests/cosmology.py WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+add_test(NAME gravity   COMMAND ${PROJECT_NAME} ${CMAKE_CURRENT_SOURCE_DIR}/tests/gravity.py   WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+
+target_include_directories(tostd PUBLIC ${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(psout PUBLIC ${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(psout PRIVATE ${GSL_INCLUDE_DIRS})
 target_link_libraries(psout ${GSL_LIBRARIES})
 

@@ -1,0 +1,19 @@
+Releases of pkdgrav3 are regularily available on docker hub:
+
+	https://hub.docker.com/repository/docker/dpotter/pkdgrav3
+
+The versions are named: dpotter/pkdgrav3:<version>-<architecture>
+Currently the archictures are:
+	sandybridge	SSE support
+	haswell		AVX support
+	skylake		AVX + AVX2 + FMA support
+	skylake-avx512	AVX512 support
+
+Refer to local guides for how to run a docker container. Generally you would pull the image:
+
+	docker pull dpotter/pkdgrav3:3.0.4-skylake
+
+And run it:
+
+	docker container run -it --rm -v ${PWD}:/pkdgrav3 -u $(id -u ${USER}):$(id -g ${USER}) dpotter/pkdgrav3:3.0.3 cosmology.par
+

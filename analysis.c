@@ -24,12 +24,12 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <math.h>
-#include "vqsort.h"
+#include "core/vqsort.h"
 #include "pkd.h"
 #ifdef USE_ITT
 #include "ittnotify.h"
 #endif
-#include "ic.h"
+#include "ic/ic.h"
 
 #define SHAPES
 #define USE_PCS /* USE_PCS USE_TSC USE_CIC USE_NGP */
@@ -128,9 +128,9 @@ static void jacobi(double a[4][4],int n,double d[4],double v[4][4], int *nrot) {
 /*
 ** Combiner cache functions
 */
-static void combProfileBins1(void *vpkd, void *b1, void *b2) {
+static void combProfileBins1(void *vpkd, void *b1, const void *b2) {
     PROFILEBIN * pBin1 = (PROFILEBIN *)b1;
-    PROFILEBIN * pBin2 = (PROFILEBIN *)b2;
+    const PROFILEBIN * pBin2 = (const PROFILEBIN *)b2;
 
     pBin1->dMassInBin += pBin2->dMassInBin;
     pBin1->nParticles += pBin2->nParticles;
@@ -149,9 +149,9 @@ static void initProfileBins1(void *vpkd, void *b) {
     pBin->nParticles = 0;
     }
 
-static void combProfileBins2(void *vpkd, void *b1, void *b2) {
+static void combProfileBins2(void *vpkd, void *b1, const void *b2) {
     PROFILEBIN * pBin1 = (PROFILEBIN *)b1;
-    PROFILEBIN * pBin2 = (PROFILEBIN *)b2;
+    const PROFILEBIN * pBin2 = (const PROFILEBIN *)b2;
     pBin1->vel_tang_sigma += pBin2->vel_tang_sigma;
     }
 
@@ -161,9 +161,9 @@ static void initProfileBins2(void *vpkd, void *b) {
     }
 
 #ifdef SHAPES
-static void combShapesBins1(void *vpkd, void *b1, void *b2) {
+static void combShapesBins1(void *vpkd, void *b1, const void *b2) {
     SHAPESBIN * pBin1 = (SHAPESBIN *)b1;
-    SHAPESBIN * pBin2 = (SHAPESBIN *)b2;
+    const SHAPESBIN * pBin2 = (const SHAPESBIN *)b2;
     int j,k;
     pBin1->dMassEnclosed += pBin2->dMassEnclosed;
     for (j=0; j<3; j++) {
@@ -191,7 +191,7 @@ static void initShapesBins1(void *vpkd, void *b) {
 ** reference point.  If a periodic boundary is in effect then the smallest
 ** possible distance is returned.
 */
-double pkdGetDistance2(PKD pkd,PARTICLE *p, const double *dCenter ) {
+double pkdGetDistance2(PKD pkd,PARTICLE *p, const double *dCenter, int bPeriodic ) {
     double d2;
     double dx,dx2;
     int j;
@@ -202,7 +202,7 @@ double pkdGetDistance2(PKD pkd,PARTICLE *p, const double *dCenter ) {
 	/*
 	** If a periodic wrap results in a smaller distance, then use that.
 	*/
-	if ( pkd->param.bPeriodic ) {
+	if ( bPeriodic ) {
 	    if ( dx<0.0 ) dx2 = dx + pkd->fPeriod[j];
 	    else dx2 = dx - pkd->fPeriod[j];
 	    if ( dx2*dx2 < dx*dx ) dx = dx2;
@@ -230,7 +230,7 @@ static int cmpRadiusLite(const void *pva,const void *pvb) {
 ** Use the pLite structure to calculate the distance to each particle
 ** Sort by distance when finished.
 */
-void pkdCalcDistance(PKD pkd, double *dCenter) {
+void pkdCalcDistance(PKD pkd, double *dCenter, int bPeriodic) {
     distance *pl = (distance *)pkd->pLite;
     int i;
 
@@ -239,8 +239,7 @@ void pkdCalcDistance(PKD pkd, double *dCenter) {
     */
     for (i=0;i<pkd->nLocal;++i) {
 	PARTICLE *p = pkdParticle(pkd,i);
-	double m = pkdMass(pkd,p);
-	pl[i].d2 = pkdGetDistance2(pkd,p,dCenter);
+	pl[i].d2 = pkdGetDistance2(pkd,p,dCenter,bPeriodic);
 	pl[i].i = i;
 	}
     qsort(pkd->pLite,pkdLocal(pkd),sizeof(distance),cmpRadiusLite);
@@ -249,7 +248,7 @@ void pkdCalcDistance(PKD pkd, double *dCenter) {
 /*
 ** Return the mass weighted center of mass and velocity
 */
-void pkdCalcCOM(PKD pkd, double *dCenter, double dRadius,
+void pkdCalcCOM(PKD pkd, double *dCenter, double dRadius, int bPeriodic,
 		double *com, double *vcm, double *L,
 		double *M, uint64_t *N) {
     double d2, dRadius2, T[3];
@@ -265,7 +264,7 @@ void pkdCalcCOM(PKD pkd, double *dCenter, double dRadius,
 	vel_t *v = pkdVel(pkd,p);
 	double r[3];
 	pkdGetPos1(pkd,p,r);
-	d2 = pkdGetDistance2(pkd,p,dCenter );
+	d2 = pkdGetDistance2(pkd,p,dCenter,bPeriodic);
 	if ( d2 < dRadius2 ) {
 	    *M += m;
 	    vec_add_const_mult(com, com, m, r);
@@ -612,85 +611,4 @@ void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
 	mdlRelease(pkd->mdl,CID_BIN,pBin);
 	}
     mdlFinishCache(pkd->mdl,CID_BIN);
-    }
-
-/*#ifdef HAVE_LIBPNG*/
-void pkdGridFinish(PKD pkd) {
-    if (pkd->grid) {
-	mdlGridFinish(pkd->mdl,pkd->grid);
-	pkd->grid = NULL;
-	}
-    if (pkd->gridData) {
-	mdlGridFree(pkd->mdl,pkd->grid,pkd->gridData);
-	pkd->gridData = NULL;
-	}
-    }
-
-/*
-** PNG cache functions.  "Tipsy" style.
-*/
-static void initPng(void *vpkd, void *g) {
-    float * r = (float *)g;
-    *r = 1e-20f;
-    }
-static void combPng(void *vpkd, void *g1, void *g2) {
-    float * r1 = (float *)g1;
-    float * r2 = (float *)g2;
-    if ( *r2 > *r1 ) *r1 = *r2;
-    }
-
-void pkdGridInitialize(PKD pkd, int n1, int n2, int n3, int a1, int s, int n) {
-    pkdGridFinish(pkd);
-
-    /* Create the distributed grid: 1xNxN (i.e., NxN) */
-    mdlGridInitialize(pkd->mdl,&pkd->grid,n1,n2,n3,a1);
-    mdlGridSetLocal(pkd->mdl,pkd->grid,s,n,n*a1*n2);
-    mdlGridShare(pkd->mdl,pkd->grid);
-    pkd->gridData = mdlGridMalloc(pkd->mdl,pkd->grid,sizeof(*pkd->gridData));
-    assert(pkd->gridData!=NULL);
-    }
-
-void pkdGridProject(PKD pkd) {
-    MDL mdl = pkd->mdl;
-    PARTICLE *p;
-    int i, x, y;
-    int id, idx;
-    float *pCell, v;
-    double r[3];
-
-    assert(pkd->oDensity);
-    for( i=0; i<pkd->grid->nLocal; i++ ) pkd->gridData[i] = 1e-20f;
-
-    /* Now project the data onto the grid */
-    mdlCOcache(mdl,CID_PNG,NULL,pkd->gridData,sizeof(*pkd->gridData),
-	       pkd->grid->nLocal,pkd,initPng,combPng);
-    for (i=0;i<pkd->nLocal;++i) {
-	p = pkdParticle(pkd,i);
-	v = pkdDensity(pkd,p);
-
-	/* Should scale and rotate here */
-	r[0] = pkdPos(pkd,p,0);
-	r[1] = pkdPos(pkd,p,1);
-	r[2] = pkdPos(pkd,p,2);
-	if ( r[0]>=-0.5 && r[0]<0.5 && r[1]>=-0.5 && r[1]<0.5 ) {
-	    /* Calculate grid position and respect rounding */
-	    x = d2i(r[0] * pkd->grid->n2 + pkd->grid->n2/2);
-	    y = d2i(r[1] * pkd->grid->n3 + pkd->grid->n3/2);
-	    if ( x==pkd->grid->n2 ) x = pkd->grid->n2-1;
-	    if ( y==pkd->grid->n3 ) y = pkd->grid->n3-1;
-
-	    /* Transform to image coordinates */
-	    y = pkd->grid->n3 - y - 1;
-
-	    /* Map coordinate to processor/index */
-	    id = mdlGridId(mdl,pkd->grid,0,x,y);
-	    idx = mdlGridIdx(mdl,pkd->grid,0,x,y);
-
-	    /* Update the cell */
-	    pCell = mdlAcquire(mdl,CID_PNG,idx,id);
-	    if (v > *pCell) *pCell = v;
-	    mdlRelease(mdl,CID_PNG,pCell);
-	    }
-	}
-    mdlFinishCache(mdl,CID_PNG);
     }

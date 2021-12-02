@@ -20,14 +20,14 @@
 
 #include "pkd.h"
 #include "mdl.h"
-#include "smoothfcn.h"
-#include "moments.h"
-#include "outtype.h"
-#include "output.h"
+#include "smooth/smoothfcn.h"
+#include "gravity/moments.h"
+#include "io/outtype.h"
+#include "io/output.h"
 
 #include "parameters.h"
 #include "cosmo.h"
-#include "ic.h"
+#include "ic/ic.h"
 
 #define pstOffNode(pst) ((pst)->nLeaves > mdlCores((pst)->mdl))
 #define pstOnNode(pst) ((pst)->nLeaves <= mdlCores((pst)->mdl))
@@ -68,9 +68,6 @@ typedef struct pstContext {
     double fSplit;
     double fSplitInactive;
     uint64_t nTotal;
-    int iVASplitSide;
-    uint64_t nLowerStore;
-    uint64_t nUpperStore;
     } * PST;
 
 
@@ -79,16 +76,13 @@ typedef struct pstContext {
 #define PST_MAX_FILES           16384
 
 enum pst_service {
-    PST_SRV_STOP,
-    PST_SPLITIO,
+    PST_SRV_STOP=0, /* service 0 is always STOP and handled by MDL */
     PST_SETADD,
     PST_READFILE,
     PST_DOMAINDECOMP,
     PST_CALCBOUND,
-    PST_CALCVBOUND,
     PST_COMBINEBOUND,
     PST_WEIGHT,
-    PST_COUNTVA,
     PST_WEIGHTWRAP,
     PST_FREESTORE,
     PST_COLREJECTS,
@@ -98,6 +92,7 @@ enum pst_service {
     PST_LOCALORDER,
     PST_COMPRESSASCII,
     PST_SENDPARTICLES,
+    PST_SENDARRAY,
     PST_WRITEASCII,
     PST_WRITE,
     PST_OUTPUT,
@@ -124,12 +119,9 @@ enum pst_service {
     PST_CALCEANDLEXT,
     PST_DRIFT,
     PST_DRIFTINACTIVE,
-    PST_SCALEVEL,
     PST_CACHEBARRIER,
     PST_ROPARTICLECACHE,
     PST_PARTICLECACHEFINISH,
-    PST_STEPVERYACTIVE,
-    PST_STEPVERYACTIVEH,
     PST_COPY0,
     PST_PREDICTOR,
     PST_CORRECTOR,
@@ -144,9 +136,7 @@ enum pst_service {
     PST_SWAPALL,
     PST_MASSCHECK,
     PST_ACTIVEORDER,
-    PST_SETPARAMETERS,
     PST_INITCOSMOLOGY,
-    PST_SETRUNG,
     PST_ZERONEWRUNG,
     PST_ACTIVERUNG,
     PST_COUNTRUNGS,
@@ -156,12 +146,10 @@ enum pst_service {
     PST_STARFORM,
     PST_DENSITYSTEP,
     PST_CORRECTENERGY,
-    PST_SETRUNGVERYACTIVE,
     PST_MARKSMOOTH,
     PST_RESMOOTH,
     PST_INITACCEL,
     PST_UPDATERUNG,
-    PST_UPDATERUNGBYTREE,
     PST_INITDT,
     PST_ORDWEIGHT,
     PST_SETWRITESTART,
@@ -188,7 +176,6 @@ enum pst_service {
     PST_GROUP_STATS2,
     PST_GROUPPROFILES,
     PST_INITRELAXATION,
-    PST_CLEARTIMER,
     PST_INITIALIZEPSTORE,
     PST_GETFFTMAXSIZES,
     PST_GENERATEIC,
@@ -200,10 +187,8 @@ enum pst_service {
     PST_GETCLASSES,
     PST_SETCLASSES,
     PST_SWAPCLASSES,
-    PST_SELALL,
-    PST_SELGAS,
-    PST_SELSTAR,
-    PST_SELDELETED,
+    PST_COUNTSELECTED,
+    PST_SELSPECIES,
     PST_SELMASS,
     PST_SELBYID,
     PST_SELPHASEDENSITY,
@@ -211,45 +196,41 @@ enum pst_service {
     PST_SELBOX,
     PST_SELSPHERE,
     PST_SELCYLINDER,
+    PST_SELBLACKHOLES,
 
     PST_PROFILE,
     PST_CALCDISTANCE,
     PST_CALCCOM,
     PST_COUNTDISTANCE,
-    PST_INITGRID,
-    PST_GRIDPROJECT,
 #ifdef MDL_FFTW
     PST_GRID_CREATE_FFT,
     PST_GRID_DELETE_FFT,
-    PST_MEASUREPK,
+    PST_ADD_LINEAR_SIGNAL,
     PST_MEASURELINPK,
     PST_SETLINGRID,
     PST_LINEARKICK,
 #endif
     PST_ASSIGN_MASS,
+    PST_DENSITY_CONTRAST,
+    PST_WINDOW_CORRECTION,
+    PST_INTERLACE,
+    PST_GRID_BIN_K,
+    PST_BISPECTRUM_SELECT,
+    PST_BISPECTRUM_CALCULATE,
     PST_TOTALMASS,
     PST_LIGHTCONE_OPEN,
     PST_LIGHTCONE_CLOSE,
     PST_LIGHTCONEVEL,
-    PST_INFLATE,
     PST_GET_PARTICLES,
     };
-
-void pstAddServices(PST,MDL);
-void pstInitialize(PST *,MDL,LCL *);
-void pstFinish(PST);
-
-/* PST_SETADD */
-
-struct inSetAdd {
-    int idLower;
-    int idUpper;
-    };
-int pstSetAdd(PST,void *,int,void *,int);
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+void pstAddServices(PST,MDL);
+void pstInitialize(PST *,MDL,LCL *);
+void pstFinish(PST);
 
 /* PST_INITIALIZEPSTORE */
 struct inInitializePStore {
@@ -285,108 +266,6 @@ struct inReadFile {
 typedef char inReadFileFilename[PST_FILENAME_SIZE];
 int pstReadFile(PST,void *,int,void *,int);
 
-/* PST_DOMAINDECOMP */
-struct inDomainDecomp {
-    BND bnd;
-    int nBndWrap[3];
-    int bDoRootFind;
-    int bDoSplitDimFind;
-    int bSplitVA;
-    uint64_t nActive;
-    uint64_t nTotal;
-    };
-int pstDomainDecomp(PST,void *,int,void *,int);
-
-/* PST_CALCBOUND */
-int pstCalcBound(PST,void *,int,void *,int);
-
-/* PST_CALCVBOUND */
-int pstCalcVBound(PST,void *,int,void *,int);
-
-/* PST_COMBINEBOUND */
-int pstCombineBound(PST,void *,int,void *,int);
-
-/* PST_WEIGHT */
-struct inWeight {
-    int iSplitDim;
-    double fSplit;
-    int iSplitSide;
-    int ittr;
-    int pFlag;
-    };
-struct outWeight {
-    uint64_t nLow;
-    uint64_t nHigh;
-    double fLow;
-    double fHigh;
-    };
-int pstWeight(PST,void *,int,void *,int);
-
-/* PST_COUNTVA */
-struct inCountVA {
-    int iSplitDim;
-    double fSplit;
-    };
-struct outCountVA {
-    int nLow;
-    int nHigh;
-    };
-int pstCountVA(PST,void *,int,void *,int);
-
-/* PST_WEIGHTWRAP */
-struct inWeightWrap {
-    int iSplitDim;
-    double fSplit;
-    double fSplit2;
-    int iSplitSide;
-    int ittr;
-    int iVASplitSide;
-    };
-struct outWeightWrap {
-    uint64_t nLow;
-    uint64_t nHigh;
-    };
-int pstWeightWrap(PST,void *,int,void *,int);
-
-/* PST_FREESTORE */
-struct outFreeStore {
-    uint64_t nFreeStore;
-    };
-int pstFreeStore(PST,void *,int,void *,int);
-
-/*
-** This structure is used by reject collectors and SwapRejects
-*/
-typedef struct outReject {
-    int id;
-    int nRejects;
-    int nSpace;
-    int nLocal;
-    } OREJ;
-
-/* PST_COLREJECTS */
-int pstColRejects(PST,void *,int,void *,int);
-
-/* PST_SWAPREJECTS */
-int pstSwapRejects(PST,void *,int,void *,int);
-
-/* PST_COLORDREJECTS */
-struct inColOrdRejects {
-    uint64_t iOrdSplit;
-    int iSplitSide;
-    };
-int pstColOrdRejects(PST,void *,int,void *,int);
-
-/* PST_DOMAINORDER */
-struct inDomainOrder {
-    uint64_t iMinOrder;
-    uint64_t iMaxOrder;
-    };
-int pstDomainOrder(PST,void *,int,void *,int);
-
-/* PST_LOCALORDER */
-int pstLocalOrder(PST,void *,int,void *,int);
-
 /* PST_COMPRESSASCII */
 struct inCompressASCII {
     uint64_t nTotal;
@@ -421,6 +300,7 @@ struct inWrite {
     double dTimeOld;
     double dUOld;
     double dvFac;
+    double dTuFac;
     double dBoxSize;
     double Omega0;
     double OmegaLambda;
@@ -441,6 +321,16 @@ int pstWrite(PST,void *,int,void *,int);
 /* PST_SENDPARTICLES */
 int pstSendParticles(PST,void *,int,void *,int);
 
+/* PST_SENDARRAY */
+struct inSendArray {
+    double dvFac;
+    int iTo;
+    int field;
+    int iUnitSize;
+    int bMarked;
+    };
+int pstSendArray(PST,void *,int,void *,int);
+
 /* PST_CHECKPOINT */
 int pstCheckpoint(PST,void *,int,void *,int);
 
@@ -450,6 +340,7 @@ struct inOutput {
     int iPartner;     /* Who to send the data to */
     int nPartner;     /* How many partners there are */
     outType eOutputType;  /* What kind of output */
+    int iGrid;        /* Which grid (for grid output) */
     char achOutFile[PST_FILENAME_SIZE];
     };
 
@@ -465,45 +356,12 @@ struct inBuildTree {
     int nGroup;       /* Group Size */
     uint32_t uRoot;   /* Which root node to use */
     uint32_t utRoot;  /* Template tree */
+    double ddHonHLimit;
     };
 int pstBuildTree(PST,void *,int,void *,int);
 
-/* PST_DISTRIBTOPTREE */
-struct inDistribTopTree {
-    uint32_t uRoot; /* Which root node to use */
-    uint32_t nTop;
-    };
-int pstDistribTopTree(PST,void *,int,void *,int);
-
-/* PST_DUMPTREES */
-struct inDumpTrees {
-    int bOnlyVA;
-    uint8_t uRungDD; /* Domain DD was done on this rung */
-    };
-int pstDumpTrees(PST,void *,int,void *,int);
-
 /* PST_TREEINITMARKED */
 int pstTreeInitMarked(PST,void *,int,void *,int);
-
-/* PST_CALCROOT */
-struct inCalcRoot {
-    double com[3];
-    uint32_t uRoot;
-    };
-struct outCalcRoot {
-    MOMC momc;
-    };
-int pstCalcRoot(PST,void *,int,void *,int);
-
-/* PST_DISTRIBROOT */
-struct ioDistribRoot {
-    double r[3];
-    MOMC momc;
-    };
-int pstDistribRoot(PST,void *,int,void *,int);
-
-/* PST_ENFORCEPERIODIC */
-int pstEnforcePeriodic(PST,void *,int,void *,int);
 
 /* PST_HOP_LINK */
 struct inHopLink {
@@ -544,7 +402,7 @@ struct inHopGravity {
     double dTime;
     double dEwCut;
     double dEwhCut;
-    double dThetaMin;
+    double dTheta;
     int bPeriodic;
     int nGroup;
     uint8_t uRungLo;
@@ -628,25 +486,16 @@ struct inGravity {
     double dTime;
     double dEwCut;
     double dEwhCut;
-    double dThetaMin;
+    double dTheta;
     int nReps;
     int bPeriodic;
     int bEwald;
     int nGroup;
     int iRoot1;
     int iRoot2;
-    uint8_t uRungLo;
-    uint8_t uRungHi;
-    int bKickClose;
-    int bKickOpen;
-    double dAccFac;
-    vel_t dtClose[IRUNGMAX+1];
-    vel_t dtOpen[IRUNGMAX+1];
-    double dtLCDrift[IRUNGMAX+1];
-    double dtLCKick[IRUNGMAX+1];
-    double dLookbackFac;
-    double dLookbackFacLCP;
-    int bLinearSpecies;
+    struct pkdKickParameters kick;
+    struct pkdLightconeParameters lc;
+    struct pkdTimestepParameters ts;
     };
 
 
@@ -688,12 +537,6 @@ struct outGravityReduct {
     uint64_t nActive;
     uint64_t nRung[IRUNGMAX+1];
     };
-struct outGravityPerProc {
-    /*
-    ** Collected CPU time.
-    */
-    double dWalkTime;
-    };
 int pstGravity(PST,void *,int,void *,int);
 
 /* PST_CALCEANDL */
@@ -714,14 +557,9 @@ struct inDrift {
     double dDeltaVPred;
     double dDeltaUPred;
     int iRoot;
+    int bDoGas;
     };
 int pstDrift(PST,void *,int,void *,int);
-
-/* PST_DRIFT */
-struct inScaleVel {
-    double dvFac;
-    };
-int pstScaleVel(PST,void *,int,void *,int);
 
 /* PST_ROPARTICLECACHE */
 
@@ -734,25 +572,6 @@ int pstParticleCacheFinish(PST, void *, int, void *, int);
 /* PST_CACHEBARRIER */
 int pstCacheBarrier(PST, void *, int, void *, int);
 
-/* PST_STEPVERYACTIVE */
-struct inStepVeryActive {
-    double dStep;
-    double dTime;
-    double dDelta;
-    int iRung;
-    int nMaxRung;
-    double dThetaMin;
-    double aSunInact[3];
-    double adSunInact[3];
-    double dSunMass;
-    uint8_t uRungLo;
-    uint8_t uRungHi;
-    };
-struct outStepVeryActive {
-    int nMaxRung;
-    };
-int pstStepVeryActiveKDK(PST,void *,int,void *,int);
-
 /* PST_KICK */
 struct inKick {
     double dTime;
@@ -760,14 +579,9 @@ struct inKick {
     double dDeltaVPred;
     double dDeltaU;
     double dDeltaUPred;
+    int    bDoGas;
     uint8_t uRungLo;
     uint8_t uRungHi;
-    };
-struct outKick {
-    double Time;
-    double MaxTime;
-    double SumTime;
-    int nSum;
     };
 int pstKick(PST,void *,int,void *,int);
 
@@ -780,19 +594,7 @@ struct inKickTree {
     double dDeltaUPred;
     int iRoot;
     };
-struct outKickTree {
-    double Time;
-    double MaxTime;
-    double SumTime;
-    int nSum;
-    };
 int pstKickTree(PST,void *,int,void *,int);
-
-/* PST_SETSOFT */
-struct inSetSoft {
-    double dSoft;
-    };
-int pstSetSoft(PST,void *,int,void *,int);
 
 /* PST_PHYSICALSOFT */
 struct inPhysicalSoft {
@@ -811,33 +613,8 @@ int pstSetTotal(PST,void *,int,void *,int);
 /* PST_ONENODEREADINIT */
 int pstOneNodeReadInit(PST pst,void *vin,int nIn,void *vout,int nOut);
 
-/* PST_SWAPALL */
-int pstSwapAll(PST pst,void *vin,int nIn,void *vout,int nOut);
-
 /* PST_ACTIVEORDER */
 int pstActiveOrder(PST,void *,int,void *,int);
-
-/* PST_SETRUNG */
-struct inSetRung {
-    uint8_t uRung;
-    uint8_t uRungLo;
-    uint8_t uRungHi;
-    };
-int pstSetRung(PST,void *,int,void *,int);
-
-/* PST_ZERONEWRUNG */
-struct inZeroNewRung {
-    uint8_t uRung;
-    uint8_t uRungLo;
-    uint8_t uRungHi;
-    };
-int pstZeroNewRung(PST,void *,int,void *,int);
-
-/* PST_INITCOSMOLOGY: struct csmVariables as input */
-int pstInitCosmology(PST,void *,int,void *,int);
-
-/* PST_SETPARAMETERS: struct parameters as input */
-int pstSetParameters(PST,void *,int,void *,int);
 
 struct inDensCheck {
     int iRung;
@@ -853,25 +630,13 @@ struct outDensCheck {
 
 void pstDensCheck(PST,void *,int,void *,int *);
 
-/* PST_ACTIVERUNG */
-struct inActiveRung {
-    int iRung;
-    int bGreater;
-    };
-
-int pstActiveRung(PST,void *,int,void *,int);
-
-/* PST_COUNTRUNGS */
-struct outCountRungs {
-    uint64_t nRungs[MAX_RUNG+1];
-    };
-int pstCountRungs(PST,void *,int,void *,int);
-
 /* PST_ACCELSTEP */
 struct inAccelStep {
     double dEta;
     double dVelFac;
     double dAccFac;
+    double dDelta;
+    int    iMaxRung;
     int    bDoGravity;
     int    bEpsAcc;
     double dhMinOverSoft;
@@ -882,7 +647,11 @@ int pstAccelStep(PST,void *,int,void *,int);
 
 /* PST_SPHSTEP */
 struct inSphStep {
+    double dDelta;
+    double dEta;
     double dAccFac;
+    double dEtaUDot;
+    int iMaxRung;
     uint8_t uRungLo;
     uint8_t uRungHi;
     };
@@ -895,7 +664,7 @@ struct inStarForm
     double dTMax;
     double dDenMin;
     double dDelta;
-    
+
     double dTime;
     double dInitStarMass;
     double dESNPerStarMass;
@@ -905,6 +674,9 @@ struct inStarForm
     double dMassLossPerStarMass;
     double dZMassPerStarMass;
     double dMinGasMass;
+    double dTuFac;
+
+    int bGasCooling;
     int bdivv;
     };
 
@@ -919,8 +691,10 @@ int pstStarForm(PST,void *,int,void *,int);
 
 /* PST_DENSITYSTEP */
 struct inDensityStep {
+    double dDelta;
     double dEta;
     double dRhoFac;
+    int iMaxRung;
     uint8_t uRungLo;
     uint8_t uRungHi;
     };
@@ -935,9 +709,6 @@ struct inCorrectEnergy {
     };
 int pstCorrectEnergy(PST, void *,int,void *,int);
 
-
-int pstSetRungVeryActive(PST,void *,int,void *,int);
-
 /* PST_UPDATERUNG */
 struct inUpdateRung {
     uint8_t uRungLo;  /* Minimum Rung to modify */
@@ -949,26 +720,6 @@ struct outUpdateRung {
     uint64_t nRungCount[MAX_RUNG];
     };
 int pstUpdateRung(PST,void *,int,void *,int);
-
-/* PST_UPDATE_RUNGBYTREE */
-struct inUpdateRungByTree {
-    int iRoot;
-    uint8_t uMinRung;
-    uint8_t uMaxRung;
-    };
-int pstUpdateRungByTree(PST,void *,int,void *,int);
-
-/* PST_ORDWEIGHT */
-struct inOrdWeight {
-    uint64_t iOrdSplit;
-    int iSplitSide;
-    int ittr;
-    };
-struct outOrdWeight {
-    uint64_t nLow;
-    uint64_t nHigh;
-    };
-int pstOrdWeight(PST,void *,int,void *,int);
 
 /* PST_SETWRITESTART */
 struct inSetWriteStart {
@@ -1020,23 +771,18 @@ struct inMarkSmooth {
     int bPeriodic;
     int bSymmetric;
     int iMarkType;
-    double dfBall2OverSoft2;
     SMF smf;
     };
 void pstMarkSmooth(PST,void *,int,void *,int *);
 
 
-/* PST_CLEARTIMER */
-struct inClearTimer {
-    int iTimer;
-    };
-
-int pstClearTimer(PST,void *,int,void *,int);
-
 /* PST_NEW_FOF */
 struct inNewFof {
     double dTau2;
     int nMinMembers;
+    int bPeriodic;
+    int nReplicas;
+    int nBucket;
     };
 int pstNewFof(PST,void *,int,void *,int);
 
@@ -1072,12 +818,6 @@ struct inGenerateIC {
     uint64_t nPerNode;
     double dBoxSize;
     double dBoxMass;
-//    double omegam;
-//    double omegab;
-//    double omegav;
-//    double sigma8;
-//    double normalization;
-//    double spectral;
     double dExpansion;
     int iSeed;
     int bFixed;
@@ -1085,10 +825,7 @@ struct inGenerateIC {
     int nGrid;
     int b2LPT;
     int bComove;
-    int bClass;
     int nTf;
-    int nInflateFactor;
-    struct csmVariables cosmo;
     double k[MAX_TF];
     double tf[MAX_TF];
     };
@@ -1114,18 +851,10 @@ struct inMoveIC {
     float fMass;
     float fSoft;
     int nGrid;
-    int nInflateFactor;
     };
 int pltMoveIC(PST,void *,int,void *,int);
 int pstMoveIC(PST,void *,int,void *,int);
 #endif
-
-/* PST_HOSTNAME */
-struct outHostname {
-    int  iMpiID;
-    char szHostname[20];
-    };
-int pstHostname(PST,void *,int,void *,int);
 
 /* PST_MEMSTATUS */
 struct outMemStatus {
@@ -1149,95 +878,6 @@ int pstSetClasses(PST,void *,int,void *,int);
 /* PST_SWAPCLASSES - Input PARTCLASS[] - Output PARTCLASS[] */
 int pstSwapClasses(PST,void *,int,void *,int);
 
-
-/* PST_SELALL */
-int pstSelAll(PST pst,void *vin,int nIn,void *vout,int nOut);
-
-/* PST_SELGAS */
-int pstSelGas(PST pst,void *vin,int nIn,void *vout,int nOut);
-
-/* PST_SELSTAR */
-int pstSelStar(PST pst,void *vin,int nIn,void *vout,int nOut);
-
-/* PST_SELDELETED */
-int pstSelDeleted(PST pst,void *vin,int nIn,void *vout,int nOut);
-
-/* PST_SELMASS */
-struct inSelMass {
-    double dMinMass;
-    double dMaxMass;
-    int setIfTrue;
-    int clearIfFalse;
-    };
-struct outSelMass {
-    uint64_t nSelected;
-    };
-int pstSelMass(PST pst,void *vin,int nIn,void *vout,int nOut);
-
-/* PST_SELBYID */
-struct inSelById {
-    uint64_t idStart;
-    uint64_t idEnd;
-    int setIfTrue;
-    int clearIfFalse;
-    };
-struct outSelById {
-    uint64_t nSelected;
-    };
-int pstSelById(PST pst,void *vin,int nIn,void *vout,int nOut);
-
-/* PST_SELPHASEDENSITY */
-struct inSelPhaseDensity {
-    double dMinDensity;
-    double dMaxDensity;
-    int setIfTrue;
-    int clearIfFalse;
-    };
-struct outSelPhaseDensity {
-    uint64_t nSelected;
-    };
-int pstSelPhaseDensity(PST pst,void *vin,int nIn,void *vout,int nOut);
-
-/* PST_SELBOX */
-struct inSelBox {
-    double dCenter[3];
-    double dSize[3];
-    int setIfTrue;
-    int clearIfFalse;
-    };
-struct outSelBox {
-    uint64_t nSelected;
-    };
-int pstSelBox(PST pst,void *vin,int nIn,void *vout,int nOut);
-
-/* PST_SELSPHERE */
-struct inSelSphere {
-    double r[3];
-    double dRadius;
-    int setIfTrue;
-    int clearIfFalse;
-    };
-struct outSelSphere {
-    uint64_t nSelected;
-    };
-int pstSelSphere(PST pst,void *vin,int nIn,void *vout,int nOut);
-
-/* PST_SELCYLINDER */
-struct inSelCylinder {
-    double dP1[3];
-    double dP2[3];
-    double dRadius;
-    int setIfTrue;
-    int clearIfFalse;
-    };
-struct outSelCylinder {
-    uint64_t nSelected;
-    };
-int pstSelCylinder(PST pst,void *vin,int nIn,void *vout,int nOut);
-
-/* PST_SECGROUP */
-int pstSelGroup(PST pst,void *vin,int nIn,void *vout,int nOut);
-
 /* PST_PROFILE */
 #define PST_MAX_PROFILE_BINS 1000000
 struct inProfile {
@@ -1256,6 +896,7 @@ int pstProfile(PST pst,void *vin,int nIn,void *vout,int nOut);
 struct inCalcDistance {
     double dCenter[3];
     double dRadius;
+    int bPeriodic;
     };
 int pstCalcDistance(PST pst,void *vin,int nIn,void *vout,int nOut);
 
@@ -1263,6 +904,7 @@ int pstCalcDistance(PST pst,void *vin,int nIn,void *vout,int nOut);
 struct inCalcCOM {
     double dCenter[3];
     double dRadius;
+    int bPeriodic;
     };
 struct outCalcCOM {
     double com[3];
@@ -1283,19 +925,6 @@ struct outCountDistance {
     };
 int pstCountDistance(PST pst,void *vin,int nIn,void *vout,int nOut);
 
-/* PST_INITGRID */
-struct inInitGrid {
-    int n1, n2, n3, a1;
-    int s, n;
-    };
-int pstInitGrid(PST pst,void *vin,int nIn,void *vout,int nOut);
-
-/* PST_GRIDPROJECT */
-struct inGridProject {
-    double r[3];
-    };
-int pstGridProject(PST pst,void *vin,int nIn,void *vout,int nOut);
-
 /* PST_GRID_CREATE_FFT */
 struct inGridCreateFFT {
     int nGrid;
@@ -1306,34 +935,66 @@ int pstGridCreateFFT(PST pst,void *vin,int nIn,void *vout,int nOut);
 int pstGridDeleteFFT(PST pst,void *vin,int nIn,void *vout,int nOut);
 
 #ifdef MDL_FFTW
-#define PST_MAX_K_BINS 2500
-/* PST_MEASUREPK */
-struct inMeasurePk {
-    double dTotalMass;
-    int bInterlace;
-    int iAssignment;
-    int nGrid;
-    int nBins;
-    int bLinear;
+/* PST_ADD_LINEAR_SIGNAL */
+struct inAddLinearSignal {
+    int iGrid;
     int iSeed;
     int bFixed;
     float fPhase;
     double Lbox;
     double a;
     };
-struct outMeasurePk {
+int pstAddLinearSignal(PST pst,void *vin,int nIn,void *vout,int nOut);
+#define PST_MAX_K_BINS 2500
+/* PST_GRID_BIN_K */
+struct inGridBinK {
+    int nBins;
+    int iGrid;
+    };
+struct outGridBinK {
     double fK[PST_MAX_K_BINS];
     double fPower[PST_MAX_K_BINS];
     uint64_t nPower[PST_MAX_K_BINS];
-    double fPowerAll[PST_MAX_K_BINS];
     };
-int pstMeasurePk(PST pst,void *vin,int nIn,void *vout,int nOut);
+int pstGridBinK(PST pst,void *vin,int nIn,void *vout,int nOut);
 /* PST_ASSIGN_MASS */
 struct inAssignMass {
-    int nGrid;
     int iAssignment;
+    int iGrid;
+    float fDelta;
     };
 int pstAssignMass(PST pst,void *vin,int nIn,void *vout,int nOut);
+/* PST_DENSITY_CONTRAST */
+struct inDensityContrast {
+    int iGrid;
+    int k;
+    double dTotalMass;
+    };
+int pstDensityContrast(PST pst,void *vin,int nIn,void *vout,int nOut);
+/* PST_WINDOW_CORRECTION */
+struct inWindowCorrection {
+    int iAssignment;
+    int iGrid;
+    };
+int pstWindowCorrection(PST pst,void *vin,int nIn,void *vout,int nOut);
+/* PST_INTERLACE */
+struct inInterlace {
+    int iGridTarget;
+    int iGridSource;
+    };
+int pstInterlace(PST pst,void *vin,int nIn,void *vout,int nOut);
+/* PST_BISPECTRUM_SELECT */
+struct inBispectrumSelect {
+    int iGridTarget;
+    int iGridSource;
+    double kmin, kmax;
+    };
+int pstBispectrumSelect(PST pst,void *vin,int nIn,void *vout,int nOut);
+/* PST_BISPECTRUM_CALCULATE */
+struct inBispectrumCalculate {
+    int iGrid1, iGrid2, iGrid3;
+    };
+int pstBispectrumCalculate(PST pst,void *vin,int nIn,void *vout,int nOut);
 /* PST_LINEARKICK */
 struct inLinearKick {
     vel_t dtOpen, dtClose;
@@ -1386,13 +1047,10 @@ struct inLightConeClose {
     };
 int pstLightConeClose(PST pst,void *vin,int nIn,void *vout,int nOut);
 
-int pstLightConeVel(PST pst,void *vin,int nIn,void *vout,int nOut);
-
-/* PST_INFLATE */
-struct inInflate {
-    int nInflateReps;
+struct inLightConeVel {
+    double dBoxSize;
     };
-int pstInflate(PST pst,void *vin,int nIn,void *vout,int nOut);
+int pstLightConeVel(PST pst,void *vin,int nIn,void *vout,int nOut);
 
 /* PST_GET_PARICLES */
 int pstGetParticles(PST pst,void *vin,int nIn,void *vout,int nOut);

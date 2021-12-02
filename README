@@ -34,6 +34,18 @@ CMake - cmake build system
 
         https://cmake.org/
 
+Python3 - Python Library and Interpreter
+
+    Most modern distributions have Python3 installed. It should be automatically
+    detected, but if not refer to:
+
+	https://cmake.org/cmake/help/latest/module/FindPython3.html
+
+    or for CMake versions less than 3.12:
+
+	https://cmake.org/cmake/help/latest/module/FindPythonLibs.html
+	https://cmake.org/cmake/help/latest/module/FindPythonInterp.html
+
 GSL - The GNU Scientific Library
 
     This library is usually available on HPC systems, but if not it must be
