@@ -1886,7 +1886,9 @@ void mdlClass::init(bool bDiag) {
 #ifdef USE_CL
     clCtx = CL_initialize(clContext,Cores(),Core());
 #endif
-
+#ifdef USE_CUDA
+    nCUDA = 0;
+#endif
     this->bDiag = bDiag;
     if (bDiag) {
 	char achDiag[256], ach[256];
