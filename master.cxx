@@ -4715,15 +4715,15 @@ void MSR::TopStepKDK(
 
 
       if (DoGas() && MeshlessHydro()){
-         EndTimestepIntegration(dTime, dDeltaStep);
-         MeshlessGradients(dTime, dDeltaStep);
+         if (MeshlessHydro()){
+            EndTimestepIntegration(dTime, dDeltaStep);
+            MeshlessGradients(dTime, dDeltaStep);
+         }else{
+            Sph(dTime,dDeltaStep,dStep);  /* dTime = Time at end of kick */
+            Cooling(dTime,dStep,0,(iKickRung<=param.iRungCoolTableUpdate ? 1:0),0);
+         }
       }
 
-      if (DoGas()) {
-         Sph(dTime,dDeltaStep,dStep);  /* dTime = Time at end of kick */
-         Cooling(dTime,dStep,0,
-               (iKickRung<=param.iRungCoolTableUpdate ? 1:0),0);
-      }
       /*
        * move time back to 1/2 step so that KickClose can integrate
        * from 1/2 through the timestep to the end.
