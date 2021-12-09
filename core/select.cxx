@@ -27,8 +27,8 @@ int ServiceCountSelected::Service(PST pst,void *vin,int nIn,void *vout,int nOut)
     return sizeof(output);
     }
 
-static_assert(std::is_void<ServiceSelActives::input>()  || std::is_trivial<ServiceSelBlackholes::input>());
-static_assert(std::is_void<ServiceSelActives::output>() || std::is_trivial<ServiceSelBlackholes::output>());
+static_assert(std::is_void<ServiceSelActives::input>()  || std::is_trivial<ServiceSelActives::input>());
+static_assert(std::is_void<ServiceSelActives::output>() || std::is_trivial<ServiceSelActives::output>());
 int ServiceSelActives::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto in   = static_cast<input*>(vin);
     auto out  = static_cast<output*>(vout);
