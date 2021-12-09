@@ -129,6 +129,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
 	    1.0/csmComoveLookbackTime2Exp(csm,1.0 / dLightSpeedSim(3*param.dBoxSize)) - 1.0 );
 	}
 
+    OutputFineStatistics(0.0, -1);
     /*
     ** Build tree, activating all particles first (just in case).
     */
