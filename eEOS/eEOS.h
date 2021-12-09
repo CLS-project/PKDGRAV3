@@ -1,9 +1,8 @@
+#if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
 #include "pkd.h"
 #include "master.h"
 
-#if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
 void msrSetEOSParam(MSR msr);
-#endif
 
 
 #ifdef EEOS_POLYTROPE
@@ -104,3 +103,4 @@ inline static void internalEnergyFloor(PKD pkd, PARTICLE* p,
    psph->E += psph->Uint;
 
 }
+#endif

@@ -1,10 +1,6 @@
-#ifndef HYDRO_HINCLUDED
-#define HYDRO_HINCLUDED
 
-#include "master.h"
 #include "pkd.h"
-#include "master.h"
-#include "smoothfcn.h"
+#include "smooth/smoothfcn.h"
 
 
 #define XX 0
@@ -20,19 +16,19 @@ typedef double my_real;
  * MAIN FUNCTIONS
  * -----------------
  */
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /* Density loop */
-void msrComputeSmoothing(MSR msr,double dTime);
 void hydroDensity(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf);
-void hydroDensity_node(PKD pkd, BND bnd_node, PARTICLE **sinks, NN *nnList,
+void hydroDensity_node(PKD pkd, SMF *smf, BND bnd_node, PARTICLE **sinks, NN *nnList,
                        int nCnt_own, int nCnt);
 
 /* Gradient loop */
-void msrMeshlessGradients(MSR msr,double dTime);
 void hydroGradients(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf);
 
 /* Flux loop */
-void msrMeshlessFluxes(MSR msr,double dTime,double dDelta,int iRoot);
 void initHydroFluxes(void *vpkd, void *vp);
 void initHydroFluxesCached(void *vpkd, void *vp);
 void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf);
@@ -40,6 +36,8 @@ void hydroRiemann_vec(PARTICLE *p,float fBall,int nSmooth,
                       my_real** restrict input_buffer,
                       my_real** restrict output_buffer,
                       SMF *smf);
+void pkdResetFluxes(PKD pkd,double dTime,double dDelta,double,double);
+
 void combThirdHydroLoop(void *vpkd, void *p1,void *p2);
 void hydroFluxFillBuffer(my_real **buffer, PARTICLE* q, int i,
                          double dr2, double dx, double dy, double dz, SMF *);
@@ -48,7 +46,6 @@ void hydroFluxUpdateFromBuffer(my_real **out_buffer, my_real **in_buffer,
 void hydroFluxGetNvars(int *in, int *out);
 
 /* Time step loop */
-void msrHydroStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime);
 void initHydroStep(void *vpkd, void *vp);
 void hydroStep(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf);
 void combHydroStep(void *vpkd, void *p1,void *p2);
@@ -61,13 +58,15 @@ void hydroSourceGravity(PKD pkd, PARTICLE* p, SPHFIELDS* psph,
                         int bComove);
 void hydroSourceExpansion(PKD pkd, PARTICLE* p, SPHFIELDS* psph,
                           double pDelta, double dScaleFactor, double dHubble,
-                          int bComove);
-void hydroSyncEnergies(PKD pkd, PARTICLE* p, SPHFIELDS* psph, double pa[3]);
+                          int bComove, double dConstGamma);
+void hydroSyncEnergies(PKD pkd, PARTICLE* p, SPHFIELDS* psph, double pa[3],
+                       double dConstGamma);
 
-void hydroSetPrimitives(PKD pkd, PARTICLE* p, SPHFIELDS* psph);
+void hydroSetPrimitives(PKD pkd, PARTICLE* p, SPHFIELDS* psph, double dTuFac, double dConstGamma);
 
 void hydroSetLastVars(PKD pkd, PARTICLE *p, SPHFIELDS *psph, double *pa,
-                      double dScaleFactor, double dTime, double dDelta);
+                      double dScaleFactor, double dTime, double dDelta,
+                      double dConstGamma);
 
 /* -----------------
  * HELPERS
@@ -92,5 +91,7 @@ void compute_Ustar(double rho_K, double S_K, double v_K,
                    double p_K, double h_K, double S_s,
                    double *rho_sK, double *rhov_sK, double *e_sK);
 
-
+#ifdef __cplusplus
+}
 #endif
+

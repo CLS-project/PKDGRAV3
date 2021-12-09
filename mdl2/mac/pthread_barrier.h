@@ -33,6 +33,10 @@
 
 #ifdef __cplusplus
 extern "C" {
+/* The restrict keyword is C only */
+#ifndef restrict
+#define restrict
+#endif
 #endif
 
 #if !defined(PTHREAD_BARRIER_SERIAL_THREAD)

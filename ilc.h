@@ -29,10 +29,10 @@
 #endif
 
 #if !defined(__CUDACC__)
-#include "simd.h"
+#include "core/simd.h"
 #endif
 
-#include "moments.h"
+#include "gravity/moments.h"
 
 /*
 ** We use a union here so that the compiler can properly align the values.

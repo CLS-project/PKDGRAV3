@@ -1,6 +1,7 @@
 #include "eEOS/eEOS.h"
 
-void msrSetEOSParam(MSR msr){
+#if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
+void MSR::SetEOSParam(MSR msr){
     const double dHydFrac = msr->param.dInitialH;
     const double dnHToRho = MHYDR / dHydFrac / msr->param.dGmPerCcUnit;
 #ifdef EEOS_POLYTROPE
@@ -13,3 +14,4 @@ void msrSetEOSParam(MSR msr){
     msr->param.dEOSNJeans = pow(msr->param.dEOSNJeans, 0.666666);
 #endif
 }
+#endif

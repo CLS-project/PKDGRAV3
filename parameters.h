@@ -18,6 +18,8 @@
 #ifndef PARAMETERS_HINCLUDED
 #define PARAMETERS_HINCLUDED
 
+#include "units.h"
+
 /*
 ** Don't even think about putting a pointer in here!!
 */
@@ -25,11 +27,6 @@ struct parameters {
     /*
     ** Parameters for PKDGRAV.
     */
-    int nThreads;
-    int bDiag;
-    int bDedicatedMPI;
-    int bSharedMPI;
-    int bNoGrav;
     int bOverwrite;
     int bVWarnings;
     int bVStart;
@@ -56,16 +53,11 @@ struct parameters {
     int nPartColl;
     int nTruncateRung;
     int bDoDensity;
-#ifdef USE_PNG
-    int nPNGResolution;
-#endif
     int bDoRungOutput;
     int bDoRungDestOutput;
     int bDoGravity;
-    int bAarsethStep;
     int nBucket;
     int nGroup;
-    int n2min;
     int iOutInterval;
     int iFofInterval;
     int iCheckInterval;
@@ -80,8 +72,6 @@ struct parameters {
     int nSteps10;
     int nSmooth;
     int iMaxRung;
-    int nRungVeryActive;
-    int nPartVeryActive;
     int bDualTree;
     int nTreeBitsLo;
     int nTreeBitsHi;
@@ -89,8 +79,6 @@ struct parameters {
     int iSignalSeconds;
     int bPhysicalSoft;
     int bSoftMaxMul;
-    int nSoftNbr;
-    int bSoftByType;
     int bDoSoftOutput;
     int bDoAccOutput;
     int bDoPotOutput;
@@ -125,18 +113,8 @@ struct parameters {
     double dConstBeta;
     double dConstGamma;
     double dMeanMolWeight;
-    double dGasConst;
-    double dTuFac;
-    double dMsolUnit;
-    double dKpcUnit;
+    UNITS units;
     double ddHonHLimit;
-    double dKBoltzUnit;
-    double dGmPerCcUnit;
-    double dComovingGmPerCcUnit;
-    double dErgPerGmUnit;
-    double dErgUnit;
-    double dSecUnit;
-    double dKmPerSecUnit;
     double dhMinOverSoft;
     double dMetalDiffusionCoeff;
     double dThermalDiffusionCoeff;
@@ -175,7 +153,6 @@ struct parameters {
     double dyPeriod;
     double dzPeriod;
     double dPreFacRhoLoc;
-    double dFacExcludePart;
     double dEccFacMax;
     double dRedTo;
     double dRedFrom;
@@ -186,18 +163,10 @@ struct parameters {
     char achIoPath[256];
     char achCheckpointPath[256];
     char achDataSubPath[256];
-    char achOutTypes[256];
-    char achCheckTypes[256];
-#ifdef USE_PYTHON
-    char achScriptFile[256];
-#endif
     char achTfFile[256];
     char achClassFilename[256];
     char achLinearSpecies[256];
     char achPowerSpecies[256];
-    double dGrowDeltaM;
-    double dGrowStartT;
-    double dGrowEndT;
     double dFracDualTree;
     double dFracNoDomainDecomp;
     double dFracNoDomainRootFind;
@@ -210,11 +179,6 @@ struct parameters {
     int	nMinMembers;
     double dHopTau;
     double dTau;
-    int	nBins;
-    int	iCenterType;
-    double binFactor;
-    double fMinRadius;
-    int bLogBins;
     int	bTraceRelaxation;
     /*
     ** Parameters for group stats.
@@ -238,7 +202,6 @@ struct parameters {
      */
     double dCFLacc;
     int bMeshlessHydro;
-    int bFirstHydroLoop;
     int bConservativeReSmooth;
     int bIterativeSmoothingLength;
     int bWakeUpParticles;
@@ -374,9 +337,6 @@ struct parameters {
     int iDeltakInterval;
   double dDeltakRedshift;
 #endif
-
-    int iInflateStep;
-    int nInflateReps;
 
     /*
     ** Memory models.  Other parameters can force these to be set.

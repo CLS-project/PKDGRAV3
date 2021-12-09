@@ -245,20 +245,20 @@ inline void hydroSourceGravity(PKD pkd, PARTICLE* p, SPHFIELDS* psph,
 
 inline void hydroSourceExpansion(PKD pkd, PARTICLE* p, SPHFIELDS* psph,
                                  double pDelta, double dScaleFactor, double dHubble,
-                                 int bComove){
+                                 int bComove, double dConstGamma){
    //  E^{n+1} = E^{n} + dE_flux - dt*(H^{n} E^n + H^{n+1} E^{n+1})
    if (bComove){
       psph->E = (psph->E - psph->lastHubble*pDelta*psph->lastE) /
                 (1.+pDelta*dHubble);
       psph->Uint = (psph->Uint -
                     psph->lastHubble*1.5*pDelta*psph->lastUint *
-                    (pkd->param.dConstGamma - 1.)) /
-                   (1.+1.5*pDelta*dHubble*(pkd->param.dConstGamma - 1.));
+                    (dConstGamma - 1.)) /
+                   (1.+1.5*pDelta*dHubble*(dConstGamma - 1.));
 #ifdef ENTROPY_SWITCH
       psph->S = (psph->S -
                  psph->lastHubble*1.5*pDelta*psph->lastS *
-                 (pkd->param.dConstGamma - 1.)) /
-                (1.+1.5*pDelta*dHubble*(pkd->param.dConstGamma - 1.));
+                 (dConstGamma - 1.)) /
+                (1.+1.5*pDelta*dHubble*(dConstGamma - 1.));
 #endif
 
       for (int j=0; j<3; j++){
@@ -275,7 +275,7 @@ inline void hydroSourceExpansion(PKD pkd, PARTICLE* p, SPHFIELDS* psph,
 
 
 
-inline void hydroSyncEnergies(PKD pkd, PARTICLE* p, SPHFIELDS* psph, double pa[3]){
+inline void hydroSyncEnergies(PKD pkd, PARTICLE* p, SPHFIELDS* psph, double pa[3], double dConstGamma){
    double Ekin = 0.5*(psph->mom[0]*psph->mom[0] +
                       psph->mom[1]*psph->mom[1] +
                       psph->mom[2]*psph->mom[2])/pkdMass(pkd,p);
@@ -291,19 +291,19 @@ inline void hydroSyncEnergies(PKD pkd, PARTICLE* p, SPHFIELDS* psph, double pa[3
          // The flow is smooth and/or dominated by gravity,
          // thus the entropy can be used to evolve the pressure
          psph->Uint = psph->S *
-                      pow(pkdDensity(pkd,p), pkd->param.dConstGamma-1) /
-                      (pkd->param.dConstGamma -1.);
+                      pow(pkdDensity(pkd,p), dConstGamma-1) /
+                      (dConstGamma -1.);
       }else if (psph->Uint > 0.){
          // The flow is NOT smooth, so the entropy can not be used
          psph->S = psph->Uint *
-                   (pkd->param.dConstGamma -1.) *
-                   pow(pkdDensity(pkd,p), -pkd->param.dConstGamma+1);
+                   (dConstGamma -1.) *
+                   pow(pkdDensity(pkd,p), -dConstGamma+1);
       }else{
          printf("WARNING %e \t S %e \t(%e) \t Uint %e ≤t(%e) \n",psph->P,
                psph->S,
-               psph->S / pkdMass(pkd,p) * pow(pkdDensity(pkd,p), pkd->param.dConstGamma),
+               psph->S / pkdMass(pkd,p) * pow(pkdDensity(pkd,p), dConstGamma),
                psph->Uint,
-               psph->Uint*psph->omega*(pkd->param.dConstGamma -1.) );
+               psph->Uint*psph->omega*(dConstGamma -1.) );
          psph->S=0.0;
          psph->Uint=0.0;
       }
@@ -314,8 +314,8 @@ inline void hydroSyncEnergies(PKD pkd, PARTICLE* p, SPHFIELDS* psph, double pa[3
       // should be used
       psph->Uint = psph->E - Ekin;
 #ifdef ENTROPY_SWITCH
-      psph->S = psph->Uint *(pkd->param.dConstGamma -1.) *
-                pow(pkdDensity(pkd,p), -pkd->param.dConstGamma+1);
+      psph->S = psph->Uint *(dConstGamma -1.) *
+                pow(pkdDensity(pkd,p), -dConstGamma+1);
 #endif
    }
 }
@@ -323,12 +323,13 @@ inline void hydroSyncEnergies(PKD pkd, PARTICLE* p, SPHFIELDS* psph, double pa[3
 
 
 
-inline void hydroSetPrimitives(PKD pkd, PARTICLE* p, SPHFIELDS* psph){
+inline void hydroSetPrimitives(PKD pkd, PARTICLE* p, SPHFIELDS* psph, 
+                              double dTuFac, double dConstGamma){
 
    // Temperature minimum of T=0, but could be changed.
    // If cooling is used, the corresponding entropy floor
    // is applied inside cooling_cool_part
-   double minUint = 0. * pkd->param.dTuFac * pkdMass(pkd,p);
+   double minUint = 0. * dTuFac * pkdMass(pkd,p);
    if (psph->Uint < minUint) {
       double Ekin = 0.5*(psph->mom[0]*psph->mom[0] +
                          psph->mom[1]*psph->mom[1] +
@@ -336,14 +337,14 @@ inline void hydroSetPrimitives(PKD pkd, PARTICLE* p, SPHFIELDS* psph){
       psph->Uint = minUint;
       psph->E = Ekin + minUint;
 #ifdef ENTROPY_SWITCH
-      psph->S = psph->Uint *(pkd->param.dConstGamma -1.) *
-                pow(pkdDensity(pkd,p), -pkd->param.dConstGamma+1);
+      psph->S = psph->Uint *(dConstGamma -1.) *
+                pow(pkdDensity(pkd,p), -dConstGamma+1);
 #endif
    }
-   psph->P = psph->Uint*psph->omega*(pkd->param.dConstGamma -1.);
+   psph->P = psph->Uint*psph->omega*(dConstGamma -1.);
 
 
-   psph->c = sqrt(psph->P*pkd->param.dConstGamma/pkdDensity(pkd,p));
+   psph->c = sqrt(psph->P*dConstGamma/pkdDensity(pkd,p));
 
    for (int j=0; j<3; j++){
       pkdVel(pkd,p)[j] = psph->mom[j]/pkdMass(pkd,p);
@@ -362,7 +363,8 @@ inline void hydroSetPrimitives(PKD pkd, PARTICLE* p, SPHFIELDS* psph){
 
 
 inline void hydroSetLastVars(PKD pkd, PARTICLE *p, SPHFIELDS *psph, double *pa,
-                             double dScaleFactor, double dTime, double dDelta){
+                             double dScaleFactor, double dTime, double dDelta,
+                             double dConstGamma){
 #ifndef USE_MFM
    for (int j=0; j<3;j++){
       psph->lastDrDotFrho[j] = psph->drDotFrho[j]*dScaleFactor;
@@ -381,7 +383,7 @@ inline void hydroSetLastVars(PKD pkd, PARTICLE *p, SPHFIELDS *psph, double *pa,
    if (dDelta <= 0){
       // Initialize the entropy
       psph->S = pkdMass(pkd,p) * psph->P *
-                pow(pkdDensity(pkd,p), -pkd->param.dConstGamma);
+                pow(pkdDensity(pkd,p), -dConstGamma);
    }
    psph->lastS = psph->S;
 #endif

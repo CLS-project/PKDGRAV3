@@ -1,16 +1,11 @@
-cmake_minimum_required(VERSION 3.1)
-if(COMMAND cmake_policy)
-  cmake_policy(SET CMP0003 NEW)
-endif(COMMAND cmake_policy)
-if(CMAKE_VERSION VERSION_GREATER "3.12.0")
-   cmake_policy(SET CMP0074 NEW)
-endif(CMAKE_VERSION VERSION_GREATER "3.12.0")
+cmake_minimum_required(VERSION 3.5)
+cmake_policy(VERSION 3.5...3.14)
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   message(STATUS "Release build with debug info selected")
   set(CMAKE_BUILD_TYPE RelWithDebInfo)
 endif()
-project(mdl2)
+project(mdl2 LANGUAGES C CXX Fortran)
 add_subdirectory(openpa)	# Lockless queue support
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}")
 include(FindPkgConfig)
@@ -31,6 +26,9 @@ CHECK_INCLUDE_FILES (stdint.h HAVE_STDINT_H)
 INCLUDE(CheckLibraryExists)
 CHECK_LIBRARY_EXISTS(memkind hbw_posix_memalign "" HAVE_MEMKIND)
 
+INCLUDE(CheckSymbolExists)
+check_symbol_exists(backtrace execinfo.h USE_BT)
+
 find_package(Threads REQUIRED)
 find_package(MPI REQUIRED)	# MPI support
 if(CMAKE_VERSION VERSION_GREATER "3.17.0")
@@ -39,15 +37,31 @@ else()
    message(WARNING "Using old FindCUDA, consider updating cmake.")
    find_package(CUDA)
 endif()
+find_package(elfutils QUIET)
 
 add_library(${PROJECT_NAME} STATIC "")
+target_compile_features(${PROJECT_NAME} PRIVATE cxx_auto_type cxx_range_for cxx_lambdas cxx_strong_enums)
+set_target_properties(${PROJECT_NAME} PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO
+)
+
 target_sources(${PROJECT_NAME}
-  PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/mpi/mdl.c
-          ${CMAKE_CURRENT_SOURCE_DIR}/mdlbase.c
+  PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/mpi/mdl.cxx
+          ${CMAKE_CURRENT_SOURCE_DIR}/mpi/mdlmessages.cxx
+          ${CMAKE_CURRENT_SOURCE_DIR}/mdlbase.cxx
   PUBLIC  ${CMAKE_CURRENT_SOURCE_DIR}/mpi/mdl.h
           ${CMAKE_CURRENT_SOURCE_DIR}/mdlbase.h
           ${CMAKE_CURRENT_BINARY_DIR}/mdl_config.h
 )
+if(USE_BT)
+  target_sources(${PROJECT_NAME}
+	  PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/mdlbt.cxx
+	  PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/mdlbt.h)
+  set(USE_BT TRUE)
+endif()
+
 if (HWLOC_FOUND)
   find_library(HWLOC_LIBRARY hwloc HINTS ${HWLOC_LIBDIR})
   CHECK_LIBRARY_EXISTS(hwloc hwloc_topology_init ${HWLOC_LIBDIR} HAVE_HWLOC)
@@ -61,6 +75,11 @@ if (HWLOC_FOUND)
 	" On Cray you can try: export CRAYPE_LINK_TYPE=dynamic")
   endif()
 endif()
+if (elfutils_FOUND)
+   set(USE_ELFUTILS TRUE)
+   target_link_libraries(${PROJECT_NAME} elfutils::dw elfutils::elf)
+endif()
+
 if (APPLE)
   target_sources(${PROJECT_NAME}
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/mac/pthread_barrier.c
@@ -74,8 +93,6 @@ if (MSVC)
   )
   target_link_libraries(${PROJECT_NAME} wsock32 ws2_32)
 endif()
-find_package(Threads REQUIRED)
-find_package(MPI REQUIRED)	# MPI support
 if (APPLE)
   target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/mac)
 endif()
@@ -83,6 +100,7 @@ if (MSVC)
   target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/windows)
 endif()
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/openpa)
+target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/boost)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/mpi)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
@@ -110,7 +128,11 @@ if (CUDA_FOUND)
   get_property(MDL_INCLUDES TARGET mdl2 PROPERTY INCLUDE_DIRECTORIES)
   get_property(OPENPA_INCLUDES TARGET openpa PROPERTY INCLUDE_DIRECTORIES)
   CUDA_INCLUDE_DIRECTORIES(${MDL_INCLUDES} ${OPENPA_INCLUDES})
+#  CUDA_INCLUDE_DIRECTORIES(mdl2 openpa)
   target_link_libraries(${PROJECT_NAME} ${CUDA_LIBRARIES})
+  CUDA_COMPILE(cuda_files ${CMAKE_CURRENT_SOURCE_DIR}/cuda/mdlcuda.cu OPTIONS -arch compute_35)
+  target_sources(${PROJECT_NAME} PRIVATE ${cuda_files})
+  target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/cuda ${CUDA_INCLUDE_DIRS})
 endif(CUDA_FOUND)
 
 CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/mdl_config.h.in ${CMAKE_CURRENT_BINARY_DIR}/mdl_config.h)
