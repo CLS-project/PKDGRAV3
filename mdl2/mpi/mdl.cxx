@@ -1592,7 +1592,9 @@ int mpiClass::Launch(int (*fcnMaster)(MDL,void *),void * (*fcnWorkerInit)(MDL),v
 	}
     drainMPI();
 
-    pthread_barrier_destroy(&barrier);
+    if (Cores() > 1 || bDedicated) {
+       pthread_barrier_destroy(&barrier);
+    }
     for (i = iCoreMPI+1; i < Cores(); ++i) {
 	int *result = NULL;
 	pthread_join(threadid[i],reinterpret_cast<void**>(&result));
