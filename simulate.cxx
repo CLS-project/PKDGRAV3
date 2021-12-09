@@ -194,6 +194,8 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
 	InitRelaxation();
 	}
 
+    Output(iStartStep,dTime,dDelta,0);
+
     bKickOpen = 0;
     int iStop=0, bDoCheckpoint=0, bDoOutput=0;
     for (auto iStep=iStartStep+1;iStep<=nSteps&&!iStop;++iStep) {
