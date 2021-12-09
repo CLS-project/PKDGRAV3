@@ -1598,7 +1598,7 @@ void MSR::Initialize() {
 
     param.dFixedDelta = 0.0;
     prmAddParam(prm,"dFixedDelta",2,&param.dFixedDelta,sizeof(double),"FixedDelta",
-				"<Fixed time step of the simulation (requires bGlobalDt=1)> = 0.0");
+				"<-DEPRECATED- Fixed time step of the simulation (requires bGlobalDt=1)> = 0.0");
 
     param.bIterativeSmoothingLength = 1;
     prmAddParam(prm,"bIterativeSmoothingLength", 0, &param.bIterativeSmoothingLength,
@@ -1618,7 +1618,7 @@ void MSR::Initialize() {
     param.dMinDt = 0.;
     prmAddParam(prm,"dMinDt", 2, &param.dMinDt,
 		sizeof(double), "minDt",
-		"Minimum allowed timestep for the particles (in code units)");
+		"-DEPRECATED- Minimum allowed timestep for the particles (in code units)");
 
 #if defined(COOLING) || defined(GRACKLE)
     prmAddParam(prm,"strCoolingTables",3,param.strCoolingTables,256,"coolingtables",

@@ -243,6 +243,12 @@ def parse():
     add_flag(gas,'SFMGM',default=0.0, dest='SFdMinGasMass', type=float, help='SF MGM')
     add_flag(gas,'SFVFB',default=100, dest='SFdvFB', type=float, help='SF dvFB sound speed in FB region expected, km/s')
     add_bool(gas,'SFbdivv',default=False,dest='SFbdivv',help='SF Use div v for star formation')
+    add_bool(gas,'meshless',default=False,dest='bMeshlessHydro',help='Use the new implementation of the hydrodynamics')
+    add_bool(gas,'resmooth',default=True,dest='bConservativeReSmooth',help='Use re-smoothing for the fluxes and gradients computation')
+    add_bool(gas,'globaldt',default=False,dest='bGlobalDt',help='Force all particles to the same rung')
+    add_bool(gas,'iterh',default=True,dest='bIterativeSmoothingLength',help='Use an iterative scheme to obtain h')
+    add_bool(gas,'wakeup',default=False,dest='bWakeUpParticles',help='Wake the particles when there is a big rung difference')
+    add_flag(gas,'neighstd',default=False,dest='dNeighboursStd',type=float,help='Maximum deviation from desired number of neighbors')
 
     debugp = parser.add_argument_group('Debugging/Testing/Diagnostics')
     add_bool(debugp,'nograv',default=False,dest='bNoGrav', help='enable gravity calulation for testing')
