@@ -468,6 +468,25 @@ int MSR::ValidateParameters() {
 	    param.bPhysicalSoft = 0;
 	    }
 	}
+    if (param.bPhysicalSoft && param.dMaxPhysicalSoft>0){
+      fprintf(stderr, "ERROR: Setting both bPhysicalSoft and dMaxPhysicalSoft "
+           "is not allowed.\n Did you mean to limit the physical softening"
+           "with bPhysicalSoft and dSoftMax? or just limit the comoving "
+           "softening with dMaxPhysicalSoft?\n");
+      return 0;
+    }
+    if ( param.dMaxPhysicalSoft>0 && param.dSoft==0.0 && !param.bSoftMaxMul){
+      fprintf(stderr, "ERROR: Trying to limit individual softenings setting a "
+           "maximum physical softening rather than a factor...\nThis is "
+           "not supported.\n Did you mean to use dSoft for a global softening? "
+           "or bSoftMaxMul for setting the limit as a factor?\n");
+      return 0;
+    }
+    if ( param.bPhysicalSoft && param.dSoftMax==0.0) {
+      fprintf(stderr, "ERROR: If setting bPhysicalSoft, dSoftMax should be "
+            "provided to avoid divergences in the early universe.\n");
+      return 0;
+    }
     /*
     ** Determine the period of the box that we are using.
     ** Set the new d[xyz]Period parameters which are now used instead
@@ -563,6 +582,13 @@ int MSR::ValidateParameters() {
 	}
     }
 
+#ifdef OPTIM_NO_REDUNDANT_FLUXES
+    if (!param.bMemParticleID){
+       fprintf(stderr, "WARNING: OPTIM_NO_REDUNDANT_FLUXES requires bMemParticleID");
+       return 0;
+    }
+#endif
+
     /* Make sure that parallel read and write are sane */
     int nThreads = mdlThreads(mdl);
     if (param.nParaRead  > nThreads) param.nParaRead  = nThreads;
@@ -573,32 +599,8 @@ int MSR::ValidateParameters() {
     * The following "parameters" are derived from real parameters.
     \**********************************************************************/
 
-    /*
-    ** Convert kboltz/mhydrogen to system units, assuming that
-    ** G == 1.
-    */
-    if(prmSpecified(prm, "dMsolUnit") &&
-       prmSpecified(prm, "dKpcUnit")) {
-	param.units.dGasConst = param.units.dKpcUnit*KPCCM*KBOLTZ
-	    /MHYDR/GCGS/param.units.dMsolUnit/MSOLG;
-	/* code energy per unit mass --> erg per g */
-	param.units.dErgPerGmUnit = GCGS*param.units.dMsolUnit*MSOLG/(param.units.dKpcUnit*KPCCM);
-	/* code density --> g per cc */
-	param.units.dGmPerCcUnit = (param.units.dMsolUnit*MSOLG)/pow(param.units.dKpcUnit*KPCCM,3.0);
-	/* code time --> seconds */
-	param.units.dSecUnit = sqrt(1/(param.units.dGmPerCcUnit*GCGS));
-	/* code speed --> km/s */
-	param.units.dKmPerSecUnit = sqrt(GCGS*param.units.dMsolUnit*MSOLG/(param.units.dKpcUnit*KPCCM))/1e5;
-	/* code comoving density --> g per cc = param.units.dGmPerCcUnit (1+z)^3 */
-	param.units.dComovingGmPerCcUnit = param.units.dGmPerCcUnit;
-	}
-    else {
-	param.units.dSecUnit = 1;
-	param.units.dKmPerSecUnit = 1;
-	param.units.dComovingGmPerCcUnit = 1;
-	param.units.dGmPerCcUnit = 1;
-	param.units.dErgPerGmUnit = 1;
-	}
+    SetUnits();
+
     dTuFac = param.units.dGasConst/(param.dConstGamma - 1)/param.dMeanMolWeight;
 
     if (csm->val.classData.bClass){

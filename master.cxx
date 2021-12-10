@@ -538,373 +538,84 @@ void MSR::Checkpoint(int iStep,int nSteps,double dTime,double dDelta) {
     msrprintf("Checkpoint has been successfully written, Wallclock: %f secs.\n", dsec);
     }
 
-#if 0
-/*
-** This routine validates the given parameters and makes any adjustments.
-*/
-static int validateParameters(MDL mdl,CSM csm,PRM prm,struct parameters *param) {
-    
-    if (prmSpecified(prm, "dMetalDiffsionCoeff") || prmSpecified(prm,"dThermalDiffusionCoeff")) {
-	if (!prmSpecified(prm, "iDiffusion")) param->iDiffusion=1;
-	}
-
-    {
-	int nCoolingSet=0;
-	if (param->bGasIsothermal) nCoolingSet++; 
-	if (param->bGasCooling) nCoolingSet++; 
-	if (!prmSpecified(prm, "bGasAdiabatic") && nCoolingSet) param->bGasAdiabatic=0;
-	else if (param->bGasAdiabatic) nCoolingSet++;
-
-	if (nCoolingSet != 1) {
-	    fprintf(stderr,"One of bGasAdiabatic (%d), bGasIsothermal (%d) and bGasCooling (%d) may be set\n", param->bGasAdiabatic, param->bGasIsothermal, param->bGasCooling);
-	    assert(0);
-	    }
-	}
 
 
-
-    /* Star parameter checks */
-
-    if (param->bStarForm) {
-	param->bAddDelete = 1;
-	if (!prmSpecified(prm, "bFeedback")) param->bFeedback=1;
-	}
-
-    /* END Gas and Star Parameter Checks */
-
-    if (param->nDigits < 1 || param->nDigits > 9) {
-	(void) fprintf(stderr,"Unreasonable number of filename digits.\n");
-	return 0;
-	}
-
-    /*
-    ** Make sure that we have some setting for nReplicas if bPeriodic is set.
-    */
-    if (param->bPeriodic && !prmSpecified(prm,"nReplicas")) {
-	param->nReplicas = 1;
-	}
-    /*
-    ** Warn that we have a setting for nReplicas if bPeriodic NOT set.
-    */
-    if (!param->bPeriodic && param->nReplicas != 0) {
-	printf("WARNING: nReplicas set to non-zero value for non-periodic!\n");
-	}
-
-    /*
-    ** CUDA likes a larger group size
-    */
-    if (mdlCudaActive(mdl) && param->iCUDAQueueSize>0 && !prmSpecified(prm,"nGroup") && param->nGroup<256)
-	param->nGroup = 256;
-
-
-#ifndef USE_HDF5
-    if (param->bHDF5) {
-	printf("WARNING: HDF5 output was requested by is not supported: using Tipsy format\n");
-	param->bHDF5 = 0;
-	}
-#endif
-
-#ifdef MDL_FFTW
-    if ( param->nGridPk ) {
-	if (prmSpecified(prm,"nBinsPk")) {
-	    if (param->nBinsPk > param->nGridPk/2) {
-		param->nBinsPk = param->nGridPk/2;
-		}
-	    }
-	else param->nBinsPk = param->nGridPk/2;
-	if (param->nBinsPk > PST_MAX_K_BINS)
-	    param->nBinsPk = PST_MAX_K_BINS;
-	}
-    if (param->iPkOrder<1 || param->iPkOrder>4) {
-    	puts("ERROR: iPkOrder must be 1 (NGP), 2 (CIC), 3 (TSC) or 4 (PCS)");
-    	return 0;
-        }
-    if ( param->nGrid ) {
-	if (param->achInFile[0]) {
-	    puts("ERROR: do not specify an input file when generating IC");
-	    return 0;
-	    }
-	if ( param->iSeed == 0 ) {
-	    //puts("ERROR: Random seed for IC not specified");
-	    param->iSeed = time(NULL);
-	    }
-	if ( !prmSpecified(prm,"dBoxSize") || param->dBoxSize <= 0 ) {
-	    puts("ERROR: Box size for IC not specified");
-	    return 0;
-	    }
-      if ( param->bICgas ) {
-         if (!prmSpecified(prm, "dOmegab") ){
-            fprintf(stderr, "ERROR: Can not generate IC with gas if dOmegab is not specified");
-            return 0;
-         }
-         if ( !param->bDoGas ) {
-            fprintf(stderr, "ERROR: Can not generate IC with gas if bDoGas=0");
-            return 0;
-         }
-      }
-
-	}
-    /* Set the number of bins for the power spectrum measurement of linear species */
-    if (param->nGridLin > 0){
-        param->nBinsLinPk = param->nGridLin/2;
-        if (param->nBinsLinPk > PST_MAX_K_BINS)
-            param->nBinsLinPk = PST_MAX_K_BINS;
-    }
-#endif
-    if (param->dTheta <= 0) {
-	if (param->dTheta == 0 && param->bVWarnings)
-	    fprintf(stderr,"WARNING: Zero opening angle may cause numerical problems\n");
-	else if (param->dTheta < 0) {
-	    fprintf(stderr,"ERROR: Opening angle must be non-negative\n");
-	    return 0;
-	    }
-	}
-
-    if (!prmSpecified(prm,"dFracNoDomainDecomp")) param->dFracDualTree = param->dFracNoDomainDecomp;
-    if ( param->dFracDualTree > param->dFracNoDomainDecomp
-	|| param->dFracNoDomainDecomp > param->dFracNoDomainRootFind
-	|| param->dFracNoDomainRootFind > param->dFracNoDomainDimChoice
-	|| param->dFracNoDomainDecomp<0.0 || param->dFracNoDomainDimChoice > 1.0 ) {
-	puts("ERROR: check that 0 <= dFracNoDomainDecomp <= dFracNoDomainRootFind <= dFracNoDomainDimChoice <= 1");
-	return 0;
-	}
-
-    if (param->bMemUnordered) {
-	if (!prmSpecified(prm,"bNewKDK")) {
-	    param->bNewKDK = 1;
-	    }
-	else if (!param->bNewKDK) {
-	    puts("ERROR: bNewKDK must be zero when bMemUnordered is enabled!");
-	    return 0;
-	    }
-	}
-
-    /* Make sure that the old behaviour is obeyed. */
-    if ( param->nSteps == 0 ) {
-	if ( !prmSpecified(prm,"bDoAccOutput") ) param->bDoAccOutput = 1;
-	if ( !prmSpecified(prm,"bDoPotOutput") ) param->bDoPotOutput = 1;
-	}
-
-    /*
-     * Softening
-     */
-    if (param->bPhysicalSoft ) {
-	if (param->bPhysicalSoft && !csm->val.bComove) {
-	    printf("WARNING: bPhysicalSoft reset to 0 for non-comoving (bComove == 0)\n");
-	    param->bPhysicalSoft = 0;
-	    }
-	}
-    if (param->bPhysicalSoft && param->dMaxPhysicalSoft>0){
-      fprintf(stderr, "ERROR: Setting both bPhysicalSoft and dMaxPhysicalSoft "
-           "is not allowed.\n Did you mean to limit the physical softening"
-           "with bPhysicalSoft and dSoftMax? or just limit the comoving "
-           "softening with dMaxPhysicalSoft?\n");
-      return 0;
-    }
-    if ( param->dMaxPhysicalSoft>0 && param->dSoft==0.0 && !param->bSoftMaxMul){
-      fprintf(stderr, "ERROR: Trying to limit individual softenings setting a "
-           "maximum physical softening rather than a factor...\nThis is "
-           "not supported.\n Did you mean to use dSoft for a global softening? "
-           "or bSoftMaxMul for setting the limit as a factor?\n");
-      return 0;
-    }
-    if ( param->bPhysicalSoft && param->dSoftMax==0.0) {
-      fprintf(stderr, "ERROR: If setting bPhysicalSoft, dSoftMax should be "
-            "provided to avoid divergences in the early universe.\n");
-      return 0;
-    }
-    /*
-    ** Determine the period of the box that we are using.
-    ** Set the new d[xyz]Period parameters which are now used instead
-    ** of a single dPeriod, but we still want to have compatibility
-    ** with the old method of setting dPeriod.
-    */
-    if (prmSpecified(prm,"dPeriod") &&
-	    !prmSpecified(prm,"dxPeriod")) {
-	param->dxPeriod = param->dPeriod;
-	}
-    if (prmSpecified(prm,"dPeriod") &&
-	    !prmSpecified(prm,"dyPeriod")) {
-	param->dyPeriod = param->dPeriod;
-	}
-    if (prmSpecified(prm,"dPeriod") &&
-	    !prmSpecified(prm,"dzPeriod")) {
-	param->dzPeriod = param->dPeriod;
-	}
-    /*
-    ** Periodic boundary conditions can be disabled along any of the
-    ** x,y,z axes by specifying a period of zero for the given axis.
-    ** Internally, the period is set to infinity (Cf. pkdBucketWalk()
-    ** and pkdDrift(); also the INTERSECT() macro in smooth.h).
-    */
-    if (param->dPeriod  == 0) param->dPeriod  = FLOAT_MAXVAL;
-    if (param->dxPeriod == 0) param->dxPeriod = FLOAT_MAXVAL;
-    if (param->dyPeriod == 0) param->dyPeriod = FLOAT_MAXVAL;
-    if (param->dzPeriod == 0) param->dzPeriod = FLOAT_MAXVAL;
-    /*
-    ** At the moment, integer positions are only really safe in periodic boxes!Wr
-    */
-    if (param->bMemIntegerPosition && (!param->bPeriodic||param->dxPeriod!=1.0||param->dyPeriod!=1.0||param->dzPeriod!=1.0)) {
-	fprintf(stderr,"WARNING: Integer coordinates are enabled but the the box is not periodic\n"
-	               "       and/or the box size is not 1. Set bPeriodic=1 and dPeriod=1.\n");
-	}
-
-    if (!prmSpecified(prm,"dTheta20")) param->dTheta20 = param->dTheta;
-    if (!prmSpecified(prm,"dTheta2")) param->dTheta2 = param->dTheta20;
-
-    /*
-    ** Check if fast gas boundaries are needed.
-    */
-    if (param->bDoGas) {
-	param->bMemNodeSphBounds = 1;
-    }
-    /*
-    ** Check timestepping and gravity combinations.
-    */
-    assert(param->iMaxRung <= IRUNGMAX);
-    if (param->bDoGravity) {
-	/* Potential is optional, but the default for gravity */
-	if (!prmSpecified(prm,"bMemPotential")) param->bMemPotential = 1;
-	if (param->iMaxRung < 1) {
-	    param->iMaxRung = 0;
-	    if (param->bVWarnings) fprintf(stderr,"WARNING: iMaxRung set to 0, SINGLE STEPPING run!\n");
-	    /*
-	    ** For single stepping we don't need fancy timestepping variables.
-	    */
-	    param->bMemNodeAcceleration = 0;
-	    param->bMemNodeVelocity = 0;
-	}
-	else {
-	    if (param->bEpsAccStep) {
-		param->bAccelStep = 1;
-	    }
-	    if ((param->bAccelStep || param->bDensityStep) && param->bGravStep) {
-		/*
-		** We cannot combine these 2 types of timestepping criteria, we need to choose one
-		** or the other basic timestep criterion, in this case we choose only bGravStep.
-		*/
-		param->bAccelStep = 0;
-		param->bEpsAccStep = 0;
-		param->bDensityStep = 0;
-		if (param->bVWarnings) fprintf(stderr,"WARNING: bGravStep set in combination with older criteria, now using ONLY bGravStep!\n");
-	    }
-	    else if (!param->bAccelStep && !param->bGravStep && !param->bDensityStep) {
-		param->bGravStep = 1;
-		if (param->bVWarnings) fprintf(stderr,"WARNING: none of bAccelStep, bDensityStep, or bGravStep set, now using bGravStep!\n");
-	    }
-	    /*
-	    ** Set the needed memory model based on the chosen timestepping method.
-	    */
-	    if (param->bGravStep) {
-		param->bMemNodeAcceleration = 1;
-		if (param->iTimeStepCrit == 1) {
-		    param->bMemNodeVelocity = 1;
-		}
-	    } 
-	    else {
-		param->bMemNodeAcceleration = 0;
-		param->bMemNodeVelocity = 0;
-	    }
-	}
-    }
-
-#ifdef OPTIM_NO_REDUNDANT_FLUXES
-    if (!param->bMemParticleID){
-       fprintf(stderr, "WARNING: OPTIM_NO_REDUNDANT_FLUXES requires bMemParticleID");
-       return 0;
-    }
-#endif
-
-    return 1;
-    }
-
-
-#if 0 // Move to simulate.cxx
-static inline void msrSetUnits(MSR msr){
+void MSR::SetUnits(){
     /*
     ** Convert kboltz/mhydrogen to system units, assuming that
     ** G == 1.
     */
-    if(prmSpecified(msr->prm, "dMsolUnit") &&
-       prmSpecified(msr->prm, "dKpcUnit")) {
+    if(prmSpecified(prm, "dMsolUnit") &&
+       prmSpecified(prm, "dKpcUnit")) {
       /* code KBOLTZ/MHYDR */
-	param.dGasConst = param.dKpcUnit*KPCCM*KBOLTZ
-	    /MHYDR/GCGS/param.dMsolUnit/MSOLG;
+	param.units.dGasConst = param.units.dKpcUnit*KPCCM*KBOLTZ
+	    /MHYDR/GCGS/param.units.dMsolUnit/MSOLG;
 	/* code energy per unit mass --> erg per g */
-	param.dErgPerGmUnit = GCGS*param.dMsolUnit*MSOLG/
-                                        (param.dKpcUnit*KPCCM);
+	param.units.dErgPerGmUnit = GCGS*param.units.dMsolUnit*MSOLG/
+                                        (param.units.dKpcUnit*KPCCM);
       /* code energy --> erg */
-	param.dErgUnit = GCGS*pow(param.dMsolUnit*MSOLG,2.0)/
-                                (param.dKpcUnit*KPCCM);
+	param.units.dErgUnit = GCGS*pow(param.units.dMsolUnit*MSOLG,2.0)/
+                                (param.units.dKpcUnit*KPCCM);
 	/* code density --> g per cc */
-	param.dGmPerCcUnit = (param.dMsolUnit*MSOLG)/
-                                       pow(param.dKpcUnit*KPCCM,3.0);
+	param.units.dGmPerCcUnit = (param.units.dMsolUnit*MSOLG)/
+                                       pow(param.units.dKpcUnit*KPCCM,3.0);
 	/* code time --> seconds */
-	param.dSecUnit = sqrt(1/(param.dGmPerCcUnit*GCGS));
+	param.units.dSecUnit = sqrt(1/(param.units.dGmPerCcUnit*GCGS));
 	/* code speed --> km/s */
-	param.dKmPerSecUnit = sqrt(GCGS*param.dMsolUnit*MSOLG
-                                        /(param.dKpcUnit*KPCCM))/1e5;
-	/* code comove density -->g per cc = param.dGmPerCcUnit(1+z)^3*/
-	param.dComovingGmPerCcUnit = param.dGmPerCcUnit;
+	param.units.dKmPerSecUnit = sqrt(GCGS*param.units.dMsolUnit*MSOLG
+                                        /(param.units.dKpcUnit*KPCCM))/1e5;
+	/* code comove density -->g per cc = param.units.dGmPerCcUnit(1+z)^3*/
+	param.units.dComovingGmPerCcUnit = param.units.dGmPerCcUnit;
 	}
     else if (param.bICgas || param.nGrid) {
         // We need to properly set a unit system, we do so following the
         // convention: G=1, rho=Omega0 in code units
-        param.dKpcUnit = param.dBoxSize*1e3 / param.h;
+        param.units.dKpcUnit = param.dBoxSize*1e3 / param.h;
 
         // The mass unit is set such that we recover a correct dHubble0
         // in code units and 100h in physical
         const double dHubbleCGS = 100.*param.h*1e5/(1e3*KPCCM); // 1/s
-        param.dMsolUnit = pow( param.dKpcUnit * KPCCM, 3 ) / MSOLG
+        param.units.dMsolUnit = pow( param.units.dKpcUnit * KPCCM, 3 ) / MSOLG
                 * 3.0 * pow( dHubbleCGS , 2 ) * M_1_PI / 8.0 / GCGS;
 
 
       /* code KBOLTZ/MHYDR */
-	param.dGasConst = param.dKpcUnit*KPCCM*KBOLTZ
-	    /MHYDR/GCGS/param.dMsolUnit/MSOLG;
+	param.units.dGasConst = param.units.dKpcUnit*KPCCM*KBOLTZ
+	    /MHYDR/GCGS/param.units.dMsolUnit/MSOLG;
 	/* code energy per unit mass --> erg per g */
-	param.dErgPerGmUnit = GCGS*param.dMsolUnit*MSOLG/
-                                        (param.dKpcUnit*KPCCM);
+	param.units.dErgPerGmUnit = GCGS*param.units.dMsolUnit*MSOLG/
+                                        (param.units.dKpcUnit*KPCCM);
       /* code energy --> erg */
-	param.dErgUnit = GCGS*pow(param.dMsolUnit*MSOLG,2.0)/
-                                (param.dKpcUnit*KPCCM);
+	param.units.dErgUnit = GCGS*pow(param.units.dMsolUnit*MSOLG,2.0)/
+                                (param.units.dKpcUnit*KPCCM);
 	/* code density --> g per cc */
-	param.dGmPerCcUnit = (param.dMsolUnit*MSOLG)/
-                                       pow(param.dKpcUnit*KPCCM,3.0);
+	param.units.dGmPerCcUnit = (param.units.dMsolUnit*MSOLG)/
+                                       pow(param.units.dKpcUnit*KPCCM,3.0);
 	/* code time --> seconds */
-	param.dSecUnit = sqrt(1/(param.dGmPerCcUnit*GCGS));
+	param.units.dSecUnit = sqrt(1/(param.units.dGmPerCcUnit*GCGS));
 	/* code speed --> km/s */
-	param.dKmPerSecUnit = sqrt(GCGS*param.dMsolUnit*MSOLG
-                                        /(param.dKpcUnit*KPCCM))/1e5;
-	/* code comove density -->g per cc = param.dGmPerCcUnit(1+z)^3*/
-	param.dComovingGmPerCcUnit = param.dGmPerCcUnit;
+	param.units.dKmPerSecUnit = sqrt(GCGS*param.units.dMsolUnit*MSOLG
+                                        /(param.units.dKpcUnit*KPCCM))/1e5;
+	/* code comove density -->g per cc = param.units.dGmPerCcUnit(1+z)^3*/
+	param.units.dComovingGmPerCcUnit = param.units.dGmPerCcUnit;
 
 
         // Some safety checks
-        double H0 = param.h * 100. / param.dKmPerSecUnit *
-           param.dKpcUnit/1e3;
+        double H0 = param.h * 100. / param.units.dKmPerSecUnit *
+           param.units.dKpcUnit/1e3;
         double rhoCrit = 3.*H0*H0/(8.*M_PI);
-        assert( fabs(H0-msr->csm->val.dHubble0)/H0 < 0.01 );
+        assert( fabs(H0-csm->val.dHubble0)/H0 < 0.01 );
         assert( fabs(rhoCrit-1.0) < 0.01 );
 
     }else{
-	param.dSecUnit = 1;
-	param.dKmPerSecUnit = 1;
-	param.dComovingGmPerCcUnit = 1;
-	param.dGmPerCcUnit = 1;
-	param.dErgPerGmUnit = 1;
-      param.dErgUnit = 1;
+	param.units.dSecUnit = 1;
+	param.units.dKmPerSecUnit = 1;
+	param.units.dComovingGmPerCcUnit = 1;
+	param.units.dGmPerCcUnit = 1;
+	param.units.dErgPerGmUnit = 1;
+      param.units.dErgUnit = 1;
 	}
-    param.dTuFac = param.dGasConst/(param.dConstGamma - 1)/
-		param.dMeanMolWeight;
-
-    // We convert the minimum dt to rung
-    if (param.dMinDt)
-       param.dMinDt = ceil( log2(param.dDelta/param.dMinDt) );
 }
-#endif
-
-#endif
 
 void MSR::Initialize() {
     char ach[256];
@@ -2563,6 +2274,7 @@ void MSR::AllNodeWrite(const char *pszFileName, double dTime, double dvFac, int 
     in.Omega0     = csm->val.dOmega0;
     in.OmegaLambda= csm->val.dLambda;
     in.HubbleParam= param.h;
+    in.units      = param.units;
 
     in.nDark = nDark;
     in.nGas  = nGas;

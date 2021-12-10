@@ -103,6 +103,7 @@ public:
 public:
     int Python(int argc, char *argv[]);
     int ValidateParameters();
+    void SetUnits();
     void Hostname();
     void MemStatus();
     int GetLock();
