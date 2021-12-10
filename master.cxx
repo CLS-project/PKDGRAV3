@@ -1321,8 +1321,8 @@ void MSR::Initialize() {
 		sizeof(int), "wakeup",
 		"Wake the particles when there is a big rung difference");
 
-    param.dNeighborsStd0 = 1;
-    prmAddParam(prm,"dNeighborsStd", 2, &param.dNeighborsStd0,
+    param.dNeighborsStd = 1;
+    prmAddParam(prm,"dNeighborsStd", 2, &param.dNeighborsStd,
 		sizeof(double), "neighstd",
 		"Maximum deviation from desired number of neighbors");
 
@@ -3012,7 +3012,7 @@ void MSR::SmoothSetSMF(SMF *smf, double dTime, double dDelta, int nSmooth) {
     smf->bIterativeSmoothingLength = param.bIterativeSmoothingLength;
     smf->bUpdateBall = bUpdateBall;
     smf->dCFLacc = param.dCFLacc;
-    smf->dNeighborsStd = param.dNeighborsStd0;
+    smf->dNeighborsStd = param.dNeighborsStd;
     }
 
 void MSR::Smooth(double dTime,double dDelta,int iSmoothType,int bSymmetric,int nSmooth) {
