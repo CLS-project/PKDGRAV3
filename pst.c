@@ -182,7 +182,7 @@ void pstAddServices(PST pst,MDL mdl) {
 #endif
     mdlAddService(mdl,PST_CHEMCOMPINIT,pst,
 		  (fcnService_t*) pstChemCompInit,
-		  0,0);
+		  sizeof(struct inChemCompInit),0);
 #ifdef BLACKHOLES
     mdlAddService(mdl,PST_BH_PLACESEED,pst,
 		  (fcnService_t*) pstPlaceBHSeed,
