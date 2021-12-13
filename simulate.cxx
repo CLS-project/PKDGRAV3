@@ -129,6 +129,28 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
 	    1.0/csmComoveLookbackTime2Exp(csm,1.0 / dLightSpeedSim(3*param.dBoxSize)) - 1.0 );
 	}
 
+    if (DoGas() && MeshlessHydro()){
+       ChemCompInit();
+    }
+
+#ifdef COOLING
+    CoolingInit();
+    if ((csm->val.bComove)){
+       const float a = csmTime2Exp(csm,dTime);
+       CoolingUpdate(1./a - 1., 1);
+    }else{
+       CoolingUpdate(0., 1);
+    }
+#endif
+
+#ifdef GRACKLE
+    if ((csm->val.bComove)){
+       GrackleInit(1, csmTime2Exp(csm,dTime));
+    }else{
+       GrackleInit(0, 1.0);
+    }
+#endif
+
     OutputFineStatistics(0.0, -1);
     /*
     ** Build tree, activating all particles first (just in case).
