@@ -412,6 +412,16 @@ int MSR::ValidateParameters() {
 	    puts("ERROR: Box size for IC not specified");
 	    return 0;
 	    }
+	if ( param.bICgas ) {
+          if ( !prmSpecified(prm,"dOmegab") || csm->val.dOmegab <= 0 ) {
+             puts("ERROR: Can not generate IC with gas if dOmegab is not specified");
+             return 0;
+             }
+          if ( !param.bDoGas ){
+             puts("ERROR: Can not generate gas if bDoGas=0");
+             return 0;
+             }
+          }
 	}
     /* Set the number of bins for the power spectrum measurement of linear species */
     if (param.nGridLin > 0){

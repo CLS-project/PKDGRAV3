@@ -177,6 +177,8 @@ def parse():
     add_bool(icparm,'wic',default=False,dest='bWriteIC',help='Write IC after generating')
     add_bool(icparm,'fixedamp',default=False,dest='bFixedAmpIC',help='Use fixed amplitude of 1 for ICs')
     add_flag(icparm,'fixedphase',default=0.0, dest='dFixedAmpPhasePI', type=float, help='Phase shift for fixed amplitude in units of PI')
+    add_bool(icparm,'ICgas',default=False, dest='bICgas', help='Enable/disable gas in the ICs')
+    add_flag(icparm,'initT',default=100.0, dest='dInitialT', type=float, help='Initial temperature of the gas generated ICs')
 
     memory = parser.add_argument_group('Memory Model and Control')
     add_flag(memory,'b',default=16,dest='nBucket',type=int,help='max number of particles in a bucket')
