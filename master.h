@@ -438,6 +438,9 @@ protected:
     void CoolingUpdate(float redshift, int sync);
     void CoolingInit();
 #endif
+#ifdef GRACKLE
+    void GrackleInit(int bComove, double dScaleFactor);
+#endif
 
     void Initialize();
     void writeParameters(const char *baseName,int iStep,int nSteps,double dTime,double dDelta);

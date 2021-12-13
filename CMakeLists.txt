@@ -373,7 +373,7 @@ if (GRACKLE)
    target_link_libraries(${PROJECT_NAME} ${GRACKLE_LIBRARY})
    target_compile_options(${PROJECT_NAME} PRIVATE -DGRACKLE -DCONFIG_BFLOAT_8)
    target_compile_options(${PROJECT_NAME} PRIVATE -DHAVE_METALLICITY)
-   target_sources(${PROJECT_NAME} PRIVATE  cooling_grackle/cooling_grackle.c )
+   target_sources(${PROJECT_NAME} PRIVATE  cooling_grackle/cooling_grackle.cxx )
    message("-- GRACKLE is ACTIVE")
 endif(GRACKLE)
 

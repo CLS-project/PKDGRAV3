@@ -1610,7 +1610,8 @@ int pstGrackleInit(PST pst,void *vin,int nIn,void *vout,int nOut) {
        mdlGetReply(pst->mdl,rID,NULL,NULL);
        }
     else {
-       pkdGrackleInit(plcl->pkd, in->bComove, in->dScaleFactor);
+       pkdGrackleInit(plcl->pkd, in->bComove, in->dScaleFactor, in->achCoolingTable,
+                        in->units);
        }
     return 0;
     }

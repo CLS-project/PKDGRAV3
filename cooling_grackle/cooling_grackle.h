@@ -1,12 +1,14 @@
-#include "master.h"
+#ifdef __cplusplus
+extern "C" {
+#endif
 #include "pkd.h"
 #include "pst.h"
 #include <grackle.h>
 
-void msrGrackleInit(MSR msr, int bComove, double dScaleFactor);
-void pkdGrackleInit(PKD pkd, int bComove, double dScaleFactor);
+void pkdGrackleInit(PKD pkd, int bComove, double dScaleFactor, char *achCoolingTable, UNITS units);
+void pkdGrackleUpdate(PKD pkd, double dScaleFactor, char *achCoolingTable, UNITS units);
+void pkdGrackleCooling(PKD pkd, PARTICLE* p, double pDelta, double dTuFac);
 
-void pkdGrackleUpdate(PKD pkd, double dScaleFactor);
-
-void pkdGrackleCooling(PKD pkd, PARTICLE* p, double pDelta);
-
+#ifdef __cplusplus
+}
+#endif

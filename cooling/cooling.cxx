@@ -173,13 +173,13 @@ void MSR::CoolingInit() {
 
 
    /* Read model parameters */
- 
-   strcpy(cooling->cooling_table_path, param.strCoolingTables);
- 
+
+   strcpy(cooling->cooling_table_path, param.achCoolingTables);
+
    /* Despite the names, the values of H_reion_heat_cgs and He_reion_heat_cgs
     * that are read in are actually in units of electron volts per proton mass.
     * We later convert to units just below */
- 
+
    if (param.dRedFrom < param.fH_reion_z){
       cooling->H_reion_done = 1;
    }else{
@@ -190,33 +190,33 @@ void MSR::CoolingInit() {
    cooling->He_reion_z_centre = param.fHe_reion_z_centre;
    cooling->He_reion_z_sigma = param.fHe_reion_z_sigma;
    cooling->He_reion_heat_cgs = param.fHe_reion_eV_p_H;
- 
+
    /* Optional parameters to correct the abundances */
    cooling->Ca_over_Si_ratio_in_solar = param.fCa_over_Si_in_Solar;
    cooling->S_over_Si_ratio_in_solar = param.fS_over_Si_in_Solar;
- 
+
    /* Convert H_reion_heat_cgs and He_reion_heat_cgs to cgs
     * (units used internally by the cooling routines). This is done by
     * multiplying by 'eV/m_H' in internal units, then converting to cgs units.
     * Note that the dimensions of these quantities are energy/mass = velocity^2
     */
 #define EV_CGS 1.602e-12
- 
+
    cooling->H_reion_heat_cgs *= (EV_CGS) / (MHYDR);
- 
+
    cooling->He_reion_heat_cgs *= (EV_CGS) / (MHYDR) ;
- 
+
    /* Read in the list of redshifts */
    get_cooling_redshifts(cooling);
- 
+
    /* Read in cooling table header */
    char fname[eagle_table_path_name_length + 12];
    sprintf(fname, "%sz_0.000.hdf5", cooling->cooling_table_path);
    read_cooling_header(fname, cooling);
- 
+
    /* Allocate space for cooling tables */
    allocate_cooling_tables(cooling);
- 
+
    /* Compute conversion factors */
    // This is not ideal, and does not follow PKDGRAV3 philosophy... someday
    // it should be reworked
@@ -225,22 +225,22 @@ void MSR::CoolingInit() {
    cooling->number_density_to_cgs = pow(param.units.dKpcUnit*KPCCM,-3.);
    cooling->units = param.units;
    cooling->dConstGamma = param.dConstGamma;
- 
+
    /* Store some constants in CGS units */
    const double proton_mass_cgs = MHYDR;
    cooling->inv_proton_mass_cgs = 1. / proton_mass_cgs;
    cooling->T_CMB_0 = param.fT_CMB_0;
- 
+
    const double compton_coefficient_cgs = 1.0178085e-37;
- 
+
    /* And now the Compton rate */
    cooling->compton_rate_cgs = compton_coefficient_cgs * cooling->T_CMB_0 *
                                cooling->T_CMB_0 * cooling->T_CMB_0 *
                                cooling->T_CMB_0;
- 
+
    /* Set the redshift indices to invalid values */
    cooling->z_index = -10;
- 
+
    /* set previous_z_index and to last value of redshift table*/
    cooling->previous_z_index = eagle_cooling_N_redshifts - 2;
 

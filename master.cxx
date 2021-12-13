@@ -87,10 +87,6 @@ using namespace fmt::literals; // Gives us ""_a and ""_format literals
 #include "gravity/activerung.h"
 #include "gravity/countrungs.h"
 #include "gravity/zeronewrung.h"
-//#include "hydro/hydro.h"
-#ifdef GRACKLE
-#include "cooling_grackle/cooling_grackle.h"
-#endif
 #ifdef BLACKHOLES
 #include "blackhole/merger.h"
 #include "blackhole/seed.h"
@@ -1329,7 +1325,7 @@ void MSR::Initialize() {
 		"-DEPRECATED- Minimum allowed timestep for the particles (in code units)");
 
 #if defined(COOLING) || defined(GRACKLE)
-    prmAddParam(prm,"strCoolingTables",3,param.strCoolingTables,256,"coolingtables",
+    prmAddParam(prm,"achCoolingTables",3,param.achCoolingTables,256,"coolingtables",
 		"Path to cooling tables");
 #endif
 
@@ -3599,6 +3595,10 @@ void MSR::OutputFineStatistics(double dStep, double dTime){
 
 void MSR::EndTimestepIntegration(double dTime,double dDelta){
    struct inEndTimestep in;
+   in.units = param.units;
+#ifdef GRACKLE
+   strcpy(in.achCoolingTable, param.achCoolingTables);
+#endif
    in.dTime = dTime;
    in.dDelta = dDelta;
    in.dConstGamma = param.dConstGamma;

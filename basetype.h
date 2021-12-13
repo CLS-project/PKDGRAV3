@@ -25,6 +25,7 @@
 #include <stdint.h>
 #include "ilp.h"
 #include "ilc.h"
+#include "units.h"
 
 #define IORDERBITS 43
 #define IORDERMAX ((((uint64_t) 1)<<IORDERBITS)-1)
@@ -178,6 +179,10 @@ struct inChemCompInit{
 };
 
 struct inEndTimestep{
+   UNITS units;
+#ifdef GRACKLE
+   char achCoolingTable[256];
+#endif
    double dTime;
    double dDelta;
    double dConstGamma;

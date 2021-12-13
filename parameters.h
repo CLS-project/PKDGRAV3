@@ -215,7 +215,7 @@ struct parameters {
     double dMinDt;
 
 #if defined(COOLING) || defined(GRACKLE)
-    char strCoolingTables[256];
+    char achCoolingTables[256];
 #endif
 #ifdef COOLING
     /*

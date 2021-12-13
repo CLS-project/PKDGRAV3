@@ -2805,7 +2805,7 @@ void pkdEndTimestepIntegration(PKD pkd, struct inEndTimestep in) {
        dHubble = 0.0;
     }
 #ifdef GRACKLE
-    pkdGrackleUpdate(pkd, dScaleFactor);
+    pkdGrackleUpdate(pkd, dScaleFactor, in.achCoolingTable, in.units);
 #endif
    for (i=0;i<pkdLocal(pkd);++i) {
       p = pkdParticle(pkd,i);
@@ -2839,7 +2839,7 @@ void pkdEndTimestepIntegration(PKD pkd, struct inEndTimestep in) {
          cooling_cool_part(pkd, pkd->cooling, p, psph, pDelta, in.dTime, delta_redshift, dRedshift);
 #endif
 #ifdef GRACKLE
-         pkdGrackleCooling(pkd, p, pDelta);
+         pkdGrackleCooling(pkd, p, pDelta, in.dTuFac);
 #endif
 
 #ifdef FEEDBACK

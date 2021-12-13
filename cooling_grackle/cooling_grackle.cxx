@@ -1,15 +1,22 @@
+#include "master.h"
 #include "cooling_grackle/cooling_grackle.h"
 
-void msrGrackleInit(MSR msr, int bComove, double dScaleFactor){
+void MSR::GrackleInit(int bComove, double dScaleFactor){
    struct inGrackleInit in;
    in.bComove = bComove;
    in.dScaleFactor = dScaleFactor;
+   strcpy(in.achCoolingTable,param.achCoolingTables);
+   in.units = param.units;
 
-   pstGrackleInit(msr->pst,&in,sizeof(struct inGrackleInit),NULL,0);
-
+   pstGrackleInit(pst,&in,sizeof(struct inGrackleInit),NULL,0);
 }
 
-void pkdGrackleInit(PKD pkd, int bComove, double dScaleFactor){
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+void pkdGrackleInit(PKD pkd, int bComove, double dScaleFactor, char *achCoolingTable,
+                    UNITS units){
 
    pkd->grackle_data = (chemistry_data *) malloc(sizeof(chemistry_data));
 
@@ -23,7 +30,7 @@ void pkdGrackleInit(PKD pkd, int bComove, double dScaleFactor){
    pkd->grackle_data->metal_cooling = 1;          // metal cooling on
    pkd->grackle_data->UVbackground = 1;           // UV background on
    pkd->grackle_data->cmb_temperature_floor = 100;
-   pkd->grackle_data->grackle_data_file = pkd->param.strCoolingTables; // data file
+   pkd->grackle_data->grackle_data_file = achCoolingTable; // data file
 
    pkd->grackle_units = (code_units *)malloc(sizeof(code_units));
    pkd->grackle_rates = (chemistry_data_storage *)malloc(sizeof(chemistry_data_storage));
@@ -71,10 +78,10 @@ void pkdGrackleInit(PKD pkd, int bComove, double dScaleFactor){
    //  which has a a^2.
    // In the current version, length_units is only used for this factor, so it
    //  is safe, *for now* (changeset 59db82b, 14 Jun 2021)
-   pkd->grackle_units->density_units = pkd->param.dGmPerCcUnit*pow(dScaleFactor,-3);
-   pkd->grackle_units->length_units = pkd->param.dKpcUnit * KPCCM * dScaleFactor;
-   pkd->grackle_units->time_units = pkd->param.dSecUnit;
-   pkd->grackle_units->velocity_units = pkd->param.dKmPerSecUnit*1e5;
+   pkd->grackle_units->density_units = units.dGmPerCcUnit*pow(dScaleFactor,-3);
+   pkd->grackle_units->length_units = units.dKpcUnit * KPCCM * dScaleFactor;
+   pkd->grackle_units->time_units = units.dSecUnit;
+   pkd->grackle_units->velocity_units = units.dKmPerSecUnit*1e5;
    pkd->grackle_units->a_units = 1.;
    pkd->grackle_units->a_value = dScaleFactor;
 
@@ -86,7 +93,7 @@ void pkdGrackleInit(PKD pkd, int bComove, double dScaleFactor){
  * This is suboptimal. But this is the way that I found that can easily
  * take into account the varying scale-factor.
  */
-void pkdGrackleUpdate(PKD pkd, double dScaleFactor){
+void pkdGrackleUpdate(PKD pkd, double dScaleFactor, char *achCoolingTable, UNITS units){
    _free_chemistry_data(pkd->grackle_data, pkd->grackle_rates);
    free(pkd->grackle_data);
    free(pkd->grackle_field->density);
@@ -100,20 +107,20 @@ void pkdGrackleUpdate(PKD pkd, double dScaleFactor){
    free(pkd->grackle_field->grid_end);
    free(pkd->grackle_field);
 
-   pkdGrackleInit(pkd, 1, dScaleFactor);
+   pkdGrackleInit(pkd, 1, dScaleFactor, achCoolingTable, units);
 
-   /* This should work and be way faster... */
+   /* This should work and be way faster... Instead of doing the init all the time*/
    //pkd->grackle_units->a_value = dScaleFactor;
 
 }
 
 
 
-void pkdGrackleCooling(PKD pkd, PARTICLE* p, double pDelta){
+void pkdGrackleCooling(PKD pkd, PARTICLE* p, double pDelta, double dTuFac){
    SPHFIELDS* psph = pkdSph(pkd,p);
    gr_float fDensity = pkdDensity(pkd,p);
    gr_float fMetalDensity = psph->fMetalMass*psph->omega;
-   gr_float minUint = 100. * pkd->param.dTuFac;
+   gr_float minUint = 100. * dTuFac;
    gr_float fSpecificUint = psph->Uint/pkdMass(pkd,p);
 
 
@@ -146,3 +153,7 @@ void pkdGrackleCooling(PKD pkd, PARTICLE* p, double pDelta){
 
 
 }
+
+#ifdef __cplusplus
+}
+#endif

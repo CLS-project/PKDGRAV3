@@ -539,6 +539,8 @@ int pstCoolingHydReion(PST,void *,int,void *,int);
 #endif
 #ifdef GRACKLE
 struct inGrackleInit{
+   char achCoolingTable[256];
+   UNITS units;
    int bComove;
    double dScaleFactor;
 };
