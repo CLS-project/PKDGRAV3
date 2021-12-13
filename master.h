@@ -429,12 +429,15 @@ protected:
     void ResetFluxes(double dTime,double dDelta);
     void HydroStep(double dTime, double dDelta);
     void ComputeSmoothing(double dTime, double dDelta);
+    void ChemCompInit();
+    void EndTimestepIntegration(double dTime,double dDelta);
+
 #ifdef COOLING
+    // Cooling
+    void SetCoolingParam();
     void CoolingUpdate(float redshift, int sync);
     void CoolingInit();
 #endif
-    void ChemCompInit();
-    void EndTimestepIntegration(double dTime,double dDelta);
 
     void Initialize();
     void writeParameters(const char *baseName,int iStep,int nSteps,double dTime,double dDelta);

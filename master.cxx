@@ -88,9 +88,6 @@ using namespace fmt::literals; // Gives us ""_a and ""_format literals
 #include "gravity/countrungs.h"
 #include "gravity/zeronewrung.h"
 //#include "hydro/hydro.h"
-#ifdef COOLING
-#include "cooling/cooling.h"
-#endif
 #ifdef GRACKLE
 #include "cooling_grackle/cooling_grackle.h"
 #endif
@@ -1380,9 +1377,9 @@ void MSR::Initialize() {
 		sizeof(double), "dCoolingFloorDen",
 		"Minimum density at which the internal energy floor will be applied (in nH [cm-3])");
 
-    param.dCoolingFlooru = 1e4;
-    prmAddParam(prm,"dCoolingFloorTemp", 2, &param.dCoolingFlooru,
-		sizeof(double), "dCoolingFloorTemp",
+    param.dCoolingFloorT = 1e4;
+    prmAddParam(prm,"dCoolingFloorT", 2, &param.dCoolingFloorT,
+		sizeof(double), "dCoolingFloorT",
 		"Temperature at the internal energy floor");
 #endif
 #ifdef EEOS_POLYTROPE
@@ -4132,14 +4129,14 @@ int MSR::NewTopStepKDK(
    dTime += dDeltaRung;
    *pdStep += 1.0/(1 << *puRungMax);
 #ifdef COOLING
-   int sync = (msr->nRung[0]!=0 && uRung==0) || ( (msr->nRung[uRung] > 0) && (msr->nRung[uRung-1] == 0) );
-   if (msr->csm->val.bComove){
-      const float a = csmTime2Exp(msr->csm,*pdTime);
+   int sync = (nRung[0]!=0 && uRung==0) || ( (nRung[uRung] > 0) && (nRung[uRung-1] == 0) );
+   if (csm->val.bComove){
+      const float a = csmTime2Exp(csm,dTime);
       const float z = 1./a - 1.;
 
-      msrCoolingUpdate(msr, z, sync);
+      CoolingUpdate(z, sync);
    }else{
-      msrCoolingUpdate(msr, 0., sync);
+      CoolingUpdate(0., sync);
    }
 #endif
 #ifdef STAR_FORMATION
@@ -4344,14 +4341,14 @@ void MSR::TopStepKDK(
       dTime += dDeltaRung;
       dStep += 1.0/(1 << iRung);
 #ifdef COOLING
-      int sync = (msr->nRung[0]!=0 && iRung==0) || ( (msr->nRung[iKickRung] > 0) && (msr->nRung[iKickRung-1] == 0) );
-      if (msr->csm->val.bComove){
-         const float a = csmTime2Exp(msr->csm,dTime);
+      int sync = (nRung[0]!=0 && iRung==0) || ( (nRung[iKickRung] > 0) && (nRung[iKickRung-1] == 0) );
+      if (csm->val.bComove){
+         const float a = csmTime2Exp(csm,dTime);
          const float z = 1./a - 1.;
 
-         msrCoolingUpdate(msr, z, sync);
+         CoolingUpdate(z, sync);
       }else{
-         msrCoolingUpdate(msr, 0., sync);
+         CoolingUpdate(0., sync);
       }
 #endif
 
@@ -4693,30 +4690,6 @@ void MSR::CoolSetup(double dTime) {
 
 void MSR::Cooling(double dTime,double dStep,int bUpdateState, int bUpdateTable, int bIterateDt) {
 }
-#ifdef COOLING
-void msrCoolingUpdate(MSR msr,float redshift, int sync) {
-   printf("Updating cooling.. z=%f (sync=%d) \n", redshift, sync);
-   cooling_update(msr, redshift, sync);
-   //pstCoolingUpdate(msr->pst, &in, sizeof(in), NULL, NULL);
-}
-void msrCoolingInit(MSR msr) {
-   cooling_init_backend(msr);
-
-   // We prepare the data to be scattered among the processes
-   struct inCoolInit in;
-   in.in_cooling_data = *(msr->cooling);
-   for (int i=0;i<eagle_cooling_N_redshifts;i++) in.Redshifts[i] = msr->cooling->Redshifts[i];
-   for (int i=0;i<eagle_cooling_N_density;i++) in.nH[i] = msr->cooling->nH[i];
-   for (int i=0;i<eagle_cooling_N_He_frac;i++) in.HeFrac[i] = msr->cooling->HeFrac[i];
-   for (int i=0;i<eagle_cooling_N_temperature;i++) in.Temp[i] = msr->cooling->Temp[i];
-   for (int i=0;i<eagle_cooling_N_temperature;i++) in.Therm[i] = msr->cooling->Therm[i];
-   for (int i=0;i<eagle_cooling_N_abundances;i++) in.SolarAbundances[i] = msr->cooling->SolarAbundances[i];
-   for (int i=0;i<eagle_cooling_N_abundances;i++) in.SolarAbundances_inv[i] = msr->cooling->SolarAbundances_inv[i];
-
-
-   pstCoolingInit(msr->pst,&in,sizeof(in),NULL,0);
-}
-#endif
 
 void MSR::ChemCompInit() {
    struct inChemCompInit in;

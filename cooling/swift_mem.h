@@ -1,11 +1,12 @@
  /*
  * IA: Extracted from align.h and memuse.h
  */
+
 #ifndef INLINE
 #if defined(__INTEL_COMPILER)
 #define INLINE extern inline
 #else
-#define INLINE inline
+#define INLINE extern inline
 #endif
 #endif
 

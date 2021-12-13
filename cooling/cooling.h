@@ -19,6 +19,7 @@
 #ifndef SWIFT_COOLING_EAGLE_H
 #define SWIFT_COOLING_EAGLE_H
 
+
 /**
  * @file src/cooling/EAGLE/cooling.h
  * @brief EAGLE cooling function declarations
@@ -26,13 +27,12 @@
 
 /* Local includes. */
 #include "cooling_struct.h"
-/* IA: PKDGRAV3 includes */
 #include "pkd.h"
-#include "master.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-void msrSetCoolingParam(MSR msr);
-void cooling_update(MSR msr, const float redshift, int sync);
 void pkd_cooling_update(PKD pkd, struct inCoolUpdate *in);
 
 void cooling_cool_part(PKD pkd,
@@ -50,7 +50,6 @@ float cooling_get_temperature(PKD pkd, const float redshift,
 
 void cooling_Hydrogen_reionization(PKD pkd);
 
-void cooling_init_backend(MSR msr);
 void pkd_cooling_init_backend(PKD pkd, struct cooling_function_data in_cooling_data,
   float Redshifts[eagle_cooling_N_redshifts],
   float nH[eagle_cooling_N_density],
@@ -62,4 +61,7 @@ void pkd_cooling_init_backend(PKD pkd, struct cooling_function_data in_cooling_d
 
 void cooling_clean(struct cooling_function_data *data);
 
+#ifdef __cplusplus
+}
+#endif
 #endif /* SWIFT_COOLING_EAGLE_H */

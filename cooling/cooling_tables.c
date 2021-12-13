@@ -29,10 +29,8 @@
 #include <string.h>
 
 /* Local includes. */
-//#include "chemistry_struct.h"
 #include "cooling_struct.h"
 #include "cooling_tables.h"
-//#include "error.h"
 #include "interpolate.h"
 #include "pkd_config.h"
 

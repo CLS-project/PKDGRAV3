@@ -1689,7 +1689,7 @@ int pstChemCompInit(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
     struct inChemCompInit *in = vin;
 
-    mdlassert(pst->mdl,nIn == 0);
+    mdlassert(pst->mdl,nIn == sizeof(struct inChemCompInit));
     if (pst->nLeaves > 1) {
        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_CHEMCOMPINIT,in,nIn);
        pstChemCompInit(pst->pstLower,in,nIn,NULL,0);

@@ -610,8 +610,11 @@ int MSR::ValidateParameters() {
     \**********************************************************************/
 
     SetUnits();
-
     dTuFac = param.units.dGasConst/(param.dConstGamma - 1)/param.dMeanMolWeight;
+
+#ifdef COOLING
+    SetCoolingParam();
+#endif
 
     if (csm->val.classData.bClass){
 	const char *aLinear[MAX_CSM_SPECIES];

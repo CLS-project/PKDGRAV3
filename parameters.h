@@ -235,6 +235,7 @@ struct parameters {
      */
     double dCoolingFloorDen;
     double dCoolingFlooru;
+    double dCoolingFloorT;
 #endif
 #if EEOS_POLYTROPE
     double dEOSPolyFloorIndex;

@@ -252,6 +252,18 @@ def parse():
     add_bool(gas,'wakeup',default=False,dest='bWakeUpParticles',help='Wake the particles when there is a big rung difference')
     add_flag(gas,'neighstd',default=1.0,dest='dNeighborsStd',type=float,help='Maximum deviation from desired number of neighbors')
 
+    # /* Cooling Parameters */
+    cool = parser.add_argument_group('Cooling Parameters')
+    add_flag(cool,'coolingtables', dest='achCoolingTables', help='Path to the cooling tables')
+    add_flag(cool,'H_reion_z',default=11.5,dest='fH_reion_z', type=float, help='Redshift of Hydrogen reionization')
+    add_flag(cool,'H_reion_eV_p_H',default=2.0,dest='fH_reion_eV_p_H', type=float, help='Energy injected per proton during H reionization, eV')
+    add_flag(cool,'He_reion_eV_p_H',default=2.0,dest='fHe_reion_eV_p_H', type=float, help='Energy injected per proton during He reionization, eV')
+    add_flag(cool,'He_reion_z_centre',default=3.5,dest='fHe_reion_z_centre', type=float, help='Mean redshift of Helium reionization')
+    add_flag(cool,'He_reion_z_sigma',default=0.5,dest='fHe_reion_z_sigma', type=float, help='Redshift interval for Helium reionzation')
+    add_flag(cool,'T_CMB_0',default=2.725,dest='fT_CMB_0', type=float, help='Temperature of the CMB at z=0')
+    add_flag(cool,'CoolingFloorDen',default=1e-5,dest='dCoolingFloorDen', type=float, help='Minimum density at which the internal enrgy floor will be applied, n_H cm-3')
+    add_flag(cool,'CoolingFloorT',default=1e4,dest='dCoolingFloorT', type=float, help='Temperature at the internal energy floor, K')
+
     debugp = parser.add_argument_group('Debugging/Testing/Diagnostics')
     add_bool(debugp,'nograv',default=False,dest='bNoGrav', help='enable gravity calulation for testing')
     add_bool(debugp,'dedicated',default=False,dest='bDedicatedMPI', help='enable dedicated MPI thread')

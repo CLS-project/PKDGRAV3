@@ -19,6 +19,8 @@
 #ifndef SWIFT_COOLING_STRUCT_EAGLE_H
 #define SWIFT_COOLING_STRUCT_EAGLE_H
 
+#include "units.h"
+
 #define eagle_table_path_name_length 256
 
 
@@ -103,6 +105,7 @@ struct cooling_tables {
  * @brief Properties of the cooling function.
  */
 struct cooling_function_data {
+  UNITS units;
 
   /*! Cooling tables */
   struct cooling_tables table;
@@ -154,6 +157,8 @@ struct cooling_function_data {
 
   /*! He reionization energy in CGS units */
   float He_reion_heat_cgs;
+
+  double dConstGamma;
 
   /*! Internal energy conversion from internal units to CGS (for quick access)
    */

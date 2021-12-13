@@ -360,7 +360,7 @@ endif(FIXED_NSMOOTH_STRICT)
 
 option(COOLING "Activate the chemistry and the cooling for the gas particles. Also makes effective a internal energy floor" OFF)
 if (COOLING)
-   target_sources(${PROJECT_NAME} PRIVATE  cooling/cooling.c cooling/cooling_tables.c )
+   target_sources(${PROJECT_NAME} PRIVATE  cooling/cooling.cxx cooling/cooling_tables.c )
    target_compile_options(${PROJECT_NAME} PRIVATE -DCOOLING)
    target_compile_options(${PROJECT_NAME} PRIVATE -DHAVE_HELIUM -DHAVE_CARBON -DHAVE_NITROGEN -DHAVE_OXYGEN -DHAVE_NEON -DHAVE_MAGNESIUM -DHAVE_SILICON -DHAVE_IRON)
    message("-- Cooling is ACTIVE")
