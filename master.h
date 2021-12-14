@@ -418,7 +418,6 @@ protected:
     void CoolSetup(double dTime);
     void Cooling(double dTime,double dStep,int bUpdateState, int bUpdateTable,int bInterateDt);
     void AddDelParticles();
-    void StarForm(double dTime, double dDelta, int iRung);
     void InitSph(double dTime,double dDelta);
     void Sph(double dTime, double dDelta, double dStep);
     uint64_t CountDistance(double dRadius2Inner, double dRadius2Outer);
@@ -441,6 +440,18 @@ protected:
 #ifdef GRACKLE
     void GrackleInit(int bComove, double dScaleFactor);
 #endif
+#ifdef STAR_FORMATION
+    void SetStarFormationParam();
+    void StarFormInit(double dTime);
+    void StarForm(double dTime, double dDelta, int iRung);
+#endif
+#ifdef FEEDBACK
+    void SetFeedbackParam();
+#endif
+#if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
+    void SetEOSParam();
+#endif
+
 
     void Initialize();
     void writeParameters(const char *baseName,int iStep,int nSteps,double dTime,double dDelta);

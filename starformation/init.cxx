@@ -1,22 +1,31 @@
 #include "starformation/starformation.h"
+#include "master.h"
 
-void msrStarFormInit(MSR msr, double dTime){
-   struct inStarForm in;
+void MSR::StarFormInit(double dTime){
+   struct inStarFormInit in;
    struct outStarForm out;
    in.dTime = dTime;
+#ifdef FEEDBACK
+   in.dSNFBDelay = param.dSNFBDelay;
+#else
+   in.dSNFBDelay = -1.0;
+#endif
 
-   pstStarFormInit(msr->pst, &in, sizeof(in), &out, sizeof(out));
+   pstStarFormInit(pst, &in, sizeof(in), &out, sizeof(out));
 
    printf("%d star particles are about to explode in this IC\n", out.nFormed);
 }
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 int pstStarFormInit(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    struct inStarForm *in = vin;
-    struct outStarForm *out = vout;
+    struct inStarFormInit *in = (struct inStarFormInit *) vin;
+    struct outStarForm *out = (struct outStarForm *) vout;
     int rID;
 
-    mdlassert(pst->mdl,nIn == sizeof(struct inStarForm));
+    mdlassert(pst->mdl,nIn == sizeof(struct inStarFormInit));
     if (pst->nLeaves > 1) {
        struct outStarForm fsStats;
 
@@ -26,12 +35,12 @@ int pstStarFormInit(PST pst,void *vin,int nIn,void *vout,int nOut) {
        out->nFormed += fsStats.nFormed;
        }
     else {
-       pkdStarFormInit(pst->plcl->pkd, in->dTime, &out->nFormed);
+       pkdStarFormInit(pst->plcl->pkd, in->dTime, in->dSNFBDelay, &out->nFormed);
        }
     return sizeof(struct outStarForm);
     }
 
-void pkdStarFormInit(PKD pkd, double dTime, int *nFormed){
+void pkdStarFormInit(PKD pkd, double dTime, double dSNFBDelay, int *nFormed){
     *nFormed = 0;
     for (int i=0;i<pkdLocal(pkd);++i) {
        PARTICLE *p = pkdParticle(pkd,i);
@@ -40,7 +49,7 @@ void pkdStarFormInit(PKD pkd, double dTime, int *nFormed){
           if (pStar->fTimer >= 0){// fTimer < 0 can be used for stars
                                   // in the IC that are not supossed to explode
 #ifdef FEEDBACK
-            if ( (dTime-pStar->fTimer) < pkd->param.dFeedbackDelay)
+            if ( (dTime-pStar->fTimer) < dSNFBDelay)
 #endif
             {
                pStar->hasExploded = 0; // This particle has not exploded before
@@ -50,3 +59,6 @@ void pkdStarFormInit(PKD pkd, double dTime, int *nFormed){
       }
     }
 }
+#ifdef __cplusplus
+}
+#endif

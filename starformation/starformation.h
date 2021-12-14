@@ -1,19 +1,19 @@
-#include "master.h"
-
+#include "pst.h"
+#include "units.h"
+#ifdef __cplusplus
+extern "C" {
+#endif
 /*
  * ---------------------
  * MAIN FUNCTIONS
  * ---------------------
  */
-void msrSetStarFormationParam(MSR msr);
-void msrStarFormInit(MSR msr, double dTime);
 int pstStarFormInit(PST,void *,int,void *,int);
-void pkdStarFormInit(PKD pkd, double dTime, int *nFormed);
+void pkdStarFormInit(PKD pkd, double dTime, double dSNFBDelay, int *nFormed);
 
-void msrStarForm( MSR, double, double, int);
 int pstStarForm(PST,void *,int,void *,int);
-void pkdStarForm(PKD pkd, double dTime, double dDelta, double dScaleFactor,
-      double dDenMin, int *nFormed, double *dMassFormed, int *nDeleted);
+void pkdStarForm(PKD pkd, struct inStarForm in, 
+                 int *nFormed, double *dMassFormed, int *nDeleted);
 
 
 /*
@@ -21,18 +21,18 @@ void pkdStarForm(PKD pkd, double dTime, double dDelta, double dScaleFactor,
  * STRUCTURE DEFINITIONS
  * ---------------------
  */
-struct inStarForm
-    {
-    double dTime;
-    double dScaleFactor;
-    double dDenMin;
-    double dDelta;
-    };
-
 struct outStarForm
     {
     int nFormed;
     int nDeleted;
     double dMassFormed;
     };
+struct inStarFormInit
+    {
+    double dTime;
+    double dSNFBDelay;
+    };
 
+#ifdef __cplusplus
+}
+#endif

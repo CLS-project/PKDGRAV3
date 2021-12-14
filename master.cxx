@@ -92,17 +92,8 @@ using namespace fmt::literals; // Gives us ""_a and ""_format literals
 #include "blackhole/seed.h"
 #include "blackhole/init.h"
 #endif
-#ifdef STAR_FORMATION
-#include "starformation/starformation.h"
-#endif
 #ifdef STELLAR_EVOLUTION
 #include "stellarevolution/stellarevolution.h"
-#endif
-#ifdef FEEDBACK
-#include "starformation/feedback.h"
-#endif
-#if ( defined(COOLING) || defined(GRACKLE) ) && defined(STAR_FORMATION)
-#include "eEOS/eEOS.h"
 #endif
 
 #define LOCKFILE ".lockfile"	/* for safety lock */
@@ -1465,8 +1456,8 @@ void MSR::Initialize() {
 		sizeof(double), "dSFThresholdDen",
 		"Minimum density at which the star formation can happen (in nH [cm-3])");
 
-    param.dSFThresholdu = 1e5;
-    prmAddParam(prm,"dSFThresholdTemp", 2, &param.dSFThresholdu,
+    param.dSFThresholdT = 1e5;
+    prmAddParam(prm,"dSFThresholdTemp", 2, &param.dSFThresholdT,
 		sizeof(double), "dSFThresholdTemp",
 		"Maximum temperature of a gas element to for stars [K]");
     param.dSFMinOverDensity = 57.7;
@@ -1494,39 +1485,39 @@ void MSR::Initialize() {
 		"Star formation efficiency per free-fall time; set >0 to use density-based SFR");
 #endif
 #ifdef FEEDBACK
-    param.dFeedbackDu = 31622776.60168379; // 10^7.5 K
-    prmAddParam(prm,"dFeedbackDT", 2, &param.dFeedbackDu,
-		sizeof(double), "dFeedbackDT",
+    param.dSNFBDT = 31622776.60168379; // 10^7.5 K
+    prmAddParam(prm,"dSNFBDT", 2, &param.dSNFBDu,
+		sizeof(double), "dSNFBDT",
 		"Increment in temperature injected per supernova event [K]");
 
-    param.dFeedbackEfficiency = 1.;
-    prmAddParam(prm,"dFeedbackEfficiency", 2, &param.dFeedbackEfficiency,
-		sizeof(double), "dFeedbackEfficiency",
-		"Efficiency of the feedback process. Minimum efficiency if dFeedbackMaxEff provided");
+    param.dSNFBEfficiency = 1.;
+    prmAddParam(prm,"dSNFBEfficiency", 2, &param.dSNFBEfficiency,
+		sizeof(double), "dSNFBEfficiency",
+		"Efficiency of the feedback process. Minimum efficiency if dSNFBMaxEff provided");
 
-    param.dFeedbackDelay = 3e7;
-    prmAddParam(prm,"dFeedbackDelay", 2, &param.dFeedbackDelay,
-		sizeof(double), "dFeedbackDelay",
+    param.dSNFBDelay = 3e7;
+    prmAddParam(prm,"dSNFBDelay", 2, &param.dSNFBDelay,
+		sizeof(double), "dSNFBDelay",
 		"Time between formation of the star and injection of energy from SNII supernova [yr]");
 
-    param.dNumberSNIIperMass = 1.736e-2;
-    prmAddParam(prm,"dNumberSNIIperMass", 2, &param.dNumberSNIIperMass,
-		sizeof(double), "dNumberSNIIperMass",
+    param.dSNFBNumberSNperMass = 1.736e-2;
+    prmAddParam(prm,"SNFBNumberSNperMass", 2, &param.dSNFBNumberSNperMass,
+		sizeof(double), "dSNFBNumberSNperMass",
 		"Number of stars that will end their life as SNII events, per mass [1/Mo]");
 
-    param.dFeedbackMaxEff = 0.0;
-    prmAddParam(prm,"dFeedbackMaxEff", 2, &param.dFeedbackMaxEff,
-		sizeof(double), "dFeedbackMaxEff",
+    param.dSNFBMaxEff = 0.0;
+    prmAddParam(prm,"dSNFBMaxEff", 2, &param.dSNFBMaxEff,
+		sizeof(double), "dSNFBMaxEff",
 		"Asymptotic maximum efficiency for SNe II feedback");
 
-    param.dFeedbackEffnH0 = 0.67;
-    prmAddParam(prm,"dFeedbackEffnH0", 2, &param.dFeedbackEffnH0,
-		sizeof(double), "dFeedbackEffnH0",
+    param.dSNFBEffnH0 = 0.67;
+    prmAddParam(prm,"dSNFBEffnH0", 2, &param.dSNFBEffnH0,
+		sizeof(double), "dSNFBEffnH0",
 		"Hydrogen number density normalization of the feedback efficiency [nH cm-3]");
 
-    param.dFeedbackEffIndex = 0.87;
-    prmAddParam(prm,"dFeedbackEffIndex", 2, &param.dFeedbackEffIndex,
-		sizeof(double), "dFeedbackEffIndex",
+    param.dSNFBEffIndex = 0.87;
+    prmAddParam(prm,"dSNFBEffIndex", 2, &param.dSNFBEffIndex,
+		sizeof(double), "dSNFBEffIndex",
 		"Metallicity and density index for the feedback efficiency");
 #endif
 #ifdef BLACKHOLES
@@ -3006,6 +2997,19 @@ void MSR::SmoothSetSMF(SMF *smf, double dTime, double dDelta, int nSmooth) {
     smf->bUpdateBall = bUpdateBall;
     smf->dCFLacc = param.dCFLacc;
     smf->dNeighborsStd = param.dNeighborsStd;
+#if EEOS_POLYTROPE
+    smf->dEOSPolyFloorIndex = param.dEOSPolyFloorIndex ;
+    smf->dEOSPolyFloorDen = param.dEOSPolyFloorDen ;
+    smf->dEOSPolyFlooru = param.dEOSPolyFlooru ;
+#endif
+#if EEOS_JEANS
+    smf->dEOSNJeans = param.dEOSNJeans ;
+#endif
+#ifdef FEEDBACK
+    smf->dSNFBDelay = param.dSNFBDelay;
+    smf->dSNFBDu = param.dSNFBDu;
+    smf->dSNFBNumberSNperMass = param.dSNFBNumberSNperMass;
+#endif
     }
 
 void MSR::Smooth(double dTime,double dDelta,int iSmoothType,int bSymmetric,int nSmooth) {
@@ -3603,6 +3607,21 @@ void MSR::EndTimestepIntegration(double dTime,double dDelta){
    in.dDelta = dDelta;
    in.dConstGamma = param.dConstGamma;
    in.dTuFac = dTuFac;
+#ifdef STAR_FORMATION
+   in.dSFMinOverDensity = param.dSFMinOverDensity;
+#endif
+#ifdef COOLING
+   in.dCoolingFloorDen = param.dCoolingFloorDen;
+   in.dCoolingFlooru = param.dCoolingFlooru;
+#endif
+#if EEOS_POLYTROPE
+   in.dEOSPolyFloorIndex = param.dEOSPolyFloorIndex;
+   in.dEOSPolyFloorDen = param.dEOSPolyFloorDen;
+   in.dEOSPolyFlooru = param.dEOSPolyFlooru;
+#endif
+#if EEOS_JEANS
+   in.dEOSNJeans = param.dEOSNJeans;
+#endif
    double dsec;
 
    ComputeSmoothing(dTime, dDelta);
@@ -4140,7 +4159,7 @@ int MSR::NewTopStepKDK(
    }
 #endif
 #ifdef STAR_FORMATION
-   msrStarForm(msr, *pdTime, dDeltaRung, uRung);
+   StarForm(dTime, dDelta, uRung);
 #endif
 
    ActiveRung(uRung,1);
@@ -4218,12 +4237,12 @@ int MSR::NewTopStepKDK(
          1,bKickOpen,param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,nGroup);
 
 #if defined(FEEDBACK) || defined(STELLAR_EVOLUTION)
-   msrActiveRung(msr,uRung,0);
+   ActiveRung(uRung,0);
 #ifdef FEEDBACK
-   ReSmooth(msr,*pdTime,SMX_SN_FEEDBACK,1,0);
+   ReSmooth(dTime,SMX_SN_FEEDBACK,1,0);
 #endif
 #ifdef STELLAR_EVOLUTION
-   ReSmooth(msr, *pdTime, SMX_CHEM_ENRICHMENT, 1, 0);
+   ReSmooth(dTime, SMX_CHEM_ENRICHMENT, 1, 0);
 #endif
 #endif
 
@@ -4360,7 +4379,7 @@ void MSR::TopStepKDK(
       ZeroNewRung(iKickRung,MAX_RUNG,iKickRung); /* brute force */
 
 #ifdef STAR_FORMATION
-      msrStarForm(msr, dTime, dDelta, iKickRung);
+      StarForm(dTime, dDeltaStep, iKickRung);
 #endif
 
 #ifdef BLACKHOLES
@@ -4400,13 +4419,13 @@ void MSR::TopStepKDK(
       }
 
 #if defined(FEEDBACK) || defined(STELLAR_EVOLUTION)
-      msrActiveRung(msr,iKickRung,0);
+      ActiveRung(iKickRung,0);
       double dsec;
 #ifdef FEEDBACK
       printf("Computing feedback... ");
 
       TimerStart(TIMER_FEEDBACK);
-      ReSmooth(msr,dTime,SMX_SN_FEEDBACK,1,0);
+      ReSmooth(dTime,SMX_SN_FEEDBACK,1,0);
       TimerStop(TIMER_FEEDBACK);
       dsec = TimerGet(TIMER_FEEDBACK);
       printf("took %.5f seconds\n", dsec);
@@ -4414,12 +4433,12 @@ void MSR::TopStepKDK(
 #ifdef STELLAR_EVOLUTION
       printf("Computing stellar evolution... ");
       TimerStart(TIMER_STEV);
-      ReSmooth(msr, dTime, SMX_CHEM_ENRICHMENT, 1, 0);
+      ReSmooth(dTime, SMX_CHEM_ENRICHMENT, 1, 0);
       TimerStop(TIMER_STEV);
       dsec = TimerGet(TIMER_STEV);
       printf("took %.5f seconds\n", dsec);
 #endif
-      msrActiveRung(msr,iKickRung,1);
+      ActiveRung(iKickRung,1);
 #endif
 
 
@@ -4460,12 +4479,13 @@ void MSR::TopStepKDK(
 
    /* JW: Creating/Deleting/Merging is best done outside (before or after) KDK cycle 
       -- Tree should still be valid from last force eval (only Drifts + Deletes invalidate it) */
-   if (iKickRung == iRung) { /* Do all co-incident kicked p's in one go */
-      StarForm(dTime, dDeltaStep, iKickRung); /* re-eval timesteps as needed for next step 
-                                                 -- apply to all neighbours */
-   }
+   //if (iKickRung == iRung) { /* Do all co-incident kicked p's in one go */
+   //   StarForm(dTime, dDeltaStep, iKickRung); /* re-eval timesteps as needed for next step 
+   //                                              -- apply to all neighbours */
+   //}
 }
 
+#ifndef STAR_FORMATION
 void MSR::StarForm(double dTime, double dDelta, int iRung) {
 #ifndef OPTIM_REMOVE_UNUSED
    struct inStarForm in;
@@ -4488,7 +4508,6 @@ void MSR::StarForm(double dTime, double dDelta, int iRung) {
    in.dTime = dTime;
    in.dInitStarMass = param.SFdInitStarMass;
    in.dESNPerStarMass = param.SFdESNPerStarMass/param.dErgPerGmUnit;
-#define SECONDSPERYEAR   31557600.
    in.dtCoolingShutoff = param.SFdtCoolingShutoff*SECONDSPERYEAR/param.dSecUnit;
    in.dtFeedbackDelay = param.SFdtFeedbackDelay*1.0000013254678*SECONDSPERYEAR/param.dSecUnit;
    in.dMassLossPerStarMass = param.SFdMassLossPerStarMass;
@@ -4541,6 +4560,7 @@ void MSR::StarForm(double dTime, double dDelta, int iRung) {
    }
 #endif //OPTIM_REMOVE_UNUSED
 }
+#endif
 
 void MSR::GetNParts() { /* JW: Not pretty -- may be better way via fio */
    struct outGetNParts outget;

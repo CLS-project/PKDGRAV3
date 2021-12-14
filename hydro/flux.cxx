@@ -414,17 +414,19 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf)
 
 #ifdef EEOS_POLYTROPE
         const double pLpoly =
-            polytropicPressureFloor(pkd, a_inv3, riemann_input.L.rho);
+            polytropicPressureFloor(a_inv3, riemann_input.L.rho, smf->dConstGamma, 
+                  smf->dEOSPolyFloorIndex, smf->dEOSPolyFloorDen, smf->dEOSPolyFlooru);
         const double pRpoly =
-            polytropicPressureFloor(pkd, a_inv3, riemann_input.R.rho);
+            polytropicPressureFloor(a_inv3, riemann_input.R.rho, smf->dConstGamma,
+                  smf->dEOSPolyFloorIndex, smf->dEOSPolyFloorDen, smf->dEOSPolyFlooru);
         riemann_input.L.p = MAX(riemann_input.L.p, pLpoly);
         riemann_input.R.p = MAX(riemann_input.R.p, pRpoly);
 #endif
 #ifdef EEOS_JEANS
         const double pLjeans =
-            jeansPressureFloor(pkd, riemann_input.L.rho, ph);
+            jeansPressureFloor(riemann_input.L.rho, ph, smf->dConstGamma, smf->dEOSNJeans);
         const double pRjeans =
-            jeansPressureFloor(pkd, riemann_input.R.rho, qh);
+            jeansPressureFloor(riemann_input.R.rho, qh, smf->dConstGamma, smf->dEOSNJeans);
         riemann_input.L.p = MAX(riemann_input.L.p, pLjeans);
         riemann_input.R.p = MAX(riemann_input.R.p, pRjeans);
 #endif
@@ -934,17 +936,19 @@ void hydroRiemann_vec(PARTICLE *p,float fBall,int nSmooth,
 
 #ifdef EEOS_POLYTROPE
         const double pLpoly =
-            polytropicPressureFloor(pkd, a_inv3, riemann_input.L.rho);
+            polytropicPressureFloor(a_inv3, riemann_input.L.rho, smf->dConstGamma, 
+                  smf->dEOSPolyFloorIndex, smf->dEOSPolyFloorDen, smf->dEOSPolyFlooru);
         const double pRpoly =
-            polytropicPressureFloor(pkd, a_inv3, riemann_input.R.rho);
+            polytropicPressureFloor(a_inv3, riemann_input.R.rho, smf->dConstGamma,
+                  smf->dEOSPolyFloorIndex, smf->dEOSPolyFloorDen, smf->dEOSPolyFlooru);
         riemann_input.L.p = MAX(riemann_input.L.p, pLpoly);
         riemann_input.R.p = MAX(riemann_input.R.p, pRpoly);
 #endif
 #ifdef EEOS_JEANS
         const double pLjeans =
-            jeansPressureFloor(pkd, riemann_input.L.rho, ph);
+            jeansPressureFloor(riemann_input.L.rho, ph, smf->dConstGamma, smf->dEOSNJeans);
         const double pRjeans =
-            jeansPressureFloor(pkd, riemann_input.R.rho, q(ball));
+            jeansPressureFloor(riemann_input.R.rho, q(ball), smf->dConstGamma, smf->dEOSNJeans);
         riemann_input.L.p = MAX(riemann_input.L.p, pLjeans);
         riemann_input.R.p = MAX(riemann_input.R.p, pRjeans);
 #endif

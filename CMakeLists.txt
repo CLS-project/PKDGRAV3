@@ -171,7 +171,7 @@ target_sources(${PROJECT_NAME} PRIVATE
 	domains/calcbound.cxx domains/combinebound.cxx domains/distribtoptree.cxx domains/distribroot.cxx domains/dumptrees.cxx
 	domains/enforceperiodic.cxx domains/freestore.cxx domains/olddd.cxx
 	gravity/setsoft.cxx gravity/activerung.cxx gravity/countrungs.cxx gravity/zeronewrung.cxx
-      hydro/hydro.c eEOS/eEOS.c
+      hydro/hydro.c eEOS/eEOS.cxx
 )
 set_property(SOURCE io/fio.c APPEND PROPERTY COMPILE_DEFINITIONS "USE_PTHREAD")
 add_executable(tostd utility/tostd.c io/fio.c)
@@ -379,7 +379,7 @@ endif(GRACKLE)
 
 option(STAR_FORMATION "Activate the formation of star particles from cold, dense gas" OFF)
 if (STAR_FORMATION)
-   target_sources(${PROJECT_NAME} PRIVATE  starformation/starformation.c starformation/init.c)
+   target_sources(${PROJECT_NAME} PRIVATE  starformation/starformation.cxx starformation/init.cxx)
    target_compile_options(${PROJECT_NAME} PRIVATE -DSTAR_FORMATION)
    message("-- Star formation is ACTIVE")
 endif(STAR_FORMATION)
@@ -399,7 +399,7 @@ endif(EEOS_JEANS)
 
 option(FEEDBACK "Allow for spawned star particles to explode as type II supernova" OFF)
 if (FEEDBACK)
-   target_sources(${PROJECT_NAME} PRIVATE  starformation/feedback.c starformation/init.c) 
+   target_sources(${PROJECT_NAME} PRIVATE  starformation/feedback.cxx starformation/init.cxx)
    target_compile_options(${PROJECT_NAME} PRIVATE -DFEEDBACK)
    message("-- Feedback from SNII is ACTIVE")
 endif(FEEDBACK)

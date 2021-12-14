@@ -1104,9 +1104,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
              // We avoid that star in the IC could explode
 	       pStar->hasExploded = 1;
 #ifdef FEEDBACK
-             pStar->fSNEfficiency = afStarOtherData[3] < 0.0 ?
-                                          pkd->param.dFeedbackEfficiency :
-                                          afStarOtherData[3];
+             pStar->fSNEfficiency = afStarOtherData[3];
 #endif
 #ifdef STELLAR_EVOLUTION
 	       for (j = 0; j < ELEMENT_COUNT; j++)
@@ -1871,11 +1869,7 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,BND *bnd,
       otherData[4] = pStar->fLastEnrichTime;
 #endif
 #ifdef FEEDBACK
-      if (pkd->param.dFeedbackMaxEff > 0.0){
-         otherData[5] = pStar->fSNEfficiency;
-      }else{
-         otherData[5] = -1.;
-      }
+      otherData[5] = pStar->fSNEfficiency;
 #endif
 	fioWriteStar(fio,iParticleID,r,v,fMass,fSoft,*pPot,fDensity,
 	    &fMetals[0],&otherData[0]);
@@ -2804,19 +2798,25 @@ void pkdEndTimestepIntegration(PKD pkd, struct inEndTimestep in) {
        dRedshift = 0.0;
        dHubble = 0.0;
     }
+   const double a_inv = 1./dScaleFactor;
+   const double a_inv3 = a_inv*a_inv*a_inv;
 #ifdef GRACKLE
-    pkdGrackleUpdate(pkd, dScaleFactor, in.achCoolingTable, in.units);
+   pkdGrackleUpdate(pkd, dScaleFactor, in.achCoolingTable, in.units);
 #endif
    for (i=0;i<pkdLocal(pkd);++i) {
       p = pkdParticle(pkd,i);
       if (pkdIsGas(pkd,p) && pkdIsActive(pkd, p)  ) {
          psph = pkdSph(pkd, p);
+         float fMass = pkdMass(pkd, p);
+         float fDens = pkdDensity(pkd, p);
+         const float fDensPhys = fDens*a_inv3;
+         const float f2Ball = 2.*pkdBall(pkd,p);
 
-          if (in.dDelta > 0){
-             pDelta = in.dTime - psph->lastUpdateTime;
-          }else{
-             pDelta = 0.0;
-          }
+         if (in.dDelta > 0){
+            pDelta = in.dTime - psph->lastUpdateTime;
+         }else{
+            pDelta = 0.0;
+         }
 
          // ##### Gravity
          hydroSourceGravity(pkd, p, psph,
@@ -2844,12 +2844,48 @@ void pkdEndTimestepIntegration(PKD pkd, struct inEndTimestep in) {
 
 #ifdef FEEDBACK
          // ##### Apply feedback
-         pkdAddFBEnergy(pkd, p, psph);
+         pkdAddFBEnergy(pkd, p, psph, in.dConstGamma);
 #endif
 
          // ##### Effective Equation Of State
-#if ( defined(COOLING) || defined(GRACKLE) ) && defined(STAR_FORMATION)
-         internalEnergyFloor(pkd, p, psph, dScaleFactor);
+#ifdef COOLING
+         double denMin = in.dCoolingFloorDen;
+#ifdef STAR_FORMATION
+         double minOverDens = in.dSFMinOverDensity;
+#else
+         double minOverDens = 57.7;
+#endif
+         if (pkd->csm->val.bComove){
+             double rhoCrit0 = 3. * pkd->csm->val.dHubble0 * pkd->csm->val.dHubble0 /
+                                    (8. * M_PI);
+             double denCosmoMin = rhoCrit0 * pkd->csm->val.dOmegab *
+                                       minOverDens *
+                                       a_inv3; // We do this in proper density
+
+             denMin = ( denCosmoMin > denMin) ? denCosmoMin : denMin;
+         }
+
+         if ( (fDensPhys > denMin) &&
+              (psph->Uint < in.dCoolingFlooru*fMass ) ){
+            psph->Uint = in.dCoolingFlooru*fMass;
+         }
+#endif
+#ifdef EEOS_POLYTROPE
+         /* Second, the polytropic EoS */
+         if (fDensPhys > in.dEOSPolyFloorDen){
+
+             const double minUint =  fMass * polytropicEnergyFloor(a_inv3, fDens,
+                            in.dEOSPolyFloorIndex, in.dEOSPolyFloorDen,  in.dEOSPolyFlooru);
+
+             if (psph->Uint < minUint) psph->Uint = minUint;
+         }
+#endif
+
+#ifdef  EEOS_JEANS
+         const double Ujeans = fMass * jeansEnergyFloor(fDens, f2Ball, in.dConstGamma, in.dEOSNJeans);
+
+         if (psph->Uint < Ujeans)
+            psph->Uint = Ujeans;
 #endif
 
          // Actually set the primitive variables
@@ -3201,6 +3237,7 @@ void pkdSphStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
     }
 
 /* IA: Now unused. TODO: consider removing all these functions */
+#ifndef STAR_FORMATION
 void pkdStarForm(PKD pkd, double dRateCoeff, double dTMax, double dDenMin,
 		 double dDelta, double dTime,
 		 double dInitStarMass, double dESNPerStarMass, double dtCoolingShutoff,
@@ -3291,6 +3328,7 @@ void pkdStarForm(PKD pkd, double dRateCoeff, double dTMax, double dDenMin,
     free(starp);
 #endif //OPTIM_REMOVE_UNUSED
 }
+#endif
 
 
 #ifndef OPTIM_REMOVE_UNUSED

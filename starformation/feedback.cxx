@@ -1,17 +1,19 @@
 #ifdef FEEDBACK
-#include "pkd.h"
-#include "smooth.h"
 #include "starformation/feedback.h"
+#include "master.h"
 
-void msrSetFeedbackParam(MSR msr){
-    const double dHydFrac = msr->param.dInitialH;
-    const double dnHToRho = MHYDR / dHydFrac / msr->param.dGmPerCcUnit;
-    msr->param.dFeedbackDu *= msr->param.dTuFac;
-    msr->param.dFeedbackDelay *=  SECONDSPERYEAR/msr->param.dSecUnit ;
-    msr->param.dNumberSNIIperMass *= 8.73e15 / msr->param.dErgPerGmUnit / 1.736e-2;
-    msr->param.dFeedbackEffnH0 *= dnHToRho;
+void MSR::SetFeedbackParam(){
+    const double dHydFrac = param.dInitialH;
+    const double dnHToRho = MHYDR / dHydFrac / param.units.dGmPerCcUnit;
+    param.dSNFBDu = param.dSNFBDT*dTuFac;
+    param.dSNFBDelay *=  SECONDSPERYEAR/param.units.dSecUnit ;
+    param.dSNFBNumberSNperMass *= 8.73e15 / param.units.dErgPerGmUnit / 1.736e-2;
+    param.dSNFBEffnH0 *= dnHToRho;
 }
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /* Function that will be called with the information of all the neighbors.
  * Here we compute the probability of explosion, and we add the energy to the
@@ -36,8 +38,8 @@ void smSNFeedback(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     // There is no need to explicitly convert to solar masses
     // becuse we are doing a ratio
     const double prob = pkdStar(pkd,p)->fSNEfficiency *
-                        pkd->param.dNumberSNIIperMass *
-                        pkdMass(pkd,p) / (pkd->param.dFeedbackDu*totMass);
+                        smf->dSNFBNumberSNperMass *
+                        pkdMass(pkd,p) / (smf->dSNFBDu*totMass);
 
 
     assert(prob<1.0);
@@ -50,13 +52,13 @@ void smSNFeedback(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
              //printf("Uint %e extra %e \n",
              //   qsph->Uint, pkd->param.dFeedbackDu * pkdMass(pkd,q));
 
-             const double feed_energy = pkd->param.dFeedbackDu * pkdMass(pkd,q);
+             const double feed_energy = smf->dSNFBDu * pkdMass(pkd,q);
 #ifdef OLD_FB_SCHEME
              qsph->Uint += feed_energy;
              qsph->E += feed_energy;
 #ifdef ENTROPY_SWITCH
-             qsph->S += feed_energy*(pkd->param.dConstGamma-1.) *
-                        pow(pkdDensity(pkd,q), -pkd->param.dConstGamma+1);
+             qsph->S += feed_energy*(smf->dConstGamma-1.) *
+                        pow(pkdDensity(pkd,q), -smf->dConstGamma+1);
 #endif
 #else // OLD_BH_SCHEME
              qsph->fAccFBEnergy += feed_energy;
@@ -72,8 +74,7 @@ void smSNFeedback(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
 void initSNFeedback(void *vpkd, void *vp){
    PKD pkd = (PKD) vpkd;
-
-   PARTICLE *p = vp;
+   PARTICLE *p = (PARTICLE *) vp;
 
    if (pkdIsGas(pkd,p)){
       SPHFIELDS *psph = pkdSph(pkd,p);
@@ -92,8 +93,10 @@ void initSNFeedback(void *vpkd, void *vp){
 }
 
 
-void combSNFeedback(void *vpkd, void *p1,void *p2){
+void combSNFeedback(void *vpkd, void *v1, const void *v2){
    PKD pkd = (PKD) vpkd;
+   PARTICLE *p1 = (PARTICLE *) v1;
+   PARTICLE *p2 = (PARTICLE *) v2;
 
    if (pkdIsGas(pkd,p1) && pkdIsGas(pkd,p2)){
 
@@ -113,28 +116,7 @@ void combSNFeedback(void *vpkd, void *p1,void *p2){
 
 }
 
-inline void pkdAddFBEnergy(PKD pkd, PARTICLE* p, SPHFIELDS *psph){
-#ifndef OLD_FB_SCHEME
-   psph->Uint += psph->fAccFBEnergy;
-   psph->E += psph->fAccFBEnergy;
-#ifdef ENTROPY_SWITCH
-   psph->S += psph->fAccFBEnergy*(pkd->param.dConstGamma-1.) *
-            pow(pkdDensity(pkd,p), -pkd->param.dConstGamma+1);
+#ifdef __cplusplus
+}
 #endif
-   psph->fAccFBEnergy = 0.0;
-#endif //OLD_FB_SCHEME
-}
-
-inline float SNFeedbackEfficiency(PKD pkd, float Z, float rho){
-   if (pkd->param.dFeedbackMaxEff > 0.0){
-      const double den = 1.0 + pow(Z/0.00127, pkd->param.dFeedbackEffIndex) *
-                  pow(rho/pkd->param.dFeedbackEffnH0,-pkd->param.dFeedbackEffIndex);
-      return pkd->param.dFeedbackEfficiency +
-                  (pkd->param.dFeedbackMaxEff - pkd->param.dFeedbackEfficiency)/
-                  den;
-   }else{
-      return pkd->param.dFeedbackEfficiency;
-   }
-}
-
 #endif // FEEDBACK

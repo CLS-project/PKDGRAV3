@@ -2756,7 +2756,7 @@ int  smReSmooth(SMX smx,SMF *smf, int iSmoothType) {
             p = pkdParticle(pkd,pi);
             if (pkdIsStar(pkd,p)){ 
                if ( (pkdStar(pkd,p)->hasExploded == 0) && 
-                    ((smf->dTime-pkdStar(pkd,p)->fTimer) > pkd->param.dFeedbackDelay) ){
+                    ((smf->dTime-pkdStar(pkd,p)->fTimer) > smf->dSNFBDelay) ){
                   smReSmoothSingle(smx,smf,p, 2.*pkdBall(pkd,p));
                   pkdStar(pkd,p)->hasExploded = 1;
 

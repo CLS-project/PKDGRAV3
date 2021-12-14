@@ -237,7 +237,7 @@ void pstAddServices(PST pst,MDL mdl) {
 #if defined(STAR_FORMATION) || defined(FEEDBACK)
     mdlAddService(mdl,PST_STARFORMINIT,pst,
                  (fcnService_t*) pstStarFormInit,
-                 sizeof(struct inStarForm),sizeof(struct outStarForm));
+                 sizeof(struct inStarFormInit),sizeof(struct outStarForm));
 #endif
     mdlAddService(mdl,PST_RESMOOTH,pst,(fcnService_t*) pstReSmooth,
 		  sizeof(struct inSmooth),sizeof(struct outSmooth));
@@ -1866,6 +1866,7 @@ int pstSphStep(PST pst,void *vin,int nIn,void *vout,int nOut) {
     return 0;
     }
 
+#ifndef STAR_FORMATION
 int pstStarForm(PST pst,void *vin,int nIn,void *vout,int nOut) {
     struct inStarForm *in = vin;
     struct outStarForm *out = vout;
@@ -1894,6 +1895,7 @@ int pstStarForm(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	}
     return sizeof(struct outStarForm);
     }
+#endif
 
 int pstDensityStep(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;

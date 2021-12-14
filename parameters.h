@@ -237,12 +237,12 @@ struct parameters {
     double dCoolingFlooru;
     double dCoolingFloorT;
 #endif
-#if EEOS_POLYTROPE
+#ifdef EEOS_POLYTROPE
     double dEOSPolyFloorIndex;
     double dEOSPolyFloorDen;
     double dEOSPolyFlooru;
 #endif
-#if EEOS_JEANS
+#ifdef EEOS_JEANS
     double dEOSNJeans;
 #endif
     /*
@@ -282,18 +282,20 @@ struct parameters {
     double dSFGasFraction;
     double dSFThresholdDen;
     double dSFThresholdu;
+    double dSFThresholdT;
     double dSFindexKS;
     double dSFnormalizationKS;
     double dSFEfficiency;
 #endif
 #ifdef FEEDBACK
-    double dFeedbackDelay;
-    double dFeedbackEfficiency;
-    double dFeedbackDu;
-    double dNumberSNIIperMass;
-    double dFeedbackMaxEff;
-    double dFeedbackEffnH0;
-    double dFeedbackEffIndex;
+    double dSNFBDelay;
+    double dSNFBEfficiency;
+    double dSNFBDu;
+    double dSNFBDT;
+    double dSNFBNumberSNperMass;
+    double dSNFBMaxEff;
+    double dSNFBEffnH0;
+    double dSNFBEffIndex;
 #endif
 #ifdef BLACKHOLES
     int bMerger;

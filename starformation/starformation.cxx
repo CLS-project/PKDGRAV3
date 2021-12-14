@@ -7,91 +7,118 @@
 #include "starformation/feedback.h"
 #endif
 #include "eEOS/eEOS.h"
+#include "master.h"
 
 /*
  * ---------------------
  * HELPER FUNCTIONS
  * ---------------------
  */
-static inline double pressure_SFR(PKD pkd, double a_m3, double dDenMin,
-      PARTICLE *p, SPHFIELDS *psph);
-static inline double density_SFR(PKD pkd, double a_m3, double dDenMin,
-      PARTICLE *p, SPHFIELDS *psph);
 
 /* MSR layer
  */
-void msrSetStarFormationParam(MSR msr){
-    const double dHydFrac = msr->param.dInitialH;
-    const double dnHToRho = MHYDR / dHydFrac / msr->param.dGmPerCcUnit;
-    msr->param.dSFThresholdDen *= dnHToRho*dHydFrac; // Code hydrogen density
-    msr->param.dSFThresholdu *= msr->param.dTuFac;
+void MSR::SetStarFormationParam(){
+    const double dHydFrac = param.dInitialH;
+    const double dnHToRho = MHYDR / dHydFrac / param.units.dGmPerCcUnit;
+    param.dSFThresholdDen *= dnHToRho*dHydFrac; // Code hydrogen density
+    param.dSFThresholdu = param.dSFThresholdT*dTuFac;
 
-    const double Msolpcm2 = 1. / msr->param.dMsolUnit *
-       pow(msr->param.dKpcUnit*1e3, 2);
-    msr->param.dSFnormalizationKS *= 1. / msr->param.dMsolUnit *
-       msr->param.dSecUnit/SECONDSPERYEAR *
-       pow(msr->param.dKpcUnit, 2) *
-       pow(Msolpcm2,-msr->param.dSFindexKS);
+    const double Msolpcm2 = 1. / param.units.dMsolUnit *
+                         pow(param.units.dKpcUnit*1e3, 2);
+    param.dSFnormalizationKS *= 1. / param.units.dMsolUnit *
+                         param.units.dSecUnit/SECONDSPERYEAR *
+                         pow(param.units.dKpcUnit, 2) *
+                         pow(Msolpcm2,-param.dSFindexKS);
 }
 
-void msrStarForm(MSR msr, double dTime, double dDelta, int iRung)
+void MSR::StarForm(double dTime, double dDelta, int iRung)
     {
     struct inStarForm in;
     struct outStarForm out;
     double sec,sec1,dsec;
 
-    msrTimerStart(msr, TIMER_STARFORM);
+    TimerStart(TIMER_STARFORM);
 
-    const double a = csmTime2Exp(msr->csm,dTime);
+    const double a = csmTime2Exp(csm,dTime);
 
     in.dScaleFactor = a;
     in.dTime = dTime;
     in.dDelta = dDelta;
+    in.dSFindexKS = param.dSFindexKS;
+    in.dSFnormalizationKS = param.dSFnormalizationKS;
+    in.dConstGamma = param.dConstGamma;
+    in.dSFGasFraction = param.dSFGasFraction;
+    in.dSFThresholdu = param.dSFThresholdu;
+    in.dSFEfficiency = param.dSFEfficiency;
+#ifdef FEEDBACK
+    in.dSNFBEfficiency = param.dSNFBEfficiency;
+    in.dSNFBMaxEff = param.dSNFBMaxEff;
+    in.dSNFBEffnH0 = param.dSNFBEffnH0;
+    in.dSNFBEffIndex = param.dSNFBEffIndex;
+#endif
+#ifdef EEOS_POLYTROPE
+    // In the rare case that not EEOS_POLYTROPE, this will be unused
+    in.dEOSPolyFloorIndex = param.dEOSPolyFloorIndex;
+    in.dEOSPolyFloorDen = param.dEOSPolyFloorDen;
+    in.dEOSPolyFlooru = param.dEOSPolyFlooru;
+#endif
+
 
     // Here we set the minium density a particle must have to be SF
     //  NOTE: We still have to divide by the hydrogen fraction of each particle!
-    if (msr->csm->val.bComove){
+    if (csm->val.bComove){
        double a3 = a*a*a;
-       in.dDenMin = msr->param.dSFThresholdDen*a3;
-       assert(msr->csm->val.dOmegab  > 0.);
+       in.dDenMin = param.dSFThresholdDen*a3;
+       assert(csm->val.dOmegab  > 0.);
 
        // If in PKDGRAV3 units, this should always be unity
-       double rhoCrit0 = 3. * msr->csm->val.dHubble0 * msr->csm->val.dHubble0 /
+       double rhoCrit0 = 3. * csm->val.dHubble0 * csm->val.dHubble0 /
                               (8. * M_PI);
-       double denCosmoMin = rhoCrit0 * msr->csm->val.dOmegab *
-                                 msr->param.dSFMinOverDensity *
-                                 msr->param.dInitialH;
+       double denCosmoMin = rhoCrit0 * csm->val.dOmegab *
+                                 param.dSFMinOverDensity *
+                                 param.dInitialH;
        in.dDenMin = (in.dDenMin > denCosmoMin) ? in.dDenMin : denCosmoMin;
     }else{
-       in.dDenMin = msr->param.dSFThresholdDen;
+       in.dDenMin = param.dSFThresholdDen;
     }
 
 
-    if (msr->param.bVDetails) printf("Star Form (rung: %d) ... ", iRung);
+    if (param.bVDetails) printf("Star Form (rung: %d) ... ", iRung);
 
-    msrActiveRung(msr,iRung,1);
-    pstStarForm(msr->pst, &in, sizeof(in), &out, 0);
-    if (msr->param.bVDetails)
+    ActiveRung(iRung,1);
+    pstStarForm(pst, &in, sizeof(in), &out, 0);
+    if (param.bVDetails)
 	printf("%d Stars formed with mass %g, %d gas deleted\n",
 	       out.nFormed, out.dMassFormed, out.nDeleted);
-    msr->massFormed += out.dMassFormed;
-    msr->starFormed += out.nFormed;
+    massFormed += out.dMassFormed;
+    starFormed += out.nFormed;
 
-    msr->nGas -= out.nFormed;
-    msr->nStar += out.nFormed;
+    nGas -= out.nFormed;
+    nStar += out.nFormed;
 
-    msrTimerStop(msr, TIMER_STARFORM);
-    dsec = msrTimerGet(msr, TIMER_STARFORM);
+    TimerStop(TIMER_STARFORM);
+    dsec = TimerGet(TIMER_STARFORM);
     printf("Star Formation Calculated, Wallclock: %f secs\n\n",dsec);
 
 
     }
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+static inline double pressure_SFR(PKD pkd, double a_m3, double dDenMin,
+                         double dSFnormalizationKS, double dSFindexKS, double dSFGasFraction,
+                         double dEOSPolyFloorIndex, double dEOSPolyFloorDen, double dEOSPolyFlooru,
+                         double dConstGamma, PARTICLE *p, SPHFIELDS *psph);
+static inline double density_SFR(PKD pkd, double a_m3, double dDenMin,
+                                 double dSFThresholdu, double dSFEfficiency, 
+                                 PARTICLE *p, SPHFIELDS *psph);
 
 
 int pstStarForm(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    struct inStarForm *in = vin;
-    struct outStarForm *out = vout;
+    struct inStarForm *in = (struct inStarForm *) vin;
+    struct outStarForm *out = (struct outStarForm *) vout;
     int rID;
 
     mdlassert(pst->mdl,nIn == sizeof(struct inStarForm));
@@ -106,8 +133,7 @@ int pstStarForm(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	out->dMassFormed += fsStats.dMassFormed;
 	}
     else {
-	pkdStarForm(pst->plcl->pkd,
-		    in->dTime, in->dDelta, in->dScaleFactor, in->dDenMin,
+	pkdStarForm(pst->plcl->pkd, *in,
 		     &out->nFormed, &out->dMassFormed, &out->nDeleted);
 	}
     return sizeof(struct outStarForm);
@@ -117,13 +143,10 @@ int pstStarForm(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
 
 void pkdStarForm(PKD pkd,
-		 double dTime,
-		 double dDelta,
-		 double dScaleFactor,
-		 double dDenMin, /* co-moving threshold for SF in code units  */
-		 int *nFormed, /* number of stars formed */
-		 double *dMassFormed,	/* mass of stars formed */
-		 int *nDeleted) /* gas particles deleted */ {
+                 struct inStarForm in,
+                 int *nFormed, /* number of stars formed */
+                 double *dMassFormed,	/* mass of stars formed */
+                 int *nDeleted) /* gas particles deleted */ {
 
     PARTICLE *p;
     SPHFIELDS *psph;
@@ -131,15 +154,15 @@ void pkdStarForm(PKD pkd,
     float* pv;
     int i, j;
 
-    assert(pkd->oStar);
-    assert(pkd->oSph);
-    assert(pkd->oMass);
+    assert(pkd->oFieldOffset[oStar]);
+    assert(pkd->oFieldOffset[oSph]);
+    assert(pkd->oFieldOffset[oMass]);
 
     *nFormed = 0;
     *nDeleted = 0;
     *dMassFormed = 0.0;
 
-    const double a_m1 = 1.0/dScaleFactor;
+    const double a_m1 = 1.0/in.dScaleFactor;
     const double a_m2 = a_m1*a_m1;
     const double a_m3 = a_m2*a_m1;
 
@@ -148,14 +171,16 @@ void pkdStarForm(PKD pkd,
 
 	if (pkdIsActive(pkd,p) && pkdIsGas(pkd,p)) {
 	    psph = pkdSph(pkd,p);
-	    dt = pkd->param.dDelta/(1<<p->uRung);
-          dt = dTime - psph->lastUpdateTime;
+          dt = in.dTime - psph->lastUpdateTime;
 
           double dmstar;
-          if (pkd->param.dSFEfficiency > 0.0){
-             dmstar = density_SFR(pkd, a_m3, dDenMin, p, psph);
+          if (in.dSFEfficiency > 0.0){
+             dmstar = density_SFR(pkd, a_m3, in.dDenMin, in.dSFThresholdu, in.dSFEfficiency, p, psph);
           }else{
-             dmstar = pressure_SFR(pkd, a_m3, dDenMin, p, psph);
+             dmstar = pressure_SFR(pkd, a_m3, in.dDenMin, 
+                   in.dSFnormalizationKS, in.dSFindexKS, in.dSFGasFraction, 
+                   in.dEOSPolyFloorIndex, in.dEOSPolyFloorDen, in.dEOSPolyFlooru,
+                   in.dConstGamma, p, psph);
           }
 
           psph->SFR = dmstar;
@@ -187,11 +212,11 @@ void pkdStarForm(PKD pkd,
             // dm/star particles and gas particles
             pv = pkdVel(pkd,p);
             for (j=0; j<3; j++){
-               pv[j] *= dScaleFactor;
+               pv[j] *= in.dScaleFactor;
             }
 
             // We log statistics about the formation time
-            pStar->fTimer = dTime;
+            pStar->fTimer = in.dTime;
             pStar->hasExploded = 0;
 
 #ifdef STELLAR_EVOLUTION
@@ -202,7 +227,7 @@ void pkdStarForm(PKD pkd,
             pStar->fInitialMass = fMass;
             pStar->fLastEnrichTime = 0.0f;
 
-            if (pkd->param.bChemEnrich)
+            if (in.bChemEnrich)
                stevStarParticleInit(pkd, pStar);
             else
                pStar->fNextEnrichTime = INFINITY;
@@ -216,8 +241,9 @@ void pkdStarForm(PKD pkd,
 #else
             const double fMetalAbun = 0.00127; // 0.1 Zsolar
 #endif
-            pStar->fSNEfficiency = SNFeedbackEfficiency(pkd, fMetalAbun,
-                                       pkdDensity(pkd,p)*a_m3);
+            pStar->fSNEfficiency = SNFeedbackEfficiency(fMetalAbun,
+                                       pkdDensity(pkd,p)*a_m3, in.dSNFBEfficiency,
+                                       in.dSNFBMaxEff, in.dSNFBEffIndex, in.dSNFBEffnH0);
 #endif
 
             // Safety check
@@ -236,7 +262,9 @@ void pkdStarForm(PKD pkd,
 #endif
 
 static inline double pressure_SFR(PKD pkd, double a_m3, double dDenMin,
-      PARTICLE *p, SPHFIELDS *psph){
+                         double dSFnormalizationKS, double dSFindexKS, double dSFGasFraction,
+                         double dEOSPolyFloorIndex, double dEOSPolyFloorDen,double dEOSPolyFlooru,
+                         double dConstGamma, PARTICLE *p, SPHFIELDS *psph){
 
    float fMass = pkdMass(pkd, p);
 
@@ -250,7 +278,8 @@ static inline double pressure_SFR(PKD pkd, double a_m3, double dDenMin,
    //            factor 0.5 dex (i.e., 3.1622) above the polytropic eEOS
 #ifdef EEOS_POLYTROPE
    const double maxUint = 3.16228 * fMass *
-                           polytropicEnergyFloor(pkd, a_m3, pkdDensity(pkd,p));
+                           polytropicEnergyFloor(a_m3, pkdDensity(pkd,p),
+                                dEOSPolyFloorIndex, dEOSPolyFloorDen,  dEOSPolyFlooru);
 #else
    const double maxUint = INFINITY;
 #endif
@@ -260,18 +289,17 @@ static inline double pressure_SFR(PKD pkd, double a_m3, double dDenMin,
    }
 
 
-   const double SFexp = 0.5*(pkd->param.dSFindexKS-1.);
+   const double SFexp = 0.5*(dSFindexKS-1.);
 
-   const double dmstar =
-   pkd->param.dSFnormalizationKS * pkdMass(pkd,p) *
-   pow( pkd->param.dConstGamma*pkd->param.dSFGasFraction*psph->P*a_m3,
-      SFexp);
+   const double dmstar =  dSFnormalizationKS * pkdMass(pkd,p) *
+                          pow( dConstGamma*dSFGasFraction*psph->P*a_m3, SFexp);
 
    return dmstar;
 }
 
 static inline double density_SFR(PKD pkd, double a_m3, double dDenMin,
-      PARTICLE *p, SPHFIELDS *psph){
+                                 double dSFThresholdu, double dSFEfficiency, 
+                                 PARTICLE *p, SPHFIELDS *psph){
 
    float fMass = pkdMass(pkd, p);
    float fDens = pkdDensity(pkd, p);
@@ -284,7 +312,7 @@ static inline double density_SFR(PKD pkd, double a_m3, double dDenMin,
    //      a) Minimum density, computed at the master level
    //      b) Maximum temperature set by dSFThresholdTemp
    const double dens = fDens*a_m3;
-   const double maxUint = pkd->param.dSFThresholdu;
+   const double maxUint = dSFThresholdu;
 
    if (psph->Uint > maxUint || rho_H < dDenMin) {
       return 0.0;
@@ -292,8 +320,11 @@ static inline double density_SFR(PKD pkd, double a_m3, double dDenMin,
 
    const double tff = sqrt(3.*M_PI/(32.*fDens*a_m3));
 
-   const double dmstar = pkd->param.dSFEfficiency * fDens /
-                              (tff * psph->omega);
+   const double dmstar = dSFEfficiency * fDens / (tff * psph->omega);
 
    return dmstar;
 }
+
+#ifdef __cplusplus
+}
+#endif

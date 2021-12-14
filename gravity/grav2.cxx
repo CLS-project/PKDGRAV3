@@ -103,8 +103,13 @@ void pkdParticleWorkDone(workParticle *wp) {
 	    pkdGetPos1(pkd,p,r);
 	    m = pkdMass(pkd,p);
 #ifdef HERNQUIST_POTENTIAL
+             // Hard coded just for the isolated galaxy test
              const double const_reduced_hubble_cgs = 3.2407789e-18;
-             const double H0 = 70.4/ pkd->param.dKmPerSecUnit * ( pkd->param.dKpcUnit / 1e3);
+             const double dMsolUnit = 1e10;
+             const double dKpcUnit = 1.0;
+	       const double dKmPerSecUnit = sqrt(GCGS*dMsolUnit*MSOLG
+                                        /(dKpcUnit*KPCCM))/1e5;
+             const double H0 = 70.4/ dKmPerSecUnit * ( dKpcUnit / 1e3);
 
              const double concentration = 9.0;
              const double M200 = 135.28423603962767;
@@ -117,7 +122,7 @@ void pkdParticleWorkDone(workParticle *wp) {
 
              const double mass = M200*(1.-0.041);
              const float sqrtgm_inv = 1.f / sqrtf(mass);
-             const double epsilon =  0.2/pkd->param.dKpcUnit;
+             const double epsilon =  0.2/dKpcUnit;
              const double epsilon2 = epsilon*epsilon;
 
 
@@ -211,12 +216,6 @@ void pkdParticleWorkDone(workParticle *wp) {
 		    }
 		else uNewRung = 0;
 		}
-#ifdef HERNQUIST_POTENTIAL
-           /* Time-step as a fraction of the circular orbital time */
-           double time_step = 0.01 * period;
-	     uint8_t hernquist_uNewRung = pkdDtToRungInverse(time_step,fiDelta,pkd->param.iMaxRung-1);
-           if (hernquist_uNewRung > uNewRung) uNewRung = hernquist_uNewRung;
-#endif
 	    /*
 	    ** Here we must make sure we do not try to take a larger opening
 	    ** timestep than the current active particles involved in the

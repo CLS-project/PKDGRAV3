@@ -187,7 +187,50 @@ struct inEndTimestep{
    double dDelta;
    double dConstGamma;
    double dTuFac;
+#ifdef STAR_FORMATION
+   double dSFMinOverDensity;
+#endif
+#ifdef COOLING
+   double dCoolingFloorDen;
+   double dCoolingFlooru;
+#endif
+#ifdef EEOS_POLYTROPE
+   double dEOSPolyFloorIndex;
+   double dEOSPolyFloorDen;
+   double dEOSPolyFlooru;
+#endif
+#ifdef EEOS_JEANS
+   double dEOSNJeans;
+#endif
 };
+
+#ifdef STAR_FORMATION
+struct inStarForm{
+   double dDenMin;
+   double dDelta;
+   double dTime;
+   double dScaleFactor;
+
+   double dSFindexKS;
+   double dSFnormalizationKS;
+   double dConstGamma;
+   double dSFGasFraction;
+   double dSFThresholdu;
+   double dSFEfficiency;
+
+   double dEOSPolyFloorIndex;
+   double dEOSPolyFloorDen;
+   double dEOSPolyFlooru;
+
+#ifdef FEEDBACK
+   double dSNFBEfficiency;
+   double dSNFBMaxEff;
+   double dSNFBEffnH0;
+   double dSNFBEffIndex;
+#endif
+};
+#endif
+
 
 /*
 ** Accumulates the work for a set of particles

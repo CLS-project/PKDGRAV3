@@ -151,6 +151,14 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
     }
 #endif
 
+#if defined(STAR_FORMATION) || defined(FEEDBACK)
+    StarFormInit(dTime);
+#ifdef STAR_FORMATION
+    starFormed = 0.;
+    massFormed = 0.;
+#endif
+#endif
+
     OutputFineStatistics(0.0, -1);
     /*
     ** Build tree, activating all particles first (just in case).
@@ -637,6 +645,16 @@ int MSR::ValidateParameters() {
 #ifdef COOLING
     SetCoolingParam();
 #endif
+#ifdef STAR_FORMATION
+    SetStarFormationParam();
+#endif
+#ifdef FEEDBACK
+    SetFeedbackParam();
+#endif
+#if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
+    SetEOSParam();
+#endif
+
 
     if (csm->val.classData.bClass){
 	const char *aLinear[MAX_CSM_SPECIES];

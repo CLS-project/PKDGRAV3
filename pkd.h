@@ -1572,6 +1572,7 @@ void pkdCooling(PKD pkd,double,double,int,int,int,int);
 void pkdChemCompInit(PKD pkd, struct inChemCompInit in);
 void pkdSphStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
 		double dDelta, int iMaxRung,double dEta, double dAccFac, double dEtaUDot);
+#ifndef STAR_FORMATION
 void pkdStarForm(PKD pkd, double dRateCoeff, double dTMax, double dDenMin,
 		 double dDelta, double dTime,
 		 double dInitStarMass, double dESNPerStarMass, double dtCoolingShutoff,
@@ -1580,6 +1581,7 @@ void pkdStarForm(PKD pkd, double dRateCoeff, double dTMax, double dDenMin,
 		 double dTuFac, int bGasCooling,
 		 int bdivv, int *nFormed, double *dMassFormed,
 		 int *nDeleted);
+#endif
 #define CORRECTENERGY_IN 1
 #define CORRECTENERGY_OUT 2
 #define CORRECTENERGY_SPECIAL 3

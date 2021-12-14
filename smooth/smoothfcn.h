@@ -70,6 +70,19 @@ typedef struct smfParameters {
     double dhMinOverSoft;
     int bUpdateBall;
     double dNeighborsStd;
+#if EEOS_POLYTROPE
+    double dEOSPolyFloorIndex;
+    double dEOSPolyFloorDen;
+    double dEOSPolyFlooru;
+#endif
+#if EEOS_JEANS
+    double dEOSNJeans;
+#endif
+#ifdef FEEDBACK
+    double dSNFBDelay;
+    double dSNFBDu;
+    double dSNFBNumberSNperMass;
+#endif
     } SMF;
 
 

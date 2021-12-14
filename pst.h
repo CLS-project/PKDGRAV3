@@ -781,6 +781,7 @@ struct inSphStep {
     };
 int pstSphStep(PST,void *,int,void *,int);
 
+#ifndef STAR_FORMATION
 /* PST_STARFORM */
 struct inStarForm
     {
@@ -810,6 +811,7 @@ struct outStarForm
     int nDeleted;
     double dMassFormed;
     };
+#endif
 
 
 /* PST_DENSITYSTEP */
