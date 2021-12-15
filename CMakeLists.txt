@@ -48,6 +48,24 @@ else()
    message(WARNING "Using old FindCUDA, consider updating cmake.")
    find_package(CUDA)
 endif()
+find_package(Git)
+if(Git_FOUND)
+  execute_process(
+    COMMAND ${GIT_EXECUTABLE} rev-parse --git-dir
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    OUTPUT_VARIABLE GIT_DIRECTORY
+    ERROR_VARIABLE GIT_ERROR
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+  )
+  if(NOT "${GIT_DIRECTORY}" STREQUAL "")
+    string(REGEX REPLACE "[^/]+" ".." HOOK_RELATIVE_PATH "${GIT_DIRECTORY}")
+    if(NOT EXISTS "${CMAKE_SOURCE_DIR}/${GIT_DIRECTORY}/hooks/pre-commit")
+      ADD_CUSTOM_TARGET(link_target ALL COMMAND ${CMAKE_COMMAND} -E create_symlink
+        "../${HOOK_RELATIVE_PATH}/git-pre-commit-hook"
+        "${CMAKE_SOURCE_DIR}/${GIT_DIRECTORY}/hooks/pre-commit" )
+    endif()
+  endif()
+endif()
 find_package(GSL REQUIRED)      # GNU Scientific Library
 find_package(HDF5 COMPONENTS C HL)
 find_package(FFTW REQUIRED)
