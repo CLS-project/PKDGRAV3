@@ -298,17 +298,18 @@ struct parameters {
     double dSNFBEffIndex;
 #endif
 #ifdef BLACKHOLES
-    int bMerger;
-    int bPlaceBHSeed;
-    int bAccretion;
+    int bBHMerger;
+    int bBHPlaceSeed;
+    int bBHAccretion;
     int bBHFeedback;
-    double dAccretionAlpha;
-    double dEddingtonFactor;
+    double dBHAccretionAlpha;
+    double dBHAccretionEddFac;
     double dBHRadiativeEff;
-    double dBHFeedbackEff;
-    double dBHFeedbackEcrit;
+    double dBHFBEff;
+    double dBHFBDT;
+    double dBHFBEcrit;
     double dBHSeedMass;
-    double dMhaloMin;
+    double dBHMhaloMin;
 #endif
 #ifdef STELLAR_EVOLUTION
     char achStEvolPath[256];

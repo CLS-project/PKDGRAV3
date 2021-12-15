@@ -83,6 +83,14 @@ typedef struct smfParameters {
     double dSNFBDu;
     double dSNFBNumberSNperMass;
 #endif
+#ifdef BLACKHOLES
+    double dBHFBEff;
+    double dBHFBEcrit;
+    double dBHAccretionEddFac;
+    double dBHAccretionAlpha;
+    int bBHFeedback;
+    int bBHAccretion;
+#endif
     } SMF;
 
 

@@ -194,6 +194,9 @@ void pstAddServices(PST pst,MDL mdl) {
 		  (fcnService_t*) pstRepositionBH,
 		  0, 0);
 #endif
+    mdlAddService(mdl,PST_MOVEDELETED,pst,
+              (fcnService_t*)pstMoveDeletedParticles,
+              0, sizeof(struct outGetNParts) );
     mdlAddService(mdl,PST_GETMINDT,pst,
 		  (fcnService_t*) pstGetMinDt,
 		  0, sizeof(struct outGetMinDt));
@@ -1065,7 +1068,8 @@ int pstPlaceBHSeed(PST pst,void *vin,int nIn,void *vout,int nOut){
         }
     else {
 	LCL *plcl = pst->plcl;
-        out->nBHs = pkdPlaceBHSeed(plcl->pkd,in->dTime, in->dScaleFactor, in->uRungMax, in->dDenMin);
+        out->nBHs = pkdPlaceBHSeed(plcl->pkd,in->dTime, in->dScaleFactor, in->uRungMax, in->dDenMin,
+                              in->dBHMhaloMin, in->dTau, in->dInitialH, in->dBHSeedMass);
         }
     return sizeof(struct outPlaceBHSeed);
 
@@ -1099,6 +1103,27 @@ int pstRepositionBH(PST pst,void *vin,int nIn,void *vout,int nOut){
 
 }
 #endif
+
+int pstMoveDeletedParticles(PST pst,void *vin,int nIn,void *vout,int nOut) {
+    LCL *plcl = pst->plcl;
+    struct outGetNParts *out = vout;
+    struct outGetNParts outUpper;
+
+    if (pst->nLeaves > 1) {
+        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_MOVEDELETED,vin,nIn);
+        pstMoveDeletedParticles(pst->pstLower,vin,nIn,vout,nOut);
+        mdlGetReply(pst->mdl,rID,&outUpper,&nOut);
+        out->n += outUpper.n;
+        out->nGas += outUpper.nGas;
+        out->nDark += outUpper.nDark;
+        out->nStar += outUpper.nStar;
+      out->nBH += outUpper.nBH;
+        }
+    else {
+        pkdMoveDeletedParticles(plcl->pkd, &out->n, &out->nGas, &out->nDark, &out->nStar, &out->nBH);
+        }
+    return sizeof(struct outGetNParts);
+    }
 
 int pstSmooth(PST pst,void *vin,int nIn,void *vout,int nOut) {
     struct inSmooth *in = vin;

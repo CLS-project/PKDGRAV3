@@ -87,11 +87,6 @@ using namespace fmt::literals; // Gives us ""_a and ""_format literals
 #include "gravity/activerung.h"
 #include "gravity/countrungs.h"
 #include "gravity/zeronewrung.h"
-#ifdef BLACKHOLES
-#include "blackhole/merger.h"
-#include "blackhole/seed.h"
-#include "blackhole/init.h"
-#endif
 #ifdef STELLAR_EVOLUTION
 #include "stellarevolution/stellarevolution.h"
 #endif
@@ -1521,49 +1516,49 @@ void MSR::Initialize() {
 		"Metallicity and density index for the feedback efficiency");
 #endif
 #ifdef BLACKHOLES
-    param.bMerger = 1;
-    prmAddParam(prm,"bMerger", 0, &param.bMerger,
-		sizeof(int), "bMerger",
+    param.bBHMerger = 1;
+    prmAddParam(prm,"bBHMerger", 0, &param.bBHMerger,
+		sizeof(int), "bBHMerger",
 		"Activate merger of black hole partices");
-    param.bAccretion = 1;
-    prmAddParam(prm,"bAccretion", 0, &param.bAccretion,
+    param.bBHAccretion = 1;
+    prmAddParam(prm,"bBHAccretion", 0, &param.bBHAccretion,
 		sizeof(int), "bAccretion",
 		"Activate the accretion of gas particle into blackholes");
     param.bBHFeedback = 1;
     prmAddParam(prm,"bBHFeedback", 0, &param.bBHFeedback,
 		sizeof(int), "bBHFeedback",
 		"Activate the BH feedback");
-    param.dAccretionAlpha = 1.0;
-    prmAddParam(prm,"dAccretionAlpha", 2, &param.dAccretionAlpha,
+    param.dBHAccretionAlpha = 1.0;
+    prmAddParam(prm,"dBHAccretionAlpha", 2, &param.dBHAccretionAlpha,
 		sizeof(double), "dAccretionAlpha",
 		"Accretion efficiency parameter <adimiensional>");
     param.dBHRadiativeEff = 0.1;
     prmAddParam(prm,"dBHRadiativeEff", 2, &param.dBHRadiativeEff,
 		sizeof(double), "dBHRadiativeEff",
 		"Radiative efficiency of the BH <adimiensional>");
-    param.dBHFeedbackEff = 0.1;
-    prmAddParam(prm,"dBHFeedbackEff", 2, &param.dBHFeedbackEff,
-		sizeof(double), "dBHFeedbackEff",
+    param.dBHFBEff = 0.1;
+    prmAddParam(prm,"dBHFBEff", 2, &param.dBHFBEff,
+		sizeof(double), "dBHFBEff",
 		"Coupling effiency of the BH with its surroundings <adimiensional>");
-    param.dBHFeedbackEcrit = 1e8;
-    prmAddParam(prm,"dBHFeedbackDeltaT", 2, &param.dBHFeedbackEcrit,
-		sizeof(double), "dBHFeedbackDeltaT",
+    param.dBHFBDT = 1e8;
+    prmAddParam(prm,"dBHFBDT", 2, &param.dBHFBDT,
+		sizeof(double), "dBHFBDT",
 		"Temperature change in the feedback events");
-    param.dEddingtonFactor = 4.* M_PI * 1.6726219e-27 / 6.652458e-29 / 299792458.;
-    prmAddParam(prm,"dEddingtonFactor", 2, &param.dEddingtonFactor,
-		sizeof(double), "dEddingtonFactor",
+    param.dBHAccretionEddFac = 4.* M_PI * 1.6726219e-27 / 6.652458e-29 / 299792458.;
+    prmAddParam(prm,"dBHAccretionEddFac", 2, &param.dBHAccretionEddFac,
+		sizeof(double), "dBHAccretionEddFac",
 		"4pi * m_p / sigma_T / c <kg m^-3 s>");
-    param.bPlaceBHSeed = 1;
-    prmAddParam(prm,"bPlaceBHSeed", 0, &param.bPlaceBHSeed,
-		sizeof(int), "bPlaceBHSeed",
+    param.bBHPlaceSeed = 1;
+    prmAddParam(prm,"bBHPlaceSeed", 0, &param.bBHPlaceSeed,
+		sizeof(int), "bBHPlaceSeed",
 		"Place BH seeds in FOF groups");
     param.dBHSeedMass = 1.0;
     prmAddParam(prm,"dBHSeedMass", 2, &param.dBHSeedMass,
 		sizeof(double), "dBHSeedMass",
 		"Mass of the BH seed <code units>");
-    param.dMhaloMin = 1.0;
-    prmAddParam(prm,"dMhaloMin", 2, &param.dMhaloMin,
-		sizeof(double), "dMhaloMin",
+    param.dBHMhaloMin = 1.0;
+    prmAddParam(prm,"dBHMhaloMin", 2, &param.dBHMhaloMin,
+		sizeof(double), "dBHMhaloMin",
 		"Minimum mass required to place a BH in a FOF group <code units>");
 #endif
 #ifdef STELLAR_EVOLUTION
@@ -2797,6 +2792,7 @@ void MSR::BuildTreeMarked(int bNeedEwald) {
     }
 
 void MSR::Reorder() {
+   return;
     if (!param.bMemUnordered) {
 	double sec,dsec;
 
@@ -3009,6 +3005,14 @@ void MSR::SmoothSetSMF(SMF *smf, double dTime, double dDelta, int nSmooth) {
     smf->dSNFBDelay = param.dSNFBDelay;
     smf->dSNFBDu = param.dSNFBDu;
     smf->dSNFBNumberSNperMass = param.dSNFBNumberSNperMass;
+#endif
+#ifdef BLACKHOLES
+    smf->dBHFBEff = param.dBHFBEff;
+    smf->dBHFBEcrit = param.dBHFBEcrit;
+    smf->dBHAccretionEddFac = param.dBHAccretionEddFac;
+    smf->dBHAccretionAlpha = param.dBHAccretionAlpha;
+    smf->bBHFeedback = param.bBHFeedback;
+    smf->bBHAccretion = param.bBHAccretion;
 #endif
     }
 
@@ -3543,8 +3547,8 @@ void MSR::Drift(double dTime,double dDelta,int iRoot) {
    // For this cases, I think that the ReSmoothNode will not provide 
    // any important speed up, so we can use the old gather. 
    // TODO: check if this is indeed true!
-   ReSmooth(msr,dTime,SMX_BH_DRIFT,1,0);
-   pstRepositionBH(msr->pst, NULL, 0, NULL, 0);
+   ReSmooth(dTime,SMX_BH_DRIFT,1,0);
+   pstRepositionBH(pst, NULL, 0, NULL, 0);
 
    TimerStop(TIMER_DRIFT);
    double dsecBH = TimerGet(TIMER_DRIFT);
@@ -3621,6 +3625,9 @@ void MSR::EndTimestepIntegration(double dTime,double dDelta){
 #endif
 #if EEOS_JEANS
    in.dEOSNJeans = param.dEOSNJeans;
+#endif
+#ifdef BLACKHOLES
+   in.dBHRadiativeEff = param.dBHRadiativeEff;
 #endif
    double dsec;
 
@@ -4132,8 +4139,8 @@ int MSR::NewTopStepKDK(
    ZeroNewRung(uRung,MAX_RUNG,uRung);
 
 #ifdef BLACKHOLES
-   if (param.bPlaceBHSeed){
-      msrPlaceBHSeed(msr, *pdTime, *puRungMax);
+   if (param.bBHPlaceSeed){
+      PlaceBHSeed(dTime, *puRungMax);
    }
 #endif
    /* Drift the "ROOT" (active) tree or all particle */
@@ -4172,11 +4179,11 @@ int MSR::NewTopStepKDK(
       DomainDecomp(uRung);
       uRoot2 = 0;
 #ifdef BLACKHOLES
-      if (param.bMerger){
-         msrSelActive(msr);
-         msrBHmerger(msr, *pdTime);
+      if (param.bBHMerger){
+         SelActives();
+         BHMerger(dTime);
       }
-      if (param.bAccretion && !param.bMerger){
+      if (param.bBHAccretion && !param.bBHMerger){
          struct outGetNParts Nout;
 
          Nout.n = 0;
@@ -4184,7 +4191,7 @@ int MSR::NewTopStepKDK(
          Nout.nGas = 0;
          Nout.nStar = 0;
          Nout.nBH = 0;
-         pstMoveDeletedParticles(msr->pst, NULL, 0, &Nout, sizeof(struct outGetNParts));
+         pstMoveDeletedParticles(pst, NULL, 0, &Nout, sizeof(struct outGetNParts));
       }
 #endif
 
@@ -4288,8 +4295,8 @@ void MSR::TopStepKDK(
       int iAdjust) {	/* Do an adjust? */
    double dDeltaStep = dDeltaRung * (1 << iRung);
 #ifdef BLACKHOLES
-   if (!iKickRung && !iRung && param.bPlaceBHSeed){
-      msrPlaceBHSeed(msr, dTime, iRung);
+   if (!iKickRung && !iRung && param.bBHPlaceSeed){
+      PlaceBHSeed(dTime, iRung);
 
 #ifdef OPTIM_REORDER_IN_NODES
       // This is kind of overkill. Ideally just reseting the CID_CELL
@@ -4298,7 +4305,7 @@ void MSR::TopStepKDK(
       // This is done to prevent a mismatch between the fetched and true
       // cell data, as it may have been updated if a BH has been placed
       // into that node
-      msrBuildTree(msr,dTime,param.bEwald);
+      BuildTree(param.bEwald);
 #endif
    }
 #endif
@@ -4383,11 +4390,11 @@ void MSR::TopStepKDK(
 #endif
 
 #ifdef BLACKHOLES
-      if (param.bMerger){
-         msrSelActive(msr);
-         msrBHmerger(msr, dTime);
+      if (param.bBHMerger){
+         SelActives();
+         BHMerger(dTime);
       }
-      if (param.bAccretion && !param.bMerger){
+      if (param.bBHAccretion && !param.bBHMerger){
          // If there are mergers, this was already done in msrBHMerger, so
          // there is no need to repeat this.
          struct outGetNParts Nout;
@@ -4397,12 +4404,12 @@ void MSR::TopStepKDK(
          Nout.nGas = 0;
          Nout.nStar = 0;
          Nout.nBH = 0;
-         pstMoveDeletedParticles(msr->pst, NULL, 0, &Nout, sizeof(struct outGetNParts));
-         msr->N = Nout.n;
-         msr->nDark = Nout.nDark;
-         msr->nGas = Nout.nGas;
-         msr->nStar = Nout.nStar;
-         msr->nBH = Nout.nBH;
+         pstMoveDeletedParticles(pst, NULL, 0, &Nout, sizeof(struct outGetNParts));
+         N = Nout.n;
+         nDark = Nout.nDark;
+         nGas = Nout.nGas;
+         nStar = Nout.nStar;
+         nBH = Nout.nBH;
       }
 #endif
 

@@ -952,7 +952,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	pkdSetClass(pkd,0,0,FIO_SPECIES_STAR,p);
 	}
 #ifdef BLACKHOLES
-    assert(pkd->oMass);
+    assert(pkd->oFieldOffset[oMass]);
     p = pkdParticle(pkd, pkd->nLocal);
     pkdSetClass(pkd,0,0,FIO_SPECIES_BH, p);
 #endif
@@ -2922,7 +2922,7 @@ void pkdEndTimestepIntegration(PKD pkd, struct inEndTimestep in) {
 
       } else if (pkdIsBH(pkd,p) && pkdIsActive(pkd,p)){
 #ifdef BLACKHOLES
-         pkdBHIntegrate(pkd, p, in.dTime, in.dDelta);
+         pkdBHIntegrate(pkd, p, in.dTime, in.dDelta, in.dBHRadiativeEff);
 #endif
       }
     }
@@ -3619,7 +3619,7 @@ void pkdMoveDeletedParticles(PKD pkd, total_t *n, total_t *nGas, total_t *nDark,
       if (pkdIsDeleted(pkd,p)){
          //printf("Deleting %d \n", i);
          PARTICLE* lastp = pkdParticle(pkd, pkd->nLocal - 1);
-          
+
          // IA: We can encounter a case where the last particle is deleted; workaround:
          int back_position=0;
          while (pkdIsDeleted(pkd,lastp)){
@@ -3632,10 +3632,10 @@ void pkdMoveDeletedParticles(PKD pkd, total_t *n, total_t *nGas, total_t *nDark,
 
             //printf("This is at the right of/at i\n");
             assert(back_position==0);
-            // If we start from the end, back_position should always? be zero 
+            // If we start from the end, back_position should always? be zero
             pkd->nLocal -= back_position+1;
             pkdCopyParticle(pkd, p, lastp);
-            
+
             assert(!pkdIsDeleted(pkd,p));
          }else{ // All the particles between p (or more to the left) and the end of the array are being deleted, so no copying is needed
             //printf("This is at the left of i; ");
@@ -3645,7 +3645,7 @@ void pkdMoveDeletedParticles(PKD pkd, total_t *n, total_t *nGas, total_t *nDark,
          }
 
          assert(lastp > pkdParticle(pkd,0));
-         
+
 
       }
 

@@ -1,43 +1,52 @@
 
 #include "blackhole/seed.h"
-#include "smooth.h"
+#include "smooth/smooth.h"
+#include "master.h"
 
-void msrPlaceBHSeed(MSR msr, double dTime, uint8_t uRungMax) {
+void MSR::PlaceBHSeed(double dTime, uint8_t uRungMax) {
    struct inPlaceBHSeed in;
    struct outPlaceBHSeed out;
 
    out.nBHs = 0;
    in.dTime = dTime;
    in.uRungMax = uRungMax;
-   in.dScaleFactor = csmTime2Exp(msr->csm,dTime);
+   in.dScaleFactor = csmTime2Exp(csm,dTime);
+   in.dBHMhaloMin = param.dBHMhaloMin;
+   in.dTau = param.dTau;
+   in.dInitialH = param.dInitialH;
+   in.dBHSeedMass = param.dBHSeedMass;
 #ifdef STAR_FORMATION
-   if (msr->csm->val.bComove)
-      in.dDenMin = msr->param.dSFThresholdDen*pow(in.dScaleFactor,3);
+   if (csm->val.bComove)
+      in.dDenMin = param.dSFThresholdDen*pow(in.dScaleFactor,3);
 #else
    in.dDenMin = 0.0;
 #endif
 
    printf("Planting seeds...\n");
-   msrTimerStart(msr, TIMER_BHS);
-   assert(msr->param.bFindGroups);
-   pstPlaceBHSeed(msr->pst, &in, sizeof(in), &out, sizeof(out));
-   msrTimerStop(msr, TIMER_BHS);
+   TimerStart(TIMER_BHS);
+   assert(param.bFindGroups);
+   pstPlaceBHSeed(pst, &in, sizeof(in), &out, sizeof(out));
+   TimerStop(TIMER_BHS);
 
-   msr->nGas -= out.nBHs;
-   msr->nBH += out.nBHs;
+   nGas -= out.nBHs;
+   nBH += out.nBHs;
    printf("Planted %d BH seeds \n", out.nBHs);
 
 
 #ifdef OPTIM_REORDER_IN_NODES
    if (out.nBHs > 0)
-       msrReorderWithinNodes(msr);
+       ReorderWithinNodes();
 #endif
 
 }
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 int pkdPlaceBHSeed(PKD pkd, double dTime, double dScaleFactor,
-                   uint8_t uRungMax, double dDenMin){
+                   uint8_t uRungMax, double dDenMin, double dBHMhaloMin, 
+                   double dTau, double dInitialH, double dBHSeedMass){
    int newBHs = 0;
    SMX smx;
    smInitialize(&smx,pkd,NULL,32,1,0,SMX_NULL);
@@ -48,7 +57,7 @@ int pkdPlaceBHSeed(PKD pkd, double dTime, double dScaleFactor,
       //assert (pkd->ga[gid].id.iPid == pkd->idSelf);
 
       if (pkd->veryTinyGroupTable[gid].nBH==0 &&
-          pkd->veryTinyGroupTable[gid].fMass > pkd->param.dMhaloMin){
+          pkd->veryTinyGroupTable[gid].fMass > dBHMhaloMin){
          printf("Group %d (mass %e) do not have any BH, adding one!\n",
                 gid, pkd->veryTinyGroupTable[gid].fMass);
          pkd->veryTinyGroupTable[gid].nBH++;
@@ -59,7 +68,7 @@ int pkdPlaceBHSeed(PKD pkd, double dTime, double dScaleFactor,
          PARTICLE* p = NULL;
 
          smx->nnListSize = 0;
-	   smGather(smx,pkd->param.dTau,pkd->veryTinyGroupTable[gid].rPot, p);
+	   smGather(smx,dTau,pkd->veryTinyGroupTable[gid].rPot, p);
 
 
          float minPot = HUGE_VAL;
@@ -84,7 +93,7 @@ int pkdPlaceBHSeed(PKD pkd, double dTime, double dScaleFactor,
 	    pkdSph(pkd,pLowPot)->afElemMass[ELEMENT_H] / pkdMass(pkd,pLowPot);
 #else
          // If no information, assume primoridal abundance
-         const double rho_H = pkdDensity(pkd,pLowPot) * pkd->param.dInitialH;
+         const double rho_H = pkdDensity(pkd,pLowPot) * dInitialH;
 #endif
          if (rho_H < dDenMin) continue;
 
@@ -110,7 +119,7 @@ int pkdPlaceBHSeed(PKD pkd, double dTime, double dScaleFactor,
          // set EVERY variable, because as we use unions, there may be
          // dirty stuff
          pBH->omega = omega;
-         pBH->dInternalMass = pkd->param.dBHSeedMass;
+         pBH->dInternalMass = dBHSeedMass;
          pBH->newPos[0] = -1; // Ask for a reposition
          pBH->lastUpdateTime = dTime;
          pBH->dAccretionRate = 0.0;
@@ -188,3 +197,6 @@ int pkdPlaceBHSeed(PKD pkd, double dTime, double dScaleFactor,
    return newBHs;
 
 }
+#ifdef __cplusplus
+}
+#endif

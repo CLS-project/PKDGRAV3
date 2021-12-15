@@ -202,6 +202,9 @@ struct inEndTimestep{
 #ifdef EEOS_JEANS
    double dEOSNJeans;
 #endif
+#ifdef BLACKHOLES
+   double dBHRadiativeEff;
+#endif
 };
 
 #ifdef STAR_FORMATION

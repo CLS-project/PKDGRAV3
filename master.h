@@ -443,13 +443,19 @@ protected:
 #ifdef STAR_FORMATION
     void SetStarFormationParam();
     void StarFormInit(double dTime);
-    void StarForm(double dTime, double dDelta, int iRung);
 #endif
+    void StarForm(double dTime, double dDelta, int iRung);
 #ifdef FEEDBACK
     void SetFeedbackParam();
 #endif
 #if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
     void SetEOSParam();
+#endif
+#ifdef BLACKHOLES
+    void SetBlackholeParam();
+    void BlackholeInit(uint8_t uRungMax);
+    void PlaceBHSeed(double dTime, uint8_t uRungMax);
+    void BHMerger(double dTime);
 #endif
 
 

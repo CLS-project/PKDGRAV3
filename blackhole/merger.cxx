@@ -1,22 +1,21 @@
-
-
-
 #ifdef  BLACKHOLES
 #include "blackhole/merger.h"
+#include "smooth/smooth.h"
+#include "master.h"
 
 
-void msrBHmerger(MSR msr, double dTime) {
+void MSR::BHMerger(double dTime) {
     struct inSmooth in;
     struct outSmooth out;
     struct outGetNParts Nout;
 
-    msrTimerStart(msr, TIMER_BHS);
+    TimerStart(TIMER_BHS);
 
-    in.nSmooth = msr->param.nSmooth;
-    in.bPeriodic = msr->param.bPeriodic;
+    in.nSmooth = param.nSmooth;
+    in.bPeriodic = param.bPeriodic;
     in.bSymmetric = 0;
     in.iSmoothType = SMX_BH_MERGER;
-    msrSmoothSetSMF(msr, &(in.smf), dTime);
+    SmoothSetSMF(&(in.smf), dTime, 0.0, in.nSmooth);
 
     Nout.n = 0;
     Nout.nDark = 0;
@@ -24,30 +23,33 @@ void msrBHmerger(MSR msr, double dTime) {
     Nout.nStar = 0;
     Nout.nBH = 0;
 
-    if (msr->param.bVStep) {
+    if (param.bVStep) {
 	double sec,dsec;
-	sec = msrTime();
-	pstReSmoothNode(msr->pst,&in,sizeof(in),
+	sec = Time();
+	pstReSmoothNode(pst,&in,sizeof(in),
                                &out,sizeof(struct outSmooth));
-      pstMoveDeletedParticles(msr->pst, NULL, 0,
+      pstMoveDeletedParticles(pst, NULL, 0,
                                         &Nout, sizeof(struct outGetNParts));
-      pstRepositionBH(msr->pst, NULL, 0, NULL, 0);
-	dsec = msrTime() - sec;
+      pstRepositionBH(pst, NULL, 0, NULL, 0);
+	dsec = Time() - sec;
     } else {
-	pstReSmoothNode(msr->pst,&in,sizeof(in),&out,sizeof(struct outSmooth));
-      pstMoveDeletedParticles(msr->pst, NULL, 0, &Nout, sizeof(struct outGetNParts));
-      pstRepositionBH(msr->pst, NULL, 0, NULL, 0);
+	pstReSmoothNode(pst,&in,sizeof(in),&out,sizeof(struct outSmooth));
+      pstMoveDeletedParticles(pst, NULL, 0, &Nout, sizeof(struct outGetNParts));
+      pstRepositionBH(pst, NULL, 0, NULL, 0);
     }
 
-    msrTimerStop(msr, TIMER_BHS);
+    TimerStop(TIMER_BHS);
 
-    msr->N = Nout.n;
-    msr->nDark = Nout.nDark;
-    msr->nGas = Nout.nGas;
-    msr->nStar = Nout.nStar;
-    msr->nBH = Nout.nBH;
+    N = Nout.n;
+    nDark = Nout.nDark;
+    nGas = Nout.nGas;
+    nStar = Nout.nStar;
+    nBH = Nout.nBH;
 }
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 void pkdRepositionBH(PKD pkd){
 
@@ -116,7 +118,7 @@ void smBHmerger(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
           assert( nnList[i].fDist2 < pkdSoft(pkd,p)*pkdSoft(pkd,p)  );
           assert( pkdIsBH(pkd,p) );
           assert( pkdIsBH(pkd,q) );
-          assert( pkd->oMass );
+          assert( pkd->oFieldOffset[oMass] );
 
           float qmass = pkdMass(pkd,q);
           float pmass = pkdMass(pkd,p);
@@ -161,10 +163,10 @@ void smBHmerger(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
                   pv[j] = (pmass*pv[j] + qmass*qv[j])*inv_newmass;
                }
 
-               float *mass_field = (float *)pkdField(p, pkd->oMass);
+               float *mass_field = (float *)pkdField(p, pkd->oFieldOffset[oMass]);
                *mass_field = newmass;
 
-               mass_field = (float *)pkdField(q, pkd->oMass);
+               mass_field = (float *)pkdField(q, pkd->oFieldOffset[oMass]);
                *mass_field = 0.0f;
                // We do this to check that the deleted particles does not
                // enter the gravity computation, as this will activate
@@ -221,7 +223,7 @@ int smReSmoothBHNode(SMX smx,SMF *smf, int iSmoothType) {
     // Here we store the pointers to the particle whose interaction need
     // to be computed
     PARTICLE** sinks;
-    sinks = malloc(64*sizeof(PARTICLE*)); // At most, the size of the bucket
+    sinks = (PARTICLE **)malloc(64*sizeof(PARTICLE*)); // At most, the size of the bucket
 
 
 
@@ -380,7 +382,7 @@ int smReSmoothBHNode(SMX smx,SMF *smf, int iSmoothType) {
 
                       if (nCnt_p >= nnListMax_p) {
                           nnListMax_p += NNLIST_INCREMENT;
-                          nnList_p = realloc(nnList_p,nnListMax_p*sizeof(NN));
+                          nnList_p = (NN*) realloc(nnList_p,nnListMax_p*sizeof(NN));
                           assert(nnList_p != NULL);
                           }
 
@@ -425,7 +427,7 @@ int smReSmoothBHNode(SMX smx,SMF *smf, int iSmoothType) {
 
 inline static KDN *getCell(PKD pkd, int iCell, int id) {
     if (id==pkd->idSelf) return pkdTreeNode(pkd,iCell);
-    return mdlFetch(pkd->mdl,CID_CELL,iCell,id);
+    return (KDN *) mdlFetch(pkd->mdl,CID_CELL,iCell,id);
     }
 
 /* This is mostly a version of buildInteractionList, but that only looks
@@ -442,7 +444,7 @@ void buildCandidateMergerList(SMX smx, SMF *smf, KDN* node, BND bnd_node, int *n
     double dx, dy, dz, p_r[3], fDist2;
     KDN* kdn;
     BND bnd;
-    struct stStack *S = smx->ST;
+    smContext::stStack *S = smx->ST;
     int nCnt = *nCnt_tot;
 
    // We look for the biggest node that encloses the needed domain
@@ -519,7 +521,7 @@ void buildCandidateMergerList(SMX smx, SMF *smf, KDN* node, BND bnd_node, int *n
                 if (fDist2 <= fBall2) {
                   if (nCnt >= smx->nnListMax) {
                       smx->nnListMax += NNLIST_INCREMENT;
-                      smx->nnList = realloc(smx->nnList,smx->nnListMax*sizeof(NN));
+                      smx->nnList = (NN*)realloc(smx->nnList,smx->nnListMax*sizeof(NN));
                       //printf("realloc \n");
                       assert(smx->nnList != NULL);
                       }
@@ -546,7 +548,7 @@ void buildCandidateMergerList(SMX smx, SMF *smf, KDN* node, BND bnd_node, int *n
             pEnd = kdn->pUpper+1;
 #endif
             for (pj=pStart;pj<pEnd;++pj) {
-                p = mdlFetch(mdl,CID_PARTICLE,pj,id);
+                p = (PARTICLE *) mdlFetch(mdl,CID_PARTICLE,pj,id);
 #ifndef OPTIM_REORDER_IN_NODES
             if (!pkdIsBH(pkd,p)) continue;
 #endif
@@ -558,7 +560,7 @@ void buildCandidateMergerList(SMX smx, SMF *smf, KDN* node, BND bnd_node, int *n
                 if (fDist2 <= fBall2) {
                   if (nCnt >= smx->nnListMax) {
                       smx->nnListMax += NNLIST_INCREMENT;
-                      smx->nnList = realloc(smx->nnList,smx->nnListMax*sizeof(NN));
+                      smx->nnList = (NN*)realloc(smx->nnList,smx->nnListMax*sizeof(NN));
                       //printf("realloc \n");
                       assert(smx->nnList != NULL);
                       }
@@ -593,4 +595,7 @@ void buildCandidateMergerList(SMX smx, SMF *smf, KDN* node, BND bnd_node, int *n
 
 }
 
+#ifdef __cplusplus
+}
+#endif
 #endif

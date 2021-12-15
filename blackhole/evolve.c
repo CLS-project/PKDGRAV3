@@ -2,7 +2,6 @@
 #include "hydro/hydro.h"
 
 
-
 static inline void bhAccretion(PKD pkd, NN* nnList, int nSmooth,
               PARTICLE* p, BHFIELDS* pBH, float fBall, float pMass,
               double pDensity, double dScaleFactor){
@@ -44,7 +43,7 @@ static inline void bhAccretion(PKD pkd, NN* nnList, int nSmooth,
              }
 
 
-             float *mass_field = (float *)pkdField(p, pkd->oMass);
+             float *mass_field = (float *)pkdField(p, pkd->oFieldOffset[oMass]);
              *mass_field = newMass;
 
              if (pkd->idSelf != nnList[i].iPid)
@@ -66,11 +65,13 @@ static inline void bhAccretion(PKD pkd, NN* nnList, int nSmooth,
 
 
 static inline void bhFeedback(PKD pkd, NN* nnList, int nSmooth, PARTICLE* p,
-                       BHFIELDS* pBH, float massSum){
-    pBH->dFeedbackRate = pkd->param.dBHFeedbackEff * pBH->dAccretionRate;
+                       BHFIELDS* pBH, float massSum, double dConstGamma,
+                       double dBHFBEff, double dBHFBEcrit){
+
+    pBH->dFeedbackRate = dBHFBEff * pBH->dAccretionRate;
 
     double meanMass = massSum/nSmooth;
-    double Ecrit = pkd->param.dBHFeedbackEcrit * meanMass;
+    double Ecrit = dBHFBEcrit * meanMass;
     if (pBH->dAccEnergy > Ecrit) {
        for (int i=0; i<nSmooth; ++i){
           PARTICLE *q;
@@ -83,14 +84,12 @@ static inline void bhFeedback(PKD pkd, NN* nnList, int nSmooth, PARTICLE* p,
           if (rand()<RAND_MAX*prob) {
              printf("BH feedback event!\n");
              SPHFIELDS* qsph = pkdSph(pkd,q);
-             //printf("Uint %e extra %e \n",
-             //   qsph->Uint, pkd->param.dFeedbackDu * pkdMass(pkd,q));
-             double energy = pkd->param.dBHFeedbackEcrit * pkdMass(pkd,q) ;
+             const double energy = dBHFBEcrit * pkdMass(pkd,q) ;
              qsph->Uint += energy;
              qsph->E += energy;
 #ifdef ENTROPY_SWITCH
-             qsph->S += energy*(pkd->param.dConstGamma-1.) *
-                pow(pkdDensity(pkd,q), -pkd->param.dConstGamma+1);
+             qsph->S += energy*(dConstGamma-1.) *
+                pow(pkdDensity(pkd,q), -dConstGamma+1);
 #endif
 
              pBH->dAccEnergy -= energy;
@@ -180,7 +179,7 @@ void smBHevolve(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf){
     cs *= 1./nSmooth;
 
 
-    if (pkd->param.bAccretion || pkd->param.bBHFeedback){
+    if (smf->bBHAccretion || smf->bBHFeedback){
        BHFIELDS* pBH = pkdBH(pkd,p);
        double pDensity;
        double vRel2;
@@ -213,12 +212,12 @@ void smBHevolve(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf){
 
        // Do we need to convert to physical?
        pDensity *= inv_a*inv_a*inv_a;
-       const double dBondiAccretion = pkd->param.dAccretionAlpha *
+       const double dBondiAccretion = smf->dBHAccretionAlpha *
           4.* M_PI * pBH->dInternalMass*pBH->dInternalMass * pDensity /
           pow(cs*cs + vRel2, 1.5);
 
        // All the prefactors are computed at the setup phase
-       const double dEddingtonAccretion = pkd->param.dEddingtonFactor *
+       const double dEddingtonAccretion = smf->dBHAccretionEddFac *
                                           pBH->dInternalMass;
 
        pBH->dEddingtonRatio = dBondiAccretion/dEddingtonAccretion;
@@ -234,12 +233,13 @@ void smBHevolve(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf){
        //  dBondiAccretion, dEddingtonAccretion, pDensity, pBH->dInternalMass);
        //assert(0);
 
-       if (pkd->param.bAccretion) {
+       if (smf->bBHAccretion) {
           bhAccretion(pkd, nnList, nSmooth, p, pBH,
                       fBall, pMass, pDensity, smf->a);
        }
-       if (pkd->param.bBHFeedback){
-          bhFeedback(pkd, nnList, nSmooth, p, pBH, massSum);
+       if (smf->bBHFeedback){
+          bhFeedback(pkd, nnList, nSmooth, p, pBH, massSum, smf->dConstGamma,
+                       smf->dBHFBEff, smf->dBHFBEcrit);
        }
     }
 
@@ -292,14 +292,14 @@ void initBHevolve(void *vpkd,void *vp){
 }
 
 
-void pkdBHIntegrate(PKD pkd, PARTICLE* p, double dTime, double dDelta){
+void pkdBHIntegrate(PKD pkd, PARTICLE* p, double dTime, double dDelta, double dBHRadiativeEff){
    BHFIELDS* pBH = pkdBH(pkd,p);
 
    double pDelta = 0.0;
    if (dDelta > 0)
       pDelta = dTime - pBH->lastUpdateTime;
 
-   pBH->dInternalMass += pBH->dAccretionRate  * pDelta * (1.-pkd->param.dBHRadiativeEff);
+   pBH->dInternalMass += pBH->dAccretionRate  * pDelta * (1.-dBHRadiativeEff);
    pBH->dAccEnergy += pBH->dFeedbackRate * pDelta;
    pBH->lastUpdateTime = dTime;
 

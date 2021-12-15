@@ -210,6 +210,10 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
 	/* Fix dTuFac conversion of T in InitSPH */
 	InitSph(dTime,dDelta);
 	}
+#ifdef BLACKHOLES
+    BlackholeInit(uRungMax);
+#endif
+
 
     double E=0,T=0,U=0,Eth=0,L[3]={0,0,0},F[3]={0,0,0},W=0;
     CalcEandL(MSR_INIT_E,dTime,&E,&T,&U,&Eth,L,F,&W);
@@ -653,6 +657,9 @@ int MSR::ValidateParameters() {
 #endif
 #if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
     SetEOSParam();
+#endif
+#ifdef BLACKHOLES
+    SetBlackholeParam();
 #endif
 
 

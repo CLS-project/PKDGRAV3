@@ -142,6 +142,7 @@ enum pst_service {
     PST_BH_REPOSITION,
     PST_BH_INIT,
 #endif
+    PST_MOVEDELETED,
     PST_PREDICTSMOOTH,
     PST_DRIFTINACTIVE,
     PST_CACHEBARRIER,
@@ -552,6 +553,10 @@ struct inPlaceBHSeed {
    double dTime;
    double dScaleFactor;
    double dDenMin;
+   double dBHMhaloMin;
+   double dTau;
+   double dInitialH;
+   double dBHSeedMass;
    uint8_t uRungMax;
 };
 struct outPlaceBHSeed {
@@ -880,6 +885,7 @@ int pstNewOrder(PST, void *, int, void *, int);
     int nStar;
     };
 */
+int pstMoveDeletedParticles(PST,void *,int,void *,int );
 int pstGetNParts(PST, void *, int, void *, int);
 
 /* PST_SETNPARTS */
