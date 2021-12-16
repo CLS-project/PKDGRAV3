@@ -205,6 +205,7 @@ struct parameters {
     int bIterativeSmoothingLength;
     int bWakeUpParticles;
     double dNeighborsStd;
+    int bOutFineStatistics;
 
     /* 
      * IA: Parameter for fixing all particles to the same rung

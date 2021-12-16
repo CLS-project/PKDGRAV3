@@ -3525,6 +3525,8 @@ void MSR::Drift(double dTime,double dDelta,int iRoot) {
 
 
 void MSR::OutputFineStatistics(double dStep, double dTime){
+   if (!param.bOutFineStatistics)
+      return;
    if (dTime==-1){
       char achFile[256];
       /* Initialization */

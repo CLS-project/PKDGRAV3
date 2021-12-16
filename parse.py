@@ -250,6 +250,7 @@ def parse():
     add_bool(gas,'iterh',default=True,dest='bIterativeSmoothingLength',help='Use an iterative scheme to obtain h')
     add_bool(gas,'wakeup',default=False,dest='bWakeUpParticles',help='Wake the particles when there is a big rung difference')
     add_flag(gas,'neighstd',default=1.0,dest='dNeighborsStd',type=float,help='Maximum deviation from desired number of neighbors')
+    add_bool(gas,'finestats',default=False,dest='bOutFineStatistics',help='Save high cadence information on the rung distribution and star formation')
 
     # /* Cooling Parameters */
     cool = parser.add_argument_group('Cooling Parameters')
