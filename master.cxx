@@ -3547,7 +3547,7 @@ void MSR::Drift(double dTime,double dDelta,int iRoot) {
    // For this cases, I think that the ReSmoothNode will not provide 
    // any important speed up, so we can use the old gather. 
    // TODO: check if this is indeed true!
-   ReSmooth(dTime,SMX_BH_DRIFT,1,0);
+   ReSmooth(dTime,dDelta,SMX_BH_DRIFT,1);
    pstRepositionBH(pst, NULL, 0, NULL, 0);
 
    TimerStop(TIMER_DRIFT);
@@ -4475,12 +4475,7 @@ void MSR::TopStepKDK(
 
    if (!iKickRung && !iRung && param.bFindGroups) {
       NewFof(dTime);
-      char achFile[256];
       GroupStats();
-      BuildName(achFile,dStep+1);
-      strncat(achFile,".fofstats",256);
-      HopWrite(achFile);
-
       BuildTree(param.bEwald);
    }
 

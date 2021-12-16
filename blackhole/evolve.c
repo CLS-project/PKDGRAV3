@@ -121,12 +121,12 @@ static inline void bhDrift(PKD pkd, PARTICLE *p, float pMass,
     p->uNewRung = uMaxRung;
     if (pLowPot==NULL) return;
 
-    // We only follow exactly that particle if the BH does not
-    // have enough mass to dictate the movement of the particles
 
 #ifdef DEBUG_BH_NODRIFT
     return;
 #endif
+    // We only follow exactly that particle if the BH does not
+    // have enough mass to dictate the movement of the particles
     if (pMass < 10.*pkdMass(pkd,pLowPot)){
        double inv_a = 1./dScaleFactor;
        cs *= cs;
