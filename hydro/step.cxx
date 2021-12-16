@@ -19,13 +19,9 @@ void MSR::HydroStep(double dTime, double dDelta)
 #endif
 
     if (param.bGlobalDt) {
-        if (param.dFixedDelta != 0.0) {
-            SetGlobalDt(param.dFixedDelta);
-        } else {
-            uint8_t minDt;
-            minDt = GetMinDt();
-            SetGlobalDt(minDt);
-        }
+      uint8_t minDt;
+      minDt = GetMinDt();
+      SetGlobalDt(minDt);
     }
 
     TimerStop(TIMER_TIMESTEP);

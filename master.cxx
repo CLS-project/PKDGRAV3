@@ -1286,10 +1286,6 @@ void MSR::Initialize() {
 		sizeof(int), "globaldt",
 		"Force all particles to the same rung");
 
-    param.dFixedDelta = 0.0;
-    prmAddParam(prm,"dFixedDelta",2,&param.dFixedDelta,sizeof(double),"FixedDelta",
-				"<-DEPRECATED- Fixed time step of the simulation (requires bGlobalDt=1)> = 0.0");
-
     param.bIterativeSmoothingLength = 1;
     prmAddParam(prm,"bIterativeSmoothingLength", 0, &param.bIterativeSmoothingLength,
 		sizeof(int), "iterh",
@@ -1304,11 +1300,6 @@ void MSR::Initialize() {
     prmAddParam(prm,"dNeighborsStd", 2, &param.dNeighborsStd,
 		sizeof(double), "neighstd",
 		"Maximum deviation from desired number of neighbors");
-
-    param.dMinDt = 0.;
-    prmAddParam(prm,"dMinDt", 2, &param.dMinDt,
-		sizeof(double), "minDt",
-		"-DEPRECATED- Minimum allowed timestep for the particles (in code units)");
 
 #if defined(COOLING) || defined(GRACKLE)
     prmAddParam(prm,"achCoolingTables",3,param.achCoolingTables,256,"coolingtables",

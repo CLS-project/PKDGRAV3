@@ -3134,8 +3134,6 @@ void pkdAccelStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
 		}
 	    uNewRung = pkdDtToRung(dT,dDelta,iMaxRung);
 	    if (uNewRung > p->uNewRung) p->uNewRung = uNewRung;
-
-	    //if ( p->uNewRung < pkd->param.dMinDt ) p->uNewRung = pkd->param.dMinDt;
 	    }
 	}
     }

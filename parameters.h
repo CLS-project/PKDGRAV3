@@ -211,8 +211,6 @@ struct parameters {
      * IA: Parameter for fixing all particles to the same rung
      */
     int bGlobalDt;
-    double dFixedDelta;
-    double dMinDt;
 
 #if defined(COOLING) || defined(GRACKLE)
     char achCoolingTables[256];
