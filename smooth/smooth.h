@@ -117,7 +117,7 @@ void smReSmoothSingle(SMX smx,SMF *smf,PARTICLE *p,double fBall);
 int  smReSmooth(SMX,SMF *, int);
 #ifdef OPTIM_SMOOTH_NODE
 int  smReSmoothNode(SMX,SMF *, int);
-void buildInteractionList(SMX smx, SMF *smf, KDN* node, BND bnd_node, int *nCnt, double r[3], double fBall, int ix, int iy, int iz);
+void buildInteractionList(SMX smx, SMF *smf, KDN* node, BND bnd_node, int *nCnt, double r[3], int ix, int iy, int iz);
 #endif
 
 void smGather(SMX smx,double fBall2,double r[3], PARTICLE * p);

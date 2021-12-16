@@ -2899,9 +2899,7 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
          int pEnd = node->pUpper+1;
 #endif
 
-         double fMax_shrink_x = 0.;
-         double fMax_shrink_y = 0.;
-         double fMax_shrink_z = 0.;
+         double fMax_shrink[3] = {0.,0.,0.};
          for (pj=node->pLower;pj<pEnd;++pj) {
              p = pkdParticle(pkd,pj);
 
@@ -2941,14 +2939,10 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
 #endif
                 } //SMX_HYDRO_DENSITY
 
-                const double x_disp = fabs(pkdPos(pkd,p,0) - bnd_node.fCenter[0]) + pkdBall(pkd,p)*2.;
-                fMax_shrink_x = (x_disp > fMax_shrink_x) ? x_disp : fMax_shrink_x;
-
-                const double y_disp = fabs(pkdPos(pkd,p,1) - bnd_node.fCenter[1]) + pkdBall(pkd,p)*2.;
-                fMax_shrink_y = (y_disp > fMax_shrink_y) ? y_disp : fMax_shrink_y;
-
-                const double z_disp = fabs(pkdPos(pkd,p,2) - bnd_node.fCenter[2]) + pkdBall(pkd,p)*2.;
-                fMax_shrink_z = (z_disp > fMax_shrink_z) ? z_disp : fMax_shrink_z;
+                for (int j=0; j<3; j++){
+                   const double disp = fabs(pkdPos(pkd,p,j) - bnd_node.fCenter[j]) + pkdBall(pkd,p)*2.;
+                   fMax_shrink[j] = (disp > fMax_shrink[j]) ? disp : fMax_shrink[j];
+                }
 
                 if (nodeBall<pkdBall(pkd,p)) nodeBall=pkdBall(pkd,p);
                 sinks[nActive] = p;
@@ -2968,18 +2962,8 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
          nodeBall *= 2.;
 
 
-         double const fBall_x = bnd_node.fMax[0]+nodeBall;
-         double const fBall_y = bnd_node.fMax[1]+nodeBall;
-         double const fBall_z = bnd_node.fMax[2]+nodeBall;
-         double fBall2 = fBall_x*fBall_x + fBall_y*fBall_y + fBall_z*fBall_z;
-         double fBall2_shrink = fMax_shrink_x*fMax_shrink_x +
-                                fMax_shrink_y*fMax_shrink_y +
-                                fMax_shrink_z*fMax_shrink_z;
-
-
-         bnd_node.fMax[0] += nodeBall;
-         bnd_node.fMax[1] += nodeBall;
-         bnd_node.fMax[2] += nodeBall;
+         for (int j=0; j<3; j++)
+            bnd_node.fMax[j] = fMax_shrink[j];
 
          if (smx->bPeriodic) {
             double iStart[3], iEnd[3];
@@ -2993,12 +2977,12 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
                   r[1] = bnd_node.fCenter[1] - iy*pkd->fPeriod[1];
                   for (int iz=iStart[2];iz<=iEnd[2];++iz) {
                       r[2] = bnd_node.fCenter[2] - iz*pkd->fPeriod[2];
-                          buildInteractionList(smx, smf, node, bnd_node, &nCnt, r, fBall2, ix, iy, iz);
+                          buildInteractionList(smx, smf, node, bnd_node, &nCnt, r, ix, iy, iz);
                   }
                 }
             }
          }else{
-            buildInteractionList(smx, smf, node, bnd_node, &nCnt, r, fBall2, 0, 0, 0);
+            buildInteractionList(smx, smf, node, bnd_node, &nCnt, r, 0, 0, 0);
          }
 
 
@@ -3158,7 +3142,7 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
 
 
 
-void buildInteractionList(SMX smx, SMF *smf, KDN* node, BND bnd_node, int *nCnt_tot, double r[3], double fBall2, int ix, int iy, int iz){
+void buildInteractionList(SMX smx, SMF *smf, KDN* node, BND bnd_node, int *nCnt_tot, double r[3], int ix, int iy, int iz){
     PKD pkd = smx->pkd;
     MDL mdl = pkd->mdl;
     PARTICLE *p;
@@ -3179,10 +3163,6 @@ void buildInteractionList(SMX smx, SMF *smf, KDN* node, BND bnd_node, int *nCnt_
    sp = 0;
     while (1) {
         bnd = pkdNodeGetBnd(pkd, kdn);
-      //MINDIST(&bnd,r,min2);
-      //if (min2 > fBall2) {
-      //    goto NoIntersect;
-      //}
       for (int bnd_j=0; bnd_j<3; bnd_j++){
          if (fabs(bnd.fCenter[bnd_j]-r[bnd_j]) - bnd.fMax[bnd_j] - bnd_node.fMax[bnd_j] > 0. ) goto NoIntersect;
       }
@@ -3218,14 +3198,16 @@ void buildInteractionList(SMX smx, SMF *smf, KDN* node, BND bnd_node, int *nCnt_
                 dx = r[0] - p_r[0];
                 dy = r[1] - p_r[1];
                 dz = r[2] - p_r[2];
-                fDist2 = dx*dx + dy*dy + dz*dz;
-                if (fDist2 <= fBall2) {
+                if (fabs(dx) <= bnd_node.fMax[0] &&
+                    fabs(dy) <= bnd_node.fMax[1] &&
+                    fabs(dz) <= bnd_node.fMax[2] ) {
                   if (nCnt >= smx->nnListMax) {
                       smx->nnListMax += NNLIST_INCREMENT;
                       smx->nnList = realloc(smx->nnList,smx->nnListMax*sizeof(NN));
                       //printf("realloc \n");
                       assert(smx->nnList != NULL);
                       }
+                  fDist2 = dx*dx + dy*dy + dz*dz;
                   smx->nnList[nCnt].fDist2 = fDist2;
                   smx->nnList[nCnt].dx = dx;
                   smx->nnList[nCnt].dy = dy;
@@ -3252,8 +3234,9 @@ void buildInteractionList(SMX smx, SMF *smf, KDN* node, BND bnd_node, int *nCnt_
                 dx = r[0] - p_r[0];
                 dy = r[1] - p_r[1];
                 dz = r[2] - p_r[2];
-                fDist2 = dx*dx + dy*dy + dz*dz;
-                if (fDist2 <= fBall2) {
+                if (fabs(dx) <= bnd_node.fMax[0] &&
+                    fabs(dy) <= bnd_node.fMax[1] &&
+                    fabs(dz) <= bnd_node.fMax[2] ) {
                   if (nCnt >= smx->nnListMax) {
                       smx->nnListMax += NNLIST_INCREMENT;
                       smx->nnList = realloc(smx->nnList,smx->nnListMax*sizeof(NN));
@@ -3261,6 +3244,7 @@ void buildInteractionList(SMX smx, SMF *smf, KDN* node, BND bnd_node, int *nCnt_
                       assert(smx->nnList != NULL);
                       }
 
+                  fDist2 = dx*dx + dy*dy + dz*dz;
                   smx->nnList[nCnt].fDist2 = fDist2;
                   smx->nnList[nCnt].dx = dx;
                   smx->nnList[nCnt].dy = dy;
