@@ -214,6 +214,7 @@ def parse():
     add_bool(gas,'bInitTFromCooling',default=False,dest='bInitTFromCooling',help='set T (also E, Y, etc..) using Cooling initialization value')
     add_flag(gas,'iRungCoolTableUpdate',default=0, dest='iRungCoolTableUpdate', type=int, help='Rung on which to update cool tables')
     add_flag(gas,'etaC',default=0.4, dest='dEtaCourant', type=float, help='Courant criterion')
+    add_flag(gas,'etaAcc',default=0.01, dest='dCFLacc', type=float, help='Timestep criterion for the acceleration')
     add_flag(gas,'etau',default=0.25, dest='dEtaUDot', type=float, help='uDot timestep criterion')
     add_flag(gas,'alpha',default=1.0, dest='dConstAlpha', type=float, help='Alpha constant in viscosity')
     add_flag(gas,'beta',default=2.0, dest='dConstBeta', type=float, help='Beta constant in viscosity')
