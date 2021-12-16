@@ -1752,18 +1752,6 @@ void msrLogParams(MSR &msr,FILE *fp) {
 #ifdef ENTROPY_SWITCH
    fprintf(fp," ENTROPY_SWITCH");
 #endif
-#ifdef MAKE_GLASS
-   fprintf(fp," MAKE_GLASS"); 
-#endif
-#ifdef REGULARIZE_MESH
-   fprintf(fp," REGULARIZE_MESH"); 
-#endif
-#ifdef FIXED_NSMOOTH_RELAXED
-   fprintf(fp," FIXED_NSMOOTH_RELAXED"); 
-#endif
-#ifdef FIXED_NSMOOTH_STRICT
-   fprintf(fp," FIXED_NSMOOTH_STRICT"); 
-#endif
 #ifdef COOLING
    fprintf(fp," COOLING"); 
 #endif
@@ -1788,14 +1776,8 @@ void msrLogParams(MSR &msr,FILE *fp) {
 #ifdef OPTIM_REMOVE_UNUSED
    fprintf(fp," OPTIM_REMOVE_UNUSED"); 
 #endif
-#ifdef OPTIM_REDUCE_PRECISION
-   fprintf(fp," OPTIM_REDUCE_PRECISION"); 
-#endif
 #ifdef OPTIM_DENSITY_REITER
    fprintf(fp," OPTIM_DENSITY_REITER"); 
-#endif
-#ifdef OPTIM_INVERSE_WALK
-   fprintf(fp," OPTIM_INVERSE_WALK");
 #endif
 #ifdef OPTIM_SMOOTH_NODE
    fprintf(fp," OPTIM_SMOOTH_NODE");
@@ -1817,9 +1799,6 @@ void msrLogParams(MSR &msr,FILE *fp) {
 #endif
 #ifdef OPTIM_AVOID_IS_ACTIVE
    fprintf(fp," OPTIM_AVOID_IS_ACTIVE");
-#endif
-#ifdef OPTIM_EXTRA
-   fprintf(fp," OPTIM_EXTRA");
 #endif
    /* End of new macros */
 #if defined(MAXHOSTNAMELEN) && defined(HAVE_GETHOSTNAME)
@@ -2646,9 +2625,6 @@ void MSR::BuildTree(int bNeedEwald,uint32_t uRoot,uint32_t utRoot) {
     pDistribTop->nTop = nTopTree / pkdNodeSize(pkd);
     assert(pDistribTop->nTop == (2*nThreads-1));
     mdl->RunService(PST_DISTRIBTOPTREE,nMsgSize,pDistribTop);
-#ifdef OPTIM_INVERSE_WALK
-    msrSetParticleParent(msr);
-#endif
     TimerStop(TIMER_TREE);
     dsec = TimerGet(TIMER_TREE);
     printf("Tree built, Wallclock: %f secs\n\n",dsec);
@@ -3560,11 +3536,6 @@ void MSR::Drift(double dTime,double dDelta,int iRoot) {
 
 
 
-#ifdef OPTIM_INVERSE_WALK
-void msrSetParticleParent(MSR msr){
-   pstSetParticleParent(msr->pst, NULL, 0, NULL, 0);
-}
-#endif
 
 
 void MSR::OutputFineStatistics(double dStep, double dTime){

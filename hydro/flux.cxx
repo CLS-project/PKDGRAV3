@@ -61,9 +61,6 @@ void pkdResetFluxes(PKD pkd, double dTime,double dDelta,double dDeltaVPred,doubl
 
 void MSR::MeshlessFluxes(double dTime,double dDelta)
 {
-#ifdef MAKE_GLASS
-    return;
-#endif
     double dsec;
     printf("Computing fluxes... ");
     TimerStart(TIMER_FLUXES);

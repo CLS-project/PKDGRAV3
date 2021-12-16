@@ -2474,34 +2474,7 @@ void smGather(SMX smx,double fBall2,double r[3], PARTICLE * pp) {
 
     nCnt = smx->nnListSize;
 
-#ifdef OPTIM_INVERSE_WALK
-/* IA: Instead of starting from the ROOT node, we look for the smallest node which
- * fully contains a sphere of radius fBall centred on the particle.
- *
- * Then, we take this node as the ROOT and proceed as usual.
- *
- * If the particle is really close to the boundary, we can not do more, because it may overlap with nodes in other domains
- */
-
-    double fBall = sqrt(fBall2);
-    id = idSelf;
-    kdn = pkdTreeNode(pkd,pkdParent(pkd,p));
-    bnd = pkdNodeGetBnd(pkd,kdn);
-
-
-    while((( bnd.fMax[0] - fabs(bnd.fCenter[0] - r[0]) - fBall < 0  )||
-          ( bnd.fMax[1] - fabs(bnd.fCenter[1] - r[1]) - fBall < 0  )||
-          ( bnd.fMax[2] - fabs(bnd.fCenter[2] - r[2]) - fBall < 0  ))&&
-          (pkdNodeParent(pkd,kdn)!=0)){
-       //printf("%d %e %e %e %e \t %e \n", pkdNodeParent(pkd,kdn), bnd.fMax[0], bnd.fCenter[0], r[0], fBall, bnd.fMax[0] - fabs(bnd.fCenter[0] - r[0]) - fBall);
-       //printf("%d %e %e %e %e \t %e \n", pkdNodeParent(pkd,kdn), bnd.fMax[1], bnd.fCenter[1], r[1], fBall, bnd.fMax[1] - fabs(bnd.fCenter[1] - r[1]) - fBall);
-       //printf("%d %e %e %e %e \t %e \n", pkdNodeParent(pkd,kdn), bnd.fMax[2], bnd.fCenter[2], r[2], fBall, bnd.fMax[2] - fabs(bnd.fCenter[2] - r[2]) - fBall);
-       kdn = pkdTreeNode(pkd, pkdNodeParent(pkd,kdn));
-       bnd = pkdNodeGetBnd(pkd,kdn);
-    }
-#else 
     kdn = getCell(pkd,iCell=pkd->iTopTree[ROOT],id = idSelf);
-#endif
 
     while (1) {
         bnd = pkdNodeGetBnd(pkd, kdn);
@@ -3008,12 +2981,6 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
          bnd_node.fMax[1] += nodeBall;
          bnd_node.fMax[2] += nodeBall;
 
-#ifdef OPTIM_EXTRA
-         fBall2 = fBall2_shrink;
-         bnd_node.fMax[0] = fMax_shrink_x;
-         bnd_node.fMax[1] = fMax_shrink_y;
-         bnd_node.fMax[2] = fMax_shrink_z;
-#endif
          if (smx->bPeriodic) {
             double iStart[3], iEnd[3];
             for (int j=0;j<3;++j) {
@@ -3206,23 +3173,7 @@ void buildInteractionList(SMX smx, SMF *smf, KDN* node, BND bnd_node, int *nCnt_
    id = pkd->idSelf;
 
  // We can only take advantage of this if we are are in the original cell
-#ifdef OPTIM_INVERSE_WALK
-   kdn = pkdTreeNode(pkd,pkdNodeParent(pkd,node));
-   bnd = pkdNodeGetBnd(pkd,kdn);
-   if (ix==0 && iy==0 && iz==0){
-      while((( fabs(bnd.fCenter[0] - r[0]) - bnd.fMax[0] + bnd_node.fMax[0] > 0  )||
-             ( fabs(bnd.fCenter[1] - r[1]) - bnd.fMax[1] + bnd_node.fMax[1] > 0  )||
-             ( fabs(bnd.fCenter[2] - r[2]) - bnd.fMax[2] + bnd_node.fMax[2] > 0  ))&&
-             (pkdNodeParent(pkd,kdn)!=0)){
-          kdn = pkdTreeNode(pkd, pkdNodeParent(pkd,kdn));
-          bnd = pkdNodeGetBnd(pkd,kdn);
-      }
-   }else{
-       kdn = getCell(pkd,iCell=pkd->iTopTree[ROOT],id = pkd->idSelf);
-   }
-#else
    kdn = getCell(pkd,iCell=pkd->iTopTree[ROOT],id = pkd->idSelf);
-#endif
 
    //  Now we start the walk as usual
    sp = 0;

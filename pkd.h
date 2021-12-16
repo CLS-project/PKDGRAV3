@@ -166,11 +166,7 @@ typedef struct velsmooth {
     } VELSMOOTH;
 
 
-#ifdef OPTIM_REDUCE_PRECISION
-typedef float myreal;
-#else
 typedef double myreal;
-#endif //OPTIM_REDUCE_PRECISION
 
 
 
@@ -268,9 +264,6 @@ typedef struct sphfields {
     float fMetalMass;
 #endif
 
-#if defined(MAKE_GLASS) || defined(REGULARIZE_MESH)
-    double cellCM[3];
-#endif
 
 #ifdef FEEDBACK
     float fAccFBEnergy;
@@ -811,10 +804,6 @@ typedef struct pkdContext {
     int oNodeBnd;
     int oNodeSphBounds; /* Three Bounds */
     int oNodeVBnd; /* Velocity bounds */
-#ifdef OPTIM_INVERSE_WALK
-    int oNodeParent;
-    int oNodeBall;
-#endif
 #ifdef OPTIM_REORDER_IN_NODES
     int oNodeNgas;
 #if (defined(STAR_FORMATION) && defined(FEEDBACK)) || defined(STELLAR_EVOLUTION)
@@ -1073,21 +1062,6 @@ static inline void pkdNodeSetBndMinMax( PKD pkd, KDN *n, double *dMin, double *d
     pkdNodeSetBnd(pkd,n,&bnd);
     }
 
-#ifdef OPTIM_INVERSE_WALK
-static inline void pkdNodeSetParent(  PKD pkd, KDN *n, int pParent){
-    *CAST(int*, pkdNodeField(n, pkd->oNodeParent)) = pParent;
-    }
-
-static inline int pkdNodeParent( PKD pkd, KDN *n ){
-   return *CAST(int *, pkdNodeField(n, pkd->oNodeParent));
-   }
-static inline double pkdNodeBall( PKD pkd, KDN* n){
-   return *CAST(double *, pkdNodeField(n, pkd->oNodeBall));
-   }
-static inline void pkdNodeSetBall(  PKD pkd, KDN *n, double ball){
-    *CAST(double*, pkdNodeField(n, pkd->oNodeBall)) = ball;
-    }
-#endif
 #ifdef OPTIM_REORDER_IN_NODES
 static inline int pkdNodeNgas( PKD pkd, KDN* n){
    return *CAST(int *, pkdNodeField(n, pkd->oNodeNgas));
@@ -1253,15 +1227,6 @@ static inline void pkdSetBall(PKD pkd, PARTICLE *p, float fBall) {
     if (pkd->oFieldOffset[oBall]) *CAST(float *, pkdField(p,pkd->oFieldOffset[oBall])) = fBall;
     }
 
-#ifdef OPTIM_INVERSE_WALK
-static inline void pkdSetParent(PKD pkd, PARTICLE *p, int iParent) {
-   if (pkd->oParent) *CAST(int *, pkdField(p, pkd->oParent)) = iParent;
-}
-
-static inline int pkdParent(PKD pkd, PARTICLE *p){
-   return *CAST(int *, pkdField(p, pkd->oParent));
-}
-#endif
 
 /* Here is the new way of getting mass and softening */
 static inline float pkdMass( PKD pkd, PARTICLE *p ) {
@@ -1549,9 +1514,6 @@ void pkdGravEvalPP(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINF
 void pkdGravEvalPC(PINFOIN *pPart, int nBlocks, int nInLast, ILC_BLK *blk,  PINFOOUT *pOut );
 void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double,double,int bDoGas);
 void pkdEndTimestepIntegration(PKD pkd, struct inEndTimestep in); 
-#ifdef OPTIM_INVERSE_WALK
-void pkdSetParticleParent(PKD pkd);
-#endif
 #ifdef OPTIM_REORDER_IN_NODES
 void pkdReorderWithinNodes(PKD pkd);
 #endif

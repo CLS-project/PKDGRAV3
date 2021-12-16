@@ -265,7 +265,6 @@ void hydroDensity(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf)
     psph = pkdSph(pkd,p);
     ph = fBall;
 
-#ifndef FIXED_NSMOOTH_STRICT
     /* Compute the \omega(x_i) normalization factor */
     psph->omega = 0.0;
     ph = pkdBall(pkd,p);
@@ -304,11 +303,7 @@ void hydroDensity(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf)
     if (smf->bIterativeSmoothingLength && p->bMarked) {
 #endif //OPTIM_DENSITY_REITER
 
-#ifndef FIXED_NSMOOTH_RELAXED
         c = 4.*M_PI/3. * psph->omega *ph*ph*ph*8.;
-#else
-        c = nSmooth;
-#endif
         if (fabs(c-smf->nSmooth) < smf->dNeighborsStd) {
             p->bMarked = 0;
         } else {
@@ -325,47 +320,9 @@ void hydroDensity(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf)
             if (pkdBall(pkd,p)>maxr) break;
 #endif
 
-#else // FIXED_NSMOOTH_STRICT
-    double minR2, lastMin;
-    if (smf->bIterativeSmoothingLength && p->bMarked) {
-        c = nSmooth;
-        // Check if we have enough neighbors, otherwise increse fBall
-        if (c <  smf->nSmooth) {
-            pkdSetBall(pkd,p,fBall * pow(  1.2*smf->nSmooth/c,0.3333333333));
-        } else if (c >= smf->nSmooth) {
-            // Now we look for the distance to the nSmooth-th neighbor
-            minR2 = HUGE_VAL;
-            lastMin = 0.;
-
-            for (int n=0; n<smf->nSmooth-2; n++) {
-                minR2 = HUGE_VAL;
-                for (i=0; i<nSmooth; i++) {
-                    if (nnList[i].fDist2 < minR2)
-                        if (nnList[i].fDist2 > lastMin)
-                            minR2 = nnList[i].fDist2;
-                }
-                lastMin = minR2;
-
-            }
-
-            pkdSetBall(pkd,p, 0.5*sqrt(lastMin));
-
-            p->bMarked=0;
-#endif
         }
     }
 
-#ifdef FIXED_NSMOOTH_STRICT
-    psph->omega = 0.0;
-    ph = pkdBall(pkd,p);
-    for (i=0; i<nSmooth; ++i) {
-
-        rpq = sqrt(nnList[i].fDist2);
-        hpq = ph;
-
-        psph->omega += cubicSplineKernel(rpq, hpq);
-    }
-#endif
 
     /* We compute the density making use of Eq. 27 Hopkins 2015 */
     pkdSetDensity(pkd,p, pkdMass(pkd,p)*psph->omega);

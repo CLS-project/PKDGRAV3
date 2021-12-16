@@ -147,9 +147,6 @@ public:
 #ifdef OPTIM_SMOOTH_NODE
     void ReorderWithinNodes();
 #endif
-#ifdef OPTIM_INVERSE_WALK
-    void SetParticleParent();
-#endif
 
     // Gravity
     uint8_t Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,

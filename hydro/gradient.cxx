@@ -121,9 +121,6 @@ void hydroGradients(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf)
         psph->gradVy[j] = 0.0;
         psph->gradVz[j] = 0.0;
         psph->gradP[j] = 0.0;
-#if defined(MAKE_GLASS) || defined(REGULARIZE_MESH)
-        psph->cellCM[j] = 0.0;
-#endif
     }
     for (i=0; i<nSmooth; ++i) {
 
@@ -167,18 +164,7 @@ void hydroGradients(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf)
         for (j=0; j<3; j++) {
             psph->gradP[j] += diff*psiTilde_p[j];
         }
-#if defined(MAKE_GLASS) || defined(REGULARIZE_MESH)
-        for (j=0; j<3; j++) {
-            psph->cellCM[j] += psi*psiTilde_p[j];
-        }
-#endif
     }
-#if defined(MAKE_GLASS) || defined(REGULARIZE_MESH)
-    double CMfactor = - fBall*fBall*M_PI*fBall*fBall*fBall * psph->omega / 3.;
-    for (j=0; j<3; j++) {
-        psph->cellCM[j] *= CMfactor;
-    }
-#endif
 
     /* Now we can limit them */
 

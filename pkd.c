@@ -461,9 +461,6 @@ void pkdInitialize(
 	}
     else pkd->oFieldOffset[oPotential] = 0;
 
-#ifdef OPTIM_INVERSE_WALK
-    pkd->oParent = pkdParticleAddInt32(pkd,1);
-#endif
     /*
     ** Tree node memory models
     */
@@ -487,10 +484,6 @@ void pkdInitialize(
     pkd->oNodeVelocity = 0;
     if ( (mMemoryModel & PKD_MODEL_NODE_VEL) && sizeof(vel_t) == sizeof(double))
 	    pkd->oNodeVelocity = pkdNodeAddDouble(pkd,3);
-#ifdef OPTIM_INVERSE_WALK
-    pkd->oNodeBall = pkdNodeAddDouble(pkd,3);
-    pkd->oNodeParent = pkdNodeAddInt32(pkd,1);
-#endif
 #ifdef OPTIM_REORDER_IN_NODES
     pkd->oNodeNgas = pkdNodeAddInt32(pkd,1);
 #if (defined(STAR_FORMATION) && defined(FEEDBACK)) || defined(STELLAR_EVOLUTION)
@@ -2622,10 +2615,6 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
                   // See Stadel 2001, Appendix 3.8
                   dr[j] = v[j]*dDeltaVPred;
 
-#if defined(MAKE_GLASS)
-                  sph = pkdSph(pkd,p);
-                  dr[j] = sph->cellCM[j];
-#endif
                 }
              }else{
                 for (j=0;j<3;++j) {
@@ -2696,20 +2685,6 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
 
 
 
-#ifdef OPTIM_INVERSE_WALK
-void pkdSetParticleParent(PKD pkd){
-   KDN *node;
-   for (int i=0; i<pkd->nNodes-1; i++){
-      node = pkdTreeNode(pkd,i);
-      if (node->iLower==0){
-         //printf("Node %d \t %d %d \t %d \n", i, node->pLower, node->pUpper, node->iLower);
-         for (int p=node->pLower; p<=node->pUpper; p++){
-            pkdSetParent(pkd, pkdParticle(pkd,p), i);
-         }
-      }
-   }
-}
-#endif
 
 #ifdef OPTIM_REORDER_IN_NODES
 void pkdReorderWithinNodes(PKD pkd){
@@ -2891,30 +2866,6 @@ void pkdEndTimestepIntegration(PKD pkd, struct inEndTimestep in) {
          // Actually set the primitive variables
          hydroSetPrimitives(pkd, p, psph, in.dTuFac, in.dConstGamma);
 
-#ifdef REGULARIZE_MESH // TODO: Deprecated, delete!
-         // IA: We add a small velocity which will tend to slowly
-         // move the particle to the approximated local center of mass
-         //  We use eq 63 of Springel 2010 but instead of using the radius
-         //  from the volume we take it directly to be the kernel size
-#define ETA 0.05
-
-         double d = sqrt(psph->cellCM[0]*psph->cellCM[0] + psph->cellCM[1]*psph->cellCM[1] + psph->cellCM[2]*psph->cellCM[2]);
-         double fracHtoCM = d/(ETA*pkdBall(pkd,p)*2.);
-         vel_t  corrVel[3];
-
-         if (fracHtoCM > 1.1){
-            for (j=0;j<3;j++) corrVel[j] = psph->cellCM[j]/d;
-         }else if (fracHtoCM > 0.9){
-            for (j=0;j<3;j++) corrVel[j] = psph->cellCM[j]/d * (d - 0.9*ETA*pkdBall(pkd,p)*2.) / (0.2* ETA * 2.*pkdBall(pkd,p)) ;
-         }else{
-            for (j=0;j<3;j++) corrVel[j] = 0.;
-         }
-
-         for (j=0;j<3;j++) pkdVel(pkd,p)[j] += psph->c*corrVel[j];
-
-
-
-#endif
 
          // Set 'last*' variables for next timestep
          hydroSetLastVars(pkd, p, psph, pa, dScaleFactor, in.dTime, in.dDelta, in.dConstGamma);

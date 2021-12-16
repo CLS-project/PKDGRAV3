@@ -139,11 +139,6 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_DRIFT,pst,(fcnService_t*)pstDrift,
 		  sizeof(struct inDrift),0);
     // IA: New PST functions
-#ifdef OPTIM_INVERSE_WALK
-    mdlAddService(mdl,PST_PARTICLEPARENT,pst,
-		  (fcnService_t*) pstSetParticleParent,
-		  0,0);
-#endif
     mdlAddService(mdl,PST_RESETFLUXES,pst,
 		  (fcnService_t*) pstResetFluxes,
 		  sizeof(struct inDrift),0);
@@ -1516,21 +1511,6 @@ int pstSetGlobalDt(PST pst,void *vin,int nIn,void *vout,int nOut) {
     return 0;
     }
 
-#ifdef OPTIM_INVERSE_WALK
-int pstSetParticleParent(PST pst,void *vin,int nIn,void *vout,int nOut){
-    LCL *plcl = pst->plcl;
-
-    if (pst->nLeaves > 1) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_PARTICLEPARENT,NULL,0);
-	pstSetParticleParent(pst->pstLower,NULL,0,NULL,0);
-	mdlGetReply(pst->mdl,rID,NULL,NULL);
-	}
-    else {
-	pkdSetParticleParent(plcl->pkd);
-	}
-    return 0;
-}
-#endif
 
 #ifdef OPTIM_REORDER_IN_NODES
 int pstReorderWithinNodes(PST pst,void *vin,int nIn,void *vout,int nOut){

@@ -313,17 +313,6 @@ int smReSmoothBHNode(SMX smx,SMF *smf, int iSmoothType) {
          double const fBall_y = bnd_node.fMax[1]+nodeBall;
          double const fBall_z = bnd_node.fMax[2]+nodeBall;
          double fBall2 = fBall_x*fBall_x + fBall_y*fBall_y + fBall_z*fBall_z;
-#ifdef OPTIM_EXTRA
-         double fBall2_shrink = fMax_shrink_x*fMax_shrink_x +
-                                fMax_shrink_y*fMax_shrink_y +
-                                fMax_shrink_z*fMax_shrink_z;
-
-
-         fBall2 = fBall2_shrink;
-         bnd_node.fMax[0] = fMax_shrink_x;
-         bnd_node.fMax[1] = fMax_shrink_y;
-         bnd_node.fMax[2] = fMax_shrink_z;
-#endif
 
          if (smx->bPeriodic) {
             double iStart[3], iEnd[3];
@@ -451,23 +440,7 @@ void buildCandidateMergerList(SMX smx, SMF *smf, KDN* node, BND bnd_node, int *n
    id = pkd->idSelf;
 
  // We can only take advantage of this if we are are in the original cell
-#ifdef OPTIM_INVERSE_WALK
-   kdn = pkdTreeNode(pkd,pkdNodeParent(pkd,node));
-   bnd = pkdNodeGetBnd(pkd,kdn);
-   if (ix==0 && iy==0 && iz==0){
-      while((( fabs(bnd.fCenter[0] - r[0]) - bnd.fMax[0] + bnd_node.fMax[0] > 0  )||
-             ( fabs(bnd.fCenter[1] - r[1]) - bnd.fMax[1] + bnd_node.fMax[1] > 0  )||
-             ( fabs(bnd.fCenter[2] - r[2]) - bnd.fMax[2] + bnd_node.fMax[2] > 0  ))&&
-             (pkdNodeParent(pkd,kdn)!=0)){
-          kdn = pkdTreeNode(pkd, pkdNodeParent(pkd,kdn));
-          bnd = pkdNodeGetBnd(pkd,kdn);
-      }
-   }else{
-       kdn = getCell(pkd,iCell=pkd->iTopTree[ROOT],id = pkd->idSelf);
-   }
-#else
    kdn = getCell(pkd,iCell=pkd->iTopTree[ROOT],id = pkd->idSelf);
-#endif
 
    //  Now we start the walk as usual
    sp = 0;

@@ -328,17 +328,6 @@ if (ENTROPY_SWITCH)
    target_compile_options(${PROJECT_NAME} PRIVATE -DENTROPY_SWITCH)
 endif(ENTROPY_SWITCH)
 
-option(MAKE_GLASS "Create a glass distribution using an approximated Lloyd's algorithm" OFF)
-if (MAKE_GLASS)
-   message("-- Compiled to generate GLASS")
-   target_compile_options(${PROJECT_NAME} PRIVATE -DMAKE_GLASS)
-endif(MAKE_GLASS)
-
-option(REGULARIZE_MESH "Try to maintain a regular mesh - only valid for MFV!" OFF)
-if (REGULARIZE_MESH )
-   message("-- Mesh regularization active. Only valid with MFV!")
-   target_compile_options(${PROJECT_NAME} PRIVATE -DREGULARIZE_MESH)
-endif(REGULARIZE_MESH)
 
 option(FIXED_NSMOOTH_STRICT "Maintain a constant number of neighbors for computing the smoothing length")
 option(FIXED_NSMOOTH_RELAXED "Maintain a approximately constant number of neighbors for computing the smoothing length")
@@ -451,23 +440,11 @@ if(OPTIM_REMOVE_UNUSED)
    message("-- OPTIM_REMOVE_UNUSED: \t Removed unused variables in particle structs")
 endif(OPTIM_REMOVE_UNUSED)
 
-option(OPTIM_REDUCE_PRECISION "Reduce precision of certain variable types to save memory" OFF)
-if (OPTIM_REDUCE_PRECISION)
-   target_compile_options(${PROJECT_NAME} PRIVATE -DOPTIM_REDUCE_PRECISION)
-   message("-- OPTIM_REDUCE_PRECISION: \t Reduced precision to decrease particle size")
-endif(OPTIM_REDUCE_PRECISION)
-
 option(OPTIM_DENSITY_REITER "Reduce the number of density iterations when we have neighbors than expected" OFF)
 if (OPTIM_DENSITY_REITER)
    target_compile_options(${PROJECT_NAME} PRIVATE -DOPTIM_DENSITY_REITER)
    message("-- OPTIM_DENSITY_REITER: \t Reduced number of density iterations when we have a larger fBall than expected")
 endif(OPTIM_DENSITY_REITER)
-
-option(OPTIM_INVERSE_WALK "When searching neighbours, start walking the tree from the leaves" OFF)
-if (OPTIM_INVERSE_WALK)
-   target_compile_options(${PROJECT_NAME} PRIVATE -DOPTIM_INVERSE_WALK)
-   message("-- OPTIM_INVERSE_WALK: \t When searching neighbours, start walking the tree from the leaves (*NOTE*: broken for parallel runs)")
-endif (OPTIM_INVERSE_WALK)
 
 option(OPTIM_SMOOTH_NODE "Do the smooth operator for a whole node at once, rather than particle by particle" ON)
 if (OPTIM_SMOOTH_NODE)
@@ -509,12 +486,6 @@ if (OPTIM_AVOID_IS_ACTIVE)
    target_compile_options(${PROJECT_NAME} PRIVATE -DOPTIM_AVOID_IS_ACTIVE)
    message("-- OPTIM_AVOID_IS_ACTIVE: \t Select particles rather than repeatedly using pkdIsActive")
 endif (OPTIM_AVOID_IS_ACTIVE)
-
-option(OPTIM_EXTRA "Activate extra, small, optimizations" OFF)
-if (OPTIM_EXTRA)
-   target_compile_options(${PROJECT_NAME} PRIVATE -DOPTIM_EXTRA)
-   message("-- OPTIM_EXTRA: \t\t Activate extra, small, optimizations (WRONG - do not use!!)")
-endif (OPTIM_EXTRA)
 ####
 
 
