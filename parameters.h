@@ -202,7 +202,6 @@ struct parameters {
      */
     double dCFLacc;
     int bMeshlessHydro;
-    int bConservativeReSmooth;
     int bIterativeSmoothingLength;
     int bWakeUpParticles;
     double dNeighborsStd;

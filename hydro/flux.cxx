@@ -64,22 +64,18 @@ void MSR::MeshlessFluxes(double dTime,double dDelta)
     double dsec;
     printf("Computing fluxes... ");
     TimerStart(TIMER_FLUXES);
-    if (param.bConservativeReSmooth) {
 #ifdef OPTIM_SMOOTH_NODE
 #ifdef OPTIM_AVOID_IS_ACTIVE
-        SelActives();
+    SelActives();
 #endif
 #ifdef OPTIM_FLUX_VEC
-        ReSmoothNode(dTime, dDelta, SMX_HYDRO_FLUX_VEC,1);
+    ReSmoothNode(dTime, dDelta, SMX_HYDRO_FLUX_VEC,1);
 #else
-        ReSmoothNode(dTime, dDelta, SMX_HYDRO_FLUX,1);
+    ReSmoothNode(dTime, dDelta, SMX_HYDRO_FLUX,1);
 #endif
 #else // no OPTIM_SMOOTH_NODE
-        ReSmooth(dTime, dDelta, SMX_HYDRO_FLUX,1);
+    ReSmooth(dTime, dDelta, SMX_HYDRO_FLUX,1);
 #endif
-    } else {
-        Smooth(dTime, dDelta, SMX_HYDRO_FLUX,0,param.nSmooth);
-    }
 
     TimerStop(TIMER_FLUXES);
     dsec = TimerGet(TIMER_FLUXES);

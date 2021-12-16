@@ -8,18 +8,14 @@ void MSR::MeshlessGradients(double dTime, double dDelta)
     printf("Computing gradients... ");
 
     TimerStart(TIMER_GRADIENTS);
-    if (param.bConservativeReSmooth) {
 #ifdef OPTIM_SMOOTH_NODE
 #ifdef OPTIM_AVOID_IS_ACTIVE
-        SelActives();
+    SelActives();
 #endif
-        ReSmoothNode(dTime,dDelta,SMX_HYDRO_GRADIENT,0);
+    ReSmoothNode(dTime,dDelta,SMX_HYDRO_GRADIENT,0);
 #else
-        ReSmooth(dTime,dDelta,SMX_HYDRO_GRADIENT,0);
+    ReSmooth(dTime,dDelta,SMX_HYDRO_GRADIENT,0);
 #endif
-    } else {
-        Smooth(dTime,dDelta,SMX_HYDRO_GRADIENT,0, param.nSmooth);
-    }
 
     TimerStop(TIMER_GRADIENTS);
     dsec = TimerGet(TIMER_GRADIENTS);

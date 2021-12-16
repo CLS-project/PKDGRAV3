@@ -1276,11 +1276,6 @@ void MSR::Initialize() {
 		sizeof(int), "meshlessHydro",
 		"Use the new implementation of the hydrodynamics");
 
-    param.bConservativeReSmooth = 1;
-    prmAddParam(prm,"bConservativeReSmooth", 0, &param.bConservativeReSmooth,
-		sizeof(int), "resmooth",
-		"Use re-smoothing for the fluxes and gradients computation");
-
     param.bGlobalDt = 0;
     prmAddParam(prm,"bGlobalDt", 0, &param.bGlobalDt,
 		sizeof(int), "globaldt",
