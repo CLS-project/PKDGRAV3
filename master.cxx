@@ -1634,59 +1634,6 @@ void MSR::Initialize() {
 	mdl->RunService(PST_SETADD,sizeof(inAdd),&inAdd);
 	}
 
-    // All this was eliminated in the master branch!
-    // Where is this done now?
-//    /*
-//    ** Set the box center to (0,0,0) for now!
-//    */
-//    for (j=0;j<6;++j) msr->fCenter[j] = 0.0;
-//    /*
-//    ** Process command line arguments.
-//    */
-//    ret = prmArgProc(msr->prm,argc,argv);
-//    if (!ret) {
-//	_msrExit(msr,1);
-//	}
-//
-//    /* This was a checkpoint file! */
-//    bDoRestore = readParameters(msr,msr->prm->pszFilename);
-//    if (!bDoRestore) {
-//	/*
-//	** Now read parameter file if one was specified.
-//	** NOTE: command line argument take precedence.
-//	*/
-//	if (!prmParseParam(msr->prm,msr)) {
-//	    _msrExit(msr,1);
-//	    }
-//	if (!validateParameters(mdl,msr->csm,msr->prm,&param)) _msrExit(msr,1);
-//	}
-//
-//    msrSetUnits(msr);
-//
-//    /* In the case of a restore, all these convertions have already been made
-//     * and the checkpoint file has the correct values... so do not touch them!
-//     */
-//    if (!bDoRestore){
-//
-//#if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
-//        msrSetEOSParam(msr);
-//#endif
-//#ifdef COOLING
-//        msrSetCoolingParam(msr);
-//#endif
-//#ifdef BLACKHOLES
-//        msrSetBlackholeParam(msr);
-//#endif
-//#ifdef STAR_FORMATION
-//        msrSetStarFormationParam(msr);
-//#endif
-//#ifdef FEEDBACK
-//        msrSetFeedbackParam(msr);
-//#endif
-//#ifdef STELLAR_EVOLUTION
-//        msrSetStellarEvolutionParam(msr);
-//#endif
-//    }
     }
 
 #if 0
