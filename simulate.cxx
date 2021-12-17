@@ -18,6 +18,7 @@
 #include <string>
 #include <cmath>
 #include "master.h"
+#include "units.h"
 #include "fmt/format.h"
 
 /******************************************************************************\
@@ -128,6 +129,37 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
 	    1.0/csmComoveLookbackTime2Exp(csm,1.0 / dLightSpeedSim(3*param.dBoxSize)) - 1.0 );
 	}
 
+    if (DoGas() && MeshlessHydro()){
+       ChemCompInit();
+    }
+
+#ifdef COOLING
+    CoolingInit();
+    if ((csm->val.bComove)){
+       const float a = csmTime2Exp(csm,dTime);
+       CoolingUpdate(1./a - 1., 1);
+    }else{
+       CoolingUpdate(0., 1);
+    }
+#endif
+
+#ifdef GRACKLE
+    if ((csm->val.bComove)){
+       GrackleInit(1, csmTime2Exp(csm,dTime));
+    }else{
+       GrackleInit(0, 1.0);
+    }
+#endif
+
+#if defined(STAR_FORMATION) || defined(FEEDBACK)
+    StarFormInit(dTime);
+#ifdef STAR_FORMATION
+    starFormed = 0.;
+    massFormed = 0.;
+#endif
+#endif
+
+    OutputFineStatistics(0.0, -1);
     /*
     ** Build tree, activating all particles first (just in case).
     */
@@ -178,6 +210,10 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
 	/* Fix dTuFac conversion of T in InitSPH */
 	InitSph(dTime,dDelta);
 	}
+#ifdef BLACKHOLES
+    BlackholeInit(uRungMax);
+#endif
+
 
     double E=0,T=0,U=0,Eth=0,L[3]={0,0,0},F[3]={0,0,0},W=0;
     CalcEandL(MSR_INIT_E,dTime,&E,&T,&U,&Eth,L,F,&W);
@@ -191,6 +227,14 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
     if ( param.bTraceRelaxation) {
 	InitRelaxation();
 	}
+
+    if (param.bWriteIC && !prmSpecified(prm,"nGrid")){
+       if (param.bFindGroups){
+          NewFof(dTime);
+          GroupStats();
+       }
+       Output(iStartStep,dTime,dDelta,0);
+    }
 
     bKickOpen = 0;
     int iStop=0, bDoCheckpoint=0, bDoOutput=0;
@@ -408,6 +452,16 @@ int MSR::ValidateParameters() {
 	    puts("ERROR: Box size for IC not specified");
 	    return 0;
 	    }
+	if ( param.bICgas ) {
+          if ( !prmSpecified(prm,"dOmegab") || csm->val.dOmegab <= 0 ) {
+             puts("ERROR: Can not generate IC with gas if dOmegab is not specified");
+             return 0;
+             }
+          if ( !param.bDoGas ){
+             puts("ERROR: Can not generate gas if bDoGas=0");
+             return 0;
+             }
+          }
 	}
     /* Set the number of bins for the power spectrum measurement of linear species */
     if (param.nGridLin > 0){
@@ -464,6 +518,25 @@ int MSR::ValidateParameters() {
 	    param.bPhysicalSoft = 0;
 	    }
 	}
+    if (param.bPhysicalSoft && param.dMaxPhysicalSoft>0){
+      fprintf(stderr, "ERROR: Setting both bPhysicalSoft and dMaxPhysicalSoft "
+           "is not allowed.\n Did you mean to limit the physical softening"
+           "with bPhysicalSoft and dSoftMax? or just limit the comoving "
+           "softening with dMaxPhysicalSoft?\n");
+      return 0;
+    }
+    if ( param.dMaxPhysicalSoft>0 && param.dSoft==0.0 && !param.bSoftMaxMul){
+      fprintf(stderr, "ERROR: Trying to limit individual softenings setting a "
+           "maximum physical softening rather than a factor...\nThis is "
+           "not supported.\n Did you mean to use dSoft for a global softening? "
+           "or bSoftMaxMul for setting the limit as a factor?\n");
+      return 0;
+    }
+    if ( param.bPhysicalSoft && param.dSoftMax==0.0) {
+      fprintf(stderr, "ERROR: If setting bPhysicalSoft, dSoftMax should be "
+            "provided to avoid divergences in the early universe.\n");
+      return 0;
+    }
     /*
     ** Determine the period of the box that we are using.
     ** Set the new d[xyz]Period parameters which are now used instead
@@ -559,6 +632,13 @@ int MSR::ValidateParameters() {
 	}
     }
 
+#ifdef OPTIM_NO_REDUNDANT_FLUXES
+    if (!param.bMemParticleID){
+       fprintf(stderr, "WARNING: OPTIM_NO_REDUNDANT_FLUXES requires bMemParticleID");
+       return 0;
+    }
+#endif
+
     /* Make sure that parallel read and write are sane */
     int nThreads = mdlThreads(mdl);
     if (param.nParaRead  > nThreads) param.nParaRead  = nThreads;
@@ -569,40 +649,25 @@ int MSR::ValidateParameters() {
     * The following "parameters" are derived from real parameters.
     \**********************************************************************/
 
-    dTuFac = param.dGasConst/(param.dConstGamma - 1)/param.dMeanMolWeight;
-#define KBOLTZ	1.38e-16     /* bolzman constant in cgs */
-#define MHYDR 1.67e-24       /* mass of hydrogen atom in grams */
-#define MSOLG 1.99e33        /* solar mass in grams */
-#define GCGS 6.67e-8         /* G in cgs */
-#define KPCCM 3.085678e21    /* kiloparsec in centimeters */
-#define SIGMAT 6.6524e-25    /* Thompson cross-section (cm^2) */
-#define LIGHTSPEED 2.9979e10 /* Speed of Light cm/s */
-    /*
-    ** Convert kboltz/mhydrogen to system units, assuming that
-    ** G == 1.
-    */
-    if(prmSpecified(prm, "dMsolUnit") &&
-       prmSpecified(prm, "dKpcUnit")) {
-	param.dGasConst = param.dKpcUnit*KPCCM*KBOLTZ
-	    /MHYDR/GCGS/param.dMsolUnit/MSOLG;
-	/* code energy per unit mass --> erg per g */
-	param.dErgPerGmUnit = GCGS*param.dMsolUnit*MSOLG/(param.dKpcUnit*KPCCM);
-	/* code density --> g per cc */
-	param.dGmPerCcUnit = (param.dMsolUnit*MSOLG)/pow(param.dKpcUnit*KPCCM,3.0);
-	/* code time --> seconds */
-	param.dSecUnit = sqrt(1/(param.dGmPerCcUnit*GCGS));
-	/* code speed --> km/s */
-	param.dKmPerSecUnit = sqrt(GCGS*param.dMsolUnit*MSOLG/(param.dKpcUnit*KPCCM))/1e5;
-	/* code comoving density --> g per cc = param.dGmPerCcUnit (1+z)^3 */
-	param.dComovingGmPerCcUnit = param.dGmPerCcUnit;
-	}
-    else {
-	param.dSecUnit = 1;
-	param.dKmPerSecUnit = 1;
-	param.dComovingGmPerCcUnit = 1;
-	param.dGmPerCcUnit = 1;
-	param.dErgPerGmUnit = 1;
-	}
+    SetUnits();
+    dTuFac = param.units.dGasConst/(param.dConstGamma - 1)/param.dMeanMolWeight;
+
+#ifdef COOLING
+    SetCoolingParam();
+#endif
+#ifdef STAR_FORMATION
+    SetStarFormationParam();
+#endif
+#ifdef FEEDBACK
+    SetFeedbackParam();
+#endif
+#if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
+    SetEOSParam();
+#endif
+#ifdef BLACKHOLES
+    SetBlackholeParam();
+#endif
+
 
     if (csm->val.classData.bClass){
 	const char *aLinear[MAX_CSM_SPECIES];

@@ -53,6 +53,24 @@
 #include "group/group.h"
 #include "group/groupstats.h"
 
+#ifdef COOLING
+#include "cooling/cooling.h"
+#endif
+#ifdef GRACKLE
+#include "cooling_grackle/cooling_grackle.h"
+#endif
+#ifdef BLACKHOLES
+#include "blackhole/merger.h"
+#include "blackhole/seed.h"
+#include "blackhole/init.h"
+#endif
+#ifdef STELLAR_EVOLUTION
+#include "stellarevolution/stellarevolution.h"
+#endif
+#ifdef STAR_FORMATION
+#include "starformation/starformation.h"
+#endif
+
 void pstAddServices(PST pst,MDL mdl) {
     int nThreads;
 
@@ -120,6 +138,64 @@ void pstAddServices(PST pst,MDL mdl) {
 		  0,sizeof(struct outCalcEandL));
     mdlAddService(mdl,PST_DRIFT,pst,(fcnService_t*)pstDrift,
 		  sizeof(struct inDrift),0);
+    // IA: New PST functions
+    mdlAddService(mdl,PST_RESETFLUXES,pst,
+		  (fcnService_t*) pstResetFluxes,
+		  sizeof(struct inDrift),0);
+    mdlAddService(mdl,PST_COMPUTEPRIMVARS,pst,
+		  (fcnService_t*) pstEndTimestepIntegration,
+		  sizeof(struct inEndTimestep),0);
+    mdlAddService(mdl,PST_WAKEPARTICLES,pst,
+		  (fcnService_t*) pstWakeParticles,
+		  sizeof(struct inDrift),0);
+#ifdef DEBUG_CACHED_FLUXES
+    mdlAddService(mdl,PST_FLUXSTATS,pst,
+		  (fcnService_t*) pstFluxStats,
+		  sizeof(struct inFluxStats), sizeof(struct outFluxStats));
+#endif
+    mdlAddService(mdl,PST_SETGLOBALDT,pst,
+		  (fcnService_t*) pstSetGlobalDt,
+		  sizeof(struct outGetMinDt),0);
+#ifdef COOLING
+    mdlAddService(mdl,PST_COOLINGUPDATE,pst,
+		  (fcnService_t*) pstCoolingUpdate,
+		  sizeof(struct inCoolUpdate),0);
+    mdlAddService(mdl,PST_COOLINGUPDATEZ,pst,
+		  (fcnService_t*) pstCoolingUpdateZ,
+		  sizeof(float),0);
+    mdlAddService(mdl,PST_COOLINGINIT,pst,
+		  (fcnService_t*) pstCoolingInit,
+		  sizeof(struct inCoolInit),0);
+    mdlAddService(mdl,PST_COOLINGHYDREION,pst,
+		  (fcnService_t*) pstCoolingHydReion,
+		  0,0);
+#endif 
+#ifdef GRACKLE
+    mdlAddService(mdl,PST_GRACKLEINIT,pst,
+		  (fcnService_t*) pstGrackleInit,
+		  sizeof(struct inGrackleInit),0);
+#endif
+    mdlAddService(mdl,PST_CHEMCOMPINIT,pst,
+		  (fcnService_t*) pstChemCompInit,
+		  sizeof(struct inChemCompInit),0);
+#ifdef BLACKHOLES
+    mdlAddService(mdl,PST_BH_PLACESEED,pst,
+		  (fcnService_t*) pstPlaceBHSeed,
+		  sizeof(struct inPlaceBHSeed), sizeof(struct outPlaceBHSeed));
+    mdlAddService(mdl,PST_BH_INIT,pst,
+		  (fcnService_t*) pstBHInit,
+		  sizeof(struct inPlaceBHSeed), 0);
+    mdlAddService(mdl,PST_BH_REPOSITION,pst,
+		  (fcnService_t*) pstRepositionBH,
+		  0, 0);
+#endif
+    mdlAddService(mdl,PST_MOVEDELETED,pst,
+              (fcnService_t*)pstMoveDeletedParticles,
+              0, sizeof(struct outGetNParts) );
+    mdlAddService(mdl,PST_GETMINDT,pst,
+		  (fcnService_t*) pstGetMinDt,
+		  0, sizeof(struct outGetMinDt));
+    //
     mdlAddService(mdl,PST_CACHEBARRIER,pst,(fcnService_t*)pstCacheBarrier,
 		  0,0);
     mdlAddService(mdl,PST_ROPARTICLECACHE,pst,(fcnService_t*)pstROParticleCache,
@@ -151,10 +227,31 @@ void pstAddServices(PST pst,MDL mdl) {
 		  sizeof(struct inAccelStep), 0);
     mdlAddService(mdl,PST_SPHSTEP,pst,(fcnService_t*)pstSphStep,
 		  sizeof(struct inSphStep), 0);
-    mdlAddService(mdl,PST_STARFORM,pst,(fcnService_t*)pstStarForm,
+#ifdef STAR_FORMATION
+    mdlAddService(mdl,PST_STARFORM,pst,
+		  (fcnService_t*) pstStarForm,
 		  sizeof(struct inStarForm),sizeof(struct outStarForm));
-    mdlAddService(mdl,PST_RESMOOTH,pst,(fcnService_t*)pstReSmooth,
-		  sizeof(struct inSmooth),0);
+#endif
+#if defined(STAR_FORMATION) || defined(FEEDBACK)
+    mdlAddService(mdl,PST_STARFORMINIT,pst,
+                 (fcnService_t*) pstStarFormInit,
+                 sizeof(struct inStarFormInit),sizeof(struct outStarForm));
+#endif
+    mdlAddService(mdl,PST_RESMOOTH,pst,(fcnService_t*) pstReSmooth,
+		  sizeof(struct inSmooth),sizeof(struct outSmooth));
+#ifdef OPTIM_SMOOTH_NODE
+    mdlAddService(mdl,PST_RESMOOTHNODE,pst,(fcnService_t*) pstReSmoothNode,
+		  sizeof(struct inSmooth),sizeof(struct outSmooth));
+#endif
+#ifdef OPTIM_REORDER_IN_NODES
+    mdlAddService(mdl,PST_REORDERINNODES,pst,(fcnService_t*) pstReorderWithinNodes,
+		  0,0);
+#endif
+#ifdef STELLAR_EVOLUTION
+    mdlAddService(mdl,PST_STELLAREVOLUTIONINIT,pst,
+		  (fcnService_t*) pstStellarEvolutionInit,
+		  sizeof(struct inStellarEvolution) + sizeof(double),0);
+#endif
     mdlAddService(mdl,PST_UPDATERUNG,pst,(fcnService_t*)pstUpdateRung,
 		  sizeof(struct inUpdateRung),sizeof(struct outUpdateRung));
     mdlAddService(mdl,PST_COLNPARTS,pst,(fcnService_t*)pstColNParts,
@@ -242,7 +339,7 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_GET_PARTICLES,pst,(fcnService_t*)pstGetParticles,
 	          sizeof(uint64_t)*GET_PARTICLES_MAX,
 	          sizeof(struct outGetParticles)*GET_PARTICLES_MAX );
-    }
+   }
 
 void pstInitialize(PST *ppst,MDL mdl,LCL *plcl) {
     PST pst;
@@ -279,7 +376,7 @@ static void initializePStore(PKD *ppkd,MDL mdl,struct inInitializePStore *in) {
 	ppkd,mdl,in->nStore,in->nMinTotalStore,in->nMinEphemeral,in->nEphemeralBytes,
 	in->nTreeBitsLo,in->nTreeBitsHi,
 	in->iCacheSize,in->iWorkQueueSize,in->iCUDAQueueSize,in->fPeriod,
-	in->nSpecies[FIO_SPECIES_DARK],in->nSpecies[FIO_SPECIES_SPH],in->nSpecies[FIO_SPECIES_STAR],
+	in->nSpecies[FIO_SPECIES_DARK],in->nSpecies[FIO_SPECIES_SPH],in->nSpecies[FIO_SPECIES_STAR], in->nSpecies[FIO_SPECIES_BH],
 	in->mMemoryModel,in->bLightCone,in->bLightConeParticles);
     }
 
@@ -402,21 +499,21 @@ int pstReadFile(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	for(i=1; i<pst->nLeaves; ++i) {
 	    int id = mdlSelf(mdl) + i;
 	    int inswap;
-	    /*
+    /*
 	     * Read particles into the local storage.
-	     */
+    */
 	    assert(pkd->nStore >= nParts[i]);
 	    pkdReadFIO(pkd, fio, nStart, nParts[i], in->dvFac,in->dTuFac);
 	    nStart += nParts[i];
-	    /*
+	/*
 	     * Now shove them over to the remote processor.
-	     */
+	*/
 	    _SwapClasses(pkd,id);
 	    inswap = mdlSelf(mdl);
 	    rID = mdlReqService(mdl,id,PST_SWAPALL,&inswap,sizeof(inswap));
 	    pkdSwapAll(pkd, id);
 	    mdlGetReply(mdl,rID,NULL,NULL);
-	    }
+	}
 	pkdReadFIO(pkd, fio, nNodeStart, nParts[0], in->dvFac,in->dTuFac);
 	free(nParts);
 	fioClose(fio);
@@ -664,7 +761,7 @@ int pstWrite(PST pst,void *vin,int nIn,void *vout,int nOut) {
 		    makeName(achOutFile,in->achOutFile,in->iIndex,"");
 		    fio = fioTipsyCreatePart(achOutFile,0,in->mFlags&FIO_FLAG_CHECKPOINT,
 			in->bStandard, in->dTime, 
-			in->nSph, in->nDark, in->nStar, plcl->nWriteStart);
+			in->nGas, in->nDark, in->nStar, plcl->nWriteStart);
 		    }
 		else {
 		    fio = fioTipsyAppend(in->achOutFile,in->mFlags&FIO_FLAG_CHECKPOINT,in->bStandard);
@@ -678,12 +775,10 @@ int pstWrite(PST pst,void *vin,int nIn,void *vout,int nOut) {
 		perror(in->achOutFile);
 		mdlassert(pst->mdl,fio!=NULL);
 		}
-	    fioSetAttr(fio, "dTime",    FIO_TYPE_DOUBLE, &in->dTime);
-	    /* Restart information */
-	    fioSetAttr(fio, "dEcosmo",  FIO_TYPE_DOUBLE, &in->dEcosmo );
-	    fioSetAttr(fio, "dTimeOld", FIO_TYPE_DOUBLE, &in->dTimeOld );
-	    fioSetAttr(fio, "dUOld",    FIO_TYPE_DOUBLE, &in->dUOld );
 
+          pkdWriteHeaderFIO(plcl->pkd, fio, 1./sqrt(in->dvFac), in->dTime, 
+                in->nDark, in->nGas, in->nStar, in->nBH,
+                in->dBoxSize, in->nProcessors, in->units);
 	    pkdWriteFIO(plcl->pkd,fio,in->dvFac,in->dTuFac,&in->bnd);
 	    for(i=in->iLower+1; i<in->iUpper; ++i ) {
 		int rID = mdlReqService(pst->mdl,i,PST_SENDPARTICLES,&pst->idSelf,sizeof(pst->idSelf));
@@ -694,6 +789,22 @@ int pstWrite(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	    }
 	}
 
+    return 0;
+    }
+
+int pstSetSoft(PST pst,void *vin,int nIn,void *vout,int nOut) {
+    LCL *plcl = pst->plcl;
+    struct inSetSoft *in = vin;
+
+    mdlassert(pst->mdl,nIn == sizeof(struct inSetSoft));
+    if (pst->nLeaves > 1) {
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SETSOFT,in,nIn);
+	pstSetSoft(pst->pstLower,in,nIn,NULL,0);
+	mdlGetReply(pst->mdl,rID,NULL,NULL);
+	}
+    else {
+	pkdSetSoft(plcl->pkd,in->dSoft);
+	}
     return 0;
     }
 
@@ -937,6 +1048,78 @@ int pstGroupStats(PST pst,void *vin,int nIn,void *vout,int nOut) {
     return 0;
     }
 
+#ifdef BLACKHOLES
+int pstPlaceBHSeed(PST pst,void *vin,int nIn,void *vout,int nOut){
+    struct inPlaceBHSeed *in = vin;
+    struct outPlaceBHSeed *out = vout;
+    struct outPlaceBHSeed outUpper;
+    mdlassert(pst->mdl,nIn == sizeof(struct inPlaceBHSeed));
+    if (pst->nLeaves > 1) {
+        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_BH_PLACESEED,in,nIn);
+        pstPlaceBHSeed(pst->pstLower,vin,nIn,vout,nOut);
+        mdlGetReply(pst->mdl,rID,&outUpper,&nOut);
+	  assert(nOut==sizeof(struct outPlaceBHSeed));
+        out->nBHs += outUpper.nBHs;
+        }
+    else {
+	LCL *plcl = pst->plcl;
+        out->nBHs = pkdPlaceBHSeed(plcl->pkd,in->dTime, in->dScaleFactor, in->uRungMax, in->dDenMin,
+                              in->dBHMhaloMin, in->dTau, in->dInitialH, in->dBHSeedMass);
+        }
+    return sizeof(struct outPlaceBHSeed);
+
+}
+int pstBHInit(PST pst,void *vin,int nIn,void *vout,int nOut){
+    struct inPlaceBHSeed *in = vin;
+    mdlassert(pst->mdl,nIn == sizeof(struct inPlaceBHSeed));
+    if (pst->nLeaves > 1) {
+        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_BH_INIT,in,nIn);
+        pstBHInit(pst->pstLower,vin,nIn,vout,nOut);
+        mdlGetReply(pst->mdl,rID,NULL,NULL);
+        }
+    else {
+	LCL *plcl = pst->plcl;
+        pkdBHInit(plcl->pkd,in->uRungMax);
+        }
+    return 0;
+
+}
+int pstRepositionBH(PST pst,void *vin,int nIn,void *vout,int nOut){
+    if (pst->nLeaves > 1) {
+        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_BH_REPOSITION,NULL,0);
+        pstRepositionBH(pst->pstLower,vin,nIn,vout,nOut);
+        mdlGetReply(pst->mdl,rID,NULL,NULL);
+        }
+    else {
+	LCL *plcl = pst->plcl;
+        pkdRepositionBH(plcl->pkd);
+        }
+    return 0;
+
+}
+#endif
+
+int pstMoveDeletedParticles(PST pst,void *vin,int nIn,void *vout,int nOut) {
+    LCL *plcl = pst->plcl;
+    struct outGetNParts *out = vout;
+    struct outGetNParts outUpper;
+
+    if (pst->nLeaves > 1) {
+        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_MOVEDELETED,vin,nIn);
+        pstMoveDeletedParticles(pst->pstLower,vin,nIn,vout,nOut);
+        mdlGetReply(pst->mdl,rID,&outUpper,&nOut);
+        out->n += outUpper.n;
+        out->nGas += outUpper.nGas;
+        out->nDark += outUpper.nDark;
+        out->nStar += outUpper.nStar;
+      out->nBH += outUpper.nBH;
+        }
+    else {
+        pkdMoveDeletedParticles(plcl->pkd, &out->n, &out->nGas, &out->nDark, &out->nStar, &out->nBH);
+        }
+    return sizeof(struct outGetNParts);
+    }
+
 int pstSmooth(PST pst,void *vin,int nIn,void *vout,int nOut) {
     struct inSmooth *in = vin;
 
@@ -1021,12 +1204,16 @@ int pstFastGasCleanup(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
 int pstReSmooth(PST pst,void *vin,int nIn,void *vout,int nOut) {
     struct inSmooth *in = vin;
+    struct outSmooth *out = vout;
+    struct outSmooth outUpper;
 
-    mdlassert(pst->mdl,nIn == sizeof(struct inSmooth));
+//    mdlassert(pst->mdl,nIn == sizeof(struct inSmooth));
     if (pst->nLeaves > 1) {
 	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_RESMOOTH,in,nIn);
-	pstReSmooth(pst->pstLower,in,nIn,NULL,0);
-	mdlGetReply(pst->mdl,rID,NULL,NULL);
+	pstReSmooth(pst->pstLower,vin,nIn,vout,nOut);
+	mdlGetReply(pst->mdl,rID,&outUpper,&nOut);
+	assert(nOut==sizeof(struct outSmooth));
+      out->nSmoothed += outUpper.nSmoothed;
 	}
     else {
 	LCL *plcl = pst->plcl;
@@ -1034,12 +1221,75 @@ int pstReSmooth(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
 	smInitialize(&smx,plcl->pkd,&in->smf,in->nSmooth,
 		     in->bPeriodic,in->bSymmetric,in->iSmoothType);
-	smReSmooth(smx,&in->smf);
+	out->nSmoothed = smReSmooth(smx,&in->smf, in->iSmoothType);
 	smFinish(smx,&in->smf);
 	}
-    return 0;
+    return sizeof(struct outSmooth);
     }
 
+#ifdef OPTIM_SMOOTH_NODE
+int pstReSmoothNode(PST pst,void *vin,int nIn,void *vout,int nOut) {
+    struct inSmooth *in = vin;
+    struct outSmooth *out = vout;
+    struct outSmooth outUpper;
+
+//    mdlassert(pst->mdl,nIn == sizeof(struct inSmooth));
+    if (pst->nLeaves > 1) {
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_RESMOOTHNODE,in,nIn);
+	pstReSmoothNode(pst->pstLower,vin,nIn,vout,nOut);
+	mdlGetReply(pst->mdl,rID,&outUpper,&nOut);
+	assert(nOut==sizeof(struct outSmooth));
+      out->nSmoothed += outUpper.nSmoothed;
+#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER) && defined(DEBUG_FLUX_INFO)
+      struct outSmooth tmp = *out;
+	pstCombStat(&out->sComputing,&tmp.sComputing);
+	pstCombStat(&out->sWaiting,&tmp.sWaiting);
+	pstCombStat(&out->sSynchronizing,&tmp.sSynchronizing);
+	pstCombStat(&out->sPartNumAccess,&tmp.sPartNumAccess);
+	pstCombStat(&out->sPartMissRatio,&tmp.sPartMissRatio);
+	pstCombStat(&out->sCellNumAccess,&tmp.sCellNumAccess);
+	pstCombStat(&out->sCellMissRatio,&tmp.sCellMissRatio);
+#endif
+	}
+    else {
+	LCL *plcl = pst->plcl;
+	SMX smx;
+
+	smInitialize(&smx,plcl->pkd,&in->smf,in->nSmooth,
+		     in->bPeriodic,in->bSymmetric,in->iSmoothType);
+#ifdef BLACKHOLES
+      if (in->iSmoothType == SMX_BH_MERGER)
+      out->nSmoothed = smReSmoothBHNode(smx,&in->smf, in->iSmoothType);
+      else
+#endif
+     	out->nSmoothed = smReSmoothNode(smx,&in->smf, in->iSmoothType);
+	smFinish(smx,&in->smf);
+#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER) && defined(DEBUG_FLUX_INFO)
+      if (out->nSmoothed) {
+         out->sCellNumAccess.dSum = mdlNumAccess(pst->mdl,CID_CELL)/out->nSmoothed;
+         out->sPartNumAccess.dSum = mdlNumAccess(pst->mdl,CID_PARTICLE)/out->nSmoothed;
+      }
+      else {
+         out->sCellNumAccess.dSum = 0;
+         out->sPartNumAccess.dSum = 0;
+      }
+      out->sCellMissRatio.dSum = 100.0*mdlMissRatio(pst->mdl,CID_CELL);      /* as a percentage */
+      out->sPartMissRatio.dSum = 100.0*mdlMissRatio(pst->mdl,CID_PARTICLE);  /* as a percentage */
+	out->sComputing.dSum     = mdlTimeComputing(pst->mdl);
+	out->sWaiting.dSum       = mdlTimeWaiting(pst->mdl);
+	out->sSynchronizing.dSum = mdlTimeSynchronizing(pst->mdl);
+	pstInitStat(&out->sComputing,pst->idSelf);
+	pstInitStat(&out->sWaiting,pst->idSelf);
+	pstInitStat(&out->sSynchronizing,pst->idSelf);
+	pstInitStat(&out->sPartNumAccess,pst->idSelf);
+	pstInitStat(&out->sPartMissRatio,pst->idSelf);
+	pstInitStat(&out->sCellNumAccess,pst->idSelf);
+	pstInitStat(&out->sCellMissRatio,pst->idSelf);
+#endif
+	}
+    return sizeof(struct outSmooth);
+    }
+#endif
 
 void pstInitStat(STAT *ps,int id) {
     ps->idMax = id;
@@ -1244,6 +1494,219 @@ int pstDrift(PST pst,void *vin,int nIn,void *vout,int nOut) {
     return 0;
     }
 
+
+int pstSetGlobalDt(PST pst,void *vin,int nIn,void *vout,int nOut) {
+    LCL *plcl = pst->plcl;
+    struct outGetMinDt *in = vin;
+
+    mdlassert(pst->mdl,nIn == sizeof(struct outGetMinDt));
+    if (pst->nLeaves > 1) {
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SETGLOBALDT,in,nIn);
+	pstSetGlobalDt(pst->pstLower,in,nIn,NULL,0);
+	mdlGetReply(pst->mdl,rID,NULL,NULL);
+	}
+    else {
+	pkdSetGlobalDt(plcl->pkd, in->uMinDt);
+	}
+    return 0;
+    }
+
+
+#ifdef OPTIM_REORDER_IN_NODES
+int pstReorderWithinNodes(PST pst,void *vin,int nIn,void *vout,int nOut){
+    LCL *plcl = pst->plcl;
+
+    if (pst->nLeaves > 1) {
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_REORDERINNODES,NULL,0);
+	pstReorderWithinNodes(pst->pstLower,NULL,0,NULL,0);
+	mdlGetReply(pst->mdl,rID,NULL,NULL);
+	}
+    else {
+	pkdReorderWithinNodes(plcl->pkd);
+	}
+    return 0;
+}
+#endif
+
+int pstResetFluxes(PST pst,void *vin,int nIn,void *vout,int nOut) {
+    LCL *plcl = pst->plcl;
+    struct inDrift *in = vin;
+
+    mdlassert(pst->mdl,nIn == sizeof(struct inDrift));
+    if (pst->nLeaves > 1) {
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_RESETFLUXES,in,nIn);
+	pstResetFluxes(pst->pstLower,in,nIn,NULL,0);
+	mdlGetReply(pst->mdl,rID,NULL,NULL);
+	}
+    else {
+	pkdResetFluxes(plcl->pkd,in->dTime,in->dDelta,in->dDeltaVPred,in->dDeltaUPred);
+	}
+    return 0;
+    }
+
+#ifdef DEBUG_CACHED_FLUXES
+int pstFluxStats(PST pst,void *vin,int nIn,void *vout,int nOut) {
+    struct inFluxStats *in = vin;
+    struct outFluxStats *out = vout;
+    struct outFluxStats outUpper;
+
+    if (pst->nLeaves > 1) {
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_FLUXSTATS,in,nIn);
+	pstFluxStats(pst->pstLower,vin,nIn,vout,nOut);
+	mdlGetReply(pst->mdl,rID,&outUpper,&nOut);
+	assert(nOut==sizeof(struct outFluxStats));
+      out->nAvoided += outUpper.nAvoided;
+      out->nComputed += outUpper.nComputed;
+	}
+    else {
+	LCL *plcl = pst->plcl;
+
+      int avoided = 0;
+      int computed = 0;
+	pkdFluxStats(plcl->pkd, &computed, &avoided);
+      out->nAvoided = avoided;
+      out->nComputed = computed;
+	}
+    return sizeof(struct outFluxStats);
+    }
+#endif
+
+int pstEndTimestepIntegration(PST pst,void *vin,int nIn,void *vout,int nOut) {
+    LCL *plcl = pst->plcl;
+    struct inEndTimestep *in = vin;
+
+    mdlassert(pst->mdl,nIn == sizeof(struct inEndTimestep));
+    if (pst->nLeaves > 1) {
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_COMPUTEPRIMVARS,in,nIn);
+	pstEndTimestepIntegration(pst->pstLower,in,nIn,NULL,0);
+	mdlGetReply(pst->mdl,rID,NULL,NULL);
+	}
+    else {
+	pkdEndTimestepIntegration(plcl->pkd, *in);
+	}
+    return 0;
+    }
+
+int pstWakeParticles(PST pst,void *vin,int nIn,void *vout,int nOut) {
+    LCL *plcl = pst->plcl;
+    struct inDrift *in = vin;
+
+    mdlassert(pst->mdl,nIn == sizeof(struct inDrift));
+    if (pst->nLeaves > 1) {
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_WAKEPARTICLES,in,nIn);
+	pstWakeParticles(pst->pstLower,in,nIn,NULL,0);
+	mdlGetReply(pst->mdl,rID,NULL,NULL);
+	}
+    else {
+	pkdWakeParticles(plcl->pkd,in->iRoot, in->dTime, in->dDelta);
+	}
+    return 0;
+    }
+
+#ifdef GRACKLE
+int pstGrackleInit(PST pst,void *vin,int nIn,void *vout,int nOut) {
+    LCL *plcl = pst->plcl;
+
+    struct inGrackleInit *in = vin;
+    mdlassert(pst->mdl,nIn == sizeof(struct inGrackleInit));
+    if (pst->nLeaves > 1) {
+       int rID = mdlReqService(pst->mdl,pst->idUpper,PST_GRACKLEINIT,in,nIn);
+       pstGrackleInit(pst->pstLower,in,nIn,NULL,0);
+       mdlGetReply(pst->mdl,rID,NULL,NULL);
+       }
+    else {
+       pkdGrackleInit(plcl->pkd, in->bComove, in->dScaleFactor, in->achCoolingTable,
+                        in->units);
+       }
+    return 0;
+    }
+#endif
+
+#ifdef COOLING
+int pstCoolingInit(PST pst,void *vin,int nIn,void *vout,int nOut) {
+    LCL *plcl = pst->plcl;
+    struct inCoolInit *in = vin;
+
+    mdlassert(pst->mdl,nIn == sizeof(struct inCoolInit));
+    if (pst->nLeaves > 1) {
+       int rID = mdlReqService(pst->mdl,pst->idUpper,PST_COOLINGINIT,in,nIn);
+       pstCoolingInit(pst->pstLower,in,nIn,NULL,0);
+       mdlGetReply(pst->mdl,rID,NULL,NULL);
+       }
+    else {
+       pkd_cooling_init_backend(plcl->pkd, in->in_cooling_data,
+           in->Redshifts,
+           in->nH,
+           in->Temp,
+           in->HeFrac,
+           in->Therm,
+           in->SolarAbundances,
+           in->SolarAbundances_inv);
+       }
+    return 0;
+    }
+
+int pstCoolingUpdate(PST pst,void *vin,int nIn,void *vout,int nOut) {
+    LCL *plcl = pst->plcl;
+    struct inCoolUpdate *in = vin;
+
+    mdlassert(pst->mdl,nIn == sizeof(struct inCoolUpdate));
+    if (pst->nLeaves > 1) {
+       int rID = mdlReqService(pst->mdl,pst->idUpper,PST_COOLINGUPDATE,in,nIn);
+       pstCoolingUpdate(pst->pstLower,in,nIn,NULL,0);
+       mdlGetReply(pst->mdl,rID,NULL,NULL);
+       }
+    else {
+       pkd_cooling_update(plcl->pkd, in);
+       }
+    return 0;
+    }
+int pstCoolingUpdateZ(PST pst,void *vin,int nIn,void *vout,int nOut) {
+    LCL *plcl = pst->plcl;
+    float *in = vin;
+
+    if (pst->nLeaves > 1) {
+       int rID = mdlReqService(pst->mdl,pst->idUpper,PST_COOLINGUPDATEZ,in,nIn);
+       pstCoolingUpdateZ(pst->pstLower,in,nIn,NULL,0);
+       mdlGetReply(pst->mdl,rID,NULL,NULL);
+       }
+    else {
+       plcl->pkd->cooling->dz = *in;
+       }
+    return 0;
+    }
+
+int pstCoolingHydReion(PST pst,void *vin,int nIn,void *vout,int nOut) {
+    LCL *plcl = pst->plcl;
+
+    if (pst->nLeaves > 1) {
+       int rID = mdlReqService(pst->mdl,pst->idUpper,PST_COOLINGHYDREION,NULL,0);
+       pstCoolingHydReion(pst->pstLower,NULL,0,NULL,0);
+       mdlGetReply(pst->mdl,rID,NULL,NULL);
+       }
+    else {
+       cooling_Hydrogen_reionization(plcl->pkd);
+       }
+    return 0;
+    }
+#endif 
+
+int pstChemCompInit(PST pst,void *vin,int nIn,void *vout,int nOut) {
+    LCL *plcl = pst->plcl;
+    struct inChemCompInit *in = vin;
+
+    mdlassert(pst->mdl,nIn == sizeof(struct inChemCompInit));
+    if (pst->nLeaves > 1) {
+       int rID = mdlReqService(pst->mdl,pst->idUpper,PST_CHEMCOMPINIT,in,nIn);
+       pstChemCompInit(pst->pstLower,in,nIn,NULL,0);
+       mdlGetReply(pst->mdl,rID,NULL,NULL);
+       }
+    else {
+       pkdChemCompInit(plcl->pkd, *in);
+       }
+    return 0;
+}
+
 int pstCacheBarrier(PST pst,void *vin,int nIn,void *vout,int nOut) {
     mdlassert(pst->mdl,nIn == 0);
     if (pst->nLeaves > 1) {
@@ -1408,6 +1871,7 @@ int pstSphStep(PST pst,void *vin,int nIn,void *vout,int nOut) {
     return 0;
     }
 
+#ifndef STAR_FORMATION
 int pstStarForm(PST pst,void *vin,int nIn,void *vout,int nOut) {
     struct inStarForm *in = vin;
     struct outStarForm *out = vout;
@@ -1436,6 +1900,7 @@ int pstStarForm(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	}
     return sizeof(struct outStarForm);
     }
+#endif
 
 int pstDensityStep(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
@@ -1540,6 +2005,7 @@ int pstGetNParts(PST pst,void *vin,int nIn,void *vout,int nOut)
 	out->nGas += outtmp.nGas;
 	out->nDark += outtmp.nDark;
 	out->nStar += outtmp.nStar;
+      out->nBH += outtmp.nBH;
 	if (outtmp.nMaxOrder > out->nMaxOrder) out->nMaxOrder = outtmp.nMaxOrder;
 	}
     else {
@@ -1557,7 +2023,7 @@ int pstSetNParts(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	mdlGetReply(pst->mdl, rID, NULL, NULL);
 	}
     else {
-	pkdSetNParts(pst->plcl->pkd, in->nGas, in->nDark, in->nStar);
+	pkdSetNParts(pst->plcl->pkd, in->nGas, in->nDark, in->nStar, in->nBH);
 	}
     return 0;
     }
@@ -1933,6 +2399,28 @@ int pstTotalMass(PST pst,void *vin,int nIn,void *vout,int nOut) {
 	}
     return sizeof(struct outTotalMass);
     }
+
+
+int pstGetMinDt(PST pst,void *vin,int nIn,void *vout,int nOut) {
+    LCL *plcl = pst->plcl;
+    struct outGetMinDt *out = vout;
+    struct outGetMinDt outUpper;
+
+
+
+    if (pst->nLeaves > 1) {
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_GETMINDT,vin,nIn);
+	pstGetMinDt(pst->pstLower,vin,nIn,vout,nOut);
+	mdlGetReply(pst->mdl,rID,&outUpper,NULL);
+	assert(nOut==sizeof(struct outGetMinDt));
+	if (out->uMinDt < outUpper.uMinDt) out->uMinDt = outUpper.uMinDt;
+	}
+    else {
+	out->uMinDt = pkdGetMinDt(plcl->pkd);
+	}
+    return sizeof(struct outGetMinDt);
+    }
+
 
 int pstLightConeOpen(PST pst,void *vin,int nIn,void *vout,int nOut) {
     struct inLightConeOpen *in = vin;

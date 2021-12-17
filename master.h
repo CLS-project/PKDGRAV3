@@ -28,12 +28,64 @@
 #include "pst.h"
 #include "mdl.h"
 #include "parameters.h"
+#ifdef COOLING
+#include "cooling/cooling_struct.h"
+#endif
 
 #define MSR_INIT_E		1
 #define MSR_STEP_E		0
 
 extern time_t timeGlobalSignalTime;
 extern int bGlobalOutput;
+
+enum msrTimers {
+   TIMER_GRAVITY = 0,
+   TIMER_IO,
+   TIMER_TREE,
+   TIMER_DOMAIN,
+   TIMER_KICKO,
+   TIMER_KICKC,
+   TIMER_DENSITY,
+   TIMER_ENDINT,
+   TIMER_GRADIENTS,
+   TIMER_FLUXES,
+   TIMER_TIMESTEP,
+   TIMER_DRIFT,
+   TIMER_FOF,
+#ifdef FEEDBACK
+   TIMER_FEEDBACK,
+#endif
+#ifdef STAR_FORMATION
+   TIMER_STARFORM,
+#endif
+#ifdef BLACKHOLES
+   TIMER_BHS,
+#endif
+#ifdef STELLAR_EVOLUTION
+   TIMER_STEV,
+#endif
+   TIMER_NONE,
+   TOTAL_TIMERS
+};
+
+// The order should be the same than in the enumerate above!
+static const char *timer_names[TOTAL_TIMERS] = {
+    "Gravity",  "IO", "Tree", "DomainDecom",  "KickOpen", "KickClose",
+    "Density", "EndTimeStep",  "Gradient", "Flux", "TimeStep", "Drift", "FoF",
+#ifdef FEEDBACK
+    "Feedback",
+#endif
+#ifdef STAR_FORMATION
+    "StarForm",
+#endif
+#ifdef BLACKHOLES
+    "BHs",
+#endif
+#ifdef STELLAR_EVOLUTION
+    "Stev",
+#endif
+    "Others"
+};
 
 struct MSRINSTANCE {
     PyObject_HEAD
@@ -51,6 +103,7 @@ public:
 public:
     int Python(int argc, char *argv[]);
     int ValidateParameters();
+    void SetUnits();
     void Hostname();
     void MemStatus();
     int GetLock();
@@ -80,6 +133,7 @@ public:
     void OutVector(const char *pszFile,int iType,int iFileType);
     void OutVector(const char *pszFile,int iType);
     void Output(int iStep, double dTime, double dDelta, int bCheckpoint);
+    void OutputFineStatistics(double dStep, double dTime);
 
     void RecvArray(void *vBuffer,int field,int iUnitSize,double dTime,bool bMarked=false);
 
@@ -90,6 +144,9 @@ public:
     void BuildTreeFixed(int bNeedEwald,uint8_t uRungDD);
     void BuildTreeActive(int bNeedEwald,uint8_t uRungDD);
     void BuildTreeMarked(int bNeedEwald=0);
+#ifdef OPTIM_SMOOTH_NODE
+    void ReorderWithinNodes();
+#endif
 
     // Gravity
     uint8_t Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
@@ -98,7 +155,10 @@ public:
 
     // Analysis
     void Smooth(double dTime,double dDelta,int iSmoothType,int bSymmetric,int nSmooth);
-    void ReSmooth(double dTime,double dDelta,int iSmoothType,int bSymmetric);
+    int ReSmooth(double dTime,double dDelta,int iSmoothType,int bSymmetric);
+#ifdef OPTIM_SMOOTH_NODE
+    int ReSmoothNode(double dTime, double dDelta, int iSmoothType,int bSymmetric);
+#endif
     void NewFof(double exp);
     void Hop(double dTime,double dDelta);
     void GroupStats();
@@ -173,6 +233,7 @@ public:
 
     PRM prm;
     LCL lcl;
+
     blitz::TinyVector<double,3> fCenter;
 public:
     /*
@@ -188,9 +249,32 @@ public:
     uint64_t nDark;
     uint64_t nGas;
     uint64_t nStar;
+    uint64_t nBH;
     uint64_t nMaxOrder;		/* Order number of last particle */
+    int nClasses;
     int iCurrMaxRung;
 
+    /*
+    ** Timers
+    */
+    struct msrtimer {
+      double sec;
+	double acc;
+	} ti[TOTAL_TIMERS];
+
+
+#ifdef COOLING
+    struct cooling_function_data *cooling;
+    struct cooling_tables *cooling_table;
+#endif
+#ifdef STAR_FORMATION
+    int starFormed;
+    double massFormed;
+#endif
+    /*
+     * File for the fine-grained output
+     */
+    FILE* fpFineLog;
     /*
     ** Tree moments (for Ewald)
     */
@@ -228,6 +312,7 @@ public:
 
     /* Gas */
     double dTuFac;
+    int bUpdateBall;
 
     /* Values for a restore from checkpoint */
     double dCheckpointTime;
@@ -254,6 +339,7 @@ protected:
     double Soft()         const { return param.dSoft; }
     int DoDensity()       const { return param.bDoDensity; }
     int DoGas()           const { return param.bDoGas; }
+    int MeshlessHydro()   const { return param.bMeshlessHydro; }
     int DoGravity()       const { return param.bDoGravity; }
     double Eta()          const { return param.dEta; }
     int MaxRung()         const { return param.iMaxRung; }
@@ -301,15 +387,26 @@ protected:
     void SetLinGrid(double dTime, double dDelta, int nGrid, int bKickClose, int bKickOpen);
     void LinearKick(double dTime, double dDelta, int bKickClose, int bKickOpen);
 #endif
+
+    // Timers
+    void TimerStart(int iTimer);
+    void TimerStop(int iTimer);
+    double TimerGet(int iTimer);
+    double TimerGetAcc(int iTimer);
+    void TimerHeader();
+    void TimerRestart();
+    double TimerDump(int iStep);
     void CalcEandL(int bFirst,double dTime,double *E,double *T,double *U,double *Eth,double *L,double *F,double *W);
     void Drift(double dTime,double dDelta,int iRoot);
 
-    void SmoothSetSMF(SMF *smf, double dTime, double dDelta);
+    void SmoothSetSMF(SMF *smf, double dTime, double dDelta, int nSmooth);
     void ZeroNewRung(uint8_t uRungLo, uint8_t uRungHi, int uRung);
     void KickKDKOpen(double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi);
     void KickKDKClose(double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi);
     void UpdateRung(uint8_t uRung);
     void AccelStep(uint8_t uRungLo,uint8_t uRungHi,double dTime,double dDelta);
+    uint8_t GetMinDt();
+    void SetGlobalDt(uint8_t minDt);
     void SphStep(uint8_t uRungLo,uint8_t uRungHi,double dTime,double dDelta);
     void DensityStep(uint8_t uRungLo,uint8_t uRungHi,double dTime,double dDelta);
 
@@ -318,10 +415,46 @@ protected:
     void CoolSetup(double dTime);
     void Cooling(double dTime,double dStep,int bUpdateState, int bUpdateTable,int bInterateDt);
     void AddDelParticles();
-    void StarForm(double dTime, double dDelta, int iRung);
     void InitSph(double dTime,double dDelta);
     void Sph(double dTime, double dDelta, double dStep);
     uint64_t CountDistance(double dRadius2Inner, double dRadius2Outer);
+
+    // Meshless hydrodynamics
+    void MeshlessGradients(double dTime, double dDelta);
+    void MeshlessFluxes(double dTime,double dDelta);
+    void ResetFluxes(double dTime,double dDelta);
+    void HydroStep(double dTime, double dDelta);
+    void ComputeSmoothing(double dTime, double dDelta);
+    void ChemCompInit();
+    void EndTimestepIntegration(double dTime,double dDelta);
+
+#ifdef COOLING
+    // Cooling
+    void SetCoolingParam();
+    void CoolingUpdate(float redshift, int sync);
+    void CoolingInit();
+#endif
+#ifdef GRACKLE
+    void GrackleInit(int bComove, double dScaleFactor);
+#endif
+#ifdef STAR_FORMATION
+    void SetStarFormationParam();
+    void StarFormInit(double dTime);
+#endif
+    void StarForm(double dTime, double dDelta, int iRung);
+#ifdef FEEDBACK
+    void SetFeedbackParam();
+#endif
+#if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
+    void SetEOSParam();
+#endif
+#ifdef BLACKHOLES
+    void SetBlackholeParam();
+    void BlackholeInit(uint8_t uRungMax);
+    void PlaceBHSeed(double dTime, uint8_t uRungMax);
+    void BHMerger(double dTime);
+#endif
+
 
     void Initialize();
     void writeParameters(const char *baseName,int iStep,int nSteps,double dTime,double dDelta);
@@ -331,6 +464,7 @@ protected:
     void SaveParameters();
     int CountRungs(uint64_t *nRungs);
     void SetSoft(double);
+    void InitBall();
 
     void MeasureLinPk(int nGridLin,double a,double dBoxSize, uint64_t *nPk,float *fK,float *fPk);
     void OutputPk(int iStep,double dTime);
@@ -341,19 +475,21 @@ protected:
 	double dDelta,
 	double dTheta,
 	int nSteps,
-	int bDualTree,      /* Should be zero at rung 0! */
-	uint8_t uRung,	/* Rung level */
-	double *pdStep,	/* Current step */
+    int bDualTree,      /* Should be zero at rung 0! */
+    uint8_t uRung,	/* Rung level */
+    double *pdStep,	/* Current step */
 	uint8_t *puRungMax,int *pbDoCheckpoint,int *pbDoOutput,int *pbNeedKickOpen);
     void TopStepKDK(
-		    double dStep,	/* Current step */
-		    double dTime,	/* Current time */
-		    double dDelta,	/* Time step */
+		   double dStep,	/* Current step */
+		   double dTime,	/* Current time */
+		   double dDelta,	/* Time step */
 		    double dTheta,
-		    int iRung,		/* Rung level */
-		    int iKickRung,	/* Gravity on all rungs from iRung
-					    to iKickRung */
+		   int iRung,		/* Rung level */
+		   int iKickRung,	/* Gravity on all rungs from iRung
+					   to iKickRung */
 		    int iAdjust);		/* Do an adjust? */
+
+
 
     void InitRelaxation();
     void Relaxation(double dTime,double deltaT,int iSmoothType,int bSymmetric);
@@ -364,8 +500,8 @@ protected:
 public:
     void Profile(
 	const PROFILEBIN **pBins, int *pnBins, double *r,
-	double dMinRadius, double dLogRadius, double dMaxRadius,
-	int nPerBin, int nBins, int nAccuracy );
+      double dMinRadius, double dLogRadius, double dMaxRadius,
+      int nPerBin, int nBins, int nAccuracy );
     void OutputGrid(const char *filename, bool k=false, int iGrid=0, int nParaWrite=0);
 
     uint64_t CountSelected();
@@ -376,6 +512,7 @@ public:
     uint64_t SelDark(bool setIfTrue=true,bool clearIfFalse=true);
     uint64_t SelDeleted(bool setIfTrue=true,bool clearIfFalse=true);
     uint64_t SelBlackholes(bool setIfTrue=true,bool clearIfFalse=true);
+    uint64_t SelActives(bool setIfTrue=true,bool clearIfFalse=true);
     uint64_t SelGroup(int iGroup,bool setIfTrue=true,bool clearIfFalse=true);
     uint64_t SelMass(double dMinMass,double dMaxMass,int setIfTrue,int ClearIfFalse);
     uint64_t SelById(uint64_t idStart,uint64_t idEnd,int setIfTrue,int clearIfFalse);

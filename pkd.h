@@ -27,6 +27,7 @@
 #include "gravity/cl.h"
 #include "gravity/moments.h"
 #include "cosmo.h"
+#include "units.h"
 #include "io/fio.h"
 #ifdef USE_GRAFIC
 #include "grafic.h"
@@ -34,6 +35,10 @@
 #include "basetype.h"
 #include "io/iomodule.h"
 #include "core/bound.h"
+#ifdef GRACKLE
+#include <grackle.h>
+#endif
+#include "chemistry.h"
 
 #ifdef __cplusplus
 #define CAST(T,V) reinterpret_cast<T>(V)
@@ -111,6 +116,7 @@ static inline int64_t d2u64(double d) {
 #define PKD_MODEL_PARTICLE_ID  (1<<13) /* Particles have a unique ID */
 #define PKD_MODEL_UNORDERED    (1<<14) /* Particles do not have an order */
 #define PKD_MODEL_INTEGER_POS  (1<<15) /* Particles do not have an order */
+#define PKD_MODEL_BH           (1<<16) /* BH fields */
 
 #define PKD_MODEL_NODE_MOMENT  (1<<24) /* Include moment in the tree */
 #define PKD_MODEL_NODE_ACCEL   (1<<25) /* mean accel on cell (for grav step) */
@@ -159,13 +165,21 @@ typedef struct velsmooth {
     float veldisp2;
     } VELSMOOTH;
 
+
+typedef double myreal;
+
+
+
+
 typedef struct sphfields {
     char *pNeighborList; /* pointer to nearest neighbor list - compressed */
     double vPred[3];
+
+    float c;		/* sound speed */
+#ifndef OPTIM_REMOVE_UNUSED
     float u;	        /* thermal energy */ 
     float uPred;	/* predicted thermal energy */
     float uDot;
-    float c;		/* sound speed */
     float divv;		
     float BalsaraSwitch;    /* Balsara viscosity reduction */
     float fMetals;	    /* mass fraction in metals, a.k.a, Z - tipsy output variable */
@@ -174,14 +188,134 @@ typedef struct sphfields {
     float diff; 
     float fMetalsPred;
     float fMetalsDot;
+#endif //OPTIM_REMOVE_UNUSED
+
+    /* IA: B matrix to 'easily' reconstruct faces'. Reminder: it is symmetric */
+    double B[6]; 
+
+    /* IA: Condition number for pathological configurations */
+    myreal Ncond;
+
+    /* IA: Gradients */
+    myreal gradRho[3];
+    myreal gradVx[3];
+    myreal gradVy[3];
+    myreal gradVz[3];
+    myreal gradP[3];
+
+    /* IA: last time this particle's primitve variables were updated */
+    myreal lastUpdateTime;
+    myreal lastAcc[3];
+    myreal lastMom[3];
+    myreal lastE;
+    myreal lastUint;
+    myreal lastHubble; // TODO: Maybe there is a more intelligent way to avoid saving this...
+#ifndef USE_MFM
+    myreal lastDrDotFrho[3];
+#endif
+    float lastMass;
+
+    /* IA: normalization factor (Eq 7 Hopkins 2015) at the particle position */
+    double omega;
+
+    /* IA: Fluxes */
+    myreal Frho;
+    myreal Fmom[3];
+    myreal Fene;
+
+#ifndef USE_MFM
+    double drDotFrho[3]; 
+#endif
+    /* IA: Conserved variables */
+    double mom[3];
+    double E;
+    /* IA: Internal energy, which is evolved in parallel and used for updating the pressure if we are in a cold flow */
+    double Uint;
+
+#ifdef ENTROPY_SWITCH
+    double S;
+    double lastS;
+    double maxEkin;
+#endif
+
+    /* IA: Primitive variables */
+    double P;
+
+    /* IA: fBall from the last iteration. Used for the bisection algorithm */
+    //float fLastBall;
+    /* IA: Number of neighbors correspoding to that fBall */
+    //int nLastNeighs;
+
+    /* IA: TODO temporarly */
+    //uint8_t uNewRung; 
+
+#ifdef STAR_FORMATION
+    myreal SFR;
+#endif
+
+    float afElemMass[ELEMENT_COUNT];
+
+#ifdef COOLING
+    myreal lastCooling;
+    float cooling_dudt;
+#endif
+
+#ifdef HAVE_METALLICITY
+    float fMetalMass;
+#endif
+
+
+#ifdef FEEDBACK
+    float fAccFBEnergy;
+#endif
+
+
+    uint8_t uWake;
 
     } SPHFIELDS;
 
 typedef struct starfields {
-    float fTimer;  /* For gas -- cooling shutoff, for stars -- when formed */
-    double totaltime; /* diagnostic -- get rid of it */
+    double omega;
+#ifdef STELLAR_EVOLUTION
+    float afElemAbun[ELEMENT_COUNT]; /* Formation abundances */
+    float fMetalAbun;		     /* Formation metallicity */
+    float fInitialMass;
+    float fLastEnrichTime;
+    float fLastEnrichMass;
+    int iLastEnrichMassIdx;
+    float fNextEnrichTime;
+    struct {
+       int oZ;
+       float fDeltaZ;
+    } CCSN, AGB, Lifetimes;
+    float fSNIaOnsetTime;
+#endif
+
+    float fTimer;  /* Time of formation */
+    float fSNEfficiency;
+    int hasExploded; /* Has exploded as a supernova? */
     } STARFIELDS;   
 
+typedef struct blackholefields {
+    PARTICLE *pLowPot;
+    double omega;
+    double dInternalMass;
+    double newPos[3];
+    double lastUpdateTime;
+    double dAccretionRate;
+    double dEddingtonRatio;
+    double dFeedbackRate;
+    double dAccEnergy;
+    float fTimer;    /* Time of formation */
+    } BHFIELDS;   
+
+#ifdef OPTIM_UNION_EXTRAFIELDS
+typedef union extrafields {
+    SPHFIELDS sph;
+    STARFIELDS star;
+    BHFIELDS bh;
+} EXTRAFIELDS;
+#endif
 
 typedef struct partLightCone {
     float pos[3];
@@ -323,7 +457,7 @@ typedef struct sphBounds {
     for (BND_j=0;BND_j<3;++BND_j) {				        \
 	BND_dMax = fabs((bnd)->fCenter[BND_j] - (pos)[BND_j]) + (bnd)->fMax[BND_j];		\
 	(max2) += BND_dMax*BND_dMax;					\
-	}							        \
+    }								\
     }
 
 #define CALCOPEN(pkdn,minside) {					\
@@ -437,7 +571,20 @@ typedef struct {
     float fEnvironDensity0;
     float fEnvironDensity1;
     float rHalf;
+    int nBH;
+    int nStar;
+    int nGas;
+    int nDM;
     } TinyGroupTable;
+
+/* IA: For the BH seeding, we need a small part of the FoF information
+ *  to survive for a while
+ */
+typedef struct {
+   double rPot[3];
+   float fMass;
+   int nBH;
+    } VeryTinyGroupTable;
 
 //typedef struct {
 //    } SmallGroupTable;
@@ -579,6 +726,7 @@ enum PKD_FIELD {
     oBall, /* One float */
     oSph, /* Sph structure */
     oStar, /* Star structure */
+    oBH, /* BH structure */
     oRelaxation,
     oVelSmooth,
     oRungDest, /* Destination processor for each rung */
@@ -605,6 +753,7 @@ typedef struct pkdContext {
     uint64_t nDark;
     uint64_t nGas;
     uint64_t nStar;
+    uint64_t nBH;
     double fPeriod[3];
     char **kdNodeListPRIVATE; /* BEWARE: also char instead of KDN */
     int iTopTree[NRESERVED_NODES];
@@ -655,6 +804,13 @@ typedef struct pkdContext {
     int oNodeBnd;
     int oNodeSphBounds; /* Three Bounds */
     int oNodeVBnd; /* Velocity bounds */
+#ifdef OPTIM_REORDER_IN_NODES
+    int oNodeNgas;
+#if (defined(STAR_FORMATION) && defined(FEEDBACK)) || defined(STELLAR_EVOLUTION)
+    int oNodeNstar;
+#endif
+    int oNodeNbh;
+#endif
 
     /*
     ** Tree walk variables.
@@ -708,6 +864,7 @@ typedef struct pkdContext {
     uint32_t iRemoteGroup,nMaxRemoteGroups;
     FOFRemote *tmpFofRemote;
     TinyGroupTable *tinyGroupTable;
+    VeryTinyGroupTable *veryTinyGroupTable;
 
     GHtmpGroupTable *tmpHopGroups;
     HopGroupTable *hopGroups;
@@ -725,6 +882,21 @@ typedef struct pkdContext {
     PROFILEBIN *profileBins;
 
     CSM csm;
+
+#ifdef COOLING
+    // IA: we add here the needed cooling information available to all procs
+    struct cooling_function_data *cooling;
+    struct cooling_tables *cooling_table;
+#endif
+#ifdef GRACKLE
+    chemistry_data *grackle_data;
+    chemistry_data_storage *grackle_rates;
+    grackle_field_data *grackle_field;
+    code_units *grackle_units;
+#endif
+#ifdef STELLAR_EVOLUTION
+    struct inStellarEvolution *StelEvolData;
+#endif
 
 #ifdef USE_CUDA
     void *cudaCtx;
@@ -890,6 +1062,30 @@ static inline void pkdNodeSetBndMinMax( PKD pkd, KDN *n, double *dMin, double *d
     pkdNodeSetBnd(pkd,n,&bnd);
     }
 
+#ifdef OPTIM_REORDER_IN_NODES
+static inline int pkdNodeNgas( PKD pkd, KDN* n){
+   return *CAST(int *, pkdNodeField(n, pkd->oNodeNgas));
+   }
+static inline void pkdNodeSetNgas(  PKD pkd, KDN *n, int ngas){
+    *CAST(int*, pkdNodeField(n, pkd->oNodeNgas)) = ngas;
+    }
+#if (defined(STAR_FORMATION) && defined(FEEDBACK)) || defined(STELLAR_EVOLUTION)
+static inline int pkdNodeNstar( PKD pkd, KDN* n){
+   return *CAST(int *, pkdNodeField(n, pkd->oNodeNstar));
+   }
+static inline void pkdNodeSetNstar(  PKD pkd, KDN *n, int nstar){
+    *CAST(int*, pkdNodeField(n, pkd->oNodeNstar)) = nstar;
+    }
+
+#endif
+static inline int pkdNodeNbh( PKD pkd, KDN* n){
+   return *CAST(int *, pkdNodeField(n, pkd->oNodeNbh));
+   }
+static inline void pkdNodeSetNBH(  PKD pkd, KDN *n, int nbh){
+    *CAST(int*, pkdNodeField(n, pkd->oNodeNbh)) = nbh;
+    }
+#endif
+
 static inline BND *pkdNodeVBnd( PKD pkd, KDN *n ) {
     return CAST(BND *,pkdNodeField(n,pkd->oNodeVBnd));
     }
@@ -1031,6 +1227,7 @@ static inline void pkdSetBall(PKD pkd, PARTICLE *p, float fBall) {
     if (pkd->oFieldOffset[oBall]) *CAST(float *, pkdField(p,pkd->oFieldOffset[oBall])) = fBall;
     }
 
+
 /* Here is the new way of getting mass and softening */
 static inline float pkdMass( PKD pkd, PARTICLE *p ) {
     if ( pkd->oFieldOffset[oMass] ) {
@@ -1110,17 +1307,61 @@ static inline uint64_t *pkdParticleID( PKD pkd, PARTICLE *p ) {
     }
 /* Sph variables */
 static inline SPHFIELDS *pkdSph( PKD pkd, PARTICLE *p ) {
+#if defined(OPTIM_UNION_EXTRAFIELDS) && defined(DEBUG_UNION_EXTRAFIELDS)
+    assert( pkdSpecies(pkd,p)==FIO_SPECIES_SPH);
+#endif
     return ((SPHFIELDS *) pkdField(p,pkd->oFieldOffset[oSph]));
     }
 static inline const SPHFIELDS *pkdSphRO( PKD pkd, const PARTICLE *p ) {
+#if defined(OPTIM_UNION_EXTRAFIELDS) && defined(DEBUG_UNION_EXTRAFIELDS)
+    assert( pkdSpecies(pkd,p)==FIO_SPECIES_SPH);
+#endif
     return ((const SPHFIELDS *) pkdFieldRO(p,pkd->oFieldOffset[oSph]));
     }
 static inline STARFIELDS *pkdStar( PKD pkd, PARTICLE *p ) {
+#ifdef OPTIM_UNION_EXTRAFIELDS
+#ifdef DEBUG_UNION_EXTRAFIELDS
+    assert( pkdSpecies(pkd,p)==FIO_SPECIES_STAR);
+#endif //DEBUG
+    return ((STARFIELDS *) pkdField(p,pkd->oFieldOffset[oSph]));
+#else
     return ((STARFIELDS *) pkdField(p,pkd->oFieldOffset[oStar]));
+#endif
+    }
+static inline const STARFIELDS *pkdStarRO( PKD pkd, PARTICLE *p ) {
+#ifdef OPTIM_UNION_EXTRAFIELDS
+#ifdef DEBUG_UNION_EXTRAFIELDS
+    assert( pkdSpecies(pkd,p)==FIO_SPECIES_STAR);
+#endif //DEBUG
+    return ((const STARFIELDS *) pkdFieldRO(p,pkd->oFieldOffset[oSph]));
+#else
+    return ((const STARFIELDS *) pkdFieldRO(p,pkd->oFieldOffset[oStar]));
+#endif
+    }
+static inline BHFIELDS *pkdBH( PKD pkd, PARTICLE *p ) {
+#ifdef OPTIM_UNION_EXTRAFIELDS
+#ifdef DEBUG_UNION_EXTRAFIELDS
+    assert( pkdSpecies(pkd,p)==FIO_SPECIES_BH);
+#endif //DEBUG
+    return ((BHFIELDS *) pkdField(p,pkd->oFieldOffset[oSph]));
+#else
+    return ((BHFIELDS *) pkdField(p,pkd->oFieldOffset[oBH]));
+#endif
+    }
+static inline const BHFIELDS *pkdBHRO( PKD pkd, PARTICLE *p ) {
+#ifdef OPTIM_UNION_EXTRAFIELDS
+#ifdef DEBUG_UNION_EXTRAFIELDS
+    assert( pkdSpecies(pkd,p)==FIO_SPECIES_BH);
+#endif //DEBUG
+    return ((const BHFIELDS *) pkdFieldRO(p,pkd->oFieldOffset[oSph]));
+#else
+    return ((const BHFIELDS *) pkdFieldRO(p,pkd->oFieldOffset[oBH]));
+#endif
     }
 static inline double *pkd_vPred( PKD pkd, PARTICLE *p ) {
     return &(((SPHFIELDS *) pkdField(p,pkd->oFieldOffset[oSph]))->vPred[0]);
     }
+#ifndef OPTIM_REMOVE_UNUSED
 static inline float *pkd_u( PKD pkd, PARTICLE *p ) {
     return &(((SPHFIELDS *) pkdField(p,pkd->oFieldOffset[oSph]))->u);
     }
@@ -1148,6 +1389,7 @@ static inline float *pkd_fMetalsDot( PKD pkd, PARTICLE *p ) {
 static inline float *pkd_fMetalsPred( PKD pkd, PARTICLE *p ) {
     return &(((SPHFIELDS *) pkdField(p,pkd->oFieldOffset[oSph]))->fMetalsPred);
     }
+#endif //OPTIM_REMOVE_UNUSED
 static inline char **pkd_pNeighborList( PKD pkd, PARTICLE *p ) {
     return &(((SPHFIELDS *) pkdField(p,pkd->oFieldOffset[oSph]))->pNeighborList);
     }
@@ -1190,7 +1432,7 @@ void pkdTreeBuildByGroup(PKD pkd, int nBucket, int nGroup);
 void pkdInitialize(
     PKD *ppkd,MDL mdl,int nStore,uint64_t nMinTotalStore,uint64_t nMinEphemeral,uint32_t nEphemeralBytes,
     int nTreeBitsLo, int nTreeBitsHi,
-    int iCacheSize,int iWorkQueueSize,int iCUDAQueueSize,double *fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,
+    int iCacheSize,int iWorkQueueSize,int iCUDAQueueSize,double *fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,uint64_t nBH,
     uint64_t mMemoryModel, int bLightCone, int bLightConeParticles);
 void pkdFinish(PKD);
 size_t pkdClCount(PKD pkd);
@@ -1201,6 +1443,7 @@ size_t pkdIlpMemory(PKD pkd);
 size_t pkdTreeMemory(PKD pkd);
 void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double dTuFac);
 void pkdSetSoft(PKD pkd,double dSoft);
+void pkdSetSmooth(PKD pkd,double dSmooth);
 void pkdSetCrit(PKD pkd,double dCrit);
 void pkdCalcBound(PKD,BND *);
 void pkdEnforcePeriodic(PKD,BND *);
@@ -1208,6 +1451,8 @@ void pkdPhysicalSoft(PKD pkd,double dSoftMax,double dFac,int bSoftMaxMul);
 int pkdWeight(PKD,int,double,int,int,int,int *,int *,double *,double *);
 void pkdCountVA(PKD,int,double,int *,int *);
 double pkdTotalMass(PKD pkd);
+uint8_t pkdGetMinDt(PKD pkd);
+void   pkdSetGlobalDt(PKD pkd, uint8_t minDt);
 int pkdLowerPart(PKD,int,double,int,int);
 int pkdUpperPart(PKD,int,double,int,int);
 int pkdWeightWrap(PKD,int,double,double,int,int,int,int *,int *);
@@ -1244,6 +1489,9 @@ int pkdColOrdRejects(PKD,uint64_t,int);
 void pkdLocalOrder(PKD,uint64_t iMinOrder,uint64_t iMaxOrder);
 void pkdCheckpoint(PKD pkd,const char *fname);
 void pkdRestore(PKD pkd,const char *fname);
+void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dScaleFactor, double dTime,
+      uint64_t nDark, uint64_t nGas, uint64_t nStar, uint64_t nBH,
+      double dBoxSize, int nProcessors, UNITS units);
 uint32_t pkdWriteFIO(PKD pkd,FIO fio,double dvFac,double dTuFac,BND *bnd);
 void pkdWriteFromNode(PKD pkd,int iNode, FIO fio,double dvFac,double dTuFac,BND *bnd);
 void pkdWriteViaNode(PKD pkd, int iNode);
@@ -1265,6 +1513,10 @@ void pkdProcessLightCone(PKD pkd,PARTICLE *p,float fPot,double dLookbackFac,doub
 void pkdGravEvalPP(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINFOOUT *pOut );
 void pkdGravEvalPC(PINFOIN *pPart, int nBlocks, int nInLast, ILC_BLK *blk,  PINFOOUT *pOut );
 void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double,double,int bDoGas);
+void pkdEndTimestepIntegration(PKD pkd, struct inEndTimestep in); 
+#ifdef OPTIM_REORDER_IN_NODES
+void pkdReorderWithinNodes(PKD pkd);
+#endif
 void pkdKickKDKOpen(PKD pkd,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi);
 void pkdKickKDKClose(PKD pkd,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi);
 void pkdKick(PKD pkd,double dTime,double dDelta,int bDoGas,double,double,double,uint8_t uRungLo,uint8_t uRungHi);
@@ -1278,8 +1530,11 @@ void pkdAccelStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
 		  double dDelta, int iMaxRung,
 		  double dEta,double dVelFac,double dAccFac,
 		  int bDoGravity,int bEpsAcc,double dhMinOverSoft);
+void pkdCooling(PKD pkd,double,double,int,int,int,int);
+void pkdChemCompInit(PKD pkd, struct inChemCompInit in);
 void pkdSphStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
 		double dDelta, int iMaxRung,double dEta, double dAccFac, double dEtaUDot);
+#ifndef STAR_FORMATION
 void pkdStarForm(PKD pkd, double dRateCoeff, double dTMax, double dDenMin,
 		 double dDelta, double dTime,
 		 double dInitStarMass, double dESNPerStarMass, double dtCoolingShutoff,
@@ -1288,9 +1543,11 @@ void pkdStarForm(PKD pkd, double dRateCoeff, double dTMax, double dDenMin,
 		 double dTuFac, int bGasCooling,
 		 int bdivv, int *nFormed, double *dMassFormed,
 		 int *nDeleted);
+#endif
 #define CORRECTENERGY_IN 1
 #define CORRECTENERGY_OUT 2
 #define CORRECTENERGY_SPECIAL 3
+#define CORRECTENERGY_IC_MESHLESS 4
 void pkdCorrectEnergy(PKD pkd, double dTuFac, double z, double dTime, int iType );
 void pkdDensityStep(PKD pkd, uint8_t uRungLo, uint8_t uRungHi, int iMaxRung, double dDelta, double dEta, double dRhoFac);
 int pkdUpdateRung(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
@@ -1320,6 +1577,7 @@ int pkdResetTouchRung(PKD pkd, unsigned int iTestMask, unsigned int iSetMask);
 int pkdIsGas(PKD,PARTICLE *);
 int pkdIsDark(PKD,PARTICLE *);
 int pkdIsStar(PKD,PARTICLE *);
+int pkdIsBH(PKD,PARTICLE *);
 void pkdColNParts(PKD pkd, int *pnNew, int *nDeltaGas, int *nDeltaDark,
 		  int *nDeltaStar);
 void pkdNewOrder(PKD pkd, int nStart);
@@ -1329,6 +1587,7 @@ struct outGetNParts {
     total_t nGas;
     total_t nDark;
     total_t nStar;
+    total_t nBH;
     total_t nMaxOrder;
     };
 
@@ -1336,8 +1595,9 @@ struct outGetNParts {
 extern "C" {
 #endif
 
+void pkdMoveDeletedParticles(PKD pkd, total_t *n, total_t *nGas, total_t *nDark, total_t *nStar, total_t *nBH);
 void pkdGetNParts(PKD pkd, struct outGetNParts *out );
-void pkdSetNParts(PKD pkd, int nGas, int nDark, int nStar);
+void pkdSetNParts(PKD pkd, int nGas, int nDark, int nStar, int nBH);
 void pkdInitRelaxation(PKD pkd);
 
 #ifdef USE_GRAFIC
@@ -1351,6 +1611,7 @@ void pkdSetClass( PKD pkd, float fMass, float fSoft, FIO_SPECIES eSpecies, PARTI
 int pkdCountSelected(PKD pkd);
 int pkdSelSpecies(PKD pkd,uint64_t mSpecies, int setIfTrue, int clearIfFalse);
 int pkdSelGroup(PKD pkd, int iGroup, int setIfTrue, int clearIfFalse);
+int pkdSelActive(PKD pkd, int setIfTrue, int clearIfFalse);
 int pkdSelBlackholes(PKD pkd, int setIfTrue, int clearIfFalse);
 int pkdSelMass(PKD pkd,double dMinMass, double dMaxMass, int setIfTrue, int clearIfFalse );
 int pkdSelById(PKD pkd,uint64_t idStart, uint64_t idEnd, int setIfTrue, int clearIfFalse );

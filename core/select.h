@@ -25,6 +25,20 @@ protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
     };
 
+class ServiceSelActives : public TraverseCountN {
+public:
+    struct input {
+	bool setIfTrue;
+	bool clearIfFalse;
+	input() = default;
+	input(bool setIfTrue,bool clearIfFalse)
+	    : setIfTrue(setIfTrue), clearIfFalse(clearIfFalse) {}
+	};
+    explicit ServiceSelActives(PST pst)
+	: TraverseCountN(pst,PST_SELACTIVES,sizeof(input),"SelectActives") {}
+protected:
+    virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
+    };
 class ServiceSelBlackholes : public TraverseCountN {
 public:
     struct input {

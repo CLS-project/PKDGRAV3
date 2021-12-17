@@ -90,6 +90,7 @@ void *worker_init(MDL vmdl) {
     mdl->AddService(std::make_unique<ServiceCountSelected>(pst));
     mdl->AddService(std::make_unique<ServiceSelBlackholes>(pst));
     mdl->AddService(std::make_unique<ServiceSelSpecies>(pst));
+    mdl->AddService(std::make_unique<ServiceSelActives>(pst));
     mdl->AddService(std::make_unique<ServiceSelGroup>(pst));
     mdl->AddService(std::make_unique<ServiceSelMass>(pst));
     mdl->AddService(std::make_unique<ServiceSelPhaseDensity>(pst));
@@ -160,7 +161,7 @@ int master(MDL mdl,void *vpst) {
 	/* Establish safety lock. */
 	if (!msr.GetLock()) {
 	    return 1;
-	    }
+	}
 
 	msr.Hostname(); // List all host names
 

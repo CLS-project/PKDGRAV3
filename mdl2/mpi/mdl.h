@@ -91,7 +91,7 @@ typedef struct mdl_wq_node {
 //     uint32_t iLine;        /* Index of the cache line */
 //     } CacheHeadernew;
 
-#define MDL_CACHE_DATA_SIZE (512)
+#define MDL_CACHE_DATA_SIZE (1024)
 
 //*****************************************************************************
 
@@ -122,7 +122,7 @@ protected:
 public:
     explicit CACHEhelper(uint32_t nData, bool bModify=false) : nData(nData), bModify(bModify) {}
     virtual ~CACHEhelper() = default;
-    };
+	};
 
 class CACHE : private ARChelper {
     friend class mdlClass;

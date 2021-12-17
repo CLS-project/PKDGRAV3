@@ -207,7 +207,7 @@ int main( int argc, char *argv[] ) {
     nSph  = fioGetN(fioIn,FIO_SPECIES_SPH);
     nDark = fioGetN(fioIn,FIO_SPECIES_DARK);
     nStar = fioGetN(fioIn,FIO_SPECIES_STAR);
-    if (!fioGetAttr(fioIn,"dTime",FIO_TYPE_DOUBLE,&dTime)) dTime = 0.0;
+    if (!fioGetAttr(fioIn,0,"dTime",FIO_TYPE_DOUBLE,&dTime)) dTime = 0.0;
 
     printf("dTime=%g\n",dTime);
 
@@ -244,10 +244,11 @@ int main( int argc, char *argv[] ) {
 	perror(outName);
 	exit(errno);
 	}
-    fioSetAttr(fioOut,"dTime",FIO_TYPE_DOUBLE,&dTime);
+    fioSetAttr(fioOut,0,"dTime",FIO_TYPE_DOUBLE,1,&dTime);
 
     for( i=0; i<N; i++ ) {
         eSpecies = fioSpecies(fioIn);
+           /* IA: TODO: to be adapted to extended sph/star output (although this is just to convert between file types) 
         switch(eSpecies) {
         case FIO_SPECIES_SPH:
             fioReadSph(fioIn,&iOrder,r,v,&fMass,&fSoft,&fPot,&fRho,&u,&fMetals);
@@ -268,6 +269,7 @@ int main( int argc, char *argv[] ) {
             fprintf(stderr,"Unsupported particle type: %d\n",eSpecies);
             abort();
             }
+            */
 	}
 
     fioClose(fioOut);
