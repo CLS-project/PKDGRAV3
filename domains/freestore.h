@@ -20,8 +20,8 @@ class ServiceFreeStore : public TraverseCountN {
 public:
     typedef void input;
     explicit ServiceFreeStore(PST pst)
-	: TraverseCountN(pst,PST_FREESTORE,"FreeStore") {}
+        : TraverseCountN(pst,PST_FREESTORE,"FreeStore") {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
-    };
+};
 

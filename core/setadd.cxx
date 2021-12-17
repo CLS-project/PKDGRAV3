@@ -25,9 +25,9 @@ static_assert(std::is_void<ServiceSetAdd::output>() || std::is_trivial<ServiceSe
 // we are actually setting up the PST structure.
 int ServiceSetAdd::operator()(int nIn, void *pIn, void *pOut) {
     assert(nIn == sizeof(input));
-    SetAdd(node_pst,static_cast<input*>(pIn));
+    SetAdd(node_pst,static_cast<input *>(pIn));
     return 0;
-    }
+}
 
 void ServiceSetAdd::SetAdd(PST pst,input *in) {
     PST pstNew;
@@ -37,25 +37,25 @@ void ServiceSetAdd::SetAdd(PST pst,input *in) {
     n = in->idUpper - in->idLower;
     idMiddle = (in->idUpper + in->idLower) / 2;
     if ( n > 1 ) {
-	int rID;
-	/* Make sure that the pst lands on core zero */
-	iProcLower = mdlThreadToProc(pst->mdl,in->idLower);
-	iProcUpper = mdlThreadToProc(pst->mdl,in->idUpper-1);
-	if (iProcLower!=iProcUpper) {
-	    idMiddle = mdlProcToThread(pst->mdl,mdlThreadToProc(pst->mdl,idMiddle));
-	    }
-	pst->nLeaves += n - 1;
-	pst->nLower = idMiddle - in->idLower;
-	pst->nUpper = in->idUpper - idMiddle;
+        int rID;
+        /* Make sure that the pst lands on core zero */
+        iProcLower = mdlThreadToProc(pst->mdl,in->idLower);
+        iProcUpper = mdlThreadToProc(pst->mdl,in->idUpper-1);
+        if (iProcLower!=iProcUpper) {
+            idMiddle = mdlProcToThread(pst->mdl,mdlThreadToProc(pst->mdl,idMiddle));
+        }
+        pst->nLeaves += n - 1;
+        pst->nLower = idMiddle - in->idLower;
+        pst->nUpper = in->idUpper - idMiddle;
 
-	in->idLower = idMiddle;
-	pst->idUpper = in->idLower;
-	rID = mdlReqService(pst->mdl,pst->idUpper,getServiceID(),in,sizeof(input));
-	in->idLower = mdlSelf(pst->mdl);
-	in->idUpper = idMiddle;
-	pstInitialize(&pstNew,pst->mdl,pst->plcl);
-	pst->pstLower = pstNew;
-	SetAdd(pst->pstLower,in);
-	mdlGetReply(pst->mdl,rID,NULL,NULL);
-	}
+        in->idLower = idMiddle;
+        pst->idUpper = in->idLower;
+        rID = mdlReqService(pst->mdl,pst->idUpper,getServiceID(),in,sizeof(input));
+        in->idLower = mdlSelf(pst->mdl);
+        in->idUpper = idMiddle;
+        pstInitialize(&pstNew,pst->mdl,pst->plcl);
+        pst->pstLower = pstNew;
+        SetAdd(pst->pstLower,in);
+        mdlGetReply(pst->mdl,rID,NULL,NULL);
     }
+}

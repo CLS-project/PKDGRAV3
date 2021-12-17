@@ -12,8 +12,8 @@
 
 struct DebugInfoSession {
     Dwfl_Callbacks callbacks = {};
-    char* debuginfo_path = nullptr;
-    Dwfl* dwfl = nullptr;
+    char *debuginfo_path = nullptr;
+    Dwfl *dwfl = nullptr;
 
     DebugInfoSession() {
         callbacks.find_elf = dwfl_linux_proc_find_elf;
@@ -35,41 +35,40 @@ struct DebugInfoSession {
         dwfl_end(dwfl);
     }
 
-    DebugInfoSession(DebugInfoSession const&) = delete;
-    DebugInfoSession& operator=(DebugInfoSession const&) = delete;
+    DebugInfoSession(DebugInfoSession const &) = delete;
+    DebugInfoSession &operator=(DebugInfoSession const &) = delete;
 };
 
 struct DebugInfo {
-    void* ip;
+    void *ip;
     std::string function;
-    char const* file;
+    char const *file;
     int line;
 
-    DebugInfo(DebugInfoSession const& dis, void* ip)
+    DebugInfo(DebugInfoSession const &dis, void *ip)
         : ip(ip)
         , file()
-        , line(-1)
-    {
+        , line(-1) {
         // Get function name.
         uintptr_t ip2 = reinterpret_cast<uintptr_t>(ip);
-        Dwfl_Module* module = dwfl_addrmodule(dis.dwfl, ip2);
-        char const* name = dwfl_module_addrname(module, ip2);
+        Dwfl_Module *module = dwfl_addrmodule(dis.dwfl, ip2);
+        char const *name = dwfl_module_addrname(module, ip2);
         function = name ? boost::core::demangle(name) : "<unknown>";
 
         // Get source filename and line number.
-        if(Dwfl_Line* dwfl_line = dwfl_module_getsrc(module, ip2)) {
+        if (Dwfl_Line *dwfl_line = dwfl_module_getsrc(module, ip2)) {
             Dwarf_Addr addr;
             file = dwfl_lineinfo(dwfl_line, &addr, &line, nullptr, nullptr, nullptr);
         }
         else {
-           Dwarf_Addr bias = 0;
+            Dwarf_Addr bias = 0;
             if (Dwarf *dwarf = dwfl_module_getdwarf(module, &bias)) {
                 const uintptr_t adjusted = ip2 - bias;
                 size_t headerSize = 0;
                 Dwarf_Off nextOffset = 0;
                 for (Dwarf_Off offset = 0;
-		     dwarf_nextcu(dwarf, offset, &nextOffset, &headerSize, nullptr, nullptr, nullptr) == 0;
-                     offset = nextOffset) {
+                        dwarf_nextcu(dwarf, offset, &nextOffset, &headerSize, nullptr, nullptr, nullptr) == 0;
+                        offset = nextOffset) {
                     Dwarf_Die cudieMemory;
                     Dwarf_Die *cudie = dwarf_offdie(dwarf, offset + headerSize, &cudieMemory);
                     if (!cudie || !dwarf_haspc(cudie, adjusted)) continue;
@@ -77,20 +76,20 @@ struct DebugInfo {
                         file = dwarf_linesrc(lineinfo, nullptr, nullptr);
                         dwarf_lineno(lineinfo, &line);
                         //dwarf_linecol(lineinfo, &column);
-                        }
-                    break;
                     }
-	    }
+                    break;
+                }
+            }
         }
     }
 };
 
-std::ostream& operator<<(std::ostream& s, DebugInfo const& di) {
+std::ostream &operator<<(std::ostream &s, DebugInfo const &di) {
     s << di.ip << ' ' << di.function;
-    if(di.file)
+    if (di.file)
         s << " at " << di.file << ':' << di.line;
     return s;
-    }
+}
 
 
 #endif
@@ -117,13 +116,13 @@ void mdlbt::register_backtrace() {
 //    signal(SIGSEGV, signal_handler);
 //    signal(SIGABRT, signal_handler);
 //    signal(SIGFPE, signal_handler);
-    }
+}
 
 void mdlbt::terminate_handler() {
     std::unique_lock<std::mutex> lck(backtrace_mutex);
     show_backtrace();
     std::_Exit(EXIT_FAILURE);
-    }
+}
 
 void mdlbt::signal_handler(int signo, siginfo_t *si, void *unused) {
     std::unique_lock<std::mutex> lck(backtrace_mutex);
@@ -134,27 +133,27 @@ void mdlbt::signal_handler(int signo, siginfo_t *si, void *unused) {
     std::cerr << "SIGNAL " << signo << " at " << si->si_addr << '\n';
     show_backtrace();
     //std::_Exit(EXIT_FAILURE);
-    }
+}
 
 void mdlbt::show_backtrace() {
 #ifdef USE_BT
-    void* stack[512];
+    void *stack[512];
     int stack_size = ::backtrace(stack, sizeof stack / sizeof *stack);
 
     std::cerr << "Stacktrace of " << stack_size << " frames:\n";
 #ifdef USE_ELFUTILS
     DebugInfoSession dis;
-    for(int i = 0; i < stack_size; ++i) {
+    for (int i = 0; i < stack_size; ++i) {
         std::cerr << i << ": " << DebugInfo(dis, stack[i]) << '\n';
-        }
+    }
 #else
     auto functions = backtrace_symbols(stack, stack_size);
     for (int i=0; i < stack_size; i++) {
-	std::cerr << i << ":" << functions[i] << '\n';
-        }
+        std::cerr << i << ":" << functions[i] << '\n';
+    }
     free(functions);
 #endif
 #endif
     std::cerr.flush();
-    }
+}
 

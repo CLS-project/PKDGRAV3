@@ -18,9 +18,9 @@
 #ifndef BASETYPE_H
 #define BASETYPE_H
 #ifdef HAVE_CONFIG_H
-#include "config.h"
+    #include "config.h"
 #else
-#include "pkd_config.h"
+    #include "pkd_config.h"
 #endif
 #include <stdint.h>
 #include "ilp.h"
@@ -54,26 +54,26 @@ typedef double pos_t;
 typedef struct {
     int32_t  iPid;      /* A processor */
     int32_t  iIndex;    /* Index of item on the processor */
-    } remoteID;
+} remoteID;
 
 /* Regular particle with order and all the goodies */
 typedef struct particle {
-    uint64_t  uRung      :  IRUNGBITS;
+uint64_t  uRung      :  IRUNGBITS;
     uint64_t  bMarked    :  1;
-    uint64_t  uNewRung   :  IRUNGBITS;  /* Optional with bNewKDK + bMemUnordered */
+uint64_t  uNewRung   :  IRUNGBITS;  /* Optional with bNewKDK + bMemUnordered */
     uint64_t  iClass     :  8;          /* Optional with bMemUnordered */
-    uint64_t  iOrder     :  IORDERBITS; /* Optional with bMemUnordered */
-    } PARTICLE;
+uint64_t  iOrder     :  IORDERBITS; /* Optional with bMemUnordered */
+} PARTICLE;
 
 /* Abbreviated particle header with group id */
 #define IGROUPBITS (32-IRUNGBITS-1)
 #define IGROUPMAX ((1<<IGROUPBITS)-1)
 
 typedef struct uparticle {
-    uint32_t  uRung      :  IRUNGBITS;
+uint32_t  uRung      :  IRUNGBITS;
     uint32_t  bMarked    :  1;
-    uint32_t  iGroup     :  IGROUPBITS;
-    } UPARTICLE;
+uint32_t  iGroup     :  IGROUPBITS;
+} UPARTICLE;
 
 #define PP_CUDA_MEMORY_LIMIT (2*1024*1024)
 
@@ -82,35 +82,35 @@ typedef struct {
     float a[3];
     float fSmooth2;
     float fDensity;
-/*    float v[3];*/
-/*    float fMass;*/
-/*    float fSoft;*/
-    } PINFOIN;
+    /*    float v[3];*/
+    /*    float fMass;*/
+    /*    float fSoft;*/
+} PINFOIN;
 
 typedef struct {
     float a[3];
     float fPot;
     float dirsum, normsum;
     float rhopmax;
-    } PINFOOUT;
+} PINFOOUT;
 
 
 #if defined(USE_SIMD)
-typedef float ewaldFloatType;
+    typedef float ewaldFloatType;
 #else
-typedef double ewaldFloatType;
+    typedef double ewaldFloatType;
 #endif
 typedef union {
     ewaldFloatType *f;
 #if defined(USE_SIMD) && !defined(__CUDACC__)
     v_sf *p;
 #endif
-    } ewaldFloat;
+} ewaldFloat;
 
 typedef struct {
     ewaldFloat hx,hy,hz;
     ewaldFloat hCfac,hSfac;
-    } EwaldTable;
+} EwaldTable;
 struct EwaldVariables {
     momFloat r[3]; /* Center of mass of the box */
     MOMC mom; /* moment of the box */
@@ -119,7 +119,7 @@ struct EwaldVariables {
     int nMaxEwhLoop;
     int nEwLoopInner, nEwhLoop;
     int nReps,nEwReps;
-    };
+};
 
 struct pkdTimestepParameters {
     double dDelta, dEta;
@@ -130,13 +130,13 @@ struct pkdTimestepParameters {
     int nPartRhoLoc;
     double nPartColl;
     double dEccFacMax;
-    };
+};
 
 struct pkdKickParameters {
     int bKickClose, bKickOpen;
     vel_t dtClose[IRUNGMAX+1];
     vel_t dtOpen[IRUNGMAX+1];
-    };
+};
 
 struct pkdLightconeParameters {
     double dtLCDrift[IRUNGMAX+1];
@@ -145,91 +145,91 @@ struct pkdLightconeParameters {
     double dLookbackFacLCP;
     double dBoxSize;
     int bLightConeParticles;
-    };
+};
 
-struct inChemCompInit{
-   double dInitialH;
+struct inChemCompInit {
+    double dInitialH;
 #ifdef HAVE_HELIUM
-   double dInitialHe;
+    double dInitialHe;
 #endif
 #ifdef HAVE_CARBON
-   double dInitialC;
+    double dInitialC;
 #endif
 #ifdef HAVE_NITROGEN
-   double dInitialN;
+    double dInitialN;
 #endif
 #ifdef HAVE_OXYGEN
-   double dInitialO;
+    double dInitialO;
 #endif
 #ifdef HAVE_NEON
-   double dInitialNe;
+    double dInitialNe;
 #endif
 #ifdef HAVE_MAGNESIUM
-   double dInitialMg;
+    double dInitialMg;
 #endif
 #ifdef HAVE_SILICON
-   double dInitialSi;
+    double dInitialSi;
 #endif
 #ifdef HAVE_IRON
-   double dInitialFe;
+    double dInitialFe;
 #endif
 #ifdef HAVE_METALLICITY
-   double dInitialMetallicity;
+    double dInitialMetallicity;
 #endif
 };
 
-struct inEndTimestep{
-   UNITS units;
+struct inEndTimestep {
+    UNITS units;
 #ifdef GRACKLE
-   char achCoolingTable[256];
+    char achCoolingTable[256];
 #endif
-   double dTime;
-   double dDelta;
-   double dConstGamma;
-   double dTuFac;
+    double dTime;
+    double dDelta;
+    double dConstGamma;
+    double dTuFac;
 #ifdef STAR_FORMATION
-   double dSFMinOverDensity;
+    double dSFMinOverDensity;
 #endif
 #ifdef COOLING
-   double dCoolingFloorDen;
-   double dCoolingFlooru;
+    double dCoolingFloorDen;
+    double dCoolingFlooru;
 #endif
 #ifdef EEOS_POLYTROPE
-   double dEOSPolyFloorIndex;
-   double dEOSPolyFloorDen;
-   double dEOSPolyFlooru;
+    double dEOSPolyFloorIndex;
+    double dEOSPolyFloorDen;
+    double dEOSPolyFlooru;
 #endif
 #ifdef EEOS_JEANS
-   double dEOSNJeans;
+    double dEOSNJeans;
 #endif
 #ifdef BLACKHOLES
-   double dBHRadiativeEff;
+    double dBHRadiativeEff;
 #endif
 };
 
 #ifdef STAR_FORMATION
-struct inStarForm{
-   double dDenMin;
-   double dDelta;
-   double dTime;
-   double dScaleFactor;
+struct inStarForm {
+    double dDenMin;
+    double dDelta;
+    double dTime;
+    double dScaleFactor;
 
-   double dSFindexKS;
-   double dSFnormalizationKS;
-   double dConstGamma;
-   double dSFGasFraction;
-   double dSFThresholdu;
-   double dSFEfficiency;
+    double dSFindexKS;
+    double dSFnormalizationKS;
+    double dConstGamma;
+    double dSFGasFraction;
+    double dSFThresholdu;
+    double dSFEfficiency;
 
-   double dEOSPolyFloorIndex;
-   double dEOSPolyFloorDen;
-   double dEOSPolyFlooru;
+    double dEOSPolyFloorIndex;
+    double dEOSPolyFloorDen;
+    double dEOSPolyFlooru;
 
 #ifdef FEEDBACK
-   double dSNFBEfficiency;
-   double dSNFBMaxEff;
-   double dSNFBEffnH0;
-   double dSNFBEffIndex;
+    double dSNFBEfficiency;
+    double dSNFBMaxEff;
+    double dSNFBEffnH0;
+    double dSNFBEffIndex;
 #endif
 };
 #endif
@@ -260,7 +260,7 @@ typedef struct {
     double dFlopSingleGPU;
     double dFlopDoubleCPU;
     double dFlopDoubleGPU;
-    } workParticle;
+} workParticle;
 
 /*
 ** One tile of PP interactions
@@ -271,7 +271,7 @@ typedef struct {
     ILPTILE tile;
     workParticle *work;
     int i;
-    } workPP;
+} workPP;
 
 typedef struct {
     PINFOOUT *pInfoOut;
@@ -279,7 +279,7 @@ typedef struct {
     ILCTILE tile;
     workParticle *work;
     int i;
-    } workPC;
+} workPC;
 
 #define EWALD_ALIGN 64
 #define EWALD_MASK (EWALD_ALIGN-1)
@@ -287,7 +287,7 @@ typedef struct {
     momFloat X[EWALD_ALIGN];
     momFloat Y[EWALD_ALIGN];
     momFloat Z[EWALD_ALIGN];
-    } gpuEwaldInput;
+} gpuEwaldInput;
 
 typedef struct {
     momFloat X[EWALD_ALIGN];
@@ -295,5 +295,5 @@ typedef struct {
     momFloat Z[EWALD_ALIGN];
     momFloat Pot[EWALD_ALIGN];
     momFloat FlopDouble[EWALD_ALIGN];
-    } gpuEwaldOutput;
+} gpuEwaldOutput;
 #endif

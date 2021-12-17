@@ -13,29 +13,29 @@ typedef struct mdlGridContext {
     uint32_t *rs;  /* Starting slab for each processor */
     uint32_t *rn;  /* Number of slabs on each processor */
     uint32_t *id;  /* Which processor has this slab */
-    } * MDLGRID;
+} *MDLGRID;
 
 typedef struct {
     MDLGRID grid;
     uint64_t II;
     int x, y, z; /* Real coordinate */
     int i;       /* Index into local array */
-    } mdlGridCoord;
+} mdlGridCoord;
 
 
 #ifdef MDL_FFTW
 #include <fftw3-mpi.h>
 #ifdef USE_SINGLE
-#define FFTW3(name) fftwf_ ## name
-typedef float fftwf_real;
+    #define FFTW3(name) fftwf_ ## name
+    typedef float fftwf_real;
 #else
-#define FFTW3(name) fftw_ ## name
-typedef double fftw_real;
+    #define FFTW3(name) fftw_ ## name
+    typedef double fftw_real;
 #endif
 typedef struct mdlFFTContext {
     MDLGRID rgrid;
     MDLGRID kgrid;
     FFTW3(plan) fplan, iplan;
-    } * MDLFFT;
+} *MDLFFT;
 #endif
 #endif

@@ -2,8 +2,7 @@
 #include "master.h"
 
 
-void MSR::MeshlessGradients(double dTime, double dDelta)
-{
+void MSR::MeshlessGradients(double dTime, double dDelta) {
     double dsec;
     printf("Computing gradients... ");
 
@@ -24,8 +23,7 @@ void MSR::MeshlessGradients(double dTime, double dDelta)
 
 
 
-void hydroGradients(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf)
-{
+void hydroGradients(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
     PKD pkd = smf->pkd;
     PARTICLE *q;

@@ -41,7 +41,7 @@ protected:
 public:
     explicit cudaDataMessage();
     virtual ~cudaDataMessage();
-    };
+};
 
 class MessageEwald : public cudaDataMessage {
 protected:
@@ -53,19 +53,19 @@ protected:
 public:
     explicit MessageEwald(class CudaClient &cuda);
     bool queue(workParticle *work); // Add work to this message; return false if this is not possible
-    };
+};
 
 class MessageEwaldSetup : public mdl::cudaMessage {
 protected:
     virtual void launch(cudaStream_t stream,void *pCudaBufIn, void *pCudaBufOut) override;
 public:
-    explicit MessageEwaldSetup(struct EwaldVariables * const ew, EwaldTable * const ewt);
+    explicit MessageEwaldSetup(struct EwaldVariables *const ew, EwaldTable *const ewt);
 protected:
-    struct EwaldVariables * const ewIn;
-    EwaldTable * const ewt;
+    struct EwaldVariables *const ewIn;
+    EwaldTable *const ewt;
     std::vector<momFloat> dLx, dLy, dLz;
     std::vector<int> ibHole;
-    };
+};
 
 template<class TILE,int nIntPerTB, int nIntPerWU>
 class MessagePPPC : public cudaDataMessage {
@@ -75,23 +75,23 @@ protected:
     size_t requestBufferCount, resultsBufferCount;
     int nInteractionBlocks, nGrid;
     struct workInformation {
-    	workParticle *wp;
-	size_t nInteractions;
-	workInformation(workParticle *wp, size_t nInteractions) : wp(wp), nInteractions(nInteractions) {}
-	};
+        workParticle *wp;
+        size_t nInteractions;
+        workInformation(workParticle *wp, size_t nInteractions) : wp(wp), nInteractions(nInteractions) {}
+    };
     std::vector<workInformation> work; // [CUDA_WP_MAX_BUFFERED]
     virtual void launch(cudaStream_t stream,void *pCudaBufIn, void *pCudaBufOut) override;
     virtual void finish() override;
 public:
     explicit MessagePPPC(mdl::messageQueue<MessagePPPC> &freeQueue);
-	// : cuda(cuda), requestBufferCount(0), resultsBufferCount(0), nInteractionBlocks(0) {
-	// work.reserve(CUDA_WP_MAX_BUFFERED);
-	// }
+    // : cuda(cuda), requestBufferCount(0), resultsBufferCount(0), nInteractionBlocks(0) {
+    // work.reserve(CUDA_WP_MAX_BUFFERED);
+    // }
 
     void clear();
     bool queue(workParticle *wp, TILE *tile, bool bGravStep);
     MessagePPPC<TILE,nIntPerTB,nIntPerWU> &prepare();
-    };
+};
 typedef MessagePPPC<ilpTile,128,128> MessagePP;
 typedef MessagePPPC<ilcTile,128,32>  MessagePC;
 
@@ -112,28 +112,28 @@ protected:
     std::list<MessageEwald> free_Ewald, busy_Ewald;
     mdl::mdlClass &mdl;
 protected:
-    template<class MESSAGE> void flush(MESSAGE * &M);
+    template<class MESSAGE> void flush(MESSAGE *&M);
     template<class MESSAGE,class QUEUE,class TILE>
-    int queue(MESSAGE * &m, QUEUE &Q, workParticle *wp, TILE *tile, bool bGravStep);
+    int queue(MESSAGE *&m, QUEUE &Q, workParticle *wp, TILE *tile, bool bGravStep);
 public:
     explicit CudaClient(mdl::mdlClass &mdl);
     void flushCUDA();
     int  queuePP(workParticle *wp, ilpTile *tile, bool bGravStep);
     int  queuePC(workParticle *wp, ilcTile *tile, bool bGravStep);
     int  queueEwald(workParticle *wp);
-    void setupEwald(struct EwaldVariables * const ew, EwaldTable * const ewt);
-    };
+    void setupEwald(struct EwaldVariables *const ew, EwaldTable *const ewt);
+};
 #endif
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 #ifdef USE_CUDA
-    void *CudaClientInitialize(void *vmdl);
-    void CudaClientFlush(void *vcudaClient);
-    int CudaClientQueueEwald(void *vcudaClient, workParticle *work);
-    int CudaClientQueuePP(void *vcudaClient, workParticle *work, struct ilpTile *tile, int bGravStep);
-    int CudaClientQueuePC(void *vcudaClient, workParticle *work, struct ilcTile *tile, int bGravStep);
+void *CudaClientInitialize(void *vmdl);
+void CudaClientFlush(void *vcudaClient);
+int CudaClientQueueEwald(void *vcudaClient, workParticle *work);
+int CudaClientQueuePP(void *vcudaClient, workParticle *work, struct ilpTile *tile, int bGravStep);
+int CudaClientQueuePC(void *vcudaClient, workParticle *work, struct ilcTile *tile, int bGravStep);
 #else
 #if !defined(__CUDACC__)
 #include "core/simd.h"
@@ -142,7 +142,7 @@ extern "C" {
 #endif
 #endif
 #ifdef __cplusplus
-    }
+}
 #endif
 
 #ifdef __CUDACC__
@@ -168,19 +168,19 @@ inline __device__ T warpReduce(/*volatile T * data, int tid,*/ T t) {
     if (blockSize >= 2)  t += __shfl_xor(t,1);
 #endif
     return t;
-    }
+}
 
 template <typename T,unsigned int blockSize>
-__device__ void warpReduceAndStore(volatile T * data, int tid,T *result) {
+__device__ void warpReduceAndStore(volatile T *data, int tid,T *result) {
     T t = warpReduce<T,blockSize>(data[tid]);
     if (tid==0) *result = t;
-    }
+}
 
 template <typename T,unsigned int blockSize>
 __device__ void warpReduceAndStore(int tid,T t,T *result) {
     t = warpReduce<T,blockSize>(t);
     if (tid==0) *result = t;
-    }
+}
 
 void CUDA_Abort(cudaError_t rc, const char *fname, const char *file, int line);
 

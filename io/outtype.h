@@ -23,19 +23,19 @@
 #define OUT_TIPSY_STD            0
 #define OUT_TIPSY_DBL            1
 
-#define OUT_DENSITY_ARRAY	11
-#define OUT_POT_ARRAY		12
-#define OUT_AMAG_ARRAY		13
-#define OUT_IMASS_ARRAY		14
-#define OUT_RUNG_ARRAY		15
+#define OUT_DENSITY_ARRAY   11
+#define OUT_POT_ARRAY       12
+#define OUT_AMAG_ARRAY      13
+#define OUT_IMASS_ARRAY     14
+#define OUT_RUNG_ARRAY      15
 #define OUT_DIVV_ARRAY          16
 #define OUT_VELDISP2_ARRAY      17
 #define OUT_VELDISP_ARRAY       18
 #define OUT_PHASEDENS_ARRAY     19
 #define OUT_SOFT_ARRAY          20
-#define OUT_POS_VECTOR		21
-#define OUT_VEL_VECTOR		22
-#define OUT_ACCEL_VECTOR	23
+#define OUT_POS_VECTOR      21
+#define OUT_VEL_VECTOR      22
+#define OUT_ACCEL_VECTOR    23
 #define OUT_MEANVEL_VECTOR      24
 
 #define OUT_IORDER_ARRAY        25
@@ -55,7 +55,7 @@
 
 #define OUT_HOP_STATS          100
 
-#define OUT_GROUP_ARRAY	       112
+#define OUT_GROUP_ARRAY        112
 #define OUT_RELAX_ARRAY        120
 #define OUT_BALL_ARRAY         121
 #define OUT_PSGROUP_ARRAY      122
@@ -67,10 +67,10 @@
 #define PKDOUT_TYPE_BZIP2  3
 
 #ifdef HAVE_LIBBZ2
-#include <bzlib.h>
+    #include <bzlib.h>
 #endif
 #ifdef HAVE_LIBZ
-#include <zlib.h>
+    #include <zlib.h>
 #endif
 
 #define PKDOUT_BUFFER_SIZE (1024*1024)
@@ -78,19 +78,19 @@ typedef struct pkdOutBuffer {
     struct pkdOutBuffer *next;
     uint32_t nBytes;
     char data[PKDOUT_BUFFER_SIZE];
-    } PKDOUTBUFFER;
+} PKDOUTBUFFER;
 
 typedef struct pkdout {
     FILE *fp;
 #if defined(HAVE_LIBBZ2) || defined(HAVE_LIBZ)
     union {
 #ifdef HAVE_LIBBZ2
-	bz_stream *bzStream;
+        bz_stream *bzStream;
 #endif
 #ifdef HAVE_LIBZ
-	z_stream *gzStream;
+        z_stream *gzStream;
 #endif
-	} CTX;
+    } CTX;
 #endif
     uint64_t nBytes;
     char *inBuffer;
@@ -102,7 +102,7 @@ typedef struct pkdout {
     void (*fnWrite)(PKD pkd,struct pkdout *ctx);
     void (*fnFlush)(PKD pkd,struct pkdout *ctx,int final);
     void (*fnClose)(PKD pkd,struct pkdout *ctx);
-    } *PKDOUT;
+} *PKDOUT;
 
 #ifdef __cplusplus
 extern "C" {

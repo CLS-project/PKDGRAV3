@@ -16,9 +16,9 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#include "config.h"
+    #include "config.h"
 #else
-#include "pkd_config.h"
+    #include "pkd_config.h"
 #endif
 #ifndef xxUSE_SIMD_PC
 #define MPICH_SKIP_MPICXX
@@ -51,11 +51,11 @@ void pkdGravEvalPC(PINFOIN *pPart, int nBlocks, int nInLast, ILC_BLK *blk,  PINF
     fvec imaga = a2 > 0.0f ? 1.0f / sqrtf(a2) : 0.0f;
 
     /* Pad the last value if necessary */
-    for( j = nInLast; j&fvec::mask(); j++) {
-	blk[nBlocks].dx.f[j] = blk[nBlocks].dy.f[j] = blk[nBlocks].dz.f[j] = 1e18f;
-	blk[nBlocks].m.f[j] = 0.0f;
-	blk[nBlocks].u.f[j] = 0.0f;
-	}
+    for ( j = nInLast; j&fvec::mask(); j++) {
+        blk[nBlocks].dx.f[j] = blk[nBlocks].dy.f[j] = blk[nBlocks].dz.f[j] = 1e18f;
+        blk[nBlocks].m.f[j] = 0.0f;
+        blk[nBlocks].u.f[j] = 0.0f;
+    }
 
     ax = 0.0;
     ay = 0.0;
@@ -64,9 +64,9 @@ void pkdGravEvalPC(PINFOIN *pPart, int nBlocks, int nInLast, ILC_BLK *blk,  PINF
     dirsum = 0.0;
     normsum = 0.0;
     nIntr = nBlocks * ILP_PART_PER_BLK + nInLast;
-    for( nLeft=nBlocks; nLeft >= 0; --nLeft,++blk ) {
-	int n = (nLeft ? ILP_PART_PER_BLK : nInLast + fvec::mask()) >> SIMD_BITS;
-	for (j=0; j<n; ++j) {
+    for ( nLeft=nBlocks; nLeft >= 0; --nLeft,++blk ) {
+        int n = (nLeft ? ILP_PART_PER_BLK : nInLast + fvec::mask()) >> SIMD_BITS;
+        for (j=0; j<n; ++j) {
             fvec Idx = blk->dx.p[j];
             fvec Idy = blk->dy.p[j];
             fvec Idz = blk->dz.p[j];
@@ -99,26 +99,26 @@ void pkdGravEvalPC(PINFOIN *pPart, int nBlocks, int nInLast, ILC_BLK *blk,  PINF
             fvec Im = blk->m.p[j];
             fvec Iu = blk->u.p[j];
 
-	    EvalPC<fvec,fmask,true>(
-		fx, fy, fz, pSmooth2,
-		Idx, Idy, Idz, Im, Iu,
-		Ixxxx, Ixxxy, Ixxxz, Ixxyz, Ixxyy, Iyyyz, Ixyyz, Ixyyy, Iyyyy,
-		Ixxx, Ixyy, Ixxy, Iyyy, Ixxz, Iyyz, Ixyz, Ixx, Ixy, Ixz, Iyy, Iyz,
+            EvalPC<fvec,fmask,true>(
+                fx, fy, fz, pSmooth2,
+                Idx, Idy, Idz, Im, Iu,
+                Ixxxx, Ixxxy, Ixxxz, Ixxyz, Ixxyy, Iyyyz, Ixyyz, Ixyyy, Iyyyy,
+                Ixxx, Ixyy, Ixxy, Iyyy, Ixxz, Iyyz, Ixyz, Ixx, Ixy, Ixz, Iyy, Iyz,
 #ifdef USE_DIAPOLE
-		Ix, Iy, Iz,
+                Ix, Iy, Iz,
 #endif
-		tax, tay, taz, tpot,
-		Pax, Pay, Paz,imaga,
-		ir, norm);
+                tax, tay, taz, tpot,
+                Pax, Pay, Paz,imaga,
+                ir, norm);
 
-	    dirsum += ir;
-	    normsum += norm;
-	    fPot += tpot;
-	    ax += tax;
-	    ay += tay;
-	    az += taz;
-	    }
-	}
+            dirsum += ir;
+            normsum += norm;
+            fPot += tpot;
+            ax += tax;
+            ay += tay;
+            az += taz;
+        }
+    }
 
     pOut->a[0] += hadd(ax);
     pOut->a[1] += hadd(ay);
@@ -126,5 +126,5 @@ void pkdGravEvalPC(PINFOIN *pPart, int nBlocks, int nInLast, ILC_BLK *blk,  PINF
     pOut->fPot += hadd(fPot);
     pOut->dirsum += hadd(dirsum);
     pOut->normsum += hadd(normsum);
-    }
+}
 #endif/*USE_SIMD_PC*/

@@ -15,9 +15,9 @@
  *  along with PKDGRAV3.  If not, see <http://www.gnu.org/licenses/>.
  */
 #ifdef HAVE_CONFIG_H
-#include "config.h"
+    #include "config.h"
 #else
-#include "pkd_config.h"
+    #include "pkd_config.h"
 #endif
 #include "pst.h"
 #include "master.h"
@@ -37,7 +37,7 @@ protected:
 public:
     explicit LinearSignal(CSM csm,double a,double Lbox,unsigned long seed,bool bFixed=false,float fPhase=0);
     virtual ~LinearSignal();
-    };
+};
 
 LinearSignal::LinearSignal(CSM csm,double a,double Lbox,unsigned long seed,bool bFixed,float fPhase)
     : NoiseGenerator(seed,bFixed,fPhase) {
@@ -46,35 +46,35 @@ LinearSignal::LinearSignal(CSM csm,double a,double Lbox,unsigned long seed,bool 
     iLbox = 2*M_PI / Lbox;
     acc = gsl_interp_accel_alloc();
     spline = gsl_spline_alloc(gsl_interp_cspline, size);
-    logk = (double*)malloc(sizeof(double)*size);
-    field = (double*)malloc(sizeof(double)*size);
-    for (auto i = 0; i < size; i++){
+    logk = (double *)malloc(sizeof(double)*size);
+    field = (double *)malloc(sizeof(double)*size);
+    for (auto i = 0; i < size; i++) {
         auto k = csm->val.classData.perturbations.k[i];
         logk[i] = log(k);
         field[i] = csmDeltaRho_pk(csm, a, k);
         field[i] /= csmZeta(csm, k);
-	assert(!std::isnan(field[i]));
+        assert(!std::isnan(field[i]));
     }
     gsl_spline_init(spline, logk, field, size);
-    }
+}
 
 LinearSignal::~LinearSignal() {
     gsl_interp_accel_free(acc);
     gsl_spline_free(spline);
-    }
+}
 
 void LinearSignal::update(complex_vector_t &pencil,complex_vector_t &noise,int iy,int iz) {
     float k2jk = iy*iy + iz*iz;
-    for( auto index=noise.begin(); index!=noise.end(); ++index ) {
-	auto ix = index.position()[0];
-	auto k = sqrt(k2jk + ix*ix) * iLbox;
-	if (k>0) {
-	    float signal = csmZeta(csm, k)*gsl_spline_eval(spline, log(k), acc);
-	    auto wnoise = *index;
+    for ( auto index=noise.begin(); index!=noise.end(); ++index ) {
+        auto ix = index.position()[0];
+        auto k = sqrt(k2jk + ix*ix) * iLbox;
+        if (k>0) {
+            float signal = csmZeta(csm, k)*gsl_spline_eval(spline, log(k), acc);
+            auto wnoise = *index;
             pencil(index.position()) += wnoise*signal;
-	    }
-	}
+        }
     }
+}
 
 void pkdAddLinearSignal(PKD pkd, int iGrid, int iSeed, bool bFixed, float fPhase, double Lbox, double a) {
     assert(pkd->fft != NULL);
@@ -88,7 +88,7 @@ void pkdAddLinearSignal(PKD pkd, int iGrid, int iSeed, bool bFixed, float fPhase
 
     LinearSignal ng(pkd->csm,a,Lbox,iSeed,bFixed,fPhase);
     ng.FillNoise(K1,nGrid);
-    }
+}
 
 extern "C"
 int pstAddLinearSignal(PST pst,void *vin,int nIn,void *vout,int nOut) {
@@ -96,15 +96,15 @@ int pstAddLinearSignal(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto in = reinterpret_cast<struct inAddLinearSignal *>(vin);
     assert (nIn==sizeof(*in) );
     if (pstNotCore(pst)) {
-	int rID = mdlReqService(pst->mdl, pst->idUpper, PST_ADD_LINEAR_SIGNAL, vin, nIn);
-	pstAddLinearSignal(pst->pstLower, vin, nIn, NULL, 0);
-	mdlGetReply(pst->mdl,rID,NULL,NULL);
-	}
-    else {
-    	pkdAddLinearSignal(plcl->pkd,in->iGrid,in->iSeed,in->bFixed,in->fPhase,in->Lbox,in->a);
-	}
-    return 0;
+        int rID = mdlReqService(pst->mdl, pst->idUpper, PST_ADD_LINEAR_SIGNAL, vin, nIn);
+        pstAddLinearSignal(pst->pstLower, vin, nIn, NULL, 0);
+        mdlGetReply(pst->mdl,rID,NULL,NULL);
     }
+    else {
+        pkdAddLinearSignal(plcl->pkd,in->iGrid,in->iSeed,in->bFixed,in->fPhase,in->Lbox,in->a);
+    }
+    return 0;
+}
 
 void MSR::AddLinearSignal(int iGrid, int iSeed, double Lbox, double a, bool bFixed, float fPhase) {
     struct inAddLinearSignal in;
@@ -115,7 +115,7 @@ void MSR::AddLinearSignal(int iGrid, int iSeed, double Lbox, double a, bool bFix
     in.Lbox = Lbox;
     in.a = a;
     pstAddLinearSignal(pst, &in, sizeof(in), NULL, 0);
-    }
+}
 
 void pkdGridBinK(PKD pkd,int nBins, int iGrid, double *fK, double *fPower, uint64_t *nPower) {
     assert(pkd->fft != NULL);
@@ -128,71 +128,71 @@ void pkdGridBinK(PKD pkd,int nBins, int iGrid, double *fK, double *fPower, uint6
     auto data1 = reinterpret_cast<real_t *>(mdlSetArray(pkd->mdl,0,0,pkd->pLite)) + fft->rgrid->nLocal * iGrid;
     G.setupArray(data1,K1);
 
-    for( auto i=0; i<nBins; i++ ) {
-	fK[i] = 0.0;
-	fPower[i] = 0.0;
-	nPower[i] = 0;
-	}
+    for ( auto i=0; i<nBins; i++ ) {
+        fK[i] = 0.0;
+        fPower[i] = 0.0;
+        nPower[i] = 0;
+    }
 #ifdef LINEAR_PK
     double scale = nBins * 1.0 / iNyquist;
 #else
     double scale = nBins * 1.0 / log(iNyquist+1);
 #endif
-    for( auto index=K1.begin(); index!=K1.end(); ++index ) {
-    	auto pos = index.position();
-	auto i = pos[0]; // i,j,k are all positive (absolute value)
-	auto j = pos[1]>iNyquist ? nGrid - pos[1] : pos[1];
-	auto k = pos[2]>iNyquist ? nGrid - pos[2] : pos[2];
-	auto v1 = *index;
+    for ( auto index=K1.begin(); index!=K1.end(); ++index ) {
+        auto pos = index.position();
+        auto i = pos[0]; // i,j,k are all positive (absolute value)
+        auto j = pos[1]>iNyquist ? nGrid - pos[1] : pos[1];
+        auto k = pos[2]>iNyquist ? nGrid - pos[2] : pos[2];
+        auto v1 = *index;
 
-	auto ak = sqrt(i*i + j*j + k*k);
-	auto ks = int(ak);
-	if ( ks >= 1 && ks <= iNyquist ) {
+        auto ak = sqrt(i*i + j*j + k*k);
+        auto ks = int(ak);
+        if ( ks >= 1 && ks <= iNyquist ) {
 #ifdef LINEAR_PK
-	    ks = floor((ks-1.0) * scale);
+            ks = floor((ks-1.0) * scale);
 #else
-	    ks = floor(log(ks) * scale);
+            ks = floor(log(ks) * scale);
 #endif
-	    assert(ks>=0 && ks<nBins);
-	    fK[ks] += log(ak);
-	    fPower[ks] += std::norm(v1);
-	    nPower[ks] += 1;
-	    if (i!=0 && i!=iNyquist) { // Account for negative Kx values
-		fK[ks] += log(ak);
-		fPower[ks] += std::norm(v1);
-		nPower[ks] += 1;
-		}
-	    }
-	}
+            assert(ks>=0 && ks<nBins);
+            fK[ks] += log(ak);
+            fPower[ks] += std::norm(v1);
+            nPower[ks] += 1;
+            if (i!=0 && i!=iNyquist) { // Account for negative Kx values
+                fK[ks] += log(ak);
+                fPower[ks] += std::norm(v1);
+                nPower[ks] += 1;
+            }
+        }
     }
+}
 
 int pstGridBinK(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
-    auto in = reinterpret_cast<struct inGridBinK*>(vin);
-    auto out = reinterpret_cast<struct outGridBinK*>(vout);
+    auto in = reinterpret_cast<struct inGridBinK *>(vin);
+    auto out = reinterpret_cast<struct outGridBinK *>(vout);
     int i;
 
     assert( nIn==sizeof(struct inGridBinK) );
     assert( nOut==sizeof(struct outGridBinK) );
     if (pstNotCore(pst)) {
-	auto outUpper = new struct outGridBinK;
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_GRID_BIN_K,vin,nIn);
-	pstGridBinK(pst->pstLower,vin,nIn,vout,nOut);
-	mdlGetReply(pst->mdl,rID,outUpper,&nOut);
-	assert(nOut==sizeof(struct outGridBinK));
+        auto outUpper = new struct outGridBinK;
+        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_GRID_BIN_K,vin,nIn);
+        pstGridBinK(pst->pstLower,vin,nIn,vout,nOut);
+        mdlGetReply(pst->mdl,rID,outUpper,&nOut);
+        assert(nOut==sizeof(struct outGridBinK));
 
-	for(i=0;i<in->nBins; i++) {
-	    out->fK[i] += outUpper->fK[i];
-	    out->fPower[i] += outUpper->fPower[i];
-	    out->nPower[i] += outUpper->nPower[i];
-	    }
-	delete outUpper;
-	}
-    else {
-	pkdGridBinK(plcl->pkd, in->nBins, in->iGrid, out->fK, out->fPower, out->nPower);
-	}
-    return sizeof(struct outGridBinK);
+        for (i=0; i<in->nBins; i++) {
+            out->fK[i] += outUpper->fK[i];
+            out->fPower[i] += outUpper->fPower[i];
+            out->nPower[i] += outUpper->nPower[i];
+        }
+        delete outUpper;
     }
+    else {
+        pkdGridBinK(plcl->pkd, in->nBins, in->iGrid, out->fK, out->fPower, out->nPower);
+    }
+    return sizeof(struct outGridBinK);
+}
 
 void MSR::GridBinK(int nBins, int iGrid,uint64_t *nPk,float *fK,float *fPk) {
     struct inGridBinK in;
@@ -204,15 +204,15 @@ void MSR::GridBinK(int nBins, int iGrid,uint64_t *nPk,float *fK,float *fPk) {
 
 #if 1
     pstGridBinK(pst, &in, sizeof(in), out, sizeof(*out));
-    for( int i=0; i<nBins; i++ ) {
-	if ( out->nPower[i] == 0 ) fK[i] = fPk[i] = 0;
-	else {
-	    if (nPk) nPk[i] = out->nPower[i];
-	    fK[i] = exp(out->fK[i]/out->nPower[i]);
-	    fPk[i] = out->fPower[i]/out->nPower[i];
-	    }
-	}
+    for ( int i=0; i<nBins; i++ ) {
+        if ( out->nPower[i] == 0 ) fK[i] = fPk[i] = 0;
+        else {
+            if (nPk) nPk[i] = out->nPower[i];
+            fK[i] = exp(out->fK[i]/out->nPower[i]);
+            fPk[i] = out->fPower[i]/out->nPower[i];
+        }
+    }
 #endif
     /* At this point, dPk[] needs to be corrected by the box size */
     delete out;
-    }
+}

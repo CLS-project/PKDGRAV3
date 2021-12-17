@@ -20,13 +20,13 @@ class ServiceSwapAll : public mdl::BasicService {
     PST node_pst;
 public:
     struct input {
-    	int idSwap;
-	input() = default;
-	input(int idSwap) : idSwap(idSwap) {}
-	};
+        int idSwap;
+        input() = default;
+        input(int idSwap) : idSwap(idSwap) {}
+    };
     typedef void output;
     explicit ServiceSwapAll(PST node_pst)
-	: BasicService(PST_SWAPALL, sizeof(input), "SwapAll"), node_pst(node_pst) {}
+        : BasicService(PST_SWAPALL, sizeof(input), "SwapAll"), node_pst(node_pst) {}
 protected:
     virtual int operator()(int nIn, void *pIn, void *pOut) override;
-    };
+};

@@ -2,8 +2,7 @@
 #include "master.h"
 
 
-void MSR::HydroStep(double dTime, double dDelta)
-{
+void MSR::HydroStep(double dTime, double dDelta) {
     double dsec;
 
     printf("Computing hydro time step... ");
@@ -19,9 +18,9 @@ void MSR::HydroStep(double dTime, double dDelta)
 #endif
 
     if (param.bGlobalDt) {
-      uint8_t minDt;
-      minDt = GetMinDt();
-      SetGlobalDt(minDt);
+        uint8_t minDt;
+        minDt = GetMinDt();
+        SetGlobalDt(minDt);
     }
 
     TimerStop(TIMER_TIMESTEP);
@@ -37,8 +36,7 @@ void MSR::HydroStep(double dTime, double dDelta)
     }
 }
 
-void initHydroStep(void *vpkd, void *vp)
-{
+void initHydroStep(void *vpkd, void *vp) {
 }
 
 /* Compute the hydrodynamical time step of this particle, based:
@@ -46,8 +44,7 @@ void initHydroStep(void *vpkd, void *vp)
  *    - Acceleration
  *    - Timestep of the neighouring particles (in a scatter approach)
  */
-void hydroStep(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf)
-{
+void hydroStep(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
     PARTICLE *q;
     SPHFIELDS *psph, *qsph;
@@ -78,7 +75,8 @@ void hydroStep(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf)
 
         if (dvDotdr < 0) {
             vsig_pq = psph->c + qsph->c - dvDotdr/sqrt(nnList[i].fDist2);
-        } else {
+        }
+        else {
             vsig_pq = psph->c + qsph->c;
         }
 
@@ -152,7 +150,7 @@ void hydroStep(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf)
     // Timestep criteria based on the hydro+grav accelerations
 
     double a[3], acc;
-    float* pa = pkdAccel(pkd,p);
+    float *pa = pkdAccel(pkd,p);
     double cfl = smf->dCFLacc, dtAcc;
 
 
@@ -215,8 +213,7 @@ void hydroStep(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf)
 
 }
 
-void combHydroStep(void *vpkd, void *v1,void *v2)
-{
+void combHydroStep(void *vpkd, void *v1,void *v2) {
     PKD pkd = (PKD) vpkd;
     PARTICLE *p1 = (PARTICLE *) v1;
     PARTICLE *p2 = (PARTICLE *) v2;
@@ -232,14 +229,13 @@ void combHydroStep(void *vpkd, void *v1,void *v2)
  *
  * TODO: clean unused function arguments
  */
-void pkdWakeParticles(PKD pkd,int iRoot, double dTime, double dDelta)
-{
+void pkdWakeParticles(PKD pkd,int iRoot, double dTime, double dDelta) {
     for (int i=0; i<pkdLocal(pkd); ++i) {
-        PARTICLE* p = pkdParticle(pkd,i);
+        PARTICLE *p = pkdParticle(pkd,i);
         if (pkdIsGas(pkd,p)) {
             uint8_t uWake = pkdSph(pkd,p)->uWake;
             if (uWake) {
-                SPHFIELDS* psph = pkdSph(pkd,p);
+                SPHFIELDS *psph = pkdSph(pkd,p);
 
                 p->uRung = uWake;
                 p->uNewRung = uWake;

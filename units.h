@@ -18,7 +18,7 @@
 #ifndef UNITS_HINCLUDED
 #define UNITS_HINCLUDED
 
-#define KBOLTZ	1.38e-16     /* bolzman constant in cgs */
+#define KBOLTZ  1.38e-16     /* bolzman constant in cgs */
 #define MHYDR 1.67e-24       /* mass of hydrogen atom in grams */
 #define MSOLG 1.99e33        /* solar mass in grams */
 #define GCGS 6.67e-8         /* G in cgs */
@@ -27,17 +27,17 @@
 #define LIGHTSPEED 2.9979e10 /* Speed of Light cm/s */
 #define SECONDSPERYEAR   31557600.
 
-typedef struct units{
-   double dMsolUnit;
-   double dKpcUnit;
-   double dKBoltzUnit;
-   double dGmPerCcUnit;
-   double dComovingGmPerCcUnit;
-   double dErgPerGmUnit;
-   double dErgUnit;
-   double dSecUnit;
-   double dKmPerSecUnit;
-   double dGasConst;
+typedef struct units {
+    double dMsolUnit;
+    double dKpcUnit;
+    double dKBoltzUnit;
+    double dGmPerCcUnit;
+    double dComovingGmPerCcUnit;
+    double dErgPerGmUnit;
+    double dErgUnit;
+    double dSecUnit;
+    double dKmPerSecUnit;
+    double dGasConst;
 } UNITS;
 
 #endif

@@ -23,15 +23,15 @@ static_assert(std::is_void<ServiceCountRungs::output>() || std::is_trivial<Servi
 
 int ServiceCountRungs::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
     static_assert(std::is_void<input>());
-    auto out = static_cast<output*>(vout);
+    auto out = static_cast<output *>(vout);
     auto pkd = pst->plcl->pkd;
     pkdCountRungs(pkd, out->nRungs);
     return sizeof(output);
-    }
+}
 
 int ServiceCountRungs::Combine(void *vout,void *vout2) {
-    auto out  = static_cast<output*>(vout);
-    auto out2 = static_cast<output*>(vout2);
-    for(auto i=0; i<=MAX_RUNG; ++i) out->nRungs[i] += out2->nRungs[i];
+    auto out  = static_cast<output *>(vout);
+    auto out2 = static_cast<output *>(vout2);
+    for (auto i=0; i<=MAX_RUNG; ++i) out->nRungs[i] += out2->nRungs[i];
     return sizeof(output);
-    }
+}

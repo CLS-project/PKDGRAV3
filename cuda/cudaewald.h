@@ -18,6 +18,6 @@
 #ifndef CUDAEWALD_H
 #define CUDAEWALD_H
 #ifdef USE_CUDA
-#include "cudautil.h"
+    #include "cudautil.h"
 #endif
 #endif

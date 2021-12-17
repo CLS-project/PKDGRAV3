@@ -29,43 +29,43 @@
 #include "mdl.h"
 #include "parameters.h"
 #ifdef COOLING
-#include "cooling/cooling_struct.h"
+    #include "cooling/cooling_struct.h"
 #endif
 
-#define MSR_INIT_E		1
-#define MSR_STEP_E		0
+#define MSR_INIT_E      1
+#define MSR_STEP_E      0
 
 extern time_t timeGlobalSignalTime;
 extern int bGlobalOutput;
 
 enum msrTimers {
-   TIMER_GRAVITY = 0,
-   TIMER_IO,
-   TIMER_TREE,
-   TIMER_DOMAIN,
-   TIMER_KICKO,
-   TIMER_KICKC,
-   TIMER_DENSITY,
-   TIMER_ENDINT,
-   TIMER_GRADIENTS,
-   TIMER_FLUXES,
-   TIMER_TIMESTEP,
-   TIMER_DRIFT,
-   TIMER_FOF,
+    TIMER_GRAVITY = 0,
+    TIMER_IO,
+    TIMER_TREE,
+    TIMER_DOMAIN,
+    TIMER_KICKO,
+    TIMER_KICKC,
+    TIMER_DENSITY,
+    TIMER_ENDINT,
+    TIMER_GRADIENTS,
+    TIMER_FLUXES,
+    TIMER_TIMESTEP,
+    TIMER_DRIFT,
+    TIMER_FOF,
 #ifdef FEEDBACK
-   TIMER_FEEDBACK,
+    TIMER_FEEDBACK,
 #endif
 #ifdef STAR_FORMATION
-   TIMER_STARFORM,
+    TIMER_STARFORM,
 #endif
 #ifdef BLACKHOLES
-   TIMER_BHS,
+    TIMER_BHS,
 #endif
 #ifdef STELLAR_EVOLUTION
-   TIMER_STEV,
+    TIMER_STEV,
 #endif
-   TIMER_NONE,
-   TOTAL_TIMERS
+    TIMER_NONE,
+    TOTAL_TIMERS
 };
 
 // The order should be the same than in the enumerate above!
@@ -90,7 +90,7 @@ static const char *timer_names[TOTAL_TIMERS] = {
 struct MSRINSTANCE {
     PyObject_HEAD
     class MSR *msr;
-    };
+};
 
 class MSR {
 protected:
@@ -150,8 +150,8 @@ public:
 
     // Gravity
     uint8_t Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
-    	double dTime,double dDelta,double dStep,double dTheta,
-    	int bKickClose,int bKickOpen,int bEwald,int bGravStep,int nPartRhoLoc,int iTimeStepCrit,int nGroup);
+                    double dTime,double dDelta,double dStep,double dTheta,
+                    int bKickClose,int bKickOpen,int bEwald,int bGravStep,int nPartRhoLoc,int iTimeStepCrit,int nGroup);
 
     // Analysis
     void Smooth(double dTime,double dDelta,int iSmoothType,int bSymmetric,int nSmooth);
@@ -177,39 +177,39 @@ public:
 
 private:
     typedef struct {
-	double dFrac;       /* Fraction of particles in each bin */
-	uint64_t nTotal;    /* Total number of particles in the range */
-	uint64_t nInner;    /* Number inside minimum radius */
-	uint64_t nTarget;   /* Target number of particles */
-	uint64_t nSelected;
-	MSR *msr;
-	} SPHERECTX;
+        double dFrac;       /* Fraction of particles in each bin */
+        uint64_t nTotal;    /* Total number of particles in the range */
+        uint64_t nInner;    /* Number inside minimum radius */
+        uint64_t nTarget;   /* Target number of particles */
+        uint64_t nSelected;
+        MSR *msr;
+    } SPHERECTX;
     static double countSphere(double r,void *vctx);
     static void profileRootFind( double *dBins, int lo, int hi, int nAccuracy, SPHERECTX *ctx );
 
     typedef struct {
-	double rMiddle;
-	total_t nTarget;   /* Target number of particles */
-	MSR *msr;
-	} SHELLCTX;
+        double rMiddle;
+        total_t nTarget;   /* Target number of particles */
+        MSR *msr;
+    } SHELLCTX;
     static double countShell(double rInner,void *vctx);
 
 public:
     struct msr_analysis_callback {
-	PyObject *callback;
-	struct MSRINSTANCE *msr;
-	PyObject *memory;
-	explicit msr_analysis_callback(PyObject *callback,MSRINSTANCE *msr,PyObject *memory) {
-	    this->callback = callback;
-	    this->msr = msr;
-	    this->memory = memory;
-	    Py_INCREF(callback);
-	    Py_INCREF(memory);
-	    }
-//	~msr_analysis_callback() {
-//	    Py_DECREF(callback);
-//	    }
-	};
+        PyObject *callback;
+        struct MSRINSTANCE *msr;
+        PyObject *memory;
+        explicit msr_analysis_callback(PyObject *callback,MSRINSTANCE *msr,PyObject *memory) {
+            this->callback = callback;
+            this->msr = msr;
+            this->memory = memory;
+            Py_INCREF(callback);
+            Py_INCREF(memory);
+        }
+//  ~msr_analysis_callback() {
+//      Py_DECREF(callback);
+//      }
+    };
     void addAnalysis(PyObject *callback,MSRINSTANCE *msr,PyObject *memory);
     void runAnalysis(int iStep,double dTime);
 protected:
@@ -250,7 +250,7 @@ public:
     uint64_t nGas;
     uint64_t nStar;
     uint64_t nBH;
-    uint64_t nMaxOrder;		/* Order number of last particle */
+    uint64_t nMaxOrder;     /* Order number of last particle */
     int nClasses;
     int iCurrMaxRung;
 
@@ -258,9 +258,9 @@ public:
     ** Timers
     */
     struct msrtimer {
-      double sec;
-	double acc;
-	} ti[TOTAL_TIMERS];
+        double sec;
+        double acc;
+    } ti[TOTAL_TIMERS];
 
 
 #ifdef COOLING
@@ -274,7 +274,7 @@ public:
     /*
      * File for the fine-grained output
      */
-    FILE* fpFineLog;
+    FILE *fpFineLog;
     /*
     ** Tree moments (for Ewald)
     */
@@ -471,23 +471,23 @@ protected:
     void OutputLinPk(int iStep, double dTime);
 
     int NewTopStepKDK(
-	double &dTime,	/* MODIFIED: Current simulation time */
-	double dDelta,
-	double dTheta,
-	int nSteps,
-    int bDualTree,      /* Should be zero at rung 0! */
-    uint8_t uRung,	/* Rung level */
-    double *pdStep,	/* Current step */
-	uint8_t *puRungMax,int *pbDoCheckpoint,int *pbDoOutput,int *pbNeedKickOpen);
+        double &dTime,  /* MODIFIED: Current simulation time */
+        double dDelta,
+        double dTheta,
+        int nSteps,
+        int bDualTree,      /* Should be zero at rung 0! */
+        uint8_t uRung,  /* Rung level */
+        double *pdStep, /* Current step */
+        uint8_t *puRungMax,int *pbDoCheckpoint,int *pbDoOutput,int *pbNeedKickOpen);
     void TopStepKDK(
-		   double dStep,	/* Current step */
-		   double dTime,	/* Current time */
-		   double dDelta,	/* Time step */
-		    double dTheta,
-		   int iRung,		/* Rung level */
-		   int iKickRung,	/* Gravity on all rungs from iRung
-					   to iKickRung */
-		    int iAdjust);		/* Do an adjust? */
+        double dStep,    /* Current step */
+        double dTime,    /* Current time */
+        double dDelta,   /* Time step */
+        double dTheta,
+        int iRung,       /* Rung level */
+        int iKickRung,   /* Gravity on all rungs from iRung
+                       to iKickRung */
+        int iAdjust);       /* Do an adjust? */
 
 
 
@@ -495,13 +495,13 @@ protected:
     void Relaxation(double dTime,double deltaT,int iSmoothType,int bSymmetric);
     void CalcDistance(const double *dCenter, double dRadius );
     void CalcCOM(const double *dCenter, double dRadius,
-		double *com, double *vcm, double *L, double *M);
+                 double *com, double *vcm, double *L, double *M);
 
 public:
     void Profile(
-	const PROFILEBIN **pBins, int *pnBins, double *r,
-      double dMinRadius, double dLogRadius, double dMaxRadius,
-      int nPerBin, int nBins, int nAccuracy );
+        const PROFILEBIN **pBins, int *pnBins, double *r,
+        double dMinRadius, double dLogRadius, double dMaxRadius,
+        int nPerBin, int nBins, int nAccuracy );
     void OutputGrid(const char *filename, bool k=false, int iGrid=0, int nParaWrite=0);
 
     uint64_t CountSelected();
@@ -520,5 +520,5 @@ public:
     uint64_t SelBox(double *dCenter, double *dSize,bool setIfTrue=true,bool clearIfFalse=true);
     uint64_t SelSphere(double *r, double dRadius,int setIfTrue,int clearIfFalse);
     uint64_t SelCylinder(double *dP1, double *dP2, double dRadius, int setIfTrue, int clearIfFalse );
-    };
+};
 #endif

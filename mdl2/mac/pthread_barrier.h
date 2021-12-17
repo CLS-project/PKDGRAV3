@@ -7,11 +7,11 @@
  *
  * * Redistributions of source code must retain the above copyright notice, this
  *   list of conditions and the following disclaimer.
- * 
+ *
  * * Redistributions in binary form must reproduce the above copyright notice,
  *   this list of conditions and the following disclaimer in the documentation
  *   and/or other materials provided with the distribution.
- * 
+ *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
@@ -40,39 +40,39 @@ extern "C" {
 #endif
 
 #if !defined(PTHREAD_BARRIER_SERIAL_THREAD)
-# define PTHREAD_BARRIER_SERIAL_THREAD	(1)
+# define PTHREAD_BARRIER_SERIAL_THREAD  (1)
 #endif
 
 #if !defined(PTHREAD_PROCESS_PRIVATE)
-# define PTHREAD_PROCESS_PRIVATE	(42)
+# define PTHREAD_PROCESS_PRIVATE    (42)
 #endif
 #if !defined(PTHREAD_PROCESS_SHARED)
-# define PTHREAD_PROCESS_SHARED		(43)
+# define PTHREAD_PROCESS_SHARED     (43)
 #endif
 
 typedef struct {
-	char dummy;
+    char dummy;
 } pthread_barrierattr_t;
 
 typedef struct {
-	pthread_mutex_t mutex;
-	pthread_cond_t cond;
-	unsigned int limit;
-	unsigned int count;
-	unsigned int phase;
+    pthread_mutex_t mutex;
+    pthread_cond_t cond;
+    unsigned int limit;
+    unsigned int count;
+    unsigned int phase;
 } pthread_barrier_t;
 
 int pthread_barrierattr_init(pthread_barrierattr_t *attr);
 int pthread_barrierattr_destroy(pthread_barrierattr_t *attr);
 
 int pthread_barrierattr_getpshared(const pthread_barrierattr_t *restrict attr,
-				   int *restrict pshared);
+                                   int *restrict pshared);
 int pthread_barrierattr_setpshared(pthread_barrierattr_t *attr,
-				   int pshared);
+                                   int pshared);
 
 int pthread_barrier_init(pthread_barrier_t *restrict barrier,
-			 const pthread_barrierattr_t *restrict attr,
-			 unsigned int count);
+                         const pthread_barrierattr_t *restrict attr,
+                         unsigned int count);
 int pthread_barrier_destroy(pthread_barrier_t *barrier);
 
 int pthread_barrier_wait(pthread_barrier_t *barrier);

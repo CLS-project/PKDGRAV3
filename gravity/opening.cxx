@@ -16,9 +16,9 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#include "config.h"
+    #include "config.h"
 #else
-#include "pkd_config.h"
+    #include "pkd_config.h"
 #endif
 #define MPICH_SKIP_MPICXX
 #include "core/simd.h"
@@ -72,66 +72,66 @@ void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin ) {
     k_Open = 1.5f*k_bMax*diCrit;
 
     blk = tile->blk;
-    for(nLeft=tile->lstTile.nBlocks; nLeft>=0; --nLeft,blk++) {
-	iEnd = nLeft ? cl->lst.nPerBlock : tile->lstTile.nInLast;
-	iEnd = (iEnd+fvec::mask()) >> SIMD_BITS;
-	for(i=0; i<iEnd; ++i) {
-	    fourh2 = blk->fourh2.p[i];
-	    xc = fvec(blk->x.p[i]) + fvec(blk->xOffset.p[i]);
-	    yc = fvec(blk->y.p[i]) + fvec(blk->yOffset.p[i]);
-	    zc = fvec(blk->z.p[i]) + fvec(blk->zOffset.p[i]);
-	    dx = k_x - xc;
-	    dy = k_y - yc;
-	    dz = k_z - zc;
-	    d2 = dx*dx + dy*dy + dz*dz;
-	    cOpen = blk->cOpen.p[i];
-	    cOpen2 = cOpen*cOpen;
-	    d2Open = cOpen + k_Open;
-	    d2Open = d2Open*d2Open;
+    for (nLeft=tile->lstTile.nBlocks; nLeft>=0; --nLeft,blk++) {
+        iEnd = nLeft ? cl->lst.nPerBlock : tile->lstTile.nInLast;
+        iEnd = (iEnd+fvec::mask()) >> SIMD_BITS;
+        for (i=0; i<iEnd; ++i) {
+            fourh2 = blk->fourh2.p[i];
+            xc = fvec(blk->x.p[i]) + fvec(blk->xOffset.p[i]);
+            yc = fvec(blk->y.p[i]) + fvec(blk->yOffset.p[i]);
+            zc = fvec(blk->z.p[i]) + fvec(blk->zOffset.p[i]);
+            dx = k_x - xc;
+            dy = k_y - yc;
+            dz = k_z - zc;
+            d2 = dx*dx + dy*dy + dz*dz;
+            cOpen = blk->cOpen.p[i];
+            cOpen2 = cOpen*cOpen;
+            d2Open = cOpen + k_Open;
+            d2Open = d2Open*d2Open;
 
-	    dx = abs(xc-k_xCenter) - k_xMax;
-	    dy = abs(yc-k_yCenter) - k_yMax;
-	    dz = abs(zc-k_zCenter) - k_zMax;
+            dx = abs(xc-k_xCenter) - k_xMax;
+            dy = abs(yc-k_yCenter) - k_yMax;
+            dz = abs(zc-k_zCenter) - k_zMax;
 
-	    dx = maskz_mov(dx>0,dx);
-	    dy = maskz_mov(dy>0,dy);
-	    dz = maskz_mov(dz>0,dz);
-	    mink2 = dx*dx + dy*dy + dz*dz;
-	    minbnd2 = 0.0f;
+            dx = maskz_mov(dx>0,dx);
+            dy = maskz_mov(dy>0,dy);
+            dz = maskz_mov(dz>0,dz);
+            mink2 = dx*dx + dy*dy + dz*dz;
+            minbnd2 = 0.0f;
 
-	    dx = k_xMinBnd - fvec(blk->xCenter.p[i]) - fvec(blk->xOffset.p[i]) - fvec(blk->xMax.p[i]);
-	    minbnd2 += maskz_mov(dx>0,dx*dx);
-	    dx = fvec(blk->xCenter.p[i]) + fvec(blk->xOffset.p[i]) - fvec(blk->xMax.p[i]) - k_xMaxBnd;
-	    minbnd2 += maskz_mov(dx>0,dx*dx);
+            dx = k_xMinBnd - fvec(blk->xCenter.p[i]) - fvec(blk->xOffset.p[i]) - fvec(blk->xMax.p[i]);
+            minbnd2 += maskz_mov(dx>0,dx*dx);
+            dx = fvec(blk->xCenter.p[i]) + fvec(blk->xOffset.p[i]) - fvec(blk->xMax.p[i]) - k_xMaxBnd;
+            minbnd2 += maskz_mov(dx>0,dx*dx);
 
-	    dx = k_yMinBnd - fvec(blk->yCenter.p[i]) - fvec(blk->yOffset.p[i]) - fvec(blk->yMax.p[i]);
-	    minbnd2 += maskz_mov(dx>0,dx*dx);
-	    dx = fvec(blk->yCenter.p[i]) + fvec(blk->yOffset.p[i]) - fvec(blk->yMax.p[i]) - k_yMaxBnd;
-	    minbnd2 += maskz_mov(dx>0,dx*dx);
+            dx = k_yMinBnd - fvec(blk->yCenter.p[i]) - fvec(blk->yOffset.p[i]) - fvec(blk->yMax.p[i]);
+            minbnd2 += maskz_mov(dx>0,dx*dx);
+            dx = fvec(blk->yCenter.p[i]) + fvec(blk->yOffset.p[i]) - fvec(blk->yMax.p[i]) - k_yMaxBnd;
+            minbnd2 += maskz_mov(dx>0,dx*dx);
 
-	    dx = k_zMinBnd - fvec(blk->zCenter.p[i]) - fvec(blk->zOffset.p[i]) - fvec(blk->zMax.p[i]);
-	    minbnd2 += maskz_mov(dx>0,dx*dx);
-	    dx = fvec(blk->zCenter.p[i]) + fvec(blk->zOffset.p[i]) - fvec(blk->zMax.p[i]) - k_zMaxBnd;
-	    minbnd2 += maskz_mov(dx>0,dx*dx);
+            dx = k_zMinBnd - fvec(blk->zCenter.p[i]) - fvec(blk->zOffset.p[i]) - fvec(blk->zMax.p[i]);
+            minbnd2 += maskz_mov(dx>0,dx*dx);
+            dx = fvec(blk->zCenter.p[i]) + fvec(blk->zOffset.p[i]) - fvec(blk->zMax.p[i]) - k_zMaxBnd;
+            minbnd2 += maskz_mov(dx>0,dx*dx);
 
-	    T0 = fvec(blk->m.p[i]) > fvec(0.0f);
-	    T1 = (d2>d2Open) & (minbnd2>fourh2);
-	    T2 = cvt_fvec(i32v(blk->iLower.p[i])) == 0.0;
-	    T3 = (walk_min_multipole > cvt_fvec(i32v(blk->nc.p[i]))) | (mink2<=cOpen2);
-	    T4 = minbnd2 > fourh2;
-	    T6 = cOpen > k_Open;
-	    T7 = k_notgrp;
- 	    iOpenA = mask_mov(i32v(3),T2,i32v(1));
-	    iOpenB = mask_mov(mask_mov(iOpenA,T4,i32v(4)),T3,iOpenA);
-	    P1 = mask_mov(i32v(3),T2,i32v(2));
-	    P2 = mask_mov(iOpenB,T7,i32v(0));
-	    P3 = mask_mov(P2,T6,P1);
-	    P4 = mask_mov(P3,T1,i32v(8));
-	    iOpen = mask_mov(i32v(10),T0,P4);
-	    blk->iOpen.p[i] = iOpen;
-	    }
-	}
+            T0 = fvec(blk->m.p[i]) > fvec(0.0f);
+            T1 = (d2>d2Open) & (minbnd2>fourh2);
+            T2 = cvt_fvec(i32v(blk->iLower.p[i])) == 0.0;
+            T3 = (walk_min_multipole > cvt_fvec(i32v(blk->nc.p[i]))) | (mink2<=cOpen2);
+            T4 = minbnd2 > fourh2;
+            T6 = cOpen > k_Open;
+            T7 = k_notgrp;
+            iOpenA = mask_mov(i32v(3),T2,i32v(1));
+            iOpenB = mask_mov(mask_mov(iOpenA,T4,i32v(4)),T3,iOpenA);
+            P1 = mask_mov(i32v(3),T2,i32v(2));
+            P2 = mask_mov(iOpenB,T7,i32v(0));
+            P3 = mask_mov(P2,T6,P1);
+            P4 = mask_mov(P3,T1,i32v(8));
+            iOpen = mask_mov(i32v(10),T0,P4);
+            blk->iOpen.p[i] = iOpen;
+        }
+    }
     double dFlop = COST_FLOP_OPEN*(tile->lstTile.nBlocks*CL_PART_PER_BLK  + tile->lstTile.nInLast);
     pkd->dFlop += dFlop;
     pkd->dFlopSingleCPU += dFlop;
-    }
+}

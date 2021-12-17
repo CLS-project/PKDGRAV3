@@ -26,11 +26,11 @@
 
 #define ILP_TILE_SIZE (100*1024) /* 100k */
 #ifndef ILP_PART_PER_BLK
-#define ILP_PART_PER_BLK (32) /* Don't mess with this: see CUDA */
+    #define ILP_PART_PER_BLK (32) /* Don't mess with this: see CUDA */
 #endif
 
 #if !defined(__CUDACC__)
-#include "core/simd.h"
+    #include "core/simd.h"
 #endif
 
 /*
@@ -41,27 +41,27 @@ typedef union {
 #if !defined(__CUDACC__)
     v_sf p[ILP_PART_PER_BLK/SIMD_WIDTH];
 #endif
-    } ilpFloat;
+} ilpFloat;
 
 typedef union {
     double d[ILP_PART_PER_BLK];
-    } ilpDouble;
+} ilpDouble;
 
 typedef union {
     int64_t i[ILP_PART_PER_BLK]; /* Signed because negative marks softened cells */
-    } ilpInt64;
+} ilpInt64;
 
 typedef struct {
     ilpFloat dx, dy, dz;    /* Offset from ilp->cx, cy, cz */
     ilpFloat m;             /* Mass */
     ilpFloat fourh2;        /* Softening: calculated */
-    } ILP_BLK;
+} ILP_BLK;
 
 #ifdef TIMESTEP_CRITICAL
 typedef struct {
     ilpDouble vx, vy, vz;
     ilpInt64 iOrder;
-    } ILP_EXTRA;
+} ILP_EXTRA;
 #endif
 
 typedef struct ilpTile {
@@ -70,12 +70,12 @@ typedef struct ilpTile {
 #ifdef TIMESTEP_CRITICAL
     ILP_EXTRA *xtr;
 #endif
-    } *ILPTILE;
+} *ILPTILE;
 
 typedef struct ilpContext {
     LST lst;
     double cx, cy, cz;          /* Center coordinates */
-    } *ILP;
+} *ILP;
 
 #define ILPCHECKPT LSTCHECKPT
 
@@ -94,7 +94,7 @@ void ilpFinish(ILP ilp);
 */
 
 static inline void ilpAppendFloat(ILP ilp, float X, float Y, float Z, float M, float S,
-    uint64_t I, float VX, float VY, float VZ ) {
+                                  uint64_t I, float VX, float VY, float VZ ) {
     ILPTILE tile = (ILPTILE)lstReposition(&ilp->lst);
     uint_fast32_t blk = tile->lstTile.nBlocks;
     uint_fast32_t prt = tile->lstTile.nInLast;
@@ -111,12 +111,12 @@ static inline void ilpAppendFloat(ILP ilp, float X, float Y, float Z, float M, f
     tile->xtr[blk].vz.d[prt] = (VZ);
 #endif
     ++tile->lstTile.nInLast;
-    }
+}
 
 static inline void ilpAppend(ILP ilp, double X, double Y, double Z, float M, float S,
-    uint64_t I, float VX, float VY, float VZ ) {
+                             uint64_t I, float VX, float VY, float VZ ) {
     ilpAppendFloat(ilp,(float)((ilp)->cx-(X)),(float)((ilp)->cy-(Y)),(float)((ilp)->cz-(Z)),M,S,I,VX,VY,VZ);
-    }
+}
 #define ILP_LOOP(ilp,ptile) for( ptile=(ILPTILE)((ilp)->lst.list); ptile!=NULL; ptile=(ILPTILE)(ptile->lstTile.next) )
 
 #endif

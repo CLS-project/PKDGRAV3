@@ -1,8 +1,7 @@
 #include "hydro/hydro.h"
 #include "master.h"
 
-void MSR::ComputeSmoothing(double dTime, double dDelta)
-{
+void MSR::ComputeSmoothing(double dTime, double dDelta) {
     int nSmoothed = 1, it=0, maxit = 100;
 
     printf("Computing density... \n");
@@ -19,7 +18,7 @@ void MSR::ComputeSmoothing(double dTime, double dDelta)
 
         while (nSmoothed>0 && it <= maxit) {
             // I think this is no longer used
-            //msrSetFirstHydroLoop(msr, 1); 
+            //msrSetFirstHydroLoop(msr, 1);
             // 1-> we care if the particle is marked
             // 0-> we dont
 #ifdef OPTIM_SMOOTH_NODE
@@ -41,7 +40,8 @@ void MSR::ComputeSmoothing(double dTime, double dDelta)
         TimerStop(TIMER_DENSITY);
         double dsec = TimerGet(TIMER_DENSITY);
         printf("Computing h took %d iterations and %.5f seconds \n", it, dsec);
-    } else {
+    }
+    else {
         bUpdateBall = 1;
         Smooth(dTime, dDelta, SMX_HYDRO_DENSITY,0,param.nSmooth);
         bUpdateBall = 0;
@@ -51,8 +51,8 @@ void MSR::ComputeSmoothing(double dTime, double dDelta)
 
 
 static inline void densNodeOmegaE(NN *nnList, double *rpqs, float fBall,
-                    float dx_node, float dy_node, float dz_node, int nCnt,
-                    double *omega, double *E){
+                                  float dx_node, float dy_node, float dz_node, int nCnt,
+                                  double *omega, double *E) {
     float fBall2_p = 4.*fBall*fBall;
     *omega = 0.0;
     for (int j=0; j<6; ++j)
@@ -85,7 +85,7 @@ static inline void densNodeOmegaE(NN *nnList, double *rpqs, float fBall,
 
 
 static inline double densNodeNcondB(PKD pkd, PARTICLE *p,
-                                    double *E, double omega){
+                                    double *E, double omega) {
     double B[6];
 
     // Normalize the matrix
@@ -97,10 +97,10 @@ static inline double densNodeNcondB(PKD pkd, PARTICLE *p,
     double Ncond = conditionNumber(E, B);
     assert(Ncond==Ncond);
 
-    if (pkdIsGas(pkd,p)){
+    if (pkdIsGas(pkd,p)) {
         // We can already set this here, so it can be skipped in
         // hydroGradients
-        SPHFIELDS* psph = pkdSph(pkd,p);
+        SPHFIELDS *psph = pkdSph(pkd,p);
         psph->Ncond = Ncond;
         psph->B[XX] = B[XX];
         psph->B[YY] = B[YY];
@@ -116,10 +116,9 @@ static inline double densNodeNcondB(PKD pkd, PARTICLE *p,
 
 
 void hydroDensity_node(PKD pkd, SMF *smf, BND bnd_node, PARTICLE **sinks, NN *nnList,
-                       int nCnt_own, int nCnt)
-{
+                       int nCnt_own, int nCnt) {
     for (int pj=0; pj<nCnt_own; pj++) {
-        PARTICLE * partj = sinks[pj];
+        PARTICLE *partj = sinks[pj];
 #ifdef OPTIM_UNION_EXTRAFIELDS
         double *omega = NULL;
         omega = pkdIsGas(pkd,partj)  ? &(pkdSph(pkd,partj)->omega) : omega;
@@ -127,7 +126,7 @@ void hydroDensity_node(PKD pkd, SMF *smf, BND bnd_node, PARTICLE **sinks, NN *nn
         omega = pkdIsBH(pkd,partj)   ? &(pkdBH(pkd,partj)->omega) : omega;
 #else
         // Assuming *only* stars and gas
-        double* omega = &(pkdSph(pkd,partj)->omega);
+        double *omega = &(pkdSph(pkd,partj)->omega);
 #endif
 
         float dx_node = -pkdPos(pkd,partj,0)+bnd_node.fCenter[0];
@@ -137,7 +136,7 @@ void hydroDensity_node(PKD pkd, SMF *smf, BND bnd_node, PARTICLE **sinks, NN *nn
         // The sqrt can be computed just once here, with higher probability
         // of being vectorized
         double rpqs[nCnt];
-        for (int pk=0; pk<nCnt; pk++){
+        for (int pk=0; pk<nCnt; pk++) {
             float dx = dx_node - nnList[pk].dx;
             float dy = dy_node - nnList[pk].dy;
             float dz = dz_node - nnList[pk].dz;
@@ -171,7 +170,8 @@ void hydroDensity_node(PKD pkd, SMF *smf, BND bnd_node, PARTICLE **sinks, NN *nn
                     if (Neff>200.) {
                         partj->bMarked=0;
                         printf("WARNING Neff %e Ncond %e \n", Neff, Ncond);
-                    } else {
+                    }
+                    else {
                         Neff *= 1.2;
                         niter = 0;
                         continue;
@@ -180,7 +180,8 @@ void hydroDensity_node(PKD pkd, SMF *smf, BND bnd_node, PARTICLE **sinks, NN *nn
 
                 partj->bMarked = 0;
                 pkdSetDensity(pkd, partj, pkdMass(pkd,partj)*(*omega));
-            } else {
+            }
+            else {
                 float newBall;
 
                 newBall = (c!=0.0) ? ph * pow(  Neff/c,0.3333333333) : ph*4.0;
@@ -194,9 +195,9 @@ void hydroDensity_node(PKD pkd, SMF *smf, BND bnd_node, PARTICLE **sinks, NN *nn
                     float ph = pkdBall(pkd,partj);
                     // We check that the proposed ball is enclosed within the
                     // node search region
-                    if((fabs(dx_node) + ph > bnd_node.fMax[0])||
-                       (fabs(dy_node) + ph > bnd_node.fMax[1])||
-                       (fabs(dz_node) + ph > bnd_node.fMax[2])) {
+                    if ((fabs(dx_node) + ph > bnd_node.fMax[0])||
+                            (fabs(dy_node) + ph > bnd_node.fMax[1])||
+                            (fabs(dz_node) + ph > bnd_node.fMax[2])) {
                         // Removed this, see notes 29/10/20
                         //nSmoothed-=1; // We explicitly say that this particle was
                         //not succesfully smoothed
@@ -225,11 +226,11 @@ void hydroDensity_node(PKD pkd, SMF *smf, BND bnd_node, PARTICLE **sinks, NN *nn
                 }
             }
 
-        } while(partj->bMarked);
+        } while (partj->bMarked);
 
         // After a converged fBall is obtained, we limit fBall if needed
         if (smf->dhMinOverSoft > 0.) {
-            if (pkdBall(pkd,partj) < smf->dhMinOverSoft*pkdSoft(pkd,partj)){
+            if (pkdBall(pkd,partj) < smf->dhMinOverSoft*pkdSoft(pkd,partj)) {
                 float newBall = smf->dhMinOverSoft*pkdSoft(pkd,partj);
                 pkdSetBall(pkd, partj, newBall);
 
@@ -254,8 +255,7 @@ void hydroDensity_node(PKD pkd, SMF *smf, BND bnd_node, PARTICLE **sinks, NN *nn
  * The supported density computation is that performed by hydroDensity_node,
  * which is automatically selected when using the OPTIM_SMOOTH_NODE flag
  */
-void hydroDensity(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf)
-{
+void hydroDensity(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
     SPHFIELDS *psph;
     double ph, rpq, hpq, c;
@@ -306,7 +306,8 @@ void hydroDensity(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf)
         c = 4.*M_PI/3. * psph->omega *ph*ph*ph*8.;
         if (fabs(c-smf->nSmooth) < smf->dNeighborsStd) {
             p->bMarked = 0;
-        } else {
+        }
+        else {
             float newBall;
             newBall = ph * pow(  smf->nSmooth/c,0.3333333333);
             //   if (nSmooth <= 1) newBall *= 2.*fBall;

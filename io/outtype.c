@@ -16,9 +16,9 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#include "config.h"
+    #include "config.h"
 #else
-#include "pkd_config.h"
+    #include "pkd_config.h"
 #endif
 
 #include <stdio.h>
@@ -26,15 +26,15 @@
 #include <math.h>
 #include <assert.h>
 #ifdef HAVE_INTTYPES_H
-#include <inttypes.h>
+    #include <inttypes.h>
 #else
-#define PRIu64 "llu"
-#define PRIx64 "llx"
+    #define PRIu64 "llu"
+    #define PRIx64 "llx"
 #endif
 #include "pkd.h"
 #include "outtype.h"
 #ifdef LARGEF
-#include <fcntl.h>
+    #include <fcntl.h>
 #endif
 
 #define OUTTYPE_UNKNOWN 0
@@ -44,13 +44,13 @@
 #define OUTTYPE_PSGROUP 4
 
 static int getType(int iType) {
-    switch(iType) {
+    switch (iType) {
     case OUT_IORDER_ARRAY:
     case OUT_GROUP_ARRAY:
     case OUT_MARKED_ARRAY:
-	return OUTTYPE_INTEGER;
+        return OUTTYPE_INTEGER;
     case OUT_PSGROUP_ARRAY:
-	return OUTTYPE_PSGROUP;
+        return OUTTYPE_PSGROUP;
 
     case OUT_BALL_ARRAY:
     case OUT_DENSITY_ARRAY:
@@ -72,22 +72,22 @@ static int getType(int iType) {
     case OUT_VEL_VECTOR:
     case OUT_MEANVEL_VECTOR:
     case OUT_ACCEL_VECTOR:
-	return OUTTYPE_FLOAT;
+        return OUTTYPE_FLOAT;
     case OUT_CACHEFLUX_ARRAY:
-      return OUTTYPE_INTEGER;
+        return OUTTYPE_INTEGER;
     case OUT_CACHECOLL_ARRAY:
-      return OUTTYPE_INTEGER;
+        return OUTTYPE_INTEGER;
     case OUT_AVOIDEDFLUXES_ARRAY:
-      return OUTTYPE_INTEGER;
+        return OUTTYPE_INTEGER;
     case OUT_COMPUTEDFLUXES_ARRAY:
-      return OUTTYPE_INTEGER;
+        return OUTTYPE_INTEGER;
     case OUT_RUNGDEST_ARRAY:
-	return OUTTYPE_RUNGDEST;
+        return OUTTYPE_RUNGDEST;
 
     default:
-	return OUTTYPE_UNKNOWN;
-	}
+        return OUTTYPE_UNKNOWN;
     }
+}
 
 /* Write an integer */
 static uint64_t fetchInteger(PKD pkd,PARTICLE *p,int iType,int iDim) {
@@ -95,141 +95,145 @@ static uint64_t fetchInteger(PKD pkd,PARTICLE *p,int iType,int iDim) {
 
     switch (iType) {
     case OUT_IORDER_ARRAY:
-	v = p->iOrder;
-	break;
+        v = p->iOrder;
+        break;
     case OUT_GROUP_ARRAY:
-	v = pkdGetGroup(pkd,p);
-	break;
+        v = pkdGetGroup(pkd,p);
+        break;
     case OUT_MARKED_ARRAY:
-	v = p->bMarked;
-	break;
+        v = p->bMarked;
+        break;
     case OUT_PSGROUP_ARRAY:
-	assert(0);
-	/*v = pkd->psGroupData[pkdGetGroup(pkd,p)].iGlobalId;*/
-	v = pkdGetGroup(pkd,p);
-	break;
+        assert(0);
+        /*v = pkd->psGroupData[pkdGetGroup(pkd,p)].iGlobalId;*/
+        v = pkdGetGroup(pkd,p);
+        break;
 #ifdef DEBUG_CACHED_FLUXES
     case OUT_CACHEFLUX_ARRAY:
-      if (pkdIsGas(pkd,p)){
-         v = pkdSph(pkd,p)->flux_cache;
-      }else{
-         v = 0;
-      }
-      break;
+        if (pkdIsGas(pkd,p)) {
+            v = pkdSph(pkd,p)->flux_cache;
+        }
+        else {
+            v = 0;
+        }
+        break;
     case OUT_CACHECOLL_ARRAY:
-      if (pkdIsGas(pkd,p)){
-         v = pkdSph(pkd,p)->coll_cache;
-      }else{
-         v = 0;
-      }
-      break;
+        if (pkdIsGas(pkd,p)) {
+            v = pkdSph(pkd,p)->coll_cache;
+        }
+        else {
+            v = 0;
+        }
+        break;
     case OUT_AVOIDEDFLUXES_ARRAY:
-      if (pkdIsGas(pkd,p)){
-         v = (uint64_t)(pkdSph(pkd,p)->avoided_fluxes);
-      }else{
-         v = 0;
-      }
-      break;
+        if (pkdIsGas(pkd,p)) {
+            v = (uint64_t)(pkdSph(pkd,p)->avoided_fluxes);
+        }
+        else {
+            v = 0;
+        }
+        break;
     case OUT_COMPUTEDFLUXES_ARRAY:
-      if (pkdIsGas(pkd,p)){
-         v = (uint64_t)(pkdSph(pkd,p)->computed_fluxes);
-      }else{
-         v = 0;
-      }
-      break;
+        if (pkdIsGas(pkd,p)) {
+            v = (uint64_t)(pkdSph(pkd,p)->computed_fluxes);
+        }
+        else {
+            v = 0;
+        }
+        break;
 #endif
     default:
-	v = 0;
-	}
-    return v;
+        v = 0;
     }
+    return v;
+}
 static double fetchFloat(PKD pkd,PARTICLE *p,int iType,int iDim) {
     float *a;
     double v;
     VELSMOOTH *pvel;
     switch (iType) {
     case OUT_DENSITY_ARRAY:
-	v = pkdDensity(pkd,p);
-	break;
+        v = pkdDensity(pkd,p);
+        break;
     case OUT_BALL_ARRAY:
-	v = pkdBall(pkd,p);
-	break;
+        v = pkdBall(pkd,p);
+        break;
     case OUT_POT_ARRAY:
-	assert(pkd->oFieldOffset[oPotential]);
-	a = pkdPot(pkd,p);
-	v = *a;
-	break;
+        assert(pkd->oFieldOffset[oPotential]);
+        a = pkdPot(pkd,p);
+        v = *a;
+        break;
     case OUT_AMAG_ARRAY:
-	assert(pkd->oFieldOffset[oAcceleration]); /* Validate memory model */
-	a = pkdAccel(pkd,p);
-	v = sqrt(a[0]*a[0] + a[1]*a[1] + a[2]*a[2]);
-	break;
+        assert(pkd->oFieldOffset[oAcceleration]); /* Validate memory model */
+        a = pkdAccel(pkd,p);
+        v = sqrt(a[0]*a[0] + a[1]*a[1] + a[2]*a[2]);
+        break;
     case OUT_RUNG_ARRAY:
-	v = p->uRung;
-	break;
+        v = p->uRung;
+        break;
     case OUT_SOFT_ARRAY:
-	v = pkdSoft(pkd,p);
-	break;
+        v = pkdSoft(pkd,p);
+        break;
     case OUT_RELAX_ARRAY:
-	assert(pkd->oFieldOffset[oRelaxation]);
-	a = pkdField(p,pkd->oFieldOffset[oRelaxation]);
-	v = *a;
-	break;
+        assert(pkd->oFieldOffset[oRelaxation]);
+        a = pkdField(p,pkd->oFieldOffset[oRelaxation]);
+        v = *a;
+        break;
     case OUT_DIVV_ARRAY:
-	assert(pkd->oFieldOffset[oVelSmooth]); /* Validate memory model */
-	pvel = pkdField(p,pkd->oFieldOffset[oVelSmooth]);
-	v = pvel->divv;
-	break;
+        assert(pkd->oFieldOffset[oVelSmooth]); /* Validate memory model */
+        pvel = pkdField(p,pkd->oFieldOffset[oVelSmooth]);
+        v = pvel->divv;
+        break;
     case OUT_VELDISP2_ARRAY:
-	assert(pkd->oFieldOffset[oVelSmooth]); /* Validate memory model */
-	pvel = pkdField(p,pkd->oFieldOffset[oVelSmooth]);
-	v = pvel->veldisp2;
+        assert(pkd->oFieldOffset[oVelSmooth]); /* Validate memory model */
+        pvel = pkdField(p,pkd->oFieldOffset[oVelSmooth]);
+        v = pvel->veldisp2;
     case OUT_VELDISP_ARRAY:
-	assert(pkd->oFieldOffset[oVelSmooth]); /* Validate memory model */
-	pvel = pkdField(p,pkd->oFieldOffset[oVelSmooth]);
-	v = sqrt(pvel->veldisp2);
-	break;
+        assert(pkd->oFieldOffset[oVelSmooth]); /* Validate memory model */
+        pvel = pkdField(p,pkd->oFieldOffset[oVelSmooth]);
+        v = sqrt(pvel->veldisp2);
+        break;
     case OUT_PHASEDENS_ARRAY:
-	assert(pkd->oFieldOffset[oVelSmooth]); /* Validate memory model */
-	pvel = pkdField(p,pkd->oFieldOffset[oVelSmooth]);
-	v = pkdDensity(pkd,p)*pow(pvel->veldisp2,-1.5);
-	break;
+        assert(pkd->oFieldOffset[oVelSmooth]); /* Validate memory model */
+        pvel = pkdField(p,pkd->oFieldOffset[oVelSmooth]);
+        v = pkdDensity(pkd,p)*pow(pvel->veldisp2,-1.5);
+        break;
 #ifndef OPTIM_REMOVE_UNUSED
     case OUT_UDOT_ARRAY:
-	v = pkdSph(pkd,p)->uDot;
-	break;
+        v = pkdSph(pkd,p)->uDot;
+        break;
     case OUT_U_ARRAY:
-	v = pkdSph(pkd,p)->u;
-	break;
+        v = pkdSph(pkd,p)->u;
+        break;
 #endif
     case OUT_C_ARRAY:
-	v = pkdSph(pkd,p)->c;
-	break;
+        v = pkdSph(pkd,p)->c;
+        break;
     case OUT_HSPH_ARRAY:
-	v = pkdBall(pkd,p) * 0.5;
-	break;
+        v = pkdBall(pkd,p) * 0.5;
+        break;
     case OUT_POS_VECTOR:
-	v = pkdPos(pkd,p,iDim);
-	break;
+        v = pkdPos(pkd,p,iDim);
+        break;
     case OUT_VEL_VECTOR:
-	assert(pkd->oFieldOffset[oVelocity]); /* Validate memory model */
-	v = pkdVel(pkd,p)[iDim];
-	break;
+        assert(pkd->oFieldOffset[oVelocity]); /* Validate memory model */
+        v = pkdVel(pkd,p)[iDim];
+        break;
     case OUT_MEANVEL_VECTOR:
-	assert(pkd->oFieldOffset[oVelSmooth]); /* Validate memory model */
-	pvel = pkdField(p,pkd->oFieldOffset[oVelSmooth]);
-	v = pvel->vmean[iDim];
-	break;
+        assert(pkd->oFieldOffset[oVelSmooth]); /* Validate memory model */
+        pvel = pkdField(p,pkd->oFieldOffset[oVelSmooth]);
+        v = pvel->vmean[iDim];
+        break;
     case OUT_ACCEL_VECTOR:
-	assert(pkd->oFieldOffset[oAcceleration]); /* Validate memory model */
-	a = pkdAccel(pkd,p);
-	v = a[iDim];
-	break;
+        assert(pkd->oFieldOffset[oAcceleration]); /* Validate memory model */
+        a = pkdAccel(pkd,p);
+        v = a[iDim];
+        break;
     default:
-	v = 0.0;
-	}
-    return v;
+        v = 0.0;
     }
+    return v;
+}
 
 /******************************************************************************\
  * Generic buffered output - flush needs to be customized for the type of
@@ -238,19 +242,19 @@ static double fetchFloat(PKD pkd,PARTICLE *p,int iType,int iDim) {
 static void storeInteger(PKD pkd,PKDOUT ctx,PARTICLE *p,int iType,int iDim) {
     int n = ctx->inOffset - ctx->inBuffer;
     if ( PKDOUT_BUFFER_SIZE - n < 24 ) {
-	(*ctx->fnFlush)(pkd,ctx,0);
-	}
+        (*ctx->fnFlush)(pkd,ctx,0);
+    }
     sprintf(ctx->inOffset,"%"PRIu64"\n",fetchInteger(pkd,p,iType,iDim));
     assert(strlen(ctx->inOffset) < 24 );
-    while( *ctx->inOffset ) ++ctx->inOffset;
-    }
+    while ( *ctx->inOffset ) ++ctx->inOffset;
+}
 static void storeFloat(PKD pkd,PKDOUT ctx,PARTICLE *p,int iType,int iDim) {
     if ( PKDOUT_BUFFER_SIZE - (ctx->inOffset-ctx->inBuffer) < 20 )
-	(*ctx->fnFlush)(pkd,ctx,0);
+        (*ctx->fnFlush)(pkd,ctx,0);
     sprintf(ctx->inOffset,"%.8g\n",fetchFloat(pkd,p,iType,iDim));
     assert(strlen(ctx->inOffset) < 20 );
-    while( *ctx->inOffset ) ++ctx->inOffset;
-    }
+    while ( *ctx->inOffset ) ++ctx->inOffset;
+}
 
 extern uint64_t hilbert2d(float x,float y);
 extern uint64_t hilbert3d(float x,float y,float z);
@@ -278,33 +282,33 @@ static void storeRungDest(PKD pkd,PKDOUT ctx,PARTICLE *p,int iType,int iDim) {
     lKey = hilbert2d(x,y);
 #endif
     if ( PKDOUT_BUFFER_SIZE - (ctx->inOffset-ctx->inBuffer) < 100 )
-	(*ctx->fnFlush)(pkd,ctx,0);
+        (*ctx->fnFlush)(pkd,ctx,0);
     sprintf(ctx->inOffset,"%016"PRIx64" %d",lKey,p->uRung);
     ctx->inOffset += strlen(ctx->inOffset);
-    for(iRung=0; iRung<8; iRung++) {
-	sprintf(ctx->inOffset," %d", pRungDest[iRung]);
-	ctx->inOffset += strlen(ctx->inOffset);
-	}
-    *ctx->inOffset++ = '\n';
+    for (iRung=0; iRung<8; iRung++) {
+        sprintf(ctx->inOffset," %d", pRungDest[iRung]);
+        ctx->inOffset += strlen(ctx->inOffset);
     }
+    *ctx->inOffset++ = '\n';
+}
 static void storeHdr(PKD pkd,PKDOUT ctx,uint64_t N) {
     if ( PKDOUT_BUFFER_SIZE - (ctx->inOffset-ctx->inBuffer) < 20 )
-	(*ctx->fnFlush)(pkd,ctx,0);
+        (*ctx->fnFlush)(pkd,ctx,0);
     sprintf(ctx->inOffset,"%"PRIu64"\n",N);
-    while( *ctx->inOffset ) ++ctx->inOffset;
-    }
+    while ( *ctx->inOffset ) ++ctx->inOffset;
+}
 static void finish(PKD pkd,PKDOUT ctx) {
     (*ctx->fnFlush)(pkd,ctx,0); /* Flush input buffer */
     (*ctx->fnFlush)(pkd,ctx,1); /* Finish output stream */
-    }
+}
 
 static void storePsGroup(PKD pkd,PKDOUT ctx,PARTICLE *p,int iType,int iDim) {
     if ( PKDOUT_BUFFER_SIZE - (ctx->inOffset-ctx->inBuffer) < 40 )
-	(*ctx->fnFlush)(pkd,ctx,0);
+        (*ctx->fnFlush)(pkd,ctx,0);
     sprintf(ctx->inOffset,"%"PRIu64" %i\n",(uint64_t)p->iOrder, pkdGetGroup(pkd,p));
     assert(strlen(ctx->inOffset) < 40 );
-    while( *ctx->inOffset ) ++ctx->inOffset;
-    }
+    while ( *ctx->inOffset ) ++ctx->inOffset;
+}
 
 /******************************************************************************\
  * Generic binary output - flush needs to be customized
@@ -314,13 +318,13 @@ static void storeIntegerBinary(PKD pkd,PKDOUT ctx,PARTICLE *p,int iType,int iDim
     if ( PKDOUT_BUFFER_SIZE - n < sizeof(int) ) (*ctx->fnFlush)(pkd,ctx,0);
     *(int *)ctx->inOffset = fetchInteger(pkd,p,iType,iDim);
     ctx->inOffset += sizeof(int);
-    }
+}
 static void storeFloatBinary(PKD pkd,PKDOUT ctx,PARTICLE *p,int iType,int iDim) {
     int n = ctx->inOffset - ctx->inBuffer;
     if ( PKDOUT_BUFFER_SIZE - n < sizeof(float) ) (*ctx->fnFlush)(pkd,ctx,0);
     *(float *)ctx->inOffset = fetchFloat(pkd,p,iType,iDim);
     ctx->inOffset += sizeof(float);
-    }
+}
 
 extern uint64_t hilbert2d(float x,float y);
 extern uint64_t hilbert3d(float x,float y,float z);
@@ -349,29 +353,29 @@ static void storeRungDestBinary(PKD pkd,PKDOUT ctx,PARTICLE *p,int iType,int iDi
     lKey = hilbert2d(x,y);
 #endif
     if ( PKDOUT_BUFFER_SIZE - (ctx->inOffset-ctx->inBuffer) < 100 )
-	(*ctx->fnFlush)(pkd,ctx,0);
+        (*ctx->fnFlush)(pkd,ctx,0);
     sprintf(ctx->inOffset,"%016"PRIx64" %d",lKey,p->uRung);
     ctx->inOffset += strlen(ctx->inOffset);
-    for(iRung=0; iRung<8; iRung++) {
-	sprintf(ctx->inOffset," %d", pRungDest[iRung]);
-	ctx->inOffset += strlen(ctx->inOffset);
-	}
-    *ctx->inOffset++ = '\n';
+    for (iRung=0; iRung<8; iRung++) {
+        sprintf(ctx->inOffset," %d", pRungDest[iRung]);
+        ctx->inOffset += strlen(ctx->inOffset);
     }
+    *ctx->inOffset++ = '\n';
+}
 static void storeHdrBinary(PKD pkd,PKDOUT ctx,uint64_t N) {
     int n = ctx->inOffset - ctx->inBuffer;
     if ( PKDOUT_BUFFER_SIZE - n < sizeof(int) ) (*ctx->fnFlush)(pkd,ctx,0);
     *(int *)ctx->inOffset = N;
     ctx->inOffset += sizeof(int);
-    }
+}
 static void storePsGroupBinary(PKD pkd,PKDOUT ctx,PARTICLE *p,int iType,int iDim) {
     assert(0);
     if ( PKDOUT_BUFFER_SIZE - (ctx->inOffset-ctx->inBuffer) < 40 )
-	(*ctx->fnFlush)(pkd,ctx,0);
+        (*ctx->fnFlush)(pkd,ctx,0);
     sprintf(ctx->inOffset,"%"PRIu64" %i\n",(uint64_t)p->iOrder, pkdGetGroup(pkd,p));
     assert(strlen(ctx->inOffset) < 40 );
-    while( *ctx->inOffset ) ++ctx->inOffset;
-    }
+    while ( *ctx->inOffset ) ++ctx->inOffset;
+}
 
 /******************************************************************************\
  * Regular ASCII
@@ -384,11 +388,11 @@ static void writeASCII(PKD pkd,PKDOUT ctx,int final) {
     int n = ctx->inOffset - ctx->inBuffer;
     fwrite(ctx->inBuffer,n,1,ctx->fp);
     ctx->inOffset = ctx->inBuffer;
-    }
+}
 
 static void closeASCII(PKD pkd,PKDOUT ctx) {
     (*ctx->fnFlush)(pkd,ctx,0); /* Flush input buffer */
-    }
+}
 
 /******************************************************************************\
  * bzip2 compression
@@ -398,7 +402,7 @@ static void closeASCII(PKD pkd,PKDOUT ctx) {
 static void closeBZ2(PKD pkd,PKDOUT ctx) {
     (*ctx->fnFlush)(pkd,ctx,0); /* Flush input buffer */
     (*ctx->fnFlush)(pkd,ctx,1); /* Flush output buffer */
-    }
+}
 /*
 ** Write routine to write to an output file
 */
@@ -407,20 +411,20 @@ static void outputBZ2(PKD pkd,PKDOUT ctx) {
     fwrite(ctx->outBuffer->data,n,1,ctx->fp);
     ctx->CTX.bzStream->avail_out = PKDOUT_BUFFER_SIZE;
     ctx->CTX.bzStream->next_out = ctx->outBuffer->data;
-    }
+}
 /*
 ** Write routine to allocate a new buffer.
 */
 static void bufferBZ2(PKD pkd,PKDOUT ctx) {
     ctx->outBuffer->nBytes = PKDOUT_BUFFER_SIZE - ctx->CTX.bzStream->avail_out;
     if ( ctx->CTX.bzStream->avail_out == 0 ) {
-	ctx->outBuffer = ctx->outBuffer->next = malloc(sizeof(PKDOUTBUFFER));
-	ctx->outBuffer->next = NULL;
-	ctx->outBuffer->nBytes = 0;
-	ctx->CTX.bzStream->avail_out = PKDOUT_BUFFER_SIZE;
-	ctx->CTX.bzStream->next_out = ctx->outBuffer->data;
-	}
+        ctx->outBuffer = ctx->outBuffer->next = malloc(sizeof(PKDOUTBUFFER));
+        ctx->outBuffer->next = NULL;
+        ctx->outBuffer->nBytes = 0;
+        ctx->CTX.bzStream->avail_out = PKDOUT_BUFFER_SIZE;
+        ctx->CTX.bzStream->next_out = ctx->outBuffer->data;
     }
+}
 /*
 ** Called when the input buffer is (nearly) full.  Empties the input buffer by
 ** compressing the data.  New output buffers are allocated as required.
@@ -430,26 +434,26 @@ static void flushBZ2(PKD pkd,PKDOUT ctx,int final) {
     ctx->CTX.bzStream->next_in = ctx->inBuffer;
     ctx->CTX.bzStream->avail_in = ctx->inOffset - ctx->inBuffer;
     ctx->inOffset = ctx->inBuffer;
-    while(ctx->CTX.bzStream->avail_in) {
-	if (ctx->CTX.bzStream->avail_out==0) {
-	    ctx->nBytes += (ctx->outBuffer->nBytes=PKDOUT_BUFFER_SIZE);
-	    (*ctx->fnWrite)(pkd,ctx);
-	    }
-	bzerror = BZ2_bzCompress(ctx->CTX.bzStream,BZ_RUN);
-	assert(bzerror>=0);
-	}
-    if (final) {
-	do {
-	    bzerror = BZ2_bzCompress(ctx->CTX.bzStream,BZ_FINISH);
-	    (*ctx->fnWrite)(pkd,ctx);
-	    } while(bzerror>0&&bzerror!=BZ_STREAM_END);
-	(*ctx->fnWrite)(pkd,ctx);
-	ctx->outBuffer->nBytes = PKDOUT_BUFFER_SIZE - ctx->CTX.bzStream->avail_out;
-	ctx->nBytes += ctx->outBuffer->nBytes;
-	BZ2_bzCompressEnd(ctx->CTX.bzStream);
-	ctx->CTX.bzStream = NULL;
-	}
+    while (ctx->CTX.bzStream->avail_in) {
+        if (ctx->CTX.bzStream->avail_out==0) {
+            ctx->nBytes += (ctx->outBuffer->nBytes=PKDOUT_BUFFER_SIZE);
+            (*ctx->fnWrite)(pkd,ctx);
+        }
+        bzerror = BZ2_bzCompress(ctx->CTX.bzStream,BZ_RUN);
+        assert(bzerror>=0);
     }
+    if (final) {
+        do {
+            bzerror = BZ2_bzCompress(ctx->CTX.bzStream,BZ_FINISH);
+            (*ctx->fnWrite)(pkd,ctx);
+        } while (bzerror>0&&bzerror!=BZ_STREAM_END);
+        (*ctx->fnWrite)(pkd,ctx);
+        ctx->outBuffer->nBytes = PKDOUT_BUFFER_SIZE - ctx->CTX.bzStream->avail_out;
+        ctx->nBytes += ctx->outBuffer->nBytes;
+        BZ2_bzCompressEnd(ctx->CTX.bzStream);
+        ctx->CTX.bzStream = NULL;
+    }
+}
 
 static void setupBZ2(PKD pkd,PKDOUT ctx) {
     ctx->fnClose = closeBZ2;
@@ -464,7 +468,7 @@ static void setupBZ2(PKD pkd,PKDOUT ctx) {
     ctx->CTX.bzStream->avail_out = PKDOUT_BUFFER_SIZE;
     ctx->CTX.bzStream->next_out = ctx->outBuffer->data;
     BZ2_bzCompressInit(ctx->CTX.bzStream,9,0,0);
-    }
+}
 #endif
 
 /******************************************************************************\
@@ -478,7 +482,7 @@ static void setupBZ2(PKD pkd,PKDOUT ctx) {
 static void closeZ(PKD pkd,PKDOUT ctx) {
     (*ctx->fnFlush)(pkd,ctx,0); /* Flush input buffer */
     (*ctx->fnFlush)(pkd,ctx,1); /* Flush output buffer */
-    }
+}
 /*
 ** Write routine to write to an output file
 */
@@ -487,20 +491,20 @@ static void outputZ(PKD pkd,PKDOUT ctx) {
     fwrite(ctx->outBuffer->data,n,1,ctx->fp);
     ctx->CTX.gzStream->avail_out = PKDOUT_BUFFER_SIZE;
     ctx->CTX.gzStream->next_out = ctx->outBuffer->data;
-    }
+}
 /*
 ** Write routine to allocate a new buffer.
 */
 static void bufferZ(PKD pkd,PKDOUT ctx) {
     ctx->outBuffer->nBytes = PKDOUT_BUFFER_SIZE - ctx->CTX.gzStream->avail_out;
     if ( ctx->CTX.gzStream->avail_out == 0 ) {
-	ctx->outBuffer = ctx->outBuffer->next = malloc(sizeof(PKDOUTBUFFER));
-	ctx->outBuffer->next = NULL;
-	ctx->outBuffer->nBytes = 0;
-	ctx->CTX.gzStream->avail_out = PKDOUT_BUFFER_SIZE;
-	ctx->CTX.gzStream->next_out = ctx->outBuffer->data;
-	}
+        ctx->outBuffer = ctx->outBuffer->next = malloc(sizeof(PKDOUTBUFFER));
+        ctx->outBuffer->next = NULL;
+        ctx->outBuffer->nBytes = 0;
+        ctx->CTX.gzStream->avail_out = PKDOUT_BUFFER_SIZE;
+        ctx->CTX.gzStream->next_out = ctx->outBuffer->data;
     }
+}
 /*
 ** Called when the input buffer is (nearly) full.  Empties the input buffer by
 ** compressing the data.  New output buffers are allocated as required.
@@ -511,30 +515,30 @@ static void flushZ(PKD pkd,PKDOUT ctx,int final) {
     ctx->CTX.gzStream->avail_in = ctx->inOffset - ctx->inBuffer;
     ctx->inOffset = ctx->inBuffer;
 
-    while(ctx->CTX.gzStream->avail_in) {
-	if (ctx->CTX.gzStream->avail_out==0) {
-	    ctx->nBytes += (ctx->outBuffer->nBytes=PKDOUT_BUFFER_SIZE);
-	    (*ctx->fnWrite)(pkd,ctx);
-	    }
-	gzerror = deflate(ctx->CTX.gzStream,0);
-	assert(gzerror>=0);
-	}
-    if (final) {
-	do {
-	    if (ctx->CTX.gzStream->avail_out==0) {
-		ctx->nBytes += (ctx->outBuffer->nBytes=PKDOUT_BUFFER_SIZE);
-		(*ctx->fnWrite)(pkd,ctx);
-		}
-	    gzerror = deflate(ctx->CTX.gzStream,Z_FINISH);
-	    assert(gzerror>=0);
-	    (*ctx->fnWrite)(pkd,ctx);
-	    } while(gzerror!=Z_STREAM_END);
-	ctx->outBuffer->nBytes = PKDOUT_BUFFER_SIZE - ctx->CTX.gzStream->avail_out;
-	ctx->nBytes += ctx->outBuffer->nBytes;
-	deflateEnd(ctx->CTX.gzStream);
-	ctx->CTX.gzStream = NULL;
-	}
+    while (ctx->CTX.gzStream->avail_in) {
+        if (ctx->CTX.gzStream->avail_out==0) {
+            ctx->nBytes += (ctx->outBuffer->nBytes=PKDOUT_BUFFER_SIZE);
+            (*ctx->fnWrite)(pkd,ctx);
+        }
+        gzerror = deflate(ctx->CTX.gzStream,0);
+        assert(gzerror>=0);
     }
+    if (final) {
+        do {
+            if (ctx->CTX.gzStream->avail_out==0) {
+                ctx->nBytes += (ctx->outBuffer->nBytes=PKDOUT_BUFFER_SIZE);
+                (*ctx->fnWrite)(pkd,ctx);
+            }
+            gzerror = deflate(ctx->CTX.gzStream,Z_FINISH);
+            assert(gzerror>=0);
+            (*ctx->fnWrite)(pkd,ctx);
+        } while (gzerror!=Z_STREAM_END);
+        ctx->outBuffer->nBytes = PKDOUT_BUFFER_SIZE - ctx->CTX.gzStream->avail_out;
+        ctx->nBytes += ctx->outBuffer->nBytes;
+        deflateEnd(ctx->CTX.gzStream);
+        ctx->CTX.gzStream = NULL;
+    }
+}
 
 void setupZ(PKD pkd,PKDOUT ctx) {
     ctx->fnClose = closeZ;
@@ -549,7 +553,7 @@ void setupZ(PKD pkd,PKDOUT ctx) {
     ctx->CTX.gzStream->avail_out = PKDOUT_BUFFER_SIZE;
     ctx->CTX.gzStream->next_out = ctx->outBuffer->data;
     deflateInit2(ctx->CTX.gzStream,Z_BEST_COMPRESSION,Z_DEFLATED,31,8,Z_DEFAULT_STRATEGY);
-    }
+}
 #endif
 
 /******************************************************************************\
@@ -572,67 +576,67 @@ PKDOUT pkdStartOutASCII(PKD pkd,int iFile, int iType) {
     ctx->nBytes = 0;
 
     if (iFile == PKDOUT_TYPE_BINARY) {
-	switch(getType(iType)) {
-	case OUTTYPE_INTEGER:
-	    ctx->fnOut = storeIntegerBinary;
-	    break;
-	case OUTTYPE_FLOAT:
-	    ctx->fnOut = storeFloatBinary;
-	    break;
-	case OUTTYPE_RUNGDEST:
-	    ctx->fnOut = storeRungDestBinary;
-	    break;
-	case OUTTYPE_PSGROUP:
-	    ctx->fnOut = storePsGroupBinary;
-	    break;
+        switch (getType(iType)) {
+        case OUTTYPE_INTEGER:
+            ctx->fnOut = storeIntegerBinary;
+            break;
+        case OUTTYPE_FLOAT:
+            ctx->fnOut = storeFloatBinary;
+            break;
+        case OUTTYPE_RUNGDEST:
+            ctx->fnOut = storeRungDestBinary;
+            break;
+        case OUTTYPE_PSGROUP:
+            ctx->fnOut = storePsGroupBinary;
+            break;
 
-	default:
-	    assert(0);
-	    }
-	ctx->fnHdr = storeHdrBinary;    	
-	}
+        default:
+            assert(0);
+        }
+        ctx->fnHdr = storeHdrBinary;
+    }
     else {
-    switch(getType(iType)) {
-    case OUTTYPE_INTEGER:
-	ctx->fnOut = storeInteger;
-	break;
-    case OUTTYPE_FLOAT:
-	ctx->fnOut = storeFloat;
-	break;
-    case OUTTYPE_RUNGDEST:
-	ctx->fnOut = storeRungDest;
-	break;
-    case OUTTYPE_PSGROUP:
-	ctx->fnOut = storePsGroup;
-	break;
+        switch (getType(iType)) {
+        case OUTTYPE_INTEGER:
+            ctx->fnOut = storeInteger;
+            break;
+        case OUTTYPE_FLOAT:
+            ctx->fnOut = storeFloat;
+            break;
+        case OUTTYPE_RUNGDEST:
+            ctx->fnOut = storeRungDest;
+            break;
+        case OUTTYPE_PSGROUP:
+            ctx->fnOut = storePsGroup;
+            break;
 
-    default:
-	assert(0);
-	}
-    ctx->fnHdr = storeHdr;
-	}
+        default:
+            assert(0);
+        }
+        ctx->fnHdr = storeHdr;
+    }
     ctx->fnClose = finish;
 
-    switch(iFile) {
+    switch (iFile) {
     case PKDOUT_TYPE_BINARY:
-	break;
+        break;
 #ifdef HAVE_LIBBZ2
     case PKDOUT_TYPE_BZIP2:
-	setupBZ2(pkd,ctx);
-	ctx->fnWrite = bufferBZ2;
-	break;
+        setupBZ2(pkd,ctx);
+        ctx->fnWrite = bufferBZ2;
+        break;
 #endif
 #ifdef HAVE_LIBZ
     case PKDOUT_TYPE_ZLIB:
-	setupZ(pkd,ctx);
-	ctx->fnWrite = bufferZ;
-	break;
+        setupZ(pkd,ctx);
+        ctx->fnWrite = bufferZ;
+        break;
 #endif
     default:
-	assert(0);
-	}
-    return ctx;
+        assert(0);
     }
+    return ctx;
+}
 
 /*
 ** Finish the output stream by flushing any remaining characters in the output
@@ -641,7 +645,7 @@ PKDOUT pkdStartOutASCII(PKD pkd,int iFile, int iType) {
 */
 void pkdFinishOutASCII(PKD pkd,PKDOUT ctx) {
     (*ctx->fnClose)(pkd,ctx);
-    }
+}
 
 /*
 ** Returns the total number of bytes available in the output buffers.  This will
@@ -649,14 +653,14 @@ void pkdFinishOutASCII(PKD pkd,PKDOUT ctx) {
 */
 uint64_t pkdCountOutASCII(PKD pkd,PKDOUT ctx) {
     return ctx->nBytes;
-    }
+}
 
 void pkdDumpOutASCII(PKD pkd,PKDOUT ctx,FILE *fp) {
     PKDOUTBUFFER *buf;
-    for(buf=ctx->headBuffer;buf!=NULL;buf=buf->next) {
-	fwrite(buf->data,buf->nBytes,1,fp);
-	}
+    for (buf=ctx->headBuffer; buf!=NULL; buf=buf->next) {
+        fwrite(buf->data,buf->nBytes,1,fp);
     }
+}
 
 /*
 ** Free up all buffers, and the PKDOUT context
@@ -665,12 +669,12 @@ void pkdFreeOutASCII(PKD pkd,PKDOUT ctx) {
     PKDOUTBUFFER *buf, *nxt;
 
     free(ctx->inBuffer);
-    for(buf=ctx->headBuffer;buf!=NULL;buf=nxt) {
-	nxt = buf->next;
-	free(buf);
-	}
-    free(ctx);
+    for (buf=ctx->headBuffer; buf!=NULL; buf=nxt) {
+        nxt = buf->next;
+        free(buf);
     }
+    free(ctx);
+}
 
 /******************************************************************************\
  * File I/O routines
@@ -690,79 +694,79 @@ PKDOUT pkdOpenOutASCII(PKD pkd,char *pszFileName,const char *mode,int iFile,int 
 
     /* Determine how to handle the header and data */
     if (iFile == PKDOUT_TYPE_BINARY) {
-	switch(getType(iType)) {
-	case OUTTYPE_INTEGER:
-	    ctx->fnOut = storeIntegerBinary;
-	    break;
-	case OUTTYPE_FLOAT:
-	    ctx->fnOut = storeFloatBinary;
-	    break;
-	case OUTTYPE_RUNGDEST:
-	    ctx->fnOut = storeRungDestBinary;
-	    break;
-	case OUTTYPE_PSGROUP:
-	    ctx->fnOut = storePsGroupBinary;
-	    break;
+        switch (getType(iType)) {
+        case OUTTYPE_INTEGER:
+            ctx->fnOut = storeIntegerBinary;
+            break;
+        case OUTTYPE_FLOAT:
+            ctx->fnOut = storeFloatBinary;
+            break;
+        case OUTTYPE_RUNGDEST:
+            ctx->fnOut = storeRungDestBinary;
+            break;
+        case OUTTYPE_PSGROUP:
+            ctx->fnOut = storePsGroupBinary;
+            break;
 
-	default:
-	    assert(0);
-	    }
-	ctx->fnHdr = storeHdrBinary;    	
-	}
+        default:
+            assert(0);
+        }
+        ctx->fnHdr = storeHdrBinary;
+    }
     else {
-    switch(getType(iType)) {
-    case OUTTYPE_INTEGER:
-	ctx->fnOut = storeInteger;
-	break;
-    case OUTTYPE_FLOAT:
-	ctx->fnOut = storeFloat;
-	break;
-    case OUTTYPE_RUNGDEST:
-	ctx->fnOut = storeRungDest;
-	break;
-    case OUTTYPE_PSGROUP:
-	ctx->fnOut = storePsGroup;
-	break;
-    default:
-	assert(0);
-	}
-    ctx->fnHdr = storeHdr;
-	}
+        switch (getType(iType)) {
+        case OUTTYPE_INTEGER:
+            ctx->fnOut = storeInteger;
+            break;
+        case OUTTYPE_FLOAT:
+            ctx->fnOut = storeFloat;
+            break;
+        case OUTTYPE_RUNGDEST:
+            ctx->fnOut = storeRungDest;
+            break;
+        case OUTTYPE_PSGROUP:
+            ctx->fnOut = storePsGroup;
+            break;
+        default:
+            assert(0);
+        }
+        ctx->fnHdr = storeHdr;
+    }
     ctx->fp = fopen (pszFileName,mode);
     assert(ctx->fp != NULL);
     /*WTF: corrupts!!! setvbuf(ctx->fp,NULL,_IOFBF,PKDOUT_BUFFER_SIZE);*/
 
-    switch(iFile) {
+    switch (iFile) {
 
 #ifdef HAVE_LIBBZ2
     case PKDOUT_TYPE_BZIP2:
-	setupBZ2(pkd,ctx);
-	ctx->fnWrite = outputBZ2;
-	break;
+        setupBZ2(pkd,ctx);
+        ctx->fnWrite = outputBZ2;
+        break;
 #endif
 #ifdef HAVE_LIBZ
     case PKDOUT_TYPE_ZLIB:
-	setupZ(pkd,ctx);
-	ctx->fnWrite = outputZ;
-	break;
+        setupZ(pkd,ctx);
+        ctx->fnWrite = outputZ;
+        break;
 #endif
     default:
-	ctx->fnFlush = writeASCII;
-	ctx->fnClose = closeASCII;
-	}
-    return ctx;
+        ctx->fnFlush = writeASCII;
+        ctx->fnClose = closeASCII;
     }
+    return ctx;
+}
 
 void pkdCloseOutASCII(PKD pkd,PKDOUT ctx) {
     (*ctx->fnClose)(pkd,ctx);
     fclose(ctx->fp);
     free(ctx->inBuffer);
     free(ctx);
-    }
+}
 
 void pkdOutHdr(PKD pkd,PKDOUT ctx,uint64_t N) {
     (*ctx->fnHdr)(pkd,ctx,N);
-    }
+}
 
 void pkdOutASCII(PKD pkd,PKDOUT ctx,int iType,int iDim) {
     int i;
@@ -770,14 +774,14 @@ void pkdOutASCII(PKD pkd,PKDOUT ctx,int iType,int iDim) {
     /*
     ** Write Elements!
     */
-    for (i=0;i<pkd->nLocal;++i) {
-	PARTICLE *p = pkdParticle(pkd,i);
-	(*ctx->fnOut)(pkd,ctx,p,iType,iDim);
-	}
+    for (i=0; i<pkd->nLocal; ++i) {
+        PARTICLE *p = pkdParticle(pkd,i);
+        (*ctx->fnOut)(pkd,ctx,p,iType,iDim);
     }
+}
 
 #ifdef USE_HDF5
 void pkdOutHDF5(PKD pkd,char *pszFileName,int iType,int iDim) {
     assert(0);
-    }
+}
 #endif

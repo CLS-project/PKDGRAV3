@@ -33,16 +33,16 @@ void initHydroFluxes(void *vpkd, void *vp);
 void initHydroFluxesCached(void *vpkd, void *vp);
 void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf);
 void hydroRiemann_vec(PARTICLE *p,float fBall,int nSmooth,
-                      my_real** restrict input_buffer,
-                      my_real** restrict output_buffer,
+                      my_real **restrict input_buffer,
+                      my_real **restrict output_buffer,
                       SMF *smf);
 void pkdResetFluxes(PKD pkd,double dTime,double dDelta,double,double);
 
 void combThirdHydroLoop(void *vpkd, void *p1,void *p2);
-void hydroFluxFillBuffer(my_real **buffer, PARTICLE* q, int i,
+void hydroFluxFillBuffer(my_real **buffer, PARTICLE *q, int i,
                          double dr2, double dx, double dy, double dz, SMF *);
 void hydroFluxUpdateFromBuffer(my_real **out_buffer, my_real **in_buffer,
-                               PARTICLE* p, PARTICLE* q, int i, SMF *);
+                               PARTICLE *p, PARTICLE *q, int i, SMF *);
 void hydroFluxGetNvars(int *in, int *out);
 
 /* Time step loop */
@@ -53,16 +53,16 @@ void pkdWakeParticles(PKD pkd,int iRoot, double dTime, double dDelta);
 
 
 /* Source terms */
-void hydroSourceGravity(PKD pkd, PARTICLE* p, SPHFIELDS* psph,
+void hydroSourceGravity(PKD pkd, PARTICLE *p, SPHFIELDS *psph,
                         double pDelta, double *pa, double dScaleFactor,
                         int bComove);
-void hydroSourceExpansion(PKD pkd, PARTICLE* p, SPHFIELDS* psph,
+void hydroSourceExpansion(PKD pkd, PARTICLE *p, SPHFIELDS *psph,
                           double pDelta, double dScaleFactor, double dHubble,
                           int bComove, double dConstGamma);
-void hydroSyncEnergies(PKD pkd, PARTICLE* p, SPHFIELDS* psph, double pa[3],
+void hydroSyncEnergies(PKD pkd, PARTICLE *p, SPHFIELDS *psph, double pa[3],
                        double dConstGamma);
 
-void hydroSetPrimitives(PKD pkd, PARTICLE* p, SPHFIELDS* psph, double dTuFac, double dConstGamma);
+void hydroSetPrimitives(PKD pkd, PARTICLE *p, SPHFIELDS *psph, double dTuFac, double dConstGamma);
 
 void hydroSetLastVars(PKD pkd, PARTICLE *p, SPHFIELDS *psph, double *pa,
                       double dScaleFactor, double dTime, double dDelta,
@@ -75,13 +75,13 @@ void hydroSetLastVars(PKD pkd, PARTICLE *p, SPHFIELDS *psph, double *pa,
 #define SIGN(x) (((x) > 0) ? 1 : (((x) < 0) ? -1 : 0) )
 #define MIN(X, Y)  ((X) < (Y) ? (X) : (Y))
 #define MAX(X, Y)  ((X) > (Y) ? (X) : (Y))
-void inverseMatrix(double* E, double* B);
-double conditionNumber(double *E, double* B);
+void inverseMatrix(double *E, double *B);
+double conditionNumber(double *E, double *B);
 double cubicSplineKernel(double r, double h);
-void BarthJespersenLimiter(double* limVar, double* gradVar,
+void BarthJespersenLimiter(double *limVar, double *gradVar,
                            double var_max, double var_min,
                            double dx, double dy, double dz);
-void ConditionedBarthJespersenLimiter(double* limVar, myreal* gradVar,
+void ConditionedBarthJespersenLimiter(double *limVar, myreal *gradVar,
                                       double var_max, double var_min,
                                       double dx, double dy, double dz,
                                       double Ncrit, double Ncond);

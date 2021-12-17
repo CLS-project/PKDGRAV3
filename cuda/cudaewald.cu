@@ -19,13 +19,13 @@
 #define OLD_CUDA
 
 #ifdef HAVE_CONFIG_H
-#include "config.h"
+    #include "config.h"
 #else
-#include "pkd_config.h"
+    #include "pkd_config.h"
 #endif
 #include <time.h>
 #ifdef HAVE_SYS_TIME_H
-#include <sys/time.h>
+    #include <sys/time.h>
 #endif
 #include <stdio.h>
 #include "basetype.h"
@@ -82,22 +82,22 @@ __global__ void cudaEwald(gpuEwaldInput *onGPU,gpuEwaldOutput *outGPU) {
     // the H-Loop
     float fx=rx, fy=ry, fz=rz;
     float fax=0, fay=0, faz=0, fPot=0;
-    for( i=0; i<ew.nEwhLoop; ++i) {
-	float hdotx,s,c,t;
-	hdotx = hx[i]*fx + hy[i]*fy + hz[i]*fz;
-	sincosf(hdotx,&s,&c);
-	fPot += hCfac[i]*c + hSfac[i]*s;
-	t = hCfac[i]*s - hSfac[i]*c;
-	fax += hx[i]*t;
-	fay += hy[i]*t;
-	faz += hz[i]*t;
-	}
+    for ( i=0; i<ew.nEwhLoop; ++i) {
+        float hdotx,s,c,t;
+        hdotx = hx[i]*fx + hy[i]*fy + hz[i]*fz;
+        sincosf(hdotx,&s,&c);
+        fPot += hCfac[i]*c + hSfac[i]*s;
+        t = hCfac[i]*s - hSfac[i]*c;
+        fax += hx[i]*t;
+        fay += hy[i]*t;
+        faz += hz[i]*t;
+    }
     tax = fax;
     tay = fay;
     taz = faz;
     dPot = fPot + ew.mom.m*ew.k1;
 
-    for(i=0; i<MAX_TOTAL_REPLICAS; ++i) {
+    for (i=0; i<MAX_TOTAL_REPLICAS; ++i) {
         bInHole = bHole[i];
         const momFloat x = rx + Lx[i];
         const momFloat y = ry + Ly[i];
@@ -114,23 +114,23 @@ __global__ void cudaEwald(gpuEwaldInput *onGPU,gpuEwaldOutput *outGPU) {
             r2 *= ew.alpha2;
             g0 = alphan*(f_1_3*r2 - 1);
             alphan *= 2*ew.alpha2;
-	    g1 = alphan*(f_1_5*r2 - f_1_3);
+            g1 = alphan*(f_1_5*r2 - f_1_3);
             alphan *= 2*ew.alpha2;
-	    g2 = alphan*(f_1_7*r2 - f_1_5);
+            g2 = alphan*(f_1_7*r2 - f_1_5);
             alphan *= 2*ew.alpha2;
-	    g3 = alphan*(f_1_9*r2 - f_1_7);
+            g3 = alphan*(f_1_9*r2 - f_1_7);
             alphan *= 2*ew.alpha2;
-	    g4 = alphan*(f_1_11*r2 - f_1_9);
+            g4 = alphan*(f_1_11*r2 - f_1_9);
             alphan *= 2*ew.alpha2;
-	    g5 = alphan*(f_1_13*r2 - f_1_11);
-            }
+            g5 = alphan*(f_1_13*r2 - f_1_11);
+        }
         else {
-	    const momFloat dir = rsqrt(r2);
-	    const momFloat dir2 = dir*dir;
-	    const momFloat a = exp(-r2*ew.alpha2) * ew.ka*dir2;
-	    if (bInHole) g0 = -erf(ew.alpha*r2*dir);
-	    else         g0 = erfc(ew.alpha*r2*dir);
-	    g0 *= dir;
+            const momFloat dir = rsqrt(r2);
+            const momFloat dir2 = dir*dir;
+            const momFloat a = exp(-r2*ew.alpha2) * ew.ka*dir2;
+            if (bInHole) g0 = -erf(ew.alpha*r2*dir);
+            else         g0 = erfc(ew.alpha*r2*dir);
+            g0 *= dir;
             g1 = g0*dir2 + a;
             alphan = 2*ew.alpha2;
             g2 = 3*g1*dir2 + alphan*a;
@@ -140,18 +140,18 @@ __global__ void cudaEwald(gpuEwaldInput *onGPU,gpuEwaldOutput *outGPU) {
             g4 = 7*g3*dir2 + alphan*a;
             alphan *= 2*ew.alpha2;
             g5 = 9*g4*dir2 + alphan*a;
-            }
+        }
 
         dPot -= g0*ew.mom.m - g1*ew.Q2;
 
         momFloat Q4mirx, Q4miry, Q4mirz;
         momFloat Q3mirx, Q3miry, Q3mirz;
 
-	const  momFloat xx = f_1_2*x*x;
+        const  momFloat xx = f_1_2*x*x;
         Q3mirx = ew.mom.xxx*xx;
         Q3miry = ew.mom.xxy*xx;
         Q3mirz = ew.mom.xxz*xx;
-	const  momFloat xxx = f_1_3*xx*x;
+        const  momFloat xxx = f_1_3*xx*x;
         Q4mirx = ew.mom.xxxx*xxx;
         Q4miry = ew.mom.xxxy*xxx;
         Q4mirz = ew.mom.xxxz*xxx;
@@ -164,7 +164,7 @@ __global__ void cudaEwald(gpuEwaldInput *onGPU,gpuEwaldOutput *outGPU) {
         Q4miry += ew.mom.xxyz*xxz;
         Q4mirz += ew.mom.xxzz*xxz;
 
-	const  momFloat yy = f_1_2*y*y;
+        const  momFloat yy = f_1_2*y*y;
         Q3mirx += ew.mom.xyy*yy;
         Q3miry += ew.mom.yyy*yy;
         Q3mirz += ew.mom.yyz*yy;
@@ -172,7 +172,7 @@ __global__ void cudaEwald(gpuEwaldInput *onGPU,gpuEwaldOutput *outGPU) {
         Q4mirx += ew.mom.xxyy*xyy;
         Q4miry += ew.mom.xyyy*xyy;
         Q4mirz += ew.mom.xyyz*xyy;
-	const  momFloat yyy = f_1_3*yy*y;
+        const  momFloat yyy = f_1_3*yy*y;
         Q4mirx += ew.mom.xyyy*yyy;
         Q4miry += ew.mom.yyyy*yyy;
         Q4mirz += ew.mom.yyyz*yyy;
@@ -190,7 +190,7 @@ __global__ void cudaEwald(gpuEwaldInput *onGPU,gpuEwaldOutput *outGPU) {
         Q4miry += ew.mom.xyyz*xyz;
         Q4mirz += ew.mom.xyzz*xyz;
 
-	const  momFloat zz = f_1_2*z*z;
+        const  momFloat zz = f_1_2*z*z;
         Q3mirx += ew.mom.xzz*zz;
         Q3miry += ew.mom.yzz*zz;
         Q3mirz += ew.mom.zzz*zz;
@@ -202,7 +202,7 @@ __global__ void cudaEwald(gpuEwaldInput *onGPU,gpuEwaldOutput *outGPU) {
         Q4mirx += ew.mom.xyzz*yzz;
         Q4miry += ew.mom.yyzz*yzz;
         Q4mirz += ew.mom.yzzz*yzz;
-	const  momFloat zzz = f_1_3*zz*z;
+        const  momFloat zzz = f_1_3*zz*z;
         Q4mirx += ew.mom.xzzz*zzz;
         Q4miry += ew.mom.yzzz*zzz;
         Q4mirz += ew.mom.zzzz*zzz;
@@ -210,7 +210,7 @@ __global__ void cudaEwald(gpuEwaldInput *onGPU,gpuEwaldOutput *outGPU) {
         tax += g4*Q4mirx;
         tay += g4*Q4miry;
         taz += g4*Q4mirz;
-	const momFloat Q4mir = f_1_4*(Q4mirx*x + Q4miry*y + Q4mirz*z);
+        const momFloat Q4mir = f_1_4*(Q4mirx*x + Q4miry*y + Q4mirz*z);
         dPot -= g4*Q4mir;
 
         const  momFloat xz = x*z;
@@ -246,15 +246,15 @@ __global__ void cudaEwald(gpuEwaldInput *onGPU,gpuEwaldOutput *outGPU) {
         tay -= y*Qta;
         taz -= z*Qta;
         dFlop += COST_FLOP_EWALD;
-	}
+    }
 
-/*    dFlop += COST_FLOP_HLOOP * ew.nEwhLoop;*/ /* Accounted for outside */
+    /*    dFlop += COST_FLOP_HLOOP * ew.nEwhLoop;*/ /* Accounted for outside */
     outGPU[blockIdx.x].X[threadIdx.x] = tax;
     outGPU[blockIdx.x].Y[threadIdx.x] = tay;
     outGPU[blockIdx.x].Z[threadIdx.x] = taz;
     outGPU[blockIdx.x].Pot[threadIdx.x]  = dPot;
     outGPU[blockIdx.x].FlopDouble[threadIdx.x] = dFlop;
-    }
+}
 
 void pkdParticleWorkDone(workParticle *work);
 
@@ -264,14 +264,14 @@ void pkdParticleWorkDone(workParticle *work);
 
 // The Ewald routines need a table of contant values related to the replicates and moment
 // This function will queue a message to the CUDA/MDL thread to setup the values.
-void CudaClient::setupEwald(struct EwaldVariables * const ew, EwaldTable * const ewt) {
+void CudaClient::setupEwald(struct EwaldVariables *const ew, EwaldTable *const ewt) {
     nEwhLoop = ew->nEwhLoop;
     if (mdl.Core()==0 && mdl.isCudaActive()) mdl.enqueueAndWait(MessageEwaldSetup(ew,ewt));
     mdl.ThreadBarrier();
-    }
+}
 
 // Contruct the message with Ewald tables. We can just tuck away the pointers as we have to wait.
-MessageEwaldSetup::MessageEwaldSetup(struct EwaldVariables * const ew, EwaldTable * const ewt)
+MessageEwaldSetup::MessageEwaldSetup(struct EwaldVariables *const ew, EwaldTable *const ewt)
     : ewIn(ew), ewt(ewt) {}
 
 // This copies all of the variables to the device.
@@ -288,64 +288,64 @@ void MessageEwaldSetup::launch(cudaStream_t stream,void *pCudaBufIn, void *pCuda
     ibHole.reserve(MAX_TOTAL_REPLICAS);  ibHole.clear();
 
     for (auto ix = -3; ix <= 3; ++ix) {
-	for (auto iy = -3; iy <= 3; ++iy) {
-	    for (auto iz = -3; iz <= 3; ++iz) {
-		ibHole.push_back(abs(ix) <= ewIn->nReps && abs(iy) <= ewIn->nReps && abs(iz) <= ewIn->nReps);
-		dLx.push_back(ewIn->Lbox * ix);
-		dLy.push_back(ewIn->Lbox * iy);
-		dLz.push_back(ewIn->Lbox * iz);
-	    }
-	}
+        for (auto iy = -3; iy <= 3; ++iy) {
+            for (auto iz = -3; iz <= 3; ++iz) {
+                ibHole.push_back(abs(ix) <= ewIn->nReps && abs(iy) <= ewIn->nReps && abs(iz) <= ewIn->nReps);
+                dLx.push_back(ewIn->Lbox * ix);
+                dLy.push_back(ewIn->Lbox * iy);
+                dLz.push_back(ewIn->Lbox * iz);
+            }
+        }
     }
     CUDA_CHECK(cudaMemcpyToSymbolAsync, (Lx,   dLx.data(),   dLx.size()*sizeof(decltype(dLx)::value_type),  0, cudaMemcpyHostToDevice, stream));
     CUDA_CHECK(cudaMemcpyToSymbolAsync, (Ly,   dLy.data(),   dLy.size()*sizeof(decltype(dLy)::value_type),  0, cudaMemcpyHostToDevice, stream));
     CUDA_CHECK(cudaMemcpyToSymbolAsync, (Lz,   dLz.data(),   dLz.size()*sizeof(decltype(dLz)::value_type),  0, cudaMemcpyHostToDevice, stream));
     CUDA_CHECK(cudaMemcpyToSymbolAsync, (bHole,ibHole.data(),ibHole.size()*sizeof(decltype(ibHole)::value_type), 0, cudaMemcpyHostToDevice, stream));
-    }
+}
 
 extern "C"
 int CudaClientQueueEwald(void *vcudaClient, workParticle *work) {
     auto cuda = reinterpret_cast<CudaClient *>(vcudaClient);
     return cuda->queueEwald(work);
-    }
+}
 
 int CudaClient::queueEwald(workParticle *work) {
     if (ewald) {
-    	if (ewald->queue(work)) return work->nP; // Sucessfully queued
-    	mdl.enqueue(*ewald); // Full, so send it to the GPU
-    	ewald = nullptr;
-	}
+        if (ewald->queue(work)) return work->nP; // Sucessfully queued
+        mdl.enqueue(*ewald); // Full, so send it to the GPU
+        ewald = nullptr;
+    }
     mdl.flushCompletedCUDA();
     if (freeEwald.empty()) return 0; // No buffers so the CPU has to do this part
     ewald = & freeEwald.dequeue();
     if (ewald->queue(work)) return work->nP; // Sucessfully queued
     return 0; // Not sure how this would happen, but okay.
-    }
+}
 
 MessageEwald::MessageEwald(class CudaClient &cuda) : cuda(cuda) {
     nParticles = 0;
     nMaxParticles = requestBufferSize / sizeof(gpuEwaldInput) * EWALD_ALIGN;
     ppWP.reserve(CUDA_WP_MAX_BUFFERED);
-    }
+}
 
 bool MessageEwald::queue(workParticle *work) {
     if (ppWP.size() == CUDA_WP_MAX_BUFFERED) return false; // Too many work packages
     if ( nParticles + work->nP > nMaxParticles) return false; // Not enough space
     auto toGPU = reinterpret_cast<gpuEwaldInput *>(pHostBufIn);
-    for( auto i=0; i<work->nP; i++ ) {
-	const PINFOIN *in = &work->pInfoIn[i];
+    for ( auto i=0; i<work->nP; i++ ) {
+        const PINFOIN *in = &work->pInfoIn[i];
         int ij = nParticles / EWALD_ALIGN;
         int ii = nParticles % EWALD_ALIGN;
         toGPU[ij].X[ii] = work->c[0] + in->r[0];
-	toGPU[ij].Y[ii] = work->c[1] + in->r[1];
-	toGPU[ij].Z[ii] = work->c[2] + in->r[2];
+        toGPU[ij].Y[ii] = work->c[1] + in->r[1];
+        toGPU[ij].Z[ii] = work->c[2] + in->r[2];
         ++nParticles;
-	}
+    }
     ppWP.push_back(work);
     ++work->nRefs;
 
     return true;
-    }
+}
 
 void MessageEwald::launch(cudaStream_t stream,void *pCudaBufIn, void *pCudaBufOut) {
     int align = (nParticles+EWALD_MASK)&~EWALD_MASK; /* Warp align the memory buffers */
@@ -359,13 +359,13 @@ void MessageEwald::launch(cudaStream_t stream,void *pCudaBufIn, void *pCudaBufOu
     CUDA_CHECK(cudaMemcpyAsync,(onGPU, toGPU, ngrid * sizeof(gpuEwaldInput), cudaMemcpyHostToDevice, stream));
     cudaEwald<<<dimGrid, dimBlock, 0, stream>>>(onGPU,outGPU);
     CUDA_CHECK(cudaMemcpyAsync,(fromGPU, outGPU, ngrid * sizeof(gpuEwaldOutput), cudaMemcpyDeviceToHost, stream));
-    }
+}
 
 void MessageEwald::finish() {
     auto fromGPU = reinterpret_cast<gpuEwaldOutput *>(pHostBufOut);
     int iResult = 0;
-    for( auto & wp : ppWP) {
-        for(auto i=0; i<wp->nP; ++i) {
+    for ( auto &wp : ppWP) {
+        for (auto i=0; i<wp->nP; ++i) {
             int ij = iResult / EWALD_ALIGN;
             int ii = iResult % EWALD_ALIGN;
             ++iResult;
@@ -376,11 +376,11 @@ void MessageEwald::finish() {
             out->fPot += fromGPU[ij].Pot[ii];
             wp->dFlopSingleGPU += COST_FLOP_HLOOP * cuda.nEwhLoop;
             wp->dFlopDoubleGPU += fromGPU[ij].FlopDouble[ii];
-            }
-        pkdParticleWorkDone(wp);
         }
+        pkdParticleWorkDone(wp);
+    }
     assert(iResult == nParticles);
     nParticles = 0;
     ppWP.clear();
     cuda.freeEwald.enqueue(*this);
-    }
+}

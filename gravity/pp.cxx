@@ -16,9 +16,9 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#include "config.h"
+    #include "config.h"
 #else
-#include "pkd_config.h"
+    #include "pkd_config.h"
 #endif
 #ifndef xxxUSE_SIMD_PP
 #define MPICH_SKIP_MPICXX
@@ -46,8 +46,8 @@ void pkdGravEvalPP(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINF
 
     dimaga = a[0]*a[0] + a[1]*a[1] + a[2]*a[2];
     if (dimaga > 0) {
-	dimaga = 1.0f/sqrtf(dimaga);
-	}
+        dimaga = 1.0f/sqrtf(dimaga);
+    }
     pimaga = dimaga;
 
 
@@ -57,11 +57,11 @@ void pkdGravEvalPP(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINF
     ** forces are zero. Setting the distance to a large value avoids
     ** softening the non-existent forces which is slightly faster.
     */
-    for( j = nInLast; j&fvec::mask(); j++) {
-	blk[nBlocks].dx.f[j] = blk[nBlocks].dy.f[j] = blk[nBlocks].dz.f[j] = 1e18f;
-	blk[nBlocks].m.f[j] = 0.0f;
-	blk[nBlocks].fourh2.f[j] = 1e-18f;
-	}
+    for ( j = nInLast; j&fvec::mask(); j++) {
+        blk[nBlocks].dx.f[j] = blk[nBlocks].dy.f[j] = blk[nBlocks].dz.f[j] = 1e18f;
+        blk[nBlocks].m.f[j] = 0.0f;
+        blk[nBlocks].fourh2.f[j] = 1e-18f;
+    }
 
     piax    = a[0];
     piay    = a[1];
@@ -73,25 +73,25 @@ void pkdGravEvalPP(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINF
 
     pax = pay = paz = ppot = pirsum = pnorms = 0.0;
 
-    for( nLeft=nBlocks; nLeft >= 0; --nLeft,++blk ) {
-	int n = (nLeft ? ILP_PART_PER_BLK : nInLast+fvec::mask()) >> SIMD_BITS;
-	for (j=0; j<n; ++j) {
-	    fvec Idx = blk->dx.p[j];
-	    fvec Idy = blk->dy.p[j];
-	    fvec Idz = blk->dz.p[j];
-	    fvec Im = blk->m.p[j];
-	    fvec fourh2 = blk->fourh2.p[j];
-	    fvec pir,norm;
-	    EvalPP<fvec,fmask,true>(pfx,pfy,pfz,psmooth2,Idx,Idy,Idz,fourh2,Im,t1,t2,t3,pot,
-	    	piax,piay,piaz,pimaga,pir,norm);
-	    pirsum += pir;
-	    pnorms += norm;
-	    ppot += pot;
-	    pax += t1;
-	    pay += t2;
-	    paz += t3;
-	    }
-	}
+    for ( nLeft=nBlocks; nLeft >= 0; --nLeft,++blk ) {
+        int n = (nLeft ? ILP_PART_PER_BLK : nInLast+fvec::mask()) >> SIMD_BITS;
+        for (j=0; j<n; ++j) {
+            fvec Idx = blk->dx.p[j];
+            fvec Idy = blk->dy.p[j];
+            fvec Idz = blk->dz.p[j];
+            fvec Im = blk->m.p[j];
+            fvec fourh2 = blk->fourh2.p[j];
+            fvec pir,norm;
+            EvalPP<fvec,fmask,true>(pfx,pfy,pfz,psmooth2,Idx,Idy,Idz,fourh2,Im,t1,t2,t3,pot,
+                                    piax,piay,piaz,pimaga,pir,norm);
+            pirsum += pir;
+            pnorms += norm;
+            ppot += pot;
+            pax += t1;
+            pay += t2;
+            paz += t3;
+        }
+    }
     ax = hadd(pax);
     ay = hadd(pay);
     az = hadd(paz);

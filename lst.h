@@ -23,9 +23,9 @@
 #ifndef LST_H
 #define LST_H
 #ifdef HAVE_CONFIG_H
-#include "config.h"
+    #include "config.h"
 #else
-#include "pkd_config.h"
+    #include "pkd_config.h"
 #endif
 #include <stdlib.h>
 #include <stdint.h>
@@ -35,7 +35,7 @@ typedef struct lstTile {
     uint16_t nBlocks;
     uint16_t nInLast;
     uint32_t nRefs;
-    } LSTTILE;
+} LSTTILE;
 /* N.B. The Area pointers immediately follow */
 
 struct lstContext;
@@ -46,13 +46,13 @@ typedef struct {
     lstAreaAllocate fnAllocate; /* Function to allocate memory */
     lstAreaFree fnFree;         /* Function to free memory */
     size_t nAreaSize;           /* Size of each block: a tile will have many */
-    } LSTAREAINFO;
+} LSTAREAINFO;
 
 typedef struct {
     LSTTILE *list;     /* List of available tiles */
     size_t nTiles;     /* Current number of allocated tiles */
     int nRefs;         /* Number of lists using this free list */
-    } LSTFREELIST;
+} LSTFREELIST;
 
 typedef struct lstContext {
     LSTAREAINFO *info;      /* Information on areas in each tile */
@@ -65,51 +65,51 @@ typedef struct lstContext {
     int nBlocksPerTile;     /* The number of blocks in each tile */
     int nPerBlock;          /* Number of items in each block */
     int nPrevious;
-    } LST;
+} LST;
 
 typedef struct {
     uint16_t nBlocks;
     uint16_t nInLast;
     uint32_t nPrevious;
-    } LSTCHECKPT;
+} LSTCHECKPT;
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-    void *lstSIMDAllocate(size_t nBytes);
-    void lstSIMDFree(void *data);
+void *lstSIMDAllocate(size_t nBytes);
+void lstSIMDFree(void *data);
 #ifdef USE_CUDA
-    void *lstCUDAAllocate(size_t nBytes);
-    void lstCUDAFree(void *data);
+void *lstCUDAAllocate(size_t nBytes);
+void lstCUDAFree(void *data);
 #endif
-    void lstInitialize(LST *lst, LSTFREELIST *freeList, int nBlocksPerTile, int nPerBlock, int nAreas, ...);
-    void lstFree(LST *lst);
-    void lstFreeTile(LST *lst,LSTTILE *tile);
-    size_t lstMemory(LST *lst);
-    void lstCheckPt(LST *lst,LSTCHECKPT *cp);
-    void lstRestore(LST *lst,LSTCHECKPT *cp);
-    void lstClone(LST *dst,LST *src);
-    LSTTILE *lstSplit(LST *lst);
+void lstInitialize(LST *lst, LSTFREELIST *freeList, int nBlocksPerTile, int nPerBlock, int nAreas, ...);
+void lstFree(LST *lst);
+void lstFreeTile(LST *lst,LSTTILE *tile);
+size_t lstMemory(LST *lst);
+void lstCheckPt(LST *lst,LSTCHECKPT *cp);
+void lstRestore(LST *lst,LSTCHECKPT *cp);
+void lstClone(LST *dst,LST *src);
+LSTTILE *lstSplit(LST *lst);
 
-    void lstClear(LST *lst);
-    void *lstExtend(LST * lst);
+void lstClear(LST *lst);
+void *lstExtend(LST *lst);
 #ifdef __cplusplus
-    }
+}
 #endif
 static inline uint32_t lstCount(LST *lst) {
     return lst->nPrevious + lst->tile->nBlocks*lst->nPerBlock  + lst->tile->nInLast;
-    }
+}
 
 static inline void *lstReposition(LST *lst) {
     LSTTILE *tile = lst->tile;
     if (tile->nRefs > 1) tile=lstSplit(lst);
     if (tile->nInLast == lst->nPerBlock ) {
-	if ( ++tile->nBlocks == lst->nBlocksPerTile ) {
-	    --tile->nBlocks;
-	    tile = (LSTTILE *)lstExtend(lst);
-	    }
-	else tile->nInLast = 0;
-	}
-    return tile;
+        if ( ++tile->nBlocks == lst->nBlocksPerTile ) {
+            --tile->nBlocks;
+            tile = (LSTTILE *)lstExtend(lst);
+        }
+        else tile->nInLast = 0;
     }
+    return tile;
+}
 #endif

@@ -20,11 +20,11 @@ class ServiceCountRungs : public TraverseCombinePST {
 public:
     typedef void input;
     struct output {
-	uint64_t nRungs[MAX_RUNG+1];
-	};
+        uint64_t nRungs[MAX_RUNG+1];
+    };
     explicit ServiceCountRungs(PST pst)
-	: TraverseCombinePST(pst,PST_COUNTRUNGS,0,sizeof(output),"CountRungs") {}
+        : TraverseCombinePST(pst,PST_COUNTRUNGS,0,sizeof(output),"CountRungs") {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut);
     virtual int Combine(void *vout,void *vout2);
-    };
+};

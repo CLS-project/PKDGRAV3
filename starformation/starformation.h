@@ -12,7 +12,7 @@ int pstStarFormInit(PST,void *,int,void *,int);
 void pkdStarFormInit(PKD pkd, double dTime, double dSNFBDelay, int *nFormed);
 
 int pstStarForm(PST,void *,int,void *,int);
-void pkdStarForm(PKD pkd, struct inStarForm in, 
+void pkdStarForm(PKD pkd, struct inStarForm in,
                  int *nFormed, double *dMassFormed, int *nDeleted);
 
 
@@ -21,17 +21,15 @@ void pkdStarForm(PKD pkd, struct inStarForm in,
  * STRUCTURE DEFINITIONS
  * ---------------------
  */
-struct outStarForm
-    {
+struct outStarForm {
     int nFormed;
     int nDeleted;
     double dMassFormed;
-    };
-struct inStarFormInit
-    {
+};
+struct inStarFormInit {
     double dTime;
     double dSNFBDelay;
-    };
+};
 
 #ifdef __cplusplus
 }

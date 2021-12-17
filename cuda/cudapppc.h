@@ -18,8 +18,8 @@
 #ifndef CUDAPPPC_H
 #define CUDAPPPC_H
 #ifdef USE_CUDA
-#include "cudautil.h"
-#include "ilp.h"
-#include "ilc.h"
+    #include "cudautil.h"
+    #include "ilp.h"
+    #include "ilc.h"
 #endif
 #endif

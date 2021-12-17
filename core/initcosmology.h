@@ -21,7 +21,7 @@ public:
     typedef struct csmVariables input;
     typedef void output;
     explicit ServiceInitCosmology(PST pst)
-	: TraversePST(pst,PST_INITCOSMOLOGY,sizeof(input),"InitCosmology") {}
+        : TraversePST(pst,PST_INITCOSMOLOGY,sizeof(input),"InitCosmology") {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut);
-    };
+};

@@ -16,20 +16,20 @@
  */
 
 #ifndef CUDA_DEVICE
-#define CUDA_DEVICE
+    #define CUDA_DEVICE
 #endif
 template<class F,class M,bool bGravStep>
 CUDA_DEVICE void EvalPC(
-	const F &Pdx, const F &Pdy, const F &Pdz, const F &Psmooth2, // Particle
-	const F &Idx, const F &Idy, const F &Idz, const F &Im, const F &Iu, // Interaction(s)
-	const F &Ixxxx,const F &Ixxxy,const F &Ixxxz,const F &Ixxyz,const F &Ixxyy,const F &Iyyyz,const F &Ixyyz,const F &Ixyyy,const F &Iyyyy,
-	const F &Ixxx,const F &Ixyy,const F &Ixxy,const F &Iyyy,const F &Ixxz,const F &Iyyz,const F &Ixyz,
-	const F &Ixx,const F &Ixy,const F &Ixz,const F &Iyy,const F &Iyz,
+    const F &Pdx, const F &Pdy, const F &Pdz, const F &Psmooth2, // Particle
+    const F &Idx, const F &Idy, const F &Idz, const F &Im, const F &Iu, // Interaction(s)
+    const F &Ixxxx,const F &Ixxxy,const F &Ixxxz,const F &Ixxyz,const F &Ixxyy,const F &Iyyyz,const F &Ixyyz,const F &Ixyyy,const F &Iyyyy,
+    const F &Ixxx,const F &Ixyy,const F &Ixxy,const F &Iyyy,const F &Ixxz,const F &Iyyz,const F &Ixyz,
+    const F &Ixx,const F &Ixy,const F &Ixz,const F &Iyy,const F &Iyz,
 #ifdef USE_DIAPOLE
-	const F &Ix, const F &Iy, const F &Iz,
+    const F &Ix, const F &Iy, const F &Iz,
 #endif
-	F &ax, F &ay, F &az, F &pot,     // Results
-	const F &Pax, const F &Pay, const F &Paz,const F &imaga,F &ir, F &norm) {
+    F &ax, F &ay, F &az, F &pot,     // Results
+    const F &Pax, const F &Pay, const F &Paz,const F &imaga,F &ir, F &norm) {
     const F onethird = 1.0f/3.0f;
     F dx = Idx + Pdx;
     F dy = Idy + Pdy;
@@ -63,9 +63,9 @@ CUDA_DEVICE void EvalPC(
     F xyy = x*yy;
     F xyz = xy*z;
 
-/*
-** Now calculate the interaction up to Hexadecapole order.
-*/
+    /*
+    ** Now calculate the interaction up to Hexadecapole order.
+    */
     F tx = g4*(Ixxxx*xxx + Ixyyy*yyy + Ixxxy*xxy + Ixxxz*xxz + Ixxyy*xyy + Ixxyz*xyz + Ixyyz*yyz);
     F ty = g4*(Ixyyy*xyy + Ixxxy*xxx + Iyyyy*yyy + Iyyyz*yyz + Ixxyy*xxy + Ixxyz*xxz + Ixyyz*xyz);
     F tz = g4*(-Ixxxx*xxz - (Ixyyy + Ixxxy)*xyz - Iyyyy*yyz + Ixxxz*xxx + Iyyyz*yyy - Ixxyy*(xxz + yyz) + Ixxyz*xxy + Ixyyz*xyy);
@@ -87,7 +87,7 @@ CUDA_DEVICE void EvalPC(
     zz = g1*Iz;
     g1 = yy*x + yz*y + zz*z;
     pot -= g1;
-    g0 += 3.0f*g1; 
+    g0 += 3.0f*g1;
 #else
     yy = 0.0f;
     yz = 0.0f;
@@ -100,8 +100,8 @@ CUDA_DEVICE void EvalPC(
     /* Calculations for determining the timestep. */
     if (bGravStep) {
         F adotai = Pax*ax + Pay*ay + Paz*az;
-	adotai = maskz_mov(adotai>0.0f & d2>Psmooth2,adotai) * imaga;
-	norm = adotai * adotai;
-	ir = dir * norm;
-	}
+        adotai = maskz_mov(adotai>0.0f & d2>Psmooth2,adotai) * imaga;
+        norm = adotai * adotai;
+        ir = dir * norm;
     }
+}

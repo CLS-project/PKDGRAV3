@@ -20,14 +20,14 @@
 #include <stdint.h>
 
 #ifndef CL_PART_PER_TILE
-#define CL_PART_PER_TILE 1024 /* 1024*100 ~ 100k */
+    #define CL_PART_PER_TILE 1024 /* 1024*100 ~ 100k */
 #endif
 
 #define CL_PART_PER_BLK 16
 #define CL_BLK_PER_TILE (CL_PART_PER_TILE/CL_PART_PER_BLK)
 
 #if !defined(__CUDACC__)
-#include "core/simd.h"
+    #include "core/simd.h"
 #endif
 
 #include "lst.h"
@@ -40,18 +40,18 @@ typedef union {
 #if !defined(__CUDACC__)
     v_sf p[CL_PART_PER_BLK/SIMD_WIDTH];
 #endif
-    } clFloat;
+} clFloat;
 
 typedef union {
     int32_t i[CL_PART_PER_BLK];
 #if !defined(__CUDACC__)
     v_i     p[CL_PART_PER_BLK/SIMD_WIDTH];
 #endif
-    } clInt32;
+} clInt32;
 
 typedef union {
     uint64_t i[CL_PART_PER_BLK];
-    } clInt64;
+} clInt64;
 
 typedef struct {
     clInt32 iOpen;
@@ -78,17 +78,17 @@ typedef struct {
     clFloat xMax;
     clFloat yMax;
     clFloat zMax;
-    } CL_BLK;
+} CL_BLK;
 
 
 typedef struct clTile {
     LSTTILE lstTile;
     CL_BLK *blk;
-    } *CLTILE;
+} *CLTILE;
 
 typedef struct clContext {
     LST lst;
-    } *CL;
+} *CL;
 
 #define clClear(cl) lstClear(&(cl)->lst)
 #define clExtend(cl) lstExtend(&(cl)->lst)
@@ -138,7 +138,7 @@ static inline void clAppendAll(
     tile->blk[blk].yMax.f[prt] = yMax;
     tile->blk[blk].zMax.f[prt] = zMax;
     ++tile->lstTile.nInLast;
-    }
+}
 
 #define clAppend(cl,iCache,idCell,iCell,idLower,iLower,idUpper,iUpper,nc,cOpen,m,fourh2,r,fOffset,fCenter,fMax) \
     clAppendAll(cl,iCache,idCell,iCell,idLower,iLower,idUpper,iUpper,nc,cOpen,m,fourh2,r[0],r[1],r[2], \
@@ -147,11 +147,11 @@ static inline void clAppendAll(
 
 static inline void clAppendItem(CL cl, CL_BLK *B, int Bi) {
     clAppendAll(cl,B->iCache.i[Bi],B->idCell.i[Bi],B->iCell.i[Bi],
-	B->idLower.i[Bi],B->iLower.i[Bi],B->idUpper.i[Bi],B->iUpper.i[Bi],
-        B->nc.i[Bi], B->cOpen.f[Bi], B->m.f[Bi], B->fourh2.f[Bi],
-	B->x.f[Bi], B->y.f[Bi], B->z.f[Bi],B->xOffset.f[Bi],B->yOffset.f[Bi],B->zOffset.f[Bi],
-	B->xCenter.f[Bi],B->yCenter.f[Bi],B->zCenter.f[Bi],B->xMax.f[Bi],B->yMax.f[Bi],B->zMax.f[Bi],B->iOpen.i[Bi]);
-    }
+                B->idLower.i[Bi],B->iLower.i[Bi],B->idUpper.i[Bi],B->iUpper.i[Bi],
+                B->nc.i[Bi], B->cOpen.f[Bi], B->m.f[Bi], B->fourh2.f[Bi],
+                B->x.f[Bi], B->y.f[Bi], B->z.f[Bi],B->xOffset.f[Bi],B->yOffset.f[Bi],B->zOffset.f[Bi],
+                B->xCenter.f[Bi],B->yCenter.f[Bi],B->zCenter.f[Bi],B->xMax.f[Bi],B->yMax.f[Bi],B->zMax.f[Bi],B->iOpen.i[Bi]);
+}
 
 #define CL_LOOP(CL,CL_TILE) for( CL_TILE=(CLTILE)((CL)->lst.list); CL_TILE!=NULL; CL_TILE=(CLTILE)(CL_TILE->lstTile.next))
 

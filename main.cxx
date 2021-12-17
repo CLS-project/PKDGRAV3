@@ -16,13 +16,13 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#include "config.h"
+    #include "config.h"
 #else
-#include "pkd_config.h"
+    #include "pkd_config.h"
 #endif
 
 #ifdef ENABLE_FE
-#include <fenv.h>
+    #include <fenv.h>
 #endif
 #include <stdio.h>
 #include <math.h>
@@ -63,12 +63,12 @@ int bGlobalOutput = 0;
 static inline void USR1_handler(int signo) {
     signal(SIGUSR1,USR1_handler);
     timeGlobalSignalTime = time(0);
-    }
+}
 
 static inline void USR2_handler(int signo) {
     signal(SIGUSR2,USR2_handler);
     bGlobalOutput = 1;
-    }
+}
 #endif
 
 /*
@@ -119,7 +119,7 @@ void *worker_init(MDL vmdl) {
     mdl->AddService(std::make_unique<OldDD::ServiceWeightWrap>(pst));
     mdl->AddService(std::make_unique<OldDD::ServiceOrdWeight>(pst));
     return pst;
-    }
+}
 
 /*
 ** This function is called at the very end for every thread.
@@ -130,7 +130,7 @@ void worker_done(MDL mdl, void *ctx) {
     LCL *plcl = pst->plcl;
     pstFinish(pst);
     delete plcl;
-    }
+}
 
 /*
 ** This is invoked for the "master" process after the worker has been setup.
@@ -155,22 +155,22 @@ int master(MDL mdl,void *vpst) {
     MSR msr(mdl,pst);
     auto rc = msr.Python(argc,argv);
     if (rc < 0) {
-	printf("%s using Python %d.%d.%d\n", PACKAGE_STRING, PY_MAJOR_VERSION, PY_MINOR_VERSION, PY_MICRO_VERSION );
-	msr.ValidateParameters();
+        printf("%s using Python %d.%d.%d\n", PACKAGE_STRING, PY_MAJOR_VERSION, PY_MINOR_VERSION, PY_MICRO_VERSION );
+        msr.ValidateParameters();
 
-	/* Establish safety lock. */
-	if (!msr.GetLock()) {
-	    return 1;
-	}
+        /* Establish safety lock. */
+        if (!msr.GetLock()) {
+            return 1;
+        }
 
-	msr.Hostname(); // List all host names
+        msr.Hostname(); // List all host names
 
-	auto dTime = msr.LoadOrGenerateIC();
-	if (dTime != -HUGE_VAL) msr.Simulate(dTime);
-	rc = 0;
-	}
-    return rc;
+        auto dTime = msr.LoadOrGenerateIC();
+        if (dTime != -HUGE_VAL) msr.Simulate(dTime);
+        rc = 0;
     }
+    return rc;
+}
 
 int main(int argc,char **argv) {
 #ifdef ENABLE_FE
@@ -182,4 +182,4 @@ int main(int argc,char **argv) {
 #endif
 
     return mdlLaunch(argc,argv,master,worker_init,worker_done);
-    }
+}

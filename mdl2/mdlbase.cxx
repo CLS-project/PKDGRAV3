@@ -20,19 +20,19 @@ using namespace mdl;
 
 //#include <WinSock2.h> /* gethostname */
 #ifdef __linux__
-#include <sys/resource.h>
+    #include <sys/resource.h>
 #else
-#include <time.h>
+    #include <time.h>
 #endif
 #include <assert.h>
 #ifdef HAVE_MALLOC_H
-#include <malloc.h>
+    #include <malloc.h>
 #endif
 #ifdef HAVE_SYS_TIME_H
-#include <sys/time.h>
+    #include <sys/time.h>
 #endif
 #ifdef HAVE_UNISTD_H
-#include <unistd.h>
+    #include <unistd.h>
 #endif
 #include <stdarg.h>
 #include <string.h>
@@ -50,13 +50,13 @@ protected:
     void *p1;
 public:
     explicit LegacyService(fcnService_t *fcnService,void *p1=nullptr, int service_id=0,
-	int nInBytes=0, int nOutBytes=0, const char *service_name="")
-	: BasicService(service_id, nInBytes, nOutBytes, service_name),
-	fcnService(fcnService), p1(p1) {}
+                           int nInBytes=0, int nOutBytes=0, const char *service_name="")
+        : BasicService(service_id, nInBytes, nOutBytes, service_name),
+          fcnService(fcnService), p1(p1) {}
     virtual ~LegacyService() = default;
 protected:
     virtual int operator()(int nIn, void *pIn, void *pOut) override;
-    };
+};
 
 int LegacyService::operator()(int nIn, void *pIn, void *pOut) {
     assert(nIn <= getMaxBytesIn());
@@ -64,17 +64,17 @@ int LegacyService::operator()(int nIn, void *pIn, void *pOut) {
     auto nOut = (*fcnService)(p1, pIn, nIn, pOut, getMaxBytesOut());
     assert(nOut <= getMaxBytesOut());
     return nOut;
-    }
+}
 
 /*****************************************************************************\
 * mdlBASE
 \*****************************************************************************/
 
-#define MDL_DEFAULT_SERVICES	120
+#define MDL_DEFAULT_SERVICES    120
 
 static int _srvNull(void *p1, void *vin, int nIn, void *vout, int nOut) {
     return 0;
-    }
+}
 
 mdlBASE::mdlBASE(int argc,char **argv) {
 #ifdef _MSC_VER
@@ -117,19 +117,19 @@ mdlBASE::mdlBASE(int argc,char **argv) {
     ** service handler is well defined!
     */
     services[0] = std::make_unique<LegacyService>(_srvNull);
-    }
+}
 
 mdlBASE::~mdlBASE() {
 #ifdef _MSC_VER
     WSACleanup();
 #endif
-    }
+}
 
 /* O(1): Given a process id, return the first global thread id */
 int32_t mdlBASE::ProcToThread(int32_t iProc) const {
     assert(iProc >= 0 && iProc <= nProcs);
     return iProcToThread[iProc];
-    }
+}
 
 /* O(l2(nProc)): Given a global thread id, return the process to which it belongs */
 int32_t mdlBASE::ThreadToProc(int32_t iThread) const {
@@ -137,37 +137,37 @@ int32_t mdlBASE::ThreadToProc(int32_t iThread) const {
     assert(iThread >= 0 && iThread <= nThreads);
     assert(nThreads == iProcToThread[nProcs]);
     while (l <= u) {
-	int m = (u + l) / 2;
-	if (iThread < iProcToThread[m]) u = m - 1;
-	else l = m+1;
-	}
-    return l-1;
+        int m = (u + l) / 2;
+        if (iThread < iProcToThread[m]) u = m - 1;
+        else l = m+1;
     }
+    return l-1;
+}
 
 void mdlBASE::AddService(int sid, void *p1,
-    fcnService_t *fcnService,
-    int nInBytes, int nOutBytes, const char *name) {
+                         fcnService_t *fcnService,
+                         int nInBytes, int nOutBytes, const char *name) {
     if (nInBytes  > nMaxInBytes)  nMaxInBytes  = nInBytes;
     if (nOutBytes > nMaxOutBytes) nMaxOutBytes = nOutBytes;
     if (sid >= services.size()) services.resize(sid+9);
     assert(services[sid]==nullptr);
     services[sid] = std::make_unique<LegacyService>(fcnService,p1,sid,nInBytes,nOutBytes,name);
-    }
+}
 
-void mdlBASE::AddService(std::unique_ptr<BasicService> && service) {
+void mdlBASE::AddService(std::unique_ptr<BasicService> &&service) {
     auto sid = service->getServiceID();
     if (service->getMaxBytesIn()  > nMaxInBytes)  nMaxInBytes  = service->getMaxBytesIn();
     if (service->getMaxBytesOut() > nMaxOutBytes) nMaxOutBytes = service->getMaxBytesOut();
     if (sid >= services.size()) services.resize(sid+9);
     assert(services[sid]==nullptr);
     services[sid] = std::move(service);
-    }
+}
 
-int mdlBASE::RunService(int sid,int nIn, void *pIn, void *pOut){
+int mdlBASE::RunService(int sid,int nIn, void *pIn, void *pOut) {
     assert(sid < services.size());
     assert(services[sid] != nullptr);
     return (*services[sid])(nIn,pIn,pOut);
-    }
+}
 
 void mdlBASE::yield() {
 #ifdef _MSC_VER
@@ -175,12 +175,12 @@ void mdlBASE::yield() {
 #else
     sched_yield();
 #endif
-    }
+}
 
 const char *mdlName(void *mdl) {
     mdlBASE *base = reinterpret_cast<mdlBASE *>(mdl);
     return base->nodeName;
-    }
+}
 
 #if 0
 int mdlThreads(void *mdl) {  return reinterpret_cast<mdlBASE *>(mdl)->nThreads; }
@@ -194,32 +194,31 @@ int mdlGetArgc(void *mdl) {  return reinterpret_cast<mdlBASE *>(mdl)->argc; }
 char **mdlGetArgv(void *mdl) {  return reinterpret_cast<mdlBASE *>(mdl)->argv; }
 #endif
 
-double mdlCpuTimer(void * mdl) {
+double mdlCpuTimer(void *mdl) {
 #ifdef __linux__
     struct rusage ru;
 
     getrusage(RUSAGE_SELF, &ru);
-    return((double)ru.ru_utime.tv_sec + 1e-6*(double)ru.ru_utime.tv_usec);
+    return ((double)ru.ru_utime.tv_sec + 1e-6*(double)ru.ru_utime.tv_usec);
 #elif defined(_MSC_VER)
     FILETIME createTime;
     FILETIME exitTime;
     FILETIME kernelTime;
     FILETIME userTime;
     if (GetProcessTimes(GetCurrentProcess(),
-        &createTime, &exitTime, &kernelTime, &userTime) != -1)
-        {
+                        &createTime, &exitTime, &kernelTime, &userTime) != -1) {
         SYSTEMTIME userSystemTime;
         if (FileTimeToSystemTime(&userTime, &userSystemTime) != -1)
             return (double)userSystemTime.wHour * 3600.0 +
-            (double)userSystemTime.wMinute * 60.0 +
-            (double)userSystemTime.wSecond +
-            (double)userSystemTime.wMilliseconds / 1000.0;
-        }
+                   (double)userSystemTime.wMinute * 60.0 +
+                   (double)userSystemTime.wSecond +
+                   (double)userSystemTime.wMilliseconds / 1000.0;
+    }
     return 0.0;
 #else
-    return(((double)clock()) / CLOCKS_PER_SEC);
+    return (((double)clock()) / CLOCKS_PER_SEC);
 #endif
-    }
+}
 
 void mdlDiag(void *mdl, char *psz) {
 #if 0
@@ -227,28 +226,28 @@ void mdlDiag(void *mdl, char *psz) {
     if (base->bDiag) {
         fputs(psz, base->fpDiag);
         fflush(base->fpDiag);
-        }
-#endif
     }
+#endif
+}
 
 void mdlBASE::mdl_vprintf(const char *format, va_list ap) {
     if (bDiag) {
         vfprintf(fpDiag, format, ap);
         fflush(fpDiag);
-        }
     }
+}
 void mdlBASE::mdl_printf(const char *format, ...) {
     va_list args;
     va_start(args, format);
     mdl_vprintf(format,args);
     va_end(args);
-    }
+}
 
 /*
 * MDL debug and Timer functions
 */
 #ifdef MDLTIMER
-void mdlZeroTimer(void * mdl, mdlTimer *t) {
+void mdlZeroTimer(void *mdl, mdlTimer *t) {
 #ifdef _MSC_VER
     FILETIME ft;
     uint64_t clock;
@@ -270,7 +269,7 @@ void mdlZeroTimer(void * mdl, mdlTimer *t) {
     t->cpu = (double)ru.ru_utime.tv_sec + 1e-6*(double)ru.ru_utime.tv_usec;
     t->system = (double)ru.ru_stime.tv_sec + 1e-6*(double)ru.ru_stime.tv_usec;
 #endif
-    }
+}
 
 void mdlGetTimer(void *mdl, mdlTimer *t0, mdlTimer *t) {
 #ifdef _MSC_VER
@@ -295,7 +294,7 @@ void mdlGetTimer(void *mdl, mdlTimer *t0, mdlTimer *t) {
     gettimeofday(&tv, &tz);
     t->wallclock = tv.tv_sec + 1e-6*(double)tv.tv_usec - t0->wallclock;
 #endif
-    }
+}
 
 void mdlPrintTimer(void *mdl, const char *message, mdlTimer *t0) {
 #if 0
@@ -305,9 +304,9 @@ void mdlPrintTimer(void *mdl, const char *message, mdlTimer *t0) {
     if (base->bDiag) {
         mdlGetTimer(mdl, t0, &lt);
         base->mdl_printf("%s %f %f %f\n", message, lt.wallclock, lt.cpu, lt.system);
-        }
-#endif
     }
+#endif
+}
 
 
 void mdlBASE::TimeReset() {
@@ -316,7 +315,7 @@ void mdlBASE::TimeReset() {
 #if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
     nTicks = getticks();
 #endif
-    }
+}
 
 void mdlBASE::TimeAddComputing() {
 #if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
@@ -324,7 +323,7 @@ void mdlBASE::TimeAddComputing() {
     dTimer[TIME_COMPUTING] += elapsed(nTicks, this->nTicks);
     this->nTicks = nTicks;
 #endif
-    }
+}
 
 void mdlBASE::TimeAddSynchronizing() {
 #if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
@@ -332,7 +331,7 @@ void mdlBASE::TimeAddSynchronizing() {
     dTimer[TIME_SYNCHRONIZING] += elapsed(nTicks, this->nTicks);
     this->nTicks = nTicks;
 #endif
-    }
+}
 
 void mdlBASE::TimeAddWaiting() {
 #if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
@@ -340,24 +339,24 @@ void mdlBASE::TimeAddWaiting() {
     dTimer[TIME_WAITING] += elapsed(nTicks, this->nTicks);
     this->nTicks = nTicks;
 #endif
-    }
+}
 
 double mdlBASE::TimeFraction() const {
     double dTotal = std::accumulate(dTimer,dTimer+TIME_COUNT,0.0);
     if (dTotal <= 0.0) return 0.0;
     return 100.0 / dTotal;
-    }
+}
 
 double mdlBASE::TimeComputing() const {
     return dTimer[TIME_COMPUTING] * TimeFraction();
-    }
+}
 
 double mdlBASE::TimeSynchronizing() const {
     return dTimer[TIME_SYNCHRONIZING] * TimeFraction();
-    }
+}
 
 double mdlBASE::TimeWaiting() const {
     return dTimer[TIME_WAITING] * TimeFraction();
-    }
+}
 #endif
 

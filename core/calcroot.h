@@ -19,15 +19,15 @@
 class ServiceCalcRoot : public TraverseCombinePST {
 public:
     struct input {
-	double com[3];
-	uint32_t uRoot;
-	};
+        double com[3];
+        uint32_t uRoot;
+    };
     struct output {
-	MOMC momc;
-	};
+        MOMC momc;
+    };
     explicit ServiceCalcRoot(PST pst)
-	: TraverseCombinePST(pst,PST_CALCROOT,sizeof(input),sizeof(output),"CalcRoot") {}
+        : TraverseCombinePST(pst,PST_CALCROOT,sizeof(input),sizeof(output),"CalcRoot") {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut);
     virtual int Combine(void *vout,void *vout2);
-    };
+};

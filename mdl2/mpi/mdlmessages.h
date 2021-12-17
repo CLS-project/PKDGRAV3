@@ -12,9 +12,9 @@ enum class CacheMessageType : uint8_t {
     REQUEST = 1,
     REPLY = 2,
     FLUSH = 3,
-    };
+};
 
-#define MDL_FLUSH_DATA_SIZE	32000
+#define MDL_FLUSH_DATA_SIZE 32000
 #define MDL_MAX_KEY_SIZE 128
 
 struct ServiceHeader {
@@ -23,7 +23,7 @@ struct ServiceHeader {
     int16_t sid;
     int32_t nInBytes;
     int32_t nOutBytes;
-    };
+};
 
 struct CacheHeader {
     uint8_t cid;
@@ -32,7 +32,7 @@ struct CacheHeader {
     int32_t idFrom;
     int32_t idTo;
     int32_t iLine;
-    };
+};
 
 class FlushBuffer {
 protected:
@@ -49,58 +49,58 @@ public:
     void emptyBuffer() {nBuffer=0;}
     void setRankTo(uint32_t iRank) { iRankTo=iRank; }
     bool canBuffer(int nSize) { return nBuffer+nSize+sizeof(ServiceHeader) <= Buffer.size(); }
-    void*getBuffer(int nSize);
+    void *getBuffer(int nSize);
     bool addBuffer(int nSize, const void *pData);
     bool addBuffer(uint8_t cid, int32_t idFrom, int32_t idTo, int32_t iLine, int nItems=1, int nSize=0, const void *pData=0);
     bool addBuffer(int nSize, const CacheHeader *pData);
-    };
+};
 
 class mdlMessage : public basicMessage {
 public:
     mdlMessage();
     virtual void action(class mpiClass *mpi) {sendBack();}
     virtual void result(class mdlClass *mdl);
-    };
+};
 struct mdlMessageQueue : public messageQueue<mdlMessage> {
     mdlMessageQueue() : messageQueue<mdlMessage>() {}
-    };
+};
 
 // Used to hold a sequence of cache lines to send to the MPI thread for processing
 class mdlMessageFlushFromCore : public mdlMessage, public FlushBuffer {
 public:
     virtual void action(class mpiClass *mdl);
-    };
+};
 
 // Used to hold a sequence of cache lines to send from the MPI thread to cores
 class mdlMessageFlushToCore : public mdlMessage, public FlushBuffer {
 public:
     virtual void result(class mdlClass *mdl);
-    };
+};
 
 class mdlMessageSTOP : public mdlMessage {
 public:
     virtual void action(class mpiClass *mdl);
-    };
+};
 
 class mdlMessageCacheOpen : public mdlMessage {
 public:
     virtual void action(class mpiClass *mdl);
-    };
+};
 
 class mdlMessageCacheClose : public mdlMessage {
 public:
     virtual void action(class mpiClass *mdl);
-    };
+};
 
 class mdlMessageCacheFlushOut : public mdlMessage {
 public:
     virtual void action(class mpiClass *mdl);
-    };
+};
 
 class mdlMessageCacheFlushLocal : public mdlMessage {
 public:
     virtual void action(class mpiClass *mdl);
-    };
+};
 
 class mdlMessageGridShare : public mdlMessage {
     friend class mdlClass;
@@ -110,7 +110,7 @@ protected:
 public:
     virtual void action(class mpiClass *mdl);
     explicit mdlMessageGridShare(MDLGRID grid);
-    };
+};
 
 class mdlMessageDFT_R2C : public mdlMessage {
     friend class mdlClass;
@@ -122,7 +122,7 @@ protected:
 public:
     virtual void action(class mpiClass *mdl);
     explicit mdlMessageDFT_R2C(MDLFFT fft, FFTW3(real) *data, FFTW3(complex) *kdata);
-    };
+};
 
 class mdlMessageDFT_C2R : public mdlMessage {
     friend class mdlClass;
@@ -134,7 +134,7 @@ protected:
 public:
     virtual void action(class mpiClass *mdl);
     explicit mdlMessageDFT_C2R(MDLFFT fft, FFTW3(real) *data, FFTW3(complex) *kdata);
-    };
+};
 
 class mdlMessageFFT_Sizes : public mdlMessage {
     friend class mdlClass;
@@ -146,7 +146,7 @@ protected: // Output fields
 public:
     virtual void action(class mpiClass *mdl);
     explicit mdlMessageFFT_Sizes(int n1, int n2, int n3);
-    };
+};
 
 class mdlMessageFFT_Plans : public mdlMessageFFT_Sizes {
     friend class mdlClass;
@@ -159,7 +159,7 @@ protected: // Output fields
 public:
     virtual void action(class mpiClass *mdl);
     explicit mdlMessageFFT_Plans(int n1, int n2, int n3,FFTW3(real) *data=0,FFTW3(complex) *kdata=0);
-    };
+};
 
 class mdlMessageMPI : public mdlMessage {
 protected:
@@ -168,7 +168,7 @@ protected:
 public:
     virtual void action(class mpiClass *mdl) = 0;
     virtual void finish(class mpiClass *mdl, const MPI_Status &status);
-    };
+};
 
 // Used to hold a sequence of cache lines to send from the MPI thread to cores
 class mdlMessageFlushToRank : public mdlMessageMPI, public FlushBuffer {
@@ -178,7 +178,7 @@ protected:
 public:
     virtual void action(class mpiClass *mdl);
     virtual void finish(class mpiClass *mdl, const MPI_Status &status);
-    };
+};
 
 // Send a small reply message with a single cache line
 class mdlMessageCacheReply : public mdlMessageMPI, public FlushBuffer {
@@ -189,7 +189,7 @@ public:
     mdlMessageCacheReply(uint32_t nSize) : FlushBuffer(nSize,CacheMessageType::REPLY) {}
     virtual void action(class mpiClass *mdl);
     virtual void finish(class mpiClass *mdl, const MPI_Status &status);
-    };
+};
 
 class mdlMessageCacheReceive : public mdlMessageMPI, public FlushBuffer {
 protected:
@@ -199,7 +199,7 @@ public:
     mdlMessageCacheReceive(uint32_t nSize) : FlushBuffer(nSize,CacheMessageType::UNKNOWN) {}
     virtual void action(class mpiClass *mdl);
     virtual void finish(class mpiClass *mdl, const MPI_Status &status);
-    };
+};
 
 class mdlMessageAlltoallv : public mdlMessageMPI {
 protected:
@@ -211,12 +211,12 @@ protected:
 public:
     virtual void action(class mpiClass *mdl);
     mdlMessageAlltoallv(int dataSize,void *sbuff,int *scount,int *sdisps,void *rbuff,int *rcount,int *rdisps);
-    };
+};
 
 class mdlMessageBarrierMPI : public mdlMessageMPI {
 public:
     virtual void action(class mpiClass *mdl);
-    };
+};
 
 class mdlMessageBufferedMPI : public mdlMessageMPI {
 protected:
@@ -232,7 +232,7 @@ public:
     virtual void finish(class mpiClass *mdl, const MPI_Status &status);
     explicit mdlMessageBufferedMPI(void *buf, int count, MPI_Datatype datatype, int target, int tag);
     int getCount() {return count;}
-    };
+};
 
 class mdlMessageSend : public mdlMessageBufferedMPI {
 protected:
@@ -241,7 +241,7 @@ protected:
 public:
     virtual void action(class mpiClass *mdl);
     explicit mdlMessageSend(void *buf,int32_t count,MPI_Datatype datatype, int source, int tag);
-    };
+};
 
 class mdlMessageReceive : public mdlMessageBufferedMPI {
 protected:
@@ -251,7 +251,7 @@ protected:
 public:
     virtual void action(class mpiClass *mdl);
     explicit mdlMessageReceive(void *buf,int32_t count,MPI_Datatype datatype, int source, int tag,int iCoreFrom);
-    };
+};
 
 class mdlMessageReceiveReply : public mdlMessageReceive {
 protected:
@@ -262,7 +262,7 @@ public:
     virtual void action(class mpiClass *mdl);
     virtual void finish(class mpiClass *mdl, const MPI_Status &status);
     explicit mdlMessageReceiveReply(void *buf,int32_t count, int rID, int iCoreFrom);
-    };
+};
 
 class mdlMessageReceiveRequest : public mdlMessageMPI {
 protected:
@@ -273,7 +273,7 @@ protected:
 public:
 //    virtual void action(class mpiClass *mdl);
     explicit mdlMessageReceiveRequest(int32_t count=0);
-    };
+};
 
 class mdlMessageSendRequest : public mdlMessageBufferedMPI {
 protected:
@@ -283,7 +283,7 @@ protected:
 public:
     virtual void action(class mpiClass *mdl);
     explicit mdlMessageSendRequest(int32_t idFrom,int16_t sid,int target,void *buf=0,int32_t count=0);
-    };
+};
 
 class mdlMessageSendReply : public mdlMessageMPI {
 protected:
@@ -296,13 +296,13 @@ public:
     virtual void action(class mpiClass *mdl);
 //    explicit mdlMessageSendReply(int32_t idFrom,int16_t replyTag, int16_t sid,int target,void *buf=0,int32_t count=0);
     explicit mdlMessageSendReply(int32_t count=0);
-    mdlMessageSendReply & makeReply(int32_t idFrom,int16_t replyTag,int16_t sid,int target,int32_t count);
-    };
+    mdlMessageSendReply &makeReply(int32_t idFrom,int16_t replyTag,int16_t sid,int target,int32_t count);
+};
 
 struct mdlCacheRequestData {
     CacheHeader header;         // Request header
     char key[MDL_MAX_KEY_SIZE]; // Optional advanced key
-    };
+};
 
 class mdlMessageCacheRequest : public mdlMessageBufferedMPI, protected mdlCacheRequestData {
 protected:
@@ -315,7 +315,7 @@ public:
     virtual void finish(class mpiClass *mdl, const MPI_Status &status);
     explicit mdlMessageCacheRequest(uint8_t cid, int32_t idFrom);
     explicit mdlMessageCacheRequest(uint8_t cid, int32_t idFrom, uint16_t nItems, int32_t idTo, int32_t iLine, void *pLine);
-    mdlMessageCacheRequest & makeCacheRequest(uint16_t nItems, int32_t idTo, int32_t iLine, uint32_t size, const void *pKey, void *pLine);
-    };
+    mdlMessageCacheRequest &makeCacheRequest(uint16_t nItems, int32_t idTo, int32_t iLine, uint32_t size, const void *pKey, void *pLine);
+};
 } // namespace mdl
 #endif

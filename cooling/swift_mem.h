@@ -1,13 +1,13 @@
- /*
- * IA: Extracted from align.h and memuse.h
- */
+/*
+* IA: Extracted from align.h and memuse.h
+*/
 
 #ifndef INLINE
-#if defined(__INTEL_COMPILER)
-#define INLINE extern inline
-#else
-#define INLINE extern inline
-#endif
+    #if defined(__INTEL_COMPILER)
+        #define INLINE extern inline
+    #else
+        #define INLINE extern inline
+    #endif
 #endif
 
 
@@ -23,19 +23,20 @@
  * @result zero on success, otherwise an error code.
  */
 INLINE int swift_memalign(const char *label,
-                                          void **memptr,
-                                          size_t alignment,
-                                          size_t size) {
-  int result = posix_memalign(memptr, alignment, size);
+                          void **memptr,
+                          size_t alignment,
+                          size_t size) {
+    int result = posix_memalign(memptr, alignment, size);
 #ifdef SWIFT_MEMUSE_REPORTS
-  if (result == 0) {
-    memuse_log_allocation(label, *memptr, 1, size);
-  } else {
-    /* Failed allocations are interesting as well. */
-    memuse_log_allocation(label, NULL, -1, size);
-  }
+    if (result == 0) {
+        memuse_log_allocation(label, *memptr, 1, size);
+    }
+    else {
+        /* Failed allocations are interesting as well. */
+        memuse_log_allocation(label, NULL, -1, size);
+    }
 #endif
-  return result;
+    return result;
 }
 
 

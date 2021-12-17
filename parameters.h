@@ -135,7 +135,7 @@ struct parameters {
     double SFdvFB;
     int SFbdivv;
 
-    
+
     /* END Gas Parameters */
     double dEta;
     double dExtraStore;
@@ -174,12 +174,12 @@ struct parameters {
     /*
     ** Additional parameters for group finding.
     */
-    int	bFindGroups;
+    int bFindGroups;
     int bFindHopGroups;
-    int	nMinMembers;
+    int nMinMembers;
     double dHopTau;
     double dTau;
-    int	bTraceRelaxation;
+    int bTraceRelaxation;
     /*
     ** Parameters for group stats.
     */
@@ -207,7 +207,7 @@ struct parameters {
     double dNeighborsStd;
     int bOutFineStatistics;
 
-    /* 
+    /*
      * IA: Parameter for fixing all particles to the same rung
      */
     int bGlobalDt;
@@ -244,7 +244,7 @@ struct parameters {
     double dEOSNJeans;
 #endif
     /*
-     * IA: Initial abundances 
+     * IA: Initial abundances
      */
     double dInitialH;
 #ifdef HAVE_HELIUM
@@ -276,7 +276,7 @@ struct parameters {
 #endif
 #ifdef STAR_FORMATION
     /* IA: Star formation */
-    double dSFMinOverDensity; 
+    double dSFMinOverDensity;
     double dSFGasFraction;
     double dSFThresholdDen;
     double dSFThresholdu;
@@ -336,7 +336,7 @@ struct parameters {
     int bDoLinPkOutput;
     int nBinsLinPk;
     int iDeltakInterval;
-  double dDeltakRedshift;
+    double dDeltakRedshift;
 #endif
 
     /*
@@ -360,6 +360,6 @@ struct parameters {
     int bMemNodeSphBounds;
     int bMemNodeBnd;
     int bMemNodeVBnd;
-    };
+};
 
 #endif

@@ -27,4 +27,4 @@ int ServiceInitCosmology::Service(PST pst,void *vin,int nIn,void *vout,int nOut)
     assert(nIn==sizeof(input));
     pkdInitCosmology(pst->plcl->pkd,in);
     return 0;
-    }
+}

@@ -2,7 +2,7 @@
 #include "starformation/feedback.h"
 #include "master.h"
 
-void MSR::SetFeedbackParam(){
+void MSR::SetFeedbackParam() {
     const double dHydFrac = param.dInitialH;
     const double dnHToRho = MHYDR / dHydFrac / param.units.dGmPerCcUnit;
     param.dSNFBDu = param.dSNFBDT*dTuFac;
@@ -26,10 +26,10 @@ void smSNFeedback(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     int i;
 
     float totMass = 0;
-    for (i=0; i<nSmooth; ++i){
-       q = nnList[i].pPart;
+    for (i=0; i<nSmooth; ++i) {
+        q = nnList[i].pPart;
 
-       totMass += pkdMass(pkd,q);
+        totMass += pkdMass(pkd,q);
     }
     totMass -= pkdMass(pkd,p);
 
@@ -43,76 +43,76 @@ void smSNFeedback(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
 
     assert(prob<1.0);
-    for (i=0; i<nSmooth; ++i){
-          if (nnList[i].dx==0 && nnList[i].dy==0 && nnList[i].dz==0) continue;
+    for (i=0; i<nSmooth; ++i) {
+        if (nnList[i].dx==0 && nnList[i].dy==0 && nnList[i].dz==0) continue;
 
-	    if (rand()<RAND_MAX*prob) { // We have a supernova explosion!
-             q = nnList[i].pPart;
-             qsph = pkdSph(pkd,q);
-             //printf("Uint %e extra %e \n",
-             //   qsph->Uint, pkd->param.dFeedbackDu * pkdMass(pkd,q));
+        if (rand()<RAND_MAX*prob) { // We have a supernova explosion!
+            q = nnList[i].pPart;
+            qsph = pkdSph(pkd,q);
+            //printf("Uint %e extra %e \n",
+            //   qsph->Uint, pkd->param.dFeedbackDu * pkdMass(pkd,q));
 
-             const double feed_energy = smf->dSNFBDu * pkdMass(pkd,q);
+            const double feed_energy = smf->dSNFBDu * pkdMass(pkd,q);
 #ifdef OLD_FB_SCHEME
-             qsph->Uint += feed_energy;
-             qsph->E += feed_energy;
+            qsph->Uint += feed_energy;
+            qsph->E += feed_energy;
 #ifdef ENTROPY_SWITCH
-             qsph->S += feed_energy*(smf->dConstGamma-1.) *
-                        pow(pkdDensity(pkd,q), -smf->dConstGamma+1);
+            qsph->S += feed_energy*(smf->dConstGamma-1.) *
+                       pow(pkdDensity(pkd,q), -smf->dConstGamma+1);
 #endif
 #else // OLD_BH_SCHEME
-             qsph->fAccFBEnergy += feed_energy;
+            qsph->fAccFBEnergy += feed_energy;
 #endif
 
-             //printf("Adding SN energy! \n");
-          }
+            //printf("Adding SN energy! \n");
+        }
 
     }
 }
 
 
 
-void initSNFeedback(void *vpkd, void *vp){
-   PKD pkd = (PKD) vpkd;
-   PARTICLE *p = (PARTICLE *) vp;
+void initSNFeedback(void *vpkd, void *vp) {
+    PKD pkd = (PKD) vpkd;
+    PARTICLE *p = (PARTICLE *) vp;
 
-   if (pkdIsGas(pkd,p)){
-      SPHFIELDS *psph = pkdSph(pkd,p);
+    if (pkdIsGas(pkd,p)) {
+        SPHFIELDS *psph = pkdSph(pkd,p);
 
 #ifdef OLD_FB_SCHEME
-      psph->Uint = 0.;
-      psph->E = 0.;
+        psph->Uint = 0.;
+        psph->E = 0.;
 #ifdef ENTROPY_SWITCH
-      psph->S = 0.;
+        psph->S = 0.;
 #endif
 #else // OLD_FB_SCHEME
-      psph->fAccFBEnergy = 0.;
+        psph->fAccFBEnergy = 0.;
 #endif
-   }
+    }
 
 }
 
 
-void combSNFeedback(void *vpkd, void *v1, const void *v2){
-   PKD pkd = (PKD) vpkd;
-   PARTICLE *p1 = (PARTICLE *) v1;
-   PARTICLE *p2 = (PARTICLE *) v2;
+void combSNFeedback(void *vpkd, void *v1, const void *v2) {
+    PKD pkd = (PKD) vpkd;
+    PARTICLE *p1 = (PARTICLE *) v1;
+    PARTICLE *p2 = (PARTICLE *) v2;
 
-   if (pkdIsGas(pkd,p1) && pkdIsGas(pkd,p2)){
+    if (pkdIsGas(pkd,p1) && pkdIsGas(pkd,p2)) {
 
-      SPHFIELDS *psph1 = pkdSph(pkd,p1), *psph2 = pkdSph(pkd,p2);
+        SPHFIELDS *psph1 = pkdSph(pkd,p1), *psph2 = pkdSph(pkd,p2);
 
 #ifdef OLD_FB_SCHEME
-      psph1->Uint += psph2->Uint;
-      psph1->E += psph2->E;
+        psph1->Uint += psph2->Uint;
+        psph1->E += psph2->E;
 #ifdef ENTROPY_SWITCH
-      psph1->S += psph2->S;
+        psph1->S += psph2->S;
 #endif
 #else //OLD_FB_SCHEME
-      psph1->fAccFBEnergy += psph2->fAccFBEnergy;
+        psph1->fAccFBEnergy += psph2->fAccFBEnergy;
 #endif
 
-   }
+    }
 
 }
 

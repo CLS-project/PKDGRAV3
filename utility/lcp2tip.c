@@ -26,7 +26,7 @@ typedef struct partLightCone {
 #ifdef POTENTIAL_IN_LIGHTCONE
     float pot;
 #endif
-    } LIGHTCONEP;
+} LIGHTCONEP;
 
 typedef struct {
     double dTime;
@@ -36,7 +36,7 @@ typedef struct {
     unsigned nDark;
     unsigned nStar;
     unsigned nPad;
-    } tipsyHdr;
+} tipsyHdr;
 
 typedef struct {
     float mass;
@@ -44,7 +44,7 @@ typedef struct {
     float vel[3];
     float eps;
     float phi;
-    } tipsyDark;
+} tipsyDark;
 
 
 int main(int argc, char *argv[]) {
@@ -56,9 +56,9 @@ int main(int argc, char *argv[]) {
     tipsyDark d;
 
     if (argc!=3) {
-	fprintf(stderr,"Usage: cat files | %s outfile mass\n", argv[0]);
-	return EINVAL;
-	}
+        fprintf(stderr,"Usage: cat files | %s outfile mass\n", argv[0]);
+        return EINVAL;
+    }
 
     h.dTime = 1.0;
     h.nBodies = 0;
@@ -72,22 +72,22 @@ int main(int argc, char *argv[]) {
 
     fp = fopen(argv[1],"wb");
     if (fp==NULL) {
-	perror(argv[1]);
-	abort();
-	}
+        perror(argv[1]);
+        abort();
+    }
 
     fseek(fp,sizeof(tipsyHdr),SEEK_SET);
-    while(fread(&p,sizeof(p),1,stdin)) {
-	for(j=0; j<3; ++j) {
-	    d.pos[j] = p.pos[j];
-	    d.vel[j] = p.vel[j];
-	    }
+    while (fread(&p,sizeof(p),1,stdin)) {
+        for (j=0; j<3; ++j) {
+            d.pos[j] = p.pos[j];
+            d.vel[j] = p.vel[j];
+        }
 #ifdef POTENTIAL_IN_LIGHTCONE
-	d.phi = p.pot;
+        d.phi = p.pot;
 #endif
-	fwrite(&d,sizeof(d),1,fp);
-	++h.nBodies;
-	}
+        fwrite(&d,sizeof(d),1,fp);
+        ++h.nBodies;
+    }
     h.nDark = h.nBodies;
 
     fseek(fp,0,SEEK_SET);
@@ -95,5 +95,5 @@ int main(int argc, char *argv[]) {
 
     fclose(fp);
 
-    }
+}
 

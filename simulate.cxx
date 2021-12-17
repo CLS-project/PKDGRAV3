@@ -27,22 +27,22 @@
 double MSR::LoadOrGenerateIC() {
     double dTime = -HUGE_VAL;
     if (prmSpecified(prm,"nGrid")) {
-	dTime = GenerateIC(); /* May change nSteps/dDelta */
-	if ( param.bWriteIC ) {
-	    Write(BuildIoName(0).c_str(),dTime,param.bWriteIC-1);
-	    }
-	}
+        dTime = GenerateIC(); /* May change nSteps/dDelta */
+        if ( param.bWriteIC ) {
+            Write(BuildIoName(0).c_str(),dTime,param.bWriteIC-1);
+        }
+    }
 
     /* Read in a binary file */
     else if ( param.achInFile[0] ) {
-	dTime = Read(param.achInFile); /* May change nSteps/dDelta */
-	if (param.bAddDelete) GetNParts();
-	}
-    else {
-	printf("No input file specified\n");
-	}
-    return dTime;
+        dTime = Read(param.achInFile); /* May change nSteps/dDelta */
+        if (param.bAddDelete) GetNParts();
     }
+    else {
+        printf("No input file specified\n");
+    }
+    return dTime;
+}
 
 
 /******************************************************************************\
@@ -53,37 +53,37 @@ bool MSR::getDeltaSteps(double dTime,int iStartStep,double &dDelta,int &nSteps) 
     dDelta = param.dDelta;
     nSteps = param.nSteps;
     if (!csm->val.bComove) {
-	if (prmSpecified(prm,"dRedTo")) {
-	    printf("WARNING: dRedTo is meaningless for non-cosmological simulations, ignoring.\n");
-	    }
-	}
+        if (prmSpecified(prm,"dRedTo")) {
+            printf("WARNING: dRedTo is meaningless for non-cosmological simulations, ignoring.\n");
+        }
+    }
     else if (!prmSpecified(prm,"dRedTo")) {}
     else if (prmSpecified(prm,"dDelta") && prmSpecified(prm,"nSteps")) {
-	printf("Specify at most two of: dDelta, nSteps, dRedTo -- all three were specified\n");
-	return false;
-        }
-    else if (prmSpecified(prm,"dDelta")) {
-	auto aTo = 1.0/(param.dRedTo + 1.0);
-	auto tTo = csmExp2Time(csm,aTo);
-	if (tTo < dTime) {
-	    printf("Badly specified final redshift, check -zto parameter.\n");
-	    return false;
-	    }
-	nSteps = (int)ceil((tTo-dTime)/param.dDelta);
-	dDelta = (tTo-dTime)/(nSteps - iStartStep);
-	}
-    else if (prmSpecified(prm,"nSteps")) {
-	auto aTo = 1.0/(param.dRedTo + 1.0);
-	auto tTo = csmExp2Time(csm,aTo);
-	if (tTo < dTime) {
-	    printf("Badly specified final redshift, check -zto parameter.\n");
-	    return false;
-	    }
-	if (param.nSteps == 0) dDelta = 0.0;
-	else dDelta = (tTo-dTime) / (nSteps - iStartStep);
-	}
-    return true;
+        printf("Specify at most two of: dDelta, nSteps, dRedTo -- all three were specified\n");
+        return false;
     }
+    else if (prmSpecified(prm,"dDelta")) {
+        auto aTo = 1.0/(param.dRedTo + 1.0);
+        auto tTo = csmExp2Time(csm,aTo);
+        if (tTo < dTime) {
+            printf("Badly specified final redshift, check -zto parameter.\n");
+            return false;
+        }
+        nSteps = (int)ceil((tTo-dTime)/param.dDelta);
+        dDelta = (tTo-dTime)/(nSteps - iStartStep);
+    }
+    else if (prmSpecified(prm,"nSteps")) {
+        auto aTo = 1.0/(param.dRedTo + 1.0);
+        auto tTo = csmExp2Time(csm,aTo);
+        if (tTo < dTime) {
+            printf("Badly specified final redshift, check -zto parameter.\n");
+            return false;
+        }
+        if (param.nSteps == 0) dDelta = 0.0;
+        else dDelta = (tTo-dTime) / (nSteps - iStartStep);
+    }
+    return true;
+}
 
 /******************************************************************************\
 *   Simulation Mode: normal operation mode for pkdgrav
@@ -93,7 +93,7 @@ void MSR::Simulate(double dTime) {
     int nSteps;
     getDeltaSteps(dTime,param.iStartStep, /* OUTPUT -> */ dDelta,nSteps);
     return Simulate(dTime,dDelta,param.iStartStep,nSteps);
-    }
+}
 void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
     FILE *fpLog = NULL;
 
@@ -112,42 +112,44 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
     ** log file entry.
     */
     if (LogInterval()) {
-	std::string filename = std::string(OutName()) + ".log";
-	fpLog = fopen(filename.c_str(),"a");
-	assert(fpLog != NULL);
-	setbuf(fpLog,(char *) NULL); /* no buffering */
-	// fprintf(fpLog,"# ");
-	// for (auto i=0;i<argc;++i) fprintf(fpLog,"%s ",argv[i]);
-	// fprintf(fpLog,"\n");
-	// msrLogParams(msr,fpLog);
-	}
+        std::string filename = std::string(OutName()) + ".log";
+        fpLog = fopen(filename.c_str(),"a");
+        assert(fpLog != NULL);
+        setbuf(fpLog,(char *) NULL); /* no buffering */
+        // fprintf(fpLog,"# ");
+        // for (auto i=0;i<argc;++i) fprintf(fpLog,"%s ",argv[i]);
+        // fprintf(fpLog,"\n");
+        // msrLogParams(msr,fpLog);
+    }
 
     if (param.bLightCone && Comove()) {
-	printf("One, Two, Three replica depth is z=%.10g, %.10g, %.10g\n",
-	    1.0/csmComoveLookbackTime2Exp(csm,1.0 / dLightSpeedSim(1*param.dBoxSize)) - 1.0,
-	    1.0/csmComoveLookbackTime2Exp(csm,1.0 / dLightSpeedSim(2*param.dBoxSize)) - 1.0,
-	    1.0/csmComoveLookbackTime2Exp(csm,1.0 / dLightSpeedSim(3*param.dBoxSize)) - 1.0 );
-	}
+        printf("One, Two, Three replica depth is z=%.10g, %.10g, %.10g\n",
+               1.0/csmComoveLookbackTime2Exp(csm,1.0 / dLightSpeedSim(1*param.dBoxSize)) - 1.0,
+               1.0/csmComoveLookbackTime2Exp(csm,1.0 / dLightSpeedSim(2*param.dBoxSize)) - 1.0,
+               1.0/csmComoveLookbackTime2Exp(csm,1.0 / dLightSpeedSim(3*param.dBoxSize)) - 1.0 );
+    }
 
-    if (DoGas() && MeshlessHydro()){
-       ChemCompInit();
+    if (DoGas() && MeshlessHydro()) {
+        ChemCompInit();
     }
 
 #ifdef COOLING
     CoolingInit();
-    if ((csm->val.bComove)){
-       const float a = csmTime2Exp(csm,dTime);
-       CoolingUpdate(1./a - 1., 1);
-    }else{
-       CoolingUpdate(0., 1);
+    if ((csm->val.bComove)) {
+        const float a = csmTime2Exp(csm,dTime);
+        CoolingUpdate(1./a - 1., 1);
+    }
+    else {
+        CoolingUpdate(0., 1);
     }
 #endif
 
 #ifdef GRACKLE
-    if ((csm->val.bComove)){
-       GrackleInit(1, csmTime2Exp(csm,dTime));
-    }else{
-       GrackleInit(0, 1.0);
+    if ((csm->val.bComove)) {
+        GrackleInit(1, csmTime2Exp(csm,dTime));
+    }
+    else {
+        GrackleInit(0, 1.0);
     }
 #endif
 
@@ -177,139 +179,139 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
     int iSec = time(0);
 
     if (DoGravity()) {
-	dDelta = SwitchDelta(dTime,dDelta,iStartStep,param.nSteps);
-	if (param.bNewKDK) {
-	    LightConeOpen(iStartStep + 1);
-	    bKickOpen = 1;
-	    }
-	else bKickOpen = 0;
+        dDelta = SwitchDelta(dTime,dDelta,iStartStep,param.nSteps);
+        if (param.bNewKDK) {
+            LightConeOpen(iStartStep + 1);
+            bKickOpen = 1;
+        }
+        else bKickOpen = 0;
 
         /* Compute the grids of the linear species before doing gravity */
-        if (strlen(param.achLinearSpecies) && param.nGridLin > 0){
-	    GridCreateFFT(param.nGridLin);
+        if (strlen(param.achLinearSpecies) && param.nGridLin > 0) {
+            GridCreateFFT(param.nGridLin);
             SetLinGrid(dTime,dDelta,param.nGridLin,bKickClose,bKickOpen);
             if (param.bDoLinPkOutput)
                 OutputLinPk( iStartStep, dTime);
-	    LinearKick(dTime,dDelta,bKickClose,bKickOpen);
-	    GridDeleteFFT();
+            LinearKick(dTime,dDelta,bKickClose,bKickOpen);
+            GridDeleteFFT();
         }
-	uRungMax = Gravity(0,MAX_RUNG,ROOT,0,dTime,dDelta,iStartStep,dTheta,0,bKickOpen,
-	        param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup);
-	MemStatus();
-	if (param.bGravStep) {
-	    assert(param.bNewKDK == 0);    /* for now! */
-	    BuildTree(param.bEwald);
-	    Gravity(0,MAX_RUNG,ROOT,0,dTime,dDelta,iStartStep,dTheta,0,0,
-		    param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup);
-	    MemStatus();
-	    }
-	}
+        uRungMax = Gravity(0,MAX_RUNG,ROOT,0,dTime,dDelta,iStartStep,dTheta,0,bKickOpen,
+                           param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup);
+        MemStatus();
+        if (param.bGravStep) {
+            assert(param.bNewKDK == 0);    /* for now! */
+            BuildTree(param.bEwald);
+            Gravity(0,MAX_RUNG,ROOT,0,dTime,dDelta,iStartStep,dTheta,0,0,
+                    param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup);
+            MemStatus();
+        }
+    }
     if (DoGas()) {
-	/* Initialize SPH, Cooling and SF/FB and gas time step */
-	CoolSetup(dTime);
-	/* Fix dTuFac conversion of T in InitSPH */
-	InitSph(dTime,dDelta);
-	}
+        /* Initialize SPH, Cooling and SF/FB and gas time step */
+        CoolSetup(dTime);
+        /* Fix dTuFac conversion of T in InitSPH */
+        InitSph(dTime,dDelta);
+    }
 #ifdef BLACKHOLES
     BlackholeInit(uRungMax);
 #endif
 
 
-    double E=0,T=0,U=0,Eth=0,L[3]={0,0,0},F[3]={0,0,0},W=0;
+    double E=0,T=0,U=0,Eth=0,L[3]= {0,0,0},F[3]= {0,0,0},W=0;
     CalcEandL(MSR_INIT_E,dTime,&E,&T,&U,&Eth,L,F,&W);
     iSec = time(0) - iSec;
     if (LogInterval()) {
-	(void) fprintf(fpLog,"%e %e %.16e %e %e %e %.16e %.16e %.16e "
-			"%.16e %.16e %.16e %.16e %i\n",dTime,
-			1.0/csmTime2Exp(csm,dTime)-1.0,
-			E,T,U,Eth,L[0],L[1],L[2],F[0],F[1],F[2],W,iSec);
-	}
+        (void) fprintf(fpLog,"%e %e %.16e %e %e %e %.16e %.16e %.16e "
+                       "%.16e %.16e %.16e %.16e %i\n",dTime,
+                       1.0/csmTime2Exp(csm,dTime)-1.0,
+                       E,T,U,Eth,L[0],L[1],L[2],F[0],F[1],F[2],W,iSec);
+    }
     if ( param.bTraceRelaxation) {
-	InitRelaxation();
-	}
+        InitRelaxation();
+    }
 
-    if (param.bWriteIC && !prmSpecified(prm,"nGrid")){
-       if (param.bFindGroups){
-          NewFof(dTime);
-          GroupStats();
-       }
-       Output(iStartStep,dTime,dDelta,0);
+    if (param.bWriteIC && !prmSpecified(prm,"nGrid")) {
+        if (param.bFindGroups) {
+            NewFof(dTime);
+            GroupStats();
+        }
+        Output(iStartStep,dTime,dDelta,0);
     }
 
     bKickOpen = 0;
     int iStop=0, bDoCheckpoint=0, bDoOutput=0;
-    for (auto iStep=iStartStep+1;iStep<=nSteps&&!iStop;++iStep) {
-	dDelta = SwitchDelta(dTime,dDelta,iStep-1,param.nSteps);
-	dTheta = getTheta(dTime);
-	lPrior = time(0);
-	if (param.bNewKDK) {
-	    double diStep = (double)(iStep-1);
-	    double ddTime = dTime;
-	    if (bKickOpen) {
-		BuildTree(0);
+    for (auto iStep=iStartStep+1; iStep<=nSteps&&!iStop; ++iStep) {
+        dDelta = SwitchDelta(dTime,dDelta,iStep-1,param.nSteps);
+        dTheta = getTheta(dTime);
+        lPrior = time(0);
+        if (param.bNewKDK) {
+            double diStep = (double)(iStep-1);
+            double ddTime = dTime;
+            if (bKickOpen) {
+                BuildTree(0);
                 LightConeOpen(iStep);  /* open the lightcone */
-		uRungMax = Gravity(0,MAX_RUNG,ROOT,0,ddTime,dDelta,diStep,dTheta,0,1,
-		        param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup);
+                uRungMax = Gravity(0,MAX_RUNG,ROOT,0,ddTime,dDelta,diStep,dTheta,0,1,
+                                   param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup);
                 /* Set the grids of the linear species */
-                if (strlen(param.achLinearSpecies) && param.nGridLin > 0){
-		    GridCreateFFT(param.nGridLin);
-		    SetLinGrid(dTime,dDelta,param.nGridLin,bKickClose,bKickOpen);
+                if (strlen(param.achLinearSpecies) && param.nGridLin > 0) {
+                    GridCreateFFT(param.nGridLin);
+                    SetLinGrid(dTime,dDelta,param.nGridLin,bKickClose,bKickOpen);
                     if (param.bDoLinPkOutput)
                         OutputLinPk( iStartStep, dTime);
-		    LinearKick(dTime,dDelta,bKickClose,bKickOpen);
-		    GridDeleteFFT();
-                    }
-		bKickOpen = 0; /* clear the opening kicking flag */
-		}
-	    NewTopStepKDK(ddTime,dDelta,dTheta,nSteps,0,0,&diStep,&uRungMax,&bDoCheckpoint,&bDoOutput,&bKickOpen);
-	    }
-	else {
-	    TopStepKDK(iStep-1,dTime,dDelta,dTheta,0,0,1);
-	    runAnalysis(iStep,dTime); // Run any registered Python analysis tasks
-	    }
-	dTime += dDelta;
-	auto lSec = time(0) - lPrior;
-	MemStatus();
+                    LinearKick(dTime,dDelta,bKickClose,bKickOpen);
+                    GridDeleteFFT();
+                }
+                bKickOpen = 0; /* clear the opening kicking flag */
+            }
+            NewTopStepKDK(ddTime,dDelta,dTheta,nSteps,0,0,&diStep,&uRungMax,&bDoCheckpoint,&bDoOutput,&bKickOpen);
+        }
+        else {
+            TopStepKDK(iStep-1,dTime,dDelta,dTheta,0,0,1);
+            runAnalysis(iStep,dTime); // Run any registered Python analysis tasks
+        }
+        dTime += dDelta;
+        auto lSec = time(0) - lPrior;
+        MemStatus();
 
-	OutputOrbits(iStep,dTime);
+        OutputOrbits(iStep,dTime);
 
-	/*
-	** Output a log file line if requested.
-	** Note: no extra gravity calculation required.
-	*/
-	if (LogInterval() && iStep%LogInterval() == 0) {
-	    CalcEandL(MSR_STEP_E,dTime,&E,&T,&U,&Eth,L,F,&W);
-	    (void) fprintf(fpLog,"%e %e %.16e %e %e %e %.16e %.16e "
-			    "%.16e %.16e %.16e %.16e %.16e %li\n",dTime,
-			    1.0/csmTime2Exp(csm,dTime)-1.0,
-			    E,T,U,Eth,L[0],L[1],L[2],F[0],F[1],F[2],W,lSec);
-	    }
-	if ( param.bTraceRelaxation) {
-	    ActiveRung(0,1); /* Activate all particles */
-	    DomainDecomp();
-	    BuildTree(0);
-	    Relaxation(dTime,dDelta,SMX_RELAXATION,0);
-	    }
-	if (!param.bNewKDK) {
-	    CheckForOutput(iStep,nSteps,dTime,&bDoCheckpoint,&bDoOutput);
-	    }
-	iStop = (bDoCheckpoint&2) || (bDoOutput&2);
-	if (bDoCheckpoint) {
-	    Checkpoint(iStep,nSteps,dTime,dDelta);
-	    bDoCheckpoint = 0;
-	    }
-	if (bDoOutput) {
-	    Output(iStep,dTime,param.dDelta,0);
-	    bDoOutput = 0;
-	    if (param.bNewKDK) {
-		DomainDecomp();
-		BuildTree(param.bEwald);
-		}
-	    }
-	}
+        /*
+        ** Output a log file line if requested.
+        ** Note: no extra gravity calculation required.
+        */
+        if (LogInterval() && iStep%LogInterval() == 0) {
+            CalcEandL(MSR_STEP_E,dTime,&E,&T,&U,&Eth,L,F,&W);
+            (void) fprintf(fpLog,"%e %e %.16e %e %e %e %.16e %.16e "
+                           "%.16e %.16e %.16e %.16e %.16e %li\n",dTime,
+                           1.0/csmTime2Exp(csm,dTime)-1.0,
+                           E,T,U,Eth,L[0],L[1],L[2],F[0],F[1],F[2],W,lSec);
+        }
+        if ( param.bTraceRelaxation) {
+            ActiveRung(0,1); /* Activate all particles */
+            DomainDecomp();
+            BuildTree(0);
+            Relaxation(dTime,dDelta,SMX_RELAXATION,0);
+        }
+        if (!param.bNewKDK) {
+            CheckForOutput(iStep,nSteps,dTime,&bDoCheckpoint,&bDoOutput);
+        }
+        iStop = (bDoCheckpoint&2) || (bDoOutput&2);
+        if (bDoCheckpoint) {
+            Checkpoint(iStep,nSteps,dTime,dDelta);
+            bDoCheckpoint = 0;
+        }
+        if (bDoOutput) {
+            Output(iStep,dTime,param.dDelta,0);
+            bDoOutput = 0;
+            if (param.bNewKDK) {
+                DomainDecomp();
+                BuildTree(param.bEwald);
+            }
+        }
+    }
     if (LogInterval()) (void) fclose(fpLog);
 
-    }
+}
 
 /******************************************************************************\
 *   Parameter validation
@@ -321,11 +323,11 @@ static int parseSpeciesNames(const char *aSpecies[], char *achSpecies) {
     char *p, *stringp = achSpecies;
     int nSpecies = 0;
     while ((p = strsep(&stringp, "+")) != NULL) {
-	assert(nSpecies<MAX_CSM_SPECIES);
+        assert(nSpecies<MAX_CSM_SPECIES);
         if (p[0]) aSpecies[nSpecies++] = p;
-	}
-    return nSpecies;
     }
+    return nSpecies;
+}
 
 // Check to see if a path specification is valid. Paths are constructed using
 // the Python/Format string formats and may contain the following fields.
@@ -336,206 +338,206 @@ static int parseSpeciesNames(const char *aSpecies[], char *achSpecies) {
 //   {name}.{step:05d}{type}
 static void validate_path(const char *name,const char *path) {
     if (path && path[0]) {
-	using namespace fmt::literals;
-	auto r1 = fmt::format(path,"name"_a="name","step"_a=1,"type"_a=".dat");
-	if (r1 == fmt::format(path,"name"_a="name","step"_a=1,"type"_a=".XXX"))
-	    throw fmt::format_error(std::string(name) + ": " + path);
-	if (r1 == fmt::format(path,"name"_a="name","step"_a=9,"type"_a=".dat"))
-	    throw fmt::format_error(std::string(name) + ": " + path);
-	if (r1 == fmt::format(path,"name"_a="XXXX","step"_a=1,"type"_a=".dat"))
-	    throw fmt::format_error(std::string(name) + ": " + path);
-	}
+        using namespace fmt::literals;
+        auto r1 = fmt::format(path,"name"_a="name","step"_a=1,"type"_a=".dat");
+        if (r1 == fmt::format(path,"name"_a="name","step"_a=1,"type"_a=".XXX"))
+            throw fmt::format_error(std::string(name) + ": " + path);
+        if (r1 == fmt::format(path,"name"_a="name","step"_a=9,"type"_a=".dat"))
+            throw fmt::format_error(std::string(name) + ": " + path);
+        if (r1 == fmt::format(path,"name"_a="XXXX","step"_a=1,"type"_a=".dat"))
+            throw fmt::format_error(std::string(name) + ": " + path);
     }
+}
 
 /*
 ** This routine validates the given parameters and makes any adjustments.
 */
 int MSR::ValidateParameters() {
     try {
-	validate_path("achOutPath",       param.achOutPath);
-	validate_path("achCheckpointPath",param.achCheckpointPath);
-	validate_path("achIoPath",        param.achIoPath);
-	}
-    catch(fmt::format_error &e) {
-	fprintf(stderr,"ERROR: %s\n",e.what());
-	fprintf(stderr,"       When specified must contain {name}, {step} and {type} and no other fields\n");
-	fprintf(stderr,"       Default: {name}.{step:05d}{type}\n");
-	fprintf(stderr,"       Example: /path/to/output/{step:05d}/{name}.{step:05d}{type}\n");
-	return 0;
-	}
+        validate_path("achOutPath",       param.achOutPath);
+        validate_path("achCheckpointPath",param.achCheckpointPath);
+        validate_path("achIoPath",        param.achIoPath);
+    }
+    catch (fmt::format_error &e) {
+        fprintf(stderr,"ERROR: %s\n",e.what());
+        fprintf(stderr,"       When specified must contain {name}, {step} and {type} and no other fields\n");
+        fprintf(stderr,"       Default: {name}.{step:05d}{type}\n");
+        fprintf(stderr,"       Example: /path/to/output/{step:05d}/{name}.{step:05d}{type}\n");
+        return 0;
+    }
 
     if (prmSpecified(prm, "dMetalDiffsionCoeff") || prmSpecified(prm,"dThermalDiffusionCoeff")) {
-	if (!prmSpecified(prm, "iDiffusion")) param.iDiffusion=1;
-	}
+        if (!prmSpecified(prm, "iDiffusion")) param.iDiffusion=1;
+    }
 
     {
-	int nCoolingSet=0;
-	if (param.bGasIsothermal) nCoolingSet++; 
-	if (param.bGasCooling) nCoolingSet++; 
-	if (!prmSpecified(prm, "bGasAdiabatic") && nCoolingSet) param.bGasAdiabatic=0;
-	else if (param.bGasAdiabatic) nCoolingSet++;
+        int nCoolingSet=0;
+        if (param.bGasIsothermal) nCoolingSet++;
+        if (param.bGasCooling) nCoolingSet++;
+        if (!prmSpecified(prm, "bGasAdiabatic") && nCoolingSet) param.bGasAdiabatic=0;
+        else if (param.bGasAdiabatic) nCoolingSet++;
 
-	if (nCoolingSet != 1) {
-	    fprintf(stderr,"One of bGasAdiabatic (%d), bGasIsothermal (%d) and bGasCooling (%d) may be set\n", param.bGasAdiabatic, param.bGasIsothermal, param.bGasCooling);
-	    assert(0);
-	    }
-	}
+        if (nCoolingSet != 1) {
+            fprintf(stderr,"One of bGasAdiabatic (%d), bGasIsothermal (%d) and bGasCooling (%d) may be set\n", param.bGasAdiabatic, param.bGasIsothermal, param.bGasCooling);
+            assert(0);
+        }
+    }
 
 
 
     /* Star parameter checks */
 
     if (param.bStarForm) {
-	param.bAddDelete = 1;
-	if (!prmSpecified(prm, "bFeedback")) param.bFeedback=1;
-	}
+        param.bAddDelete = 1;
+        if (!prmSpecified(prm, "bFeedback")) param.bFeedback=1;
+    }
 
     /* END Gas and Star Parameter Checks */
 
     if (param.nDigits < 1 || param.nDigits > 9) {
-	(void) fprintf(stderr,"Unreasonable number of filename digits.\n");
-	return 0;
-	}
+        (void) fprintf(stderr,"Unreasonable number of filename digits.\n");
+        return 0;
+    }
 
     /*
     ** Make sure that we have some setting for nReplicas if bPeriodic is set.
     */
     if (param.bPeriodic && !prmSpecified(prm,"nReplicas")) {
-	param.nReplicas = 1;
-	}
+        param.nReplicas = 1;
+    }
     /*
     ** Warn that we have a setting for nReplicas if bPeriodic NOT set.
     */
     if (!param.bPeriodic && param.nReplicas != 0) {
-	printf("WARNING: nReplicas set to non-zero value for non-periodic!\n");
-	}
+        printf("WARNING: nReplicas set to non-zero value for non-periodic!\n");
+    }
 
     /*
     ** CUDA likes a larger group size
     */
     if (mdl->isCudaActive() && param.iCUDAQueueSize>0 && !prmSpecified(prm,"nGroup") && param.nGroup<256)
-	param.nGroup = 256;
+        param.nGroup = 256;
 
 
 #ifndef USE_HDF5
     if (param.bHDF5) {
-	printf("WARNING: HDF5 output was requested by is not supported: using Tipsy format\n");
-	param.bHDF5 = 0;
-	}
+        printf("WARNING: HDF5 output was requested by is not supported: using Tipsy format\n");
+        param.bHDF5 = 0;
+    }
 #endif
 
 #ifdef MDL_FFTW
     if ( param.nGridPk ) {
-	if (prmSpecified(prm,"nBinsPk")) {
-	    if (param.nBinsPk > param.nGridPk/2) {
-		param.nBinsPk = param.nGridPk/2;
-		}
-	    }
-	else param.nBinsPk = param.nGridPk/2;
-	if (param.nBinsPk > PST_MAX_K_BINS)
-	    param.nBinsPk = PST_MAX_K_BINS;
-	}
-    if (param.iPkOrder<1 || param.iPkOrder>4) {
-    	puts("ERROR: iPkOrder must be 1 (NGP), 2 (CIC), 3 (TSC) or 4 (PCS)");
-    	return 0;
+        if (prmSpecified(prm,"nBinsPk")) {
+            if (param.nBinsPk > param.nGridPk/2) {
+                param.nBinsPk = param.nGridPk/2;
+            }
         }
+        else param.nBinsPk = param.nGridPk/2;
+        if (param.nBinsPk > PST_MAX_K_BINS)
+            param.nBinsPk = PST_MAX_K_BINS;
+    }
+    if (param.iPkOrder<1 || param.iPkOrder>4) {
+        puts("ERROR: iPkOrder must be 1 (NGP), 2 (CIC), 3 (TSC) or 4 (PCS)");
+        return 0;
+    }
     if ( param.nGrid ) {
-	if (param.achInFile[0]) {
-	    puts("ERROR: do not specify an input file when generating IC");
-	    return 0;
-	    }
-	if ( param.iSeed == 0 ) {
-	    //puts("ERROR: Random seed for IC not specified");
-	    param.iSeed = time(NULL);
-	    }
-	if ( !prmSpecified(prm,"dBoxSize") || param.dBoxSize <= 0 ) {
-	    puts("ERROR: Box size for IC not specified");
-	    return 0;
-	    }
-	if ( param.bICgas ) {
-          if ( !prmSpecified(prm,"dOmegab") || csm->val.dOmegab <= 0 ) {
-             puts("ERROR: Can not generate IC with gas if dOmegab is not specified");
-             return 0;
-             }
-          if ( !param.bDoGas ){
-             puts("ERROR: Can not generate gas if bDoGas=0");
-             return 0;
-             }
-          }
-	}
+        if (param.achInFile[0]) {
+            puts("ERROR: do not specify an input file when generating IC");
+            return 0;
+        }
+        if ( param.iSeed == 0 ) {
+            //puts("ERROR: Random seed for IC not specified");
+            param.iSeed = time(NULL);
+        }
+        if ( !prmSpecified(prm,"dBoxSize") || param.dBoxSize <= 0 ) {
+            puts("ERROR: Box size for IC not specified");
+            return 0;
+        }
+        if ( param.bICgas ) {
+            if ( !prmSpecified(prm,"dOmegab") || csm->val.dOmegab <= 0 ) {
+                puts("ERROR: Can not generate IC with gas if dOmegab is not specified");
+                return 0;
+            }
+            if ( !param.bDoGas ) {
+                puts("ERROR: Can not generate gas if bDoGas=0");
+                return 0;
+            }
+        }
+    }
     /* Set the number of bins for the power spectrum measurement of linear species */
-    if (param.nGridLin > 0){
+    if (param.nGridLin > 0) {
         param.nBinsLinPk = param.nGridLin/2;
         if (param.nBinsLinPk > PST_MAX_K_BINS)
             param.nBinsLinPk = PST_MAX_K_BINS;
     }
 #endif
     if (param.dTheta <= 0) {
-	if (param.dTheta == 0 && param.bVWarnings)
-	    fprintf(stderr,"WARNING: Zero opening angle may cause numerical problems\n");
-	else if (param.dTheta < 0) {
-	    fprintf(stderr,"ERROR: Opening angle must be non-negative\n");
-	    return 0;
-	    }
-	}
+        if (param.dTheta == 0 && param.bVWarnings)
+            fprintf(stderr,"WARNING: Zero opening angle may cause numerical problems\n");
+        else if (param.dTheta < 0) {
+            fprintf(stderr,"ERROR: Opening angle must be non-negative\n");
+            return 0;
+        }
+    }
 
-    if (!prmSpecified(prm,"dFracNoDomainRootFind") && param.dFracNoDomainRootFind > param.dFracNoDomainDimChoice) param.dFracNoDomainRootFind = param.dFracNoDomainDimChoice; 
-    if (!prmSpecified(prm,"dFracNoDomainDecomp") && param.dFracNoDomainDecomp > param.dFracNoDomainRootFind) param.dFracNoDomainDecomp = param.dFracNoDomainRootFind; 
-    if (!prmSpecified(prm,"dFracDualTree") && param.dFracDualTree > param.dFracNoDomainDecomp) param.dFracDualTree = param.dFracNoDomainDecomp; 
-    if (!prmSpecified(prm,"dFracNoDomainDecomp") && param.dFracNoDomainDecomp < param.dFracDualTree) param.dFracNoDomainDecomp = param.dFracDualTree; 
-    if (!prmSpecified(prm,"dFracNoDomainRootFind") && param.dFracNoDomainRootFind < param.dFracNoDomainDecomp) param.dFracNoDomainRootFind = param.dFracNoDomainDecomp; 
-    if (!prmSpecified(prm,"dFracNoDomainDimChoice") && param.dFracNoDomainDimChoice < param.dFracNoDomainRootFind) param.dFracNoDomainDimChoice = param.dFracNoDomainRootFind; 
+    if (!prmSpecified(prm,"dFracNoDomainRootFind") && param.dFracNoDomainRootFind > param.dFracNoDomainDimChoice) param.dFracNoDomainRootFind = param.dFracNoDomainDimChoice;
+    if (!prmSpecified(prm,"dFracNoDomainDecomp") && param.dFracNoDomainDecomp > param.dFracNoDomainRootFind) param.dFracNoDomainDecomp = param.dFracNoDomainRootFind;
+    if (!prmSpecified(prm,"dFracDualTree") && param.dFracDualTree > param.dFracNoDomainDecomp) param.dFracDualTree = param.dFracNoDomainDecomp;
+    if (!prmSpecified(prm,"dFracNoDomainDecomp") && param.dFracNoDomainDecomp < param.dFracDualTree) param.dFracNoDomainDecomp = param.dFracDualTree;
+    if (!prmSpecified(prm,"dFracNoDomainRootFind") && param.dFracNoDomainRootFind < param.dFracNoDomainDecomp) param.dFracNoDomainRootFind = param.dFracNoDomainDecomp;
+    if (!prmSpecified(prm,"dFracNoDomainDimChoice") && param.dFracNoDomainDimChoice < param.dFracNoDomainRootFind) param.dFracNoDomainDimChoice = param.dFracNoDomainRootFind;
     if ( param.dFracDualTree > param.dFracNoDomainDecomp
-	|| param.dFracNoDomainDecomp > param.dFracNoDomainRootFind
-	|| param.dFracNoDomainRootFind > param.dFracNoDomainDimChoice
-	|| param.dFracNoDomainDecomp<0.0 || param.dFracNoDomainDimChoice > 1.0 ) {
-	puts("ERROR: check that 0 <= dFracNoDomainDecomp <= dFracNoDomainRootFind <= dFracNoDomainDimChoice <= 1");
-	return 0;
-	}
+            || param.dFracNoDomainDecomp > param.dFracNoDomainRootFind
+            || param.dFracNoDomainRootFind > param.dFracNoDomainDimChoice
+            || param.dFracNoDomainDecomp<0.0 || param.dFracNoDomainDimChoice > 1.0 ) {
+        puts("ERROR: check that 0 <= dFracNoDomainDecomp <= dFracNoDomainRootFind <= dFracNoDomainDimChoice <= 1");
+        return 0;
+    }
 
     if (param.bMemUnordered) {
-	if (!prmSpecified(prm,"bNewKDK")) {
-	    param.bNewKDK = 1;
-	    }
-	else if (!param.bNewKDK) {
-	    puts("ERROR: bNewKDK must not be zero when bMemUnordered is enabled!");
-	    return 0;
-	    }
-	}
+        if (!prmSpecified(prm,"bNewKDK")) {
+            param.bNewKDK = 1;
+        }
+        else if (!param.bNewKDK) {
+            puts("ERROR: bNewKDK must not be zero when bMemUnordered is enabled!");
+            return 0;
+        }
+    }
 
     /* Make sure that the old behaviour is obeyed. */
     if ( param.nSteps == 0 ) {
-	if ( !prmSpecified(prm,"bDoAccOutput") ) param.bDoAccOutput = 1;
-	if ( !prmSpecified(prm,"bDoPotOutput") ) param.bDoPotOutput = 1;
-	}
+        if ( !prmSpecified(prm,"bDoAccOutput") ) param.bDoAccOutput = 1;
+        if ( !prmSpecified(prm,"bDoPotOutput") ) param.bDoPotOutput = 1;
+    }
 
     /*
      * Softening
      */
     if (param.bPhysicalSoft ) {
-	if (param.bPhysicalSoft && !csm->val.bComove) {
-	    printf("WARNING: bPhysicalSoft reset to 0 for non-comoving (bComove == 0)\n");
-	    param.bPhysicalSoft = 0;
-	    }
-	}
-    if (param.bPhysicalSoft && param.dMaxPhysicalSoft>0){
-      fprintf(stderr, "ERROR: Setting both bPhysicalSoft and dMaxPhysicalSoft "
-           "is not allowed.\n Did you mean to limit the physical softening"
-           "with bPhysicalSoft and dSoftMax? or just limit the comoving "
-           "softening with dMaxPhysicalSoft?\n");
-      return 0;
+        if (param.bPhysicalSoft && !csm->val.bComove) {
+            printf("WARNING: bPhysicalSoft reset to 0 for non-comoving (bComove == 0)\n");
+            param.bPhysicalSoft = 0;
+        }
     }
-    if ( param.dMaxPhysicalSoft>0 && param.dSoft==0.0 && !param.bSoftMaxMul){
-      fprintf(stderr, "ERROR: Trying to limit individual softenings setting a "
-           "maximum physical softening rather than a factor...\nThis is "
-           "not supported.\n Did you mean to use dSoft for a global softening? "
-           "or bSoftMaxMul for setting the limit as a factor?\n");
-      return 0;
+    if (param.bPhysicalSoft && param.dMaxPhysicalSoft>0) {
+        fprintf(stderr, "ERROR: Setting both bPhysicalSoft and dMaxPhysicalSoft "
+                "is not allowed.\n Did you mean to limit the physical softening"
+                "with bPhysicalSoft and dSoftMax? or just limit the comoving "
+                "softening with dMaxPhysicalSoft?\n");
+        return 0;
+    }
+    if ( param.dMaxPhysicalSoft>0 && param.dSoft==0.0 && !param.bSoftMaxMul) {
+        fprintf(stderr, "ERROR: Trying to limit individual softenings setting a "
+                "maximum physical softening rather than a factor...\nThis is "
+                "not supported.\n Did you mean to use dSoft for a global softening? "
+                "or bSoftMaxMul for setting the limit as a factor?\n");
+        return 0;
     }
     if ( param.bPhysicalSoft && param.dSoftMax==0.0) {
-      fprintf(stderr, "ERROR: If setting bPhysicalSoft, dSoftMax should be "
-            "provided to avoid divergences in the early universe.\n");
-      return 0;
+        fprintf(stderr, "ERROR: If setting bPhysicalSoft, dSoftMax should be "
+                "provided to avoid divergences in the early universe.\n");
+        return 0;
     }
     /*
     ** Determine the period of the box that we are using.
@@ -544,17 +546,17 @@ int MSR::ValidateParameters() {
     ** with the old method of setting dPeriod.
     */
     if (prmSpecified(prm,"dPeriod") &&
-	    !prmSpecified(prm,"dxPeriod")) {
-	param.dxPeriod = param.dPeriod;
-	}
+            !prmSpecified(prm,"dxPeriod")) {
+        param.dxPeriod = param.dPeriod;
+    }
     if (prmSpecified(prm,"dPeriod") &&
-	    !prmSpecified(prm,"dyPeriod")) {
-	param.dyPeriod = param.dPeriod;
-	}
+            !prmSpecified(prm,"dyPeriod")) {
+        param.dyPeriod = param.dPeriod;
+    }
     if (prmSpecified(prm,"dPeriod") &&
-	    !prmSpecified(prm,"dzPeriod")) {
-	param.dzPeriod = param.dPeriod;
-	}
+            !prmSpecified(prm,"dzPeriod")) {
+        param.dzPeriod = param.dPeriod;
+    }
     /*
     ** Periodic boundary conditions can be disabled along any of the
     ** x,y,z axes by specifying a period of zero for the given axis.
@@ -569,9 +571,9 @@ int MSR::ValidateParameters() {
     ** At the moment, integer positions are only really safe in periodic boxes!Wr
     */
     if (param.bMemIntegerPosition && (!param.bPeriodic||param.dxPeriod!=1.0||param.dyPeriod!=1.0||param.dzPeriod!=1.0)) {
-	fprintf(stderr,"WARNING: Integer coordinates are enabled but the the box is not periodic\n"
-	               "       and/or the box size is not 1. Set bPeriodic=1 and dPeriod=1.\n");
-	}
+        fprintf(stderr,"WARNING: Integer coordinates are enabled but the the box is not periodic\n"
+                "       and/or the box size is not 1. Set bPeriodic=1 and dPeriod=1.\n");
+    }
 
     if (!prmSpecified(prm,"dTheta20")) param.dTheta20 = param.dTheta;
     if (!prmSpecified(prm,"dTheta2")) param.dTheta2 = param.dTheta20;
@@ -580,62 +582,62 @@ int MSR::ValidateParameters() {
     ** Check if fast gas boundaries are needed.
     */
     if (param.bDoGas) {
-	param.bMemNodeSphBounds = 1;
+        param.bMemNodeSphBounds = 1;
     }
     /*
     ** Check timestepping and gravity combinations.
     */
     assert(param.iMaxRung <= IRUNGMAX);
     if (param.bDoGravity) {
-	/* Potential is optional, but the default for gravity */
-	if (!prmSpecified(prm,"bMemPotential")) param.bMemPotential = 1;
-	if (param.iMaxRung < 1) {
-	    param.iMaxRung = 0;
-	    if (param.bVWarnings) fprintf(stderr,"WARNING: iMaxRung set to 0, SINGLE STEPPING run!\n");
-	    /*
-	    ** For single stepping we don't need fancy timestepping variables.
-	    */
-	    param.bMemNodeAcceleration = 0;
-	    param.bMemNodeVelocity = 0;
-	}
-	else {
-	    if (param.bEpsAccStep) {
-		param.bAccelStep = 1;
-	    }
-	    if ((param.bAccelStep || param.bDensityStep) && param.bGravStep) {
-		/*
-		** We cannot combine these 2 types of timestepping criteria, we need to choose one
-		** or the other basic timestep criterion, in this case we choose only bGravStep.
-		*/
-		param.bAccelStep = 0;
-		param.bEpsAccStep = 0;
-		param.bDensityStep = 0;
-		if (param.bVWarnings) fprintf(stderr,"WARNING: bGravStep set in combination with older criteria, now using ONLY bGravStep!\n");
-	    }
-	    else if (!param.bAccelStep && !param.bGravStep && !param.bDensityStep) {
-		param.bGravStep = 1;
-		if (param.bVWarnings) fprintf(stderr,"WARNING: none of bAccelStep, bDensityStep, or bGravStep set, now using bGravStep!\n");
-	    }
-	    /*
-	    ** Set the needed memory model based on the chosen timestepping method.
-	    */
-	    if (param.bGravStep) {
-		param.bMemNodeAcceleration = 1;
-		if (param.iTimeStepCrit == 1) {
-		    param.bMemNodeVelocity = 1;
-		}
-	    } 
-	    else {
-		param.bMemNodeAcceleration = 0;
-		param.bMemNodeVelocity = 0;
-	    }
-	}
+        /* Potential is optional, but the default for gravity */
+        if (!prmSpecified(prm,"bMemPotential")) param.bMemPotential = 1;
+        if (param.iMaxRung < 1) {
+            param.iMaxRung = 0;
+            if (param.bVWarnings) fprintf(stderr,"WARNING: iMaxRung set to 0, SINGLE STEPPING run!\n");
+            /*
+            ** For single stepping we don't need fancy timestepping variables.
+            */
+            param.bMemNodeAcceleration = 0;
+            param.bMemNodeVelocity = 0;
+        }
+        else {
+            if (param.bEpsAccStep) {
+                param.bAccelStep = 1;
+            }
+            if ((param.bAccelStep || param.bDensityStep) && param.bGravStep) {
+                /*
+                ** We cannot combine these 2 types of timestepping criteria, we need to choose one
+                ** or the other basic timestep criterion, in this case we choose only bGravStep.
+                */
+                param.bAccelStep = 0;
+                param.bEpsAccStep = 0;
+                param.bDensityStep = 0;
+                if (param.bVWarnings) fprintf(stderr,"WARNING: bGravStep set in combination with older criteria, now using ONLY bGravStep!\n");
+            }
+            else if (!param.bAccelStep && !param.bGravStep && !param.bDensityStep) {
+                param.bGravStep = 1;
+                if (param.bVWarnings) fprintf(stderr,"WARNING: none of bAccelStep, bDensityStep, or bGravStep set, now using bGravStep!\n");
+            }
+            /*
+            ** Set the needed memory model based on the chosen timestepping method.
+            */
+            if (param.bGravStep) {
+                param.bMemNodeAcceleration = 1;
+                if (param.iTimeStepCrit == 1) {
+                    param.bMemNodeVelocity = 1;
+                }
+            }
+            else {
+                param.bMemNodeAcceleration = 0;
+                param.bMemNodeVelocity = 0;
+            }
+        }
     }
 
 #ifdef OPTIM_NO_REDUNDANT_FLUXES
-    if (!param.bMemParticleID){
-       fprintf(stderr, "WARNING: OPTIM_NO_REDUNDANT_FLUXES requires bMemParticleID");
-       return 0;
+    if (!param.bMemParticleID) {
+        fprintf(stderr, "WARNING: OPTIM_NO_REDUNDANT_FLUXES requires bMemParticleID");
+        return 0;
     }
 #endif
 
@@ -669,22 +671,22 @@ int MSR::ValidateParameters() {
 #endif
 
 
-    if (csm->val.classData.bClass){
-	const char *aLinear[MAX_CSM_SPECIES];
-	const char *aPower[MAX_CSM_SPECIES];
-	char *achLinearSpecies = strdup(param.achLinearSpecies);
-	char *achPowerSpecies = strdup(param.achPowerSpecies);
-	int nLinear = parseSpeciesNames(aLinear,achLinearSpecies);
-	int nPower = parseSpeciesNames(aPower,achPowerSpecies);
+    if (csm->val.classData.bClass) {
+        const char *aLinear[MAX_CSM_SPECIES];
+        const char *aPower[MAX_CSM_SPECIES];
+        char *achLinearSpecies = strdup(param.achLinearSpecies);
+        char *achPowerSpecies = strdup(param.achPowerSpecies);
+        int nLinear = parseSpeciesNames(aLinear,achLinearSpecies);
+        int nPower = parseSpeciesNames(aPower,achPowerSpecies);
         if (!prmSpecified(prm,"dOmega0")) csm->val.dOmega0 = 0.0;
         csmClassRead(csm, param.achClassFilename, param.dBoxSize, param.h, nLinear, aLinear, nPower, aPower);
         free(achLinearSpecies);
         free(achPowerSpecies);
         csmClassGslInitialize(csm);
-	}
-    if (strlen(param.achLinearSpecies) && param.nGridLin == 0){
+    }
+    if (strlen(param.achLinearSpecies) && param.nGridLin == 0) {
         fprintf(stderr, "ERROR: you must specify nGridLin when running with linear species\n");
         abort();
-	}
-    return 1;
     }
+    return 1;
+}

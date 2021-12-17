@@ -31,16 +31,16 @@ typedef struct prmNode {
     void *pValue;
     char *pszArg;
     char *pszArgUsage;
-    } PRM_NODE;
+} PRM_NODE;
 
 typedef struct prmContext {
     PRM_NODE *pnHead;
     const char *pszFilename;
     void (*fcnLeader)(void);
     void (*fcnTrailer)(void);
-    } * PRM;
+} *PRM;
 
-#define PRM_LINE_SIZE	128
+#define PRM_LINE_SIZE   128
 
 #ifdef __cplusplus
 extern "C" {

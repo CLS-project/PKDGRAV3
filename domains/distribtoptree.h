@@ -19,16 +19,16 @@
 class ServiceDistribTopTree : public TraversePST {
 public:
     struct input {
-	uint32_t uRoot; /* Which root node to use */
-	uint32_t nTop;
-	// KDN nodes[]; /* Array of tree nodes follow this structure */
-	};
+        uint32_t uRoot; /* Which root node to use */
+        uint32_t nTop;
+        // KDN nodes[]; /* Array of tree nodes follow this structure */
+    };
     typedef void output;
     explicit ServiceDistribTopTree(PST pst)
-	: TraversePST(pst,PST_DISTRIBTOPTREE,
-		sizeof(input)
-		+ (mdlThreads(pst->mdl)==1?1:2*mdlThreads(pst->mdl)-1)*pkdMaxNodeSize(),
-		"DistribTopTree") {}
+        : TraversePST(pst,PST_DISTRIBTOPTREE,
+                      sizeof(input)
+                      + (mdlThreads(pst->mdl)==1?1:2*mdlThreads(pst->mdl)-1)*pkdMaxNodeSize(),
+                      "DistribTopTree") {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut);
-    };
+};

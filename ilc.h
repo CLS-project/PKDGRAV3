@@ -25,11 +25,11 @@
 
 #define ILC_TILE_SIZE (100*1024) /* 100k */
 #ifndef ILC_PART_PER_BLK
-#define ILC_PART_PER_BLK (32) /* Don't mess with this: see CUDA */
+    #define ILC_PART_PER_BLK (32) /* Don't mess with this: see CUDA */
 #endif
 
 #if !defined(__CUDACC__)
-#include "core/simd.h"
+    #include "core/simd.h"
 #endif
 
 #include "gravity/moments.h"
@@ -42,7 +42,7 @@ typedef union {
 #if !defined(__CUDACC__)
     v_sf p[ILC_PART_PER_BLK / SIMD_WIDTH];
 #endif
-    } ilcFloat;
+} ilcFloat;
 
 typedef struct {
     ilcFloat dx,dy,dz;
@@ -51,17 +51,17 @@ typedef struct {
     ilcFloat xx,xy,xz,yy,yz;
     ilcFloat x,y,z;
     ilcFloat m,u;
-    } ILC_BLK;
+} ILC_BLK;
 
 typedef struct ilcTile {
     LSTTILE lstTile;
     ILC_BLK *blk;
-    } *ILCTILE;
+} *ILCTILE;
 
 typedef struct ilcContext {
     LST lst;
     double cx, cy, cz;          /* Center coordinates */
-    } *ILC;
+} *ILC;
 
 #define ILCCHECKPT LSTCHECKPT
 
@@ -115,11 +115,11 @@ static inline void ilcAppendFloat(ILC ilc,float X,float Y,float Z,FMOMR *M,float
     tile->blk[blk].yyyz.f[prt] = (M)->yyyz;
 
     ++tile->lstTile.nInLast;
-    }
+}
 
 static inline void ilcAppend(ILC ilc,double X,double Y,double Z,FMOMR *M,float U) {
     ilcAppendFloat(ilc,(float)((ilc)->cx-(X)),(float)((ilc)->cy-(Y)),(float)((ilc)->cz-(Z)),M,U);
-    }
+}
 
 #define ILC_LOOP(ilc,ctile) for( ctile=(ILCTILE)((ilc)->lst.list); ctile!=NULL; ctile=(ILCTILE)(ctile->lstTile.next) )
 

@@ -26,20 +26,20 @@ static const std::complex<float> I(0,1);
 static complex_t pairc( RngStream g, int bFixed, float fPhase ) {
     float x1, x2, w;
     do {
-	x1 = 2.0 * RngStream_RandU01(g) - 1.0;
-	x2 = 2.0 * RngStream_RandU01(g) - 1.0;
-	w = x1 * x1 + x2 * x2;
-        } while ( w >= 1.0 || w == 0.0 ); /* Loop ~ 21.5% of the time */
+        x1 = 2.0 * RngStream_RandU01(g) - 1.0;
+        x2 = 2.0 * RngStream_RandU01(g) - 1.0;
+        w = x1 * x1 + x2 * x2;
+    } while ( w >= 1.0 || w == 0.0 ); /* Loop ~ 21.5% of the time */
     if (!bFixed) {
-	/* Proper Gaussian Deviate */
-	w = sqrt(-log(w)/w);
-	return w * (x1 + I * x2);
-	}
-    else {
-	float theta = atan2f(x2,x1) + fPhase;
-	return cosf(theta) + I * sinf(theta);
-	}
+        /* Proper Gaussian Deviate */
+        w = sqrt(-log(w)/w);
+        return w * (x1 + I * x2);
     }
+    else {
+        float theta = atan2f(x2,x1) + fPhase;
+        return cosf(theta) + I * sinf(theta);
+    }
+}
 
 void NoiseGenerator::pencilNoise(complex_vector_t &pencil,int nGrid,int j, int k) {
     int iNyquist = pencil.domain()[0].last();
@@ -50,36 +50,36 @@ void NoiseGenerator::pencilNoise(complex_vector_t &pencil,int nGrid,int j, int k
     /* We need the sample for x==0 AND/OR x==iNyquist, usually both but at least one. */
     RngStream_ResetStartStream (g);
     if ( k <= iNyquist && (k%iNyquist!=0||j<=iNyquist) ) { /* Positive zone */
-	RngStream_AdvanceState (g, 0, (1LL<<40)*jj + (1LL<<20)*kk );
-	v_ny = pairc(g,bFixed,fPhase);
-	v_wn = pairc(g,bFixed,fPhase);
+        RngStream_AdvanceState (g, 0, (1LL<<40)*jj + (1LL<<20)*kk );
+        v_ny = pairc(g,bFixed,fPhase);
+        v_wn = pairc(g,bFixed,fPhase);
 
-	if ( (j==0 || j==iNyquist)  && (k==0 || k==iNyquist) ) {
-	    /* These are real because they must be a complex conjugate of themselves. */
-	    v_ny = std::real(v_ny);
-	    v_wn = std::real(v_wn);
-	    /* DC mode is zero */
-	    if ( k==0 && j==0) v_wn = 0.0;
-	    }
-	}
+        if ( (j==0 || j==iNyquist)  && (k==0 || k==iNyquist) ) {
+            /* These are real because they must be a complex conjugate of themselves. */
+            v_ny = std::real(v_ny);
+            v_wn = std::real(v_wn);
+            /* DC mode is zero */
+            if ( k==0 && j==0) v_wn = 0.0;
+        }
+    }
     /* We need to generate the correct complex conjugates */
     else {
-	int jjc = j<=iNyquist ? j*2 + 1 : (nGrid-j) % nGrid * 2;
-	int kkc = k<=iNyquist ? k*2 + 1 : (nGrid-k) % nGrid * 2;
-	if (k%iNyquist == 0) { kkc = kk; }
-	if (j%iNyquist == 0) { jjc = jj; }
-	RngStream_AdvanceState (g, 0, (1LL<<40)*jjc + (1LL<<20)*kkc );
-	v_ny = conj(pairc(g,bFixed,fPhase));
-	v_wn = conj(pairc(g,bFixed,fPhase));
-	RngStream_ResetStartStream (g);
-	RngStream_AdvanceState (g, 0, (1LL<<40)*jj + (1LL<<20)*kk );
-	pairc(g,bFixed,fPhase); pairc(g,bFixed,fPhase); /* Burn the two samples we didn't use. */
-	}
+        int jjc = j<=iNyquist ? j*2 + 1 : (nGrid-j) % nGrid * 2;
+        int kkc = k<=iNyquist ? k*2 + 1 : (nGrid-k) % nGrid * 2;
+        if (k%iNyquist == 0) { kkc = kk; }
+        if (j%iNyquist == 0) { jjc = jj; }
+        RngStream_AdvanceState (g, 0, (1LL<<40)*jjc + (1LL<<20)*kkc );
+        v_ny = conj(pairc(g,bFixed,fPhase));
+        v_wn = conj(pairc(g,bFixed,fPhase));
+        RngStream_ResetStartStream (g);
+        RngStream_AdvanceState (g, 0, (1LL<<40)*jj + (1LL<<20)*kk );
+        pairc(g,bFixed,fPhase); pairc(g,bFixed,fPhase); /* Burn the two samples we didn't use. */
+    }
     pencil(iNyquist) = v_ny;
     pencil(0) = v_wn;
     complex_vector_t remains = pencil(blitz::Range(1,iNyquist-1));
-    for( auto index=remains.begin(); index!=remains.end(); ++index ) *index = pairc(g,bFixed,fPhase);
-    }
+    for ( auto index=remains.begin(); index!=remains.end(); ++index ) *index = pairc(g,bFixed,fPhase);
+}
 
 NoiseGenerator::NoiseGenerator(unsigned long seed,bool bFixed,float fPhase) {
     unsigned long fullKey[6];
@@ -101,16 +101,16 @@ NoiseGenerator::NoiseGenerator(unsigned long seed,bool bFixed,float fPhase) {
     RngStream_SetSeed(g,fullKey);
     this->bFixed = bFixed;
     this->fPhase = fPhase;
-    }
+}
 
 NoiseGenerator::~NoiseGenerator() {
     RngStream_DeleteStream(&g);
-    }
+}
 
 // The default update: simply copy the white noise to the pencil
 void NoiseGenerator::update(complex_vector_t &pencil,complex_vector_t &noise,int j,int k) {
     pencil = noise;
-    }
+}
 
 /*
 ** Generate Gaussian white noise in k-space. The noise is in the proper form for
@@ -126,19 +126,19 @@ void NoiseGenerator::FillNoise(complex_array_t &K,int nGrid,double *mean,double 
     if (csq) *csq = 0.0;
     // Iterate over each pencil of our part of the array, generate white noise and call update().
     // The default behaviour of update() is to set the output pencil to the white noise.
-    for( auto pindex=pencils.begin(); pindex!=pencils.end(); ++pindex ) {
-	auto j = pindex.position()[0];
-	auto k = pindex.position()[1];
-	complex_vector_t pencil = K(blitz::Range::all(),j,k);
-	pencilNoise(noise, nGrid, j, k);
-	if (mean) {
-	    auto s = sum(noise);
-	    *mean += std::real(s) + std::imag(s);
-	    }
-	if (csq) {
-	    auto r = sum(norm(noise));
-	    *csq += r;
-	    }
-	update(pencil,noise,j<=iNyquist?j:j-nGrid,k<=iNyquist?k:k-nGrid);
-	}
+    for ( auto pindex=pencils.begin(); pindex!=pencils.end(); ++pindex ) {
+        auto j = pindex.position()[0];
+        auto k = pindex.position()[1];
+        complex_vector_t pencil = K(blitz::Range::all(),j,k);
+        pencilNoise(noise, nGrid, j, k);
+        if (mean) {
+            auto s = sum(noise);
+            *mean += std::real(s) + std::imag(s);
+        }
+        if (csq) {
+            auto r = sum(norm(noise));
+            *csq += r;
+        }
+        update(pencil,noise,j<=iNyquist?j:j-nGrid,k<=iNyquist?k:k-nGrid);
     }
+}

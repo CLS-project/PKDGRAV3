@@ -41,10 +41,10 @@ INLINE int row_major_index_2d(const int x,
                               const int Nx,
                               const int Ny) {
 #ifdef SWIFT_DEBUG_CHECKS
-  assert(x < Nx);
-  assert(y < Ny);
+    assert(x < Nx);
+    assert(y < Ny);
 #endif
-  return x * Ny + y;
+    return x * Ny + y;
 }
 
 /**
@@ -58,11 +58,11 @@ INLINE int row_major_index_3d(
     const int x, const int y, const int z, const int Nx, const int Ny,
     const int Nz) {
 #ifdef SWIFT_DEBUG_CHECKS
-  assert(x < Nx);
-  assert(y < Ny);
-  assert(z < Nz);
+    assert(x < Nx);
+    assert(y < Ny);
+    assert(z < Nz);
 #endif
-  return x * Ny * Nz + y * Nz + z;
+    return x * Ny * Nz + y * Nz + z;
 }
 
 /**
@@ -76,12 +76,12 @@ INLINE int row_major_index_4d(
     const int x, const int y, const int z, const int w, const int Nx,
     const int Ny, const int Nz, const int Nw) {
 #ifdef SWIFT_DEBUG_CHECKS
-  assert(x < Nx);
-  assert(y < Ny);
-  assert(z < Nz);
-  assert(w < Nw);
+    assert(x < Nx);
+    assert(y < Ny);
+    assert(z < Nz);
+    assert(w < Nw);
 #endif
-  return x * Ny * Nz * Nw + y * Nz * Nw + z * Nw + w;
+    return x * Ny * Nz * Nw + y * Nz * Nw + z * Nw + w;
 }
 
 /**
@@ -108,43 +108,45 @@ INLINE void get_index_1d(
     const float *restrict table, const int size, const float x, int *i,
     float *restrict dx) {
 
-  /* Small epsilon to avoid rounding issues leading to out-of-bound
-   * access when using the indices later to read data from the tables. */
-  const float epsilon = 1e-4f;
+    /* Small epsilon to avoid rounding issues leading to out-of-bound
+     * access when using the indices later to read data from the tables. */
+    const float epsilon = 1e-4f;
 
-  /* Indicate that the whole array is aligned on boundaries */
-  swift_align_information(float, table, SWIFT_STRUCT_ALIGNMENT);
+    /* Indicate that the whole array is aligned on boundaries */
+    swift_align_information(float, table, SWIFT_STRUCT_ALIGNMENT);
 
-  /* Distance between elements in the array */
-  const float delta = (size - 1) / (table[size - 1] - table[0]);
+    /* Distance between elements in the array */
+    const float delta = (size - 1) / (table[size - 1] - table[0]);
 
-  if (x < table[0] + epsilon) {
-    /* We are below the first element */
-    *i = 0;
-    *dx = 0.f;
-  } else if (x < table[size - 1] - epsilon) {
-    /* Normal case */
-    *i = (x - table[0]) * delta;
+    if (x < table[0] + epsilon) {
+        /* We are below the first element */
+        *i = 0;
+        *dx = 0.f;
+    }
+    else if (x < table[size - 1] - epsilon) {
+        /* Normal case */
+        *i = (x - table[0]) * delta;
 
 //#ifdef SWIFT_DEBUG_CHECKS
-    if (*i > size || *i < 0) {
-      printf(
-          "trying to get index for value outside table range. Table size: %d, "
-          "calculated index: %d, value: %.5e, table[0]: %.5e, grid size: %.5e",
-          size, *i, x, table[0], delta);
-      abort();
-    }
+        if (*i > size || *i < 0) {
+            printf(
+                "trying to get index for value outside table range. Table size: %d, "
+                "calculated index: %d, value: %.5e, table[0]: %.5e, grid size: %.5e",
+                size, *i, x, table[0], delta);
+            abort();
+        }
 //#endif
 
-    *dx = (x - table[*i]) * delta;
-  } else {
-    /* We are after the last element */
-    *i = size - 2;
-    *dx = 1.f;
-  }
+        *dx = (x - table[*i]) * delta;
+    }
+    else {
+        /* We are after the last element */
+        *i = size - 2;
+        *dx = 1.f;
+    }
 
 #ifdef SWIFT_DEBUG_CHECKS
-  if (*dx < -0.001f || *dx > 1.001f) error("Invalid distance found dx=%e", *dx);
+    if (*dx < -0.001f || *dx > 1.001f) error("Invalid distance found dx=%e", *dx);
 #endif
 }
 
@@ -165,25 +167,25 @@ INLINE float interpolation_2d(
     const float dy, const int Nx, const int Ny) {
 
 #ifdef SWIFT_DEBUG_CHECKS
-  if (dx < -0.001f || dx > 1.001f) error("Invalid dx=%e", dx);
-  if (dy < -0.001f || dy > 1.001f) error("Invalid dy=%e", dy);
+    if (dx < -0.001f || dx > 1.001f) error("Invalid dx=%e", dx);
+    if (dy < -0.001f || dy > 1.001f) error("Invalid dy=%e", dy);
 #endif
 
-  const float tx = 1.f - dx;
-  const float ty = 1.f - dy;
+    const float tx = 1.f - dx;
+    const float ty = 1.f - dy;
 
-  /* Indicate that the whole array is aligned on boundaries */
-  swift_align_information(float, table, SWIFT_STRUCT_ALIGNMENT);
+    /* Indicate that the whole array is aligned on boundaries */
+    swift_align_information(float, table, SWIFT_STRUCT_ALIGNMENT);
 
-  /* Linear interpolation along each axis. We read the table 2^2=4 times */
-  float result = tx * ty * table[row_major_index_2d(xi + 0, yi + 0, Nx, Ny)];
+    /* Linear interpolation along each axis. We read the table 2^2=4 times */
+    float result = tx * ty * table[row_major_index_2d(xi + 0, yi + 0, Nx, Ny)];
 
-  result += tx * dy * table[row_major_index_2d(xi + 0, yi + 1, Nx, Ny)];
-  result += dx * ty * table[row_major_index_2d(xi + 1, yi + 0, Nx, Ny)];
+    result += tx * dy * table[row_major_index_2d(xi + 0, yi + 1, Nx, Ny)];
+    result += dx * ty * table[row_major_index_2d(xi + 1, yi + 0, Nx, Ny)];
 
-  result += dx * dy * table[row_major_index_2d(xi + 1, yi + 1, Nx, Ny)];
+    result += dx * dy * table[row_major_index_2d(xi + 1, yi + 1, Nx, Ny)];
 
-  return result;
+    return result;
 }
 
 /**
@@ -204,40 +206,40 @@ INLINE float interpolation_3d(
     const int Nz) {
 
 #ifdef SWIFT_DEBUG_CHECKS
-  if (dx < -0.001f || dx > 1.001f) error("Invalid dx=%e", dx);
-  if (dy < -0.001f || dy > 1.001f) error("Invalid dy=%e", dy);
-  if (dz < -0.001f || dz > 1.001f) error("Invalid dz=%e", dz);
+    if (dx < -0.001f || dx > 1.001f) error("Invalid dx=%e", dx);
+    if (dy < -0.001f || dy > 1.001f) error("Invalid dy=%e", dy);
+    if (dz < -0.001f || dz > 1.001f) error("Invalid dz=%e", dz);
 #endif
 
-  const float tx = 1.f - dx;
-  const float ty = 1.f - dy;
-  const float tz = 1.f - dz;
+    const float tx = 1.f - dx;
+    const float ty = 1.f - dy;
+    const float tz = 1.f - dz;
 
-  /* Indicate that the whole array is aligned on page boundaries */
-  swift_align_information(float, table, SWIFT_STRUCT_ALIGNMENT);
+    /* Indicate that the whole array is aligned on page boundaries */
+    swift_align_information(float, table, SWIFT_STRUCT_ALIGNMENT);
 
-  /* Linear interpolation along each axis. We read the table 2^3=8 times */
-  float result = tx * ty * tz *
-                 table[row_major_index_3d(xi + 0, yi + 0, zi + 0, Nx, Ny, Nz)];
+    /* Linear interpolation along each axis. We read the table 2^3=8 times */
+    float result = tx * ty * tz *
+                   table[row_major_index_3d(xi + 0, yi + 0, zi + 0, Nx, Ny, Nz)];
 
-  result += tx * ty * dz *
-            table[row_major_index_3d(xi + 0, yi + 0, zi + 1, Nx, Ny, Nz)];
-  result += tx * dy * tz *
-            table[row_major_index_3d(xi + 0, yi + 1, zi + 0, Nx, Ny, Nz)];
-  result += dx * ty * tz *
-            table[row_major_index_3d(xi + 1, yi + 0, zi + 0, Nx, Ny, Nz)];
+    result += tx * ty * dz *
+              table[row_major_index_3d(xi + 0, yi + 0, zi + 1, Nx, Ny, Nz)];
+    result += tx * dy * tz *
+              table[row_major_index_3d(xi + 0, yi + 1, zi + 0, Nx, Ny, Nz)];
+    result += dx * ty * tz *
+              table[row_major_index_3d(xi + 1, yi + 0, zi + 0, Nx, Ny, Nz)];
 
-  result += tx * dy * dz *
-            table[row_major_index_3d(xi + 0, yi + 1, zi + 1, Nx, Ny, Nz)];
-  result += dx * ty * dz *
-            table[row_major_index_3d(xi + 1, yi + 0, zi + 1, Nx, Ny, Nz)];
-  result += dx * dy * tz *
-            table[row_major_index_3d(xi + 1, yi + 1, zi + 0, Nx, Ny, Nz)];
+    result += tx * dy * dz *
+              table[row_major_index_3d(xi + 0, yi + 1, zi + 1, Nx, Ny, Nz)];
+    result += dx * ty * dz *
+              table[row_major_index_3d(xi + 1, yi + 0, zi + 1, Nx, Ny, Nz)];
+    result += dx * dy * tz *
+              table[row_major_index_3d(xi + 1, yi + 1, zi + 0, Nx, Ny, Nz)];
 
-  result += dx * dy * dz *
-            table[row_major_index_3d(xi + 1, yi + 1, zi + 1, Nx, Ny, Nz)];
+    result += dx * dy * dz *
+              table[row_major_index_3d(xi + 1, yi + 1, zi + 1, Nx, Ny, Nz)];
 
-  return result;
+    return result;
 }
 
 /**
@@ -262,43 +264,43 @@ INLINE float interpolation_3d_no_x(
     const int Nz) {
 
 #ifdef SWIFT_DEBUG_CHECKS
-  if (dx != 0.f) error("Attempting to interpolate along x!");
-  if (dy < -0.001f || dy > 1.001f) error("Invalid dy=%e", dy);
-  if (dz < -0.001f || dz > 1.001f) error("Invalid dz=%e", dz);
+    if (dx != 0.f) error("Attempting to interpolate along x!");
+    if (dy < -0.001f || dy > 1.001f) error("Invalid dy=%e", dy);
+    if (dz < -0.001f || dz > 1.001f) error("Invalid dz=%e", dz);
 #endif
 
-  const float tx = 1.f;
-  const float ty = 1.f - dy;
-  const float tz = 1.f - dz;
+    const float tx = 1.f;
+    const float ty = 1.f - dy;
+    const float tz = 1.f - dz;
 
-  /* Indicate that the whole array is aligned on page boundaries */
-  swift_align_information(float, table, SWIFT_STRUCT_ALIGNMENT);
+    /* Indicate that the whole array is aligned on page boundaries */
+    swift_align_information(float, table, SWIFT_STRUCT_ALIGNMENT);
 
-  /* Linear interpolation along each axis. We read the table 2^2=4 times */
-  /* Note that we intentionally kept the table access along the axis where */
-  /* we do not interpolate as comments in the code to allow readers to */
-  /* understand what is going on. */
-  float result = tx * ty * tz *
-                 table[row_major_index_3d(xi + 0, yi + 0, zi + 0, Nx, Ny, Nz)];
+    /* Linear interpolation along each axis. We read the table 2^2=4 times */
+    /* Note that we intentionally kept the table access along the axis where */
+    /* we do not interpolate as comments in the code to allow readers to */
+    /* understand what is going on. */
+    float result = tx * ty * tz *
+                   table[row_major_index_3d(xi + 0, yi + 0, zi + 0, Nx, Ny, Nz)];
 
-  result += tx * ty * dz *
-            table[row_major_index_3d(xi + 0, yi + 0, zi + 1, Nx, Ny, Nz)];
-  result += tx * dy * tz *
-            table[row_major_index_3d(xi + 0, yi + 1, zi + 0, Nx, Ny, Nz)];
-  /* result += dx * ty * tz * */
-  /*           table[row_major_index_3d(xi + 1, yi + 0, zi + 0, Nx, Ny, Nz)]; */
+    result += tx * ty * dz *
+              table[row_major_index_3d(xi + 0, yi + 0, zi + 1, Nx, Ny, Nz)];
+    result += tx * dy * tz *
+              table[row_major_index_3d(xi + 0, yi + 1, zi + 0, Nx, Ny, Nz)];
+    /* result += dx * ty * tz * */
+    /*           table[row_major_index_3d(xi + 1, yi + 0, zi + 0, Nx, Ny, Nz)]; */
 
-  result += tx * dy * dz *
-            table[row_major_index_3d(xi + 0, yi + 1, zi + 1, Nx, Ny, Nz)];
-  /* result += dx * ty * dz * */
-  /*           table[row_major_index_3d(xi + 1, yi + 0, zi + 1, Nx, Ny, Nz)]; */
-  /* result += dx * dy * tz * */
-  /*           table[row_major_index_3d(xi + 1, yi + 1, zi + 0, Nx, Ny, Nz)]; */
+    result += tx * dy * dz *
+              table[row_major_index_3d(xi + 0, yi + 1, zi + 1, Nx, Ny, Nz)];
+    /* result += dx * ty * dz * */
+    /*           table[row_major_index_3d(xi + 1, yi + 0, zi + 1, Nx, Ny, Nz)]; */
+    /* result += dx * dy * tz * */
+    /*           table[row_major_index_3d(xi + 1, yi + 1, zi + 0, Nx, Ny, Nz)]; */
 
-  /* result += dx * dy * dz * */
-  /*           table[row_major_index_3d(xi + 1, yi + 1, zi + 1, Nx, Ny, Nz)]; */
+    /* result += dx * dy * dz * */
+    /*           table[row_major_index_3d(xi + 1, yi + 1, zi + 1, Nx, Ny, Nz)]; */
 
-  return result;
+    return result;
 }
 
 /**
@@ -319,75 +321,75 @@ INLINE float interpolation_4d(
     const int Nx, const int Ny, const int Nz, const int Nw) {
 
 #ifdef SWIFT_DEBUG_CHECKS
-  if (dx < -0.001f || dx > 1.001f) error("Invalid dx=%e", dx);
-  if (dy < -0.001f || dy > 1.001f) error("Invalid dy=%e", dy);
-  if (dz < -0.001f || dz > 1.001f) error("Invalid dz=%e", dz);
-  if (dw < -0.001f || dw > 1.001f) error("Invalid dw=%e", dw);
+    if (dx < -0.001f || dx > 1.001f) error("Invalid dx=%e", dx);
+    if (dy < -0.001f || dy > 1.001f) error("Invalid dy=%e", dy);
+    if (dz < -0.001f || dz > 1.001f) error("Invalid dz=%e", dz);
+    if (dw < -0.001f || dw > 1.001f) error("Invalid dw=%e", dw);
 #endif
 
-  const float tx = 1.f - dx;
-  const float ty = 1.f - dy;
-  const float tz = 1.f - dz;
-  const float tw = 1.f - dw;
+    const float tx = 1.f - dx;
+    const float ty = 1.f - dy;
+    const float tz = 1.f - dz;
+    const float tw = 1.f - dw;
 
-  /* Indicate that the whole array is aligned on page boundaries */
-  swift_align_information(float, table, SWIFT_STRUCT_ALIGNMENT);
+    /* Indicate that the whole array is aligned on page boundaries */
+    swift_align_information(float, table, SWIFT_STRUCT_ALIGNMENT);
 
-  /* Linear interpolation along each axis. We read the table 2^4=16 times */
-  float result =
-      tx * ty * tz * tw *
-      table[row_major_index_4d(xi + 0, yi + 0, zi + 0, wi + 0, Nx, Ny, Nz, Nw)];
+    /* Linear interpolation along each axis. We read the table 2^4=16 times */
+    float result =
+        tx * ty * tz * tw *
+        table[row_major_index_4d(xi + 0, yi + 0, zi + 0, wi + 0, Nx, Ny, Nz, Nw)];
 
-  result +=
-      tx * ty * tz * dw *
-      table[row_major_index_4d(xi + 0, yi + 0, zi + 0, wi + 1, Nx, Ny, Nz, Nw)];
-  result +=
-      tx * ty * dz * tw *
-      table[row_major_index_4d(xi + 0, yi + 0, zi + 1, wi + 0, Nx, Ny, Nz, Nw)];
-  result +=
-      tx * dy * tz * tw *
-      table[row_major_index_4d(xi + 0, yi + 1, zi + 0, wi + 0, Nx, Ny, Nz, Nw)];
-  result +=
-      dx * ty * tz * tw *
-      table[row_major_index_4d(xi + 1, yi + 0, zi + 0, wi + 0, Nx, Ny, Nz, Nw)];
+    result +=
+        tx * ty * tz * dw *
+        table[row_major_index_4d(xi + 0, yi + 0, zi + 0, wi + 1, Nx, Ny, Nz, Nw)];
+    result +=
+        tx * ty * dz * tw *
+        table[row_major_index_4d(xi + 0, yi + 0, zi + 1, wi + 0, Nx, Ny, Nz, Nw)];
+    result +=
+        tx * dy * tz * tw *
+        table[row_major_index_4d(xi + 0, yi + 1, zi + 0, wi + 0, Nx, Ny, Nz, Nw)];
+    result +=
+        dx * ty * tz * tw *
+        table[row_major_index_4d(xi + 1, yi + 0, zi + 0, wi + 0, Nx, Ny, Nz, Nw)];
 
-  result +=
-      tx * ty * dz * dw *
-      table[row_major_index_4d(xi + 0, yi + 0, zi + 1, wi + 1, Nx, Ny, Nz, Nw)];
-  result +=
-      tx * dy * tz * dw *
-      table[row_major_index_4d(xi + 0, yi + 1, zi + 0, wi + 1, Nx, Ny, Nz, Nw)];
-  result +=
-      dx * ty * tz * dw *
-      table[row_major_index_4d(xi + 1, yi + 0, zi + 0, wi + 1, Nx, Ny, Nz, Nw)];
-  result +=
-      tx * dy * dz * tw *
-      table[row_major_index_4d(xi + 0, yi + 1, zi + 1, wi + 0, Nx, Ny, Nz, Nw)];
-  result +=
-      dx * ty * dz * tw *
-      table[row_major_index_4d(xi + 1, yi + 0, zi + 1, wi + 0, Nx, Ny, Nz, Nw)];
-  result +=
-      dx * dy * tz * tw *
-      table[row_major_index_4d(xi + 1, yi + 1, zi + 0, wi + 0, Nx, Ny, Nz, Nw)];
+    result +=
+        tx * ty * dz * dw *
+        table[row_major_index_4d(xi + 0, yi + 0, zi + 1, wi + 1, Nx, Ny, Nz, Nw)];
+    result +=
+        tx * dy * tz * dw *
+        table[row_major_index_4d(xi + 0, yi + 1, zi + 0, wi + 1, Nx, Ny, Nz, Nw)];
+    result +=
+        dx * ty * tz * dw *
+        table[row_major_index_4d(xi + 1, yi + 0, zi + 0, wi + 1, Nx, Ny, Nz, Nw)];
+    result +=
+        tx * dy * dz * tw *
+        table[row_major_index_4d(xi + 0, yi + 1, zi + 1, wi + 0, Nx, Ny, Nz, Nw)];
+    result +=
+        dx * ty * dz * tw *
+        table[row_major_index_4d(xi + 1, yi + 0, zi + 1, wi + 0, Nx, Ny, Nz, Nw)];
+    result +=
+        dx * dy * tz * tw *
+        table[row_major_index_4d(xi + 1, yi + 1, zi + 0, wi + 0, Nx, Ny, Nz, Nw)];
 
-  result +=
-      dx * dy * dz * tw *
-      table[row_major_index_4d(xi + 1, yi + 1, zi + 1, wi + 0, Nx, Ny, Nz, Nw)];
-  result +=
-      dx * dy * tz * dw *
-      table[row_major_index_4d(xi + 1, yi + 1, zi + 0, wi + 1, Nx, Ny, Nz, Nw)];
-  result +=
-      dx * ty * dz * dw *
-      table[row_major_index_4d(xi + 1, yi + 0, zi + 1, wi + 1, Nx, Ny, Nz, Nw)];
-  result +=
-      tx * dy * dz * dw *
-      table[row_major_index_4d(xi + 0, yi + 1, zi + 1, wi + 1, Nx, Ny, Nz, Nw)];
+    result +=
+        dx * dy * dz * tw *
+        table[row_major_index_4d(xi + 1, yi + 1, zi + 1, wi + 0, Nx, Ny, Nz, Nw)];
+    result +=
+        dx * dy * tz * dw *
+        table[row_major_index_4d(xi + 1, yi + 1, zi + 0, wi + 1, Nx, Ny, Nz, Nw)];
+    result +=
+        dx * ty * dz * dw *
+        table[row_major_index_4d(xi + 1, yi + 0, zi + 1, wi + 1, Nx, Ny, Nz, Nw)];
+    result +=
+        tx * dy * dz * dw *
+        table[row_major_index_4d(xi + 0, yi + 1, zi + 1, wi + 1, Nx, Ny, Nz, Nw)];
 
-  result +=
-      dx * dy * dz * dw *
-      table[row_major_index_4d(xi + 1, yi + 1, zi + 1, wi + 1, Nx, Ny, Nz, Nw)];
+    result +=
+        dx * dy * dz * dw *
+        table[row_major_index_4d(xi + 1, yi + 1, zi + 1, wi + 1, Nx, Ny, Nz, Nw)];
 
-  return result;
+    return result;
 }
 
 /**
@@ -412,86 +414,86 @@ INLINE float interpolation_4d_no_x(
     const int Nx, const int Ny, const int Nz, const int Nw) {
 
 #ifdef SWIFT_DEBUG_CHECKS
-  if (dx != 0.f) error("Attempting to interpolate along x!");
-  if (dy < -0.001f || dy > 1.001f) error("Invalid dy=%e", dy);
-  if (dz < -0.001f || dz > 1.001f) error("Invalid dz=%e", dz);
-  if (dw < -0.001f || dw > 1.001f) error("Invalid dw=%e", dw);
+    if (dx != 0.f) error("Attempting to interpolate along x!");
+    if (dy < -0.001f || dy > 1.001f) error("Invalid dy=%e", dy);
+    if (dz < -0.001f || dz > 1.001f) error("Invalid dz=%e", dz);
+    if (dw < -0.001f || dw > 1.001f) error("Invalid dw=%e", dw);
 #endif
 
-  const float tx = 1.f;
-  const float ty = 1.f - dy;
-  const float tz = 1.f - dz;
-  const float tw = 1.f - dw;
+    const float tx = 1.f;
+    const float ty = 1.f - dy;
+    const float tz = 1.f - dz;
+    const float tw = 1.f - dw;
 
-  /* Indicate that the whole array is aligned on boundaries */
-  swift_align_information(float, table, SWIFT_STRUCT_ALIGNMENT);
+    /* Indicate that the whole array is aligned on boundaries */
+    swift_align_information(float, table, SWIFT_STRUCT_ALIGNMENT);
 
-  /* Linear interpolation along each axis. We read the table 2^3=8 times */
-  /* Note that we intentionally kept the table access along the axis where */
-  /* we do not interpolate as comments in the code to allow readers to */
-  /* understand what is going on. */
-  float result =
-      tx * ty * tz * tw *
-      table[row_major_index_4d(xi + 0, yi + 0, zi + 0, wi + 0, Nx, Ny, Nz, Nw)];
+    /* Linear interpolation along each axis. We read the table 2^3=8 times */
+    /* Note that we intentionally kept the table access along the axis where */
+    /* we do not interpolate as comments in the code to allow readers to */
+    /* understand what is going on. */
+    float result =
+        tx * ty * tz * tw *
+        table[row_major_index_4d(xi + 0, yi + 0, zi + 0, wi + 0, Nx, Ny, Nz, Nw)];
 
-  result +=
-      tx * ty * tz * dw *
-      table[row_major_index_4d(xi + 0, yi + 0, zi + 0, wi + 1, Nx, Ny, Nz, Nw)];
-  result +=
-      tx * ty * dz * tw *
-      table[row_major_index_4d(xi + 0, yi + 0, zi + 1, wi + 0, Nx, Ny, Nz, Nw)];
-  result +=
-      tx * dy * tz * tw *
-      table[row_major_index_4d(xi + 0, yi + 1, zi + 0, wi + 0, Nx, Ny, Nz, Nw)];
-  /* result += */
-  /*     dx * ty * tz * tw * */
-  /*     table[row_major_index_4d(xi + 1, yi + 0, zi + 0, wi + 0, Nx, Ny, Nz,
-   * Nw)]; */
+    result +=
+        tx * ty * tz * dw *
+        table[row_major_index_4d(xi + 0, yi + 0, zi + 0, wi + 1, Nx, Ny, Nz, Nw)];
+    result +=
+        tx * ty * dz * tw *
+        table[row_major_index_4d(xi + 0, yi + 0, zi + 1, wi + 0, Nx, Ny, Nz, Nw)];
+    result +=
+        tx * dy * tz * tw *
+        table[row_major_index_4d(xi + 0, yi + 1, zi + 0, wi + 0, Nx, Ny, Nz, Nw)];
+    /* result += */
+    /*     dx * ty * tz * tw * */
+    /*     table[row_major_index_4d(xi + 1, yi + 0, zi + 0, wi + 0, Nx, Ny, Nz,
+     * Nw)]; */
 
-  result +=
-      tx * ty * dz * dw *
-      table[row_major_index_4d(xi + 0, yi + 0, zi + 1, wi + 1, Nx, Ny, Nz, Nw)];
-  result +=
-      tx * dy * tz * dw *
-      table[row_major_index_4d(xi + 0, yi + 1, zi + 0, wi + 1, Nx, Ny, Nz, Nw)];
-  /* result += */
-  /*     dx * ty * tz * dw * */
-  /*     table[row_major_index_4d(xi + 1, yi + 0, zi + 0, wi + 1, Nx, Ny, Nz,
-   * Nw)]; */
-  result +=
-      tx * dy * dz * tw *
-      table[row_major_index_4d(xi + 0, yi + 1, zi + 1, wi + 0, Nx, Ny, Nz, Nw)];
-  /* result += */
-  /*     dx * ty * dz * tw * */
-  /*     table[row_major_index_4d(xi + 1, yi + 0, zi + 1, wi + 0, Nx, Ny, Nz,
-   * Nw)]; */
-  /* result += */
-  /*     dx * dy * tz * tw * */
-  /*     table[row_major_index_4d(xi + 1, yi + 1, zi + 0, wi + 0, Nx, Ny, Nz, */
-  /* Nw)]; */
+    result +=
+        tx * ty * dz * dw *
+        table[row_major_index_4d(xi + 0, yi + 0, zi + 1, wi + 1, Nx, Ny, Nz, Nw)];
+    result +=
+        tx * dy * tz * dw *
+        table[row_major_index_4d(xi + 0, yi + 1, zi + 0, wi + 1, Nx, Ny, Nz, Nw)];
+    /* result += */
+    /*     dx * ty * tz * dw * */
+    /*     table[row_major_index_4d(xi + 1, yi + 0, zi + 0, wi + 1, Nx, Ny, Nz,
+     * Nw)]; */
+    result +=
+        tx * dy * dz * tw *
+        table[row_major_index_4d(xi + 0, yi + 1, zi + 1, wi + 0, Nx, Ny, Nz, Nw)];
+    /* result += */
+    /*     dx * ty * dz * tw * */
+    /*     table[row_major_index_4d(xi + 1, yi + 0, zi + 1, wi + 0, Nx, Ny, Nz,
+     * Nw)]; */
+    /* result += */
+    /*     dx * dy * tz * tw * */
+    /*     table[row_major_index_4d(xi + 1, yi + 1, zi + 0, wi + 0, Nx, Ny, Nz, */
+    /* Nw)]; */
 
-  /* result += */
-  /*     dx * dy * dz * tw * */
-  /*     table[row_major_index_4d(xi + 1, yi + 1, zi + 1, wi + 0, Nx, Ny, Nz, */
-  /* Nw)]; */
-  /* result += */
-  /*     dx * dy * tz * dw * */
-  /*     table[row_major_index_4d(xi + 1, yi + 1, zi + 0, wi + 1, Nx, Ny, Nz, */
-  /* Nw)]; */
-  /* result += */
-  /*     dx * ty * dz * dw * */
-  /*     table[row_major_index_4d(xi + 1, yi + 0, zi + 1, wi + 1, Nx, Ny, Nz,
-   * Nw)]; */
-  result +=
-      tx * dy * dz * dw *
-      table[row_major_index_4d(xi + 0, yi + 1, zi + 1, wi + 1, Nx, Ny, Nz, Nw)];
+    /* result += */
+    /*     dx * dy * dz * tw * */
+    /*     table[row_major_index_4d(xi + 1, yi + 1, zi + 1, wi + 0, Nx, Ny, Nz, */
+    /* Nw)]; */
+    /* result += */
+    /*     dx * dy * tz * dw * */
+    /*     table[row_major_index_4d(xi + 1, yi + 1, zi + 0, wi + 1, Nx, Ny, Nz, */
+    /* Nw)]; */
+    /* result += */
+    /*     dx * ty * dz * dw * */
+    /*     table[row_major_index_4d(xi + 1, yi + 0, zi + 1, wi + 1, Nx, Ny, Nz,
+     * Nw)]; */
+    result +=
+        tx * dy * dz * dw *
+        table[row_major_index_4d(xi + 0, yi + 1, zi + 1, wi + 1, Nx, Ny, Nz, Nw)];
 
-  /* result += */
-  /*     dx * dy * dz * dw * */
-  /*     table[row_major_index_4d(xi + 1, yi + 1, zi + 1, wi + 1, Nx, Ny, Nz, */
-  /* Nw)]; */
+    /* result += */
+    /*     dx * dy * dz * dw * */
+    /*     table[row_major_index_4d(xi + 1, yi + 1, zi + 1, wi + 1, Nx, Ny, Nz, */
+    /* Nw)]; */
 
-  return result;
+    return result;
 }
 
 #endif
