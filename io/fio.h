@@ -136,6 +136,7 @@ typedef enum {
     FIO_SPECIES_DARK,
     FIO_SPECIES_SPH,
     FIO_SPECIES_STAR,
+    FIO_SPECIES_BH,
     FIO_SPECIES_LAST /* Must be last */
     } FIO_SPECIES;
 
@@ -169,32 +170,42 @@ typedef struct fioInfo {
 
     int  (*fcnReadDark) (struct fioInfo *fio,
 	uint64_t *piParticleID,double *pdPos,double *pdVel,
-			 float *pfMass,float *pfSoft,float *pfPot,float *pfDen);
-    int  (*fcnReadSph) (
-	struct fioInfo *fio,uint64_t *piParticleID,double *pdPos,double *pdVel,
+	float *pfMass,float *pfSoft,float *pfPot,float *pfDen);
+    int  (*fcnReadSph) (struct fioInfo *fio,
+	uint64_t *piParticleID,double *pdPos,double *pdVel,
 	float *pfMass,float *pfSoft,float *pfPot,float *pfDen,
-	float *pfTemp, float *pfMetals);
+	float *pfTemp,float *pfMetals,float *pfOtherData);
     int  (*fcnReadStar) (struct fioInfo *fio,
 	uint64_t *piParticleID,double *pdPos,double *pdVel,
-	 float *pfMass,float *pfSoft,float *pfPot,float *pfDen,
-	float *pfMetals, float *pfTform);
+	float *pfMass,float *pfSoft,float *pfPot,float *pfDen,
+	float *pfMetals,float *pfTform,float *pfOtherData);
+    /* IA: We left some dummy arguments, that later can be renamed to actual IO variables interesting
+     *  for black holes */
+    int  (*fcnReadBH) (struct fioInfo *fio,
+	uint64_t *piParticleID,double *pdPos,double *pdVel,
+	float *pfMass,float *pfSoft,float *pfPot,float *pfDen,
+	float *pfOtherData,float *pfTform);
 
     int  (*fcnWriteDark) (struct fioInfo *fio,
 	uint64_t iParticleID,const double *pdPos,const double *pdVel,
-	float fMass,float fSoft,float fPot,float fDen);
-    int  (*fcnWriteSph) (
-	struct fioInfo *fio,uint64_t iParticleID,const double *pdPos,const double *pdVel,
+	float fMass,float fSoft,float fPot,float fDen,float *pfOtherData);
+    int  (*fcnWriteSph) (struct fioInfo *fio,
+	uint64_t iParticleID,const double *pdPos,const double *pdVel,
 	float fMass,float fSoft,float fPot,float fDen,
-	float fTemp,float fMetals);
+	float fTemp,float *pfMetals,float fBall,float fIntEnergy,float *pfOtherData);
     int  (*fcnWriteStar) (struct fioInfo *fio,
 	uint64_t iParticleID,const double *pdPos,const double *pdVel,
 	float fMass,float fSoft,float fPot,float fDen,
-	float fMetals,float fTform);
+	float *pfMetals,float *pfOtherData);
+    int  (*fcnWriteBH) (struct fioInfo *fio,
+	uint64_t iParticleID,const double *pdPos,const double *pdVel,
+	float fMass,float fSoft,float fPot,float fDen,
+	float *pfOtherData,float fTform);
 
-    int  (*fcnGetAttr)(struct fioInfo *fio,
+    int  (*fcnGetAttr)(struct fioInfo *fio, const int headerType,
 	const char *attr, FIO_TYPE dataType, void *data);
-    int  (*fcnSetAttr)(struct fioInfo *fio,
-	const char *attr, FIO_TYPE dataType, void *data);
+    int  (*fcnSetAttr)(struct fioInfo *fio, const int headerType,
+	const char *attr, FIO_TYPE dataType, int size, void *data);
     } *FIO;
 
 /******************************************************************************\
@@ -268,55 +279,69 @@ static inline int fioReadDark(
 static inline int  fioReadSph(
     FIO fio,uint64_t *piParticleID,double *pdPos,double *pdVel,
     float *pfMass,float *pfSoft,float *pfPot,float *pfDen,
-    float *pfTemp,float *pfMetals) {
+    float *pfTemp,float *pfMetals,float *pfOtherData) {
     return (*fio->fcnReadSph)(fio,piParticleID,pdPos,pdVel,pfMass,pfSoft,pfPot,pfDen,
-			      pfTemp,pfMetals);
+			      pfTemp,pfMetals,pfOtherData);
     }
 static inline int fioReadStar(
     FIO fio,uint64_t *piParticleID,double *pdPos,double *pdVel,
     float *pfMass,float *pfSoft,float *pfPot,float *pfDen,
-    float *pfMetals,float *pfTform) {
+    float *pfMetals,float *pfTform,float *pfOtherData) {
     return (*fio->fcnReadStar)(fio,piParticleID,pdPos,pdVel,pfMass,pfSoft,pfPot,pfDen,
-			       pfMetals,pfTform);
+			       pfMetals,pfTform,pfOtherData);
+    }
+static inline int fioReadBH(
+    FIO fio,uint64_t *piParticleID,double *pdPos,double *pdVel,
+    float *pfMass,float *pfSoft,float *pfPot,float *pfDen,
+    float *pfOtherData,float *pfTform) {
+    return (*fio->fcnReadBH)(fio,piParticleID,pdPos,pdVel,pfMass,pfSoft,pfPot,pfDen,
+			     pfOtherData,pfTform);
     }
 /*
 ** Write a particle.  Must already be positioned at the appropriate particle.
 */
 static inline int fioWriteDark(
     FIO fio,uint64_t iParticleID,const double *pdPos,const double *pdVel,
-    float fMass,float fSoft,float fPot,float fDen) {
-    return (*fio->fcnWriteDark)(fio,iParticleID,pdPos,pdVel,fMass,fSoft,fPot,fDen);
+    float fMass,float fSoft,float fPot,float fDen,float *pfOtherData) {
+    return (*fio->fcnWriteDark)(fio,iParticleID,pdPos,pdVel,fMass,fSoft,fPot,fDen,pfOtherData);
     }
 static inline int  fioWriteSph(
     FIO fio,uint64_t iParticleID,const double *pdPos,const double *pdVel,
     float fMass,float fSoft,float fPot,float fDen,
-    float fTemp,float fMetals) {
+    float fTemp,float *pfMetals,float fBall,float fIntEnergy,float *pfOtherData) {
     return (*fio->fcnWriteSph)(fio,iParticleID,pdPos,pdVel,fMass,fSoft,fPot,fDen,
-			      fTemp,fMetals);
+			       fTemp,pfMetals,fBall,fIntEnergy,pfOtherData);
     }
 static inline int fioWriteStar(
     FIO fio,uint64_t iParticleID,const double *pdPos,const double *pdVel,
     float fMass,float fSoft,float fPot,float fDen,
-    float fMetals,float fTform) {
+    float *pfMetals,float *pfOtherData) {
     return (*fio->fcnWriteStar)(fio,iParticleID,pdPos,pdVel,fMass,fSoft,fPot,fDen,
-			       fMetals,fTform);
+				pfMetals,pfOtherData);
+    }
+static inline int fioWriteBH(
+    FIO fio,uint64_t iParticleID,const double *pdPos,const double *pdVel,
+    float fMass,float fSoft,float fPot,float fDen,
+    float *pfOtherData,float fTform) {
+    return (*fio->fcnWriteBH)(fio,iParticleID,pdPos,pdVel,fMass,fSoft,fPot,fDen,
+			      pfOtherData,fTform);
     }
 /*
 ** Returns the value of a given attribute.  Only "dTime" is available for
 ** Tipsy files, but HDF5 supports the inclusion of any arbitary attribute.
 */
-static inline int fioGetAttr(FIO fio,
+static inline int fioGetAttr(FIO fio, int headerType,
     const char *attr, FIO_TYPE dataType, void *data) {
-    return (*fio->fcnGetAttr)(fio,attr,dataType,data);
+    return (*fio->fcnGetAttr)(fio, headerType, attr,dataType,data);
     }
 
 /*
 ** Sets an arbitrary attribute.  Only supported for HDF5; other formats
 ** return 0 indicating that it was not successful.
 */
-static inline int fioSetAttr(FIO fio,
-    const char *attr, FIO_TYPE dataType, void *data) {
-    return (*fio->fcnSetAttr)(fio,attr,dataType,data);
+static inline int fioSetAttr(FIO fio, int headerType,
+    const char *attr, FIO_TYPE dataType, int size, void *data) {
+    return (*fio->fcnSetAttr)(fio, headerType, attr,dataType,size,data);
     }
 
 static inline int fioGetFlags(FIO fio) {
@@ -343,6 +368,10 @@ int fioTipsyIsStandard(FIO fio);
 /*
 ** Create an HDF5 file.
 */
+#define HDF5_HEADER_G 0
+#define HDF5_COSMO_G  1
+#define HDF5_UNITS_G  2
+#define HDF5_PARAM_G  3
 FIO fioHDF5Create(const char *fileName,int mFlags);
 
 /******************************************************************************\

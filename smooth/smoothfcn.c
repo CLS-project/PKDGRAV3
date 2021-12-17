@@ -293,6 +293,7 @@ void combDenDVDX(void *vpkd, void *p1,const void *p2)
 
 /* Gather only version */
 /* JW: What types should dx etc... have -- why is NN using FLOAT ? */
+#ifndef OPTIM_REMOVE_UNUSED
 void DenDVDX(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf)
     {
     PKD pkd = smf->pkd;
@@ -1182,3 +1183,5 @@ void AddRelaxation(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     fRel *= pkdMass(pkd,p)*rho*pow(vSigma2, -1.5)/gamma;
     *pRelax += fRel * smf->dDeltaT;
     }
+
+#endif //OPTIM_REMOVE_UNUSED

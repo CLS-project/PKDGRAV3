@@ -20,7 +20,9 @@
 
 #include "listcomp.h"
 #include "pkd.h"
-#include "smoothfcn.h"
+#include "smooth/smoothfcn.h"
+#include "hydro/hydro.h"
+#include "group/group.h"
 
 #define NNLIST_INCREMENT	200		/* number of extra neighbor elements added to nnList */
 
@@ -39,11 +41,17 @@ typedef struct smContext {
     PKD pkd;
     PARTICLE *pSentinel;
     void (*fcnSmooth)(PARTICLE *,float,int,NN *,SMF *);
+    void (*fcnSmoothNode)(PARTICLE *, float, int, double **, double **, SMF *);
+    void (*fcnSmoothGetNvars)(int *, int *);
+    void (*fcnSmoothFillBuffer)(double **, PARTICLE *, int,
+                                double, double, double, double, SMF *);
+    void (*fcnSmoothUpdate)(double **, double **, PARTICLE *, PARTICLE*, int, SMF *);
     void (*fcnPost)(void *,PARTICLE *,SMF *);
     int nSmooth;
     int nQueue;
     int bPeriodic;
     int bOwnCache;
+    int bSymmetric;
     double rLast[3]; /* For the snake */
     PQ *pq;
     /*
@@ -106,8 +114,13 @@ void smSmoothFinish(SMX smx);
 float smSmoothSingle(SMX smx,SMF *smf,PARTICLE *p,int iRoot1, int iRoot2);
 void smSmooth(SMX,SMF *);
 void smReSmoothSingle(SMX smx,SMF *smf,PARTICLE *p,double fBall);
-void smReSmooth(SMX,SMF *);
+int  smReSmooth(SMX,SMF *, int);
+#ifdef OPTIM_SMOOTH_NODE
+int  smReSmoothNode(SMX,SMF *, int);
+void buildInteractionList(SMX smx, SMF *smf, KDN* node, BND bnd_node, int *nCnt, double r[3], int ix, int iy, int iz);
+#endif
 
+void smGather(SMX smx,double fBall2,double r[3], PARTICLE * p);
 void smFastGasPhase1(SMX smx,SMF *smf);
 void smFastGasPhase2(SMX smx,SMF *smf);
 void pkdFastGasCleanup(PKD pkd);  /* frees up the neighbor lists */

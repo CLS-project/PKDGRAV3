@@ -25,6 +25,7 @@
 #include <stdint.h>
 #include "ilp.h"
 #include "ilc.h"
+#include "units.h"
 
 #define IORDERBITS 43
 #define IORDERMAX ((((uint64_t) 1)<<IORDERBITS)-1)
@@ -145,6 +146,94 @@ struct pkdLightconeParameters {
     double dBoxSize;
     int bLightConeParticles;
     };
+
+struct inChemCompInit{
+   double dInitialH;
+#ifdef HAVE_HELIUM
+   double dInitialHe;
+#endif
+#ifdef HAVE_CARBON
+   double dInitialC;
+#endif
+#ifdef HAVE_NITROGEN
+   double dInitialN;
+#endif
+#ifdef HAVE_OXYGEN
+   double dInitialO;
+#endif
+#ifdef HAVE_NEON
+   double dInitialNe;
+#endif
+#ifdef HAVE_MAGNESIUM
+   double dInitialMg;
+#endif
+#ifdef HAVE_SILICON
+   double dInitialSi;
+#endif
+#ifdef HAVE_IRON
+   double dInitialFe;
+#endif
+#ifdef HAVE_METALLICITY
+   double dInitialMetallicity;
+#endif
+};
+
+struct inEndTimestep{
+   UNITS units;
+#ifdef GRACKLE
+   char achCoolingTable[256];
+#endif
+   double dTime;
+   double dDelta;
+   double dConstGamma;
+   double dTuFac;
+#ifdef STAR_FORMATION
+   double dSFMinOverDensity;
+#endif
+#ifdef COOLING
+   double dCoolingFloorDen;
+   double dCoolingFlooru;
+#endif
+#ifdef EEOS_POLYTROPE
+   double dEOSPolyFloorIndex;
+   double dEOSPolyFloorDen;
+   double dEOSPolyFlooru;
+#endif
+#ifdef EEOS_JEANS
+   double dEOSNJeans;
+#endif
+#ifdef BLACKHOLES
+   double dBHRadiativeEff;
+#endif
+};
+
+#ifdef STAR_FORMATION
+struct inStarForm{
+   double dDenMin;
+   double dDelta;
+   double dTime;
+   double dScaleFactor;
+
+   double dSFindexKS;
+   double dSFnormalizationKS;
+   double dConstGamma;
+   double dSFGasFraction;
+   double dSFThresholdu;
+   double dSFEfficiency;
+
+   double dEOSPolyFloorIndex;
+   double dEOSPolyFloorDen;
+   double dEOSPolyFlooru;
+
+#ifdef FEEDBACK
+   double dSNFBEfficiency;
+   double dSNFBMaxEff;
+   double dSNFBEffnH0;
+   double dSNFBEffIndex;
+#endif
+};
+#endif
+
 
 /*
 ** Accumulates the work for a set of particles

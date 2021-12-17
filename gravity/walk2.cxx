@@ -675,7 +675,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2,
 	*/
 	nActive = pkdGravInteract(pkd,kick,lc,ts,
 	    k,&L,pkd->ilp,pkd->ilc,dirLsum,normLsum,bEwald,pdFlop,
-	    smx, &smf, iRoot, iRoot2);
+		smx, &smf, iRoot, iRoot2);
 	/*
 	** Update the limit for a shift of the center here based on the opening radius of this
 	** cell (the one we just evaluated).

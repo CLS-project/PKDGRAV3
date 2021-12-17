@@ -118,6 +118,29 @@ enum pst_service {
     PST_CALCEANDL,
     PST_CALCEANDLEXT,
     PST_DRIFT,
+    PST_RESETFLUXES, 
+    PST_COMPUTEPRIMVARS, 
+    PST_WAKEPARTICLES,
+#ifdef DEBUG_CACHED_FLUXES
+    PST_FLUXSTATS,
+#endif
+#ifdef GRACKLE
+    PST_GRACKLEINIT,
+#endif
+#ifdef COOLING
+    PST_COOLINGUPDATE,
+    PST_COOLINGUPDATEZ,
+    PST_COOLINGINIT,
+    PST_COOLINGHYDREION,
+#endif
+    PST_CHEMCOMPINIT,
+#ifdef BLACKHOLES
+    PST_BH_PLACESEED,
+    PST_BH_REPOSITION,
+    PST_BH_INIT,
+#endif
+    PST_MOVEDELETED,
+    PST_PREDICTSMOOTH,
     PST_DRIFTINACTIVE,
     PST_CACHEBARRIER,
     PST_ROPARTICLECACHE,
@@ -144,10 +167,20 @@ enum pst_service {
     PST_ACCELSTEP,
     PST_SPHSTEP,
     PST_STARFORM,
+    PST_STARFORMINIT,
     PST_DENSITYSTEP,
     PST_CORRECTENERGY,
     PST_MARKSMOOTH,
     PST_RESMOOTH,
+#ifdef OPTIM_SMOOTH_NODE
+    PST_RESMOOTHNODE,
+#endif
+#ifdef OPTIM_REORDER_IN_NODES
+    PST_REORDERINNODES,
+#endif
+#ifdef STELLAR_EVOLUTION
+    PST_STELLAREVOLUTIONINIT,
+#endif
     PST_INITACCEL,
     PST_UPDATERUNG,
     PST_INITDT,
@@ -197,7 +230,7 @@ enum pst_service {
     PST_SELSPHERE,
     PST_SELCYLINDER,
     PST_SELBLACKHOLES,
-
+    PST_SELACTIVES,
     PST_PROFILE,
     PST_CALCDISTANCE,
     PST_CALCCOM,
@@ -218,6 +251,8 @@ enum pst_service {
     PST_BISPECTRUM_SELECT,
     PST_BISPECTRUM_CALCULATE,
     PST_TOTALMASS,
+    PST_GETMINDT,
+    PST_SETGLOBALDT,
     PST_LIGHTCONE_OPEN,
     PST_LIGHTCONE_CLOSE,
     PST_LIGHTCONEVEL,
@@ -295,7 +330,9 @@ int pstRestore(PST,void *,int,void *,int);
 /* PST_WRITE */
 struct inWrite {
     BND bnd;
+    UNITS units;
     double dTime;
+    double dExp;
     double dEcosmo;
     double dTimeOld;
     double dUOld;
@@ -305,9 +342,10 @@ struct inWrite {
     double Omega0;
     double OmegaLambda;
     double HubbleParam;
-    uint64_t nSph;
+    uint64_t nGas;
     uint64_t nDark;
     uint64_t nStar;
+    uint64_t nBH;
     int bStandard;
     int iIndex;
     int nProcessors;
@@ -465,10 +503,75 @@ struct inSmooth {
     int iSmoothType;
     SMF smf;
     };
+struct outSmooth { 
+   int nSmoothed;
+};
 int pstSmooth(PST,void *,int,void *,int);
+
+#ifdef COOLING
+#include "cooling/cooling_struct.h"
+struct inCoolUpdate {
+  int z_index;
+  int previous_z_index;
+  float dz;
+  float metal_heating[eagle_cooling_N_loaded_redshifts * num_elements_metal_heating ];
+  float H_plus_He_heating[eagle_cooling_N_loaded_redshifts * num_elements_HpHe_heating];
+  float H_plus_He_electron_abundance[eagle_cooling_N_loaded_redshifts * num_elements_HpHe_electron_abundance];
+  float temperature[eagle_cooling_N_loaded_redshifts * num_elements_temperature];
+  float electron_abundance[eagle_cooling_N_loaded_redshifts * num_elements_electron_abundance];
+    };
+int pstCoolingUpdate(PST,void *,int,void *,int);
+int pstCoolingUpdateZ(PST,void *,int,void *,int);
+struct inCoolInit{
+   struct cooling_function_data in_cooling_data;
+   float Redshifts[eagle_cooling_N_redshifts];
+   float nH[eagle_cooling_N_density];
+   float Temp[eagle_cooling_N_temperature];
+   float HeFrac[eagle_cooling_N_He_frac];
+   float Therm[eagle_cooling_N_temperature];
+   float SolarAbundances[eagle_cooling_N_temperature];
+   float SolarAbundances_inv[eagle_cooling_N_temperature];
+   }; 
+int pstCoolingInit(PST,void *,int,void *,int);
+int pstCoolingHydReion(PST,void *,int,void *,int);
+#endif
+#ifdef GRACKLE
+struct inGrackleInit{
+   char achCoolingTable[256];
+   UNITS units;
+   int bComove;
+   double dScaleFactor;
+};
+int pstGrackleInit(PST, void *,int,void *,int);
+#endif
+int pstChemCompInit(PST,void *,int,void *,int);
+#ifdef BLACKHOLES
+struct inPlaceBHSeed {
+   double dTime;
+   double dScaleFactor;
+   double dDenMin;
+   double dBHMhaloMin;
+   double dTau;
+   double dInitialH;
+   double dBHSeedMass;
+   uint8_t uRungMax;
+};
+struct outPlaceBHSeed {
+   int nBHs;
+};
+int pstPlaceBHSeed(PST,void *,int,void *,int);
+int pstBHInit(PST,void *,int,void *,int);
+int pstRepositionBH(PST,void *,int,void *,int);
+#endif
 
 /* PST_RESMOOTH */
 int pstReSmooth(PST,void *,int,void *,int);
+#ifdef OPTIM_SMOOTH_NODE
+int pstReSmoothNode(PST,void *,int,void *,int);
+#endif
+#ifdef OPTIM_REORDER_IN_NODES
+int pstReorderWithinNodes(PST,void *,int,void *,int);
+#endif
 
 #ifdef FAST_GAS
 /* PST_FASTGASPHASE1 */
@@ -506,6 +609,7 @@ typedef struct StatsCollector {
     int idMax;
     int n;
     } STAT;
+
 
 /*
 ** The outGravityReduct structure is at the beginning of the output message, 
@@ -560,6 +664,19 @@ struct inDrift {
     int bDoGas;
     };
 int pstDrift(PST,void *,int,void *,int);
+int pstResetFluxes(PST,void *,int,void *,int); 
+int pstEndTimestepIntegration(PST,void *,int,void *,int);
+int pstWakeParticles(PST,void *,int,void *,int);
+struct inFluxStats{
+   // Empty but could be used in the future?
+};
+struct outFluxStats{
+   int nAvoided;
+   int nComputed;
+};
+#ifdef DEBUG_CACHED_FLUXES
+int pstFluxStats(PST, void*, int, void*, int);
+#endif
 
 /* PST_ROPARTICLECACHE */
 
@@ -595,6 +712,12 @@ struct inKickTree {
     int iRoot;
     };
 int pstKickTree(PST,void *,int,void *,int);
+
+/* PST_SETSOFT */
+struct inSetSoft {
+    double dSoft;
+    };
+int pstSetSoft(PST,void *,int,void *,int);
 
 /* PST_PHYSICALSOFT */
 struct inPhysicalSoft {
@@ -657,6 +780,7 @@ struct inSphStep {
     };
 int pstSphStep(PST,void *,int,void *,int);
 
+#ifndef STAR_FORMATION
 /* PST_STARFORM */
 struct inStarForm
     {
@@ -686,8 +810,8 @@ struct outStarForm
     int nDeleted;
     double dMassFormed;
     };
+#endif
 
-int pstStarForm(PST,void *,int,void *,int);
 
 /* PST_DENSITYSTEP */
 struct inDensityStep {
@@ -739,6 +863,7 @@ struct outColNParts {
     int nDeltaGas;
     int nDeltaDark;
     int nDeltaStar;
+    int nDeltaBH  ;
     };
 int pstColNParts(PST, void *, int, void *, int);
 
@@ -754,6 +879,7 @@ int pstNewOrder(PST, void *, int, void *, int);
     int nStar;
     };
 */
+int pstMoveDeletedParticles(PST,void *,int,void *,int );
 int pstGetNParts(PST, void *, int, void *, int);
 
 /* PST_SETNPARTS */
@@ -761,6 +887,7 @@ struct inSetNParts {
     uint64_t nGas;
     uint64_t nDark;
     uint64_t nStar;
+    uint64_t nBH;
     };
 int pstSetNParts(PST, void *, int, void *, int);
 
@@ -818,12 +945,41 @@ struct inGenerateIC {
     uint64_t nPerNode;
     double dBoxSize;
     double dBoxMass;
+    double dOmegaRate;
     double dExpansion;
     int iSeed;
     int bFixed;
     float fPhase;
     int nGrid;
     int b2LPT;
+    int bICgas;
+    double dInitialT;
+    double dInitialH;
+#ifdef HAVE_HELIUM
+    double dInitialHe;
+#endif
+#ifdef HAVE_CARBON
+    double dInitialC;
+#endif
+#ifdef HAVE_NITROGEN
+    double dInitialN;
+#endif
+#ifdef HAVE_OXYGEN
+    double dInitialO;
+#endif
+#ifdef HAVE_NEON
+    double dInitialNe;
+#endif
+#ifdef HAVE_MAGNESIUM
+    double dInitialMg;
+#endif
+#ifdef HAVE_SILICON
+    double dInitialSi;
+#endif
+#ifdef HAVE_IRON
+    double dInitialFe;
+#endif
+    double dTuFac;
     int bComove;
     int nTf;
     double k[MAX_TF];
@@ -851,6 +1007,36 @@ struct inMoveIC {
     float fMass;
     float fSoft;
     int nGrid;
+    int bICgas;
+    double dInitialT;
+    double dInitialH;
+#ifdef HAVE_HELIUM
+    double dInitialHe;
+#endif
+#ifdef HAVE_CARBON
+    double dInitialC;
+#endif
+#ifdef HAVE_NITROGEN
+    double dInitialN;
+#endif
+#ifdef HAVE_OXYGEN
+    double dInitialO;
+#endif
+#ifdef HAVE_NEON
+    double dInitialNe;
+#endif
+#ifdef HAVE_MAGNESIUM
+    double dInitialMg;
+#endif
+#ifdef HAVE_SILICON
+    double dInitialSi;
+#endif
+#ifdef HAVE_IRON
+    double dInitialFe;
+#endif
+    double dExpansion;
+    double dOmegaRate;
+    double dTuFac;
     };
 int pltMoveIC(PST,void *,int,void *,int);
 int pstMoveIC(PST,void *,int,void *,int);
@@ -1036,6 +1222,14 @@ struct outTotalMass {
     double dMass;
     };
 int pstTotalMass(PST pst,void *vin,int nIn,void *vout,int nOut);
+
+
+/* PST_GETMINDT */
+struct outGetMinDt {
+    uint8_t uMinDt;
+    };
+int pstGetMinDt(PST pst,void *vin,int nIn,void *vout,int nOut);
+int pstSetGlobalDt(PST pst,void *vin,int nIn,void *vout,int nOut);
 
 struct inLightConeOpen {
     int nSideHealpix;

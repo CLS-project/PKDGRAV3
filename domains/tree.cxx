@@ -541,7 +541,7 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
     FMOMR mom;
     SPHBNDS *bn;
     double kdn_r[3];
-    double fSoft,x,y,z,ax,ay,az,ft[3],d2,d2Max,dih2,bmin,b;
+    double fSoft,x,y,z,ax,ay,az,ft[3],d2,d2Max,dih2,ball,bmin,b;
     float *a, m, fMass, fBall;
     vel_t *v, vx, vy, vz;
     int pj,d,nDepth,ism;

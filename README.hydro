@@ -1,0 +1,90 @@
+New compile-time flags for hydrodynamics
+-------
+
+These flags are designed to avoid plenty of if/else statements in critical parts of the code, 
+as well as activating some parts of the code which, in general, will be disabled.
+
+To turn them on/off:
+
+      cmake -D<FLAG>=on/off ..
+
+CAUTION! If you first do `cmake -D<FLAG>=on ..` and then `cmake ..`, the `<FLAG>` will be still on! You can set it off explicitly or remove the build folder to restore the default configuration.
+
+### Numerical method
+
+  * `USE_MFM` (default=on):
+      Use the Meshless finite mass method for the hydrodynamics. As today, this does not, for example, avoid the storage of the 
+      mass flux (which is always zero), thus can be further optimized. [TODO]
+
+  * `ENTROPY_SWITCH` (default=off)
+      Integrate the entropy equation, and use the solution given by it in the case of a smooth cold flow.
+      This may be needed to correctly recover the temperature evolution in cosmological simulations without cooling,
+      such as the Zeldovich Pancake and the Santa Barbara Cluster.
+
+#### Limiters
+  * `LIMITER_BARTH` (default=off)
+      Apply the Barth-Jespersen limiter to spatial gradients. This is quite a restrictive limiter.
+
+  * `LIMITER_CONDBARTH` (default=on)
+      Apply the conditioned Barth-Jespersen limiter to the spatial gradients (Hopkins 2016, eq B3). 
+      It is less restrictive as it takes into account the local ordering of the particle to relax the max/min allowed values.
+
+
+#### Dimensionality
+
+The code has been designed to work in 3D space. However, special cases may need 1D or 2D configurations.
+In those, we can 'trick' the code by duplicating planes or lines (2D or 1D, respectively) and set to zero the fluxes in other dimensions.
+
+  * `FORCE_2D` (default=off):
+      It set the fluxes in the z-direction to zero and ignores interactions among particles with different positions in the z-axis.
+
+  * `FORCE_1D` (default=off):
+      It set the fluxes in the z and y directions to zero and ignores interactions among particles with different positions in the z-axis.
+
+These options, however, do not change the neighbor search or the tree construction, which is still done in 3D and thus is highly inefficient!
+
+#### Smoothing length computation
+
+In the default case, the smoothing length is computed such that a estimated "number" of neighbours is maintained constant.
+In the case the condition number is higher than a certain value, the number of neighbours is increased until Ncond is low enough
+
+Furthermore, there are two other ways to compute the smoothing lenght:
+  * `FIXED_NSMOOTH_STRICT` (default=off):
+    Computes the distance to the N-th closest neighbours and set the smoothing length such that that particle is the further in the compact support.
+      
+  * `FIXED_NSMOOTH_RELAXED` (default=off):
+    This is similar to the default approach but instead of estimating the number of neighbours, it takes the actual quantity of neighbours for computing the smoothing length.
+
+
+#### Galaxy formation models
+
+### Cooling
+  * `COOLING` (default=off):
+      It allows for the tracking of different chemical species and H/He+metal cooling following Wiersma+2009.
+      The code for this part has been adapted from the EAGLE model inside the SWIFT code.
+      The Wiersma+2009 HDF5 tables are needed.
+
+### Star formation
+  * `STAR_FORMATION` (default=off)
+      Gas particles are allowed to be converted into stars following Schaye & Dalla Vecchia 2008.
+  * `FEEDBACK` (default=off)
+      The stars can inject energy from supernova type II to the environment (Dalla Vecchia & Schaye 2012).
+
+### Blackholes
+  * `BLACKHOLES` (default=off)
+      Particles residing in dense regions can be converted into a BH, which then can accrete mass and inject energy in the 
+      surrounding particles.
+
+#### Others (may not be well tested!)
+  * `HERNQUIST_POTENTIAL` (default=off)
+      Add an analytical potential used to simulate an isolated galaxy without the need to add DM particles.
+
+  * `MAKE_GLASS` (default=off)
+      Flag for creating glass-like distribution within an arbitrary-sized box.
+      This make use of the Lloyd's algorithm but without building the Voronoi mesh.
+      Usually ~100 iterations is enough for convergence.
+
+  * `REGULARIZE_MESH` (default=off)
+      WIP. Try to maintain a regular distribution of points to increase accuracy in the spatial gradient.
+      Only valid for MFV.
+
