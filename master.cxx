@@ -1745,7 +1745,7 @@ void msrLogParams(MSR &msr,FILE *fp) {
     fprintf(fp,"\n# N: %" PRIu64,N);
     fprintf(fp," ngas: %" PRIu64,nGas);
     fprintf(fp," nstar: %" PRIu64,nStar);
-    fprintf(fp," nbh: %"PRIu64,nBH);
+    fprintf(fp," nbh: %" PRIu64,nBH);
     fprintf(fp," nThreads: %d",nThreads);
     fprintf(fp," bDiag: %d",param.bDiag);
     fprintf(fp," Verbosity flags: (%d,%d,%d,%d,%d)",param.bVWarnings,
@@ -3504,7 +3504,7 @@ void MSR::OutputFineStatistics(double dStep, double dTime) {
 
         /* Second, we add the rung distribution */
         for (int i=0; i<iCurrMaxRung; i++)
-            fprintf(fpFineLog, "%"PRIu64" ", nRung[i]);
+            fprintf(fpFineLog, "%" PRIu64 " ", nRung[i]);
         fprintf(fpFineLog, "\n");
 
     }
@@ -5158,7 +5158,7 @@ double MSR::Read(const char *achInFile) {
     read->nProcessors = param.bParaRead==0?1:(param.nParaRead<=1 ? nThreads:param.nParaRead);
 
     if (!fioGetAttr(fio,HDF5_HEADER_G, "NumFilesPerSnapshot",FIO_TYPE_UINT32,&j)) j = 1;
-    printf("Reading %"PRIu64" particles from %d file%s using %d processor%s\n",
+    printf("Reading %" PRIu64 " particles from %d file%s using %d processor%s\n",
            N, j, (j==1?"":"s"), read->nProcessors, (read->nProcessors==1?"":"s") );
 
     dTime = getTime(dExpansion);
