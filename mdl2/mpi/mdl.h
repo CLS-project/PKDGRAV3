@@ -260,13 +260,13 @@ protected:
     void CommitServices();
     void Handler();
     int run_master();
-    void mdl_MPI_Ssend(void *buf, int count, MPI_Datatype datatype, int dest, int tag);
+    void mdl_MPI_Ssend(void *buf, int count, int dest, int tag);
     int mdl_MPI_Sendrecv(
-        void *sendbuf, int sendcount, MPI_Datatype sendtype,
+        void *sendbuf, int sendcount,
         int dest, int sendtag, void *recvbuf, int recvcount,
-        MPI_Datatype recvtype, int source, int recvtag, int *nReceived);
+        int source, int recvtag, int *nReceived);
     void mdl_start_MPI_Ssend(mdlMessageSend &M, mdlMessageQueue &replyTo);
-    int mdl_MPI_Recv(void *buf, int count, MPI_Datatype datatype, int source, int tag, int *nBytes);
+    int mdl_MPI_Recv(void *buf, int count, int source, int tag, int *nBytes);
     virtual int checkMPI();
     void drainMPI();
     static void *mdlWorkerThread(void *vmdl); // Called by pthread_create with an mdlClass *
@@ -412,7 +412,7 @@ protected:
     void FinishCacheReply(mdlMessageCacheReply *message);
     friend class mdlMessageCacheReceive;
     void MessageCacheReceive(mdlMessageCacheReceive *message);
-    void FinishCacheReceive(mdlMessageCacheReceive *message, const MPI_Status &status);
+    void FinishCacheReceive(mdlMessageCacheReceive *message, int bytes, int source, int cancelled);
     void CacheReceiveRequest(int count, const CacheHeader *ph);
     void CacheReceiveReply(int count, const CacheHeader *ph);
     void CacheReceiveFlush(int count, CacheHeader *ph);

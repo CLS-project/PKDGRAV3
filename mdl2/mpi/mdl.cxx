@@ -311,25 +311,20 @@ void mpiClass::MessageCacheReceive(mdlMessageCacheReceive *message) {
 
 // Called when the receive finishes. Decode the type of message and process it,
 // then restart the receive.
-void mpiClass::FinishCacheReceive(mdlMessageCacheReceive *message, const MPI_Status &status) {
-    int cancelled;
-    int count;
-
-    MPI_Test_cancelled(&status,&cancelled);
+void mpiClass::FinishCacheReceive(mdlMessageCacheReceive *message, int bytes, int source, int cancelled) {
     if (cancelled) return;
 
     CacheHeader *ph = reinterpret_cast<CacheHeader *>(message->getBuffer());
     //int iRankFrom = status.MPI_SOURCE;
-    MPI_Get_count(&status, MPI_BYTE, &count);
 
     /* Well, could be any threads cache */
     int iCore = ph->idTo - Self();
     assert(iCore>=0 && iCore<Cores());
 
     switch (ph->mid) {
-    case CacheMessageType::REQUEST: CacheReceiveRequest(count,ph); break;
-    case CacheMessageType::FLUSH:   CacheReceiveFlush(count,ph);  break;
-    case CacheMessageType::REPLY:   CacheReceiveReply(count,ph);  break;
+    case CacheMessageType::REQUEST: CacheReceiveRequest(bytes,ph); break;
+    case CacheMessageType::FLUSH:   CacheReceiveFlush(bytes,ph);  break;
+    case CacheMessageType::REPLY:   CacheReceiveReply(bytes,ph);  break;
     default:
         assert(0);
     }
@@ -1219,7 +1214,7 @@ void mpiClass::MessageSend(mdlMessageSend *send) {
     int iCore = send->target - ProcToThread(iProc);
     assert(iCore>=0);
     int tag = send->tag + MDL_TAG_THREAD_OFFSET * iCore;
-    MPI_Issend(send->buf,send->count,send->datatype,iProc,tag,commMDL,newRequest(send));
+    MPI_Issend(send->buf,send->count,MPI_BYTE,iProc,tag,commMDL,newRequest(send));
 }
 
 void mpiClass::MessageReceive(mdlMessageReceive *send) {
@@ -1227,7 +1222,7 @@ void mpiClass::MessageReceive(mdlMessageReceive *send) {
     int iCore = send->iCoreFrom;
     assert(iCore>=0);
     int tag = send->tag + MDL_TAG_THREAD_OFFSET * iCore;
-    MPI_Irecv(send->buf,send->count,send->datatype,iProc,tag,commMDL,newRequest(send));
+    MPI_Irecv(send->buf,send->count,MPI_BYTE,iProc,tag,commMDL,newRequest(send));
 }
 
 void mpiClass::MessageReceiveReply(mdlMessageReceiveReply *send) {
@@ -1281,7 +1276,14 @@ void mpiClass::finishRequests() {
                 mdlMessageMPI *M = SendReceiveMessages[indx];
                 SendReceiveMessages[indx] = nullptr; // Mark as done (removed below)
                 assert(SendReceiveRequests[indx] == MPI_REQUEST_NULL); // set by Testsome
-                M->finish(this,SendReceiveStatuses[i]); // Finish request (which could create/add more requests)
+                int bytes, source, cancelled;
+                MPI_Test_cancelled(&SendReceiveStatuses[i],&cancelled);
+                if (cancelled) bytes = source = -1;
+                else {
+                    MPI_Get_count(&SendReceiveStatuses[i], MPI_BYTE, &bytes); // Relevant for Recv() only
+                    source = SendReceiveStatuses[i].MPI_SOURCE; // Relevant for Recv() only
+                }
+                M->finish(this,bytes,source,cancelled); // Finish request (which could create/add more requests)
                 if (!SendReceiveMessages[indx]) bCull = true;
                 iLastMessage = -1; // Either it was reused, or it will be culled below
             }
@@ -1797,9 +1799,9 @@ void mdlClass::mdl_start_MPI_Ssend(mdlMessageSend &M, mdlMessageQueue &replyTo) 
     else enqueue(M,replyTo);
 }
 
-void mdlClass::mdl_MPI_Ssend(void *buf, int count, MPI_Datatype datatype, int dest, int tag) {
+void mdlClass::mdl_MPI_Ssend(void *buf, int count, int dest, int tag) {
     mdlMessageQueue wait;
-    mdlMessageSend send(buf,count,datatype,dest,tag);
+    mdlMessageSend send(buf,count,dest,tag);
     mdl_start_MPI_Ssend(send,wait);
     waitQueue(wait);
 }
@@ -1807,7 +1809,7 @@ void mdlClass::mdl_MPI_Ssend(void *buf, int count, MPI_Datatype datatype, int de
 /*
 **
 */
-int mdlClass::mdl_MPI_Recv(void *buf, int count, MPI_Datatype datatype, int source, int tag, int *nBytes) {
+int mdlClass::mdl_MPI_Recv(void *buf, int count, int source, int tag, int *nBytes) {
     int iCore = source - mpi->Self();
     int bOnNode = (iCore >= 0 && iCore < Cores());
 
@@ -1824,7 +1826,7 @@ int mdlClass::mdl_MPI_Recv(void *buf, int count, MPI_Datatype datatype, int sour
 
     /* Off-node: We ask the MPI thread to post a receive for us. */
     else {
-        mdlMessageReceive receive(buf,count,datatype,source,tag,Core());
+        mdlMessageReceive receive(buf,count,source,tag,Core());
         enqueueAndWait(receive);
         *nBytes = receive.getCount();
         return MPI_SUCCESS;
@@ -1836,13 +1838,13 @@ int mdlClass::mdl_MPI_Recv(void *buf, int count, MPI_Datatype datatype, int sour
 ** Here we do a bidirectional message exchange between two threads.
 */
 int mdlClass::mdl_MPI_Sendrecv(
-    void *sendbuf, int sendcount, MPI_Datatype sendtype,
+    void *sendbuf, int sendcount,
     int dest, int sendtag, void *recvbuf, int recvcount,
-    MPI_Datatype recvtype, int source, int recvtag, int *nReceived) {
+    int source, int recvtag, int *nReceived) {
     mdlMessageQueue wait;
-    mdlMessageSend send(sendbuf, sendcount, sendtype, dest, sendtag);
+    mdlMessageSend send(sendbuf, sendcount, dest, sendtag);
     mdl_start_MPI_Ssend(send,wait);
-    mdl_MPI_Recv(recvbuf,recvcount,recvtype,source,recvtag,nReceived);
+    mdl_MPI_Recv(recvbuf,recvcount,source,recvtag,nReceived);
     waitQueue(wait);
 
     return MPI_SUCCESS;
@@ -1993,7 +1995,7 @@ void mdlClass::Send(int id,mdlPack pack, void *ctx) {
 
     do {
         nBuff = (*pack)(ctx,&id,SEND_BUFFER_SIZE,vOut);
-        mdl_MPI_Ssend(vOut,nBuff,MPI_BYTE,id,MDL_TAG_SEND);
+        mdl_MPI_Ssend(vOut,nBuff,id,MDL_TAG_SEND);
     } while ( nBuff != 0 );
     delete[] vOut;
 }
@@ -2010,7 +2012,7 @@ void mdlClass::Recv(int id,mdlPack unpack, void *ctx) {
     vIn = new char[SEND_BUFFER_SIZE];
 
     do {
-        mdl_MPI_Recv(vIn,SEND_BUFFER_SIZE,MPI_BYTE,id,MDL_TAG_SEND,&nBytes);
+        mdl_MPI_Recv(vIn,SEND_BUFFER_SIZE,id,MDL_TAG_SEND,&nBytes);
         inid = id; //status.MPI_SOURCE;
         nUnpack = (*unpack)(ctx,&inid,nBytes,vIn);
     } while (nUnpack>0 && nBytes>0);
@@ -2054,8 +2056,8 @@ int mdlClass::Swap(int id,size_t nBufBytes,void *vBuf,size_t nOutBytes, size_t *
      */
     swi.nOutBytes = nOutBytes;
     swi.nBufBytes = nBufBytes;
-    mdl_MPI_Sendrecv(&swi, sizeof(swi), MPI_BYTE, id, MDL_TAG_SWAPINIT,
-                     &swo, sizeof(swo), MPI_BYTE, id, MDL_TAG_SWAPINIT, &nBytes);
+    mdl_MPI_Sendrecv(&swi, sizeof(swi), id, MDL_TAG_SWAPINIT,
+                     &swo, sizeof(swo), id, MDL_TAG_SWAPINIT, &nBytes);
     assert(nBytes == sizeof(swo));
     nInBytes = swo.nOutBytes;
     nOutBufBytes = swo.nBufBytes;
@@ -2079,8 +2081,8 @@ int mdlClass::Swap(int id,size_t nBufBytes,void *vBuf,size_t nOutBytes, size_t *
          ** Copy to a temp buffer to be safe.
          */
         memcpy(&pszTrans.front(),pszOut,nOutMax);
-        mdl_MPI_Sendrecv(&pszTrans.front(),nOutMax, MPI_BYTE, id, MDL_TAG_SWAP,
-                         pszIn,nInMax, MPI_BYTE, id, MDL_TAG_SWAP, &nBytes);
+        mdl_MPI_Sendrecv(&pszTrans.front(),nOutMax, id, MDL_TAG_SWAP,
+                         pszIn,nInMax, id, MDL_TAG_SWAP, &nBytes);
         assert(nBytes == nInMax);
         /*
          ** Adjust pointers and counts for next itteration.
@@ -2104,7 +2106,7 @@ int mdlClass::Swap(int id,size_t nBufBytes,void *vBuf,size_t nOutBytes, size_t *
     while (nOutBytes && nOutBufBytes) {
         nOutMax = size_t_to_int((nOutBytes < MDL_TRANS_SIZE)?nOutBytes:MDL_TRANS_SIZE);
         nOutMax = size_t_to_int((nOutMax < nOutBufBytes)?nOutMax:nOutBufBytes);
-        mdl_MPI_Ssend(pszOut,nOutMax,MPI_BYTE,id,MDL_TAG_SWAP);
+        mdl_MPI_Ssend(pszOut,nOutMax,id,MDL_TAG_SWAP);
         //ON-NODE not handled:enqueueAndWait(mdlMessageSend(pszOut,nOutMax,MPI_BYTE,id,MDL_TAG_SWAP));
         pszOut = &pszOut[nOutMax];
         nOutBytes -= nOutMax;
@@ -2114,7 +2116,7 @@ int mdlClass::Swap(int id,size_t nBufBytes,void *vBuf,size_t nOutBytes, size_t *
     while (nInBytes && nBufBytes) {
         nInMax = size_t_to_int((nInBytes < MDL_TRANS_SIZE)?nInBytes:MDL_TRANS_SIZE);
         nInMax = size_t_to_int((nInMax < nBufBytes)?nInMax:nBufBytes);
-        mdl_MPI_Recv(pszIn,nInMax,MPI_BYTE,id,MDL_TAG_SWAP,&nBytes);
+        mdl_MPI_Recv(pszIn,nInMax,id,MDL_TAG_SWAP,&nBytes);
         assert(nBytes == nInMax);
         pszIn = &pszIn[nInMax];
         nInBytes -= nInMax;
@@ -2169,7 +2171,7 @@ void mdlClass::Handler() {
 
     do {
         /* We ALWAYS use MPI to send requests. */
-        mdlMessageReceive receive(phi,nMaxSrvBytes + sizeof(SRVHEAD),MPI_BYTE,MPI_ANY_SOURCE,MDL_TAG_REQ,Core());
+        mdlMessageReceive receive(phi,nMaxSrvBytes + sizeof(SRVHEAD),MPI_ANY_SOURCE,MDL_TAG_REQ,Core());
         enqueueAndWait(receive);
         nBytes = receive.getCount();
         assert(nBytes == phi->nInBytes + sizeof(SRVHEAD));
