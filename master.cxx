@@ -4295,9 +4295,6 @@ void MSR::TopStepKDK(
         ActiveRung(iKickRung,1);
         DomainDecomp(iKickRung);
 
-        /* JW: Good place to zero uNewRung */
-        ZeroNewRung(iKickRung,MAX_RUNG,iKickRung); /* brute force */
-
 #ifdef STAR_FORMATION
         StarForm(dTime, dDeltaStep, iKickRung);
 #endif
@@ -4593,8 +4590,8 @@ void MSR::InitSph(double dTime,double dDelta) {
             MeshlessFluxes(dTime, 0.0);
             // We do this twice because we need to have uNewRung for the time
             // limiter of Durier & Dalla Vecchia
-            HydroStep(dTime, 0.0);
-            HydroStep(dTime, 0.0);
+            HydroStep(dTime, dDelta);
+            HydroStep(dTime, dDelta);
         }
     }
     UpdateRung(0) ;

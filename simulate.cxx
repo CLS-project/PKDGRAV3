@@ -213,6 +213,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
         InitSph(dTime,dDelta);
     }
 #ifdef BLACKHOLES
+    uRungMax = GetMinDt();
     BlackholeInit(uRungMax);
 #endif
 
