@@ -25,6 +25,7 @@
 #include "fof.h"
 #include "pkd.h"
 #include "group.h"
+#include "blitz/array.h"
 
 
 static inline int getCell(PKD pkd,int iCell,int id,float *pcOpen,KDN **pc) {
@@ -532,8 +533,8 @@ NextCell:
     /*
     ** Finally make the contained region be dTau smaller on each side.
     */
-    auto fMinFofContained = bndSelf.lower() + sqrt(dTau2);
-    auto fMaxFofContained = bndSelf.upper() - sqrt(dTau2);
+    blitz::TinyVector<double,3> fMinFofContained = bndSelf.lower() + sqrt(dTau2);
+    blitz::TinyVector<double,3> fMaxFofContained = bndSelf.upper() - sqrt(dTau2);
     /*
     ** Clear the group numbers!
     */
