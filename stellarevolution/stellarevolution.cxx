@@ -252,29 +252,31 @@ void initChemEnrich(void *vpkd, void *vp) {
 
 
 void combChemEnrich(void *vpkd, void *vp1, const void *vp2) {
+    int i;
     PKD pkd = (PKD) vpkd;
     PARTICLE *p1 = (PARTICLE *) vp1;
     PARTICLE *p2 = (PARTICLE *) vp2;
 
     if (pkdIsGas(pkd, p1) && pkdIsGas(pkd, p2)) {
-        const float fOldMass = pkdMass(pkd, p1);
-        *((float *) pkdField(p1, pkd->oFieldOffset[oMass])) += pkdMass(pkd, p2);
-        const float fNewMass = pkdMass(pkd, p1);
-
         SPHFIELDS *pSph1 = pkdSph(pkd, p1);
         SPHFIELDS *pSph2 = pkdSph(pkd, p2);
 
         const double dOldEkin = (pSph1->mom[0] * pSph1->mom[0] + pSph1->mom[1] * pSph1->mom[1] +
-                                 pSph1->mom[2] * pSph1->mom[2]) / (2.0 * fOldMass);
+                                 pSph1->mom[2] * pSph1->mom[2]) / (2.0 * pkdMass(pkd, p1));
 
-        pSph1->mom[0] += pSph2->mom[0];
-        pSph1->mom[1] += pSph2->mom[1];
-        pSph1->mom[2] += pSph2->mom[2];
+        *((float *) pkdField(p1, pkd->oFieldOffset[oMass])) += pkdMass(pkd, p2);
 
-        const double dNewEkin = (pSph1->mom[0] * pSph1->mom[0] + pSph1->mom[1] * pSph1->mom[1] +
-                                 pSph1->mom[2] * pSph1->mom[2]) / (2.0 * fNewMass);
+        for (i = 0; i < 3; i++)
+            pSph1->mom[i] += pSph2->mom[i];
 
         pSph1->E += pSph2->E;
+
+        for (i = 0; i < ELEMENT_COUNT; i++)
+            pSph1->afElemMass[i] += pSph2->afElemMass[i];
+        pSph1->fMetalMass += pSph2->fMetalMass;
+
+        const double dNewEkin = (pSph1->mom[0] * pSph1->mom[0] + pSph1->mom[1] * pSph1->mom[1] +
+                                 pSph1->mom[2] * pSph1->mom[2]) / (2.0 * pkdMass(pkd, p1));
         const double dDeltaUint = pSph2->E - (dNewEkin - dOldEkin);
         if (dDeltaUint > 0.0) {
             pSph1->Uint += dDeltaUint;
@@ -283,10 +285,6 @@ void combChemEnrich(void *vpkd, void *vp1, const void *vp2) {
                         pow(pkdDensity(pkd, p1), 1.0 - pkd->param.dConstGamma);
 #endif
         }
-
-        for (int j = 0; j < ELEMENT_COUNT; j++)
-            pSph1->afElemMass[j] += pSph2->afElemMass[j];
-        pSph1->fMetalMass += pSph2->fMetalMass;
     }
 }
 
@@ -301,11 +299,11 @@ void combChemEnrich(void *vpkd, void *vp1, const void *vp2) {
    compared and/or operated directly with the times in the simulation, they must all be in
    code units.
    Hence, here all the masses from the tables (pkd->StelEvolData) and the relevant parameters
-   in pkd->param are in Msol. Conversely, pStar->fInitialMass and pkdMass(pkd,p) are in code
-   units. Furthermore, all times are in code units.
+   in smf are in Msol. Conversely, pStar->fInitialMass and pkdMass(pkd,p) are in code units.
+   Furthermore, all times are in code units.
 */
 void smChemEnrich(PARTICLE *p, float fBall, int nSmooth, NN *nnList, SMF *smf) {
-    int i;
+    int i, j;
     PKD pkd = smf->pkd;
     STARFIELDS *pStar = pkdStar(pkd, p);
 
@@ -438,27 +436,34 @@ void smChemEnrich(PARTICLE *p, float fBall, int nSmooth, NN *nnList, SMF *smf) {
         if (q == p) continue;
 
         fWeights[i] *= fNormFactor;
-
-        const float fDeltaMass = fWeights[i] * fTotalMass;
-        const float fOldMass = pkdMass(pkd, q);
-        *((float *) pkdField(q, pkd->oFieldOffset[oMass])) += fDeltaMass;
-
         SPHFIELDS *qSph = pkdSph(pkd, q);
 
-        double dOldEkin;           /* Gas particles in cache have their mass set to zero */
-        if (fOldMass > 0.0f) {     /* in initChemEnrich */
-            dOldEkin = (qSph->mom[0] * qSph->mom[0] + qSph->mom[1] * qSph->mom[1] +
-                        qSph->mom[2] * qSph->mom[2]) / (2.0 * fOldMass);
-        }
+        /* Store neighbour's old mass and momentum */
+        const double dOldMass = pkdMass(pkd, q);
+        double adOldMom[3];
+        for (j = 0; j < 3; j++)
+            adOldMom[j] = qSph->mom[j];
 
-        qSph->mom[0] += fDeltaMass * pStarVel[0] * fScaleFactorInv;
-        qSph->mom[1] += fDeltaMass * pStarVel[1] * fScaleFactorInv;
-        qSph->mom[2] += fDeltaMass * pStarVel[2] * fScaleFactorInv;
+        /* Inject mass, momentum, total energy and chemical elements */
+        const float fDeltaMass = fWeights[i] * fTotalMass;
+        *((float *) pkdField(q, pkd->oFieldOffset[oMass])) += fDeltaMass;
 
-        if (fOldMass > 0.0f) {
-            const float fNewMass = pkdMass(pkd, q);
+        for (j = 0; j < 3; j++)
+            qSph->mom[j] += fDeltaMass * pStarVel[j] * fScaleFactorInv;
+
+        qSph->E += fWeights[i] * fStarEjEnergy;
+
+        for (j = 0; j < ELEMENT_COUNT; j++)
+            qSph->afElemMass[j] += fWeights[i] * afElemMass[j];
+        qSph->fMetalMass += fWeights[i] * fMetalMass;
+
+        /* To inject internal energy we need updated mass and momentum, hence we proceed
+           with local particles only. For non-local ones this is done in combChemEnrich. */
+        if (pkd->idSelf == nnList[i].iPid) {
+            const double dOldEkin = (adOldMom[0] * adOldMom[0] + adOldMom[1] * adOldMom[1] +
+                                     adOldMom[2] * adOldMom[2]) / (2.0 * dOldMass);
             const double dNewEkin = (qSph->mom[0] * qSph->mom[0] + qSph->mom[1] * qSph->mom[1] +
-                                     qSph->mom[2] * qSph->mom[2]) / (2.0 * fNewMass);
+                                     qSph->mom[2] * qSph->mom[2]) / (2.0 * pkdMass(pkd, q));
             const double dDeltaUint = fWeights[i] * fStarEjEnergy - (dNewEkin - dOldEkin);
             if (dDeltaUint > 0.0) {
                 qSph->Uint += dDeltaUint;
@@ -468,12 +473,6 @@ void smChemEnrich(PARTICLE *p, float fBall, int nSmooth, NN *nnList, SMF *smf) {
 #endif
             }
         }
-
-        qSph->E += fWeights[i] * fStarEjEnergy;
-
-        for (int j = 0; j < ELEMENT_COUNT; j++)
-            qSph->afElemMass[j] += fWeights[i] * afElemMass[j];
-        qSph->fMetalMass += fWeights[i] * fMetalMass;
     }
 }
 

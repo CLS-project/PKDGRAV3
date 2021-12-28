@@ -227,9 +227,10 @@ void pkdStarForm(PKD pkd,
                 pStar->hasExploded = 0;
 
 #ifdef STELLAR_EVOLUTION
+                const float fMassInv = 1.0f / fMass;
                 for (j = 0; j < ELEMENT_COUNT; j++)
-                    pStar->afElemAbun[j] = afElemMass[j] / fMass;
-                pStar->fMetalAbun = fMetalMass / fMass;
+                    pStar->afElemAbun[j] = afElemMass[j] * fMassInv;
+                pStar->fMetalAbun = fMetalMass * fMassInv;
 
                 pStar->fInitialMass = fMass;
                 pStar->fLastEnrichTime = 0.0f;

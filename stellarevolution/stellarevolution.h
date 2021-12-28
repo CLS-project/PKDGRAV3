@@ -380,12 +380,11 @@ static inline void stevInterpolateXAxis(const float *restrict pfTable, const int
                                         const int nZ, const int nSize, const int iOffset,
                                         const float fWeight, float *restrict pfResult) {
 
-    const float *pfLower = pfTable + iOffset * nZ;
-    const float *pfUpper = pfLower + nY * nZ;
+    const float *restrict pfLower = pfTable + iOffset * nZ;
+    const float *restrict pfUpper = pfLower + nY * nZ;
 
-    const float *pfLowerEnd = pfLower + nSize * nZ;
-    while (pfLower < pfLowerEnd)
-        *pfResult++ = *pfLower++ * (1.0f - fWeight) + *pfUpper++ * fWeight;
+    for (int i = 0; i < nSize * nZ; i++)
+        pfResult[i] = pfLower[i] * (1.0f - fWeight) + pfUpper[i] * fWeight;
 }
 
 
@@ -398,9 +397,11 @@ static inline void stevComputeAndCorrectSimulEjecta(
     float *restrict pfMetalEjMass) {
 
     int i;
-    *pfMetalEjMass = fMetalYield + fMetalAbun * fEjectedMass;
-    for (i = 0; i < nElems; i++) {
+    for (i = 0; i < nElems; i++)
         pfElemEjMass[i] = pfYield[i] + pfElemAbun[i] * fEjectedMass;
+    *pfMetalEjMass = fMetalYield + fMetalAbun * fEjectedMass;
+
+    for (i = 0; i < nElems; i++) {
         if (pfElemEjMass[i] < 0.0f) {
             if (i != ELEMENT_H && i != ELEMENT_He) *pfMetalEjMass -= pfElemEjMass[i];
             pfElemEjMass[i] = 0.0f;
