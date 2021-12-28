@@ -4157,10 +4157,10 @@ int MSR::NewTopStepKDK(
 #if defined(FEEDBACK) || defined(STELLAR_EVOLUTION)
     ActiveRung(uRung,0);
 #ifdef FEEDBACK
-    ReSmooth(dTime,SMX_SN_FEEDBACK,1,0);
+    ReSmooth(dTime,dDelta,SMX_SN_FEEDBACK,1);
 #endif
 #ifdef STELLAR_EVOLUTION
-    ReSmooth(dTime, SMX_CHEM_ENRICHMENT, 1, 0);
+    ReSmooth(dTime, dDelta,SMX_CHEM_ENRICHMENT, 1);
 #endif
 #endif
 
@@ -4342,7 +4342,7 @@ void MSR::TopStepKDK(
         printf("Computing feedback... ");
 
         TimerStart(TIMER_FEEDBACK);
-        ReSmooth(dTime,SMX_SN_FEEDBACK,1,0);
+        ReSmooth(dTime,dDeltaStep,SMX_SN_FEEDBACK,1);
         TimerStop(TIMER_FEEDBACK);
         dsec = TimerGet(TIMER_FEEDBACK);
         printf("took %.5f seconds\n", dsec);
@@ -4350,7 +4350,7 @@ void MSR::TopStepKDK(
 #ifdef STELLAR_EVOLUTION
         printf("Computing stellar evolution... ");
         TimerStart(TIMER_STEV);
-        ReSmooth(dTime, SMX_CHEM_ENRICHMENT, 1, 0);
+        ReSmooth(dTime, dDeltaStep,SMX_CHEM_ENRICHMENT, 1);
         TimerStop(TIMER_STEV);
         dsec = TimerGet(TIMER_STEV);
         printf("took %.5f seconds\n", dsec);
