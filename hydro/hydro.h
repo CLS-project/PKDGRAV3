@@ -38,7 +38,7 @@ void hydroRiemann_vec(PARTICLE *p,float fBall,int nSmooth,
                       SMF *smf);
 void pkdResetFluxes(PKD pkd,double dTime,double dDelta,double,double);
 
-void combThirdHydroLoop(void *vpkd, void *p1,void *p2);
+void combThirdHydroLoop(void *vpkd, void *p1,const void *p2);
 void hydroFluxFillBuffer(my_real **buffer, PARTICLE *q, int i,
                          double dr2, double dx, double dy, double dz, SMF *);
 void hydroFluxUpdateFromBuffer(my_real **out_buffer, my_real **in_buffer,
@@ -48,7 +48,7 @@ void hydroFluxGetNvars(int *in, int *out);
 /* Time step loop */
 void initHydroStep(void *vpkd, void *vp);
 void hydroStep(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf);
-void combHydroStep(void *vpkd, void *p1,void *p2);
+void combHydroStep(void *vpkd, void *p1,const void *p2);
 void pkdWakeParticles(PKD pkd,int iRoot, double dTime, double dDelta);
 
 

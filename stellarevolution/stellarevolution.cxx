@@ -251,7 +251,7 @@ void initChemEnrich(void *vpkd, void *vp) {
 }
 
 
-void combChemEnrich(void *vpkd, void *vp1, void *vp2) {
+void combChemEnrich(void *vpkd, void *vp1, const void *vp2) {
     PKD pkd = (PKD) vpkd;
     PARTICLE *p1 = (PARTICLE *) vp1;
     PARTICLE *p2 = (PARTICLE *) vp2;

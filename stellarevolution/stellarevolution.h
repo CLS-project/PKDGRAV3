@@ -96,7 +96,7 @@ int pkdStellarEvolutionInit(PKD, struct inStellarEvolution *);
 
 void smChemEnrich(PARTICLE *p, float fBall, int nSmooth, NN *nnList, SMF *smf);
 void initChemEnrich(void *vpkd, void *vp);
-void combChemEnrich(void *vpkd, void *vp1, void *vp2);
+void combChemEnrich(void *vpkd, void *vp1, const void *vp2);
 
 
 

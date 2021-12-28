@@ -73,7 +73,7 @@ void pkdRepositionBH(PKD pkd) {
  * think about it!
  * TODO
  **/
-void combBHmerger(void *vpkd, void *p1,void *p2) {
+void combBHmerger(void *vpkd, void *p1,const void *p2) {
 
     assert(0);
 

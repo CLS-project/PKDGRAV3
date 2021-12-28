@@ -248,7 +248,7 @@ void smBHevolve(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
 }
 
-void combBHevolve(void *vpkd, void *vp1,void *vp2) {
+void combBHevolve(void *vpkd, void *vp1,const void *vp2) {
     PKD pkd = (PKD) vpkd;
     PARTICLE *p1 = (PARTICLE *) vp1;
     PARTICLE *p2 = (PARTICLE *) vp2;
