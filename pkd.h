@@ -282,12 +282,12 @@ typedef struct starfields {
     float fInitialMass;
     float fLastEnrichTime;
     float fLastEnrichMass;
-    int iLastEnrichMassIdx;
+    int iLastEnrichMass;
     float fNextEnrichTime;
     struct {
         int oZ;
         float fDeltaZ;
-    } CCSN, AGB, Lifetimes;
+    } CCSN, AGB, Lifetime;
     float fSNIaOnsetTime;
 #endif
 
@@ -888,7 +888,7 @@ typedef struct pkdContext {
     code_units *grackle_units;
 #endif
 #ifdef STELLAR_EVOLUTION
-    struct inStellarEvolution *StelEvolData;
+    struct StellarEvolutionData *StelEvolData;
 #endif
 
 #ifdef USE_CUDA

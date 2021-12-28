@@ -413,7 +413,7 @@ endif(FEEDBACK)
 
 option(STELLAR_EVOLUTION "Activate time-resolved mass return from star particles into their surrounding media" OFF)
 if (STELLAR_EVOLUTION)
-   target_sources(${PROJECT_NAME} PRIVATE  stellarevolution/stellarevolution.c) 
+   target_sources(${PROJECT_NAME} PRIVATE  stellarevolution/stellarevolution.cxx)
    target_compile_options(${PROJECT_NAME} PRIVATE -DSTELLAR_EVOLUTION)
    target_compile_options(${PROJECT_NAME} PRIVATE -DHAVE_HELIUM -DHAVE_CARBON -DHAVE_NITROGEN -DHAVE_OXYGEN -DHAVE_NEON -DHAVE_MAGNESIUM -DHAVE_SILICON -DHAVE_IRON -DHAVE_METALLICITY)
    message("-- Stellar evolution is ACTIVE")

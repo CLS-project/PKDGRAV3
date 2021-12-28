@@ -161,6 +161,10 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
 #endif
 #endif
 
+#ifdef STELLAR_EVOLUTION
+    StellarEvolutionInit(dTime);
+#endif
+
     OutputFineStatistics(0.0, -1);
     /*
     ** Build tree, activating all particles first (just in case).
@@ -681,6 +685,9 @@ int MSR::ValidateParameters() {
 #endif
 #ifdef BLACKHOLES
     SetBlackholeParam();
+#endif
+#ifdef STELLAR_EVOLUTION
+    SetStellarEvolutionParam();
 #endif
 
 

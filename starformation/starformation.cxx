@@ -61,6 +61,12 @@ void MSR::StarForm(double dTime, double dDelta, int iRung) {
     in.dEOSPolyFloorDen = param.dEOSPolyFloorDen;
     in.dEOSPolyFlooru = param.dEOSPolyFlooru;
 #endif
+#ifdef STELLAR_EVOLUTION
+    in.dSNIaMaxMass = param.dSNIaMaxMass;
+    in.dCCSNMinMass = param.dCCSNMinMass;
+    in.dCCSNMaxMass = param.dCCSNMaxMass;
+    in.bChemEnrich = param.bChemEnrich;
+#endif
 
 
     // Here we set the minium density a particle must have to be SF
@@ -229,7 +235,8 @@ void pkdStarForm(PKD pkd,
                 pStar->fLastEnrichTime = 0.0f;
 
                 if (in.bChemEnrich)
-                    stevStarParticleInit(pkd, pStar);
+                    stevStarParticleInit(pkd, pStar, in.dSNIaMaxMass, in.dCCSNMinMass,
+                                         in.dCCSNMaxMass);
                 else
                     pStar->fNextEnrichTime = INFINITY;
 #endif

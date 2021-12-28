@@ -231,6 +231,13 @@ struct inStarForm {
     double dSNFBEffnH0;
     double dSNFBEffIndex;
 #endif
+
+#ifdef STELLAR_EVOLUTION
+    double dSNIaMaxMass;
+    double dCCSNMinMass;
+    double dCCSNMaxMass;
+    int bChemEnrich;
+#endif
 };
 #endif
 

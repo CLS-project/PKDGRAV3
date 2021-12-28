@@ -445,6 +445,10 @@ protected:
 #ifdef FEEDBACK
     void SetFeedbackParam();
 #endif
+#ifdef STELLAR_EVOLUTION
+    void SetStellarEvolutionParam();
+    void StellarEvolutionInit(double dTime);
+#endif
 #if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
     void SetEOSParam();
 #endif

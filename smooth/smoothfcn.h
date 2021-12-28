@@ -91,6 +91,13 @@ typedef struct smfParameters {
     int bBHFeedback;
     int bBHAccretion;
 #endif
+#ifdef STELLAR_EVOLUTION
+    double dCCSNMinMass;
+    double dSNIaNorm;
+    double dSNIaScale;
+    double dSNIaEnergy;
+    double dWindSpecificEkin;
+#endif
 } SMF;
 
 

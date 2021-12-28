@@ -310,20 +310,21 @@ struct parameters {
     double dBHMhaloMin;
 #endif
 #ifdef STELLAR_EVOLUTION
-    char achStEvolPath[256];
-    char achSNIa_DTDtype[32];
-    char achIMFtype[32];
+    char achStelEvolPath[256];
+    char achSNIaDTDType[32];
+    char achIMFType[32];
     int bChemEnrich;
-    double dIMF_MinMass;
-    double dIMF_MaxMass;
-    double dCCSN_MinMass;
-    double dCCSN_MaxMass;
-    double dSNIa_MaxMass;
-    double dSNIa_Norm;
-    double dSNIa_Scale;
-    double dSNIa_Norm_ti;
-    double dSNIa_Norm_tf;
+    double dIMFMinMass;
+    double dIMFMaxMass;
+    double dCCSNMinMass;
+    double dCCSNMaxMass;
+    double dSNIaMaxMass;
+    double dSNIaNorm;
+    double dSNIaScale;
+    double dSNIaNormInitTime;
+    double dSNIaNormFinalTime;
     double dSNIaEnergy;
+    double dStellarWindSpeed;
     double dWindSpecificEkin;
 #endif
 
