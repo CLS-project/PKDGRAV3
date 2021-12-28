@@ -296,6 +296,18 @@ def parse():
     add_flag(bh,'BHSeedMass',default=1.0,dest='dBHSeedMass', type=float, help='Mass of the BH seed, in code units')
     add_flag(bh,'BHMhaloMin',default=1.0,dest='dBHMhaloMin', type=float, help='Minimum mass required to place a BH in a FOF group, in code units')
 
+    chem = parser.add_argument_group('Chemistry')
+    add_flag(chem,'InitialH',default=0.75,dest='dInitialH', help='Initial Hydrogen abundance')
+    add_flag(chem,'InitialHe',default=0.25,dest='dInitialHe', help='Initial Helium abundance')
+    add_flag(chem,'InitialC',default=0.0,dest='dInitialC', help='Initial Carbon abundance')
+    add_flag(chem,'InitialN',default=0.0,dest='dInitialN', help='Initial Nitrogen abundance')
+    add_flag(chem,'InitialO',default=0.0,dest='dInitialO', help='Initial Oxygen abundance')
+    add_flag(chem,'InitialNe',default=0.0,dest='dInitialNe', help='Initial Neon abundance')
+    add_flag(chem,'InitialMg',default=0.0,dest='dInitialMg', help='Initial Magnesium abundance')
+    add_flag(chem,'InitialSi',default=0.0,dest='dInitialSi', help='Initial Silicon abundance')
+    add_flag(chem,'InitialFe',default=0.0,dest='dInitialFe', help='Initial Iron abundance')
+    add_flag(chem,'InitialMetallicity',default=0.0,dest='dInitialMetallicity', help='Initial metallicity')
+
     stev = parser.add_argument_group('Stellar evolution')
     add_flag(stev,'stevtables', dest='achStelEvolPath', help='Path to stellar evolution tables')
     add_flag(stev,'dtdtype', dest='achSNIaDTDType', help='Type of Delay Time Distribution function for SNIa events')
