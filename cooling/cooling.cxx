@@ -60,7 +60,7 @@ void MSR::SetCoolingParam() {
     const double dHydFrac = param.dInitialH;
     const double dnHToRho = MHYDR / dHydFrac / param.units.dGmPerCcUnit;
     param.dCoolingFloorDen *= dnHToRho;
-    param.dCoolingFloorT = param.dCoolingFlooru*dTuFac;
+    param.dCoolingFlooru = param.dCoolingFloorT*dTuFac;
 }
 
 /**
