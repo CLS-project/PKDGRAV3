@@ -73,17 +73,14 @@ typedef struct StellarEvolutionRawData {
 } STEV_RAWDATA;
 
 
-struct inStellarEvolution {
+struct inStellarEvolutionInit {
     char achSNIaDTDType[32];
-    int bChemEnrich;
     double dTime;
     double dSNIaMaxMass;
     double dCCSNMinMass;
     double dCCSNMaxMass;
     STEV_DATA StelEvolData;
 };
-
-
 
 /*
  * --------------
@@ -92,7 +89,8 @@ struct inStellarEvolution {
  */
 
 int pstStellarEvolutionInit(PST, void *, int, void *, int);
-int pkdStellarEvolutionInit(PKD, struct inStellarEvolution *);
+int pkdStellarEvolutionInit(PKD, struct inStellarEvolutionInit *);
+void pkdAddStellarEjecta(PKD, PARTICLE *, SPHFIELDS *, const double);
 
 void smChemEnrich(PARTICLE *p, float fBall, int nSmooth, NN *nnList, SMF *smf);
 void initChemEnrich(void *vpkd, void *vp);

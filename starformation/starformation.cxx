@@ -65,7 +65,6 @@ void MSR::StarForm(double dTime, double dDelta, int iRung) {
     in.dSNIaMaxMass = param.dSNIaMaxMass;
     in.dCCSNMinMass = param.dCCSNMinMass;
     in.dCCSNMaxMass = param.dCCSNMaxMass;
-    in.bChemEnrich = param.bChemEnrich;
 #endif
 
 
@@ -235,11 +234,8 @@ void pkdStarForm(PKD pkd,
                 pStar->fInitialMass = fMass;
                 pStar->fLastEnrichTime = 0.0f;
 
-                if (in.bChemEnrich)
-                    stevStarParticleInit(pkd, pStar, in.dSNIaMaxMass, in.dCCSNMinMass,
-                                         in.dCCSNMaxMass);
-                else
-                    pStar->fNextEnrichTime = INFINITY;
+                stevStarParticleInit(pkd, pStar, in.dSNIaMaxMass, in.dCCSNMinMass,
+                                     in.dCCSNMaxMass);
 #endif
 
 #ifdef FEEDBACK

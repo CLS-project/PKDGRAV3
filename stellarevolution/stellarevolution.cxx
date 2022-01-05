@@ -8,6 +8,7 @@
 #include "master.h"
 #include "hydro/hydro.h"
 
+
 void MSR::SetStellarEvolutionParam() {
     param.dSNIaNormInitTime *= SECONDSPERYEAR / param.units.dSecUnit;
     param.dSNIaNormFinalTime *= SECONDSPERYEAR / param.units.dSecUnit;
@@ -29,10 +30,11 @@ void MSR::SetStellarEvolutionParam() {
     }
 }
 
+
 void MSR::StellarEvolutionInit(double dTime) {
     int i;
     char achPath[280];
-    struct inStellarEvolution in;
+    struct inStellarEvolutionInit in;
     STEV_RAWDATA *CCSNData, *AGBData, *SNIaData, *LifetimeData;
 
     /* Read the tables */
@@ -153,14 +155,13 @@ void MSR::StellarEvolutionInit(double dTime) {
     }
 
     strcpy(in.achSNIaDTDType, param.achSNIaDTDType);
-    in.bChemEnrich = param.bChemEnrich;
     in.dTime = dTime;
     in.dSNIaMaxMass = param.dSNIaMaxMass;
     in.dCCSNMinMass = param.dCCSNMinMass;
     in.dCCSNMaxMass = param.dCCSNMaxMass;
 
     /* Send data and finish */
-    pstStellarEvolutionInit(pst, &in, sizeof(struct inStellarEvolution), NULL, 0);
+    pstStellarEvolutionInit(pst, &in, sizeof(struct inStellarEvolutionInit), NULL, 0);
 
     stevFreeTable(CCSNData);
     stevFreeTable(AGBData);
@@ -168,19 +169,21 @@ void MSR::StellarEvolutionInit(double dTime) {
     stevFreeLifetimeTable(LifetimeData);
 }
 
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+
 int pstStellarEvolutionInit(PST pst, void *vin, int nIn, void *vout, int nOut) {
-    mdlassert(pst->mdl, nIn == sizeof(struct inStellarEvolution));
+    mdlassert(pst->mdl, nIn == sizeof(struct inStellarEvolutionInit));
     if (pst->nLeaves > 1) {
         int rID = mdlReqService(pst->mdl, pst->idUpper, PST_STELLAREVOLUTIONINIT, vin, nIn);
         pstStellarEvolutionInit(pst->pstLower, vin, nIn, NULL, 0);
         mdlGetReply(pst->mdl, rID, NULL, NULL);
     }
     else {
-        struct inStellarEvolution *in = (struct inStellarEvolution *) vin;
+        struct inStellarEvolutionInit *in = (struct inStellarEvolutionInit *) vin;
         pkdStellarEvolutionInit(pst->plcl->pkd, in);
     }
 
@@ -188,7 +191,7 @@ int pstStellarEvolutionInit(PST pst, void *vin, int nIn, void *vout, int nOut) {
 }
 
 
-int pkdStellarEvolutionInit(PKD pkd, struct inStellarEvolution *in) {
+int pkdStellarEvolutionInit(PKD pkd, struct inStellarEvolutionInit *in) {
     pkd->StelEvolData = (STEV_DATA *) malloc(sizeof(STEV_DATA));
     assert(pkd->StelEvolData != NULL);
     memcpy(pkd->StelEvolData, &in->StelEvolData, sizeof(STEV_DATA));
@@ -220,11 +223,15 @@ int pkdStellarEvolutionInit(PKD pkd, struct inStellarEvolution *in) {
             if (pStar->fTimer <= 0.0f)
                 pStar->fTimer = in->dTime;
 
-            if (in->bChemEnrich)
-                stevStarParticleInit(pkd, pStar, in->dSNIaMaxMass, in->dCCSNMinMass,
-                                     in->dCCSNMaxMass);
-            else
-                pStar->fNextEnrichTime = INFINITY;
+            stevStarParticleInit(pkd, pStar, in->dSNIaMaxMass, in->dCCSNMinMass,
+                                 in->dCCSNMaxMass);
+        }
+        else if (pkdIsGas(pkd, p)) {
+            SPHFIELDS *pSph = pkdSph(pkd, p);
+            for (int j = 0; j < 3; j++)
+                pSph->afReceivedMom[j] = 0.0f;
+            pSph->fReceivedMass = 0.0f;
+            pSph->fReceivedE = 0.0f;
         }
     }
 
@@ -232,20 +239,49 @@ int pkdStellarEvolutionInit(PKD pkd, struct inStellarEvolution *in) {
 }
 
 
+void pkdAddStellarEjecta(PKD pkd, PARTICLE *p, SPHFIELDS *pSph, const double dConstGamma) {
+    const double dOldEkin = (pSph->mom[0] * pSph->mom[0] + pSph->mom[1] * pSph->mom[1] +
+                             pSph->mom[2] * pSph->mom[2]) / (2.0 * pkdMass(pkd, p));
+
+    for (int i = 0; i < 3; i++)
+        pSph->mom[i] += pSph->afReceivedMom[i];
+    *((float *) pkdField(p, pkd->oFieldOffset[oMass])) += pSph->fReceivedMass;
+    pSph->E += pSph->fReceivedE;
+
+    const double dNewEkin = (pSph->mom[0] * pSph->mom[0] + pSph->mom[1] * pSph->mom[1] +
+                             pSph->mom[2] * pSph->mom[2]) / (2.0 * pkdMass(pkd, p));
+
+    const double dDeltaUint = pSph->fReceivedE - (dNewEkin - dOldEkin);
+    if (dDeltaUint > 0.0) {
+        pSph->Uint += dDeltaUint;
+#ifdef ENTROPY_SWITCH
+        pSph->S += dDeltaUint * (dConstGamma - 1.0) *
+                   pow(pkdDensity(pkd, p), 1.0 - dConstGamma);
+#endif
+    }
+
+    for (int i = 0; i < 3; i++)
+        pSph->afReceivedMom[i] = 0.0f;
+    pSph->fReceivedMass = 0.0f;
+    pSph->fReceivedE = 0.0f;
+}
+
+
 void initChemEnrich(void *vpkd, void *vp) {
+    int i;
     PKD pkd = (PKD) vpkd;
     PARTICLE *p = (PARTICLE *) vp;
 
     if (pkdIsGas(pkd, p)) {
-        *((float *) pkdField(p, pkd->oFieldOffset[oMass])) = 0.0f;
-
         SPHFIELDS *pSph = pkdSph(pkd,p);
 
-        pSph->mom[0] = pSph->mom[1] = pSph->mom[2] = 0.0;
-        pSph->E = 0.0;
+        for (i = 0; i < 3; i++)
+            pSph->afReceivedMom[i] = 0.0f;
+        pSph->fReceivedMass = 0.0f;
+        pSph->fReceivedE = 0.0f;
 
-        for (int j = 0; j < ELEMENT_COUNT; j++)
-            pSph->afElemMass[j]  = 0.0f;
+        for (i = 0; i < ELEMENT_COUNT; i++)
+            pSph->afElemMass[i] = 0.0f;
         pSph->fMetalMass = 0.0f;
     }
 }
@@ -261,30 +297,14 @@ void combChemEnrich(void *vpkd, void *vp1, const void *vp2) {
         SPHFIELDS *pSph1 = pkdSph(pkd, p1);
         SPHFIELDS *pSph2 = pkdSph(pkd, p2);
 
-        const double dOldEkin = (pSph1->mom[0] * pSph1->mom[0] + pSph1->mom[1] * pSph1->mom[1] +
-                                 pSph1->mom[2] * pSph1->mom[2]) / (2.0 * pkdMass(pkd, p1));
-
-        *((float *) pkdField(p1, pkd->oFieldOffset[oMass])) += pkdMass(pkd, p2);
-
         for (i = 0; i < 3; i++)
-            pSph1->mom[i] += pSph2->mom[i];
-
-        pSph1->E += pSph2->E;
+            pSph1->afReceivedMom[i] += pSph2->afReceivedMom[i];
+        pSph1->fReceivedMass += pSph2->fReceivedMass;
+        pSph1->fReceivedE += pSph2->fReceivedE;
 
         for (i = 0; i < ELEMENT_COUNT; i++)
             pSph1->afElemMass[i] += pSph2->afElemMass[i];
         pSph1->fMetalMass += pSph2->fMetalMass;
-
-        const double dNewEkin = (pSph1->mom[0] * pSph1->mom[0] + pSph1->mom[1] * pSph1->mom[1] +
-                                 pSph1->mom[2] * pSph1->mom[2]) / (2.0 * pkdMass(pkd, p1));
-        const double dDeltaUint = pSph2->E - (dNewEkin - dOldEkin);
-        if (dDeltaUint > 0.0) {
-            pSph1->Uint += dDeltaUint;
-#ifdef ENTROPY_SWITCH
-            pSph1->S += dDeltaUint * (pkd->param.dConstGamma - 1.0) *
-                        pow(pkdDensity(pkd, p1), 1.0 - pkd->param.dConstGamma);
-#endif
-        }
     }
 }
 
@@ -436,43 +456,17 @@ void smChemEnrich(PARTICLE *p, float fBall, int nSmooth, NN *nnList, SMF *smf) {
         if (q == p) continue;
 
         fWeights[i] *= fNormFactor;
+        const float fDeltaMass = fWeights[i] * fTotalMass;
         SPHFIELDS *qSph = pkdSph(pkd, q);
 
-        /* Store neighbour's old mass and momentum */
-        const double dOldMass = pkdMass(pkd, q);
-        double adOldMom[3];
         for (j = 0; j < 3; j++)
-            adOldMom[j] = qSph->mom[j];
-
-        /* Inject mass, momentum, total energy and chemical elements */
-        const float fDeltaMass = fWeights[i] * fTotalMass;
-        *((float *) pkdField(q, pkd->oFieldOffset[oMass])) += fDeltaMass;
-
-        for (j = 0; j < 3; j++)
-            qSph->mom[j] += fDeltaMass * pStarVel[j] * fScaleFactorInv;
-
-        qSph->E += fWeights[i] * fStarEjEnergy;
+            qSph->afReceivedMom[j] += fDeltaMass * pStarVel[j] * fScaleFactorInv;
+        qSph->fReceivedMass += fDeltaMass;
+        qSph->fReceivedE += fWeights[i] * fStarEjEnergy;
 
         for (j = 0; j < ELEMENT_COUNT; j++)
             qSph->afElemMass[j] += fWeights[i] * afElemMass[j];
         qSph->fMetalMass += fWeights[i] * fMetalMass;
-
-        /* To inject internal energy we need updated mass and momentum, hence we proceed
-           with local particles only. For non-local ones this is done in combChemEnrich. */
-        if (pkd->idSelf == nnList[i].iPid) {
-            const double dOldEkin = (adOldMom[0] * adOldMom[0] + adOldMom[1] * adOldMom[1] +
-                                     adOldMom[2] * adOldMom[2]) / (2.0 * dOldMass);
-            const double dNewEkin = (qSph->mom[0] * qSph->mom[0] + qSph->mom[1] * qSph->mom[1] +
-                                     qSph->mom[2] * qSph->mom[2]) / (2.0 * pkdMass(pkd, q));
-            const double dDeltaUint = fWeights[i] * fStarEjEnergy - (dNewEkin - dOldEkin);
-            if (dDeltaUint > 0.0) {
-                qSph->Uint += dDeltaUint;
-#ifdef ENTROPY_SWITCH
-                qSph->S += dDeltaUint * (smf->dConstGamma - 1.0) *
-                           pow(pkdDensity(pkd, q), 1.0 - smf->dConstGamma);
-#endif
-            }
-        }
     }
 }
 
@@ -810,8 +804,10 @@ float stevPowerlawNumSNIa(SMF *smf, STARFIELDS *pStar, float fInitialTime, float
             powf(fInitialTime, (float)smf->dSNIaScale + 1.0f));
 }
 
+
 #ifdef __cplusplus
 }
 #endif
+
 
 #endif  /* STELLAR_EVOLUTION */

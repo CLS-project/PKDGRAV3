@@ -3551,6 +3551,9 @@ void MSR::EndTimestepIntegration(double dTime,double dDelta) {
 #ifdef BLACKHOLES
     in.dBHRadiativeEff = param.dBHRadiativeEff;
 #endif
+#ifdef STELLAR_EVOLUTION
+    in.bChemEnrich = param.bChemEnrich;
+#endif
     double dsec;
 
     ComputeSmoothing(dTime, dDelta);
@@ -4172,7 +4175,9 @@ int MSR::NewTopStepKDK(
     ReSmooth(dTime,dDelta,SMX_SN_FEEDBACK,1);
 #endif
 #ifdef STELLAR_EVOLUTION
-    ReSmooth(dTime, dDelta,SMX_CHEM_ENRICHMENT, 1);
+    if (param.bChemEnrich) {
+        ReSmooth(dTime,dDelta,SMX_CHEM_ENRICHMENT,1);
+    }
 #endif
 #endif
 
@@ -4362,7 +4367,9 @@ void MSR::TopStepKDK(
 #ifdef STELLAR_EVOLUTION
         printf("Computing stellar evolution... ");
         TimerStart(TIMER_STEV);
-        ReSmooth(dTime, dDeltaStep,SMX_CHEM_ENRICHMENT, 1);
+        if (param.bChemEnrich) {
+            ReSmooth(dTime,dDeltaStep,SMX_CHEM_ENRICHMENT,1);
+        }
         TimerStop(TIMER_STEV);
         dsec = TimerGet(TIMER_STEV);
         printf("took %.5f seconds\n", dsec);

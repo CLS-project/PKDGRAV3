@@ -448,6 +448,7 @@ protected:
 #ifdef STELLAR_EVOLUTION
     void SetStellarEvolutionParam();
     void StellarEvolutionInit(double dTime);
+    void StellarEvolutionStore();
 #endif
 #if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
     void SetEOSParam();

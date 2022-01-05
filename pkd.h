@@ -264,6 +264,12 @@ typedef struct sphfields {
     float fMetalMass;
 #endif
 
+#ifdef STELLAR_EVOLUTION
+    float afReceivedMom[3];
+    float fReceivedMass;
+    float fReceivedE;
+#endif
+
 
 #ifdef FEEDBACK
     float fAccFBEnergy;

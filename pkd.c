@@ -2788,6 +2788,14 @@ void pkdEndTimestepIntegration(PKD pkd, struct inEndTimestep in) {
         p = pkdParticle(pkd,i);
         if (pkdIsGas(pkd,p) && pkdIsActive(pkd, p)  ) {
             psph = pkdSph(pkd, p);
+
+            // ##### Add ejecta from stellar evolution
+#ifdef STELLAR_EVOLUTION
+            if (in.bChemEnrich && psph->fReceivedMass > 0.0f) {
+                pkdAddStellarEjecta(pkd, p, psph, in.dConstGamma);
+            }
+#endif
+
             float fMass = pkdMass(pkd, p);
             float fDens = pkdDensity(pkd, p);
             const float fDensPhys = fDens*a_inv3;
