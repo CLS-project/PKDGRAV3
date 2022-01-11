@@ -1297,6 +1297,11 @@ void MSR::Initialize() {
                 sizeof(double), "neighstd",
                 "Maximum deviation from desired number of neighbors");
 
+    param.bOutFineStatistics = 0;
+    prmAddParam(prm,"bOutFineStatistics", 0, &param.bOutFineStatistics,
+                sizeof(int), "finestats",
+                "Save high cadence information on the rung distribution and star formation");
+
 #if defined(COOLING) || defined(GRACKLE)
     prmAddParam(prm,"achCoolingTables",3,param.achCoolingTables,256,"coolingtables",
                 "Path to cooling tables");
