@@ -242,10 +242,12 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
     }
 
     if (param.bWriteIC && !prmSpecified(prm,"nGrid")) {
+#ifndef BLACKHOLES
         if (param.bFindGroups) {
             NewFof(dTime);
             GroupStats();
         }
+#endif
         Output(iStartStep,dTime,dDelta,0);
     }
 
