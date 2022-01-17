@@ -606,8 +606,8 @@ void cooling_cool_part(PKD pkd,
        re-ionization as this needs to be added on no matter what */
 
     /* Get helium and hydrogen reheating term */
-    const double Helium_reion_heat_cgs =  0.;
-    //eagle_helium_reionization_extraheat(redshift, delta_redshift, cooling);
+    const double Helium_reion_heat_cgs =
+        eagle_helium_reionization_extraheat(redshift, delta_redshift, cooling);
 
 
     /* Convert this into a rate */
