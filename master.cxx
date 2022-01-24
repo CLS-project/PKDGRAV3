@@ -2182,7 +2182,7 @@ void MSR::AllNodeWrite(const char *pszFileName, double dTime, double dvFac, int 
         FIO fio;
         fio = fioTipsyCreate(in.achOutFile,
                              in.mFlags&FIO_FLAG_CHECKPOINT,
-                             in.bStandard,in.dTime,
+                             in.bStandard,in.dExp,
                              in.nGas, in.nDark, in.nStar);
         fioClose(fio);
     }
