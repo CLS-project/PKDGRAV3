@@ -623,6 +623,7 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
     }
     else {
         PKD pkd = plcl->pkd;
+        pkd->nClasses = 0;
         double inGrid = 1.0 / in->nGrid;
         float fGasMass, fDarkMass, fGasSoft, fDarkSoft;
         if (in->bICgas) {

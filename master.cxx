@@ -1971,14 +1971,11 @@ MSR::~MSR() {
 void MSR::SetClasses() {
     std::vector<PARTCLASS> classes(PKD_MAX_CLASSES);
     auto nClass = pstGetClasses(pst,NULL,0,classes.data(),classes.size()*sizeof(PARTCLASS));
-    if (nClass != nClasses) {
-        auto n = nClass / sizeof(PARTCLASS);
-        assert(n*sizeof(PARTCLASS)==nClass);
-        classes.resize(n);
-        std::sort(classes.begin(),classes.end());
-        pstSetClasses(pst,classes.data(),nClass,NULL,0);
-        nClasses = nClass;
-    }
+    auto n = nClass / sizeof(PARTCLASS);
+    assert(n*sizeof(PARTCLASS)==nClass);
+    classes.resize(n);
+    std::sort(classes.begin(),classes.end());
+    pstSetClasses(pst,classes.data(),nClass,NULL,0);
 }
 
 void MSR::SwapClasses(int id) {
