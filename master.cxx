@@ -2699,7 +2699,6 @@ void MSR::BuildTreeMarked(int bNeedEwald) {
 }
 
 void MSR::Reorder() {
-    return;
     if (!param.bMemUnordered) {
         double sec,dsec;
 
