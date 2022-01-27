@@ -70,18 +70,16 @@ static inline void bhFeedback(PKD pkd, NN *nnList, int nSmooth, PARTICLE *p,
 
     pBH->dFeedbackRate = dBHFBEff * pBH->dAccretionRate;
 
-    double meanMass = massSum/nSmooth;
-    double Ecrit = dBHFBEcrit * meanMass;
+    const double meanMass = massSum/nSmooth;
+    const double Ecrit = dBHFBEcrit * meanMass;
     if (pBH->dAccEnergy > Ecrit) {
+        const double nHeat = pBH->dAccEnergy / Ecrit;
+        const double prob = nHeat / nSmooth;
         for (int i=0; i<nSmooth; ++i) {
-            PARTICLE *q;
-            q = nnList[i].pPart;
-
-            // We favour adding the feedback to particles with higher masses...
-            //   does this make sense?
-            // Otherwise, just 1./nSmooth would do just fine
-            double prob = 1./nSmooth;// or pkdMass(pkd,q) / massSum;
             if (rand()<RAND_MAX*prob) {
+                PARTICLE *q;
+                q = nnList[i].pPart;
+
                 printf("BH feedback event!\n");
                 SPHFIELDS *qsph = pkdSph(pkd,q);
                 const double energy = dBHFBEcrit * pkdMass(pkd,q) ;
@@ -93,7 +91,6 @@ static inline void bhFeedback(PKD pkd, NN *nnList, int nSmooth, PARTICLE *p,
 #endif
 
                 pBH->dAccEnergy -= energy;
-                break;
             }
         }
     }
