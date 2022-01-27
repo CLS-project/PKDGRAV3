@@ -398,7 +398,7 @@ void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTi
         printf("Restoring from checkpoint\n");
     TimerStart(TIMER_NONE);
 
-    nMaxOrder = N;
+    nMaxOrder = N - 1; // iOrder goes from 0 to N-1
 
     uint64_t nSpecies[FIO_SPECIES_LAST];
     for ( auto i=0; i<FIO_SPECIES_LAST; ++i) nSpecies[i] = 0;
@@ -2704,10 +2704,10 @@ void MSR::Reorder() {
 
         msrprintf("Ordering...\n");
         sec = Time();
-        OldDD::ServiceDomainOrder::input indomain(MaxOrder()-1);
+        OldDD::ServiceDomainOrder::input indomain(MaxOrder());
         mdl->RunService(PST_DOMAINORDER,sizeof(indomain),&indomain);
 
-        OldDD::ServiceLocalOrder::input inlocal(MaxOrder()-1);
+        OldDD::ServiceLocalOrder::input inlocal(MaxOrder());
         mdl->RunService(PST_LOCALORDER,sizeof(inlocal),&inlocal);
         dsec = Time() - sec;
         msrprintf("Order established, Wallclock: %f secs\n\n",dsec);
@@ -5024,7 +5024,7 @@ double MSR::GenerateIC() {
     nDark = nSpecies[FIO_SPECIES_DARK];
     nStar = nSpecies[FIO_SPECIES_STAR];
     nBH = nSpecies[FIO_SPECIES_BH];
-    nMaxOrder = N;
+    nMaxOrder = N - 1; // iOrder goes from 0 to N-1
 
     if (param.bVStart)
         printf("Generating IC...\nN:%" PRIu64 " nDark:%" PRIu64
@@ -5149,7 +5149,7 @@ double MSR::Read(const char *achInFile) {
     nDark = fioGetN(fio,FIO_SPECIES_DARK);
     nStar = fioGetN(fio,FIO_SPECIES_STAR);
     nBH   = fioGetN(fio,FIO_SPECIES_BH);
-    nMaxOrder = N;
+    nMaxOrder = N - 1; // iOrder goes from 0 to N-1
 
     read->nProcessors = param.bParaRead==0?1:(param.nParaRead<=1 ? nThreads:param.nParaRead);
 
