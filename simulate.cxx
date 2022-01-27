@@ -252,7 +252,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
     }
 
     // Make sure that the tree is usable before the start of the simulation
-    if (param.bFindGroups) {
+    if (param.bFindGroups || param.bWriteIC) {
         DomainDecomp();
         BuildTree(param.bEwald);
     }
