@@ -760,7 +760,7 @@ int pstWrite(PST pst,void *vin,int nIn,void *vout,int nOut) {
                 if (strstr(in->achOutFile, "&I" )) {
                     makeName(achOutFile,in->achOutFile,in->iIndex,"");
                     fio = fioTipsyCreatePart(achOutFile,0,in->mFlags&FIO_FLAG_CHECKPOINT,
-                                             in->bStandard, in->dTime,
+                                             in->bStandard, in->dExp,
                                              in->nGas, in->nDark, in->nStar, plcl->nWriteStart);
                 }
                 else {

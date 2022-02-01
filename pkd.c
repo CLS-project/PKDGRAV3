@@ -855,7 +855,6 @@ size_t pkdTreeMemory(PKD pkd) {
 
 void pkdSetClass( PKD pkd, float fMass, float fSoft, FIO_SPECIES eSpecies, PARTICLE *p ) {
     int i;
-
     if ( pkd->oFieldOffset[oMass] ) {
         float *pMass = pkdField(p,pkd->oFieldOffset[oMass]);
         *pMass = fMass;
@@ -941,6 +940,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
     __itt_string_handle *shMyTask = __itt_string_handle_create("Read");
     __itt_task_begin(domain, __itt_null, __itt_null, shMyTask);
 #endif
+    pkd->nClasses = 0;
     if (pkd->oFieldOffset[oStar]) {
         /* Make sure star class established -- how do all procs know of these classes? How do we ensure they agree on the class identifiers? */
         p = pkdParticle(pkd,pkd->nLocal);

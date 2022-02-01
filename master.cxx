@@ -398,7 +398,7 @@ void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTi
         printf("Restoring from checkpoint\n");
     TimerStart(TIMER_NONE);
 
-    nMaxOrder = N;
+    nMaxOrder = N - 1; // iOrder goes from 0 to N-1
 
     uint64_t nSpecies[FIO_SPECIES_LAST];
     for ( auto i=0; i<FIO_SPECIES_LAST; ++i) nSpecies[i] = 0;
@@ -1976,14 +1976,11 @@ MSR::~MSR() {
 void MSR::SetClasses() {
     std::vector<PARTCLASS> classes(PKD_MAX_CLASSES);
     auto nClass = pstGetClasses(pst,NULL,0,classes.data(),classes.size()*sizeof(PARTCLASS));
-    if (nClass != nClasses) {
-        auto n = nClass / sizeof(PARTCLASS);
-        assert(n*sizeof(PARTCLASS)==nClass);
-        classes.resize(n);
-        std::sort(classes.begin(),classes.end());
-        pstSetClasses(pst,classes.data(),nClass,NULL,0);
-        nClasses = nClass;
-    }
+    auto n = nClass / sizeof(PARTCLASS);
+    assert(n*sizeof(PARTCLASS)==nClass);
+    classes.resize(n);
+    std::sort(classes.begin(),classes.end());
+    pstSetClasses(pst,classes.data(),nClass,NULL,0);
 }
 
 void MSR::SwapClasses(int id) {
@@ -2190,7 +2187,7 @@ void MSR::AllNodeWrite(const char *pszFileName, double dTime, double dvFac, int 
         FIO fio;
         fio = fioTipsyCreate(in.achOutFile,
                              in.mFlags&FIO_FLAG_CHECKPOINT,
-                             in.bStandard,in.dTime,
+                             in.bStandard,in.dExp,
                              in.nGas, in.nDark, in.nStar);
         fioClose(fio);
     }
@@ -2707,16 +2704,15 @@ void MSR::BuildTreeMarked(int bNeedEwald) {
 }
 
 void MSR::Reorder() {
-    return;
     if (!param.bMemUnordered) {
         double sec,dsec;
 
         msrprintf("Ordering...\n");
         sec = Time();
-        OldDD::ServiceDomainOrder::input indomain(MaxOrder()-1);
+        OldDD::ServiceDomainOrder::input indomain(MaxOrder());
         mdl->RunService(PST_DOMAINORDER,sizeof(indomain),&indomain);
 
-        OldDD::ServiceLocalOrder::input inlocal(MaxOrder()-1);
+        OldDD::ServiceLocalOrder::input inlocal(MaxOrder());
         mdl->RunService(PST_LOCALORDER,sizeof(inlocal),&inlocal);
         dsec = Time() - sec;
         msrprintf("Order established, Wallclock: %f secs\n\n",dsec);
@@ -5044,7 +5040,7 @@ double MSR::GenerateIC() {
     nDark = nSpecies[FIO_SPECIES_DARK];
     nStar = nSpecies[FIO_SPECIES_STAR];
     nBH = nSpecies[FIO_SPECIES_BH];
-    nMaxOrder = N;
+    nMaxOrder = N - 1; // iOrder goes from 0 to N-1
 
     if (param.bVStart)
         printf("Generating IC...\nN:%" PRIu64 " nDark:%" PRIu64
@@ -5169,7 +5165,7 @@ double MSR::Read(const char *achInFile) {
     nDark = fioGetN(fio,FIO_SPECIES_DARK);
     nStar = fioGetN(fio,FIO_SPECIES_STAR);
     nBH   = fioGetN(fio,FIO_SPECIES_BH);
-    nMaxOrder = N;
+    nMaxOrder = N - 1; // iOrder goes from 0 to N-1
 
     read->nProcessors = param.bParaRead==0?1:(param.nParaRead<=1 ? nThreads:param.nParaRead);
 
