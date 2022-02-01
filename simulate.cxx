@@ -36,11 +36,11 @@ double MSR::LoadOrGenerateIC() {
     /* Read in a binary file */
     else if ( param.achInFile[0] ) {
         dTime = Read(param.achInFile); /* May change nSteps/dDelta */
-        if (param.bAddDelete) GetNParts();
     }
     else {
         printf("No input file specified\n");
     }
+    if (param.bAddDelete) GetNParts();
     return dTime;
 }
 
@@ -322,10 +322,8 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
         if (bDoOutput) {
             Output(iStep,dTime,param.dDelta,0);
             bDoOutput = 0;
-            if (param.bNewKDK) {
-                DomainDecomp();
-                BuildTree(param.bEwald);
-            }
+            DomainDecomp();
+            BuildTree(param.bEwald);
         }
     }
     if (LogInterval()) (void) fclose(fpLog);
