@@ -3506,7 +3506,7 @@ int pkdUpdateRung(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     int i;
     int iTempRung;
     assert(!pkd->bNoParticleOrder);
-    for (i=0; i<=iMaxRung; ++i) nRungCount[i] = 0;
+    for (i=0; i<iMaxRung; ++i) nRungCount[i] = 0;
     for (i=0; i<pkdLocal(pkd); ++i) {
         p = pkdParticle(pkd,i);
         if ( pkdIsActive(pkd,p) ) {
