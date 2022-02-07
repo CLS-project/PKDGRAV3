@@ -16,9 +16,9 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#include "config.h"
+    #include "config.h"
 #else
-#include "pkd_config.h"
+    #include "pkd_config.h"
 #endif
 
 #include "SPHOptions.h"
@@ -26,7 +26,7 @@
 #include <stdio.h>
 #include "basetype.h"
 
-SPHOptions initializeSPHOptions(struct parameters param, CSM csm, double dTime){
+SPHOptions initializeSPHOptions(struct parameters param, CSM csm, double dTime) {
     SPHOptions SPHoptions;
     SPHoptions.fKernelTarget = param.fKernelTarget;
     SPHoptions.epsilon = 0.01f;
@@ -34,7 +34,7 @@ SPHOptions initializeSPHOptions(struct parameters param, CSM csm, double dTime){
     SPHoptions.beta = param.dConstBeta;
     SPHoptions.EtaCourant = param.dEtaCourant;
     SPHoptions.gamma = param.dConstGamma;
-    SPHoptions.TuFac = param.dGasConst/(param.dConstGamma - 1)/param.dMeanMolWeight;
+    SPHoptions.TuFac = param.units.dGasConst/(param.dConstGamma - 1)/param.dMeanMolWeight;
     SPHoptions.FastGasFraction = param.dFastGasFraction;
     SPHoptions.nSmooth = param.nSmooth;
     SPHoptions.ballSizeLimit = 10.0f;
@@ -42,7 +42,8 @@ SPHOptions initializeSPHOptions(struct parameters param, CSM csm, double dTime){
     if (csm->val.bComove) {
         SPHoptions.a = csmTime2Exp(csm,dTime);
         SPHoptions.H = csmTime2Hub(csm,dTime);
-    } else {
+    }
+    else {
         SPHoptions.a = 1.0f;
         SPHoptions.H = 0.0f;
     }
@@ -88,10 +89,12 @@ void copySPHOptions(SPHOptions *source, SPHOptions *target) {
 float getDtPredDrift(struct pkdKickParameters *kick, int bMarked, int uRungLo, int uRung) {
     if (uRung < uRungLo) {
         return kick->dtPredDrift[uRung];
-    } else {
+    }
+    else {
         if (bMarked) {
             return - kick->dtOpen[uRung];
-        } else {
+        }
+        else {
             return kick->dtClose[uRung];
         }
     }
