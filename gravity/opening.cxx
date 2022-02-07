@@ -91,137 +91,137 @@ void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,SPHOption
 
     blk = tile->blk;
     for (nLeft=tile->lstTile.nBlocks; nLeft>=0; --nLeft,blk++) {
-	iEnd = nLeft ? cl->lst.nPerBlock : tile->lstTile.nInLast;
-	iEnd = (iEnd+fvec::mask()) >> SIMD_BITS;
+        iEnd = nLeft ? cl->lst.nPerBlock : tile->lstTile.nInLast;
+        iEnd = (iEnd+fvec::mask()) >> SIMD_BITS;
         for (i=0; i<iEnd; ++i) {
-	    fourh2 = blk->fourh2.p[i];
+            fourh2 = blk->fourh2.p[i];
 
-        if (SPHoptions->doDensity || SPHoptions->doSPHForces || SPHoptions->doSetDensityFlags) {
+            if (SPHoptions->doDensity || SPHoptions->doSPHForces || SPHoptions->doSetDensityFlags) {
 #if SPHBALLOFBALLS
-            distk2 = 0.0f;
-            dx = k->fBoBxCenter - fvec(blk->xCenter.p[i]) - fvec(blk->xOffset.p[i]) - fvec(blk->xMax.p[i]);
-            distk2 += maskz_mov(dx>0,dx*dx);
-            dx = fvec(blk->xCenter.p[i]) + fvec(blk->xOffset.p[i]) - fvec(blk->xMax.p[i]) - k->fBoBxCenter;
-            distk2 += maskz_mov(dx>0,dx*dx);
+                distk2 = 0.0f;
+                dx = k->fBoBxCenter - fvec(blk->xCenter.p[i]) - fvec(blk->xOffset.p[i]) - fvec(blk->xMax.p[i]);
+                distk2 += maskz_mov(dx>0,dx*dx);
+                dx = fvec(blk->xCenter.p[i]) + fvec(blk->xOffset.p[i]) - fvec(blk->xMax.p[i]) - k->fBoBxCenter;
+                distk2 += maskz_mov(dx>0,dx*dx);
 
-            dx = k->fBoByCenter - fvec(blk->yCenter.p[i]) - fvec(blk->yOffset.p[i]) - fvec(blk->yMax.p[i]);
-            distk2 += maskz_mov(dx>0,dx*dx);
-            dx = fvec(blk->yCenter.p[i]) + fvec(blk->yOffset.p[i]) - fvec(blk->yMax.p[i]) - k->fBoByCenter;
-            distk2 += maskz_mov(dx>0,dx*dx);
+                dx = k->fBoByCenter - fvec(blk->yCenter.p[i]) - fvec(blk->yOffset.p[i]) - fvec(blk->yMax.p[i]);
+                distk2 += maskz_mov(dx>0,dx*dx);
+                dx = fvec(blk->yCenter.p[i]) + fvec(blk->yOffset.p[i]) - fvec(blk->yMax.p[i]) - k->fBoByCenter;
+                distk2 += maskz_mov(dx>0,dx*dx);
 
-            dx = k->fBoBzCenter - fvec(blk->zCenter.p[i]) - fvec(blk->zOffset.p[i]) - fvec(blk->zMax.p[i]);
-            distk2 += maskz_mov(dx>0,dx*dx);
-            dx = fvec(blk->zCenter.p[i]) + fvec(blk->zOffset.p[i]) - fvec(blk->zMax.p[i]) - k->fBoBzCenter;
-            distk2 += maskz_mov(dx>0,dx*dx);
-            intersect1 = distk2 < k_fBoBr2;
+                dx = k->fBoBzCenter - fvec(blk->zCenter.p[i]) - fvec(blk->zOffset.p[i]) - fvec(blk->zMax.p[i]);
+                distk2 += maskz_mov(dx>0,dx*dx);
+                dx = fvec(blk->zCenter.p[i]) + fvec(blk->zOffset.p[i]) - fvec(blk->zMax.p[i]) - k->fBoBzCenter;
+                distk2 += maskz_mov(dx>0,dx*dx);
+                intersect1 = distk2 < k_fBoBr2;
 #endif
 #if SPHBOXOFBALLS
-            box1xMin = k->fBoBxMin;
-            box1xMax = k->fBoBxMax;
-            box1yMin = k->fBoByMin;
-            box1yMax = k->fBoByMax;
-            box1zMin = k->fBoBzMin;
-            box1zMax = k->fBoBzMax;
-            box2xMin = fvec(blk->xCenter.p[i]) + fvec(blk->xOffset.p[i]) - fvec(blk->xMax.p[i]);
-            box2xMax = fvec(blk->xCenter.p[i]) + fvec(blk->xOffset.p[i]) + fvec(blk->xMax.p[i]);
-            box2yMin = fvec(blk->yCenter.p[i]) + fvec(blk->yOffset.p[i]) - fvec(blk->yMax.p[i]);
-            box2yMax = fvec(blk->yCenter.p[i]) + fvec(blk->yOffset.p[i]) + fvec(blk->yMax.p[i]);
-            box2zMin = fvec(blk->zCenter.p[i]) + fvec(blk->zOffset.p[i]) - fvec(blk->zMax.p[i]);
-            box2zMax = fvec(blk->zCenter.p[i]) + fvec(blk->zOffset.p[i]) + fvec(blk->zMax.p[i]);
-            intersect1 = (box1xMin < box2xMax) & (box2xMin < box1xMax) & (box1yMin < box2yMax) & (box2yMin < box1yMax) & (box1zMin < box2zMax) & (box2zMin < box1zMax);
+                box1xMin = k->fBoBxMin;
+                box1xMax = k->fBoBxMax;
+                box1yMin = k->fBoByMin;
+                box1yMax = k->fBoByMax;
+                box1zMin = k->fBoBzMin;
+                box1zMax = k->fBoBzMax;
+                box2xMin = fvec(blk->xCenter.p[i]) + fvec(blk->xOffset.p[i]) - fvec(blk->xMax.p[i]);
+                box2xMax = fvec(blk->xCenter.p[i]) + fvec(blk->xOffset.p[i]) + fvec(blk->xMax.p[i]);
+                box2yMin = fvec(blk->yCenter.p[i]) + fvec(blk->yOffset.p[i]) - fvec(blk->yMax.p[i]);
+                box2yMax = fvec(blk->yCenter.p[i]) + fvec(blk->yOffset.p[i]) + fvec(blk->yMax.p[i]);
+                box2zMin = fvec(blk->zCenter.p[i]) + fvec(blk->zOffset.p[i]) - fvec(blk->zMax.p[i]);
+                box2zMax = fvec(blk->zCenter.p[i]) + fvec(blk->zOffset.p[i]) + fvec(blk->zMax.p[i]);
+                intersect1 = (box1xMin < box2xMax) & (box2xMin < box1xMax) & (box1yMin < box2yMax) & (box2yMin < box1yMax) & (box1zMin < box2zMax) & (box2zMin < box1zMax);
 #endif
-        }
-        if (SPHoptions->doSPHForces || SPHoptions->doSetDensityFlags) {
+            }
+            if (SPHoptions->doSPHForces || SPHoptions->doSetDensityFlags) {
 #if SPHBALLOFBALLS
-            blk_fBoBr2 = blk->fBoBr2.p[i];
-            distc2 = 0.0f;
-            dx = k_xMinBnd - fvec(blk->fBoBxCenter.p[i]) - fvec(blk->xOffset.p[i]);
-            distc2 += maskz_mov(dx>0,dx*dx);
-            dx = fvec(blk->fBoBxCenter.p[i]) + fvec(blk->xOffset.p[i]) - k_xMaxBnd;
-            distc2 += maskz_mov(dx>0,dx*dx);
+                blk_fBoBr2 = blk->fBoBr2.p[i];
+                distc2 = 0.0f;
+                dx = k_xMinBnd - fvec(blk->fBoBxCenter.p[i]) - fvec(blk->xOffset.p[i]);
+                distc2 += maskz_mov(dx>0,dx*dx);
+                dx = fvec(blk->fBoBxCenter.p[i]) + fvec(blk->xOffset.p[i]) - k_xMaxBnd;
+                distc2 += maskz_mov(dx>0,dx*dx);
 
-            dx = k_yMinBnd - fvec(blk->fBoByCenter.p[i]) - fvec(blk->yOffset.p[i]);
-            distc2 += maskz_mov(dx>0,dx*dx);
-            dx = fvec(blk->fBoByCenter.p[i]) + fvec(blk->yOffset.p[i]) - k_yMaxBnd;
-            distc2 += maskz_mov(dx>0,dx*dx);
+                dx = k_yMinBnd - fvec(blk->fBoByCenter.p[i]) - fvec(blk->yOffset.p[i]);
+                distc2 += maskz_mov(dx>0,dx*dx);
+                dx = fvec(blk->fBoByCenter.p[i]) + fvec(blk->yOffset.p[i]) - k_yMaxBnd;
+                distc2 += maskz_mov(dx>0,dx*dx);
 
-            dx = k_zMinBnd - fvec(blk->fBoBzCenter.p[i]) - fvec(blk->zOffset.p[i]);
-            distc2 += maskz_mov(dx>0,dx*dx);
-            dx = fvec(blk->fBoBzCenter.p[i]) + fvec(blk->zOffset.p[i]) - k_zMaxBnd;
-            distc2 += maskz_mov(dx>0,dx*dx);
-            intersect2 = distc2 < blk_fBoBr2;
+                dx = k_zMinBnd - fvec(blk->fBoBzCenter.p[i]) - fvec(blk->zOffset.p[i]);
+                distc2 += maskz_mov(dx>0,dx*dx);
+                dx = fvec(blk->fBoBzCenter.p[i]) + fvec(blk->zOffset.p[i]) - k_zMaxBnd;
+                distc2 += maskz_mov(dx>0,dx*dx);
+                intersect2 = distc2 < blk_fBoBr2;
 #endif
 #if SPHBOXOFBALLS
-            box1xMin = k_xMinBnd;
-            box1xMax = k_xMaxBnd;
-            box1yMin = k_yMinBnd;
-            box1yMax = k_yMaxBnd;
-            box1zMin = k_zMinBnd;
-            box1zMax = k_zMaxBnd;
-            box2xMin = fvec(blk->fBoBxMin.p[i]) + fvec(blk->xOffset.p[i]);
-            box2xMax = fvec(blk->fBoBxMax.p[i]) + fvec(blk->xOffset.p[i]);
-            box2yMin = fvec(blk->fBoByMin.p[i]) + fvec(blk->yOffset.p[i]);
-            box2yMax = fvec(blk->fBoByMax.p[i]) + fvec(blk->yOffset.p[i]);
-            box2zMin = fvec(blk->fBoBzMin.p[i]) + fvec(blk->zOffset.p[i]);
-            box2zMax = fvec(blk->fBoBzMax.p[i]) + fvec(blk->zOffset.p[i]);
-            intersect2 = (box1xMin < box2xMax) & (box2xMin < box1xMax) & (box1yMin < box2yMax) & (box2yMin < box1yMax) & (box1zMin < box2zMax) & (box2zMin < box1zMax);
+                box1xMin = k_xMinBnd;
+                box1xMax = k_xMaxBnd;
+                box1yMin = k_yMinBnd;
+                box1yMax = k_yMaxBnd;
+                box1zMin = k_zMinBnd;
+                box1zMax = k_zMaxBnd;
+                box2xMin = fvec(blk->fBoBxMin.p[i]) + fvec(blk->xOffset.p[i]);
+                box2xMax = fvec(blk->fBoBxMax.p[i]) + fvec(blk->xOffset.p[i]);
+                box2yMin = fvec(blk->fBoByMin.p[i]) + fvec(blk->yOffset.p[i]);
+                box2yMax = fvec(blk->fBoByMax.p[i]) + fvec(blk->yOffset.p[i]);
+                box2zMin = fvec(blk->fBoBzMin.p[i]) + fvec(blk->zOffset.p[i]);
+                box2zMax = fvec(blk->fBoBzMax.p[i]) + fvec(blk->zOffset.p[i]);
+                intersect2 = (box1xMin < box2xMax) & (box2xMin < box1xMax) & (box1yMin < box2yMax) & (box2yMin < box1yMax) & (box1zMin < box2zMax) & (box2zMin < box1zMax);
 #endif
+            }
+
+            xc = fvec(blk->x.p[i]) + fvec(blk->xOffset.p[i]);
+            yc = fvec(blk->y.p[i]) + fvec(blk->yOffset.p[i]);
+            zc = fvec(blk->z.p[i]) + fvec(blk->zOffset.p[i]);
+            dx = k_x - xc;
+            dy = k_y - yc;
+            dz = k_z - zc;
+            d2 = dx*dx + dy*dy + dz*dz;
+            cOpen = blk->cOpen.p[i];
+            cOpen2 = cOpen*cOpen;
+            d2Open = cOpen + k_Open;
+            d2Open = d2Open*d2Open;
+
+            dx = abs(xc-k_xCenter) - k_xMax;
+            dy = abs(yc-k_yCenter) - k_yMax;
+            dz = abs(zc-k_zCenter) - k_zMax;
+
+            dx = maskz_mov(dx>0,dx);
+            dy = maskz_mov(dy>0,dy);
+            dz = maskz_mov(dz>0,dz);
+            mink2 = dx*dx + dy*dy + dz*dz;
+            minbnd2 = 0.0f;
+
+            dx = k_xMinBnd - fvec(blk->xCenter.p[i]) - fvec(blk->xOffset.p[i]) - fvec(blk->xMax.p[i]);
+            minbnd2 += maskz_mov(dx>0,dx*dx);
+            dx = fvec(blk->xCenter.p[i]) + fvec(blk->xOffset.p[i]) - fvec(blk->xMax.p[i]) - k_xMaxBnd;
+            minbnd2 += maskz_mov(dx>0,dx*dx);
+
+            dx = k_yMinBnd - fvec(blk->yCenter.p[i]) - fvec(blk->yOffset.p[i]) - fvec(blk->yMax.p[i]);
+            minbnd2 += maskz_mov(dx>0,dx*dx);
+            dx = fvec(blk->yCenter.p[i]) + fvec(blk->yOffset.p[i]) - fvec(blk->yMax.p[i]) - k_yMaxBnd;
+            minbnd2 += maskz_mov(dx>0,dx*dx);
+
+            dx = k_zMinBnd - fvec(blk->zCenter.p[i]) - fvec(blk->zOffset.p[i]) - fvec(blk->zMax.p[i]);
+            minbnd2 += maskz_mov(dx>0,dx*dx);
+            dx = fvec(blk->zCenter.p[i]) + fvec(blk->zOffset.p[i]) - fvec(blk->zMax.p[i]) - k_zMaxBnd;
+            minbnd2 += maskz_mov(dx>0,dx*dx);
+
+            T0 = fvec(blk->m.p[i]) > fvec(0.0f);
+            T1 = (d2>d2Open) & (minbnd2>fourh2) & ~intersect1 & ~intersect2;
+            T2 = cvt_fvec(i32v(blk->iLower.p[i])) == 0.0;
+            T3 = (walk_min_multipole > cvt_fvec(i32v(blk->nc.p[i]))) | (mink2<=cOpen2);
+            T4 = (minbnd2 > fourh2) & ~intersect1 & ~intersect2;
+            T6 = cOpen > k_Open;
+            T7 = k_notgrp;
+            iOpenA = mask_mov(i32v(3),T2,i32v(1));
+            iOpenB = mask_mov(mask_mov(iOpenA,T4,i32v(4)),T3,iOpenA);
+            P1 = mask_mov(i32v(3),T2,i32v(2));
+            P2 = mask_mov(iOpenB,T7,i32v(0));
+            P3 = mask_mov(P2,T6,P1);
+            P4 = mask_mov(P3,T1,i32v(8));
+            iOpen = mask_mov(i32v(10),T0,P4);
+            blk->iOpen.p[i] = iOpen;
         }
-
-	    xc = fvec(blk->x.p[i]) + fvec(blk->xOffset.p[i]);
-	    yc = fvec(blk->y.p[i]) + fvec(blk->yOffset.p[i]);
-	    zc = fvec(blk->z.p[i]) + fvec(blk->zOffset.p[i]);
-	    dx = k_x - xc;
-	    dy = k_y - yc;
-	    dz = k_z - zc;
-	    d2 = dx*dx + dy*dy + dz*dz;
-	    cOpen = blk->cOpen.p[i];
-	    cOpen2 = cOpen*cOpen;
-	    d2Open = cOpen + k_Open;
-	    d2Open = d2Open*d2Open;
-
-	    dx = abs(xc-k_xCenter) - k_xMax;
-	    dy = abs(yc-k_yCenter) - k_yMax;
-	    dz = abs(zc-k_zCenter) - k_zMax;
-
-	    dx = maskz_mov(dx>0,dx);
-	    dy = maskz_mov(dy>0,dy);
-	    dz = maskz_mov(dz>0,dz);
-	    mink2 = dx*dx + dy*dy + dz*dz;
-	    minbnd2 = 0.0f;
-
-	    dx = k_xMinBnd - fvec(blk->xCenter.p[i]) - fvec(blk->xOffset.p[i]) - fvec(blk->xMax.p[i]);
-	    minbnd2 += maskz_mov(dx>0,dx*dx);
-	    dx = fvec(blk->xCenter.p[i]) + fvec(blk->xOffset.p[i]) - fvec(blk->xMax.p[i]) - k_xMaxBnd;
-	    minbnd2 += maskz_mov(dx>0,dx*dx);
-
-	    dx = k_yMinBnd - fvec(blk->yCenter.p[i]) - fvec(blk->yOffset.p[i]) - fvec(blk->yMax.p[i]);
-	    minbnd2 += maskz_mov(dx>0,dx*dx);
-	    dx = fvec(blk->yCenter.p[i]) + fvec(blk->yOffset.p[i]) - fvec(blk->yMax.p[i]) - k_yMaxBnd;
-	    minbnd2 += maskz_mov(dx>0,dx*dx);
-
-	    dx = k_zMinBnd - fvec(blk->zCenter.p[i]) - fvec(blk->zOffset.p[i]) - fvec(blk->zMax.p[i]);
-	    minbnd2 += maskz_mov(dx>0,dx*dx);
-	    dx = fvec(blk->zCenter.p[i]) + fvec(blk->zOffset.p[i]) - fvec(blk->zMax.p[i]) - k_zMaxBnd;
-	    minbnd2 += maskz_mov(dx>0,dx*dx);
-
-	    T0 = fvec(blk->m.p[i]) > fvec(0.0f);
-	    T1 = (d2>d2Open) & (minbnd2>fourh2) & ~intersect1 & ~intersect2;
-	    T2 = cvt_fvec(i32v(blk->iLower.p[i])) == 0.0;
-	    T3 = (walk_min_multipole > cvt_fvec(i32v(blk->nc.p[i]))) | (mink2<=cOpen2);
-	    T4 = (minbnd2 > fourh2) & ~intersect1 & ~intersect2;
-	    T6 = cOpen > k_Open;
-	    T7 = k_notgrp;
- 	    iOpenA = mask_mov(i32v(3),T2,i32v(1));
-	    iOpenB = mask_mov(mask_mov(iOpenA,T4,i32v(4)),T3,iOpenA);
-	    P1 = mask_mov(i32v(3),T2,i32v(2));
-	    P2 = mask_mov(iOpenB,T7,i32v(0));
-	    P3 = mask_mov(P2,T6,P1);
-	    P4 = mask_mov(P3,T1,i32v(8));
-	    iOpen = mask_mov(i32v(10),T0,P4);
-	    blk->iOpen.p[i] = iOpen;
-	    }
-	}
+    }
     double dFlop = COST_FLOP_OPEN*(tile->lstTile.nBlocks*CL_PART_PER_BLK  + tile->lstTile.nInLast);
     pkd->dFlop += dFlop;
     pkd->dFlopSingleCPU += dFlop;

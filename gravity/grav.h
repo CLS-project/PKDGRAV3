@@ -37,10 +37,10 @@ void pkdGravFinishEwald(PKD pkd);
 extern "C" {
 #endif
 int pkdGravInteract(PKD pkd,
-    struct pkdKickParameters *kick,struct pkdLightconeParameters *lc,struct pkdTimestepParameters *ts,
-    KDN *pBucket,LOCR *pLoc,ILP ilp,ILC ilc,
-    float dirLsum,float normLsum,int bEwald,double *pdFlop,
-    SMX smx,SMF *smf,int iRoot1,int iRoot2,SPHOptions *SPHoptions);
+                    struct pkdKickParameters *kick,struct pkdLightconeParameters *lc,struct pkdTimestepParameters *ts,
+                    KDN *pBucket,LOCR *pLoc,ILP ilp,ILC ilc,
+                    float dirLsum,float normLsum,int bEwald,double *pdFlop,
+                    SMX smx,SMF *smf,int iRoot1,int iRoot2,SPHOptions *SPHoptions);
 #ifdef __cplusplus
 }
 #endif

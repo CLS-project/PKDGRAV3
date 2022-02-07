@@ -75,18 +75,18 @@ protected:
     size_t requestBufferCount, resultsBufferCount;
     int nInteractionBlocks, nGrid;
     struct workInformation {
-    	workParticle *wp;
-	size_t nInteractions;
-	workInformation(workParticle *wp, size_t nInteractions) : wp(wp), nInteractions(nInteractions) {}
-	};
+        workParticle *wp;
+        size_t nInteractions;
+        workInformation(workParticle *wp, size_t nInteractions) : wp(wp), nInteractions(nInteractions) {}
+    };
     std::vector<workInformation> work; // [CUDA_WP_MAX_BUFFERED]
     virtual void launch(cudaStream_t stream,void *pCudaBufIn, void *pCudaBufOut) override;
     virtual void finish() override;
 public:
     explicit MessagePPPC(mdl::messageQueue<MessagePPPC> &freeQueue);
-	// : cuda(cuda), requestBufferCount(0), resultsBufferCount(0), nInteractionBlocks(0) {
-	// work.reserve(CUDA_WP_MAX_BUFFERED);
-	// }
+    // : cuda(cuda), requestBufferCount(0), resultsBufferCount(0), nInteractionBlocks(0) {
+    // work.reserve(CUDA_WP_MAX_BUFFERED);
+    // }
 
     void clear();
     bool queue(workParticle *wp, TILE *tile, bool bGravStep);

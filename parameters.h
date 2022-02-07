@@ -136,7 +136,7 @@ struct parameters {
     double SFdvFB;
     int SFbdivv;
     double fKernelTarget;
-    
+
 
     /* END Gas Parameters */
     double dEta;
@@ -176,12 +176,12 @@ struct parameters {
     /*
     ** Additional parameters for group finding.
     */
-    int	bFindGroups;
+    int bFindGroups;
     int bFindHopGroups;
-    int	nMinMembers;
+    int nMinMembers;
     double dHopTau;
     double dTau;
-    int	bTraceRelaxation;
+    int bTraceRelaxation;
     /*
     ** Parameters for group stats.
     */
@@ -338,7 +338,7 @@ struct parameters {
     int bDoLinPkOutput;
     int nBinsLinPk;
     int iDeltakInterval;
-  double dDeltakRedshift;
+    double dDeltakRedshift;
 #endif
 
     /*

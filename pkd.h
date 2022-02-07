@@ -66,22 +66,22 @@ static inline int64_t d2u64(double d) {
 ** Handy type punning macro.
 */
 #define UNION_CAST(x, sourceType, destType) \
-	(((union {sourceType a; destType b;})x).b)
+    (((union {sourceType a; destType b;})x).b)
 /*
 ** The following sort of definition should really be in a global
 ** configuration header file -- someday...
 */
 
-#define CID_PARTICLE	0
-#define CID_CELL	1
-#define CID_PARTICLE2	8
-#define CID_CELL2	9
+#define CID_PARTICLE    0
+#define CID_CELL    1
+#define CID_PARTICLE2   8
+#define CID_CELL2   9
 #define CID_HEALPIX     7
-#define CID_GROUP	2
+#define CID_GROUP   2
 #define CID_SHRINK      3
-#define CID_RM		3
-#define CID_BIN		4
-#define CID_SHAPES	5
+#define CID_RM      3
+#define CID_BIN     4
+#define CID_SHAPES  5
 #define CID_PK          2
 #define CID_GridLinFx   2
 #define CID_GridLinFy   10
@@ -96,7 +96,7 @@ static inline int64_t d2u64(double d) {
 #define A_VERY_ACTIVE  1
 
 
-#define MAX_TIMERS		10
+#define MAX_TIMERS      10
 
 /*
 ** Memory models.  Each is a bit mask that indicates that additional fields should be
@@ -144,7 +144,7 @@ typedef struct {
 */
 #define FIXROOT         3
 #define VAROOT          3
-#define ROOT		1
+#define ROOT        1
 #define NRESERVED_NODES MAX_RUNG+1
 
 typedef struct partclass {
@@ -153,12 +153,12 @@ typedef struct partclass {
     FIO_SPECIES eSpecies; /* Species: dark, star, etc. */
 #ifdef __cplusplus
     bool operator <(const struct partclass &b) const {
-	if ( fMass < b.fMass ) return true;
-	else if ( fMass > b.fMass ) return false;
-	else if ( fSoft < b.fSoft ) return true;
-	else if ( fSoft > b.fSoft ) return false;
-	else return eSpecies < b.eSpecies;
-	}
+        if ( fMass < b.fMass ) return true;
+        else if ( fMass > b.fMass ) return false;
+        else if ( fSoft < b.fSoft ) return true;
+        else if ( fSoft > b.fSoft ) return false;
+        else return eSpecies < b.eSpecies;
+    }
 #endif
 } PARTCLASS;
 
@@ -180,15 +180,15 @@ typedef struct sphfields {
 
     float c;        /* sound speed */
 #ifndef OPTIM_REMOVE_UNUSED
-    float u;	        /* thermal energy */ 
-    float uPred;	/* predicted thermal energy */
+    float u;            /* thermal energy */
+    float uPred;    /* predicted thermal energy */
     float uDot;
     float divv;
     float BalsaraSwitch;    /* Balsara viscosity reduction */
-    float fMetals;	    /* mass fraction in metals, a.k.a, Z - tipsy output variable */
+    float fMetals;      /* mass fraction in metals, a.k.a, Z - tipsy output variable */
 
     /* diffusion */
-    float diff; 
+    float diff;
     float fMetalsPred;
     float fMetalsDot;
 #endif //OPTIM_REMOVE_UNUSED
@@ -282,7 +282,7 @@ typedef struct newsphfields {
     float divv;         /* Divergence of v */
     float u;            /* Thermodynamical variable, can be T, A(s) or u */
     float uDot;         /* Derivative of the thermodynamical variable */
-    } NEWSPHFIELDS;
+} NEWSPHFIELDS;
 
 typedef struct starfields {
     double omega;
@@ -347,24 +347,24 @@ typedef struct partLightCone {
 **    PARTITION(pi<pj,pi<=pj,
 **              pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
 **              pkdSwapParticle(pkd,pi,pj),
-**	        pi->r[d] >= fSplit,pj->r[d] < fSplit);
+**          pi->r[d] >= fSplit,pj->r[d] < fSplit);
 ** When finished, the 'I' variable points to the first element of
 ** the upper partition (or one past the end).
 ** NOTE: Because this function supports tiled data structures,
 **       the LT, followed by "if (LE)" needs to remain this way.
 */
-#define PARTITION(LT,LE,INCI,DECJ,SWAP,LOWER,UPPER)	\
-    {							\
-    while ((LT) && (LOWER)) { INCI; }			\
-    if ((LE) && (LOWER)) { INCI; }			\
-    else {						\
-	while ((LT) && (UPPER)) { DECJ; }		\
-	while (LT) {					\
-		    { SWAP; }				\
-		    do { DECJ; } while (UPPER);	\
-		    do { INCI; } while (LOWER);		\
-	    }						\
-	}						\
+#define PARTITION(LT,LE,INCI,DECJ,SWAP,LOWER,UPPER) \
+    {                           \
+    while ((LT) && (LOWER)) { INCI; }           \
+    if ((LE) && (LOWER)) { INCI; }          \
+    else {                      \
+    while ((LT) && (UPPER)) { DECJ; }       \
+    while (LT) {                    \
+            { SWAP; }               \
+            do { DECJ; } while (UPPER); \
+            do { INCI; } while (LOWER);     \
+        }                       \
+    }                       \
     }
 
 #define NEW_STACK(S,inc) \
@@ -386,27 +386,27 @@ typedef struct partLightCone {
 #define STACK_SIZE(S) (S ## __s)
 
 /* This macro give the id (processor) and index of the two child cells */
-#define pkdGetChildCells(c,id,idLower,idxLower,idUpper,idxUpper)	\
-    do {								\
-        idxLower = c->iLower;   /* This is always true */		\
-	idLower = idUpper = id; /* Default */				\
-	if (c->bTopTree) {						\
-	    /* We may point off node, but then nodes are adjacent */	\
-	    if (c->bRemote) {						\
-		idLower = c->pLower;					\
-		idUpper = idLower;					\
-		idxUpper = idxLower+1;					\
-		}							\
-	    else {							\
-		idxUpper = c->pUpper;					\
-		}							\
-	    }								\
-	else { idxUpper = idxLower+1; }					\
-	} while(0)							\
+#define pkdGetChildCells(c,id,idLower,idxLower,idUpper,idxUpper)    \
+    do {                                \
+        idxLower = c->iLower;   /* This is always true */       \
+    idLower = idUpper = id; /* Default */               \
+    if (c->bTopTree) {                      \
+        /* We may point off node, but then nodes are adjacent */    \
+        if (c->bRemote) {                       \
+        idLower = c->pLower;                    \
+        idUpper = idLower;                  \
+        idxUpper = idxLower+1;                  \
+        }                           \
+        else {                          \
+        idxUpper = c->pUpper;                   \
+        }                           \
+        }                               \
+    else { idxUpper = idxLower+1; }                 \
+    } while(0)                          \
 
 typedef struct kdNode {
-    int pLower;		     /* also serves as thread id for the LTT */
-    int pUpper;		     /* pUpper < 0 indicates no particles in tree! */
+    int pLower;          /* also serves as thread id for the LTT */
+    int pUpper;          /* pUpper < 0 indicates no particles in tree! */
     uint32_t iLower;         /* Local lower node (or remote processor w/bRemote=1) */
     uint32_t iDepth     : 15;
     uint32_t bGroup     : 1;
@@ -436,76 +436,76 @@ typedef struct kdNode {
 
 typedef struct sphBounds {
     struct minmaxBound {
-	double min[3];
-	double max[3];
+        double min[3];
+        double max[3];
     } A,B,BI;
 } SPHBNDS;
 
 
-#define NMAX_OPENCALC	1000
+#define NMAX_OPENCALC   1000
 
 #define MAXSIDE(fMax,b) {\
     if ((fMax)[0] > (fMax)[1]) {\
-	if ((fMax)[0] > (fMax)[2]) b = 2.0*(fMax)[0];\
-	else b = 2.0*(fMax)[2];\
-	}\
+    if ((fMax)[0] > (fMax)[2]) b = 2.0*(fMax)[0];\
+    else b = 2.0*(fMax)[2];\
+    }\
     else {\
-	if ((fMax)[1] > (fMax)[2]) b = 2.0*(fMax)[1];\
-	else b = 2.0*(fMax)[2];\
-	}\
+    if ((fMax)[1] > (fMax)[2]) b = 2.0*(fMax)[1];\
+    else b = 2.0*(fMax)[2];\
+    }\
     }
 
 #define MINSIDE(fMax,b) {\
     if ((fMax)[0] < (fMax)[1]) {\
-	if ((fMax)[0] < (fMax)[2]) b = 2.0*(fMax)[0];\
-	else b = 2.0*(fMax)[2];\
-	}\
+    if ((fMax)[0] < (fMax)[2]) b = 2.0*(fMax)[0];\
+    else b = 2.0*(fMax)[2];\
+    }\
     else {\
-	if ((fMax)[1] < (fMax)[2]) b = 2.0*(fMax)[1];\
-	else b = 2.0*(fMax)[2];\
-	}\
+    if ((fMax)[1] < (fMax)[2]) b = 2.0*(fMax)[1];\
+    else b = 2.0*(fMax)[2];\
+    }\
     }
 
 #define MINDIST(bnd,pos,min2) {\
     double BND_dMin;\
     int BND_j;\
-    (min2) = 0;					\
-    for (BND_j=0;BND_j<3;++BND_j) {					\
-	BND_dMin = fabs((bnd)->fCenter[BND_j] - (pos)[BND_j]) - (bnd)->fMax[BND_j]; \
-	if (BND_dMin > 0) (min2) += BND_dMin*BND_dMin;			\
-	}\
+    (min2) = 0;                 \
+    for (BND_j=0;BND_j<3;++BND_j) {                 \
+    BND_dMin = fabs((bnd)->fCenter[BND_j] - (pos)[BND_j]) - (bnd)->fMax[BND_j]; \
+    if (BND_dMin > 0) (min2) += BND_dMin*BND_dMin;          \
+    }\
     }
-#define MAXDIST(bnd,pos,max2) {					\
-    double BND_dMax;							\
-    int BND_j;								\
-    (max2) = 0;							        \
-    for (BND_j=0;BND_j<3;++BND_j) {				        \
-	BND_dMax = fabs((bnd)->fCenter[BND_j] - (pos)[BND_j]) + (bnd)->fMax[BND_j];		\
-	(max2) += BND_dMax*BND_dMax;					\
-    }								\
+#define MAXDIST(bnd,pos,max2) {                 \
+    double BND_dMax;                            \
+    int BND_j;                              \
+    (max2) = 0;                                 \
+    for (BND_j=0;BND_j<3;++BND_j) {                     \
+    BND_dMax = fabs((bnd)->fCenter[BND_j] - (pos)[BND_j]) + (bnd)->fMax[BND_j];     \
+    (max2) += BND_dMax*BND_dMax;                    \
+    }                               \
     }
 
-#define CALCOPEN(pkdn,minside) {					\
-        double CALCOPEN_d2 = 0;						\
-	double CALCOPEN_b;						\
-	const BND CALCOPEN_bnd = pkdNodeGetBnd(pkd, pkdn);		\
-	double CALCOPEN_r[3];						\
-	pkdNodeGetPos(pkd, (pkdn), CALCOPEN_r);				\
-	MAXDIST(&CALCOPEN_bnd,CALCOPEN_r,CALCOPEN_d2)			\
-	MAXSIDE(CALCOPEN_bnd.fMax,CALCOPEN_b);				\
-	if (CALCOPEN_b < minside) CALCOPEN_b = minside;			\
-	if (CALCOPEN_b*CALCOPEN_b < CALCOPEN_d2) CALCOPEN_b = sqrt(CALCOPEN_d2); \
-	(pkdn)->bMax = CALCOPEN_b;					\
-	}
+#define CALCOPEN(pkdn,minside) {                    \
+        double CALCOPEN_d2 = 0;                     \
+    double CALCOPEN_b;                      \
+    const BND CALCOPEN_bnd = pkdNodeGetBnd(pkd, pkdn);      \
+    double CALCOPEN_r[3];                       \
+    pkdNodeGetPos(pkd, (pkdn), CALCOPEN_r);             \
+    MAXDIST(&CALCOPEN_bnd,CALCOPEN_r,CALCOPEN_d2)           \
+    MAXSIDE(CALCOPEN_bnd.fMax,CALCOPEN_b);              \
+    if (CALCOPEN_b < minside) CALCOPEN_b = minside;         \
+    if (CALCOPEN_b*CALCOPEN_b < CALCOPEN_d2) CALCOPEN_b = sqrt(CALCOPEN_d2); \
+    (pkdn)->bMax = CALCOPEN_b;                  \
+    }
 
 #if (0)
-#define CALCOPEN(pkdn) {						\
-        double CALCOPEN_d2 = 0;						\
-	const BND CALCOPEN_bnd = pkdNodeGetBnd(pkd, pkdn);		\
-	MAXDIST(&CALCOPEN_bnd,(pkdn)->r,CALCOPEN_d2)			\
-        CALCOPEN_d2 = sqrt(CALCOPEN_d2);	  \
-        if (CALCOPEN_d2 < (pkdn)->bMax) (pkdn)->bMax = CALCOPEN_d2;	  \
-	}
+#define CALCOPEN(pkdn) {                        \
+        double CALCOPEN_d2 = 0;                     \
+    const BND CALCOPEN_bnd = pkdNodeGetBnd(pkd, pkdn);      \
+    MAXDIST(&CALCOPEN_bnd,(pkdn)->r,CALCOPEN_d2)            \
+        CALCOPEN_d2 = sqrt(CALCOPEN_d2);      \
+        if (CALCOPEN_d2 < (pkdn)->bMax) (pkdn)->bMax = CALCOPEN_d2;   \
+    }
 #endif
 
 /*
@@ -533,18 +533,18 @@ typedef struct RhoLocalArray {
 #if defined(USE_SIMD) && !defined(__CUDACC__)
 typedef struct {
     struct PMOMC {
-	v_df m;
-	v_df xx,yy,xy,xz,yz;
-	v_df xxx,xyy,xxy,yyy,xxz,yyz,xyz;
-	v_df xxxx,xyyy,xxxy,yyyy,xxxz,yyyz,xxyy,xxyz,xyyz;
-	v_df zz;
-	v_df xzz,yzz,zzz;
-	v_df xxzz,xyzz,xzzz,yyzz,yzzz,zzzz;
-	} ewm;
+        v_df m;
+        v_df xx,yy,xy,xz,yz;
+        v_df xxx,xyy,xxy,yyy,xxz,yyz,xyz;
+        v_df xxxx,xyyy,xxxy,yyyy,xxxz,yyyz,xxyy,xxyz,xyyz;
+        v_df zz;
+        v_df xzz,yzz,zzz;
+        v_df xxzz,xyzz,xzzz,yyzz,yzzz,zzzz;
+    } ewm;
     struct PEWALDVARS {
-	v_df fEwCut2,fInner2,alpha,alpha2,ialpha,k1,ka;
-	v_df Q4xx,Q4xy,Q4xz,Q4yy,Q4yz,Q4zz,Q4,Q3x,Q3y,Q3z,Q2;
-	} ewp;
+        v_df fEwCut2,fInner2,alpha,alpha2,ialpha,k1,ka;
+        v_df Q4xx,Q4xy,Q4xz,Q4yy,Q4yz,Q4zz,Q4,Q3x,Q3y,Q3z,Q2;
+    } ewp;
 } ewaldSIMD;
 #endif
 
@@ -693,9 +693,9 @@ struct psGroupTable {
 };
 
 typedef struct groupBin {
-  double fRadius;
-  int nMembers;
-  double fMassInBin;
+    double fRadius;
+    int nMembers;
+    double fMassInBin;
 } FOFBIN;
 
 typedef struct profileBin {
@@ -931,37 +931,37 @@ typedef struct pkdContext {
 
 
 #if defined(USE_SIMD) && defined(__SSE2__) && 0
-#define pkdMinMax(dVal,dMin,dMax) do {					\
+#define pkdMinMax(dVal,dMin,dMax) do {                  \
     (dMin)[0] = _mm_cvtsd_f64(_mm_min_sd(_mm_set_sd((dMin)[0]),_mm_set_sd((dVal)[0]))); \
-    (dMin)[1] = _mm_cvtsd_f64(_mm_min_sd(_mm_set_sd((dMin)[1]),_mm_set_sd((dVal)[1])));	\
-    (dMin)[2] = _mm_cvtsd_f64(_mm_min_sd(_mm_set_sd((dMin)[2]),_mm_set_sd((dVal)[2])));	\
-    (dMax)[0] = _mm_cvtsd_f64(_mm_max_sd(_mm_set_sd((dMax)[0]),_mm_set_sd((dVal)[0])));	\
-    (dMax)[1] = _mm_cvtsd_f64(_mm_max_sd(_mm_set_sd((dMax)[1]),_mm_set_sd((dVal)[1])));	\
+    (dMin)[1] = _mm_cvtsd_f64(_mm_min_sd(_mm_set_sd((dMin)[1]),_mm_set_sd((dVal)[1]))); \
+    (dMin)[2] = _mm_cvtsd_f64(_mm_min_sd(_mm_set_sd((dMin)[2]),_mm_set_sd((dVal)[2]))); \
+    (dMax)[0] = _mm_cvtsd_f64(_mm_max_sd(_mm_set_sd((dMax)[0]),_mm_set_sd((dVal)[0]))); \
+    (dMax)[1] = _mm_cvtsd_f64(_mm_max_sd(_mm_set_sd((dMax)[1]),_mm_set_sd((dVal)[1]))); \
     (dMax)[2] = _mm_cvtsd_f64(_mm_max_sd(_mm_set_sd((dMax)[2]),_mm_set_sd((dVal)[2]))); \
     } while(0)
 #else
 #define pkdMinMax(dVal,dMin,dMax) {\
-    (dMin)[0] = (dVal)[0] < (dMin)[0] ? (dVal)[0] : (dMin)[0];	\
-    (dMin)[1] = (dVal)[1] < (dMin)[1] ? (dVal)[1] : (dMin)[1];		\
-    (dMin)[2] = (dVal)[2] < (dMin)[2] ? (dVal)[2] : (dMin)[2];		\
-    (dMax)[0] = (dVal)[0] > (dMax)[0] ? (dVal)[0] : (dMax)[0];		\
-    (dMax)[1] = (dVal)[1] > (dMax)[1] ? (dVal)[1] : (dMax)[1];		\
-    (dMax)[2] = (dVal)[2] > (dMax)[2] ? (dVal)[2] : (dMax)[2];		\
+    (dMin)[0] = (dVal)[0] < (dMin)[0] ? (dVal)[0] : (dMin)[0];  \
+    (dMin)[1] = (dVal)[1] < (dMin)[1] ? (dVal)[1] : (dMin)[1];      \
+    (dMin)[2] = (dVal)[2] < (dMin)[2] ? (dVal)[2] : (dMin)[2];      \
+    (dMax)[0] = (dVal)[0] > (dMax)[0] ? (dVal)[0] : (dMax)[0];      \
+    (dMax)[1] = (dVal)[1] > (dMax)[1] ? (dVal)[1] : (dMax)[1];      \
+    (dMax)[2] = (dVal)[2] > (dMax)[2] ? (dVal)[2] : (dMax)[2];      \
     }
 #endif
 #define pkdMinMax6(dVal0,dVal1,dMin,dMax) {\
-    (dMin)[0] = (dVal0)[0] < (dMin)[0] ? (dVal0)[0] : (dMin)[0];	\
-    (dMin)[1] = (dVal0)[1] < (dMin)[1] ? (dVal0)[1] : (dMin)[1];	\
-    (dMin)[2] = (dVal0)[2] < (dMin)[2] ? (dVal0)[2] : (dMin)[2];	\
-    (dMin)[3] = (dVal1)[0] < (dMin)[3] ? (dVal1)[0] : (dMin)[3];	\
-    (dMin)[4] = (dVal1)[1] < (dMin)[4] ? (dVal1)[1] : (dMin)[4];	\
-    (dMin)[5] = (dVal1)[2] < (dMin)[5] ? (dVal1)[2] : (dMin)[5];	\
-    (dMax)[0] = (dVal0)[0] > (dMax)[0] ? (dVal0)[0] : (dMax)[0];	\
-    (dMax)[1] = (dVal0)[1] > (dMax)[1] ? (dVal0)[1] : (dMax)[1];	\
-    (dMax)[2] = (dVal0)[2] > (dMax)[2] ? (dVal0)[2] : (dMax)[2];	\
-    (dMax)[3] = (dVal1)[0] > (dMax)[3] ? (dVal1)[0] : (dMax)[3];	\
-    (dMax)[4] = (dVal1)[1] > (dMax)[4] ? (dVal1)[1] : (dMax)[4];	\
-    (dMax)[5] = (dVal1)[2] > (dMax)[5] ? (dVal1)[2] : (dMax)[5];	\
+    (dMin)[0] = (dVal0)[0] < (dMin)[0] ? (dVal0)[0] : (dMin)[0];    \
+    (dMin)[1] = (dVal0)[1] < (dMin)[1] ? (dVal0)[1] : (dMin)[1];    \
+    (dMin)[2] = (dVal0)[2] < (dMin)[2] ? (dVal0)[2] : (dMin)[2];    \
+    (dMin)[3] = (dVal1)[0] < (dMin)[3] ? (dVal1)[0] : (dMin)[3];    \
+    (dMin)[4] = (dVal1)[1] < (dMin)[4] ? (dVal1)[1] : (dMin)[4];    \
+    (dMin)[5] = (dVal1)[2] < (dMin)[5] ? (dVal1)[2] : (dMin)[5];    \
+    (dMax)[0] = (dVal0)[0] > (dMax)[0] ? (dVal0)[0] : (dMax)[0];    \
+    (dMax)[1] = (dVal0)[1] > (dMax)[1] ? (dVal0)[1] : (dMax)[1];    \
+    (dMax)[2] = (dVal0)[2] > (dMax)[2] ? (dVal0)[2] : (dMax)[2];    \
+    (dMax)[3] = (dVal1)[0] > (dMax)[3] ? (dVal1)[0] : (dMax)[3];    \
+    (dMax)[4] = (dVal1)[1] > (dMax)[4] ? (dVal1)[1] : (dMax)[4];    \
+    (dMax)[5] = (dVal1)[2] > (dMax)[5] ? (dVal1)[2] : (dMax)[5];    \
     }
 
 static inline int pkdIsRungRange(PARTICLE *p,uint8_t uRungLo,uint8_t uRungHi) {
@@ -1011,31 +1011,31 @@ static inline SPHBNDS *pkdNodeSphBounds( PKD pkd, KDN *n ) {
 
 static inline void pkdNodeGetPos(PKD pkd,KDN *n,double *r) {
     if (pkd->bIntegerPosition) {
-	int32_t *pr = CAST(int32_t *,pkdNodeField(n,pkd->oNodePosition));
-	r[0] = pkdIntPosToDbl(pkd,pr[0]);
-	r[1] = pkdIntPosToDbl(pkd,pr[1]);
-	r[2] = pkdIntPosToDbl(pkd,pr[2]);
-	}
+        int32_t *pr = CAST(int32_t *,pkdNodeField(n,pkd->oNodePosition));
+        r[0] = pkdIntPosToDbl(pkd,pr[0]);
+        r[1] = pkdIntPosToDbl(pkd,pr[1]);
+        r[2] = pkdIntPosToDbl(pkd,pr[2]);
+    }
     else {
-	double *pr = CAST(double *,pkdNodeField(n,pkd->oNodePosition));
-	r[0] = pr[0];
-	r[1] = pr[1];
-	r[2] = pr[2];
-	}
+        double *pr = CAST(double *,pkdNodeField(n,pkd->oNodePosition));
+        r[0] = pr[0];
+        r[1] = pr[1];
+        r[2] = pr[2];
+    }
 }
 static inline void pkdNodeSetPos3(PKD pkd,KDN *n,double x, double y, double z) {
     if (pkd->bIntegerPosition) {
-	int32_t *pr = CAST(int32_t *,pkdNodeField(n,pkd->oNodePosition));
-	pr[0] = pkdDblToIntPos(pkd,x);
-	pr[1] = pkdDblToIntPos(pkd,y);
-	pr[2] = pkdDblToIntPos(pkd,z);
-	}
+        int32_t *pr = CAST(int32_t *,pkdNodeField(n,pkd->oNodePosition));
+        pr[0] = pkdDblToIntPos(pkd,x);
+        pr[1] = pkdDblToIntPos(pkd,y);
+        pr[2] = pkdDblToIntPos(pkd,z);
+    }
     else {
-	double *pr = CAST(double *,pkdNodeField(n,pkd->oNodePosition));
-	pr[0] = x;
-	pr[1] = y;
-	pr[2] = z;
-	}
+        double *pr = CAST(double *,pkdNodeField(n,pkd->oNodePosition));
+        pr[0] = x;
+        pr[1] = y;
+        pr[2] = z;
+    }
 }
 static inline void pkdNodeSetPos1(PKD pkd,KDN *n,const double *r) {
     pkdNodeSetPos3(pkd,n,r[0],r[1],r[2]);
@@ -1046,40 +1046,40 @@ static inline BND *pkdNodeBndPRIVATE( PKD pkd, KDN *n ) {
 }
 static inline BND pkdNodeGetBnd( PKD pkd, KDN *n ) {
     if (pkd->bIntegerPosition) {
-	IBND *ibnd = (IBND *)pkdNodeField(n,pkd->oNodeBnd);
-	BND bnd;
-	bnd.fCenter[0] = pkdIntPosToDbl(pkd,ibnd->fCenter[0]);
-	bnd.fCenter[1] = pkdIntPosToDbl(pkd,ibnd->fCenter[1]);
-	bnd.fCenter[2] = pkdIntPosToDbl(pkd,ibnd->fCenter[2]);
-	bnd.fMax[0] = pkdIntPosToDbl(pkd,ibnd->fMax[0]);
-	bnd.fMax[1] = pkdIntPosToDbl(pkd,ibnd->fMax[1]);
-	bnd.fMax[2] = pkdIntPosToDbl(pkd,ibnd->fMax[2]);
-	return bnd;
-	}
+        IBND *ibnd = (IBND *)pkdNodeField(n,pkd->oNodeBnd);
+        BND bnd;
+        bnd.fCenter[0] = pkdIntPosToDbl(pkd,ibnd->fCenter[0]);
+        bnd.fCenter[1] = pkdIntPosToDbl(pkd,ibnd->fCenter[1]);
+        bnd.fCenter[2] = pkdIntPosToDbl(pkd,ibnd->fCenter[2]);
+        bnd.fMax[0] = pkdIntPosToDbl(pkd,ibnd->fMax[0]);
+        bnd.fMax[1] = pkdIntPosToDbl(pkd,ibnd->fMax[1]);
+        bnd.fMax[2] = pkdIntPosToDbl(pkd,ibnd->fMax[2]);
+        return bnd;
+    }
     else return *pkdNodeBndPRIVATE(pkd,n);
 }
 static inline void pkdNodeSetBnd( PKD pkd, KDN *n, const BND *bnd ) {
     if (pkd->bIntegerPosition) {
-	IBND *ibnd = (IBND *)pkdNodeField(n,pkd->oNodeBnd);
-	ibnd->fCenter[0] = pkdDblToIntPos(pkd,bnd->fCenter[0]);
-	ibnd->fCenter[1] = pkdDblToIntPos(pkd,bnd->fCenter[1]);
-	ibnd->fCenter[2] = pkdDblToIntPos(pkd,bnd->fCenter[2]);
-	ibnd->fMax[0] = pkdDblToIntPos(pkd,bnd->fMax[0]);
-	ibnd->fMax[1] = pkdDblToIntPos(pkd,bnd->fMax[1]);
-	ibnd->fMax[2] = pkdDblToIntPos(pkd,bnd->fMax[2]);
-	}
+        IBND *ibnd = (IBND *)pkdNodeField(n,pkd->oNodeBnd);
+        ibnd->fCenter[0] = pkdDblToIntPos(pkd,bnd->fCenter[0]);
+        ibnd->fCenter[1] = pkdDblToIntPos(pkd,bnd->fCenter[1]);
+        ibnd->fCenter[2] = pkdDblToIntPos(pkd,bnd->fCenter[2]);
+        ibnd->fMax[0] = pkdDblToIntPos(pkd,bnd->fMax[0]);
+        ibnd->fMax[1] = pkdDblToIntPos(pkd,bnd->fMax[1]);
+        ibnd->fMax[2] = pkdDblToIntPos(pkd,bnd->fMax[2]);
+    }
     else {
-	*pkdNodeBndPRIVATE(pkd,n) = *bnd;
-	}
+        *pkdNodeBndPRIVATE(pkd,n) = *bnd;
+    }
 }
 
 static inline void pkdNodeSetBndMinMax( PKD pkd, KDN *n, double *dMin, double *dMax ) {
     BND bnd;
     int j;
     for (j=0; j<3; ++j) {
-	bnd.fCenter[j] = 0.5*(dMin[j] + dMax[j]);
-	bnd.fMax[j] = 0.5*(dMax[j] - dMin[j]);
-	}
+        bnd.fCenter[j] = 0.5*(dMin[j] + dMax[j]);
+        bnd.fMax[j] = 0.5*(dMax[j] - dMin[j]);
+    }
     pkdNodeSetBnd(pkd,n,&bnd);
 }
 
@@ -1252,17 +1252,17 @@ static inline void pkdSetBall(PKD pkd, PARTICLE *p, float fBall) {
 /* Here is the new way of getting mass and softening */
 static inline float pkdMass( PKD pkd, PARTICLE *p ) {
     if ( pkd->oFieldOffset[oMass] ) {
-	float *pMass = CAST(float *,pkdField(p,pkd->oFieldOffset[oMass]));
-	return *pMass;
-	}
+        float *pMass = CAST(float *,pkdField(p,pkd->oFieldOffset[oMass]));
+        return *pMass;
+    }
     else if (pkd->bNoParticleOrder) return pkd->pClass[0].fMass;
     else return pkd->pClass[p->iClass].fMass;
 }
 static inline float pkdSoft0( PKD pkd, PARTICLE *p ) {
     if ( pkd->oFieldOffset[oSoft] ) {
-	float *pSoft = CAST(float *,pkdField(p,pkd->oFieldOffset[oSoft]));
-	return *pSoft;
-	}
+        float *pSoft = CAST(float *,pkdField(p,pkd->oFieldOffset[oSoft]));
+        return *pSoft;
+    }
     else if (pkd->bNoParticleOrder) return pkd->pClass[0].fSoft;
     else return pkd->pClass[p->iClass].fSoft;
 }
@@ -1342,7 +1342,7 @@ static inline const SPHFIELDS *pkdSphRO( PKD pkd, const PARTICLE *p ) {
     assert( pkdSpecies(pkd,p)==FIO_SPECIES_SPH);
 #endif
     return ((const SPHFIELDS *) pkdFieldRO(p,pkd->oFieldOffset[oSph]));
-    }
+}
 static inline const NEWSPHFIELDS *pkdNewSphRO( PKD pkd, const PARTICLE *p ) {
     return ((const NEWSPHFIELDS *) pkdFieldRO(p,pkd->oFieldOffset[oNewSph]));
 }
@@ -1527,17 +1527,17 @@ char *pkdPackArray(PKD pkd,int iSize,void *vBuff,int *piIndex,int n,int field,in
 void pkdSendArray(PKD pkd, int iNode, int field, int iUnitSize,double dvFac,int bMarked);
 void *pkdRecvArray(PKD pkd,int iNode, void *pDest, int iUnitSize);
 void pkdGravAll(PKD pkd,
-    struct pkdKickParameters *kick,struct pkdLightconeParameters *lc,struct pkdTimestepParameters *ts,
-    double dTime,int nReps,int bPeriodic,
-    int bEwald,int nGroup,int iRoot1, int iRoot2,
-    double fEwCut,double fEwhCut,double dThetaMin,SPHOptions *SPHoptions,
-    uint64_t *pnActive,
-    double *pdPart,double *pdPartNumAccess,double *pdPartMissRatio,
-    double *pdCell,double *pdCellNumAccess,double *pdCellMissRatio,
-    double *pdFlop,uint64_t *pnRung);
+                struct pkdKickParameters *kick,struct pkdLightconeParameters *lc,struct pkdTimestepParameters *ts,
+                double dTime,int nReps,int bPeriodic,
+                int bEwald,int nGroup,int iRoot1, int iRoot2,
+                double fEwCut,double fEwhCut,double dThetaMin,SPHOptions *SPHoptions,
+                uint64_t *pnActive,
+                double *pdPart,double *pdPartNumAccess,double *pdPartMissRatio,
+                double *pdCell,double *pdCellNumAccess,double *pdCellMissRatio,
+                double *pdFlop,uint64_t *pnRung);
 void pkdCalcEandL(PKD pkd,double *T,double *U,double *Eth,double *L,double *F,double *W);
 void pkdProcessLightCone(PKD pkd,PARTICLE *p,float fPot,double dLookbackFac,double dLookbackFacLCP,
-			double dDriftDelta,double dKickDelta,double dBoxSize,int bLightConeParticles);
+                         double dDriftDelta,double dKickDelta,double dBoxSize,int bLightConeParticles);
 void pkdGravEvalPP(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINFOOUT *pOut );
 void pkdDensityEval(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINFOOUT *pOut, SPHOptions *SPHoptions);
 void pkdSPHForcesEval(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINFOOUT *pOut, SPHOptions *SPHoptions);
@@ -1557,22 +1557,22 @@ void pkdZeroNewRung(PKD pkd,uint8_t uRungLo, uint8_t uRungHi, uint8_t uRung);
 void pkdActiveRung(PKD pkd, int iRung, int bGreater);
 void pkdCountRungs(PKD pkd,uint64_t *nRungs);
 void pkdAccelStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
-		  double dDelta, int iMaxRung,
-		  double dEta,double dVelFac,double dAccFac,
-		  int bDoGravity,int bEpsAcc,double dhMinOverSoft);
+                  double dDelta, int iMaxRung,
+                  double dEta,double dVelFac,double dAccFac,
+                  int bDoGravity,int bEpsAcc,double dhMinOverSoft);
 void pkdCooling(PKD pkd,double,double,int,int,int,int);
 void pkdChemCompInit(PKD pkd, struct inChemCompInit in);
 void pkdSphStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
-		double dDelta, int iMaxRung,double dEta, double dAccFac, double dEtaUDot);
+                double dDelta, int iMaxRung,double dEta, double dAccFac, double dEtaUDot);
 #ifndef STAR_FORMATION
 void pkdStarForm(PKD pkd, double dRateCoeff, double dTMax, double dDenMin,
-		 double dDelta, double dTime,
-		 double dInitStarMass, double dESNPerStarMass, double dtCoolingShutoff,
-		 double dtFeedbackDelay,  double dMassLossPerStarMass,    
-		 double dZMassPerStarMass, double dMinGasMass,
-		 double dTuFac, int bGasCooling,
-		 int bdivv, int *nFormed, double *dMassFormed,
-		 int *nDeleted);
+                 double dDelta, double dTime,
+                 double dInitStarMass, double dESNPerStarMass, double dtCoolingShutoff,
+                 double dtFeedbackDelay,  double dMassLossPerStarMass,
+                 double dZMassPerStarMass, double dMinGasMass,
+                 double dTuFac, int bGasCooling,
+                 int bdivv, int *nFormed, double *dMassFormed,
+                 int *nDeleted);
 #endif
 #define CORRECTENERGY_IN 1
 #define CORRECTENERGY_OUT 2
@@ -1581,17 +1581,17 @@ void pkdStarForm(PKD pkd, double dRateCoeff, double dTMax, double dDenMin,
 void pkdCorrectEnergy(PKD pkd, double dTuFac, double z, double dTime, int iType );
 void pkdDensityStep(PKD pkd, uint8_t uRungLo, uint8_t uRungHi, int iMaxRung, double dDelta, double dEta, double dRhoFac);
 int pkdUpdateRung(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
-		  uint8_t uRung,int iMaxRung,uint64_t *nRungCount);
+                  uint8_t uRung,int iMaxRung,uint64_t *nRungCount);
 uint8_t pkdDtToRung(double dT, double dDelta, uint8_t uMaxRung);
 static inline uint8_t pkdDtToRungInverse(float fT, float fiDelta, uint8_t uMaxRung) {
     union {
-	float f;
-	struct {
-	    uint32_t mantisa : 23;
-	    uint32_t exponent : 8;
-	    uint32_t sign : 1;
-	    } ieee;
-	} T;
+        float f;
+        struct {
+            uint32_t mantisa : 23;
+            uint32_t exponent : 8;
+            uint32_t sign : 1;
+        } ieee;
+    } T;
     int iRung;
     T.f = fabsf(fiDelta)*fT;
     if (T.f>=1.0) return 0;
@@ -1600,7 +1600,7 @@ static inline uint8_t pkdDtToRungInverse(float fT, float fiDelta, uint8_t uMaxRu
     else return iRung;
 }
 int pkdOrdWeight(PKD pkd,uint64_t iOrdSplit,int iSplitSide,int iFrom,int iTo,
-		 int *pnLow,int *pnHigh);
+                 int *pnLow,int *pnHigh);
 void pkdDeleteParticle(PKD pkd, PARTICLE *p);
 void pkdNewParticle(PKD pkd, PARTICLE *p);
 int pkdResetTouchRung(PKD pkd, unsigned int iTestMask, unsigned int iSetMask);
@@ -1609,10 +1609,10 @@ int pkdIsDark(PKD,PARTICLE *);
 int pkdIsStar(PKD,PARTICLE *);
 int pkdIsBH(PKD,PARTICLE *);
 void pkdColNParts(PKD pkd, int *pnNew, int *nDeltaGas, int *nDeltaDark,
-		  int *nDeltaStar);
+                  int *nDeltaStar);
 void pkdNewOrder(PKD pkd, int nStart);
 
-struct outGetNParts { 
+struct outGetNParts {
     total_t n;
     total_t nGas;
     total_t nDark;
@@ -1632,7 +1632,7 @@ extern "C" {
 
 #ifdef USE_GRAFIC
     void pkdGenerateIC(PKD pkd, GRAFICCTX gctx, int iDim,
-		   double fSoft, double fMass, int bCannonical);
+                       double fSoft, double fMass, int bCannonical);
 #endif
     int pkdGetClasses( PKD pkd, int nMax, PARTCLASS *pClass );
     void pkdSetClasses( PKD pkd, int n, PARTCLASS *pClass, int bUpdate );
@@ -1651,26 +1651,26 @@ extern "C" {
     int pkdSelCylinder(PKD pkd,double *dP1, double *dP2, double dRadius, int setIfTrue, int clearIfFalse );
 
     int pkdDeepestPot(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
-    double *r, float *fPot);
+                      double *r, float *fPot);
     void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
-		const double *dCenter, const double *dRadii, int nBins,
-		const double *com, const double *vcm, const double *L);
+                    const double *dCenter, const double *dRadii, int nBins,
+                    const double *com, const double *vcm, const double *L);
     void pkdCalcDistance(PKD pkd, double *dCenter, int bPeriodic);
     uint_fast32_t pkdCountDistance(PKD pkd, double r2i, double r2o );
     void pkdCalcCOM(PKD pkd, double *dCenter, double dRadius, int bPeriodic,
-		double *com, double *vcm, double *L,
-		double *M, uint64_t *N);
-void pkdCalcMtot(PKD pkd, double *M, uint64_t *N);
-void pkdTreeUpdateFlagBounds(PKD pkd,uint32_t uRoot,SPHOptions *SPHoptions);
+                    double *com, double *vcm, double *L,
+                    double *M, uint64_t *N);
+    void pkdCalcMtot(PKD pkd, double *M, uint64_t *N);
+    void pkdTreeUpdateFlagBounds(PKD pkd,uint32_t uRoot,SPHOptions *SPHoptions);
 #ifdef MDL_FFTW
     void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int iAssignment, int iGrid, float dDelta);
     void pkdInterlace(PKD pkd, int iGridTarget, int iGridSource);
     float getLinAcc(PKD pkd, MDLFFT fft,int cid, double r[3]);
     void pkdSetLinGrid(PKD pkd,double a0, double a, double a1, double dBSize, int nGrid, int iSeed,
-    int bFixed, float fPhase);
+                       int bFixed, float fPhase);
     void pkdMeasureLinPk(PKD pkd, int nGrid, double dA, double dBoxSize,
-                int nBins,  int iSeed, int bFixed, float fPhase, 
-                double *fK, double *fPower, uint64_t *nPower);
+                         int nBins,  int iSeed, int bFixed, float fPhase,
+                         double *fK, double *fPower, uint64_t *nPower);
 #endif
 #ifdef __cplusplus
 }
@@ -1680,8 +1680,8 @@ void pkdOutPsGroup(PKD pkd,char *pszFileName,int iType);
 void pkdLightConeOpen(PKD pkd, const char *fname,int nSideHealpix);
 void pkdLightConeClose(PKD pkd, const char *healpixname);
 void pkdLightCone(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
-    double dLookbackFac,double dLookbackFacLCP,
-    double *dtLCDrift,double *dtLCKick);
+                  double dLookbackFac,double dLookbackFacLCP,
+                  double *dtLCDrift,double *dtLCKick);
 void pkdLightConeVel(PKD pkd,double dBoxSize);
 
 struct outGetParticles { /* Array of these */
@@ -1717,20 +1717,20 @@ extern void clEwaldInit(void *cudaCtx, struct EwaldVariables *ewIn, EwaldTable *
 
 #define vec_sub(r,a,b) do {\
     int i;\
-    for (i=0; i<3; i++) (r)[i] = (a)[i] - (b)[i];	\
+    for (i=0; i<3; i++) (r)[i] = (a)[i] - (b)[i];   \
 } while(0)
 
 #define vec_add_const_mult(r,a,c,b) do {\
     int i;\
-    for (i=0; i<3; i++) (r)[i] = (a)[i] + (c) * (b)[i];	\
+    for (i=0; i<3; i++) (r)[i] = (a)[i] + (c) * (b)[i]; \
 } while(0)
 
 #define matrix_vector_mult(b,mat,a) do {\
     int i;\
     for (i=0; i<3; i++) {\
         int j;\
-	(b)[i] = 0.0;					\
-        for (j=0; j<3; j++) (b)[i] += (mat)[i][j] * (a)[j];	\
+    (b)[i] = 0.0;                   \
+        for (j=0; j<3; j++) (b)[i] += (mat)[i][j] * (a)[j]; \
     }\
 } while(0)
 
@@ -1742,19 +1742,19 @@ static inline double dot_product(const double *a,const double *b) {
 }
 
 #define cross_product(r,a,b) do {\
-    (r)[0] = (a)[1] * (b)[2] - (a)[2] * (b)[1] ;	\
-    (r)[1] = (a)[2] * (b)[0] - (a)[0] * (b)[2] ;	\
-    (r)[2] = (a)[0] * (b)[1] - (a)[1] * (b)[0] ;	\
+    (r)[0] = (a)[1] * (b)[2] - (a)[2] * (b)[1] ;    \
+    (r)[1] = (a)[2] * (b)[0] - (a)[0] * (b)[2] ;    \
+    (r)[2] = (a)[0] * (b)[1] - (a)[1] * (b)[0] ;    \
 } while(0)
 
 #define mat_transpose(mat,trans_mat) do {\
-    int i;				 \
-    for (i=0; i<3; i++) {			\
-	int j;					\
-        for (j=0; j<3; j++) {			\
-            (trans_mat)[i][j] = (mat)[j][i];	\
-	    }					\
-	}					\
+    int i;               \
+    for (i=0; i<3; i++) {           \
+    int j;                  \
+        for (j=0; j<3; j++) {           \
+            (trans_mat)[i][j] = (mat)[j][i];    \
+        }                   \
+    }                   \
 } while(0)
 
 

@@ -20,10 +20,10 @@
 #endif
 template<class F,class M,bool bGravStep>
 CUDA_DEVICE void EvalPP(
-	const F &Pdx, const F &Pdy, const F &Pdz, const F &Psmooth2,     // Particle
-	const F &Idx, const F &Idy, const F &Idz, const F &fourh2, const F &Im, // Interaction(s)
-	F &ax, F &ay, F &az, F &pot,         // results
-	const F &Pax, const F &Pay, const F &Paz,const F &imaga, F &ir, F &norm) {
+    const F &Pdx, const F &Pdy, const F &Pdz, const F &Psmooth2,     // Particle
+    const F &Idx, const F &Idy, const F &Idz, const F &fourh2, const F &Im, // Interaction(s)
+    F &ax, F &ay, F &az, F &pot,         // results
+    const F &Pax, const F &Pay, const F &Paz,const F &imaga, F &ir, F &norm) {
     static const float minSoftening = 1e-18f;
     F dx = Idx + Pdx;
     F dy = Idy + Pdy;
@@ -40,10 +40,10 @@ CUDA_DEVICE void EvalPP(
     /* dir and dir2 are valid now for both softened and unsoftened particles */
     /* Now we apply the fix to softened particles only */
     if (!testz(vcmp)) {
-	td2 = maskz_mov(vcmp,F(1.0f - td2));
-	dir *= 1.0f + td2*(0.5f + td2*(3.0f/8.0f + td2*(45.0f/32.0f)));
-	dir2 *= 1.0f + td2*(1.5f + td2*(135.0f/16.0f));
-	}
+        td2 = maskz_mov(vcmp,F(1.0f - td2));
+        dir *= 1.0f + td2*(0.5f + td2*(3.0f/8.0f + td2*(45.0f/32.0f)));
+        dir2 *= 1.0f + td2*(1.5f + td2*(135.0f/16.0f));
+    }
     dir2 *= -Im;
     ax = dx * dir2;
     ay = dy * dir2;
@@ -52,18 +52,18 @@ CUDA_DEVICE void EvalPP(
 
     /* Calculations for determining the timestep. */
     if (bGravStep) {
-	F adotai = Pax*ax + Pay*ay + Paz*az;
-	adotai = maskz_mov(adotai>0.0f & d2>=Psmooth2,adotai) * imaga;
-	norm = adotai * adotai;
-	ir = dir * norm;
-	}
+        F adotai = Pax*ax + Pay*ay + Paz*az;
+        adotai = maskz_mov(adotai>0.0f & d2>=Psmooth2,adotai) * imaga;
+        norm = adotai * adotai;
+        ir = dir * norm;
     }
+}
 
 template<class F,class M>
 CUDA_DEVICE void EvalDensity(
-	const F &Pdx, const F &Pdy, const F &Pdz,     // Particle
-	const F &Idx, const F &Idy, const F &Idz, const F &Im, const F & fBall, // Interaction(s)
-	F &arho, F &adrhodfball, F &anden, F& adndendfball, F &anSmooth,         // results
+    const F &Pdx, const F &Pdy, const F &Pdz,     // Particle
+    const F &Idx, const F &Idy, const F &Idz, const F &Im, const F &fBall,  // Interaction(s)
+    F &arho, F &adrhodfball, F &anden, F &adndendfball, F &anSmooth,         // results
     SPHOptions *SPHoptions) {
     F dx = Idx + Pdx;
     F dy = Idy + Pdy;
@@ -99,7 +99,8 @@ CUDA_DEVICE void EvalDensity(
 
         // return the number of particles used
         anSmooth = maskz_mov(r_lt_one,1.0f);
-    } else {
+    }
+    else {
         // No work to do
         arho = 0.0f;
         adrhodfball = 0.0f;
@@ -107,14 +108,14 @@ CUDA_DEVICE void EvalDensity(
         adndendfball = 0.0f;
         anSmooth = 0.0f;
     }
-    }
+}
 
 template<class F,class M,class Ivec>
 CUDA_DEVICE void EvalSPHForces(
-	const F &Pdx, const F &Pdy, const F &Pdz, const F &PfBall, const F &POmega,     // Particle
-    const F &Pvx, const F &Pvy, const F &Pvz, const F &Prho, const F &PP, const F &Pc, const Ivec & Pspecies,
-	const F &Idx, const F &Idy, const F &Idz, const F & Im, const F &IfBall, const F &IOmega,     // Interactions
-    const F &Ivx, const F &Ivy, const F &Ivz, const F &Irho, const F &IP, const F &Ic, const Ivec & Ispecies,
+    const F &Pdx, const F &Pdy, const F &Pdz, const F &PfBall, const F &POmega,     // Particle
+    const F &Pvx, const F &Pvy, const F &Pvz, const F &Prho, const F &PP, const F &Pc, const Ivec &Pspecies,
+    const F &Idx, const F &Idy, const F &Idz, const F &Im, const F &IfBall, const F &IOmega,      // Interactions
+    const F &Ivx, const F &Ivy, const F &Ivz, const F &Irho, const F &IP, const F &Ic, const Ivec &Ispecies,
     F &uDot, F &ax, F &ay, F &az, F &divv, F &dtEst,         // results
     SPHOptions *SPHoptions) {
     F dx = Idx + Pdx;
@@ -204,7 +205,8 @@ CUDA_DEVICE void EvalSPHForces(
         // du/dt
         if (SPHoptions->useAdiabatic) {
             uDot = 0.5f * Piij * Im * (dvx * dWdx + dvy * dWdy + dvz * dWdz);
-        } else {
+        }
+        else {
             uDot = (PPoverRho2 + 0.5f * Piij) * Im * (dvx * dWdx + dvy * dWdy + dvz * dWdz);
         }
 
@@ -225,21 +227,22 @@ CUDA_DEVICE void EvalSPHForces(
         dtEst = mask_mov(HUGE_VALF,mask1,dtEst);
 
         // for (int index = 0; index<8;index++) {
-            // if (ax[index] != ax[index]) {
-                // printf("ax = %.15e ax = %.15e ax = %.15e\n",ax[index],ay[index],az[index]);
-                // printf("Pdx = %.15e Pdy = %.15e Pdz = %.15e\n",Pdx[index],Pdy[index],Pdz[index]);
-                // printf("PfBall = %.15e POmega = %.15e Prho = %.15e\n",PfBall[index],POmega[index],Prho[index]);
-                // printf("Pvx = %.15e Pvy = %.15e Pvy = %.15e\n",Pvx[index],Pvy[index],Pvz[index]);
-                // printf("PP = %.15e Pc = %.15e Pspecies = %d\n",PP[index],Pc[index],Pspecies[index]);
-                // printf("Idx = %.15e Idy = %.15e Idz = %.15e\n",Idx[index],Idy[index],Idz[index]);
-                // printf("Im = %.15e IfBall = %.15e IOmega = %.15e\n Irho = %.15e\n",Im[index],IfBall[index],IOmega[index],Irho[index]);
-                // printf("Ivx = %.15e Ivy = %.15e Ivz = %.15e\n",Ivx[index],Ivy[index],Ivz[index]);
-                // printf("IP = %.15e Ic = %.15e Ispecies = %d\n",IP[index],Ic[index],Ispecies[index]);
-                // printf("Im = %.15e PPoverRho2 = %.15e IPoverRho2 = %.15e Piij = %.15e dWdz = %.15e aFac = %.15e\n",Im[index],PPoverRho2[index], IPoverRho2[index], Piij[index], dWdz[index],aFac[index]);
-                // assert(0);
-            // }
-            // }
-    } else {
+        // if (ax[index] != ax[index]) {
+        // printf("ax = %.15e ax = %.15e ax = %.15e\n",ax[index],ay[index],az[index]);
+        // printf("Pdx = %.15e Pdy = %.15e Pdz = %.15e\n",Pdx[index],Pdy[index],Pdz[index]);
+        // printf("PfBall = %.15e POmega = %.15e Prho = %.15e\n",PfBall[index],POmega[index],Prho[index]);
+        // printf("Pvx = %.15e Pvy = %.15e Pvy = %.15e\n",Pvx[index],Pvy[index],Pvz[index]);
+        // printf("PP = %.15e Pc = %.15e Pspecies = %d\n",PP[index],Pc[index],Pspecies[index]);
+        // printf("Idx = %.15e Idy = %.15e Idz = %.15e\n",Idx[index],Idy[index],Idz[index]);
+        // printf("Im = %.15e IfBall = %.15e IOmega = %.15e\n Irho = %.15e\n",Im[index],IfBall[index],IOmega[index],Irho[index]);
+        // printf("Ivx = %.15e Ivy = %.15e Ivz = %.15e\n",Ivx[index],Ivy[index],Ivz[index]);
+        // printf("IP = %.15e Ic = %.15e Ispecies = %d\n",IP[index],Ic[index],Ispecies[index]);
+        // printf("Im = %.15e PPoverRho2 = %.15e IPoverRho2 = %.15e Piij = %.15e dWdz = %.15e aFac = %.15e\n",Im[index],PPoverRho2[index], IPoverRho2[index], Piij[index], dWdz[index],aFac[index]);
+        // assert(0);
+        // }
+        // }
+    }
+    else {
         // No work to do
         uDot = 0.0f;
         ax = 0.0f;
@@ -248,4 +251,4 @@ CUDA_DEVICE void EvalSPHForces(
         divv = 0.0f;
         dtEst = HUGE_VALF;
     }
-    }
+}

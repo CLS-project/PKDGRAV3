@@ -48,7 +48,7 @@ typedef union {
 #if !defined(__CUDACC__)
     v_i p[ILP_PART_PER_BLK/SIMD_WIDTH];
 #endif
-    } ilpInt32;
+} ilpInt32;
 
 typedef union {
     double d[ILP_PART_PER_BLK];
@@ -108,8 +108,8 @@ void ilpFinish(ILP ilp);
 */
 
 static inline void ilpAppendFloat(ILP ilp, float X, float Y, float Z, float M, float S,
-    uint64_t I, float VX, float VY, float VZ, float fBall, float Omega, float rho,
-    float P, float c, int32_t species ) {
+                                  uint64_t I, float VX, float VY, float VZ, float fBall, float Omega, float rho,
+                                  float P, float c, int32_t species ) {
     ILPTILE tile = (ILPTILE)lstReposition(&ilp->lst);
     uint_fast32_t blk = tile->lstTile.nBlocks;
     uint_fast32_t prt = tile->lstTile.nInLast;
@@ -138,10 +138,10 @@ static inline void ilpAppendFloat(ILP ilp, float X, float Y, float Z, float M, f
 }
 
 static inline void ilpAppend(ILP ilp, double X, double Y, double Z, float M, float S,
-    uint64_t I, float VX, float VY, float VZ, float fBall, float Omega, float rho,
-    float P, float c, int32_t species ) {
+                             uint64_t I, float VX, float VY, float VZ, float fBall, float Omega, float rho,
+                             float P, float c, int32_t species ) {
     ilpAppendFloat(ilp,(float)((ilp)->cx-(X)),(float)((ilp)->cy-(Y)),(float)((ilp)->cz-(Z)),M,S,I,VX,VY,VZ,
-    fBall,Omega,rho,P,c,species);
+                   fBall,Omega,rho,P,c,species);
 }
 #define ILP_LOOP(ilp,ptile) for( ptile=(ILPTILE)((ilp)->lst.list); ptile!=NULL; ptile=(ILPTILE)(ptile->lstTile.next) )
 

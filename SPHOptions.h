@@ -22,7 +22,7 @@
 #define SPHBOXOFBALLS 1
 
 #if !(SPHBALLOFBALLS | SPHBOXOFBALLS) | (SPHBALLOFBALLS & SPHBOXOFBALLS)
-#error "Define either SPHBALLOFBALLS or SPHBOXOFBALLS in SPHOptions.h"
+    #error "Define either SPHBALLOFBALLS or SPHBOXOFBALLS in SPHOptions.h"
 #endif
 
 
@@ -58,7 +58,7 @@ typedef struct {
     uint64_t useAdiabatic : 1;
     uint64_t useDensityFlags : 1;
     uint64_t kernelType : 2;
-    } SPHOptions;
+} SPHOptions;
 
 #ifdef __cplusplus
 extern "C" {

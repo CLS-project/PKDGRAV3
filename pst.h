@@ -37,7 +37,7 @@
 #define pstNotCore(pst) ((pst)->nLeaves > 1)
 
 typedef struct lclBlock {
-    PKD	pkd;
+    PKD pkd;
     int iWtFrom;
     int iWtTo;
     int iPart;
@@ -71,8 +71,8 @@ typedef struct pstContext {
 } *PST;
 
 
-#define PST_SERVICES		100
-#define PST_FILENAME_SIZE	512
+#define PST_SERVICES        100
+#define PST_FILENAME_SIZE   512
 #define PST_MAX_FILES           16384
 
 enum pst_service {
@@ -616,7 +616,7 @@ typedef struct StatsCollector {
 
 
 /*
-** The outGravityReduct structure is at the beginning of the output message, 
+** The outGravityReduct structure is at the beginning of the output message,
 ** followed by number of threads times the outGravityPerProc structure.
 */
 struct outGravityReduct {
@@ -874,8 +874,8 @@ int pstNewOrder(PST, void *, int, void *, int);
 
 /* PST_GETNPARTS */
 /* see pkd.h
- struct outGetNParts { 
-	int n;
+ struct outGetNParts {
+    int n;
     int nGas;
     int nDark;
     int nStar;
@@ -1106,16 +1106,16 @@ int pstCalcCOM(PST pst,void *vin,int nIn,void *vout,int nOut);
 /* PST_CALCMTOT */
 struct inCalcMtot {
     int a; //placeholder as struct can't be empty, later may be particle type here?
-    };
+};
 struct outCalcMtot {
     double M;
     uint64_t N;
-    };
+};
 int pstCalcMtot(PST pst,void *vin,int nIn,void *vout,int nOut);
 /* PST_SETSPHOPTIONS */
 struct inSetSPHoptions {
     SPHOptions SPHoptions;
-    };
+};
 int pstSetSPHoptions(PST pst,void *vin,int nIn,void *vout,int nOut);
 /* PST_TREEUPDATEFLAGBOUNDS */
 struct inTreeUpdateFlagBounds {
@@ -1125,7 +1125,7 @@ struct inTreeUpdateFlagBounds {
     uint32_t utRoot;  /* Template tree */
     double ddHonHLimit;
     SPHOptions SPHoptions;
-    };
+};
 int pstTreeUpdateFlagBounds(PST pst,void *vin,int nIn,void *vout,int nOut);
 
 /* PST_COUNTDISTANCE */
@@ -1231,7 +1231,7 @@ struct inMeasureLinPk {
     double dA;
     double dBoxSize;
     int iSeed;
-    int bFixed; 
+    int bFixed;
     float fPhase;
     int nGrid;
     int nBins;
