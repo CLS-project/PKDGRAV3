@@ -32,4 +32,4 @@ public:
 		"DistribTopTree") {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut);
-    };
+};

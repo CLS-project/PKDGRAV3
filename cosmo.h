@@ -20,10 +20,10 @@
 
 #define USE_GSL_COSMO
 #ifdef USE_GSL_COSMO
-#include <gsl/gsl_integration.h>
-#include <gsl/gsl_spline.h>
-#include <gsl/gsl_interp2d.h>
-#include <gsl/gsl_spline2d.h>
+    #include <gsl/gsl_integration.h>
+    #include <gsl/gsl_spline.h>
+    #include <gsl/gsl_interp2d.h>
+    #include <gsl/gsl_spline2d.h>
 #endif
 
 /*
@@ -36,7 +36,7 @@
 #define CLASS_BACKGROUND_SIZE 10000
 #define CLASS_PERTURBATIONS_A_SIZE 1024
 #define CLASS_PERTURBATIONS_K_SIZE 256
-struct classDataBackgroundStruct{
+struct classDataBackgroundStruct {
     size_t size;
     double a      [CLASS_BACKGROUND_SIZE];
     double t      [CLASS_BACKGROUND_SIZE];
@@ -45,7 +45,7 @@ struct classDataBackgroundStruct{
     double rho_lin[CLASS_BACKGROUND_SIZE];
     double rho_pk [CLASS_BACKGROUND_SIZE];
 };
-struct classDataPerturbationsStruct{
+struct classDataPerturbationsStruct {
     size_t size_a;
     size_t size_k;
     double a[CLASS_PERTURBATIONS_A_SIZE];
@@ -55,7 +55,7 @@ struct classDataPerturbationsStruct{
     double delta_lin[CLASS_PERTURBATIONS_A_SIZE*CLASS_PERTURBATIONS_K_SIZE];
     double delta_pk [CLASS_PERTURBATIONS_A_SIZE*CLASS_PERTURBATIONS_K_SIZE];
 };
-struct classDataStruct{
+struct classDataStruct {
     int bClass;
     int nLinear; /* Number of linear species */
     int nPower; /* Number of linear species for measuring P(k) */
@@ -69,7 +69,7 @@ struct classDataStruct{
 **   - classGslBackgroundStruct (background)
 **   - classGslPerturbationsStruct (perturbations)
 */
-struct classGslBackgroundStruct{
+struct classGslBackgroundStruct {
     gsl_interp_accel *logExp2logHub_acc;
     gsl_spline       *logExp2logHub_spline;
     gsl_interp_accel *logTime2logHub_acc;
@@ -85,7 +85,7 @@ struct classGslBackgroundStruct{
     gsl_interp_accel *logExp2logRho_pk_acc;
     gsl_spline       *logExp2logRho_pk_spline;
 };
-struct classGslPerturbationsStruct{
+struct classGslPerturbationsStruct {
     gsl_interp_accel *logk2delta_m_acc;
     gsl_interp_accel *loga2delta_m_acc;
     gsl_spline2d     *logkloga2delta_m_spline;
@@ -99,30 +99,30 @@ struct classGslPerturbationsStruct{
     gsl_interp_accel *loga2delta_pk_acc;
     gsl_spline2d     *logkloga2delta_pk_spline;
 };
-struct classGslStruct{
+struct classGslStruct {
     int initialized;
     struct classGslBackgroundStruct background;
     struct classGslPerturbationsStruct perturbations;
 };
 
-    struct csmVariables {
-	int bComove;
-	double dHubble0;
-	double dOmega0;
-	double dLambda;
-	double dOmegaRad;
-	double dOmegab;
-	double dOmegaDE;
-	double w0;
-	double wa;
-	double dSigma8;
-	double dNormalization;  /* either sigma8 or normalization must be non-zero */
-	double dSpectral;
-	double dRunning;
-	double dPivot;
-	double h;
-	struct classDataStruct classData;
-	};
+struct csmVariables {
+    int bComove;
+    double dHubble0;
+    double dOmega0;
+    double dLambda;
+    double dOmegaRad;
+    double dOmegab;
+    double dOmegaDE;
+    double w0;
+    double wa;
+    double dSigma8;
+    double dNormalization;  /* either sigma8 or normalization must be non-zero */
+    double dSpectral;
+    double dRunning;
+    double dPivot;
+    double h;
+    struct classDataStruct classData;
+};
 
 
 typedef struct csmContext {
@@ -132,67 +132,67 @@ typedef struct csmContext {
     gsl_integration_workspace *W;
 #endif
     struct classGslStruct classGsl;
-    } * CSM;
+} *CSM;
 #ifdef __cplusplus
 extern "C" {
 #endif
-    void csmClassRead(CSM csm, const char *achFilename, double dBoxSize, double h,
-		    int nLinear, const char **aLinear, int nPower, const char **aPower);
-    void csmClassGslInitialize(CSM csm);
-    double csmRhoBar_m    (CSM csm, double a);
-    double csmRhoBar_lin  (CSM csm, double a);
-    double csmRhoBar_pk   (CSM csm, double a);
-    double csmDelta_m     (CSM csm, double a,                double k);
-    double csmTheta_m     (CSM csm, double a,                double k);
-    double csmDelta_lin   (CSM csm, double a,                double k);
-    double csmDelta_pk    (CSM csm, double a,                double k);
-    double csmDeltaRho_lin(CSM csm, double a, double a_next, double k);
-    double csmDeltaRho_pk (CSM csm, double a,                double k);
-    double csmZeta        (CSM csm,                          double k);
+void csmClassRead(CSM csm, const char *achFilename, double dBoxSize, double h,
+                  int nLinear, const char **aLinear, int nPower, const char **aPower);
+void csmClassGslInitialize(CSM csm);
+double csmRhoBar_m    (CSM csm, double a);
+double csmRhoBar_lin  (CSM csm, double a);
+double csmRhoBar_pk   (CSM csm, double a);
+double csmDelta_m     (CSM csm, double a,                double k);
+double csmTheta_m     (CSM csm, double a,                double k);
+double csmDelta_lin   (CSM csm, double a,                double k);
+double csmDelta_pk    (CSM csm, double a,                double k);
+double csmDeltaRho_lin(CSM csm, double a, double a_next, double k);
+double csmDeltaRho_pk (CSM csm, double a,                double k);
+double csmZeta        (CSM csm,                          double k);
 
-    void csmInitialize(CSM *pcsm);
-    void csmFinish(CSM csm);
-    double csmRadMatEquivalence(CSM csm);
+void csmInitialize(CSM *pcsm);
+void csmFinish(CSM csm);
+double csmRadMatEquivalence(CSM csm);
 
-    static inline double csmExp2Hub(CSM csm, double dExp) {
-        if (csm->val.classData.bClass){
-            if (dExp > csm->val.classData.background.a[csm->val.classData.background.size - 1]){
-                /* dExp is in the future; do linear extrapolation */
-                return csm->val.classData.background.H[csm->val.classData.background.size - 1]
-                    + (
-                        csm->val.classData.background.H[csm->val.classData.background.size - 1]
-                      - csm->val.classData.background.H[csm->val.classData.background.size - 2]
-                    )/(
-                        csm->val.classData.background.a[csm->val.classData.background.size - 1]
-                      - csm->val.classData.background.a[csm->val.classData.background.size - 2]
-                    )*(dExp - csm->val.classData.background.a[csm->val.classData.background.size - 1]);
-            }
-            return exp(gsl_spline_eval(
-                csm->classGsl.background.logExp2logHub_spline,
-                log(dExp),
-                csm->classGsl.background.logExp2logHub_acc));
+static inline double csmExp2Hub(CSM csm, double dExp) {
+    if (csm->val.classData.bClass) {
+        if (dExp > csm->val.classData.background.a[csm->val.classData.background.size - 1]) {
+            /* dExp is in the future; do linear extrapolation */
+            return csm->val.classData.background.H[csm->val.classData.background.size - 1]
+                   + (
+                       csm->val.classData.background.H[csm->val.classData.background.size - 1]
+                       - csm->val.classData.background.H[csm->val.classData.background.size - 2]
+                   )/(
+                       csm->val.classData.background.a[csm->val.classData.background.size - 1]
+                       - csm->val.classData.background.a[csm->val.classData.background.size - 2]
+                   )*(dExp - csm->val.classData.background.a[csm->val.classData.background.size - 1]);
         }
+        return exp(gsl_spline_eval(
+                       csm->classGsl.background.logExp2logHub_spline,
+                       log(dExp),
+                       csm->classGsl.background.logExp2logHub_acc));
+    }
 
-        double dOmegaCurve = 1.0 - csm->val.dOmega0 - csm->val.dLambda - csm->val.dOmegaDE - csm->val.dOmegaRad;
+    double dOmegaCurve = 1.0 - csm->val.dOmega0 - csm->val.dLambda - csm->val.dOmegaDE - csm->val.dOmegaRad;
 
-        assert(dExp > 0.0);
-        return csm->val.dHubble0
-               *sqrt(csm->val.dOmega0*dExp
-                     + dOmegaCurve*dExp*dExp
-                     + csm->val.dOmegaRad
-                     + csm->val.dOmegaDE*pow(dExp,1.0 - 3.0*(csm->val.w0 + csm->val.wa))*exp(-3.0*csm->val.wa*(1.0 - dExp))
-                     + csm->val.dLambda*dExp*dExp*dExp*dExp)/(dExp*dExp);
-        }
+    assert(dExp > 0.0);
+    return csm->val.dHubble0
+           *sqrt(csm->val.dOmega0*dExp
+                 + dOmegaCurve*dExp*dExp
+                 + csm->val.dOmegaRad
+                 + csm->val.dOmegaDE*pow(dExp,1.0 - 3.0*(csm->val.w0 + csm->val.wa))*exp(-3.0*csm->val.wa*(1.0 - dExp))
+                 + csm->val.dLambda*dExp*dExp*dExp*dExp)/(dExp*dExp);
+}
 
-    double csmTime2Hub(CSM csm, double dTime);
-    double csmExp2Time(CSM csm, double dExp);
-    double csmTime2Exp(CSM csm, double dTime);
-    double csmComoveDriftInt(CSM csm, double dIExp);
-    double csmComoveKickInt(CSM csm, double dIExp);
-    double csmComoveDriftFac(CSM csm, double dTime, double dDelta);
-    double csmComoveKickFac(CSM csm, double dTime, double dDelta);
-    double csmComoveLookbackTime2Exp(CSM csm, double dComoveTime);  
-    void csmComoveGrowth(CSM csm, double a, double *D1LPT, double *D2LPT, double *f1LPT, double *f2LPT);
+double csmTime2Hub(CSM csm, double dTime);
+double csmExp2Time(CSM csm, double dExp);
+double csmTime2Exp(CSM csm, double dTime);
+double csmComoveDriftInt(CSM csm, double dIExp);
+double csmComoveKickInt(CSM csm, double dIExp);
+double csmComoveDriftFac(CSM csm, double dTime, double dDelta);
+double csmComoveKickFac(CSM csm, double dTime, double dDelta);
+double csmComoveLookbackTime2Exp(CSM csm, double dComoveTime);
+void csmComoveGrowth(CSM csm, double a, double *D1LPT, double *D2LPT, double *f1LPT, double *f2LPT);
 #ifdef __cplusplus
 }
 #endif
@@ -205,13 +205,13 @@ static inline double dLightSpeedSim(double dMpcUnit) {
     /*
     ** Find the speed of light in simulation units.
     **
-    ** c[Mpc/Gyr] = c[cm/s] * Julian Year[s] / pc[cm] * 1000 
+    ** c[Mpc/Gyr] = c[cm/s] * Julian Year[s] / pc[cm] * 1000
     ** c_sim = c[Mpc/Gyr] * (x Gyrs/ 1 sim time) * ( 1 sim length/Boxsize (Mpc))
     ** x = 1/sqrt(4.498*h*h*2.776e-4)
     */
     /*return(8676.85/dMpcUnit);*/
 
-    /* 
+    /*
     ** Doug's version:
     **
     ** Cosmological coordinates
@@ -228,6 +228,6 @@ static inline double dLightSpeedSim(double dMpcUnit) {
     **       = 8677.2079486362706 / dMpcUnit
     */
     return 8677.2079486362706 / dMpcUnit;
-    }
+}
 
 #endif

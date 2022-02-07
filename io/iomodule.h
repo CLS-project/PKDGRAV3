@@ -18,35 +18,37 @@
 #ifndef IOMODULE_H
 #define IOMODULE_H
 #ifndef _GNU_SOURCE
-#define _GNU_SOURCE 1
+    #define _GNU_SOURCE 1
 #endif
 
 #include <fcntl.h>
 #include <sys/types.h>
 
 #if defined(HAVE_LIBAIO)
-#include <libaio.h>
+    #include <libaio.h>
 #endif
 #if defined(HAVE_AIO_H)
-#include <aio.h>
+    #include <aio.h>
 #endif
 #define IO_MAX_ASYNC_COUNT 8
 typedef struct {
+#if defined(HAVE_LIBAIO) || defined(HAVE_AIO_H)
     union {
 #if defined(HAVE_LIBAIO)
         struct {
             struct iocb cb[IO_MAX_ASYNC_COUNT];
             struct io_event events[IO_MAX_ASYNC_COUNT];
             io_context_t ctx;
-        } io;
+        } libaio;
 #endif
 #if defined(HAVE_AIO_H)
         struct {
             struct aiocb cb[IO_MAX_ASYNC_COUNT];
-            struct aiocb const * pcb[IO_MAX_ASYNC_COUNT];
+            struct aiocb const *pcb[IO_MAX_ASYNC_COUNT];
         } aio;
 #endif
-    };
+    } io;
+#endif
     char *pBuffer[IO_MAX_ASYNC_COUNT];
     size_t nExpected[IO_MAX_ASYNC_COUNT];
     off_t iFilePosition;   /* File position */
@@ -59,7 +61,7 @@ typedef struct {
     int fd;
     int bWrite;
     int method;
-    } asyncFileInfo;
+} asyncFileInfo;
 
 #define IO_REGULAR 0
 #define IO_AIO     1

@@ -33,11 +33,11 @@
 #include "iomodule.h"
 #include <assert.h>
 #ifdef HAVE_UNISTD_H
-#include <unistd.h>
+    #include <unistd.h>
 #endif
 #include <stdint.h>
 #ifdef HAVE_INTTYPES_H
-#include <inttypes.h>
+    #include <inttypes.h>
 #endif
 #include <sys/stat.h>
 #include <stdio.h>
@@ -45,16 +45,16 @@
 #include <string.h>
 #include <errno.h>
 #ifdef _MSC_VER
-#define FILE_PROTECTION (_S_IREAD | _S_IWRITE)
-typedef int ssize_t;
-#define open _open
-#define write _write
-#define close _close
+    #define FILE_PROTECTION (_S_IREAD | _S_IWRITE)
+    typedef int ssize_t;
+    #define open _open
+    #define write _write
+    #define close _close
 #else
-#define FILE_PROTECTION (S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP)
+    #define FILE_PROTECTION (S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP)
 #endif
 #ifndef __linux__
-#define O_DIRECT 0
+    #define O_DIRECT 0
 #endif
 
 // Call this function to initialize the direct I/O context.
@@ -80,50 +80,50 @@ void io_init(asyncFileInfo *info, size_t nBuffers,size_t nBufferSize,int method)
 #ifdef HAVE_AIO_H
     if ((method & IO_AIO) && info->method==IO_REGULAR) {
         info->method = IO_AIO;
-        memset(&info->aio.cb,0,sizeof(info->aio.cb));
-        for(i=0; i<info->nBuffers; ++i) {
-	    info->aio.pcb[i] = NULL;
-	    info->aio.cb[i].aio_fildes = info->fd;
-	    info->aio.cb[i].aio_offset = 0;
-	    info->aio.cb[i].aio_buf = NULL;
-	    info->aio.cb[i].aio_nbytes = 0;
-	    info->aio.cb[i].aio_sigevent.sigev_notify = SIGEV_NONE;
-	    info->aio.cb[i].aio_lio_opcode = LIO_NOP;
-	    }
+        memset(&info->io.aio.cb,0,sizeof(info->io.aio.cb));
+        for (i=0; i<info->nBuffers; ++i) {
+            info->io.aio.pcb[i] = NULL;
+            info->io.aio.cb[i].aio_fildes = info->fd;
+            info->io.aio.cb[i].aio_offset = 0;
+            info->io.aio.cb[i].aio_buf = NULL;
+            info->io.aio.cb[i].aio_nbytes = 0;
+            info->io.aio.cb[i].aio_sigevent.sigev_notify = SIGEV_NONE;
+            info->io.aio.cb[i].aio_lio_opcode = LIO_NOP;
         }
+    }
 #endif
 #ifdef HAVE_LIBAIO
     if ((method & IO_AIO) && info->method==IO_REGULAR) {
         info->method = IO_LIBAIO;
-        info->io.ctx = 0;
-        int rc = io_setup(info->nBuffers, &info->io.ctx);
+        info->io.libaio.ctx = 0;
+        int rc = io_setup(info->nBuffers, &info->io.libaio.ctx);
         if (rc<0) { perror("io_setup"); abort(); }
-        }
+    }
 #endif
     if (info->method&(IO_AIO|IO_LIBAIO)) {
-        for(i=0; i<info->nBuffers; ++i) {
-	    void *vBuffer;
+        for (i=0; i<info->nBuffers; ++i) {
+            void *vBuffer;
             if (info->nBufferSize>0) {
                 if (posix_memalign(&vBuffer,info->nPageSize,info->nBufferSize)) vBuffer = NULL;
                 assert(vBuffer!=NULL);
-                }
+            }
             else vBuffer = NULL;
-	    info->pBuffer[i] = vBuffer;
-	    }
+            info->pBuffer[i] = vBuffer;
         }
-#endif
     }
+#endif
+}
 
 void io_free(asyncFileInfo *info) {
 #if defined(HAVE_LIBAIO) || defined(HAVE_AIO_H)
     if (info->nBufferSize>0 && (info->method&(IO_AIO|IO_LIBAIO))) {
         int i;
-        for(i=0; i<info->nBuffers; ++i) {
+        for (i=0; i<info->nBuffers; ++i) {
             free(info->pBuffer[i]);
-            }
         }
-#endif
     }
+#endif
+}
 
 int io_create(asyncFileInfo *info, const char *pathname) {
     int flags = O_CREAT|O_WRONLY|O_TRUNC;
@@ -136,7 +136,7 @@ int io_create(asyncFileInfo *info, const char *pathname) {
     info->iFilePosition = 0;
     info->bWrite = 1;
     return info->fd;
-    }
+}
 
 int io_open(asyncFileInfo *info, const char *pathname) {
     int flags = O_RDONLY;
@@ -149,7 +149,7 @@ int io_open(asyncFileInfo *info, const char *pathname) {
     info->iFilePosition = 0;
     info->bWrite = 0;
     return info->fd;
-    }
+}
 
 #if defined(HAVE_LIBAIO) || defined(HAVE_AIO_H)
 static void queue_dio(asyncFileInfo *info,int i,int bWrite) {
@@ -165,74 +165,74 @@ static void queue_dio(asyncFileInfo *info,int i,int bWrite) {
     info->nExpected[i] = bWrite ? nTransfer : nBytes; // We need to ask for a page size, but could *read* less
 #ifdef HAVE_AIO_H
     if (info->method == IO_AIO) {
-        info->aio.pcb[i] = info->aio.cb + i;
-        info->aio.cb[i].aio_fildes = info->fd;
-        info->aio.cb[i].aio_buf = info->pBuffer[i];
-        info->aio.cb[i].aio_offset = info->iFilePosition;
-        info->aio.cb[i].aio_nbytes = nTransfer;
-        if (bWrite) rc = aio_write(&info->aio.cb[i]);
-        else rc = aio_read(&info->aio.cb[i]);
+        info->io.aio.pcb[i] = info->io.aio.cb + i;
+        info->io.aio.cb[i].aio_fildes = info->fd;
+        info->io.aio.cb[i].aio_buf = info->pBuffer[i];
+        info->io.aio.cb[i].aio_offset = info->iFilePosition;
+        info->io.aio.cb[i].aio_nbytes = nTransfer;
+        if (bWrite) rc = aio_write(&info->io.aio.cb[i]);
+        else rc = aio_read(&info->io.aio.cb[i]);
         if (rc) { perror("aio_write/read"); abort(); }
-        }
+    }
 #endif
 #ifdef HAVE_LIBAIO
     if (info->method == IO_LIBAIO) {
-        struct iocb *pcb = &info->io.cb[i];
-        if (bWrite) io_prep_pwrite(info->io.cb+i,info->fd,info->pBuffer[i],nTransfer,info->iFilePosition);
-        else        io_prep_pread(info->io.cb+i,info->fd,info->pBuffer[i],nTransfer,info->iFilePosition);
-        rc = io_submit(info->io.ctx,1,&pcb);
+        struct iocb *pcb = &info->io.libaio.cb[i];
+        if (bWrite) io_prep_pwrite(info->io.libaio.cb+i,info->fd,info->pBuffer[i],nTransfer,info->iFilePosition);
+        else        io_prep_pread(info->io.libaio.cb+i,info->fd,info->pBuffer[i],nTransfer,info->iFilePosition);
+        rc = io_submit(info->io.libaio.ctx,1,&pcb);
         if (rc<0) { perror("io_submit"); abort(); }
-        }
+    }
 #endif
     info->iFilePosition += nBytes;
-    }
+}
 
 static int wait_complete(asyncFileInfo *info, int nWait) {
 #ifdef HAVE_AIO_H
     if (info->method == IO_AIO) {
         int iWait, rc, i;
-        while(nWait) {
-                rc = aio_suspend(info->aio.pcb,info->nBuffers,NULL);
-                if (rc) { perror("aio_suspend"); abort(); }
-                for(i=0; i<info->nBuffers && nWait; ++i) {
+        while (nWait) {
+            rc = aio_suspend(info->io.aio.pcb,info->nBuffers,NULL);
+            if (rc) { perror("aio_suspend"); abort(); }
+            for (i=0; i<info->nBuffers && nWait; ++i) {
                 char szError[100];
-                if (info->aio.pcb[i] == NULL) continue;
-                rc = aio_error(info->aio.pcb[i]);
+                if (info->io.aio.pcb[i] == NULL) continue;
+                rc = aio_error(info->io.aio.pcb[i]);
                 if (rc == EINPROGRESS) continue;
                 else if (rc == 0) {
-                        iWait = i;
-                        info->aio.pcb[i] = NULL;
-                        ssize_t nBytesTransferred = aio_return(&info->aio.cb[i]);
-                        if (nBytesTransferred != info->nExpected[i]) {
+                    iWait = i;
+                    info->io.aio.pcb[i] = NULL;
+                    ssize_t nBytesTransferred = aio_return(&info->io.aio.cb[i]);
+                    if (nBytesTransferred != info->nExpected[i]) {
                         sprintf(szError,"errno=%d nBytesExpected=%" PRIu64 " nBytesTransferred=%" PRIi64 "\n",
                                 errno,(uint64_t)info->nExpected[i],(int64_t)nBytesTransferred);
                         perror(szError);
                         abort();
-                        }
-                        --info->nPending;
-                        --nWait;
-                        }
+                    }
+                    --info->nPending;
+                    --nWait;
+                }
                 else {
-                        errno = rc;
-                        sprintf(szError,"aio_error: rc=%d",rc);
-                        perror(szError);
-                        abort();
-                        }
+                    errno = rc;
+                    sprintf(szError,"aio_error: rc=%d",rc);
+                    perror(szError);
+                    abort();
                 }
-                }
-        return iWait;
+            }
         }
+        return iWait;
+    }
 #endif
 #ifdef HAVE_LIBAIO
     if (info->method == IO_LIBAIO) {
-        int nEvent = io_getevents(info->io.ctx,nWait,nWait,info->io.events,NULL);
+        int nEvent = io_getevents(info->io.libaio.ctx,nWait,nWait,info->io.libaio.events,NULL);
         if (nEvent!=nWait) { perror("aio_getevents"); abort(); }
         info->nPending -= nWait;
-        return info->io.events[0].obj - info->io.cb;
-        }
+        return info->io.libaio.events[0].obj - info->io.libaio.cb;
+    }
 #endif
     assert(0);
-    }
+}
 #endif
 
 void io_write(asyncFileInfo *info, void *buf, size_t count) {
@@ -248,9 +248,9 @@ void io_write(asyncFileInfo *info, void *buf, size_t count) {
             if (info->nPending < info->nBuffers) info->iBuffer = info->nPending;
             else info->iBuffer = wait_complete(info,1);
             return;
-            }
+        }
         char *pBuf = buf;
-        while(count) {
+        while (count) {
             size_t nBytes = info->nBufferSize - info->iByte;
             if (count < nBytes) nBytes = count;
             memcpy(info->pBuffer[info->iBuffer] + info->iByte,pBuf,nBytes);
@@ -262,14 +262,14 @@ void io_write(asyncFileInfo *info, void *buf, size_t count) {
                 info->iByte = 0;
                 if (info->nPending < info->nBuffers) info->iBuffer = info->nPending;
                 else info->iBuffer = wait_complete(info,1);
-                }
             }
-        return;
         }
+        return;
+    }
 #endif
     if (write(info->fd,buf,count) != count) { perror("write"); abort(); }
     info->iFilePosition += count;
-    }
+}
 
 void io_read(asyncFileInfo *info, void *buf, size_t count) {
 #if defined(HAVE_LIBAIO) || defined(HAVE_AIO_H)
@@ -282,11 +282,11 @@ void io_read(asyncFileInfo *info, void *buf, size_t count) {
         queue_dio(info,info->iBuffer,0);
         info->iByte = 0;
         return;
-        }
-#endif
-    if(read(info->fd,buf,count) != count) { perror("write"); abort(); }
-    info->iFilePosition += count;
     }
+#endif
+    if (read(info->fd,buf,count) != count) { perror("read"); abort(); }
+    info->iFilePosition += count;
+}
 
 void io_close(asyncFileInfo *info) {
 #if defined(HAVE_LIBAIO) || defined(HAVE_AIO_H)
@@ -295,7 +295,7 @@ void io_close(asyncFileInfo *info) {
         if (info->nPending) wait_complete(info,info->nPending);
         assert(info->nPending==0);
         if (info->bWrite && ftruncate(info->fd, info->iFilePosition)) perror("ftruncate");
-        }
+    }
 #endif
     close(info->fd);
-    }
+}

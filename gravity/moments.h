@@ -19,19 +19,19 @@
 #define MOMENTS_INCLUDED
 
 #ifdef MOMQUAD
-typedef long double momFloat;
-#define sqrt(x)	sqrtl(x)
+    typedef long double momFloat;
+    #define sqrt(x) sqrtl(x)
 #else
-#ifdef _MSC_VER
-typedef float momFloat;
-#else
-typedef double momFloat;
-#endif
+    #ifdef _MSC_VER
+        typedef float momFloat;
+    #else
+        typedef double momFloat;
+    #endif
 #endif
 
 /*
 ** The first 4 MOM/LOC structures can use different precisions by defining
-** momFloat to float, double or long double, but are not guaranteed to be 
+** momFloat to float, double or long double, but are not guaranteed to be
 ** safe to use at float precision. The moments are also assumed to be expanded
 ** about the center of mass, such that no diapole term is present.
 */
@@ -44,7 +44,7 @@ typedef struct momReduced {
     momFloat xx,yy,xy,xz,yz;
     momFloat xxx,xyy,xxy,yyy,xxz,yyz,xyz;
     momFloat xxxx,xyyy,xxxy,yyyy,xxxz,yyyz,xxyy,xxyz,xyyz;
-    } MOMR;
+} MOMR;
 
 /*
  ** moment tensor components for complete multipoles.
@@ -57,7 +57,7 @@ typedef struct momComplete {
     momFloat zz;
     momFloat xzz,yzz,zzz;
     momFloat xxzz,xyzz,xzzz,yyzz,yzzz,zzzz;
-    } MOMC;
+} MOMC;
 
 /*
  ** moment tensor components for reduced local expansion.
@@ -70,11 +70,11 @@ typedef struct locReduced {
     momFloat xxx,xyy,xxy,yyy,xxz,yyz,xyz;
     momFloat xxxx,xyyy,xxxy,yyyy,xxxz,yyyz,xxyy,xxyz,xyyz;
     momFloat xxxxx,xyyyy,xxxxy,yyyyy,xxxxz,yyyyz,xxxyy,xxyyy,xxxyz,xyyyz,xxyyz;
-    } LOCR;
+} LOCR;
 
 /*
 ** The next set of data structures are intended specifically for use with float
-** precision. These moments are usually scaled to a characteristic size of the 
+** precision. These moments are usually scaled to a characteristic size of the
 ** cell or volume. The convention is to use the scaling factor u for the multipole
 ** moments and scaling factor v for the local expansion.
 */
@@ -84,7 +84,7 @@ typedef struct fmomReduced {
     float xx,yy,xy,xz,yz;
     float xxx,xyy,xxy,yyy,xxz,yyz,xyz;
     float xxxx,xyyy,xxxy,yyyy,xxxz,yyyz,xxyy,xxyz,xyyz;
-    } FMOMR;
+} FMOMR;
 
 typedef struct flocReduced {
     float m;
@@ -93,7 +93,7 @@ typedef struct flocReduced {
     float xxx,xyy,xxy,yyy,xxz,yyz,xyz;
     float xxxx,xyyy,xxxy,yyyy,xxxz,yyyz,xxyy,xxyz,xyyz;
     float xxxxx,xyyyy,xxxxy,yyyyy,xxxxz,yyyyz,xxxyy,xxyyy,xxxyz,xyyyz,xxyyz;
-    } FLOCR;
+} FLOCR;
 
 #ifdef __cplusplus
 extern "C" {
@@ -135,9 +135,9 @@ void momLocrAddFlocr(LOCR *lr,FLOCR *la,float v);
 ** All the functions for evaluating local expansions.
 */
 void momEvalLocr(LOCR *l,momFloat x,momFloat y,momFloat z,
-		 momFloat *fPot,momFloat *ax,momFloat *ay,momFloat *az);
+                 momFloat *fPot,momFloat *ax,momFloat *ay,momFloat *az);
 void momEvalFlocr(FLOCR *l,float v,float x,float y,float z,
-		  float *fPot,float *ax,float *ay,float *az);
+                  float *fPot,float *ax,float *ay,float *az);
 
 /*
 ** Basic arithmetic functions.

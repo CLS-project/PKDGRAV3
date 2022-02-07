@@ -9,5 +9,5 @@ private:
 public:
     static void show_backtrace();
     void register_backtrace();
-    };
+};
 #endif

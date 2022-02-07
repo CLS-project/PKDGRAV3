@@ -16,9 +16,9 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#include "config.h"
+    #include "config.h"
 #else
-#include "pkd_config.h"
+    #include "pkd_config.h"
 #endif
 #include <math.h>
 #include "basetype.h"
@@ -40,7 +40,7 @@ static inline int getCell(PKD pkd,int iCell,int id,float *pcOpen,KDN **pc) {
     else nc = c->pUpper - c->pLower + 1;
     *pcOpen = c->bMax * pkd->fiCritTheta;
     return nc;
-    }
+}
 
 
 uint32_t pkdFofGatherLocal(PKD pkd,int *S,double fBall2,double r[3],uint32_t iGroup,
@@ -70,7 +70,7 @@ uint32_t pkdFofGatherLocal(PKD pkd,int *S,double fBall2,double r[3],uint32_t iGr
 	    continue;
 	    }
 	pEnd = kdn->pUpper;
-	for (pj=kdn->pLower;pj<=pEnd;++pj) {
+        for (pj=kdn->pLower; pj<=pEnd; ++pj) {
 	    p = pkdParticle(pkd,pj);
 	    iPartGroup = pkdGetGroup(pkd,p);
 	    if (iPartGroup) continue;		    
@@ -86,7 +86,7 @@ uint32_t pkdFofGatherLocal(PKD pkd,int *S,double fBall2,double r[3],uint32_t iGr
 		pkdSetGroup(pkd,p,iGroup);
 		Fifo[iTail++] = pj;
 		if (*pbCurrFofContained) {
-		    for (j=0;j<3;++j) {
+                    for (j=0; j<3; ++j) {
 			if (p_r[j] < fMinFofContained[j]) {
 			    *pbCurrFofContained = 0;
 			    break;
@@ -99,12 +99,12 @@ uint32_t pkdFofGatherLocal(PKD pkd,int *S,double fBall2,double r[3],uint32_t iGr
 		    }
 		}
 	    }
-    NoIntersect:
+NoIntersect:
 	if (sp) kdn = pkdTreeNode(pkd,iCell = S[--sp]);
 	else break;
 	}
-    return(iTail);
-    }
+    return (iTail);
+}
 
 
 
@@ -116,9 +116,9 @@ static void iOpenRemoteFof(PKD pkd,KDN *k,CL cl,CLTILE tile,float dTau2) {
     Bound kbnd = pkdNodeGetBnd(pkd,k);
     kOpen = 0.5*(kbnd.width(0) + kbnd.width(1) + kbnd.width(2)); /* Manhatten metric */
     blk = tile->blk;
-    for(nLeft=tile->lstTile.nBlocks; nLeft>=0; --nLeft,blk++) {
+    for (nLeft=tile->lstTile.nBlocks; nLeft>=0; --nLeft,blk++) {
 	n = nLeft ? cl->lst.nPerBlock : tile->lstTile.nInLast;
-	for(i=0; i<n; ++i) {
+        for (i=0; i<n; ++i) {
 	    if (blk->idCell.i[i] > pkd->idSelf) iOpen = 10;  /* ignore this cell, but this never ignores the top tree */
 	    else {
 		minbnd2 = 0;
@@ -145,7 +145,7 @@ static void iOpenRemoteFof(PKD pkd,KDN *k,CL cl,CLTILE tile,float dTau2) {
 	    blk->iOpen.i[i] = iOpen;
 	    }
 	}
-    }
+}
 
 
 static void addChildFof(PKD pkd, CL cl, int iChild, int id, float *fOffset) {
@@ -166,7 +166,7 @@ static void addChildFof(PKD pkd, CL cl, int iChild, int id, float *fOffset) {
 #if SPHBOXOFBALLS
     pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c_r,fOffset,cbnd.center(),cbnd.fMax,c->fBoBxMin,c->fBoBxMax,c->fBoByMin,c->fBoByMax,c->fBoBzMin,c->fBoBzMax);
 #endif
-    }
+}
 
 
 void pkdFofRemoteSearch(PKD pkd,double dTau2,int bPeriodic,int nReplicas,int nBucket) {
@@ -203,7 +203,7 @@ void pkdFofRemoteSearch(PKD pkd,double dTau2,int bPeriodic,int nReplicas,int nBu
     idSelf = mdlSelf(pkd->mdl);
     iTop = pkd->iTopTree[ROOT];
     id = idSelf;
-    for (j=0;j<3;++j) fOffset[j] = 0.0;
+    for (j=0; j<3; ++j) fOffset[j] = 0.0;
     /*
     ** Add all siblings of the top tree down to local root (but not including it) to 
     ** the checklist.
@@ -215,7 +215,7 @@ void pkdFofRemoteSearch(PKD pkd,double dTau2,int bPeriodic,int nReplicas,int nBu
 	if (idLo == idSelf) { 
 	    c = pkdTreeNode(pkd,iCellLo);
 	    Bound bnd = pkdNodeGetBnd(pkd,c);
-	    for (j=0;j<3;++j) {
+            for (j=0; j<3; ++j) {
 		if (fabs(bndSelf.fCenter[j] - bnd.fCenter[j]) > bnd.fMax[j]) {
 		    addChildFof(pkd,pkd->cl,iCellLo,idLo,fOffset);
 		    id = idUp;
@@ -230,7 +230,7 @@ void pkdFofRemoteSearch(PKD pkd,double dTau2,int bPeriodic,int nReplicas,int nBu
 	iCell = iCellLo;
 	id = idLo;
 	assert(id == idSelf);
-    NextCell:
+NextCell:
 	;
 	}
     /*
@@ -238,11 +238,11 @@ void pkdFofRemoteSearch(PKD pkd,double dTau2,int bPeriodic,int nReplicas,int nBu
     */
     if (bPeriodic) {
 	int nReps = nReplicas;
-	for (ix=-nReps;ix<=nReps;++ix) {
+        for (ix=-nReps; ix<=nReps; ++ix) {
 	    fOffset[0] = ix*pkd->fPeriod[0];
-	    for (iy=-nReps;iy<=nReps;++iy) {
+            for (iy=-nReps; iy<=nReps; ++iy) {
 		fOffset[1] = iy*pkd->fPeriod[1];
-		for (iz=-nReps;iz<=nReps;++iz) {
+                for (iz=-nReps; iz<=nReps; ++iz) {
 		    fOffset[2] = iz*pkd->fPeriod[2];
 		    bRep = ix || iy || iz;
 		    if (bRep) addChildFof(pkd,pkd->cl,iTop,idSelf,fOffset);
@@ -275,9 +275,9 @@ void pkdFofRemoteSearch(PKD pkd,double dTau2,int bPeriodic,int nReplicas,int nBu
 		CL_LOOP(pkd->cl,cltile) {
 		    CL_BLK *blk = cltile->blk;
 		    int nLeft;
-		    for(nLeft=cltile->lstTile.nBlocks; nLeft>=0; --nLeft,blk++) {
+                    for (nLeft=cltile->lstTile.nBlocks; nLeft>=0; --nLeft,blk++) {
 			int n = nLeft ? pkd->cl->lst.nPerBlock : cltile->lstTile.nInLast;
-			for (jTile=0;jTile<n;++jTile) {
+                        for (jTile=0; jTile<n; ++jTile) {
 			    switch (blk->iOpen.i[jTile]) {
 			    case 0:
 				/*
@@ -296,12 +296,12 @@ void pkdFofRemoteSearch(PKD pkd,double dTau2,int bPeriodic,int nReplicas,int nBu
 				/*
 				** Convert all the coordinates in the k-cell and store them in vectors.
 				*/
-				for (pi=k->pLower,npi=0;pi<=k->pUpper;++pi,++npi) {
+                                for (pi=k->pLower,npi=0; pi<=k->pUpper; ++pi,++npi) {
 				    p = pkdParticle(pkd,pi);
 				    pkdGetPos3(pkd,p,xi[npi],yi[npi],zi[npi]);
 				    piGroup[npi] = pkdGetGroup(pkd,p);
 				    }
-				for (pj=c->pLower;pj<=c->pUpper;++pj) {
+                                for (pj=c->pLower; pj<=c->pUpper; ++pj) {
 				    if (id == pkd->idSelf) p = pkdParticle(pkd,pj);
 				    else p = CAST(PARTICLE *,mdlFetch(pkd->mdl,CID_PARTICLE,pj,id));
 				    pjGroup = pkdGetGroup(pkd,p);
@@ -312,7 +312,7 @@ void pkdFofRemoteSearch(PKD pkd,double dTau2,int bPeriodic,int nReplicas,int nBu
 				    /*
 				    ** The following could be vectorized over the vectors xi,yi and zi!
 				    */
-				    for (i=0;i<npi;++i) {
+                                    for (i=0; i<npi; ++i) {
 					d2 = (xj-xi[i])*(xj-xi[i]) + (yj-yi[i])*(yj-yi[i]) + (zj-zi[i])*(zj-zi[i]);
 					if (d2 < dTau2) {
 					    /*
@@ -417,12 +417,12 @@ void pkdFofRemoteSearch(PKD pkd,double dTau2,int bPeriodic,int nReplicas,int nBu
 	pkd->S[iStack].cl = clTemp;
 	--iStack;
 	}
-    }
+}
 
 #if 0
 void updateInteriorBound(Bound &ibnd,const Bound &bnd) {
     int j;
-    for (j=0;j<3;++j) {
+    for (j=0; j<3; ++j) {
 	double bmin = bnd.lower(j);
 	double bmax = bnd.upper(j);
 	double fmin = ibnd.lower(j);
@@ -441,7 +441,7 @@ void updateInteriorBound(Bound &ibnd,const Bound &bnd) {
 	    }
 	ibnd.set(j,fmin,fmax);
 	}
-    }
+}
 #endif
 
 void pkdNewFof(PKD pkd,double dTau2,int nMinMembers,int bPeriodic,int nReplicas,int nBucket) {
@@ -482,7 +482,7 @@ void pkdNewFof(PKD pkd,double dTau2,int nMinMembers,int bPeriodic,int nReplicas,
 	if (idLo == idSelf) { 
 	    c = pkdTreeNode(pkd,iCellLo);
 	    Bound bnd = pkdNodeGetBnd(pkd,c);
-	    for (j=0;j<3;++j) {
+            for (j=0; j<3; ++j) {
 		if (fabs(bndSelf.fCenter[j]-bnd.fCenter[j]) > bnd.fMax[j]) {
 		    /*
 		    ** Check bounds against this sibling.
@@ -505,7 +505,7 @@ void pkdNewFof(PKD pkd,double dTau2,int nMinMembers,int bPeriodic,int nReplicas,
 	updateInteriorBound(pkd->bndInterior,bnd);
 	iCell = iCellLo;
 	id = idLo;
-    NextCell:
+NextCell:
 	;
 	}
     /*
@@ -513,19 +513,19 @@ void pkdNewFof(PKD pkd,double dTau2,int nMinMembers,int bPeriodic,int nReplicas,
     */
     if (bPeriodic) {
 	BND rbnd;
-	for (j=0;j<3;++j) rbnd.fMax[j] = bndTop->fMax[j];
-	for (ix=-1;ix<=1;++ix) {
+        for (j=0; j<3; ++j) rbnd.fMax[j] = bndTop->fMax[j];
+        for (ix=-1; ix<=1; ++ix) {
 	    fOffset[0] = ix*pkd->fPeriod[0];
-	    for (iy=-1;iy<=1;++iy) {
+            for (iy=-1; iy<=1; ++iy) {
 		fOffset[1] = iy*pkd->fPeriod[1];
-		for (iz=-1;iz<=1;++iz) {
+                for (iz=-1; iz<=1; ++iz) {
 		    fOffset[2] = iz*pkd->fPeriod[2];
 		    bRep = ix || iy || iz;
 		    if (bRep) {
 			/*
 			** Check bounds against this replica.
 			*/
-			for (j=0;j<3;++j) 
+                        for (j=0; j<3; ++j)
 			    rbnd.fCenter[j] = bndTop.fCenter[j] + fOffset[j];
 			updateInteriorBound(pkd->bndInterior,rbnd);
 			}
@@ -543,7 +543,7 @@ void pkdNewFof(PKD pkd,double dTau2,int nMinMembers,int bPeriodic,int nReplicas,
     /*
     ** Clear the group numbers!
     */
-    for (pn=0;pn<pkd->nLocal;++pn) {
+    for (pn=0; pn<pkd->nLocal; ++pn) {
 	p = pkdParticle(pkd,pn);
 	pkdSetGroup(pkd,p,0);
 	}
@@ -553,7 +553,7 @@ void pkdNewFof(PKD pkd,double dTau2,int nMinMembers,int bPeriodic,int nReplicas,
     assert(pkd->nEphemeralBytes >= 4);
     Fifo = (uint32_t *)(pkd->pLite);
     iGroup = 1;
-    for (pn=0;pn<pkd->nLocal;++pn) {
+    for (pn=0; pn<pkd->nLocal; ++pn) {
 	p = pkdParticle(pkd,pn);
 	if (pkdGetGroup(pkd,p)) continue;
 	/*
@@ -565,7 +565,7 @@ void pkdNewFof(PKD pkd,double dTau2,int nMinMembers,int bPeriodic,int nReplicas,
 	pkdSetGroup(pkd,p,iGroup);
 	bCurrFofContained = 1;
 	pkdGetPos1(pkd,p,p_r);
-	for (j=0;j<3;++j) {
+        for (j=0; j<3; ++j) {
 	    if (p_r[j] < fMinFofContained[j]) {
 		bCurrFofContained = 0;
 		break;
@@ -589,7 +589,7 @@ void pkdNewFof(PKD pkd,double dTau2,int nMinMembers,int bPeriodic,int nReplicas,
 	    /*
 	    ** In this case mark the group particles as belonging to a removed group.
 	    */
-	    for (iHead=0;iHead<iTail;++iHead) {
+            for (iHead=0; iHead<iTail; ++iHead) {
 		p = pkdParticle(pkd,Fifo[iHead]);
 		pkdSetGroup(pkd,p,uGroupMax);
 		}
@@ -601,7 +601,7 @@ void pkdNewFof(PKD pkd,double dTau2,int nMinMembers,int bPeriodic,int nReplicas,
     /*
     ** Clear group ids for removed small groups.
     */
-    for (pn=0;pn<pkd->nLocal;++pn) {
+    for (pn=0; pn<pkd->nLocal; ++pn) {
 	p = pkdParticle(pkd,pn);
 	if (pkdGetGroup(pkd,p) == uGroupMax) pkdSetGroup(pkd,p,0);
 	}
@@ -617,7 +617,7 @@ void pkdNewFof(PKD pkd,double dTau2,int nMinMembers,int bPeriodic,int nReplicas,
     pkd->nMaxRemoteGroups = (1ul*pkd->nEphemeralBytes*pkd->nStore - sizeof(*pkd->ga)*pkd->nGroups) / sizeof(*pkd->tmpFofRemote);
     pkd->ga = (struct smGroupArray *)(pkd->pLite);
     pkd->tmpFofRemote = (FOFRemote *)&pkd->ga[pkd->nGroups];
-    for(i=0;i<pkd->nGroups;++i) {
+    for (i=0; i<pkd->nGroups; ++i) {
 	pkd->ga[i].id.iIndex = i;
 	pkd->ga[i].id.iPid = pkd->idSelf;
 	pkd->ga[i].iGid = i;
@@ -628,7 +628,7 @@ void pkdNewFof(PKD pkd,double dTau2,int nMinMembers,int bPeriodic,int nReplicas,
     /*
     ** Set a local reference point for each group.
     */
-    for (pn=0;pn<pkd->nLocal;++pn) {
+    for (pn=0; pn<pkd->nLocal; ++pn) {
 	p = pkdParticle(pkd,pn);
 	if ( (i = pkdGetGroup(pkd,p)) != 0 ) {
 	    if (pkd->ga[i].iMinPart == 0xffffffff) {
@@ -651,7 +651,7 @@ void pkdNewFof(PKD pkd,double dTau2,int nMinMembers,int bPeriodic,int nReplicas,
     mdlROcache(mdl,CID_PARTICLE,NULL,pkdParticleBase(pkd),pkdParticleSize(pkd),pkdLocal(pkd));
     pkdFofRemoteSearch(pkd,dTau2,bPeriodic,nReplicas,nBucket);
     mdlFinishCache(mdl,CID_PARTICLE);
-    }
+}
 
 
 /*
@@ -665,7 +665,7 @@ static void initNames(void *vctx, void *v) {
     struct smGroupArray *g = (struct smGroupArray *)v;
     g->id.iPid = INT32_MAX;
     g->id.iIndex = INT32_MAX;
-    }
+}
 static void combNames(void *vctx, void *v1, const void *v2) {
     struct smGroupArray *g1 = (struct smGroupArray *)v1;
     const struct smGroupArray *g2 = (const struct smGroupArray *)v2;
@@ -673,7 +673,7 @@ static void combNames(void *vctx, void *v1, const void *v2) {
 	g1->id.iPid = g2->id.iPid;
 	g1->id.iIndex = g2->id.iIndex;
 	}
-    }
+}
 
 
 int pkdFofPhases(PKD pkd) {
@@ -687,11 +687,11 @@ int pkdFofPhases(PKD pkd) {
     ** Phase 1: fetch remote names.
     */
     mdlROcache(mdl,CID_GROUP,NULL,pkd->ga,sizeof(struct smGroupArray),pkd->nGroups);
-    for (iRemote=1;iRemote<pkd->iRemoteGroup;++iRemote) {
+    for (iRemote=1; iRemote<pkd->iRemoteGroup; ++iRemote) {
 	iIndex = pkd->tmpFofRemote[iRemote].key.iIndex;
 	assert(iIndex > 0);
 	iPid = pkd->tmpFofRemote[iRemote].key.iPid;
-	pRemote = static_cast<struct smGroupArray*>(mdlFetch(mdl,CID_GROUP,iIndex,iPid));
+        pRemote = static_cast<struct smGroupArray *>(mdlFetch(mdl,CID_GROUP,iIndex,iPid));
 	/*
 	** Now update the name in the local table of remote group links.
 	*/
@@ -703,7 +703,7 @@ int pkdFofPhases(PKD pkd) {
     /*
     ** Phase 2: update to unique names.
     */
-    for(i=1;i<pkd->nGroups;++i) {
+    for (i=1; i<pkd->nGroups; ++i) {
 	iLink = pkd->ga[i].iLink;
 	if (iLink) {
 	    name.iIndex = pkd->ga[i].id.iIndex;
@@ -753,7 +753,7 @@ int pkdFofPhases(PKD pkd) {
     */
     mdlCOcache(mdl,CID_GROUP,NULL,pkd->ga,sizeof(struct smGroupArray),pkd->nGroups,
 	NULL, initNames, combNames );
-    for(i=1;i<pkd->nGroups;++i) {
+    for (i=1; i<pkd->nGroups; ++i) {
 	iLink = pkd->ga[i].iLink;
 	if (iLink) {
 	    while (iLink) {
@@ -762,7 +762,7 @@ int pkdFofPhases(PKD pkd) {
 		    name.iIndex = pkd->tmpFofRemote[iLink].name.iIndex;
 		    iPid = pkd->tmpFofRemote[iLink].key.iPid;
 		    iIndex = pkd->tmpFofRemote[iLink].key.iIndex;
-		    pRemote = static_cast<struct smGroupArray*>(mdlVirtualFetch(mdl,CID_GROUP,iIndex,iPid));
+                    pRemote = static_cast<struct smGroupArray *>(mdlVirtualFetch(mdl,CID_GROUP,iIndex,iPid));
 		    assert(pRemote);
 		    if (name.iPid < pRemote->id.iPid) {
 			pRemote->id.iPid = name.iPid;
@@ -777,8 +777,8 @@ int pkdFofPhases(PKD pkd) {
 	    }
 	}
     mdlFinishCache(mdl,CID_GROUP);
-    return(bMadeProgress);
-    }
+    return (bMadeProgress);
+}
 
 
 uint64_t pkdFofFinishUp(PKD pkd,int nMinGroupSize) {
@@ -789,7 +789,7 @@ uint64_t pkdFofFinishUp(PKD pkd,int nMinGroupSize) {
     ** For a given name in the table, we need to know if some other entry has the same name and remap that 
     ** index.
     */
-    for(i=1; i<pkd->nGroups; ++i) {
+    for (i=1; i<pkd->nGroups; ++i) {
 	assert(pkd->ga[i].id.iIndex > 0);
 	}
     pkd->nGroups = pkdGroupCombineDuplicateIds(pkd,pkd->nGroups,pkd->ga,1);
@@ -801,4 +801,4 @@ uint64_t pkdFofFinishUp(PKD pkd,int nMinGroupSize) {
     */
     pkdGroupCounts(pkd,pkd->nGroups,pkd->ga);
     return pkd->nLocalGroups;
-    }
+}

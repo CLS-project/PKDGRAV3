@@ -16,9 +16,9 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#include "config.h"
+    #include "config.h"
 #else
-#include "pkd_config.h"
+    #include "pkd_config.h"
 #endif
 
 #include <math.h>
@@ -28,7 +28,7 @@
 #include <assert.h>
 #include <time.h>
 #ifdef HAVE_SYS_TIME_H
-#include <sys/time.h>
+    #include <sys/time.h>
 #endif
 #include "pkd.h"
 #include "moments.h"
@@ -52,21 +52,21 @@ static inline float asqrtf(float v) {
     r = _mm_mul_ss(r,r2);
     v = _mm_cvtss_f32(r);
     return v;
-    }
+}
 static inline float rsqrtf(float v) {
     __m128 r2 = _mm_set_ss(v);
     __m128 r = _mm_rsqrt_ps(r2);
     r = _mm_mul_ss(r,_mm_sub_ss(_mm_set_ss(3.0/2.0),_mm_mul_ss(_mm_mul_ss(r,r),_mm_mul_ss(r2,_mm_set_ss(0.5)))));
     v =_mm_cvtss_f32(r);
     return v;
-    }
+}
 #else
 static inline float asqrtf(float v) {
     return sqrtf(v);
-    }
+}
 static inline float rsqrtf(float v) {
     return 1.0f / sqrtf(v);
-    }
+}
 #endif
 #endif
 
@@ -184,6 +184,52 @@ void pkdParticleWorkDone(workParticle *wp) {
         if (wp->SPHoptions->doGravity) {
 	    pkdGetPos1(pkd,p,r);
 	    m = pkdMass(pkd,p);
+#ifdef HERNQUIST_POTENTIAL
+            // Hard coded just for the isolated galaxy test
+            const double const_reduced_hubble_cgs = 3.2407789e-18;
+            const double dMsolUnit = 1e10;
+            const double dKpcUnit = 1.0;
+            const double dKmPerSecUnit = sqrt(GCGS*dMsolUnit*MSOLG
+                                              /(dKpcUnit*KPCCM))/1e5;
+            const double H0 = 70.4/ dKmPerSecUnit * ( dKpcUnit / 1e3);
+
+            const double concentration = 9.0;
+            const double M200 = 135.28423603962767;
+            const double V200 = cbrt(10.*M200*H0);
+            const double R200 = cbrt(M200/(100.*H0*H0));
+            const double RS = R200 / concentration;
+
+            const double al = RS * sqrt(2. * (log(1. + concentration) -
+                                              concentration / (1. + concentration)));
+
+            const double mass = M200*(1.-0.041);
+            const float sqrtgm_inv = 1.f / sqrtf(mass);
+            const double epsilon =  0.2/dKpcUnit;
+            const double epsilon2 = epsilon*epsilon;
+
+
+
+
+            const float dx = pkdPos(pkd,p,0);
+            const float dy = pkdPos(pkd,p,1);
+            const float dz = pkdPos(pkd,p,2);
+
+            /* Calculate the acceleration */
+            const float rr = sqrtf(dx * dx + dy * dy + dz * dz + epsilon2);
+            const float r_plus_a_inv = 1.f / (rr + al);
+            const float r_plus_a_inv2 = r_plus_a_inv * r_plus_a_inv;
+            const float term = -mass * r_plus_a_inv2 / rr;
+
+            /* Calculate the circular orbital period */
+            const float period = 2.f * M_PI * sqrtf(rr) * al *
+                                 (1 + rr / al) * sqrtgm_inv;
+
+
+
+            wp->pInfoOut[i].a[0] += term * dx;
+            wp->pInfoOut[i].a[1] += term * dy;
+            wp->pInfoOut[i].a[2] += term * dz;
+#endif
 	    if (pkd->oFieldOffset[oAcceleration]) {
 		a = pkdAccel(pkd,p);
 		a[0] = wp->pInfoOut[i].a[0];
@@ -335,10 +381,10 @@ void pkdParticleWorkDone(workParticle *wp) {
 	delete [] wp->pInfoOut;
 	delete wp;
 	}
-    }
+}
 
 int CPUdoWorkPP(void *vpp) {
-    auto pp = static_cast<workPP*>(vpp);
+    auto pp = static_cast<workPP *>(vpp);
     workParticle *wp = pp->work;
     ILPTILE tile = pp->tile;
     ILP_BLK *blk = tile->blk;
@@ -357,7 +403,7 @@ int CPUdoWorkPP(void *vpp) {
     wp->dFlopSingleCPU += COST_FLOP_PP*(tile->lstTile.nBlocks*ILP_PART_PER_BLK  + tile->lstTile.nInLast);
     if ( ++pp->i == pp->work->nP ) return 0;
     else return 1;
-    }
+}
 
 int CPUdoWorkDensity(void *vpp) {
     auto pp = static_cast<workPP*>(vpp);
@@ -405,10 +451,10 @@ int CPUdoWorkSPHForces(void *vpp) {
     }
 
 int doneWorkPP(void *vpp) {
-    auto pp = static_cast<workPP*>(vpp);
+    auto pp = static_cast<workPP *>(vpp);
     int i;
 
-    for(i=0; i<pp->work->nP; ++i) {
+    for (i=0; i<pp->work->nP; ++i) {
 	pp->work->pInfoOut[i].a[0] += pp->pInfoOut[i].a[0];
 	pp->work->pInfoOut[i].a[1] += pp->pInfoOut[i].a[1];
 	pp->work->pInfoOut[i].a[2] += pp->pInfoOut[i].a[2];
@@ -421,7 +467,7 @@ int doneWorkPP(void *vpp) {
     delete [] pp->pInfoOut;
     delete pp;
     return 0;
-    }
+}
 
 int doneWorkDensity(void *vpp) {
     auto pp = static_cast<workPP*>(vpp);
@@ -478,7 +524,7 @@ static void queuePP( PKD pkd, workParticle *wp, ILP ilp, int bGravStep ) {
 	wp->nRefs++;
 	mdlAddWork(pkd->mdl,pp,NULL,NULL,CPUdoWorkPP,doneWorkPP);
 	}
-    }
+}
 
 static void queueDensity( PKD pkd, workParticle *wp, ILP ilp, int bGravStep ) {
     ILPTILE tile;
@@ -531,7 +577,7 @@ static void queueSPHForces( PKD pkd, workParticle *wp, ILP ilp, int bGravStep ) 
     }
 
 int CPUdoWorkPC(void *vpc) {
-    auto pc = static_cast<workPC*>(vpc);
+    auto pc = static_cast<workPC *>(vpc);
     workParticle *wp = pc->work;
     ILCTILE tile = pc->tile;
     ILC_BLK *blk = tile->blk;
@@ -550,13 +596,13 @@ int CPUdoWorkPC(void *vpc) {
     wp->dFlopSingleCPU += COST_FLOP_PC*(tile->lstTile.nBlocks*ILC_PART_PER_BLK  + tile->lstTile.nInLast);
     if ( ++pc->i == pc->work->nP ) return 0;
     else return 1;
-    }
+}
 
 int doneWorkPC(void *vpc) {
-    auto pc = static_cast<workPC*>(vpc);
+    auto pc = static_cast<workPC *>(vpc);
     int i;
 
-    for(i=0; i<pc->work->nP; ++i) {
+    for (i=0; i<pc->work->nP; ++i) {
 	pc->work->pInfoOut[i].a[0] += pc->pInfoOut[i].a[0];
 	pc->work->pInfoOut[i].a[1] += pc->pInfoOut[i].a[1];
 	pc->work->pInfoOut[i].a[2] += pc->pInfoOut[i].a[2];
@@ -570,7 +616,7 @@ int doneWorkPC(void *vpc) {
     delete [] pc->pInfoOut;
     delete pc;
     return 0;
-    }
+}
 
 static void queuePC( PKD pkd,  workParticle *wp, ILC ilc, int bGravStep ) {
     ILCTILE tile;
@@ -592,7 +638,7 @@ static void queuePC( PKD pkd,  workParticle *wp, ILC ilc, int bGravStep ) {
 	wp->nRefs++;
 	mdlAddWork(pkd->mdl,pc,NULL,NULL,CPUdoWorkPC,doneWorkPC);
 	}
-    }
+}
 
 static void queueEwald( PKD pkd, workParticle *wp ) {
     int i;
@@ -602,7 +648,7 @@ static void queueEwald( PKD pkd, workParticle *wp ) {
     int nQueued = 0;
 #endif
     ++wp->nRefs;
-    for( i=nQueued; i<wp->nP; ++i) {
+    for ( i=nQueued; i<wp->nP; ++i) {
 	PINFOIN *in = &wp->pInfoIn[i];
 	PINFOOUT *out = &wp->pInfoOut[i];
 	double r[3];
@@ -612,7 +658,7 @@ static void queueEwald( PKD pkd, workParticle *wp ) {
 	wp->dFlop += pkdParticleEwald(pkd,r,out->a,&out->fPot,&wp->dFlopSingleCPU,&wp->dFlopDoubleCPU);
 	}
     pkdParticleWorkDone(wp);
-    }
+}
 
 /*
 ** This version of grav.c does all the operations inline, including
@@ -672,7 +718,7 @@ int pkdGravInteract(PKD pkd,
 
     wp->SPHoptions = SPHoptions;
 
-    for (i=pkdn->pLower;i<=pkdn->pUpper;++i) {
+    for (i=pkdn->pLower; i<=pkdn->pUpper; ++i) {
 	p = pkdParticle(pkd,i);
 	if (!pkdIsRungRange(p,ts->uRungLo,ts->uRungHi) && !(SPHoptions->useDensityFlags && p->bMarked)) continue;
 	pkdGetPos1(pkd,p,r);
@@ -764,7 +810,7 @@ int pkdGravInteract(PKD pkd,
     ** Evaluate the local expansion.
     */
     if (pLoc && SPHoptions->doGravity) {
-	for( i=0; i<wp->nP; i++ ) {
+        for( i=0; i<wp->nP; i++ ) {
 	    momFloat ax,ay,az, dPot;
 	    double *c = wp->c;
 	    float *in = wp->pInfoIn[i].r;
@@ -831,7 +877,7 @@ int pkdGravInteract(PKD pkd,
 
 #ifdef TIMESTEP_CRITICAL
     if (SPHoptions->doGravity) {
-    for( i=0; i<wp->nP; i++ ) {
+    for ( i=0; i<wp->nP; i++ ) {
 	double *c = wp->c;
 	float *in = wp->pInfoIn[i].r;
 	r[0] = c[0] + in[0];
@@ -862,7 +908,7 @@ int pkdGravInteract(PKD pkd,
 	    rhopmax = 0.0;
 	    ILP_LOOP(ilp,tile) {
 		int blk,prt;
-		for( blk=0; blk<=tile->lstTile.nBlocks; ++blk ) {
+                for ( blk=0; blk<=tile->lstTile.nBlocks; ++blk ) {
 		    n = (blk==tile->lstTile.nBlocks ? tile->lstTile.nInLast : ilp->lst.nPerBlock);
 		    for (prt=0; prt<n; ++prt) {
 			if (p->iOrder < wp->ts->nPartColl || tile->xtr[blk].iOrder.i[prt] < wp->ts->nPartColl) {
@@ -910,8 +956,8 @@ int pkdGravInteract(PKD pkd,
     pkdParticleWorkDone(wp);
 
     *pdFlop += nActive*(ilpCount(pkd->ilp)*COST_FLOP_PP + ilcCount(pkd->ilc)*COST_FLOP_PC) + nSoft*15;
-    return(nActive);
-    }
+    return (nActive);
+}
 
 #ifdef TIMESTEP_CRITICAL
 /*
@@ -932,5 +978,5 @@ double pkdRho1(double rhopmaxlocal, double summ, double dir, double x, double y,
     eccfac = (eccfac > EccFacMax)?EccFacMax:eccfac;
     if (eccfac > 1.0) rhopmaxlocal *= eccfac;
     return rhopmaxlocal;
-    }
+}
 #endif

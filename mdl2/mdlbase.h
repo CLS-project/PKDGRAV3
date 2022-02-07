@@ -18,12 +18,12 @@
 #ifndef MDLBASE_H
 #define MDLBASE_H
 #ifdef HAVE_CONFIG_H
-#include "config.h"
+    #include "config.h"
 #else
-#include "mdl_config.h"
+    #include "mdl_config.h"
 #endif
 #ifdef INSTRUMENT
-#include "cycle.h"
+    #include "cycle.h"
 #endif
 #include <stdio.h>
 #include <stdlib.h>
@@ -48,9 +48,52 @@ typedef int (fcnService_t)(void *p1, void *vin, int nIn, void *vout, int nOut);
 #include <vector>
 #include <string>
 #include <memory>
+#include <initializer_list>
 #define MAX_NODE_NAME_LENGTH      256
 
 namespace mdl {
+
+// This struct is use to keep track of a variable length buffer for service requests.
+// List all data types and the number of times they are repeated in the constructor.
+//     ServiceBuffer msg {
+//         ServiceBuffer::Field<ServiceWhatever::input>(),
+//         ServiceBuffer::Field<int>(100)
+//         };
+// This would create a message with a single "input", followed by 100 integers.
+// Access the individual fields with "data()".
+//    auto input = static_cast<ServiceWhatever::input*>(msg.data(0));
+//    auto start = static_cast<int*>(msg.data(1));
+// The RunService() method has a overload that takes a ServiceBuffer for input.
+class ServiceBuffer {
+    std::vector<size_t> offsets {0};
+    std::unique_ptr<char[]> buffer;
+protected:
+    class BasicField {
+        int nBytes;
+    public:
+        BasicField(int size) : nBytes(size) {}
+        size_t size() const {return nBytes; }
+    };
+public:
+    template<typename T>
+    class Field : public BasicField {
+        int n;
+    public:
+        Field(int n=1) : BasicField(sizeof(T)*n) {}
+    };
+public:
+    ServiceBuffer() = delete;
+    ServiceBuffer(const ServiceBuffer &) = delete;
+    ServiceBuffer &operator=(const ServiceBuffer &) = delete;
+    ServiceBuffer(std::initializer_list<BasicField> t) {
+        for (auto &i : t) offsets.push_back(offsets.back() + i.size());
+        buffer = std::make_unique<char[]>(offsets.back());
+    }
+    void *data(int i=0) {return static_cast<void *>(buffer.get() + offsets[i]);}
+    auto size() {return offsets.back();}
+    auto size(int i) {return offsets[i+1]-offsets[i];}
+};
+
 class BasicService {
     friend class mdlBASE;
 private:
@@ -60,18 +103,18 @@ private:
     std::string service_name;
 public:
     explicit BasicService(int service_id, int nInBytes, int nOutBytes, const char *service_name="")
-	: nInBytes(nInBytes), nOutBytes(nOutBytes), service_id(service_id),service_name(service_name) {}
+        : nInBytes(nInBytes), nOutBytes(nOutBytes), service_id(service_id),service_name(service_name) {}
     explicit BasicService(int service_id, int nInBytes, const char *service_name="")
-	: nInBytes(nInBytes), nOutBytes(0), service_id(service_id),service_name(service_name) {}
+        : nInBytes(nInBytes), nOutBytes(0), service_id(service_id),service_name(service_name) {}
     explicit BasicService(int service_id, const char *service_name="")
-	: nInBytes(0), nOutBytes(0), service_id(service_id),service_name(service_name) {}
+        : nInBytes(0), nOutBytes(0), service_id(service_id),service_name(service_name) {}
     virtual ~BasicService() = default;
     int getServiceID()  {return service_id;}
     int getMaxBytesIn() {return nInBytes;}
-    int getMaxBytesOut(){return nOutBytes;}
+    int getMaxBytesOut() {return nOutBytes;}
 protected:
     virtual int operator()(int nIn, void *pIn, void *pOut) = 0;
-    };
+};
 
 class mdlBASE : protected mdlbt {
 public:
@@ -90,7 +133,7 @@ public:
     /* Services information */
     int nMaxInBytes;
     int nMaxOutBytes;
-    std::vector< std::unique_ptr<BasicService> > services;
+    std::vector< std::unique_ptr<BasicService>> services;
 
     /* Maps a give process (Proc) to the first global thread ID */
     std::vector<int> iProcToThread; /* [0,nProcs] (note inclusive extra element) */
@@ -102,7 +145,7 @@ public:
         TIME_COMPUTING,
         TIME_SYNCHRONIZING,
         TIME_COUNT
-        } TICK_TIMER;
+    } TICK_TIMER;
 
 #if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
 protected:
@@ -137,11 +180,12 @@ public:
     int32_t ThreadToProc(int32_t iThread) const;
     void yield();
     void AddService(int sid, void *p1, fcnService_t *fcnService, int nInBytes, int nOutBytes, const char *name="");
-    void AddService(std::unique_ptr<BasicService> && service);
+    void AddService(std::unique_ptr<BasicService> &&service);
     int  RunService(int sid, int nIn, void *pIn, void *pOut=nullptr);
+    int  RunService(int sid, ServiceBuffer &b, void *pOut=nullptr) { return RunService(sid,b.size(),b.data(),pOut);}
     int  RunService(int sid, void *pOut) { return RunService(sid,0,nullptr,pOut); }
     BasicService *GetService(unsigned sid) {return sid<services.size() ? services[sid].get() : nullptr; }
-    };
+};
 int mdlBaseProcToThread(mdlBASE *base, int iProc);
 int mdlBaseThreadToProc(mdlBASE *base, int iThread);
 } // namespace mdl
@@ -180,7 +224,7 @@ void mdlDiag(void *mdl, char *psz);
 #define mdlassert(mdl,expr)  assert(expr)
 #endif
 
-double mdlCpuTimer(void * mdl);
+double mdlCpuTimer(void *mdl);
 /*
 * Timer functions active: define MDLTIMER
 * Makes mdl timer functions active
@@ -193,11 +237,11 @@ typedef struct {
     double wallclock;
     double cpu;
     double system;
-    } mdlTimer;
+} mdlTimer;
 
 #ifdef MDLTIMER
-void mdlZeroTimer(void * mdl, mdlTimer *);
-void mdlGetTimer(void * mdl, mdlTimer *, mdlTimer *);
+void mdlZeroTimer(void *mdl, mdlTimer *);
+void mdlGetTimer(void *mdl, mdlTimer *, mdlTimer *);
 void mdlPrintTimer(void *mdl, const char *message, mdlTimer *);
 #else
 #define mdlZeroTimer

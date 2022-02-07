@@ -1,0 +1,16 @@
+style=attach			# Preferred style is attach
+break-closing-braces		# but with else on separate line
+keep-one-line-blocks		
+keep-one-line-statements
+attach-namespaces
+attach-classes
+attach-inlines
+attach-extern-c
+attach-closing-while
+close-templates			# Now allowed in C++11
+pad-header
+align-pointer=name
+lineend=linux
+indent=spaces=4
+convert-tabs
+indent-preproc-block

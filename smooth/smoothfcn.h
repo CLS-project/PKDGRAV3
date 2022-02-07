@@ -21,8 +21,11 @@
 #include "pkd.h"
 
 typedef struct smfParameters {
+    int nSmooth;
     int iMaxRung;
     int bComove;
+    int bDoGravity;
+    UNITS units;
     double dTime;
     double H;
     double a;
@@ -59,7 +62,36 @@ typedef struct smfParameters {
     remoteID hopParticleLink;
     int bDone;
     float *pfDensity;
-    } SMF;
+    /* IA: Meshless hydro */
+    int bMeshlessHydro;
+    int bIterativeSmoothingLength;
+    double dCFLacc;
+    double dConstGamma;
+    double dhMinOverSoft;
+    int bUpdateBall;
+    double dNeighborsStd;
+#if EEOS_POLYTROPE
+    double dEOSPolyFloorIndex;
+    double dEOSPolyFloorDen;
+    double dEOSPolyFlooru;
+#endif
+#if EEOS_JEANS
+    double dEOSNJeans;
+#endif
+#ifdef FEEDBACK
+    double dSNFBDelay;
+    double dSNFBDu;
+    double dSNFBNumberSNperMass;
+#endif
+#ifdef BLACKHOLES
+    double dBHFBEff;
+    double dBHFBEcrit;
+    double dBHAccretionEddFac;
+    double dBHAccretionAlpha;
+    int bBHFeedback;
+    int bBHAccretion;
+#endif
+} SMF;
 
 
 typedef struct pqNode {
@@ -74,7 +106,7 @@ typedef struct pqNode {
     double dz;
     int iIndex;
     int iPid;
-    } PQ;
+} PQ;
 
 
 typedef PQ NN;
@@ -173,6 +205,21 @@ void initSphForcesParticle(void *,void *);
 void initSphForces(void *,void *);
 void combSphForces(void *,void *,const void *);
 void SphForces(PARTICLE *,float fBall,int,NN *,SMF *);
+
+#define SMX_HYDRO_DENSITY     40
+#define SMX_HYDRO_GRADIENT    41
+#define SMX_HYDRO_FLUX        42
+#define SMX_HYDRO_STEP        43
+#define SMX_HYDRO_FLUX_VEC    44
+
+#define SMX_SN_FEEDBACK       50
+
+#define SMX_BH_MERGER         55
+#define SMX_BH_DRIFT          56
+
+#ifdef STELLAR_EVOLUTION
+    #define SMX_CHEM_ENRICHMENT   60
+#endif
 
 #define SMX_DIST_DELETED_GAS                    7
 void initDistDeletedGas(void *,void *p1);

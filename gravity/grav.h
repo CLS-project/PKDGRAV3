@@ -24,11 +24,11 @@
 
 static inline double softmassweight(double m1,double h12,double m2,double h22) {
     double tmp = h12*h22;
-    if (m1 == 0.0) return(h22);
-    if (m2 == 0.0) return(h12);
-    if (tmp > 0.0) return((m1+m2)*tmp/(h22*m1+h12*m2));
-    else return(0.0);
-    }
+    if (m1 == 0.0) return (h22);
+    if (m2 == 0.0) return (h12);
+    if (tmp > 0.0) return ((m1+m2)*tmp/(h22*m1+h12*m2));
+    else return (0.0);
+}
 
 void pkdGravStartEwald(PKD pkd);
 void pkdGravFinishEwald(PKD pkd);
@@ -48,7 +48,7 @@ int pkdGravInteract(PKD pkd,
 void pkdParticleWorkDone(workParticle *work);
 
 #ifdef TIMESTEP_CRITICAL
-double pkdRho1(double rhopmaxlocal, double summ, double dir, double x, double y, double z, double vx, double vy, double vz, double EccFacMax);
+    double pkdRho1(double rhopmaxlocal, double summ, double dir, double x, double y, double z, double vx, double vy, double vz, double EccFacMax);
 #endif
 
 #endif

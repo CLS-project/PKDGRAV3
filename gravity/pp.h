@@ -16,7 +16,7 @@
  */
 
 #ifndef CUDA_DEVICE
-#define CUDA_DEVICE
+    #define CUDA_DEVICE
 #endif
 template<class F,class M,bool bGravStep>
 CUDA_DEVICE void EvalPP(

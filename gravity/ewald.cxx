@@ -16,14 +16,14 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#include "config.h"
+    #include "config.h"
 #else
-#include "pkd_config.h"
+    #include "pkd_config.h"
 #endif
 
 #include <stdio.h>
 #ifdef HAVE_MALLOC_H
-#include <malloc.h>
+    #include <malloc.h>
 #endif
 #include <math.h>
 #include <assert.h>
@@ -34,7 +34,7 @@
 #include "moments.h"
 #include "gravity/grav.h"
 #ifdef USE_SIMD_EWALD
-#include "core/vmath.h"
+    #include "core/vmath.h"
 #endif/*USE_SIMD_EWALD*/
 #include "cuda/cudautil.h"
 
@@ -69,11 +69,11 @@ static int evalEwald(
     F Q3miry = F(mom.xxy)*xx + F(mom.xyy)*xy + F(mom.xyz)*xz + F(mom.yyy)*yy + F(mom.yyz)*yz + F(mom.yzz)*zz;
     F Q3mirz = F(mom.xxz)*xx + F(mom.xyz)*xy + F(mom.xzz)*xz + F(mom.yyz)*yy + F(mom.yzz)*yz + F(mom.zzz)*zz;
     F Q4mirx = F(mom.xxxx)*xxx + F(mom.xxxy)*xxy + F(mom.xxxz)*xxz + F(mom.xxyy)*xyy + F(mom.xxyz)*xyz +
-      F(mom.xxzz)*xzz + F(mom.xyyy)*yyy + F(mom.xyyz)*yyz + F(mom.xyzz)*yzz + F(mom.xzzz)*zzz;
+               F(mom.xxzz)*xzz + F(mom.xyyy)*yyy + F(mom.xyyz)*yyz + F(mom.xyzz)*yzz + F(mom.xzzz)*zzz;
     F Q4miry = F(mom.xxxy)*xxx + F(mom.xxyy)*xxy + F(mom.xxyz)*xxz + F(mom.xyyy)*xyy + F(mom.xyyz)*xyz +
-      F(mom.xyzz)*xzz + F(mom.yyyy)*yyy + F(mom.yyyz)*yyz + F(mom.yyzz)*yzz + F(mom.yzzz)*zzz;
+               F(mom.xyzz)*xzz + F(mom.yyyy)*yyy + F(mom.yyyz)*yyz + F(mom.yyzz)*yzz + F(mom.yzzz)*zzz;
     F Q4mirz = F(mom.xxxz)*xxx + F(mom.xxyz)*xxy + F(mom.xxzz)*xxz + F(mom.xyyz)*xyy + F(mom.xyzz)*xyz +
-      F(mom.xzzz)*xzz + F(mom.yyyz)*yyy + F(mom.yyzz)*yyz + F(mom.yzzz)*yzz + F(mom.zzzz)*zzz;
+               F(mom.xzzz)*xzz + F(mom.yyyz)*yyy + F(mom.yyzz)*yyz + F(mom.yzzz)*yzz + F(mom.zzzz)*zzz;
     F Q4x = F(ew.Q4xx)*x + F(ew.Q4xy)*y + F(ew.Q4xz)*z;
     F Q4y = F(ew.Q4xy)*x + F(ew.Q4yy)*y + F(ew.Q4yz)*z;
     F Q4z = F(ew.Q4xz)*x + F(ew.Q4yz)*y + F(ew.Q4zz)*z;
@@ -87,12 +87,12 @@ static int evalEwald(
     az += g2*(Q2mirz - F(ew.Q3z)) + g3*(Q3mirz - Q4z) + g4*Q4mirz - z*Qta;
 
     return COST_FLOP_EWALD;
-    }
+}
 
 #if defined(USE_SIMD_EWALD) && defined(__SSE2__)
 double evalEwaldSIMD( PKD pkd,ewaldSIMD *ews,
-    dvec &ax, dvec &ay, dvec &az, dvec &dPot,
-    v_df Ix, v_df Iy, v_df Iz, const v_df &Ir2, const dmask &doerfc ) {
+                      dvec &ax, dvec &ay, dvec &az, dvec &dPot,
+                      v_df Ix, v_df Iy, v_df Iz, const v_df &Ir2, const dmask &doerfc ) {
     dvec dir,dir2,a,g0,g1,g2,g3,g4,g5,alphan;
     dvec xx,xxx,xxy,xxz,yy,yyy,yyz,xyy,zz,zzz,xzz,yzz,xy,xyz,xz,yz;
     dvec Qta,Q4mirx,Q4miry,Q4mirz,Q4mir,Q4x,Q4y,Q4z;
@@ -120,17 +120,17 @@ double evalEwaldSIMD( PKD pkd,ewaldSIMD *ews,
     g5 = 9.0*g4*dir2 + alphan*a;
 
     evalEwald<dvec,struct ewaldSIMD::PEWALDVARS,struct ewaldSIMD::PMOMC>(
-   	ews->ewp,ews->ewm,ax,ay,az,dPot,x,y,z,g0,g1,g2,g3,g4,g5);
+            ews->ewp,ews->ewm,ax,ay,az,dPot,x,y,z,g0,g1,g2,g3,g4,g5);
 
     return COST_FLOP_EWALD * SIMD_DWIDTH;
-    }
+}
 #endif
 
 extern "C"
 double pkdParticleEwald(PKD pkd,double *r, float *pa, float *pPot,double *pdFlopSingle, double *pdFlopDouble) {
     struct EwaldVariables &ew = pkd->ew;
     EwaldTable *ewt = &pkd->ewt;
-    const MOMC & restrict mom = ew.mom;
+    const MOMC &restrict mom = ew.mom;
     double L,Pot,ax,ay,az,dx,dy,dz,x,y,z,r2;
 #ifdef USE_SIMD_EWALD
     dvec dPot,dax,day,daz;
@@ -157,112 +157,113 @@ double pkdParticleEwald(PKD pkd,double *r, float *pa, float *pPot,double *pdFlop
     day.zero();
     daz.zero();
 #endif
-    for (ix=-ew.nEwReps;ix<=ew.nEwReps;++ix) {
-	bInHolex = (abs(ix) <= ew.nReps);
-	x = dx + ix*L;
-	for (iy=-ew.nEwReps;iy<=ew.nEwReps;++iy) {
-	    bInHolexy = (bInHolex && abs(iy) <= ew.nReps);
-	    y = dy + iy*L;
-	    for (iz=-ew.nEwReps;iz<=ew.nEwReps;++iz) {
-		bInHole = (bInHolexy && abs(iz) <= ew.nReps);
-		z = dz + iz*L;
-		r2 = x*x + y*y + z*z;
-		if (r2 > ew.fEwCut2 && !bInHole) continue;
-		if (r2 < ew.fInner2) {
-		    double g0,g1,g2,g3,g4,g5,alphan;
-		    /*
-		     * For small r, series expand about
-		     * the origin to avoid errors caused
-		     * by cancellation of large terms.
-		     */
-		    alphan = ew.ka;
-		    r2 *= ew.alpha2;
-		    g0 = alphan*((1.0/3.0)*r2 - 1.0);
-		    alphan *= 2*ew.alpha2;
-		    g1 = alphan*((1.0/5.0)*r2 - (1.0/3.0));
-		    alphan *= 2*ew.alpha2;
-		    g2 = alphan*((1.0/7.0)*r2 - (1.0/5.0));
-		    alphan *= 2*ew.alpha2;
-		    g3 = alphan*((1.0/9.0)*r2 - (1.0/7.0));
-		    alphan *= 2*ew.alpha2;
-		    g4 = alphan*((1.0/11.0)*r2 - (1.0/9.0));
-		    alphan *= 2*ew.alpha2;
-		    g5 = alphan*((1.0/13.0)*r2 - (1.0/11.0));
+    for (ix=-ew.nEwReps; ix<=ew.nEwReps; ++ix) {
+        bInHolex = (abs(ix) <= ew.nReps);
+        x = dx + ix*L;
+        for (iy=-ew.nEwReps; iy<=ew.nEwReps; ++iy) {
+            bInHolexy = (bInHolex && abs(iy) <= ew.nReps);
+            y = dy + iy*L;
+            for (iz=-ew.nEwReps; iz<=ew.nEwReps; ++iz) {
+                bInHole = (bInHolexy && abs(iz) <= ew.nReps);
+                z = dz + iz*L;
+                r2 = x*x + y*y + z*z;
+                if (r2 > ew.fEwCut2 && !bInHole) continue;
+                if (r2 < ew.fInner2) {
+                    double g0,g1,g2,g3,g4,g5,alphan;
+                    /*
+                     * For small r, series expand about
+                     * the origin to avoid errors caused
+                     * by cancellation of large terms.
+                     */
+                    alphan = ew.ka;
+                    r2 *= ew.alpha2;
+                    g0 = alphan*((1.0/3.0)*r2 - 1.0);
+                    alphan *= 2*ew.alpha2;
+                    g1 = alphan*((1.0/5.0)*r2 - (1.0/3.0));
+                    alphan *= 2*ew.alpha2;
+                    g2 = alphan*((1.0/7.0)*r2 - (1.0/5.0));
+                    alphan *= 2*ew.alpha2;
+                    g3 = alphan*((1.0/9.0)*r2 - (1.0/7.0));
+                    alphan *= 2*ew.alpha2;
+                    g4 = alphan*((1.0/11.0)*r2 - (1.0/9.0));
+                    alphan *= 2*ew.alpha2;
+                    g5 = alphan*((1.0/13.0)*r2 - (1.0/11.0));
 
-		    dFlopDouble += evalEwald<double,struct EwaldVariables,MOMC>(ew,ew.mom,ax,ay,az,Pot,x,y,z,g0,g1,g2,g3,g4,g5);
-		    }
-		else {
+                    dFlopDouble += evalEwald<double,struct EwaldVariables,MOMC>(ew,ew.mom,ax,ay,az,Pot,x,y,z,g0,g1,g2,g3,g4,g5);
+                }
+                else {
 #if defined(USE_SIMD_EWALD)
-		    px[nSIMD] = x;
-		    py[nSIMD] = y;
-		    pz[nSIMD] = z;
-		    pr2[nSIMD] = r2;
-		    pInHole[nSIMD] = bInHole;
-//		    doerfc.i[nSIMD] = bInHole ? 0 : UINT64_MAX;
-		    if (++nSIMD == SIMD_DWIDTH) {
-			dFlopDouble += evalEwaldSIMD(pkd,&pkd->es,dax,day,daz,dPot,dvec(px),dvec(py),dvec(pz),dvec(pr2),dvec(pInHole) == 0.0);
-			nSIMD = 0;
-			}
+                    px[nSIMD] = x;
+                    py[nSIMD] = y;
+                    pz[nSIMD] = z;
+                    pr2[nSIMD] = r2;
+                    pInHole[nSIMD] = bInHole;
+//          doerfc.i[nSIMD] = bInHole ? 0 : UINT64_MAX;
+                    if (++nSIMD == SIMD_DWIDTH) {
+                        dFlopDouble += evalEwaldSIMD(pkd,&pkd->es,dax,day,daz,dPot,dvec(px),dvec(py),dvec(pz),dvec(pr2),dvec(pInHole) == 0.0);
+                        nSIMD = 0;
+                    }
 #else
-		    double dir,dir2,a;
-		    double g0,g1,g2,g3,g4,g5,alphan;
-		    dir = 1/sqrt(r2);
-		    dir2 = dir*dir;
-		    a = exp(-r2*ew.alpha2);
-		    a *= ew.ka*dir2;
+                    double dir,dir2,a;
+                    double g0,g1,g2,g3,g4,g5,alphan;
+                    dir = 1/sqrt(r2);
+                    dir2 = dir*dir;
+                    a = exp(-r2*ew.alpha2);
+                    a *= ew.ka*dir2;
 
 
-		    if (bInHole) {
-			g0 = -erf(ew.alpha*r2*dir);
-			}
-		    else {
-			g0 = erfc(ew.alpha*r2*dir);
-			}
-		    g0 *= dir;
-		    g1 = g0*dir2 + a;
-		    alphan = 2*ew.alpha2;
-		    g2 = 3*g1*dir2 + alphan*a;
-		    alphan *= 2*ew.alpha2;
-		    g3 = 5*g2*dir2 + alphan*a;
-		    alphan *= 2*ew.alpha2;
-		    g4 = 7*g3*dir2 + alphan*a;
-		    alphan *= 2*ew.alpha2;
-		    g5 = 9*g4*dir2 + alphan*a;
-		    dFlopDouble += evalEwald<double,struct EwaldVariables,MOMC>(ew,ew.mom,ax,ay,az,Pot,x,y,z,g0,g1,g2,g3,g4,g5);
-		    //dFlopDouble += evalEwald(ew,&ax,&ay,&az,&Pot,x,y,z,g0,g1,g2,g3,g4,g5);
+                    if (bInHole) {
+                        g0 = -erf(ew.alpha*r2*dir);
+                    }
+                    else {
+                        g0 = erfc(ew.alpha*r2*dir);
+                    }
+                    g0 *= dir;
+                    g1 = g0*dir2 + a;
+                    alphan = 2*ew.alpha2;
+                    g2 = 3*g1*dir2 + alphan*a;
+                    alphan *= 2*ew.alpha2;
+                    g3 = 5*g2*dir2 + alphan*a;
+                    alphan *= 2*ew.alpha2;
+                    g4 = 7*g3*dir2 + alphan*a;
+                    alphan *= 2*ew.alpha2;
+                    g5 = 9*g4*dir2 + alphan*a;
+                    dFlopDouble += evalEwald<double,struct EwaldVariables,MOMC>(ew,ew.mom,ax,ay,az,Pot,x,y,z,g0,g1,g2,g3,g4,g5);
+                    //dFlopDouble += evalEwald(ew,&ax,&ay,&az,&Pot,x,y,z,g0,g1,g2,g3,g4,g5);
 #endif
-		    }
-		++nLoop;
-		}
-	    }
-	}
+                }
+                ++nLoop;
+            }
+        }
+    }
 #if defined(USE_SIMD_EWALD)
     /* Finish remaining SIMD operations if necessary */
     if (nSIMD) { /* nSIMD can be 0 through 7 */
 #define M (~0LL)
 #if defined(__AVX512F__)
-	static const i64v::array_t keepmask[] = {{0,0,0,0,0,0,0,0},{M,0,0,0,0,0,0,0},{M,M,0,0,0,0,0,0},{M,M,M,0,0,0,0,0},
-	    {M,M,M,M,0,0,0,0},{M,M,M,M,M,0,0,0},{M,M,M,M,M,M,0,0},{M,M,M,M,M,M,M,0}};
+        static const i64v::array_t keepmask[] = {{0,0,0,0,0,0,0,0},{M,0,0,0,0,0,0,0},{M,M,0,0,0,0,0,0},{M,M,M,0,0,0,0,0},
+            {M,M,M,M,0,0,0,0},{M,M,M,M,M,0,0,0},{M,M,M,M,M,M,0,0},{M,M,M,M,M,M,M,0}
+        };
 #elif defined(__AVX__)
-	static const i64v::array_t keepmask[] = {{0,0,0,0},{M,0,0,0},{M,M,0,0},{M,M,M,0}};
+        static const i64v::array_t keepmask[] = {{0,0,0,0},{M,0,0,0},{M,M,0,0},{M,M,M,0}};
 #else
-	static const i64v::array_t keepmask[] = {{0,0},{M,0}};
+        static const i64v::array_t keepmask[] = {{0,0},{M,0}};
 #endif
 #undef M
-	dvec t,tax=0, tay=0, taz=0, tpot=0;
-	evalEwaldSIMD(pkd,&pkd->es,tax,tay,taz,tpot,dvec(px),dvec(py),dvec(pz),dvec(pr2),dvec(pInHole) == 0.0);
-	dFlopDouble += COST_FLOP_EWALD * nSIMD;
-	t = cast_dvec(i64v(keepmask[nSIMD]));
-	tax = tax & t;
-	tay = tay & t;
-	taz = taz & t;
-	tpot = tpot & t;
-	dax += tax;
-	day += tay;
-	daz += taz;
-	dPot-= tpot;
-	nSIMD = 0;
-	}
+        dvec t,tax=0, tay=0, taz=0, tpot=0;
+        evalEwaldSIMD(pkd,&pkd->es,tax,tay,taz,tpot,dvec(px),dvec(py),dvec(pz),dvec(pr2),dvec(pInHole) == 0.0);
+        dFlopDouble += COST_FLOP_EWALD * nSIMD;
+        t = cast_dvec(i64v(keepmask[nSIMD]));
+        tax = tax & t;
+        tay = tay & t;
+        taz = taz & t;
+        tpot = tpot & t;
+        dax += tax;
+        day += tay;
+        daz += taz;
+        dPot-= tpot;
+        nSIMD = 0;
+    }
 #endif
 
 #ifdef USE_SIMD_EWALD
@@ -279,21 +280,21 @@ double pkdParticleEwald(PKD pkd,double *r, float *pa, float *pPot,double *pdFlop
     nLoop = (ew.nEwhLoop+SIMD_MASK) >> SIMD_BITS;
     i = 0;
     do {
-	fvec hdotx,s,c,t;
-	hdotx = fvec(ewt->hx.p[i])*fx + fvec(ewt->hy.p[i])*fy + fvec(ewt->hz.p[i])*fz;
-	fvec svec,cvec;
+        fvec hdotx,s,c,t;
+        hdotx = fvec(ewt->hx.p[i])*fx + fvec(ewt->hy.p[i])*fy + fvec(ewt->hz.p[i])*fz;
+        fvec svec,cvec;
 
-	sincosf(fvec(hdotx),svec,cvec);
-	s = svec; c = cvec;
+        sincosf(fvec(hdotx),svec,cvec);
+        s = svec; c = cvec;
 
-	fPot += fvec(ewt->hSfac.p[i])*s + fvec(ewt->hCfac.p[i])*c;
-	s *= fvec(ewt->hCfac.p[i]);
-	c *= fvec(ewt->hSfac.p[i]);
-	t = s - c;
-	fax += fvec(ewt->hx.p[i])*t;
-	fay += fvec(ewt->hy.p[i])*t;
-	faz += fvec(ewt->hz.p[i])*t;
-	} while(++i < nLoop);
+        fPot += fvec(ewt->hSfac.p[i])*s + fvec(ewt->hCfac.p[i])*c;
+        s *= fvec(ewt->hCfac.p[i]);
+        c *= fvec(ewt->hSfac.p[i]);
+        t = s - c;
+        fax += fvec(ewt->hx.p[i])*t;
+        fay += fvec(ewt->hy.p[i])*t;
+        faz += fvec(ewt->hz.p[i])*t;
+    } while (++i < nLoop);
     dFlopSingle += ew.nEwhLoop*COST_FLOP_HLOOP;
 
     ax += hadd(fax);
@@ -303,22 +304,22 @@ double pkdParticleEwald(PKD pkd,double *r, float *pa, float *pPot,double *pdFlop
 #else
     /*
     ** Scoring for the h-loop (+,*)
-    ** 	Without trig = (10,14)
-    **	    Trig est.	 = 2*(6,11)  same as 1/sqrt scoring.
-    **		Total        = (22,36)
-    **					 = 58
+    **  Without trig = (10,14)
+    **      Trig est.    = 2*(6,11)  same as 1/sqrt scoring.
+    **      Total        = (22,36)
+    **                   = 58
     */
-    for (i=0;i<ew.nEwhLoop;++i) {
-	double hdotx,s,c,t;
-	hdotx = ewt->hx.f[i]*dx + ewt->hy.f[i]*dy + ewt->hz.f[i]*dz;
-	c = cos(hdotx);
-	s = sin(hdotx);
-	Pot += ewt->hCfac.f[i]*c + ewt->hSfac.f[i]*s;
-	t = ewt->hCfac.f[i]*s - ewt->hSfac.f[i]*c;
-	ax += ewt->hx.f[i]*t;
-	ay += ewt->hy.f[i]*t;
-	az += ewt->hz.f[i]*t;
-	}
+    for (i=0; i<ew.nEwhLoop; ++i) {
+        double hdotx,s,c,t;
+        hdotx = ewt->hx.f[i]*dx + ewt->hy.f[i]*dy + ewt->hz.f[i]*dz;
+        c = cos(hdotx);
+        s = sin(hdotx);
+        Pot += ewt->hCfac.f[i]*c + ewt->hSfac.f[i]*s;
+        t = ewt->hCfac.f[i]*s - ewt->hSfac.f[i]*c;
+        ax += ewt->hx.f[i]*t;
+        ay += ewt->hy.f[i]*t;
+        az += ewt->hz.f[i]*t;
+    }
     dFlopDouble += ew.nEwhLoop*COST_FLOP_HLOOP;
 #endif
     pa[0] += ax;
@@ -329,13 +330,13 @@ double pkdParticleEwald(PKD pkd,double *r, float *pa, float *pPot,double *pdFlop
     *pdFlopSingle += dFlopSingle;
     *pdFlopDouble += dFlopDouble;
     return dFlopDouble + dFlopSingle;
-    }
+}
 
 extern "C"
 void pkdEwaldInit(PKD pkd,int nReps,double fEwCut,double fhCut) {
-    struct EwaldVariables * const ew = &pkd->ew;
-    EwaldTable * const ewt = &pkd->ewt;
-    const MOMC * restrict mom = &ew->mom;
+    struct EwaldVariables *const ew = &pkd->ew;
+    EwaldTable *const ewt = &pkd->ewt;
+    const MOMC *restrict mom = &ew->mom;
     int i,hReps,hx,hy,hz,h2;
     double k4,L;
     double gam[6],mfacc,mfacs;
@@ -439,77 +440,77 @@ void pkdEwaldInit(PKD pkd,int nReps,double fEwCut,double fhCut) {
     i = (i + SIMD_MASK) & ~SIMD_MASK;
 #endif
     if ( i>ew->nMaxEwhLoop ) {
-	ew->nMaxEwhLoop = i;
-	ewt->hx.f = (ewaldFloatType *)SIMD_malloc(ew->nMaxEwhLoop*sizeof(ewt->hx.f));
-	assert(ewt->hx.f != NULL);
-	ewt->hy.f = (ewaldFloatType *)SIMD_malloc(ew->nMaxEwhLoop*sizeof(ewt->hy.f));
-	assert(ewt->hy.f != NULL);
-	ewt->hz.f = (ewaldFloatType *)SIMD_malloc(ew->nMaxEwhLoop*sizeof(ewt->hz.f));
-	assert(ewt->hz.f != NULL);
-	ewt->hCfac.f = (ewaldFloatType *)SIMD_malloc(ew->nMaxEwhLoop*sizeof(ewt->hCfac.f));
-	assert(ewt->hCfac.f != NULL);
-	ewt->hSfac.f = (ewaldFloatType *)SIMD_malloc(ew->nMaxEwhLoop*sizeof(ewt->hSfac.f));
-	assert(ewt->hSfac.f != NULL);
-	}
+        ew->nMaxEwhLoop = i;
+        ewt->hx.f = (ewaldFloatType *)SIMD_malloc(ew->nMaxEwhLoop*sizeof(ewt->hx.f));
+        assert(ewt->hx.f != NULL);
+        ewt->hy.f = (ewaldFloatType *)SIMD_malloc(ew->nMaxEwhLoop*sizeof(ewt->hy.f));
+        assert(ewt->hy.f != NULL);
+        ewt->hz.f = (ewaldFloatType *)SIMD_malloc(ew->nMaxEwhLoop*sizeof(ewt->hz.f));
+        assert(ewt->hz.f != NULL);
+        ewt->hCfac.f = (ewaldFloatType *)SIMD_malloc(ew->nMaxEwhLoop*sizeof(ewt->hCfac.f));
+        assert(ewt->hCfac.f != NULL);
+        ewt->hSfac.f = (ewaldFloatType *)SIMD_malloc(ew->nMaxEwhLoop*sizeof(ewt->hSfac.f));
+        assert(ewt->hSfac.f != NULL);
+    }
     ew->nEwhLoop = i;
     i = (int)pow(1+2*ew->nEwReps,3);
 #if defined(USE_SIMD_EWALD) && defined(__SSE2__)
     i = (i + SIMD_MASK) & ~SIMD_MASK;
 #endif
     i = 0;
-    for (hx=-hReps;hx<=hReps;++hx) {
-	for (hy=-hReps;hy<=hReps;++hy) {
-	    for (hz=-hReps;hz<=hReps;++hz) {
-		h2 = hx*hx + hy*hy + hz*hz;
-		if (h2 == 0) continue;
-		if (h2 > fhCut*fhCut) continue;
-		assert (i < ew->nMaxEwhLoop);
-		gam[0] = exp(-k4*h2)/(M_PI*h2*L);
-		gam[1] = 2*M_PI/L*gam[0];
-		gam[2] = -2*M_PI/L*gam[1];
-		gam[3] = 2*M_PI/L*gam[2];
-		gam[4] = -2*M_PI/L*gam[3];
-		gam[5] = 2*M_PI/L*gam[4];
-		gam[1] = 0.0;
-		gam[3] = 0.0;
-		gam[5] = 0.0;
-		ax = 0.0;
-		ay = 0.0;
-		az = 0.0;
-		mfacc = 0.0;
-		QEVAL(iOrder,ew->mom,gam,hx,hy,hz,ax,ay,az,mfacc);
-		gam[0] = exp(-k4*h2)/(M_PI*h2*L);
-		gam[1] = 2*M_PI/L*gam[0];
-		gam[2] = -2*M_PI/L*gam[1];
-		gam[3] = 2*M_PI/L*gam[2];
-		gam[4] = -2*M_PI/L*gam[3];
-		gam[5] = 2*M_PI/L*gam[4];
-		gam[0] = 0.0;
-		gam[2] = 0.0;
-		gam[4] = 0.0;
-		ax = 0.0;
-		ay = 0.0;
-		az = 0.0;
-		mfacs = 0.0;
-		QEVAL(iOrder,ew->mom,gam,hx,hy,hz,ax,ay,az,mfacs);
-		ewt->hx.f[i] = 2*M_PI/L*hx;
-		ewt->hy.f[i] = 2*M_PI/L*hy;
-		ewt->hz.f[i] = 2*M_PI/L*hz;
-		ewt->hCfac.f[i] = mfacc;
-		ewt->hSfac.f[i] = mfacs;
-		++i;
-		}
-	    }
-	}
+    for (hx=-hReps; hx<=hReps; ++hx) {
+        for (hy=-hReps; hy<=hReps; ++hy) {
+            for (hz=-hReps; hz<=hReps; ++hz) {
+                h2 = hx*hx + hy*hy + hz*hz;
+                if (h2 == 0) continue;
+                if (h2 > fhCut*fhCut) continue;
+                assert (i < ew->nMaxEwhLoop);
+                gam[0] = exp(-k4*h2)/(M_PI*h2*L);
+                gam[1] = 2*M_PI/L*gam[0];
+                gam[2] = -2*M_PI/L*gam[1];
+                gam[3] = 2*M_PI/L*gam[2];
+                gam[4] = -2*M_PI/L*gam[3];
+                gam[5] = 2*M_PI/L*gam[4];
+                gam[1] = 0.0;
+                gam[3] = 0.0;
+                gam[5] = 0.0;
+                ax = 0.0;
+                ay = 0.0;
+                az = 0.0;
+                mfacc = 0.0;
+                QEVAL(iOrder,ew->mom,gam,hx,hy,hz,ax,ay,az,mfacc);
+                gam[0] = exp(-k4*h2)/(M_PI*h2*L);
+                gam[1] = 2*M_PI/L*gam[0];
+                gam[2] = -2*M_PI/L*gam[1];
+                gam[3] = 2*M_PI/L*gam[2];
+                gam[4] = -2*M_PI/L*gam[3];
+                gam[5] = 2*M_PI/L*gam[4];
+                gam[0] = 0.0;
+                gam[2] = 0.0;
+                gam[4] = 0.0;
+                ax = 0.0;
+                ay = 0.0;
+                az = 0.0;
+                mfacs = 0.0;
+                QEVAL(iOrder,ew->mom,gam,hx,hy,hz,ax,ay,az,mfacs);
+                ewt->hx.f[i] = 2*M_PI/L*hx;
+                ewt->hy.f[i] = 2*M_PI/L*hy;
+                ewt->hz.f[i] = 2*M_PI/L*hz;
+                ewt->hCfac.f[i] = mfacc;
+                ewt->hSfac.f[i] = mfacs;
+                ++i;
+            }
+        }
+    }
     ew->nEwhLoop = i;
-    while(i<ew->nMaxEwhLoop) {
-	ewt->hx.f[i] = 0;
-	ewt->hy.f[i] = 0;
-	ewt->hz.f[i] = 0;
-	ewt->hCfac.f[i] = 0;
-	ewt->hSfac.f[i] = 0;
-	++i;
-	}
+    while (i<ew->nMaxEwhLoop) {
+        ewt->hx.f[i] = 0;
+        ewt->hy.f[i] = 0;
+        ewt->hz.f[i] = 0;
+        ewt->hCfac.f[i] = 0;
+        ewt->hSfac.f[i] = 0;
+        ++i;
+    }
 #ifdef USE_CL
     clEwaldInit(pkd->mdl->clCtx,ew,ewt);
     mdlThreadBarrier(pkd->mdl);
@@ -518,4 +519,4 @@ void pkdEwaldInit(PKD pkd,int nReps,double fEwCut,double fhCut) {
     auto cuda = reinterpret_cast<CudaClient *>(pkd->cudaClient);
     cuda->setupEwald(ew,ewt);
 #endif
-    }
+}

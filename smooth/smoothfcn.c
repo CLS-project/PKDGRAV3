@@ -16,14 +16,14 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#include "config.h"
+    #include "config.h"
 #else
-#include "pkd_config.h"
+    #include "pkd_config.h"
 #endif
 #ifdef HAVE_INTTYPES_H
-#include <inttypes.h>
+    #include <inttypes.h>
 #else
-#define PRIu64 "llu"
+    #define PRIu64 "llu"
 #endif
 #include <stdio.h>
 #include <math.h>
@@ -95,7 +95,7 @@
 #endif
 
 void NullSmooth(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
-    }
+}
 
 void initBall(void *vpkd, void *p) {
     pkdSetBall(vpkd,(PARTICLE *)p,0.0);
@@ -108,11 +108,11 @@ void BallSmooth(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
 void initDensity(void *vpkd, void *p) {
     pkdSetDensity(vpkd,(PARTICLE *)p,0.0);
-    }
+}
 
 void combDensity(void *vpkd, void *p1,const void *p2) {
     pkdSetDensity(vpkd,p1,pkdDensity(vpkd,p1)+pkdDensity(vpkd,p2));
-    }
+}
 
 void DensityF1(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
@@ -121,7 +121,7 @@ void DensityF1(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
     ih2 = 1.0/BALL2(fBall);
     fDensity = 0.0;
-    for (i=0;i<nSmooth;++i) {
+    for (i=0; i<nSmooth; ++i) {
 	fMass = pkdMass(pkd,nnList[i].pPart);
 	r2 = nnList[i].fDist2*ih2;
 	rs = 1 - r2;
@@ -131,7 +131,7 @@ void DensityF1(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     fDensity *= 1.875f*M_1_PI*sqrtf(ih2)*ih2; /* F1 Kernel (15/8) */
     if (smf->pfDensity) *smf->pfDensity = fDensity;
     else pkdSetDensity(pkd,p,fDensity);
-    }
+}
 
 void DensityM3(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
@@ -139,7 +139,7 @@ void DensityM3(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     int i;
     ih2 = 1.0f/BALL2(fBall);
     fDensity = 0.0;
-    for (i=0;i<nSmooth;++i) {
+    for (i=0; i<nSmooth; ++i) {
 	fMass = pkdMass(pkd,nnList[i].pPart);
 	r2 = nnList[i].fDist2*ih2;
 	if (r2 < 1.0) {
@@ -156,7 +156,7 @@ void DensityM3(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 	fDensity += rs*fMass;
 	}
     pkdSetDensity(pkd,p,16.0f*M_1_PI*sqrtf(ih2)*ih2*fDensity);
-    }
+}
 
 void LinkGradientM3(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
@@ -165,7 +165,7 @@ void LinkGradientM3(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     ih2 = 1.0/BALL2(fBall);
     fNorm = 16.0f*M_1_PI*ih2*ih2*sqrtf(ih2);
     frho[0] = frho[1] = frho[2] = 0.0;
-    for (i=0;i<nSmooth;++i) {
+    for (i=0; i<nSmooth; ++i) {
 	fMass = pkdMass(pkd,nnList[i].pPart);
 	r2 = nnList[i].fDist2*ih2;
 	if (r2 < 1.0) {
@@ -188,10 +188,10 @@ void LinkGradientM3(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 	frho[2] -= nnList[i].dz*rs;
 	}
     idrho = 1.0/sqrt(frho[0]*frho[0] + frho[1]*frho[1] + frho[2]*frho[2]);
-    for (j=0;j<3;++j) frho[j] *= 0.5*idrho*fBall;
+    for (j=0; j<3; ++j) frho[j] *= 0.5*idrho*fBall;
     r2min = HUGE_VALF;
     if (nSmooth==0) pkdSetGroup(pkd, p, -1);
-    for (i=0;i<nSmooth;++i) {
+    for (i=0; i<nSmooth; ++i) {
 	dr = nnList[i].dx - frho[0];
 	r2 = dr*dr;
 	dr = nnList[i].dy - frho[1];
@@ -204,7 +204,7 @@ void LinkGradientM3(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 	    smf->hopParticleLink.iIndex = nnList[i].iIndex;
 	    }
 	}
-    }
+}
 
 void LinkHopChains(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
@@ -213,7 +213,7 @@ void LinkHopChains(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     GHtmpGroupTable *g1, *g2, g;
     gid1 = pkdGetGroup(pkd,p);
     g1 = &pkd->tmpHopGroups[gid1];
-    for (i=0;i<nSmooth;++i) {
+    for (i=0; i<nSmooth; ++i) {
 	gid2 = pkdGetGroup(pkd,nnList[i].pPart);
 	if (nnList[i].iPid==pkd->idSelf && gid1==gid2) continue;
 	g.iPid = nnList[i].iPid;
@@ -241,7 +241,7 @@ void LinkHopChains(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 	    }
 	mdlRelease(mdl,CID_GROUP,g2);
 	}
-    }
+}
 
 void Density(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
@@ -250,14 +250,14 @@ void Density(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
     ih2 = 4.0/BALL2(fBall);
     fDensity = 0.0;
-    for (i=0;i<nSmooth;++i) {
+    for (i=0; i<nSmooth; ++i) {
 	fMass = pkdMass(pkd,nnList[i].pPart);
 	r2 = nnList[i].fDist2*ih2;
 	KERNEL(rs,r2);
 	fDensity += rs*fMass;
 	}
     pkdSetDensity(pkd,p,M_1_PI*sqrt(ih2)*ih2*fDensity);
-    }
+}
 
 void DensitySym(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
@@ -267,7 +267,7 @@ void DensitySym(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     fMassP = pkdMass(pkd,p);
     ih2 = 4.0/(BALL2(fBall));
     fNorm = 0.5*M_1_PI*sqrt(ih2)*ih2;
-    for (i=0;i<nSmooth;++i) {
+    for (i=0; i<nSmooth; ++i) {
 	r2 = nnList[i].fDist2*ih2;
 	KERNEL(rs,r2);
 	rs *= fNorm;
@@ -276,39 +276,37 @@ void DensitySym(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 	pkdSetDensity(pkd,p,pkdDensity(pkd,p) + rs*fMassQ);
 	pkdSetDensity(pkd,q,pkdDensity(pkd,q) + rs*fMassP);
 	}
-    }
+}
 
 void PrintNN(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
     int i;
 
     printf("%"PRIu64":",(uint64_t)p->iOrder);
-    for (i=0;i<nSmooth;++i) {
+    for (i=0; i<nSmooth; ++i) {
 	if (pkdIsActive(pkd,nnList[i].pPart))
 	    printf("%"PRIu64" ",(uint64_t)nnList[i].pPart->iOrder);
 	else 
 	    printf("\033[7m%"PRIu64"\033[0m ",(uint64_t)nnList[i].pPart->iOrder);
 	}
     printf("\n");
-    }
+}
 
-void initDenDVDX(void *vpkd, void *p)
-{
-	}
+void initDenDVDX(void *vpkd, void *p) {
+}
 
-void combDenDVDX(void *vpkd, void *p1,const void *p2)
-{
-	}
+void combDenDVDX(void *vpkd, void *p1,const void *p2) {
+}
 
 /* Gather only version */
 /* JW: What types should dx etc... have -- why is NN using FLOAT ? */
-void DenDVDX(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf)
-    {
+#ifndef OPTIM_REMOVE_UNUSED
+void DenDVDX(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
     PARTICLE *q;
     SPHFIELDS *psph, *qsph;
     double ih2,ih,r2,rs,rs1,fDensity,qMass,fNorm,fNorm1,vFac;
-    double dvxdx , dvxdy , dvxdz, dvydx , dvydy , dvydz, dvzdx , dvzdy , dvzdz;
+    double dvxdx, dvxdy, dvxdz, dvydx, dvydy, dvydz, dvzdx, dvzdy, dvzdz;
     double dvx,dvy,dvz,dx,dy,dz,trace;
     double curlv[3];
     int i;
@@ -324,7 +322,7 @@ void DenDVDX(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf)
     dvydx = 0; dvydy = 0; dvydz= 0;
     dvzdx = 0; dvzdy = 0; dvzdz= 0;
 
-    for (i=0;i<nSmooth;++i) {  
+    for (i=0; i<nSmooth; ++i) {
 	r2 = nnList[i].fDist2*ih2;
 	q = nnList[i].pPart;
 	qMass = pkdMass(pkd,q);  
@@ -388,7 +386,7 @@ void DenDVDX(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf)
 	}
     else psph->diff = 0;
 
-    }
+}
 
 /* JW: Do I need to differentiate init of Original Particle and Cached Copy? 
    -- YES accel zeroed on cache copy */
@@ -408,7 +406,7 @@ void initSphForcesParticle(void *vpkd, void *vp) {
 	//     pkdAccel(pkd,p)[2] = 0;
 	//     }
 	}
-    }
+}
 
 void initSphForces(void *vpkd, void *vp) {
     PKD pkd = (PKD) vpkd;
@@ -423,7 +421,7 @@ void initSphForces(void *vpkd, void *vp) {
 	pkdAccel(pkd,p)[1] = 0;  
 	pkdAccel(pkd,p)[2] = 0; /* JW: Cached copies have zero accel! && rung */
 	}
-    }
+}
 
 void combSphForces(void *vpkd, void *p1,const void *p2) {
     PKD pkd = (PKD) vpkd;
@@ -441,7 +439,7 @@ void combSphForces(void *vpkd, void *p1,const void *p2) {
 	if (((PARTICLE *) p2)->uNewRung > ((PARTICLE *) p1)->uNewRung) 
 	    ((PARTICLE *) p1)->uNewRung = ((PARTICLE *) p2)->uNewRung;
 	}
-    }
+}
 
 void SphForces(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
@@ -481,7 +479,7 @@ void SphForces(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     fNorm = 0.5*M_1_PI*ih2/ph;
     fNorm1 = fNorm*ih2;	/* converts to physical u */
 
-    for (i=0;i<nSmooth;++i) {
+    for (i=0; i<nSmooth; ++i) {
 	q = nnList[i].pPart;
 	/* JW: Active tests here -- Rung info in pkd */
 	qActive = pkdIsActive(pkd,q);
@@ -519,7 +517,7 @@ void SphForces(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
       PACTIVE( psph->fMetalsDot += diff*rq ); \
       QACTIVE( qsph->fMetalsDot -= diff*rp ); }
 
-/* JW: Star form will need this! */
+        /* JW: Star form will need this! */
 #define DIFFUSIONMetalsOxygen() 
 #define DIFFUSIONMetalsIron() 
 #define SWITCHCOMBINE(a,b) (0.5*(a->BalsaraSwitch+b->BalsaraSwitch))
@@ -588,13 +586,12 @@ void SphForces(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 	    }
 
 	} /* end neighbour loop */
-    }
+}
 
-void initDistDeletedGas(void *vpkd,void *vp)
-    {
+void initDistDeletedGas(void *vpkd,void *vp) {
     PKD pkd = (PKD) vpkd;
     PARTICLE *p = vp;
-/*
+    /*
  * Zero out accumulated quantities. 
  */
     if (pkdIsDeleted(pkd,p)) return; /* deleted */
@@ -618,11 +615,10 @@ void initDistDeletedGas(void *vpkd,void *vp)
     pkdSph(pkd,p)->fMetals = 0;
     pkdSph(pkd,p)->fMetalsDot = 0;
     pkdSph(pkd,p)->fMetalsPred = 0;
-    }
+}
 
 
-void combDistDeletedGas(void *vpkd,void *vp1,const void *vp2)
-    {
+void combDistDeletedGas(void *vpkd,void *vp1,const void *vp2) {
     PKD pkd = (PKD) vpkd;
     PARTICLE *p1 = vp1,*p2 = (void *)vp2;
     float *p1mass;
@@ -660,10 +656,9 @@ void combDistDeletedGas(void *vpkd,void *vp1,const void *vp2)
 	pkdSph(pkd,p1)->fMetalsPred = f1*pkdSph(pkd,p1)->fMetalsPred+f2*pkdSph(pkd,p2)->fMetalsPred;
 	pkdSph(pkd,p1)->fMetalsDot = f1*pkdSph(pkd,p1)->fMetalsDot+f2*pkdSph(pkd,p2)->fMetalsDot;
 	}
-    }
+}
 
-void DistDeletedGas(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf)
-    {	
+void DistDeletedGas(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = (PKD) smf->pkd;
     PARTICLE *q;
     double fNorm,ih2,r2,rs,rstot,fp,fq;
@@ -679,7 +674,7 @@ void DistDeletedGas(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf)
 
     ih2 = 4.0/(fBall*fBall);
     rstot = 0;        
-    for (i=0;i<nSmooth;++i) {
+    for (i=0; i<nSmooth; ++i) {
 	q = nnList[i].pPart;
 	if (pkdIsDeleted(pkd,q)) continue; /* deleted */
 	assert(pkdIsGas(pkd,q));
@@ -690,7 +685,7 @@ void DistDeletedGas(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf)
     assert(rstot > 0); /* What if all neighbours deleted -- does that happen? */
 
     fNorm = *pmass/rstot;
-    for (i=0;i<nSmooth;++i) {
+    for (i=0; i<nSmooth; ++i) {
 	q = nnList[i].pPart;
 	if (pkdIsDeleted(pkd,q)) continue; /* deleted */
 	r2 = nnList[i].fDist2*ih2;            
@@ -725,11 +720,10 @@ void DistDeletedGas(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf)
     *pmass = 0; /* All distributed */
 }
 
-void initDistSNEnergy(void *vpkd,void *vp)
-    {
+void initDistSNEnergy(void *vpkd,void *vp) {
     PKD pkd = (PKD) vpkd;
     PARTICLE *p = vp;
-/*
+    /*
  * Zero out accumulated quantities. 
  */
     if (!pkdIsGas(pkd,p)) return; /* not gas */
@@ -753,10 +747,9 @@ void initDistSNEnergy(void *vpkd,void *vp)
     pkdSph(pkd,p)->fMetals = 0;
     pkdSph(pkd,p)->fMetalsDot = 0;
     pkdSph(pkd,p)->fMetalsPred = 0;
-    }
+}
 
-void combDistSNEnergy(void *vpkd,void *vp1,const void *vp2)
-    {
+void combDistSNEnergy(void *vpkd,void *vp1,const void *vp2) {
     PKD pkd = (PKD) vpkd;
     PARTICLE *p1 = vp1,*p2=(void *)vp2;
     float *p1mass, *p2mass;
@@ -793,10 +786,9 @@ void combDistSNEnergy(void *vpkd,void *vp1,const void *vp2)
 	pkdSph(pkd,p1)->fMetalsPred = f1*pkdSph(pkd,p1)->fMetalsPred+f2*pkdSph(pkd,p2)->fMetalsPred;
 	pkdSph(pkd,p1)->fMetalsDot = f1*pkdSph(pkd,p1)->fMetalsDot+f2*pkdSph(pkd,p2)->fMetalsDot;
 	}
-    }
+}
 
-void DistSNEnergy(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf)
-    {
+void DistSNEnergy(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = (PKD) smf->pkd;
     PARTICLE *q,*qmin;
     float qBall;
@@ -813,7 +805,7 @@ void DistSNEnergy(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf)
     Timer = *pkd_Timer(pkd,p);
     dtp = smf->dDelta/(1<<p->uRung);/* size of step just completed by star */
 
-    if(smf->dTime-dtp > Timer+smf->SFdtFeedbackDelay) {
+    if (smf->dTime-dtp > Timer+smf->SFdtFeedbackDelay) {
 	assert(pkdSph(pkd,p)->u == 0); /* Star must have fedback by now */
 	return;
 	}
@@ -831,7 +823,7 @@ void DistSNEnergy(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf)
 	/* No -- but attempt to warn particles the SN is coming... by lowering timesteps */
 	/* Star dt should be suppressed in right way -- see SFdvFB  */
 	uNewRung = p->uNewRung;
-	for (i=0;i<nSmooth;++i) {
+        for (i=0; i<nSmooth; ++i) {
 	    q = nnList[i].pPart;
 	    if (!pkdIsGas(pkd,q)) continue;
 	    if (pkdIsDeleted(pkd,q)) continue; /* deleted */
@@ -846,7 +838,7 @@ void DistSNEnergy(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf)
     ih2 = 4.0/(fBall*fBall);
     r2min = 1e37f;
     qmin = NULL;
-    for (i=0;i<nSmooth;++i) {
+    for (i=0; i<nSmooth; ++i) {
 	r2 = nnList[i].fDist2*ih2;            
 	q = nnList[i].pPart;
 	if (!pkdIsGas(pkd,q)) continue;
@@ -897,7 +889,7 @@ void DistSNEnergy(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf)
 	}
 
     /* The SN is here ... lower timesteps */
-    for (i=0;i<nSmooth;++i) {
+    for (i=0; i<nSmooth; ++i) {
 	q = nnList[i].pPart;
 	if (!pkdIsGas(pkd,q)) continue;
 	if (pkdIsDeleted(pkd,q)) continue; /* deleted */
@@ -915,8 +907,8 @@ void initMeanVel(void *vpkd, void *pvoid) {
     int j;
     assert(pkd);
     pvel = pkdField(p,pkd->oFieldOffset[oVelSmooth]);
-    for(j=0;j<3;++j) pvel->vmean[j] = 0.0;
-    }
+    for (j=0; j<3; ++j) pvel->vmean[j] = 0.0;
+}
 
 void combMeanVel(void *vpkd, void *p1void,const void *p2void) {
     PKD pkd = (PKD)vpkd;
@@ -930,8 +922,8 @@ void combMeanVel(void *vpkd, void *p1void,const void *p2void) {
     p1vel = pkdField(p1,pkd->oFieldOffset[oVelSmooth]);
     p2vel = pkdFieldRO(p2,pkd->oFieldOffset[oVelSmooth]);
 
-    for (j=0;j<3;++j) p1vel->vmean[j] += p2vel->vmean[j];
-    }
+    for (j=0; j<3; ++j) p1vel->vmean[j] += p2vel->vmean[j];
+}
 
 void MeanVel(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
@@ -944,17 +936,17 @@ void MeanVel(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
     pvel = pkdField(p,pkd->oFieldOffset[oVelSmooth]);
     ih2 = 4.0/BALL2(fBall);
-    for (j=0;j<3;++j) v[j] = 0.0;
-    for (i=0;i<nSmooth;++i) {
+    for (j=0; j<3; ++j) v[j] = 0.0;
+    for (i=0; i<nSmooth; ++i) {
 	r2 = nnList[i].fDist2*ih2;
 	KERNEL(rs,r2);
 	q = nnList[i].pPart;
 	fMass = pkdMass(pkd,q);
 	qv = pkdVel(pkd,q);
-	for (j=0;j<3;++j) v[j] += rs*fMass/pkdDensity(pkd,q)*qv[j];
-	}
-    for (j=0;j<3;++j) pvel->vmean[j] = M_1_PI*sqrt(ih2)*ih2*v[j];
+        for (j=0; j<3; ++j) v[j] += rs*fMass/pkdDensity(pkd,q)*qv[j];
     }
+    for (j=0; j<3; ++j) pvel->vmean[j] = M_1_PI*sqrt(ih2)*ih2*v[j];
+}
 
 void MeanVelSym(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
@@ -969,7 +961,7 @@ void MeanVelSym(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     fMassP = pkdMass(pkd,p);
     ih2 = 4.0/(BALL2(fBall));
     fNorm = 0.5*M_1_PI*sqrt(ih2)*ih2;
-    for (i=0;i<nSmooth;++i) {
+    for (i=0; i<nSmooth; ++i) {
 	r2 = nnList[i].fDist2*ih2;
 	KERNEL(rs,r2);
 	rs *= fNorm;
@@ -977,12 +969,12 @@ void MeanVelSym(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 	qv = pkdVel(pkd,q);
 	qvel = pkdField(q,pkd->oFieldOffset[oVelSmooth]);
 	fMassQ = pkdMass(pkd,q);
-	for (j=0;j<3;++j) {
+        for (j=0; j<3; ++j) {
 	    pvel->vmean[j] += rs*fMassQ/pkdDensity(pkd,q)*qv[j];
 	    qvel->vmean[j] += rs*fMassP/pkdDensity(pkd,p)*pv[j];
 	    }
 	}
-    }
+}
 
 
 
@@ -993,7 +985,7 @@ void initDivv(void *vpkd, void *pvoid) {
     assert(pkd);
     pvel = pkdField(p,pkd->oFieldOffset[oVelSmooth]);
     pvel->divv = 0.0;
-    }
+}
 
 void combDivv(void *vpkd, void *p1void,const void *p2void) {
     PKD pkd = (PKD)vpkd;
@@ -1005,7 +997,7 @@ void combDivv(void *vpkd, void *p1void,const void *p2void) {
     p1vel = pkdField(p1,pkd->oFieldOffset[oVelSmooth]);
     p2vel = pkdFieldRO(p2,pkd->oFieldOffset[oVelSmooth]);
     p1vel->divv += p2vel->divv;
-    }
+}
 
 void Divv(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
@@ -1020,7 +1012,7 @@ void Divv(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     pv = pkdVel(pkd,p);
     ih2 = 4.0/BALL2(fBall);
     fNorm = M_1_PI*ih2*ih2;
-    for (i=0;i<nSmooth;++i) {
+    for (i=0; i<nSmooth; ++i) {
 	r2 = nnList[i].fDist2*ih2;
 	DKERNEL(rs,r2);
 	rs *= fNorm;
@@ -1030,7 +1022,7 @@ void Divv(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 	dvdotdr = (qv[0] - pv[0])*nnList[i].dx + (qv[1] - pv[1])*nnList[i].dy + (qv[2] - pv[2])*nnList[i].dz;
 	pvel->divv += rs*fMass/pkdDensity(pkd,q)*dvdotdr;
 	}
-    }
+}
 
 void DivvSym(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
@@ -1045,7 +1037,7 @@ void DivvSym(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     fMassP = pkdMass(pkd,p);
     ih2 = 4.0/(BALL2(fBall));
     fNorm = 0.5*M_1_PI*ih2*ih2;
-    for (i=0;i<nSmooth;++i) {
+    for (i=0; i<nSmooth; ++i) {
 	r2 = nnList[i].fDist2*ih2;
 	DKERNEL(rs,r2);
 	rs *= fNorm;
@@ -1057,7 +1049,7 @@ void DivvSym(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 	pvel->divv += rs*fMassQ/pkdDensity(pkd,q)*dvdotdr;
 	qvel->divv += rs*fMassP/pkdDensity(pkd,p)*dvdotdr;
 	}
-    }
+}
 
 
 
@@ -1068,7 +1060,7 @@ void initVelDisp2(void *vpkd, void *pvoid) {
     assert(pkd);
     pvel = pkdField(p,pkd->oFieldOffset[oVelSmooth]);
     pvel->veldisp2 = 0.0;
-    }
+}
 
 void combVelDisp2(void *vpkd, void *p1void,const void *p2void) {
     PKD pkd = (PKD)vpkd;
@@ -1080,7 +1072,7 @@ void combVelDisp2(void *vpkd, void *p1void,const void *p2void) {
     p1vel = pkdField(p1,pkd->oFieldOffset[oVelSmooth]);
     p2vel = pkdFieldRO(p2,pkd->oFieldOffset[oVelSmooth]);
     p1vel->veldisp2 += p2vel->veldisp2;
-    }
+}
 
 void VelDisp2(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
@@ -1093,7 +1085,7 @@ void VelDisp2(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     pvel = pkdField(p,pkd->oFieldOffset[oVelSmooth]);
     ih2 = 4.0/BALL2(fBall);
     fNorm = M_1_PI*sqrt(ih2)*ih2;
-    for (i=0;i<nSmooth;++i) {
+    for (i=0; i<nSmooth; ++i) {
 	r2 = nnList[i].fDist2*ih2;
 	KERNEL(rs,r2);
 	rs *= fNorm;
@@ -1110,7 +1102,7 @@ void VelDisp2(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
 	pvel->veldisp2 += rs*fMass/pkdDensity(pkd,q)*tv2;
 	}
-    }
+}
 
 void VelDisp2Sym(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
@@ -1124,7 +1116,7 @@ void VelDisp2Sym(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     fMassP = pkdMass(pkd,p);
     ih2 = 4.0/(BALL2(fBall));
     fNorm = 0.5*M_1_PI*sqrt(ih2)*ih2;
-    for (i=0;i<nSmooth;++i) {
+    for (i=0; i<nSmooth; ++i) {
 	r2 = nnList[i].fDist2*ih2;
 	KERNEL(rs,r2);
 	rs *= fNorm;
@@ -1143,7 +1135,7 @@ void VelDisp2Sym(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 	pvel->veldisp2 += rs*fMassQ/pkdDensity(pkd,q)*tv2;
 	qvel->veldisp2 += rs*fMassP/pkdDensity(pkd,p)*tv2;
 	}
-    }
+}
 
 void AddRelaxation(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
@@ -1160,23 +1152,23 @@ void AddRelaxation(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     gamma = 0.17; /* gamma scales overall relaxation time */
     feps = 1.0; /* cuttoff for pmin at feps*epsilon or p_90 deg */
 
-    for (j=0;j<3;++j) {
+    for (j=0; j<3; ++j) {
 	vMean[j] = 0.0;
 	}
     vSigma2 = 0.0;
     rho = 0.0;
-    for (i=0;i<nSmooth;++i) {
+    for (i=0; i<nSmooth; ++i) {
 	q = nnList[i].pPart;
 	v = pkdVel(pkd,q);
 	rho += pkdMass(pkd,q);
-	for (j=0;j<3;++j) {
+        for (j=0; j<3; ++j) {
 	    vSigma2 += v[j]*v[j];
 	    vMean[j] += v[j];
 	    }
 	}
     vSigma2 /= nSmooth;
     rho /= 4.18*pow(fBall,3.0);
-    for (j=0;j<3;++j) {
+    for (j=0; j<3; ++j) {
 	vMean[j] /= nSmooth;
 	vSigma2 -= vMean[j]*vMean[j];
 	}
@@ -1190,4 +1182,6 @@ void AddRelaxation(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     fRel = 0.5*( log(1+L*L) - L*L/(1+L*L) );
     fRel *= pkdMass(pkd,p)*rho*pow(vSigma2, -1.5)/gamma;
     *pRelax += fRel * smf->dDeltaT;
-    }
+}
+
+#endif //OPTIM_REMOVE_UNUSED

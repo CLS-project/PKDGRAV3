@@ -32,26 +32,26 @@ typedef struct {
     double spectral;
     double normalization;
     int nTf;
-    } powerParameters;
+} powerParameters;
 
 static double power(powerParameters *P,double k) {
     double T = gsl_spline_eval(P->spline,log(k),P->acc);
     return pow(k,P->spectral) * P->normalization * T * T;
-    }
+}
 
 typedef struct {
     powerParameters *P;
     double r;
-    } varianceParameters;
+} varianceParameters;
 
-static double variance_integrand(double ak, void * params) {
+static double variance_integrand(double ak, void *params) {
     varianceParameters *vprm = params;
     double x, w;
     /* Window function for spherical tophat of given radius (e.g., 8 Mpc/h) */
     x = ak * vprm->r;
     w = 3.0*(sin(x)-x*cos(x))/(x*x*x);
     return power(vprm->P,ak)*ak*ak*w*w*4.0*M_PI;
-    }
+}
 
 static double variance(powerParameters *P,double dRadius) {
     varianceParameters vprm;
@@ -63,10 +63,10 @@ static double variance(powerParameters *P,double dRadius) {
     F.function = &variance_integrand;
     F.params = &vprm;
     gsl_integration_qag(&F, exp(P->tk[0]), exp(P->tk[P->nTf-1]),
-	0.0, 1e-6, 1000, GSL_INTEG_GAUSS61, W, &result, &error);
+                        0.0, 1e-6, 1000, GSL_INTEG_GAUSS61, W, &result, &error);
     gsl_integration_workspace_free(W);
     return result;
-    }
+}
 
 int main(int argc,char *argv[]) {
     CSM csm;
@@ -81,9 +81,9 @@ int main(int argc,char *argv[]) {
     FILE *fp;
 
     if (argc<6) {
-	fprintf(stderr, "Usage: %s tffile omega sigma8 spectral redshift\n",argv[0]);
-	return 1;
-	}
+        fprintf(stderr, "Usage: %s tffile omega sigma8 spectral redshift\n",argv[0]);
+        return 1;
+    }
     csmInitialize(&csm);
     csm->val.dHubble0 = sqrt(8.0 * M_PI / 3.0);
     csm->val.dOmega0 = atof(argv[2]);
@@ -97,18 +97,18 @@ int main(int argc,char *argv[]) {
 
     fp = fopen(argv[1],"r");
     if (fp == NULL) {
-	perror(argv[1]);
-	return 2;
-	}
+        perror(argv[1]);
+        return 2;
+    }
 
     nTf = 0;
-    while(fgets(buffer,sizeof(buffer),fp)) {
-	assert(nTf < MAX_TF);
-	if (sscanf(buffer," %lg %lg\n",&k[nTf],&tf[nTf])==2) {
-	    k[nTf] = log(k[nTf]);
-	    ++nTf;
-	    }
-	}
+    while (fgets(buffer,sizeof(buffer),fp)) {
+        assert(nTf < MAX_TF);
+        if (sscanf(buffer," %lg %lg\n",&k[nTf],&tf[nTf])==2) {
+            k[nTf] = log(k[nTf]);
+            ++nTf;
+        }
+    }
     fclose(fp);
 
 
@@ -127,15 +127,15 @@ int main(int argc,char *argv[]) {
     double twopi = 2.0 * 4.0 * atan(1.0);
     double twopi3 = pow(twopi,3.0);
 
-    while(fgets(buffer,sizeof(buffer),stdin)) {
-	double ak;
-	if (sscanf(buffer,"%lg\n",&ak)!=1) {
-	    fprintf(stderr,"ERROR\n");
-	    return 3;
-	    }
-	double amp = power(&P,ak) * twopi3;
-	printf("%g %g\n", ak, amp);
-	}
-    
-    return 0;
+    while (fgets(buffer,sizeof(buffer),stdin)) {
+        double ak;
+        if (sscanf(buffer,"%lg\n",&ak)!=1) {
+            fprintf(stderr,"ERROR\n");
+            return 3;
+        }
+        double amp = power(&P,ak) * twopi3;
+        printf("%g %g\n", ak, amp);
     }
+
+    return 0;
+}

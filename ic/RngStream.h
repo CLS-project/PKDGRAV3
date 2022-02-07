@@ -1,17 +1,17 @@
- 
+
 /* RngStream.h for ANSI C */
 #ifndef RNGSTREAM_H
 #define RNGSTREAM_H
- 
 
 
-typedef struct RngStream_InfoState * RngStream;
+
+typedef struct RngStream_InfoState *RngStream;
 
 struct RngStream_InfoState {
-   double Cg[6], Bg[6], Ig[6];
-   int Anti;
-   int IncPrec;
-   char *name;
+    double Cg[6], Bg[6], Ig[6];
+    int Anti;
+    int IncPrec;
+    char *name;
 };
 
 #ifdef __cplusplus
@@ -61,11 +61,11 @@ double RngStream_RandU01 (RngStream g);
 
 
 int RngStream_RandInt (RngStream g, int i, int j);
- 
+
 #ifdef __cplusplus
-    }
+}
 #endif
 
 #endif
- 
+
 

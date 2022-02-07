@@ -32,37 +32,37 @@ void pkdInterlace(PKD pkd, int iGridTarget, int iGridSource) {
     G.setupArray(data1,K1);
     G.setupArray(data2,K2);
 
-    for( auto index=K1.begin(); index!=K1.end(); ++index ) {
-	auto v1 = *index;
-    	auto pos = index.position();
-	auto i = pos[0]; // i is positive; j and k can be negative
-	auto j = pos[1]>iNyquist ? pos[1] - nGrid : pos[1];
-	auto k = pos[2]>iNyquist ? pos[2] - nGrid : pos[2];
-	float theta = M_PI/nGrid * (i + j + k);
-	auto v2 = K2(index.position()) * complex_t(cosf(theta),sinf(theta));
-	v1 = complex_t(0.5) * (v1 + v2);
-	*index = v1;
-	}
+    for ( auto index=K1.begin(); index!=K1.end(); ++index ) {
+        auto v1 = *index;
+        auto pos = index.position();
+        auto i = pos[0]; // i is positive; j and k can be negative
+        auto j = pos[1]>iNyquist ? pos[1] - nGrid : pos[1];
+        auto k = pos[2]>iNyquist ? pos[2] - nGrid : pos[2];
+        float theta = M_PI/nGrid * (i + j + k);
+        auto v2 = K2(index.position()) * complex_t(cosf(theta),sinf(theta));
+        v1 = complex_t(0.5) * (v1 + v2);
+        *index = v1;
     }
+}
 
 int pstInterlace(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
     struct inInterlace *in = reinterpret_cast<struct inInterlace *>(vin);
     assert (nIn==sizeof(struct inInterlace) );
     if (pstNotCore(pst)) {
-	int rID = mdlReqService(pst->mdl, pst->idUpper, PST_INTERLACE, vin, nIn);
-	pstInterlace(pst->pstLower, vin, nIn, NULL, 0);
-	mdlGetReply(pst->mdl,rID,NULL,NULL);
-	}
-    else {
-    	pkdInterlace(plcl->pkd,in->iGridTarget,in->iGridSource);
-	}
-    return 0;
+        int rID = mdlReqService(pst->mdl, pst->idUpper, PST_INTERLACE, vin, nIn);
+        pstInterlace(pst->pstLower, vin, nIn, NULL, 0);
+        mdlGetReply(pst->mdl,rID,NULL,NULL);
     }
+    else {
+        pkdInterlace(plcl->pkd,in->iGridTarget,in->iGridSource);
+    }
+    return 0;
+}
 
 void MSR::Interlace(int iGridTarget,int iGridSource) {
     struct inInterlace in;
     in.iGridTarget = iGridTarget;
     in.iGridSource = iGridSource;
     pstInterlace(pst, &in, sizeof(in), NULL, 0);
-    }
+}

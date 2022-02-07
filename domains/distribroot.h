@@ -19,12 +19,12 @@
 class ServiceDistribRoot : public TraversePST {
 public:
     struct input {
-	double r[3];
-	MOMC momc;
-	};
+        double r[3];
+        MOMC momc;
+    };
     typedef void output;
     explicit ServiceDistribRoot(PST pst)
-	: TraversePST(pst,PST_DISTRIBROOT,sizeof(input),"DistribRoot") {}
+        : TraversePST(pst,PST_DISTRIBROOT,sizeof(input),"DistribRoot") {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut);
-    };
+};

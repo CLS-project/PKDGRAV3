@@ -18,6 +18,8 @@
 #ifndef PARAMETERS_HINCLUDED
 #define PARAMETERS_HINCLUDED
 
+#include "units.h"
+
 /*
 ** Don't even think about putting a pointer in here!!
 */
@@ -111,21 +113,14 @@ struct parameters {
     double dConstBeta;
     double dConstGamma;
     double dMeanMolWeight;
-    double dGasConst;
-    double dMsolUnit;
-    double dKpcUnit;
+    UNITS units;
     double ddHonHLimit;
-    double dKBoltzUnit;
-    double dGmPerCcUnit;
-    double dComovingGmPerCcUnit;
-    double dErgPerGmUnit;
-    double dSecUnit;
-    double dKmPerSecUnit;
     double dhMinOverSoft;
     double dMetalDiffusionCoeff;
     double dThermalDiffusionCoeff;
     double dFastGasFraction;
     /* StarForm and Feedback */
+    //IA: We keep most of them for compatibility reasons I guess? But should be cleaned! TODO
     double SFdEfficiency;
     double SFdTMax;
     double SFdPhysDenMin;
@@ -142,11 +137,13 @@ struct parameters {
     int SFbdivv;
     double fKernelTarget;
     
+
     /* END Gas Parameters */
     double dEta;
     double dExtraStore;
     double dSoft;
     double dSoftMax;
+    double dMaxPhysicalSoft;
     double dDelta;
     double dEwCut;
     double dEwhCut;
@@ -199,6 +196,138 @@ struct parameters {
     int bFixedAmpIC;
     double dFixedAmpPhasePI;
     int b2LPT;
+    int bICgas;
+    double dInitialT;
+
+    /*
+     * IA: Parameters for the meshless hydrodynamics
+     */
+    double dCFLacc;
+    int bMeshlessHydro;
+    int bIterativeSmoothingLength;
+    int bWakeUpParticles;
+    double dNeighborsStd;
+    int bOutFineStatistics;
+
+    /*
+     * IA: Parameter for fixing all particles to the same rung
+     */
+    int bGlobalDt;
+
+#if defined(COOLING) || defined(GRACKLE)
+    char achCoolingTables[256];
+#endif
+#ifdef COOLING
+    /*
+     * IA: Cooling parameters
+     */
+    double fH_reion_z;
+    double fH_reion_eV_p_H;
+    double fHe_reion_z_centre;
+    double fHe_reion_z_sigma;
+    double fHe_reion_eV_p_H;
+    double fCa_over_Si_in_Solar;
+    double fS_over_Si_in_Solar;
+    double fT_CMB_0;
+
+    /*
+     * IA: Internal energy floor parameters
+     */
+    double dCoolingFloorDen;
+    double dCoolingFlooru;
+    double dCoolingFloorT;
+#endif
+#ifdef EEOS_POLYTROPE
+    double dEOSPolyFloorIndex;
+    double dEOSPolyFloorDen;
+    double dEOSPolyFlooru;
+#endif
+#ifdef EEOS_JEANS
+    double dEOSNJeans;
+#endif
+    /*
+     * IA: Initial abundances
+     */
+    double dInitialH;
+#ifdef HAVE_HELIUM
+    double dInitialHe;
+#endif
+#ifdef HAVE_CARBON
+    double dInitialC;
+#endif
+#ifdef HAVE_NITROGEN
+    double dInitialN;
+#endif
+#ifdef HAVE_OXYGEN
+    double dInitialO;
+#endif
+#ifdef HAVE_NEON
+    double dInitialNe;
+#endif
+#ifdef HAVE_MAGNESIUM
+    double dInitialMg;
+#endif
+#ifdef HAVE_SILICON
+    double dInitialSi;
+#endif
+#ifdef HAVE_IRON
+    double dInitialFe;
+#endif
+#ifdef HAVE_METALLICITY
+    double dInitialMetallicity;
+#endif
+#ifdef STAR_FORMATION
+    /* IA: Star formation */
+    double dSFMinOverDensity;
+    double dSFGasFraction;
+    double dSFThresholdDen;
+    double dSFThresholdu;
+    double dSFThresholdT;
+    double dSFindexKS;
+    double dSFnormalizationKS;
+    double dSFEfficiency;
+#endif
+#ifdef FEEDBACK
+    double dSNFBDelay;
+    double dSNFBEfficiency;
+    double dSNFBDu;
+    double dSNFBDT;
+    double dSNFBNumberSNperMass;
+    double dSNFBMaxEff;
+    double dSNFBEffnH0;
+    double dSNFBEffIndex;
+#endif
+#ifdef BLACKHOLES
+    int bBHMerger;
+    int bBHPlaceSeed;
+    int bBHAccretion;
+    int bBHFeedback;
+    double dBHAccretionAlpha;
+    double dBHAccretionEddFac;
+    double dBHRadiativeEff;
+    double dBHFBEff;
+    double dBHFBDT;
+    double dBHFBEcrit;
+    double dBHSeedMass;
+    double dBHMhaloMin;
+#endif
+#ifdef STELLAR_EVOLUTION
+    char achStEvolPath[256];
+    char achSNIa_DTDtype[32];
+    char achIMFtype[32];
+    int bChemEnrich;
+    double dIMF_MinMass;
+    double dIMF_MaxMass;
+    double dCCSN_MinMass;
+    double dCCSN_MaxMass;
+    double dSNIa_MaxMass;
+    double dSNIa_Norm;
+    double dSNIa_Scale;
+    double dSNIa_Norm_ti;
+    double dSNIa_Norm_tf;
+    double dSNIaEnergy;
+    double dWindSpecificEkin;
+#endif
 
 #ifdef MDL_FFTW
     int nGridPk;
@@ -234,6 +363,6 @@ struct parameters {
     int bMemNodeBnd;
     int bMemNodeVBnd;
     int bMemBall;
-    };
+};
 
 #endif

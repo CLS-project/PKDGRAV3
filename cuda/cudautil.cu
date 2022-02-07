@@ -17,15 +17,15 @@
 
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 #ifdef HAVE_CONFIG_H
-#include "config.h"
+    #include "config.h"
 #else
-#include "pkd_config.h"
+    #include "pkd_config.h"
 #endif
 #include <cuda.h>
 
 /*#include <nvToolsExt.h>*/
 #ifdef USE_NVML
-#include <nvidia/gdk/nvml.h>
+    #include <nvidia/gdk/nvml.h>
 #endif
 #include <signal.h>
 
@@ -34,18 +34,18 @@
 #include <assert.h>
 #include <stdio.h>
 #ifdef HAVE_UNISTD_H
-#include <unistd.h>
+    #include <unistd.h>
 #endif
 #include <pthread.h>
 #ifdef __APPLE__
-#include "pthread_barrier.h"
+    #include "pthread_barrier.h"
 #endif
 #ifdef HAVE_SYS_PARAM_H
-#include <sys/param.h> /* for MAXHOSTNAMELEN, if available */
+    #include <sys/param.h> /* for MAXHOSTNAMELEN, if available */
 #endif
 #include <time.h>
 #ifdef HAVE_SYS_TIME_H
-#include <sys/time.h>
+    #include <sys/time.h>
 #endif
 
 static void *CUDA_malloc(size_t nBytes) {
@@ -62,19 +62,19 @@ static void *CUDA_malloc(size_t nBytes) {
 #endif
     char *p = reinterpret_cast<char *>(blk);
     char *e = p + nBytes;
-    for(; p<e; p+= nPageSize) *p = 0;
+    for (; p<e; p+= nPageSize) *p = 0;
 
     return blk;
-    }
+}
 
 static void CUDA_free(void *data) {
     free(data);
-    }
+}
 
 void CUDA_Abort(cudaError_t rc, const char *fname, const char *file, int line) {
     fprintf(stderr,"%s error %d in %s(%d)\n%s\n", fname, rc, file, line, cudaGetErrorString(rc));
     exit(1);
-    }
+}
 
 #ifdef _MSC_VER
 double CUDA_getTime() {
@@ -86,13 +86,13 @@ double CUDA_getTime() {
     clock |= ft.dwLowDateTime;
     /* clock is in 100 nano-second units */
     return clock / 10000000.0;
-    }
+}
 #else
 double CUDA_getTime() {
     struct timeval tv;
     gettimeofday(&tv,NULL);
     return (tv.tv_sec+(tv.tv_usec*1e-6));
-    }
+}
 #endif
 
 /*****************************************************************************\
@@ -103,39 +103,39 @@ extern "C"
 void *CudaClientInitialize(MDL vmdl) {
     auto mdl = reinterpret_cast<mdl::mdlClass *>(vmdl);
     return new CudaClient(*mdl);
-    }
+}
 
 CudaClient::CudaClient(mdl::mdlClass &mdl) : mdl(mdl), ewald(nullptr), pp(nullptr), pc(nullptr) {
     if (mdl.isCudaActive()) {
-	freeEwald.enqueue(new MessageEwald(*this));
-	freeEwald.enqueue(new MessageEwald(*this));
-	freePP.enqueue(new MessagePP(freePP));
-	freePP.enqueue(new MessagePP(freePP));
-	freePC.enqueue(new MessagePC(freePC));
-	freePC.enqueue(new MessagePC(freePC));
-	}
+        freeEwald.enqueue(new MessageEwald(*this));
+        freeEwald.enqueue(new MessageEwald(*this));
+        freePP.enqueue(new MessagePP(freePP));
+        freePP.enqueue(new MessagePP(freePP));
+        freePC.enqueue(new MessagePC(freePC));
+        freePC.enqueue(new MessagePC(freePC));
     }
+}
 
 extern "C"
 void CudaClientFlush(void *vcudaClient) {
     auto cuda = reinterpret_cast<CudaClient *>(vcudaClient);
     cuda->flushCUDA();
-    }
+}
 
 void CudaClient::flushCUDA() {
     if (ewald) { mdl.enqueue(*ewald);        ewald = nullptr; }
     flush(pp);
     flush(pc);
-    }
+}
 
 cudaDataMessage::cudaDataMessage() {
     pHostBufIn = CUDA_malloc(requestBufferSize);
     pHostBufOut= CUDA_malloc(resultsBufferSize);
     CUDA_CHECK(cudaHostRegister,(pHostBufIn, requestBufferSize, cudaHostRegisterPortable));
     CUDA_CHECK(cudaHostRegister,(pHostBufOut,resultsBufferSize, cudaHostRegisterPortable));
-    }
+}
 
 cudaDataMessage::~cudaDataMessage() {
     CUDA_free(pHostBufIn);
     CUDA_free(pHostBufOut);
-    }
+}

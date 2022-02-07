@@ -16,9 +16,9 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#include "config.h"
+    #include "config.h"
 #else
-#include "pkd_config.h"
+    #include "pkd_config.h"
 #endif
 #define MPICH_SKIP_MPICXX
 #include "core/simd.h"
@@ -90,10 +90,10 @@ void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,SPHOption
     intersect2 = 0;
 
     blk = tile->blk;
-    for(nLeft=tile->lstTile.nBlocks; nLeft>=0; --nLeft,blk++) {
+    for (nLeft=tile->lstTile.nBlocks; nLeft>=0; --nLeft,blk++) {
 	iEnd = nLeft ? cl->lst.nPerBlock : tile->lstTile.nInLast;
 	iEnd = (iEnd+fvec::mask()) >> SIMD_BITS;
-	for(i=0; i<iEnd; ++i) {
+        for (i=0; i<iEnd; ++i) {
 	    fourh2 = blk->fourh2.p[i];
 
         if (SPHoptions->doDensity || SPHoptions->doSPHForces || SPHoptions->doSetDensityFlags) {
@@ -225,4 +225,4 @@ void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,SPHOption
     double dFlop = COST_FLOP_OPEN*(tile->lstTile.nBlocks*CL_PART_PER_BLK  + tile->lstTile.nInLast);
     pkd->dFlop += dFlop;
     pkd->dFlopSingleCPU += dFlop;
-    }
+}

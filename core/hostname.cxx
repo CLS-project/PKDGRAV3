@@ -29,7 +29,7 @@ int ServiceHostname::Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) {
     Traverse(pst->pstLower,vin,nIn,out,nOut);
     mdlGetReply(pst->mdl,rID,outUp,NULL);
     return pst->nLeaves*sizeof(output);
-    }
+}
 
 int ServiceHostname::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
     static_assert(std::is_void<input>());
@@ -40,4 +40,4 @@ int ServiceHostname::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto p = strchr(out->szHostname,'.');
     if (p) *p = 0;
     return sizeof(output);
-    }
+}

@@ -16,16 +16,16 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#include "config.h"
+    #include "config.h"
 #else
-#include "pkd_config.h"
+    #include "pkd_config.h"
 #endif
 
 #include <math.h>
 #include <stdlib.h>
 #include <stddef.h>
 #ifdef HAVE_MALLOC_H
-#include <malloc.h>
+    #include <malloc.h>
 #endif
 #include <assert.h>
 #include "pkd.h"
@@ -33,10 +33,10 @@
 #include "../SPHOptions.h"
 
 #ifdef HAVE_SYS_TIME_H
-#include <sys/time.h>
+    #include <sys/time.h>
 #endif
 #ifdef USE_ITT
-#include "ittnotify.h"
+    #include "ittnotify.h"
 #endif
 
 
@@ -49,7 +49,7 @@ uint32_t pkdDistribTopTree(PKD pkd, uint32_t uRoot, uint32_t nTop, KDN *pTop, in
     } else {
         iTop = pkd->iTopTree[uRoot];
     }
-    for(i=0; i<nTop; ++i) {
+    for (i=0; i<nTop; ++i) {
 	KDN *pNode = pkdNode(pkd,pTop,i);
 	KDN *pLocal = pkdTreeNode(pkd,iTop+i);
 	pkdCopyNode(pkd,pLocal,pNode);
@@ -68,7 +68,7 @@ uint32_t pkdDistribTopTree(PKD pkd, uint32_t uRoot, uint32_t nTop, KDN *pTop, in
 	    }
 	}
     return iTop;
-    }
+}
 
 static KDN *InitializeRootCommon(PKD pkd,uint32_t uRoot) {
     KDN *pRoot = pkdTreeNode(pkd,uRoot);
@@ -76,7 +76,7 @@ static KDN *InitializeRootCommon(PKD pkd,uint32_t uRoot) {
     pRoot->bRemote = 0;
     pkdNodeSetBnd(pkd, pRoot, &pkd->bnd);
     return pRoot;
-    }
+}
 
 /*
 ** Creates a single root at ROOT with only marked particles
@@ -106,7 +106,7 @@ void pkdTreeInitMarked(PKD pkd) {
     pRoot->bGroup = 1;
     pRootFix->iLower = 0;
     pRootFix->bGroup = 1;
-    }
+}
 
 void pkdDumpTrees(PKD pkd,int bOnlyVA, uint8_t uRungDD) {
     KDN *pRoot    = InitializeRootCommon(pkd,ROOT);
@@ -173,7 +173,7 @@ void pkdDumpTrees(PKD pkd,int bOnlyVA, uint8_t uRungDD) {
 //	for(i=pRootFix->pLower; i<=pRootFix->pUpper; ++i) assert(pkdParticle(pkd,i)->uRung<=uRungDD);
 //	for(i=pRoot->pLower; i<=pRoot->pUpper; ++i) assert(pkdParticle(pkd,i)->uRung>uRungDD);
 	}
-    }
+}
 
 #define MIN_SRATIO    0.05
 
@@ -181,7 +181,7 @@ void pkdDumpTrees(PKD pkd,int bOnlyVA, uint8_t uRungDD) {
 template<class split_t>
 static split_t PosRaw(PKD pkd,PARTICLE *p, int d) {
     return reinterpret_cast<split_t *>(pkdField(p,pkd->oFieldOffset[oPosition]))[d];
-    }
+}
 
 /*
 ** Partition the particles between pLower and pUpper (inclusive)
@@ -211,7 +211,7 @@ static int PartPart(PKD pkd,int pLower,int pUpper,int d,split_t Split) {
 		}
 	    }
 	return ((char *)pi - (char *)pkdParticleBase(pkd)) / pkdParticleSize(pkd);
-    }
+}
 
 
 /*
@@ -243,7 +243,7 @@ void BuildTemp(PKD pkd,int iNode,int M,int nGroup,double dMaxMax) {
     */
     ns = TEMP_S_INCREASE;
     s = 0;
-    S = CAST(int*,malloc(ns*sizeof(int)));
+    S = CAST(int *,malloc(ns*sizeof(int)));
     assert(S != NULL);
 
     Bound bnd = pkdNodeGetBnd(pkd,pNode);
@@ -381,7 +381,7 @@ void BuildTemp(PKD pkd,int iNode,int M,int nGroup,double dMaxMax) {
         bnd = pkdNodeGetBnd(pkd, pNode);
 	}
     free(S);
-    }
+}
 
 
 /*
@@ -438,7 +438,7 @@ void BuildFromTemplate(PKD pkd,int iNode,int M,int nGroup,int iTemplate) {
 	Bound bnd = pkdNodeGetBnd(pkd,pNode = pkdTreeNode(pkd,iNode));
 
 	// Follow the template tree to wherever it leads.
-	while(pTemp->iLower) {
+        while (pTemp->iLower) {
 	    d = pTemp->iSplitDim;
 	    if (pTemp->iDepth != pNode->iDepth || d>2) break;
 
@@ -529,10 +529,10 @@ void BuildFromTemplate(PKD pkd,int iNode,int M,int nGroup,int iTemplate) {
 	
 	// Bucket in the template tree: Now just build, but set a sensible maximum cell size
 	BuildTemp(pkd,iNode,M,nGroup,dMaxMax * pow(2.0,-pNode->iDepth/3.0));
-	} while(s);
+    } while (s);
 
     free(S);
-    }
+}
 
 
 
@@ -591,7 +591,7 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
     FMOMR mom;
     SPHBNDS *bn;
     double kdn_r[3];
-    double fSoft,x,y,z,ax,ay,az,ft[3],d2,d2Max,dih2,bmin,b;
+    double fSoft,x,y,z,ax,ay,az,ft[3],d2,d2Max,dih2,ball,bmin,b;
     double dx,dy,dz;
 #if SPHBALLOFBALLS
     double fBoBr,fBoBxCenter,fBoByCenter,fBoBzCenter;
@@ -630,7 +630,7 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
 	    if (nDepth > pkd->nMaxStack) {
 		pkd->S = CAST(CSTACK *,realloc(pkd->S,(pkd->nMaxStack+nMaxStackIncrease)*sizeof(CSTACK)));
 		assert(pkd->S != NULL);
-		for (ism=pkd->nMaxStack;ism<(pkd->nMaxStack+nMaxStackIncrease);++ism) {
+                for (ism=pkd->nMaxStack; ism<(pkd->nMaxStack+nMaxStackIncrease); ++ism) {
 		    clInitialize(&pkd->S[ism].cl,&pkd->clFreeList);
 		    assert(pkd->S[ism].cl != NULL);
 		    }
@@ -659,7 +659,7 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
 	if (pkd->bIntegerPosition) {
 	    __m128i ivmin, ivmax;
 	    ivmin = ivmax = pkdGetPosRaw(pkd,p);
-	    for (++pj;pj<=pkdn->pUpper;++pj) {
+            for (++pj; pj<=pkdn->pUpper; ++pj) {
 		p = pkdParticle(pkd,pj);
 		__m128i v = pkdGetPosRaw(pkd,p);
 		ivmin = _mm_min_epi32(ivmin,v);
@@ -679,10 +679,10 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
 	    pkdGetPos1(pkd,p,ft);
 	    double dMin[3] {ft[0],ft[1],ft[2]};
 	    double dMax[3] {ft[0],ft[1],ft[2]};
-	    for (++pj;pj<=pkdn->pUpper;++pj) {
+            for (++pj; pj<=pkdn->pUpper; ++pj) {
 		p = pkdParticle(pkd,pj);
 		pkdGetPos1(pkd,p,ft);
-		for (d=0;d<3;++d) {
+                for (d=0; d<3; ++d) {
 		    dMin[d] = std::min(dMin[d],ft[d]);
 		    dMax[d] = std::max(dMax[d],ft[d]);
 		}
@@ -730,7 +730,7 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
 	ay = m*a[1];
 	az = m*a[2];
 	pkdn->uMinRung = pkdn->uMaxRung = p->uRung;
-	for (++pj;pj<=pkdn->pUpper;++pj) {
+        for (++pj; pj<=pkdn->pUpper; ++pj) {
 	    p = pkdParticle(pkd,pj);
 	    a = pkd->oFieldOffset[oAcceleration] ? pkdAccel(pkd,p) : zeroF;
 	    m = pkdMass(pkd,p);
@@ -817,7 +817,7 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
 #endif
     }
 	d2Max = 0.0;
-	for (pj=pkdn->pLower;pj<=pkdn->pUpper;++pj) {
+        for (pj=pkdn->pLower; pj<=pkdn->pUpper; ++pj) {
 	    p = pkdParticle(pkd,pj);
 #if defined(__AVX__) && defined(USE_SIMD)
 	    if (pkd->bIntegerPosition) {
@@ -859,7 +859,7 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
 	*/
 	if (pkd->oNodeMom) {
 	    momClearFmomr(pkdNodeMom(pkd,pkdn));
-	    for (pj=pkdn->pLower;pj<=pkdn->pUpper;++pj) {
+            for (pj=pkdn->pLower; pj<=pkdn->pUpper; ++pj) {
 		p = pkdParticle(pkd,pj);
 		pkdGetPos1(pkd,p,ft);
 		x = ft[0] - kdn_r[0];
@@ -878,13 +878,13 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
 	    /*
 	    ** Default bounds always makes the cell look infinitely far away, regardless from where.
 	    */
-	    for (d=0;d<3;++d) bn->A.min[d] = HUGE_VAL;
-	    for (d=0;d<3;++d) bn->A.max[d] = -HUGE_VAL;
-	    for (d=0;d<3;++d) bn->B.min[d] = HUGE_VAL;
-	    for (d=0;d<3;++d) bn->B.max[d] = -HUGE_VAL;
-	    for (d=0;d<3;++d) bn->BI.min[d] = HUGE_VAL;
-	    for (d=0;d<3;++d) bn->BI.max[d] = -HUGE_VAL;
-	    for (pj=pkdn->pLower;pj<=pkdn->pUpper;++pj) {
+            for (d=0; d<3; ++d) bn->A.min[d] = HUGE_VAL;
+            for (d=0; d<3; ++d) bn->A.max[d] = -HUGE_VAL;
+            for (d=0; d<3; ++d) bn->B.min[d] = HUGE_VAL;
+            for (d=0; d<3; ++d) bn->B.max[d] = -HUGE_VAL;
+            for (d=0; d<3; ++d) bn->BI.min[d] = HUGE_VAL;
+            for (d=0; d<3; ++d) bn->BI.max[d] = -HUGE_VAL;
+            for (pj=pkdn->pLower; pj<=pkdn->pUpper; ++pj) {
 		p = pkdParticle(pkd,pj);
 		fBall = pkdBall(pkd,p);
 		if (pkdIsGas(pkd,p)) {
@@ -893,15 +893,15 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
 		    /*
 		    ** This first ball bound over all gas particles is only used for remote searching.
 		    */
-		    for (d=0;d<3;++d) bn->B.min[d] = fmin(bn->B.min[d],r[d] - (1+ddHonHLimit)*fBall);
-		    for (d=0;d<3;++d) bn->B.max[d] = fmax(bn->B.max[d],r[d] + (1+ddHonHLimit)*fBall);
+                    for (d=0; d<3; ++d) bn->B.min[d] = fmin(bn->B.min[d],r[d] - (1+ddHonHLimit)*fBall);
+                    for (d=0; d<3; ++d) bn->B.max[d] = fmax(bn->B.max[d],r[d] + (1+ddHonHLimit)*fBall);
 		    if (pkdIsActive(pkd,p)) {
-			for (d=0;d<3;++d) bn->A.min[d] = fmin(bn->A.min[d],r[d]);
-			for (d=0;d<3;++d) bn->A.max[d] = fmax(bn->A.max[d],r[d]);
+                        for (d=0; d<3; ++d) bn->A.min[d] = fmin(bn->A.min[d],r[d]);
+                        for (d=0; d<3; ++d) bn->A.max[d] = fmax(bn->A.max[d],r[d]);
 		    }
 		    else {
-			for (d=0;d<3;++d) bn->BI.min[d] = fmin(bn->BI.min[d],r[d] - (1+ddHonHLimit)*fBall);
-			for (d=0;d<3;++d) bn->BI.max[d] = fmax(bn->BI.max[d],r[d] + (1+ddHonHLimit)*fBall);
+                        for (d=0; d<3; ++d) bn->BI.min[d] = fmin(bn->BI.min[d],r[d] - (1+ddHonHLimit)*fBall);
+                        for (d=0; d<3; ++d) bn->BI.max[d] = fmax(bn->BI.max[d],r[d] + (1+ddHonHLimit)*fBall);
 		    }
 		}
 	    }
@@ -941,7 +941,7 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
 	    if (pkdn->pUpper - pj < NMAX_OPENCALC) {
 		assert(pj<=pkdn->pUpper);
 		d2Max = 0;
-		for (;pj<=pkdn->pUpper;++pj) {
+                for (; pj<=pkdn->pUpper; ++pj) {
 		    p = pkdParticle(pkd,pj);
 #if defined(__AVX__) && defined(USE_SIMD)
 		    if (pkd->bIntegerPosition) {
@@ -987,7 +987,7 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
 	    }
 	++iNode;
 	}
-    }
+}
 
 
 void pkdCombineCells1(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
@@ -1019,15 +1019,15 @@ void pkdCombineCells1(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
     double p1_r[3], p2_r[3];
     pkdNodeGetPos(pkd,p1,p1_r);
     pkdNodeGetPos(pkd,p2,p2_r);
-    for (j=0;j<3;++j) kdn_r[j] = ifMass*(m1*p1_r[j] + m2*p2_r[j]);
+    for (j=0; j<3; ++j) kdn_r[j] = ifMass*(m1*p1_r[j] + m2*p2_r[j]);
     pkdNodeSetPos1(pkd,pkdn,kdn_r);
     if (pkd->oNodeVelocity) {
-	for (j=0;j<3;++j)	
+        for (j=0; j<3; ++j)
 	    pkdNodeVel(pkd,pkdn)[j]
 		= ifMass*(m1*pkdNodeVel(pkd,p1)[j] + m2*pkdNodeVel(pkd,p2)[j]);
 	}
     if (pkd->oNodeAcceleration) {
-	for (j=0;j<3;++j)	
+        for (j=0; j<3; ++j)
 	    pkdNodeAccel(pkd,pkdn)[j]
 		= ifMass*(m1*pkdNodeAccel(pkd,p1)[j] + m2*pkdNodeAccel(pkd,p2)[j]);
 	}
@@ -1071,7 +1071,7 @@ void pkdCombineCells1(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
     }
     /* Combine marked flag */
     pkdn->bHasMarked = p1->bHasMarked || p2->bHasMarked;
-    }
+}
 
 
 void pkdCombineCells2(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
@@ -1113,20 +1113,20 @@ void pkdCombineCells2(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
 	b1 = pkdNodeSphBounds(pkd,p1);
 	b2 = pkdNodeSphBounds(pkd,p2);
 	bn = pkdNodeSphBounds(pkd,pkdn);
-	for (j=0;j<3;++j) bn->A.min[j] = fmin(b1->A.min[j],b2->A.min[j]);
-	for (j=0;j<3;++j) bn->A.max[j] = fmax(b1->A.max[j],b2->A.max[j]);
-	for (j=0;j<3;++j) bn->B.min[j] = fmin(b1->B.min[j],b2->B.min[j]);
-	for (j=0;j<3;++j) bn->B.max[j] = fmax(b1->B.max[j],b2->B.max[j]);
-	for (j=0;j<3;++j) bn->BI.min[j] = fmin(b1->BI.min[j],b2->BI.min[j]);
-	for (j=0;j<3;++j) bn->BI.max[j] = fmax(b1->BI.max[j],b2->BI.max[j]);
+        for (j=0; j<3; ++j) bn->A.min[j] = fmin(b1->A.min[j],b2->A.min[j]);
+        for (j=0; j<3; ++j) bn->A.max[j] = fmax(b1->A.max[j],b2->A.max[j]);
+        for (j=0; j<3; ++j) bn->B.min[j] = fmin(b1->B.min[j],b2->B.min[j]);
+        for (j=0; j<3; ++j) bn->B.max[j] = fmax(b1->B.max[j],b2->B.max[j]);
+        for (j=0; j<3; ++j) bn->BI.min[j] = fmin(b1->BI.min[j],b2->BI.min[j]);
+        for (j=0; j<3; ++j) bn->BI.max[j] = fmax(b1->BI.max[j],b2->BI.max[j]);
     }
 }
 
 void pkdTreeBuild(PKD pkd,int nBucket, int nGroup, uint32_t uRoot,uint32_t uTemp, double ddHonHLimit) {
 #ifdef USE_ITT
-    __itt_domain* domain = __itt_domain_create("MyTraces.MyDomain");
-    __itt_string_handle* shMyTask = __itt_string_handle_create("Tree Build");
-    __itt_string_handle* shMySubtask = __itt_string_handle_create("My SubTask");
+    __itt_domain *domain = __itt_domain_create("MyTraces.MyDomain");
+    __itt_string_handle *shMyTask = __itt_string_handle_create("Tree Build");
+    __itt_string_handle *shMySubtask = __itt_string_handle_create("My SubTask");
 #endif
 #ifdef USE_ITT
      __itt_task_begin(domain, __itt_null, __itt_null, shMyTask);
@@ -1154,7 +1154,7 @@ void pkdTreeBuild(PKD pkd,int nBucket, int nGroup, uint32_t uRoot,uint32_t uTemp
 #ifdef USE_ITT
     __itt_task_end(domain);
 #endif
-    }
+}
 
 /*
 ** The array iGrpOffset[i] passed in here must have 2*pkd->nGroups entries!
@@ -1164,21 +1164,21 @@ void pkdGroupOrder(PKD pkd,uint32_t *iGrpOffset) {
     uint32_t *iGrpEnd = &iGrpOffset[pkd->nGroups]; /* tricky because the 0th element is not used! */
 
     /* Count the number of particles in each group */
-    for (i=0;i<=pkd->nGroups;++i) iGrpOffset[i] = 0;
-    for (i=0;i<pkd->nLocal;++i) {
+    for (i=0; i<=pkd->nGroups; ++i) iGrpOffset[i] = 0;
+    for (i=0; i<pkd->nLocal; ++i) {
 	auto p = pkdParticle(pkd,i);
 	gid = pkdGetGroup(pkd,p);
 	++iGrpOffset[gid+1];
 	}
     iGrpOffset[1] = 0;
     /* Calculate starting offsets for particles in a group */
-    for(i=2; i<=pkd->nGroups;++i) {
+    for (i=2; i<=pkd->nGroups; ++i) {
 	iGrpOffset[i] += iGrpOffset[i-1];
 	iGrpEnd[i-1] = iGrpOffset[i];
 	}
     /* Reorder the particles into group order */
-    for (iTree=1;iTree<pkd->nGroups;++iTree) {
-	for (i=iGrpOffset[iTree];i<iGrpEnd[iTree];) {
+    for (iTree=1; iTree<pkd->nGroups; ++iTree) {
+        for (i=iGrpOffset[iTree]; i<iGrpEnd[iTree];) {
 	    auto p = pkdParticle(pkd,i);
 	    gid = pkdGetGroup(pkd,p);
 	    if (!gid) gid = pkd->nGroups;
@@ -1189,7 +1189,7 @@ void pkdGroupOrder(PKD pkd,uint32_t *iGrpOffset) {
 		}
 	    }
 	}
-    }
+}
 
 
 void pkdTreeBuildByGroup(PKD pkd, int nBucket, int nGroup) {
@@ -1223,8 +1223,8 @@ void pkdTreeBuildByGroup(PKD pkd, int nBucket, int nGroup) {
 	int *iGrpEnd = CAST(int *,malloc(sizeof(int)*(pkd->nGroups+1)));
 
 	/* Count the number of particles in each group */
-	for (i=0; i<=pkd->nGroups;++i) iGrpOffset[i] = 0;
-	for (i=0;i<pkd->nLocal;++i) {
+        for (i=0; i<=pkd->nGroups; ++i) iGrpOffset[i] = 0;
+        for (i=0; i<pkd->nLocal; ++i) {
 	    p = pkdParticle(pkd,i);
 	    gid = pkdGetGroup(pkd,p);
 	    ++iGrpOffset[gid+1];
@@ -1232,14 +1232,14 @@ void pkdTreeBuildByGroup(PKD pkd, int nBucket, int nGroup) {
 	iGrpOffset[0] = iGrpOffset[1];
 	iGrpOffset[1] = 0;
 	/* Calculate starting offsets for particles in a group */
-	for(i=2; i<=pkd->nGroups;++i) {
+        for (i=2; i<=pkd->nGroups; ++i) {
 	    iGrpOffset[i] += iGrpOffset[i-1];
 	    iGrpEnd[i-1] = iGrpOffset[i];
 	    }
 
 	/* Now construct the top tree node for each group */
 	i = 0;
-	for(gid=1; gid<pkd->nGroups;++gid) {
+        for (gid=1; gid<pkd->nGroups; ++gid) {
 	    pkdTreeAllocRootNode(pkd,&iRoot);
 	    pkd->hopGroups[gid].iTreeRoot = iRoot;
 	    pNode = pkdTreeNode(pkd,iRoot);
@@ -1249,8 +1249,8 @@ void pkdTreeBuildByGroup(PKD pkd, int nBucket, int nGroup) {
 	    }
 
 	/* Reorder the particles into group order */
-	for(iTree=1;iTree<pkd->nGroups;++iTree) {
-	    for(i=iGrpOffset[iTree]; i<iGrpEnd[iTree]; ) {
+        for (iTree=1; iTree<pkd->nGroups; ++iTree) {
+            for (i=iGrpOffset[iTree]; i<iGrpEnd[iTree]; ) {
 		p = pkdParticle(pkd,i);
 		gid = pkdGetGroup(pkd,p);
 		if (gid==0) gid = pkd->nGroups;
@@ -1266,7 +1266,7 @@ void pkdTreeBuildByGroup(PKD pkd, int nBucket, int nGroup) {
 	free(iGrpEnd);
 
 	/* Calculate the bounds for each group */
-	for (i=0;i<pkd->nLocal;) {
+        for (i=0; i<pkd->nLocal;) {
 	    p = pkdParticle(pkd,i);
 	    pkdGetPos1(pkd,p,r);
 	    gid = pkdGetGroup(pkd,p);
@@ -1278,8 +1278,8 @@ void pkdTreeBuildByGroup(PKD pkd, int nBucket, int nGroup) {
 	    pNode->bGroup = 1;
 	    assert(pNode->pLower == i);
 
-	    for (j=0;j<3;++j) dMin[j] = dMax[j] = r[j];
-	    for(p = pkdParticle(pkd,++i); i<pkd->nLocal && pkdGetGroup(pkd,p)==gid; ++i) {
+            for (j=0; j<3; ++j) dMin[j] = dMax[j] = r[j];
+            for (p = pkdParticle(pkd,++i); i<pkd->nLocal && pkdGetGroup(pkd,p)==gid; ++i) {
 		pkdGetPos1(pkd,p,r);
 		pkdMinMax(r,dMin,dMax);
 		}
@@ -1291,24 +1291,24 @@ void pkdTreeBuildByGroup(PKD pkd, int nBucket, int nGroup) {
 	}
     else {
 	pkd->nNodes = pkd->hopSavedRoots;
-	for(gid2=1; gid2<pkd->nGroups;++gid2) {
+        for (gid2=1; gid2<pkd->nGroups; ++gid2) {
 	    if (!pkd->hopGroups[gid2].bNeedGrav) continue;
 	    iRoot = pkd->hopGroups[gid2].iTreeRoot;
 	    pNode = pkdTreeNode(pkd,iRoot);
 	    pNode->iLower = 0;
 	    pNode->bGroup = 1;
 	    n = pNode->pUpper;
-	    for(i=pNode->pLower; i<=n; ) {
+            for (i=pNode->pLower; i<=n; ) {
 		p = pkdParticle(pkd,i);
 		pkdGetPos1(pkd,p,r);
 		gid = pkdGetGroup(pkd,p);
 		if (gid) {
 		    assert(gid==gid2);
 		    if (i==pNode->pLower) {
-			for (j=0;j<3;++j) dMin[j] = dMax[j] = r[j];
+                        for (j=0; j<3; ++j) dMin[j] = dMax[j] = r[j];
 			}
 		    else {
-			for (j=0;j<3;++j) r[j] = r[j];
+                        for (j=0; j<3; ++j) r[j] = r[j];
 			pkdMinMax(r,dMin,dMax);
 			}
 		    ++i;
@@ -1326,10 +1326,10 @@ void pkdTreeBuildByGroup(PKD pkd, int nBucket, int nGroup) {
 	}
 
 
-    for(gid=1; gid<pkd->nGroups; ++gid)
+    for (gid=1; gid<pkd->nGroups; ++gid)
 	if (pkd->hopGroups[gid].bNeedGrav)
 	    BuildTemp(pkd,pkd->hopGroups[gid].iTreeRoot,nBucket,nGroup,HUGE_VAL);
-    for(gid=1; gid<pkd->nGroups; ++gid)
+    for (gid=1; gid<pkd->nGroups; ++gid)
 	if (pkd->hopGroups[gid].bNeedGrav)
 	    Create(pkd,pkd->hopGroups[gid].iTreeRoot,0.0);
     /*
@@ -1339,7 +1339,7 @@ void pkdTreeBuildByGroup(PKD pkd, int nBucket, int nGroup) {
 	pkd->iTreeNodeSize,pkd->nNodes);
 
 
-    }
+}
 
 /*
 ** Hopefully we can bypass this step once we figure out how to do the
@@ -1364,7 +1364,7 @@ void pkdCalcRoot(PKD pkd,uint32_t uRoot,double *com,MOMC *pmom) {
 	z -= zr;
 	fMass = pkdMass(pkd,p);
 	momMakeMomc(pmom,fMass,x,y,z);
-	for (++i;i<=kdn->pUpper;++i) {
+        for (++i; i<=kdn->pUpper; ++i) {
 	    p = pkdParticle(pkd,i);
 	    pkdGetPos3(pkd,p,x,y,z);
 	    fMass = pkdMass(pkd,p);
@@ -1375,7 +1375,7 @@ void pkdCalcRoot(PKD pkd,uint32_t uRoot,double *com,MOMC *pmom) {
 	    momAddMomc(pmom,&mc);
 	    }
 	}
-    }
+}
 
 
 void pkdDistribRoot(PKD pkd,double *r,MOMC *pmom) {
@@ -1477,4 +1477,4 @@ void pkdTreeUpdateFlagBounds(PKD pkd,uint32_t uRoot,SPHOptions *SPHoptions) {
     if (mdlCacheStatus(pkd->mdl,CID_CELL)) mdlFinishCache(pkd->mdl,CID_CELL);
     pkdTreeUpdateFlagBoundsRecurse(pkd, uRoot,SPHoptions);
     mdlROcache(pkd->mdl,CID_CELL,pkdTreeNodeGetElement,pkd,pkd->iTreeNodeSize,pkd->nNodes);
-    }
+}

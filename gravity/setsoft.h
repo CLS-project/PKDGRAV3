@@ -19,13 +19,13 @@
 class ServiceSetSoft : public TraversePST {
 public:
     struct input {
-	double dSoft;
+        double dSoft;
         input() = default;
         input(double dSoft) : dSoft(dSoft) {}
-	};
+    };
     typedef void output;
     explicit ServiceSetSoft(PST pst)
-	: TraversePST(pst,PST_SETSOFT,sizeof(input),"SetSoft") {}
+        : TraversePST(pst,PST_SETSOFT,sizeof(input),"SetSoft") {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut);
-    };
+};

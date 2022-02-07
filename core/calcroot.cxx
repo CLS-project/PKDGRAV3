@@ -22,17 +22,17 @@ static_assert(std::is_void<ServiceCalcRoot::input>()  || std::is_trivial<Service
 static_assert(std::is_void<ServiceCalcRoot::output>() || std::is_trivial<ServiceCalcRoot::output>());
 
 int ServiceCalcRoot::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    auto in   = static_cast<input*>(vin);
-    auto out  = static_cast<output*>(vout);
+    auto in   = static_cast<input *>(vin);
+    auto out  = static_cast<output *>(vout);
     assert(nIn==sizeof(input));
     assert(nOut==sizeof(output));
     pkdCalcRoot(pst->plcl->pkd,in->uRoot,in->com,&out->momc);
     return sizeof(output);
-    }
+}
 
 int ServiceCalcRoot::Combine(void *vout,void *vout2) {
-    auto out  = static_cast<output*>(vout);
-    auto out2 = static_cast<output*>(vout2);
+    auto out  = static_cast<output *>(vout);
+    auto out2 = static_cast<output *>(vout2);
     momAddMomc(&out->momc,&out2->momc);
     return sizeof(output);
-    }
+}

@@ -26,11 +26,11 @@
 
 #define ILP_TILE_SIZE (100*1024) /* 100k */
 #ifndef ILP_PART_PER_BLK
-#define ILP_PART_PER_BLK (32) /* Don't mess with this: see CUDA */
+    #define ILP_PART_PER_BLK (32) /* Don't mess with this: see CUDA */
 #endif
 
 #if !defined(__CUDACC__)
-#include "core/simd.h"
+    #include "core/simd.h"
 #endif
 
 /*
@@ -41,7 +41,7 @@ typedef union {
 #if !defined(__CUDACC__)
     v_sf p[ILP_PART_PER_BLK/SIMD_WIDTH];
 #endif
-    } ilpFloat;
+} ilpFloat;
 
 typedef union {
     int32_t i[ILP_PART_PER_BLK];
@@ -52,11 +52,11 @@ typedef union {
 
 typedef union {
     double d[ILP_PART_PER_BLK];
-    } ilpDouble;
+} ilpDouble;
 
 typedef union {
     int64_t i[ILP_PART_PER_BLK]; /* Signed because negative marks softened cells */
-    } ilpInt64;
+} ilpInt64;
 
 typedef struct {
     ilpFloat dx, dy, dz;    /* Offset from ilp->cx, cy, cz */
@@ -69,13 +69,13 @@ typedef struct {
     ilpFloat P;             /* Pressure */
     ilpFloat c;             /* sound speed */
     ilpInt32 species;       /* particle species, can be compared with FIO_SPECIES */
-    } ILP_BLK;
+} ILP_BLK;
 
 #ifdef TIMESTEP_CRITICAL
 typedef struct {
     ilpDouble vx, vy, vz;
     ilpInt64 iOrder;
-    } ILP_EXTRA;
+} ILP_EXTRA;
 #endif
 
 typedef struct ilpTile {
@@ -84,12 +84,12 @@ typedef struct ilpTile {
 #ifdef TIMESTEP_CRITICAL
     ILP_EXTRA *xtr;
 #endif
-    } *ILPTILE;
+} *ILPTILE;
 
 typedef struct ilpContext {
     LST lst;
     double cx, cy, cz;          /* Center coordinates */
-    } *ILP;
+} *ILP;
 
 #define ILPCHECKPT LSTCHECKPT
 
@@ -135,14 +135,14 @@ static inline void ilpAppendFloat(ILP ilp, float X, float Y, float Z, float M, f
     tile->xtr[blk].vz.d[prt] = (VZ);
 #endif
     ++tile->lstTile.nInLast;
-    }
+}
 
 static inline void ilpAppend(ILP ilp, double X, double Y, double Z, float M, float S,
     uint64_t I, float VX, float VY, float VZ, float fBall, float Omega, float rho,
     float P, float c, int32_t species ) {
     ilpAppendFloat(ilp,(float)((ilp)->cx-(X)),(float)((ilp)->cy-(Y)),(float)((ilp)->cz-(Z)),M,S,I,VX,VY,VZ,
     fBall,Omega,rho,P,c,species);
-    }
+}
 #define ILP_LOOP(ilp,ptile) for( ptile=(ILPTILE)((ilp)->lst.list); ptile!=NULL; ptile=(ILPTILE)(ptile->lstTile.next) )
 
 #endif

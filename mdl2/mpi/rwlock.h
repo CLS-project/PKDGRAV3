@@ -12,50 +12,50 @@ protected:
 public:
     RWLock() : count(0) {}
     void lock_read() {
-    	while(true) {
-	    int prev = count;
-	    if (prev>=0 && count.compare_exchange_weak(prev,prev+1)) return;
-	    std::this_thread::yield();
-	    }
-	}
+        while (true) {
+            int prev = count;
+            if (prev>=0 && count.compare_exchange_weak(prev,prev+1)) return;
+            std::this_thread::yield();
+        }
+    }
     void unlock_read() {
-    	--count;
-	}
+        --count;
+    }
     void lock_write() {
-    	while(true) {
-	    int prev = count;
-	    if (prev<=0 && count.compare_exchange_weak(prev,prev-1)) return;
-	    std::this_thread::yield();
-	    }
-	}
+        while (true) {
+            int prev = count;
+            if (prev<=0 && count.compare_exchange_weak(prev,prev-1)) return;
+            std::this_thread::yield();
+        }
+    }
     void unlock_write() {
-    	++count;
-	}
-    };
+        ++count;
+    }
+};
 
 class read_lock {
 protected:
     RWLock &lock;
 public:
     read_lock(RWLock &lock) : lock(lock) {
-    	lock.lock_read();
-	}
+        lock.lock_read();
+    }
     ~read_lock() {
-    	lock.unlock_read();
-	}
-    };
+        lock.unlock_read();
+    }
+};
 
 class write_lock {
 protected:
     RWLock &lock;
 public:
     write_lock(RWLock &lock) : lock(lock) {
-    	lock.lock_write();
-	}
+        lock.lock_write();
+    }
     ~write_lock() {
-    	lock.unlock_write();
-	}
-    };
+        lock.unlock_write();
+    }
+};
 
 } // namespace mdl
 #endif

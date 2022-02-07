@@ -16,9 +16,9 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#include "config.h"
+    #include "config.h"
 #else
-#include "pkd_config.h"
+    #include "pkd_config.h"
 #endif
 #ifndef xxxUSE_SIMD_PP
 #define MPICH_SKIP_MPICXX
@@ -57,7 +57,7 @@ void pkdGravEvalPP(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINF
     ** forces are zero. Setting the distance to a large value avoids
     ** softening the non-existent forces which is slightly faster.
     */
-    for( j = nInLast; j&fvec::mask(); j++) {
+    for ( j = nInLast; j&fvec::mask(); j++) {
 	blk[nBlocks].dx.f[j] = blk[nBlocks].dy.f[j] = blk[nBlocks].dz.f[j] = 1e18f;
 	blk[nBlocks].m.f[j] = 0.0f;
 	blk[nBlocks].fourh2.f[j] = 1e-18f;
@@ -73,7 +73,7 @@ void pkdGravEvalPP(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINF
 
     pax = pay = paz = ppot = pirsum = pnorms = 0.0;
 
-    for( nLeft=nBlocks; nLeft >= 0; --nLeft,++blk ) {
+    for ( nLeft=nBlocks; nLeft >= 0; --nLeft,++blk ) {
 	int n = (nLeft ? ILP_PART_PER_BLK : nInLast+fvec::mask()) >> SIMD_BITS;
 	for (j=0; j<n; ++j) {
 	    fvec Idx = blk->dx.p[j];

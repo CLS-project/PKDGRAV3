@@ -20,9 +20,11 @@
 
 #include "listcomp.h"
 #include "pkd.h"
-#include "smoothfcn.h"
+#include "smooth/smoothfcn.h"
+#include "hydro/hydro.h"
+#include "group/group.h"
 
-#define NNLIST_INCREMENT	200		/* number of extra neighbor elements added to nnList */
+#define NNLIST_INCREMENT    200     /* number of extra neighbor elements added to nnList */
 
 
 struct hashElement {
@@ -39,17 +41,23 @@ typedef struct smContext {
     PKD pkd;
     PARTICLE *pSentinel;
     void (*fcnSmooth)(PARTICLE *,float,int,NN *,SMF *);
+    void (*fcnSmoothNode)(PARTICLE *, float, int, double **, double **, SMF *);
+    void (*fcnSmoothGetNvars)(int *, int *);
+    void (*fcnSmoothFillBuffer)(double **, PARTICLE *, int,
+                                double, double, double, double, SMF *);
+    void (*fcnSmoothUpdate)(double **, double **, PARTICLE *, PARTICLE *, int, SMF *);
     void (*fcnPost)(void *,PARTICLE *,SMF *);
     int nSmooth;
     int nQueue;
     int bPeriodic;
     int bOwnCache;
+    int bSymmetric;
     double rLast[3]; /* For the snake */
     PQ *pq;
     /*
     ** Flags to mark local particles which are inactive either because they
     ** are source inactive or because they are already present in the prioq.
-    ** In this extra array is also space for a queue of particles, needed 
+    ** In this extra array is also space for a queue of particles, needed
     ** for the fast gas routines or for friends-of-friends.
     ** This will point to the pLite array, so it will be destroyed after a tree
     ** build or domain decomposition.
@@ -61,7 +69,7 @@ typedef struct smContext {
     */
     char *bDone;
     /*
-    ** Hash table to indicate whether a remote particle is already present in the 
+    ** Hash table to indicate whether a remote particle is already present in the
     ** priority queue.
     */
     int nHash;  /* should be a prime number > nSmooth */
@@ -76,10 +84,10 @@ typedef struct smContext {
      ** Also need the stacks for the tree search
      */
     struct stStack {
-	int id;
-	int iCell;
-	double min;
-	} *ST;
+        int id;
+        int iCell;
+        double min;
+    } *ST;
     /*
     ** Context for nearest neighbor lists.
     */
@@ -90,24 +98,29 @@ typedef struct smContext {
     uint32_t iHead;
     uint32_t iTail;
     int  *Fifo;
-    } * SMX;
+} *SMX;
 
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 int smInitialize(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,
-		 int bPeriodic,int bSymmetric,int iSmoothType);
+                 int bPeriodic,int bSymmetric,int iSmoothType);
 int smInitializeRO(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,
-		   int bPeriodic,int iSmoothType);
+                   int bPeriodic,int iSmoothType);
 void smFinish(SMX,SMF *);
 void smSmoothInitialize(SMX smx);
 void smSmoothFinish(SMX smx);
 float smSmoothSingle(SMX smx,SMF *smf,PARTICLE *p,int iRoot1, int iRoot2);
 void smSmooth(SMX,SMF *);
 void smReSmoothSingle(SMX smx,SMF *smf,PARTICLE *p,double fBall);
-void smReSmooth(SMX,SMF *);
+int  smReSmooth(SMX,SMF *, int);
+#ifdef OPTIM_SMOOTH_NODE
+int  smReSmoothNode(SMX,SMF *, int);
+void buildInteractionList(SMX smx, SMF *smf, KDN *node, BND bnd_node, int *nCnt, double r[3], int ix, int iy, int iz);
+#endif
 
+void smGather(SMX smx,double fBall2,double r[3], PARTICLE *p);
 void smFastGasPhase1(SMX smx,SMF *smf);
 void smFastGasPhase2(SMX smx,SMF *smf);
 void pkdFastGasCleanup(PKD pkd);  /* frees up the neighbor lists */

@@ -23,7 +23,7 @@
 typedef struct {
     float dr[3];
     float v[3];
-    } basicParticle;
+} basicParticle;
 
 typedef struct {
     uint64_t ix : 21;
@@ -31,44 +31,44 @@ typedef struct {
     uint64_t iz : 21;
     float dr[3];
     float v[3];
-    } expandParticle;
+} expandParticle;
 
 typedef struct {
     int32_t r[3];
     float v[3];
-    } integerParticle;
+} integerParticle;
 
 typedef union {
     basicParticle b;
     expandParticle e;
     integerParticle i;
-    } overlayedParticle;
+} overlayedParticle;
 
 #ifdef MDL_FFTW
 
 typedef struct {
     FFTW3(real) x,y,z;
-    } gridpos;
+} gridpos;
 
 typedef struct {
     FFTW3(real) x,y,z;
     FFTW3(real) vx,vy,vz;
-    } gridpsc;
+} gridpsc;
 
 #ifdef __cplusplus
-extern "C"
+    extern "C"
 #endif
 int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int bFixed,float fPhase,int nGrid,int b2LPT,double dBoxSize,
-    double a,int nTf, double *tk, double *tf, double *noiseMean, double *noiseCSQ);
+                  double a,int nTf, double *tk, double *tf, double *noiseMean, double *noiseCSQ);
 #ifdef __cplusplus
-extern "C"
+    extern "C"
 #endif
 int pkdGenerateClassICm(PKD pkd, MDLFFT fft, int iSeed, int bFixed, float fPhase, int nGrid,int b2LPT,
-    double dBoxSize, double a, double *noiseMean, double *noiseCSQ);
+                        double dBoxSize, double a, double *noiseMean, double *noiseCSQ);
 #ifdef __cplusplus
-extern "C"
+    extern "C"
 #endif
 void pkdGenerateLinGrid(PKD pkd, MDLFFT fft, double a, double a_next, double LBox, int iSeed,
-    int bFixed, float fPhase, int bRho);
+                        int bFixed, float fPhase, int bRho);
 #endif
 #endif

@@ -16,12 +16,12 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#include "config.h"
+    #include "config.h"
 #else
-#include "pkd_config.h"
+    #include "pkd_config.h"
 #endif
 #ifdef USE_PYTHON
-#include <Python.h>
+    #include <Python.h>
 #endif
 
 #include <stdio.h>
@@ -29,12 +29,12 @@
 #include <stddef.h>
 #include <stdint.h>
 #ifdef HAVE_INTTYPES_H
-#include <inttypes.h>
+    #include <inttypes.h>
 #else
-#define PRIu64 "llu"
+    #define PRIu64 "llu"
 #endif
 #ifdef HAVE_MALLOC_H
-#include <malloc.h>
+    #include <malloc.h>
 #endif
 #include <string.h>
 #include <assert.h>
@@ -51,7 +51,7 @@ void prmInitialize(PRM *pprm,void (*fcnLeader)(void),void (*fcnTrailer)(void)) {
     prm->pszFilename = NULL;
     prm->fcnLeader = fcnLeader;
     prm->fcnTrailer = fcnTrailer;
-    }
+}
 
 
 void prmFinish(PRM prm) {
@@ -59,15 +59,15 @@ void prmFinish(PRM prm) {
 
     pn = prm->pnHead;
     while (pn) {
-	pnKill = pn;
-	pn = pn->pnNext;
-	free(pnKill->pszName);
-	if (pnKill->pszArg) free(pnKill->pszArg);
-	if (pnKill->pszArgUsage) free(pnKill->pszArgUsage);
-	free(pnKill);
-	}
-    free(prm);
+        pnKill = pn;
+        pn = pn->pnNext;
+        free(pnKill->pszName);
+        if (pnKill->pszArg) free(pnKill->pszArg);
+        if (pnKill->pszArgUsage) free(pnKill->pszArgUsage);
+        free(pnKill);
     }
+    free(prm);
+}
 
 void prmAddArray(PRM prm,const char *pszName,int iType,void *pValue,int iSize,int *pCount) {
     PRM_NODE *pn,*pnTail;
@@ -87,14 +87,14 @@ void prmAddArray(PRM prm,const char *pszName,int iType,void *pValue,int iSize,in
     pn->pnNext = NULL;
     if (!prm->pnHead) prm->pnHead = pn;
     else {
-	pnTail = prm->pnHead;
-	while (pnTail->pnNext) pnTail = pnTail->pnNext;
-	pnTail->pnNext = pn;
-	}
+        pnTail = prm->pnHead;
+        while (pnTail->pnNext) pnTail = pnTail->pnNext;
+        pnTail->pnNext = pn;
     }
+}
 
 void prmAddParam(PRM prm,const char *pszName,int iType,void *pValue,
-		 int iSize,const char *pszArg,const char *pszArgUsage) {
+                 int iSize,const char *pszArg,const char *pszArgUsage) {
     PRM_NODE *pn,*pnTail;
 
     pn = (PRM_NODE *)malloc(sizeof(PRM_NODE));
@@ -109,25 +109,25 @@ void prmAddParam(PRM prm,const char *pszName,int iType,void *pValue,
     pn->pValue = pValue;
     pn->pCount = NULL;
     if (pszArg) {
-	pn->pszArg = (char *)malloc(strlen(pszArg)+1);
-	assert(pn->pszArg != NULL);
-	strcpy(pn->pszArg,pszArg);
-	}
+        pn->pszArg = (char *)malloc(strlen(pszArg)+1);
+        assert(pn->pszArg != NULL);
+        strcpy(pn->pszArg,pszArg);
+    }
     else pn->pszArg = NULL;
     if (pszArgUsage) {
-	pn->pszArgUsage = (char *)malloc(strlen(pszArgUsage)+1);
-	assert(pn->pszArgUsage != NULL);
-	strcpy(pn->pszArgUsage,pszArgUsage);
-	}
+        pn->pszArgUsage = (char *)malloc(strlen(pszArgUsage)+1);
+        assert(pn->pszArgUsage != NULL);
+        strcpy(pn->pszArgUsage,pszArgUsage);
+    }
     else pn->pszArgUsage = NULL;
     pn->pnNext = NULL;
     if (!prm->pnHead) prm->pnHead = pn;
     else {
-	pnTail = prm->pnHead;
-	while (pnTail->pnNext) pnTail = pnTail->pnNext;
-	pnTail->pnNext = pn;
-	}
+        pnTail = prm->pnHead;
+        while (pnTail->pnNext) pnTail = pnTail->pnNext;
+        pnTail->pnNext = pn;
     }
+}
 
 
 int prmArgSpecified(PRM prm,const char *pszName) {
@@ -135,13 +135,13 @@ int prmArgSpecified(PRM prm,const char *pszName) {
 
     pn = prm->pnHead;
     while (pn) {
-	if (pn->pszArg)
-	    if (!strcmp(pn->pszName,pszName)) break;
-	pn = pn->pnNext;
-	}
-    if (!pn) return(0);
-    return(pn->bArg);
+        if (pn->pszArg)
+            if (!strcmp(pn->pszName,pszName)) break;
+        pn = pn->pnNext;
     }
+    if (!pn) return (0);
+    return (pn->bArg);
+}
 
 
 int prmFileSpecified(PRM prm,const char *pszName) {
@@ -149,14 +149,14 @@ int prmFileSpecified(PRM prm,const char *pszName) {
 
     pn = prm->pnHead;
     while (pn) {
-	if (!strcmp(pn->pszName,pszName)) break;
-	pn = pn->pnNext;
-	}
-    if (!pn) return(0);
-    return(pn->bFile);
+        if (!strcmp(pn->pszName,pszName)) break;
+        pn = pn->pnNext;
     }
+    if (!pn) return (0);
+    return (pn->bFile);
+}
 
 
 int prmSpecified(PRM prm,const char *pszName) {
-    return(prmArgSpecified(prm,pszName) || prmFileSpecified(prm,pszName));
-    }
+    return (prmArgSpecified(prm,pszName) || prmFileSpecified(prm,pszName));
+}

@@ -19,7 +19,7 @@ public:
     virtual void finish() {}
     cudaMessage() {}
     virtual ~cudaMessage() {}
-    };
+};
 struct cudaMessageQueue : public messageQueue<cudaMessage> {};
 
 class Stream : public basicMessage {
@@ -38,19 +38,19 @@ public:
     explicit Stream(class Device *device);
     ~Stream();
     cudaStream_t getStream();
-    };
+};
 class StreamQueue : public messageQueue<class Stream> {};
 
 class Work {
 public:
     Work();
-    };
+};
 
 class Device {
     friend class Stream;
     friend class CUDA;
 protected:
-    static void CUDART_CB kernel_finished( void*  userData );
+    static void CUDART_CB kernel_finished( void  *userData );
     void kernel_finished( Stream *stream );
     StreamQueue free_streams;
     std::atomic_int busy_streams;
@@ -60,7 +60,7 @@ public:
     explicit Device(int iDevice,int nStreams);
     bool empty() {return free_streams.empty();}
     void launch(cudaMessage &M);
-    };
+};
 
 class CUDA : public cudaMessageQueue {
 protected:
@@ -71,7 +71,7 @@ public:
     void initialize(int nStreamsPerDevice=8);
     bool isActive() { return devices.size() > 0; }
     void initiate();
-    };
+};
 
 } // namespace mdl
 #endif

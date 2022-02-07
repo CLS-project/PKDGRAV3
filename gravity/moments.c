@@ -16,9 +16,9 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#include "config.h"
+    #include "config.h"
 #else
-#include "pkd_config.h"
+    #include "pkd_config.h"
 #endif
 
 #include <stdio.h>
@@ -88,7 +88,7 @@ void momMakeMomc(MOMC *mc,momFloat m,momFloat x,momFloat y,momFloat z) {
     mc->yyzz = mc->yyz*z;
     mc->xxzz = mc->xzz*x;
     mc->xyzz = mc->xzz*y;
-    }
+}
 
 
 /*
@@ -156,14 +156,14 @@ momFloat momMakeMomr(MOMR *mr,momFloat m,momFloat x,momFloat y,momFloat z) {
     mr->yyyy = ty*y2 - 6*dy;
     mr->xxyy = tx*y2 - dx - dy;
 
-    return(d2);
-    }
+    return (d2);
+}
 
 
 /*
  ** This function calculates a reduced scaled multipole from a single
  ** particle at position <x,y,z> from the any type of "center". A scaling
- ** factor 'u' for the positions must also be specified, which should 
+ ** factor 'u' for the positions must also be specified, which should
  ** typically be the value of b_max.
  **
  ** The strange order of evaluation reduces the number of
@@ -237,8 +237,8 @@ float momMakeFmomr(FMOMR *mr,float m,float u,float x,float y,float z) {
     mr->xxxx = tx*x2 - 6.0f*dx;
     mr->yyyy = ty*y2 - 6.0f*dy;
     mr->xxyy = tx*y2 - dx - dy;
-    return(d2);
-    }
+    return (d2);
+}
 
 
 /*
@@ -283,7 +283,7 @@ void momOldMakeMomr(MOMR *mr,momFloat m,momFloat x,momFloat y,momFloat z) {
     mr->xz = m*x*z;
     mr->yz = m*y*z;
     mr->m = m;
-    }
+}
 
 
 void momMomr2Momc(MOMR *ma,MOMC *mc) {
@@ -319,7 +319,7 @@ void momMomr2Momc(MOMR *ma,MOMC *mc) {
     mc->yyzz = -(ma->xxyy + ma->yyyy);
     mc->yzzz = -(ma->xxyz + ma->yyyz);
     mc->zzzz = -(mc->xxzz + mc->yyzz);
-    }
+}
 
 /*
  ** This function converts a complete multipole (MOMC) to a reduced one (MOMR).
@@ -372,7 +372,7 @@ void momReduceMomc(MOMC *mc,MOMR *mr) {
      ** Finally the mass remains the same.
      */
     mr->m = mc->m;
-    }
+}
 
 
 /*
@@ -424,7 +424,7 @@ void momShiftMomc(MOMC *m,momFloat x,momFloat y,momFloat z) {
      */
     f.m = 0;
     momMulAddMomc(m,m->m,&f);
-    }
+}
 
 
 /*
@@ -481,7 +481,7 @@ void momShiftMomr(MOMR *m,momFloat x,momFloat y,momFloat z) {
      */
     f.m = 0;
     momMulAddMomr(m,m->m,&f);
-    }
+}
 
 
 /*
@@ -558,7 +558,7 @@ void momShiftFmomr(FMOMR *m,float u,float x,float y,float z) {
      */
     f.m = 0.0f;
     momMulAddFmomr(m,1.0f,m->m,&f,1.0f);
-    }
+}
 
 
 /*
@@ -697,7 +697,7 @@ double momShiftLocr(LOCR *l,momFloat x,momFloat y,momFloat z) {
     l->m += 0.2*L;
 
     return 332.0;
-    }
+}
 
 
 /*
@@ -840,7 +840,7 @@ double momShiftFlocr(FLOCR *l,float v,float x,float y,float z) {
     l->m += 0.2f*L;
 
     return 332.0;
-    }
+}
 
 
 /*
@@ -858,7 +858,7 @@ double momShiftFlocr(FLOCR *l,float v,float x,float y,float z) {
  ** CAREFUL: this function no longer accumulates on fPot,ax,ay,az!
  */
 void momEvalMomr(MOMR *m,momFloat dir,momFloat x,momFloat y,momFloat z,
-		 momFloat *fPot,momFloat *ax,momFloat *ay,momFloat *az,momFloat *magai) {
+                 momFloat *fPot,momFloat *ax,momFloat *ay,momFloat *az,momFloat *magai) {
     const momFloat onethird = 1.0/3.0;
     momFloat xx,xy,xz,yy,yz,zz;
     momFloat xxx,xxy,xxz,xyy,yyy,yyz,xyz;
@@ -911,7 +911,7 @@ void momEvalMomr(MOMR *m,momFloat dir,momFloat x,momFloat y,momFloat z,
     *ay = dir*(xy + xxy + ty - y*g0);
     *az = dir*(xz + xxz + tz - z*g0);
     *magai = g0*dir;
-    }
+}
 
 
 /*
@@ -920,8 +920,8 @@ void momEvalMomr(MOMR *m,momFloat dir,momFloat x,momFloat y,momFloat z,
 ** CAREFUL: this function no longer accumulates on fPot,ax,ay,az!
 */
 void momGenEvalMomr(MOMR *m,momFloat g0,momFloat g1,momFloat g2,momFloat g3,momFloat g4,momFloat g5,
-		    momFloat x,momFloat y,momFloat z,
-		    momFloat *fPot,momFloat *ax,momFloat *ay,momFloat *az,momFloat *magai) {
+                    momFloat x,momFloat y,momFloat z,
+                    momFloat *fPot,momFloat *ax,momFloat *ay,momFloat *az,momFloat *magai) {
     const momFloat onethird = 1.0/3.0;
     momFloat xx,xy,xz,yy,yz,zz;
     momFloat xxx,xxy,xxz,xyy,yyy,yyz,xyz;
@@ -966,7 +966,7 @@ void momGenEvalMomr(MOMR *m,momFloat g0,momFloat g1,momFloat g2,momFloat g3,momF
     *ay = -g2*Ay + g3*By - g4*Cy - y*R;
     *az = -g2*Az + g3*Bz - g4*Cz - z*R;
     *magai = sqrt((*ax)*(*ax) + (*ay)*(*ay) + (*az)*(*az));
-    }
+}
 
 
 /*
@@ -1134,12 +1134,12 @@ double momLocrAddMomr5cm(LOCR *l,MOMR *m,momFloat dir,momFloat x,momFloat y,momF
     l->xyyyz += (3*g4 + g5yy)*xy*z;
 
     return 509.0;
-    }
+}
 
 
 
 /*
-** Op Count = (*,+) = (129,77) = 206 
+** Op Count = (*,+) = (129,77) = 206
 */
 double momLocrAddMono5(LOCR *l,momFloat m,momFloat dir,momFloat x,momFloat y,momFloat z,double *tax,double *tay,double *taz) {
     momFloat xx,xy,xz,yy,yz;
@@ -1251,7 +1251,7 @@ double momLocrAddMono5(LOCR *l,momFloat m,momFloat dir,momFloat x,momFloat y,mom
     l->xyyyz += (3*g4 + g5yy)*xy*z;
 
     return 206.0;
-    }
+}
 
 
 /*
@@ -1423,12 +1423,12 @@ double momFlocrAddFmomr5cm(FLOCR *l,float v,FMOMR *m,float u,float dir,float x,f
     l->xxyyy += y*(xx*tyy - yy + 45.0f);
     tyy += 2.0f;
     l->xxyyz += z*(xx*tyy - yy + 15.0f);
-    return(464.0);
+    return (464.0);
 }
 
 
 /*
-** Op Count = (*,+,-) = (,,) = 
+** Op Count = (*,+,-) = (,,) =
 */
 double momFlocrAddMono5(FLOCR *l,float v,float m,float dir,float x,float y,float z,float *tax,float *tay,float *taz) {
     float xx,xy,xz,yy,yz;
@@ -1533,7 +1533,7 @@ double momFlocrAddMono5(FLOCR *l,float v,float m,float dir,float x,float y,float
     l->xxyyy += y*(xx*tyy - yy + 45.0f);
     tyy += 2.0f;
     l->xxyyz += z*(xx*tyy - yy + 15.0f);
-    return(200.0);
+    return (200.0);
 }
 
 
@@ -1707,7 +1707,7 @@ double momLocrAddFmomr5cm(LOCR *l,FMOMR *m,double u,double dir,double x,double y
     l->xxyyy += y*(xx*tyy - yy + 45.0);
     tyy += 2.0;
     l->xxyyz += z*(xx*tyy - yy + 15.0);
-    return(464.0);
+    return (464.0);
 }
 
 
@@ -1890,12 +1890,12 @@ double momLocrAddFmomr5(LOCR *l,FMOMR *m,double u,double dir,double x,double y,d
     l->xxyyy += y*(xx*tyy - yy + 45.0);
     tyy += 2.0;
     l->xxyyz += z*(xx*tyy - yy + 15.0);
-    return(594.0);
-    }
+    return (594.0);
+}
 
 
 void momEvalLocr(LOCR *l,momFloat x,momFloat y,momFloat z,
-		 momFloat *fPot,momFloat *ax,momFloat *ay,momFloat *az) {
+                 momFloat *fPot,momFloat *ax,momFloat *ay,momFloat *az) {
     const momFloat onethird = 1.0/3.0;
     momFloat xx,xy,xz,yy,yz,zz,xxx,xxz,yyy,yyz,xxy,xyy,xyz,xxxx,xxxy,xxyy,xyyy,yyyy,xxxz,xxyz,xyyz,yyyz;
     momFloat g1,A,Ax,Ay,Az,B,Bx,By,Bz,C,Cx,Cy,Cz,D,Dx,Dy,Dz;
@@ -1933,7 +1933,7 @@ void momEvalLocr(LOCR *l,momFloat x,momFloat y,momFloat z,
     Dx = l->xxxxx*xxxx + l->xxxxy*xxxy + l->xxxyy*xxyy + l->xxyyy*xyyy + l->xyyyy*yyyy + l->xxxxz*xxxz + l->xxxyz*xxyz + l->xxyyz*xyyz + l->xyyyz*yyyz;
     Dy = l->xxxxy*xxxx + l->xxxyy*xxxy + l->xxyyy*xxyy + l->xyyyy*xyyy + l->yyyyy*yyyy + l->xxxyz*xxxz + l->xxyyz*xxyz + l->xyyyz*xyyz + l->yyyyz*yyyz;
     Dz = l->xxxxz*xxxx + l->xxxyz*xxxy + l->xxyyz*xxyy + l->xyyyz*xyyy + l->yyyyz*yyyy
-	 - l->xxxxx*xxxz - l->xxxxy*xxyz - l->xxxyy*(xxxz + xyyz) - l->xxyyy*(xxyz + yyyz) + l->xyyyy*xyyz + l->yyyyy*yyyz;
+         - l->xxxxx*xxxz - l->xxxxy*xxyz - l->xxxyy*(xxxz + xyyz) - l->xxyyy*(xxyz + yyyz) + l->xyyyy*xyyz + l->yyyyy*yyyz;
     Cx = l->xxxx*xxx + l->xyyy*yyy + l->xxxy*xxy + l->xxxz*xxz + l->xxyy*xyy + l->xxyz*xyz + l->xyyz*yyz;
     Cy = l->xyyy*xyy + l->xxxy*xxx + l->yyyy*yyy + l->yyyz*yyz + l->xxyy*xxy + l->xxyz*xxz + l->xyyz*xyz;
     Cz = -l->xxxx*xxz - (l->xyyy + l->xxxy)*xyz - l->yyyy*yyz + l->xxxz*xxx + l->yyyz*yyy - l->xxyy*(xxz + yyz) + l->xxyz*xxy + l->xyyz*xyy;
@@ -1952,11 +1952,11 @@ void momEvalLocr(LOCR *l,momFloat x,momFloat y,momFloat z,
     *ay -= l->y + Ay + By + Cy + Dy;
     *az -= l->z + Az + Bz + Cz + Dz;
     *fPot += l->m + g1 + A + B + C + D;
-    }
+}
 
 
 void momEvalFlocr(FLOCR *l,float v,float x,float y,float z,
-		  float *fPot,float *ax,float *ay,float *az) {
+                  float *fPot,float *ax,float *ay,float *az) {
     const float onethird = 1.0f/3.0f;
     float xx,xy,xz,yy,yz,zz,xxx,xxz,yyy,yyz,xxy,xyy,xyz,xxxx,xxxy,xxyy,xyyy,yyyy,xxxz,xxyz,xyyz,yyyz;
     float g1,A,Ax,Ay,Az,B,Bx,By,Bz,C,Cx,Cy,Cz,D,Dx,Dy,Dz;
@@ -1999,7 +1999,7 @@ void momEvalFlocr(FLOCR *l,float v,float x,float y,float z,
     Dx = l->xxxxx*xxxx + l->xxxxy*xxxy + l->xxxyy*xxyy + l->xxyyy*xyyy + l->xyyyy*yyyy + l->xxxxz*xxxz + l->xxxyz*xxyz + l->xxyyz*xyyz + l->xyyyz*yyyz;
     Dy = l->xxxxy*xxxx + l->xxxyy*xxxy + l->xxyyy*xxyy + l->xyyyy*xyyy + l->yyyyy*yyyy + l->xxxyz*xxxz + l->xxyyz*xxyz + l->xyyyz*xyyz + l->yyyyz*yyyz;
     Dz = l->xxxxz*xxxx + l->xxxyz*xxxy + l->xxyyz*xxyy + l->xyyyz*xyyy + l->yyyyz*yyyy
-	 - l->xxxxx*xxxz - l->xxxxy*xxyz - l->xxxyy*(xxxz + xyyz) - l->xxyyy*(xxyz + yyyz) + l->xyyyy*xyyz + l->yyyyy*yyyz;
+         - l->xxxxx*xxxz - l->xxxxy*xxyz - l->xxxyy*(xxxz + xyyz) - l->xxyyy*(xxyz + yyyz) + l->xyyyy*xyyz + l->yyyyy*yyyz;
     Cx = l->xxxx*xxx + l->xyyy*yyy + l->xxxy*xxy + l->xxxz*xxz + l->xxyy*xyy + l->xxyz*xyz + l->xyyz*yyz;
     Cy = l->xyyy*xyy + l->xxxy*xxx + l->yyyy*yyy + l->yyyz*yyz + l->xxyy*xxy + l->xxyz*xxz + l->xyyz*xyz;
     Cz = -l->xxxx*xxz - (l->xyyy + l->xxxy)*xyz - l->yyyy*yyz + l->xxxz*xxx + l->yyyz*yyy - l->xxyy*(xxz + yyz) + l->xxyz*xxy + l->xyyz*xyy;
@@ -2018,7 +2018,7 @@ void momEvalFlocr(FLOCR *l,float v,float x,float y,float z,
     *ay -= iv*(l->y + Ay + By + Cy + Dy);
     *az -= iv*(l->z + Az + Bz + Cz + Dz);
     *fPot += l->m + g1 + A + B + C + D;
-    }
+}
 
 
 void momClearMomc(MOMC *l) {
@@ -2054,7 +2054,7 @@ void momClearMomc(MOMC *l) {
     l->yyzz = 0;
     l->yzzz = 0;
     l->zzzz = 0;
-    }
+}
 
 void momClearMomr(MOMR *l) {
     l->m = 0;
@@ -2079,7 +2079,7 @@ void momClearMomr(MOMR *l) {
     l->xxyy = 0;
     l->xxyz = 0;
     l->xyyz = 0;
-    }
+}
 
 void momClearFmomr(FMOMR *l) {
     l->m = 0.0f;
@@ -2107,7 +2107,7 @@ void momClearFmomr(FMOMR *l) {
     l->xxyy = 0.0f;
     l->xxyz = 0.0f;
     l->xyyz = 0.0f;
-    }
+}
 
 void momClearLocr(LOCR *l) {
     l->m = 0;
@@ -2146,7 +2146,7 @@ void momClearLocr(LOCR *l) {
     l->xxxyz = 0;
     l->xyyyz = 0;
     l->xxyyz = 0;
-    }
+}
 
 void momClearFlocr(FLOCR *l) {
     l->m = 0.0f;
@@ -2185,7 +2185,7 @@ void momClearFlocr(FLOCR *l) {
     l->xxxyz = 0.0f;
     l->xyyyz = 0.0f;
     l->xxyyz = 0.0f;
-    }
+}
 
 
 /*
@@ -2224,7 +2224,7 @@ void momAddMomc(MOMC *mc,MOMC *ma) {
     mc->yyzz += ma->yyzz;
     mc->yzzz += ma->yzzz;
     mc->zzzz += ma->zzzz;
-    }
+}
 
 
 /*
@@ -2253,7 +2253,7 @@ void momAddMomr(MOMR *mr,MOMR *ma) {
     mr->xxyy += ma->xxyy;
     mr->xxyz += ma->xxyz;
     mr->xyyz += ma->xyyz;
-    }
+}
 
 
 /*
@@ -2285,7 +2285,7 @@ void momAddFmomr(FMOMR *mr,FMOMR *ma) {
     mr->xxyy += ma->xxyy;
     mr->xxyz += ma->xxyz;
     mr->xyyz += ma->xyyz;
-    }
+}
 
 
 /*
@@ -2325,7 +2325,7 @@ void momScaledAddFmomr(FMOMR *mr,float ur,FMOMR *ma,float ua) {
     mr->xxyy += s*ma->xxyy;
     mr->xxyz += s*ma->xxyz;
     mr->xyyz += s*ma->xyyz;
-    }
+}
 
 
 /*
@@ -2362,7 +2362,7 @@ void momRescaleFmomr(FMOMR *mr,float unew,float uold) {
     mr->xxyy *= s;
     mr->xxyz *= s;
     mr->xyyz *= s;
-    }
+}
 
 /*
  ** This function multiply-adds the complete moment ma
@@ -2400,7 +2400,7 @@ void momMulAddMomc(MOMC *mc,momFloat m,MOMC *ma) {
     mc->yyzz += m*ma->yyzz;
     mc->yzzz += m*ma->yzzz;
     mc->zzzz += m*ma->zzzz;
-    }
+}
 
 
 /*
@@ -2429,7 +2429,7 @@ void momMulAddMomr(MOMR *mr,momFloat m,MOMR *ma) {
     mr->xxyy += m*ma->xxyy;
     mr->xxyz += m*ma->xxyz;
     mr->xyyz += m*ma->xyyz;
-    }
+}
 
 
 /*
@@ -2468,7 +2468,7 @@ void momMulAddFmomr(FMOMR *mr,float ur,float m,FMOMR *ma,float ua) {
     mr->xxyy += m*ma->xxyy;
     mr->xxyz += m*ma->xxyz;
     mr->xyyz += m*ma->xyyz;
-    }
+}
 
 
 /*
@@ -2741,7 +2741,7 @@ void momScaledAddFlocr(FLOCR *lr,float vr,FLOCR *la,float va) {
     lr->xxxyz += s*la->xxxyz;
     lr->xyyyz += s*la->xyyyz;
     lr->xxyyz += s*la->xxyyz;
-    }
+}
 
 
 /*
@@ -2791,7 +2791,7 @@ void momRescaleFlocr(FLOCR *lr,float vnew,float vold) {
     lr->xxxyz *= s;
     lr->xyyyz *= s;
     lr->xxyyz *= s;
-    }
+}
 
 
 /*
@@ -2831,7 +2831,7 @@ void momSubMomc(MOMC *mc,MOMC *ma) {
     mc->yyzz -= ma->yyzz;
     mc->yzzz -= ma->yzzz;
     mc->zzzz -= ma->zzzz;
-    }
+}
 
 
 /*
@@ -2861,7 +2861,7 @@ void momSubMomr(MOMR *mr,MOMR *ma) {
     mr->xxyy -= ma->xxyy;
     mr->xxyz -= ma->xxyz;
     mr->xyyz -= ma->xyyz;
-    }
+}
 
 
 void momPrintMomc(MOMC *m) {
@@ -2877,7 +2877,7 @@ void momPrintMomc(MOMC *m) {
     printf(" xzzz:%20.15g yzzz:%20.15g zzzz:%20.15g\n",(double)m->xzzz,(double)m->yzzz,(double)m->zzzz);
     printf(" xxyy:%20.15g xxyz:%20.15g xyyz:%20.15g\n",(double)m->xxyy,(double)m->xxyz,(double)m->xyyz);
     printf(" yyzz:%20.15g xxzz:%20.15g xyzz:%20.15g\n",(double)m->yyzz,(double)m->xxzz,(double)m->xyzz);
-    }
+}
 
 
 void momPrintMomr(MOMR *m) {
@@ -2889,13 +2889,13 @@ void momPrintMomr(MOMR *m) {
     printf(" xxxx:%20.15g xxxy:%20.15g xxxz:%20.15g\n",(double)m->xxxx,(double)m->xxxy,(double)m->xxxz);
     printf(" xxyy:%20.15g xxyz:%20.15g xyyy:%20.15g\n",(double)m->xxyy,(double)m->xxyz,(double)m->xyyy);
     printf(" xyyz:%20.15g yyyy:%20.15g yyyz:%20.15g\n",(double)m->xyyz,(double)m->yyyy,(double)m->yyyz);
-    }
+}
 
 void momPrintFmomr(FMOMR *m,float u) {
     double uu = u;
     printf("FMOMR:%20.8g\n",m->m);
     printf("    x:%20.8g    y:%20.8g    z:%20.8g\n",m->x,m->y,m->z);
-   uu *= u;
+    uu *= u;
     printf("   xx:%20.8g   xy:%20.8g   xz:%20.8g\n",m->xx*uu,m->xy*uu,m->xz*uu);
     printf("   yy:%20.8g   yz:%20.8g",m->yy*uu,m->yz*uu);
     uu *= u;
@@ -2906,7 +2906,7 @@ void momPrintFmomr(FMOMR *m,float u) {
     printf(" xxxx:%20.8g xxxy:%20.8g xxxz:%20.8g\n",m->xxxx*uu,m->xxxy*uu,m->xxxz*uu);
     printf(" xxyy:%20.8g xxyz:%20.8g xyyy:%20.8g\n",m->xxyy*uu,m->xxyz*uu,m->xyyy*uu);
     printf(" xyyz:%20.8g yyyy:%20.8g yyyz:%20.8g\n",m->xyyz*uu,m->yyyy*uu,m->yyyz*uu);
-    }
+}
 
 void momPrintLocr(LOCR *m) {
     printf("LOCR :%20.15g\n",(double)m->m);
@@ -2922,7 +2922,7 @@ void momPrintLocr(LOCR *m) {
     printf("xxxyy:%20.15g xxyyy:%20.15g xxxyz:%20.15g\n",(double)m->xxxyy,(double)m->xxyyy,(double)m->xxxyz);
     printf("xyyyy:%20.15g yyyyy:%20.15g xxyyz:%20.15g\n",(double)m->xyyyy,(double)m->yyyyy,(double)m->xxyyz);
     printf("xyyyz:%20.15g yyyyz:%20.15g              \n",(double)m->xyyyz,(double)m->yyyyz);
-    }
+}
 
 
 void momPrintFlocr(FLOCR *m,float v) {
@@ -2934,7 +2934,7 @@ void momPrintFlocr(FLOCR *m,float v) {
     printf("   xx:%20.8g    xy:%20.8g    xz:%20.8g\n",m->xx*uu,m->xy*uu,m->xz*uu);
     printf("   yy:%20.8g    yz:%20.8g",m->yy*uu,m->yz*uu);
     uu *= u;
-    printf("   xxx:%20.8g\n",m->xxx*uu);    
+    printf("   xxx:%20.8g\n",m->xxx*uu);
     printf("  xxy:%20.8g   xxz:%20.8g   xyy:%20.8g\n",m->xxy*uu,m->xxz*uu,m->xyy*uu);
     printf("  xyz:%20.8g   yyy:%20.8g   yyz:%20.8g\n",m->xyz*uu,m->yyy*uu,m->yyz*uu);
     uu *= u;
@@ -2946,5 +2946,5 @@ void momPrintFlocr(FLOCR *m,float v) {
     printf("xxxyy:%20.8g xxyyy:%20.8g xxxyz:%20.8g\n",m->xxxyy*uu,m->xxyyy*uu,m->xxxyz*uu);
     printf("xyyyy:%20.8g yyyyy:%20.8g xxyyz:%20.8g\n",m->xyyyy*uu,m->yyyyy*uu,m->xxyyz*uu);
     printf("xyyyz:%20.8g yyyyz:%20.8g             \n",m->xyyyz*uu,m->yyyyz*uu);
-    }
+}
 

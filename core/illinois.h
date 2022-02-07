@@ -22,7 +22,7 @@ typedef struct {
     double r, s;
     double fr, fs;
     double t;
-    } ILLINOIS;
+} ILLINOIS;
 
 #ifdef __cplusplus
 extern "C" {

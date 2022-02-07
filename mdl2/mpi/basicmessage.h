@@ -19,7 +19,7 @@ struct basicMessage {
     basicMessage() : replyQueue(0) {OPA_Queue_header_init(&hdr);}
     virtual ~basicMessage() {} // This class needs to be polymorphic (so dynamic_cast works)
     void sendBack() {if (replyQueue) OPA_Queue_enqueue(replyQueue, this, basicMessage, hdr);}
-    };
+};
 
 struct basicQueue : public OPA_Queue_info_t {
     basicQueue() { OPA_Queue_init(this); }
@@ -28,38 +28,38 @@ struct basicQueue : public OPA_Queue_info_t {
     void enqueue(basicMessage *m) { OPA_Queue_enqueue(this,  m, basicMessage, hdr); }
     void enqueue(basicMessage &m) { enqueue(&m); }
     void enqueue(const basicMessage &C,basicQueue &Q) {
-	// We do modify "M", but we are done before we return. Promise.
-	// This allows patterns like Q.enqueueAndWait(MessageType(...))
-	basicMessage &M = const_cast<basicMessage&>(C);
-	M.replyQueue = &Q;
-	enqueue(M);
-	}
+        // We do modify "M", but we are done before we return. Promise.
+        // This allows patterns like Q.enqueueAndWait(MessageType(...))
+        basicMessage &M = const_cast<basicMessage &>(C);
+        M.replyQueue = &Q;
+        enqueue(M);
+    }
 
     basicMessage &dequeue() {
-	basicMessage *M;
-	OPA_Queue_dequeue(this, M, basicMessage, hdr);
-	return *M;
-	}
-    };
+        basicMessage *M;
+        OPA_Queue_dequeue(this, M, basicMessage, hdr);
+        return *M;
+    }
+};
 
 template<class messageType>
 struct messageQueue : public basicQueue {
 
     messageType &wait() {
-	while (OPA_Queue_is_empty(this)) {
-	    // This is important in the case where we have oversubscribed the CPU
+        while (OPA_Queue_is_empty(this)) {
+            // This is important in the case where we have oversubscribed the CPU
 #ifdef _MSC_VER
-	    SwitchToThread();
+            SwitchToThread();
 #else
-	    sched_yield();
+            sched_yield();
 #endif
-	    }
-	return dequeue();
-	}
+        }
+        return dequeue();
+    }
     messageType &dequeue() {
-	basicMessage &M = basicQueue::dequeue();
-	return dynamic_cast<messageType&>(M);
-	}
-    };
+        basicMessage &M = basicQueue::dequeue();
+        return dynamic_cast<messageType &>(M);
+    }
+};
 } // namespace mdl
 #endif

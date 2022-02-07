@@ -25,8 +25,8 @@
 typedef struct {
     PyObject_HEAD
     CSM csm;
-    } CSMINSTANCE;
+} CSMINSTANCE;
 #ifdef __cplusplus
-extern "C"
+    extern "C"
 #endif
 PyTypeObject csmType;

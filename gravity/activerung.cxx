@@ -22,9 +22,9 @@ static_assert(std::is_void<ServiceActiveRung::input>()  || std::is_trivial<Servi
 static_assert(std::is_void<ServiceActiveRung::output>() || std::is_trivial<ServiceActiveRung::output>());
 
 int ServiceActiveRung::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    auto in = static_cast<input*>(vin);
+    auto in = static_cast<input *>(vin);
     static_assert(std::is_void<output>());
     auto pkd = pst->plcl->pkd;
     pkdActiveRung(pkd, in->iRung, in->bGreater);
     return 0;
-    }
+}

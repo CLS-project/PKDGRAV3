@@ -26,7 +26,7 @@ GridInfo::GridInfo(MDL mdl,MDLFFT fft) {
     m_ny = fft->kgrid->nSlab;
     m_iCore = mdlCore(mdl);
     m_nCore = mdlCores(mdl);
-    }
+}
 
 
 /*
@@ -54,17 +54,17 @@ void GridInfo::setupArray(real_t *dataFirst,real_array_t &rspace) {
             RegularArray());
         real_array_t rspace2=
             rawr(blitz::Range(0,n1r()-1),
-                blitz::Range(sy,ey-1),
-                blitz::Range(0,nz()-1));
+                 blitz::Range(sy,ey-1),
+                 blitz::Range(0,nz()-1));
         rspace.reference(rspace2);
         rspace.reindexSelf(dimension_t(0,sy,sz())); // Correct "y" dimension
-        }
+    }
     // Create an empty array; note that the data pointer is NULL
     else {
         real_array_t rspace2;
         rspace.reference(rspace2);
-        }
     }
+}
 
 //pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 //pthread_mutex_lock(&mutex);
@@ -89,18 +89,18 @@ void GridInfo::setupArray(complex_t *dataFirst,complex_array_t &kspace) {
             TransposedArray());
         complex_array_t kspace2 = // Just the valid parts for our core
             rawk(blitz::Range(0,n1k()-1),
-                blitz::Range(0,ny()-1),
-                blitz::Range(sz,ez-1));
+                 blitz::Range(0,ny()-1),
+                 blitz::Range(sz,ez-1));
         kspace.reference(kspace2);
         kspace.reindexSelf(dimension_t(0,sy(),sz)); // Correct "z" dimension
-        }
+    }
     // Create an empty array; note that the data pointer is NULL
     else {
         complex_array_t kspace2;
         kspace.reference(kspace2);
-        }
     }
+}
 
 void GridInfo::setupArray(real_t *dataFirst,complex_array_t &kspace) {
     setupArray(reinterpret_cast<complex_t *>(dataFirst),kspace);
-    }
+}
