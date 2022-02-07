@@ -1021,7 +1021,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             pkdSetClass(pkd,fMass,fSoft,eSpecies,p);
             pkdSetDensity(pkd,p,fDensity);
             if (pNewSph) {
-                pNewSph->u = u; /* Can't do conversion until density known */
+                pNewSph->u = -u; /* Can't do conversion until density known */
             }
             else {
                 assert(dTuFac>0.0);
@@ -1831,7 +1831,7 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,BND *bnd,
             T = EOSTofRhoU(fDensity, pNewSph->u, &pkd->SPHoptions);
             for (int k = 0; k < ELEMENT_COUNT; k++) fMetals[k] = 0.0f;
             fioWriteSph(fio,iParticleID,r,v,fMass,fSoft,*pPot,
-                        fDensity,T,&fMetals[0],0.0f,0.0f,otherData);
+                        fDensity,T,&fMetals[0],0.0f,T,otherData);
         }
         else {
             pSph = pkdSph(pkd,p);
