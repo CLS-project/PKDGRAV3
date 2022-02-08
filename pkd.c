@@ -491,13 +491,15 @@ void pkdInitialize(
     pkd->oNodeVelocity = 0;
     if ( (mMemoryModel & PKD_MODEL_NODE_VEL) && sizeof(vel_t) == sizeof(double))
         pkd->oNodeVelocity = pkdNodeAddDouble(pkd,3);
+    if ( mMemoryModel & PKD_MODEL_SPH ) {
 #ifdef OPTIM_REORDER_IN_NODES
-    pkd->oNodeNgas = pkdNodeAddInt32(pkd,1);
+        pkd->oNodeNgas = pkdNodeAddInt32(pkd,1);
 #if (defined(STAR_FORMATION) && defined(FEEDBACK)) || defined(STELLAR_EVOLUTION)
-    pkd->oNodeNstar = pkdNodeAddInt32(pkd,1);
+        pkd->oNodeNstar = pkdNodeAddInt32(pkd,1);
 #endif
-    pkd->oNodeNbh = pkdNodeAddInt32(pkd,1);
+        pkd->oNodeNbh = pkdNodeAddInt32(pkd,1);
 #endif
+    }
     /*
     ** Three extra bounds are required by the fast gas SPH code.
     */
