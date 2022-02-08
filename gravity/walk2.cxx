@@ -544,17 +544,32 @@ found_it:
                                     fMass = pkdMass(pkd,p);
                                     fSoft = pkdSoft(pkd,p);
                                     if (ts->bGravStep && ts->iTimeStepCrit == 1) v = pkdVel(pkd,p);
-                                    clAppend(pkd->clNew,blk->iCache.i[jTile],id,-1 - pj,0,0,0,0,1,0.0,fMass,4.0f*fSoft*fSoft,
-                                             r,       /* center of mass */
-                                             fOffset, /* fOffset */
-                                             r,       /* center of box */
-                                             fZero3,  /* size of box */
+                                    if (pkd->oFieldOffset[oNewSph]) {
+                                        clAppend(pkd->clNew,blk->iCache.i[jTile],id,-1 - pj,0,0,0,0,1,0.0,fMass,4.0f*fSoft*fSoft,
+                                                 r,       /* center of mass */
+                                                 fOffset, /* fOffset */
+                                                 r,       /* center of box */
+                                                 fZero3,  /* size of box */
 #if SPHBALLOFBALLS
-                                             pkdBall(pkd,p),r[0],r[1],r[2]);
+                                                 pkdBall(pkd,p),r[0],r[1],r[2]);
 #endif
 #if SPHBOXOFBALLS
-                                    r[0]-pkdBall(pkd,p),r[0]+pkdBall(pkd,p),r[1]-pkdBall(pkd,p),r[1]+pkdBall(pkd,p),r[2]-pkdBall(pkd,p),r[2]+pkdBall(pkd,p));
+                                        r[0]-pkdBall(pkd,p),r[0]+pkdBall(pkd,p),r[1]-pkdBall(pkd,p),r[1]+pkdBall(pkd,p),r[2]-pkdBall(pkd,p),r[2]+pkdBall(pkd,p));
 #endif
+                                    }
+                                    else {
+                                        clAppend(pkd->clNew,blk->iCache.i[jTile],id,-1 - pj,0,0,0,0,1,0.0,fMass,4.0f*fSoft*fSoft,
+                                                 r,       /* center of mass */
+                                                 fOffset, /* fOffset */
+                                                 r,       /* center of box */
+                                                 fZero3,  /* size of box */
+#if SPHBALLOFBALLS
+                                                 0.0f,r[0],r[1],r[2]);
+#endif
+#if SPHBOXOFBALLS
+                                        r[0],r[0],r[1],r[1],r[2],r[2]);
+#endif
+                                    }
                                 }
                                 break;
                             case 3:
