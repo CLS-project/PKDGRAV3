@@ -681,7 +681,7 @@ int MSR::ValidateParameters() {
     }
 
 #ifdef OPTIM_NO_REDUNDANT_FLUXES
-    if (!param.bMemParticleID) {
+    if (MeshlessHydro() && !param.bMemParticleID) {
         fprintf(stderr, "WARNING: OPTIM_NO_REDUNDANT_FLUXES requires bMemParticleID");
         return 0;
     }

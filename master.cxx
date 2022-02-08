@@ -2641,7 +2641,9 @@ void MSR::BuildTree(int bNeedEwald) {
         mdl->RunService(PST_DISTRIBROOT,sizeof(droot),&droot);
     }
 #ifdef OPTIM_REORDER_IN_NODES
-    ReorderWithinNodes();
+    if (MeshlessHydro()) {
+        ReorderWithinNodes();
+    }
 #endif
 }
 
