@@ -5584,6 +5584,14 @@ void MSR::Output(int iStep, double dTime, double dDelta, int bCheckpoint) {
         FastGasPhase1(dTime,dDelta,SMX_DENSITY);
         FastGasPhase2(dTime,dDelta,SMX_PRINTNN);
         //msrSelSrcAll(msr);  /* FOR TESTING!! of gas active particles */
+#else
+        ActiveRung(0,1); /* Activate all particles */
+        DomainDecomp(-1);
+        BuildTree(0);
+        bSymmetric = 0;  /* should be set in param file! */
+        if (!NewSPH()) {
+            Smooth(dTime,dDelta,SMX_DENSITY,bSymmetric,param.nSmooth);
+        }
 #endif
     }
     if ( param.bFindGroups ) {
