@@ -1152,6 +1152,10 @@ void MSR::Initialize() {
     prmAddParam(prm,"bGasAdiabatic",0,&param.bGasAdiabatic,
                 sizeof(int),"GasAdiabatic",
                 "<Gas is Adiabatic> = +GasAdiabatic");
+    param.bGasIsentropic = 1;
+    prmAddParam(prm,"bGasIsentropic",0,&param.bGasIsentropic,
+                sizeof(int),"bGasIsentropic",
+                "<Gas is evolved isentropically> = +GasIsentropic");
     param.bGasIsothermal = 0;
     prmAddParam(prm,"bGasIsothermal",0,&param.bGasIsothermal,
                 sizeof(int),"GasIsothermal",

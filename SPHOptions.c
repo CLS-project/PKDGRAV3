@@ -54,7 +54,7 @@ SPHOptions initializeSPHOptions(struct parameters param, CSM csm, double dTime) 
     SPHoptions.doSetDensityFlags = 0;
     SPHoptions.dofBallFactor = 0;
     SPHoptions.useNumDen = 0;
-    SPHoptions.useAdiabatic = param.bGasAdiabatic;
+    SPHoptions.useIsentropic = param.bGasIsentropic;
     SPHoptions.useDensityFlags = 0;
     SPHoptions.kernelType = 0;
     return SPHoptions;
@@ -81,7 +81,7 @@ void copySPHOptions(SPHOptions *source, SPHOptions *target) {
     target->doSetDensityFlags = 0;
     target->dofBallFactor = 0;
     target->useNumDen = source->useNumDen;
-    target->useAdiabatic = source->useAdiabatic;
+    target->useIsentropic = source->useIsentropic;
     target->useDensityFlags = 0;
     target->kernelType = source->kernelType;
 }
@@ -101,7 +101,7 @@ float getDtPredDrift(struct pkdKickParameters *kick, int bMarked, int uRungLo, i
 }
 
 float EOSPCofRhoU(float rho, float u, float *c, SPHOptions *SPHoptions) {
-    if (SPHoptions->useAdiabatic) {
+    if (SPHoptions->useIsentropic) {
         u = u / (SPHoptions->gamma - 1.0f) * pow(rho, SPHoptions->gamma - 1.0f);
     }
     *c = sqrtf(SPHoptions->gamma * (SPHoptions->gamma - 1.0f) * u);
@@ -110,14 +110,14 @@ float EOSPCofRhoU(float rho, float u, float *c, SPHOptions *SPHoptions) {
 
 float EOSUofRhoT(float rho, float T, SPHOptions *SPHoptions) {
     float u = T * SPHoptions->TuFac;
-    if (SPHoptions->useAdiabatic) {
+    if (SPHoptions->useIsentropic) {
         u = u * (SPHoptions->gamma - 1.0f) / pow(rho,SPHoptions->gamma - 1.0f);
     }
     return u;
 }
 
 float EOSTofRhoU(float rho, float u, SPHOptions *SPHoptions) {
-    if (SPHoptions->useAdiabatic) {
+    if (SPHoptions->useIsentropic) {
         u = u / (SPHoptions->gamma - 1.0f) * pow(rho,SPHoptions->gamma - 1.0f);
     }
     float T = u / SPHoptions->TuFac;

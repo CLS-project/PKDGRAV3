@@ -210,6 +210,7 @@ def parse():
     add_flag(gas,'s',default=64, dest='nSmooth',type=int, help='number of particles to smooth over')
     add_bool(gas,'gas',default=False,dest='bDoGas',help='calculate gas/do not calculate gas')
     add_bool(gas,'GasAdiabatic',default=True,dest='bGasAdiabatic',help='Gas is Adiabatic')
+    add_bool(gas,'GasIsentropic',default=True,dest='bGasIsentropic',help='Gas is evolved isentropically')
     add_bool(gas,'GasIsothermal',default=False,dest='bGasIsothermal',help='Gas is Isothermal')
     add_bool(gas,'GasCooling',default=False,dest='bGasCooling',help='Gas is Cooling')
     add_bool(gas,'bInitTFromCooling',default=False,dest='bInitTFromCooling',help='set T (also E, Y, etc..) using Cooling initialization value')

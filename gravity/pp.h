@@ -203,7 +203,7 @@ CUDA_DEVICE void EvalSPHForces(
         Piij = (-alpha * cij * muij + beta * muij * muij) / rhoij;
 
         // du/dt
-        if (SPHoptions->useAdiabatic) {
+        if (SPHoptions->useIsentropic) {
             uDot = 0.5f * Piij * Im * (dvx * dWdx + dvy * dWdy + dvz * dWdz);
         }
         else {

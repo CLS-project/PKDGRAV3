@@ -55,7 +55,7 @@ typedef struct {
     uint64_t doSetDensityFlags : 1;
     uint64_t dofBallFactor : 1;
     uint64_t useNumDen : 1;
-    uint64_t useAdiabatic : 1;
+    uint64_t useIsentropic : 1;
     uint64_t useDensityFlags : 1;
     uint64_t kernelType : 2;
 } SPHOptions;

@@ -94,6 +94,7 @@ struct parameters {
     /* BEGIN Gas Parameters */
     int bDoGas;
     int bGasAdiabatic;
+    int bGasIsentropic;
     int bGasIsothermal;
     int bGasCooling;
     int bInitTFromCooling;
