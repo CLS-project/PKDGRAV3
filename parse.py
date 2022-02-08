@@ -250,6 +250,7 @@ def parse():
     add_flag(gas,'SFVFB',default=100, dest='SFdvFB', type=float, help='SF dvFB sound speed in FB region expected, km/s')
     add_bool(gas,'SFbdivv',default=False,dest='SFbdivv',help='SF Use div v for star formation')
     add_flag(gas,'fKernelTarget',default=0, dest='fKernelTarget', type=float, help='Kernel target, either number- or massdensity')
+    add_bool(gas,'bNewSPH',default=False,dest='bNewSPH',help='Use the new SPH implementation')
     add_bool(gas,'meshless',default=False,dest='bMeshlessHydro',help='Use the new implementation of the hydrodynamics')
     add_bool(gas,'globaldt',default=False,dest='bGlobalDt',help='Force all particles to the same rung')
     add_bool(gas,'iterh',default=True,dest='bIterativeSmoothingLength',help='Use an iterative scheme to obtain h')

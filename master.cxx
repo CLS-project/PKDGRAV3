@@ -274,7 +274,7 @@ uint64_t MSR::getMemoryModel() {
 
     if (param.bMemNodeBnd)          mMemoryModel |= PKD_MODEL_NODE_BND;
     if (param.bMemNodeVBnd)         mMemoryModel |= PKD_MODEL_NODE_VBND;
-    if (param.bDoGas)               mMemoryModel |= (PKD_MODEL_SPH | PKD_MODEL_NODE_SPHBNDS | PKD_MODEL_ACCELERATION);
+    if (param.bDoGas && !NewSPH())  mMemoryModel |= (PKD_MODEL_SPH | PKD_MODEL_NODE_SPHBNDS | PKD_MODEL_ACCELERATION);
 #if defined(STAR_FORMATION) || defined(FEEDBACK) || defined(STELLAR_EVOLUTION)
     mMemoryModel |= PKD_MODEL_STAR;
 #endif
@@ -414,7 +414,7 @@ void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTi
     uint64_t mMemoryModel = 0;
     mMemoryModel = getMemoryModel();
     if (nGas && !prmSpecified(prm,"bDoGas")) param.bDoGas = 1;
-    if (DoGas() || nGas) mMemoryModel |= (PKD_MODEL_NEW_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_DENSITY|PKD_MODEL_BALL);
+    if (DoGas() && NewSPH()) mMemoryModel |= (PKD_MODEL_NEW_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_DENSITY|PKD_MODEL_BALL);
     InitializePStore(nSpecies,mMemoryModel);
 
     struct inRestore restore;
@@ -437,7 +437,7 @@ void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTi
     InitCosmology();
     if (prmSpecified(prm,"dSoft")) SetSoft(Soft());
 
-    if (DoGas()) {
+    if (DoGas() && NewSPH()) {
         /*
         ** Initialize kernel target with either the mean mass or nSmooth
         */
@@ -1311,6 +1311,10 @@ void MSR::Initialize() {
     param.fKernelTarget = 0;
     prmAddParam(prm,"fKernelTarget", 2, &param.fKernelTarget,
                 sizeof(double), "fKernelTarget", "Kernel target, either number- or massdensity");
+    param.bNewSPH = 0;
+    prmAddParam(prm,"bNewSPH", 0, &param.bNewSPH,
+                sizeof(int), "bNewSPH",
+                "Use the new SPH implementation");
     /* END Gas/Star Parameters */
     param.nOutputParticles = 0;
     prmAddArray(prm,"lstOrbits",4,&param.iOutputParticles,sizeof(uint64_t),&param.nOutputParticles);
@@ -4192,7 +4196,7 @@ int MSR::NewTopStepKDK(
         DomainDecomp(uRung);
         uRoot2 = 0;
 
-        if (DoGas()) {
+        if (DoGas() && NewSPH()) {
             SelAll(0,1);
         }
 
@@ -4258,7 +4262,7 @@ int MSR::NewTopStepKDK(
     // We need to make sure we descend all the way to the bucket with the
     // active tree, or we can get HUGE group cells, and hence too much P-P/P-C
     int nGroup = (bDualTree && uRung > iRungDT) ? 1 : param.nGroup;
-    if (DoGas()) {
+    if (DoGas() && NewSPH()) {
         SelAll(0,1);
         SPHOptions SPHoptions = initializeSPHOptions(param,csm,dTime);
         uint64_t nParticlesOnRung = 0;
@@ -5321,7 +5325,7 @@ double MSR::Read(const char *achInFile) {
     read->dTuFac = dTuFac;
 
     if (nGas && !prmSpecified(prm,"bDoGas")) param.bDoGas = 1;
-    if (DoGas() || nGas) mMemoryModel |= (PKD_MODEL_NEW_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_DENSITY|PKD_MODEL_BALL);
+    if (DoGas() && NewSPH()) mMemoryModel |= (PKD_MODEL_NEW_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_DENSITY|PKD_MODEL_BALL);
     if (param.bStarForm || nStar) mMemoryModel |= (PKD_MODEL_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_MASS|PKD_MODEL_SOFTENING|PKD_MODEL_STAR);
 
     read->nNodeStart = 0;
@@ -5369,7 +5373,7 @@ double MSR::Read(const char *achInFile) {
 
     InitCosmology();
 
-    if (DoGas()) {
+    if (DoGas() && NewSPH()) {
         /*
         ** Initialize kernel target with either the mean mass or nSmooth
         */

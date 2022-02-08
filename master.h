@@ -339,6 +339,7 @@ protected:
     double Soft()         const { return param.dSoft; }
     int DoDensity()       const { return param.bDoDensity; }
     int DoGas()           const { return param.bDoGas; }
+    int NewSPH()          const { return param.bNewSPH; }
     int MeshlessHydro()   const { return param.bMeshlessHydro; }
     int DoGravity()       const { return param.bDoGravity; }
     double Eta()          const { return param.dEta; }

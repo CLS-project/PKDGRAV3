@@ -196,7 +196,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
             LinearKick(dTime,dDelta,bKickClose,bKickOpen);
             GridDeleteFFT();
         }
-        if (DoGas()) {
+        if (DoGas() && NewSPH()) {
             SelAll(0,1);
             SPHOptions SPHoptions = initializeSPHOptions(param,csm,dTime);
             SPHoptions.doGravity = 0;
@@ -233,7 +233,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
             MemStatus();
         }
     }
-    if (DoGas()) {
+    if (DoGas() && MeshlessHydro()) {
         /* Initialize SPH, Cooling and SF/FB and gas time step */
         CoolSetup(dTime);
     }
@@ -275,7 +275,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
             if (bKickOpen) {
                 BuildTree(0);
                 LightConeOpen(iStep);  /* open the lightcone */
-                if (DoGas()) {
+                if (DoGas() && NewSPH()) {
                     SelAll(0,1);
                     SPHOptions SPHoptions = initializeSPHOptions(param,csm,dTime);
                     SPHoptions.doGravity = 0;
@@ -627,7 +627,7 @@ int MSR::ValidateParameters() {
     /*
     ** Check if fast gas boundaries are needed.
     */
-    if (param.bDoGas) {
+    if (param.bDoGas && !NewSPH()) {
         param.bMemNodeSphBounds = 1;
     }
     /*

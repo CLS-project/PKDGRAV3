@@ -137,6 +137,7 @@ struct parameters {
     double SFdvFB;
     int SFbdivv;
     double fKernelTarget;
+    int bNewSPH;
 
 
     /* END Gas Parameters */
