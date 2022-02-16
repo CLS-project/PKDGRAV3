@@ -122,6 +122,8 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
         // msrLogParams(msr,fpLog);
     }
 
+    TimerHeader();
+
     if (param.bLightCone && Comove()) {
         printf("One, Two, Three replica depth is z=%.10g, %.10g, %.10g\n",
                1.0/csmComoveLookbackTime2Exp(csm,1.0 / dLightSpeedSim(1*param.dBoxSize)) - 1.0,
@@ -263,6 +265,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
         dDelta = SwitchDelta(dTime,dDelta,iStep-1,param.nSteps);
         dTheta = getTheta(dTime);
         lPrior = time(0);
+        TimerRestart();
         if (param.bNewKDK) {
             double diStep = (double)(iStep-1);
             double ddTime = dTime;
@@ -325,6 +328,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
             DomainDecomp();
             BuildTree(param.bEwald);
         }
+        TimerDump(iStep);
     }
     if (LogInterval()) (void) fclose(fpLog);
 

@@ -395,7 +395,7 @@ protected:
     double TimerGetAcc(int iTimer);
     void TimerHeader();
     void TimerRestart();
-    double TimerDump(int iStep);
+    void TimerDump(int iStep);
     void CalcEandL(int bFirst,double dTime,double *E,double *T,double *U,double *Eth,double *L,double *F,double *W);
     void Drift(double dTime,double dDelta,int iRoot);
 

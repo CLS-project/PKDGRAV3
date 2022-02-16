@@ -155,7 +155,7 @@ void MSR::TimerHeader() {
     fclose(fpLog);
 }
 
-double MSR::TimerDump(int iStep) {
+void MSR::TimerDump(int iStep) {
     char achFile[256];
     sprintf(achFile,"%s.timing",OutName());
     FILE *fpLog = NULL;
