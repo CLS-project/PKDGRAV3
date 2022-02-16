@@ -644,8 +644,8 @@ int MSR::ValidateParameters() {
 
 #ifdef OPTIM_NO_REDUNDANT_FLUXES
     if (!param.bMemParticleID) {
-        fprintf(stderr, "WARNING: OPTIM_NO_REDUNDANT_FLUXES requires bMemParticleID");
-        return 0;
+        fprintf(stderr, "WARNING: OPTIM_NO_REDUNDANT_FLUXES requires bMemParticleID, forcing it!\n");
+        param.bMemParticleID = 1;
     }
 #endif
 
