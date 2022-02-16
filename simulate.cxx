@@ -383,36 +383,13 @@ int MSR::ValidateParameters() {
         return 0;
     }
 
-    if (prmSpecified(prm, "dMetalDiffsionCoeff") || prmSpecified(prm,"dThermalDiffusionCoeff")) {
-        if (!prmSpecified(prm, "iDiffusion")) param.iDiffusion=1;
-    }
-
-    {
-        int nCoolingSet=0;
-        if (param.bGasIsothermal) nCoolingSet++;
-        if (param.bGasCooling) nCoolingSet++;
-        if (!prmSpecified(prm, "bGasAdiabatic") && nCoolingSet) param.bGasAdiabatic=0;
-        else if (param.bGasAdiabatic) nCoolingSet++;
-
-        if (nCoolingSet != 1) {
-            fprintf(stderr,"One of bGasAdiabatic (%d), bGasIsothermal (%d) and bGasCooling (%d) may be set\n", param.bGasAdiabatic, param.bGasIsothermal, param.bGasCooling);
-            assert(0);
-        }
-    }
-
-
-
-    /* Star parameter checks */
-
-    if (param.bStarForm) {
-        param.bAddDelete = 1;
-        if (!prmSpecified(prm, "bFeedback")) param.bFeedback=1;
-    }
-
-    /* END Gas and Star Parameter Checks */
-
     if (param.nDigits < 1 || param.nDigits > 9) {
         (void) fprintf(stderr,"Unreasonable number of filename digits.\n");
+        return 0;
+    }
+
+    if (param.bDoGas && !param.bMeshlessHydro) {
+        fprintf(stderr,"ERROR: Only bMeshlessHydro is supported when bDoGas.\n");
         return 0;
     }
 

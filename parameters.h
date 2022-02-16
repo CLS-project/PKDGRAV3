@@ -93,48 +93,17 @@ struct parameters {
     int nSideHealpix;
     /* BEGIN Gas Parameters */
     int bDoGas;
-    int bGasAdiabatic;
-    int bGasIsothermal;
-    int bGasCooling;
-    int bInitTFromCooling;
-    int bStarForm;
-    int bFeedback;
-    int iViscosityLimiter;
-    int iDiffusion;
-    int iRungCoolTableUpdate;
     int bNewKDK;
     int nDigits;
 #define GET_PARTICLES_MAX 20 /* We have a nested loop, so don't increase this */
     int nOutputParticles;
     uint64_t iOutputParticles[GET_PARTICLES_MAX];
     double dEtaCourant;
-    double dEtaUDot;
-    double dConstAlpha;
-    double dConstBeta;
     double dConstGamma;
     double dMeanMolWeight;
     UNITS units;
     double ddHonHLimit;
     double dhMinOverSoft;
-    double dMetalDiffusionCoeff;
-    double dThermalDiffusionCoeff;
-    /* StarForm and Feedback */
-    //IA: We keep most of them for compatibility reasons I guess? But should be cleaned! TODO
-    double SFdEfficiency;
-    double SFdTMax;
-    double SFdPhysDenMin;
-    double SFdComovingDenMin;
-    double SFdESNPerStarMass;
-    double SFdtCoolingShutoff;
-
-    double SFdtFeedbackDelay;
-    double SFdMassLossPerStarMass;
-    double SFdZMassPerStarMass;
-    double SFdInitStarMass;
-    double SFdMinGasMass;
-    double SFdvFB;
-    int SFbdivv;
-
 
     /* END Gas Parameters */
     double dEta;
