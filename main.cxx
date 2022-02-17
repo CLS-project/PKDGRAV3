@@ -156,7 +156,8 @@ int master(MDL mdl,void *vpst) {
     auto rc = msr.Python(argc,argv);
     if (rc < 0) {
         printf("%s using Python %d.%d.%d\n", PACKAGE_STRING, PY_MAJOR_VERSION, PY_MINOR_VERSION, PY_MICRO_VERSION );
-        msr.ValidateParameters();
+        if (!msr.ValidateParameters())
+            return 2;
 
         /* Establish safety lock. */
         if (!msr.GetLock()) {
