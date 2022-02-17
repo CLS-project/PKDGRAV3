@@ -948,6 +948,9 @@ struct inGenerateIC {
 #ifdef HAVE_IRON
     double dInitialFe;
 #endif
+#ifdef HAVE_METALLICITY
+    double dInitialMetallicity;
+#endif
     double dTuFac;
     int bComove;
     int nTf;
@@ -1002,6 +1005,9 @@ struct inMoveIC {
 #endif
 #ifdef HAVE_IRON
     double dInitialFe;
+#endif
+#ifdef HAVE_METALLICITY
+    double dInitialMetallicity;
 #endif
     double dExpansion;
     double dOmegaRate;

@@ -4801,6 +4801,9 @@ double MSR::GenerateIC() {
 #ifdef HAVE_IRON
     in.dInitialFe = param.dInitialFe;
 #endif
+#ifdef HAVE_METALLICITY
+    in.dInitialMetallicity = param.dInitialMetallicity;
+#endif
     in.dOmegaRate = csm->val.dOmegab/csm->val.dOmega0;
     in.dTuFac = dTuFac;
 
