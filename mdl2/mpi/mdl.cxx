@@ -942,6 +942,7 @@ void mdlClass::FinishCache(int cid) {
     wqAccepting = 1;
     FlushCache(cid);
     enqueueAndWait(mdlMessageCacheClose());
+    ThreadBarrier();
     c->close();
     wqAccepting = 0;
     TimeAddSynchronizing();
