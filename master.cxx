@@ -427,6 +427,7 @@ void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTi
     iLastRungDD = 0;
 
     InitCosmology();
+    SetUnits();
     if (prmSpecified(prm,"dSoft")) SetSoft(Soft());
     Simulate(dTime,dDelta,iStep,nSteps);
 }
@@ -445,11 +446,11 @@ void MSR::writeParameters(const char *baseName,int iStep,int nSteps,double dTime
     p = strstr( achOutName, "&I" );
     if ( p ) {
         int n = p - achOutName;
-        strcpy( p, "chk" );
+        strcpy( p, "par" );
         strcat( p, baseName + n + 2 );
     }
     else {
-        strcat(achOutName,".chk");
+        strcat(achOutName,".par");
     }
 
     FILE *fp = fopen(achOutName,"w");

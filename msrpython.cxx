@@ -629,11 +629,12 @@ ppy_msr_Restart(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
         vecSpecies.push_back(PyNumber_AsSsize_t(item,NULL));
     }
     Py_DECREF(species); // PySequence_Fast creates a new reference
-    assert(vecSpecies.size()==4);
+    assert(vecSpecies.size()==5);
     msr->N     = vecSpecies[0];
     msr->nDark = vecSpecies[1];
     msr->nGas  = vecSpecies[2];
     msr->nStar = vecSpecies[3];
+    msr->nBH   = vecSpecies[4];
 
     // Process the array of class information
     classes = PySequence_Fast(classes,"species must be a list");

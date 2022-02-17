@@ -665,7 +665,7 @@ int pstRestore(PST pst,void *vin,int nIn,void *vout,int nOut) {
     else {
         PKD pkd = pst->plcl->pkd;
         char achInFile[PST_FILENAME_SIZE];
-        makeName(achInFile,in->achInFile,mdlSelf(pkd->mdl),"chk.");
+        makeName(achInFile,in->achInFile,mdlSelf(pkd->mdl),"");
         pkdRestore(pkd,achInFile);
     }
     return 0;
@@ -697,7 +697,7 @@ int pstCheckpoint(PST pst,void *vin,int nIn,void *vout,int nOut) {
     else {
         PKD pkd = pst->plcl->pkd;
         char achOutFile[PST_FILENAME_SIZE];
-        makeName(achOutFile,in->achOutFile,mdlSelf(pkd->mdl),"chk.");
+        makeName(achOutFile,in->achOutFile,mdlSelf(pkd->mdl),"");
         pkdCheckpoint(pkd,achOutFile);
     }
     return 0;
