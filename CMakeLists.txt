@@ -499,6 +499,12 @@ if (DEBUG_FLUX_INFO)
    message("-- DEBUG_FLUX_INFO: \t\t Show cache debug information for the flux computation")
 endif (DEBUG_FLUX_INFO)
 
+option(DEBUG_FLUX_NOLIMITER "Avoid the use of the limiters to achieve second-order accuracy at the cost of worse stability" OFF)
+if (DEBUG_FLUX_NOLIMITER)
+   target_compile_options(${PROJECT_NAME} PRIVATE -DDEBUG_FLUX_NOLIMITER)
+   message("-- DEBUG_FLUX_NOLIMITER: \t\t Avoid the use of limiters, increasing accuracy at the cost of stability")
+endif (DEBUG_FLUX_NOLIMITER)
+
 option(OPTIM_AVOID_IS_ACTIVE "Select particles rather than repeatedly using pkdIsActive" ON)
 if (OPTIM_AVOID_IS_ACTIVE)
    target_compile_options(${PROJECT_NAME} PRIVATE -DOPTIM_AVOID_IS_ACTIVE)
