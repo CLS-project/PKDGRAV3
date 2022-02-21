@@ -397,6 +397,7 @@ void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTi
     if (param.bVStart)
         printf("Restoring from checkpoint\n");
     TimerStart(TIMER_NONE);
+    param.bRestart = 1;
 
     nMaxOrder = N - 1; // iOrder goes from 0 to N-1
 
@@ -427,7 +428,33 @@ void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTi
     iLastRungDD = 0;
 
     InitCosmology();
+
+    /**********************************************************************\
+    * The following "parameters" are derived from real parameters.
+    \**********************************************************************/
+
     SetUnits();
+    dTuFac = param.units.dGasConst/(param.dConstGamma - 1)/param.dMeanMolWeight;
+
+#ifdef COOLING
+    SetCoolingParam();
+#endif
+#ifdef STAR_FORMATION
+    SetStarFormationParam();
+#endif
+#ifdef FEEDBACK
+    SetFeedbackParam();
+#endif
+#if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
+    SetEOSParam();
+#endif
+#ifdef BLACKHOLES
+    SetBlackholeParam();
+#endif
+#ifdef STELLAR_EVOLUTION
+    SetStellarEvolutionParam();
+#endif
+
     if (prmSpecified(prm,"dSoft")) SetSoft(Soft());
     Simulate(dTime,dDelta,iStep,nSteps);
 }

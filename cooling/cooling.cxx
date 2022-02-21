@@ -59,7 +59,8 @@ static inline void get_redshift_index(const float z, int *z_index, float *dz,
 void MSR::SetCoolingParam() {
     const double dHydFrac = param.dInitialH;
     const double dnHToRho = MHYDR / dHydFrac / param.units.dGmPerCcUnit;
-    param.dCoolingFloorDen *= dnHToRho;
+    if (!param.bRestart)
+        param.dCoolingFloorDen *= dnHToRho;
     param.dCoolingFlooru = param.dCoolingFloorT*dTuFac;
 }
 

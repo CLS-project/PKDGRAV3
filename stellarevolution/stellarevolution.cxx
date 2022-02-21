@@ -10,24 +10,26 @@
 
 
 void MSR::SetStellarEvolutionParam() {
-    param.dSNIaNormInitTime *= SECONDSPERYEAR / param.units.dSecUnit;
-    param.dSNIaNormFinalTime *= SECONDSPERYEAR / param.units.dSecUnit;
-    param.dSNIaEnergy /= param.units.dErgUnit;
-    param.dStellarWindSpeed /= param.units.dKmPerSecUnit;
-    param.dWindSpecificEkin = 0.5 * param.dStellarWindSpeed * param.dStellarWindSpeed;
+    if (!param.bRestart) {
+        param.dSNIaNormInitTime *= SECONDSPERYEAR / param.units.dSecUnit;
+        param.dSNIaNormFinalTime *= SECONDSPERYEAR / param.units.dSecUnit;
+        param.dSNIaEnergy /= param.units.dErgUnit;
+        param.dStellarWindSpeed /= param.units.dKmPerSecUnit;
 
-    if (strcmp(param.achSNIaDTDType, "exponential") == 0) {
-        param.dSNIaScale *= SECONDSPERYEAR / param.units.dSecUnit;
+        if (strcmp(param.achSNIaDTDType, "exponential") == 0) {
+            param.dSNIaScale *= SECONDSPERYEAR / param.units.dSecUnit;
+        }
+        else if (strcmp(param.achSNIaDTDType, "powerlaw") == 0) {
+            param.dSNIaNorm /= (pow(param.dSNIaNormFinalTime, param.dSNIaScale + 1.0) -
+                                pow(param.dSNIaNormInitTime, param.dSNIaScale + 1.0));
+        }
+        else {
+            printf("ERROR: Undefined DTD type has been given in achSNIaDTDType parameter: %s\n",
+                   param.achSNIaDTDType);
+            assert(0);
+        }
     }
-    else if (strcmp(param.achSNIaDTDType, "powerlaw") == 0) {
-        param.dSNIaNorm /= (pow(param.dSNIaNormFinalTime, param.dSNIaScale + 1.0) -
-                            pow(param.dSNIaNormInitTime, param.dSNIaScale + 1.0));
-    }
-    else {
-        printf("ERROR: Undefined DTD type has been given in achSNIaDTDType parameter: %s\n",
-               param.achSNIaDTDType);
-        assert(0);
-    }
+    param.dWindSpecificEkin = 0.5 * param.dStellarWindSpeed * param.dStellarWindSpeed;
 }
 
 

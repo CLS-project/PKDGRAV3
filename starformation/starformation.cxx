@@ -20,15 +20,17 @@
 void MSR::SetStarFormationParam() {
     const double dHydFrac = param.dInitialH;
     const double dnHToRho = MHYDR / dHydFrac / param.units.dGmPerCcUnit;
-    param.dSFThresholdDen *= dnHToRho*dHydFrac; // Code hydrogen density
     param.dSFThresholdu = param.dSFThresholdT*dTuFac;
 
     const double Msolpcm2 = 1. / param.units.dMsolUnit *
                             pow(param.units.dKpcUnit*1e3, 2);
-    param.dSFnormalizationKS *= 1. / param.units.dMsolUnit *
-                                param.units.dSecUnit/SECONDSPERYEAR *
-                                pow(param.units.dKpcUnit, 2) *
-                                pow(Msolpcm2,-param.dSFindexKS);
+    if (!param.bRestart) {
+        param.dSFThresholdDen *= dnHToRho*dHydFrac; // Code hydrogen density
+        param.dSFnormalizationKS *= 1. / param.units.dMsolUnit *
+                                    param.units.dSecUnit/SECONDSPERYEAR *
+                                    pow(param.units.dKpcUnit, 2) *
+                                    pow(Msolpcm2,-param.dSFindexKS);
+    }
 }
 
 void MSR::StarForm(double dTime, double dDelta, int iRung) {
