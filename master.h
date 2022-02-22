@@ -432,7 +432,7 @@ protected:
     // Cooling
     void SetCoolingParam();
     void CoolingUpdate(float redshift, int sync);
-    void CoolingInit();
+    void CoolingInit(float redshift);
 #endif
 #ifdef GRACKLE
     void GrackleInit(int bComove, double dScaleFactor);

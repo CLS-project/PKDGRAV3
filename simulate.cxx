@@ -136,14 +136,14 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
     }
 
 #ifdef COOLING
-    CoolingInit();
-    if ((csm->val.bComove)) {
-        const float a = csmTime2Exp(csm,dTime);
-        CoolingUpdate(1./a - 1., 1);
-    }
-    else {
-        CoolingUpdate(0., 1);
-    }
+    float redshift;
+    if (csm->val.bComove)
+        redshift = 1./csmTime2Exp(csm,dTime) - 1.;
+    else
+        redshift = 0.0;
+
+    CoolingInit(redshift);
+    CoolingUpdate(redshift, 1);
 #endif
 
 #ifdef GRACKLE

@@ -168,7 +168,7 @@ void MSR::CoolingUpdate(float redshift, int sync) {
 /**
  * Initialises properties stored in the cooling_function_data struct
  */
-void MSR::CoolingInit() {
+void MSR::CoolingInit(float redshift) {
     printf("Initializing cooling \n");
 
     /* Allocate the needed structs */
@@ -183,7 +183,7 @@ void MSR::CoolingInit() {
      * that are read in are actually in units of electron volts per proton mass.
      * We later convert to units just below */
 
-    if (param.dRedFrom < param.fH_reion_z) {
+    if (redshift < param.fH_reion_z) {
         cooling->H_reion_done = 1;
     }
     else {
