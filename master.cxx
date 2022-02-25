@@ -254,7 +254,7 @@ uint64_t MSR::getMemoryModel() {
     }
     if (param.bDoDensity)       mMemoryModel |= PKD_MODEL_DENSITY;
     if (param.bMemIntegerPosition) mMemoryModel |= PKD_MODEL_INTEGER_POS;
-    if (param.bMemUnordered)    mMemoryModel |= PKD_MODEL_UNORDERED;
+    if (param.bMemUnordered&&param.bNewKDK) mMemoryModel |= PKD_MODEL_UNORDERED;
     if (param.bMemParticleID)   mMemoryModel |= PKD_MODEL_PARTICLE_ID;
     if (param.bTraceRelaxation) mMemoryModel |= PKD_MODEL_RELAXATION;
     if (param.bMemAcceleration || param.bDoAccOutput) mMemoryModel |= PKD_MODEL_ACCELERATION;
@@ -3944,7 +3944,7 @@ void MSR::UpdateRung(uint8_t uRung) {
     int iTempRung,iOutMaxRung;
 
     /* If we are called, it is a mistake -- this happens in analysis mode */
-    if (param.bMemUnordered) return;
+    if (param.bMemUnordered&&param.bNewKDK) return;
 
     in.uRungLo = uRung;
     in.uRungHi = MaxRung();
