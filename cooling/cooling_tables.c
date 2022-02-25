@@ -439,11 +439,11 @@ void get_redshift_invariant_table(
     /* Decide which high redshift table to read. Indices set in cooling_update */
     char filename[eagle_table_path_name_length + 21];
     if (photodis) {
-        sprintf(filename, "%sz_photodis.hdf5", cooling->cooling_table_path);
+        sprintf(filename, "%s/z_photodis.hdf5", cooling->cooling_table_path);
         printf("Reading cooling table 'z_photodis.hdf5'\n");
     }
     else {
-        sprintf(filename, "%sz_8.989nocompton.hdf5", cooling->cooling_table_path);
+        sprintf(filename, "%s/z_8.989nocompton.hdf5", cooling->cooling_table_path);
         printf("Reading cooling table 'z_8.989nocompton.hdf5' \n");
     }
 
@@ -669,7 +669,7 @@ void get_cooling_table(struct cooling_function_data *restrict cooling,
 
         /* Open table for this redshift index */
         char fname[eagle_table_path_name_length + 12];
-        sprintf(fname, "%sz_%1.3f.hdf5", cooling->cooling_table_path,
+        sprintf(fname, "%s/z_%1.3f.hdf5", cooling->cooling_table_path,
                 cooling->Redshifts[z_index]);
         printf("Reading cooling table 'z_%1.3f.hdf5' \n",
                cooling->Redshifts[z_index]);

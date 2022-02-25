@@ -215,7 +215,7 @@ void MSR::CoolingInit(float redshift) {
 
     /* Read in cooling table header */
     char fname[eagle_table_path_name_length + 12];
-    sprintf(fname, "%sz_0.000.hdf5", cooling->cooling_table_path);
+    sprintf(fname, "%s/z_0.000.hdf5", cooling->cooling_table_path);
     read_cooling_header(fname, cooling);
 
     /* Allocate space for cooling tables */
