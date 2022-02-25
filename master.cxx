@@ -5624,8 +5624,10 @@ void MSR::Output(int iStep, double dTime, double dDelta, int bCheckpoint) {
         OutArray(BuildName(iStep,".relax").c_str(),OUT_RELAX_ARRAY);
     }
     if ( DoDensity() ) {
-        //Reorder();
-        //OutArray(BuildName(iStep,".den").c_str(),OUT_DENSITY_ARRAY);
+        if (!NewSPH()) {
+            Reorder();
+            OutArray(BuildName(iStep,".den").c_str(),OUT_DENSITY_ARRAY);
+        }
     }
     if (param.bDoRungOutput) {
         Reorder();
