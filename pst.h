@@ -234,6 +234,9 @@ enum pst_service {
     PST_PROFILE,
     PST_CALCDISTANCE,
     PST_CALCCOM,
+    PST_CALCMTOT,
+    PST_SETSPHOPTIONS,
+    PST_TREEUPDATEFLAGBOUNDS,
     PST_COUNTDISTANCE,
 #ifdef MDL_FFTW
     PST_GRID_CREATE_FFT,
@@ -599,6 +602,7 @@ struct inGravity {
     struct pkdKickParameters kick;
     struct pkdLightconeParameters lc;
     struct pkdTimestepParameters ts;
+    SPHOptions SPHoptions;
 };
 
 
@@ -1098,6 +1102,31 @@ struct outCalcCOM {
     uint64_t N;
 };
 int pstCalcCOM(PST pst,void *vin,int nIn,void *vout,int nOut);
+
+/* PST_CALCMTOT */
+struct inCalcMtot {
+    int a; //placeholder as struct can't be empty, later may be particle type here?
+};
+struct outCalcMtot {
+    double M;
+    uint64_t N;
+};
+int pstCalcMtot(PST pst,void *vin,int nIn,void *vout,int nOut);
+/* PST_SETSPHOPTIONS */
+struct inSetSPHoptions {
+    SPHOptions SPHoptions;
+};
+int pstSetSPHoptions(PST pst,void *vin,int nIn,void *vout,int nOut);
+/* PST_TREEUPDATEFLAGBOUNDS */
+struct inTreeUpdateFlagBounds {
+    int nBucket;      /* Bucket Size */
+    int nGroup;       /* Group Size */
+    uint32_t uRoot;   /* Which root node to use */
+    uint32_t utRoot;  /* Template tree */
+    double ddHonHLimit;
+    SPHOptions SPHoptions;
+};
+int pstTreeUpdateFlagBounds(PST pst,void *vin,int nIn,void *vout,int nOut);
 
 /* PST_COUNTDISTANCE */
 struct inCountDistance {

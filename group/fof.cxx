@@ -25,6 +25,7 @@
 #include "fof.h"
 #include "pkd.h"
 #include "group.h"
+#include "../SPHOptions.h"
 
 
 static inline int getCell(PKD pkd,int iCell,int id,float *pcOpen,KDN **pc) {
@@ -159,7 +160,12 @@ static void addChildFof(PKD pkd, CL cl, int iChild, int id, float *fOffset) {
     cOpen = 0.5*(cbnd.width(0) + cbnd.width(1) + cbnd.width(2)); /* Manhatten metric */
     pkdGetChildCells(c,id,idLower,iLower,idUpper,iUpper);
     clAppend(cl,iCache,id,iChild,idLower,iLower,idUpper,iUpper,nc,cOpen,
-             pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c_r,fOffset,cbnd.center(),cbnd.fMax);
+#if SPHBALLOFBALLS
+             pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c_r,fOffset,cbnd.center(),cbnd.fMax,c->fBoBr2,c->fBoBxCenter,c->fBoByCenter,c->fBoBzCenter);
+#endif
+#if SPHBOXOFBALLS
+    pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c_r,fOffset,cbnd.center(),cbnd.fMax,c->fBoBxMin,c->fBoBxMax,c->fBoByMin,c->fBoByMax,c->fBoBzMin,c->fBoBzMax);
+#endif
 }
 
 

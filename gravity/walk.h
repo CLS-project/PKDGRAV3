@@ -38,7 +38,7 @@ extern "C" {
 */
 int pkdGravWalk(PKD pkd,struct pkdKickParameters *kick,struct pkdLightconeParameters *lc,struct pkdTimestepParameters *ts,
                 double dTime,int nReps,int bEwald,int nGroup, int iRoot1, int iRoot2,
-                int iVARoot, double dThetaMin,double *pdFlop,double *pdPartSum,double *pdCellSum);
+                int iVARoot, double dThetaMin,double *pdFlop,double *pdPartSum,double *pdCellSum,SPHOptions *SPHoptions);
 
 int pkdGravWalkGroups(PKD pkd,double dTime,int nGroup, double dThetaMin,double *pdFlop,double *pdPartSum,double *pdCellSum);
 #ifdef __cplusplus

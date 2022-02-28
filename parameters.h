@@ -94,6 +94,7 @@ struct parameters {
     /* BEGIN Gas Parameters */
     int bDoGas;
     int bGasAdiabatic;
+    int bGasIsentropic;
     int bGasIsothermal;
     int bGasCooling;
     int bInitTFromCooling;
@@ -118,6 +119,7 @@ struct parameters {
     double dhMinOverSoft;
     double dMetalDiffusionCoeff;
     double dThermalDiffusionCoeff;
+    double dFastGasFraction;
     /* StarForm and Feedback */
     //IA: We keep most of them for compatibility reasons I guess? But should be cleaned! TODO
     double SFdEfficiency;
@@ -134,6 +136,8 @@ struct parameters {
     double SFdMinGasMass;
     double SFdvFB;
     int SFbdivv;
+    double fKernelTarget;
+    int bNewSPH;
 
 
     /* END Gas Parameters */
@@ -360,6 +364,7 @@ struct parameters {
     int bMemNodeSphBounds;
     int bMemNodeBnd;
     int bMemNodeVBnd;
+    int bMemBall;
 };
 
 #endif

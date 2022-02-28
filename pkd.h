@@ -34,6 +34,7 @@
 #endif
 #include "basetype.h"
 #include "io/iomodule.h"
+#include "SPHOptions.h"
 #include "core/bound.h"
 #ifdef GRACKLE
     #include <grackle.h>
@@ -125,6 +126,8 @@ static inline int64_t d2u64(double d) {
 
 #define PKD_MODEL_NODE_BND     (1<<28) /* Include normal bounds in tree */
 #define PKD_MODEL_NODE_VBND    (1<<29) /* Include velocity bounds in tree for phase-space density*/
+
+#define PKD_MODEL_NEW_SPH      (1ULL<<32) /* New Sph Fields */
 
 typedef struct {
     double rscale[3];
@@ -274,6 +277,13 @@ typedef struct sphfields {
 
 } SPHFIELDS;
 
+typedef struct newsphfields {
+    float Omega;        /* Correction factor */
+    float divv;         /* Divergence of v */
+    float u;            /* Thermodynamical variable, can be T, A(s) or u */
+    float uDot;         /* Derivative of the thermodynamical variable */
+} NEWSPHFIELDS;
+
 typedef struct starfields {
     double omega;
 #ifdef STELLAR_EVOLUTION
@@ -407,6 +417,21 @@ typedef struct kdNode {
     uint32_t bRemote    : 1; /* children are remote */
     float bMax;
     float fSoft2;
+#if SPHBALLOFBALLS
+    float fBoBr2;       /* Ball of Balls radius squared */
+    float fBoBxCenter;
+    float fBoByCenter;
+    float fBoBzCenter;
+#endif
+#if SPHBOXOFBALLS
+    float fBoBxMin;
+    float fBoBxMax;
+    float fBoByMin;
+    float fBoByMax;
+    float fBoBzMin;
+    float fBoBzMax;
+#endif
+    uint64_t bHasMarked : 1;         /* flag if node has a marked particle, there are still 31 bit left*/
 } KDN;
 
 typedef struct sphBounds {
@@ -718,6 +743,7 @@ enum PKD_FIELD {
     oDensity, /* One float */
     oBall, /* One float */
     oSph, /* Sph structure */
+    oNewSph, /* NewSph structure */
     oStar, /* Star structure */
     oBH, /* BH structure */
     oRelaxation,
@@ -898,6 +924,8 @@ typedef struct pkdContext {
 #ifdef MDL_FFTW
     MDLFFT fft;
 #endif
+
+    SPHOptions SPHoptions;
 
 } *PKD;
 
@@ -1305,11 +1333,18 @@ static inline SPHFIELDS *pkdSph( PKD pkd, PARTICLE *p ) {
 #endif
     return ((SPHFIELDS *) pkdField(p,pkd->oFieldOffset[oSph]));
 }
+/* NewSph variables */
+static inline NEWSPHFIELDS *pkdNewSph( PKD pkd, PARTICLE *p ) {
+    return ((NEWSPHFIELDS *) pkdField(p,pkd->oFieldOffset[oNewSph]));
+}
 static inline const SPHFIELDS *pkdSphRO( PKD pkd, const PARTICLE *p ) {
 #if defined(OPTIM_UNION_EXTRAFIELDS) && defined(DEBUG_UNION_EXTRAFIELDS)
     assert( pkdSpecies(pkd,p)==FIO_SPECIES_SPH);
 #endif
     return ((const SPHFIELDS *) pkdFieldRO(p,pkd->oFieldOffset[oSph]));
+}
+static inline const NEWSPHFIELDS *pkdNewSphRO( PKD pkd, const PARTICLE *p ) {
+    return ((const NEWSPHFIELDS *) pkdFieldRO(p,pkd->oFieldOffset[oNewSph]));
 }
 static inline STARFIELDS *pkdStar( PKD pkd, PARTICLE *p ) {
 #ifdef OPTIM_UNION_EXTRAFIELDS
@@ -1408,7 +1443,7 @@ extern "C" {
 */
 void pkdVATreeBuild(PKD pkd,int nBucket);
 void pkdTreeBuild(PKD pkd,int nBucket,int nGroup,uint32_t uRoot,uint32_t uTemp,double ddHonHLimit);
-uint32_t pkdDistribTopTree(PKD pkd, uint32_t uRoot, uint32_t nTop, KDN *pTop);
+uint32_t pkdDistribTopTree(PKD pkd, uint32_t uRoot, uint32_t nTop, KDN *pTop, int allocateMemory);
 void pkdOpenCloseCaches(PKD pkd,int bOpen,int bFixed);
 void pkdTreeInitMarked(PKD pkd);
 void pkdDumpTrees(PKD pkd,int bOnlyVA,uint8_t uRungDD);
@@ -1495,7 +1530,7 @@ void pkdGravAll(PKD pkd,
                 struct pkdKickParameters *kick,struct pkdLightconeParameters *lc,struct pkdTimestepParameters *ts,
                 double dTime,int nReps,int bPeriodic,
                 int bEwald,int nGroup,int iRoot1, int iRoot2,
-                double fEwCut,double fEwhCut,double dThetaMin,
+                double fEwCut,double fEwhCut,double dThetaMin,SPHOptions *SPHoptions,
                 uint64_t *pnActive,
                 double *pdPart,double *pdPartNumAccess,double *pdPartMissRatio,
                 double *pdCell,double *pdCellNumAccess,double *pdCellMissRatio,
@@ -1504,6 +1539,8 @@ void pkdCalcEandL(PKD pkd,double *T,double *U,double *Eth,double *L,double *F,do
 void pkdProcessLightCone(PKD pkd,PARTICLE *p,float fPot,double dLookbackFac,double dLookbackFacLCP,
                          double dDriftDelta,double dKickDelta,double dBoxSize,int bLightConeParticles);
 void pkdGravEvalPP(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINFOOUT *pOut );
+void pkdDensityEval(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINFOOUT *pOut, SPHOptions *SPHoptions);
+void pkdSPHForcesEval(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINFOOUT *pOut, SPHOptions *SPHoptions);
 void pkdGravEvalPC(PINFOIN *pPart, int nBlocks, int nInLast, ILC_BLK *blk,  PINFOOUT *pOut );
 void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double,double,int bDoGas);
 void pkdEndTimestepIntegration(PKD pkd, struct inEndTimestep in);
@@ -1623,6 +1660,8 @@ extern "C" {
     void pkdCalcCOM(PKD pkd, double *dCenter, double dRadius, int bPeriodic,
                     double *com, double *vcm, double *L,
                     double *M, uint64_t *N);
+    void pkdCalcMtot(PKD pkd, double *M, uint64_t *N);
+    void pkdTreeUpdateFlagBounds(PKD pkd,uint32_t uRoot,SPHOptions *SPHoptions);
 #ifdef MDL_FFTW
     void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int iAssignment, int iGrid, float dDelta);
     void pkdInterlace(PKD pkd, int iGridTarget, int iGridSource);

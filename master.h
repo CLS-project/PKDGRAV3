@@ -151,7 +151,7 @@ public:
     // Gravity
     uint8_t Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
                     double dTime,double dDelta,double dStep,double dTheta,
-                    int bKickClose,int bKickOpen,int bEwald,int bGravStep,int nPartRhoLoc,int iTimeStepCrit,int nGroup);
+                    int bKickClose,int bKickOpen,int bEwald,int bGravStep,int nPartRhoLoc,int iTimeStepCrit,int nGroup,SPHOptions SPHoptions);
 
     // Analysis
     void Smooth(double dTime,double dDelta,int iSmoothType,int bSymmetric,int nSmooth);
@@ -339,6 +339,7 @@ protected:
     double Soft()         const { return param.dSoft; }
     int DoDensity()       const { return param.bDoDensity; }
     int DoGas()           const { return param.bDoGas; }
+    int NewSPH()          const { return param.bNewSPH; }
     int MeshlessHydro()   const { return param.bMeshlessHydro; }
     int DoGravity()       const { return param.bDoGravity; }
     double Eta()          const { return param.dEta; }
@@ -480,13 +481,13 @@ protected:
         double *pdStep, /* Current step */
         uint8_t *puRungMax,int *pbDoCheckpoint,int *pbDoOutput,int *pbNeedKickOpen);
     void TopStepKDK(
-        double dStep,    /* Current step */
-        double dTime,    /* Current time */
-        double dDelta,   /* Time step */
+        double dStep,   /* Current step */
+        double dTime,   /* Current time */
+        double dDelta,  /* Time step */
         double dTheta,
-        int iRung,       /* Rung level */
-        int iKickRung,   /* Gravity on all rungs from iRung
-                       to iKickRung */
+        int iRung,      /* Rung level */
+        int iKickRung,  /* Gravity on all rungs from iRung
+                        to iKickRung */
         int iAdjust);       /* Do an adjust? */
 
 
@@ -496,6 +497,9 @@ protected:
     void CalcDistance(const double *dCenter, double dRadius );
     void CalcCOM(const double *dCenter, double dRadius,
                  double *com, double *vcm, double *L, double *M);
+    void CalcMtot(double *M, uint64_t *N);
+    void SetSPHoptions();
+    void TreeUpdateFlagBounds(int bNeedEwald,uint32_t uRoot,uint32_t utRoot,SPHOptions SPHoptions);
 
 public:
     void Profile(

@@ -25,6 +25,7 @@
 #include <stdint.h>
 #include "ilp.h"
 #include "ilc.h"
+#include "SPHOptions.h"
 #include "units.h"
 
 #define IORDERBITS 43
@@ -82,6 +83,15 @@ typedef struct {
     float a[3];
     float fSmooth2;
     float fDensity;
+    /* SPH fields follow */
+    float fBall;
+    float Omega;
+    float v[3];
+    float rho; /* fDensity above is used for different stuff, calculated with different kernel etc */
+    float P;
+    float c;
+    int32_t species;
+    int isTooLarge;
     /*    float v[3];*/
     /*    float fMass;*/
     /*    float fSoft;*/
@@ -92,6 +102,9 @@ typedef struct {
     float fPot;
     float dirsum, normsum;
     float rhopmax;
+    /* SPH fields follow */
+    float rho, drhodfball, nden, dndendfball, fBall, nSmooth;
+    float uDot, divv, dtEst;
 } PINFOOUT;
 
 
@@ -136,6 +149,7 @@ struct pkdKickParameters {
     int bKickClose, bKickOpen;
     vel_t dtClose[IRUNGMAX+1];
     vel_t dtOpen[IRUNGMAX+1];
+    vel_t dtPredDrift[IRUNGMAX+1];
 };
 
 struct pkdLightconeParameters {
@@ -260,6 +274,10 @@ typedef struct {
     double dFlopSingleGPU;
     double dFlopDoubleCPU;
     double dFlopDoubleGPU;
+
+    SPHOptions *SPHoptions;
+    ILP ilp;
+    int bGravStep;
 } workParticle;
 
 /*

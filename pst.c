@@ -298,6 +298,13 @@ void pstAddServices(PST pst,MDL mdl) {
                   sizeof(struct inCalcDistance), 0);
     mdlAddService(mdl,PST_CALCCOM,pst,(fcnService_t *)pstCalcCOM,
                   sizeof(struct inCalcCOM), sizeof(struct outCalcCOM));
+    mdlAddService(mdl,PST_CALCMTOT,pst,(fcnService_t *)pstCalcMtot,
+                  sizeof(struct inCalcMtot), sizeof(struct outCalcMtot));
+    mdlAddService(mdl,PST_SETSPHOPTIONS,pst,(fcnService_t *)pstSetSPHoptions,
+                  sizeof(struct inSetSPHoptions), 0);
+    mdlAddService(mdl,PST_TREEUPDATEFLAGBOUNDS,pst,(fcnService_t *)pstTreeUpdateFlagBounds,
+                  sizeof(struct inTreeUpdateFlagBounds),
+                  (nThreads==1?1:2*nThreads-1)*pkdMaxNodeSize());
     mdlAddService(mdl,PST_COUNTDISTANCE,pst,(fcnService_t *)pstCountDistance,
                   sizeof(struct inCountDistance), sizeof(struct outCountDistance));
 #ifdef MDL_FFTW
@@ -500,13 +507,13 @@ int pstReadFile(PST pst,void *vin,int nIn,void *vout,int nOut) {
             int id = mdlSelf(mdl) + i;
             int inswap;
             /*
-                 * Read particles into the local storage.
-            */
+             * Read particles into the local storage.
+             */
             assert(pkd->nStore >= nParts[i]);
             pkdReadFIO(pkd, fio, nStart, nParts[i], in->dvFac,in->dTuFac);
             nStart += nParts[i];
             /*
-                 * Now shove them over to the remote processor.
+             * Now shove them over to the remote processor.
             */
             _SwapClasses(pkd,id);
             inswap = mdlSelf(mdl);
@@ -1367,7 +1374,7 @@ int pstGravity(PST pst,void *vin,int nIn,void *vout,int nOut) {
         PKD pkd = plcl->pkd;
         pkdGravAll(pkd,&in->kick,&in->lc,&in->ts,
                    in->dTime,in->nReps,in->bPeriodic,
-                   in->bEwald,in->nGroup,in->iRoot1,in->iRoot2,in->dEwCut,in->dEwhCut,in->dTheta,
+                   in->bEwald,in->nGroup,in->iRoot1,in->iRoot2,in->dEwCut,in->dEwhCut,in->dTheta,&in->SPHoptions,
                    &outr->nActive,
                    &outr->sPart.dSum,&outr->sPartNumAccess.dSum,&outr->sPartMissRatio.dSum,
                    &outr->sCell.dSum,&outr->sCellNumAccess.dSum,&outr->sCellMissRatio.dSum,
@@ -2323,6 +2330,104 @@ int pstCalcCOM(PST pst,void *vin,int nIn,void *vout,int nOut) {
                    out->com, out->vcm, out->L, &out->M, &out->N);
     }
     return sizeof(struct outCalcCOM);
+}
+
+int pstCalcMtot(PST pst,void *vin,int nIn,void *vout,int nOut) {
+    LCL *plcl = pst->plcl;
+    struct inCalcMtot *in = vin;
+    struct outCalcMtot *out = vout;
+    struct outCalcMtot outUpper;
+    int i;
+
+    assert( nIn==sizeof(struct inCalcMtot) );
+    assert( vout != NULL );
+    if (pst->nLeaves > 1) {
+        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_CALCMTOT,vin,nIn);
+        pstCalcMtot(pst->pstLower,vin,nIn,vout,nOut);
+        mdlGetReply(pst->mdl,rID,&outUpper,NULL);
+        out->N += outUpper.N;
+        out->M += outUpper.M;
+    }
+    else {
+        pkdCalcMtot(plcl->pkd,&out->M, &out->N);
+    }
+    return sizeof(struct outCalcMtot);
+}
+
+
+int pstSetSPHoptions(PST pst,void *vin,int nIn,void *vout,int nOut) {
+    LCL *plcl = pst->plcl;
+    struct inSetSPHoptions *in = vin;
+    int i;
+
+    assert( nIn==sizeof(struct inSetSPHoptions) );
+    if (pst->nLeaves > 1) {
+        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SETSPHOPTIONS,vin,nIn);
+        pstSetSPHoptions(pst->pstLower,vin,nIn,vout,nOut);
+        mdlGetReply(pst->mdl,rID,NULL,NULL);
+    }
+    else {
+        copySPHOptions(&in->SPHoptions, &plcl->pkd->SPHoptions);
+    }
+    return 0;
+}
+
+int pstTreeUpdateFlagBounds(PST pst,void *vin,int nIn,void *vout,int nOut) {
+    LCL *plcl = pst->plcl;
+    PKD pkd = plcl->pkd;
+    struct inTreeUpdateFlagBounds *in = vin;
+    uint32_t uRoot = in->uRoot;
+    KDN *pTop = vout;
+    KDN *pCell1, *pCell2;
+    double minside;
+    int nOutUpper;
+
+    /* We need to save our cells so we can update them later */
+    if (pst->nLeaves > 1) {
+        pCell1 = pkdNode(pkd,pTop,1);
+        pCell2 = pkdNode(pkd,pTop,pst->nLower*2);
+
+        /* We will accumulate the top tree here */
+        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_TREEUPDATEFLAGBOUNDS,vin,nIn);
+        nOut = pstTreeUpdateFlagBounds(pst->pstLower,vin,nIn,pCell1,(pst->nLower*2-1) * pkdNodeSize(pkd));
+        assert(nOut == (pst->nLower*2-1) * pkdNodeSize(pkd));
+        mdlGetReply(pst->mdl,rID,pCell2,&nOutUpper);
+        assert(nOutUpper == (pst->nUpper*2-1) * pkdNodeSize(pkd));
+        nOut += nOutUpper + pkdNodeSize(pkd);
+
+        /*
+        ** Combine Cell1 and Cell2 into pCell
+        ** to find cell CoM, bounds and multipoles.
+        ** This also computes the opening radius for gravity.
+        */
+        pTop->bMax = HUGE_VAL;  /* initialize bMax for CombineCells */
+        MINSIDE(pst->bnd.fMax,minside);
+        pkdCombineCells1(pkd,pTop,pCell1,pCell2);
+        CALCOPEN(pTop,minside);
+        pkdCombineCells2(pkd,pTop,pCell1,pCell2);
+
+        /* Get our cell ready */
+        pTop->bTopTree = 1;                         /* The replicated top tree */
+        pTop->bGroup = 0;                           /* top tree can never be a group */
+        pTop->bRemote = 0;                          /* top tree is not remote */
+        pTop->iLower = 1;                           /* Relative index to lower cell */
+        pTop->pUpper = pst->nLower*2;               /* Relative index to upper cell */
+        pTop->pLower = 0;                           /* Not used */
+    }
+    else {
+        KDN *pRoot = pkdTreeNode(pkd,uRoot);
+        pkdTreeAlignNode(pkd);
+        pkdTreeUpdateFlagBounds(plcl->pkd,uRoot,&in->SPHoptions);
+        pkdCopyNode(pkd,pTop,pRoot);
+        /* Get our cell ready */
+        pTop->bTopTree = 1;
+        pTop->bGroup = 0;
+        pTop->bRemote = 1;
+        pTop->pUpper = pTop->pLower = pst->idSelf;
+        /* iLower is valid = ROOT */
+        nOut = pkdNodeSize(pkd);
+    }
+    return nOut;
 }
 
 int pstCountDistance(PST pst,void *vin,int nIn,void *vout,int nOut) {
