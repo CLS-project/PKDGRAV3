@@ -277,6 +277,21 @@ void pkdCalcCOM(PKD pkd, double *dCenter, double dRadius, int bPeriodic,
 }
 
 /*
+** Return the mass of all particles
+*/
+void pkdCalcMtot(PKD pkd,double *M, uint64_t *N) {
+    int i;
+    *M = 0.0;
+    *N = 0;
+    for (i=0; i<pkd->nLocal; ++i) {
+        PARTICLE *p = pkdParticle(pkd,i);
+        double m = pkdMass(pkd,p);
+        *M += m;
+        (*N)++;
+    }
+}
+
+/*
 ** Count the number of elements that are interior to r2
 */
 uint_fast32_t pkdCountDistance(PKD pkd, double r2i, double r2o ) {
@@ -446,10 +461,10 @@ static void CalculateInertia(PKD pkd,int nBins, const double *dRadii, SHAPESBIN 
             if (evectors[3][ib] < 0.0) psi = 360. - psi; /* psi always positive */
 
             /*
-                    for(i = 0; i<3; i++){
-                    ell_center[i] = pShape->com[i] / pShape->dMassEnclosed;
-                    }
-            */
+            for(i = 0; i<3; i++){
+            ell_center[i] = pShape->com[i] / pShape->dMassEnclosed;
+              }
+                      */
             for (i=0; i<3; i++) {
                 ell_matrix_inv[i][0] = evectors[i+1][ia];
                 ell_matrix_inv[i][1] = evectors[i+1][ib];

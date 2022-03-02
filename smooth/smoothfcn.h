@@ -245,6 +245,10 @@ void DensityM3(PARTICLE *,float fBall,int,NN *,SMF *);
 void LinkGradientM3(PARTICLE *,float fBall,int,NN *,SMF *);
 #define SMX_HOP_LINK            31
 void LinkHopChains(PARTICLE *,float fBall,int,NN *,SMF *);
+
+#define SMX_BALL                33
+void initBall(void *,void *);
+void BallSmooth(PARTICLE *,float fBall,int,NN *,SMF *);
 #endif
 
 

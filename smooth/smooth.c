@@ -466,6 +466,14 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         smx->fcnPost = NULL;
         break;
 #endif //OPTIM_REMOVE_UNUSED
+    case SMX_BALL:
+        assert(pkd->oFieldOffset[oBall]);
+        smx->fcnSmooth = BallSmooth;
+        initParticle = initBall; /* Original Particle */
+        init = initBall; /* Cached copies */
+        comb = NULL;
+        smx->fcnPost = NULL;
+        break;
 
     default:
         assert(0);
@@ -900,7 +908,8 @@ void smSmooth(SMX smx,SMF *smf) {
     for (pi=0; pi<pkd->nLocal; ++pi) {
         p = pkdParticle(pkd,pi);
         if (!smf->bMeshlessHydro ) {
-            pkdSetBall(pkd,p,smSmoothSingle(smx,smf,p,ROOT,0));
+            smSmoothSingle(smx,smf,p,ROOT,0);
+            //pkdSetBall(pkd,p,smSmoothSingle(smx,smf,p,ROOT,0));
         }
         else {
             if (pkdIsActive(pkd,p)) {
@@ -1199,14 +1208,14 @@ uint32_t BoundWalkInactive(SMX smx,double ddHonHLimit) {
             ** Process the Checklist.
             */
             /*
-                    printf("\nCELL:%d ",iCell);
+            printf("\nCELL:%d ",iCell);
             */
             ii = 0;
             for (i=0; i<nCheck; ++i) {
                 iOpen = iOpenInactive(pkd,k,&pkd->Check[i],&c,&pp);
                 /*
-                        printf("%1d",iOpen);
-                */
+                printf("%1d",iOpen);
+                              */
                 switch (iOpen) {
                 case 0:
                     /*
@@ -1238,8 +1247,8 @@ uint32_t BoundWalkInactive(SMX smx,double ddHonHLimit) {
                                 assert(nDo < pkd->nLocal);
                                 smx->ea[nDo++].iIndex = pj;
                                 /*
-                                                printf("Added inactive:%d due to active:%d\n",pj,-pkd->Check[i].iCell);
-                                */
+                                printf("Added inactive:%d due to active:%d\n",pj,-pkd->Check[i].iCell);
+                                                            */
                                 /*
                                 ** Set the particle as done here, so that we don't try to add it again!
                                 */
@@ -1647,14 +1656,14 @@ void BoundWalkActive(SMX smx,LIST **ppList,int *pnMaxpList,double ddHonHLimit) {
             ** Process the Checklist.
             */
             /*
-                    printf("\nCELL:%d ",iCell);
+            printf("\nCELL:%d ",iCell);
             */
             ii = 0;
             for (i=0; i<nCheck; ++i) {
                 iOpen = iOpenActive(pkd,k,&pkd->Check[i],&c,&pp,ddHonHLimit);
                 /*
-                        printf("%1d",iOpen);
-                */
+                printf("%1d",iOpen);
+                              */
                 switch (iOpen) {
                 case 0:
                     /*
@@ -2114,11 +2123,11 @@ DontAddToList:
                                 */
                                 ppCList = pkd_pNeighborList(pkd,pp);
                                 /*
-                                                printf("%p---------------check local list----------------- %d\n",*ppCList,pi);
-                                                lcodeDecode(smx->lcmp,*ppCList,&tList,&nMaxtList,&ntList);
-                                                printf("%d--",smx->pq[i].iIndex);
-                                                lcodePrintList(tList,ntList);
-                                */
+                                printf("%p---------------check local list----------------- %d\n",*ppCList,pi);
+                                            lcodeDecode(smx->lcmp,*ppCList,&tList,&nMaxtList,&ntList);
+                                            printf("%d--",smx->pq[i].iIndex);
+                                            lcodePrintList(tList,ntList);
+                                                            */
                                 if (*ppCList) {
                                     /*
                                     ** pp certainly does have a list.
@@ -2189,8 +2198,8 @@ DontAddToList:
                 lcodeEncode(smx->lcmp,pList,nList,ppCList);
             }
             /*
-                    printf("%p-%d--",*ppCList,pi);
-                    lcodePrintList(pList,nList);
+            printf("%p-%d--",*ppCList,pi);
+            lcodePrintList(pList,nList);
             */
         }
         else {
@@ -2267,7 +2276,7 @@ DontAddToList:
     uTail = BoundWalkInactive(smx,ddHonHLimit);
     assert(uTail < pkd->nLocal);
     /*
-        printf("After BoundWalkInactive added %d new inactive particles. They get new densities now.\n",uTail);
+    printf("After BoundWalkInactive added %d new inactive particles. They get new densities now.\n",uTail);
     */
     /*
     ** New inactive particles have been added to the list.
@@ -2312,7 +2321,7 @@ DontAddToList:
                     */
                     qsort(pList,nList,sizeof(LIST),lcodeCmpList);
                     /*
-                                lcodePrintList(pList,nList);
+                    lcodePrintList(pList,nList);
                     */
                     lcodeEncode(smx->lcmp,pList,nList,ppCList);
                 }

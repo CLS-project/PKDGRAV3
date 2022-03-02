@@ -93,17 +93,25 @@ struct parameters {
     int nSideHealpix;
     /* BEGIN Gas Parameters */
     int bDoGas;
+    int bGasAdiabatic;
+    int bGasIsentropic;
+    int bGasIsothermal;
     int bNewKDK;
     int nDigits;
 #define GET_PARTICLES_MAX 20 /* We have a nested loop, so don't increase this */
     int nOutputParticles;
     uint64_t iOutputParticles[GET_PARTICLES_MAX];
     double dEtaCourant;
+    double dConstAlpha;
+    double dConstBeta;
     double dConstGamma;
     double dMeanMolWeight;
     UNITS units;
     double ddHonHLimit;
     double dhMinOverSoft;
+    double dFastGasFraction;
+    double fKernelTarget;
+    int bNewSPH;
 
     /* END Gas Parameters */
     double dEta;
@@ -330,6 +338,7 @@ struct parameters {
     int bMemNodeSphBounds;
     int bMemNodeBnd;
     int bMemNodeVBnd;
+    int bMemBall;
 };
 
 #endif

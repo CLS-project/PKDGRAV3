@@ -40,6 +40,7 @@
 #include "cuda/cudautil.h"
 #include "cuda/cudapppc.h"
 #include "cuda/cudaewald.h"
+#include "SPHOptions.h"
 
 #if 1
 #if defined(USE_SIMD) && defined(__SSE2__)
@@ -74,6 +75,7 @@ static inline float rsqrtf(float v) {
     dir = 1/sqrt(d2);\
     }
 
+static void queueDensity( PKD pkd, workParticle *wp, ILP ilp, int bGravStep );
 /*
 ** This is called after work has been done for this particle group.
 ** If everyone has finished, then the particle is updated.
@@ -90,6 +92,69 @@ void pkdParticleWorkDone(workParticle *wp) {
     unsigned char uNewRung;
 
     if ( --wp->nRefs == 0 ) {
+        if (wp->SPHoptions->doDensity) {
+            float maxkerneldeviation = 0.0f;
+            // calculate maximum kernel mass deviation
+            for (int i=0; i<wp->nP; i++) {
+                float kerneldeviation = 0.0f;
+                if (wp->SPHoptions->useNumDen) {
+                    kerneldeviation = 4.0f/3.0f*M_PI*wp->pInfoIn[i].fBall*wp->pInfoIn[i].fBall*wp->pInfoIn[i].fBall*wp->pInfoOut[i].nden - wp->SPHoptions->fKernelTarget;
+                }
+                else {
+                    kerneldeviation = 4.0f/3.0f*M_PI*wp->pInfoIn[i].fBall*wp->pInfoIn[i].fBall*wp->pInfoIn[i].fBall*wp->pInfoOut[i].rho - wp->SPHoptions->fKernelTarget;
+                }
+                if (wp->pInfoIn[i].isTooLarge) {
+                    kerneldeviation = 0.0f;
+                }
+                kerneldeviation = (kerneldeviation > 0) ? kerneldeviation : -kerneldeviation;
+                maxkerneldeviation = (kerneldeviation > maxkerneldeviation) ? kerneldeviation : maxkerneldeviation;
+            }
+            /*
+            ** decide if loop has to continue
+            ** if true, calculate new fBall for all particles
+            ** else, exit loop
+            */
+            if (maxkerneldeviation/wp->SPHoptions->fKernelTarget > 1e-4f) {
+                // do another loop
+                for (int i=0; i<wp->nP; i++) {
+                    float prefac = 4.0f/3.0f*M_PI;
+                    float fBall = wp->pInfoIn[i].fBall;
+                    float fx, dfdx;
+                    if (wp->SPHoptions->useNumDen) {
+                        fx = prefac * fBall * fBall * fBall * wp->pInfoOut[i].nden - wp->SPHoptions->fKernelTarget;
+                        dfdx = prefac * 3.0f * fBall * fBall * wp->pInfoOut[i].nden + prefac * fBall * fBall * fBall * wp->pInfoOut[i].dndendfball;
+                    }
+                    else {
+                        fx = prefac * fBall * fBall * fBall * wp->pInfoOut[i].rho - wp->SPHoptions->fKernelTarget;
+                        dfdx = prefac * 3.0f * fBall * fBall * wp->pInfoOut[i].rho + prefac * fBall * fBall * fBall * wp->pInfoOut[i].drhodfball;
+                    }
+                    float newfBall = wp->pInfoIn[i].fBall - fx / dfdx;
+                    if (newfBall >= wp->SPHoptions->ballSizeLimit || wp->pInfoIn[i].isTooLarge) {
+                        wp->pInfoIn[i].fBall = wp->SPHoptions->ballSizeLimit;
+                        wp->pInfoIn[i].isTooLarge = 1;
+                    }
+                    else if (newfBall < 0.5f * wp->pInfoIn[i].fBall) {
+                        wp->pInfoIn[i].fBall = 0.5f * wp->pInfoIn[i].fBall;
+                    }
+                    else if (newfBall > 1.5f * wp->pInfoIn[i].fBall) {
+                        wp->pInfoIn[i].fBall = 1.5f * wp->pInfoIn[i].fBall;
+                    }
+                    else {
+                        wp->pInfoIn[i].fBall = newfBall;
+                    }
+                }
+                wp->nRefs = 1;
+                queueDensity(pkd,wp,wp->ilp,wp->bGravStep);
+                pkdParticleWorkDone(wp);
+                return;
+            }
+            for ( int i=0; i<wp->nP; i++ ) {
+                // save the new fBall for each particle
+                wp->pInfoOut[i].fBall = wp->pInfoIn[i].fBall;
+                // wp->pInfoOut[i].fBall = wp->pInfoOut[i].nSmooth;
+            }
+        }
+
         float fiDelta = 1.0/wp->ts->dDelta;
         float fEta = wp->ts->dEta;
         float fiAccFac = 1.0 / wp->ts->dAccFac;
@@ -99,180 +164,223 @@ void pkdParticleWorkDone(workParticle *wp) {
         pkd->dFlopSingleGPU += wp->dFlopSingleGPU;
         pkd->dFlopDoubleGPU += wp->dFlopDoubleGPU;
         for ( i=0; i<wp->nP; i++ ) {
-            p = wp->pPart[i];
-            pkdGetPos1(pkd,p,r);
-            m = pkdMass(pkd,p);
-#ifdef HERNQUIST_POTENTIAL
-            // Hard coded just for the isolated galaxy test
-            const double const_reduced_hubble_cgs = 3.2407789e-18;
-            const double dMsolUnit = 1e10;
-            const double dKpcUnit = 1.0;
-            const double dKmPerSecUnit = sqrt(GCGS*dMsolUnit*MSOLG
-                                              /(dKpcUnit*KPCCM))/1e5;
-            const double H0 = 70.4/ dKmPerSecUnit * ( dKpcUnit / 1e3);
+            p = CAST(PARTICLE *,mdlAcquireWrite(pkd->mdl,CID_PARTICLE,wp->iPart[i]));
 
-            const double concentration = 9.0;
-            const double M200 = 135.28423603962767;
-            const double V200 = cbrt(10.*M200*H0);
-            const double R200 = cbrt(M200/(100.*H0*H0));
-            const double RS = R200 / concentration;
-
-            const double al = RS * sqrt(2. * (log(1. + concentration) -
-                                              concentration / (1. + concentration)));
-
-            const double mass = M200*(1.-0.041);
-            const float sqrtgm_inv = 1.f / sqrtf(mass);
-            const double epsilon =  0.2/dKpcUnit;
-            const double epsilon2 = epsilon*epsilon;
-
-
-
-
-            const float dx = pkdPos(pkd,p,0);
-            const float dy = pkdPos(pkd,p,1);
-            const float dz = pkdPos(pkd,p,2);
-
-            /* Calculate the acceleration */
-            const float rr = sqrtf(dx * dx + dy * dy + dz * dz + epsilon2);
-            const float r_plus_a_inv = 1.f / (rr + al);
-            const float r_plus_a_inv2 = r_plus_a_inv * r_plus_a_inv;
-            const float term = -mass * r_plus_a_inv2 / rr;
-
-            /* Calculate the circular orbital period */
-            const float period = 2.f * M_PI * sqrtf(rr) * al *
-                                 (1 + rr / al) * sqrtgm_inv;
-
-
-
-            wp->pInfoOut[i].a[0] += term * dx;
-            wp->pInfoOut[i].a[1] += term * dy;
-            wp->pInfoOut[i].a[2] += term * dz;
-#endif
-            if (pkd->oFieldOffset[oAcceleration]) {
-                a = pkdAccel(pkd,p);
-                a[0] = wp->pInfoOut[i].a[0];
-                a[1] = wp->pInfoOut[i].a[1];
-                a[2] = wp->pInfoOut[i].a[2];
-            }
-            if (pkd->oFieldOffset[oPotential]) {
-                float *pPot = pkdPot(pkd,p);
-                *pPot = wp->pInfoOut[i].fPot;
-            }
-            if (pkd->ga != NULL) {
-                gid = pkdGetGroup(pkd,p);
-                if (gid && wp->pInfoOut[i].fPot < pkd->ga[gid].minPot) {
-                    pkd->ga[gid].minPot = wp->pInfoOut[i].fPot;
-                    pkd->ga[gid].iMinPart = wp->iPart[i];
+            if (pkd->oFieldOffset[oNewSph]) {
+                NEWSPHFIELDS *pNewSph = pkdNewSph(pkd,p);
+                if (wp->SPHoptions->doDensity) {
+                    pkdSetDensity(pkd,p,wp->pInfoOut[i].rho);
+                    pkdSetBall(pkd,p,wp->pInfoOut[i].fBall);
+                    pNewSph->Omega = 1.0f + wp->pInfoOut[i].fBall/(3.0f * wp->pInfoOut[i].rho)*wp->pInfoOut[i].drhodfball;
+                    if (wp->SPHoptions->doUConversion) {
+                        pNewSph->u = EOSUofRhoT(pkdDensity(pkd,p),pNewSph->u,wp->SPHoptions);
+                    }
+                }
+                if (wp->SPHoptions->doSPHForces) {
+                    pNewSph->divv = wp->pInfoOut[i].divv;
+                    if (wp->SPHoptions->useIsentropic) {
+                        pNewSph->uDot = (wp->SPHoptions->gamma - 1.0f) / pow(pkdDensity(pkd,p),wp->SPHoptions->gamma - 1.0f) * wp->pInfoOut[i].uDot;
+                    }
+                    else {
+                        pNewSph->uDot = wp->pInfoOut[i].uDot;
+                    }
                 }
             }
-            a = wp->pInfoOut[i].a;
-            pkd->dEnergyU += 0.5 * m * wp->pInfoOut[i].fPot;
-            pkd->dEnergyW += m*(r[0]*a[0] + r[1]*a[1] + r[2]*a[2]);
-            pkd->dEnergyF[0] += m*a[0];
-            pkd->dEnergyF[1] += m*a[1];
-            pkd->dEnergyF[2] += m*a[2];
 
-            if (wp->ts->bGravStep) {
-                float dirsum = wp->pInfoOut[i].dirsum;
-                float normsum = wp->pInfoOut[i].normsum;
+            if (wp->SPHoptions->doGravity) {
+                pkdGetPos1(pkd,p,r);
+                m = pkdMass(pkd,p);
+#ifdef HERNQUIST_POTENTIAL
+                // Hard coded just for the isolated galaxy test
+                const double const_reduced_hubble_cgs = 3.2407789e-18;
+                const double dMsolUnit = 1e10;
+                const double dKpcUnit = 1.0;
+                const double dKmPerSecUnit = sqrt(GCGS*dMsolUnit*MSOLG
+                                                  /(dKpcUnit*KPCCM))/1e5;
+                const double H0 = 70.4/ dKmPerSecUnit * ( dKpcUnit / 1e3);
 
-                /*
-                ** If this is the first time through, the accelerations will have
-                ** all been zero resulting in zero for normsum (and nan for dtGrav).
-                ** We repeat this process again, so dtGrav will be correct.
-                */
-                if (normsum > 0.0) {
+                const double concentration = 9.0;
+                const double M200 = 135.28423603962767;
+                const double V200 = cbrt(10.*M200*H0);
+                const double R200 = cbrt(M200/(100.*H0*H0));
+                const double RS = R200 / concentration;
+
+                const double al = RS * sqrt(2. * (log(1. + concentration) -
+                                                  concentration / (1. + concentration)));
+
+                const double mass = M200*(1.-0.041);
+                const float sqrtgm_inv = 1.f / sqrtf(mass);
+                const double epsilon =  0.2/dKpcUnit;
+                const double epsilon2 = epsilon*epsilon;
+
+
+
+
+                const float dx = pkdPos(pkd,p,0);
+                const float dy = pkdPos(pkd,p,1);
+                const float dz = pkdPos(pkd,p,2);
+
+                /* Calculate the acceleration */
+                const float rr = sqrtf(dx * dx + dy * dy + dz * dz + epsilon2);
+                const float r_plus_a_inv = 1.f / (rr + al);
+                const float r_plus_a_inv2 = r_plus_a_inv * r_plus_a_inv;
+                const float term = -mass * r_plus_a_inv2 / rr;
+
+                /* Calculate the circular orbital period */
+                const float period = 2.f * M_PI * sqrtf(rr) * al *
+                                     (1 + rr / al) * sqrtgm_inv;
+
+
+
+                wp->pInfoOut[i].a[0] += term * dx;
+                wp->pInfoOut[i].a[1] += term * dy;
+                wp->pInfoOut[i].a[2] += term * dz;
+#endif
+                if (pkd->oFieldOffset[oAcceleration]) {
+                    a = pkdAccel(pkd,p);
+                    a[0] = wp->pInfoOut[i].a[0];
+                    a[1] = wp->pInfoOut[i].a[1];
+                    a[2] = wp->pInfoOut[i].a[2];
+                }
+                if (pkd->oFieldOffset[oPotential]) {
+                    float *pPot = pkdPot(pkd,p);
+                    *pPot = wp->pInfoOut[i].fPot;
+                }
+                if (pkd->ga != NULL) {
+                    gid = pkdGetGroup(pkd,p);
+                    if (gid && wp->pInfoOut[i].fPot < pkd->ga[gid].minPot) {
+                        pkd->ga[gid].minPot = wp->pInfoOut[i].fPot;
+                        pkd->ga[gid].iMinPart = wp->iPart[i];
+                    }
+                }
+                a = wp->pInfoOut[i].a;
+                pkd->dEnergyU += 0.5 * m * wp->pInfoOut[i].fPot;
+                pkd->dEnergyW += m*(r[0]*a[0] + r[1]*a[1] + r[2]*a[2]);
+                pkd->dEnergyF[0] += m*a[0];
+                pkd->dEnergyF[1] += m*a[1];
+                pkd->dEnergyF[2] += m*a[2];
+
+                if (wp->ts->bGravStep) {
+                    float dirsum = wp->pInfoOut[i].dirsum;
+                    float normsum = wp->pInfoOut[i].normsum;
+
                     /*
-                    ** Use new acceleration here!
+                    ** If this is the first time through, the accelerations will have
+                    ** all been zero resulting in zero for normsum (and nan for dtGrav).
+                    ** We repeat this process again, so dtGrav will be correct.
+                    */
+                    if (normsum > 0.0) {
+                        /*
+                        ** Use new acceleration here!
+                        */
+                        fx = wp->pInfoOut[i].a[0];
+                        fy = wp->pInfoOut[i].a[1];
+                        fz = wp->pInfoOut[i].a[2];
+                        maga = fx*fx + fy*fy + fz*fz;
+                        if (maga>0.0f) maga = asqrtf(maga);
+                        dtGrav = maga*dirsum/normsum;
+                    }
+                    else dtGrav = 0.0;
+                    dtGrav += wp->ts->dPreFacRhoLoc*wp->pInfoIn[i].fDensity;
+                    dtGrav = (wp->pInfoOut[i].rhopmax > dtGrav?wp->pInfoOut[i].rhopmax:dtGrav);
+                    if (dtGrav > 0.0) {
+                        dT = fEta * rsqrtf(dtGrav*wp->ts->dRhoFac);
+                        if (pkd->oFieldOffset[oNewSph]) {
+                            dT = fmin(dT,wp->pInfoOut[i].dtEst);
+                        }
+                        uNewRung = pkdDtToRungInverse(dT,fiDelta,wp->ts->uMaxRung-1);
+                    }
+                    else uNewRung = 0; /* Assumes current uNewRung is outdated -- not ideal */
+                } /* end of wp->bGravStep */
+                else {
+                    /*
+                    ** We are doing eps/a timestepping.
                     */
                     fx = wp->pInfoOut[i].a[0];
                     fy = wp->pInfoOut[i].a[1];
                     fz = wp->pInfoOut[i].a[2];
                     maga = fx*fx + fy*fy + fz*fz;
-                    if (maga>0.0f) maga = asqrtf(maga);
-                    dtGrav = maga*dirsum/normsum;
-                }
-                else dtGrav = 0.0;
-                dtGrav += wp->ts->dPreFacRhoLoc*wp->pInfoIn[i].fDensity;
-                dtGrav = (wp->pInfoOut[i].rhopmax > dtGrav?wp->pInfoOut[i].rhopmax:dtGrav);
-                if (dtGrav > 0.0) {
-                    dT = fEta * rsqrtf(dtGrav*wp->ts->dRhoFac);
-                    uNewRung = pkdDtToRungInverse(dT,fiDelta,wp->ts->uMaxRung-1);
-                }
-                else uNewRung = 0; /* Assumes current uNewRung is outdated -- not ideal */
-            } /* end of wp->bGravStep */
-            else {
-                /*
-                ** We are doing eps/a timestepping.
-                */
-                fx = wp->pInfoOut[i].a[0];
-                fy = wp->pInfoOut[i].a[1];
-                fz = wp->pInfoOut[i].a[2];
-                maga = fx*fx + fy*fy + fz*fz;
-                if (maga > 0) {
-                    float imaga = rsqrtf(maga) * fiAccFac;
-                    dT = fEta*asqrtf(pkdSoft(pkd,p)*imaga);
-                    uNewRung = pkdDtToRungInverse(dT,fiDelta,wp->ts->uMaxRung-1);
-                }
-                else uNewRung = 0;
-            }
-            /*
-            ** Here we must make sure we do not try to take a larger opening
-            ** timestep than the current active particles involved in the
-            ** gravity calculation!
-            */
-            if (uNewRung < wp->ts->uRungLo) uNewRung = wp->ts->uRungLo;
-            else if (uNewRung > wp->ts->uRungHi) uNewRung = wp->ts->uRungHi;
-            if (!pkd->bNoParticleOrder) p->uNewRung = uNewRung;
-            /*
-            ** Now we want to kick the particle velocities with a closing kick
-            ** based on the old rung and an opening kick based on the new rung.
-            ** However, we are not always allowed to decrease uNewRung by an
-            ** arbitrary amount, as this depends on where we are in the
-            ** substep hierarchy.
-            ** This also requires the various timestep factors to have been
-            ** pre-calculated for this dTime and all possible rungs at play.
-            ** Note that the only persistent info needed is the old rung which
-            ** gets updated at the end of this so that p->uRung indicates
-            ** which particles are active in this time step.
-            ** p->uRung = uNewRung could be done here, but we let the outside
-            ** code handle this.
-            */
-            if (pkd->oFieldOffset[oVelocity]) {
-                v = pkdVel(pkd,p);
-                if (wp->kick && wp->kick->bKickClose) {
-                    v[0] += wp->kick->dtClose[p->uRung]*wp->pInfoOut[i].a[0];
-                    v[1] += wp->kick->dtClose[p->uRung]*wp->pInfoOut[i].a[1];
-                    v[2] += wp->kick->dtClose[p->uRung]*wp->pInfoOut[i].a[2];
-                }
-                v2 = v[0]*v[0] + v[1]*v[1] + v[2]*v[2];
-                /*
-                ** Now calculate the kinetic energy term.
-                */
-                pkd->dEnergyT += 0.5*m*v2;
-                /* L is calculated with respect to the origin (0,0,0) */
-                pkd->dEnergyL[0] += m*(r[1]*v[2] - r[2]*v[1]);
-                pkd->dEnergyL[1] += m*(r[2]*v[0] - r[0]*v[2]);
-                pkd->dEnergyL[2] += m*(r[0]*v[1] - r[1]*v[0]);
-
-                if (wp->kick && wp->kick->bKickOpen) {
-                    p->uRung = uNewRung;
-                    ++pkd->nRung[p->uRung];
-                    v[0] += wp->kick->dtOpen[p->uRung]*wp->pInfoOut[i].a[0];
-                    v[1] += wp->kick->dtOpen[p->uRung]*wp->pInfoOut[i].a[1];
-                    v[2] += wp->kick->dtOpen[p->uRung]*wp->pInfoOut[i].a[2];
-                    /*
-                    ** On KickOpen we also always check for intersection with the lightcone
-                    ** surface over the entire next timestep of the particle (not a half
-                    ** timestep as is usual for kicking (we are drifting afterall).
-                    */
-                    if (wp->lc->dLookbackFac > 0) {
-                        pkdProcessLightCone(pkd,p,wp->pInfoOut[i].fPot,wp->lc->dLookbackFac,wp->lc->dLookbackFacLCP,
-                                            wp->lc->dtLCDrift[p->uRung],wp->lc->dtLCKick[p->uRung],
-                                            wp->lc->dBoxSize,wp->lc->bLightConeParticles);
+                    if (maga > 0) {
+                        float imaga = rsqrtf(maga) * fiAccFac;
+                        dT = fEta*asqrtf(pkdSoft(pkd,p)*imaga);
+                        if (pkd->oFieldOffset[oNewSph]) {
+                            dT = fmin(dT,wp->pInfoOut[i].dtEst);
+                        }
+                        uNewRung = pkdDtToRungInverse(dT,fiDelta,wp->ts->uMaxRung-1);
                     }
+                    else uNewRung = 0;
+                }
+                /*
+                ** Here we must make sure we do not try to take a larger opening
+                ** timestep than the current active particles involved in the
+                ** gravity calculation!
+                */
+                if (uNewRung < wp->ts->uRungLo) uNewRung = wp->ts->uRungLo;
+                else if (uNewRung > wp->ts->uRungHi) uNewRung = wp->ts->uRungHi;
+                if (!pkd->bNoParticleOrder) p->uNewRung = uNewRung;
+                /*
+                ** Now we want to kick the particle velocities with a closing kick
+                ** based on the old rung and an opening kick based on the new rung.
+                ** However, we are not always allowed to decrease uNewRung by an
+                ** arbitrary amount, as this depends on where we are in the
+                ** substep hierarchy.
+                ** This also requires the various timestep factors to have been
+                ** pre-calculated for this dTime and all possible rungs at play.
+                ** Note that the only persistent info needed is the old rung which
+                ** gets updated at the end of this so that p->uRung indicates
+                ** which particles are active in this time step.
+                ** p->uRung = uNewRung could be done here, but we let the outside
+                ** code handle this.
+                */
+                if (pkd->oFieldOffset[oVelocity]) {
+                    v = pkdVel(pkd,p);
+                    if (wp->kick && wp->kick->bKickClose) {
+                        v[0] += wp->kick->dtClose[p->uRung]*wp->pInfoOut[i].a[0];
+                        v[1] += wp->kick->dtClose[p->uRung]*wp->pInfoOut[i].a[1];
+                        v[2] += wp->kick->dtClose[p->uRung]*wp->pInfoOut[i].a[2];
+                        if (wp->SPHoptions->doSPHForces) {
+                            NEWSPHFIELDS *pNewSph = pkdNewSph(pkd,p);
+                            pNewSph->u += wp->kick->dtClose[p->uRung] * pNewSph->uDot;
+                        }
+                    }
+                    v2 = v[0]*v[0] + v[1]*v[1] + v[2]*v[2];
+                    /*
+                    ** Now calculate the kinetic energy term.
+                    */
+                    pkd->dEnergyT += 0.5*m*v2;
+                    /* L is calculated with respect to the origin (0,0,0) */
+                    pkd->dEnergyL[0] += m*(r[1]*v[2] - r[2]*v[1]);
+                    pkd->dEnergyL[1] += m*(r[2]*v[0] - r[0]*v[2]);
+                    pkd->dEnergyL[2] += m*(r[0]*v[1] - r[1]*v[0]);
+
+                    if (wp->kick && wp->kick->bKickOpen) {
+                        p->uRung = uNewRung;
+                        ++pkd->nRung[p->uRung];
+                        v[0] += wp->kick->dtOpen[p->uRung]*wp->pInfoOut[i].a[0];
+                        v[1] += wp->kick->dtOpen[p->uRung]*wp->pInfoOut[i].a[1];
+                        v[2] += wp->kick->dtOpen[p->uRung]*wp->pInfoOut[i].a[2];
+                        if (wp->SPHoptions->doSPHForces) {
+                            NEWSPHFIELDS *pNewSph = pkdNewSph(pkd,p);
+                            pNewSph->u += wp->kick->dtOpen[p->uRung] * pNewSph->uDot;
+                        }
+                        /*
+                        ** On KickOpen we also always check for intersection with the lightcone
+                        ** surface over the entire next timestep of the particle (not a half
+                        ** timestep as is usual for kicking (we are drifting afterall).
+                        */
+                        if (wp->lc->dLookbackFac > 0) {
+                            pkdProcessLightCone(pkd,p,wp->pInfoOut[i].fPot,wp->lc->dLookbackFac,wp->lc->dLookbackFacLCP,
+                                                wp->lc->dtLCDrift[p->uRung],wp->lc->dtLCKick[p->uRung],
+                                                wp->lc->dBoxSize,wp->lc->bLightConeParticles);
+                        }
+                    }
+                    p->bMarked = 1;
                 }
             }
+            else {
+                ++pkd->nRung[p->uRung];
+            }
+            mdlReleaseWrite(pkd->mdl,CID_PARTICLE,p);
         }
         delete [] wp->pPart;
         delete [] wp->iPart;
@@ -304,6 +412,51 @@ int CPUdoWorkPP(void *vpp) {
     else return 1;
 }
 
+int CPUdoWorkDensity(void *vpp) {
+    auto pp = static_cast<workPP *>(vpp);
+    workParticle *wp = pp->work;
+    ILPTILE tile = pp->tile;
+    ILP_BLK *blk = tile->blk;
+    PINFOIN *pPart = &pp->work->pInfoIn[pp->i];
+    PINFOOUT *pOut = &pp->pInfoOut[pp->i];
+    int nBlocks = tile->lstTile.nBlocks;
+    int nInLast = tile->lstTile.nInLast;
+    SPHOptions *SPHoptions = wp->SPHoptions;
+
+    pOut->rho = 0.0;
+    pOut->drhodfball = 0.0;
+    pOut->nden = 0.0;
+    pOut->dndendfball = 0.0;
+    pOut->nSmooth = 0.0;
+    pkdDensityEval(pPart,nBlocks,nInLast,blk,pOut,SPHoptions);
+    //wp->dFlopSingleCPU += COST_FLOP_PP*(tile->lstTile.nBlocks*ILP_PART_PER_BLK  + tile->lstTile.nInLast);
+    if ( ++pp->i == pp->work->nP ) return 0;
+    else return 1;
+}
+
+int CPUdoWorkSPHForces(void *vpp) {
+    auto pp = static_cast<workPP *>(vpp);
+    workParticle *wp = pp->work;
+    ILPTILE tile = pp->tile;
+    ILP_BLK *blk = tile->blk;
+    PINFOIN *pPart = &pp->work->pInfoIn[pp->i];
+    PINFOOUT *pOut = &pp->pInfoOut[pp->i];
+    int nBlocks = tile->lstTile.nBlocks;
+    int nInLast = tile->lstTile.nInLast;
+    SPHOptions *SPHoptions = wp->SPHoptions;
+
+    pOut->uDot = 0.0;
+    pOut->a[0] = 0.0;
+    pOut->a[1] = 0.0;
+    pOut->a[2] = 0.0;
+    pOut->divv = 0.0;
+    pOut->dtEst = HUGE_VALF;
+    pkdSPHForcesEval(pPart,nBlocks,nInLast,blk,pOut,SPHoptions);
+    //wp->dFlopSingleCPU += COST_FLOP_PP*(tile->lstTile.nBlocks*ILP_PART_PER_BLK  + tile->lstTile.nInLast);
+    if ( ++pp->i == pp->work->nP ) return 0;
+    else return 1;
+}
+
 int doneWorkPP(void *vpp) {
     auto pp = static_cast<workPP *>(vpp);
     int i;
@@ -315,6 +468,43 @@ int doneWorkPP(void *vpp) {
         pp->work->pInfoOut[i].fPot += pp->pInfoOut[i].fPot;
         pp->work->pInfoOut[i].dirsum += pp->pInfoOut[i].dirsum;
         pp->work->pInfoOut[i].normsum += pp->pInfoOut[i].normsum;
+    }
+    lstFreeTile(&pp->ilp->lst,&pp->tile->lstTile);
+    pkdParticleWorkDone(pp->work);
+    delete [] pp->pInfoOut;
+    delete pp;
+    return 0;
+}
+
+int doneWorkDensity(void *vpp) {
+    auto pp = static_cast<workPP *>(vpp);
+    int i;
+
+    for (i=0; i<pp->work->nP; ++i) {
+        pp->work->pInfoOut[i].rho += pp->pInfoOut[i].rho;
+        pp->work->pInfoOut[i].drhodfball += pp->pInfoOut[i].drhodfball;
+        pp->work->pInfoOut[i].nden += pp->pInfoOut[i].nden;
+        pp->work->pInfoOut[i].dndendfball += pp->pInfoOut[i].dndendfball;
+        pp->work->pInfoOut[i].nSmooth += pp->pInfoOut[i].nSmooth;
+    }
+    lstFreeTile(&pp->ilp->lst,&pp->tile->lstTile);
+    pkdParticleWorkDone(pp->work);
+    delete [] pp->pInfoOut;
+    delete pp;
+    return 0;
+}
+
+int doneWorkSPHForces(void *vpp) {
+    auto pp = static_cast<workPP *>(vpp);
+    int i;
+
+    for (i=0; i<pp->work->nP; ++i) {
+        pp->work->pInfoOut[i].uDot += pp->pInfoOut[i].uDot;
+        pp->work->pInfoOut[i].a[0] += pp->pInfoOut[i].a[0];
+        pp->work->pInfoOut[i].a[1] += pp->pInfoOut[i].a[1];
+        pp->work->pInfoOut[i].a[2] += pp->pInfoOut[i].a[2];
+        pp->work->pInfoOut[i].divv += pp->pInfoOut[i].divv;
+        pp->work->pInfoOut[i].dtEst = fmin(pp->work->pInfoOut[i].dtEst,pp->pInfoOut[i].dtEst);
     }
     lstFreeTile(&pp->ilp->lst,&pp->tile->lstTile);
     pkdParticleWorkDone(pp->work);
@@ -340,6 +530,56 @@ static void queuePP( PKD pkd, workParticle *wp, ILP ilp, int bGravStep ) {
         tile->lstTile.nRefs++;
         wp->nRefs++;
         mdlAddWork(pkd->mdl,pp,NULL,NULL,CPUdoWorkPP,doneWorkPP);
+    }
+}
+
+static void queueDensity( PKD pkd, workParticle *wp, ILP ilp, int bGravStep ) {
+    ILPTILE tile;
+    wp->ilp = ilp;
+    wp->bGravStep = bGravStep;
+    for ( int i=0; i<wp->nP; i++ ) {
+        wp->pInfoOut[i].rho = 0.0f;
+        wp->pInfoOut[i].drhodfball = 0.0f;
+        wp->pInfoOut[i].nden = 0.0f;
+        wp->pInfoOut[i].dndendfball = 0.0f;
+        wp->pInfoOut[i].nSmooth = 0.0f;
+    }
+
+    ILP_LOOP(ilp,tile) {
+#ifdef USE_CUDA
+        assert(0);
+#endif
+        auto pp = new workPP;
+        assert(pp!=NULL);
+        pp->pInfoOut = new PINFOOUT[wp->nP];
+        assert(pp->pInfoOut!=NULL);
+        pp->work = wp;
+        pp->ilp = ilp;
+        pp->tile = tile;
+        pp->i = 0;
+        tile->lstTile.nRefs++;
+        wp->nRefs++;
+        mdlAddWork(pkd->mdl,pp,NULL,NULL,CPUdoWorkDensity,doneWorkDensity);
+    }
+}
+
+static void queueSPHForces( PKD pkd, workParticle *wp, ILP ilp, int bGravStep ) {
+    ILPTILE tile;
+    ILP_LOOP(ilp,tile) {
+#ifdef USE_CUDA
+        assert(0);
+#endif
+        auto pp = new workPP;
+        assert(pp!=NULL);
+        pp->pInfoOut = new PINFOOUT[wp->nP];
+        assert(pp->pInfoOut!=NULL);
+        pp->work = wp;
+        pp->ilp = ilp;
+        pp->tile = tile;
+        pp->i = 0;
+        tile->lstTile.nRefs++;
+        wp->nRefs++;
+        mdlAddWork(pkd->mdl,pp,NULL,NULL,CPUdoWorkSPHForces,doneWorkSPHForces);
     }
 }
 
@@ -437,7 +677,7 @@ int pkdGravInteract(PKD pkd,
                     struct pkdKickParameters *kick,struct pkdLightconeParameters *lc,struct pkdTimestepParameters *ts,
                     KDN *pBucket,LOCR *pLoc,ILP ilp,ILC ilc,
                     float dirLsum,float normLsum,int bEwald,double *pdFlop,
-                    SMX smx,SMF *smf,int iRoot1,int iRoot2) {
+                    SMX smx,SMF *smf,int iRoot1,int iRoot2,SPHOptions *SPHoptions) {
     PARTICLE *p;
     KDN *pkdn = pBucket;
     double r[3], kdn_r[3];
@@ -483,9 +723,11 @@ int pkdGravInteract(PKD pkd,
     wp->lc = lc;
     wp->kick = kick;
 
+    wp->SPHoptions = SPHoptions;
+
     for (i=pkdn->pLower; i<=pkdn->pUpper; ++i) {
         p = pkdParticle(pkd,i);
-        if (!pkdIsRungRange(p,ts->uRungLo,ts->uRungHi)) continue;
+        if (!pkdIsRungRange(p,ts->uRungLo,ts->uRungHi) && !(SPHoptions->useDensityFlags && p->bMarked)) continue;
         pkdGetPos1(pkd,p,r);
         fMass = pkdMass(pkd,p);
         fSoft = pkdSoft(pkd,p);
@@ -502,12 +744,42 @@ int pkdGravInteract(PKD pkd,
             wp->pInfoIn[nP].a[0]  = ap[0];
             wp->pInfoIn[nP].a[1]  = ap[1];
             wp->pInfoIn[nP].a[2]  = ap[2];
-            ap[0] = ap[1] = ap[2] = 0.0;
+            //ap[0] = ap[1] = ap[2] = 0.0;
         }
         else {
             wp->pInfoIn[nP].a[0]  = 0;
             wp->pInfoIn[nP].a[1]  = 0;
             wp->pInfoIn[nP].a[2]  = 0;
+        }
+
+        if (pkd->oFieldOffset[oNewSph]) {
+            NEWSPHFIELDS *pNewSph = pkdNewSph(pkd,p);
+            float dtPredDrift = getDtPredDrift(kick,p->bMarked,ts->uRungLo,p->uRung);
+            wp->pInfoIn[nP].fBall = pkdBall(pkd,p);
+            wp->pInfoIn[nP].isTooLarge = 0;
+            wp->pInfoIn[nP].Omega = pNewSph->Omega;
+            wp->pInfoIn[nP].v[0] = v[0] + dtPredDrift * wp->pInfoIn[nP].a[0];
+            wp->pInfoIn[nP].v[1] = v[1] + dtPredDrift * wp->pInfoIn[nP].a[1];
+            wp->pInfoIn[nP].v[2] = v[2] + dtPredDrift * wp->pInfoIn[nP].a[2];
+            wp->pInfoIn[nP].rho = pkdDensity(pkd,p);
+            if (wp->SPHoptions->doSPHForces) {
+                wp->pInfoIn[nP].P = EOSPCofRhoU(pkdDensity(pkd,p),pNewSph->u + dtPredDrift * pNewSph->uDot,&wp->pInfoIn[nP].c,SPHoptions);
+            }
+            else {
+                wp->pInfoIn[nP].P = 0.0f;
+                wp->pInfoIn[nP].c = 0.0f;
+            }
+            wp->pInfoIn[nP].species = pkdSpecies(pkd,p);
+
+            wp->pInfoOut[nP].rho = 0.0f;
+            wp->pInfoOut[nP].drhodfball = 0.0f;
+            wp->pInfoOut[nP].nden = 0.0f;
+            wp->pInfoOut[nP].dndendfball = 0.0f;
+            wp->pInfoOut[nP].fBall = 0.0f;
+            wp->pInfoOut[nP].nSmooth = 0.0f;
+            wp->pInfoOut[nP].uDot = 0.0f;
+            wp->pInfoOut[nP].divv = 0.0f;
+            wp->pInfoOut[nP].dtEst = HUGE_VALF;
         }
 
         wp->pInfoOut[nP].a[0] = 0.0f;
@@ -521,20 +793,22 @@ int pkdGravInteract(PKD pkd,
         /*
         ** Calculate local density and kernel smoothing length for dynamical time-stepping
         */
-        if (ts->bGravStep) {
-            /*
-            ** Calculate local density using smooth; this is fast because the particles are
-            ** likely to be cached already because they will be on the P-P list.
-            */
-            smf->pfDensity = &wp->pInfoIn[nP].fDensity;
-            fBall = smSmoothSingle(smx,smf,p,iRoot1,iRoot2);
-            wp->pInfoIn[nP].fSmooth2 = fBall * fBall;
-        }
-        else {
-            /*
-            ** We are not using GravStep!
-            */
-            wp->pInfoIn[nP].fSmooth2 = 0.0;
+        if (SPHoptions->doGravity) {
+            if (ts->bGravStep) {
+                /*
+                ** Calculate local density using smooth; this is fast because the particles are
+                ** likely to be cached already because they will be on the P-P list.
+                */
+                smf->pfDensity = &wp->pInfoIn[nP].fDensity;
+                fBall = smSmoothSingle(smx,smf,p,iRoot1,iRoot2);
+                wp->pInfoIn[nP].fSmooth2 = fBall * fBall;
+            }
+            else {
+                /*
+                ** We are not using GravStep!
+                */
+                wp->pInfoIn[nP].fSmooth2 = 0.0;
+            }
         }
     }
 
@@ -543,7 +817,7 @@ int pkdGravInteract(PKD pkd,
     /*
     ** Evaluate the local expansion.
     */
-    if (pLoc) {
+    if (pLoc && SPHoptions->doGravity) {
         for ( i=0; i<wp->nP; i++ ) {
             momFloat ax,ay,az, dPot;
             double *c = wp->c;
@@ -573,98 +847,118 @@ int pkdGravInteract(PKD pkd,
         }
     }
 
-    /*
-    ** Evaluate the P-C interactions
-    */
-    assert(ilc->cx==ilp->cx && ilc->cy==ilp->cy && ilc->cz==ilp->cz );
-    queuePC( pkd,  wp, ilc, ts->bGravStep );
+    if (SPHoptions->doGravity) {
+        /*
+        ** Evaluate the P-C interactions
+        */
+        assert(ilc->cx==ilp->cx && ilc->cy==ilp->cy && ilc->cz==ilp->cz );
+        queuePC( pkd,  wp, ilc, ts->bGravStep );
 
-    /*
-    ** Evaluate the P-P interactions
-    */
-    queuePP( pkd, wp, ilp, ts->bGravStep );
+        /*
+        ** Evaluate the P-P interactions
+        */
+        queuePP( pkd, wp, ilp, ts->bGravStep );
+    }
 
-    /*
-    ** Calculate the Ewald correction for this particle, if it is required.
-    */
-    if (bEwald) {
-        queueEwald( pkd,  wp );
+    if (SPHoptions->doDensity) {
+        /*
+        ** Evaluate the Density on the P-P interactions
+        */
+        queueDensity( pkd, wp, ilp, ts->bGravStep );
+    }
+
+    if (SPHoptions->doSPHForces) {
+        /*
+        ** Evaluate the SPH forces on the P-P interactions
+        */
+        queueSPHForces( pkd, wp, ilp, ts->bGravStep );
+    }
+
+    if (SPHoptions->doGravity) {
+        /*
+        ** Calculate the Ewald correction for this particle, if it is required.
+        */
+        if (bEwald) {
+            queueEwald( pkd,  wp );
+        }
     }
 
 #ifdef TIMESTEP_CRITICAL
-    for ( i=0; i<wp->nP; i++ ) {
-        double *c = wp->c;
-        float *in = wp->pInfoIn[i].r;
-        r[0] = c[0] + in[0];
-        r[1] = c[1] + in[1];
-        r[2] = c[2] + in[2];
-        //p = wp->pPart[i];
-        //pkdGetPos1(p->r,r);
-        v = pkdVel(pkd,p);
-        /*
-        ** Set value for time-step, note that we have the current ewald acceleration
-        ** in this now as well!
-        */
-        if (ts->bGravStep && wp->ts->iTimeStepCrit == 1) {
-            double vx,vy,vz;
-            float d2,dir,dir2;
-            float fx,fy,fz;
-            float rhopmax,rhopmaxlocal;
-            float summ;
-            float fourh2;
-            int n;
-            ILPTILE tile;
-
+    if (SPHoptions->doGravity) {
+        for ( i=0; i<wp->nP; i++ ) {
+            double *c = wp->c;
+            float *in = wp->pInfoIn[i].r;
+            r[0] = c[0] + in[0];
+            r[1] = c[1] + in[1];
+            r[2] = c[2] + in[2];
+            //p = wp->pPart[i];
+            //pkdGetPos1(p->r,r);
+            v = pkdVel(pkd,p);
             /*
-            ** GravStep if iTimeStepCrit =
-            ** 0: Mean field regime for dynamical time (normal/standard setting)
-            ** 1: Gravitational scattering regime for dynamical time with eccentricity correction
+            ** Set value for time-step, note that we have the current ewald acceleration
+            ** in this now as well!
             */
-            rhopmax = 0.0;
-            ILP_LOOP(ilp,tile) {
-                int blk,prt;
-                for ( blk=0; blk<=tile->lstTile.nBlocks; ++blk ) {
-                    n = (blk==tile->lstTile.nBlocks ? tile->lstTile.nInLast : ilp->lst.nPerBlock);
-                    for (prt=0; prt<n; ++prt) {
-                        if (p->iOrder < wp->ts->nPartColl || tile->xtr[blk].iOrder.i[prt] < wp->ts->nPartColl) {
-                            fx = r[0] - ilp->cx + tile->blk[blk].dx.f[prt];
-                            fy = r[1] - ilp->cy + tile->blk[blk].dy.f[prt];
-                            fz = r[2] - ilp->cz + tile->blk[blk].dz.f[prt];
-                            d2 = fx*fx + fy*fy + fz*fz;
-                            if (p->iOrder == tile->xtr[blk].iOrder.i[prt]) continue;
-                            fourh2 = softmassweight(fMass,4*fSoft*fSoft,
-                                                    tile->blk[blk].m.f[prt],tile->blk[blk].fourh2.f[prt]);
-                            if (d2 > fourh2) {
-                                SQRT1(d2,dir);
-                                dir2 = dir*dir*dir;
+            if (ts->bGravStep && wp->ts->iTimeStepCrit == 1) {
+                double vx,vy,vz;
+                float d2,dir,dir2;
+                float fx,fy,fz;
+                float rhopmax,rhopmaxlocal;
+                float summ;
+                float fourh2;
+                int n;
+                ILPTILE tile;
+
+                /*
+                ** GravStep if iTimeStepCrit =
+                ** 0: Mean field regime for dynamical time (normal/standard setting)
+                ** 1: Gravitational scattering regime for dynamical time with eccentricity correction
+                */
+                rhopmax = 0.0;
+                ILP_LOOP(ilp,tile) {
+                    int blk,prt;
+                    for ( blk=0; blk<=tile->lstTile.nBlocks; ++blk ) {
+                        n = (blk==tile->lstTile.nBlocks ? tile->lstTile.nInLast : ilp->lst.nPerBlock);
+                        for (prt=0; prt<n; ++prt) {
+                            if (p->iOrder < wp->ts->nPartColl || tile->xtr[blk].iOrder.i[prt] < wp->ts->nPartColl) {
+                                fx = r[0] - ilp->cx + tile->blk[blk].dx.f[prt];
+                                fy = r[1] - ilp->cy + tile->blk[blk].dy.f[prt];
+                                fz = r[2] - ilp->cz + tile->blk[blk].dz.f[prt];
+                                d2 = fx*fx + fy*fy + fz*fz;
+                                if (p->iOrder == tile->xtr[blk].iOrder.i[prt]) continue;
+                                fourh2 = softmassweight(fMass,4*fSoft*fSoft,
+                                                        tile->blk[blk].m.f[prt],tile->blk[blk].fourh2.f[prt]);
+                                if (d2 > fourh2) {
+                                    SQRT1(d2,dir);
+                                    dir2 = dir*dir*dir;
+                                }
+                                else {
+                                    /*
+                                    ** This uses the Dehnen K1 kernel function now, it's fast!
+                                    */
+                                    SQRT1(fourh2,dir);
+                                    dir2 = dir*dir;
+                                    d2 *= dir2;
+                                    dir2 *= dir;
+                                    d2 = 1 - d2;
+                                    dir *= 1.0f + d2*(0.5f + d2*(3.0f/8.0f + d2*(45.0f/32.0f)));
+                                    dir2 *= 1.0f + d2*(1.5f + d2*(135.0f/16.0f));
+                                }
+                                summ = fMass+tile->blk[blk].m.f[prt];
+                                rhopmaxlocal = summ*dir2;
+                                vx = v[0] - tile->xtr[blk].vx.d[prt];
+                                vy = v[1] - tile->xtr[blk].vy.d[prt];
+                                vz = v[2] - tile->xtr[blk].vz.d[prt];
+                                rhopmaxlocal = pkdRho1(rhopmaxlocal,summ,dir,
+                                                       fx,fy,fz,vx,vy,vz,wp->ts->dEccFacMax);
+                                rhopmax = (rhopmaxlocal > rhopmax)?rhopmaxlocal:rhopmax;
                             }
-                            else {
-                                /*
-                                ** This uses the Dehnen K1 kernel function now, it's fast!
-                                */
-                                SQRT1(fourh2,dir);
-                                dir2 = dir*dir;
-                                d2 *= dir2;
-                                dir2 *= dir;
-                                d2 = 1 - d2;
-                                dir *= 1.0f + d2*(0.5f + d2*(3.0f/8.0f + d2*(45.0f/32.0f)));
-                                dir2 *= 1.0f + d2*(1.5f + d2*(135.0f/16.0f));
-                            }
-                            summ = fMass+tile->blk[blk].m.f[prt];
-                            rhopmaxlocal = summ*dir2;
-                            vx = v[0] - tile->xtr[blk].vx.d[prt];
-                            vy = v[1] - tile->xtr[blk].vy.d[prt];
-                            vz = v[2] - tile->xtr[blk].vz.d[prt];
-                            rhopmaxlocal = pkdRho1(rhopmaxlocal,summ,dir,
-                                                   fx,fy,fz,vx,vy,vz,wp->ts->dEccFacMax);
-                            rhopmax = (rhopmaxlocal > rhopmax)?rhopmaxlocal:rhopmax;
                         }
                     }
                 }
+                wp->pInfoOut[i].rhopmax = rhopmax;
             }
-            wp->pInfoOut[i].rhopmax = rhopmax;
-        }
-    } /* end of i-loop cells & particles */
+        } /* end of i-loop cells & particles */
+    }
 #endif
 
     pkdParticleWorkDone(wp);

@@ -44,6 +44,13 @@ typedef union {
 } ilpFloat;
 
 typedef union {
+    int32_t i[ILP_PART_PER_BLK];
+#if !defined(__CUDACC__)
+    v_i p[ILP_PART_PER_BLK/SIMD_WIDTH];
+#endif
+} ilpInt32;
+
+typedef union {
     double d[ILP_PART_PER_BLK];
 } ilpDouble;
 
@@ -55,6 +62,13 @@ typedef struct {
     ilpFloat dx, dy, dz;    /* Offset from ilp->cx, cy, cz */
     ilpFloat m;             /* Mass */
     ilpFloat fourh2;        /* Softening: calculated */
+    /* SPH fields follow */
+    ilpFloat fBall, Omega;  /* Ball and correction factor */
+    ilpFloat vx, vy, vz;    /* Velocity */
+    ilpFloat rho;           /* Density */
+    ilpFloat P;             /* Pressure */
+    ilpFloat c;             /* sound speed */
+    ilpInt32 species;       /* particle species, can be compared with FIO_SPECIES */
 } ILP_BLK;
 
 #ifdef TIMESTEP_CRITICAL
@@ -94,7 +108,8 @@ void ilpFinish(ILP ilp);
 */
 
 static inline void ilpAppendFloat(ILP ilp, float X, float Y, float Z, float M, float S,
-                                  uint64_t I, float VX, float VY, float VZ ) {
+                                  uint64_t I, float VX, float VY, float VZ, float fBall, float Omega, float rho,
+                                  float P, float c, int32_t species ) {
     ILPTILE tile = (ILPTILE)lstReposition(&ilp->lst);
     uint_fast32_t blk = tile->lstTile.nBlocks;
     uint_fast32_t prt = tile->lstTile.nInLast;
@@ -103,6 +118,15 @@ static inline void ilpAppendFloat(ILP ilp, float X, float Y, float Z, float M, f
     tile->blk[blk].dz.f[prt] = (Z);
     tile->blk[blk].m.f[prt] = (M);
     tile->blk[blk].fourh2.f[prt] = (S);
+    tile->blk[blk].vx.f[prt] = (VX);
+    tile->blk[blk].vy.f[prt] = (VY);
+    tile->blk[blk].vz.f[prt] = (VZ);
+    tile->blk[blk].fBall.f[prt] = (fBall);
+    tile->blk[blk].Omega.f[prt] = (Omega);
+    tile->blk[blk].rho.f[prt] = (rho);
+    tile->blk[blk].P.f[prt] = (P);
+    tile->blk[blk].c.f[prt] = (c);
+    tile->blk[blk].species.i[prt] = (species);
     assert( (M) > 0.0 );
 #ifdef TIMESTEP_CRITICAL
     tile->xtr[blk].iOrder.i[prt] = (I);
@@ -114,8 +138,10 @@ static inline void ilpAppendFloat(ILP ilp, float X, float Y, float Z, float M, f
 }
 
 static inline void ilpAppend(ILP ilp, double X, double Y, double Z, float M, float S,
-                             uint64_t I, float VX, float VY, float VZ ) {
-    ilpAppendFloat(ilp,(float)((ilp)->cx-(X)),(float)((ilp)->cy-(Y)),(float)((ilp)->cz-(Z)),M,S,I,VX,VY,VZ);
+                             uint64_t I, float VX, float VY, float VZ, float fBall, float Omega, float rho,
+                             float P, float c, int32_t species ) {
+    ilpAppendFloat(ilp,(float)((ilp)->cx-(X)),(float)((ilp)->cy-(Y)),(float)((ilp)->cz-(Z)),M,S,I,VX,VY,VZ,
+                   fBall,Omega,rho,P,c,species);
 }
 #define ILP_LOOP(ilp,ptile) for( ptile=(ILPTILE)((ilp)->lst.list); ptile!=NULL; ptile=(ILPTILE)(ptile->lstTile.next) )
 

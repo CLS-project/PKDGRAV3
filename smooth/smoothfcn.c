@@ -97,6 +97,15 @@
 void NullSmooth(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 }
 
+void initBall(void *vpkd, void *p) {
+    pkdSetBall(vpkd,(PARTICLE *)p,0.0);
+}
+
+void BallSmooth(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
+    PKD pkd = smf->pkd;
+    pkdSetBall(pkd,p,fBall);
+}
+
 void initDensity(void *vpkd, void *p) {
     pkdSetDensity(vpkd,(PARTICLE *)p,0.0);
 }
@@ -583,8 +592,8 @@ void initDistDeletedGas(void *vpkd,void *vp) {
     PKD pkd = (PKD) vpkd;
     PARTICLE *p = vp;
     /*
-     * Zero out accumulated quantities.
-     */
+    * Zero out accumulated quantities.
+    */
     if (pkdIsDeleted(pkd,p)) return; /* deleted */
 
     *((float *) pkdField(p,pkd->oFieldOffset[oMass]))=0;
@@ -715,8 +724,8 @@ void initDistSNEnergy(void *vpkd,void *vp) {
     PKD pkd = (PKD) vpkd;
     PARTICLE *p = vp;
     /*
-     * Zero out accumulated quantities.
-     */
+    * Zero out accumulated quantities.
+    */
     if (!pkdIsGas(pkd,p)) return; /* not gas */
 
     *((float *) pkdField(p,pkd->oFieldOffset[oMass]))=0;

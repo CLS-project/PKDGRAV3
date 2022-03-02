@@ -119,6 +119,8 @@ public:
     explicit CudaClient(mdl::mdlClass &mdl);
     void flushCUDA();
     int  queuePP(workParticle *wp, ilpTile *tile, bool bGravStep);
+    int  queueDensity(workParticle *wp, ilpTile *tile, bool bGravStep);
+    int  queueSPHForces(workParticle *wp, ilpTile *tile, bool bGravStep);
     int  queuePC(workParticle *wp, ilcTile *tile, bool bGravStep);
     int  queueEwald(workParticle *wp);
     void setupEwald(struct EwaldVariables *const ew, EwaldTable *const ewt);

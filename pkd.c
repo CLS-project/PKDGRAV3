@@ -395,6 +395,11 @@ void pkdInitialize(
     else
         pkd->oFieldOffset[oSph] = 0;
 
+    if ( mMemoryModel & PKD_MODEL_NEW_SPH )
+        pkd->oFieldOffset[oNewSph] = pkdParticleAddStruct(pkd,sizeof(NEWSPHFIELDS));
+    else
+        pkd->oFieldOffset[oNewSph] = 0;
+
     if ( mMemoryModel & PKD_MODEL_STAR ) {
 #ifdef OPTIM_UNION_EXTRAFIELDS
         pkd->oFieldOffset[oStar] = 1;  // this value is of no relevance as long as it is >0
@@ -445,10 +450,10 @@ void pkdInitialize(
     else
         pkd->oFieldOffset[oSoft] = 0;
 
-    if ( mMemoryModel & (PKD_MODEL_SPH|PKD_MODEL_BALL) )
+    if ( mMemoryModel & (PKD_MODEL_SPH|PKD_MODEL_NEW_SPH|PKD_MODEL_BALL) )
         pkd->oFieldOffset[oBall] = pkdParticleAddFloat(pkd,1);
     else pkd->oFieldOffset[oBall] = 0;
-    if ( mMemoryModel & (PKD_MODEL_SPH|PKD_MODEL_DENSITY) )
+    if ( mMemoryModel & (PKD_MODEL_SPH|PKD_MODEL_NEW_SPH|PKD_MODEL_DENSITY) )
         pkd->oFieldOffset[oDensity] = pkdParticleAddFloat(pkd,1);
     else pkd->oFieldOffset[oDensity] = 0;
 
@@ -486,13 +491,15 @@ void pkdInitialize(
     pkd->oNodeVelocity = 0;
     if ( (mMemoryModel & PKD_MODEL_NODE_VEL) && sizeof(vel_t) == sizeof(double))
         pkd->oNodeVelocity = pkdNodeAddDouble(pkd,3);
+    if ( mMemoryModel & PKD_MODEL_SPH ) {
 #ifdef OPTIM_REORDER_IN_NODES
-    pkd->oNodeNgas = pkdNodeAddInt32(pkd,1);
+        pkd->oNodeNgas = pkdNodeAddInt32(pkd,1);
 #if (defined(STAR_FORMATION) && defined(FEEDBACK)) || defined(STELLAR_EVOLUTION)
-    pkd->oNodeNstar = pkdNodeAddInt32(pkd,1);
+        pkd->oNodeNstar = pkdNodeAddInt32(pkd,1);
 #endif
-    pkd->oNodeNbh = pkdNodeAddInt32(pkd,1);
+        pkd->oNodeNbh = pkdNodeAddInt32(pkd,1);
 #endif
+    }
     /*
     ** Three extra bounds are required by the fast gas SPH code.
     */
@@ -732,6 +739,8 @@ void pkdInitialize(
     pkd->hopGroups = NULL;
     pkd->hopRootIndex = NULL;
     pkd->hopRoots = NULL;
+
+    pkd->SPHoptions.TuFac = -1.0f;
     assert(pkdNodeSize(pkd) > 0);
 }
 
@@ -925,6 +934,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
     PARTICLE *p;
     STARFIELDS *pStar;
     SPHFIELDS *pSph;
+    NEWSPHFIELDS *pNewSph;
     BHFIELDS *pBH;
     float *pPot, dummypot;
     double r[3];
@@ -989,6 +999,13 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
         }
         else pSph = NULL;
 
+        /* Initialize New SPH fields if present */
+        if (pkd->oFieldOffset[oNewSph]) {
+            pNewSph = pkdField(p,pkd->oFieldOffset[oNewSph]);
+            pNewSph->u = pNewSph->uDot = pNewSph->divv = pNewSph->Omega = 0.0;
+        }
+        else pNewSph = NULL;
+
         /* Initialize Star fields if present */
         if (pkd->oFieldOffset[oStar]) {
             pStar = pkdField(p,pkd->oFieldOffset[oStar]);
@@ -999,86 +1016,91 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 
         eSpecies = fioSpecies(fio);
         switch (eSpecies) {
-        case FIO_SPECIES_SPH:
-            assert(dTuFac>0.0);
+        case FIO_SPECIES_SPH: ;
             float afSphOtherData[2];
             fioReadSph(fio,&iParticleID,r,vel,&fMass,&fSoft,pPot,
                        &fDensity,&u,&fMetals[0],afSphOtherData);
             pkdSetClass(pkd,fMass,fSoft,eSpecies,p);
             pkdSetDensity(pkd,p,fDensity);
-            pkdSetBall(pkd,p,afSphOtherData[0]);
-            if (pkd->oFieldOffset[oSph]) {
-                pSph = pkdSph(pkd, p);
+            if (pNewSph) {
+                pNewSph->u = -u; /* Can't do conversion until density known */
+            }
+            else {
+                assert(dTuFac>0.0);
+                pkdSetBall(pkd,p,afSphOtherData[0]);
+                if (pkd->oFieldOffset[oSph]) {
+                    pSph = pkdSph(pkd, p);
 #ifndef OPTIM_REMOVE_UNUSED
-                pSph->u = pSph->uPred = pSph->uDot = pSph->c = pSph->divv =
-                        pSph->BalsaraSwitch = pSph->diff =
-                                                  pSph->fMetals = pSph->fMetalsPred = pSph->fMetalsDot = 0.0;
+                    pSph->u = pSph->uPred = pSph->uDot = pSph->c = pSph->divv =
+                            pSph->BalsaraSwitch = pSph->diff =
+                                                      pSph->fMetals = pSph->fMetalsPred = pSph->fMetalsDot = 0.0;
 #endif
-                for (j = 0; j < ELEMENT_COUNT; j++) pSph->afElemMass[j] = fMetals[j] * fMass;
+                    for (j = 0; j < ELEMENT_COUNT; j++) pSph->afElemMass[j] = fMetals[j] * fMass;
 #ifdef HAVE_METALLICITY
-                pSph->fMetalMass = afSphOtherData[1] * fMass;
+                    pSph->fMetalMass = afSphOtherData[1] * fMass;
 #endif
-                // If the value is negative, means that it is a temperature
-                u = (u<0.0) ? -u*dTuFac : u;
+                    // If the value is negative, means that it is a temperature
+                    u = (u<0.0) ? -u*dTuFac : u;
 #ifndef OPTIM_REMOVE_UNUSED
-                pSph->u = u * dTuFac;
+                    pSph->u = u * dTuFac;
 #endif
-                /* IA: -unused- variables
-                pSph->fMetals = fMetals;
-                  pSph->uPred = pSph->u;
-                  pSph->fMetalsPred = pSph->fMetals;
-                          */
-                pSph->vPred[0] = vel[0]*sqrt(dvFac);
-                pSph->vPred[1] = vel[1]*sqrt(dvFac);
-                pSph->vPred[2] = vel[2]*sqrt(dvFac);
-                pSph->Frho = 0.0;
-                pSph->Fmom[0] = 0.0;
-                pSph->Fmom[1] = 0.0;
-                pSph->Fmom[2] = 0.0;
-                pSph->Fene = 0.0;
-                pSph->E = u + 0.5*(pSph->vPred[0]*pSph->vPred[0] +
-                                   pSph->vPred[1]*pSph->vPred[1] +
-                                   pSph->vPred[2]*pSph->vPred[2]);
-                pSph->E *= fMass;
-                pSph->Uint = u*fMass;
-                assert(pSph->E>0);
-                pSph->mom[0] = fMass*vel[0]*sqrt(dvFac);
-                pSph->mom[1] = fMass*vel[1]*sqrt(dvFac);
-                pSph->mom[2] = fMass*vel[2]*sqrt(dvFac);
-                pSph->lastMom[0] = 0.; // vel[0];
-                pSph->lastMom[1] = 0.; //vel[1];
-                pSph->lastMom[2] = 0.; //vel[2];
-                pSph->lastE = pSph->E;
+                    /* IA: -unused- variables
+                    pSph->fMetals = fMetals;
+                      pSph->uPred = pSph->u;
+                      pSph->fMetalsPred = pSph->fMetals;
+                              */
+                    pSph->vPred[0] = vel[0]*sqrt(dvFac);
+                    pSph->vPred[1] = vel[1]*sqrt(dvFac);
+                    pSph->vPred[2] = vel[2]*sqrt(dvFac);
+                    pSph->Frho = 0.0;
+                    pSph->Fmom[0] = 0.0;
+                    pSph->Fmom[1] = 0.0;
+                    pSph->Fmom[2] = 0.0;
+                    pSph->Fene = 0.0;
+                    pSph->E = u + 0.5*(pSph->vPred[0]*pSph->vPred[0] +
+                                       pSph->vPred[1]*pSph->vPred[1] +
+                                       pSph->vPred[2]*pSph->vPred[2]);
+                    pSph->E *= fMass;
+                    pSph->Uint = u*fMass;
+                    assert(pSph->E>0);
+                    pSph->mom[0] = fMass*vel[0]*sqrt(dvFac);
+                    pSph->mom[1] = fMass*vel[1]*sqrt(dvFac);
+                    pSph->mom[2] = fMass*vel[2]*sqrt(dvFac);
+                    pSph->lastMom[0] = 0.; // vel[0];
+                    pSph->lastMom[1] = 0.; //vel[1];
+                    pSph->lastMom[2] = 0.; //vel[2];
+                    pSph->lastE = pSph->E;
 #ifdef ENTROPY_SWITCH
-                pSph->S = 0.0;
-                pSph->lastS = 0.0;
-                pSph->maxEkin = 0.0;
+                    pSph->S = 0.0;
+                    pSph->lastS = 0.0;
+                    pSph->maxEkin = 0.0;
 #endif
-                pSph->lastUint = pSph->Uint;
-                pSph->lastHubble = 0.0;
-                pSph->lastMass = fMass;
-                pSph->lastAcc[0] = 0.;
-                pSph->lastAcc[1] = 0.;
-                pSph->lastAcc[2] = 0.;
+                    pSph->lastUint = pSph->Uint;
+                    pSph->lastHubble = 0.0;
+                    pSph->lastMass = fMass;
+                    pSph->lastAcc[0] = 0.;
+                    pSph->lastAcc[1] = 0.;
+                    pSph->lastAcc[2] = 0.;
 #ifndef USE_MFM
-                pSph->lastDrDotFrho[0] = 0.;
-                pSph->lastDrDotFrho[1] = 0.;
-                pSph->lastDrDotFrho[2] = 0.;
-                pSph->drDotFrho[0] = 0.;
-                pSph->drDotFrho[1] = 0.;
-                pSph->drDotFrho[2] = 0.;
+                    pSph->lastDrDotFrho[0] = 0.;
+                    pSph->lastDrDotFrho[1] = 0.;
+                    pSph->lastDrDotFrho[2] = 0.;
+                    pSph->drDotFrho[0] = 0.;
+                    pSph->drDotFrho[1] = 0.;
+                    pSph->drDotFrho[2] = 0.;
 #endif
-                //pSph->fLastBall = 0.0;
-                pSph->lastUpdateTime = -1.;
-                // pSph->nLastNeighs = 100;
+                    //pSph->fLastBall = 0.0;
+                    pSph->lastUpdateTime = -1.;
+                    // pSph->nLastNeighs = 100;
 #ifdef COOLING
-                pSph->lastCooling = 0.;
-                pSph->cooling_dudt = 0.;
+                    pSph->lastCooling = 0.;
+                    pSph->cooling_dudt = 0.;
 #endif
 #ifdef FEEDBACK
-                pSph->fAccFBEnergy = 0.;
+                    pSph->fAccFBEnergy = 0.;
 #endif
-                pSph->uWake = 0;
+                    pSph->uWake = 0;
+                }
             }
             break;
         case FIO_SPECIES_DARK:
@@ -1720,6 +1742,7 @@ void pkdRestore(PKD pkd,const char *fname) {
 static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,BND *bnd,PARTICLE *p) {
     const STARFIELDS *pStar;
     const SPHFIELDS *pSph;
+    const NEWSPHFIELDS *pNewSph;
     const BHFIELDS *pBH;
     float *pPot, dummypot;
     double v[3],r[3];
@@ -1754,6 +1777,12 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,BND *bnd,
     else v[0] = v[1] = v[2] = 0.0;
 
     /* Initialize SPH fields if present */
+    if (pkd->oFieldOffset[oSph]) pSph = pkdField(p,pkd->oFieldOffset[oSph]);
+    else pSph = NULL;
+    if (pkd->oFieldOffset[oNewSph]) pNewSph = pkdField(p,pkd->oFieldOffset[oNewSph]);
+    else pNewSph = NULL;
+    if (pkd->oFieldOffset[oStar]) pStar = pkdField(p,pkd->oFieldOffset[oStar]);
+    else pStar = NULL;
     fMass = pkdMass(pkd,p);
     fSoft = pkdSoft0(pkd,p);
     if (pkd->fSoftFix >= 0.0) fSoft = 0.0;
@@ -1795,54 +1824,67 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,BND *bnd,
     //}
     switch (pkdSpecies(pkd,p)) {
     case FIO_SPECIES_SPH:
-        pSph = pkdSph(pkd,p);
-        assert(pSph);
-        {
+        if (pkd->oFieldOffset[oNewSph]) {
+            assert(pNewSph);
+            assert(pkd->SPHoptions.TuFac > 0.0f);
+            double T;
+            float otherData[3];
+            otherData[0] = otherData[1] = otherData[2] = 0.0f;
+            T = EOSTofRhoU(fDensity, pNewSph->u, &pkd->SPHoptions);
+            for (int k = 0; k < ELEMENT_COUNT; k++) fMetals[k] = 0.0f;
+            fioWriteSph(fio,iParticleID,r,v,fMass,fSoft,*pPot,
+                        fDensity,T,&fMetals[0],0.0f,T,otherData);
+        }
+        else {
+            pSph = pkdSph(pkd,p);
+            assert(pSph);
+            {
 #if defined(COOLING)
-            const double dRedshift = dvFacGas - 1.;
-            float temperature =  cooling_get_temperature(pkd, dRedshift, pkd->cooling, p, pSph);
+                const double dRedshift = dvFacGas - 1.;
+                float temperature =  cooling_get_temperature(pkd, dRedshift, pkd->cooling, p, pSph);
 #elif defined(GRACKLE)
-            gr_float fDensity = pkdDensity(pkd,p);
-            gr_float fMetalDensity = pSph->fMetalMass*pSph->omega;
-            gr_float fSpecificUint = pSph->Uint/pkdMass(pkd,p);
+                gr_float fDensity = pkdDensity(pkd,p);
+                gr_float fMetalDensity = pSph->fMetalMass*pSph->omega;
+                gr_float fSpecificUint = pSph->Uint/pkdMass(pkd,p);
 
-            // Set field arrays.
-            pkd->grackle_field->density[0]         = fDensity;
-            pkd->grackle_field->internal_energy[0] = fSpecificUint;
-            pkd->grackle_field->x_velocity[0]      = 1.; // Velocity input is not used
-            pkd->grackle_field->y_velocity[0]      = 1.;
-            pkd->grackle_field->z_velocity[0]      = 1.;
-            // for metal_cooling = 1
-            pkd->grackle_field->metal_density[0]   = fMetalDensity;
+                // Set field arrays.
+                pkd->grackle_field->density[0]         = fDensity;
+                pkd->grackle_field->internal_energy[0] = fSpecificUint;
+                pkd->grackle_field->x_velocity[0]      = 1.; // Velocity input is not used
+                pkd->grackle_field->y_velocity[0]      = 1.;
+                pkd->grackle_field->z_velocity[0]      = 1.;
+                // for metal_cooling = 1
+                pkd->grackle_field->metal_density[0]   = fMetalDensity;
 
-            int err;
-            gr_float temperature;
-            err = local_calculate_temperature(pkd->grackle_data, pkd->grackle_rates, pkd->grackle_units, pkd->grackle_field,
-                                              &temperature);
-            if (err == 0) fprintf(stderr, "Error in calculate_temperature.\n");
+                int err;
+                gr_float temperature;
+                err = local_calculate_temperature(pkd->grackle_data, pkd->grackle_rates, pkd->grackle_units, pkd->grackle_field,
+                                                  &temperature);
+                if (err == 0) fprintf(stderr, "Error in calculate_temperature.\n");
 #else
-            float temperature = 0;
+                float temperature = 0;
 #endif
 
-            for (int k = 0; k < ELEMENT_COUNT; k++) fMetals[k] = pSph->afElemMass[k] / fMass;
+                for (int k = 0; k < ELEMENT_COUNT; k++) fMetals[k] = pSph->afElemMass[k] / fMass;
 
 #ifdef STAR_FORMATION
-            float SFR = pSph->SFR;
+                float SFR = pSph->SFR;
 #else
-            float SFR=0.;
+                float SFR=0.;
 #endif
 
-            fBall = pkdBall(pkd,p);
-            float otherData[3];
-            otherData[0] = SFR;
-            // We may have problem if the number of groups increses more than 2^24, but should be enough
-            otherData[1] = pkd->oFieldOffset[oGroup] ? (float)pkdGetGroup(pkd,p) : 0 ;
+                fBall = pkdBall(pkd,p);
+                float otherData[3];
+                otherData[0] = SFR;
+                // We may have problem if the number of groups increses more than 2^24, but should be enough
+                otherData[1] = pkd->oFieldOffset[oGroup] ? (float)pkdGetGroup(pkd,p) : 0 ;
 #ifdef HAVE_METALLICITY
-            otherData[2] = pSph->fMetalMass / fMass;
+                otherData[2] = pSph->fMetalMass / fMass;
 #endif
 
-            fioWriteSph(fio,iParticleID,r,v,fMass,fSoft,*pPot,
-                        fDensity,pSph->Uint/fMass, &fMetals[0], fBall, temperature, &otherData[0]);
+                fioWriteSph(fio,iParticleID,r,v,fMass,fSoft,*pPot,
+                            fDensity,pSph->Uint/fMass, &fMetals[0], fBall, temperature, &otherData[0]);
+            }
         }
         break;
     case FIO_SPECIES_DARK: {
@@ -2202,11 +2244,19 @@ void pkdPhysicalSoft(PKD pkd,double dSoftMax,double dFac,int bSoftMaxMul) {
     pkd->fSoftMax = bSoftMaxMul ? HUGE_VALF : dSoftMax;
 }
 
+static void initSetMarked(void *vpkd, void *v) {}
+static void combSetMarked(void *vpkd, void *v1, const void *v2) {
+    PKD pkd = (PKD) vpkd;
+    PARTICLE *p1 = (PARTICLE *)v1;
+    const PARTICLE *p2 = (const PARTICLE *)v2;
+    if (p2->bMarked) p1->bMarked = 1;
+}
+
 void pkdGravAll(PKD pkd,
                 struct pkdKickParameters *kick,struct pkdLightconeParameters *lc,struct pkdTimestepParameters *ts,
                 double dTime,int nReps,int bPeriodic,
                 int bEwald,int nGroup,int iRoot1, int iRoot2,
-                double fEwCut,double fEwhCut,double dThetaMin,
+                double fEwCut,double fEwhCut,double dThetaMin,SPHOptions *SPHoptions,
                 uint64_t *pnActive,
                 double *pdPart,double *pdPartNumAccess,double *pdPartMissRatio,
                 double *pdCell,double *pdCellNumAccess,double *pdCellMissRatio,
@@ -2235,14 +2285,20 @@ void pkdGravAll(PKD pkd,
     /*
     ** Set up Ewald tables and stuff.
     */
-    if (bPeriodic && bEwald) {
+    if (bPeriodic && bEwald && SPHoptions->doGravity) {
         pkdEwaldInit(pkd,nReps,fEwCut,fEwhCut); /* ignored in Flop count! */
     }
     /*
     ** Start particle caching space (cell cache already active).
     */
-    mdlROcache(pkd->mdl,CID_PARTICLE,NULL,pkdParticleBase(pkd),pkdParticleSize(pkd),
-               pkdLocal(pkd));
+    if (SPHoptions->doSetDensityFlags) {
+        mdlCOcache(pkd->mdl,CID_PARTICLE,NULL,pkdParticleBase(pkd),pkdParticleSize(pkd),
+                   pkdLocal(pkd),NULL,initSetMarked,combSetMarked);
+    }
+    else {
+        mdlROcache(pkd->mdl,CID_PARTICLE,NULL,pkdParticleBase(pkd),pkdParticleSize(pkd),
+                   pkdLocal(pkd));
+    }
 
     /*
     ** Calculate newtonian gravity, including replicas if any.
@@ -2255,7 +2311,7 @@ void pkdGravAll(PKD pkd,
 
     *pnActive = pkdGravWalk(pkd,kick,lc,ts,
                             dTime,nReps,bPeriodic && bEwald,nGroup,
-                            iRoot1,iRoot2,0,dThetaMin,pdFlop,&dPartSum,&dCellSum);
+                            iRoot1,iRoot2,0,dThetaMin,pdFlop,&dPartSum,&dCellSum,SPHoptions);
 
     dActive = (double)(*pnActive);
     if (*pnActive) {
@@ -2577,7 +2633,8 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
     PARTICLE *p;
     vel_t *v;
     float *a;
-    SPHFIELDS *sph;
+    float dfBalldt;
+    NEWSPHFIELDS *NewSph;
     int i,j;
     double rfinal[3],r0[3],dMin[3],dMax[3],dr[3];
     int pLower, pUpper;
@@ -2603,7 +2660,7 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
     ** Update particle positions
     */
     if (bDoGas) {
-        if (1 /*pkd->param.bMeshlessHydro*/) {
+        if (pkd->oFieldOffset[oSph] /*pkd->param.bMeshlessHydro*/) {
             assert(pkd->oFieldOffset[oSph]);
             assert(pkd->oFieldOffset[oAcceleration]);
             for (i=pLower; i<=pUpper; ++i) {
@@ -2645,23 +2702,15 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
             }
         }
         else {
-            double dDeltaUPred = dDeltaTime;
-            assert(pkd->oFieldOffset[oSph]);
-            assert(pkd->oFieldOffset[oAcceleration]);
+            assert(pkd->oFieldOffset[oNewSph]);;
             for (i=pLower; i<=pUpper; ++i) {
                 p = pkdParticle(pkd,i);
                 v = pkdVel(pkd,p);
-                if (pkdIsGas(pkd,p)) {
-                    a = pkdAccel(pkd,p);
-                    sph = pkdSph(pkd,p);
-                    for (j=0; j<3; ++j) { /* NB: Pred quantities must be done before std. */
-                        sph->vPred[j] += a[j]*dDeltaVPred;
-                    }
-#ifndef OPTIM_REMOVE_UNUSED
-                    sph->uPred += sph->uDot*dDeltaUPred;
-                    sph->fMetalsPred += sph->fMetalsDot*dDeltaUPred;
-#endif
-                }
+                // if (pkdIsGas(pkd,p)) {
+                // NewSph = pkdNewSph(pkd,p);
+                // dfBalldt = 1.0f / 3.0f * pkdBall(pkd,p) * pkdDensity(pkd,p) * NewSph->divv;
+                // pkdSetBall(pkd,p,pkdBall(pkd,p) + dDelta * dfBalldt);
+                // }
                 for (j=0; j<3; ++j) {
                     pkdSetPos(pkd,p,j,rfinal[j] = pkdPos(pkd,p,j) + dDelta*v[j]);
                 }
@@ -3517,13 +3566,13 @@ void pkdColNParts(PKD pkd, int *pnNew, int *nDeltaGas, int *nDeltaDark,
             --newnLocal; /* no idea about type now -- type info lost */
             --ndGas; /* JW: Hack: assume only gas deleted fix this! */
             /*      if (pkdIsGas(pkd, p))
-                    --ndGas;
-                    else if (pkdIsDark(pkd, p))
-                    --ndDark;
-                    else if (pkdIsStar(pkd, p))
-                    --ndStar;
-                    else
-                    mdlassert(pkd->mdl,0);*/
+            --ndGas;
+                else if (pkdIsDark(pkd, p))
+              --ndDark;
+                else if (pkdIsStar(pkd, p))
+              --ndStar;
+                else
+                mdlassert(pkd->mdl,0);*/
             if (pkdIsActive(pkd,p))
                 --pkd->nActive;
         }
@@ -3687,8 +3736,8 @@ void pkdSetGlobalDt(PKD pkd, uint8_t minDt) {
 ** Conflicting options (e.g., setIfTrue and setIfFalse) result in a toggle.
 */
 static inline int isSelected( int predicate, int setIfTrue, int clearIfFalse, int value ) {
-    int s = ((predicate!=0)&(setIfTrue>0)) | (!(predicate!=0)&(clearIfFalse<0));
-    int c = ((predicate!=0)&(setIfTrue<0)) | (!(predicate!=0)&(clearIfFalse>0));
+    int s = ((predicate!=0)&(setIfTrue>0)) | (!(predicate!=0)&(clearIfFalse==0));
+    int c = ((predicate!=0)&(setIfTrue==0)) | (!(predicate!=0)&(clearIfFalse>0));
     return (~s&~c&value) | (s&~(c&value));
 }
 

@@ -6,6 +6,16 @@ pipelines:
         script:
           - cmake .
           - make
+  pull-requests:
+    '**':
+      - step:
+           runs-on: self.hosted
+           script:
+             - cmake .
+             - make -j 8
+             - ln -s /build/euclid_flagship_500.hdf5
+             - ln -s /build/b0-final* ./
+             - env GTEST_OUTPUT="xml:test-reports/" OMP_NUM_THREADS=8 make test ARGS=--verbose
   branches:
      develop:
        - step:
