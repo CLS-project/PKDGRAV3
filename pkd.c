@@ -491,7 +491,7 @@ void pkdInitialize(
     pkd->oNodeVelocity = 0;
     if ( (mMemoryModel & PKD_MODEL_NODE_VEL) && sizeof(vel_t) == sizeof(double))
         pkd->oNodeVelocity = pkdNodeAddDouble(pkd,3);
-    if ( mMemoryModel & PKD_MODEL_SPH ) {
+    if ( mMemoryModel & (PKD_MODEL_SPH|PKD_MODEL_BH) ) {
 #ifdef OPTIM_REORDER_IN_NODES
         pkd->oNodeNgas = pkdNodeAddInt32(pkd,1);
 #if (defined(STAR_FORMATION) && defined(FEEDBACK)) || defined(STELLAR_EVOLUTION)

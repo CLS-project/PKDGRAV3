@@ -11,6 +11,11 @@ void MSR::BHMerger(double dTime) {
 
     TimerStart(TIMER_BHS);
 
+#ifdef DEBUG_BH_ONLY
+    // This was not performed in the main loop because there is no gas
+    ReorderWithinNodes();
+#endif
+
     in.nSmooth = param.nSmooth;
     in.bPeriodic = param.bPeriodic;
     in.bSymmetric = 0;
@@ -133,7 +138,6 @@ void smBHmerger(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
                     dv2 += (pv[j]-qv[j])*(pv[j]-qv[j]);
                 }
 
-                //printf("%e \t %e \n", dv2, pkdMass(pkd,p)/pkdSoft(pkd,p));
                 if (dv2 < pmass/pkdSoft(pkd,p)) {
                     // We have a merger!!
                     printf("Merger!!! %e %e \n", pmass, qmass);

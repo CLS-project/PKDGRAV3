@@ -240,8 +240,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
         }
     }
     if (DoGas() && MeshlessHydro()) {
-        /* Initialize SPH, Cooling and SF/FB and gas time step */
-        CoolSetup(dTime);
+        InitSph(dTime, dDelta);
     }
 #ifdef BLACKHOLES
     uRungMax = GetMinDt();
