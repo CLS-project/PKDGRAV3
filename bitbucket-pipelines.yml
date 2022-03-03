@@ -1,4 +1,4 @@
-image: dpotter/pkdgrav3-build
+image: dpotter/pkdgrav3-build:latest
 
 pipelines:
   default:
