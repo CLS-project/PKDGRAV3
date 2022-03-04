@@ -18,7 +18,8 @@ pipelines:
              - env GTEST_OUTPUT="xml:test-reports/" OMP_NUM_THREADS=8 make test ARGS=--verbose
   branches:
      develop:
-       - step:
+       - parallel:
+         - step:
            runs-on:
              - 'self.hosted'
              - 'gpu'
@@ -29,7 +30,7 @@ pipelines:
              - ln -s /build/euclid_flagship_500.hdf5
              - ln -s /build/b0-final* ./
              - env GTEST_OUTPUT="xml:test-reports/" OMP_NUM_THREADS=8 make test ARGS=--verbose
-       - step:
+         - step:
            runs-on:
              - 'self.hosted'
              - 'avx512'
