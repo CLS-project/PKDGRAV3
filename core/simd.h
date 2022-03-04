@@ -344,6 +344,7 @@ inline mmask<__mmask16> operator>(vec<__m512,float> const &a,vec<__m512,float> c
 inline mmask<__mmask16> operator<(vec<__m512,float> const &a,vec<__m512,float> const &b) { return _mm512_cmp_ps_mask(a,b,_CMP_LT_OQ); }
 inline mmask<__mmask16> operator>=(vec<__m512,float> const &a,vec<__m512,float> const &b) { return _mm512_cmp_ps_mask(a,b,_CMP_GE_OQ); }
 inline mmask<__mmask16> operator<=(vec<__m512,float> const &a,vec<__m512,float> const &b) { return _mm512_cmp_ps_mask(a,b,_CMP_LE_OQ); }
+inline vec<__m512,float> sqrt(vec<__m512,float> const &r2) { return _mm512_sqrt_ps(r2); }
 #ifdef __AVX512DQ__
 inline vec<__m512,float> operator&(vec<__m512,float> const &a,vec<__m512,float> const &b) { return _mm512_and_ps(a,b); }
 inline vec<__m512,float> operator|(vec<__m512,float> const &a,vec<__m512,float> const &b) { return _mm512_or_ps(a,b); }
