@@ -18,18 +18,22 @@
 #ifndef CUDA_DEVICE
     #define CUDA_DEVICE
 #endif
+template<class F=float>
+struct ResultPC {
+    F ax, ay, az, pot;
+    F ir, norm;
+};
 template<class F,class M,bool bGravStep>
-CUDA_DEVICE void EvalPC(
-    const F &Pdx, const F &Pdy, const F &Pdz, const F &Psmooth2, // Particle
-    const F &Idx, const F &Idy, const F &Idz, const F &Im, const F &Iu, // Interaction(s)
-    const F &Ixxxx,const F &Ixxxy,const F &Ixxxz,const F &Ixxyz,const F &Ixxyy,const F &Iyyyz,const F &Ixyyz,const F &Ixyyy,const F &Iyyyy,
-    const F &Ixxx,const F &Ixyy,const F &Ixxy,const F &Iyyy,const F &Ixxz,const F &Iyyz,const F &Ixyz,
-    const F &Ixx,const F &Ixy,const F &Ixz,const F &Iyy,const F &Iyz,
+CUDA_DEVICE ResultPC<F> EvalPC(
+    F Pdx, F Pdy, F Pdz, F Psmooth2, // Particle
+    F Idx, F Idy, F Idz, F Im, F Iu, // Interaction(s)
+    F Ixxxx,F Ixxxy,F Ixxxz,F Ixxyz,F Ixxyy,F Iyyyz,F Ixyyz,F Ixyyy,F Iyyyy,
+    F Ixxx,F Ixyy,F Ixxy,F Iyyy,F Ixxz,F Iyyz,F Ixyz,F Ixx,F Ixy,F Ixz,F Iyy,F Iyz,
 #ifdef USE_DIAPOLE
-    const F &Ix, const F &Iy, const F &Iz,
+    F Ix, F Iy, F Iz,
 #endif
-    F &ax, F &ay, F &az, F &pot,     // Results
-    const F &Pax, const F &Pay, const F &Paz,const F &imaga,F &ir, F &norm) {
+    F Pax, F Pay, F Paz,F imaga) {
+    ResultPC<F> result;
     const F onethird = 1.0f/3.0f;
     F dx = Idx + Pdx;
     F dy = Idy + Pdy;
@@ -79,7 +83,7 @@ CUDA_DEVICE void EvalPC(
     xz = g2*(-(Ixx + Iyy)*z + Ixz*x + Iyz*y);
     g2 = 0.5f*(xx*x + xy*y + xz*z);
     F g0 = dir * Im;
-    pot = -(g0 + g2 + g3 + g4);
+    result.pot = -(g0 + g2 + g3 + g4);
     g0 += 5.0f*g2 + 7.0f*g3 + 9.0f*g4;
 #ifdef USE_DIAPOLE
     yy = g1*Ix;
@@ -93,15 +97,16 @@ CUDA_DEVICE void EvalPC(
     yz = 0.0f;
     zz = 0.0f;
 #endif
-    ax = dir*(yy + xx + xxx + tx - x*g0);
-    ay = dir*(yz + xy + xxy + ty - y*g0);
-    az = dir*(zz + xz + xxz + tz - z*g0);
+    result.ax = dir*(yy + xx + xxx + tx - x*g0);
+    result.ay = dir*(yz + xy + xxy + ty - y*g0);
+    result.az = dir*(zz + xz + xxz + tz - z*g0);
 
     /* Calculations for determining the timestep. */
     if (bGravStep) {
-        F adotai = Pax*ax + Pay*ay + Paz*az;
+        F adotai = Pax*result.ax + Pay*result.ay + Paz*result.az;
         adotai = maskz_mov(adotai>0.0f & d2>Psmooth2,adotai) * imaga;
-        norm = adotai * adotai;
-        ir = dir * norm;
+        result.norm = adotai * adotai;
+        result.ir = dir * result.norm;
     }
+    return result;
 }

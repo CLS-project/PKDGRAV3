@@ -33,7 +33,6 @@ void pkdGravEvalPC(PINFOIN *pPart, int nBlocks, int nInLast, ILC_BLK *blk,  PINF
     fvec tx,ty,tz;
     fvec xx,xy,xz,yy,yz,zz;
     fvec xxx,xxz,yyy,yyz,xxy,xyy,xyz;
-    fvec tax, tay, taz, tpot, ir, norm;
 
     int j, nLeft, nIntr;
 
@@ -99,24 +98,22 @@ void pkdGravEvalPC(PINFOIN *pPart, int nBlocks, int nInLast, ILC_BLK *blk,  PINF
             fvec Im = blk->m.p[j];
             fvec Iu = blk->u.p[j];
 
-            EvalPC<fvec,fmask,true>(
-                fx, fy, fz, pSmooth2,
-                Idx, Idy, Idz, Im, Iu,
-                Ixxxx, Ixxxy, Ixxxz, Ixxyz, Ixxyy, Iyyyz, Ixyyz, Ixyyy, Iyyyy,
-                Ixxx, Ixyy, Ixxy, Iyyy, Ixxz, Iyyz, Ixyz, Ixx, Ixy, Ixz, Iyy, Iyz,
+            auto result = EvalPC<fvec,fmask,true>(
+                              fx, fy, fz, pSmooth2,
+                              Idx, Idy, Idz, Im, Iu,
+                              Ixxxx, Ixxxy, Ixxxz, Ixxyz, Ixxyy, Iyyyz, Ixyyz, Ixyyy, Iyyyy,
+                              Ixxx, Ixyy, Ixxy, Iyyy, Ixxz, Iyyz, Ixyz, Ixx, Ixy, Ixz, Iyy, Iyz,
 #ifdef USE_DIAPOLE
-                Ix, Iy, Iz,
+                              Ix, Iy, Iz,
 #endif
-                tax, tay, taz, tpot,
-                Pax, Pay, Paz,imaga,
-                ir, norm);
+                              Pax, Pay, Paz,imaga);
 
-            dirsum += ir;
-            normsum += norm;
-            fPot += tpot;
-            ax += tax;
-            ay += tay;
-            az += taz;
+            dirsum += result.ir;
+            normsum += result.norm;
+            fPot += result.pot;
+            ax += result.ax;
+            ay += result.ay;
+            az += result.az;
         }
     }
 

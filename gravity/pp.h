@@ -18,13 +18,17 @@
 #ifndef CUDA_DEVICE
     #define CUDA_DEVICE
 #endif
-template<class F,class M,bool bGravStep>
-CUDA_DEVICE void EvalPP(
-    const F &Pdx, const F &Pdy, const F &Pdz, const F &Psmooth2,     // Particle
-    const F &Idx, const F &Idy, const F &Idz, const F &fourh2, const F &Im, // Interaction(s)
-    F &ax, F &ay, F &az, F &pot,         // results
-    const F &Pax, const F &Pay, const F &Paz,const F &imaga, F &ir, F &norm) {
-    static const float minSoftening = 1e-18f;
+template<class F=float>
+struct ResultPP {
+    F ax, ay, az, pot;
+    F ir, norm;
+};
+template<class F,class M>
+CUDA_DEVICE ResultPP<F> EvalPP(
+    F Pdx, F Pdy, F Pdz, F Psmooth2,       // Particle
+    F Idx, F Idy, F Idz, F fourh2, F Im) { // Interaction(s)
+    ResultPP<F> result;
+    constexpr float minSoftening = 1e-18f;
     F dx = Idx + Pdx;
     F dy = Idy + Pdy;
     F dz = Idz + Pdz;
@@ -45,26 +49,39 @@ CUDA_DEVICE void EvalPP(
         dir2 *= 1.0f + td2*(1.5f + td2*(135.0f/16.0f));
     }
     dir2 *= -Im;
-    ax = dx * dir2;
-    ay = dy * dir2;
-    az = dz * dir2;
-    pot = -Im*dir;
-
-    /* Calculations for determining the timestep. */
-    if (bGravStep) {
-        F adotai = Pax*ax + Pay*ay + Paz*az;
-        adotai = maskz_mov(adotai>0.0f & d2>=Psmooth2,adotai) * imaga;
-        norm = adotai * adotai;
-        ir = dir * norm;
-    }
+    result.ax = dx * dir2;
+    result.ay = dy * dir2;
+    result.az = dz * dir2;
+    result.pot = -Im*dir;
+    result.ir = dir;
+    result.norm = d2;
+    return result;
 }
 
+// Calculate additional terms for GravStep
 template<class F,class M>
-CUDA_DEVICE void EvalDensity(
-    const F &Pdx, const F &Pdy, const F &Pdz,     // Particle
-    const F &Idx, const F &Idy, const F &Idz, const F &Im, const F &fBall,  // Interaction(s)
-    F &arho, F &adrhodfball, F &anden, F &adndendfball, F &anSmooth,         // results
-    SPHOptions *SPHoptions) {
+CUDA_DEVICE ResultPP<F> EvalPP(
+    F Pdx, F Pdy, F Pdz, F Psmooth2,     // Particle
+    F Idx, F Idy, F Idz, F fourh2, F Im, // Interaction(s)
+    F Pax, F Pay, F Paz, F imaga) {
+    ResultPP<F> result = EvalPP<F,M>(Pdx,Pdy,Pdz,Psmooth2,Idx,Idy,Idz,fourh2,Im);
+    F adotai = Pax*result.ax + Pay*result.ay + Paz*result.az;
+    adotai = maskz_mov(adotai>0.0f & result.norm>=Psmooth2,adotai) * imaga;
+    result.norm = adotai * adotai;
+    result.ir *= result.norm;
+    return result;
+}
+
+template<class F=float>
+struct ResultDensity {
+    F arho, adrhodfball, anden, adndendfball, anSmooth;
+};
+template<class F,class M>
+CUDA_DEVICE ResultDensity<F> EvalDensity(
+    F Pdx, F Pdy, F Pdz,     // Particle
+    F Idx, F Idy, F Idz, F Im, F fBall,  // Interaction(s)
+    int kernelType) {
+    ResultDensity<F> result;
     F dx = Idx + Pdx;
     F dy = Idy + Pdy;
     F dz = Idz + Pdz;
@@ -74,8 +91,6 @@ CUDA_DEVICE void EvalDensity(
     F ifBall, C;
     F t1, t2, t3;
     M mask1;
-
-    int kernelType = SPHoptions->kernelType;
 
     ifBall = 1.0f / fBall;
     r = sqrt(d2) * ifBall;
@@ -90,34 +105,35 @@ CUDA_DEVICE void EvalDensity(
         DSPHKERNEL_DFBALL(r, ifBall, w, dwdr, C, dWdfball, kernelType);
 
         // return the density
-        anden = C * w;
-        arho = Im * anden;
+        result.anden = C * w;
+        result.arho = Im * result.anden;
 
         // return the density derivative
-        adndendfball = dWdfball;
-        adrhodfball = Im * adndendfball;
+        result.adndendfball = dWdfball;
+        result.adrhodfball = Im * result.adndendfball;
 
         // return the number of particles used
-        anSmooth = maskz_mov(r_lt_one,1.0f);
+        result.anSmooth = maskz_mov(r_lt_one,1.0f);
     }
     else {
-        // No work to do
-        arho = 0.0f;
-        adrhodfball = 0.0f;
-        anden = 0.0f;
-        adndendfball = 0.0f;
-        anSmooth = 0.0f;
+        result = {}; // No work to do
     }
+    return result;
 }
 
+template<class F=float>
+struct ResultSPHForces {
+    F uDot, ax, ay, az, divv, dtEst;
+};
 template<class F,class M,class Ivec>
-CUDA_DEVICE void EvalSPHForces(
-    const F &Pdx, const F &Pdy, const F &Pdz, const F &PfBall, const F &POmega,     // Particle
-    const F &Pvx, const F &Pvy, const F &Pvz, const F &Prho, const F &PP, const F &Pc, const Ivec &Pspecies,
-    const F &Idx, const F &Idy, const F &Idz, const F &Im, const F &IfBall, const F &IOmega,      // Interactions
-    const F &Ivx, const F &Ivy, const F &Ivz, const F &Irho, const F &IP, const F &Ic, const Ivec &Ispecies,
-    F &uDot, F &ax, F &ay, F &az, F &divv, F &dtEst,         // results
-    SPHOptions *SPHoptions) {
+CUDA_DEVICE ResultSPHForces<F> EvalSPHForces(
+    F Pdx, F Pdy, F Pdz, F PfBall, F POmega,     // Particle
+    F Pvx, F Pvy, F Pvz, F Prho, F PP, F Pc, Ivec Pspecies,
+    F Idx, F Idy, F Idz, F Im, F IfBall, F IOmega,      // Interactions
+    F Ivx, F Ivy, F Ivz, F Irho, F IP, F Ic, Ivec Ispecies,
+    int kernelType, float epsilon, float alpha, float beta,
+    float EtaCourant,float a,float H,bool useIsentropic) {
+    ResultSPHForces<F> result;
     F dx = Idx + Pdx;
     F dy = Idy + Pdy;
     F dz = Idz + Pdz;
@@ -135,13 +151,6 @@ CUDA_DEVICE void EvalSPHForces(
     F vFac, aFac;
     M Pr_lt_one, Ir_lt_one, mask1, dvdotdx_st_zero;
 
-    int kernelType = SPHoptions->kernelType;
-    float epsilon = SPHoptions->epsilon;
-    float alpha = SPHoptions->alpha;
-    float beta = SPHoptions->beta;
-    float EtaCourant = SPHoptions->EtaCourant;
-    float a = SPHoptions->a;
-    float H = SPHoptions->H;
 
     PifBall = 1.0f / PfBall;
     IifBall = 1.0f / IfBall;
@@ -203,28 +212,28 @@ CUDA_DEVICE void EvalSPHForces(
         Piij = (-alpha * cij * muij + beta * muij * muij) / rhoij;
 
         // du/dt
-        if (SPHoptions->useIsentropic) {
-            uDot = 0.5f * Piij * Im * (dvx * dWdx + dvy * dWdy + dvz * dWdz);
+        if (useIsentropic) {
+            result.uDot = 0.5f * Piij * Im * (dvx * dWdx + dvy * dWdy + dvz * dWdz);
         }
         else {
-            uDot = (PPoverRho2 + 0.5f * Piij) * Im * (dvx * dWdx + dvy * dWdy + dvz * dWdz);
+            result.uDot = (PPoverRho2 + 0.5f * Piij) * Im * (dvx * dWdx + dvy * dWdy + dvz * dWdz);
         }
 
         // acceleration
         // i am not sure if there has to be an Omega in the artificial viscosity part
-        ax = - Im * (PPoverRho2 + IPoverRho2 + Piij) * dWdx * aFac;
-        ay = - Im * (PPoverRho2 + IPoverRho2 + Piij) * dWdy * aFac;
-        az = - Im * (PPoverRho2 + IPoverRho2 + Piij) * dWdz * aFac;
+        result.ax = - Im * (PPoverRho2 + IPoverRho2 + Piij) * dWdx * aFac;
+        result.ay = - Im * (PPoverRho2 + IPoverRho2 + Piij) * dWdy * aFac;
+        result.az = - Im * (PPoverRho2 + IPoverRho2 + Piij) * dWdz * aFac;
 
         // divv
-        divv = Im / Irho * (dvx * dWdx + dvy * dWdy + dvz * dWdz);
+        result.divv = Im / Irho * (dvx * dWdx + dvy * dWdy + dvz * dWdz);
 
         // timestep
         dtC = (1.0f + 0.6f * alpha) / (aFac * EtaCourant);
         dtMu = 0.6f * beta / (aFac * EtaCourant);
-        dtEst = 0.5f * PfBall / (dtC * Pc - dtMu * muij);
+        result.dtEst = 0.5f * PfBall / (dtC * Pc - dtMu * muij);
         mask1 = Pr_lt_one | Ir_lt_one;
-        dtEst = mask_mov(HUGE_VALF,mask1,dtEst);
+        result.dtEst = mask_mov(HUGE_VALF,mask1,result.dtEst);
 
         // for (int index = 0; index<8;index++) {
         // if (ax[index] != ax[index]) {
@@ -243,12 +252,8 @@ CUDA_DEVICE void EvalSPHForces(
         // }
     }
     else {
-        // No work to do
-        uDot = 0.0f;
-        ax = 0.0f;
-        ay = 0.0f;
-        az = 0.0f;
-        divv = 0.0f;
-        dtEst = HUGE_VALF;
+        result = {};
+        result.dtEst = HUGE_VALF;
     }
+    return result;
 }
