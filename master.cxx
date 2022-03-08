@@ -2146,7 +2146,7 @@ void MSR::AllNodeWrite(const char *pszFileName, double dTime, double dvFac, int 
     in.dTimeOld   = dTimeOld;
     in.dUOld      = dUOld;
     in.dTuFac     = dTuFac;
-    in.dBoxSize   = param.dBoxSize;
+    in.dBoxSize   = param.units.dKpcUnit*1e-3*param.h;
     in.Omega0     = csm->val.dOmega0;
     in.OmegaLambda= csm->val.dLambda;
     in.HubbleParam= param.h;

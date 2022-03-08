@@ -785,7 +785,7 @@ int pstWrite(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
             pkdWriteHeaderFIO(plcl->pkd, fio, 1./sqrt(in->dvFac), in->dTime,
                               in->nDark, in->nGas, in->nStar, in->nBH,
-                              in->dBoxSize, in->nProcessors, in->units);
+                              in->dBoxSize, in->HubbleParam, in->nProcessors, in->units);
             pkdWriteFIO(plcl->pkd,fio,in->dvFac,in->dTuFac,&in->bnd);
             for (i=in->iLower+1; i<in->iUpper; ++i ) {
                 int rID = mdlReqService(pst->mdl,i,PST_SENDPARTICLES,&pst->idSelf,sizeof(pst->idSelf));

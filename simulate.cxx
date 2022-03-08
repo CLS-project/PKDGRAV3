@@ -508,6 +508,11 @@ int MSR::ValidateParameters() {
             }
         }
     }
+    if ( csm->val.bComove ) {
+        if ( !prmSpecified(prm,"h") ) {
+            fprintf(stderr, "WARNING: Running with bComove without specifying a Hubble parameter, h\n");
+        }
+    }
     /* Set the number of bins for the power spectrum measurement of linear species */
     if (param.nGridLin > 0) {
         param.nBinsLinPk = param.nGridLin/2;
