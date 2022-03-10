@@ -672,12 +672,6 @@ int MSR::ValidateParameters() {
         }
     }
 
-#ifdef OPTIM_NO_REDUNDANT_FLUXES
-    if (MeshlessHydro() && !param.bMemParticleID) {
-        fprintf(stderr, "WARNING: OPTIM_NO_REDUNDANT_FLUXES requires bMemParticleID, forcing it!\n");
-        param.bMemParticleID = 1;
-    }
-#endif
 
     /* Make sure that parallel read and write are sane */
     int nThreads = mdlThreads(mdl);
