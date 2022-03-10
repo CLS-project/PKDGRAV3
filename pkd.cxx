@@ -676,6 +676,9 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     this->cudaClient = new CudaClient(*this->mdl);
     mdlSetCudaBufferSize(this->mdl,PP_CUDA_MEMORY_LIMIT,PP_CUDA_MEMORY_LIMIT);
 #endif
+#if defined(USE_METAL)
+    this->metalClient = new MetalClient(*this->mdl);
+#endif
     mdlSetWorkQueueSize(this->mdl,iWorkQueueSize,iCUDAQueueSize);
     /*
     ** Initialize neighbor list pointer to NULL if present.

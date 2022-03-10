@@ -406,6 +406,9 @@ static void queuePP( PKD pkd, workParticle *wp, ilpList &ilp, int bGravStep ) {
 #ifdef USE_CUDA
         if (pkd->cudaClient->queuePP(wp,tile,bGravStep)) continue;
 #endif
+#ifdef USE_METAL
+        if (pkd->metalClient->queuePP(wp,tile,bGravStep)) continue;
+#endif
         for (auto i=0; i<wp->nP; ++i) {
             pkdGravEvalPP(wp->pInfoIn[i],tile,wp->pInfoOut[i]);
             wp->dFlopSingleCPU += COST_FLOP_PP*tile.size();
@@ -441,6 +444,9 @@ static void queuePC( PKD pkd,  workParticle *wp, ilcList &ilc, int bGravStep ) {
     for ( auto &tile : ilc ) {
 #ifdef USE_CUDA
         if (pkd->cudaClient->queuePC(wp,tile,bGravStep)) continue;
+#endif
+#ifdef USE_METAL
+        if (pkd->metalClient->queuePC(wp,tile,bGravStep)) continue;
 #endif
         for (auto i=0; i<wp->nP; ++i) {
             pkdGravEvalPC(wp->pInfoIn[i],tile,wp->pInfoOut[i]);

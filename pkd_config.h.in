@@ -38,6 +38,7 @@
 
 #cmakedefine _GNU_SOURCE 1
 #cmakedefine USE_CUDA 1
+#cmakedefine USE_METAL 1
 #cmakedefine USE_HDF5 1
 #cmakedefine USE_PYTHON 1
 #cmakedefine INTEGER_POSITION 1

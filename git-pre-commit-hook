@@ -16,7 +16,7 @@ if [ $? -ne 0 ]; then
 	exit 1
 fi
 
-FILES=`git diff --cached --name-only --diff-filter=ACMR | egrep -v '^(mdl2/(openpa|boost)|fmt|blitz|windows)/' | egrep '\.(c|h|cxx|cu)$'`
+FILES=`git diff --cached --name-only --diff-filter=ACMR | egrep -v '^(mdl2/(openpa|boost)|fmt|blitz|windows)/' | egrep '\.(c|h|cxx|mm|metal|cu)$'`
 for FILE in $FILES; do
 	$ASTYLE --project --stdin=$FILE | cmp -s $FILE -
 	if [ $? -ne 0 ]; then

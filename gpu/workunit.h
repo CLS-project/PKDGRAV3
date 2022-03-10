@@ -23,14 +23,14 @@
 namespace gpu {
 template<int n> using fvector = float[n];
 template <int n> struct ppBlk {
-    static constexpr int width = n;
+    int width() const {return n;}
     fvector<n> dx, dy, dz; // Offset from ilp->cx, cy, cz
     fvector<n> m;          // Mass
     fvector<n> fourh2;     // Softening: calculated
 };
 
 template <int n> struct pcBlk {
-    static constexpr int width = n;
+    int width() const {return n;}
     fvector<n> dx,dy,dz;
     fvector<n> xxxx,xxxy,xxxz,xxyz,xxyy,yyyz,xyyz,xyyy,yyyy;
     fvector<n> xxx,xyy,xxy,yyy,xxz,yyz,xyz;
@@ -49,7 +49,7 @@ struct alignas(8) ppWorkUnit {
     uint16_t nP;   // Number of particles
     uint16_t nI;   // Number of interactions in the block
 };
-static_assert(sizeof(ppWorkUnit)==8);
+static_assert(sizeof(ppWorkUnit)==8,"check size of ppWorkUnit");
 
 struct alignas(32) ppInput {
     float dx, dy, dz;
@@ -57,7 +57,7 @@ struct alignas(32) ppInput {
     float fSoft2;
     float dImaga;
 };
-static_assert(sizeof(ppInput)==32);
+static_assert(sizeof(ppInput)==32,"Check isze of ppInput");
 
 /* Each thread block outputs this for each particle */
 struct alignas(32) ppResult {
@@ -68,6 +68,6 @@ struct alignas(32) ppResult {
     float dirsum;
     float normsum;
 };
-static_assert(sizeof(ppResult)==32);
+static_assert(sizeof(ppResult)==32,"Check size of ppResult");
 }
 #endif
