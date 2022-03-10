@@ -578,7 +578,7 @@ void MSR::SetUnits() {
         /* code comove density -->g per cc = param.units.dGmPerCcUnit(1+z)^3*/
         param.units.dComovingGmPerCcUnit = param.units.dGmPerCcUnit;
     }
-    else if (param.bICgas || param.nGrid) {
+    else if (param.bICgas && param.nGrid) {
         // We need to properly set a unit system, we do so following the
         // convention: G=1, rho=Omega0 in code units
         param.units.dKpcUnit = param.dBoxSize*1e3 / param.h;
