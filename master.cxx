@@ -437,31 +437,7 @@ void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTi
 
     InitCosmology();
 
-    /**********************************************************************\
-    * The following "parameters" are derived from real parameters.
-    \**********************************************************************/
-
-    SetUnits();
-    dTuFac = param.units.dGasConst/(param.dConstGamma - 1)/param.dMeanMolWeight;
-
-#ifdef COOLING
-    SetCoolingParam();
-#endif
-#ifdef STAR_FORMATION
-    SetStarFormationParam();
-#endif
-#ifdef FEEDBACK
-    SetFeedbackParam();
-#endif
-#if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
-    SetEOSParam();
-#endif
-#ifdef BLACKHOLES
-    SetBlackholeParam();
-#endif
-#ifdef STELLAR_EVOLUTION
-    SetStellarEvolutionParam();
-#endif
+    SetDerivedParameters();
 
     if (prmSpecified(prm,"dSoft")) SetSoft(Soft());
 
@@ -578,6 +554,33 @@ void MSR::Checkpoint(int iStep,int nSteps,double dTime,double dDelta) {
 }
 
 
+void MSR::SetDerivedParameters() {
+    /**********************************************************************\
+    * The following "parameters" are derived from real parameters.
+    \**********************************************************************/
+
+    SetUnits();
+    dTuFac = param.units.dGasConst/(param.dConstGamma - 1)/param.dMeanMolWeight;
+
+#ifdef COOLING
+    SetCoolingParam();
+#endif
+#ifdef STAR_FORMATION
+    SetStarFormationParam();
+#endif
+#ifdef FEEDBACK
+    SetFeedbackParam();
+#endif
+#if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
+    SetEOSParam();
+#endif
+#ifdef BLACKHOLES
+    SetBlackholeParam();
+#endif
+#ifdef STELLAR_EVOLUTION
+    SetStellarEvolutionParam();
+#endif
+}
 
 void MSR::SetUnits() {
     /*
@@ -606,14 +609,14 @@ void MSR::SetUnits() {
         /* code comove density -->g per cc = param.units.dGmPerCcUnit(1+z)^3*/
         param.units.dComovingGmPerCcUnit = param.units.dGmPerCcUnit;
     }
-    else if (param.bICgas || param.nGrid) {
+    else if (param.nGrid) {
         // We need to properly set a unit system, we do so following the
         // convention: G=1, rho=Omega0 in code units
-        param.units.dKpcUnit = param.dBoxSize*1e3 / param.h;
+        param.units.dKpcUnit = param.dBoxSize*1e3 / csm->val.h;
 
         // The mass unit is set such that we recover a correct dHubble0
         // in code units and 100h in physical
-        const double dHubbleCGS = 100.*param.h*1e5/(1e3*KPCCM); // 1/s
+        const double dHubbleCGS = 100.*csm->val.h*1e5/(1e3*KPCCM); // 1/s
         param.units.dMsolUnit = pow( param.units.dKpcUnit * KPCCM, 3 ) / MSOLG
                                 * 3.0 * pow( dHubbleCGS, 2 ) * M_1_PI / 8.0 / GCGS;
 
@@ -640,7 +643,7 @@ void MSR::SetUnits() {
 
 
         // Some safety checks
-        double H0 = param.h * 100. / param.units.dKmPerSecUnit *
+        double H0 = csm->val.h * 100. / param.units.dKmPerSecUnit *
                     param.units.dKpcUnit/1e3;
         double rhoCrit = 3.*H0*H0/(8.*M_PI);
         assert( fabs(H0-csm->val.dHubble0)/H0 < 0.01 );
@@ -2146,10 +2149,10 @@ void MSR::AllNodeWrite(const char *pszFileName, double dTime, double dvFac, int 
     in.dTimeOld   = dTimeOld;
     in.dUOld      = dUOld;
     in.dTuFac     = dTuFac;
-    in.dBoxSize   = param.units.dKpcUnit*1e-3*param.h;
+    in.dBoxSize   = param.units.dKpcUnit*1e-3*csm->val.h;
     in.Omega0     = csm->val.dOmega0;
     in.OmegaLambda= csm->val.dLambda;
-    in.HubbleParam= param.h;
+    in.HubbleParam= csm->val.h;
     in.units      = param.units;
 
     in.nDark = nDark;
@@ -3733,6 +3736,9 @@ double MSR::getTheta(double dTime) {
 }
 
 void MSR::InitCosmology() {
+    if (prmSpecified(prm, "h")) {
+        csm->val.h = param.h;
+    }
     mdl->RunService(PST_INITCOSMOLOGY,sizeof(csm->val),&csm->val);
 }
 
@@ -5008,8 +5014,6 @@ double MSR::GenerateIC() {
 #ifdef HAVE_METALLICITY
     in.dInitialMetallicity = param.dInitialMetallicity;
 #endif
-    in.dOmegaRate = csm->val.dOmegab/csm->val.dOmega0;
-    in.dTuFac = dTuFac;
 
     nTotal  = in.nGrid; /* Careful: 32 bit integer cubed => 64 bit integer */
     nTotal *= in.nGrid;
@@ -5029,6 +5033,9 @@ double MSR::GenerateIC() {
     }
     InitializePStore(nSpecies,getMemoryModel());
     InitCosmology();
+    in.dOmegaRate = csm->val.dOmegab/csm->val.dOmega0;
+    SetDerivedParameters();
+    in.dTuFac = dTuFac;
 
     assert(param.dRedFrom >= 0.0 );
     in.dExpansion = 1.0 / (1.0 + param.dRedFrom);
@@ -5155,7 +5162,7 @@ double MSR::Read(const char *achInFile) {
         if (!prmSpecified(prm, "dBoxSize"))
             fioGetAttr(fio,HDF5_HEADER_G,"BoxSize",FIO_TYPE_DOUBLE,&param.dBoxSize);
         if (!prmSpecified(prm, "h"))
-            fioGetAttr(fio,HDF5_COSMO_G,"HubbleParam",FIO_TYPE_DOUBLE,&param.h);
+            fioGetAttr(fio,HDF5_COSMO_G,"HubbleParam",FIO_TYPE_DOUBLE,&csm->val.h);
     }
 
     N     = fioGetN(fio,FIO_SPECIES_ALL);
@@ -5174,7 +5181,6 @@ double MSR::Read(const char *achInFile) {
     dTime = getTime(dExpansion);
     if (param.bInFileLC) read->dvFac = 1.0;
     else read->dvFac = getVfactor(dExpansion);
-    read->dTuFac = dTuFac;
 
     if (nGas && !prmSpecified(prm,"bDoGas")) param.bDoGas = 1;
     if (DoGas() && NewSPH()) mMemoryModel |= (PKD_MODEL_NEW_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_DENSITY|PKD_MODEL_BALL);
@@ -5190,6 +5196,8 @@ double MSR::Read(const char *achInFile) {
     read->dOmega0 = csm->val.dOmega0;
     read->dOmegab = csm->val.dOmegab;
 
+    SetDerivedParameters();
+    read->dTuFac = dTuFac;
     /*
     ** If bParaRead is 0, then we read serially; if it is 1, then we read
     ** in parallel using all available threads, otherwise we read in parallel

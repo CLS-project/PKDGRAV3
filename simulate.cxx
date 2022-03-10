@@ -508,7 +508,7 @@ int MSR::ValidateParameters() {
             }
         }
     }
-    if ( csm->val.bComove ) {
+    if ( csm->val.bComove && !csm->val.classData.bClass ) {
         if ( !prmSpecified(prm,"h") ) {
             fprintf(stderr, "WARNING: Running with bComove without specifying a Hubble parameter, h\n");
         }
@@ -684,32 +684,6 @@ int MSR::ValidateParameters() {
     if (param.nParaRead  > nThreads) param.nParaRead  = nThreads;
     if (param.nParaWrite > nThreads) param.nParaWrite = nThreads;
 
-
-    /**********************************************************************\
-    * The following "parameters" are derived from real parameters.
-    \**********************************************************************/
-
-    SetUnits();
-    dTuFac = param.units.dGasConst/(param.dConstGamma - 1)/param.dMeanMolWeight;
-
-#ifdef COOLING
-    SetCoolingParam();
-#endif
-#ifdef STAR_FORMATION
-    SetStarFormationParam();
-#endif
-#ifdef FEEDBACK
-    SetFeedbackParam();
-#endif
-#if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
-    SetEOSParam();
-#endif
-#ifdef BLACKHOLES
-    SetBlackholeParam();
-#endif
-#ifdef STELLAR_EVOLUTION
-    SetStellarEvolutionParam();
-#endif
 
 
     if (csm->val.classData.bClass) {

@@ -3643,8 +3643,6 @@ pkdGetNParts(PKD pkd, struct outGetNParts *out ) {
     out->nBH = nBH;
     out->nMaxOrder = iMaxOrder;
 
-    printf("%d \t %d %d %d %d %d \n", pkd->idSelf, n, nDark, nGas, nStar, nBH);
-
     pkdSetNParts(pkd, nGas, nDark, nStar, nBH);
 }
 
