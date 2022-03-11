@@ -1257,10 +1257,10 @@ void MSR::Initialize() {
     param.dCFLacc = 0.01;
     prmAddParam(prm,"dCFLacc",2,&param.dCFLacc,sizeof(double),"CFLacc",
                 "<CFL for the acceleration criteria> = 0.01");
-    param.bMeshlessHydro = 1;
+    param.bMeshlessHydro = 0;
     prmAddParam(prm,"bMeshlessHydro", 0, &param.bMeshlessHydro,
                 sizeof(int), "meshlessHydro",
-                "Use the new implementation of the hydrodynamics");
+                "Use the new meshless implementation of the hydrodynamics");
 
     param.bGlobalDt = 0;
     prmAddParam(prm,"bGlobalDt", 0, &param.bGlobalDt,

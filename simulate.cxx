@@ -437,8 +437,12 @@ int MSR::ValidateParameters() {
         return 0;
     }
 
-    if (param.bDoGas && !param.bMeshlessHydro) {
-        fprintf(stderr,"ERROR: Only bMeshlessHydro is supported when bDoGas.\n");
+    if (param.bDoGas && !(param.bMeshlessHydro||param.bNewSPH) ) {
+        fprintf(stderr,"ERROR: Please provide an hydrodynamic solver to be used: bMeshlessHydro or bNewSPH.\n");
+        return 0;
+    }
+    if (param.bMeshlessHydro && param.bNewSPH) {
+        fprintf(stderr,"ERROR: Only one hydrodynamic scheme can be used.\n");
         return 0;
     }
 
