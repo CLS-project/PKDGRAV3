@@ -28,7 +28,6 @@
 
 extern "C"
 void pkdGravEvalPP(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINFOOUT *pOut ) {
-    fvec t1, t2, t3, pot;
     fvec pax, pay, paz, pfx, pfy, pfz;
     fvec piax, piay, piaz;
     fvec ppot /*,pmass,p4soft2*/;
@@ -81,15 +80,14 @@ void pkdGravEvalPP(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINF
             fvec Idz = blk->dz.p[j];
             fvec Im = blk->m.p[j];
             fvec fourh2 = blk->fourh2.p[j];
-            fvec pir,norm;
-            EvalPP<fvec,fmask,true>(pfx,pfy,pfz,psmooth2,Idx,Idy,Idz,fourh2,Im,t1,t2,t3,pot,
-                                    piax,piay,piaz,pimaga,pir,norm);
-            pirsum += pir;
-            pnorms += norm;
-            ppot += pot;
-            pax += t1;
-            pay += t2;
-            paz += t3;
+            auto result = EvalPP<fvec,fmask>(pfx,pfy,pfz,psmooth2,Idx,Idy,Idz,fourh2,Im,
+                                             piax,piay,piaz,pimaga);
+            pirsum += result.ir;
+            pnorms += result.norm;
+            ppot += result.pot;
+            pax += result.ax;
+            pay += result.ay;
+            paz += result.az;
         }
     }
     ax = hadd(pax);
@@ -109,7 +107,6 @@ void pkdGravEvalPP(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINF
 
 extern "C"
 void pkdDensityEval(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINFOOUT *pOut, SPHOptions *SPHoptions ) {
-    fvec t1, t2, t3, t4, t5;
     fvec parho, padrhodfball, panden, padndendfball, pfx, pfy, pfz, pfBall;
     fvec pnSmooth;
 
@@ -148,12 +145,13 @@ void pkdDensityEval(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PIN
             fvec Idy = blk->dy.p[j];
             fvec Idz = blk->dz.p[j];
             fvec Im = blk->m.p[j];
-            EvalDensity<fvec,fmask>(pfx,pfy,pfz,Idx,Idy,Idz,Im,pfBall,t1,t2,t3,t4,t5,SPHoptions);
-            parho += t1;
-            padrhodfball += t2;
-            panden += t3;
-            padndendfball += t4;
-            pnSmooth += t5;
+            ResultDensity<fvec> result;
+            result = EvalDensity<fvec,fmask>(pfx,pfy,pfz,Idx,Idy,Idz,Im,pfBall,SPHoptions->kernelType);
+            parho += result.arho;
+            padrhodfball += result.adrhodfball;
+            panden += result.anden;
+            padndendfball += result.adndendfball;
+            pnSmooth += result.anSmooth;
         }
     }
     arho = hadd(parho);
@@ -240,16 +238,16 @@ void pkdSPHForcesEval(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  P
             fvec Ic = blk->c.p[j];
             i32v Ispecies = blk->species.p[j];
 
-            EvalSPHForces<fvec,fmask,i32v>(Pdx,Pdy,Pdz,PfBall,POmega,Pvx,Pvy,Pvz,Prho,PP,Pc,Pspecies,
-                                           Idx,Idy,Idz,Im,IfBall,IOmega,Ivx,Ivy,Ivz,Irho,IP,Ic,Ispecies,
-                                           t1,t2,t3,t4,t5,t6,
-                                           SPHoptions);
-            puDot += t1;
-            pax += t2;
-            pay += t3;
-            paz += t4;
-            pdivv += t5;
-            pdtEst = min(pdtEst,t6);
+            auto result = EvalSPHForces<fvec,fmask,i32v>(Pdx,Pdy,Pdz,PfBall,POmega,Pvx,Pvy,Pvz,Prho,PP,Pc,Pspecies,
+                          Idx,Idy,Idz,Im,IfBall,IOmega,Ivx,Ivy,Ivz,Irho,IP,Ic,Ispecies,
+                          SPHoptions->kernelType,SPHoptions->epsilon,SPHoptions->alpha,SPHoptions->beta,
+                          SPHoptions->EtaCourant,SPHoptions->a,SPHoptions->H,SPHoptions->useIsentropic);
+            puDot += result.uDot;
+            pax += result.ax;
+            pay += result.ay;
+            paz += result.az;
+            pdivv += result.divv;
+            pdtEst = min(pdtEst,result.dtEst);
         }
     }
     auDot = hadd(puDot);

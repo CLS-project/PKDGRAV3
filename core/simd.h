@@ -344,6 +344,7 @@ inline mmask<__mmask16> operator>(vec<__m512,float> const &a,vec<__m512,float> c
 inline mmask<__mmask16> operator<(vec<__m512,float> const &a,vec<__m512,float> const &b) { return _mm512_cmp_ps_mask(a,b,_CMP_LT_OQ); }
 inline mmask<__mmask16> operator>=(vec<__m512,float> const &a,vec<__m512,float> const &b) { return _mm512_cmp_ps_mask(a,b,_CMP_GE_OQ); }
 inline mmask<__mmask16> operator<=(vec<__m512,float> const &a,vec<__m512,float> const &b) { return _mm512_cmp_ps_mask(a,b,_CMP_LE_OQ); }
+inline vec<__m512,float> sqrt(vec<__m512,float> const &r2) { return _mm512_sqrt_ps(r2); }
 #ifdef __AVX512DQ__
 inline vec<__m512,float> operator&(vec<__m512,float> const &a,vec<__m512,float> const &b) { return _mm512_and_ps(a,b); }
 inline vec<__m512,float> operator|(vec<__m512,float> const &a,vec<__m512,float> const &b) { return _mm512_or_ps(a,b); }
@@ -436,6 +437,7 @@ inline vec<__m512i,int64_t> operator^(vec<__m512i,int64_t> const &a,vec<__m512i,
 inline mmask<__mmask16> operator&(mmask<__mmask16> const &a,mmask<__mmask16> const &b) { return _mm512_kand(a,b); }
 inline mmask<__mmask16> operator|(mmask<__mmask16> const &a,mmask<__mmask16> const &b) { return _mm512_kor(a,b); }
 inline mmask<__mmask16> operator^(mmask<__mmask16> const &a,mmask<__mmask16> const &b) { return _mm512_kxor(a,b); }
+inline mmask<__mmask16> operator~(mmask<__mmask16> const &a) { return _mm512_knot(a); }
 inline int testz(mmask<__mmask16> const &a) { return _mm512_kortestz(a,a); }
 
 /**********************************************************************\
@@ -501,6 +503,7 @@ inline vec<__m512d,double> mask_mov(vec<__m512d,double> const &src,mmask<__mmask
 inline mmask<__mmask8> operator&(mmask<__mmask8> const &a,mmask<__mmask8> const &b) { return _mm512_kand(a,b); }
 inline mmask<__mmask8> operator|(mmask<__mmask8> const &a,mmask<__mmask8> const &b) { return _mm512_kor(a,b); }
 inline mmask<__mmask8> operator^(mmask<__mmask8> const &a,mmask<__mmask8> const &b) { return _mm512_kxor(a,b); }
+inline mmask<__mmask8> operator~(mmask<__mmask8> const &a) { return _mm512_knot(a); }
 inline int testz(mmask<__mmask8> const &a) { return _mm512_kortestz(a,a); }
 inline int movemask(mmask<__mmask8> const &k) { return (int)(k); }
 
