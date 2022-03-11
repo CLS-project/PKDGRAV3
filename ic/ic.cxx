@@ -613,6 +613,9 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
 #ifdef HAVE_IRON
         icUp.dInitialFe = in->dInitialFe;
 #endif
+#ifdef HAVE_METALLICITY
+        icUp.dInitialMetallicity = in->dInitialMetallicity;
+#endif
         icUp.dExpansion = in->dExpansion;
         icUp.dOmegaRate = in->dOmegaRate;
         icUp.dTuFac = in->dTuFac;
@@ -685,6 +688,9 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
                     uint64_t *pID = pkdParticleID(pkd,pgas);
                     *pID += in->nGrid*in->nGrid*in->nGrid;
                 }
+                if (!pkd->bNoParticleOrder)
+                    pgas->iOrder += in->nGrid*in->nGrid*in->nGrid;
+
                 pkdSetPos(pkd,pgas,2,pkdPos(pkd,pgas, 2)+inGrid*0.5);
                 pkdSetPos(pkd,pgas,1,pkdPos(pkd,pgas, 1)+inGrid*0.5);
                 pkdSetPos(pkd,pgas,0,pkdPos(pkd,pgas, 0)+inGrid*0.5);
@@ -731,6 +737,9 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
 #endif
 #ifdef HAVE_IRON
                 pSph->afElemMass[ELEMENT_Fe] = in->dInitialFe * fGasMass;
+#endif
+#ifdef HAVE_METALLICITY
+                pSph->fMetalMass = in->dInitialMetallicity * fGasMass;
 #endif
                 pSph->vPred[0] = pVelGas[0];
                 pSph->vPred[1] = pVelGas[1];
@@ -937,6 +946,9 @@ int pstMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
 #endif
 #ifdef HAVE_IRON
         move.dInitialFe = in->dInitialFe;
+#endif
+#ifdef HAVE_METALLICITY
+        move.dInitialMetallicity = in->dInitialMetallicity;
 #endif
         move.dExpansion = in->dExpansion;
         move.dOmegaRate = in->dOmegaRate;

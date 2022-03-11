@@ -213,7 +213,7 @@ void hydroStep(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
 }
 
-void combHydroStep(void *vpkd, void *v1,void *v2) {
+void combHydroStep(void *vpkd, void *v1,const void *v2) {
     PKD pkd = (PKD) vpkd;
     PARTICLE *p1 = (PARTICLE *) v1;
     PARTICLE *p2 = (PARTICLE *) v2;

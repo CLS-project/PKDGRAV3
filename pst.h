@@ -784,35 +784,6 @@ struct inSphStep {
 };
 int pstSphStep(PST,void *,int,void *,int);
 
-#ifndef STAR_FORMATION
-/* PST_STARFORM */
-struct inStarForm {
-    double dRateCoeff;
-    double dTMax;
-    double dDenMin;
-    double dDelta;
-
-    double dTime;
-    double dInitStarMass;
-    double dESNPerStarMass;
-    double dtCoolingShutoff;
-
-    double dtFeedbackDelay;
-    double dMassLossPerStarMass;
-    double dZMassPerStarMass;
-    double dMinGasMass;
-    double dTuFac;
-
-    int bGasCooling;
-    int bdivv;
-};
-
-struct outStarForm {
-    int nFormed;
-    int nDeleted;
-    double dMassFormed;
-};
-#endif
 
 
 /* PST_DENSITYSTEP */
@@ -981,6 +952,9 @@ struct inGenerateIC {
 #ifdef HAVE_IRON
     double dInitialFe;
 #endif
+#ifdef HAVE_METALLICITY
+    double dInitialMetallicity;
+#endif
     double dTuFac;
     int bComove;
     int nTf;
@@ -1035,6 +1009,9 @@ struct inMoveIC {
 #endif
 #ifdef HAVE_IRON
     double dInitialFe;
+#endif
+#ifdef HAVE_METALLICITY
+    double dInitialMetallicity;
 #endif
     double dExpansion;
     double dOmegaRate;

@@ -250,7 +250,7 @@ void pstAddServices(PST pst,MDL mdl) {
 #ifdef STELLAR_EVOLUTION
     mdlAddService(mdl,PST_STELLAREVOLUTIONINIT,pst,
                   (fcnService_t *) pstStellarEvolutionInit,
-                  sizeof(struct inStellarEvolution) + sizeof(double),0);
+                  sizeof(struct inStellarEvolutionInit),0);
 #endif
     mdlAddService(mdl,PST_UPDATERUNG,pst,(fcnService_t *)pstUpdateRung,
                   sizeof(struct inUpdateRung),sizeof(struct outUpdateRung));
@@ -672,7 +672,7 @@ int pstRestore(PST pst,void *vin,int nIn,void *vout,int nOut) {
     else {
         PKD pkd = pst->plcl->pkd;
         char achInFile[PST_FILENAME_SIZE];
-        makeName(achInFile,in->achInFile,mdlSelf(pkd->mdl),"chk.");
+        makeName(achInFile,in->achInFile,mdlSelf(pkd->mdl),"");
         pkdRestore(pkd,achInFile);
     }
     return 0;
@@ -704,7 +704,7 @@ int pstCheckpoint(PST pst,void *vin,int nIn,void *vout,int nOut) {
     else {
         PKD pkd = pst->plcl->pkd;
         char achOutFile[PST_FILENAME_SIZE];
-        makeName(achOutFile,in->achOutFile,mdlSelf(pkd->mdl),"chk.");
+        makeName(achOutFile,in->achOutFile,mdlSelf(pkd->mdl),"");
         pkdCheckpoint(pkd,achOutFile);
     }
     return 0;
@@ -785,7 +785,7 @@ int pstWrite(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
             pkdWriteHeaderFIO(plcl->pkd, fio, 1./sqrt(in->dvFac), in->dTime,
                               in->nDark, in->nGas, in->nStar, in->nBH,
-                              in->dBoxSize, in->nProcessors, in->units);
+                              in->dBoxSize, in->HubbleParam, in->nProcessors, in->units);
             pkdWriteFIO(plcl->pkd,fio,in->dvFac,in->dTuFac,&in->bnd);
             for (i=in->iLower+1; i<in->iUpper; ++i ) {
                 int rID = mdlReqService(pst->mdl,i,PST_SENDPARTICLES,&pst->idSelf,sizeof(pst->idSelf));
@@ -1878,36 +1878,6 @@ int pstSphStep(PST pst,void *vin,int nIn,void *vout,int nOut) {
     return 0;
 }
 
-#ifndef STAR_FORMATION
-int pstStarForm(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    struct inStarForm *in = vin;
-    struct outStarForm *out = vout;
-    int rID;
-
-    mdlassert(pst->mdl,nIn == sizeof(struct inStarForm));
-    if (pst->nLeaves > 1) {
-        struct outStarForm fsStats;
-
-        rID = mdlReqService(pst->mdl,pst->idUpper,PST_STARFORM,in,nIn);
-        pstStarForm(pst->pstLower,in,nIn,vout,nOut);
-        mdlGetReply(pst->mdl,rID,&fsStats,NULL);
-        out->nFormed += fsStats.nFormed;
-        out->nDeleted += fsStats.nDeleted;
-        out->dMassFormed += fsStats.dMassFormed;
-    }
-    else {
-        pkdStarForm(pst->plcl->pkd, in->dRateCoeff, in->dTMax, in->dDenMin, in->dDelta,
-                    in->dTime,
-                    in->dInitStarMass, in->dESNPerStarMass, in->dtCoolingShutoff,
-                    in->dtFeedbackDelay,    in->dMassLossPerStarMass,
-                    in->dZMassPerStarMass,    in->dMinGasMass,
-                    in->dTuFac, in->bGasCooling,
-                    in->bdivv,
-                    &out->nFormed, &out->dMassFormed, &out->nDeleted);
-    }
-    return sizeof(struct outStarForm);
-}
-#endif
 
 int pstDensityStep(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;

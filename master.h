@@ -103,6 +103,7 @@ public:
 public:
     int Python(int argc, char *argv[]);
     int ValidateParameters();
+    void SetDerivedParameters();
     void SetUnits();
     void Hostname();
     void MemStatus();
@@ -396,7 +397,7 @@ protected:
     double TimerGetAcc(int iTimer);
     void TimerHeader();
     void TimerRestart();
-    double TimerDump(int iStep);
+    void TimerDump(int iStep);
     void CalcEandL(int bFirst,double dTime,double *E,double *T,double *U,double *Eth,double *L,double *F,double *W);
     void Drift(double dTime,double dDelta,int iRoot);
 
@@ -433,7 +434,7 @@ protected:
     // Cooling
     void SetCoolingParam();
     void CoolingUpdate(float redshift, int sync);
-    void CoolingInit();
+    void CoolingInit(float redshift);
 #endif
 #ifdef GRACKLE
     void GrackleInit(int bComove, double dScaleFactor);
@@ -445,6 +446,10 @@ protected:
     void StarForm(double dTime, double dDelta, int iRung);
 #ifdef FEEDBACK
     void SetFeedbackParam();
+#endif
+#ifdef STELLAR_EVOLUTION
+    void SetStellarEvolutionParam();
+    void StellarEvolutionInit(double dTime);
 #endif
 #if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
     void SetEOSParam();

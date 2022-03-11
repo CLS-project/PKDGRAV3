@@ -1227,7 +1227,7 @@ void hydroFluxGetNvars(int *in, int *out) {
 #endif // OPTIM_FLUX_VEC
 
 
-void combThirdHydroLoop(void *vpkd, void *v1,void *v2) {
+void combThirdHydroLoop(void *vpkd, void *v1,const void *v2) {
     PKD pkd = (PKD) vpkd;
     PARTICLE *p1 = (PARTICLE *) v1;
     PARTICLE *p2 = (PARTICLE *) v2;

@@ -3033,9 +3033,9 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
                 for (pj=0; pj<nCnt_own; pj++) {
                     PARTICLE *partj = sinks[pj];
                     float fBall2_p = 4.*pkdBall(pkd,partj)*pkdBall(pkd,partj);
-                    float dx_node = -pkdPos(pkd,partj,0)+bnd_node.fCenter[0];
-                    float dy_node = -pkdPos(pkd,partj,1)+bnd_node.fCenter[1];
-                    float dz_node = -pkdPos(pkd,partj,2)+bnd_node.fCenter[2];
+                    double dx_node = -pkdPos(pkd,partj,0)+bnd_node.fCenter[0];
+                    double dy_node = -pkdPos(pkd,partj,1)+bnd_node.fCenter[1];
+                    double dz_node = -pkdPos(pkd,partj,2)+bnd_node.fCenter[2];
 
                     int nCnt_p = 0;
                     for (pk=0; pk<nCnt; pk++) {
@@ -3066,9 +3066,17 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
 #endif
 
 #ifdef OPTIM_NO_REDUNDANT_FLUXES
-                                if (qIsActive &&
-                                        *pkdParticleID(pkd,partj) < *pkdParticleID(pkd,q))
-                                    continue;
+                                if (qIsActive)
+                                    if (dx > 0)
+                                        continue;
+                                    else if (dx==0)
+                                        if (dy > 0)
+                                            continue;
+                                        else if (dy==0)
+                                            if (dz > 0)
+                                                continue;
+                                            else if (dz==0)
+                                                abort();
 #endif
                             }
 

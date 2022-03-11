@@ -96,20 +96,12 @@ struct parameters {
     int bGasAdiabatic;
     int bGasIsentropic;
     int bGasIsothermal;
-    int bGasCooling;
-    int bInitTFromCooling;
-    int bStarForm;
-    int bFeedback;
-    int iViscosityLimiter;
-    int iDiffusion;
-    int iRungCoolTableUpdate;
     int bNewKDK;
     int nDigits;
 #define GET_PARTICLES_MAX 20 /* We have a nested loop, so don't increase this */
     int nOutputParticles;
     uint64_t iOutputParticles[GET_PARTICLES_MAX];
     double dEtaCourant;
-    double dEtaUDot;
     double dConstAlpha;
     double dConstBeta;
     double dConstGamma;
@@ -117,28 +109,9 @@ struct parameters {
     UNITS units;
     double ddHonHLimit;
     double dhMinOverSoft;
-    double dMetalDiffusionCoeff;
-    double dThermalDiffusionCoeff;
     double dFastGasFraction;
-    /* StarForm and Feedback */
-    //IA: We keep most of them for compatibility reasons I guess? But should be cleaned! TODO
-    double SFdEfficiency;
-    double SFdTMax;
-    double SFdPhysDenMin;
-    double SFdComovingDenMin;
-    double SFdESNPerStarMass;
-    double SFdtCoolingShutoff;
-
-    double SFdtFeedbackDelay;
-    double SFdMassLossPerStarMass;
-    double SFdZMassPerStarMass;
-    double SFdInitStarMass;
-    double SFdMinGasMass;
-    double SFdvFB;
-    int SFbdivv;
     double fKernelTarget;
     int bNewSPH;
-
 
     /* END Gas Parameters */
     double dEta;
@@ -314,20 +287,21 @@ struct parameters {
     double dBHMhaloMin;
 #endif
 #ifdef STELLAR_EVOLUTION
-    char achStEvolPath[256];
-    char achSNIa_DTDtype[32];
-    char achIMFtype[32];
+    char achStelEvolPath[256];
+    char achSNIaDTDType[32];
+    char achIMFType[32];
     int bChemEnrich;
-    double dIMF_MinMass;
-    double dIMF_MaxMass;
-    double dCCSN_MinMass;
-    double dCCSN_MaxMass;
-    double dSNIa_MaxMass;
-    double dSNIa_Norm;
-    double dSNIa_Scale;
-    double dSNIa_Norm_ti;
-    double dSNIa_Norm_tf;
+    double dIMFMinMass;
+    double dIMFMaxMass;
+    double dCCSNMinMass;
+    double dCCSNMaxMass;
+    double dSNIaMaxMass;
+    double dSNIaNorm;
+    double dSNIaScale;
+    double dSNIaNormInitTime;
+    double dSNIaNormFinalTime;
     double dSNIaEnergy;
+    double dStellarWindSpeed;
     double dWindSpecificEkin;
 #endif
 

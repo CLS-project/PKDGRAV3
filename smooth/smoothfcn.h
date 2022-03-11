@@ -40,24 +40,9 @@ typedef struct smfParameters {
     double binFactor;
     double fMinRadius;
     /* Gas */
-    double alpha;
-    double beta;
     double gamma;
     double dDelta;
     double dEtaCourant;
-    int iViscosityLimiter;
-    /* diffusion */
-    int iDiffusion;
-    double dMetalDiffusionCoeff;
-    double dThermalDiffusionCoeff;
-    /* star form */
-    double SFdESNPerStarMass;
-    double SFdtCoolingShutoff;
-    double SFdtFeedbackDelay;
-    double SFdMassLossPerStarMass;
-    double SFdZMassPerStarMass;
-    double SFdFBFac;
-    /* end starform */
     PKD pkd; /* useful for diagnostics, etc. */
     remoteID hopParticleLink;
     int bDone;
@@ -90,6 +75,13 @@ typedef struct smfParameters {
     double dBHAccretionAlpha;
     int bBHFeedback;
     int bBHAccretion;
+#endif
+#ifdef STELLAR_EVOLUTION
+    double dCCSNMinMass;
+    double dSNIaNorm;
+    double dSNIaScale;
+    double dSNIaEnergy;
+    double dWindSpecificEkin;
 #endif
 } SMF;
 

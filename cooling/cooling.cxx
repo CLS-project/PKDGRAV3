@@ -59,8 +59,9 @@ static inline void get_redshift_index(const float z, int *z_index, float *dz,
 void MSR::SetCoolingParam() {
     const double dHydFrac = param.dInitialH;
     const double dnHToRho = MHYDR / dHydFrac / param.units.dGmPerCcUnit;
-    param.dCoolingFloorDen *= dnHToRho;
-    param.dCoolingFloorT = param.dCoolingFlooru*dTuFac;
+    if (!param.bRestart)
+        param.dCoolingFloorDen *= dnHToRho;
+    param.dCoolingFlooru = param.dCoolingFloorT*dTuFac;
 }
 
 /**
@@ -167,7 +168,7 @@ void MSR::CoolingUpdate(float redshift, int sync) {
 /**
  * Initialises properties stored in the cooling_function_data struct
  */
-void MSR::CoolingInit() {
+void MSR::CoolingInit(float redshift) {
     printf("Initializing cooling \n");
 
     /* Allocate the needed structs */
@@ -182,7 +183,7 @@ void MSR::CoolingInit() {
      * that are read in are actually in units of electron volts per proton mass.
      * We later convert to units just below */
 
-    if (param.dRedFrom < param.fH_reion_z) {
+    if (redshift < param.fH_reion_z) {
         cooling->H_reion_done = 1;
     }
     else {
@@ -214,7 +215,7 @@ void MSR::CoolingInit() {
 
     /* Read in cooling table header */
     char fname[eagle_table_path_name_length + 12];
-    sprintf(fname, "%sz_0.000.hdf5", cooling->cooling_table_path);
+    sprintf(fname, "%s/z_0.000.hdf5", cooling->cooling_table_path);
     read_cooling_header(fname, cooling);
 
     /* Allocate space for cooling tables */
@@ -606,8 +607,8 @@ void cooling_cool_part(PKD pkd,
        re-ionization as this needs to be added on no matter what */
 
     /* Get helium and hydrogen reheating term */
-    const double Helium_reion_heat_cgs =  0.;
-    //eagle_helium_reionization_extraheat(redshift, delta_redshift, cooling);
+    const double Helium_reion_heat_cgs =
+        eagle_helium_reionization_extraheat(redshift, delta_redshift, cooling);
 
 
     /* Convert this into a rate */

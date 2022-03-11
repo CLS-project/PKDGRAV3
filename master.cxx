@@ -156,7 +156,7 @@ void MSR::TimerHeader() {
     fclose(fpLog);
 }
 
-double MSR::TimerDump(int iStep) {
+void MSR::TimerDump(int iStep) {
     char achFile[256];
     sprintf(achFile,"%s.timing",OutName());
     FILE *fpLog = NULL;
@@ -401,6 +401,7 @@ void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTi
     if (param.bVStart)
         printf("Restoring from checkpoint\n");
     TimerStart(TIMER_NONE);
+    param.bRestart = 1;
 
     nMaxOrder = N - 1; // iOrder goes from 0 to N-1
 
@@ -435,6 +436,9 @@ void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTi
     iLastRungDD = 0;
 
     InitCosmology();
+
+    SetDerivedParameters();
+
     if (prmSpecified(prm,"dSoft")) SetSoft(Soft());
 
     if (DoGas() && NewSPH()) {
@@ -477,11 +481,11 @@ void MSR::writeParameters(const char *baseName,int iStep,int nSteps,double dTime
     p = strstr( achOutName, "&I" );
     if ( p ) {
         int n = p - achOutName;
-        strcpy( p, "chk" );
+        strcpy( p, "par" );
         strcat( p, baseName + n + 2 );
     }
     else {
-        strcat(achOutName,".chk");
+        strcat(achOutName,".par");
     }
 
     FILE *fp = fopen(achOutName,"w");
@@ -550,6 +554,33 @@ void MSR::Checkpoint(int iStep,int nSteps,double dTime,double dDelta) {
 }
 
 
+void MSR::SetDerivedParameters() {
+    /**********************************************************************\
+    * The following "parameters" are derived from real parameters.
+    \**********************************************************************/
+
+    SetUnits();
+    dTuFac = param.units.dGasConst/(param.dConstGamma - 1)/param.dMeanMolWeight;
+
+#ifdef COOLING
+    SetCoolingParam();
+#endif
+#ifdef STAR_FORMATION
+    SetStarFormationParam();
+#endif
+#ifdef FEEDBACK
+    SetFeedbackParam();
+#endif
+#if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
+    SetEOSParam();
+#endif
+#ifdef BLACKHOLES
+    SetBlackholeParam();
+#endif
+#ifdef STELLAR_EVOLUTION
+    SetStellarEvolutionParam();
+#endif
+}
 
 void MSR::SetUnits() {
     /*
@@ -578,14 +609,14 @@ void MSR::SetUnits() {
         /* code comove density -->g per cc = param.units.dGmPerCcUnit(1+z)^3*/
         param.units.dComovingGmPerCcUnit = param.units.dGmPerCcUnit;
     }
-    else if (param.bICgas && param.nGrid) {
+    else if (param.nGrid) {
         // We need to properly set a unit system, we do so following the
         // convention: G=1, rho=Omega0 in code units
-        param.units.dKpcUnit = param.dBoxSize*1e3 / param.h;
+        param.units.dKpcUnit = param.dBoxSize*1e3 / csm->val.h;
 
         // The mass unit is set such that we recover a correct dHubble0
         // in code units and 100h in physical
-        const double dHubbleCGS = 100.*param.h*1e5/(1e3*KPCCM); // 1/s
+        const double dHubbleCGS = 100.*csm->val.h*1e5/(1e3*KPCCM); // 1/s
         param.units.dMsolUnit = pow( param.units.dKpcUnit * KPCCM, 3 ) / MSOLG
                                 * 3.0 * pow( dHubbleCGS, 2 ) * M_1_PI / 8.0 / GCGS;
 
@@ -612,7 +643,7 @@ void MSR::SetUnits() {
 
 
         // Some safety checks
-        double H0 = param.h * 100. / param.units.dKmPerSecUnit *
+        double H0 = csm->val.h * 100. / param.units.dKmPerSecUnit *
                     param.units.dKpcUnit/1e3;
         double rhoCrit = 3.*H0*H0/(8.*M_PI);
         assert( fabs(H0-csm->val.dHubble0)/H0 < 0.01 );
@@ -1160,25 +1191,9 @@ void MSR::Initialize() {
     prmAddParam(prm,"bGasIsothermal",0,&param.bGasIsothermal,
                 sizeof(int),"GasIsothermal",
                 "<Gas is Isothermal> = +GasIsothermal");
-    param.bGasCooling = 0;
-    prmAddParam(prm,"bGasCooling",0,&param.bGasCooling,
-                sizeof(int),"GasCooling",
-                "<Gas is Cooling> = +GasCooling");
-    param.bInitTFromCooling = 0;
-    prmAddParam(prm,"bInitTFromCooling",0,&param.bInitTFromCooling,
-                sizeof(int),"bInitTFromCooling",
-                "set T (also E, Y, etc..) using Cooling initialization value = +bInitTFromCooling");
-    param.iRungCoolTableUpdate = 0;
-    prmAddParam(prm,"iRungCoolTableUpdate",1,&param.iRungCoolTableUpdate,
-                sizeof(int),"iRungCoolTableUpdate",
-                "<Rung on which to update cool tables, def. 0>");
-    param.bInitTFromCooling = 0;
     param.dEtaCourant = 0.4;
     prmAddParam(prm,"dEtaCourant",2,&param.dEtaCourant,sizeof(double),"etaC",
                 "<Courant criterion> = 0.4");
-    param.dEtaUDot = 0.25;
-    prmAddParam(prm,"dEtaUDot",2,&param.dEtaUDot,sizeof(double),"etau",
-                "<uDot timestep criterion> = 0.25");
     param.dConstAlpha = 1.0;
     prmAddParam(prm,"dConstAlpha",2,&param.dConstAlpha,
                 sizeof(double),"alpha",
@@ -1207,14 +1222,6 @@ void MSR::Initialize() {
     prmAddParam(prm,"dhMinOverSoft",2,&param.dhMinOverSoft,
                 sizeof(double),"hmin",
                 "<Minimum h as a fraction of Softening> = 0.0");
-    param.dMetalDiffusionCoeff = 0;
-    prmAddParam(prm,"dMetalDiffusionCoeff",2,&param.dMetalDiffusionCoeff,
-                sizeof(double),"metaldiff",
-                "<Coefficient in Metal Diffusion> = 0.0");
-    param.dThermalDiffusionCoeff = 0;
-    prmAddParam(prm,"dThermalDiffusionCoeff",2,&param.dThermalDiffusionCoeff,
-                sizeof(double),"thermaldiff",
-                "<Coefficient in Thermal Diffusion> = 0.0");
     param.dFastGasFraction = 0.5;
     prmAddParam(prm,"dFastGasFraction",2,&param.dFastGasFraction,
                 sizeof(double),"dFastGasFraction",
@@ -1231,83 +1238,9 @@ void MSR::Initialize() {
     prmAddParam(prm,"ddHonHLimit",2,&param.ddHonHLimit,
                 sizeof(double),"dhonh",
                 "<|dH|/H Limiter> = 0.1");
-    param.iViscosityLimiter = 1;
-    prmAddParam(prm,"iViscosityLimiter",1,&param.iViscosityLimiter,sizeof(int),
-                "vlim","<iViscosity Limiter> = 1");
-    param.iDiffusion = 0;
-    prmAddParam(prm,"iDiffusion",1,&param.iDiffusion,sizeof(int),
-                "idiff","<iDiffusion> = 0");
     param.bAddDelete = 0;
     prmAddParam(prm,"bAddDelete",0,&param.bAddDelete,sizeof(int),
                 "adddel","<Add Delete Particles> = 0");
-    /* Star Form parameters */
-    param.bStarForm = 0;
-    prmAddParam(prm,"bStarForm",0,&param.bStarForm,sizeof(int),
-                "stfm","<Star Forming> = 0");
-    param.bFeedback = 0;
-    prmAddParam(prm,"bFeedback",0,&param.bFeedback,sizeof(int),
-                "fdbk","<Stars provide feedback> = 0");
-    param.SFdComovingDenMin = 0; /* RAMSES DEFAULT */
-    prmAddParam(prm,"SFdComovingDenMin", 2, &param.SFdComovingDenMin,
-                sizeof(double), "stODmin",
-                "<Minimum overdensity for forming stars> = 2");
-    param.SFdPhysDenMin =  0.1/.76*1.66e-24; /* 0.1 nH/cc; RAMSES DEFAULT */
-    prmAddParam(prm,"SFdPhysDenMin", 2, &param.SFdPhysDenMin,
-                sizeof(double), "stPDmin",
-                "<Minimum physical density for forming stars (gm/cc)> =  7e-26");
-    /* Duplicatee below.
-    param.SFdInitStarMass = 0;
-    prmAddParam(prm,"SFdInitStarMass", 2, &param.SFdInitStarMass,
-        sizeof(double), "stm0",
-        "<Initial star mass> = 0");
-    */
-    param.SFdESNPerStarMass = 5.0276521e+15; /* RAMSES DEFAULT */
-    prmAddParam(prm,"SFdESNPerStarMass", 2, &param.SFdESNPerStarMass,
-                sizeof(double), "ESNPerStarMass",
-                "<ESN per star mass, erg per g of stars> = 1.25e16");
-    param.SFdTMax = 1e20; /* RAMSES DEFAULT */
-    prmAddParam(prm,"SFdTMax", 2, &param.SFdTMax,
-                sizeof(double), "SFdTMax",
-                "<Maximum temperature for forming stars, K> = 3e4");
-    param.SFdEfficiency = 0.01; /* RAMSES DEFAULT */
-    prmAddParam(prm,"SFdEfficiency", 2, &param.SFdEfficiency,
-                sizeof(double), "SFdEfficiency",
-                "<SF Efficiency> = 0.1");
-    param.SFdtCoolingShutoff = 30e6; /* RAMSES DEFAULT */
-    prmAddParam(prm,"SFdtCoolingShutoff", 2, &param.SFdtCoolingShutoff,
-                sizeof(double), "SFdtCoolingShutoff",
-                "<SF Cooling Shutoff duration> = 30e6");
-
-    param.SFdtFeedbackDelay = 10e6; /* RAMSES DEFAULT */
-    prmAddParam(prm,"SFdtFeedbackDelay", 2, &param.SFdtFeedbackDelay,
-                sizeof(double), "SFdtFBD",
-                "<SF FB delay> = 10e6");
-    param.SFdMassLossPerStarMass = 0.1; /* RAMSES DEFAULT */
-    prmAddParam(prm,"SFdMassLossPerStarMass", 2, &param.SFdMassLossPerStarMass,
-                sizeof(double), "SFMLPSM",
-                "<SFMSPSM > = 0.1");
-    param.SFdZMassPerStarMass = 0.01; /* RAMSES DEFAULT */
-    prmAddParam(prm,"SFdZMassPerStarMass", 2, &param.SFdZMassPerStarMass,
-                sizeof(double), "SFZMPSM",
-                "<SF ZMPSM> = 0.01");
-    param.SFdInitStarMass = 0;
-    prmAddParam(prm,"SFdInitStarMass", 2, &param.SFdInitStarMass,
-                sizeof(double), "SFISM",
-                "<SF ISM> = ?");
-    param.SFdMinGasMass = 0;
-    prmAddParam(prm,"SFdMinGasMass", 2, &param.SFdMinGasMass,
-                sizeof(double), "SFMGM",
-                "<SF MGM> = ?");
-    param.SFdvFB = 100;
-    prmAddParam(prm,"SFdvFB", 2, &param.SFdvFB,
-                sizeof(double), "SFVFB",
-                "<SF dvFB sound speed in FB region expected, km/s> = 100");
-
-    param.SFbdivv = 0;
-    prmAddParam(prm,"SFbdivv", 0, &param.SFbdivv,
-                sizeof(int), "SFbdivv",
-                "<SF Use div v for star formation> = 1");
-
     param.fKernelTarget = 0;
     prmAddParam(prm,"fKernelTarget", 2, &param.fKernelTarget,
                 sizeof(double), "fKernelTarget", "Kernel target, either number- or massdensity");
@@ -1327,7 +1260,7 @@ void MSR::Initialize() {
     param.bMeshlessHydro = 0;
     prmAddParam(prm,"bMeshlessHydro", 0, &param.bMeshlessHydro,
                 sizeof(int), "meshlessHydro",
-                "Use the new implementation of the hydrodynamics");
+                "Use the new meshless implementation of the hydrodynamics");
 
     param.bGlobalDt = 0;
     prmAddParam(prm,"bGlobalDt", 0, &param.bGlobalDt,
@@ -1348,6 +1281,11 @@ void MSR::Initialize() {
     prmAddParam(prm,"dNeighborsStd", 2, &param.dNeighborsStd,
                 sizeof(double), "neighstd",
                 "Maximum deviation from desired number of neighbors");
+
+    param.bOutFineStatistics = 0;
+    prmAddParam(prm,"bOutFineStatistics", 0, &param.bOutFineStatistics,
+                sizeof(int), "finestats",
+                "Save high cadence information on the rung distribution and star formation");
 
 #if defined(COOLING) || defined(GRACKLE)
     prmAddParam(prm,"achCoolingTables",3,param.achCoolingTables,256,"coolingtables",
@@ -1601,16 +1539,16 @@ void MSR::Initialize() {
                 "Minimum mass required to place a BH in a FOF group <code units>");
 #endif
 #ifdef STELLAR_EVOLUTION
-    strcpy(param.achStEvolPath, "");
-    prmAddParam(prm, "achStEvolPath", 3, param.achStEvolPath, 256, "stevtables",
+    strcpy(param.achStelEvolPath, "");
+    prmAddParam(prm, "achStelEvolPath", 3, param.achStelEvolPath, 256, "stevtables",
                 "Path to stellar evolution tables");
 
-    strcpy(param.achSNIa_DTDtype, "exponential");
-    prmAddParam(prm, "achSNIa_DTDtype", 3, param.achSNIa_DTDtype, 32, "dtdtype",
+    strcpy(param.achSNIaDTDType, "exponential");
+    prmAddParam(prm, "achSNIaDTDType", 3, param.achSNIaDTDType, 32, "dtdtype",
                 "Type of Delay Time Distribution function for SNIa events");
 
-    strcpy(param.achIMFtype, "chabrier");
-    prmAddParam(prm, "achIMFtype", 3, param.achIMFtype, 32, "imftype",
+    strcpy(param.achIMFType, "chabrier");
+    prmAddParam(prm, "achIMFType", 3, param.achIMFType, 32, "imftype",
                 "Type of Initial Mass Function");
 
     param.bChemEnrich = 1;
@@ -1618,50 +1556,50 @@ void MSR::Initialize() {
                 sizeof(int), "bChemEnrich",
                 "Activate chemical enrichment of gas particles surrounding a star particle");
 
-    param.dIMF_MinMass = 0.1;
-    prmAddParam(prm, "dIMF_MinMass", 2, &param.dIMF_MinMass,
+    param.dIMFMinMass = 0.1;
+    prmAddParam(prm, "dIMFMinMass", 2, &param.dIMFMinMass,
                 sizeof(double), "imfminmass",
                 "Lower mass limit of the Initial Mass Function <Mo>");
 
-    param.dIMF_MaxMass = 100.0;
-    prmAddParam(prm, "dIMF_MaxMass", 2, &param.dIMF_MaxMass,
+    param.dIMFMaxMass = 100.0;
+    prmAddParam(prm, "dIMFMaxMass", 2, &param.dIMFMaxMass,
                 sizeof(double), "imfmaxmass",
                 "Upper mass limit of the Initial Mass Function <Mo>");
 
-    param.dCCSN_MinMass = 6.0;
-    prmAddParam(prm, "dCCSN_MinMass", 2, &param.dCCSN_MinMass,
+    param.dCCSNMinMass = 6.0;
+    prmAddParam(prm, "dCCSNMinMass", 2, &param.dCCSNMinMass,
                 sizeof(double), "ccsnminmass",
                 "Minimum mass for a star to end its life as a Core Collapse Supernova <Mo>");
 
-    param.dCCSN_MaxMass = 100.0;
-    prmAddParam(prm, "dCCSN_MaxMass", 2, &param.dCCSN_MaxMass,
+    param.dCCSNMaxMass = 100.0;
+    prmAddParam(prm, "dCCSNMaxMass", 2, &param.dCCSNMaxMass,
                 sizeof(double), "ccsnmaxmass",
                 "Maximum mass for a star to end its life as a Core Collapse Supernova <Mo>");
 
-    param.dSNIa_MaxMass = 8.0;
-    prmAddParam(prm, "dSNIa_MaxMass", 2, &param.dSNIa_MaxMass,
+    param.dSNIaMaxMass = 8.0;
+    prmAddParam(prm, "dSNIaMaxMass", 2, &param.dSNIaMaxMass,
                 sizeof(double), "sniamaxmass",
                 "Maximum mass for the likely progenitors of SNIa events <Mo>");
 
-    param.dSNIa_Norm = 2e-3;
-    prmAddParam(prm, "dSNIa_Norm", 2, &param.dSNIa_Norm,
+    param.dSNIaNorm = 2e-3;
+    prmAddParam(prm, "dSNIaNorm", 2, &param.dSNIaNorm,
                 sizeof(double), "snianorm",
                 "Normalization of the Delay Time Distribution function <1/Mo>");
 
-    param.dSNIa_Scale = 2e9;
-    prmAddParam(prm, "dSNIa_Scale", 2, &param.dSNIa_Scale,
+    param.dSNIaScale = 2e9;
+    prmAddParam(prm, "dSNIaScale", 2, &param.dSNIaScale,
                 sizeof(double), "sniascale",
                 "Scale of the Delay Time Distribution function (Exponential <yr>, "
                 "Powerlaw <dimensionless>)");
 
-    param.dSNIa_Norm_ti = 40e6;
-    prmAddParam(prm, "dSNIa_Norm_ti", 2, &param.dSNIa_Norm_ti,
+    param.dSNIaNormInitTime = 40e6;
+    prmAddParam(prm, "dSNIaNormInitTime", 2, &param.dSNIaNormInitTime,
                 sizeof(double), "sniati",
                 "Initial time for the normalization of the Delay Time Distribution "
                 "function <yr>");
 
-    param.dSNIa_Norm_tf = 13.7e9;
-    prmAddParam(prm, "dSNIa_Norm_tf", 2, &param.dSNIa_Norm_tf,
+    param.dSNIaNormFinalTime = 13.7e9;
+    prmAddParam(prm, "dSNIaNormFinalTime", 2, &param.dSNIaNormFinalTime,
                 sizeof(double), "sniatf",
                 "Final time for the normalization of the Delay Time Distribution "
                 "function <yr>");
@@ -2211,10 +2149,10 @@ void MSR::AllNodeWrite(const char *pszFileName, double dTime, double dvFac, int 
     in.dTimeOld   = dTimeOld;
     in.dUOld      = dUOld;
     in.dTuFac     = dTuFac;
-    in.dBoxSize   = param.dBoxSize;
+    in.dBoxSize   = param.units.dKpcUnit*1e-3*csm->val.h;
     in.Omega0     = csm->val.dOmega0;
     in.OmegaLambda= csm->val.dLambda;
-    in.HubbleParam= param.h;
+    in.HubbleParam= csm->val.h;
     in.units      = param.units;
 
     in.nDark = nDark;
@@ -2926,27 +2864,9 @@ void MSR::SmoothSetSMF(SMF *smf, double dTime, double dDelta, int nSmooth) {
         smf->H = 0.0;
         smf->a = 1.0;
     }
-    smf->alpha = param.dConstAlpha;
-    smf->beta = param.dConstBeta;
     smf->gamma = param.dConstGamma;
     smf->dDelta = dDelta;
     smf->dEtaCourant = param.dEtaCourant;
-    smf->iViscosityLimiter = param.iViscosityLimiter;
-    smf->iDiffusion = param.iDiffusion;
-    smf->dMetalDiffusionCoeff = param.dMetalDiffusionCoeff;
-    smf->dThermalDiffusionCoeff = param.dThermalDiffusionCoeff;
-    /* For SF & FB in code units */
-#define SECONDSPERYEAR   31557600.
-    if (param.bGasIsothermal) smf->SFdESNPerStarMass = 0;
-    else smf->SFdESNPerStarMass = param.SFdESNPerStarMass/param.units.dErgPerGmUnit;
-    smf->SFdtCoolingShutoff = param.SFdtCoolingShutoff*SECONDSPERYEAR/param.units.dSecUnit;
-    /* avoid alignment in steps + feedback time -- increase FB time by small tweak */
-    smf->SFdtFeedbackDelay = param.SFdtFeedbackDelay*1.0000013254678*SECONDSPERYEAR/param.units.dSecUnit;
-    smf->SFdMassLossPerStarMass = param.SFdMassLossPerStarMass;
-    smf->SFdZMassPerStarMass = param.SFdZMassPerStarMass;
-    smf->SFdFBFac = 0.5/((1+0.6*smf->alpha)/(smf->a*smf->dEtaCourant))
-                    /(param.SFdvFB/param.units.dKmPerSecUnit);
-
     smf->dConstGamma = param.dConstGamma;
     smf->bMeshlessHydro = param.bMeshlessHydro;
     smf->dhMinOverSoft = param.dhMinOverSoft;
@@ -2974,6 +2894,13 @@ void MSR::SmoothSetSMF(SMF *smf, double dTime, double dDelta, int nSmooth) {
     smf->dBHAccretionAlpha = param.dBHAccretionAlpha;
     smf->bBHFeedback = param.bBHFeedback;
     smf->bBHAccretion = param.bBHAccretion;
+#endif
+#ifdef STELLAR_EVOLUTION
+    smf->dCCSNMinMass = param.dCCSNMinMass;
+    smf->dSNIaNorm = param.dSNIaNorm;
+    smf->dSNIaScale = param.dSNIaScale;
+    smf->dSNIaEnergy = param.dSNIaEnergy;
+    smf->dWindSpecificEkin = param.dWindSpecificEkin;
 #endif
 }
 
@@ -3645,6 +3572,9 @@ void MSR::EndTimestepIntegration(double dTime,double dDelta) {
 #ifdef BLACKHOLES
     in.dBHRadiativeEff = param.dBHRadiativeEff;
 #endif
+#ifdef STELLAR_EVOLUTION
+    in.bChemEnrich = param.bChemEnrich;
+#endif
     double dsec;
 
     ComputeSmoothing(dTime, dDelta);
@@ -3806,6 +3736,9 @@ double MSR::getTheta(double dTime) {
 }
 
 void MSR::InitCosmology() {
+    if (prmSpecified(prm, "h")) {
+        csm->val.h = param.h;
+    }
     mdl->RunService(PST_INITCOSMOLOGY,sizeof(csm->val),&csm->val);
 }
 
@@ -3889,6 +3822,7 @@ void MSR::SphStep(uint8_t uRungLo,uint8_t uRungHi,double dTime,double dDelta) {
     struct inSphStep in;
     double a;
 
+#ifndef OPTIM_REMOVE_UNUSED
     a = csmTime2Exp(csm,dTime);
     in.dAccFac = 1.0/(a*a*a);
     in.dEta = param.dEta;
@@ -3898,6 +3832,7 @@ void MSR::SphStep(uint8_t uRungLo,uint8_t uRungHi,double dTime,double dDelta) {
     in.dDelta = dDelta;
     in.iMaxRung = param.iMaxRung;
     pstSphStep(pst,&in,sizeof(in),NULL,0);
+#endif
 }
 
 
@@ -4313,10 +4248,12 @@ int MSR::NewTopStepKDK(
 #if defined(FEEDBACK) || defined(STELLAR_EVOLUTION)
     ActiveRung(uRung,0);
 #ifdef FEEDBACK
-    ReSmooth(dTime,SMX_SN_FEEDBACK,1,0);
+    ReSmooth(dTime,dDelta,SMX_SN_FEEDBACK,1);
 #endif
 #ifdef STELLAR_EVOLUTION
-    ReSmooth(dTime, SMX_CHEM_ENRICHMENT, 1, 0);
+    if (param.bChemEnrich) {
+        ReSmooth(dTime,dDelta,SMX_CHEM_ENRICHMENT,1);
+    }
 #endif
 #endif
 
@@ -4451,9 +4388,6 @@ void MSR::TopStepKDK(
         ActiveRung(iKickRung,1);
         DomainDecomp(iKickRung);
 
-        /* JW: Good place to zero uNewRung */
-        ZeroNewRung(iKickRung,MAX_RUNG,iKickRung); /* brute force */
-
 #ifdef STAR_FORMATION
         StarForm(dTime, dDeltaStep, iKickRung);
 #endif
@@ -4503,7 +4437,7 @@ void MSR::TopStepKDK(
         printf("Computing feedback... ");
 
         TimerStart(TIMER_FEEDBACK);
-        ReSmooth(dTime,SMX_SN_FEEDBACK,1,0);
+        ReSmooth(dTime,dDeltaStep,SMX_SN_FEEDBACK,1);
         TimerStop(TIMER_FEEDBACK);
         dsec = TimerGet(TIMER_FEEDBACK);
         printf("took %.5f seconds\n", dsec);
@@ -4511,7 +4445,9 @@ void MSR::TopStepKDK(
 #ifdef STELLAR_EVOLUTION
         printf("Computing stellar evolution... ");
         TimerStart(TIMER_STEV);
-        ReSmooth(dTime, SMX_CHEM_ENRICHMENT, 1, 0);
+        if (param.bChemEnrich) {
+            ReSmooth(dTime,dDeltaStep,SMX_CHEM_ENRICHMENT,1);
+        }
         TimerStop(TIMER_STEV);
         dsec = TimerGet(TIMER_STEV);
         printf("took %.5f seconds\n", dsec);
@@ -4527,7 +4463,6 @@ void MSR::TopStepKDK(
             }
             else {
                 Sph(dTime,dDeltaStep,dStep);  /* dTime = Time at end of kick */
-                Cooling(dTime,dStep,0,(iKickRung<=param.iRungCoolTableUpdate ? 1:0),0);
             }
         }
 
@@ -4551,90 +4486,8 @@ void MSR::TopStepKDK(
         BuildTree(param.bEwald);
     }
 
-    /* JW: Creating/Deleting/Merging is best done outside (before or after) KDK cycle
-       -- Tree should still be valid from last force eval (only Drifts + Deletes invalidate it) */
-    //if (iKickRung == iRung) { /* Do all co-incident kicked p's in one go */
-    //   StarForm(dTime, dDeltaStep, iKickRung); /* re-eval timesteps as needed for next step
-    //                                              -- apply to all neighbours */
-    //}
 }
 
-#ifndef STAR_FORMATION
-void MSR::StarForm(double dTime, double dDelta, int iRung) {
-#ifndef OPTIM_REMOVE_UNUSED
-    struct inStarForm in;
-    struct outStarForm out;
-    double a,d1,d2;
-    double sec,sec1,dsec;
-
-    if (!param.bStarForm) return;
-    sec = MSR::Time();
-
-    a = csmTime2Exp(csm,dTime);
-    in.dDelta = dDelta;
-    /* Convert input parameters to code units */
-    in.dRateCoeff = param.SFdEfficiency*sqrt(32/(3*M_PI)/pow(a,3)); /* G=1 */
-    in.dTMax = param.SFdTMax;
-    d1 = param.SFdComovingDenMin;
-    d2 = param.SFdPhysDenMin/param.dGmPerCcUnit*pow(a,3);
-    in.dDenMin = (d1>d2 ? d1 : d2);
-
-    in.dTime = dTime;
-    in.dInitStarMass = param.SFdInitStarMass;
-    in.dESNPerStarMass = param.SFdESNPerStarMass/param.dErgPerGmUnit;
-    in.dtCoolingShutoff = param.SFdtCoolingShutoff*SECONDSPERYEAR/param.dSecUnit;
-    in.dtFeedbackDelay = param.SFdtFeedbackDelay*1.0000013254678*SECONDSPERYEAR/param.dSecUnit;
-    in.dMassLossPerStarMass = param.SFdMassLossPerStarMass;
-    in.dZMassPerStarMass = param.SFdZMassPerStarMass;
-    in.dInitStarMass = param.SFdInitStarMass;
-    in.dMinGasMass = param.SFdMinGasMass;
-    in.bdivv = param.SFbdivv;
-    in.dTuFac = dTuFac;
-    in.bGasCooling = param.bGasCooling;
-
-    if (bVDetails) printf("Star Form ... ");
-
-    ActiveRung(iRung,1); /* important to limit to active gas only */
-    pstStarForm(pst, &in, sizeof(in), &out, sizeof(out));
-    if (bVDetails)
-        printf("%d Stars formed with mass %g, %d gas deleted\n",
-               out.nFormed, out.dMassFormed, out.nDeleted);
-
-    if (out.nDeleted) {
-        //msrSelSrcGas(msr); /* Not really sure what the setting here needs to be */
-        //msrSelDstDeleted(msr); /* Select only deleted particles */
-        ActiveRung(0,1); /* costs nothing -- may be redundant */
-        /*    BuildTree(param.bEwald);*/
-        Smooth(dTime, dDelta, SMX_DIST_DELETED_GAS, 1,param.nSmooth); /* use full smooth to account for deleted */
-        //msrSelSrcAll(msr);
-        //msrSelDstAll(msr);
-    }
-
-    /* Strictly speaking adding/deleting particles invalidates the tree
-       In practice we can find deleted particles (and ignore them) and we aren't looking for
-       any new star particles so we should be able to function with an old tree for FB
-       Could do FB before the AddDel call if careful to exclude deleted particles */
-    if (out.nDeleted || out.nFormed) AddDelParticles();
-
-    sec1 = MSR::Time();
-    dsec = sec1 - sec;
-    printf("Star Formation Calculated, Wallclock: %f secs\n\n",dsec);
-
-    if (param.bFeedback) {
-        ActiveRung(iRung,1); /* costs nothing -- important to limit to active stars only */
-        //msrSelSrcGas(msr); /* Not really sure what the setting here needs to be */
-        //msrSelDstStar(msr,1,dTime); /* Select only stars that have FB to do */
-        /*    BuildTree(param.bEwald);*/
-        Smooth(dTime, dDelta, SMX_DIST_SN_ENERGY, 1, param.nSmooth); /* full smooth for stars */
-        //msrSelSrcAll(msr);
-        //msrSelDstAll(msr);
-
-        dsec = MSR::Time() - sec1;
-        printf("Feedback Calculated, Wallclock: %f secs\n\n",dsec);
-    }
-#endif //OPTIM_REMOVE_UNUSED
-}
-#endif
 
 void MSR::GetNParts() { /* JW: Not pretty -- may be better way via fio */
     struct outGetNParts outget;
@@ -4708,6 +4561,7 @@ void MSR::AddDelParticles() {
 /* Gas routines */
 void MSR::InitSph(double dTime,double dDelta) {
     if (!MeshlessHydro()) {
+#ifndef OPTIM_REMOVE_UNUSED
         /* Init gas, internal energy -- correct estimate from dTuFac */
         ActiveRung(0,1);
         /* Very important NOT to do this if starting from a checkpoint */
@@ -4741,6 +4595,7 @@ void MSR::InitSph(double dTime,double dDelta) {
         Sph(dTime,dDelta,0);
         SphStep(0,MAX_RUNG,dTime,dDelta); /* Requires SPH */
         Cooling(dTime,0,0,1,1); /* Interate cooling for consistent dt */
+#endif
     }
     else {
         if (!param.bRestart) {
@@ -4751,8 +4606,8 @@ void MSR::InitSph(double dTime,double dDelta) {
             MeshlessFluxes(dTime, 0.0);
             // We do this twice because we need to have uNewRung for the time
             // limiter of Durier & Dalla Vecchia
-            HydroStep(dTime, 0.0);
-            HydroStep(dTime, 0.0);
+            HydroStep(dTime, dDelta);
+            HydroStep(dTime, dDelta);
         }
     }
     UpdateRung(0) ;
@@ -5156,8 +5011,9 @@ double MSR::GenerateIC() {
 #ifdef HAVE_IRON
     in.dInitialFe = param.dInitialFe;
 #endif
-    in.dOmegaRate = csm->val.dOmegab/csm->val.dOmega0;
-    in.dTuFac = dTuFac;
+#ifdef HAVE_METALLICITY
+    in.dInitialMetallicity = param.dInitialMetallicity;
+#endif
 
     nTotal  = in.nGrid; /* Careful: 32 bit integer cubed => 64 bit integer */
     nTotal *= in.nGrid;
@@ -5177,6 +5033,9 @@ double MSR::GenerateIC() {
     }
     InitializePStore(nSpecies,getMemoryModel());
     InitCosmology();
+    in.dOmegaRate = csm->val.dOmegab/csm->val.dOmega0;
+    SetDerivedParameters();
+    in.dTuFac = dTuFac;
 
     assert(param.dRedFrom >= 0.0 );
     in.dExpansion = 1.0 / (1.0 + param.dRedFrom);
@@ -5303,7 +5162,7 @@ double MSR::Read(const char *achInFile) {
         if (!prmSpecified(prm, "dBoxSize"))
             fioGetAttr(fio,HDF5_HEADER_G,"BoxSize",FIO_TYPE_DOUBLE,&param.dBoxSize);
         if (!prmSpecified(prm, "h"))
-            fioGetAttr(fio,HDF5_COSMO_G,"HubbleParam",FIO_TYPE_DOUBLE,&param.h);
+            fioGetAttr(fio,HDF5_COSMO_G,"HubbleParam",FIO_TYPE_DOUBLE,&csm->val.h);
     }
 
     N     = fioGetN(fio,FIO_SPECIES_ALL);
@@ -5322,11 +5181,10 @@ double MSR::Read(const char *achInFile) {
     dTime = getTime(dExpansion);
     if (param.bInFileLC) read->dvFac = 1.0;
     else read->dvFac = getVfactor(dExpansion);
-    read->dTuFac = dTuFac;
 
     if (nGas && !prmSpecified(prm,"bDoGas")) param.bDoGas = 1;
     if (DoGas() && NewSPH()) mMemoryModel |= (PKD_MODEL_NEW_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_DENSITY|PKD_MODEL_BALL);
-    if (param.bStarForm || nStar) mMemoryModel |= (PKD_MODEL_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_MASS|PKD_MODEL_SOFTENING|PKD_MODEL_STAR);
+    if (nStar) mMemoryModel |= (PKD_MODEL_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_MASS|PKD_MODEL_SOFTENING|PKD_MODEL_STAR);
 
     read->nNodeStart = 0;
     read->nNodeEnd = N - 1;
@@ -5338,6 +5196,8 @@ double MSR::Read(const char *achInFile) {
     read->dOmega0 = csm->val.dOmega0;
     read->dOmegab = csm->val.dOmegab;
 
+    SetDerivedParameters();
+    read->dTuFac = dTuFac;
     /*
     ** If bParaRead is 0, then we read serially; if it is 1, then we read
     ** in parallel using all available threads, otherwise we read in parallel

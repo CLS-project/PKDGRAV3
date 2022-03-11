@@ -90,6 +90,10 @@ double conditionNumber(double *E, double *B) {
 void BarthJespersenLimiter(double *limVar, double *gradVar,
                            double var_max, double var_min,
                            double dx, double dy, double dz) {
+#ifdef DEBUG_FLUX_NOLIMITER
+    *limVar = 1;
+    return;
+#endif
     double diff, lim;
 
     diff = (gradVar[0]*dx + gradVar[1]*dy + gradVar[2]*dz);
@@ -119,6 +123,10 @@ void ConditionedBarthJespersenLimiter(double *limVar, myreal *gradVar,
                                       double var_max, double var_min,
                                       double dx, double dy, double dz,
                                       double Ncrit, double Ncond) {
+#ifdef DEBUG_FLUX_NOLIMITER
+    *limVar = 1;
+    return;
+#endif
     double diff, lim, beta;
 
     diff = Ncrit/Ncond;
@@ -171,6 +179,9 @@ inline void compute_Ustar(double rho_K, double S_K, double v_K,
 #define psi2 0.25
 void genericPairwiseLimiter(double Lstate, double Rstate,
                             double *Lstate_face, double *Rstate_face) {
+#ifdef DEBUG_FLUX_NOLIMITER
+    return;
+#endif
     double phi_max, phi_min, d1, d2, phi_mean, phi_p, phi_m;
 
     if (Lstate == Rstate) {

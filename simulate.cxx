@@ -37,11 +37,11 @@ double MSR::LoadOrGenerateIC() {
     /* Read in a binary file */
     else if ( param.achInFile[0] ) {
         dTime = Read(param.achInFile); /* May change nSteps/dDelta */
-        if (param.bAddDelete) GetNParts();
     }
     else {
         printf("No input file specified\n");
     }
+    if (param.bAddDelete) GetNParts();
     return dTime;
 }
 
@@ -123,6 +123,8 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
         // msrLogParams(msr,fpLog);
     }
 
+    TimerHeader();
+
     if (param.bLightCone && Comove()) {
         printf("One, Two, Three replica depth is z=%.10g, %.10g, %.10g\n",
                1.0/csmComoveLookbackTime2Exp(csm,1.0 / dLightSpeedSim(1*param.dBoxSize)) - 1.0,
@@ -135,14 +137,14 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
     }
 
 #ifdef COOLING
-    CoolingInit();
-    if ((csm->val.bComove)) {
-        const float a = csmTime2Exp(csm,dTime);
-        CoolingUpdate(1./a - 1., 1);
-    }
-    else {
-        CoolingUpdate(0., 1);
-    }
+    float redshift;
+    if (csm->val.bComove)
+        redshift = 1./csmTime2Exp(csm,dTime) - 1.;
+    else
+        redshift = 0.0;
+
+    CoolingInit(redshift);
+    CoolingUpdate(redshift, 1);
 #endif
 
 #ifdef GRACKLE
@@ -160,6 +162,10 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
     starFormed = 0.;
     massFormed = 0.;
 #endif
+#endif
+
+#ifdef STELLAR_EVOLUTION
+    StellarEvolutionInit(dTime);
 #endif
 
     OutputFineStatistics(0.0, -1);
@@ -234,11 +240,17 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
         }
     }
     if (DoGas() && MeshlessHydro()) {
-        /* Initialize SPH, Cooling and SF/FB and gas time step */
-        CoolSetup(dTime);
+        InitSph(dTime, dDelta);
     }
 #ifdef BLACKHOLES
+    uRungMax = GetMinDt();
+#ifndef DEBUG_BH_ONLY
     BlackholeInit(uRungMax);
+#endif
+    if (param.bFindGroups && param.bBHPlaceSeed) {
+        NewFof(dTime);
+        GroupStats();
+    }
 #endif
 
 
@@ -256,11 +268,19 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
     }
 
     if (param.bWriteIC && !prmSpecified(prm,"nGrid")) {
+#ifndef BLACKHOLES
         if (param.bFindGroups) {
             NewFof(dTime);
             GroupStats();
         }
+#endif
         Output(iStartStep,dTime,dDelta,0);
+    }
+
+    // Make sure that the tree is usable before the start of the simulation
+    if (param.bFindGroups || param.bWriteIC) {
+        DomainDecomp();
+        BuildTree(param.bEwald);
     }
 
     bKickOpen = 0;
@@ -269,6 +289,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
         dDelta = SwitchDelta(dTime,dDelta,iStep-1,param.nSteps);
         dTheta = getTheta(dTime);
         lPrior = time(0);
+        TimerRestart();
         if (param.bNewKDK) {
             double diStep = (double)(iStep-1);
             double ddTime = dTime;
@@ -349,11 +370,10 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
         if (bDoOutput) {
             Output(iStep,dTime,param.dDelta,0);
             bDoOutput = 0;
-            if (param.bNewKDK) {
-                DomainDecomp();
-                BuildTree(param.bEwald);
-            }
+            DomainDecomp();
+            BuildTree(param.bEwald);
         }
+        TimerDump(iStep);
     }
     if (LogInterval()) (void) fclose(fpLog);
 
@@ -412,36 +432,17 @@ int MSR::ValidateParameters() {
         return 0;
     }
 
-    if (prmSpecified(prm, "dMetalDiffsionCoeff") || prmSpecified(prm,"dThermalDiffusionCoeff")) {
-        if (!prmSpecified(prm, "iDiffusion")) param.iDiffusion=1;
-    }
-
-    {
-        int nCoolingSet=0;
-        if (param.bGasIsothermal) nCoolingSet++;
-        if (param.bGasCooling) nCoolingSet++;
-        if (!prmSpecified(prm, "bGasAdiabatic") && nCoolingSet) param.bGasAdiabatic=0;
-        else if (param.bGasAdiabatic) nCoolingSet++;
-
-        if (nCoolingSet != 1) {
-            fprintf(stderr,"One of bGasAdiabatic (%d), bGasIsothermal (%d) and bGasCooling (%d) may be set\n", param.bGasAdiabatic, param.bGasIsothermal, param.bGasCooling);
-            assert(0);
-        }
-    }
-
-
-
-    /* Star parameter checks */
-
-    if (param.bStarForm) {
-        param.bAddDelete = 1;
-        if (!prmSpecified(prm, "bFeedback")) param.bFeedback=1;
-    }
-
-    /* END Gas and Star Parameter Checks */
-
     if (param.nDigits < 1 || param.nDigits > 9) {
         (void) fprintf(stderr,"Unreasonable number of filename digits.\n");
+        return 0;
+    }
+
+    if (param.bDoGas && !(param.bMeshlessHydro||param.bNewSPH) ) {
+        fprintf(stderr,"ERROR: Please provide an hydrodynamic solver to be used: bMeshlessHydro or bNewSPH.\n");
+        return 0;
+    }
+    if (param.bMeshlessHydro && param.bNewSPH) {
+        fprintf(stderr,"ERROR: Only one hydrodynamic scheme can be used.\n");
         return 0;
     }
 
@@ -509,6 +510,11 @@ int MSR::ValidateParameters() {
                 puts("ERROR: Can not generate gas if bDoGas=0");
                 return 0;
             }
+        }
+    }
+    if ( csm->val.bComove && !csm->val.classData.bClass ) {
+        if ( !prmSpecified(prm,"h") ) {
+            fprintf(stderr, "WARNING: Running with bComove without specifying a Hubble parameter, h\n");
         }
     }
     /* Set the number of bins for the power spectrum measurement of linear species */
@@ -670,41 +676,12 @@ int MSR::ValidateParameters() {
         }
     }
 
-#ifdef OPTIM_NO_REDUNDANT_FLUXES
-    if (MeshlessHydro() && !param.bMemParticleID) {
-        fprintf(stderr, "WARNING: OPTIM_NO_REDUNDANT_FLUXES requires bMemParticleID");
-        return 0;
-    }
-#endif
 
     /* Make sure that parallel read and write are sane */
     int nThreads = mdlThreads(mdl);
     if (param.nParaRead  > nThreads) param.nParaRead  = nThreads;
     if (param.nParaWrite > nThreads) param.nParaWrite = nThreads;
 
-
-    /**********************************************************************\
-    * The following "parameters" are derived from real parameters.
-    \**********************************************************************/
-
-    SetUnits();
-    dTuFac = param.units.dGasConst/(param.dConstGamma - 1)/param.dMeanMolWeight;
-
-#ifdef COOLING
-    SetCoolingParam();
-#endif
-#ifdef STAR_FORMATION
-    SetStarFormationParam();
-#endif
-#ifdef FEEDBACK
-    SetFeedbackParam();
-#endif
-#if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
-    SetEOSParam();
-#endif
-#ifdef BLACKHOLES
-    SetBlackholeParam();
-#endif
 
 
     if (csm->val.classData.bClass) {

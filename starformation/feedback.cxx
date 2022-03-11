@@ -6,9 +6,11 @@ void MSR::SetFeedbackParam() {
     const double dHydFrac = param.dInitialH;
     const double dnHToRho = MHYDR / dHydFrac / param.units.dGmPerCcUnit;
     param.dSNFBDu = param.dSNFBDT*dTuFac;
-    param.dSNFBDelay *=  SECONDSPERYEAR/param.units.dSecUnit ;
-    param.dSNFBNumberSNperMass *= 8.73e15 / param.units.dErgPerGmUnit / 1.736e-2;
-    param.dSNFBEffnH0 *= dnHToRho;
+    if (!param.bRestart) {
+        param.dSNFBDelay *=  SECONDSPERYEAR/param.units.dSecUnit ;
+        param.dSNFBNumberSNperMass *= 8.73e15 / param.units.dErgPerGmUnit / 1.736e-2;
+        param.dSNFBEffnH0 *= dnHToRho;
+    }
 }
 
 #ifdef __cplusplus

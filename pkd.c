@@ -491,7 +491,7 @@ void pkdInitialize(
     pkd->oNodeVelocity = 0;
     if ( (mMemoryModel & PKD_MODEL_NODE_VEL) && sizeof(vel_t) == sizeof(double))
         pkd->oNodeVelocity = pkdNodeAddDouble(pkd,3);
-    if ( mMemoryModel & PKD_MODEL_SPH ) {
+    if ( mMemoryModel & (PKD_MODEL_SPH|PKD_MODEL_BH) ) {
 #ifdef OPTIM_REORDER_IN_NODES
         pkd->oNodeNgas = pkdNodeAddInt32(pkd,1);
 #if (defined(STAR_FORMATION) && defined(FEEDBACK)) || defined(STELLAR_EVOLUTION)
@@ -2000,7 +2000,7 @@ void pkdWriteViaNode(PKD pkd, int iNode) {
 
 void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dScaleFactor, double dTime,
                        uint64_t nDark, uint64_t nGas, uint64_t nStar, uint64_t nBH,
-                       double dBoxSize, int nProcessors, UNITS units) {
+                       double dBoxSize, double h, int nProcessors, UNITS units) {
     fioSetAttr(fio, HDF5_HEADER_G, "Time", FIO_TYPE_DOUBLE, 1, &dTime);
     if (pkd->csm->val.bComove) {
         double z = 1./dScaleFactor - 1.;
@@ -2082,14 +2082,13 @@ void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dScaleFactor, double dTime,
      * Cosmology header
      */
     if (pkd->csm->val.bComove) {
-        double h = 1;
         flag = 1;
         fioSetAttr(fio, HDF5_COSMO_G, "Omega_m", FIO_TYPE_DOUBLE, 1, &pkd->csm->val.dOmega0);
         fioSetAttr(fio, HDF5_COSMO_G, "Omega_lambda", FIO_TYPE_DOUBLE, 1, &pkd->csm->val.dLambda);
         fioSetAttr(fio, HDF5_COSMO_G, "Omega_b", FIO_TYPE_DOUBLE, 1, &pkd->csm->val.dOmegab);
         fioSetAttr(fio, HDF5_COSMO_G, "Hubble0", FIO_TYPE_DOUBLE, 1, &pkd->csm->val.dHubble0);
         fioSetAttr(fio, HDF5_COSMO_G, "Cosmological run", FIO_TYPE_INT, 1, &flag);
-        fioSetAttr(fio, HDF5_COSMO_G, "HubbleParam", FIO_TYPE_DOUBLE, 1, &h); // Not used
+        fioSetAttr(fio, HDF5_COSMO_G, "HubbleParam", FIO_TYPE_DOUBLE, 1, &h);
 
         // Keep a copy also in the Header for increased compatibility
         fioSetAttr(fio, HDF5_HEADER_G, "Omega0", FIO_TYPE_DOUBLE, 1, &pkd->csm->val.dOmega0);
@@ -2097,7 +2096,7 @@ void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dScaleFactor, double dTime,
         fioSetAttr(fio, HDF5_HEADER_G, "OmegaB", FIO_TYPE_DOUBLE, 1, &pkd->csm->val.dOmegab);
         fioSetAttr(fio, HDF5_HEADER_G, "Hubble0", FIO_TYPE_DOUBLE, 1, &pkd->csm->val.dHubble0);
         fioSetAttr(fio, HDF5_HEADER_G, "Cosmological run", FIO_TYPE_INT, 1, &flag);
-        fioSetAttr(fio, HDF5_HEADER_G, "HubbleParam", FIO_TYPE_DOUBLE, 1, &h); // Not used
+        fioSetAttr(fio, HDF5_HEADER_G, "HubbleParam", FIO_TYPE_DOUBLE, 1, &h);
     }
     else {
         flag = 0;
@@ -2837,6 +2836,14 @@ void pkdEndTimestepIntegration(PKD pkd, struct inEndTimestep in) {
         p = pkdParticle(pkd,i);
         if (pkdIsGas(pkd,p) && pkdIsActive(pkd, p)  ) {
             psph = pkdSph(pkd, p);
+
+            // ##### Add ejecta from stellar evolution
+#ifdef STELLAR_EVOLUTION
+            if (in.bChemEnrich && psph->fReceivedMass > 0.0f) {
+                pkdAddStellarEjecta(pkd, p, psph, in.dConstGamma);
+            }
+#endif
+
             float fMass = pkdMass(pkd, p);
             float fDens = pkdDensity(pkd, p);
             const float fDensPhys = fDens*a_inv3;
@@ -3245,169 +3252,6 @@ void pkdSphStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
 #endif //OPTIM_REMOVE_UNUSED
 }
 
-/* IA: Now unused. TODO: consider removing all these functions */
-#ifndef STAR_FORMATION
-void pkdStarForm(PKD pkd, double dRateCoeff, double dTMax, double dDenMin,
-                 double dDelta, double dTime,
-                 double dInitStarMass, double dESNPerStarMass, double dtCoolingShutoff,
-                 double dtFeedbackDelay,  double dMassLossPerStarMass,
-                 double dZMassPerStarMass, double dMinGasMass,
-                 double dTuFac, int bGasCooling, int bdivv,
-                 int *nFormed, /* number of stars formed */
-                 double *dMassFormed,   /* mass of stars formed */
-                 int *nDeleted) { /* gas particles deleted */
-#ifndef OPTIM_REMOVE_UNUSED
-
-    PARTICLE *p;
-    SPHFIELDS *sph;
-    double T, E, dmstar, dt, prob;
-    PARTICLE *starp;
-    int i;
-
-    assert(pkd->oFieldOffset[oStar]);
-    assert(pkd->oFieldOffset[oSph]);
-    assert(pkd->oFieldOffset[oMass]);
-
-    *nFormed = 0;
-    *nDeleted = 0;
-    *dMassFormed = 0.0;
-    starp = (PARTICLE *) malloc(pkdParticleSize(pkd));
-    assert(starp != NULL);
-
-    printf("pkdSF calc dTime %g\n",dTime);
-    for (i=0; i<pkdLocal(pkd); ++i) {
-        p = pkdParticle(pkd,i);
-
-        if (pkdIsActive(pkd,p) && pkdIsGas(pkd,p)) {
-            sph = pkdSph(pkd,p);
-            dt = pkd->param.dDelta/(1<<p->uRung); /* Actual Rung */
-            pkdStar(pkd,p)->totaltime += dt;
-            if (pkdDensity(pkd,p) < dDenMin || (bdivv && sph->divv >= 0.0)) continue;
-            E = sph->uPred;
-            T=E/pkd->param.dTuFac;
-            if (T > dTMax) continue;
-
-            /* Note: Ramses allows for multiple stars per step -- but we have many particles
-            and he has one cell that may contain many times m_particle */
-            if (pkd->param.bGasCooling) {
-                if (fabs(pkdStar(pkd,p)->totaltime-dTime) > 1e-3*dt) {
-                    printf("total time error: %"PRIu64",  %g %g %g\n",
-                           (uint64_t)p->iOrder,pkdStar(pkd,p)->totaltime,dTime,dt);
-                    assert(0);
-                }
-            }
-
-            dmstar = dRateCoeff*sqrt(pkdDensity(pkd,p))*pkdMass(pkd,p)*dt;
-            prob = 1.0 - exp(-dmstar/dInitStarMass);
-
-            /* Star formation event? */
-            if (rand()<RAND_MAX*prob) {
-                float *starpMass = pkdField(starp,pkd->oMass);
-                float *pMass = pkdField(p,pkd->oMass);
-                pkdCopyParticle(pkd, starp, p); /* grab copy */
-                *pMass -= dInitStarMass;
-                *starpMass = dInitStarMass;
-                /*      pkdStar(pkd,starp)->iGasOrder = p->iOrder;*/
-                if (*pMass < 0) {
-                    *starpMass += *pMass;
-                    *pMass = 0;
-                }
-                if (*pMass < dMinGasMass) {
-                    pkdDeleteParticle(pkd, p);
-                    (*nDeleted)++;
-                }
-
-                /* Time formed
-                -- in principle it could have formed any time between dTime-dt and dTime
-                   so dTime-0.5*dt is good -- just check it's less that dtFB */
-                if (dt < dtFeedbackDelay) pkdStar(pkd,starp)->fTimer = dTime-dt*.5;
-                else pkdStar(pkd,starp)->fTimer = dTime-0.5*dtFeedbackDelay;
-                pkdSph(pkd,starp)->u = 1; /* no FB yet */
-
-                pkdSetClass(pkd,pkdMass(pkd,starp),pkdSoft(pkd,starp),FIO_SPECIES_STAR,starp); /* How do I make a new particle? -- this is bad it rewrites mass and soft for particle */
-                /* JW: If class doesn't exist this is very bad -- what is the soft?
-                   For now force softening to exist to get around this */
-                (*nFormed)++;
-                *dMassFormed += *starpMass;
-                pkdNewParticle(pkd, starp);
-            }
-        }
-    }
-
-    free(starp);
-#endif //OPTIM_REMOVE_UNUSED
-}
-#endif
-
-
-#ifndef OPTIM_REMOVE_UNUSED
-void pkdCooling(PKD pkd, double dTime, double z, int bUpdateState, int bUpdateTable, int bIterateDt, int bIsothermal ) {
-    PARTICLE *p;
-    int i;
-    SPHFIELDS *sph;
-    double E,dt,ExternalHeating;
-
-    pkdClearTimer(pkd,1);
-    pkdStartTimer(pkd,1);
-
-    assert(pkd->oFieldOffset[oSph]);
-    assert(!pkd->bNoParticleOrder);
-
-    if (bIsothermal)  {
-        for (i=0; i<pkdLocal(pkd); ++i) {
-            p = pkdParticle(pkd,i);
-            pkdSph(pkd,p)->uDot = 0;
-        }
-    }
-    else {
-        if (bIterateDt) { /* Iterate Cooling & dt for each particle */
-            for (i=0; i<pkdLocal(pkd); ++i) {
-                p = pkdParticle(pkd,i);
-                if (pkdIsActive(pkd,p) && pkdIsGas(pkd,p)) {
-                    if (pkdStar(pkd,p)->fTimer > dTime) continue;
-                    sph = pkdSph(pkd,p);
-                    ExternalHeating = sph->uDot;
-                    for (;;) {
-                        double uDot;
-
-                        E = sph->u;
-                        dt = pkd->param.dDelta/(1<<p->uNewRung); /* Rung Guess */
-                        uDot = (E-sph->u)/dt;
-                        if (uDot < 0) {
-                            double dtNew;
-                            int uNewRung;
-                            dtNew = pkd->param.dEtaUDot*sph->u/fabs(uDot);
-                            uNewRung = pkdDtToRung(dtNew,pkd->param.dDelta,pkd->param.iMaxRung);
-                            if (uNewRung > p->uNewRung) {
-                                p->uNewRung = uNewRung;
-                                continue;
-                            }
-                        }
-                        sph->uDot = uDot;
-                        break;
-                    }
-                }
-            }
-        }
-        else {
-            for (i=0; i<pkdLocal(pkd); ++i) {
-                p = pkdParticle(pkd,i);
-                if (pkdIsActive(pkd,p) && pkdIsGas(pkd,p)) {
-                    if (pkdStar(pkd,p)->fTimer > dTime) {
-                        continue;
-                    }
-                    sph = pkdSph(pkd,p);
-                    ExternalHeating = sph->uDot;
-                    E = sph->u;
-                    dt = pkd->param.dDelta/(1<<p->uRung); /* Actual Rung */
-                    sph->uDot = (E-sph->u)/dt; /* To let us interpolate/extrapolate uPred */
-                }
-            }
-        }
-    }
-    pkdStopTimer(pkd,1);
-}
-#endif //OPTIM_REMOVE_UNUSED
 
 void pkdChemCompInit(PKD pkd, struct inChemCompInit in) {
 
@@ -3547,7 +3391,7 @@ int pkdUpdateRung(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     int i;
     int iTempRung;
     assert(!pkd->bNoParticleOrder);
-    for (i=0; i<=iMaxRung; ++i) nRungCount[i] = 0;
+    for (i=0; i<iMaxRung; ++i) nRungCount[i] = 0;
     for (i=0; i<pkdLocal(pkd); ++i) {
         p = pkdParticle(pkd,i);
         if ( pkdIsActive(pkd,p) ) {
@@ -3798,8 +3642,6 @@ pkdGetNParts(PKD pkd, struct outGetNParts *out ) {
     out->nStar = nStar;
     out->nBH = nBH;
     out->nMaxOrder = iMaxOrder;
-
-    printf("%d \t %d %d %d %d %d \n", pkd->idSelf, n, nDark, nGas, nStar, nBH);
 
     pkdSetNParts(pkd, nGas, nDark, nStar, nBH);
 }

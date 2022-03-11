@@ -20,15 +20,17 @@
 void MSR::SetStarFormationParam() {
     const double dHydFrac = param.dInitialH;
     const double dnHToRho = MHYDR / dHydFrac / param.units.dGmPerCcUnit;
-    param.dSFThresholdDen *= dnHToRho*dHydFrac; // Code hydrogen density
     param.dSFThresholdu = param.dSFThresholdT*dTuFac;
 
     const double Msolpcm2 = 1. / param.units.dMsolUnit *
                             pow(param.units.dKpcUnit*1e3, 2);
-    param.dSFnormalizationKS *= 1. / param.units.dMsolUnit *
-                                param.units.dSecUnit/SECONDSPERYEAR *
-                                pow(param.units.dKpcUnit, 2) *
-                                pow(Msolpcm2,-param.dSFindexKS);
+    if (!param.bRestart) {
+        param.dSFThresholdDen *= dnHToRho*dHydFrac; // Code hydrogen density
+        param.dSFnormalizationKS *= 1. / param.units.dMsolUnit *
+                                    param.units.dSecUnit/SECONDSPERYEAR *
+                                    pow(param.units.dKpcUnit, 2) *
+                                    pow(Msolpcm2,-param.dSFindexKS);
+    }
 }
 
 void MSR::StarForm(double dTime, double dDelta, int iRung) {
@@ -60,6 +62,11 @@ void MSR::StarForm(double dTime, double dDelta, int iRung) {
     in.dEOSPolyFloorIndex = param.dEOSPolyFloorIndex;
     in.dEOSPolyFloorDen = param.dEOSPolyFloorDen;
     in.dEOSPolyFlooru = param.dEOSPolyFlooru;
+#endif
+#ifdef STELLAR_EVOLUTION
+    in.dSNIaMaxMass = param.dSNIaMaxMass;
+    in.dCCSNMinMass = param.dCCSNMinMass;
+    in.dCCSNMaxMass = param.dCCSNMaxMass;
 #endif
 
 
@@ -221,17 +228,16 @@ void pkdStarForm(PKD pkd,
                 pStar->hasExploded = 0;
 
 #ifdef STELLAR_EVOLUTION
+                const float fMassInv = 1.0f / fMass;
                 for (j = 0; j < ELEMENT_COUNT; j++)
-                    pStar->afElemAbun[j] = afElemMass[j] / fMass;
-                pStar->fMetalAbun = fMetalMass / fMass;
+                    pStar->afElemAbun[j] = afElemMass[j] * fMassInv;
+                pStar->fMetalAbun = fMetalMass * fMassInv;
 
                 pStar->fInitialMass = fMass;
                 pStar->fLastEnrichTime = 0.0f;
 
-                if (in.bChemEnrich)
-                    stevStarParticleInit(pkd, pStar);
-                else
-                    pStar->fNextEnrichTime = INFINITY;
+                stevStarParticleInit(pkd, pStar, in.dSNIaMaxMass, in.dCCSNMinMass,
+                                     in.dCCSNMaxMass);
 #endif
 
 #ifdef FEEDBACK

@@ -219,6 +219,9 @@ struct inEndTimestep {
 #ifdef BLACKHOLES
     double dBHRadiativeEff;
 #endif
+#ifdef STELLAR_EVOLUTION
+    int bChemEnrich;
+#endif
 };
 
 #ifdef STAR_FORMATION
@@ -244,6 +247,12 @@ struct inStarForm {
     double dSNFBMaxEff;
     double dSNFBEffnH0;
     double dSNFBEffIndex;
+#endif
+
+#ifdef STELLAR_EVOLUTION
+    double dSNIaMaxMass;
+    double dCCSNMinMass;
+    double dCCSNMaxMass;
 #endif
 };
 #endif

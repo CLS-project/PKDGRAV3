@@ -267,6 +267,12 @@ typedef struct sphfields {
     float fMetalMass;
 #endif
 
+#ifdef STELLAR_EVOLUTION
+    float afReceivedMom[3];
+    float fReceivedMass;
+    float fReceivedE;
+#endif
+
 
 #ifdef FEEDBACK
     float fAccFBEnergy;
@@ -292,12 +298,12 @@ typedef struct starfields {
     float fInitialMass;
     float fLastEnrichTime;
     float fLastEnrichMass;
-    int iLastEnrichMassIdx;
+    int iLastEnrichMass;
     float fNextEnrichTime;
     struct {
         int oZ;
         float fDeltaZ;
-    } CCSN, AGB, Lifetimes;
+    } CCSN, AGB, Lifetime;
     float fSNIaOnsetTime;
 #endif
 
@@ -914,7 +920,7 @@ typedef struct pkdContext {
     code_units *grackle_units;
 #endif
 #ifdef STELLAR_EVOLUTION
-    struct inStellarEvolution *StelEvolData;
+    struct StellarEvolutionData *StelEvolData;
 #endif
 
 #ifdef USE_CUDA
@@ -1519,7 +1525,7 @@ void pkdCheckpoint(PKD pkd,const char *fname);
 void pkdRestore(PKD pkd,const char *fname);
 void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dScaleFactor, double dTime,
                        uint64_t nDark, uint64_t nGas, uint64_t nStar, uint64_t nBH,
-                       double dBoxSize, int nProcessors, UNITS units);
+                       double dBoxSize, double h, int nProcessors, UNITS units);
 uint32_t pkdWriteFIO(PKD pkd,FIO fio,double dvFac,double dTuFac,BND *bnd);
 void pkdWriteFromNode(PKD pkd,int iNode, FIO fio,double dvFac,double dTuFac,BND *bnd);
 void pkdWriteViaNode(PKD pkd, int iNode);
@@ -1564,16 +1570,6 @@ void pkdCooling(PKD pkd,double,double,int,int,int,int);
 void pkdChemCompInit(PKD pkd, struct inChemCompInit in);
 void pkdSphStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
                 double dDelta, int iMaxRung,double dEta, double dAccFac, double dEtaUDot);
-#ifndef STAR_FORMATION
-void pkdStarForm(PKD pkd, double dRateCoeff, double dTMax, double dDenMin,
-                 double dDelta, double dTime,
-                 double dInitStarMass, double dESNPerStarMass, double dtCoolingShutoff,
-                 double dtFeedbackDelay,  double dMassLossPerStarMass,
-                 double dZMassPerStarMass, double dMinGasMass,
-                 double dTuFac, int bGasCooling,
-                 int bdivv, int *nFormed, double *dMassFormed,
-                 int *nDeleted);
-#endif
 #define CORRECTENERGY_IN 1
 #define CORRECTENERGY_OUT 2
 #define CORRECTENERGY_SPECIAL 3

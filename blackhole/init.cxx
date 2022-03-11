@@ -2,15 +2,17 @@
 #include "master.h"
 
 void MSR::SetBlackholeParam() {
-    param.dBHAccretionEddFac *= (1e3/MSOLG/param.units.dMsolUnit )  /
-                                pow( 100. / KPCCM / param.units.dKpcUnit, 3) /
-                                param.units.dSecUnit / param.dBHRadiativeEff ;
+    if (!param.bRestart) {
+        param.dBHAccretionEddFac *= (1e3/MSOLG/param.units.dMsolUnit )  /
+                                    pow( 100. / KPCCM / param.units.dKpcUnit, 3) /
+                                    param.units.dSecUnit / param.dBHRadiativeEff ;
 
-    // We precompute the factor such that we only need to multiply
-    // AccretionRate by this amount to get E_feed
-    param.dBHFBEff = param.dBHFBEff *
-                     param.dBHRadiativeEff * (1. - param.dBHRadiativeEff) *
-                     pow( LIGHTSPEED * 1e-5 /param.units.dKmPerSecUnit,2);
+        // We precompute the factor such that we only need to multiply
+        // AccretionRate by this amount to get E_feed
+        param.dBHFBEff = param.dBHFBEff *
+                         param.dBHRadiativeEff * (1. - param.dBHRadiativeEff) *
+                         pow( LIGHTSPEED * 1e-5 /param.units.dKmPerSecUnit,2);
+    }
 
     // This, in principle, will not be a parameter
     double n_heat = 1.0;

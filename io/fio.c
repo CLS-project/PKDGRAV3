@@ -4038,7 +4038,7 @@ static int hdf5WriteStar(
 // to pass a *pfOtherData pointer, which can have extra size (I am responsible to be sure
 // that the size and order is correct!!).
 //
-// pfOtherData = {internalMass, accretionRate}
+// pfOtherData = {internalMass, accretionRate, eddington ratio, feedback rate, acc energy, group}
 //
 // This is a bad workaround. But eventually the FIO routines should be refactored, I think.
 static int hdf5WriteBH(
