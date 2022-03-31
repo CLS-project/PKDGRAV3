@@ -801,7 +801,7 @@ double csmRhoBar_m(CSM csm, double a) {
         /* log(a) slightly in the future. Move back to the present. */
         loga = .0;
     }
-    return exp(gsl_spline_eval(csm->classGsl.background.logExp2logRho_m_spline,
+    return exp(csm_spline_eval(csm->classGsl.background.logExp2logRho_m_spline,
                                loga, csm->classGsl.background.logExp2logRho_m_acc));
 }
 double csmRhoBar_lin(CSM csm, double a) {
@@ -811,7 +811,7 @@ double csmRhoBar_lin(CSM csm, double a) {
         /* log(a) slightly in the future. Move back to the present. */
         loga = .0;
     }
-    return exp(gsl_spline_eval(csm->classGsl.background.logExp2logRho_lin_spline,
+    return exp(csm_spline_eval(csm->classGsl.background.logExp2logRho_lin_spline,
                                loga, csm->classGsl.background.logExp2logRho_lin_acc));
 }
 double csmRhoBar_pk(CSM csm, double a) {
@@ -821,7 +821,7 @@ double csmRhoBar_pk(CSM csm, double a) {
         /* log(a) slightly in the future. Move back to the present. */
         loga = .0;
     }
-    return exp(gsl_spline_eval(csm->classGsl.background.logExp2logRho_pk_spline,
+    return exp(csm_spline_eval(csm->classGsl.background.logExp2logRho_pk_spline,
                                loga, csm->classGsl.background.logExp2logRho_pk_acc));
 }
 double csmDelta_m(CSM csm, double a, double k) {
@@ -1030,7 +1030,7 @@ double csmRadMatEquivalence(CSM csm) {
 
 double csmTime2Hub(CSM csm,double dTime) {
     if (csm->val.classData.bClass) {
-        return exp(gsl_spline_eval(
+        return exp(csm_spline_eval(
                        csm->classGsl.background.logTime2logHub_spline,
                        log(dTime),
                        csm->classGsl.background.logTime2logHub_acc));
@@ -1075,7 +1075,7 @@ double csmExp2Time(CSM csm,double dExp) {
                        - csm->val.classData.background.a[csm->val.classData.background.size - 2]
                    )*(dExp - csm->val.classData.background.a[csm->val.classData.background.size - 1]);
         }
-        return exp(gsl_spline_eval(
+        return exp(csm_spline_eval(
                        csm->classGsl.background.logExp2logTime_spline,
                        log(dExp),
                        csm->classGsl.background.logExp2logTime_acc));
@@ -1154,7 +1154,7 @@ double csmTime2Exp(CSM csm,double dTime) {
                        - csm->val.classData.background.t[csm->val.classData.background.size - 2]
                    )*(dTime - csm->val.classData.background.t[csm->val.classData.background.size - 1]);
         }
-        return exp(gsl_spline_eval(
+        return exp(csm_spline_eval(
                        csm->classGsl.background.logTime2logExp_spline,
                        log(dTime),
                        csm->classGsl.background.logTime2logExp_acc));

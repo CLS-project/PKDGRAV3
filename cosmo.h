@@ -20,10 +20,19 @@
 
 #define USE_GSL_COSMO
 #ifdef USE_GSL_COSMO
-    #include <gsl/gsl_integration.h>
-    #include <gsl/gsl_spline.h>
-    #include <gsl/gsl_interp2d.h>
-    #include <gsl/gsl_spline2d.h>
+#include <gsl/gsl_integration.h>
+#include <gsl/gsl_spline.h>
+#include <gsl/gsl_interp2d.h>
+#include <gsl/gsl_spline2d.h>
+/* This is the same as gsl_spline_eval, except that it will extrapolate beyond the end. */
+inline double csm_spline_eval(gsl_spline *spline, double v, gsl_interp_accel *accel) {
+    if (v>spline->x[spline->size-1]) {
+        double m = (spline->y[spline->size-1] - spline->y[spline->size-2])
+                   / (spline->x[spline->size-1] - spline->x[spline->size-2]);
+        return spline->y[spline->size-1] + m*(v-spline->x[spline->size-1]);
+    }
+    else return gsl_spline_eval(spline,v,accel);
+}
 #endif
 
 /*
@@ -167,7 +176,7 @@ static inline double csmExp2Hub(CSM csm, double dExp) {
                        - csm->val.classData.background.a[csm->val.classData.background.size - 2]
                    )*(dExp - csm->val.classData.background.a[csm->val.classData.background.size - 1]);
         }
-        return exp(gsl_spline_eval(
+        return exp(csm_spline_eval(
                        csm->classGsl.background.logExp2logHub_spline,
                        log(dExp),
                        csm->classGsl.background.logExp2logHub_acc));
