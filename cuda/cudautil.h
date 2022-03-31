@@ -59,13 +59,13 @@ class MessageEwaldSetup : public mdl::cudaMessage {
 protected:
     virtual void launch(cudaStream_t stream,void *pCudaBufIn, void *pCudaBufOut) override;
 public:
-    explicit MessageEwaldSetup(struct EwaldVariables * const ew, EwaldTable * const ewt);
+    explicit MessageEwaldSetup(struct EwaldVariables *const ew, EwaldTable *const ewt,int iDevice=-1);
 protected:
-    struct EwaldVariables * const ewIn;
-    EwaldTable * const ewt;
+    struct EwaldVariables *const ewIn;
+    EwaldTable *const ewt;
     std::vector<momFloat> dLx, dLy, dLz;
     std::vector<int> ibHole;
-    };
+};
 
 template<class TILE,int nIntPerTB, int nIntPerWU>
 class MessagePPPC : public cudaDataMessage {

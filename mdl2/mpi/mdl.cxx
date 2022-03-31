@@ -2667,6 +2667,8 @@ void mdlprintf(MDL cmdl, const char *format, ...) {
     va_end(args);
     }
 
+int mdlClass::numGPUs() {return mpi->numGPUs(); }
+
 bool mdlClass::isCudaActive() {return mpi->isCudaActive(); }
 int mdlCudaActive(MDL mdl) {
 #ifdef USE_CUDA
