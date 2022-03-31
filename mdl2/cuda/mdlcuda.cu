@@ -17,13 +17,21 @@ void Abort(cudaError_t rc, const char *fname, const char *file, int line) {
 * CUDA : CUDA devices manager
 \*****************************************************************************/
 
-CUDA::CUDA() : nDevices(0) {}
+CUDA::CUDA() : pDevice(nullptr), nDevices(0) {
+}
+
+CUDA::~CUDA() {
+    if (pDevice) delete [] pDevice;
+}
 
 // Create a set of device objects, each with "n" streams
 void CUDA::initialize(int nStreamsPerDevice) {
     if (cudaGetDeviceCount(&nDevices) != cudaSuccess) nDevices = 0;
-    for (auto iDevice=0; iDevice<nDevices; ++iDevice)
+    pDevice = new Device*[nDevices];
+    for (auto iDevice=0; iDevice<nDevices; ++iDevice) {
         devices.emplace_back(iDevice,nStreamsPerDevice);
+        pDevice[iDevice] = &devices.back();
+    }
 }
 
 // If we can start some work then do so.
@@ -34,7 +42,9 @@ void CUDA::initiate() {
         auto device = std::min_element(devices.begin(),devices.end(),Device::compareBusy);
         if (device != devices.end() && !device->empty()) {
             cudaMessage &M = dequeue();
-            device->launch(M); // Launch message M on the given device.
+            auto iDevice = M.getDevice();
+            if (iDevice<0) device->launch(M); // Launch message M on the most idle device.
+            else pDevice[iDevice]->launch(M); // Otherwise launch on the specified device.
         }
         else break; // No free streams to launch work at this time
     }

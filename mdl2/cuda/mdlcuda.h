@@ -13,13 +13,16 @@ namespace mdl {
 
 class cudaMessage : public basicMessage {
     friend class Device; // So we can launch()
+    int iDevice; // Device number to use or -1 for any (the normal case)
 protected:
     virtual void launch(cudaStream_t stream,void *pCudaBufIn, void *pCudaBufOut) = 0;
 public:
     virtual void finish() {}
-    cudaMessage() {}
+    cudaMessage(int iDevice=-1) : iDevice(iDevice) {}
     virtual ~cudaMessage() {}
+    int getDevice() const {return iDevice;}
 };
+
 struct cudaMessageQueue : public messageQueue<cudaMessage> {};
 
 class Stream : public basicMessage {
@@ -65,11 +68,14 @@ public:
 class CUDA : public cudaMessageQueue {
 protected:
     std::list<Device> devices;
+    Device **pDevice;
     int nDevices;
 public:
     CUDA();
+    ~CUDA();
     void initialize(int nStreamsPerDevice=8);
-    bool isActive() { return devices.size() > 0; }
+    auto numDevices() const { return devices.size(); }
+    bool isActive()   const { return numDevices() > 0; }
     void initiate();
 };
 

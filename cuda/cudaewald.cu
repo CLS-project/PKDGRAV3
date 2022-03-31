@@ -266,13 +266,24 @@ void pkdParticleWorkDone(workParticle *work);
 // This function will queue a message to the CUDA/MDL thread to setup the values.
 void CudaClient::setupEwald(struct EwaldVariables *const ew, EwaldTable *const ewt) {
     nEwhLoop = ew->nEwhLoop;
-    if (mdl.Core()==0 && mdl.isCudaActive()) mdl.enqueueAndWait(MessageEwaldSetup(ew,ewt));
+    // The Ewald table needs to be sent once to every GPU on the system
+    if (mdl.Core()==0) {
+        mdl::cudaMessageQueue wait;
+        for (auto i=0; i<mdl.numGPUs(); ++i) {
+            auto m = new MessageEwaldSetup(ew,ewt,i);
+            mdl.enqueue(*m,wait);
+        }
+        for (auto i=0; i<mdl.numGPUs(); ++i) {
+            auto &m = wait.wait();
+            delete &m;
+        }
+    }
     mdl.ThreadBarrier();
 }
 
 // Contruct the message with Ewald tables. We can just tuck away the pointers as we have to wait.
-MessageEwaldSetup::MessageEwaldSetup(struct EwaldVariables *const ew, EwaldTable *const ewt)
-    : ewIn(ew), ewt(ewt) {}
+MessageEwaldSetup::MessageEwaldSetup(struct EwaldVariables *const ew, EwaldTable *const ewt, int iDevice)
+    : mdl::cudaMessage(iDevice), ewIn(ew), ewt(ewt) {}
 
 // This copies all of the variables to the device.
 void MessageEwaldSetup::launch(cudaStream_t stream,void *pCudaBufIn, void *pCudaBufOut) {

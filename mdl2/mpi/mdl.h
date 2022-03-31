@@ -329,6 +329,7 @@ public:
     void ThreadBarrier(bool bGlobal=false);
     void CompleteAllWork();
     bool isCudaActive();
+    int numGPUs();
     void Backtrace() {show_backtrace();}
 
     void *Access(int cid, uint32_t uIndex,  int uId, bool bLock,bool bModify,bool bVirtual);
@@ -466,8 +467,10 @@ public:
 #ifdef USE_CUDA
     void enqueue(const cudaMessage &M, basicQueue &replyTo);
     bool isCudaActive() {return cuda.isActive(); }
+    int numGPUs() {return cuda.numDevices();}
 #else
     bool isCudaActive() {return false; }
+    int numGPUs() {return 0;}
 #endif
     void enqueue(mdlMessage &M);
     void enqueue(const mdlMessage &M, basicQueue &replyTo, bool bWait=false);
