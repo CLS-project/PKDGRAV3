@@ -396,6 +396,7 @@ void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTi
         fprintf(stderr,"       RESTART WITH %d THREADS\n",n);
         Exit(1);
     }
+    ValidateParameters(); // Should be okay, but other stuff happens here (cosmo is setup for example)
 
     bVDetails = getParameterBoolean("bVDetails");
     if (param.bVStart)
