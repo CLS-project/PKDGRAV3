@@ -4362,7 +4362,7 @@ FIO fioHDF5Create(const char *fileName, int mFlags) {
     assert(H5Fget_obj_count(hio->fileID,H5F_OBJ_ALL)==1);
 
     hio->stringType = H5Tcopy(H5T_C_S1);
-    H5Tset_size(hio->stringType, 256);
+    H5Tset_size(hio->stringType, 32);
 
     /* Global parameters (dTime,etc.) are stored here */
     hio->headerID = H5Gcreate( hio->fileID, GROUP_HEADER, 0 );
