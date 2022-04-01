@@ -169,7 +169,7 @@ void hydroDensity_node(PKD pkd, SMF *smf, BND bnd_node, PARTICLE **sinks, NN *nn
                     // For those cases, we impose a maximum effective ngb number
                     if (Neff>200.) {
                         partj->bMarked=0;
-                        printf("WARNING Neff %e Ncond %e \n", Neff, Ncond);
+                        printf("WARNING %d Maximum Neff reached: %e ; Ncond %e \n", pkdSpecies(pkd,partj), Neff, Ncond);
                     }
                     else {
                         Neff *= 1.2;
@@ -192,15 +192,12 @@ void hydroDensity_node(PKD pkd, SMF *smf, BND bnd_node, PARTICLE **sinks, NN *nn
 
 
                 if (newBall>ph) {
-                    float ph = pkdBall(pkd,partj);
+                    float ph = 2.*pkdBall(pkd,partj);
                     // We check that the proposed ball is enclosed within the
                     // node search region
-                    if ((fabs(dx_node) + ph > bnd_node.fMax[0])||
+                    if (    (fabs(dx_node) + ph > bnd_node.fMax[0])||
                             (fabs(dy_node) + ph > bnd_node.fMax[1])||
                             (fabs(dz_node) + ph > bnd_node.fMax[2])) {
-                        // Removed this, see notes 29/10/20
-                        //nSmoothed-=1; // We explicitly say that this particle was
-                        //not succesfully smoothed
                         break;
                     }
                 }
@@ -222,7 +219,7 @@ void hydroDensity_node(PKD pkd, SMF *smf, BND bnd_node, PARTICLE **sinks, NN *nn
                     pkdSetBall(pkd,partj, ph);
                     densNodeNcondB(pkd, partj, E, *omega);
                     pkdSetDensity(pkd, partj, pkdMass(pkd,partj)*(*omega));
-                    printf("WARNING Neff %e c %e \n", Neff, c);
+                    printf("WARNING %d Maximum iterations reached Neff %e c %e \n", pkdSpecies(pkd,partj), Neff, c);
                 }
             }
 

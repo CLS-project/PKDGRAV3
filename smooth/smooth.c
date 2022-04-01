@@ -2883,11 +2883,6 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
 
             bnd_node = pkdNodeGetBnd(pkd,node);
 
-
-            //printf("fBall %e nodeBall %e \n", fBall, pkdNodeBall(pkd,node));
-            // Size of the ball that contains all possible particles
-            // interacting with this bucket
-
             double r[3];
             r[0] = bnd_node.fCenter[0];
             r[1] = bnd_node.fCenter[1];
@@ -2895,7 +2890,6 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
 
             // First, we add all the particles whose interactions need to be computed
             int nActive = 0;
-            float nodeBall = 0.;
 #ifdef OPTIM_REORDER_IN_NODES
             int pEnd = node->pLower + pkdNodeNgas(pkd,node);
 #if (defined(STAR_FORMATION) && defined(FEEDBACK)) || defined(STELLAR_EVOLUTION)
@@ -2954,7 +2948,6 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
                         fMax_shrink[j] = (disp > fMax_shrink[j]) ? disp : fMax_shrink[j];
                     }
 
-                    if (nodeBall<pkdBall(pkd,p)) nodeBall=pkdBall(pkd,p);
                     sinks[nActive] = p;
                     nActive++;
                 }
@@ -2962,15 +2955,8 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
             // There are no elligibles particle in this bucket, go to the next
             if (nActive==0) continue;
 
-            //printf("nodeBall %e nActive %d \n", nodeBall, nActive);
             nCnt = 0;
-            //printf("%e %e \n", 2.*nodeBall, pkdNodeBall(pkd,node));
             int nCnt_own = nActive;
-            //printf("start node %d %d \n", pkd->idSelf, i);
-
-            // Remember! pkdBall gives HALF the radius of the enclosing sphere!
-            nodeBall *= 2.;
-
 
             for (int j=0; j<3; j++)
                 bnd_node.fMax[j] = fMax_shrink[j];
