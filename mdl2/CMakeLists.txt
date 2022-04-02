@@ -104,11 +104,16 @@ target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/bo
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/mpi)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
-target_include_directories(${PROJECT_NAME} PUBLIC ${MPI_C_INCLUDE_PATH})
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..) ############################
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/..)
-
-target_link_libraries(${PROJECT_NAME} ${MPI_C_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} openpa)
+if(CMAKE_VERSION VERSION_LESS "3.10")
+target_include_directories(${PROJECT_NAME} PUBLIC ${MPI_C_INCLUDE_PATH})
+target_link_libraries(${PROJECT_NAME} ${MPI_C_LIBRARIES})
+else()
+target_link_libraries(${PROJECT_NAME} MPI::MPI_C)
+target_include_directories(${PROJECT_NAME} PUBLIC ${MPI_C_COMPILER_INCLUDE_DIRS})
+endif()
+target_link_libraries(${PROJECT_NAME} ${CMAKE_THREAD_LIBS_INIT} openpa)
 
 if(FFTW_FOUND)
 target_link_libraries(${PROJECT_NAME} ${FFTW_LIBRARIES})
