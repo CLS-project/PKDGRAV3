@@ -124,6 +124,14 @@ void smGather(SMX smx,double fBall2,double r[3], PARTICLE *p);
 void smFastGasPhase1(SMX smx,SMF *smf);
 void smFastGasPhase2(SMX smx,SMF *smf);
 void pkdFastGasCleanup(PKD pkd);  /* frees up the neighbor lists */
+
+inline void smSwapNN(NN *nnList, int i, int j) {
+    NN temp;
+    memcpy(&temp,      &nnList[i], sizeof(NN));
+    memcpy(&nnList[i], &nnList[j], sizeof(NN));
+    memcpy(&nnList[j], &temp,      sizeof(NN));
+}
+
 #ifdef __cplusplus
 }
 #endif

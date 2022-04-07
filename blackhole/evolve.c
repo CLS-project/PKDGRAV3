@@ -2,10 +2,11 @@
 #include "hydro/hydro.h"
 
 
-static inline void bhAccretion(PKD pkd, NN *nnList, int nSmooth,
-                               PARTICLE *p, BHFIELDS *pBH, float fBall, float pMass,
-                               double pDensity, double dScaleFactor) {
+static inline int bhAccretion(PKD pkd, NN *nnList, int nSmooth,
+                              PARTICLE *p, BHFIELDS *pBH, float fBall, float pMass,
+                              double pDensity, double dScaleFactor) {
     double prob_factor = (pBH->dInternalMass - pMass)/pDensity;
+    int naccreted = 0;
     if (prob_factor > 0.0) {
         double prob;
         for (int i=0; i<nSmooth; ++i) {
@@ -15,15 +16,10 @@ static inline void bhAccretion(PKD pkd, NN *nnList, int nSmooth,
             const double kernel = cubicSplineKernel(rpq, fBall);
             prob = prob_factor * kernel;
             if (rand()<RAND_MAX*prob) {
+                naccreted++;
                 printf("SWALLOW!\n");
-                PARTICLE *q;
-                if (pkd->idSelf != nnList[i].iPid) {
-                    // TODO: In order to reduce the number of mdlAcquire, could we
-                    // place this here, and kept the mdlFetch in the smooth?
-                    //q = mdlAcquire(pkd->mdl,CID_PARTICLE,
-                    //               nnList[i].iIndex,nnList[i].iPid);
-                }
-                q = nnList[i].pPart;
+                PARTICLE *q = nnList[i].pPart;
+                assert(pkdIsGas(pkd,q));
 
                 float newMass = pMass + pkdMass(pkd,q);
                 float inv_newMass = 1./newMass;
@@ -51,8 +47,7 @@ static inline void bhAccretion(PKD pkd, NN *nnList, int nSmooth,
                 else
                     pkdDeleteParticle(pkd, q);
 
-                //if (pkd->idSelf != nnList[i].iPid)
-                //   mdlRelease(pkd->mdl,CID_PARTICLE,q);
+                smSwapNN(nnList, nSmooth-1, i);
 
                 // Once we have one event, we stop checking, as our mass
                 //   will be higher now
@@ -61,6 +56,7 @@ static inline void bhAccretion(PKD pkd, NN *nnList, int nSmooth,
             }
         }
     }
+    return naccreted;
 }
 
 
@@ -79,6 +75,7 @@ static inline void bhFeedback(PKD pkd, NN *nnList, int nSmooth, PARTICLE *p,
             if (rand()<RAND_MAX*prob) {
                 PARTICLE *q;
                 q = nnList[i].pPart;
+                assert(pkdIsGas(pkd,q));
 
                 printf("BH feedback event!\n");
                 SPHFIELDS *qsph = pkdSph(pkd,q);
@@ -165,6 +162,16 @@ void smBHevolve(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     // We look for the most bounded neighbouring particle
     for (int i=0; i<nSmooth; ++i) {
         PARTICLE *q = nnList[i].pPart;
+        if (pkdIsDeleted(pkd,q)) {
+            // This is very unlikely, but this may happen when a particle is
+            // swallowed by other BH while we are doing our smooth
+            // In this case, just remove this particle from the interaction list
+            smSwapNN(nnList, i, nSmooth-1);
+
+            // NB: we only modify the local nSmooth, such that the particle
+            // can be later released if needed!
+            nSmooth--;
+        }
         assert(pkdIsGas(pkd,q));
         pLowPot = (*pkdPot(pkd,q)<minPot)  ? q : pLowPot;
         // We could have no potential if gravity is not calculated
@@ -191,6 +198,7 @@ void smBHevolve(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
         float kernelSum = 0.0;
         float massSum = 0.0;
         for (int i=0; i<nSmooth; ++i) {
+            assert(pkdIsGas(pkd,nnList[i].pPart));
             const double rpq = sqrt(nnList[i].fDist2);
             const double kernel = cubicSplineKernel(rpq, fBall);
             kernelSum += kernel;
@@ -231,8 +239,8 @@ void smBHevolve(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
         //assert(0);
 
         if (smf->bBHAccretion) {
-            bhAccretion(pkd, nnList, nSmooth, p, pBH,
-                        fBall, pMass, pDensity, smf->a);
+            nSmooth -= bhAccretion(pkd, nnList, nSmooth, p, pBH,
+                                   fBall, pMass, pDensity, smf->a);
         }
         if (smf->bBHFeedback) {
             bhFeedback(pkd, nnList, nSmooth, p, pBH, massSum, smf->dConstGamma,
