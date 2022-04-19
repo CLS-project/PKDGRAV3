@@ -792,6 +792,7 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
                 pSph->fAccFBEnergy = 0.;
 #endif
                 pSph->uWake = 0;
+                pSph->omega = 0.0;
             }
         }
         pkd->nLocal = pkd->nActive = in->nMove;

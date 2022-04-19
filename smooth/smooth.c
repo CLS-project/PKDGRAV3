@@ -321,6 +321,14 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         comb = NULL;
         smx->fcnPost = NULL;
         break;
+    case SMX_HYDRO_DENSITY_FINAL:
+        assert( pkd->oFieldOffset[oSph] ); /* Validate memory model */
+        smx->fcnSmooth = hydroDensityFinal;
+        initParticle = NULL; /* Original Particle */
+        init = NULL; /* Cached copies */
+        comb = NULL;
+        smx->fcnPost = NULL;
+        break;
     case SMX_HYDRO_GRADIENT:
         assert( pkd->oFieldOffset[oSph] ); /* Validate memory model */
         smx->fcnSmooth = hydroGradients;
@@ -2873,6 +2881,9 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
     }
 
 
+    double fBall_factor = 2.;
+    if (iSmoothType==SMX_HYDRO_DENSITY)
+        fBall_factor *= 1.2; // An small margin is kept in case fBall needs to increase
 
 
     for (int i=NRESERVED_NODES; i<pkd->nNodes-1; i++) {
@@ -2914,7 +2925,8 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
 
 
                 if (pIsActive) {
-                    if (iSmoothType==SMX_HYDRO_DENSITY) {
+                    if ( (iSmoothType==SMX_HYDRO_DENSITY) ||
+                            (iSmoothType==SMX_HYDRO_DENSITY_FINAL) ) {
 
 #ifndef OPTIM_AVOID_IS_ACTIVE
                         if (!p->bMarked)
@@ -2944,7 +2956,7 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
                     } //SMX_HYDRO_DENSITY
 
                     for (int j=0; j<3; j++) {
-                        const double disp = fabs(pkdPos(pkd,p,j) - bnd_node.fCenter[j]) + pkdBall(pkd,p)*2.;
+                        const double disp = fabs(pkdPos(pkd,p,j) - bnd_node.fCenter[j]) + pkdBall(pkd,p)*fBall_factor;
                         fMax_shrink[j] = (disp > fMax_shrink[j]) ? disp : fMax_shrink[j];
                     }
 

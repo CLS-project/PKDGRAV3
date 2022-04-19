@@ -199,10 +199,11 @@ void combSphForces(void *,void *,const void *);
 void SphForces(PARTICLE *,float fBall,int,NN *,SMF *);
 
 #define SMX_HYDRO_DENSITY     40
-#define SMX_HYDRO_GRADIENT    41
-#define SMX_HYDRO_FLUX        42
-#define SMX_HYDRO_STEP        43
-#define SMX_HYDRO_FLUX_VEC    44
+#define SMX_HYDRO_DENSITY_FINAL 41
+#define SMX_HYDRO_GRADIENT    42
+#define SMX_HYDRO_FLUX        43
+#define SMX_HYDRO_STEP        44
+#define SMX_HYDRO_FLUX_VEC    45
 
 #define SMX_SN_FEEDBACK       50
 

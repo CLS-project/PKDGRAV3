@@ -30,9 +30,13 @@ void MSR::ComputeSmoothing(double dTime, double dDelta) {
             it++;
         }
         if (nSmoothed >0) {
-            /* If after all this there are particles without a proper density...
-             * we just hope for the best and print a warning message
-             */
+            // If we can not converge, at least make sure that we update the
+            // density and other variables with the latest fBall
+#ifdef OPTIM_SMOOTH_NODE
+            nSmoothed = ReSmoothNode(dTime, dDelta, SMX_HYDRO_DENSITY_FINAL,0);
+#else
+            nSmoothed = ReSmooth(dTime, dDelta, SMX_HYDRO_DENSITY_FINAL,0);
+#endif
 
             printf("Smoothing length did not converge for %d particles\n", nSmoothed);
         }
@@ -52,9 +56,10 @@ void MSR::ComputeSmoothing(double dTime, double dDelta) {
 
 static inline void densNodeOmegaE(NN *nnList, double *rpqs, float fBall,
                                   float dx_node, float dy_node, float dz_node, int nCnt,
-                                  double *omega, double *E) {
+                                  double *omega, double *E, int *nSmooth) {
     float fBall2_p = 4.*fBall*fBall;
     *omega = 0.0;
+    *nSmooth = 0.0;
     for (int j=0; j<6; ++j)
         E[j] = 0.;
     for (int pk=0; pk<nCnt; pk++) {
@@ -78,6 +83,8 @@ static inline void densNodeOmegaE(NN *nnList, double *rpqs, float fBall,
             E[XY] += dy*dx*Wpq;
             E[XZ] += dz*dx*Wpq;
             E[YZ] += dy*dz*Wpq;
+
+            *nSmooth += 1;
 
         }
     }
@@ -113,6 +120,80 @@ static inline double densNodeNcondB(PKD pkd, PARTICLE *p,
     return Ncond;
 }
 
+// Compute the density and derived variables simply given the fBall,
+// without trying to converge to the correct value
+void hydroDensityFinal(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
+    PKD pkd = smf->pkd;
+#ifdef OPTIM_UNION_EXTRAFIELDS
+    double *omega = NULL;
+    omega = pkdIsGas(pkd,p)  ? &(pkdSph(pkd,p)->omega) : omega;
+    omega = pkdIsStar(pkd,p) ? &(pkdStar(pkd,p)->omega) : omega;
+    omega = pkdIsBH(pkd,p)   ? &(pkdBH(pkd,p)->omega) : omega;
+#else
+    // Assuming *only* stars and gas
+    double *omega = &(pkdSph(pkd,p)->omega);
+#endif
+
+    // The sqrt can be computed just once here, with higher probability
+    // of being vectorized
+    double rpqs[nSmooth];
+    for (int i=0; i<nSmooth; i++) {
+        const float dx = nnList[i].dx;
+        const float dy = nnList[i].dy;
+        const float dz = nnList[i].dz;
+
+        const float fDist2 = dx*dx + dy*dy + dz*dz;
+        rpqs[i] = sqrt(fDist2);
+    }
+    const double ph = pkdBall(pkd,p);
+
+    *omega = 0.0;
+    for (int i=0; i<nSmooth; ++i) {
+        PARTICLE *q = nnList[i].pPart;
+
+        const float dx = -nnList[i].dx;
+        const float dy = -nnList[i].dy;
+        const float dz = -nnList[i].dz;
+
+
+        *omega += cubicSplineKernel(rpqs[i], ph);
+    }
+
+
+    if (pkdIsGas(pkd,p)) {
+        double E[6];
+        for (int i=0; i<6; ++i) {
+            E[i] = 0.0;
+        }
+
+        for (int i=0; i<nSmooth; ++i) {
+            PARTICLE *q = nnList[i].pPart;
+
+            const float dx = -nnList[i].dx;
+            const float dy = -nnList[i].dy;
+            const float dz = -nnList[i].dz;
+
+            const double Wpq = cubicSplineKernel(rpqs[i], ph);
+
+            E[XX] += dx*dx*Wpq;
+            E[YY] += dy*dy*Wpq;
+            E[ZZ] += dz*dz*Wpq;
+
+            E[XY] += dy*dx*Wpq;
+            E[XZ] += dz*dx*Wpq;
+            E[YZ] += dy*dz*Wpq;
+        }
+
+        /* Normalize the matrix */
+        for (int i=0; i<6; ++i) {
+            E[i] /= *omega;
+        }
+        inverseMatrix(E, pkdSph(pkd,p)->B);
+    }
+
+    pkdSetDensity(pkd, p, pkdMass(pkd,p)*(*omega));
+    //printf("%" PRIu64 " final iteration omega %e\t density %e\t fBall %e\t nn %d \n", *pkdParticleID(pkd,p), *omega, pkdDensity(pkd,p), ph, nSmooth);
+}
 
 
 void hydroDensity_node(PKD pkd, SMF *smf, BND bnd_node, PARTICLE **sinks, NN *nnList,
@@ -146,16 +227,22 @@ void hydroDensity_node(PKD pkd, SMF *smf, BND bnd_node, PARTICLE **sinks, NN *nn
         }
 
         int niter = 0;
+        int nSmooth;
+
         float Neff = smf->nSmooth;
+        if (*omega < 0)
+            Neff = - *omega;
+
         do {
             float ph = pkdBall(pkd,partj);
             double E[6];
 
             densNodeOmegaE(nnList, rpqs, ph, dx_node, dy_node, dz_node,
-                           nCnt,omega, E);
+                           nCnt,omega, E, &nSmooth);
 
             // Check if it has converged
             double c = 4.*M_PI/3. * (*omega) *ph*ph*ph*8.;
+            //printf("%" PRIu64 " %d %d %e %e \n", *pkdParticleID(pkd,partj), nSmooth, nCnt, ph, Neff);
             if ((fabs(c-Neff) < smf->dNeighborsStd) ) {
                 // Check if the converged density has a low enough condition number
 
@@ -169,13 +256,20 @@ void hydroDensity_node(PKD pkd, SMF *smf, BND bnd_node, PARTICLE **sinks, NN *nn
                     // For those cases, we impose a maximum effective ngb number
                     if (Neff>200.) {
                         partj->bMarked=0;
-                        printf("WARNING %d Maximum Neff reached: %e ; Ncond %e \n", pkdSpecies(pkd,partj), Neff, Ncond);
+                        printf("WARNING %d Maximum Neff reached: %e ; Ncond %e \n", nSmooth, Neff, Ncond);
                     }
                     else {
                         Neff *= 1.2;
                         niter = 0;
                         continue;
                     }
+                }
+                if (nSmooth < 20) {
+                    // If we converge to a fBall that encloses too few neighbours,
+                    // the effective number of nn is increased
+                    Neff *= 1.2;
+                    niter = 0;
+                    continue;
                 }
 
                 partj->bMarked = 0;
@@ -192,12 +286,14 @@ void hydroDensity_node(PKD pkd, SMF *smf, BND bnd_node, PARTICLE **sinks, NN *nn
 
 
                 if (newBall>ph) {
-                    float ph = 2.*pkdBall(pkd,partj);
+                    float ph2 = 2.*pkdBall(pkd,partj);
                     // We check that the proposed ball is enclosed within the
                     // node search region
-                    if (    (fabs(dx_node) + ph > bnd_node.fMax[0])||
-                            (fabs(dy_node) + ph > bnd_node.fMax[1])||
-                            (fabs(dz_node) + ph > bnd_node.fMax[2])) {
+                    if (    (fabs(dx_node) + ph2 > bnd_node.fMax[0])||
+                            (fabs(dy_node) + ph2 > bnd_node.fMax[1])||
+                            (fabs(dz_node) + ph2 > bnd_node.fMax[2])) {
+                        //printf("%" PRIu64 " \t nn %d \t omega %e \t Neff %e \t ph %e \t newBall %e \t fBall %e \n", *pkdParticleID(pkd,partj), nSmooth, *omega, Neff, ph, newBall, pkdBall(pkd,partj));
+                        *omega = -Neff;
                         break;
                     }
                 }
@@ -233,7 +329,7 @@ void hydroDensity_node(PKD pkd, SMF *smf, BND bnd_node, PARTICLE **sinks, NN *nn
 
                 double E[6];
                 densNodeOmegaE(nnList, rpqs, newBall, dx_node, dy_node, dz_node,
-                               nCnt,omega, E);
+                               nCnt,omega, E, &nSmooth);
 
                 densNodeNcondB(pkd, partj, E, *omega);
 

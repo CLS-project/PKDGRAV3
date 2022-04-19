@@ -24,6 +24,7 @@ extern "C" {
 void hydroDensity(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf);
 void hydroDensity_node(PKD pkd, SMF *smf, BND bnd_node, PARTICLE **sinks, NN *nnList,
                        int nCnt_own, int nCnt);
+void hydroDensityFinal(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf);
 
 /* Gradient loop */
 void hydroGradients(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf);

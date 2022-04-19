@@ -1049,6 +1049,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
                       pSph->uPred = pSph->u;
                       pSph->fMetalsPred = pSph->fMetals;
                               */
+                    pSph->omega    = fDensity/fMass;
                     pSph->vPred[0] = vel[0]*sqrt(dvFac);
                     pSph->vPred[1] = vel[1]*sqrt(dvFac);
                     pSph->vPred[2] = vel[2]*sqrt(dvFac);
@@ -1118,6 +1119,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             if (pkd->oFieldOffset[oStar]) {
                 pStar = pkdStar(pkd,p);
                 pStar->fTimer = fTimer;
+                pStar->omega  = 0.;
                 // We avoid that star in the IC could explode
                 pStar->hasExploded = 1;
 #ifdef FEEDBACK
@@ -1140,6 +1142,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             pkdSetClass(pkd,fMass,fSoft,eSpecies,p);
             if (pkd->oFieldOffset[oBH]) {
                 pBH = pkdBH(pkd,p);
+                pBH->omega  = 0.;
                 pBH->fTimer = fTimer;
                 pBH->pLowPot = NULL;
                 pBH->newPos[0] = -1;
