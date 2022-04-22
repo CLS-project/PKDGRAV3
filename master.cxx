@@ -3490,10 +3490,7 @@ void MSR::Drift(double dTime,double dDelta,int iRoot) {
 
 #ifdef BLACKHOLES
     TimerStart(TIMER_DRIFT);
-    // For this cases, I think that the ReSmoothNode will not provide
-    // any important speed up, so we can use the old gather.
-    // TODO: check if this is indeed true!
-    ReSmooth(dTime,dDelta,SMX_BH_DRIFT,1);
+    Smooth(dTime,dDelta,SMX_BH_DRIFT,1,param.nSmooth);
     pstRepositionBH(pst, NULL, 0, NULL, 0);
 
     TimerStop(TIMER_DRIFT);
@@ -4249,11 +4246,11 @@ int MSR::NewTopStepKDK(
 #if defined(FEEDBACK) || defined(STELLAR_EVOLUTION)
     ActiveRung(uRung,0);
 #ifdef FEEDBACK
-    ReSmooth(dTime,dDelta,SMX_SN_FEEDBACK,1);
+    Smooth(dTime,dDelta,SMX_SN_FEEDBACK,1, param.nSmooth);
 #endif
 #ifdef STELLAR_EVOLUTION
     if (param.bChemEnrich) {
-        ReSmooth(dTime,dDelta,SMX_CHEM_ENRICHMENT,1);
+        Smooth(dTime,dDelta,SMX_CHEM_ENRICHMENT,1, param.nSmooth);
     }
 #endif
 #endif
@@ -4439,7 +4436,7 @@ void MSR::TopStepKDK(
         printf("Computing feedback... ");
 
         TimerStart(TIMER_FEEDBACK);
-        ReSmooth(dTime,dDeltaStep,SMX_SN_FEEDBACK,1);
+        Smooth(dTime,dDeltaStep,SMX_SN_FEEDBACK,1, param.nSmooth);
         TimerStop(TIMER_FEEDBACK);
         dsec = TimerGet(TIMER_FEEDBACK);
         printf("took %.5f seconds\n", dsec);
@@ -4448,7 +4445,7 @@ void MSR::TopStepKDK(
         printf("Computing stellar evolution... ");
         TimerStart(TIMER_STEV);
         if (param.bChemEnrich) {
-            ReSmooth(dTime,dDeltaStep,SMX_CHEM_ENRICHMENT,1);
+            Smooth(dTime,dDeltaStep,SMX_CHEM_ENRICHMENT,1, param.nSmooth);
         }
         TimerStop(TIMER_STEV);
         dsec = TimerGet(TIMER_STEV);

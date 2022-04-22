@@ -254,6 +254,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
     smx->nSmooth = nSmooth;
     smx->bPeriodic = bPeriodic;
     smx->bSymmetric  = bSymmetric;
+    smx->iSmoothType = iSmoothType;
     /*
     ** Initialize the context for compressed nearest neighbor lists.
     */
@@ -921,33 +922,73 @@ void smSmooth(SMX smx,SMF *smf) {
     }
     smSmoothInitialize(smx);
     smf->pfDensity = NULL;
-    for (pi=0; pi<pkd->nLocal; ++pi) {
-        p = pkdParticle(pkd,pi);
-        if (!smf->bMeshlessHydro ) {
-            smSmoothSingle(smx,smf,p,ROOT,0);
-            //pkdSetBall(pkd,p,smSmoothSingle(smx,smf,p,ROOT,0));
-        }
-        else {
-            if (pkdIsActive(pkd,p)) {
-                fBall = smSmoothSingle(smx,smf,p,ROOT,0);
-                if (smf->bUpdateBall) {
-                    pkdSetBall(pkd,p,fBall);
-                }
-                /*
-                    smSmoothFinish(smx);
-                    for (pj=0;pj<pkd->nLocal;++pj) {
-                    p2 = pkdParticle(pkd,pj);
-                    p2->bMarked = 1;
-                    }
-                    smSmoothInitialize(smx);
-                    smf->pfDensity = NULL;
-                */
+    switch (smx->iSmoothType) {
+    case SMX_BH_DRIFT:
+        for (pi=0; pi<pkd->nLocal; ++pi) {
+            p = pkdParticle(pkd,pi);
+            if (pkdIsBH(pkd,p)) {
+                smSmoothSingle(smx,smf,p,ROOT,0);
             }
         }
-        /*
-        ** Call mdlCacheCheck to make sure we are making progress!
-        */
-        mdlCacheCheck(pkd->mdl);
+        break;
+
+#ifdef FEEDBACK
+    case SMX_SN_FEEDBACK:
+
+        for (pi=0; pi<pkd->nLocal; ++pi) {
+            p = pkdParticle(pkd,pi);
+            if (pkdIsStar(pkd,p)) {
+                if ( (pkdStar(pkd,p)->hasExploded == 0) &&
+                        ((smf->dTime-pkdStar(pkd,p)->fTimer) > smf->dSNFBDelay) ) {
+                    smSmoothSingle(smx,smf,p, ROOT, 0);
+                    pkdStar(pkd,p)->hasExploded = 1;
+                }
+            }
+        }
+        break;
+#endif
+#ifdef STELLAR_EVOLUTION
+    case SMX_CHEM_ENRICHMENT:
+        for (pi = 0; pi < pkd->nLocal; ++pi) {
+            p = pkdParticle(pkd, pi);
+            if (pkdIsStar(pkd, p)) {
+                STARFIELDS *pStar = pkdStar(pkd, p);
+                if ((float)smf->dTime > pStar->fNextEnrichTime) {
+                    smSmoothSingle(smx, smf, p, ROOT, 0);
+                }
+            }
+        }
+        break;
+#endif
+    default:
+        for (pi=0; pi<pkd->nLocal; ++pi) {
+            p = pkdParticle(pkd,pi);
+            if (!smf->bMeshlessHydro ) {
+                smSmoothSingle(smx,smf,p,ROOT,0);
+                //pkdSetBall(pkd,p,smSmoothSingle(smx,smf,p,ROOT,0));
+            }
+            else {
+                if (pkdIsActive(pkd,p)) {
+                    fBall = smSmoothSingle(smx,smf,p,ROOT,0);
+                    if (smf->bUpdateBall) {
+                        pkdSetBall(pkd,p,fBall);
+                    }
+                    /*
+                        smSmoothFinish(smx);
+                        for (pj=0;pj<pkd->nLocal;++pj) {
+                        p2 = pkdParticle(pkd,pj);
+                        p2->bMarked = 1;
+                        }
+                        smSmoothInitialize(smx);
+                        smf->pfDensity = NULL;
+                    */
+                }
+            }
+            /*
+            ** Call mdlCacheCheck to make sure we are making progress!
+            */
+            mdlCacheCheck(pkd->mdl);
+        }
     }
     smSmoothFinish(smx);
 }
@@ -2695,15 +2736,7 @@ int  smReSmooth(SMX smx,SMF *smf, int iSmoothType) {
     case SMX_HYDRO_DENSITY:
         for (pi=0; pi<pkd->nLocal; ++pi) {
             p = pkdParticle(pkd,pi);
-#ifdef FEEDBACK
-            // We follow the density of stars that has not yet exploded to have a proper fBall
-            if (pkdIsActive(pkd,p) && p->bMarked && (pkdIsGas(pkd,p) || pkdIsStar(pkd,p))) {
-                if (pkdIsStar(pkd,p) && (pkdStar(pkd,p)->hasExploded==1)) continue;
-#else
             if (pkdIsActive(pkd,p) && p->bMarked && pkdIsGas(pkd,p)) {
-#endif
-
-
                 //if (pkdIsStar(pkd,p)) printf("%d \n",pkdStar(pkd,p)->hasExploded);
 
                 smReSmoothSingle(smx,smf,p,2.*pkdBall(pkd,p));
@@ -2922,10 +2955,10 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
 #ifdef OPTIM_REORDER_IN_NODES
             int pEnd = node->pLower + pkdNodeNgas(pkd,node);
 #if (defined(STAR_FORMATION) && defined(FEEDBACK)) || defined(STELLAR_EVOLUTION)
-            if (iSmoothType==SMX_HYDRO_DENSITY) pEnd += pkdNodeNstar(pkd,node);
+            //if (iSmoothType==SMX_HYDRO_DENSITY) pEnd += pkdNodeNstar(pkd,node);
 #endif
 #ifdef BLACKHOLES
-            if (iSmoothType==SMX_HYDRO_DENSITY) pEnd += pkdNodeNbh(pkd,node);
+            //if (iSmoothType==SMX_HYDRO_DENSITY) pEnd += pkdNodeNbh(pkd,node);
 #endif
 #else // OPTIM_REORDER_IN_NODES
             int pEnd = node->pUpper+1;
