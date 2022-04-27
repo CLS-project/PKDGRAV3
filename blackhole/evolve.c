@@ -171,6 +171,7 @@ void smBHevolve(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
             // NB: we only modify the local nSmooth, such that the particle
             // can be later released if needed!
             nSmooth--;
+            if (i >= nSmooth) continue;
         }
         assert(pkdIsGas(pkd,q));
         pLowPot = (*pkdPot(pkd,q)<minPot)  ? q : pLowPot;
