@@ -117,6 +117,11 @@ CUDA_DEVICE ResultDensity<F> EvalDensity(
     }
     else {
         result = {}; // No work to do
+        result.arho = 0.0f;
+        result.adrhodfball = 0.0f;
+        result.anden = 0.0f;
+        result.adndendfball = 0.0f;
+        result.anSmooth = 0.0f;
     }
     return result;
 }
@@ -220,10 +225,9 @@ CUDA_DEVICE ResultSPHForces<F> EvalSPHForces(
         }
 
         // acceleration
-        // i am not sure if there has to be an Omega in the artificial viscosity part
-        result.ax = - Im * (PPoverRho2 + IPoverRho2 + Piij) * dWdx * aFac;
-        result.ay = - Im * (PPoverRho2 + IPoverRho2 + Piij) * dWdy * aFac;
-        result.az = - Im * (PPoverRho2 + IPoverRho2 + Piij) * dWdz * aFac;
+        result.ax = - Im * (PPoverRho2 * PdWdx + IPoverRho2 * IdWdx + Piij * dWdx) * aFac;
+        result.ay = - Im * (PPoverRho2 * PdWdy + IPoverRho2 * IdWdy + Piij * dWdy) * aFac;
+        result.az = - Im * (PPoverRho2 * PdWdz + IPoverRho2 * IdWdz + Piij * dWdz) * aFac;
 
         // divv
         result.divv = Im / Irho * (dvx * dWdx + dvy * dWdy + dvz * dWdz);
@@ -253,6 +257,11 @@ CUDA_DEVICE ResultSPHForces<F> EvalSPHForces(
     }
     else {
         result = {};
+        result.uDot = 0.0f;
+        result.ax = 0.0f;
+        result.ay = 0.0f;
+        result.az = 0.0f;
+        result.divv = 0.0f;
         result.dtEst = HUGE_VALF;
     }
     return result;
