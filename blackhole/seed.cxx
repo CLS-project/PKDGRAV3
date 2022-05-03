@@ -50,25 +50,29 @@ int pkdPlaceBHSeed(PKD pkd, double dTime, double dScaleFactor,
     int newBHs = 0;
     SMX smx;
     smInitialize(&smx,pkd,NULL,32,1,0,SMX_NULL);
-
     // Look for any FoF group that do not contain any BH particle in it
     for (int gid=1; gid<=pkd->nLocalGroups; ++gid) {
         //printf("group %d mass %e \n", gid, pkd->veryTinyGroupTable[gid].fMass);
         //assert (pkd->ga[gid].id.iPid == pkd->idSelf);
 
+        smx->nnListSize = 0;
         if (pkd->veryTinyGroupTable[gid].nBH==0 &&
                 pkd->veryTinyGroupTable[gid].fMass > dBHMhaloMin) {
             printf("Group %d (mass %e) do not have any BH, adding one!\n",
                    gid, pkd->veryTinyGroupTable[gid].fMass);
             pkd->veryTinyGroupTable[gid].nBH++;
 
-
-
             // Fake particle for the neighbour search
             PARTICLE *p = NULL;
 
-            smx->nnListSize = 0;
-            smGather(smx,dTau,pkd->veryTinyGroupTable[gid].rPot, p);
+            // To adaptively search around rPot but avoiding very long interactions lists
+            // the search radius is increased in steps until enough gas particles are found
+            float dTauSearch = dTau*0.02;
+            while (!(smx->nnListSize > 100 || dTauSearch >= dTau)) {
+                smx->nnListSize = 0;
+                smGather(smx,dTauSearch,pkd->veryTinyGroupTable[gid].rPot, p);
+                dTauSearch *= 2.0;
+            }
 
 
             float minPot = HUGE_VAL;
@@ -139,6 +143,11 @@ int pkdPlaceBHSeed(PKD pkd, double dTime, double dScaleFactor,
             pkd->nGas--;
             newBHs++;
 
+            for (int i=0; i<smx->nnListSize; ++i) {
+                if (smx->nnList[i].iPid != pkd->idSelf) {
+                    mdlRelease(pkd->mdl,CID_PARTICLE,smx->nnList[i].pPart);
+                }
+            }
             /* Old seeding process, which creates a BH rather than converting
              * a gas particle.
              * This is problematic because we would need to assing a
