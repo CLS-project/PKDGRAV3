@@ -254,6 +254,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
     smx->nSmooth = nSmooth;
     smx->bPeriodic = bPeriodic;
     smx->bSymmetric  = bSymmetric;
+    smx->bSearchGasOnly = 0;
     smx->iSmoothType = iSmoothType;
     /*
     ** Initialize the context for compressed nearest neighbor lists.
@@ -373,6 +374,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         init = initSNFeedback; /* Cached copies */
         comb = combSNFeedback;
         smx->fcnPost = NULL;
+        smx->bSearchGasOnly = 1;
         break;
 #endif
 #ifdef BLACKHOLES
@@ -389,6 +391,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         init = NULL; /* Cached copies */
         comb = NULL;
         smx->fcnPost = NULL;
+        smx->bSearchGasOnly = 1;
         break;
     case SMX_BH_DRIFT:
         smx->fcnSmooth = smBHevolve;
@@ -396,6 +399,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         init = initBHevolve; /* Cached copies */
         comb = combBHevolve;
         smx->fcnPost = NULL;
+        smx->bSearchGasOnly = 1;
         break;
 #endif
 #ifdef STELLAR_EVOLUTION
@@ -405,6 +409,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         init = initChemEnrich;
         comb = combChemEnrich;
         smx->fcnPost = NULL;
+        smx->bSearchGasOnly = 1;
         break;
 #endif
 #ifndef OPTIM_REMOVE_UNUSED
@@ -717,10 +722,15 @@ PQ *pqSearch(SMX smx,PQ *pq,double r[3],int iRoot) {
         }
         /* Now at a bucket */
         if (id == idSelf ) {
-            pEnd = kdn->pUpper;
-            for (pj=kdn->pLower; pj<=pEnd; ++pj) {
+#ifdef OPTIM_REORDER_IN_NODES
+            pEnd = (smx->bSearchGasOnly) ? kdn->pLower+pkdNodeNgas(pkd,kdn) : kdn->pUpper+1;
+#endif
+            for (pj=kdn->pLower; pj<pEnd; ++pj) {
                 p = pkdParticle(pkd,pj);
                 if (!p->bMarked) continue;
+#ifndef OPTIM_REORDER_IN_NODES
+                if (smx->bSearchGasOnly && !pkdIsGas(pkd,p)) continue;
+#endif
                 pkdGetPos1(pkd,p,p_r);
                 dx = r[0] - p_r[0];
                 dy = r[1] - p_r[1];
@@ -747,9 +757,14 @@ PQ *pqSearch(SMX smx,PQ *pq,double r[3],int iRoot) {
             }
         }
         else {
-            pEnd = kdn->pUpper;
-            for (pj=kdn->pLower; pj<=pEnd; ++pj) {
+#ifdef OPTIM_REORDER_IN_NODES
+            pEnd = (smx->bSearchGasOnly) ? kdn->pLower+pkdNodeNgas(pkd,kdn) : kdn->pUpper+1;
+#endif
+            for (pj=kdn->pLower; pj<pEnd; ++pj) {
                 p = mdlFetch(mdl,CID_PARTICLE,pj,id);
+#ifndef OPTIM_REORDER_IN_NODES
+                if (smx->bSearchGasOnly && !pkdIsGas(pkd,p)) continue;
+#endif
                 if (smHashPresent(smx,p)) continue;
                 pkdGetPos1(pkd,p,p_r);
                 dx = r[0] - p_r[0];
@@ -931,7 +946,14 @@ void smSmooth(SMX smx,SMF *smf) {
             }
         }
         break;
-
+    case SMX_BH_STEP:
+        for (pi=0; pi<pkd->nLocal; ++pi) {
+            p = pkdParticle(pkd,pi);
+            if (pkdIsBH(pkd,p)) {
+                smSmoothSingle(smx,smf,p,ROOT,0);
+            }
+        }
+        break;
 #ifdef FEEDBACK
     case SMX_SN_FEEDBACK:
 
@@ -973,15 +995,6 @@ void smSmooth(SMX smx,SMF *smf) {
                     if (smf->bUpdateBall) {
                         pkdSetBall(pkd,p,fBall);
                     }
-                    /*
-                        smSmoothFinish(smx);
-                        for (pj=0;pj<pkd->nLocal;++pj) {
-                        p2 = pkdParticle(pkd,pj);
-                        p2->bMarked = 1;
-                        }
-                        smSmoothInitialize(smx);
-                        smf->pfDensity = NULL;
-                    */
                 }
             }
             /*

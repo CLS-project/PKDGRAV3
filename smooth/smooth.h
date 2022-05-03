@@ -53,6 +53,7 @@ typedef struct smContext {
     int bOwnCache;
     int bSymmetric;
     int iSmoothType;
+    int bSearchGasOnly;
     double rLast[3]; /* For the snake */
     PQ *pq;
     /*
