@@ -3490,8 +3490,7 @@ void MSR::Drift(double dTime,double dDelta,int iRoot) {
 
 #if defined(BLACKHOLES) and !defined(DEBUG_BH_ONLY)
     TimerStart(TIMER_DRIFT);
-    Smooth(dTime,dDelta,SMX_BH_DRIFT,1,param.nSmooth);
-    pstRepositionBH(pst, NULL, 0, NULL, 0);
+    BHDrift(dTime, dDelta);
 
     TimerStop(TIMER_DRIFT);
     double dsecBH = TimerGet(TIMER_DRIFT);

@@ -1,6 +1,15 @@
 #include "blackhole/evolve.h"
 #include "hydro/hydro.h"
+#include "master.h"
 
+void MSR::BHDrift(double dTime, double dDelta) {
+    Smooth(dTime,dDelta,SMX_BH_DRIFT,1,param.nSmooth);
+    pstRepositionBH(pst, NULL, 0, NULL, 0);
+}
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 static inline int bhAccretion(PKD pkd, NN *nnList, int nSmooth,
                               PARTICLE *p, BHFIELDS *pBH, float fBall, float pMass,
@@ -315,3 +324,6 @@ void pkdBHIntegrate(PKD pkd, PARTICLE *p, double dTime, double dDelta, double dB
     pBH->lastUpdateTime = dTime;
 
 }
+#ifdef __cplusplus
+}
+#endif
