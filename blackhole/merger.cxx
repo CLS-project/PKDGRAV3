@@ -539,7 +539,7 @@ void buildCandidateMergerList(SMX smx, SMF *smf, KDN *node, BND bnd_node, int *n
 
                         // IA: As we do not allow merger across boundaries,
                         //  we do not need to acquire the remote particle
-                        smx->nnList[nCnt].pPart = p ;
+                        smx->nnList[nCnt].pPart = (PARTICLE *) mdlAcquire(mdl, CID_PARTICLE, pj, id);
 
                         smx->nnList[nCnt].iIndex = pj;
                         smx->nnList[nCnt].iPid = id;

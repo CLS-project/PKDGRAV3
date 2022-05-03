@@ -3488,7 +3488,7 @@ void MSR::Drift(double dTime,double dDelta,int iRoot) {
     TimerStop(TIMER_DRIFT);
     dsec = TimerGet(TIMER_DRIFT);
 
-#ifdef BLACKHOLES
+#if defined(BLACKHOLES) and !defined(DEBUG_BH_ONLY)
     TimerStart(TIMER_DRIFT);
     Smooth(dTime,dDelta,SMX_BH_DRIFT,1,param.nSmooth);
     pstRepositionBH(pst, NULL, 0, NULL, 0);
@@ -4331,7 +4331,9 @@ void MSR::TopStepKDK(
             BuildTree(0);
             DensityStep(iRung,MAX_RUNG,dTime,dDeltaStep);
         }
+#ifdef BLACKHOLES
         BHStep(dTime, dDeltaStep);
+#endif
         UpdateRung(iRung);
     }
 

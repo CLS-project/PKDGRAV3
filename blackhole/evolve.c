@@ -173,7 +173,9 @@ void smBHevolve(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
             nSmooth--;
             if (i >= nSmooth) continue;
         }
+#ifndef DEBUG_BH_ONLY
         assert(pkdIsGas(pkd,q));
+#endif
         pLowPot = (*pkdPot(pkd,q)<minPot)  ? q : pLowPot;
         // We could have no potential if gravity is not calculated
         minPot = (pLowPot!=NULL) ? *pkdPot(pkd,pLowPot) : minPot;
@@ -199,18 +201,20 @@ void smBHevolve(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
         float kernelSum = 0.0;
         float massSum = 0.0;
         for (int i=0; i<nSmooth; ++i) {
+#ifndef DEBUG_BH_ONLY
             assert(pkdIsGas(pkd,nnList[i].pPart));
+#endif
             const double rpq = sqrt(nnList[i].fDist2);
             const double kernel = cubicSplineKernel(rpq, fBall);
             kernelSum += kernel;
             massSum += pkdMass(pkd,nnList[i].pPart);
 
-            pDensity += kernel*pkdMass(pkd,nnList[i].pPart);
+            pDensity += pkdDensity(pkd,nnList[i].pPart);
             vx += kernel*(pkdVel(pkd,nnList[i].pPart)[0]-pv[0]*inv_a);
             vy += kernel*(pkdVel(pkd,nnList[i].pPart)[1]-pv[1]*inv_a);
             vz += kernel*(pkdVel(pkd,nnList[i].pPart)[2]-pv[2]*inv_a);
         }
-
+        pDensity *= 1./nSmooth;
         kernelSum = 1./kernelSum;
         vRel2 = vx*vx + vy*vy + vz*vz;
         vRel2 *= kernelSum*kernelSum;
