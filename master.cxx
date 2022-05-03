@@ -4301,7 +4301,7 @@ void MSR::TopStepKDK(
     double dDeltaStep = dDeltaRung * (1 << iRung);
 #ifdef BLACKHOLES
     if (!iKickRung && !iRung && param.bBHPlaceSeed) {
-        PlaceBHSeed(dTime, iRung);
+        PlaceBHSeed(dTime, CurrMaxRung());
 
 #ifdef OPTIM_REORDER_IN_NODES
         // This is kind of overkill. Ideally just reseting the CID_CELL
@@ -4334,6 +4334,7 @@ void MSR::TopStepKDK(
             BuildTree(0);
             DensityStep(iRung,MAX_RUNG,dTime,dDeltaStep);
         }
+        BHStep(dTime, dDeltaStep);
         UpdateRung(iRung);
     }
 

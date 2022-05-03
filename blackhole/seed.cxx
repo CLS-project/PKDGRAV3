@@ -127,11 +127,12 @@ int pkdPlaceBHSeed(PKD pkd, double dTime, double dScaleFactor,
             pBH->dFeedbackRate = 0.0;
             pBH->dAccEnergy = 0.0;
             pBH->fTimer = dTime;
+            pBH->doReposition = 2;
 
             // As the particle that was converted to a BH lies in a very
             // dense environment it will probably have a high rung, so
             // this is not required
-            //pLowPot->uNewRung = uRungMax;
+            pLowPot->uNewRung = uRungMax;
 
 
             pkd->nBH++;

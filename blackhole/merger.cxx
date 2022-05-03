@@ -35,13 +35,11 @@ void MSR::BHMerger(double dTime) {
                         &out,sizeof(struct outSmooth));
         pstMoveDeletedParticles(pst, NULL, 0,
                                 &Nout, sizeof(struct outGetNParts));
-        pstRepositionBH(pst, NULL, 0, NULL, 0);
         dsec = Time() - sec;
     }
     else {
         pstReSmoothNode(pst,&in,sizeof(in),&out,sizeof(struct outSmooth));
         pstMoveDeletedParticles(pst, NULL, 0, &Nout, sizeof(struct outGetNParts));
-        pstRepositionBH(pst, NULL, 0, NULL, 0);
     }
 
     TimerStop(TIMER_BHS);
@@ -58,20 +56,20 @@ extern "C" {
 #endif
 
 void pkdRepositionBH(PKD pkd) {
-
+#ifndef DEBUG_BH_ONLY
     for (int i=0; i<pkdLocal(pkd); ++i) {
         PARTICLE *p = pkdParticle(pkd,i);
         if (pkdIsBH(pkd,p)) {
             BHFIELDS *pBH = pkdBH(pkd,p);
-            if (pBH->newPos[0]!=-1) {
+            if (pBH->doReposition) {
                 for (int j=0; j<3; j++)
                     pkdSetPos(pkd, p, j, pBH->newPos[j]);
-                pBH->newPos[0] = -1;
+                pBH->doReposition = 0;
             }
         }
     }
+#endif
 }
-
 
 
 /* IA: This should be called when we have a merger across different domains...
@@ -121,7 +119,7 @@ void smBHmerger(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
             //
             // So, the following should not give any problem
             // (remove for performance)
-            assert( nnList[i].fDist2 < pkdSoft(pkd,p)*pkdSoft(pkd,p)  );
+            assert( nnList[i].fDist2 < 4.*pkdSoft(pkd,p)*pkdSoft(pkd,p)  );
             assert( pkdIsBH(pkd,p) );
             assert( pkdIsBH(pkd,q) );
             assert( pkd->oFieldOffset[oMass] );
@@ -138,7 +136,12 @@ void smBHmerger(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
                     dv2 += (pv[j]-qv[j])*(pv[j]-qv[j]);
                 }
 
-                if (dv2 < pmass/pkdSoft(pkd,p)) {
+                float dist = 0.0;
+                for (int j=0; j<3; j++)
+                    dist += (pkdPos(pkd,p,j)-pkdPos(pkd,q,j))*(pkdPos(pkd,p,j)-pkdPos(pkd,q,j));
+
+                float inv_dist = dist!=0.0 ? sqrt(1./dist) : FLT_MAX;
+                if (dv2 < pmass*inv_dist) {
                     // We have a merger!!
                     printf("Merger!!! %e %e \n", pmass, qmass);
 
@@ -162,6 +165,7 @@ void smBHmerger(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
                     pbh->newPos[0] = pkdPos(pkd,p,0)-qmass*inv_newmass*nnList[i].dx;
                     pbh->newPos[1] = pkdPos(pkd,p,1)-qmass*inv_newmass*nnList[i].dy;
                     pbh->newPos[2] = pkdPos(pkd,p,2)-qmass*inv_newmass*nnList[i].dz;
+                    pbh->doReposition = 2;
                     pbh->dInternalMass += pkdBH(pkd,q)->dInternalMass;
 
                     for (int j=0; j<3; j++) {
@@ -252,6 +256,7 @@ int smReSmoothBHNode(SMX smx,SMF *smf, int iSmoothType) {
 
             // Prepare the interaction list
             bnd_node = pkdNodeGetBnd(pkd,node);
+            double fMax_shrink[3] = {0.,0.,0.};
 
             double r[3];
             r[0] = bnd_node.fCenter[0];
@@ -267,16 +272,12 @@ int smReSmoothBHNode(SMX smx,SMF *smf, int iSmoothType) {
 #ifdef STAR_FORMATION
             pStart += pkdNodeNstar(pkd, node);
 #endif
-            int pEnd = node->pLower + pkdNodeNbh(pkd,node);
-            //printf("pkdNodeNbh %d \n", pkdNodeNbh(pkd,node));
+            int pEnd = pStart + pkdNodeNbh(pkd,node);
 #else
             int pStart = node->pLower;
             int pEnd = node->pUpper+1;
 #endif
 
-            double fMax_shrink_x = 0.;
-            double fMax_shrink_y = 0.;
-            double fMax_shrink_z = 0.;
             for (pj=pStart; pj<pEnd; ++pj) {
                 p = pkdParticle(pkd,pj);
 
@@ -287,21 +288,10 @@ int smReSmoothBHNode(SMX smx,SMF *smf, int iSmoothType) {
 #else
                 if (pkdIsActive(pkd,p)) {
 #endif
-
-                    const double x_disp =
-                        fabs(pkdPos(pkd,p,0) - bnd_node.fCenter[0]) + dSoft*2.;
-                    fMax_shrink_x = (x_disp > fMax_shrink_x) ?
-                                    x_disp : fMax_shrink_x;
-
-                    const double y_disp =
-                        fabs(pkdPos(pkd,p,1) - bnd_node.fCenter[1]) + dSoft*2.;
-                    fMax_shrink_y = (y_disp > fMax_shrink_y) ?
-                                    y_disp : fMax_shrink_y;
-
-                    const double z_disp =
-                        fabs(pkdPos(pkd,p,2) - bnd_node.fCenter[2]) + dSoft*2.;
-                    fMax_shrink_z = (z_disp > fMax_shrink_z) ?
-                                    z_disp : fMax_shrink_z;
+                    for (int j=0; j<3; j++) {
+                        const double disp = fabs(pkdPos(pkd,p,j) - bnd_node.fCenter[j]) + dSoft*2.;
+                        fMax_shrink[j] = (disp > fMax_shrink[j]) ? disp : fMax_shrink[j];
+                    }
 
                     if (nodeBall<dSoft) nodeBall=dSoft;
                     sinks[nActive] = p;
@@ -313,11 +303,8 @@ int smReSmoothBHNode(SMX smx,SMF *smf, int iSmoothType) {
 
             nCnt = 0;
             int nCnt_own = nActive;
-
-            double const fBall_x = bnd_node.fMax[0]+nodeBall;
-            double const fBall_y = bnd_node.fMax[1]+nodeBall;
-            double const fBall_z = bnd_node.fMax[2]+nodeBall;
-            double fBall2 = fBall_x*fBall_x + fBall_y*fBall_y + fBall_z*fBall_z;
+            for (int j=0; j<3; j++)
+                bnd_node.fMax[j] = fMax_shrink[j];
 
             if (smx->bPeriodic) {
                 double iStart[3], iEnd[3];
@@ -334,14 +321,14 @@ int smReSmoothBHNode(SMX smx,SMF *smf, int iSmoothType) {
                         for (int iz=iStart[2]; iz<=iEnd[2]; ++iz) {
                             r[2] = bnd_node.fCenter[2] - iz*pkd->fPeriod[2];
                             buildCandidateMergerList(smx, smf, node, bnd_node,
-                                                     &nCnt, r, fBall2, ix, iy, iz);
+                                                     &nCnt, r, ix, iy, iz);
                         }
                     }
                 }
             }
             else {
                 buildCandidateMergerList(smx, smf, node, bnd_node,
-                                         &nCnt, r, fBall2, 0, 0, 0);
+                                         &nCnt, r, 0, 0, 0);
             }
 
 
@@ -358,7 +345,7 @@ int smReSmoothBHNode(SMX smx,SMF *smf, int iSmoothType) {
                 // We need to double check this, as the particle may have
                 // been marked for deletion just before this
                 if (partj->bMarked) {
-                    float fBall2_p = pkdSoft(pkd,partj)*pkdSoft(pkd,partj);
+                    float fBall2_p = 4.*pkdSoft(pkd,partj)*pkdSoft(pkd,partj);
                     float dx_node = -pkdPos(pkd,partj,0)+bnd_node.fCenter[0];
                     float dy_node = -pkdPos(pkd,partj,1)+bnd_node.fCenter[1];
                     float dz_node = -pkdPos(pkd,partj,2)+bnd_node.fCenter[2];
@@ -407,12 +394,9 @@ int smReSmoothBHNode(SMX smx,SMF *smf, int iSmoothType) {
 
             for (pk=0; pk<nCnt; ++pk) {
                 if (smx->nnList[pk].iPid != pkd->idSelf) {
-                    // TODO: Do not forget to release previously acquired particles!
-                    //mdlRelease(pkd->mdl,CID_PARTICLE,smx->nnList[pk].pPart);
+                    mdlRelease(pkd->mdl,CID_PARTICLE,smx->nnList[pk].pPart);
                 }
             }
-
-            //mdlCacheCheck(pkd->mdl);
         }
     }
     free(nnList_p);
@@ -431,7 +415,7 @@ inline static KDN *getCell(PKD pkd, int iCell, int id) {
  * Probably, using C++ templates this could be done avoiding code duplications
  * or extra overheads...
  */
-void buildCandidateMergerList(SMX smx, SMF *smf, KDN *node, BND bnd_node, int *nCnt_tot, double r[3], double fBall2, int ix, int iy, int iz) {
+void buildCandidateMergerList(SMX smx, SMF *smf, KDN *node, BND bnd_node, int *nCnt_tot, double r[3], int ix, int iy, int iz) {
     PKD pkd = smx->pkd;
     MDL mdl = pkd->mdl;
     PARTICLE *p;
@@ -481,7 +465,7 @@ void buildCandidateMergerList(SMX smx, SMF *smf, KDN *node, BND bnd_node, int *n
 #ifdef STAR_FORMATION
                 pStart += pkdNodeNstar(pkd,kdn);
 #endif
-                pEnd = pStart + pkdNodeNbh(pkd,kdn);;
+                pEnd = pStart + pkdNodeNbh(pkd,kdn);
 #else
                 pStart = kdn->pLower;
                 pEnd = kdn->pUpper+1;
@@ -496,14 +480,16 @@ void buildCandidateMergerList(SMX smx, SMF *smf, KDN *node, BND bnd_node, int *n
                     dx = r[0] - p_r[0];
                     dy = r[1] - p_r[1];
                     dz = r[2] - p_r[2];
-                    fDist2 = dx*dx + dy*dy + dz*dz;
-                    if (fDist2 <= fBall2) {
+                    if (fabs(dx) <= bnd_node.fMax[0] &&
+                            fabs(dy) <= bnd_node.fMax[1] &&
+                            fabs(dz) <= bnd_node.fMax[2] ) {
                         if (nCnt >= smx->nnListMax) {
                             smx->nnListMax += NNLIST_INCREMENT;
                             smx->nnList = (NN *)realloc(smx->nnList,smx->nnListMax*sizeof(NN));
                             //printf("realloc \n");
                             assert(smx->nnList != NULL);
                         }
+                        fDist2 = dx*dx + dy*dy + dz*dz;
                         smx->nnList[nCnt].fDist2 = fDist2;
                         smx->nnList[nCnt].dx = dx;
                         smx->nnList[nCnt].dy = dy;
@@ -521,7 +507,7 @@ void buildCandidateMergerList(SMX smx, SMF *smf, KDN *node, BND bnd_node, int *n
 #ifdef STAR_FORMATION
                 pStart += pkdNodeNstar(pkd,kdn);
 #endif
-                pEnd = pStart + pkdNodeNbh(pkd,kdn);;
+                pEnd = pStart + pkdNodeNbh(pkd,kdn);
 #else
                 pStart = kdn->pLower;
                 pEnd = kdn->pUpper+1;
@@ -535,8 +521,9 @@ void buildCandidateMergerList(SMX smx, SMF *smf, KDN *node, BND bnd_node, int *n
                     dx = r[0] - p_r[0];
                     dy = r[1] - p_r[1];
                     dz = r[2] - p_r[2];
-                    fDist2 = dx*dx + dy*dy + dz*dz;
-                    if (fDist2 <= fBall2) {
+                    if (fabs(dx) <= bnd_node.fMax[0] &&
+                            fabs(dy) <= bnd_node.fMax[1] &&
+                            fabs(dz) <= bnd_node.fMax[2] ) {
                         if (nCnt >= smx->nnListMax) {
                             smx->nnListMax += NNLIST_INCREMENT;
                             smx->nnList = (NN *)realloc(smx->nnList,smx->nnListMax*sizeof(NN));
@@ -544,6 +531,7 @@ void buildCandidateMergerList(SMX smx, SMF *smf, KDN *node, BND bnd_node, int *n
                             assert(smx->nnList != NULL);
                         }
 
+                        fDist2 = dx*dx + dy*dy + dz*dz;
                         smx->nnList[nCnt].fDist2 = fDist2;
                         smx->nnList[nCnt].dx = dx;
                         smx->nnList[nCnt].dy = dy;

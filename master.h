@@ -459,6 +459,7 @@ protected:
     void BlackholeInit(uint8_t uRungMax);
     void PlaceBHSeed(double dTime, uint8_t uRungMax);
     void BHMerger(double dTime);
+    void BHStep(double dTime, double dDelta);
 #endif
 
 

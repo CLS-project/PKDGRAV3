@@ -39,6 +39,7 @@
 #ifdef BLACKHOLES
     #include "blackhole/merger.h"
     #include "blackhole/evolve.h"
+    #include "blackhole/step.h"
 #endif
 #ifdef STELLAR_EVOLUTION
     #include "stellarevolution/stellarevolution.h"
@@ -379,6 +380,13 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         initParticle = NULL; /* Original Particle */
         init = NULL; /* Cached copies */
         comb = combBHmerger;
+        smx->fcnPost = NULL;
+        break;
+    case SMX_BH_STEP:
+        smx->fcnSmooth = smBHstep;
+        initParticle = NULL; /* Original Particle */
+        init = NULL; /* Cached copies */
+        comb = NULL;
         smx->fcnPost = NULL;
         break;
     case SMX_BH_DRIFT:
@@ -2708,6 +2716,16 @@ int  smReSmooth(SMX smx,SMF *smf, int iSmoothType) {
             p = pkdParticle(pkd,pi);
             if (pkdIsBH(pkd,p)) {
                 smReSmoothSingle(smx,smf,p,2.*pkdBall(pkd,p));
+                nSmoothed++;
+            }
+        }
+        break;
+
+    case SMX_BH_STEP:
+        for (pi=0; pi<pkd->nLocal; ++pi) {
+            p = pkdParticle(pkd,pi);
+            if (pkdIsBH(pkd,p)) {
+                smReSmoothSingle(smx,smf,p,2.*pkdSoft(pkd,p));
                 nSmoothed++;
             }
         }

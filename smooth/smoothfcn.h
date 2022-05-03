@@ -209,6 +209,7 @@ void SphForces(PARTICLE *,float fBall,int,NN *,SMF *);
 
 #define SMX_BH_MERGER         55
 #define SMX_BH_DRIFT          56
+#define SMX_BH_STEP           57
 
 #ifdef STELLAR_EVOLUTION
     #define SMX_CHEM_ENRICHMENT   60

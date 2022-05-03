@@ -115,7 +115,6 @@ static inline void bhDrift(PKD pkd, PARTICLE *p, float pMass,
 #ifndef DEBUG_BH_ONLY
     assert(pLowPot!=NULL);
 #endif
-    p->uNewRung = uMaxRung;
     if (pLowPot==NULL) return;
 
 
@@ -140,10 +139,11 @@ static inline void bhDrift(PKD pkd, PARTICLE *p, float pMass,
         //
         //  This is overriden when just creating the BH
         BHFIELDS *pBH = pkdBH(pkd,p);
-        if (v2 < 0.0625*cs || pBH->newPos[0]==-1) {
+        if (v2 < 0.0625*cs || pBH->doReposition == 2) {
             for (int j=0; j<3; j++) {
                 pBH->newPos[j] = pkdPos(pkd,pLowPot,j);
-                pv[j] = dScaleFactor*lowPotv[j];
+                //pv[j] = dScaleFactor*lowPotv[j];
+                pBH->doReposition = 1;
             }
         }
     }

@@ -323,6 +323,7 @@ typedef struct blackholefields {
     double dFeedbackRate;
     double dAccEnergy;
     float fTimer;    /* Time of formation */
+    int   doReposition; // = 0 no; > 0 do it ; = 2 ignore gas criteria
 } BHFIELDS;
 
 #ifdef OPTIM_UNION_EXTRAFIELDS
