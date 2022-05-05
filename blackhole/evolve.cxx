@@ -104,7 +104,7 @@ static inline void bhFeedback(PKD pkd, NN *nnList, int nSmooth, PARTICLE *p,
 
 static inline void bhDrift(PKD pkd, PARTICLE *p, float pMass,
                            PARTICLE *pLowPot, uint8_t uMaxRung,
-                           double cs, double dScaleFactor) {
+                           double maxv2, float mv[3], double dScaleFactor) {
     // In situations where only BH are present, or there is no gravity, pLowPot
     // may be null. In that case, the drift operation in this function makes no
     // sense.
@@ -119,7 +119,7 @@ static inline void bhDrift(PKD pkd, PARTICLE *p, float pMass,
     //      printf("%e \n", *pkdPot(pkd, nnList[i].pPart));
     //}
 #ifndef DEBUG_BH_ONLY
-    assert(pLowPot!=NULL);
+    //assert(pLowPot!=NULL);
 #endif
     if (pLowPot==NULL) return;
 
@@ -131,12 +131,11 @@ static inline void bhDrift(PKD pkd, PARTICLE *p, float pMass,
     // have enough mass to dictate the movement of the particles
     if (pMass < 10.*pkdMass(pkd,pLowPot)) {
         double inv_a = 1./dScaleFactor;
-        cs *= cs;
         vel_t *lowPotv = pkdVel(pkd, pLowPot);
         vel_t *pv = pkdVel(pkd,p);
         float v2 = 0.0;
         for (int j=0; j<3; j++)
-            v2 += (lowPotv[j]-pv[j]*inv_a) * (lowPotv[j]-pv[j]*inv_a);
+            v2 += (lowPotv[j]-pv[j]*inv_a - mv[j]) * (lowPotv[j]-pv[j]*inv_a -mv[j]);
 
         // We set a limit of the velocity to avoid being dragged
         //  by fast particles (v<0.25cs).
@@ -145,11 +144,12 @@ static inline void bhDrift(PKD pkd, PARTICLE *p, float pMass,
         //
         //  This is overriden when just creating the BH
         BHFIELDS *pBH = pkdBH(pkd,p);
-        if (v2 < 0.0625*cs || pBH->doReposition == 2) {
+        //printf("check %e %e \n", v2, cs);
+        if (v2 < maxv2 || pBH->doReposition == 2) {
+            pBH->doReposition = 1;
             for (int j=0; j<3; j++) {
                 pBH->newPos[j] = pkdPos(pkd,pLowPot,j);
                 //pv[j] = dScaleFactor*lowPotv[j];
-                pBH->doReposition = 1;
             }
         }
     }
@@ -169,6 +169,9 @@ void smBHevolve(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
 
     // We look for the most bounded neighbouring particle
+    vel_t mvx = 0.;
+    vel_t mvy = 0.;
+    vel_t mvz = 0.;
     for (int i=0; i<nSmooth; ++i) {
         PARTICLE *q = nnList[i].pPart;
         if (pkdIsDeleted(pkd,q)) {
@@ -190,10 +193,43 @@ void smBHevolve(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
         minPot = (pLowPot!=NULL) ? *pkdPot(pkd,pLowPot) : minPot;
         uMaxRung = (q->uRung > uMaxRung) ? q->uRung : uMaxRung;
         cs += pkdSph(pkd,nnList[i].pPart)->c;
+
+        vel_t *pv = pkdVel(pkd,p);
+        mvx += pkdVel(pkd,nnList[i].pPart)[0]-pv[0]*inv_a;
+        mvy += pkdVel(pkd,nnList[i].pPart)[1]-pv[1]*inv_a;
+        mvz += pkdVel(pkd,nnList[i].pPart)[2]-pv[2]*inv_a;
     }
     // We do a simple mean, to avoid computing the kernels again
-    cs *= 1./nSmooth;
+    const float inv_nSmooth = 1./nSmooth;
+    cs *= inv_nSmooth;
 
+    mvx *= inv_nSmooth;
+    mvy *= inv_nSmooth;
+    mvz *= inv_nSmooth;
+
+
+    float stdvx = 0.0;
+    float stdvy = 0.0;
+    float stdvz = 0.0;
+    for (int i=0; i<nSmooth; ++i) {
+        PARTICLE *q = nnList[i].pPart;
+
+        vel_t *pv = pkdVel(pkd,p);
+        const float vx = pkdVel(pkd,nnList[i].pPart)[0]-pv[0]*inv_a;
+        const float vy = pkdVel(pkd,nnList[i].pPart)[1]-pv[1]*inv_a;
+        const float vz = pkdVel(pkd,nnList[i].pPart)[2]-pv[2]*inv_a;
+        stdvx += (vx-mvx)*(vx-mvx);
+        stdvy += (vy-mvy)*(vy-mvy);
+        stdvz += (vz-mvz)*(vz-mvz);
+    }
+    stdvx *= inv_nSmooth;
+    stdvy *= inv_nSmooth;
+    stdvz *= inv_nSmooth;
+    float stdv2 = stdvx + stdvy + stdvz;
+
+    //printf("vx\t %e %e\n", mvx, sqrt(stdvx));
+    //printf("vy\t %e %e\n", mvy, sqrt(stdvy));
+    //printf("vz\t %e %e\n", mvz, sqrt(stdvz));
 
     if (smf->bBHAccretion || smf->bBHFeedback) {
         BHFIELDS *pBH = pkdBH(pkd,p);
@@ -262,7 +298,23 @@ void smBHevolve(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
         }
     }
 
-    bhDrift(pkd, p, pMass, pLowPot, uMaxRung, cs, smf->a);
+    /*
+    pLowPot = NULL;
+    minPot  = HUGE_VAL;
+    float cs2 = cs*cs;
+    for (int i=0; i<nSmooth; ++i) {
+        PARTICLE *q = nnList[i].pPart;
+        vel_t *lowPotv = pkdVel(pkd, q);
+        vel_t *pv = pkdVel(pkd,p);
+        float v2 = 0.0;
+        for (int j=0; j<3; j++)
+            v2 += (lowPotv[j]-pv[j]*inv_a) * (lowPotv[j]-pv[j]*inv_a);
+        pLowPot = (*pkdPot(pkd,q)<minPot && v2 < 0.0625*cs2)  ? q : pLowPot;
+        minPot = (pLowPot!=NULL) ? *pkdPot(pkd,pLowPot) : minPot;
+    }
+    */
+    float mv[3] = {mvx, mvy, mvz};
+    bhDrift(pkd, p, pMass, pLowPot, uMaxRung, stdv2, mv, smf->a);
 
 
 }

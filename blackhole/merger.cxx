@@ -64,6 +64,7 @@ void pkdRepositionBH(PKD pkd) {
             if (pBH->doReposition) {
                 for (int j=0; j<3; j++)
                     pkdSetPos(pkd, p, j, pBH->newPos[j]);
+                //printf("Reposition\n");
                 pBH->doReposition = 0;
             }
         }
