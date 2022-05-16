@@ -1100,6 +1100,10 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 #ifdef FEEDBACK
                     pSph->fAccFBEnergy = 0.;
 #endif
+#ifdef BLACKHOLES
+                    pSph->BHAccretor.iIndex = NOT_ACCRETED;
+                    pSph->BHAccretor.iPid   = NOT_ACCRETED;
+#endif
                     pSph->uWake = 0;
                 }
             }

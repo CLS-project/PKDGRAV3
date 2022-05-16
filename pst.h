@@ -138,6 +138,7 @@ enum pst_service {
     PST_BH_PLACESEED,
     PST_BH_REPOSITION,
     PST_BH_INIT,
+    PST_BH_ACCRETION,
 #endif
     PST_MOVEDELETED,
     PST_PREDICTSMOOTH,
@@ -565,6 +566,10 @@ struct outPlaceBHSeed {
 int pstPlaceBHSeed(PST,void *,int,void *,int);
 int pstBHInit(PST,void *,int,void *,int);
 int pstRepositionBH(PST,void *,int,void *,int);
+struct inBHAccretion {
+    double dScaleFactor;
+};
+int pstBHAccretion(PST,void *,int,void *,int);
 #endif
 
 /* PST_RESMOOTH */

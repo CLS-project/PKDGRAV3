@@ -278,6 +278,14 @@ typedef struct sphfields {
     float fAccFBEnergy;
 #endif
 
+#ifdef BLACKHOLES
+    // This could ideally be stored in a temporal buffer (pLite), but it has some
+    // limitatons as it has to be shared when doing mdlAcquire.
+    struct {
+        int iPid;
+        int iIndex;
+    } BHAccretor;
+#endif
 
     uint8_t uWake;
 
@@ -1204,6 +1212,9 @@ static inline void pkdSwapParticle(PKD pkd, PARTICLE *a, PARTICLE *b) {
     pkdSaveParticle(pkd,a);
     pkdCopyParticle(pkd,a,b);
     pkdLoadParticle(pkd,b);
+}
+static inline int pkdParticleIndex( PKD pkd, PARTICLE *p) {
+    return (int)( ( (char *)p - (char *)pkd->pStorePRIVATE )/pkd->iParticleSize);
 }
 
 static inline const void *pkdFieldRO( const PARTICLE *p, int iOffset ) {

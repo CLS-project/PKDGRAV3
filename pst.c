@@ -61,6 +61,7 @@
 #endif
 #ifdef BLACKHOLES
     #include "blackhole/merger.h"
+    #include "blackhole/evolve.h"
     #include "blackhole/seed.h"
     #include "blackhole/init.h"
 #endif
@@ -188,6 +189,9 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_BH_REPOSITION,pst,
                   (fcnService_t *) pstRepositionBH,
                   0, 0);
+    mdlAddService(mdl,PST_BH_ACCRETION,pst,
+                  (fcnService_t *) pstBHAccretion,
+                  sizeof(struct inBHAccretion), 0);
 #endif
     mdlAddService(mdl,PST_MOVEDELETED,pst,
                   (fcnService_t *)pstMoveDeletedParticles,
@@ -1100,6 +1104,21 @@ int pstRepositionBH(PST pst,void *vin,int nIn,void *vout,int nOut) {
     else {
         LCL *plcl = pst->plcl;
         pkdRepositionBH(plcl->pkd);
+    }
+    return 0;
+
+}
+int pstBHAccretion(PST pst,void *vin,int nIn,void *vout,int nOut) {
+    struct inBHAccretion *in = vin;
+    mdlassert(pst->mdl,nIn == sizeof(struct inBHAccretion));
+    if (pst->nLeaves > 1) {
+        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_BH_ACCRETION,in,nIn);
+        pstBHAccretion(pst->pstLower,vin,nIn,vout,nOut);
+        mdlGetReply(pst->mdl,rID,NULL,NULL);
+    }
+    else {
+        LCL *plcl = pst->plcl;
+        pkdBHAccretion(plcl->pkd, in->dScaleFactor);
     }
     return 0;
 

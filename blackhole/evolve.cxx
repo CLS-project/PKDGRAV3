@@ -5,7 +5,13 @@
 void MSR::BHDrift(double dTime, double dDelta) {
     Smooth(dTime,dDelta,SMX_BH_DRIFT,1,param.nSmooth);
     pstRepositionBH(pst, NULL, 0, NULL, 0);
+
+    struct inBHAccretion in;
+    in.dScaleFactor = csmTime2Exp(csm,dTime);
+    pstBHAccretion(pst, &in, sizeof(in), NULL, 0);
 }
+
+
 
 #ifdef __cplusplus
 extern "C" {
@@ -30,38 +36,8 @@ static inline int bhAccretion(PKD pkd, NN *nnList, int nSmooth,
                 PARTICLE *q = nnList[i].pPart;
                 assert(pkdIsGas(pkd,q));
 
-                float newMass = pMass + pkdMass(pkd,q);
-                float inv_newMass = 1./newMass;
-
-                //printf("Mass: internal %e old %e \t new %e \n",
-                //         pBH->dInternalMass, pMass, newMass);
-
-                vel_t *pv = pkdVel(pkd,p);
-                for (int j=0; j<3; j++) {
-                    // To properly conserve momentum, we need to use the
-                    // hydrodynamic variable, as the pkdVel may not be updated yet
-                    //
-                    // In the case of cosmological simulations, they have
-                    // different scale factors, so we need to correct for that
-                    pv[j] = (pMass*pv[j] + dScaleFactor*pkdSph(pkd,q)->mom[j]) *
-                            inv_newMass;
-                }
-
-
-                float *mass_field = (float *)pkdField(p, pkd->oFieldOffset[oMass]);
-                *mass_field = newMass;
-
-                if (pkd->idSelf != nnList[i].iPid)
-                    pkdSetClass(pkd,0.0,0.0,FIO_SPECIES_LAST,q);
-                else
-                    pkdDeleteParticle(pkd, q);
-
-                smSwapNN(nnList, nSmooth-1, i);
-
-                // Once we have one event, we stop checking, as our mass
-                //   will be higher now
-                break;
-
+                pkdSph(pkd,q)->BHAccretor.iPid = pkd->idSelf;
+                pkdSph(pkd,q)->BHAccretor.iIndex = pkdParticleIndex(pkd,p);
             }
         }
     }
@@ -69,7 +45,7 @@ static inline int bhAccretion(PKD pkd, NN *nnList, int nSmooth,
 }
 
 
-static inline void bhFeedback(PKD pkd, NN *nnList, int nSmooth, PARTICLE *p,
+static inline void bhFeedback(PKD pkd, NN *nnList, int nSmooth, int naccreted, PARTICLE *p,
                               BHFIELDS *pBH, float massSum, double dConstGamma,
                               double dBHFBEff, double dBHFBEcrit) {
 
@@ -79,15 +55,16 @@ static inline void bhFeedback(PKD pkd, NN *nnList, int nSmooth, PARTICLE *p,
     const double Ecrit = dBHFBEcrit * meanMass;
     if (pBH->dAccEnergy > Ecrit) {
         const double nHeat = pBH->dAccEnergy / Ecrit;
-        const double prob = nHeat / nSmooth;
+        const double prob = nHeat / (nSmooth-naccreted); // Correct probability for accreted particles
         for (int i=0; i<nSmooth; ++i) {
             if (rand()<RAND_MAX*prob) {
                 PARTICLE *q;
                 q = nnList[i].pPart;
                 assert(pkdIsGas(pkd,q));
 
-                printf("BH feedback event!\n");
                 SPHFIELDS *qsph = pkdSph(pkd,q);
+                if (qsph->BHAccretor.iPid != NOT_ACCRETED) continue; // Skip accreted particles
+                printf("BH feedback event!\n");
                 const double energy = dBHFBEcrit * pkdMass(pkd,q) ;
                 qsph->Uint += energy;
                 qsph->E += energy;
@@ -166,7 +143,7 @@ void smBHevolve(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     uint8_t uMaxRung = 0;
     double cs = 0.;
     float inv_a = 1./smf->a;
-
+    int naccreted = 0;
 
     // We look for the most bounded neighbouring particle
     vel_t mvx = 0.;
@@ -174,20 +151,10 @@ void smBHevolve(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     vel_t mvz = 0.;
     for (int i=0; i<nSmooth; ++i) {
         PARTICLE *q = nnList[i].pPart;
-        if (pkdIsDeleted(pkd,q)) {
-            // This is very unlikely, but this may happen when a particle is
-            // swallowed by other BH while we are doing our smooth
-            // In this case, just remove this particle from the interaction list
-            smSwapNN(nnList, i, nSmooth-1);
-
-            // NB: we only modify the local nSmooth, such that the particle
-            // can be later released if needed!
-            nSmooth--;
-            if (i >= nSmooth) continue;
-        }
 #ifndef DEBUG_BH_ONLY
         assert(pkdIsGas(pkd,q));
 #endif
+        if (pkdSph(pkd,q)->BHAccretor.iPid != NOT_ACCRETED) naccreted++;
         pLowPot = (*pkdPot(pkd,q)<minPot)  ? q : pLowPot;
         // We could have no potential if gravity is not calculated
         minPot = (pLowPot!=NULL) ? *pkdPot(pkd,pLowPot) : minPot;
@@ -289,11 +256,11 @@ void smBHevolve(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
         //assert(0);
 
         if (smf->bBHAccretion) {
-            nSmooth -= bhAccretion(pkd, nnList, nSmooth, p, pBH,
-                                   fBall, pMass, pDensity, smf->a);
+            naccreted += bhAccretion(pkd, nnList, nSmooth, p, pBH,
+                                     fBall, pMass, pDensity, smf->a);
         }
         if (smf->bBHFeedback) {
-            bhFeedback(pkd, nnList, nSmooth, p, pBH, massSum, smf->dConstGamma,
+            bhFeedback(pkd, nnList, nSmooth, naccreted, p, pBH, massSum, smf->dConstGamma,
                        smf->dBHFBEff, smf->dBHFBEcrit);
         }
     }
@@ -326,10 +293,7 @@ void combBHevolve(void *vpkd, void *vp1,const void *vp2) {
 
     int pSpecies2 = pkdSpecies(pkd, p2);
 
-    if (pSpecies2 == FIO_SPECIES_LAST) {
-        pkdDeleteParticle(pkd, p1);
-    }
-    else if (pSpecies2 == FIO_SPECIES_SPH) {
+    if (pSpecies2 == FIO_SPECIES_SPH) {
         SPHFIELDS *psph2 = pkdSph(pkd,p2);
 
         if (psph2->Uint > 0.0) {
@@ -341,6 +305,15 @@ void combBHevolve(void *vpkd, void *vp1,const void *vp2) {
             psph1->S += psph2->S;
 #endif
 
+        }
+
+        if (psph2->BHAccretor.iPid != NOT_ACCRETED) {
+            SPHFIELDS *psph1 = pkdSph(pkd,p1);
+            if (psph1->BHAccretor.iPid != NOT_ACCRETED) {
+                // First try to accrete this particle
+                psph1->BHAccretor.iPid   = psph2->BHAccretor.iPid;
+                psph1->BHAccretor.iIndex = psph2->BHAccretor.iIndex;
+            }// Otherwise just keep the previous attempt
         }
 
     }
@@ -359,10 +332,106 @@ void initBHevolve(void *vpkd,void *vp) {
 #ifdef ENTROPY_SWITCH
         psph->S = 0.;
 #endif
+        psph->BHAccretor.iPid = NOT_ACCRETED;
     }
 
 }
 
+void initBHAccretion(void *vpkd, void *vp) {
+    PKD pkd = (PKD) vpkd;
+    PARTICLE *p = (PARTICLE *) vp;
+    float *mass = (float *)pkdField(p, pkd->oFieldOffset[oMass]);
+    *mass = 0.0;
+    vel_t *v = pkdVel(pkd,p);
+    for (int i=0; i<3; i++)
+        v[i] = 0.;
+}
+
+void combBHAccretion(void *vpkd, void *vp1, const void *vp2) {
+    PKD pkd = (PKD) vpkd;
+    PARTICLE *p1 = (PARTICLE *) vp1;
+    PARTICLE *p2 = (PARTICLE *) vp2;
+
+    if (pkdIsBH(pkd,p1) && pkdIsBH(pkd,p2)) {
+        assert(*pkdParticleID(pkd,p1) == *pkdParticleID(pkd,p2));
+        float old_mass = pkdMass(pkd,p1);
+        float new_mass = old_mass + pkdMass(pkd, p2);
+        float inv_mass = 1./new_mass;
+
+        vel_t *v1 = pkdVel(pkd, p1);
+        vel_t *v2 = pkdVel(pkd, p2); // **Momentum** added by the accretion
+        for (int i=0; i<3; i++)
+            v1[i] = (old_mass*v1[i] + v2[i])*inv_mass;
+
+        float *mass1 = (float *)pkdField(p1, pkd->oFieldOffset[oMass]);
+        *mass1 = new_mass;
+    }
+
+
+}
+
+
+void pkdBHAccretion(PKD pkd, double dScaleFactor) {
+
+    mdlCOcache(pkd->mdl,CID_PARTICLE,NULL,pkdParticleBase(pkd),pkdParticleSize(pkd),
+               pkdLocal(pkd),pkd,initBHAccretion,combBHAccretion);
+
+    for (int i=0; i<pkd->nLocal; i++) {
+        PARTICLE *p = pkdParticle(pkd,i);
+        if (pkdIsGas(pkd,p)) {
+            SPHFIELDS *psph = pkdSph(pkd, p);
+            if (psph->BHAccretor.iPid != NOT_ACCRETED) {
+                PARTICLE *bh;
+                // this particle was accreted!
+                //printf("%d,%d accreted by %d,%d\n", i, pkd->idSelf, psph->BHAccretor.iIndex, psph->BHAccretor.iPid);
+
+                if (psph->BHAccretor.iPid != pkd->idSelf) {
+                    bh = (PARTICLE * )mdlAcquire(pkd->mdl,CID_PARTICLE,psph->BHAccretor.iIndex,psph->BHAccretor.iPid);
+                }
+                else {
+                    bh = pkdParticle(pkd, psph->BHAccretor.iIndex);
+                }
+                assert(pkdIsBH(pkd,bh));
+                float bhMass = pkdMass(pkd,bh);
+                float newMass = bhMass + pkdMass(pkd,p);
+                float inv_newMass = 1./newMass;
+
+                //printf("Mass: internal %e old %e \t new %e \n",
+                //         pBH->dInternalMass, pMass, newMass);
+
+                vel_t *pv = pkdVel(pkd,bh);
+
+                // To properly conserve momentum, we need to use the
+                // hydrodynamic variable, as the pkdVel may not be updated yet
+                //
+                // We have to consider remote and local particles differently,
+                // as for the remotes the momentum is accumulated here but then
+                // added in the combine function
+                if (psph->BHAccretor.iPid != pkd->idSelf)
+                    for (int j=0; j<3; j++)
+                        pv[j] = dScaleFactor*psph->mom[j];
+                else
+                    for (int j=0; j<3; j++)
+                        pv[j] = (bhMass*pv[j] + dScaleFactor*psph->mom[j]) *
+                                inv_newMass;
+
+
+                float *mass_field = (float *)pkdField(bh, pkd->oFieldOffset[oMass]);
+                *mass_field = newMass;
+
+                pkdDeleteParticle(pkd,p);
+
+                if (psph->BHAccretor.iPid != pkd->idSelf)
+                    mdlRelease(pkd->mdl, CID_PARTICLE, bh);
+
+            }
+
+        }
+
+    }
+    mdlFinishCache(pkd->mdl,CID_PARTICLE);
+
+}
 
 void pkdBHIntegrate(PKD pkd, PARTICLE *p, double dTime, double dDelta, double dBHRadiativeEff) {
     BHFIELDS *pBH = pkdBH(pkd,p);

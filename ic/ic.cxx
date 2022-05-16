@@ -28,6 +28,9 @@
 #include "ic.h"
 #include "whitenoise.hpp"
 #include "core/gridinfo.hpp"
+#ifdef BLACKHOLES
+    #include "blackhole/evolve.h"
+#endif
 using namespace gridinfo;
 using namespace blitz;
 using namespace mdl;
@@ -793,6 +796,10 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
 #endif
                 pSph->uWake = 0;
                 pSph->omega = 0.0;
+#ifdef BLACKHOLES
+                pSph->BHAccretor.iIndex = NOT_ACCRETED;
+                pSph->BHAccretor.iPid   = NOT_ACCRETED;
+#endif
             }
         }
         pkd->nLocal = pkd->nActive = in->nMove;
