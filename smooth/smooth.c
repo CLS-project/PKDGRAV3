@@ -348,6 +348,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         comb = combThirdHydroLoop;
         smx->fcnPost = NULL;
         break;
+#ifdef OPTIM_FLUX_VEC
     case SMX_HYDRO_FLUX_VEC:
         assert (pkd->oFieldOffset[oSph]);
         smx->fcnSmoothNode = hydroRiemann_vec;
@@ -359,6 +360,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         comb = combThirdHydroLoop;
         smx->fcnPost = NULL;
         break;
+#endif
     case SMX_HYDRO_STEP:
         assert( pkd->oFieldOffset[oSph] ); /* Validate memory model */
         smx->fcnSmooth = hydroStep;
@@ -724,6 +726,8 @@ PQ *pqSearch(SMX smx,PQ *pq,double r[3],int iRoot) {
         if (id == idSelf ) {
 #ifdef OPTIM_REORDER_IN_NODES
             pEnd = (smx->bSearchGasOnly) ? kdn->pLower+pkdNodeNgas(pkd,kdn) : kdn->pUpper+1;
+#else
+            pEnd = kdn->pUpper+1;
 #endif
             for (pj=kdn->pLower; pj<pEnd; ++pj) {
                 p = pkdParticle(pkd,pj);
@@ -759,6 +763,8 @@ PQ *pqSearch(SMX smx,PQ *pq,double r[3],int iRoot) {
         else {
 #ifdef OPTIM_REORDER_IN_NODES
             pEnd = (smx->bSearchGasOnly) ? kdn->pLower+pkdNodeNgas(pkd,kdn) : kdn->pUpper+1;
+#else
+            pEnd = kdn->pUpper+1;
 #endif
             for (pj=kdn->pLower; pj<pEnd; ++pj) {
                 p = mdlFetch(mdl,CID_PARTICLE,pj,id);
@@ -985,6 +991,7 @@ void smSmooth(SMX smx,SMF *smf) {
     default:
         for (pi=0; pi<pkd->nLocal; ++pi) {
             p = pkdParticle(pkd,pi);
+
             if (!smf->bMeshlessHydro ) {
                 smSmoothSingle(smx,smf,p,ROOT,0);
                 //pkdSetBall(pkd,p,smSmoothSingle(smx,smf,p,ROOT,0));
