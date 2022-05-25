@@ -1,4 +1,5 @@
-
+#ifndef HYDRO_H
+#define HYDRO_H
 #include "pkd.h"
 #include "smooth/smoothfcn.h"
 
@@ -78,7 +79,19 @@ void hydroSetLastVars(PKD pkd, PARTICLE *p, SPHFIELDS *psph, double *pa,
 #define MAX(X, Y)  ((X) > (Y) ? (X) : (Y))
 void inverseMatrix(double *E, double *B);
 double conditionNumber(double *E, double *B);
-double cubicSplineKernel(double r, double h);
+inline double cubicSplineKernel(double r, double h) {
+    double q;
+    q = r/h;
+    if (q<1.0) {
+        return M_1_PI/(h*h*h)*( 1. - 1.5*q*q*(1.-0.5*q) );
+    }
+    else if (q<2.0) {
+        return 0.25*M_1_PI/(h*h*h)*(2.-q)*(2.-q)*(2.-q);
+    }
+    else {
+        return 0.0;
+    }
+}
 void BarthJespersenLimiter(double *limVar, double *gradVar,
                            double var_max, double var_min,
                            double dx, double dy, double dz);
@@ -86,8 +99,57 @@ void ConditionedBarthJespersenLimiter(double *limVar, myreal *gradVar,
                                       double var_max, double var_min,
                                       double dx, double dy, double dz,
                                       double Ncrit, double Ncond);
-void genericPairwiseLimiter(double Lstate, double Rstate,
-                            double *Lstate_face, double *Rstate_face);
+#define psi1 0.5
+#define psi2 0.25
+#pragma omp declare simd
+inline void genericPairwiseLimiter(double Lstate, double Rstate,
+                                   double *Lstate_face, double *Rstate_face) {
+#ifdef DEBUG_FLUX_NOLIMITER
+    return;
+#endif
+    double phi_max, phi_min, d1, d2, phi_mean, phi_p, phi_m;
+
+    if (Lstate == Rstate) {
+        *Lstate_face = Lstate;
+        *Rstate_face = Rstate;
+    }
+    else {
+
+        d1 = psi1*fabs(Lstate - Rstate);
+        d2 = psi2*fabs(Lstate - Rstate);
+
+        phi_mean = 0.5*(Lstate+Rstate);
+
+        phi_min = MIN(Lstate, Rstate);
+        phi_max = MAX(Lstate, Rstate);
+
+        if (SIGN(phi_min - d1) == SIGN(phi_min) ) {
+            phi_m = phi_min - d1;
+        }
+        else {
+            phi_m = phi_min/(1. + d1/fabs(phi_min));
+        }
+
+        if (SIGN(phi_max + d1) == SIGN(phi_max) ) {
+            phi_p = phi_max + d1;
+        }
+        else {
+            phi_p = phi_max/(1. + d1/fabs(phi_max));
+        }
+
+        if (Lstate < Rstate) {
+            *Lstate_face = MAX(phi_m, MIN(phi_mean+d2, *Lstate_face));
+            *Rstate_face = MIN(phi_p, MAX(phi_mean-d2, *Rstate_face));
+        }
+        else {
+            *Rstate_face = MAX(phi_m, MIN(phi_mean+d2, *Rstate_face));
+            *Lstate_face = MIN(phi_p, MAX(phi_mean-d2, *Lstate_face));
+        }
+
+    }
+
+
+}
 void compute_Ustar(double rho_K, double S_K, double v_K,
                    double p_K, double h_K, double S_s,
                    double *rho_sK, double *rhov_sK, double *e_sK);
@@ -95,4 +157,4 @@ void compute_Ustar(double rho_K, double S_K, double v_K,
 #ifdef __cplusplus
 }
 #endif
-
+#endif
