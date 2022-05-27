@@ -149,8 +149,6 @@ void hydroDensityFinal(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) 
 
     *omega = 0.0;
     for (int i=0; i<nSmooth; ++i) {
-        PARTICLE *q = nnList[i].pPart;
-
         const float dx = -nnList[i].dx;
         const float dy = -nnList[i].dy;
         const float dz = -nnList[i].dz;
@@ -167,8 +165,6 @@ void hydroDensityFinal(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) 
         }
 
         for (int i=0; i<nSmooth; ++i) {
-            PARTICLE *q = nnList[i].pPart;
-
             const float dx = -nnList[i].dx;
             const float dy = -nnList[i].dy;
             const float dz = -nnList[i].dz;

@@ -3114,11 +3114,8 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
 
                         fDist2 = dx*dx + dy*dy + dz*dz;
                         if (fDist2 < fBall2_p) {
-                            PARTICLE *q = smx->nnList[pk].pPart;
-                            float qh = pkdBall(pkd,q);
+                            float qh = smx->nnList[pk].fBall;
                             if (fDist2==0.)
-                                continue;
-                            if (*pkdParticleID(pkd,partj) == *pkdParticleID(pkd,q))
                                 continue;
 
                             // Reasons not to compute this interaction
@@ -3129,8 +3126,9 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
                                     continue;
 
 #ifdef OPTIM_AVOID_IS_ACTIVE
-                                int qIsActive = q->bMarked;
+                                int qIsActive = smx->nnList[pk].bMarked;
 #else
+                                abort(); // not supported
                                 int qIsActive = pkdIsActive(pkd,q);
 #endif
 
@@ -3166,16 +3164,17 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
                                 }
                             }
 
+                            nnList_p[nCnt_p].pPart = (smx->nnList[pk].iPid == pkd->idSelf) ?
+                                                     smx->nnList[pk].pPart : mdlAcquire(mdl,CID_PARTICLE,smx->nnList[pk].iIndex,smx->nnList[pk].iPid);
                             nnList_p[nCnt_p].fDist2 = fDist2;
                             nnList_p[nCnt_p].dx = dx;
                             nnList_p[nCnt_p].dy = dy;
                             nnList_p[nCnt_p].dz = dz;
-                            nnList_p[nCnt_p].pPart = smx->nnList[pk].pPart;
                             nnList_p[nCnt_p].iIndex = smx->nnList[pk].iIndex;
                             nnList_p[nCnt_p].iPid = smx->nnList[pk].iPid;
 
                             if (smx->fcnSmoothFillBuffer) {
-                                PARTICLE *q = smx->nnList[pk].pPart;
+                                PARTICLE *q = nnList_p[nCnt_p].pPart;
 
                                 smx->fcnSmoothFillBuffer(input_pointers, q, nCnt_p,
                                                          fDist2, dx, dy, dz, smf);
@@ -3202,20 +3201,21 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
                     else {
                         smx->fcnSmooth(partj,pkdBall(pkd,partj),nCnt_p,nnList_p,smf);
                     }
+
+                    for (pk=0; pk<nCnt_p; pk++) {
+                        if (nnList_p[pk].iPid != pkd->idSelf) {
+                            mdlRelease(pkd->mdl,CID_PARTICLE,nnList_p[pk].pPart);
+                        }
+                    }
                 }
+
+
             }
 
 
 
             nSmoothed += nCnt_own;
 
-            for (pk=0; pk<nCnt; ++pk) {
-                if (smx->nnList[pk].iPid != pkd->idSelf) {
-                    mdlRelease(pkd->mdl,CID_PARTICLE,smx->nnList[pk].pPart);
-                }
-            }
-
-            //printf("end node %d %d \n", pkd->idSelf, i);
         }
     }
     if (smx->fcnSmoothGetNvars) {
@@ -3303,6 +3303,8 @@ void buildInteractionList(SMX smx, SMF *smf, KDN *node, BND bnd_node, int *nCnt_
                         smx->nnList[nCnt].dy = dy;
                         smx->nnList[nCnt].dz = dz;
                         smx->nnList[nCnt].pPart = p;
+                        smx->nnList[nCnt].fBall = pkdBall(pkd, p);
+                        smx->nnList[nCnt].bMarked = p->bMarked;
                         smx->nnList[nCnt].iIndex = pj;
                         smx->nnList[nCnt].iPid = pkd->idSelf;
                         ++nCnt;
@@ -3339,9 +3341,10 @@ void buildInteractionList(SMX smx, SMF *smf, KDN *node, BND bnd_node, int *nCnt_
                         smx->nnList[nCnt].dx = dx;
                         smx->nnList[nCnt].dy = dy;
                         smx->nnList[nCnt].dz = dz;
-                        smx->nnList[nCnt].pPart = mdlAcquire(mdl,CID_PARTICLE,pj,id);
-
-                        // This should be faster regarding caching and memory transfer, but the call to pkdIsActive can be a bottleneck here!
+                        smx->nnList[nCnt].fBall = pkdBall(pkd, p);
+                        smx->nnList[nCnt].bMarked = p->bMarked;
+                        // The actual particle information fill be acquired later
+                        smx->nnList[nCnt].pPart = NULL;
                         smx->nnList[nCnt].iIndex = pj;
                         smx->nnList[nCnt].iPid = id;
                         ++nCnt;

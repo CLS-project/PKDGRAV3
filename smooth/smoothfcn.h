@@ -96,6 +96,8 @@ typedef struct pqNode {
     double dx;
     double dy;
     double dz;
+    float  fBall;
+    int bMarked;
     int iIndex;
     int iPid;
 } PQ;
