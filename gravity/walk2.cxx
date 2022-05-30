@@ -225,6 +225,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2,
     FLOCR Lf;
     double dShiftFlop;
     const vel_t *v;
+    double vpred[3];
     const float *a;
     double r[3], k_r[3], c_r[3];
     double dOffset[3];
@@ -434,12 +435,20 @@ found_it:
                                             if (SPHoptions->doSPHForces) {
                                                 P = EOSPCofRhoU(pkdDensity(pkd,p),pNewSph->u + dtPredDrift * pNewSph->uDot,&cs,SPHoptions);
                                             }
+                                            vpred[0] = v[0] + dtPredDrift * ap[0];
+                                            vpred[1] = v[1] + dtPredDrift * ap[1];
+                                            vpred[2] = v[2] + dtPredDrift * ap[2];
+                                            if (SPHoptions->VelocityDamper > 0.0 & p->bMarked) {
+                                                vpred[0] /= 1.0 - kick->dtClose[p->uRung] * SPHoptions->VelocityDamper;
+                                                vpred[1] /= 1.0 - kick->dtClose[p->uRung] * SPHoptions->VelocityDamper;
+                                                vpred[2] /= 1.0 - kick->dtClose[p->uRung] * SPHoptions->VelocityDamper;
+                                            }
                                             ilpAppend(pkd->ilp,
                                                       r[0] + blk->xOffset.f[jTile],
                                                       r[1] + blk->yOffset.f[jTile],
                                                       r[2] + blk->zOffset.f[jTile],
                                                       blk->m.f[jTile], blk->fourh2.f[jTile],
-                                                      iOrder, v[0] + dtPredDrift * ap[0], v[1] + dtPredDrift * ap[1], v[2] + dtPredDrift * ap[2],
+                                                      iOrder, vpred[0], vpred[1], vpred[2],
                                                       pkdBall(pkd,p), Omega, pkdDensity(pkd,p), P, cs, pkdSpecies(pkd,p));
                                         }
                                         else {
@@ -499,12 +508,20 @@ found_it:
                                                 if (SPHoptions->doSPHForces) {
                                                     P = EOSPCofRhoU(pkdDensity(pkd,p),pNewSph->u + dtPredDrift * pNewSph->uDot,&cs,SPHoptions);
                                                 }
+                                                vpred[0] = v[0] + dtPredDrift * ap[0];
+                                                vpred[1] = v[1] + dtPredDrift * ap[1];
+                                                vpred[2] = v[2] + dtPredDrift * ap[2];
+                                                if (SPHoptions->VelocityDamper > 0.0 & p->bMarked) {
+                                                    vpred[0] /= 1.0 - kick->dtClose[p->uRung] * SPHoptions->VelocityDamper;
+                                                    vpred[1] /= 1.0 - kick->dtClose[p->uRung] * SPHoptions->VelocityDamper;
+                                                    vpred[2] /= 1.0 - kick->dtClose[p->uRung] * SPHoptions->VelocityDamper;
+                                                }
                                                 ilpAppend(pkd->ilp,
                                                           r[0] + blk->xOffset.f[jTile],
                                                           r[1] + blk->yOffset.f[jTile],
                                                           r[2] + blk->zOffset.f[jTile],
                                                           fMass, 4*fSoft*fSoft,
-                                                          iOrder, v[0] + dtPredDrift * ap[0], v[1] + dtPredDrift * ap[1], v[2] + dtPredDrift * ap[2],
+                                                          iOrder, vpred[0], vpred[1], vpred[2],
                                                           pkdBall(pkd,p), Omega, pkdDensity(pkd,p), P, cs, pkdSpecies(pkd,p));
                                             }
                                             else {
