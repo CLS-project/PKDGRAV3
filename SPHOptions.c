@@ -36,6 +36,7 @@ SPHOptions initializeSPHOptions(struct parameters param, CSM csm, double dTime) 
     SPHoptions.gamma = param.dConstGamma;
     SPHoptions.TuFac = param.units.dGasConst/(param.dConstGamma - 1)/param.dMeanMolWeight;
     SPHoptions.FastGasFraction = param.dFastGasFraction;
+    SPHoptions.VelocityDamper = param.dVelocityDamper;
     SPHoptions.nSmooth = param.nSmooth;
     SPHoptions.ballSizeLimit = 10.0f;
     SPHoptions.fBallFactor = 1.1f;
@@ -69,6 +70,7 @@ void copySPHOptions(SPHOptions *source, SPHOptions *target) {
     target->gamma = source->gamma;
     target->TuFac = source->TuFac;
     target->FastGasFraction = source->FastGasFraction;
+    target->VelocityDamper = source->VelocityDamper;
     target->nSmooth = source->nSmooth;
     target->ballSizeLimit = source->ballSizeLimit;
     target->fBallFactor = source->fBallFactor;

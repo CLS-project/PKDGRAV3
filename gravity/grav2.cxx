@@ -342,6 +342,11 @@ void pkdParticleWorkDone(workParticle *wp) {
                             NEWSPHFIELDS *pNewSph = pkdNewSph(pkd,p);
                             pNewSph->u += wp->kick->dtClose[p->uRung] * pNewSph->uDot;
                         }
+                        if (wp->SPHoptions->VelocityDamper > 0.0f) {
+                            v[0] *= 1.0 - wp->kick->dtClose[p->uRung] * wp->SPHoptions->VelocityDamper;
+                            v[1] *= 1.0 - wp->kick->dtClose[p->uRung] * wp->SPHoptions->VelocityDamper;
+                            v[2] *= 1.0 - wp->kick->dtClose[p->uRung] * wp->SPHoptions->VelocityDamper;
+                        }
                     }
                     v2 = v[0]*v[0] + v[1]*v[1] + v[2]*v[2];
                     /*

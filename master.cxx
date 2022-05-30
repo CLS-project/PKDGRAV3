@@ -1245,6 +1245,9 @@ void MSR::Initialize() {
     param.fKernelTarget = 0;
     prmAddParam(prm,"fKernelTarget", 2, &param.fKernelTarget,
                 sizeof(double), "fKernelTarget", "Kernel target, either number- or massdensity");
+    param.dVelocityDamper = 0;
+    prmAddParam(prm,"dVelocityDamper", 2, &param.dVelocityDamper,
+                sizeof(double), "dVelocityDamper", "Velocity Damper");
     param.bNewSPH = 0;
     prmAddParam(prm,"bNewSPH", 0, &param.bNewSPH,
                 sizeof(int), "bNewSPH",
