@@ -766,7 +766,7 @@ int pkdGravInteract(PKD pkd,
             wp->pInfoIn[nP].v[0] = v[0] + dtPredDrift * wp->pInfoIn[nP].a[0];
             wp->pInfoIn[nP].v[1] = v[1] + dtPredDrift * wp->pInfoIn[nP].a[1];
             wp->pInfoIn[nP].v[2] = v[2] + dtPredDrift * wp->pInfoIn[nP].a[2];
-            if (wp->SPHoptions->VelocityDamper > 0.0 & p->bMarked) {
+            if ((wp->SPHoptions->VelocityDamper > 0.0) & p->bMarked) {
                 wp->pInfoIn[nP].v[0] /= 1.0 - kick->dtClose[p->uRung] * wp->SPHoptions->VelocityDamper;
                 wp->pInfoIn[nP].v[1] /= 1.0 - kick->dtClose[p->uRung] * wp->SPHoptions->VelocityDamper;
                 wp->pInfoIn[nP].v[2] /= 1.0 - kick->dtClose[p->uRung] * wp->SPHoptions->VelocityDamper;
