@@ -57,7 +57,7 @@ SPHOptions initializeSPHOptions(struct parameters param, CSM csm, double dTime) 
     SPHoptions.useNumDen = 0;
     SPHoptions.useIsentropic = param.bGasIsentropic;
     SPHoptions.useDensityFlags = 0;
-    SPHoptions.kernelType = 0;
+    SPHoptions.kernelType = param.iKernelType;
     return SPHoptions;
 }
 
