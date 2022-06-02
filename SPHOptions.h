@@ -45,6 +45,7 @@ typedef struct {
     float gamma;
     float TuFac;
     float FastGasFraction;
+    float VelocityDamper;
     int nSmooth;
     float ballSizeLimit;
     float fBallFactor;

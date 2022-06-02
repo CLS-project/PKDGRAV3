@@ -226,6 +226,7 @@ def parse():
     add_flag(gas,'kpcu',default=1000.0, dest='dKpcUnit', type=float, help='Kiloparsec/system length unit')
     add_bool(gas,'adddel',default=False,dest='bAddDelete',help='Add Delete Particles')
     add_flag(gas,'fKernelTarget',default=0, dest='fKernelTarget', type=float, help='Kernel target, either number- or massdensity')
+    add_flag(gas,'VelocityDamper',default=0.0, dest='dVelocityDamper', type=float, help='Velocity Damper')
     add_bool(gas,'bNewSPH',default=False,dest='bNewSPH',help='Use the new SPH implementation')
     add_bool(gas,'meshless',default=False,dest='bMeshlessHydro',help='Use the new implementation of the hydrodynamics')
     add_bool(gas,'globaldt',default=False,dest='bGlobalDt',help='Force all particles to the same rung')
