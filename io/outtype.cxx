@@ -176,26 +176,26 @@ static double fetchFloat(PKD pkd,PARTICLE *p,int iType,int iDim) {
         break;
     case OUT_RELAX_ARRAY:
         assert(pkd->oFieldOffset[oRelaxation]);
-        a = pkdField(p,pkd->oFieldOffset[oRelaxation]);
+        a = static_cast<float *>(pkdField(p,pkd->oFieldOffset[oRelaxation]));
         v = *a;
         break;
     case OUT_DIVV_ARRAY:
         assert(pkd->oFieldOffset[oVelSmooth]); /* Validate memory model */
-        pvel = pkdField(p,pkd->oFieldOffset[oVelSmooth]);
+        pvel = static_cast<VELSMOOTH *>(pkdField(p,pkd->oFieldOffset[oVelSmooth]));
         v = pvel->divv;
         break;
     case OUT_VELDISP2_ARRAY:
         assert(pkd->oFieldOffset[oVelSmooth]); /* Validate memory model */
-        pvel = pkdField(p,pkd->oFieldOffset[oVelSmooth]);
+        pvel = static_cast<VELSMOOTH *>(pkdField(p,pkd->oFieldOffset[oVelSmooth]));
         v = pvel->veldisp2;
     case OUT_VELDISP_ARRAY:
         assert(pkd->oFieldOffset[oVelSmooth]); /* Validate memory model */
-        pvel = pkdField(p,pkd->oFieldOffset[oVelSmooth]);
+        pvel = static_cast<VELSMOOTH *>(pkdField(p,pkd->oFieldOffset[oVelSmooth]));
         v = sqrt(pvel->veldisp2);
         break;
     case OUT_PHASEDENS_ARRAY:
         assert(pkd->oFieldOffset[oVelSmooth]); /* Validate memory model */
-        pvel = pkdField(p,pkd->oFieldOffset[oVelSmooth]);
+        pvel = static_cast<VELSMOOTH *>(pkdField(p,pkd->oFieldOffset[oVelSmooth]));
         v = pkdDensity(pkd,p)*pow(pvel->veldisp2,-1.5);
         break;
 #ifndef OPTIM_REMOVE_UNUSED
@@ -221,7 +221,7 @@ static double fetchFloat(PKD pkd,PARTICLE *p,int iType,int iDim) {
         break;
     case OUT_MEANVEL_VECTOR:
         assert(pkd->oFieldOffset[oVelSmooth]); /* Validate memory model */
-        pvel = pkdField(p,pkd->oFieldOffset[oVelSmooth]);
+        pvel = static_cast<VELSMOOTH *>(pkdField(p,pkd->oFieldOffset[oVelSmooth]));
         v = pvel->vmean[iDim];
         break;
     case OUT_ACCEL_VECTOR:
@@ -244,7 +244,7 @@ static void storeInteger(PKD pkd,PKDOUT ctx,PARTICLE *p,int iType,int iDim) {
     if ( PKDOUT_BUFFER_SIZE - n < 24 ) {
         (*ctx->fnFlush)(pkd,ctx,0);
     }
-    sprintf(ctx->inOffset,"%"PRIu64"\n",fetchInteger(pkd,p,iType,iDim));
+    sprintf(ctx->inOffset,"%" PRIu64 "\n",fetchInteger(pkd,p,iType,iDim));
     assert(strlen(ctx->inOffset) < 24 );
     while ( *ctx->inOffset ) ++ctx->inOffset;
 }
@@ -256,8 +256,8 @@ static void storeFloat(PKD pkd,PKDOUT ctx,PARTICLE *p,int iType,int iDim) {
     while ( *ctx->inOffset ) ++ctx->inOffset;
 }
 
-extern uint64_t hilbert2d(float x,float y);
-extern uint64_t hilbert3d(float x,float y,float z);
+extern "C" uint64_t hilbert2d(float x,float y);
+extern "C" uint64_t hilbert3d(float x,float y,float z);
 static void storeRungDest(PKD pkd,PKDOUT ctx,PARTICLE *p,int iType,int iDim) {
     int iRung;
     float x,y,z;
@@ -283,7 +283,7 @@ static void storeRungDest(PKD pkd,PKDOUT ctx,PARTICLE *p,int iType,int iDim) {
 #endif
     if ( PKDOUT_BUFFER_SIZE - (ctx->inOffset-ctx->inBuffer) < 100 )
         (*ctx->fnFlush)(pkd,ctx,0);
-    sprintf(ctx->inOffset,"%016"PRIx64" %d",lKey,p->uRung);
+    sprintf(ctx->inOffset,"%016" PRIx64 " %d",lKey,p->uRung);
     ctx->inOffset += strlen(ctx->inOffset);
     for (iRung=0; iRung<8; iRung++) {
         sprintf(ctx->inOffset," %d", pRungDest[iRung]);
@@ -294,7 +294,7 @@ static void storeRungDest(PKD pkd,PKDOUT ctx,PARTICLE *p,int iType,int iDim) {
 static void storeHdr(PKD pkd,PKDOUT ctx,uint64_t N) {
     if ( PKDOUT_BUFFER_SIZE - (ctx->inOffset-ctx->inBuffer) < 20 )
         (*ctx->fnFlush)(pkd,ctx,0);
-    sprintf(ctx->inOffset,"%"PRIu64"\n",N);
+    sprintf(ctx->inOffset,"%" PRIu64 "\n",N);
     while ( *ctx->inOffset ) ++ctx->inOffset;
 }
 static void finish(PKD pkd,PKDOUT ctx) {
@@ -305,7 +305,7 @@ static void finish(PKD pkd,PKDOUT ctx) {
 static void storePsGroup(PKD pkd,PKDOUT ctx,PARTICLE *p,int iType,int iDim) {
     if ( PKDOUT_BUFFER_SIZE - (ctx->inOffset-ctx->inBuffer) < 40 )
         (*ctx->fnFlush)(pkd,ctx,0);
-    sprintf(ctx->inOffset,"%"PRIu64" %i\n",(uint64_t)p->iOrder, pkdGetGroup(pkd,p));
+    sprintf(ctx->inOffset,"%" PRIu64 " %i\n",(uint64_t)p->iOrder, pkdGetGroup(pkd,p));
     assert(strlen(ctx->inOffset) < 40 );
     while ( *ctx->inOffset ) ++ctx->inOffset;
 }
@@ -354,7 +354,7 @@ static void storeRungDestBinary(PKD pkd,PKDOUT ctx,PARTICLE *p,int iType,int iDi
 #endif
     if ( PKDOUT_BUFFER_SIZE - (ctx->inOffset-ctx->inBuffer) < 100 )
         (*ctx->fnFlush)(pkd,ctx,0);
-    sprintf(ctx->inOffset,"%016"PRIx64" %d",lKey,p->uRung);
+    sprintf(ctx->inOffset,"%016" PRIx64 " %d",lKey,p->uRung);
     ctx->inOffset += strlen(ctx->inOffset);
     for (iRung=0; iRung<8; iRung++) {
         sprintf(ctx->inOffset," %d", pRungDest[iRung]);
@@ -372,7 +372,7 @@ static void storePsGroupBinary(PKD pkd,PKDOUT ctx,PARTICLE *p,int iType,int iDim
     assert(0);
     if ( PKDOUT_BUFFER_SIZE - (ctx->inOffset-ctx->inBuffer) < 40 )
         (*ctx->fnFlush)(pkd,ctx,0);
-    sprintf(ctx->inOffset,"%"PRIu64" %i\n",(uint64_t)p->iOrder, pkdGetGroup(pkd,p));
+    sprintf(ctx->inOffset,"%" PRIu64 " %i\n",(uint64_t)p->iOrder, pkdGetGroup(pkd,p));
     assert(strlen(ctx->inOffset) < 40 );
     while ( *ctx->inOffset ) ++ctx->inOffset;
 }
@@ -418,7 +418,7 @@ static void outputBZ2(PKD pkd,PKDOUT ctx) {
 static void bufferBZ2(PKD pkd,PKDOUT ctx) {
     ctx->outBuffer->nBytes = PKDOUT_BUFFER_SIZE - ctx->CTX.bzStream->avail_out;
     if ( ctx->CTX.bzStream->avail_out == 0 ) {
-        ctx->outBuffer = ctx->outBuffer->next = malloc(sizeof(PKDOUTBUFFER));
+        ctx->outBuffer = ctx->outBuffer->next = new PKDOUTBUFFER;
         ctx->outBuffer->next = NULL;
         ctx->outBuffer->nBytes = 0;
         ctx->CTX.bzStream->avail_out = PKDOUT_BUFFER_SIZE;
@@ -460,7 +460,7 @@ static void setupBZ2(PKD pkd,PKDOUT ctx) {
     ctx->fnFlush = flushBZ2;
     ctx->fnWrite = NULL; /* Still must be set */
 
-    ctx->CTX.bzStream = malloc(sizeof(bz_stream));
+    ctx->CTX.bzStream = new bz_stream;
     assert(ctx->CTX.bzStream!=NULL);
     ctx->CTX.bzStream->bzalloc = NULL;
     ctx->CTX.bzStream->bzfree = NULL;
@@ -498,7 +498,7 @@ static void outputZ(PKD pkd,PKDOUT ctx) {
 static void bufferZ(PKD pkd,PKDOUT ctx) {
     ctx->outBuffer->nBytes = PKDOUT_BUFFER_SIZE - ctx->CTX.gzStream->avail_out;
     if ( ctx->CTX.gzStream->avail_out == 0 ) {
-        ctx->outBuffer = ctx->outBuffer->next = malloc(sizeof(PKDOUTBUFFER));
+        ctx->outBuffer = ctx->outBuffer->next = new PKDOUTBUFFER;
         ctx->outBuffer->next = NULL;
         ctx->outBuffer->nBytes = 0;
         ctx->CTX.gzStream->avail_out = PKDOUT_BUFFER_SIZE;
@@ -545,7 +545,7 @@ void setupZ(PKD pkd,PKDOUT ctx) {
     ctx->fnFlush = flushZ;
     ctx->fnWrite = NULL;
 
-    ctx->CTX.gzStream = malloc(sizeof(z_stream));
+    ctx->CTX.gzStream = new z_stream;
     assert(ctx->CTX.gzStream!=NULL);
     ctx->CTX.gzStream->zalloc = Z_NULL;
     ctx->CTX.gzStream->zfree = Z_NULL;
@@ -566,12 +566,12 @@ PKDOUT pkdStartOutASCII(PKD pkd,int iFile, int iType) {
     /*
     ** Allocate the context, input buffer, and the first output buffer.
     */
-    ctx = malloc(sizeof(struct pkdout)); assert(ctx!=NULL);
+    ctx = new struct pkdout; assert(ctx!=NULL);
     ctx->fp = NULL;
-    ctx->outBuffer = ctx->headBuffer = malloc(sizeof(PKDOUTBUFFER));
+    ctx->outBuffer = ctx->headBuffer = new PKDOUTBUFFER;
     assert(ctx->outBuffer!=NULL);
     ctx->outBuffer->next = NULL;
-    ctx->inBuffer = ctx->inOffset = malloc(PKDOUT_BUFFER_SIZE);
+    ctx->inBuffer = ctx->inOffset = new char[PKDOUT_BUFFER_SIZE];
     assert(ctx->inBuffer!=NULL);
     ctx->nBytes = 0;
 
@@ -668,12 +668,12 @@ void pkdDumpOutASCII(PKD pkd,PKDOUT ctx,FILE *fp) {
 void pkdFreeOutASCII(PKD pkd,PKDOUT ctx) {
     PKDOUTBUFFER *buf, *nxt;
 
-    free(ctx->inBuffer);
+    delete [] ctx->inBuffer;
     for (buf=ctx->headBuffer; buf!=NULL; buf=nxt) {
         nxt = buf->next;
-        free(buf);
+        delete buf;
     }
-    free(ctx);
+    delete ctx;
 }
 
 /******************************************************************************\
@@ -683,12 +683,12 @@ void pkdFreeOutASCII(PKD pkd,PKDOUT ctx) {
 PKDOUT pkdOpenOutASCII(PKD pkd,char *pszFileName,const char *mode,int iFile,int iType) {
     PKDOUT ctx;
 
-    ctx = malloc(sizeof(struct pkdout)); assert(ctx!=NULL);
+    ctx = new struct pkdout; assert(ctx!=NULL);
     ctx->fp = NULL;
-    ctx->outBuffer = ctx->headBuffer = malloc(sizeof(PKDOUTBUFFER));
+    ctx->outBuffer = ctx->headBuffer = new PKDOUTBUFFER;
     assert(ctx->outBuffer!=NULL);
     ctx->outBuffer->next = NULL;
-    ctx->inBuffer = ctx->inOffset = malloc(PKDOUT_BUFFER_SIZE);
+    ctx->inBuffer = ctx->inOffset = new char [PKDOUT_BUFFER_SIZE];
     assert(ctx->inBuffer!=NULL);
     ctx->nBytes = 0;
 
@@ -760,8 +760,8 @@ PKDOUT pkdOpenOutASCII(PKD pkd,char *pszFileName,const char *mode,int iFile,int 
 void pkdCloseOutASCII(PKD pkd,PKDOUT ctx) {
     (*ctx->fnClose)(pkd,ctx);
     fclose(ctx->fp);
-    free(ctx->inBuffer);
-    free(ctx);
+    delete [] ctx->inBuffer;
+    delete ctx;
 }
 
 void pkdOutHdr(PKD pkd,PKDOUT ctx,uint64_t N) {
