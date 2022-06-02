@@ -180,7 +180,7 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 set_property(TARGET ${PROJECT_NAME} APPEND PROPERTY COMPILE_DEFINITIONS _LARGEFILE_SOURCE)
 target_sources(${PROJECT_NAME} PRIVATE
 	main.cxx cosmo.c master.cxx simulate.cxx pst.c TraversePST.cxx io/fio.c core/illinois.c param.c
-	pkd.c analysis/analysis.cxx smooth/smooth.c smooth/smoothfcn.c io/outtype.cxx io/output.cxx
+	pkd.cxx analysis/analysis.cxx smooth/smooth.c smooth/smoothfcn.c io/outtype.cxx io/output.cxx
 	gravity/walk2.cxx gravity/grav2.cxx gravity/ewald.cxx ic/ic.cxx domains/tree.cxx gravity/opening.cxx gravity/pp.cxx gravity/pc.cxx gravity/cl.cxx
 	gravity/lst.cxx gravity/moments.c gravity/ilp.cxx gravity/ilc.cxx io/iomodule.c SPHOptions.c
 	group/fof.cxx group/hop.cxx group/group.cxx group/groupstats.cxx ic/RngStream.c smooth/listcomp.c core/healpix.c

@@ -256,8 +256,8 @@ static void storeFloat(PKD pkd,PKDOUT ctx,PARTICLE *p,int iType,int iDim) {
     while ( *ctx->inOffset ) ++ctx->inOffset;
 }
 
-extern "C" uint64_t hilbert2d(float x,float y);
-extern "C" uint64_t hilbert3d(float x,float y,float z);
+extern uint64_t hilbert2d(float x,float y);
+extern uint64_t hilbert3d(float x,float y,float z);
 static void storeRungDest(PKD pkd,PKDOUT ctx,PARTICLE *p,int iType,int iDim) {
     int iRung;
     float x,y,z;

@@ -26,7 +26,7 @@
 #include "pkd.h"
 #include "core/simd.h"
 
-extern "C" void addToLightCone(PKD pkd,double *r,float fPot,PARTICLE *p,int bParticleOutput);
+extern void addToLightCone(PKD pkd,double *r,float fPot,PARTICLE *p,int bParticleOutput);
 
 #define NBOX 184
 
