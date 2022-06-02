@@ -240,9 +240,9 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
     int i,pi,j;
     int nTree;
 
-    smx = malloc(sizeof(struct smContext));
+    smx = new struct smContext;
     assert(smx != NULL);
-    smx->pSentinel = malloc(pkdParticleSize(pkd));
+    smx->pSentinel = static_cast<PARTICLE *>(malloc(pkdParticleSize(pkd)));
     assert(smx->pSentinel != NULL);
     smx->pkd = pkd;
     smx->fcnSmoothNode = NULL;
@@ -519,13 +519,13 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
     */
     smx->nnListSize = 0;
     smx->nnListMax = NNLIST_INCREMENT;
-    smx->nnList = malloc(smx->nnListMax*sizeof(NN));
+    smx->nnList = static_cast<NN *>(malloc(smx->nnListMax*sizeof(NN)));
     assert(smx->nnList != NULL);
 
     /*
     ** Allocate priority queue.
     */
-    smx->pq = malloc(nSmooth*sizeof(PQ));
+    smx->pq = static_cast<PQ *>(malloc(nSmooth*sizeof(PQ)));
     assert(smx->pq != NULL);
     PQ_INIT(smx->pq,nSmooth);
     /*
@@ -540,7 +540,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
             break;
         }
     }
-    smx->pHash = malloc((smx->nHash+nSmooth)*sizeof(struct hashElement));
+    smx->pHash = static_cast<struct hashElement *>(malloc((smx->nHash+nSmooth)*sizeof(struct hashElement)));
     assert(smx->pHash != NULL);
     for (i=0; i<smx->nHash; ++i) {
         smx->pHash[i].p = NULL;
@@ -560,9 +560,9 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
     ** Allocate special stacks for searching within the tree.
     ** 1024 is more than enough.
     */
-    smx->ST = malloc(1024*sizeof(struct stStack));
+    smx->ST = new struct smContext::stStack[1024];
     assert(smx->ST != NULL);
-    smx->S = malloc(1024*sizeof(int));
+    smx->S = new int[1024];
     assert(smx->S != NULL);
     /*
     ** Set up the sentinel particle with some very far away distance.
@@ -637,18 +637,18 @@ void smFinish(SMX smx,SMF *smf) {
     /*
     ** Free up context storage.
     */
-    free(smx->S);
-    free(smx->ST);
+    delete [] smx->S;
+    delete [] smx->ST;
     free(smx->pq);
     free(smx->nnList);
     free(smx->pHash);
     free(smx->pSentinel);
-    free(smx);
+    delete smx;
 }
 
 static KDN *getCell(PKD pkd, int iCell, int id) {
     if (id==pkd->idSelf) return pkdTreeNode(pkd,iCell);
-    return mdlFetch(pkd->mdl,CID_CELL,iCell,id);
+    return static_cast<KDN *>(mdlFetch(pkd->mdl,CID_CELL,iCell,id));
 }
 
 PQ *pqSearch(SMX smx,PQ *pq,double r[3],int iRoot) {
@@ -656,7 +656,7 @@ PQ *pqSearch(SMX smx,PQ *pq,double r[3],int iRoot) {
     MDL mdl = smx->pkd->mdl;
     KDN *kdn;
     int idSelf = smx->pkd->idSelf;
-    struct stStack *S = smx->ST;
+    struct smContext::stStack *S = smx->ST;
     double min1,min2;
     double p_r[3];
     int iCell,id;
@@ -732,7 +732,7 @@ PQ *pqSearch(SMX smx,PQ *pq,double r[3],int iRoot) {
         else {
             pEnd = kdn->pUpper;
             for (pj=kdn->pLower; pj<=pEnd; ++pj) {
-                p = mdlFetch(mdl,CID_PARTICLE,pj,id);
+                p = static_cast<PARTICLE *>(mdlFetch(mdl,CID_PARTICLE,pj,id));
                 if (smHashPresent(smx,p)) continue;
                 pkdGetPos1(pkd,p,p_r);
                 dx = r[0] - p_r[0];
@@ -747,7 +747,7 @@ PQ *pqSearch(SMX smx,PQ *pq,double r[3],int iRoot) {
                         smHashDel(smx,pq->pPart);
                         mdlRelease(mdl,CID_PARTICLE,pq->pPart);
                     }
-                    p = mdlAcquire(mdl,CID_PARTICLE,pj,id);
+                    p = static_cast<PARTICLE *>(mdlAcquire(mdl,CID_PARTICLE,pj,id));
                     pq->pPart = p;
                     pq->fDist2 = fDist2;
                     pq->dx = dx;
@@ -942,7 +942,7 @@ void smGather(SMX smx,double fBall2,double r[3], PARTICLE *pp) {
     PKD pkd = smx->pkd;
     MDL mdl = pkd->mdl;
     int idSelf = pkd->idSelf;
-    struct stStack *S = smx->ST;
+    struct smContext::stStack *S = smx->ST;
     double min2;
     int iCell,id;
     int sp = 0;
@@ -988,7 +988,7 @@ void smGather(SMX smx,double fBall2,double r[3], PARTICLE *pp) {
                     if (fDist2 <= fBall2) {
                         if (nCnt >= smx->nnListMax) {
                             smx->nnListMax += NNLIST_INCREMENT;
-                            smx->nnList = realloc(smx->nnList,smx->nnListMax*sizeof(NN));
+                            smx->nnList = static_cast<NN *>(realloc(smx->nnList,smx->nnListMax*sizeof(NN)));
                             assert(smx->nnList != NULL);
                         }
                         smx->nnList[nCnt].fDist2 = fDist2;
@@ -1005,7 +1005,7 @@ void smGather(SMX smx,double fBall2,double r[3], PARTICLE *pp) {
             else {
                 pEnd = kdn->pUpper;
                 for (pj=kdn->pLower; pj<=pEnd; ++pj) {
-                    p = mdlFetch(mdl,CID_PARTICLE,pj,id);
+                    p = static_cast<PARTICLE *>(mdlFetch(mdl,CID_PARTICLE,pj,id));
                     if (!pkdIsGas(pkd,p)) continue;
                     pkdGetPos1(pkd,p,p_r);
                     dx = r[0] - p_r[0];
@@ -1015,14 +1015,14 @@ void smGather(SMX smx,double fBall2,double r[3], PARTICLE *pp) {
                     if (fDist2 <= fBall2) {
                         if (nCnt >= smx->nnListMax) {
                             smx->nnListMax += NNLIST_INCREMENT;
-                            smx->nnList = realloc(smx->nnList,smx->nnListMax*sizeof(NN));
+                            smx->nnList = static_cast<NN *>(realloc(smx->nnList,smx->nnListMax*sizeof(NN)));
                             assert(smx->nnList != NULL);
                         }
                         smx->nnList[nCnt].fDist2 = fDist2;
                         smx->nnList[nCnt].dx = dx;
                         smx->nnList[nCnt].dy = dy;
                         smx->nnList[nCnt].dz = dz;
-                        smx->nnList[nCnt].pPart = mdlAcquire(mdl,CID_PARTICLE,pj,id);
+                        smx->nnList[nCnt].pPart = static_cast<PARTICLE *>(mdlAcquire(mdl,CID_PARTICLE,pj,id));
                         smx->nnList[nCnt].iIndex = pj;
                         smx->nnList[nCnt].iPid = id;
                         ++nCnt;
@@ -1314,12 +1314,12 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
     BND bnd_node;
 
     NN *nnList_p;
-    nnList_p = (NN *)malloc(sizeof(NN)*nnListMax_p);
+    nnList_p = static_cast<NN *>(malloc(sizeof(NN)*nnListMax_p));
 
     // Here we store the pointers to the particle whose interaction
     // need to be computed
     PARTICLE **sinks;
-    sinks = malloc(64*sizeof(PARTICLE *)); // At most, the size of the bucket
+    sinks = static_cast<PARTICLE **>(malloc(64*sizeof(PARTICLE *))); // At most, the size of the bucket
 
     /* For allowing vectorization, it is better to use an structure of
      *  arrays rather than an array of structures.
@@ -1553,7 +1553,7 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
 
                             if (nCnt_p >= nnListMax_p) {
                                 nnListMax_p += NNLIST_INCREMENT;
-                                nnList_p = realloc(nnList_p,nnListMax_p*sizeof(NN));
+                                nnList_p = static_cast<NN *>(realloc(nnList_p,nnListMax_p*sizeof(NN)));
                                 assert(nnList_p != NULL);
                                 if (smx->fcnSmoothGetNvars) {
                                     printf("WARNING: Increasing smoothNode buffer size to %d\n",
@@ -1640,7 +1640,7 @@ void buildInteractionList(SMX smx, SMF *smf, KDN *node, BND bnd_node, int *nCnt_
     double dx, dy, dz, p_r[3], fDist2;
     KDN *kdn;
     BND bnd;
-    struct stStack *S = smx->ST;
+    struct smContext::stStack *S = smx->ST;
     int nCnt = *nCnt_tot;
 
     // We look for the biggest node that encloses the needed domain
@@ -1693,7 +1693,7 @@ void buildInteractionList(SMX smx, SMF *smf, KDN *node, BND bnd_node, int *nCnt_
                             fabs(dz) <= bnd_node.fMax[2] ) {
                         if (nCnt >= smx->nnListMax) {
                             smx->nnListMax += NNLIST_INCREMENT;
-                            smx->nnList = realloc(smx->nnList,smx->nnListMax*sizeof(NN));
+                            smx->nnList = static_cast<NN *>(realloc(smx->nnList,smx->nnListMax*sizeof(NN)));
                             //printf("realloc \n");
                             assert(smx->nnList != NULL);
                         }
@@ -1716,7 +1716,7 @@ void buildInteractionList(SMX smx, SMF *smf, KDN *node, BND bnd_node, int *nCnt_
                 pEnd = kdn->pUpper+1;
 #endif
                 for (pj=kdn->pLower; pj<pEnd; ++pj) {
-                    p = mdlFetch(mdl,CID_PARTICLE,pj,id);
+                    p = static_cast<PARTICLE *>(mdlFetch(mdl,CID_PARTICLE,pj,id));
 #ifndef OPTIM_REORDER_IN_NODES
                     if (!pkdIsGas(pkd,p)) continue;
 #endif
@@ -1729,7 +1729,7 @@ void buildInteractionList(SMX smx, SMF *smf, KDN *node, BND bnd_node, int *nCnt_
                             fabs(dz) <= bnd_node.fMax[2] ) {
                         if (nCnt >= smx->nnListMax) {
                             smx->nnListMax += NNLIST_INCREMENT;
-                            smx->nnList = realloc(smx->nnList,smx->nnListMax*sizeof(NN));
+                            smx->nnList = static_cast<NN *>(realloc(smx->nnList,smx->nnListMax*sizeof(NN)));
                             //printf("realloc \n");
                             assert(smx->nnList != NULL);
                         }
@@ -1739,7 +1739,7 @@ void buildInteractionList(SMX smx, SMF *smf, KDN *node, BND bnd_node, int *nCnt_
                         smx->nnList[nCnt].dx = dx;
                         smx->nnList[nCnt].dy = dy;
                         smx->nnList[nCnt].dz = dz;
-                        smx->nnList[nCnt].pPart = mdlAcquire(mdl,CID_PARTICLE,pj,id);
+                        smx->nnList[nCnt].pPart = static_cast<PARTICLE *>(mdlAcquire(mdl,CID_PARTICLE,pj,id));
 
                         // This should be faster regarding caching and memory transfer, but the call to pkdIsActive can be a bottleneck here!
                         smx->nnList[nCnt].iIndex = pj;

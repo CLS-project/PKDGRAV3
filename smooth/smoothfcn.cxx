@@ -98,7 +98,8 @@ void NullSmooth(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 }
 
 void initBall(void *vpkd, void *p) {
-    pkdSetBall(vpkd,(PARTICLE *)p,0.0);
+    auto pkd = static_cast<PKD>(vpkd);
+    pkdSetBall(pkd,(PARTICLE *)p,0.0);
 }
 
 void BallSmooth(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
@@ -107,11 +108,13 @@ void BallSmooth(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 }
 
 void initDensity(void *vpkd, void *p) {
-    pkdSetDensity(vpkd,(PARTICLE *)p,0.0);
+    auto pkd = static_cast<PKD>(vpkd);
+    pkdSetDensity(pkd,(PARTICLE *)p,0.0);
 }
 
 void combDensity(void *vpkd, void *p1,const void *p2) {
-    pkdSetDensity(vpkd,p1,pkdDensity(vpkd,p1)+pkdDensity(vpkd,p2));
+    auto pkd = static_cast<PKD>(vpkd);
+    pkdSetDensity(pkd,(PARTICLE *)p1,pkdDensity(pkd,(PARTICLE *)p1)+pkdDensity(pkd,(PARTICLE *)p2));
 }
 
 void DensityF1(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
@@ -218,7 +221,7 @@ void LinkHopChains(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
         if (nnList[i].iPid==pkd->idSelf && gid1==gid2) continue;
         g.iPid = nnList[i].iPid;
         g.iIndex = gid2;
-        g2 = mdlAcquire(mdl,CID_GROUP,g.iIndex,g.iPid);
+        g2 = static_cast<GHtmpGroupTable *>(mdlAcquire(mdl,CID_GROUP,g.iIndex,g.iPid));
 
         /* Remote is authoratative. Update myself, but also what I currently link to. */
         if (g1->iPid > g2->iPid || (g1->iPid == g2->iPid && g1->iIndex > g2->iIndex)) {
@@ -227,7 +230,7 @@ void LinkHopChains(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
             g1->iPid = g2->iPid;
             g1->iIndex = g2->iIndex;
             mdlRelease(mdl,CID_GROUP,g2);
-            g2 = mdlAcquire(mdl,CID_GROUP,g.iIndex,g.iPid);
+            g2 = static_cast<GHtmpGroupTable *>(mdlAcquire(mdl,CID_GROUP,g.iIndex,g.iPid));
         }
 
         /* Update remote (or what we were pointing to) and what it points to if necessary. */
@@ -237,7 +240,7 @@ void LinkHopChains(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
             g2->iPid = g1->iPid;
             g2->iIndex = g1->iIndex;
             mdlRelease(mdl,CID_GROUP,g2);
-            g2 = mdlAcquire(mdl,CID_GROUP,g.iIndex,g.iPid);
+            g2 = static_cast<GHtmpGroupTable *>(mdlAcquire(mdl,CID_GROUP,g.iIndex,g.iPid));
         }
         mdlRelease(mdl,CID_GROUP,g2);
     }
@@ -282,12 +285,12 @@ void PrintNN(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
     int i;
 
-    printf("%"PRIu64":",(uint64_t)p->iOrder);
+    printf("%" PRIu64 ":",(uint64_t)p->iOrder);
     for (i=0; i<nSmooth; ++i) {
         if (pkdIsActive(pkd,nnList[i].pPart))
-            printf("%"PRIu64" ",(uint64_t)nnList[i].pPart->iOrder);
+            printf("%" PRIu64 " ",(uint64_t)nnList[i].pPart->iOrder);
         else
-            printf("\033[7m%"PRIu64"\033[0m ",(uint64_t)nnList[i].pPart->iOrder);
+            printf("\033[7m%" PRIu64 "\033[0m ",(uint64_t)nnList[i].pPart->iOrder);
     }
     printf("\n");
 }
