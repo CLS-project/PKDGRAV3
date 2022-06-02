@@ -123,14 +123,6 @@ void pstAddServices(PST pst,MDL mdl) {
                   sizeof(struct inGroupStats),0);
     mdlAddService(mdl,PST_SMOOTH,pst,(fcnService_t *)pstSmooth,
                   sizeof(struct inSmooth),0);
-#ifdef FAST_GAS
-    mdlAddService(mdl,PST_FASTGASPHASE1,pst,(fcnService_t *)pstFastGasPhase1,
-                  sizeof(struct inSmooth),0);
-    mdlAddService(mdl,PST_FASTGASPHASE2,pst,(fcnService_t *)pstFastGasPhase2,
-                  sizeof(struct inSmooth),0);
-    mdlAddService(mdl,PST_FASTGASCLEANUP,pst,(fcnService_t *)pstFastGasCleanup,
-                  0,0);
-#endif
     mdlAddService(mdl,PST_GRAVITY,pst,(fcnService_t *)pstGravity,
                   sizeof(struct inGravity),
                   sizeof(struct outGravityReduct));
@@ -1147,67 +1139,6 @@ int pstSmooth(PST pst,void *vin,int nIn,void *vout,int nOut) {
     }
     return 0;
 }
-
-
-#ifdef FAST_GAS
-int pstFastGasPhase1(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    auto in = static_cast<struct inSmooth *>(vin);
-
-    mdlassert(pst->mdl,nIn == sizeof(struct inSmooth));
-    if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_FASTGASPHASE1,in,nIn);
-        pstFastGasPhase1(pst->pstLower,in,nIn,NULL,0);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
-    }
-    else {
-        LCL *plcl = pst->plcl;
-        SMX smx;
-
-        smInitialize(&smx,plcl->pkd,&in->smf,in->nSmooth,
-                     in->bPeriodic,in->bSymmetric,in->iSmoothType);
-        smFastGasPhase1(smx,&in->smf);
-        smFinish(smx,&in->smf);
-    }
-    return 0;
-}
-
-
-int pstFastGasPhase2(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    auto in = static_cast<struct inSmooth *>(vin);
-
-    mdlassert(pst->mdl,nIn == sizeof(struct inSmooth));
-    if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_FASTGASPHASE2,in,nIn);
-        pstFastGasPhase2(pst->pstLower,in,nIn,NULL,0);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
-    }
-    else {
-        LCL *plcl = pst->plcl;
-        SMX smx;
-
-        smInitialize(&smx,plcl->pkd,&in->smf,in->nSmooth,
-                     in->bPeriodic,in->bSymmetric,in->iSmoothType);
-        smFastGasPhase2(smx,&in->smf);
-        smFinish(smx,&in->smf);
-    }
-    return 0;
-}
-
-
-int pstFastGasCleanup(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    LCL *plcl = pst->plcl;
-    mdlassert(pst->mdl,nIn == 0);
-    if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_FASTGASCLEANUP,NULL,0);
-        pstFastGasCleanup(pst->pstLower,NULL,0,NULL,0);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
-    }
-    else {
-        pkdFastGasCleanup(plcl->pkd);
-    }
-    return 0;
-}
-#endif
 
 int pstReSmooth(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto in = static_cast<struct inSmooth *>(vin);

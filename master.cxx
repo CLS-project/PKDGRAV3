@@ -2476,16 +2476,6 @@ void MSR::DomainDecompOld(int iRung) {
     else {
         mdl->RunService(PST_COMBINEBOUND,&in.bnd);
     }
-    /*
-    ** If we are doing SPH we need to make absolutely certain to clear
-    ** all neighbor lists here since the pointers in the particles will
-    ** only be valid on the node where it was malloc'ed!
-    */
-#ifdef FAST_GAS
-    if (param.bDoGas) {
-        pstFastGasCleanup(pst,NULL,0,NULL,0);
-    }
-#endif
     /* We make sure that the classes are synchronized among all the domains,
      * otherwise a new class type being moved to another DD region could cause
      * very nasty bugs!
@@ -2925,52 +2915,6 @@ void MSR::Smooth(double dTime,double dDelta,int iSmoothType,int bSymmetric,int n
         pstSmooth(pst,&in,sizeof(in),NULL,0);
     }
 }
-
-
-#ifdef FAST_GAS
-void MSR::FastGasPhase1(double dTime,double dDelta,int iSmoothType) {
-    struct inSmooth in;
-
-    in.nSmooth = param.nSmooth;
-    in.bPeriodic = param.bPeriodic;
-    in.bSymmetric = 0;
-    in.iSmoothType = iSmoothType;
-    SmoothSetSMF(&(in.smf), dTime, dDelta, param.nSmooth);
-    if (param.bVStep) {
-        double sec,dsec;
-        printf("FastGas Phase 1 Smoothing...\n");
-        sec = MSR::Time();
-        pstFastGasPhase1(pst,&in,sizeof(in),NULL,0);
-        dsec = MSR::Time() - sec;
-        printf("FastGas Phase 1 Smooth Calculated, Wallclock: %f secs\n\n",dsec);
-    }
-    else {
-        pstFastGasPhase1(pst,&in,sizeof(in),NULL,0);
-    }
-}
-
-
-void MSR::FastGasPhase2(double dTime,double dDelta,int iSmoothType) {
-    struct inSmooth in;
-
-    in.nSmooth = param.nSmooth;
-    in.bPeriodic = param.bPeriodic;
-    in.bSymmetric = 0;
-    in.iSmoothType = iSmoothType;
-    SmoothSetSMF(&(in.smf), dTime, dDelta, param.nSmooth);
-    if (param.bVStep) {
-        double sec,dsec;
-        printf("FastGas Phase 2 Smoothing...\n");
-        sec = MSR::Time();
-        pstFastGasPhase2(pst,&in,sizeof(in),NULL,0);
-        dsec = MSR::Time() - sec;
-        printf("FastGas Phase 2 Smooth Calculated, Wallclock: %f secs\n\n",dsec);
-    }
-    else {
-        pstFastGasPhase2(pst,&in,sizeof(in),NULL,0);
-    }
-}
-#endif
 
 int MSR::ReSmooth(double dTime,double dDelta,int iSmoothType,int bSymmetric) {
     struct inSmooth in;
@@ -5436,16 +5380,6 @@ void MSR::Output(int iStep, double dTime, double dDelta, int bCheckpoint) {
     }
 
     if (DoDensity()) {
-#ifdef FAST_GAS
-        ActiveRung(3,1); /* Activate some particles */
-        DomainDecomp();
-        BuildTree(0);
-
-        //msrSelSrcGas(msr);  /* FOR TESTING!! of gas active particles */
-        FastGasPhase1(dTime,dDelta,SMX_DENSITY);
-        FastGasPhase2(dTime,dDelta,SMX_PRINTNN);
-        //msrSelSrcAll(msr);  /* FOR TESTING!! of gas active particles */
-#else
         ActiveRung(0,1); /* Activate all particles */
         DomainDecomp(-1);
         BuildTree(0);
@@ -5453,7 +5387,6 @@ void MSR::Output(int iStep, double dTime, double dDelta, int bCheckpoint) {
         if (!NewSPH()) {
             Smooth(dTime,dDelta,SMX_DENSITY,bSymmetric,param.nSmooth);
         }
-#endif
     }
     if ( param.bFindGroups ) {
         Reorder();
