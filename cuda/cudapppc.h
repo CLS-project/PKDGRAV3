@@ -19,7 +19,7 @@
 #define CUDAPPPC_H
 #ifdef USE_CUDA
     #include "cudautil.h"
-    #include "ilp.h"
-    #include "ilc.h"
+    #include "gravity/ilp.h"
+    #include "gravity/ilc.h"
 #endif
 #endif

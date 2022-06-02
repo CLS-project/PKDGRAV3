@@ -23,8 +23,8 @@
     #include "pkd_config.h"
 #endif
 #include <stdint.h>
-#include "ilp.h"
-#include "ilc.h"
+#include "gravity/ilp.h"
+#include "gravity/ilc.h"
 #include "SPHOptions.h"
 #include "units.h"
 

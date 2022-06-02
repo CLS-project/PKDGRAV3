@@ -22,8 +22,8 @@
 #include <string.h>
 
 #include "mdl.h"
-#include "ilp.h"
-#include "ilc.h"
+#include "gravity/ilp.h"
+#include "gravity/ilc.h"
 #include "gravity/cl.h"
 #include "gravity/moments.h"
 #include "cosmo.h"

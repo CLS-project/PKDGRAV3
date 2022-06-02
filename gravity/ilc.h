@@ -72,9 +72,14 @@ typedef struct ilcContext {
 #define ilcRestore(ilc,cp) lstRestore(&(ilc)->lst,(cp))
 #define ilcCount(ilc) lstCount(&(ilc)->lst)
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 void ilcInitialize(ILC *ilc);
 void ilcFinish(ILC ilc);
-
+#ifdef __cplusplus
+}
+#endif
 /*
 ** The X, Y and Z coordinates must already be relative to cx, cy and cz!
 */

@@ -22,25 +22,19 @@
 #endif
 #include <assert.h>
 
-#include "ilp.h"
+#include "ilc.h"
 
-void ilpInitialize(ILP *ilp) {
-    *ilp = malloc(sizeof(struct ilpContext));
-    assert( *ilp != NULL );
-    lstInitialize(&(*ilp)->lst,NULL,
-                  ILP_TILE_SIZE / sizeof(ILP_BLK), ILP_PART_PER_BLK,
-#ifdef TIMESTEP_CRITICAL
-                  2, /* two areas */
-                  sizeof(ILP_BLK),SIMD_malloc,SIMD_free);
-    sizeof(ILP_EXTRA),NULL,           NULL);
-#else
+void ilcInitialize(ILC *ilc) {
+    *ilc = new struct ilcContext;
+    assert( *ilc != NULL );
+    lstInitialize(&(*ilc)->lst, NULL,
+                  ILC_TILE_SIZE / sizeof(ILC_BLK), ILC_PART_PER_BLK,
                   1, /* one area */
-                  sizeof(ILP_BLK),SIMD_malloc,SIMD_free);
-#endif
-    (*ilp)->cx = (*ilp)->cy = (*ilp)->cz = 0.0;
+                  sizeof(ILC_BLK), SIMD_malloc, SIMD_free);
+    (*ilc)->cx = (*ilc)->cy = (*ilc)->cz = 0.0;
 }
 
-void ilpFinish(ILP ilp) {
-    lstFree(&ilp->lst);
-    free(ilp);
+void ilcFinish(ILC ilc) {
+    lstFree(&ilc->lst);
+    delete ilc;
 }

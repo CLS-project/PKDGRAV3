@@ -35,8 +35,8 @@
 #define PP_WU 128
 #define PC_WU 32
 
-#include "ilp.h"
-#include "ilc.h"
+#include "gravity/ilp.h"
+#include "gravity/ilc.h"
 #include "basetype.h"
 
 /*

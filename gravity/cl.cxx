@@ -20,21 +20,20 @@
 #else
     #include "pkd_config.h"
 #endif
+
 #include <assert.h>
 
-#include "ilc.h"
+#include "cl.h"
 
-void ilcInitialize(ILC *ilc) {
-    *ilc = malloc(sizeof(struct ilcContext));
-    assert( *ilc != NULL );
-    lstInitialize(&(*ilc)->lst, NULL,
-                  ILC_TILE_SIZE / sizeof(ILC_BLK), ILC_PART_PER_BLK,
-                  1, /* one area */
-                  sizeof(ILC_BLK), SIMD_malloc, SIMD_free);
-    (*ilc)->cx = (*ilc)->cy = (*ilc)->cz = 0.0;
+void clInitialize(CL *cl,LSTFREELIST *freeList) {
+    *cl = new struct clContext;
+    assert( *cl != NULL );
+    lstInitialize(&(*cl)->lst,freeList,CL_BLK_PER_TILE, CL_PART_PER_BLK, 1,
+                  sizeof(CL_BLK),  SIMD_malloc,SIMD_free);
 }
 
-void ilcFinish(ILC ilc) {
-    lstFree(&ilc->lst);
-    free(ilc);
+void clDestroy(CL cl) {
+    lstFree(&cl->lst);
+    delete cl;
 }
+
