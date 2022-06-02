@@ -231,7 +231,7 @@ static int cmpRadiusLite(const void *pva,const void *pvb) {
 ** Sort by distance when finished.
 */
 void pkdCalcDistance(PKD pkd, double *dCenter, int bPeriodic) {
-    distance *pl = (distance *)pkd->pLite;
+    auto pl = static_cast<distance *>(pkd->pLite);
     int i;
 
     /*
@@ -295,7 +295,7 @@ void pkdCalcMtot(PKD pkd,double *M, uint64_t *N) {
 ** Count the number of elements that are interior to r2
 */
 uint_fast32_t pkdCountDistance(PKD pkd, double r2i, double r2o ) {
-    distance *pl = pkd->pLite;
+    auto pl = static_cast<distance *>(pkd->pLite);
     uint64_t lo,hi,i,upper;
 
     lo = 0;
@@ -339,7 +339,7 @@ double ell_distance2(const double *r,SHAPESBIN *pShape, double ba, double ca) {
 **     taking the algorithm from Nbin * Npart down to Npart.
 */
 static void CalculateInertia(PKD pkd,int nBins, const double *dRadii, SHAPESBIN *shapesBins) {
-    distance *pl = pkd->pLite;
+    auto pl = static_cast<distance *>(pkd->pLite);
     local_t n = pkdLocal(pkd);
     SHAPESBIN *pShape;
     double r, r2;
@@ -517,7 +517,7 @@ void pkdShapes(PKD pkd, int nBins, const double *dCenter, const double *dRadii) 
 void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
                 const double *dCenter, const double *dRadii, int nBins,
                 const double *com, const double *vcm, const double *L) {
-    distance *pl = pkd->pLite;
+    auto pl = static_cast<distance *>(pkd->pLite);
     local_t n = pkdLocal(pkd);
     double r0, r, r2;
     int i,iBin;
@@ -596,7 +596,7 @@ void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
     r0 = 0.0;
     i = 0;
     for (iBin=0; iBin<nBins; iBin++) {
-        pBin = mdlAcquire(pkd->mdl,CID_BIN,iBin,0);
+        pBin = static_cast<PROFILEBIN *>(mdlAcquire(pkd->mdl,CID_BIN,iBin,0));
         r = dRadii[iBin];
         r2 = r*r;
         assert( r > r0 );
