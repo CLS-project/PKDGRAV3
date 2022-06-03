@@ -290,9 +290,7 @@ void pkdParticleWorkDone(workParticle *wp) {
                         }
                         uNewRung = pkdDtToRungInverse(dT,fiDelta,wp->ts->uMaxRung-1);
                         if (pkd->oFieldOffset[oNewSph]) {
-                            int maxRungInKernel = (int)round(wp->pInfoOut[i].maxRung);
-                            int tempNewRung = MAX((int)uNewRung,maxRungInKernel - wp->SPHoptions->nRungCorrection);
-                            uNewRung = MAX(tempNewRung,0);
+                            uNewRung = std::max(std::max((int)uNewRung,(int)round(wp->pInfoOut[i].maxRung) - wp->SPHoptions->nRungCorrection),0);
                         }
                     }
                     else uNewRung = 0; /* Assumes current uNewRung is outdated -- not ideal */
@@ -313,9 +311,7 @@ void pkdParticleWorkDone(workParticle *wp) {
                         }
                         uNewRung = pkdDtToRungInverse(dT,fiDelta,wp->ts->uMaxRung-1);
                         if (pkd->oFieldOffset[oNewSph]) {
-                            int maxRungInKernel = (int)round(wp->pInfoOut[i].maxRung);
-                            int tempNewRung = MAX((int)uNewRung,maxRungInKernel - wp->SPHoptions->nRungCorrection);
-                            uNewRung = MAX(tempNewRung,0);
+                            uNewRung = std::max(std::max((int)uNewRung,(int)round(wp->pInfoOut[i].maxRung) - wp->SPHoptions->nRungCorrection),0);
                         }
                     }
                     else uNewRung = 0;
