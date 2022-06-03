@@ -447,7 +447,7 @@ found_it:
                                                       r[2] + blk->zOffset.f[jTile],
                                                       blk->m.f[jTile], blk->fourh2.f[jTile],
                                                       iOrder, vpred[0], vpred[1], vpred[2],
-                                                      pkdBall(pkd,p), Omega, pkdDensity(pkd,p), P, cs, pkdSpecies(pkd,p));
+                                                      pkdBall(pkd,p), Omega, pkdDensity(pkd,p), P, cs, pkdSpecies(pkd,p), p->uRung);
                                         }
                                         else {
                                             ilpAppend(pkd->ilp,
@@ -456,7 +456,7 @@ found_it:
                                                       r[2] + blk->zOffset.f[jTile],
                                                       blk->m.f[jTile], blk->fourh2.f[jTile],
                                                       iOrder, v[0], v[1], v[2],
-                                                      0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0);
+                                                      0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0, p->uRung);
                                         }
                                     }
                                 }
@@ -520,7 +520,7 @@ found_it:
                                                           r[2] + blk->zOffset.f[jTile],
                                                           fMass, 4*fSoft*fSoft,
                                                           iOrder, vpred[0], vpred[1], vpred[2],
-                                                          pkdBall(pkd,p), Omega, pkdDensity(pkd,p), P, cs, pkdSpecies(pkd,p));
+                                                          pkdBall(pkd,p), Omega, pkdDensity(pkd,p), P, cs, pkdSpecies(pkd,p), p->uRung);
                                             }
                                             else {
                                                 ilpAppend(pkd->ilp,
@@ -529,7 +529,7 @@ found_it:
                                                           r[2] + blk->zOffset.f[jTile],
                                                           fMass, 4*fSoft*fSoft,
                                                           iOrder, v[0], v[1], v[2],
-                                                          0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0);
+                                                          0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0, p->uRung);
                                             }
                                         }
                                     }
