@@ -189,7 +189,7 @@ target_sources(${PROJECT_NAME} PRIVATE
 	domains/calcbound.cxx domains/combinebound.cxx domains/distribtoptree.cxx domains/distribroot.cxx domains/dumptrees.cxx
 	domains/enforceperiodic.cxx domains/freestore.cxx domains/olddd.cxx
 	gravity/setsoft.cxx gravity/activerung.cxx gravity/countrungs.cxx gravity/zeronewrung.cxx
-      hydro/hydro.c eEOS/eEOS.cxx
+        eEOS/eEOS.cxx
 )
 set_property(SOURCE io/fio.c APPEND PROPERTY COMPILE_DEFINITIONS "USE_PTHREAD")
 add_executable(tostd utility/tostd.c io/fio.c)
@@ -304,7 +304,7 @@ endforeach(flag_var)
 option(HYDRO "Compile with hydrodynamics support" ON)
 if (HYDRO)
    message("-- Compiling with hydrodynamics support")
-   target_sources(${PROJECT_NAME} PRIVATE  hydro/hydro.c hydro/density.cxx
+   target_sources(${PROJECT_NAME} PRIVATE  hydro/hydro.cxx hydro/density.cxx
                   hydro/gradient.cxx hydro/flux.cxx hydro/step.cxx)
 endif(HYDRO)
 

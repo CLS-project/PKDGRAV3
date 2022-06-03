@@ -27,7 +27,6 @@ void MSR::ResetFluxes(double dTime,double dDelta) {
     pstResetFluxes(pst,&in,sizeof(in),NULL,0);
 }
 
-extern "C"
 void pkdResetFluxes(PKD pkd, double dTime,double dDelta,double dDeltaVPred,double dDeltaTime) {
     PARTICLE *p;
     SPHFIELDS *psph;
