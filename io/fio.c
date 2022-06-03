@@ -2653,7 +2653,7 @@ static int writeAttribute( hid_t groupID, const char *name,
     return 1;
 }
 
-
+#if 0
 static int readDataset( hid_t groupID, const char *name,
                         hid_t dataType, void *data ) {
     hid_t datasetID;
@@ -2665,6 +2665,7 @@ static int readDataset( hid_t groupID, const char *name,
     rc = H5Dclose( datasetID ); assert(rc>=0);
     return 1;
 }
+#endif
 
 /* Read an attribute from a group */
 static int readAttribute( hid_t groupID, const char *name,
@@ -3904,7 +3905,9 @@ static int hdf5WriteSph(
     assert(fio->eMode == FIO_MODE_WRITING);
 
 
+#ifdef STAR_FORMATION
     float fSFR = pfOtherData[0];
+#endif
     int32_t iGroup = (int32_t)pfOtherData[1];
 #ifdef HAVE_METALLICITY
     float fMetallicity = pfOtherData[2];

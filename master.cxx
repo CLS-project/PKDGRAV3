@@ -2104,15 +2104,7 @@ void MSR::RecvArray(void *vBuffer,int field,int iUnitSize,double dTime,bool bMar
 */
 void MSR::AllNodeWrite(const char *pszFileName, double dTime, double dvFac, int bDouble) {
     int nProcessors;
-    PST pst0;
-    LCL *plcl;
     struct inWrite in;
-
-    pst0 = pst;
-    while (pst0->nLeaves > 1)
-        pst0 = pst0->pstLower;
-    plcl = pst0->plcl;
-
 
     /*
     ** Add Data Subpath for local and non-local names.
@@ -2207,7 +2199,6 @@ void MSR::Write(const char *pszFileName,double dTime,int bCheckpoint) {
     int nProcessors;
     double dvFac, dExp;
     double dsec;
-    uint64_t N;
 
 #ifdef NAIVE_DOMAIN_DECOMP
     Reorder();
@@ -2219,7 +2210,7 @@ void MSR::Write(const char *pszFileName,double dTime,int bCheckpoint) {
     ** Calculate where to start writing.
     ** This sets plcl->nWriteStart.
     */
-    N = CalcWriteStart();
+    /*uint64_t N =*/ CalcWriteStart();
     /*
     ** Add Data Subpath for local and non-local names.
     */
@@ -2482,16 +2473,6 @@ void MSR::DomainDecompOld(int iRung) {
     else {
         mdl->RunService(PST_COMBINEBOUND,&in.bnd);
     }
-    /*
-    ** If we are doing SPH we need to make absolutely certain to clear
-    ** all neighbor lists here since the pointers in the particles will
-    ** only be valid on the node where it was malloc'ed!
-    */
-#ifdef FAST_GAS
-    if (param.bDoGas) {
-        pstFastGasCleanup(pst,NULL,0,NULL,0);
-    }
-#endif
     /* We make sure that the classes are synchronized among all the domains,
      * otherwise a new class type being moved to another DD region could cause
      * very nasty bugs!
@@ -2932,56 +2913,9 @@ void MSR::Smooth(double dTime,double dDelta,int iSmoothType,int bSymmetric,int n
     }
 }
 
-
-#ifdef FAST_GAS
-void MSR::FastGasPhase1(double dTime,double dDelta,int iSmoothType) {
-    struct inSmooth in;
-
-    in.nSmooth = param.nSmooth;
-    in.bPeriodic = param.bPeriodic;
-    in.bSymmetric = 0;
-    in.iSmoothType = iSmoothType;
-    SmoothSetSMF(&(in.smf), dTime, dDelta, param.nSmooth);
-    if (param.bVStep) {
-        double sec,dsec;
-        printf("FastGas Phase 1 Smoothing...\n");
-        sec = MSR::Time();
-        pstFastGasPhase1(pst,&in,sizeof(in),NULL,0);
-        dsec = MSR::Time() - sec;
-        printf("FastGas Phase 1 Smooth Calculated, Wallclock: %f secs\n\n",dsec);
-    }
-    else {
-        pstFastGasPhase1(pst,&in,sizeof(in),NULL,0);
-    }
-}
-
-
-void MSR::FastGasPhase2(double dTime,double dDelta,int iSmoothType) {
-    struct inSmooth in;
-
-    in.nSmooth = param.nSmooth;
-    in.bPeriodic = param.bPeriodic;
-    in.bSymmetric = 0;
-    in.iSmoothType = iSmoothType;
-    SmoothSetSMF(&(in.smf), dTime, dDelta, param.nSmooth);
-    if (param.bVStep) {
-        double sec,dsec;
-        printf("FastGas Phase 2 Smoothing...\n");
-        sec = MSR::Time();
-        pstFastGasPhase2(pst,&in,sizeof(in),NULL,0);
-        dsec = MSR::Time() - sec;
-        printf("FastGas Phase 2 Smooth Calculated, Wallclock: %f secs\n\n",dsec);
-    }
-    else {
-        pstFastGasPhase2(pst,&in,sizeof(in),NULL,0);
-    }
-}
-#endif
-
 int MSR::ReSmooth(double dTime,double dDelta,int iSmoothType,int bSymmetric) {
     struct inSmooth in;
     struct outSmooth out;
-    int nOut;
 
     in.nSmooth = param.nSmooth;
     in.bPeriodic = param.bPeriodic;
@@ -3006,7 +2940,6 @@ int MSR::ReSmooth(double dTime,double dDelta,int iSmoothType,int bSymmetric) {
 int MSR::ReSmoothNode(double dTime, double dDelta,int iSmoothType,int bSymmetric) {
     struct inSmooth in;
     struct outSmooth out;
-    int nOut;
 
     in.nSmooth = param.nSmooth;
     in.bPeriodic = param.bPeriodic;
@@ -3667,7 +3600,7 @@ int cmpTime(const void *v1,const void *v2) {
 void MSR::ReadOuts(double dTime,double dDelta) {
     char achFile[PST_FILENAME_SIZE];
     FILE *fp;
-    int i,ret;
+    int ret;
     double z,a,t,n;
     char achIn[80];
 
@@ -3682,7 +3615,6 @@ void MSR::ReadOuts(double dTime,double dDelta) {
 
     fp = fopen(achFile,"r");
     if (!fp) return;
-    i = 0;
     while (1) {
         if (!fgets(achIn,80,fp)) goto NoMoreOuts;
         switch (achIn[0]) {
@@ -3826,11 +3758,9 @@ void MSR::AccelStep(uint8_t uRungLo,uint8_t uRungHi,double dTime,double dDelta) 
 
 /* Requires full forces and full udot (i.e. sph and cooling both done) */
 void MSR::SphStep(uint8_t uRungLo,uint8_t uRungHi,double dTime,double dDelta) {
-    struct inSphStep in;
-    double a;
-
 #ifndef OPTIM_REMOVE_UNUSED
-    a = csmTime2Exp(csm,dTime);
+    struct inSphStep in;
+    double a = csmTime2Exp(csm,dTime);
     in.dAccFac = 1.0/(a*a*a);
     in.dEta = param.dEta;
     in.dEtaUDot = param.dEtaUDot;
@@ -4685,15 +4615,7 @@ void MSR::ChemCompInit() {
 /* END Gas routines */
 
 void MSR::HopWrite(const char *fname) {
-    LCL *plcl;
-    PST pst0;
     double dsec;
-
-    pst0 = pst;
-    while (pst0->nLeaves > 1)
-        pst0 = pst0->pstLower;
-    plcl = pst0->plcl;
-
 
     if (param.bVStep)
         printf("Writing group statistics to %s\n", fname );
@@ -5122,13 +5044,6 @@ double MSR::Read(const char *achInFile) {
     uint64_t nSpecies[FIO_SPECIES_LAST];
     inReadFileFilename achFilename;
     uint64_t mMemoryModel = 0;
-    LCL *plcl;
-    PST pst0;
-
-    pst0 = pst;
-    while (pst0->nLeaves > 1)
-        pst0 = pst0->pstLower;
-    plcl = pst0->plcl;
 
     mMemoryModel = getMemoryModel();
 
@@ -5442,16 +5357,6 @@ void MSR::Output(int iStep, double dTime, double dDelta, int bCheckpoint) {
     }
 
     if (DoDensity()) {
-#ifdef FAST_GAS
-        ActiveRung(3,1); /* Activate some particles */
-        DomainDecomp();
-        BuildTree(0);
-
-        //msrSelSrcGas(msr);  /* FOR TESTING!! of gas active particles */
-        FastGasPhase1(dTime,dDelta,SMX_DENSITY);
-        FastGasPhase2(dTime,dDelta,SMX_PRINTNN);
-        //msrSelSrcAll(msr);  /* FOR TESTING!! of gas active particles */
-#else
         ActiveRung(0,1); /* Activate all particles */
         DomainDecomp(-1);
         BuildTree(0);
@@ -5459,7 +5364,6 @@ void MSR::Output(int iStep, double dTime, double dDelta, int bCheckpoint) {
         if (!NewSPH()) {
             Smooth(dTime,dDelta,SMX_DENSITY,bSymmetric,param.nSmooth);
         }
-#endif
     }
     if ( param.bFindGroups ) {
         Reorder();

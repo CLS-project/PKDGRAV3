@@ -220,7 +220,7 @@ double mdlCpuTimer(void *mdl) {
 #endif
 }
 
-void mdlDiag(void *mdl, char *psz) {
+void mdlDiag(void *mdl, const char *psz) {
 #if 0
     mdlBASE *base = reinterpret_cast<mdlBASE *>(mdl);
     if (base->bDiag) {

@@ -93,8 +93,14 @@ typedef struct ilpContext {
 
 #define ILPCHECKPT LSTCHECKPT
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 void ilpInitialize(ILP *ilp);
 void ilpFinish(ILP ilp);
+#ifdef __cplusplus
+}
+#endif
 
 #define ilpClear(ilp) lstClear(&(ilp)->lst)
 #define ilpExtend(ilp) lstExtend(&(ilp)->lst)

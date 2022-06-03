@@ -70,7 +70,9 @@
 #include "mdl.h"
 #include "io/outtype.h"
 #include "cosmo.h"
+extern "C" {
 #include "core/healpix.h"
+}
 #ifdef COOLING
     #include "cooling/cooling.h"
 #endif
@@ -223,7 +225,7 @@ void pkdExtendTree(PKD pkd) {
                 pkd->nTreeBitsLo, pkd->nTreeBitsHi);
         assert( pkd->nTreeTiles < (1<<pkd->nTreeBitsHi) );
     }
-    pkd->kdNodeListPRIVATE[pkd->nTreeTiles] = mdlMalloc(pkd->mdl,(1<<pkd->nTreeBitsLo)*pkd->iTreeNodeSize);
+    pkd->kdNodeListPRIVATE[pkd->nTreeTiles] = static_cast<char *>(mdlMalloc(pkd->mdl,(1<<pkd->nTreeBitsLo)*pkd->iTreeNodeSize));
     mdlassert(pkd->mdl,pkd->kdNodeListPRIVATE[pkd->nTreeTiles] != NULL);
     ++pkd->nTreeTiles;
     pkd->nMaxNodes = (1<<pkd->nTreeBitsLo) * pkd->nTreeTiles;
@@ -528,7 +530,7 @@ void pkdInitialize(
     */
     assert(pkdNodeSize(pkd) > 0);
     if (pkdNodeSize(pkd) > pkdMaxNodeSize()) {
-        fprintf(stderr, "Node size is too large. Node size=%"PRIu64", max node size=%"PRIu64"\n",
+        fprintf(stderr, "Node size is too large. Node size=%" PRIu64 ", max node size=%" PRIu64 "\n",
                 (uint64_t)pkdNodeSize(pkd), (uint64_t)pkdMaxNodeSize());
     }
     assert(pkdNodeSize(pkd)<=pkdMaxNodeSize());
@@ -591,16 +593,16 @@ void pkdInitialize(
         pParticles = _aligned_malloc(nBytesTotal,nPageSize);
 #else
         if (posix_memalign(&vParticles,nPageSize,nBytesTotal)) pParticles = NULL;
-        else pParticles = vParticles;
+        else pParticles = static_cast<char *>(vParticles);
 #endif
         mdlassert(mdl,pParticles != NULL);
         pEphemeral = pParticles + nBytesParticles;
         pTreeNodes = pEphemeral + nBytesEphemeral;
     }
     else pParticles = pEphemeral = pTreeNodes = 0; // Ignore anyway in mdlSetArray() below
-    pParticles = mdlSetArray(pkd->mdl,1,nBytesPerThread,pParticles);
-    pEphemeral = mdlSetArray(pkd->mdl,1,nBytesEphemeral/mdlCores(pkd->mdl),pEphemeral);
-    pTreeNodes = mdlSetArray(pkd->mdl,1,nBytesTreeNodes/mdlCores(pkd->mdl),pTreeNodes);
+    pParticles = static_cast<char *>(mdlSetArray(pkd->mdl,1,nBytesPerThread,pParticles));
+    pEphemeral = static_cast<char *>(mdlSetArray(pkd->mdl,1,nBytesEphemeral/mdlCores(pkd->mdl),pEphemeral));
+    pTreeNodes = static_cast<char *>(mdlSetArray(pkd->mdl,1,nBytesTreeNodes/mdlCores(pkd->mdl),pTreeNodes));
     firstTouch(nBytesParticles/mdlCores(pkd->mdl),pParticles);
     firstTouch(nBytesEphemeral/mdlCores(pkd->mdl),pEphemeral);
     firstTouch(nBytesTreeNodes/mdlCores(pkd->mdl),pTreeNodes);
@@ -614,7 +616,7 @@ void pkdInitialize(
     ** nodes total which is the integer limit anyway. We may use the extra storage
     ** from above if constraint (c) could not otherwise be met.
     */
-    pkd->kdNodeListPRIVATE = mdlMalloc(pkd->mdl,(1<<pkd->nTreeBitsHi)*sizeof(KDN *));
+    pkd->kdNodeListPRIVATE = static_cast<char **>(mdlMalloc(pkd->mdl,(1<<pkd->nTreeBitsHi)*sizeof(KDN *)));
     mdlassert(mdl,pkd->kdNodeListPRIVATE != NULL);
     if (nTreeTiles) {
         pkd->nTreeTilesReserved = nTreeTiles;
@@ -626,7 +628,7 @@ void pkdInitialize(
     }
     else {
         pkd->nTreeTilesReserved = 0;
-        pkd->kdNodeListPRIVATE[0] = mdlMalloc(pkd->mdl,(1<<pkd->nTreeBitsLo)*pkd->iTreeNodeSize);
+        pkd->kdNodeListPRIVATE[0] = static_cast<char *>(mdlMalloc(pkd->mdl,(1<<pkd->nTreeBitsLo)*pkd->iTreeNodeSize));
         mdlassert(mdl,pkd->kdNodeListPRIVATE[0] != NULL);
         pkd->nTreeTiles = 1;
     }
@@ -638,7 +640,7 @@ void pkdInitialize(
     ** this now because the outside world can no longer know the size of a
     ** particle a priori.
     */
-    pkd->pTempPRIVATE = malloc(pkdParticleSize(pkd));
+    pkd->pTempPRIVATE = static_cast<PARTICLE *>(malloc(pkdParticleSize(pkd)));
     mdlassert(mdl,pkd->pTempPRIVATE != NULL);
     /*
     ** Initialize light cone offsets.
@@ -656,7 +658,7 @@ void pkdInitialize(
         pkd->pLightCone = _aligned_malloc(nLightConeBytes, nPageSize);
 #else
         if (posix_memalign(&v, nPageSize, nLightConeBytes)) pkd->pLightCone = NULL;
-        else pkd->pLightCone = v;
+        else pkd->pLightCone = static_cast<LIGHTCONEP *>(v);
 #endif
         mdlassert(mdl,pkd->pLightCone != NULL);
         io_init(&pkd->afiLightCone,8,2*1024*1024,IO_AIO|IO_LIBAIO);
@@ -691,7 +693,7 @@ void pkdInitialize(
     /*
     ** We support up to 256 classes
     */
-    pkd->pClass = malloc(PKD_MAX_CLASSES*sizeof(PARTCLASS));
+    pkd->pClass = static_cast<PARTCLASS *>(malloc(PKD_MAX_CLASSES*sizeof(PARTCLASS)));
     mdlassert(mdl,pkd->pClass != NULL);
     for (j=0; j<PKD_MAX_CLASSES; j++) {
         pkd->pClass[j].fMass = pkd->pClass[j].fSoft = -1.0;
@@ -725,7 +727,7 @@ void pkdInitialize(
     ** Allocate the stack.
     */
     pkd->nMaxStack = 30;
-    pkd->S = malloc(pkd->nMaxStack*sizeof(CSTACK));
+    pkd->S = new CSTACK[pkd->nMaxStack];
     assert(pkd->S != NULL);
     for (ism=0; ism<pkd->nMaxStack; ++ism) {
         clInitialize(&pkd->S[ism].cl,&pkd->clFreeList);
@@ -780,7 +782,7 @@ void pkdFinish(PKD pkd) {
     for (ism=0; ism<pkd->nMaxStack; ++ism) {
         clDestroy(pkd->S[ism].cl);
     }
-    free(pkd->S);
+    delete [] pkd->S;
     if (pkd->ew.nMaxEwhLoop) {
         SIMD_free(pkd->ewt.hx.f);
         SIMD_free(pkd->ewt.hy.f);
@@ -865,12 +867,12 @@ size_t pkdTreeMemory(PKD pkd) {
 void pkdSetClass( PKD pkd, float fMass, float fSoft, FIO_SPECIES eSpecies, PARTICLE *p ) {
     int i;
     if ( pkd->oFieldOffset[oMass] ) {
-        float *pMass = pkdField(p,pkd->oFieldOffset[oMass]);
+        auto pMass = static_cast<float *>(pkdField(p,pkd->oFieldOffset[oMass]));
         *pMass = fMass;
         fMass = 0.0;
     }
     if ( pkd->oFieldOffset[oSoft] ) {
-        float *pSoft = pkdField(p,pkd->oFieldOffset[oSoft]);
+        auto pSoft = static_cast<float *>(pkdField(p,pkd->oFieldOffset[oSoft]));
         *pSoft = fSoft;
         fSoft = 0.0;
     }
@@ -932,9 +934,6 @@ void pkdSetClasses( PKD pkd, int n, PARTCLASS *pClass, int bUpdate ) {
 void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double dTuFac) {
     int i,j;
     PARTICLE *p;
-    STARFIELDS *pStar;
-    SPHFIELDS *pSph;
-    NEWSPHFIELDS *pNewSph;
     BHFIELDS *pBH;
     float *pPot, dummypot;
     double r[3];
@@ -990,8 +989,9 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
         pkdSetGroup(pkd,p,0);
 
         /* Initialize SPH fields if present */
+        SPHFIELDS *pSph;
         if (pkd->oFieldOffset[oSph]) {
-            pSph = pkdField(p,pkd->oFieldOffset[oSph]);
+            pSph = static_cast<SPHFIELDS *>(pkdField(p,pkd->oFieldOffset[oSph]));
 #ifndef OPTIM_REMOVE_UNUSED
             pSph->u = pSph->uPred = pSph->uDot = pSph->c = pSph->divv = pSph->BalsaraSwitch
                                                  = pSph->fMetals = pSph->diff = pSph->fMetalsPred = pSph->fMetalsDot = 0.0;
@@ -1000,15 +1000,17 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
         else pSph = NULL;
 
         /* Initialize New SPH fields if present */
+        NEWSPHFIELDS *pNewSph;
         if (pkd->oFieldOffset[oNewSph]) {
-            pNewSph = pkdField(p,pkd->oFieldOffset[oNewSph]);
+            pNewSph = static_cast<NEWSPHFIELDS *>(pkdField(p,pkd->oFieldOffset[oNewSph]));
             pNewSph->u = pNewSph->uDot = pNewSph->divv = pNewSph->Omega = 0.0;
         }
         else pNewSph = NULL;
 
         /* Initialize Star fields if present */
+        STARFIELDS *pStar;
         if (pkd->oFieldOffset[oStar]) {
-            pStar = pkdField(p,pkd->oFieldOffset[oStar]);
+            pStar = static_cast<STARFIELDS *>(pkdField(p,pkd->oFieldOffset[oStar]));
             pStar->fTimer = 0;
             /*      pStar->iGasOrder = IORDERMAX;*/
         }
@@ -1214,7 +1216,7 @@ void pkdEnforcePeriodic(PKD pkd,BND *pbnd) {
         __m128i top = _mm_setr_epi32 ( (INTEGER_FACTOR/2)-1,(INTEGER_FACTOR/2)-1,(INTEGER_FACTOR/2)-1,0x7fffffff );
         __m128i bot = _mm_setr_epi32 (-(INTEGER_FACTOR/2),-(INTEGER_FACTOR/2),-(INTEGER_FACTOR/2),-0x80000000 );
 
-        char *pPos = pkdField(pkdParticle(pkd,0),pkd->oFieldOffset[oPosition]);
+        auto pPos = static_cast<char *>(pkdField(pkdParticle(pkd,0),pkd->oFieldOffset[oPosition]));
         const int iSize = pkd->iParticleSize;
         for (i=0; i<pkd->nLocal; ++i) {
             __m128i v = _mm_loadu_si128((__m128i *)pPos);
@@ -1663,7 +1665,7 @@ int pkdNodes(PKD pkd) {
 ** cache element.  Normal code should call pkdTreeNode().
 */
 void *pkdTreeNodeGetElement(void *vData,int i,int iDataSize) {
-    PKD pkd = vData;
+    auto pkd = static_cast<PKD>(vData);
     return pkdTreeNode(pkd,i);
 }
 
@@ -1740,9 +1742,6 @@ void pkdRestore(PKD pkd,const char *fname) {
 \*****************************************************************************/
 
 static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,BND *bnd,PARTICLE *p) {
-    const STARFIELDS *pStar;
-    const SPHFIELDS *pSph;
-    const NEWSPHFIELDS *pNewSph;
     const BHFIELDS *pBH;
     float *pPot, dummypot;
     double v[3],r[3];
@@ -1777,12 +1776,9 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,BND *bnd,
     else v[0] = v[1] = v[2] = 0.0;
 
     /* Initialize SPH fields if present */
-    if (pkd->oFieldOffset[oSph]) pSph = pkdField(p,pkd->oFieldOffset[oSph]);
-    else pSph = NULL;
-    if (pkd->oFieldOffset[oNewSph]) pNewSph = pkdField(p,pkd->oFieldOffset[oNewSph]);
-    else pNewSph = NULL;
-    if (pkd->oFieldOffset[oStar]) pStar = pkdField(p,pkd->oFieldOffset[oStar]);
-    else pStar = NULL;
+    const auto *pSph = static_cast<SPHFIELDS *>(pkd->oFieldOffset[oSph] ? pkdField(p,pkd->oFieldOffset[oSph]) : nullptr);
+    const auto *pNewSph = static_cast<NEWSPHFIELDS *>(pkd->oFieldOffset[oNewSph] ? pkdField(p,pkd->oFieldOffset[oNewSph]) : nullptr);
+    const auto *pStar = static_cast<STARFIELDS *>(pkd->oFieldOffset[oStar] ? pkdField(p,pkd->oFieldOffset[oStar]) : nullptr);
     fMass = pkdMass(pkd,p);
     fSoft = pkdSoft0(pkd,p);
     if (pkd->fSoftFix >= 0.0) fSoft = 0.0;
@@ -2131,7 +2127,7 @@ struct packArrayCtx {
 };
 
 char *pkdPackArray(PKD pkd,int iSize,void *vBuff,int *piIndex,int n,int field,int iUnitSize,double dvFac,int bMarked) {
-    char *pBuff = vBuff;
+    auto pBuff = static_cast<char *>(vBuff);
     int oOffset = pkd->oFieldOffset[field];
     int iIndex = *piIndex;
 
@@ -2199,7 +2195,7 @@ static int unpackArray(void *vctx, int *id, size_t nSize, void *vBuff) {
 
 void *pkdRecvArray(PKD pkd,int iNode, void *pDest, int iUnitSize) {
     struct unpackArrayCtx ctx;
-    ctx.pDest = pDest;
+    ctx.pDest = static_cast<char *>(pDest);
 #ifdef MPI_VERSION
     mdlRecv(pkd->mdl,iNode,unpackArray,&ctx);
 #endif
@@ -2245,7 +2241,6 @@ void pkdPhysicalSoft(PKD pkd,double dSoftMax,double dFac,int bSoftMaxMul) {
 
 static void initSetMarked(void *vpkd, void *v) {}
 static void combSetMarked(void *vpkd, void *v1, const void *v2) {
-    PKD pkd = (PKD) vpkd;
     PARTICLE *p1 = (PARTICLE *)v1;
     const PARTICLE *p2 = (const PARTICLE *)v2;
     if (p2->bMarked) p1->bMarked = 1;
@@ -2370,7 +2365,6 @@ void pkdCalcEandL(PKD pkd,double *T,double *U,double *Eth,double *L,double *F,do
         int n = pkdLocal(pkd);
         for (i=0; i<n; ++i) {
             PARTICLE *p = pkdParticle(pkd,i);
-            float fMass = pkdMass(pkd,p);
             if (pkdIsGas(pkd,p)) *Eth += pkdSph(pkd,p)->E;
         }
     }
@@ -2440,7 +2434,7 @@ void pkdLightConeOpen(PKD pkd,const char *fname,int nSideHealpix) {
         pkd->nHealpixPerDomain = ( nside2npix64(pkd->nSideHealpix) + mdlThreads(pkd->mdl) - 1) / mdlThreads(pkd->mdl);
         pkd->nHealpixPerDomain = (pkd->nHealpixPerDomain+15) & ~15;
         if (pkd->pHealpixData==NULL) {
-            pkd->pHealpixData = malloc(pkd->nHealpixPerDomain * sizeof(*pkd->pHealpixData));
+            pkd->pHealpixData = static_cast<healpixData *>(malloc(pkd->nHealpixPerDomain * sizeof(*pkd->pHealpixData)));
             assert(pkd->pHealpixData!=NULL);
         }
         for (i=0; i<pkd->nHealpixPerDomain; ++i) {
@@ -2476,7 +2470,7 @@ void addToLightCone(PKD pkd,double *r,float fPot,PARTICLE *p,int bParticleOutput
         int idx = iPixel - id*pkd->nHealpixPerDomain;
         assert(id<mdlThreads(pkd->mdl));
         assert(idx < pkd->nHealpixPerDomain);
-        healpixData *m = mdlVirtualFetch(pkd->mdl,CID_HEALPIX,idx,id);
+        auto m = static_cast<healpixData *>(mdlVirtualFetch(pkd->mdl,CID_HEALPIX,idx,id));
         if (pkdGetGroup(pkd,p)) {
             if (m->nGrouped < 0xffffffffu) ++m->nGrouped; /* Increment with saturate */
         }
@@ -2631,9 +2625,6 @@ void pkdProcessLightCone(PKD pkd,PARTICLE *p,float fPot,double dLookbackFac,doub
 void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,double dDeltaTime,int bDoGas) {
     PARTICLE *p;
     vel_t *v;
-    float *a;
-    float dfBalldt;
-    NEWSPHFIELDS *NewSph;
     int i,j;
     double rfinal[3],r0[3],dMin[3],dMax[3],dr[3];
     int pLower, pUpper;
@@ -2706,8 +2697,8 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
                 p = pkdParticle(pkd,i);
                 v = pkdVel(pkd,p);
                 // if (pkdIsGas(pkd,p)) {
-                // NewSph = pkdNewSph(pkd,p);
-                // dfBalldt = 1.0f / 3.0f * pkdBall(pkd,p) * pkdDensity(pkd,p) * NewSph->divv;
+                // NEWSPHFIELDS *NewSph = pkdNewSph(pkd,p);
+                // float dfBalldt = 1.0f / 3.0f * pkdBall(pkd,p) * pkdDensity(pkd,p) * NewSph->divv;
                 // pkdSetBall(pkd,p,pkdBall(pkd,p) + dDelta * dfBalldt);
                 // }
                 for (j=0; j<3; ++j) {
@@ -2807,7 +2798,7 @@ void pkdEndTimestepIntegration(PKD pkd, struct inEndTimestep in) {
     PARTICLE *p;
     SPHFIELDS *psph;
     int i;
-    double pDelta, dScaleFactor, dRedshift, dHubble, pa[3];
+    double pDelta, dScaleFactor, dHubble, pa[3];
 
     int bComove = pkd->csm->val.bComove;
 
@@ -2819,16 +2810,16 @@ void pkdEndTimestepIntegration(PKD pkd, struct inEndTimestep in) {
 
     if (bComove) {
         dScaleFactor = csmTime2Exp(pkd->csm,in.dTime);
-        dRedshift = 1./dScaleFactor - 1.;
         dHubble = csmTime2Hub(pkd->csm,in.dTime);
     }
     else {
         dScaleFactor = 1.0;
-        dRedshift = 0.0;
         dHubble = 0.0;
     }
+#if defined(COOLING) || defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
     const double a_inv = 1./dScaleFactor;
     const double a_inv3 = a_inv*a_inv*a_inv;
+#endif
 #ifdef GRACKLE
     pkdGrackleUpdate(pkd, dScaleFactor, in.achCoolingTable, in.units);
 #endif
@@ -2844,11 +2835,11 @@ void pkdEndTimestepIntegration(PKD pkd, struct inEndTimestep in) {
             }
 #endif
 
+#if defined(COOLING) || defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
             float fMass = pkdMass(pkd, p);
             float fDens = pkdDensity(pkd, p);
             const float fDensPhys = fDens*a_inv3;
-            const float f2Ball = 2.*pkdBall(pkd,p);
-
+#endif
             if (in.dDelta > 0) {
                 pDelta = in.dTime - psph->lastUpdateTime;
             }
@@ -2873,6 +2864,7 @@ void pkdEndTimestepIntegration(PKD pkd, struct inEndTimestep in) {
 
             // ##### Cooling
 #ifdef COOLING
+            double dRedshift = 1./dScaleFactor - 1.;
             const float delta_redshift = -pDelta * dHubble * (dRedshift + 1.);
             cooling_cool_part(pkd, pkd->cooling, p, psph, pDelta, in.dTime, delta_redshift, dRedshift);
 #endif
@@ -2920,6 +2912,7 @@ void pkdEndTimestepIntegration(PKD pkd, struct inEndTimestep in) {
 #endif
 
 #ifdef  EEOS_JEANS
+            const float f2Ball = 2.*pkdBall(pkd,p);
             const double Ujeans = fMass * jeansEnergyFloor(fDens, f2Ball, in.dConstGamma, in.dEOSNJeans);
 
             if (psph->Uint < Ujeans)
@@ -3014,7 +3007,6 @@ void pkdKick(PKD pkd,double dTime,double dDelta,int bDoGas,double dDeltaVPred,do
     PARTICLE *p;
     vel_t *v;
     float *a;
-    SPHFIELDS *sph;
     int i,j,n;
 
     assert(pkd->oFieldOffset[oVelocity]);
@@ -3030,7 +3022,7 @@ void pkdKick(PKD pkd,double dTime,double dDelta,int bDoGas,double dDeltaVPred,do
                 if (pkdIsRungRange(p,uRungLo,uRungHi)) {
                     v = pkdVel(pkd,p);
                     if (pkdIsGas(pkd,p)) {
-                        //sph = pkdSph(pkd,p);
+                        //SPHFIELDS *sph = pkdSph(pkd,p);
                         //sph->vPred[0] = v[0];
                         //sph->vPred[1] = v[1];
                         //sph->vPred[2] = v[2];
@@ -3053,8 +3045,8 @@ void pkdKick(PKD pkd,double dTime,double dDelta,int bDoGas,double dDeltaVPred,do
                     a = pkdAccel(pkd,p);
                     v = pkdVel(pkd,p);
                     if (pkdIsGas(pkd,p)) {
-                        sph = pkdSph(pkd,p);
 #ifndef OPTIM_REMOVE_UNUSED
+                        SPHFIELDS *sph = pkdSph(pkd,p);
                         for (j=0; j<3; ++j) { /* NB: Pred quantities must be done before std. */
                             sph->vPred[j] = v[j] + a[j]*dDeltaVPred;
                         }
@@ -3208,8 +3200,7 @@ void pkdAccelStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
 
 void pkdSphStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
                 double dDelta, int iMaxRung,double dEta, double dAccFac, double dEtaUDot) {
-    PARTICLE *p;
-    float *a, uDot;
+#ifndef OPTIM_REMOVE_UNUSED
     int i,j,uNewRung;
     double acc;
     double dtNew;
@@ -3219,13 +3210,12 @@ void pkdSphStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
     assert(pkd->oFieldOffset[oSph]);
     assert(!pkd->bNoParticleOrder);
 
-#ifndef OPTIM_REMOVE_UNUSED
     for (i=0; i<pkdLocal(pkd); ++i) {
-        p = pkdParticle(pkd,i);
+        PARICLE *p = pkdParticle(pkd,i);
         if (pkdIsActive(pkd,p)) {
             if (pkdIsGas(pkd,p)) {
                 u1 = p->uNewRung;
-                a = pkdAccel(pkd,p);
+                FLOAT *a = pkdAccel(pkd,p);
                 acc = 0;
                 for (j=0; j<3; j++) {
                     acc += a[j]*a[j];
@@ -3234,7 +3224,7 @@ void pkdSphStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
                 dtNew = FLOAT_MAXVAL;
                 if (acc>0) dtNew = dEta*sqrt(pkdBall(pkd,p)/acc);
                 u2 = pkdDtToRung(dtNew,dDelta,iMaxRung);
-                uDot = *pkd_uDot(pkd,p);
+                float uDot = *pkd_uDot(pkd,p);
                 u3=0;
                 if (uDot < 0) {
                     double dtemp = dEtaUDot*(*pkd_u(pkd,p))/fabs(uDot);
@@ -3671,14 +3661,10 @@ int pkdIsBH(PKD pkd,PARTICLE *p) {
 }
 
 void pkdInitRelaxation(PKD pkd) {
-    PARTICLE *p;
-    double *pRelax;
-    int i;
-
     assert(pkd->oFieldOffset[oRelaxation]);
-    for (i=0; i<pkdLocal(pkd); ++i) {
-        p = pkdParticle(pkd,i);
-        pRelax = pkdField(p,pkd->oFieldOffset[oRelaxation]);
+    for (int i=0; i<pkdLocal(pkd); ++i) {
+        PARTICLE *p = pkdParticle(pkd,i);
+        auto pRelax = static_cast<double *>(pkdField(p,pkd->oFieldOffset[oRelaxation]));
         *pRelax = 0.0;
     }
 }
@@ -3797,17 +3783,12 @@ int pkdSelById(PKD pkd,uint64_t idStart, uint64_t idEnd, int setIfTrue, int clea
     return nSelected;
 }
 int pkdSelPhaseDensity(PKD pkd,double dMinDensity, double dMaxDensity, int setIfTrue, int clearIfFalse ) {
-    PARTICLE *p;
-    VELSMOOTH *pvel;
-    float density;
-    int i,n,nSelected;
-
-    n = pkdLocal(pkd);
-    nSelected = 0;
-    for ( i=0; i<n; i++ ) {
-        p = pkdParticle(pkd,i);
-        pvel = pkdField(p,pkd->oFieldOffset[oVelSmooth]);
-        density = pkdDensity(pkd,p) * pow(pvel->veldisp2,-1.5);
+    int n = pkdLocal(pkd);
+    int nSelected = 0;
+    for ( int i=0; i<n; i++ ) {
+        auto p = pkdParticle(pkd,i);
+        auto pvel = static_cast<VELSMOOTH *>(pkdField(p,pkd->oFieldOffset[oVelSmooth]));
+        float density = pkdDensity(pkd,p) * pow(pvel->veldisp2,-1.5);
         p->bMarked = isSelected((density >= dMinDensity && density <=dMaxDensity),setIfTrue,clearIfFalse,p->bMarked);
         if ( p->bMarked ) nSelected++;
     }
@@ -3931,7 +3912,7 @@ void pkdOutPsGroup(PKD pkd,char *pszFileName,int iType) {
         for (i=1; i<pkd->psGroupTable.nGroups; ++i) {
             if (gd[i].iPid != pkd->idSelf) continue;
             fprintf(fp,"%d",gd[i].iGlobalId);
-            fprintf(fp," %10"PRIu64"",gd[i].nTotal);
+            fprintf(fp," %10" PRIu64 "",gd[i].nTotal);
             fprintf(fp," %12.8e",gd[i].fMass);
             fprintf(fp," %12.8e",gd[i].fRMSRadius);
             fprintf(fp," %12.8e",gd[i].r[0]);

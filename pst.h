@@ -107,11 +107,6 @@ enum pst_service {
     PST_DISTRIBROOT,
     PST_ENFORCEPERIODIC,
     PST_SMOOTH,
-#ifdef FAST_GAS
-    PST_FASTGASPHASE1,
-    PST_FASTGASPHASE2,
-    PST_FASTGASCLEANUP,
-#endif
     PST_GRAVITY,
     PST_GRAVEXTERNAL,
     PST_LIGHTCONE,
@@ -576,17 +571,6 @@ int pstReSmoothNode(PST,void *,int,void *,int);
 int pstReorderWithinNodes(PST,void *,int,void *,int);
 #endif
 
-#ifdef FAST_GAS
-/* PST_FASTGASPHASE1 */
-int pstFastGasPhase1(PST,void *,int,void *,int);
-
-/* PST_FASTGASPHASE2 */
-int pstFastGasPhase2(PST,void *,int,void *,int);
-
-/* PST_FASTGASCLEANUP */
-int pstFastGasCleanup(PST,void *,int,void *,int);
-#endif
-
 /* PST_GRAVITY */
 struct inGravity {
     double dTime;
@@ -671,9 +655,6 @@ int pstDrift(PST,void *,int,void *,int);
 int pstResetFluxes(PST,void *,int,void *,int);
 int pstEndTimestepIntegration(PST,void *,int,void *,int);
 int pstWakeParticles(PST,void *,int,void *,int);
-struct inFluxStats {
-    // Empty but could be used in the future?
-};
 struct outFluxStats {
     int nAvoided;
     int nComputed;

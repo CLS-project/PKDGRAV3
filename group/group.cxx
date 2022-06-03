@@ -280,9 +280,7 @@ int pkdGroupCounts(PKD pkd,int nGroups,struct smGroupArray *ga) {
 
 int pkdPurgeSmallGroups(PKD pkd,int nGroups,struct smGroupArray *ga,int nMinGroupSize) {
     int i,j,gid;
-    int nLocalGroups;
-
-    nLocalGroups = pkdGroupCounts(pkd,nGroups,ga);
+    pkdGroupCounts(pkd,nGroups,ga);
     /* Purge groups with too few particles */
     for (i=j=1; i<nGroups; ++i) {
         if (ga[i].nTotal < nMinGroupSize) gid=0;

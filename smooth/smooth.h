@@ -18,7 +18,9 @@
 #ifndef SMOOTH_HINCLUDED
 #define SMOOTH_HINCLUDED
 
+extern "C" {
 #include "listcomp.h"
+}
 #include "pkd.h"
 #include "smooth/smoothfcn.h"
 #include "hydro/hydro.h"

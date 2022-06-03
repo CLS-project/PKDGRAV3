@@ -61,7 +61,7 @@ LSTTILE *lstNewTile(LST *lst) {
         lst->freeList->list = tile->next;
     }
     else {
-        tile = malloc(sizeof(struct lstTile) + lst->nAreas*sizeof(void *));
+        tile = static_cast<LSTTILE *>(malloc(sizeof(struct lstTile) + lst->nAreas*sizeof(void *)));
         assert(tile!=NULL);
         blks = (void **)(tile+1);
         for ( i=0; i<lst->nAreas; ++i) {
@@ -204,7 +204,7 @@ void lstInitialize(LST *lst, LSTFREELIST *freeList, int nBlocksPerTile, int nPer
     if (freeList) lst->freeList = freeList;
     else lst->freeList = &lst->defFreeList;
     lst->freeList->nRefs++;
-    lst->info = malloc( lst->nAreas * sizeof(LSTAREAINFO) );
+    lst->info = static_cast<LSTAREAINFO *>(malloc( lst->nAreas * sizeof(LSTAREAINFO) ));
     va_start(args,nAreas);
     for ( i=0; i<lst->nAreas; ++i) {
         lst->info[i].nAreaSize = va_arg(args,int);

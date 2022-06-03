@@ -231,7 +231,7 @@ static int cmpRadiusLite(const void *pva,const void *pvb) {
 ** Sort by distance when finished.
 */
 void pkdCalcDistance(PKD pkd, double *dCenter, int bPeriodic) {
-    distance *pl = (distance *)pkd->pLite;
+    auto pl = static_cast<distance *>(pkd->pLite);
     int i;
 
     /*
@@ -295,7 +295,7 @@ void pkdCalcMtot(PKD pkd,double *M, uint64_t *N) {
 ** Count the number of elements that are interior to r2
 */
 uint_fast32_t pkdCountDistance(PKD pkd, double r2i, double r2o ) {
-    distance *pl = pkd->pLite;
+    auto pl = static_cast<distance *>(pkd->pLite);
     uint64_t lo,hi,i,upper;
 
     lo = 0;
@@ -339,10 +339,9 @@ double ell_distance2(const double *r,SHAPESBIN *pShape, double ba, double ca) {
 **     taking the algorithm from Nbin * Npart down to Npart.
 */
 static void CalculateInertia(PKD pkd,int nBins, const double *dRadii, SHAPESBIN *shapesBins) {
-    distance *pl = pkd->pLite;
+    auto pl = static_cast<distance *>(pkd->pLite);
     local_t n = pkdLocal(pkd);
     SHAPESBIN *pShape;
-    double r, r2;
     int i, j, k;
     int iBin;
     double ell_matrix[3][3], ell_matrix_inv[3][3];
@@ -358,8 +357,7 @@ static void CalculateInertia(PKD pkd,int nBins, const double *dRadii, SHAPESBIN 
         PARTICLE *p = pkdParticle(pkd,pl[i].i);
         double m = pkdMass(pkd,p);
 
-        r = dRadii[iBin];
-        r2 = r*r;
+        //double r = dRadii[iBin];
 
         /* Find the bin: Assume that the last particle was close to the correct bin */
         while ( pl[i].d2<dRadii[iBin]*dRadii[iBin] && iBin < nBins ) ++iBin;
@@ -383,7 +381,6 @@ static void CalculateInertia(PKD pkd,int nBins, const double *dRadii, SHAPESBIN 
         double evectors[4][4];
         double evalues[4];
         double VecProd[4], ScalProd;
-        double ba, ca, theta, phi, psi;
         int nrot;
         int ia, ib, ic;
         for (i=iBin=0; iBin<nBins; iBin++) {
@@ -446,14 +443,14 @@ static void CalculateInertia(PKD pkd,int nBins, const double *dRadii, SHAPESBIN 
                 for (i=0; i<3; i++) evectors[i+1][ia] = -evectors[i+1][ia];
             }
 
-            ba = sqrt((double)(evalues[ib]/evalues[ia])) ;
-            ca = sqrt((double)(evalues[ic]/evalues[ia])) ;
+            //double ba = sqrt((double)(evalues[ib]/evalues[ia])) ;
+            //double ca = sqrt((double)(evalues[ic]/evalues[ia])) ;
 
             /* euler angles for a zyz rotation */
-            theta = 180. / M_PI * acos((double) evectors[3][ic]);
-            phi =   180. / M_PI * acos((double) evectors[1][ic]/sqrt(evectors[1][ic]*evectors[1][ic] + evectors[2][ic]*evectors[2][ic]));
-            psi =   180. / M_PI * acos((double) (-evectors[2][ic]*evectors[1][ib] + evectors[1][ic]*evectors[2][ib])/
-                                       sqrt(evectors[1][ic]*evectors[1][ic] + evectors[2][ic]*evectors[2][ic]));
+            //double theta = 180. / M_PI * acos((double) evectors[3][ic]);
+            double phi =   180. / M_PI * acos((double) evectors[1][ic]/sqrt(evectors[1][ic]*evectors[1][ic] + evectors[2][ic]*evectors[2][ic]));
+            double psi =   180. / M_PI * acos((double) (-evectors[2][ic]*evectors[1][ib] + evectors[1][ic]*evectors[2][ib])/
+                                              sqrt(evectors[1][ic]*evectors[1][ic] + evectors[2][ic]*evectors[2][ic]));
 
             /* inverse acos is only defined between 0 and pi therefore we must
                deal with pi to 2*pi */
@@ -517,7 +514,7 @@ void pkdShapes(PKD pkd, int nBins, const double *dCenter, const double *dRadii) 
 void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
                 const double *dCenter, const double *dRadii, int nBins,
                 const double *com, const double *vcm, const double *L) {
-    distance *pl = pkd->pLite;
+    auto pl = static_cast<distance *>(pkd->pLite);
     local_t n = pkdLocal(pkd);
     double r0, r, r2;
     int i,iBin;
@@ -596,7 +593,7 @@ void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
     r0 = 0.0;
     i = 0;
     for (iBin=0; iBin<nBins; iBin++) {
-        pBin = mdlAcquire(pkd->mdl,CID_BIN,iBin,0);
+        pBin = static_cast<PROFILEBIN *>(mdlAcquire(pkd->mdl,CID_BIN,iBin,0));
         r = dRadii[iBin];
         r2 = r*r;
         assert( r > r0 );

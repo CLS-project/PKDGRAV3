@@ -34,7 +34,7 @@ void pkdGravEvalPC(PINFOIN *pPart, int nBlocks, int nInLast, ILC_BLK *blk,  PINF
     fvec xx,xy,xz,yy,yz,zz;
     fvec xxx,xxz,yyy,yyz,xxy,xyy,xyz;
 
-    int j, nLeft, nIntr;
+    int j, nLeft;
 
     fvec fx = pPart->r[0];
     fvec fy = pPart->r[1];
@@ -62,7 +62,7 @@ void pkdGravEvalPC(PINFOIN *pPart, int nBlocks, int nInLast, ILC_BLK *blk,  PINF
     fPot= 0.0;
     dirsum = 0.0;
     normsum = 0.0;
-    nIntr = nBlocks * ILP_PART_PER_BLK + nInLast;
+    //int nIntr = nBlocks * ILP_PART_PER_BLK + nInLast;
     for ( nLeft=nBlocks; nLeft >= 0; --nLeft,++blk ) {
         int n = (nLeft ? ILP_PART_PER_BLK : nInLast + fvec::mask()) >> SIMD_BITS;
         for (j=0; j<n; ++j) {
