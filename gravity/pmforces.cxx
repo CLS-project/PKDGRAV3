@@ -147,7 +147,6 @@ void pkdSetLinGrid(PKD pkd, double a0, double a, double a1, double dBSize, int n
      * in memory, the other ones are defined in order to
      * have an explicit naming in the code
      */
-    FFTW3(real) *rForceX, *rForceY, *rForceZ;
     FFTW3(complex) *cDelta_lin_field, *cForceY, *cForceZ;
 
     /* Scale factors and normalization */
@@ -211,13 +210,13 @@ void pkdSetLinGrid(PKD pkd, double a0, double a, double a1, double dBSize, int n
         cDelta_lin_field[idx][1] = -dDifferentiate * rePotential;
     }
     mdlIFFT(pkd->mdl, fft, cForceY);
-    rForceY = (FFTW3(real) *)mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)),cForceY);
+    //auto rForceY = static_cast<FFTW3(real)*>(mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)),cForceY));
 
     mdlIFFT(pkd->mdl, fft, cForceZ);
-    rForceZ = (FFTW3(real) *)mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)),cForceZ);
+    //auto rForceZ = static_cast<FFTW3(real)*>(mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)),cForceZ));
 
     mdlIFFT(pkd->mdl, fft, cDelta_lin_field);
-    rForceX = (FFTW3(real) *)mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)), cDelta_lin_field);
+    //auto rForceX = static_cast<FFTW3(real)*>(mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)), cDelta_lin_field));
 }
 
 extern "C"

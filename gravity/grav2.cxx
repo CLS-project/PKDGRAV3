@@ -683,7 +683,6 @@ int pkdGravInteract(PKD pkd,
     double r[3], kdn_r[3];
     vel_t *v;
     float *ap;
-    float fMass,fSoft;
     double dx,dy,dz;
     float fBall;
     int i,nSoft,nActive;
@@ -729,8 +728,6 @@ int pkdGravInteract(PKD pkd,
         p = pkdParticle(pkd,i);
         if (!pkdIsRungRange(p,ts->uRungLo,ts->uRungHi) && !(SPHoptions->useDensityFlags && p->bMarked)) continue;
         pkdGetPos1(pkd,p,r);
-        fMass = pkdMass(pkd,p);
-        fSoft = pkdSoft(pkd,p);
         v = pkdVel(pkd,p);
 
         nP = wp->nP++;
@@ -893,6 +890,8 @@ int pkdGravInteract(PKD pkd,
             r[2] = c[2] + in[2];
             //p = wp->pPart[i];
             //pkdGetPos1(p->r,r);
+            float fMass = pkdMass(pkd,p);
+            float fSoft = pkdSoft(pkd,p);
             v = pkdVel(pkd,p);
             /*
             ** Set value for time-step, note that we have the current ewald acceleration

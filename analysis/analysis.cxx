@@ -342,7 +342,6 @@ static void CalculateInertia(PKD pkd,int nBins, const double *dRadii, SHAPESBIN 
     auto pl = static_cast<distance *>(pkd->pLite);
     local_t n = pkdLocal(pkd);
     SHAPESBIN *pShape;
-    double r, r2;
     int i, j, k;
     int iBin;
     double ell_matrix[3][3], ell_matrix_inv[3][3];
@@ -358,8 +357,7 @@ static void CalculateInertia(PKD pkd,int nBins, const double *dRadii, SHAPESBIN 
         PARTICLE *p = pkdParticle(pkd,pl[i].i);
         double m = pkdMass(pkd,p);
 
-        r = dRadii[iBin];
-        r2 = r*r;
+        //double r = dRadii[iBin];
 
         /* Find the bin: Assume that the last particle was close to the correct bin */
         while ( pl[i].d2<dRadii[iBin]*dRadii[iBin] && iBin < nBins ) ++iBin;
@@ -383,7 +381,6 @@ static void CalculateInertia(PKD pkd,int nBins, const double *dRadii, SHAPESBIN 
         double evectors[4][4];
         double evalues[4];
         double VecProd[4], ScalProd;
-        double ba, ca, theta, phi, psi;
         int nrot;
         int ia, ib, ic;
         for (i=iBin=0; iBin<nBins; iBin++) {
@@ -446,14 +443,14 @@ static void CalculateInertia(PKD pkd,int nBins, const double *dRadii, SHAPESBIN 
                 for (i=0; i<3; i++) evectors[i+1][ia] = -evectors[i+1][ia];
             }
 
-            ba = sqrt((double)(evalues[ib]/evalues[ia])) ;
-            ca = sqrt((double)(evalues[ic]/evalues[ia])) ;
+            //double ba = sqrt((double)(evalues[ib]/evalues[ia])) ;
+            //double ca = sqrt((double)(evalues[ic]/evalues[ia])) ;
 
             /* euler angles for a zyz rotation */
-            theta = 180. / M_PI * acos((double) evectors[3][ic]);
-            phi =   180. / M_PI * acos((double) evectors[1][ic]/sqrt(evectors[1][ic]*evectors[1][ic] + evectors[2][ic]*evectors[2][ic]));
-            psi =   180. / M_PI * acos((double) (-evectors[2][ic]*evectors[1][ib] + evectors[1][ic]*evectors[2][ib])/
-                                       sqrt(evectors[1][ic]*evectors[1][ic] + evectors[2][ic]*evectors[2][ic]));
+            //double theta = 180. / M_PI * acos((double) evectors[3][ic]);
+            double phi =   180. / M_PI * acos((double) evectors[1][ic]/sqrt(evectors[1][ic]*evectors[1][ic] + evectors[2][ic]*evectors[2][ic]));
+            double psi =   180. / M_PI * acos((double) (-evectors[2][ic]*evectors[1][ib] + evectors[1][ic]*evectors[2][ib])/
+                                              sqrt(evectors[1][ic]*evectors[1][ic] + evectors[2][ic]*evectors[2][ic]));
 
             /* inverse acos is only defined between 0 and pi therefore we must
                deal with pi to 2*pi */

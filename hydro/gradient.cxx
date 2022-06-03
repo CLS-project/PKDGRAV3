@@ -28,7 +28,6 @@ void hydroGradients(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
     PARTICLE *q;
     SPHFIELDS *psph, *qsph;
-    double E[6];  //  We are assumming 3D here!
     double ph, rpq, hpq,Wpq, dx,dy,dz, diff;
     double rho_max, rho_min;
     double vx_max, vx_min, vy_max, vy_min, vz_max, vz_min;
@@ -41,6 +40,7 @@ void hydroGradients(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     ph = fBall;
 
 #ifndef OPTIM_SMOOTH_NODE
+    double E[6];  //  We are assumming 3D here!
     /* Compute the E matrix (Hopkins 2015, eq 14) */
     for (i=0; i<6; ++i) {
         E[i] = 0.0;
@@ -85,7 +85,6 @@ void hydroGradients(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     /* Now, we need to do the inverse */
     inverseMatrix(E, psph->B);
     psph->Ncond = conditionNumber(E, psph->B);
-#endif
 
     // DEBUG: check if E^{-1} = B
     /*
@@ -102,6 +101,7 @@ void hydroGradients(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     printf("XX %e \t YY %e \t ZZ %e \n", unityXX, unityYY, unityZZ);
     printf("XY %e \t XZ %e \t YZ %e \n", unityXY, unityXZ, unityYZ);
     */
+#endif
 
     /* Now we can compute the gradients
      * This and the B matrix computation could be done in the first hydro loop

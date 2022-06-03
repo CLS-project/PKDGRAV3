@@ -892,8 +892,8 @@ float smSmoothSingle(SMX smx,SMF *smf,PARTICLE *p,int iRoot1, int iRoot2) {
 
 void smSmooth(SMX smx,SMF *smf) {
     PKD pkd = smx->pkd;
-    PARTICLE *p, *p2;
-    int pi, pj;
+    PARTICLE *p;
+    int pi;
     float fBall;
 
     /*
@@ -919,8 +919,8 @@ void smSmooth(SMX smx,SMF *smf) {
                 }
                 /*
                     smSmoothFinish(smx);
-                    for (pj=0;pj<pkd->nLocal;++pj) {
-                    p2 = pkdParticle(pkd,pj);
+                    for (int pj=0;pj<pkd->nLocal;++pj) {
+                    PARTICLE *p2 = pkdParticle(pkd,pj);
                     p2->bMarked = 1;
                     }
                     smSmoothInitialize(smx);
@@ -1302,9 +1302,9 @@ void static inline reallocNodeBuffer(const int N, const int nVar, my_real **p_bu
 int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
     PKD pkd = smx->pkd;
     MDL mdl = pkd->mdl;
-    int pj, pk, nCnt, nCnt_own, id;
+    int pj, pk, nCnt;
     double dx, dy, dz;
-    double p_r[3], r[3], fDist2;
+    double fDist2;
     PARTICLE *p;
     int nSmoothed=0;
 
@@ -1535,17 +1535,16 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
 #endif
 
 #ifdef OPTIM_NO_REDUNDANT_FLUXES
-                                if (qIsActive)
-                                    if (dx > 0)
-                                        continue;
-                                    else if (dx==0)
-                                        if (dy > 0)
-                                            continue;
-                                        else if (dy==0)
-                                            if (dz > 0)
-                                                continue;
-                                            else if (dz==0)
-                                                abort();
+                                if (qIsActive) {
+                                    if (dx > 0) continue;
+                                    else if (dx==0) {
+                                        if (dy > 0) continue;
+                                        else if (dy==0) {
+                                            if (dz > 0) continue;
+                                            else if (dz==0) abort();
+                                        }
+                                    }
+                                }
 #endif
                             }
 
@@ -1611,7 +1610,7 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
 
             for (pk=0; pk<nCnt; ++pk) {
                 if (smx->nnList[pk].iPid != pkd->idSelf) {
-                    mdlRelease(pkd->mdl,CID_PARTICLE,smx->nnList[pk].pPart);
+                    mdlRelease(mdl,CID_PARTICLE,smx->nnList[pk].pPart);
                 }
             }
 

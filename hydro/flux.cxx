@@ -31,7 +31,6 @@ extern "C"
 void pkdResetFluxes(PKD pkd, double dTime,double dDelta,double dDeltaVPred,double dDeltaTime) {
     PARTICLE *p;
     SPHFIELDS *psph;
-    float *pmass;
     int i;
     int pLower, pUpper;
 
@@ -135,7 +134,7 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     float *pmass, *qmass;
     double minDt;
     double pv[3], qv[3], vFrame[3];
-    double ph,qh, hpq, modApq, rpq, dx,dy,dz,Wpq,psi_p,psi_q,pDensity,pDeltaHalf, qDeltaHalf;
+    double ph,qh, hpq, modApq, rpq, dx,dy,dz,Wpq,pDensity,pDeltaHalf, qDeltaHalf;
     double pdivv, qdivv, psi;
     double psiTilde_p[3], psiTilde_q[3], Apq[3], face_unit[3], dr[3];
     struct Input_vec_Riemann riemann_input;
@@ -146,8 +145,6 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     ph = pkdBall(pkd, p);
 
     pDensity = pkdDensity(pkd,p);
-
-    double a_inv3 = 1./(smf->a * smf->a * smf->a);
 
     for (i=0; i<nSmooth; ++i) {
 
@@ -405,6 +402,7 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
         }
 
 #ifdef EEOS_POLYTROPE
+        double a_inv3 = 1./(smf->a * smf->a * smf->a);
         const double pLpoly =
             polytropicPressureFloor(a_inv3, riemann_input.L.rho, smf->dConstGamma,
                                     smf->dEOSPolyFloorIndex, smf->dEOSPolyFloorDen, smf->dEOSPolyFlooru);
@@ -425,10 +423,11 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
 
         //Riemann_solver(pkd, riemann_input, &riemann_output, face_unit, /*double press_tot_limiter TODO For now, just p>0: */ 0.0);
-        double cs_L = sqrt(GAMMA * riemann_input.L.p / riemann_input.L.rho);
-        double cs_R = sqrt(GAMMA * riemann_input.R.p / riemann_input.R.rho);
         riemann_input.L.u  = riemann_input.L.p / (GAMMA_MINUS1 * riemann_input.L.rho);
         riemann_input.R.u  = riemann_input.R.p / (GAMMA_MINUS1 * riemann_input.R.rho);
+#ifndef OPTIM_FLUX_VEC
+        double cs_L = sqrt(GAMMA * riemann_input.L.p / riemann_input.L.rho);
+        double cs_R = sqrt(GAMMA * riemann_input.R.p / riemann_input.R.rho);
         double h_L = riemann_input.L.p/riemann_input.L.rho +
                      riemann_input.L.u +
                      0.5*(riemann_input.L.v[0]*riemann_input.L.v[0]+
@@ -450,7 +449,6 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
         // We just remove this to avoid the compiler from screaming.
         // This function is never called in this case.
-#ifndef OPTIM_FLUX_VEC
         Riemann_solver_exact(smf, riemann_input, &riemann_output, face_unit, v_line_L, v_line_R, cs_L, cs_R, h_L, h_R);
 #endif
 
@@ -654,7 +652,6 @@ void hydroRiemann_vec(PARTICLE *p,float fBall,int nSmooth,
 
     my_real pDensity = pkdDensity(pkd,p);
     my_real p_omega = psph->omega;
-    double a_inv3 = 1./(smf->a * smf->a * smf->a);
 
 
 #ifdef __INTEL_COMPILER
@@ -926,6 +923,7 @@ void hydroRiemann_vec(PARTICLE *p,float fBall,int nSmooth,
         }
 
 #ifdef EEOS_POLYTROPE
+        double a_inv3 = 1./(smf->a * smf->a * smf->a);
         const double pLpoly =
             polytropicPressureFloor(a_inv3, riemann_input.L.rho, smf->dConstGamma,
                                     smf->dEOSPolyFloorIndex, smf->dEOSPolyFloorDen, smf->dEOSPolyFlooru);
@@ -967,12 +965,12 @@ void hydroRiemann_vec(PARTICLE *p,float fBall,int nSmooth,
                           riemann_input.R.v[1]*face_unit[1] +
                           riemann_input.R.v[2]*face_unit[2];
 
-        int niter = Riemann_solver_exact(smf,
-                                         riemann_input.R.rho, riemann_input.R.p, riemann_input.R.v,
-                                         riemann_input.L.rho, riemann_input.L.p, riemann_input.L.v,
-                                         &riemann_output.P_M, &riemann_output.S_M,
-                                         &riemann_output.Fluxes.rho, &riemann_output.Fluxes.p, &riemann_output.Fluxes.v[0],
-                                         face_unit, v_line_L, v_line_R, cs_L, cs_R, h_L, h_R);
+        /*int niter =*/ Riemann_solver_exact(smf,
+                                             riemann_input.R.rho, riemann_input.R.p, riemann_input.R.v,
+                                             riemann_input.L.rho, riemann_input.L.p, riemann_input.L.v,
+                                             &riemann_output.P_M, &riemann_output.S_M,
+                                             &riemann_output.Fluxes.rho, &riemann_output.Fluxes.p, &riemann_output.Fluxes.v[0],
+                                             face_unit, v_line_L, v_line_R, cs_L, cs_R, h_L, h_R);
 
 
 
@@ -1125,7 +1123,6 @@ void hydroFluxUpdateFromBuffer(my_real **out_buffer, my_real **in_buffer,
     PKD pkd = smf->pkd;
     SPHFIELDS *psph = pkdSph(pkd,p);
     SPHFIELDS *qsph = pkdSph(pkd,q);
-    double aFac = smf->a;
     double dDelta = smf->dDelta;
     float *qmass = (float *)pkdField(q,pkd->oFieldOffset[oMass]);
     float *pmass = (float *)pkdField(p,pkd->oFieldOffset[oMass]);
@@ -1148,6 +1145,7 @@ void hydroFluxUpdateFromBuffer(my_real **out_buffer, my_real **in_buffer,
 #endif
 
 #ifndef USE_MFM
+        double aFac = smf->a;
         psph->drDotFrho[0] += out_buffer[out_minDt][i] * out_buffer[out_Frho][i] * in_buffer[q_dx][i] * aFac;
         psph->drDotFrho[1] += out_buffer[out_minDt][i] * out_buffer[out_Frho][i] * in_buffer[q_dy][i] * aFac;
         psph->drDotFrho[2] += out_buffer[out_minDt][i] * out_buffer[out_Frho][i] * in_buffer[q_dz][i] * aFac;

@@ -223,14 +223,12 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2,
     FMOMR monoPole;
     LOCR L;
     FLOCR Lf;
-    double dShiftFlop;
     const vel_t *v;
     const float *a;
     double r[3], k_r[3], c_r[3];
     double dOffset[3];
     double xParent,yParent,zParent;
-    double d2;
-    double dx[3],dir;
+    double dx[3];
     float fOffset[3];
     float dirLsum,normLsum;
     float fMass,fSoft;
@@ -626,12 +624,12 @@ found_it:
                                         dx[0] = k_r[0] - (blk->x.f[jTile] + blk->xOffset.f[jTile]);
                                         dx[1] = k_r[1] - (blk->y.f[jTile] + blk->yOffset.f[jTile]);
                                         dx[2] = k_r[2] - (blk->z.f[jTile] + blk->zOffset.f[jTile]);
-                                        d2 = dx[0]*dx[0] + dx[1]*dx[1] + dx[2]*dx[2];
-                                        dir = 1.0/sqrt(d2);
 #ifdef USE_SIMD_FMM
                                         monoPole.m = blk->m.f[jTile];
                                         ilcAppendFloat(pkd->ill,dx[0],dx[1],dx[2],&monoPole,1.0);
 #else
+                                        double d2 = dx[0]*dx[0] + dx[1]*dx[1] + dx[2]*dx[2];
+                                        double dir = 1.0/sqrt(d2);
                                         /* monoPole.m = blk->m.f[jTile];*/
                                         /* *pdFlop += momLocrAddFmomr5cm(&L,&monoPole,0.0,dir,dx[0],dx[1],dx[2],&tax,&tay,&taz);*/
                                         double tax,tay,taz;
@@ -662,12 +660,12 @@ found_it:
                                         for (j=0; j<3; ++j) dx[j] = k_r[j] - (c_r[j] + dOffset[j]);
                                         ilcAppendFloat(pkd->ill,dx[0],dx[1],dx[2],pkdNodeMom(pkd,c),c->bMax);
 #else
-                                        d2 = 0;
+                                        double d2 = 0;
                                         for (j=0; j<3; ++j) {
                                             dx[j] = k_r[j] - (c_r[j] + dOffset[j]);
                                             d2 += dx[j]*dx[j];
                                         }
-                                        dir = 1.0/sqrt(d2);
+                                        double dir = 1.0/sqrt(d2);
                                         dFlop = momLocrAddFmomr5cm(&L,pkdNodeMom(pkd,c),c->bMax,dir,dx[0],dx[1],dx[2],&tax,&tay,&taz);
                                         *pdFlop += dFlop;
                                         pkd->dFlopDoubleCPU += dFlop;
@@ -781,10 +779,10 @@ found_it:
                     pkd->S[iStack].dirLsum = dirLsum;
                     pkd->S[iStack].normLsum = normLsum;
                     pkdNodeGetPos(pkd,c,c_r);
-                    dShiftFlop = momShiftLocr(&pkd->S[iStack].L,
-                                              c_r[0] - xParent,
-                                              c_r[1] - yParent,
-                                              c_r[2] - zParent);
+                    momShiftLocr(&pkd->S[iStack].L,
+                                 c_r[0] - xParent,
+                                 c_r[1] - yParent,
+                                 c_r[2] - zParent);
                 }
             }
             else {
@@ -947,7 +945,7 @@ int pkdGravWalk(PKD pkd,struct pkdKickParameters *kick,struct pkdLightconeParame
                 double dThetaMin,double *pdFlop,double *pdPartSum,double *pdCellSum,SPHOptions *SPHoptions) {
     int id;
     float fOffset[3];
-    int ix,iy,iz,bRep;
+    int ix,iy,iz;
     int nActive = 0;
     SMX smx;
     SMF smf;
@@ -982,7 +980,6 @@ int pkdGravWalk(PKD pkd,struct pkdKickParameters *kick,struct pkdLightconeParame
                 fOffset[1] = iy*pkd->fPeriod[1];
                 for (iz=-nReps; iz<=nReps; ++iz) {
                     fOffset[2] = iz*pkd->fPeriod[2];
-                    bRep = ix || iy || iz;
                     addChild(pkd,CID_CELL,pkd->cl,iTop1,id,fOffset);
 #ifndef SINGLE_CACHES
                     if (iLocalRoot2>0) addChild(pkd,CID_CELL2,pkd->cl,iTop2,id,fOffset);
@@ -1015,7 +1012,6 @@ int pkdGravWalk(PKD pkd,struct pkdKickParameters *kick,struct pkdLightconeParame
                 fOffset[1] = iy*pkd->fPeriod[1];
                 for (iz=-nReps; iz<=nReps; ++iz) {
                     fOffset[2] = iz*pkd->fPeriod[2];
-                    bRep = ix || iy || iz;
                     addChild(pkd,CID_CELL,pkd->cl,iTop1,id,fOffset);
                 }
             }

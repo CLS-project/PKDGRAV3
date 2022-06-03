@@ -2241,7 +2241,6 @@ void pkdPhysicalSoft(PKD pkd,double dSoftMax,double dFac,int bSoftMaxMul) {
 
 static void initSetMarked(void *vpkd, void *v) {}
 static void combSetMarked(void *vpkd, void *v1, const void *v2) {
-    PKD pkd = (PKD) vpkd;
     PARTICLE *p1 = (PARTICLE *)v1;
     const PARTICLE *p2 = (const PARTICLE *)v2;
     if (p2->bMarked) p1->bMarked = 1;
@@ -2366,7 +2365,6 @@ void pkdCalcEandL(PKD pkd,double *T,double *U,double *Eth,double *L,double *F,do
         int n = pkdLocal(pkd);
         for (i=0; i<n; ++i) {
             PARTICLE *p = pkdParticle(pkd,i);
-            float fMass = pkdMass(pkd,p);
             if (pkdIsGas(pkd,p)) *Eth += pkdSph(pkd,p)->E;
         }
     }
@@ -2627,9 +2625,6 @@ void pkdProcessLightCone(PKD pkd,PARTICLE *p,float fPot,double dLookbackFac,doub
 void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,double dDeltaTime,int bDoGas) {
     PARTICLE *p;
     vel_t *v;
-    float *a;
-    float dfBalldt;
-    NEWSPHFIELDS *NewSph;
     int i,j;
     double rfinal[3],r0[3],dMin[3],dMax[3],dr[3];
     int pLower, pUpper;
@@ -2702,8 +2697,8 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
                 p = pkdParticle(pkd,i);
                 v = pkdVel(pkd,p);
                 // if (pkdIsGas(pkd,p)) {
-                // NewSph = pkdNewSph(pkd,p);
-                // dfBalldt = 1.0f / 3.0f * pkdBall(pkd,p) * pkdDensity(pkd,p) * NewSph->divv;
+                // NEWSPHFIELDS *NewSph = pkdNewSph(pkd,p);
+                // float dfBalldt = 1.0f / 3.0f * pkdBall(pkd,p) * pkdDensity(pkd,p) * NewSph->divv;
                 // pkdSetBall(pkd,p,pkdBall(pkd,p) + dDelta * dfBalldt);
                 // }
                 for (j=0; j<3; ++j) {
@@ -2803,7 +2798,7 @@ void pkdEndTimestepIntegration(PKD pkd, struct inEndTimestep in) {
     PARTICLE *p;
     SPHFIELDS *psph;
     int i;
-    double pDelta, dScaleFactor, dRedshift, dHubble, pa[3];
+    double pDelta, dScaleFactor, dHubble, pa[3];
 
     int bComove = pkd->csm->val.bComove;
 
@@ -2815,16 +2810,16 @@ void pkdEndTimestepIntegration(PKD pkd, struct inEndTimestep in) {
 
     if (bComove) {
         dScaleFactor = csmTime2Exp(pkd->csm,in.dTime);
-        dRedshift = 1./dScaleFactor - 1.;
         dHubble = csmTime2Hub(pkd->csm,in.dTime);
     }
     else {
         dScaleFactor = 1.0;
-        dRedshift = 0.0;
         dHubble = 0.0;
     }
+#if defined(COOLING) || defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
     const double a_inv = 1./dScaleFactor;
     const double a_inv3 = a_inv*a_inv*a_inv;
+#endif
 #ifdef GRACKLE
     pkdGrackleUpdate(pkd, dScaleFactor, in.achCoolingTable, in.units);
 #endif
@@ -2840,11 +2835,11 @@ void pkdEndTimestepIntegration(PKD pkd, struct inEndTimestep in) {
             }
 #endif
 
+#if defined(COOLING) || defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
             float fMass = pkdMass(pkd, p);
             float fDens = pkdDensity(pkd, p);
             const float fDensPhys = fDens*a_inv3;
-            const float f2Ball = 2.*pkdBall(pkd,p);
-
+#endif
             if (in.dDelta > 0) {
                 pDelta = in.dTime - psph->lastUpdateTime;
             }
@@ -2869,6 +2864,7 @@ void pkdEndTimestepIntegration(PKD pkd, struct inEndTimestep in) {
 
             // ##### Cooling
 #ifdef COOLING
+            double dRedshift = 1./dScaleFactor - 1.;
             const float delta_redshift = -pDelta * dHubble * (dRedshift + 1.);
             cooling_cool_part(pkd, pkd->cooling, p, psph, pDelta, in.dTime, delta_redshift, dRedshift);
 #endif
@@ -2916,6 +2912,7 @@ void pkdEndTimestepIntegration(PKD pkd, struct inEndTimestep in) {
 #endif
 
 #ifdef  EEOS_JEANS
+            const float f2Ball = 2.*pkdBall(pkd,p);
             const double Ujeans = fMass * jeansEnergyFloor(fDens, f2Ball, in.dConstGamma, in.dEOSNJeans);
 
             if (psph->Uint < Ujeans)
@@ -3010,7 +3007,6 @@ void pkdKick(PKD pkd,double dTime,double dDelta,int bDoGas,double dDeltaVPred,do
     PARTICLE *p;
     vel_t *v;
     float *a;
-    SPHFIELDS *sph;
     int i,j,n;
 
     assert(pkd->oFieldOffset[oVelocity]);
@@ -3026,7 +3022,7 @@ void pkdKick(PKD pkd,double dTime,double dDelta,int bDoGas,double dDeltaVPred,do
                 if (pkdIsRungRange(p,uRungLo,uRungHi)) {
                     v = pkdVel(pkd,p);
                     if (pkdIsGas(pkd,p)) {
-                        //sph = pkdSph(pkd,p);
+                        //SPHFIELDS *sph = pkdSph(pkd,p);
                         //sph->vPred[0] = v[0];
                         //sph->vPred[1] = v[1];
                         //sph->vPred[2] = v[2];
@@ -3049,8 +3045,8 @@ void pkdKick(PKD pkd,double dTime,double dDelta,int bDoGas,double dDeltaVPred,do
                     a = pkdAccel(pkd,p);
                     v = pkdVel(pkd,p);
                     if (pkdIsGas(pkd,p)) {
-                        sph = pkdSph(pkd,p);
 #ifndef OPTIM_REMOVE_UNUSED
+                        SPHFIELDS *sph = pkdSph(pkd,p);
                         for (j=0; j<3; ++j) { /* NB: Pred quantities must be done before std. */
                             sph->vPred[j] = v[j] + a[j]*dDeltaVPred;
                         }
@@ -3204,8 +3200,7 @@ void pkdAccelStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
 
 void pkdSphStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
                 double dDelta, int iMaxRung,double dEta, double dAccFac, double dEtaUDot) {
-    PARTICLE *p;
-    float *a, uDot;
+#ifndef OPTIM_REMOVE_UNUSED
     int i,j,uNewRung;
     double acc;
     double dtNew;
@@ -3215,13 +3210,12 @@ void pkdSphStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
     assert(pkd->oFieldOffset[oSph]);
     assert(!pkd->bNoParticleOrder);
 
-#ifndef OPTIM_REMOVE_UNUSED
     for (i=0; i<pkdLocal(pkd); ++i) {
-        p = pkdParticle(pkd,i);
+        PARICLE *p = pkdParticle(pkd,i);
         if (pkdIsActive(pkd,p)) {
             if (pkdIsGas(pkd,p)) {
                 u1 = p->uNewRung;
-                a = pkdAccel(pkd,p);
+                FLOAT *a = pkdAccel(pkd,p);
                 acc = 0;
                 for (j=0; j<3; j++) {
                     acc += a[j]*a[j];
@@ -3230,7 +3224,7 @@ void pkdSphStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
                 dtNew = FLOAT_MAXVAL;
                 if (acc>0) dtNew = dEta*sqrt(pkdBall(pkd,p)/acc);
                 u2 = pkdDtToRung(dtNew,dDelta,iMaxRung);
-                uDot = *pkd_uDot(pkd,p);
+                float uDot = *pkd_uDot(pkd,p);
                 u3=0;
                 if (uDot < 0) {
                     double dtemp = dEtaUDot*(*pkd_u(pkd,p))/fabs(uDot);

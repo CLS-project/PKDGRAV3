@@ -208,7 +208,7 @@ int mdlGetArgc(void *mdl);
 char **mdlGetArgv(void *mdl);
 
 
-void mdlDiag(void *mdl, char *psz);
+void mdlDiag(void *mdl, const char *psz);
 #ifdef MDLASSERT
 #ifndef __STRING
 #define __STRING( arg )   (("arg"))

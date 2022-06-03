@@ -2098,15 +2098,7 @@ void MSR::RecvArray(void *vBuffer,int field,int iUnitSize,double dTime,bool bMar
 */
 void MSR::AllNodeWrite(const char *pszFileName, double dTime, double dvFac, int bDouble) {
     int nProcessors;
-    PST pst0;
-    LCL *plcl;
     struct inWrite in;
-
-    pst0 = pst;
-    while (pst0->nLeaves > 1)
-        pst0 = pst0->pstLower;
-    plcl = pst0->plcl;
-
 
     /*
     ** Add Data Subpath for local and non-local names.
@@ -2201,7 +2193,6 @@ void MSR::Write(const char *pszFileName,double dTime,int bCheckpoint) {
     int nProcessors;
     double dvFac, dExp;
     double dsec;
-    uint64_t N;
 
 #ifdef NAIVE_DOMAIN_DECOMP
     Reorder();
@@ -2213,7 +2204,7 @@ void MSR::Write(const char *pszFileName,double dTime,int bCheckpoint) {
     ** Calculate where to start writing.
     ** This sets plcl->nWriteStart.
     */
-    N = CalcWriteStart();
+    /*uint64_t N =*/ CalcWriteStart();
     /*
     ** Add Data Subpath for local and non-local names.
     */
@@ -2919,7 +2910,6 @@ void MSR::Smooth(double dTime,double dDelta,int iSmoothType,int bSymmetric,int n
 int MSR::ReSmooth(double dTime,double dDelta,int iSmoothType,int bSymmetric) {
     struct inSmooth in;
     struct outSmooth out;
-    int nOut;
 
     in.nSmooth = param.nSmooth;
     in.bPeriodic = param.bPeriodic;
@@ -2944,7 +2934,6 @@ int MSR::ReSmooth(double dTime,double dDelta,int iSmoothType,int bSymmetric) {
 int MSR::ReSmoothNode(double dTime, double dDelta,int iSmoothType,int bSymmetric) {
     struct inSmooth in;
     struct outSmooth out;
-    int nOut;
 
     in.nSmooth = param.nSmooth;
     in.bPeriodic = param.bPeriodic;
@@ -3605,7 +3594,7 @@ int cmpTime(const void *v1,const void *v2) {
 void MSR::ReadOuts(double dTime,double dDelta) {
     char achFile[PST_FILENAME_SIZE];
     FILE *fp;
-    int i,ret;
+    int ret;
     double z,a,t,n;
     char achIn[80];
 
@@ -3620,7 +3609,6 @@ void MSR::ReadOuts(double dTime,double dDelta) {
 
     fp = fopen(achFile,"r");
     if (!fp) return;
-    i = 0;
     while (1) {
         if (!fgets(achIn,80,fp)) goto NoMoreOuts;
         switch (achIn[0]) {
@@ -3764,11 +3752,9 @@ void MSR::AccelStep(uint8_t uRungLo,uint8_t uRungHi,double dTime,double dDelta) 
 
 /* Requires full forces and full udot (i.e. sph and cooling both done) */
 void MSR::SphStep(uint8_t uRungLo,uint8_t uRungHi,double dTime,double dDelta) {
-    struct inSphStep in;
-    double a;
-
 #ifndef OPTIM_REMOVE_UNUSED
-    a = csmTime2Exp(csm,dTime);
+    struct inSphStep in;
+    double a = csmTime2Exp(csm,dTime);
     in.dAccFac = 1.0/(a*a*a);
     in.dEta = param.dEta;
     in.dEtaUDot = param.dEtaUDot;
@@ -4623,15 +4609,7 @@ void MSR::ChemCompInit() {
 /* END Gas routines */
 
 void MSR::HopWrite(const char *fname) {
-    LCL *plcl;
-    PST pst0;
     double dsec;
-
-    pst0 = pst;
-    while (pst0->nLeaves > 1)
-        pst0 = pst0->pstLower;
-    plcl = pst0->plcl;
-
 
     if (param.bVStep)
         printf("Writing group statistics to %s\n", fname );
@@ -5060,13 +5038,6 @@ double MSR::Read(const char *achInFile) {
     uint64_t nSpecies[FIO_SPECIES_LAST];
     inReadFileFilename achFilename;
     uint64_t mMemoryModel = 0;
-    LCL *plcl;
-    PST pst0;
-
-    pst0 = pst;
-    while (pst0->nLeaves > 1)
-        pst0 = pst0->pstLower;
-    plcl = pst0->plcl;
 
     mMemoryModel = getMemoryModel();
 

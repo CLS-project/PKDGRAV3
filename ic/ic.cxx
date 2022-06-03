@@ -844,9 +844,9 @@ int pstMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
         if (pkd->bIntegerPosition && pkd->bNoParticleOrder) nSize = sizeof(integerParticle);
         char *pBase = (char *)pkdParticleBase(pkd);
         char *pRecv = pBase + nSize*nLocal;
-        char *eBase;
+        //char *eBase;
         if (nLocal > nPerNode) {      /* Too much here: send extra particles to other nodes */
-            eBase = pBase + nSize*nPerNode;
+            //eBase = pBase + nSize*nPerNode;
             iUnderBeg = 0;
             iOverEnd = iOverBeg + nLocal - nPerNode;
             for (iProc=0; iProc<mdl->Procs(); ++iProc) {
@@ -870,7 +870,7 @@ int pstMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
             assert(nLocal == nPerNode);
         }
         else if (nLocal < nPerNode) { /* We have room: *maybe* receive particles from other nodes */
-            eBase = pBase + nSize*nLocal;
+            //eBase = pBase + nSize*nLocal;
             iOverBeg = 0;
             iUnderEnd = iUnderBeg + nPerNode - nLocal;
             for (iProc=0; iProc<mdl->Procs(); ++iProc) {
@@ -910,10 +910,6 @@ int pstMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
         /* We need to relocate the particles */
         struct inMoveIC move;
-        uint64_t nTotal;
-        nTotal = in->nGrid; /* Careful: 32 bit integer cubed => 64 bit integer */
-        nTotal *= in->nGrid;
-        nTotal *= in->nGrid;
         move.pBase = (overlayedParticle *)pkdParticleBase(pkd);
         move.iStart = 0;
         move.nMove = nLocal;

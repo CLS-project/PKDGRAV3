@@ -428,6 +428,7 @@ static inline void sample_reimann_vaccum_internal(SMF *smf, double S,
 /*    take the face state we have calculated from the exact Riemann solution and get the corresponding fluxes */
 /*   (written by V. Springel for AREPO, with minor modifications) */
 /* -------------------------------------------------------------------------------------------------------------- */
+#ifndef USE_MFM
 static void convert_face_to_flux(SMF *smf,
                                  double *rho_f, double *p_f, double *v_f,
                                  double n_unit[3]) {
@@ -449,7 +450,7 @@ static void convert_face_to_flux(SMF *smf,
         v_f[k] = (*rho_f) * v[k] + P * n_unit[k];
     return;
 }
-
+#endif
 
 static inline int Riemann_solver_exact(SMF *smf,
                                        double R_rho,double R_p, double R_v[3], double L_rho,double L_p, double L_v[3],

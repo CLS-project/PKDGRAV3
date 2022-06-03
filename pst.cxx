@@ -2234,10 +2234,9 @@ int pstCalcCOM(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
 int pstCalcMtot(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
-    auto in = static_cast<struct inCalcMtot *>(vin);
+    //auto in = static_cast<struct inCalcMtot *>(vin);
     auto out = static_cast<struct outCalcMtot *>(vout);
     struct outCalcMtot outUpper;
-    int i;
 
     assert( nIn==sizeof(struct inCalcMtot) );
     assert( vout != NULL );
@@ -2258,7 +2257,6 @@ int pstCalcMtot(PST pst,void *vin,int nIn,void *vout,int nOut) {
 int pstSetSPHoptions(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
     auto in = static_cast<struct inSetSPHoptions *>(vin);
-    int i;
 
     assert( nIn==sizeof(struct inSetSPHoptions) );
     if (pst->nLeaves > 1) {
