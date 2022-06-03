@@ -20,19 +20,10 @@
 
 #define USE_GSL_COSMO
 #ifdef USE_GSL_COSMO
-#include <gsl/gsl_integration.h>
-#include <gsl/gsl_spline.h>
-#include <gsl/gsl_interp2d.h>
-#include <gsl/gsl_spline2d.h>
-/* This is the same as gsl_spline_eval, except that it will extrapolate beyond the end. */
-inline double csm_spline_eval(gsl_spline *spline, double v, gsl_interp_accel *accel) {
-    if (v>spline->x[spline->size-1]) {
-        double m = (spline->y[spline->size-1] - spline->y[spline->size-2])
-                   / (spline->x[spline->size-1] - spline->x[spline->size-2]);
-        return spline->y[spline->size-1] + m*(v-spline->x[spline->size-1]);
-    }
-    else return gsl_spline_eval(spline,v,accel);
-}
+    #include <gsl/gsl_integration.h>
+    #include <gsl/gsl_spline.h>
+    #include <gsl/gsl_interp2d.h>
+    #include <gsl/gsl_spline2d.h>
 #endif
 
 /*
@@ -145,6 +136,17 @@ typedef struct csmContext {
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/* This is the same as gsl_spline_eval, except that it will extrapolate beyond the end. */
+inline double csm_spline_eval(gsl_spline *spline, double v, gsl_interp_accel *accel) {
+    if (v>spline->x[spline->size-1]) {
+        double m = (spline->y[spline->size-1] - spline->y[spline->size-2])
+                   / (spline->x[spline->size-1] - spline->x[spline->size-2]);
+        return spline->y[spline->size-1] + m*(v-spline->x[spline->size-1]);
+    }
+    else return gsl_spline_eval(spline,v,accel);
+}
+
 void csmClassRead(CSM csm, const char *achFilename, double dBoxSize, double h,
                   int nLinear, const char **aLinear, int nPower, const char **aPower);
 void csmClassGslInitialize(CSM csm);
