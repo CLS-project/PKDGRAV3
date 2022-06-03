@@ -48,6 +48,7 @@ SPHOptions initializeSPHOptions(struct parameters param, CSM csm, double dTime) 
         SPHoptions.a = 1.0f;
         SPHoptions.H = 0.0f;
     }
+    SPHoptions.bNewSPH = param.bNewSPH;
     SPHoptions.doGravity = 0;
     SPHoptions.doDensity = 0;
     SPHoptions.doSPHForces = 0;
@@ -76,6 +77,7 @@ void copySPHOptions(SPHOptions *source, SPHOptions *target) {
     target->fBallFactor = source->fBallFactor;
     target->a = source->a;
     target->H = source->H;
+    target->bNewSPH = source->bNewSPH;
     target->doGravity = 0;
     target->doDensity = 0;
     target->doSPHForces = 0;

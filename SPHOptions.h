@@ -49,6 +49,7 @@ typedef struct {
     int nSmooth;
     float ballSizeLimit;
     float fBallFactor;
+    uint64_t bNewSPH : 1;
     uint64_t doGravity : 1;
     uint64_t doDensity : 1;
     uint64_t doSPHForces : 1;
