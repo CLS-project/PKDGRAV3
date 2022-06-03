@@ -68,6 +68,7 @@ typedef struct {
     ilpFloat rho;           /* Density */
     ilpFloat P;             /* Pressure */
     ilpFloat c;             /* sound speed */
+    ilpFloat uRung;         /* rung (has to be float, because the max simd function is only float) */
     ilpInt32 species;       /* particle species, can be compared with FIO_SPECIES */
 } ILP_BLK;
 
@@ -115,7 +116,7 @@ void ilpFinish(ILP ilp);
 
 static inline void ilpAppendFloat(ILP ilp, float X, float Y, float Z, float M, float S,
                                   uint64_t I, float VX, float VY, float VZ, float fBall, float Omega, float rho,
-                                  float P, float c, int32_t species ) {
+                                  float P, float c, int32_t species, float uRung ) {
     ILPTILE tile = (ILPTILE)lstReposition(&ilp->lst);
     uint_fast32_t blk = tile->lstTile.nBlocks;
     uint_fast32_t prt = tile->lstTile.nInLast;
@@ -133,6 +134,7 @@ static inline void ilpAppendFloat(ILP ilp, float X, float Y, float Z, float M, f
     tile->blk[blk].P.f[prt] = (P);
     tile->blk[blk].c.f[prt] = (c);
     tile->blk[blk].species.i[prt] = (species);
+    tile->blk[blk].uRung.f[prt] = (uRung);
     assert( (M) > 0.0 );
 #ifdef TIMESTEP_CRITICAL
     tile->xtr[blk].iOrder.i[prt] = (I);
@@ -145,9 +147,9 @@ static inline void ilpAppendFloat(ILP ilp, float X, float Y, float Z, float M, f
 
 static inline void ilpAppend(ILP ilp, double X, double Y, double Z, float M, float S,
                              uint64_t I, float VX, float VY, float VZ, float fBall, float Omega, float rho,
-                             float P, float c, int32_t species ) {
+                             float P, float c, int32_t species, int uRung ) {
     ilpAppendFloat(ilp,(float)((ilp)->cx-(X)),(float)((ilp)->cy-(Y)),(float)((ilp)->cz-(Z)),M,S,I,VX,VY,VZ,
-                   fBall,Omega,rho,P,c,species);
+                   fBall,Omega,rho,P,c,species,(float)uRung);
 }
 #define ILP_LOOP(ilp,ptile) for( ptile=(ILPTILE)((ilp)->lst.list); ptile!=NULL; ptile=(ILPTILE)(ptile->lstTile.next) )
 

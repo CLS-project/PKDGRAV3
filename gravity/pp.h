@@ -128,14 +128,14 @@ CUDA_DEVICE ResultDensity<F> EvalDensity(
 
 template<class F=float>
 struct ResultSPHForces {
-    F uDot, ax, ay, az, divv, dtEst;
+    F uDot, ax, ay, az, divv, dtEst, maxRung;
 };
 template<class F,class M,class Ivec>
 CUDA_DEVICE ResultSPHForces<F> EvalSPHForces(
     F Pdx, F Pdy, F Pdz, F PfBall, F POmega,     // Particle
     F Pvx, F Pvy, F Pvz, F Prho, F PP, F Pc, Ivec Pspecies,
     F Idx, F Idy, F Idz, F Im, F IfBall, F IOmega,      // Interactions
-    F Ivx, F Ivy, F Ivz, F Irho, F IP, F Ic, Ivec Ispecies,
+    F Ivx, F Ivy, F Ivz, F Irho, F IP, F Ic, Ivec Ispecies, F uRung,
     int kernelType, float epsilon, float alpha, float beta,
     float EtaCourant,float a,float H,bool useIsentropic) {
     ResultSPHForces<F> result;
@@ -238,6 +238,7 @@ CUDA_DEVICE ResultSPHForces<F> EvalSPHForces(
         result.dtEst = 0.5f * PfBall / (dtC * Pc - dtMu * muij);
         mask1 = Pr_lt_one | Ir_lt_one;
         result.dtEst = mask_mov(HUGE_VALF,mask1,result.dtEst);
+        result.maxRung = maskz_mov(mask1,uRung);
 
         // for (int index = 0; index<8;index++) {
         // if (ax[index] != ax[index]) {
@@ -263,6 +264,7 @@ CUDA_DEVICE ResultSPHForces<F> EvalSPHForces(
         result.az = 0.0f;
         result.divv = 0.0f;
         result.dtEst = HUGE_VALF;
+        result.maxRung = 0.0f;
     }
     return result;
 }
