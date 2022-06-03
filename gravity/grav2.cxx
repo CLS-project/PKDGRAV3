@@ -289,6 +289,11 @@ void pkdParticleWorkDone(workParticle *wp) {
                             dT = fmin(dT,wp->pInfoOut[i].dtEst);
                         }
                         uNewRung = pkdDtToRungInverse(dT,fiDelta,wp->ts->uMaxRung-1);
+                        if (pkd->oFieldOffset[oNewSph]) {
+                            int maxRungInKernel = (int)round(wp->pInfoOut[i].maxRung);
+                            int tempNewRung = MAX((int)uNewRung,maxRungInKernel - wp->SPHoptions->nRungCorrection);
+                            uNewRung = MAX(tempNewRung,0);
+                        }
                     }
                     else uNewRung = 0; /* Assumes current uNewRung is outdated -- not ideal */
                 } /* end of wp->bGravStep */
@@ -307,6 +312,11 @@ void pkdParticleWorkDone(workParticle *wp) {
                             dT = fmin(dT,wp->pInfoOut[i].dtEst);
                         }
                         uNewRung = pkdDtToRungInverse(dT,fiDelta,wp->ts->uMaxRung-1);
+                        if (pkd->oFieldOffset[oNewSph]) {
+                            int maxRungInKernel = (int)round(wp->pInfoOut[i].maxRung);
+                            int tempNewRung = MAX((int)uNewRung,maxRungInKernel - wp->SPHoptions->nRungCorrection);
+                            uNewRung = MAX(tempNewRung,0);
+                        }
                     }
                     else uNewRung = 0;
                 }
@@ -456,6 +466,7 @@ int CPUdoWorkSPHForces(void *vpp) {
     pOut->a[2] = 0.0;
     pOut->divv = 0.0;
     pOut->dtEst = HUGE_VALF;
+    pOut->maxRung = 0.0f;
     pkdSPHForcesEval(pPart,nBlocks,nInLast,blk,pOut,SPHoptions);
     //wp->dFlopSingleCPU += COST_FLOP_PP*(tile->lstTile.nBlocks*ILP_PART_PER_BLK  + tile->lstTile.nInLast);
     if ( ++pp->i == pp->work->nP ) return 0;
@@ -510,6 +521,7 @@ int doneWorkSPHForces(void *vpp) {
         pp->work->pInfoOut[i].a[2] += pp->pInfoOut[i].a[2];
         pp->work->pInfoOut[i].divv += pp->pInfoOut[i].divv;
         pp->work->pInfoOut[i].dtEst = fmin(pp->work->pInfoOut[i].dtEst,pp->pInfoOut[i].dtEst);
+        pp->work->pInfoOut[i].maxRung = fmax(pp->work->pInfoOut[i].maxRung,pp->pInfoOut[i].maxRung);
     }
     lstFreeTile(&pp->ilp->lst,&pp->tile->lstTile);
     pkdParticleWorkDone(pp->work);
@@ -787,6 +799,7 @@ int pkdGravInteract(PKD pkd,
             wp->pInfoOut[nP].uDot = 0.0f;
             wp->pInfoOut[nP].divv = 0.0f;
             wp->pInfoOut[nP].dtEst = HUGE_VALF;
+            wp->pInfoOut[nP].maxRung = 0.0f;
         }
 
         wp->pInfoOut[nP].a[0] = 0.0f;

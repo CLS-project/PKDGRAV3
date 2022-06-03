@@ -173,8 +173,8 @@ void pkdSPHForcesEval(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  P
     fvec PfBall, POmega, Pdx, Pdy, Pdz, Pvx, Pvy, Pvz, Prho, PP, Pc;
     fvec IfBall, IOmega, Idx, Idy, Idz, Ivx, Ivy, Ivz, Irho, IP, Ic, Im;
     i32v Pspecies, Ispecies;
-    fvec puDot, pax, pay, paz, pdivv, pdtEst;
-    float auDot, aax, aay, aaz, adivv, adtEst;
+    fvec puDot, pax, pay, paz, pdivv, pdtEst, pMaxRung;
+    float auDot, aax, aay, aaz, adivv, adtEst, aMaxRung;
 
     float fx = pPart->r[0];
     float fy = pPart->r[1];
@@ -203,6 +203,7 @@ void pkdSPHForcesEval(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  P
         blk[nBlocks].m.f[j] = 0.0f;
         blk[nBlocks].P.f[j] = 0.0f;
         blk[nBlocks].c.f[j] = 0.0f;
+        blk[nBlocks].uRung.f[j] = 0.0f;
     }
 
     Pdx     = fx;
@@ -220,6 +221,7 @@ void pkdSPHForcesEval(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  P
 
     puDot = pax = pay = paz = pdivv = 0.0f;
     pdtEst = HUGE_VALF;
+    pMaxRung = 0.0f;
 
     for ( nLeft=nBlocks; nLeft >= 0; --nLeft,++blk ) {
         int n = (nLeft ? ILP_PART_PER_BLK : nInLast+fvec::mask()) >> SIMD_BITS;
@@ -237,9 +239,10 @@ void pkdSPHForcesEval(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  P
             fvec IP = blk->P.p[j];
             fvec Ic = blk->c.p[j];
             i32v Ispecies = blk->species.p[j];
+            fvec uRung = blk->uRung.p[j];
 
             auto result = EvalSPHForces<fvec,fmask,i32v>(Pdx,Pdy,Pdz,PfBall,POmega,Pvx,Pvy,Pvz,Prho,PP,Pc,Pspecies,
-                          Idx,Idy,Idz,Im,IfBall,IOmega,Ivx,Ivy,Ivz,Irho,IP,Ic,Ispecies,
+                          Idx,Idy,Idz,Im,IfBall,IOmega,Ivx,Ivy,Ivz,Irho,IP,Ic,Ispecies,uRung,
                           SPHoptions->kernelType,SPHoptions->epsilon,SPHoptions->alpha,SPHoptions->beta,
                           SPHoptions->EtaCourant,SPHoptions->a,SPHoptions->H,SPHoptions->useIsentropic);
             puDot += result.uDot;
@@ -248,6 +251,7 @@ void pkdSPHForcesEval(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  P
             paz += result.az;
             pdivv += result.divv;
             pdtEst = min(pdtEst,result.dtEst);
+            pMaxRung = max(pMaxRung,result.maxRung);
         }
     }
     auDot = hadd(puDot);
@@ -256,9 +260,13 @@ void pkdSPHForcesEval(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  P
     aaz = hadd(paz);
     adivv = hadd(pdivv);
     adtEst = HUGE_VALF;
+    aMaxRung = 0.0f;
     // This should be a horizontal minimum for an fvec, resulting in a float containing the smallest float in the fvec
     for (int k = 0; k < pdtEst.width(); k++) {
         adtEst = fmin(adtEst,pdtEst[k]);
+    }
+    for (int k = 0; k < pMaxRung.width(); k++) {
+        aMaxRung = fmax(aMaxRung,pMaxRung[k]);
     }
     assert(adtEst > 0);
 
@@ -268,5 +276,6 @@ void pkdSPHForcesEval(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  P
     pOut->a[2] += aaz;
     pOut->divv += adivv;
     pOut->dtEst = fmin(pOut->dtEst,adtEst);
+    pOut->maxRung = fmax(pOut->maxRung,aMaxRung);
 }
 #endif/*USE_SIMD_PP*/
