@@ -35,7 +35,7 @@ static const std::complex<float> I(0,1);
 
 typedef blitz::Array<basicParticle,3> basicParticleArray;
 static basicParticleArray getOutputArray(PKD pkd,GridInfo &G,real_array_t &R) {
-    void *pData = mdlSetArray(pkd->mdl,0,0,pkdParticleBase(pkd));
+    void *pData = mdlSetArray(pkd->mdl,0,0,pkd->ParticleBase());
     if (blitz::product(R.shape())) {
         basicParticleArray fullOutput(
             reinterpret_cast<basicParticle *>(pData),
@@ -209,7 +209,7 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int bFixed,float fPhase,int nGrid
     GridInfo G(pkd->mdl,fft);
     complex_array_t K[10];
     real_array_t R[10];
-    auto data = reinterpret_cast<real_t *>(mdlSetArray(pkd->mdl,0,0,pkdParticleBase(pkd)));
+    auto data = reinterpret_cast<real_t *>(mdlSetArray(pkd->mdl,0,0,pkd->ParticleBase()));
     for (auto i=0; i<10; ++i) {
         G.setupArray(data,K[i]);
         G.setupArray(data,R[i]);
@@ -379,7 +379,7 @@ int pkdGenerateClassICm(PKD pkd, MDLFFT fft, int iSeed, int bFixed, float fPhase
     GridInfo G(pkd->mdl,fft);
     complex_array_t K[10];
     real_array_t R[10];
-    auto data = reinterpret_cast<real_t *>(mdlSetArray(pkd->mdl,0,0,pkdParticleBase(pkd)));
+    auto data = reinterpret_cast<real_t *>(mdlSetArray(pkd->mdl,0,0,pkd->ParticleBase()));
     for (auto i=0; i<10; ++i) {
         G.setupArray(data,K[i]);
         G.setupArray(data,R[i]);
@@ -640,7 +640,7 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
             fDarkSoft = in->fSoft;
         }
         for (i=in->nMove-1; i>=0; --i) {
-            PARTICLE *p = pkdParticle(pkd,i);
+            PARTICLE *p = pkd->Particle(i);
             vel_t *pVel = pkdVel(pkd,p);
             // If we have no particle order convert directly to Integerized positions.
             // We do this to save space as an "Integer" particle is small.
@@ -680,8 +680,8 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
             float *pPot = pkdPot(pkd,p);
             if (pPot) pPot = 0;
             if (in->bICgas) {
-                PARTICLE *pgas = pkdParticle(pkd, i+in->nMove);
-                pkdCopyParticle(pkd, pgas, p);
+                PARTICLE *pgas = pkd->Particle( i+in->nMove);
+                pkd->CopyParticle(pgas, p);
                 pkdSetClass(pkd, fGasMass, fGasSoft, FIO_SPECIES_SPH, pgas);
 
                 if (pkd->oFieldOffset[oParticleID]) {
@@ -794,11 +794,8 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
                 pSph->uWake = 0;
             }
         }
-        pkd->nLocal = pkd->nActive = in->nMove;
-        if (in->bICgas) {
-            pkd->nLocal *= 2;
-            pkd->nActive *= 2;
-        }
+        if (in->bICgas) pkd->SetLocal( pkd->nActive = in->nMove * 2);
+        else pkd->SetLocal(pkd->nActive = in->nMove);
     }
     return 0;
 }
@@ -830,7 +827,7 @@ int pstMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
         assert(pstAmNode(pst));
         assert(fft != NULL);
 
-        uint64_t nPerNode = (uint64_t)mdl->Cores() * pkd->nStore;
+        uint64_t nPerNode = (uint64_t)mdl->Cores() * pkd->FreeStore();
         uint64_t nLocal = (int64_t)fft->rgrid->rn[myProc] * in->nGrid*in->nGrid;
 
         /* Calculate how many slots are free (under) and how many need to be sent (over) before my rank */
@@ -842,7 +839,7 @@ int pstMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
         }
         size_t nSize = sizeof(expandParticle);
         if (pkd->bIntegerPosition && pkd->bNoParticleOrder) nSize = sizeof(integerParticle);
-        char *pBase = (char *)pkdParticleBase(pkd);
+        char *pBase = (char *)pkd->ParticleBase();
         char *pRecv = pBase + nSize*nLocal;
         //char *eBase;
         if (nLocal > nPerNode) {      /* Too much here: send extra particles to other nodes */
@@ -910,7 +907,7 @@ int pstMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
         /* We need to relocate the particles */
         struct inMoveIC move;
-        move.pBase = (overlayedParticle *)pkdParticleBase(pkd);
+        move.pBase = (overlayedParticle *)pkd->ParticleBase();
         move.iStart = 0;
         move.nMove = nLocal;
         move.fMass = in->dBoxMass;
@@ -1011,7 +1008,7 @@ int pstGenerateIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
         /* Expand the particles by adding an iOrder */
         assert(sizeof(expandParticle) >= sizeof(basicParticle));
-        overlayedParticle   *pbBase = (overlayedParticle *)pkdParticleBase(pkd);
+        overlayedParticle   *pbBase = (overlayedParticle *)pkd->ParticleBase();
         int iz = fft->rgrid->rs[myProc] + fft->rgrid->rn[myProc];
         int iy=0, ix=0;
         float inGrid = 1.0 / in->nGrid;

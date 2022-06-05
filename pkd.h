@@ -760,37 +760,113 @@ enum PKD_FIELD {
     MAX_PKD_FIELD
 };
 
-typedef struct pkdContext {
-    MDL mdl;
-    int idSelf;
-    int nThreads;
-    int nStore;
-    int nRejects;
-    int nLocal;
-    int nActive;
+class pkdContext {
+public:
+    explicit pkdContext(
+        mdl::mdlClass *mdl,int nStore,uint64_t nMinTotalStore,uint64_t nMinEphemeral,uint32_t nEphemeralBytes,
+        int nTreeBitsLo, int nTreeBitsHi,
+        int iCacheSize,int iWorkQueueSize,int iCUDAQueueSize,double *fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,uint64_t nBH,
+        uint64_t mMemoryModel, int bLightCone, int bLightConeParticles);
+    virtual ~pkdContext();
+
+protected:  // Support for memory models
+    int NodeAddStruct    (int n);   // Add a NODE structure: assume double alignment
+    int NodeAddDouble    (int n=1); // Add n doubles to the node structure
+    int NodeAddFloat     (int n=1); // Add n floats to the node structure
+    int NodeAddInt64     (int n=1); // Add n 64-bit integers to the node structure
+    int NodeAddInt32     (int n=1); // Add n 32-bit integers to the node structure
+    int ParticleAddStruct(int n);   // Add a structure: assume double alignment
+    int ParticleAddDouble(int n=1); // Add n doubles to the particle structure
+    int ParticleAddFloat (int n=1); // Add n floats to the particle structure
+    int ParticleAddInt64 (int n=1); // Add n 64-bit integers to the particle structure
+    int ParticleAddInt32 (int n=1); // Add n 32-bit integers to the particle structure
+protected:
+    PARTICLE *pStorePRIVATE = nullptr;
+    PARTICLE *pTempPRIVATE = nullptr;
+    int nStore = 0; // Maximum local particles
+    int nLocal = 0; // Current number of particles
+    size_t nParticleAlign = 0, iParticle32 = 0;
+    size_t iParticleSize = 0; // Size (in bytes) of a single PARTICLE
+    size_t iTreeNodeSize = 0; // Size (in bytes) of a tree node
+    uint32_t nEphemeralBytes = 0; /* per-particle */
+public:
+    int FreeStore() { return nStore; }
+    int Local() { return nLocal; }
+    int SetLocal(int n) {return (nLocal=n);}
+    int AddLocal(int n) {return (nLocal+=n);}
+    auto EphemeralBytes() {return nEphemeralBytes; }
+    static constexpr auto MaxNodeSize() { return sizeof(KDN) + 2*sizeof(BND) + sizeof(FMOMR) + 6*sizeof(double) + sizeof(SPHBNDS); }
+    auto NodeSize() { return iTreeNodeSize; }
+    auto ParticleSize() {return iParticleSize; }
+    auto ParticleMemory() { return (ParticleSize() + EphemeralBytes()) * (FreeStore()+1); }
+    auto ParticleGet(void *pBase, int i) {
+        auto v = static_cast<char *>(pBase);
+        return reinterpret_cast<PARTICLE *>(v + ((uint64_t)i)*ParticleSize());
+    }
+    PARTICLE *ParticleBase() { return pStorePRIVATE; }
+    PARTICLE *Particle(int i) { return ParticleGet(ParticleBase(),i); }
+
+    void SaveParticle(PARTICLE *a) { memcpy(pTempPRIVATE,a,ParticleSize()); }
+    void LoadParticle(PARTICLE *a) { memcpy(a,pTempPRIVATE,ParticleSize()); }
+    void CopyParticle(PARTICLE *a, PARTICLE *b) { memcpy(a,b,ParticleSize()); }
+
+protected:
+    KDN **kdNodeListPRIVATE; /* BEWARE: KDN is actually variable length! */
     int nTreeBitsLo;
     int nTreeBitsHi;
     int iTreeMask;
     int nTreeTiles;
     int nTreeTilesReserved;
-    int nMaxNodes;
+    int nNodes, nMaxNodes;
+    auto TreeBase(int iTile=0) { return kdNodeListPRIVATE[iTile]; }
+public:
+    auto Nodes() const { return nNodes; }
+    [[deprecated]] void SetNodeCount(int n) { nNodes = n; }
+    auto Node(KDN *pBase,int iNode) {
+        return reinterpret_cast<KDN *>(reinterpret_cast<char *>(pBase)+NodeSize()*iNode);
+    }
+    auto TreeNode(int iNode) {
+        return Node(TreeBase(iNode>>nTreeBitsLo),iNode&iTreeMask);
+    }
+    void ExtendTree();
+    size_t TreeMemory() { return nTreeTiles * (1<<nTreeBitsLo) * NodeSize(); }
+    auto TreeAlignNode() {
+        if (nNodes&1) ++nNodes;
+        return nNodes;
+    }
+    auto TreeAllocNode(int n=1) {
+        int iNode = nNodes;
+        nNodes += n;
+        while (nNodes > nMaxNodes) ExtendTree();
+        return iNode;
+    }
+    void TreeAllocNodePair(int *iLeft, int *iRight) {
+        *iLeft = TreeAllocNode();
+        *iRight = TreeAllocNode();
+    }
+    auto TreeAllocRootNode() {
+        if ((nNodes&1)==0) ++nNodes;
+        return TreeAllocNode();
+    }
+
+public:
+    mdl::mdlClass *mdl;
+    auto Self()    const { return mdl->Self(); }
+    auto Threads() const { return mdl->Threads(); }
+
+public:
+    int nRejects;
+    int nActive;
     uint64_t nRung[IRUNGMAX+1];
     uint64_t nDark;
     uint64_t nGas;
     uint64_t nStar;
     uint64_t nBH;
     double fPeriod[3];
-    char **kdNodeListPRIVATE; /* BEWARE: also char instead of KDN */
     int iTopTree[NRESERVED_NODES];
-    int nNodes;
     int nNodesFull;     /* number of nodes in the full tree (including very active particles) */
     BND bnd;
     BND vbnd;
-    size_t iTreeNodeSize;
-    size_t iParticleSize, iParticle32;
-    size_t nParticleAlign;
-    PARTICLE *pStorePRIVATE;
-    PARTICLE *pTempPRIVATE;
     /*
     ** Light cone variables.
     */
@@ -810,7 +886,6 @@ typedef struct pkdContext {
     float fSoftMax;
     int nClasses;
     void *pLite;
-    uint32_t nEphemeralBytes; /* per-particle */
     /*
     ** Advanced memory models
     */
@@ -933,8 +1008,8 @@ typedef struct pkdContext {
 
     SPHOptions SPHoptions;
 
-} *PKD;
-
+};
+typedef pkdContext *PKD;
 
 #if defined(USE_SIMD) && defined(__SSE2__) && 0
 #define pkdMinMax(dVal,dMin,dMax) do {                  \
@@ -985,17 +1060,8 @@ static inline int pkdIsActive(PKD pkd, PARTICLE *p ) {
 ** A tree node is of variable size.  The following routines are used to
 ** access individual fields.
 */
-static inline KDN *pkdTreeBase( PKD pkd ) {
-    return (KDN *)pkd->kdNodeListPRIVATE;
-}
-static inline size_t pkdNodeSize( PKD pkd ) {
-    return pkd->iTreeNodeSize;
-}
-static inline size_t pkdMaxNodeSize() {
-    return sizeof(KDN) + 2*sizeof(BND) + sizeof(FMOMR) + 6*sizeof(double) + sizeof(SPHBNDS);
-}
 static inline void pkdCopyNode(PKD pkd, KDN *a, KDN *b) {
-    memcpy(a,b,pkdNodeSize(pkd));
+    memcpy(a,b,pkd->NodeSize());
 }
 static inline void *pkdNodeField( KDN *n, int iOffset ) {
     char *v = (char *)n;
@@ -1117,44 +1183,6 @@ static inline BND *pkdNodeVBnd( PKD pkd, KDN *n ) {
     return CAST(BND *,pkdNodeField(n,pkd->oNodeVBnd));
 }
 
-static inline KDN *pkdNode(PKD pkd,KDN *pBase,int iNode) {
-    return (KDN *)&((char *)pBase)[pkd->iTreeNodeSize*iNode];
-}
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-int pkdNodes(PKD pkd);
-void pkdExtendTree(PKD pkd);
-#ifdef __cplusplus
-}
-#endif
-
-static inline KDN *pkdTreeNode(PKD pkd,int iNode) {
-    char *kdn = &pkd->kdNodeListPRIVATE[(iNode>>pkd->nTreeBitsLo)][pkd->iTreeNodeSize*(iNode&pkd->iTreeMask)];
-    return (KDN *)kdn;
-}
-static inline int pkdTreeAlignNode(PKD pkd) {
-    if (pkd->nNodes&1) ++pkd->nNodes;
-    return pkd->nNodes;
-}
-
-static inline int pkdTreeAllocNodes(PKD pkd, int nNodes) {
-    int iNode = pkd->nNodes;
-    pkd->nNodes += nNodes;
-    while (pkd->nNodes > pkd->nMaxNodes) pkdExtendTree(pkd);
-    return iNode;
-}
-static inline int pkdTreeAllocNode(PKD pkd) {
-    return pkdTreeAllocNodes(pkd,1);
-}
-static inline void pkdTreeAllocNodePair(PKD pkd,int *iLeft, int *iRight) {
-    *iLeft = pkdTreeAllocNode(pkd);
-    *iRight = pkdTreeAllocNode(pkd);
-}
-static inline void pkdTreeAllocRootNode(PKD pkd,int *iRoot) {
-    pkdTreeAllocNodePair(pkd,NULL,iRoot);
-}
 
 #ifdef __cplusplus
 extern "C" {
@@ -1173,36 +1201,10 @@ void *pkdTreeNodeGetElement(void *vData,int i,int iDataSize);
 ** The Size and Base functions are intended for cache routines; no other
 ** code should care about sizes of the particle structure.
 */
-static inline PARTICLE *pkdParticleBase( PKD pkd ) {
-    return pkd->pStorePRIVATE;
-}
-static inline size_t pkdParticleSize( PKD pkd ) {
-    return pkd->iParticleSize;
-}
-static inline size_t pkdParticleMemory(PKD pkd) {
-    return (pkd->iParticleSize + pkd->nEphemeralBytes) * (pkd->nStore+1);
-}
-static inline PARTICLE *pkdParticleGet( PKD pkd, void *pBase, int i ) {
-    char *v = (char *)pBase;
-    PARTICLE *p = (PARTICLE *)(v + ((uint64_t)i)*pkd->iParticleSize);
-    return p;
-}
-static inline PARTICLE *pkdParticle( PKD pkd, int i ) {
-    return pkdParticleGet(pkd,pkd->pStorePRIVATE,i);
-}
-static inline void pkdSaveParticle(PKD pkd, PARTICLE *a) {
-    memcpy(pkd->pTempPRIVATE,a,pkdParticleSize(pkd));
-}
-static inline void pkdLoadParticle(PKD pkd, PARTICLE *a) {
-    memcpy(a,pkd->pTempPRIVATE,pkdParticleSize(pkd));
-}
-static inline void pkdCopyParticle(PKD pkd, PARTICLE *a, PARTICLE *b) {
-    memcpy(a,b,pkdParticleSize(pkd));
-}
 static inline void pkdSwapParticle(PKD pkd, PARTICLE *a, PARTICLE *b) {
-    pkdSaveParticle(pkd,a);
-    pkdCopyParticle(pkd,a,b);
-    pkdLoadParticle(pkd,b);
+    pkd->SaveParticle(a);
+    pkd->CopyParticle(a,b);
+    pkd->LoadParticle(b);
 }
 
 static inline const void *pkdFieldRO( const PARTICLE *p, int iOffset ) {
@@ -1463,18 +1465,11 @@ void pkdTreeBuildByGroup(PKD pkd, int nBucket, int nGroup);
 /*
 ** From pkd.c:
 */
-void pkdInitialize(
-    PKD *ppkd,MDL mdl,int nStore,uint64_t nMinTotalStore,uint64_t nMinEphemeral,uint32_t nEphemeralBytes,
-    int nTreeBitsLo, int nTreeBitsHi,
-    int iCacheSize,int iWorkQueueSize,int iCUDAQueueSize,double *fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,uint64_t nBH,
-    uint64_t mMemoryModel, int bLightCone, int bLightConeParticles);
-void pkdFinish(PKD);
 size_t pkdClCount(PKD pkd);
 size_t pkdClMemory(PKD pkd);
 size_t pkdIllMemory(PKD pkd);
 size_t pkdIlcMemory(PKD pkd);
 size_t pkdIlpMemory(PKD pkd);
-size_t pkdTreeMemory(PKD pkd);
 void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double dTuFac);
 void pkdSetSoft(PKD pkd,double dSoft);
 void pkdSetSmooth(PKD pkd,double dSmooth);
@@ -1514,8 +1509,6 @@ int pkdColRejects_Old(PKD,int,double,double,int);
 
 int pkdSwapRejects(PKD,int);
 int pkdSwapSpace(PKD);
-int pkdFreeStore(PKD);
-int pkdLocal(PKD);
 int pkdActive(PKD);
 int pkdInactive(PKD);
 

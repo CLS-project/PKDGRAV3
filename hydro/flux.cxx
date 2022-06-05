@@ -34,7 +34,7 @@ void pkdResetFluxes(PKD pkd, double dTime,double dDelta,double dDeltaVPred,doubl
     int pLower, pUpper;
 
     pLower = 0;
-    pUpper = pkdLocal(pkd);
+    pUpper = pkd->Local();
 
     assert(pkd->oFieldOffset[oVelocity]);
     //assert(pkd->oMass);
@@ -44,7 +44,7 @@ void pkdResetFluxes(PKD pkd, double dTime,double dDelta,double dDeltaVPred,doubl
     */
     assert(pkd->oFieldOffset[oSph]);
     for (i=pLower; i<pUpper; ++i) {
-        p = pkdParticle(pkd,i);
+        p = pkd->Particle(i);
         if (pkdIsGas(pkd,p)  && pkdIsActive(pkd,p)   ) {
             psph = pkdSph(pkd, p);
             psph->Frho = 0.0;

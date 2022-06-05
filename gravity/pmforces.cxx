@@ -309,7 +309,7 @@ void pkdLinearKick(PKD pkd,vel_t dtOpen,vel_t dtClose, int iAssignment=4) {
     std::vector<std::uint32_t> stack;
     stack.push_back(ROOT);
     while ( !stack.empty()) {
-        tree_node *kdn = reinterpret_cast<tree_node *>(pkdTreeNode(pkd,stack.back()));
+        tree_node *kdn = reinterpret_cast<tree_node *>(pkd->TreeNode(stack.back()));
         stack.pop_back(); // Go to the next node in the tree
         Bound bnd = pkdNodeGetBnd(pkd, kdn);
         shape_t ilower = shape_t(floor((bnd.lower() * ifPeriod + 0.5) * nGrid)) - iAssignment/2;
@@ -334,7 +334,7 @@ void pkdLinearKick(PKD pkd,vel_t dtOpen,vel_t dtClose, int iAssignment=4) {
             fetch_forces(pkd,CID_GridLinFy,nGrid,forcesY,ilower);
             fetch_forces(pkd,CID_GridLinFz,nGrid,forcesZ,ilower);
             for ( int i=kdn->pLower; i<=kdn->pUpper; ++i) { // All particles in this tree cell
-                auto p = pkdParticle(pkd,i);
+                auto p = pkd->Particle(i);
                 auto v = pkdVel(pkd,p);
                 position_t dr; pkdGetPos1(pkd,p,dr.data()); // Centered on 0 with period fPeriod
                 float3_t r(dr);
@@ -378,7 +378,7 @@ void pkdMeasureLinPk(PKD pkd, int nGrid, double dA, double dBoxSize,
     int iNyquist;
 
     /* Sort the particles into optimal "cell" order */
-    /* Use tree order: QSORT(pkdParticleSize(pkd),pkdParticle(pkd,0),pkd->nLocal,qsort_lt); */
+    /* Use tree order: QSORT(pkdParticleSize(pkd),pkd->Particle(0),pkd->nLocal,qsort_lt); */
 
     iNyquist = nGrid / 2;
 

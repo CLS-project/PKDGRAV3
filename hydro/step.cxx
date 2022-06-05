@@ -230,8 +230,8 @@ void combHydroStep(void *vpkd, void *v1,const void *v2) {
  * TODO: clean unused function arguments
  */
 void pkdWakeParticles(PKD pkd,int iRoot, double dTime, double dDelta) {
-    for (int i=0; i<pkdLocal(pkd); ++i) {
-        PARTICLE *p = pkdParticle(pkd,i);
+    for (int i=0; i<pkd->Local(); ++i) {
+        PARTICLE *p = pkd->Particle(i);
         if (pkdIsGas(pkd,p)) {
             uint8_t uWake = pkdSph(pkd,p)->uWake;
             if (uWake) {

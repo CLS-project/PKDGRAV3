@@ -34,7 +34,7 @@ static inline int getCell(PKD pkd,int iCell,int id,float *pcOpen,KDN **pc) {
     int nc;
     assert(iCell > 0);
     assert(id >= 0);
-    if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCell);
+    if (id == pkd->Self()) c = pkd->TreeNode(iCell);
     else c = CAST(KDN *,mdlFetch(pkd->mdl,CID_CELL,iCell,id));
     *pc = c;
     if (c->bRemote|c->bTopTree) nc = 1000000000; /* we never allow pp with this cell */
@@ -55,7 +55,7 @@ uint32_t pkdFofGatherLocal(PKD pkd,int *S,double fBall2,double r[3],uint32_t iGr
     int iCell,pj,pEnd,j;
     uint32_t iPartGroup;
 
-    kdn = pkdTreeNode(pkd,iCell = ROOT);
+    kdn = pkd->TreeNode(iCell = ROOT);
     while (1) {
         Bound bnd = pkdNodeGetBnd(pkd, kdn);
         min2 = bnd.mindist(r);
@@ -66,13 +66,13 @@ uint32_t pkdFofGatherLocal(PKD pkd,int *S,double fBall2,double r[3],uint32_t iGr
         ** We have an intersection to test.
         */
         if (kdn->iLower) {
-            kdn = pkdTreeNode(pkd,iCell = kdn->iLower);
+            kdn = pkd->TreeNode(iCell = kdn->iLower);
             S[sp++] = iCell+1;
             continue;
         }
         pEnd = kdn->pUpper;
         for (pj=kdn->pLower; pj<=pEnd; ++pj) {
-            p = pkdParticle(pkd,pj);
+            p = pkd->Particle(pj);
             iPartGroup = pkdGetGroup(pkd,p);
             if (iPartGroup) continue;
             pkdGetPos1(pkd,p,p_r);
@@ -101,7 +101,7 @@ uint32_t pkdFofGatherLocal(PKD pkd,int *S,double fBall2,double r[3],uint32_t iGr
             }
         }
 NoIntersect:
-        if (sp) kdn = pkdTreeNode(pkd,iCell = S[--sp]);
+        if (sp) kdn = pkd->TreeNode(iCell = S[--sp]);
         else break;
     }
     return (iTail);
@@ -120,7 +120,7 @@ static void iOpenRemoteFof(PKD pkd,KDN *k,CL cl,CLTILE tile,float dTau2) {
     for (nLeft=tile->lstTile.nBlocks; nLeft>=0; --nLeft,blk++) {
         n = nLeft ? cl->lst.nPerBlock : tile->lstTile.nInLast;
         for (i=0; i<n; ++i) {
-            if (blk->idCell.i[i] > pkd->idSelf) iOpen = 10;  /* ignore this cell, but this never ignores the top tree */
+            if (blk->idCell.i[i] > pkd->Self()) iOpen = 10;  /* ignore this cell, but this never ignores the top tree */
             else {
                 minbnd2 = 0;
                 dx = kbnd.lower(0) -  blk->xCenter.f[i] - blk->xOffset.f[i] - blk->xMax.f[i];
@@ -199,7 +199,7 @@ void pkdFofRemoteSearch(PKD pkd,double dTau2,int bPeriodic,int nReplicas,int nBu
     iStack = 0;
     clClear(pkd->cl);
 
-    kdnSelf = pkdTreeNode(pkd,ROOT);
+    kdnSelf = pkd->TreeNode(ROOT);
     Bound bndSelf = pkdNodeGetBnd(pkd, kdnSelf);
     idSelf = mdlSelf(pkd->mdl);
     iTop = pkd->iTopTree[ROOT];
@@ -210,11 +210,11 @@ void pkdFofRemoteSearch(PKD pkd,double dTau2,int bPeriodic,int nReplicas,int nBu
     ** the checklist.
     */
     iCell = iTop;
-    c = pkdTreeNode(pkd,iCell);
+    c = pkd->TreeNode(iCell);
     while (c->bTopTree) {
         pkdGetChildCells(c,id,idLo,iCellLo,idUp,iCellUp);
         if (idLo == idSelf) {
-            c = pkdTreeNode(pkd,iCellLo);
+            c = pkd->TreeNode(iCellLo);
             Bound bnd = pkdNodeGetBnd(pkd,c);
             for (j=0; j<3; ++j) {
                 if (fabs(bndSelf.fCenter[j] - bnd.fCenter[j]) > bnd.fMax[j]) {
@@ -222,7 +222,7 @@ void pkdFofRemoteSearch(PKD pkd,double dTau2,int bPeriodic,int nReplicas,int nBu
                     id = idUp;
                     assert(id == idSelf);
                     iCell = iCellUp;
-                    c = pkdTreeNode(pkd,iCell);
+                    c = pkd->TreeNode(iCell);
                     goto NextCell;
                 }
             }
@@ -254,7 +254,7 @@ NextCell:
 
     iCell = ROOT;
     id = idSelf;
-    k = pkdTreeNode(pkd,iCell);
+    k = pkd->TreeNode(iCell);
     /*
     ** The checklist is ready for a bound-bound walk of the remote particles.
     */
@@ -292,18 +292,18 @@ NextCell:
                                 */
                                 iCheckCell = blk->iCell.i[jTile];
                                 id = blk->idCell.i[jTile];
-                                if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCheckCell);
+                                if (id == pkd->Self()) c = pkd->TreeNode(iCheckCell);
                                 else c = CAST(KDN *,mdlFetch(pkd->mdl,CID_CELL,iCheckCell,id));
                                 /*
                                 ** Convert all the coordinates in the k-cell and store them in vectors.
                                 */
                                 for (pi=k->pLower,npi=0; pi<=k->pUpper; ++pi,++npi) {
-                                    p = pkdParticle(pkd,pi);
+                                    p = pkd->Particle(pi);
                                     pkdGetPos3(pkd,p,xi[npi],yi[npi],zi[npi]);
                                     piGroup[npi] = pkdGetGroup(pkd,p);
                                 }
                                 for (pj=c->pLower; pj<=c->pUpper; ++pj) {
-                                    if (id == pkd->idSelf) p = pkdParticle(pkd,pj);
+                                    if (id == pkd->Self()) p = pkd->Particle(pj);
                                     else p = CAST(PARTICLE *,mdlFetch(pkd->mdl,CID_PARTICLE,pj,id));
                                     pjGroup = pkdGetGroup(pkd,p);
                                     pkdGetPos3(pkd,p,xj,yj,zj);
@@ -387,12 +387,12 @@ NextCell:
             */
             if (k->iLower == 0) break;
             iCell = k->iLower;
-            k = pkdTreeNode(pkd,iCell);
+            k = pkd->TreeNode(iCell);
             /*
             ** Push the sibling onto the stack.
             */
             iSib = iCell+1;
-            c = pkdTreeNode(pkd,iSib);
+            c = pkd->TreeNode(iSib);
             clClone(pkd->cl,pkd->S[iStack+1].cl);
             ++iStack;
             assert(iStack < pkd->nMaxStack);
@@ -407,7 +407,7 @@ NextCell:
         ** Get the next cell to process from the stack.
         */
         if (iStack == -1) break;  /* we are done! */
-        k = pkdTreeNode(pkd,iCell = pkd->S[iStack].iNodeIndex);
+        k = pkd->TreeNode(iCell = pkd->S[iStack].iNodeIndex);
         /*
         ** Grab the checklist from the stack.
         */
@@ -466,7 +466,7 @@ void pkdNewFof(PKD pkd,double dTau2,int nMinMembers,int bPeriodic,int nReplicas,
     ** For now I assume that the domains do NOT overlap, but the calculation for overlapping
     ** domains just involves a tree walk.
     */
-    kdnSelf = pkdTreeNode(pkd,ROOT);
+    kdnSelf = pkd->TreeNode(ROOT);
     Bound bndSelf = pkdNodeGetBnd(pkd, kdnSelf);
     pkd->bndInterior = bndSelf;
 #if 0
@@ -476,12 +476,12 @@ void pkdNewFof(PKD pkd,double dTau2,int nMinMembers,int bPeriodic,int nReplicas,
     ** Check bounds against all siblings of the top tree down to local root.
     */
     iCell = iTop;
-    c = pkdTreeNode(pkd,iCell);
+    c = pkd->TreeNode(iCell);
     Bound bndTop = pkdNodeGetBnd(pkd,c);
     while (c->bTopTree) {
         pkdGetChildCells(c,id,idLo,iCellLo,idUp,iCellUp);
         if (idLo == idSelf) {
-            c = pkdTreeNode(pkd,iCellLo);
+            c = pkd->TreeNode(iCellLo);
             Bound bnd = pkdNodeGetBnd(pkd,c);
             for (j=0; j<3; ++j) {
                 if (fabs(bndSelf.fCenter[j]-bnd.fCenter[j]) > bnd.fMax[j]) {
@@ -492,13 +492,13 @@ void pkdNewFof(PKD pkd,double dTau2,int nMinMembers,int bPeriodic,int nReplicas,
                     id = idUp;
                     assert(id == idSelf);
                     iCell = iCellUp;
-                    c = pkdTreeNode(pkd,iCell);
+                    c = pkd->TreeNode(iCell);
                     goto NextCell;
                 }
             }
         }
         assert(idUp == idSelf);
-        c = pkdTreeNode(pkd,iCellUp);
+        c = pkd->TreeNode(iCellUp);
         bnd = pkdNodeGetBnd(pkd,c);
         /*
         ** Check bounds against this sibling.
@@ -544,18 +544,18 @@ NextCell:
     /*
     ** Clear the group numbers!
     */
-    for (pn=0; pn<pkd->nLocal; ++pn) {
-        p = pkdParticle(pkd,pn);
+    for (pn=0; pn<pkd->Local(); ++pn) {
+        p = pkd->Particle(pn);
         pkdSetGroup(pkd,p,0);
     }
     /*
     ** The following *just* fits into ephemeral storage of 4 bytes/particle.
     */
-    assert(pkd->nEphemeralBytes >= 4);
+    assert(pkd->EphemeralBytes() >= 4);
     Fifo = (uint32_t *)(pkd->pLite);
     iGroup = 1;
-    for (pn=0; pn<pkd->nLocal; ++pn) {
-        p = pkdParticle(pkd,pn);
+    for (pn=0; pn<pkd->Local(); ++pn) {
+        p = pkd->Particle(pn);
         if (pkdGetGroup(pkd,p)) continue;
         /*
         ** Mark particle and add it to the do-fifo
@@ -577,12 +577,12 @@ NextCell:
             }
         }
         while (iHead < iTail) {
-            p = pkdParticle(pkd,Fifo[iHead++]);
+            p = pkd->Particle(Fifo[iHead++]);
             pkdGetPos1(pkd,p,p_r);
             iTail = pkdFofGatherLocal(pkd,S,dTau2,p_r,iGroup,iTail,Fifo,
                                       &bCurrFofContained,fMinFofContained,fMaxFofContained);
         }
-        assert(iTail <= pkd->nLocal);
+        assert(iTail <= pkd->Local());
         /*
         ** Now check if this fof group is contained and has fewer than nMinFof particles.
         */
@@ -591,7 +591,7 @@ NextCell:
             ** In this case mark the group particles as belonging to a removed group.
             */
             for (iHead=0; iHead<iTail; ++iHead) {
-                p = pkdParticle(pkd,Fifo[iHead]);
+                p = pkd->Particle(Fifo[iHead]);
                 pkdSetGroup(pkd,p,uGroupMax);
             }
         }
@@ -602,8 +602,8 @@ NextCell:
     /*
     ** Clear group ids for removed small groups.
     */
-    for (pn=0; pn<pkd->nLocal; ++pn) {
-        p = pkdParticle(pkd,pn);
+    for (pn=0; pn<pkd->Local(); ++pn) {
+        p = pkd->Particle(pn);
         if (pkdGetGroup(pkd,p) == uGroupMax) pkdSetGroup(pkd,p,0);
     }
     pkd->nLocalGroups = iGroup-1;
@@ -614,13 +614,13 @@ NextCell:
     ** Create initial group table. The assert below is a very minimal requirement as it doesn't account for remote
     ** links (tmpFofRemote). However, we check this again everytime we add a new remote link.
     */
-    assert(sizeof(*pkd->ga)*pkd->nGroups+sizeof(*pkd->tmpFofRemote) <= 1ul*pkd->nEphemeralBytes*pkd->nStore);
-    pkd->nMaxRemoteGroups = (1ul*pkd->nEphemeralBytes*pkd->nStore - sizeof(*pkd->ga)*pkd->nGroups) / sizeof(*pkd->tmpFofRemote);
+    assert(sizeof(*pkd->ga)*pkd->nGroups+sizeof(*pkd->tmpFofRemote) <= 1ul*pkd->EphemeralBytes()*pkd->FreeStore());
+    pkd->nMaxRemoteGroups = (1ul*pkd->EphemeralBytes()*pkd->FreeStore() - sizeof(*pkd->ga)*pkd->nGroups) / sizeof(*pkd->tmpFofRemote);
     pkd->ga = (struct smGroupArray *)(pkd->pLite);
     pkd->tmpFofRemote = (FOFRemote *)&pkd->ga[pkd->nGroups];
     for (i=0; i<pkd->nGroups; ++i) {
         pkd->ga[i].id.iIndex = i;
-        pkd->ga[i].id.iPid = pkd->idSelf;
+        pkd->ga[i].id.iPid = pkd->Self();
         pkd->ga[i].iGid = i;
         pkd->ga[i].iLink = 0;   /* this is a linked list of remote groups linked to this local group */
         pkd->ga[i].minPot = FLOAT_MAXVAL;
@@ -629,12 +629,12 @@ NextCell:
     /*
     ** Set a local reference point for each group.
     */
-    for (pn=0; pn<pkd->nLocal; ++pn) {
-        p = pkdParticle(pkd,pn);
+    for (pn=0; pn<pkd->Local(); ++pn) {
+        p = pkd->Particle(pn);
         if ( (i = pkdGetGroup(pkd,p)) != 0 ) {
             if (pkd->ga[i].iMinPart == 0xffffffff) {
                 pkd->ga[i].iMinPart = pn;
-                pkd->ga[i].minPot = (float)pkd->idSelf; /* this makes the reference particle be in the lowest processor number */
+                pkd->ga[i].minPot = (float)pkd->Self(); /* this makes the reference particle be in the lowest processor number */
             }
         }
         /*
@@ -649,7 +649,7 @@ NextCell:
     ** Now lets go looking for local particles which have a remote neighbor that is part of
     ** a group.
     */
-    mdlROcache(mdl,CID_PARTICLE,NULL,pkdParticleBase(pkd),pkdParticleSize(pkd),pkdLocal(pkd));
+    mdlROcache(mdl,CID_PARTICLE,NULL,pkd->ParticleBase(),pkd->ParticleSize(),pkd->Local());
     pkdFofRemoteSearch(pkd,dTau2,bPeriodic,nReplicas,nBucket);
     mdlFinishCache(mdl,CID_PARTICLE);
 }

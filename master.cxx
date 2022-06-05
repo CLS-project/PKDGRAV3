@@ -376,10 +376,10 @@ void MSR::InitializePStore(uint64_t *nSpecies,uint64_t mMemoryModel) {
     pstInitializePStore(pst,&ps,sizeof(ps),NULL,0);
     PKD pkd = pst->plcl->pkd;
     printf("Allocated %lu MB for particle store on each processor.\n",
-           pkdParticleMemory(pkd)/(1024*1024));
+           pkd->ParticleMemory()/(1024*1024));
     printf("Particles: %lu bytes (persistent) + %d bytes (ephemeral), Nodes: %lu bytes\n",
-           pkdParticleSize(pkd),ps.nEphemeralBytes,pkdNodeSize(pkd));
-    if (pkdParticleSize(pkd) > MDL_CACHE_DATA_SIZE) {
+           pkd->ParticleSize(),ps.nEphemeralBytes,pkd->NodeSize());
+    if (pkd->ParticleSize() > MDL_CACHE_DATA_SIZE) {
         printf("ERROR! MDL_CACHE_DATA_SIZE (%d bytes) is too small for the given particle size, please increasing it\n", MDL_CACHE_DATA_SIZE);
         abort();
     }
@@ -2013,7 +2013,7 @@ void MSR::OneNodeRead(struct inReadFile *in, FIO fio) {
         /*
          * Read particles into the local storage.
          */
-        assert(plcl->pkd->nStore >= nParts[id]);
+        assert(plcl->pkd->FreeStore() >= nParts[id]);
         pkdReadFIO(plcl->pkd, fio, nStart, nParts[id], in->dvFac,in->dTuFac);
         nStart += nParts[id];
         /*
@@ -2081,8 +2081,8 @@ void MSR::RecvArray(void *vBuffer,int field,int iUnitSize,double dTime,bool bMar
     }
     else in.dvFac = 1.0;
     int iIndex = 0;
-    vBuffer = pkdPackArray(pkd,iUnitSize*pkd->nLocal,vBuffer,&iIndex,pkd->nLocal,field,iUnitSize,in.dvFac,in.bMarked);
-    assert (iIndex==pkd->nLocal);
+    vBuffer = pkdPackArray(pkd,iUnitSize*pkd->Local(),vBuffer,&iIndex,pkd->Local(),field,iUnitSize,in.dvFac,in.bMarked);
+    assert (iIndex==pkd->Local());
     for (auto i=1; i<nThreads; ++i) {
         in.iTo = 0;
         auto rID = mdlReqService(pkd->mdl,i,PST_SENDARRAY,&in,sizeof(in));
@@ -2510,7 +2510,7 @@ void MSR::BuildTree(int bNeedEwald,uint32_t uRoot,uint32_t utRoot) {
     plcl = pst0->plcl;
     pkd = plcl->pkd;
 
-    auto nTopTree = pkdNodeSize(pkd) * (2*nThreads-1);
+    auto nTopTree = pkd->NodeSize() * (2*nThreads-1);
     auto nMsgSize = sizeof(ServiceDistribTopTree::input) + nTopTree;
 
     std::unique_ptr<char[]> buffer {new char[nMsgSize]};
@@ -2526,7 +2526,7 @@ void MSR::BuildTree(int bNeedEwald,uint32_t uRoot,uint32_t utRoot) {
     in.ddHonHLimit = ddHonHLimit;
     TimerStart(TIMER_TREE);
     nTopTree = pstBuildTree(pst,&in,sizeof(in),pkdn,nTopTree);
-    pDistribTop->nTop = nTopTree / pkdNodeSize(pkd);
+    pDistribTop->nTop = nTopTree / pkd->NodeSize();
     assert(pDistribTop->nTop == (2*nThreads-1));
     mdl->RunService(PST_DISTRIBTOPTREE,nMsgSize,pDistribTop);
     TimerStop(TIMER_TREE);
@@ -5571,7 +5571,7 @@ void MSR::TreeUpdateFlagBounds(int bNeedEwald,uint32_t uRoot,uint32_t utRoot,SPH
     plcl = pst0->plcl;
     pkd = plcl->pkd;
 
-    auto nTopTree = pkdNodeSize(pkd) * (2*nThreads-1);
+    auto nTopTree = pkd->NodeSize() * (2*nThreads-1);
     auto nMsgSize = sizeof(ServiceDistribTopTree::input) + nTopTree;
 
     std::unique_ptr<char[]> buffer {new char[nMsgSize]};
@@ -5588,7 +5588,7 @@ void MSR::TreeUpdateFlagBounds(int bNeedEwald,uint32_t uRoot,uint32_t utRoot,SPH
     in.SPHoptions = SPHoptions;
     sec = MSR::Time();
     nTopTree = pstTreeUpdateFlagBounds(pst,&in,sizeof(in),pkdn,nTopTree);
-    pDistribTop->nTop = nTopTree / pkdNodeSize(pkd);
+    pDistribTop->nTop = nTopTree / pkd->NodeSize();
     assert(pDistribTop->nTop == (2*nThreads-1));
     mdl->RunService(PST_DISTRIBTOPTREE,nMsgSize,pDistribTop);
     dsec = MSR::Time() - sec;

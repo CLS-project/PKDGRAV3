@@ -145,7 +145,7 @@ int ServiceDomainDecomp::Service(PST pst,void *vin,int nIn,void *vout,int nOut) 
     // We always set pkd->bnd from pst->bnd.
     pkd->bnd = in->bnd;
 
-    float offs = 0.5f / (pkd->nLocal*1.0f - 1.0f);
+    float offs = 0.5f / (pkd->Local()*1.0f - 1.0f);
     pst->bnd = Bound(in->bnd.lower()-offs,in->bnd.upper()+offs);
 //    pst->bnd = in->bnd;
 //    for (auto j=0; j < 3; j++) {
@@ -769,7 +769,7 @@ int ServiceColRejects::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
     pOutRej->nRejects = pkdColRejects(pkd, pst->plcl->nSplit);
     pOutRej->nSpace = pkdSwapSpace(pkd);
     pOutRej->id = pst->idSelf;
-    pOutRej->nLocal = pkdLocal(pkd);
+    pOutRej->nLocal = pkd->Local();
     return sizeof(output);
 }
 
@@ -1032,7 +1032,7 @@ int ServiceWeight::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
         plcl->fSplit = fSplit;
         if (in->pFlag == 0) {
             plcl->iWtFrom = 0;
-            plcl->iWtTo = pkdLocal(pkd)-1;
+            plcl->iWtTo = pkd->Local()-1;
         }
         else if (in->pFlag > 0) {
             /*
@@ -1046,7 +1046,7 @@ int ServiceWeight::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
             ** Particles must be in the active-inactive order here!
             */
             plcl->iWtFrom = pkdActive(pkd);
-            plcl->iWtTo = pkdLocal(pkd)-1;
+            plcl->iWtTo = pkd->Local()-1;
         }
         plcl->fWtLow = 0.0;
         plcl->fWtHigh = 0.0;
@@ -1129,7 +1129,7 @@ int ServiceWeightWrap::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
         */
         plcl->fSplit = in->fSplit;
         plcl->iWtFrom = 0;
-        plcl->iWtTo = pkdLocal(pkd)-1;
+        plcl->iWtTo = pkd->Local()-1;
     }
     else {
         /*
@@ -1190,7 +1190,7 @@ int ServiceOrdWeight::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
         */
         plcl->iOrdSplit = in->iOrdSplit;
         plcl->iWtFrom = 0;
-        plcl->iWtTo = pkdLocal(pkd)-1;
+        plcl->iWtTo = pkd->Local()-1;
     }
     else {
         /*

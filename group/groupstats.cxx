@@ -230,7 +230,7 @@ static void combRoot(void *vpkd, void *v1, const void *v2) {
 }
 
 static KDN *getCell(PKD pkd, int iCell, int id) {
-    if (id==pkd->idSelf) return pkdTreeNode(pkd,iCell);
+    if (id==pkd->Self()) return pkd->TreeNode(iCell);
     return static_cast<KDN *>(mdlFetch(pkd->mdl,CID_CELL,iCell,id));
 }
 
@@ -246,7 +246,7 @@ static double gatherMass(PKD pkd,remoteID *S,double fBall2,double ri2,double ro2
     int pj,pEnd;
     double fMass = 0;
 
-    kdn = getCell(pkd,iCell=pkd->iTopTree[ROOT],id = pkd->idSelf);
+    kdn = getCell(pkd,iCell=pkd->iTopTree[ROOT],id = pkd->Self());
     while (1) {
         Bound bnd = pkdNodeGetBnd(pkd,kdn);
         min2 = bnd.mindist(r);
@@ -269,10 +269,10 @@ static double gatherMass(PKD pkd,remoteID *S,double fBall2,double ri2,double ro2
             continue;
         }
         else {
-            if (id == pkd->idSelf) {
+            if (id == pkd->Self()) {
                 pEnd = kdn->pUpper;
                 for (pj=kdn->pLower; pj<=pEnd; ++pj) {
-                    p = pkdParticle(pkd,pj);
+                    p = pkd->Particle(pj);
                     pkdGetPos1(pkd,p,p_r);
                     dx = r[0] - p_r[0];
                     dy = r[1] - p_r[1];
@@ -322,7 +322,7 @@ static double gatherLocalMass(PKD pkd,remoteID *S,double fBall2,double ri2,doubl
     int pj,pEnd;
     double fMass = 0;
 
-    kdn = pkdTreeNode(pkd,iCell=ROOT);
+    kdn = pkd->TreeNode(iCell=ROOT);
     while (1) {
         Bound bnd = pkdNodeGetBnd(pkd,kdn);
         min2 = bnd.mindist(r);
@@ -336,14 +336,14 @@ static double gatherLocalMass(PKD pkd,remoteID *S,double fBall2,double ri2,doubl
         ** We have an intersection to test.
         */
         if (kdn->iLower) {
-            kdn = pkdTreeNode(pkd,iCell = kdn->iLower);
+            kdn = pkd->TreeNode(iCell = kdn->iLower);
             S[sp++].iIndex = iCell+1;
             continue;
         }
         else {
             pEnd = kdn->pUpper;
             for (pj=kdn->pLower; pj<=pEnd; ++pj) {
-                p = pkdParticle(pkd,pj);
+                p = pkd->Particle(pj);
                 pkdGetPos1(pkd,p,p_r);
                 dx = r[0] - p_r[0];
                 dy = r[1] - p_r[1];
@@ -355,7 +355,7 @@ static double gatherLocalMass(PKD pkd,remoteID *S,double fBall2,double ri2,doubl
             }
         }
 NoIntersect:
-        if (sp) kdn = pkdTreeNode(pkd,iCell = S[--sp].iIndex);
+        if (sp) kdn = pkd->TreeNode(iCell = S[--sp].iIndex);
         else break;
     }
     return (fMass);
@@ -421,7 +421,7 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnviro
     int bShrink;
     double f2;
 
-    assert(pkd->nGroups*(sizeof(*pkd->ga)+sizeof(*pkd->tinyGroupTable)+sizeof(ShrinkStruct)) < 1ul*pkd->nEphemeralBytes*pkd->nStore);
+    assert(pkd->nGroups*(sizeof(*pkd->ga)+sizeof(*pkd->tinyGroupTable)+sizeof(ShrinkStruct)) < 1ul*pkd->EphemeralBytes()*pkd->FreeStore());
     pkd->tinyGroupTable = (TinyGroupTable *)(&pkd->ga[pkd->nGroups]);
     dAccumulate = (double *)(&pkd->tinyGroupTable[pkd->nGroups]);
     /*
@@ -429,7 +429,7 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnviro
     */
     nLocalGroups = 0;
     for (gid=0; gid<pkd->nGroups; ++gid) {
-        if (pkd->ga[gid].id.iPid == pkd->idSelf && gid) ++nLocalGroups;
+        if (pkd->ga[gid].id.iPid == pkd->Self() && gid) ++nLocalGroups;
         /*
         ** Here we assume that the ga table was setup prior to calling
         ** gravity so that we have filled in the minimum potential particle
@@ -438,8 +438,8 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnviro
         pkd->tinyGroupTable[gid].minPot = pkd->ga[gid].minPot;
         if (gid) {
             assert(pkd->ga[gid].minPot < FLOAT_MAXVAL);
-            assert(pkd->ga[gid].iMinPart < pkd->nLocal);
-            p = pkdParticle(pkd,pkd->ga[gid].iMinPart);
+            assert(pkd->ga[gid].iMinPart < pkd->Local());
+            p = pkd->Particle(pkd->ga[gid].iMinPart);
             for (j=0; j<3; ++j) {
                 pkd->tinyGroupTable[gid].rPot[j] = pkdPos(pkd,p,j);
                 pkd->tinyGroupTable[gid].rcen[j] = 0.0; /* relative to rPot */
@@ -460,8 +460,8 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnviro
     ** This will be the reference position for the group as well.
     ** In this first pass we also sum up the v2 and vcom locally.
     */
-    for (i=0; i<pkd->nLocal; ++i) {
-        p = pkdParticle(pkd,i);
+    for (i=0; i<pkd->Local(); ++i) {
+        p = pkd->Particle(i);
         gid = pkdGetGroup(pkd,p);
         fMass = pkdMass(pkd,p);
         if (!gid) continue;
@@ -489,7 +489,7 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnviro
     mdlCOcache(mdl,CID_GROUP,NULL,pkd->tinyGroupTable,sizeof(TinyGroupTable),nLocalGroups+1,
                NULL,initMinPot,combMinPot);
     for (gid=1+nLocalGroups; gid<pkd->nGroups; ++gid) {
-        assert(pkd->ga[gid].id.iPid != pkd->idSelf);
+        assert(pkd->ga[gid].id.iPid != pkd->Self());
         auto g = static_cast<TinyGroupTable *>(mdlVirtualFetch(mdl,CID_GROUP,pkd->ga[gid].id.iIndex,pkd->ga[gid].id.iPid));
         /*
         ** We update the remote center, the combiner makes sure the minimum minPot is set.
@@ -519,8 +519,8 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnviro
     ** Now find rcom and rMax and total mass locally.
     */
     for (j=0; j<3; ++j) dHalf[j] = bPeriodic ? 0.5 * dPeriod[j] : FLOAT_MAXVAL;
-    for (i=0; i<pkd->nLocal; ++i) {
-        p = pkdParticle(pkd,i);
+    for (i=0; i<pkd->Local(); ++i) {
+        p = pkd->Particle(i);
         gid = pkdGetGroup(pkd,p);
         fMass = pkdMass(pkd,p);
         int pSpecies = pkdSpecies(pkd,p);
@@ -631,8 +631,8 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnviro
         /*
         ** Now find rMax about the center (which is currently the center of mass).
         */
-        for (i=0; i<pkd->nLocal; ++i) {
-            p = pkdParticle(pkd,i);
+        for (i=0; i<pkd->Local(); ++i) {
+            p = pkd->Particle(i);
             gid = pkdGetGroup(pkd,p);
             if (gid > 0) {
                 r2 = 0.0;
@@ -701,8 +701,8 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnviro
             shrink[0].nEnclosed = -1;  /* make sure ungrouped particles (gid==0) are not involved */
             if (!bShrink) break; /* exits the main shrinking iteration...we are done */
             f2 *= 0.975*0.975; /* make the shrink factor 2.5 % smaller */
-            for (i=0; i<pkd->nLocal; ++i) {
-                p = pkdParticle(pkd,i);
+            for (i=0; i<pkd->Local(); ++i) {
+                p = pkd->Particle(i);
                 gid = pkdGetGroup(pkd,p);
                 if (shrink[gid].nEnclosed < 0) continue; /* skip this particle */
                 r2 = 0.0;
@@ -765,8 +765,8 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnviro
     /*
     ** Calculate angular momentum about the center of the group.
     */
-    for (i=0; i<pkd->nLocal; ++i) {
-        p = pkdParticle(pkd,i);
+    for (i=0; i<pkd->Local(); ++i) {
+        p = pkd->Particle(i);
         gid = pkdGetGroup(pkd,p);
         if (gid > 0) {
             fMass = pkdMass(pkd,p);
@@ -791,8 +791,8 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnviro
     /*
     ** Calculate the moment of inertia (we do this in 2 stages to save accumulator memory.
     */
-    for (i=0; i<pkd->nLocal; ++i) {
-        p = pkdParticle(pkd,i);
+    for (i=0; i<pkd->Local(); ++i) {
+        p = pkd->Particle(i);
         gid = pkdGetGroup(pkd,p);
         if (gid > 0) {
             fMass = pkdMass(pkd,p);
@@ -813,8 +813,8 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnviro
             dAccumulate[4*gid+j] = 0;
         }
     }
-    for (i=0; i<pkd->nLocal; ++i) {
-        p = pkdParticle(pkd,i);
+    for (i=0; i<pkd->Local(); ++i) {
+        p = pkd->Particle(i);
         gid = pkdGetGroup(pkd,p);
         if (gid > 0) {
             fMass = pkdMass(pkd,p);
@@ -856,7 +856,7 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnviro
     ** or a seperate mass field!
     */
     S = (remoteID *)(&pkd->tinyGroupTable[pkd->nGroups]);
-    mdlROcache(mdl,CID_PARTICLE,NULL,pkdParticleBase(pkd),pkdParticleSize(pkd),pkdLocal(pkd));
+    mdlROcache(mdl,CID_PARTICLE,NULL,pkd->ParticleBase(),pkd->ParticleSize(),pkd->Local());
     diVol0 = 3.0/4.0*M_1_PI*pow(rEnvironment[0],-3);
     diVol1 = 3.0/4.0*M_1_PI*pow(rEnvironment[1],-3);
     for (gid=1; gid<=nLocalGroups; ++gid) {
@@ -923,7 +923,7 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnviro
         }
         n = 0;
         for (i=iGrpEnd[gid-1]; i<iGrpEnd[gid]; ++i,++n) {
-            p = pkdParticle(pkd,i);
+            p = pkd->Particle(i);
             assert(gid == pkdGetGroup(pkd,p)); /* make sure it is really in group order */
             r2 = 0.0;
             for (j=0; j<3; ++j) {
@@ -979,7 +979,7 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnviro
     for (gid=nLocalGroups+1; gid<pkd->nGroups; ++gid) {
         n = 0;
         for (i=iGrpEnd[gid-1]; i<iGrpEnd[gid]; ++i,++n) {
-            p = pkdParticle(pkd,i);
+            p = pkd->Particle(i);
             assert(gid == pkdGetGroup(pkd,p)); /* make sure it is really in group order */
             r2 = 0.0;
             for (j=0; j<3; ++j) {
@@ -1109,7 +1109,7 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnviro
     /*
         for (iRoot=0;iRoot<nRootFind;++iRoot) {
         gid = rootFindingTable[iRoot].gid;
-        printf("%d: iter:%d gid:%d MassRatio:%g rHalf:%g\n",pkd->idSelf,rootFindingTable[iRoot].iter,gid,
+        printf("%d: iter:%d gid:%d MassRatio:%g rHalf:%g\n",pkd->Self(),rootFindingTable[iRoot].iter,gid,
             rootFunction[gid].fMass/pkd->tinyGroupTable[gid].fMass,
             pkd->tinyGroupTable[gid].rHalf);
         }

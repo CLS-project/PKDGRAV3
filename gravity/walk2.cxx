@@ -52,7 +52,7 @@ static inline int getCell(PKD pkd,int iCache,int iCell,int id,float *pcOpen,KDN 
     int nc;
     assert(iCell > 0);
     assert(id >= 0);
-    if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCell);
+    if (id == pkd->Self()) c = pkd->TreeNode(iCell);
     else c = CAST(KDN *,mdlFetch(pkd->mdl,iCache,iCell,id));
     *pc = c;
     if (c->bRemote|c->bTopTree) nc = 1000000000; /* we never allow pp with this cell */
@@ -268,7 +268,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2,
     ** We are now going to work on the local tree.
     ** Make iCell point to the root of the tree again.
     */
-    k = pkdTreeNode(pkd,iCell = iRoot);
+    k = pkd->TreeNode(iCell = iRoot);
     pkdNodeGetPos(pkd,k,k_r);
     while (1) {
 #ifdef ILP_ILC_CAN_BE_NON_EMPTY
@@ -284,21 +284,21 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2,
         kFind = k;
         while (kFind->iLower) {
             int iCellDescend;
-            kFind = pkdTreeNode(pkd,iCellDescend = kFind->iLower);
+            kFind = pkd->TreeNode(iCellDescend = kFind->iLower);
             if (kFind->uMinRung>uRungHi || kFind->uMaxRung < uRungLo) {
                 /*
                 ** Move onto processing the sibling.
                 */
-                kFind = pkdTreeNode(pkd,++iCellDescend);
+                kFind = pkd->TreeNode(++iCellDescend);
             }
         }
         for (pj=kFind->pLower; pj<=kFind->pUpper; ++pj) {
-            p = pkdParticle(pkd,pj);
+            p = pkd->Particle(pj);
             if (!pkdIsActive(pkd,p)) continue;
             pkdGetPos3(pkd,p,cx,cy,cz);
             goto found_it;
         }
-        printf("%d: TREE ERROR\n", pkd->idSelf);
+        printf("%d: TREE ERROR\n", pkd->Self());
         assert(0); /* We didn't find an active particle */
 found_it:
         d2c = (cx - pkd->ilp->cx)*(cx - pkd->ilp->cx) + (cy - pkd->ilp->cy)*(cy - pkd->ilp->cy) +
@@ -400,8 +400,8 @@ found_it:
                                     assert(id >= 0);
                                     iCidPart = blk->iCache.i[jTile]==CID_CELL ? CID_PARTICLE : CID_PARTICLE2;
                                     if (SPHoptions->doSetDensityFlags) {
-                                        if (id == pkd->idSelf) {
-                                            p = pkdParticle(pkd,pj);
+                                        if (id == pkd->Self()) {
+                                            p = pkd->Particle(pj);
                                             p->bMarked = 1;
                                         }
                                         else {
@@ -411,7 +411,7 @@ found_it:
                                         }
                                     }
                                     else {
-                                        if (id == pkd->idSelf) p = pkdParticle(pkd,pj);
+                                        if (id == pkd->Self()) p = pkd->Particle(pj);
                                         else p = CAST(PARTICLE *,mdlFetch(pkd->mdl,iCidPart,pj,id));
                                         if (ts->bGravStep && ts->iTimeStepCrit == 1) v = pkdVel(pkd,p);
                                         pkdGetPos1(pkd,p,r);
@@ -453,14 +453,14 @@ found_it:
                                 }
                                 else {
                                     assert(id >= 0);
-                                    if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCheckCell);
+                                    if (id == pkd->Self()) c = pkd->TreeNode(iCheckCell);
                                     else {
                                         c = CAST(KDN *,mdlFetch(pkd->mdl,blk->iCache.i[jTile],iCheckCell,id));
                                     }
                                     iCidPart = blk->iCache.i[jTile]==CID_CELL ? CID_PARTICLE : CID_PARTICLE2;
                                     if (!bReferenceFound) {
                                         bReferenceFound=1;
-                                        if (id == pkd->idSelf) p = pkdParticle(pkd,c->pLower);
+                                        if (id == pkd->Self()) p = pkd->Particle(c->pLower);
                                         else p = CAST(PARTICLE *,mdlFetch(pkd->mdl,iCidPart,c->pLower,id));
                                         pkdGetPos1(pkd,p,r);
                                         pkd->ilp->cx=r[0]; pkd->ilp->cy=r[1]; pkd->ilp->cz=r[2];
@@ -468,8 +468,8 @@ found_it:
                                     }
                                     for (pj=c->pLower; pj<=c->pUpper; ++pj) {
                                         if (SPHoptions->doSetDensityFlags) {
-                                            if (id == pkd->idSelf) {
-                                                p = pkdParticle(pkd,pj);
+                                            if (id == pkd->Self()) {
+                                                p = pkd->Particle(pj);
                                                 p->bMarked = 1;
                                             }
                                             else {
@@ -479,7 +479,7 @@ found_it:
                                             }
                                         }
                                         else {
-                                            if (id == pkd->idSelf) p = pkdParticle(pkd,pj);
+                                            if (id == pkd->Self()) p = pkd->Particle(pj);
                                             else p = CAST(PARTICLE *,mdlFetch(pkd->mdl,iCidPart,pj,id));
                                             fMass = pkdMass(pkd,p);
                                             fSoft = pkdSoft(pkd,p);
@@ -530,13 +530,13 @@ found_it:
                                 fOffset[1] = blk->yOffset.f[jTile];
                                 fOffset[2] = blk->zOffset.f[jTile];
                                 assert(id >= 0);
-                                if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCheckCell);
+                                if (id == pkd->Self()) c = pkd->TreeNode(iCheckCell);
                                 else {
                                     c = CAST(KDN *,mdlFetch(pkd->mdl,blk->iCache.i[jTile],iCheckCell,id));
                                 }
                                 iCidPart = blk->iCache.i[jTile]==CID_CELL ? CID_PARTICLE : CID_PARTICLE2;
                                 for (pj=c->pLower; pj<=c->pUpper; ++pj) {
-                                    if (id == pkd->idSelf) p = pkdParticle(pkd,pj);
+                                    if (id == pkd->Self()) p = pkd->Particle(pj);
                                     else p = CAST(PARTICLE *,mdlFetch(pkd->mdl,iCidPart,pj,id));
                                     pkdGetPos1(pkd,p,r);
                                     fMass = pkdMass(pkd,p);
@@ -596,7 +596,7 @@ found_it:
                                     iCheckCell = blk->iCell.i[jTile];
                                     assert(iCheckCell>=0);
                                     id = blk->idCell.i[jTile];
-                                    if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCheckCell);
+                                    if (id == pkd->Self()) c = pkd->TreeNode(iCheckCell);
                                     else {
                                         c = CAST(KDN *,mdlFetch(pkd->mdl,blk->iCache.i[jTile],iCheckCell,id));
                                     }
@@ -651,7 +651,7 @@ found_it:
                                         dOffset[0] = blk->xOffset.f[jTile];
                                         dOffset[1] = blk->yOffset.f[jTile];
                                         dOffset[2] = blk->zOffset.f[jTile];
-                                        if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCheckCell);
+                                        if (id == pkd->Self()) c = pkd->TreeNode(iCheckCell);
                                         else {
                                             c = CAST(KDN *,mdlFetch(pkd->mdl,blk->iCache.i[jTile],iCheckCell,id));
                                         }
@@ -722,7 +722,7 @@ found_it:
             zParent = k_r[2];
             for (j=0; j<3; ++j) fOffset[j] = 0.0f;
             iCell = k->iLower;
-            getCell(pkd,-1,iCell,pkd->idSelf,&kOpen,&k);
+            getCell(pkd,-1,iCell,pkd->Self(),&kOpen,&k);
             pkdNodeGetPos(pkd,k,k_r);
             /*
             ** Check iCell is active. We eventually want to just to a
@@ -735,7 +735,7 @@ found_it:
                 ** Put the sibling onto the checklist.
                 */
                 iSib = iCell+1;
-                getCell(pkd,-1,iSib,pkd->idSelf,&cOpen,&c);
+                getCell(pkd,-1,iSib,pkd->Self(),&cOpen,&c);
                 if ((c->uMinRung<=ts->uRungHi && c->uMaxRung >= ts->uRungLo) || (SPHoptions->useDensityFlags && c->bHasMarked)) {
                     /*
                     ** Sibling is active so we need to clone the checklist!
@@ -798,7 +798,7 @@ found_it:
                 /*
                 ** Move onto processing the sibling.
                 */
-                k = pkdTreeNode(pkd,++iCell);
+                k = pkd->TreeNode(++iCell);
                 pkdNodeGetPos(pkd,k,k_r);
             }
             dFlop = momShiftLocr(&L,k_r[0] - xParent,
@@ -830,7 +830,7 @@ found_it:
         }
         /* Get the next cell to process from the stack */
         if (iStack == -1) goto doneCheckList;
-        k = pkdTreeNode(pkd,iCell = pkd->S[iStack].iNodeIndex);
+        k = pkd->TreeNode(iCell = pkd->S[iStack].iNodeIndex);
         pkdNodeGetPos(pkd,k,k_r);
         /*
         ** Pop the Checklist from the top of the stack,
@@ -908,7 +908,7 @@ int pkdGravWalkHop(PKD pkd,double dTime,int nGroup, double dThetaMin,double *pdF
     SMX smx;
     SMF smf;
 
-    mdlROcache(pkd->mdl,CID_PARTICLE,NULL,pkdParticleBase(pkd),pkdParticleSize(pkd), pkdLocal(pkd));
+    mdlROcache(pkd->mdl,CID_PARTICLE,NULL,pkd->ParticleBase(),pkd->ParticleSize(), pkd->Local());
     initGravWalk(pkd,dTime,dThetaMin,0,0,0,0,&smx,&smf);
     nActive = 0;
     for (gid=1; gid<pkd->nGroups; ++gid) {
@@ -925,7 +925,7 @@ int pkdGravWalkHop(PKD pkd,double dTime,int nGroup, double dThetaMin,double *pdF
             assert(iRoot>0);
             addChild(pkd,CID_CELL,pkd->cl,iRoot,id,fOffset);
         }
-        assert(pkd->hopRoots[iRootSelf].iPid==pkd->idSelf);
+        assert(pkd->hopRoots[iRootSelf].iPid==pkd->Self());
         // nActive += processCheckList(pkd, smx, smf, pkd->hopRoots[iRootSelf].iIndex, 0, 0, MAX_RUNG,
         //     NULL,NULL,1.0,dTime,
         //     0, dThetaMin, 0, 0, pdFlop, pdPartSum, pdCellSum);
@@ -955,12 +955,12 @@ int pkdGravWalk(PKD pkd,struct pkdKickParameters *kick,struct pkdLightconeParame
 
     iTop1 = pkd->iTopTree[iLocalRoot1];
     iTop2 = pkd->iTopTree[iLocalRoot2];
-    id = pkd->idSelf;
+    id = pkd->Self();
 
     /*
     ** Walk tree 1 against trees 1 (and optionally 2) if there are active particles
     */
-    KDN *k = pkdTreeNode(pkd,iLocalRoot1);
+    KDN *k = pkd->TreeNode(iLocalRoot1);
     if (k->pLower<=k->pUpper && (pkdIsCellActive(k,ts->uRungLo,ts->uRungHi) || (SPHoptions->useDensityFlags && k->bHasMarked))) {
         /*
         ** Initially we set our cell pointer to
@@ -998,7 +998,7 @@ int pkdGravWalk(PKD pkd,struct pkdKickParameters *kick,struct pkdLightconeParame
     */
     if (iLocalRoot2>0) {
         /* Check that the iRoot has active particles! */
-        if (!pkdIsCellActive(pkdTreeNode(pkd,iLocalRoot2),uRungLo,uRungHi)) return 0;
+        if (!pkdIsCellActive(pkd->TreeNode(iLocalRoot2),uRungLo,uRungHi)) return 0;
         ilpClear(pkd->ilp);
         ilcClear(pkd->ilc);
         clClear(pkd->cl);

@@ -237,12 +237,12 @@ void pkdCalcDistance(PKD pkd, double *dCenter, int bPeriodic) {
     /*
     ** Initialize the temporary particles.
     */
-    for (i=0; i<pkd->nLocal; ++i) {
-        PARTICLE *p = pkdParticle(pkd,i);
+    for (i=0; i<pkd->Local(); ++i) {
+        PARTICLE *p = pkd->Particle(i);
         pl[i].d2 = pkdGetDistance2(pkd,p,dCenter,bPeriodic);
         pl[i].i = i;
     }
-    qsort(pkd->pLite,pkdLocal(pkd),sizeof(distance),cmpRadiusLite);
+    qsort(pkd->pLite,pkd->Local(),sizeof(distance),cmpRadiusLite);
 }
 
 /*
@@ -258,8 +258,8 @@ void pkdCalcCOM(PKD pkd, double *dCenter, double dRadius, int bPeriodic,
     *M = 0.0;
     *N = 0;
     dRadius2 = dRadius * dRadius;
-    for (i=0; i<pkd->nLocal; ++i) {
-        PARTICLE *p = pkdParticle(pkd,i);
+    for (i=0; i<pkd->Local(); ++i) {
+        PARTICLE *p = pkd->Particle(i);
         double m = pkdMass(pkd,p);
         vel_t *v = pkdVel(pkd,p);
         double r[3];
@@ -283,8 +283,8 @@ void pkdCalcMtot(PKD pkd,double *M, uint64_t *N) {
     int i;
     *M = 0.0;
     *N = 0;
-    for (i=0; i<pkd->nLocal; ++i) {
-        PARTICLE *p = pkdParticle(pkd,i);
+    for (i=0; i<pkd->Local(); ++i) {
+        PARTICLE *p = pkd->Particle(i);
         double m = pkdMass(pkd,p);
         *M += m;
         (*N)++;
@@ -299,7 +299,7 @@ uint_fast32_t pkdCountDistance(PKD pkd, double r2i, double r2o ) {
     uint64_t lo,hi,i,upper;
 
     lo = 0;
-    hi = pkd->nLocal;
+    hi = pkd->Local();
     while ( lo<hi ) {
         i = (lo+hi) / 2;
         if ( pl[i].d2 >= r2o ) hi = i;
@@ -340,21 +340,21 @@ double ell_distance2(const double *r,SHAPESBIN *pShape, double ba, double ca) {
 */
 static void CalculateInertia(PKD pkd,int nBins, const double *dRadii, SHAPESBIN *shapesBins) {
     auto pl = static_cast<distance *>(pkd->pLite);
-    local_t n = pkdLocal(pkd);
+    local_t n = pkd->Local();
     SHAPESBIN *pShape;
     int i, j, k;
     int iBin;
     double ell_matrix[3][3], ell_matrix_inv[3][3];
 
 
-    mdlCOcache(pkd->mdl,CID_SHAPES,NULL,shapesBins,sizeof(SHAPESBIN),pkd->idSelf==0?nBins:0,pkd,initShapesBins1,combShapesBins1);
+    mdlCOcache(pkd->mdl,CID_SHAPES,NULL,shapesBins,sizeof(SHAPESBIN),pkd->Self()==0?nBins:0,pkd,initShapesBins1,combShapesBins1);
 
     /*
     ** The most efficient way to handle this is to do the calculations for all bins
     */
     for (i=iBin=0; i<n; i++) {
 
-        PARTICLE *p = pkdParticle(pkd,pl[i].i);
+        PARTICLE *p = pkd->Particle(pl[i].i);
         double m = pkdMass(pkd,p);
 
         //double r = dRadii[iBin];
@@ -376,7 +376,7 @@ static void CalculateInertia(PKD pkd,int nBins, const double *dRadii, SHAPESBIN 
     }
     mdlFinishCache(pkd->mdl,CID_SHAPES);
 
-    if (pkd->idSelf == 0) {
+    if (pkd->Self() == 0) {
         double inertia_cm[4][4];
         double evectors[4][4];
         double evalues[4];
@@ -481,7 +481,7 @@ void pkdShapes(PKD pkd, int nBins, const double *dCenter, const double *dRadii) 
     SHAPESBIN *shapesBins;
     int i, j, k;
 
-    if (pkd->idSelf == 0) {
+    if (pkd->Self() == 0) {
         shapesBins = CAST(SHAPESBIN *,mdlMalloc(pkd->mdl,nBins*sizeof(SHAPESBIN)));
         assert( shapesBins != NULL );
         /* Start with the given center for every bin */
@@ -496,11 +496,11 @@ void pkdShapes(PKD pkd, int nBins, const double *dCenter, const double *dRadii) 
     }
     else shapesBins = NULL;
 
-    mdlROcache(pkd->mdl,CID_BIN,NULL,pkd->profileBins,sizeof(PROFILEBIN),pkd->idSelf?0:nBins);
+    mdlROcache(pkd->mdl,CID_BIN,NULL,pkd->profileBins,sizeof(PROFILEBIN),pkd->Self()?0:nBins);
     CalculateInertia(pkd,nBins,dRadii,shapesBins);
     mdlFinishCache(pkd->mdl,CID_BIN);
 
-    if (pkd->idSelf == 0) {
+    if (pkd->Self() == 0) {
         mdlFree(pkd->mdl,shapesBins);
     }
 
@@ -515,12 +515,12 @@ void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
                 const double *dCenter, const double *dRadii, int nBins,
                 const double *com, const double *vcm, const double *L) {
     auto pl = static_cast<distance *>(pkd->pLite);
-    local_t n = pkdLocal(pkd);
+    local_t n = pkd->Local();
     double r0, r, r2;
     int i,iBin;
     PROFILEBIN *pBin;
 
-    if (pkd->idSelf == 0) {
+    if (pkd->Self() == 0) {
         if ( pkd->profileBins != NULL ) mdlFree(pkd->mdl,pkd->profileBins);
         pkd->profileBins = CAST(PROFILEBIN *,mdlMalloc(pkd->mdl,nBins*sizeof(PROFILEBIN)));
         assert( pkd->profileBins != NULL );
@@ -540,7 +540,7 @@ void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
             r0 = r;
         }
     }
-    mdlCOcache(pkd->mdl,CID_BIN,NULL,pkd->profileBins,sizeof(PROFILEBIN),pkd->idSelf==0?nBins:0,pkd,initProfileBins1,combProfileBins1);
+    mdlCOcache(pkd->mdl,CID_BIN,NULL,pkd->profileBins,sizeof(PROFILEBIN),pkd->Self()==0?nBins:0,pkd,initProfileBins1,combProfileBins1);
 
     /*
     ** Now we add all of the particles to the appropriate bin.  NOTE than both
@@ -556,7 +556,7 @@ void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
         assert( r > r0 );
 
         while ( pl[i].d2 <= r2 && i<n) {
-            PARTICLE *p = pkdParticle(pkd,pl[i].i);
+            PARTICLE *p = pkd->Particle(pl[i].i);
             double m = pkdMass(pkd,p);
             vel_t *v = pkdVel(pkd,p);
             double delta_x[3], delta_v[3], ang_mom[3], dx2, vel;
@@ -589,7 +589,7 @@ void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
     mdlFinishCache(pkd->mdl,CID_BIN);
 
     /* We need angular momentum to calculate tangental velocity sigma, so we reopen the cache */
-    mdlCOcache(pkd->mdl,CID_BIN,NULL,pkd->profileBins,sizeof(PROFILEBIN),pkd->idSelf?0:nBins,pkd,initProfileBins2,combProfileBins2);
+    mdlCOcache(pkd->mdl,CID_BIN,NULL,pkd->profileBins,sizeof(PROFILEBIN),pkd->Self()?0:nBins,pkd,initProfileBins2,combProfileBins2);
     r0 = 0.0;
     i = 0;
     for (iBin=0; iBin<nBins; iBin++) {
@@ -598,7 +598,7 @@ void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
         r2 = r*r;
         assert( r > r0 );
         while ( pl[i].d2 <= r2 && i<n) {
-            PARTICLE *p = pkdParticle(pkd,pl[i].i);
+            PARTICLE *p = pkd->Particle(pl[i].i);
             double m = pkdMass(pkd,p);
             vel_t *v = pkdVel(pkd,p);
             double delta_x[3], delta_v[3], dx2, r[3];
