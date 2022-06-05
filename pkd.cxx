@@ -691,13 +691,7 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     /*
     ** We support up to 256 classes
     */
-    this->pClass = static_cast<PARTCLASS *>(malloc(PKD_MAX_CLASSES*sizeof(PARTCLASS)));
-    mdlassert(mdl,this->pClass != NULL);
-    for (j=0; j<PKD_MAX_CLASSES; j++) {
-        this->pClass[j].fMass = this->pClass[j].fSoft = -1.0;
-        this->pClass[j].eSpecies = FIO_SPECIES_LAST;
-    }
-    this->nClasses = 0;
+    ParticleClasses.reserve(PKD_MAX_CLASSES);
 
     this->fSoftFix = -1.0;
     this->fSoftFac = 1.0;
@@ -787,7 +781,6 @@ pkdContext::~pkdContext() {
         SIMD_free(ewt.hSfac.f);
     }
 
-    free(pClass);
     /*
     ** Free any neighbor lists that were left hanging around.
     */
@@ -856,7 +849,6 @@ size_t pkdIllMemory(PKD pkd) {
 }
 
 void pkdSetClass( PKD pkd, float fMass, float fSoft, FIO_SPECIES eSpecies, PARTICLE *p ) {
-    int i;
     if ( pkd->oFieldOffset[oMass] ) {
         auto pMass = static_cast<float *>(pkdField(p,pkd->oFieldOffset[oMass]));
         *pMass = fMass;
@@ -869,57 +861,47 @@ void pkdSetClass( PKD pkd, float fMass, float fSoft, FIO_SPECIES eSpecies, PARTI
     }
     /* NOTE: The above can both be true, in which case a "zero" class is recorded */
     /* NOTE: Species is always part of the class table, so there will be at least one class per species */
+    PARTCLASS newClass(fMass,fSoft,eSpecies);
 
     /* TODO: This is a linear search which is fine for a small number of classes */
-    for ( i=0; i<pkd->nClasses; i++ )
-        if ( pkd->pClass[i].fMass == fMass && pkd->pClass[i].fSoft == fSoft && pkd->pClass[i].eSpecies==eSpecies )
-            break;
-    if ( i == pkd->nClasses ) {
-        assert( pkd->nClasses < PKD_MAX_CLASSES );
-        i = pkd->nClasses++;
-        pkd->pClass[i].fSoft    = fSoft;
-        pkd->pClass[i].fMass    = fMass;
-        pkd->pClass[i].eSpecies = eSpecies;
+    auto iclass = std::find(pkd->ParticleClasses.begin(),pkd->ParticleClasses.end(),newClass);
+    if (iclass==pkd->ParticleClasses.end()) {
+        assert( pkd->ParticleClasses.size() < PKD_MAX_CLASSES );
+        p->iClass = pkd->ParticleClasses.size();
+        pkd->ParticleClasses.emplace_back(newClass);
     }
-    if (pkd->bNoParticleOrder) { assert(i==0); }
-    else p->iClass = i;
-
+    else p->iClass = std::distance(pkd->ParticleClasses.begin(),iclass);
+    if (pkd->bNoParticleOrder) { assert(p->iClass==0); }
 }
 
 int pkdGetClasses( PKD pkd, int nMax, PARTCLASS *pClass ) {
-    int i;
-    for ( i=0; i<pkd->nClasses; i++ )
-        pClass[i] = pkd->pClass[i];
-    return pkd->nClasses;
+    std::copy(pkd->ParticleClasses.begin(),pkd->ParticleClasses.end(),pClass);
+    return pkd->ParticleClasses.size();
 }
 
 void pkdSetClasses( PKD pkd, int n, PARTCLASS *pClass, int bUpdate ) {
     uint8_t map[PKD_MAX_CLASSES];
     PARTICLE *p;
-    int i,j;
 
-    if ( bUpdate && pkd->nClasses && !pkd->bNoParticleOrder) {
+    if ( bUpdate && pkd->ParticleClasses.size() && !pkd->bNoParticleOrder) {
         /* Build a map from the old class to the new class */
-        assert( n >= pkd->nClasses );
-        for ( i=0; i<pkd->nClasses; i++ ) {
-            for ( j=0; j<n; j++ )
-                if ( pClass[j].fMass==pkd->pClass[i].fMass && pClass[j].fSoft==pkd->pClass[i].fSoft && pClass[j].eSpecies==pkd->pClass[i].eSpecies )
-                    break;
-            assert(j<n);
-            map[i] = j;
+        assert( n >= pkd->ParticleClasses.size() );
+        for (auto i=0; i<pkd->ParticleClasses.size(); ++i) {
+            auto jj = std::find(pClass,pClass+n,pkd->ParticleClasses[i]);
+            map[i] = std::distance(pClass,jj);
         }
 
         /* Now update the class with the new value */
-        for (i=0; i<pkd->Local(); ++i) {
+        for (auto i=0; i<pkd->Local(); ++i) {
             p = pkd->Particle(i);
-            assert( p->iClass <= pkd->nClasses );
+            assert( p->iClass < pkd->ParticleClasses.size() );
             p->iClass = map[p->iClass];
         }
     }
 
     /* Finally, set the new class table */
-    for ( i=0; i<n; i++ ) pkd->pClass[i] = pClass[i];
-    pkd->nClasses = n;
+    pkd->ParticleClasses.clear();
+    pkd->ParticleClasses.insert(pkd->ParticleClasses.end(),pClass,pClass+n);
 }
 
 void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double dTuFac) {
@@ -940,7 +922,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
     __itt_string_handle *shMyTask = __itt_string_handle_create("Read");
     __itt_task_begin(domain, __itt_null, __itt_null, shMyTask);
 #endif
-    pkd->nClasses = 0;
+    pkd->ParticleClasses.clear();
     if (pkd->oFieldOffset[oStar]) {
         /* Make sure star class established -- how do all procs know of these classes? How do we ensure they agree on the class identifiers? */
         p = pkd->Particle(pkd->Local());

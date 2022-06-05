@@ -147,20 +147,26 @@ typedef struct {
 #define ROOT        1
 #define NRESERVED_NODES MAX_RUNG+1
 
-typedef struct partclass {
+struct PARTCLASS {
     float       fMass;    /* Particle mass */
     float       fSoft;    /* Current softening */
     FIO_SPECIES eSpecies; /* Species: dark, star, etc. */
-#ifdef __cplusplus
-    bool operator <(const struct partclass &b) const {
+
+    bool operator <(const PARTCLASS &b) const {
         if ( fMass < b.fMass ) return true;
         else if ( fMass > b.fMass ) return false;
         else if ( fSoft < b.fSoft ) return true;
         else if ( fSoft > b.fSoft ) return false;
         else return eSpecies < b.eSpecies;
     }
-#endif
-} PARTCLASS;
+    bool operator==(const PARTCLASS &b) const {
+        return fMass==b.fMass && fSoft==b.fSoft && eSpecies==b.eSpecies;
+    }
+    PARTCLASS() = default;
+    PARTCLASS(float fMass,float fSoft,FIO_SPECIES eSpecies)
+        : fMass(fMass), fSoft(fSoft), eSpecies(eSpecies) {}
+};
+static_assert(std::is_trivial<PARTCLASS>());
 
 typedef struct velsmooth {
     float vmean[3];
@@ -880,11 +886,10 @@ public:
     int64_t nSideHealpix;
     healpixData *pHealpixData;
 
-    PARTCLASS *pClass;
+    std::vector<PARTCLASS> ParticleClasses;
     float fSoftFix;
     float fSoftFac;
     float fSoftMax;
-    int nClasses;
     void *pLite;
     /*
     ** Advanced memory models
@@ -1263,16 +1268,16 @@ static inline float pkdMass( PKD pkd, PARTICLE *p ) {
         float *pMass = CAST(float *,pkdField(p,pkd->oFieldOffset[oMass]));
         return *pMass;
     }
-    else if (pkd->bNoParticleOrder) return pkd->pClass[0].fMass;
-    else return pkd->pClass[p->iClass].fMass;
+    else if (pkd->bNoParticleOrder) return pkd->ParticleClasses[0].fMass;
+    else return pkd->ParticleClasses[p->iClass].fMass;
 }
 static inline float pkdSoft0( PKD pkd, PARTICLE *p ) {
     if ( pkd->oFieldOffset[oSoft] ) {
         float *pSoft = CAST(float *,pkdField(p,pkd->oFieldOffset[oSoft]));
         return *pSoft;
     }
-    else if (pkd->bNoParticleOrder) return pkd->pClass[0].fSoft;
-    else return pkd->pClass[p->iClass].fSoft;
+    else if (pkd->bNoParticleOrder) return pkd->ParticleClasses[0].fSoft;
+    else return pkd->ParticleClasses[p->iClass].fSoft;
 }
 static inline float pkdSoft( PKD pkd, PARTICLE *p ) {
     float fSoft;
@@ -1283,8 +1288,8 @@ static inline float pkdSoft( PKD pkd, PARTICLE *p ) {
     return fSoft;
 }
 static inline FIO_SPECIES pkdSpecies( PKD pkd, PARTICLE *p ) {
-    if (pkd->bNoParticleOrder) return pkd->pClass[0].eSpecies;
-    else return pkd->pClass[p->iClass].eSpecies;
+    if (pkd->bNoParticleOrder) return pkd->ParticleClasses[0].eSpecies;
+    else return pkd->ParticleClasses[p->iClass].eSpecies;
 }
 
 /*
