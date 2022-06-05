@@ -134,7 +134,6 @@ static double green(int i, int jj, int kk, int nGrid) {
         return -1.0/g;
 }
 
-extern "C"
 void pkdSetLinGrid(PKD pkd, double a0, double a, double a1, double dBSize, int nGrid, int iSeed,
                    int bFixed, float fPhase) {
     MDLFFT fft = pkd->fft;
@@ -219,7 +218,6 @@ void pkdSetLinGrid(PKD pkd, double a0, double a, double a1, double dBSize, int n
     //auto rForceX = static_cast<FFTW3(real)*>(mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)), cDelta_lin_field));
 }
 
-extern "C"
 int pstSetLinGrid(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
     struct inSetLinGrid *in = reinterpret_cast<struct inSetLinGrid *>(vin);
@@ -350,7 +348,6 @@ void pkdLinearKick(PKD pkd,vel_t dtOpen,vel_t dtClose, int iAssignment=4) {
     mdlFinishCache(pkd->mdl,CID_GridLinFz);
 }
 
-extern "C"
 int pstLinearKick(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
     struct inLinearKick *in = reinterpret_cast<struct inLinearKick *>(vin);
@@ -444,7 +441,6 @@ void pkdMeasureLinPk(PKD pkd, int nGrid, double dA, double dBoxSize,
     }
 }
 
-extern "C"
 int pstMeasureLinPk(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
     struct inMeasureLinPk *in = reinterpret_cast<struct inMeasureLinPk *>(vin);

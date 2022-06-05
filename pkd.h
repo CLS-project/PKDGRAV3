@@ -41,11 +41,7 @@
 #endif
 #include "chemistry.h"
 
-#ifdef __cplusplus
-    #define CAST(T,V) reinterpret_cast<T>(V)
-#else
-    #define CAST(T,V) ((T)(V))
-#endif
+#define CAST(T,V) reinterpret_cast<T>(V)
 
 typedef uint_fast32_t local_t; /* Count of particles locally (per processor) */
 typedef uint_fast64_t total_t; /* Count of particles globally (total number) */
@@ -1188,14 +1184,7 @@ static inline BND *pkdNodeVBnd( PKD pkd, KDN *n ) {
     return CAST(BND *,pkdNodeField(n,pkd->oNodeVBnd));
 }
 
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 void *pkdTreeNodeGetElement(void *vData,int i,int iDataSize);
-#ifdef __cplusplus
-}
-#endif
 //static inline KDN *pkdTopNode(PKD pkd,int iNode) {
 //    assert(0); // no top tree now
 //    }
@@ -1447,9 +1436,6 @@ static inline int pkdIsNew(PKD pkd,PARTICLE *p) {
     return (p->iOrder == IORDERMAX);
 }
 
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 /*
 ** From tree.c:
@@ -1549,7 +1535,7 @@ void pkdGravEvalPC(PINFOIN *pPart, int nBlocks, int nInLast, ILC_BLK *blk,  PINF
 void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double,double,int bDoGas);
 void pkdEndTimestepIntegration(PKD pkd, struct inEndTimestep in);
 #ifdef OPTIM_REORDER_IN_NODES
-void pkdReorderWithinNodes(PKD pkd);
+    void pkdReorderWithinNodes(PKD pkd);
 #endif
 void pkdKickKDKOpen(PKD pkd,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi);
 void pkdKickKDKClose(PKD pkd,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi);
@@ -1615,59 +1601,52 @@ struct outGetNParts {
     total_t nMaxOrder;
 };
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-    void pkdMoveDeletedParticles(PKD pkd, total_t *n, total_t *nGas, total_t *nDark, total_t *nStar, total_t *nBH);
-    void pkdGetNParts(PKD pkd, struct outGetNParts *out );
-    void pkdSetNParts(PKD pkd, int nGas, int nDark, int nStar, int nBH);
-    void pkdInitRelaxation(PKD pkd);
+void pkdMoveDeletedParticles(PKD pkd, total_t *n, total_t *nGas, total_t *nDark, total_t *nStar, total_t *nBH);
+void pkdGetNParts(PKD pkd, struct outGetNParts *out );
+void pkdSetNParts(PKD pkd, int nGas, int nDark, int nStar, int nBH);
+void pkdInitRelaxation(PKD pkd);
 
 #ifdef USE_GRAFIC
-    void pkdGenerateIC(PKD pkd, GRAFICCTX gctx, int iDim,
-                       double fSoft, double fMass, int bCannonical);
+void pkdGenerateIC(PKD pkd, GRAFICCTX gctx, int iDim,
+                   double fSoft, double fMass, int bCannonical);
 #endif
-    int pkdGetClasses( PKD pkd, int nMax, PARTCLASS *pClass );
-    void pkdSetClasses( PKD pkd, int n, PARTCLASS *pClass, int bUpdate );
-    void pkdSetClass( PKD pkd, float fMass, float fSoft, FIO_SPECIES eSpecies, PARTICLE *p );
+int pkdGetClasses( PKD pkd, int nMax, PARTCLASS *pClass );
+void pkdSetClasses( PKD pkd, int n, PARTCLASS *pClass, int bUpdate );
+void pkdSetClass( PKD pkd, float fMass, float fSoft, FIO_SPECIES eSpecies, PARTICLE *p );
 
-    int pkdCountSelected(PKD pkd);
-    int pkdSelSpecies(PKD pkd,uint64_t mSpecies, int setIfTrue, int clearIfFalse);
-    int pkdSelGroup(PKD pkd, int iGroup, int setIfTrue, int clearIfFalse);
-    int pkdSelActive(PKD pkd, int setIfTrue, int clearIfFalse);
-    int pkdSelBlackholes(PKD pkd, int setIfTrue, int clearIfFalse);
-    int pkdSelMass(PKD pkd,double dMinMass, double dMaxMass, int setIfTrue, int clearIfFalse );
-    int pkdSelById(PKD pkd,uint64_t idStart, uint64_t idEnd, int setIfTrue, int clearIfFalse );
-    int pkdSelPhaseDensity(PKD pkd,double dMinDensity, double dMaxDensity, int setIfTrue, int clearIfFalse );
-    int pkdSelBox(PKD pkd,double *dCenter, double *dSize, int setIfTrue, int clearIfFalse );
-    int pkdSelSphere(PKD pkd,double *r, double dRadius, int setIfTrue, int clearIfFalse );
-    int pkdSelCylinder(PKD pkd,double *dP1, double *dP2, double dRadius, int setIfTrue, int clearIfFalse );
+int pkdCountSelected(PKD pkd);
+int pkdSelSpecies(PKD pkd,uint64_t mSpecies, int setIfTrue, int clearIfFalse);
+int pkdSelGroup(PKD pkd, int iGroup, int setIfTrue, int clearIfFalse);
+int pkdSelActive(PKD pkd, int setIfTrue, int clearIfFalse);
+int pkdSelBlackholes(PKD pkd, int setIfTrue, int clearIfFalse);
+int pkdSelMass(PKD pkd,double dMinMass, double dMaxMass, int setIfTrue, int clearIfFalse );
+int pkdSelById(PKD pkd,uint64_t idStart, uint64_t idEnd, int setIfTrue, int clearIfFalse );
+int pkdSelPhaseDensity(PKD pkd,double dMinDensity, double dMaxDensity, int setIfTrue, int clearIfFalse );
+int pkdSelBox(PKD pkd,double *dCenter, double *dSize, int setIfTrue, int clearIfFalse );
+int pkdSelSphere(PKD pkd,double *r, double dRadius, int setIfTrue, int clearIfFalse );
+int pkdSelCylinder(PKD pkd,double *dP1, double *dP2, double dRadius, int setIfTrue, int clearIfFalse );
 
-    int pkdDeepestPot(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
-                      double *r, float *fPot);
-    void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
-                    const double *dCenter, const double *dRadii, int nBins,
-                    const double *com, const double *vcm, const double *L);
-    void pkdCalcDistance(PKD pkd, double *dCenter, int bPeriodic);
-    uint_fast32_t pkdCountDistance(PKD pkd, double r2i, double r2o );
-    void pkdCalcCOM(PKD pkd, double *dCenter, double dRadius, int bPeriodic,
-                    double *com, double *vcm, double *L,
-                    double *M, uint64_t *N);
-    void pkdCalcMtot(PKD pkd, double *M, uint64_t *N);
-    void pkdTreeUpdateFlagBounds(PKD pkd,uint32_t uRoot,SPHOptions *SPHoptions);
+int pkdDeepestPot(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
+                  double *r, float *fPot);
+void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
+                const double *dCenter, const double *dRadii, int nBins,
+                const double *com, const double *vcm, const double *L);
+void pkdCalcDistance(PKD pkd, double *dCenter, int bPeriodic);
+uint_fast32_t pkdCountDistance(PKD pkd, double r2i, double r2o );
+void pkdCalcCOM(PKD pkd, double *dCenter, double dRadius, int bPeriodic,
+                double *com, double *vcm, double *L,
+                double *M, uint64_t *N);
+void pkdCalcMtot(PKD pkd, double *M, uint64_t *N);
+void pkdTreeUpdateFlagBounds(PKD pkd,uint32_t uRoot,SPHOptions *SPHoptions);
 #ifdef MDL_FFTW
-    void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int iAssignment, int iGrid, float dDelta);
-    void pkdInterlace(PKD pkd, int iGridTarget, int iGridSource);
-    float getLinAcc(PKD pkd, MDLFFT fft,int cid, double r[3]);
-    void pkdSetLinGrid(PKD pkd,double a0, double a, double a1, double dBSize, int nGrid, int iSeed,
-                       int bFixed, float fPhase);
-    void pkdMeasureLinPk(PKD pkd, int nGrid, double dA, double dBoxSize,
-                         int nBins,  int iSeed, int bFixed, float fPhase,
-                         double *fK, double *fPower, uint64_t *nPower);
-#endif
-#ifdef __cplusplus
-}
+void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int iAssignment, int iGrid, float dDelta);
+void pkdInterlace(PKD pkd, int iGridTarget, int iGridSource);
+float getLinAcc(PKD pkd, MDLFFT fft,int cid, double r[3]);
+void pkdSetLinGrid(PKD pkd,double a0, double a, double a1, double dBSize, int nGrid, int iSeed,
+                   int bFixed, float fPhase);
+void pkdMeasureLinPk(PKD pkd, int nGrid, double dA, double dBoxSize,
+                     int nBins,  int iSeed, int bFixed, float fPhase,
+                     double *fK, double *fPower, uint64_t *nPower);
 #endif
 void pkdOutPsGroup(PKD pkd,char *pszFileName,int iType);
 
@@ -1684,29 +1663,20 @@ struct outGetParticles { /* Array of these */
     float    r[3], v[3];
 };
 int pkdGetParticles(PKD pkd, int nIn, uint64_t *ID, struct outGetParticles *out);
-#ifdef __cplusplus
-}
-#endif
 
-#ifdef __cplusplus
-extern "C" {
-#endif
 #ifdef USE_CUDA
-extern int CUDAinitWorkPP( void *vpp, void *vwork );
-extern int CUDAcheckWorkPP( void *vpp, void *vwork );
-extern int CUDAinitWorkPC( void *vpp, void *vwork );
-extern int CUDAcheckWorkPC( void *vpp, void *vwork );
-extern int CUDAinitWorkEwald( void *vpp, void *vwork );
-extern int CUDAcheckWorkEwald( void *vpp, void *vwork );
-void *pkdCudaClientInitialize(PKD pkd);
+    extern int CUDAinitWorkPP( void *vpp, void *vwork );
+    extern int CUDAcheckWorkPP( void *vpp, void *vwork );
+    extern int CUDAinitWorkPC( void *vpp, void *vwork );
+    extern int CUDAcheckWorkPC( void *vpp, void *vwork );
+    extern int CUDAinitWorkEwald( void *vpp, void *vwork );
+    extern int CUDAcheckWorkEwald( void *vpp, void *vwork );
+    void *pkdCudaClientInitialize(PKD pkd);
 #endif
 #ifdef USE_CL
-extern int CLinitWorkEwald( void *vcl, void *ve, void *vwork );
-int CLcheckWorkEwald( void *ve, void *vwork );
-extern void clEwaldInit(void *cudaCtx, struct EwaldVariables *ewIn, EwaldTable *ewt );
-#endif
-#ifdef __cplusplus
-}
+    extern int CLinitWorkEwald( void *vcl, void *ve, void *vwork );
+    int CLcheckWorkEwald( void *ve, void *vwork );
+    extern void clEwaldInit(void *cudaCtx, struct EwaldVariables *ewIn, EwaldTable *ewt );
 #endif
 
 #define vec_sub(r,a,b) do {\

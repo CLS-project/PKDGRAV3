@@ -26,7 +26,6 @@
 #include "pkd.h"
 #include "pp.h"
 
-extern "C"
 void pkdGravEvalPP(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINFOOUT *pOut ) {
     fvec pax, pay, paz, pfx, pfy, pfz;
     fvec piax, piay, piaz;
@@ -105,7 +104,6 @@ void pkdGravEvalPP(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINF
     pOut->normsum += normsum;
 }
 
-extern "C"
 void pkdDensityEval(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINFOOUT *pOut, SPHOptions *SPHoptions ) {
     fvec parho, padrhodfball, panden, padndendfball, pfx, pfy, pfz, pfBall;
     fvec pnSmooth;
@@ -167,7 +165,6 @@ void pkdDensityEval(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PIN
     pOut->nSmooth += anSmooth;
 }
 
-extern "C"
 void pkdSPHForcesEval(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINFOOUT *pOut, SPHOptions *SPHoptions ) {
     fvec t1, t2, t3, t4, t5, t6;
     fvec PfBall, POmega, Pdx, Pdy, Pdz, Pvx, Pvy, Pvz, Prho, PP, Pc;

@@ -26,7 +26,6 @@
 #include "pkd.h"
 #include "pc.h"
 
-extern "C"
 void pkdGravEvalPC(PINFOIN *pPart, int nBlocks, int nInLast, ILC_BLK *blk,  PINFOOUT *pOut ) {
     fvec x,y,z;
     fvec adotai;

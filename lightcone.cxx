@@ -30,7 +30,6 @@ extern void addToLightCone(PKD pkd,double *r,float fPot,PARTICLE *p,int bParticl
 
 #define NBOX 184
 
-extern "C"
 void pkdProcessLightCone(PKD pkd,PARTICLE *p,float fPot,double dLookbackFac,double dLookbackFacLCP,
                          double dDriftDelta,double dKickDelta,double dBoxSize,int bLightConeParticles) {
     const double dLightSpeed = dLightSpeedSim(dBoxSize);

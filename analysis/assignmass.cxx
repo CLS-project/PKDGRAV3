@@ -88,7 +88,6 @@ static void combPk(void *vpkd, void *g1, const void *g2) {
     *r1 += *r2;
 }
 
-extern "C"
 void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int iAssignment, int iGrid, float fDelta) {
     auto fft = pkd->fft;
     int nGrid = fft->rgrid->n1;
@@ -161,7 +160,6 @@ void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int iAssignment, int iGrid, flo
     mdlFinishCache(pkd->mdl,CID_PK);
 }
 
-extern "C"
 int pstAssignMass(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
     struct inAssignMass *in = reinterpret_cast<struct inAssignMass *>(vin);
@@ -193,7 +191,6 @@ void MSR::AssignMass(int iAssignment,int iGrid,float fDelta) {
     printf("Mass assignment complete, Wallclock: %f secs\n",MSR::Time() - sec);
 }
 
-extern "C"
 void pkdWindowCorrection(PKD pkd, int iAssignment, int iGrid) {
     auto fft = pkd->fft;
     int nGrid = fft->rgrid->n1;
@@ -215,7 +212,6 @@ void pkdWindowCorrection(PKD pkd, int iAssignment, int iGrid) {
     }
 }
 
-extern "C"
 int pstWindowCorrection(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
     auto in = reinterpret_cast<struct inWindowCorrection *>(vin);

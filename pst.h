@@ -257,10 +257,6 @@ enum pst_service {
     PST_GET_PARTICLES,
 };
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 void pstAddServices(PST,MDL);
 void pstInitialize(PST *,MDL,LCL *);
 void pstFinish(PST);
@@ -565,10 +561,10 @@ int pstRepositionBH(PST,void *,int,void *,int);
 /* PST_RESMOOTH */
 int pstReSmooth(PST,void *,int,void *,int);
 #ifdef OPTIM_SMOOTH_NODE
-int pstReSmoothNode(PST,void *,int,void *,int);
+    int pstReSmoothNode(PST,void *,int,void *,int);
 #endif
 #ifdef OPTIM_REORDER_IN_NODES
-int pstReorderWithinNodes(PST,void *,int,void *,int);
+    int pstReorderWithinNodes(PST,void *,int,void *,int);
 #endif
 
 /* PST_GRAVITY */
@@ -660,7 +656,7 @@ struct outFluxStats {
     int nComputed;
 };
 #ifdef DEBUG_CACHED_FLUXES
-int pstFluxStats(PST, void *, int, void *, int);
+    int pstFluxStats(PST, void *, int, void *, int);
 #endif
 
 /* PST_ROPARTICLECACHE */
@@ -1233,9 +1229,5 @@ int pstLightConeVel(PST pst,void *vin,int nIn,void *vout,int nOut);
 
 /* PST_GET_PARICLES */
 int pstGetParticles(PST pst,void *vin,int nIn,void *vout,int nOut);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif
