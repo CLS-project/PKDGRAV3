@@ -59,6 +59,19 @@ GSL - The GNU Scientific Library
 
         cmake -DGSL_ROOT_DIR=/opt/gsl/2.5
 
+Boost - C++ Template Lirary
+
+    This library is usually available on HPC systems, but if not it must be
+    downloaded and compiled, and can be found at this URL.
+
+	https://www.boost.org
+
+    pkdgrav3 will locate the Boost installation by using the CMake module:
+
+	https://cmake.org/cmake/help/latest/module/FindBoost.html
+
+    Generally setting BOOST_ROOT is required for user installations.
+
 FFTW - Fast Fourier Transform Library
 
     If FFTW is available then two advanced features are enabled in pkdgrav3.
