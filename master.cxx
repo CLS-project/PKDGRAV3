@@ -307,7 +307,7 @@ void MSR::InitializePStore(uint64_t *nSpecies,uint64_t mMemoryModel) {
     ps.bLightConeParticles  = param.bLightConeParticles;
 
 #define SHOW(m) ((ps.mMemoryModel&PKD_MODEL_##m)?" " #m:"")
-    printf("Memory Models:%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s\n",
+    printf("Memory Models:%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s\n",
            param.bMemIntegerPosition ? " INTEGER_POSITION" : " DOUBLE_POSITION",
            SHOW(UNORDERED),SHOW(VELOCITY),SHOW(ACCELERATION),SHOW(POTENTIAL),
            SHOW(GROUPS),SHOW(RELAXATION),SHOW(MASS),SHOW(DENSITY),
