@@ -204,7 +204,7 @@ public:
     vec &load(const scalar_t *f);
     vec &zero();
 
-    vec() {}
+    vec() = default;
 #ifdef USE_SIMD
     vec(scalar_t const &d);
 #endif
