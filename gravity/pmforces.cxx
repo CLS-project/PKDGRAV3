@@ -134,7 +134,6 @@ static double green(int i, int jj, int kk, int nGrid) {
         return -1.0/g;
 }
 
-extern "C"
 void pkdSetLinGrid(PKD pkd, double a0, double a, double a1, double dBSize, int nGrid, int iSeed,
                    int bFixed, float fPhase) {
     MDLFFT fft = pkd->fft;
@@ -219,7 +218,6 @@ void pkdSetLinGrid(PKD pkd, double a0, double a, double a1, double dBSize, int n
     //auto rForceX = static_cast<FFTW3(real)*>(mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)), cDelta_lin_field));
 }
 
-extern "C"
 int pstSetLinGrid(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
     struct inSetLinGrid *in = reinterpret_cast<struct inSetLinGrid *>(vin);
@@ -309,7 +307,7 @@ void pkdLinearKick(PKD pkd,vel_t dtOpen,vel_t dtClose, int iAssignment=4) {
     std::vector<std::uint32_t> stack;
     stack.push_back(ROOT);
     while ( !stack.empty()) {
-        tree_node *kdn = reinterpret_cast<tree_node *>(pkdTreeNode(pkd,stack.back()));
+        tree_node *kdn = reinterpret_cast<tree_node *>(pkd->TreeNode(stack.back()));
         stack.pop_back(); // Go to the next node in the tree
         Bound bnd = pkdNodeGetBnd(pkd, kdn);
         shape_t ilower = shape_t(floor((bnd.lower() * ifPeriod + 0.5) * nGrid)) - iAssignment/2;
@@ -334,7 +332,7 @@ void pkdLinearKick(PKD pkd,vel_t dtOpen,vel_t dtClose, int iAssignment=4) {
             fetch_forces(pkd,CID_GridLinFy,nGrid,forcesY,ilower);
             fetch_forces(pkd,CID_GridLinFz,nGrid,forcesZ,ilower);
             for ( int i=kdn->pLower; i<=kdn->pUpper; ++i) { // All particles in this tree cell
-                auto p = pkdParticle(pkd,i);
+                auto p = pkd->Particle(i);
                 auto v = pkdVel(pkd,p);
                 position_t dr; pkdGetPos1(pkd,p,dr.data()); // Centered on 0 with period fPeriod
                 float3_t r(dr);
@@ -350,7 +348,6 @@ void pkdLinearKick(PKD pkd,vel_t dtOpen,vel_t dtClose, int iAssignment=4) {
     mdlFinishCache(pkd->mdl,CID_GridLinFz);
 }
 
-extern "C"
 int pstLinearKick(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
     struct inLinearKick *in = reinterpret_cast<struct inLinearKick *>(vin);
@@ -378,7 +375,7 @@ void pkdMeasureLinPk(PKD pkd, int nGrid, double dA, double dBoxSize,
     int iNyquist;
 
     /* Sort the particles into optimal "cell" order */
-    /* Use tree order: QSORT(pkdParticleSize(pkd),pkdParticle(pkd,0),pkd->nLocal,qsort_lt); */
+    /* Use tree order: QSORT(pkdParticleSize(pkd),pkd->Particle(0),pkd->nLocal,qsort_lt); */
 
     iNyquist = nGrid / 2;
 
@@ -444,7 +441,6 @@ void pkdMeasureLinPk(PKD pkd, int nGrid, double dA, double dBoxSize,
     }
 }
 
-extern "C"
 int pstMeasureLinPk(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
     struct inMeasureLinPk *in = reinterpret_cast<struct inMeasureLinPk *>(vin);

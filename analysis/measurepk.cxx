@@ -90,7 +90,6 @@ void pkdAddLinearSignal(PKD pkd, int iGrid, int iSeed, bool bFixed, float fPhase
     ng.FillNoise(K1,nGrid);
 }
 
-extern "C"
 int pstAddLinearSignal(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
     auto in = reinterpret_cast<struct inAddLinearSignal *>(vin);

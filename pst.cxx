@@ -102,7 +102,7 @@ void pstAddServices(PST pst,MDL mdl) {
     */
     mdlAddService(mdl,PST_BUILDTREE,pst,(fcnService_t *)pstBuildTree,
                   sizeof(struct inBuildTree),
-                  (nThreads==1?1:2*nThreads-1)*pkdMaxNodeSize());
+                  (nThreads==1?1:2*nThreads-1)*pkdContext::MaxNodeSize());
     mdlAddService(mdl,PST_TREEINITMARKED,pst,(fcnService_t *)pstTreeInitMarked,
                   0,0);
     mdlAddService(mdl,PST_HOP_LINK,pst,(fcnService_t *)pstHopLink,
@@ -296,7 +296,7 @@ void pstAddServices(PST pst,MDL mdl) {
                   sizeof(struct inSetSPHoptions), 0);
     mdlAddService(mdl,PST_TREEUPDATEFLAGBOUNDS,pst,(fcnService_t *)pstTreeUpdateFlagBounds,
                   sizeof(struct inTreeUpdateFlagBounds),
-                  (nThreads==1?1:2*nThreads-1)*pkdMaxNodeSize());
+                  (nThreads==1?1:2*nThreads-1)*pkdContext::MaxNodeSize());
     mdlAddService(mdl,PST_COUNTDISTANCE,pst,(fcnService_t *)pstCountDistance,
                   sizeof(struct inCountDistance), sizeof(struct outCountDistance));
 #ifdef MDL_FFTW
@@ -364,15 +364,15 @@ void pstFinish(PST pst) {
     while (pst) {
         pstKill = pst;
         if (pst->nLeaves == 1 && pst->plcl->pkd)
-            pkdFinish(pst->plcl->pkd);
+            delete pst->plcl->pkd;
         pst = pst->pstLower;
         free(pstKill);
     }
 }
 
 static void initializePStore(PKD *ppkd,MDL mdl,struct inInitializePStore *in) {
-    pkdInitialize(
-        ppkd,mdl,in->nStore,in->nMinTotalStore,in->nMinEphemeral,in->nEphemeralBytes,
+    *ppkd = new pkdContext(
+        static_cast<mdl::mdlClass *>(mdl),in->nStore,in->nMinTotalStore,in->nMinEphemeral,in->nEphemeralBytes,
         in->nTreeBitsLo,in->nTreeBitsHi,
         in->iCacheSize,in->iWorkQueueSize,in->iCUDAQueueSize,in->fPeriod,
         in->nSpecies[FIO_SPECIES_DARK],in->nSpecies[FIO_SPECIES_SPH],in->nSpecies[FIO_SPECIES_STAR], in->nSpecies[FIO_SPECIES_BH],
@@ -389,7 +389,7 @@ int pstInitializePStore(PST pst,void *vin,int nIn,void *vout,int nOut) {
         mdlGetReply(pst->mdl,rID,NULL,NULL);
     }
     else {
-        if (plcl->pkd) pkdFinish(plcl->pkd);
+        if (plcl->pkd) delete plcl->pkd;
         initializePStore(&plcl->pkd,pst->mdl,in);
     }
     return 0;
@@ -501,7 +501,7 @@ int pstReadFile(PST pst,void *vin,int nIn,void *vout,int nOut) {
             /*
              * Read particles into the local storage.
              */
-            assert(pkd->nStore >= nParts[i]);
+            assert(pkd->FreeStore() >= nParts[i]);
             pkdReadFIO(pkd, fio, nStart, nParts[i], in->dvFac,in->dTuFac);
             nStart += nParts[i];
             /*
@@ -835,16 +835,16 @@ int pstBuildTree(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
     /* We need to save our cells so we can update them later */
     if (pst->nLeaves > 1) {
-        pCell1 = pkdNode(pkd,pTop,1);
-        pCell2 = pkdNode(pkd,pTop,pst->nLower*2);
+        pCell1 = pkd->Node(pTop,1);
+        pCell2 = pkd->Node(pTop,pst->nLower*2);
 
         /* We will accumulate the top tree here */
         int rID = mdlReqService(pst->mdl,pst->idUpper,PST_BUILDTREE,vin,nIn);
-        nOut = pstBuildTree(pst->pstLower,vin,nIn,pCell1,(pst->nLower*2-1) * pkdNodeSize(pkd));
-        assert(nOut == (pst->nLower*2-1) * pkdNodeSize(pkd));
+        nOut = pstBuildTree(pst->pstLower,vin,nIn,pCell1,(pst->nLower*2-1) * pkd->NodeSize());
+        assert(nOut == (pst->nLower*2-1) * pkd->NodeSize());
         mdlGetReply(pst->mdl,rID,pCell2,&nOutUpper);
-        assert(nOutUpper == (pst->nUpper*2-1) * pkdNodeSize(pkd));
-        nOut += nOutUpper + pkdNodeSize(pkd);
+        assert(nOutUpper == (pst->nUpper*2-1) * pkd->NodeSize());
+        nOut += nOutUpper + pkd->NodeSize();
 
         /*
         ** Combine Cell1 and Cell2 into pCell
@@ -866,8 +866,8 @@ int pstBuildTree(PST pst,void *vin,int nIn,void *vout,int nOut) {
         pTop->pLower = 0;                           /* Not used */
     }
     else {
-        KDN *pRoot = pkdTreeNode(pkd,uRoot);
-        pkdTreeAlignNode(pkd);
+        KDN *pRoot = pkd->TreeNode(uRoot);
+        pkd->TreeAlignNode();
         pkdTreeBuild(plcl->pkd,in->nBucket,in->nGroup,in->uRoot,in->utRoot,in->ddHonHLimit);
         pkdCopyNode(pkd,pTop,pRoot);
         /* Get our cell ready */
@@ -876,7 +876,7 @@ int pstBuildTree(PST pst,void *vin,int nIn,void *vout,int nOut) {
         pTop->bRemote = 1;
         pTop->pUpper = pTop->pLower = pst->idSelf;
         /* iLower is valid = ROOT */
-        nOut = pkdNodeSize(pkd);
+        nOut = pkd->NodeSize();
     }
     return nOut;
 }
@@ -1314,7 +1314,7 @@ int pstGravity(PST pst,void *vin,int nIn,void *vout,int nOut) {
         outr->dFlopDoubleCPU = 1e-9*pkd->dFlopDoubleCPU;
         outr->dFlopSingleGPU = 1e-9*pkd->dFlopSingleGPU;
         outr->dFlopDoubleGPU = 1e-9*pkd->dFlopDoubleGPU;
-        outr->sLocal.dSum = plcl->pkd->nLocal;
+        outr->sLocal.dSum = plcl->pkd->Local();
         outr->sActive.dSum = (double)outr->nActive;
 #ifdef __linux__
         fp = fopen("/proc/self/stat","r");
@@ -1672,8 +1672,8 @@ int pstROParticleCache(PST pst,void *vin,int nIn,void *vout,int nOut) {
         ** Start particle caching space.
         */
         PKD pkd = plcl->pkd;
-        mdlROcache(pkd->mdl,CID_PARTICLE,NULL,pkdParticleBase(pkd),pkdParticleSize(pkd),
-                   pkdLocal(pkd));
+        mdlROcache(pkd->mdl,CID_PARTICLE,NULL,pkd->ParticleBase(),pkd->ParticleSize(),
+                   pkd->Local());
 
     }
     return 0;
@@ -1747,7 +1747,7 @@ int pstSetTotal(PST pst,void *vin,int nIn,void *vout,int nOut) {
     }
     else {
         /*pst->nTotal = pkdLocal(plcl->pkd);*/
-        pst->nTotal = pkdLocal(plcl->pkd);
+        pst->nTotal = plcl->pkd->Local();
         out->nTotal = pst->nTotal;
     }
     return sizeof(struct outSetTotal);
@@ -2084,7 +2084,7 @@ int pstMemStatus(PST pst,void *vin,int nIn,void *vout,int nOut) {
             fclose(fp);
         }
 #endif
-        out->nBytesTree = pkdTreeMemory(plcl->pkd);
+        out->nBytesTree = plcl->pkd->TreeMemory();
         out->nBytesCl   = pkdClMemory(plcl->pkd);
         out->nBytesIlp  = pkdIlpMemory(plcl->pkd);
         out->nBytesIlc  = pkdIlcMemory(plcl->pkd);
@@ -2282,16 +2282,16 @@ int pstTreeUpdateFlagBounds(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
     /* We need to save our cells so we can update them later */
     if (pst->nLeaves > 1) {
-        pCell1 = pkdNode(pkd,pTop,1);
-        pCell2 = pkdNode(pkd,pTop,pst->nLower*2);
+        pCell1 = pkd->Node(pTop,1);
+        pCell2 = pkd->Node(pTop,pst->nLower*2);
 
         /* We will accumulate the top tree here */
         int rID = mdlReqService(pst->mdl,pst->idUpper,PST_TREEUPDATEFLAGBOUNDS,vin,nIn);
-        nOut = pstTreeUpdateFlagBounds(pst->pstLower,vin,nIn,pCell1,(pst->nLower*2-1) * pkdNodeSize(pkd));
-        assert(nOut == (pst->nLower*2-1) * pkdNodeSize(pkd));
+        nOut = pstTreeUpdateFlagBounds(pst->pstLower,vin,nIn,pCell1,(pst->nLower*2-1) * pkd->NodeSize());
+        assert(nOut == (pst->nLower*2-1) * pkd->NodeSize());
         mdlGetReply(pst->mdl,rID,pCell2,&nOutUpper);
-        assert(nOutUpper == (pst->nUpper*2-1) * pkdNodeSize(pkd));
-        nOut += nOutUpper + pkdNodeSize(pkd);
+        assert(nOutUpper == (pst->nUpper*2-1) * pkd->NodeSize());
+        nOut += nOutUpper + pkd->NodeSize();
 
         /*
         ** Combine Cell1 and Cell2 into pCell
@@ -2313,8 +2313,8 @@ int pstTreeUpdateFlagBounds(PST pst,void *vin,int nIn,void *vout,int nOut) {
         pTop->pLower = 0;                           /* Not used */
     }
     else {
-        KDN *pRoot = pkdTreeNode(pkd,uRoot);
-        pkdTreeAlignNode(pkd);
+        KDN *pRoot = pkd->TreeNode(uRoot);
+        pkd->TreeAlignNode();
         pkdTreeUpdateFlagBounds(plcl->pkd,uRoot,&in->SPHoptions);
         pkdCopyNode(pkd,pTop,pRoot);
         /* Get our cell ready */
@@ -2323,7 +2323,7 @@ int pstTreeUpdateFlagBounds(PST pst,void *vin,int nIn,void *vout,int nOut) {
         pTop->bRemote = 1;
         pTop->pUpper = pTop->pLower = pst->idSelf;
         /* iLower is valid = ROOT */
-        nOut = pkdNodeSize(pkd);
+        nOut = pkd->NodeSize();
     }
     return nOut;
 }

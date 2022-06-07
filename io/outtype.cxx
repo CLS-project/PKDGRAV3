@@ -774,8 +774,8 @@ void pkdOutASCII(PKD pkd,PKDOUT ctx,int iType,int iDim) {
     /*
     ** Write Elements!
     */
-    for (i=0; i<pkd->nLocal; ++i) {
-        PARTICLE *p = pkdParticle(pkd,i);
+    for (i=0; i<pkd->Local(); ++i) {
+        PARTICLE *p = pkd->Particle(i);
         (*ctx->fnOut)(pkd,ctx,p,iType,iDim);
     }
 }

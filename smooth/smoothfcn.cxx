@@ -218,7 +218,7 @@ void LinkHopChains(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     g1 = &pkd->tmpHopGroups[gid1];
     for (i=0; i<nSmooth; ++i) {
         gid2 = pkdGetGroup(pkd,nnList[i].pPart);
-        if (nnList[i].iPid==pkd->idSelf && gid1==gid2) continue;
+        if (nnList[i].iPid==pkd->Self() && gid1==gid2) continue;
         g.iPid = nnList[i].iPid;
         g.iIndex = gid2;
         g2 = static_cast<GHtmpGroupTable *>(mdlAcquire(mdl,CID_GROUP,g.iIndex,g.iPid));

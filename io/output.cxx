@@ -168,7 +168,7 @@ void pkdOutput(PKD pkd, outType eOutputType, int iProcessor,int nProcessor,
     }
     while (--nPartner) {
         struct inOutputSend send;
-        send.iPartner = pkd->idSelf;
+        send.iPartner = pkd->Self();
         send.eOutputType = eOutputType;
         send.iGrid = iGrid;
         ++iPartner;

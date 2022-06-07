@@ -242,7 +242,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
 
     smx = new struct smContext;
     assert(smx != NULL);
-    smx->pSentinel = static_cast<PARTICLE *>(malloc(pkdParticleSize(pkd)));
+    smx->pSentinel = static_cast<PARTICLE *>(malloc(pkd->ParticleSize()));
     assert(smx->pSentinel != NULL);
     smx->pkd = pkd;
     smx->fcnSmoothNode = NULL;
@@ -256,7 +256,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
     /*
     ** Initialize the context for compressed nearest neighbor lists.
     */
-    smx->lcmp = lcodeInit(pkd->nThreads,pkd->idSelf,pkd->nLocal,nSmooth);
+    smx->lcmp = lcodeInit(pkd->Threads(),pkd->Self(),pkd->Local(),nSmooth);
 
     switch (iSmoothType) {
     case SMX_NULL:
@@ -489,10 +489,10 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
     ** Initialize the ACTIVE particles in the tree.
     ** There are other particles in the tree -- just not active.
     */
-    nTree = pkdTreeNode(pkd,ROOT)->pUpper + 1;
+    nTree = pkd->TreeNode(ROOT)->pUpper + 1;
     if (initParticle != NULL) {
         for (pi=0; pi<nTree; ++pi) {
-            PARTICLE *p = pkdParticle(pkd,pi);
+            PARTICLE *p = pkd->Particle(pi);
             /*if (TYPETest(p,smx->eParticleTypes))*/
             if (pkdIsActive(pkd,p)) initParticle(pkd,p);
         }
@@ -504,12 +504,12 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         smx->bOwnCache = 1;
         if (bSymmetric) {
             mdlCOcache(pkd->mdl,CID_PARTICLE,NULL,
-                       pkdParticleBase(pkd),pkdParticleSize(pkd),
+                       pkd->ParticleBase(),pkd->ParticleSize(),
                        nTree,pkd,init,comb);
         }
         else {
             mdlROcache(pkd->mdl,CID_PARTICLE,NULL,
-                       pkdParticleBase(pkd),pkdParticleSize(pkd),
+                       pkd->ParticleBase(),pkd->ParticleSize(),
                        nTree);
         }
     }
@@ -577,7 +577,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
     /*
     ** Need to cast the pLite to an array of extra stuff.
     */
-    assert(pkd->nEphemeralBytes >= sizeof(struct smExtraArray));
+    assert(pkd->EphemeralBytes() >= sizeof(struct smExtraArray));
     smx->ea = (struct smExtraArray *)(pkd->pLite); /* Used only for SPH */
     *psmx = smx;
     return (1);
@@ -625,8 +625,8 @@ void smFinish(SMX smx,SMF *smf) {
     ** "Gather-Scatter" kernel.
     */
     if (smx->fcnPost != NULL) {
-        for (pi=0; pi<pkd->nLocal; ++pi) {
-            p = pkdParticle(pkd,pi);
+        for (pi=0; pi<pkd->Local(); ++pi) {
+            p = pkd->Particle(pi);
             smx->fcnPost(pkd,p,smf);
         }
     }
@@ -647,7 +647,7 @@ void smFinish(SMX smx,SMF *smf) {
 }
 
 static KDN *getCell(PKD pkd, int iCell, int id) {
-    if (id==pkd->idSelf) return pkdTreeNode(pkd,iCell);
+    if (id==pkd->Self()) return pkd->TreeNode(iCell);
     return static_cast<KDN *>(mdlFetch(pkd->mdl,CID_CELL,iCell,id));
 }
 
@@ -655,7 +655,7 @@ PQ *pqSearch(SMX smx,PQ *pq,double r[3],int iRoot) {
     PKD pkd = smx->pkd;
     MDL mdl = smx->pkd->mdl;
     KDN *kdn;
-    int idSelf = smx->pkd->idSelf;
+    int idSelf = smx->pkd->Self();
     struct smContext::stStack *S = smx->ST;
     double min1,min2;
     double p_r[3];
@@ -702,7 +702,7 @@ PQ *pqSearch(SMX smx,PQ *pq,double r[3],int iRoot) {
         if (id == idSelf ) {
             pEnd = kdn->pUpper;
             for (pj=kdn->pLower; pj<=pEnd; ++pj) {
-                p = pkdParticle(pkd,pj);
+                p = pkd->Particle(pj);
                 if (!p->bMarked) continue;
                 pkdGetPos1(pkd,p,p_r);
                 dx = r[0] - p_r[0];
@@ -711,7 +711,7 @@ PQ *pqSearch(SMX smx,PQ *pq,double r[3],int iRoot) {
                 fDist2 = dx*dx + dy*dy + dz*dz;
                 if (fDist2 <= pq->fDist2) {
                     if (pq->iPid == idSelf) {
-                        pkdParticle(pkd,pq->iIndex)->bMarked = 1;
+                        pkd->Particle(pq->iIndex)->bMarked = 1;
                     }
                     else {
                         smHashDel(smx,pq->pPart);
@@ -741,7 +741,7 @@ PQ *pqSearch(SMX smx,PQ *pq,double r[3],int iRoot) {
                 fDist2 = dx*dx + dy*dy + dz*dz;
                 if (fDist2 <= pq->fDist2) {
                     if (pq->iPid == idSelf) {
-                        pkdParticle(pkd,pq->iIndex)->bMarked = 1;
+                        pkd->Particle(pq->iIndex)->bMarked = 1;
                     }
                     else {
                         smHashDel(smx,pq->pPart);
@@ -781,8 +781,8 @@ void smSmoothInitialize(SMX smx) {
     */
     for (i=0; i<smx->nSmooth; ++i) {
         smx->pq[i].pPart = smx->pSentinel;
-        smx->pq[i].iIndex = smx->pkd->nLocal;
-        smx->pq[i].iPid = smx->pkd->idSelf;
+        smx->pq[i].iIndex = smx->pkd->Local();
+        smx->pq[i].iPid = smx->pkd->Self();
         smx->pq[i].dx = pkdPos(smx->pkd,smx->pSentinel,0);
         smx->pq[i].dy = pkdPos(smx->pkd,smx->pSentinel,1);
         smx->pq[i].dz = pkdPos(smx->pkd,smx->pSentinel,2);
@@ -798,8 +798,8 @@ void smSmoothFinish(SMX smx) {
     ** Release acquired pointers and source-reactivate particles in prioq.
     */
     for (i=0; i<smx->nSmooth; ++i) {
-        if (smx->pq[i].iPid == smx->pkd->idSelf) {
-            pkdParticle(smx->pkd,smx->pq[i].iIndex)->bMarked = 1;
+        if (smx->pq[i].iPid == smx->pkd->Self()) {
+            smx->pkd->Particle(smx->pq[i].iIndex)->bMarked = 1;
         }
         else {
             smHashDel(smx,smx->pq[i].pPart);
@@ -899,14 +899,14 @@ void smSmooth(SMX smx,SMF *smf) {
     /*
     ** Initialize the bInactive flags for all local particles.
     */
-    for (pi=0; pi<pkd->nLocal; ++pi) {
-        p = pkdParticle(pkd,pi);
+    for (pi=0; pi<pkd->Local(); ++pi) {
+        p = pkd->Particle(pi);
         p->bMarked = 1;
     }
     smSmoothInitialize(smx);
     smf->pfDensity = NULL;
-    for (pi=0; pi<pkd->nLocal; ++pi) {
-        p = pkdParticle(pkd,pi);
+    for (pi=0; pi<pkd->Local(); ++pi) {
+        p = pkd->Particle(pi);
         if (!smf->bMeshlessHydro ) {
             smSmoothSingle(smx,smf,p,ROOT,0);
             //pkdSetBall(pkd,p,smSmoothSingle(smx,smf,p,ROOT,0));
@@ -919,8 +919,8 @@ void smSmooth(SMX smx,SMF *smf) {
                 }
                 /*
                     smSmoothFinish(smx);
-                    for (int pj=0;pj<pkd->nLocal;++pj) {
-                    PARTICLE *p2 = pkdParticle(pkd,pj);
+                    for (int pj=0;pj<pkd->Local();++pj) {
+                    PARTICLE *p2 = pkd->Particle(pj);
                     p2->bMarked = 1;
                     }
                     smSmoothInitialize(smx);
@@ -941,7 +941,7 @@ void smGather(SMX smx,double fBall2,double r[3], PARTICLE *pp) {
     KDN *kdn;
     PKD pkd = smx->pkd;
     MDL mdl = pkd->mdl;
-    int idSelf = pkd->idSelf;
+    int idSelf = pkd->Self();
     struct smContext::stStack *S = smx->ST;
     double min2;
     int iCell,id;
@@ -975,10 +975,10 @@ void smGather(SMX smx,double fBall2,double r[3], PARTICLE *pp) {
             continue;
         }
         else {
-            if (id == pkd->idSelf) {
+            if (id == pkd->Self()) {
                 pEnd = kdn->pUpper;
                 for (pj=kdn->pLower; pj<=pEnd; ++pj) {
-                    p = pkdParticle(pkd,pj);
+                    p = pkd->Particle(pj);
                     if (!pkdIsGas(pkd,p)) continue;
                     pkdGetPos1(pkd,p,p_r);
                     dx = r[0] - p_r[0];
@@ -1053,7 +1053,7 @@ void smDoGatherLocal(SMX smx,double fBall2,double r[3],void (*Do)(SMX,PARTICLE *
     int iCell,pj,pEnd;
     BND bnd;
 
-    kdn = pkdTreeNode(pkd,iCell = ROOT);
+    kdn = pkd->TreeNode(iCell = ROOT);
     while (1) {
         bnd = pkdNodeGetBnd(pkd, kdn);
         MINDIST(&bnd,r,min2);
@@ -1064,14 +1064,14 @@ void smDoGatherLocal(SMX smx,double fBall2,double r[3],void (*Do)(SMX,PARTICLE *
         ** We have an intersection to test.
         */
         if (kdn->iLower) {
-            kdn = pkdTreeNode(pkd,iCell = kdn->iLower);
+            kdn = pkd->TreeNode(iCell = kdn->iLower);
             S[sp++] = iCell+1;
             continue;
         }
         else {
             pEnd = kdn->pUpper;
             for (pj=kdn->pLower; pj<=pEnd; ++pj) {
-                p = pkdParticle(pkd,pj);
+                p = pkd->Particle(pj);
                 pkdGetPos1(pkd,p,p_r);
                 dx = r[0] - p_r[0];
                 dy = r[1] - p_r[1];
@@ -1083,7 +1083,7 @@ void smDoGatherLocal(SMX smx,double fBall2,double r[3],void (*Do)(SMX,PARTICLE *
             }
         }
 NoIntersect:
-        if (sp) kdn = pkdTreeNode(pkd,iCell = S[--sp]);
+        if (sp) kdn = pkd->TreeNode(iCell = S[--sp]);
         else break;
     }
 }
@@ -1131,7 +1131,7 @@ void smReSmoothSingle(SMX smx,SMF *smf,PARTICLE *p,double fBall) {
     ** Release acquired pointers.
     */
     for (i=0; i<smx->nnListSize; ++i) {
-        if (smx->nnList[i].iPid != pkd->idSelf) {
+        if (smx->nnList[i].iPid != pkd->Self()) {
             mdlRelease(pkd->mdl,CID_PARTICLE,smx->nnList[i].pPart);
         }
     }
@@ -1146,8 +1146,8 @@ int  smReSmooth(SMX smx,SMF *smf, int iSmoothType) {
     smf->pfDensity = NULL;
     switch (iSmoothType) {
     case SMX_HYDRO_DENSITY:
-        for (pi=0; pi<pkd->nLocal; ++pi) {
-            p = pkdParticle(pkd,pi);
+        for (pi=0; pi<pkd->Local(); ++pi) {
+            p = pkd->Particle(pi);
 #ifdef FEEDBACK
             // We follow the density of stars that has not yet exploded to have a proper fBall
             if (pkdIsActive(pkd,p) && p->bMarked && (pkdIsGas(pkd,p) || pkdIsStar(pkd,p))) {
@@ -1165,8 +1165,8 @@ int  smReSmooth(SMX smx,SMF *smf, int iSmoothType) {
         }
         break;
     case SMX_BH_DRIFT:
-        for (pi=0; pi<pkd->nLocal; ++pi) {
-            p = pkdParticle(pkd,pi);
+        for (pi=0; pi<pkd->Local(); ++pi) {
+            p = pkd->Particle(pi);
             if (pkdIsBH(pkd,p)) {
                 smReSmoothSingle(smx,smf,p,2.*pkdBall(pkd,p));
                 nSmoothed++;
@@ -1179,8 +1179,8 @@ int  smReSmooth(SMX smx,SMF *smf, int iSmoothType) {
      *  they can increase the rung of the neighbouring gas particles before exploding
      */
     case SMX_HYDRO_STEP:
-        for (pi=0; pi<pkd->nLocal; ++pi) {
-            p = pkdParticle(pkd,pi);
+        for (pi=0; pi<pkd->Local(); ++pi) {
+            p = pkd->Particle(pi);
             if (pkdIsGas(pkd,p)) {
                 if (pkdIsActive(pkd,p)) {
                     smReSmoothSingle(smx,smf,p, 2.*pkdBall(pkd,p));
@@ -1203,8 +1203,8 @@ int  smReSmooth(SMX smx,SMF *smf, int iSmoothType) {
 
     case SMX_SN_FEEDBACK:
 
-        for (pi=0; pi<pkd->nLocal; ++pi) {
-            p = pkdParticle(pkd,pi);
+        for (pi=0; pi<pkd->Local(); ++pi) {
+            p = pkd->Particle(pi);
             if (pkdIsStar(pkd,p)) {
                 if ( (pkdStar(pkd,p)->hasExploded == 0) &&
                         ((smf->dTime-pkdStar(pkd,p)->fTimer) > smf->dSNFBDelay) ) {
@@ -1219,8 +1219,8 @@ int  smReSmooth(SMX smx,SMF *smf, int iSmoothType) {
 #endif
 #ifdef STELLAR_EVOLUTION
     case SMX_CHEM_ENRICHMENT:
-        for (pi = 0; pi < pkd->nLocal; ++pi) {
-            p = pkdParticle(pkd, pi);
+        for (pi = 0; pi < pkd->Local(); ++pi) {
+            p = pkd->Particle( pi);
             if (pkdIsStar(pkd, p)) {
                 STARFIELDS *pStar = pkdStar(pkd, p);
                 if ((float)smf->dTime > pStar->fNextEnrichTime) {
@@ -1232,8 +1232,8 @@ int  smReSmooth(SMX smx,SMF *smf, int iSmoothType) {
         break;
 #endif
     default:
-        for (pi=0; pi<pkd->nLocal; ++pi) {
-            p = pkdParticle(pkd,pi);
+        for (pi=0; pi<pkd->Local(); ++pi) {
+            p = pkd->Particle(pi);
             if (pkdIsActive(pkd,p) && pkdIsGas(pkd,p)) {
                 smReSmoothSingle(smx,smf,p, 2.*pkdBall(pkd,p));
                 nSmoothed++;
@@ -1344,8 +1344,8 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
 
 
 
-    for (int i=NRESERVED_NODES; i<pkd->nNodes-1; i++) {
-        node = pkdTreeNode(pkd,i);
+    for (int i=NRESERVED_NODES; i<pkd->Nodes()-1; i++) {
+        node = pkd->TreeNode(i);
         if (!node->iLower) { // We are in a bucket
 
             // Prepare the interaction list
@@ -1379,7 +1379,7 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
 
             double fMax_shrink[3] = {0.,0.,0.};
             for (pj=node->pLower; pj<pEnd; ++pj) {
-                p = pkdParticle(pkd,pj);
+                p = pkd->Particle(pj);
 
 #ifdef OPTIM_AVOID_IS_ACTIVE
                 int pIsActive = p->bMarked;
@@ -1435,7 +1435,7 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
             nCnt = 0;
             //printf("%e %e \n", 2.*nodeBall, pkdNodeBall(pkd,node));
             int nCnt_own = nActive;
-            //printf("start node %d %d \n", pkd->idSelf, i);
+            //printf("start node %d %d \n", pkd->Self(), i);
 
             // Remember! pkdBall gives HALF the radius of the enclosing sphere!
             nodeBall *= 2.;
@@ -1609,12 +1609,12 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
             nSmoothed += nCnt_own;
 
             for (pk=0; pk<nCnt; ++pk) {
-                if (smx->nnList[pk].iPid != pkd->idSelf) {
+                if (smx->nnList[pk].iPid != pkd->Self()) {
                     mdlRelease(mdl,CID_PARTICLE,smx->nnList[pk].pPart);
                 }
             }
 
-            //printf("end node %d %d \n", pkd->idSelf, i);
+            //printf("end node %d %d \n", pkd->Self(), i);
         }
     }
     if (smx->fcnSmoothGetNvars) {
@@ -1643,10 +1643,10 @@ void buildInteractionList(SMX smx, SMF *smf, KDN *node, BND bnd_node, int *nCnt_
     int nCnt = *nCnt_tot;
 
     // We look for the biggest node that encloses the needed domain
-    id = pkd->idSelf;
+    id = pkd->Self();
 
 // We can only take advantage of this if we are are in the original cell
-    kdn = getCell(pkd,iCell=pkd->iTopTree[ROOT],id = pkd->idSelf);
+    kdn = getCell(pkd,iCell=pkd->iTopTree[ROOT],id = pkd->Self());
 
     //  Now we start the walk as usual
     sp = 0;
@@ -1671,7 +1671,7 @@ void buildInteractionList(SMX smx, SMF *smf, KDN *node, BND bnd_node, int *nCnt_
             continue;
         }
         else {
-            if (id == pkd->idSelf) {
+            if (id == pkd->Self()) {
 #ifdef OPTIM_REORDER_IN_NODES
                 pEnd = kdn->pLower+pkdNodeNgas(pkd,kdn);
 #else
@@ -1679,7 +1679,7 @@ void buildInteractionList(SMX smx, SMF *smf, KDN *node, BND bnd_node, int *nCnt_
 #endif
                 //printf("pEnd %d \n", pEnd);
                 for (pj=kdn->pLower; pj<pEnd; ++pj) {
-                    p = pkdParticle(pkd,pj);
+                    p = pkd->Particle(pj);
 #ifndef OPTIM_REORDER_IN_NODES
                     if (!pkdIsGas(pkd,p)) continue;
 #endif
@@ -1703,7 +1703,7 @@ void buildInteractionList(SMX smx, SMF *smf, KDN *node, BND bnd_node, int *nCnt_
                         smx->nnList[nCnt].dz = dz;
                         smx->nnList[nCnt].pPart = p;
                         smx->nnList[nCnt].iIndex = pj;
-                        smx->nnList[nCnt].iPid = pkd->idSelf;
+                        smx->nnList[nCnt].iPid = pkd->Self();
                         ++nCnt;
                     }
                 }

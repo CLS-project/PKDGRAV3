@@ -126,7 +126,6 @@ double evalEwaldSIMD( PKD pkd,ewaldSIMD *ews,
 }
 #endif
 
-extern "C"
 double pkdParticleEwald(PKD pkd,double *r, float *pa, float *pPot,double *pdFlopSingle, double *pdFlopDouble) {
     struct EwaldVariables &ew = pkd->ew;
     EwaldTable *ewt = &pkd->ewt;
@@ -332,7 +331,6 @@ double pkdParticleEwald(PKD pkd,double *r, float *pa, float *pPot,double *pdFlop
     return dFlopDouble + dFlopSingle;
 }
 
-extern "C"
 void pkdEwaldInit(PKD pkd,int nReps,double fEwCut,double fhCut) {
     struct EwaldVariables *const ew = &pkd->ew;
     EwaldTable *const ewt = &pkd->ewt;

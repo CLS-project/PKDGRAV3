@@ -227,9 +227,9 @@ void genericPairwiseLimiter(double Lstate, double Rstate,
 }
 
 
-inline void hydroSourceGravity(PKD pkd, PARTICLE *p, SPHFIELDS *psph,
-                               double pDelta, double *pa, double dScaleFactor,
-                               int bComove) {
+void hydroSourceGravity(PKD pkd, PARTICLE *p, SPHFIELDS *psph,
+                        double pDelta, double *pa, double dScaleFactor,
+                        int bComove) {
     double gravE = 0.0;
     double gravE_dmdt = 0.0;
     double aFac_m2 = 1./(dScaleFactor*dScaleFactor);
@@ -265,9 +265,9 @@ inline void hydroSourceGravity(PKD pkd, PARTICLE *p, SPHFIELDS *psph,
 
 
 
-inline void hydroSourceExpansion(PKD pkd, PARTICLE *p, SPHFIELDS *psph,
-                                 double pDelta, double dScaleFactor, double dHubble,
-                                 int bComove, double dConstGamma) {
+void hydroSourceExpansion(PKD pkd, PARTICLE *p, SPHFIELDS *psph,
+                          double pDelta, double dScaleFactor, double dHubble,
+                          int bComove, double dConstGamma) {
     //  E^{n+1} = E^{n} + dE_flux - dt*(H^{n} E^n + H^{n+1} E^{n+1})
     if (bComove) {
         psph->E = (psph->E - psph->lastHubble*pDelta*psph->lastE) /
@@ -297,7 +297,7 @@ inline void hydroSourceExpansion(PKD pkd, PARTICLE *p, SPHFIELDS *psph,
 
 
 
-inline void hydroSyncEnergies(PKD pkd, PARTICLE *p, SPHFIELDS *psph, double pa[3], double dConstGamma) {
+void hydroSyncEnergies(PKD pkd, PARTICLE *p, SPHFIELDS *psph, double pa[3], double dConstGamma) {
     double Ekin = 0.5*(psph->mom[0]*psph->mom[0] +
                        psph->mom[1]*psph->mom[1] +
                        psph->mom[2]*psph->mom[2])/pkdMass(pkd,p);
@@ -348,8 +348,8 @@ inline void hydroSyncEnergies(PKD pkd, PARTICLE *p, SPHFIELDS *psph, double pa[3
 
 
 
-inline void hydroSetPrimitives(PKD pkd, PARTICLE *p, SPHFIELDS *psph,
-                               double dTuFac, double dConstGamma) {
+void hydroSetPrimitives(PKD pkd, PARTICLE *p, SPHFIELDS *psph,
+                        double dTuFac, double dConstGamma) {
 
     // Temperature minimum of T=0, but could be changed.
     // If cooling is used, the corresponding entropy floor
@@ -387,9 +387,9 @@ inline void hydroSetPrimitives(PKD pkd, PARTICLE *p, SPHFIELDS *psph,
 
 
 
-inline void hydroSetLastVars(PKD pkd, PARTICLE *p, SPHFIELDS *psph, double *pa,
-                             double dScaleFactor, double dTime, double dDelta,
-                             double dConstGamma) {
+void hydroSetLastVars(PKD pkd, PARTICLE *p, SPHFIELDS *psph, double *pa,
+                      double dScaleFactor, double dTime, double dDelta,
+                      double dConstGamma) {
 #ifndef USE_MFM
     for (int j=0; j<3; j++) {
         psph->lastDrDotFrho[j] = psph->drDotFrho[j]*dScaleFactor;

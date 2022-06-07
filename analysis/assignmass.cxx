@@ -88,7 +88,6 @@ static void combPk(void *vpkd, void *g1, const void *g2) {
     *r1 += *r2;
 }
 
-extern "C"
 void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int iAssignment, int iGrid, float fDelta) {
     auto fft = pkd->fft;
     int nGrid = fft->rgrid->n1;
@@ -110,7 +109,7 @@ void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int iAssignment, int iGrid, flo
     std::vector<std::uint32_t> stack;
     stack.push_back(iLocalRoot);
     while ( !stack.empty()) {
-        tree_node *kdn = reinterpret_cast<tree_node *>(pkdTreeNode(pkd,stack.back()));
+        tree_node *kdn = reinterpret_cast<tree_node *>(pkd->TreeNode(stack.back()));
         stack.pop_back(); // Go to the next node in the tree
         Bound bnd = pkdNodeGetBnd(pkd, kdn);
         shape_t ilower = shape_t(floor((bnd.lower() * ifPeriod + 0.5) * nGrid + fDelta)) - iAssignment/2;
@@ -126,7 +125,7 @@ void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int iAssignment, int iGrid, flo
             }
             // Huge bucket. Do a particle at a time.
             else for ( int i=kdn->pLower; i<=kdn->pUpper; ++i) { // All particles in this tree cell
-                    PARTICLE *p = pkdParticle(pkd,i);
+                    PARTICLE *p = pkd->Particle(i);
                     position_t dr; pkdGetPos1(pkd,p,dr.data()); // Centered on 0 with period fPeriod
                     float3_t r(dr);
                     r = (r * ifPeriod + 0.5) * nGrid + fDelta;
@@ -149,7 +148,7 @@ void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int iAssignment, int iGrid, flo
             masses = 0.0f;
             //masses.dumpStructureInformation(std::cout);
             for ( int i=kdn->pLower; i<=kdn->pUpper; ++i) { // All particles in this tree cell
-                PARTICLE *p = pkdParticle(pkd,i);
+                PARTICLE *p = pkd->Particle(i);
                 position_t dr; pkdGetPos1(pkd,p,dr.data()); // Centered on 0 with period fPeriod
                 float3_t r(dr);
                 r = (r * ifPeriod + 0.5) * nGrid + fDelta - flower; // Scale and shift to fit in subcube
@@ -161,7 +160,6 @@ void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int iAssignment, int iGrid, flo
     mdlFinishCache(pkd->mdl,CID_PK);
 }
 
-extern "C"
 int pstAssignMass(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
     struct inAssignMass *in = reinterpret_cast<struct inAssignMass *>(vin);
@@ -193,7 +191,6 @@ void MSR::AssignMass(int iAssignment,int iGrid,float fDelta) {
     printf("Mass assignment complete, Wallclock: %f secs\n",MSR::Time() - sec);
 }
 
-extern "C"
 void pkdWindowCorrection(PKD pkd, int iAssignment, int iGrid) {
     auto fft = pkd->fft;
     int nGrid = fft->rgrid->n1;
@@ -215,7 +212,6 @@ void pkdWindowCorrection(PKD pkd, int iAssignment, int iGrid) {
     }
 }
 
-extern "C"
 int pstWindowCorrection(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
     auto in = reinterpret_cast<struct inWindowCorrection *>(vin);

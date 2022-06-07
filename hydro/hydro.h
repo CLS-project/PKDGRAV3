@@ -16,9 +16,6 @@ typedef double my_real;
  * MAIN FUNCTIONS
  * -----------------
  */
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 /* Density loop */
 void hydroDensity(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf);
@@ -91,7 +88,4 @@ void compute_Ustar(double rho_K, double S_K, double v_K,
                    double p_K, double h_K, double S_s,
                    double *rho_sK, double *rhov_sK, double *e_sK);
 
-#ifdef __cplusplus
-}
-#endif
 

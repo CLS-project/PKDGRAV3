@@ -182,14 +182,14 @@ target_sources(${PROJECT_NAME} PRIVATE
 	main.cxx cosmo.c master.cxx simulate.cxx pst.cxx TraversePST.cxx io/fio.c core/illinois.c param.c
 	pkd.cxx analysis/analysis.cxx smooth/smooth.cxx smooth/smoothfcn.cxx io/outtype.cxx io/output.cxx
 	gravity/walk2.cxx gravity/grav2.cxx gravity/ewald.cxx ic/ic.cxx domains/tree.cxx gravity/opening.cxx gravity/pp.cxx gravity/pc.cxx gravity/cl.cxx
-	gravity/lst.cxx gravity/moments.c gravity/ilp.cxx gravity/ilc.cxx io/iomodule.c SPHOptions.c
+	gravity/lst.cxx gravity/moments.c gravity/ilp.cxx gravity/ilc.cxx io/iomodule.c SPHOptions.cxx
 	group/fof.cxx group/hop.cxx group/group.cxx group/groupstats.cxx ic/RngStream.c smooth/listcomp.c core/healpix.c
 	core/gridinfo.cxx analysis/interlace.cxx analysis/contrast.cxx analysis/assignmass.cxx analysis/measurepk.cxx bispectrum.cxx ic/whitenoise.cxx gravity/pmforces.cxx
 	core/setadd.cxx core/hostname.cxx core/initcosmology.cxx core/calcroot.cxx core/swapall.cxx core/select.cxx
 	domains/calcbound.cxx domains/combinebound.cxx domains/distribtoptree.cxx domains/distribroot.cxx domains/dumptrees.cxx
 	domains/enforceperiodic.cxx domains/freestore.cxx domains/olddd.cxx
 	gravity/setsoft.cxx gravity/activerung.cxx gravity/countrungs.cxx gravity/zeronewrung.cxx
-      hydro/hydro.c eEOS/eEOS.cxx
+        eEOS/eEOS.cxx
 )
 set_property(SOURCE io/fio.c APPEND PROPERTY COMPILE_DEFINITIONS "USE_PTHREAD")
 add_executable(tostd utility/tostd.c io/fio.c)
@@ -304,7 +304,7 @@ endforeach(flag_var)
 option(HYDRO "Compile with hydrodynamics support" ON)
 if (HYDRO)
    message("-- Compiling with hydrodynamics support")
-   target_sources(${PROJECT_NAME} PRIVATE  hydro/hydro.c hydro/density.cxx
+   target_sources(${PROJECT_NAME} PRIVATE  hydro/hydro.cxx hydro/density.cxx
                   hydro/gradient.cxx hydro/flux.cxx hydro/step.cxx)
 endif(HYDRO)
 
