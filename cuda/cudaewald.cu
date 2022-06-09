@@ -314,12 +314,6 @@ void MessageEwaldSetup::launch(cudaStream_t stream,void *pCudaBufIn, void *pCuda
     CUDA_CHECK(cudaMemcpyToSymbolAsync, (bHole,ibHole.data(),ibHole.size()*sizeof(decltype(ibHole)::value_type), 0, cudaMemcpyHostToDevice, stream));
 }
 
-extern "C"
-int CudaClientQueueEwald(void *vcudaClient, workParticle *work) {
-    auto cuda = reinterpret_cast<CudaClient *>(vcudaClient);
-    return cuda->queueEwald(work);
-}
-
 int CudaClient::queueEwald(workParticle *work) {
     if (ewald) {
         if (ewald->queue(work)) return work->nP; // Sucessfully queued

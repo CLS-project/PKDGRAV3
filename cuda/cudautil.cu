@@ -99,12 +99,6 @@ double CUDA_getTime() {
 *   CudaClient interface (new!)
 \*****************************************************************************/
 
-extern "C"
-void *CudaClientInitialize(MDL vmdl) {
-    auto mdl = reinterpret_cast<mdl::mdlClass *>(vmdl);
-    return new CudaClient(*mdl);
-}
-
 CudaClient::CudaClient(mdl::mdlClass &mdl) : mdl(mdl), ewald(nullptr), pp(nullptr), pc(nullptr) {
     if (mdl.isCudaActive()) {
         freeEwald.enqueue(new MessageEwald(*this));
@@ -114,12 +108,6 @@ CudaClient::CudaClient(mdl::mdlClass &mdl) : mdl(mdl), ewald(nullptr), pp(nullpt
         freePC.enqueue(new MessagePC(freePC));
         freePC.enqueue(new MessagePC(freePC));
     }
-}
-
-extern "C"
-void CudaClientFlush(void *vcudaClient) {
-    auto cuda = reinterpret_cast<CudaClient *>(vcudaClient);
-    cuda->flushCUDA();
 }
 
 void CudaClient::flushCUDA() {

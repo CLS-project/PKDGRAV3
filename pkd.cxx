@@ -674,7 +674,7 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     // This is cheeserific - chooses the largest specified
 
 #if defined(USE_CUDA) || defined(USE_CL)
-    this->cudaClient = CudaClientInitialize(this->mdl);
+    this->cudaClient = new CudaClient(*this->mdl);
     mdlSetCudaBufferSize(this->mdl,PP_CUDA_MEMORY_LIMIT,PP_CUDA_MEMORY_LIMIT);
 #endif
     mdlSetWorkQueueSize(this->mdl,iWorkQueueSize,iCUDAQueueSize);
@@ -701,19 +701,10 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     */
     this->ew.nMaxEwhLoop = 0;
     /*
-    ** Tree walk stuff.
-    */
-    ilpInitialize(&this->ilp);
-    ilcInitialize(&this->ilc);
-    ilcInitialize(&this->ill);
-    /*
     ** Allocate Checklist.
     */
-    this->clFreeList.list = NULL;
-    this->clFreeList.nRefs = 0;
-    this->clFreeList.nTiles = 0;
-    clInitialize(&this->cl,&this->clFreeList);
-    clInitialize(&this->clNew,&this->clFreeList);
+    this->cl = new clList(clFreeList);
+    this->clNew = new clList(clFreeList);
     /*
     ** Allocate the stack.
     */
@@ -721,7 +712,7 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     this->S = new CSTACK[this->nMaxStack];
     assert(this->S != NULL);
     for (ism=0; ism<this->nMaxStack; ++ism) {
-        clInitialize(&this->S[ism].cl,&this->clFreeList);
+        this->S[ism].cl = new clList(clFreeList);
     }
     this->ga = NULL;
 
@@ -756,21 +747,15 @@ pkdContext::~pkdContext() {
         mdlFree(mdl,kdNodeListPRIVATE);
     }
     /*
-    ** Free Interaction lists.
-    */
-    ilpFinish(ilp);
-    ilcFinish(ilc);
-    ilcFinish(ill);
-    /*
     ** Free checklist.
     */
-    clDestroy(cl);
-    clDestroy(clNew);
+    delete cl;
+    delete clNew;
     /*
     ** Free Stack.
     */
     for (ism=0; ism<nMaxStack; ++ism) {
-        clDestroy(S[ism].cl);
+        delete S[ism].cl;
     }
     delete [] S;
     if (ew.nMaxEwhLoop) {
@@ -825,27 +810,27 @@ pkdContext::~pkdContext() {
 }
 
 size_t pkdClCount(PKD pkd) {
-    size_t nCount = clCount(pkd->cl);
+    size_t nCount = pkd->cl->count();
     int i;
     for (i=0; i<pkd->nMaxStack; ++i)
-        nCount += clCount(pkd->S[i].cl);
+        nCount += pkd->S[i].cl->count();
     return nCount;
 }
 
 size_t pkdClMemory(PKD pkd) {
-    return clMemory(pkd->cl);
+    return pkd->cl->memory();
 }
 
 size_t pkdIlpMemory(PKD pkd) {
-    return ilpMemory(pkd->ilp);
+    return pkd->ilp.memory();
 }
 
 size_t pkdIlcMemory(PKD pkd) {
-    return ilcMemory(pkd->ilc);
+    return pkd->ilc.memory();
 }
 
 size_t pkdIllMemory(PKD pkd) {
-    return ilcMemory(pkd->ill);
+    return pkd->ill.memory();
 }
 
 void pkdSetClass( PKD pkd, float fMass, float fSoft, FIO_SPECIES eSpecies, PARTICLE *p ) {

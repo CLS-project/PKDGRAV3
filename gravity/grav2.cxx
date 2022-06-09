@@ -75,7 +75,7 @@ static inline float rsqrtf(float v) {
     dir = 1/sqrt(d2);\
     }
 
-static void queueDensity( PKD pkd, workParticle *wp, ILP ilp, int bGravStep );
+static void queueDensity( PKD pkd, workParticle *wp, ilpList &ilp, int bGravStep );
 /*
 ** This is called after work has been done for this particle group.
 ** If everyone has finished, then the particle is updated.
@@ -144,7 +144,7 @@ void pkdParticleWorkDone(workParticle *wp) {
                     }
                 }
                 wp->nRefs = 1;
-                queueDensity(pkd,wp,wp->ilp,wp->bGravStep);
+                queueDensity(pkd,wp,*wp->ilp,wp->bGravStep);
                 pkdParticleWorkDone(wp);
                 return;
             }
@@ -390,267 +390,51 @@ void pkdParticleWorkDone(workParticle *wp) {
     }
 }
 
-int CPUdoWorkPP(void *vpp) {
-    auto pp = static_cast<workPP *>(vpp);
-    workParticle *wp = pp->work;
-    ILPTILE tile = pp->tile;
-    ILP_BLK *blk = tile->blk;
-    PINFOIN *pPart = &pp->work->pInfoIn[pp->i];
-    PINFOOUT *pOut = &pp->pInfoOut[pp->i];
-    int nBlocks = tile->lstTile.nBlocks;
-    int nInLast = tile->lstTile.nInLast;
-
-    pOut->a[0] = 0.0;
-    pOut->a[1] = 0.0;
-    pOut->a[2] = 0.0;
-    pOut->fPot = 0.0;
-    pOut->dirsum = 0.0;
-    pOut->normsum = 0.0;
-    pkdGravEvalPP(pPart,nBlocks,nInLast,blk,pOut);
-    wp->dFlopSingleCPU += COST_FLOP_PP*(tile->lstTile.nBlocks*ILP_PART_PER_BLK  + tile->lstTile.nInLast);
-    if ( ++pp->i == pp->work->nP ) return 0;
-    else return 1;
-}
-
-int CPUdoWorkDensity(void *vpp) {
-    auto pp = static_cast<workPP *>(vpp);
-    workParticle *wp = pp->work;
-    ILPTILE tile = pp->tile;
-    ILP_BLK *blk = tile->blk;
-    PINFOIN *pPart = &pp->work->pInfoIn[pp->i];
-    PINFOOUT *pOut = &pp->pInfoOut[pp->i];
-    int nBlocks = tile->lstTile.nBlocks;
-    int nInLast = tile->lstTile.nInLast;
-    SPHOptions *SPHoptions = wp->SPHoptions;
-
-    pOut->rho = 0.0;
-    pOut->drhodfball = 0.0;
-    pOut->nden = 0.0;
-    pOut->dndendfball = 0.0;
-    pOut->nSmooth = 0.0;
-    pkdDensityEval(pPart,nBlocks,nInLast,blk,pOut,SPHoptions);
-    //wp->dFlopSingleCPU += COST_FLOP_PP*(tile->lstTile.nBlocks*ILP_PART_PER_BLK  + tile->lstTile.nInLast);
-    if ( ++pp->i == pp->work->nP ) return 0;
-    else return 1;
-}
-
-int CPUdoWorkSPHForces(void *vpp) {
-    auto pp = static_cast<workPP *>(vpp);
-    workParticle *wp = pp->work;
-    ILPTILE tile = pp->tile;
-    ILP_BLK *blk = tile->blk;
-    PINFOIN *pPart = &pp->work->pInfoIn[pp->i];
-    PINFOOUT *pOut = &pp->pInfoOut[pp->i];
-    int nBlocks = tile->lstTile.nBlocks;
-    int nInLast = tile->lstTile.nInLast;
-    SPHOptions *SPHoptions = wp->SPHoptions;
-
-    pOut->uDot = 0.0;
-    pOut->a[0] = 0.0;
-    pOut->a[1] = 0.0;
-    pOut->a[2] = 0.0;
-    pOut->divv = 0.0;
-    pOut->dtEst = HUGE_VALF;
-    pkdSPHForcesEval(pPart,nBlocks,nInLast,blk,pOut,SPHoptions);
-    //wp->dFlopSingleCPU += COST_FLOP_PP*(tile->lstTile.nBlocks*ILP_PART_PER_BLK  + tile->lstTile.nInLast);
-    if ( ++pp->i == pp->work->nP ) return 0;
-    else return 1;
-}
-
-int doneWorkPP(void *vpp) {
-    auto pp = static_cast<workPP *>(vpp);
-    int i;
-
-    for (i=0; i<pp->work->nP; ++i) {
-        pp->work->pInfoOut[i].a[0] += pp->pInfoOut[i].a[0];
-        pp->work->pInfoOut[i].a[1] += pp->pInfoOut[i].a[1];
-        pp->work->pInfoOut[i].a[2] += pp->pInfoOut[i].a[2];
-        pp->work->pInfoOut[i].fPot += pp->pInfoOut[i].fPot;
-        pp->work->pInfoOut[i].dirsum += pp->pInfoOut[i].dirsum;
-        pp->work->pInfoOut[i].normsum += pp->pInfoOut[i].normsum;
-    }
-    lstFreeTile(&pp->ilp->lst,&pp->tile->lstTile);
-    pkdParticleWorkDone(pp->work);
-    delete [] pp->pInfoOut;
-    delete pp;
-    return 0;
-}
-
-int doneWorkDensity(void *vpp) {
-    auto pp = static_cast<workPP *>(vpp);
-    int i;
-
-    for (i=0; i<pp->work->nP; ++i) {
-        pp->work->pInfoOut[i].rho += pp->pInfoOut[i].rho;
-        pp->work->pInfoOut[i].drhodfball += pp->pInfoOut[i].drhodfball;
-        pp->work->pInfoOut[i].nden += pp->pInfoOut[i].nden;
-        pp->work->pInfoOut[i].dndendfball += pp->pInfoOut[i].dndendfball;
-        pp->work->pInfoOut[i].nSmooth += pp->pInfoOut[i].nSmooth;
-    }
-    lstFreeTile(&pp->ilp->lst,&pp->tile->lstTile);
-    pkdParticleWorkDone(pp->work);
-    delete [] pp->pInfoOut;
-    delete pp;
-    return 0;
-}
-
-int doneWorkSPHForces(void *vpp) {
-    auto pp = static_cast<workPP *>(vpp);
-    int i;
-
-    for (i=0; i<pp->work->nP; ++i) {
-        pp->work->pInfoOut[i].uDot += pp->pInfoOut[i].uDot;
-        pp->work->pInfoOut[i].a[0] += pp->pInfoOut[i].a[0];
-        pp->work->pInfoOut[i].a[1] += pp->pInfoOut[i].a[1];
-        pp->work->pInfoOut[i].a[2] += pp->pInfoOut[i].a[2];
-        pp->work->pInfoOut[i].divv += pp->pInfoOut[i].divv;
-        pp->work->pInfoOut[i].dtEst = fmin(pp->work->pInfoOut[i].dtEst,pp->pInfoOut[i].dtEst);
-    }
-    lstFreeTile(&pp->ilp->lst,&pp->tile->lstTile);
-    pkdParticleWorkDone(pp->work);
-    delete [] pp->pInfoOut;
-    delete pp;
-    return 0;
-}
-
-static void queuePP( PKD pkd, workParticle *wp, ILP ilp, int bGravStep ) {
-    ILPTILE tile;
-    ILP_LOOP(ilp,tile) {
+static void queuePP( PKD pkd, workParticle *wp, ilpList &ilp, int bGravStep ) {
+    for ( auto &tile : ilp ) {
 #ifdef USE_CUDA
-        if (CudaClientQueuePP(pkd->cudaClient,wp,tile,bGravStep)) continue;
+        if (pkd->cudaClient->queuePP(wp,tile,bGravStep)) continue;
 #endif
-        auto pp = new workPP;
-        assert(pp!=NULL);
-        pp->pInfoOut = new PINFOOUT[wp->nP];
-        assert(pp->pInfoOut!=NULL);
-        pp->work = wp;
-        pp->ilp = ilp;
-        pp->tile = tile;
-        pp->i = 0;
-        tile->lstTile.nRefs++;
-        wp->nRefs++;
-        mdlAddWork(pkd->mdl,pp,NULL,NULL,CPUdoWorkPP,doneWorkPP);
+        for (auto i=0; i<wp->nP; ++i) {
+            pkdGravEvalPP(wp->pInfoIn[i],tile,wp->pInfoOut[i]);
+            wp->dFlopSingleCPU += COST_FLOP_PP*tile.size();
+        }
     }
 }
 
-static void queueDensity( PKD pkd, workParticle *wp, ILP ilp, int bGravStep ) {
-    ILPTILE tile;
-    wp->ilp = ilp;
+static void queueDensity( PKD pkd, workParticle *wp, ilpList &ilp, int bGravStep ) {
+    wp->ilp = &ilp;
     wp->bGravStep = bGravStep;
-    for ( int i=0; i<wp->nP; i++ ) {
-        wp->pInfoOut[i].rho = 0.0f;
-        wp->pInfoOut[i].drhodfball = 0.0f;
-        wp->pInfoOut[i].nden = 0.0f;
-        wp->pInfoOut[i].dndendfball = 0.0f;
-        wp->pInfoOut[i].nSmooth = 0.0f;
+    for ( auto &tile : ilp ) {
+        for (auto i=0; i<wp->nP; ++i) {
+            pkdDensityEval(wp->pInfoIn[i],tile,wp->pInfoOut[i],wp->SPHoptions);
+        }
     }
+}
 
-    ILP_LOOP(ilp,tile) {
+static void queueSPHForces( PKD pkd, workParticle *wp, ilpList &ilp, int bGravStep ) {
+    for ( auto &tile : ilp ) {
+        for (auto i=0; i<wp->nP; ++i) {
+            pkdSPHForcesEval(wp->pInfoIn[i],tile,wp->pInfoOut[i],wp->SPHoptions);
+        }
+    }
+}
+static void queuePC( PKD pkd,  workParticle *wp, ilcList &ilc, int bGravStep ) {
+    for ( auto &tile : ilc ) {
 #ifdef USE_CUDA
-        assert(0);
+        if (pkd->cudaClient->queuePC(wp,tile,bGravStep)) continue;
 #endif
-        auto pp = new workPP;
-        assert(pp!=NULL);
-        pp->pInfoOut = new PINFOOUT[wp->nP];
-        assert(pp->pInfoOut!=NULL);
-        pp->work = wp;
-        pp->ilp = ilp;
-        pp->tile = tile;
-        pp->i = 0;
-        tile->lstTile.nRefs++;
-        wp->nRefs++;
-        mdlAddWork(pkd->mdl,pp,NULL,NULL,CPUdoWorkDensity,doneWorkDensity);
-    }
-}
-
-static void queueSPHForces( PKD pkd, workParticle *wp, ILP ilp, int bGravStep ) {
-    ILPTILE tile;
-    ILP_LOOP(ilp,tile) {
-#ifdef USE_CUDA
-        assert(0);
-#endif
-        auto pp = new workPP;
-        assert(pp!=NULL);
-        pp->pInfoOut = new PINFOOUT[wp->nP];
-        assert(pp->pInfoOut!=NULL);
-        pp->work = wp;
-        pp->ilp = ilp;
-        pp->tile = tile;
-        pp->i = 0;
-        tile->lstTile.nRefs++;
-        wp->nRefs++;
-        mdlAddWork(pkd->mdl,pp,NULL,NULL,CPUdoWorkSPHForces,doneWorkSPHForces);
-    }
-}
-
-int CPUdoWorkPC(void *vpc) {
-    auto pc = static_cast<workPC *>(vpc);
-    workParticle *wp = pc->work;
-    ILCTILE tile = pc->tile;
-    ILC_BLK *blk = tile->blk;
-    PINFOIN *pPart = &pc->work->pInfoIn[pc->i];
-    PINFOOUT *pOut = &pc->pInfoOut[pc->i];
-    int nBlocks = tile->lstTile.nBlocks;
-    int nInLast = tile->lstTile.nInLast;
-
-    pOut->a[0] = 0.0;
-    pOut->a[1] = 0.0;
-    pOut->a[2] = 0.0;
-    pOut->fPot = 0.0;
-    pOut->dirsum = 0.0;
-    pOut->normsum = 0.0;
-    pkdGravEvalPC(pPart,nBlocks,nInLast,blk,pOut);
-    wp->dFlopSingleCPU += COST_FLOP_PC*(tile->lstTile.nBlocks*ILC_PART_PER_BLK  + tile->lstTile.nInLast);
-    if ( ++pc->i == pc->work->nP ) return 0;
-    else return 1;
-}
-
-int doneWorkPC(void *vpc) {
-    auto pc = static_cast<workPC *>(vpc);
-    int i;
-
-    for (i=0; i<pc->work->nP; ++i) {
-        pc->work->pInfoOut[i].a[0] += pc->pInfoOut[i].a[0];
-        pc->work->pInfoOut[i].a[1] += pc->pInfoOut[i].a[1];
-        pc->work->pInfoOut[i].a[2] += pc->pInfoOut[i].a[2];
-        pc->work->pInfoOut[i].fPot += pc->pInfoOut[i].fPot;
-        pc->work->pInfoOut[i].dirsum += pc->pInfoOut[i].dirsum;
-        pc->work->pInfoOut[i].normsum += pc->pInfoOut[i].normsum;
-    }
-
-    lstFreeTile(&pc->ilc->lst,&pc->tile->lstTile);
-    pkdParticleWorkDone(pc->work);
-    delete [] pc->pInfoOut;
-    delete pc;
-    return 0;
-}
-
-static void queuePC( PKD pkd,  workParticle *wp, ILC ilc, int bGravStep ) {
-    ILCTILE tile;
-    workPC *pc;
-
-    ILC_LOOP(ilc,tile) {
-#ifdef USE_CUDA
-        if (CudaClientQueuePC(pkd->cudaClient,wp,tile,bGravStep)) continue;
-#endif
-        pc = new workPC;
-        assert(pc!=NULL);
-        pc->pInfoOut = new PINFOOUT[wp->nP];
-        assert(pc->pInfoOut!=NULL);
-        pc->work = wp;
-        pc->ilc = ilc;
-        pc->tile = tile;
-        pc->i = 0;
-        tile->lstTile.nRefs++;
-        wp->nRefs++;
-        mdlAddWork(pkd->mdl,pc,NULL,NULL,CPUdoWorkPC,doneWorkPC);
+        for (auto i=0; i<wp->nP; ++i) {
+            pkdGravEvalPC(wp->pInfoIn[i],tile,wp->pInfoOut[i]);
+            wp->dFlopSingleCPU += COST_FLOP_PC*tile.size();
+        }
     }
 }
 
 static void queueEwald( PKD pkd, workParticle *wp ) {
     int i;
 #ifdef USE_CUDA
-    int nQueued = CudaClientQueueEwald(pkd->cudaClient,wp);
+    int nQueued = pkd->cudaClient->queueEwald(wp);
 #else
     int nQueued = 0;
 #endif
@@ -675,7 +459,7 @@ static void queueEwald( PKD pkd, workParticle *wp ) {
 
 int pkdGravInteract(PKD pkd,
                     struct pkdKickParameters *kick,struct pkdLightconeParameters *lc,struct pkdTimestepParameters *ts,
-                    KDN *pBucket,LOCR *pLoc,ILP ilp,ILC ilc,
+                    KDN *pBucket,LOCR *pLoc,ilpList &ilp,ilcList &ilc,
                     float dirLsum,float normLsum,int bEwald,double *pdFlop,
                     SMX smx,SMF *smf,int iRoot1,int iRoot2,SPHOptions *SPHoptions) {
     PARTICLE *p;
@@ -711,9 +495,9 @@ int pkdGravInteract(PKD pkd,
     wp->iPart = new uint32_t[nP];
     wp->pInfoIn = new PINFOIN[nP];
     wp->pInfoOut = new PINFOOUT[nP];
-    wp->c[0] = ilp->cx; assert(wp->c[0] == ilc->cx);
-    wp->c[1] = ilp->cy; assert(wp->c[1] == ilc->cy);
-    wp->c[2] = ilp->cz; assert(wp->c[2] == ilc->cz);
+    wp->c[0] = ilp.getReference(0); assert(wp->c[0] == ilc.getReference(0));
+    wp->c[1] = ilp.getReference(1); assert(wp->c[1] == ilc.getReference(1));
+    wp->c[2] = ilp.getReference(2); assert(wp->c[2] == ilc.getReference(2));
 
     wp->dirLsum = dirLsum; // not used here...
     wp->normLsum = normLsum; // not used here...
@@ -733,9 +517,7 @@ int pkdGravInteract(PKD pkd,
         nP = wp->nP++;
         wp->pPart[nP] = p;
         wp->iPart[nP] = i;
-        wp->pInfoIn[nP].r[0]  = (float)(r[0] - ilp->cx);
-        wp->pInfoIn[nP].r[1]  = (float)(r[1] - ilp->cy);
-        wp->pInfoIn[nP].r[2]  = (float)(r[2] - ilp->cz);
+        std::tie(wp->pInfoIn[nP].r[0],wp->pInfoIn[nP].r[1],wp->pInfoIn[nP].r[2]) = pkd->ilc.get_dr(r[0],r[1],r[2]);
         if (pkd->oFieldOffset[oAcceleration]) {
             ap = pkdAccel(pkd,p);
             wp->pInfoIn[nP].a[0]  = ap[0];
@@ -848,27 +630,26 @@ int pkdGravInteract(PKD pkd,
         /*
         ** Evaluate the P-C interactions
         */
-        assert(ilc->cx==ilp->cx && ilc->cy==ilp->cy && ilc->cz==ilp->cz );
-        queuePC( pkd,  wp, ilc, ts->bGravStep );
+        queuePC( pkd,  wp, pkd->ilc, ts->bGravStep );
 
         /*
         ** Evaluate the P-P interactions
         */
-        queuePP( pkd, wp, ilp, ts->bGravStep );
+        queuePP( pkd, wp, pkd->ilp, ts->bGravStep );
     }
 
     if (SPHoptions->doDensity) {
         /*
         ** Evaluate the Density on the P-P interactions
         */
-        queueDensity( pkd, wp, ilp, ts->bGravStep );
+        queueDensity( pkd, wp, pkd->ilp, ts->bGravStep );
     }
 
     if (SPHoptions->doSPHForces) {
         /*
         ** Evaluate the SPH forces on the P-P interactions
         */
-        queueSPHForces( pkd, wp, ilp, ts->bGravStep );
+        queueSPHForces( pkd, wp, pkd->ilp, ts->bGravStep );
     }
 
     if (SPHoptions->doGravity) {
@@ -962,7 +743,7 @@ int pkdGravInteract(PKD pkd,
 
     pkdParticleWorkDone(wp);
 
-    *pdFlop += nActive*(ilpCount(pkd->ilp)*COST_FLOP_PP + ilcCount(pkd->ilc)*COST_FLOP_PC) + nSoft*15;
+    *pdFlop += nActive*(pkd->ilp.count()*COST_FLOP_PP + pkd->ilc.count()*COST_FLOP_PC) + nSoft*15;
     return (nActive);
 }
 

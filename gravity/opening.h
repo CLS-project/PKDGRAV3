@@ -17,5 +17,5 @@
 
 #ifndef OPENING_INCLUDED
 #define OPENING_INCLUDED
-void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,SPHOptions *SPHoptions);
+void iOpenOutcomeSIMD(PKD pkd,KDN *k,clTile &tile,float dThetaMin,SPHOptions *SPHoptions);
 #endif

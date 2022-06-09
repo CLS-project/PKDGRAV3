@@ -26,101 +26,53 @@
 #include "pkd.h"
 #include "pc.h"
 
-void pkdGravEvalPC(PINFOIN *pPart, int nBlocks, int nInLast, ILC_BLK *blk,  PINFOOUT *pOut ) {
-    fvec x,y,z;
-    fvec adotai;
-    fvec tx,ty,tz;
-    fvec xx,xy,xz,yy,yz,zz;
-    fvec xxx,xxz,yyy,yyz,xxy,xyy,xyz;
+template<typename BLOCK> struct ilist::EvalBlock<ResultPC<fvec>,BLOCK> {
+    typedef ResultPC<fvec> result_type;
+    const fvec fx,fy,fz,pSmooth2,Pax,Pay,Paz,imaga;
 
-    int j, nLeft;
+    EvalBlock() = default;
+    EvalBlock(fvec fx, fvec fy,fvec fz,fvec pSmooth2,fvec Pax,fvec Pay,fvec Paz,fvec imaga)
+        : fx(fx),fy(fy),fz(fz),pSmooth2(pSmooth2),Pax(Pax),Pay(Pay),Paz(Paz),imaga(imaga) {}
 
-    fvec fx = pPart->r[0];
-    fvec fy = pPart->r[1];
-    fvec fz = pPart->r[2];
-    fvec pSmooth2 = pPart->fSmooth2;
-    fvec Pax = pPart->a[0];
-    fvec Pay = pPart->a[1];
-    fvec Paz = pPart->a[2];
+    result_type operator()(int n,BLOCK &blk) {
+        // Sentinal values
+        while (n&fvec::mask()) {
+            blk.dx.s[n] = blk.dy.s[n] = blk.dz.s[n] = 1e18f;
+            blk.m.s[n] = 0.0f;
+            blk.u.s[n] = 0.0f;
+            ++n;
+        }
+        n /= fvec::width(); // Now number of blocks
+        ResultPC<fvec> result;
+        result.zero();
+        for (auto i=0; i<n; ++i) {
+            result += EvalPC<fvec,fmask,true>(fx, fy, fz, pSmooth2,
+                                              blk.dx.v[i],blk.dy.v[i],blk.dz.v[i],blk.m.v[i],blk.u.v[i],
+                                              blk.xxxx.v[i], blk.xxxy.v[i], blk.xxxz.v[i], blk.xxyz.v[i], blk.xxyy.v[i],
+                                              blk.yyyz.v[i], blk.xyyz.v[i], blk.xyyy.v[i], blk.yyyy.v[i],
+                                              blk.xxx.v[i], blk.xyy.v[i], blk.xxy.v[i], blk.yyy.v[i], blk.xxz.v[i], blk.yyz.v[i], blk.xyz.v[i],
+                                              blk.xx.v[i], blk.xy.v[i], blk.xz.v[i], blk.yy.v[i], blk.yz.v[i],
+#ifdef USE_DIAPOLE
+                                              blk.x.v[i], blk.y.v[i], blk.z.v[i],
+#endif
+                                              Pax, Pay, Paz,imaga);
+        }
+        return result;
+    }
+};
 
-    fvec ax,ay,az,fPot,dirsum,normsum;
-    float *a =pPart->a;
+void pkdGravEvalPC(const PINFOIN &Part, ilcTile &tile,  PINFOOUT &Out ) {
+    const float *a = Part.a;
     float a2 = a[0]*a[0] + a[1]*a[1] + a[2]*a[2];
     fvec imaga = a2 > 0.0f ? 1.0f / sqrtf(a2) : 0.0f;
-
-    /* Pad the last value if necessary */
-    for ( j = nInLast; j&fvec::mask(); j++) {
-        blk[nBlocks].dx.f[j] = blk[nBlocks].dy.f[j] = blk[nBlocks].dz.f[j] = 1e18f;
-        blk[nBlocks].m.f[j] = 0.0f;
-        blk[nBlocks].u.f[j] = 0.0f;
-    }
-
-    ax = 0.0;
-    ay = 0.0;
-    az = 0.0;
-    fPot= 0.0;
-    dirsum = 0.0;
-    normsum = 0.0;
-    //int nIntr = nBlocks * ILP_PART_PER_BLK + nInLast;
-    for ( nLeft=nBlocks; nLeft >= 0; --nLeft,++blk ) {
-        int n = (nLeft ? ILP_PART_PER_BLK : nInLast + fvec::mask()) >> SIMD_BITS;
-        for (j=0; j<n; ++j) {
-            fvec Idx = blk->dx.p[j];
-            fvec Idy = blk->dy.p[j];
-            fvec Idz = blk->dz.p[j];
-            fvec Ixxxx = blk->xxxx.p[j];
-            fvec Ixxxy = blk->xxxy.p[j];
-            fvec Ixxxz = blk->xxxz.p[j];
-            fvec Ixxyz = blk->xxyz.p[j];
-            fvec Ixxyy = blk->xxyy.p[j];
-            fvec Iyyyz = blk->yyyz.p[j];
-            fvec Ixyyz = blk->xyyz.p[j];
-            fvec Ixyyy = blk->xyyy.p[j];
-            fvec Iyyyy = blk->yyyy.p[j];
-            fvec Ixxx = blk->xxx.p[j];
-            fvec Ixyy = blk->xyy.p[j];
-            fvec Ixxy = blk->xxy.p[j];
-            fvec Iyyy = blk->yyy.p[j];
-            fvec Ixxz = blk->xxz.p[j];
-            fvec Iyyz = blk->yyz.p[j];
-            fvec Ixyz = blk->xyz.p[j];
-            fvec Ixx = blk->xx.p[j];
-            fvec Ixy = blk->xy.p[j];
-            fvec Ixz = blk->xz.p[j];
-            fvec Iyy = blk->yy.p[j];
-            fvec Iyz = blk->yz.p[j];
-#ifdef USE_DIAPOLE
-            fvec Ix = blk->x.p[j];
-            fvec Iy = blk->y.p[j];
-            fvec Iz = blk->z.p[j];
-#endif
-            fvec Im = blk->m.p[j];
-            fvec Iu = blk->u.p[j];
-
-            auto result = EvalPC<fvec,fmask,true>(
-                              fx, fy, fz, pSmooth2,
-                              Idx, Idy, Idz, Im, Iu,
-                              Ixxxx, Ixxxy, Ixxxz, Ixxyz, Ixxyy, Iyyyz, Ixyyz, Ixyyy, Iyyyy,
-                              Ixxx, Ixyy, Ixxy, Iyyy, Ixxz, Iyyz, Ixyz, Ixx, Ixy, Ixz, Iyy, Iyz,
-#ifdef USE_DIAPOLE
-                              Ix, Iy, Iz,
-#endif
-                              Pax, Pay, Paz,imaga);
-
-            dirsum += result.ir;
-            normsum += result.norm;
-            fPot += result.pot;
-            ax += result.ax;
-            ay += result.ay;
-            az += result.az;
-        }
-    }
-
-    pOut->a[0] += hadd(ax);
-    pOut->a[1] += hadd(ay);
-    pOut->a[2] += hadd(az);
-    pOut->fPot += hadd(fPot);
-    pOut->dirsum += hadd(dirsum);
-    pOut->normsum += hadd(normsum);
+    ilist::EvalBlock<ResultPC<fvec>,ilcBlock> eval(
+        Part.r[0],Part.r[1],Part.r[2],Part.fSmooth2,a[0],a[1],a[2],imaga);;
+    auto result = EvalTile(tile,eval);
+    Out.a[0] += hadd(result.ax);
+    Out.a[1] += hadd(result.ay);
+    Out.a[2] += hadd(result.az);
+    Out.fPot += hadd(result.pot);
+    Out.dirsum += hadd(result.ir);
+    Out.normsum += hadd(result.norm);
 }
 #endif/*USE_SIMD_PC*/

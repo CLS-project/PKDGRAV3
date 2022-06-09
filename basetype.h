@@ -285,28 +285,9 @@ typedef struct {
     double dFlopDoubleGPU;
 
     SPHOptions *SPHoptions;
-    ILP ilp;
+    ilpList *ilp;
     int bGravStep;
 } workParticle;
-
-/*
-** One tile of PP interactions
-*/
-typedef struct {
-    PINFOOUT *pInfoOut;
-    ILP ilp;
-    ILPTILE tile;
-    workParticle *work;
-    int i;
-} workPP;
-
-typedef struct {
-    PINFOOUT *pInfoOut;
-    ILC ilc;
-    ILCTILE tile;
-    workParticle *work;
-    int i;
-} workPC;
 
 #define EWALD_ALIGN 64
 #define EWALD_MASK (EWALD_ALIGN-1)

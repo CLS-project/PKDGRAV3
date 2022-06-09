@@ -22,6 +22,16 @@ template<class F=float>
 struct ResultPP {
     F ax, ay, az, pot;
     F ir, norm;
+    void zero() { ax=ay=az=pot=ir=norm=0; }
+    ResultPP<F> operator+=(const ResultPP<F> &rhs) {
+        ax += rhs.ax;
+        ay += rhs.ay;
+        az += rhs.az;
+        pot += rhs.pot;
+        ir += rhs.ir;
+        norm += rhs.norm;
+        return *this;
+    }
 };
 template<class F,class M>
 CUDA_DEVICE ResultPP<F> EvalPP(
@@ -75,6 +85,15 @@ CUDA_DEVICE ResultPP<F> EvalPP(
 template<class F=float>
 struct ResultDensity {
     F arho, adrhodfball, anden, adndendfball, anSmooth;
+    void zero() { arho=adrhodfball=anden=adndendfball=anSmooth=0; }
+    ResultDensity<F> operator+=(const ResultDensity<F> &rhs) {
+        arho += rhs.arho;
+        adrhodfball += rhs.adrhodfball;
+        anden += rhs.anden;
+        adndendfball += rhs.adndendfball;
+        anSmooth += rhs.anSmooth;
+        return *this;
+    }
 };
 template<class F,class M>
 CUDA_DEVICE ResultDensity<F> EvalDensity(
@@ -124,6 +143,16 @@ CUDA_DEVICE ResultDensity<F> EvalDensity(
 template<class F=float>
 struct ResultSPHForces {
     F uDot, ax, ay, az, divv, dtEst;
+    void zero() { uDot=ax=ay=az=divv=0; dtEst=HUGE_VALF; }
+    ResultSPHForces<F> operator+=(const ResultSPHForces<F> &rhs) {
+        uDot += rhs.uDot;
+        ax += rhs.ax;
+        ay += rhs.ay;
+        az += rhs.az;
+        divv += rhs.divv;
+        dtEst = min(dtEst,rhs.dtEst); // CAREFUL! We use "min" here
+        return *this;
+    }
 };
 template<class F,class M,class Ivec>
 CUDA_DEVICE ResultSPHForces<F> EvalSPHForces(

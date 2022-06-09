@@ -22,6 +22,16 @@ template<class F=float>
 struct ResultPC {
     F ax, ay, az, pot;
     F ir, norm;
+    void zero() {ax=ay=az=pot=ir=norm=0;}
+    ResultPC<F> operator+=(const ResultPC<F> &rhs) {
+        ax += rhs.ax;
+        ay += rhs.ay;
+        az += rhs.az;
+        pot += rhs.pot;
+        ir += rhs.ir;
+        norm += rhs.norm;
+        return *this;
+    }
 };
 template<class F,class M,bool bGravStep>
 CUDA_DEVICE ResultPC<F> EvalPC(

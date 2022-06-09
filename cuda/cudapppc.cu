@@ -45,18 +45,18 @@
 */
 
 template <int n,class TILE> struct Blk;
-template <int n> struct Blk<n,ilpTile> {
-    float dx[n], dy[n], dz[n];    /* Offset from ilp->cx, cy, cz */
-    float m[n];             /* Mass */
-    float fourh2[n];        /* Softening: calculated */
+template <int n> struct Blk<n,ilpTile> : BlockPP<n> {
+    // float dx[n], dy[n], dz[n];    /* Offset from ilp->cx, cy, cz */
+    // float m[n];             /* Mass */
+    // float fourh2[n];        /* Softening: calculated */
 };
-template <int n> struct Blk<n,ilcTile> {
-    float dx[n],dy[n],dz[n];
-    float xxxx[n],xxxy[n],xxxz[n],xxyz[n],xxyy[n],yyyz[n],xyyz[n],xyyy[n],yyyy[n];
-    float xxx[n],xyy[n],xxy[n],yyy[n],xxz[n],yyz[n],xyz[n];
-    float xx[n],xy[n],xz[n],yy[n],yz[n];
-    float x[n],y[n],z[n];
-    float m[n],u[n];
+template <int n> struct Blk<n,ilcTile> : BlockPC<n> {
+    // float dx[n],dy[n],dz[n];
+    // float xxxx[n],xxxy[n],xxxz[n],xxyz[n],xxyy[n],yyyz[n],xyyz[n],xyyy[n],yyyy[n];
+    // float xxx[n],xyy[n],xxy[n],yyy[n],xxz[n],yyz[n],xyz[n];
+    // float xx[n],xy[n],xz[n],yy[n],yz[n];
+    // float x[n],y[n],z[n];
+    // float m[n],u[n];
 };
 
 // One of these entries for each interaction block
@@ -424,26 +424,16 @@ void pkdParticleWorkDone(workParticle *wp);
 *   CudaClient interface (new!)
 \*****************************************************************************/
 
-extern "C"
-int CudaClientQueuePP(void *vcudaClient, workParticle *work, struct ilpTile *tile, int bGravStep) {
-    auto cuda = reinterpret_cast<CudaClient *>(vcudaClient);
-    return cuda->queuePP(work,tile,bGravStep);
-}
-int CudaClient::queuePP(workParticle *work, ilpTile *tile, bool bGravStep) {
+int CudaClient::queuePP(workParticle *work, ilpTile &tile, bool bGravStep) {
     return queue(pp,freePP,work,tile,bGravStep);
 }
 
-extern "C"
-int CudaClientQueuePC(void *vcudaClient, workParticle *work, struct ilcTile *tile, int bGravStep) {
-    auto cuda = reinterpret_cast<CudaClient *>(vcudaClient);
-    return cuda->queuePC(work,tile,bGravStep);
-}
-int CudaClient::queuePC(workParticle *work, ilcTile *tile, bool bGravStep) {
+int CudaClient::queuePC(workParticle *work, ilcTile &tile, bool bGravStep) {
     return queue(pc,freePC,work,tile,bGravStep);
 }
 
 template<class MESSAGE,class QUEUE,class TILE>
-int CudaClient::queue(MESSAGE *&M,QUEUE &Q, workParticle *work, TILE *tile, bool bGravStep) {
+int CudaClient::queue(MESSAGE *&M,QUEUE &Q, workParticle *work, TILE &tile, bool bGravStep) {
     if (M) { // If we are in the middle of building data for a kernel
         if (M->queue(work,tile,bGravStep)) return work->nP; // Successfully queued
         flush(M); // The buffer is full, so send it
@@ -493,23 +483,23 @@ void MessagePPPC<TILE,nIntPerTB,nIntPerWU>::clear() {
 }
 
 template<int n,class TILE>
-int copyBLKs2(Blk<n,TILE> *out, TILE *in,const int nIlp) {
+int copyBLKs2(Blk<n,TILE> *out, TILE &in,const int nIlp) {
     assert(n==ILP_PART_PER_BLK);
     int i, nBlk = (nIlp+n-1) / n;
-    for (i=0; i<nBlk; ++i) memcpy(&out[i],&in->blk[i],sizeof(out[i]));
+    for (i=0; i<nBlk; ++i) memcpy(&out[i],&in[i],sizeof(out[i]));
     return nBlk;
 }
 
-static double getFlops(workParticle *wp,ilpTile *tile) {
-    return COST_FLOP_PP*wp->nP*(tile->lstTile.nBlocks*ILP_PART_PER_BLK + tile->lstTile.nInLast);
+static double getFlops(workParticle *wp,ilpTile &tile) {
+    return COST_FLOP_PP*wp->nP*tile.count();
 }
-static double getFlops(workParticle *wp,ilcTile *tile) {
-    return COST_FLOP_PC*wp->nP*(tile->lstTile.nBlocks*ILP_PART_PER_BLK + tile->lstTile.nInLast);
+static double getFlops(workParticle *wp,ilcTile &tile) {
+    return COST_FLOP_PC*wp->nP*tile.count();
 }
 
 // Add the interactions to this list
 template<class TILE,int nIntPerTB, int nIntPerWU>
-bool MessagePPPC<TILE,nIntPerTB,nIntPerWU>::queue(workParticle *wp, TILE *tile, bool bGravStep) {
+bool MessagePPPC<TILE,nIntPerTB,nIntPerWU>::queue(workParticle *wp, TILE &tile, bool bGravStep) {
     if (work.size() == CUDA_WP_MAX_BUFFERED) return false; // Too many work packages
     this->bGravStep = bGravStep;
 
@@ -518,9 +508,9 @@ bool MessagePPPC<TILE,nIntPerTB,nIntPerWU>::queue(workParticle *wp, TILE *tile, 
     const int nBlkPerWU = nIntPerWU / WIDTH;
     const int nP = wp->nP;
     const int nPaligned = (nP+NP_ALIGN_MASK) & ~NP_ALIGN_MASK;
-    const int nBlocks = tile->lstTile.nBlocks + (tile->lstTile.nInLast?1:0);
+    const int nBlocks = (tile.count()+tile.width-1) / tile.width;
     const int nBlocksAligned = (nBlocks + nBlkPerWU - 1) & ~(nBlkPerWU - 1);
-    const int nInteract = tile->lstTile.nBlocks*ILP_PART_PER_BLK + tile->lstTile.nInLast;
+    const int nInteract = tile.count();
     const int nWork = nBlocksAligned / nBlkPerWU;
     const int nBytesIn = nPaligned * sizeof(ppInput) + nBlocksAligned*sizeof(BLK) + nWork*sizeof(ppWorkUnit);
     const int nBytesOut = nP * sizeof(ppResult) * nWork;

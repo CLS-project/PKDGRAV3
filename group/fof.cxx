@@ -28,7 +28,6 @@
 #include "blitz/array.h"
 #include "../SPHOptions.h"
 
-
 static inline int getCell(PKD pkd,int iCell,int id,float *pcOpen,KDN **pc) {
     KDN *c;
     int nc;
@@ -109,47 +108,48 @@ NoIntersect:
 
 
 
-static void iOpenRemoteFof(PKD pkd,KDN *k,CL cl,CLTILE tile,float dTau2) {
+static void iOpenRemoteFof(PKD pkd,KDN *k,clTile &tile,float dTau2) {
     float dx,minbnd2,kOpen;
-    CL_BLK *blk;
-    int i,n,nLeft,iOpen;
+    int i,iOpen;
 
     Bound kbnd = pkdNodeGetBnd(pkd,k);
     kOpen = 0.5*(kbnd.width(0) + kbnd.width(1) + kbnd.width(2)); /* Manhatten metric */
-    blk = tile->blk;
-    for (nLeft=tile->lstTile.nBlocks; nLeft>=0; --nLeft,blk++) {
-        n = nLeft ? cl->lst.nPerBlock : tile->lstTile.nInLast;
+
+    auto nBlocks = tile.count() / tile.width;
+    for (auto iBlock=0; iBlock<=nBlocks; ++iBlock) {
+        int n = iBlock<nBlocks ? tile.width : tile.count() - nBlocks*tile.width;
+        clBlock &blk = tile[iBlock];
         for (i=0; i<n; ++i) {
-            if (blk->idCell.i[i] > pkd->Self()) iOpen = 10;  /* ignore this cell, but this never ignores the top tree */
+            if (blk.idCell[i] > pkd->Self()) iOpen = 10;  /* ignore this cell, but this never ignores the top tree */
             else {
                 minbnd2 = 0;
-                dx = kbnd.lower(0) -  blk->xCenter.f[i] - blk->xOffset.f[i] - blk->xMax.f[i];
+                dx = kbnd.lower(0) -  blk.xCenter[i] - blk.xOffset[i] - blk.xMax[i];
                 if (dx > 0) minbnd2 += dx*dx;
-                dx = blk->xCenter.f[i] + blk->xOffset.f[i] - blk->xMax.f[i] - kbnd.upper(0);
+                dx = blk.xCenter[i] + blk.xOffset[i] - blk.xMax[i] - kbnd.upper(0);
                 if (dx > 0) minbnd2 += dx*dx;
-                dx = kbnd.lower(1) - blk->yCenter.f[i] - blk->yOffset.f[i] - blk->yMax.f[i];
+                dx = kbnd.lower(1) - blk.yCenter[i] - blk.yOffset[i] - blk.yMax[i];
                 if (dx > 0) minbnd2 += dx*dx;
-                dx = blk->yCenter.f[i] + blk->yOffset.f[i] - blk->yMax.f[i] - kbnd.upper(1);
+                dx = blk.yCenter[i] + blk.yOffset[i] - blk.yMax[i] - kbnd.upper(1);
                 if (dx > 0) minbnd2 += dx*dx;
-                dx = kbnd.lower(2) - blk->zCenter.f[i] - blk->zOffset.f[i] - blk->zMax.f[i];
+                dx = kbnd.lower(2) - blk.zCenter[i] - blk.zOffset[i] - blk.zMax[i];
                 if (dx > 0) minbnd2 += dx*dx;
-                dx = blk->zCenter.f[i] + blk->zOffset.f[i] - blk->zMax.f[i] - kbnd.upper(2);
+                dx = blk.zCenter[i] + blk.zOffset[i] - blk.zMax[i] - kbnd.upper(2);
                 if (dx > 0) minbnd2 += dx*dx;
                 if (minbnd2 > dTau2) iOpen = 10;  /* ignore this cell */
                 else if (k->iLower == 0) {
-                    if (blk->iLower.i[i] == 0) iOpen = 1;
+                    if (blk.iLower[i] == 0) iOpen = 1;
                     else iOpen = 3;
                 }
-                else if (kOpen > blk->cOpen.f[i] || blk->iLower.i[i] == 0) iOpen = 0;
+                else if (kOpen > blk.cOpen[i] || blk.iLower[i] == 0) iOpen = 0;
                 else iOpen = 3;
             }
-            blk->iOpen.i[i] = iOpen;
+            blk.iOpen[i] = iOpen;
         }
     }
 }
 
 
-static void addChildFof(PKD pkd, CL cl, int iChild, int id, float *fOffset) {
+static void addChildFof(PKD pkd, clList *cl, int iChild, int id, float *fOffset) {
     int idLower, iLower, idUpper, iUpper, iCache;
     float cOpen;
     KDN *c;
@@ -160,12 +160,13 @@ static void addChildFof(PKD pkd, CL cl, int iChild, int id, float *fOffset) {
     iCache = 0;
     cOpen = 0.5*(cbnd.width(0) + cbnd.width(1) + cbnd.width(2)); /* Manhatten metric */
     pkdGetChildCells(c,id,idLower,iLower,idUpper,iUpper);
-    clAppend(cl,iCache,id,iChild,idLower,iLower,idUpper,iUpper,nc,cOpen,
+    cl->append(iCache,id,iChild,idLower,iLower,idUpper,iUpper,nc,cOpen,
+               pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c_r,fOffset,cbnd.center().data(),cbnd.fMax,
 #if SPHBALLOFBALLS
-             pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c_r,fOffset,cbnd.center(),cbnd.fMax,c->fBoBr2,c->fBoBxCenter,c->fBoByCenter,c->fBoBzCenter);
+               c->fBoBr2,c->fBoBxCenter,c->fBoByCenter,c->fBoBzCenter);
 #endif
 #if SPHBOXOFBALLS
-    pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c_r,fOffset,cbnd.center(),cbnd.fMax,c->fBoBxMin,c->fBoBxMax,c->fBoByMin,c->fBoByMax,c->fBoBzMin,c->fBoBzMax);
+    c->fBoBxMin,c->fBoBxMax,c->fBoByMin,c->fBoByMax,c->fBoBzMin,c->fBoBzMax);
 #endif
 }
 
@@ -173,8 +174,8 @@ static void addChildFof(PKD pkd, CL cl, int iChild, int id, float *fOffset) {
 void pkdFofRemoteSearch(PKD pkd,double dTau2,int bPeriodic,int nReplicas,int nBucket) {
     KDN *kdnSelf,*c,*k;
     PARTICLE *p;
-    CLTILE cltile;
-    CL clTemp;
+    // CLTILE cltile;
+    // CL clTemp;
     double xj,yj,zj,d2;
     int npi;
     uint32_t pjGroup;
@@ -197,7 +198,7 @@ void pkdFofRemoteSearch(PKD pkd,double dTau2,int bPeriodic,int nReplicas,int nBu
     auto piGroup = std::make_unique<uint32_t[]>(M);
 
     iStack = 0;
-    clClear(pkd->cl);
+    pkd->cl->clear();
 
     kdnSelf = pkd->TreeNode(ROOT);
     Bound bndSelf = pkdNodeGetBnd(pkd, kdnSelf);
@@ -263,35 +264,32 @@ NextCell:
             /*
             ** Process the Checklist for the cell pointed to by k.
             */
-            clClear(pkd->S[iStack+1].cl);
+            pkd->S[iStack+1].cl->clear();
             do {
-                CL_LOOP(pkd->cl,cltile) {
-#ifdef USE_SIMD_OPEN
-                    iOpenRemoteFof(pkd,k,pkd->cl,cltile,dTau2);
-#else
-                    iOpenRemoteFof(pkd,k,pkd->cl,cltile,dTau2);
-#endif
+                for (auto &tile : *pkd->cl) {
+                    iOpenRemoteFof(pkd,k,tile,dTau2);
                 }
-                clClear(pkd->clNew);
-                CL_LOOP(pkd->cl,cltile) {
-                    CL_BLK *blk = cltile->blk;
-                    int nLeft;
-                    for (nLeft=cltile->lstTile.nBlocks; nLeft>=0; --nLeft,blk++) {
-                        int n = nLeft ? pkd->cl->lst.nPerBlock : cltile->lstTile.nInLast;
+                pkd->clNew->clear();
+                for (auto &tile : *pkd->cl) {
+
+                    auto nBlocks = tile.count() / tile.width;
+                    for (auto iBlock=0; iBlock<=nBlocks; ++iBlock) {
+                        int n = iBlock<nBlocks ? tile.width : tile.count() - nBlocks*tile.width;
+                        clBlock &blk = tile[iBlock];
                         for (jTile=0; jTile<n; ++jTile) {
-                            switch (blk->iOpen.i[jTile]) {
+                            switch (blk.iOpen[jTile]) {
                             case 0:
                                 /*
                                 ** This checkcell stays on the checklist.
                                 */
-                                clAppendItem(pkd->S[iStack+1].cl,blk,jTile);
+                                pkd->S[iStack+1].cl->append(blk,jTile);
                                 break;
                             case 1:
                                 /*
                                 ** We check individual particles against each other here.
                                 */
-                                iCheckCell = blk->iCell.i[jTile];
-                                id = blk->idCell.i[jTile];
+                                iCheckCell = blk.iCell[jTile];
+                                id = blk.idCell[jTile];
                                 if (id == pkd->Self()) c = pkd->TreeNode(iCheckCell);
                                 else c = CAST(KDN *,mdlFetch(pkd->mdl,CID_CELL,iCheckCell,id));
                                 /*
@@ -307,9 +305,9 @@ NextCell:
                                     else p = CAST(PARTICLE *,mdlFetch(pkd->mdl,CID_PARTICLE,pj,id));
                                     pjGroup = pkdGetGroup(pkd,p);
                                     pkdGetPos3(pkd,p,xj,yj,zj);
-                                    xj += blk->xOffset.f[jTile];
-                                    yj += blk->yOffset.f[jTile];
-                                    zj += blk->zOffset.f[jTile];
+                                    xj += blk.xOffset[jTile];
+                                    yj += blk.yOffset[jTile];
+                                    zj += blk.zOffset[jTile];
                                     /*
                                     ** The following could be vectorized over the vectors xi,yi and zi!
                                     */
@@ -354,15 +352,15 @@ NextCell:
                                 ** We could do a prefetch here for non-local
                                 §              ** cells.
                                 */
-                                iCheckCell = blk->iCell.i[jTile];    assert(iCheckCell >= 0);
-                                iCheckLower = blk->iLower.i[jTile];  assert(iCheckLower > 0);
+                                iCheckCell = blk.iCell[jTile];    assert(iCheckCell >= 0);
+                                iCheckLower = blk.iLower[jTile];  assert(iCheckLower > 0);
 
-                                fOffset[0] = blk->xOffset.f[jTile];
-                                fOffset[1] = blk->yOffset.f[jTile];
-                                fOffset[2] = blk->zOffset.f[jTile];
+                                fOffset[0] = blk.xOffset[jTile];
+                                fOffset[1] = blk.yOffset[jTile];
+                                fOffset[2] = blk.zOffset[jTile];
 
-                                addChildFof(pkd,pkd->clNew,blk->iLower.i[jTile],blk->idLower.i[jTile],fOffset);
-                                addChildFof(pkd,pkd->clNew,blk->iUpper.i[jTile],blk->idUpper.i[jTile],fOffset);
+                                addChildFof(pkd,pkd->clNew,blk.iLower[jTile],blk.idLower[jTile],fOffset);
+                                addChildFof(pkd,pkd->clNew,blk.iUpper[jTile],blk.idUpper[jTile],fOffset);
                                 break;
                             case 10:
                                 /*
@@ -375,11 +373,8 @@ NextCell:
                         } /* end of for (jTile) */
                     } /* end of for (nLeft) */
                 } /* end of CL_LOOP */
-                clTemp = pkd->cl;
-                pkd->cl = pkd->clNew;
-                assert(pkd->cl!=NULL);
-                pkd->clNew = clTemp;
-            } while (clCount(pkd->cl));
+                std::swap(pkd->cl,pkd->clNew);
+            } while (pkd->cl->count());
             /*
             ** Done processing of the Checklist.
             ** Now prepare to proceed to the next deeper
@@ -393,7 +388,7 @@ NextCell:
             */
             iSib = iCell+1;
             c = pkd->TreeNode(iSib);
-            clClone(pkd->cl,pkd->S[iStack+1].cl);
+            pkd->cl->clone(*pkd->S[iStack+1].cl);
             ++iStack;
             assert(iStack < pkd->nMaxStack);
             pkd->S[iStack].iNodeIndex = iSib;
@@ -402,7 +397,7 @@ NextCell:
         ** Now the checklist should be empty and we should have dealt with all
         ** links going across the processor domains for this bucket.
         */
-        assert(clCount(pkd->S[iStack+1].cl)==0);
+        assert(pkd->S[iStack+1].cl->count()==0);
         /*
         ** Get the next cell to process from the stack.
         */
@@ -411,11 +406,8 @@ NextCell:
         /*
         ** Grab the checklist from the stack.
         */
-        clTemp = pkd->cl;
-        assert(clCount(pkd->cl) == 0);
-        pkd->cl = pkd->S[iStack].cl;
-        assert(pkd->cl!=NULL);
-        pkd->S[iStack].cl = clTemp;
+        std::swap(pkd->cl,pkd->S[iStack].cl);
+
         --iStack;
     }
 }
