@@ -94,10 +94,7 @@ double evalEwaldSIMD( PKD pkd,ewaldSIMD *ews,
                       dvec &ax, dvec &ay, dvec &az, dvec &dPot,
                       v_df Ix, v_df Iy, v_df Iz, const v_df &Ir2, const dmask &doerfc ) {
     dvec dir,dir2,a,g0,g1,g2,g3,g4,g5,alphan;
-    dvec xx,xxx,xxy,xxz,yy,yyy,yyz,xyy,zz,zzz,xzz,yzz,xy,xyz,xz,yz;
-    dvec Qta,Q4mirx,Q4miry,Q4mirz,Q4mir,Q4x,Q4y,Q4z;
-    dvec Q3mirx,Q3miry,Q3mirz,Q3mir,Q2mirx,Q2miry,Q2mirz,Q2mir;
-    dvec rerf,rerfc,ex2,t,tx,ty,tz,tpot;
+    dvec rerf,rerfc,ex2;
     dvec alpha2x2 = 2.0 * dvec(ews->ewp.alpha2);
     dvec x=Ix, y=Iy, z=Iz, r2=Ir2;
 
