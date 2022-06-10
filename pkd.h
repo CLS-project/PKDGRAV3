@@ -32,9 +32,6 @@
 #include "cosmo.h"
 #include "units.h"
 #include "io/fio.h"
-#ifdef USE_GRAFIC
-    #include "grafic.h"
-#endif
 #include "basetype.h"
 #include "io/iomodule.h"
 #include "SPHOptions.h"
@@ -1606,10 +1603,6 @@ void pkdGetNParts(PKD pkd, struct outGetNParts *out );
 void pkdSetNParts(PKD pkd, int nGas, int nDark, int nStar, int nBH);
 void pkdInitRelaxation(PKD pkd);
 
-#ifdef USE_GRAFIC
-void pkdGenerateIC(PKD pkd, GRAFICCTX gctx, int iDim,
-                   double fSoft, double fMass, int bCannonical);
-#endif
 int pkdGetClasses( PKD pkd, int nMax, PARTCLASS *pClass );
 void pkdSetClasses( PKD pkd, int n, PARTCLASS *pClass, int bUpdate );
 void pkdSetClass( PKD pkd, float fMass, float fSoft, FIO_SPECIES eSpecies, PARTICLE *p );

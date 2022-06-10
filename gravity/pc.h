@@ -181,7 +181,7 @@ CUDA_DEVICE ResultPC<F> EvalPC(
     /* Calculations for determining the timestep. */
     if (bGravStep) {
         F adotai = Pax*result.ax + Pay*result.ay + Paz*result.az;
-        adotai = maskz_mov(adotai>0.0f & d2>Psmooth2,adotai) * imaga;
+        adotai = maskz_mov((adotai>0.0f) & (d2>Psmooth2),adotai) * imaga;
         result.norm = adotai * adotai;
         result.ir = dir * result.norm;
     }

@@ -26,9 +26,6 @@
 #include <math.h>
 #include "core/vqsort.h"
 #include "pkd.h"
-#ifdef USE_ITT
-    #include "ittnotify.h"
-#endif
 #include "ic/ic.h"
 
 #define SHAPES

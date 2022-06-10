@@ -42,18 +42,11 @@ public:
     Context *getLower() const {return pLower;}
     int      getUpper() const {return idUpper;}
 
-    Context *createLower();
     Context *split(int idLast);
 };
 
 Context::Context(MDL mdl,int iLast)
     : mdl(mdl), pLower(0), idUpper(iLast) {
-}
-
-Context *Context::createLower() {
-    assert(pLower==0);
-    pLower = new Context(mdl);
-    return pLower;
 }
 
 // Split this node as optimally as possible

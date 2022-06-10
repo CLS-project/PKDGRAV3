@@ -175,7 +175,7 @@ void pkdProcessLightCone(PKD pkd,PARTICLE *p,float fPot,double dLookbackFac,doub
                 mr0 = sqrt(mr0);
                 mr1 = sqrt(mr1);
                 dvec vx = (dLightSpeed*dlbt - mr0)/(dLightSpeed*dtApprox - mr0 + mr1);
-                msk = (vx >= xStart & vx < 1.0);
+                msk = (vx >= xStart) & (vx < 1.0);
                 if (!testz(msk)) {
                     dvec vr[3];
                     vr[0] = (1.0-vx)*vrx0 + vx*vrx1;

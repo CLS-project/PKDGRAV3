@@ -38,6 +38,8 @@
 extern time_t timeGlobalSignalTime;
 extern int bGlobalOutput;
 
+// IMPORTANT: If you change the timers here then you need to change
+// their names in master.cxx (timer_names)
 enum msrTimers {
     TIMER_GRAVITY = 0,
     TIMER_IO,
@@ -66,25 +68,6 @@ enum msrTimers {
 #endif
     TIMER_NONE,
     TOTAL_TIMERS
-};
-
-// The order should be the same than in the enumerate above!
-static const char *timer_names[TOTAL_TIMERS] = {
-    "Gravity",  "IO", "Tree", "DomainDecom",  "KickOpen", "KickClose",
-    "Density", "EndTimeStep",  "Gradient", "Flux", "TimeStep", "Drift", "FoF",
-#ifdef FEEDBACK
-    "Feedback",
-#endif
-#ifdef STAR_FORMATION
-    "StarForm",
-#endif
-#ifdef BLACKHOLES
-    "BHs",
-#endif
-#ifdef STELLAR_EVOLUTION
-    "Stev",
-#endif
-    "Others"
 };
 
 struct MSRINSTANCE {

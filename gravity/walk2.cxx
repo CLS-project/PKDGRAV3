@@ -111,7 +111,6 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2,
     static const vel_t vZero3[] = {0.0,0.0,0.0};
     int iCidPart;
     int bReferenceFound;
-    uint64_t iOrder;
 #ifdef USE_SIMD_FMM
     float fzero[3] = {0,0,0};
 #else
@@ -252,7 +251,6 @@ found_it:
                                             pkd->ilp.setReference(r[0],r[1],r[2]);
                                             pkd->ilc.setReference(r[0],r[1],r[2]);
                                         }
-                                        iOrder = pkd->bNoParticleOrder ? 0 : p->iOrder;
                                         v = pkdVel(pkd,p);
                                         if (pkd->oFieldOffset[oNewSph]) {
                                             NEWSPHFIELDS *pNewSph = pkdNewSph(pkd,p);
@@ -317,7 +315,6 @@ found_it:
                                             fSoft = pkdSoft(pkd,p);
                                             if (ts->bGravStep && ts->iTimeStepCrit == 1) v = pkdVel(pkd,p);
                                             pkdGetPos1(pkd,p,r);
-                                            iOrder = pkd->bNoParticleOrder ? 0 : p->iOrder;
                                             v = pkdVel(pkd,p);
                                             if (pkd->oFieldOffset[oNewSph]) {
                                                 NEWSPHFIELDS *pNewSph = pkdNewSph(pkd,p);

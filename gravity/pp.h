@@ -76,7 +76,7 @@ CUDA_DEVICE ResultPP<F> EvalPP(
     F Pax, F Pay, F Paz, F imaga) {
     ResultPP<F> result = EvalPP<F,M>(Pdx,Pdy,Pdz,Psmooth2,Idx,Idy,Idz,fourh2,Im);
     F adotai = Pax*result.ax + Pay*result.ay + Paz*result.az;
-    adotai = maskz_mov(adotai>0.0f & result.norm>=Psmooth2,adotai) * imaga;
+    adotai = maskz_mov((adotai>0.0f) & (result.norm>=Psmooth2),adotai) * imaga;
     result.norm = adotai * adotai;
     result.ir *= result.norm;
     return result;
