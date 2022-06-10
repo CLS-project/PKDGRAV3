@@ -3,12 +3,14 @@ image: dpotter/pkdgrav3-build
 pipelines:
   default:
     - step:
+        size: 2x
         script:
           - cmake .
           - make
   pull-requests:
     '**':
       - step:
+           size: 2x
            runs-on: self.hosted
            script:
              - cmake .
@@ -19,6 +21,7 @@ pipelines:
   branches:
      develop:
        - step:
+           size: 2x
            runs-on:
              - 'self.hosted'
              - 'gpu'
@@ -30,6 +33,7 @@ pipelines:
              - ln -s /build/b0-final* ./
              - env GTEST_OUTPUT="xml:test-reports/" OMP_NUM_THREADS=8 make test ARGS=--verbose
        - step:
+           size: 2x
            runs-on:
              - 'self.hosted'
              - 'avx512'
@@ -43,6 +47,7 @@ pipelines:
 
      IA_dev_optim:
        - step:
+           size: 2x
            script:
              - >
                cmake -DCOOLING=on
