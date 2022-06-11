@@ -58,23 +58,6 @@ Device::Device(int iDevice, int nStreams) : iDevice(iDevice), nStreams(nStreams)
     for (auto i=0; i<nStreams; ++i) {
         free_streams.enqueue(new Stream(this));
     }
-    int MaxRegistersPerBlock,MaxRegistersPerMultiprocessor,MaxThreadsPerMultiProcessor,MaxBlocksPerMultiprocessor,ComputeCapabilityMajor,ComputeCapabilityMinor;
-    cudaDeviceGetAttribute(&ComputeCapabilityMajor,cudaDevAttrComputeCapabilityMajor,iDevice);
-    cudaDeviceGetAttribute(&ComputeCapabilityMinor,cudaDevAttrComputeCapabilityMinor,iDevice);
-    printf("cuda%d: compute capibility %d.%d\n",iDevice,ComputeCapabilityMajor,ComputeCapabilityMinor);
-    cudaDeviceGetAttribute(&MaxRegistersPerBlock,cudaDevAttrMaxRegistersPerBlock,iDevice);
-    cudaDeviceGetAttribute(&MaxRegistersPerMultiprocessor,cudaDevAttrMaxRegistersPerMultiprocessor,iDevice);
-    cudaDeviceGetAttribute(&MaxThreadsPerMultiProcessor,cudaDevAttrMaxThreadsPerMultiProcessor,iDevice);
-    cudaDeviceGetAttribute(&MaxBlocksPerMultiprocessor,cudaDevAttrMaxBlocksPerMultiprocessor,iDevice);
-    printf("cuda%d: cudaDevAttrMaxRegistersBlock:%d MaxRegistersPerMultiprocessor:%d MaxThreadsPerMultiProcessor:%d MaxBlocksPerMultiprocessor:%d\n",
-           iDevice,MaxRegistersPerBlock,MaxRegistersPerMultiprocessor,MaxThreadsPerMultiProcessor,MaxBlocksPerMultiprocessor);
-    int MaxSharedMemoryPerBlock, MaxSharedMemoryPerMultiprocessor;
-    cudaDeviceGetAttribute(&MaxSharedMemoryPerBlock,cudaDevAttrMaxSharedMemoryPerBlock,iDevice);
-    cudaDeviceGetAttribute(&MaxSharedMemoryPerMultiprocessor,cudaDevAttrMaxSharedMemoryPerMultiprocessor,iDevice);
-    printf("cuda%d: MaxSharedMemoryPerBlock:%d MaxSharedMemoryPerMultiprocessor:%d\n",
-           iDevice,MaxSharedMemoryPerBlock,MaxSharedMemoryPerMultiprocessor);
-
-
 }
 
 void Device::launch(cudaMessage &M) {
