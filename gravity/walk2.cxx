@@ -335,6 +335,14 @@ found_it:
                                                 if (SPHoptions->doSPHForces) {
                                                     P = EOSPCofRhoU(pkdDensity(pkd,p),pNewSph->u + dtPredDrift * pNewSph->uDot,&cs,SPHoptions);
                                                 }
+                                                vpred[0] = v[0] + dtPredDrift * ap[0];
+                                                vpred[1] = v[1] + dtPredDrift * ap[1];
+                                                vpred[2] = v[2] + dtPredDrift * ap[2];
+                                                if ((SPHoptions->VelocityDamper > 0.0) & p->bMarked) {
+                                                    vpred[0] /= 1.0 - kick->dtClose[p->uRung] * SPHoptions->VelocityDamper;
+                                                    vpred[1] /= 1.0 - kick->dtClose[p->uRung] * SPHoptions->VelocityDamper;
+                                                    vpred[2] /= 1.0 - kick->dtClose[p->uRung] * SPHoptions->VelocityDamper;
+                                                }
                                                 pkd->ilp.append(
                                                     r[0] + blk.xOffset[jTile],
                                                     r[1] + blk.yOffset[jTile],
