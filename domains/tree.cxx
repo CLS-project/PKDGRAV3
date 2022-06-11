@@ -1393,6 +1393,7 @@ void pkdDistribRoot(PKD pkd,double *r,MOMC *pmom) {
 void pkdTreeUpdateFlagBoundsRecurse(PKD pkd,uint32_t uRoot,SPHOptions *SPHoptions) {
     KDN *c,*cLow,*cUp;
     int id,idLo,iCellLo,idUp,iCellUp;
+    id = 0;
     PARTICLE *p;
     int pj;
     float fBallFactor;
