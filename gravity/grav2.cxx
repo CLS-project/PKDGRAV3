@@ -405,6 +405,13 @@ static void queuePP( PKD pkd, workParticle *wp, ilpList &ilp, int bGravStep ) {
 static void queueDensity( PKD pkd, workParticle *wp, ilpList &ilp, int bGravStep ) {
     wp->ilp = &ilp;
     wp->bGravStep = bGravStep;
+    for ( int i=0; i<wp->nP; i++ ) {
+        wp->pInfoOut[i].rho = 0.0f;
+        wp->pInfoOut[i].drhodfball = 0.0f;
+        wp->pInfoOut[i].nden = 0.0f;
+        wp->pInfoOut[i].dndendfball = 0.0f;
+        wp->pInfoOut[i].nSmooth = 0.0f;
+    }
     for ( auto &tile : ilp ) {
         for (auto i=0; i<wp->nP; ++i) {
             pkdDensityEval(wp->pInfoIn[i],tile,wp->pInfoOut[i],wp->SPHoptions);
