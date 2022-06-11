@@ -22,6 +22,16 @@ template<class F=float>
 struct ResultPP {
     F ax, ay, az, pot;
     F ir, norm;
+    void zero() { ax=ay=az=pot=ir=norm=0; }
+    ResultPP<F> operator+=(const ResultPP<F> &rhs) {
+        ax += rhs.ax;
+        ay += rhs.ay;
+        az += rhs.az;
+        pot += rhs.pot;
+        ir += rhs.ir;
+        norm += rhs.norm;
+        return *this;
+    }
 };
 template<class F,class M>
 CUDA_DEVICE ResultPP<F> EvalPP(
@@ -66,7 +76,7 @@ CUDA_DEVICE ResultPP<F> EvalPP(
     F Pax, F Pay, F Paz, F imaga) {
     ResultPP<F> result = EvalPP<F,M>(Pdx,Pdy,Pdz,Psmooth2,Idx,Idy,Idz,fourh2,Im);
     F adotai = Pax*result.ax + Pay*result.ay + Paz*result.az;
-    adotai = maskz_mov(adotai>0.0f & result.norm>=Psmooth2,adotai) * imaga;
+    adotai = maskz_mov((adotai>0.0f) & (result.norm>=Psmooth2),adotai) * imaga;
     result.norm = adotai * adotai;
     result.ir *= result.norm;
     return result;
@@ -75,6 +85,15 @@ CUDA_DEVICE ResultPP<F> EvalPP(
 template<class F=float>
 struct ResultDensity {
     F arho, adrhodfball, anden, adndendfball, anSmooth;
+    void zero() { arho=adrhodfball=anden=adndendfball=anSmooth=0; }
+    ResultDensity<F> operator+=(const ResultDensity<F> &rhs) {
+        arho += rhs.arho;
+        adrhodfball += rhs.adrhodfball;
+        anden += rhs.anden;
+        adndendfball += rhs.adndendfball;
+        anSmooth += rhs.anSmooth;
+        return *this;
+    }
 };
 template<class F,class M>
 CUDA_DEVICE ResultDensity<F> EvalDensity(
@@ -129,6 +148,17 @@ CUDA_DEVICE ResultDensity<F> EvalDensity(
 template<class F=float>
 struct ResultSPHForces {
     F uDot, ax, ay, az, divv, dtEst, maxRung;
+    void zero() { uDot=ax=ay=az=divv=maxRung=0; dtEst=HUGE_VALF; }
+    ResultSPHForces<F> operator+=(const ResultSPHForces<F> &rhs) {
+        uDot += rhs.uDot;
+        ax += rhs.ax;
+        ay += rhs.ay;
+        az += rhs.az;
+        divv += rhs.divv;
+        dtEst = min(dtEst,rhs.dtEst); // CAREFUL! We use "min" here
+        maxRung = max(maxRung,rhs.maxRung);
+        return *this;
+    }
 };
 template<class F,class M,class Ivec>
 CUDA_DEVICE ResultSPHForces<F> EvalSPHForces(

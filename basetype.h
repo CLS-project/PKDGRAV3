@@ -65,6 +65,7 @@ uint64_t  uNewRung   :  IRUNGBITS;  /* Optional with bNewKDK + bMemUnordered */
     uint64_t  iClass     :  8;          /* Optional with bMemUnordered */
 uint64_t  iOrder     :  IORDERBITS; /* Optional with bMemUnordered */
 } PARTICLE;
+static_assert(sizeof(PARTICLE)==sizeof(uint64_t));
 
 /* Abbreviated particle header with group id */
 #define IGROUPBITS (32-IRUNGBITS-1)
@@ -75,6 +76,7 @@ uint32_t  uRung      :  IRUNGBITS;
     uint32_t  bMarked    :  1;
 uint32_t  iGroup     :  IGROUPBITS;
 } UPARTICLE;
+static_assert(sizeof(UPARTICLE)==sizeof(uint32_t));
 
 #define PP_CUDA_MEMORY_LIMIT (2*1024*1024)
 
@@ -285,28 +287,9 @@ typedef struct {
     double dFlopDoubleGPU;
 
     SPHOptions *SPHoptions;
-    ILP ilp;
+    ilpList *ilp;
     int bGravStep;
 } workParticle;
-
-/*
-** One tile of PP interactions
-*/
-typedef struct {
-    PINFOOUT *pInfoOut;
-    ILP ilp;
-    ILPTILE tile;
-    workParticle *work;
-    int i;
-} workPP;
-
-typedef struct {
-    PINFOOUT *pInfoOut;
-    ILC ilc;
-    ILCTILE tile;
-    workParticle *work;
-    int i;
-} workPC;
 
 #define EWALD_ALIGN 64
 #define EWALD_MASK (EWALD_ALIGN-1)

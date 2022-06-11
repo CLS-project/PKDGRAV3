@@ -283,7 +283,7 @@ static void storeRungDest(PKD pkd,PKDOUT ctx,PARTICLE *p,int iType,int iDim) {
 #endif
     if ( PKDOUT_BUFFER_SIZE - (ctx->inOffset-ctx->inBuffer) < 100 )
         (*ctx->fnFlush)(pkd,ctx,0);
-    sprintf(ctx->inOffset,"%016" PRIx64 " %d",lKey,p->uRung);
+    sprintf(ctx->inOffset,"%016" PRIx64 " %d",lKey,static_cast<int>(p->uRung));
     ctx->inOffset += strlen(ctx->inOffset);
     for (iRung=0; iRung<8; iRung++) {
         sprintf(ctx->inOffset," %d", pRungDest[iRung]);
@@ -354,7 +354,7 @@ static void storeRungDestBinary(PKD pkd,PKDOUT ctx,PARTICLE *p,int iType,int iDi
 #endif
     if ( PKDOUT_BUFFER_SIZE - (ctx->inOffset-ctx->inBuffer) < 100 )
         (*ctx->fnFlush)(pkd,ctx,0);
-    sprintf(ctx->inOffset,"%016" PRIx64 " %d",lKey,p->uRung);
+    sprintf(ctx->inOffset,"%016" PRIx64 " %d",lKey,static_cast<int>(p->uRung));
     ctx->inOffset += strlen(ctx->inOffset);
     for (iRung=0; iRung<8; iRung++) {
         sprintf(ctx->inOffset," %d", pRungDest[iRung]);

@@ -22,6 +22,16 @@ template<class F=float>
 struct ResultPC {
     F ax, ay, az, pot;
     F ir, norm;
+    void zero() {ax=ay=az=pot=ir=norm=0;}
+    ResultPC<F> operator+=(const ResultPC<F> &rhs) {
+        ax += rhs.ax;
+        ay += rhs.ay;
+        az += rhs.az;
+        pot += rhs.pot;
+        ir += rhs.ir;
+        norm += rhs.norm;
+        return *this;
+    }
 };
 template<class F,class M,bool bGravStep>
 CUDA_DEVICE ResultPC<F> EvalPC(
@@ -171,7 +181,7 @@ CUDA_DEVICE ResultPC<F> EvalPC(
     /* Calculations for determining the timestep. */
     if (bGravStep) {
         F adotai = Pax*result.ax + Pay*result.ay + Paz*result.az;
-        adotai = maskz_mov(adotai>0.0f & d2>Psmooth2,adotai) * imaga;
+        adotai = maskz_mov((adotai>0.0f) & (d2>Psmooth2),adotai) * imaga;
         result.norm = adotai * adotai;
         result.ir = dir * result.norm;
     }

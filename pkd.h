@@ -22,6 +22,9 @@
 #include <string.h>
 
 #include "mdl.h"
+#ifdef USE_CUDA
+    #include "cuda/cudautil.h"
+#endif
 #include "gravity/ilp.h"
 #include "gravity/ilc.h"
 #include "gravity/cl.h"
@@ -29,9 +32,6 @@
 #include "cosmo.h"
 #include "units.h"
 #include "io/fio.h"
-#ifdef USE_GRAFIC
-    #include "grafic.h"
-#endif
 #include "basetype.h"
 #include "io/iomodule.h"
 #include "SPHOptions.h"
@@ -520,9 +520,7 @@ typedef struct sphBounds {
 ** Components required for tree walking.
 */
 typedef struct CheckStack {
-    ILPCHECKPT PartChkPt;
-    ILCCHECKPT CellChkPt;
-    CL cl;
+    clList *cl;
     LOCR L;
     float dirLsum;
     float normLsum;
@@ -823,7 +821,7 @@ protected:
     auto TreeBase(int iTile=0) { return kdNodeListPRIVATE[iTile]; }
 public:
     auto Nodes() const { return nNodes; }
-    [[deprecated]] void SetNodeCount(int n) { nNodes = n; }
+    /*[[deprecated]]*/ void SetNodeCount(int n) { nNodes = n; }
     auto Node(KDN *pBase,int iNode) {
         return reinterpret_cast<KDN *>(reinterpret_cast<char *>(pBase)+NodeSize()*iNode);
     }
@@ -918,12 +916,12 @@ public:
     */
     int nMaxStack;
     CSTACK *S;
-    ILP ilp;
-    ILC ilc;
-    ILC ill;
-    LSTFREELIST clFreeList;
-    CL cl;
-    CL clNew;
+    ilpList ilp;
+    ilcList ilc;
+    ilcList ill;
+    clList::free_list clFreeList;
+    clList *cl;
+    clList *clNew;
     double dFlop;
     double dFlopSingleCPU, dFlopDoubleCPU;
     double dFlopSingleGPU, dFlopDoubleGPU;
@@ -1000,8 +998,7 @@ public:
 #endif
 
 #ifdef USE_CUDA
-    void *cudaCtx;
-    void *cudaClient;
+    CudaClient *cudaClient;
 #endif
 #ifdef MDL_FFTW
     MDLFFT fft;
@@ -1528,10 +1525,10 @@ void pkdGravAll(PKD pkd,
 void pkdCalcEandL(PKD pkd,double *T,double *U,double *Eth,double *L,double *F,double *W);
 void pkdProcessLightCone(PKD pkd,PARTICLE *p,float fPot,double dLookbackFac,double dLookbackFacLCP,
                          double dDriftDelta,double dKickDelta,double dBoxSize,int bLightConeParticles);
-void pkdGravEvalPP(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINFOOUT *pOut );
-void pkdDensityEval(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINFOOUT *pOut, SPHOptions *SPHoptions);
-void pkdSPHForcesEval(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINFOOUT *pOut, SPHOptions *SPHoptions);
-void pkdGravEvalPC(PINFOIN *pPart, int nBlocks, int nInLast, ILC_BLK *blk,  PINFOOUT *pOut );
+void pkdGravEvalPP(const PINFOIN &Part, ilpTile &tile, PINFOOUT &Out );
+void pkdDensityEval(const PINFOIN &Part, ilpTile &tile,  PINFOOUT &Out, SPHOptions *SPHoptions);
+void pkdSPHForcesEval(const PINFOIN &Part, ilpTile &tile,  PINFOOUT &Out, SPHOptions *SPHoptions);
+void pkdGravEvalPC(const PINFOIN &pPart, ilcTile &tile, PINFOOUT &pOut );
 void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double,double,int bDoGas);
 void pkdEndTimestepIntegration(PKD pkd, struct inEndTimestep in);
 #ifdef OPTIM_REORDER_IN_NODES
@@ -1606,10 +1603,6 @@ void pkdGetNParts(PKD pkd, struct outGetNParts *out );
 void pkdSetNParts(PKD pkd, int nGas, int nDark, int nStar, int nBH);
 void pkdInitRelaxation(PKD pkd);
 
-#ifdef USE_GRAFIC
-void pkdGenerateIC(PKD pkd, GRAFICCTX gctx, int iDim,
-                   double fSoft, double fMass, int bCannonical);
-#endif
 int pkdGetClasses( PKD pkd, int nMax, PARTCLASS *pClass );
 void pkdSetClasses( PKD pkd, int n, PARTCLASS *pClass, int bUpdate );
 void pkdSetClass( PKD pkd, float fMass, float fSoft, FIO_SPECIES eSpecies, PARTICLE *p );

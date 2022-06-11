@@ -89,7 +89,7 @@ public:
     // }
 
     void clear();
-    bool queue(workParticle *wp, TILE *tile, bool bGravStep);
+    bool queue(workParticle *wp, TILE &tile, bool bGravStep);
     MessagePPPC<TILE,nIntPerTB,nIntPerWU> &prepare();
 };
 typedef MessagePPPC<ilpTile,128,128> MessagePP;
@@ -114,37 +114,24 @@ protected:
 protected:
     template<class MESSAGE> void flush(MESSAGE *&M);
     template<class MESSAGE,class QUEUE,class TILE>
-    int queue(MESSAGE *&m, QUEUE &Q, workParticle *wp, TILE *tile, bool bGravStep);
+    int queue(MESSAGE *&m, QUEUE &Q, workParticle *wp, TILE &tile, bool bGravStep);
 public:
     explicit CudaClient(mdl::mdlClass &mdl);
     void flushCUDA();
-    int  queuePP(workParticle *wp, ilpTile *tile, bool bGravStep);
-    int  queueDensity(workParticle *wp, ilpTile *tile, bool bGravStep);
-    int  queueSPHForces(workParticle *wp, ilpTile *tile, bool bGravStep);
-    int  queuePC(workParticle *wp, ilcTile *tile, bool bGravStep);
+    int  queuePP(workParticle *wp, ilpTile &tile, bool bGravStep);
+    int  queuePC(workParticle *wp, ilcTile &tile, bool bGravStep);
     int  queueEwald(workParticle *wp);
     void setupEwald(struct EwaldVariables *const ew, EwaldTable *const ewt);
 };
 #endif
 
-#ifdef __cplusplus
-extern "C" {
-#endif
 #ifdef USE_CUDA
-void *CudaClientInitialize(void *vmdl);
-void CudaClientFlush(void *vcudaClient);
-int CudaClientQueueEwald(void *vcudaClient, workParticle *work);
-int CudaClientQueuePP(void *vcudaClient, workParticle *work, struct ilpTile *tile, int bGravStep);
-int CudaClientQueuePC(void *vcudaClient, workParticle *work, struct ilcTile *tile, int bGravStep);
 #else
-#if !defined(__CUDACC__)
-#include "core/simd.h"
-#define CUDA_malloc SIMD_malloc
-#define CUDA_free SIMD_free
-#endif
-#endif
-#ifdef __cplusplus
-}
+    #if !defined(__CUDACC__)
+        #include "core/simd.h"
+        #define CUDA_malloc SIMD_malloc
+        #define CUDA_free SIMD_free
+    #endif
 #endif
 
 #ifdef __CUDACC__

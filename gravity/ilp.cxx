@@ -15,32 +15,6 @@
  *  along with PKDGRAV3.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifdef HAVE_CONFIG_H
-    #include "config.h"
-#else
-    #include "pkd_config.h"
-#endif
+#include "pkd_config.h"
 #include <assert.h>
-
 #include "ilp.h"
-
-void ilpInitialize(ILP *ilp) {
-    *ilp = new struct ilpContext;
-    assert( *ilp != NULL );
-    lstInitialize(&(*ilp)->lst,NULL,
-                  ILP_TILE_SIZE / sizeof(ILP_BLK), ILP_PART_PER_BLK,
-#ifdef TIMESTEP_CRITICAL
-                  2, /* two areas */
-                  sizeof(ILP_BLK),SIMD_malloc,SIMD_free);
-    sizeof(ILP_EXTRA),NULL,           NULL);
-#else
-                  1, /* one area */
-                  sizeof(ILP_BLK),SIMD_malloc,SIMD_free);
-#endif
-    (*ilp)->cx = (*ilp)->cy = (*ilp)->cz = 0.0;
-}
-
-void ilpFinish(ILP ilp) {
-    lstFree(&ilp->lst);
-    delete ilp;
-}

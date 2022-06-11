@@ -634,8 +634,7 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
                 pkd->S = CAST(CSTACK *,realloc(pkd->S,(pkd->nMaxStack+nMaxStackIncrease)*sizeof(CSTACK)));
                 assert(pkd->S != NULL);
                 for (ism=pkd->nMaxStack; ism<(pkd->nMaxStack+nMaxStackIncrease); ++ism) {
-                    clInitialize(&pkd->S[ism].cl,&pkd->clFreeList);
-                    assert(pkd->S[ism].cl != NULL);
+                    pkd->S[ism].cl = new clList(pkd->clFreeList);
                 }
                 pkd->nMaxStack += nMaxStackIncrease;
             }

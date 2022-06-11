@@ -1900,7 +1900,7 @@ void mdlClass::init(bool bDiag) {
         const char *tmp = strrchr(argv[0], '/');
         if (!tmp) tmp = argv[0];
         else ++tmp;
-        sprintf(achDiag, "%s/%s.%d", ach, tmp, Self());
+        if (snprintf(achDiag, sizeof(achDiag), "%s/%s.%d", ach, tmp, Self())>=sizeof(achDiag)) abort();
         fpDiag = fopen(achDiag, "w");
         assert(fpDiag != NULL);
     }

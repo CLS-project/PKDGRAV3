@@ -32,10 +32,9 @@ static inline double softmassweight(double m1,double h12,double m2,double h22) {
 
 void pkdGravStartEwald(PKD pkd);
 void pkdGravFinishEwald(PKD pkd);
-
 int pkdGravInteract(PKD pkd,
                     struct pkdKickParameters *kick,struct pkdLightconeParameters *lc,struct pkdTimestepParameters *ts,
-                    KDN *pBucket,LOCR *pLoc,ILP ilp,ILC ilc,
+                    KDN *pBucket,LOCR *pLoc,ilpList &ilp,ilcList &ilc,
                     float dirLsum,float normLsum,int bEwald,double *pdFlop,
                     SMX smx,SMF *smf,int iRoot1,int iRoot2,SPHOptions *SPHoptions);
 

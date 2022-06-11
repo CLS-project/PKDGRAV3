@@ -17,140 +17,41 @@
 
 #ifndef ILP_H
 #define ILP_H
-#include <stdint.h>
-#include <string.h>
-#include <assert.h>
-#include <stdint.h>
 
 #include "lst.h"
 
-#define ILP_TILE_SIZE (100*1024) /* 100k */
 #ifndef ILP_PART_PER_BLK
-    #define ILP_PART_PER_BLK (32) /* Don't mess with this: see CUDA */
+    #define ILP_PART_PER_BLK 32 /* Don't mess with this: see CUDA */
 #endif
 
-#if !defined(__CUDACC__)
-    #include "core/simd.h"
-#endif
+// These are the fields and their types found in the interaction list
+#define ILP_FIELDS_SEQ\
+    ((float,dx))((float,dy))((float,dz))((float,m))((float,fourh2))\
+    ((float,vx))((float,vy))((float,vz))((float,fBall))((float,Omega))\
+    ((float,rho))((float,P))((float,c))((float,uRung))((int32_t,species))
 
-/*
-** We use a union here so that the compiler can properly align the values.
-*/
-typedef union {
-    float f[ILP_PART_PER_BLK];
-#if !defined(__CUDACC__)
-    v_sf p[ILP_PART_PER_BLK/SIMD_WIDTH];
-#endif
-} ilpFloat;
+ILIST_DECLARE(PP,ILP_FIELDS_SEQ)
+#define ILP_FIELD_TYPES ILIST_FIELD_VALUES(ILP_FIELDS_SEQ,0)
+#define ILP_FIELD_NAMES ILIST_FIELD_VALUES(ILP_FIELDS_SEQ,1)
+#define ILP_FIELD_PROTOS ILIST_FIELD_PROTOS(ILP_FIELDS_SEQ)
 
-typedef union {
-    int32_t i[ILP_PART_PER_BLK];
-#if !defined(__CUDACC__)
-    v_i p[ILP_PART_PER_BLK/SIMD_WIDTH];
-#endif
-} ilpInt32;
-
-typedef union {
-    double d[ILP_PART_PER_BLK];
-} ilpDouble;
-
-typedef union {
-    int64_t i[ILP_PART_PER_BLK]; /* Signed because negative marks softened cells */
-} ilpInt64;
-
-typedef struct {
-    ilpFloat dx, dy, dz;    /* Offset from ilp->cx, cy, cz */
-    ilpFloat m;             /* Mass */
-    ilpFloat fourh2;        /* Softening: calculated */
-    /* SPH fields follow */
-    ilpFloat fBall, Omega;  /* Ball and correction factor */
-    ilpFloat vx, vy, vz;    /* Velocity */
-    ilpFloat rho;           /* Density */
-    ilpFloat P;             /* Pressure */
-    ilpFloat c;             /* sound speed */
-    ilpFloat uRung;         /* rung (has to be float, because the max simd function is only float) */
-    ilpInt32 species;       /* particle species, can be compared with FIO_SPECIES */
-} ILP_BLK;
-
-#ifdef TIMESTEP_CRITICAL
-typedef struct {
-    ilpDouble vx, vy, vz;
-    ilpInt64 iOrder;
-} ILP_EXTRA;
-#endif
-
-typedef struct ilpTile {
-    LSTTILE lstTile;
-    ILP_BLK *blk;
-#ifdef TIMESTEP_CRITICAL
-    ILP_EXTRA *xtr;
-#endif
-} *ILPTILE;
-
-typedef struct ilpContext {
-    LST lst;
-    double cx, cy, cz;          /* Center coordinates */
-} *ILP;
-
-#define ILPCHECKPT LSTCHECKPT
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-void ilpInitialize(ILP *ilp);
-void ilpFinish(ILP ilp);
-#ifdef __cplusplus
-}
-#endif
-
-#define ilpClear(ilp) lstClear(&(ilp)->lst)
-#define ilpExtend(ilp) lstExtend(&(ilp)->lst)
-#define ilpMemory(ilp) lstMemory(&(ilp)->lst)
-#define ilpCheckPt(ilp,cp) lstCheckPt(&(ilp)->lst,(cp))
-#define ilpRestore(ilp,cp) lstRestore(&(ilp)->lst,(cp))
-#define ilpCount(ilp) lstCount(&(ilp)->lst)
-
-/*
-** The X, Y and Z coordinates must already be relative to cx, cy and cz!
-*/
-
-static inline void ilpAppendFloat(ILP ilp, float X, float Y, float Z, float M, float S,
-                                  uint64_t I, float VX, float VY, float VZ, float fBall, float Omega, float rho,
-                                  float P, float c, int32_t species, float uRung ) {
-    ILPTILE tile = (ILPTILE)lstReposition(&ilp->lst);
-    uint_fast32_t blk = tile->lstTile.nBlocks;
-    uint_fast32_t prt = tile->lstTile.nInLast;
-    tile->blk[blk].dx.f[prt] = (X);
-    tile->blk[blk].dy.f[prt] = (Y);
-    tile->blk[blk].dz.f[prt] = (Z);
-    tile->blk[blk].m.f[prt] = (M);
-    tile->blk[blk].fourh2.f[prt] = (S);
-    tile->blk[blk].vx.f[prt] = (VX);
-    tile->blk[blk].vy.f[prt] = (VY);
-    tile->blk[blk].vz.f[prt] = (VZ);
-    tile->blk[blk].fBall.f[prt] = (fBall);
-    tile->blk[blk].Omega.f[prt] = (Omega);
-    tile->blk[blk].rho.f[prt] = (rho);
-    tile->blk[blk].P.f[prt] = (P);
-    tile->blk[blk].c.f[prt] = (c);
-    tile->blk[blk].species.i[prt] = (species);
-    tile->blk[blk].uRung.f[prt] = (uRung);
-    assert( (M) > 0.0 );
-#ifdef TIMESTEP_CRITICAL
-    tile->xtr[blk].iOrder.i[prt] = (I);
-    tile->xtr[blk].vx.d[prt] = (VX);
-    tile->xtr[blk].vy.d[prt] = (VY);
-    tile->xtr[blk].vz.d[prt] = (VZ);
-#endif
-    ++tile->lstTile.nInLast;
-}
-
-static inline void ilpAppend(ILP ilp, double X, double Y, double Z, float M, float S,
-                             uint64_t I, float VX, float VY, float VZ, float fBall, float Omega, float rho,
-                             float P, float c, int32_t species, int uRung ) {
-    ilpAppendFloat(ilp,(float)((ilp)->cx-(X)),(float)((ilp)->cy-(Y)),(float)((ilp)->cz-(Z)),M,S,I,VX,VY,VZ,
-                   fBall,Omega,rho,P,c,species,(float)uRung);
-}
-#define ILP_LOOP(ilp,ptile) for( ptile=(ILPTILE)((ilp)->lst.list); ptile!=NULL; ptile=(ILPTILE)(ptile->lstTile.next) )
-
+using ilpBlock = BlockPP<ILP_PART_PER_BLK>;
+using ilpTile = TilePP<ILP_PART_PER_BLK,8>;
+class ilpList : public ListPP<ILP_PART_PER_BLK,8>, public ilist::ilCenterReference {
+public:
+    void append(float dx,float dy,float dz,float m,float fourh2,
+                float vx,float vy,float vz,float fBall,float Omega,
+                float rho,float P,float c,float uRung,int32_t species) {
+        BlockPP<ILP_PART_PER_BLK> *b;
+        int i;
+        std::tie(b,i) = ListPP<ILP_PART_PER_BLK,8>::create();
+        ILIST_ASSIGN_FIELDS(ILP_FIELDS_SEQ,PP,b,i,)
+    }
+    void append(double x,double y,double z,float m,float fourh2,
+                float vx,float vy,float vz,float fBall,float Omega,
+                float rho,float P,float c, int uRung,int32_t species) {
+        append((float)(getReference(0)-x),(float)(getReference(1)-y),(float)(getReference(2)-z),
+               m,fourh2,vx,vy,vz,fBall,Omega,rho,P,c,(float)uRung,species);
+    }
+};
 #endif

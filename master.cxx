@@ -143,6 +143,27 @@ double MSR::TimerGetAcc(int iTimer) {
     return ti[iTimer].acc;
 }
 
+
+// The order should be the same than in the enumerate above!
+static const char *timer_names[TOTAL_TIMERS] = {
+    "Gravity",  "IO", "Tree", "DomainDecom",  "KickOpen", "KickClose",
+    "Density", "EndTimeStep",  "Gradient", "Flux", "TimeStep", "Drift", "FoF",
+#ifdef FEEDBACK
+    "Feedback",
+#endif
+#ifdef STAR_FORMATION
+    "StarForm",
+#endif
+#ifdef BLACKHOLES
+    "BHs",
+#endif
+#ifdef STELLAR_EVOLUTION
+    "Stev",
+#endif
+    "Others"
+};
+static_assert(sizeof(timer_names) / sizeof(timer_names[0]) == TOTAL_TIMERS);
+
 void MSR::TimerHeader() {
     char achFile[256];
     sprintf(achFile,"%s.timing",OutName());
