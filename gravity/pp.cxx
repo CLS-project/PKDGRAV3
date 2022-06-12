@@ -139,7 +139,7 @@ template<typename BLOCK> struct ilist::EvalBlock<ResultSPHForces<fvec>,BLOCK> {
             result += EvalSPHForces<fvec,fmask,i32v>(
                           fx,fy,fz,fBall,Omega,vx,vy,vz,rho,P,c,species,
                           blk.dx.v[i],blk.dy.v[i],blk.dz.v[i],blk.m.v[i],blk.fBall.v[i],blk.Omega.v[i],
-                          blk.vx.v[i],blk.vx.v[i],blk.vx.v[i],blk.rho.v[i],blk.P.v[i],blk.c.v[i],blk.species.v[i],blk.uRung.v[i],
+                          blk.vx.v[i],blk.vy.v[i],blk.vz.v[i],blk.rho.v[i],blk.P.v[i],blk.c.v[i],blk.species.v[i],blk.uRung.v[i],
                           SPHoptions->kernelType,SPHoptions->epsilon,SPHoptions->alpha,SPHoptions->beta,
                           SPHoptions->EtaCourant,SPHoptions->a,SPHoptions->H,SPHoptions->useIsentropic);
         }
