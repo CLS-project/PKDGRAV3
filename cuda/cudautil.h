@@ -67,13 +67,38 @@ protected:
     std::vector<int> ibHole;
 };
 
-template<class TILE,int nIntPerTB, int nIntPerWU>
+// One of these entries for each interaction block
+struct ppWorkUnit {
+    uint32_t nP;   // Number of particles
+    uint32_t nI;   // Number of interactions in the block
+    uint32_t iP;   // Index of first particle
+    uint32_t iO;   // Index of the output block
+};
+
+struct ppInput {
+    float dx, dy, dz;
+    float ax, ay, az;
+    float fSoft2;
+    float dImaga;
+};
+
+/* Each thread block outputs this for each particle */
+struct __align__(32) ppResult {
+    float ax;
+    float ay;
+    float az;
+    float fPot;
+    float dirsum;
+    float normsum;
+};
+
+template<class TILE>
 class MessagePPPC : public cudaDataMessage {
 protected:
     mdl::messageQueue<MessagePPPC> &freeQueue;
     bool bGravStep;
     size_t requestBufferCount, resultsBufferCount;
-    int nInteractionBlocks, nGrid;
+    int nTotalInteractionBlocks, nTotalParticles, nGrid;
     struct workInformation {
         workParticle *wp;
         size_t nInteractions;
@@ -84,16 +109,25 @@ protected:
     virtual void finish() override;
 public:
     explicit MessagePPPC(mdl::messageQueue<MessagePPPC> &freeQueue);
-    // : cuda(cuda), requestBufferCount(0), resultsBufferCount(0), nInteractionBlocks(0) {
-    // work.reserve(CUDA_WP_MAX_BUFFERED);
-    // }
-
     void clear();
     bool queue(workParticle *wp, TILE &tile, bool bGravStep);
-    MessagePPPC<TILE,nIntPerTB,nIntPerWU> &prepare();
+    MessagePPPC<TILE> &prepare();
+
+    template<class BLK>
+    int inputSize(int nP=0, int nI=0) {
+        const auto nBlocks = (nI+BLK::width-1) / BLK::width; // number of interaction blocks needed
+        return (nBlocks + nTotalInteractionBlocks) * (sizeof(BLK) + sizeof(ppWorkUnit)) + (nP + nTotalParticles) * sizeof(ppInput);
+    }
+
+    template<class BLK>
+    int outputSize(int nP=0, int nI=0) {
+        //const auto nBlocks = (nI+BLK::width-1) / BLK::width; // number of interaction blocks needed
+        return (nP + nTotalParticles) * sizeof(ppResult);
+    }
+
 };
-typedef MessagePPPC<ilpTile,128,128> MessagePP;
-typedef MessagePPPC<ilcTile,128,32>  MessagePC;
+typedef MessagePPPC<ilpTile> MessagePP;
+typedef MessagePPPC<ilcTile>  MessagePC;
 
 class CudaClient {
     friend class MessageEwald;
@@ -169,6 +203,12 @@ template <typename T,unsigned int blockSize>
 __device__ void warpReduceAndStore(int tid,T t,T *result) {
     t = warpReduce<T,blockSize>(t);
     if (tid==0) *result = t;
+}
+
+template <typename T,unsigned int blockSize>
+__device__ void warpReduceAndStoreAtomic(int tid,T t,T *result) {
+    t = warpReduce<T,blockSize>(t);
+    if (tid==0) atomicAdd(result,t);
 }
 
 void CUDA_Abort(cudaError_t rc, const char *fname, const char *file, int line);
