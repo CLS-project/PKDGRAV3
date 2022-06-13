@@ -18,11 +18,7 @@
 #ifndef SIMD_H
 #define SIMD_H
 
-#ifdef HAVE_CONFIG_H
-    #include "config.h"
-#else
-    #include "pkd_config.h"
-#endif
+#include "pkd_config.h"
 #if !defined(_STDINT_H) && !defined(_STDINT_H_) && !defined(_STDINT_H_INCLUDED) && !defined(_STDINT) && !defined(__STDINT_H_)
     #include <stdint.h>
 #endif
@@ -77,6 +73,7 @@
 #define SIMD_MASK (SIMD_WIDTH-1)
 #define SIMD_DMASK (SIMD_DWIDTH-1)
 
+#ifndef __CUDACC__
 #ifdef USE_SIMD
     #if defined(__SSE__)
         #include <xmmintrin.h>
@@ -884,5 +881,6 @@ inline vec<int32_t,int32_t> mask_mov(vec<int32_t,int32_t> const &src,mmask<bool>
 
 #endif/*defined(__cplusplus)*/
 
+#endif/*__CUDACC__*/
 
 #endif/*SIMD_H*/
