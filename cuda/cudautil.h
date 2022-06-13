@@ -171,7 +171,6 @@ public:
 #ifdef __CUDACC__
 #include "sm_30_intrinsics.h"
 
-#define CUDA_DEVICE __device__
 inline __device__ bool testz(bool p) { return !p; }
 inline __device__ float maskz_mov(bool p,float a) { return p ? a : 0.0f; }
 
