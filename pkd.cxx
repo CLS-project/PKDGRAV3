@@ -846,7 +846,7 @@ void pkdSetClass( PKD pkd, float fMass, float fSoft, FIO_SPECIES eSpecies, PARTI
     }
     /* NOTE: The above can both be true, in which case a "zero" class is recorded */
     /* NOTE: Species is always part of the class table, so there will be at least one class per species */
-    PARTCLASS newClass(fMass,fSoft,eSpecies);
+    PARTCLASS newClass(fMass,fSoft,5,eSpecies);
 
     /* TODO: This is a linear search which is fine for a small number of classes */
     auto iclass = std::find(pkd->ParticleClasses.begin(),pkd->ParticleClasses.end(),newClass);

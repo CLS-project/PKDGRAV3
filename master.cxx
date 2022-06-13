@@ -532,8 +532,8 @@ void MSR::writeParameters(const char *baseName,int iStep,int nSteps,double dTime
     fprintf(fp," ]\n");
     fprintf(fp,"classes=[ ");
     for (i=0; i<nCheckpointClasses; ++i) {
-        fprintf(fp, "[%d,%.17g,%.17g], ", aCheckpointClasses[i].eSpecies,
-                aCheckpointClasses[i].fMass, aCheckpointClasses[i].fSoft);
+        fprintf(fp, "[%d,%.17g,%.17g,%d], ", aCheckpointClasses[i].eSpecies,
+                aCheckpointClasses[i].fMass, aCheckpointClasses[i].fSoft, aCheckpointClasses[i].iMat);
     }
     fprintf(fp," ]\n");
     fprintf(fp,"msr=MSR()\n");
