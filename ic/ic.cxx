@@ -672,7 +672,7 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
                 if (!pkd->bNoParticleOrder)
                     p->iOrder = temp.ix + in->nGrid*(temp.iy + 1ul*in->nGrid*temp.iz);
             }
-            pkdSetClass(pkd,fDarkMass,fDarkSoft,FIO_SPECIES_DARK,p);
+            pkdSetClass(pkd,fDarkMass,fDarkSoft,0,FIO_SPECIES_DARK,p);
             p->bMarked = 1;
             p->uRung = 0;
             if (pkd->bNoParticleOrder) ((UPARTICLE *)p)->iGroup = 0;
@@ -682,7 +682,7 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
             if (in->bICgas) {
                 PARTICLE *pgas = pkd->Particle( i+in->nMove);
                 pkd->CopyParticle(pgas, p);
-                pkdSetClass(pkd, fGasMass, fGasSoft, FIO_SPECIES_SPH, pgas);
+                pkdSetClass(pkd, fGasMass, fGasSoft, 0, FIO_SPECIES_SPH, pgas);
 
                 if (pkd->oFieldOffset[oParticleID]) {
                     uint64_t *pID = pkdParticleID(pkd,pgas);

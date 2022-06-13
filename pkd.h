@@ -1280,6 +1280,10 @@ static inline FIO_SPECIES pkdSpecies( PKD pkd, PARTICLE *p ) {
     if (pkd->bNoParticleOrder) return pkd->ParticleClasses[0].eSpecies;
     else return pkd->ParticleClasses[p->iClass].eSpecies;
 }
+static inline float pkdiMat( PKD pkd, PARTICLE *p ) {
+    if (pkd->bNoParticleOrder) return pkd->ParticleClasses[0].iMat;
+    else return pkd->ParticleClasses[p->iClass].iMat;
+}
 
 /*
 ** Integerized coordinates: signed integer -0x7fffffff to +0x7fffffff
@@ -1608,7 +1612,7 @@ void pkdInitRelaxation(PKD pkd);
 
 int pkdGetClasses( PKD pkd, int nMax, PARTCLASS *pClass );
 void pkdSetClasses( PKD pkd, int n, PARTCLASS *pClass, int bUpdate );
-void pkdSetClass( PKD pkd, float fMass, float fSoft, FIO_SPECIES eSpecies, PARTICLE *p );
+void pkdSetClass( PKD pkd, float fMass, float fSoft, int iMat, FIO_SPECIES eSpecies, PARTICLE *p );
 
 int pkdCountSelected(PKD pkd);
 int pkdSelSpecies(PKD pkd,uint64_t mSpecies, int setIfTrue, int clearIfFalse);
