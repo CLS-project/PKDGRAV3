@@ -235,6 +235,8 @@ def parse():
     add_bool(gas,'wakeup',default=False,dest='bWakeUpParticles',help='Wake the particles when there is a big rung difference')
     add_flag(gas,'neighstd',default=1.0,dest='dNeighborsStd',type=float,help='Maximum deviation from desired number of neighbors')
     add_bool(gas,'finestats',default=False,dest='bOutFineStatistics',help='Save high cadence information on the rung distribution and star formation')
+    add_flag(gas,'HonHLimit',default=0.1, dest='ddHonHLimit', type=float, help='|dH|/H Limiter')
+    add_flag(gas,'MaxPhysicalSoft',default=0.0, dest='dMaxPhysicalSoft', type=float, help='maximum softening in physical coordinataes')
 
     # /* Cooling Parameters */
     cool = parser.add_argument_group('Cooling')
