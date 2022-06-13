@@ -136,14 +136,19 @@ CUDA_DEVICE ResultDensity<F> EvalDensity(
     }
     else {
         result = {}; // No work to do
+        result.arho = 0.0f;
+        result.adrhodfball = 0.0f;
+        result.anden = 0.0f;
+        result.adndendfball = 0.0f;
+        result.anSmooth = 0.0f;
     }
     return result;
 }
 
 template<class F=float>
 struct ResultSPHForces {
-    F uDot, ax, ay, az, divv, dtEst;
-    void zero() { uDot=ax=ay=az=divv=0; dtEst=HUGE_VALF; }
+    F uDot, ax, ay, az, divv, dtEst, maxRung;
+    void zero() { uDot=ax=ay=az=divv=maxRung=0; dtEst=HUGE_VALF; }
     ResultSPHForces<F> operator+=(const ResultSPHForces<F> &rhs) {
         uDot += rhs.uDot;
         ax += rhs.ax;
@@ -151,6 +156,7 @@ struct ResultSPHForces {
         az += rhs.az;
         divv += rhs.divv;
         dtEst = min(dtEst,rhs.dtEst); // CAREFUL! We use "min" here
+        maxRung = max(maxRung,rhs.maxRung);
         return *this;
     }
 };
@@ -159,7 +165,7 @@ CUDA_DEVICE ResultSPHForces<F> EvalSPHForces(
     F Pdx, F Pdy, F Pdz, F PfBall, F POmega,     // Particle
     F Pvx, F Pvy, F Pvz, F Prho, F PP, F Pc, Ivec Pspecies,
     F Idx, F Idy, F Idz, F Im, F IfBall, F IOmega,      // Interactions
-    F Ivx, F Ivy, F Ivz, F Irho, F IP, F Ic, Ivec Ispecies,
+    F Ivx, F Ivy, F Ivz, F Irho, F IP, F Ic, Ivec Ispecies, F uRung,
     int kernelType, float epsilon, float alpha, float beta,
     float EtaCourant,float a,float H,bool useIsentropic) {
     ResultSPHForces<F> result;
@@ -249,10 +255,9 @@ CUDA_DEVICE ResultSPHForces<F> EvalSPHForces(
         }
 
         // acceleration
-        // i am not sure if there has to be an Omega in the artificial viscosity part
-        result.ax = - Im * (PPoverRho2 + IPoverRho2 + Piij) * dWdx * aFac;
-        result.ay = - Im * (PPoverRho2 + IPoverRho2 + Piij) * dWdy * aFac;
-        result.az = - Im * (PPoverRho2 + IPoverRho2 + Piij) * dWdz * aFac;
+        result.ax = - Im * (PPoverRho2 * PdWdx + IPoverRho2 * IdWdx + Piij * dWdx) * aFac;
+        result.ay = - Im * (PPoverRho2 * PdWdy + IPoverRho2 * IdWdy + Piij * dWdy) * aFac;
+        result.az = - Im * (PPoverRho2 * PdWdz + IPoverRho2 * IdWdz + Piij * dWdz) * aFac;
 
         // divv
         result.divv = Im / Irho * (dvx * dWdx + dvy * dWdy + dvz * dWdz);
@@ -263,6 +268,7 @@ CUDA_DEVICE ResultSPHForces<F> EvalSPHForces(
         result.dtEst = 0.5f * PfBall / (dtC * Pc - dtMu * muij);
         mask1 = Pr_lt_one | Ir_lt_one;
         result.dtEst = mask_mov(HUGE_VALF,mask1,result.dtEst);
+        result.maxRung = maskz_mov(mask1,uRung);
 
         // for (int index = 0; index<8;index++) {
         // if (ax[index] != ax[index]) {
@@ -282,7 +288,13 @@ CUDA_DEVICE ResultSPHForces<F> EvalSPHForces(
     }
     else {
         result = {};
+        result.uDot = 0.0f;
+        result.ax = 0.0f;
+        result.ay = 0.0f;
+        result.az = 0.0f;
+        result.divv = 0.0f;
         result.dtEst = HUGE_VALF;
+        result.maxRung = 0.0f;
     }
     return result;
 }

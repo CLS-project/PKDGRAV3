@@ -1266,6 +1266,12 @@ void MSR::Initialize() {
     param.fKernelTarget = 0;
     prmAddParam(prm,"fKernelTarget", 2, &param.fKernelTarget,
                 sizeof(double), "fKernelTarget", "Kernel target, either number- or massdensity");
+    param.dVelocityDamper = 0.0;
+    prmAddParam(prm,"dVelocityDamper", 2, &param.dVelocityDamper,
+                sizeof(double), "dVelocityDamper", "Velocity Damper");
+    param.iKernelType = 0;
+    prmAddParam(prm,"iKernelType",1,&param.iKernelType,sizeof(int),"s",
+                "<Kernel type, 0: M4, 1: Wendland C2, 2: Wendland C4, 3: Wendland C6> = 0");
     param.bNewSPH = 0;
     prmAddParam(prm,"bNewSPH", 0, &param.bNewSPH,
                 sizeof(int), "bNewSPH",
@@ -2186,7 +2192,7 @@ void MSR::AllNodeWrite(const char *pszFileName, double dTime, double dvFac, int 
         FIO fio;
         fio = fioTipsyCreate(in.achOutFile,
                              in.mFlags&FIO_FLAG_CHECKPOINT,
-                             in.bStandard,in.dExp,
+                             in.bStandard,param.bNewSPH ? in.dTime : in.dExp,
                              in.nGas, in.nDark, in.nStar);
         fioClose(fio);
     }
@@ -5227,6 +5233,9 @@ double MSR::Read(const char *achInFile) {
         TimerStop(TIMER_NONE);
         dsec = TimerGet(TIMER_NONE);
         printf("Converting u complete, Wallclock: %f secs.\n", dsec);
+        if (param.nSteps == 0) {
+            Write(BuildIoName(0).c_str(),0.0,0 );
+        }
     }
 
     return dTime;

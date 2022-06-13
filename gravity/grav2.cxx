@@ -289,6 +289,9 @@ void pkdParticleWorkDone(workParticle *wp) {
                             dT = fmin(dT,wp->pInfoOut[i].dtEst);
                         }
                         uNewRung = pkdDtToRungInverse(dT,fiDelta,wp->ts->uMaxRung-1);
+                        if (pkd->oFieldOffset[oNewSph]) {
+                            uNewRung = std::max(std::max((int)uNewRung,(int)round(wp->pInfoOut[i].maxRung) - wp->SPHoptions->nRungCorrection),0);
+                        }
                     }
                     else uNewRung = 0; /* Assumes current uNewRung is outdated -- not ideal */
                 } /* end of wp->bGravStep */
@@ -307,6 +310,9 @@ void pkdParticleWorkDone(workParticle *wp) {
                             dT = fmin(dT,wp->pInfoOut[i].dtEst);
                         }
                         uNewRung = pkdDtToRungInverse(dT,fiDelta,wp->ts->uMaxRung-1);
+                        if (pkd->oFieldOffset[oNewSph]) {
+                            uNewRung = std::max(std::max((int)uNewRung,(int)round(wp->pInfoOut[i].maxRung) - wp->SPHoptions->nRungCorrection),0);
+                        }
                     }
                     else uNewRung = 0;
                 }
@@ -341,6 +347,11 @@ void pkdParticleWorkDone(workParticle *wp) {
                         if (wp->SPHoptions->doSPHForces) {
                             NEWSPHFIELDS *pNewSph = pkdNewSph(pkd,p);
                             pNewSph->u += wp->kick->dtClose[p->uRung] * pNewSph->uDot;
+                        }
+                        if (wp->SPHoptions->VelocityDamper > 0.0f) {
+                            v[0] *= 1.0 - wp->kick->dtClose[p->uRung] * wp->SPHoptions->VelocityDamper;
+                            v[1] *= 1.0 - wp->kick->dtClose[p->uRung] * wp->SPHoptions->VelocityDamper;
+                            v[2] *= 1.0 - wp->kick->dtClose[p->uRung] * wp->SPHoptions->VelocityDamper;
                         }
                     }
                     v2 = v[0]*v[0] + v[1]*v[1] + v[2]*v[2];
@@ -547,6 +558,11 @@ int pkdGravInteract(PKD pkd,
             wp->pInfoIn[nP].v[0] = v[0] + dtPredDrift * wp->pInfoIn[nP].a[0];
             wp->pInfoIn[nP].v[1] = v[1] + dtPredDrift * wp->pInfoIn[nP].a[1];
             wp->pInfoIn[nP].v[2] = v[2] + dtPredDrift * wp->pInfoIn[nP].a[2];
+            if ((wp->SPHoptions->VelocityDamper > 0.0) & p->bMarked) {
+                wp->pInfoIn[nP].v[0] /= 1.0 - kick->dtClose[p->uRung] * wp->SPHoptions->VelocityDamper;
+                wp->pInfoIn[nP].v[1] /= 1.0 - kick->dtClose[p->uRung] * wp->SPHoptions->VelocityDamper;
+                wp->pInfoIn[nP].v[2] /= 1.0 - kick->dtClose[p->uRung] * wp->SPHoptions->VelocityDamper;
+            }
             wp->pInfoIn[nP].rho = pkdDensity(pkd,p);
             if (wp->SPHoptions->doSPHForces) {
                 wp->pInfoIn[nP].P = EOSPCofRhoU(pkdDensity(pkd,p),pNewSph->u + dtPredDrift * pNewSph->uDot,&wp->pInfoIn[nP].c,SPHoptions);
@@ -566,6 +582,7 @@ int pkdGravInteract(PKD pkd,
             wp->pInfoOut[nP].uDot = 0.0f;
             wp->pInfoOut[nP].divv = 0.0f;
             wp->pInfoOut[nP].dtEst = HUGE_VALF;
+            wp->pInfoOut[nP].maxRung = 0.0f;
         }
 
         wp->pInfoOut[nP].a[0] = 0.0f;

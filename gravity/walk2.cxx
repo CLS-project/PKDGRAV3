@@ -95,6 +95,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2,
     LOCR L;
     FLOCR Lf;
     const vel_t *v;
+    double vpred[3];
     const float *a;
     double r[3], k_r[3], c_r[3];
     double dOffset[3];
@@ -262,13 +263,21 @@ found_it:
                                             if (SPHoptions->doSPHForces) {
                                                 P = EOSPCofRhoU(pkdDensity(pkd,p),pNewSph->u + dtPredDrift * pNewSph->uDot,&cs,SPHoptions);
                                             }
+                                            vpred[0] = v[0] + dtPredDrift * ap[0];
+                                            vpred[1] = v[1] + dtPredDrift * ap[1];
+                                            vpred[2] = v[2] + dtPredDrift * ap[2];
+                                            if ((SPHoptions->VelocityDamper > 0.0) & p->bMarked) {
+                                                vpred[0] /= 1.0 - kick->dtClose[p->uRung] * SPHoptions->VelocityDamper;
+                                                vpred[1] /= 1.0 - kick->dtClose[p->uRung] * SPHoptions->VelocityDamper;
+                                                vpred[2] /= 1.0 - kick->dtClose[p->uRung] * SPHoptions->VelocityDamper;
+                                            }
                                             pkd->ilp.append(
                                                 r[0] + blk.xOffset[jTile],
                                                 r[1] + blk.yOffset[jTile],
                                                 r[2] + blk.zOffset[jTile],
                                                 blk.m[jTile], blk.fourh2[jTile],
-                                                v[0] + dtPredDrift * ap[0], v[1] + dtPredDrift * ap[1], v[2] + dtPredDrift * ap[2],
-                                                pkdBall(pkd,p), Omega, pkdDensity(pkd,p), P, cs, pkdSpecies(pkd,p));
+                                                vpred[0], vpred[1], vpred[2],
+                                                pkdBall(pkd,p), Omega, pkdDensity(pkd,p), P, cs, pkdSpecies(pkd,p), p->uRung);
                                         }
                                         else {
                                             pkd->ilp.append(
@@ -277,7 +286,7 @@ found_it:
                                                 r[2] + blk.zOffset[jTile],
                                                 blk.m[jTile], blk.fourh2[jTile],
                                                 v[0], v[1], v[2],
-                                                0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0);
+                                                0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0, p->uRung);
                                         }
                                     }
                                 }
@@ -326,13 +335,21 @@ found_it:
                                                 if (SPHoptions->doSPHForces) {
                                                     P = EOSPCofRhoU(pkdDensity(pkd,p),pNewSph->u + dtPredDrift * pNewSph->uDot,&cs,SPHoptions);
                                                 }
+                                                vpred[0] = v[0] + dtPredDrift * ap[0];
+                                                vpred[1] = v[1] + dtPredDrift * ap[1];
+                                                vpred[2] = v[2] + dtPredDrift * ap[2];
+                                                if ((SPHoptions->VelocityDamper > 0.0) & p->bMarked) {
+                                                    vpred[0] /= 1.0 - kick->dtClose[p->uRung] * SPHoptions->VelocityDamper;
+                                                    vpred[1] /= 1.0 - kick->dtClose[p->uRung] * SPHoptions->VelocityDamper;
+                                                    vpred[2] /= 1.0 - kick->dtClose[p->uRung] * SPHoptions->VelocityDamper;
+                                                }
                                                 pkd->ilp.append(
                                                     r[0] + blk.xOffset[jTile],
                                                     r[1] + blk.yOffset[jTile],
                                                     r[2] + blk.zOffset[jTile],
                                                     fMass, 4*fSoft*fSoft,
-                                                    v[0] + dtPredDrift * ap[0], v[1] + dtPredDrift * ap[1], v[2] + dtPredDrift * ap[2],
-                                                    pkdBall(pkd,p), Omega, pkdDensity(pkd,p), P, cs, pkdSpecies(pkd,p));
+                                                    vpred[0], vpred[1], vpred[2],
+                                                    pkdBall(pkd,p), Omega, pkdDensity(pkd,p), P, cs, pkdSpecies(pkd,p), p->uRung);
                                             }
                                             else {
                                                 pkd->ilp.append(
@@ -341,7 +358,7 @@ found_it:
                                                     r[2] + blk.zOffset[jTile],
                                                     fMass, 4*fSoft*fSoft,
                                                     v[0], v[1], v[2],
-                                                    0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0);
+                                                    0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0, p->uRung);
                                             }
                                         }
                                     }

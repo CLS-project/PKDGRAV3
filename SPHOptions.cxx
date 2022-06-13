@@ -36,9 +36,11 @@ SPHOptions initializeSPHOptions(struct parameters param, CSM csm, double dTime) 
     SPHoptions.gamma = param.dConstGamma;
     SPHoptions.TuFac = param.units.dGasConst/(param.dConstGamma - 1)/param.dMeanMolWeight;
     SPHoptions.FastGasFraction = param.dFastGasFraction;
+    SPHoptions.VelocityDamper = param.dVelocityDamper;
     SPHoptions.nSmooth = param.nSmooth;
     SPHoptions.ballSizeLimit = 10.0f;
     SPHoptions.fBallFactor = 1.1f;
+    SPHoptions.nRungCorrection = 2;
     if (csm->val.bComove) {
         SPHoptions.a = csmTime2Exp(csm,dTime);
         SPHoptions.H = csmTime2Hub(csm,dTime);
@@ -56,7 +58,7 @@ SPHOptions initializeSPHOptions(struct parameters param, CSM csm, double dTime) 
     SPHoptions.useNumDen = 0;
     SPHoptions.useIsentropic = param.bGasIsentropic;
     SPHoptions.useDensityFlags = 0;
-    SPHoptions.kernelType = 0;
+    SPHoptions.kernelType = param.iKernelType;
     return SPHoptions;
 }
 
@@ -69,9 +71,11 @@ void copySPHOptions(SPHOptions *source, SPHOptions *target) {
     target->gamma = source->gamma;
     target->TuFac = source->TuFac;
     target->FastGasFraction = source->FastGasFraction;
+    target->VelocityDamper = source->VelocityDamper;
     target->nSmooth = source->nSmooth;
     target->ballSizeLimit = source->ballSizeLimit;
     target->fBallFactor = source->fBallFactor;
+    target->nRungCorrection = source->nRungCorrection;
     target->a = source->a;
     target->H = source->H;
     target->doGravity = 0;

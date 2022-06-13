@@ -45,9 +45,11 @@ typedef struct {
     float gamma;
     float TuFac;
     float FastGasFraction;
+    float VelocityDamper;
     int nSmooth;
     float ballSizeLimit;
     float fBallFactor;
+    int nRungCorrection;
     uint64_t doGravity : 1;
     uint64_t doDensity : 1;
     uint64_t doSPHForces : 1;
@@ -57,7 +59,7 @@ typedef struct {
     uint64_t useNumDen : 1;
     uint64_t useIsentropic : 1;
     uint64_t useDensityFlags : 1;
-    uint64_t kernelType : 2;
+    uint64_t kernelType : 3;
 } SPHOptions;
 
 #ifdef __cplusplus
@@ -84,9 +86,9 @@ float EOSTofRhoU(float rho, float u, SPHOptions *SPHoptions);
 
 /* Kernel types: kernelType =
  * 0: M4
- * 1:
- * 2:
- * 3:
+ * 1: Wendland C2
+ * 2: Wendland C4
+ * 3: Wendland C6
  */
 
 /* Initializes the SPH kernel, gives back all masks needed, can calculate temporary variables
@@ -98,6 +100,18 @@ float EOSTofRhoU(float rho, float u, SPHOptions *SPHoptions);
         mask1 = r < 0.5f; \
         t1 = r - 1.0f; \
         C = 8.0f * M_1_PI * ifBall * ifBall * ifBall; \
+        break; } \
+    case 1: { \
+        t1 = 1.0f - r; \
+        C = 21.0f / 2.0f * M_1_PI * ifBall * ifBall * ifBall; \
+        break; } \
+    case 2: { \
+        t1 = 1.0f - r; \
+        C = 495.0f / 32.0f * M_1_PI * ifBall * ifBall * ifBall; \
+        break; } \
+    case 3: { \
+        t1 = 1.0f - r; \
+        C = 1365.0f / 64.0f * M_1_PI * ifBall * ifBall * ifBall; \
         break; } \
     default: assert(0);\
     }\
@@ -115,6 +129,18 @@ float EOSTofRhoU(float rho, float u, SPHOptions *SPHoptions);
         w = maskz_mov(r_lt_one,t3); \
         w = mask_mov(w,mask1,t2); \
         break; } \
+    case 1: { \
+        t2 = t1 * t1 * t1 * t1 * (1.0f + 4.0f * r); \
+        w = maskz_mov(r_lt_one,t2); \
+        break; } \
+    case 2: { \
+        t2 = t1 * t1 *t1 *t1 *t1 *t1 * (1.0f + 6.0f * r + 35.0f / 3.0f * r * r); \
+        w = maskz_mov(r_lt_one,t2); \
+        break; } \
+    case 3: { \
+        t2 = t1 * t1 * t1 * t1 * t1 * t1 * t1 * t1 * (1.0f + 8.0f * r + 25.0f * r *r + 32.0f * r * r * r); \
+        w = maskz_mov(r_lt_one,t2); \
+        break; } \
     default: assert(0);\
     }\
     }
@@ -131,6 +157,18 @@ float EOSTofRhoU(float rho, float u, SPHOptions *SPHoptions);
         dwdr = maskz_mov(r_lt_one,t3); \
         dwdr = mask_mov(dwdr,mask1,t2); \
         break; } \
+    case 1: { \
+        t2 = -20.0f * r * t1 *t1 * t1; \
+        dwdr = maskz_mov(r_lt_one,t2); \
+        break; } \
+    case 2: { \
+        t2 = -56.0f / 3.0f * r * (5.0f * r + 1.0f) * t1 * t1 * t1 * t1 * t1; \
+        dwdr = maskz_mov(r_lt_one,t2); \
+        break; } \
+    case 3: { \
+        t2 = -22.0f * r * t1 * t1 * t1 * t1 * t1 * t1 * t1 * (16.0f * r * r + 7.0f * r + 1.0f); \
+        dwdr = maskz_mov(r_lt_one,t2); \
+        break; } \
     default: assert(0);\
     }\
     }
@@ -141,6 +179,15 @@ float EOSTofRhoU(float rho, float u, SPHOptions *SPHoptions);
 #define DSPHKERNEL_DFBALL(r, ifBall, w, dwdr, C, dWdfball, kernelType) { \
     switch(kernelType) { \
     case 0: { \
+        dWdfball = - C * ifBall * (3.0f * w + dwdr * r); \
+        break; } \
+    case 1: { \
+        dWdfball = - C * ifBall * (3.0f * w + dwdr * r); \
+        break; } \
+    case 2: { \
+        dWdfball = - C * ifBall * (3.0f * w + dwdr * r); \
+        break; } \
+    case 3: { \
         dWdfball = - C * ifBall * (3.0f * w + dwdr * r); \
         break; } \
     default: assert(0);\
