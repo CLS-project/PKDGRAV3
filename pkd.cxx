@@ -833,7 +833,7 @@ size_t pkdIllMemory(PKD pkd) {
     return pkd->ill.memory();
 }
 
-void pkdSetClass( PKD pkd, float fMass, float fSoft, FIO_SPECIES eSpecies, PARTICLE *p ) {
+void pkdSetClass( PKD pkd, float fMass, float fSoft, int iMat, FIO_SPECIES eSpecies, PARTICLE *p ) {
     if ( pkd->oFieldOffset[oMass] ) {
         auto pMass = static_cast<float *>(pkdField(p,pkd->oFieldOffset[oMass]));
         *pMass = fMass;
@@ -846,7 +846,7 @@ void pkdSetClass( PKD pkd, float fMass, float fSoft, FIO_SPECIES eSpecies, PARTI
     }
     /* NOTE: The above can both be true, in which case a "zero" class is recorded */
     /* NOTE: Species is always part of the class table, so there will be at least one class per species */
-    PARTCLASS newClass(fMass,fSoft,eSpecies);
+    PARTCLASS newClass(fMass,fSoft,iMat,eSpecies);
 
     /* TODO: This is a linear search which is fine for a small number of classes */
     auto iclass = std::find(pkd->ParticleClasses.begin(),pkd->ParticleClasses.end(),newClass);
@@ -911,12 +911,12 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
     if (pkd->oFieldOffset[oStar]) {
         /* Make sure star class established -- how do all procs know of these classes? How do we ensure they agree on the class identifiers? */
         p = pkd->Particle(pkd->Local());
-        pkdSetClass(pkd,0,0,FIO_SPECIES_STAR,p);
+        pkdSetClass(pkd,0,0,0,FIO_SPECIES_STAR,p);
     }
 #ifdef BLACKHOLES
     assert(pkd->oFieldOffset[oMass]);
     p = pkd->Particle( pkd->Local());
-    pkdSetClass(pkd,0,0,FIO_SPECIES_BH, p);
+    pkdSetClass(pkd,0,0,0,FIO_SPECIES_BH, p);
 #endif
 
     // Protect against uninitialized values
@@ -980,7 +980,12 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             float afSphOtherData[2];
             fioReadSph(fio,&iParticleID,r,vel,&fMass,&fSoft,pPot,
                        &fDensity,&u,&fMetals[0],afSphOtherData);
-            pkdSetClass(pkd,fMass,fSoft,eSpecies,p);
+            if (pNewSph) {
+                pkdSetClass(pkd,fMass,fSoft,fMetals[0],eSpecies,p);
+            }
+            else {
+                pkdSetClass(pkd,fMass,fSoft,0,eSpecies,p);
+            }
             pkdSetDensity(pkd,p,fDensity);
             if (pNewSph) {
                 pNewSph->u = -u; /* Can't do conversion until density known */
@@ -1065,7 +1070,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             break;
         case FIO_SPECIES_DARK:
             fioReadDark(fio,&iParticleID,r,vel,&fMass,&fSoft,pPot,&fDensity);
-            pkdSetClass(pkd,fMass,fSoft,eSpecies,p);
+            pkdSetClass(pkd,fMass,fSoft,0,eSpecies,p);
             pkdSetDensity(pkd,p,fDensity);
             break;
         case FIO_SPECIES_STAR:
@@ -1073,7 +1078,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             float afStarOtherData[4];
             fioReadStar(fio,&iParticleID,r,vel,&fMass,&fSoft,pPot,&fDensity,
                         fMetals,&fTimer,afStarOtherData);
-            pkdSetClass(pkd,fMass,fSoft,eSpecies,p);
+            pkdSetClass(pkd,fMass,fSoft,0,eSpecies,p);
             pkdSetDensity(pkd,p,fDensity);
             if (pkd->oFieldOffset[oStar]) {
                 pStar = pkdStar(pkd,p);
@@ -1097,7 +1102,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             float otherData[3];
             fioReadBH(fio,&iParticleID,r,vel,&fMass,&fSoft,pPot,
                       &fDensity,otherData,&fTimer);
-            pkdSetClass(pkd,fMass,fSoft,eSpecies,p);
+            pkdSetClass(pkd,fMass,fSoft,0,eSpecies,p);
             if (pkd->oFieldOffset[oBH]) {
                 pBH = pkdBH(pkd,p);
                 pBH->fTimer = fTimer;
@@ -1774,6 +1779,7 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,BND *bnd,
             otherData[0] = otherData[1] = otherData[2] = 0.0f;
             T = EOSTofRhoU(fDensity, pNewSph->u, &pkd->SPHoptions);
             for (int k = 0; k < ELEMENT_COUNT; k++) fMetals[k] = 0.0f;
+            fMetals[0] = pkdiMat(pkd,p);
             fioWriteSph(fio,iParticleID,r,v,fMass,fSoft,*pPot,
                         fDensity,T,&fMetals[0],0.0f,T,otherData);
         }
@@ -3348,8 +3354,8 @@ int pkdUpdateRung(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 void pkdDeleteParticle(PKD pkd, PARTICLE *p) {
     /* p->iOrder = -2 - p->iOrder; JW: Not needed -- just preserve iOrder */
     int pSpecies = pkdSpecies(pkd,p);
-    //pkdSetClass(pkd,pkdMass(pkd,p),pkdSoft(pkd,p),FIO_SPECIES_LAST,p); /* Special "DELETED" class == FIO_SPECIES_LAST */
-    pkdSetClass(pkd,0.0,0.0,FIO_SPECIES_LAST,p); /* Special "DELETED" class == FIO_SPECIES_LAST */
+    //pkdSetClass(pkd,pkdMass(pkd,p),pkdSoft(pkd,p),0,FIO_SPECIES_LAST,p); /* Special "DELETED" class == FIO_SPECIES_LAST */
+    pkdSetClass(pkd,0.0,0.0,0,FIO_SPECIES_LAST,p); /* Special "DELETED" class == FIO_SPECIES_LAST */
 
     // IA: We copy the last particle into this position, the tree will no longer be valid!!!
     //

@@ -146,6 +146,7 @@ typedef struct {
 struct PARTCLASS {
     float       fMass;    /* Particle mass */
     float       fSoft;    /* Current softening */
+    int         iMat;     /* newSPH material id */
     FIO_SPECIES eSpecies; /* Species: dark, star, etc. */
 
     bool operator <(const PARTCLASS &b) const {
@@ -153,14 +154,16 @@ struct PARTCLASS {
         else if ( fMass > b.fMass ) return false;
         else if ( fSoft < b.fSoft ) return true;
         else if ( fSoft > b.fSoft ) return false;
+        else if ( iMat  < b.iMat  ) return true;
+        else if ( iMat  > b.iMat  ) return false;
         else return eSpecies < b.eSpecies;
     }
     bool operator==(const PARTCLASS &b) const {
-        return fMass==b.fMass && fSoft==b.fSoft && eSpecies==b.eSpecies;
+        return fMass==b.fMass && fSoft==b.fSoft && iMat==b.iMat && eSpecies==b.eSpecies;
     }
     PARTCLASS() = default;
-    PARTCLASS(float fMass,float fSoft,FIO_SPECIES eSpecies)
-        : fMass(fMass), fSoft(fSoft), eSpecies(eSpecies) {}
+    PARTCLASS(float fMass,float fSoft,int iMat,FIO_SPECIES eSpecies)
+        : fMass(fMass), fSoft(fSoft), iMat(iMat), eSpecies(eSpecies) {}
 };
 static_assert(std::is_trivial<PARTCLASS>());
 
@@ -1277,6 +1280,10 @@ static inline FIO_SPECIES pkdSpecies( PKD pkd, PARTICLE *p ) {
     if (pkd->bNoParticleOrder) return pkd->ParticleClasses[0].eSpecies;
     else return pkd->ParticleClasses[p->iClass].eSpecies;
 }
+static inline float pkdiMat( PKD pkd, PARTICLE *p ) {
+    if (pkd->bNoParticleOrder) return pkd->ParticleClasses[0].iMat;
+    else return pkd->ParticleClasses[p->iClass].iMat;
+}
 
 /*
 ** Integerized coordinates: signed integer -0x7fffffff to +0x7fffffff
@@ -1605,7 +1612,7 @@ void pkdInitRelaxation(PKD pkd);
 
 int pkdGetClasses( PKD pkd, int nMax, PARTCLASS *pClass );
 void pkdSetClasses( PKD pkd, int n, PARTCLASS *pClass, int bUpdate );
-void pkdSetClass( PKD pkd, float fMass, float fSoft, FIO_SPECIES eSpecies, PARTICLE *p );
+void pkdSetClass( PKD pkd, float fMass, float fSoft, int iMat, FIO_SPECIES eSpecies, PARTICLE *p );
 
 int pkdCountSelected(PKD pkd);
 int pkdSelSpecies(PKD pkd,uint64_t mSpecies, int setIfTrue, int clearIfFalse);
