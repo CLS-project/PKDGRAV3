@@ -68,19 +68,20 @@ protected:
 };
 
 // One of these entries for each interaction block
-struct ppWorkUnit {
-    uint32_t nP;   // Number of particles
-    uint32_t nI;   // Number of interactions in the block
+struct __align__(8) ppWorkUnit {
     uint32_t iP;   // Index of first particle
-    uint32_t iO;   // Index of the output block
+    uint16_t nP;   // Number of particles
+    uint16_t nI;   // Number of interactions in the block
 };
+static_assert(sizeof(ppWorkUnit)==8);
 
-struct ppInput {
+struct __align__(32) ppInput {
     float dx, dy, dz;
     float ax, ay, az;
     float fSoft2;
     float dImaga;
 };
+static_assert(sizeof(ppInput)==32);
 
 /* Each thread block outputs this for each particle */
 struct __align__(32) ppResult {
@@ -91,6 +92,7 @@ struct __align__(32) ppResult {
     float dirsum;
     float normsum;
 };
+static_assert(sizeof(ppResult)==32);
 
 template<class TILE>
 class MessagePPPC : public cudaDataMessage {
@@ -113,16 +115,22 @@ public:
     bool queue(workParticle *wp, TILE &tile, bool bGravStep);
     MessagePPPC<TILE> &prepare();
 
+    auto align_nP(int nP) {
+        constexpr int mask = 32 * sizeof(float) / sizeof(ppInput) - 1;
+        static_assert(32 * sizeof(float) == (mask+1)*sizeof(ppInput));
+        return (nP + mask) & ~mask;
+    }
+
     template<class BLK>
     int inputSize(int nP=0, int nI=0) {
         const auto nBlocks = (nI+BLK::width-1) / BLK::width; // number of interaction blocks needed
-        return (nBlocks + nTotalInteractionBlocks) * (sizeof(BLK) + sizeof(ppWorkUnit)) + (nP + nTotalParticles) * sizeof(ppInput);
+        return (nBlocks + nTotalInteractionBlocks) * (sizeof(BLK) + sizeof(ppWorkUnit)) + (align_nP(nP) + nTotalParticles) * sizeof(ppInput);
     }
 
     template<class BLK>
     int outputSize(int nP=0, int nI=0) {
         //const auto nBlocks = (nI+BLK::width-1) / BLK::width; // number of interaction blocks needed
-        return (nP + nTotalParticles) * sizeof(ppResult);
+        return (align_nP(nP) + nTotalParticles) * sizeof(ppResult);
     }
 
 };
@@ -177,11 +185,11 @@ inline __device__ float maskz_mov(bool p,float a) { return p ? a : 0.0f; }
 template <typename T,unsigned int blockSize>
 inline __device__ T warpReduce(/*volatile T * data, int tid,*/ T t) {
 #if CUDART_VERSION >= 9000
-    if (blockSize >= 32) t += __shfl_xor_sync(0xffffffff,t,16);
-    if (blockSize >= 16) t += __shfl_xor_sync(0xffffffff,t,8);
-    if (blockSize >= 8)  t += __shfl_xor_sync(0xffffffff,t,4);
-    if (blockSize >= 4)  t += __shfl_xor_sync(0xffffffff,t,2);
-    if (blockSize >= 2)  t += __shfl_xor_sync(0xffffffff,t,1);
+    if (blockSize >= 32) t += __shfl_down_sync(0xffffffff,t,16);
+    if (blockSize >= 16) t += __shfl_down_sync(0xffffffff,t,8);
+    if (blockSize >= 8)  t += __shfl_down_sync(0xffffffff,t,4);
+    if (blockSize >= 4)  t += __shfl_down_sync(0xffffffff,t,2);
+    if (blockSize >= 2)  t += __shfl_down_sync(0xffffffff,t,1);
 #else
     if (blockSize >= 32) t += __shfl_xor(t,16);
     if (blockSize >= 16) t += __shfl_xor(t,8);

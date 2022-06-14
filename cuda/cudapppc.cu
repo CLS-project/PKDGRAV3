@@ -36,12 +36,6 @@
 #define SYNC_RATE 16  // Must be: 1, 2, 4, 8, 16
 #define WIDTH 32
 
-#define TB_THREADS 128
-#define WARPS (TB_THREADS/32)
-
-// #define PP_WU 128
-// #define PC_WU 32
-
 #include "gravity/ilp.h"
 #include "gravity/ilc.h"
 #include "basetype.h"
@@ -98,7 +92,7 @@ __global__ void cudaInteract(
     work += blockIdx.x;
     gblk += blockIdx.x;
     pPart += work->iP;
-    out += work->iO;
+    out += work->iP;
 
     // Load the interactions into shared memory
     cooperative_groups::memcpy_async(block, sblk, gblk, sizeof(*gblk));
@@ -213,7 +207,7 @@ bool MessagePPPC<TILE>::queue(workParticle *wp, TILE &tile, bool bGravStep) {
     if (outputSize<BLK>(nP,nI) > requestBufferSize) return false;           // Refuse if this response won't fit
     auto blk = reinterpret_cast<Blk<WIDTH,TILE> *>(pHostBufIn);             // Copy the blocks to the input buffer
     nTotalInteractionBlocks += copyBLKs2(blk+nTotalInteractionBlocks,tile); // (the ILP tile can now be freed/reused)
-    nTotalParticles += nP;
+    nTotalParticles += align_nP(nP);
 
     ++wp->nRefs;
     work.emplace_back(wp,tile.count());
@@ -233,7 +227,7 @@ MessagePPPC<TILE> &MessagePPPC<TILE>::prepare() {
     // The interaction block descriptors
     auto *__restrict__ wuHost = reinterpret_cast<ppWorkUnit *>(partHost + nTotalParticles);
 
-    uint32_t iP = 0, iO = 0;
+    uint32_t iP = 0;
     for ( auto &w : work ) {
         int nI = w.nInteractions;
         auto nP = w.wp->nP;
@@ -245,7 +239,6 @@ MessagePPPC<TILE> &MessagePPPC<TILE>::prepare() {
             wuHost->nP = nP;
             wuHost->iP = iP;
             wuHost->nI = nI > BLK::width ? BLK::width : nI;
-            wuHost->iO = iO;
             nI -= wuHost->nI;
             ++wuHost;
         }
@@ -261,13 +254,12 @@ MessagePPPC<TILE> &MessagePPPC<TILE>::prepare() {
             partHost[j].fSoft2 = pInfoIn[j].fSmooth2;
             /*partHost[j].dImaga = 0;*/
         }
+        nP = align_nP(nP);
         partHost += nP;
-        iO += nP;
         iP += nP;
-        assert(iO == iP);
     }
     requestBufferCount = reinterpret_cast<char *>(wuHost) - reinterpret_cast<char *>(pHostBufIn);
-    resultsBufferCount = iO * sizeof(ppResult);
+    resultsBufferCount = iP * sizeof(ppResult);
     nGrid = nTotalInteractionBlocks;
 
     assert(requestBufferCount <= requestBufferSize);
@@ -291,7 +283,7 @@ void MessagePPPC<TILE>::launch(mdl::Device &device,cudaStream_t stream,void *pCu
 
     cudaMemsetAsync(pCudaBufOut,0,resultsBufferCount,stream);
 
-    dim3 dimBlock( BLK::width, 4, 1 );
+    dim3 dimBlock( BLK::width, 8, 1 );
     dim3 dimGrid( nGrid, 1,1);
     if (bGravStep) {
         cudaInteract<true>
@@ -322,7 +314,7 @@ void MessagePPPC<TILE>::finish() {
             pInfoOut[ip].dirsum  += pR[ip].dirsum;
             pInfoOut[ip].normsum += pR[ip].normsum;
         }
-        pR += nP;
+        pR += align_nP(nP);
         pkdParticleWorkDone(w.wp);
     }
     clear();
