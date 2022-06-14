@@ -11,11 +11,12 @@
 
 namespace mdl {
 
+class Device;
 class cudaMessage : public basicMessage {
     friend class Device; // So we can launch()
     int iDevice; // Device number to use or -1 for any (the normal case)
 protected:
-    virtual void launch(cudaStream_t stream,void *pCudaBufIn, void *pCudaBufOut) = 0;
+    virtual void launch(Device &device,cudaStream_t stream,void *pCudaBufIn, void *pCudaBufOut) = 0;
 public:
     virtual void finish() {}
     cudaMessage(int iDevice=-1) : iDevice(iDevice) {}
@@ -52,6 +53,11 @@ public:
 class Device {
     friend class Stream;
     friend class CUDA;
+    int DevAttrMaxBlocksPerMultiprocessor,DevAttrMaxThreadsPerMultiprocessor,DevAttrWarpSize;
+public:
+    auto WarpSize() const {return DevAttrWarpSize;}
+    auto MaxBlocksPerMultiprocessor() const {return DevAttrMaxBlocksPerMultiprocessor;}
+    auto MaxThreadsPerMultiprocessor() const {return DevAttrMaxThreadsPerMultiprocessor;}
 protected:
     static void CUDART_CB kernel_finished( void  *userData );
     void kernel_finished( Stream *stream );

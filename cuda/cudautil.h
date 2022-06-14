@@ -36,7 +36,7 @@ protected:
     const size_t resultsBufferSize = 2*1024*1024;
     void *pHostBufIn, *pHostBufOut;
 protected:
-    virtual void launch(cudaStream_t stream,void *pCudaBufIn, void *pCudaBufOut) override = 0;
+    virtual void launch(mdl::Device &device,cudaStream_t stream,void *pCudaBufIn, void *pCudaBufOut) override = 0;
     virtual void finish() = 0;
 public:
     explicit cudaDataMessage();
@@ -47,7 +47,7 @@ class MessageEwald : public cudaDataMessage {
 protected:
     class CudaClient &cuda;
     std::vector<workParticle *> ppWP; // [CUDA_WP_MAX_BUFFERED]
-    virtual void launch(cudaStream_t stream,void *pCudaBufIn, void *pCudaBufOut) override;
+    virtual void launch(mdl::Device &device,cudaStream_t stream,void *pCudaBufIn, void *pCudaBufOut) override;
     virtual void finish() override;
     int nParticles, nMaxParticles;
 public:
@@ -57,7 +57,7 @@ public:
 
 class MessageEwaldSetup : public mdl::cudaMessage {
 protected:
-    virtual void launch(cudaStream_t stream,void *pCudaBufIn, void *pCudaBufOut) override;
+    virtual void launch(mdl::Device &device,cudaStream_t stream,void *pCudaBufIn, void *pCudaBufOut) override;
 public:
     explicit MessageEwaldSetup(struct EwaldVariables *const ew, EwaldTable *const ewt,int iDevice=-1);
 protected:
@@ -105,7 +105,7 @@ protected:
         workInformation(workParticle *wp, size_t nInteractions) : wp(wp), nInteractions(nInteractions) {}
     };
     std::vector<workInformation> work; // [CUDA_WP_MAX_BUFFERED]
-    virtual void launch(cudaStream_t stream,void *pCudaBufIn, void *pCudaBufOut) override;
+    virtual void launch(mdl::Device &device,cudaStream_t stream,void *pCudaBufIn, void *pCudaBufOut) override;
     virtual void finish() override;
 public:
     explicit MessagePPPC(mdl::messageQueue<MessagePPPC> &freeQueue);

@@ -286,7 +286,7 @@ MessageEwaldSetup::MessageEwaldSetup(struct EwaldVariables *const ew, EwaldTable
     : mdl::cudaMessage(iDevice), ewIn(ew), ewt(ewt) {}
 
 // This copies all of the variables to the device.
-void MessageEwaldSetup::launch(cudaStream_t stream,void *pCudaBufIn, void *pCudaBufOut) {
+void MessageEwaldSetup::launch(mdl::Device &device,cudaStream_t stream,void *pCudaBufIn, void *pCudaBufOut) {
     CUDA_CHECK(cudaMemcpyToSymbolAsync, (ew,   ewIn, sizeof(ew), 0, cudaMemcpyHostToDevice, stream));
     CUDA_CHECK(cudaMemcpyToSymbolAsync, (hx,   ewt->hx.f,   sizeof(float)*ewIn->nEwhLoop, 0, cudaMemcpyHostToDevice, stream));
     CUDA_CHECK(cudaMemcpyToSymbolAsync, (hy,   ewt->hy.f,   sizeof(float)*ewIn->nEwhLoop, 0, cudaMemcpyHostToDevice, stream));
@@ -352,7 +352,7 @@ bool MessageEwald::queue(workParticle *work) {
     return true;
 }
 
-void MessageEwald::launch(cudaStream_t stream,void *pCudaBufIn, void *pCudaBufOut) {
+void MessageEwald::launch(mdl::Device &device,cudaStream_t stream,void *pCudaBufIn, void *pCudaBufOut) {
     int align = (nParticles+EWALD_MASK)&~EWALD_MASK; /* Warp align the memory buffers */
     int ngrid = align/EWALD_ALIGN;
     dim3 dimBlock( EWALD_ALIGN, 1 );

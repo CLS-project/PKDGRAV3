@@ -92,7 +92,7 @@ __global__ void cudaInteract(
     const BLK *__restrict__ gblk,
     ppResult *out) {
     extern __shared__ char cache[];
-    auto sblk = reinterpret_cast<BLK*>(cache);
+    auto sblk = reinterpret_cast<BLK *>(cache);
     auto block = cooperative_groups::this_thread_block();
 
     work += blockIdx.x;
@@ -105,7 +105,7 @@ __global__ void cudaInteract(
     cooperative_groups::wait(block); // Joins all threads, waits for all copies to complete
 
     decltype(evalInteraction(pPart[0],sblk,0)) result {0,0,0,0,0,0};
-    for(auto iP=threadIdx.y; iP<work->nP; iP += blockDim.y) {
+    for (auto iP=threadIdx.y; iP<work->nP; iP += blockDim.y) {
         if (threadIdx.x < work->nI) {
             result = evalInteraction(pPart[iP],sblk,threadIdx.x);
         }
@@ -276,7 +276,7 @@ MessagePPPC<TILE> &MessagePPPC<TILE>::prepare() {
 }
 
 template<class TILE>
-void MessagePPPC<TILE>::launch(cudaStream_t stream,void *pCudaBufIn, void *pCudaBufOut) {
+void MessagePPPC<TILE>::launch(mdl::Device &device,cudaStream_t stream,void *pCudaBufIn, void *pCudaBufOut) {
     typedef Blk<WIDTH,TILE> BLK;
     auto *pCudaOutput = reinterpret_cast<ppResult *>(pCudaBufOut);
 
@@ -337,7 +337,7 @@ template MessagePP::MessagePPPC(mdl::messageQueue<MessagePPPC> &free);
 template MessagePC::MessagePPPC(mdl::messageQueue<MessagePPPC> &free);
 template void MessagePP::finish();
 template void MessagePC::finish();
-template void MessagePP::launch(cudaStream_t stream,void *pCudaBufIn, void *pCudaBufOut);
-template void MessagePC::launch(cudaStream_t stream,void *pCudaBufIn, void *pCudaBufOut);
+template void MessagePP::launch(mdl::Device &device,cudaStream_t stream,void *pCudaBufIn, void *pCudaBufOut);
+template void MessagePC::launch(mdl::Device &device,cudaStream_t stream,void *pCudaBufIn, void *pCudaBufOut);
 template void CudaClient::flush(MessagePP *&M);
 template void CudaClient::flush(MessagePC *&M);
