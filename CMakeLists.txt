@@ -535,14 +535,17 @@ endif (OPTIM_AVOID_IS_ACTIVE)
 
 if(HAVE_EOSLIB_H)
  target_sources(${PROJECT_NAME} PRIVATE ${EOSLIB_PATH}/EOSlib.c )
+ target_include_directories(${PROJECT_NAME} PUBLIC ${EOSLIB_PATH})
 endif()
 
 if(HAVE_ANEOSMATERIAL_H)
  target_sources(${PROJECT_NAME} PRIVATE ${ANEOSMATERIAL_PATH}/ANEOSmaterial.c ${ANEOSMATERIAL_PATH}/interpBilinear.c)
+ target_include_directories(${PROJECT_NAME} PUBLIC ${ANEOSMATERIAL_PATH})
 endif()
 
 if(HAVE_TILLOTSON_H)
  target_sources(${PROJECT_NAME} PRIVATE ${TILLOTSON_PATH}/tillotson.c ${TILLOTSON_PATH}/tillinitlookup.c ${TILLOTSON_PATH}/tillsplint.c ${TILLOTSON_PATH}/interpol/brent.c)
+ target_include_directories(${PROJECT_NAME} PUBLIC ${TILLOTSON_PATH})
 endif()
 
 CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/pkd_config.h.in ${CMAKE_CURRENT_BINARY_DIR}/pkd_config.h)
