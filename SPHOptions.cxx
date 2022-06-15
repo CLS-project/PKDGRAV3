@@ -104,7 +104,7 @@ float getDtPredDrift(struct pkdKickParameters *kick, int bMarked, int uRungLo, i
     }
 }
 
-float EOSPCofRhoU(float rho, float u, float *c, SPHOptions *SPHoptions) {
+float SPHEOSPCofRhoU(float rho, float u, float *c, SPHOptions *SPHoptions) {
     if (SPHoptions->useIsentropic) {
         u = u / (SPHoptions->gamma - 1.0f) * pow(rho, SPHoptions->gamma - 1.0f);
     }
@@ -112,7 +112,7 @@ float EOSPCofRhoU(float rho, float u, float *c, SPHOptions *SPHoptions) {
     return (SPHoptions->gamma - 1.0f) * rho * u;
 }
 
-float EOSUofRhoT(float rho, float T, SPHOptions *SPHoptions) {
+float SPHEOSUofRhoT(float rho, float T, SPHOptions *SPHoptions) {
     float u = T * SPHoptions->TuFac;
     if (SPHoptions->useIsentropic) {
         u = u * (SPHoptions->gamma - 1.0f) / pow(rho,SPHoptions->gamma - 1.0f);
@@ -120,7 +120,7 @@ float EOSUofRhoT(float rho, float T, SPHOptions *SPHoptions) {
     return u;
 }
 
-float EOSTofRhoU(float rho, float u, SPHOptions *SPHoptions) {
+float SPHEOSTofRhoU(float rho, float u, SPHOptions *SPHoptions) {
     if (SPHoptions->useIsentropic) {
         u = u / (SPHoptions->gamma - 1.0f) * pow(rho,SPHoptions->gamma - 1.0f);
     }

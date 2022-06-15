@@ -68,9 +68,9 @@ extern "C" {
 SPHOptions initializeSPHOptions(struct parameters param, CSM csm, double dTime);
 void copySPHOptions(SPHOptions *source, SPHOptions *target);
 float getDtPredDrift(struct pkdKickParameters *kick, int bMarked, int uRungLo, int uRung);
-float EOSPCofRhoU(float rho, float u, float *c, SPHOptions *SPHoptions);
-float EOSUofRhoT(float rho, float T, SPHOptions *SPHoptions);
-float EOSTofRhoU(float rho, float u, SPHOptions *SPHoptions);
+float SPHEOSPCofRhoU(float rho, float u, float *c, SPHOptions *SPHoptions);
+float SPHEOSUofRhoT(float rho, float T, SPHOptions *SPHoptions);
+float SPHEOSTofRhoU(float rho, float u, SPHOptions *SPHoptions);
 #ifdef __cplusplus
 }
 #endif
