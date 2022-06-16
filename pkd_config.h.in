@@ -15,10 +15,6 @@
 #cmakedefine HAVE_UNISTD_H 1
 #cmakedefine HAVE_INTTYPES_H 1
 
-#cmakedefine HAVE_EOSLIB_H
-#cmakedefine HAVE_ANEOSMATERIAL_H
-#cmakedefine HAVE_TILLOTSON_H
-
 #cmakedefine HAVE_FLOOR 1
 #cmakedefine HAVE_POW 1
 #cmakedefine HAVE_SQRT 1
