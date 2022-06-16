@@ -58,6 +58,7 @@ Device::Device(int iDevice, int nStreams) : iDevice(iDevice), nStreams(nStreams)
     CUDA_CHECK(cudaDeviceGetAttribute,(&DevAttrWarpSize,cudaDevAttrWarpSize,iDevice));
     CUDA_CHECK(cudaDeviceGetAttribute,(&DevAttrMaxBlocksPerMultiprocessor,cudaDevAttrMaxBlocksPerMultiprocessor,iDevice));
     CUDA_CHECK(cudaDeviceGetAttribute,(&DevAttrMaxThreadsPerMultiprocessor,cudaDevAttrMaxThreadsPerMultiProcessor,iDevice));
+    CUDA_CHECK(cudaDeviceGetAttribute,(&DevAttrSingleToDoublePrecisionPerfRatio,cudaDevAttrSingleToDoublePrecisionPerfRatio,iDevice));
 
     for (auto i=0; i<nStreams; ++i) {
         free_streams.enqueue(new Stream(this));

@@ -54,10 +54,12 @@ class Device {
     friend class Stream;
     friend class CUDA;
     int DevAttrMaxBlocksPerMultiprocessor,DevAttrMaxThreadsPerMultiprocessor,DevAttrWarpSize;
+    int DevAttrSingleToDoublePrecisionPerfRatio;
 public:
     auto WarpSize() const {return DevAttrWarpSize;}
     auto MaxBlocksPerMultiprocessor() const {return DevAttrMaxBlocksPerMultiprocessor;}
     auto MaxThreadsPerMultiprocessor() const {return DevAttrMaxThreadsPerMultiprocessor;}
+    auto SingleToDoublePrecisionPerfRatio() const {return DevAttrSingleToDoublePrecisionPerfRatio;}
 protected:
     static void CUDART_CB kernel_finished( void  *userData );
     void kernel_finished( Stream *stream );
