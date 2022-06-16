@@ -361,11 +361,10 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     this->bIntegerPosition = (mMemoryModel&PKD_MODEL_INTEGER_POS) ? 1 : 0;
 
     if ( this->bNoParticleOrder )
-        this->iParticleSize = sizeof(UPARTICLE);
+        this->iParticleSize = this->nParticleAlign = sizeof(UPARTICLE);
     else
-        this->iParticleSize = sizeof(PARTICLE);
+        this->iParticleSize = this->nParticleAlign = sizeof(PARTICLE);
     this->iParticle32 = 0;
-    this->nParticleAlign = sizeof(float);
     this->iTreeNodeSize = sizeof(KDN);
 
     if (!this->bIntegerPosition) this->oFieldOffset[oPosition] = ParticleAddDouble(3);
