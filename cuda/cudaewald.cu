@@ -329,7 +329,7 @@ int CudaClient::queueEwald(workParticle *work) {
 
 MessageEwald::MessageEwald(class CudaClient &cuda) : cuda(cuda) {
     nParticles = 0;
-    nMaxParticles = requestBufferSize / sizeof(gpuEwaldInput) * EWALD_ALIGN;
+    nMaxParticles = std::min(resultsBufferSize / sizeof(gpuEwaldOutput),requestBufferSize / sizeof(gpuEwaldInput)) * EWALD_ALIGN;
     ppWP.reserve(CUDA_WP_MAX_BUFFERED);
 }
 
