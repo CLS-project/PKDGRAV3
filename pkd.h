@@ -34,7 +34,7 @@
 #include "io/fio.h"
 #include "basetype.h"
 #include "io/iomodule.h"
-#include "SPHOptions.h"
+#include "SPH/SPHOptions.h"
 #include "core/bound.h"
 #ifdef GRACKLE
     #include <grackle.h>

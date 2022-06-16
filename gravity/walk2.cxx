@@ -45,7 +45,7 @@
 #include "cuda/cudautil.h"
 #include "cuda/cudapppc.h"
 #include "cuda/cudaewald.h"
-#include "../SPHOptions.h"
+#include "../SPH/SPHOptions.h"
 
 static inline int getCell(PKD pkd,int iCache,int iCell,int id,float *pcOpen,KDN **pc) {
     KDN *c;

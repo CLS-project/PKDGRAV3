@@ -71,7 +71,7 @@ using namespace fmt::literals; // Gives us ""_a and ""_format literals
 #include "io/outtype.h"
 #include "smooth/smoothfcn.h"
 #include "io/fio.h"
-#include "SPHOptions.h"
+#include "SPH/SPHOptions.h"
 
 #include "core/setadd.h"
 #include "core/swapall.h"

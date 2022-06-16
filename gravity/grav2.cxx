@@ -40,7 +40,7 @@
 #include "cuda/cudautil.h"
 #include "cuda/cudapppc.h"
 #include "cuda/cudaewald.h"
-#include "SPHOptions.h"
+#include "SPH/SPHOptions.h"
 
 #if 1
 #if defined(USE_SIMD) && defined(__SSE2__)
