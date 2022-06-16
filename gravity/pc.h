@@ -25,7 +25,7 @@ struct ResultPC {
     F ax, ay, az, pot;
     F ir, norm;
     PC_CUDA_BOTH void zero() {ax=ay=az=pot=ir=norm=0;}
-    PC_CUDA_BOTH ResultPC<F> operator+=(const ResultPC<F> &rhs) {
+    PC_CUDA_BOTH ResultPC<F> operator+=(const ResultPC<F> rhs) {
         ax += rhs.ax;
         ay += rhs.ay;
         az += rhs.az;

@@ -25,7 +25,7 @@ struct ResultPP {
     F ax, ay, az, pot;
     F ir, norm;
     PP_CUDA_BOTH void zero() { ax=ay=az=pot=ir=norm=0; }
-    PP_CUDA_BOTH ResultPP<F> operator+=(const ResultPP<F> &rhs) {
+    PP_CUDA_BOTH ResultPP<F> operator+=(const ResultPP<F> rhs) {
         ax += rhs.ax;
         ay += rhs.ay;
         az += rhs.az;
@@ -88,7 +88,7 @@ template<class F=float>
 struct ResultDensity {
     F arho, adrhodfball, anden, adndendfball, anSmooth;
     void zero() { arho=adrhodfball=anden=adndendfball=anSmooth=0; }
-    ResultDensity<F> operator+=(const ResultDensity<F> &rhs) {
+    ResultDensity<F> operator+=(const ResultDensity<F> rhs) {
         arho += rhs.arho;
         adrhodfball += rhs.adrhodfball;
         anden += rhs.anden;
@@ -151,7 +151,7 @@ template<class F=float>
 struct ResultSPHForces {
     F uDot, ax, ay, az, divv, dtEst, maxRung;
     void zero() { uDot=ax=ay=az=divv=maxRung=0; dtEst=HUGE_VALF; }
-    ResultSPHForces<F> operator+=(const ResultSPHForces<F> &rhs) {
+    ResultSPHForces<F> operator+=(const ResultSPHForces<F> rhs) {
         uDot += rhs.uDot;
         ax += rhs.ax;
         ay += rhs.ay;
