@@ -3,7 +3,7 @@
  * Hydrodynamical solver using the mesh free methods of
  * Lanson&Vila 2008, Gaburov&Nitadori 2011 and Hopkins 2015
  */
-
+#include <algorithm>
 #include "hydro.h"
 
 
@@ -13,6 +13,8 @@
  * HELPER FUNCTIONS
  * ----------------
  */
+template<typename T>
+int sign(T v) {return (v>0) - (v<0);}
 
 
 /* We use a cubic spline kernel.
@@ -195,17 +197,17 @@ void genericPairwiseLimiter(double Lstate, double Rstate,
 
         phi_mean = 0.5*(Lstate+Rstate);
 
-        phi_min = MIN(Lstate, Rstate);
-        phi_max = MAX(Lstate, Rstate);
+        phi_min = std::min(Lstate, Rstate);
+        phi_max = std::max(Lstate, Rstate);
 
-        if (SIGN(phi_min - d1) == SIGN(phi_min) ) {
+        if (sign(phi_min - d1) == sign(phi_min) ) {
             phi_m = phi_min - d1;
         }
         else {
             phi_m = phi_min/(1. + d1/fabs(phi_min));
         }
 
-        if (SIGN(phi_max + d1) == SIGN(phi_max) ) {
+        if (sign(phi_max + d1) == sign(phi_max) ) {
             phi_p = phi_max + d1;
         }
         else {
@@ -213,12 +215,12 @@ void genericPairwiseLimiter(double Lstate, double Rstate,
         }
 
         if (Lstate < Rstate) {
-            *Lstate_face = MAX(phi_m, MIN(phi_mean+d2, *Lstate_face));
-            *Rstate_face = MIN(phi_p, MAX(phi_mean-d2, *Rstate_face));
+            *Lstate_face = std::max(phi_m, std::min(phi_mean+d2, *Lstate_face));
+            *Rstate_face = std::min(phi_p, std::max(phi_mean-d2, *Rstate_face));
         }
         else {
-            *Rstate_face = MAX(phi_m, MIN(phi_mean+d2, *Rstate_face));
-            *Lstate_face = MIN(phi_p, MAX(phi_mean-d2, *Lstate_face));
+            *Rstate_face = std::max(phi_m, std::min(phi_mean+d2, *Rstate_face));
+            *Lstate_face = std::min(phi_p, std::max(phi_mean-d2, *Lstate_face));
         }
 
     }
