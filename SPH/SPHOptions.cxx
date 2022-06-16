@@ -103,27 +103,3 @@ float getDtPredDrift(struct pkdKickParameters *kick, int bMarked, int uRungLo, i
         }
     }
 }
-
-float SPHEOSPCofRhoU(float rho, float u, float *c, SPHOptions *SPHoptions) {
-    if (SPHoptions->useIsentropic) {
-        u = u / (SPHoptions->gamma - 1.0f) * pow(rho, SPHoptions->gamma - 1.0f);
-    }
-    *c = sqrtf(SPHoptions->gamma * (SPHoptions->gamma - 1.0f) * u);
-    return (SPHoptions->gamma - 1.0f) * rho * u;
-}
-
-float SPHEOSUofRhoT(float rho, float T, SPHOptions *SPHoptions) {
-    float u = T * SPHoptions->TuFac;
-    if (SPHoptions->useIsentropic) {
-        u = u * (SPHoptions->gamma - 1.0f) / pow(rho,SPHoptions->gamma - 1.0f);
-    }
-    return u;
-}
-
-float SPHEOSTofRhoU(float rho, float u, SPHOptions *SPHoptions) {
-    if (SPHoptions->useIsentropic) {
-        u = u / (SPHoptions->gamma - 1.0f) * pow(rho,SPHoptions->gamma - 1.0f);
-    }
-    float T = u / SPHoptions->TuFac;
-    return T;
-}

@@ -70,6 +70,7 @@
 #include "mdl.h"
 #include "io/outtype.h"
 #include "cosmo.h"
+#include "SPH/SPHEOS.h"
 extern "C" {
 #include "core/healpix.h"
 }
@@ -1777,7 +1778,7 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,BND *bnd,
             double T;
             float otherData[3];
             otherData[0] = otherData[1] = otherData[2] = 0.0f;
-            T = SPHEOSTofRhoU(fDensity, pNewSph->u, &pkd->SPHoptions);
+            T = SPHEOSTofRhoU(pkd,fDensity, pNewSph->u, pkdiMat(pkd,p), &pkd->SPHoptions);
             for (int k = 0; k < ELEMENT_COUNT; k++) fMetals[k] = 0.0f;
             fMetals[0] = pkdiMat(pkd,p);
             fioWriteSph(fio,iParticleID,r,v,fMass,fSoft,*pPot,
