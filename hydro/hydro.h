@@ -69,9 +69,6 @@ void hydroSetLastVars(PKD pkd, PARTICLE *p, SPHFIELDS *psph, double *pa,
  * HELPERS
  * -----------------
  */
-#define SIGN(x) (((x) > 0) ? 1 : (((x) < 0) ? -1 : 0) )
-#define MIN(X, Y)  ((X) < (Y) ? (X) : (Y))
-#define MAX(X, Y)  ((X) > (Y) ? (X) : (Y))
 void inverseMatrix(double *E, double *B);
 double conditionNumber(double *E, double *B);
 double cubicSplineKernel(double r, double h);
