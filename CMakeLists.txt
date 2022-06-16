@@ -521,7 +521,7 @@ find_path(ANEOSMATERIAL_PATH ANEOSmaterial.h HINTS "${CMAKE_SOURCE_DIR}/../ANEOS
 find_path(TILLOTSON_PATH tillotson.h HINTS "${CMAKE_SOURCE_DIR}/../tillotson" NO_DEFAULT_PATH)
 if(EOSLIB_PATH)
     message(STATUS "found EOSlib.h in ${EOSLIB_PATH}")
-    target_sources(${PROJECT_NAME} PRIVATE ${EOSLIB_PATH}/EOSlib.c )
+    target_sources(${PROJECT_NAME} PRIVATE ${EOSLIB_PATH}/EOSlib.c ${EOSLIB_PATH}/igeos.c)
     target_include_directories(${PROJECT_NAME} PUBLIC ${EOSLIB_PATH})
     target_compile_options(${PROJECT_NAME} PRIVATE -DHAVE_EOSLIB_H)
 endif()
