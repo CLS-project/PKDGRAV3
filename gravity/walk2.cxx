@@ -261,7 +261,7 @@ found_it:
                                             float cs = 0.0f;                        /* should be calculated by the EOS, nyi */
                                             const float *ap = pkdAccel(pkd,p);
                                             if (SPHoptions->doSPHForces) {
-                                                P = EOSPCofRhoU(pkdDensity(pkd,p),pNewSph->u + dtPredDrift * pNewSph->uDot,&cs,SPHoptions);
+                                                P = SPHEOSPCofRhoU(pkdDensity(pkd,p),pNewSph->u + dtPredDrift * pNewSph->uDot,&cs,SPHoptions);
                                             }
                                             vpred[0] = v[0] + dtPredDrift * ap[0];
                                             vpred[1] = v[1] + dtPredDrift * ap[1];
@@ -333,7 +333,7 @@ found_it:
                                                 float cs = 0.0f;                    /* should be calculated by the EOS, nyi */
                                                 const float *ap = pkdAccel(pkd,p);
                                                 if (SPHoptions->doSPHForces) {
-                                                    P = EOSPCofRhoU(pkdDensity(pkd,p),pNewSph->u + dtPredDrift * pNewSph->uDot,&cs,SPHoptions);
+                                                    P = SPHEOSPCofRhoU(pkdDensity(pkd,p),pNewSph->u + dtPredDrift * pNewSph->uDot,&cs,SPHoptions);
                                                 }
                                                 vpred[0] = v[0] + dtPredDrift * ap[0];
                                                 vpred[1] = v[1] + dtPredDrift * ap[1];
