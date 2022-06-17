@@ -35,7 +35,9 @@
 #include "basetype.h"
 #include "io/iomodule.h"
 #include "SPH/SPHOptions.h"
-#include <EOSlib.h>
+#ifdef HAVE_EOSLIB_H
+    #include <EOSlib.h>
+#endif
 #include "core/bound.h"
 #ifdef GRACKLE
     #include <grackle.h>
@@ -1009,7 +1011,9 @@ public:
 #endif
 
     SPHOptions SPHoptions;
+#ifdef HAVE_EOSLIB_H
     EOSmaterial *materials[EOS_N_MATERIAL_MAX] = {NULL};
+#endif
 
 };
 typedef pkdContext *PKD;
