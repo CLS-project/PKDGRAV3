@@ -61,7 +61,7 @@ Device::Device(int iDevice, int nStreams) : iDevice(iDevice), nStreams(nStreams)
     CUDA_CHECK(cudaDeviceGetAttribute,(&DevAttrSingleToDoublePrecisionPerfRatio,cudaDevAttrSingleToDoublePrecisionPerfRatio,iDevice));
 
     for (auto i=0; i<nStreams; ++i) {
-        free_streams.enqueue(new Stream(this));
+        free_streams.enqueue(new Stream(*this));
     }
 }
 
@@ -71,7 +71,7 @@ void Device::launch(cudaMessage &M) {
     auto stm = stream.getStream(); // the CUDA stream (cudaSetDevice is called)
     stream.message = &M; // Save the message (for kernel_finished)
     ++busy_streams; // This is atomic
-    M.launch(*this,stm,stream.pCudaBufIn,stream.pCudaBufOut); // message specific launch operation
+    M.launch(stream,stream.pCudaBufIn,stream.pCudaBufOut); // message specific launch operation
     // Ask CUDA to notify us when the prior queued work has finished
     cudaLaunchHostFunc(stm,Device::kernel_finished,&stream);
 }
@@ -79,7 +79,7 @@ void Device::launch(cudaMessage &M) {
 // Static "void *" version: recover the Stream object and call
 void CUDART_CB Device::kernel_finished( void  *userData ) {
     auto stream = reinterpret_cast<Stream *>(userData);
-    stream->device->kernel_finished(stream);
+    stream->device.kernel_finished(stream);
 }
 
 // Here we move the Stream back to the free list and return the message
@@ -95,8 +95,8 @@ void Device::kernel_finished( Stream *stream ) {
 * Stream : a stream on a specific device
 \*****************************************************************************/
 
-Stream::Stream(class Device *device) : device(device), message(0) {
-    CUDA_CHECK(cudaSetDevice,(device->iDevice)); // Stream is for this device
+Stream::Stream(class Device &device) : device(device), message(0) {
+    CUDA_CHECK(cudaSetDevice,(device.iDevice)); // Stream is for this device
     CUDA_CHECK(cudaStreamCreate, (&stream));     // CUDA stream
     CUDA_CHECK(cudaMalloc,(&pCudaBufIn,  requestBufferSize));
     CUDA_CHECK(cudaMalloc,(&pCudaBufOut, resultsBufferSize));
@@ -104,7 +104,7 @@ Stream::Stream(class Device *device) : device(device), message(0) {
 
 // Destroy the stream on the correct device.
 Stream::~Stream() {
-    CUDA_CHECK(cudaSetDevice,(device->iDevice));
+    CUDA_CHECK(cudaSetDevice,(device.iDevice));
     CUDA_CHECK(cudaFree,(pCudaBufIn));
     CUDA_CHECK(cudaFree,(pCudaBufOut));
     cudaStreamDestroy(stream);
@@ -112,7 +112,7 @@ Stream::~Stream() {
 
 // Activate the appropriate device, and return the stream
 cudaStream_t Stream::getStream() {
-    CUDA_CHECK(cudaSetDevice,(device->iDevice));
+    CUDA_CHECK(cudaSetDevice,(device.iDevice));
     return stream;
 }
 

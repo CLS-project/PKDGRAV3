@@ -268,7 +268,7 @@ MessagePPPC<TILE> &MessagePPPC<TILE>::prepare() {
 }
 
 template<class TILE>
-void MessagePPPC<TILE>::launch(mdl::Device &device,cudaStream_t stream,void *pCudaBufIn, void *pCudaBufOut) {
+void MessagePPPC<TILE>::launch(mdl::Stream &stream,void *pCudaBufIn, void *pCudaBufOut) {
     typedef Blk<WIDTH,TILE> BLK;
     auto *pCudaOutput = reinterpret_cast<ppResult *>(pCudaBufOut);
 
@@ -329,7 +329,7 @@ template MessagePP::MessagePPPC(mdl::messageQueue<MessagePPPC> &free);
 template MessagePC::MessagePPPC(mdl::messageQueue<MessagePPPC> &free);
 template void MessagePP::finish();
 template void MessagePC::finish();
-template void MessagePP::launch(mdl::Device &device,cudaStream_t stream,void *pCudaBufIn, void *pCudaBufOut);
-template void MessagePC::launch(mdl::Device &device,cudaStream_t stream,void *pCudaBufIn, void *pCudaBufOut);
+template void MessagePP::launch(mdl::Stream &stream,void *pCudaBufIn, void *pCudaBufOut);
+template void MessagePC::launch(mdl::Stream &stream,void *pCudaBufIn, void *pCudaBufOut);
 template void CudaClient::flush(MessagePP *&M);
 template void CudaClient::flush(MessagePC *&M);
