@@ -484,6 +484,7 @@ void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTi
         dsec = MSR::Time() - sec;
         printf("Initializing Kernel target complete, Wallclock: %f secs.\n", dsec);
         SetSPHoptions();
+        InitializeEOS();
     }
 
     Simulate(dTime,dDelta,iStep,nSteps);
@@ -1276,6 +1277,10 @@ void MSR::Initialize() {
     prmAddParam(prm,"bNewSPH", 0, &param.bNewSPH,
                 sizeof(int), "bNewSPH",
                 "Use the new SPH implementation");
+    param.bGasBuiltinIdeal = 0;
+    prmAddParam(prm,"bGasBuiltinIdeal",0,&param.bGasBuiltinIdeal,
+                sizeof(int),"bGasBuiltinIdeal",
+                "<Use builtin ideal gas> = +GasBuiltinIdeal");
     /* END Gas/Star Parameters */
     param.nOutputParticles = 0;
     prmAddArray(prm,"lstOrbits",4,&param.iOutputParticles,sizeof(uint64_t),&param.nOutputParticles);
@@ -5199,6 +5204,7 @@ double MSR::Read(const char *achInFile) {
         printf("Initializing Kernel target complete, Wallclock: %f secs.\n", dsec);
 
         SetSPHoptions();
+        InitializeEOS();
 
         if (prmSpecified(prm,"dSoft")) SetSoft(Soft());
         /*
@@ -5583,6 +5589,10 @@ void MSR::SetSPHoptions() {
     struct inSetSPHoptions in;
     in.SPHoptions = initializeSPHOptions(param,csm,1.0);
     pstSetSPHoptions(pst, &in, sizeof(in), NULL, 0);
+}
+
+void MSR::InitializeEOS() {
+    pstInitializeEOS(pst, NULL, 0, NULL, 0);
 }
 
 void MSR::TreeUpdateFlagBounds(int bNeedEwald,uint32_t uRoot,uint32_t utRoot,SPHOptions SPHoptions) {

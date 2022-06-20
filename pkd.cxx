@@ -3923,3 +3923,10 @@ int pkdGetParticles(PKD pkd, int nIn, uint64_t *ID, struct outGetParticles *out)
     }
     return nOut;
 }
+
+/*
+** Initialize the EOS tables
+*/
+void pkdInitializeEOS(PKD pkd) {
+    fprintf(stderr,"Initializing EOS\n");
+}

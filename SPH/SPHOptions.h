@@ -58,6 +58,7 @@ typedef struct {
     uint64_t dofBallFactor : 1;
     uint64_t useNumDen : 1;
     uint64_t useIsentropic : 1;
+    uint64_t useBuiltinIdeal : 1;
     uint64_t useDensityFlags : 1;
     uint64_t kernelType : 3;
 } SPHOptions;

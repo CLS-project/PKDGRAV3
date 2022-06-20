@@ -294,6 +294,8 @@ void pstAddServices(PST pst,MDL mdl) {
                   sizeof(struct inCalcMtot), sizeof(struct outCalcMtot));
     mdlAddService(mdl,PST_SETSPHOPTIONS,pst,(fcnService_t *)pstSetSPHoptions,
                   sizeof(struct inSetSPHoptions), 0);
+    mdlAddService(mdl,PST_INITIALIZEEOS,pst,(fcnService_t *)pstInitializeEOS,
+                  0, 0);
     mdlAddService(mdl,PST_TREEUPDATEFLAGBOUNDS,pst,(fcnService_t *)pstTreeUpdateFlagBounds,
                   sizeof(struct inTreeUpdateFlagBounds),
                   (nThreads==1?1:2*nThreads-1)*pkdContext::MaxNodeSize());
@@ -2266,6 +2268,19 @@ int pstSetSPHoptions(PST pst,void *vin,int nIn,void *vout,int nOut) {
     }
     else {
         copySPHOptions(&in->SPHoptions, &plcl->pkd->SPHoptions);
+    }
+    return 0;
+}
+
+int pstInitializeEOS(PST pst,void *vin,int nIn,void *vout,int nOut) {
+    LCL *plcl = pst->plcl;
+    if (pst->nLeaves > 1) {
+        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_INITIALIZEEOS,vin,nIn);
+        pstInitializeEOS(pst->pstLower,vin,nIn,vout,nOut);
+        mdlGetReply(pst->mdl,rID,NULL,NULL);
+    }
+    else {
+        pkdInitializeEOS(plcl->pkd);
     }
     return 0;
 }
