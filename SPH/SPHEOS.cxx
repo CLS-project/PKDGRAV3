@@ -24,25 +24,54 @@
 #include "SPHEOS.h"
 
 float SPHEOSPCofRhoU(PKD pkd, float rho, float u, float *c, int iMat, SPHOptions *SPHoptions) {
-    if (SPHoptions->useIsentropic) {
-        u = u / (SPHoptions->gamma - 1.0f) * pow(rho, SPHoptions->gamma - 1.0f);
+    float P = 0.0f;
+    if (iMat == 0 && SPHoptions->useBuiltinIdeal) {
+        if (SPHoptions->useIsentropic) {
+            u = u / (SPHoptions->gamma - 1.0f) * pow(rho, SPHoptions->gamma - 1.0f);
+        }
+        *c = sqrtf(SPHoptions->gamma * (SPHoptions->gamma - 1.0f) * u);
+        P = (SPHoptions->gamma - 1.0f) * rho * u;
     }
-    *c = sqrtf(SPHoptions->gamma * (SPHoptions->gamma - 1.0f) * u);
-    return (SPHoptions->gamma - 1.0f) * rho * u;
+    else {
+#ifdef HAVE_EOSLIB_H
+        double ctmp = 0.0f;
+        P = (float)EOSPCofRhoU(pkd->materials[iMat],rho,u,&ctmp);
+        *c = (float)ctmp;
+        if (P < 0.0f) P = 0.0f;
+        if (*c < pkd->materials[iMat]->minSoundSpeed) *c = (float)pkd->materials[iMat]->minSoundSpeed;
+#endif
+    }
+    return P;
 }
 
 float SPHEOSUofRhoT(PKD pkd, float rho, float T, int iMat, SPHOptions *SPHoptions) {
-    float u = T * SPHoptions->TuFac;
-    if (SPHoptions->useIsentropic) {
-        u = u * (SPHoptions->gamma - 1.0f) / pow(rho,SPHoptions->gamma - 1.0f);
+    float u = 0.0f;
+    if (iMat == 0 && SPHoptions->useBuiltinIdeal) {
+        u = T * SPHoptions->TuFac;
+        if (SPHoptions->useIsentropic) {
+            u = u * (SPHoptions->gamma - 1.0f) / pow(rho,SPHoptions->gamma - 1.0f);
+        }
+    }
+    else {
+#ifdef HAVE_EOSLIB_H
+        u = (float)EOSUofRhoT(pkd->materials[iMat],rho,T);
+#endif
     }
     return u;
 }
 
 float SPHEOSTofRhoU(PKD pkd, float rho, float u, int iMat, SPHOptions *SPHoptions) {
-    if (SPHoptions->useIsentropic) {
-        u = u / (SPHoptions->gamma - 1.0f) * pow(rho,SPHoptions->gamma - 1.0f);
+    float T = 0.0f;
+    if (iMat == 0 && SPHoptions->useBuiltinIdeal) {
+        if (SPHoptions->useIsentropic) {
+            u = u / (SPHoptions->gamma - 1.0f) * pow(rho,SPHoptions->gamma - 1.0f);
+        }
+        T = u / SPHoptions->TuFac;
     }
-    float T = u / SPHoptions->TuFac;
+    else {
+#ifdef HAVE_EOSLIB_H
+        T = (float)EOSTofRhoU(pkd->materials[iMat],rho,u);
+#endif
+    }
     return T;
 }
