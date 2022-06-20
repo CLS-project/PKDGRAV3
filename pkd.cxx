@@ -3928,5 +3928,28 @@ int pkdGetParticles(PKD pkd, int nIn, uint64_t *ID, struct outGetParticles *out)
 ** Initialize the EOS tables
 */
 void pkdInitializeEOS(PKD pkd) {
-    fprintf(stderr,"Initializing EOS\n");
+    for (auto i=0; i<pkd->ParticleClasses.size(); ++i) {
+        auto iMat = pkd->ParticleClasses[i].iMat;
+        if (iMat == 0 && pkd->SPHoptions.useBuiltinIdeal) {
+            // Nothing to do
+        }
+        else {
+#ifdef HAVE_EOSLIB_H
+            if (pkd->materials[iMat] == NULL) {
+                if (iMat == EOSIDEALGAS) {
+                    struct igeosParam param;
+                    param.dConstGamma = pkd->SPHoptions.gamma;
+                    param.dMeanMolMass = pkd->SPHoptions.dMeanMolWeight;
+                    pkd->materials[iMat] = EOSinitMaterial(iMat, pkd->SPHoptions.dKpcUnit, pkd->SPHoptions.dMsolUnit, &param);
+                }
+                else {
+                    pkd->materials[iMat] = EOSinitMaterial(iMat, pkd->SPHoptions.dKpcUnit, pkd->SPHoptions.dMsolUnit, NULL);
+                }
+            }
+#else
+            printf("Trying to initialize an EOSlib material, but EOSlib was not compiled in!\n");
+            assert(0);
+#endif
+        }
+    }
 }

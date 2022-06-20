@@ -40,6 +40,9 @@ SPHOptions initializeSPHOptions(struct parameters param, CSM csm, double dTime) 
     SPHoptions.nSmooth = param.nSmooth;
     SPHoptions.ballSizeLimit = 10.0f;
     SPHoptions.fBallFactor = 1.1f;
+    SPHoptions.dKpcUnit = param.units.dKpcUnit;
+    SPHoptions.dMsolUnit = param.units.dMsolUnit;
+    SPHoptions.dMeanMolWeight = param.dMeanMolWeight;
     SPHoptions.nRungCorrection = 2;
     if (csm->val.bComove) {
         SPHoptions.a = csmTime2Exp(csm,dTime);
@@ -76,6 +79,9 @@ void copySPHOptions(SPHOptions *source, SPHOptions *target) {
     target->nSmooth = source->nSmooth;
     target->ballSizeLimit = source->ballSizeLimit;
     target->fBallFactor = source->fBallFactor;
+    target->dKpcUnit = source->dKpcUnit;
+    target->dMsolUnit = source->dMsolUnit;
+    target->dMeanMolWeight = source->dMeanMolWeight;
     target->nRungCorrection = source->nRungCorrection;
     target->a = source->a;
     target->H = source->H;

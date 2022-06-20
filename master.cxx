@@ -5592,7 +5592,12 @@ void MSR::SetSPHoptions() {
 }
 
 void MSR::InitializeEOS() {
+    double sec,dsec;
+    sec = MSR::Time();
+    printf("Initialize EOS ...\n");
     pstInitializeEOS(pst, NULL, 0, NULL, 0);
+    dsec = MSR::Time() - sec;
+    printf("EOS initialized, Wallclock: %f secs\n\n",dsec);
 }
 
 void MSR::TreeUpdateFlagBounds(int bNeedEwald,uint32_t uRoot,uint32_t utRoot,SPHOptions SPHoptions) {
