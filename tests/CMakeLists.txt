@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.14)
 cmake_policy(VERSION 3.14...3.21)
 
 project(tests)
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 17)
 include(FetchContent)
 FetchContent_Declare(
   googletest
@@ -17,7 +17,7 @@ if(USE_GTEST)
   FetchContent_MakeAvailable(googletest)
   enable_testing()
   add_executable(cache cache.cxx)
-  set_target_properties(cache PROPERTIES CXX_STANDARD 14 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO)
+  set_target_properties(cache PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO)
   target_link_libraries(cache mdl2 gtest_main)
   add_test(NAME cache COMMAND $<TARGET_FILE:cache> WORKING_DIRECTORY ${CMAKE_BINARY_DIR}) 
   add_test(NAME mpicache COMMAND mpirun -n 2 $<TARGET_FILE:cache> WORKING_DIRECTORY ${CMAKE_BINARY_DIR}) 

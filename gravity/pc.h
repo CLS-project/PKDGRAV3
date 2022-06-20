@@ -15,15 +15,17 @@
  *  along with PKDGRAV3.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef CUDA_DEVICE
-    #define CUDA_DEVICE
+#ifdef __CUDACC__
+    #define PC_CUDA_BOTH __host__ __device__
+#else
+    #define PC_CUDA_BOTH
 #endif
 template<class F=float>
 struct ResultPC {
     F ax, ay, az, pot;
     F ir, norm;
-    void zero() {ax=ay=az=pot=ir=norm=0;}
-    ResultPC<F> operator+=(const ResultPC<F> &rhs) {
+    PC_CUDA_BOTH void zero() {ax=ay=az=pot=ir=norm=0;}
+    PC_CUDA_BOTH ResultPC<F> operator+=(const ResultPC<F> rhs) {
         ax += rhs.ax;
         ay += rhs.ay;
         az += rhs.az;
@@ -34,7 +36,7 @@ struct ResultPC {
     }
 };
 template<class F,class M,bool bGravStep>
-CUDA_DEVICE ResultPC<F> EvalPC(
+PC_CUDA_BOTH ResultPC<F> EvalPC(
     F Pdx, F Pdy, F Pdz, F Psmooth2, // Particle
     F Idx, F Idy, F Idz, F Im, F Iu, // Interaction(s)
     F Ixxxx,F Ixxxy,F Ixxxz,F Ixxyz,F Ixxyy,F Iyyyz,F Ixyyz,F Ixyyy,F Iyyyy,
@@ -187,3 +189,4 @@ CUDA_DEVICE ResultPC<F> EvalPC(
     }
     return result;
 }
+#undef PC_CUDA_BOTH

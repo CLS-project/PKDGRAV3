@@ -25,7 +25,7 @@
 #include <stdint.h>
 #include "gravity/ilp.h"
 #include "gravity/ilc.h"
-#include "SPHOptions.h"
+#include "SPH/SPHOptions.h"
 #include "units.h"
 
 #define IORDERBITS 43

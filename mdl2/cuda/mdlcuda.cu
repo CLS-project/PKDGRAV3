@@ -55,6 +55,11 @@ void CUDA::initiate() {
 \*****************************************************************************/
 
 Device::Device(int iDevice, int nStreams) : iDevice(iDevice), nStreams(nStreams), busy_streams(0) {
+    CUDA_CHECK(cudaDeviceGetAttribute,(&DevAttrWarpSize,cudaDevAttrWarpSize,iDevice));
+    CUDA_CHECK(cudaDeviceGetAttribute,(&DevAttrMaxBlocksPerMultiprocessor,cudaDevAttrMaxBlocksPerMultiprocessor,iDevice));
+    CUDA_CHECK(cudaDeviceGetAttribute,(&DevAttrMaxThreadsPerMultiprocessor,cudaDevAttrMaxThreadsPerMultiProcessor,iDevice));
+    CUDA_CHECK(cudaDeviceGetAttribute,(&DevAttrSingleToDoublePrecisionPerfRatio,cudaDevAttrSingleToDoublePrecisionPerfRatio,iDevice));
+
     for (auto i=0; i<nStreams; ++i) {
         free_streams.enqueue(new Stream(this));
     }
@@ -66,7 +71,7 @@ void Device::launch(cudaMessage &M) {
     auto stm = stream.getStream(); // the CUDA stream (cudaSetDevice is called)
     stream.message = &M; // Save the message (for kernel_finished)
     ++busy_streams; // This is atomic
-    M.launch(stm,stream.pCudaBufIn,stream.pCudaBufOut); // message specific launch operation
+    M.launch(*this,stm,stream.pCudaBufIn,stream.pCudaBufOut); // message specific launch operation
     // Ask CUDA to notify us when the prior queued work has finished
     cudaLaunchHostFunc(stm,Device::kernel_finished,&stream);
 }

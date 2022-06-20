@@ -18,7 +18,7 @@
 #ifndef CL_H
 #define CL_H
 #include "lst.h"
-#include "../SPHOptions.h"
+#include "../SPH/SPHOptions.h"
 
 #ifndef CL_PART_PER_BLK
     #define CL_PART_PER_BLK 16

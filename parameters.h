@@ -114,6 +114,7 @@ struct parameters {
     double dVelocityDamper;
     int iKernelType;
     int bNewSPH;
+    int bGasBuiltinIdeal;
 
     /* END Gas Parameters */
     double dEta;

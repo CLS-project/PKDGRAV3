@@ -70,6 +70,7 @@
 #include "mdl.h"
 #include "io/outtype.h"
 #include "cosmo.h"
+#include "SPH/SPHEOS.h"
 extern "C" {
 #include "core/healpix.h"
 }
@@ -361,11 +362,10 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     this->bIntegerPosition = (mMemoryModel&PKD_MODEL_INTEGER_POS) ? 1 : 0;
 
     if ( this->bNoParticleOrder )
-        this->iParticleSize = sizeof(UPARTICLE);
+        this->iParticleSize = this->nParticleAlign = sizeof(UPARTICLE);
     else
-        this->iParticleSize = sizeof(PARTICLE);
+        this->iParticleSize = this->nParticleAlign = sizeof(PARTICLE);
     this->iParticle32 = 0;
-    this->nParticleAlign = sizeof(float);
     this->iTreeNodeSize = sizeof(KDN);
 
     if (!this->bIntegerPosition) this->oFieldOffset[oPosition] = ParticleAddDouble(3);
@@ -1777,7 +1777,7 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,BND *bnd,
             double T;
             float otherData[3];
             otherData[0] = otherData[1] = otherData[2] = 0.0f;
-            T = SPHEOSTofRhoU(fDensity, pNewSph->u, &pkd->SPHoptions);
+            T = SPHEOSTofRhoU(pkd,fDensity, pNewSph->u, pkdiMat(pkd,p), &pkd->SPHoptions);
             for (int k = 0; k < ELEMENT_COUNT; k++) fMetals[k] = 0.0f;
             fMetals[0] = pkdiMat(pkd,p);
             fioWriteSph(fio,iParticleID,r,v,fMass,fSoft,*pPot,
@@ -3922,4 +3922,34 @@ int pkdGetParticles(PKD pkd, int nIn, uint64_t *ID, struct outGetParticles *out)
         }
     }
     return nOut;
+}
+
+/*
+** Initialize the EOS tables
+*/
+void pkdInitializeEOS(PKD pkd) {
+    for (auto i=0; i<pkd->ParticleClasses.size(); ++i) {
+        auto iMat = pkd->ParticleClasses[i].iMat;
+        if (iMat == 0 && pkd->SPHoptions.useBuiltinIdeal) {
+            // Nothing to do
+        }
+        else {
+#ifdef HAVE_EOSLIB_H
+            if (pkd->materials[iMat] == NULL) {
+                if (iMat == EOSIDEALGAS) {
+                    struct igeosParam param;
+                    param.dConstGamma = pkd->SPHoptions.gamma;
+                    param.dMeanMolMass = pkd->SPHoptions.dMeanMolWeight;
+                    pkd->materials[iMat] = EOSinitMaterial(iMat, pkd->SPHoptions.dKpcUnit, pkd->SPHoptions.dMsolUnit, &param);
+                }
+                else {
+                    pkd->materials[iMat] = EOSinitMaterial(iMat, pkd->SPHoptions.dKpcUnit, pkd->SPHoptions.dMsolUnit, NULL);
+                }
+            }
+#else
+            printf("Trying to initialize an EOSlib material, but EOSlib was not compiled in!\n");
+            assert(0);
+#endif
+        }
+    }
 }

@@ -24,7 +24,7 @@
 #include "core/simd.h"
 #include "pkd.h"
 #include "opening.h"
-#include "../SPHOptions.h"
+#include "../SPH/SPHOptions.h"
 
 /*
 ** This implements the original pkdgrav2m opening criterion, which has been
