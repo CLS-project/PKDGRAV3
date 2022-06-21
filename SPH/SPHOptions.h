@@ -53,6 +53,7 @@ typedef struct {
     float dMsolUnit;
     float dMeanMolWeight;
     int nRungCorrection;
+    int nPredictRung;
     uint64_t doGravity : 1;
     uint64_t doDensity : 1;
     uint64_t doSPHForces : 1;

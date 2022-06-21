@@ -43,6 +43,7 @@ SPHOptions initializeSPHOptions(struct parameters param, CSM csm, double dTime) 
     SPHoptions.dKpcUnit = param.units.dKpcUnit;
     SPHoptions.dMsolUnit = param.units.dMsolUnit;
     SPHoptions.dMeanMolWeight = param.dMeanMolWeight;
+    SPHoptions.nPredictRung = 0;
     SPHoptions.nRungCorrection = 2;
     if (csm->val.bComove) {
         SPHoptions.a = csmTime2Exp(csm,dTime);
@@ -82,6 +83,7 @@ void copySPHOptions(SPHOptions *source, SPHOptions *target) {
     target->dKpcUnit = source->dKpcUnit;
     target->dMsolUnit = source->dMsolUnit;
     target->dMeanMolWeight = source->dMeanMolWeight;
+    target->nPredictRung = source->nPredictRung;
     target->nRungCorrection = source->nRungCorrection;
     target->a = source->a;
     target->H = source->H;

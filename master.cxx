@@ -3200,11 +3200,11 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
     */
     in.kick.bKickClose = bKickClose;
     in.kick.bKickOpen = bKickOpen;
-    if (SPHoptions.doGravity) {
+    if (SPHoptions.doGravity || SPHoptions.doDensity) {
         for (i=0,dt=0.5*dDelta; i<=param.iMaxRung; ++i,dt*=0.5) {
             in.kick.dtClose[i] = 0.0;
             in.kick.dtOpen[i] = 0.0;
-            if (i>=uRungLo) {
+            if (i>=SPHoptions.nPredictRung) {
                 if (csm->val.bComove) {
                     if (bKickClose) {
                         in.kick.dtClose[i] = csmComoveKickFac(csm,dTime-dt,dt);
@@ -3225,11 +3225,11 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
     ** Create the deltas for the on-the-fly prediction of velocity and the
     ** thermodynamical variable.
     */
-    if (SPHoptions.doGravity) {
+    if (SPHoptions.doGravity || SPHoptions.doDensity) {
         double substepWeAreAt = dStep - floor(dStep); // use fmod instead
         double stepStartTime = dTime - substepWeAreAt * dDelta;
         for (i = 0; i <= param.iMaxRung; ++i) {
-            if (i < uRungLo) {
+            if (i < SPHoptions.nPredictRung) {
                 /*
                 ** For particles with a step larger than the current rung, the temporal position of
                 ** the velocity in relation to the current time is nontrivial, so we calculate it here
@@ -4170,6 +4170,7 @@ int MSR::NewTopStepKDK(
         if (nParticlesOnRung/((float) N) < SPHoptions.FastGasFraction) {
             SPHoptions.doGravity = 0;
             SPHoptions.doDensity = 0;
+            SPHoptions.nPredictRung = uRung;
             SPHoptions.doSPHForces = 0;
             SPHoptions.doSetDensityFlags = 1;
             *puRungMax = Gravity(uRung,MaxRung(),ROOT,uRoot2,dTime,dDelta,*pdStep,dTheta,
@@ -4178,6 +4179,7 @@ int MSR::NewTopStepKDK(
         SPHoptions.doSetDensityFlags = 0;
         SPHoptions.doGravity = 0;
         SPHoptions.doDensity = 1;
+        SPHoptions.nPredictRung = uRung;
         SPHoptions.doSPHForces = 0;
         SPHoptions.useDensityFlags = 0;
         if (nParticlesOnRung/((float) N) < SPHoptions.FastGasFraction) {
@@ -4194,6 +4196,7 @@ int MSR::NewTopStepKDK(
         SelAll(0,1);
         SPHoptions.doGravity = 1;
         SPHoptions.doDensity = 0;
+        SPHoptions.nPredictRung = uRung;
         SPHoptions.doSPHForces = 1;
         SPHoptions.useDensityFlags = 0;
         SPHoptions.dofBallFactor = 0;
@@ -4204,6 +4207,7 @@ int MSR::NewTopStepKDK(
     else {
         SPHOptions SPHoptions = initializeSPHOptions(param,csm,dTime);
         SPHoptions.doGravity = 1;
+        SPHoptions.nPredictRung = uRung;
         *puRungMax = Gravity(uRung,MaxRung(),ROOT,uRoot2,dTime,dDelta,*pdStep,dTheta,
                              1,bKickOpen,param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,nGroup,SPHoptions);
     }
