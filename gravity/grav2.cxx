@@ -294,7 +294,13 @@ void pkdParticleWorkDone(workParticle *wp) {
                             uNewRung = std::max(std::max((int)uNewRung,(int)round(wp->pInfoOut[i].maxRung) - wp->SPHoptions->nRungCorrection),0);
                         }
                     }
-                    else uNewRung = 0; /* Assumes current uNewRung is outdated -- not ideal */
+                    else {
+                        uNewRung = 0; /* Assumes current uNewRung is outdated -- not ideal */
+                        if (pkd->oFieldOffset[oNewSph]) {
+                            uNewRung = pkdDtToRungInverse(wp->pInfoOut[i].dtEst,fiDelta,wp->ts->uMaxRung-1);
+                            uNewRung = std::max(std::max((int)uNewRung,(int)round(wp->pInfoOut[i].maxRung) - wp->SPHoptions->nRungCorrection),0);
+                        }
+                    }
                 } /* end of wp->bGravStep */
                 else {
                     /*
@@ -315,7 +321,13 @@ void pkdParticleWorkDone(workParticle *wp) {
                             uNewRung = std::max(std::max((int)uNewRung,(int)round(wp->pInfoOut[i].maxRung) - wp->SPHoptions->nRungCorrection),0);
                         }
                     }
-                    else uNewRung = 0;
+                    else {
+                        uNewRung = 0;
+                        if (pkd->oFieldOffset[oNewSph]) {
+                            uNewRung = pkdDtToRungInverse(wp->pInfoOut[i].dtEst,fiDelta,wp->ts->uMaxRung-1);
+                            uNewRung = std::max(std::max((int)uNewRung,(int)round(wp->pInfoOut[i].maxRung) - wp->SPHoptions->nRungCorrection),0);
+                        }
+                    }
                 }
                 /*
                 ** Here we must make sure we do not try to take a larger opening
