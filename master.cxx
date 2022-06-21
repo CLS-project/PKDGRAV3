@@ -3148,6 +3148,7 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
     double dsec,dTotFlop,dt,a;
     double dTimeLCP;
     uint8_t uRungMax=0;
+    uint8_t uRungLoTemp;
     char c;
 
     if (param.bVStep) {
@@ -3193,6 +3194,11 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
     }
     else in.ts.dAccFac = 1.0;
 
+    if (SPHoptions.doDensity) {
+        uRungLoTemp = uRungLo;
+        uRungLo = SPHoptions.nPredictRung;
+    }
+
     /*
     ** Now calculate the timestepping factors for kick close and open if the
     ** gravity should kick the particles. If the code uses bKickClose and
@@ -3204,7 +3210,7 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
         for (i=0,dt=0.5*dDelta; i<=param.iMaxRung; ++i,dt*=0.5) {
             in.kick.dtClose[i] = 0.0;
             in.kick.dtOpen[i] = 0.0;
-            if (i>=SPHoptions.nPredictRung) {
+            if (i>=uRungLo) {
                 if (csm->val.bComove) {
                     if (bKickClose) {
                         in.kick.dtClose[i] = csmComoveKickFac(csm,dTime-dt,dt);
@@ -3229,7 +3235,7 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
         double substepWeAreAt = dStep - floor(dStep); // use fmod instead
         double stepStartTime = dTime - substepWeAreAt * dDelta;
         for (i = 0; i <= param.iMaxRung; ++i) {
-            if (i < SPHoptions.nPredictRung) {
+            if (i < uRungLo) {
                 /*
                 ** For particles with a step larger than the current rung, the temporal position of
                 ** the velocity in relation to the current time is nontrivial, so we calculate it here
@@ -3264,6 +3270,10 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
                 in.kick.dtPredDrift[i] = 0.0;
             }
         }
+    }
+
+    if (SPHoptions.doDensity) {
+        uRungLo = uRungLoTemp;
     }
 
     in.lc.bLightConeParticles = param.bLightConeParticles;
@@ -4207,7 +4217,6 @@ int MSR::NewTopStepKDK(
     else {
         SPHOptions SPHoptions = initializeSPHOptions(param,csm,dTime);
         SPHoptions.doGravity = 1;
-        SPHoptions.nPredictRung = uRung;
         *puRungMax = Gravity(uRung,MaxRung(),ROOT,uRoot2,dTime,dDelta,*pdStep,dTheta,
                              1,bKickOpen,param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,nGroup,SPHoptions);
     }
