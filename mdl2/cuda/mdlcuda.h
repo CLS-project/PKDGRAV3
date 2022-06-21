@@ -87,7 +87,7 @@ public:
     void initialize(int nStreamsPerDevice=8);
     auto numDevices() const { return devices.size(); }
     bool isActive()   const { return numDevices() > 0; }
-    void initiate();
+    void launch();
 };
 
 } // namespace mdl

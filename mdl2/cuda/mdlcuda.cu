@@ -35,7 +35,7 @@ void CUDA::initialize(int nStreamsPerDevice) {
 }
 
 // If we can start some work then do so.
-void CUDA::initiate() {
+void CUDA::launch() {
     while (!empty()) { // A message is waiting. Find a stream if we can.
         assert(devices.size()>0); // This would be odd at this point. No progress could be made.
         // Find the device with the fewest busy streams (most idle streams)
