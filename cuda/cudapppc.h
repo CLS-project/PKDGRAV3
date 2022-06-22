@@ -17,6 +17,7 @@
 
 #ifndef CUDAPPPC_H
 #define CUDAPPPC_H
+#ifdef USE_CUDA
 #include "mdl.h"
 #include "gpu/pppcdata.h"
 #include "check.h"
@@ -44,4 +45,5 @@ public:
 
 typedef MessagePPPC<ilpTile> MessagePP;
 typedef MessagePPPC<ilcTile> MessagePC;
+#endif
 #endif
