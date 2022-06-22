@@ -18,39 +18,15 @@
 #define PPPCDATA_H
 #include "hostdata.h"
 #include "basetype.h"
+#include "workunit.h"
+#include "gravity/ilp.h"
+#include "gravity/ilc.h"
 
 namespace gpu {
 
 template <int n,class BTILE> struct Blk;
-template <int n> struct Blk<n,ilpTile> : BlockPP<n> {};
-template <int n> struct Blk<n,ilcTile> : BlockPC<n> {};
-
-// One of these entries for each interaction block
-struct alignas(8) ppWorkUnit {
-    std::uint32_t iP;   // Index of first particle
-    std::uint16_t nP;   // Number of particles
-    std::uint16_t nI;   // Number of interactions in the block
-};
-static_assert(sizeof(ppWorkUnit)==8);
-
-struct alignas(32) ppInput {
-    float dx, dy, dz;
-    float ax, ay, az;
-    float fSoft2;
-    float dImaga;
-};
-static_assert(sizeof(ppInput)==32);
-
-/* Each thread block outputs this for each particle */
-struct alignas(32) ppResult {
-    float ax;
-    float ay;
-    float az;
-    float fPot;
-    float dirsum;
-    float normsum;
-};
-static_assert(sizeof(ppResult)==32);
+template <int n> struct Blk<n,ilpTile> : ppBlk<n> {};
+template <int n> struct Blk<n,ilcTile> : pcBlk<n> {};
 
 inline double getFlops(workParticle *wp,ilpTile &tile) {
     return COST_FLOP_PP*wp->nP*tile.count();
@@ -58,6 +34,63 @@ inline double getFlops(workParticle *wp,ilpTile &tile) {
 inline double getFlops(workParticle *wp,ilcTile &tile) {
     return COST_FLOP_PC*wp->nP*tile.count();
 }
+
+// The interaction list blocks may contain more information than is necessary
+// for the GPU kernel, so we copy just the fields that we need here.
+inline int copyBLKs(ppInteract *out, ilpTile &in) {
+    auto n = in.width;
+    auto nIlp = in.count();
+    int i, nBlk = (nIlp+n-1) / n;
+    for (i=0; i<nBlk; ++i) {
+        memcpy(&out[i].dx,    &in[i].dx,    sizeof(out[i].dx));
+        memcpy(&out[i].dy,    &in[i].dy,    sizeof(out[i].dy));
+        memcpy(&out[i].dz,    &in[i].dz,    sizeof(out[i].dz));
+        memcpy(&out[i].m,     &in[i].m,     sizeof(out[i].m));
+        memcpy(&out[i].fourh2,&in[i].fourh2,sizeof(out[i].fourh2));
+    }
+    return nBlk;
+}
+
+inline int copyBLKs(pcInteract *out, ilcTile &in) {
+    auto n = in.width;
+    auto nIlp = in.count();
+    int i, nBlk = (nIlp+n-1) / n;
+    for (i=0; i<nBlk; ++i) {
+        memcpy(&out[i].dx,  &in[i].dx,  sizeof(out[i].dx));
+        memcpy(&out[i].dy,  &in[i].dy,  sizeof(out[i].dy));
+        memcpy(&out[i].dz,  &in[i].dz,  sizeof(out[i].dz));
+        memcpy(&out[i].xxxx,&in[i].xxxx,sizeof(out[i].xxxx));
+        memcpy(&out[i].xxxy,&in[i].xxxy,sizeof(out[i].xxxy));
+        memcpy(&out[i].xxxz,&in[i].xxxz,sizeof(out[i].xxxz));
+        memcpy(&out[i].xxyz,&in[i].xxyz,sizeof(out[i].xxyz));
+        memcpy(&out[i].xxyy,&in[i].xxyy,sizeof(out[i].xxyy));
+        memcpy(&out[i].yyyz,&in[i].yyyz,sizeof(out[i].yyyz));
+        memcpy(&out[i].xyyz,&in[i].xyyz,sizeof(out[i].xyyz));
+        memcpy(&out[i].xyyy,&in[i].xyyy,sizeof(out[i].xyyy));
+        memcpy(&out[i].yyyy,&in[i].yyyy,sizeof(out[i].yyyy));
+        memcpy(&out[i].xxx, &in[i].xxx, sizeof(out[i].xxx));
+        memcpy(&out[i].xyy, &in[i].xyy, sizeof(out[i].xyy));
+        memcpy(&out[i].xxy, &in[i].xxy, sizeof(out[i].xxy));
+        memcpy(&out[i].yyy, &in[i].yyy, sizeof(out[i].yyy));
+        memcpy(&out[i].xxz, &in[i].xxz, sizeof(out[i].xxz));
+        memcpy(&out[i].yyz, &in[i].yyz, sizeof(out[i].yyz));
+        memcpy(&out[i].xyz, &in[i].xyz, sizeof(out[i].xyz));
+        memcpy(&out[i].xx,  &in[i].xx,  sizeof(out[i].xx));
+        memcpy(&out[i].xy,  &in[i].xy,  sizeof(out[i].xy));
+        memcpy(&out[i].xz,  &in[i].xz,  sizeof(out[i].xz));
+        memcpy(&out[i].yy,  &in[i].yy,  sizeof(out[i].yy));
+        memcpy(&out[i].yz,  &in[i].yz,  sizeof(out[i].yz));
+#ifdef USE_DIAPOLE
+        memcpy(&out[i].x,   &in[i].x,   sizeof(out[i].x));
+        memcpy(&out[i].y,   &in[i].y,   sizeof(out[i].y));
+        memcpy(&out[i].z,   &in[i].z,   sizeof(out[i].z));
+#endif
+        memcpy(&out[i].m,   &in[i].m,   sizeof(out[i].m));
+        memcpy(&out[i].u,   &in[i].u,   sizeof(out[i].u));
+    }
+    return nBlk;
+}
+
 
 /// Extend hostData to keeps track of interaction lists and work packages.
 /// We are still GPU agnostic.
@@ -74,15 +107,6 @@ protected:
     };
     static constexpr size_t wp_max_buffer = 128;
     std::vector<workInformation> work; // [wp_max_buffer]
-
-    template<int n,class BTILE>
-    int copyBLKs2(Blk<n,BTILE> *out, BTILE &in) {
-        assert(n==ILP_PART_PER_BLK);
-        auto nIlp = in.count();
-        int i, nBlk = (nIlp+n-1) / n;
-        for (i=0; i<nBlk; ++i) memcpy(&out[i],&in[i],sizeof(out[i]));
-        return nBlk;
-    }
 
 public:
     pppcData() : requestBufferCount(0), resultsBufferCount(0), nTotalInteractionBlocks(0), nTotalParticles(0) {
@@ -104,7 +128,7 @@ public:
         if (inputSize<BLK>(nP,nI) > requestBufferSize - 1024) return false;     // Refuse if this tile won't fit in this buffer
         if (outputSize<BLK>(nP,nI) > requestBufferSize) return false;           // Refuse if this response won't fit
         auto blk = reinterpret_cast<Blk<WIDTH,TILE> *>(pHostBufIn);             // Copy the blocks to the input buffer
-        nTotalInteractionBlocks += copyBLKs2(blk+nTotalInteractionBlocks,tile); // (the ILP tile can now be freed/reused)
+        nTotalInteractionBlocks += copyBLKs(blk+nTotalInteractionBlocks,tile); // (the ILP tile can now be freed/reused)
         nTotalParticles += align_nP(nP);
 
         ++wp->nRefs;
