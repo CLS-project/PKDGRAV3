@@ -1270,6 +1270,9 @@ void MSR::Initialize() {
     param.dVelocityDamper = 0.0;
     prmAddParam(prm,"dVelocityDamper", 2, &param.dVelocityDamper,
                 sizeof(double), "dVelocityDamper", "Velocity Damper");
+    param.dVelocityDamper = 10.0;
+    prmAddParam(prm,"dBallSizeLimit", 2, &param.dBallSizeLimit,
+                sizeof(double), "dBallSizeLimit", "Ball size limit");
     param.iKernelType = 0;
     prmAddParam(prm,"iKernelType",1,&param.iKernelType,sizeof(int),"s",
                 "<Kernel type, 0: M4, 1: Wendland C2, 2: Wendland C4, 3: Wendland C6> = 0");
