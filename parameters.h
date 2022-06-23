@@ -112,6 +112,7 @@ struct parameters {
     double dFastGasFraction;
     double fKernelTarget;
     double dVelocityDamper;
+    double dBallSizeLimit;
     int iKernelType;
     int bNewSPH;
     int bGasBuiltinIdeal;

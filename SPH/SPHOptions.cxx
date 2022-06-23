@@ -38,7 +38,7 @@ SPHOptions initializeSPHOptions(struct parameters param, CSM csm, double dTime) 
     SPHoptions.FastGasFraction = param.dFastGasFraction;
     SPHoptions.VelocityDamper = param.dVelocityDamper;
     SPHoptions.nSmooth = param.nSmooth;
-    SPHoptions.ballSizeLimit = 10.0f;
+    SPHoptions.ballSizeLimit = param.dBallSizeLimit;
     SPHoptions.fBallFactor = 1.1f;
     SPHoptions.dKpcUnit = param.units.dKpcUnit;
     SPHoptions.dMsolUnit = param.units.dMsolUnit;
