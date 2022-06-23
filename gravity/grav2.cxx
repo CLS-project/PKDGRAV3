@@ -581,8 +581,13 @@ int pkdGravInteract(PKD pkd,
             }
             wp->pInfoIn[nP].rho = pkdDensity(pkd,p);
             if (wp->SPHoptions->doSPHForces) {
-                wp->pInfoIn[nP].P = pNewSph->P;
-                wp->pInfoIn[nP].c = pNewSph->c;
+                if (wp->SPHoptions->doOnTheFlyPrediction) {
+                    wp->pInfoIn[nP].P = SPHEOSPCofRhoU(pkd,pkdDensity(pkd,p),pNewSph->u + dtPredDrift * pNewSph->uDot,&wp->pInfoIn[nP].c,pkdiMat(pkd,p),SPHoptions);
+                }
+                else {
+                    wp->pInfoIn[nP].P = pNewSph->P;
+                    wp->pInfoIn[nP].c = pNewSph->c;
+                }
             }
             else {
                 wp->pInfoIn[nP].P = 0.0f;

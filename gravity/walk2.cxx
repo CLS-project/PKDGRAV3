@@ -258,9 +258,18 @@ found_it:
                                             NEWSPHFIELDS *pNewSph = pkdNewSph(pkd,p);
                                             float dtPredDrift = getDtPredDrift(kick,p->bMarked,ts->uRungLo,p->uRung);
                                             float Omega = pNewSph->Omega;                     /* should be the Omega field of the sph fields, nyi */
-                                            float P = pNewSph->P;                         /* should be calculated by the EOS, nyi */
-                                            float cs = pNewSph->c;                        /* should be calculated by the EOS, nyi */
+                                            float P = 0.0f;                         /* should be calculated by the EOS, nyi */
+                                            float cs = 0.0f;                        /* should be calculated by the EOS, nyi */
                                             const float *ap = pkdAccel(pkd,p);
+                                            if (SPHoptions->doOnTheFlyPrediction) {
+                                                if (SPHoptions->doSPHForces) {
+                                                    P = SPHEOSPCofRhoU(pkd,pkdDensity(pkd,p),pNewSph->u + dtPredDrift * pNewSph->uDot,&cs,pkdiMat(pkd,p),SPHoptions);
+                                                }
+                                            }
+                                            else {
+                                                P = pNewSph->P;
+                                                cs = pNewSph->c;
+                                            }
                                             vpred[0] = v[0] + dtPredDrift * ap[0];
                                             vpred[1] = v[1] + dtPredDrift * ap[1];
                                             vpred[2] = v[2] + dtPredDrift * ap[2];
@@ -327,9 +336,18 @@ found_it:
                                                 NEWSPHFIELDS *pNewSph = pkdNewSph(pkd,p);
                                                 float dtPredDrift = getDtPredDrift(kick,p->bMarked,ts->uRungLo,p->uRung);
                                                 float Omega = pNewSph->Omega;                 /* should be the Omega field of the sph fields, nyi */
-                                                float P = pNewSph->P;                     /* should be calculated by the EOS, nyi */
-                                                float cs = pNewSph->c;                    /* should be calculated by the EOS, nyi */
+                                                float P =0.0f;                     /* should be calculated by the EOS, nyi */
+                                                float cs = 0.0f;                    /* should be calculated by the EOS, nyi */
                                                 const float *ap = pkdAccel(pkd,p);
+                                                if (SPHoptions->doOnTheFlyPrediction) {
+                                                    if (SPHoptions->doSPHForces) {
+                                                        P = SPHEOSPCofRhoU(pkd,pkdDensity(pkd,p),pNewSph->u + dtPredDrift * pNewSph->uDot,&cs,pkdiMat(pkd,p),SPHoptions);
+                                                    }
+                                                }
+                                                else {
+                                                    P = pNewSph->P;
+                                                    cs = pNewSph->c;
+                                                }
                                                 vpred[0] = v[0] + dtPredDrift * ap[0];
                                                 vpred[1] = v[1] + dtPredDrift * ap[1];
                                                 vpred[2] = v[2] + dtPredDrift * ap[2];

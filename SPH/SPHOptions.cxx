@@ -63,6 +63,7 @@ SPHOptions initializeSPHOptions(struct parameters param, CSM csm, double dTime) 
     SPHoptions.useIsentropic = param.bGasIsentropic;
     SPHoptions.useBuiltinIdeal = param.bGasBuiltinIdeal;
     SPHoptions.useDensityFlags = 0;
+    SPHoptions.doOnTheFlyPrediction = 0;
     SPHoptions.kernelType = param.iKernelType;
     return SPHoptions;
 }
@@ -97,6 +98,7 @@ void copySPHOptions(SPHOptions *source, SPHOptions *target) {
     target->useIsentropic = source->useIsentropic;
     target->useBuiltinIdeal = source->useBuiltinIdeal;
     target->useDensityFlags = 0;
+    target->doOnTheFlyPrediction = source->doOnTheFlyPrediction;
     target->kernelType = source->kernelType;
 }
 
