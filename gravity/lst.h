@@ -100,7 +100,12 @@ public:
 template<typename SCALAR,typename VECTOR,int N>
 struct alignas(SIMD_WIDTH *sizeof(float)) ilBlockBase {
     static constexpr int scalar_count = N;
-#if !defined(__CUDACC__)
+#if defined(__CUDACC__) || defined(__METAL_VERSION__)
+    typedef SCALAR scalar_t;
+    scalar_t s[N];
+    __host__ __device__ auto &operator[](std::size_t i) {return s[i];}
+    __host__ __device__ const auto &operator[](std::size_t i) const {return s[i];}
+#else
     typedef SCALAR scalar_t;
     typedef VECTOR vector_t;
     static constexpr int vector_count = N * sizeof(scalar_t) / (sizeof(vector_t));
@@ -112,27 +117,22 @@ struct alignas(SIMD_WIDTH *sizeof(float)) ilBlockBase {
     const auto &operator[](std::size_t i) const {return s[i];}
     // auto operator[](std::size_t i) {return ilBlockElement(*this,i);}
     // const auto operator[](std::size_t i) const {return ilBlockElement(*this,i);}
-#else
-    typedef SCALAR scalar_t;
-    scalar_t s[N];
-    __host__ __device__ auto &operator[](std::size_t i) {return s[i];}
-    __host__ __device__ const auto &operator[](std::size_t i) const {return s[i];}
 #endif
 };
 
 // CAREFUL: the iBlockBase structure above must be properly aligned for this to work.
 // The alignof(fvec) is very important or the GPU version will not work properly.
 template<typename V,int N> struct ilBlock;
-#if !defined(__CUDACC__)
-template<int N> struct ilBlock<float,N>  : public ilBlockBase<float,  fvec,N> {};
-template<int N> struct ilBlock<double,N> : public ilBlockBase<double, dvec,N> {};
-template<int N> struct ilBlock<int32_t,N>: public ilBlockBase<int32_t,i32v,N> {};
-template<int N> struct ilBlock<int64_t,N>: public ilBlockBase<int64_t,i64v,N> {};
-#else
+#if defined(__CUDACC__) || defined(__METAL_VERSION__)
 template<int N> struct ilBlock<float,N>  : public ilBlockBase<float,  float,N> {};
 template<int N> struct ilBlock<double,N> : public ilBlockBase<double, double,N> {};
 template<int N> struct ilBlock<int32_t,N>: public ilBlockBase<int32_t,int32_t,N> {};
 template<int N> struct ilBlock<int64_t,N>: public ilBlockBase<int64_t,int64_t,N> {};
+#else
+template<int N> struct ilBlock<float,N>  : public ilBlockBase<float,  fvec,N> {};
+template<int N> struct ilBlock<double,N> : public ilBlockBase<double, dvec,N> {};
+template<int N> struct ilBlock<int32_t,N>: public ilBlockBase<int32_t,i32v,N> {};
+template<int N> struct ilBlock<int64_t,N>: public ilBlockBase<int64_t,i64v,N> {};
 #endif
 namespace {
 // Here we memcpy a single field from source to destination, e.g.,

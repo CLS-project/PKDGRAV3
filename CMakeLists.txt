@@ -163,6 +163,7 @@ check_symbol_exists(atexit stdlib.h HAVE_ATEXIT)
 add_subdirectory(fmt)
 add_subdirectory(blitz)
 add_subdirectory(mdl2)
+add_subdirectory(metal)
 add_subdirectory(tests)
 
 add_custom_command(
@@ -540,7 +541,7 @@ endif()
 
 CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/pkd_config.h.in ${CMAKE_CURRENT_BINARY_DIR}/pkd_config.h)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
-target_link_libraries(${PROJECT_NAME} mdl2 openpa)
+target_link_libraries(${PROJECT_NAME} mdl2 openpa pkdmetal)
 target_include_directories(${PROJECT_NAME} PRIVATE ${GSL_INCLUDE_DIRS})
 target_link_libraries(${PROJECT_NAME} ${GSL_LIBRARIES})
 target_link_libraries(${PROJECT_NAME} blitz fmt)

@@ -706,6 +706,9 @@ doneCheckList:
 #ifdef USE_CUDA
     pkd->cudaClient->flushCUDA();
 #endif
+#ifdef USE_METAL
+    pkd->metalClient->flushMETAL();
+#endif
     mdlCompleteAllWork(pkd->mdl);
     *pdFlop += pkd->dFlop; /* Accumulate work flops (notably Ewald) */
     return (nTotActive);
