@@ -1312,7 +1312,7 @@ int mpiClass::checkMPI() {
     /* Start any CUDA work packages */
 #ifdef USE_CUDA
     flushCompletedCUDA();
-    cuda.initiate();
+    cuda.launch();
 #endif
     processMessages();
     finishRequests(); // Check for non-block MPI requests (send, receive, barrier, etc.)

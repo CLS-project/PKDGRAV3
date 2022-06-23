@@ -48,53 +48,6 @@
     #include <sys/time.h>
 #endif
 
-static void *CUDA_malloc(size_t nBytes) {
-#ifdef __linux__
-    uint64_t nPageSize = sysconf(_SC_PAGESIZE);
-#else
-    uint64_t nPageSize = 512;
-#endif
-    void *blk;
-#ifdef _MSC_VER
-    blk = _aligned_malloc(nBytes, nPageSize);
-#else
-    if (posix_memalign(&blk, nPageSize, nBytes)) blk = NULL;
-#endif
-    char *p = reinterpret_cast<char *>(blk);
-    char *e = p + nBytes;
-    for (; p<e; p+= nPageSize) *p = 0;
-
-    return blk;
-}
-
-static void CUDA_free(void *data) {
-    free(data);
-}
-
-void CUDA_Abort(cudaError_t rc, const char *fname, const char *file, int line) {
-    fprintf(stderr,"%s error %d in %s(%d)\n%s\n", fname, rc, file, line, cudaGetErrorString(rc));
-    exit(1);
-}
-
-#ifdef _MSC_VER
-double CUDA_getTime() {
-    FILETIME ft;
-    uint64_t clock;
-    GetSystemTimeAsFileTime(&ft);
-    clock = ft.dwHighDateTime;
-    clock <<= 32;
-    clock |= ft.dwLowDateTime;
-    /* clock is in 100 nano-second units */
-    return clock / 10000000.0;
-}
-#else
-double CUDA_getTime() {
-    struct timeval tv;
-    gettimeofday(&tv,NULL);
-    return (tv.tv_sec+(tv.tv_usec*1e-6));
-}
-#endif
-
 /*****************************************************************************\
 *   CudaClient interface (new!)
 \*****************************************************************************/
@@ -114,16 +67,4 @@ void CudaClient::flushCUDA() {
     if (ewald) { mdl.enqueue(*ewald);        ewald = nullptr; }
     flush(pp);
     flush(pc);
-}
-
-cudaDataMessage::cudaDataMessage() {
-    pHostBufIn = CUDA_malloc(requestBufferSize);
-    pHostBufOut= CUDA_malloc(resultsBufferSize);
-    CUDA_CHECK(cudaHostRegister,(pHostBufIn, requestBufferSize, cudaHostRegisterPortable));
-    CUDA_CHECK(cudaHostRegister,(pHostBufOut,resultsBufferSize, cudaHostRegisterPortable));
-}
-
-cudaDataMessage::~cudaDataMessage() {
-    CUDA_free(pHostBufIn);
-    CUDA_free(pHostBufOut);
 }

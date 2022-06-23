@@ -18,8 +18,32 @@
 #ifndef CUDAPPPC_H
 #define CUDAPPPC_H
 #ifdef USE_CUDA
-    #include "cudautil.h"
-    #include "gravity/ilp.h"
-    #include "gravity/ilc.h"
+#include "mdl.h"
+#include "gpu/pppcdata.h"
+#include "check.h"
+
+template<class TILE,int WIDTH=32>
+class MessagePPPC : public mdl::cudaMessage, public gpu::pppcData<TILE,WIDTH> {
+protected:
+    mdl::messageQueue<MessagePPPC> &freeQueue;
+    bool bGravStep = false;
+    virtual void launch(mdl::Stream &stream,void *pCudaBufIn, void *pCudaBufOut) override;
+    virtual void finish() override;
+public:
+    explicit MessagePPPC(mdl::messageQueue<MessagePPPC> &freeQueue)
+        : freeQueue(freeQueue) {
+        // For CUDA we want to "pin" the host memory for optimal performance
+        CUDA_CHECK(cudaHostRegister,(this->pHostBufIn, this->requestBufferSize, cudaHostRegisterPortable));
+        CUDA_CHECK(cudaHostRegister,(this->pHostBufOut,this->resultsBufferSize, cudaHostRegisterPortable));
+    }
+    virtual ~MessagePPPC() {
+        CUDA_CHECK(cudaHostUnregister,(this->pHostBufIn));
+        CUDA_CHECK(cudaHostUnregister,(this->pHostBufOut));
+    }
+
+};
+
+typedef MessagePPPC<ilpTile> MessagePP;
+typedef MessagePPPC<ilcTile> MessagePC;
 #endif
 #endif

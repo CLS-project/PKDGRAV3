@@ -28,26 +28,17 @@
 #include "mdl.h"
 #include "mdlcuda.h"
 #include <vector>
+#include <cstdlib>
+#include "check.h"
+#include "gpu/pppcdata.h"
+#include "cudapppc.h"
+#include "reduce.h"
 
-class cudaDataMessage : public mdl::cudaMessage {
-protected:
-    // This should be handled in a better way, but for now let the cheese happen.
-    const size_t requestBufferSize = 2*1024*1024;
-    const size_t resultsBufferSize = 2*1024*1024;
-    void *pHostBufIn, *pHostBufOut;
-protected:
-    virtual void launch(mdl::Device &device,cudaStream_t stream,void *pCudaBufIn, void *pCudaBufOut) override = 0;
-    virtual void finish() = 0;
-public:
-    explicit cudaDataMessage();
-    virtual ~cudaDataMessage();
-};
-
-class MessageEwald : public cudaDataMessage {
+class MessageEwald : public mdl::cudaMessage,public gpu::hostData {
 protected:
     class CudaClient &cuda;
     std::vector<workParticle *> ppWP; // [CUDA_WP_MAX_BUFFERED]
-    virtual void launch(mdl::Device &device,cudaStream_t stream,void *pCudaBufIn, void *pCudaBufOut) override;
+    virtual void launch(mdl::Stream &stream,void *pCudaBufIn, void *pCudaBufOut) override;
     virtual void finish() override;
     int nParticles, nMaxParticles;
 public:
@@ -57,7 +48,7 @@ public:
 
 class MessageEwaldSetup : public mdl::cudaMessage {
 protected:
-    virtual void launch(mdl::Device &device,cudaStream_t stream,void *pCudaBufIn, void *pCudaBufOut) override;
+    virtual void launch(mdl::Stream &stream,void *pCudaBufIn, void *pCudaBufOut) override;
 public:
     explicit MessageEwaldSetup(struct EwaldVariables *const ew, EwaldTable *const ewt,int iDevice=-1);
 protected:
@@ -67,82 +58,9 @@ protected:
     std::vector<int> ibHole;
 };
 
-// One of these entries for each interaction block
-struct __align__(8) ppWorkUnit {
-    uint32_t iP;   // Index of first particle
-    uint16_t nP;   // Number of particles
-    uint16_t nI;   // Number of interactions in the block
-};
-static_assert(sizeof(ppWorkUnit)==8);
-
-struct __align__(32) ppInput {
-    float dx, dy, dz;
-    float ax, ay, az;
-    float fSoft2;
-    float dImaga;
-};
-static_assert(sizeof(ppInput)==32);
-
-/* Each thread block outputs this for each particle */
-struct __align__(32) ppResult {
-    float ax;
-    float ay;
-    float az;
-    float fPot;
-    float dirsum;
-    float normsum;
-};
-static_assert(sizeof(ppResult)==32);
-
-template<class TILE>
-class MessagePPPC : public cudaDataMessage {
-protected:
-    mdl::messageQueue<MessagePPPC> &freeQueue;
-    bool bGravStep;
-    size_t requestBufferCount, resultsBufferCount;
-    int nTotalInteractionBlocks, nTotalParticles, nGrid;
-    struct workInformation {
-        workParticle *wp;
-        size_t nInteractions;
-        workInformation(workParticle *wp, size_t nInteractions) : wp(wp), nInteractions(nInteractions) {}
-    };
-    std::vector<workInformation> work; // [CUDA_WP_MAX_BUFFERED]
-    virtual void launch(mdl::Device &device,cudaStream_t stream,void *pCudaBufIn, void *pCudaBufOut) override;
-    virtual void finish() override;
-public:
-    explicit MessagePPPC(mdl::messageQueue<MessagePPPC> &freeQueue);
-    void clear();
-    bool queue(workParticle *wp, TILE &tile, bool bGravStep);
-    MessagePPPC<TILE> &prepare();
-
-    auto align_nP(int nP) {
-        constexpr int mask = 32 * sizeof(float) / sizeof(ppInput) - 1;
-        static_assert(32 * sizeof(float) == (mask+1)*sizeof(ppInput));
-        return (nP + mask) & ~mask;
-    }
-
-    template<class BLK>
-    int inputSize(int nP=0, int nI=0) {
-        const auto nBlocks = (nI+BLK::width-1) / BLK::width; // number of interaction blocks needed
-        return (nBlocks + nTotalInteractionBlocks) * (sizeof(BLK) + sizeof(ppWorkUnit)) + (align_nP(nP) + nTotalParticles) * sizeof(ppInput);
-    }
-
-    template<class BLK>
-    int outputSize(int nP=0, int nI=0) {
-        //const auto nBlocks = (nI+BLK::width-1) / BLK::width; // number of interaction blocks needed
-        return (align_nP(nP) + nTotalParticles) * sizeof(ppResult);
-    }
-
-};
-typedef MessagePPPC<ilpTile> MessagePP;
-typedef MessagePPPC<ilcTile>  MessagePC;
-
 class CudaClient {
     friend class MessageEwald;
 protected:
-    // Message on this queue need to have finish() called on them.
-    // The finish() routine will add them back to the correct "free" list.
-    mdl::messageQueue<cudaDataMessage> doneCuda;
     mdl::messageQueue<MessageEwald> freeEwald;
     MessageEwald *ewald;
     mdl::messageQueue<MessagePP> freePP;
@@ -154,77 +72,39 @@ protected:
     std::list<MessageEwald> free_Ewald, busy_Ewald;
     mdl::mdlClass &mdl;
 protected:
-    template<class MESSAGE> void flush(MESSAGE *&M);
     template<class MESSAGE,class QUEUE,class TILE>
-    int queue(MESSAGE *&m, QUEUE &Q, workParticle *wp, TILE &tile, bool bGravStep);
+    int queue(MESSAGE *&M,QUEUE &Q, workParticle *work, TILE &tile, bool bGravStep) {
+        if (M) { // If we are in the middle of building data for a kernel
+            if (M->queue(work,tile,bGravStep)) return work->nP; // Successfully queued
+            flush(M); // The buffer is full, so send it
+        }
+        mdl.flushCompletedCUDA();
+        if (Q.empty()) return 0; // No buffers so the CPU has to do this part
+        M = & Q.dequeue();
+        if (M->queue(work,tile,bGravStep)) return work->nP; // Successfully queued
+        return 0; // Not sure how this would happen, but okay.
+    }
+    template<class MESSAGE>
+    void flush(MESSAGE *&M) {
+        if (M) {
+            M->prepare();
+            mdl.enqueue(*M);
+            M = nullptr;
+        }
+    }
 public:
     explicit CudaClient(mdl::mdlClass &mdl);
     void flushCUDA();
-    int  queuePP(workParticle *wp, ilpTile &tile, bool bGravStep);
-    int  queuePC(workParticle *wp, ilcTile &tile, bool bGravStep);
+    int queuePP(workParticle *work, ilpTile &tile, bool bGravStep) {
+        return queue(pp,freePP,work,tile,bGravStep);
+    }
+
+    int queuePC(workParticle *work, ilcTile &tile, bool bGravStep) {
+        return queue(pc,freePC,work,tile,bGravStep);
+    }
     int  queueEwald(workParticle *wp);
     void setupEwald(struct EwaldVariables *const ew, EwaldTable *const ewt);
 };
-#endif
-
-#ifdef USE_CUDA
-#else
-    #if !defined(__CUDACC__)
-        #include "core/simd.h"
-        #define CUDA_malloc SIMD_malloc
-        #define CUDA_free SIMD_free
-    #endif
-#endif
-
-#ifdef __CUDACC__
-#include "sm_30_intrinsics.h"
-
-inline __device__ bool testz(bool p) { return !p; }
-inline __device__ float maskz_mov(bool p,float a) { return p ? a : 0.0f; }
-
-template <typename T,unsigned int blockSize>
-inline __device__ T warpReduce(/*volatile T * data, int tid,*/ T t) {
-#if CUDART_VERSION >= 9000
-    if (blockSize >= 32) t += __shfl_down_sync(0xffffffff,t,16);
-    if (blockSize >= 16) t += __shfl_down_sync(0xffffffff,t,8);
-    if (blockSize >= 8)  t += __shfl_down_sync(0xffffffff,t,4);
-    if (blockSize >= 4)  t += __shfl_down_sync(0xffffffff,t,2);
-    if (blockSize >= 2)  t += __shfl_down_sync(0xffffffff,t,1);
-#else
-    if (blockSize >= 32) t += __shfl_xor(t,16);
-    if (blockSize >= 16) t += __shfl_xor(t,8);
-    if (blockSize >= 8)  t += __shfl_xor(t,4);
-    if (blockSize >= 4)  t += __shfl_xor(t,2);
-    if (blockSize >= 2)  t += __shfl_xor(t,1);
-#endif
-    return t;
-}
-
-template <typename T,unsigned int blockSize>
-__device__ void warpReduceAndStore(volatile T *data, int tid,T *result) {
-    T t = warpReduce<T,blockSize>(data[tid]);
-    if (tid==0) *result = t;
-}
-
-template <typename T,unsigned int blockSize>
-__device__ void warpReduceAndStore(int tid,T t,T *result) {
-    t = warpReduce<T,blockSize>(t);
-    if (tid==0) *result = t;
-}
-
-template <typename T,unsigned int blockSize>
-__device__ void warpReduceAndStoreAtomic(int tid,T t,T *result) {
-    t = warpReduce<T,blockSize>(t);
-    if (tid==0) atomicAdd(result,t);
-}
-
-void CUDA_Abort(cudaError_t rc, const char *fname, const char *file, int line);
-
-#define CUDA_CHECK(f,a) {cudaError_t rc = (f)a; if (rc!=cudaSuccess) CUDA_Abort(rc,#f,__FILE__,__LINE__);}
-#define CUDA_RETURN(f,a) {cudaError_t rc = (f)a; if (rc!=cudaSuccess) return rc;}
-
-double CUDA_getTime();
-
 #endif
 #endif
 #endif

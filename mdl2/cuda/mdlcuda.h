@@ -12,11 +12,12 @@
 namespace mdl {
 
 class Device;
+class Stream;
 class cudaMessage : public basicMessage {
     friend class Device; // So we can launch()
     int iDevice; // Device number to use or -1 for any (the normal case)
 protected:
-    virtual void launch(Device &device,cudaStream_t stream,void *pCudaBufIn, void *pCudaBufOut) = 0;
+    virtual void launch(Stream &stream,void *pCudaBufIn, void *pCudaBufOut) = 0;
 public:
     virtual void finish() {}
     cudaMessage(int iDevice=-1) : iDevice(iDevice) {}
@@ -30,7 +31,7 @@ class Stream : public basicMessage {
     friend class Device;
 protected:
     cudaStream_t stream; // CUDA execution stream
-    class Device *device; // Device associated with this stream
+    class Device &device; // Device associated with this stream
     cudaMessage *message; // Message currently in progress (or NULL)
 
     // This should be handled in a better way, but for now let the cheese happen.
@@ -39,9 +40,11 @@ protected:
     void *pCudaBufIn, *pCudaBufOut;
 
 public:
-    explicit Stream(class Device *device);
+    explicit Stream(class Device &device);
     ~Stream();
+    Device &getDevice() {return device;}
     cudaStream_t getStream();
+    operator cudaStream_t() {return getStream();}
 };
 class StreamQueue : public messageQueue<class Stream> {};
 
@@ -84,7 +87,7 @@ public:
     void initialize(int nStreamsPerDevice=8);
     auto numDevices() const { return devices.size(); }
     bool isActive()   const { return numDevices() > 0; }
-    void initiate();
+    void launch();
 };
 
 } // namespace mdl
