@@ -71,7 +71,7 @@ using namespace fmt::literals; // Gives us ""_a and ""_format literals
 #include "io/outtype.h"
 #include "smooth/smoothfcn.h"
 #include "io/fio.h"
-#include "SPHOptions.h"
+#include "SPH/SPHOptions.h"
 
 #include "core/setadd.h"
 #include "core/swapall.h"
@@ -484,6 +484,7 @@ void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTi
         dsec = MSR::Time() - sec;
         printf("Initializing Kernel target complete, Wallclock: %f secs.\n", dsec);
         SetSPHoptions();
+        InitializeEOS();
     }
 
     Simulate(dTime,dDelta,iStep,nSteps);
@@ -532,8 +533,8 @@ void MSR::writeParameters(const char *baseName,int iStep,int nSteps,double dTime
     fprintf(fp," ]\n");
     fprintf(fp,"classes=[ ");
     for (i=0; i<nCheckpointClasses; ++i) {
-        fprintf(fp, "[%d,%.17g,%.17g], ", aCheckpointClasses[i].eSpecies,
-                aCheckpointClasses[i].fMass, aCheckpointClasses[i].fSoft);
+        fprintf(fp, "[%d,%.17g,%.17g,%d], ", aCheckpointClasses[i].eSpecies,
+                aCheckpointClasses[i].fMass, aCheckpointClasses[i].fSoft, aCheckpointClasses[i].iMat);
     }
     fprintf(fp," ]\n");
     fprintf(fp,"msr=MSR()\n");
@@ -1269,6 +1270,9 @@ void MSR::Initialize() {
     param.dVelocityDamper = 0.0;
     prmAddParam(prm,"dVelocityDamper", 2, &param.dVelocityDamper,
                 sizeof(double), "dVelocityDamper", "Velocity Damper");
+    param.dVelocityDamper = 10.0;
+    prmAddParam(prm,"dBallSizeLimit", 2, &param.dBallSizeLimit,
+                sizeof(double), "dBallSizeLimit", "Ball size limit");
     param.iKernelType = 0;
     prmAddParam(prm,"iKernelType",1,&param.iKernelType,sizeof(int),"s",
                 "<Kernel type, 0: M4, 1: Wendland C2, 2: Wendland C4, 3: Wendland C6> = 0");
@@ -1276,6 +1280,10 @@ void MSR::Initialize() {
     prmAddParam(prm,"bNewSPH", 0, &param.bNewSPH,
                 sizeof(int), "bNewSPH",
                 "Use the new SPH implementation");
+    param.bGasBuiltinIdeal = 0;
+    prmAddParam(prm,"bGasBuiltinIdeal",0,&param.bGasBuiltinIdeal,
+                sizeof(int),"bGasBuiltinIdeal",
+                "<Use builtin ideal gas> = +GasBuiltinIdeal");
     /* END Gas/Star Parameters */
     param.nOutputParticles = 0;
     prmAddArray(prm,"lstOrbits",4,&param.iOutputParticles,sizeof(uint64_t),&param.nOutputParticles);
@@ -3143,6 +3151,7 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
     double dsec,dTotFlop,dt,a;
     double dTimeLCP;
     uint8_t uRungMax=0;
+    uint8_t uRungLoTemp;
     char c;
 
     if (param.bVStep) {
@@ -3188,6 +3197,11 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
     }
     else in.ts.dAccFac = 1.0;
 
+    if (SPHoptions.doDensity) {
+        uRungLoTemp = uRungLo;
+        uRungLo = SPHoptions.nPredictRung;
+    }
+
     /*
     ** Now calculate the timestepping factors for kick close and open if the
     ** gravity should kick the particles. If the code uses bKickClose and
@@ -3195,7 +3209,7 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
     */
     in.kick.bKickClose = bKickClose;
     in.kick.bKickOpen = bKickOpen;
-    if (SPHoptions.doGravity) {
+    if (SPHoptions.doGravity || SPHoptions.doDensity) {
         for (i=0,dt=0.5*dDelta; i<=param.iMaxRung; ++i,dt*=0.5) {
             in.kick.dtClose[i] = 0.0;
             in.kick.dtOpen[i] = 0.0;
@@ -3220,7 +3234,7 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
     ** Create the deltas for the on-the-fly prediction of velocity and the
     ** thermodynamical variable.
     */
-    if (SPHoptions.doGravity) {
+    if (SPHoptions.doGravity || SPHoptions.doDensity) {
         double substepWeAreAt = dStep - floor(dStep); // use fmod instead
         double stepStartTime = dTime - substepWeAreAt * dDelta;
         for (i = 0; i <= param.iMaxRung; ++i) {
@@ -3259,6 +3273,10 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
                 in.kick.dtPredDrift[i] = 0.0;
             }
         }
+    }
+
+    if (SPHoptions.doDensity) {
+        uRungLo = uRungLoTemp;
     }
 
     in.lc.bLightConeParticles = param.bLightConeParticles;
@@ -4165,6 +4183,7 @@ int MSR::NewTopStepKDK(
         if (nParticlesOnRung/((float) N) < SPHoptions.FastGasFraction) {
             SPHoptions.doGravity = 0;
             SPHoptions.doDensity = 0;
+            SPHoptions.nPredictRung = uRung;
             SPHoptions.doSPHForces = 0;
             SPHoptions.doSetDensityFlags = 1;
             *puRungMax = Gravity(uRung,MaxRung(),ROOT,uRoot2,dTime,dDelta,*pdStep,dTheta,
@@ -4173,6 +4192,7 @@ int MSR::NewTopStepKDK(
         SPHoptions.doSetDensityFlags = 0;
         SPHoptions.doGravity = 0;
         SPHoptions.doDensity = 1;
+        SPHoptions.nPredictRung = uRung;
         SPHoptions.doSPHForces = 0;
         SPHoptions.useDensityFlags = 0;
         if (nParticlesOnRung/((float) N) < SPHoptions.FastGasFraction) {
@@ -4189,6 +4209,7 @@ int MSR::NewTopStepKDK(
         SelAll(0,1);
         SPHoptions.doGravity = 1;
         SPHoptions.doDensity = 0;
+        SPHoptions.nPredictRung = uRung;
         SPHoptions.doSPHForces = 1;
         SPHoptions.useDensityFlags = 0;
         SPHoptions.dofBallFactor = 0;
@@ -5199,6 +5220,7 @@ double MSR::Read(const char *achInFile) {
         printf("Initializing Kernel target complete, Wallclock: %f secs.\n", dsec);
 
         SetSPHoptions();
+        InitializeEOS();
 
         if (prmSpecified(prm,"dSoft")) SetSoft(Soft());
         /*
@@ -5583,6 +5605,15 @@ void MSR::SetSPHoptions() {
     struct inSetSPHoptions in;
     in.SPHoptions = initializeSPHOptions(param,csm,1.0);
     pstSetSPHoptions(pst, &in, sizeof(in), NULL, 0);
+}
+
+void MSR::InitializeEOS() {
+    double sec,dsec;
+    sec = MSR::Time();
+    printf("Initialize EOS ...\n");
+    pstInitializeEOS(pst, NULL, 0, NULL, 0);
+    dsec = MSR::Time() - sec;
+    printf("EOS initialized, Wallclock: %f secs\n\n",dsec);
 }
 
 void MSR::TreeUpdateFlagBounds(int bNeedEwald,uint32_t uRoot,uint32_t utRoot,SPHOptions SPHoptions) {

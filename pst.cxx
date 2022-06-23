@@ -294,6 +294,8 @@ void pstAddServices(PST pst,MDL mdl) {
                   sizeof(struct inCalcMtot), sizeof(struct outCalcMtot));
     mdlAddService(mdl,PST_SETSPHOPTIONS,pst,(fcnService_t *)pstSetSPHoptions,
                   sizeof(struct inSetSPHoptions), 0);
+    mdlAddService(mdl,PST_INITIALIZEEOS,pst,(fcnService_t *)pstInitializeEOS,
+                  0, 0);
     mdlAddService(mdl,PST_TREEUPDATEFLAGBOUNDS,pst,(fcnService_t *)pstTreeUpdateFlagBounds,
                   sizeof(struct inTreeUpdateFlagBounds),
                   (nThreads==1?1:2*nThreads-1)*pkdContext::MaxNodeSize());
@@ -2113,7 +2115,7 @@ int pstGetClasses(PST pst,void *vin,int nIn,void *vout,int nOut) {
         mdlassert(pst->mdl,n*sizeof(PARTCLASS)== nOut);
         for ( i=0; i<nUp; i++ ) {
             for ( j=0; j<n; j++ ) {
-                if ( outUp[i].fMass==out[j].fMass && outUp[i].fSoft==out[j].fSoft && outUp[i].eSpecies==out[j].eSpecies)
+                if ( outUp[i].fMass==out[j].fMass && outUp[i].fSoft==out[j].fSoft && outUp[i].iMat==out[j].iMat && outUp[i].eSpecies==out[j].eSpecies)
                     break;
             }
             if ( j == n ) {
@@ -2266,6 +2268,19 @@ int pstSetSPHoptions(PST pst,void *vin,int nIn,void *vout,int nOut) {
     }
     else {
         copySPHOptions(&in->SPHoptions, &plcl->pkd->SPHoptions);
+    }
+    return 0;
+}
+
+int pstInitializeEOS(PST pst,void *vin,int nIn,void *vout,int nOut) {
+    LCL *plcl = pst->plcl;
+    if (pst->nLeaves > 1) {
+        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_INITIALIZEEOS,vin,nIn);
+        pstInitializeEOS(pst->pstLower,vin,nIn,vout,nOut);
+        mdlGetReply(pst->mdl,rID,NULL,NULL);
+    }
+    else {
+        pkdInitializeEOS(plcl->pkd);
     }
     return 0;
 }

@@ -45,7 +45,8 @@
 #include "cuda/cudautil.h"
 #include "cuda/cudapppc.h"
 #include "cuda/cudaewald.h"
-#include "../SPHOptions.h"
+#include "../SPH/SPHOptions.h"
+#include "../SPH/SPHEOS.h"
 
 static inline int getCell(PKD pkd,int iCache,int iCell,int id,float *pcOpen,KDN **pc) {
     KDN *c;
@@ -261,7 +262,13 @@ found_it:
                                             float cs = 0.0f;                        /* should be calculated by the EOS, nyi */
                                             const float *ap = pkdAccel(pkd,p);
                                             if (SPHoptions->doSPHForces) {
-                                                P = EOSPCofRhoU(pkdDensity(pkd,p),pNewSph->u + dtPredDrift * pNewSph->uDot,&cs,SPHoptions);
+                                                if (SPHoptions->doOnTheFlyPrediction) {
+                                                    P = SPHEOSPCofRhoU(pkd,pkdDensity(pkd,p),pNewSph->u + dtPredDrift * pNewSph->uDot,&cs,pkdiMat(pkd,p),SPHoptions);
+                                                }
+                                                else {
+                                                    P = pNewSph->P;
+                                                    cs = pNewSph->c;
+                                                }
                                             }
                                             vpred[0] = v[0] + dtPredDrift * ap[0];
                                             vpred[1] = v[1] + dtPredDrift * ap[1];
@@ -333,7 +340,13 @@ found_it:
                                                 float cs = 0.0f;                    /* should be calculated by the EOS, nyi */
                                                 const float *ap = pkdAccel(pkd,p);
                                                 if (SPHoptions->doSPHForces) {
-                                                    P = EOSPCofRhoU(pkdDensity(pkd,p),pNewSph->u + dtPredDrift * pNewSph->uDot,&cs,SPHoptions);
+                                                    if (SPHoptions->doOnTheFlyPrediction) {
+                                                        P = SPHEOSPCofRhoU(pkd,pkdDensity(pkd,p),pNewSph->u + dtPredDrift * pNewSph->uDot,&cs,pkdiMat(pkd,p),SPHoptions);
+                                                    }
+                                                    else {
+                                                        P = pNewSph->P;
+                                                        cs = pNewSph->c;
+                                                    }
                                                 }
                                                 vpred[0] = v[0] + dtPredDrift * ap[0];
                                                 vpred[1] = v[1] + dtPredDrift * ap[1];

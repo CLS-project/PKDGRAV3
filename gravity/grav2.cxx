@@ -40,7 +40,8 @@
 #include "cuda/cudautil.h"
 #include "cuda/cudapppc.h"
 #include "cuda/cudaewald.h"
-#include "SPHOptions.h"
+#include "SPH/SPHOptions.h"
+#include "SPH/SPHEOS.h"
 
 #if 1
 #if defined(USE_SIMD) && defined(__SSE2__)
@@ -173,7 +174,11 @@ void pkdParticleWorkDone(workParticle *wp) {
                     pkdSetBall(pkd,p,wp->pInfoOut[i].fBall);
                     pNewSph->Omega = 1.0f + wp->pInfoOut[i].fBall/(3.0f * wp->pInfoOut[i].rho)*wp->pInfoOut[i].drhodfball;
                     if (wp->SPHoptions->doUConversion) {
-                        pNewSph->u = EOSUofRhoT(pkdDensity(pkd,p),pNewSph->u,wp->SPHoptions);
+                        pNewSph->u = SPHEOSUofRhoT(pkd,pkdDensity(pkd,p),pNewSph->u,pkdiMat(pkd,p),wp->SPHoptions);
+                    }
+                    if (!wp->SPHoptions->doOnTheFlyPrediction) {
+                        float dtPredDrift = getDtPredDrift(wp->kick,0,wp->SPHoptions->nPredictRung,p->uRung);
+                        pNewSph->P = SPHEOSPCofRhoU(pkd,pkdDensity(pkd,p),pNewSph->u + dtPredDrift * pNewSph->uDot,&pNewSph->c,pkdiMat(pkd,p),wp->SPHoptions);
                     }
                 }
                 if (wp->SPHoptions->doSPHForces) {
@@ -293,7 +298,13 @@ void pkdParticleWorkDone(workParticle *wp) {
                             uNewRung = std::max(std::max((int)uNewRung,(int)round(wp->pInfoOut[i].maxRung) - wp->SPHoptions->nRungCorrection),0);
                         }
                     }
-                    else uNewRung = 0; /* Assumes current uNewRung is outdated -- not ideal */
+                    else {
+                        uNewRung = 0; /* Assumes current uNewRung is outdated -- not ideal */
+                        if (pkd->oFieldOffset[oNewSph]) {
+                            uNewRung = pkdDtToRungInverse(wp->pInfoOut[i].dtEst,fiDelta,wp->ts->uMaxRung-1);
+                            uNewRung = std::max(std::max((int)uNewRung,(int)round(wp->pInfoOut[i].maxRung) - wp->SPHoptions->nRungCorrection),0);
+                        }
+                    }
                 } /* end of wp->bGravStep */
                 else {
                     /*
@@ -314,7 +325,13 @@ void pkdParticleWorkDone(workParticle *wp) {
                             uNewRung = std::max(std::max((int)uNewRung,(int)round(wp->pInfoOut[i].maxRung) - wp->SPHoptions->nRungCorrection),0);
                         }
                     }
-                    else uNewRung = 0;
+                    else {
+                        uNewRung = 0;
+                        if (pkd->oFieldOffset[oNewSph]) {
+                            uNewRung = pkdDtToRungInverse(wp->pInfoOut[i].dtEst,fiDelta,wp->ts->uMaxRung-1);
+                            uNewRung = std::max(std::max((int)uNewRung,(int)round(wp->pInfoOut[i].maxRung) - wp->SPHoptions->nRungCorrection),0);
+                        }
+                    }
                 }
                 /*
                 ** Here we must make sure we do not try to take a larger opening
@@ -347,6 +364,9 @@ void pkdParticleWorkDone(workParticle *wp) {
                         if (wp->SPHoptions->doSPHForces) {
                             NEWSPHFIELDS *pNewSph = pkdNewSph(pkd,p);
                             pNewSph->u += wp->kick->dtClose[p->uRung] * pNewSph->uDot;
+                            if (!wp->SPHoptions->doOnTheFlyPrediction) {
+                                pNewSph->P = SPHEOSPCofRhoU(pkd,pkdDensity(pkd,p),pNewSph->u,&pNewSph->c,pkdiMat(pkd,p),wp->SPHoptions);
+                            }
                         }
                         if (wp->SPHoptions->VelocityDamper > 0.0f) {
                             v[0] *= 1.0 - wp->kick->dtClose[p->uRung] * wp->SPHoptions->VelocityDamper;
@@ -565,7 +585,13 @@ int pkdGravInteract(PKD pkd,
             }
             wp->pInfoIn[nP].rho = pkdDensity(pkd,p);
             if (wp->SPHoptions->doSPHForces) {
-                wp->pInfoIn[nP].P = EOSPCofRhoU(pkdDensity(pkd,p),pNewSph->u + dtPredDrift * pNewSph->uDot,&wp->pInfoIn[nP].c,SPHoptions);
+                if (wp->SPHoptions->doOnTheFlyPrediction) {
+                    wp->pInfoIn[nP].P = SPHEOSPCofRhoU(pkd,pkdDensity(pkd,p),pNewSph->u + dtPredDrift * pNewSph->uDot,&wp->pInfoIn[nP].c,pkdiMat(pkd,p),SPHoptions);
+                }
+                else {
+                    wp->pInfoIn[nP].P = pNewSph->P;
+                    wp->pInfoIn[nP].c = pNewSph->c;
+                }
             }
             else {
                 wp->pInfoIn[nP].P = 0.0f;
