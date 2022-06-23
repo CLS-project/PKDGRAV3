@@ -176,6 +176,10 @@ void pkdParticleWorkDone(workParticle *wp) {
                     if (wp->SPHoptions->doUConversion) {
                         pNewSph->u = SPHEOSUofRhoT(pkd,pkdDensity(pkd,p),pNewSph->u,pkdiMat(pkd,p),wp->SPHoptions);
                     }
+                    if (!wp->SPHoptions->doOnTheFlyPrediction) {
+                        float dtPredDrift = getDtPredDrift(wp->kick,0,wp->SPHoptions->nPredictRung,p->uRung);
+                        pNewSph->P = SPHEOSPCofRhoU(pkd,pkdDensity(pkd,p),pNewSph->u + dtPredDrift * pNewSph->uDot,&pNewSph->c,pkdiMat(pkd,p),wp->SPHoptions);
+                    }
                 }
                 if (wp->SPHoptions->doSPHForces) {
                     pNewSph->divv = wp->pInfoOut[i].divv;
@@ -360,6 +364,9 @@ void pkdParticleWorkDone(workParticle *wp) {
                         if (wp->SPHoptions->doSPHForces) {
                             NEWSPHFIELDS *pNewSph = pkdNewSph(pkd,p);
                             pNewSph->u += wp->kick->dtClose[p->uRung] * pNewSph->uDot;
+                            if (!wp->SPHoptions->doOnTheFlyPrediction) {
+                                pNewSph->P = SPHEOSPCofRhoU(pkd,pkdDensity(pkd,p),pNewSph->u,&pNewSph->c,pkdiMat(pkd,p),wp->SPHoptions);
+                            }
                         }
                         if (wp->SPHoptions->VelocityDamper > 0.0f) {
                             v[0] *= 1.0 - wp->kick->dtClose[p->uRung] * wp->SPHoptions->VelocityDamper;
@@ -578,7 +585,13 @@ int pkdGravInteract(PKD pkd,
             }
             wp->pInfoIn[nP].rho = pkdDensity(pkd,p);
             if (wp->SPHoptions->doSPHForces) {
-                wp->pInfoIn[nP].P = SPHEOSPCofRhoU(pkd,pkdDensity(pkd,p),pNewSph->u + dtPredDrift * pNewSph->uDot,&wp->pInfoIn[nP].c,pkdiMat(pkd,p),SPHoptions);
+                if (wp->SPHoptions->doOnTheFlyPrediction) {
+                    wp->pInfoIn[nP].P = SPHEOSPCofRhoU(pkd,pkdDensity(pkd,p),pNewSph->u + dtPredDrift * pNewSph->uDot,&wp->pInfoIn[nP].c,pkdiMat(pkd,p),SPHoptions);
+                }
+                else {
+                    wp->pInfoIn[nP].P = pNewSph->P;
+                    wp->pInfoIn[nP].c = pNewSph->c;
+                }
             }
             else {
                 wp->pInfoIn[nP].P = 0.0f;

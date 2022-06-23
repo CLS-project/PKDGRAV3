@@ -262,7 +262,13 @@ found_it:
                                             float cs = 0.0f;                        /* should be calculated by the EOS, nyi */
                                             const float *ap = pkdAccel(pkd,p);
                                             if (SPHoptions->doSPHForces) {
-                                                P = SPHEOSPCofRhoU(pkd,pkdDensity(pkd,p),pNewSph->u + dtPredDrift * pNewSph->uDot,&cs,pkdiMat(pkd,p),SPHoptions);
+                                                if (SPHoptions->doOnTheFlyPrediction) {
+                                                    P = SPHEOSPCofRhoU(pkd,pkdDensity(pkd,p),pNewSph->u + dtPredDrift * pNewSph->uDot,&cs,pkdiMat(pkd,p),SPHoptions);
+                                                }
+                                                else {
+                                                    P = pNewSph->P;
+                                                    cs = pNewSph->c;
+                                                }
                                             }
                                             vpred[0] = v[0] + dtPredDrift * ap[0];
                                             vpred[1] = v[1] + dtPredDrift * ap[1];
@@ -334,7 +340,13 @@ found_it:
                                                 float cs = 0.0f;                    /* should be calculated by the EOS, nyi */
                                                 const float *ap = pkdAccel(pkd,p);
                                                 if (SPHoptions->doSPHForces) {
-                                                    P = SPHEOSPCofRhoU(pkd,pkdDensity(pkd,p),pNewSph->u + dtPredDrift * pNewSph->uDot,&cs,pkdiMat(pkd,p),SPHoptions);
+                                                    if (SPHoptions->doOnTheFlyPrediction) {
+                                                        P = SPHEOSPCofRhoU(pkd,pkdDensity(pkd,p),pNewSph->u + dtPredDrift * pNewSph->uDot,&cs,pkdiMat(pkd,p),SPHoptions);
+                                                    }
+                                                    else {
+                                                        P = pNewSph->P;
+                                                        cs = pNewSph->c;
+                                                    }
                                                 }
                                                 vpred[0] = v[0] + dtPredDrift * ap[0];
                                                 vpred[1] = v[1] + dtPredDrift * ap[1];
