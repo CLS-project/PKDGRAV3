@@ -36,3 +36,33 @@ float getDtPredDrift(struct pkdKickParameters *kick, int bMarked, int uRungLo, i
         }
     }
 }
+
+void SPHpredictOnTheFly(PKD pkd, PARTICLE *p, struct pkdKickParameters *kick, int uRungLo, float *vpred, float *P, float *cs, SPHOptions *SPHoptions) {
+    NEWSPHFIELDS *pNewSph = pkdNewSph(pkd,p);
+    float dtPredDrift = getDtPredDrift(kick,p->bMarked,uRungLo,p->uRung);
+    const float *ap = pkdAccel(pkd,p);
+    const vel_t *v = pkdVel(pkd,p);
+    vpred[0] = v[0] + dtPredDrift * ap[0];
+    vpred[1] = v[1] + dtPredDrift * ap[1];
+    vpred[2] = v[2] + dtPredDrift * ap[2];
+    if ((SPHoptions->VelocityDamper > 0.0) & p->bMarked) {
+        vpred[0] /= 1.0 - kick->dtClose[p->uRung] * SPHoptions->VelocityDamper;
+        vpred[1] /= 1.0 - kick->dtClose[p->uRung] * SPHoptions->VelocityDamper;
+        vpred[2] /= 1.0 - kick->dtClose[p->uRung] * SPHoptions->VelocityDamper;
+    }
+    if (SPHoptions->doSPHForces) {
+        if (SPHoptions->doOnTheFlyPrediction) {
+            *P = SPHEOSPCofRhoU(pkd,pkdDensity(pkd,p),pNewSph->u + dtPredDrift * pNewSph->uDot,cs,pkdiMat(pkd,p),SPHoptions);
+        }
+        else {
+            *P = pNewSph->P;
+            *cs = pNewSph->c;
+        }
+    }
+}
+
+void SPHpredictInDensity(PKD pkd, PARTICLE *p, struct pkdKickParameters *kick, int uRungLo, float *P, float *cs, SPHOptions *SPHoptions) {
+    NEWSPHFIELDS *pNewSph = pkdNewSph(pkd,p);
+    float dtPredDrift = getDtPredDrift(kick,0,uRungLo,p->uRung);
+    *P = SPHEOSPCofRhoU(pkd,pkdDensity(pkd,p),pNewSph->u + dtPredDrift * pNewSph->uDot,cs,pkdiMat(pkd,p),SPHoptions);
+}

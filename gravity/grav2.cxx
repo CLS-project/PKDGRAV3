@@ -178,8 +178,7 @@ void pkdParticleWorkDone(workParticle *wp) {
                         pNewSph->u = SPHEOSUofRhoT(pkd,pkdDensity(pkd,p),pNewSph->u,pkdiMat(pkd,p),wp->SPHoptions);
                     }
                     if (!wp->SPHoptions->doOnTheFlyPrediction) {
-                        float dtPredDrift = getDtPredDrift(wp->kick,0,wp->SPHoptions->nPredictRung,p->uRung);
-                        pNewSph->P = SPHEOSPCofRhoU(pkd,pkdDensity(pkd,p),pNewSph->u + dtPredDrift * pNewSph->uDot,&pNewSph->c,pkdiMat(pkd,p),wp->SPHoptions);
+                        SPHpredictInDensity(pkd, p, wp->kick, wp->SPHoptions->nPredictRung, &pNewSph->P, &pNewSph->c, wp->SPHoptions);
                     }
                 }
                 if (wp->SPHoptions->doSPHForces) {
@@ -578,32 +577,11 @@ int pkdGravInteract(PKD pkd,
 
         if (pkd->oFieldOffset[oNewSph]) {
             NEWSPHFIELDS *pNewSph = pkdNewSph(pkd,p);
-            float dtPredDrift = getDtPredDrift(kick,p->bMarked,ts->uRungLo,p->uRung);
             wp->pInfoIn[nP].fBall = pkdBall(pkd,p);
             wp->pInfoIn[nP].isTooLarge = 0;
             wp->pInfoIn[nP].Omega = pNewSph->Omega;
-            wp->pInfoIn[nP].v[0] = v[0] + dtPredDrift * wp->pInfoIn[nP].a[0];
-            wp->pInfoIn[nP].v[1] = v[1] + dtPredDrift * wp->pInfoIn[nP].a[1];
-            wp->pInfoIn[nP].v[2] = v[2] + dtPredDrift * wp->pInfoIn[nP].a[2];
-            if ((wp->SPHoptions->VelocityDamper > 0.0) & p->bMarked) {
-                wp->pInfoIn[nP].v[0] /= 1.0 - kick->dtClose[p->uRung] * wp->SPHoptions->VelocityDamper;
-                wp->pInfoIn[nP].v[1] /= 1.0 - kick->dtClose[p->uRung] * wp->SPHoptions->VelocityDamper;
-                wp->pInfoIn[nP].v[2] /= 1.0 - kick->dtClose[p->uRung] * wp->SPHoptions->VelocityDamper;
-            }
+            SPHpredictOnTheFly(pkd, p, kick, ts->uRungLo, wp->pInfoIn[nP].v, &wp->pInfoIn[nP].P, &wp->pInfoIn[nP].c, SPHoptions);
             wp->pInfoIn[nP].rho = pkdDensity(pkd,p);
-            if (wp->SPHoptions->doSPHForces) {
-                if (wp->SPHoptions->doOnTheFlyPrediction) {
-                    wp->pInfoIn[nP].P = SPHEOSPCofRhoU(pkd,pkdDensity(pkd,p),pNewSph->u + dtPredDrift * pNewSph->uDot,&wp->pInfoIn[nP].c,pkdiMat(pkd,p),SPHoptions);
-                }
-                else {
-                    wp->pInfoIn[nP].P = pNewSph->P;
-                    wp->pInfoIn[nP].c = pNewSph->c;
-                }
-            }
-            else {
-                wp->pInfoIn[nP].P = 0.0f;
-                wp->pInfoIn[nP].c = 0.0f;
-            }
             wp->pInfoIn[nP].species = pkdSpecies(pkd,p);
 
             wp->pInfoOut[nP].rho = 0.0f;
