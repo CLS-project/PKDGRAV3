@@ -763,6 +763,61 @@ enum PKD_FIELD {
     MAX_PKD_FIELD
 };
 
+class particleStore {
+protected:
+    PARTICLE *pStore = nullptr;
+    size_t iParticleSize = 0; // Size (in bytes) of a single PARTICLE
+    size_t nParticleAlign = 0, iParticle32 = 0;
+    int nStore = 0; // Maximum local particles
+    int nLocal = 0; // Current number of particles
+public:
+    void initialize(int iBasicSize) {
+        iParticleSize = nParticleAlign = iBasicSize;
+        iParticle32 = 0;
+    }
+    void align(void) {
+        iParticleSize = (iParticleSize + nParticleAlign - 1 ) & ~(nParticleAlign-1);
+    }
+    template<typename T>
+    int add(int n=1) {
+        static_assert(std::alignment_of_v<T> == 4 || std::alignment_of_v<T> == 8);
+        int iOffset = iParticleSize;
+        int iAlign = std::alignment_of_v<T>;
+        assert(ParticleBase() == nullptr);
+        if (iAlign==4 && iParticle32 && n==1) {
+            iOffset = iParticle32;
+            iParticle32 = 0;
+        }
+        else {
+            auto iMask = iOffset & (iAlign-1);
+            if (iMask) {
+                iParticle32 = iOffset;
+                iOffset += iAlign - iMask;
+            }
+            assert((iOffset & (iAlign-1)) == 0);
+            iParticleSize = iOffset + n * sizeof(T);
+        }
+        if (nParticleAlign < iAlign) nParticleAlign = iAlign;
+        return iOffset;
+    }
+    void setStore(void *p,int n) {
+        pStore = static_cast<PARTICLE *>(p);
+        nStore = n;
+    }
+public:
+    auto ParticleSize() {return iParticleSize; }
+    auto ParticleGet(void *pBase, int i) {
+        auto v = static_cast<char *>(pBase);
+        return reinterpret_cast<PARTICLE *>(v + ((uint64_t)i)*ParticleSize());
+    }
+    PARTICLE *ParticleBase() { return pStore; }
+    PARTICLE *Particle(int i) { return ParticleGet(ParticleBase(),i); }
+    int FreeStore() { return nStore; }
+    int Local() { return nLocal; }
+    int SetLocal(int n) {return (nLocal=n);}
+    int AddLocal(int n) {return (nLocal+=n);}
+};
+
 class pkdContext {
 public:
     explicit pkdContext(
@@ -778,36 +833,24 @@ protected:  // Support for memory models
     int NodeAddFloat     (int n=1); // Add n floats to the node structure
     int NodeAddInt64     (int n=1); // Add n 64-bit integers to the node structure
     int NodeAddInt32     (int n=1); // Add n 32-bit integers to the node structure
-    int ParticleAddStruct(int n);   // Add a structure: assume double alignment
-    int ParticleAddDouble(int n=1); // Add n doubles to the particle structure
-    int ParticleAddFloat (int n=1); // Add n floats to the particle structure
-    int ParticleAddInt64 (int n=1); // Add n 64-bit integers to the particle structure
-    int ParticleAddInt32 (int n=1); // Add n 32-bit integers to the particle structure
 protected:
-    PARTICLE *pStorePRIVATE = nullptr;
     PARTICLE *pTempPRIVATE = nullptr;
-    int nStore = 0; // Maximum local particles
-    int nLocal = 0; // Current number of particles
-    size_t nParticleAlign = 0, iParticle32 = 0;
-    size_t iParticleSize = 0; // Size (in bytes) of a single PARTICLE
     size_t iTreeNodeSize = 0; // Size (in bytes) of a tree node
     uint32_t nEphemeralBytes = 0; /* per-particle */
 public:
-    int FreeStore() { return nStore; }
-    int Local() { return nLocal; }
-    int SetLocal(int n) {return (nLocal=n);}
-    int AddLocal(int n) {return (nLocal+=n);}
+    particleStore particles;
+    int FreeStore() { return particles.FreeStore(); }
+    int Local() { return particles.Local(); }
+    int SetLocal(int n) {return particles.SetLocal(n);}
+    int AddLocal(int n) {return particles.AddLocal(n);}
     auto EphemeralBytes() {return nEphemeralBytes; }
     static constexpr auto MaxNodeSize() { return sizeof(KDN) + 2*sizeof(BND) + sizeof(FMOMR) + 6*sizeof(double) + sizeof(SPHBNDS); }
     auto NodeSize() { return iTreeNodeSize; }
-    auto ParticleSize() {return iParticleSize; }
+    auto ParticleSize() {return particles.ParticleSize();}
+    auto ParticleGet(void *pBase, int i) { return particles.ParticleGet(pBase,i); }
     auto ParticleMemory() { return (ParticleSize() + EphemeralBytes()) * (FreeStore()+1); }
-    auto ParticleGet(void *pBase, int i) {
-        auto v = static_cast<char *>(pBase);
-        return reinterpret_cast<PARTICLE *>(v + ((uint64_t)i)*ParticleSize());
-    }
-    PARTICLE *ParticleBase() { return pStorePRIVATE; }
-    PARTICLE *Particle(int i) { return ParticleGet(ParticleBase(),i); }
+    PARTICLE *ParticleBase() { return particles.ParticleBase(); }
+    PARTICLE *Particle(int i) { return particles.Particle(i); }
 
     void SaveParticle(PARTICLE *a) { memcpy(pTempPRIVATE,a,ParticleSize()); }
     void LoadParticle(PARTICLE *a) { memcpy(a,pTempPRIVATE,ParticleSize()); }

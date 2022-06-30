@@ -147,76 +147,6 @@ int pkdContext::NodeAddInt32(int n) {
     return iOffset;
 }
 
-/* Add a structure: assume double alignment */
-int pkdContext::ParticleAddStruct(int n) {
-    int iOffset = iParticleSize;
-    assert(ParticleBase() == nullptr);
-    assert((iOffset & (sizeof(double)-1)) == 0);
-    if (nParticleAlign < sizeof(double)) nParticleAlign = sizeof(double);
-    iParticleSize += n;
-    return iOffset;
-}
-
-/* Add n doubles to the particle structure */
-int pkdContext::ParticleAddDouble(int n) {
-    int iOffset = iParticleSize;
-    assert(ParticleBase() == nullptr);
-    if ( (iOffset & (sizeof(int64_t)-1)) != 0 ) {
-        assert(iParticle32==0);
-        iParticle32 = iParticleSize;
-        iOffset = iParticleSize += sizeof(float);
-    }
-    assert((iOffset & (sizeof(double)-1)) == 0);
-    if (nParticleAlign < sizeof(double)) nParticleAlign = sizeof(double);
-    iParticleSize += sizeof(double) * n;
-    return iOffset;
-}
-
-/* Add n floats to the particle structure */
-int pkdContext::ParticleAddFloat(int n) {
-    int iOffset = iParticleSize;
-    assert(ParticleBase() == nullptr);
-    if ( n==1 && iParticle32) {
-        iOffset = iParticle32;
-        iParticle32 = 0;
-    }
-    else {
-        assert((iOffset & (sizeof(float)-1)) == 0);
-        iParticleSize += sizeof(float) * n;
-    }
-    return iOffset;
-}
-
-/* Add n 64-bit integers to the particle structure */
-int pkdContext::ParticleAddInt64(int n) {
-    int iOffset = iParticleSize;
-    assert(ParticleBase() == nullptr);
-    if ( (iOffset & (sizeof(int64_t)-1)) != 0 ) {
-        assert(iParticle32==0 );
-        iParticle32 = iParticleSize;
-        iOffset = iParticleSize += sizeof(float);
-    }
-    assert((iOffset & (sizeof(int64_t)-1)) == 0);
-    if (nParticleAlign < sizeof(int64_t)) nParticleAlign = sizeof(int64_t);
-    iParticleSize += sizeof(int64_t) * n;
-    return iOffset;
-}
-
-/* Add n 32-bit integers to the particle structure */
-int pkdContext::ParticleAddInt32(int n) {
-    int iOffset = iParticleSize;
-    assert(ParticleBase() == nullptr);
-    if ( n==1 && iParticle32) {
-        iOffset = iParticle32;
-        iParticle32 = 0;
-    }
-    else {
-        assert((iOffset & (sizeof(int32_t)-1)) == 0);
-        iParticleSize += sizeof(int32_t) * n;
-    }
-    return iOffset;
-}
-
 //************************************************************************************************************************
 //**
 //************************************************************************************************************************
@@ -328,7 +258,6 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     srand(RANDOM_SEED);
 
     this->kdNodeListPRIVATE = NULL;
-    this->nStore = 0; /* Set properly below */
     SetLocal(0);
     this->nDark = nDark;
     this->nGas = nGas;
@@ -360,42 +289,38 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     this->bNoParticleOrder = (mMemoryModel&PKD_MODEL_UNORDERED) ? 1 : 0;
     this->bIntegerPosition = (mMemoryModel&PKD_MODEL_INTEGER_POS) ? 1 : 0;
 
-    if ( this->bNoParticleOrder )
-        this->iParticleSize = this->nParticleAlign = sizeof(UPARTICLE);
-    else
-        this->iParticleSize = this->nParticleAlign = sizeof(PARTICLE);
-    this->iParticle32 = 0;
+    particles.initialize(this->bNoParticleOrder ? sizeof(UPARTICLE) : sizeof(PARTICLE));
     this->iTreeNodeSize = sizeof(KDN);
 
-    if (!this->bIntegerPosition) this->oFieldOffset[oPosition] = ParticleAddDouble(3);
+    if (!this->bIntegerPosition) this->oFieldOffset[oPosition] = particles.add<double>(3);
     if ( mMemoryModel & PKD_MODEL_PARTICLE_ID )
-        this->oFieldOffset[oParticleID] = ParticleAddInt64();
+        this->oFieldOffset[oParticleID] = particles.add<int64_t>();
     else
         this->oFieldOffset[oParticleID] = 0;
 
     this->oFieldOffset[oVelocity] = 0;
     if ( mMemoryModel & PKD_MODEL_VELOCITY ) {
         if (sizeof(vel_t) == sizeof(double)) {
-            this->oFieldOffset[oVelocity] = ParticleAddDouble(3);
+            this->oFieldOffset[oVelocity] = particles.add<double>(3);
         }
     }
-    if (this->bIntegerPosition) this->oFieldOffset[oPosition] = ParticleAddInt32(3);
+    if (this->bIntegerPosition) this->oFieldOffset[oPosition] = particles.add<int32_t>(3);
     if ( mMemoryModel & PKD_MODEL_RELAXATION )
-        this->oFieldOffset[oRelaxation] = ParticleAddDouble();
+        this->oFieldOffset[oRelaxation] = particles.add<double>();
     else
         this->oFieldOffset[oRelaxation] = 0;
 
     if ( mMemoryModel & PKD_MODEL_SPH )
 #ifdef OPTIM_UNION_EXTRAFIELDS
-        this->oFieldOffset[oSph] = ParticleAddStruct(sizeof(EXTRAFIELDS));
+        this->oFieldOffset[oSph] = particles.add<EXTRAFIELDS>();
 #else
-        this->oFieldOffset[oSph] = ParticleAddStruct(sizeof(SPHFIELDS));
+        this->oFieldOffset[oSph] = particles.add<SPHFIELDS>();
 #endif
     else
         this->oFieldOffset[oSph] = 0;
 
     if ( mMemoryModel & PKD_MODEL_NEW_SPH )
-        this->oFieldOffset[oNewSph] = ParticleAddStruct(sizeof(NEWSPHFIELDS));
+        this->oFieldOffset[oNewSph] = particles.add<NEWSPHFIELDS>();
     else
         this->oFieldOffset[oNewSph] = 0;
 
@@ -403,9 +328,9 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
 #ifdef OPTIM_UNION_EXTRAFIELDS
         this->oFieldOffset[oStar] = 1;  // this value is of no relevance as long as it is >0
         if (!this->oFieldOffset[oSph])
-            this->oFieldOffset[oSph] = ParticleAddStruct(sizeof(EXTRAFIELDS));
+            this->oFieldOffset[oSph] = particles.add<EXTRAFIELDS>();
 #else
-        this->oFieldOffset[oStar] = ParticleAddStruct(sizeof(STARFIELDS));
+        this->oFieldOffset[oStar] = particles.add<STARFIELDS>();
 #endif
     }
     else
@@ -416,9 +341,9 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
 #ifdef OPTIM_UNION_EXTRAFIELDS
         this->oFieldOffset[oBH] = 1;    // this value is of no relevance as long as it is >0
         if (!this->oFieldOffset[oSph])
-            this->oFieldOffset[oSph] = ParticleAddStruct(sizeof(EXTRAFIELDS));
+            this->oFieldOffset[oSph] = particles.add<EXTRAFIELDS>();
 #else
-        this->oFieldOffset[oBH] = ParticleAddStruct(sizeof(BHFIELDS));
+        this->oFieldOffset[oBH] = particles.add<BHFIELDS>();
 #endif
     }
     else
@@ -426,44 +351,44 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
 #endif // BLACKHOLES
 
     if ( mMemoryModel & PKD_MODEL_VELSMOOTH )
-        this->oFieldOffset[oVelSmooth] = ParticleAddStruct(sizeof(VELSMOOTH));
+        this->oFieldOffset[oVelSmooth] = particles.add<VELSMOOTH>();
     else
         this->oFieldOffset[oVelSmooth] = 0;
     if ( mMemoryModel & PKD_MODEL_VELOCITY ) {
         if (sizeof(vel_t) == sizeof(float)) {
-            this->oFieldOffset[oVelocity] = ParticleAddFloat(3);
+            this->oFieldOffset[oVelocity] = particles.add<float>(3);
         }
     }
     if ( mMemoryModel & PKD_MODEL_ACCELERATION )
-        this->oFieldOffset[oAcceleration] = ParticleAddFloat(3);
+        this->oFieldOffset[oAcceleration] = particles.add<float>(3);
     else
         this->oFieldOffset[oAcceleration] = 0;
 
     if ( mMemoryModel & PKD_MODEL_MASS )
-        this->oFieldOffset[oMass] = ParticleAddFloat();
+        this->oFieldOffset[oMass] = particles.add<float>();
     else
         this->oFieldOffset[oMass] = 0;
 
     if ( mMemoryModel & PKD_MODEL_SOFTENING )
-        this->oFieldOffset[oSoft] = ParticleAddFloat();
+        this->oFieldOffset[oSoft] = particles.add<float>();
     else
         this->oFieldOffset[oSoft] = 0;
 
     if ( mMemoryModel & (PKD_MODEL_SPH|PKD_MODEL_NEW_SPH|PKD_MODEL_BALL) )
-        this->oFieldOffset[oBall] = ParticleAddFloat();
+        this->oFieldOffset[oBall] = particles.add<float>();
     else this->oFieldOffset[oBall] = 0;
     if ( mMemoryModel & (PKD_MODEL_SPH|PKD_MODEL_NEW_SPH|PKD_MODEL_DENSITY) )
-        this->oFieldOffset[oDensity] = ParticleAddFloat();
+        this->oFieldOffset[oDensity] = particles.add<float>();
     else this->oFieldOffset[oDensity] = 0;
 
     this->oFieldOffset[oGroup] = 0;
     if ( (mMemoryModel & PKD_MODEL_GROUPS) && !this->bNoParticleOrder) {
-        this->oFieldOffset[oGroup] = ParticleAddInt32();
+        this->oFieldOffset[oGroup] = particles.add<int32_t>();
     }
     else this->oFieldOffset[oGroup] = 0;
 
     if ( mMemoryModel & PKD_MODEL_POTENTIAL ) {
-        this->oFieldOffset[oPotential] = ParticleAddFloat();
+        this->oFieldOffset[oPotential] = particles.add<float>();
     }
     else this->oFieldOffset[oPotential] = 0;
 
@@ -533,19 +458,18 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     assert(NodeSize()<=MaxNodeSize());
 
     /* Align the particle size and the tree node, and store the tree node parameters */
-    this->iParticleSize = (this->iParticleSize + this->nParticleAlign - 1 ) & ~(this->nParticleAlign-1);
+    particles.align();
     this->iTreeNodeSize = (this->iTreeNodeSize + sizeof(double) - 1 ) & ~(sizeof(double)-1);
     this->nTreeBitsLo = nTreeBitsLo;
     this->nTreeBitsHi = nTreeBitsHi;
     this->iTreeMask = (1<<this->nTreeBitsLo) - 1;
 
     /* Adjust nStore so that we use an integer number of pages */
-    int n = nPageSize / gcd(nPageSize,this->iParticleSize);
+    int n = nPageSize / gcd(nPageSize,particles.ParticleSize());
     nStore += n; /* Not "n-1" here because we reserve one at the end */
     nStore -= nStore % n;
-    assert( (uint64_t)nStore*this->iParticleSize % nPageSize == 0);
+    assert( (uint64_t)nStore*this->ParticleSize() % nPageSize == 0);
     --nStore;
-    this->nStore = nStore;
 
     /*
     ** We need to allocate one large chunk of memory for:
@@ -603,7 +527,8 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     firstTouch(nBytesParticles/mdlCores(this->mdl),pParticles);
     firstTouch(nBytesEphemeral/mdlCores(this->mdl),pEphemeral);
     firstTouch(nBytesTreeNodes/mdlCores(this->mdl),pTreeNodes);
-    this->pStorePRIVATE = (PARTICLE *)pParticles;
+    particles.setStore(pParticles,nStore);
+
     this->pLite = pEphemeral;
     /*
     ** Now we setup the node storage for the tree.  This storage is no longer
@@ -684,7 +609,7 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     ** Initialize neighbor list pointer to NULL if present.
     */
     if (this->oFieldOffset[oSph]) {
-        for (pi=0; pi<(this->nStore+1); ++pi) {
+        for (pi=0; pi<(particles.FreeStore()+1); ++pi) {
             p = Particle(pi);
             *pkd_pNeighborList(this,p) = NULL;
         }
