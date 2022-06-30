@@ -42,6 +42,7 @@
 #include "cuda/cudaewald.h"
 #include "SPH/SPHOptions.h"
 #include "SPH/SPHEOS.h"
+#include "SPH/SPHpredict.h"
 
 #if 1
 #if defined(USE_SIMD) && defined(__SSE2__)

@@ -47,6 +47,7 @@
 #include "cuda/cudaewald.h"
 #include "../SPH/SPHOptions.h"
 #include "../SPH/SPHEOS.h"
+#include "../SPH/SPHpredict.h"
 
 static inline int getCell(PKD pkd,int iCache,int iCell,int id,float *pcOpen,KDN **pc) {
     KDN *c;
