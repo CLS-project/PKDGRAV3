@@ -3939,7 +3939,7 @@ void pkdInitializeEOS(PKD pkd) {
         else {
 #ifdef HAVE_EOSLIB_H
             if (pkd->materials[iMat] == NULL) {
-                if (iMat == EOSIDEALGAS) {
+                if (iMat == MAT_IDEALGAS) {
                     struct igeosParam param;
                     param.dConstGamma = pkd->SPHoptions.gamma;
                     param.dMeanMolMass = pkd->SPHoptions.dMeanMolWeight;
