@@ -183,7 +183,7 @@ void pkdParticleWorkDone(workParticle *wp) {
                 }
                 if (wp->SPHoptions->doSPHForces) {
                     pNewSph->divv = wp->pInfoOut[i].divv;
-                    if (wp->SPHoptions->useIsentropic) {
+                    if (pkdiMat(pkd,p) == 0 && wp->SPHoptions->useIsentropic && wp->SPHoptions->useBuiltinIdeal) {
                         pNewSph->uDot = (wp->SPHoptions->gamma - 1.0f) / pow(pkdDensity(pkd,p),wp->SPHoptions->gamma - 1.0f) * wp->pInfoOut[i].uDot;
                     }
                     else {
