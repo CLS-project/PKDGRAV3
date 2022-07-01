@@ -91,7 +91,7 @@ typedef struct {
     float v[3];
     float rho; /* fDensity above is used for different stuff, calculated with different kernel etc */
     float P;
-    float c;
+    float cs;
     int32_t species;
     int isTooLarge;
     /*    float v[3];*/

@@ -56,7 +56,7 @@ void SPHpredictOnTheFly(PKD pkd, PARTICLE *p, struct pkdKickParameters *kick, in
         }
         else {
             *P = pNewSph->P;
-            *cs = pNewSph->c;
+            *cs = pNewSph->cs;
         }
     }
 }

@@ -178,7 +178,7 @@ void pkdParticleWorkDone(workParticle *wp) {
                         pNewSph->u = SPHEOSUofRhoT(pkd,pkdDensity(pkd,p),pNewSph->u,pkdiMat(pkd,p),wp->SPHoptions);
                     }
                     if (!wp->SPHoptions->doOnTheFlyPrediction) {
-                        SPHpredictInDensity(pkd, p, wp->kick, wp->SPHoptions->nPredictRung, &pNewSph->P, &pNewSph->c, wp->SPHoptions);
+                        SPHpredictInDensity(pkd, p, wp->kick, wp->SPHoptions->nPredictRung, &pNewSph->P, &pNewSph->cs, wp->SPHoptions);
                     }
                 }
                 if (wp->SPHoptions->doSPHForces) {
@@ -365,7 +365,7 @@ void pkdParticleWorkDone(workParticle *wp) {
                             NEWSPHFIELDS *pNewSph = pkdNewSph(pkd,p);
                             pNewSph->u += wp->kick->dtClose[p->uRung] * pNewSph->uDot;
                             if (!wp->SPHoptions->doOnTheFlyPrediction) {
-                                pNewSph->P = SPHEOSPCofRhoU(pkd,pkdDensity(pkd,p),pNewSph->u,&pNewSph->c,pkdiMat(pkd,p),wp->SPHoptions);
+                                pNewSph->P = SPHEOSPCofRhoU(pkd,pkdDensity(pkd,p),pNewSph->u,&pNewSph->cs,pkdiMat(pkd,p),wp->SPHoptions);
                             }
                         }
                         if (wp->SPHoptions->VelocityDamper > 0.0f) {
@@ -580,7 +580,7 @@ int pkdGravInteract(PKD pkd,
             wp->pInfoIn[nP].fBall = pkdBall(pkd,p);
             wp->pInfoIn[nP].isTooLarge = 0;
             wp->pInfoIn[nP].Omega = pNewSph->Omega;
-            SPHpredictOnTheFly(pkd, p, kick, ts->uRungLo, wp->pInfoIn[nP].v, &wp->pInfoIn[nP].P, &wp->pInfoIn[nP].c, SPHoptions);
+            SPHpredictOnTheFly(pkd, p, kick, ts->uRungLo, wp->pInfoIn[nP].v, &wp->pInfoIn[nP].P, &wp->pInfoIn[nP].cs, SPHoptions);
             wp->pInfoIn[nP].rho = pkdDensity(pkd,p);
             wp->pInfoIn[nP].species = pkdSpecies(pkd,p);
 
