@@ -363,6 +363,9 @@ void pkdParticleWorkDone(workParticle *wp) {
                         v[2] += wp->kick->dtClose[p->uRung]*wp->pInfoOut[i].a[2];
                         if (wp->SPHoptions->doSPHForces) {
                             NEWSPHFIELDS *pNewSph = pkdNewSph(pkd,p);
+                            if (wp->SPHoptions->useIsentropic) {
+                                pNewSph->u = SPHEOSIsentropic(pkd,pNewSph->oldRho,pNewSph->u,pkdDensity(pkd,p),pkdiMat(pkd,p),wp->SPHoptions);
+                            }
                             pNewSph->u += wp->kick->dtClose[p->uRung] * pNewSph->uDot;
                             if (!wp->SPHoptions->doOnTheFlyPrediction) {
                                 pNewSph->P = SPHEOSPCofRhoU(pkd,pkdDensity(pkd,p),pNewSph->u,&pNewSph->cs,pkdiMat(pkd,p),wp->SPHoptions);
