@@ -73,7 +73,6 @@ extern "C" {
 #endif
 SPHOptions initializeSPHOptions(struct parameters param, CSM csm, double dTime);
 void copySPHOptions(SPHOptions *source, SPHOptions *target);
-float getDtPredDrift(struct pkdKickParameters *kick, int bMarked, int uRungLo, int uRung);
 #ifdef __cplusplus
 }
 #endif

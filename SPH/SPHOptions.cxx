@@ -101,17 +101,3 @@ void copySPHOptions(SPHOptions *source, SPHOptions *target) {
     target->doOnTheFlyPrediction = source->doOnTheFlyPrediction;
     target->kernelType = source->kernelType;
 }
-
-float getDtPredDrift(struct pkdKickParameters *kick, int bMarked, int uRungLo, int uRung) {
-    if (uRung < uRungLo) {
-        return kick->dtPredDrift[uRung];
-    }
-    else {
-        if (bMarked) {
-            return - kick->dtOpen[uRung];
-        }
-        else {
-            return kick->dtClose[uRung];
-        }
-    }
-}

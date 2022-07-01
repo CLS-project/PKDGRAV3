@@ -194,7 +194,7 @@ target_sources(${PROJECT_NAME} PRIVATE
 	domains/enforceperiodic.cxx domains/freestore.cxx domains/olddd.cxx
 	gravity/setsoft.cxx gravity/activerung.cxx gravity/countrungs.cxx gravity/zeronewrung.cxx
 	eEOS/eEOS.cxx
-	SPH/SPHOptions.cxx SPH/SPHEOS.cxx
+	SPH/SPHOptions.cxx SPH/SPHEOS.cxx SPH/SPHpredict.cxx
 )
 set_property(SOURCE io/fio.c APPEND PROPERTY COMPILE_DEFINITIONS "USE_PTHREAD")
 #add_executable(tostd utility/tostd.c io/fio.c)
