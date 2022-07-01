@@ -116,6 +116,7 @@ struct parameters {
     int iKernelType;
     int bNewSPH;
     int bGasBuiltinIdeal;
+    int bGasOnTheFlyPrediction;
 
     /* END Gas Parameters */
     double dEta;

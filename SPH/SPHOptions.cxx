@@ -63,7 +63,7 @@ SPHOptions initializeSPHOptions(struct parameters param, CSM csm, double dTime) 
     SPHoptions.useIsentropic = param.bGasIsentropic;
     SPHoptions.useBuiltinIdeal = param.bGasBuiltinIdeal;
     SPHoptions.useDensityFlags = 0;
-    SPHoptions.doOnTheFlyPrediction = 0;
+    SPHoptions.doOnTheFlyPrediction = param.bGasOnTheFlyPrediction;
     SPHoptions.kernelType = param.iKernelType;
     return SPHoptions;
 }
