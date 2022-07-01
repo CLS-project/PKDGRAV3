@@ -20,6 +20,7 @@
 
 #include <stdint.h>
 #include <string.h>
+#include <vector>
 
 #include "mdl.h"
 #ifdef USE_CUDA
@@ -766,34 +767,29 @@ enum class PKD_FIELD {
 template<typename DATA,typename FIELD>
 class dataStore {
 protected:
-    int oFieldOffset[static_cast<unsigned long>(FIELD::MAX_FIELD)];
+    std::vector<int> oFieldOffset;
     DATA *pStore = nullptr;
     size_t iParticleSize = 0; // Size (in bytes) of a single PARTICLE
     size_t nParticleAlign = 0, iParticle32 = 0;
     int nStore = 0; // Maximum local particles
     int nLocal = 0; // Current number of particles
 public:
-    dataStore() {
-        for (auto i=0; i<sizeof(oFieldOffset)/sizeof(oFieldOffset[0]); ++i)
-            oFieldOffset[i] = 0;
-    }
-public:
     void initialize(int iBasicSize) {
         iParticleSize = nParticleAlign = iBasicSize;
         iParticle32 = 0;
-        for (auto i=0; i<sizeof(oFieldOffset)/sizeof(oFieldOffset[0]); ++i)
-            oFieldOffset[i] = 0;
+        oFieldOffset.clear();
+        oFieldOffset.insert(oFieldOffset.end(),static_cast<size_t>(FIELD::MAX_FIELD),0);
     }
     void align(void) {
         iParticleSize = (iParticleSize + nParticleAlign - 1 ) & ~(nParticleAlign-1);
     }
     template<typename T>
-    void add(PKD_FIELD f,int n=1) {
+    void add(PKD_FIELD f) {
         static_assert(std::alignment_of_v<T> == 4 || std::alignment_of_v<T> == 8);
         int iOffset = iParticleSize;
         int iAlign = std::alignment_of_v<T>;
         assert(ParticleBase() == nullptr);
-        if (iAlign==4 && iParticle32 && n==1) {
+        if (iAlign==4 && iParticle32 && sizeof(T)==4) {
             iOffset = iParticle32;
             iParticle32 = 0;
         }
@@ -804,12 +800,12 @@ public:
                 iOffset += iAlign - iMask;
             }
             assert((iOffset & (iAlign-1)) == 0);
-            iParticleSize = iOffset + n * sizeof(T);
+            iParticleSize = iOffset + sizeof(T);
         }
         if (nParticleAlign < iAlign) nParticleAlign = iAlign;
         oFieldOffset[static_cast<unsigned int>(f)] = iOffset;
     }
-    template<> void add<void>(PKD_FIELD f,int n) {
+    template<> void add<void>(PKD_FIELD f) {
         oFieldOffset[static_cast<unsigned int>(f)] = 1;
     }
     void setStore(void *p,int n) {

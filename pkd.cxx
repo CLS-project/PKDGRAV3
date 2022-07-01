@@ -292,14 +292,11 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     particles.initialize(this->bNoParticleOrder ? sizeof(UPARTICLE) : sizeof(PARTICLE));
     this->iTreeNodeSize = sizeof(KDN);
 
-    if (!this->bIntegerPosition) particles.add<double>(PKD_FIELD::oPosition,3);
+    if (!this->bIntegerPosition) particles.add<double[3]>(PKD_FIELD::oPosition);
     if ( mMemoryModel & PKD_MODEL_PARTICLE_ID ) particles.add<int64_t>(PKD_FIELD::oParticleID);
-    if ( mMemoryModel & PKD_MODEL_VELOCITY ) {
-        if (sizeof(vel_t) == sizeof(double)) {
-            particles.add<double>(PKD_FIELD::oVelocity,3);
-        }
-    }
-    if (this->bIntegerPosition) particles.add<int32_t>(PKD_FIELD::oPosition,3);
+    if ( mMemoryModel & PKD_MODEL_VELOCITY && sizeof(vel_t) == sizeof(double))
+        particles.add<double[3]>(PKD_FIELD::oVelocity);
+    if (this->bIntegerPosition) particles.add<int32_t[3]>(PKD_FIELD::oPosition);
     if ( mMemoryModel & PKD_MODEL_RELAXATION ) particles.add<double>(PKD_FIELD::oRelaxation);
     if ( mMemoryModel & PKD_MODEL_SPH )
 #ifdef OPTIM_UNION_EXTRAFIELDS
@@ -333,11 +330,11 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
         particles.add<VELSMOOTH>(PKD_FIELD::oVelSmooth);
     if ( mMemoryModel & PKD_MODEL_VELOCITY ) {
         if (sizeof(vel_t) == sizeof(float)) {
-            particles.add<float>(PKD_FIELD::oVelocity,3);
+            particles.add<float[3]>(PKD_FIELD::oVelocity);
         }
     }
     if ( mMemoryModel & PKD_MODEL_ACCELERATION )
-        particles.add<float>(PKD_FIELD::oAcceleration,3);
+        particles.add<float[3]>(PKD_FIELD::oAcceleration);
 
     if ( mMemoryModel & PKD_MODEL_MASS )
         particles.add<float>(PKD_FIELD::oMass);
