@@ -769,40 +769,40 @@ class dataStore {
 protected:
     std::vector<int> oFieldOffset;
     DATA *pStore = nullptr;
-    size_t iParticleSize = 0; // Size (in bytes) of a single PARTICLE
-    size_t nParticleAlign = 0, iParticle32 = 0;
+    size_t iElementSize = 0; // Size (in bytes) of a single PARTICLE
+    size_t nElementAlign = 0, iElement32 = 0;
     int nStore = 0; // Maximum local particles
     int nLocal = 0; // Current number of particles
 public:
     void initialize(int iBasicSize) {
-        iParticleSize = nParticleAlign = iBasicSize;
-        iParticle32 = 0;
+        iElementSize = nElementAlign = iBasicSize;
+        iElement32 = 0;
         oFieldOffset.clear();
         oFieldOffset.insert(oFieldOffset.end(),static_cast<size_t>(FIELD::MAX_FIELD),0);
     }
     void align(void) {
-        iParticleSize = (iParticleSize + nParticleAlign - 1 ) & ~(nParticleAlign-1);
+        iElementSize = (iElementSize + nElementAlign - 1 ) & ~(nElementAlign-1);
     }
     template<typename T>
     void add(PKD_FIELD f) {
         static_assert(std::alignment_of_v<T> == 4 || std::alignment_of_v<T> == 8);
-        int iOffset = iParticleSize;
+        int iOffset = iElementSize;
         int iAlign = std::alignment_of_v<T>;
-        assert(ParticleBase() == nullptr);
-        if (iAlign==4 && iParticle32 && sizeof(T)==4) {
-            iOffset = iParticle32;
-            iParticle32 = 0;
+        assert(Base() == nullptr);
+        if (iAlign==4 && iElement32 && sizeof(T)==4) {
+            iOffset = iElement32;
+            iElement32 = 0;
         }
         else {
             auto iMask = iOffset & (iAlign-1);
             if (iMask) {
-                iParticle32 = iOffset;
+                iElement32 = iOffset;
                 iOffset += iAlign - iMask;
             }
             assert((iOffset & (iAlign-1)) == 0);
-            iParticleSize = iOffset + sizeof(T);
+            iElementSize = iOffset + sizeof(T);
         }
-        if (nParticleAlign < iAlign) nParticleAlign = iAlign;
+        if (nElementAlign < iAlign) nElementAlign = iAlign;
         oFieldOffset[static_cast<unsigned int>(f)] = iOffset;
     }
     template<> void add<void>(PKD_FIELD f) {
@@ -812,6 +812,8 @@ public:
         pStore = static_cast<DATA *>(p);
         nStore = n;
     }
+protected:
+    DATA *Base() const { return pStore; }
 public:
     auto present(FIELD f) const {return oFieldOffset[static_cast<unsigned int>(f)]!= 0;}
     template<typename T>
@@ -824,17 +826,133 @@ public:
         auto v = reinterpret_cast<char *>(p);
         return present(f) ? reinterpret_cast<T *>(v + oFieldOffset[static_cast<unsigned int>(f)]) : nullptr;
     }
-    auto ParticleSize() {return iParticleSize; }
-    auto ParticleGet(void *pBase, int i) {
+    auto ElementSize() const {return iElementSize; }
+    auto Element(void *pBase, int i) const {
         auto v = static_cast<char *>(pBase);
-        return reinterpret_cast<DATA *>(v + ((uint64_t)i)*ParticleSize());
+        return reinterpret_cast<DATA *>(v + ((uint64_t)i)*ElementSize());
     }
-    DATA *ParticleBase() { return pStore; }
-    DATA *Particle(int i) { return ParticleGet(ParticleBase(),i); }
-    int FreeStore() { return nStore; }
-    int Local() { return nLocal; }
-    int SetLocal(int n) {return (nLocal=n);}
-    int AddLocal(int n) {return (nLocal+=n);}
+    auto Element(int i) const { return Element(Base(),i); }
+    int FreeStore() const { return nStore; }
+    int Local() const { return nLocal; }
+    int SetLocal(int n) { return (nLocal=n);}
+    int AddLocal(int n) { return (nLocal+=n);}
+    DATA *operator[](int i) {return Element(i);}
+};
+
+class particleStore : public dataStore<PARTICLE,PKD_FIELD> {
+protected:
+    friend class Particle;
+    bool bIntegerPosition = false;
+    bool bNoParticleOrder = false;
+    std::vector<PARTCLASS> ParticleClasses;
+    float fSoftFix = -1.0;
+    float fSoftFac = 1.0;
+    float fSoftMax = HUGE_VALF;
+public:
+    void PhysicalSoft(double dSoftMax,double dFac,int bSoftMaxMul) {
+        fSoftFac = dFac;
+        fSoftMax = bSoftMaxMul ? HUGE_VALF : dSoftMax;
+    }
+    void SetSoft(double dSoft) {
+        fSoftFix = dSoft;
+    }
+    float mass( PARTICLE *p ) const {
+        if (present(PKD_FIELD::oMass)) {
+            return get<float>(p,PKD_FIELD::oMass)[0];
+        }
+        else if (bNoParticleOrder) return ParticleClasses[0].fMass;
+        else return ParticleClasses[p->iClass].fMass;
+    }
+    float soft0( PARTICLE *p ) const {
+        if (present(PKD_FIELD::oSoft)) {
+            return get<float>(p,PKD_FIELD::oSoft)[0];
+        }
+        else if (bNoParticleOrder) return ParticleClasses[0].fSoft;
+        else return ParticleClasses[p->iClass].fSoft;
+    }
+    float fixedsoft() const { return fSoftFix; }
+    float soft( PARTICLE *p ) const {
+        float fSoft = fSoftFac * (fSoftFix >= 0.0 ? fSoftFix : soft0(p));
+        if ( fSoft > fSoftMax ) fSoft = fSoftMax;
+        return fSoft;
+    }
+    FIO_SPECIES species( PARTICLE *p ) const {
+        if (bNoParticleOrder) return ParticleClasses[0].eSpecies;
+        else return ParticleClasses[p->iClass].eSpecies;
+    }
+
+public:
+    void initialize(bool bIntegerPosition,bool bNoParticleOrder) {
+        this->bIntegerPosition = bIntegerPosition;
+        this->bNoParticleOrder = bNoParticleOrder;
+        dataStore<PARTICLE,PKD_FIELD>::initialize(bNoParticleOrder ? sizeof(UPARTICLE) : sizeof(PARTICLE));
+        ParticleClasses.reserve(PKD_MAX_CLASSES);
+    }
+
+    auto ParticleBase() { return Base(); }
+    auto ParticleSize() {return ElementSize(); }
+    auto ParticleGet(void *pBase, int i) { return Element(pBase,i); }
+    auto ParticleGet(int i) { return ParticleGet(Base(),i); }
+
+public:
+    void setClass( float fMass, float fSoft, FIO_SPECIES eSpecies, PARTICLE *p ) {
+        if ( present(PKD_FIELD::oMass) ) {
+            auto pMass = get<float>(p,PKD_FIELD::oMass);
+            *pMass = fMass;
+            fMass = 0.0;
+        }
+        if ( present(PKD_FIELD::oSoft) ) {
+            auto pSoft = get<float>(p,PKD_FIELD::oSoft);
+            *pSoft = fSoft;
+            fSoft = 0.0;
+        }
+        /* NOTE: The above can both be true, in which case a "zero" class is recorded */
+        /* NOTE: Species is always part of the class table, so there will be at least one class per species */
+        PARTCLASS newClass(fMass,fSoft,eSpecies);
+
+        /* TODO: This is a linear search which is fine for a small number of classes */
+        auto iclass = std::find(ParticleClasses.begin(),ParticleClasses.end(),newClass);
+        if (iclass==ParticleClasses.end()) {
+            assert( ParticleClasses.size() < PKD_MAX_CLASSES );
+            p->iClass = ParticleClasses.size();
+            ParticleClasses.emplace_back(newClass);
+        }
+        else p->iClass = std::distance(ParticleClasses.begin(),iclass);
+        if (bNoParticleOrder) { assert(p->iClass==0); }
+    }
+
+    int getClasses( int nMax, PARTCLASS *pClass ) {
+        std::copy(ParticleClasses.begin(),ParticleClasses.end(),pClass);
+        return ParticleClasses.size();
+    }
+
+    void setClasses( int n, PARTCLASS *pClass, int bUpdate ) {
+        uint8_t map[PKD_MAX_CLASSES];
+        PARTICLE *p;
+
+        if ( bUpdate && ParticleClasses.size() && !bNoParticleOrder) {
+            /* Build a map from the old class to the new class */
+            assert( n >= ParticleClasses.size() );
+            for (auto i=0; i<ParticleClasses.size(); ++i) {
+                auto jj = std::find(pClass,pClass+n,ParticleClasses[i]);
+                map[i] = std::distance(pClass,jj);
+            }
+
+            /* Now update the class with the new value */
+            for (auto i=0; i<Local(); ++i) {
+                p = ParticleGet(i);
+                assert( p->iClass < ParticleClasses.size() );
+                p->iClass = map[p->iClass];
+            }
+        }
+
+        /* Finally, set the new class table */
+        ParticleClasses.clear();
+        ParticleClasses.insert(ParticleClasses.end(),pClass,pClass+n);
+    }
+
+    void clearClasses() {ParticleClasses.clear();}
+
 };
 
 class pkdContext {
@@ -857,7 +975,7 @@ protected:
     size_t iTreeNodeSize = 0; // Size (in bytes) of a tree node
     uint32_t nEphemeralBytes = 0; /* per-particle */
 public:
-    dataStore<PARTICLE,PKD_FIELD> particles;
+    particleStore particles;
     int FreeStore() { return particles.FreeStore(); }
     int Local() { return particles.Local(); }
     int SetLocal(int n) {return particles.SetLocal(n);}
@@ -869,7 +987,7 @@ public:
     auto ParticleGet(void *pBase, int i) { return particles.ParticleGet(pBase,i); }
     auto ParticleMemory() { return (ParticleSize() + EphemeralBytes()) * (FreeStore()+1); }
     PARTICLE *ParticleBase() { return particles.ParticleBase(); }
-    PARTICLE *Particle(int i) { return particles.Particle(i); }
+    PARTICLE *Particle(int i) { return particles.ParticleGet(i); }
 
     void SaveParticle(PARTICLE *a) { memcpy(pTempPRIVATE,a,ParticleSize()); }
     void LoadParticle(PARTICLE *a) { memcpy(a,pTempPRIVATE,ParticleSize()); }
@@ -945,10 +1063,6 @@ public:
     int64_t nSideHealpix;
     healpixData *pHealpixData;
 
-    std::vector<PARTCLASS> ParticleClasses;
-    float fSoftFix;
-    float fSoftFac;
-    float fSoftMax;
     void *pLite;
     /*
     ** Advanced memory models
@@ -1291,30 +1405,16 @@ static inline void pkdSetBall(PKD pkd, PARTICLE *p, float fBall) {
 
 /* Here is the new way of getting mass and softening */
 static inline float pkdMass( PKD pkd, PARTICLE *p ) {
-    if (pkd->particles.present(PKD_FIELD::oMass)) {
-        return pkd->particles.get<float>(p,PKD_FIELD::oMass)[0];
-    }
-    else if (pkd->bNoParticleOrder) return pkd->ParticleClasses[0].fMass;
-    else return pkd->ParticleClasses[p->iClass].fMass;
+    return pkd->particles.mass(p);
 }
 static inline float pkdSoft0( PKD pkd, PARTICLE *p ) {
-    if (pkd->particles.present(PKD_FIELD::oSoft)) {
-        return pkd->particles.get<float>(p,PKD_FIELD::oSoft)[0];
-    }
-    else if (pkd->bNoParticleOrder) return pkd->ParticleClasses[0].fSoft;
-    else return pkd->ParticleClasses[p->iClass].fSoft;
+    return pkd->particles.soft0(p);
 }
 static inline float pkdSoft( PKD pkd, PARTICLE *p ) {
-    float fSoft;
-    if ( pkd->fSoftFix >= 0.0 ) fSoft = pkd->fSoftFix;
-    else fSoft = pkdSoft0(pkd,p);
-    fSoft *= pkd->fSoftFac;
-    if ( fSoft > pkd->fSoftMax ) fSoft = pkd->fSoftMax;
-    return fSoft;
+    return pkd->particles.soft(p);
 }
 static inline FIO_SPECIES pkdSpecies( PKD pkd, PARTICLE *p ) {
-    if (pkd->bNoParticleOrder) return pkd->ParticleClasses[0].eSpecies;
-    else return pkd->ParticleClasses[p->iClass].eSpecies;
+    return pkd->particles.species(p);
 }
 
 /*
@@ -1641,10 +1741,6 @@ void pkdMoveDeletedParticles(PKD pkd, total_t *n, total_t *nGas, total_t *nDark,
 void pkdGetNParts(PKD pkd, struct outGetNParts *out );
 void pkdSetNParts(PKD pkd, int nGas, int nDark, int nStar, int nBH);
 void pkdInitRelaxation(PKD pkd);
-
-int pkdGetClasses( PKD pkd, int nMax, PARTCLASS *pClass );
-void pkdSetClasses( PKD pkd, int n, PARTCLASS *pClass, int bUpdate );
-void pkdSetClass( PKD pkd, float fMass, float fSoft, FIO_SPECIES eSpecies, PARTICLE *p );
 
 int pkdCountSelected(PKD pkd);
 int pkdSelSpecies(PKD pkd,uint64_t mSpecies, int setIfTrue, int clearIfFalse);

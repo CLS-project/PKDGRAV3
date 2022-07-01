@@ -289,7 +289,7 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     this->bNoParticleOrder = (mMemoryModel&PKD_MODEL_UNORDERED) ? 1 : 0;
     this->bIntegerPosition = (mMemoryModel&PKD_MODEL_INTEGER_POS) ? 1 : 0;
 
-    particles.initialize(this->bNoParticleOrder ? sizeof(UPARTICLE) : sizeof(PARTICLE));
+    particles.initialize(this->bIntegerPosition,this->bNoParticleOrder);
     this->iTreeNodeSize = sizeof(KDN);
 
     if (!this->bIntegerPosition) particles.add<double[3]>(PKD_FIELD::oPosition);
@@ -579,14 +579,6 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     }
 
     /*
-    ** We support up to 256 classes
-    */
-    ParticleClasses.reserve(PKD_MAX_CLASSES);
-
-    this->fSoftFix = -1.0;
-    this->fSoftFac = 1.0;
-    this->fSoftMax = HUGE_VALF;
-    /*
     ** Ewald stuff!
     */
     this->ew.nMaxEwhLoop = 0;
@@ -723,62 +715,6 @@ size_t pkdIllMemory(PKD pkd) {
     return pkd->ill.memory();
 }
 
-void pkdSetClass( PKD pkd, float fMass, float fSoft, FIO_SPECIES eSpecies, PARTICLE *p ) {
-    if ( pkd->particles.present(PKD_FIELD::oMass) ) {
-        auto pMass = pkd->particles.get<float>(p,PKD_FIELD::oMass);
-        *pMass = fMass;
-        fMass = 0.0;
-    }
-    if ( pkd->particles.present(PKD_FIELD::oSoft) ) {
-        auto pSoft = pkd->particles.get<float>(p,PKD_FIELD::oSoft);
-        *pSoft = fSoft;
-        fSoft = 0.0;
-    }
-    /* NOTE: The above can both be true, in which case a "zero" class is recorded */
-    /* NOTE: Species is always part of the class table, so there will be at least one class per species */
-    PARTCLASS newClass(fMass,fSoft,eSpecies);
-
-    /* TODO: This is a linear search which is fine for a small number of classes */
-    auto iclass = std::find(pkd->ParticleClasses.begin(),pkd->ParticleClasses.end(),newClass);
-    if (iclass==pkd->ParticleClasses.end()) {
-        assert( pkd->ParticleClasses.size() < PKD_MAX_CLASSES );
-        p->iClass = pkd->ParticleClasses.size();
-        pkd->ParticleClasses.emplace_back(newClass);
-    }
-    else p->iClass = std::distance(pkd->ParticleClasses.begin(),iclass);
-    if (pkd->bNoParticleOrder) { assert(p->iClass==0); }
-}
-
-int pkdGetClasses( PKD pkd, int nMax, PARTCLASS *pClass ) {
-    std::copy(pkd->ParticleClasses.begin(),pkd->ParticleClasses.end(),pClass);
-    return pkd->ParticleClasses.size();
-}
-
-void pkdSetClasses( PKD pkd, int n, PARTCLASS *pClass, int bUpdate ) {
-    uint8_t map[PKD_MAX_CLASSES];
-    PARTICLE *p;
-
-    if ( bUpdate && pkd->ParticleClasses.size() && !pkd->bNoParticleOrder) {
-        /* Build a map from the old class to the new class */
-        assert( n >= pkd->ParticleClasses.size() );
-        for (auto i=0; i<pkd->ParticleClasses.size(); ++i) {
-            auto jj = std::find(pClass,pClass+n,pkd->ParticleClasses[i]);
-            map[i] = std::distance(pClass,jj);
-        }
-
-        /* Now update the class with the new value */
-        for (auto i=0; i<pkd->Local(); ++i) {
-            p = pkd->Particle(i);
-            assert( p->iClass < pkd->ParticleClasses.size() );
-            p->iClass = map[p->iClass];
-        }
-    }
-
-    /* Finally, set the new class table */
-    pkd->ParticleClasses.clear();
-    pkd->ParticleClasses.insert(pkd->ParticleClasses.end(),pClass,pClass+n);
-}
-
 void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double dTuFac) {
     int i,j;
     PARTICLE *p;
@@ -797,16 +733,16 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
     __itt_string_handle *shMyTask = __itt_string_handle_create("Read");
     __itt_task_begin(domain, __itt_null, __itt_null, shMyTask);
 #endif
-    pkd->ParticleClasses.clear();
+    pkd->particles.clearClasses();
     if (pkd->particles.present(PKD_FIELD::oStar)) {
         /* Make sure star class established -- how do all procs know of these classes? How do we ensure they agree on the class identifiers? */
         p = pkd->Particle(pkd->Local());
-        pkdSetClass(pkd,0,0,FIO_SPECIES_STAR,p);
+        pkd->particles.setClass(0,0,FIO_SPECIES_STAR,p);
     }
 #ifdef BLACKHOLES
     assert(pkd->particles.present(PKD_FIELD::oMass));
     p = pkd->Particle( pkd->Local());
-    pkdSetClass(pkd,0,0,FIO_SPECIES_BH, p);
+    pkd->particles.setClass(0,0,FIO_SPECIES_BH, p);
 #endif
 
     // Protect against uninitialized values
@@ -870,7 +806,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             float afSphOtherData[2];
             fioReadSph(fio,&iParticleID,r,vel,&fMass,&fSoft,pPot,
                        &fDensity,&u,&fMetals[0],afSphOtherData);
-            pkdSetClass(pkd,fMass,fSoft,eSpecies,p);
+            pkd->particles.setClass(fMass,fSoft,eSpecies,p);
             pkdSetDensity(pkd,p,fDensity);
             if (pNewSph) {
                 pNewSph->u = -u; /* Can't do conversion until density known */
@@ -955,7 +891,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             break;
         case FIO_SPECIES_DARK:
             fioReadDark(fio,&iParticleID,r,vel,&fMass,&fSoft,pPot,&fDensity);
-            pkdSetClass(pkd,fMass,fSoft,eSpecies,p);
+            pkd->particles.setClass(fMass,fSoft,eSpecies,p);
             pkdSetDensity(pkd,p,fDensity);
             break;
         case FIO_SPECIES_STAR:
@@ -963,7 +899,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             float afStarOtherData[4];
             fioReadStar(fio,&iParticleID,r,vel,&fMass,&fSoft,pPot,&fDensity,
                         fMetals,&fTimer,afStarOtherData);
-            pkdSetClass(pkd,fMass,fSoft,eSpecies,p);
+            pkd->particles.setClass(fMass,fSoft,eSpecies,p);
             pkdSetDensity(pkd,p,fDensity);
             if (pkd->particles.present(PKD_FIELD::oStar)) {
                 pStar = pkdStar(pkd,p);
@@ -987,7 +923,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             float otherData[3];
             fioReadBH(fio,&iParticleID,r,vel,&fMass,&fSoft,pPot,
                       &fDensity,otherData,&fTimer);
-            pkdSetClass(pkd,fMass,fSoft,eSpecies,p);
+            pkd->particles.setClass(fMass,fSoft,eSpecies,p);
             if (pkd->particles.present(PKD_FIELD::oBH)) {
                 pBH = pkdBH(pkd,p);
                 pBH->fTimer = fTimer;
@@ -1617,7 +1553,7 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,BND *bnd,
     const auto *pStar  = pkd->particles.get<STARFIELDS>(p,PKD_FIELD::oStar); // may be nullptr
     fMass = pkdMass(pkd,p);
     fSoft = pkdSoft0(pkd,p);
-    if (pkd->fSoftFix >= 0.0) fSoft = 0.0;
+    if (pkd->particles.fixedsoft() >= 0.0) fSoft = 0.0;
     if (pkd->particles.present(PKD_FIELD::oParticleID)) iParticleID = *pkdParticleID(pkd,p);
     else if (!pkd->bNoParticleOrder) iParticleID = p->iOrder;
     else iParticleID = 0;
@@ -2056,7 +1992,7 @@ uint32_t pkdWriteFIO(PKD pkd,FIO fio,double dvFac,double dTuFac,BND *bnd) {
 }
 
 void pkdSetSoft(PKD pkd,double dSoft) {
-    pkd->fSoftFix = dSoft;
+    pkd->particles.SetSoft(dSoft);
 }
 
 void pkdSetSmooth(PKD pkd,double dSmooth) {
@@ -2070,8 +2006,7 @@ void pkdSetSmooth(PKD pkd,double dSmooth) {
 }
 
 void pkdPhysicalSoft(PKD pkd,double dSoftMax,double dFac,int bSoftMaxMul) {
-    pkd->fSoftFac = dFac;
-    pkd->fSoftMax = bSoftMaxMul ? HUGE_VALF : dSoftMax;
+    pkd->particles.PhysicalSoft(dSoftMax,dFac,bSoftMaxMul);
 }
 
 static void initSetMarked(void *vpkd, void *v) {}
@@ -3237,8 +3172,8 @@ int pkdUpdateRung(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 void pkdDeleteParticle(PKD pkd, PARTICLE *p) {
     /* p->iOrder = -2 - p->iOrder; JW: Not needed -- just preserve iOrder */
     int pSpecies = pkdSpecies(pkd,p);
-    //pkdSetClass(pkd,pkdMass(pkd,p),pkdSoft(pkd,p),FIO_SPECIES_LAST,p); /* Special "DELETED" class == FIO_SPECIES_LAST */
-    pkdSetClass(pkd,0.0,0.0,FIO_SPECIES_LAST,p); /* Special "DELETED" class == FIO_SPECIES_LAST */
+    //pkd->particles.setClass(pkdMass(pkd,p),pkdSoft(pkd,p),FIO_SPECIES_LAST,p); /* Special "DELETED" class == FIO_SPECIES_LAST */
+    pkd->particles.setClass(0.0,0.0,FIO_SPECIES_LAST,p); /* Special "DELETED" class == FIO_SPECIES_LAST */
 
     // IA: We copy the last particle into this position, the tree will no longer be valid!!!
     //

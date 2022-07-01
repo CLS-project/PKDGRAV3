@@ -2003,11 +2003,11 @@ void MSR::SwapClasses(int id) {
     int rID;
 
     std::unique_ptr<PARTCLASS[]> pClass {new PARTCLASS[PKD_MAX_CLASSES]};
-    n = pkdGetClasses( plcl->pkd, PKD_MAX_CLASSES, pClass.get() );
+    n = plcl->pkd->particles.getClasses( PKD_MAX_CLASSES, pClass.get() );
     rID = mdlReqService(pst0->mdl,id,PST_SWAPCLASSES,pClass.get(),n*sizeof(PARTCLASS));
     mdlGetReply(pst0->mdl,rID,pClass.get(),&n);
     n = n / sizeof(PARTCLASS);
-    pkdSetClasses( plcl->pkd, n, pClass.get(), 0 );
+    plcl->pkd->particles.setClasses( n, pClass.get(), 0 );
 }
 
 void MSR::OneNodeRead(struct inReadFile *in, FIO fio) {

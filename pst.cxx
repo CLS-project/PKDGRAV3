@@ -433,11 +433,11 @@ static void _SwapClasses(PKD pkd, int id) {
     pClass = new PARTCLASS[PKD_MAX_CLASSES];
     assert(pClass!=NULL);
 
-    n = pkdGetClasses( pkd, PKD_MAX_CLASSES, pClass );
+    n = pkd->particles.getClasses( PKD_MAX_CLASSES, pClass );
     rID = mdlReqService(pkd->mdl,id,PST_SWAPCLASSES,pClass,n*sizeof(PARTCLASS));
     mdlGetReply(pkd->mdl,rID,pClass,&n);
     n = n / sizeof(PARTCLASS);
-    pkdSetClasses( pkd, n, pClass, 0 );
+    pkd->particles.setClasses( n, pClass, 0 );
     delete [] pClass;
 }
 
@@ -2123,7 +2123,7 @@ int pstGetClasses(PST pst,void *vin,int nIn,void *vout,int nOut) {
         delete [] outUp;
     }
     else {
-        n = pkdGetClasses(plcl->pkd,PKD_MAX_CLASSES,out);
+        n = plcl->pkd->particles.getClasses(PKD_MAX_CLASSES,out);
     }
     return n * sizeof(PARTCLASS);
 }
@@ -2141,7 +2141,7 @@ int pstSetClasses(PST pst,void *vin,int nIn,void *vout,int nOut) {
     else {
         n = nIn / sizeof(PARTCLASS);
         mdlassert(pst->mdl,n*sizeof(PARTCLASS)==nIn);
-        pkdSetClasses(plcl->pkd,n,in,1);
+        plcl->pkd->particles.setClasses(n,in,1);
     }
     return 0;
 }
@@ -2162,12 +2162,12 @@ int pstSwapClasses(PST pst,void *vin,int nIn,void *vout,int nOut) {
         lpst = lpst->pstLower;
     plcl = lpst->plcl;
 
-    n = pkdGetClasses( plcl->pkd, PKD_MAX_CLASSES, out );
+    n = plcl->pkd->particles.getClasses( PKD_MAX_CLASSES, out );
     nOut = n * sizeof(PARTCLASS);
 
     n = nIn / sizeof(PARTCLASS);
     mdlassert(pst->mdl,n*sizeof(PARTCLASS) == nIn);
-    pkdSetClasses( plcl->pkd, n, in, 0 );
+    plcl->pkd->particles.setClasses( n, in, 0 );
     return nOut;
 }
 

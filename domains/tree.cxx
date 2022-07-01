@@ -211,7 +211,7 @@ static int PartPart(PKD pkd,int pLower,int pUpper,int d,split_t Split) {
             else break;
         }
     }
-    return ((char *)pi - (char *)pkd->ParticleBase()) / pkd->ParticleSize();
+    return ((char *)pi - (char *)pkd->Particle(0)) / pkd->ParticleSize();
 }
 
 
