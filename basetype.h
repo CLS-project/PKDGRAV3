@@ -152,6 +152,9 @@ struct pkdKickParameters {
     vel_t dtClose[IRUNGMAX+1];
     vel_t dtOpen[IRUNGMAX+1];
     vel_t dtPredDrift[IRUNGMAX+1];
+    vel_t dtPredISPHUndoOpen[IRUNGMAX+1];
+    vel_t dtPredISPHOpen[IRUNGMAX+1];
+    vel_t dtPredISPHClose[IRUNGMAX+1];
 };
 
 struct pkdLightconeParameters {
