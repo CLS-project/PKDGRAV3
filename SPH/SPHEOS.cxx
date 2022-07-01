@@ -83,7 +83,7 @@ float SPHEOSIsentropic(PKD pkd, float rho1, float u1, float rho2, int iMat, SPHO
     }
     else {
 #ifdef HAVE_EOSLIB_H
-        u2 = (float)EOSIsentropic(pkd->materials[iMat], rho1, u2, rho2);
+        u2 = (float)EOSIsentropic(pkd->materials[iMat], rho1, u1, rho2);
 #endif
     }
     return u2;
