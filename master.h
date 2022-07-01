@@ -119,7 +119,7 @@ public:
     void Output(int iStep, double dTime, double dDelta, int bCheckpoint);
     void OutputFineStatistics(double dStep, double dTime);
 
-    void RecvArray(void *vBuffer,int field,int iUnitSize,double dTime,bool bMarked=false);
+    void RecvArray(void *vBuffer,PKD_FIELD field,int iUnitSize,double dTime,bool bMarked=false);
 
     // Particle order, domains, trees
     void Reorder();

@@ -36,13 +36,13 @@ void pkdResetFluxes(PKD pkd, double dTime,double dDelta,double dDeltaVPred,doubl
     pLower = 0;
     pUpper = pkd->Local();
 
-    assert(pkd->oFieldOffset[oVelocity]);
+    assert(pkd->particles.present(PKD_FIELD::oVelocity));
     //assert(pkd->oMass);
 
     /*
     ** Add the computed flux to the conserved variables for each gas particle
     */
-    assert(pkd->oFieldOffset[oSph]);
+    assert(pkd->particles.present(PKD_FIELD::oSph));
     for (i=pLower; i<pUpper; ++i) {
         p = pkd->Particle(i);
         if (pkdIsGas(pkd,p)  && pkdIsActive(pkd,p)   ) {
@@ -100,7 +100,7 @@ void initHydroFluxesCached(void *vpkd, void *vp) {
         SPHFIELDS *psph = pkdSph(pkd,p);
         int i;
 
-        float *pmass = (float *) pkdField(p,pkd->oFieldOffset[oMass]);
+        float *pmass = pkd->particles.get<float>(p,PKD_FIELD::oMass);
         *pmass = 0.0;
         psph->mom[0] = 0.;
         psph->mom[1] = 0.;
@@ -502,8 +502,8 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
 
         if (smf->dDelta > 0) {
-            pmass = (float *) pkdField(p,pkd->oFieldOffset[oMass]);
-            qmass = (float *) pkdField(q,pkd->oFieldOffset[oMass]);
+            pmass = pkd->particles.get<float>(p,PKD_FIELD::oMass);
+            qmass = pkd->particles.get<float>(q,PKD_FIELD::oMass);
 
 
 
@@ -1123,8 +1123,8 @@ void hydroFluxUpdateFromBuffer(my_real **out_buffer, my_real **in_buffer,
     SPHFIELDS *psph = pkdSph(pkd,p);
     SPHFIELDS *qsph = pkdSph(pkd,q);
     double dDelta = smf->dDelta;
-    float *qmass = (float *)pkdField(q,pkd->oFieldOffset[oMass]);
-    float *pmass = (float *)pkdField(p,pkd->oFieldOffset[oMass]);
+    float *qmass = pkd->particles.get<float>(q,PKD_FIELD::oMass);
+    float *pmass = pkd->particles.get<float>(p,PKD_FIELD::oMass);
     if (dDelta>0) {
         *pmass -= out_buffer[out_minDt][i] * out_buffer[out_Frho][i] ;
 
@@ -1241,8 +1241,8 @@ void combThirdHydroLoop(void *vpkd, void *v1,const void *v2) {
         psph1->Fene += psph2->Fene;
 
 
-        float *p1mass = (float *) pkdField(p1,pkd->oFieldOffset[oMass]);
-        float *p2mass = (float *) pkdField(p2,pkd->oFieldOffset[oMass]);
+        float *p1mass = pkd->particles.get<float>(p1,PKD_FIELD::oMass);
+        float *p2mass = pkd->particles.get<float>(p2,PKD_FIELD::oMass);
         *p1mass += *p2mass;
 
         psph1->mom[0] += psph2->mom[0];

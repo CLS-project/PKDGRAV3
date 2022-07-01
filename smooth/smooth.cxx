@@ -283,7 +283,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         break;
     case SMX_DENSITY_M3:
         assert(!bSymmetric);
-        assert(pkd->oFieldOffset[oGroup]);
+        assert(pkd->particles.present(PKD_FIELD::oGroup));
         smx->fcnSmooth = DensityM3;
         initParticle = NULL;
         init = NULL;
@@ -314,7 +314,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         smx->fcnPost = NULL;
         break;
     case SMX_HYDRO_DENSITY:
-        assert( pkd->oFieldOffset[oSph] ); /* Validate memory model */
+        assert( pkd->particles.present(PKD_FIELD::oSph) ); /* Validate memory model */
         smx->fcnSmooth = hydroDensity;
         initParticle = NULL; /* Original Particle */
         init = NULL; /* Cached copies */
@@ -322,7 +322,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         smx->fcnPost = NULL;
         break;
     case SMX_HYDRO_GRADIENT:
-        assert( pkd->oFieldOffset[oSph] ); /* Validate memory model */
+        assert( pkd->particles.present(PKD_FIELD::oSph) ); /* Validate memory model */
         smx->fcnSmooth = hydroGradients;
         initParticle = NULL; /* Original Particle */
         init = NULL; /* Cached copies */
@@ -330,7 +330,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         smx->fcnPost = NULL;
         break;
     case SMX_HYDRO_FLUX:
-        assert( pkd->oFieldOffset[oSph] ); /* Validate memory model */
+        assert( pkd->particles.present(PKD_FIELD::oSph) ); /* Validate memory model */
         smx->fcnSmooth = hydroRiemann;
         initParticle = initHydroFluxes; /* Original Particle */
         init = initHydroFluxesCached; /* Cached copies */
@@ -338,7 +338,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         smx->fcnPost = NULL;
         break;
     case SMX_HYDRO_FLUX_VEC:
-        assert (pkd->oFieldOffset[oSph]);
+        assert (pkd->particles.present(PKD_FIELD::oSph));
         smx->fcnSmoothNode = hydroRiemann_vec;
         smx->fcnSmoothGetNvars = hydroFluxGetNvars;
         smx->fcnSmoothFillBuffer = hydroFluxFillBuffer;
@@ -349,7 +349,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         smx->fcnPost = NULL;
         break;
     case SMX_HYDRO_STEP:
-        assert( pkd->oFieldOffset[oSph] ); /* Validate memory model */
+        assert( pkd->particles.present(PKD_FIELD::oSph) ); /* Validate memory model */
         smx->fcnSmooth = hydroStep;
         initParticle = initHydroStep; /* Original Particle */
         init = initHydroStep; /* Cached copies */
@@ -467,7 +467,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         break;
 #endif //OPTIM_REMOVE_UNUSED
     case SMX_BALL:
-        assert(pkd->oFieldOffset[oBall]);
+        assert(pkd->particles.present(PKD_FIELD::oBall));
         smx->fcnSmooth = BallSmooth;
         initParticle = initBall; /* Original Particle */
         init = initBall; /* Cached copies */

@@ -1090,16 +1090,16 @@ ppy_msr_GetArray(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     N[0] = self->msr->N;
     N[1] = 1;
     switch (field) {
-    case oPosition:     N[1]=3; typenum = NPY_FLOAT64; iUnitSize = sizeof(double);  break;
-    case oAcceleration: N[1]=3; break;
-    case oVelocity:     N[1]=3; break;
-    case oPotential:    break;
-    case oGroup:                 typenum = NPY_UINT32; iUnitSize = sizeof(uint32_t); break;
-    case oMass:         break;
-    case oSoft:         break;
-    case oDensity:      break;
-    case oBall:         break;
-    case oParticleID:            typenum = NPY_UINT64; iUnitSize = sizeof(uint64_t); break;
+    case PKD_FIELD::oPosition:     N[1]=3; typenum = NPY_FLOAT64; iUnitSize = sizeof(double);  break;
+    case PKD_FIELD::oAcceleration: N[1]=3; break;
+    case PKD_FIELD::oVelocity:     N[1]=3; break;
+    case PKD_FIELD::oPotential:    break;
+    case PKD_FIELD::oGroup:        typenum = NPY_UINT32; iUnitSize = sizeof(uint32_t); break;
+    case PKD_FIELD::oMass:         break;
+    case PKD_FIELD::oSoft:         break;
+    case PKD_FIELD::oDensity:      break;
+    case PKD_FIELD::oBall:         break;
+    case PKD_FIELD::oParticleID:   typenum = NPY_UINT64; iUnitSize = sizeof(uint64_t); break;
     default: abort();
 //  oSph, /* Sph structure */
 //  oStar, /* Star structure */

@@ -665,7 +665,7 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
                 pkdSetPos(pkd,p,2,temp.dr[2] + (temp.iz+0.5) * inGrid - 0.5);
                 pkdSetPos(pkd,p,1,temp.dr[1] + (temp.iy+0.5) * inGrid - 0.5);
                 pkdSetPos(pkd,p,0,temp.dr[0] + (temp.ix+0.5) * inGrid - 0.5);
-                if (pkd->oFieldOffset[oParticleID]) {
+                if (pkd->particles.present(PKD_FIELD::oParticleID)) {
                     uint64_t *pID = pkdParticleID(pkd,p);
                     *pID = temp.ix + in->nGrid*(temp.iy + 1ul*in->nGrid*temp.iz);
                 }
@@ -684,7 +684,7 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
                 pkd->CopyParticle(pgas, p);
                 pkdSetClass(pkd, fGasMass, fGasSoft, FIO_SPECIES_SPH, pgas);
 
-                if (pkd->oFieldOffset[oParticleID]) {
+                if (pkd->particles.present(PKD_FIELD::oParticleID)) {
                     uint64_t *pID = pkdParticleID(pkd,pgas);
                     *pID += in->nGrid*in->nGrid*in->nGrid;
                 }
@@ -706,7 +706,7 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
                 /* Fill the SPHFIELDS with some initial values */
                 double u = in->dInitialT * in->dTuFac;
-                assert(pkd->oFieldOffset[oSph]);
+                assert(pkd->particles.present(PKD_FIELD::oSph));
                 SPHFIELDS *pSph = pkdSph(pkd,pgas);
 #ifndef OPTIM_REMOVE_UNUSED
                 pSph->u = pSph->uPred = pSph->uDot = pSph->c = pSph->divv =

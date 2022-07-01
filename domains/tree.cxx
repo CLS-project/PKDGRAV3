@@ -181,7 +181,7 @@ void pkdDumpTrees(PKD pkd,int bOnlyVA, uint8_t uRungDD) {
 
 template<class split_t>
 static split_t PosRaw(PKD pkd,PARTICLE *p, int d) {
-    return reinterpret_cast<split_t *>(pkdField(p,pkd->oFieldOffset[oPosition]))[d];
+    return pkd->particles.get<split_t>(p,PKD_FIELD::oPosition)[d];
 }
 
 /*
@@ -694,15 +694,15 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
         pkdNodeSetBnd(pkd, pkdn, &bnd);
         pj = pkdn->pLower;
         p = pkd->Particle(pj);
-        a = pkd->oFieldOffset[oAcceleration] ? pkdAccel(pkd,p) : zeroF;
+        a = pkd->particles.present(PKD_FIELD::oAcceleration) ? pkdAccel(pkd,p) : zeroF;
         m = pkdMass(pkd,p);
         fSoft = pkdSoft(pkd,p);
-        v = pkd->oFieldOffset[oVelocity] ? pkdVel(pkd,p) : zeroV;
+        v = pkd->particles.present(PKD_FIELD::oVelocity) ? pkdVel(pkd,p) : zeroV;
         fMass = m;
         dih2 = fSoft;
         pkdGetPos3(pkd,p,x,y,z);
 
-        if (pkd->oFieldOffset[oBall]) {
+        if (pkd->particles.present(PKD_FIELD::oBall)) {
             /* initialize ball or box of balls */
 #if SPHBALLOFBALLS
             fBoBr = pkd->SPHoptions.fBallFactor * pkdBall(pkd,p);
@@ -734,15 +734,15 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
         pkdn->uMinRung = pkdn->uMaxRung = p->uRung;
         for (++pj; pj<=pkdn->pUpper; ++pj) {
             p = pkd->Particle(pj);
-            a = pkd->oFieldOffset[oAcceleration] ? pkdAccel(pkd,p) : zeroF;
+            a = pkd->particles.present(PKD_FIELD::oAcceleration) ? pkdAccel(pkd,p) : zeroF;
             m = pkdMass(pkd,p);
             fSoft = pkdSoft(pkd,p);
-            v = pkd->oFieldOffset[oVelocity] ? pkdVel(pkd,p) : zeroV;
+            v = pkd->particles.present(PKD_FIELD::oVelocity) ? pkdVel(pkd,p) : zeroV;
             fMass += m;
             if (fSoft>dih2) dih2=fSoft;
             pkdGetPos1(pkd,p,ft);
 
-            if (pkd->oFieldOffset[oBall]) {
+            if (pkd->particles.present(PKD_FIELD::oBall)) {
 #if SPHBALLOFBALLS
                 CombineBallOfBalls(fBoBr,fBoBxCenter,fBoByCenter,fBoBzCenter,pkd->SPHoptions.fBallFactor * pkdBall(pkd,p),ft[0],ft[1],ft[2],fBoBr,fBoBxCenter,fBoByCenter,fBoBzCenter);
 #endif
@@ -787,7 +787,7 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
             pAcc[2] = m*az;
         }
         pkdn->fSoft2 = dih2*dih2;
-        if (pkd->oFieldOffset[oBall]) {
+        if (pkd->particles.present(PKD_FIELD::oBall)) {
 #if SPHBALLOFBALLS
             pkdn->fBoBr2 = fBoBr*fBoBr;
             pkdn->fBoBxCenter = fBoBxCenter;
@@ -1038,7 +1038,7 @@ void pkdCombineCells1(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
     pkdn->uMinRung = p1->uMinRung < p2->uMinRung ? p1->uMinRung : p2->uMinRung;
     pkdn->uMaxRung = p1->uMaxRung > p2->uMaxRung ? p1->uMaxRung : p2->uMaxRung;
 
-    if (pkd->oFieldOffset[oNewSph]) {
+    if (pkd->particles.present(PKD_FIELD::oNewSph)) {
         /* Combine ball or box of balls */
 #if SPHBALLOFBALLS
         double fBoBr,fBoBxCenter,fBoByCenter,fBoBzCenter;

@@ -741,7 +741,7 @@ typedef struct {
     float fPotential;
 } healpixData;
 
-enum PKD_FIELD {
+enum class PKD_FIELD {
     oPosition,
     oVelocity, /* Three vel_t */
     oAcceleration, /* Three float */
@@ -760,26 +760,35 @@ enum PKD_FIELD {
     oRungDest, /* Destination processor for each rung */
     oParticleID,
 
-    MAX_PKD_FIELD
+    MAX_FIELD
 };
 
-class particleStore {
+template<typename DATA,typename FIELD>
+class dataStore {
 protected:
-    PARTICLE *pStore = nullptr;
+    int oFieldOffset[static_cast<unsigned long>(FIELD::MAX_FIELD)];
+    DATA *pStore = nullptr;
     size_t iParticleSize = 0; // Size (in bytes) of a single PARTICLE
     size_t nParticleAlign = 0, iParticle32 = 0;
     int nStore = 0; // Maximum local particles
     int nLocal = 0; // Current number of particles
 public:
+    dataStore() {
+        for (auto i=0; i<sizeof(oFieldOffset)/sizeof(oFieldOffset[0]); ++i)
+            oFieldOffset[i] = 0;
+    }
+public:
     void initialize(int iBasicSize) {
         iParticleSize = nParticleAlign = iBasicSize;
         iParticle32 = 0;
+        for (auto i=0; i<sizeof(oFieldOffset)/sizeof(oFieldOffset[0]); ++i)
+            oFieldOffset[i] = 0;
     }
     void align(void) {
         iParticleSize = (iParticleSize + nParticleAlign - 1 ) & ~(nParticleAlign-1);
     }
     template<typename T>
-    int add(int n=1) {
+    void add(PKD_FIELD f,int n=1) {
         static_assert(std::alignment_of_v<T> == 4 || std::alignment_of_v<T> == 8);
         int iOffset = iParticleSize;
         int iAlign = std::alignment_of_v<T>;
@@ -798,20 +807,34 @@ public:
             iParticleSize = iOffset + n * sizeof(T);
         }
         if (nParticleAlign < iAlign) nParticleAlign = iAlign;
-        return iOffset;
+        oFieldOffset[static_cast<unsigned int>(f)] = iOffset;
+    }
+    template<> void add<void>(PKD_FIELD f,int n) {
+        oFieldOffset[static_cast<unsigned int>(f)] = 1;
     }
     void setStore(void *p,int n) {
-        pStore = static_cast<PARTICLE *>(p);
+        pStore = static_cast<DATA *>(p);
         nStore = n;
     }
 public:
+    auto present(FIELD f) const {return oFieldOffset[static_cast<unsigned int>(f)]!= 0;}
+    template<typename T>
+    auto get(const DATA *p,FIELD f) const {
+        auto v = reinterpret_cast<const char *>(p);
+        return present(f) ? reinterpret_cast<const T *>(v + oFieldOffset[static_cast<unsigned int>(f)]) : nullptr;
+    }
+    template<typename T>
+    auto get(DATA *p,FIELD f) const {
+        auto v = reinterpret_cast<char *>(p);
+        return present(f) ? reinterpret_cast<T *>(v + oFieldOffset[static_cast<unsigned int>(f)]) : nullptr;
+    }
     auto ParticleSize() {return iParticleSize; }
     auto ParticleGet(void *pBase, int i) {
         auto v = static_cast<char *>(pBase);
-        return reinterpret_cast<PARTICLE *>(v + ((uint64_t)i)*ParticleSize());
+        return reinterpret_cast<DATA *>(v + ((uint64_t)i)*ParticleSize());
     }
-    PARTICLE *ParticleBase() { return pStore; }
-    PARTICLE *Particle(int i) { return ParticleGet(ParticleBase(),i); }
+    DATA *ParticleBase() { return pStore; }
+    DATA *Particle(int i) { return ParticleGet(ParticleBase(),i); }
     int FreeStore() { return nStore; }
     int Local() { return nLocal; }
     int SetLocal(int n) {return (nLocal=n);}
@@ -838,7 +861,7 @@ protected:
     size_t iTreeNodeSize = 0; // Size (in bytes) of a tree node
     uint32_t nEphemeralBytes = 0; /* per-particle */
 public:
-    particleStore particles;
+    dataStore<PARTICLE,PKD_FIELD> particles;
     int FreeStore() { return particles.FreeStore(); }
     int Local() { return particles.Local(); }
     int SetLocal(int n) {return particles.SetLocal(n);}
@@ -936,7 +959,6 @@ public:
     */
     int bNoParticleOrder;
     int bIntegerPosition;
-    int oFieldOffset[MAX_PKD_FIELD];
 
     /*
     ** Advanced memory models - Tree Nodes
@@ -1247,69 +1269,41 @@ static inline void pkdSwapParticle(PKD pkd, PARTICLE *a, PARTICLE *b) {
     pkd->LoadParticle(b);
 }
 
-static inline const void *pkdFieldRO( const PARTICLE *p, int iOffset ) {
-    const char *v = (const char *)p;
-    /*assert(iOffset);*/ /* Remove this for better performance */
-    return (const void *)(v + iOffset);
-}
-
-static inline void *pkdField( PARTICLE *p, int iOffset ) {
-    char *v = (char *)p;
-    /*assert(iOffset);*/ /* Remove this for better performance */
-    return (void *)(v + iOffset);
-}
-
-static inline int32_t *pkdInt32( PARTICLE *p, int iOffset ) {
-    char *v = (char *)p;
-    return (int32_t *)(v + iOffset);
-}
-
-static inline int pkdIsFieldPresent(PKD pkd, enum PKD_FIELD field) {
-    assert(field>=0 && field<MAX_PKD_FIELD);
-    return pkd->oFieldOffset[field] != 0;
-}
-
 static inline int32_t pkdGetGroup( PKD pkd, const PARTICLE *p ) {
     if (pkd->bNoParticleOrder) return ((const UPARTICLE *)p)->iGroup;
-    assert(pkd->oFieldOffset[oGroup]);
-    return CAST(const int32_t *, pkdFieldRO(p,pkd->oFieldOffset[oGroup]))[0];
+    return pkd->particles.get<int32_t>(p,PKD_FIELD::oGroup)[0];
 }
 
 static inline void pkdSetGroup( PKD pkd, PARTICLE *p, uint32_t gid ) {
     if (pkd->bNoParticleOrder) ((UPARTICLE *)p)->iGroup = gid;
-    else if (pkd->oFieldOffset[oGroup]) CAST(int32_t *, pkdField(p,pkd->oFieldOffset[oGroup]))[0] = gid;
+    else if (pkd->particles.present(PKD_FIELD::oGroup)) pkd->particles.get<int32_t>(p,PKD_FIELD::oGroup)[0] = gid;
 }
 
 static inline float pkdDensity( PKD pkd, const PARTICLE *p ) {
-    assert(pkd->oFieldOffset[oDensity]);
-    return * CAST(const float *, pkdFieldRO(p,pkd->oFieldOffset[oDensity]));
+    return pkd->particles.get<float>(p,PKD_FIELD::oDensity)[0];
 }
 static inline void pkdSetDensity( PKD pkd, PARTICLE *p, float fDensity ) {
-    if (pkd->oFieldOffset[oDensity]) *CAST(float *, pkdField(p,pkd->oFieldOffset[oDensity])) = fDensity;
+    if (pkd->particles.present(PKD_FIELD::oDensity)) pkd->particles.get<float>(p,PKD_FIELD::oDensity)[0] = fDensity;
 }
 
 static inline float pkdBall( PKD pkd, PARTICLE *p ) {
-    assert(pkd->oFieldOffset[oBall]);
-    return *CAST(float *, pkdField(p,pkd->oFieldOffset[oBall]));
+    return pkd->particles.get<float>(p,PKD_FIELD::oBall)[0];
 }
 static inline void pkdSetBall(PKD pkd, PARTICLE *p, float fBall) {
-    if (pkd->oFieldOffset[oBall]) *CAST(float *, pkdField(p,pkd->oFieldOffset[oBall])) = fBall;
+    if (pkd->particles.present(PKD_FIELD::oBall)) pkd->particles.get<float>(p,PKD_FIELD::oBall)[0] = fBall;
 }
-
 
 /* Here is the new way of getting mass and softening */
 static inline float pkdMass( PKD pkd, PARTICLE *p ) {
-    if ( pkd->oFieldOffset[oMass] ) {
-        float *pMass = CAST(float *,pkdField(p,pkd->oFieldOffset[oMass]));
-        return *pMass;
+    if (pkd->particles.present(PKD_FIELD::oMass)) {
+        return pkd->particles.get<float>(p,PKD_FIELD::oMass)[0];
     }
     else if (pkd->bNoParticleOrder) return pkd->ParticleClasses[0].fMass;
     else return pkd->ParticleClasses[p->iClass].fMass;
 }
 static inline float pkdSoft0( PKD pkd, PARTICLE *p ) {
-    if ( pkd->oFieldOffset[oSoft] ) {
-        float *pSoft = CAST(float *,pkdField(p,pkd->oFieldOffset[oSoft]));
-        return *pSoft;
+    if (pkd->particles.present(PKD_FIELD::oSoft)) {
+        return pkd->particles.get<float>(p,PKD_FIELD::oSoft)[0];
     }
     else if (pkd->bNoParticleOrder) return pkd->ParticleClasses[0].fSoft;
     else return pkd->ParticleClasses[p->iClass].fSoft;
@@ -1333,23 +1327,23 @@ static inline FIO_SPECIES pkdSpecies( PKD pkd, PARTICLE *p ) {
 ** The situation is more complicated with non-periodic boxes, or for boxes
 ** with a different period so this is not currently supported.
 */
-#define pkdPosRaw(pkd,p,d) (CAST(int32_t *,pkdField(p,pkd->oFieldOffset[oPosition]))[d])
-#define pkdSetPosRaw(pkd,p,d,v) (CAST(int32_t *,pkdField(p,pkd->oFieldOffset[oPosition]))[d]) = (v)
+#define pkdPosRaw(pkd,p,d) (pkd->particles.get<int32_t>(p,PKD_FIELD::oPosition)[d])
+#define pkdSetPosRaw(pkd,p,d,v) (pkd->particles.get<int32_t>(p,PKD_FIELD::oPosition)[d]) = (v)
 
 static inline double pkdPos(PKD pkd,PARTICLE *p,int d) {
-    if (pkd->bIntegerPosition) return pkdIntPosToDbl(pkd,CAST(int32_t *,pkdField(p,pkd->oFieldOffset[oPosition]))[d]);
-    else return CAST(double *,pkdField(p,pkd->oFieldOffset[oPosition]))[d];
+    if (pkd->bIntegerPosition) return pkdIntPosToDbl(pkd,pkd->particles.get<int32_t>(p,PKD_FIELD::oPosition)[d]);
+    else return pkd->particles.get<double>(p,PKD_FIELD::oPosition)[d];
 }
 static inline void pkdSetPos(PKD pkd,PARTICLE *p,int d,double v) {
-    if (pkd->bIntegerPosition) CAST(int32_t *,pkdField(p,pkd->oFieldOffset[oPosition]))[d] = pkdDblToIntPos(pkd,v);
-    else CAST(double *,pkdField(p,pkd->oFieldOffset[oPosition]))[d] = v;
+    if (pkd->bIntegerPosition) pkd->particles.get<int32_t>(p,PKD_FIELD::oPosition)[d] = pkdDblToIntPos(pkd,v);
+    else pkd->particles.get<double>(p,PKD_FIELD::oPosition)[d] = v;
 }
 #define pkdGetPos3(pkd,p,d1,d2,d3) ((d1)=pkdPos(pkd,p,0),(d2)=pkdPos(pkd,p,1),(d3)=pkdPos(pkd,p,2))
 #define pkdGetPos1(pkd,p,d) pkdGetPos3(pkd,p,(d)[0],(d)[1],(d)[2])
 
 #if defined(__AVX__) && defined(USE_SIMD)
 static inline __m128i pkdGetPosRaw(PKD pkd,PARTICLE *p) {
-    return _mm_loadu_si128((__m128i *)pkdField(p,pkd->oFieldOffset[oPosition]));
+    return _mm_loadu_si128(pkd->particles.get<__m128i>(p,PKD_FIELD::oPosition));
 }
 static inline __m256d pkdGetPos(PKD pkd,PARTICLE *p) {
     return _mm256_mul_pd(_mm256_cvtepi32_pd(pkdGetPosRaw(pkd,p)),_mm256_set1_pd(1.0/INTEGER_FACTOR));
@@ -1357,51 +1351,51 @@ static inline __m256d pkdGetPos(PKD pkd,PARTICLE *p) {
 #endif
 
 static inline vel_t *pkdVel( PKD pkd, PARTICLE *p ) {
-    return CAST(vel_t *,pkdField(p,pkd->oFieldOffset[oVelocity]));
+    return pkd->particles.get<vel_t>(p,PKD_FIELD::oVelocity);
 }
 static inline float *pkdAccel( PKD pkd, PARTICLE *p ) {
-    return CAST(float *,pkdField(p,pkd->oFieldOffset[oAcceleration]));
+    return pkd->particles.get<float>(p,PKD_FIELD::oAcceleration);
 }
 static inline const float *pkdAccelRO( PKD pkd, const PARTICLE *p ) {
-    return CAST(const float *,pkdFieldRO(p,pkd->oFieldOffset[oAcceleration]));
+    return pkd->particles.get<float>(p,PKD_FIELD::oAcceleration);
 }
 static inline float *pkdPot( PKD pkd, PARTICLE *p ) {
-    return pkd->oFieldOffset[oPotential] ? CAST(float *,pkdField(p,pkd->oFieldOffset[oPotential])) : NULL;
+    return pkd->particles.present(PKD_FIELD::oPotential) ? pkd->particles.get<float>(p,PKD_FIELD::oPotential) : nullptr;
 }
 static inline uint16_t *pkdRungDest( PKD pkd, PARTICLE *p ) {
-    return CAST(uint16_t *,pkdField(p,pkd->oFieldOffset[oRungDest]));
+    return pkd->particles.get<uint16_t>(p,PKD_FIELD::oRungDest);
 }
 static inline uint64_t *pkdParticleID( PKD pkd, PARTICLE *p ) {
-    return CAST(uint64_t *,pkdField(p,pkd->oFieldOffset[oParticleID]));
+    return pkd->particles.get<uint64_t>(p,PKD_FIELD::oParticleID);
 }
 /* Sph variables */
 static inline SPHFIELDS *pkdSph( PKD pkd, PARTICLE *p ) {
 #if defined(OPTIM_UNION_EXTRAFIELDS) && defined(DEBUG_UNION_EXTRAFIELDS)
     assert( pkdSpecies(pkd,p)==FIO_SPECIES_SPH);
 #endif
-    return ((SPHFIELDS *) pkdField(p,pkd->oFieldOffset[oSph]));
+    return pkd->particles.get<SPHFIELDS>(p,PKD_FIELD::oSph);
 }
 /* NewSph variables */
 static inline NEWSPHFIELDS *pkdNewSph( PKD pkd, PARTICLE *p ) {
-    return ((NEWSPHFIELDS *) pkdField(p,pkd->oFieldOffset[oNewSph]));
+    return pkd->particles.get<NEWSPHFIELDS>(p,PKD_FIELD::oNewSph);
 }
 static inline const SPHFIELDS *pkdSphRO( PKD pkd, const PARTICLE *p ) {
 #if defined(OPTIM_UNION_EXTRAFIELDS) && defined(DEBUG_UNION_EXTRAFIELDS)
     assert( pkdSpecies(pkd,p)==FIO_SPECIES_SPH);
 #endif
-    return ((const SPHFIELDS *) pkdFieldRO(p,pkd->oFieldOffset[oSph]));
+    return pkd->particles.get<SPHFIELDS>(p,PKD_FIELD::oSph);
 }
 static inline const NEWSPHFIELDS *pkdNewSphRO( PKD pkd, const PARTICLE *p ) {
-    return ((const NEWSPHFIELDS *) pkdFieldRO(p,pkd->oFieldOffset[oNewSph]));
+    return pkd->particles.get<NEWSPHFIELDS>(p,PKD_FIELD::oNewSph);
 }
 static inline STARFIELDS *pkdStar( PKD pkd, PARTICLE *p ) {
 #ifdef OPTIM_UNION_EXTRAFIELDS
 #ifdef DEBUG_UNION_EXTRAFIELDS
     assert( pkdSpecies(pkd,p)==FIO_SPECIES_STAR);
 #endif //DEBUG
-    return ((STARFIELDS *) pkdField(p,pkd->oFieldOffset[oSph]));
+    return pkd->particles.get<STARFIELDS>(p,PKD_FIELD::oSph);
 #else
-    return ((STARFIELDS *) pkdField(p,pkd->oFieldOffset[oStar]));
+    return pkd->particles.get<STARFIELDS>(p,PKD_FIELD::oStar);
 #endif
 }
 static inline const STARFIELDS *pkdStarRO( PKD pkd, PARTICLE *p ) {
@@ -1409,9 +1403,9 @@ static inline const STARFIELDS *pkdStarRO( PKD pkd, PARTICLE *p ) {
 #ifdef DEBUG_UNION_EXTRAFIELDS
     assert( pkdSpecies(pkd,p)==FIO_SPECIES_STAR);
 #endif //DEBUG
-    return ((const STARFIELDS *) pkdFieldRO(p,pkd->oFieldOffset[oSph]));
+    return pkd->particles.get<STARFIELDS>(p,PKD_FIELD::oSph);
 #else
-    return ((const STARFIELDS *) pkdFieldRO(p,pkd->oFieldOffset[oStar]));
+    return pkd->particles.get<STARFIELDS>(p,PKD_FIELD::oStar);
 #endif
 }
 static inline BHFIELDS *pkdBH( PKD pkd, PARTICLE *p ) {
@@ -1419,9 +1413,9 @@ static inline BHFIELDS *pkdBH( PKD pkd, PARTICLE *p ) {
 #ifdef DEBUG_UNION_EXTRAFIELDS
     assert( pkdSpecies(pkd,p)==FIO_SPECIES_BH);
 #endif //DEBUG
-    return ((BHFIELDS *) pkdField(p,pkd->oFieldOffset[oSph]));
+    return pkd->particles.get<BHFIELDS>(p,PKD_FIELD::oSph);
 #else
-    return ((BHFIELDS *) pkdField(p,pkd->oFieldOffset[oBH]));
+    return pkd->particles.get<BHFIELDS>(p,PKD_FIELD::oBh);
 #endif
 }
 static inline const BHFIELDS *pkdBHRO( PKD pkd, PARTICLE *p ) {
@@ -1429,49 +1423,49 @@ static inline const BHFIELDS *pkdBHRO( PKD pkd, PARTICLE *p ) {
 #ifdef DEBUG_UNION_EXTRAFIELDS
     assert( pkdSpecies(pkd,p)==FIO_SPECIES_BH);
 #endif //DEBUG
-    return ((const BHFIELDS *) pkdFieldRO(p,pkd->oFieldOffset[oSph]));
+    return pkd->particles.get<BHFIELDS>(p,PKD_FIELD::oSph);
 #else
-    return ((const BHFIELDS *) pkdFieldRO(p,pkd->oFieldOffset[oBH]));
+    return pkd->particles.get<BHFIELDS>(p,PKD_FIELD::oBh);
 #endif
 }
 static inline double *pkd_vPred( PKD pkd, PARTICLE *p ) {
-    return &(((SPHFIELDS *) pkdField(p,pkd->oFieldOffset[oSph]))->vPred[0]);
+    return pkd->particles.get<SPHFIELDS>(p,PKD_FIELD::oSph)->vPred;
 }
 #ifndef OPTIM_REMOVE_UNUSED
 static inline float *pkd_u( PKD pkd, PARTICLE *p ) {
-    return &(((SPHFIELDS *) pkdField(p,pkd->oFieldOffset[oSph]))->u);
+    return &pkd->particles.get<SPHFIELDS>(p,PKD_FIELD::oSph)->u;
 }
 static inline float *pkd_uPred( PKD pkd, PARTICLE *p ) {
-    return &(((SPHFIELDS *) pkdField(p,pkd->oFieldOffset[oSph]))->uPred);
+    return &pkd->particles.get<SPHFIELDS>(p,PKD_FIELD::oSph)->uPred;
 }
 static inline float *pkd_uDot( PKD pkd, PARTICLE *p ) {
-    return &(((SPHFIELDS *) pkdField(p,pkd->oFieldOffset[oSph]))->uDot);
+    return &pkd->particles.get<SPHFIELDS>(p,PKD_FIELD::oSph)->uDot;
 }
 static inline float *pkd_c( PKD pkd, PARTICLE *p ) {
-    return &(((SPHFIELDS *) pkdField(p,pkd->oFieldOffset[oSph]))->c);
+    return &pkd->particles.get<SPHFIELDS>(p,PKD_FIELD::oSph)->c;
 }
 static inline float *pkd_divv( PKD pkd, PARTICLE *p ) {
-    return &(((SPHFIELDS *) pkdField(p,pkd->oFieldOffset[oSph]))->divv);
+    return &pkd->particles.get<SPHFIELDS>(p,PKD_FIELD::oSph)->divv;
 }
 static inline float *pkd_fMetals( PKD pkd, PARTICLE *p ) {
-    return &(((SPHFIELDS *) pkdField(p,pkd->oFieldOffset[oSph]))->fMetals);
+    return &pkd->particles.get<SPHFIELDS>(p,PKD_FIELD::oSph)->fMetals;
 }
 static inline float *pkd_diff( PKD pkd, PARTICLE *p ) {
-    return &(((SPHFIELDS *) pkdField(p,pkd->oFieldOffset[oSph]))->diff);
+    return &pkd->particles.get<SPHFIELDS>(p,PKD_FIELD::oSph)->diff;
 }
 static inline float *pkd_fMetalsDot( PKD pkd, PARTICLE *p ) {
-    return &(((SPHFIELDS *) pkdField(p,pkd->oFieldOffset[oSph]))->fMetalsDot);
+    return &pkd->particles.get<SPHFIELDS>(p,PKD_FIELD::oSph)->fMetalsDot;
 }
 static inline float *pkd_fMetalsPred( PKD pkd, PARTICLE *p ) {
-    return &(((SPHFIELDS *) pkdField(p,pkd->oFieldOffset[oSph]))->fMetalsPred);
+    return &pkd->particles.get<SPHFIELDS>(p,PKD_FIELD::oSph)->fMetalsPred;
 }
 #endif //OPTIM_REMOVE_UNUSED
 static inline char **pkd_pNeighborList( PKD pkd, PARTICLE *p ) {
-    return &(((SPHFIELDS *) pkdField(p,pkd->oFieldOffset[oSph]))->pNeighborList);
+    return &pkd->particles.get<SPHFIELDS>(p,PKD_FIELD::oSph)->pNeighborList;
 }
 
 static inline float *pkd_Timer( PKD pkd, PARTICLE *p ) {
-    return &(((STARFIELDS *) pkdField(p,pkd->oFieldOffset[oStar]))->fTimer);
+    return &pkd->particles.get<STARFIELDS>(p,PKD_FIELD::oStar)->fTimer;
 }
 
 static inline int pkdIsDeleted(PKD pkd,PARTICLE *p) {
@@ -1559,8 +1553,8 @@ void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dScaleFactor, double dTime,
 uint32_t pkdWriteFIO(PKD pkd,FIO fio,double dvFac,double dTuFac,BND *bnd);
 void pkdWriteFromNode(PKD pkd,int iNode, FIO fio,double dvFac,double dTuFac,BND *bnd);
 void pkdWriteViaNode(PKD pkd, int iNode);
-char *pkdPackArray(PKD pkd,int iSize,void *vBuff,int *piIndex,int n,int field,int iUnitSize,double dvFac,int bMarked);
-void pkdSendArray(PKD pkd, int iNode, int field, int iUnitSize,double dvFac,int bMarked);
+char *pkdPackArray(PKD pkd,int iSize,void *vBuff,int *piIndex,int n,PKD_FIELD field,int iUnitSize,double dvFac,int bMarked);
+void pkdSendArray(PKD pkd, int iNode, PKD_FIELD field, int iUnitSize,double dvFac,int bMarked);
 void *pkdRecvArray(PKD pkd,int iNode, void *pDest, int iUnitSize);
 void pkdGravAll(PKD pkd,
                 struct pkdKickParameters *kick,struct pkdLightconeParameters *lc,struct pkdTimestepParameters *ts,

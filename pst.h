@@ -356,8 +356,8 @@ int pstSendParticles(PST,void *,int,void *,int);
 /* PST_SENDARRAY */
 struct inSendArray {
     double dvFac;
+    PKD_FIELD field;
     int iTo;
-    int field;
     int iUnitSize;
     int bMarked;
 };

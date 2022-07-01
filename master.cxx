@@ -2096,7 +2096,7 @@ double MSR::getVfactor(double dExpansion) {
     return csm->val.bComove ? dExpansion*dExpansion : 1.0;
 }
 
-void MSR::RecvArray(void *vBuffer,int field,int iUnitSize,double dTime,bool bMarked) {
+void MSR::RecvArray(void *vBuffer,PKD_FIELD field,int iUnitSize,double dTime,bool bMarked) {
     PKD pkd = pst->plcl->pkd;
     inSendArray in;
     in.field = field;
