@@ -43,7 +43,6 @@
 #ifdef GRACKLE
     #include <grackle.h>
 #endif
-#include "chemistry.h"
 
 #define CAST(T,V) reinterpret_cast<T>(V)
 
@@ -57,10 +56,6 @@ static inline int d2i(double d)  {
 static inline int64_t d2u64(double d) {
     return (uint64_t)d;
 }
-
-#define INTEGER_FACTOR 0x80000000u
-#define pkdDblToIntPos(pkd,d) (int32_t)((d)*INTEGER_FACTOR)
-#define pkdIntPosToDbl(pkd,pos) ((pos)*(1.0/INTEGER_FACTOR))
 
 /*
 ** Handy type punning macro.
@@ -134,7 +129,6 @@ typedef struct {
     double vscale[3];
 } PSMETRIC;
 
-#define PKD_MAX_CLASSES 256
 #define MAX_RUNG     63
 
 /*
@@ -147,197 +141,11 @@ typedef struct {
 #define ROOT        1
 #define NRESERVED_NODES MAX_RUNG+1
 
-struct PARTCLASS {
-    float       fMass;    /* Particle mass */
-    float       fSoft;    /* Current softening */
-    FIO_SPECIES eSpecies; /* Species: dark, star, etc. */
-
-    bool operator <(const PARTCLASS &b) const {
-        if ( fMass < b.fMass ) return true;
-        else if ( fMass > b.fMass ) return false;
-        else if ( fSoft < b.fSoft ) return true;
-        else if ( fSoft > b.fSoft ) return false;
-        else return eSpecies < b.eSpecies;
-    }
-    bool operator==(const PARTCLASS &b) const {
-        return fMass==b.fMass && fSoft==b.fSoft && eSpecies==b.eSpecies;
-    }
-    PARTCLASS() = default;
-    PARTCLASS(float fMass,float fSoft,FIO_SPECIES eSpecies)
-        : fMass(fMass), fSoft(fSoft), eSpecies(eSpecies) {}
-};
-static_assert(std::is_trivial<PARTCLASS>());
-
 typedef struct velsmooth {
     float vmean[3];
     float divv;
     float veldisp2;
 } VELSMOOTH;
-
-
-typedef double myreal;
-
-
-
-
-typedef struct sphfields {
-    char *pNeighborList; /* pointer to nearest neighbor list - compressed */
-    double vPred[3];
-
-    float c;        /* sound speed */
-#ifndef OPTIM_REMOVE_UNUSED
-    float u;            /* thermal energy */
-    float uPred;    /* predicted thermal energy */
-    float uDot;
-    float divv;
-    float BalsaraSwitch;    /* Balsara viscosity reduction */
-    float fMetals;      /* mass fraction in metals, a.k.a, Z - tipsy output variable */
-
-    /* diffusion */
-    float diff;
-    float fMetalsPred;
-    float fMetalsDot;
-#endif //OPTIM_REMOVE_UNUSED
-
-    /* IA: B matrix to 'easily' reconstruct faces'. Reminder: it is symmetric */
-    double B[6];
-
-    /* IA: Condition number for pathological configurations */
-    myreal Ncond;
-
-    /* IA: Gradients */
-    myreal gradRho[3];
-    myreal gradVx[3];
-    myreal gradVy[3];
-    myreal gradVz[3];
-    myreal gradP[3];
-
-    /* IA: last time this particle's primitve variables were updated */
-    myreal lastUpdateTime;
-    myreal lastAcc[3];
-    myreal lastMom[3];
-    myreal lastE;
-    myreal lastUint;
-    myreal lastHubble; // TODO: Maybe there is a more intelligent way to avoid saving this...
-#ifndef USE_MFM
-    myreal lastDrDotFrho[3];
-#endif
-    float lastMass;
-
-    /* IA: normalization factor (Eq 7 Hopkins 2015) at the particle position */
-    double omega;
-
-    /* IA: Fluxes */
-    myreal Frho;
-    myreal Fmom[3];
-    myreal Fene;
-
-#ifndef USE_MFM
-    double drDotFrho[3];
-#endif
-    /* IA: Conserved variables */
-    double mom[3];
-    double E;
-    /* IA: Internal energy, which is evolved in parallel and used for updating the pressure if we are in a cold flow */
-    double Uint;
-
-#ifdef ENTROPY_SWITCH
-    double S;
-    double lastS;
-    double maxEkin;
-#endif
-
-    /* IA: Primitive variables */
-    double P;
-
-    /* IA: fBall from the last iteration. Used for the bisection algorithm */
-    //float fLastBall;
-    /* IA: Number of neighbors correspoding to that fBall */
-    //int nLastNeighs;
-
-    /* IA: TODO temporarly */
-    //uint8_t uNewRung;
-
-#ifdef STAR_FORMATION
-    myreal SFR;
-#endif
-
-    float afElemMass[ELEMENT_COUNT];
-
-#ifdef COOLING
-    myreal lastCooling;
-    float cooling_dudt;
-#endif
-
-#ifdef HAVE_METALLICITY
-    float fMetalMass;
-#endif
-
-#ifdef STELLAR_EVOLUTION
-    float afReceivedMom[3];
-    float fReceivedMass;
-    float fReceivedE;
-#endif
-
-
-#ifdef FEEDBACK
-    float fAccFBEnergy;
-#endif
-
-
-    uint8_t uWake;
-
-} SPHFIELDS;
-
-typedef struct newsphfields {
-    float Omega;        /* Correction factor */
-    float divv;         /* Divergence of v */
-    float u;            /* Thermodynamical variable, can be T, A(s) or u */
-    float uDot;         /* Derivative of the thermodynamical variable */
-} NEWSPHFIELDS;
-
-typedef struct starfields {
-    double omega;
-#ifdef STELLAR_EVOLUTION
-    float afElemAbun[ELEMENT_COUNT]; /* Formation abundances */
-    float fMetalAbun;            /* Formation metallicity */
-    float fInitialMass;
-    float fLastEnrichTime;
-    float fLastEnrichMass;
-    int iLastEnrichMass;
-    float fNextEnrichTime;
-    struct {
-        int oZ;
-        float fDeltaZ;
-    } CCSN, AGB, Lifetime;
-    float fSNIaOnsetTime;
-#endif
-
-    float fTimer;  /* Time of formation */
-    float fSNEfficiency;
-    int hasExploded; /* Has exploded as a supernova? */
-} STARFIELDS;
-
-typedef struct blackholefields {
-    PARTICLE *pLowPot;
-    double omega;
-    double dInternalMass;
-    double newPos[3];
-    double lastUpdateTime;
-    double dAccretionRate;
-    double dEddingtonRatio;
-    double dFeedbackRate;
-    double dAccEnergy;
-    float fTimer;    /* Time of formation */
-} BHFIELDS;
-
-#ifdef OPTIM_UNION_EXTRAFIELDS
-typedef union extrafields {
-    SPHFIELDS sph;
-    STARFIELDS star;
-    BHFIELDS bh;
-} EXTRAFIELDS;
-#endif
 
 typedef struct partLightCone {
     float pos[3];
@@ -741,219 +549,6 @@ typedef struct {
     uint32_t nUngrouped;
     float fPotential;
 } healpixData;
-
-enum class PKD_FIELD {
-    oPosition,
-    oVelocity, /* Three vel_t */
-    oAcceleration, /* Three float */
-    oPotential, /* One float */
-    oGroup, /* One int32 */
-    oMass, /* One float */
-    oSoft, /* One float */
-    oDensity, /* One float */
-    oBall, /* One float */
-    oSph, /* Sph structure */
-    oNewSph, /* NewSph structure */
-    oStar, /* Star structure */
-    oBH, /* BH structure */
-    oRelaxation,
-    oVelSmooth,
-    oRungDest, /* Destination processor for each rung */
-    oParticleID,
-
-    MAX_FIELD
-};
-
-template<typename DATA,typename FIELD>
-class dataStore {
-protected:
-    std::vector<int> oFieldOffset;
-    DATA *pStore = nullptr;
-    size_t iElementSize = 0; // Size (in bytes) of a single PARTICLE
-    size_t nElementAlign = 0, iElement32 = 0;
-    int nStore = 0; // Maximum local particles
-    int nLocal = 0; // Current number of particles
-public:
-    void initialize(int iBasicSize) {
-        iElementSize = nElementAlign = iBasicSize;
-        iElement32 = 0;
-        oFieldOffset.clear();
-        oFieldOffset.insert(oFieldOffset.end(),static_cast<size_t>(FIELD::MAX_FIELD),0);
-    }
-    void align(void) {
-        iElementSize = (iElementSize + nElementAlign - 1 ) & ~(nElementAlign-1);
-    }
-    template<typename T>
-    void add(PKD_FIELD f) {
-        static_assert(std::alignment_of_v<T> == 4 || std::alignment_of_v<T> == 8);
-        int iOffset = iElementSize;
-        int iAlign = std::alignment_of_v<T>;
-        assert(Base() == nullptr);
-        if (iAlign==4 && iElement32 && sizeof(T)==4) {
-            iOffset = iElement32;
-            iElement32 = 0;
-        }
-        else {
-            auto iMask = iOffset & (iAlign-1);
-            if (iMask) {
-                iElement32 = iOffset;
-                iOffset += iAlign - iMask;
-            }
-            assert((iOffset & (iAlign-1)) == 0);
-            iElementSize = iOffset + sizeof(T);
-        }
-        if (nElementAlign < iAlign) nElementAlign = iAlign;
-        oFieldOffset[static_cast<unsigned int>(f)] = iOffset;
-    }
-    template<> void add<void>(PKD_FIELD f) {
-        oFieldOffset[static_cast<unsigned int>(f)] = 1;
-    }
-    void setStore(void *p,int n) {
-        pStore = static_cast<DATA *>(p);
-        nStore = n;
-    }
-protected:
-    DATA *Base() const { return pStore; }
-public:
-    auto present(FIELD f) const {return oFieldOffset[static_cast<unsigned int>(f)]!= 0;}
-    template<typename T>
-    auto get(const DATA *p,FIELD f) const {
-        auto v = reinterpret_cast<const char *>(p);
-        return present(f) ? reinterpret_cast<const T *>(v + oFieldOffset[static_cast<unsigned int>(f)]) : nullptr;
-    }
-    template<typename T>
-    auto get(DATA *p,FIELD f) const {
-        auto v = reinterpret_cast<char *>(p);
-        return present(f) ? reinterpret_cast<T *>(v + oFieldOffset[static_cast<unsigned int>(f)]) : nullptr;
-    }
-    auto ElementSize() const {return iElementSize; }
-    auto Element(void *pBase, int i) const {
-        auto v = static_cast<char *>(pBase);
-        return reinterpret_cast<DATA *>(v + ((uint64_t)i)*ElementSize());
-    }
-    auto Element(int i) const { return Element(Base(),i); }
-    int FreeStore() const { return nStore; }
-    int Local() const { return nLocal; }
-    int SetLocal(int n) { return (nLocal=n);}
-    int AddLocal(int n) { return (nLocal+=n);}
-    DATA *operator[](int i) {return Element(i);}
-};
-
-class particleStore : public dataStore<PARTICLE,PKD_FIELD> {
-protected:
-    friend class Particle;
-    bool bIntegerPosition = false;
-    bool bNoParticleOrder = false;
-    std::vector<PARTCLASS> ParticleClasses;
-    float fSoftFix = -1.0;
-    float fSoftFac = 1.0;
-    float fSoftMax = HUGE_VALF;
-public:
-    void PhysicalSoft(double dSoftMax,double dFac,int bSoftMaxMul) {
-        fSoftFac = dFac;
-        fSoftMax = bSoftMaxMul ? HUGE_VALF : dSoftMax;
-    }
-    void SetSoft(double dSoft) {
-        fSoftFix = dSoft;
-    }
-    float mass( PARTICLE *p ) const {
-        if (present(PKD_FIELD::oMass)) {
-            return get<float>(p,PKD_FIELD::oMass)[0];
-        }
-        else if (bNoParticleOrder) return ParticleClasses[0].fMass;
-        else return ParticleClasses[p->iClass].fMass;
-    }
-    float soft0( PARTICLE *p ) const {
-        if (present(PKD_FIELD::oSoft)) {
-            return get<float>(p,PKD_FIELD::oSoft)[0];
-        }
-        else if (bNoParticleOrder) return ParticleClasses[0].fSoft;
-        else return ParticleClasses[p->iClass].fSoft;
-    }
-    float fixedsoft() const { return fSoftFix; }
-    float soft( PARTICLE *p ) const {
-        float fSoft = fSoftFac * (fSoftFix >= 0.0 ? fSoftFix : soft0(p));
-        if ( fSoft > fSoftMax ) fSoft = fSoftMax;
-        return fSoft;
-    }
-    FIO_SPECIES species( PARTICLE *p ) const {
-        if (bNoParticleOrder) return ParticleClasses[0].eSpecies;
-        else return ParticleClasses[p->iClass].eSpecies;
-    }
-
-public:
-    void initialize(bool bIntegerPosition,bool bNoParticleOrder) {
-        this->bIntegerPosition = bIntegerPosition;
-        this->bNoParticleOrder = bNoParticleOrder;
-        dataStore<PARTICLE,PKD_FIELD>::initialize(bNoParticleOrder ? sizeof(UPARTICLE) : sizeof(PARTICLE));
-        ParticleClasses.reserve(PKD_MAX_CLASSES);
-    }
-
-    auto ParticleBase() { return Base(); }
-    auto ParticleSize() {return ElementSize(); }
-    auto ParticleGet(void *pBase, int i) { return Element(pBase,i); }
-    auto ParticleGet(int i) { return ParticleGet(Base(),i); }
-
-public:
-    void setClass( float fMass, float fSoft, FIO_SPECIES eSpecies, PARTICLE *p ) {
-        if ( present(PKD_FIELD::oMass) ) {
-            auto pMass = get<float>(p,PKD_FIELD::oMass);
-            *pMass = fMass;
-            fMass = 0.0;
-        }
-        if ( present(PKD_FIELD::oSoft) ) {
-            auto pSoft = get<float>(p,PKD_FIELD::oSoft);
-            *pSoft = fSoft;
-            fSoft = 0.0;
-        }
-        /* NOTE: The above can both be true, in which case a "zero" class is recorded */
-        /* NOTE: Species is always part of the class table, so there will be at least one class per species */
-        PARTCLASS newClass(fMass,fSoft,eSpecies);
-
-        /* TODO: This is a linear search which is fine for a small number of classes */
-        auto iclass = std::find(ParticleClasses.begin(),ParticleClasses.end(),newClass);
-        if (iclass==ParticleClasses.end()) {
-            assert( ParticleClasses.size() < PKD_MAX_CLASSES );
-            p->iClass = ParticleClasses.size();
-            ParticleClasses.emplace_back(newClass);
-        }
-        else p->iClass = std::distance(ParticleClasses.begin(),iclass);
-        if (bNoParticleOrder) { assert(p->iClass==0); }
-    }
-
-    int getClasses( int nMax, PARTCLASS *pClass ) {
-        std::copy(ParticleClasses.begin(),ParticleClasses.end(),pClass);
-        return ParticleClasses.size();
-    }
-
-    void setClasses( int n, PARTCLASS *pClass, int bUpdate ) {
-        uint8_t map[PKD_MAX_CLASSES];
-        PARTICLE *p;
-
-        if ( bUpdate && ParticleClasses.size() && !bNoParticleOrder) {
-            /* Build a map from the old class to the new class */
-            assert( n >= ParticleClasses.size() );
-            for (auto i=0; i<ParticleClasses.size(); ++i) {
-                auto jj = std::find(pClass,pClass+n,ParticleClasses[i]);
-                map[i] = std::distance(pClass,jj);
-            }
-
-            /* Now update the class with the new value */
-            for (auto i=0; i<Local(); ++i) {
-                p = ParticleGet(i);
-                assert( p->iClass < ParticleClasses.size() );
-                p->iClass = map[p->iClass];
-            }
-        }
-
-        /* Finally, set the new class table */
-        ParticleClasses.clear();
-        ParticleClasses.insert(ParticleClasses.end(),pClass,pClass+n);
-    }
-
-    void clearClasses() {ParticleClasses.clear();}
-
-};
 
 class pkdContext {
 public:
@@ -1380,27 +975,25 @@ static inline void pkdSwapParticle(PKD pkd, PARTICLE *a, PARTICLE *b) {
 }
 
 static inline int32_t pkdGetGroup( PKD pkd, const PARTICLE *p ) {
-    if (pkd->bNoParticleOrder) return ((const UPARTICLE *)p)->iGroup;
-    return pkd->particles.get<int32_t>(p,PKD_FIELD::oGroup)[0];
+    return pkd->particles.group(p);
 }
 
 static inline void pkdSetGroup( PKD pkd, PARTICLE *p, uint32_t gid ) {
-    if (pkd->bNoParticleOrder) ((UPARTICLE *)p)->iGroup = gid;
-    else if (pkd->particles.present(PKD_FIELD::oGroup)) pkd->particles.get<int32_t>(p,PKD_FIELD::oGroup)[0] = gid;
+    pkd->particles.setGroup(p,gid);
 }
 
 static inline float pkdDensity( PKD pkd, const PARTICLE *p ) {
-    return pkd->particles.get<float>(p,PKD_FIELD::oDensity)[0];
+    return pkd->particles.density(p);
 }
 static inline void pkdSetDensity( PKD pkd, PARTICLE *p, float fDensity ) {
-    if (pkd->particles.present(PKD_FIELD::oDensity)) pkd->particles.get<float>(p,PKD_FIELD::oDensity)[0] = fDensity;
+    pkd->particles.setDensity(p,fDensity);
 }
 
 static inline float pkdBall( PKD pkd, PARTICLE *p ) {
-    return pkd->particles.get<float>(p,PKD_FIELD::oBall)[0];
+    return pkd->particles.ball(p);
 }
 static inline void pkdSetBall(PKD pkd, PARTICLE *p, float fBall) {
-    if (pkd->particles.present(PKD_FIELD::oBall)) pkd->particles.get<float>(p,PKD_FIELD::oBall)[0] = fBall;
+    pkd->particles.setBall(p,fBall);
 }
 
 /* Here is the new way of getting mass and softening */
@@ -1511,7 +1104,7 @@ static inline BHFIELDS *pkdBH( PKD pkd, PARTICLE *p ) {
 #endif //DEBUG
     return pkd->particles.get<BHFIELDS>(p,PKD_FIELD::oSph);
 #else
-    return pkd->particles.get<BHFIELDS>(p,PKD_FIELD::oBh);
+    return pkd->particles.get<BHFIELDS>(p,PKD_FIELD::oBH);
 #endif
 }
 static inline const BHFIELDS *pkdBHRO( PKD pkd, PARTICLE *p ) {
@@ -1521,7 +1114,7 @@ static inline const BHFIELDS *pkdBHRO( PKD pkd, PARTICLE *p ) {
 #endif //DEBUG
     return pkd->particles.get<BHFIELDS>(p,PKD_FIELD::oSph);
 #else
-    return pkd->particles.get<BHFIELDS>(p,PKD_FIELD::oBh);
+    return pkd->particles.get<BHFIELDS>(p,PKD_FIELD::oBH);
 #endif
 }
 static inline double *pkd_vPred( PKD pkd, PARTICLE *p ) {
