@@ -264,6 +264,7 @@ enum class PKD_FIELD {
     oVelSmooth,
     oRungDest, /* Destination processor for each rung */
     oParticleID,
+    oGlobalGid, /* global group id, uint64 */
 
     MAX_FIELD
 };
@@ -328,6 +329,14 @@ public:
         if (bNoParticleOrder) reinterpret_cast<UPARTICLE *>(p)->iGroup = gid;
         else if (present(PKD_FIELD::oGroup)) get<int32_t>(p,PKD_FIELD::oGroup)[0] = gid;
     }
+
+    int32_t global_gid(const PARTICLE *p ) const {
+        return get<int64_t>(p,PKD_FIELD::oGlobalGid)[0];
+    }
+    void set_global_gid( PARTICLE *p, uint64_t gid ) {
+        if (present(PKD_FIELD::oGlobalGid)) get<int64_t>(p,PKD_FIELD::oGlobalGid)[0] = gid;
+    }
+
     auto density( const PARTICLE *p ) {
         return get<float>(p,PKD_FIELD::oDensity)[0];
     }

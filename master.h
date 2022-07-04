@@ -143,7 +143,7 @@ public:
 #ifdef OPTIM_SMOOTH_NODE
     int ReSmoothNode(double dTime, double dDelta, int iSmoothType,int bSymmetric);
 #endif
-    void NewFof(double exp);
+    void NewFof(double dTau,int nMinMembers);
     void Hop(double dTime,double dDelta);
     void GroupStats();
     void HopWrite(const char *fname);
@@ -315,22 +315,52 @@ protected:
     double getVfactor(double dTime);
     bool getDeltaSteps(double dTime,int iStartStep,double &dDelta,int &nSteps);
 
-    const char *OutName() const { return param.achOutName;}
+    const char *OutName() const {
+        return param.achOutName;
+    }
     //int Steps()           const { return param.nSteps; }
-    int LogInterval()     const { return param.iLogInterval; }
-    int OutInterval()     const { return param.iOutInterval; }
-    int CheckInterval()   const { return param.iCheckInterval; }
-    double Soft()         const { return param.dSoft; }
-    int DoDensity()       const { return param.bDoDensity; }
-    int DoGas()           const { return param.bDoGas; }
-    int NewSPH()          const { return param.bNewSPH; }
-    int MeshlessHydro()   const { return param.bMeshlessHydro; }
-    int DoGravity()       const { return param.bDoGravity; }
-    double Eta()          const { return param.dEta; }
-    int MaxRung()         const { return param.iMaxRung; }
-    int Comove()          const { return csm->val.bComove; }
-    uint64_t MaxOrder()   const { return nMaxOrder; }
-    int CurrMaxRung()     const { return iCurrMaxRung; }
+    int LogInterval()     const {
+        return param.iLogInterval;
+    }
+    int OutInterval()     const {
+        return param.iOutInterval;
+    }
+    int CheckInterval()   const {
+        return param.iCheckInterval;
+    }
+    double Soft()         const {
+        return param.dSoft;
+    }
+    int DoDensity()       const {
+        return param.bDoDensity;
+    }
+    int DoGas()           const {
+        return param.bDoGas;
+    }
+    int NewSPH()          const {
+        return param.bNewSPH;
+    }
+    int MeshlessHydro()   const {
+        return param.bMeshlessHydro;
+    }
+    int DoGravity()       const {
+        return param.bDoGravity;
+    }
+    double Eta()          const {
+        return param.dEta;
+    }
+    int MaxRung()         const {
+        return param.iMaxRung;
+    }
+    int Comove()          const {
+        return csm->val.bComove;
+    }
+    uint64_t MaxOrder()   const {
+        return nMaxOrder;
+    }
+    int CurrMaxRung()     const {
+        return iCurrMaxRung;
+    }
 
     std::string BuildName(const char *path,int iStep,const char *type="");
     std::string BuildName(int iStep,const char *type=""); // With achOutPath

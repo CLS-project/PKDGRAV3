@@ -68,6 +68,7 @@ typedef struct pstContext {
     double fSplit;
     double fSplitInactive;
     uint64_t nTotal;
+    uint64_t nLowerGroups;  /* count of number of groups in the lower sub-tree, used for making global group ids. */
 } *PST;
 
 
@@ -463,6 +464,7 @@ int pstGroupRelocate(PST,void *,int,void *,int);
 struct inGroupStats {
     int bPeriodic;
     double dPeriod[3];
+    uint64_t iGlobalStart;  /* initially set to 1 at the master level */
     double rEnvironment[2];
 };
 int pstGroupStats(PST,void *,int,void *,int);

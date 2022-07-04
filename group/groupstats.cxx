@@ -398,7 +398,7 @@ typedef struct {
 } RootFindingTable;
 
 
-void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnvironment[2]) {
+void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnvironment[2],uint64_t iGlobalStart) {
     const int bDoShrinkingSphere = 0;
     MDL mdl = pkd->mdl;
     PARTICLE *p;
@@ -420,6 +420,7 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnviro
     ShrinkStruct *shrink;
     int bShrink;
     double f2;
+    int bLocal; /* a flip-flop which toggles when the first remote group is encountered, used as a consistency check only */
 
     assert(pkd->nGroups*(sizeof(*pkd->ga)+sizeof(*pkd->tinyGroupTable)+sizeof(ShrinkStruct)) < 1ul*pkd->EphemeralBytes()*pkd->FreeStore());
     pkd->tinyGroupTable = (TinyGroupTable *)(&pkd->ga[pkd->nGroups]);
@@ -428,8 +429,19 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnviro
     ** Initialize the table.
     */
     nLocalGroups = 0;
+    /*
+    ** Global id of ungrouped particles is always 0!
+    */
+    pkd->tinyGroupTable[0].iGlobalGid = 0;
+    bLocal = 1;
     for (gid=0; gid<pkd->nGroups; ++gid) {
-        if (pkd->ga[gid].id.iPid == pkd->Self() && gid) ++nLocalGroups;
+        if (pkd->ga[gid].id.iPid == pkd->Self() && gid) {
+            assert(bLocal == 1); /* make sure all the local groups come first in the ga array!!! */
+            pkd->tinyGroupTable[gid].iGlobalGid = iGlobalStart + nLocalGroups++;
+        }
+        else if (gid) {
+            bLocal = 0;  /* at this point should follow all remote groups */
+        }
         /*
         ** Here we assume that the ga table was setup prior to calling
         ** gravity so that we have filled in the minimum potential particle
@@ -455,6 +467,10 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnviro
         dAccumulate[4*gid+2] = 0;
         dAccumulate[4*gid+3] = 0;
     }
+    /*
+    ** Make sure we got a consistent number of local groups from after pkdFofFinishUp().
+    */
+    assert(nLocalGroups == pkd->nLocalGroups);
     /*
     ** First determine the minimum potential particle for each group.
     ** This will be the reference position for the group as well.
@@ -513,8 +529,22 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnviro
         for (j=0; j<3; ++j) {
             pkd->tinyGroupTable[gid].rPot[j] = g->rPot[j];
         }
+        /*
+        ** Read the remote group's global id.
+        */
+        pkd->tinyGroupTable[gid].iGlobalGid = g->iGlobalGid;
     }
     mdlFinishCache(mdl,CID_GROUP);
+    /*
+    ** Now we can set the GlobalGid of every particle (if this field is present)!
+    */
+    if (pkd->particles.present(PKD_FIELD::oGlobalGid)) {
+        for (i=0; i<pkd->Local(); ++i) {
+            p = pkd->Particle(i);
+            gid = pkdGetGroup(pkd,p);
+            pkdSetGlobalGid(pkd,p,pkd->tinyGroupTable[gid].iGlobalGid);
+        }
+    }
     /*
     ** Now find rcom and rMax and total mass locally.
     */
