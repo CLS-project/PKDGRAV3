@@ -979,21 +979,21 @@ static inline int32_t pkdGetGroup( PKD pkd, const PARTICLE *p ) {
 }
 
 static inline void pkdSetGroup( PKD pkd, PARTICLE *p, uint32_t gid ) {
-    pkd->particles.setGroup(p,gid);
+    pkd->particles.set_group(p,gid);
 }
 
 static inline float pkdDensity( PKD pkd, const PARTICLE *p ) {
     return pkd->particles.density(p);
 }
 static inline void pkdSetDensity( PKD pkd, PARTICLE *p, float fDensity ) {
-    pkd->particles.setDensity(p,fDensity);
+    pkd->particles.set_density(p,fDensity);
 }
 
 static inline float pkdBall( PKD pkd, PARTICLE *p ) {
     return pkd->particles.ball(p);
 }
 static inline void pkdSetBall(PKD pkd, PARTICLE *p, float fBall) {
-    pkd->particles.setBall(p,fBall);
+    pkd->particles.set_ball(p,fBall);
 }
 
 /* Here is the new way of getting mass and softening */

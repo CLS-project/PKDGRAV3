@@ -23,6 +23,7 @@
 #include <type_traits>
 #include <boost/iterator/iterator_facade.hpp>
 #include "blitz/array.h"
+#include "datastore.h"
 #include "io/fio.h"
 #include "chemistry.h"
 
@@ -241,6 +242,10 @@ union EXTRAFIELDS {
 };
 #endif
 
+//! \brief Enumerates all of the optional fields in a PARTICLE
+//!
+//! The PARTICLE structure can be minimally only four or eight bytes.
+//! The fields listed below can be added based on the memory model.
 enum class PKD_FIELD {
     oPosition,
     oVelocity, /* Three vel_t */
@@ -263,82 +268,6 @@ enum class PKD_FIELD {
     MAX_FIELD
 };
 
-template<typename DATA,typename FIELD>
-class dataStore {
-protected:
-    std::vector<int> oFieldOffset;
-    DATA *pStore = nullptr;
-    size_t iElementSize = 0; // Size (in bytes) of a single PARTICLE
-    size_t nElementAlign = 0, iElement32 = 0;
-    int nStore = 0; // Maximum local particles
-    int nLocal = 0; // Current number of particles
-public:
-    void initialize(int iBasicSize) {
-        iElementSize = nElementAlign = iBasicSize;
-        iElement32 = 0;
-        oFieldOffset.clear();
-        oFieldOffset.insert(oFieldOffset.end(),static_cast<size_t>(FIELD::MAX_FIELD),0);
-    }
-    void align(void) {
-        iElementSize = (iElementSize + nElementAlign - 1 ) & ~(nElementAlign-1);
-    }
-    template<typename T,std::enable_if_t<std::is_void_v<T>,bool> = true>
-    void add(PKD_FIELD f) {
-        oFieldOffset[static_cast<unsigned int>(f)] = 1;
-    }
-    template<typename T,std::enable_if_t<!std::is_void_v<T>,bool> = true>
-    void add(PKD_FIELD f) {
-        static_assert(std::is_void_v<T> || std::alignment_of_v<T> == 4 || std::alignment_of_v<T> == 8);
-        int iOffset = iElementSize;
-        int iAlign = std::alignment_of_v<T>;
-        assert(Base() == nullptr);
-        if (iAlign==4 && iElement32 && sizeof(T)==4) {
-            iOffset = iElement32;
-            iElement32 = 0;
-        }
-        else {
-            auto iMask = iOffset & (iAlign-1);
-            if (iMask) {
-                iElement32 = iOffset;
-                iOffset += iAlign - iMask;
-            }
-            assert((iOffset & (iAlign-1)) == 0);
-            iElementSize = iOffset + sizeof(T);
-        }
-        if (nElementAlign < iAlign) nElementAlign = iAlign;
-        oFieldOffset[static_cast<unsigned int>(f)] = iOffset;
-    }
-    void setStore(void *p,int n) {
-        pStore = static_cast<DATA *>(p);
-        nStore = n;
-    }
-protected:
-    DATA *Base() const { return pStore; }
-public:
-    auto present(FIELD f) const {return oFieldOffset[static_cast<unsigned int>(f)]!= 0;}
-    template<typename T>
-    auto get(const DATA *p,FIELD f) const {
-        auto v = reinterpret_cast<const char *>(p);
-        return present(f) ? reinterpret_cast<const T *>(v + oFieldOffset[static_cast<unsigned int>(f)]) : nullptr;
-    }
-    template<typename T>
-    auto get(DATA *p,FIELD f) const {
-        auto v = reinterpret_cast<char *>(p);
-        return present(f) ? reinterpret_cast<T *>(v + oFieldOffset[static_cast<unsigned int>(f)]) : nullptr;
-    }
-    auto ElementSize() const {return iElementSize; }
-    auto Element(void *pBase, int i) const {
-        auto v = static_cast<char *>(pBase);
-        return reinterpret_cast<DATA *>(v + ((uint64_t)i)*ElementSize());
-    }
-    auto Element(int i) const { return Element(Base(),i); }
-    int FreeStore() const { return nStore; }
-    int Local() const { return nLocal; }
-    int SetLocal(int n) { return (nLocal=n);}
-    int AddLocal(int n) { return (nLocal+=n);}
-    DATA *operator[](int i) {return Element(i);}
-};
-
 class particleStore : public dataStore<PARTICLE,PKD_FIELD> {
 protected:
     friend class Particle;
@@ -356,6 +285,12 @@ public:
     void SetSoft(double dSoft) {
         fSoftFix = dSoft;
     }
+    blitz::TinyVector<double,3> position( PARTICLE *p ) const {
+        if (bIntegerPosition) return get<int32_t,3>(p,PKD_FIELD::oPosition) * 1.0 / INTEGER_FACTOR;
+        else return get<double,3>(p,PKD_FIELD::oPosition);
+    }
+    auto velocity( const PARTICLE *p )     const {return get<float,3>(p,PKD_FIELD::oVelocity);}
+    auto acceleration( const PARTICLE *p ) const {return get<float,3>(p,PKD_FIELD::oAcceleration);}
     float mass( PARTICLE *p ) const {
         if (present(PKD_FIELD::oMass)) {
             return get<float>(p,PKD_FIELD::oMass)[0];
@@ -385,31 +320,21 @@ public:
         if (bNoParticleOrder) return reinterpret_cast<const UPARTICLE *>(p)->iGroup;
         return get<int32_t>(p,PKD_FIELD::oGroup)[0];
     }
-    void setGroup( PARTICLE *p, uint32_t gid ) {
+    void set_group( PARTICLE *p, uint32_t gid ) {
         if (bNoParticleOrder) reinterpret_cast<UPARTICLE *>(p)->iGroup = gid;
         else if (present(PKD_FIELD::oGroup)) get<int32_t>(p,PKD_FIELD::oGroup)[0] = gid;
     }
     auto density( const PARTICLE *p ) {
         return get<float>(p,PKD_FIELD::oDensity)[0];
     }
-    void setDensity( PARTICLE *p, float fDensity ) {
+    void set_density( PARTICLE *p, float fDensity ) {
         if (present(PKD_FIELD::oDensity)) get<float>(p,PKD_FIELD::oDensity)[0] = fDensity;
     }
     auto ball( PARTICLE *p ) {
         return get<float>(p,PKD_FIELD::oBall)[0];
     }
-    void setBall(PARTICLE *p, float fBall) {
+    void set_ball(PARTICLE *p, float fBall) {
         if (present(PKD_FIELD::oBall)) get<float>(p,PKD_FIELD::oBall)[0] = fBall;
-    }
-
-    auto velocity( PARTICLE *p ) const {
-        return get<float>(p,PKD_FIELD::oVelocity);
-    }
-    auto acceleration( PARTICLE *p ) const {
-        return get<float>(p,PKD_FIELD::oAcceleration);
-    }
-    auto acceleration( const PARTICLE *p ) const {
-        return get<float>(p,PKD_FIELD::oAcceleration);
     }
     auto potential( PARTICLE *p ) const {
         return present(PKD_FIELD::oPotential) ? get<float>(p,PKD_FIELD::oPotential) : nullptr;
@@ -496,6 +421,9 @@ public:
     auto isNew(PARTICLE *p) {
         return (p->iOrder == IORDERMAX);
     }
+    bool isRungRange(PARTICLE *p,uint8_t uRungLo,uint8_t uRungHi) {
+        return ((p->uRung >= uRungLo)&&(p->uRung <= uRungHi));
+    }
 public:
     class Particle {
     protected:
@@ -532,7 +460,27 @@ public:
         auto mass()         const {return store.mass(p);}
         auto soft0()        const {return store.soft0(p);}
         auto soft()         const {return store.soft(p);}
+        auto group()        const {return store.group(p);}
         auto density()      const {return store.density(p);}
+        auto ball()         const {return store.ball(p);}
+        auto potential()    const {return store.potential(p);}
+        auto RungDest()     const { return store.RungDest(p); }
+        auto ParticleID()   const { return store.ParticleID(p); }
+        auto sph()          const { return store.sph(p); }
+        auto newsph()       const { return store.newsph(p); }
+        auto star()         const { return store.star(p); }
+        auto BH()           const { return store.BH(p); }
+        auto vPred()        const { return store.vPred(p); }
+        auto pNeighborList()const { return store.pNeighborList(p); }
+        auto Timer()        const { return store.Timer(p); }
+        auto isDeleted()    const { return store.isDeleted(p); }
+        auto isNew()        const { return store.isNew(p); }
+        auto isRungRange(uint8_t uRungLo,uint8_t uRungHi)  const { return store.isRungRange(p,uRungLo,uRungHi); }
+
+        void set_group( uint32_t gid ) { store.set_group(p,gid); }
+        void set_density(float fDensity) {store.set_density(p,fDensity);}
+        void set_ball(float fBall) {store.set_ball(p,fBall);}
+
     };
     Particle operator[](int i) {
         return Particle(*this,i);
@@ -568,6 +516,7 @@ protected:
         particle_iter() : p(0), store(0) {}
 
         explicit particle_iter(Value *p,Store *store) : p(p),store(store) {}
+        explicit particle_iter(int i,Store *store) : p(store->Element(i)),store(store) {}
 
         template <class OtherValue,class OtherStore>
         particle_iter(particle_iter<OtherValue,OtherStore> const &other)
