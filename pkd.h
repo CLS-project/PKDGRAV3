@@ -25,6 +25,9 @@
 #ifdef USE_CUDA
     #include "cuda/cudautil.h"
 #endif
+#ifdef USE_METAL
+    #include "metal/metal.h"
+#endif
 #include "gravity/ilp.h"
 #include "gravity/ilc.h"
 #include "gravity/cl.h"
@@ -1043,6 +1046,9 @@ public:
 #ifdef USE_CUDA
     CudaClient *cudaClient;
 #endif
+#ifdef USE_METAL
+    MetalClient *metalClient;
+#endif
 #ifdef MDL_FFTW
     MDLFFT fft;
 #endif
@@ -1719,7 +1725,6 @@ int pkdGetParticles(PKD pkd, int nIn, uint64_t *ID, struct outGetParticles *out)
     extern int CUDAcheckWorkPC( void *vpp, void *vwork );
     extern int CUDAinitWorkEwald( void *vpp, void *vwork );
     extern int CUDAcheckWorkEwald( void *vpp, void *vwork );
-    void *pkdCudaClientInitialize(PKD pkd);
 #endif
 #ifdef USE_CL
     extern int CLinitWorkEwald( void *vcl, void *ve, void *vwork );

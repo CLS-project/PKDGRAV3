@@ -12,7 +12,7 @@ FetchContent_Declare(
 # Prevent overriding the parent project's compiler/linker settings on Windows
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 
-set(USE_GTEST "yes" CACHE STRING "Should we provide the tests using gtest framework")
+set(USE_GTEST "no" CACHE STRING "Should we provide the tests using gtest framework")
 if(USE_GTEST)
   FetchContent_MakeAvailable(googletest)
   enable_testing()

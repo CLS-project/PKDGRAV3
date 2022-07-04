@@ -36,6 +36,9 @@
     #ifdef USE_CUDA
         #include "mdlcuda.h"
     #endif
+    #ifdef USE_METAL
+        #include "metal/mdlmetal.h"
+    #endif
     #include "rwlock.h"
     #include <memory>
     #include <tuple>
@@ -292,6 +295,14 @@ public:
     void enqueue(const cudaMessage &M, basicQueue &replyTo);
     void enqueueAndWait(const cudaMessage &M);
 #endif
+#ifdef USE_METAL
+    int nMETAL;
+    metal::metalMessageQueue metalDone;
+    int flushCompletedMETAL(); // Returns how many are still outstanding
+    void enqueue(const metal::metalMessage &M);
+    void enqueue(const metal::metalMessage &M, basicQueue &replyTo);
+    void enqueueAndWait(const metal::metalMessage &M);
+#endif
 private:
     void init(bool bDiag = false);
 
@@ -329,6 +340,7 @@ public:
     void ThreadBarrier(bool bGlobal=false);
     void CompleteAllWork();
     bool isCudaActive();
+    bool isMetalActive();
     int numGPUs();
     void Backtrace() {show_backtrace();}
 
@@ -356,6 +368,10 @@ protected:
 #ifdef USE_CUDA
     CUDA cuda;
 #endif
+#ifdef USE_METAL
+    metal::METAL metal;
+#endif
+
     mdlMessageQueue queueMPInew;     // Queue of work sent to MPI task
     std::vector<mdlMessageCacheRequest *> CacheRequestMessages;
 
@@ -471,6 +487,12 @@ public:
 #else
     bool isCudaActive() {return false; }
     int numGPUs() {return 0;}
+#endif
+#ifdef USE_METAL
+    void enqueue(const metal::metalMessage &M, basicQueue &replyTo);
+    bool isMetalActive() {return metal.isActive(); }
+#else
+    bool isMetalActive() {return false; }
 #endif
     void enqueue(mdlMessage &M);
     void enqueue(const mdlMessage &M, basicQueue &replyTo, bool bWait=false);

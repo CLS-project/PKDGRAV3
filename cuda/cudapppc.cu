@@ -118,7 +118,7 @@ void MessagePPPC<TILE,N>::launch(mdl::Stream &stream,void *pCudaBufIn, void *pCu
 
     cudaMemsetAsync(pCudaBufOut,0,this->resultsBufferCount,stream);
 
-    dim3 dimBlock( BLK::width, 8, 1 );
+    dim3 dimBlock( N, 8, 1 );
     dim3 dimGrid( this->nGrid, 1,1);
     if (bGravStep) {
         cudaInteract<true>

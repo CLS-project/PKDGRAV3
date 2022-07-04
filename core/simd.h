@@ -73,7 +73,7 @@
 #define SIMD_MASK (SIMD_WIDTH-1)
 #define SIMD_DMASK (SIMD_DWIDTH-1)
 
-#ifndef __CUDACC__
+#if !defined(__CUDACC__) && !defined(__METAL_VERSION__)
 #ifdef USE_SIMD
     #if defined(__SSE__)
         #include <xmmintrin.h>

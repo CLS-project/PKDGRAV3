@@ -106,6 +106,7 @@ protected:
         workInformation(workParticle *wp, size_t nInteractions) : wp(wp), nInteractions(nInteractions) {}
     };
     static constexpr size_t wp_max_buffer = 128;
+    static constexpr size_t wp_unit_mask = 7; // Pad input buffer to this mask (so multiples of 8)
     std::vector<workInformation> work; // [wp_max_buffer]
 
 public:
@@ -149,13 +150,13 @@ public:
             int nI = w.nInteractions;
             auto nP = w.wp->nP;
             auto *pInfoIn = w.wp->pInfoIn;
-            auto nBlocks = (nI + BLK::width - 1) / BLK::width;
+            auto nBlocks = (nI + WIDTH - 1) / WIDTH;
 
             // Generate a interaction block descriptor for each block
             for (auto j=0; j<nBlocks; ++j) {
                 wuHost->nP = nP;
                 wuHost->iP = iP;
-                wuHost->nI = nI > BLK::width ? BLK::width : nI;
+                wuHost->nI = nI > WIDTH ? WIDTH : nI;
                 nI -= wuHost->nI;
                 ++wuHost;
             }
@@ -175,6 +176,13 @@ public:
             partHost += nP;
             iP += nP;
         }
+        // Pad the work unit
+        for (auto i=nTotalInteractionBlocks; i&wp_unit_mask; ++i) {
+            wuHost->nP = 0;
+            wuHost->iP = 0;
+            wuHost->nI = 0;
+            ++wuHost;
+        }
         requestBufferCount = reinterpret_cast<char *>(wuHost) - reinterpret_cast<char *>(pHostBufIn);
         resultsBufferCount = iP * sizeof(ppResult);
         nGrid = nTotalInteractionBlocks;
@@ -190,8 +198,10 @@ public:
 
     template<class BLK>
     int inputSize(int nP=0, int nI=0) {
-        const auto nBlocks = (nI+BLK::width-1) / BLK::width; // number of interaction blocks needed
-        return (nBlocks + nTotalInteractionBlocks) * (sizeof(BLK) + sizeof(ppWorkUnit)) + (align_nP(nP) + nTotalParticles) * sizeof(ppInput);
+        const auto nBlocks = (nI+WIDTH-1) / WIDTH; // number of interaction blocks needed
+        return (nBlocks + nTotalInteractionBlocks) * (sizeof(BLK) + sizeof(ppWorkUnit))
+               + (align_nP(nP) + nTotalParticles) * sizeof(ppInput)
+               + wp_unit_mask * sizeof(ppWorkUnit);
     }
 
     template<class BLK>

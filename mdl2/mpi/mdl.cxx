@@ -1314,6 +1314,10 @@ int mpiClass::checkMPI() {
     flushCompletedCUDA();
     cuda.launch();
 #endif
+#ifdef USE_METAL
+    flushCompletedMETAL();
+    metal.launch();
+#endif
     processMessages();
     finishRequests(); // Check for non-block MPI requests (send, receive, barrier, etc.)
     return nActiveCores;
@@ -1491,6 +1495,9 @@ int mpiClass::Launch(int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),vo
 #ifdef USE_CUDA
     cuda.initialize();
 #endif
+#ifdef USE_METAL
+    metal.initialize();
+#endif
 
     iRequestTarget = 0;
 
@@ -1638,6 +1645,11 @@ void mpiClass::enqueue(const cudaMessage &M, basicQueue &replyTo) {
     cuda.enqueue(M,replyTo);
 }
 #endif
+#ifdef USE_METAL
+void mpiClass::enqueue(const metal::metalMessage &M, basicQueue &replyTo) {
+    metal.enqueue(M,replyTo);
+}
+#endif
 
 void mpiClass::enqueue(mdlMessage &M) {
     queueMPInew.enqueue(M);
@@ -1717,6 +1729,9 @@ void mdlClass::CompleteAllWork() {
 #ifdef USE_CUDA
     while (flushCompletedCUDA()) {}
 #endif
+#ifdef USE_METAL
+    while (flushCompletedMETAL()) {}
+#endif
 }
 
 basicMessage &mdlClass::waitQueue(basicQueue &wait) {
@@ -1753,6 +1768,32 @@ void mdlClass::enqueue(const cudaMessage &M, basicQueue &replyTo) {
 // Send the message to the MPI thread and wait for the response
 void mdlClass::enqueueAndWait(const cudaMessage &M) {
     cudaMessageQueue wait;
+    enqueue(M,wait);
+    waitQueue(wait);
+}
+#endif
+#ifdef USE_METAL
+int mdlClass::flushCompletedMETAL() {
+    while (!metalDone.empty()) {
+        auto &M = metalDone.dequeue();
+        M.finish();
+        --nMETAL;
+    }
+    return nMETAL;
+}
+
+void mdlClass::enqueue(const metal::metalMessage &M) {
+    ++nMETAL;
+    mpi->enqueue(M,metalDone);
+}
+
+void mdlClass::enqueue(const metal::metalMessage &M, basicQueue &replyTo) {
+    mpi->enqueue(M,replyTo);
+}
+
+// Send the message to the MPI thread and wait for the response
+void mdlClass::enqueueAndWait(const metal::metalMessage &M) {
+    metal::metalMessageQueue wait;
     enqueue(M,wait);
     waitQueue(wait);
 }
@@ -1893,6 +1934,9 @@ void mdlClass::init(bool bDiag) {
 #endif
 #ifdef USE_CUDA
     nCUDA = 0;
+#endif
+#ifdef USE_METAL
+    nMETAL = 0;
 #endif
     this->bDiag = bDiag;
     if (bDiag) {
@@ -2671,7 +2715,7 @@ void mdlprintf(MDL cmdl, const char *format, ...) {
 }
 
 int mdlClass::numGPUs() {return mpi->numGPUs(); }
-
+bool mdlClass::isMetalActive() {return mpi->isMetalActive(); }
 bool mdlClass::isCudaActive() {return mpi->isCudaActive(); }
 int mdlCudaActive(MDL mdl) {
 #ifdef USE_CUDA

@@ -13,7 +13,7 @@ pipelines:
            size: 2x
            runs-on: self.hosted
            script:
-             - cmake .
+             - cmake -DUSE_GTEST=Yes .
              - make -j 8
              - ln -s /build/euclid_flagship_500.hdf5
              - ln -s /build/b0-final* ./
@@ -27,7 +27,7 @@ pipelines:
              - 'gpu'
            script:
              - lscpu
-             - cmake .
+             - cmake -DUSE_GTEST=Yes .
              - make -j 8
              - ln -s /build/euclid_flagship_500.hdf5
              - ln -s /build/b0-final* ./
@@ -39,7 +39,7 @@ pipelines:
              - 'avx512'
            script:
              - lscpu
-             - cmake .
+             - cmake -DUSE_GTEST=Yes .
              - make -j 8
              - ln -s /build/euclid_flagship_500.hdf5
              - ln -s /build/b0-final* ./
