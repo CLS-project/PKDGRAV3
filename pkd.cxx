@@ -248,7 +248,9 @@ static void firstTouch(uint64_t n,char *p) {
 /* Greatest common divisor */
 static int gcd ( int a, int b ) {
     while ( a != 0 ) {
-        int c = a; a = b%a;  b = c;
+        int c = a;
+        a = b%a;
+        b = c;
     }
     return b;
 }
@@ -372,6 +374,15 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
         this->oFieldOffset[oParticleID] = ParticleAddInt64();
     else
         this->oFieldOffset[oParticleID] = 0;
+    /*
+    ** Add a global group id. This is used when outputing an array of particles with
+    ** one group assignment per particle.Usually only used in testing as it adds a
+    ** 64 bit integer.
+    */
+    if ( mMemoryModel & PKD_MODEL_GLOBALGID )
+        this->oFieldOffset[oGlobalGid] = ParticleAddInt64();
+    else
+        this->oFieldOffset[oGlobalGid] = 0;
 
     this->oFieldOffset[oVelocity] = 0;
     if ( mMemoryModel & PKD_MODEL_VELOCITY ) {
@@ -688,6 +699,16 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     }
 
     /*
+    ** Initialize global group id.
+    */
+    if (this->oFieldOffset[oGlobalGid]) {
+        for (pi=0; pi<(this->nStore+1); ++pi) {
+            p = Particle(pi);
+            *pkdGlobalGid(this,p) = 0;
+        }
+    }
+
+    /*
     ** We support up to 256 classes
     */
     ParticleClasses.reserve(PKD_MAX_CLASSES);
@@ -799,7 +820,10 @@ pkdContext::~pkdContext() {
     }
     if (pHealpixData) free(pHealpixData);
     io_free(&afiLightCone);
-    if (csm) { csmFinish(csm); csm = NULL; }
+    if (csm) {
+        csmFinish(csm);
+        csm = NULL;
+    }
 #ifdef COOLING
     cooling_clean(cooling);
 #endif
@@ -855,7 +879,9 @@ void pkdSetClass( PKD pkd, float fMass, float fSoft, FIO_SPECIES eSpecies, PARTI
         pkd->ParticleClasses.emplace_back(newClass);
     }
     else p->iClass = std::distance(pkd->ParticleClasses.begin(),iclass);
-    if (pkd->bNoParticleOrder) { assert(p->iClass==0); }
+    if (pkd->bNoParticleOrder) {
+        assert(p->iClass==0);
+    }
 }
 
 int pkdGetClasses( PKD pkd, int nMax, PARTCLASS *pClass ) {
@@ -975,7 +1001,8 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 
         eSpecies = fioSpecies(fio);
         switch (eSpecies) {
-        case FIO_SPECIES_SPH: ;
+        case FIO_SPECIES_SPH:
+            ;
             float afSphOtherData[2];
             fioReadSph(fio,&iParticleID,r,vel,&fMass,&fSoft,pPot,
                        &fDensity,&u,&fMetals[0],afSphOtherData);
@@ -1225,8 +1252,10 @@ uint64_t hilbert2d(float x,float y) {
         uint32_t u;
     } punner;
 
-    punner.f = x; ux = punner.u >> 2;
-    punner.f = y; uy = punner.u >> 2;
+    punner.f = x;
+    ux = punner.u >> 2;
+    punner.f = y;
+    uy = punner.u >> 2;
 
     m = 0x00100000;
 
@@ -1270,9 +1299,12 @@ uint64_t hilbert3d(float x,float y,float z) {
         uint32_t u;
     } punner;
 
-    punner.f = x; ux = punner.u >> 2;
-    punner.f = y; uy = punner.u >> 2;
-    punner.f = z; uz = punner.u >> 2;
+    punner.f = x;
+    ux = punner.u >> 2;
+    punner.f = y;
+    uy = punner.u >> 2;
+    punner.f = z;
+    uz = punner.u >> 2;
     /* Or: ux = (uint32_t)((x-1.0f) * 0x00200000)*/
 
     m = 0x00100000;
@@ -1649,7 +1681,10 @@ void pkdCheckpoint(PKD pkd,const char *fname) {
     int fd;
     io_init(&info, IO_MAX_ASYNC_COUNT, 0, IO_AIO|IO_LIBAIO);
     fd = io_create(&info, fname);
-    if (fd<0) { perror(fname); abort(); }
+    if (fd<0) {
+        perror(fname);
+        abort();
+    }
     nFileSize = pkd->ParticleSize() * pkd->Local();
     char *pBuffer = (char *)pkd->ParticleBase();
     while (nFileSize) {
@@ -1667,9 +1702,15 @@ void pkdRestore(PKD pkd,const char *fname) {
     int fd;
     io_init(&info, IO_MAX_ASYNC_COUNT, 0, IO_AIO|IO_LIBAIO);
     fd = io_open(&info, fname);
-    if (fd<0) { perror(fname); abort(); }
+    if (fd<0) {
+        perror(fname);
+        abort();
+    }
     struct stat s;
-    if ( fstat(fd,&s) != 0 ) { perror(fname); abort(); }
+    if ( fstat(fd,&s) != 0 ) {
+        perror(fname);
+        abort();
+    }
     nFileSize = s.st_size;
     pkd->SetLocal(nFileSize / pkd->ParticleSize());
     char *pBuffer = (char *)pkd->ParticleBase();
@@ -2353,7 +2394,10 @@ void pkdLightConeClose(PKD pkd,const char *healpixname) {
         assert(healpixname && healpixname[0]);
         mdlFinishCache(pkd->mdl,CID_HEALPIX);
         int fd = open(healpixname,O_CREAT|O_WRONLY|O_TRUNC,FILE_PROTECTION);
-        if (fd<0) { perror(healpixname); abort(); }
+        if (fd<0) {
+            perror(healpixname);
+            abort();
+        }
         for (i=0; i<pkd->nHealpixPerDomain; ++i) {
             uint64_t sum = pkd->pHealpixData[i].nGrouped;
             sum += pkd->pHealpixData[i].nUngrouped;
@@ -2370,7 +2414,10 @@ void pkdLightConeClose(PKD pkd,const char *healpixname) {
 void pkdLightConeOpen(PKD pkd,const char *fname,int nSideHealpix) {
     int i;
     if (fname[0]) {
-        if (io_create(&pkd->afiLightCone,fname) < 0) { perror(fname); abort(); }
+        if (io_create(&pkd->afiLightCone,fname) < 0) {
+            perror(fname);
+            abort();
+        }
     }
     else pkd->afiLightCone.fd = -1;
 
@@ -2499,12 +2546,34 @@ void pkdProcessLightCone(PKD pkd,PARTICLE *p,float fPot,double dLookbackFac,doub
     /*
     ** Sort them!
     */
-    if (isect[0].dt>isect[1].dt) { temp = isect[0]; isect[0] = isect[1]; isect[1] = temp; }
-    if (isect[2].dt>isect[3].dt) { temp = isect[2]; isect[2] = isect[3]; isect[3] = temp; }
-    temp = isect[1]; isect[1] = isect[2]; isect[2] = temp;
-    if (isect[0].dt>isect[1].dt) { temp = isect[0]; isect[0] = isect[1]; isect[1] = temp; }
-    if (isect[2].dt>isect[3].dt) { temp = isect[2]; isect[2] = isect[3]; isect[3] = temp; }
-    if (isect[1].dt>isect[2].dt) { temp = isect[1]; isect[1] = isect[2]; isect[2] = temp; }
+    if (isect[0].dt>isect[1].dt) {
+        temp = isect[0];
+        isect[0] = isect[1];
+        isect[1] = temp;
+    }
+    if (isect[2].dt>isect[3].dt) {
+        temp = isect[2];
+        isect[2] = isect[3];
+        isect[3] = temp;
+    }
+    temp = isect[1];
+    isect[1] = isect[2];
+    isect[2] = temp;
+    if (isect[0].dt>isect[1].dt) {
+        temp = isect[0];
+        isect[0] = isect[1];
+        isect[1] = temp;
+    }
+    if (isect[2].dt>isect[3].dt) {
+        temp = isect[2];
+        isect[2] = isect[3];
+        isect[3] = temp;
+    }
+    if (isect[1].dt>isect[2].dt) {
+        temp = isect[1];
+        isect[1] = isect[2];
+        isect[2] = temp;
+    }
 
     for (k=0; k<4; ++k) {
         double dtApprox;

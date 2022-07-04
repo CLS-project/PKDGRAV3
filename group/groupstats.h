@@ -20,6 +20,6 @@
 #include "pkd.h"
 
 void pkdHopSendStats(PKD pkd);
-void pkdCalculateGroupStats(PKD pkd, int bPeriodic,double dPeriod[3],double rEnvironment[2]);
+void pkdCalculateGroupStats(PKD pkd, int bPeriodic,double dPeriod[3],double rEnvironment[2],uint64_t iGlobalStart);
 
 #endif

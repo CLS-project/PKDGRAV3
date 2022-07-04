@@ -47,6 +47,7 @@ static int getType(int iType) {
     switch (iType) {
     case OUT_IORDER_ARRAY:
     case OUT_GROUP_ARRAY:
+    case OUT_GLOBALGID_ARRAY:
     case OUT_MARKED_ARRAY:
         return OUTTYPE_INTEGER;
     case OUT_PSGROUP_ARRAY:
@@ -67,12 +68,12 @@ static int getType(int iType) {
     case OUT_U_ARRAY:
     case OUT_C_ARRAY:
     case OUT_HSPH_ARRAY:
-
     case OUT_POS_VECTOR:
     case OUT_VEL_VECTOR:
     case OUT_MEANVEL_VECTOR:
     case OUT_ACCEL_VECTOR:
         return OUTTYPE_FLOAT;
+
     case OUT_CACHEFLUX_ARRAY:
         return OUTTYPE_INTEGER;
     case OUT_CACHECOLL_ARRAY:
@@ -99,6 +100,9 @@ static uint64_t fetchInteger(PKD pkd,PARTICLE *p,int iType,int iDim) {
         break;
     case OUT_GROUP_ARRAY:
         v = pkdGetGroup(pkd,p);
+        break;
+    case OUT_GLOBALGID_ARRAY:
+        v = pkdGetGlobalGid(pkd,p);
         break;
     case OUT_MARKED_ARRAY:
         v = p->bMarked;
