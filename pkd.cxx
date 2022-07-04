@@ -1548,9 +1548,9 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,BND *bnd,
     else v[0] = v[1] = v[2] = 0.0;
 
     /* Initialize SPH fields if present */
-    const auto *pSph   = pkd->particles.get<SPHFIELDS>(p,PKD_FIELD::oSph); // may be nullptr
-    const auto *pNewSph= pkd->particles.get<NEWSPHFIELDS>(p,PKD_FIELD::oNewSph); // may be nullptr
-    const auto *pStar  = pkd->particles.get<STARFIELDS>(p,PKD_FIELD::oStar); // may be nullptr
+    const auto *pSph   = pkd->particles.present(PKD_FIELD::oSph)    ? pkd->particles.get<SPHFIELDS>(p,PKD_FIELD::oSph) : nullptr;
+    const auto *pNewSph= pkd->particles.present(PKD_FIELD::oNewSph) ? pkd->particles.get<NEWSPHFIELDS>(p,PKD_FIELD::oNewSph) : nullptr;
+    const auto *pStar  = pkd->particles.present(PKD_FIELD::oStar)   ? pkd->particles.get<STARFIELDS>(p,PKD_FIELD::oStar) : nullptr;
     fMass = pkdMass(pkd,p);
     fSoft = pkdSoft0(pkd,p);
     if (pkd->particles.fixedsoft() >= 0.0) fSoft = 0.0;

@@ -268,6 +268,10 @@ enum class PKD_FIELD {
     MAX_FIELD
 };
 
+//! \brief Array of particles (main storage).
+//!
+//! The particleStore provides functions to access elements of the particle array,
+//! and the individual fields of which there may be a varying number.
 class particleStore : public dataStore<PARTICLE,PKD_FIELD> {
 protected:
     friend class Particle;
@@ -421,6 +425,10 @@ public:
     auto isNew(PARTICLE *p) {
         return (p->iOrder == IORDERMAX);
     }
+    bool isMarked(PARTICLE *p) {
+        return p->bMarked;
+    }
+    uint8_t rung(PARTICLE *p) { return p->uRung; }
     bool isRungRange(PARTICLE *p,uint8_t uRungLo,uint8_t uRungHi) {
         return ((p->uRung >= uRungLo)&&(p->uRung <= uRungHi));
     }
@@ -439,6 +447,8 @@ public:
     public:
         Particle(particleStore &store,int i) : p(store.Element(i)), store(store) {}
         Particle(particleStore &store,void *p,int i=0) : p(store.Element(p,i)), store(store) {}
+        operator PARTICLE *() {return p;}
+        operator const PARTICLE *() const {return p;}
     public:
         static double IntPosToDbl(int32_t pos) {return pos*1.0/INTEGER_FACTOR;}
     public:
@@ -447,6 +457,9 @@ public:
         bool have_position()     const {return have(PKD_FIELD::oPosition);}
         bool have_velocity()     const {return have(PKD_FIELD::oVelocity);}
         bool have_acceleration() const {return have(PKD_FIELD::oAcceleration);}
+        bool have_sph()          const {return have(PKD_FIELD::oSph);}
+        bool have_newsph()       const {return have(PKD_FIELD::oNewSph);}
+        bool have_star()         const {return have(PKD_FIELD::oStar);}
         coord position() const {
             if (store.bIntegerPosition) return get<int32_t,3>(PKD_FIELD::oPosition) * 1.0 / INTEGER_FACTOR;
             else return get<double,3>(PKD_FIELD::oPosition);
@@ -460,6 +473,7 @@ public:
         auto mass()         const {return store.mass(p);}
         auto soft0()        const {return store.soft0(p);}
         auto soft()         const {return store.soft(p);}
+        auto species()      const {return store.species(p);}
         auto group()        const {return store.group(p);}
         auto density()      const {return store.density(p);}
         auto ball()         const {return store.ball(p);}
@@ -475,6 +489,8 @@ public:
         auto Timer()        const { return store.Timer(p); }
         auto isDeleted()    const { return store.isDeleted(p); }
         auto isNew()        const { return store.isNew(p); }
+        auto isMarked()     const { return store.isMarked(p); }
+        auto rung()         const { return store.rung(p); }
         auto isRungRange(uint8_t uRungLo,uint8_t uRungHi)  const { return store.isRungRange(p,uRungLo,uRungHi); }
 
         void set_group( uint32_t gid ) { store.set_group(p,gid); }

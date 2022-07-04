@@ -93,7 +93,7 @@ public:
     template<typename T>
     auto get(const DATA *p,FIELD f) const {
         auto v = reinterpret_cast<const char *>(p);
-        return present(f) ? reinterpret_cast<const T *>(v + oFieldOffset[static_cast<unsigned int>(f)]) : nullptr;
+        return reinterpret_cast<const T *>(v + oFieldOffset[static_cast<unsigned int>(f)]);
     }
     //! Returns a pointer to the field if present or nullptr if not.
     //! \param p Pointer to an element
@@ -101,7 +101,7 @@ public:
     template<typename T>
     auto get(DATA *p,FIELD f) const {
         auto v = reinterpret_cast<char *>(p);
-        return present(f) ? reinterpret_cast<T *>(v + oFieldOffset[static_cast<unsigned int>(f)]) : nullptr;
+        return reinterpret_cast<T *>(v + oFieldOffset[static_cast<unsigned int>(f)]);
     }
     //! Returns the field as a blitz++ TinyVector.
     //! \param p Pointer to an element
