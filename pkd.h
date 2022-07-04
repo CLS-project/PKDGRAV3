@@ -117,6 +117,7 @@ static inline int64_t d2u64(double d) {
 #define PKD_MODEL_UNORDERED    (1<<14) /* Particles do not have an order */
 #define PKD_MODEL_INTEGER_POS  (1<<15) /* Particles do not have an order */
 #define PKD_MODEL_BH           (1<<16) /* BH fields */
+#define PKD_MODEL_GLOBALGID    (1<<17) /* Global group identifier per particle */
 
 #define PKD_MODEL_NODE_MOMENT  (1<<24) /* Include moment in the tree */
 #define PKD_MODEL_NODE_ACCEL   (1<<25) /* mean accel on cell (for grav step) */
@@ -609,6 +610,7 @@ typedef struct {
     int nStar;
     int nGas;
     int nDM;
+    uint64_t iGlobalGid;
 } TinyGroupTable;
 
 /* IA: For the BH seeding, we need a small part of the FoF information
@@ -759,6 +761,7 @@ enum PKD_FIELD {
     oVelSmooth,
     oRungDest, /* Destination processor for each rung */
     oParticleID,
+    oGlobalGid, /* global group id, uint64 */
 
     MAX_PKD_FIELD
 };
@@ -793,25 +796,53 @@ protected:
     size_t iTreeNodeSize = 0; // Size (in bytes) of a tree node
     uint32_t nEphemeralBytes = 0; /* per-particle */
 public:
-    int FreeStore() { return nStore; }
-    int Local() { return nLocal; }
-    int SetLocal(int n) {return (nLocal=n);}
-    int AddLocal(int n) {return (nLocal+=n);}
-    auto EphemeralBytes() {return nEphemeralBytes; }
-    static constexpr auto MaxNodeSize() { return sizeof(KDN) + 2*sizeof(BND) + sizeof(FMOMR) + 6*sizeof(double) + sizeof(SPHBNDS); }
-    auto NodeSize() { return iTreeNodeSize; }
-    auto ParticleSize() {return iParticleSize; }
-    auto ParticleMemory() { return (ParticleSize() + EphemeralBytes()) * (FreeStore()+1); }
+    int FreeStore() {
+        return nStore;
+    }
+    int Local() {
+        return nLocal;
+    }
+    int SetLocal(int n) {
+        return (nLocal=n);
+    }
+    int AddLocal(int n) {
+        return (nLocal+=n);
+    }
+    auto EphemeralBytes() {
+        return nEphemeralBytes;
+    }
+    static constexpr auto MaxNodeSize() {
+        return sizeof(KDN) + 2*sizeof(BND) + sizeof(FMOMR) + 6*sizeof(double) + sizeof(SPHBNDS);
+    }
+    auto NodeSize() {
+        return iTreeNodeSize;
+    }
+    auto ParticleSize() {
+        return iParticleSize;
+    }
+    auto ParticleMemory() {
+        return (ParticleSize() + EphemeralBytes()) * (FreeStore()+1);
+    }
     auto ParticleGet(void *pBase, int i) {
         auto v = static_cast<char *>(pBase);
         return reinterpret_cast<PARTICLE *>(v + ((uint64_t)i)*ParticleSize());
     }
-    PARTICLE *ParticleBase() { return pStorePRIVATE; }
-    PARTICLE *Particle(int i) { return ParticleGet(ParticleBase(),i); }
+    PARTICLE *ParticleBase() {
+        return pStorePRIVATE;
+    }
+    PARTICLE *Particle(int i) {
+        return ParticleGet(ParticleBase(),i);
+    }
 
-    void SaveParticle(PARTICLE *a) { memcpy(pTempPRIVATE,a,ParticleSize()); }
-    void LoadParticle(PARTICLE *a) { memcpy(a,pTempPRIVATE,ParticleSize()); }
-    void CopyParticle(PARTICLE *a, PARTICLE *b) { memcpy(a,b,ParticleSize()); }
+    void SaveParticle(PARTICLE *a) {
+        memcpy(pTempPRIVATE,a,ParticleSize());
+    }
+    void LoadParticle(PARTICLE *a) {
+        memcpy(a,pTempPRIVATE,ParticleSize());
+    }
+    void CopyParticle(PARTICLE *a, PARTICLE *b) {
+        memcpy(a,b,ParticleSize());
+    }
 
 protected:
     KDN **kdNodeListPRIVATE; /* BEWARE: KDN is actually variable length! */
@@ -821,10 +852,16 @@ protected:
     int nTreeTiles;
     int nTreeTilesReserved;
     int nNodes, nMaxNodes;
-    auto TreeBase(int iTile=0) { return kdNodeListPRIVATE[iTile]; }
+    auto TreeBase(int iTile=0) {
+        return kdNodeListPRIVATE[iTile];
+    }
 public:
-    auto Nodes() const { return nNodes; }
-    /*[[deprecated]]*/ void SetNodeCount(int n) { nNodes = n; }
+    auto Nodes() const {
+        return nNodes;
+    }
+    /*[[deprecated]]*/ void SetNodeCount(int n) {
+        nNodes = n;
+    }
     auto Node(KDN *pBase,int iNode) {
         return reinterpret_cast<KDN *>(reinterpret_cast<char *>(pBase)+NodeSize()*iNode);
     }
@@ -832,7 +869,9 @@ public:
         return Node(TreeBase(iNode>>nTreeBitsLo),iNode&iTreeMask);
     }
     void ExtendTree();
-    size_t TreeMemory() { return nTreeTiles * (1<<nTreeBitsLo) * NodeSize(); }
+    size_t TreeMemory() {
+        return nTreeTiles * (1<<nTreeBitsLo) * NodeSize();
+    }
     auto TreeAlignNode() {
         if (nNodes&1) ++nNodes;
         return nNodes;
@@ -854,8 +893,12 @@ public:
 
 public:
     mdl::mdlClass *mdl;
-    auto Self()    const { return mdl->Self(); }
-    auto Threads() const { return mdl->Threads(); }
+    auto Self()    const {
+        return mdl->Self();
+    }
+    auto Threads() const {
+        return mdl->Threads();
+    }
 
 public:
     int nRejects;
@@ -1232,9 +1275,18 @@ static inline int32_t pkdGetGroup( PKD pkd, const PARTICLE *p ) {
     return CAST(const int32_t *, pkdFieldRO(p,pkd->oFieldOffset[oGroup]))[0];
 }
 
+static inline int32_t pkdGetGlobalGid( PKD pkd, const PARTICLE *p ) {
+    assert(pkd->oFieldOffset[oGlobalGid]);
+    return CAST(const int32_t *, pkdFieldRO(p,pkd->oFieldOffset[oGlobalGid]))[0];
+}
+
 static inline void pkdSetGroup( PKD pkd, PARTICLE *p, uint32_t gid ) {
     if (pkd->bNoParticleOrder) ((UPARTICLE *)p)->iGroup = gid;
     else if (pkd->oFieldOffset[oGroup]) CAST(int32_t *, pkdField(p,pkd->oFieldOffset[oGroup]))[0] = gid;
+}
+
+static inline void pkdSetGlobalGid( PKD pkd, PARTICLE *p, uint64_t gid ) {
+    if (pkd->oFieldOffset[oGlobalGid]) CAST(int32_t *, pkdField(p,pkd->oFieldOffset[oGlobalGid]))[0] = gid;
 }
 
 static inline float pkdDensity( PKD pkd, const PARTICLE *p ) {
@@ -1330,6 +1382,9 @@ static inline uint16_t *pkdRungDest( PKD pkd, PARTICLE *p ) {
 }
 static inline uint64_t *pkdParticleID( PKD pkd, PARTICLE *p ) {
     return CAST(uint64_t *,pkdField(p,pkd->oFieldOffset[oParticleID]));
+}
+static inline uint64_t *pkdGlobalGid( PKD pkd, PARTICLE *p ) {
+    return CAST(uint64_t *,pkdField(p,pkd->oFieldOffset[oGlobalGid]));
 }
 /* Sph variables */
 static inline SPHFIELDS *pkdSph( PKD pkd, PARTICLE *p ) {

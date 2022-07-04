@@ -329,6 +329,7 @@ struct parameters {
     int bMemVelocity;
     int bMemPotential;
     int bMemGroups;
+    int bMemGlobalGid;
     int bMemMass;
     int bMemSoft;
     int bMemRelaxation;

@@ -526,6 +526,7 @@ target_link_libraries(${PROJECT_NAME} blitz fmt)
 enable_testing()
 add_test(NAME cosmology COMMAND ${PROJECT_NAME} ${CMAKE_CURRENT_SOURCE_DIR}/tests/cosmology.py WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
 add_test(NAME gravity   COMMAND ${PROJECT_NAME} ${CMAKE_CURRENT_SOURCE_DIR}/tests/gravity.py   WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+add_test(NAME fof   COMMAND ${PROJECT_NAME} ${CMAKE_CURRENT_SOURCE_DIR}/tests/foftest.py   WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
 
 #target_include_directories(tostd PUBLIC ${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_CURRENT_SOURCE_DIR})
 #target_include_directories(psout PUBLIC ${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_CURRENT_SOURCE_DIR})

@@ -956,12 +956,14 @@ int pstHopFinishUp(PST pst,void *vin,int nIn,void *vout,int nOut) {
     if (pst->nLeaves > 1) {
         int rID = mdlReqService(pst->mdl,pst->idUpper,PST_HOP_FINISH_UP,vin,nIn);
         pstHopFinishUp(pst->pstLower,vin,nIn,vout,nOut);
+        pst->nLowerGroups = *nOutGroups;
         mdlGetReply(pst->mdl,rID,&nOutUpper,NULL);
         *nOutGroups += nOutUpper;
     }
     else {
         LCL *plcl = pst->plcl;
         *nOutGroups = pkdHopFinishUp(plcl->pkd,in->nMinGroupSize,in->bPeriodic,in->fPeriod);
+        pst->nLowerGroups = 0;
     }
     return sizeof(uint64_t);
 }
@@ -1036,13 +1038,15 @@ int pstGroupStats(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto in = static_cast<struct inGroupStats *>(vin);
     mdlassert(pst->mdl,nIn == sizeof(struct inGroupStats));
     if (pst->nLeaves > 1) {
+        in->iGlobalStart += pst->nLowerGroups; /* for the upper subset the global id starting point is more by the number of lower groups */
         int rID = mdlReqService(pst->mdl,pst->idUpper,PST_GROUP_STATS,vin,nIn);
+        in->iGlobalStart -= pst->nLowerGroups; /* set the value back for the lower subset traversal */
         pstGroupStats(pst->pstLower,vin,nIn,NULL,0);
         mdlGetReply(pst->mdl,rID,NULL,NULL);
     }
     else {
         LCL *plcl = pst->plcl;
-        pkdCalculateGroupStats(plcl->pkd,in->bPeriodic,in->dPeriod,in->rEnvironment);
+        pkdCalculateGroupStats(plcl->pkd,in->bPeriodic,in->dPeriod,in->rEnvironment,in->iGlobalStart);
     }
     return 0;
 }
@@ -1972,6 +1976,7 @@ int pstFofPhases(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
 /*
 ** This is an almost identical copy of HopFinishUp.
+** JST: added the count of lower subtree number of local groups.
 */
 int pstFofFinishUp(PST pst,void *vin,int nIn,void *vout,int nOut) {
     struct inFofFinishUp *in = (struct inFofFinishUp *)vin;
@@ -1982,12 +1987,14 @@ int pstFofFinishUp(PST pst,void *vin,int nIn,void *vout,int nOut) {
     if (pst->nLeaves > 1) {
         int rID = mdlReqService(pst->mdl,pst->idUpper,PST_FOF_FINISH_UP,vin,nIn);
         pstFofFinishUp(pst->pstLower,vin,nIn,vout,nOut);
+        pst->nLowerGroups = *nOutGroups;
         mdlGetReply(pst->mdl,rID,&nOutUpper,NULL);
         *nOutGroups += nOutUpper;
     }
     else {
         LCL *plcl = pst->plcl;
         *nOutGroups = pkdFofFinishUp(plcl->pkd,in->nMinGroupSize);
+        pst->nLowerGroups = 0;
     }
     return sizeof(uint64_t);
 }
