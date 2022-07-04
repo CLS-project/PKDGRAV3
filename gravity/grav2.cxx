@@ -85,7 +85,7 @@ static void queueDensity( PKD pkd, workParticle *wp, ilpList &ilp, int bGravStep
 void pkdParticleWorkDone(workParticle *wp) {
     auto pkd = static_cast<PKD>(wp->ctx);
     int i,gid;
-    PARTICLE *p;
+    PARTICLE *p, *q;
     double r[3];
     vel_t *v,v2;
     float *a;
@@ -165,8 +165,10 @@ void pkdParticleWorkDone(workParticle *wp) {
         pkd->dFlopDoubleCPU += wp->dFlopDoubleCPU;
         pkd->dFlopSingleGPU += wp->dFlopSingleGPU;
         pkd->dFlopDoubleGPU += wp->dFlopDoubleGPU;
+        p = CAST(PARTICLE *,malloc(pkd->ParticleSize()));
         for ( i=0; i<wp->nP; i++ ) {
-            p = CAST(PARTICLE *,mdlAcquireWrite(pkd->mdl,CID_PARTICLE,wp->iPart[i]));
+            //p = CAST(PARTICLE *,mdlAcquireWrite(pkd->mdl,CID_PARTICLE,wp->iPart[i]));
+            pkd->CopyParticle(p,wp->pPart[i]);
 
             if (pkd->oFieldOffset[oNewSph]) {
                 NEWSPHFIELDS *pNewSph = pkdNewSph(pkd,p);
@@ -416,8 +418,11 @@ void pkdParticleWorkDone(workParticle *wp) {
             else {
                 ++pkd->nRung[p->uRung];
             }
-            mdlReleaseWrite(pkd->mdl,CID_PARTICLE,p);
+            q = CAST(PARTICLE *,mdlAcquireWrite(pkd->mdl,CID_PARTICLE,wp->iPart[i]));
+            pkd->CopyParticle(q,p);
+            mdlReleaseWrite(pkd->mdl,CID_PARTICLE,q);
         }
+        free(p);
         delete [] wp->pPart;
         delete [] wp->iPart;
         delete [] wp->pInfoIn;
