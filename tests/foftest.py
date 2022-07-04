@@ -9,7 +9,7 @@ from MASTER import MSR # Once MSR is imported, simulation mode is no longer auto
 
 @ddt
 @unittest.skipIf(not os.path.isfile('b0-final.std'), "missing b0-final.std")
-@unittest.skipIf(not os.path.isfile('b0-final-ref.grp'), "missing b0-final-ref.grp")
+@unittest.skipIf(not os.path.isfile('b0-final-ref.grp.npy'), "missing b0-final-ref.grp.npy")
 class TestFof(unittest.TestCase):
     def testFof(self):
         # for the unit test these values are fixed!
@@ -24,7 +24,7 @@ class TestFof(unittest.TestCase):
         msr.Fof(dTau,nMinMembers)
         msr.Reorder()
         b = msr.GetArray(field=17,time=time) # 17 = GLOBAL Group id (oGlobalGid)
-        a = np.loadtxt('b0-final-ref.grp',skiprows=1,dtype=int)
+        a = np.load('b0-final-ref.grp.npy')
         (ua,ia,ra) = np.unique(a,return_index=True,return_inverse=True)
         m = b[ia]
         x = m[ra]
