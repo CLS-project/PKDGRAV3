@@ -42,6 +42,7 @@
 #include "cuda/cudaewald.h"
 #include "SPH/SPHOptions.h"
 #include "SPH/SPHEOS.h"
+#include "SPH/SPHpredict.h"
 
 #if 1
 #if defined(USE_SIMD) && defined(__SSE2__)
@@ -84,7 +85,7 @@ static void queueDensity( PKD pkd, workParticle *wp, ilpList &ilp, int bGravStep
 void pkdParticleWorkDone(workParticle *wp) {
     auto pkd = static_cast<PKD>(wp->ctx);
     int i,gid;
-    PARTICLE *p;
+    PARTICLE *p, *q;
     double r[3];
     vel_t *v,v2;
     float *a;
@@ -164,8 +165,10 @@ void pkdParticleWorkDone(workParticle *wp) {
         pkd->dFlopDoubleCPU += wp->dFlopDoubleCPU;
         pkd->dFlopSingleGPU += wp->dFlopSingleGPU;
         pkd->dFlopDoubleGPU += wp->dFlopDoubleGPU;
+        p = CAST(PARTICLE *,malloc(pkd->ParticleSize()));
         for ( i=0; i<wp->nP; i++ ) {
-            p = CAST(PARTICLE *,mdlAcquireWrite(pkd->mdl,CID_PARTICLE,wp->iPart[i]));
+            //p = CAST(PARTICLE *,mdlAcquireWrite(pkd->mdl,CID_PARTICLE,wp->iPart[i]));
+            pkd->CopyParticle(p,wp->pPart[i]);
 
             if (pkd->oFieldOffset[oNewSph]) {
                 NEWSPHFIELDS *pNewSph = pkdNewSph(pkd,p);
@@ -175,15 +178,15 @@ void pkdParticleWorkDone(workParticle *wp) {
                     pNewSph->Omega = 1.0f + wp->pInfoOut[i].fBall/(3.0f * wp->pInfoOut[i].rho)*wp->pInfoOut[i].drhodfball;
                     if (wp->SPHoptions->doUConversion) {
                         pNewSph->u = SPHEOSUofRhoT(pkd,pkdDensity(pkd,p),pNewSph->u,pkdiMat(pkd,p),wp->SPHoptions);
+                        pNewSph->oldRho = pkdDensity(pkd,p);
                     }
                     if (!wp->SPHoptions->doOnTheFlyPrediction) {
-                        float dtPredDrift = getDtPredDrift(wp->kick,0,wp->SPHoptions->nPredictRung,p->uRung);
-                        pNewSph->P = SPHEOSPCofRhoU(pkd,pkdDensity(pkd,p),pNewSph->u + dtPredDrift * pNewSph->uDot,&pNewSph->c,pkdiMat(pkd,p),wp->SPHoptions);
+                        SPHpredictInDensity(pkd, p, wp->kick, wp->SPHoptions->nPredictRung, &pNewSph->P, &pNewSph->cs, wp->SPHoptions);
                     }
                 }
                 if (wp->SPHoptions->doSPHForces) {
                     pNewSph->divv = wp->pInfoOut[i].divv;
-                    if (wp->SPHoptions->useIsentropic) {
+                    if (pkdiMat(pkd,p) == 0 && wp->SPHoptions->useIsentropic && wp->SPHoptions->useBuiltinIdeal) {
                         pNewSph->uDot = (wp->SPHoptions->gamma - 1.0f) / pow(pkdDensity(pkd,p),wp->SPHoptions->gamma - 1.0f) * wp->pInfoOut[i].uDot;
                     }
                     else {
@@ -363,9 +366,13 @@ void pkdParticleWorkDone(workParticle *wp) {
                         v[2] += wp->kick->dtClose[p->uRung]*wp->pInfoOut[i].a[2];
                         if (wp->SPHoptions->doSPHForces) {
                             NEWSPHFIELDS *pNewSph = pkdNewSph(pkd,p);
+                            if (wp->SPHoptions->useIsentropic) {
+                                pNewSph->u = SPHEOSIsentropic(pkd,pNewSph->oldRho,pNewSph->u,pkdDensity(pkd,p),pkdiMat(pkd,p),wp->SPHoptions);
+                                pNewSph->oldRho = pkdDensity(pkd,p);
+                            }
                             pNewSph->u += wp->kick->dtClose[p->uRung] * pNewSph->uDot;
                             if (!wp->SPHoptions->doOnTheFlyPrediction) {
-                                pNewSph->P = SPHEOSPCofRhoU(pkd,pkdDensity(pkd,p),pNewSph->u,&pNewSph->c,pkdiMat(pkd,p),wp->SPHoptions);
+                                pNewSph->P = SPHEOSPCofRhoU(pkd,pkdDensity(pkd,p),pNewSph->u,&pNewSph->cs,pkdiMat(pkd,p),wp->SPHoptions);
                             }
                         }
                         if (wp->SPHoptions->VelocityDamper > 0.0f) {
@@ -411,8 +418,11 @@ void pkdParticleWorkDone(workParticle *wp) {
             else {
                 ++pkd->nRung[p->uRung];
             }
-            mdlReleaseWrite(pkd->mdl,CID_PARTICLE,p);
+            q = CAST(PARTICLE *,mdlAcquireWrite(pkd->mdl,CID_PARTICLE,wp->iPart[i]));
+            pkd->CopyParticle(q,p);
+            mdlReleaseWrite(pkd->mdl,CID_PARTICLE,q);
         }
+        free(p);
         delete [] wp->pPart;
         delete [] wp->iPart;
         delete [] wp->pInfoIn;
@@ -577,32 +587,11 @@ int pkdGravInteract(PKD pkd,
 
         if (pkd->oFieldOffset[oNewSph]) {
             NEWSPHFIELDS *pNewSph = pkdNewSph(pkd,p);
-            float dtPredDrift = getDtPredDrift(kick,p->bMarked,ts->uRungLo,p->uRung);
             wp->pInfoIn[nP].fBall = pkdBall(pkd,p);
             wp->pInfoIn[nP].isTooLarge = 0;
             wp->pInfoIn[nP].Omega = pNewSph->Omega;
-            wp->pInfoIn[nP].v[0] = v[0] + dtPredDrift * wp->pInfoIn[nP].a[0];
-            wp->pInfoIn[nP].v[1] = v[1] + dtPredDrift * wp->pInfoIn[nP].a[1];
-            wp->pInfoIn[nP].v[2] = v[2] + dtPredDrift * wp->pInfoIn[nP].a[2];
-            if ((wp->SPHoptions->VelocityDamper > 0.0) & p->bMarked) {
-                wp->pInfoIn[nP].v[0] /= 1.0 - kick->dtClose[p->uRung] * wp->SPHoptions->VelocityDamper;
-                wp->pInfoIn[nP].v[1] /= 1.0 - kick->dtClose[p->uRung] * wp->SPHoptions->VelocityDamper;
-                wp->pInfoIn[nP].v[2] /= 1.0 - kick->dtClose[p->uRung] * wp->SPHoptions->VelocityDamper;
-            }
+            SPHpredictOnTheFly(pkd, p, kick, ts->uRungLo, wp->pInfoIn[nP].v, &wp->pInfoIn[nP].P, &wp->pInfoIn[nP].cs, SPHoptions);
             wp->pInfoIn[nP].rho = pkdDensity(pkd,p);
-            if (wp->SPHoptions->doSPHForces) {
-                if (wp->SPHoptions->doOnTheFlyPrediction) {
-                    wp->pInfoIn[nP].P = SPHEOSPCofRhoU(pkd,pkdDensity(pkd,p),pNewSph->u + dtPredDrift * pNewSph->uDot,&wp->pInfoIn[nP].c,pkdiMat(pkd,p),SPHoptions);
-                }
-                else {
-                    wp->pInfoIn[nP].P = pNewSph->P;
-                    wp->pInfoIn[nP].c = pNewSph->c;
-                }
-            }
-            else {
-                wp->pInfoIn[nP].P = 0.0f;
-                wp->pInfoIn[nP].c = 0.0f;
-            }
             wp->pInfoIn[nP].species = pkdSpecies(pkd,p);
 
             wp->pInfoOut[nP].rho = 0.0f;

@@ -63,7 +63,7 @@ SPHOptions initializeSPHOptions(struct parameters param, CSM csm, double dTime) 
     SPHoptions.useIsentropic = param.bGasIsentropic;
     SPHoptions.useBuiltinIdeal = param.bGasBuiltinIdeal;
     SPHoptions.useDensityFlags = 0;
-    SPHoptions.doOnTheFlyPrediction = 0;
+    SPHoptions.doOnTheFlyPrediction = param.bGasOnTheFlyPrediction;
     SPHoptions.kernelType = param.iKernelType;
     return SPHoptions;
 }
@@ -100,18 +100,4 @@ void copySPHOptions(SPHOptions *source, SPHOptions *target) {
     target->useDensityFlags = 0;
     target->doOnTheFlyPrediction = source->doOnTheFlyPrediction;
     target->kernelType = source->kernelType;
-}
-
-float getDtPredDrift(struct pkdKickParameters *kick, int bMarked, int uRungLo, int uRung) {
-    if (uRung < uRungLo) {
-        return kick->dtPredDrift[uRung];
-    }
-    else {
-        if (bMarked) {
-            return - kick->dtOpen[uRung];
-        }
-        else {
-            return kick->dtClose[uRung];
-        }
-    }
 }

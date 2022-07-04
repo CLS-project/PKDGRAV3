@@ -1284,6 +1284,10 @@ void MSR::Initialize() {
     prmAddParam(prm,"bGasBuiltinIdeal",0,&param.bGasBuiltinIdeal,
                 sizeof(int),"bGasBuiltinIdeal",
                 "<Use builtin ideal gas> = +GasBuiltinIdeal");
+    param.bGasOnTheFlyPrediction = 0;
+    prmAddParam(prm,"bGasOnTheFlyPrediction",0,&param.bGasOnTheFlyPrediction,
+                sizeof(int),"bGasOnTheFlyPrediction",
+                "<Do on the fly prediction> = +bGasOnTheFlyPrediction");
     /* END Gas/Star Parameters */
     param.nOutputParticles = 0;
     prmAddArray(prm,"lstOrbits",4,&param.iOutputParticles,sizeof(uint64_t),&param.nOutputParticles);
@@ -3271,6 +3275,46 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
                 ** bMarked flag.
                 */
                 in.kick.dtPredDrift[i] = 0.0;
+            }
+        }
+    }
+
+    /*
+    ** Create the deltas for the on-the-fly prediction in case of ISPH
+    */
+    if ((SPHoptions.doGravity || SPHoptions.doDensity) && SPHoptions.useIsentropic) {
+        double substepWeAreAt = dStep - floor(dStep); // use fmod instead
+        double stepStartTime = dTime - substepWeAreAt * dDelta;
+        for (i = 0; i <= param.iMaxRung; ++i) {
+            double substepSize = 1.0 / pow(2,i); // 1.0 / (1 << i);
+            double substepsDoneAtThisSize = floor(substepWeAreAt / substepSize);
+            double TSubStepStart, TSubStepKicked;
+            /* The start of the step is different if the time step is larger than the current */
+            if (i < uRungLo) {
+                TSubStepStart = stepStartTime + (substepsDoneAtThisSize) * substepSize * dDelta;
+                TSubStepKicked = stepStartTime + (substepsDoneAtThisSize + 0.5) * substepSize * dDelta;
+            }
+            else {
+                TSubStepStart = stepStartTime + (substepsDoneAtThisSize - 1.0) * substepSize * dDelta;
+                TSubStepKicked = stepStartTime + (substepsDoneAtThisSize - 0.5) * substepSize * dDelta;
+            }
+            /* At the beginning we have a special case */
+            if (dTime == 0.0) {
+                TSubStepStart = 0.0;
+                TSubStepKicked = 0.0;
+            }
+            double dtPredISPHUndoOpen = TSubStepStart - TSubStepKicked;
+            double dtPredISPHOpen = (dTime - TSubStepStart) / 2.0;
+            double dtPredISPHClose = (dTime - TSubStepStart) / 2.0;
+            if (csm->val.bComove) {
+                in.kick.dtPredISPHUndoOpen[i] = csmComoveKickFac(csm,TSubStepKicked,dtPredISPHUndoOpen);
+                in.kick.dtPredISPHOpen[i] = csmComoveKickFac(csm,TSubStepStart,dtPredISPHOpen);
+                in.kick.dtPredISPHClose[i] = csmComoveKickFac(csm,TSubStepStart+dtPredISPHOpen,dtPredISPHClose);
+            }
+            else {
+                in.kick.dtPredISPHUndoOpen[i] = dtPredISPHUndoOpen;
+                in.kick.dtPredISPHOpen[i] = dtPredISPHOpen;
+                in.kick.dtPredISPHClose[i] = dtPredISPHClose;
             }
         }
     }

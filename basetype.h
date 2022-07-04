@@ -91,7 +91,7 @@ typedef struct {
     float v[3];
     float rho; /* fDensity above is used for different stuff, calculated with different kernel etc */
     float P;
-    float c;
+    float cs;
     int32_t species;
     int isTooLarge;
     /*    float v[3];*/
@@ -152,6 +152,9 @@ struct pkdKickParameters {
     vel_t dtClose[IRUNGMAX+1];
     vel_t dtOpen[IRUNGMAX+1];
     vel_t dtPredDrift[IRUNGMAX+1];
+    vel_t dtPredISPHUndoOpen[IRUNGMAX+1];
+    vel_t dtPredISPHOpen[IRUNGMAX+1];
+    vel_t dtPredISPHClose[IRUNGMAX+1];
 };
 
 struct pkdLightconeParameters {

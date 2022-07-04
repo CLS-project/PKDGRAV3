@@ -75,3 +75,16 @@ float SPHEOSTofRhoU(PKD pkd, float rho, float u, int iMat, SPHOptions *SPHoption
     }
     return T;
 }
+
+float SPHEOSIsentropic(PKD pkd, float rho1, float u1, float rho2, int iMat, SPHOptions *SPHoptions) {
+    float u2 = 0.0f;
+    if (iMat == 0 && SPHoptions->useBuiltinIdeal) {
+        u2 = u1;
+    }
+    else {
+#ifdef HAVE_EOSLIB_H
+        u2 = (float)EOSIsentropic(pkd->materials[iMat], rho1, u1, rho2);
+#endif
+    }
+    return u2;
+}

@@ -299,8 +299,9 @@ typedef struct newsphfields {
     float divv;         /* Divergence of v */
     float u;            /* Thermodynamical variable, can be T, A(s) or u */
     float uDot;         /* Derivative of the thermodynamical variable */
-    float c;
-    float P;
+    float cs;           /* Sound speed */
+    float P;            /* Pressure */
+    float oldRho;       /* Rho corresponding to where u is at */
 } NEWSPHFIELDS;
 
 typedef struct starfields {

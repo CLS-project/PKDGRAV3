@@ -15,19 +15,19 @@
  *  along with PKDGRAV3.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef SPHEOS_HINCLUDED
-#define SPHEOS_HINCLUDED
+#ifndef SPHPREDICT_HINCLUDED
+#define SPHPREDICT_HINCLUDED
 
 #include "SPHOptions.h"
+#include "SPHEOS.h"
 #include "../pkd.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-float SPHEOSPCofRhoU(PKD pkd, float rho, float u, float *c, int iMat, SPHOptions *SPHoptions);
-float SPHEOSUofRhoT(PKD pkd, float rho, float T, int iMat, SPHOptions *SPHoptions);
-float SPHEOSTofRhoU(PKD pkd, float rho, float u, int iMat, SPHOptions *SPHoptions);
-float SPHEOSIsentropic(PKD pkd, float rho1, float u1, float rho2, int iMat, SPHOptions *SPHoptions);
+float getDtPredDrift(struct pkdKickParameters *kick, int bMarked, int uRungLo, int uRung);
+void SPHpredictOnTheFly(PKD pkd, PARTICLE *p, struct pkdKickParameters *kick, int uRungLo, float *vpred, float *P, float *cs, SPHOptions *SPHoptions);
+void SPHpredictInDensity(PKD pkd, PARTICLE *p, struct pkdKickParameters *kick, int uRungLo, float *P, float *cs, SPHOptions *SPHoptions);
 #ifdef __cplusplus
 }
 #endif
