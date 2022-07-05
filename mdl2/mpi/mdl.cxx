@@ -19,6 +19,8 @@
 using namespace mdl;
 
 #include <algorithm>
+#include <numeric>
+#include <cstring>
 
 static inline int size_t_to_int(size_t v) {
     return (int)v;
@@ -979,6 +981,117 @@ void mpiClass::pthreadBarrierWait() {
     pthread_barrier_wait(&barrier);
 }
 
+//! Swap elements of a memory buffer between local threads.
+//! @param buffer A pointer to the start of the memory block
+//! @param count The total number of elements that count fit in the memory block
+//! @param datasize The size (in bytes) of each element
+//! @param counts The number of elements destined for each thread
+int mdlClass::swaplocal(void *buffer,int count,int datasize,/*const*/ int *counts) {
+    auto pBegin = static_cast<char *>(buffer);
+    auto pi = [pBegin,datasize](int i) {return pBegin + i*datasize;};
+    auto me = Core();
+    int before=0,after = 0;
+    int mine = counts[me];
+    for (auto i=0; i<me; ++i) before += counts[i];
+    for (auto i=me+1; i<Cores(); ++i) after += counts[i];
+
+    // Example layout (we are rank 3)
+    // +-------------------------+----------+---------------+------------+
+    // | Thread 0 to 2 elements  | thread 3 | thread 4-     | unused     |
+    // +-------------------------+----------+---------------+------------+
+
+    // Phase 1 (move): move all elements greater than our thread rank to the end of the buffer
+    // +-------------------------+----------+------------+---------------+
+    // | Thread 0 to 2 elements  | thread 3 | unused     | thread 4-     |
+    // +-------------------------+----------+------------+---------------+
+    std::memmove(pi(count-after), pi(before+mine), after*datasize );
+    //memset(pi(before+mine),0,datasize*(count-after-before-mine));
+
+    // Phase 2 (rotate): Rotate the buffer so that our elements are at the start,
+    // and the elements for thread ranks less than us are at at the end
+    // +----------+------------+-------------------------+---------------+
+    // | thread 3 | unused     | Thread 0 to 2 elements  | thread 4-     |
+    // +----------+------------+-------------------------+---------------+
+    auto pTemp = new char[datasize];
+    int wrap = count - after;
+    int blks = std::gcd(wrap,before);
+    for (auto i = 0; i<blks; ++i) {
+        auto dst = i;
+        std::memcpy(pTemp, pi(dst), datasize);
+        while (true) {
+            auto src = dst + before;
+            if (src >= wrap) src -= wrap;
+            if (src == i) break;
+            std::memcpy(pi(dst), pi(src), datasize);
+            dst = src;
+        }
+        std::memcpy(pi(dst), pTemp, datasize);
+    }
+    delete[] pTemp;
+
+    // Setup counts and offsets. Other threads will update as they take elements
+    ddOffset.reserve(Cores()); ddOffset.clear();
+    ddCounts.reserve(Cores()); ddCounts.clear();
+    ddBuffer = pBegin;
+    for (auto i=0,offset=count-before-after; i<Cores(); ++i) {
+        ddCounts.push_back(counts[i]);
+        if (i==me) ddOffset.push_back(0);
+        else {
+            ddOffset.push_back(offset);
+            offset += counts[i];
+        }
+    }
+    ThreadBarrier(); // Offset/Counts will be updated by other threads
+    int nTotal = 0;
+    for (auto i=0; i<Cores(); ++i ) nTotal += pmdl[i]->ddCounts[me];
+    assert(nTotal<count);
+    auto space = count - mine - before - after;
+    while (true) {
+        bool bKeepGoing = false;
+        // Phase 3 (collect): Grab as many elements as we can from other threads
+        // +-----------------------+-------------------------+---------------+
+        // | thread 3              | Thread 0 to 2 elements  | thread 4-     |
+        // +-----------------------+-------------------------+---------------+
+        for (auto i=0; i<Cores(); ++i ) {
+            if (i==me) continue;
+            auto other = pmdl[i];
+            auto po = [other,datasize](int i) {return other->ddBuffer + i*datasize;};
+            auto take = other->ddCounts[me];
+            if (take) {
+                if (take > space) {
+                    take = space;
+                    bKeepGoing = true; // We didn't take everything, so we need to keep going
+                }
+                if (take) {
+                    auto offset = other->ddOffset[me];
+                    memcpy(pi(mine), po(offset), take*datasize );
+                    other->ddCounts[me] -= take;
+                    other->ddOffset[me] += take;
+                    space -= take;
+                    mine += take;
+                }
+            }
+        }
+        ThreadBarrier(); // We want to update Offset/Counts now
+
+        // Phase 4 (compact): Discard elements collected by other threads
+        // +-----------------------+-----------+-----------------+-----------+
+        // | thread 3              | unused    | Thread 0 to 2   | thread 4- |
+        // +-----------------------+-----------+-----------------+-----------+
+        space = count - mine;
+        for (int i=Cores()-1,offset=count; i>=0; --i ) {
+            if (i==me) continue;
+            offset -= ddCounts[i];
+            space -= ddCounts[i];
+            std::memcpy(pi(offset), pi(ddOffset[i]), ddCounts[i]*datasize);
+            ddOffset[i] = offset;
+        }
+        if (ThreadBarrier(false,bKeepGoing) == 0) break;
+    }
+    //memset(pi(mine),0,datasize*(count-mine));
+    return mine;
+}
+
 /*
 ** Perform a global swap: effectively a specialized in-place alltoallv
 ** - data to be sent starts at "buffer" and send items are contiguous and in order by target
@@ -1816,22 +1929,32 @@ void mdlClass::enqueueAndWait(const mdlMessage &M) {
 
 /* Synchronize threads */
 extern "C" void mdlThreadBarrier(MDL mdl) { static_cast<mdlClass *>(mdl)->ThreadBarrier(); }
-void mdlClass::ThreadBarrier(bool bGlobal) {
-    mdlMessage barrier;
+int mdlClass::ThreadBarrier(bool bGlobal,int iVote) {
+    mdlMessageVote barrier(iVote);
     int i;
 
     if (Core()) {
         // Send barrier message to thread 0 and wait for it back
         pmdl[0]->threadBarrierQueue.enqueue(barrier,threadBarrierQueue);
         waitQueue(threadBarrierQueue);
+        iVote = barrier.vote();
     }
     else {
         mdlMessageQueue pending;
         // Wait for all of the above messages, then send them back
-        for (i=1; i<Cores(); ++i) pending.enqueue(waitQueue(threadBarrierQueue));
+        for (i=1; i<Cores(); ++i) {
+            mdlMessageVote &M = dynamic_cast<mdlMessageVote &>(waitQueue(threadBarrierQueue));
+            iVote += M.vote();
+            pending.enqueue(M);
+        }
         if (bGlobal && Procs()>1) enqueueAndWait(mdlMessageBarrierMPI());
-        for (i=1; i<Cores(); ++i) waitQueue(pending).sendBack();
+        for (i=1; i<Cores(); ++i) {
+            mdlMessageVote &M = dynamic_cast<mdlMessageVote &>(waitQueue(pending));
+            M.vote(iVote);
+            M.sendBack();
+        }
     }
+    return iVote;
 }
 
 void mdlClass::mdl_start_MPI_Ssend(mdlMessageSend &M, mdlMessageQueue &replyTo) {

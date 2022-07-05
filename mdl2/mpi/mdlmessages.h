@@ -64,6 +64,14 @@ struct mdlMessageQueue : public messageQueue<mdlMessage> {
     mdlMessageQueue() : messageQueue<mdlMessage>() {}
 };
 
+class mdlMessageVote : public mdlMessage {
+    int iVote;
+public:
+    explicit mdlMessageVote(int iVote=0) : iVote(iVote) {}
+    int vote() {return iVote;}
+    int vote(int i) { return (iVote=i); }
+};
+
 // Used to hold a sequence of cache lines to send to the MPI thread for processing
 class mdlMessageFlushFromCore : public mdlMessage, public FlushBuffer {
 public:

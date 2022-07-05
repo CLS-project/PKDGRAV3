@@ -206,6 +206,11 @@ class mdlClass : public mdlBASE {
 protected:
     friend class mdlMessageFlushToCore;
     void MessageFlushToCore(mdlMessageFlushToCore *message);
+protected:
+    // Domain decomposition
+    char *ddBuffer;
+    std::vector<int> ddOffset;
+    std::vector<int> ddCounts;
 public:
     class mdlClass **pmdl;
     class mpiClass *mpi;
@@ -337,7 +342,7 @@ public:
 
     void CacheCheck();
     void CacheBarrier(int cid);
-    void ThreadBarrier(bool bGlobal=false);
+    int ThreadBarrier(bool bGlobal=false,int iVote=0);
     void CompleteAllWork();
     bool isCudaActive();
     bool isMetalActive();
@@ -355,6 +360,7 @@ public:
     void IFFT( MDLFFT fft, FFTW3(complex) *kdata );
     void Alltoallv(int dataSize,void *sbuff,int *scount,int *sdisps,void *rbuff,int *rcount,int *rdisps);
 
+    int swaplocal(void *buffer,int count,int datasize,/*const*/ int *counts);
 };
 
 class mpiClass : public mdlClass {
