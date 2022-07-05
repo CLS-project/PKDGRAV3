@@ -103,8 +103,8 @@ int pkdPlaceBHSeed(PKD pkd, double dTime, double dScaleFactor,
             // Now convert this particle into a BH
             // We just change the class of the particle
             double omega = pkdSph(pkd,pLowPot)->omega;
-            pkdSetClass(pkd, pkdMass(pkd,pLowPot), pkdSoft0(pkd,pLowPot),0,
-                        FIO_SPECIES_BH, pLowPot);
+            pkd->particles.setClass(pkdMass(pkd,pLowPot), pkdSoft0(pkd,pLowPot),0,
+                                    FIO_SPECIES_BH, pLowPot);
 
             BHFIELDS *pBH = pkdBH(pkd,pLowPot);
             // When changing the class, we have to take into account tht
@@ -164,7 +164,7 @@ int pkdPlaceBHSeed(PKD pkd, double dTime, double dScaleFactor,
 
             // This class should have been created while reading the IC (at pkdReadFIO),
             // this won't be problematic as long as we use oMass and dSoft is set in the parameters file
-            pkdSetClass(pkd,0,pkdSoft(pkd,p),0,FIO_SPECIES_BH,p);
+            pkd->particles.setClass(0,pkdSoft(pkd,p),0,FIO_SPECIES_BH,p);
 
             float *pmass = pkdField(p,pkd->oMass);
             *pmass = pkd->param.dBHSeedMass;

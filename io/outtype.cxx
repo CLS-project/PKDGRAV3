@@ -47,6 +47,7 @@ static int getType(int iType) {
     switch (iType) {
     case OUT_IORDER_ARRAY:
     case OUT_GROUP_ARRAY:
+    case OUT_GLOBALGID_ARRAY:
     case OUT_MARKED_ARRAY:
         return OUTTYPE_INTEGER;
     case OUT_PSGROUP_ARRAY:
@@ -67,12 +68,12 @@ static int getType(int iType) {
     case OUT_U_ARRAY:
     case OUT_C_ARRAY:
     case OUT_HSPH_ARRAY:
-
     case OUT_POS_VECTOR:
     case OUT_VEL_VECTOR:
     case OUT_MEANVEL_VECTOR:
     case OUT_ACCEL_VECTOR:
         return OUTTYPE_FLOAT;
+
     case OUT_CACHEFLUX_ARRAY:
         return OUTTYPE_INTEGER;
     case OUT_CACHECOLL_ARRAY:
@@ -99,6 +100,9 @@ static uint64_t fetchInteger(PKD pkd,PARTICLE *p,int iType,int iDim) {
         break;
     case OUT_GROUP_ARRAY:
         v = pkdGetGroup(pkd,p);
+        break;
+    case OUT_GLOBALGID_ARRAY:
+        v = pkdGetGlobalGid(pkd,p);
         break;
     case OUT_MARKED_ARRAY:
         v = p->bMarked;
@@ -159,12 +163,12 @@ static double fetchFloat(PKD pkd,PARTICLE *p,int iType,int iDim) {
         v = pkdBall(pkd,p);
         break;
     case OUT_POT_ARRAY:
-        assert(pkd->oFieldOffset[oPotential]);
+        assert(pkd->particles.present(PKD_FIELD::oPotential));
         a = pkdPot(pkd,p);
         v = *a;
         break;
     case OUT_AMAG_ARRAY:
-        assert(pkd->oFieldOffset[oAcceleration]); /* Validate memory model */
+        assert(pkd->particles.present(PKD_FIELD::oAcceleration)); /* Validate memory model */
         a = pkdAccel(pkd,p);
         v = sqrt(a[0]*a[0] + a[1]*a[1] + a[2]*a[2]);
         break;
@@ -175,27 +179,27 @@ static double fetchFloat(PKD pkd,PARTICLE *p,int iType,int iDim) {
         v = pkdSoft(pkd,p);
         break;
     case OUT_RELAX_ARRAY:
-        assert(pkd->oFieldOffset[oRelaxation]);
-        a = static_cast<float *>(pkdField(p,pkd->oFieldOffset[oRelaxation]));
+        assert(pkd->particles.present(PKD_FIELD::oRelaxation));
+        a = pkd->particles.get<float>(p,PKD_FIELD::oRelaxation);
         v = *a;
         break;
     case OUT_DIVV_ARRAY:
-        assert(pkd->oFieldOffset[oVelSmooth]); /* Validate memory model */
-        pvel = static_cast<VELSMOOTH *>(pkdField(p,pkd->oFieldOffset[oVelSmooth]));
+        assert(pkd->particles.present(PKD_FIELD::oVelSmooth)); /* Validate memory model */
+        pvel = pkd->particles.get<VELSMOOTH>(p,PKD_FIELD::oVelSmooth);
         v = pvel->divv;
         break;
     case OUT_VELDISP2_ARRAY:
-        assert(pkd->oFieldOffset[oVelSmooth]); /* Validate memory model */
-        pvel = static_cast<VELSMOOTH *>(pkdField(p,pkd->oFieldOffset[oVelSmooth]));
+        assert(pkd->particles.present(PKD_FIELD::oVelSmooth)); /* Validate memory model */
+        pvel = pkd->particles.get<VELSMOOTH>(p,PKD_FIELD::oVelSmooth);
         v = pvel->veldisp2;
     case OUT_VELDISP_ARRAY:
-        assert(pkd->oFieldOffset[oVelSmooth]); /* Validate memory model */
-        pvel = static_cast<VELSMOOTH *>(pkdField(p,pkd->oFieldOffset[oVelSmooth]));
+        assert(pkd->particles.present(PKD_FIELD::oVelSmooth)); /* Validate memory model */
+        pvel = pkd->particles.get<VELSMOOTH>(p,PKD_FIELD::oVelSmooth);
         v = sqrt(pvel->veldisp2);
         break;
     case OUT_PHASEDENS_ARRAY:
-        assert(pkd->oFieldOffset[oVelSmooth]); /* Validate memory model */
-        pvel = static_cast<VELSMOOTH *>(pkdField(p,pkd->oFieldOffset[oVelSmooth]));
+        assert(pkd->particles.present(PKD_FIELD::oVelSmooth)); /* Validate memory model */
+        pvel = pkd->particles.get<VELSMOOTH>(p,PKD_FIELD::oVelSmooth);
         v = pkdDensity(pkd,p)*pow(pvel->veldisp2,-1.5);
         break;
 #ifndef OPTIM_REMOVE_UNUSED
@@ -216,16 +220,16 @@ static double fetchFloat(PKD pkd,PARTICLE *p,int iType,int iDim) {
         v = pkdPos(pkd,p,iDim);
         break;
     case OUT_VEL_VECTOR:
-        assert(pkd->oFieldOffset[oVelocity]); /* Validate memory model */
+        assert(pkd->particles.present(PKD_FIELD::oVelocity)); /* Validate memory model */
         v = pkdVel(pkd,p)[iDim];
         break;
     case OUT_MEANVEL_VECTOR:
-        assert(pkd->oFieldOffset[oVelSmooth]); /* Validate memory model */
-        pvel = static_cast<VELSMOOTH *>(pkdField(p,pkd->oFieldOffset[oVelSmooth]));
+        assert(pkd->particles.present(PKD_FIELD::oVelSmooth)); /* Validate memory model */
+        pvel = pkd->particles.get<VELSMOOTH>(p,PKD_FIELD::oVelSmooth);
         v = pvel->vmean[iDim];
         break;
     case OUT_ACCEL_VECTOR:
-        assert(pkd->oFieldOffset[oAcceleration]); /* Validate memory model */
+        assert(pkd->particles.present(PKD_FIELD::oAcceleration)); /* Validate memory model */
         a = pkdAccel(pkd,p);
         v = a[iDim];
         break;

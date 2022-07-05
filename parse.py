@@ -193,6 +193,7 @@ def parse():
     add_bool(memory,'Mv',default=False,dest='bMemVelocity', help='Particles have velocity')
     add_bool(memory,'Mp',default=False,dest='bMemPotential', help='Particles have potential')
     add_bool(memory,'Mg',default=False,dest='bMemGroups', help='Particles support group finding')
+    add_bool(memory,'Mgg',default=False,dest='bMemGlobalGid', help='Particles support global group ids')
     add_bool(memory,'Mm',default=False,dest='bMemMass', help='Particles have individual masses')
     add_bool(memory,'Ms',default=False,dest='bMemSoft', help='Particles have individual softening')
     add_bool(memory,'Mr',default=False,dest='bMemRelaxation', help='Particles have relaxation')

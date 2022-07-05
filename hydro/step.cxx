@@ -246,7 +246,7 @@ void pkdWakeParticles(PKD pkd,int iRoot, double dTime, double dDelta) {
                 // We revert to the state at the end of the previous timestep
                 psph->E    = psph->lastE;
                 psph->Uint = psph->lastUint;
-                float *mass = (float *) pkdField(p, pkd->oFieldOffset[oMass]);
+                float *mass = pkd->particles.get<float>(p,PKD_FIELD::oMass);
                 *mass = psph->lastMass;
 
                 for (int j=0; j<3; j++) {

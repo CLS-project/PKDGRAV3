@@ -248,7 +248,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
     BlackholeInit(uRungMax);
 #endif
     if (param.bFindGroups && param.bBHPlaceSeed) {
-        NewFof(dTime);
+        NewFof(param.dTau,param.nMinMembers);
         GroupStats();
     }
 #endif
@@ -270,7 +270,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
     if (param.bWriteIC && !prmSpecified(prm,"nGrid")) {
 #ifndef BLACKHOLES
         if (param.bFindGroups) {
-            NewFof(dTime);
+            NewFof(param.dTau,param.nMinMembers);
             GroupStats();
         }
 #endif

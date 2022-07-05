@@ -170,7 +170,7 @@ void pkdParticleWorkDone(workParticle *wp) {
             //p = CAST(PARTICLE *,mdlAcquireWrite(pkd->mdl,CID_PARTICLE,wp->iPart[i]));
             pkd->CopyParticle(p,wp->pPart[i]);
 
-            if (pkd->oFieldOffset[oNewSph]) {
+            if (pkd->particles.present(PKD_FIELD::oNewSph)) {
                 NEWSPHFIELDS *pNewSph = pkdNewSph(pkd,p);
                 if (wp->SPHoptions->doDensity) {
                     pkdSetDensity(pkd,p,wp->pInfoOut[i].rho);
@@ -244,13 +244,13 @@ void pkdParticleWorkDone(workParticle *wp) {
                 wp->pInfoOut[i].a[1] += term * dy;
                 wp->pInfoOut[i].a[2] += term * dz;
 #endif
-                if (pkd->oFieldOffset[oAcceleration]) {
+                if (pkd->particles.present(PKD_FIELD::oAcceleration)) {
                     a = pkdAccel(pkd,p);
                     a[0] = wp->pInfoOut[i].a[0];
                     a[1] = wp->pInfoOut[i].a[1];
                     a[2] = wp->pInfoOut[i].a[2];
                 }
-                if (pkd->oFieldOffset[oPotential]) {
+                if (pkd->particles.present(PKD_FIELD::oPotential)) {
                     float *pPot = pkdPot(pkd,p);
                     *pPot = wp->pInfoOut[i].fPot;
                 }
@@ -293,17 +293,17 @@ void pkdParticleWorkDone(workParticle *wp) {
                     dtGrav = (wp->pInfoOut[i].rhopmax > dtGrav?wp->pInfoOut[i].rhopmax:dtGrav);
                     if (dtGrav > 0.0) {
                         dT = fEta * rsqrtf(dtGrav*wp->ts->dRhoFac);
-                        if (pkd->oFieldOffset[oNewSph]) {
+                        if (pkd->particles.present(PKD_FIELD::oNewSph)) {
                             dT = fmin(dT,wp->pInfoOut[i].dtEst);
                         }
                         uNewRung = pkdDtToRungInverse(dT,fiDelta,wp->ts->uMaxRung-1);
-                        if (pkd->oFieldOffset[oNewSph]) {
+                        if (pkd->particles.present(PKD_FIELD::oNewSph)) {
                             uNewRung = std::max(std::max((int)uNewRung,(int)round(wp->pInfoOut[i].maxRung) - wp->SPHoptions->nRungCorrection),0);
                         }
                     }
                     else {
                         uNewRung = 0; /* Assumes current uNewRung is outdated -- not ideal */
-                        if (pkd->oFieldOffset[oNewSph]) {
+                        if (pkd->particles.present(PKD_FIELD::oNewSph)) {
                             uNewRung = pkdDtToRungInverse(wp->pInfoOut[i].dtEst,fiDelta,wp->ts->uMaxRung-1);
                             uNewRung = std::max(std::max((int)uNewRung,(int)round(wp->pInfoOut[i].maxRung) - wp->SPHoptions->nRungCorrection),0);
                         }
@@ -320,17 +320,17 @@ void pkdParticleWorkDone(workParticle *wp) {
                     if (maga > 0) {
                         float imaga = rsqrtf(maga) * fiAccFac;
                         dT = fEta*asqrtf(pkdSoft(pkd,p)*imaga);
-                        if (pkd->oFieldOffset[oNewSph]) {
+                        if (pkd->particles.present(PKD_FIELD::oNewSph)) {
                             dT = fmin(dT,wp->pInfoOut[i].dtEst);
                         }
                         uNewRung = pkdDtToRungInverse(dT,fiDelta,wp->ts->uMaxRung-1);
-                        if (pkd->oFieldOffset[oNewSph]) {
+                        if (pkd->particles.present(PKD_FIELD::oNewSph)) {
                             uNewRung = std::max(std::max((int)uNewRung,(int)round(wp->pInfoOut[i].maxRung) - wp->SPHoptions->nRungCorrection),0);
                         }
                     }
                     else {
                         uNewRung = 0;
-                        if (pkd->oFieldOffset[oNewSph]) {
+                        if (pkd->particles.present(PKD_FIELD::oNewSph)) {
                             uNewRung = pkdDtToRungInverse(wp->pInfoOut[i].dtEst,fiDelta,wp->ts->uMaxRung-1);
                             uNewRung = std::max(std::max((int)uNewRung,(int)round(wp->pInfoOut[i].maxRung) - wp->SPHoptions->nRungCorrection),0);
                         }
@@ -358,7 +358,7 @@ void pkdParticleWorkDone(workParticle *wp) {
                 ** p->uRung = uNewRung could be done here, but we let the outside
                 ** code handle this.
                 */
-                if (pkd->oFieldOffset[oVelocity]) {
+                if (pkd->particles.present(PKD_FIELD::oVelocity)) {
                     v = pkdVel(pkd,p);
                     if (wp->kick && wp->kick->bKickClose) {
                         v[0] += wp->kick->dtClose[p->uRung]*wp->pInfoOut[i].a[0];
@@ -572,7 +572,7 @@ int pkdGravInteract(PKD pkd,
         wp->pPart[nP] = p;
         wp->iPart[nP] = i;
         std::tie(wp->pInfoIn[nP].r[0],wp->pInfoIn[nP].r[1],wp->pInfoIn[nP].r[2]) = pkd->ilc.get_dr(r[0],r[1],r[2]);
-        if (pkd->oFieldOffset[oAcceleration]) {
+        if (pkd->particles.present(PKD_FIELD::oAcceleration)) {
             ap = pkdAccel(pkd,p);
             wp->pInfoIn[nP].a[0]  = ap[0];
             wp->pInfoIn[nP].a[1]  = ap[1];
@@ -585,7 +585,7 @@ int pkdGravInteract(PKD pkd,
             wp->pInfoIn[nP].a[2]  = 0;
         }
 
-        if (pkd->oFieldOffset[oNewSph]) {
+        if (pkd->particles.present(PKD_FIELD::oNewSph)) {
             NEWSPHFIELDS *pNewSph = pkdNewSph(pkd,p);
             wp->pInfoIn[nP].fBall = pkdBall(pkd,p);
             wp->pInfoIn[nP].isTooLarge = 0;

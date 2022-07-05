@@ -188,7 +188,10 @@ static int ppy2prm(PRM prm,PyObject *arguments, PyObject *specified) {
         if (v!=NULL) {
             if (v != Py_None) {
                 auto f = PyObject_GetAttrString(specified, pn->pszName); // A Namespace
-                if (f) { pn->bArg = PyObject_IsTrue(f)>0; Py_DECREF(f); }
+                if (f) {
+                    pn->bArg = PyObject_IsTrue(f)>0;
+                    Py_DECREF(f);
+                }
                 else pn->bArg = 0;
                 if (PyList_Check(v)) {
                     if (pn->pCount==NULL) {
@@ -205,7 +208,9 @@ static int ppy2prm(PRM prm,PyObject *arguments, PyObject *specified) {
             }
             Py_DECREF(v);
         }
-        else {PyErr_Clear();}
+        else {
+            PyErr_Clear();
+        }
     }
     return bOK;
 }
@@ -325,7 +330,9 @@ static void ephemeral_dealloc(EPHEMERALINSTANCE *self) {
 
 static PyObject *ephemeral_new(PyTypeObject *type, PyObject *args, PyObject *kwds) {
     auto self = reinterpret_cast<EPHEMERALINSTANCE *>(type->tp_alloc(type, 0));
-    if (self == NULL) { return NULL; }
+    if (self == NULL) {
+        return NULL;
+    }
     // Make a copy of the MSR object
     auto msr_module = PyState_FindModule(&msrModule); // We created this already
     auto moduleState = reinterpret_cast<struct msrModuleState *>(PyModule_GetState(msr_module));
@@ -765,6 +772,23 @@ ppy_msr_Smooth(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     Py_RETURN_NONE;
 }
 
+/********** Algorithms: FoF **********/
+
+static PyObject *
+ppy_msr_Fof(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    flush_std_files();
+    static char const *kwlist[]= {"tau","minmembers",NULL};
+    double dTau;
+    int nMinMembers = 10;
+    if ( !PyArg_ParseTupleAndKeywords(
+                args, kwobj, "d|i:Fof", const_cast<char **>(kwlist),
+                &dTau,&nMinMembers) )
+        return NULL;
+    self->msr->NewFof(dTau,nMinMembers);
+    self->msr->GroupStats();  /* we need to call this if we want to have global group ids for each particle! */
+    Py_RETURN_NONE;
+}
+
 /********** Analysis: grid management **********/
 
 static PyObject *
@@ -1092,17 +1116,38 @@ ppy_msr_GetArray(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     N[0] = self->msr->N;
     N[1] = 1;
     switch (field) {
-    case oPosition:     N[1]=3; typenum = NPY_FLOAT64; iUnitSize = sizeof(double);  break;
-    case oAcceleration: N[1]=3; break;
-    case oVelocity:     N[1]=3; break;
-    case oPotential:    break;
-    case oGroup:                 typenum = NPY_UINT32; iUnitSize = sizeof(uint32_t); break;
-    case oMass:         break;
-    case oSoft:         break;
-    case oDensity:      break;
-    case oBall:         break;
-    case oParticleID:            typenum = NPY_UINT64; iUnitSize = sizeof(uint64_t); break;
-    default: abort();
+    case PKD_FIELD::oPosition:
+        N[1]=3;
+        typenum = NPY_FLOAT64;
+        iUnitSize = sizeof(double);
+        break;
+    case PKD_FIELD::oAcceleration:
+        N[1]=3;
+        break;
+    case PKD_FIELD::oVelocity:
+        N[1]=3;
+        break;
+    case PKD_FIELD::oPotential:
+        break;
+    case PKD_FIELD::oGroup:
+        typenum = NPY_UINT32;
+        iUnitSize = sizeof(uint32_t);
+        break;
+    case PKD_FIELD::oMass:
+        break;
+    case PKD_FIELD::oSoft:
+        break;
+    case PKD_FIELD::oDensity:
+        break;
+    case PKD_FIELD::oBall:
+        break;
+    case PKD_FIELD::oParticleID:
+    case PKD_FIELD::oGlobalGid:
+        typenum = NPY_UINT64;
+        iUnitSize = sizeof(uint64_t);
+        break;
+    default:
+        abort();
 //  oSph, /* Sph structure */
 //  oStar, /* Star structure */
 //  oRelaxation,
@@ -1256,6 +1301,10 @@ static PyMethodDef msr_methods[] = {
         "Add the linear signal to the existing grid"
     },
     {
+        "Fof", (PyCFunction)ppy_msr_Fof, METH_VARARGS|METH_KEYWORDS,
+        "Friends-of-friends group finder"
+    },
+    {
         "MeasurePk", (PyCFunction)ppy_msr_MeasurePk, METH_VARARGS|METH_KEYWORDS,
         "Measure the power spectrum"
     },
@@ -1311,7 +1360,9 @@ static void msr_dealloc(MSRINSTANCE *self) {
 
 static PyObject *msr_new(PyTypeObject *type, PyObject *args, PyObject *kwds) {
     MSRINSTANCE *self = reinterpret_cast<MSRINSTANCE *>(type->tp_alloc(type, 0));
-    if (self == NULL) { return NULL; }
+    if (self == NULL) {
+        return NULL;
+    }
     // Make a copy of the MSR object
     auto msr_module = PyState_FindModule(&msrModule); // We created this already
     auto moduleState = reinterpret_cast<struct msrModuleState *>(PyModule_GetState(msr_module));
@@ -1462,7 +1513,10 @@ bool MSR::getParameterBoolean(const char *name) const {
         v = PyObject_IsTrue(o)>0;
         Py_DECREF(o);
     }
-    if (PyErr_Occurred()) { PyErr_Print(); abort(); }
+    if (PyErr_Occurred()) {
+        PyErr_Print();
+        abort();
+    }
     return v;
 }
 void MSR::setParameter(const char *name,bool v,int bSpecified) {
@@ -1472,7 +1526,10 @@ void MSR::setParameter(const char *name,bool v,int bSpecified) {
         Py_INCREF(Py_True);
         PyObject_SetAttrString(specified,name,Py_True);
     }
-    if (PyErr_Occurred()) { PyErr_Print(); abort(); }
+    if (PyErr_Occurred()) {
+        PyErr_Print();
+        abort();
+    }
 }
 
 
@@ -1485,7 +1542,10 @@ double MSR::getParameterDouble(const char *name) const {
         }
         Py_DECREF(n);
     }
-    if (PyErr_Occurred()) { PyErr_Print(); abort(); }
+    if (PyErr_Occurred()) {
+        PyErr_Print();
+        abort();
+    }
     return v;
 }
 void MSR::setParameter(const char *name,double v,int bSpecified) {
@@ -1499,7 +1559,10 @@ void MSR::setParameter(const char *name,double v,int bSpecified) {
             PyObject_SetAttrString(specified,name,Py_True);
         }
     }
-    if (PyErr_Occurred()) { PyErr_Print(); abort(); }
+    if (PyErr_Occurred()) {
+        PyErr_Print();
+        abort();
+    }
 }
 
 long long MSR::getParameterLongLong(const char *name) const {
@@ -1511,7 +1574,10 @@ long long MSR::getParameterLongLong(const char *name) const {
         }
         Py_DECREF(n);
     }
-    if (PyErr_Occurred()) { PyErr_Print(); abort(); }
+    if (PyErr_Occurred()) {
+        PyErr_Print();
+        abort();
+    }
     return v;
 }
 void MSR::setParameter(const char *name,long long v,int bSpecified) {
@@ -1524,7 +1590,10 @@ void MSR::setParameter(const char *name,long long v,int bSpecified) {
             PyObject_SetAttrString(specified,name,Py_True);
         }
     }
-    if (PyErr_Occurred()) { PyErr_Print(); abort(); }
+    if (PyErr_Occurred()) {
+        PyErr_Print();
+        abort();
+    }
 }
 
 extern "C" PyObject *PyInit_CSM(void);
@@ -1571,14 +1640,26 @@ int MSR::Python(int argc, char *argv[]) {
     PyObject *pyValue = PyRun_String(parse_py, Py_file_input, localDict, localDict);
     Py_XDECREF(pyValue);
     PyObject *parse = PyObject_GetAttrString(PARSE, "parse");
-    if (!PyCallable_Check(parse)) { fprintf(stderr,"INTERNAL ERROR: parse.parse() MUST be callable\n"); abort(); }
+    if (!PyCallable_Check(parse)) {
+        fprintf(stderr,"INTERNAL ERROR: parse.parse() MUST be callable\n");
+        abort();
+    }
     PyObject *update = PyObject_GetAttrString(PARSE, "update");
-    if (!PyCallable_Check(update)) { fprintf(stderr,"INTERNAL ERROR: parse.update() MUST be callable\n"); abort(); }
+    if (!PyCallable_Check(update)) {
+        fprintf(stderr,"INTERNAL ERROR: parse.update() MUST be callable\n");
+        abort();
+    }
     PyObject *result= PyObject_CallObject(parse,NULL);
-    if (PyErr_Occurred()) { PyErr_Print(); exit(1); }
+    if (PyErr_Occurred()) {
+        PyErr_Print();
+        exit(1);
+    }
     // Retrieve the results
     int n = PyTuple_Size(result);
-    if (n!=2) { fprintf(stderr,"INTERNAL ERROR: parse.parse() MUST return a tuple\n"); abort(); }
+    if (n!=2) {
+        fprintf(stderr,"INTERNAL ERROR: parse.parse() MUST return a tuple\n");
+        abort();
+    }
     Py_XDECREF(arguments);
     arguments = PyTuple_GetItem(result,0); /* Values of each parameter */
     Py_INCREF(arguments);
@@ -1599,9 +1680,15 @@ int MSR::Python(int argc, char *argv[]) {
             filename = PyBytes_AsString(ascii);
             Py_DECREF(ascii);
         }
-        else { fprintf(stderr,"INTERNAL ERROR: script filename is invalid\n"); abort(); }
+        else {
+            fprintf(stderr,"INTERNAL ERROR: script filename is invalid\n");
+            abort();
+        }
         FILE *fp = fopen(filename,"r");
-        if (fp == NULL) { perror(filename); exit(errno); }
+        if (fp == NULL) {
+            perror(filename);
+            exit(errno);
+        }
         auto s = PyRun_FileEx(fp,filename,Py_file_input,globals,locals,1); // fp is closed on return
         Py_XDECREF(s);
         if (PyErr_Occurred()) {
@@ -1630,7 +1717,10 @@ int MSR::Python(int argc, char *argv[]) {
         PyTuple_SetItem(args,1,arguments);
         PyTuple_SetItem(args,2,specified);
         PyObject_CallObject(update,args); // Copy and variables into the arguments Namespace
-        if (PyErr_Occurred()) { PyErr_Print(); exit(1); }
+        if (PyErr_Occurred()) {
+            PyErr_Print();
+            exit(1);
+        }
         ppy2prm(prm,arguments,specified); // Update the pkdgrav parameter state
         bVDetails = getParameterBoolean("bVDetails");
     }

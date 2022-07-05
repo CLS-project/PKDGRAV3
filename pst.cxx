@@ -435,11 +435,11 @@ static void _SwapClasses(PKD pkd, int id) {
     pClass = new PARTCLASS[PKD_MAX_CLASSES];
     assert(pClass!=NULL);
 
-    n = pkdGetClasses( pkd, PKD_MAX_CLASSES, pClass );
+    n = pkd->particles.getClasses( PKD_MAX_CLASSES, pClass );
     rID = mdlReqService(pkd->mdl,id,PST_SWAPCLASSES,pClass,n*sizeof(PARTCLASS));
     mdlGetReply(pkd->mdl,rID,pClass,&n);
     n = n / sizeof(PARTCLASS);
-    pkdSetClasses( pkd, n, pClass, 0 );
+    pkd->particles.setClasses( n, pClass, 0 );
     delete [] pClass;
 }
 
@@ -761,7 +761,7 @@ int pstWrite(PST pst,void *vin,int nIn,void *vout,int nOut) {
                 if (strstr(in->achOutFile, "&I" )) {
                     makeName(achOutFile,in->achOutFile,in->iIndex,"");
                     fio = fioTipsyCreatePart(achOutFile,0,in->mFlags&FIO_FLAG_CHECKPOINT,
-                                             in->bStandard, pst->plcl->pkd->oFieldOffset[oNewSph] ? in->dTime : in->dExp,
+                                             in->bStandard, pst->plcl->pkd->particles.present(PKD_FIELD::oNewSph) ? in->dTime : in->dExp,
                                              in->nGas, in->nDark, in->nStar, plcl->nWriteStart);
                 }
                 else {
@@ -958,12 +958,14 @@ int pstHopFinishUp(PST pst,void *vin,int nIn,void *vout,int nOut) {
     if (pst->nLeaves > 1) {
         int rID = mdlReqService(pst->mdl,pst->idUpper,PST_HOP_FINISH_UP,vin,nIn);
         pstHopFinishUp(pst->pstLower,vin,nIn,vout,nOut);
+        pst->nLowerGroups = *nOutGroups;
         mdlGetReply(pst->mdl,rID,&nOutUpper,NULL);
         *nOutGroups += nOutUpper;
     }
     else {
         LCL *plcl = pst->plcl;
         *nOutGroups = pkdHopFinishUp(plcl->pkd,in->nMinGroupSize,in->bPeriodic,in->fPeriod);
+        pst->nLowerGroups = 0;
     }
     return sizeof(uint64_t);
 }
@@ -1038,13 +1040,15 @@ int pstGroupStats(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto in = static_cast<struct inGroupStats *>(vin);
     mdlassert(pst->mdl,nIn == sizeof(struct inGroupStats));
     if (pst->nLeaves > 1) {
+        in->iGlobalStart += pst->nLowerGroups; /* for the upper subset the global id starting point is more by the number of lower groups */
         int rID = mdlReqService(pst->mdl,pst->idUpper,PST_GROUP_STATS,vin,nIn);
+        in->iGlobalStart -= pst->nLowerGroups; /* set the value back for the lower subset traversal */
         pstGroupStats(pst->pstLower,vin,nIn,NULL,0);
         mdlGetReply(pst->mdl,rID,NULL,NULL);
     }
     else {
         LCL *plcl = pst->plcl;
-        pkdCalculateGroupStats(plcl->pkd,in->bPeriodic,in->dPeriod,in->rEnvironment);
+        pkdCalculateGroupStats(plcl->pkd,in->bPeriodic,in->dPeriod,in->rEnvironment,in->iGlobalStart);
     }
     return 0;
 }
@@ -1974,6 +1978,7 @@ int pstFofPhases(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
 /*
 ** This is an almost identical copy of HopFinishUp.
+** JST: added the count of lower subtree number of local groups.
 */
 int pstFofFinishUp(PST pst,void *vin,int nIn,void *vout,int nOut) {
     struct inFofFinishUp *in = (struct inFofFinishUp *)vin;
@@ -1984,12 +1989,14 @@ int pstFofFinishUp(PST pst,void *vin,int nIn,void *vout,int nOut) {
     if (pst->nLeaves > 1) {
         int rID = mdlReqService(pst->mdl,pst->idUpper,PST_FOF_FINISH_UP,vin,nIn);
         pstFofFinishUp(pst->pstLower,vin,nIn,vout,nOut);
+        pst->nLowerGroups = *nOutGroups;
         mdlGetReply(pst->mdl,rID,&nOutUpper,NULL);
         *nOutGroups += nOutUpper;
     }
     else {
         LCL *plcl = pst->plcl;
         *nOutGroups = pkdFofFinishUp(plcl->pkd,in->nMinGroupSize);
+        pst->nLowerGroups = 0;
     }
     return sizeof(uint64_t);
 }
@@ -2125,7 +2132,7 @@ int pstGetClasses(PST pst,void *vin,int nIn,void *vout,int nOut) {
         delete [] outUp;
     }
     else {
-        n = pkdGetClasses(plcl->pkd,PKD_MAX_CLASSES,out);
+        n = plcl->pkd->particles.getClasses(PKD_MAX_CLASSES,out);
     }
     return n * sizeof(PARTCLASS);
 }
@@ -2143,7 +2150,7 @@ int pstSetClasses(PST pst,void *vin,int nIn,void *vout,int nOut) {
     else {
         n = nIn / sizeof(PARTCLASS);
         mdlassert(pst->mdl,n*sizeof(PARTCLASS)==nIn);
-        pkdSetClasses(plcl->pkd,n,in,1);
+        plcl->pkd->particles.setClasses(n,in,1);
     }
     return 0;
 }
@@ -2164,12 +2171,12 @@ int pstSwapClasses(PST pst,void *vin,int nIn,void *vout,int nOut) {
         lpst = lpst->pstLower;
     plcl = lpst->plcl;
 
-    n = pkdGetClasses( plcl->pkd, PKD_MAX_CLASSES, out );
+    n = plcl->pkd->particles.getClasses( PKD_MAX_CLASSES, out );
     nOut = n * sizeof(PARTCLASS);
 
     n = nIn / sizeof(PARTCLASS);
     mdlassert(pst->mdl,n*sizeof(PARTCLASS) == nIn);
-    pkdSetClasses( plcl->pkd, n, in, 0 );
+    plcl->pkd->particles.setClasses( n, in, 0 );
     return nOut;
 }
 

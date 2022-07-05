@@ -268,7 +268,12 @@ uint64_t MSR::getMemoryModel() {
     ** can be used to request a specific model, but certain operations
     ** will force these flags to be on.
     */
-    if (param.bFindGroups) mMemoryModel |= PKD_MODEL_GROUPS|PKD_MODEL_VELOCITY;
+    if (param.bFindGroups) {
+        mMemoryModel |= PKD_MODEL_GROUPS|PKD_MODEL_VELOCITY;
+        if (param.bMemGlobalGid) {
+            mMemoryModel |= PKD_MODEL_GLOBALGID;
+        }
+    }
     if (DoGravity()) {
         mMemoryModel |= PKD_MODEL_VELOCITY|PKD_MODEL_NODE_MOMENT;
         if (!param.bNewKDK) mMemoryModel |= PKD_MODEL_ACCELERATION;
@@ -512,7 +517,10 @@ void MSR::writeParameters(const char *baseName,int iStep,int nSteps,double dTime
     }
 
     FILE *fp = fopen(achOutName,"w");
-    if (fp==NULL) {perror(achOutName); abort(); }
+    if (fp==NULL) {
+        perror(achOutName);
+        abort();
+    }
 
     for (i=0; i<FIO_SPECIES_LAST; ++i) nSpecies[i] = 0;
     nSpecies[FIO_SPECIES_ALL]  = N;
@@ -1161,6 +1169,9 @@ void MSR::Initialize() {
     param.bMemGroups = 0;
     prmAddParam(prm,"bMemGroups",0,&param.bMemGroups,
                 sizeof(int),"Mg","<Particles support group finding> = -Mg");
+    param.bMemGlobalGid = 0;
+    prmAddParam(prm,"bMemGlobalGid",0,&param.bMemGlobalGid,
+                sizeof(int),"Mgg","<Particles support global group ids> = -Mgg");
     param.bMemMass = 0;
     prmAddParam(prm,"bMemMass",0,&param.bMemMass,
                 sizeof(int),"Mm","<Particles have individual masses> = -Mm");
@@ -2015,11 +2026,11 @@ void MSR::SwapClasses(int id) {
     int rID;
 
     std::unique_ptr<PARTCLASS[]> pClass {new PARTCLASS[PKD_MAX_CLASSES]};
-    n = pkdGetClasses( plcl->pkd, PKD_MAX_CLASSES, pClass.get() );
+    n = plcl->pkd->particles.getClasses( PKD_MAX_CLASSES, pClass.get() );
     rID = mdlReqService(pst0->mdl,id,PST_SWAPCLASSES,pClass.get(),n*sizeof(PARTCLASS));
     mdlGetReply(pst0->mdl,rID,pClass.get(),&n);
     n = n / sizeof(PARTCLASS);
-    pkdSetClasses( plcl->pkd, n, pClass.get(), 0 );
+    plcl->pkd->particles.setClasses( n, pClass.get(), 0 );
 }
 
 void MSR::OneNodeRead(struct inReadFile *in, FIO fio) {
@@ -2108,7 +2119,7 @@ double MSR::getVfactor(double dExpansion) {
     return csm->val.bComove ? dExpansion*dExpansion : 1.0;
 }
 
-void MSR::RecvArray(void *vBuffer,int field,int iUnitSize,double dTime,bool bMarked) {
+void MSR::RecvArray(void *vBuffer,PKD_FIELD field,int iUnitSize,double dTime,bool bMarked) {
     PKD pkd = pst->plcl->pkd;
     inSendArray in;
     in.field = field;
@@ -2747,9 +2758,14 @@ void MSR::OutASCII(const char *pszFile,int iType,int nDims,int iFileType) {
     int rID;
 
     switch (nDims) {
-    case 1: arrayOrVector = "array";  break;
-    case 3: arrayOrVector = "vector"; break;
-    default:arrayOrVector = NULL;
+    case 1:
+        arrayOrVector = "array";
+        break;
+    case 3:
+        arrayOrVector = "vector";
+        break;
+    default:
+        arrayOrVector = NULL;
         assert(nDims==1 || nDims==3);
     }
 
@@ -4210,7 +4226,7 @@ int MSR::NewTopStepKDK(
             GridDeleteFFT();
         }
 
-        if (param.bFindGroups) NewFof(dTime);
+        if (param.bFindGroups) NewFof(param.dTau,param.nMinMembers);
     }
 
 
@@ -4495,7 +4511,9 @@ void MSR::TopStepKDK(
          */
         dTime -= 0.5*dDeltaRung;
     }
-    else { abort(); }
+    else {
+        abort();
+    }
 
     msrprintf("%*cKickClose, iRung: %d, 0.5*dDelta: %g\n",
               2*iRung+2,' ',iRung, 0.5*dDeltaRung);
@@ -4504,7 +4522,7 @@ void MSR::TopStepKDK(
     dTime += 0.5*dDeltaRung; /* Important to have correct time at step end for SF! */
 
     if (!iKickRung && !iRung && param.bFindGroups) {
-        NewFof(dTime);
+        NewFof(param.dTau,param.nMinMembers);
         GroupStats();
         BuildTree(param.bEwald);
     }
@@ -4855,6 +4873,7 @@ void MSR::Hop(double dTime, double dDelta) {
     inGroupStats.dPeriod[2] = param.dzPeriod;
     inGroupStats.rEnvironment[0] = param.dEnvironment0;
     inGroupStats.rEnvironment[1] = param.dEnvironment1;
+    inGroupStats.iGlobalStart = 1; /* global id 0 means ungrouped particle on all cpus */
     if ( prmSpecified(prm,"dBoxSize") && param.dBoxSize > 0.0 ) {
         inGroupStats.rEnvironment[0] /= param.dBoxSize;
         inGroupStats.rEnvironment[1] /= param.dBoxSize;
@@ -4867,7 +4886,7 @@ void MSR::Hop(double dTime, double dDelta) {
 }
 
 
-void MSR::NewFof(double dTime) {
+void MSR::NewFof(double dTau,int nMinMembers) {
     struct inNewFof in;
     struct outFofPhases out;
     struct inFofFinishUp inFinish;
@@ -4877,14 +4896,14 @@ void MSR::NewFof(double dTime) {
 
     TimerStart(TIMER_FOF);
 
-    in.dTau2 = param.dTau*param.dTau;
-    in.nMinMembers = param.nMinMembers;
+    in.dTau2 = dTau*dTau;
+    in.nMinMembers = nMinMembers;
     in.bPeriodic = param.bPeriodic;
     in.nReplicas = param.nReplicas;
     in.nBucket = param.nBucket;
 
     if (param.bVStep) {
-        printf("Running FoF with fixed linking length %g\n", param.dTau );
+        printf("Running FoF with fixed linking length %g\n", dTau );
     }
 
     TimerStart(TIMER_NONE);
@@ -4910,7 +4929,7 @@ void MSR::NewFof(double dTime) {
     if (param.bVStep)
         printf("Global merge complete in %f secs\n",dsec);
 
-    inFinish.nMinGroupSize = param.nMinMembers;
+    inFinish.nMinGroupSize = nMinMembers;
     pstFofFinishUp(pst,&inFinish,sizeof(inFinish),&nGroups,sizeof(nGroups));
     if (param.bVStep)
         printf("Removed groups with fewer than %d particles, %" PRIu64 " remain\n",
@@ -4935,6 +4954,7 @@ void MSR::GroupStats() {
     inGroupStats.dPeriod[2] = param.dzPeriod;
     inGroupStats.rEnvironment[0] = param.dEnvironment0;
     inGroupStats.rEnvironment[1] = param.dEnvironment1;
+    inGroupStats.iGlobalStart = 1; /* global id 0 means ungrouped particle on all cpus */
     if ( prmSpecified(prm,"dBoxSize") && param.dBoxSize > 0.0 ) {
         inGroupStats.rEnvironment[0] /= param.dBoxSize;
         inGroupStats.rEnvironment[1] /= param.dBoxSize;

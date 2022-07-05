@@ -20,6 +20,7 @@
 
 #include <stdint.h>
 #include <string.h>
+#include <vector>
 
 #include "mdl.h"
 #ifdef USE_CUDA
@@ -45,7 +46,6 @@
 #ifdef GRACKLE
     #include <grackle.h>
 #endif
-#include "chemistry.h"
 
 #define CAST(T,V) reinterpret_cast<T>(V)
 
@@ -59,10 +59,6 @@ static inline int d2i(double d)  {
 static inline int64_t d2u64(double d) {
     return (uint64_t)d;
 }
-
-#define INTEGER_FACTOR 0x80000000u
-#define pkdDblToIntPos(pkd,d) (int32_t)((d)*INTEGER_FACTOR)
-#define pkdIntPosToDbl(pkd,pos) ((pos)*(1.0/INTEGER_FACTOR))
 
 /*
 ** Handy type punning macro.
@@ -120,6 +116,7 @@ static inline int64_t d2u64(double d) {
 #define PKD_MODEL_UNORDERED    (1<<14) /* Particles do not have an order */
 #define PKD_MODEL_INTEGER_POS  (1<<15) /* Particles do not have an order */
 #define PKD_MODEL_BH           (1<<16) /* BH fields */
+#define PKD_MODEL_GLOBALGID    (1<<17) /* Global group identifier per particle */
 
 #define PKD_MODEL_NODE_MOMENT  (1<<24) /* Include moment in the tree */
 #define PKD_MODEL_NODE_ACCEL   (1<<25) /* mean accel on cell (for grav step) */
@@ -136,7 +133,6 @@ typedef struct {
     double vscale[3];
 } PSMETRIC;
 
-#define PKD_MAX_CLASSES 256
 #define MAX_RUNG     63
 
 /*
@@ -149,203 +145,11 @@ typedef struct {
 #define ROOT        1
 #define NRESERVED_NODES MAX_RUNG+1
 
-struct PARTCLASS {
-    float       fMass;    /* Particle mass */
-    float       fSoft;    /* Current softening */
-    int         iMat;     /* newSPH material id */
-    FIO_SPECIES eSpecies; /* Species: dark, star, etc. */
-
-    bool operator <(const PARTCLASS &b) const {
-        if ( fMass < b.fMass ) return true;
-        else if ( fMass > b.fMass ) return false;
-        else if ( fSoft < b.fSoft ) return true;
-        else if ( fSoft > b.fSoft ) return false;
-        else if ( iMat  < b.iMat  ) return true;
-        else if ( iMat  > b.iMat  ) return false;
-        else return eSpecies < b.eSpecies;
-    }
-    bool operator==(const PARTCLASS &b) const {
-        return fMass==b.fMass && fSoft==b.fSoft && iMat==b.iMat && eSpecies==b.eSpecies;
-    }
-    PARTCLASS() = default;
-    PARTCLASS(float fMass,float fSoft,int iMat,FIO_SPECIES eSpecies)
-        : fMass(fMass), fSoft(fSoft), iMat(iMat), eSpecies(eSpecies) {}
-};
-static_assert(std::is_trivial<PARTCLASS>());
-
 typedef struct velsmooth {
     float vmean[3];
     float divv;
     float veldisp2;
 } VELSMOOTH;
-
-
-typedef double myreal;
-
-
-
-
-typedef struct sphfields {
-    char *pNeighborList; /* pointer to nearest neighbor list - compressed */
-    double vPred[3];
-
-    float c;        /* sound speed */
-#ifndef OPTIM_REMOVE_UNUSED
-    float u;            /* thermal energy */
-    float uPred;    /* predicted thermal energy */
-    float uDot;
-    float divv;
-    float BalsaraSwitch;    /* Balsara viscosity reduction */
-    float fMetals;      /* mass fraction in metals, a.k.a, Z - tipsy output variable */
-
-    /* diffusion */
-    float diff;
-    float fMetalsPred;
-    float fMetalsDot;
-#endif //OPTIM_REMOVE_UNUSED
-
-    /* IA: B matrix to 'easily' reconstruct faces'. Reminder: it is symmetric */
-    double B[6];
-
-    /* IA: Condition number for pathological configurations */
-    myreal Ncond;
-
-    /* IA: Gradients */
-    myreal gradRho[3];
-    myreal gradVx[3];
-    myreal gradVy[3];
-    myreal gradVz[3];
-    myreal gradP[3];
-
-    /* IA: last time this particle's primitve variables were updated */
-    myreal lastUpdateTime;
-    myreal lastAcc[3];
-    myreal lastMom[3];
-    myreal lastE;
-    myreal lastUint;
-    myreal lastHubble; // TODO: Maybe there is a more intelligent way to avoid saving this...
-#ifndef USE_MFM
-    myreal lastDrDotFrho[3];
-#endif
-    float lastMass;
-
-    /* IA: normalization factor (Eq 7 Hopkins 2015) at the particle position */
-    double omega;
-
-    /* IA: Fluxes */
-    myreal Frho;
-    myreal Fmom[3];
-    myreal Fene;
-
-#ifndef USE_MFM
-    double drDotFrho[3];
-#endif
-    /* IA: Conserved variables */
-    double mom[3];
-    double E;
-    /* IA: Internal energy, which is evolved in parallel and used for updating the pressure if we are in a cold flow */
-    double Uint;
-
-#ifdef ENTROPY_SWITCH
-    double S;
-    double lastS;
-    double maxEkin;
-#endif
-
-    /* IA: Primitive variables */
-    double P;
-
-    /* IA: fBall from the last iteration. Used for the bisection algorithm */
-    //float fLastBall;
-    /* IA: Number of neighbors correspoding to that fBall */
-    //int nLastNeighs;
-
-    /* IA: TODO temporarly */
-    //uint8_t uNewRung;
-
-#ifdef STAR_FORMATION
-    myreal SFR;
-#endif
-
-    float afElemMass[ELEMENT_COUNT];
-
-#ifdef COOLING
-    myreal lastCooling;
-    float cooling_dudt;
-#endif
-
-#ifdef HAVE_METALLICITY
-    float fMetalMass;
-#endif
-
-#ifdef STELLAR_EVOLUTION
-    float afReceivedMom[3];
-    float fReceivedMass;
-    float fReceivedE;
-#endif
-
-
-#ifdef FEEDBACK
-    float fAccFBEnergy;
-#endif
-
-
-    uint8_t uWake;
-
-} SPHFIELDS;
-
-typedef struct newsphfields {
-    float Omega;        /* Correction factor */
-    float divv;         /* Divergence of v */
-    float u;            /* Thermodynamical variable, can be T, A(s) or u */
-    float uDot;         /* Derivative of the thermodynamical variable */
-    float cs;           /* Sound speed */
-    float P;            /* Pressure */
-    float oldRho;       /* Rho corresponding to where u is at */
-} NEWSPHFIELDS;
-
-typedef struct starfields {
-    double omega;
-#ifdef STELLAR_EVOLUTION
-    float afElemAbun[ELEMENT_COUNT]; /* Formation abundances */
-    float fMetalAbun;            /* Formation metallicity */
-    float fInitialMass;
-    float fLastEnrichTime;
-    float fLastEnrichMass;
-    int iLastEnrichMass;
-    float fNextEnrichTime;
-    struct {
-        int oZ;
-        float fDeltaZ;
-    } CCSN, AGB, Lifetime;
-    float fSNIaOnsetTime;
-#endif
-
-    float fTimer;  /* Time of formation */
-    float fSNEfficiency;
-    int hasExploded; /* Has exploded as a supernova? */
-} STARFIELDS;
-
-typedef struct blackholefields {
-    PARTICLE *pLowPot;
-    double omega;
-    double dInternalMass;
-    double newPos[3];
-    double lastUpdateTime;
-    double dAccretionRate;
-    double dEddingtonRatio;
-    double dFeedbackRate;
-    double dAccEnergy;
-    float fTimer;    /* Time of formation */
-} BHFIELDS;
-
-#ifdef OPTIM_UNION_EXTRAFIELDS
-typedef union extrafields {
-    SPHFIELDS sph;
-    STARFIELDS star;
-    BHFIELDS bh;
-} EXTRAFIELDS;
-#endif
 
 typedef struct partLightCone {
     float pos[3];
@@ -618,6 +422,7 @@ typedef struct {
     int nStar;
     int nGas;
     int nDM;
+    uint64_t iGlobalGid;
 } TinyGroupTable;
 
 /* IA: For the BH seeding, we need a small part of the FoF information
@@ -750,28 +555,6 @@ typedef struct {
     float fPotential;
 } healpixData;
 
-enum PKD_FIELD {
-    oPosition,
-    oVelocity, /* Three vel_t */
-    oAcceleration, /* Three float */
-    oPotential, /* One float */
-    oGroup, /* One int32 */
-    oMass, /* One float */
-    oSoft, /* One float */
-    oDensity, /* One float */
-    oBall, /* One float */
-    oSph, /* Sph structure */
-    oNewSph, /* NewSph structure */
-    oStar, /* Star structure */
-    oBH, /* BH structure */
-    oRelaxation,
-    oVelSmooth,
-    oRungDest, /* Destination processor for each rung */
-    oParticleID,
-
-    MAX_PKD_FIELD
-};
-
 class pkdContext {
 public:
     explicit pkdContext(
@@ -787,40 +570,34 @@ protected:  // Support for memory models
     int NodeAddFloat     (int n=1); // Add n floats to the node structure
     int NodeAddInt64     (int n=1); // Add n 64-bit integers to the node structure
     int NodeAddInt32     (int n=1); // Add n 32-bit integers to the node structure
-    int ParticleAddStruct(int n);   // Add a structure: assume double alignment
-    int ParticleAddDouble(int n=1); // Add n doubles to the particle structure
-    int ParticleAddFloat (int n=1); // Add n floats to the particle structure
-    int ParticleAddInt64 (int n=1); // Add n 64-bit integers to the particle structure
-    int ParticleAddInt32 (int n=1); // Add n 32-bit integers to the particle structure
 protected:
-    PARTICLE *pStorePRIVATE = nullptr;
     PARTICLE *pTempPRIVATE = nullptr;
-    int nStore = 0; // Maximum local particles
-    int nLocal = 0; // Current number of particles
-    size_t nParticleAlign = 0, iParticle32 = 0;
-    size_t iParticleSize = 0; // Size (in bytes) of a single PARTICLE
     size_t iTreeNodeSize = 0; // Size (in bytes) of a tree node
     uint32_t nEphemeralBytes = 0; /* per-particle */
 public:
-    int FreeStore() { return nStore; }
-    int Local() { return nLocal; }
-    int SetLocal(int n) {return (nLocal=n);}
-    int AddLocal(int n) {return (nLocal+=n);}
+    particleStore particles;
+    int FreeStore() { return particles.FreeStore(); }
+    int Local() { return particles.Local(); }
+    int SetLocal(int n) {return particles.SetLocal(n);}
+    int AddLocal(int n) {return particles.AddLocal(n);}
     auto EphemeralBytes() {return nEphemeralBytes; }
     static constexpr auto MaxNodeSize() { return sizeof(KDN) + 2*sizeof(BND) + sizeof(FMOMR) + 6*sizeof(double) + sizeof(SPHBNDS); }
     auto NodeSize() { return iTreeNodeSize; }
-    auto ParticleSize() {return iParticleSize; }
+    auto ParticleSize() {return particles.ParticleSize();}
+    auto ParticleGet(void *pBase, int i) { return particles.ParticleGet(pBase,i); }
     auto ParticleMemory() { return (ParticleSize() + EphemeralBytes()) * (FreeStore()+1); }
-    auto ParticleGet(void *pBase, int i) {
-        auto v = static_cast<char *>(pBase);
-        return reinterpret_cast<PARTICLE *>(v + ((uint64_t)i)*ParticleSize());
-    }
-    PARTICLE *ParticleBase() { return pStorePRIVATE; }
-    PARTICLE *Particle(int i) { return ParticleGet(ParticleBase(),i); }
+    PARTICLE *ParticleBase() { return particles.ParticleBase(); }
+    PARTICLE *Particle(int i) { return particles.ParticleGet(i); }
 
-    void SaveParticle(PARTICLE *a) { memcpy(pTempPRIVATE,a,ParticleSize()); }
-    void LoadParticle(PARTICLE *a) { memcpy(a,pTempPRIVATE,ParticleSize()); }
-    void CopyParticle(PARTICLE *a, PARTICLE *b) { memcpy(a,b,ParticleSize()); }
+    void SaveParticle(PARTICLE *a) {
+        memcpy(pTempPRIVATE,a,ParticleSize());
+    }
+    void LoadParticle(PARTICLE *a) {
+        memcpy(a,pTempPRIVATE,ParticleSize());
+    }
+    void CopyParticle(PARTICLE *a, PARTICLE *b) {
+        memcpy(a,b,ParticleSize());
+    }
 
 protected:
     KDN **kdNodeListPRIVATE; /* BEWARE: KDN is actually variable length! */
@@ -830,10 +607,16 @@ protected:
     int nTreeTiles;
     int nTreeTilesReserved;
     int nNodes, nMaxNodes;
-    auto TreeBase(int iTile=0) { return kdNodeListPRIVATE[iTile]; }
+    auto TreeBase(int iTile=0) {
+        return kdNodeListPRIVATE[iTile];
+    }
 public:
-    auto Nodes() const { return nNodes; }
-    /*[[deprecated]]*/ void SetNodeCount(int n) { nNodes = n; }
+    auto Nodes() const {
+        return nNodes;
+    }
+    /*[[deprecated]]*/ void SetNodeCount(int n) {
+        nNodes = n;
+    }
     auto Node(KDN *pBase,int iNode) {
         return reinterpret_cast<KDN *>(reinterpret_cast<char *>(pBase)+NodeSize()*iNode);
     }
@@ -841,7 +624,9 @@ public:
         return Node(TreeBase(iNode>>nTreeBitsLo),iNode&iTreeMask);
     }
     void ExtendTree();
-    size_t TreeMemory() { return nTreeTiles * (1<<nTreeBitsLo) * NodeSize(); }
+    size_t TreeMemory() {
+        return nTreeTiles * (1<<nTreeBitsLo) * NodeSize();
+    }
     auto TreeAlignNode() {
         if (nNodes&1) ++nNodes;
         return nNodes;
@@ -863,8 +648,12 @@ public:
 
 public:
     mdl::mdlClass *mdl;
-    auto Self()    const { return mdl->Self(); }
-    auto Threads() const { return mdl->Threads(); }
+    auto Self()    const {
+        return mdl->Self();
+    }
+    auto Threads() const {
+        return mdl->Threads();
+    }
 
 public:
     int nRejects;
@@ -892,17 +681,12 @@ public:
     int64_t nSideHealpix;
     healpixData *pHealpixData;
 
-    std::vector<PARTCLASS> ParticleClasses;
-    float fSoftFix;
-    float fSoftFac;
-    float fSoftMax;
     void *pLite;
     /*
     ** Advanced memory models
     */
     int bNoParticleOrder;
     int bIntegerPosition;
-    int oFieldOffset[MAX_PKD_FIELD];
 
     /*
     ** Advanced memory models - Tree Nodes
@@ -1216,88 +1000,48 @@ static inline void pkdSwapParticle(PKD pkd, PARTICLE *a, PARTICLE *b) {
     pkd->LoadParticle(b);
 }
 
-static inline const void *pkdFieldRO( const PARTICLE *p, int iOffset ) {
-    const char *v = (const char *)p;
-    /*assert(iOffset);*/ /* Remove this for better performance */
-    return (const void *)(v + iOffset);
-}
-
-static inline void *pkdField( PARTICLE *p, int iOffset ) {
-    char *v = (char *)p;
-    /*assert(iOffset);*/ /* Remove this for better performance */
-    return (void *)(v + iOffset);
-}
-
-static inline int32_t *pkdInt32( PARTICLE *p, int iOffset ) {
-    char *v = (char *)p;
-    return (int32_t *)(v + iOffset);
-}
-
-static inline int pkdIsFieldPresent(PKD pkd, enum PKD_FIELD field) {
-    assert(field>=0 && field<MAX_PKD_FIELD);
-    return pkd->oFieldOffset[field] != 0;
-}
-
 static inline int32_t pkdGetGroup( PKD pkd, const PARTICLE *p ) {
-    if (pkd->bNoParticleOrder) return ((const UPARTICLE *)p)->iGroup;
-    assert(pkd->oFieldOffset[oGroup]);
-    return CAST(const int32_t *, pkdFieldRO(p,pkd->oFieldOffset[oGroup]))[0];
+    return pkd->particles.group(p);
 }
-
+static inline int64_t pkdGetGlobalGid( PKD pkd, const PARTICLE *p ) {
+    return pkd->particles.global_gid(p);
+}
 static inline void pkdSetGroup( PKD pkd, PARTICLE *p, uint32_t gid ) {
-    if (pkd->bNoParticleOrder) ((UPARTICLE *)p)->iGroup = gid;
-    else if (pkd->oFieldOffset[oGroup]) CAST(int32_t *, pkdField(p,pkd->oFieldOffset[oGroup]))[0] = gid;
+    pkd->particles.set_group(p,gid);
+}
+static inline void pkdSetGlobalGid( PKD pkd, PARTICLE *p, uint64_t gid ) {
+    pkd->particles.set_global_gid(p,gid);
 }
 
 static inline float pkdDensity( PKD pkd, const PARTICLE *p ) {
-    assert(pkd->oFieldOffset[oDensity]);
-    return * CAST(const float *, pkdFieldRO(p,pkd->oFieldOffset[oDensity]));
+    return pkd->particles.density(p);
 }
 static inline void pkdSetDensity( PKD pkd, PARTICLE *p, float fDensity ) {
-    if (pkd->oFieldOffset[oDensity]) *CAST(float *, pkdField(p,pkd->oFieldOffset[oDensity])) = fDensity;
+    pkd->particles.set_density(p,fDensity);
 }
 
 static inline float pkdBall( PKD pkd, PARTICLE *p ) {
-    assert(pkd->oFieldOffset[oBall]);
-    return *CAST(float *, pkdField(p,pkd->oFieldOffset[oBall]));
+    return pkd->particles.ball(p);
 }
 static inline void pkdSetBall(PKD pkd, PARTICLE *p, float fBall) {
-    if (pkd->oFieldOffset[oBall]) *CAST(float *, pkdField(p,pkd->oFieldOffset[oBall])) = fBall;
+    pkd->particles.set_ball(p,fBall);
 }
-
 
 /* Here is the new way of getting mass and softening */
 static inline float pkdMass( PKD pkd, PARTICLE *p ) {
-    if ( pkd->oFieldOffset[oMass] ) {
-        float *pMass = CAST(float *,pkdField(p,pkd->oFieldOffset[oMass]));
-        return *pMass;
-    }
-    else if (pkd->bNoParticleOrder) return pkd->ParticleClasses[0].fMass;
-    else return pkd->ParticleClasses[p->iClass].fMass;
+    return pkd->particles.mass(p);
 }
 static inline float pkdSoft0( PKD pkd, PARTICLE *p ) {
-    if ( pkd->oFieldOffset[oSoft] ) {
-        float *pSoft = CAST(float *,pkdField(p,pkd->oFieldOffset[oSoft]));
-        return *pSoft;
-    }
-    else if (pkd->bNoParticleOrder) return pkd->ParticleClasses[0].fSoft;
-    else return pkd->ParticleClasses[p->iClass].fSoft;
+    return pkd->particles.soft0(p);
 }
 static inline float pkdSoft( PKD pkd, PARTICLE *p ) {
-    float fSoft;
-    if ( pkd->fSoftFix >= 0.0 ) fSoft = pkd->fSoftFix;
-    else fSoft = pkdSoft0(pkd,p);
-    fSoft *= pkd->fSoftFac;
-    if ( fSoft > pkd->fSoftMax ) fSoft = pkd->fSoftMax;
-    return fSoft;
+    return pkd->particles.soft(p);
 }
 static inline FIO_SPECIES pkdSpecies( PKD pkd, PARTICLE *p ) {
-    if (pkd->bNoParticleOrder) return pkd->ParticleClasses[0].eSpecies;
-    else return pkd->ParticleClasses[p->iClass].eSpecies;
+    return pkd->particles.species(p);
 }
 static inline float pkdiMat( PKD pkd, PARTICLE *p ) {
-    if (pkd->bNoParticleOrder) return pkd->ParticleClasses[0].iMat;
-    else return pkd->ParticleClasses[p->iClass].iMat;
+    return pkd->particles.iMat(p);
 }
 
 /*
@@ -1306,23 +1050,23 @@ static inline float pkdiMat( PKD pkd, PARTICLE *p ) {
 ** The situation is more complicated with non-periodic boxes, or for boxes
 ** with a different period so this is not currently supported.
 */
-#define pkdPosRaw(pkd,p,d) (CAST(int32_t *,pkdField(p,pkd->oFieldOffset[oPosition]))[d])
-#define pkdSetPosRaw(pkd,p,d,v) (CAST(int32_t *,pkdField(p,pkd->oFieldOffset[oPosition]))[d]) = (v)
+#define pkdPosRaw(pkd,p,d) (pkd->particles.get<int32_t>(p,PKD_FIELD::oPosition)[d])
+#define pkdSetPosRaw(pkd,p,d,v) (pkd->particles.get<int32_t>(p,PKD_FIELD::oPosition)[d]) = (v)
 
 static inline double pkdPos(PKD pkd,PARTICLE *p,int d) {
-    if (pkd->bIntegerPosition) return pkdIntPosToDbl(pkd,CAST(int32_t *,pkdField(p,pkd->oFieldOffset[oPosition]))[d]);
-    else return CAST(double *,pkdField(p,pkd->oFieldOffset[oPosition]))[d];
+    if (pkd->bIntegerPosition) return pkdIntPosToDbl(pkd,pkd->particles.get<int32_t>(p,PKD_FIELD::oPosition)[d]);
+    else return pkd->particles.get<double>(p,PKD_FIELD::oPosition)[d];
 }
 static inline void pkdSetPos(PKD pkd,PARTICLE *p,int d,double v) {
-    if (pkd->bIntegerPosition) CAST(int32_t *,pkdField(p,pkd->oFieldOffset[oPosition]))[d] = pkdDblToIntPos(pkd,v);
-    else CAST(double *,pkdField(p,pkd->oFieldOffset[oPosition]))[d] = v;
+    if (pkd->bIntegerPosition) pkd->particles.get<int32_t>(p,PKD_FIELD::oPosition)[d] = pkdDblToIntPos(pkd,v);
+    else pkd->particles.get<double>(p,PKD_FIELD::oPosition)[d] = v;
 }
 #define pkdGetPos3(pkd,p,d1,d2,d3) ((d1)=pkdPos(pkd,p,0),(d2)=pkdPos(pkd,p,1),(d3)=pkdPos(pkd,p,2))
 #define pkdGetPos1(pkd,p,d) pkdGetPos3(pkd,p,(d)[0],(d)[1],(d)[2])
 
 #if defined(__AVX__) && defined(USE_SIMD)
 static inline __m128i pkdGetPosRaw(PKD pkd,PARTICLE *p) {
-    return _mm_loadu_si128((__m128i *)pkdField(p,pkd->oFieldOffset[oPosition]));
+    return _mm_loadu_si128(pkd->particles.get<__m128i>(p,PKD_FIELD::oPosition));
 }
 static inline __m256d pkdGetPos(PKD pkd,PARTICLE *p) {
     return _mm256_mul_pd(_mm256_cvtepi32_pd(pkdGetPosRaw(pkd,p)),_mm256_set1_pd(1.0/INTEGER_FACTOR));
@@ -1330,51 +1074,51 @@ static inline __m256d pkdGetPos(PKD pkd,PARTICLE *p) {
 #endif
 
 static inline vel_t *pkdVel( PKD pkd, PARTICLE *p ) {
-    return CAST(vel_t *,pkdField(p,pkd->oFieldOffset[oVelocity]));
+    return pkd->particles.get<vel_t>(p,PKD_FIELD::oVelocity);
 }
 static inline float *pkdAccel( PKD pkd, PARTICLE *p ) {
-    return CAST(float *,pkdField(p,pkd->oFieldOffset[oAcceleration]));
+    return pkd->particles.get<float>(p,PKD_FIELD::oAcceleration);
 }
 static inline const float *pkdAccelRO( PKD pkd, const PARTICLE *p ) {
-    return CAST(const float *,pkdFieldRO(p,pkd->oFieldOffset[oAcceleration]));
+    return pkd->particles.get<float>(p,PKD_FIELD::oAcceleration);
 }
 static inline float *pkdPot( PKD pkd, PARTICLE *p ) {
-    return pkd->oFieldOffset[oPotential] ? CAST(float *,pkdField(p,pkd->oFieldOffset[oPotential])) : NULL;
+    return pkd->particles.present(PKD_FIELD::oPotential) ? pkd->particles.get<float>(p,PKD_FIELD::oPotential) : nullptr;
 }
 static inline uint16_t *pkdRungDest( PKD pkd, PARTICLE *p ) {
-    return CAST(uint16_t *,pkdField(p,pkd->oFieldOffset[oRungDest]));
+    return pkd->particles.get<uint16_t>(p,PKD_FIELD::oRungDest);
 }
 static inline uint64_t *pkdParticleID( PKD pkd, PARTICLE *p ) {
-    return CAST(uint64_t *,pkdField(p,pkd->oFieldOffset[oParticleID]));
+    return pkd->particles.get<uint64_t>(p,PKD_FIELD::oParticleID);
 }
 /* Sph variables */
 static inline SPHFIELDS *pkdSph( PKD pkd, PARTICLE *p ) {
 #if defined(OPTIM_UNION_EXTRAFIELDS) && defined(DEBUG_UNION_EXTRAFIELDS)
     assert( pkdSpecies(pkd,p)==FIO_SPECIES_SPH);
 #endif
-    return ((SPHFIELDS *) pkdField(p,pkd->oFieldOffset[oSph]));
+    return pkd->particles.get<SPHFIELDS>(p,PKD_FIELD::oSph);
 }
 /* NewSph variables */
 static inline NEWSPHFIELDS *pkdNewSph( PKD pkd, PARTICLE *p ) {
-    return ((NEWSPHFIELDS *) pkdField(p,pkd->oFieldOffset[oNewSph]));
+    return pkd->particles.get<NEWSPHFIELDS>(p,PKD_FIELD::oNewSph);
 }
 static inline const SPHFIELDS *pkdSphRO( PKD pkd, const PARTICLE *p ) {
 #if defined(OPTIM_UNION_EXTRAFIELDS) && defined(DEBUG_UNION_EXTRAFIELDS)
     assert( pkdSpecies(pkd,p)==FIO_SPECIES_SPH);
 #endif
-    return ((const SPHFIELDS *) pkdFieldRO(p,pkd->oFieldOffset[oSph]));
+    return pkd->particles.get<SPHFIELDS>(p,PKD_FIELD::oSph);
 }
 static inline const NEWSPHFIELDS *pkdNewSphRO( PKD pkd, const PARTICLE *p ) {
-    return ((const NEWSPHFIELDS *) pkdFieldRO(p,pkd->oFieldOffset[oNewSph]));
+    return pkd->particles.get<NEWSPHFIELDS>(p,PKD_FIELD::oNewSph);
 }
 static inline STARFIELDS *pkdStar( PKD pkd, PARTICLE *p ) {
 #ifdef OPTIM_UNION_EXTRAFIELDS
 #ifdef DEBUG_UNION_EXTRAFIELDS
     assert( pkdSpecies(pkd,p)==FIO_SPECIES_STAR);
 #endif //DEBUG
-    return ((STARFIELDS *) pkdField(p,pkd->oFieldOffset[oSph]));
+    return pkd->particles.get<STARFIELDS>(p,PKD_FIELD::oSph);
 #else
-    return ((STARFIELDS *) pkdField(p,pkd->oFieldOffset[oStar]));
+    return pkd->particles.get<STARFIELDS>(p,PKD_FIELD::oStar);
 #endif
 }
 static inline const STARFIELDS *pkdStarRO( PKD pkd, PARTICLE *p ) {
@@ -1382,9 +1126,9 @@ static inline const STARFIELDS *pkdStarRO( PKD pkd, PARTICLE *p ) {
 #ifdef DEBUG_UNION_EXTRAFIELDS
     assert( pkdSpecies(pkd,p)==FIO_SPECIES_STAR);
 #endif //DEBUG
-    return ((const STARFIELDS *) pkdFieldRO(p,pkd->oFieldOffset[oSph]));
+    return pkd->particles.get<STARFIELDS>(p,PKD_FIELD::oSph);
 #else
-    return ((const STARFIELDS *) pkdFieldRO(p,pkd->oFieldOffset[oStar]));
+    return pkd->particles.get<STARFIELDS>(p,PKD_FIELD::oStar);
 #endif
 }
 static inline BHFIELDS *pkdBH( PKD pkd, PARTICLE *p ) {
@@ -1392,9 +1136,9 @@ static inline BHFIELDS *pkdBH( PKD pkd, PARTICLE *p ) {
 #ifdef DEBUG_UNION_EXTRAFIELDS
     assert( pkdSpecies(pkd,p)==FIO_SPECIES_BH);
 #endif //DEBUG
-    return ((BHFIELDS *) pkdField(p,pkd->oFieldOffset[oSph]));
+    return pkd->particles.get<BHFIELDS>(p,PKD_FIELD::oSph);
 #else
-    return ((BHFIELDS *) pkdField(p,pkd->oFieldOffset[oBH]));
+    return pkd->particles.get<BHFIELDS>(p,PKD_FIELD::oBH);
 #endif
 }
 static inline const BHFIELDS *pkdBHRO( PKD pkd, PARTICLE *p ) {
@@ -1402,49 +1146,49 @@ static inline const BHFIELDS *pkdBHRO( PKD pkd, PARTICLE *p ) {
 #ifdef DEBUG_UNION_EXTRAFIELDS
     assert( pkdSpecies(pkd,p)==FIO_SPECIES_BH);
 #endif //DEBUG
-    return ((const BHFIELDS *) pkdFieldRO(p,pkd->oFieldOffset[oSph]));
+    return pkd->particles.get<BHFIELDS>(p,PKD_FIELD::oSph);
 #else
-    return ((const BHFIELDS *) pkdFieldRO(p,pkd->oFieldOffset[oBH]));
+    return pkd->particles.get<BHFIELDS>(p,PKD_FIELD::oBH);
 #endif
 }
 static inline double *pkd_vPred( PKD pkd, PARTICLE *p ) {
-    return &(((SPHFIELDS *) pkdField(p,pkd->oFieldOffset[oSph]))->vPred[0]);
+    return pkd->particles.get<SPHFIELDS>(p,PKD_FIELD::oSph)->vPred;
 }
 #ifndef OPTIM_REMOVE_UNUSED
 static inline float *pkd_u( PKD pkd, PARTICLE *p ) {
-    return &(((SPHFIELDS *) pkdField(p,pkd->oFieldOffset[oSph]))->u);
+    return &pkd->particles.get<SPHFIELDS>(p,PKD_FIELD::oSph)->u;
 }
 static inline float *pkd_uPred( PKD pkd, PARTICLE *p ) {
-    return &(((SPHFIELDS *) pkdField(p,pkd->oFieldOffset[oSph]))->uPred);
+    return &pkd->particles.get<SPHFIELDS>(p,PKD_FIELD::oSph)->uPred;
 }
 static inline float *pkd_uDot( PKD pkd, PARTICLE *p ) {
-    return &(((SPHFIELDS *) pkdField(p,pkd->oFieldOffset[oSph]))->uDot);
+    return &pkd->particles.get<SPHFIELDS>(p,PKD_FIELD::oSph)->uDot;
 }
 static inline float *pkd_c( PKD pkd, PARTICLE *p ) {
-    return &(((SPHFIELDS *) pkdField(p,pkd->oFieldOffset[oSph]))->c);
+    return &pkd->particles.get<SPHFIELDS>(p,PKD_FIELD::oSph)->c;
 }
 static inline float *pkd_divv( PKD pkd, PARTICLE *p ) {
-    return &(((SPHFIELDS *) pkdField(p,pkd->oFieldOffset[oSph]))->divv);
+    return &pkd->particles.get<SPHFIELDS>(p,PKD_FIELD::oSph)->divv;
 }
 static inline float *pkd_fMetals( PKD pkd, PARTICLE *p ) {
-    return &(((SPHFIELDS *) pkdField(p,pkd->oFieldOffset[oSph]))->fMetals);
+    return &pkd->particles.get<SPHFIELDS>(p,PKD_FIELD::oSph)->fMetals;
 }
 static inline float *pkd_diff( PKD pkd, PARTICLE *p ) {
-    return &(((SPHFIELDS *) pkdField(p,pkd->oFieldOffset[oSph]))->diff);
+    return &pkd->particles.get<SPHFIELDS>(p,PKD_FIELD::oSph)->diff;
 }
 static inline float *pkd_fMetalsDot( PKD pkd, PARTICLE *p ) {
-    return &(((SPHFIELDS *) pkdField(p,pkd->oFieldOffset[oSph]))->fMetalsDot);
+    return &pkd->particles.get<SPHFIELDS>(p,PKD_FIELD::oSph)->fMetalsDot;
 }
 static inline float *pkd_fMetalsPred( PKD pkd, PARTICLE *p ) {
-    return &(((SPHFIELDS *) pkdField(p,pkd->oFieldOffset[oSph]))->fMetalsPred);
+    return &pkd->particles.get<SPHFIELDS>(p,PKD_FIELD::oSph)->fMetalsPred;
 }
 #endif //OPTIM_REMOVE_UNUSED
 static inline char **pkd_pNeighborList( PKD pkd, PARTICLE *p ) {
-    return &(((SPHFIELDS *) pkdField(p,pkd->oFieldOffset[oSph]))->pNeighborList);
+    return &pkd->particles.get<SPHFIELDS>(p,PKD_FIELD::oSph)->pNeighborList;
 }
 
 static inline float *pkd_Timer( PKD pkd, PARTICLE *p ) {
-    return &(((STARFIELDS *) pkdField(p,pkd->oFieldOffset[oStar]))->fTimer);
+    return &pkd->particles.get<STARFIELDS>(p,PKD_FIELD::oStar)->fTimer;
 }
 
 static inline int pkdIsDeleted(PKD pkd,PARTICLE *p) {
@@ -1532,8 +1276,8 @@ void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dScaleFactor, double dTime,
 uint32_t pkdWriteFIO(PKD pkd,FIO fio,double dvFac,double dTuFac,BND *bnd);
 void pkdWriteFromNode(PKD pkd,int iNode, FIO fio,double dvFac,double dTuFac,BND *bnd);
 void pkdWriteViaNode(PKD pkd, int iNode);
-char *pkdPackArray(PKD pkd,int iSize,void *vBuff,int *piIndex,int n,int field,int iUnitSize,double dvFac,int bMarked);
-void pkdSendArray(PKD pkd, int iNode, int field, int iUnitSize,double dvFac,int bMarked);
+char *pkdPackArray(PKD pkd,int iSize,void *vBuff,int *piIndex,int n,PKD_FIELD field,int iUnitSize,double dvFac,int bMarked);
+void pkdSendArray(PKD pkd, int iNode, PKD_FIELD field, int iUnitSize,double dvFac,int bMarked);
 void *pkdRecvArray(PKD pkd,int iNode, void *pDest, int iUnitSize);
 void pkdGravAll(PKD pkd,
                 struct pkdKickParameters *kick,struct pkdLightconeParameters *lc,struct pkdTimestepParameters *ts,
@@ -1624,10 +1368,6 @@ void pkdMoveDeletedParticles(PKD pkd, total_t *n, total_t *nGas, total_t *nDark,
 void pkdGetNParts(PKD pkd, struct outGetNParts *out );
 void pkdSetNParts(PKD pkd, int nGas, int nDark, int nStar, int nBH);
 void pkdInitRelaxation(PKD pkd);
-
-int pkdGetClasses( PKD pkd, int nMax, PARTCLASS *pClass );
-void pkdSetClasses( PKD pkd, int n, PARTCLASS *pClass, int bUpdate );
-void pkdSetClass( PKD pkd, float fMass, float fSoft, int iMat, FIO_SPECIES eSpecies, PARTICLE *p );
 
 int pkdCountSelected(PKD pkd);
 int pkdSelSpecies(PKD pkd,uint64_t mSpecies, int setIfTrue, int clearIfFalse);

@@ -642,7 +642,7 @@ int pkdHopUnbind(PKD pkd, double dTime, int nMinGroupSize, int bPeriodic, double
             }
             ee[i].i = i;
             ee[i].dPot = *pkdPot(pkd,p) * ia;
-            if (pkdIsGas(pkd,p) && pkd->oFieldOffset[oSph]) {  /* TODO: is this correct? */
+            if (pkdIsGas(pkd,p) && pkd->particles.present(PKD_FIELD::oSph)) {  /* TODO: is this correct? */
                 SPHFIELDS *pSph = pkdSph(pkd,p);
 #ifndef OPTIM_REMOVE_UNUSED
                 ee[i].dPot += pSph->u;

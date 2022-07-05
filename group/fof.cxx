@@ -450,7 +450,7 @@ void pkdNewFof(PKD pkd,double dTau2,int nMinMembers,int bPeriodic,int nReplicas,
     uint32_t *Fifo;
     int bCurrFofContained;
 
-    assert(pkd->oFieldOffset[oGroup] || pkd->bNoParticleOrder); /* Validate memory model */
+    assert(pkd->particles.present(PKD_FIELD::oGroup) || pkd->bNoParticleOrder); /* Validate memory model */
     auto S = new int[1024]; assert(S);
     /*
     ** Set up the bounds for the FOF groups that are certainly contained in the domain.

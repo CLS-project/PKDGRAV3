@@ -255,7 +255,7 @@ found_it:
                                             pkd->ilc.setReference(r[0],r[1],r[2]);
                                         }
                                         v = pkdVel(pkd,p);
-                                        if (pkd->oFieldOffset[oNewSph]) {
+                                        if (pkd->particles.present(PKD_FIELD::oNewSph)) {
                                             NEWSPHFIELDS *pNewSph = pkdNewSph(pkd,p);
                                             float Omega = pNewSph->Omega;                     /* should be the Omega field of the sph fields, nyi */
                                             float P = 0.0f;                         /* should be calculated by the EOS, nyi */
@@ -315,7 +315,7 @@ found_it:
                                             if (ts->bGravStep && ts->iTimeStepCrit == 1) v = pkdVel(pkd,p);
                                             pkdGetPos1(pkd,p,r);
                                             v = pkdVel(pkd,p);
-                                            if (pkd->oFieldOffset[oNewSph]) {
+                                            if (pkd->particles.present(PKD_FIELD::oNewSph)) {
                                                 NEWSPHFIELDS *pNewSph = pkdNewSph(pkd,p);
                                                 float Omega = pNewSph->Omega;                 /* should be the Omega field of the sph fields, nyi */
                                                 float P = 0.0f;                     /* should be calculated by the EOS, nyi */
@@ -366,7 +366,7 @@ found_it:
                                     fMass = pkdMass(pkd,p);
                                     fSoft = pkdSoft(pkd,p);
                                     if (ts->bGravStep && ts->iTimeStepCrit == 1) v = pkdVel(pkd,p);
-                                    if (pkd->oFieldOffset[oNewSph]) {
+                                    if (pkd->particles.present(PKD_FIELD::oNewSph)) {
                                         pkd->clNew->append(blk.iCache[jTile],id,-1 - pj,0,0,0,0,1,0.0,fMass,4.0f*fSoft*fSoft,
                                                            r,       /* center of mass */
                                                            fOffset, /* fOffset */
@@ -702,7 +702,7 @@ static void initGravWalk(PKD pkd,double dTime,double dThetaMin,int bPeriodic,int
         assert(pkd->oNodeAcceleration);
         if (iTimeStepCrit == 1) {
             assert(pkd->oNodeVelocity);
-            assert(pkd->oFieldOffset[oVelocity]);
+            assert(pkd->particles.present(PKD_FIELD::oVelocity));
         }
     }
 

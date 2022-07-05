@@ -23,16 +23,11 @@
     #include "pkd_config.h"
 #endif
 #include <stdint.h>
+#include "core/particle.h"
 #include "gravity/ilp.h"
 #include "gravity/ilc.h"
 #include "SPH/SPHOptions.h"
 #include "units.h"
-
-#define IORDERBITS 43
-#define IORDERMAX ((((uint64_t) 1)<<IORDERBITS)-1)
-
-#define IRUNGBITS 6
-#define IRUNGMAX ((1<<IRUNGBITS)-1)
 
 typedef float vel_t;
 typedef double pos_t;
@@ -56,27 +51,6 @@ typedef struct {
     int32_t  iPid;      /* A processor */
     int32_t  iIndex;    /* Index of item on the processor */
 } remoteID;
-
-/* Regular particle with order and all the goodies */
-typedef struct particle {
-uint64_t  uRung      :  IRUNGBITS;
-    uint64_t  bMarked    :  1;
-uint64_t  uNewRung   :  IRUNGBITS;  /* Optional with bNewKDK + bMemUnordered */
-    uint64_t  iClass     :  8;          /* Optional with bMemUnordered */
-uint64_t  iOrder     :  IORDERBITS; /* Optional with bMemUnordered */
-} PARTICLE;
-static_assert(sizeof(PARTICLE)==sizeof(uint64_t));
-
-/* Abbreviated particle header with group id */
-#define IGROUPBITS (32-IRUNGBITS-1)
-#define IGROUPMAX ((1<<IGROUPBITS)-1)
-
-typedef struct uparticle {
-uint32_t  uRung      :  IRUNGBITS;
-    uint32_t  bMarked    :  1;
-uint32_t  iGroup     :  IGROUPBITS;
-} UPARTICLE;
-static_assert(sizeof(UPARTICLE)==sizeof(uint32_t));
 
 #define PP_CUDA_MEMORY_LIMIT (2*1024*1024)
 

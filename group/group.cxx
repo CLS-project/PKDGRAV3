@@ -109,7 +109,7 @@ static int reorderGroups(PKD pkd, int nGroups, struct smGroupArray *ga) {
 
 /*
 ** Sort groups by Processor and ID, with local groups first
-** The new group ID is in iNewGid and groups are in still in the old order.
+** The new group ID is in iNewGid and groups are still in the old order.
 */
 static int renumberGroups(PKD pkd, int nGroups,struct smGroupArray *ga) {
     int i, gid, nNew;

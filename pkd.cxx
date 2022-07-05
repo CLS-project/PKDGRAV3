@@ -148,76 +148,6 @@ int pkdContext::NodeAddInt32(int n) {
     return iOffset;
 }
 
-/* Add a structure: assume double alignment */
-int pkdContext::ParticleAddStruct(int n) {
-    int iOffset = iParticleSize;
-    assert(ParticleBase() == nullptr);
-    assert((iOffset & (sizeof(double)-1)) == 0);
-    if (nParticleAlign < sizeof(double)) nParticleAlign = sizeof(double);
-    iParticleSize += n;
-    return iOffset;
-}
-
-/* Add n doubles to the particle structure */
-int pkdContext::ParticleAddDouble(int n) {
-    int iOffset = iParticleSize;
-    assert(ParticleBase() == nullptr);
-    if ( (iOffset & (sizeof(int64_t)-1)) != 0 ) {
-        assert(iParticle32==0);
-        iParticle32 = iParticleSize;
-        iOffset = iParticleSize += sizeof(float);
-    }
-    assert((iOffset & (sizeof(double)-1)) == 0);
-    if (nParticleAlign < sizeof(double)) nParticleAlign = sizeof(double);
-    iParticleSize += sizeof(double) * n;
-    return iOffset;
-}
-
-/* Add n floats to the particle structure */
-int pkdContext::ParticleAddFloat(int n) {
-    int iOffset = iParticleSize;
-    assert(ParticleBase() == nullptr);
-    if ( n==1 && iParticle32) {
-        iOffset = iParticle32;
-        iParticle32 = 0;
-    }
-    else {
-        assert((iOffset & (sizeof(float)-1)) == 0);
-        iParticleSize += sizeof(float) * n;
-    }
-    return iOffset;
-}
-
-/* Add n 64-bit integers to the particle structure */
-int pkdContext::ParticleAddInt64(int n) {
-    int iOffset = iParticleSize;
-    assert(ParticleBase() == nullptr);
-    if ( (iOffset & (sizeof(int64_t)-1)) != 0 ) {
-        assert(iParticle32==0 );
-        iParticle32 = iParticleSize;
-        iOffset = iParticleSize += sizeof(float);
-    }
-    assert((iOffset & (sizeof(int64_t)-1)) == 0);
-    if (nParticleAlign < sizeof(int64_t)) nParticleAlign = sizeof(int64_t);
-    iParticleSize += sizeof(int64_t) * n;
-    return iOffset;
-}
-
-/* Add n 32-bit integers to the particle structure */
-int pkdContext::ParticleAddInt32(int n) {
-    int iOffset = iParticleSize;
-    assert(ParticleBase() == nullptr);
-    if ( n==1 && iParticle32) {
-        iOffset = iParticle32;
-        iParticle32 = 0;
-    }
-    else {
-        assert((iOffset & (sizeof(int32_t)-1)) == 0);
-        iParticleSize += sizeof(int32_t) * n;
-    }
-    return iOffset;
-}
-
 //************************************************************************************************************************
 //**
 //************************************************************************************************************************
@@ -249,7 +179,9 @@ static void firstTouch(uint64_t n,char *p) {
 /* Greatest common divisor */
 static int gcd ( int a, int b ) {
     while ( a != 0 ) {
-        int c = a; a = b%a;  b = c;
+        int c = a;
+        a = b%a;
+        b = c;
     }
     return b;
 }
@@ -329,7 +261,6 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     srand(RANDOM_SEED);
 
     this->kdNodeListPRIVATE = NULL;
-    this->nStore = 0; /* Set properly below */
     SetLocal(0);
     this->nDark = nDark;
     this->nGas = nGas;
@@ -361,112 +292,77 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     this->bNoParticleOrder = (mMemoryModel&PKD_MODEL_UNORDERED) ? 1 : 0;
     this->bIntegerPosition = (mMemoryModel&PKD_MODEL_INTEGER_POS) ? 1 : 0;
 
-    if ( this->bNoParticleOrder )
-        this->iParticleSize = this->nParticleAlign = sizeof(UPARTICLE);
-    else
-        this->iParticleSize = this->nParticleAlign = sizeof(PARTICLE);
-    this->iParticle32 = 0;
+    particles.initialize(this->bIntegerPosition,this->bNoParticleOrder);
     this->iTreeNodeSize = sizeof(KDN);
 
-    if (!this->bIntegerPosition) this->oFieldOffset[oPosition] = ParticleAddDouble(3);
-    if ( mMemoryModel & PKD_MODEL_PARTICLE_ID )
-        this->oFieldOffset[oParticleID] = ParticleAddInt64();
-    else
-        this->oFieldOffset[oParticleID] = 0;
-
-    this->oFieldOffset[oVelocity] = 0;
-    if ( mMemoryModel & PKD_MODEL_VELOCITY ) {
-        if (sizeof(vel_t) == sizeof(double)) {
-            this->oFieldOffset[oVelocity] = ParticleAddDouble(3);
-        }
-    }
-    if (this->bIntegerPosition) this->oFieldOffset[oPosition] = ParticleAddInt32(3);
-    if ( mMemoryModel & PKD_MODEL_RELAXATION )
-        this->oFieldOffset[oRelaxation] = ParticleAddDouble();
-    else
-        this->oFieldOffset[oRelaxation] = 0;
-
+    if (!this->bIntegerPosition) particles.add<double[3]>(PKD_FIELD::oPosition);
+    if ( mMemoryModel & PKD_MODEL_PARTICLE_ID ) particles.add<int64_t>(PKD_FIELD::oParticleID);
+    /*
+    ** Add a global group id. This is used when outputing an array of particles with
+    ** one group assignment per particle.Usually only used in testing as it adds a
+    ** 64 bit integer.
+    */
+    if ( mMemoryModel & PKD_MODEL_GLOBALGID ) particles.add<int64_t>(PKD_FIELD::oGlobalGid);
+    if ( mMemoryModel & PKD_MODEL_VELOCITY && sizeof(vel_t) == sizeof(double))
+        particles.add<double[3]>(PKD_FIELD::oVelocity);
+    if (this->bIntegerPosition) particles.add<int32_t[3]>(PKD_FIELD::oPosition);
+    if ( mMemoryModel & PKD_MODEL_RELAXATION ) particles.add<double>(PKD_FIELD::oRelaxation);
     if ( mMemoryModel & PKD_MODEL_SPH )
 #ifdef OPTIM_UNION_EXTRAFIELDS
-        this->oFieldOffset[oSph] = ParticleAddStruct(sizeof(EXTRAFIELDS));
+        particles.add<EXTRAFIELDS>(PKD_FIELD::oSph);
 #else
-        this->oFieldOffset[oSph] = ParticleAddStruct(sizeof(SPHFIELDS));
+        particles.add<SPHFIELDS>(PKD_FIELD::oSph);
 #endif
-    else
-        this->oFieldOffset[oSph] = 0;
 
-    if ( mMemoryModel & PKD_MODEL_NEW_SPH )
-        this->oFieldOffset[oNewSph] = ParticleAddStruct(sizeof(NEWSPHFIELDS));
-    else
-        this->oFieldOffset[oNewSph] = 0;
-
+    if ( mMemoryModel & PKD_MODEL_NEW_SPH ) particles.add<NEWSPHFIELDS>(PKD_FIELD::oNewSph);
     if ( mMemoryModel & PKD_MODEL_STAR ) {
 #ifdef OPTIM_UNION_EXTRAFIELDS
-        this->oFieldOffset[oStar] = 1;  // this value is of no relevance as long as it is >0
-        if (!this->oFieldOffset[oSph])
-            this->oFieldOffset[oSph] = ParticleAddStruct(sizeof(EXTRAFIELDS));
+        particles.add<void>(PKD_FIELD::oStar); // this value is of no relevance as long as it is >0
+        if (!particles.present(PKD_FIELD::oSph)) particles.add<EXTRAFIELDS>(PKD_FIELD::oSph);
 #else
-        this->oFieldOffset[oStar] = ParticleAddStruct(sizeof(STARFIELDS));
+        particles.add<STARFIELDS>(PKD_FIELD::oStar);
 #endif
     }
-    else
-        this->oFieldOffset[oStar] = 0;
 
 #ifdef BLACKHOLES
     if ( mMemoryModel & PKD_MODEL_BH ) {
 #ifdef OPTIM_UNION_EXTRAFIELDS
-        this->oFieldOffset[oBH] = 1;    // this value is of no relevance as long as it is >0
-        if (!this->oFieldOffset[oSph])
-            this->oFieldOffset[oSph] = ParticleAddStruct(sizeof(EXTRAFIELDS));
+        particles.add<void>(PKD_FIELD::oBH); // this value is of no relevance as long as it is >0
+        if (!particles.present(PKD_FIELD::oSph)) particles.add<EXTRAFIELDS>(PKD_FIELD::oSph);
 #else
-        this->oFieldOffset[oBH] = ParticleAddStruct(sizeof(BHFIELDS));
+        particles.add<BHFIELDS>(PKD_FIELD::oBH);
 #endif
     }
-    else
-        this->oFieldOffset[oBH] = 0;
 #endif // BLACKHOLES
 
     if ( mMemoryModel & PKD_MODEL_VELSMOOTH )
-        this->oFieldOffset[oVelSmooth] = ParticleAddStruct(sizeof(VELSMOOTH));
-    else
-        this->oFieldOffset[oVelSmooth] = 0;
+        particles.add<VELSMOOTH>(PKD_FIELD::oVelSmooth);
     if ( mMemoryModel & PKD_MODEL_VELOCITY ) {
         if (sizeof(vel_t) == sizeof(float)) {
-            this->oFieldOffset[oVelocity] = ParticleAddFloat(3);
+            particles.add<float[3]>(PKD_FIELD::oVelocity);
         }
     }
     if ( mMemoryModel & PKD_MODEL_ACCELERATION )
-        this->oFieldOffset[oAcceleration] = ParticleAddFloat(3);
-    else
-        this->oFieldOffset[oAcceleration] = 0;
+        particles.add<float[3]>(PKD_FIELD::oAcceleration);
 
     if ( mMemoryModel & PKD_MODEL_MASS )
-        this->oFieldOffset[oMass] = ParticleAddFloat();
-    else
-        this->oFieldOffset[oMass] = 0;
+        particles.add<float>(PKD_FIELD::oMass);
 
     if ( mMemoryModel & PKD_MODEL_SOFTENING )
-        this->oFieldOffset[oSoft] = ParticleAddFloat();
-    else
-        this->oFieldOffset[oSoft] = 0;
+        particles.add<float>(PKD_FIELD::oSoft);
 
     if ( mMemoryModel & (PKD_MODEL_SPH|PKD_MODEL_NEW_SPH|PKD_MODEL_BALL) )
-        this->oFieldOffset[oBall] = ParticleAddFloat();
-    else this->oFieldOffset[oBall] = 0;
+        particles.add<float>(PKD_FIELD::oBall);
     if ( mMemoryModel & (PKD_MODEL_SPH|PKD_MODEL_NEW_SPH|PKD_MODEL_DENSITY) )
-        this->oFieldOffset[oDensity] = ParticleAddFloat();
-    else this->oFieldOffset[oDensity] = 0;
+        particles.add<float>(PKD_FIELD::oDensity);
 
-    this->oFieldOffset[oGroup] = 0;
     if ( (mMemoryModel & PKD_MODEL_GROUPS) && !this->bNoParticleOrder) {
-        this->oFieldOffset[oGroup] = ParticleAddInt32();
+        particles.add<int32_t>(PKD_FIELD::oGroup);
     }
-    else this->oFieldOffset[oGroup] = 0;
 
     if ( mMemoryModel & PKD_MODEL_POTENTIAL ) {
-        this->oFieldOffset[oPotential] = ParticleAddFloat();
+        particles.add<float>(PKD_FIELD::oPotential);
     }
-    else this->oFieldOffset[oPotential] = 0;
 
     /*
     ** Tree node memory models
@@ -534,19 +430,18 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     assert(NodeSize()<=MaxNodeSize());
 
     /* Align the particle size and the tree node, and store the tree node parameters */
-    this->iParticleSize = (this->iParticleSize + this->nParticleAlign - 1 ) & ~(this->nParticleAlign-1);
+    particles.align();
     this->iTreeNodeSize = (this->iTreeNodeSize + sizeof(double) - 1 ) & ~(sizeof(double)-1);
     this->nTreeBitsLo = nTreeBitsLo;
     this->nTreeBitsHi = nTreeBitsHi;
     this->iTreeMask = (1<<this->nTreeBitsLo) - 1;
 
     /* Adjust nStore so that we use an integer number of pages */
-    int n = nPageSize / gcd(nPageSize,this->iParticleSize);
+    int n = nPageSize / gcd(nPageSize,particles.ParticleSize());
     nStore += n; /* Not "n-1" here because we reserve one at the end */
     nStore -= nStore % n;
-    assert( (uint64_t)nStore*this->iParticleSize % nPageSize == 0);
+    assert( (uint64_t)nStore*this->ParticleSize() % nPageSize == 0);
     --nStore;
-    this->nStore = nStore;
 
     /*
     ** We need to allocate one large chunk of memory for:
@@ -604,7 +499,8 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     firstTouch(nBytesParticles/mdlCores(this->mdl),pParticles);
     firstTouch(nBytesEphemeral/mdlCores(this->mdl),pEphemeral);
     firstTouch(nBytesTreeNodes/mdlCores(this->mdl),pTreeNodes);
-    this->pStorePRIVATE = (PARTICLE *)pParticles;
+    particles.setStore(pParticles,nStore);
+
     this->pLite = pEphemeral;
     /*
     ** Now we setup the node storage for the tree.  This storage is no longer
@@ -684,21 +580,22 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     /*
     ** Initialize neighbor list pointer to NULL if present.
     */
-    if (this->oFieldOffset[oSph]) {
-        for (pi=0; pi<(this->nStore+1); ++pi) {
+    if (particles.present(PKD_FIELD::oSph)) {
+        for (pi=0; pi<(particles.FreeStore()+1); ++pi) {
             p = Particle(pi);
             *pkd_pNeighborList(this,p) = NULL;
         }
     }
 
     /*
-    ** We support up to 256 classes
+    ** Initialize global group id.
     */
-    ParticleClasses.reserve(PKD_MAX_CLASSES);
-
-    this->fSoftFix = -1.0;
-    this->fSoftFac = 1.0;
-    this->fSoftMax = HUGE_VALF;
+    if (particles.present(PKD_FIELD::oGlobalGid)) {
+        for (pi=0; pi<(particles.FreeStore()+1); ++pi) {
+            p = Particle(pi);
+            particles.set_global_gid(p,0);
+        }
+    }
     /*
     ** Ewald stuff!
     */
@@ -772,7 +669,7 @@ pkdContext::~pkdContext() {
     /*
     ** Free any neighbor lists that were left hanging around.
     */
-    if (oFieldOffset[oSph]) {
+    if (particles.present(PKD_FIELD::oSph)) {
         for (pi=0; pi<(FreeStore()+1); ++pi) {
             p = Particle(pi);
             if (pkdIsGas(this,p)) {
@@ -803,7 +700,10 @@ pkdContext::~pkdContext() {
     }
     if (pHealpixData) free(pHealpixData);
     io_free(&afiLightCone);
-    if (csm) { csmFinish(csm); csm = NULL; }
+    if (csm) {
+        csmFinish(csm);
+        csm = NULL;
+    }
 #ifdef COOLING
     cooling_clean(cooling);
 #endif
@@ -836,62 +736,6 @@ size_t pkdIllMemory(PKD pkd) {
     return pkd->ill.memory();
 }
 
-void pkdSetClass( PKD pkd, float fMass, float fSoft, int iMat, FIO_SPECIES eSpecies, PARTICLE *p ) {
-    if ( pkd->oFieldOffset[oMass] ) {
-        auto pMass = static_cast<float *>(pkdField(p,pkd->oFieldOffset[oMass]));
-        *pMass = fMass;
-        fMass = 0.0;
-    }
-    if ( pkd->oFieldOffset[oSoft] ) {
-        auto pSoft = static_cast<float *>(pkdField(p,pkd->oFieldOffset[oSoft]));
-        *pSoft = fSoft;
-        fSoft = 0.0;
-    }
-    /* NOTE: The above can both be true, in which case a "zero" class is recorded */
-    /* NOTE: Species is always part of the class table, so there will be at least one class per species */
-    PARTCLASS newClass(fMass,fSoft,iMat,eSpecies);
-
-    /* TODO: This is a linear search which is fine for a small number of classes */
-    auto iclass = std::find(pkd->ParticleClasses.begin(),pkd->ParticleClasses.end(),newClass);
-    if (iclass==pkd->ParticleClasses.end()) {
-        assert( pkd->ParticleClasses.size() < PKD_MAX_CLASSES );
-        p->iClass = pkd->ParticleClasses.size();
-        pkd->ParticleClasses.emplace_back(newClass);
-    }
-    else p->iClass = std::distance(pkd->ParticleClasses.begin(),iclass);
-    if (pkd->bNoParticleOrder) { assert(p->iClass==0); }
-}
-
-int pkdGetClasses( PKD pkd, int nMax, PARTCLASS *pClass ) {
-    std::copy(pkd->ParticleClasses.begin(),pkd->ParticleClasses.end(),pClass);
-    return pkd->ParticleClasses.size();
-}
-
-void pkdSetClasses( PKD pkd, int n, PARTCLASS *pClass, int bUpdate ) {
-    uint8_t map[PKD_MAX_CLASSES];
-    PARTICLE *p;
-
-    if ( bUpdate && pkd->ParticleClasses.size() && !pkd->bNoParticleOrder) {
-        /* Build a map from the old class to the new class */
-        assert( n >= pkd->ParticleClasses.size() );
-        for (auto i=0; i<pkd->ParticleClasses.size(); ++i) {
-            auto jj = std::find(pClass,pClass+n,pkd->ParticleClasses[i]);
-            map[i] = std::distance(pClass,jj);
-        }
-
-        /* Now update the class with the new value */
-        for (auto i=0; i<pkd->Local(); ++i) {
-            p = pkd->Particle(i);
-            assert( p->iClass < pkd->ParticleClasses.size() );
-            p->iClass = map[p->iClass];
-        }
-    }
-
-    /* Finally, set the new class table */
-    pkd->ParticleClasses.clear();
-    pkd->ParticleClasses.insert(pkd->ParticleClasses.end(),pClass,pClass+n);
-}
-
 void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double dTuFac) {
     int i,j;
     PARTICLE *p;
@@ -910,16 +754,16 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
     __itt_string_handle *shMyTask = __itt_string_handle_create("Read");
     __itt_task_begin(domain, __itt_null, __itt_null, shMyTask);
 #endif
-    pkd->ParticleClasses.clear();
-    if (pkd->oFieldOffset[oStar]) {
+    pkd->particles.clearClasses();
+    if (pkd->particles.present(PKD_FIELD::oStar)) {
         /* Make sure star class established -- how do all procs know of these classes? How do we ensure they agree on the class identifiers? */
         p = pkd->Particle(pkd->Local());
-        pkdSetClass(pkd,0,0,0,FIO_SPECIES_STAR,p);
+        pkd->particles.setClass(0,0,0,FIO_SPECIES_STAR,p);
     }
 #ifdef BLACKHOLES
-    assert(pkd->oFieldOffset[oMass]);
+    assert(pkd->particles.present(PKD_FIELD::oMass));
     p = pkd->Particle( pkd->Local());
-    pkdSetClass(pkd,0,0,0,FIO_SPECIES_BH, p);
+    pkd->particles.setClass(0,0,0,FIO_SPECIES_BH, p);
 #endif
 
     // Protect against uninitialized values
@@ -936,23 +780,23 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
         if (!pkd->bNoParticleOrder) p->uNewRung = 0;
         p->bMarked = 1;
         pkdSetDensity(pkd,p,0.0);
-        if (pkd->oFieldOffset[oBall]) pkdSetBall(pkd,p,0.0);
+        if (pkd->particles.present(PKD_FIELD::oBall)) pkdSetBall(pkd,p,0.0);
         /*
         ** Clear the accelerations so that the timestepping calculations do not
         ** get funny uninitialized values!
         */
-        if ( pkd->oFieldOffset[oAcceleration] ) {
+        if ( pkd->particles.present(PKD_FIELD::oAcceleration) ) {
             float *a = pkdAccel(pkd,p);
             for (j=0; j<3; ++j) a[j] = 0.0;
         }
-        if ( pkd->oFieldOffset[oPotential]) pPot = pkdPot(pkd,p);
+        if ( pkd->particles.present(PKD_FIELD::oPotential)) pPot = pkdPot(pkd,p);
         else pPot = &dummypot;
         pkdSetGroup(pkd,p,0);
 
         /* Initialize SPH fields if present */
         SPHFIELDS *pSph;
-        if (pkd->oFieldOffset[oSph]) {
-            pSph = static_cast<SPHFIELDS *>(pkdField(p,pkd->oFieldOffset[oSph]));
+        if (pkd->particles.present(PKD_FIELD::oSph)) {
+            pSph = pkd->particles.get<SPHFIELDS>(p,PKD_FIELD::oSph);
 #ifndef OPTIM_REMOVE_UNUSED
             pSph->u = pSph->uPred = pSph->uDot = pSph->c = pSph->divv = pSph->BalsaraSwitch
                                                  = pSph->fMetals = pSph->diff = pSph->fMetalsPred = pSph->fMetalsDot = 0.0;
@@ -962,16 +806,16 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 
         /* Initialize New SPH fields if present */
         NEWSPHFIELDS *pNewSph;
-        if (pkd->oFieldOffset[oNewSph]) {
-            pNewSph = static_cast<NEWSPHFIELDS *>(pkdField(p,pkd->oFieldOffset[oNewSph]));
+        if (pkd->particles.present(PKD_FIELD::oNewSph)) {
+            pNewSph = pkd->particles.get<NEWSPHFIELDS>(p,PKD_FIELD::oNewSph);
             pNewSph->u = pNewSph->uDot = pNewSph->divv = pNewSph->Omega = 0.0;
         }
         else pNewSph = NULL;
 
         /* Initialize Star fields if present */
         STARFIELDS *pStar;
-        if (pkd->oFieldOffset[oStar]) {
-            pStar = static_cast<STARFIELDS *>(pkdField(p,pkd->oFieldOffset[oStar]));
+        if (pkd->particles.present(PKD_FIELD::oStar)) {
+            pStar = pkd->particles.get<STARFIELDS>(p,PKD_FIELD::oStar);
             pStar->fTimer = 0;
             /*      pStar->iGasOrder = IORDERMAX;*/
         }
@@ -979,15 +823,16 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 
         eSpecies = fioSpecies(fio);
         switch (eSpecies) {
-        case FIO_SPECIES_SPH: ;
+        case FIO_SPECIES_SPH:
+            ;
             float afSphOtherData[2];
             fioReadSph(fio,&iParticleID,r,vel,&fMass,&fSoft,pPot,
                        &fDensity,&u,&fMetals[0],afSphOtherData);
             if (pNewSph) {
-                pkdSetClass(pkd,fMass,fSoft,fMetals[0],eSpecies,p);
+                pkd->particles.setClass(fMass,fSoft,fMetals[0],eSpecies,p);
             }
             else {
-                pkdSetClass(pkd,fMass,fSoft,0,eSpecies,p);
+                pkd->particles.setClass(fMass,fSoft,0,eSpecies,p);
             }
             pkdSetDensity(pkd,p,fDensity);
             if (pNewSph) {
@@ -996,7 +841,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             else {
                 assert(dTuFac>0.0);
                 pkdSetBall(pkd,p,afSphOtherData[0]);
-                if (pkd->oFieldOffset[oSph]) {
+                if (pkd->particles.present(PKD_FIELD::oSph)) {
                     pSph = pkdSph(pkd, p);
 #ifndef OPTIM_REMOVE_UNUSED
                     pSph->u = pSph->uPred = pSph->uDot = pSph->c = pSph->divv =
@@ -1073,7 +918,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             break;
         case FIO_SPECIES_DARK:
             fioReadDark(fio,&iParticleID,r,vel,&fMass,&fSoft,pPot,&fDensity);
-            pkdSetClass(pkd,fMass,fSoft,0,eSpecies,p);
+            pkd->particles.setClass(fMass,fSoft,0,eSpecies,p);
             pkdSetDensity(pkd,p,fDensity);
             break;
         case FIO_SPECIES_STAR:
@@ -1081,9 +926,9 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             float afStarOtherData[4];
             fioReadStar(fio,&iParticleID,r,vel,&fMass,&fSoft,pPot,&fDensity,
                         fMetals,&fTimer,afStarOtherData);
-            pkdSetClass(pkd,fMass,fSoft,0,eSpecies,p);
+            pkd->particles.setClass(fMass,fSoft,0,eSpecies,p);
             pkdSetDensity(pkd,p,fDensity);
-            if (pkd->oFieldOffset[oStar]) {
+            if (pkd->particles.present(PKD_FIELD::oStar)) {
                 pStar = pkdStar(pkd,p);
                 pStar->fTimer = fTimer;
                 // We avoid that star in the IC could explode
@@ -1105,8 +950,8 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             float otherData[3];
             fioReadBH(fio,&iParticleID,r,vel,&fMass,&fSoft,pPot,
                       &fDensity,otherData,&fTimer);
-            pkdSetClass(pkd,fMass,fSoft,0,eSpecies,p);
-            if (pkd->oFieldOffset[oBH]) {
+            pkd->particles.setClass(fMass,fSoft,0,eSpecies,p);
+            if (pkd->particles.present(PKD_FIELD::oBH)) {
                 pBH = pkdBH(pkd,p);
                 pBH->fTimer = fTimer;
                 pBH->pLowPot = NULL;
@@ -1127,9 +972,9 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             pkdSetPos(pkd,p,j,r[j]);
         }
         if (!pkd->bNoParticleOrder) p->iOrder = iFirst++;
-        if (pkd->oFieldOffset[oParticleID]) *pkdParticleID(pkd,p) = iParticleID;
+        if (pkd->particles.present(PKD_FIELD::oParticleID)) *pkdParticleID(pkd,p) = iParticleID;
 
-        if (pkd->oFieldOffset[oVelocity]) {
+        if (pkd->particles.present(PKD_FIELD::oVelocity)) {
             if (!pkdIsGas(pkd,p)) {
                 // IA: dvFac = a*a, and for the gas we already provide
                 // the peculiar velocity in the IC
@@ -1182,7 +1027,7 @@ void pkdEnforcePeriodic(PKD pkd,BND *pbnd) {
         __m128i top = _mm_setr_epi32 ( (INTEGER_FACTOR/2)-1,(INTEGER_FACTOR/2)-1,(INTEGER_FACTOR/2)-1,0x7fffffff );
         __m128i bot = _mm_setr_epi32 (-(INTEGER_FACTOR/2),-(INTEGER_FACTOR/2),-(INTEGER_FACTOR/2),-0x80000000 );
 
-        auto pPos = static_cast<char *>(pkdField(pkd->Particle(0),pkd->oFieldOffset[oPosition]));
+        auto pPos = pkd->particles.get<char>(pkd->Particle(0),PKD_FIELD::oPosition);
         const int iSize = pkd->ParticleSize();
         for (i=0; i<pkd->Local(); ++i) {
             __m128i v = _mm_loadu_si128((__m128i *)pPos);
@@ -1234,8 +1079,10 @@ uint64_t hilbert2d(float x,float y) {
         uint32_t u;
     } punner;
 
-    punner.f = x; ux = punner.u >> 2;
-    punner.f = y; uy = punner.u >> 2;
+    punner.f = x;
+    ux = punner.u >> 2;
+    punner.f = y;
+    uy = punner.u >> 2;
 
     m = 0x00100000;
 
@@ -1279,9 +1126,12 @@ uint64_t hilbert3d(float x,float y,float z) {
         uint32_t u;
     } punner;
 
-    punner.f = x; ux = punner.u >> 2;
-    punner.f = y; uy = punner.u >> 2;
-    punner.f = z; uz = punner.u >> 2;
+    punner.f = x;
+    ux = punner.u >> 2;
+    punner.f = y;
+    uy = punner.u >> 2;
+    punner.f = z;
+    uz = punner.u >> 2;
     /* Or: ux = (uint32_t)((x-1.0f) * 0x00200000)*/
 
     m = 0x00100000;
@@ -1658,7 +1508,10 @@ void pkdCheckpoint(PKD pkd,const char *fname) {
     int fd;
     io_init(&info, IO_MAX_ASYNC_COUNT, 0, IO_AIO|IO_LIBAIO);
     fd = io_create(&info, fname);
-    if (fd<0) { perror(fname); abort(); }
+    if (fd<0) {
+        perror(fname);
+        abort();
+    }
     nFileSize = pkd->ParticleSize() * pkd->Local();
     char *pBuffer = (char *)pkd->ParticleBase();
     while (nFileSize) {
@@ -1676,9 +1529,15 @@ void pkdRestore(PKD pkd,const char *fname) {
     int fd;
     io_init(&info, IO_MAX_ASYNC_COUNT, 0, IO_AIO|IO_LIBAIO);
     fd = io_open(&info, fname);
-    if (fd<0) { perror(fname); abort(); }
+    if (fd<0) {
+        perror(fname);
+        abort();
+    }
     struct stat s;
-    if ( fstat(fd,&s) != 0 ) { perror(fname); abort(); }
+    if ( fstat(fd,&s) != 0 ) {
+        perror(fname);
+        abort();
+    }
     nFileSize = s.st_size;
     pkd->SetLocal(nFileSize / pkd->ParticleSize());
     char *pBuffer = (char *)pkd->ParticleBase();
@@ -1705,9 +1564,9 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,BND *bnd,
 
     dummypot = 0.0;
 
-    if ( pkd->oFieldOffset[oPotential]) pPot = pkdPot(pkd,p);
+    if ( pkd->particles.present(PKD_FIELD::oPotential)) pPot = pkdPot(pkd,p);
     else pPot = &dummypot;
-    if (pkd->oFieldOffset[oVelocity]) {
+    if (pkd->particles.present(PKD_FIELD::oVelocity)) {
         /* IA: the gas velocity in the code is v = a \dot x
          *  and the dm/star velocity v = a^2 \dot x
          *
@@ -1730,16 +1589,16 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,BND *bnd,
     else v[0] = v[1] = v[2] = 0.0;
 
     /* Initialize SPH fields if present */
-    const auto *pSph = static_cast<SPHFIELDS *>(pkd->oFieldOffset[oSph] ? pkdField(p,pkd->oFieldOffset[oSph]) : nullptr);
-    const auto *pNewSph = static_cast<NEWSPHFIELDS *>(pkd->oFieldOffset[oNewSph] ? pkdField(p,pkd->oFieldOffset[oNewSph]) : nullptr);
-    const auto *pStar = static_cast<STARFIELDS *>(pkd->oFieldOffset[oStar] ? pkdField(p,pkd->oFieldOffset[oStar]) : nullptr);
+    const auto *pSph   = pkd->particles.present(PKD_FIELD::oSph)    ? pkd->particles.get<SPHFIELDS>(p,PKD_FIELD::oSph) : nullptr;
+    const auto *pNewSph= pkd->particles.present(PKD_FIELD::oNewSph) ? pkd->particles.get<NEWSPHFIELDS>(p,PKD_FIELD::oNewSph) : nullptr;
+    const auto *pStar  = pkd->particles.present(PKD_FIELD::oStar)   ? pkd->particles.get<STARFIELDS>(p,PKD_FIELD::oStar) : nullptr;
     fMass = pkdMass(pkd,p);
     fSoft = pkdSoft0(pkd,p);
-    if (pkd->fSoftFix >= 0.0) fSoft = 0.0;
-    if (pkd->oFieldOffset[oParticleID]) iParticleID = *pkdParticleID(pkd,p);
+    if (pkd->particles.fixedsoft() >= 0.0) fSoft = 0.0;
+    if (pkd->particles.present(PKD_FIELD::oParticleID)) iParticleID = *pkdParticleID(pkd,p);
     else if (!pkd->bNoParticleOrder) iParticleID = p->iOrder;
     else iParticleID = 0;
-    if (pkd->oFieldOffset[oDensity]) fDensity = pkdDensity(pkd,p);
+    if (pkd->particles.present(PKD_FIELD::oDensity)) fDensity = pkdDensity(pkd,p);
     else fDensity = 0.0;
 
     r[0] = pkdPos(pkd,p,0);
@@ -1774,7 +1633,7 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,BND *bnd,
     //}
     switch (pkdSpecies(pkd,p)) {
     case FIO_SPECIES_SPH:
-        if (pkd->oFieldOffset[oNewSph]) {
+        if (pkd->particles.present(PKD_FIELD::oNewSph)) {
             assert(pNewSph);
             assert(pkd->SPHoptions.TuFac > 0.0f);
             double T;
@@ -1828,7 +1687,7 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,BND *bnd,
                 float otherData[3];
                 otherData[0] = SFR;
                 // We may have problem if the number of groups increses more than 2^24, but should be enough
-                otherData[1] = pkd->oFieldOffset[oGroup] ? (float)pkdGetGroup(pkd,p) : 0 ;
+                otherData[1] = pkd->particles.present(PKD_FIELD::oGroup) ? (float)pkdGetGroup(pkd,p) : 0 ;
 #ifdef HAVE_METALLICITY
                 otherData[2] = pSph->fMetalMass / fMass;
 #endif
@@ -1840,7 +1699,7 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,BND *bnd,
         break;
     case FIO_SPECIES_DARK: {
         float otherData[2];
-        otherData[0] = pkd->oFieldOffset[oGroup] ? (float)pkdGetGroup(pkd,p) : 0 ;
+        otherData[0] = pkd->particles.present(PKD_FIELD::oGroup) ? (float)pkdGetGroup(pkd,p) : 0 ;
         fioWriteDark(fio,iParticleID,r,v,fMass,fSoft,*pPot,fDensity, &otherData[0]);
     }
     break;
@@ -1851,7 +1710,7 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,BND *bnd,
 #endif
         float otherData[6];
         otherData[0] = pStar->fTimer;
-        otherData[1] = pkd->oFieldOffset[oGroup] ? (float)pkdGetGroup(pkd,p) : 0 ;
+        otherData[1] = pkd->particles.present(PKD_FIELD::oGroup) ? (float)pkdGetGroup(pkd,p) : 0 ;
 #ifdef STELLAR_EVOLUTION
         otherData[2] = pStar->fMetalAbun;
         otherData[3] = pStar->fInitialMass;
@@ -1872,7 +1731,7 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,BND *bnd,
         otherData[2] = pBH->dEddingtonRatio;
         otherData[3] = pBH->dFeedbackRate;
         otherData[4] = pBH->dAccEnergy;
-        otherData[5] = pkd->oFieldOffset[oGroup] ? (float)pkdGetGroup(pkd,p) : 0 ;
+        otherData[5] = pkd->particles.present(PKD_FIELD::oGroup) ? (float)pkdGetGroup(pkd,p) : 0 ;
         fioWriteBH(fio,iParticleID,r,v,fMass,fSoft,*pPot,fDensity,
                    otherData,fTimer);
     }
@@ -2075,25 +1934,24 @@ void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dScaleFactor, double dTime,
 struct packArrayCtx {
     PKD pkd;
     double dvFac;
+    PKD_FIELD field;
     int iIndex;
-    int field;
     int iUnitSize;
     int bMarked;
 };
 
-char *pkdPackArray(PKD pkd,int iSize,void *vBuff,int *piIndex,int n,int field,int iUnitSize,double dvFac,int bMarked) {
+char *pkdPackArray(PKD pkd,int iSize,void *vBuff,int *piIndex,int n,PKD_FIELD field,int iUnitSize,double dvFac,int bMarked) {
     auto pBuff = static_cast<char *>(vBuff);
-    int oOffset = pkd->oFieldOffset[field];
     int iIndex = *piIndex;
 
     while (iIndex<n && iSize>=iUnitSize) {
         PARTICLE *p = pkd->Particle(iIndex++);
         if (bMarked && !p->bMarked) continue;
-        if (field==oPosition) {
+        if (field==PKD_FIELD::oPosition) {
             double *d = (double *)pBuff;
             pkdGetPos1(pkd,p,d);
         }
-        else if (field==oVelocity) {
+        else if (field==PKD_FIELD::oVelocity) {
             vel_t *v = pkdVel(pkd,p);
             float *V = (float *)pBuff;
             V[0] = v[0] * dvFac;
@@ -2101,7 +1959,7 @@ char *pkdPackArray(PKD pkd,int iSize,void *vBuff,int *piIndex,int n,int field,in
             V[2] = v[2] * dvFac;
         }
         else {
-            const char *src = (const char *)pkdField(p,oOffset);
+            const char *src = pkd->particles.get<char>(p,field);
             memcpy(pBuff,src,iUnitSize);
         }
         pBuff += iUnitSize;
@@ -2120,7 +1978,7 @@ static int packArray(void *vctx, int *id, size_t nSize, void *vBuff) {
 }
 
 /* Send all particled data to the specified node for writing */
-void pkdSendArray(PKD pkd, int iNode, int field, int iUnitSize,double dvFac,int bMarked) {
+void pkdSendArray(PKD pkd, int iNode, PKD_FIELD field, int iUnitSize,double dvFac,int bMarked) {
     struct packArrayCtx ctx;
     ctx.pkd = pkd;
     ctx.dvFac = dvFac;
@@ -2176,7 +2034,7 @@ uint32_t pkdWriteFIO(PKD pkd,FIO fio,double dvFac,double dTuFac,BND *bnd) {
 }
 
 void pkdSetSoft(PKD pkd,double dSoft) {
-    pkd->fSoftFix = dSoft;
+    pkd->particles.SetSoft(dSoft);
 }
 
 void pkdSetSmooth(PKD pkd,double dSmooth) {
@@ -2190,8 +2048,7 @@ void pkdSetSmooth(PKD pkd,double dSmooth) {
 }
 
 void pkdPhysicalSoft(PKD pkd,double dSoftMax,double dFac,int bSoftMaxMul) {
-    pkd->fSoftFac = dFac;
-    pkd->fSoftMax = bSoftMaxMul ? HUGE_VALF : dSoftMax;
+    pkd->particles.PhysicalSoft(dSoftMax,dFac,bSoftMaxMul);
 }
 
 static void initSetMarked(void *vpkd, void *v) {}
@@ -2316,7 +2173,7 @@ void pkdCalcEandL(PKD pkd,double *T,double *U,double *Eth,double *L,double *F,do
         F[i] = pkd->dEnergyF[i];
     }
     *Eth = 0.0;
-    if (pkd->oFieldOffset[oSph]) {
+    if (pkd->particles.present(PKD_FIELD::oSph)) {
         int n = pkd->Local();
         for (i=0; i<n; ++i) {
             PARTICLE *p = pkd->Particle(i);
@@ -2363,7 +2220,10 @@ void pkdLightConeClose(PKD pkd,const char *healpixname) {
         assert(healpixname && healpixname[0]);
         mdlFinishCache(pkd->mdl,CID_HEALPIX);
         int fd = open(healpixname,O_CREAT|O_WRONLY|O_TRUNC,FILE_PROTECTION);
-        if (fd<0) { perror(healpixname); abort(); }
+        if (fd<0) {
+            perror(healpixname);
+            abort();
+        }
         for (i=0; i<pkd->nHealpixPerDomain; ++i) {
             uint64_t sum = pkd->pHealpixData[i].nGrouped;
             sum += pkd->pHealpixData[i].nUngrouped;
@@ -2380,7 +2240,10 @@ void pkdLightConeClose(PKD pkd,const char *healpixname) {
 void pkdLightConeOpen(PKD pkd,const char *fname,int nSideHealpix) {
     int i;
     if (fname[0]) {
-        if (io_create(&pkd->afiLightCone,fname) < 0) { perror(fname); abort(); }
+        if (io_create(&pkd->afiLightCone,fname) < 0) {
+            perror(fname);
+            abort();
+        }
     }
     else pkd->afiLightCone.fd = -1;
 
@@ -2509,12 +2372,34 @@ void pkdProcessLightCone(PKD pkd,PARTICLE *p,float fPot,double dLookbackFac,doub
     /*
     ** Sort them!
     */
-    if (isect[0].dt>isect[1].dt) { temp = isect[0]; isect[0] = isect[1]; isect[1] = temp; }
-    if (isect[2].dt>isect[3].dt) { temp = isect[2]; isect[2] = isect[3]; isect[3] = temp; }
-    temp = isect[1]; isect[1] = isect[2]; isect[2] = temp;
-    if (isect[0].dt>isect[1].dt) { temp = isect[0]; isect[0] = isect[1]; isect[1] = temp; }
-    if (isect[2].dt>isect[3].dt) { temp = isect[2]; isect[2] = isect[3]; isect[3] = temp; }
-    if (isect[1].dt>isect[2].dt) { temp = isect[1]; isect[1] = isect[2]; isect[2] = temp; }
+    if (isect[0].dt>isect[1].dt) {
+        temp = isect[0];
+        isect[0] = isect[1];
+        isect[1] = temp;
+    }
+    if (isect[2].dt>isect[3].dt) {
+        temp = isect[2];
+        isect[2] = isect[3];
+        isect[3] = temp;
+    }
+    temp = isect[1];
+    isect[1] = isect[2];
+    isect[2] = temp;
+    if (isect[0].dt>isect[1].dt) {
+        temp = isect[0];
+        isect[0] = isect[1];
+        isect[1] = temp;
+    }
+    if (isect[2].dt>isect[3].dt) {
+        temp = isect[2];
+        isect[2] = isect[3];
+        isect[3] = temp;
+    }
+    if (isect[1].dt>isect[2].dt) {
+        temp = isect[1];
+        isect[1] = isect[2];
+        isect[2] = temp;
+    }
 
     for (k=0; k<4; ++k) {
         double dtApprox;
@@ -2595,7 +2480,7 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
     }
 
     mdlDiag(pkd->mdl, "Into pkdDrift\n");
-    assert(pkd->oFieldOffset[oVelocity]);
+    assert(pkd->particles.present(PKD_FIELD::oVelocity));
 
     for (j=0; j<3; ++j) {
         dMin[j] = pkd->bnd.fCenter[j] - pkd->bnd.fMax[j];
@@ -2605,9 +2490,9 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
     ** Update particle positions
     */
     if (bDoGas) {
-        if (pkd->oFieldOffset[oSph] /*pkd->param.bMeshlessHydro*/) {
-            assert(pkd->oFieldOffset[oSph]);
-            assert(pkd->oFieldOffset[oAcceleration]);
+        if (pkd->particles.present(PKD_FIELD::oSph) /*pkd->param.bMeshlessHydro*/) {
+            assert(pkd->particles.present(PKD_FIELD::oSph));
+            assert(pkd->particles.present(PKD_FIELD::oAcceleration));
             for (i=pLower; i<=pUpper; ++i) {
                 p = pkd->Particle(i);
                 v = pkdVel(pkd,p);
@@ -2647,7 +2532,7 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
             }
         }
         else {
-            assert(pkd->oFieldOffset[oNewSph]);;
+            assert(pkd->particles.present(PKD_FIELD::oNewSph));
             for (i=pLower; i<=pUpper; ++i) {
                 p = pkd->Particle(i);
                 v = pkdVel(pkd,p);
@@ -2758,9 +2643,9 @@ void pkdEndTimestepIntegration(PKD pkd, struct inEndTimestep in) {
     int bComove = pkd->csm->val.bComove;
 
     mdlDiag(pkd->mdl, "Into pkdComputePrimiteVars\n");
-    assert(pkd->oFieldOffset[oVelocity]);
+    assert(pkd->particles.present(PKD_FIELD::oVelocity));
 #ifndef USE_MFM
-    assert(pkd->oFieldOffset[oMass]);
+    assert(pkd->particles.present(PKD_FIELD::oMass));
 #endif
 
     if (bComove) {
@@ -2907,7 +2792,7 @@ void pkdLightConeVel(PKD pkd,double dBoxSize) {
     const double dLightSpeed = dLightSpeedSim(dBoxSize);
     int i,j;
 
-    assert(pkd->oFieldOffset[oVelocity]);
+    assert(pkd->particles.present(PKD_FIELD::oVelocity));
     /*
     ** Setup lookup table.
     */
@@ -2964,12 +2849,12 @@ void pkdKick(PKD pkd,double dTime,double dDelta,int bDoGas,double dDeltaVPred,do
     float *a;
     int i,j,n;
 
-    assert(pkd->oFieldOffset[oVelocity]);
-    assert(pkd->oFieldOffset[oAcceleration]);
+    assert(pkd->particles.present(PKD_FIELD::oVelocity));
+    assert(pkd->particles.present(PKD_FIELD::oAcceleration));
 
     if (bDoGas) {
         if (1 /*pkd->param.bMeshlessHydro*/) {
-            assert(pkd->oFieldOffset[oSph]);
+            assert(pkd->particles.present(PKD_FIELD::oSph));
             n = pkd->Local();
             for (i=0; i<n; ++i) {
 
@@ -2992,7 +2877,7 @@ void pkdKick(PKD pkd,double dTime,double dDelta,int bDoGas,double dDeltaVPred,do
             }
         }
         else {
-            assert(pkd->oFieldOffset[oSph]);
+            assert(pkd->particles.present(PKD_FIELD::oSph));
             n = pkd->Local();
             for (i=0; i<n; ++i) {
                 p = pkd->Particle(i);
@@ -3120,8 +3005,8 @@ void pkdAccelStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
     double dT;
     double fSoft;
 
-    assert(pkd->oFieldOffset[oVelocity]);
-    assert(pkd->oFieldOffset[oAcceleration]);
+    assert(pkd->particles.present(PKD_FIELD::oVelocity));
+    assert(pkd->particles.present(PKD_FIELD::oAcceleration));
     assert(!pkd->bNoParticleOrder);
 
     for (i=0; i<pkd->Local(); ++i) {
@@ -3161,8 +3046,8 @@ void pkdSphStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
     double dtNew;
     int u1,u2,u3;
 
-    assert(pkd->oFieldOffset[oAcceleration]);
-    assert(pkd->oFieldOffset[oSph]);
+    assert(pkd->particles.present(PKD_FIELD::oAcceleration));
+    assert(pkd->particles.present(PKD_FIELD::oSph));
     assert(!pkd->bNoParticleOrder);
 
     for (i=0; i<pkd->Local(); ++i) {
@@ -3357,8 +3242,8 @@ int pkdUpdateRung(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 void pkdDeleteParticle(PKD pkd, PARTICLE *p) {
     /* p->iOrder = -2 - p->iOrder; JW: Not needed -- just preserve iOrder */
     int pSpecies = pkdSpecies(pkd,p);
-    //pkdSetClass(pkd,pkdMass(pkd,p),pkdSoft(pkd,p),0,FIO_SPECIES_LAST,p); /* Special "DELETED" class == FIO_SPECIES_LAST */
-    pkdSetClass(pkd,0.0,0.0,0,FIO_SPECIES_LAST,p); /* Special "DELETED" class == FIO_SPECIES_LAST */
+    //pkd->particles.setClass(pkdMass(pkd,p),pkdSoft(pkd,p),0,FIO_SPECIES_LAST,p); /* Special "DELETED" class == FIO_SPECIES_LAST */
+    pkd->particles.setClass(0.0,0.0,0,FIO_SPECIES_LAST,p); /* Special "DELETED" class == FIO_SPECIES_LAST */
 
     // IA: We copy the last particle into this position, the tree will no longer be valid!!!
     //
@@ -3616,10 +3501,10 @@ int pkdIsBH(PKD pkd,PARTICLE *p) {
 }
 
 void pkdInitRelaxation(PKD pkd) {
-    assert(pkd->oFieldOffset[oRelaxation]);
+    assert(pkd->particles.present(PKD_FIELD::oRelaxation));
     for (int i=0; i<pkd->Local(); ++i) {
         PARTICLE *p = pkd->Particle(i);
-        auto pRelax = static_cast<double *>(pkdField(p,pkd->oFieldOffset[oRelaxation]));
+        auto pRelax = pkd->particles.get<double>(p,PKD_FIELD::oRelaxation);
         *pRelax = 0.0;
     }
 }
@@ -3742,7 +3627,7 @@ int pkdSelPhaseDensity(PKD pkd,double dMinDensity, double dMaxDensity, int setIf
     int nSelected = 0;
     for ( int i=0; i<n; i++ ) {
         auto p = pkd->Particle(i);
-        auto pvel = static_cast<VELSMOOTH *>(pkdField(p,pkd->oFieldOffset[oVelSmooth]));
+        auto pvel = pkd->particles.get<VELSMOOTH>(p,PKD_FIELD::oVelSmooth);
         float density = pkdDensity(pkd,p) * pow(pvel->veldisp2,-1.5);
         p->bMarked = isSelected((density >= dMinDensity && density <=dMaxDensity),setIfTrue,clearIfFalse,p->bMarked);
         if ( p->bMarked ) nSelected++;
@@ -3843,7 +3728,7 @@ int pkdSelBlackholes(PKD pkd, int setIfTrue, int clearIfFalse) {
     int i;
     int n=pkd->Local();
     int N = 0;
-    assert(pkd->oFieldOffset[oStar]);
+    assert(pkd->particles.present(PKD_FIELD::oStar));
     for ( i=0; i<n; i++ ) {
         PARTICLE *p=pkd->Particle(i);
         if (pkdIsStar(pkd, p)) {
@@ -3931,8 +3816,8 @@ int pkdGetParticles(PKD pkd, int nIn, uint64_t *ID, struct outGetParticles *out)
 ** Initialize the EOS tables
 */
 void pkdInitializeEOS(PKD pkd) {
-    for (auto i=0; i<pkd->ParticleClasses.size(); ++i) {
-        auto iMat = pkd->ParticleClasses[i].iMat;
+    auto materials = pkd->particles.getMaterials();
+    for (auto iMat : materials) {
         if (iMat == 0 && pkd->SPHoptions.useBuiltinIdeal) {
             // Nothing to do
         }
