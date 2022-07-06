@@ -981,6 +981,23 @@ void mpiClass::pthreadBarrierWait() {
     pthread_barrier_wait(&barrier);
 }
 
+static void juggle(char *pTemp,int wrap,char *p,int size,int rotate) {
+    auto pi = [p,size](int i) {return p + i*size;};
+    int blks = std::gcd(wrap,rotate);
+    for (auto i = 0; i<blks; ++i) {
+        auto dst = i;
+        std::memcpy(pTemp, pi(dst), size);
+        while (true) {
+            auto src = dst + rotate;
+            if (src >= wrap) src -= wrap;
+            if (src == i) break;
+            std::memcpy(pi(dst), pi(src), size);
+            dst = src;
+        }
+        std::memcpy(pi(dst), pTemp, size);
+    }
+}
+
 //! Swap elements of a memory buffer between local threads.
 //! @param buffer A pointer to the start of the memory block
 //! @param count The total number of elements that count fit in the memory block
@@ -1012,40 +1029,59 @@ int mdlClass::swaplocal(void *buffer,int count,int datasize,/*const*/ int *count
     // +----------+------------+-------------------------+---------------+
     // | thread 3 | unused     | Thread 0 to 2 elements  | thread 4-     |
     // +----------+------------+-------------------------+---------------+
-    auto pTemp = new char[datasize];
+    constexpr int blocksize = 8;
+    constexpr int blockmask = blocksize - 1;
+    auto pTemp = new char[datasize*blocksize];
+    // If we own a block length or less, then do the simple thing
+    int alignby = 0;
     int wrap = count - after;
-    int blks = std::gcd(wrap,before);
-    for (auto i = 0; i<blks; ++i) {
-        auto dst = i;
-        std::memcpy(pTemp, pi(dst), datasize);
-        while (true) {
-            auto src = dst + before;
-            if (src >= wrap) src -= wrap;
-            if (src == i) break;
-            std::memcpy(pi(dst), pi(src), datasize);
-            dst = src;
+    if (mine<=blocksize) {
+        memcpy(pTemp,pi(before),mine*datasize);
+        std::memmove(pi(count-after-before),pi(0),before*datasize);
+        memcpy(pi(0),pTemp,mine*datasize);
+    }
+    else {
+        alignby = before & blockmask;
+        wrap = (count-after-alignby) & ~blockmask;
+        // If we have enough free space then do the block based juggle for performance
+        if (wrap >= before+mine) {
+            // Move the elements just before ours to the end of the free space
+            std::memcpy(pi(wrap), pi(before-alignby), alignby*datasize);
+            // Now fill the hole with our own element from the end.
+            int ours = before-alignby;
+            std::memcpy(pi(ours), pi(before+mine-alignby), alignby*datasize);
+            // At this point, "wrap" is a multiple of blocksize, and the index of our
+            // elements is a multiple of blocksize. We can juggle blocks.
+            juggle(pTemp,wrap/blocksize,pBegin,datasize*blocksize,ours/blocksize);
         }
-        std::memcpy(pi(dst), pTemp, datasize);
+        // Do the element based juggle which is slower
+        else {
+            wrap = count-after;
+            alignby = 0;
+            juggle(pTemp,wrap,pBegin,datasize,before);
+        }
     }
     delete[] pTemp;
 
     // Setup counts and offsets. Other threads will update as they take elements
     ddOffset.reserve(Cores()); ddOffset.clear();
     ddCounts.reserve(Cores()); ddCounts.clear();
+    for (auto i=0; i<Cores(); ++i) ddCounts.push_back(counts[i]);
     ddBuffer = pBegin;
-    for (auto i=0,offset=count-before-after; i<Cores(); ++i) {
-        ddCounts.push_back(counts[i]);
-        if (i==me) ddOffset.push_back(0);
-        else {
-            ddOffset.push_back(offset);
-            offset += counts[i];
-        }
+    for (auto i=0,offset=wrap-before+alignby; i<me; ++i) {
+        ddOffset.push_back(offset);
+        offset += counts[i];
+    }
+    ddOffset.push_back(0);
+    for (auto i=me+1,offset=count-after; i<Cores(); ++i) {
+        ddOffset.push_back(offset);
+        offset += counts[i];
     }
     ThreadBarrier(); // Offset/Counts will be updated by other threads
     int nTotal = 0;
     for (auto i=0; i<Cores(); ++i ) nTotal += pmdl[i]->ddCounts[me];
     assert(nTotal<count);
-    auto space = count - mine - before - after;
+    auto space = wrap - before + alignby - mine;
     while (true) {
         bool bKeepGoing = false;
         // Phase 3 (collect): Grab as many elements as we can from other threads
