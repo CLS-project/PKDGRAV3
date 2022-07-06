@@ -112,8 +112,11 @@ struct parameters {
     double dFastGasFraction;
     double fKernelTarget;
     double dVelocityDamper;
+    double dBallSizeLimit;
     int iKernelType;
     int bNewSPH;
+    int bGasBuiltinIdeal;
+    int bGasOnTheFlyPrediction;
 
     /* END Gas Parameters */
     double dEta;

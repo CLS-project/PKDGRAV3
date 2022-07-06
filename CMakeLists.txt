@@ -186,14 +186,15 @@ target_sources(${PROJECT_NAME} PRIVATE
 	main.cxx cosmo.c master.cxx simulate.cxx pst.cxx TraversePST.cxx io/fio.c core/illinois.c param.c
 	pkd.cxx analysis/analysis.cxx smooth/smooth.cxx smooth/smoothfcn.cxx io/outtype.cxx io/output.cxx
 	gravity/walk2.cxx gravity/grav2.cxx gravity/ewald.cxx ic/ic.cxx domains/tree.cxx gravity/opening.cxx gravity/pp.cxx gravity/pc.cxx gravity/cl.cxx
-	gravity/lst.cxx gravity/moments.c gravity/ilp.cxx gravity/ilc.cxx io/iomodule.c SPHOptions.cxx
+	gravity/lst.cxx gravity/moments.c gravity/ilp.cxx gravity/ilc.cxx io/iomodule.c
 	group/fof.cxx group/hop.cxx group/group.cxx group/groupstats.cxx ic/RngStream.c smooth/listcomp.c core/healpix.c
 	core/gridinfo.cxx analysis/interlace.cxx analysis/contrast.cxx analysis/assignmass.cxx analysis/measurepk.cxx bispectrum.cxx ic/whitenoise.cxx gravity/pmforces.cxx
 	core/setadd.cxx core/hostname.cxx core/initcosmology.cxx core/calcroot.cxx core/swapall.cxx core/select.cxx
 	domains/calcbound.cxx domains/combinebound.cxx domains/distribtoptree.cxx domains/distribroot.cxx domains/dumptrees.cxx
 	domains/enforceperiodic.cxx domains/freestore.cxx domains/olddd.cxx
 	gravity/setsoft.cxx gravity/activerung.cxx gravity/countrungs.cxx gravity/zeronewrung.cxx
-        eEOS/eEOS.cxx
+	eEOS/eEOS.cxx
+	SPH/SPHOptions.cxx SPH/SPHEOS.cxx SPH/SPHpredict.cxx
 )
 set_property(SOURCE io/fio.c APPEND PROPERTY COMPILE_DEFINITIONS "USE_PTHREAD")
 #add_executable(tostd utility/tostd.c io/fio.c)
@@ -515,6 +516,35 @@ if (OPTIM_AVOID_IS_ACTIVE)
    message("-- OPTIM_AVOID_IS_ACTIVE: \t Select particles rather than repeatedly using pkdIsActive")
 endif (OPTIM_AVOID_IS_ACTIVE)
 ####
+
+find_path(EOSLIB_PATH EOSlib.h HINTS "${CMAKE_SOURCE_DIR}/../EOSlib" NO_DEFAULT_PATH)
+find_path(ANEOSMATERIAL_PATH ANEOSmaterial.h HINTS "${CMAKE_SOURCE_DIR}/../ANEOSmaterial" NO_DEFAULT_PATH)
+find_path(TILLOTSON_PATH tillotson.h HINTS "${CMAKE_SOURCE_DIR}/../tillotson" NO_DEFAULT_PATH)
+find_path(REOS3_PATH reos3.h HINTS "${CMAKE_SOURCE_DIR}/../reos3" NO_DEFAULT_PATH)
+if(EOSLIB_PATH)
+    message(STATUS "found EOSlib.h in ${EOSLIB_PATH}")
+    target_sources(${PROJECT_NAME} PRIVATE ${EOSLIB_PATH}/EOSlib.c ${EOSLIB_PATH}/igeos.c)
+    target_include_directories(${PROJECT_NAME} PUBLIC ${EOSLIB_PATH})
+    target_compile_options(${PROJECT_NAME} PRIVATE -DHAVE_EOSLIB_H)
+endif()
+if(EOSLIB_PATH AND ANEOSMATERIAL_PATH)
+    message(STATUS "found ANEOSmaterial.h in ${ANEOSMATERIAL_PATH}")
+    target_sources(${PROJECT_NAME} PRIVATE ${ANEOSMATERIAL_PATH}/ANEOSmaterial.c ${ANEOSMATERIAL_PATH}/interpBilinear.c)
+    target_include_directories(${PROJECT_NAME} PUBLIC ${ANEOSMATERIAL_PATH})
+    target_compile_options(${PROJECT_NAME} PRIVATE -DHAVE_ANEOSMATERIAL_H)
+endif()
+if(EOSLIB_PATH AND TILLOTSON_PATH)
+    message(STATUS "found tillotson.h in ${TILLOTSON_PATH}")
+    target_sources(${PROJECT_NAME} PRIVATE ${TILLOTSON_PATH}/tillotson.c ${TILLOTSON_PATH}/tillinitlookup.c ${TILLOTSON_PATH}/tillsplint.c ${TILLOTSON_PATH}/interpol/brent.c)
+    target_include_directories(${PROJECT_NAME} PUBLIC ${TILLOTSON_PATH})
+    target_compile_options(${PROJECT_NAME} PRIVATE -DHAVE_TILLOTSON_H)
+endif()
+if(EOSLIB_PATH AND REOS3_PATH)
+    message(STATUS "found reos3.h in ${REOS3_PATH}")
+    target_sources(${PROJECT_NAME} PRIVATE ${REOS3_PATH}/reos3.c)
+    target_include_directories(${PROJECT_NAME} PUBLIC ${REOS3_PATH})
+    target_compile_options(${PROJECT_NAME} PRIVATE -DHAVE_REOS3_H)
+endif()
 
 CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/pkd_config.h.in ${CMAKE_CURRENT_BINARY_DIR}/pkd_config.h)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_BINARY_DIR})

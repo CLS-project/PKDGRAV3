@@ -17,12 +17,12 @@ void METAL::initialize(int nStreamsPerDevice) {
     //auto main_queue = dispatch_get_main_queue();
     //NS::Error *error;
     auto deviceList = MTL::CopyAllDevices();
-    for(auto iDevice = 0; iDevice<deviceList->count(); ++iDevice) {
-        auto pDevice = reinterpret_cast<MTL::Device*>(deviceList->object(iDevice));
+    for (auto iDevice = 0; iDevice<deviceList->count(); ++iDevice) {
+        auto pDevice = reinterpret_cast<MTL::Device *>(deviceList->object(iDevice));
         if (!pDevice->lowPower())
             devices.emplace_back(this,pDevice,nStreamsPerDevice);
     }
-	deviceList->release();
+    deviceList->release();
 }
 
 void METAL::launch() {
@@ -76,7 +76,7 @@ MTL::Function *Device::getFunction(const unsigned char *data, int length, const 
     }
 }
 
-MTL::Buffer *Device::getBuffer(const void* pointer, NS::UInteger length) {
+MTL::Buffer *Device::getBuffer(const void *pointer, NS::UInteger length) {
     auto ii = buffers.find(pointer);
     if (ii != buffers.end()) return ii->second;
     else {
@@ -87,8 +87,7 @@ MTL::Buffer *Device::getBuffer(const void* pointer, NS::UInteger length) {
 }
 
 Device::Device(METAL *metal,MTL::Device *pDevice,int nStreams)
-    : metal(metal), pDevice(pDevice->retain()), nStreams(nStreams)
-{
+    : metal(metal), pDevice(pDevice->retain()), nStreams(nStreams) {
     for (auto i=0; i<nStreams; ++i) {
         free_streams.enqueue(new Stream(*this));
     }
@@ -107,8 +106,7 @@ void Device::launch(metalMessage &M) {
 }
 
 Stream::Stream(class Device &device)
-    : device(device), queue(device.newCommandQueue()), message(nullptr), finished(this)
-{
+    : device(device), queue(device.newCommandQueue()), message(nullptr), finished(this) {
 }
 
 Stream::~Stream() {
@@ -123,7 +121,7 @@ MTL::ComputePipelineState *Stream::getPipeline(const unsigned char *data, int le
     else {
         NS::Error *error;
         auto f = device.getFunction(data,length,name);
-	    auto p = device.pDevice->newComputePipelineState(f,&error);
+        auto p = device.pDevice->newComputePipelineState(f,&error);
         if (error->code()!=0) {
             fprintf(stderr,"ERROR: cannot create Pipeline state for %s, error=%ld\n",name,error->code());
             assert(error->code()==0);
@@ -135,13 +133,13 @@ MTL::ComputePipelineState *Stream::getPipeline(const unsigned char *data, int le
 }
 
 void Stream::launch(metalMessage &M) {
-	auto cbuf = queue->commandBuffer();
+    auto cbuf = queue->commandBuffer();
     M.launch(*this,cbuf);
-	cbuf->addCompletedHandler(finished);
-	cbuf->commit();
+    cbuf->addCompletedHandler(finished);
+    cbuf->commit();
 }
 
-void Stream::kernel_finished(MTL::CommandBuffer*cb) {
+void Stream::kernel_finished(MTL::CommandBuffer *cb) {
     message->sendBack();
     message = NULL;
     --device.busy_streams; // This is atomic

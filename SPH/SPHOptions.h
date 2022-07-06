@@ -49,7 +49,11 @@ typedef struct {
     int nSmooth;
     float ballSizeLimit;
     float fBallFactor;
+    float dKpcUnit;
+    float dMsolUnit;
+    float dMeanMolWeight;
     int nRungCorrection;
+    int nPredictRung;
     uint64_t doGravity : 1;
     uint64_t doDensity : 1;
     uint64_t doSPHForces : 1;
@@ -58,7 +62,9 @@ typedef struct {
     uint64_t dofBallFactor : 1;
     uint64_t useNumDen : 1;
     uint64_t useIsentropic : 1;
+    uint64_t useBuiltinIdeal : 1;
     uint64_t useDensityFlags : 1;
+    uint64_t doOnTheFlyPrediction : 1;
     uint64_t kernelType : 3;
 } SPHOptions;
 
@@ -67,10 +73,6 @@ extern "C" {
 #endif
 SPHOptions initializeSPHOptions(struct parameters param, CSM csm, double dTime);
 void copySPHOptions(SPHOptions *source, SPHOptions *target);
-float getDtPredDrift(struct pkdKickParameters *kick, int bMarked, int uRungLo, int uRung);
-float EOSPCofRhoU(float rho, float u, float *c, SPHOptions *SPHoptions);
-float EOSUofRhoT(float rho, float T, SPHOptions *SPHoptions);
-float EOSTofRhoU(float rho, float u, SPHOptions *SPHoptions);
 #ifdef __cplusplus
 }
 #endif

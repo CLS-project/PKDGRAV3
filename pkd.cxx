@@ -70,6 +70,7 @@
 #include "mdl.h"
 #include "io/outtype.h"
 #include "cosmo.h"
+#include "SPH/SPHEOS.h"
 extern "C" {
 #include "core/healpix.h"
 }
@@ -757,12 +758,12 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
     if (pkd->particles.present(PKD_FIELD::oStar)) {
         /* Make sure star class established -- how do all procs know of these classes? How do we ensure they agree on the class identifiers? */
         p = pkd->Particle(pkd->Local());
-        pkd->particles.setClass(0,0,FIO_SPECIES_STAR,p);
+        pkd->particles.setClass(0,0,0,FIO_SPECIES_STAR,p);
     }
 #ifdef BLACKHOLES
     assert(pkd->particles.present(PKD_FIELD::oMass));
     p = pkd->Particle( pkd->Local());
-    pkd->particles.setClass(0,0,FIO_SPECIES_BH, p);
+    pkd->particles.setClass(0,0,0,FIO_SPECIES_BH, p);
 #endif
 
     // Protect against uninitialized values
@@ -827,7 +828,12 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             float afSphOtherData[2];
             fioReadSph(fio,&iParticleID,r,vel,&fMass,&fSoft,pPot,
                        &fDensity,&u,&fMetals[0],afSphOtherData);
-            pkd->particles.setClass(fMass,fSoft,eSpecies,p);
+            if (pNewSph) {
+                pkd->particles.setClass(fMass,fSoft,fMetals[0],eSpecies,p);
+            }
+            else {
+                pkd->particles.setClass(fMass,fSoft,0,eSpecies,p);
+            }
             pkdSetDensity(pkd,p,fDensity);
             if (pNewSph) {
                 pNewSph->u = -u; /* Can't do conversion until density known */
@@ -912,7 +918,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             break;
         case FIO_SPECIES_DARK:
             fioReadDark(fio,&iParticleID,r,vel,&fMass,&fSoft,pPot,&fDensity);
-            pkd->particles.setClass(fMass,fSoft,eSpecies,p);
+            pkd->particles.setClass(fMass,fSoft,0,eSpecies,p);
             pkdSetDensity(pkd,p,fDensity);
             break;
         case FIO_SPECIES_STAR:
@@ -920,7 +926,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             float afStarOtherData[4];
             fioReadStar(fio,&iParticleID,r,vel,&fMass,&fSoft,pPot,&fDensity,
                         fMetals,&fTimer,afStarOtherData);
-            pkd->particles.setClass(fMass,fSoft,eSpecies,p);
+            pkd->particles.setClass(fMass,fSoft,0,eSpecies,p);
             pkdSetDensity(pkd,p,fDensity);
             if (pkd->particles.present(PKD_FIELD::oStar)) {
                 pStar = pkdStar(pkd,p);
@@ -944,7 +950,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             float otherData[3];
             fioReadBH(fio,&iParticleID,r,vel,&fMass,&fSoft,pPot,
                       &fDensity,otherData,&fTimer);
-            pkd->particles.setClass(fMass,fSoft,eSpecies,p);
+            pkd->particles.setClass(fMass,fSoft,0,eSpecies,p);
             if (pkd->particles.present(PKD_FIELD::oBH)) {
                 pBH = pkdBH(pkd,p);
                 pBH->fTimer = fTimer;
@@ -1633,8 +1639,9 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,BND *bnd,
             double T;
             float otherData[3];
             otherData[0] = otherData[1] = otherData[2] = 0.0f;
-            T = EOSTofRhoU(fDensity, pNewSph->u, &pkd->SPHoptions);
+            T = SPHEOSTofRhoU(pkd,fDensity, pNewSph->u, pkdiMat(pkd,p), &pkd->SPHoptions);
             for (int k = 0; k < ELEMENT_COUNT; k++) fMetals[k] = 0.0f;
+            fMetals[0] = pkdiMat(pkd,p);
             fioWriteSph(fio,iParticleID,r,v,fMass,fSoft,*pPot,
                         fDensity,T,&fMetals[0],0.0f,T,otherData);
         }
@@ -3235,8 +3242,8 @@ int pkdUpdateRung(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 void pkdDeleteParticle(PKD pkd, PARTICLE *p) {
     /* p->iOrder = -2 - p->iOrder; JW: Not needed -- just preserve iOrder */
     int pSpecies = pkdSpecies(pkd,p);
-    //pkd->particles.setClass(pkdMass(pkd,p),pkdSoft(pkd,p),FIO_SPECIES_LAST,p); /* Special "DELETED" class == FIO_SPECIES_LAST */
-    pkd->particles.setClass(0.0,0.0,FIO_SPECIES_LAST,p); /* Special "DELETED" class == FIO_SPECIES_LAST */
+    //pkd->particles.setClass(pkdMass(pkd,p),pkdSoft(pkd,p),0,FIO_SPECIES_LAST,p); /* Special "DELETED" class == FIO_SPECIES_LAST */
+    pkd->particles.setClass(0.0,0.0,0,FIO_SPECIES_LAST,p); /* Special "DELETED" class == FIO_SPECIES_LAST */
 
     // IA: We copy the last particle into this position, the tree will no longer be valid!!!
     //
@@ -3803,4 +3810,34 @@ int pkdGetParticles(PKD pkd, int nIn, uint64_t *ID, struct outGetParticles *out)
         }
     }
     return nOut;
+}
+
+/*
+** Initialize the EOS tables
+*/
+void pkdInitializeEOS(PKD pkd) {
+    auto materials = pkd->particles.getMaterials();
+    for (auto iMat : materials) {
+        if (iMat == 0 && pkd->SPHoptions.useBuiltinIdeal) {
+            // Nothing to do
+        }
+        else {
+#ifdef HAVE_EOSLIB_H
+            if (pkd->materials[iMat] == NULL) {
+                if (iMat == MAT_IDEALGAS) {
+                    struct igeosParam param;
+                    param.dConstGamma = pkd->SPHoptions.gamma;
+                    param.dMeanMolMass = pkd->SPHoptions.dMeanMolWeight;
+                    pkd->materials[iMat] = EOSinitMaterial(iMat, pkd->SPHoptions.dKpcUnit, pkd->SPHoptions.dMsolUnit, &param);
+                }
+                else {
+                    pkd->materials[iMat] = EOSinitMaterial(iMat, pkd->SPHoptions.dKpcUnit, pkd->SPHoptions.dMsolUnit, NULL);
+                }
+            }
+#else
+            printf("Trying to initialize an EOSlib material, but EOSlib was not compiled in!\n");
+            assert(0);
+#endif
+        }
+    }
 }

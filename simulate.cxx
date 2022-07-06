@@ -20,7 +20,7 @@
 #include "master.h"
 #include "units.h"
 #include "fmt/format.h"
-#include "SPHOptions.h"
+#include "SPH/SPHOptions.h"
 
 /******************************************************************************\
 *   Simulation Mode: normal method of populating the simulation data

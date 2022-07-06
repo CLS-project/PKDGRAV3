@@ -47,7 +47,7 @@ static inline void bhAccretion(PKD pkd, NN *nnList, int nSmooth,
                 *mass_field = newMass;
 
                 if (pkd->idSelf != nnList[i].iPid)
-                    pkdSetClass(pkd,0.0,0.0,FIO_SPECIES_LAST,q);
+                    pkd->particles.setClass(0.0,0.0,0,FIO_SPECIES_LAST,q);
                 else
                     pkdDeleteParticle(pkd, q);
 

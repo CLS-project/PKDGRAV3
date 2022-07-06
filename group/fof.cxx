@@ -26,7 +26,7 @@
 #include "pkd.h"
 #include "group.h"
 #include "blitz/array.h"
-#include "../SPHOptions.h"
+#include "../SPH/SPHOptions.h"
 
 static inline int getCell(PKD pkd,int iCell,int id,float *pcOpen,KDN **pc) {
     KDN *c;

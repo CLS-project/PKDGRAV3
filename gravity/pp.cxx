@@ -150,7 +150,7 @@ template<typename BLOCK> struct ilist::EvalBlock<ResultSPHForces<fvec>,BLOCK> {
 void pkdSPHForcesEval(const PINFOIN &Part, ilpTile &tile,  PINFOOUT &Out, SPHOptions *SPHoptions ) {
     ilist::EvalBlock<ResultSPHForces<fvec>,BlockPP<ILC_PART_PER_BLK>> eval(
                 Part.r[0],Part.r[1],Part.r[2],Part.fBall,Part.Omega,
-                Part.v[0],Part.v[1],Part.v[2],Part.rho,Part.P,Part.c,Part.species,
+                Part.v[0],Part.v[1],Part.v[2],Part.rho,Part.P,Part.cs,Part.species,
                 SPHoptions);
     auto result = EvalTile(tile,eval);
     Out.uDot += hadd(result.uDot);

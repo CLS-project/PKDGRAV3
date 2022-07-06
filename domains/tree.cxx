@@ -30,7 +30,7 @@
 #include <assert.h>
 #include "pkd.h"
 #include "gravity/moments.h"
-#include "../SPHOptions.h"
+#include "../SPH/SPHOptions.h"
 
 #ifdef HAVE_SYS_TIME_H
     #include <sys/time.h>
@@ -705,18 +705,19 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
         if (pkd->particles.present(PKD_FIELD::oBall)) {
             /* initialize ball or box of balls */
 #if SPHBALLOFBALLS
-            fBoBr = pkd->SPHoptions.fBallFactor * pkdBall(pkd,p);
+            fBoBr = fmin(pkd->SPHoptions.ballSizeLimit,pkd->SPHoptions.fBallFactor * pkdBall(pkd,p));
             fBoBxCenter = x;
             fBoByCenter = y;
             fBoBzCenter = z;
 #endif
 #if SPHBOXOFBALLS
-            fBoBxMin = x - pkd->SPHoptions.fBallFactor * pkdBall(pkd,p);
-            fBoBxMax = x + pkd->SPHoptions.fBallFactor * pkdBall(pkd,p);
-            fBoByMin = y - pkd->SPHoptions.fBallFactor * pkdBall(pkd,p);
-            fBoByMax = y + pkd->SPHoptions.fBallFactor * pkdBall(pkd,p);
-            fBoBzMin = z - pkd->SPHoptions.fBallFactor * pkdBall(pkd,p);
-            fBoBzMax = z + pkd->SPHoptions.fBallFactor * pkdBall(pkd,p);
+            float limitedBallSize = fmin(pkd->SPHoptions.ballSizeLimit,pkd->SPHoptions.fBallFactor * pkdBall(pkd,p));
+            fBoBxMin = x - limitedBallSize;
+            fBoBxMax = x + limitedBallSize;
+            fBoByMin = y - limitedBallSize;
+            fBoByMax = y + limitedBallSize;
+            fBoBzMin = z - limitedBallSize;
+            fBoBzMax = z + limitedBallSize;
 #endif
         }
         /* initialize marked flag */
@@ -744,15 +745,16 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
 
             if (pkd->particles.present(PKD_FIELD::oBall)) {
 #if SPHBALLOFBALLS
-                CombineBallOfBalls(fBoBr,fBoBxCenter,fBoByCenter,fBoBzCenter,pkd->SPHoptions.fBallFactor * pkdBall(pkd,p),ft[0],ft[1],ft[2],fBoBr,fBoBxCenter,fBoByCenter,fBoBzCenter);
+                CombineBallOfBalls(fBoBr,fBoBxCenter,fBoByCenter,fBoBzCenter,fmin(pkd->SPHoptions.ballSizeLimit,pkd->SPHoptions.fBallFactor * pkdBall(pkd,p)),ft[0],ft[1],ft[2],fBoBr,fBoBxCenter,fBoByCenter,fBoBzCenter);
 #endif
 #if SPHBOXOFBALLS
-                fBoBxMin = fmin(fBoBxMin,ft[0] - pkd->SPHoptions.fBallFactor * pkdBall(pkd,p));
-                fBoBxMax = fmax(fBoBxMax,ft[0] + pkd->SPHoptions.fBallFactor * pkdBall(pkd,p));
-                fBoByMin = fmin(fBoByMin,ft[1] - pkd->SPHoptions.fBallFactor * pkdBall(pkd,p));
-                fBoByMax = fmax(fBoByMax,ft[1] + pkd->SPHoptions.fBallFactor * pkdBall(pkd,p));
-                fBoBzMin = fmin(fBoBzMin,ft[2] - pkd->SPHoptions.fBallFactor * pkdBall(pkd,p));
-                fBoBzMax = fmax(fBoBzMax,ft[2] + pkd->SPHoptions.fBallFactor * pkdBall(pkd,p));
+                float limitedBallSize = fmin(pkd->SPHoptions.ballSizeLimit,pkd->SPHoptions.fBallFactor * pkdBall(pkd,p));
+                fBoBxMin = fmin(fBoBxMin,ft[0] - limitedBallSize);
+                fBoBxMax = fmax(fBoBxMax,ft[0] + limitedBallSize);
+                fBoByMin = fmin(fBoByMin,ft[1] - limitedBallSize);
+                fBoByMax = fmax(fBoByMax,ft[1] + limitedBallSize);
+                fBoBzMin = fmin(fBoBzMin,ft[2] - limitedBallSize);
+                fBoBzMax = fmax(fBoBzMax,ft[2] + limitedBallSize);
 #endif
             }
             if (p->bMarked) pkdn->bHasMarked = 1;
@@ -1413,18 +1415,19 @@ void pkdTreeUpdateFlagBoundsRecurse(PKD pkd,uint32_t uRoot,SPHOptions *SPHoption
         pkdGetPos1(pkd,p,ft);
 #if SPHBALLOFBALLS
         double fBoBr, fBoBxCenter, fBoByCenter, fBoBzCenter;
-        fBoBr = fBallFactor * pkdBall(pkd,p);
+        fBoBr = fmin(pkd->SPHoptions.ballSizeLimit,fBallFactor * pkdBall(pkd,p));
         fBoBxCenter = ft[0];
         fBoByCenter = ft[1];
         fBoBzCenter = ft[2];
 #endif
 #if SPHBOXOFBALLS
-        c->fBoBxMin = ft[0] - fBallFactor * pkdBall(pkd,p);
-        c->fBoBxMax = ft[0] + fBallFactor * pkdBall(pkd,p);
-        c->fBoByMin = ft[1] - fBallFactor * pkdBall(pkd,p);
-        c->fBoByMax = ft[1] + fBallFactor * pkdBall(pkd,p);
-        c->fBoBzMin = ft[2] - fBallFactor * pkdBall(pkd,p);
-        c->fBoBzMax = ft[2] + fBallFactor * pkdBall(pkd,p);
+        float limitedBallSize = fmin(pkd->SPHoptions.ballSizeLimit,fBallFactor * pkdBall(pkd,p));
+        c->fBoBxMin = ft[0] - limitedBallSize;
+        c->fBoBxMax = ft[0] + limitedBallSize;
+        c->fBoByMin = ft[1] - limitedBallSize;
+        c->fBoByMax = ft[1] + limitedBallSize;
+        c->fBoBzMin = ft[2] - limitedBallSize;
+        c->fBoBzMax = ft[2] + limitedBallSize;
 #endif
         if (p->bMarked) {
             c->bHasMarked = 1;
@@ -1433,15 +1436,16 @@ void pkdTreeUpdateFlagBoundsRecurse(PKD pkd,uint32_t uRoot,SPHOptions *SPHoption
             p = pkd->Particle(pj);
             pkdGetPos1(pkd,p,ft);
 #if SPHBALLOFBALLS
-            CombineBallOfBalls(fBoBr,fBoBxCenter,fBoByCenter,fBoBzCenter,fBallFactor * pkdBall(pkd,p),ft[0],ft[1],ft[2],fBoBr,fBoBxCenter,fBoByCenter,fBoBzCenter);
+            CombineBallOfBalls(fBoBr,fBoBxCenter,fBoByCenter,fBoBzCenter,fmin(pkd->SPHoptions.ballSizeLimit,fBallFactor * pkdBall(pkd,p)),ft[0],ft[1],ft[2],fBoBr,fBoBxCenter,fBoByCenter,fBoBzCenter);
 #endif
 #if SPHBOXOFBALLS
-            c->fBoBxMin = fmin(c->fBoBxMin,ft[0] - fBallFactor * pkdBall(pkd,p));
-            c->fBoBxMax = fmax(c->fBoBxMax,ft[0] + fBallFactor * pkdBall(pkd,p));
-            c->fBoByMin = fmin(c->fBoByMin,ft[1] - fBallFactor * pkdBall(pkd,p));
-            c->fBoByMax = fmax(c->fBoByMax,ft[1] + fBallFactor * pkdBall(pkd,p));
-            c->fBoBzMin = fmin(c->fBoBzMin,ft[2] - fBallFactor * pkdBall(pkd,p));
-            c->fBoBzMax = fmax(c->fBoBzMax,ft[2] + fBallFactor * pkdBall(pkd,p));
+            float limitedBallSize = fmin(pkd->SPHoptions.ballSizeLimit,fBallFactor * pkdBall(pkd,p));
+            c->fBoBxMin = fmin(c->fBoBxMin,ft[0] - limitedBallSize);
+            c->fBoBxMax = fmax(c->fBoBxMax,ft[0] + limitedBallSize);
+            c->fBoByMin = fmin(c->fBoByMin,ft[1] - limitedBallSize);
+            c->fBoByMax = fmax(c->fBoByMax,ft[1] + limitedBallSize);
+            c->fBoBzMin = fmin(c->fBoBzMin,ft[2] - limitedBallSize);
+            c->fBoBzMax = fmax(c->fBoBzMax,ft[2] + limitedBallSize);
 #endif
             if (p->bMarked) {
                 c->bHasMarked = 1;

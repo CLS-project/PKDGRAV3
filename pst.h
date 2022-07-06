@@ -232,6 +232,7 @@ enum pst_service {
     PST_CALCCOM,
     PST_CALCMTOT,
     PST_SETSPHOPTIONS,
+    PST_INITIALIZEEOS,
     PST_TREEUPDATEFLAGBOUNDS,
     PST_COUNTDISTANCE,
 #ifdef MDL_FFTW
@@ -1073,6 +1074,7 @@ struct inSetSPHoptions {
     SPHOptions SPHoptions;
 };
 int pstSetSPHoptions(PST pst,void *vin,int nIn,void *vout,int nOut);
+int pstInitializeEOS(PST pst,void *vin,int nIn,void *vout,int nOut);
 /* PST_TREEUPDATEFLAGBOUNDS */
 struct inTreeUpdateFlagBounds {
     int nBucket;      /* Bucket Size */

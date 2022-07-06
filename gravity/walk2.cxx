@@ -45,7 +45,9 @@
 #include "cuda/cudautil.h"
 #include "cuda/cudapppc.h"
 #include "cuda/cudaewald.h"
-#include "../SPHOptions.h"
+#include "../SPH/SPHOptions.h"
+#include "../SPH/SPHEOS.h"
+#include "../SPH/SPHpredict.h"
 
 static inline int getCell(PKD pkd,int iCache,int iCell,int id,float *pcOpen,KDN **pc) {
     KDN *c;
@@ -95,7 +97,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2,
     LOCR L;
     FLOCR Lf;
     const vel_t *v;
-    double vpred[3];
+    float vpred[3];
     const float *a;
     double r[3], k_r[3], c_r[3];
     double dOffset[3];
@@ -255,22 +257,10 @@ found_it:
                                         v = pkdVel(pkd,p);
                                         if (pkd->particles.present(PKD_FIELD::oNewSph)) {
                                             NEWSPHFIELDS *pNewSph = pkdNewSph(pkd,p);
-                                            float dtPredDrift = getDtPredDrift(kick,p->bMarked,ts->uRungLo,p->uRung);
                                             float Omega = pNewSph->Omega;                     /* should be the Omega field of the sph fields, nyi */
                                             float P = 0.0f;                         /* should be calculated by the EOS, nyi */
                                             float cs = 0.0f;                        /* should be calculated by the EOS, nyi */
-                                            const float *ap = pkdAccel(pkd,p);
-                                            if (SPHoptions->doSPHForces) {
-                                                P = EOSPCofRhoU(pkdDensity(pkd,p),pNewSph->u + dtPredDrift * pNewSph->uDot,&cs,SPHoptions);
-                                            }
-                                            vpred[0] = v[0] + dtPredDrift * ap[0];
-                                            vpred[1] = v[1] + dtPredDrift * ap[1];
-                                            vpred[2] = v[2] + dtPredDrift * ap[2];
-                                            if ((SPHoptions->VelocityDamper > 0.0) & p->bMarked) {
-                                                vpred[0] /= 1.0 - kick->dtClose[p->uRung] * SPHoptions->VelocityDamper;
-                                                vpred[1] /= 1.0 - kick->dtClose[p->uRung] * SPHoptions->VelocityDamper;
-                                                vpred[2] /= 1.0 - kick->dtClose[p->uRung] * SPHoptions->VelocityDamper;
-                                            }
+                                            SPHpredictOnTheFly(pkd, p, kick, ts->uRungLo, vpred, &P, &cs, SPHoptions);
                                             pkd->ilp.append(
                                                 r[0] + blk.xOffset[jTile],
                                                 r[1] + blk.yOffset[jTile],
@@ -327,22 +317,10 @@ found_it:
                                             v = pkdVel(pkd,p);
                                             if (pkd->particles.present(PKD_FIELD::oNewSph)) {
                                                 NEWSPHFIELDS *pNewSph = pkdNewSph(pkd,p);
-                                                float dtPredDrift = getDtPredDrift(kick,p->bMarked,ts->uRungLo,p->uRung);
                                                 float Omega = pNewSph->Omega;                 /* should be the Omega field of the sph fields, nyi */
                                                 float P = 0.0f;                     /* should be calculated by the EOS, nyi */
                                                 float cs = 0.0f;                    /* should be calculated by the EOS, nyi */
-                                                const float *ap = pkdAccel(pkd,p);
-                                                if (SPHoptions->doSPHForces) {
-                                                    P = EOSPCofRhoU(pkdDensity(pkd,p),pNewSph->u + dtPredDrift * pNewSph->uDot,&cs,SPHoptions);
-                                                }
-                                                vpred[0] = v[0] + dtPredDrift * ap[0];
-                                                vpred[1] = v[1] + dtPredDrift * ap[1];
-                                                vpred[2] = v[2] + dtPredDrift * ap[2];
-                                                if ((SPHoptions->VelocityDamper > 0.0) & p->bMarked) {
-                                                    vpred[0] /= 1.0 - kick->dtClose[p->uRung] * SPHoptions->VelocityDamper;
-                                                    vpred[1] /= 1.0 - kick->dtClose[p->uRung] * SPHoptions->VelocityDamper;
-                                                    vpred[2] /= 1.0 - kick->dtClose[p->uRung] * SPHoptions->VelocityDamper;
-                                                }
+                                                SPHpredictOnTheFly(pkd, p, kick, ts->uRungLo, vpred, &P, &cs, SPHoptions);
                                                 pkd->ilp.append(
                                                     r[0] + blk.xOffset[jTile],
                                                     r[1] + blk.yOffset[jTile],

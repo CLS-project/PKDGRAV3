@@ -38,7 +38,10 @@
 #include "io/fio.h"
 #include "basetype.h"
 #include "io/iomodule.h"
-#include "SPHOptions.h"
+#include "SPH/SPHOptions.h"
+#ifdef HAVE_EOSLIB_H
+    #include <EOSlib.h>
+#endif
 #include "core/bound.h"
 #ifdef GRACKLE
     #include <grackle.h>
@@ -801,6 +804,9 @@ public:
 #endif
 
     SPHOptions SPHoptions;
+#ifdef HAVE_EOSLIB_H
+    EOSmaterial *materials[EOS_N_MATERIAL_MAX] = {NULL};
+#endif
 
 };
 typedef pkdContext *PKD;
@@ -1033,6 +1039,9 @@ static inline float pkdSoft( PKD pkd, PARTICLE *p ) {
 }
 static inline FIO_SPECIES pkdSpecies( PKD pkd, PARTICLE *p ) {
     return pkd->particles.species(p);
+}
+static inline float pkdiMat( PKD pkd, PARTICLE *p ) {
+    return pkd->particles.iMat(p);
 }
 
 /*
@@ -1383,6 +1392,7 @@ void pkdCalcCOM(PKD pkd, double *dCenter, double dRadius, int bPeriodic,
                 double *com, double *vcm, double *L,
                 double *M, uint64_t *N);
 void pkdCalcMtot(PKD pkd, double *M, uint64_t *N);
+void pkdInitializeEOS(PKD pkd);
 void pkdTreeUpdateFlagBounds(PKD pkd,uint32_t uRoot,SPHOptions *SPHoptions);
 #ifdef MDL_FFTW
 void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int iAssignment, int iGrid, float dDelta);

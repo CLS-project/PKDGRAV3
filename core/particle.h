@@ -19,6 +19,7 @@
 #define CORE_PARTICLE_H
 
 #include <vector>
+#include <set>
 #include <algorithm>
 #include <type_traits>
 #include <boost/iterator/iterator_facade.hpp>
@@ -63,6 +64,7 @@ static_assert(sizeof(UPARTICLE)==sizeof(uint32_t));
 struct PARTCLASS {
     float       fMass;    /* Particle mass */
     float       fSoft;    /* Current softening */
+    int         iMat;     /* newSPH material id */
     FIO_SPECIES eSpecies; /* Species: dark, star, etc. */
 
     bool operator <(const PARTCLASS &b) const {
@@ -70,14 +72,16 @@ struct PARTCLASS {
         else if ( fMass > b.fMass ) return false;
         else if ( fSoft < b.fSoft ) return true;
         else if ( fSoft > b.fSoft ) return false;
+        else if ( iMat  < b.iMat  ) return true;
+        else if ( iMat  > b.iMat  ) return false;
         else return eSpecies < b.eSpecies;
     }
     bool operator==(const PARTCLASS &b) const {
-        return fMass==b.fMass && fSoft==b.fSoft && eSpecies==b.eSpecies;
+        return fMass==b.fMass && fSoft==b.fSoft && iMat==b.iMat && eSpecies==b.eSpecies;
     }
     PARTCLASS() = default;
-    PARTCLASS(float fMass,float fSoft,FIO_SPECIES eSpecies)
-        : fMass(fMass), fSoft(fSoft), eSpecies(eSpecies) {}
+    PARTCLASS(float fMass,float fSoft,int iMat,FIO_SPECIES eSpecies)
+        : fMass(fMass), fSoft(fSoft), iMat(iMat), eSpecies(eSpecies) {}
 };
 static_assert(std::is_trivial<PARTCLASS>());
 
@@ -197,6 +201,9 @@ struct NEWSPHFIELDS {
     float divv;         /* Divergence of v */
     float u;            /* Thermodynamical variable, can be T, A(s) or u */
     float uDot;         /* Derivative of the thermodynamical variable */
+    float cs;           /* Sound speed */
+    float P;            /* Pressure */
+    float oldRho;       /* Rho corresponding to where u is at */
 };
 
 struct STARFIELDS {
@@ -319,6 +326,17 @@ public:
     FIO_SPECIES species( PARTICLE *p ) const {
         if (bNoParticleOrder) return ParticleClasses[0].eSpecies;
         else return ParticleClasses[p->iClass].eSpecies;
+    }
+    int iMat( PARTICLE *p) const {
+        if (bNoParticleOrder) return ParticleClasses[0].iMat;
+        else return ParticleClasses[p->iClass].iMat;
+    }
+    std::set<int> getMaterials() const {
+        std::set<int> materials;
+        for (auto p : ParticleClasses) {
+            materials.insert(p.iMat);
+        }
+        return materials;
     }
 
     int32_t group(const PARTICLE *p ) const {
@@ -585,7 +603,7 @@ public:
     auto end() const { return particle_const_iterator(ParticleGet(Local()),this); }
 
 public:
-    void setClass( float fMass, float fSoft, FIO_SPECIES eSpecies, PARTICLE *p ) {
+    void setClass( float fMass, float fSoft, int iMat, FIO_SPECIES eSpecies, PARTICLE *p ) {
         if ( present(PKD_FIELD::oMass) ) {
             auto pMass = get<float>(p,PKD_FIELD::oMass);
             *pMass = fMass;
@@ -598,7 +616,7 @@ public:
         }
         /* NOTE: The above can both be true, in which case a "zero" class is recorded */
         /* NOTE: Species is always part of the class table, so there will be at least one class per species */
-        PARTCLASS newClass(fMass,fSoft,eSpecies);
+        PARTCLASS newClass(fMass,fSoft,iMat,eSpecies);
 
         /* TODO: This is a linear search which is fine for a small number of classes */
         auto iclass = std::find(ParticleClasses.begin(),ParticleClasses.end(),newClass);

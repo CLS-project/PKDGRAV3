@@ -650,13 +650,15 @@ ppy_msr_Restart(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     for (auto i=0; i < nClasses; ++i) {
         PyObject *item = PySequence_Fast_GET_ITEM(classes, i);
         auto cls = PySequence_Fast(item,"class entry must be a list");
-        assert(PySequence_Fast_GET_SIZE(cls)==3);
+        assert(PySequence_Fast_GET_SIZE(cls)==4);
         PyObject *itemSpecies = PySequence_Fast_GET_ITEM(cls, 0);
         PyObject *itemMass    = PySequence_Fast_GET_ITEM(cls, 1);
         PyObject *itemSoft    = PySequence_Fast_GET_ITEM(cls, 2);
+        PyObject *itemiMat    = PySequence_Fast_GET_ITEM(cls, 3);
         msr->aCheckpointClasses[i].eSpecies = (FIO_SPECIES)PyNumber_AsSsize_t(itemSpecies,NULL);
         msr->aCheckpointClasses[i].fMass = PyFloat_AsDouble(itemMass);
         msr->aCheckpointClasses[i].fSoft = PyFloat_AsDouble(itemSoft);
+        msr->aCheckpointClasses[i].iMat  = PyNumber_AsSsize_t(itemiMat,NULL);
         Py_DECREF(cls); // PySequence_Fast creates a new reference
     }
     Py_DECREF(classes); // PySequence_Fast creates a new reference

@@ -212,7 +212,7 @@ void pkdStarForm(PKD pkd,
 #endif
 
                 // We just change the class of the particle to stellar one
-                pkdSetClass(pkd, fMass, pkdSoft0(pkd,p), FIO_SPECIES_STAR, p);
+                pkd->particles.setClass(fMass, pkdSoft0(pkd,p),0, FIO_SPECIES_STAR, p);
                 STARFIELDS *pStar = pkdStar(pkd, p);
 
                 // When changing the class, we have to take into account that
