@@ -164,7 +164,7 @@ int test(worker::Context *ctx,void *vin,int nIn,void *vout,int nOut) {
 
 class SwapLocalTest : public ::testing::Test {};
 
-TEST_F(SwapLocalTest, SwapLocalTestKeys) {
+TEST_F(SwapLocalTest, SwapLocalBasic) {
     auto ctx = reinterpret_cast<worker::Context *>(mdlWORKER());
     std::uint64_t nBAD;
     test::swaplocal::test(ctx,NULL,0,&nBAD,sizeof(nBAD));
