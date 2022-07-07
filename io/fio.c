@@ -3917,8 +3917,10 @@ static int hdf5WriteSph(
             field_create(&base->fldFields[SPH_DENSITY],base->group_id,
                          FIELD_DENSITY, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT,1 );
         }
-        field_create(&base->fldFields[SPH_TEMPERATURE],base->group_id,
-                     FIELD_TEMPERATURE, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, 1 );
+        if (fTemp > 0) {
+            field_create(&base->fldFields[SPH_TEMPERATURE],base->group_id,
+                         FIELD_TEMPERATURE, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, 1 );
+        }
         field_create(&base->fldFields[SPH_INTERNALENERGY],base->group_id,
                      FIELD_INTERNALENERGY, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, 1 );
         field_create(&base->fldFields[SPH_SMOOTHING],base->group_id,
@@ -3944,7 +3946,9 @@ static int hdf5WriteSph(
     field_add_double(pdVel,&base->fldFields[SPH_VELOCITY],base->iIndex);
     field_add_float(&fPot,&base->fldFields[SPH_POTENTIAL],base->iIndex);
     field_add_float(&fDen,&base->fldFields[SPH_DENSITY],base->iIndex);
-    field_add_float(&fTemp,&base->fldFields[SPH_TEMPERATURE],base->iIndex);
+    if (fTemp > 0) {
+        field_add_float(&fTemp,&base->fldFields[SPH_TEMPERATURE],base->iIndex);
+    }
     field_add_float(&fIntEnergy,&base->fldFields[SPH_INTERNALENERGY],base->iIndex);
     field_add_float(&fBall,&base->fldFields[SPH_SMOOTHING],base->iIndex);
     field_add_float(pfMetals,&base->fldFields[SPH_ABUNDANCES],base->iIndex);
