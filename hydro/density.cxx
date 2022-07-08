@@ -54,7 +54,7 @@ void MSR::ComputeSmoothing(double dTime, double dDelta) {
 
 
 
-static inline void densNodeOmegaE(NN *nnList, double *rpqs, float fBall,
+static inline void densNodeOmegaE(NN *nnList, float fBall,
                                   float dx_node, float dy_node, float dz_node, int nCnt,
                                   double *omega, double *E, int *nSmooth) {
     float fBall2_p = 4.*fBall*fBall;
@@ -64,14 +64,14 @@ static inline void densNodeOmegaE(NN *nnList, double *rpqs, float fBall,
         E[j] = 0.;
     for (int pk=0; pk<nCnt; pk++) {
         // As both dr vector are relative to the cell, we can do:
-        float dx = dx_node - nnList[pk].dx;
-        float dy = dy_node - nnList[pk].dy;
-        float dz = dz_node - nnList[pk].dz;
+        const float dx = dx_node - nnList[pk].dx;
+        const float dy = dy_node - nnList[pk].dy;
+        const float dz = dz_node - nnList[pk].dz;
 
-        float fDist2 = dx*dx + dy*dy + dz*dz;
+        const float fDist2 = dx*dx + dy*dy + dz*dz;
         if (fDist2 <= fBall2_p) {
-            double rpq = rpqs[pk];
-            double Wpq = cubicSplineKernel(rpq, fBall);
+            const double rpq = sqrt(fDist2);
+            const double Wpq = cubicSplineKernel(rpq, fBall);
 
             *omega += Wpq;
 
@@ -134,17 +134,6 @@ void hydroDensityFinal(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) 
     double *omega = &(pkdSph(pkd,p)->omega);
 #endif
 
-    // The sqrt can be computed just once here, with higher probability
-    // of being vectorized
-    double rpqs[nSmooth];
-    for (int i=0; i<nSmooth; i++) {
-        const float dx = nnList[i].dx;
-        const float dy = nnList[i].dy;
-        const float dz = nnList[i].dz;
-
-        const float fDist2 = dx*dx + dy*dy + dz*dz;
-        rpqs[i] = sqrt(fDist2);
-    }
     const double ph = pkdBall(pkd,p);
 
     *omega = 0.0;
@@ -152,9 +141,11 @@ void hydroDensityFinal(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) 
         const float dx = -nnList[i].dx;
         const float dy = -nnList[i].dy;
         const float dz = -nnList[i].dz;
+        const float fDist2 = dx*dx + dy*dy + dz*dz;
+        const double rpq = sqrt(fDist2);
 
 
-        *omega += cubicSplineKernel(rpqs[i], ph);
+        *omega += cubicSplineKernel(rpq, ph);
     }
 
 
@@ -168,8 +159,10 @@ void hydroDensityFinal(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) 
             const float dx = -nnList[i].dx;
             const float dy = -nnList[i].dy;
             const float dz = -nnList[i].dz;
+            const float fDist2 = dx*dx + dy*dy + dz*dz;
+            const double rpq = sqrt(fDist2);
 
-            const double Wpq = cubicSplineKernel(rpqs[i], ph);
+            const double Wpq = cubicSplineKernel(rpq, ph);
 
             E[XX] += dx*dx*Wpq;
             E[YY] += dy*dy*Wpq;
@@ -210,18 +203,6 @@ void hydroDensity_node(PKD pkd, SMF *smf, BND bnd_node, PARTICLE **sinks, NN *nn
         float dy_node = -pkdPos(pkd,partj,1)+bnd_node.fCenter[1];
         float dz_node = -pkdPos(pkd,partj,2)+bnd_node.fCenter[2];
 
-        // The sqrt can be computed just once here, with higher probability
-        // of being vectorized
-        double rpqs[nCnt];
-        for (int pk=0; pk<nCnt; pk++) {
-            float dx = dx_node - nnList[pk].dx;
-            float dy = dy_node - nnList[pk].dy;
-            float dz = dz_node - nnList[pk].dz;
-
-            float fDist2 = dx*dx + dy*dy + dz*dz;
-            rpqs[pk] = sqrt(fDist2);
-        }
-
         int niter = 0;
         int nSmooth;
 
@@ -233,7 +214,7 @@ void hydroDensity_node(PKD pkd, SMF *smf, BND bnd_node, PARTICLE **sinks, NN *nn
             float ph = pkdBall(pkd,partj);
             double E[6];
 
-            densNodeOmegaE(nnList, rpqs, ph, dx_node, dy_node, dz_node,
+            densNodeOmegaE(nnList, ph, dx_node, dy_node, dz_node,
                            nCnt,omega, E, &nSmooth);
 
             // Check if it has converged
@@ -324,7 +305,7 @@ void hydroDensity_node(PKD pkd, SMF *smf, BND bnd_node, PARTICLE **sinks, NN *nn
                 pkdSetBall(pkd, partj, newBall);
 
                 double E[6];
-                densNodeOmegaE(nnList, rpqs, newBall, dx_node, dy_node, dz_node,
+                densNodeOmegaE(nnList, newBall, dx_node, dy_node, dz_node,
                                nCnt,omega, E, &nSmooth);
 
                 densNodeNcondB(pkd, partj, E, *omega);
