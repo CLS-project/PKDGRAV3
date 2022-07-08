@@ -205,6 +205,7 @@ void hydroDensity_node(PKD pkd, SMF *smf, BND bnd_node, PARTICLE **sinks, NN *nn
 
         int niter = 0;
         int nSmooth;
+        int onLowerLimit = 0;
 
         float Neff = smf->nSmooth;
         if (*omega < 0)
@@ -257,8 +258,9 @@ void hydroDensity_node(PKD pkd, SMF *smf, BND bnd_node, PARTICLE **sinks, NN *nn
 
                 newBall = (c!=0.0) ? ph * pow(  Neff/c,0.3333333333) : ph*4.0;
                 if (newBall > 4.0*ph) newBall = ph*4.0;
+                newBall = 0.5*(newBall+ph);
 
-                pkdSetBall(pkd,partj, 0.5*(newBall+ph));
+                pkdSetBall(pkd,partj, newBall);
                 //printf("Setting new fBall %e %e %e \n", c, ph, pkdBall(pkd,partj));
 
 
@@ -274,7 +276,27 @@ void hydroDensity_node(PKD pkd, SMF *smf, BND bnd_node, PARTICLE **sinks, NN *nn
                         break;
                     }
                 }
-
+                else {
+                    // Put a hard lower limit based on the softening, even if we
+                    // have not yet fully converged due to, e.g., an anisotropic
+                    // particle distribution
+                    if (smf->dhMinOverSoft > 0.) {
+                        if (newBall < smf->dhMinOverSoft*pkdSoft(pkd,partj)) {
+                            if (!onLowerLimit) {
+                                // If in the next iteration still a lower smooth is
+                                // preferred, we will skip this particle
+                                pkdSetBall(pkd, partj, smf->dhMinOverSoft*pkdSoft(pkd,partj) );
+                                onLowerLimit = 1;
+                            }
+                            else {
+                                pkdSetBall(pkd, partj, smf->dhMinOverSoft*pkdSoft(pkd,partj) );
+                                densNodeNcondB(pkd, partj, E, *omega);
+                                pkdSetDensity(pkd, partj, pkdMass(pkd,partj)*(*omega));
+                                partj->bMarked = 0;
+                            }
+                        }
+                    }
+                }
             }
             niter++;
 
@@ -297,22 +319,6 @@ void hydroDensity_node(PKD pkd, SMF *smf, BND bnd_node, PARTICLE **sinks, NN *nn
             }
 
         } while (partj->bMarked);
-
-        // After a converged fBall is obtained, we limit fBall if needed
-        if (smf->dhMinOverSoft > 0.) {
-            if (pkdBall(pkd,partj) < smf->dhMinOverSoft*pkdSoft(pkd,partj)) {
-                float newBall = smf->dhMinOverSoft*pkdSoft(pkd,partj);
-                pkdSetBall(pkd, partj, newBall);
-
-                double E[6];
-                densNodeOmegaE(nnList, newBall, dx_node, dy_node, dz_node,
-                               nCnt,omega, E, &nSmooth);
-
-                densNodeNcondB(pkd, partj, E, *omega);
-
-                pkdSetDensity(pkd, partj, pkdMass(pkd,partj)*(*omega));
-            }
-        }
 
     }
 }
