@@ -1222,23 +1222,14 @@ int smReSmooth(SMX smx,SMF *smf, int iSmoothType) {
  * oldBuff, with a size oldN
  */
 void static inline allocNodeBuffer(const int N, const int nVar, my_real **p_buff,
-                                   my_real ***p_ptrs, my_real *oldBuff, const int oldN) {
+                                   my_real *oldBuff, const int oldN) {
 
     assert(oldN < N);
 
     *p_buff = new (std::align_val_t(64)) my_real[N*nVar];
     assert(*p_buff!=NULL);
-    if (oldBuff == NULL) {
-        *p_ptrs = new (std::align_val_t(64)) my_real*[nVar];
-        assert(*p_ptrs!=NULL);
-    }
 
     myreal *buff = *p_buff;
-    myreal **ptrs = *p_ptrs;
-
-    // Fill pointer array
-    for (int i=0; i<nVar; i++)
-        ptrs[i] = &buff[i*N];
 
     // Fill if requested
     if (oldBuff != NULL)
@@ -1249,11 +1240,11 @@ void static inline allocNodeBuffer(const int N, const int nVar, my_real **p_buff
 }
 
 void static inline reallocNodeBuffer(const int N, const int nVar, my_real **p_buff,
-                                     my_real ***p_ptrs, const int oldN) {
+                                     const int oldN) {
 
     my_real *tmp_buffer;
 
-    allocNodeBuffer(N, nVar, &tmp_buffer, p_ptrs, *p_buff, oldN);
+    allocNodeBuffer(N, nVar, &tmp_buffer, *p_buff, oldN);
 
     delete [] *p_buff;
 
@@ -1295,14 +1286,12 @@ int smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
      *  be in cache, but it was painful to code...
      */
     my_real *input_buffer = NULL;
-    my_real **input_pointers = NULL;
     my_real *output_buffer = NULL;
-    my_real **output_pointers = NULL;
     int inNvar, outNvar;
     if (smx->fcnSmoothGetNvars) {
         smx->fcnSmoothGetNvars(&inNvar, &outNvar);
-        allocNodeBuffer(nnListMax_p, inNvar, &input_buffer, &input_pointers, NULL,0);
-        allocNodeBuffer(nnListMax_p, outNvar, &output_buffer, &output_pointers, NULL,0);
+        allocNodeBuffer(nnListMax_p, inNvar, &input_buffer, NULL,0);
+        allocNodeBuffer(nnListMax_p, outNvar, &output_buffer, NULL,0);
     }
 
 
@@ -1484,9 +1473,9 @@ int smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
                                            nnListMax_p);
                                     int oldListMax = nnListMax_p - NNLIST_INCREMENT;
                                     reallocNodeBuffer(nnListMax_p, inNvar,
-                                                      &input_buffer, &input_pointers, oldListMax);
+                                                      &input_buffer, oldListMax);
                                     reallocNodeBuffer(nnListMax_p, outNvar,
-                                                      &output_buffer, &output_pointers, oldListMax);
+                                                      &output_buffer, oldListMax);
                                 }
                             }
 
@@ -1500,7 +1489,7 @@ int smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
                             if (smx->fcnSmoothFillBuffer) {
                                 PARTICLE *q = nnList_p[nCnt_p].pPart;
 
-                                smx->fcnSmoothFillBuffer(input_pointers, q, nCnt_p,
+                                smx->fcnSmoothFillBuffer(input_buffer, q, nCnt_p, nnListMax_p,
                                                          fDist2, dr, smf);
                             }
 
@@ -1514,11 +1503,11 @@ int smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
                     //assert(nCnt_p<200);
 
                     if (smx->fcnSmoothNode) {
-                        smx->fcnSmoothNode(&partj,partj.ball(),nCnt_p,
-                                           input_pointers, output_pointers, smf);
+                        smx->fcnSmoothNode(&partj,partj.ball(),nCnt_p, nnListMax_p,
+                                           input_buffer, output_buffer, smf);
                         for (auto pk = 0; pk < nCnt_p; ++pk) {
-                            smx->fcnSmoothUpdate(output_pointers,input_pointers,
-                                                 &partj, nnList_p[pk].pPart, pk, smf);
+                            smx->fcnSmoothUpdate(output_buffer,input_buffer,
+                                                 &partj, nnList_p[pk].pPart, pk, nnListMax_p, smf);
                         }
                     }
                     else {
@@ -1539,9 +1528,7 @@ int smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
     }
     if (smx->fcnSmoothGetNvars) {
         delete [] input_buffer;
-        delete [] input_pointers;
         delete [] output_buffer;
-        delete [] output_pointers;
     }
     free(nnList_p);
     //printf("nSmoothed %d \n", nSmoothed);

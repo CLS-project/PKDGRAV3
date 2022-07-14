@@ -84,9 +84,9 @@ struct hydroFluxesFlush {
 };
 
 void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf);
-void hydroRiemann_vec(PARTICLE *p,float fBall,int nSmooth,
-                      my_real **restrict input_buffer,
-                      my_real **restrict output_buffer,
+void hydroRiemann_vec(PARTICLE *p,float fBall,int nSmooth, int nBuff,
+                      my_real *restrict input_buffer,
+                      my_real *restrict output_buffer,
                       SMF *smf);
 void packHydroFluxes(void *vpkd,void *dst,const void *src);
 void unpackHydroFluxes(void *vpkd,void *dst,const void *src);
@@ -94,10 +94,10 @@ void initHydroFluxes(void *vpkd,void *vp);
 void initHydroFluxesCached(void *vpkd,void *vp);
 void flushHydroFluxes(void *vpkd,void *dst,const void *src);
 void combHydroFluxes(void *vpkd,void *p1,const void *p2);
-void hydroFluxFillBuffer(my_real **buffer, PARTICLE *q, int i,
+void hydroFluxFillBuffer(my_real *input_buffer, PARTICLE *q, int i, int nBuff,
                          double dr2, blitz::TinyVector<double,3> dr, SMF *);
-void hydroFluxUpdateFromBuffer(my_real **out_buffer, my_real **in_buffer,
-                               PARTICLE *p, PARTICLE *q, int i, SMF *);
+void hydroFluxUpdateFromBuffer(my_real *output_buffer, my_real *input_buffer,
+                               PARTICLE *p, PARTICLE *q, int i, int nBuff, SMF *);
 void hydroFluxGetNvars(int *in, int *out);
 
 void pkdResetFluxes(PKD pkd,double dTime,double dDelta,double,double);

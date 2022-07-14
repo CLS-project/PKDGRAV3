@@ -714,10 +714,11 @@ enum FLUX_OUT {
 };
 
 // Simple macro to improve readability
-#define q(X) input_buffer[q_##X][i]
-void hydroRiemann_vec(PARTICLE *pIn,float fBall,int nSmooth,
-                      my_real **restrict input_buffer,
-                      my_real **restrict output_buffer, SMF *smf) {
+#define q(X)    input_buffer[q_##X * nBuff + i]
+#define qout(X) output_buffer[out_##X * nBuff + i]
+void hydroRiemann_vec(PARTICLE *pIn,float fBall,int nSmooth, int nBuff,
+                      my_real *restrict input_buffer,
+                      my_real *restrict output_buffer, SMF *smf) {
     PKD pkd = smf->pkd;
     auto P = pkd->particles[pIn];
 
@@ -1107,80 +1108,80 @@ void hydroRiemann_vec(PARTICLE *pIn,float fBall,int nSmooth,
 
         // We fill the output buffer with the fluxes, which then
         // will be added to the corresponding particles
-        output_buffer[out_Frho][i] = riemann_output.Fluxes.rho;
-        output_buffer[out_Fene][i] = riemann_output.Fluxes.p;
-        output_buffer[out_FmomX][i] = riemann_output.Fluxes.v[0];
-        output_buffer[out_FmomY][i] = riemann_output.Fluxes.v[1];
-        output_buffer[out_FmomZ][i] = riemann_output.Fluxes.v[2];
+        qout(Frho) = riemann_output.Fluxes.rho;
+        qout(Fene) = riemann_output.Fluxes.p;
+        qout(FmomX) = riemann_output.Fluxes.v[0];
+        qout(FmomY) = riemann_output.Fluxes.v[1];
+        qout(FmomZ) = riemann_output.Fluxes.v[2];
 #ifdef ENTROPY_SWITCH
-        output_buffer[out_FS][i] = fluxes_S;
+        qout(FS) = fluxes_S;
 #endif
-        output_buffer[out_minDt][i] = minDt;
+        qout(minDt) = minDt;
 
     } // End of loop over neighbors
 }
 
 
-void hydroFluxFillBuffer(my_real **buffer, PARTICLE *qIn, int i, double dr2,
-                         TinyVector<double,3> dr, SMF *smf) {
+void hydroFluxFillBuffer(my_real *input_buffer, PARTICLE *qIn, int i, int nBuff,
+                         double dr2, TinyVector<double,3> dr, SMF *smf) {
     PKD pkd = smf->pkd;
     auto Q = pkd->particles[qIn];
     double dDelta = smf->dDelta;
     float qh = 0.5*Q.ball();
     auto &qsph = Q.sph();
-    buffer[q_mass][i] = Q.mass();
-    buffer[q_ball][i] = qh;
-    buffer[q_dx][i] = dr[0];
-    buffer[q_dy][i] = dr[1];
-    buffer[q_dz][i] = dr[2];
-    buffer[q_dr][i] = sqrt(dr2);
-    buffer[q_rung][i] = dDelta/(1<<Q.rung());
-    buffer[q_rho][i] = Q.density();
-    buffer[q_P][i] = qsph.P;
+    q(mass) = Q.mass();
+    q(ball) = qh;
+    q(dx) = dr[0];
+    q(dy) = dr[1];
+    q(dz) = dr[2];
+    q(dr) = sqrt(dr2);
+    q(rung) = dDelta/(1<<Q.rung());
+    q(rho) = Q.density();
+    q(P) = qsph.P;
 #ifdef ENTROPY_SWITCH
-    buffer[q_S][i] = qsph.S;
+    q(S) = qsph.S;
 #endif
     const auto &qv = Q.velocity();
-    buffer[q_vx][i] = qv[0];
-    buffer[q_vy][i] = qv[1];
-    buffer[q_vz][i] = qv[2];
+    q(vx) = qv[0];
+    q(vy) = qv[1];
+    q(vz) = qv[2];
 
-    buffer[q_gradRhoX][i] = qsph.gradRho[0];
-    buffer[q_gradRhoY][i] = qsph.gradRho[1];
-    buffer[q_gradRhoZ][i] = qsph.gradRho[2];
+    q(gradRhoX) = qsph.gradRho[0];
+    q(gradRhoY) = qsph.gradRho[1];
+    q(gradRhoZ) = qsph.gradRho[2];
 
-    buffer[q_gradPX][i] = qsph.gradP[0];
-    buffer[q_gradPY][i] = qsph.gradP[1];
-    buffer[q_gradPZ][i] = qsph.gradP[2];
+    q(gradPX) = qsph.gradP[0];
+    q(gradPY) = qsph.gradP[1];
+    q(gradPZ) = qsph.gradP[2];
 
-    buffer[q_gradVxX][i] = qsph.gradVx[0];
-    buffer[q_gradVxY][i] = qsph.gradVx[1];
-    buffer[q_gradVxZ][i] = qsph.gradVx[2];
+    q(gradVxX) = qsph.gradVx[0];
+    q(gradVxY) = qsph.gradVx[1];
+    q(gradVxZ) = qsph.gradVx[2];
 
-    buffer[q_gradVyX][i] = qsph.gradVy[0];
-    buffer[q_gradVyY][i] = qsph.gradVy[1];
-    buffer[q_gradVyZ][i] = qsph.gradVy[2];
+    q(gradVyX) = qsph.gradVy[0];
+    q(gradVyY) = qsph.gradVy[1];
+    q(gradVyZ) = qsph.gradVy[2];
 
-    buffer[q_gradVzX][i] = qsph.gradVz[0];
-    buffer[q_gradVzY][i] = qsph.gradVz[1];
-    buffer[q_gradVzZ][i] = qsph.gradVz[2];
+    q(gradVzX) = qsph.gradVz[0];
+    q(gradVzY) = qsph.gradVz[1];
+    q(gradVzZ) = qsph.gradVz[2];
 
-    buffer[q_lastUpdateTime][i] = qsph.lastUpdateTime;
-    buffer[q_lastAccX][i] = qsph.lastAcc[0];
-    buffer[q_lastAccY][i] = qsph.lastAcc[1];
-    buffer[q_lastAccZ][i] = qsph.lastAcc[2];
-    buffer[q_B_XX][i] = qsph.B[XX];
-    buffer[q_B_YY][i] = qsph.B[YY];
-    buffer[q_B_ZZ][i] = qsph.B[ZZ];
-    buffer[q_B_XY][i] = qsph.B[XY];
-    buffer[q_B_XZ][i] = qsph.B[XZ];
-    buffer[q_B_YZ][i] = qsph.B[YZ];
-    buffer[q_omega][i] = qsph.omega;
+    q(lastUpdateTime) = qsph.lastUpdateTime;
+    q(lastAccX) = qsph.lastAcc[0];
+    q(lastAccY) = qsph.lastAcc[1];
+    q(lastAccZ) = qsph.lastAcc[2];
+    q(B_XX) = qsph.B[XX];
+    q(B_YY) = qsph.B[YY];
+    q(B_ZZ) = qsph.B[ZZ];
+    q(B_XY) = qsph.B[XY];
+    q(B_XZ) = qsph.B[XZ];
+    q(B_YZ) = qsph.B[YZ];
+    q(omega) = qsph.omega;
 }
 
 
-void hydroFluxUpdateFromBuffer(my_real **out_buffer, my_real **in_buffer,
-                               PARTICLE *pIn, PARTICLE *qIn, int i, SMF *smf) {
+void hydroFluxUpdateFromBuffer(my_real *output_buffer, my_real *input_buffer,
+                               PARTICLE *pIn, PARTICLE *qIn, int i, int nBuff, SMF *smf) {
     PKD pkd = smf->pkd;
     auto P = pkd->particles[pIn];
     auto Q = pkd->particles[qIn];
@@ -1191,41 +1192,41 @@ void hydroFluxUpdateFromBuffer(my_real **out_buffer, my_real **in_buffer,
     const auto &dDelta = smf->dDelta;
     const auto &aFac = smf->a;
     if (dDelta>0) {
-        P.set_mass(P.mass() - out_buffer[out_minDt][i] * out_buffer[out_Frho][i]);
+        P.set_mass(P.mass() - qout(minDt) * qout(Frho));
 
-        psph.mom[0] -= out_buffer[out_minDt][i] * out_buffer[out_FmomX][i];
-        psph.mom[1] -= out_buffer[out_minDt][i] * out_buffer[out_FmomY][i];
-        psph.mom[2] -= out_buffer[out_minDt][i] * out_buffer[out_FmomZ][i];
+        psph.mom[0] -= qout(minDt) * qout(FmomX);
+        psph.mom[1] -= qout(minDt) * qout(FmomY);
+        psph.mom[2] -= qout(minDt) * qout(FmomZ);
 
-        psph.E -= out_buffer[out_minDt][i] * out_buffer[out_Fene][i];
+        psph.E -= qout(minDt) * qout(Fene);
 
-        psph.Uint -= out_buffer[out_minDt][i] * ( out_buffer[out_Fene][i]
-                     - out_buffer[out_FmomX][i]*pv[0]
-                     - out_buffer[out_FmomY][i]*pv[1]
-                     - out_buffer[out_FmomZ][i]*pv[2]
-                     + 0.5*dot(pv,pv)*out_buffer[out_Frho][i] );
+        psph.Uint -= qout(minDt) * ( qout(Fene)
+                     - qout(FmomX)*pv[0]
+                     - qout(FmomY)*pv[1]
+                     - qout(FmomZ)*pv[2]
+                     + 0.5*dot(pv,pv)*qout(Frho) );
 
 #ifdef ENTROPY_SWITCH
-        psph.S -= out_buffer[out_minDt][i] * out_buffer[out_FS][i];
+        psph.S -= qout(minDt)* qout(FS);
 #endif
 
 #ifndef USE_MFM
-        psph.drDotFrho[0] += out_buffer[out_minDt][i] * out_buffer[out_Frho][i] * in_buffer[q_dx][i] * aFac;
-        psph.drDotFrho[1] += out_buffer[out_minDt][i] * out_buffer[out_Frho][i] * in_buffer[q_dy][i] * aFac;
-        psph.drDotFrho[2] += out_buffer[out_minDt][i] * out_buffer[out_Frho][i] * in_buffer[q_dz][i] * aFac;
+        psph.drDotFrho[0] += qout(minDt) * qout(Frho) * q(dx) * aFac;
+        psph.drDotFrho[1] += qout(minDt) * qout(Frho) * q(dy) * aFac;
+        psph.drDotFrho[2] += qout(minDt) * qout(Frho) * q(dz) * aFac;
 #endif
-        psph.Frho +=    out_buffer[out_Frho][i];
-        psph.Fene +=    out_buffer[out_Fene][i];
-        psph.Fmom[0] += out_buffer[out_FmomX][i];
-        psph.Fmom[1] += out_buffer[out_FmomY][i];
-        psph.Fmom[2] += out_buffer[out_FmomZ][i];
+        psph.Frho +=    qout(Frho);
+        psph.Fene +=    qout(Fene);
+        psph.Fmom[0] += qout(FmomX);
+        psph.Fmom[1] += qout(FmomY);
+        psph.Fmom[2] += qout(FmomZ);
     }
     else {
-        psph.Frho +=    out_buffer[out_Frho][i];
-        psph.Fene +=    out_buffer[out_Fene][i];
-        psph.Fmom[0] += out_buffer[out_FmomX][i];
-        psph.Fmom[1] += out_buffer[out_FmomY][i];
-        psph.Fmom[2] += out_buffer[out_FmomZ][i];
+        psph.Frho +=    qout(Frho);
+        psph.Fene +=    qout(Fene);
+        psph.Fmom[0] += qout(FmomX);
+        psph.Fmom[1] += qout(FmomY);
+        psph.Fmom[2] += qout(FmomZ);
     }
 
 #ifndef OPTIM_NO_REDUNDANT_FLUXES
@@ -1238,42 +1239,42 @@ void hydroFluxUpdateFromBuffer(my_real **out_buffer, my_real **in_buffer,
     {
 
         // If this is not the case, something VERY odd must have happened
-        assert( qsph.P == in_buffer[q_P][i] );
+        assert( qsph.P == q(P) );
         if (dDelta>0) {
-            Q.set_mass(Q.mass() + out_buffer[out_minDt][i] * out_buffer[out_Frho][i]);
+            Q.set_mass(Q.mass() + qout(minDt) * qout(Frho));
 
-            qsph.mom[0] += out_buffer[out_minDt][i] * out_buffer[out_FmomX][i];
-            qsph.mom[1] += out_buffer[out_minDt][i] * out_buffer[out_FmomY][i];
-            qsph.mom[2] += out_buffer[out_minDt][i] * out_buffer[out_FmomZ][i];
+            qsph.mom[0] += qout(minDt) * qout(FmomX);
+            qsph.mom[1] += qout(minDt) * qout(FmomY);
+            qsph.mom[2] += qout(minDt) * qout(FmomZ);
 
-            qsph.E += out_buffer[out_minDt][i] * out_buffer[out_Fene][i];
+            qsph.E += qout(minDt) * qout(Fene);
 
-            qsph.Uint += out_buffer[out_minDt][i] * ( out_buffer[out_Fene][i]
-                         - out_buffer[out_FmomX][i]*qv[0]
-                         - out_buffer[out_FmomY][i]*qv[1]
-                         - out_buffer[out_FmomZ][i]*qv[2]
-                         + 0.5*dot(qv,qv)*out_buffer[out_Frho][i] );
+            qsph.Uint += qout(minDt) * ( qout(Fene)
+                         - qout(FmomX)*qv[0]
+                         - qout(FmomY)*qv[1]
+                         - qout(FmomZ)*qv[2]
+                         + 0.5*dot(qv,qv)*qout(Frho) );
 #ifdef ENTROPY_SWITCH
-            qsph.S += out_buffer[out_minDt][i] * out_buffer[out_FS][i];
+            qsph.S += qout(minDt) * qout(FS);
 #endif
 
 #ifndef USE_MFM
-            qsph.drDotFrho[0] += out_buffer[out_minDt][i] * out_buffer[out_Frho][i] * in_buffer[q_dx][i] * aFac;
-            qsph.drDotFrho[1] += out_buffer[out_minDt][i] * out_buffer[out_Frho][i] * in_buffer[q_dy][i] * aFac;
-            qsph.drDotFrho[2] += out_buffer[out_minDt][i] * out_buffer[out_Frho][i] * in_buffer[q_dz][i] * aFac;
+            qsph.drDotFrho[0] += qout(minDt) * qout(Frho) * q(dx) * aFac;
+            qsph.drDotFrho[1] += qout(minDt) * qout(Frho) * q(dy) * aFac;
+            qsph.drDotFrho[2] += qout(minDt) * qout(Frho) * q(dz) * aFac;
 #endif
-            qsph.Frho -=    out_buffer[out_Frho][i];
-            qsph.Fene -=    out_buffer[out_Fene][i];
-            qsph.Fmom[0] -= out_buffer[out_FmomX][i];
-            qsph.Fmom[1] -= out_buffer[out_FmomY][i];
-            qsph.Fmom[2] -= out_buffer[out_FmomZ][i];
+            qsph.Frho -=    qout(Frho);
+            qsph.Fene -=    qout(Fene);
+            qsph.Fmom[0] -= qout(FmomX);
+            qsph.Fmom[1] -= qout(FmomY);
+            qsph.Fmom[2] -= qout(FmomZ);
         }
         else {
-            qsph.Frho -=    out_buffer[out_Frho][i];
-            qsph.Fene -=    out_buffer[out_Fene][i];
-            qsph.Fmom[0] -= out_buffer[out_FmomX][i];
-            qsph.Fmom[1] -= out_buffer[out_FmomY][i];
-            qsph.Fmom[2] -= out_buffer[out_FmomZ][i];
+            qsph.Frho -=    qout(Frho);
+            qsph.Fene -=    qout(Fene);
+            qsph.Fmom[0] -= qout(FmomX);
+            qsph.Fmom[1] -= qout(FmomY);
+            qsph.Fmom[2] -= qout(FmomZ);
         }
 
     } // q marked/active
