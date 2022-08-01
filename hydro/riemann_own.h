@@ -35,13 +35,13 @@ struct Riemann_outputs {
 static inline double DMAX(double a, double b) { return (a > b) ? a : b; }
 static inline double DMIN(double a, double b) { return (a < b) ? a : b; }
 
-static inline double guess_for_pressure(SMF *smf,
-                                        double R_rho,double R_p,double L_rho,double L_p,
-                                        double *P_M, double *S_M,
-                                        double v_line_L, double v_line_R, double cs_L, double cs_R) {
-    double pmin, pmax;
+static inline float guess_for_pressure(SMF *smf,
+                                       double R_rho,double R_p,double L_rho,double L_p,
+                                       double *P_M, double *S_M,
+                                       double v_line_L, double v_line_R, double cs_L, double cs_R) {
+    float pmin, pmax;
     /* start with the usual lowest-order guess for the contact wave pressure */
-    double pv = 0.5*(L_p+R_p) - 0.125*(v_line_R-v_line_L)*(L_p+R_p)*(cs_L+cs_R);
+    float pv = 0.5*(L_p+R_p) - 0.125*(v_line_R-v_line_L)*(L_p+R_p)*(cs_L+cs_R);
     pmin = DMIN(L_p,R_p);
     pmax = DMAX(L_p,R_p);
 
@@ -50,21 +50,21 @@ static inline double guess_for_pressure(SMF *smf,
         return 0.5*(pmin+pmax);
 
     /* if the two are sufficiently close, and pv is between both values, return it */
-    double qrat = pmax / pmin;
+    float qrat = pmax / pmin;
     if (qrat <= 2.0 && (pmin <= pv && pv <= pmax))
         return pv;
 
     if (pv < pmin) {
         /* use two-rarefaction solution */
-        double pnu = (cs_L+cs_R) - GAMMA_G7 * (v_line_R - v_line_L);
-        double pde = cs_L / pow(L_p, GAMMA_G1) + cs_R / pow(R_p, GAMMA_G1);
-        return pow(pnu / pde, GAMMA_G3);
+        float pnu = (cs_L+cs_R) - GAMMA_G7 * (v_line_R - v_line_L);
+        float pde = cs_L * powf(L_p, -GAMMA_G1) + cs_R * powf(R_p, -GAMMA_G1);
+        return powf(pnu / pde, GAMMA_G3);
     }
     else {
         /* two-shock approximation  */
-        double gel = sqrt((GAMMA_G5 / L_rho) / (GAMMA_G6 * L_p + pv));
-        double ger = sqrt((GAMMA_G5 / R_rho) / (GAMMA_G6 * R_p + pv));
-        double x = (gel * L_p + ger * R_p - (v_line_R - v_line_L)) / (gel + ger);
+        float gel = sqrtf((GAMMA_G5 / L_rho) / (GAMMA_G6 * L_p + pv));
+        float ger = sqrtf((GAMMA_G5 / R_rho) / (GAMMA_G6 * R_p + pv));
+        float x = (gel * L_p + ger * R_p - (v_line_R - v_line_L)) / (gel + ger);
         if (x < pmin || x > pmax)
             x = pmin;
         return x;
