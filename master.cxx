@@ -464,6 +464,7 @@ void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTi
         printf("Initializing Kernel target complete, Wallclock: %f secs.\n", dsec);
         SetSPHoptions();
     }
+    if (param.bAddDelete) GetNParts();
 
     Simulate(dTime,dDelta,iStep,nSteps);
 }
