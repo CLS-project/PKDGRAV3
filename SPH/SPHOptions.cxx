@@ -59,7 +59,7 @@ SPHOptions initializeSPHOptions(struct parameters param, CSM csm, double dTime) 
     SPHoptions.doUConversion = 0;
     SPHoptions.doSetDensityFlags = 0;
     SPHoptions.dofBallFactor = 0;
-    SPHoptions.useNumDen = 0;
+    SPHoptions.useNumDen = 1;
     SPHoptions.useIsentropic = param.bGasIsentropic;
     SPHoptions.useBuiltinIdeal = param.bGasBuiltinIdeal;
     SPHoptions.useDensityFlags = 0;

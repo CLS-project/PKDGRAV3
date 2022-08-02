@@ -137,12 +137,7 @@ PP_CUDA_BOTH ResultDensity<F> EvalDensity(
         result.anSmooth = maskz_mov(r_lt_one,1.0f);
     }
     else {
-        result = {}; // No work to do
-        result.arho = 0.0f;
-        result.adrhodfball = 0.0f;
-        result.anden = 0.0f;
-        result.adndendfball = 0.0f;
-        result.anSmooth = 0.0f;
+        result.zero(); // No work to do
     }
     return result;
 }
@@ -289,14 +284,7 @@ PP_CUDA_BOTH ResultSPHForces<F> EvalSPHForces(
         // }
     }
     else {
-        result = {};
-        result.uDot = 0.0f;
-        result.ax = 0.0f;
-        result.ay = 0.0f;
-        result.az = 0.0f;
-        result.divv = 0.0f;
-        result.dtEst = HUGE_VALF;
-        result.maxRung = 0.0f;
+        result.zero();
     }
     return result;
 }
