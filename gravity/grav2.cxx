@@ -131,7 +131,7 @@ void pkdParticleWorkDone(workParticle *wp) {
                         dfdx = prefac * 3.0f * fBall * fBall * wp->pInfoOut[i].rho + prefac * fBall * fBall * fBall * wp->pInfoOut[i].drhodfball;
                     }
                     float newfBall = wp->pInfoIn[i].fBall - fx / dfdx;
-                    if (newfBall >= wp->SPHoptions->ballSizeLimit || wp->pInfoIn[i].isTooLarge) {
+                    if (fabs(newfBall) >= wp->SPHoptions->ballSizeLimit || wp->pInfoIn[i].isTooLarge) {
                         wp->pInfoIn[i].fBall = wp->SPHoptions->ballSizeLimit;
                         wp->pInfoIn[i].isTooLarge = 1;
                     }
