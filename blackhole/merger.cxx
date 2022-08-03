@@ -281,6 +281,9 @@ int smReSmoothBHNode(SMX smx,SMF *smf, int iSmoothType) {
 
             for (pj=pStart; pj<pEnd; ++pj) {
                 p = pkdParticle(pkd,pj);
+#ifndef OPTIM_REORDER_IN_NODES
+                if (!pkdIsBH(pkd,p)) continue;
+#endif
 
                 double dSoft = pkdSoft(pkd,p);
 
