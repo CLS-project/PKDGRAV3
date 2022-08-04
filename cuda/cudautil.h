@@ -18,7 +18,6 @@
 #ifndef CUDAUTIL_H
 #define CUDAUTIL_H
 #ifdef USE_CUDA
-#include "opa_queue.h"
 #include "basetype.h"
 
 #define CUDA_STREAMS 8

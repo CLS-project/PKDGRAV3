@@ -28,7 +28,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include "opa_queue.h"
 
 /*
 * Compile time mdl debugging options

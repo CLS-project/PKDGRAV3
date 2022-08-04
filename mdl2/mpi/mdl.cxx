@@ -1967,7 +1967,7 @@ void mdlClass::init(bool bDiag) {
     for (int i=0; i<9; ++i) coreFlushBuffers.enqueue(new mdlMessageFlushFromCore);
     coreFlushBuffer = new mdlMessageFlushFromCore;
 
-    queueReceive.resize(Cores()); // A separate receive queue from each core
+    queueReceive = std::make_unique<mdlMessageQueue[]>(Cores());
 
 #ifdef USE_CL
     clCtx = CL_initialize(clContext,Cores(),Core());

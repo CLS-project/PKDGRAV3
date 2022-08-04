@@ -210,7 +210,7 @@ public:
     void *worker_ctx;
     mdlMessageQueue threadBarrierQueue;
 
-    std::vector<mdlMessageQueue> queueReceive; // Receive "Send/Ssend"
+    std::unique_ptr<mdlMessageQueue[]> queueReceive; // Receive "Send/Ssend"
     void *pvMessageData; /* These two are for the collective malloc */
     size_t nMessageData;
     int iCoreMPI;             /* Core that handles MPI requests */

@@ -8,6 +8,7 @@
 #cmakedefine HAVE_SIGNAL_H 1
 #cmakedefine HAVE_INTTYPES_H 1
 #cmakedefine HAVE_MEMKIND 1
+#cmakedefine HAVE_SCHED_YIELD 1
 #cmakedefine USE_CUDA 1
 #cmakedefine USE_METAL 1
 #cmakedefine USE_HWLOC 1
