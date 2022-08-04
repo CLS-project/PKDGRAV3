@@ -2583,7 +2583,7 @@ void mdlFFTFree( MDL mdl, MDLFFT fft, void *p ) {
 
 void mdlFFT( MDL cmdl, MDLFFT fft, FFTW3(real) *data ) { static_cast<mdlClass *>(cmdl)->FFT(fft,data); }
 void mdlClass::FFT( MDLFFT fft, FFTW3(real) *data ) {
-    //fftTrans trans;
+    mdlMessageDFT_R2C trans(fft,data,(FFTW3(complex) *)data);
     ThreadBarrier();
     if (Core() == iCoreMPI) {
         FFTW3(execute_dft_r2c)(fft->fplan,data,(FFTW3(complex) *)(data));
@@ -2592,7 +2592,6 @@ void mdlClass::FFT( MDLFFT fft, FFTW3(real) *data ) {
         // NOTE: we do not receive a "reply" to this message, rather the synchronization
         // is done with a barrier_wait. This is so there is no spinning (in principle)
         // and the FFTW threads can make full use of the CPU.
-        mdlMessageDFT_R2C trans(fft,data,(FFTW3(complex) *)data);
         enqueue(trans);
     }
     if (Cores()>1) mpi->pthreadBarrierWait();
@@ -2600,6 +2599,7 @@ void mdlClass::FFT( MDLFFT fft, FFTW3(real) *data ) {
 
 void mdlIFFT( MDL cmdl, MDLFFT fft, FFTW3(complex) *kdata ) { static_cast<mdlClass *>(cmdl)->IFFT(fft,kdata); }
 void mdlClass::IFFT( MDLFFT fft, FFTW3(complex) *kdata ) {
+    mdlMessageDFT_C2R trans(fft,(FFTW3(real) *)kdata,kdata);
     ThreadBarrier();
     if (Core() == iCoreMPI) {
         FFTW3(execute_dft_c2r)(fft->iplan,kdata,(FFTW3(real) *)(kdata));
@@ -2608,7 +2608,6 @@ void mdlClass::IFFT( MDLFFT fft, FFTW3(complex) *kdata ) {
         // NOTE: we do not receive a "reply" to this message, rather the synchronization
         // is done with a barrier_wait. This is so there is no spinning (in principle)
         // and the FFTW threads can make full use of the CPU.
-        mdlMessageDFT_C2R trans(fft,(FFTW3(real) *)kdata,kdata);
         enqueue(trans);
     }
     if (Cores()>1) mpi->pthreadBarrierWait();
