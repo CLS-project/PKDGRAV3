@@ -1780,6 +1780,7 @@ basicMessage &mdlClass::waitQueue(basicQueue &wait) {
     while (wait.empty()) {
         checkMPI(); // Only does something on the MPI thread
         bookkeeping();
+        yield();
     }
     return wait.dequeue();
 }
