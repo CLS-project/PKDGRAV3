@@ -233,6 +233,7 @@ endif(CUDAToolkit_FOUND)
 if (CUDA_FOUND)
   set(USE_CUDA TRUE)
   get_property(MDL_INCLUDES TARGET mdl2 PROPERTY INCLUDE_DIRECTORIES)
+  CUDA_INCLUDE_DIRECTORIES(${MDL_INCLUDES})
   CUDA_COMPILE(cuda_files cuda/cudaewald.cu cuda/cudapppc.cu cuda/cudautil.cu
 	OPTIONS -arch compute_35)
   target_sources(${PROJECT_NAME} PRIVATE ${cuda_files})
