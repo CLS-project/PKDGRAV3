@@ -1299,6 +1299,10 @@ void MSR::Initialize() {
     prmAddParam(prm,"bGasOnTheFlyPrediction",0,&param.bGasOnTheFlyPrediction,
                 sizeof(int),"bGasOnTheFlyPrediction",
                 "<Do on the fly prediction> = +bGasOnTheFlyPrediction");
+    param.bGasInterfaceCorrection = 0;
+    prmAddParam(prm,"bGasInterfaceCorrection",0,&param.bGasInterfaceCorrection,
+                sizeof(int),"bGasInterfaceCorrection",
+                "<Do interface correction> = +bGasInterfaceCorrection");
     /* END Gas/Star Parameters */
     param.nOutputParticles = 0;
     prmAddArray(prm,"lstOrbits",4,&param.iOutputParticles,sizeof(uint64_t),&param.nOutputParticles);

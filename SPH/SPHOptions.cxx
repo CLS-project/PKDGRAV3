@@ -64,6 +64,7 @@ SPHOptions initializeSPHOptions(struct parameters param, CSM csm, double dTime) 
     SPHoptions.useBuiltinIdeal = param.bGasBuiltinIdeal;
     SPHoptions.useDensityFlags = 0;
     SPHoptions.doOnTheFlyPrediction = param.bGasOnTheFlyPrediction;
+    SPHoptions.doInterfaceCorrection = param.bGasInterfaceCorrection;
     SPHoptions.kernelType = param.iKernelType;
     return SPHoptions;
 }
@@ -99,5 +100,6 @@ void copySPHOptions(SPHOptions *source, SPHOptions *target) {
     target->useBuiltinIdeal = source->useBuiltinIdeal;
     target->useDensityFlags = 0;
     target->doOnTheFlyPrediction = source->doOnTheFlyPrediction;
+    target->doInterfaceCorrection = source->doInterfaceCorrection;
     target->kernelType = source->kernelType;
 }
