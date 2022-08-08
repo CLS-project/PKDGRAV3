@@ -86,14 +86,17 @@ PP_CUDA_BOTH ResultPP<F> EvalPP(
 
 template<class F=float>
 struct ResultDensity {
-    F arho, adrhodfball, anden, adndendfball, anSmooth;
-    void zero() { arho=adrhodfball=anden=adndendfball=anSmooth=0; }
+    F arho, adrhodfball, anden, adndendfball, anSmooth, aimbalanceX, aimbalanceY, aimbalanceZ;
+    void zero() { arho=adrhodfball=anden=adndendfball=anSmooth=aimbalanceX=aimbalanceY=aimbalanceZ=0; }
     ResultDensity<F> operator+=(const ResultDensity<F> rhs) {
         arho += rhs.arho;
         adrhodfball += rhs.adrhodfball;
         anden += rhs.anden;
         adndendfball += rhs.adndendfball;
         anSmooth += rhs.anSmooth;
+        aimbalanceX += rhs.aimbalanceX;
+        aimbalanceY += rhs.aimbalanceY;
+        aimbalanceZ += rhs.aimbalanceZ;
         return *this;
     }
 };
@@ -135,6 +138,19 @@ PP_CUDA_BOTH ResultDensity<F> EvalDensity(
 
         // return the number of particles used
         result.anSmooth = maskz_mov(r_lt_one,1.0f);
+
+        // Calculate the imbalance values
+        if (doInterfaceCorrection) {
+            F kappa = 1.0f;
+            result.aimbalanceX = kappa * dx * result.arho;
+            result.aimbalanceY = kappa * dy * result.arho;
+            result.aimbalanceZ = kappa * dz * result.arho;
+        }
+        else {
+            result.aimbalanceX = 0.0f;
+            result.aimbalanceY = 0.0f;
+            result.aimbalanceZ = 0.0f;
+        }
     }
     else {
         result.zero(); // No work to do

@@ -455,6 +455,9 @@ static void queueDensity( PKD pkd, workParticle *wp, ilpList &ilp, int bGravStep
         wp->pInfoOut[i].nden = 0.0f;
         wp->pInfoOut[i].dndendfball = 0.0f;
         wp->pInfoOut[i].nSmooth = 0.0f;
+        wp->pInfoOut[i].imbalanceX = 0.0f;
+        wp->pInfoOut[i].imbalanceY = 0.0f;
+        wp->pInfoOut[i].imbalanceZ = 0.0f;
     }
     for ( auto &tile : ilp ) {
         for (auto i=0; i<wp->nP; ++i) {
@@ -600,6 +603,9 @@ int pkdGravInteract(PKD pkd,
             wp->pInfoOut[nP].dndendfball = 0.0f;
             wp->pInfoOut[nP].fBall = 0.0f;
             wp->pInfoOut[nP].nSmooth = 0.0f;
+            wp->pInfoOut[nP].imbalanceX = 0.0f;
+            wp->pInfoOut[nP].imbalanceY = 0.0f;
+            wp->pInfoOut[nP].imbalanceZ = 0.0f;
             wp->pInfoOut[nP].uDot = 0.0f;
             wp->pInfoOut[nP].divv = 0.0f;
             wp->pInfoOut[nP].dtEst = HUGE_VALF;

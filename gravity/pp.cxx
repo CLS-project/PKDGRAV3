@@ -103,6 +103,9 @@ void pkdDensityEval(const PINFOIN &Part, ilpTile &tile,  PINFOOUT &Out, SPHOptio
     Out.nden += hadd(result.anden);
     Out.dndendfball += hadd(result.adndendfball);
     Out.nSmooth += hadd(result.anSmooth);
+    Out.imbalanceX += hadd(result.aimbalanceX);
+    Out.imbalanceY += hadd(result.aimbalanceY);
+    Out.imbalanceZ += hadd(result.aimbalanceZ);
 }
 
 template<typename BLOCK> struct ilist::EvalBlock<ResultSPHForces<fvec>,BLOCK> {
