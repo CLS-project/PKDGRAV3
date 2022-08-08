@@ -177,7 +177,7 @@ void pkdParticleWorkDone(workParticle *wp) {
                     pkdSetBall(pkd,p,wp->pInfoOut[i].fBall);
                     pNewSph->Omega = 1.0f + wp->pInfoOut[i].fBall/(3.0f * wp->pInfoOut[i].rho)*wp->pInfoOut[i].drhodfball;
                     if (wp->SPHoptions->doInterfaceCorrection) {
-                        float imbalance = sqrtf(wp->pInfoOut[i].imbalanceX*wp->pInfoOut[i].imbalanceX + wp->pInfoOut[i].imbalanceY*wp->pInfoOut[i].imbalanceY + wp->pInfoOut[i].imbalanceZ*wp->pInfoOut[i].imbalanceZ) / (wp->pInfoOut[i].fBall * wp->pInfoOut[i].rho);
+                        float imbalance = sqrtf(wp->pInfoOut[i].imbalanceX*wp->pInfoOut[i].imbalanceX + wp->pInfoOut[i].imbalanceY*wp->pInfoOut[i].imbalanceY + wp->pInfoOut[i].imbalanceZ*wp->pInfoOut[i].imbalanceZ) / (0.5f * wp->pInfoOut[i].fBall * wp->pInfoOut[i].rho);
                         imbalance *= calculateInterfaceCorrectionPrefactor(wp->pInfoOut[i].nSmooth,wp->SPHoptions->kernelType);
                     }
                     if (wp->SPHoptions->doUConversion) {
