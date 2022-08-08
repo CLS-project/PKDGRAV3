@@ -204,6 +204,7 @@ struct NEWSPHFIELDS {
     float cs;           /* Sound speed */
     float P;            /* Pressure */
     float oldRho;       /* Rho corresponding to where u is at */
+    float expImb2;      /* exp(-imbalance^2) */
 };
 
 struct STARFIELDS {

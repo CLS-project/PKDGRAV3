@@ -179,6 +179,7 @@ void pkdParticleWorkDone(workParticle *wp) {
                     if (wp->SPHoptions->doInterfaceCorrection) {
                         float imbalance = sqrtf(wp->pInfoOut[i].imbalanceX*wp->pInfoOut[i].imbalanceX + wp->pInfoOut[i].imbalanceY*wp->pInfoOut[i].imbalanceY + wp->pInfoOut[i].imbalanceZ*wp->pInfoOut[i].imbalanceZ) / (0.5f * wp->pInfoOut[i].fBall * wp->pInfoOut[i].rho);
                         imbalance *= calculateInterfaceCorrectionPrefactor(wp->pInfoOut[i].nSmooth,wp->SPHoptions->kernelType);
+                        pNewSph->expImb2 = exp(-imbalance*imbalance);
                     }
                     if (wp->SPHoptions->doUConversion) {
                         pNewSph->u = SPHEOSUofRhoT(pkd,pkdDensity(pkd,p),pNewSph->u,pkdiMat(pkd,p),wp->SPHoptions);
