@@ -267,7 +267,7 @@ found_it:
                                                 r[2] + blk.zOffset[jTile],
                                                 blk.m[jTile], blk.fourh2[jTile],
                                                 vpred[0], vpred[1], vpred[2],
-                                                pkdBall(pkd,p), Omega, pkdDensity(pkd,p), P, cs, pkdSpecies(pkd,p), p->uRung);
+                                                pkdBall(pkd,p), Omega, pkdDensity(pkd,p), P, cs, pkdSpecies(pkd,p), p->uRung, pkdiMat(pkd,p));
                                         }
                                         else {
                                             pkd->ilp.append(
@@ -276,7 +276,7 @@ found_it:
                                                 r[2] + blk.zOffset[jTile],
                                                 blk.m[jTile], blk.fourh2[jTile],
                                                 v[0], v[1], v[2],
-                                                0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0, p->uRung);
+                                                0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0, p->uRung, 0);
                                         }
                                     }
                                 }
@@ -327,7 +327,7 @@ found_it:
                                                     r[2] + blk.zOffset[jTile],
                                                     fMass, 4*fSoft*fSoft,
                                                     vpred[0], vpred[1], vpred[2],
-                                                    pkdBall(pkd,p), Omega, pkdDensity(pkd,p), P, cs, pkdSpecies(pkd,p), p->uRung);
+                                                    pkdBall(pkd,p), Omega, pkdDensity(pkd,p), P, cs, pkdSpecies(pkd,p), p->uRung, pkdiMat(pkd,p));
                                             }
                                             else {
                                                 pkd->ilp.append(
@@ -336,7 +336,7 @@ found_it:
                                                     r[2] + blk.zOffset[jTile],
                                                     fMass, 4*fSoft*fSoft,
                                                     v[0], v[1], v[2],
-                                                    0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0, p->uRung);
+                                                    0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0, p->uRung, 0);
                                             }
                                         }
                                     }

@@ -70,25 +70,26 @@ void pkdGravEvalPP(const PINFOIN &Part, ilpTile &tile,  PINFOOUT &Out ) {
 
 template<typename BLOCK> struct ilist::EvalBlock<ResultDensity<fvec>,BLOCK> {
     typedef ResultDensity<fvec> result_type;
-    const fvec fx,fy,fz,fBall;
+    const fvec fx,fy,fz,fBall,iMat;
     const SPHOptions *const SPHoptions;
 
     EvalBlock() = default;
-    EvalBlock(fvec fx, fvec fy,fvec fz,fvec fBall,SPHOptions *SPHoptions)
-        : fx(fx),fy(fy),fz(fz),fBall(fBall),SPHoptions(SPHoptions) {}
+    EvalBlock(fvec fx, fvec fy,fvec fz,fvec fBall,fvec iMat,SPHOptions *SPHoptions)
+        : fx(fx),fy(fy),fz(fz),fBall(fBall),iMat(iMat),SPHoptions(SPHoptions) {}
 
     result_type operator()(int n,BLOCK &blk) {
         // Sentinal values
         while (n&fvec::mask()) {
             blk.dx.s[n] = blk.dy.s[n] = blk.dz.s[n] = 1e18f;
             blk.m.s[n] = 0.0f;
+            blk.iMat.s[n] = 0.0f;
             ++n;
         }
         n /= fvec::width(); // Now number of blocks
         result_type result;
         result.zero();
         for (auto i=0; i<n; ++i) {
-            result += EvalDensity<fvec,fmask>(fx,fy,fz,blk.dx.v[i],blk.dy.v[i],blk.dz.v[i],blk.m.v[i],fBall,SPHoptions->kernelType,SPHoptions->doInterfaceCorrection);
+            result += EvalDensity<fvec,fmask>(fx,fy,fz,fBall,iMat,blk.dx.v[i],blk.dy.v[i],blk.dz.v[i],blk.m.v[i],blk.iMat.v[i],SPHoptions->kernelType,SPHoptions->doInterfaceCorrection);
         }
         return result;
     }
@@ -96,7 +97,7 @@ template<typename BLOCK> struct ilist::EvalBlock<ResultDensity<fvec>,BLOCK> {
 
 void pkdDensityEval(const PINFOIN &Part, ilpTile &tile,  PINFOOUT &Out, SPHOptions *SPHoptions ) {
     ilist::EvalBlock<ResultDensity<fvec>,BlockPP<ILC_PART_PER_BLK>> eval(
-                Part.r[0],Part.r[1],Part.r[2],Part.fBall,SPHoptions);
+                Part.r[0],Part.r[1],Part.r[2],Part.fBall,Part.iMat,SPHoptions);
     auto result = EvalTile(tile,eval);
     Out.rho += hadd(result.arho);
     Out.drhodfball += hadd(result.adrhodfball);

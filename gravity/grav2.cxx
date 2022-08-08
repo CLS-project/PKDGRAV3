@@ -180,7 +180,7 @@ void pkdParticleWorkDone(workParticle *wp) {
                         float imbalance = sqrtf(wp->pInfoOut[i].imbalanceX*wp->pInfoOut[i].imbalanceX + wp->pInfoOut[i].imbalanceY*wp->pInfoOut[i].imbalanceY + wp->pInfoOut[i].imbalanceZ*wp->pInfoOut[i].imbalanceZ) / (wp->pInfoOut[i].fBall * wp->pInfoOut[i].rho);
                         imbalance *= calculateInterfaceCorrectionPrefactor(wp->pInfoOut[i].nSmooth,wp->SPHoptions->kernelType);
                     }
-                    if (wp->SPHoptions->doUConversion && !wp->SPHoptions->doInterfaceCorrection) {
+                    if (wp->SPHoptions->doUConversion) {
                         pNewSph->u = SPHEOSUofRhoT(pkd,pkdDensity(pkd,p),pNewSph->u,pkdiMat(pkd,p),wp->SPHoptions);
                         pNewSph->oldRho = pkdDensity(pkd,p);
                     }
@@ -597,6 +597,7 @@ int pkdGravInteract(PKD pkd,
             wp->pInfoIn[nP].fBall = pkdBall(pkd,p);
             wp->pInfoIn[nP].isTooLarge = 0;
             wp->pInfoIn[nP].Omega = pNewSph->Omega;
+            wp->pInfoIn[nP].iMat = pkdiMat(pkd,p);
             SPHpredictOnTheFly(pkd, p, kick, ts->uRungLo, wp->pInfoIn[nP].v, &wp->pInfoIn[nP].P, &wp->pInfoIn[nP].cs, SPHoptions);
             wp->pInfoIn[nP].rho = pkdDensity(pkd,p);
             wp->pInfoIn[nP].species = pkdSpecies(pkd,p);

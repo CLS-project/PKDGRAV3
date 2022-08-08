@@ -28,7 +28,7 @@
 #define ILP_FIELDS_SEQ\
     ((float,dx))((float,dy))((float,dz))((float,m))((float,fourh2))\
     ((float,vx))((float,vy))((float,vz))((float,fBall))((float,Omega))\
-    ((float,rho))((float,P))((float,c))((float,uRung))((int32_t,species))
+    ((float,rho))((float,P))((float,c))((int32_t,species))((float,uRung))((float,iMat))
 
 ILIST_DECLARE(PP,ILP_FIELDS_SEQ)
 #define ILP_FIELD_TYPES ILIST_FIELD_VALUES(ILP_FIELDS_SEQ,0)
@@ -41,7 +41,7 @@ class ilpList : public ListPP<ILP_PART_PER_BLK,8>, public ilist::ilCenterReferen
 public:
     void append(float dx,float dy,float dz,float m,float fourh2,
                 float vx,float vy,float vz,float fBall,float Omega,
-                float rho,float P,float c,int32_t species,float uRung) {
+                float rho,float P,float c,int32_t species,float uRung,float iMat) {
         BlockPP<ILP_PART_PER_BLK> *b;
         int i;
         std::tie(b,i) = ListPP<ILP_PART_PER_BLK,8>::create();
@@ -49,9 +49,9 @@ public:
     }
     void append(double x,double y,double z,float m,float fourh2,
                 float vx,float vy,float vz,float fBall,float Omega,
-                float rho,float P,float c,int32_t species, int uRung) {
+                float rho,float P,float c,int32_t species, int uRung, int iMat) {
         append((float)(getReference(0)-x),(float)(getReference(1)-y),(float)(getReference(2)-z),
-               m,fourh2,vx,vy,vz,fBall,Omega,rho,P,c,species,(float)uRung);
+               m,fourh2,vx,vy,vz,fBall,Omega,rho,P,c,species,(float)uRung,(float)iMat);
     }
 };
 #endif

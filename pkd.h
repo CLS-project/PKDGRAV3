@@ -1040,7 +1040,7 @@ static inline float pkdSoft( PKD pkd, PARTICLE *p ) {
 static inline FIO_SPECIES pkdSpecies( PKD pkd, PARTICLE *p ) {
     return pkd->particles.species(p);
 }
-static inline float pkdiMat( PKD pkd, PARTICLE *p ) {
+static inline int pkdiMat( PKD pkd, PARTICLE *p ) {
     return pkd->particles.iMat(p);
 }
 

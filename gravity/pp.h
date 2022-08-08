@@ -102,8 +102,8 @@ struct ResultDensity {
 };
 template<class F,class M>
 PP_CUDA_BOTH ResultDensity<F> EvalDensity(
-    F Pdx, F Pdy, F Pdz,     // Particle
-    F Idx, F Idy, F Idz, F Im, F fBall,  // Interaction(s)
+    F Pdx, F Pdy, F Pdz, F fBall, F PiMat,     // Particle
+    F Idx, F Idy, F Idz, F Im, F IiMat,  // Interaction(s)
     int kernelType, bool doInterfaceCorrection) {
     ResultDensity<F> result;
     F dx = Idx + Pdx;
@@ -141,7 +141,10 @@ PP_CUDA_BOTH ResultDensity<F> EvalDensity(
 
         // Calculate the imbalance values
         if (doInterfaceCorrection) {
-            F kappa = 1.0f;
+            M mask2 = PiMat == IiMat;
+            F plus_one = 1.0f;
+            F minus_one = -1.0f;
+            F kappa = mask_mov(minus_one,mask2,plus_one);
             result.aimbalanceX = kappa * dx * result.arho;
             result.aimbalanceY = kappa * dy * result.arho;
             result.aimbalanceZ = kappa * dz * result.arho;

@@ -67,6 +67,7 @@ typedef struct {
     float P;
     float cs;
     int32_t species;
+    float iMat;
     int isTooLarge;
     /*    float v[3];*/
     /*    float fMass;*/
