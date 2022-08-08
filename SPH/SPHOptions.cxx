@@ -103,3 +103,27 @@ void copySPHOptions(SPHOptions *source, SPHOptions *target) {
     target->doInterfaceCorrection = source->doInterfaceCorrection;
     target->kernelType = source->kernelType;
 }
+
+float calculateInterfaceCorrectionPrefactor(float nSmooth,int kernelType) {
+    float alpha = 0.0f;
+    switch (kernelType) {
+    case 0: {
+        assert(0);
+        break;
+    }
+    case 1: {
+        assert(0);
+        break;
+    }
+    case 2: {
+        assert(0);
+        break;
+    }
+    case 3: {
+        alpha = 6.1420e3 / nSmooth / nSmooth + 170.0313 / nSmooth + 4.9239;
+        break;
+    }
+    default: assert(0);
+    }
+    return alpha;
+}

@@ -74,6 +74,7 @@ extern "C" {
 #endif
 SPHOptions initializeSPHOptions(struct parameters param, CSM csm, double dTime);
 void copySPHOptions(SPHOptions *source, SPHOptions *target);
+float calculateInterfaceCorrectionPrefactor(float nSmooth,int kernelType);
 #ifdef __cplusplus
 }
 #endif

@@ -176,7 +176,11 @@ void pkdParticleWorkDone(workParticle *wp) {
                     pkdSetDensity(pkd,p,wp->pInfoOut[i].rho);
                     pkdSetBall(pkd,p,wp->pInfoOut[i].fBall);
                     pNewSph->Omega = 1.0f + wp->pInfoOut[i].fBall/(3.0f * wp->pInfoOut[i].rho)*wp->pInfoOut[i].drhodfball;
-                    if (wp->SPHoptions->doUConversion) {
+                    if (wp->SPHoptions->doInterfaceCorrection) {
+                        float imbalance = sqrtf(wp->pInfoOut[i].imbalanceX*wp->pInfoOut[i].imbalanceX + wp->pInfoOut[i].imbalanceY*wp->pInfoOut[i].imbalanceY + wp->pInfoOut[i].imbalanceZ*wp->pInfoOut[i].imbalanceZ) / (wp->pInfoOut[i].fBall * wp->pInfoOut[i].rho);
+                        imbalance *= calculateInterfaceCorrectionPrefactor(wp->pInfoOut[i].nSmooth,wp->SPHoptions->kernelType);
+                    }
+                    if (wp->SPHoptions->doUConversion && !wp->SPHoptions->doInterfaceCorrection) {
                         pNewSph->u = SPHEOSUofRhoT(pkd,pkdDensity(pkd,p),pNewSph->u,pkdiMat(pkd,p),wp->SPHoptions);
                         pNewSph->oldRho = pkdDensity(pkd,p);
                     }
