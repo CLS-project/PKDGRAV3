@@ -101,7 +101,7 @@ template<class F,class M>
 PP_CUDA_BOTH ResultDensity<F> EvalDensity(
     F Pdx, F Pdy, F Pdz,     // Particle
     F Idx, F Idy, F Idz, F Im, F fBall,  // Interaction(s)
-    int kernelType) {
+    int kernelType, bool doInterfaceCorrection) {
     ResultDensity<F> result;
     F dx = Idx + Pdx;
     F dy = Idy + Pdy;

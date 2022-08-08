@@ -71,11 +71,11 @@ void pkdGravEvalPP(const PINFOIN &Part, ilpTile &tile,  PINFOOUT &Out ) {
 template<typename BLOCK> struct ilist::EvalBlock<ResultDensity<fvec>,BLOCK> {
     typedef ResultDensity<fvec> result_type;
     const fvec fx,fy,fz,fBall;
-    const uint64_t kernelType;
+    const SPHOptions *const SPHoptions;
 
     EvalBlock() = default;
-    EvalBlock(fvec fx, fvec fy,fvec fz,fvec fBall,uint64_t kernelType)
-        : fx(fx),fy(fy),fz(fz),fBall(fBall),kernelType(kernelType) {}
+    EvalBlock(fvec fx, fvec fy,fvec fz,fvec fBall,SPHOptions *SPHoptions)
+        : fx(fx),fy(fy),fz(fz),fBall(fBall),SPHoptions(SPHoptions) {}
 
     result_type operator()(int n,BLOCK &blk) {
         // Sentinal values
@@ -88,7 +88,7 @@ template<typename BLOCK> struct ilist::EvalBlock<ResultDensity<fvec>,BLOCK> {
         result_type result;
         result.zero();
         for (auto i=0; i<n; ++i) {
-            result += EvalDensity<fvec,fmask>(fx,fy,fz,blk.dx.v[i],blk.dy.v[i],blk.dz.v[i],blk.m.v[i],fBall,kernelType);
+            result += EvalDensity<fvec,fmask>(fx,fy,fz,blk.dx.v[i],blk.dy.v[i],blk.dz.v[i],blk.m.v[i],fBall,SPHoptions->kernelType,SPHoptions->doInterfaceCorrection);
         }
         return result;
     }
@@ -96,7 +96,7 @@ template<typename BLOCK> struct ilist::EvalBlock<ResultDensity<fvec>,BLOCK> {
 
 void pkdDensityEval(const PINFOIN &Part, ilpTile &tile,  PINFOOUT &Out, SPHOptions *SPHoptions ) {
     ilist::EvalBlock<ResultDensity<fvec>,BlockPP<ILC_PART_PER_BLK>> eval(
-                Part.r[0],Part.r[1],Part.r[2],Part.fBall,SPHoptions->kernelType);
+                Part.r[0],Part.r[1],Part.r[2],Part.fBall,SPHoptions);
     auto result = EvalTile(tile,eval);
     Out.rho += hadd(result.arho);
     Out.drhodfball += hadd(result.adrhodfball);
