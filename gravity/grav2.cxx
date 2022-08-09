@@ -179,14 +179,14 @@ void pkdParticleWorkDone(workParticle *wp) {
                     if (wp->SPHoptions->doInterfaceCorrection) {
                         float imbalance = sqrtf(wp->pInfoOut[i].imbalanceX*wp->pInfoOut[i].imbalanceX + wp->pInfoOut[i].imbalanceY*wp->pInfoOut[i].imbalanceY + wp->pInfoOut[i].imbalanceZ*wp->pInfoOut[i].imbalanceZ) / (0.5f * wp->pInfoOut[i].fBall * wp->pInfoOut[i].rho);
                         imbalance *= calculateInterfaceCorrectionPrefactor(wp->pInfoOut[i].nSmooth,wp->SPHoptions->kernelType);
-                        pNewSph->expImb2 = exp(-imbalance*imbalance);
+                        pNewSph->expImb2 = expf(-imbalance*imbalance);
                     }
-                    if (wp->SPHoptions->doUConversion) {
+                    if (wp->SPHoptions->doUConversion && !wp->SPHoptions->doInterfaceCorrection) {
                         pNewSph->u = SPHEOSUofRhoT(pkd,pkdDensity(pkd,p),pNewSph->u,pkdiMat(pkd,p),wp->SPHoptions);
                         pNewSph->oldRho = pkdDensity(pkd,p);
                     }
                     if (!wp->SPHoptions->doOnTheFlyPrediction) {
-                        SPHpredictInDensity(pkd, p, wp->kick, wp->SPHoptions->nPredictRung, &pNewSph->P, &pNewSph->cs, wp->SPHoptions);
+                        SPHpredictInDensity(pkd, p, wp->kick, wp->SPHoptions->nPredictRung, &pNewSph->P, &pNewSph->cs, &pNewSph->T, wp->SPHoptions);
                     }
                 }
                 if (wp->SPHoptions->doSPHForces) {
@@ -377,7 +377,7 @@ void pkdParticleWorkDone(workParticle *wp) {
                             }
                             pNewSph->u += wp->kick->dtClose[p->uRung] * pNewSph->uDot;
                             if (!wp->SPHoptions->doOnTheFlyPrediction) {
-                                pNewSph->P = SPHEOSPCofRhoU(pkd,pkdDensity(pkd,p),pNewSph->u,&pNewSph->cs,pkdiMat(pkd,p),wp->SPHoptions);
+                                pNewSph->P = SPHEOSPCTofRhoU(pkd,pkdDensity(pkd,p),pNewSph->u,&pNewSph->cs,&pNewSph->T,pkdiMat(pkd,p),wp->SPHoptions);
                             }
                         }
                         if (wp->SPHoptions->VelocityDamper > 0.0f) {
@@ -599,7 +599,7 @@ int pkdGravInteract(PKD pkd,
             wp->pInfoIn[nP].isTooLarge = 0;
             wp->pInfoIn[nP].Omega = pNewSph->Omega;
             wp->pInfoIn[nP].iMat = pkdiMat(pkd,p);
-            SPHpredictOnTheFly(pkd, p, kick, ts->uRungLo, wp->pInfoIn[nP].v, &wp->pInfoIn[nP].P, &wp->pInfoIn[nP].cs, SPHoptions);
+            SPHpredictOnTheFly(pkd, p, kick, ts->uRungLo, wp->pInfoIn[nP].v, &wp->pInfoIn[nP].P, &wp->pInfoIn[nP].cs, &wp->pInfoIn[nP].T, SPHoptions);
             wp->pInfoIn[nP].rho = pkdDensity(pkd,p);
             wp->pInfoIn[nP].species = pkdSpecies(pkd,p);
 

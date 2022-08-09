@@ -205,6 +205,7 @@ struct NEWSPHFIELDS {
     float P;            /* Pressure */
     float oldRho;       /* Rho corresponding to where u is at */
     float expImb2;      /* exp(-imbalance^2) */
+    float T;            /* Temperature */
 };
 
 struct STARFIELDS {

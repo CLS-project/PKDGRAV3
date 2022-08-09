@@ -260,7 +260,8 @@ found_it:
                                             float Omega = pNewSph->Omega;                     /* should be the Omega field of the sph fields, nyi */
                                             float P = 0.0f;                         /* should be calculated by the EOS, nyi */
                                             float cs = 0.0f;                        /* should be calculated by the EOS, nyi */
-                                            SPHpredictOnTheFly(pkd, p, kick, ts->uRungLo, vpred, &P, &cs, SPHoptions);
+                                            float T = 0.0f;
+                                            SPHpredictOnTheFly(pkd, p, kick, ts->uRungLo, vpred, &P, &cs, &T, SPHoptions);
                                             pkd->ilp.append(
                                                 r[0] + blk.xOffset[jTile],
                                                 r[1] + blk.yOffset[jTile],
@@ -320,7 +321,8 @@ found_it:
                                                 float Omega = pNewSph->Omega;                 /* should be the Omega field of the sph fields, nyi */
                                                 float P = 0.0f;                     /* should be calculated by the EOS, nyi */
                                                 float cs = 0.0f;                    /* should be calculated by the EOS, nyi */
-                                                SPHpredictOnTheFly(pkd, p, kick, ts->uRungLo, vpred, &P, &cs, SPHoptions);
+                                                float T = 0.0f;
+                                                SPHpredictOnTheFly(pkd, p, kick, ts->uRungLo, vpred, &P, &cs, &T, SPHoptions);
                                                 pkd->ilp.append(
                                                     r[0] + blk.xOffset[jTile],
                                                     r[1] + blk.yOffset[jTile],

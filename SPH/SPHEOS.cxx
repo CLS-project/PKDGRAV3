@@ -23,20 +23,23 @@
 
 #include "SPHEOS.h"
 
-float SPHEOSPCofRhoU(PKD pkd, float rho, float u, float *c, int iMat, SPHOptions *SPHoptions) {
+float SPHEOSPCTofRhoU(PKD pkd, float rho, float u, float *c, float *T, int iMat, SPHOptions *SPHoptions) {
     float P = 0.0f;
     if (iMat == 0 && SPHoptions->useBuiltinIdeal) {
         if (SPHoptions->useIsentropic) {
             u = u / (SPHoptions->gamma - 1.0f) * pow(rho, SPHoptions->gamma - 1.0f);
         }
+        *T = u / SPHoptions->TuFac;
         *c = sqrtf(SPHoptions->gamma * (SPHoptions->gamma - 1.0f) * u);
         P = (SPHoptions->gamma - 1.0f) * rho * u;
     }
     else {
 #ifdef HAVE_EOSLIB_H
-        double ctmp = 0.0f;
-        P = (float)EOSPCofRhoU(pkd->materials[iMat],rho,u,&ctmp);
+        double ctmp = 0.0;
+        double Ttmp = 0.0;
+        P = (float)EOSPCTofRhoU(pkd->materials[iMat],rho,u,&ctmp,&Ttmp);
         *c = (float)ctmp;
+        *T = (float)Ttmp;
         if (P < 0.0f) P = 0.0f;
         if (*c < pkd->materials[iMat]->minSoundSpeed) *c = (float)pkd->materials[iMat]->minSoundSpeed;
 #endif
@@ -74,6 +77,23 @@ float SPHEOSTofRhoU(PKD pkd, float rho, float u, int iMat, SPHOptions *SPHoption
 #endif
     }
     return T;
+}
+
+float SPHEOSPofRhoT(PKD pkd, float rho, float T, int iMat, SPHOptions *SPHoptions) {
+    float P = 0.0f;
+    if (iMat == 0 && SPHoptions->useBuiltinIdeal) {
+        float u = T * SPHoptions->TuFac;
+        if (SPHoptions->useIsentropic) {
+            u = u * (SPHoptions->gamma - 1.0f) / pow(rho,SPHoptions->gamma - 1.0f);
+        }
+        P = (SPHoptions->gamma - 1.0f) * rho * u;
+    }
+    else {
+#ifdef HAVE_EOSLIB_H
+        P = (float)EOSPofRhoT(pkd->materials[iMat],rho,T);
+#endif
+    }
+    return P;
 }
 
 float SPHEOSIsentropic(PKD pkd, float rho1, float u1, float rho2, int iMat, SPHOptions *SPHoptions) {
