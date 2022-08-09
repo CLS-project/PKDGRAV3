@@ -1393,6 +1393,7 @@ void pkdCalcCOM(PKD pkd, double *dCenter, double dRadius, int bPeriodic,
                 double *M, uint64_t *N);
 void pkdCalcMtot(PKD pkd, double *M, uint64_t *N);
 void pkdInitializeEOS(PKD pkd);
+void pkdUpdateGasValues(PKD pkd, struct pkdKickParameters *kick, SPHOptions *SPHoptions);
 void pkdTreeUpdateFlagBounds(PKD pkd,uint32_t uRoot,SPHOptions *SPHoptions);
 #ifdef MDL_FFTW
 void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int iAssignment, int iGrid, float dDelta);

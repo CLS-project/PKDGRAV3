@@ -3221,127 +3221,7 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
     }
     else in.ts.dAccFac = 1.0;
 
-    if (SPHoptions.doDensity) {
-        uRungLoTemp = uRungLo;
-        uRungLo = SPHoptions.nPredictRung;
-    }
-
-    /*
-    ** Now calculate the timestepping factors for kick close and open if the
-    ** gravity should kick the particles. If the code uses bKickClose and
-    ** bKickOpen it no longer needs to store accelerations per particle.
-    */
-    in.kick.bKickClose = bKickClose;
-    in.kick.bKickOpen = bKickOpen;
-    if (SPHoptions.doGravity || SPHoptions.doDensity) {
-        for (i=0,dt=0.5*dDelta; i<=param.iMaxRung; ++i,dt*=0.5) {
-            in.kick.dtClose[i] = 0.0;
-            in.kick.dtOpen[i] = 0.0;
-            if (i>=uRungLo) {
-                if (csm->val.bComove) {
-                    if (bKickClose) {
-                        in.kick.dtClose[i] = csmComoveKickFac(csm,dTime-dt,dt);
-                    }
-                    if (bKickOpen) {
-                        in.kick.dtOpen[i] = csmComoveKickFac(csm,dTime,dt);
-                    }
-                }
-                else {
-                    if (bKickClose) in.kick.dtClose[i] = dt;
-                    if (bKickOpen) in.kick.dtOpen[i] = dt;
-                }
-            }
-        }
-    }
-
-    /*
-    ** Create the deltas for the on-the-fly prediction of velocity and the
-    ** thermodynamical variable.
-    */
-    if (SPHoptions.doGravity || SPHoptions.doDensity) {
-        double substepWeAreAt = dStep - floor(dStep); // use fmod instead
-        double stepStartTime = dTime - substepWeAreAt * dDelta;
-        for (i = 0; i <= param.iMaxRung; ++i) {
-            if (i < uRungLo) {
-                /*
-                ** For particles with a step larger than the current rung, the temporal position of
-                ** the velocity in relation to the current time is nontrivial, so we calculate it here
-                */
-                double substepSize = 1.0 / pow(2,i); // 1.0 / (1 << i);
-                double substepsDoneAtThisSize = floor(substepWeAreAt / substepSize);
-                double TPredDrift = stepStartTime + (substepsDoneAtThisSize + 0.5) * substepSize * dDelta;
-                double dtPredDrift = dTime - TPredDrift;
-                /* Now that we know how much we have to drift, we can calculate the corresponding
-                ** drift factor
-                */
-                if (csm->val.bComove) {
-                    /*
-                    ** This gives the correct result, even if dtPredDrift is negative
-                    ** but we still may want to use
-                    ** -csmComoveKickFac(csm,TPredDrift + dtPredDrift,-dtPredDrift);
-                    ** if dtPredDrift is negative, just to be sure
-                    */
-                    in.kick.dtPredDrift[i] = csmComoveKickFac(csm,TPredDrift,dtPredDrift);
-                }
-                else {
-                    in.kick.dtPredDrift[i] = dtPredDrift;
-                }
-            }
-            else {
-                /*
-                ** In this case, all particles are synchronized, which means that
-                ** velocity and the thermodynamical variable are either a half step behind
-                ** or ahead, so all information is contained in dtOpen and dtClose and the
-                ** bMarked flag.
-                */
-                in.kick.dtPredDrift[i] = 0.0;
-            }
-        }
-    }
-
-    /*
-    ** Create the deltas for the on-the-fly prediction in case of ISPH
-    */
-    if ((SPHoptions.doGravity || SPHoptions.doDensity) && SPHoptions.useIsentropic) {
-        double substepWeAreAt = dStep - floor(dStep); // use fmod instead
-        double stepStartTime = dTime - substepWeAreAt * dDelta;
-        for (i = 0; i <= param.iMaxRung; ++i) {
-            double substepSize = 1.0 / pow(2,i); // 1.0 / (1 << i);
-            double substepsDoneAtThisSize = floor(substepWeAreAt / substepSize);
-            double TSubStepStart, TSubStepKicked;
-            /* The start of the step is different if the time step is larger than the current */
-            if (i < uRungLo) {
-                TSubStepStart = stepStartTime + (substepsDoneAtThisSize) * substepSize * dDelta;
-                TSubStepKicked = stepStartTime + (substepsDoneAtThisSize + 0.5) * substepSize * dDelta;
-            }
-            else {
-                TSubStepStart = stepStartTime + (substepsDoneAtThisSize - 1.0) * substepSize * dDelta;
-                TSubStepKicked = stepStartTime + (substepsDoneAtThisSize - 0.5) * substepSize * dDelta;
-            }
-            /* At the beginning we have a special case */
-            if (dTime == 0.0) {
-                TSubStepStart = 0.0;
-                TSubStepKicked = 0.0;
-            }
-            double dtPredISPHUndoOpen = TSubStepStart - TSubStepKicked;
-            double dtPredISPHOpen = (dTime - TSubStepStart) / 2.0;
-            double dtPredISPHClose = (dTime - TSubStepStart) / 2.0;
-            if (csm->val.bComove) {
-                in.kick.dtPredISPHUndoOpen[i] = csmComoveKickFac(csm,TSubStepKicked,dtPredISPHUndoOpen);
-                in.kick.dtPredISPHOpen[i] = csmComoveKickFac(csm,TSubStepStart,dtPredISPHOpen);
-                in.kick.dtPredISPHClose[i] = csmComoveKickFac(csm,TSubStepStart+dtPredISPHOpen,dtPredISPHClose);
-            }
-            else {
-                in.kick.dtPredISPHUndoOpen[i] = dtPredISPHUndoOpen;
-                in.kick.dtPredISPHOpen[i] = dtPredISPHOpen;
-                in.kick.dtPredISPHClose[i] = dtPredISPHClose;
-            }
-        }
-    }
-
-    if (SPHoptions.doDensity) {
-        uRungLo = uRungLoTemp;
-    }
+    in.kick = CalculateKickParameters(uRungLo, dTime, dDelta, dStep, bKickClose, bKickOpen, SPHoptions);
 
     in.lc.bLightConeParticles = param.bLightConeParticles;
     in.lc.dBoxSize = param.dBoxSize;
@@ -5320,6 +5200,9 @@ double MSR::Read(const char *achInFile) {
         Gravity(0,MAX_RUNG,ROOT,0,dTime,0.0f,param.iStartStep,getTheta(dTime),0,1,
                 param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,SPHoptions);
         MemStatus();
+        if (SPHoptions.doInterfaceCorrection) {
+            UpdateGasValues(0,dTime,0.0f,param.iStartStep,0,1,SPHoptions);
+        }
         TimerStop(TIMER_NONE);
         dsec = TimerGet(TIMER_NONE);
         printf("Converting u complete, Wallclock: %f secs.\n", dsec);
@@ -5683,6 +5566,153 @@ void MSR::InitializeEOS() {
     pstInitializeEOS(pst, NULL, 0, NULL, 0);
     dsec = MSR::Time() - sec;
     printf("EOS initialized, Wallclock: %f secs\n\n",dsec);
+}
+
+struct pkdKickParameters MSR::CalculateKickParameters(uint8_t uRungLo, double dTime, double dDelta, double dStep,
+        int bKickClose, int bKickOpen, SPHOptions SPHoptions) {
+    struct pkdKickParameters kick;
+
+    uint8_t uRungLoTemp;
+    int i;
+    double dt;
+    if (SPHoptions.doDensity) {
+        uRungLoTemp = uRungLo;
+        uRungLo = SPHoptions.nPredictRung;
+    }
+
+    /*
+    ** Now calculate the timestepping factors for kick close and open if the
+    ** gravity should kick the particles. If the code uses bKickClose and
+    ** bKickOpen it no longer needs to store accelerations per particle.
+    */
+    kick.bKickClose = bKickClose;
+    kick.bKickOpen = bKickOpen;
+    if (SPHoptions.doGravity || SPHoptions.doDensity) {
+        for (i=0,dt=0.5*dDelta; i<=param.iMaxRung; ++i,dt*=0.5) {
+            kick.dtClose[i] = 0.0;
+            kick.dtOpen[i] = 0.0;
+            if (i>=uRungLo) {
+                if (csm->val.bComove) {
+                    if (bKickClose) {
+                        kick.dtClose[i] = csmComoveKickFac(csm,dTime-dt,dt);
+                    }
+                    if (bKickOpen) {
+                        kick.dtOpen[i] = csmComoveKickFac(csm,dTime,dt);
+                    }
+                }
+                else {
+                    if (bKickClose) kick.dtClose[i] = dt;
+                    if (bKickOpen) kick.dtOpen[i] = dt;
+                }
+            }
+        }
+    }
+
+    /*
+    ** Create the deltas for the on-the-fly prediction of velocity and the
+    ** thermodynamical variable.
+    */
+    if (SPHoptions.doGravity || SPHoptions.doDensity) {
+        double substepWeAreAt = dStep - floor(dStep); // use fmod instead
+        double stepStartTime = dTime - substepWeAreAt * dDelta;
+        for (i = 0; i <= param.iMaxRung; ++i) {
+            if (i < uRungLo) {
+                /*
+                ** For particles with a step larger than the current rung, the temporal position of
+                ** the velocity in relation to the current time is nontrivial, so we calculate it here
+                */
+                double substepSize = 1.0 / pow(2,i); // 1.0 / (1 << i);
+                double substepsDoneAtThisSize = floor(substepWeAreAt / substepSize);
+                double TPredDrift = stepStartTime + (substepsDoneAtThisSize + 0.5) * substepSize * dDelta;
+                double dtPredDrift = dTime - TPredDrift;
+                /* Now that we know how much we have to drift, we can calculate the corresponding
+                ** drift factor
+                */
+                if (csm->val.bComove) {
+                    /*
+                    ** This gives the correct result, even if dtPredDrift is negative
+                    ** but we still may want to use
+                    ** -csmComoveKickFac(csm,TPredDrift + dtPredDrift,-dtPredDrift);
+                    ** if dtPredDrift is negative, just to be sure
+                    */
+                    kick.dtPredDrift[i] = csmComoveKickFac(csm,TPredDrift,dtPredDrift);
+                }
+                else {
+                    kick.dtPredDrift[i] = dtPredDrift;
+                }
+            }
+            else {
+                /*
+                ** In this case, all particles are synchronized, which means that
+                ** velocity and the thermodynamical variable are either a half step behind
+                ** or ahead, so all information is contained in dtOpen and dtClose and the
+                ** bMarked flag.
+                */
+                kick.dtPredDrift[i] = 0.0;
+            }
+        }
+    }
+
+    /*
+    ** Create the deltas for the on-the-fly prediction in case of ISPH
+    */
+    if ((SPHoptions.doGravity || SPHoptions.doDensity) && SPHoptions.useIsentropic) {
+        double substepWeAreAt = dStep - floor(dStep); // use fmod instead
+        double stepStartTime = dTime - substepWeAreAt * dDelta;
+        for (i = 0; i <= param.iMaxRung; ++i) {
+            double substepSize = 1.0 / pow(2,i); // 1.0 / (1 << i);
+            double substepsDoneAtThisSize = floor(substepWeAreAt / substepSize);
+            double TSubStepStart, TSubStepKicked;
+            /* The start of the step is different if the time step is larger than the current */
+            if (i < uRungLo) {
+                TSubStepStart = stepStartTime + (substepsDoneAtThisSize) * substepSize * dDelta;
+                TSubStepKicked = stepStartTime + (substepsDoneAtThisSize + 0.5) * substepSize * dDelta;
+            }
+            else {
+                TSubStepStart = stepStartTime + (substepsDoneAtThisSize - 1.0) * substepSize * dDelta;
+                TSubStepKicked = stepStartTime + (substepsDoneAtThisSize - 0.5) * substepSize * dDelta;
+            }
+            /* At the beginning we have a special case */
+            if (dTime == 0.0) {
+                TSubStepStart = 0.0;
+                TSubStepKicked = 0.0;
+            }
+            double dtPredISPHUndoOpen = TSubStepStart - TSubStepKicked;
+            double dtPredISPHOpen = (dTime - TSubStepStart) / 2.0;
+            double dtPredISPHClose = (dTime - TSubStepStart) / 2.0;
+            if (csm->val.bComove) {
+                kick.dtPredISPHUndoOpen[i] = csmComoveKickFac(csm,TSubStepKicked,dtPredISPHUndoOpen);
+                kick.dtPredISPHOpen[i] = csmComoveKickFac(csm,TSubStepStart,dtPredISPHOpen);
+                kick.dtPredISPHClose[i] = csmComoveKickFac(csm,TSubStepStart+dtPredISPHOpen,dtPredISPHClose);
+            }
+            else {
+                kick.dtPredISPHUndoOpen[i] = dtPredISPHUndoOpen;
+                kick.dtPredISPHOpen[i] = dtPredISPHOpen;
+                kick.dtPredISPHClose[i] = dtPredISPHClose;
+            }
+        }
+    }
+
+    if (SPHoptions.doDensity) {
+        uRungLo = uRungLoTemp;
+    }
+
+    return kick;
+}
+
+void MSR::UpdateGasValues(uint8_t uRungLo, double dTime, double dDelta, double dStep,
+                          int bKickClose, int bKickOpen, SPHOptions SPHoptions) {
+    struct inUpdateGasValues in;
+    in.SPHoptions = SPHoptions;
+    double sec,dsec;
+    sec = MSR::Time();
+    printf("Update Gas Values ...\n");
+
+    in.kick = CalculateKickParameters(uRungLo, dTime, dDelta, dStep, bKickClose, bKickOpen, SPHoptions);
+
+    pstUpdateGasValues(pst, &in, sizeof(in), NULL, 0);
+    dsec = MSR::Time() - sec;
+    printf("Gas Values updated, Wallclock: %f secs\n\n",dsec);
 }
 
 void MSR::TreeUpdateFlagBounds(int bNeedEwald,uint32_t uRoot,uint32_t utRoot,SPHOptions SPHoptions) {

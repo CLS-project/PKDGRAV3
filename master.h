@@ -518,6 +518,10 @@ protected:
     void CalcMtot(double *M, uint64_t *N);
     void SetSPHoptions();
     void InitializeEOS();
+    struct pkdKickParameters CalculateKickParameters(uint8_t uRungLo, double dTime, double dDelta, double dStep,
+            int bKickClose, int bKickOpen, SPHOptions SPHoptions);
+    void UpdateGasValues(uint8_t uRungLo, double dTime, double dDelta, double dStep,
+                         int bKickClose, int bKickOpen, SPHOptions SPHoptions);
     void TreeUpdateFlagBounds(int bNeedEwald,uint32_t uRoot,uint32_t utRoot,SPHOptions SPHoptions);
 
 public:
