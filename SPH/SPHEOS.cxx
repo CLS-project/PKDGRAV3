@@ -104,7 +104,7 @@ float SPHEOSRhoofPT(PKD pkd, float P, float T, int iMat, SPHOptions *SPHoptions)
         }
         else {
             float u = T * SPHoptions->TuFac;
-            rho = P / (u * (SPHoptions->gamma - 1.0f);
+            rho = P / (u * (SPHoptions->gamma - 1.0f));
         }
     }
     else {
