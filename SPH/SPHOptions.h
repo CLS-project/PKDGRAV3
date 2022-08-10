@@ -56,6 +56,7 @@ typedef struct {
     int nPredictRung;
     uint64_t doGravity : 1;
     uint64_t doDensity : 1;
+    uint64_t doDensityCorrection : 1;
     uint64_t doSPHForces : 1;
     uint64_t doUConversion : 1;
     uint64_t doSetDensityFlags : 1;

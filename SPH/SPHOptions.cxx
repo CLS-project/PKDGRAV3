@@ -55,6 +55,7 @@ SPHOptions initializeSPHOptions(struct parameters param, CSM csm, double dTime) 
     }
     SPHoptions.doGravity = 0;
     SPHoptions.doDensity = 0;
+    SPHoptions.doDensityCorrection = 0;
     SPHoptions.doSPHForces = 0;
     SPHoptions.doUConversion = 0;
     SPHoptions.doSetDensityFlags = 0;
@@ -91,6 +92,7 @@ void copySPHOptions(SPHOptions *source, SPHOptions *target) {
     target->H = source->H;
     target->doGravity = 0;
     target->doDensity = 0;
+    target->doDensityCorrection = 0;
     target->doSPHForces = 0;
     target->doUConversion = 0;
     target->doSetDensityFlags = 0;

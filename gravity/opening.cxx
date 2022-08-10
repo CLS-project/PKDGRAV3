@@ -92,7 +92,7 @@ void iOpenOutcomeBlock(PKD pkd,KDN *k,int n,clBlock &blk,float dThetaMin,SPHOpti
     for (i=0; i<n; ++i) {
         fourh2 = blk.fourh2.v[i];
 
-        if (SPHoptions->doDensity || SPHoptions->doSPHForces || SPHoptions->doSetDensityFlags) {
+        if (SPHoptions->doDensity || SPHoptions->doDensityCorrection || SPHoptions->doSPHForces || SPHoptions->doSetDensityFlags) {
 #if SPHBALLOFBALLS
             distk2 = 0.0f;
             dx = k->fBoBxCenter - blk.xCenter.v[i] - blk.xOffset.v[i] - blk.xMax.v[i];

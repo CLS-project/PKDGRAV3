@@ -3181,6 +3181,8 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
     if (param.bVStep) {
         if (SPHoptions.doDensity && SPHoptions.useDensityFlags) printf("Calculating Density using FastGas, Step:%f (rung %d)\n",dStep,uRungLo);
         if (SPHoptions.doDensity && !SPHoptions.useDensityFlags) printf("Calculating Density without FastGas, Step:%f (rung %d)\n",dStep,uRungLo);
+        if (SPHoptions.doDensityCorrection && SPHoptions.useDensityFlags) printf("Calculating Density Correction using FastGas, Step:%f (rung %d)\n",dStep,uRungLo);
+        if (SPHoptions.doDensityCorrection && !SPHoptions.useDensityFlags) printf("Calculating Density Correction without FastGas, Step:%f (rung %d)\n",dStep,uRungLo);
         if (SPHoptions.doGravity && SPHoptions.doSPHForces) printf("Calculating Gravity and SPH forces, Step:%f (rung %d)\n",dStep,uRungLo);
         if (SPHoptions.doGravity && !SPHoptions.doSPHForces) printf("Calculating Gravity, Step:%f (rung %d)\n",dStep,uRungLo);
         if (SPHoptions.doSetDensityFlags) printf("Setting Density update flags for FastGas, Step:%f (rung %d)\n",dStep,uRungLo);
@@ -5202,6 +5204,10 @@ double MSR::Read(const char *achInFile) {
         MemStatus();
         if (SPHoptions.doInterfaceCorrection) {
             UpdateGasValues(0,dTime,0.0f,param.iStartStep,0,1,SPHoptions);
+            SPHoptions.doDensity = 0;
+            SPHoptions.doDensityCorrection = 1;
+            Gravity(0,MAX_RUNG,ROOT,0,dTime,0.0f,param.iStartStep,getTheta(dTime),0,1,
+                    param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,SPHoptions);
         }
         TimerStop(TIMER_NONE);
         dsec = TimerGet(TIMER_NONE);
@@ -5575,7 +5581,7 @@ struct pkdKickParameters MSR::CalculateKickParameters(uint8_t uRungLo, double dT
     uint8_t uRungLoTemp;
     int i;
     double dt;
-    if (SPHoptions.doDensity) {
+    if (SPHoptions.doDensity || SPHoptions.doDensityCorrection) {
         uRungLoTemp = uRungLo;
         uRungLo = SPHoptions.nPredictRung;
     }
@@ -5587,7 +5593,7 @@ struct pkdKickParameters MSR::CalculateKickParameters(uint8_t uRungLo, double dT
     */
     kick.bKickClose = bKickClose;
     kick.bKickOpen = bKickOpen;
-    if (SPHoptions.doGravity || SPHoptions.doDensity) {
+    if (SPHoptions.doGravity || SPHoptions.doDensity || SPHoptions.doDensityCorrection) {
         for (i=0,dt=0.5*dDelta; i<=param.iMaxRung; ++i,dt*=0.5) {
             kick.dtClose[i] = 0.0;
             kick.dtOpen[i] = 0.0;
@@ -5612,7 +5618,7 @@ struct pkdKickParameters MSR::CalculateKickParameters(uint8_t uRungLo, double dT
     ** Create the deltas for the on-the-fly prediction of velocity and the
     ** thermodynamical variable.
     */
-    if (SPHoptions.doGravity || SPHoptions.doDensity) {
+    if (SPHoptions.doGravity || SPHoptions.doDensity || SPHoptions.doDensityCorrection) {
         double substepWeAreAt = dStep - floor(dStep); // use fmod instead
         double stepStartTime = dTime - substepWeAreAt * dDelta;
         for (i = 0; i <= param.iMaxRung; ++i) {
@@ -5656,7 +5662,7 @@ struct pkdKickParameters MSR::CalculateKickParameters(uint8_t uRungLo, double dT
     /*
     ** Create the deltas for the on-the-fly prediction in case of ISPH
     */
-    if ((SPHoptions.doGravity || SPHoptions.doDensity) && SPHoptions.useIsentropic) {
+    if ((SPHoptions.doGravity || SPHoptions.doDensity || SPHoptions.doDensityCorrection) && SPHoptions.useIsentropic) {
         double substepWeAreAt = dStep - floor(dStep); // use fmod instead
         double stepStartTime = dTime - substepWeAreAt * dDelta;
         for (i = 0; i <= param.iMaxRung; ++i) {
@@ -5693,7 +5699,7 @@ struct pkdKickParameters MSR::CalculateKickParameters(uint8_t uRungLo, double dT
         }
     }
 
-    if (SPHoptions.doDensity) {
+    if (SPHoptions.doDensity || SPHoptions.doDensityCorrection) {
         uRungLo = uRungLoTemp;
     }
 

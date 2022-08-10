@@ -702,6 +702,13 @@ int pkdGravInteract(PKD pkd,
         queueDensity( pkd, wp, pkd->ilp, ts->bGravStep );
     }
 
+    if (SPHoptions->doDensityCorrection) {
+        /*
+        ** Evaluate the weighted averages of P and T
+        */
+        // queueDensityCorrection( pkd, wp, pkd->ilp, ts->bGravStep );
+    }
+
     if (SPHoptions->doSPHForces) {
         /*
         ** Evaluate the SPH forces on the P-P interactions
