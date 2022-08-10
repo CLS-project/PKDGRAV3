@@ -66,7 +66,6 @@ typedef struct {
     float rho; /* fDensity above is used for different stuff, calculated with different kernel etc */
     float P;
     float cs;
-    float T;
     int32_t species;
     float iMat;
     int isTooLarge;

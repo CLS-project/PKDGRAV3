@@ -599,7 +599,7 @@ int pkdGravInteract(PKD pkd,
             wp->pInfoIn[nP].isTooLarge = 0;
             wp->pInfoIn[nP].Omega = pNewSph->Omega;
             wp->pInfoIn[nP].iMat = pkdiMat(pkd,p);
-            SPHpredictOnTheFly(pkd, p, kick, ts->uRungLo, wp->pInfoIn[nP].v, &wp->pInfoIn[nP].P, &wp->pInfoIn[nP].cs, &wp->pInfoIn[nP].T, SPHoptions);
+            SPHpredictOnTheFly(pkd, p, kick, ts->uRungLo, wp->pInfoIn[nP].v, &wp->pInfoIn[nP].P, &wp->pInfoIn[nP].cs, NULL, SPHoptions);
             wp->pInfoIn[nP].rho = pkdDensity(pkd,p);
             wp->pInfoIn[nP].species = pkdSpecies(pkd,p);
 

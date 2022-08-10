@@ -29,7 +29,7 @@ float SPHEOSPCTofRhoU(PKD pkd, float rho, float u, float *c, float *T, int iMat,
         if (SPHoptions->useIsentropic) {
             u = u / (SPHoptions->gamma - 1.0f) * pow(rho, SPHoptions->gamma - 1.0f);
         }
-        *T = u / SPHoptions->TuFac;
+        if (T) *T = u / SPHoptions->TuFac;
         *c = sqrtf(SPHoptions->gamma * (SPHoptions->gamma - 1.0f) * u);
         P = (SPHoptions->gamma - 1.0f) * rho * u;
     }
@@ -39,7 +39,7 @@ float SPHEOSPCTofRhoU(PKD pkd, float rho, float u, float *c, float *T, int iMat,
         double Ttmp = 0.0;
         P = (float)EOSPCTofRhoU(pkd->materials[iMat],rho,u,&ctmp,&Ttmp);
         *c = (float)ctmp;
-        *T = (float)Ttmp;
+        if (T) *T = (float)Ttmp;
         if (P < 0.0f) P = 0.0f;
         if (*c < pkd->materials[iMat]->minSoundSpeed) *c = (float)pkd->materials[iMat]->minSoundSpeed;
 #endif
