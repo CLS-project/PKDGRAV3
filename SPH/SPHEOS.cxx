@@ -99,8 +99,13 @@ float SPHEOSPofRhoT(PKD pkd, float rho, float T, int iMat, SPHOptions *SPHoption
 float SPHEOSRhoofPT(PKD pkd, float P, float T, int iMat, SPHOptions *SPHoptions) {
     float rho = 0.0f;
     if (iMat == 0 && SPHoptions->useBuiltinIdeal) {
-        // NYI
-        assert(0);
+        if (SPHoptions->useIsentropic) {
+            rho = pow(P / ((SPHoptions->gamma - 1.0f)*(SPHoptions->gamma - 1.0f) * T * SPHoptions->TuFac),1.0f / (2.0f - SPHoptions->gamma));
+        }
+        else {
+            float u = T * SPHoptions->TuFac;
+            rho = P / (u * (SPHoptions->gamma - 1.0f);
+        }
     }
     else {
 #ifdef HAVE_EOSLIB_H
