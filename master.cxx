@@ -5203,11 +5203,11 @@ double MSR::Read(const char *achInFile) {
                 param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,SPHoptions);
         MemStatus();
         if (SPHoptions.doInterfaceCorrection) {
-            UpdateGasValues(0,dTime,0.0f,param.iStartStep,0,1,SPHoptions);
             SPHoptions.doDensity = 0;
             SPHoptions.doDensityCorrection = 1;
             Gravity(0,MAX_RUNG,ROOT,0,dTime,0.0f,param.iStartStep,getTheta(dTime),0,1,
                     param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,SPHoptions);
+            UpdateGasValues(0,dTime,0.0f,param.iStartStep,0,1,SPHoptions);
         }
         TimerStop(TIMER_NONE);
         dsec = TimerGet(TIMER_NONE);

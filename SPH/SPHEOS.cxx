@@ -96,6 +96,20 @@ float SPHEOSPofRhoT(PKD pkd, float rho, float T, int iMat, SPHOptions *SPHoption
     return P;
 }
 
+float SPHEOSRhoofPT(PKD pkd, float P, float T, int iMat, SPHOptions *SPHoptions) {
+    float rho = 0.0f;
+    if (iMat == 0 && SPHoptions->useBuiltinIdeal) {
+        // NYI
+        assert(0);
+    }
+    else {
+#ifdef HAVE_EOSLIB_H
+        rho = (float)EOSRhoofPT(pkd->materials[iMat],P,T);
+#endif
+    }
+    return rho;
+}
+
 float SPHEOSIsentropic(PKD pkd, float rho1, float u1, float rho2, int iMat, SPHOptions *SPHoptions) {
     float u2 = 0.0f;
     if (iMat == 0 && SPHoptions->useBuiltinIdeal) {

@@ -189,6 +189,14 @@ void pkdParticleWorkDone(workParticle *wp) {
                         SPHpredictInDensity(pkd, p, wp->kick, wp->SPHoptions->nPredictRung, &pNewSph->P, &pNewSph->cs, &pNewSph->T, wp->SPHoptions);
                     }
                 }
+                if (wp->SPHoptions->doDensityCorrection) {
+                    float Tbar = wp->pInfoOut[i].corrT / wp->pInfoOut[i].corr;
+                    float Pbar = wp->pInfoOut[i].corrP / wp->pInfoOut[i].corr;
+                    float Ttilde = pNewSph->expImb2 * pNewSph->T + (1.0f - pNewSph->expImb2) * Tbar;
+                    float Ptilde = pNewSph->expImb2 * pNewSph->P + (1.0f - pNewSph->expImb2) * Pbar;
+                    float newRho = SPHEOSRhoofPT(pkd, Ptilde, Ttilde, pkdiMat(pkd,p), wp->SPHoptions);
+                    pkdSetDensity(pkd,p,newRho);
+                }
                 if (wp->SPHoptions->doSPHForces) {
                     pNewSph->divv = wp->pInfoOut[i].divv;
                     if (pkdiMat(pkd,p) == 0 && wp->SPHoptions->useIsentropic && wp->SPHoptions->useBuiltinIdeal) {
@@ -471,6 +479,14 @@ static void queueDensity( PKD pkd, workParticle *wp, ilpList &ilp, int bGravStep
     }
 }
 
+static void queueDensityCorrection( PKD pkd, workParticle *wp, ilpList &ilp, int bGravStep ) {
+    for ( auto &tile : ilp ) {
+        for (auto i=0; i<wp->nP; ++i) {
+            pkdDensityCorrectionEval(wp->pInfoIn[i],tile,wp->pInfoOut[i],wp->SPHoptions);
+        }
+    }
+}
+
 static void queueSPHForces( PKD pkd, workParticle *wp, ilpList &ilp, int bGravStep ) {
     for ( auto &tile : ilp ) {
         for (auto i=0; i<wp->nP; ++i) {
@@ -616,6 +632,9 @@ int pkdGravInteract(PKD pkd,
             wp->pInfoOut[nP].divv = 0.0f;
             wp->pInfoOut[nP].dtEst = HUGE_VALF;
             wp->pInfoOut[nP].maxRung = 0.0f;
+            wp->pInfoOut[nP].corrT = 0.0f;
+            wp->pInfoOut[nP].corrP = 0.0f;
+            wp->pInfoOut[nP].corr = 0.0f;
         }
 
         wp->pInfoOut[nP].a[0] = 0.0f;
@@ -706,7 +725,7 @@ int pkdGravInteract(PKD pkd,
         /*
         ** Evaluate the weighted averages of P and T
         */
-        // queueDensityCorrection( pkd, wp, pkd->ilp, ts->bGravStep );
+        queueDensityCorrection( pkd, wp, pkd->ilp, ts->bGravStep );
     }
 
     if (SPHoptions->doSPHForces) {

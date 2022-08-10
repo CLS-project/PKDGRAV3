@@ -83,6 +83,7 @@ typedef struct {
     float rho, drhodfball, nden, dndendfball, fBall, nSmooth;
     float uDot, divv, dtEst, maxRung;
     float imbalanceX, imbalanceY, imbalanceZ;
+    float corrT, corrP, corr;
 } PINFOOUT;
 
 

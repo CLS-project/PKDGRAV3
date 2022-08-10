@@ -261,6 +261,7 @@ found_it:
                                             float P = 0.0f;                         /* should be calculated by the EOS, nyi */
                                             float cs = 0.0f;                        /* should be calculated by the EOS, nyi */
                                             float T = 0.0f;
+                                            float expImb2 = pNewSph->expImb2;
                                             SPHpredictOnTheFly(pkd, p, kick, ts->uRungLo, vpred, &P, &cs, &T, SPHoptions);
                                             pkd->ilp.append(
                                                 r[0] + blk.xOffset[jTile],
@@ -268,7 +269,7 @@ found_it:
                                                 r[2] + blk.zOffset[jTile],
                                                 blk.m[jTile], blk.fourh2[jTile],
                                                 vpred[0], vpred[1], vpred[2],
-                                                pkdBall(pkd,p), Omega, pkdDensity(pkd,p), P, cs, pkdSpecies(pkd,p), p->uRung, pkdiMat(pkd,p));
+                                                pkdBall(pkd,p), Omega, pkdDensity(pkd,p), P, cs, pkdSpecies(pkd,p), p->uRung, pkdiMat(pkd,p), T, expImb2);
                                         }
                                         else {
                                             pkd->ilp.append(
@@ -277,7 +278,7 @@ found_it:
                                                 r[2] + blk.zOffset[jTile],
                                                 blk.m[jTile], blk.fourh2[jTile],
                                                 v[0], v[1], v[2],
-                                                0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0, p->uRung, 0);
+                                                0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0, p->uRung, 0, 0.0f, 0.0f);
                                         }
                                     }
                                 }
@@ -322,6 +323,7 @@ found_it:
                                                 float P = 0.0f;                     /* should be calculated by the EOS, nyi */
                                                 float cs = 0.0f;                    /* should be calculated by the EOS, nyi */
                                                 float T = 0.0f;
+                                                float expImb2 = pNewSph->expImb2;
                                                 SPHpredictOnTheFly(pkd, p, kick, ts->uRungLo, vpred, &P, &cs, &T, SPHoptions);
                                                 pkd->ilp.append(
                                                     r[0] + blk.xOffset[jTile],
@@ -329,7 +331,7 @@ found_it:
                                                     r[2] + blk.zOffset[jTile],
                                                     fMass, 4*fSoft*fSoft,
                                                     vpred[0], vpred[1], vpred[2],
-                                                    pkdBall(pkd,p), Omega, pkdDensity(pkd,p), P, cs, pkdSpecies(pkd,p), p->uRung, pkdiMat(pkd,p));
+                                                    pkdBall(pkd,p), Omega, pkdDensity(pkd,p), P, cs, pkdSpecies(pkd,p), p->uRung, pkdiMat(pkd,p), T, expImb2);
                                             }
                                             else {
                                                 pkd->ilp.append(
@@ -338,7 +340,7 @@ found_it:
                                                     r[2] + blk.zOffset[jTile],
                                                     fMass, 4*fSoft*fSoft,
                                                     v[0], v[1], v[2],
-                                                    0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0, p->uRung, 0);
+                                                    0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0, p->uRung, 0, 0.0f, 0.0f);
                                             }
                                         }
                                     }

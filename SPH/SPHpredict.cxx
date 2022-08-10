@@ -50,7 +50,7 @@ void SPHpredictOnTheFly(PKD pkd, PARTICLE *p, struct pkdKickParameters *kick, in
         vpred[1] /= 1.0 - kick->dtClose[p->uRung] * SPHoptions->VelocityDamper;
         vpred[2] /= 1.0 - kick->dtClose[p->uRung] * SPHoptions->VelocityDamper;
     }
-    if (SPHoptions->doSPHForces) {
+    if (SPHoptions->doSPHForces || SPHoptions->doDensityCorrection) {
         if (SPHoptions->doOnTheFlyPrediction) {
             float uPred = 0.0f;
             if (SPHoptions->useIsentropic && !(pkdiMat(pkd,p) == 0 && SPHoptions->useBuiltinIdeal)) {

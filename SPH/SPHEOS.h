@@ -28,6 +28,7 @@ float SPHEOSPCTofRhoU(PKD pkd, float rho, float u, float *c, float *T, int iMat,
 float SPHEOSUofRhoT(PKD pkd, float rho, float T, int iMat, SPHOptions *SPHoptions);
 float SPHEOSTofRhoU(PKD pkd, float rho, float u, int iMat, SPHOptions *SPHoptions);
 float SPHEOSPofRhoT(PKD pkd, float rho, float T, int iMat, SPHOptions *SPHoptions);
+float SPHEOSRhoofPT(PKD pkd, float P, float T, int iMat, SPHOptions *SPHoptions);
 float SPHEOSIsentropic(PKD pkd, float rho1, float u1, float rho2, int iMat, SPHOptions *SPHoptions);
 #ifdef __cplusplus
 }

@@ -1293,6 +1293,7 @@ void pkdProcessLightCone(PKD pkd,PARTICLE *p,float fPot,double dLookbackFac,doub
                          double dDriftDelta,double dKickDelta,double dBoxSize,int bLightConeParticles);
 void pkdGravEvalPP(const PINFOIN &Part, ilpTile &tile, PINFOOUT &Out );
 void pkdDensityEval(const PINFOIN &Part, ilpTile &tile,  PINFOOUT &Out, SPHOptions *SPHoptions);
+void pkdDensityCorrectionEval(const PINFOIN &Part, ilpTile &tile,  PINFOOUT &Out, SPHOptions *SPHoptions);
 void pkdSPHForcesEval(const PINFOIN &Part, ilpTile &tile,  PINFOOUT &Out, SPHOptions *SPHoptions);
 void pkdGravEvalPC(const PINFOIN &pPart, ilcTile &tile, PINFOOUT &pOut );
 void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double,double,int bDoGas);

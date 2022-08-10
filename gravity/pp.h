@@ -162,6 +162,53 @@ PP_CUDA_BOTH ResultDensity<F> EvalDensity(
 }
 
 template<class F=float>
+struct ResultDensityCorrection {
+    F acorrT, acorrP, acorr;
+    void zero() { acorrT=acorrP=acorr=0; }
+    ResultDensityCorrection<F> operator+=(const ResultDensityCorrection<F> rhs) {
+        acorrT += rhs.acorrT;
+        acorrP += rhs.acorrP;
+        acorr += rhs.acorr;
+        return *this;
+    }
+};
+template<class F,class M>
+PP_CUDA_BOTH ResultDensityCorrection<F> EvalDensityCorrection(
+    F Pdx, F Pdy, F Pdz, F fBall,     // Particle
+    F Idx, F Idy, F Idz, F T, F P, F expImb2,  // Interaction(s)
+    int kernelType) {
+    ResultDensityCorrection<F> result;
+    F dx = Idx + Pdx;
+    F dy = Idy + Pdy;
+    F dz = Idz + Pdz;
+    F d2 = dx*dx + dy*dy + dz*dz;
+
+    F r, w;
+    F ifBall, C;
+    F t1, t2, t3;
+    M mask1;
+
+    ifBall = 1.0f / fBall;
+    r = sqrt(d2) * ifBall;
+
+    M r_lt_one = r < 1.0f;
+
+    if (!testz(r_lt_one)) {
+        // There is some work to do
+        SPHKERNEL_INIT(r, ifBall, C, t1, mask1, kernelType);
+        SPHKERNEL(r, w, t1, t2, t3, r_lt_one, mask1, kernelType);
+
+        result.acorr = expImb2 * C * w;
+        result.acorrT = T * result.acorr;
+        result.acorrP = P * result.acorr;
+    }
+    else {
+        result.zero(); // No work to do
+    }
+    return result;
+}
+
+template<class F=float>
 struct ResultSPHForces {
     F uDot, ax, ay, az, divv, dtEst, maxRung;
     void zero() { uDot=ax=ay=az=divv=maxRung=0; dtEst=HUGE_VALF; }
