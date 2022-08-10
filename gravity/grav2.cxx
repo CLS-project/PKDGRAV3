@@ -195,6 +195,7 @@ void pkdParticleWorkDone(workParticle *wp) {
                     float Ttilde = pNewSph->expImb2 * pNewSph->T + (1.0f - pNewSph->expImb2) * Tbar;
                     float Ptilde = pNewSph->expImb2 * pNewSph->P + (1.0f - pNewSph->expImb2) * Pbar;
                     float newRho = SPHEOSRhoofPT(pkd, Ptilde, Ttilde, pkdiMat(pkd,p), wp->SPHoptions);
+                    //printf("rho = %.5e, T = %.5e, P = %.5e, Tbar = %.5e, Pbar = %.5e, Ttilde = %.5e, Ptilde = %.5e, newRho = %.5e\n",pkdDensity(pkd,p),pNewSph->T,pNewSph->P,Tbar,Pbar,Ttilde,Ptilde,newRho);
                     pkdSetDensity(pkd,p,newRho);
                 }
                 if (wp->SPHoptions->doSPHForces) {

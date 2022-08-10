@@ -91,6 +91,7 @@ float SPHEOSPofRhoT(PKD pkd, float rho, float T, int iMat, SPHOptions *SPHoption
     else {
 #ifdef HAVE_EOSLIB_H
         P = (float)EOSPofRhoT(pkd->materials[iMat],rho,T);
+        if (P < 0.0f) P = 0.0f;
 #endif
     }
     return P;
