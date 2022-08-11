@@ -3298,7 +3298,7 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
     /*
     ** Create the deltas for the on-the-fly prediction in case of ISPH
     */
-    if ((SPHoptions.doGravity || SPHoptions.doDensity) && SPHoptions.useIsentropic) {
+    if (DoGas() && (SPHoptions.doGravity || SPHoptions.doDensity) && SPHoptions.useIsentropic) {
         double substepWeAreAt = dStep - floor(dStep); // use fmod instead
         double stepStartTime = dTime - substepWeAreAt * dDelta;
         for (i = 0; i <= param.iMaxRung; ++i) {
