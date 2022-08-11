@@ -110,19 +110,21 @@ float calculateInterfaceCorrectionPrefactor(float nSmooth,int kernelType) {
     float alpha = 0.0f;
     switch (kernelType) {
     case 0: {
-        assert(0);
+        if (nSmooth < 10.0f) nSmooth = 10.0f; // Below 10, the function decreases
+        alpha = -7.44731686e+02f / (nSmooth * nSmooth) + 1.42956727e+02f / nSmooth + 4.46685213e+00f;
         break;
     }
     case 1: {
-        assert(0);
+        if (nSmooth < 3.0f) nSmooth = 3.0f; // Below 3, the function decreases
+        alpha = -2.27180786e+02f / (nSmooth * nSmooth) + 1.55942641e+02f / nSmooth + 4.53619157e+00f;
         break;
     }
     case 2: {
-        assert(0);
+        alpha = 1.81941313e+03f / (nSmooth * nSmooth) + 1.73546428e+02f / nSmooth + 4.71450606e+00f;
         break;
     }
     case 3: {
-        alpha = 6.1420e3 / nSmooth / nSmooth + 170.0313 / nSmooth + 4.9239;
+        alpha = 6.00324255e+03f / (nSmooth * nSmooth) + 1.71766754e+02f / nSmooth + 4.92489934e+00f;
         break;
     }
     default: assert(0);
