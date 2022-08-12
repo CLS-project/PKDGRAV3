@@ -203,6 +203,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
             GridDeleteFFT();
         }
         if (DoGas() && NewSPH()) {
+            // Calculate Density
             SelAll(0,1);
             SPHOptions SPHoptions = initializeSPHOptions(param,csm,dTime);
             SPHoptions.doGravity = 0;
@@ -211,6 +212,15 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
             uRungMax = Gravity(0,MAX_RUNG,ROOT,0,dTime,dDelta,iStartStep,dTheta,0,bKickOpen,
                                param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,SPHoptions);
             MemStatus();
+            if (SPHoptions.doInterfaceCorrection) {
+                SPHoptions.doDensity = 0;
+                SPHoptions.doDensityCorrection = 1;
+                uRungMax = Gravity(0,MAX_RUNG,ROOT,0,dTime,dDelta,iStartStep,dTheta,0,bKickOpen,
+                                   param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,SPHoptions);
+                UpdateGasValues(0,dTime,dDelta,iStartStep,0,bKickOpen,SPHoptions);
+                SPHoptions.doDensityCorrection = 0;
+            }
+            // Calculate Forces
             SelAll(0,1);
             SPHoptions.doGravity = 1;
             SPHoptions.doDensity = 0;
@@ -297,6 +307,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
                 BuildTree(0);
                 LightConeOpen(iStep);  /* open the lightcone */
                 if (DoGas() && NewSPH()) {
+                    // Calculate Density
                     SelAll(0,1);
                     SPHOptions SPHoptions = initializeSPHOptions(param,csm,dTime);
                     SPHoptions.doGravity = 0;
@@ -304,6 +315,15 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
                     SPHoptions.doSPHForces = 0;
                     uRungMax = Gravity(0,MAX_RUNG,ROOT,0,ddTime,dDelta,diStep,dTheta,0,1,
                                        param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,SPHoptions);
+                    if (SPHoptions.doInterfaceCorrection) {
+                        SPHoptions.doDensity = 0;
+                        SPHoptions.doDensityCorrection = 1;
+                        uRungMax = Gravity(0,MAX_RUNG,ROOT,0,ddTime,dDelta,diStep,dTheta,0,1,
+                                           param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,SPHoptions);
+                        UpdateGasValues(0,ddTime,dDelta,diStep,0,1,SPHoptions);
+                        SPHoptions.doDensityCorrection = 0;
+                    }
+                    // Calculate Forces
                     SelAll(0,1);
                     SPHoptions.doGravity = 1;
                     SPHoptions.doDensity = 0;

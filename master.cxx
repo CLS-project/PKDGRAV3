@@ -4127,6 +4127,7 @@ int MSR::NewTopStepKDK(
             nParticlesOnRung += nRung[i];
         }
         if (nParticlesOnRung/((float) N) < SPHoptions.FastGasFraction) {
+            // Select Neighbors
             SPHoptions.doGravity = 0;
             SPHoptions.doDensity = 0;
             SPHoptions.nPredictRung = uRung;
@@ -4135,6 +4136,7 @@ int MSR::NewTopStepKDK(
             *puRungMax = Gravity(uRung,MaxRung(),ROOT,uRoot2,dTime,dDelta,*pdStep,dTheta,
                                  1,bKickOpen,param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,nGroup,SPHoptions);
         }
+        // Calculate Density
         SPHoptions.doSetDensityFlags = 0;
         SPHoptions.doGravity = 0;
         SPHoptions.doDensity = 1;
@@ -4151,7 +4153,16 @@ int MSR::NewTopStepKDK(
         else {
             *puRungMax = Gravity(0,MaxRung(),ROOT,uRoot2,dTime,dDelta,*pdStep,dTheta,
                                  1,bKickOpen,param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,nGroup,SPHoptions);
+            if (SPHoptions.doInterfaceCorrection) {
+                SPHoptions.doDensity = 0;
+                SPHoptions.doDensityCorrection = 1;
+                *puRungMax = Gravity(0,MaxRung(),ROOT,uRoot2,dTime,dDelta,*pdStep,dTheta,1,bKickOpen,
+                                     param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,nGroup,SPHoptions);
+                UpdateGasValues(0,dTime,dDelta,*pdStep,1,bKickOpen,SPHoptions);
+                SPHoptions.doDensityCorrection = 0;
+            }
         }
+        // Calculate Forces
         SelAll(0,1);
         SPHoptions.doGravity = 1;
         SPHoptions.doDensity = 0;
@@ -5196,6 +5207,7 @@ double MSR::Read(const char *achInFile) {
         ActiveRung(0,1); /* Activate all particles */
         DomainDecomp(-1);
         BuildTree(param.bEwald);
+        // Calculate Density
         SPHOptions SPHoptions = initializeSPHOptions(param,csm,dTime);
         SPHoptions.doDensity = 1;
         SPHoptions.doUConversion = 1;
