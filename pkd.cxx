@@ -3817,19 +3817,23 @@ void pkdUpdateGasValues(PKD pkd, struct pkdKickParameters *kick, SPHOptions *SPH
     int i;
     int n=pkd->Local();
     PARTICLE *p;
-    for ( i=0; i<n; i++ ) {
-        p=pkd->Particle(i);
-        NEWSPHFIELDS *pNewSph = pkdNewSph(pkd,p);
-        if (SPHoptions->doUConversion) {
+    NEWSPHFIELDS *pNewSph;
+    int doUConversion = SPHoptions->doUConversion;
+    if (SPHoptions->doUConversion) {
+        for ( i=0; i<n; i++ ) {
+            p=pkd->Particle(i);
+            pNewSph = pkdNewSph(pkd,p);
             pNewSph->u = SPHEOSUofRhoT(pkd,pkdDensity(pkd,p),pNewSph->u,pkdiMat(pkd,p),SPHoptions);
             pNewSph->oldRho = pkdDensity(pkd,p);
         }
-        SPHoptions->doUConversion = 0;
-        if (!SPHoptions->doOnTheFlyPrediction) {
-            SPHpredictInDensity(pkd, p, kick, SPHoptions->nPredictRung, &pNewSph->P, &pNewSph->cs, &pNewSph->T, SPHoptions);
-        }
-        SPHoptions->doUConversion = 1;
     }
+    if (doUConversion) SPHoptions->doUConversion = 0;
+    for ( i=0; i<n; i++ ) {
+        p=pkd->Particle(i);
+        pNewSph = pkdNewSph(pkd,p);
+        SPHpredictInDensity(pkd, p, kick, SPHoptions->nPredictRung, &pNewSph->P, &pNewSph->cs, &pNewSph->T, SPHoptions);
+    }
+    if (doUConversion) SPHoptions->doUConversion = 1;
 }
 
 /*

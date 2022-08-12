@@ -445,6 +445,10 @@ int MSR::ValidateParameters() {
         fprintf(stderr,"ERROR: Only one hydrodynamic scheme can be used.\n");
         return 0;
     }
+    if (param.bGasInterfaceCorrection && param.bGasOnTheFlyPrediction) {
+        fprintf(stderr,"Warning: On-the-fly prediction is not compatible with interface correction, disabled\n");
+        param.bGasOnTheFlyPrediction = 0;
+    }
 
     /*
     ** Make sure that we have some setting for nReplicas if bPeriodic is set.
