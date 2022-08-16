@@ -165,7 +165,7 @@ static const char *timer_names[TOTAL_TIMERS] = {
 static_assert(sizeof(timer_names) / sizeof(timer_names[0]) == TOTAL_TIMERS);
 
 void MSR::TimerHeader() {
-    char achFile[256];
+    char achFile[PST_FILENAME_SIZE];
     sprintf(achFile,"%s.timing",OutName());
     FILE *fpLog = NULL;
     fpLog = fopen(achFile,"a");
@@ -178,7 +178,7 @@ void MSR::TimerHeader() {
 }
 
 void MSR::TimerDump(int iStep) {
-    char achFile[256];
+    char achFile[PST_FILENAME_SIZE];
     sprintf(achFile,"%s.timing",OutName());
     FILE *fpLog = NULL;
     fpLog = fopen(achFile,"a");
@@ -3223,7 +3223,7 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
     }
     else in.ts.dAccFac = 1.0;
 
-    in.kick = CalculateKickParameters(uRungLo, dTime, dDelta, dStep, bKickClose, bKickOpen, SPHoptions);
+    CalculateKickParameters(&in.kick, uRungLo, dTime, dDelta, dStep, bKickClose, bKickOpen, SPHoptions);
 
     in.lc.bLightConeParticles = param.bLightConeParticles;
     in.lc.dBoxSize = param.dBoxSize;
@@ -3436,7 +3436,7 @@ void MSR::OutputFineStatistics(double dStep, double dTime) {
     if (!param.bOutFineStatistics)
         return;
     if (dTime==-1) {
-        char achFile[256];
+        char achFile[PST_FILENAME_SIZE];
         /* Initialization */
         sprintf(achFile,"%s.finelog",OutName());
         fpFineLog = fopen(achFile,"a");
@@ -5586,10 +5586,8 @@ void MSR::InitializeEOS() {
     printf("EOS initialized, Wallclock: %f secs\n\n",dsec);
 }
 
-struct pkdKickParameters MSR::CalculateKickParameters(uint8_t uRungLo, double dTime, double dDelta, double dStep,
-        int bKickClose, int bKickOpen, SPHOptions SPHoptions) {
-    struct pkdKickParameters kick;
-
+void MSR::CalculateKickParameters(struct pkdKickParameters *kick, uint8_t uRungLo, double dTime, double dDelta, double dStep,
+                                  int bKickClose, int bKickOpen, SPHOptions SPHoptions) {
     uint8_t uRungLoTemp;
     int i;
     double dt;
@@ -5603,24 +5601,24 @@ struct pkdKickParameters MSR::CalculateKickParameters(uint8_t uRungLo, double dT
     ** gravity should kick the particles. If the code uses bKickClose and
     ** bKickOpen it no longer needs to store accelerations per particle.
     */
-    kick.bKickClose = bKickClose;
-    kick.bKickOpen = bKickOpen;
+    kick->bKickClose = bKickClose;
+    kick->bKickOpen = bKickOpen;
     if (SPHoptions.doGravity || SPHoptions.doDensity || SPHoptions.doDensityCorrection) {
         for (i=0,dt=0.5*dDelta; i<=param.iMaxRung; ++i,dt*=0.5) {
-            kick.dtClose[i] = 0.0;
-            kick.dtOpen[i] = 0.0;
+            kick->dtClose[i] = 0.0;
+            kick->dtOpen[i] = 0.0;
             if (i>=uRungLo) {
                 if (csm->val.bComove) {
                     if (bKickClose) {
-                        kick.dtClose[i] = csmComoveKickFac(csm,dTime-dt,dt);
+                        kick->dtClose[i] = csmComoveKickFac(csm,dTime-dt,dt);
                     }
                     if (bKickOpen) {
-                        kick.dtOpen[i] = csmComoveKickFac(csm,dTime,dt);
+                        kick->dtOpen[i] = csmComoveKickFac(csm,dTime,dt);
                     }
                 }
                 else {
-                    if (bKickClose) kick.dtClose[i] = dt;
-                    if (bKickOpen) kick.dtOpen[i] = dt;
+                    if (bKickClose) kick->dtClose[i] = dt;
+                    if (bKickOpen) kick->dtOpen[i] = dt;
                 }
             }
         }
@@ -5653,10 +5651,10 @@ struct pkdKickParameters MSR::CalculateKickParameters(uint8_t uRungLo, double dT
                     ** -csmComoveKickFac(csm,TPredDrift + dtPredDrift,-dtPredDrift);
                     ** if dtPredDrift is negative, just to be sure
                     */
-                    kick.dtPredDrift[i] = csmComoveKickFac(csm,TPredDrift,dtPredDrift);
+                    kick->dtPredDrift[i] = csmComoveKickFac(csm,TPredDrift,dtPredDrift);
                 }
                 else {
-                    kick.dtPredDrift[i] = dtPredDrift;
+                    kick->dtPredDrift[i] = dtPredDrift;
                 }
             }
             else {
@@ -5666,7 +5664,7 @@ struct pkdKickParameters MSR::CalculateKickParameters(uint8_t uRungLo, double dT
                 ** or ahead, so all information is contained in dtOpen and dtClose and the
                 ** bMarked flag.
                 */
-                kick.dtPredDrift[i] = 0.0;
+                kick->dtPredDrift[i] = 0.0;
             }
         }
     }
@@ -5699,14 +5697,14 @@ struct pkdKickParameters MSR::CalculateKickParameters(uint8_t uRungLo, double dT
             double dtPredISPHOpen = (dTime - TSubStepStart) / 2.0;
             double dtPredISPHClose = (dTime - TSubStepStart) / 2.0;
             if (csm->val.bComove) {
-                kick.dtPredISPHUndoOpen[i] = csmComoveKickFac(csm,TSubStepKicked,dtPredISPHUndoOpen);
-                kick.dtPredISPHOpen[i] = csmComoveKickFac(csm,TSubStepStart,dtPredISPHOpen);
-                kick.dtPredISPHClose[i] = csmComoveKickFac(csm,TSubStepStart+dtPredISPHOpen,dtPredISPHClose);
+                kick->dtPredISPHUndoOpen[i] = csmComoveKickFac(csm,TSubStepKicked,dtPredISPHUndoOpen);
+                kick->dtPredISPHOpen[i] = csmComoveKickFac(csm,TSubStepStart,dtPredISPHOpen);
+                kick->dtPredISPHClose[i] = csmComoveKickFac(csm,TSubStepStart+dtPredISPHOpen,dtPredISPHClose);
             }
             else {
-                kick.dtPredISPHUndoOpen[i] = dtPredISPHUndoOpen;
-                kick.dtPredISPHOpen[i] = dtPredISPHOpen;
-                kick.dtPredISPHClose[i] = dtPredISPHClose;
+                kick->dtPredISPHUndoOpen[i] = dtPredISPHUndoOpen;
+                kick->dtPredISPHOpen[i] = dtPredISPHOpen;
+                kick->dtPredISPHClose[i] = dtPredISPHClose;
             }
         }
     }
@@ -5714,8 +5712,6 @@ struct pkdKickParameters MSR::CalculateKickParameters(uint8_t uRungLo, double dT
     if (SPHoptions.doDensity || SPHoptions.doDensityCorrection) {
         uRungLo = uRungLoTemp;
     }
-
-    return kick;
 }
 
 void MSR::UpdateGasValues(uint8_t uRungLo, double dTime, double dDelta, double dStep,
@@ -5726,7 +5722,7 @@ void MSR::UpdateGasValues(uint8_t uRungLo, double dTime, double dDelta, double d
     sec = MSR::Time();
     printf("Update Gas Values ...\n");
 
-    in.kick = CalculateKickParameters(uRungLo, dTime, dDelta, dStep, bKickClose, bKickOpen, SPHoptions);
+    CalculateKickParameters(&in.kick, uRungLo, dTime, dDelta, dStep, bKickClose, bKickOpen, SPHoptions);
 
     pstUpdateGasValues(pst, &in, sizeof(in), NULL, 0);
     dsec = MSR::Time() - sec;
