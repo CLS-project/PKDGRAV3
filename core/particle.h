@@ -52,7 +52,7 @@ uint64_t  uNewRung   :  IRUNGBITS;  /* Optional with bNewKDK + bMemUnordered */
     uint64_t  iClass     :  8;          /* Optional with bMemUnordered */
 uint64_t  iOrder     :  IORDERBITS; /* Optional with bMemUnordered */
 #ifdef NN_FLAG_IN_PARTICLE
-    uint64_t NNflag : 1;
+    uint64_t bNNflag : 1;           /* Neighbor of Neighbor of active flag */
 #endif
 } PARTICLE;
 static_assert(sizeof(PARTICLE)==sizeof(uint64_t));

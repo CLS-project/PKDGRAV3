@@ -2057,6 +2057,9 @@ static void combSetMarked(void *vpkd, void *v1, const void *v2) {
     PARTICLE *p1 = (PARTICLE *)v1;
     const PARTICLE *p2 = (const PARTICLE *)v2;
     if (p2->bMarked) p1->bMarked = 1;
+#ifdef NN_FLAG_IN_PARTICLE
+    if (p2->bNNflag) p1->bNNflag = 1;
+#endif
 }
 
 void pkdGravAll(PKD pkd,
@@ -2098,7 +2101,7 @@ void pkdGravAll(PKD pkd,
     /*
     ** Start particle caching space (cell cache already active).
     */
-    if (SPHoptions->doSetDensityFlags) {
+    if (SPHoptions->doSetDensityFlags || SPHoptions->doSetNNflags) {
         mdlCOcache(pkd->mdl,CID_PARTICLE,NULL,pkd->ParticleBase(),pkd->ParticleSize(),
                    pkd->Local(),NULL,initSetMarked,combSetMarked);
     }
@@ -3591,6 +3594,10 @@ int pkdSelSpecies(PKD pkd,uint64_t mSpecies, int setIfTrue, int clearIfFalse) {
     for ( i=0; i<n; i++ ) {
         PARTICLE *p=pkd->Particle(i);
         p->bMarked = isSelected((1<<pkdSpecies(pkd,p)) & mSpecies,setIfTrue,clearIfFalse,p->bMarked);
+#ifdef NN_FLAG_IN_PARTICLE
+        /* This is a bit clunky, but we only ever use this to reset the flags. */
+        p->bNNflag = p->bMarked;
+#endif
         if (p->bMarked) ++N;
     }
     return N;
@@ -3830,6 +3837,7 @@ void pkdUpdateGasValues(PKD pkd, struct pkdKickParameters *kick, SPHOptions *SPH
     if (doUConversion) SPHoptions->doUConversion = 0;
     for ( i=0; i<n; i++ ) {
         p=pkd->Particle(i);
+        if (SPHoptions->useDensityFlags && p->uRung < SPHoptions->nPredictRung && !p->bMarked) continue;
         pNewSph = pkdNewSph(pkd,p);
         SPHpredictInDensity(pkd, p, kick, SPHoptions->nPredictRung, &pNewSph->P, &pNewSph->cs, &pNewSph->T, SPHoptions);
     }

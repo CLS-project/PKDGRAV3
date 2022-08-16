@@ -255,7 +255,10 @@ typedef struct kdNode {
     float fBoBzMin;
     float fBoBzMax;
 #endif
-    uint64_t bHasMarked : 1;         /* flag if node has a marked particle, there are still 31 bit left*/
+    uint64_t bHasMarked : 1;         /* flag if node has a marked particle, there are still 63 bit left */
+#ifdef NN_FLAG_IN_PARTICLE
+    uint64_t bHasNNflag : 1;         /* flag if node has a NNflagged particle, there are still 62 bit left */
+#endif
 } KDN;
 
 typedef struct sphBounds {

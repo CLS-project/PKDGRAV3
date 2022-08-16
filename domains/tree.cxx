@@ -614,6 +614,9 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
         pkdn->uMinRung = MAX_RUNG;
         pkdn->uMaxRung = 0;
         pkdn->bHasMarked = 0;
+#ifdef NN_FLAG_IN_PARTICLE
+        pkdn->bHasNNflag = 0;
+#endif
         if (pkd->oNodeMom) momClearFmomr(pkdNodeMom(pkd,pkdn));
         return;
     }
@@ -722,6 +725,9 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
         }
         /* initialize marked flag */
         pkdn->bHasMarked = p->bMarked;
+#ifdef NN_FLAG_IN_PARTICLE
+        pkdn->bHasNNflag = p->bNNflag;
+#endif
 
         x *= m;
         y *= m;
@@ -758,6 +764,9 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
 #endif
             }
             if (p->bMarked) pkdn->bHasMarked = 1;
+#ifdef NN_FLAG_IN_PARTICLE
+            if (p->bNNflag) pkdn->bHasNNflag = 1;
+#endif
 
             x += m*ft[0];
             y += m*ft[1];
@@ -1077,6 +1086,9 @@ void pkdCombineCells1(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
     }
     /* Combine marked flag */
     pkdn->bHasMarked = p1->bHasMarked || p2->bHasMarked;
+#ifdef NN_FLAG_IN_PARTICLE
+    pkdn->bHasNNflag = p1->bHasNNflag || p2->bHasNNflag;
+#endif
 }
 
 
@@ -1432,6 +1444,11 @@ void pkdTreeUpdateFlagBoundsRecurse(PKD pkd,uint32_t uRoot,SPHOptions *SPHoption
         if (p->bMarked) {
             c->bHasMarked = 1;
         }
+#ifdef NN_FLAG_IN_PARTICLE
+        if (p->bNNflag) {
+            c->bHasNNflag = 1;
+        }
+#endif
         for (++pj; pj<=c->pUpper; ++pj) {
             p = pkd->Particle(pj);
             pkdGetPos1(pkd,p,ft);
@@ -1450,6 +1467,11 @@ void pkdTreeUpdateFlagBoundsRecurse(PKD pkd,uint32_t uRoot,SPHOptions *SPHoption
             if (p->bMarked) {
                 c->bHasMarked = 1;
             }
+#ifdef NN_FLAG_IN_PARTICLE
+            if (p->bNNflag) {
+                c->bHasNNflag = 1;
+            }
+#endif
         }
 #if SPHBALLOFBALLS
         c->fBoBxCenter = fBoBxCenter;
@@ -1481,6 +1503,9 @@ void pkdTreeUpdateFlagBoundsRecurse(PKD pkd,uint32_t uRoot,SPHOptions *SPHoption
         c->fBoBzMax = fmax(cLow->fBoBzMax,cUp->fBoBzMax);
 #endif
         c->bHasMarked = cLow->bHasMarked || cUp->bHasMarked;
+#ifdef NN_FLAG_IN_PARTICLE
+        c->bHasNNflag = cLow->bHasNNflag || cUp->bHasNNflag;
+#endif
     }
 }
 

@@ -233,14 +233,28 @@ found_it:
                                     pj = -1 - iCheckCell;
                                     assert(id >= 0);
                                     iCidPart = blk.iCache[jTile]==CID_CELL ? CID_PARTICLE : CID_PARTICLE2;
-                                    if (SPHoptions->doSetDensityFlags) {
+                                    if (SPHoptions->doSetDensityFlags || SPHoptions->doSetNNflags) {
                                         if (id == pkd->Self()) {
                                             p = pkd->Particle(pj);
-                                            p->bMarked = 1;
+                                            if (SPHoptions->doSetDensityFlags) {
+                                                p->bMarked = 1;
+                                            }
+                                            if (SPHoptions->doSetNNflags) {
+#ifdef NN_FLAG_IN_PARTICLE
+                                                p->bNNflag = 1;
+#endif
+                                            }
                                         }
                                         else {
                                             p = CAST(PARTICLE *,mdlAcquire(pkd->mdl,iCidPart,pj,id));
-                                            p->bMarked = 1;
+                                            if (SPHoptions->doSetDensityFlags) {
+                                                p->bMarked = 1;
+                                            }
+                                            if (SPHoptions->doSetNNflags) {
+#ifdef NN_FLAG_IN_PARTICLE
+                                                p->bNNflag = 1;
+#endif
+                                            }
                                             mdlRelease(pkd->mdl,iCidPart,p);
                                         }
                                     }
@@ -298,14 +312,28 @@ found_it:
                                         pkd->ilc.setReference(r[0],r[1],r[2]);
                                     }
                                     for (pj=c->pLower; pj<=c->pUpper; ++pj) {
-                                        if (SPHoptions->doSetDensityFlags) {
+                                        if (SPHoptions->doSetDensityFlags || SPHoptions->doSetNNflags) {
                                             if (id == pkd->Self()) {
                                                 p = pkd->Particle(pj);
-                                                p->bMarked = 1;
+                                                if (SPHoptions->doSetDensityFlags) {
+                                                    p->bMarked = 1;
+                                                }
+                                                if (SPHoptions->doSetNNflags) {
+#ifdef NN_FLAG_IN_PARTICLE
+                                                    p->bNNflag = 1;
+#endif
+                                                }
                                             }
                                             else {
                                                 p = CAST(PARTICLE *,mdlAcquire(pkd->mdl,iCidPart,pj,id));
-                                                p->bMarked = 1;
+                                                if (SPHoptions->doSetDensityFlags) {
+                                                    p->bMarked = 1;
+                                                }
+                                                if (SPHoptions->doSetNNflags) {
+#ifdef NN_FLAG_IN_PARTICLE
+                                                    p->bNNflag = 1;
+#endif
+                                                }
                                                 mdlRelease(pkd->mdl,iCidPart,p);
                                             }
                                         }
@@ -554,14 +582,14 @@ found_it:
             ** rung check here when we start using tree repair, but
             ** for now this is just as good.
             */
-            if ((k->uMinRung<=ts->uRungHi && k->uMaxRung >= ts->uRungLo) || (SPHoptions->useDensityFlags && k->bHasMarked)) {
+            if ((k->uMinRung<=ts->uRungHi && k->uMaxRung >= ts->uRungLo) || (SPHoptions->useDensityFlags && k->bHasMarked) || (SPHoptions->useNNflags && k->bHasNNflag)) {
                 /*
                 ** iCell is active, continue processing it.
                 ** Put the sibling onto the checklist.
                 */
                 iSib = iCell+1;
                 getCell(pkd,-1,iSib,pkd->Self(),&cOpen,&c);
-                if ((c->uMinRung<=ts->uRungHi && c->uMaxRung >= ts->uRungLo) || (SPHoptions->useDensityFlags && c->bHasMarked)) {
+                if ((c->uMinRung<=ts->uRungHi && c->uMaxRung >= ts->uRungLo) || (SPHoptions->useDensityFlags && c->bHasMarked) || (SPHoptions->useNNflags && c->bHasNNflag)) {
                     /*
                     ** Sibling is active so we need to clone the checklist!
                     */
@@ -579,7 +607,7 @@ found_it:
                 ** have to be careful to not pop the stack when we
                 ** hit the sibling.
                 */
-                if ((c->uMinRung<=ts->uRungHi && c->uMaxRung >= ts->uRungLo) || (SPHoptions->useDensityFlags && c->bHasMarked)) {
+                if ((c->uMinRung<=ts->uRungHi && c->uMaxRung >= ts->uRungLo) || (SPHoptions->useDensityFlags && c->bHasMarked) || (SPHoptions->useNNflags && c->bHasNNflag)) {
                     /*
                     ** Sibling is active as well.
                     ** Push Checklist for the sibling onto the stack
@@ -784,7 +812,7 @@ int pkdGravWalk(PKD pkd,struct pkdKickParameters *kick,struct pkdLightconeParame
     ** Walk tree 1 against trees 1 (and optionally 2) if there are active particles
     */
     KDN *k = pkd->TreeNode(iLocalRoot1);
-    if (k->pLower<=k->pUpper && (pkdIsCellActive(k,ts->uRungLo,ts->uRungHi) || (SPHoptions->useDensityFlags && k->bHasMarked))) {
+    if (k->pLower<=k->pUpper && (pkdIsCellActive(k,ts->uRungLo,ts->uRungHi) || (SPHoptions->useDensityFlags && k->bHasMarked)  || (SPHoptions->useNNflags && k->bHasNNflag))) {
         /*
         ** Initially we set our cell pointer to
         ** point to the top tree.

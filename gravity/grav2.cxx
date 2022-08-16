@@ -589,7 +589,11 @@ int pkdGravInteract(PKD pkd,
 
     for (i=pkdn->pLower; i<=pkdn->pUpper; ++i) {
         p = pkd->Particle(i);
+#ifdef NN_FLAG_IN_PARTICLE
+        if (!pkdIsRungRange(p,ts->uRungLo,ts->uRungHi) && !(SPHoptions->useDensityFlags && p->bMarked) && !(SPHoptions->useNNflags && p->bNNflag)) continue;
+#else
         if (!pkdIsRungRange(p,ts->uRungLo,ts->uRungHi) && !(SPHoptions->useDensityFlags && p->bMarked)) continue;
+#endif
         pkdGetPos1(pkd,p,r);
         v = pkdVel(pkd,p);
 

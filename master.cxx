@@ -3185,7 +3185,8 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
         if (SPHoptions.doDensityCorrection && !SPHoptions.useDensityFlags) printf("Calculating Density Correction without FastGas, Step:%f (rung %d)\n",dStep,uRungLo);
         if (SPHoptions.doGravity && SPHoptions.doSPHForces) printf("Calculating Gravity and SPH forces, Step:%f (rung %d)\n",dStep,uRungLo);
         if (SPHoptions.doGravity && !SPHoptions.doSPHForces) printf("Calculating Gravity, Step:%f (rung %d)\n",dStep,uRungLo);
-        if (SPHoptions.doSetDensityFlags) printf("Setting Density update flags for FastGas, Step:%f (rung %d)\n",dStep,uRungLo);
+        if (SPHoptions.doSetDensityFlags) printf("Marking Neighbors for FastGas, Step:%f (rung %d)\n",dStep,uRungLo);
+        if (SPHoptions.doSetNNflags) printf("Marking Neighbors of Neighbors for FastGas, Step:%f (rung %d)\n",dStep,uRungLo);
     }
     in.dTime = dTime;
     in.iRoot1 = iRoot1;
@@ -4135,6 +4136,17 @@ int MSR::NewTopStepKDK(
             SPHoptions.doSetDensityFlags = 1;
             *puRungMax = Gravity(uRung,MaxRung(),ROOT,uRoot2,dTime,dDelta,*pdStep,dTheta,
                                  1,bKickOpen,param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,nGroup,SPHoptions);
+            // Select Neighbors of Neighbors
+            if (SPHoptions.doInterfaceCorrection) {
+                TreeUpdateFlagBounds(param.bEwald,ROOT,0,SPHoptions);
+                SPHoptions.doSetDensityFlags = 0;
+                SPHoptions.doSetNNflags = 1;
+                SPHoptions.useDensityFlags = 1;
+                *puRungMax = Gravity(uRung,MaxRung(),ROOT,uRoot2,dTime,dDelta,*pdStep,dTheta,
+                                     1,bKickOpen,param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,nGroup,SPHoptions);
+                SPHoptions.doSetNNflags = 0;
+                SPHoptions.useDensityFlags = 0;
+            }
         }
         // Calculate Density
         SPHoptions.doSetDensityFlags = 0;
@@ -4146,9 +4158,23 @@ int MSR::NewTopStepKDK(
         if (nParticlesOnRung/((float) N) < SPHoptions.FastGasFraction) {
             SPHoptions.useDensityFlags = 1;
             SPHoptions.dofBallFactor = 1;
+            if (SPHoptions.doInterfaceCorrection) {
+                SPHoptions.useNNflags = 1;
+            }
             TreeUpdateFlagBounds(param.bEwald,ROOT,0,SPHoptions);
             *puRungMax = Gravity(uRung,MaxRung(),ROOT,uRoot2,dTime,dDelta,*pdStep,dTheta,
                                  1,bKickOpen,param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,nGroup,SPHoptions);
+            if (SPHoptions.doInterfaceCorrection) {
+                SPHoptions.doDensity = 0;
+                SPHoptions.doDensityCorrection = 1;
+                SPHoptions.useDensityFlags = 1;
+                SPHoptions.useNNflags = 0;
+                *puRungMax = Gravity(uRung,MaxRung(),ROOT,uRoot2,dTime,dDelta,*pdStep,dTheta,1,bKickOpen,
+                                     param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,nGroup,SPHoptions);
+                UpdateGasValues(uRung,dTime,dDelta,*pdStep,1,bKickOpen,SPHoptions);
+                SPHoptions.doDensityCorrection = 0;
+                SPHoptions.useDensityFlags = 0;
+            }
         }
         else {
             *puRungMax = Gravity(0,MaxRung(),ROOT,uRoot2,dTime,dDelta,*pdStep,dTheta,
