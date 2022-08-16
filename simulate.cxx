@@ -469,6 +469,12 @@ int MSR::ValidateParameters() {
         fprintf(stderr,"Warning: On-the-fly prediction is not compatible with interface correction, disabled\n");
         param.bGasOnTheFlyPrediction = 0;
     }
+#ifndef NN_FLAG_IN_PARTICLE
+    if (param.bNewSPH && param.bGasInterfaceCorrection && param.dFastGasFraction > 0.0f) {
+        fprintf(stderr,"ERROR: Interface correction and FastGas is active, but the NN flag is not compiled in. Set NN_FLAG_IN_PARTICLE to ON in CMakeLists.txt and recompile.\n");
+        return 0;
+    }
+#endif
 
     /*
     ** Make sure that we have some setting for nReplicas if bPeriodic is set.
