@@ -22,6 +22,7 @@
 #endif
 template<class F=float>
 struct ResultPP {
+    typedef F type;
     F ax, ay, az, pot;
     F ir, norm;
     PP_CUDA_BOTH void zero() { ax=ay=az=pot=ir=norm=0; }

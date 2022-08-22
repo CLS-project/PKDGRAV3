@@ -577,7 +577,6 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
 #if defined(USE_METAL)
     this->metalClient = new MetalClient(*this->mdl);
 #endif
-    mdlSetWorkQueueSize(this->mdl,iWorkQueueSize,iCUDAQueueSize);
     /*
     ** Initialize neighbor list pointer to NULL if present.
     */

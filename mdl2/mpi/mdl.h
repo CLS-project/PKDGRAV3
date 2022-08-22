@@ -75,17 +75,6 @@ namespace mdl {
 static const auto mdl_cache_size = 15'000'000;
 static const auto mdl_check_mask = 0x7f;
 
-typedef struct mdl_wq_node {
-    /* We can put this on different types of queues */
-    union {
-        OPA_Queue_element_hdr_t hdr;
-    };
-    int iCoreOwner;
-    void *ctx;
-    mdlWorkFunction doFcn;
-    mdlWorkFunction doneFcn;
-} MDLwqNode;
-
 // typedef struct cacheHeaderNew {
 //     uint32_t mid     :  2; /*  2: Message ID: request, flush, reply */
 //     uint32_t cid     :  6; /*  6: Cache for this entry */
@@ -221,20 +210,12 @@ public:
     void *worker_ctx;
     mdlMessageQueue threadBarrierQueue;
 
-    std::vector<mdlMessageQueue> queueReceive; // Receive "Send/Ssend"
+    std::unique_ptr<mdlMessageQueue[]> queueReceive; // Receive "Send/Ssend"
     void *pvMessageData; /* These two are for the collective malloc */
     size_t nMessageData;
     int iCoreMPI;             /* Core that handles MPI requests */
     int cacheSize;
 
-    /* Work Queues */
-    mdlMessageQueue wq;     /* Work for us to do */
-    mdlMessageQueue wqDone; /* Completed work from other threads */
-    mdlMessageQueue wqFree; /* Free work queue nodes */
-    int wqMaxSize;
-    uint16_t wqAccepting;
-    uint16_t wqLastHelper;
-    OPA_int_t wqCurSize;
     /*
      ** Services stuff!
      */
@@ -281,7 +262,6 @@ protected:
     void *WorkerThread();
     void combine_all_incoming();
 
-    int DoSomeWork();
     void bookkeeping();
     void *finishCacheRequest(int cid,uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey, bool bVirtual, void *dst, const void *src);
 
@@ -657,14 +637,8 @@ void mdlReleaseWrite(MDL mdl,int cid,void *p);
 double mdlNumAccess(MDL,int);
 double mdlMissRatio(MDL,int);
 
-void mdlSetWorkQueueSize(MDL,int,int);
 void mdlSetCudaBufferSize(MDL,int,int);
 int mdlCudaActive(MDL mdl);
-void mdlAddWork(MDL mdl, void *ctx,
-                int (*initWork)(void *ctx,void *vwork),
-                int (*checkWork)(void *ctx,void *vwork),
-                mdlWorkFunction doWork,
-                mdlWorkFunction doneWork);
 
 void mdlTimeReset(MDL mdl);
 double mdlTimeComputing(MDL mdl);

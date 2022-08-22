@@ -5698,7 +5698,7 @@ void MSR::CalculateKickParameters(struct pkdKickParameters *kick, uint8_t uRungL
     /*
     ** Create the deltas for the on-the-fly prediction in case of ISPH
     */
-    if ((SPHoptions.doGravity || SPHoptions.doDensity || SPHoptions.doDensityCorrection) && SPHoptions.useIsentropic) {
+    if (NewSPH() && (SPHoptions.doGravity || SPHoptions.doDensity || SPHoptions.doDensityCorrection) && SPHoptions.useIsentropic) {
         double substepWeAreAt = dStep - floor(dStep); // use fmod instead
         double stepStartTime = dTime - substepWeAreAt * dDelta;
         for (i = 0; i <= param.iMaxRung; ++i) {

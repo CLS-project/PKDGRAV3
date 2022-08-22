@@ -894,7 +894,6 @@ void mdlClass::FlushCache(int cid) {
     auto c = cache[cid].get();
 
     TimeAddComputing();
-    wqAccepting = 1;
     c->clear();
     flush_core_buffer();
     ThreadBarrier();
@@ -907,7 +906,6 @@ void mdlClass::FlushCache(int cid) {
         enqueueAndWait(mdlMessageCacheFlushLocal());
     }
     ThreadBarrier();
-    wqAccepting = 0;
     TimeAddSynchronizing();
 }
 
@@ -941,12 +939,10 @@ void mdlClass::FinishCache(int cid) {
     auto c = cache[cid].get();
 
     TimeAddComputing();
-    wqAccepting = 1;
     FlushCache(cid);
     enqueueAndWait(mdlMessageCacheClose());
     ThreadBarrier();
     c->close();
-    wqAccepting = 0;
     TimeAddSynchronizing();
 }
 
@@ -1767,38 +1763,8 @@ void mdlClass::bookkeeping() {
     combine_all_incoming();
 }
 
-/* Do one piece of work. Return 0 if there was no work. */
-int mdlClass::DoSomeWork() {
-    MDLwqNode *work;
-    int rc = 0;
-    CacheCheck();
-    if (!OPA_Queue_is_empty(&wq)) {
-        /* Grab a work package, and perform it */
-        OPA_Queue_dequeue(&wq, work, MDLwqNode, hdr);
-        OPA_decr_int(&wqCurSize);
-        while ( (*work->doFcn)(work->ctx) != 0 ) {
-            CacheCheck();
-        }
-        rc = 1;
-        /* Send it back to the original thread for completion (could be us) */
-        if (work->iCoreOwner == Core()) goto reQueue;
-        OPA_Queue_enqueue(&pmdl[work->iCoreOwner]->wqDone, work, MDLwqNode, hdr);
-    }
-    while (!OPA_Queue_is_empty(&wqDone)) {
-        OPA_Queue_dequeue(&wqDone, work, MDLwqNode, hdr);
-reQueue:
-        (*work->doneFcn)(work->ctx);
-        work->ctx = NULL;
-        work->doFcn = NULL;
-        work->doneFcn = NULL;
-        OPA_Queue_enqueue(&wqFree, work, MDLwqNode, hdr);
-    }
-    return rc;
-}
-
 extern "C" void mdlCompleteAllWork(MDL mdl) { static_cast<mdlClass *>(mdl)->CompleteAllWork(); }
 void mdlClass::CompleteAllWork() {
-    while (DoSomeWork()) {}
 #ifdef USE_CL
     while (CL_flushDone(clCtx)) {}
 #endif
@@ -1814,10 +1780,7 @@ basicMessage &mdlClass::waitQueue(basicQueue &wait) {
     while (wait.empty()) {
         checkMPI(); // Only does something on the MPI thread
         bookkeeping();
-        if (DoSomeWork() == 0) {
-            // This is important in the case where we have oversubscribed the CPU
-            yield();
-        }
+        yield();
     }
     return wait.dequeue();
 }
@@ -1980,15 +1943,6 @@ int mdlClass::mdl_MPI_Sendrecv(
 
 void mdlClass::init(bool bDiag) {
     /*
-    ** Our work queue. We can defer work for when we are waiting, or get work
-    ** from other threads if we are idle.
-    */
-    wqMaxSize = 0;
-    wqAccepting = 0;
-    wqLastHelper = 0;
-    OPA_store_int(&wqCurSize,0);
-
-    /*
     ** Set default "maximums" for structures. These are NOT hard
     ** maximums, as the structures will be realloc'd when these
     ** values are exceeded.
@@ -2013,7 +1967,7 @@ void mdlClass::init(bool bDiag) {
     for (int i=0; i<9; ++i) coreFlushBuffers.enqueue(new mdlMessageFlushFromCore);
     coreFlushBuffer = new mdlMessageFlushFromCore;
 
-    queueReceive.resize(Cores()); // A separate receive queue from each core
+    queueReceive = std::make_unique<mdlMessageQueue[]>(Cores());
 
 #ifdef USE_CL
     clCtx = CL_initialize(clContext,Cores(),Core());
@@ -2629,7 +2583,7 @@ void mdlFFTFree( MDL mdl, MDLFFT fft, void *p ) {
 
 void mdlFFT( MDL cmdl, MDLFFT fft, FFTW3(real) *data ) { static_cast<mdlClass *>(cmdl)->FFT(fft,data); }
 void mdlClass::FFT( MDLFFT fft, FFTW3(real) *data ) {
-    //fftTrans trans;
+    mdlMessageDFT_R2C trans(fft,data,(FFTW3(complex) *)data);
     ThreadBarrier();
     if (Core() == iCoreMPI) {
         FFTW3(execute_dft_r2c)(fft->fplan,data,(FFTW3(complex) *)(data));
@@ -2638,7 +2592,6 @@ void mdlClass::FFT( MDLFFT fft, FFTW3(real) *data ) {
         // NOTE: we do not receive a "reply" to this message, rather the synchronization
         // is done with a barrier_wait. This is so there is no spinning (in principle)
         // and the FFTW threads can make full use of the CPU.
-        mdlMessageDFT_R2C trans(fft,data,(FFTW3(complex) *)data);
         enqueue(trans);
     }
     if (Cores()>1) mpi->pthreadBarrierWait();
@@ -2646,6 +2599,7 @@ void mdlClass::FFT( MDLFFT fft, FFTW3(real) *data ) {
 
 void mdlIFFT( MDL cmdl, MDLFFT fft, FFTW3(complex) *kdata ) { static_cast<mdlClass *>(cmdl)->IFFT(fft,kdata); }
 void mdlClass::IFFT( MDLFFT fft, FFTW3(complex) *kdata ) {
+    mdlMessageDFT_C2R trans(fft,(FFTW3(real) *)kdata,kdata);
     ThreadBarrier();
     if (Core() == iCoreMPI) {
         FFTW3(execute_dft_c2r)(fft->iplan,kdata,(FFTW3(real) *)(kdata));
@@ -2654,7 +2608,6 @@ void mdlClass::IFFT( MDLFFT fft, FFTW3(complex) *kdata ) {
         // NOTE: we do not receive a "reply" to this message, rather the synchronization
         // is done with a barrier_wait. This is so there is no spinning (in principle)
         // and the FFTW threads can make full use of the CPU.
-        mdlMessageDFT_C2R trans(fft,(FFTW3(real) *)kdata,kdata);
         enqueue(trans);
     }
     if (Cores()>1) mpi->pthreadBarrierWait();
@@ -2676,80 +2629,6 @@ void mdlSetCudaBufferSize(MDL cmdl,int inBufSize, int outBufSize) {
 //    if (mdl->outCudaBufSize < outBufSize) mdl->outCudaBufSize = outBufSize;
 }
 #endif
-
-void mdlSetWorkQueueSize(MDL cmdl,int wqMaxSize,int cudaSize) {
-    mdlClass *mdl = static_cast<mdlClass *>(cmdl);
-    MDLwqNode *work;
-    int i;
-
-#ifdef USE_CL
-    CL_SetQueueSize(mdl->clCtx,cudaSize,mdl->inCudaBufSize,mdl->outCudaBufSize);
-#endif
-    while (wqMaxSize > mdl->wqMaxSize) {
-        for (i=0; i<mdl->Cores(); ++i) {
-            work = CAST(MDLwqNode *,malloc(sizeof(MDLwqNode)));
-            OPA_Queue_header_init(&work->hdr);
-            work->iCoreOwner = mdl->Core();
-            work->ctx = NULL;
-            work->doFcn = NULL;
-            work->doneFcn = NULL;
-            OPA_Queue_enqueue(&mdl->wqFree, work, MDLwqNode, hdr);
-        }
-        ++mdl->wqMaxSize;
-    }
-    while (wqMaxSize < mdl->wqMaxSize) {
-        for (i=0; i<mdl->Cores(); ++i) {
-            if (!OPA_Queue_is_empty(&mdl->wqFree))
-                OPA_Queue_dequeue(&mdl->wqFree, work, MDLwqNode, hdr);
-            else assert(0);
-            free(work);
-        }
-        --mdl->wqMaxSize;
-    }
-}
-
-void mdlAddWork(MDL cmdl, void *ctx,
-                int (*initWork)(void *ctx,void *vwork),
-                int (*checkWork)(void *ctx,void *vwork),
-                mdlWorkFunction doWork,
-                mdlWorkFunction doneWork) {
-    mdlClass *mdl = static_cast<mdlClass *>(cmdl);
-    mdlClass *Qmdl = NULL;
-    MDLwqNode *work;
-    int i;
-
-    /* Obviously, we can only queue work if we have a free queue element */
-    if (!OPA_Queue_is_empty(&mdl->wqFree)) {
-        /* We have some room, so save work for later */
-        if (OPA_load_int(&mdl->wqCurSize) < mdl->wqMaxSize) Qmdl = mdl;
-        /* See if anyone else is accepting work */
-        else {
-            i = mdl->wqLastHelper;
-            do {
-                mdlClass *rMDL = mdl->pmdl[i];
-                if (rMDL->wqAccepting && OPA_load_int(&rMDL->wqCurSize)<rMDL->wqMaxSize) {
-                    Qmdl = rMDL;
-                    mdl->wqLastHelper = i;
-                    break;
-                }
-                if (++i == mdl->Cores()) i = 0;
-            } while (i!=mdl->wqLastHelper);
-        }
-        if (Qmdl) {
-            OPA_Queue_dequeue(&mdl->wqFree, work, MDLwqNode, hdr);
-            work->ctx = ctx;
-            work->doFcn = doWork;
-            work->doneFcn = doneWork;
-            OPA_incr_int(&Qmdl->wqCurSize);
-            OPA_Queue_enqueue(&Qmdl->wq, work, MDLwqNode, hdr);
-            return;
-        }
-    }
-
-    /* Just handle it ourselves */
-    while ( doWork(ctx) != 0 ) {}
-    doneWork(ctx);
-}
 
 int mdlProcToThread(MDL cmdl, int iProc) {
     return static_cast<mdlClass *>(cmdl)->ProcToThread(iProc);
