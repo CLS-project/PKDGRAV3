@@ -67,6 +67,7 @@ typedef struct {
     float P;
     float cs;
     int32_t species;
+    float iMat;
     int isTooLarge;
     /*    float v[3];*/
     /*    float fMass;*/
@@ -81,6 +82,8 @@ typedef struct {
     /* SPH fields follow */
     float rho, drhodfball, nden, dndendfball, fBall, nSmooth;
     float uDot, divv, dtEst, maxRung;
+    float imbalanceX, imbalanceY, imbalanceZ;
+    float corrT, corrP, corr;
 } PINFOOUT;
 
 

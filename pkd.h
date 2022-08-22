@@ -255,7 +255,10 @@ typedef struct kdNode {
     float fBoBzMin;
     float fBoBzMax;
 #endif
-    uint64_t bHasMarked : 1;         /* flag if node has a marked particle, there are still 31 bit left*/
+    uint64_t bHasMarked : 1;         /* flag if node has a marked particle, there are still 63 bit left */
+#ifdef NN_FLAG_IN_PARTICLE
+    uint64_t bHasNNflag : 1;         /* flag if node has a NNflagged particle, there are still 62 bit left */
+#endif
 } KDN;
 
 typedef struct sphBounds {
@@ -1040,7 +1043,7 @@ static inline float pkdSoft( PKD pkd, PARTICLE *p ) {
 static inline FIO_SPECIES pkdSpecies( PKD pkd, PARTICLE *p ) {
     return pkd->particles.species(p);
 }
-static inline float pkdiMat( PKD pkd, PARTICLE *p ) {
+static inline int pkdiMat( PKD pkd, PARTICLE *p ) {
     return pkd->particles.iMat(p);
 }
 
@@ -1293,6 +1296,7 @@ void pkdProcessLightCone(PKD pkd,PARTICLE *p,float fPot,double dLookbackFac,doub
                          double dDriftDelta,double dKickDelta,double dBoxSize,int bLightConeParticles);
 void pkdGravEvalPP(const PINFOIN &Part, ilpTile &tile, PINFOOUT &Out );
 void pkdDensityEval(const PINFOIN &Part, ilpTile &tile,  PINFOOUT &Out, SPHOptions *SPHoptions);
+void pkdDensityCorrectionEval(const PINFOIN &Part, ilpTile &tile,  PINFOOUT &Out, SPHOptions *SPHoptions);
 void pkdSPHForcesEval(const PINFOIN &Part, ilpTile &tile,  PINFOOUT &Out, SPHOptions *SPHoptions);
 void pkdGravEvalPC(const PINFOIN &pPart, ilcTile &tile, PINFOOUT &pOut );
 void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double,double,int bDoGas);
@@ -1393,6 +1397,7 @@ void pkdCalcCOM(PKD pkd, double *dCenter, double dRadius, int bPeriodic,
                 double *M, uint64_t *N);
 void pkdCalcMtot(PKD pkd, double *M, uint64_t *N);
 void pkdInitializeEOS(PKD pkd);
+void pkdUpdateGasValues(PKD pkd, struct pkdKickParameters *kick, SPHOptions *SPHoptions);
 void pkdTreeUpdateFlagBounds(PKD pkd,uint32_t uRoot,SPHOptions *SPHoptions);
 #ifdef MDL_FFTW
 void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int iAssignment, int iGrid, float dDelta);

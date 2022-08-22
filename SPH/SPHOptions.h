@@ -56,6 +56,7 @@ typedef struct {
     int nPredictRung;
     uint64_t doGravity : 1;
     uint64_t doDensity : 1;
+    uint64_t doDensityCorrection : 1;
     uint64_t doSPHForces : 1;
     uint64_t doUConversion : 1;
     uint64_t doSetDensityFlags : 1;
@@ -65,6 +66,9 @@ typedef struct {
     uint64_t useBuiltinIdeal : 1;
     uint64_t useDensityFlags : 1;
     uint64_t doOnTheFlyPrediction : 1;
+    uint64_t doInterfaceCorrection : 1;
+    uint64_t doSetNNflags : 1;
+    uint64_t useNNflags : 1;
     uint64_t kernelType : 3;
 } SPHOptions;
 
@@ -73,6 +77,7 @@ extern "C" {
 #endif
 SPHOptions initializeSPHOptions(struct parameters param, CSM csm, double dTime);
 void copySPHOptions(SPHOptions *source, SPHOptions *target);
+float calculateInterfaceCorrectionPrefactor(float nSmooth,int kernelType);
 #ifdef __cplusplus
 }
 #endif
