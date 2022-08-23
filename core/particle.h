@@ -213,6 +213,7 @@ struct NEWSPHFIELDS {
     float oldRho;       /* Rho corresponding to where u is at */
     float expImb2;      /* exp(-imbalance^2) */
     float T;            /* Temperature */
+    float vpredx, vpredy, vpredz;     /* predicted velocities */
 };
 
 struct STARFIELDS {

@@ -69,6 +69,7 @@ typedef struct {
     uint64_t doInterfaceCorrection : 1;
     uint64_t doSetNNflags : 1;
     uint64_t useNNflags : 1;
+    uint64_t doConsistentPrediction : 1;
     uint64_t kernelType : 3;
 } SPHOptions;
 

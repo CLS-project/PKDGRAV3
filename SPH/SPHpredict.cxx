@@ -42,13 +42,20 @@ void SPHpredictOnTheFly(PKD pkd, PARTICLE *p, struct pkdKickParameters *kick, in
     float dtPredDrift = getDtPredDrift(kick,p->bMarked,uRungLo,p->uRung);
     const float *ap = pkdAccel(pkd,p);
     const vel_t *v = pkdVel(pkd,p);
-    vpred[0] = v[0] + dtPredDrift * ap[0];
-    vpred[1] = v[1] + dtPredDrift * ap[1];
-    vpred[2] = v[2] + dtPredDrift * ap[2];
-    if ((SPHoptions->VelocityDamper > 0.0) & p->bMarked) {
-        vpred[0] /= 1.0 - kick->dtClose[p->uRung] * SPHoptions->VelocityDamper;
-        vpred[1] /= 1.0 - kick->dtClose[p->uRung] * SPHoptions->VelocityDamper;
-        vpred[2] /= 1.0 - kick->dtClose[p->uRung] * SPHoptions->VelocityDamper;
+    if (SPHoptions->doConsistentPrediction) {
+        vpred[0] = pNewSph->vpredx;
+        vpred[1] = pNewSph->vpredy;
+        vpred[2] = pNewSph->vpredz;
+    }
+    else {
+        vpred[0] = v[0] + dtPredDrift * ap[0];
+        vpred[1] = v[1] + dtPredDrift * ap[1];
+        vpred[2] = v[2] + dtPredDrift * ap[2];
+        if ((SPHoptions->VelocityDamper > 0.0) && p->bMarked) {
+            vpred[0] /= 1.0 - kick->dtOpen[p->uRung] * SPHoptions->VelocityDamper;
+            vpred[1] /= 1.0 - kick->dtOpen[p->uRung] * SPHoptions->VelocityDamper;
+            vpred[2] /= 1.0 - kick->dtOpen[p->uRung] * SPHoptions->VelocityDamper;
+        }
     }
     if (SPHoptions->doSPHForces || SPHoptions->doDensityCorrection) {
         if (SPHoptions->doOnTheFlyPrediction) {
@@ -106,5 +113,12 @@ void SPHpredictInDensity(PKD pkd, PARTICLE *p, struct pkdKickParameters *kick, i
             uPred = pNewSph->u + dtPredDrift * pNewSph->uDot;
         }
         *P = SPHEOSPCTofRhoU(pkd,pkdDensity(pkd,p),uPred,cs,T,pkdiMat(pkd,p),SPHoptions);
+        if (SPHoptions->doConsistentPrediction) {
+            const vel_t *v = pkdVel(pkd,p);
+            const float *ap = pkdAccel(pkd,p);
+            pNewSph->vpredx = v[0] + dtPredDrift * ap[0];
+            pNewSph->vpredy = v[1] + dtPredDrift * ap[1];
+            pNewSph->vpredz = v[2] + dtPredDrift * ap[2];
+        }
     }
 }

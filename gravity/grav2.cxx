@@ -385,14 +385,9 @@ void pkdParticleWorkDone(workParticle *wp) {
                                 pNewSph->oldRho = pkdDensity(pkd,p);
                             }
                             pNewSph->u += wp->kick->dtClose[p->uRung] * pNewSph->uDot;
-                            if (!wp->SPHoptions->doOnTheFlyPrediction) {
+                            if (!wp->SPHoptions->doOnTheFlyPrediction && !wp->SPHoptions->doConsistentPrediction) {
                                 pNewSph->P = SPHEOSPCTofRhoU(pkd,pkdDensity(pkd,p),pNewSph->u,&pNewSph->cs,&pNewSph->T,pkdiMat(pkd,p),wp->SPHoptions);
                             }
-                        }
-                        if (wp->SPHoptions->VelocityDamper > 0.0f) {
-                            v[0] *= 1.0 - wp->kick->dtClose[p->uRung] * wp->SPHoptions->VelocityDamper;
-                            v[1] *= 1.0 - wp->kick->dtClose[p->uRung] * wp->SPHoptions->VelocityDamper;
-                            v[2] *= 1.0 - wp->kick->dtClose[p->uRung] * wp->SPHoptions->VelocityDamper;
                         }
                     }
                     v2 = v[0]*v[0] + v[1]*v[1] + v[2]*v[2];
@@ -408,6 +403,11 @@ void pkdParticleWorkDone(workParticle *wp) {
                     if (wp->kick && wp->kick->bKickOpen) {
                         p->uRung = uNewRung;
                         ++pkd->nRung[p->uRung];
+                        if (wp->SPHoptions->VelocityDamper > 0.0f) {
+                            v[0] *= 1.0 - wp->kick->dtOpen[p->uRung] * wp->SPHoptions->VelocityDamper;
+                            v[1] *= 1.0 - wp->kick->dtOpen[p->uRung] * wp->SPHoptions->VelocityDamper;
+                            v[2] *= 1.0 - wp->kick->dtOpen[p->uRung] * wp->SPHoptions->VelocityDamper;
+                        }
                         v[0] += wp->kick->dtOpen[p->uRung]*wp->pInfoOut[i].a[0];
                         v[1] += wp->kick->dtOpen[p->uRung]*wp->pInfoOut[i].a[1];
                         v[2] += wp->kick->dtOpen[p->uRung]*wp->pInfoOut[i].a[2];
