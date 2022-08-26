@@ -726,6 +726,46 @@ static inline void extrapolateCosmology(ftype &vx, ftype &vy, ftype &vz,
     p -= 3. * H * dt * a * (dConstGamma - 1.) * p0;
 }
 
+template <typename ftype=double>
+static inline void computeFace(ftype &modApq, std::array<ftype,3> &unit,
+                               ftype rpq,  ftype dx, ftype dy, ftype dz,
+                               ftype ph, ftype qh, ftype p_omega, ftype q_omega,
+                               ftype pBxx, ftype pBxy, ftype pBxz,
+                               ftype pByy, ftype pByz, ftype pBzz,
+                               ftype qBxx, ftype qBxy, ftype qBxz,
+                               ftype qByy, ftype qByz, ftype qBzz) {
+    ftype psi;
+    ftype psiTilde[3];
+    ftype Apq[3] = {0.,0.,0.};
+
+    // \tilde{\psi}_j (x_i)
+    psi  = -cubicSplineKernel(rpq, ph)/p_omega;
+    psiTilde[0] = (pBxx*dx + pBxy*dy + pBxz*dz)*psi;
+    psiTilde[1] = (pBxy*dx + pByy*dy + pByz*dz)*psi;
+    psiTilde[2] = (pBxz*dx + pByz*dy + pBzz*dz)*psi;
+    for (auto j=0; j<3; j++) {
+        Apq[j] += psiTilde[j]/p_omega;
+    }
+
+    // \tilde{\psi}_i (x_j)
+    psi = cubicSplineKernel(rpq, qh)/q_omega;
+    psiTilde[0] = (qBxx*dx + qBxy*dy + qBxz*dz)*psi;
+    psiTilde[1] = (qBxy*dx + qByy*dy + qByz*dz)*psi;
+    psiTilde[2] = (qBxz*dx + qByz*dy + qBzz*dz)*psi;
+    for (auto j=0; j<3; j++) {
+        Apq[j] -= psiTilde[j]/q_omega;
+    }
+
+    modApq = 0.0;
+    for (auto j=0; j<3; j++) {
+        modApq += Apq[j]*Apq[j];
+    }
+    modApq = sqrt(modApq);
+    for (auto j=0; j<3; j++) {
+        unit[j] = Apq[j]/modApq;
+    }
+}
+
 #ifdef OPTIM_FLUX_VEC
 /* Vectorizable version of the riemann solver.
  *
@@ -847,38 +887,16 @@ void hydroRiemann_vec(PARTICLE *pIn,float fBall,int nSmooth, int nBuff,
         //pDeltaHalf = 0.;
         //qDeltaHalf = 0.;
 
-        const my_real omega_q = q(omega);
-
-        // \tilde{\psi}_j (x_i)
-        my_real psi = -cubicSplineKernel(rpq, ph)/p_omega;
-        TinyVector<my_real,3> psiTilde_p, psiTilde_q;
-        psiTilde_p[0] = (psph.B[XX]*dx + psph.B[XY]*dy + psph.B[XZ]*dz)*psi;
-        psiTilde_p[1] = (psph.B[XY]*dx + psph.B[YY]*dy + psph.B[YZ]*dz)*psi;
-        psiTilde_p[2] = (psph.B[XZ]*dx + psph.B[YZ]*dy + psph.B[ZZ]*dz)*psi;
-
-        // \tilde{\psi}_i (x_j)
-        psi = cubicSplineKernel(rpq, qh)/omega_q;
-        psiTilde_q[0] = (q(B_XX)*dx + q(B_XY)*dy + q(B_XZ)*dz)*psi;
-        psiTilde_q[1] = (q(B_XY)*dx + q(B_YY)*dy + q(B_YZ)*dz)*psi;
-        psiTilde_q[2] = (q(B_XZ)*dx + q(B_YZ)*dy + q(B_ZZ)*dz)*psi;
-
-        const TinyVector<my_real,3> Apq{psiTilde_p/p_omega - psiTilde_q/omega_q};
-        const my_real modApq = sqrt(dot(Apq,Apq));
-
-        /* DEBUG
-        if (modApq<=0.0) {
-           printf("dx %e \t dy %e \t dz %e \n", dx, dy, dz);
-           printf("rpq %e hpq %e ratio %e Wpq %e \n", rpq, hpq, rpq/hpq, Wpq);
-        }
-        assert(modApq>0.0); // Area should be positive!
-        */
-
-
-        double face_unit[3];
-        if (modApq > 0.) {
-            for (auto j=0; j<3; j++)
-                face_unit[j] = Apq[j] / modApq;
-        }
+       // TODO: include fix for PKDGRAV-161
+        my_real modApq;
+        std::array<my_real, 3> face_unit;
+        computeFace(modApq, face_unit,
+                    rpq,   dx,  dy,  dz,
+                    ph,  qh,  p_omega,  q(omega),
+                    psph.B[XX],  psph.B[XY],  psph.B[XZ],
+                    psph.B[YY],  psph.B[YZ],  psph.B[ZZ],
+                    q(B_XX), q(B_XY), q(B_XZ),
+                    q(B_YY), q(B_YZ), q(B_ZZ));
 
 
         // Velocity of the quadrature mid-point
@@ -1055,7 +1073,7 @@ void hydroRiemann_vec(PARTICLE *pIn,float fBall,int nSmooth, int nBuff,
                                          L_rho, L_p, L_v,
                                          &P_M, &S_M,
                                          &F_rho, &F_p, &F_v[0],
-                                         face_unit, v_line_L, v_line_R, cs_L, cs_R, h_L, h_R);
+                                         face_unit.data(), v_line_L, v_line_R, cs_L, cs_R, h_L, h_R);
 
 
 
