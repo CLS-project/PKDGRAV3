@@ -9,9 +9,7 @@ const double TOL = 5e-6;
 
 class RiemannTest : public ::testing::Test {
 protected:
-    void SetUp() override {
-        smf.dConstGamma = 1.4;
-    }
+    void SetUp() override {}
     void TearDown() override {}
 
 
@@ -22,6 +20,7 @@ protected:
     std::vector<double> v_R;
     std::vector<double> v_L;
     double P_M, S_M, rho_f, p_f, v_f[3];
+    double dConstGamma = 1.4;
     void set_R(double rho, double p, std::vector<double> v) {
         rho_R = rho;
         p_R   = p;
@@ -34,14 +33,11 @@ protected:
     }
 
     int solve() {
-        double cs_L  = sqrt(smf.dConstGamma * p_L/rho_L);
-        double cs_R  = sqrt(smf.dConstGamma * p_R/rho_R);
-        return Riemann_solver_exact(&smf, rho_R, p_R, v_R.data(),
+        return Riemann_solver_exact(dConstGamma, rho_R, p_R, v_R.data(),
                                     rho_L, p_L, v_L.data(),
                                     &P_M, &S_M,
                                     &rho_f, &p_f, &v_f[0],
-                                    n_unit.data(), v_L[0], v_R[0], cs_L, cs_R,
-                                    0., 0.);
+                                    n_unit.data());
 
     }
 

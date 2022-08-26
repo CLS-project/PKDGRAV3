@@ -503,6 +503,7 @@ void hydroRiemann(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 #endif
 
         //Riemann_solver(pkd, riemann_input, &riemann_output, face_unit, /*double press_tot_limiter TODO For now, just p>0: */ 0.0);
+        /*
         double cs_L = sqrt(GAMMA * riemann_input.L.p / riemann_input.L.rho);
         double cs_R = sqrt(GAMMA * riemann_input.R.p / riemann_input.R.rho);
         riemann_input.L.u  = riemann_input.L.p / (GAMMA_MINUS1 * riemann_input.L.rho);
@@ -525,6 +526,7 @@ void hydroRiemann(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
         double v_line_R = riemann_input.R.v[0]*face_unit[0] +
                           riemann_input.R.v[1]*face_unit[1] +
                           riemann_input.R.v[2]*face_unit[2];
+        */
 
         // We just remove this to avoid the compiler from screaming.
         // This function is never called in this case.
@@ -700,9 +702,9 @@ static inline void extrapolateStateInTime(
 }
 
 template <typename ftype=double>
-static inline void extrapolateVariableInSpace(ftype &var, ftype dr[3],
+static inline void extrapolateVariableInSpace(ftype &var, ftype dx, ftype dy, ftype dz,
         ftype gradx, ftype grady, ftype gradz) {
-    var += dr[0]*gradx + dr[1]*grady + dr[2]*gradz;
+    var += dx*gradx + dy*grady + dz*gradz;
 }
 
 
@@ -765,6 +767,306 @@ static inline void computeFace(ftype &modApq, std::array<ftype,3> &unit,
         unit[j] = Apq[j]/modApq;
     }
 }
+
+template <typename ftype=double>
+static inline void doSinglePPFlux(ftype &F_rho, std::array<ftype,3> &F_v, ftype &F_p, ftype &F_S, ftype &minDt,
+                                  bool bComove, double dTime, double dDelta, double a, double H, double dConstGamma,
+                                  ftype rpq, ftype dx, ftype dy, ftype dz,
+                                  ftype pBall, ftype pLastUpdateTime, ftype pDt,
+                                  ftype pOmega,
+                                  ftype pBxx, ftype pBxy, ftype pBxz,
+                                  ftype pByy, ftype pByz, ftype pBzz,
+                                  ftype pDensity, std::array<ftype,3> pVpred, ftype pP, ftype pS,
+                                  ftype pGradRhoX, ftype pGradRhoY, ftype pGradRhoZ,
+                                  ftype pGradPX, ftype pGradPY, ftype pGradPZ,
+                                  ftype pGradVxX, ftype pGradVxY, ftype pGradVxZ,
+                                  ftype pGradVyX, ftype pGradVyY, ftype pGradVyZ,
+                                  ftype pGradVzX, ftype pGradVzY, ftype pGradVzZ,
+                                  ftype pLastAccX, ftype pLastAccY, ftype pLastAccZ,
+                                  ftype qBall, ftype qLastUpdateTime, ftype qDt,
+                                  ftype qOmega,
+                                  ftype qBxx, ftype qBxy, ftype qBxz,
+                                  ftype qByy, ftype qByz, ftype qBzz,
+                                  ftype qDensity, std::array<ftype,3> qVpred, ftype qP, ftype qS,
+                                  ftype qGradRhoX, ftype qGradRhoY, ftype qGradRhoZ,
+                                  ftype qGradPX, ftype qGradPY, ftype qGradPZ,
+                                  ftype qGradVxX, ftype qGradVxY, ftype qGradVxZ,
+                                  ftype qGradVyX, ftype qGradVyY, ftype qGradVyZ,
+                                  ftype qGradVzX, ftype qGradVzY, ftype qGradVzZ,
+                                  ftype qLastAccX, ftype qLastAccY, ftype qLastAccZ) {
+
+
+#ifdef FORCE_1D
+    if (dz!=0) continue;
+    if (dy!=0) continue;
+#endif
+#ifdef FORCE_2D
+    if (dz!=0) continue;
+#endif
+
+
+
+    /* We update the conservatives variables taking the minimum timestep
+     * between the particles, as in AREPO
+     */
+    minDt =  pDt > qDt ? qDt : pDt;
+    minDt /=  a;
+
+
+    ftype qDeltaHalf=0.0, pDeltaHalf=0.0;
+    if (dDelta > 0) {
+        pDeltaHalf = (dTime - pLastUpdateTime + 0.5*pDt)/a;
+        qDeltaHalf = (dTime - qLastUpdateTime + 0.5*qDt)/a;
+    }
+
+    // DEBUG: Avoid temporal extrapolation
+    //pDeltaHalf = 0.;
+    //qDeltaHalf = 0.;
+
+    ftype modApq;
+    std::array<ftype, 3> face_unit;
+    computeFace(modApq, face_unit,
+                rpq,   dx,  dy,  dz,
+                pBall,  qBall,  pOmega,  qOmega,
+                pBxx,  pBxy,  pBxz,
+                pByy,  pByz,  pBzz,
+                qBxx, qBxy, qBxz,
+                qByy, qByz, qBzz);
+
+
+    // Velocity of the quadrature mid-point
+    ftype vFrame[3];
+    vFrame[0] = 0.5*(pVpred[0]+qVpred[0]);
+    vFrame[1] = 0.5*(pVpred[1]+qVpred[1]);
+    vFrame[2] = 0.5*(pVpred[2]+qVpred[2]);
+
+    ftype pv[3], qv[3];
+    for (auto j=0; j<3; j++) {
+        // We boost to the reference of the p-q 'face'
+        pv[j] = pVpred[j] - vFrame[j];
+        qv[j] = qVpred[j] - vFrame[j];
+    }
+
+    // Mid-point rule
+    dx  = -0.5*dx;
+    dy  = -0.5*dy;
+    dz  = -0.5*dz;
+
+    // DEBUG: Avoid spatial extrapolation
+    //dr[0] = 0.0;
+    //dr[1] = 0.0;
+    //dr[2] = 0.0;
+
+
+    // Divergence of the velocity field for the forward in time prediction
+    ftype pdivv = (pGradVxX + pGradVyY + pGradVzZ);
+    ftype qdivv = (qGradVxX + qGradVyY + qGradVzZ);
+
+    ftype L_v[3], R_v[3];
+    ftype L_rho = pDensity;
+    ftype R_rho = qDensity;
+    ftype L_p = pP;
+    ftype R_p = qP;
+    L_v[0] = pv[0];
+    R_v[0] = qv[0];
+    L_v[1] = pv[1];
+    R_v[1] = qv[1];
+    L_v[2] = pv[2];
+    R_v[2] = qv[2];
+
+    extrapolateStateInTime(
+        L_rho,
+        L_v[0], L_v[1], L_v[2],
+        L_p,
+        vFrame[0],  vFrame[1], vFrame[2],
+        pDensity, pv[0], pv[1], pv[2], pP,
+        pDeltaHalf,
+        pGradRhoX, pGradRhoY, pGradRhoZ,
+        pGradPX, pGradPY, pGradPZ,
+        pLastAccX, pLastAccY, pLastAccZ, pdivv,
+        dConstGamma, a);
+
+    extrapolateVariableInSpace( L_rho, dx,dy, dz,
+                                pGradRhoX, pGradRhoY, pGradRhoZ);
+    extrapolateVariableInSpace( L_p, dx,dy, dz,
+                                pGradPX, pGradPY, pGradPZ);
+    extrapolateVariableInSpace( L_v[0], dx,dy, dz,
+                                pGradVxX, pGradVxY, pGradVxZ);
+    extrapolateVariableInSpace( L_v[1], dx,dy, dz,
+                                pGradVyX, pGradVyY, pGradVyZ);
+    extrapolateVariableInSpace( L_v[2], dx,dy, dz,
+                                pGradVzX, pGradVzY, pGradVzZ);
+
+
+
+    dx = -dx;
+    dy = -dy;
+    dz = -dz;
+
+    extrapolateStateInTime(
+        R_rho,
+        R_v[0], R_v[1], R_v[2],
+        R_p,
+        vFrame[0],  vFrame[1], vFrame[2],
+        qDensity, qv[0], qv[1], qv[2], qP,
+        qDeltaHalf,
+        qGradRhoX, qGradRhoY, qGradRhoZ,
+        qGradPX, qGradPY, qGradPZ,
+        qLastAccX, qLastAccY, qLastAccZ, qdivv,
+        dConstGamma, a);
+
+    extrapolateVariableInSpace( R_rho, dx,dy, dz,
+                                qGradRhoX, qGradRhoY, qGradRhoZ);
+    extrapolateVariableInSpace( R_p, dx,dy, dz,
+                                qGradPX, qGradPY, qGradPZ);
+    extrapolateVariableInSpace( R_v[0], dx,dy, dz,
+                                qGradVxX, qGradVxY, qGradVxZ);
+    extrapolateVariableInSpace( R_v[1], dx,dy, dz,
+                                qGradVyX, qGradVyY, qGradVyZ);
+    extrapolateVariableInSpace( R_v[2], dx,dy, dz,
+                                qGradVzX, qGradVzY, qGradVzZ);
+
+    genericPairwiseLimiter(pDensity, qDensity, &L_rho, &R_rho);
+    genericPairwiseLimiter(pP, qP, &L_p, &R_p);
+    for (auto j=0; j<3; j++) {
+        genericPairwiseLimiter(pv[j], qv[j], &L_v[j], &R_v[j]);
+    }
+
+    if (bComove) {
+        extrapolateCosmology(
+            R_v[0], R_v[1], R_v[2],
+            vFrame[0],  vFrame[1], vFrame[2],
+            R_p,
+            qDeltaHalf,
+            qv[0], qv[1], qv[2], qP,
+            dConstGamma, H, a);
+
+        extrapolateCosmology(
+            L_v[0], L_v[1], L_v[2],
+            vFrame[0],  vFrame[1], vFrame[2],
+            L_p,
+            pDeltaHalf,
+            pv[0], pv[1], pv[2], pP,
+            dConstGamma, H, a);
+    }
+
+    if (L_rho < 0) {
+        L_rho = pDensity;
+        /* printf("WARNING, L.rho < 0 : using first-order scheme \n");*/
+    }
+    if (R_rho < 0) {
+        R_rho = qDensity;
+        /* printf("WARNING, R.rho < 0 : using first-order scheme \n");*/
+    }
+    if (L_p < 0) {
+        L_p = pP;
+        /* printf("WARNING, L.p < 0 : using first-order scheme \n");*/
+    }
+    if (R_p < 0) {
+        R_p = qP;
+        /* printf("WARNING, R.p < 0 : using first-order scheme \n");*/
+    }
+
+#ifdef EEOS_POLYTROPE
+    const double pLpoly =
+        polytropicPressureFloor(a_inv3, L_rho, smf->dConstGamma,
+                                smf->dEOSPolyFloorIndex, smf->dEOSPolyFloorDen, smf->dEOSPolyFlooru);
+    const double pRpoly =
+        polytropicPressureFloor(a_inv3, R_rho, smf->dConstGamma,
+                                smf->dEOSPolyFloorIndex, smf->dEOSPolyFloorDen, smf->dEOSPolyFlooru);
+    L_p = MAX(L_p, pLpoly);
+    R_p = MAX(R_p, pRpoly);
+#endif
+#ifdef EEOS_JEANS
+    const double pLjeans =
+        jeansPressureFloor(L_rho, ph, smf->dConstGamma, smf->dEOSNJeans);
+    const double pRjeans =
+        jeansPressureFloor(R_rho, q(ball), smf->dConstGamma, smf->dEOSNJeans);
+    L_p = MAX(L_p, pLjeans);
+    R_p = MAX(R_p, pRjeans);
+#endif
+
+    ftype P_M, S_M;
+    int niter = Riemann_solver_exact(dConstGamma,
+                                     R_rho, R_p, R_v,
+                                     L_rho, L_p, L_v,
+                                     &P_M, &S_M,
+                                     &F_rho, &F_p, F_v.data(),
+                                     face_unit.data());
+
+
+
+
+
+#ifdef ENTROPY_SWITCH
+
+#ifdef USE_MFM
+    // As we are in a truly lagrangian configuration,
+    // there is no advection of entropy among particles.
+#else
+    F_S=0;
+    for (auto j=0; j<3; j++) F_S += F_v[j]*face_unit[j];
+    if (F_S > 0) {
+        // Maybe this values should be properly extrapolated to the faces..
+        // but this is expensive!
+        F_S *= psph->S*pDensity/pkdMass(pkd,p);
+    }
+    else {
+        F_S *= q(S)*q(rho)/q(mass);
+    }
+    F_S *= F_rho*modApq;
+    F_S = 0.;
+
+#endif //USE_MFM
+#endif //ENTROPY_SWITCH
+
+#ifdef USE_MFM
+    F_rho = 0.;
+    F_p = P_M * S_M;
+    for (auto j=0; j<3; j++)
+        F_v[j] = P_M * face_unit[j];
+#endif
+    // End MFM
+
+    // Force 2D
+#ifdef FORCE_1D
+    F_v[2] = 0.;
+    F_v[1] = 0.;
+#endif
+#ifdef FORCE_2D
+    F_v[2] = 0.;
+#endif
+
+
+    // Check for NAN fluxes
+    if (F_rho!=F_rho)
+        F_rho = 0.;//abort();
+    if (F_p!=F_p)
+        F_p = 0.;//abort();
+
+
+
+
+    // Now we de-boost the fluxes following Eq. A8 Hopkins 2015
+    for (auto j=0; j<3; j++) {
+        F_p += vFrame[j] * F_v[j];
+        F_p += (0.5*vFrame[j]*vFrame[j])*F_rho;
+    }
+
+    // Now we just multiply by the face area
+    F_p *= modApq;
+    F_rho *= modApq;
+    for (auto j=0; j<3; j++) {
+        F_v[j] *= modApq;
+        F_v[j] += vFrame[j]*F_rho;
+    }
+
+
+    // Phew! Done ;)
+}
+
+
+
 
 #ifdef OPTIM_FLUX_VEC
 /* Vectorizable version of the riemann solver.
@@ -836,7 +1138,9 @@ void hydroRiemann_vec(PARTICLE *pIn,float fBall,int nSmooth, int nBuff,
 
     const my_real pDensity = P.density();
     const my_real p_omega = psph.omega;
+    double a_inv3 = 1./(smf->a * smf->a * smf->a);
 
+    const bool bComove = pkd->csm->val.bComove;
 
 #ifdef __INTEL_COMPILER
     __assume_aligned(input_buffer, 64);
@@ -847,310 +1151,60 @@ void hydroRiemann_vec(PARTICLE *pIn,float fBall,int nSmooth, int nBuff,
 #ifdef __GNUC__
 //TODO Trick GCC into autovectorizing this!!
 #endif
-    for (auto i = 0; i < nSmooth; ++i) {
+    for (auto i=0; i<nSmooth; ++i) {
+        double F_rho;
+        std::array<double,3> F_v;
+        double F_P;
+        double F_S;
+        double minDt;
 
-        const my_real qh = q(ball);
+        std::array<double,3> pVpred;
+        for (auto j=0; j<3; ++j)
+            pVpred[j] = P.velocity()[j];
 
-        const my_real dx = q(dx);
-        const my_real dy = q(dy);
-        const my_real dz = q(dz);
+        std::array<double,3> qVpred;
+        qVpred[0] = q(vx);
+        qVpred[1] = q(vy);
+        qVpred[2] = q(vz);
 
-#ifdef FORCE_1D
-        if (dz!=0) continue;
-        if (dy!=0) continue;
-#endif
-#ifdef FORCE_2D
-        if (dz!=0) continue;
-#endif
-
-
-
-        // Face where the riemann problem will be solved
-        const my_real rpq = q(dr);
-
-
-        /* We update the conservatives variables taking the minimum timestep
-         * between the particles, as in AREPO
-         */
-        const my_real p_dt = smf->dDelta/(1<<P.rung());
-        const my_real q_dt = q(rung);
-        const my_real minDt = (p_dt > q_dt ? q_dt : p_dt) / smf->a;
-
-
-        my_real qDeltaHalf=0.0, pDeltaHalf=0.0;
-        if (smf->dDelta > 0) {
-            pDeltaHalf = (smf->dTime - psph.lastUpdateTime + 0.5*p_dt)/smf->a;
-            qDeltaHalf = (smf->dTime - q(lastUpdateTime) + 0.5*q_dt)/smf->a;
-        }
-
-        // DEBUG: Avoid temporal extrapolation
-        //pDeltaHalf = 0.;
-        //qDeltaHalf = 0.;
-
-       // TODO: include fix for PKDGRAV-161
-        my_real modApq;
-        std::array<my_real, 3> face_unit;
-        computeFace(modApq, face_unit,
-                    rpq,   dx,  dy,  dz,
-                    ph,  qh,  p_omega,  q(omega),
-                    psph.B[XX],  psph.B[XY],  psph.B[XZ],
-                    psph.B[YY],  psph.B[YZ],  psph.B[ZZ],
-                    q(B_XX), q(B_XY), q(B_XZ),
-                    q(B_YY), q(B_YZ), q(B_ZZ));
-
-
-        // Velocity of the quadrature mid-point
-        my_real vFrame[3];
-        vFrame[0] = 0.5 * (pv[0] + q(vx));
-        vFrame[1] = 0.5 * (pv[1] + q(vy));
-        vFrame[2] = 0.5 * (pv[2] + q(vz));
-
-        my_real pvFrame[3], qvFrame[3];
-        for (auto j = 0; j < 3; ++j) {
-            // We boost to the reference of the p-q 'face'
-            pvFrame[j] = pv[j] - vFrame[j];
-        }
-
-        qvFrame[0] = q(vx) - vFrame[0];
-        qvFrame[1] = q(vy) - vFrame[1];
-        qvFrame[2] = q(vz) - vFrame[2];
-
-        // Mid-point rule
-        my_real dr[3] = {-0.5*dx, -0.5*dy, -0.5*dz};
-
-        // DEBUG: Avoid spatial extrapolation
-        //dr[0] = 0.0;
-        //dr[1] = 0.0;
-        //dr[2] = 0.0;
-
-
-        // Divergence of the velocity field for the forward in time prediction
-        my_real pdivv = (psph.gradVx[0] + psph.gradVy[1] + psph.gradVz[2]);
-        my_real qdivv = (q(gradVxX) + q(gradVyY) + q(gradVzZ));
-
-        my_real L_v[3], R_v[3];
-        my_real L_rho = pDensity;
-        my_real R_rho = q(rho);
-        my_real L_p = psph.P;
-        my_real R_p = q(P);
-        L_v[0] = pvFrame[0];
-        R_v[0] = qvFrame[0];
-        L_v[1] = pvFrame[1];
-        R_v[1] = qvFrame[1];
-        L_v[2] = pvFrame[2];
-        R_v[2] = qvFrame[2];
-
-        extrapolateStateInTime(
-            L_rho,
-            L_v[0], L_v[1], L_v[2],
-            L_p,
-            vFrame[0],  vFrame[1], vFrame[2],
-            pDensity, pvFrame[0], pvFrame[1], pvFrame[2], psph.P,
-            pDeltaHalf,
-            psph.gradRho[0], psph.gradRho[1], psph.gradRho[2],
-            psph.gradP[0], psph.gradP[1], psph.gradP[2],
-            psph.lastAcc[0], psph.lastAcc[1], psph.lastAcc[2], pdivv,
-            smf->dConstGamma, smf->a);
-
-        extrapolateVariableInSpace( L_rho, dr,
-                                    psph.gradRho[0], psph.gradRho[1], psph.gradRho[2]);
-        extrapolateVariableInSpace( L_p, dr,
-                                    psph.gradP[0], psph.gradP[1], psph.gradP[2]);
-        extrapolateVariableInSpace( L_v[0], dr,
-                                    psph.gradVx[0], psph.gradVx[1], psph.gradVx[2]);
-        extrapolateVariableInSpace( L_v[1], dr,
-                                    psph.gradVy[0], psph.gradVy[1], psph.gradVy[2]);
-        extrapolateVariableInSpace( L_v[2], dr,
-                                    psph.gradVz[0], psph.gradVz[1], psph.gradVz[2]);
-
-
-        for (auto j=0; j<3; j++)
-            dr[j] = -dr[j];
-
-        extrapolateStateInTime(
-            R_rho,
-            R_v[0], R_v[1], R_v[2],
-            R_p,
-            vFrame[0],  vFrame[1], vFrame[2],
-            q(rho), qvFrame[0], qvFrame[1], qvFrame[2], q(P),
-            qDeltaHalf,
-            q(gradRhoX), q(gradRhoY), q(gradRhoZ),
-            q(gradPX), q(gradPY), q(gradPZ),
-            q(lastAccX), q(lastAccY), q(lastAccZ), qdivv,
-            smf->dConstGamma, smf->a);
-
-
-        extrapolateVariableInSpace( R_rho, dr,
-                                    q(gradRhoX), q(gradRhoY), q(gradRhoZ));
-        extrapolateVariableInSpace( R_p, dr,
-                                    q(gradPX), q(gradPY), q(gradPZ));
-        extrapolateVariableInSpace( R_v[0], dr,
-                                    q(gradVxX), q(gradVxY), q(gradVxZ));
-        extrapolateVariableInSpace( R_v[1], dr,
-                                    q(gradVyX), q(gradVyY), q(gradVyZ));
-        extrapolateVariableInSpace( R_v[2], dr,
-                                    q(gradVzX), q(gradVzY), q(gradVzZ));
-
-        genericPairwiseLimiter(pDensity, q(rho), &L_rho, &R_rho);
-        genericPairwiseLimiter(psph.P, q(P), &L_p, &R_p);
-        for (auto j=0; j<3; j++) {
-            genericPairwiseLimiter(pvFrame[j], qvFrame[j], &L_v[j], &R_v[j]);
-        }
-
-        if (pkd->csm->val.bComove) {
-            extrapolateCosmology(
-                R_v[0], R_v[1], R_v[2],
-                vFrame[0],  vFrame[1], vFrame[2],
-                R_p,
-                qDeltaHalf,
-                qvFrame[0], qvFrame[1], qvFrame[2], q(P),
-                smf->dConstGamma, smf->H, smf->a);
-
-            extrapolateCosmology(
-                L_v[0], L_v[1], L_v[2],
-                vFrame[0],  vFrame[1], vFrame[2],
-                L_p,
-                pDeltaHalf,
-                pvFrame[0], pvFrame[1], pvFrame[2], psph.P,
-                smf->dConstGamma, smf->H, smf->a);
-        }
-
-        if (L_rho < 0) {
-            L_rho = pDensity;
-            /* printf("WARNING, L.rho < 0 : using first-order scheme \n");*/
-        }
-        if (R_rho < 0) {
-            R_rho = q(rho);
-            /* printf("WARNING, R.rho < 0 : using first-order scheme \n");*/
-        }
-        if (L_p < 0) {
-            L_p = psph.P;
-            /* printf("WARNING, L.p < 0 : using first-order scheme \n");*/
-        }
-        if (R_p < 0) {
-            R_p = q(P);
-            /* printf("WARNING, R.p < 0 : using first-order scheme \n");*/
-        }
-
-#if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
-        const double pLeEOS = eEOSPressureFloor(a_inv3, L_rho, ph, //probably ball, not ph
-                                                smf->dConstGamma, smf->eEOS);
-        if (pLeEOS != NOT_IN_EEOS)
-            L_p = MAX(L_p, pLeEOS);
-
-        const double pReEOS = eEOSPressureFloor(a_inv3, R_rho, qh,
-                                                smf->dConstGamma, smf->eEOS);
-        if (pReEOS != NOT_IN_EEOS)
-            R_p = MAX(R_p, pReEOS);
-#endif
-
-        double cs_L = sqrt(GAMMA * L_p / L_rho);
-        double cs_R = sqrt(GAMMA * R_p / R_rho);
-        double L_u  = L_p / (GAMMA_MINUS1 * L_rho);
-        double R_u  = R_p / (GAMMA_MINUS1 * R_rho);
-        double h_L = L_p/L_rho +
-                     L_u +
-                     0.5*(L_v[0]*L_v[0] +
-                          L_v[1]*L_v[1] +
-                          L_v[2]*L_v[2]);
-        double h_R = R_p/R_rho +
-                     R_u +
-                     0.5*(R_v[0]*R_v[0] +
-                          R_v[1]*R_v[1] +
-                          R_v[2]*R_v[2]);
-
-        double v_line_L = L_v[0]*face_unit[0] +
-                          L_v[1]*face_unit[1] +
-                          L_v[2]*face_unit[2];
-
-        double v_line_R = R_v[0]*face_unit[0] +
-                          R_v[1]*face_unit[1] +
-                          R_v[2]*face_unit[2];
-
-        my_real P_M, S_M, F_rho, F_p, F_v[3];
-        int niter = Riemann_solver_exact(smf,
-                                         R_rho, R_p, R_v,
-                                         L_rho, L_p, L_v,
-                                         &P_M, &S_M,
-                                         &F_rho, &F_p, &F_v[0],
-                                         face_unit.data(), v_line_L, v_line_R, cs_L, cs_R, h_L, h_R);
-
-
-
-
-
+        double pS, qS;
 #ifdef ENTROPY_SWITCH
-
-#ifdef USE_MFM
-        // As we are in a truly lagrangian configuration,
-        // there is no advection of entropy among particles.
-        double F_S = 0.;
-#else
-        double F_S = 0.;
-        for (auto j=0; j<3; j++) F_S += F_v[j]*face_unit[j];
-        if (F_S > 0) {
-            // Maybe this values should be properly extrapolated to the faces..
-            // but this is expensive!
-            F_S *= psph.S*pDensity/P.mass();
-        }
-        else {
-            F_S *= q(S)*q(rho)/q(mass);
-        }
-        F_S *= F_rho*modApq;
-        F_S = 0.;
-
-#endif //USE_MFM
-#endif //ENTROPY_SWITCH
-
-#ifdef USE_MFM
-        F_rho = 0.;
-        F_p = P_M * S_M;
-        for (auto j=0; j<3; j++)
-            F_v[j] = P_M * face_unit[j];
+        pS = psph.S;
+        qS = q(S);
 #endif
-        // End MFM
+        double qDt = q(rung);
+        double pDt = smf->dDelta/(1<<P.rung());
 
-        // Force 2D
-#ifdef FORCE_1D
-        F_v[2] = 0.;
-        F_v[1] = 0.;
-#endif
-#ifdef FORCE_2D
-        F_v[2] = 0.;
-#endif
-
-
-
-        // DEBUG
-//       abort();
-
-        // Check for NAN fluxes
-        if (F_rho!=F_rho)
-            F_rho = 0.;//abort();
-        if (F_p!=F_p)
-            F_p = 0.;//abort();
-
-
-
-
-        // Now we de-boost the fluxes following Eq. A8 Hopkins 2015
-        for (auto j=0; j<3; j++) {
-            F_p += vFrame[j] * F_v[j];
-            F_p += (0.5*vFrame[j]*vFrame[j])*F_rho;
-        }
-
-        // Now we just multiply by the face area
-        F_p *= modApq;
-        F_rho *= modApq;
-        for (auto j=0; j<3; j++) {
-            F_v[j] *= modApq;
-            F_v[j] += vFrame[j]*F_rho;
-        }
+        doSinglePPFlux( F_rho, F_v, F_P, F_S, minDt,
+                        bComove, smf->dTime, smf->dDelta,  smf->a,  smf->H,  smf->dConstGamma,
+                        q(dr),  q(dx),  q(dy),  q(dz),
+                        ph,  psph.lastUpdateTime,  pDt,
+                        psph.omega,
+                        psph.B[XX],  psph.B[XY],  psph.B[XZ],
+                        psph.B[YY],  psph.B[YZ],  psph.B[ZZ],
+                        pDensity,  pVpred,  psph.P,  pS,
+                        psph.gradRho[0], psph.gradRho[1], psph.gradRho[2],
+                        psph.gradP[0],   psph.gradP[1],   psph.gradP[2],
+                        psph.gradVx[0],  psph.gradVx[1],  psph.gradVx[2],
+                        psph.gradVy[0],  psph.gradVy[1],  psph.gradVy[2],
+                        psph.gradVz[0],  psph.gradVz[1],  psph.gradVz[2],
+                        psph.lastAcc[0], psph.lastAcc[1], psph.lastAcc[2],
+                        q(ball),  q(lastUpdateTime),  qDt,
+                        q(omega),
+                        q(B_XX),  q(B_XY),  q(B_XZ),
+                        q(B_YY),  q(B_YZ),  q(B_ZZ),
+                        q(rho),  qVpred,  q(P),  qS,
+                        q(gradRhoX),  q(gradRhoY),  q(gradRhoZ),
+                        q(gradPX),    q(gradPY),    q(gradPZ),
+                        q(gradVxX),   q(gradVxY),   q(gradVxZ),
+                        q(gradVyX),   q(gradVyY),   q(gradVyZ),
+                        q(gradVzX),   q(gradVzY),   q(gradVzZ),
+                        q(lastAccX),  q(lastAccY),  q(lastAccZ) );
 
         // We fill the output buffer with the fluxes, which then
         // will be added to the corresponding particles
         qout(Frho) = F_rho;
-        qout(Fene) = F_p;
+        qout(Fene) = F_P;
         qout(FmomX) = F_v[0];
         qout(FmomY) = F_v[1];
         qout(FmomZ) = F_v[2];
