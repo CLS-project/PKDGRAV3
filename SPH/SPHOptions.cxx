@@ -68,6 +68,7 @@ SPHOptions initializeSPHOptions(struct parameters param, CSM csm, double dTime) 
     SPHoptions.doInterfaceCorrection = param.bGasInterfaceCorrection;
     SPHoptions.doSetNNflags = 0;
     SPHoptions.useNNflags = 0;
+    SPHoptions.doConsistentPrediction = param.bGasConsistentPrediction;
     SPHoptions.kernelType = param.iKernelType;
     return SPHoptions;
 }
@@ -107,6 +108,7 @@ void copySPHOptions(SPHOptions *source, SPHOptions *target) {
     target->doInterfaceCorrection = source->doInterfaceCorrection;
     target->doSetNNflags = source->doSetNNflags;
     target->useNNflags = source->useNNflags;
+    target->doConsistentPrediction = source->doConsistentPrediction;
     target->kernelType = source->kernelType;
 }
 
