@@ -55,15 +55,20 @@ SPHOptions initializeSPHOptions(struct parameters param, CSM csm, double dTime) 
     }
     SPHoptions.doGravity = 0;
     SPHoptions.doDensity = 0;
+    SPHoptions.doDensityCorrection = 0;
     SPHoptions.doSPHForces = 0;
     SPHoptions.doUConversion = 0;
     SPHoptions.doSetDensityFlags = 0;
     SPHoptions.dofBallFactor = 0;
-    SPHoptions.useNumDen = 0;
+    SPHoptions.useNumDen = 1;
     SPHoptions.useIsentropic = param.bGasIsentropic;
     SPHoptions.useBuiltinIdeal = param.bGasBuiltinIdeal;
     SPHoptions.useDensityFlags = 0;
     SPHoptions.doOnTheFlyPrediction = param.bGasOnTheFlyPrediction;
+    SPHoptions.doInterfaceCorrection = param.bGasInterfaceCorrection;
+    SPHoptions.doSetNNflags = 0;
+    SPHoptions.useNNflags = 0;
+    SPHoptions.doConsistentPrediction = param.bGasConsistentPrediction;
     SPHoptions.kernelType = param.iKernelType;
     return SPHoptions;
 }
@@ -90,6 +95,7 @@ void copySPHOptions(SPHOptions *source, SPHOptions *target) {
     target->H = source->H;
     target->doGravity = 0;
     target->doDensity = 0;
+    target->doDensityCorrection = 0;
     target->doSPHForces = 0;
     target->doUConversion = 0;
     target->doSetDensityFlags = 0;
@@ -99,5 +105,35 @@ void copySPHOptions(SPHOptions *source, SPHOptions *target) {
     target->useBuiltinIdeal = source->useBuiltinIdeal;
     target->useDensityFlags = 0;
     target->doOnTheFlyPrediction = source->doOnTheFlyPrediction;
+    target->doInterfaceCorrection = source->doInterfaceCorrection;
+    target->doSetNNflags = source->doSetNNflags;
+    target->useNNflags = source->useNNflags;
+    target->doConsistentPrediction = source->doConsistentPrediction;
     target->kernelType = source->kernelType;
+}
+
+float calculateInterfaceCorrectionPrefactor(float nSmooth,int kernelType) {
+    float alpha = 0.0f;
+    switch (kernelType) {
+    case 0: {
+        if (nSmooth < 10.0f) nSmooth = 10.0f; // Below 10, the function decreases
+        alpha = -7.44731686e+02f / (nSmooth * nSmooth) + 1.42956727e+02f / nSmooth + 4.46685213e+00f;
+        break;
+    }
+    case 1: {
+        if (nSmooth < 3.0f) nSmooth = 3.0f; // Below 3, the function decreases
+        alpha = -2.27180786e+02f / (nSmooth * nSmooth) + 1.55942641e+02f / nSmooth + 4.53619157e+00f;
+        break;
+    }
+    case 2: {
+        alpha = 1.81941313e+03f / (nSmooth * nSmooth) + 1.73546428e+02f / nSmooth + 4.71450606e+00f;
+        break;
+    }
+    case 3: {
+        alpha = 6.00324255e+03f / (nSmooth * nSmooth) + 1.71766754e+02f / nSmooth + 4.92489934e+00f;
+        break;
+    }
+    default: assert(0);
+    }
+    return alpha;
 }

@@ -203,6 +203,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
             GridDeleteFFT();
         }
         if (DoGas() && NewSPH()) {
+            // Calculate Density
             SelAll(0,1);
             SPHOptions SPHoptions = initializeSPHOptions(param,csm,dTime);
             SPHoptions.doGravity = 0;
@@ -211,6 +212,15 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
             uRungMax = Gravity(0,MAX_RUNG,ROOT,0,dTime,dDelta,iStartStep,dTheta,0,bKickOpen,
                                param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,SPHoptions);
             MemStatus();
+            if (SPHoptions.doInterfaceCorrection) {
+                SPHoptions.doDensity = 0;
+                SPHoptions.doDensityCorrection = 1;
+                uRungMax = Gravity(0,MAX_RUNG,ROOT,0,dTime,dDelta,iStartStep,dTheta,0,bKickOpen,
+                                   param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,SPHoptions);
+                UpdateGasValues(0,dTime,dDelta,iStartStep,0,bKickOpen,SPHoptions);
+                SPHoptions.doDensityCorrection = 0;
+            }
+            // Calculate Forces
             SelAll(0,1);
             SPHoptions.doGravity = 1;
             SPHoptions.doDensity = 0;
@@ -297,6 +307,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
                 BuildTree(0);
                 LightConeOpen(iStep);  /* open the lightcone */
                 if (DoGas() && NewSPH()) {
+                    // Calculate Density
                     SelAll(0,1);
                     SPHOptions SPHoptions = initializeSPHOptions(param,csm,dTime);
                     SPHoptions.doGravity = 0;
@@ -304,6 +315,15 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
                     SPHoptions.doSPHForces = 0;
                     uRungMax = Gravity(0,MAX_RUNG,ROOT,0,ddTime,dDelta,diStep,dTheta,0,1,
                                        param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,SPHoptions);
+                    if (SPHoptions.doInterfaceCorrection) {
+                        SPHoptions.doDensity = 0;
+                        SPHoptions.doDensityCorrection = 1;
+                        uRungMax = Gravity(0,MAX_RUNG,ROOT,0,ddTime,dDelta,diStep,dTheta,0,1,
+                                           param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,SPHoptions);
+                        UpdateGasValues(0,ddTime,dDelta,diStep,0,1,SPHoptions);
+                        SPHoptions.doDensityCorrection = 0;
+                    }
+                    // Calculate Forces
                     SelAll(0,1);
                     SPHoptions.doGravity = 1;
                     SPHoptions.doDensity = 0;
@@ -445,6 +465,16 @@ int MSR::ValidateParameters() {
         fprintf(stderr,"ERROR: Only one hydrodynamic scheme can be used.\n");
         return 0;
     }
+    if (param.bGasInterfaceCorrection && param.bGasOnTheFlyPrediction) {
+        fprintf(stderr,"Warning: On-the-fly prediction is not compatible with interface correction, disabled\n");
+        param.bGasOnTheFlyPrediction = 0;
+    }
+#ifndef NN_FLAG_IN_PARTICLE
+    if (param.bNewSPH && param.bGasInterfaceCorrection && param.dFastGasFraction > 0.0f) {
+        fprintf(stderr,"ERROR: Interface correction and FastGas is active, but the NN flag is not compiled in. Set NN_FLAG_IN_PARTICLE to ON in CMakeLists.txt and recompile.\n");
+        return 0;
+    }
+#endif
 
     /*
     ** Make sure that we have some setting for nReplicas if bPeriodic is set.

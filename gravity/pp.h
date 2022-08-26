@@ -87,22 +87,25 @@ PP_CUDA_BOTH ResultPP<F> EvalPP(
 
 template<class F=float>
 struct ResultDensity {
-    F arho, adrhodfball, anden, adndendfball, anSmooth;
-    void zero() { arho=adrhodfball=anden=adndendfball=anSmooth=0; }
+    F arho, adrhodfball, anden, adndendfball, anSmooth, aimbalanceX, aimbalanceY, aimbalanceZ;
+    void zero() { arho=adrhodfball=anden=adndendfball=anSmooth=aimbalanceX=aimbalanceY=aimbalanceZ=0; }
     ResultDensity<F> operator+=(const ResultDensity<F> rhs) {
         arho += rhs.arho;
         adrhodfball += rhs.adrhodfball;
         anden += rhs.anden;
         adndendfball += rhs.adndendfball;
         anSmooth += rhs.anSmooth;
+        aimbalanceX += rhs.aimbalanceX;
+        aimbalanceY += rhs.aimbalanceY;
+        aimbalanceZ += rhs.aimbalanceZ;
         return *this;
     }
 };
 template<class F,class M>
 PP_CUDA_BOTH ResultDensity<F> EvalDensity(
-    F Pdx, F Pdy, F Pdz,     // Particle
-    F Idx, F Idy, F Idz, F Im, F fBall,  // Interaction(s)
-    int kernelType) {
+    F Pdx, F Pdy, F Pdz, F fBall, F PiMat,     // Particle
+    F Idx, F Idy, F Idz, F Im, F IiMat,  // Interaction(s)
+    int kernelType, bool doInterfaceCorrection) {
     ResultDensity<F> result;
     F dx = Idx + Pdx;
     F dy = Idy + Pdy;
@@ -136,13 +139,72 @@ PP_CUDA_BOTH ResultDensity<F> EvalDensity(
 
         // return the number of particles used
         result.anSmooth = maskz_mov(r_lt_one,1.0f);
+
+        // Calculate the imbalance values
+        if (doInterfaceCorrection) {
+            M mask2 = PiMat == IiMat;
+            F plus_one = 1.0f;
+            F minus_one = -1.0f;
+            F kappa = mask_mov(minus_one,mask2,plus_one);
+            result.aimbalanceX = kappa * dx * result.arho;
+            result.aimbalanceY = kappa * dy * result.arho;
+            result.aimbalanceZ = kappa * dz * result.arho;
+        }
+        else {
+            result.aimbalanceX = 0.0f;
+            result.aimbalanceY = 0.0f;
+            result.aimbalanceZ = 0.0f;
+        }
     }
     else {
-        result.arho = 0.0f;
-        result.adrhodfball = 0.0f;
-        result.anden = 0.0f;
-        result.adndendfball = 0.0f;
-        result.anSmooth = 0.0f;
+        result.zero(); // No work to do
+    }
+    return result;
+}
+
+template<class F=float>
+struct ResultDensityCorrection {
+    F acorrT, acorrP, acorr;
+    void zero() { acorrT=acorrP=acorr=0; }
+    ResultDensityCorrection<F> operator+=(const ResultDensityCorrection<F> rhs) {
+        acorrT += rhs.acorrT;
+        acorrP += rhs.acorrP;
+        acorr += rhs.acorr;
+        return *this;
+    }
+};
+template<class F,class M>
+PP_CUDA_BOTH ResultDensityCorrection<F> EvalDensityCorrection(
+    F Pdx, F Pdy, F Pdz, F fBall,     // Particle
+    F Idx, F Idy, F Idz, F T, F P, F expImb2,  // Interaction(s)
+    int kernelType) {
+    ResultDensityCorrection<F> result;
+    F dx = Idx + Pdx;
+    F dy = Idy + Pdy;
+    F dz = Idz + Pdz;
+    F d2 = dx*dx + dy*dy + dz*dz;
+
+    F r, w;
+    F ifBall, C;
+    F t1, t2, t3;
+    M mask1;
+
+    ifBall = 1.0f / fBall;
+    r = sqrt(d2) * ifBall;
+
+    M r_lt_one = r < 1.0f;
+
+    if (!testz(r_lt_one)) {
+        // There is some work to do
+        SPHKERNEL_INIT(r, ifBall, C, t1, mask1, kernelType);
+        SPHKERNEL(r, w, t1, t2, t3, r_lt_one, mask1, kernelType);
+
+        result.acorr = expImb2 * C * w;
+        result.acorrT = T * result.acorr;
+        result.acorrP = P * result.acorr;
+    }
+    else {
+        result.zero(); // No work to do
     }
     return result;
 }
@@ -289,13 +351,7 @@ PP_CUDA_BOTH ResultSPHForces<F> EvalSPHForces(
         // }
     }
     else {
-        result.uDot = 0.0f;
-        result.ax = 0.0f;
-        result.ay = 0.0f;
-        result.az = 0.0f;
-        result.divv = 0.0f;
-        result.dtEst = HUGE_VALF;
-        result.maxRung = 0.0f;
+        result.zero();
     }
     return result;
 }

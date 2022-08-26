@@ -34,7 +34,11 @@
 #define pkdDblToIntPos(pkd,d) (int32_t)((d)*INTEGER_FACTOR)
 #define pkdIntPosToDbl(pkd,pos) ((pos)*(1.0/INTEGER_FACTOR))
 
-#define IORDERBITS 43
+#ifdef NN_FLAG_IN_PARTICLE
+    #define IORDERBITS 42
+#else
+    #define IORDERBITS 43
+#endif
 #define IORDERMAX ((((uint64_t) 1)<<IORDERBITS)-1)
 
 #define IRUNGBITS 6
@@ -47,6 +51,9 @@ uint64_t  uRung      :  IRUNGBITS;
 uint64_t  uNewRung   :  IRUNGBITS;  /* Optional with bNewKDK + bMemUnordered */
     uint64_t  iClass     :  8;          /* Optional with bMemUnordered */
 uint64_t  iOrder     :  IORDERBITS; /* Optional with bMemUnordered */
+#ifdef NN_FLAG_IN_PARTICLE
+    uint64_t bNNflag : 1;           /* Neighbor of Neighbor of active flag */
+#endif
 } PARTICLE;
 static_assert(sizeof(PARTICLE)==sizeof(uint64_t));
 
@@ -204,6 +211,9 @@ struct NEWSPHFIELDS {
     float cs;           /* Sound speed */
     float P;            /* Pressure */
     float oldRho;       /* Rho corresponding to where u is at */
+    float expImb2;      /* exp(-imbalance^2) */
+    float T;            /* Temperature */
+    float vpredx, vpredy, vpredz;     /* predicted velocities */
 };
 
 struct STARFIELDS {

@@ -233,6 +233,8 @@ def parse():
     add_bool(gas,'bNewSPH',default=False,dest='bNewSPH',help='Use the new SPH implementation')
     add_bool(gas,'GasBuiltinIdeal',default=False,dest='bGasBuiltinIdeal',help='Use builtin ideal gas')
     add_bool(gas,'GasOnTheFlyPrediction',default=False,dest='bGasOnTheFlyPrediction',help='Do on the fly prediction')
+    add_bool(gas,'GasInterfaceCorrection',default=False,dest='bGasInterfaceCorrection',help='Do interface correction')
+    add_bool(gas,'GasConsistentPrediction',default=False,dest='bGasConsistentPrediction',help='Use consistent prediction')
     add_bool(gas,'meshless',default=False,dest='bMeshlessHydro',help='Use the new implementation of the hydrodynamics')
     add_bool(gas,'globaldt',default=False,dest='bGlobalDt',help='Force all particles to the same rung')
     add_bool(gas,'iterh',default=True,dest='bIterativeSmoothingLength',help='Use an iterative scheme to obtain h')

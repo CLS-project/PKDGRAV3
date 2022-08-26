@@ -37,20 +37,27 @@ float getDtPredDrift(struct pkdKickParameters *kick, int bMarked, int uRungLo, i
     }
 }
 
-void SPHpredictOnTheFly(PKD pkd, PARTICLE *p, struct pkdKickParameters *kick, int uRungLo, float *vpred, float *P, float *cs, SPHOptions *SPHoptions) {
+void SPHpredictOnTheFly(PKD pkd, PARTICLE *p, struct pkdKickParameters *kick, int uRungLo, float *vpred, float *P, float *cs, float *T, SPHOptions *SPHoptions) {
     NEWSPHFIELDS *pNewSph = pkdNewSph(pkd,p);
     float dtPredDrift = getDtPredDrift(kick,p->bMarked,uRungLo,p->uRung);
     const float *ap = pkdAccel(pkd,p);
     const vel_t *v = pkdVel(pkd,p);
-    vpred[0] = v[0] + dtPredDrift * ap[0];
-    vpred[1] = v[1] + dtPredDrift * ap[1];
-    vpred[2] = v[2] + dtPredDrift * ap[2];
-    if ((SPHoptions->VelocityDamper > 0.0) & p->bMarked) {
-        vpred[0] /= 1.0 - kick->dtClose[p->uRung] * SPHoptions->VelocityDamper;
-        vpred[1] /= 1.0 - kick->dtClose[p->uRung] * SPHoptions->VelocityDamper;
-        vpred[2] /= 1.0 - kick->dtClose[p->uRung] * SPHoptions->VelocityDamper;
+    if (SPHoptions->doConsistentPrediction) {
+        vpred[0] = pNewSph->vpredx;
+        vpred[1] = pNewSph->vpredy;
+        vpred[2] = pNewSph->vpredz;
     }
-    if (SPHoptions->doSPHForces) {
+    else {
+        vpred[0] = v[0] + dtPredDrift * ap[0];
+        vpred[1] = v[1] + dtPredDrift * ap[1];
+        vpred[2] = v[2] + dtPredDrift * ap[2];
+        if ((SPHoptions->VelocityDamper > 0.0) && p->bMarked) {
+            vpred[0] /= 1.0 - kick->dtOpen[p->uRung] * SPHoptions->VelocityDamper;
+            vpred[1] /= 1.0 - kick->dtOpen[p->uRung] * SPHoptions->VelocityDamper;
+            vpred[2] /= 1.0 - kick->dtOpen[p->uRung] * SPHoptions->VelocityDamper;
+        }
+    }
+    if (SPHoptions->doSPHForces || SPHoptions->doDensityCorrection) {
         if (SPHoptions->doOnTheFlyPrediction) {
             float uPred = 0.0f;
             if (SPHoptions->useIsentropic && !(pkdiMat(pkd,p) == 0 && SPHoptions->useBuiltinIdeal)) {
@@ -72,32 +79,46 @@ void SPHpredictOnTheFly(PKD pkd, PARTICLE *p, struct pkdKickParameters *kick, in
             else {
                 uPred = pNewSph->u + dtPredDrift * pNewSph->uDot;
             }
-            *P = SPHEOSPCofRhoU(pkd,pkdDensity(pkd,p),uPred,cs,pkdiMat(pkd,p),SPHoptions);
+            *P = SPHEOSPCTofRhoU(pkd,pkdDensity(pkd,p),uPred,cs,T,pkdiMat(pkd,p),SPHoptions);
         }
         else {
             *P = pNewSph->P;
             *cs = pNewSph->cs;
+            if (T) *T = pNewSph->T;
         }
     }
 }
 
-void SPHpredictInDensity(PKD pkd, PARTICLE *p, struct pkdKickParameters *kick, int uRungLo, float *P, float *cs, SPHOptions *SPHoptions) {
+void SPHpredictInDensity(PKD pkd, PARTICLE *p, struct pkdKickParameters *kick, int uRungLo, float *P, float *cs, float *T, SPHOptions *SPHoptions) {
     // CAREFUL!! When this is called, p->bMarked does not mean "has been kicked", but it is a fastgas marker
     NEWSPHFIELDS *pNewSph = pkdNewSph(pkd,p);
-    float dtPredDrift = getDtPredDrift(kick,0,uRungLo,p->uRung);
-    float uPred = 0.0f;
-    if (SPHoptions->useIsentropic && !(pkdiMat(pkd,p) == 0 && SPHoptions->useBuiltinIdeal)) {
-        // undo kick
-        uPred = pNewSph->u + kick->dtPredISPHUndoOpen[p->uRung] * pNewSph->uDot;
-        // new opening kick
-        uPred += kick->dtPredISPHOpen[p->uRung] * pNewSph->uDot;
-        // isentropic evolution
-        uPred = SPHEOSIsentropic(pkd,pNewSph->oldRho,uPred,pkdDensity(pkd,p),pkdiMat(pkd,p),SPHoptions);
-        // new closing kick
-        uPred += kick->dtPredISPHClose[p->uRung] * pNewSph->uDot;
+    if (SPHoptions->doUConversion && SPHoptions->doInterfaceCorrection) {
+        *T = pNewSph->u;
+        *P = SPHEOSPofRhoT(pkd, pkdDensity(pkd,p), pNewSph->u, pkdiMat(pkd,p), SPHoptions);
     }
     else {
-        uPred = pNewSph->u + dtPredDrift * pNewSph->uDot;
+        float dtPredDrift = getDtPredDrift(kick,0,uRungLo,p->uRung);
+        float uPred = 0.0f;
+        if (SPHoptions->useIsentropic && !(pkdiMat(pkd,p) == 0 && SPHoptions->useBuiltinIdeal)) {
+            // undo kick
+            uPred = pNewSph->u + kick->dtPredISPHUndoOpen[p->uRung] * pNewSph->uDot;
+            // new opening kick
+            uPred += kick->dtPredISPHOpen[p->uRung] * pNewSph->uDot;
+            // isentropic evolution
+            uPred = SPHEOSIsentropic(pkd,pNewSph->oldRho,uPred,pkdDensity(pkd,p),pkdiMat(pkd,p),SPHoptions);
+            // new closing kick
+            uPred += kick->dtPredISPHClose[p->uRung] * pNewSph->uDot;
+        }
+        else {
+            uPred = pNewSph->u + dtPredDrift * pNewSph->uDot;
+        }
+        *P = SPHEOSPCTofRhoU(pkd,pkdDensity(pkd,p),uPred,cs,T,pkdiMat(pkd,p),SPHoptions);
+        if (SPHoptions->doConsistentPrediction) {
+            const vel_t *v = pkdVel(pkd,p);
+            const float *ap = pkdAccel(pkd,p);
+            pNewSph->vpredx = v[0] + dtPredDrift * ap[0];
+            pNewSph->vpredy = v[1] + dtPredDrift * ap[1];
+            pNewSph->vpredz = v[2] + dtPredDrift * ap[2];
+        }
     }
-    *P = SPHEOSPCofRhoU(pkd,pkdDensity(pkd,p),uPred,cs,pkdiMat(pkd,p),SPHoptions);
 }

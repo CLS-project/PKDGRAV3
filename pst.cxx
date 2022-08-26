@@ -296,6 +296,8 @@ void pstAddServices(PST pst,MDL mdl) {
                   sizeof(struct inSetSPHoptions), 0);
     mdlAddService(mdl,PST_INITIALIZEEOS,pst,(fcnService_t *)pstInitializeEOS,
                   0, 0);
+    mdlAddService(mdl,PST_UPDATEGASVALUES,pst,(fcnService_t *)pstUpdateGasValues,
+                  sizeof(struct inUpdateGasValues), 0);
     mdlAddService(mdl,PST_TREEUPDATEFLAGBOUNDS,pst,(fcnService_t *)pstTreeUpdateFlagBounds,
                   sizeof(struct inTreeUpdateFlagBounds),
                   (nThreads==1?1:2*nThreads-1)*pkdContext::MaxNodeSize());
@@ -2288,6 +2290,22 @@ int pstInitializeEOS(PST pst,void *vin,int nIn,void *vout,int nOut) {
     }
     else {
         pkdInitializeEOS(plcl->pkd);
+    }
+    return 0;
+}
+
+int pstUpdateGasValues(PST pst,void *vin,int nIn,void *vout,int nOut) {
+    LCL *plcl = pst->plcl;
+    auto in = static_cast<struct inUpdateGasValues *>(vin);
+
+    assert( nIn==sizeof(struct inUpdateGasValues) );
+    if (pst->nLeaves > 1) {
+        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_UPDATEGASVALUES,vin,nIn);
+        pstUpdateGasValues(pst->pstLower,vin,nIn,vout,nOut);
+        mdlGetReply(pst->mdl,rID,NULL,NULL);
+    }
+    else {
+        pkdUpdateGasValues(plcl->pkd, &in->kick, &in->SPHoptions);
     }
     return 0;
 }

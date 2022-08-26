@@ -92,7 +92,7 @@ void iOpenOutcomeBlock(PKD pkd,KDN *k,int n,clBlock &blk,float dThetaMin,SPHOpti
     for (i=0; i<n; ++i) {
         fourh2 = blk.fourh2.v[i];
 
-        if (SPHoptions->doDensity || SPHoptions->doSPHForces || SPHoptions->doSetDensityFlags) {
+        if (SPHoptions->doDensity || SPHoptions->doDensityCorrection || SPHoptions->doSPHForces || SPHoptions->doSetDensityFlags || SPHoptions->doSetNNflags) {
 #if SPHBALLOFBALLS
             distk2 = 0.0f;
             dx = k->fBoBxCenter - blk.xCenter.v[i] - blk.xOffset.v[i] - blk.xMax.v[i];
@@ -127,7 +127,7 @@ void iOpenOutcomeBlock(PKD pkd,KDN *k,int n,clBlock &blk,float dThetaMin,SPHOpti
             intersect1 = (box1xMin < box2xMax) & (box2xMin < box1xMax) & (box1yMin < box2yMax) & (box2yMin < box1yMax) & (box1zMin < box2zMax) & (box2zMin < box1zMax);
 #endif
         }
-        if (SPHoptions->doSPHForces || SPHoptions->doSetDensityFlags) {
+        if (SPHoptions->doSPHForces || SPHoptions->doSetDensityFlags || SPHoptions->doSetNNflags) {
 #if SPHBALLOFBALLS
             blk_fBoBr2 = blk.fBoBr2.v[i];
             distc2 = 0.0f;

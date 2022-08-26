@@ -546,6 +546,12 @@ if(EOSLIB_PATH AND REOS3_PATH)
     target_compile_options(${PROJECT_NAME} PRIVATE -DHAVE_REOS3_H)
 endif()
 
+option(NN_FLAG_IN_PARTICLE "Add a NN flag to the particle." ON)
+if (NN_FLAG_IN_PARTICLE)
+   target_compile_options(${PROJECT_NAME} PRIVATE -DNN_FLAG_IN_PARTICLE)
+   message("-- NN_FLAG_IN_PARTICLE: A flag is added to the base particle to allow FastGas with interface correction. This reduces the maximum number of particles from 2^43 to 2^42. Set this option to OFF if more than 2^42 particles are needed in non-NewSPH runs.")
+endif (NN_FLAG_IN_PARTICLE)
+
 CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/pkd_config.h.in ${CMAKE_CURRENT_BINARY_DIR}/pkd_config.h)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
 target_link_libraries(${PROJECT_NAME} mdl2 pkdmetal)

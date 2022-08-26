@@ -233,14 +233,28 @@ found_it:
                                     pj = -1 - iCheckCell;
                                     assert(id >= 0);
                                     iCidPart = blk.iCache[jTile]==CID_CELL ? CID_PARTICLE : CID_PARTICLE2;
-                                    if (SPHoptions->doSetDensityFlags) {
+                                    if (SPHoptions->doSetDensityFlags || SPHoptions->doSetNNflags) {
                                         if (id == pkd->Self()) {
                                             p = pkd->Particle(pj);
-                                            p->bMarked = 1;
+                                            if (SPHoptions->doSetDensityFlags) {
+                                                p->bMarked = 1;
+                                            }
+                                            if (SPHoptions->doSetNNflags) {
+#ifdef NN_FLAG_IN_PARTICLE
+                                                p->bNNflag = 1;
+#endif
+                                            }
                                         }
                                         else {
                                             p = CAST(PARTICLE *,mdlAcquire(pkd->mdl,iCidPart,pj,id));
-                                            p->bMarked = 1;
+                                            if (SPHoptions->doSetDensityFlags) {
+                                                p->bMarked = 1;
+                                            }
+                                            if (SPHoptions->doSetNNflags) {
+#ifdef NN_FLAG_IN_PARTICLE
+                                                p->bNNflag = 1;
+#endif
+                                            }
                                             mdlRelease(pkd->mdl,iCidPart,p);
                                         }
                                     }
@@ -260,14 +274,16 @@ found_it:
                                             float Omega = pNewSph->Omega;                     /* should be the Omega field of the sph fields, nyi */
                                             float P = 0.0f;                         /* should be calculated by the EOS, nyi */
                                             float cs = 0.0f;                        /* should be calculated by the EOS, nyi */
-                                            SPHpredictOnTheFly(pkd, p, kick, ts->uRungLo, vpred, &P, &cs, SPHoptions);
+                                            float T = 0.0f;
+                                            float expImb2 = pNewSph->expImb2;
+                                            SPHpredictOnTheFly(pkd, p, kick, ts->uRungLo, vpred, &P, &cs, &T, SPHoptions);
                                             pkd->ilp.append(
                                                 r[0] + blk.xOffset[jTile],
                                                 r[1] + blk.yOffset[jTile],
                                                 r[2] + blk.zOffset[jTile],
                                                 blk.m[jTile], blk.fourh2[jTile],
                                                 vpred[0], vpred[1], vpred[2],
-                                                pkdBall(pkd,p), Omega, pkdDensity(pkd,p), P, cs, pkdSpecies(pkd,p), p->uRung);
+                                                pkdBall(pkd,p), Omega, pkdDensity(pkd,p), P, cs, pkdSpecies(pkd,p), p->uRung, pkdiMat(pkd,p), T, expImb2);
                                         }
                                         else {
                                             pkd->ilp.append(
@@ -276,7 +292,7 @@ found_it:
                                                 r[2] + blk.zOffset[jTile],
                                                 blk.m[jTile], blk.fourh2[jTile],
                                                 v[0], v[1], v[2],
-                                                0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0, p->uRung);
+                                                0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0, p->uRung, 0, 0.0f, 0.0f);
                                         }
                                     }
                                 }
@@ -296,14 +312,28 @@ found_it:
                                         pkd->ilc.setReference(r[0],r[1],r[2]);
                                     }
                                     for (pj=c->pLower; pj<=c->pUpper; ++pj) {
-                                        if (SPHoptions->doSetDensityFlags) {
+                                        if (SPHoptions->doSetDensityFlags || SPHoptions->doSetNNflags) {
                                             if (id == pkd->Self()) {
                                                 p = pkd->Particle(pj);
-                                                p->bMarked = 1;
+                                                if (SPHoptions->doSetDensityFlags) {
+                                                    p->bMarked = 1;
+                                                }
+                                                if (SPHoptions->doSetNNflags) {
+#ifdef NN_FLAG_IN_PARTICLE
+                                                    p->bNNflag = 1;
+#endif
+                                                }
                                             }
                                             else {
                                                 p = CAST(PARTICLE *,mdlAcquire(pkd->mdl,iCidPart,pj,id));
-                                                p->bMarked = 1;
+                                                if (SPHoptions->doSetDensityFlags) {
+                                                    p->bMarked = 1;
+                                                }
+                                                if (SPHoptions->doSetNNflags) {
+#ifdef NN_FLAG_IN_PARTICLE
+                                                    p->bNNflag = 1;
+#endif
+                                                }
                                                 mdlRelease(pkd->mdl,iCidPart,p);
                                             }
                                         }
@@ -320,14 +350,16 @@ found_it:
                                                 float Omega = pNewSph->Omega;                 /* should be the Omega field of the sph fields, nyi */
                                                 float P = 0.0f;                     /* should be calculated by the EOS, nyi */
                                                 float cs = 0.0f;                    /* should be calculated by the EOS, nyi */
-                                                SPHpredictOnTheFly(pkd, p, kick, ts->uRungLo, vpred, &P, &cs, SPHoptions);
+                                                float T = 0.0f;
+                                                float expImb2 = pNewSph->expImb2;
+                                                SPHpredictOnTheFly(pkd, p, kick, ts->uRungLo, vpred, &P, &cs, &T, SPHoptions);
                                                 pkd->ilp.append(
                                                     r[0] + blk.xOffset[jTile],
                                                     r[1] + blk.yOffset[jTile],
                                                     r[2] + blk.zOffset[jTile],
                                                     fMass, 4*fSoft*fSoft,
                                                     vpred[0], vpred[1], vpred[2],
-                                                    pkdBall(pkd,p), Omega, pkdDensity(pkd,p), P, cs, pkdSpecies(pkd,p), p->uRung);
+                                                    pkdBall(pkd,p), Omega, pkdDensity(pkd,p), P, cs, pkdSpecies(pkd,p), p->uRung, pkdiMat(pkd,p), T, expImb2);
                                             }
                                             else {
                                                 pkd->ilp.append(
@@ -336,7 +368,7 @@ found_it:
                                                     r[2] + blk.zOffset[jTile],
                                                     fMass, 4*fSoft*fSoft,
                                                     v[0], v[1], v[2],
-                                                    0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0, p->uRung);
+                                                    0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0, p->uRung, 0, 0.0f, 0.0f);
                                             }
                                         }
                                     }
@@ -550,14 +582,14 @@ found_it:
             ** rung check here when we start using tree repair, but
             ** for now this is just as good.
             */
-            if ((k->uMinRung<=ts->uRungHi && k->uMaxRung >= ts->uRungLo) || (SPHoptions->useDensityFlags && k->bHasMarked)) {
+            if ((k->uMinRung<=ts->uRungHi && k->uMaxRung >= ts->uRungLo) || (SPHoptions->useDensityFlags && k->bHasMarked) || (SPHoptions->useNNflags && k->bHasNNflag)) {
                 /*
                 ** iCell is active, continue processing it.
                 ** Put the sibling onto the checklist.
                 */
                 iSib = iCell+1;
                 getCell(pkd,-1,iSib,pkd->Self(),&cOpen,&c);
-                if ((c->uMinRung<=ts->uRungHi && c->uMaxRung >= ts->uRungLo) || (SPHoptions->useDensityFlags && c->bHasMarked)) {
+                if ((c->uMinRung<=ts->uRungHi && c->uMaxRung >= ts->uRungLo) || (SPHoptions->useDensityFlags && c->bHasMarked) || (SPHoptions->useNNflags && c->bHasNNflag)) {
                     /*
                     ** Sibling is active so we need to clone the checklist!
                     */
@@ -575,7 +607,7 @@ found_it:
                 ** have to be careful to not pop the stack when we
                 ** hit the sibling.
                 */
-                if ((c->uMinRung<=ts->uRungHi && c->uMaxRung >= ts->uRungLo) || (SPHoptions->useDensityFlags && c->bHasMarked)) {
+                if ((c->uMinRung<=ts->uRungHi && c->uMaxRung >= ts->uRungLo) || (SPHoptions->useDensityFlags && c->bHasMarked) || (SPHoptions->useNNflags && c->bHasNNflag)) {
                     /*
                     ** Sibling is active as well.
                     ** Push Checklist for the sibling onto the stack
@@ -780,7 +812,7 @@ int pkdGravWalk(PKD pkd,struct pkdKickParameters *kick,struct pkdLightconeParame
     ** Walk tree 1 against trees 1 (and optionally 2) if there are active particles
     */
     KDN *k = pkd->TreeNode(iLocalRoot1);
-    if (k->pLower<=k->pUpper && (pkdIsCellActive(k,ts->uRungLo,ts->uRungHi) || (SPHoptions->useDensityFlags && k->bHasMarked))) {
+    if (k->pLower<=k->pUpper && (pkdIsCellActive(k,ts->uRungLo,ts->uRungHi) || (SPHoptions->useDensityFlags && k->bHasMarked)  || (SPHoptions->useNNflags && k->bHasNNflag))) {
         /*
         ** Initially we set our cell pointer to
         ** point to the top tree.

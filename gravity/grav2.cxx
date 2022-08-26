@@ -131,7 +131,7 @@ void pkdParticleWorkDone(workParticle *wp) {
                         dfdx = prefac * 3.0f * fBall * fBall * wp->pInfoOut[i].rho + prefac * fBall * fBall * fBall * wp->pInfoOut[i].drhodfball;
                     }
                     float newfBall = wp->pInfoIn[i].fBall - fx / dfdx;
-                    if (newfBall >= wp->SPHoptions->ballSizeLimit || wp->pInfoIn[i].isTooLarge) {
+                    if (fabsf(newfBall) >= wp->SPHoptions->ballSizeLimit || wp->pInfoIn[i].isTooLarge) {
                         wp->pInfoIn[i].fBall = wp->SPHoptions->ballSizeLimit;
                         wp->pInfoIn[i].isTooLarge = 1;
                     }
@@ -176,13 +176,27 @@ void pkdParticleWorkDone(workParticle *wp) {
                     pkdSetDensity(pkd,p,wp->pInfoOut[i].rho);
                     pkdSetBall(pkd,p,wp->pInfoOut[i].fBall);
                     pNewSph->Omega = 1.0f + wp->pInfoOut[i].fBall/(3.0f * wp->pInfoOut[i].rho)*wp->pInfoOut[i].drhodfball;
-                    if (wp->SPHoptions->doUConversion) {
+                    if (wp->SPHoptions->doInterfaceCorrection) {
+                        float imbalance = sqrtf(wp->pInfoOut[i].imbalanceX*wp->pInfoOut[i].imbalanceX + wp->pInfoOut[i].imbalanceY*wp->pInfoOut[i].imbalanceY + wp->pInfoOut[i].imbalanceZ*wp->pInfoOut[i].imbalanceZ) / (0.5f * wp->pInfoOut[i].fBall * wp->pInfoOut[i].rho);
+                        imbalance *= calculateInterfaceCorrectionPrefactor(wp->pInfoOut[i].nSmooth,wp->SPHoptions->kernelType);
+                        pNewSph->expImb2 = expf(-imbalance*imbalance);
+                    }
+                    if (wp->SPHoptions->doUConversion && !wp->SPHoptions->doInterfaceCorrection) {
                         pNewSph->u = SPHEOSUofRhoT(pkd,pkdDensity(pkd,p),pNewSph->u,pkdiMat(pkd,p),wp->SPHoptions);
                         pNewSph->oldRho = pkdDensity(pkd,p);
                     }
                     if (!wp->SPHoptions->doOnTheFlyPrediction) {
-                        SPHpredictInDensity(pkd, p, wp->kick, wp->SPHoptions->nPredictRung, &pNewSph->P, &pNewSph->cs, wp->SPHoptions);
+                        SPHpredictInDensity(pkd, p, wp->kick, wp->SPHoptions->nPredictRung, &pNewSph->P, &pNewSph->cs, &pNewSph->T, wp->SPHoptions);
                     }
+                }
+                if (wp->SPHoptions->doDensityCorrection) {
+                    float Tbar = wp->pInfoOut[i].corrT / wp->pInfoOut[i].corr;
+                    float Pbar = wp->pInfoOut[i].corrP / wp->pInfoOut[i].corr;
+                    float Ttilde = pNewSph->expImb2 * pNewSph->T + (1.0f - pNewSph->expImb2) * Tbar;
+                    float Ptilde = pNewSph->expImb2 * pNewSph->P + (1.0f - pNewSph->expImb2) * Pbar;
+                    float newRho = SPHEOSRhoofPT(pkd, Ptilde, Ttilde, pkdiMat(pkd,p), wp->SPHoptions);
+                    //printf("rho = %.5e, T = %.5e, P = %.5e, Tbar = %.5e, Pbar = %.5e, Ttilde = %.5e, Ptilde = %.5e, newRho = %.5e\n",pkdDensity(pkd,p),pNewSph->T,pNewSph->P,Tbar,Pbar,Ttilde,Ptilde,newRho);
+                    pkdSetDensity(pkd,p,newRho);
                 }
                 if (wp->SPHoptions->doSPHForces) {
                     pNewSph->divv = wp->pInfoOut[i].divv;
@@ -371,14 +385,9 @@ void pkdParticleWorkDone(workParticle *wp) {
                                 pNewSph->oldRho = pkdDensity(pkd,p);
                             }
                             pNewSph->u += wp->kick->dtClose[p->uRung] * pNewSph->uDot;
-                            if (!wp->SPHoptions->doOnTheFlyPrediction) {
-                                pNewSph->P = SPHEOSPCofRhoU(pkd,pkdDensity(pkd,p),pNewSph->u,&pNewSph->cs,pkdiMat(pkd,p),wp->SPHoptions);
+                            if (!wp->SPHoptions->doOnTheFlyPrediction && !wp->SPHoptions->doConsistentPrediction) {
+                                pNewSph->P = SPHEOSPCTofRhoU(pkd,pkdDensity(pkd,p),pNewSph->u,&pNewSph->cs,&pNewSph->T,pkdiMat(pkd,p),wp->SPHoptions);
                             }
-                        }
-                        if (wp->SPHoptions->VelocityDamper > 0.0f) {
-                            v[0] *= 1.0 - wp->kick->dtClose[p->uRung] * wp->SPHoptions->VelocityDamper;
-                            v[1] *= 1.0 - wp->kick->dtClose[p->uRung] * wp->SPHoptions->VelocityDamper;
-                            v[2] *= 1.0 - wp->kick->dtClose[p->uRung] * wp->SPHoptions->VelocityDamper;
                         }
                     }
                     v2 = v[0]*v[0] + v[1]*v[1] + v[2]*v[2];
@@ -394,6 +403,11 @@ void pkdParticleWorkDone(workParticle *wp) {
                     if (wp->kick && wp->kick->bKickOpen) {
                         p->uRung = uNewRung;
                         ++pkd->nRung[p->uRung];
+                        if (wp->SPHoptions->VelocityDamper > 0.0f) {
+                            v[0] *= 1.0 - wp->kick->dtOpen[p->uRung] * wp->SPHoptions->VelocityDamper;
+                            v[1] *= 1.0 - wp->kick->dtOpen[p->uRung] * wp->SPHoptions->VelocityDamper;
+                            v[2] *= 1.0 - wp->kick->dtOpen[p->uRung] * wp->SPHoptions->VelocityDamper;
+                        }
                         v[0] += wp->kick->dtOpen[p->uRung]*wp->pInfoOut[i].a[0];
                         v[1] += wp->kick->dtOpen[p->uRung]*wp->pInfoOut[i].a[1];
                         v[2] += wp->kick->dtOpen[p->uRung]*wp->pInfoOut[i].a[2];
@@ -455,10 +469,21 @@ static void queueDensity( PKD pkd, workParticle *wp, ilpList &ilp, int bGravStep
         wp->pInfoOut[i].nden = 0.0f;
         wp->pInfoOut[i].dndendfball = 0.0f;
         wp->pInfoOut[i].nSmooth = 0.0f;
+        wp->pInfoOut[i].imbalanceX = 0.0f;
+        wp->pInfoOut[i].imbalanceY = 0.0f;
+        wp->pInfoOut[i].imbalanceZ = 0.0f;
     }
     for ( auto &tile : ilp ) {
         for (auto i=0; i<wp->nP; ++i) {
             pkdDensityEval(wp->pInfoIn[i],tile,wp->pInfoOut[i],wp->SPHoptions);
+        }
+    }
+}
+
+static void queueDensityCorrection( PKD pkd, workParticle *wp, ilpList &ilp, int bGravStep ) {
+    for ( auto &tile : ilp ) {
+        for (auto i=0; i<wp->nP; ++i) {
+            pkdDensityCorrectionEval(wp->pInfoIn[i],tile,wp->pInfoOut[i],wp->SPHoptions);
         }
     }
 }
@@ -564,7 +589,11 @@ int pkdGravInteract(PKD pkd,
 
     for (i=pkdn->pLower; i<=pkdn->pUpper; ++i) {
         p = pkd->Particle(i);
+#ifdef NN_FLAG_IN_PARTICLE
+        if (!pkdIsRungRange(p,ts->uRungLo,ts->uRungHi) && !(SPHoptions->useDensityFlags && p->bMarked) && !(SPHoptions->useNNflags && p->bNNflag)) continue;
+#else
         if (!pkdIsRungRange(p,ts->uRungLo,ts->uRungHi) && !(SPHoptions->useDensityFlags && p->bMarked)) continue;
+#endif
         pkdGetPos1(pkd,p,r);
         v = pkdVel(pkd,p);
 
@@ -590,7 +619,8 @@ int pkdGravInteract(PKD pkd,
             wp->pInfoIn[nP].fBall = pkdBall(pkd,p);
             wp->pInfoIn[nP].isTooLarge = 0;
             wp->pInfoIn[nP].Omega = pNewSph->Omega;
-            SPHpredictOnTheFly(pkd, p, kick, ts->uRungLo, wp->pInfoIn[nP].v, &wp->pInfoIn[nP].P, &wp->pInfoIn[nP].cs, SPHoptions);
+            wp->pInfoIn[nP].iMat = pkdiMat(pkd,p);
+            SPHpredictOnTheFly(pkd, p, kick, ts->uRungLo, wp->pInfoIn[nP].v, &wp->pInfoIn[nP].P, &wp->pInfoIn[nP].cs, NULL, SPHoptions);
             wp->pInfoIn[nP].rho = pkdDensity(pkd,p);
             wp->pInfoIn[nP].species = pkdSpecies(pkd,p);
 
@@ -600,10 +630,16 @@ int pkdGravInteract(PKD pkd,
             wp->pInfoOut[nP].dndendfball = 0.0f;
             wp->pInfoOut[nP].fBall = 0.0f;
             wp->pInfoOut[nP].nSmooth = 0.0f;
+            wp->pInfoOut[nP].imbalanceX = 0.0f;
+            wp->pInfoOut[nP].imbalanceY = 0.0f;
+            wp->pInfoOut[nP].imbalanceZ = 0.0f;
             wp->pInfoOut[nP].uDot = 0.0f;
             wp->pInfoOut[nP].divv = 0.0f;
             wp->pInfoOut[nP].dtEst = HUGE_VALF;
             wp->pInfoOut[nP].maxRung = 0.0f;
+            wp->pInfoOut[nP].corrT = 0.0f;
+            wp->pInfoOut[nP].corrP = 0.0f;
+            wp->pInfoOut[nP].corr = 0.0f;
         }
 
         wp->pInfoOut[nP].a[0] = 0.0f;
@@ -688,6 +724,13 @@ int pkdGravInteract(PKD pkd,
         ** Evaluate the Density on the P-P interactions
         */
         queueDensity( pkd, wp, pkd->ilp, ts->bGravStep );
+    }
+
+    if (SPHoptions->doDensityCorrection) {
+        /*
+        ** Evaluate the weighted averages of P and T
+        */
+        queueDensityCorrection( pkd, wp, pkd->ilp, ts->bGravStep );
     }
 
     if (SPHoptions->doSPHForces) {
