@@ -3043,7 +3043,6 @@ void MSR::ReorderWithinNodes() {
 #endif
 
 void MSR::UpdateSoft(double dTime) {
-    if (!(param.bPhysicalSoft)) return;
     if (param.bPhysicalSoft) {
         struct inPhysicalSoft in;
 
