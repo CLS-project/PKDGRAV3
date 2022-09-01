@@ -12,36 +12,42 @@
 #define GAMMA_G9 (GAMMA-1.0)
 
 #define TOL_ITER 1.e-6
-#define NMAX_ITER 100
+#define NMAX_ITER 1000
 
+template <typename ftype=double>
 struct Conserved_var_Riemann { //IA: TODO: change the name of this struct..!!
-    double rho;
-    double p;  // IA: Pressure is a primitive variable, not a conserved one...
-    double v[3]; // IA: same...
-    double u;
-    double cs;
+    ftype rho;
+    ftype p;  // IA: Pressure is a primitive variable, not a conserved one...
+    ftype v[3]; // IA: same...
+    ftype u;
+    ftype cs;
 };
 
+template <typename ftype=double>
 struct Input_vec_Riemann {
-    struct Conserved_var_Riemann L;
-    struct Conserved_var_Riemann R;
+    struct Conserved_var_Riemann<ftype> L;
+    struct Conserved_var_Riemann<ftype> R;
 };
+template <typename ftype=double>
 struct Riemann_outputs {
-    double P_M;
-    double S_M;
-    struct Conserved_var_Riemann Fluxes;
+    ftype P_M;
+    ftype S_M;
+    struct Conserved_var_Riemann<ftype> Fluxes;
 };
 
-static inline double DMAX(double a, double b) { return (a > b) ? a : b; }
-static inline double DMIN(double a, double b) { return (a < b) ? a : b; }
+template <typename ftype=double>
+static inline ftype DMAX(ftype a, ftype b) { return (a > b) ? a : b; }
+template <typename ftype=double>
+static inline ftype DMIN(ftype a, ftype b) { return (a < b) ? a : b; }
 
-static inline float guess_for_pressure(double dConstGamma,
-                                       double R_rho,double R_p,double L_rho,double L_p,
-                                       double *P_M, double *S_M,
-                                       double v_line_L, double v_line_R, double cs_L, double cs_R) {
-    float pmin, pmax;
+template <typename ftype=double>
+static inline ftype guess_for_pressure(ftype dConstGamma,
+                                       ftype R_rho,ftype R_p,ftype L_rho,ftype L_p,
+                                       ftype *P_M, ftype *S_M,
+                                       ftype v_line_L, ftype v_line_R, ftype cs_L, ftype cs_R) {
+    ftype pmin, pmax;
     /* start with the usual lowest-order guess for the contact wave pressure */
-    float pv = 0.5*(L_p+R_p) - 0.125*(v_line_R-v_line_L)*(L_p+R_p)*(cs_L+cs_R);
+    ftype pv = 0.5*(L_p+R_p) - 0.125*(v_line_R-v_line_L)*(L_p+R_p)*(cs_L+cs_R);
     pmin = DMIN(L_p,R_p);
     pmax = DMAX(L_p,R_p);
 
@@ -50,21 +56,21 @@ static inline float guess_for_pressure(double dConstGamma,
         return 0.5*(pmin+pmax);
 
     /* if the two are sufficiently close, and pv is between both values, return it */
-    float qrat = pmax / pmin;
+    ftype qrat = pmax / pmin;
     if (qrat <= 2.0 && (pmin <= pv && pv <= pmax))
         return pv;
 
     if (pv < pmin) {
         /* use two-rarefaction solution */
-        float pnu = (cs_L+cs_R) - GAMMA_G7 * (v_line_R - v_line_L);
-        float pde = cs_L * powf(L_p, -GAMMA_G1) + cs_R * powf(R_p, -GAMMA_G1);
-        return powf(pnu / pde, GAMMA_G3);
+        ftype pnu = (cs_L+cs_R) - GAMMA_G7 * (v_line_R - v_line_L);
+        ftype pde = cs_L * pow(L_p, -GAMMA_G1) + cs_R * pow(R_p, -GAMMA_G1);
+        return pow(pnu / pde, GAMMA_G3);
     }
     else {
         /* two-shock approximation  */
-        float gel = sqrtf((GAMMA_G5 / L_rho) / (GAMMA_G6 * L_p + pv));
-        float ger = sqrtf((GAMMA_G5 / R_rho) / (GAMMA_G6 * R_p + pv));
-        float x = (gel * L_p + ger * R_p - (v_line_R - v_line_L)) / (gel + ger);
+        ftype gel = sqrt((GAMMA_G5 / L_rho) / (GAMMA_G6 * L_p + pv));
+        ftype ger = sqrt((GAMMA_G5 / R_rho) / (GAMMA_G6 * R_p + pv));
+        ftype x = (gel * L_p + ger * R_p - (v_line_R - v_line_L)) / (gel + ger);
         if (x < pmin || x > pmax)
             x = pmin;
         return x;
@@ -77,34 +83,35 @@ static inline float guess_for_pressure(double dConstGamma,
 /*  This is the "normal" Riemann fan, with no vacuum on L or R state! */
 /*  (written by V. Springel for AREPO) */
 /* --------------------------------------------------------------------------------- */
-static inline void sample_reimann_standard(double dConstGamma, double S,
-        double R_rho,double R_p, double R_v[3],double L_rho,double L_p, double L_v[3],
-        double P_M, double S_M, double *rho_f, double *p_f, double *v_f,
-        double n_unit[3], double v_line_L, double v_line_R, double cs_L, double cs_R) {
+template <typename ftype=double>
+static inline void sample_reimann_standard(ftype dConstGamma, ftype S,
+        ftype R_rho,ftype R_p, ftype R_v[3],ftype L_rho,ftype L_p, ftype L_v[3],
+        ftype P_M, ftype S_M, ftype *rho_f, ftype *p_f, ftype *v_f,
+        ftype n_unit[3], ftype v_line_L, ftype v_line_R, ftype cs_L, ftype cs_R) {
 #ifndef HYDRO_MESHLESS_FINITE_VOLUME
     /* we don't actually need to evaluate the fluxes, and we already have P_M and S_M, which define the
      contact discontinuity where the rho flux = 0; so can simply exit this routine */
     //return;
 #endif
-    int k; double C_eff,S_eff;
+    ftype C_eff,S_eff;
     if (S <= S_M) { /* sample point is left of contact discontinuity */
         if (P_M <= L_p) { /* left fan (rarefaction) */
-            double S_check_L = v_line_L - cs_L;
+            ftype S_check_L = v_line_L - cs_L;
             if (S <= S_check_L) { /* left data state */
                 *p_f = L_p;
                 *rho_f = L_rho;
-                for (k=0; k<3; k++)
+                for (auto k=0; k<3; k++)
                     v_f[k] = L_v[k];
                 return;
             }
             else {
-                double C_eff_L = cs_L * pow(P_M / L_p, GAMMA_G1);
-                double S_tmp_L = S_M - C_eff_L;
+                ftype C_eff_L = cs_L * pow(P_M / L_p, GAMMA_G1);
+                ftype S_tmp_L = S_M - C_eff_L;
 
                 if (S > S_tmp_L) { /* middle left state */
                     *rho_f = L_rho * pow(P_M / L_p, GAMMA_G8);
                     *p_f = P_M;
-                    for (k=0; k<3; k++)
+                    for (auto k=0; k<3; k++)
                         v_f[k] = L_v[k] + (S_M-v_line_L)*n_unit[k];
                     return;
                 }
@@ -113,7 +120,7 @@ static inline void sample_reimann_standard(double dConstGamma, double S,
                     C_eff = GAMMA_G5 * (cs_L + GAMMA_G7 * (v_line_L - S));
                     *rho_f = L_rho * pow(C_eff / cs_L, GAMMA_G4);
                     *p_f = L_p * pow(C_eff / cs_L, GAMMA_G3);
-                    for (k=0; k<3; k++)
+                    for (auto k=0; k<3; k++)
                         v_f[k] = L_v[k] + (S_eff-v_line_L)*n_unit[k];
                     return;
                 }
@@ -121,20 +128,20 @@ static inline void sample_reimann_standard(double dConstGamma, double S,
         }
         else {          /* left shock */
             if (L_p > 0) {
-                double pml = P_M / L_p;
-                double S_L = v_line_L - cs_L * sqrt(GAMMA_G2 * pml + GAMMA_G1);
+                ftype pml = P_M / L_p;
+                ftype S_L = v_line_L - cs_L * sqrt(GAMMA_G2 * pml + GAMMA_G1);
 
                 if (S <= S_L) { /* left data state */
                     *p_f = L_p;
                     *rho_f = L_rho;
-                    for (k=0; k<3; k++)
+                    for (auto k=0; k<3; k++)
                         v_f[k] = L_v[k];
                     return;
                 }
                 else {      /* middle left state behind shock */
                     *rho_f = L_rho * (pml + GAMMA_G6) / (pml * GAMMA_G6 + 1.0);
                     *p_f = P_M;
-                    for (k=0; k<3; k++)
+                    for (auto k=0; k<3; k++)
                         v_f[k] = L_v[k] + (S_M-v_line_L)*n_unit[k];
                     return;
                 }
@@ -142,7 +149,7 @@ static inline void sample_reimann_standard(double dConstGamma, double S,
             else {
                 *rho_f = L_rho / GAMMA_G6;
                 *p_f = P_M;
-                for (k=0; k<3; k++)
+                for (auto k=0; k<3; k++)
                     v_f[k] = L_v[k] + (S_M-v_line_L)*n_unit[k];
                 return;
             }
@@ -151,20 +158,20 @@ static inline void sample_reimann_standard(double dConstGamma, double S,
     else {  /* sample point is right of contact discontinuity */
         if (P_M > R_p) { /* right shock */
             if (R_p > 0) {
-                double pmr = P_M / R_p;
-                double S_R = v_line_R + cs_R * sqrt(GAMMA_G2 * pmr + GAMMA_G1);
+                ftype pmr = P_M / R_p;
+                ftype S_R = v_line_R + cs_R * sqrt(GAMMA_G2 * pmr + GAMMA_G1);
 
                 if (S >= S_R) { /* right data state */
                     *p_f = R_p;
                     *rho_f = R_rho;
-                    for (k=0; k<3; k++)
+                    for (auto k=0; k<3; k++)
                         v_f[k] = R_v[k];
                     return;
                 }
                 else {      /* middle right state behind shock */
                     *rho_f = R_rho * (pmr + GAMMA_G6) / (pmr * GAMMA_G6 + 1.0);
                     *p_f = P_M;
-                    for (k=0; k<3; k++)
+                    for (auto k=0; k<3; k++)
                         v_f[k] = R_v[k] + (S_M-v_line_R)*n_unit[k];
                     return;
                 }
@@ -172,28 +179,28 @@ static inline void sample_reimann_standard(double dConstGamma, double S,
             else {
                 *rho_f = R_rho / GAMMA_G6;
                 *p_f = P_M;
-                for (k=0; k<3; k++)
+                for (auto k=0; k<3; k++)
                     v_f[k] = R_v[k] + (S_M-v_line_R)*n_unit[k];
                 return;
             }
         }
         else {          /* right fan */
-            double S_check_R = v_line_R + cs_R;
+            ftype S_check_R = v_line_R + cs_R;
             if (S >= S_check_R) {   /* right data state */
                 *p_f = R_p;
                 *rho_f = R_rho;
-                for (k=0; k<3; k++)
+                for (auto k=0; k<3; k++)
                     v_f[k] = R_v[k];
                 return;
             }
             else {
-                double C_eff_R = cs_R * pow(P_M / R_p, GAMMA_G1);
-                double S_tmp_R = S_M + C_eff_R;
+                ftype C_eff_R = cs_R * pow(P_M / R_p, GAMMA_G1);
+                ftype S_tmp_R = S_M + C_eff_R;
 
                 if (S <= S_tmp_R) { /* middle right state */
                     *rho_f = R_rho * pow(P_M / R_p, GAMMA_G8);
                     *p_f = P_M;
-                    for (k=0; k<3; k++)
+                    for (auto k=0; k<3; k++)
                         v_f[k] = R_v[k] + (S_M-v_line_R)*n_unit[k];
                     return;
                 }
@@ -202,7 +209,7 @@ static inline void sample_reimann_standard(double dConstGamma, double S,
                     C_eff = GAMMA_G5 * (cs_R - GAMMA_G7 * (v_line_R - S));
                     *rho_f = R_rho * pow(C_eff / cs_R, GAMMA_G4);
                     *p_f = R_p * pow(C_eff / cs_R, GAMMA_G3);
-                    for (k=0; k<3; k++)
+                    for (auto k=0; k<3; k++)
                         v_f[k] = R_v[k] + (S_eff-v_line_R)*n_unit[k];
                     return;
                 }
@@ -217,12 +224,13 @@ static inline void sample_reimann_standard(double dConstGamma, double S,
 /* right state is a vacuum, but left state is not: sample the fan appropriately */
 /*  (written by V. Springel for AREPO) */
 /* --------------------------------------------------------------------------------- */
-static inline void sample_reimann_vaccum_right(double dConstGamma, double S,
-        double R_rho,double R_p, double R_v[3],double L_rho,double L_p, double L_v[3],
-        double *P_M, double *S_M, double *rho_f, double *p_f, double *v_f,
-        double n_unit[3], double v_line_L, double v_line_R, double cs_L, double cs_R) {
-    //double S_L = v_line_L - GAMMA_G4 * cs_L;
-    double S_L = v_line_L + GAMMA_G4 * cs_L; // above line was a sign error, caught by Bert Vandenbroucke
+template <typename ftype=double>
+static inline void sample_reimann_vaccum_right(ftype dConstGamma, ftype S,
+        ftype R_rho,ftype R_p, ftype R_v[3],ftype L_rho,ftype L_p, ftype L_v[3],
+        ftype *P_M, ftype *S_M, ftype *rho_f, ftype *p_f, ftype *v_f,
+        ftype n_unit[3], ftype v_line_L, ftype v_line_R, ftype cs_L, ftype cs_R) {
+    //ftype S_L = v_line_L - GAMMA_G4 * cs_L;
+    ftype S_L = v_line_L + GAMMA_G4 * cs_L; // above line was a sign error, caught by Bert Vandenbroucke
     //printf("Vaccuum right\n");
 #ifdef USE_MFM
     /* in this code mode, we are -always- moving with the contact discontinuity so density flux = 0;
@@ -240,10 +248,10 @@ static inline void sample_reimann_vaccum_right(double dConstGamma, double S,
     }
     else {
         /* left fan */
-        double S_L_check = v_line_L - cs_L;
+        ftype S_L_check = v_line_L - cs_L;
         if (S_L_check < S) {
             /* rarefaction fan left state */
-            double C_eff = GAMMA_G5 * (cs_L + GAMMA_G7 * (v_line_L - S));
+            ftype C_eff = GAMMA_G5 * (cs_L + GAMMA_G7 * (v_line_L - S));
             *P_M = L_p * pow(C_eff / cs_L, GAMMA_G3);
             *S_M = GAMMA_G5 * (cs_L + GAMMA_G7 * v_line_L + S);
             *rho_f = L_rho * pow(C_eff / cs_L, GAMMA_G4);
@@ -256,8 +264,7 @@ static inline void sample_reimann_vaccum_right(double dConstGamma, double S,
         }
     }
     *p_f = *P_M;
-    int k;
-    for (k=0; k<3; k++)
+    for (auto k=0; k<3; k++)
         v_f[k] = L_v[k] + (*S_M - v_line_L) * n_unit[k];
     return;
 }
@@ -269,12 +276,13 @@ static inline void sample_reimann_vaccum_right(double dConstGamma, double S,
 /* left state is a vacuum, but right state is not: sample the fan appropriately */
 /*  (written by V. Springel for AREPO) */
 /* --------------------------------------------------------------------------------- */
-static inline void sample_reimann_vaccum_left(double dConstGamma, double S,
-        double R_rho,double R_p, double R_v[3],double L_rho,double L_p, double L_v[3],
-        double *P_M, double *S_M, double *rho_f, double *p_f, double *v_f,
-        double n_unit[3], double v_line_L, double v_line_R, double cs_L, double cs_R) {
+template <typename ftype=double>
+static inline void sample_reimann_vaccum_left(ftype dConstGamma, ftype S,
+        ftype R_rho,ftype R_p, ftype R_v[3],ftype L_rho,ftype L_p, ftype L_v[3],
+        ftype *P_M, ftype *S_M, ftype *rho_f, ftype *p_f, ftype *v_f,
+        ftype n_unit[3], ftype v_line_L, ftype v_line_R, ftype cs_L, ftype cs_R) {
     //printf("Vaccuum left\n");
-    double S_R = v_line_R - GAMMA_G4 * cs_R;
+    ftype S_R = v_line_R - GAMMA_G4 * cs_R;
 #ifdef USE_MFM
     /* in this code mode, we are -always- moving with the contact discontinuity so density flux = 0;
      this constrains where we reside in the solution fan */
@@ -291,10 +299,10 @@ static inline void sample_reimann_vaccum_left(double dConstGamma, double S,
     }
     else {
         /* right fan */
-        double S_R_check = v_line_R + cs_R;
+        ftype S_R_check = v_line_R + cs_R;
         if (S_R_check > S) {
             /* rarefaction fan right state */
-            double C_eff = GAMMA_G5 * (cs_R - GAMMA_G7 * (v_line_R - S));
+            ftype C_eff = GAMMA_G5 * (cs_R - GAMMA_G7 * (v_line_R - S));
             *P_M = R_p * pow(C_eff / cs_R, GAMMA_G3);
             *S_M = GAMMA_G5 * (-cs_R + GAMMA_G7 * v_line_R + S);
             *rho_f = R_rho * pow(C_eff / cs_R, GAMMA_G4);
@@ -307,20 +315,20 @@ static inline void sample_reimann_vaccum_left(double dConstGamma, double S,
         }
     }
     *p_f = *P_M;
-    int k;
-    for (k=0; k<3; k++)
+    for (auto k=0; k<3; k++)
         v_f[k] = R_v[k] + (*S_M - v_line_R) * n_unit[k];
     return;
 }
 
 
-static inline int iterative_Riemann_solver(double dConstGamma,
-        double R_rho,double R_p,double L_rho,double L_p,
-        double *P_M, double *S_M,
-        double v_line_L, double v_line_R, double cs_L, double cs_R) {
+template <typename ftype=double>
+static inline ftype iterative_Riemann_solver(ftype dConstGamma,
+        ftype R_rho,ftype R_p,ftype L_rho,ftype L_p,
+        ftype *P_M, ftype *S_M,
+        ftype v_line_L, ftype v_line_R, ftype cs_L, ftype cs_R) {
     /* before going on, let's compare this to an exact Riemann solution calculated iteratively */
-    double Pg,Pg_prev,W_L,W_R,Z_L,Z_R,tol,pratio; int niter_Riemann=0;
-    double a0,a1,a2,dvel,check_vel;
+    ftype Pg,Pg_prev,W_L,W_R,Z_L,Z_R,tol,pratio; ftype niter_Riemann=0;
+    ftype a0,a1,a2,dvel,check_vel;
     dvel = v_line_R - v_line_L;
     check_vel = GAMMA_G4 * (cs_R + cs_L) - dvel;
     /* if check_vel<0, this will produce a vacuum: need to use vacuum-specific subroutine */
@@ -328,7 +336,9 @@ static inline int iterative_Riemann_solver(double dConstGamma,
 
     tol=100.0;
     Pg = guess_for_pressure(dConstGamma, R_rho, R_p, L_rho, L_p, P_M, S_M, v_line_L, v_line_R, cs_L, cs_R);
-    while ((tol>TOL_ITER)&&(niter_Riemann<NMAX_ITER)) {
+//    while ((tol>TOL_ITER)&&(niter_Riemann<NMAX_ITER))
+#pragma unroll
+    for (auto k=0; k<100; k++) {
         Pg_prev=Pg;
         if (Pg>L_p) {
             /* shock wave */
@@ -369,7 +379,6 @@ static inline int iterative_Riemann_solver(double dConstGamma,
             Pg = 0.1 * Pg_prev;
 
         tol = 2.0 * fabs((Pg-Pg_prev)/(Pg+Pg_prev));
-//        printf("tol %e \n", tol);
         niter_Riemann++;
     }
     if (niter_Riemann<NMAX_ITER) {
@@ -386,12 +395,13 @@ static inline int iterative_Riemann_solver(double dConstGamma,
 
 
 
-static inline void sample_reimann_vaccum_internal(double dConstGamma, double S,
-        double R_rho,double R_p, double R_v[3],double L_rho,double L_p, double L_v[3],
-        double *P_M, double *S_M, double *rho_f, double *p_f, double *v_f,
-        double n_unit[3], double v_line_L, double v_line_R, double cs_L, double cs_R) {
-    double S_L = v_line_L + GAMMA_G4 * cs_L;
-    double S_R = v_line_R - GAMMA_G4 * cs_R;
+template <typename ftype=double>
+static inline void sample_reimann_vaccum_internal(ftype dConstGamma, ftype S,
+        ftype R_rho,ftype R_p, ftype R_v[3],ftype L_rho,ftype L_p, ftype L_v[3],
+        ftype *P_M, ftype *S_M, ftype *rho_f, ftype *p_f, ftype *v_f,
+        ftype n_unit[3], ftype v_line_L, ftype v_line_R, ftype cs_L, ftype cs_R) {
+    ftype S_L = v_line_L + GAMMA_G4 * cs_L;
+    ftype S_R = v_line_R - GAMMA_G4 * cs_R;
     if (S <= S_L) {
         /* left fan */
         sample_reimann_vaccum_right(dConstGamma,  S,
@@ -413,8 +423,7 @@ static inline void sample_reimann_vaccum_internal(double dConstGamma, double S,
 #ifndef USE_MFM
         *rho_f = 0;
         *p_f = *P_M;
-        int k;
-        for (k=0; k<3; k++)
+        for (auto k=0; k<3; k++)
             v_f[k] = (L_v[k] + (R_v[k]-L_v[k]) * (S-S_L)/(S_R-S_L)) *
                      (1-n_unit[k]) + S * n_unit[k];
 #endif
@@ -428,13 +437,14 @@ static inline void sample_reimann_vaccum_internal(double dConstGamma, double S,
 /*    take the face state we have calculated from the exact Riemann solution and get the corresponding fluxes */
 /*   (written by V. Springel for AREPO, with minor modifications) */
 /* -------------------------------------------------------------------------------------------------------------- */
-static void convert_face_to_flux(double dConstGamma,
-                                 double *rho_f, double *p_f, double *v_f,
-                                 double n_unit[3]) {
-    double rho, P, v[3], v_line=0, v_frame=0, h=0; int k;
+template <typename ftype=double>
+static void convert_face_to_flux(ftype dConstGamma,
+                                 ftype *rho_f, ftype *p_f, ftype *v_f,
+                                 ftype n_unit[3]) {
+    ftype rho, P, v[3], v_line=0, v_frame=0, h=0;
     rho = *rho_f;
     P = *p_f;
-    for (k=0; k<3; k++) {
+    for (auto k=0; k<3; k++) {
         v[k] = v_f[k];
         v_line += v[k] * n_unit[k];
         h += v[k] * v[k];
@@ -445,29 +455,30 @@ static void convert_face_to_flux(double dConstGamma,
     /* now we just compute the standard fluxes for a given face state */
     *p_f = h * v_line;
     *rho_f = rho * v_line;
-    for (k=0; k<3; k++)
+    for (auto k=0; k<3; k++)
         v_f[k] = (*rho_f) * v[k] + P * n_unit[k];
     return;
 }
 
 
-static inline int Riemann_solver_exact(double dConstGamma,
-                                       double R_rho,double R_p, double R_v[3], double L_rho,double L_p, double L_v[3],
-                                       double *P_M, double *S_M, double *rho_f, double *p_f, double *v_f,
-                                       double n_unit[3]) {
-    double cs_L = sqrt(GAMMA * L_p / L_rho);
-    double cs_R = sqrt(GAMMA * R_p / R_rho);
+template <typename ftype=double>
+static inline ftype Riemann_solver_exact(ftype dConstGamma,
+        ftype R_rho,ftype R_p, ftype R_v[3], ftype L_rho,ftype L_p, ftype L_v[3],
+        ftype *P_M, ftype *S_M, ftype *rho_f, ftype *p_f, ftype *v_f,
+        ftype n_unit[3]) {
+    ftype cs_L = sqrt(GAMMA * L_p / L_rho);
+    ftype cs_R = sqrt(GAMMA * R_p / R_rho);
 
-    double v_line_L = L_v[0]*n_unit[0] +
-                      L_v[1]*n_unit[1] +
-                      L_v[2]*n_unit[2];
+    ftype v_line_L = L_v[0]*n_unit[0] +
+                     L_v[1]*n_unit[1] +
+                     L_v[2]*n_unit[2];
 
-    double v_line_R = R_v[0]*n_unit[0] +
-                      R_v[1]*n_unit[1] +
-                      R_v[2]*n_unit[2];
+    ftype v_line_R = R_v[0]*n_unit[0] +
+                     R_v[1]*n_unit[1] +
+                     R_v[2]*n_unit[2];
     //printf("Going for the exact Riemann Solver \n");
     /* first, we need to check for all the special/exceptional cases that will cause things to go haywire */
-    int niter = 0;
+    ftype niter = 0;
     if ((L_p == 0 && L_p == 0) || (L_rho==0 && R_rho==0)) {
         /* we're in a Vaccuum! */
         *P_M = 0.;

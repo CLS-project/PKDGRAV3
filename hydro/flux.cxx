@@ -225,8 +225,8 @@ void hydroRiemann(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     double modApq, pDeltaHalf, qDeltaHalf;
     double pdivv, qdivv, psi;
     double psiTilde_p[3], psiTilde_q[3], Apq[3], face_unit[3], dr[3];
-    struct Input_vec_Riemann riemann_input;
-    struct Riemann_outputs riemann_output;
+    struct Input_vec_Riemann<double> riemann_input;
+    struct Riemann_outputs<double> riemann_output;
 
     const auto &pv = P.velocity();
     auto &psph = P.sph();
