@@ -665,7 +665,7 @@ static inline void extrapolateDensityInTime(ftype &rho, ftype rho0, ftype vx, ft
 template <typename ftype=double>
 static inline void extrapolateVelocityInTime(ftype &v, ftype &vFrame, ftype divv, ftype v0, ftype dt, ftype acc,
         ftype gradP, ftype rho0,
-        double a) {
+        ftype a) {
     ftype temp;
     temp = -(v0*divv + gradP/rho0)*dt;
     temp += acc*dt*a;
@@ -675,7 +675,7 @@ static inline void extrapolateVelocityInTime(ftype &v, ftype &vFrame, ftype divv
 
 template <typename ftype=double>
 static inline void extrapolatePressureInTime(ftype &p, ftype dt, ftype gradPx, ftype gradPy, ftype gradPz,
-        ftype p0, ftype vx0, ftype vy0, ftype vz0, ftype divv, double dConstGamma) {
+        ftype p0, ftype vx0, ftype vy0, ftype vz0, ftype divv, ftype dConstGamma) {
     p -= dt*( vx0*gradPx + vy0*gradPy + vz0*gradPz  + dConstGamma*p0*divv);
 }
 
@@ -688,7 +688,7 @@ static inline void extrapolateStateInTime(
     ftype gradRhoX, ftype gradRhoY, ftype gradRhoZ,
     ftype gradPX, ftype gradPY, ftype gradPZ,
     ftype accx, ftype accy, ftype accz, ftype divv,
-    double dConstGamma, double a) {
+    ftype dConstGamma, ftype a) {
 
     extrapolateDensityInTime( rho, rho0, vx, vy, vz, dt,
                               gradRhoX, gradRhoY, gradRhoZ, divv);
@@ -709,7 +709,7 @@ static inline void extrapolateVariableInSpace(ftype &var, ftype dx, ftype dy, ft
 
 
 template <typename ftype=double>
-static inline void extrapolateVelocityCosmology(ftype &v, ftype &vFrame, ftype v0, ftype dt, double H, double a) {
+static inline void extrapolateVelocityCosmology(ftype &v, ftype &vFrame, ftype v0, ftype dt, ftype H, ftype a) {
     ftype temp = H * dt * a * v;
     v -= temp;
     vFrame -= 0.5*temp;
@@ -720,7 +720,7 @@ template <typename ftype=double>
 static inline void extrapolateCosmology(ftype &vx, ftype &vy, ftype &vz,
                                         ftype &vFramex, ftype &vFramey, ftype &vFramez, ftype &p,
                                         ftype dt, ftype vx0, ftype vy0, ftype vz0, ftype p0,
-                                        double dConstGamma, double H, double a) {
+                                        ftype dConstGamma, ftype H, ftype a) {
     extrapolateVelocityCosmology( vx,  vFramex,  vx0,  dt,  H,  a);
     extrapolateVelocityCosmology( vy,  vFramey,  vy0,  dt,  H,  a);
     extrapolateVelocityCosmology( vz,  vFramez,  vz0,  dt,  H,  a);
@@ -768,15 +768,16 @@ static inline void computeFace(ftype &modApq, std::array<ftype,3> &unit,
     }
 }
 
+
 template <typename ftype=double>
 static inline void doSinglePPFlux(ftype &F_rho, std::array<ftype,3> &F_v, ftype &F_p, ftype &F_S, ftype &minDt,
-                                  bool bComove, double dTime, double dDelta, double a, double H, double dConstGamma,
+                                  bool bComove, ftype dTime, ftype dDelta, ftype a, ftype H, ftype dConstGamma,
                                   ftype rpq, ftype dx, ftype dy, ftype dz,
                                   ftype pBall, ftype pLastUpdateTime, ftype pDt,
                                   ftype pOmega,
                                   ftype pBxx, ftype pBxy, ftype pBxz,
                                   ftype pByy, ftype pByz, ftype pBzz,
-                                  ftype pDensity, std::array<ftype,3> pVpred, ftype pP, ftype pS,
+                                  ftype pDensity, ftype pVpredx, ftype pVpredy, ftype pVpredz, ftype pP, ftype pS,
                                   ftype pGradRhoX, ftype pGradRhoY, ftype pGradRhoZ,
                                   ftype pGradPX, ftype pGradPY, ftype pGradPZ,
                                   ftype pGradVxX, ftype pGradVxY, ftype pGradVxZ,
@@ -787,7 +788,7 @@ static inline void doSinglePPFlux(ftype &F_rho, std::array<ftype,3> &F_v, ftype 
                                   ftype qOmega,
                                   ftype qBxx, ftype qBxy, ftype qBxz,
                                   ftype qByy, ftype qByz, ftype qBzz,
-                                  ftype qDensity, std::array<ftype,3> qVpred, ftype qP, ftype qS,
+                                  ftype qDensity, ftype qVpredx, ftype qVpredy, ftype qVpredz, ftype qP, ftype qS,
                                   ftype qGradRhoX, ftype qGradRhoY, ftype qGradRhoZ,
                                   ftype qGradPX, ftype qGradPY, ftype qGradPZ,
                                   ftype qGradVxX, ftype qGradVxY, ftype qGradVxZ,
@@ -809,15 +810,13 @@ static inline void doSinglePPFlux(ftype &F_rho, std::array<ftype,3> &F_v, ftype 
     /* We update the conservatives variables taking the minimum timestep
      * between the particles, as in AREPO
      */
-    minDt =  pDt > qDt ? qDt : pDt;
+    minDt = min(pDt, qDt);
     minDt /=  a;
 
 
     ftype qDeltaHalf=0.0, pDeltaHalf=0.0;
-    if (dDelta > 0) {
-        pDeltaHalf = (dTime - pLastUpdateTime + 0.5*pDt)/a;
-        qDeltaHalf = (dTime - qLastUpdateTime + 0.5*qDt)/a;
-    }
+    pDeltaHalf = (dTime - pLastUpdateTime + 0.5*pDt)/a;
+    qDeltaHalf = (dTime - qLastUpdateTime + 0.5*qDt)/a;
 
     // DEBUG: Avoid temporal extrapolation
     //pDeltaHalf = 0.;
@@ -836,16 +835,18 @@ static inline void doSinglePPFlux(ftype &F_rho, std::array<ftype,3> &F_v, ftype 
 
     // Velocity of the quadrature mid-point
     ftype vFrame[3];
-    vFrame[0] = 0.5*(pVpred[0]+qVpred[0]);
-    vFrame[1] = 0.5*(pVpred[1]+qVpred[1]);
-    vFrame[2] = 0.5*(pVpred[2]+qVpred[2]);
+    vFrame[0] = 0.5*(pVpredx+qVpredx);
+    vFrame[1] = 0.5*(pVpredy+qVpredy);
+    vFrame[2] = 0.5*(pVpredz+qVpredz);
 
     ftype pv[3], qv[3];
-    for (auto j=0; j<3; j++) {
-        // We boost to the reference of the p-q 'face'
-        pv[j] = pVpred[j] - vFrame[j];
-        qv[j] = qVpred[j] - vFrame[j];
-    }
+    // We boost to the reference of the p-q 'face'
+    pv[0] = pVpredx - vFrame[0];
+    qv[0] = qVpredx - vFrame[0];
+    pv[1] = pVpredy - vFrame[1];
+    qv[1] = qVpredy - vFrame[1];
+    pv[2] = pVpredz - vFrame[2];
+    qv[2] = qVpredz - vFrame[2];
 
     // Mid-point rule
     dx  = -0.5*dx;
@@ -926,11 +927,13 @@ static inline void doSinglePPFlux(ftype &F_rho, std::array<ftype,3> &F_v, ftype 
     extrapolateVariableInSpace( R_v[2], dx,dy, dz,
                                 qGradVzX, qGradVzY, qGradVzZ);
 
+    /*
     genericPairwiseLimiter(pDensity, qDensity, &L_rho, &R_rho);
     genericPairwiseLimiter(pP, qP, &L_p, &R_p);
-    for (auto j=0; j<3; j++) {
-        genericPairwiseLimiter(pv[j], qv[j], &L_v[j], &R_v[j]);
-    }
+    genericPairwiseLimiter(pv[0], qv[0], &L_v[0], &R_v[0]);
+    genericPairwiseLimiter(pv[1], qv[1], &L_v[1], &R_v[1]);
+    genericPairwiseLimiter(pv[2], qv[2], &L_v[2], &R_v[2]);
+    */
 
     if (bComove) {
         extrapolateCosmology(
@@ -950,22 +953,20 @@ static inline void doSinglePPFlux(ftype &F_rho, std::array<ftype,3> &F_v, ftype 
             dConstGamma, H, a);
     }
 
+    /*
     if (L_rho < 0) {
         L_rho = pDensity;
-        /* printf("WARNING, L.rho < 0 : using first-order scheme \n");*/
     }
     if (R_rho < 0) {
         R_rho = qDensity;
-        /* printf("WARNING, R.rho < 0 : using first-order scheme \n");*/
     }
     if (L_p < 0) {
         L_p = pP;
-        /* printf("WARNING, L.p < 0 : using first-order scheme \n");*/
     }
     if (R_p < 0) {
         R_p = qP;
-        /* printf("WARNING, R.p < 0 : using first-order scheme \n");*/
     }
+    */
 
 #ifdef EEOS_POLYTROPE
     const double pLpoly =
@@ -987,12 +988,12 @@ static inline void doSinglePPFlux(ftype &F_rho, std::array<ftype,3> &F_v, ftype 
 #endif
 
     ftype P_M, S_M;
-    int niter = Riemann_solver_exact(dConstGamma,
-                                     R_rho, R_p, R_v,
-                                     L_rho, L_p, L_v,
-                                     &P_M, &S_M,
-                                     &F_rho, &F_p, F_v.data(),
-                                     face_unit.data());
+    /*int niter =*/ Riemann_solver_exact(dConstGamma,
+                                         R_rho, R_p, R_v,
+                                         L_rho, L_p, L_v,
+                                         &P_M, &S_M,
+                                         &F_rho, &F_p, F_v.data(),
+                                         face_unit.data());
 
 
 
@@ -1038,11 +1039,13 @@ static inline void doSinglePPFlux(ftype &F_rho, std::array<ftype,3> &F_v, ftype 
 #endif
 
 
+    /*
     // Check for NAN fluxes
     if (F_rho!=F_rho)
         F_rho = 0.;//abort();
     if (F_p!=F_p)
         F_p = 0.;//abort();
+    */
 
 
 
@@ -1140,78 +1143,188 @@ void hydroRiemann_vec(PARTICLE *pIn,float fBall,int nSmooth, int nBuff,
     const my_real p_omega = psph.omega;
     double a_inv3 = 1./(smf->a * smf->a * smf->a);
 
-    const bool bComove = pkd->csm->val.bComove;
+
+
+    dvec dTime, dDelta,  a,  H,  dConstGamma;
+    bool bComove = pkd->csm->val.bComove;
+    dDelta = smf->dDelta;
+    a = smf->a;
+    H = smf->H;
+    dConstGamma = smf->dConstGamma;
+
+    dvec pomega = psph->omega;
+    dvec ph     = ph;
+    dvec plast  = psph->lastUpdateTime;
+    dvec pDt    = smf->dDelta/(1<<p->uRung);
+    dvec pBXX   = psph->B[XX];
+    dvec pBXY   = psph->B[XY];
+    dvec pBXZ   = psph->B[XZ];
+    dvec pBYY   = psph->B[YY];
+    dvec pBYZ   = psph->B[YZ];
+    dvec pBZZ   = psph->B[ZZ];
+    dvec pDens  = pDensity;
+    dvec pVpredx= psph->vPred[0];
+    dvec pVpredy= psph->vPred[1];
+    dvec pVpredz= psph->vPred[2];
+    dvec pPres  = psph->P;
+    dvec pS;
+#ifdef ENTROPY_SWITCH
+    pS    = psph->S;
+#endif
+    dvec pgradRhox = psph->gradRho[0];
+    dvec pgradRhoy = psph->gradRho[1];
+    dvec pgradRhoz = psph->gradRho[2];
+    dvec pgradPx = psph->gradP[0];
+    dvec pgradPy = psph->gradP[1];
+    dvec pgradPz = psph->gradP[2];
+    dvec pgradVxx = psph->gradVx[0];
+    dvec pgradVxy = psph->gradVx[1];
+    dvec pgradVxz = psph->gradVx[2];
+    dvec pgradVyx = psph->gradVy[0];
+    dvec pgradVyy = psph->gradVy[1];
+    dvec pgradVyz = psph->gradVy[2];
+    dvec pgradVzx = psph->gradVz[0];
+    dvec pgradVzy = psph->gradVz[1];
+    dvec pgradVzz = psph->gradVz[2];
+    dvec plastAccx = psph->lastAcc[0];
+    dvec plastAccy = psph->lastAcc[1];
+    dvec plastAccz = psph->lastAcc[2];
+
+    dvec qomega;
+    dvec qh;
+    dvec qlast;
+    dvec qDt;
+    dvec qBXX;
+    dvec qBXY;
+    dvec qBXZ;
+    dvec qBYY;
+    dvec qBYZ;
+    dvec qBZZ;
+    dvec qDens;
+    dvec qvx;
+    dvec qvy;
+    dvec qvz;
+    dvec qP;
+    dvec qS;
+    dvec qgradRhox;
+    dvec qgradRhoy;
+    dvec qgradRhoz;
+    dvec qgradPx;
+    dvec qgradPy;
+    dvec qgradPz;
+    dvec qgradVxx;
+    dvec qgradVxy;
+    dvec qgradVxz;
+    dvec qgradVyx;
+    dvec qgradVyy;
+    dvec qgradVyz;
+    dvec qgradVzx;
+    dvec qgradVzy;
+    dvec qgradVzz;
+    dvec qlastAccx;
+    dvec qlastAccy;
+    dvec qlastAccz;
 
 #ifdef __INTEL_COMPILER
     __assume_aligned(input_buffer, 64);
-    __assume_aligned(input_buffer[0], 64);
 #pragma simd
 #pragma vector aligned
 #endif
 #ifdef __GNUC__
 //TODO Trick GCC into autovectorizing this!!
 #endif
-    for (auto i=0; i<nSmooth; ++i) {
-        double F_rho;
-        std::array<double,3> F_v;
-        double F_P;
-        double F_S;
-        double minDt;
+#pragma forceinline
+//#pragma clang loop vectorize(assume_safety)
+//#pragma clang loop vectorize(enable)
+    for (auto i=0; i<nSmooth; i+=SIMD_DWIDTH) {
+        dvec F_rho;
+        std::array<dvec,3> F_v;
+        dvec F_P;
+        dvec F_S;
+        dvec minDt;
 
-        std::array<double,3> pVpred;
-        for (auto j=0; j<3; ++j)
-            pVpred[j] = P.velocity()[j];
-
-        std::array<double,3> qVpred;
-        qVpred[0] = q(vx);
-        qVpred[1] = q(vy);
-        qVpred[2] = q(vz);
-
-        double pS, qS;
+        qomega.load(    &q(omega));
+        qh.load(        &q(ball));
+        qlast.load(     &q(lastUpdateTime));
+        qDt.load(       &q(rung));
+        qBXX.load(      &q(B_XX));
+        qBXY.load(      &q(B_XY));
+        qBXZ.load(      &q(B_XZ));
+        qBYY.load(      &q(B_YY));
+        qBYZ.load(      &q(B_YZ));
+        qBZZ.load(      &q(B_ZZ));
+        qDens.load(     &q(rho));
+        qvx.load(       &q(vx));
+        qvy.load(       &q(vy));
+        qvz.load(       &q(vz));
+        qP.load(        &q(P));
 #ifdef ENTROPY_SWITCH
-        pS = psph.S;
-        qS = q(S);
+        qS.load(        &q(S));
 #endif
-        double qDt = q(rung);
-        double pDt = smf->dDelta/(1<<P.rung());
+        qgradRhox.load( &q(gradRhoX));
+        qgradRhoy.load( &q(gradRhoY));
+        qgradRhoz.load( &q(gradRhoZ));
+        qgradPx.load(   &q(gradPX));
+        qgradPy.load(   &q(gradPY));
+        qgradPz.load(   &q(gradPZ));
+        qgradVxx.load(  &q(gradVxX));
+        qgradVxy.load(  &q(gradVxY));
+        qgradVxz.load(  &q(gradVxZ));
+        qgradVyx.load(  &q(gradVyX));
+        qgradVyy.load(  &q(gradVyY));
+        qgradVyz.load(  &q(gradVyZ));
+        qgradVzx.load(  &q(gradVzX));
+        qgradVzy.load(  &q(gradVzY));
+        qgradVzz.load(  &q(gradVzZ));
+        qlastAccx.load( &q(lastAccX));
+        qlastAccy.load( &q(lastAccY));
+        qlastAccz.load( &q(lastAccZ));
 
-        doSinglePPFlux( F_rho, F_v, F_P, F_S, minDt,
-                        bComove, smf->dTime, smf->dDelta,  smf->a,  smf->H,  smf->dConstGamma,
-                        q(dr),  q(dx),  q(dy),  q(dz),
-                        ph,  psph.lastUpdateTime,  pDt,
-                        psph.omega,
-                        psph.B[XX],  psph.B[XY],  psph.B[XZ],
-                        psph.B[YY],  psph.B[YZ],  psph.B[ZZ],
-                        pDensity,  pVpred,  psph.P,  pS,
-                        psph.gradRho[0], psph.gradRho[1], psph.gradRho[2],
-                        psph.gradP[0],   psph.gradP[1],   psph.gradP[2],
-                        psph.gradVx[0],  psph.gradVx[1],  psph.gradVx[2],
-                        psph.gradVy[0],  psph.gradVy[1],  psph.gradVy[2],
-                        psph.gradVz[0],  psph.gradVz[1],  psph.gradVz[2],
-                        psph.lastAcc[0], psph.lastAcc[1], psph.lastAcc[2],
-                        q(ball),  q(lastUpdateTime),  qDt,
-                        q(omega),
-                        q(B_XX),  q(B_XY),  q(B_XZ),
-                        q(B_YY),  q(B_YZ),  q(B_ZZ),
-                        q(rho),  qVpred,  q(P),  qS,
-                        q(gradRhoX),  q(gradRhoY),  q(gradRhoZ),
-                        q(gradPX),    q(gradPY),    q(gradPZ),
-                        q(gradVxX),   q(gradVxY),   q(gradVxZ),
-                        q(gradVyX),   q(gradVyY),   q(gradVyZ),
-                        q(gradVzX),   q(gradVzY),   q(gradVzZ),
-                        q(lastAccX),  q(lastAccY),  q(lastAccZ) );
+        if (smf->dDelta <= 0.0)
+            pDt = qDt = plast = qlast = dTime = 0;
+
+
+        doSinglePPFlux<dvec>( F_rho, F_v, F_P, F_S, minDt,
+                              bComove, dTime, dDelta,  a,  H,  dConstGamma,
+                              q(dr),  q(dx),  q(dy),  q(dz),
+                              ph,  plast,  pDt,
+                              pomega,
+                              pBXX,  pBXY,  pBXZ,
+                              pBYY,  pBYZ,  pBZZ,
+                              pDens,  pVpredx, pVpredy, pVpredz,  pPres,  pS,
+                              pgradRhox, pgradRhoy, pgradRhoz,
+                              pgradPx,   pgradPy,   pgradPz,
+                              pgradVxx,  pgradVxy,  pgradVxz,
+                              pgradVyx,  pgradVyy,  pgradVyz,
+                              pgradVzx,  pgradVzy,  pgradVzz,
+                              plastAccx, plastAccy, plastAccz,
+                              qh,  qlast,  qDt,
+                              qomega,
+                              qBXX,  qBXY,  qBXZ,
+                              qBYY,  qBYZ,  qBZZ,
+                              qDens,  qvx, qvy, qvz,  qP,  qS,
+                              qgradRhox,  qgradRhoy,  qgradRhoz,
+                              qgradPx,    qgradPy,    qgradPz,
+                              qgradVxx,   qgradVxy,   qgradVxz,
+                              qgradVyx,   qgradVyy,   qgradVyz,
+                              qgradVzx,   qgradVzy,   qgradVzz,
+                              qlastAccx,  qlastAccy,  qlastAccz) ;
 
         // We fill the output buffer with the fluxes, which then
         // will be added to the corresponding particles
+        F_rho.store(&output_buffer[out_Frho * nBuff + i]);
+        F_P.store(&output_buffer[out_Fene * nBuff + i]);
+        /*
         qout(Frho) = F_rho;
         qout(Fene) = F_P;
         qout(FmomX) = F_v[0];
         qout(FmomY) = F_v[1];
         qout(FmomZ) = F_v[2];
-#ifdef ENTROPY_SWITCH
+        #ifdef ENTROPY_SWITCH
         qout(FS) = F_S;
-#endif
+        #endif
         qout(minDt) = minDt;
+        */
 
     } // End of loop over neighbors
 }

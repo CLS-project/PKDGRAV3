@@ -520,6 +520,7 @@ inline vec<__m256d,double> mask_mov(vec<__m256d,double> const &src,vec<__m256d,d
 { return _mm256_blendv_pd(src,a,k); }
 inline int testz(vec<__m256d,double> const &a) { return !_mm256_movemask_pd(a); }
 
+
 /**********************************************************************\
 * AVX 64-bit integer
 \**********************************************************************/

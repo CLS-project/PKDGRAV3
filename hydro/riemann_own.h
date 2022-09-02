@@ -1,3 +1,4 @@
+#include "core/vmath.h"
 #define GAMMA (dConstGamma)
 #define GAMMA_MINUS1 ((GAMMA-1.0))
 /* END IA */
@@ -40,43 +41,105 @@ static inline ftype DMAX(ftype a, ftype b) { return (a > b) ? a : b; }
 template <typename ftype=double>
 static inline ftype DMIN(ftype a, ftype b) { return (a < b) ? a : b; }
 
+
+template <typename ftype=double>
+static inline ftype guess_two_rarefaction(ftype dConstGamma,
+        ftype R_rho,ftype R_p,ftype L_rho,ftype L_p,
+        ftype v_line_L, ftype v_line_R, ftype cs_L, ftype cs_R) {
+    ftype pnu = (cs_L+cs_R) - GAMMA_G7 * (v_line_R - v_line_L);
+    ftype pde = cs_L * pow(L_p, -GAMMA_G1) + cs_R * pow(R_p, -GAMMA_G1);
+    return pow(pnu / pde, GAMMA_G3);
+}
+
+
+template <typename ftype=double>
+static inline ftype guess_two_shock(ftype dConstGamma, ftype pv,
+                                    ftype R_rho,ftype R_p,ftype L_rho,ftype L_p,
+                                    ftype v_line_L, ftype v_line_R, ftype cs_L, ftype cs_R) {
+    // two-shock approximation
+    ftype gel = sqrt((GAMMA_G5 / L_rho) / (GAMMA_G6 * L_p + pv));
+    ftype ger = sqrt((GAMMA_G5 / R_rho) / (GAMMA_G6 * R_p + pv));
+    ftype x = (gel * L_p + ger * R_p - (v_line_R - v_line_L)) / (gel + ger);
+    return x;
+}
+
+
 template <typename ftype=double>
 static inline ftype guess_for_pressure(ftype dConstGamma,
                                        ftype R_rho,ftype R_p,ftype L_rho,ftype L_p,
-                                       ftype *P_M, ftype *S_M,
                                        ftype v_line_L, ftype v_line_R, ftype cs_L, ftype cs_R) {
     ftype pmin, pmax;
-    /* start with the usual lowest-order guess for the contact wave pressure */
+    // start with the usual lowest-order guess for the contact wave pressure
     ftype pv = 0.5*(L_p+R_p) - 0.125*(v_line_R-v_line_L)*(L_p+R_p)*(cs_L+cs_R);
-    pmin = DMIN(L_p,R_p);
-    pmax = DMAX(L_p,R_p);
 
-    /* if one side is vacuum, guess half the mean */
-    if (pmin<=0)
+    pmin = min(L_p,R_p);
+    pmax = max(L_p,R_p);
+
+    // if one side is vacuum, guess half the mean
+    if (pmin<=0.0)
         return 0.5*(pmin+pmax);
 
-    /* if the two are sufficiently close, and pv is between both values, return it */
+    // if the two are sufficiently close, and pv is between both values, return it
     ftype qrat = pmax / pmin;
     if (qrat <= 2.0 && (pmin <= pv && pv <= pmax))
         return pv;
 
     if (pv < pmin) {
-        /* use two-rarefaction solution */
-        ftype pnu = (cs_L+cs_R) - GAMMA_G7 * (v_line_R - v_line_L);
-        ftype pde = cs_L * pow(L_p, -GAMMA_G1) + cs_R * pow(R_p, -GAMMA_G1);
-        return pow(pnu / pde, GAMMA_G3);
+        // use two-rarefaction solution
+        pv = guess_two_rarefaction(dConstGamma, R_rho, R_p, L_rho, L_p,
+                                   v_line_L, v_line_R, cs_L, cs_R);
+        return pv;
     }
     else {
-        /* two-shock approximation  */
-        ftype gel = sqrt((GAMMA_G5 / L_rho) / (GAMMA_G6 * L_p + pv));
-        ftype ger = sqrt((GAMMA_G5 / R_rho) / (GAMMA_G6 * R_p + pv));
-        ftype x = (gel * L_p + ger * R_p - (v_line_R - v_line_L)) / (gel + ger);
-        if (x < pmin || x > pmax)
-            x = pmin;
-        return x;
+        // two-shock approximation
+        pv = guess_two_shock(dConstGamma, pv, R_rho, R_p, L_rho, L_p,
+                             v_line_L, v_line_R, cs_L, cs_R);
+        if (pv < pmin || pv > pmax)
+            pv = pmin;
+        return pv;
     }
 }
 
+template <>
+static inline dvec guess_for_pressure(dvec dConstGamma,
+                                      dvec R_rho,dvec R_p,dvec L_rho,dvec L_p,
+                                      dvec v_line_L, dvec v_line_R, dvec cs_L, dvec cs_R) {
+    dvec pmin, pmax;
+    // start with the usual lowest-order guess for the contact wave pressure
+    dvec pv = 0.5*(L_p+R_p) - 0.125*(v_line_R-v_line_L)*(L_p+R_p)*(cs_L+cs_R);
+
+    pmin = min(L_p,R_p);
+    pmax = max(L_p,R_p);
+
+    // if one side is vacuum, guess half the mean
+    dvec zero = 0.0;
+    dvec vac = pmin<=zero;
+    mask_mov(pv, vac, 0.5*(pmin+pmax));
+
+    // if the two are sufficiently close, and pv is between both values, return it
+    dvec qrat = pmax / pmin;
+    dvec two  = 2.0;
+    dvec done = qrat <= two & (pv >= pmin & pv <= pmax);
+    if (testz(done)==0)
+        return pv;
+
+    dvec cond = pv<pmin;
+    dvec ncond = ~cond;
+    if (movemask(cond)) {
+        mask_mov(pv, cond,
+                 guess_two_rarefaction(dConstGamma, R_rho, R_p, L_rho, L_p,
+                                       v_line_L, v_line_R, cs_L, cs_R) );
+    }
+
+    if (movemask(ncond)) {
+        // two-shock approximation
+        dvec pshock = guess_two_shock(dConstGamma, pv, R_rho, R_p, L_rho, L_p,
+                                      v_line_L, v_line_R, cs_L, cs_R);
+        mask_mov( pshock, pshock<pmin | pshock>pmax, pmin);
+        mask_mov( pv, ncond, pshock);
+    }
+    return pv;
+}
 
 /* --------------------------------------------------------------------------------- */
 /* Part of exact Riemann solver: */
@@ -322,74 +385,119 @@ static inline void sample_reimann_vaccum_left(ftype dConstGamma, ftype S,
 
 
 template <typename ftype=double>
+static inline void get_shock_f_fp(ftype dConstGamma, ftype &f, ftype &fp,
+                                  ftype pg, ftype p, ftype r, ftype cs) {
+    ftype a0, a1, a2;
+    a0 = GAMMA_G5 / r;
+    a1 = GAMMA_G6 * p;
+    a2 = sqrt(a0 / (pg+a1));
+    f = (pg-p) * a2;
+    fp = a2 * (1.0 - 0.5*(pg-p)/(a1+p));
+}
+
+
+template <typename ftype=double>
+static inline void get_rarefaction_f_fp(ftype dConstGamma, ftype &f, ftype &fp,
+                                        ftype pg, ftype p, ftype r, ftype cs) {
+    ftype pratio, a0;
+    pratio = p / p;
+    a0 = pow(pratio, GAMMA_G1);
+    f = GAMMA_G4 * cs * (a0-1);
+    fp = 1 / (r*cs) * a0/pratio;
+}
+
+template <typename ftype=double>
+static inline void get_f_fp(ftype dConstGamma, ftype &f, ftype &fp,
+                            ftype pg, ftype p, ftype r, ftype cs) {
+    auto cond = pg>p;
+    if (cond) {
+        /* shock wave */
+        get_shock_f_fp(dConstGamma, f, fp, pg, p, r, cs);
+    }
+    else {
+        /* rarefaction wave */
+        get_rarefaction_f_fp(dConstGamma, f, fp, pg, p, r, cs);
+    }
+}
+
+template <>
+static inline void get_f_fp(dvec dConstGamma, dvec &f, dvec &fp,
+                            dvec pg, dvec p, dvec r, dvec cs) {
+    auto cond = pg>p;
+    auto ncond = ~cond;
+    dvec f1, fp1;
+
+    if (movemask(cond)) {
+        get_shock_f_fp(dConstGamma, f1, fp1, pg, p, r, cs);
+        mask_mov(f, cond, f1);
+    }
+
+    if (movemask(ncond)) {
+        get_rarefaction_f_fp(dConstGamma, f1, fp1, pg, p, r, cs);
+        mask_mov(f, ncond, f1);
+    }
+}
+
+template <typename ftype=double>
+static inline ftype newrap_solver(ftype dConstGamma, ftype &Pg, ftype &W_L, ftype &W_R,
+                                  ftype dvel,
+                                  ftype L_p, ftype L_rho, ftype cs_L,
+                                  ftype R_p, ftype R_rho, ftype cs_R) {
+    ftype itt = 0.0;
+    ftype tol = 100.;
+    ftype Pg_prev, Z_L, Z_R;
+//    while ((tol>TOL_ITER)&&(niter_Riemann<NMAX_ITER))
+#pragma unroll
+    for (auto k=0; k<100; k++) {
+        Pg_prev=Pg;
+        get_f_fp(dConstGamma, W_L, Z_L, Pg, L_p, L_rho, cs_L);
+        get_f_fp(dConstGamma, W_R, Z_R, Pg, R_p, R_rho, cs_R);
+
+        /*
+        if (itt < 50)
+            Pg -= (W_L + W_R + dvel) / (Z_L + Z_R);
+        else
+            Pg -= 0.5 * (W_L + W_R + dvel) / (Z_L + Z_R);
+        */
+
+        /*
+        if (Pg < 0.1 * Pg_prev)
+            Pg = 0.1 * Pg_prev;
+        */
+
+        tol = 2.0 * abs((Pg-Pg_prev)/(Pg+Pg_prev));
+        itt += 1.0;
+    }
+    return itt;
+}
+
+
+template <typename ftype=double>
 static inline ftype iterative_Riemann_solver(ftype dConstGamma,
         ftype R_rho,ftype R_p,ftype L_rho,ftype L_p,
         ftype *P_M, ftype *S_M,
         ftype v_line_L, ftype v_line_R, ftype cs_L, ftype cs_R) {
     /* before going on, let's compare this to an exact Riemann solution calculated iteratively */
-    ftype Pg,Pg_prev,W_L,W_R,Z_L,Z_R,tol,pratio; ftype niter_Riemann=0;
-    ftype a0,a1,a2,dvel,check_vel;
+    ftype Pg, W_L, W_R;
+    ftype niter_Riemann;
+    ftype dvel,check_vel;
     dvel = v_line_R - v_line_L;
     check_vel = GAMMA_G4 * (cs_R + cs_L) - dvel;
     /* if check_vel<0, this will produce a vacuum: need to use vacuum-specific subroutine */
-    if (check_vel < 0) return 0;
+    //if (check_vel < 0) return 0;
 
-    tol=100.0;
-    Pg = guess_for_pressure(dConstGamma, R_rho, R_p, L_rho, L_p, P_M, S_M, v_line_L, v_line_R, cs_L, cs_R);
-//    while ((tol>TOL_ITER)&&(niter_Riemann<NMAX_ITER))
-#pragma unroll
-    for (auto k=0; k<100; k++) {
-        Pg_prev=Pg;
-        if (Pg>L_p) {
-            /* shock wave */
-            a0 = GAMMA_G5 / L_rho;
-            a1 = GAMMA_G6 * L_p;
-            a2 = sqrt(a0 / (Pg+a1));
-            W_L = (Pg-L_p) * a2;
-            Z_L = a2 * (1.0 - 0.5*(Pg-L_p)/(a1+Pg));
-        }
-        else {
-            /* rarefaction wave */
-            pratio = Pg / L_p;
-            a0 = pow(pratio, GAMMA_G1);
-            W_L = GAMMA_G4 * cs_L * (a0-1);
-            Z_L = 1 / (L_rho*cs_L) * a0/pratio;
-        }
-        if (Pg>R_p) {
-            /* shock wave */
-            a0 = GAMMA_G5 / R_rho;
-            a1 = GAMMA_G6 * R_p;
-            a2 = sqrt(a0 / (Pg+a1));
-            W_R = (Pg-R_p) * a2;
-            Z_R = a2 * (1.0 - 0.5*(Pg-R_p)/(a1+Pg));
-        }
-        else {
-            /* rarefaction wave */
-            pratio = Pg / R_p;
-            a0 = pow(pratio, GAMMA_G1);
-            W_R = GAMMA_G4 * cs_R * (a0-1);
-            Z_R = 1 / (R_rho*cs_R) * a0/pratio;
-        }
-        if (niter_Riemann < 50)
-            Pg -= (W_L + W_R + dvel) / (Z_L + Z_R);
-        else
-            Pg -= 0.5 * (W_L + W_R + dvel) / (Z_L + Z_R);
-
-        if (Pg < 0.1 * Pg_prev)
-            Pg = 0.1 * Pg_prev;
-
-        tol = 2.0 * fabs((Pg-Pg_prev)/(Pg+Pg_prev));
-        niter_Riemann++;
-    }
-    if (niter_Riemann<NMAX_ITER) {
+    Pg = guess_for_pressure(dConstGamma, R_rho, R_p, L_rho, L_p, v_line_L, v_line_R, cs_L, cs_R);
+    niter_Riemann = newrap_solver(dConstGamma, Pg, dvel, W_L, W_R,
+                                  L_p, L_rho, cs_L, R_p, R_rho, cs_R);
+    //if (niter_Riemann<NMAX_ITER)
+    {
         *P_M = Pg;
         *S_M = 0.5*(v_line_L+v_line_R) + 0.5*(W_R-W_L);
-//        printf("Convergence! P_M %e \t S_M %e \n", Riemann_out->P_M, Riemann_out->S_M);
         return niter_Riemann;
     }
-    else {
-        return 0;
-    }
+    //else {
+    //    return 0;
+    //}
 }
 
 
@@ -466,6 +574,7 @@ static inline ftype Riemann_solver_exact(ftype dConstGamma,
         ftype R_rho,ftype R_p, ftype R_v[3], ftype L_rho,ftype L_p, ftype L_v[3],
         ftype *P_M, ftype *S_M, ftype *rho_f, ftype *p_f, ftype *v_f,
         ftype n_unit[3]) {
+    ftype niter;
     ftype cs_L = sqrt(GAMMA * L_p / L_rho);
     ftype cs_R = sqrt(GAMMA * R_p / R_rho);
 
@@ -478,26 +587,30 @@ static inline ftype Riemann_solver_exact(ftype dConstGamma,
                      R_v[2]*n_unit[2];
     //printf("Going for the exact Riemann Solver \n");
     /* first, we need to check for all the special/exceptional cases that will cause things to go haywire */
+    /*
     ftype niter = 0;
     if ((L_p == 0 && L_p == 0) || (L_rho==0 && R_rho==0)) {
-        /* we're in a Vaccuum! */
+        // we're in a Vaccuum!
         *P_M = 0.;
         *S_M = 0.;
-#ifndef USE_MFM
-        //*rho_f = *p_f = v_f[0] = v_f[1] = v_f[2] = 0;
+    #ifndef USE_MFM
+        // *rho_f = *p_f = v_f[0] = v_f[1] = v_f[2] = 0;
         *rho_f = 0.;
         *p_f = 0.;
         v_f[0] = 0.;
         v_f[1] = 0.;
         v_f[2] = 0.;
-#endif
+    #endif
         //printf("VACCUUM!\n");
         return 0;
     }
+    */
     /* the usual situation is here:: */
-    if ((L_rho > 0) && (R_rho > 0)) {
+    //if ((L_rho > 0) && (R_rho > 0))
+    {
         niter=iterative_Riemann_solver(dConstGamma, R_rho, R_p, L_rho, L_p, P_M, S_M, v_line_L, v_line_R, cs_L, cs_R);
-        if (niter) {
+        //if (niter)
+        {
 //           printf("Normal Riemann solution %e \n", Riemann_out->Fluxes.rho);
             /* this is the 'normal' Reimann solution */
 
@@ -512,13 +625,16 @@ static inline ftype Riemann_solver_exact(ftype dConstGamma,
             //
 //           printf("Normal Riemann solution %e \n", Riemann_out->Fluxes.rho);
         }
+        /*
         else {
-            /* ICs lead to vacuum, need to sample vacuum solution */
+            // ICs lead to vacuum, need to sample vacuum solution
             sample_reimann_vaccum_internal(dConstGamma, 0.0,R_rho, R_p, R_v, L_rho, L_p, L_v, P_M, S_M, rho_f, p_f, v_f, n_unit,v_line_L,v_line_R,cs_L,cs_R);
         }
+        */
     }
+    /*
     else {
-        /* one of the densities is zero or negative */
+        // one of the densities is zero or negative
         if ((L_rho<0)||(R_rho<0))
             //assert(0);
             if (L_rho>0) {
@@ -534,6 +650,7 @@ static inline ftype Riemann_solver_exact(ftype dConstGamma,
                                        n_unit,  v_line_L,  v_line_R,  cs_L,  cs_R);
         }
     }
+    */
 #ifndef USE_MFM
     /* if we got a valid solution, this solver returns face states: need to convert these to fluxes */
     convert_face_to_flux(dConstGamma, rho_f, p_f, v_f, n_unit);

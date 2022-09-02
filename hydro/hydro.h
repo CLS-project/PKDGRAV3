@@ -20,6 +20,39 @@ typedef double my_real;
  * MAIN FUNCTIONS AND CLASSES
  * -----------------
  */
+#ifdef __cplusplus
+template <typename ftype=double, typename mtype=bool>
+inline ftype cubicSplineKernel(ftype r, ftype h) {
+    ftype q;
+    q = r/h;
+    if (q<1.0) {
+        return M_1_PI/(h*h*h)*( 1. - 1.5*q*q*(1.-0.5*q) );
+    }
+    else if (q<2.0) {
+        return 0.25*M_1_PI/(h*h*h)*(2.-q)*(2.-q)*(2.-q);
+    }
+    else {
+        return 0.0;
+    }
+}
+
+#ifdef SIMD_H
+template <>
+inline dvec cubicSplineKernel(dvec r, dvec h) {
+    dvec q, out=0.0, t;
+    q = r/h;
+    t = 0.25*M_1_PI/(h*h*h)*(2.-q)*(2.-q)*(2.-q);
+    out = mask_mov(out, q<2.0, t);
+    t = M_1_PI/(h*h*h)*( 1. - 1.5*q*q*(1.-0.5*q) );
+    out = mask_mov(out, q<1.0, t);
+    return out;
+}
+#endif
+#endif
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /* Density loop */
 struct hydroDensityPack {
@@ -150,6 +183,7 @@ void hydroSetLastVars(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS *p
  */
 void inverseMatrix(double *E, double *B);
 double conditionNumber(double *E, double *B);
+#ifndef __cplusplus
 inline double cubicSplineKernel(double r, double h) {
     double q;
     q = r/h;
@@ -163,7 +197,8 @@ inline double cubicSplineKernel(double r, double h) {
         return 0.0;
     }
 }
-void BarthJespersenLimiter(double *limVar, const blitz::TinyVector<double,3> &gradVar,
+#endif
+void BarthJespersenLimiter(double *limVar, double *gradVar,
                            double var_max, double var_min,
                            const blitz::TinyVector<double,3> &dr);
 void ConditionedBarthJespersenLimiter(double *limVar, const blitz::TinyVector<myreal,3> &gradVar,

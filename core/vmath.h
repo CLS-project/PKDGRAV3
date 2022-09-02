@@ -282,4 +282,16 @@ dvec verf(const dvec &v,const dvec &iv,const dvec &ex2,dvec &r_erf,dvec &r_erfc)
 
     return t;
 }
+
+static inline
+dvec pow(const dvec &xx,const dvec &yy) {
+    dvec t;
+#if defined(__AVX512F__)
+    _mm512_pow_pd(xx, yy);
+#elif defined(__AVX2__)
+    _mm256_pow_pd(xx, yy);
+#elif defined(__AVX__)
+    _mm_pow_pd(xx, yy);
+#endif
+}
 #endif/*VMATH_H*/
