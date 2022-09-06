@@ -178,7 +178,7 @@ void pkdParticleWorkDone(workParticle *wp) {
                     pNewSph->Omega = 1.0f + wp->pInfoOut[i].fBall/(3.0f * wp->pInfoOut[i].rho)*wp->pInfoOut[i].drhodfball;
                     if (wp->SPHoptions->doInterfaceCorrection) {
                         float imbalance = sqrtf(wp->pInfoOut[i].imbalanceX*wp->pInfoOut[i].imbalanceX + wp->pInfoOut[i].imbalanceY*wp->pInfoOut[i].imbalanceY + wp->pInfoOut[i].imbalanceZ*wp->pInfoOut[i].imbalanceZ) / (0.5f * wp->pInfoOut[i].fBall * wp->pInfoOut[i].rho);
-                        imbalance *= calculateInterfaceCorrectionPrefactor(wp->pInfoOut[i].nSmooth,wp->SPHoptions->kernelType);
+                        imbalance *= calculateInterfaceCorrectionPrefactor(wp->SPHoptions->fKernelTarget,wp->SPHoptions->kernelType);
                         pNewSph->expImb2 = expf(-imbalance*imbalance);
                     }
                     if (wp->SPHoptions->doUConversion && !wp->SPHoptions->doInterfaceCorrection) {
@@ -196,7 +196,9 @@ void pkdParticleWorkDone(workParticle *wp) {
                     float Ptilde = pNewSph->expImb2 * pNewSph->P + (1.0f - pNewSph->expImb2) * Pbar;
                     float newRho = SPHEOSRhoofPT(pkd, Ptilde, Ttilde, pkdiMat(pkd,p), wp->SPHoptions);
                     //printf("rho = %.5e, T = %.5e, P = %.5e, Tbar = %.5e, Pbar = %.5e, Ttilde = %.5e, Ptilde = %.5e, newRho = %.5e\n",pkdDensity(pkd,p),pNewSph->T,pNewSph->P,Tbar,Pbar,Ttilde,Ptilde,newRho);
-                    pkdSetDensity(pkd,p,newRho);
+                    if (newRho >= 1e-4f * pkd->materials[pkdiMat(pkd,p)]->rho0) {
+                        pkdSetDensity(pkd,p,newRho);
+                    }
                 }
                 if (wp->SPHoptions->doSPHForces) {
                     pNewSph->divv = wp->pInfoOut[i].divv;
