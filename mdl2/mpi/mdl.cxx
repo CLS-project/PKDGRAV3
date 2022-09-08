@@ -781,6 +781,7 @@ void mpiClass::FinishFlushToRank(mdlMessageFlushToRank *pFlush) {
 // Here we receive the flush buffer from a remote node. We have to split it
 // apart by target thread by calling queue_local_flush() for each element.
 void mpiClass::CacheReceiveFlush(int count, CacheHeader *ph) {
+    bookkeeping();
     while (count>0) {
         assert(count > sizeof(CacheHeader));
         char *pszRcv = (char *)(ph+1);
@@ -1665,6 +1666,8 @@ int mpiClass::Launch(int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),vo
     register_backtrace();
 #endif
     if (!bDedicated) {
+        delete queueReceive.release();
+        queueReceive = std::make_unique<mdlMessageQueue[]>(Cores());
         worker_ctx = (*fcnWorkerInit)(static_cast<MDL>(static_cast<mdlClass *>(this)));
         pthread_setspecific(worker_key, worker_ctx);
         CommitServices();
