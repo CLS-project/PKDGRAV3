@@ -286,12 +286,18 @@ dvec verf(const dvec &v,const dvec &iv,const dvec &ex2,dvec &r_erf,dvec &r_erfc)
 static inline
 dvec pow(const dvec &xx,const dvec &yy) {
     dvec t;
-#if defined(__AVX512F__)
-    _mm512_pow_pd(xx, yy);
-#elif defined(__AVX2__)
-    _mm256_pow_pd(xx, yy);
-#elif defined(__AVX__)
-    _mm_pow_pd(xx, yy);
+#if (defined(__AVX512F__) && defined(HAVE_MM512_POW))
+    t =_mm512_pow_pd(xx, yy);
+#elif (defined(__AVX__) && defined(HAVE_MM256_POW))
+    t = _mm256_pow_pd(xx, yy);
+#elif (defined(__SSE__) && defined(HAVE_MM_POW))
+    t = _mm_pow_pd(xx, yy);
+#else
+    // The above intrinsics are part of intel svml available as part of the
+    // oneAPI suite. If not available, we would need to add a hand-made
+    // implementation of pow, or avoid using simd in the hydro solver
+    assert(0);
 #endif
+    return t;
 }
 #endif/*VMATH_H*/

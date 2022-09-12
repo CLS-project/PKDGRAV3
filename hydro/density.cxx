@@ -70,7 +70,7 @@ static inline void densNodeOmegaE(NN *nnList, float ph, TinyVector<double,3> dr_
         const auto fDist2 = blitz::dot(dr,dr);
         if (fDist2 <= fBall2_p) {
             const double rpq = sqrt(fDist2);
-            const double Wpq = cubicSplineKernel(rpq, ph);
+            const double Wpq = cubicSplineKernel(rpq, (double)ph);
 
             *omega += Wpq;
 

@@ -1,6 +1,7 @@
 #include "hydro/hydro.h"
 #include "master.h"
 #include "eEOS/eEOS.h"
+#include "hydro/limiters.h"
 #ifdef OPTIM_FLUX_VEC
     #include "riemann_own.h"
 #else
@@ -216,7 +217,7 @@ void combHydroFluxes(void *vpkd,void *dst,const void *src) {
  * The maintained Riemann solver is the vectorized version of this function,
  * which is activated wit the OPTIM_SMOOTH_NODE and OPTIM_FLUX_VEC flags
  */
-void hydroRiemann(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
+void hydroRiemann_old(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     //TODO Clean unused variables!
     PKD pkd = smf->pkd;
     auto P = pkd->particles[pIn];
@@ -445,11 +446,13 @@ void hydroRiemann(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
         riemann_input.L.p -= smf->dConstGamma*psph.P*pdivv;
         riemann_input.R.p -= smf->dConstGamma*qsph.P*qdivv;
 
+        /*
         genericPairwiseLimiter(P.density(), Q.density(), &riemann_input.L.rho, &riemann_input.R.rho);
         genericPairwiseLimiter(psph.P, qsph.P, &riemann_input.L.p, &riemann_input.R.p);
         genericPairwiseLimiter(pvFrame[0], qvFrame[0], &riemann_input.L.v[0], &riemann_input.R.v[0]);
         genericPairwiseLimiter(pvFrame[1], qvFrame[1], &riemann_input.L.v[1], &riemann_input.R.v[1]);
         genericPairwiseLimiter(pvFrame[2], qvFrame[2], &riemann_input.L.v[2], &riemann_input.R.v[2]);
+        */
 
         if (pkd->csm->val.bComove) {
 
@@ -655,7 +658,6 @@ void hydroRiemann(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 }
 
 
-
 template <typename ftype=double>
 static inline void extrapolateDensityInTime(ftype &rho, ftype rho0, ftype vx, ftype vy, ftype vz,
         ftype dt, ftype gradRhoX, ftype gradRhoY, ftype gradRhoZ, ftype divv) {
@@ -854,9 +856,9 @@ static inline void doSinglePPFlux(ftype &F_rho, std::array<ftype,3> &F_v, ftype 
     dz  = -0.5*dz;
 
     // DEBUG: Avoid spatial extrapolation
-    //dr[0] = 0.0;
-    //dr[1] = 0.0;
-    //dr[2] = 0.0;
+    //dx = 0.0;
+    //dy = 0.0;
+    //dz = 0.0;
 
 
     // Divergence of the velocity field for the forward in time prediction
@@ -927,13 +929,11 @@ static inline void doSinglePPFlux(ftype &F_rho, std::array<ftype,3> &F_v, ftype 
     extrapolateVariableInSpace( R_v[2], dx,dy, dz,
                                 qGradVzX, qGradVzY, qGradVzZ);
 
-    /*
-    genericPairwiseLimiter(pDensity, qDensity, &L_rho, &R_rho);
-    genericPairwiseLimiter(pP, qP, &L_p, &R_p);
-    genericPairwiseLimiter(pv[0], qv[0], &L_v[0], &R_v[0]);
-    genericPairwiseLimiter(pv[1], qv[1], &L_v[1], &R_v[1]);
-    genericPairwiseLimiter(pv[2], qv[2], &L_v[2], &R_v[2]);
-    */
+    genericPairwiseLimiter<ftype>(pDensity, qDensity, &L_rho, &R_rho);
+    genericPairwiseLimiter<ftype>(pP, qP, &L_p, &R_p);
+    genericPairwiseLimiter<ftype>(pv[0], qv[0], &L_v[0], &R_v[0]);
+    genericPairwiseLimiter<ftype>(pv[1], qv[1], &L_v[1], &R_v[1]);
+    genericPairwiseLimiter<ftype>(pv[2], qv[2], &L_v[2], &R_v[2]);
 
     if (bComove) {
         extrapolateCosmology(
@@ -988,14 +988,12 @@ static inline void doSinglePPFlux(ftype &F_rho, std::array<ftype,3> &F_v, ftype 
 #endif
 
     ftype P_M, S_M;
-    /*int niter =*/ Riemann_solver_exact(dConstGamma,
-                                         R_rho, R_p, R_v,
-                                         L_rho, L_p, L_v,
-                                         &P_M, &S_M,
-                                         &F_rho, &F_p, F_v.data(),
-                                         face_unit.data());
-
-
+    Riemann_solver_exact(dConstGamma,
+                         R_rho, R_p, R_v,
+                         L_rho, L_p, L_v,
+                         P_M, S_M,
+                         &F_rho, &F_p, F_v.data(),
+                         face_unit.data());
 
 
 
@@ -1129,15 +1127,14 @@ enum FLUX_OUT {
 // Simple macro to improve readability
 #define q(X)    input_buffer[q_##X * nBuff + i]
 #define qout(X) output_buffer[out_##X * nBuff + i]
-void hydroRiemann_vec(PARTICLE *pIn,float fBall,int nSmooth, int nBuff,
-                      my_real *restrict input_buffer,
-                      my_real *restrict output_buffer, SMF *smf) {
+void hydroRiemann_simd(PARTICLE *pIn,float fBall,int nSmooth, int nBuff,
+                       my_real *restrict input_buffer,
+                       my_real *restrict output_buffer, SMF *smf) {
     PKD pkd = smf->pkd;
     auto P = pkd->particles[pIn];
 
     const auto &pv = P.velocity();
     auto &psph = P.sph();
-    const my_real ph = 0.5*P.ball();
 
     const my_real pDensity = P.density();
     const my_real p_omega = psph.omega;
@@ -1147,49 +1144,54 @@ void hydroRiemann_vec(PARTICLE *pIn,float fBall,int nSmooth, int nBuff,
 
     dvec dTime, dDelta,  a,  H,  dConstGamma;
     bool bComove = pkd->csm->val.bComove;
+    dTime = smf->dTime;
     dDelta = smf->dDelta;
     a = smf->a;
     H = smf->H;
     dConstGamma = smf->dConstGamma;
 
-    dvec pomega = psph->omega;
-    dvec ph     = ph;
-    dvec plast  = psph->lastUpdateTime;
-    dvec pDt    = smf->dDelta/(1<<p->uRung);
-    dvec pBXX   = psph->B[XX];
-    dvec pBXY   = psph->B[XY];
-    dvec pBXZ   = psph->B[XZ];
-    dvec pBYY   = psph->B[YY];
-    dvec pBYZ   = psph->B[YZ];
-    dvec pBZZ   = psph->B[ZZ];
+    dvec pomega = psph.omega;
+    dvec ph     = 0.5*P.ball();
+    dvec plast  = psph.lastUpdateTime;
+    dvec pDt    = smf->dDelta/(1<<P.rung());
+    dvec pBXX   = psph.B[XX];
+    dvec pBXY   = psph.B[XY];
+    dvec pBXZ   = psph.B[XZ];
+    dvec pBYY   = psph.B[YY];
+    dvec pBYZ   = psph.B[YZ];
+    dvec pBZZ   = psph.B[ZZ];
     dvec pDens  = pDensity;
-    dvec pVpredx= psph->vPred[0];
-    dvec pVpredy= psph->vPred[1];
-    dvec pVpredz= psph->vPred[2];
-    dvec pPres  = psph->P;
+    dvec pVpredx= P.velocity()[0];
+    dvec pVpredy= P.velocity()[1];
+    dvec pVpredz= P.velocity()[2];
+    dvec pPres  = psph.P;
     dvec pS;
 #ifdef ENTROPY_SWITCH
-    pS    = psph->S;
+    pS    = psph.S;
 #endif
-    dvec pgradRhox = psph->gradRho[0];
-    dvec pgradRhoy = psph->gradRho[1];
-    dvec pgradRhoz = psph->gradRho[2];
-    dvec pgradPx = psph->gradP[0];
-    dvec pgradPy = psph->gradP[1];
-    dvec pgradPz = psph->gradP[2];
-    dvec pgradVxx = psph->gradVx[0];
-    dvec pgradVxy = psph->gradVx[1];
-    dvec pgradVxz = psph->gradVx[2];
-    dvec pgradVyx = psph->gradVy[0];
-    dvec pgradVyy = psph->gradVy[1];
-    dvec pgradVyz = psph->gradVy[2];
-    dvec pgradVzx = psph->gradVz[0];
-    dvec pgradVzy = psph->gradVz[1];
-    dvec pgradVzz = psph->gradVz[2];
-    dvec plastAccx = psph->lastAcc[0];
-    dvec plastAccy = psph->lastAcc[1];
-    dvec plastAccz = psph->lastAcc[2];
+    dvec pgradRhox = psph.gradRho[0];
+    dvec pgradRhoy = psph.gradRho[1];
+    dvec pgradRhoz = psph.gradRho[2];
+    dvec pgradPx = psph.gradP[0];
+    dvec pgradPy = psph.gradP[1];
+    dvec pgradPz = psph.gradP[2];
+    dvec pgradVxx = psph.gradVx[0];
+    dvec pgradVxy = psph.gradVx[1];
+    dvec pgradVxz = psph.gradVx[2];
+    dvec pgradVyx = psph.gradVy[0];
+    dvec pgradVyy = psph.gradVy[1];
+    dvec pgradVyz = psph.gradVy[2];
+    dvec pgradVzx = psph.gradVz[0];
+    dvec pgradVzy = psph.gradVz[1];
+    dvec pgradVzz = psph.gradVz[2];
+    dvec plastAccx = psph.lastAcc[0];
+    dvec plastAccy = psph.lastAcc[1];
+    dvec plastAccz = psph.lastAcc[2];
 
+    dvec qdr;
+    dvec qdx;
+    dvec qdy;
+    dvec qdz;
     dvec qomega;
     dvec qh;
     dvec qlast;
@@ -1236,13 +1238,21 @@ void hydroRiemann_vec(PARTICLE *pIn,float fBall,int nSmooth, int nBuff,
 #pragma forceinline
 //#pragma clang loop vectorize(assume_safety)
 //#pragma clang loop vectorize(enable)
-    for (auto i=0; i<nSmooth; i+=SIMD_DWIDTH) {
+//TODO make sure about nSmooth limit and out-of-bounds
+// This assert will be activated if nSmooth is close to nBuff, a permanent
+// solution to this is needed
+    assert(nBuff>(nSmooth+dvec::width()-1));
+    for (auto i=0; i<nSmooth; i+=dvec::width()) {
         dvec F_rho;
         std::array<dvec,3> F_v;
         dvec F_P;
         dvec F_S;
         dvec minDt;
 
+        qdr.load(       &q(dr));
+        qdx.load(       &q(dx));
+        qdy.load(       &q(dy));
+        qdz.load(       &q(dz));
         qomega.load(    &q(omega));
         qh.load(        &q(ball));
         qlast.load(     &q(lastUpdateTime));
@@ -1286,7 +1296,7 @@ void hydroRiemann_vec(PARTICLE *pIn,float fBall,int nSmooth, int nBuff,
 
         doSinglePPFlux<dvec>( F_rho, F_v, F_P, F_S, minDt,
                               bComove, dTime, dDelta,  a,  H,  dConstGamma,
-                              q(dr),  q(dx),  q(dy),  q(dz),
+                              qdr,  qdx,  qdy,  qdz,
                               ph,  plast,  pDt,
                               pomega,
                               pBXX,  pBXY,  pBXZ,
@@ -1314,24 +1324,139 @@ void hydroRiemann_vec(PARTICLE *pIn,float fBall,int nSmooth, int nBuff,
         // will be added to the corresponding particles
         F_rho.store(&output_buffer[out_Frho * nBuff + i]);
         F_P.store(&output_buffer[out_Fene * nBuff + i]);
-        /*
+        F_v[0].store(&output_buffer[out_FmomX * nBuff + i]);
+        F_v[1].store(&output_buffer[out_FmomY * nBuff + i]);
+        F_v[2].store(&output_buffer[out_FmomZ * nBuff + i]);
+        minDt.store(&output_buffer[out_minDt * nBuff + i]);
+
+        /* Repeat without using simd instruction for comparison
+        double F_rho0;
+        std::array<double,3> F_v0;
+        double F_P0;
+        double F_S0;
+        double minDt0;
+
+        double pS0, qS0;
+        double ph0 = pkdBall(pkd,p);
+        double pDt0 = smf->dDelta/(1<<p->uRung);
+
+        for (auto k=0; k<SIMD_DWIDTH; k++){
+           double qDt0 = q(rung);
+        doSinglePPFlux( F_rho0, F_v0, F_P0, F_S0, minDt0,
+                        bComove, smf->dTime, smf->dDelta,  smf->a,  smf->H,  smf->dConstGamma,
+                        q(dr),  q(dx),  q(dy),  q(dz),
+                        ph0,  psph->lastUpdateTime,  pDt0,
+                        psph->omega,
+                        psph->B[XX],  psph->B[XY],  psph->B[XZ],
+                        psph->B[YY],  psph->B[YZ],  psph->B[ZZ],
+                        pDensity,  psph->vPred[0], psph->vPred[1], psph->vPred[2], psph->P,  pS0,
+                        psph->gradRho[0], psph->gradRho[1], psph->gradRho[2],
+                        psph->gradP[0],   psph->gradP[1],   psph->gradP[2],
+                        psph->gradVx[0],  psph->gradVx[1],  psph->gradVx[2],
+                        psph->gradVy[0],  psph->gradVy[1],  psph->gradVy[2],
+                        psph->gradVz[0],  psph->gradVz[1],  psph->gradVz[2],
+                        psph->lastAcc[0], psph->lastAcc[1], psph->lastAcc[2],
+                        q(ball),  q(lastUpdateTime),  qDt0,
+                        q(omega),
+                        q(B_XX),  q(B_XY),  q(B_XZ),
+                        q(B_YY),  q(B_YZ),  q(B_ZZ),
+                        q(rho),  q(vx), q(vy), q(vz),  q(P),  qS0,
+                        q(gradRhoX),  q(gradRhoY),  q(gradRhoZ),
+                        q(gradPX),    q(gradPY),    q(gradPZ),
+                        q(gradVxX),   q(gradVxY),   q(gradVxZ),
+                        q(gradVyX),   q(gradVyY),   q(gradVyZ),
+                        q(gradVzX),   q(gradVzY),   q(gradVzZ),
+                        q(lastAccX),  q(lastAccY),  q(lastAccZ) );
+           i++;
+        }
+        i -= SIMD_DWIDTH;
+        */
+
+    } // End of loop over neighbors
+}
+
+void hydroRiemann(PARTICLE *pIn,float fBall,int nSmooth, int nBuff,
+                  my_real *restrict input_buffer,
+                  my_real *restrict output_buffer, SMF *smf) {
+    PKD pkd = smf->pkd;
+
+    auto P = pkd->particles[pIn];
+    auto &psph = P.sph();
+    const auto &pv = P.velocity();
+
+    my_real pDensity = P.density();
+    double a_inv3 = 1./(smf->a * smf->a * smf->a);
+
+
+
+    bool bComove = pkd->csm->val.bComove;
+
+
+#ifdef __INTEL_COMPILER
+    __assume_aligned(input_buffer, 64);
+#pragma simd
+#pragma vector aligned
+#endif
+#ifdef __GNUC__
+//TODO Trick GCC into autovectorizing this!!
+#endif
+#pragma forceinline
+//#pragma clang loop vectorize(assume_safety)
+//#pragma clang loop vectorize(enable)
+    for (auto i=0; i<nSmooth; i++) {
+        double F_rho;
+        std::array<double,3> F_v;
+        double F_P;
+        double F_S;
+        double minDt;
+
+        double pS, qS;
+        double ph = P.ball();
+        double qDt = q(rung);
+        double pDt = smf->dDelta/(1<<P.rung());
+
+        doSinglePPFlux<double>( F_rho, F_v, F_P, F_S, minDt,
+                        bComove, smf->dTime, smf->dDelta,  smf->a,  smf->H,  smf->dConstGamma,
+                        q(dr),  q(dx),  q(dy),  q(dz),
+                        ph,  psph.lastUpdateTime,  pDt,
+                        psph.omega,
+                        psph.B[XX],  psph.B[XY],  psph.B[XZ],
+                        psph.B[YY],  psph.B[YZ],  psph.B[ZZ],
+                        pDensity,  pv[0], pv[1], pv[2], psph.P,  pS,
+                        psph.gradRho[0], psph.gradRho[1], psph.gradRho[2],
+                        psph.gradP[0],   psph.gradP[1],   psph.gradP[2],
+                        psph.gradVx[0],  psph.gradVx[1],  psph.gradVx[2],
+                        psph.gradVy[0],  psph.gradVy[1],  psph.gradVy[2],
+                        psph.gradVz[0],  psph.gradVz[1],  psph.gradVz[2],
+                        psph.lastAcc[0], psph.lastAcc[1], psph.lastAcc[2],
+                        q(ball),  q(lastUpdateTime),  qDt,
+                        q(omega),
+                        q(B_XX),  q(B_XY),  q(B_XZ),
+                        q(B_YY),  q(B_YZ),  q(B_ZZ),
+                        q(rho),  q(vx), q(vy), q(vz),  q(P),  qS,
+                        q(gradRhoX),  q(gradRhoY),  q(gradRhoZ),
+                        q(gradPX),    q(gradPY),    q(gradPZ),
+                        q(gradVxX),   q(gradVxY),   q(gradVxZ),
+                        q(gradVyX),   q(gradVyY),   q(gradVyZ),
+                        q(gradVzX),   q(gradVzY),   q(gradVzZ),
+                        q(lastAccX),  q(lastAccY),  q(lastAccZ) );
+        //printf("%e %e\n", F_P, qout(Fene));
         qout(Frho) = F_rho;
         qout(Fene) = F_P;
         qout(FmomX) = F_v[0];
         qout(FmomY) = F_v[1];
         qout(FmomZ) = F_v[2];
-        #ifdef ENTROPY_SWITCH
+#ifdef ENTROPY_SWITCH
         qout(FS) = F_S;
-        #endif
+#endif
         qout(minDt) = minDt;
-        */
 
     } // End of loop over neighbors
 }
 
 
 void hydroFluxFillBuffer(my_real *input_buffer, PARTICLE *qIn, int i, int nBuff,
-                         double dr2, TinyVector<double,3> dr, SMF *smf) {
+                         double dr2, TinyVector<double,3> dr  , SMF *smf) {
     PKD pkd = smf->pkd;
     auto Q = pkd->particles[qIn];
     double dDelta = smf->dDelta;

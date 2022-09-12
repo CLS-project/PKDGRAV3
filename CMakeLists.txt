@@ -318,10 +318,54 @@ endif()
 
 set(USE_SIMD "yes" CACHE STRING "Should SIMD be used.")
 if(USE_SIMD)
-#if USE_SIMD_FMM
-target_sources(${PROJECT_NAME} PRIVATE gravity/vmoments.cxx)
-#endif
-target_sources(${PROJECT_NAME} PRIVATE lightcone.cxx)
+   # check_symbol_exists does not work for intrinsics..
+   include(CheckCSourceCompiles)
+   set(CMAKE_REQUIRED_FLAGS -march=native)
+   check_c_source_compiles("
+       #include <immintrin.h>
+       int main() {
+         __m128d a, b;
+         __m128d tmp = _mm_pow_pd(a, b);
+         return 0;
+       }
+     "
+     HAVE_MM_POW
+   )
+   if(HAVE_MM_POW)
+      target_compile_options(${PROJECT_NAME} PRIVATE -DHAVE_MM_POW)
+   endif()
+   check_c_source_compiles("
+       #include <immintrin.h>
+       int main() {
+         __m256d a, b;
+         __m256d tmp = _mm256_pow_pd(a, b);
+         return 0;
+       }
+     "
+     HAVE_MM256_POW
+   )
+   if(HAVE_MM256_POW)
+      target_compile_options(${PROJECT_NAME} PRIVATE -DHAVE_MM256_POW)
+   endif()
+   check_c_source_compiles("
+       #include <immintrin.h>
+       int main() {
+         __m512d a, b;
+         __m512d tmp = _mm512_pow_pd(a, b);
+         return 0;
+       }
+     "
+     HAVE_MM512_POW
+   )
+   if(HAVE_MM512_POW)
+      target_compile_options(${PROJECT_NAME} PRIVATE -DHAVE_MM512_POW)
+   endif()
+   #if USE_SIMD_FMM
+   target_sources(${PROJECT_NAME} PRIVATE gravity/vmoments.cxx)
+   #endif
+   #if USE_SIMD_LC
+   target_sources(${PROJECT_NAME} PRIVATE lightcone.cxx)
+   #endif
 endif()
 
 foreach(flag_var

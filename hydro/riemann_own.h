@@ -16,6 +16,18 @@
 #define NMAX_ITER 1000
 
 template <typename ftype=double>
+static inline void dump(ftype a) {
+    printf("%e\n", a);
+}
+template <>
+static inline void dump(dvec a) {
+    for (auto i=0; i<dvec::width(); i++)
+        printf(" %e ", a[i]);
+    printf("\n");
+}
+
+
+template <typename ftype=double>
 struct Conserved_var_Riemann { //IA: TODO: change the name of this struct..!!
     ftype rho;
     ftype p;  // IA: Pressure is a primitive variable, not a conserved one...
@@ -40,6 +52,24 @@ template <typename ftype=double>
 static inline ftype DMAX(ftype a, ftype b) { return (a > b) ? a : b; }
 template <typename ftype=double>
 static inline ftype DMIN(ftype a, ftype b) { return (a < b) ? a : b; }
+
+static inline double min(double a, double b) {
+    return (a<b)? a : b;
+}
+static inline double max(double a, double b) {
+    return (a>b)? a : b;
+}
+
+template <typename ftype=double>
+static inline ftype limit_decrease(ftype &Pg, ftype Pg_prev) {
+    if (Pg < 0.1 * Pg_prev)
+        Pg = 0.1 * Pg_prev;
+}
+template <>
+static inline dvec limit_decrease(dvec &Pg, dvec Pg_prev) {
+    dvec limit = 0.1*Pg_prev;
+    Pg = mask_mov(Pg, Pg<limit, limit);
+}
 
 
 template <typename ftype=double>
@@ -114,7 +144,7 @@ static inline dvec guess_for_pressure(dvec dConstGamma,
     // if one side is vacuum, guess half the mean
     dvec zero = 0.0;
     dvec vac = pmin<=zero;
-    mask_mov(pv, vac, 0.5*(pmin+pmax));
+    pv = mask_mov(pv, vac, 0.5*(pmin+pmax));
 
     // if the two are sufficiently close, and pv is between both values, return it
     dvec qrat = pmax / pmin;
@@ -126,17 +156,17 @@ static inline dvec guess_for_pressure(dvec dConstGamma,
     dvec cond = pv<pmin;
     dvec ncond = ~cond;
     if (movemask(cond)) {
-        mask_mov(pv, cond,
-                 guess_two_rarefaction(dConstGamma, R_rho, R_p, L_rho, L_p,
-                                       v_line_L, v_line_R, cs_L, cs_R) );
+        pv = mask_mov(pv, cond,
+                      guess_two_rarefaction(dConstGamma, R_rho, R_p, L_rho, L_p,
+                                            v_line_L, v_line_R, cs_L, cs_R) );
     }
 
     if (movemask(ncond)) {
         // two-shock approximation
         dvec pshock = guess_two_shock(dConstGamma, pv, R_rho, R_p, L_rho, L_p,
                                       v_line_L, v_line_R, cs_L, cs_R);
-        mask_mov( pshock, pshock<pmin | pshock>pmax, pmin);
-        mask_mov( pv, ncond, pshock);
+        pshock = mask_mov( pshock, pshock<pmin | pshock>pmax, pmin);
+        pv = mask_mov( pv, ncond, pshock);
     }
     return pv;
 }
@@ -146,16 +176,12 @@ static inline dvec guess_for_pressure(dvec dConstGamma,
 /*  This is the "normal" Riemann fan, with no vacuum on L or R state! */
 /*  (written by V. Springel for AREPO) */
 /* --------------------------------------------------------------------------------- */
+#ifndef USE_MFM
 template <typename ftype=double>
 static inline void sample_reimann_standard(ftype dConstGamma, ftype S,
         ftype R_rho,ftype R_p, ftype R_v[3],ftype L_rho,ftype L_p, ftype L_v[3],
         ftype P_M, ftype S_M, ftype *rho_f, ftype *p_f, ftype *v_f,
         ftype n_unit[3], ftype v_line_L, ftype v_line_R, ftype cs_L, ftype cs_R) {
-#ifndef HYDRO_MESHLESS_FINITE_VOLUME
-    /* we don't actually need to evaluate the fluxes, and we already have P_M and S_M, which define the
-     contact discontinuity where the rho flux = 0; so can simply exit this routine */
-    //return;
-#endif
     ftype C_eff,S_eff;
     if (S <= S_M) { /* sample point is left of contact discontinuity */
         if (P_M <= L_p) { /* left fan (rarefaction) */
@@ -280,6 +306,13 @@ static inline void sample_reimann_standard(ftype dConstGamma, ftype S,
         }
     }
 }
+// TODO: otherwise, MFV can not use simd
+template <>
+static inline void sample_reimann_standard(dvec dConstGamma, dvec S,
+        dvec R_rho,dvec R_p, dvec R_v[3],dvec L_rho,dvec L_p, dvec L_v[3],
+        dvec P_M, dvec S_M, dvec *rho_f, dvec *p_f, dvec *v_f,
+        dvec n_unit[3], dvec v_line_L, dvec v_line_R, dvec cs_L, dvec cs_R) {}
+#endif //!USE_MFM
 
 
 /* --------------------------------------------------------------------------------- */
@@ -391,8 +424,9 @@ static inline void get_shock_f_fp(ftype dConstGamma, ftype &f, ftype &fp,
     a0 = GAMMA_G5 / r;
     a1 = GAMMA_G6 * p;
     a2 = sqrt(a0 / (pg+a1));
+
     f = (pg-p) * a2;
-    fp = a2 * (1.0 - 0.5*(pg-p)/(a1+p));
+    fp = a2 * (1.0 - 0.5*(pg-p)/(a1+pg));
 }
 
 
@@ -400,10 +434,11 @@ template <typename ftype=double>
 static inline void get_rarefaction_f_fp(ftype dConstGamma, ftype &f, ftype &fp,
                                         ftype pg, ftype p, ftype r, ftype cs) {
     ftype pratio, a0;
-    pratio = p / p;
+    pratio = pg / p;
     a0 = pow(pratio, GAMMA_G1);
-    f = GAMMA_G4 * cs * (a0-1);
-    fp = 1 / (r*cs) * a0/pratio;
+
+    f = GAMMA_G4 * cs * (a0-1.);
+    fp = a0 / (r*cs*pratio);
 }
 
 template <typename ftype=double>
@@ -429,12 +464,14 @@ static inline void get_f_fp(dvec dConstGamma, dvec &f, dvec &fp,
 
     if (movemask(cond)) {
         get_shock_f_fp(dConstGamma, f1, fp1, pg, p, r, cs);
-        mask_mov(f, cond, f1);
+        f = mask_mov(f, cond, f1);
+        fp = mask_mov(fp, cond, fp1);
     }
 
     if (movemask(ncond)) {
         get_rarefaction_f_fp(dConstGamma, f1, fp1, pg, p, r, cs);
-        mask_mov(f, ncond, f1);
+        f = mask_mov(f, ncond, f1);
+        fp = mask_mov(fp, ncond, fp1);
     }
 }
 
@@ -447,12 +484,13 @@ static inline ftype newrap_solver(ftype dConstGamma, ftype &Pg, ftype &W_L, ftyp
     ftype tol = 100.;
     ftype Pg_prev, Z_L, Z_R;
 //    while ((tol>TOL_ITER)&&(niter_Riemann<NMAX_ITER))
-#pragma unroll
-    for (auto k=0; k<100; k++) {
+//TODO: For now just a fixed iteration count is used
+    for (auto k=0; k<20; k++) {
         Pg_prev=Pg;
         get_f_fp(dConstGamma, W_L, Z_L, Pg, L_p, L_rho, cs_L);
         get_f_fp(dConstGamma, W_R, Z_R, Pg, R_p, R_rho, cs_R);
 
+        Pg -= (W_L + W_R + dvel) / (Z_L + Z_R);
         /*
         if (itt < 50)
             Pg -= (W_L + W_R + dvel) / (Z_L + Z_R);
@@ -460,10 +498,7 @@ static inline ftype newrap_solver(ftype dConstGamma, ftype &Pg, ftype &W_L, ftyp
             Pg -= 0.5 * (W_L + W_R + dvel) / (Z_L + Z_R);
         */
 
-        /*
-        if (Pg < 0.1 * Pg_prev)
-            Pg = 0.1 * Pg_prev;
-        */
+        limit_decrease(Pg, Pg_prev);
 
         tol = 2.0 * abs((Pg-Pg_prev)/(Pg+Pg_prev));
         itt += 1.0;
@@ -475,7 +510,7 @@ static inline ftype newrap_solver(ftype dConstGamma, ftype &Pg, ftype &W_L, ftyp
 template <typename ftype=double>
 static inline ftype iterative_Riemann_solver(ftype dConstGamma,
         ftype R_rho,ftype R_p,ftype L_rho,ftype L_p,
-        ftype *P_M, ftype *S_M,
+        ftype &P_M, ftype &S_M,
         ftype v_line_L, ftype v_line_R, ftype cs_L, ftype cs_R) {
     /* before going on, let's compare this to an exact Riemann solution calculated iteratively */
     ftype Pg, W_L, W_R;
@@ -487,12 +522,14 @@ static inline ftype iterative_Riemann_solver(ftype dConstGamma,
     //if (check_vel < 0) return 0;
 
     Pg = guess_for_pressure(dConstGamma, R_rho, R_p, L_rho, L_p, v_line_L, v_line_R, cs_L, cs_R);
-    niter_Riemann = newrap_solver(dConstGamma, Pg, dvel, W_L, W_R,
+
+    niter_Riemann = newrap_solver(dConstGamma, Pg, W_L, W_R, dvel,
                                   L_p, L_rho, cs_L, R_p, R_rho, cs_R);
     //if (niter_Riemann<NMAX_ITER)
     {
-        *P_M = Pg;
-        *S_M = 0.5*(v_line_L+v_line_R) + 0.5*(W_R-W_L);
+        P_M = Pg;
+        S_M = 0.5*(v_line_L+v_line_R) + 0.5*(W_R-W_L);
+
         return niter_Riemann;
     }
     //else {
@@ -572,8 +609,9 @@ static void convert_face_to_flux(ftype dConstGamma,
 template <typename ftype=double>
 static inline ftype Riemann_solver_exact(ftype dConstGamma,
         ftype R_rho,ftype R_p, ftype R_v[3], ftype L_rho,ftype L_p, ftype L_v[3],
-        ftype *P_M, ftype *S_M, ftype *rho_f, ftype *p_f, ftype *v_f,
+        ftype &P_M, ftype &S_M, ftype *rho_f, ftype *p_f, ftype *v_f,
         ftype n_unit[3]) {
+
     ftype niter;
     ftype cs_L = sqrt(GAMMA * L_p / L_rho);
     ftype cs_R = sqrt(GAMMA * R_p / R_rho);
@@ -615,10 +653,11 @@ static inline ftype Riemann_solver_exact(ftype dConstGamma,
             /* this is the 'normal' Reimann solution */
 
 #ifndef USE_MFM
-            sample_reimann_standard(dConstGamma, 0.0,
+            ftype S = 0;
+            sample_reimann_standard(dConstGamma, S,
                                     R_rho, R_p, R_v,
                                     L_rho, L_p, L_v,
-                                    *P_M, *S_M,
+                                    P_M, S_M,
                                     rho_f, p_f, v_f,
                                     n_unit,v_line_L,v_line_R,cs_L,cs_R);
 #endif

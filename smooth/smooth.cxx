@@ -340,7 +340,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         break;
     case SMX_HYDRO_FLUX:
         assert( pkd->particles.present(PKD_FIELD::oSph) ); /* Validate memory model */
-        smx->fcnSmooth = hydroRiemann;
+        smx->fcnSmooth = hydroRiemann_old;
         initParticle = initHydroFluxes; /* Original Particle */
         pack = packHydroFluxes;
         unpack = unpackHydroFluxes;
@@ -354,7 +354,11 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
 #ifdef OPTIM_FLUX_VEC
     case SMX_HYDRO_FLUX_VEC:
         assert (pkd->particles.present(PKD_FIELD::oSph));
-        smx->fcnSmoothNode = hydroRiemann_vec;
+#if defined(USE_MFM) && ( defined(HAVE_MM_POW) || defined(HAVE_MM256_POW) || defined(HAVE_MM512_POW) )
+        smx->fcnSmoothNode = hydroRiemann_simd;
+#else
+        smx->fcnSmoothNode = hydroRiemann;
+#endif
         smx->fcnSmoothGetNvars = hydroFluxGetNvars;
         smx->fcnSmoothFillBuffer = hydroFluxFillBuffer;
         smx->fcnSmoothUpdate = hydroFluxUpdateFromBuffer;
