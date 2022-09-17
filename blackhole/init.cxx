@@ -24,6 +24,19 @@ void MSR::SetBlackholeParam() {
 
 }
 
+int MSR::ValidateBlackholeParam() {
+    if (param.bBHAccretion) {
+        printf("%e %e\n", param.dBHAccretionCvisc,param.dBHAccretionAlpha);
+        if (param.dBHAccretionCvisc > 0 && param.dBHAccretionAlpha > 0) {
+            fprintf(stderr,"ERROR: Both dBHAccretionCvisc and dBHAccretionAlpha "
+                    "are set. Choose only one of the accretion models by "
+                    "setting the other to zero.\n");
+            return 0;
+        }
+    }
+    return 1;
+}
+
 void MSR::BlackholeInit(uint8_t uRungMax) {
     // We reuse this struct for simplicity
     struct inPlaceBHSeed in;

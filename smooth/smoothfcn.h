@@ -73,6 +73,7 @@ typedef struct smfParameters {
     double dBHFBEcrit;
     double dBHAccretionEddFac;
     double dBHAccretionAlpha;
+    double dBHAccretionCvisc;
     int bBHFeedback;
     int bBHAccretion;
 #endif

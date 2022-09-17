@@ -456,6 +456,7 @@ protected:
 #endif
 #ifdef BLACKHOLES
     void SetBlackholeParam();
+    int  ValidateBlackholeParam();
     void BlackholeInit(uint8_t uRungMax);
     void PlaceBHSeed(double dTime, uint8_t uRungMax);
     void BHMerger(double dTime);

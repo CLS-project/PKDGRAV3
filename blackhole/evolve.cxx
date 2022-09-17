@@ -209,32 +209,60 @@ void smBHevolve(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
         vel_t vx = 0.0;
         vel_t vy = 0.0;
         vel_t vz = 0.0;
+        double vcircx = 0.0;
+        double vcircy = 0.0;
+        double vcircz = 0.0;
         vel_t *pv = pkdVel(pkd,p);
-        float kernelSum = 0.0;
-        float massSum = 0.0;
+        double massSum = 0.0;
+        double kernelSum = 0.0;
         for (int i=0; i<nSmooth; ++i) {
 #ifndef DEBUG_BH_ONLY
             assert(pkdIsGas(pkd,nnList[i].pPart));
 #endif
             const double rpq = sqrt(nnList[i].fDist2);
-            const double kernel = cubicSplineKernel(rpq, fBall);
+            const double kernel = cubicSplineKernel(rpq, 0.5*fBall);
+            const double  qmass = pkdMass(pkd,nnList[i].pPart);
             kernelSum += kernel;
-            massSum += pkdMass(pkd,nnList[i].pPart);
+            massSum += qmass;
 
-            pDensity += pkdDensity(pkd,nnList[i].pPart);
-            vx += kernel*(pkdVel(pkd,nnList[i].pPart)[0]-pv[0]*inv_a);
-            vy += kernel*(pkdVel(pkd,nnList[i].pPart)[1]-pv[1]*inv_a);
-            vz += kernel*(pkdVel(pkd,nnList[i].pPart)[2]-pv[2]*inv_a);
+            const double weight = qmass * kernel;
+            pDensity += weight;
+
+            const double dvx = weight*(pkdVel(pkd,nnList[i].pPart)[0]-pv[0]*inv_a);
+            const double dvy = weight*(pkdVel(pkd,nnList[i].pPart)[1]-pv[1]*inv_a);
+            const double dvz = weight*(pkdVel(pkd,nnList[i].pPart)[2]-pv[2]*inv_a);
+
+            vx += dvx;
+            vy += dvy;
+            vz += dvz;
+
+            const double dvcircx = (nnList[i].dy*dvz - nnList[i].dz*dvy);
+            const double dvcircy = (nnList[i].dz*dvx - nnList[i].dx*dvz);
+            const double dvcircz = (nnList[i].dx*dvy - nnList[i].dy*dvx);
+            vcircx += dvcircx;
+            vcircy += dvcircy;
+            vcircz += dvcircz;
         }
-        pDensity *= 1./nSmooth;
-        kernelSum = 1./kernelSum;
+        const double norm = 1./pDensity;
         vRel2 = vx*vx + vy*vy + vz*vz;
-        vRel2 *= kernelSum*kernelSum;
+        vRel2 *= norm*norm;
 
+        const double vphi = sqrt(vcircx*vcircx + vcircy*vcircy + vcircz*vcircz)*norm/(0.5*fBall);
+
+        double dBondiPrefactor;
+
+        // Cases other than that should be tested when doing parameter validation
+        if (smf->dBHAccretionAlpha) {
+            dBondiPrefactor = smf->dBHAccretionAlpha;
+        }
+        else if (smf->dBHAccretionCvisc) {
+            const double fac = cs/vphi;
+            dBondiPrefactor = MIN(1.0, fac*fac*fac/smf->dBHAccretionCvisc);
+        }
 
         // Do we need to convert to physical?
         pDensity *= inv_a*inv_a*inv_a;
-        const double dBondiAccretion = smf->dBHAccretionAlpha *
+        const double dBondiAccretion = dBondiPrefactor *
                                        4.* M_PI * pBH->dInternalMass*pBH->dInternalMass * pDensity /
                                        pow(cs*cs + vRel2, 1.5);
 
@@ -248,12 +276,6 @@ void smBHevolve(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
                               dEddingtonAccretion : dBondiAccretion;
 
 
-
-
-        //printf("%d cs %e fBall %e \n", nSmooth, cs, fBall);
-        //printf("%e %e %e \t %e \n",
-        //  dBondiAccretion, dEddingtonAccretion, pDensity, pBH->dInternalMass);
-        //assert(0);
 
         if (smf->bBHAccretion) {
             naccreted += bhAccretion(pkd, nnList, nSmooth, p, pBH,

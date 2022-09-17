@@ -449,6 +449,9 @@ int MSR::ValidateParameters() {
         fprintf(stderr,"ERROR: Only one hydrodynamic scheme can be used.\n");
         return 0;
     }
+#ifdef BLACKHOLES
+    if  (!ValidateBlackholeParam()) return 0;
+#endif
 
     /*
     ** Make sure that we have some setting for nReplicas if bPeriodic is set.

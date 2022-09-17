@@ -1513,6 +1513,10 @@ void MSR::Initialize() {
     prmAddParam(prm,"dBHAccretionAlpha", 2, &param.dBHAccretionAlpha,
                 sizeof(double), "dAccretionAlpha",
                 "Accretion efficiency parameter <adimiensional>");
+    param.dBHAccretionAlpha = 1.;
+    prmAddParam(prm,"dBHAccretionCvisc", 2, &param.dBHAccretionCvisc,
+                sizeof(double), "dAccretionCvisc",
+                "Accretion viscosity parameter <adimiensional>");
     param.dBHRadiativeEff = 0.1;
     prmAddParam(prm,"dBHRadiativeEff", 2, &param.dBHRadiativeEff,
                 sizeof(double), "dBHRadiativeEff",
@@ -2896,6 +2900,7 @@ void MSR::SmoothSetSMF(SMF *smf, double dTime, double dDelta, int nSmooth) {
     smf->dBHFBEcrit = param.dBHFBEcrit;
     smf->dBHAccretionEddFac = param.dBHAccretionEddFac;
     smf->dBHAccretionAlpha = param.dBHAccretionAlpha;
+    smf->dBHAccretionCvisc = param.dBHAccretionCvisc;
     smf->bBHFeedback = param.bBHFeedback;
     smf->bBHAccretion = param.bBHAccretion;
 #endif

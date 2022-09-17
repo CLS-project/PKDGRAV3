@@ -278,6 +278,7 @@ struct parameters {
     int bBHAccretion;
     int bBHFeedback;
     double dBHAccretionAlpha;
+    double dBHAccretionCvisc;
     double dBHAccretionEddFac;
     double dBHRadiativeEff;
     double dBHFBEff;
