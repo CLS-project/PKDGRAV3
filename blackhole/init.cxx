@@ -26,11 +26,10 @@ void MSR::SetBlackholeParam() {
 
 int MSR::ValidateBlackholeParam() {
     if (param.bBHAccretion) {
-        printf("%e %e\n", param.dBHAccretionCvisc,param.dBHAccretionAlpha);
-        if (param.dBHAccretionCvisc > 0 && param.dBHAccretionAlpha > 0) {
-            fprintf(stderr,"ERROR: Both dBHAccretionCvisc and dBHAccretionAlpha "
-                    "are set. Choose only one of the accretion models by "
-                    "setting the other to zero.\n");
+        if (param.dBHAccretionAlpha <= 0) {
+            fprintf(stderr,"ERROR: dBHAccretionAlpha should be positive."
+                    "If you want to avoid boosting the Bondi accretion rate,"
+                    "just set dBHAccretionAlpha=1.0\n");
             return 0;
         }
     }

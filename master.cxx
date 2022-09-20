@@ -1513,7 +1513,7 @@ void MSR::Initialize() {
     prmAddParam(prm,"dBHAccretionAlpha", 2, &param.dBHAccretionAlpha,
                 sizeof(double), "dAccretionAlpha",
                 "Accretion efficiency parameter <adimiensional>");
-    param.dBHAccretionAlpha = 1.;
+    param.dBHAccretionCvisc = 0.0;
     prmAddParam(prm,"dBHAccretionCvisc", 2, &param.dBHAccretionCvisc,
                 sizeof(double), "dAccretionCvisc",
                 "Accretion viscosity parameter <adimiensional>");

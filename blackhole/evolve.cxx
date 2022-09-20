@@ -249,15 +249,11 @@ void smBHevolve(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
         const double vphi = sqrt(vcircx*vcircx + vcircy*vcircy + vcircz*vcircz)*norm/(0.5*fBall);
 
-        double dBondiPrefactor;
-
-        // Cases other than that should be tested when doing parameter validation
-        if (smf->dBHAccretionAlpha) {
-            dBondiPrefactor = smf->dBHAccretionAlpha;
-        }
-        else if (smf->dBHAccretionCvisc) {
+        // We allow the accretion viscosity to act over a boosted Bondi accretion
+        double dBondiPrefactor = smf->dBHAccretionAlpha;
+        if (smf->dBHAccretionCvisc) {
             const double fac = cs/vphi;
-            dBondiPrefactor = MIN(1.0, fac*fac*fac/smf->dBHAccretionCvisc);
+            dBondiPrefactor *= MIN(1.0, fac*fac*fac/smf->dBHAccretionCvisc);
         }
 
         // Do we need to convert to physical?
