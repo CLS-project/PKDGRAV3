@@ -1642,6 +1642,7 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,BND *bnd,
             T = SPHEOSTofRhoU(pkd,fDensity, pNewSph->u, pkdiMat(pkd,p), &pkd->SPHoptions);
             for (int k = 0; k < ELEMENT_COUNT; k++) fMetals[k] = 0.0f;
             fMetals[0] = pkdiMat(pkd,p);
+            fSoft = pkdSoft(pkd,p);
             fioWriteSph(fio,iParticleID,r,v,fMass,fSoft,*pPot,
                         fDensity,T,&fMetals[0],0.0f,T,otherData);
         }
