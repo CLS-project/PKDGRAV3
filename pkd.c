@@ -2902,24 +2902,26 @@ void pkdEndTimestepIntegration(PKD pkd, struct inEndTimestep in) {
 #else
             double minOverDens = 57.7;
 #endif
+            double denCosmoMin = -1.; // Low default to avoid messing the comparisons
             if (pkd->csm->val.bComove) {
                 double rhoCrit0 = 3. * pkd->csm->val.dHubble0 * pkd->csm->val.dHubble0 /
                                   (8. * M_PI);
-                double denCosmoMin = rhoCrit0 * pkd->csm->val.dOmegab *
-                                     minOverDens *
-                                     a_inv3; // We do this in proper density
-
-                denMin = ( denCosmoMin > denMin) ? denCosmoMin : denMin;
+                denCosmoMin = rhoCrit0 * pkd->csm->val.dOmegab *
+                              minOverDens *
+                              a_inv3; // We do this in proper density
             }
 
+            denMin = ( denCosmoMin > denMin) ? denCosmoMin : denMin;
             if ( (fDensPhys > denMin) &&
                     (psph->Uint < in.dCoolingFlooru*fMass ) ) {
                 psph->Uint = in.dCoolingFlooru*fMass;
             }
-#endif
 #ifdef EEOS_POLYTROPE
             /* Second, the polytropic EoS */
-            if (fDensPhys > in.dEOSPolyFloorDen) {
+            // At high-redshift we can have so high densities that nH>threshold,
+            // so this is only applied over a minimum overdensity
+            denMin = ( denCosmoMin > in.dEOSPolyFloorDen) ? denCosmoMin : in.dEOSPolyFloorDen;
+            if (fDensPhys > denMin) {
 
                 const double minUint =  fMass * polytropicEnergyFloor(a_inv3, fDens,
                                         in.dEOSPolyFloorIndex, in.dEOSPolyFloorDen,  in.dEOSPolyFlooru);
@@ -2927,6 +2929,7 @@ void pkdEndTimestepIntegration(PKD pkd, struct inEndTimestep in) {
                 if (psph->Uint < minUint) psph->Uint = minUint;
             }
 #endif
+#endif // COOLING
 
 #ifdef  EEOS_JEANS
             const double Ujeans = fMass * jeansEnergyFloor(fDens, f2Ball, in.dConstGamma, in.dEOSNJeans);
