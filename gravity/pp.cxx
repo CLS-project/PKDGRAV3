@@ -165,7 +165,7 @@ template<typename BLOCK> struct ilist::EvalBlock<ResultSPHForces<fvec>,BLOCK> {
             // forces are zero. Setting the distance to a large value avoids
             // softening the non-existent forces which is slightly faster.
             blk.dx.s[n] = blk.dy.s[n] = blk.dz.s[n] = 1e14f;
-            blk.fBall.s[n] = blk.Omega.s[n] = blk.rho.s[n] = 1e14f;
+            blk.fBall.s[n] = blk.Omega.s[n] = blk.rho.s[n] = 1.0f;
             blk.vx.s[n] = blk.vy.s[n] = blk.vz.s[n] = 0.0f;
             blk.m.s[n] = 0.0f;
             blk.P.s[n] = 0.0f;
