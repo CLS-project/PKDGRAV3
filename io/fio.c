@@ -3876,6 +3876,9 @@ static int  hdf5WriteDark(
         }
         field_create(&base->fldFields[DARK_GROUP],base->group_id,
                      FIELD_GROUP, H5T_NATIVE_INT32, H5T_NATIVE_INT32, 1);
+        if ( hio->mFlags&FIO_FLAG_ID) { //Force to write particle IDs
+            ioorder_create(&base->ioOrder,base->group_id,0);
+        }
     }
 
     ioorder_add(base,iParticleID);
@@ -3937,6 +3940,9 @@ static int hdf5WriteSph(
         field_create(&base->fldFields[SPH_METALLICITY],base->group_id,
                      FIELD_METALLICITY, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, 1);
 #endif
+        if ( hio->mFlags&FIO_FLAG_ID) { //Force to write particle IDs
+            ioorder_create(&base->ioOrder,base->group_id,0);
+        }
     }
 
     ioorder_add(base,iParticleID);
@@ -4009,6 +4015,9 @@ static int hdf5WriteStar(
                          FIELD_SNEFFICIENCY, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, 1);
         }
 #endif
+        if ( hio->mFlags&FIO_FLAG_ID) { //Force to write particle IDs
+            ioorder_create(&base->ioOrder,base->group_id,0);
+        }
     }
     class_add(base,iParticleID,fMass,fSoft);
     ioorder_add(base,iParticleID);
@@ -4076,6 +4085,9 @@ static int hdf5WriteBH(
                      FIELD_FEED_ENERGY, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, 1 );
         field_create(&base->fldFields[BH_GROUP],base->group_id,
                      FIELD_GROUP, H5T_NATIVE_INT32, H5T_NATIVE_INT32, 1 );
+        if ( hio->mFlags&FIO_FLAG_ID) { //Force to write particle IDs
+            ioorder_create(&base->ioOrder,base->group_id,0);
+        }
     }
     class_add(base,iParticleID,fMass,fSoft);
     ioorder_add(base,iParticleID);

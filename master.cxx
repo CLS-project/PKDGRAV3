@@ -2173,6 +2173,7 @@ void MSR::AllNodeWrite(const char *pszFileName, double dTime, double dvFac, int 
                 | (bDouble?FIO_FLAG_CHECKPOINT:0)
                 | (param.bDoublePos?FIO_FLAG_DOUBLE_POS:0)
                 | (param.bDoubleVel?FIO_FLAG_DOUBLE_VEL:0)
+                | (param.bMemParticleID?FIO_FLAG_ID:0)
                 | (param.bMemMass?0:FIO_FLAG_COMPRESS_MASS)
                 | (param.bMemSoft?0:FIO_FLAG_COMPRESS_SOFT);
 
