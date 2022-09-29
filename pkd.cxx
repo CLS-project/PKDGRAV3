@@ -1642,6 +1642,7 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,BND *bnd,
             T = SPHEOSTofRhoU(pkd,fDensity, pNewSph->u, pkdiMat(pkd,p), &pkd->SPHoptions);
             for (int k = 0; k < ELEMENT_COUNT; k++) fMetals[k] = 0.0f;
             fMetals[0] = pkdiMat(pkd,p);
+            fSoft = pkdSoft(pkd,p);
             fioWriteSph(fio,iParticleID,r,v,fMass,fSoft,*pPot,
                         fDensity,T,&fMetals[0],0.0f,T,otherData);
         }
@@ -2528,6 +2529,7 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
                 pkdGetPos1(pkd,p,r0);
                 for (j=0; j<3; ++j) {
                     pkdSetPos(pkd,p,j,rfinal[j] = r0[j] + dr[j]);
+                    assert(isfinite(rfinal[j]));
                 }
 
 
@@ -2544,8 +2546,10 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
                 // float dfBalldt = 1.0f / 3.0f * pkdBall(pkd,p) * pkdDensity(pkd,p) * NewSph->divv;
                 // pkdSetBall(pkd,p,pkdBall(pkd,p) + dDelta * dfBalldt);
                 // }
+                pkdGetPos1(pkd,p,r0);
                 for (j=0; j<3; ++j) {
-                    pkdSetPos(pkd,p,j,rfinal[j] = pkdPos(pkd,p,j) + dDelta*v[j]);
+                    pkdSetPos(pkd,p,j,rfinal[j] = r0[j] + dDelta*v[j]);
+                    assert(isfinite(rfinal[j]));
                 }
                 pkdMinMax(rfinal,dMin,dMax);
             }
