@@ -73,10 +73,12 @@ void mdlMessageCacheClose::action(class mpiClass *mpi)  { mpi->MessageCacheClose
 void mdlMessageCacheFlushOut::action(class mpiClass *mpi)  { mpi->MessageCacheFlushOut(this); }
 void mdlMessageCacheFlushLocal::action(class mpiClass *mpi) { mpi->MessageCacheFlushLocal(this); }
 void mdlMessageGridShare::action(class mpiClass *mpi)   { mpi->MessageGridShare(this); }
+#ifdef MDL_FFTW
 void mdlMessageDFT_R2C::action(class mpiClass *mpi)     { mpi->MessageDFT_R2C(this); }
 void mdlMessageDFT_C2R::action(class mpiClass *mpi)     { mpi->MessageDFT_C2R(this); }
 void mdlMessageFFT_Sizes::action(class mpiClass *mpi)   { mpi->MessageFFT_Sizes(this); }
 void mdlMessageFFT_Plans::action(class mpiClass *mpi)   { mpi->MessageFFT_Plans(this); }
+#endif
 void mdlMessageAlltoallv::action(class mpiClass *mpi)   { mpi->MessageAlltoallv(this); }
 void mdlMessageSend::action(class mpiClass *mpi)        { mpi->MessageSend(this); }
 void mdlMessageReceive::action(class mpiClass *mpi)     { mpi->MessageReceive(this); }
@@ -102,6 +104,7 @@ void mdlMessageCacheReceive::finish(class mpiClass *mpi, int bytes, int source, 
 
 // Constructors
 mdlMessageGridShare::mdlMessageGridShare(MDLGRID grid) : grid(grid) {}
+#ifdef MDL_FFTW
 mdlMessageDFT_R2C::mdlMessageDFT_R2C(MDLFFT fft, FFTW3(real) *data, FFTW3(complex) *kdata)
     : fft(fft), data(data), kdata(kdata)   {}
 mdlMessageDFT_C2R::mdlMessageDFT_C2R(MDLFFT fft, FFTW3(real) *data, FFTW3(complex) *kdata)
@@ -110,6 +113,7 @@ mdlMessageFFT_Sizes::mdlMessageFFT_Sizes(int n1, int n2, int n3)
     : n1(n1), n2(n2), n3(n3) {}
 mdlMessageFFT_Plans::mdlMessageFFT_Plans(int n1, int n2, int n3,FFTW3(real) *data,FFTW3(complex) *kdata)
     : mdlMessageFFT_Sizes(n1,n2,n3), data(data), kdata(kdata) {}
+#endif
 mdlMessageAlltoallv::mdlMessageAlltoallv(int dataSize,void *sbuff,int *scount,int *sdisps,void *rbuff,int *rcount,int *rdisps)
     : dataSize(dataSize), sbuff(sbuff), rbuff(rbuff), scount(scount), sdisps(sdisps), rcount(rcount), rdisps(rdisps) {}
 mdlMessageBufferedMPI::mdlMessageBufferedMPI(void *buf, int count, int target, int tag)

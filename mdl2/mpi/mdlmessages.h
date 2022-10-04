@@ -119,6 +119,7 @@ public:
     explicit mdlMessageGridShare(MDLGRID grid);
 };
 
+#ifdef MDL_FFTW
 class mdlMessageDFT_R2C : public mdlMessage {
     friend class mdlClass;
     friend class mpiClass;
@@ -167,6 +168,7 @@ public:
     virtual void action(class mpiClass *mdl);
     explicit mdlMessageFFT_Plans(int n1, int n2, int n3,FFTW3(real) *data=0,FFTW3(complex) *kdata=0);
 };
+#endif
 
 class mdlMessageMPI : public mdlMessage {
 protected:

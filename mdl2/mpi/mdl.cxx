@@ -1170,7 +1170,6 @@ void mpiClass::MessageSTOP(mdlMessageSTOP *message) {
 void mpiClass::MessageBarrierMPI(mdlMessageBarrierMPI *message) {
     MPI_Ibarrier(commMDL,newRequest(message));
 }
-
 void mpiClass::MessageGridShare(mdlMessageGridShare *share) {
     MPI_Allgather(&share->grid->sSlab,sizeof(*share->grid->rs),MPI_BYTE,
                   share->grid->rs,sizeof(*share->grid->rs),MPI_BYTE,
@@ -1181,6 +1180,7 @@ void mpiClass::MessageGridShare(mdlMessageGridShare *share) {
     share->sendBack();
 }
 
+#ifdef MDL_FFTW
 // MPI thread: initiate a real to complex transform
 void mpiClass::MessageDFT_R2C(mdlMessageDFT_R2C *message) {
     FFTW3(execute_dft_r2c)(message->fft->fplan,message->data,message->kdata);
@@ -1223,6 +1223,7 @@ void mpiClass::MessageFFT_Plans(mdlMessageFFT_Plans *plans) {
     plans->iplan = info.iplan;
     plans->sendBack();
 }
+#endif
 
 void mpiClass::MessageAlltoallv(mdlMessageAlltoallv *a2a) {
     MPI_Datatype mpitype;
@@ -1700,6 +1701,7 @@ int mpiClass::Launch(int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),vo
         delete &static_cast<mdlMessageFlushToCore &>(localFlushBuffers.dequeue());
     for (auto i : flushHeadFree) delete i;
 
+#ifdef MDL_FFTW
     // Cleanup for FFTW
     for (auto &plan : fft_plans) {
         auto &info = plan.second;
@@ -1709,6 +1711,7 @@ int mpiClass::Launch(int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),vo
     fft_plans.clear();
     if (Cores()>1) FFTW3(cleanup_threads)();
     FFTW3(cleanup)();
+#endif
 
     MPI_Barrier(commMDL);
     MPI_Finalize();
