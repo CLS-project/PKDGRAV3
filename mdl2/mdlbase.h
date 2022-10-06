@@ -117,12 +117,14 @@ protected:
 
 class mdlBASE : protected mdlbt {
 public:
-    int32_t nThreads; /* Global number of threads (total) */
-    int32_t idSelf;   /* Global index of this thread */
-    int32_t nProcs;   /* Number of global processes (e.g., MPI ranks) */
-    int32_t iProc;    /* Index of this process (MPI rank) */
-    int16_t nCores;   /* Number of threads in this process */
-    int16_t iCore;    /* Local core id */
+    struct {
+        int32_t nThreads; /* Global number of threads (total) */
+        int32_t idSelf;   /* Global index of this thread */
+        int32_t nProcs;   /* Number of global processes (e.g., MPI ranks) */
+        int32_t iProc;    /* Index of this process (MPI rank) */
+        int32_t nCores;   /* Number of threads in this process */
+        int32_t iCore;    /* Local core id */
+    } layout;
     int bDiag;        /* When true, debug output is enabled */
     int argc;
 
@@ -169,12 +171,12 @@ public:
 public:
     explicit mdlBASE(int argc,char **argv);
     virtual ~mdlBASE();
-    int32_t Threads() const { return nThreads; }
-    int32_t Self()    const { return idSelf; }
-    int16_t Core()    const { return iCore; }
-    int16_t Cores()   const { return nCores; }
-    int32_t Proc()    const { return iProc; }
-    int32_t Procs()   const { return nProcs; }
+    int32_t Threads() const { return layout.nThreads; }
+    int32_t Self()    const { return layout.idSelf; }
+    int16_t Core()    const { return layout.iCore; }
+    int16_t Cores()   const { return layout.nCores; }
+    int32_t Proc()    const { return layout.iProc; }
+    int32_t Procs()   const { return layout.nProcs; }
     int32_t ProcToThread(int32_t iProc) const;
     int32_t ThreadToProc(int32_t iThread) const;
     void yield();
