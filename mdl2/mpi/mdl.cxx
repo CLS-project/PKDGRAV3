@@ -984,13 +984,15 @@ void mpiClass::MessageCacheClose(mdlMessageCacheClose *message) {
 #ifdef DEBUG_COUNT_CACHE
         std::vector<uint64_t> countRecvExpected(Procs());
         MPI_Alltoall(countCacheSend.data(),1,MPI_UINT64_T,countRecvExpected.data(),1,MPI_UINT64_T,commMDL);
+        bool bBAD = false;
         for (auto i=0; i<Procs(); ++i) {
             if (countCacheRecv[i] != countRecvExpected[i]) {
                 printf("Rank %d received %" PRIu64 " from rank %d but expected %" PRIu64 "\n",
                        Proc(), countCacheRecv[i], i, countRecvExpected[i]);
-                abort();
+                bBAD = true;
             }
         }
+        if (bBAD) {fflush(stdout); sleep(1); MPI_Abort(commMDL,1); }
 #endif
         for (auto i=SendReceiveMessages.begin(); i!=SendReceiveMessages.end(); ++i) {
             if (dynamic_cast<mdlMessageCacheReceive *>(*i) != nullptr)
