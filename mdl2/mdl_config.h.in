@@ -15,6 +15,7 @@
 #cmakedefine USE_ELFUTILS 1
 #cmakedefine MDL_FFTW 1
 #cmakedefine USE_BT 1
+#cmakedefine DEBUG_COUNT_CACHE 1
 #define USE_SINGLE 1
 #define OMPI_SKIP_MPICXX
 #define INSTRUMENT 1

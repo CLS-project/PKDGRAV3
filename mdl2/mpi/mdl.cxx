@@ -312,6 +312,12 @@ void mpiClass::MessageCacheOpen(mdlMessageCacheOpen *message) {
     if (nOpenCaches==0) {
         for (auto i=listCacheReceive.begin(); i!=listCacheReceive.end(); ++i)
             (*i)->action(this);
+#ifdef DEBUG_COUNT_CACHE
+        countCacheSend.resize(Procs());
+        countCacheRecv.resize(Procs());
+        std::fill(countCacheSend.begin(),countCacheSend.end(),0);
+        std::fill(countCacheRecv.begin(),countCacheRecv.end(),0);
+#endif
     }
     ++nOpenCaches;
     message->sendBack();
@@ -329,6 +335,9 @@ void mpiClass::FinishCacheReceive(mdlMessageCacheReceive *message, int bytes, in
     if (cancelled) return;
 
     CacheHeader *ph = reinterpret_cast<CacheHeader *>(message->getBuffer());
+#ifdef DEBUG_COUNT_CACHE
+    ++countCacheRecv[source];
+#endif
 
     /* Well, could be any threads cache */
     int iCore = ph->idTo - Self();
@@ -549,6 +558,9 @@ void mpiClass::MessageCacheRequest(mdlMessageCacheRequest *message) {
     assert(message->pLine);
     int iProc = ThreadToProc(message->header.idTo);
     MPI_Isend(&message->header,sizeof(message->header)+message->key_size,MPI_BYTE,iProc,MDL_TAG_CACHECOM, commMDL,newRequest(message));
+#ifdef DEBUG_COUNT_CACHE
+    ++countCacheSend[iProc];
+#endif
 }
 
 // On the remote node, the message is received, and a response is constructed with the data
@@ -591,6 +603,9 @@ void mpiClass::CacheReceiveRequest(int count, const CacheHeader *ph) {
 // The reply message is sent back to the origin node, and added to the MPI request tracker.
 // This is the "action" routine.
 void mpiClass::MessageCacheReply(mdlMessageCacheReply *pFlush) {
+#ifdef DEBUG_COUNT_CACHE
+    ++countCacheSend[pFlush->getRankTo()];
+#endif
     MPI_Issend(pFlush->getBuffer(),pFlush->getCount(),MPI_BYTE,pFlush->getRankTo(),
                MDL_TAG_CACHECOM,commMDL,newRequest(pFlush));
 }
@@ -778,6 +793,9 @@ void mpiClass::flush_element(CacheHeader *pHdr,int iSize) {
 // Called to flush a buffer full of cache data to a particular rank
 void mpiClass::MessageFlushToRank(mdlMessageFlushToRank *pFlush) {
     if (pFlush->getCount()>0) {
+#ifdef DEBUG_COUNT_CACHE
+        ++countCacheSend[pFlush->getRankTo()];
+#endif
         MPI_Issend(pFlush->getBuffer(),pFlush->getCount(),MPI_BYTE,pFlush->getRankTo(),
                    MDL_TAG_CACHECOM,commMDL,newRequest(pFlush));
     }
@@ -963,6 +981,17 @@ void mpiClass::MessageCacheClose(mdlMessageCacheClose *message) {
     assert(nOpenCaches > 0);
     --nOpenCaches;
     if (nOpenCaches == 0) {
+#ifdef DEBUG_COUNT_CACHE
+        std::vector<uint64_t> countRecvExpected(Procs());
+        MPI_Alltoall(countCacheSend.data(),1,MPI_UINT64_T,countRecvExpected.data(),1,MPI_UINT64_T,commMDL);
+        for (auto i=0; i<Procs(); ++i) {
+            if (countCacheRecv[i] != countRecvExpected[i]) {
+                printf("Rank %d received %" PRIu64 " from rank %d but expected %" PRIu64 "\n",
+                       Proc(), countCacheRecv[i], i, countRecvExpected[i]);
+                abort();
+            }
+        }
+#endif
         for (auto i=SendReceiveMessages.begin(); i!=SendReceiveMessages.end(); ++i) {
             if (dynamic_cast<mdlMessageCacheReceive *>(*i) != nullptr)
                 MPI_Cancel(&SendReceiveRequests[i-SendReceiveMessages.begin()]);

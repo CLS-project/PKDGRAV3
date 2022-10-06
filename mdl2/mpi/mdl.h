@@ -390,6 +390,9 @@ protected:
     MPI_Request *newRequest(mdlMessageMPI *message);
 
     std::vector<mdlMessageCacheReceive *> listCacheReceive;
+#ifdef DEBUG_COUNT_CACHE
+    std::vector<uint64_t> countCacheSend, countCacheRecv;
+#endif
     std::list<mdlMessageCacheReply *> freeCacheReplies;
 #ifdef MDL_FFTW
     // Cached FFTW plans
