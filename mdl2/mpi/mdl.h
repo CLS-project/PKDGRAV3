@@ -332,12 +332,14 @@ public:
     void *Access(int cid, uint32_t uIndex,  int uId, bool bLock,bool bModify,bool bVirtual);
     void *Access(int cid, uint32_t uHash,void *pKey, bool bLock,bool bModify,bool bVirtual);
 
+    void GridShare(MDLGRID grid);
+#ifdef MDL_FFTW
     size_t FFTlocalCount(int n1,int n2,int n3,int *nz,int *sz,int *ny,int *sy);
     MDLFFT FFTNodeInitialize(int n1,int n2,int n3,int bMeasure,FFTW3(real) *data);
-    void GridShare(MDLGRID grid);
 
     void FFT( MDLFFT fft, FFTW3(real) *data );
     void IFFT( MDLFFT fft, FFTW3(complex) *kdata );
+#endif
     void Alltoallv(int dataSize,void *sbuff,int *scount,int *sdisps,void *rbuff,int *rcount,int *rdisps);
 
     int swaplocal(void *buffer,int count,int datasize,/*const*/ int *counts);
@@ -388,8 +390,11 @@ protected:
     MPI_Request *newRequest(mdlMessageMPI *message);
 
     std::vector<mdlMessageCacheReceive *> listCacheReceive;
+#ifdef DEBUG_COUNT_CACHE
+    std::vector<uint64_t> countCacheSend, countCacheRecv;
+#endif
     std::list<mdlMessageCacheReply *> freeCacheReplies;
-
+#ifdef MDL_FFTW
     // Cached FFTW plans
     struct fft_plan_information {
         ptrdiff_t nz, sz, ny, sy, nLocal;
@@ -397,6 +402,7 @@ protected:
     };
     typedef std::tuple<ptrdiff_t,ptrdiff_t,ptrdiff_t> fft_plan_key;
     std::map<fft_plan_key,fft_plan_information> fft_plans;
+#endif
 
 protected:
     // These are functions that are called as a result of a worker thread sending
@@ -429,6 +435,7 @@ protected:
     void MessageCacheFlushLocal(mdlMessageCacheFlushLocal *message);
     friend class mdlMessageGridShare;
     void MessageGridShare(mdlMessageGridShare *message);
+#ifdef MDL_FFTW
     friend class mdlMessageDFT_R2C;
     void MessageDFT_R2C(mdlMessageDFT_R2C *message);
     friend class mdlMessageDFT_C2R;
@@ -437,6 +444,7 @@ protected:
     void MessageFFT_Sizes(mdlMessageFFT_Sizes *message);
     friend class mdlMessageFFT_Plans;
     void MessageFFT_Plans(mdlMessageFFT_Plans *message);
+#endif
     friend class mdlMessageAlltoallv;
     void MessageAlltoallv(mdlMessageAlltoallv *message);
     friend class mdlMessageSend;

@@ -55,6 +55,18 @@ static inline int size_t_to_int(size_t v) {
     #include <sys/resource.h>
 #endif
 #include "mpi.h"
+
+template<typename T>
+MPI_Datatype mpi_type(T v) {
+    static_assert(sizeof(T)==0,"Create a specialization for this MPI datatype");
+    return MPI_DATATYPE_NULL;
+}
+template<> MPI_Datatype mpi_type(int32_t v) { return MPI_INT32_T; }
+template<> MPI_Datatype mpi_type(uint32_t v) { return MPI_UINT32_T; }
+template<> MPI_Datatype mpi_type(int64_t v) { return MPI_INT64_T; }
+template<> MPI_Datatype mpi_type(uint64_t v) { return MPI_UINT64_T; }
+
+
 #ifdef USE_CL
     #include "clutil.h"
 #endif
@@ -300,6 +312,12 @@ void mpiClass::MessageCacheOpen(mdlMessageCacheOpen *message) {
     if (nOpenCaches==0) {
         for (auto i=listCacheReceive.begin(); i!=listCacheReceive.end(); ++i)
             (*i)->action(this);
+#ifdef DEBUG_COUNT_CACHE
+        countCacheSend.resize(Procs());
+        countCacheRecv.resize(Procs());
+        std::fill(countCacheSend.begin(),countCacheSend.end(),0);
+        std::fill(countCacheRecv.begin(),countCacheRecv.end(),0);
+#endif
     }
     ++nOpenCaches;
     message->sendBack();
@@ -317,7 +335,9 @@ void mpiClass::FinishCacheReceive(mdlMessageCacheReceive *message, int bytes, in
     if (cancelled) return;
 
     CacheHeader *ph = reinterpret_cast<CacheHeader *>(message->getBuffer());
-    //int iRankFrom = status.MPI_SOURCE;
+#ifdef DEBUG_COUNT_CACHE
+    ++countCacheRecv[source];
+#endif
 
     /* Well, could be any threads cache */
     int iCore = ph->idTo - Self();
@@ -536,8 +556,11 @@ void mpiClass::MessageCacheRequest(mdlMessageCacheRequest *message) {
     assert(CacheRequestMessages[iCoreFrom]==nullptr);
     CacheRequestMessages[iCoreFrom] = message;
     assert(message->pLine);
-    iProc = ThreadToProc(message->header.idTo);
+    int iProc = ThreadToProc(message->header.idTo);
     MPI_Isend(&message->header,sizeof(message->header)+message->key_size,MPI_BYTE,iProc,MDL_TAG_CACHECOM, commMDL,newRequest(message));
+#ifdef DEBUG_COUNT_CACHE
+    ++countCacheSend[iProc];
+#endif
 }
 
 // On the remote node, the message is received, and a response is constructed with the data
@@ -580,6 +603,9 @@ void mpiClass::CacheReceiveRequest(int count, const CacheHeader *ph) {
 // The reply message is sent back to the origin node, and added to the MPI request tracker.
 // This is the "action" routine.
 void mpiClass::MessageCacheReply(mdlMessageCacheReply *pFlush) {
+#ifdef DEBUG_COUNT_CACHE
+    ++countCacheSend[pFlush->getRankTo()];
+#endif
     MPI_Issend(pFlush->getBuffer(),pFlush->getCount(),MPI_BYTE,pFlush->getRankTo(),
                MDL_TAG_CACHECOM,commMDL,newRequest(pFlush));
 }
@@ -767,6 +793,9 @@ void mpiClass::flush_element(CacheHeader *pHdr,int iSize) {
 // Called to flush a buffer full of cache data to a particular rank
 void mpiClass::MessageFlushToRank(mdlMessageFlushToRank *pFlush) {
     if (pFlush->getCount()>0) {
+#ifdef DEBUG_COUNT_CACHE
+        ++countCacheSend[pFlush->getRankTo()];
+#endif
         MPI_Issend(pFlush->getBuffer(),pFlush->getCount(),MPI_BYTE,pFlush->getRankTo(),
                    MDL_TAG_CACHECOM,commMDL,newRequest(pFlush));
     }
@@ -952,6 +981,17 @@ void mpiClass::MessageCacheClose(mdlMessageCacheClose *message) {
     assert(nOpenCaches > 0);
     --nOpenCaches;
     if (nOpenCaches == 0) {
+#ifdef DEBUG_COUNT_CACHE
+        std::vector<uint64_t> countRecvExpected(Procs());
+        MPI_Alltoall(countCacheSend.data(),1,MPI_UINT64_T,countRecvExpected.data(),1,MPI_UINT64_T,commMDL);
+        for (auto i=0; i<Procs(); ++i) {
+            if (countCacheRecv[i] != countRecvExpected[i]) {
+                printf("Rank %d received %" PRIu64 " from rank %d but expected %" PRIu64 "\n",
+                       Proc(), countCacheRecv[i], i, countRecvExpected[i]);
+                abort();
+            }
+        }
+#endif
         for (auto i=SendReceiveMessages.begin(); i!=SendReceiveMessages.end(); ++i) {
             if (dynamic_cast<mdlMessageCacheReceive *>(*i) != nullptr)
                 MPI_Cancel(&SendReceiveRequests[i-SendReceiveMessages.begin()]);
@@ -1095,11 +1135,11 @@ int mpiClass::swapall(const char *buffer,int count,int datasize,/*const*/ int *c
         */
 
         /* We are done when there is nothing globally left to send */
-        MPI_Allreduce(&nSend,&nMaxSend,1,MPI_INT,MPI_MAX,commMDL);
+        MPI_Allreduce(&nSend,&nMaxSend,1,mpi_type(nSend),MPI_MAX,commMDL);
         if (nMaxSend==0) break;
 
         /* Collect how many we need to receive */
-        MPI_Alltoall(counts,1,MPI_INT,&rcount[0],1,MPI_INT,commMDL);
+        MPI_Alltoall(counts,1,mpi_type(counts[0]),&rcount[0],1,MPI_INT,commMDL);
 
         iRecv = 0;
         /* Calculate how many we can actually receive and post the receive */
@@ -1170,7 +1210,6 @@ void mpiClass::MessageSTOP(mdlMessageSTOP *message) {
 void mpiClass::MessageBarrierMPI(mdlMessageBarrierMPI *message) {
     MPI_Ibarrier(commMDL,newRequest(message));
 }
-
 void mpiClass::MessageGridShare(mdlMessageGridShare *share) {
     MPI_Allgather(&share->grid->sSlab,sizeof(*share->grid->rs),MPI_BYTE,
                   share->grid->rs,sizeof(*share->grid->rs),MPI_BYTE,
@@ -1181,6 +1220,7 @@ void mpiClass::MessageGridShare(mdlMessageGridShare *share) {
     share->sendBack();
 }
 
+#ifdef MDL_FFTW
 // MPI thread: initiate a real to complex transform
 void mpiClass::MessageDFT_R2C(mdlMessageDFT_R2C *message) {
     FFTW3(execute_dft_r2c)(message->fft->fplan,message->data,message->kdata);
@@ -1223,6 +1263,7 @@ void mpiClass::MessageFFT_Plans(mdlMessageFFT_Plans *plans) {
     plans->iplan = info.iplan;
     plans->sendBack();
 }
+#endif
 
 void mpiClass::MessageAlltoallv(mdlMessageAlltoallv *a2a) {
     MPI_Datatype mpitype;
@@ -1432,7 +1473,7 @@ int mpiClass::Launch(int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),vo
     pthread_setspecific(mdl_key, static_cast<class mdlClass *>(this));
 
 #ifdef _SC_NPROCESSORS_CONF /* from unistd.h */
-    nCores = sysconf(_SC_NPROCESSORS_CONF);
+    layout.nCores = sysconf(_SC_NPROCESSORS_CONF);
 #endif
 
     /*
@@ -1447,7 +1488,7 @@ int mpiClass::Launch(int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),vo
         for (i = j = 1; i<argc; ++i) {
             if (!strcmp(argv[i], "-sz")) {
                 if (argv[++i]) {
-                    nCores = atoi(argv[i]);
+                    layout.nCores = atoi(argv[i]);
                     bThreads = true;
                 }
             }
@@ -1476,8 +1517,8 @@ int mpiClass::Launch(int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),vo
         argv[argc] = nullptr;
     }
     if (!bThreads) {
-        if ( (p=getenv("SLURM_CPUS_PER_TASK")) != NULL ) nCores = atoi(p);
-        else if ( (p=getenv("OMP_NUM_THREADS")) != NULL ) nCores = atoi(p);
+        if ( (p=getenv("SLURM_CPUS_PER_TASK")) != NULL ) layout.nCores = atoi(p);
+        else if ( (p=getenv("OMP_NUM_THREADS")) != NULL ) layout.nCores = atoi(p);
     }
     assert(Cores()>0);
 
@@ -1505,18 +1546,18 @@ int mpiClass::Launch(int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),vo
 #ifdef USE_ITT
     __itt_task_end(domain);
 #endif
-    MPI_Comm_size(commMDL, &nProcs);
-    MPI_Comm_rank(commMDL, &iProc);
+    MPI_Comm_size(commMDL, &layout.nProcs);
+    MPI_Comm_rank(commMDL, &layout.iProc);
 
     /* Dedicate one of the threads for MPI, unless it would be senseless to do so */
     if (bDedicated == -1) {
-        if (nProcs>0 && Cores()>3) bDedicated = 1;
+        if (Procs()>0 && Cores()>3) bDedicated = 1;
         else bDedicated = 0;
     }
     if (bDedicated == 1) {
 #ifndef USE_HWLOC
-        /*if (Cores()==1 || nProcs==1) bDedicated=0;
-          else*/ --nCores;
+        /*if (Cores()==1 || Procs()==1) bDedicated=0;
+          else*/ --layout.nCores;
 #else
         hwloc_topology_init(&topology);
         hwloc_topology_load(topology);
@@ -1534,20 +1575,20 @@ int mpiClass::Launch(int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),vo
             }
             else n = 1;
         }
-        nCores -= n;
+        layout.nCores -= n;
 #endif
     }
 
     /* Construct the thread/processor map */
     iProcToThread.resize(Procs()+1);
     iProcToThread[0] = 0;
-    MPI_Allgather(&nCores, 1, MPI_INT, &iProcToThread.front() + 1, 1, MPI_INT, commMDL);
+    MPI_Allgather(&layout.nCores, 1, MPI_INT32_T, &iProcToThread.front() + 1, 1, MPI_INT, commMDL);
     for (i = 1; i < Procs(); ++i) iProcToThread[i + 1] += iProcToThread[i];
-    nThreads = iProcToThread[Procs()];
-    idSelf = iProcToThread[Proc()];
+    layout.nThreads = iProcToThread[Procs()];
+    layout.idSelf = iProcToThread[Proc()];
 
     iCoreMPI = bDedicated ? -1 : 0;
-    iCore = iCoreMPI;
+    layout.iCore = iCoreMPI;
 
     /* We have an extra MDL context in case we want a dedicated MPI thread */
     pmdl = new mdlClass *[Cores()+1];
@@ -1700,6 +1741,7 @@ int mpiClass::Launch(int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),vo
         delete &static_cast<mdlMessageFlushToCore &>(localFlushBuffers.dequeue());
     for (auto i : flushHeadFree) delete i;
 
+#ifdef MDL_FFTW
     // Cleanup for FFTW
     for (auto &plan : fft_plans) {
         auto &info = plan.second;
@@ -1709,6 +1751,7 @@ int mpiClass::Launch(int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),vo
     fft_plans.clear();
     if (Cores()>1) FFTW3(cleanup_threads)();
     FFTW3(cleanup)();
+#endif
 
     MPI_Barrier(commMDL);
     MPI_Finalize();
@@ -1995,12 +2038,12 @@ void mdlClass::init(bool bDiag) {
 
 mdlClass::mdlClass(class mpiClass *mdl, int iMDL)
     : mdlBASE(mdl->argc,mdl->argv), mpi(mdl) {
-    iCore = iMDL;
-    idSelf = mdl->Self() + iMDL;
-    nThreads = mdl->Threads();
-    nCores = mdl->Cores();
-    nProcs = mdl->nProcs;
-    iProc = mdl->iProc;
+    layout.iCore = iMDL;
+    layout.idSelf = mdl->Self() + iMDL;
+    layout.nThreads = mdl->Threads();
+    layout.nCores = mdl->Cores();
+    layout.nProcs = mdl->layout.nProcs;
+    layout.iProc = mdl->layout.iProc;
     iProcToThread = mdl->iProcToThread;
 
     iCoreMPI = mdl->iCoreMPI;
