@@ -134,7 +134,7 @@ void hydroDensityFinal(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) 
     double *omega = &(pkdSph(pkd,p)->omega);
 #endif
 
-    const double ph = pkdBall(pkd,p);
+    const double ph = 0.5*fBall;
 
     *omega = 0.0;
     for (int i=0; i<nSmooth; ++i) {
@@ -212,7 +212,7 @@ void hydroDensity_node(PKD pkd, SMF *smf, BND bnd_node, PARTICLE **sinks, NN *nn
             Neff = - *omega;
 
         do {
-            float ph = pkdBall(pkd,partj);
+            float ph = 0.5*pkdBall(pkd,partj);
             double E[6];
 
             densNodeOmegaE(nnList, ph, dx_node, dy_node, dz_node,
@@ -254,24 +254,22 @@ void hydroDensity_node(PKD pkd, SMF *smf, BND bnd_node, PARTICLE **sinks, NN *nn
                 pkdSetDensity(pkd, partj, pkdMass(pkd,partj)*(*omega));
             }
             else {
-                float newBall;
+                float ph_new;
 
-                newBall = (c!=0.0) ? ph * pow(  Neff/c,0.3333333333) : ph*4.0;
-                if (newBall > 4.0*ph) newBall = ph*4.0;
-                newBall = 0.5*(newBall+ph);
+                ph_new = (c!=0.0) ? ph * pow(  Neff/c,0.3333333333) : ph*4.0;
+                if (ph_new > 4.0*ph) ph_new = ph*4.0;
+                ph_new = 0.5*(ph_new+ph);
 
-                pkdSetBall(pkd,partj, newBall);
+                pkdSetBall(pkd,partj, 2.*ph_new);
                 //printf("Setting new fBall %e %e %e \n", c, ph, pkdBall(pkd,partj));
 
 
-                if (newBall>ph) {
-                    float ph2 = 2.*pkdBall(pkd,partj);
+                if (ph_new>ph) {
                     // We check that the proposed ball is enclosed within the
                     // node search region
-                    if (    (fabs(dx_node) + ph2 > bnd_node.fMax[0])||
-                            (fabs(dy_node) + ph2 > bnd_node.fMax[1])||
-                            (fabs(dz_node) + ph2 > bnd_node.fMax[2])) {
-                        //printf("%" PRIu64 " \t nn %d \t omega %e \t Neff %e \t ph %e \t newBall %e \t fBall %e \n", *pkdParticleID(pkd,partj), nSmooth, *omega, Neff, ph, newBall, pkdBall(pkd,partj));
+                    if (    (fabs(dx_node) + ph_new > bnd_node.fMax[0])||
+                            (fabs(dy_node) + ph_new > bnd_node.fMax[1])||
+                            (fabs(dz_node) + ph_new > bnd_node.fMax[2])) {
                         *omega = -Neff;
                         break;
                     }
@@ -281,7 +279,7 @@ void hydroDensity_node(PKD pkd, SMF *smf, BND bnd_node, PARTICLE **sinks, NN *nn
                     // have not yet fully converged due to, e.g., an anisotropic
                     // particle distribution
                     if (smf->dhMinOverSoft > 0.) {
-                        if (newBall < smf->dhMinOverSoft*pkdSoft(pkd,partj)) {
+                        if (ph_new < smf->dhMinOverSoft*pkdSoft(pkd,partj)) {
                             if (!onLowerLimit) {
                                 // If in the next iteration still a lower smooth is
                                 // preferred, we will skip this particle
@@ -311,7 +309,7 @@ void hydroDensity_node(PKD pkd, SMF *smf, BND bnd_node, PARTICLE **sinks, NN *nn
             if (niter>1000 && partj->bMarked) {
                 if (c > Neff) {
                     partj->bMarked = 0;
-                    pkdSetBall(pkd,partj, ph);
+                    pkdSetBall(pkd, partj, ph);
                     densNodeNcondB(pkd, partj, E, *omega);
                     pkdSetDensity(pkd, partj, pkdMass(pkd,partj)*(*omega));
                     printf("WARNING %d Maximum iterations reached Neff %e c %e \n", pkdSpecies(pkd,partj), Neff, c);
@@ -339,7 +337,7 @@ void hydroDensity(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
     /* Particle p data */
     psph = pkdSph(pkd,p);
-    ph = fBall;
+    ph = 0.5*fBall;
 
     /* Compute the \omega(x_i) normalization factor */
     psph->omega = 0.0;

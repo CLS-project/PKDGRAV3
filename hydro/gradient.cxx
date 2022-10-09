@@ -38,7 +38,7 @@ void hydroGradients(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     float  *pv, *qv;
     int i, j;
     psph = pkdSph(pkd,p);
-    ph = fBall;
+    ph = 0.5*fBall;
 
 #ifndef OPTIM_SMOOTH_NODE
     /* Compute the E matrix (Hopkins 2015, eq 14) */
@@ -127,7 +127,6 @@ void hydroGradients(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
         if (dx==0 && dy==0 && dz==0) continue;
 
-        ph = fBall;
         rpq = sqrt(nnList[i].fDist2);
         hpq = ph;
 

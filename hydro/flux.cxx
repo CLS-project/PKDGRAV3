@@ -143,7 +143,7 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     int i,j;
 
     psph = pkdSph(pkd, p);
-    ph = pkdBall(pkd, p);
+    ph = 0.5*pkdBall(pkd, p);
 
     pDensity = pkdDensity(pkd,p);
 
@@ -153,7 +153,7 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
         q = nnList[i].pPart;
         qsph = pkdSph(pkd, q);
-        qh = pkdBall(pkd,q);
+        qh = 0.5*pkdBall(pkd,q);
 
         dx = nnList[i].dx;
         dy = nnList[i].dy;
@@ -650,7 +650,7 @@ void hydroRiemann_vec(PARTICLE *p,float fBall,int nSmooth,
     int i,j;
 
     SPHFIELDS *psph = pkdSph(pkd, p);
-    my_real ph = pkdBall(pkd, p);
+    my_real ph = 0.5*pkdBall(pkd, p);
 
     my_real pDensity = pkdDensity(pkd,p);
     my_real p_omega = psph->omega;
@@ -1068,7 +1068,7 @@ void hydroFluxFillBuffer(my_real **buffer, PARTICLE *q, int i, double dr2,
                          double dx, double dy, double dz, SMF *smf) {
     PKD pkd = smf->pkd;
     double dDelta = smf->dDelta;
-    float qh = pkdBall(pkd,q);
+    float qh = 0.5*pkdBall(pkd,q);
     SPHFIELDS *qsph = pkdSph(pkd,q);
     buffer[q_mass][i] = pkdMass(pkd,q);
     buffer[q_ball][i] = qh;

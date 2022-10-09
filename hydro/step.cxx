@@ -53,6 +53,7 @@ void hydroStep(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     int i,j;
 
     psph = pkdSph(pkd, p);
+    double ph = 0.5*pkdBall(pkd, p);
 
     dtEst = HUGE_VAL;
 
@@ -80,7 +81,7 @@ void hydroStep(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
             vsig_pq = psph->c + qsph->c;
         }
 
-        dt2 = 2.*smf->dEtaCourant * fBall * smf->a /vsig_pq;
+        dt2 = 2.*smf->dEtaCourant * ph * smf->a /vsig_pq;
         if (dt2 < dtEst) dtEst=dt2;
 
     }
@@ -173,8 +174,8 @@ void hydroStep(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
 
     float h = smf->bDoGravity ?
-              (fBall < pkdSoft(pkd,p) ? fBall : pkdSoft(pkd,p) )
-              : fBall;
+              (ph < pkdSoft(pkd,p) ? ph : pkdSoft(pkd,p) )
+              : ph;
     dtAcc = cfl*sqrt(2*h/acc);
 
 

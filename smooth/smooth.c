@@ -2734,7 +2734,7 @@ void smReSmoothSingle(SMX smx,SMF *smf,PARTICLE *p,double fBall) {
     /*
     ** Apply smooth funtion to the neighbor list.
     */
-    smx->fcnSmooth(p,0.5*fBall,smx->nnListSize,smx->nnList,smf);
+    smx->fcnSmooth(p,fBall,smx->nnListSize,smx->nnList,smf);
     /*
     ** Release acquired pointers.
     */
@@ -2759,7 +2759,7 @@ int  smReSmooth(SMX smx,SMF *smf, int iSmoothType) {
             if (pkdIsActive(pkd,p) && p->bMarked && pkdIsGas(pkd,p)) {
                 //if (pkdIsStar(pkd,p)) printf("%d \n",pkdStar(pkd,p)->hasExploded);
 
-                smReSmoothSingle(smx,smf,p,2.*pkdBall(pkd,p));
+                smReSmoothSingle(smx,smf,p,pkdBall(pkd,p));
                 nSmoothed++;
             }
         }
@@ -2768,7 +2768,7 @@ int  smReSmooth(SMX smx,SMF *smf, int iSmoothType) {
         for (pi=0; pi<pkd->nLocal; ++pi) {
             p = pkdParticle(pkd,pi);
             if (pkdIsBH(pkd,p)) {
-                smReSmoothSingle(smx,smf,p,2.*pkdBall(pkd,p));
+                smReSmoothSingle(smx,smf,p,pkdBall(pkd,p));
                 nSmoothed++;
             }
         }
@@ -2793,7 +2793,7 @@ int  smReSmooth(SMX smx,SMF *smf, int iSmoothType) {
             p = pkdParticle(pkd,pi);
             if (pkdIsGas(pkd,p)) {
                 if (pkdIsActive(pkd,p)) {
-                    smReSmoothSingle(smx,smf,p, 2.*pkdBall(pkd,p));
+                    smReSmoothSingle(smx,smf,p, pkdBall(pkd,p));
                     nSmoothed++;
                 }
             }
@@ -2803,7 +2803,7 @@ int  smReSmooth(SMX smx,SMF *smf, int iSmoothType) {
                     // step to update the primitive variables
                     //if ( (smf->dTime/*+pkd->param.dDelta/(1<<p->uRung)*/-pkdStar(pkd,p)->fTimer) < 0.95*pkd->param.dFeedbackDelay)
                     //if (pkdIsStar(pkd,p)) printf("SN dt\n");
-                    //smReSmoothSingle(smx,smf,p, 2.*pkdBall(pkd,p));
+                    //smReSmoothSingle(smx,smf,p, pkdBall(pkd,p));
                     //nSmoothed++;
                     //}
                 }
@@ -2818,7 +2818,7 @@ int  smReSmooth(SMX smx,SMF *smf, int iSmoothType) {
             if (pkdIsStar(pkd,p)) {
                 if ( (pkdStar(pkd,p)->hasExploded == 0) &&
                         ((smf->dTime-pkdStar(pkd,p)->fTimer) > smf->dSNFBDelay) ) {
-                    smReSmoothSingle(smx,smf,p, 2.*pkdBall(pkd,p));
+                    smReSmoothSingle(smx,smf,p, pkdBall(pkd,p));
                     pkdStar(pkd,p)->hasExploded = 1;
 
                     nSmoothed++;
@@ -2834,7 +2834,7 @@ int  smReSmooth(SMX smx,SMF *smf, int iSmoothType) {
             if (pkdIsStar(pkd, p)) {
                 STARFIELDS *pStar = pkdStar(pkd, p);
                 if ((float)smf->dTime > pStar->fNextEnrichTime) {
-                    smReSmoothSingle(smx, smf, p, 2.0 * pkdBall(pkd, p));
+                    smReSmoothSingle(smx, smf, p, pkdBall(pkd, p));
                     nSmoothed++;
                 }
             }
@@ -2845,7 +2845,7 @@ int  smReSmooth(SMX smx,SMF *smf, int iSmoothType) {
         for (pi=0; pi<pkd->nLocal; ++pi) {
             p = pkdParticle(pkd,pi);
             if (pkdIsActive(pkd,p) && pkdIsGas(pkd,p)) {
-                smReSmoothSingle(smx,smf,p, 2.*pkdBall(pkd,p));
+                smReSmoothSingle(smx,smf,p, pkdBall(pkd,p));
                 nSmoothed++;
             }
         }
@@ -2952,7 +2952,7 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
     }
 
 
-    double fBall_factor = 2.;
+    double fBall_factor = 1.;
     if (iSmoothType==SMX_HYDRO_DENSITY)
         fBall_factor *= 1.2; // An small margin is kept in case fBall needs to increase
 
@@ -3101,7 +3101,7 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
             else {
                 for (pj=0; pj<nCnt_own; pj++) {
                     PARTICLE *partj = sinks[pj];
-                    float fBall2_p = 4.*pkdBall(pkd,partj)*pkdBall(pkd,partj);
+                    float fBall2_p = pkdBall(pkd,partj)*pkdBall(pkd,partj);
                     double dx_node = -pkdPos(pkd,partj,0)+bnd_node.fCenter[0];
                     double dy_node = -pkdPos(pkd,partj,1)+bnd_node.fCenter[1];
                     double dz_node = -pkdPos(pkd,partj,2)+bnd_node.fCenter[2];
@@ -3122,7 +3122,7 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
                             if ( iSmoothType==SMX_HYDRO_FLUX ||
                                     iSmoothType==SMX_HYDRO_FLUX_VEC) {
 
-                                if (4.*qh*qh < fDist2)
+                                if (qh*qh < fDist2)
                                     continue;
 
 #ifdef OPTIM_AVOID_IS_ACTIVE

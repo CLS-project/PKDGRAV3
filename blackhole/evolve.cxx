@@ -18,7 +18,7 @@ extern "C" {
 #endif
 
 static inline int bhAccretion(PKD pkd, NN *nnList, int nSmooth,
-                              PARTICLE *p, BHFIELDS *pBH, float fBall, float pMass,
+                              PARTICLE *p, BHFIELDS *pBH, float ph, float pMass,
                               double pDensity, double dScaleFactor) {
     double prob_factor = (pBH->dInternalMass - pMass)/pDensity;
     int naccreted = 0;
@@ -28,7 +28,7 @@ static inline int bhAccretion(PKD pkd, NN *nnList, int nSmooth,
 
 
             const double rpq = sqrt(nnList[i].fDist2);
-            const double kernel = cubicSplineKernel(rpq, fBall);
+            const double kernel = cubicSplineKernel(rpq, ph);
             prob = prob_factor * kernel;
             if (rand()<RAND_MAX*prob) {
                 naccreted++;
@@ -144,6 +144,7 @@ void smBHevolve(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     double cs = 0.;
     float inv_a = 1./smf->a;
     int naccreted = 0;
+    float ph = 0.5*fBall;
 
     // We look for the most bounded neighbouring particle
     vel_t mvx = 0.;
@@ -220,7 +221,7 @@ void smBHevolve(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
             assert(pkdIsGas(pkd,nnList[i].pPart));
 #endif
             const double rpq = sqrt(nnList[i].fDist2);
-            const double kernel = cubicSplineKernel(rpq, 0.5*fBall);
+            const double kernel = cubicSplineKernel(rpq, ph);
             const double  qmass = pkdMass(pkd,nnList[i].pPart);
             kernelSum += kernel;
             massSum += qmass;
@@ -247,7 +248,7 @@ void smBHevolve(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
         vRel2 = vx*vx + vy*vy + vz*vz;
         vRel2 *= norm*norm;
 
-        const double vphi = sqrt(vcircx*vcircx + vcircy*vcircy + vcircz*vcircz)*norm/(0.5*fBall);
+        const double vphi = sqrt(vcircx*vcircx + vcircy*vcircy + vcircz*vcircz)*norm/ph;
 
         // We allow the accretion viscosity to act over a boosted Bondi accretion
         double dBondiPrefactor = smf->dBHAccretionAlpha;
@@ -275,7 +276,7 @@ void smBHevolve(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
         if (smf->bBHAccretion) {
             naccreted += bhAccretion(pkd, nnList, nSmooth, p, pBH,
-                                     fBall, pMass, pDensity, smf->a);
+                                     ph, pMass, pDensity, smf->a);
         }
         if (smf->bBHFeedback) {
             bhFeedback(pkd, nnList, nSmooth, naccreted, p, pBH, massSum, smf->dConstGamma,

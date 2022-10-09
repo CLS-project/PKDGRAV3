@@ -447,7 +447,7 @@ void smChemEnrich(PARTICLE *p, float fBall, int nSmooth, NN *nnList, SMF *smf) {
         if (q == p) continue;
 
         const double dRpq = sqrt(nnList[i].fDist2);
-        fWeights[i] = cubicSplineKernel(dRpq, fBall) / pkdDensity(pkd, q);
+        fWeights[i] = cubicSplineKernel(dRpq, 0.5*fBall) / pkdDensity(pkd, q);
         fNormFactor += fWeights[i];
     }
     fNormFactor = 1.0f / fNormFactor;
