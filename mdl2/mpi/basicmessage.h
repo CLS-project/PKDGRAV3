@@ -71,6 +71,7 @@ public:
 static_assert(std::atomic<CXX_Queue_element_hdr_t *>::is_always_lock_free,"Atomics must be lock free or performance will be unacceptable");
 
 class CXX_Queue_info_t {
+protected:
     // This is aligned this way so that head and tail are in the same cache line
     struct alignas(2 * sizeof(CXX_Queue_element_hdr_t *)) normal_ {
         std::atomic<CXX_Queue_element_hdr_t *> head = nullptr;
