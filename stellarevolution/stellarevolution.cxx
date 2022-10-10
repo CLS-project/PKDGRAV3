@@ -426,8 +426,8 @@ void smChemEnrich(PARTICLE *p, float fBall, int nSmooth, NN *nnList, SMF *smf) {
     assert(pkdMass(pkd, p) > 0.0f);
 
 
-    const float fScaleFactorInv = 1.0 / csmTime2Exp(pkd->csm, smf->dTime);
-    const float fScaleFactorInvSq = fScaleFactorInv * fScaleFactorInv;
+    const float fExpFacInv = 1.0 / csmTime2Exp(pkd->csm, smf->dTime);
+    const float fExpFacInvSq = fExpFacInv * fExpFacInv;
     const vel_t *const pStarVel = pkdVel(pkd, p);
 
     const float fStarDeltaEkin = 0.5f * fTotalMass * (pStarVel[0] * pStarVel[0] +
@@ -436,8 +436,7 @@ void smChemEnrich(PARTICLE *p, float fBall, int nSmooth, NN *nnList, SMF *smf) {
     const float fSNIaEjEnergy = (fNumSNIa * (float)smf->units.dMsolUnit) * pStar->fInitialMass *
                                 (float)smf->dSNIaEnergy;
 
-    const float fStarEjEnergy = (fStarDeltaEkin + fWindEkin) * fScaleFactorInvSq +
-                                fSNIaEjEnergy;
+    const float fStarEjEnergy = fStarDeltaEkin * fExpFacInvSq + fWindEkin + fSNIaEjEnergy;
 
 
     PARTICLE *q;
@@ -462,7 +461,7 @@ void smChemEnrich(PARTICLE *p, float fBall, int nSmooth, NN *nnList, SMF *smf) {
         SPHFIELDS *qSph = pkdSph(pkd, q);
 
         for (j = 0; j < 3; j++)
-            qSph->afReceivedMom[j] += fDeltaMass * pStarVel[j] * fScaleFactorInv;
+            qSph->afReceivedMom[j] += fDeltaMass * pStarVel[j] * fExpFacInv;
         qSph->fReceivedMass += fDeltaMass;
         qSph->fReceivedE += fWeights[i] * fStarEjEnergy;
 
