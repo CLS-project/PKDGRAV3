@@ -16,24 +16,36 @@ void mdlMessageSendReply::action(class mpiClass *mpi)   { mpi->MessageSendReply(
 void mdlMessageCacheRequest::action(class mpiClass *mpi) { mpi->MessageCacheRequest(this); }
 
 // What to do when the MPI request has completed. Default is to send it back to the worker.
-void mdlMessageMPI::finish(class mpiClass *mdl, int bytes, int source, int cancelled) { sendBack(); }
+void mdlMessageMPI::finish(class mpiClass *mpi, MPI_Request &request, MPI_Status &status) { sendBack(); }
 
 // For MPI messages, what to do when the request completes
-void mdlMessageFlushToRank::finish(class mpiClass *mpi, int bytes, int source, int cancelled) {
+void mdlMessageFlushToRank::finish(class mpiClass *mpi, MPI_Request &request, MPI_Status &status) {
     mpi->FinishFlushToRank(this);
 }
-void mdlMessageCacheReply::finish(class mpiClass *mpi, int bytes, int source, int cancelled) {
+void mdlMessageCacheReply::finish(class mpiClass *mpi, MPI_Request &request, MPI_Status &status) {
     mpi->FinishCacheReply(this);
 }
-void mdlMessageCacheReceive::finish(class mpiClass *mpi, int bytes, int source, int cancelled) {
+void mdlMessageCacheReceive::finish(class mpiClass *mpi, MPI_Request &request, MPI_Status &status) {
+    int bytes, source, cancelled;
+    MPI_Test_cancelled(&status,&cancelled);
+    if (cancelled) bytes = source = -1;
+    else {
+        MPI_Get_count(&status, MPI_BYTE, &bytes); // Relevant for Recv() only
+        source = status.MPI_SOURCE; // Relevant for Recv() only
+    }
     mpi->FinishCacheReceive(this,bytes,source,cancelled);
 }
-void mdlMessageBufferedMPI::finish(class mpiClass *mdl, int bytes, int source, int cancelled) {
+void mdlMessageBufferedMPI::finish(class mpiClass *mpi, MPI_Request &request, MPI_Status &status) {
+    int bytes, source;
+    MPI_Get_count(&status, MPI_BYTE, &bytes); // Relevant for Recv() only
+    source = status.MPI_SOURCE; // Relevant for Recv() only
     count = bytes;
     target = source;
     sendBack();
 }
-void mdlMessageReceiveReply::finish(class mpiClass *mpi, int bytes, int source, int cancelled) {
+void mdlMessageReceiveReply::finish(class mpiClass *mpi, MPI_Request &request, MPI_Status &status) {
+    int bytes;
+    MPI_Get_count(&status, MPI_BYTE, &bytes); // Relevant for Recv() only
     count = bytes - sizeof(header);
     mpi->FinishReceiveReply(this);
 }
@@ -111,6 +123,6 @@ mdlMessageCacheRequest &mdlMessageCacheRequest::makeCacheRequest(uint16_t nItems
 // different for cache requests. We do nothing because the result is actually sent back, not the request.
 // You would think that the "request" MPI send would complete before the response message is received,
 // but this is NOT ALWAYS THE CASE. Care must be take if new/delete is used on this type of message.
-void mdlMessageCacheRequest::finish(class mpiClass *mdl, int bytes, int source, int cancelled) {}
+void mdlMessageCacheRequest::finish(class mpiClass *mpi, MPI_Request &request, MPI_Status &status) {}
 
 } // namespace mdl

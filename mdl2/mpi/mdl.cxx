@@ -1393,14 +1393,7 @@ void mpiClass::finishRequests() {
                 mdlMessageMPI *M = SendReceiveMessages[indx];
                 SendReceiveMessages[indx] = nullptr; // Mark as done (removed below)
                 assert(SendReceiveRequests[indx] == MPI_REQUEST_NULL); // set by Testsome
-                int bytes, source, cancelled;
-                MPI_Test_cancelled(&SendReceiveStatuses[i],&cancelled);
-                if (cancelled) bytes = source = -1;
-                else {
-                    MPI_Get_count(&SendReceiveStatuses[i], MPI_BYTE, &bytes); // Relevant for Recv() only
-                    source = SendReceiveStatuses[i].MPI_SOURCE; // Relevant for Recv() only
-                }
-                M->finish(this,bytes,source,cancelled); // Finish request (which could create/add more requests)
+                M->finish(this,SendReceiveRequests[indx],SendReceiveStatuses[i]); // Finish request (which could create/add more requests)
                 if (!SendReceiveMessages[indx]) bCull = true;
                 iLastMessage = -1; // Either it was reused, or it will be culled below
             }
