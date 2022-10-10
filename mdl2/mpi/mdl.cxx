@@ -291,27 +291,15 @@ MPI_Request *mpiClass::newRequest(mdlMessageMPI *message) {
 #ifndef NDEBUG
     ++nRequestsCreated;
 #endif
-    // It is common for a message to post another MPI message. We just reuse
-    // the existing slot in this case.
-    if (iLastMessage >= 0) {
-        auto i = iLastMessage;
-        iLastMessage = -1;
-        SendReceiveMessages[i] = message;
-        return &SendReceiveRequests[i];
-    }
-    else {
-        SendReceiveRequests.emplace_back();
-        SendReceiveMessages.push_back(message);
-        return &SendReceiveRequests.back();
-    }
+    SendReceiveRequests.emplace_back();
+    SendReceiveMessages.push_back(message);
     return &SendReceiveRequests.back();
 }
 
 // Open the cache by posting the receive if required
 void mpiClass::MessageCacheOpen(mdlMessageCacheOpen *message) {
     if (nOpenCaches==0) {
-        for (auto i=listCacheReceive.begin(); i!=listCacheReceive.end(); ++i)
-            (*i)->action(this);
+        msgCacheReceive->action(this);
 #ifdef DEBUG_COUNT_CACHE
         countCacheSend.resize(Procs());
         countCacheRecv.resize(Procs());
@@ -325,14 +313,26 @@ void mpiClass::MessageCacheOpen(mdlMessageCacheOpen *message) {
 
 // Post the recieve. Receive will continue to be reposted as message are recieved.
 void mpiClass::MessageCacheReceive(mdlMessageCacheReceive *message) {
-    MPI_Irecv(message->getBuffer(),iCacheBufSize, MPI_BYTE, MPI_ANY_SOURCE,
-              MDL_TAG_CACHECOM, commMDL, newRequest(message));
+    auto request = newRequest(message);
+    MPI_Recv_init(message->getBuffer(),iCacheBufSize, MPI_BYTE, MPI_ANY_SOURCE,
+                  MDL_TAG_CACHECOM, commMDL, request);
+    MPI_Start(request);
 }
 
 // Called when the receive finishes. Decode the type of message and process it,
 // then restart the receive.
-void mpiClass::FinishCacheReceive(mdlMessageCacheReceive *message, int bytes, int source, int cancelled) {
-    if (cancelled) return;
+mdlMessageMPI *mpiClass::FinishCacheReceive(mdlMessageCacheReceive *message, MPI_Request &request, MPI_Status status) {
+    int bytes, source, cancelled;
+    assert(message);
+    MPI_Test_cancelled(&status,&cancelled);
+    if (cancelled) {
+        MPI_Request_free(&request);
+        assert(request==MPI_REQUEST_NULL);
+        return nullptr;
+    }
+    MPI_Get_count(&status, MPI_BYTE, &bytes);
+    source = status.MPI_SOURCE;
+    assert(source!=Proc());
 
     CacheHeader *ph = reinterpret_cast<CacheHeader *>(message->getBuffer());
 #ifdef DEBUG_COUNT_CACHE
@@ -350,7 +350,8 @@ void mpiClass::FinishCacheReceive(mdlMessageCacheReceive *message, int bytes, in
     default:
         assert(0);
     }
-    MessageCacheReceive(message); // Restart the receive
+    MPI_Start(&request);
+    return message;
 }
 
 /*
@@ -1404,13 +1405,13 @@ void mpiClass::finishRequests() {
             for (int i=0; i<nDone; ++i) {
                 unsigned indx = SendReceiveIndices[i];
                 assert(indx < SendReceiveMessages.size());
-                iLastMessage = indx;
                 mdlMessageMPI *M = SendReceiveMessages[indx];
-                SendReceiveMessages[indx] = nullptr; // Mark as done (removed below)
-                assert(SendReceiveRequests[indx] == MPI_REQUEST_NULL); // set by Testsome
-                M->finish(this,SendReceiveRequests[indx],SendReceiveStatuses[i]); // Finish request (which could create/add more requests)
+                MPI_Request r = SendReceiveRequests[indx];
+                SendReceiveMessages[indx] = M->finish(this,r,SendReceiveStatuses[i]); // Finish request (which could create/add more requests)
+                SendReceiveRequests[indx] = r;
+                assert( (SendReceiveMessages[indx]==nullptr && SendReceiveRequests[indx]==MPI_REQUEST_NULL)
+                        ||  (SendReceiveMessages[indx]!=nullptr && SendReceiveRequests[indx]!=MPI_REQUEST_NULL));
                 if (!SendReceiveMessages[indx]) bCull = true;
-                iLastMessage = -1; // Either it was reused, or it will be culled below
             }
             // Now remove the "marked" elements. The "finish" routines above could have added new entries at the end (but that is valid).
             if (bCull) {
@@ -1629,7 +1630,7 @@ int mpiClass::Launch(int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),vo
     nOpenCaches = 0;
     iReplyBufSize = sizeof(CacheHeader) + MDL_CACHE_DATA_SIZE;
     iCacheBufSize = sizeof(CacheHeader) + MDL_FLUSH_DATA_SIZE;
-    while (listCacheReceive.size()<25) listCacheReceive.push_back(new mdlMessageCacheReceive(iCacheBufSize));
+    msgCacheReceive = std::make_unique<mdlMessageCacheReceive>(iCacheBufSize);
 
     n = Procs();
     if (n > 256) n = 256;
@@ -1742,10 +1743,6 @@ int mpiClass::Launch(int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),vo
     // Deallocate cache reply buffers
     for (auto pReply : freeCacheReplies) { delete pReply; }
     freeCacheReplies.clear();
-    while (listCacheReceive.size()) {
-        delete listCacheReceive.back();
-        listCacheReceive.pop_back();
-    }
 
     while (!localFlushBuffers.empty())
         delete &static_cast<mdlMessageFlushToCore &>(localFlushBuffers.dequeue());
