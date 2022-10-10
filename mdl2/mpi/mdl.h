@@ -32,7 +32,7 @@
 #include "mdlfft.h"
 #ifdef __cplusplus
     #include "arc.h"
-    #include "mdlmessages.h"
+    #include "mpimessages.h"
     #ifdef USE_CUDA
         #include "mdlcuda.h"
     #endif

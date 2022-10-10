@@ -49,25 +49,12 @@ bool FlushBuffer::addBuffer(int nSize, const CacheHeader *pData) {
     return true;
 }
 
-// What to do when the MPI request has completed. Default is to send it back to the worker.
-void mdlMessageMPI::finish(class mpiClass *mdl, int bytes, int source, int cancelled) { sendBack(); }
-
-void mdlMessageBufferedMPI::finish(class mpiClass *mdl, int bytes, int source, int cancelled) {
-    count = bytes;
-    target = source;
-    sendBack();
-}
-
 // The "result" is processed on the worker core
 void mdlMessageFlushToCore::result(class mdlClass *mdl) { mdl->MessageFlushToCore(this); }
 
 // The "action" is to pass along the message to the MPI thread
 void mdlMessageSTOP::action(class mpiClass *mpi)        { mpi->MessageSTOP(this); }
-void mdlMessageBarrierMPI::action(class mpiClass *mpi)  { mpi->MessageBarrierMPI(this); }
 void mdlMessageFlushFromCore::action(class mpiClass *mpi) { mpi->MessageFlushFromCore(this); }
-void mdlMessageFlushToRank::action(class mpiClass *mpi) { mpi->MessageFlushToRank(this); }
-void mdlMessageCacheReply::action(class mpiClass *mpi)  { mpi->MessageCacheReply(this); }
-void mdlMessageCacheReceive::action(class mpiClass *mpi) { mpi->MessageCacheReceive(this); }
 void mdlMessageCacheOpen::action(class mpiClass *mpi)   { mpi->MessageCacheOpen(this); }
 void mdlMessageCacheClose::action(class mpiClass *mpi)  { mpi->MessageCacheClose(this); }
 void mdlMessageCacheFlushOut::action(class mpiClass *mpi)  { mpi->MessageCacheFlushOut(this); }
@@ -79,28 +66,6 @@ void mdlMessageDFT_C2R::action(class mpiClass *mpi)     { mpi->MessageDFT_C2R(th
 void mdlMessageFFT_Sizes::action(class mpiClass *mpi)   { mpi->MessageFFT_Sizes(this); }
 void mdlMessageFFT_Plans::action(class mpiClass *mpi)   { mpi->MessageFFT_Plans(this); }
 #endif
-void mdlMessageAlltoallv::action(class mpiClass *mpi)   { mpi->MessageAlltoallv(this); }
-void mdlMessageSend::action(class mpiClass *mpi)        { mpi->MessageSend(this); }
-void mdlMessageReceive::action(class mpiClass *mpi)     { mpi->MessageReceive(this); }
-void mdlMessageReceiveReply::action(class mpiClass *mpi) { mpi->MessageReceiveReply(this); }
-void mdlMessageSendRequest::action(class mpiClass *mpi) { mpi->MessageSendRequest(this); }
-void mdlMessageSendReply::action(class mpiClass *mpi)   { mpi->MessageSendReply(this); }
-void mdlMessageCacheRequest::action(class mpiClass *mpi) { mpi->MessageCacheRequest(this); }
-
-// For MPI messages, what to do when the request completes
-void mdlMessageReceiveReply::finish(class mpiClass *mpi, int bytes, int source, int cancelled) {
-    count = bytes - sizeof(header);
-    mpi->FinishReceiveReply(this);
-}
-void mdlMessageFlushToRank::finish(class mpiClass *mpi, int bytes, int source, int cancelled) {
-    mpi->FinishFlushToRank(this);
-}
-void mdlMessageCacheReply::finish(class mpiClass *mpi, int bytes, int source, int cancelled) {
-    mpi->FinishCacheReply(this);
-}
-void mdlMessageCacheReceive::finish(class mpiClass *mpi, int bytes, int source, int cancelled) {
-    mpi->FinishCacheReceive(this,bytes,source,cancelled);
-}
 
 // Constructors
 mdlMessageGridShare::mdlMessageGridShare(MDLGRID grid) : grid(grid) {}
@@ -114,82 +79,5 @@ mdlMessageFFT_Sizes::mdlMessageFFT_Sizes(int n1, int n2, int n3)
 mdlMessageFFT_Plans::mdlMessageFFT_Plans(int n1, int n2, int n3,FFTW3(real) *data,FFTW3(complex) *kdata)
     : mdlMessageFFT_Sizes(n1,n2,n3), data(data), kdata(kdata) {}
 #endif
-mdlMessageAlltoallv::mdlMessageAlltoallv(int dataSize,void *sbuff,int *scount,int *sdisps,void *rbuff,int *rcount,int *rdisps)
-    : dataSize(dataSize), sbuff(sbuff), rbuff(rbuff), scount(scount), sdisps(sdisps), rcount(rcount), rdisps(rdisps) {}
-mdlMessageBufferedMPI::mdlMessageBufferedMPI(void *buf, int count, int target, int tag)
-    : buf(buf), count(count), target(target), tag(tag) {}
-mdlMessageSend::mdlMessageSend(void *buf,int32_t count, int source, int tag)
-    : mdlMessageBufferedMPI(buf,count,source,tag) {}
-mdlMessageReceive::mdlMessageReceive(void *buf,int32_t count, int source, int tag, int iCoreFrom)
-    : mdlMessageBufferedMPI(buf,count,source,tag), iCoreFrom(iCoreFrom) {}
-mdlMessageReceiveReply::mdlMessageReceiveReply(void *buf,int32_t count, int rID, int iCoreFrom)
-    : mdlMessageReceive(buf,count+sizeof(header),rID,MDL_TAG_RPL,iCoreFrom) {}
-
-mdlMessageSendRequest::mdlMessageSendRequest(int32_t idFrom,int16_t sid,int target,void *buf,int32_t count)
-    : mdlMessageBufferedMPI(buf,count,target,MDL_TAG_REQ) {
-    header.idFrom = idFrom;
-    header.replyTag = -1;
-    header.sid = sid;
-    header.nInBytes=count;
-    header.nOutBytes = 0;
-}
-
-mdlMessageReceiveRequest::mdlMessageReceiveRequest(int32_t count) : Buffer(count) {}
-
-// mdlMessageSendReply::mdlMessageSendReply(int32_t idFrom,int16_t replyTag,int16_t sid,int target,void *buf,int32_t count)
-//     : mdlMessageBufferedMPI(buf,count,target,MDL_TAG_RPL) {
-mdlMessageSendReply::mdlMessageSendReply(int32_t count) : Buffer(count) {}
-
-mdlMessageSendReply &mdlMessageSendReply::makeReply(int32_t idFrom,int16_t replyTag,int16_t sid,int target,int32_t count) {
-    iThreadTo = target;
-    header.idFrom = idFrom;
-    header.replyTag = replyTag;
-    header.sid = sid;
-    header.nInBytes=count;
-    header.nOutBytes = 0;
-    return *this;
-}
-
-mdlMessageCacheRequest::mdlMessageCacheRequest(uint8_t cid, int32_t idFrom)
-    : mdlMessageBufferedMPI(&header,sizeof(header),0,MDL_TAG_CACHECOM) {
-    header.cid   = cid;
-    header.mid   = CacheMessageType::REQUEST;
-    header.nItems= 0;
-    header.idFrom= idFrom;
-    header.idTo  = 0;
-    header.iLine = 0;
-}
-
-mdlMessageCacheRequest::mdlMessageCacheRequest(uint8_t cid, int32_t idFrom, uint16_t nItems, int32_t idTo, int32_t iLine, void *pLine)
-    : mdlMessageBufferedMPI(&header,sizeof(header),idTo,MDL_TAG_CACHECOM), pLine(pLine) {
-    header.cid   = cid;
-    header.mid   = CacheMessageType::REQUEST;
-    header.nItems= nItems;
-    header.idFrom= idFrom;
-    header.idTo  =  idTo;
-    header.iLine = iLine;
-}
-
-mdlMessageCacheRequest &mdlMessageCacheRequest::makeCacheRequest(uint16_t nItems, int32_t idTo, int32_t iLine, uint32_t size, const void *pKey, void *pLine) {
-    static_assert(offsetof(mdlCacheRequestData, header) + sizeof(header) == offsetof(mdlCacheRequestData, key),
-                  "The header and key are not adjacent in memory. This shouldn't happen.");
-    header.nItems= nItems;
-    header.idTo  =  idTo;
-    header.iLine = iLine;
-    this->pLine = pLine;
-    key_size = size;
-    if (size) {
-        assert(size <= sizeof(key));
-        if (size <= sizeof(key)) memcpy(key,pKey,size);
-        else abort();
-    }
-    return * this;
-}
-
-// Normally, when an MPI request finishes, we send it back to the requesting thread. The process is
-// different for cache requests. We do nothing because the result is actually sent back, not the request.
-// You would think that the "request" MPI send would complete before the response message is received,
-// but this is NOT ALWAYS THE CASE. Care must be take if new/delete is used on this type of message.
-void mdlMessageCacheRequest::finish(class mpiClass *mdl, int bytes, int source, int cancelled) {}
 
 } // namespace mdl
