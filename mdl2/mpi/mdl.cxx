@@ -557,6 +557,7 @@ void mpiClass::MessageCacheRequest(mdlMessageCacheRequest *message) {
     CacheRequestMessages[iCoreFrom] = message;
     assert(message->pLine);
     int iProc = ThreadToProc(message->header.idTo);
+    assert(iProc!=Proc());
     MPI_Isend(&message->header,sizeof(message->header)+message->key_size,MPI_BYTE,iProc,MDL_TAG_CACHECOM, commMDL,newRequest(message));
 #ifdef DEBUG_COUNT_CACHE
     ++countCacheSend[iProc];
@@ -580,6 +581,7 @@ void mpiClass::CacheReceiveRequest(int count, const CacheHeader *ph) {
     reply->setRankTo(iRankFrom);
     reply->addBuffer(ph->cid,Self(),ph->idFrom,ph->iLine);
     auto c = pmdl[iCore]->cache[ph->cid].get();
+    assert(c->isActive());
     auto pack_size = c->cache_helper->pack_size();
     assert(pack_size <= MDL_CACHE_DATA_SIZE);
     if (key_size) { // ADVANCED KEY
@@ -603,10 +605,12 @@ void mpiClass::CacheReceiveRequest(int count, const CacheHeader *ph) {
 // The reply message is sent back to the origin node, and added to the MPI request tracker.
 // This is the "action" routine.
 void mpiClass::MessageCacheReply(mdlMessageCacheReply *pFlush) {
+    auto iProc = pFlush->getRankTo();
 #ifdef DEBUG_COUNT_CACHE
-    ++countCacheSend[pFlush->getRankTo()];
+    ++countCacheSend[iProc];
 #endif
-    MPI_Issend(pFlush->getBuffer(),pFlush->getCount(),MPI_BYTE,pFlush->getRankTo(),
+    assert(iProc!=Proc());
+    MPI_Issend(pFlush->getBuffer(),pFlush->getCount(),MPI_BYTE,iProc,
                MDL_TAG_CACHECOM,commMDL,newRequest(pFlush));
 }
 
@@ -621,6 +625,7 @@ void mpiClass::CacheReceiveReply(int count, const CacheHeader *ph) {
     int iCore = ph->idTo - Self();
     assert(iCore>=0 && iCore<Cores());
     auto c = pmdl[iCore]->cache[ph->cid].get();
+    assert(c->isActive());
     auto pack_size = c->cache_helper->pack_size();
     assert(pack_size <= MDL_CACHE_DATA_SIZE);
     int iLineSize = c->getLineElementCount() * pack_size;
@@ -793,11 +798,20 @@ void mpiClass::flush_element(CacheHeader *pHdr,int iSize) {
 // Called to flush a buffer full of cache data to a particular rank
 void mpiClass::MessageFlushToRank(mdlMessageFlushToRank *pFlush) {
     if (pFlush->getCount()>0) {
+        auto iProc = pFlush->getRankTo();
+        if (iProc==Proc()) {
+            CacheHeader *ph = reinterpret_cast<CacheHeader *>(pFlush->getBuffer());
+            CacheReceiveFlush(pFlush->getCount(),ph);
+            FinishFlushToRank(pFlush);
+        }
+        else {
 #ifdef DEBUG_COUNT_CACHE
-        ++countCacheSend[pFlush->getRankTo()];
+            ++countCacheSend[iProc];
 #endif
-        MPI_Issend(pFlush->getBuffer(),pFlush->getCount(),MPI_BYTE,pFlush->getRankTo(),
-                   MDL_TAG_CACHECOM,commMDL,newRequest(pFlush));
+            assert(iProc!=Proc());
+            MPI_Issend(pFlush->getBuffer(),pFlush->getCount(),MPI_BYTE,iProc,
+                       MDL_TAG_CACHECOM,commMDL,newRequest(pFlush));
+        }
     }
     else FinishFlushToRank(pFlush);
 }
@@ -816,6 +830,7 @@ void mpiClass::CacheReceiveFlush(int count, CacheHeader *ph) {
         char *pszRcv = (char *)(ph+1);
         int iCore = ph->idTo - Self();
         auto c = pmdl[iCore]->cache[ph->cid].get();
+        assert(c->isActive());
         assert(c->modify());
         auto key_size = c->key_size();
         auto iLineSize = c->getLineElementCount() * c->cache_helper->flush_size();
