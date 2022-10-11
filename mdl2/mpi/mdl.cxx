@@ -287,13 +287,26 @@ CACHE *mdlClass::AdvancedCacheInitialize(int cid,hash::GHASH *hash,int iDataSize
 // and creates a MPI_Request on the SendReceiveRequests list.
 // This is returned and used by an MPI route (e.g., MPI_Isend).
 // When complete message->finish() will be called (see finishRequests).
-MPI_Request *mpiClass::newRequest(mdlMessageMPI *message) {
+MPI_Request *mpiClass::newRequest(mdlMessageMPI *message,MPI_Request request) {
 #ifndef NDEBUG
     ++nRequestsCreated;
 #endif
-    SendReceiveRequests.emplace_back();
-    SendReceiveMessages.push_back(message);
-    return &SendReceiveRequests.back();
+    if (SendReceiveAvailable.size()) {
+        auto i = SendReceiveAvailable.back();
+        SendReceiveAvailable.pop_back();
+        assert(SendReceiveMessages[i]==nullptr);
+        assert(SendReceiveRequests[i]==MPI_REQUEST_NULL);
+        assert(i<SendReceiveMessages.size());
+        assert(i<SendReceiveRequests.size());
+        SendReceiveMessages[i] = message;
+        SendReceiveRequests[i] = request;
+        return &SendReceiveRequests[i];
+    }
+    else {
+        SendReceiveMessages.push_back(message);
+        SendReceiveRequests.push_back(request);
+        return &SendReceiveRequests.back();
+    }
 }
 
 // Open the cache by posting the receive if required
@@ -321,14 +334,14 @@ void mpiClass::MessageCacheReceive(mdlMessageCacheReceive *message) {
 
 // Called when the receive finishes. Decode the type of message and process it,
 // then restart the receive.
-mdlMessageMPI *mpiClass::FinishCacheReceive(mdlMessageCacheReceive *message, MPI_Request &request, MPI_Status status) {
+void mpiClass::FinishCacheReceive(mdlMessageCacheReceive *message, MPI_Request request, MPI_Status status) {
     int bytes, source, cancelled;
     assert(message);
     MPI_Test_cancelled(&status,&cancelled);
     if (cancelled) {
         MPI_Request_free(&request);
         assert(request==MPI_REQUEST_NULL);
-        return nullptr;
+        return;
     }
     MPI_Get_count(&status, MPI_BYTE, &bytes);
     source = status.MPI_SOURCE;
@@ -350,8 +363,7 @@ mdlMessageMPI *mpiClass::FinishCacheReceive(mdlMessageCacheReceive *message, MPI
     default:
         assert(0);
     }
-    MPI_Start(&request);
-    return message;
+    MPI_Start(newRequest(message,request));
 }
 
 /*
@@ -1389,6 +1401,8 @@ void mpiClass::finishRequests() {
     int nDone = 1; // Prime the loop; we keep trying as long as we get work
     // If there are MPI send/recieve message pending then check if they are complete
     while (!SendReceiveRequests.empty() && nDone) {
+        // Here we keep track of entries that we can reuse in newRequest()
+        assert(SendReceiveAvailable.size()==0);
         // Should be sufficent, but resize if necessary
         if (SendReceiveIndices.size() < SendReceiveRequests.size())  SendReceiveIndices.resize(SendReceiveRequests.size());
         if (SendReceiveStatuses.size() < SendReceiveRequests.size()) SendReceiveStatuses.resize(SendReceiveRequests.size());
@@ -1400,24 +1414,37 @@ void mpiClass::finishRequests() {
 #ifndef NDEBUG
             nRequestsReaped += nDone;
 #endif
-            bool bCull = false;
             assert(SendReceiveMessages.size() == SendReceiveRequests.size()); // basic sanity
             for (int i=0; i<nDone; ++i) {
                 unsigned indx = SendReceiveIndices[i];
                 assert(indx < SendReceiveMessages.size());
-                mdlMessageMPI *M = SendReceiveMessages[indx];
-                MPI_Request r = SendReceiveRequests[indx];
-                SendReceiveMessages[indx] = M->finish(this,r,SendReceiveStatuses[i]); // Finish request (which could create/add more requests)
-                SendReceiveRequests[indx] = r;
-                assert( (SendReceiveMessages[indx]==nullptr && SendReceiveRequests[indx]==MPI_REQUEST_NULL)
-                        ||  (SendReceiveMessages[indx]!=nullptr && SendReceiveRequests[indx]!=MPI_REQUEST_NULL));
-                if (!SendReceiveMessages[indx]) bCull = true;
+                mdlMessageMPI *message = SendReceiveMessages[indx];
+                MPI_Request request = SendReceiveRequests[indx];
+                // If request is not MPI_REQUEST_NULL then it means that we have a persistent communication channel.
+                // It is the job of the "finish" routine to start or cancel the request and add it back with newRequest().
+                // Elements marked as "NULL" can now be reused in newRequest() so we add them to SendReceiveAvailable
+                SendReceiveAvailable.push_back(indx);
+                SendReceiveMessages[indx] = nullptr;
+                SendReceiveRequests[indx] = MPI_REQUEST_NULL;
+                message->finish(this,request,SendReceiveStatuses[i]); // Finish request (which could create/add more requests)
             }
             // Now remove the "marked" elements. The "finish" routines above could have added new entries at the end (but that is valid).
-            if (bCull) {
-                SendReceiveMessages.erase(std::remove(SendReceiveMessages.begin(), SendReceiveMessages.end(), (mdlMessageMPI *)0), SendReceiveMessages.end());
-                SendReceiveRequests.erase(std::remove(SendReceiveRequests.begin(), SendReceiveRequests.end(), MPI_REQUEST_NULL),  SendReceiveRequests.end());
-                assert(SendReceiveMessages.size() == SendReceiveRequests.size()); // Should have removed the same number from each list
+            // By design the list of marked elements is in SendReceiveAvailable, and are in ascending order. We can remove them efficiently with:
+            if (SendReceiveAvailable.size()) {
+                SendReceiveAvailable.push_back(SendReceiveMessages.size());
+                auto d = SendReceiveAvailable[0];
+                for (int i=1; i<SendReceiveAvailable.size(); ++i) {
+                    auto s = SendReceiveAvailable[i-1] + 1;
+                    auto e = SendReceiveAvailable[i];
+                    while (s<e) {
+                        SendReceiveMessages[d] = SendReceiveMessages[s];
+                        SendReceiveRequests[d] = SendReceiveRequests[s];
+                        s++; d++;
+                    }
+                }
+                SendReceiveMessages.erase(SendReceiveMessages.begin()+d,SendReceiveMessages.end());
+                SendReceiveRequests.erase(SendReceiveRequests.begin()+d,SendReceiveRequests.end());
+                SendReceiveAvailable.clear();
             }
         }
     }

@@ -10,7 +10,7 @@ protected:
     friend class mpiClass;
 public:
     virtual void action(class mpiClass *mpi) override = 0;
-    virtual mdlMessageMPI *finish(class mpiClass *mpi, MPI_Request &request, MPI_Status status);
+    virtual void finish(class mpiClass *mpi, MPI_Request request, MPI_Status status);
 };
 
 // Used to hold a sequence of cache lines to send from the MPI thread to cores
@@ -20,7 +20,7 @@ protected:
     friend class mpiClass;
 public:
     virtual void action(class mpiClass *mpi) override;
-    virtual mdlMessageMPI *finish(class mpiClass *mpi, MPI_Request &request, MPI_Status status) override;
+    virtual void finish(class mpiClass *mpi, MPI_Request request, MPI_Status status) override;
 };
 
 // Send a small reply message with a single cache line
@@ -31,7 +31,7 @@ protected:
 public:
     mdlMessageCacheReply(uint32_t nSize) : FlushBuffer(nSize,CacheMessageType::REPLY) {}
     virtual void action(class mpiClass *mpi) override;
-    virtual mdlMessageMPI *finish(class mpiClass *mpi, MPI_Request &request, MPI_Status status) override;
+    virtual void finish(class mpiClass *mpi, MPI_Request request, MPI_Status status) override;
 };
 
 class mdlMessageCacheReceive : public mdlMessageMPI, public FlushBuffer {
@@ -41,7 +41,7 @@ protected:
 public:
     mdlMessageCacheReceive(uint32_t nSize) : FlushBuffer(nSize,CacheMessageType::UNKNOWN) {}
     virtual void action(class mpiClass *mpi) override;
-    virtual mdlMessageMPI *finish(class mpiClass *mpi, MPI_Request &request, MPI_Status status) override;
+    virtual void finish(class mpiClass *mpi, MPI_Request request, MPI_Status status) override;
 };
 
 class mdlMessageAlltoallv : public mdlMessageMPI {
@@ -71,7 +71,7 @@ protected:
     int tag;
 public:
     virtual void action(class mpiClass *mpi) override = 0;
-    virtual mdlMessageMPI *finish(class mpiClass *mpi, MPI_Request &request, MPI_Status status) override;
+    virtual void finish(class mpiClass *mpi, MPI_Request request, MPI_Status status) override;
     explicit mdlMessageBufferedMPI(void *buf, int count, int target, int tag);
     int getCount() {return count;}
 };
@@ -102,7 +102,7 @@ protected:
     ServiceHeader header;
 public:
     virtual void action(class mpiClass *mpi) override;
-    virtual mdlMessageMPI *finish(class mpiClass *mpi, MPI_Request &request, MPI_Status status) override;
+    virtual void finish(class mpiClass *mpi, MPI_Request request, MPI_Status status) override;
     explicit mdlMessageReceiveReply(void *buf,int32_t count, int rID, int iCoreFrom);
 };
 
@@ -154,7 +154,7 @@ protected:
     uint32_t key_size = 0;
 public:
     virtual void action(class mpiClass *mpi) override;
-    virtual mdlMessageMPI *finish(class mpiClass *mpi, MPI_Request &request, MPI_Status status) override;
+    virtual void finish(class mpiClass *mpi, MPI_Request request, MPI_Status status) override;
     explicit mdlMessageCacheRequest(uint8_t cid, int32_t idFrom);
     explicit mdlMessageCacheRequest(uint8_t cid, int32_t idFrom, uint16_t nItems, int32_t idTo, int32_t iLine, void *pLine);
     mdlMessageCacheRequest &makeCacheRequest(uint16_t nItems, int32_t idTo, int32_t iLine, uint32_t size, const void *pKey, void *pLine);

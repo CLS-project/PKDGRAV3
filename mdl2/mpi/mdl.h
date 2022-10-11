@@ -381,12 +381,13 @@ protected:
     int iReplyBufSize;  /* Cache reply buffer size */
     std::vector<MPI_Request>    SendReceiveRequests;
     std::vector<MPI_Status>     SendReceiveStatuses;
+    std::vector<int>            SendReceiveAvailable;
     std::vector<int>            SendReceiveIndices;
     std::vector<mdlMessageMPI *> SendReceiveMessages;
 #ifndef NDEBUG
     uint64_t nRequestsCreated, nRequestsReaped;
 #endif
-    MPI_Request *newRequest(mdlMessageMPI *message);
+    MPI_Request *newRequest(mdlMessageMPI *message,MPI_Request request=MPI_REQUEST_NULL);
 
     std::unique_ptr<mdlMessageCacheReceive> msgCacheReceive;
 #ifdef DEBUG_COUNT_CACHE
@@ -420,7 +421,7 @@ protected:
     void FinishCacheReply(mdlMessageCacheReply *message);
     friend class mdlMessageCacheReceive;
     void MessageCacheReceive(mdlMessageCacheReceive *message);
-    mdlMessageMPI *FinishCacheReceive(mdlMessageCacheReceive *message, MPI_Request &request, MPI_Status status);
+    void FinishCacheReceive(mdlMessageCacheReceive *message, MPI_Request request, MPI_Status status);
     void CacheReceiveRequest(int count, const CacheHeader *ph);
     void CacheReceiveReply(int count, const CacheHeader *ph);
     void CacheReceiveFlush(int count, CacheHeader *ph);
