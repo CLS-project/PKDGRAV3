@@ -356,14 +356,24 @@ void mpiClass::FinishCacheReceive(mdlMessageCacheReceive *message, MPI_Request r
     int iCore = ph->idTo - Self();
     assert(iCore>=0 && iCore<Cores());
 
-    switch (ph->mid) {
-    case CacheMessageType::REQUEST: CacheReceiveRequest(bytes,ph); break;
-    case CacheMessageType::FLUSH:   CacheReceiveFlush(bytes,ph);  break;
-    case CacheMessageType::REPLY:   CacheReceiveReply(bytes,ph);  break;
-    default:
-        assert(0);
-    }
+    CacheReceive(bytes,ph);
     MPI_Start(newRequest(message,request));
+}
+
+void mpiClass::CacheReceive(int bytes, CacheHeader *ph) {
+    while (bytes) {
+        int consumed;
+        switch (ph->mid) {
+        case CacheMessageType::REQUEST: consumed = CacheReceiveRequest(bytes,ph); break;
+        case CacheMessageType::FLUSH:   consumed = CacheReceiveFlush(bytes,ph);  break;
+        case CacheMessageType::REPLY:   consumed = CacheReceiveReply(bytes,ph);  break;
+        default:
+            assert(0);
+        }
+        assert(consumed <= bytes);
+        bytes -= consumed;
+        ph = reinterpret_cast<CacheHeader *>(reinterpret_cast<char *>(ph)+consumed);
+    }
 }
 
 /*
@@ -581,28 +591,30 @@ void mpiClass::MessageCacheRequest(mdlMessageCacheRequest *message) {
 // pulled directly from thread's cache. This is read-only, so is safe. It is forbidden in MDL
 // to remotely "read" part of an element that is also being modified. Results are "unpredictable".
 // Instead, one is expected to initialize such data via the "init" function.
-void mpiClass::CacheReceiveRequest(int count, const CacheHeader *ph) {
+int mpiClass::CacheReceiveRequest(int count, CacheHeader *ph) {
     assert( count >= sizeof(CacheHeader) );
-    auto key_size = count - sizeof(CacheHeader);
+    assert( ph->mid == CacheMessageType::REQUEST );
     int iCore = ph->idTo - Self();
     assert(iCore>=0 && iCore<Cores());
+    auto c = pmdl[iCore]->cache[ph->cid].get();
+    assert(c->isActive());
+    auto key_size = c->key_size();
     int iRankFrom = ThreadToProc(ph->idFrom); /* Can use iRankFrom */
     mdlMessageCacheReply *reply;
     if (freeCacheReplies.empty()) reply = new mdlMessageCacheReply(iReplyBufSize);
     else { reply=freeCacheReplies.front(); freeCacheReplies.pop_front(); }
     reply->emptyBuffer();
     reply->setRankTo(iRankFrom);
-    reply->addBuffer(ph->cid,Self(),ph->idFrom,ph->iLine);
-    auto c = pmdl[iCore]->cache[ph->cid].get();
-    assert(c->isActive());
     auto pack_size = c->cache_helper->pack_size();
     assert(pack_size <= MDL_CACHE_DATA_SIZE);
     if (key_size) { // ADVANCED KEY
         assert(c->hash_table);
         const void *data = c->hash_table->lookup(ph->iLine,ph+1);
+        reply->addBuffer(ph->cid,Self(),ph->idFrom,ph->iLine,data?1:0);
         if (data) c->cache_helper->pack(reply->getBuffer(pack_size),data);
     }
     else { // SIMPLE KEY
+        reply->addBuffer(ph->cid,Self(),ph->idFrom,ph->iLine);
         int s = ph->iLine << c->nLineBits;
         int n = s + c->getLineElementCount();
         for (auto i=s; i<n; i++ ) {
@@ -613,6 +625,7 @@ void mpiClass::CacheReceiveRequest(int count, const CacheHeader *ph) {
         }
     }
     reply->action(this); // MessageCacheReply()
+    return sizeof(CacheHeader) + key_size;
 }
 
 // The reply message is sent back to the origin node, and added to the MPI request tracker.
@@ -634,7 +647,9 @@ void mpiClass::FinishCacheReply(mdlMessageCacheReply *pFlush) {
 
 // On the requesting node, the data is copied back to the request, and the message
 // is queued back to the requesting thread. It will continue with the result.
-void mpiClass::CacheReceiveReply(int count, const CacheHeader *ph) {
+int mpiClass::CacheReceiveReply(int count, CacheHeader *ph) {
+    assert( count >= sizeof(CacheHeader) );
+    assert( ph->mid == CacheMessageType::REPLY );
     int iCore = ph->idTo - Self();
     assert(iCore>=0 && iCore<Cores());
     auto c = pmdl[iCore]->cache[ph->cid].get();
@@ -647,13 +662,11 @@ void mpiClass::CacheReceiveReply(int count, const CacheHeader *ph) {
         mdlMessageCacheRequest *pRequest = CacheRequestMessages[iCore];
         CacheRequestMessages[iCore] = NULL;
         assert(pRequest->pLine);
-        if (count == sizeof(CacheHeader) + iLineSize) {
-            pRequest->header.nItems = ph->nItems;
-            memcpy(pRequest->pLine,ph+1,iLineSize);
-        }
-        else pRequest->header.nItems = 0;
+        pRequest->header.nItems = ph->nItems;
+        memcpy(pRequest->pLine,ph+1,ph->nItems*iLineSize);
         pRequest->sendBack();
     }
+    return sizeof(CacheHeader) + ph->nItems * iLineSize;
 }
 
 // Later when we have found an empty cache element, this is called to wait for the result
@@ -814,7 +827,7 @@ void mpiClass::MessageFlushToRank(mdlMessageFlushToRank *pFlush) {
         auto iProc = pFlush->getRankTo();
         if (iProc==Proc()) {
             CacheHeader *ph = reinterpret_cast<CacheHeader *>(pFlush->getBuffer());
-            CacheReceiveFlush(pFlush->getCount(),ph);
+            CacheReceive(pFlush->getCount(),ph);
             FinishFlushToRank(pFlush);
         }
         else {
@@ -836,34 +849,31 @@ void mpiClass::FinishFlushToRank(mdlMessageFlushToRank *pFlush) {
 
 // Here we receive the flush buffer from a remote node. We have to split it
 // apart by target thread by calling queue_local_flush() for each element.
-void mpiClass::CacheReceiveFlush(int count, CacheHeader *ph) {
+int mpiClass::CacheReceiveFlush(int count, CacheHeader *ph) {
+    assert( count >= sizeof(CacheHeader) );
+    assert( ph->mid == CacheMessageType::FLUSH );
     bookkeeping();
-    while (count>0) {
-        assert(count > sizeof(CacheHeader));
-        char *pszRcv = (char *)(ph+1);
-        int iCore = ph->idTo - Self();
-        auto c = pmdl[iCore]->cache[ph->cid].get();
-        assert(c->isActive());
-        assert(c->modify());
-        auto key_size = c->key_size();
-        auto iLineSize = c->getLineElementCount() * c->cache_helper->flush_size();
-        if (key_size==0) {
-            assert(c->iLineSize==iLineSize);
-            int iIndex = ph->iLine << c->nLineBits;
-            while (iIndex >= c->nData) {
-                iIndex -= c->nData;
-                assert(iCore+1<Cores());
-                c = pmdl[++iCore]->cache[ph->cid].get();
-            }
-            ph->iLine = iIndex >> c->nLineBits;
+    int iCore = ph->idTo - Self();
+    auto c = pmdl[iCore]->cache[ph->cid].get();
+    assert(c->isActive());
+    assert(c->modify());
+    auto key_size = c->key_size();
+    auto iLineSize = c->getLineElementCount() * c->cache_helper->flush_size();
+    if (key_size==0) {
+        assert(c->iLineSize==iLineSize);
+        // For some operations (e.g., grid assignment), we use core 0 and an index into the process.
+        // Here we convert this to the correct index and core, updating iLine and iCore
+        int iIndex = ph->iLine << c->nLineBits;
+        while (iIndex >= c->nData) {
+            iIndex -= c->nData;
+            assert(iCore+1<Cores());
+            c = pmdl[++iCore]->cache[ph->cid].get();
         }
-        ph->idTo = iCore;
-        queue_local_flush(ph);
-        pszRcv += iLineSize + key_size;
-        ph = (CacheHeader *)(pszRcv);
-        count -= sizeof(CacheHeader) + iLineSize + key_size;
+        ph->iLine = iIndex >> c->nLineBits;
     }
-    assert(count==0);
+    ph->idTo = iCore;
+    queue_local_flush(ph);
+    return sizeof(CacheHeader) + iLineSize + key_size;
 }
 
 // Send a buffer to a local thread

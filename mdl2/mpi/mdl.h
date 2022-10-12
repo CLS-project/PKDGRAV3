@@ -422,9 +422,10 @@ protected:
     friend class mdlMessageCacheReceive;
     void MessageCacheReceive(mdlMessageCacheReceive *message);
     void FinishCacheReceive(mdlMessageCacheReceive *message, MPI_Request request, MPI_Status status);
-    void CacheReceiveRequest(int count, const CacheHeader *ph);
-    void CacheReceiveReply(int count, const CacheHeader *ph);
-    void CacheReceiveFlush(int count, CacheHeader *ph);
+    void CacheReceive(int bytes, CacheHeader *ph);
+    int CacheReceiveRequest(int count, CacheHeader *ph);
+    int CacheReceiveReply(int count, CacheHeader *ph);
+    int CacheReceiveFlush(int count, CacheHeader *ph);
     friend class mdlMessageCacheOpen;
     void MessageCacheOpen(mdlMessageCacheOpen *message);
     friend class mdlMessageCacheClose;
