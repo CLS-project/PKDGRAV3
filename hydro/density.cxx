@@ -279,15 +279,15 @@ void hydroDensity_node(PKD pkd, SMF *smf, BND bnd_node, PARTICLE **sinks, NN *nn
                     // have not yet fully converged due to, e.g., an anisotropic
                     // particle distribution
                     if (smf->dhMinOverSoft > 0.) {
-                        if (ph_new < smf->dhMinOverSoft*pkdSoft(pkd,partj)) {
+                        if (0.5*ph_new < smf->dhMinOverSoft*pkdSoft(pkd,partj)) {
                             if (!onLowerLimit) {
                                 // If in the next iteration still a lower smooth is
                                 // preferred, we will skip this particle
-                                pkdSetBall(pkd, partj, smf->dhMinOverSoft*pkdSoft(pkd,partj) );
+                                pkdSetBall(pkd, partj, 2.*smf->dhMinOverSoft*pkdSoft(pkd,partj) );
                                 onLowerLimit = 1;
                             }
                             else {
-                                pkdSetBall(pkd, partj, smf->dhMinOverSoft*pkdSoft(pkd,partj) );
+                                pkdSetBall(pkd, partj, 2.*smf->dhMinOverSoft*pkdSoft(pkd,partj) );
                                 densNodeNcondB(pkd, partj, E, *omega);
                                 pkdSetDensity(pkd, partj, pkdMass(pkd,partj)*(*omega));
                                 partj->bMarked = 0;

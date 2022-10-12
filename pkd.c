@@ -1880,7 +1880,7 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,BND *bnd,
                 float SFR=0.;
 #endif
 
-                fBall = pkdBall(pkd,p);
+                float ph = 0.5*pkdBall(pkd,p);
                 float otherData[3];
                 otherData[0] = SFR;
                 // We may have problem if the number of groups increses more than 2^24, but should be enough
@@ -1890,7 +1890,7 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,BND *bnd,
 #endif
 
                 fioWriteSph(fio,iParticleID,r,v,fMass,fSoft,*pPot,
-                            fDensity,pSph->Uint/fMass, &fMetals[0], fBall, temperature, &otherData[0]);
+                            fDensity,pSph->Uint/fMass, &fMetals[0], ph, temperature, &otherData[0]);
             }
         }
         break;
