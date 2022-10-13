@@ -7,10 +7,10 @@
 #include <vector>
 namespace mdl {
 enum class CacheMessageType : uint8_t {
-    UNKNOWN = 0,
-    REQUEST = 1,
-    REPLY = 2,
-    FLUSH = 3,
+    REQUEST = 0,
+    REPLY = 1,
+    FLUSH = 2,
+    UNKNOWN,
 };
 
 #define MDL_FLUSH_DATA_SIZE 32000
@@ -39,19 +39,22 @@ protected:
     uint32_t nBuffer;
     CacheMessageType mid;
     std::vector<char> Buffer;
+    uint32_t mContains; // Bitmask of which CacheMessageType are contained
 public:
     explicit FlushBuffer(uint32_t nSize=MDL_FLUSH_DATA_SIZE,CacheMessageType mid=CacheMessageType::FLUSH);
     char *getBuffer() {return &Buffer.front();}
     uint32_t getCount() {return nBuffer;}
     uint32_t getRankTo() {return iRankTo;}
     bool isEmpty() {return nBuffer==0;}
-    void emptyBuffer() {nBuffer=0;}
+    void emptyBuffer() {nBuffer=0; mContains=0;}
     void setRankTo(uint32_t iRank) { iRankTo=iRank; }
     bool canBuffer(int nSize) { return nBuffer+nSize+sizeof(ServiceHeader) <= Buffer.size(); }
     void *getBuffer(int nSize);
     bool addBuffer(int nSize, const void *pData);
     bool addBuffer(uint8_t cid, int32_t idFrom, int32_t idTo, int32_t iLine, int nItems=1, int nSize=0, const void *pData=0);
+    bool addBuffer(CacheMessageType mid,uint8_t cid, int32_t idFrom, int32_t idTo, int32_t iLine, int nItems=1, int nSize=0, const void *pData=0);
     bool addBuffer(int nSize, const CacheHeader *pData);
+    bool contains(CacheMessageType mid) {return (mContains & (1<<static_cast<int>(mid))) != 0; }
 };
 
 class mdlMessage : public basicMessage {

@@ -297,6 +297,7 @@ public:
                       int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *),
                       int argc=0, char **argv=0);
     virtual ~mdlClass();
+    void SetCacheMaxInflight(int iMax);
 
     CACHE *CacheInitialize(int cid,
                            void *(*getElt)(void *pData,int i,int iDataSize),
@@ -377,6 +378,12 @@ protected:
     int iRequestTarget;
     int nActiveCores;
     int nOpenCaches;
+    // By setting this to a positive value, it limits the number of cache messages inflight
+    // to each rank to the specified number. When enabled (not zero), all REQUEST and RESPONSE
+    // messages are added to the flush buffer. The flush buffer is sent when below this limit.
+    // To avoid deadlock, the flush buffer is sent if there is at least one REPLY message after
+    // processing a batch of incoming REQUEST/REPLY/FLUSH messages.
+    int iCacheMaxInflight = 1;
     int iCacheBufSize;  /* Cache input buffer size */
     int iReplyBufSize;  /* Cache reply buffer size */
     std::vector<MPI_Request>    SendReceiveRequests;
@@ -390,6 +397,7 @@ protected:
     MPI_Request *newRequest(mdlMessageMPI *message,MPI_Request request=MPI_REQUEST_NULL);
 
     std::unique_ptr<mdlMessageCacheReceive> msgCacheReceive;
+    std::vector<uint32_t> countCacheInflight;
 #ifdef DEBUG_COUNT_CACHE
     std::vector<uint64_t> countCacheSend, countCacheRecv;
 #endif
@@ -422,7 +430,7 @@ protected:
     friend class mdlMessageCacheReceive;
     void MessageCacheReceive(mdlMessageCacheReceive *message);
     void FinishCacheReceive(mdlMessageCacheReceive *message, MPI_Request request, MPI_Status status);
-    void CacheReceive(int bytes, CacheHeader *ph);
+    void CacheReceive(int bytes, CacheHeader *ph, int iProcFrom);
     int CacheReceiveRequest(int count, CacheHeader *ph);
     int CacheReceiveReply(int count, CacheHeader *ph);
     int CacheReceiveFlush(int count, CacheHeader *ph);
@@ -454,15 +462,18 @@ protected:
     void MessageReceive(mdlMessageReceive *message);
     friend class mdlMessageReceiveReply;
     void MessageReceiveReply(mdlMessageReceiveReply *message);
-    void FinishReceiveReply(mdlMessageReceiveReply *message);
+    void FinishReceiveReply(mdlMessageReceiveReply *message, MPI_Request request, MPI_Status status);
     friend class mdlMessageSendRequest;
     void MessageSendRequest(mdlMessageSendRequest *message);
     friend class mdlMessageSendReply;
     void MessageSendReply(mdlMessageSendReply *message);
     friend class mdlMessageCacheRequest;
     void MessageCacheRequest(mdlMessageCacheRequest *message);
+    void FinishCacheRequest(mdlMessageCacheRequest *message, MPI_Request request, MPI_Status status);
 
 protected:
+    void expedite_flush(int iProc);
+    mdlMessageFlushToRank *get_flush_buffer(int iProc,int iSize);
     void flush_element(CacheHeader *pHdr,int iLineSize);
     void queue_local_flush(CacheHeader *ph);
     virtual int checkMPI();
@@ -473,6 +484,7 @@ public:
     explicit mpiClass(int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *),
                       int argc=0, char **argv=0);
     virtual ~mpiClass();
+    void SetCacheMaxInflight(int iMax) {iCacheMaxInflight = iMax;}
     int Launch(int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *));
     void KillAll(int signo);
 #ifdef USE_CUDA

@@ -40,7 +40,10 @@ void mdlMessageReceiveReply::finish(class mpiClass *mpi, MPI_Request request, MP
     int bytes;
     MPI_Get_count(&status, MPI_BYTE, &bytes); // Relevant for Recv() only
     count = bytes - sizeof(header);
-    mpi->FinishReceiveReply(this);
+    mpi->FinishReceiveReply(this,request,status);
+}
+void mdlMessageCacheRequest::finish(class mpiClass *mpi, MPI_Request request, MPI_Status status) {
+    mpi->FinishCacheRequest(this,request,status);
 }
 
 // Constructors
@@ -111,11 +114,5 @@ mdlMessageCacheRequest &mdlMessageCacheRequest::makeCacheRequest(uint16_t nItems
     }
     return * this;
 }
-
-// Normally, when an MPI request finishes, we send it back to the requesting thread. The process is
-// different for cache requests. We do nothing because the result is actually sent back, not the request.
-// You would think that the "request" MPI send would complete before the response message is received,
-// but this is NOT ALWAYS THE CASE. Care must be take if new/delete is used on this type of message.
-void mdlMessageCacheRequest::finish(class mpiClass *mpi, MPI_Request request, MPI_Status status) {}
 
 } // namespace mdl

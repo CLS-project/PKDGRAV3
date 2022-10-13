@@ -8,7 +8,7 @@ mdlMessage::mdlMessage() : basicMessage() {}
 // Some messages don't need a result action, so this is the default
 void mdlMessage::result(class mdlClass *mdl) {}
 
-FlushBuffer::FlushBuffer(uint32_t nSize,CacheMessageType mid) : nBuffer(0),mid(mid),Buffer(nSize) {}
+FlushBuffer::FlushBuffer(uint32_t nSize,CacheMessageType mid) : nBuffer(0),mid(mid),Buffer(nSize),mContains(0) {}
 
 void *FlushBuffer::getBuffer(int nSize) {
     assert(nBuffer+nSize <= Buffer.size());
@@ -19,6 +19,7 @@ void *FlushBuffer::getBuffer(int nSize) {
 }
 
 bool FlushBuffer::addBuffer(int nSize, const void *pData) {
+    assert(nBuffer+nSize <= Buffer.size());
     if (nBuffer+nSize > Buffer.size()) return false;
     if (pData) memcpy(&Buffer[nBuffer],pData,nSize);
     else memset(&Buffer[nBuffer],0,nSize);
@@ -26,25 +27,33 @@ bool FlushBuffer::addBuffer(int nSize, const void *pData) {
     return true;
 }
 
-bool FlushBuffer::addBuffer(uint8_t cid, int32_t idFrom, int32_t idTo, int32_t iLine, int nItems, int nSize, const void *pData) {
+bool FlushBuffer::addBuffer(CacheMessageType mid,uint8_t cid, int32_t idFrom, int32_t idTo, int32_t iLine, int nItems, int nSize, const void *pData) {
+    assert(canBuffer(nSize + sizeof(CacheHeader)));
     if (!canBuffer(nSize + sizeof(CacheHeader))) return false;
     CacheHeader *ca = reinterpret_cast<CacheHeader *>(&Buffer.front() + nBuffer);
     char *pBuffer = reinterpret_cast<char *>(ca+1);
     ca->cid = cid;
-    ca->mid = mid;
+    ca->mid = mid; // From parameters, not class member
     ca->nItems = nItems;
     ca->idFrom = idFrom;
     ca->idTo = idTo;
     ca->iLine = iLine;
+    mContains |= 1 << static_cast<int>(ca->mid);
     if (nSize) memcpy(pBuffer,pData,nSize);
     nBuffer += nSize + sizeof(CacheHeader);
     return true;
 }
 
+bool FlushBuffer::addBuffer(uint8_t cid, int32_t idFrom, int32_t idTo, int32_t iLine, int nItems, int nSize, const void *pData) {
+    return addBuffer(mid,cid,idFrom,idTo,iLine,nItems,nSize,pData);
+}
+
+
 bool FlushBuffer::addBuffer(int nSize, const CacheHeader *pData) {
     if (!canBuffer(nSize)) return false;
     CacheHeader *ca = reinterpret_cast<CacheHeader *>(&Buffer.front() + nBuffer);
     memcpy(ca,pData,nSize+sizeof(CacheHeader));
+    mContains |= 1 << static_cast<int>(ca->mid);
     nBuffer += nSize + sizeof(CacheHeader);
     return true;
 }

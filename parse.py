@@ -328,6 +328,7 @@ def parse():
     add_bool(debugp,'vdetails', default=False,dest='bVDetails', help='enable verbose details')
     add_flag(debugp,'nd',default=5,dest='nDigits', type=int,help='number of digits to use in output filenames')
     add_flag(debugp,'cs',default=0, dest='iCacheSize',type=int, help='size of the MDL cache (0=default)')
+    add_flag(debugp,'flight',default=0, dest='iCacheMaxInflight',type=int, help='maximum number of inflight cache message to each rank (0=no limit)')
     add_flag(debugp,'wqs',default=0, dest='iWorkQueueSize',type=int, help='size of the MDL work queue')
     add_flag(debugp,'cqs',default=8, dest='iCUDAQueueSize',type=int, help='size of the CUDA work queue')
 
