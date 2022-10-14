@@ -33,9 +33,16 @@ struct CacheHeader {
     int32_t iLine;
 };
 
-class FlushBuffer {
+class BufferTarget {
 protected:
     uint32_t iRankTo;
+public:
+    uint32_t getRankTo() {return iRankTo;}
+    void setRankTo(uint32_t iRank) { iRankTo=iRank; }
+};
+
+class FlushBuffer {
+protected:
     uint32_t nBuffer;
     CacheMessageType mid;
     std::vector<char> Buffer;
@@ -44,10 +51,8 @@ public:
     explicit FlushBuffer(uint32_t nSize=MDL_FLUSH_DATA_SIZE,CacheMessageType mid=CacheMessageType::FLUSH);
     char *getBuffer() {return &Buffer.front();}
     uint32_t getCount() {return nBuffer;}
-    uint32_t getRankTo() {return iRankTo;}
     bool isEmpty() {return nBuffer==0;}
     void emptyBuffer() {nBuffer=0; mContains=0;}
-    void setRankTo(uint32_t iRank) { iRankTo=iRank; }
     bool canBuffer(int nSize) { return nBuffer+nSize+sizeof(ServiceHeader) <= Buffer.size(); }
     void *getBuffer(int nSize);
     bool addBuffer(int nSize, const void *pData);

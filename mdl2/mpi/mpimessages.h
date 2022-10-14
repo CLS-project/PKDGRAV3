@@ -14,7 +14,7 @@ public:
 };
 
 // Used to hold a sequence of cache lines to send from the MPI thread to cores
-class mdlMessageFlushToRank : public mdlMessageMPI, public FlushBuffer {
+class mdlMessageFlushToRank : public mdlMessageMPI, public FlushBuffer, public BufferTarget {
 protected:
     friend class mdlClass;
     friend class mpiClass;
@@ -24,7 +24,7 @@ public:
 };
 
 // Send a small reply message with a single cache line
-class mdlMessageCacheReply : public mdlMessageMPI, public FlushBuffer {
+class mdlMessageCacheReply : public mdlMessageMPI, public FlushBuffer, public BufferTarget {
 protected:
     friend class mdlClass;
     friend class mpiClass;
@@ -34,7 +34,7 @@ public:
     virtual void finish(class mpiClass *mpi, MPI_Request request, MPI_Status status) override;
 };
 
-class mdlMessageCacheReceive : public mdlMessageMPI, public FlushBuffer {
+class mdlMessageCacheReceive : public mdlMessageMPI, public FlushBuffer, public BufferTarget {
 protected:
     friend class mdlClass;
     friend class mpiClass;
@@ -146,7 +146,7 @@ struct mdlCacheRequestData {
     char key[MDL_MAX_KEY_SIZE]; // Optional advanced key
 };
 
-class mdlMessageCacheRequest : public mdlMessageBufferedMPI, protected mdlCacheRequestData {
+class mdlMessageCacheRequest : public mdlMessageBufferedMPI, protected mdlCacheRequestData, public BufferTarget {
 protected:
     friend class mdlClass;
     friend class mpiClass;

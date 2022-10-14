@@ -363,6 +363,7 @@ protected:
 
     mdlMessageQueue queueMPInew;     // Queue of work sent to MPI task
     std::vector<mdlMessageCacheRequest *> CacheRequestMessages;
+    std::vector<bool> CacheRequestRendezvous;
 
     // Used to buffer incoming flush requests before sending them to each core
     mdlMessageQueue localFlushBuffers;

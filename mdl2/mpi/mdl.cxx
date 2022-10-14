@@ -594,8 +594,10 @@ void mpiClass::MessageCacheRequest(mdlMessageCacheRequest *message) {
     int iCoreFrom = message->header.idFrom - Self();
     assert(CacheRequestMessages[iCoreFrom]==nullptr);
     CacheRequestMessages[iCoreFrom] = message;
+    CacheRequestRendezvous[iCoreFrom] = true; // The REQUEST and RESPONSE need to Rendezvous
     assert(message->pLine);
     int iProc = ThreadToProc(message->header.idTo);
+    message->setRankTo(iProc);
     assert(iProc!=Proc());
     if (iCacheMaxInflight) {
         // Cache requests are added to the cache flush buffer, but are expedited
@@ -614,10 +616,20 @@ void mpiClass::MessageCacheRequest(mdlMessageCacheRequest *message) {
 // Normally, when an MPI request finishes, we send it back to the requesting thread. The process is
 // different for cache requests. We do nothing because the result is actually sent back, not the request.
 // You would think that the "request" MPI send would complete before the response message is received,
-// but this is NOT ALWAYS THE CASE. Care must be take if new/delete is used on this type of message.
+// but this is NOT ALWAYS THE CASE. What we do is to rendezvous with the REPLY message. If this SEND completes
+// before the the REPLY message is received (actually before it is processed), then it will clear the
+// rendezvous flag. If the flag is clear here then we send back the request (with response data).
 void mpiClass::FinishCacheRequest(mdlMessageCacheRequest *message, MPI_Request request, MPI_Status status) {
-    int iProc = ThreadToProc(message->header.idTo);
+    int iProc = message->getRankTo();
+    assert(iProc!=Proc());
     --countCacheInflight[iProc];
+    int iCore = message->header.idFrom - Self();
+    assert(iCore>=0 && iCore<Cores());
+    if (CacheRequestRendezvous[iCore]) CacheRequestRendezvous[iCore] = false;
+    else {
+        CacheRequestMessages[iCore]->sendBack();
+        CacheRequestMessages[iCore] = NULL;
+    }
     expedite_flush(iProc);
 }
 
@@ -700,6 +712,8 @@ void mpiClass::FinishCacheReply(mdlMessageCacheReply *pFlush) {
 
 // On the requesting node, the data is copied back to the request, and the message
 // is queued back to the requesting thread. It will continue with the result.
+// If the REQUEST send for this data is not complete, then we do not send back the
+// result, rather we wait to rendezvous with the MPI_Isend completion.
 int mpiClass::CacheReceiveReply(int count, CacheHeader *ph) {
     assert( count >= sizeof(CacheHeader) );
     assert( ph->mid == CacheMessageType::REPLY );
@@ -713,11 +727,14 @@ int mpiClass::CacheReceiveReply(int count, CacheHeader *ph) {
     //assert( count == sizeof(CacheHeader) + iLineSize || count == sizeof(CacheHeader));
     if (CacheRequestMessages[iCore]) { // This better be true (unless we implement prefetch)
         mdlMessageCacheRequest *pRequest = CacheRequestMessages[iCore];
-        CacheRequestMessages[iCore] = NULL;
         assert(pRequest->pLine);
         pRequest->header.nItems = ph->nItems;
         memcpy(pRequest->pLine,ph+1,ph->nItems*iLineSize);
-        pRequest->sendBack();
+        if (CacheRequestRendezvous[iCore]) CacheRequestRendezvous[iCore] = false;
+        else {
+            CacheRequestMessages[iCore]->sendBack();
+            CacheRequestMessages[iCore] = NULL;
+        }
     }
     return sizeof(CacheHeader) + ph->nItems * iLineSize;
 }
@@ -1099,6 +1116,7 @@ void mpiClass::MessageCacheClose(mdlMessageCacheClose *message) {
     assert(nOpenCaches > 0);
     --nOpenCaches;
     if (nOpenCaches == 0) {
+        // Make sure that there are no cache message inflight at this point; that would potentially be bad.
         assert(std::all_of(countCacheInflight.begin(), countCacheInflight.end(), [](int i) { return i==0; }));
 #ifdef DEBUG_COUNT_CACHE
         std::vector<uint64_t> countRecvExpected(Procs());
@@ -1775,7 +1793,8 @@ int mpiClass::Launch(int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),vo
     SendReceiveMessages.reserve(Cores()*2);
     SendReceiveStatuses.resize(Cores()*2);
     SendReceiveIndices.resize(Cores()*2);
-    CacheRequestMessages.resize(Cores()); // Each core can have ONE request
+    CacheRequestMessages.resize(Cores(),nullptr); // Each core can have ONE request
+    CacheRequestRendezvous.resize(Cores(),false);
 #ifndef NDEBUG
     nRequestsCreated = nRequestsReaped = 0;
 #endif
