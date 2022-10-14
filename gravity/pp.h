@@ -334,21 +334,29 @@ PP_CUDA_BOTH ResultSPHForces<F> EvalSPHForces(
         result.dtEst = mask_mov(HUGE_VALF,mask1,result.dtEst);
         result.maxRung = maskz_mov(mask1,uRung);
 
-        // for (int index = 0; index<8;index++) {
-        // if (ax[index] != ax[index]) {
-        // printf("ax = %.15e ax = %.15e ax = %.15e\n",ax[index],ay[index],az[index]);
-        // printf("Pdx = %.15e Pdy = %.15e Pdz = %.15e\n",Pdx[index],Pdy[index],Pdz[index]);
-        // printf("PfBall = %.15e POmega = %.15e Prho = %.15e\n",PfBall[index],POmega[index],Prho[index]);
-        // printf("Pvx = %.15e Pvy = %.15e Pvy = %.15e\n",Pvx[index],Pvy[index],Pvz[index]);
-        // printf("PP = %.15e Pc = %.15e Pspecies = %d\n",PP[index],Pc[index],Pspecies[index]);
-        // printf("Idx = %.15e Idy = %.15e Idz = %.15e\n",Idx[index],Idy[index],Idz[index]);
-        // printf("Im = %.15e IfBall = %.15e IOmega = %.15e\n Irho = %.15e\n",Im[index],IfBall[index],IOmega[index],Irho[index]);
-        // printf("Ivx = %.15e Ivy = %.15e Ivz = %.15e\n",Ivx[index],Ivy[index],Ivz[index]);
-        // printf("IP = %.15e Ic = %.15e Ispecies = %d\n",IP[index],Ic[index],Ispecies[index]);
-        // printf("Im = %.15e PPoverRho2 = %.15e IPoverRho2 = %.15e Piij = %.15e dWdz = %.15e aFac = %.15e\n",Im[index],PPoverRho2[index], IPoverRho2[index], Piij[index], dWdz[index],aFac[index]);
-        // assert(0);
-        // }
-        // }
+        /*for (int index = 0; index < result.dtEst.width(); index++) {
+            if (!isfinite(result.ax[index]) || !isfinite(result.ay[index]) || !isfinite(result.az[index]) || !isfinite(result.uDot[index]) || (!isfinite(result.dtEst[index]) && result.dtEst[index] != HUGE_VALF) || result.dtEst[index] <= 0.0f) {
+                printf("An error occured in EvalSPHForces:\n\
+                ax = %.5e, ay = %.5e, az = %.5e, uDot = %.5e, dtEst = %.5e\n\
+                Pdx = %.5e, Pdy = %.5e, Pdz = %.5e, Pvx = %.5e, Pvy = %.5e, Pvz = %.5e\n\
+                PfBall = %.5e, POmega = %.5e, Prho = %.5e, PP = %.5e, Pc = %.5e\n\
+                Idx = %.5e, Idy = %.5e, Idz = %.5e, Ivx = %.5e, Ivy = %.5e, Ivz = %.5e\n\
+                IfBall = %.5e, IOmega = %.5e, Irho = %.5e, IP = %.5e, Ic = %.5e, Im = %.5e\n\
+                PPoverRho2 = %.5e, IPoverRho2 = %.5e, Piij = %.5e, muij = %.5e\n\
+                PdWdx = %.5e, PdWdy = %.5e, PdWdz = %.5e\n\
+                IdWdx = %.5e, IdWdy = %.5e, IdWdz = %.5e\n\
+                dWdx = %.5e, dWdy = %.5e, dWdz = %.5e\n\
+                ",result.ax[index],result.ay[index],result.az[index],result.uDot[index],result.dtEst[index],
+                       Pdx[index],Pdy[index],Pdz[index],Pvx[index],Pvy[index],Pvz[index],
+                       PfBall[index],POmega[index],Prho[index],PP[index],Pc[index],
+                       Idx[index],Idy[index],Idz[index],Ivx[index],Ivy[index],Ivz[index],
+                       IfBall[index],IOmega[index],Irho[index],IP[index],Ic[index],Im[index],
+                       PPoverRho2[index],IPoverRho2[index],Piij[index],muij[index],
+                       PdWdx[index],PdWdy[index],PdWdz[index],
+                       IdWdx[index],IdWdy[index],IdWdz[index],
+                       dWdx[index],dWdy[index],dWdz[index]);
+            }
+        }*/
     }
     else {
         result.zero();

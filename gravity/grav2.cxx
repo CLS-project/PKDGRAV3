@@ -175,10 +175,15 @@ void pkdParticleWorkDone(workParticle *wp) {
                 if (wp->SPHoptions->doDensity) {
                     pkdSetDensity(pkd,p,wp->pInfoOut[i].rho);
                     pkdSetBall(pkd,p,wp->pInfoOut[i].fBall);
-                    pNewSph->Omega = 1.0f + wp->pInfoOut[i].fBall/(3.0f * wp->pInfoOut[i].rho)*wp->pInfoOut[i].drhodfball;
+                    if (wp->pInfoIn[i].fBall < wp->SPHoptions->ballSizeLimit) {
+                        pNewSph->Omega = 1.0f + wp->pInfoOut[i].fBall/(3.0f * wp->pInfoOut[i].rho)*wp->pInfoOut[i].drhodfball;
+                    }
+                    else {
+                        pNewSph->Omega = 1.0f;
+                    }
                     if (wp->SPHoptions->doInterfaceCorrection) {
                         float imbalance = sqrtf(wp->pInfoOut[i].imbalanceX*wp->pInfoOut[i].imbalanceX + wp->pInfoOut[i].imbalanceY*wp->pInfoOut[i].imbalanceY + wp->pInfoOut[i].imbalanceZ*wp->pInfoOut[i].imbalanceZ) / (0.5f * wp->pInfoOut[i].fBall * wp->pInfoOut[i].rho);
-                        imbalance *= calculateInterfaceCorrectionPrefactor(wp->pInfoOut[i].nSmooth,wp->SPHoptions->kernelType);
+                        imbalance *= calculateInterfaceCorrectionPrefactor(wp->SPHoptions->fKernelTarget,wp->SPHoptions->kernelType);
                         pNewSph->expImb2 = expf(-imbalance*imbalance);
                     }
                     if (wp->SPHoptions->doUConversion && !wp->SPHoptions->doInterfaceCorrection) {
