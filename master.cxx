@@ -323,6 +323,7 @@ void MSR::InitializePStore(uint64_t *nSpecies,uint64_t mMemoryModel) {
     ps.nTreeBitsLo = param.nTreeBitsLo;
     ps.nTreeBitsHi = param.nTreeBitsHi;
     ps.iCacheSize  = param.iCacheSize;
+    ps.iCacheMaxInflight = param.iCacheMaxInflight;
     ps.iWorkQueueSize  = param.iWorkQueueSize;
     ps.iCUDAQueueSize  = param.iCUDAQueueSize;
     ps.fPeriod[0] = param.dxPeriod;
@@ -977,8 +978,12 @@ void MSR::Initialize() {
 #else
     param.iCacheSize = 0;
 #endif
+    param.iCacheMaxInflight = 0;
     prmAddParam(prm,"iCacheSize",1,&param.iCacheSize,sizeof(int),"cs",
-                "<size of the MDL cache (0=default)> = 0");
+                "<maximum number of inflight cache message to each rank (0=no limit)'> = 0");
+    param.iCacheMaxInflight = 0;
+    prmAddParam(prm,"iCacheMaxInflight",1,&param.iCacheMaxInflight,sizeof(int),"inflight",
+                "<size of the MDL cache (0=no limit)> = 0");
     param.iWorkQueueSize = 0;
     prmAddParam(prm,"iWorkQueueSize",1,&param.iWorkQueueSize,sizeof(int),"wqs",
                 "<size of the MDL work queue> = 0");
@@ -1826,6 +1831,7 @@ void msrLogParams(MSR &msr,FILE *fp) {
     fprintf(fp," nTreeBitsLo: %d",param.nTreeBitsLo);
     fprintf(fp," nTreeBitsHi: %d",param.nTreeBitsHi);
     fprintf(fp," iCacheSize: %d",param.iCacheSize);
+    fprintf(fp," iCacheMaxInflight: %d",param.iCacheMaxInflight);
     fprintf(fp," iWorkQueueSize: %d",param.iWorkQueueSize);
     fprintf(fp," iCUDAQueueSize: %d",param.iCUDAQueueSize);
     if (prmSpecified(prm,"dSoft"))

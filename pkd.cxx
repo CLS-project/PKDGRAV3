@@ -244,7 +244,7 @@ static void initLightConeOffsets(PKD pkd) {
 pkdContext::pkdContext(mdl::mdlClass *mdl,
                        int nStore,uint64_t nMinTotalStore,uint64_t nMinEphemeral,uint32_t nEphemeralBytes,
                        int nTreeBitsLo, int nTreeBitsHi,
-                       int iCacheSize,int iWorkQueueSize,int iCUDAQueueSize,double *fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,uint64_t nBH,
+                       int iCacheSize,int iCacheMaxInflight,int iWorkQueueSize,int iCUDAQueueSize,double *fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,uint64_t nBH,
                        uint64_t mMemoryModel, int bLightCone, int bLightConeParticles) : mdl(mdl),
     csm(nullptr) {
     PARTICLE *p;
@@ -568,8 +568,9 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
 #ifdef MDL_CACHE_SIZE
     if ( iCacheSize > 0 ) mdlSetCacheSize(this->mdl,iCacheSize);
 #endif
-    // This is cheeserific - chooses the largest specified
+    mdl->SetCacheMaxInflight(iCacheMaxInflight);
 
+    // This is cheeserific - chooses the largest specified
 #if defined(USE_CUDA) || defined(USE_CL)
     this->cudaClient = new CudaClient(*this->mdl);
     mdlSetCudaBufferSize(this->mdl,PP_CUDA_MEMORY_LIMIT,PP_CUDA_MEMORY_LIMIT);

@@ -83,6 +83,7 @@ struct parameters {
     int bDoAccOutput;
     int bDoPotOutput;
     int iCacheSize;
+    int iCacheMaxInflight;
     int iWorkQueueSize;
     int iCUDAQueueSize;
     int bAddDelete;

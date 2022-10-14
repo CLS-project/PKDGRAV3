@@ -276,6 +276,7 @@ struct inInitializePStore {
     int nTreeBitsLo;
     int nTreeBitsHi;
     int iCacheSize;
+    int iCacheMaxInflight;
     int iWorkQueueSize;
     int iCUDAQueueSize;
     int bLightCone;

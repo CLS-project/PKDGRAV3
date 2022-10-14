@@ -287,31 +287,33 @@ CACHE *mdlClass::AdvancedCacheInitialize(int cid,hash::GHASH *hash,int iDataSize
 // and creates a MPI_Request on the SendReceiveRequests list.
 // This is returned and used by an MPI route (e.g., MPI_Isend).
 // When complete message->finish() will be called (see finishRequests).
-MPI_Request *mpiClass::newRequest(mdlMessageMPI *message) {
+MPI_Request *mpiClass::newRequest(mdlMessageMPI *message,MPI_Request request) {
 #ifndef NDEBUG
     ++nRequestsCreated;
 #endif
-    // It is common for a message to post another MPI message. We just reuse
-    // the existing slot in this case.
-    if (iLastMessage >= 0) {
-        auto i = iLastMessage;
-        iLastMessage = -1;
+    if (SendReceiveAvailable.size()) {
+        auto i = SendReceiveAvailable.back();
+        SendReceiveAvailable.pop_back();
+        assert(SendReceiveMessages[i]==nullptr);
+        assert(SendReceiveRequests[i]==MPI_REQUEST_NULL);
+        assert(i<SendReceiveMessages.size());
+        assert(i<SendReceiveRequests.size());
         SendReceiveMessages[i] = message;
+        SendReceiveRequests[i] = request;
         return &SendReceiveRequests[i];
     }
     else {
-        SendReceiveRequests.emplace_back();
         SendReceiveMessages.push_back(message);
+        SendReceiveRequests.push_back(request);
         return &SendReceiveRequests.back();
     }
-    return &SendReceiveRequests.back();
 }
 
 // Open the cache by posting the receive if required
 void mpiClass::MessageCacheOpen(mdlMessageCacheOpen *message) {
     if (nOpenCaches==0) {
-        for (auto i=listCacheReceive.begin(); i!=listCacheReceive.end(); ++i)
-            (*i)->action(this);
+        msgCacheReceive->action(this);
+        countCacheInflight.resize(Procs(),0);
 #ifdef DEBUG_COUNT_CACHE
         countCacheSend.resize(Procs());
         countCacheRecv.resize(Procs());
@@ -325,14 +327,26 @@ void mpiClass::MessageCacheOpen(mdlMessageCacheOpen *message) {
 
 // Post the recieve. Receive will continue to be reposted as message are recieved.
 void mpiClass::MessageCacheReceive(mdlMessageCacheReceive *message) {
-    MPI_Irecv(message->getBuffer(),iCacheBufSize, MPI_BYTE, MPI_ANY_SOURCE,
-              MDL_TAG_CACHECOM, commMDL, newRequest(message));
+    auto request = newRequest(message);
+    MPI_Recv_init(message->getBuffer(),iCacheBufSize, MPI_BYTE, MPI_ANY_SOURCE,
+                  MDL_TAG_CACHECOM, commMDL, request);
+    MPI_Start(request);
 }
 
 // Called when the receive finishes. Decode the type of message and process it,
 // then restart the receive.
-void mpiClass::FinishCacheReceive(mdlMessageCacheReceive *message, int bytes, int source, int cancelled) {
-    if (cancelled) return;
+void mpiClass::FinishCacheReceive(mdlMessageCacheReceive *message, MPI_Request request, MPI_Status status) {
+    int bytes, source, cancelled;
+    assert(message);
+    MPI_Test_cancelled(&status,&cancelled);
+    if (cancelled) {
+        MPI_Request_free(&request);
+        assert(request==MPI_REQUEST_NULL);
+        return;
+    }
+    MPI_Get_count(&status, MPI_BYTE, &bytes);
+    source = status.MPI_SOURCE;
+    assert(source!=Proc());
 
     CacheHeader *ph = reinterpret_cast<CacheHeader *>(message->getBuffer());
 #ifdef DEBUG_COUNT_CACHE
@@ -343,14 +357,39 @@ void mpiClass::FinishCacheReceive(mdlMessageCacheReceive *message, int bytes, in
     int iCore = ph->idTo - Self();
     assert(iCore>=0 && iCore<Cores());
 
-    switch (ph->mid) {
-    case CacheMessageType::REQUEST: CacheReceiveRequest(bytes,ph); break;
-    case CacheMessageType::FLUSH:   CacheReceiveFlush(bytes,ph);  break;
-    case CacheMessageType::REPLY:   CacheReceiveReply(bytes,ph);  break;
-    default:
-        assert(0);
+    CacheReceive(bytes,ph,source);
+    MPI_Start(newRequest(message,request));
+}
+
+void mpiClass::CacheReceive(int bytes, CacheHeader *ph, int iProcFrom) {
+    // This message can consist of a list of any of the three, so process them individually
+    while (bytes) {
+        int consumed;
+        switch (ph->mid) {
+        case CacheMessageType::REQUEST: consumed = CacheReceiveRequest(bytes,ph); break;
+        case CacheMessageType::FLUSH:   consumed = CacheReceiveFlush(bytes,ph);  break;
+        case CacheMessageType::REPLY:   consumed = CacheReceiveReply(bytes,ph);  break;
+        default:
+            assert(0);
+        }
+        assert(consumed <= bytes);
+        bytes -= consumed;
+        ph = reinterpret_cast<CacheHeader *>(reinterpret_cast<char *>(ph)+consumed);
     }
-    MessageCacheReceive(message); // Restart the receive
+    if (iCacheMaxInflight) {
+        // If we generated REPLY messages then we need to flush the message. We only need to check
+        // iProcFrom because we do not send responses to anyone else. If we don't expedite REPLY
+        // messages then we can get a deadlock.
+        auto iFlush = flushBuffersByRank[iProcFrom];
+        if (iFlush != flushHeadBusy.end()) {
+            auto pFlush = *iFlush;
+            if (pFlush->contains(CacheMessageType::REPLY)) {
+                flushHeadBusy.erase(iFlush);
+                flushBuffersByRank[iProcFrom] = flushHeadBusy.end();
+                pFlush->action(this);
+            }
+        }
+    }
 }
 
 /*
@@ -557,85 +596,130 @@ void mpiClass::MessageCacheRequest(mdlMessageCacheRequest *message) {
     CacheRequestMessages[iCoreFrom] = message;
     assert(message->pLine);
     int iProc = ThreadToProc(message->header.idTo);
-    MPI_Isend(&message->header,sizeof(message->header)+message->key_size,MPI_BYTE,iProc,MDL_TAG_CACHECOM, commMDL,newRequest(message));
+    assert(iProc!=Proc());
+    if (iCacheMaxInflight) {
+        // Cache requests are added to the cache flush buffer, but are expedited
+        flush_element(&message->header,message->key_size);
+        expedite_flush(iProc);
+    }
+    else {
+        ++countCacheInflight[iProc];
+        MPI_Isend(&message->header,sizeof(message->header)+message->key_size,MPI_BYTE,iProc,MDL_TAG_CACHECOM, commMDL,newRequest(message));
 #ifdef DEBUG_COUNT_CACHE
-    ++countCacheSend[iProc];
+        ++countCacheSend[iProc];
 #endif
+    }
+}
+
+// Normally, when an MPI request finishes, we send it back to the requesting thread. The process is
+// different for cache requests. We do nothing because the result is actually sent back, not the request.
+// You would think that the "request" MPI send would complete before the response message is received,
+// but this is NOT ALWAYS THE CASE. Care must be take if new/delete is used on this type of message.
+void mpiClass::FinishCacheRequest(mdlMessageCacheRequest *message, MPI_Request request, MPI_Status status) {
+    int iProc = ThreadToProc(message->header.idTo);
+    --countCacheInflight[iProc];
+    expedite_flush(iProc);
 }
 
 // On the remote node, the message is received, and a response is constructed with the data
 // pulled directly from thread's cache. This is read-only, so is safe. It is forbidden in MDL
 // to remotely "read" part of an element that is also being modified. Results are "unpredictable".
 // Instead, one is expected to initialize such data via the "init" function.
-void mpiClass::CacheReceiveRequest(int count, const CacheHeader *ph) {
+int mpiClass::CacheReceiveRequest(int count, CacheHeader *ph) {
     assert( count >= sizeof(CacheHeader) );
-    auto key_size = count - sizeof(CacheHeader);
+    assert( ph->mid == CacheMessageType::REQUEST );
     int iCore = ph->idTo - Self();
     assert(iCore>=0 && iCore<Cores());
-    int iRankFrom = ThreadToProc(ph->idFrom); /* Can use iRankFrom */
-    mdlMessageCacheReply *reply;
-    if (freeCacheReplies.empty()) reply = new mdlMessageCacheReply(iReplyBufSize);
-    else { reply=freeCacheReplies.front(); freeCacheReplies.pop_front(); }
-    reply->emptyBuffer();
-    reply->setRankTo(iRankFrom);
-    reply->addBuffer(ph->cid,Self(),ph->idFrom,ph->iLine);
     auto c = pmdl[iCore]->cache[ph->cid].get();
+    assert(c->isActive());
+    auto key_size = c->key_size();
+    int iRankFrom = ThreadToProc(ph->idFrom); /* Can use iRankFrom */
+
     auto pack_size = c->cache_helper->pack_size();
     assert(pack_size <= MDL_CACHE_DATA_SIZE);
+
+    FlushBuffer *flush;
+    mdlMessageCacheReply *reply;
+    if (iCacheMaxInflight==0) {
+        if (freeCacheReplies.empty()) reply = new mdlMessageCacheReply(iReplyBufSize);
+        else { reply=freeCacheReplies.front(); freeCacheReplies.pop_front(); }
+        flush = reply;
+        reply->emptyBuffer();
+        reply->setRankTo(iRankFrom);
+    }
     if (key_size) { // ADVANCED KEY
         assert(c->hash_table);
         const void *data = c->hash_table->lookup(ph->iLine,ph+1);
-        if (data) c->cache_helper->pack(reply->getBuffer(pack_size),data);
+        assert(c->getLineElementCount()==1);
+        if (iCacheMaxInflight) {
+            int iSize = sizeof(CacheHeader) + key_size + (data ? pack_size : 0);
+            flush = get_flush_buffer(iRankFrom,iSize);
+        }
+        flush->addBuffer(CacheMessageType::REPLY,ph->cid,Self(),ph->idFrom,ph->iLine,data?1:0);
+        if (data) c->cache_helper->pack(flush->getBuffer(pack_size),data);
     }
     else { // SIMPLE KEY
         int s = ph->iLine << c->nLineBits;
         int n = s + c->getLineElementCount();
+        if (iCacheMaxInflight) {
+            int iSize = sizeof(CacheHeader) + pack_size*c->getLineElementCount();
+            flush = get_flush_buffer(iRankFrom,iSize);
+        }
+        flush->addBuffer(CacheMessageType::REPLY,ph->cid,Self(),ph->idFrom,ph->iLine);
         for (auto i=s; i<n; i++ ) {
             auto p = c->ReadLock(i);
             char *t = (i<c->nData) ? static_cast<char *>(p) : NULL;
-            c->cache_helper->pack(reply->getBuffer(pack_size),t);
+            c->cache_helper->pack(flush->getBuffer(pack_size),t);
             c->ReadUnlock(p);
         }
     }
-    reply->action(this); // MessageCacheReply()
+    if (iCacheMaxInflight==0) reply->action(this); // MessageCacheReply()
+    return sizeof(CacheHeader) + key_size;
 }
 
 // The reply message is sent back to the origin node, and added to the MPI request tracker.
 // This is the "action" routine.
 void mpiClass::MessageCacheReply(mdlMessageCacheReply *pFlush) {
+    auto iProc = pFlush->getRankTo();
+    ++countCacheInflight[iProc];
 #ifdef DEBUG_COUNT_CACHE
-    ++countCacheSend[pFlush->getRankTo()];
+    ++countCacheSend[iProc];
 #endif
-    MPI_Issend(pFlush->getBuffer(),pFlush->getCount(),MPI_BYTE,pFlush->getRankTo(),
+    assert(iProc!=Proc());
+    MPI_Issend(pFlush->getBuffer(),pFlush->getCount(),MPI_BYTE,iProc,
                MDL_TAG_CACHECOM,commMDL,newRequest(pFlush));
 }
 
 // When the send finishes, the buffer is added back to the list of free reply buffers
 void mpiClass::FinishCacheReply(mdlMessageCacheReply *pFlush) {
+    auto iProc = pFlush->getRankTo();
     freeCacheReplies.push_front(pFlush);
+    --countCacheInflight[iProc];
+    expedite_flush(iProc);
 }
 
 // On the requesting node, the data is copied back to the request, and the message
 // is queued back to the requesting thread. It will continue with the result.
-void mpiClass::CacheReceiveReply(int count, const CacheHeader *ph) {
+int mpiClass::CacheReceiveReply(int count, CacheHeader *ph) {
+    assert( count >= sizeof(CacheHeader) );
+    assert( ph->mid == CacheMessageType::REPLY );
     int iCore = ph->idTo - Self();
     assert(iCore>=0 && iCore<Cores());
     auto c = pmdl[iCore]->cache[ph->cid].get();
+    assert(c->isActive());
     auto pack_size = c->cache_helper->pack_size();
     assert(pack_size <= MDL_CACHE_DATA_SIZE);
     int iLineSize = c->getLineElementCount() * pack_size;
-    assert( count == sizeof(CacheHeader) + iLineSize || count == sizeof(CacheHeader));
+    //assert( count == sizeof(CacheHeader) + iLineSize || count == sizeof(CacheHeader));
     if (CacheRequestMessages[iCore]) { // This better be true (unless we implement prefetch)
         mdlMessageCacheRequest *pRequest = CacheRequestMessages[iCore];
         CacheRequestMessages[iCore] = NULL;
         assert(pRequest->pLine);
-        if (count == sizeof(CacheHeader) + iLineSize) {
-            pRequest->header.nItems = ph->nItems;
-            memcpy(pRequest->pLine,ph+1,iLineSize);
-        }
-        else pRequest->header.nItems = 0;
+        pRequest->header.nItems = ph->nItems;
+        memcpy(pRequest->pLine,ph+1,ph->nItems*iLineSize);
         pRequest->sendBack();
     }
+    return sizeof(CacheHeader) + ph->nItems * iLineSize;
 }
 
 // Later when we have found an empty cache element, this is called to wait for the result
@@ -751,10 +835,24 @@ void mpiClass::MessageFlushFromCore(mdlMessageFlushFromCore *pFlush) {
     pFlush->sendBack();
 }
 
-// This takes a single flush element and adds it to the correct buffer for
-// the destination rank.
-void mpiClass::flush_element(CacheHeader *pHdr,int iSize) {
-    int iProc = ThreadToProc(pHdr->idTo);
+// If there is a pending flush, and it has been expedited, then send it
+void mpiClass::expedite_flush(int iProc) {
+    // Request messages are expedited if the number of cache messages inflight to this rank
+    // falls below a certain threshold. Otherwise multiple REQUEST messages are batched.
+    if (countCacheInflight[iProc]<iCacheMaxInflight) {
+        auto iFlush = flushBuffersByRank[iProc];
+        if (iFlush != flushHeadBusy.end()) {
+            auto pFlush = *iFlush;
+            if (pFlush->contains(CacheMessageType::REQUEST)) {
+                flushHeadBusy.erase(iFlush);
+                flushBuffersByRank[iProc] = flushHeadBusy.end();
+                pFlush->action(this);
+            }
+        }
+    }
+}
+
+mdlMessageFlushToRank *mpiClass::get_flush_buffer(int iProc,int iSize) {
     auto iFlush = flushBuffersByRank[iProc];
     mdlMessageFlushToRank *pFlush;
     // If the current buffer is full, then send it and remove it from "busy".
@@ -785,57 +883,77 @@ void mpiClass::flush_element(CacheHeader *pHdr,int iSize) {
         pFlush->setRankTo(iProc);
         pFlush->emptyBuffer();
     }
+    assert(pFlush->canBuffer(iSize));
     flushHeadBusy.push_front(pFlush); // Front = most recently used
     flushBuffersByRank[iProc] = flushHeadBusy.begin();
+    return pFlush;
+}
+
+// This takes a single flush element and adds it to the correct buffer for
+// the destination rank.
+void mpiClass::flush_element(CacheHeader *pHdr,int iSize) {
+    int iProc = ThreadToProc(pHdr->idTo);
+    auto pFlush = get_flush_buffer(iProc,iSize);
     pFlush->addBuffer(iSize,pHdr);
 }
 
 // Called to flush a buffer full of cache data to a particular rank
 void mpiClass::MessageFlushToRank(mdlMessageFlushToRank *pFlush) {
+    auto iProc = pFlush->getRankTo();
+    ++countCacheInflight[iProc];
     if (pFlush->getCount()>0) {
+        if (iProc==Proc()) {
+            CacheHeader *ph = reinterpret_cast<CacheHeader *>(pFlush->getBuffer());
+            CacheReceive(pFlush->getCount(),ph,iProc);
+            FinishFlushToRank(pFlush);
+        }
+        else {
 #ifdef DEBUG_COUNT_CACHE
-        ++countCacheSend[pFlush->getRankTo()];
+            ++countCacheSend[iProc];
 #endif
-        MPI_Issend(pFlush->getBuffer(),pFlush->getCount(),MPI_BYTE,pFlush->getRankTo(),
-                   MDL_TAG_CACHECOM,commMDL,newRequest(pFlush));
+            assert(iProc!=Proc());
+            MPI_Issend(pFlush->getBuffer(),pFlush->getCount(),MPI_BYTE,iProc,
+                       MDL_TAG_CACHECOM,commMDL,newRequest(pFlush));
+        }
     }
     else FinishFlushToRank(pFlush);
 }
 
 // When the send is done, add this back to the free list.
 void mpiClass::FinishFlushToRank(mdlMessageFlushToRank *pFlush) {
+    auto iProc = pFlush->getRankTo();
     flushHeadFree.push_front(pFlush);
+    --countCacheInflight[iProc];
+    expedite_flush(iProc);
 }
 
 // Here we receive the flush buffer from a remote node. We have to split it
 // apart by target thread by calling queue_local_flush() for each element.
-void mpiClass::CacheReceiveFlush(int count, CacheHeader *ph) {
+int mpiClass::CacheReceiveFlush(int count, CacheHeader *ph) {
+    assert( count >= sizeof(CacheHeader) );
+    assert( ph->mid == CacheMessageType::FLUSH );
     bookkeeping();
-    while (count>0) {
-        assert(count > sizeof(CacheHeader));
-        char *pszRcv = (char *)(ph+1);
-        int iCore = ph->idTo - Self();
-        auto c = pmdl[iCore]->cache[ph->cid].get();
-        assert(c->modify());
-        auto key_size = c->key_size();
-        auto iLineSize = c->getLineElementCount() * c->cache_helper->flush_size();
-        if (key_size==0) {
-            assert(c->iLineSize==iLineSize);
-            int iIndex = ph->iLine << c->nLineBits;
-            while (iIndex >= c->nData) {
-                iIndex -= c->nData;
-                assert(iCore+1<Cores());
-                c = pmdl[++iCore]->cache[ph->cid].get();
-            }
-            ph->iLine = iIndex >> c->nLineBits;
+    int iCore = ph->idTo - Self();
+    auto c = pmdl[iCore]->cache[ph->cid].get();
+    assert(c->isActive());
+    assert(c->modify());
+    auto key_size = c->key_size();
+    auto iLineSize = c->getLineElementCount() * c->cache_helper->flush_size();
+    if (key_size==0) {
+        assert(c->iLineSize==iLineSize);
+        // For some operations (e.g., grid assignment), we use core 0 and an index into the process.
+        // Here we convert this to the correct index and core, updating iLine and iCore
+        int iIndex = ph->iLine << c->nLineBits;
+        while (iIndex >= c->nData) {
+            iIndex -= c->nData;
+            assert(iCore+1<Cores());
+            c = pmdl[++iCore]->cache[ph->cid].get();
         }
-        ph->idTo = iCore;
-        queue_local_flush(ph);
-        pszRcv += iLineSize + key_size;
-        ph = (CacheHeader *)(pszRcv);
-        count -= sizeof(CacheHeader) + iLineSize + key_size;
+        ph->iLine = iIndex >> c->nLineBits;
     }
-    assert(count==0);
+    ph->idTo = iCore;
+    queue_local_flush(ph);
+    return sizeof(CacheHeader) + iLineSize + key_size;
 }
 
 // Send a buffer to a local thread
@@ -981,16 +1099,19 @@ void mpiClass::MessageCacheClose(mdlMessageCacheClose *message) {
     assert(nOpenCaches > 0);
     --nOpenCaches;
     if (nOpenCaches == 0) {
+        assert(std::all_of(countCacheInflight.begin(), countCacheInflight.end(), [](int i) { return i==0; }));
 #ifdef DEBUG_COUNT_CACHE
         std::vector<uint64_t> countRecvExpected(Procs());
         MPI_Alltoall(countCacheSend.data(),1,MPI_UINT64_T,countRecvExpected.data(),1,MPI_UINT64_T,commMDL);
+        bool bBAD = false;
         for (auto i=0; i<Procs(); ++i) {
             if (countCacheRecv[i] != countRecvExpected[i]) {
                 printf("Rank %d received %" PRIu64 " from rank %d but expected %" PRIu64 "\n",
                        Proc(), countCacheRecv[i], i, countRecvExpected[i]);
-                abort();
+                bBAD = true;
             }
         }
+        if (bBAD) {fflush(stdout); sleep(1); MPI_Abort(commMDL,1); }
 #endif
         for (auto i=SendReceiveMessages.begin(); i!=SendReceiveMessages.end(); ++i) {
             if (dynamic_cast<mdlMessageCacheReceive *>(*i) != nullptr)
@@ -998,6 +1119,10 @@ void mpiClass::MessageCacheClose(mdlMessageCacheClose *message) {
         }
     }
     message->sendBack();
+}
+
+void mdlClass::SetCacheMaxInflight(int iMax) {
+    if (Core()==0) mpi->SetCacheMaxInflight(iMax);
 }
 
 /*****************************************************************************\
@@ -1361,7 +1486,7 @@ void mpiClass::MessageReceiveReply(mdlMessageReceiveReply *send) {
     else MPI_Irecv(&send->header,sizeof(ServiceHeader),MPI_BYTE,iProc,tag,commMDL,newRequest(send));
 }
 
-void mpiClass::FinishReceiveReply(mdlMessageReceiveReply *send) {
+void mpiClass::FinishReceiveReply(mdlMessageReceiveReply *send, MPI_Request request, MPI_Status status) {
     assert(pRequestTargets[send->target]>=0);
     pRequestTargets[send->target] = -1;
     send->sendBack();
@@ -1371,6 +1496,8 @@ void mpiClass::finishRequests() {
     int nDone = 1; // Prime the loop; we keep trying as long as we get work
     // If there are MPI send/recieve message pending then check if they are complete
     while (!SendReceiveRequests.empty() && nDone) {
+        // Here we keep track of entries that we can reuse in newRequest()
+        assert(SendReceiveAvailable.size()==0);
         // Should be sufficent, but resize if necessary
         if (SendReceiveIndices.size() < SendReceiveRequests.size())  SendReceiveIndices.resize(SendReceiveRequests.size());
         if (SendReceiveStatuses.size() < SendReceiveRequests.size()) SendReceiveStatuses.resize(SendReceiveRequests.size());
@@ -1382,31 +1509,37 @@ void mpiClass::finishRequests() {
 #ifndef NDEBUG
             nRequestsReaped += nDone;
 #endif
-            bool bCull = false;
             assert(SendReceiveMessages.size() == SendReceiveRequests.size()); // basic sanity
             for (int i=0; i<nDone; ++i) {
                 unsigned indx = SendReceiveIndices[i];
                 assert(indx < SendReceiveMessages.size());
-                iLastMessage = indx;
-                mdlMessageMPI *M = SendReceiveMessages[indx];
-                SendReceiveMessages[indx] = nullptr; // Mark as done (removed below)
-                assert(SendReceiveRequests[indx] == MPI_REQUEST_NULL); // set by Testsome
-                int bytes, source, cancelled;
-                MPI_Test_cancelled(&SendReceiveStatuses[i],&cancelled);
-                if (cancelled) bytes = source = -1;
-                else {
-                    MPI_Get_count(&SendReceiveStatuses[i], MPI_BYTE, &bytes); // Relevant for Recv() only
-                    source = SendReceiveStatuses[i].MPI_SOURCE; // Relevant for Recv() only
-                }
-                M->finish(this,bytes,source,cancelled); // Finish request (which could create/add more requests)
-                if (!SendReceiveMessages[indx]) bCull = true;
-                iLastMessage = -1; // Either it was reused, or it will be culled below
+                mdlMessageMPI *message = SendReceiveMessages[indx];
+                MPI_Request request = SendReceiveRequests[indx];
+                // If request is not MPI_REQUEST_NULL then it means that we have a persistent communication channel.
+                // It is the job of the "finish" routine to start or cancel the request and add it back with newRequest().
+                // Elements marked as "NULL" can now be reused in newRequest() so we add them to SendReceiveAvailable
+                SendReceiveAvailable.push_back(indx);
+                SendReceiveMessages[indx] = nullptr;
+                SendReceiveRequests[indx] = MPI_REQUEST_NULL;
+                message->finish(this,request,SendReceiveStatuses[i]); // Finish request (which could create/add more requests)
             }
             // Now remove the "marked" elements. The "finish" routines above could have added new entries at the end (but that is valid).
-            if (bCull) {
-                SendReceiveMessages.erase(std::remove(SendReceiveMessages.begin(), SendReceiveMessages.end(), (mdlMessageMPI *)0), SendReceiveMessages.end());
-                SendReceiveRequests.erase(std::remove(SendReceiveRequests.begin(), SendReceiveRequests.end(), MPI_REQUEST_NULL),  SendReceiveRequests.end());
-                assert(SendReceiveMessages.size() == SendReceiveRequests.size()); // Should have removed the same number from each list
+            // By design the list of marked elements is in SendReceiveAvailable, and are in ascending order. We can remove them efficiently with:
+            if (SendReceiveAvailable.size()) {
+                SendReceiveAvailable.push_back(SendReceiveMessages.size());
+                auto d = SendReceiveAvailable[0];
+                for (int i=1; i<SendReceiveAvailable.size(); ++i) {
+                    auto s = SendReceiveAvailable[i-1] + 1;
+                    auto e = SendReceiveAvailable[i];
+                    while (s<e) {
+                        SendReceiveMessages[d] = SendReceiveMessages[s];
+                        SendReceiveRequests[d] = SendReceiveRequests[s];
+                        s++; d++;
+                    }
+                }
+                SendReceiveMessages.erase(SendReceiveMessages.begin()+d,SendReceiveMessages.end());
+                SendReceiveRequests.erase(SendReceiveRequests.begin()+d,SendReceiveRequests.end());
+                SendReceiveAvailable.clear();
             }
         }
     }
@@ -1619,7 +1752,7 @@ int mpiClass::Launch(int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),vo
     nOpenCaches = 0;
     iReplyBufSize = sizeof(CacheHeader) + MDL_CACHE_DATA_SIZE;
     iCacheBufSize = sizeof(CacheHeader) + MDL_FLUSH_DATA_SIZE;
-    while (listCacheReceive.size()<25) listCacheReceive.push_back(new mdlMessageCacheReceive(iCacheBufSize));
+    msgCacheReceive = std::make_unique<mdlMessageCacheReceive>(iCacheBufSize);
 
     n = Procs();
     if (n > 256) n = 256;
@@ -1732,10 +1865,6 @@ int mpiClass::Launch(int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),vo
     // Deallocate cache reply buffers
     for (auto pReply : freeCacheReplies) { delete pReply; }
     freeCacheReplies.clear();
-    while (listCacheReceive.size()) {
-        delete listCacheReceive.back();
-        listCacheReceive.pop_back();
-    }
 
     while (!localFlushBuffers.empty())
         delete &static_cast<mdlMessageFlushToCore &>(localFlushBuffers.dequeue());

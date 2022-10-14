@@ -563,7 +563,7 @@ auto ARC<KEYS...>::replace(typename CDBL::iterator item) {
 template<typename ...KEYS>
 auto ARC<KEYS...>::victim(bool bInB2) {
     uint32_t max = (target_T1 > 1)?(target_T1+(bInB2?0:1)):1;
-    auto unlocked = [](PAIR&i) {return std::get<CDB>(i).data[-1] == _ARC_MAGIC_;}; // True if there are no locks
+    auto unlocked = [](PAIR&i) {auto data=std::get<CDB>(i).data; return data!=nullptr && data[-1] == _ARC_MAGIC_;}; // True if there are no locks
     typename CDBL::iterator item;
     if (L[T1].size() >= max && (item = std::find_if(L[T1].begin(),L[T1].end(),unlocked)) != L[T1].end()) return item;
     if ((item = std::find_if(L[T2].begin(),L[T2].end(),unlocked)) != L[T2].end()) return item;
