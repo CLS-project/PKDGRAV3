@@ -83,7 +83,7 @@ static const auto mdl_check_mask = 0x7f;
 //     uint32_t iLine;        /* Index of the cache line */
 //     } CacheHeadernew;
 
-#define MDL_CACHE_DATA_SIZE (1024)
+#define MDL_CACHE_DATA_SIZE (4096)
 
 //*****************************************************************************
 
