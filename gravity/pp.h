@@ -334,7 +334,7 @@ PP_CUDA_BOTH ResultSPHForces<F> EvalSPHForces(
         result.dtEst = mask_mov(HUGE_VALF,mask1,result.dtEst);
         result.maxRung = maskz_mov(mask1,uRung);
 
-        for (int index = 0; index < result.dtEst.width(); index++) {
+        /*for (int index = 0; index < result.dtEst.width(); index++) {
             if (!isfinite(result.ax[index]) || !isfinite(result.ay[index]) || !isfinite(result.az[index]) || !isfinite(result.uDot[index]) || (!isfinite(result.dtEst[index]) && result.dtEst[index] != HUGE_VALF) || result.dtEst[index] <= 0.0f) {
                 printf("An error occured in EvalSPHForces:\n\
                 ax = %.5e, ay = %.5e, az = %.5e, uDot = %.5e, dtEst = %.5e\n\
@@ -356,7 +356,7 @@ PP_CUDA_BOTH ResultSPHForces<F> EvalSPHForces(
                        IdWdx[index],IdWdy[index],IdWdz[index],
                        dWdx[index],dWdy[index],dWdz[index]);
             }
-        }
+        }*/
     }
     else {
         result.zero();
