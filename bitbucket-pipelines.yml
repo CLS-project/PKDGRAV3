@@ -3,10 +3,58 @@ image: dpotter/pkdgrav3-build
 pipelines:
   default:
     - step:
-        runs-on: self.hosted
+        size: 2x
         script:
           - cmake .
-          - make -j 8
-          - ln -s /build/euclid_flagship_500.hdf5
-          - ln -s /build/b0-final* ./
-          - env GTEST_OUTPUT="xml:test-reports/" OMP_NUM_THREADS=8 make test ARGS=--verbose
+          - make
+  pull-requests:
+    '**':
+      - step:
+           size: 2x
+           runs-on: self.hosted
+           script:
+             - cmake -DUSE_GTEST=Yes .
+             - make -j 8
+             - ln -s /build/euclid_flagship_500.hdf5
+             - ln -s /build/b0-final* ./
+             - env GTEST_OUTPUT="xml:test-reports/" OMP_NUM_THREADS=8 make test ARGS=--verbose
+  branches:
+     develop:
+       - step:
+           size: 2x
+           runs-on:
+             - 'self.hosted'
+             - 'gpu'
+           script:
+             - lscpu
+             - cmake -DUSE_GTEST=Yes .
+             - make -j 8
+             - ln -s /build/euclid_flagship_500.hdf5
+             - ln -s /build/b0-final* ./
+             - env GTEST_OUTPUT="xml:test-reports/" OMP_NUM_THREADS=8 make test ARGS=--verbose
+       - step:
+           size: 2x
+           runs-on:
+             - 'self.hosted'
+             - 'avx512'
+           script:
+             - lscpu
+             - cmake -DUSE_GTEST=Yes .
+             - make -j 8
+             - ln -s /build/euclid_flagship_500.hdf5
+             - ln -s /build/b0-final* ./
+             - env GTEST_OUTPUT="xml:test-reports/" OMP_NUM_THREADS=8 make test ARGS=--verbose
+
+     IA_dev_optim:
+       - step:
+           size: 2x
+           script:
+             - >
+               cmake -DCOOLING=on
+               -DSTAR_FORMATION=on
+               -DFEEDBACK=on
+               -DEEOS_POLYTROPE=on
+               -DBLACKHOLES=on
+               -DSTELLAR_EVOLUTION=on
+               .
+             - make
