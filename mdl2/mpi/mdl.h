@@ -384,7 +384,7 @@ protected:
     // messages are added to the flush buffer. The flush buffer is sent when below this limit.
     // To avoid deadlock, the flush buffer is sent if there is at least one REPLY message after
     // processing a batch of incoming REQUEST/REPLY/FLUSH messages.
-    int iCacheMaxInflight = 1;
+    int iCacheMaxInflight = 0;
     int iCacheBufSize;  /* Cache input buffer size */
     int iReplyBufSize;  /* Cache reply buffer size */
     std::vector<MPI_Request>    SendReceiveRequests;
