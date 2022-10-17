@@ -594,7 +594,6 @@ void mpiClass::MessageCacheRequest(mdlMessageCacheRequest *message) {
     int iCoreFrom = message->header.idFrom - Self();
     assert(CacheRequestMessages[iCoreFrom]==nullptr);
     CacheRequestMessages[iCoreFrom] = message;
-    CacheRequestRendezvous[iCoreFrom] = true; // The REQUEST and RESPONSE need to Rendezvous
     assert(message->pLine);
     int iProc = ThreadToProc(message->header.idTo);
     message->setRankTo(iProc);
@@ -605,6 +604,7 @@ void mpiClass::MessageCacheRequest(mdlMessageCacheRequest *message) {
         expedite_flush(iProc);
     }
     else {
+        CacheRequestRendezvous[iCoreFrom] = true; // The REQUEST and RESPONSE need to Rendezvous
         ++countCacheInflight[iProc];
         MPI_Isend(&message->header,sizeof(message->header)+message->key_size,MPI_BYTE,iProc,MDL_TAG_CACHECOM, commMDL,newRequest(message));
 #ifdef DEBUG_COUNT_CACHE
