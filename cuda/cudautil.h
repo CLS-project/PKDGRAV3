@@ -77,7 +77,7 @@ protected:
             if (M->queue(work,tile,bGravStep)) return work->nP; // Successfully queued
             flush(M); // The buffer is full, so send it
         }
-        mdl.flushCompletedCUDA();
+        mdl.gpu.flushCompleted();
         if (Q.empty()) return 0; // No buffers so the CPU has to do this part
         M = & Q.dequeue();
         if (M->queue(work,tile,bGravStep)) return work->nP; // Successfully queued

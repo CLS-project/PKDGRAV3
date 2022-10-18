@@ -62,6 +62,7 @@ target_sources(${PROJECT_NAME}
   PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/mpi/mdl.cxx
           ${CMAKE_CURRENT_SOURCE_DIR}/mpi/mpimessages.cxx
           ${CMAKE_CURRENT_SOURCE_DIR}/mpi/mdlmessages.cxx
+          ${CMAKE_CURRENT_SOURCE_DIR}/gpu/mdlgpu.cxx
           ${CMAKE_CURRENT_SOURCE_DIR}/mdlbase.cxx
   PUBLIC  ${CMAKE_CURRENT_SOURCE_DIR}/mpi/mdl.h
           ${CMAKE_CURRENT_SOURCE_DIR}/mdlbase.h

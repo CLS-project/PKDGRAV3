@@ -320,7 +320,7 @@ int CudaClient::queueEwald(workParticle *work) {
         mdl.enqueue(*ewald); // Full, so send it to the GPU
         ewald = nullptr;
     }
-    mdl.flushCompletedCUDA();
+    mdl.gpu.flushCompleted();
     if (freeEwald.empty()) return 0; // No buffers so the CPU has to do this part
     ewald = & freeEwald.dequeue();
     if (ewald->queue(work)) return work->nP; // Sucessfully queued

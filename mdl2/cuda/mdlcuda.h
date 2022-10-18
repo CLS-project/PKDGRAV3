@@ -1,7 +1,7 @@
 #ifndef MDLCUDA_H
 #define MDLCUDA_H
 
-#include "basicmessage.h"
+#include "gpu/mdlgpu.h"
 #include "cuda.h"
 #include "cuda_runtime_api.h"
 
@@ -13,7 +13,7 @@ namespace mdl {
 
 class Device;
 class Stream;
-class cudaMessage : public basicMessage {
+class cudaMessage : public gpu::Message {
     friend class Device; // So we can launch()
     int iDevice; // Device number to use or -1 for any (the normal case)
 protected:

@@ -33,6 +33,7 @@
 #ifdef __cplusplus
     #include "arc.h"
     #include "mpimessages.h"
+    #include "gpu/mdlgpu.h"
     #ifdef USE_CUDA
         #include "mdlcuda.h"
     #endif
@@ -239,11 +240,8 @@ public:
 
     int nFlushOutBytes;
 
-#if defined(USE_CUDA) || defined(USE_CL)
+#if defined(USE_CUDA)
     int inCudaBufSize, outCudaBufSize;
-#endif
-#ifdef USE_CL
-    void *clCtx;
 #endif
 protected:
     void CommitServices();
@@ -272,18 +270,13 @@ protected:
     void enqueue(const mdlMessage &M, basicQueue &replyTo, bool bWait=false);
     void enqueueAndWait(const mdlMessage &M);
 public:
+    gpu::Client gpu;
 #ifdef USE_CUDA
-    int nCUDA;
-    cudaMessageQueue cudaDone;
-    int flushCompletedCUDA(); // Returns how many are still outstanding
     void enqueue(const cudaMessage &M);
     void enqueue(const cudaMessage &M, basicQueue &replyTo);
     void enqueueAndWait(const cudaMessage &M);
 #endif
 #ifdef USE_METAL
-    int nMETAL;
-    metal::metalMessageQueue metalDone;
-    int flushCompletedMETAL(); // Returns how many are still outstanding
     void enqueue(const metal::metalMessage &M);
     void enqueue(const metal::metalMessage &M, basicQueue &replyTo);
     void enqueueAndWait(const metal::metalMessage &M);

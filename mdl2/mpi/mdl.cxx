@@ -67,9 +67,6 @@ template<> MPI_Datatype mpi_type(int64_t v) { return MPI_INT64_T; }
 template<> MPI_Datatype mpi_type(uint64_t v) { return MPI_UINT64_T; }
 
 
-#ifdef USE_CL
-    #include "clutil.h"
-#endif
 #ifdef USE_ITT
     #include "ittnotify.h"
 #endif
@@ -1574,13 +1571,12 @@ void mpiClass::processMessages() {
 ** any requests from the thread queue, and track MPI completions.
 */
 int mpiClass::checkMPI() {
+    gpu.flushCompleted();
     /* Start any CUDA work packages */
 #ifdef USE_CUDA
-    flushCompletedCUDA();
     cuda.launch();
 #endif
 #ifdef USE_METAL
-    flushCompletedMETAL();
     metal.launch();
 #endif
     processMessages();
@@ -1746,10 +1742,6 @@ int mpiClass::Launch(int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),vo
     assert(pmdl!=NULL);
     pmdl++;
     pmdl[iCoreMPI] = this;
-
-#ifdef USE_CL
-    void *clContext = CL_create_context();
-#endif
 
     /* Allocate the other MDL structures for any threads. */
     for (i = iCoreMPI+1; i < Cores(); ++i) {
@@ -1959,15 +1951,7 @@ void mdlClass::bookkeeping() {
 
 extern "C" void mdlCompleteAllWork(MDL mdl) { static_cast<mdlClass *>(mdl)->CompleteAllWork(); }
 void mdlClass::CompleteAllWork() {
-#ifdef USE_CL
-    while (CL_flushDone(clCtx)) {}
-#endif
-#ifdef USE_CUDA
-    while (flushCompletedCUDA()) {}
-#endif
-#ifdef USE_METAL
-    while (flushCompletedMETAL()) {}
-#endif
+    while (gpu.flushCompleted()) {} // Wait for any/all GPU operations to return/completed
 }
 
 basicMessage &mdlClass::waitQueue(basicQueue &wait) {
@@ -1980,18 +1964,8 @@ basicMessage &mdlClass::waitQueue(basicQueue &wait) {
 }
 
 #ifdef USE_CUDA
-int mdlClass::flushCompletedCUDA() {
-    while (!cudaDone.empty()) {
-        auto &M = cudaDone.dequeue();
-        M.finish();
-        --nCUDA;
-    }
-    return nCUDA;
-}
-
 void mdlClass::enqueue(const cudaMessage &M) {
-    ++nCUDA;
-    mpi->enqueue(M,cudaDone);
+    mpi->enqueue(M,gpu);
 }
 
 void mdlClass::enqueue(const cudaMessage &M, basicQueue &replyTo) {
@@ -2006,18 +1980,8 @@ void mdlClass::enqueueAndWait(const cudaMessage &M) {
 }
 #endif
 #ifdef USE_METAL
-int mdlClass::flushCompletedMETAL() {
-    while (!metalDone.empty()) {
-        auto &M = metalDone.dequeue();
-        M.finish();
-        --nMETAL;
-    }
-    return nMETAL;
-}
-
 void mdlClass::enqueue(const metal::metalMessage &M) {
-    ++nMETAL;
-    mpi->enqueue(M,metalDone);
+    mpi->enqueue(M,gpu);
 }
 
 void mdlClass::enqueue(const metal::metalMessage &M, basicQueue &replyTo) {
@@ -2163,15 +2127,6 @@ void mdlClass::init(bool bDiag) {
 
     queueReceive = std::make_unique<mdlMessageQueue[]>(Cores());
 
-#ifdef USE_CL
-    clCtx = CL_initialize(clContext,Cores(),Core());
-#endif
-#ifdef USE_CUDA
-    nCUDA = 0;
-#endif
-#ifdef USE_METAL
-    nMETAL = 0;
-#endif
     this->bDiag = bDiag;
     if (bDiag) {
         char achDiag[256], ach[256];
@@ -2816,7 +2771,7 @@ void mdlAlltoallv(MDL cmdl,int dataSize,void *sbuff,int *scount,int *sdisps,void
 void mdlClass::Alltoallv(int dataSize,void *sbuff,int *scount,int *sdisps,void *rbuff,int *rcount,int *rdisps) {
     enqueueAndWait(mdlMessageAlltoallv(dataSize,sbuff,scount,sdisps,rbuff,rcount,rdisps));
 }
-#if defined(USE_CUDA) || defined(USE_CL)
+#if defined(USE_CUDA)
 void mdlSetCudaBufferSize(MDL cmdl,int inBufSize, int outBufSize) {
 //    mdlClass *mdl = static_cast<mdlClass *>(cmdl);
 //    if (mdl->inCudaBufSize < inBufSize) mdl->inCudaBufSize = inBufSize;

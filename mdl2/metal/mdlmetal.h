@@ -1,7 +1,7 @@
 #ifndef MDLMETAL_H
 #define MDLMETAL_H
 #include "Metal.hpp"
-#include "basicmessage.h"
+#include "gpu/mdlgpu.h"
 
 #include <string>
 #include <vector>
@@ -14,7 +14,7 @@ namespace metal {
 class Device;
 class Stream;
 
-class metalMessage : public basicMessage {
+class metalMessage : public gpu::Message {
     friend class Stream; // So we can launch()
 protected:
     virtual void launch(Stream &stream,MTL::CommandBuffer *cbuf) = 0;
