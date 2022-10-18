@@ -247,6 +247,12 @@ def parse():
     add_flag(cool,'CoolingFloorDen',default=1e-5,dest='dCoolingFloorDen', type=float, help='Minimum density at which the internal enrgy floor will be applied, n_H cm-3')
     add_flag(cool,'CoolingFloorT',default=1e4,dest='dCoolingFloorT', type=float, help='Temperature at the internal energy floor, K')
 
+    eeos = parser.add_argument_group('Effective equation of state')
+    add_flag(eeos,'EOSPolyFloorDen ',default=0.1,dest='dEOSPolyFloorDen', type=float, help='Minimum density at which the effective EOS will be applied (in nH [cm-3])')
+    add_flag(eeos,'EOSPolyFloorIndex',default=4./3.,dest='dEOSPolyFloorIndex', type=float, help='Index of the polytropic effective EOS')
+    add_flag(eeos,'EOSPolyFloorTemp',default=1e4,dest='dEOSPolyFloorTemp', type=float, help='Temperature at the density threshold for the effective EOS')
+    add_flag(eeos,'EOSNJeans',default=8.75,dest='dEOSNJeans', type=float, help='Number of elements to resolve the Jeans length')
+
     sform = parser.add_argument_group('Star formation')
     add_flag(sform,'SFThresholdDen',default=0.1,dest='dSFThresholdDen', type=float, help='Minimum density at which the star formation can happen, nH cm-3')
     add_flag(sform,'SFThresholdT',default=1e5,dest='dSFThresholdT', type=float, help='Maximum temperature at which the star formation can happen, K')
