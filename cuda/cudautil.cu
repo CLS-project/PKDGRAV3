@@ -52,8 +52,8 @@
 *   CudaClient interface (new!)
 \*****************************************************************************/
 
-CudaClient::CudaClient(mdl::mdlClass &mdl) : mdl(mdl), ewald(nullptr), pp(nullptr), pc(nullptr) {
-    if (mdl.isCudaActive()) {
+CudaClient::CudaClient( mdl::CUDA &cuda, mdl::gpu::Client &gpu) : cuda(cuda), gpu(gpu), ewald(nullptr), pp(nullptr), pc(nullptr) {
+    if (cuda.isActive()) {
         freeEwald.enqueue(new MessageEwald(*this));
         freeEwald.enqueue(new MessageEwald(*this));
         freePP.enqueue(new MessagePP(freePP));
@@ -64,7 +64,7 @@ CudaClient::CudaClient(mdl::mdlClass &mdl) : mdl(mdl), ewald(nullptr), pp(nullpt
 }
 
 void CudaClient::flushCUDA() {
-    if (ewald) { mdl.enqueue(*ewald);        ewald = nullptr; }
+    if (ewald) { cuda.enqueue(*ewald,gpu);        ewald = nullptr; }
     flush(pp);
     flush(pc);
 }

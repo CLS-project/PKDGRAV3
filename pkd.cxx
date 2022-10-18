@@ -571,8 +571,8 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     mdl->SetCacheMaxInflight(iCacheMaxInflight);
 
     // This is cheeserific - chooses the largest specified
-#if defined(USE_CUDA) || defined(USE_CL)
-    this->cudaClient = new CudaClient(*this->mdl);
+#if defined(USE_CUDA)
+    this->cudaClient = new CudaClient(this->mdl->mpi->cuda,this->mdl->gpu);
     mdlSetCudaBufferSize(this->mdl,PP_CUDA_MEMORY_LIMIT,PP_CUDA_MEMORY_LIMIT);
 #endif
 #if defined(USE_METAL)

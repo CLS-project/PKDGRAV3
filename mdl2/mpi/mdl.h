@@ -271,11 +271,6 @@ protected:
     void enqueueAndWait(const mdlMessage &M);
 public:
     gpu::Client gpu;
-#ifdef USE_CUDA
-    void enqueue(const cudaMessage &M);
-    void enqueue(const cudaMessage &M, basicQueue &replyTo);
-    void enqueueAndWait(const cudaMessage &M);
-#endif
 #ifdef USE_METAL
     void enqueue(const metal::metalMessage &M);
     void enqueue(const metal::metalMessage &M, basicQueue &replyTo);
@@ -343,17 +338,16 @@ class mpiClass : public mdlClass {
 public:
     mdlMessageQueue queueWORK;
     mdlMessageQueue queueREGISTER;
-protected:
-    MPI_Comm commMDL;             /* Current active communicator */
-    pthread_barrier_t barrier;
-    std::vector<pthread_t> threadid;
 #ifdef USE_CUDA
     CUDA cuda;
 #endif
 #ifdef USE_METAL
     metal::METAL metal;
 #endif
-
+protected:
+    MPI_Comm commMDL;             /* Current active communicator */
+    pthread_barrier_t barrier;
+    std::vector<pthread_t> threadid;
     mdlMessageQueue queueMPInew;     // Queue of work sent to MPI task
     std::vector<mdlMessageCacheRequest *> CacheRequestMessages;
     std::vector<bool> CacheRequestRendezvous;
@@ -482,7 +476,6 @@ public:
     int Launch(int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *));
     void KillAll(int signo);
 #ifdef USE_CUDA
-    void enqueue(const cudaMessage &M, basicQueue &replyTo);
     bool isCudaActive() {return cuda.isActive(); }
     int numGPUs() {return cuda.numDevices();}
 #else

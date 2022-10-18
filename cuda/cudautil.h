@@ -24,7 +24,6 @@
 #define CUDA_WP_MAX_BUFFERED 128
 
 #ifdef __cplusplus
-#include "mdl.h"
 #include "mdlcuda.h"
 #include <vector>
 #include <cstdlib>
@@ -69,7 +68,8 @@ protected:
 
     int nEwhLoop;
     std::list<MessageEwald> free_Ewald, busy_Ewald;
-    mdl::mdlClass &mdl;
+    mdl::CUDA &cuda;
+    mdl::gpu::Client &gpu;
 protected:
     template<class MESSAGE,class QUEUE,class TILE>
     int queue(MESSAGE *&M,QUEUE &Q, workParticle *work, TILE &tile, bool bGravStep) {
@@ -77,7 +77,7 @@ protected:
             if (M->queue(work,tile,bGravStep)) return work->nP; // Successfully queued
             flush(M); // The buffer is full, so send it
         }
-        mdl.gpu.flushCompleted();
+        gpu.flushCompleted();
         if (Q.empty()) return 0; // No buffers so the CPU has to do this part
         M = & Q.dequeue();
         if (M->queue(work,tile,bGravStep)) return work->nP; // Successfully queued
@@ -87,12 +87,12 @@ protected:
     void flush(MESSAGE *&M) {
         if (M) {
             M->prepare();
-            mdl.enqueue(*M);
+            cuda.enqueue(*M,gpu);
             M = nullptr;
         }
     }
 public:
-    explicit CudaClient(mdl::mdlClass &mdl);
+    explicit CudaClient( mdl::CUDA &cuda, mdl::gpu::Client &gpu);
     void flushCUDA();
     int queuePP(workParticle *work, ilpTile &tile, bool bGravStep) {
         return queue(pp,freePP,work,tile,bGravStep);

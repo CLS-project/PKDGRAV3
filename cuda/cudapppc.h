@@ -18,7 +18,7 @@
 #ifndef CUDAPPPC_H
 #define CUDAPPPC_H
 #ifdef USE_CUDA
-#include "mdl.h"
+#include "mdlcuda.h"
 #include "gpu/pppcdata.h"
 #include "check.h"
 

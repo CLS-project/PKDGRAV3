@@ -1898,11 +1898,6 @@ int mpiClass::Launch(int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),vo
     return exit_code;
 }
 
-#ifdef USE_CUDA
-void mpiClass::enqueue(const cudaMessage &M, basicQueue &replyTo) {
-    cuda.enqueue(M,replyTo);
-}
-#endif
 #ifdef USE_METAL
 void mpiClass::enqueue(const metal::metalMessage &M, basicQueue &replyTo) {
     metal.enqueue(M,replyTo);
@@ -1963,22 +1958,6 @@ basicMessage &mdlClass::waitQueue(basicQueue &wait) {
     return wait.dequeue();
 }
 
-#ifdef USE_CUDA
-void mdlClass::enqueue(const cudaMessage &M) {
-    mpi->enqueue(M,gpu);
-}
-
-void mdlClass::enqueue(const cudaMessage &M, basicQueue &replyTo) {
-    mpi->enqueue(M,replyTo);
-}
-
-// Send the message to the MPI thread and wait for the response
-void mdlClass::enqueueAndWait(const cudaMessage &M) {
-    cudaMessageQueue wait;
-    enqueue(M,wait);
-    waitQueue(wait);
-}
-#endif
 #ifdef USE_METAL
 void mdlClass::enqueue(const metal::metalMessage &M) {
     mpi->enqueue(M,gpu);

@@ -1425,20 +1425,6 @@ struct outGetParticles { /* Array of these */
 };
 int pkdGetParticles(PKD pkd, int nIn, uint64_t *ID, struct outGetParticles *out);
 
-#ifdef USE_CUDA
-    extern int CUDAinitWorkPP( void *vpp, void *vwork );
-    extern int CUDAcheckWorkPP( void *vpp, void *vwork );
-    extern int CUDAinitWorkPC( void *vpp, void *vwork );
-    extern int CUDAcheckWorkPC( void *vpp, void *vwork );
-    extern int CUDAinitWorkEwald( void *vpp, void *vwork );
-    extern int CUDAcheckWorkEwald( void *vpp, void *vwork );
-#endif
-#ifdef USE_CL
-    extern int CLinitWorkEwald( void *vcl, void *ve, void *vwork );
-    int CLcheckWorkEwald( void *ve, void *vwork );
-    extern void clEwaldInit(void *cudaCtx, struct EwaldVariables *ewIn, EwaldTable *ewt );
-#endif
-
 #define vec_sub(r,a,b) do {\
     int i;\
     for (i=0; i<3; i++) (r)[i] = (a)[i] - (b)[i];   \

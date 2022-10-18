@@ -267,18 +267,15 @@ void pkdParticleWorkDone(workParticle *work);
 void CudaClient::setupEwald(struct EwaldVariables *const ew, EwaldTable *const ewt) {
     nEwhLoop = ew->nEwhLoop;
     // The Ewald table needs to be sent once to every GPU on the system
-    if (mdl.Core()==0) {
-        mdl::cudaMessageQueue wait;
-        for (auto i=0; i<mdl.numGPUs(); ++i) {
-            auto m = new MessageEwaldSetup(ew,ewt,i);
-            mdl.enqueue(*m,wait);
-        }
-        for (auto i=0; i<mdl.numGPUs(); ++i) {
-            auto &m = wait.wait();
-            delete &m;
-        }
+    mdl::cudaMessageQueue wait;
+    for (auto i=0; i<cuda.numDevices(); ++i) {
+        auto m = new MessageEwaldSetup(ew,ewt,i);
+        cuda.enqueue(*m,wait);
     }
-    mdl.ThreadBarrier();
+    for (auto i=0; i<cuda.numDevices(); ++i) {
+        auto &m = wait.wait();
+        delete &m;
+    }
 }
 
 // Contruct the message with Ewald tables. We can just tuck away the pointers as we have to wait.
@@ -317,10 +314,10 @@ void MessageEwaldSetup::launch(mdl::Stream &stream,void *pCudaBufIn, void *pCuda
 int CudaClient::queueEwald(workParticle *work) {
     if (ewald) {
         if (ewald->queue(work)) return work->nP; // Sucessfully queued
-        mdl.enqueue(*ewald); // Full, so send it to the GPU
+        cuda.enqueue(*ewald,gpu); // Full, so send it to the GPU
         ewald = nullptr;
     }
-    mdl.gpu.flushCompleted();
+    gpu.flushCompleted();
     if (freeEwald.empty()) return 0; // No buffers so the CPU has to do this part
     ewald = & freeEwald.dequeue();
     if (ewald->queue(work)) return work->nP; // Sucessfully queued
