@@ -21,6 +21,7 @@ using namespace mdl;
 #include <algorithm>
 #include <numeric>
 #include <cstring>
+#include <set>
 
 static inline int size_t_to_int(size_t v) {
     return (int)v;
@@ -311,6 +312,7 @@ void mpiClass::MessageCacheOpen(mdlMessageCacheOpen *message) {
     if (nOpenCaches==0) {
         msgCacheReceive->action(this);
         countCacheInflight.resize(Procs(),0);
+        PendingRequests.set_capacity(Threads()); // This is very conservative, but uses some memory
 #ifdef DEBUG_COUNT_CACHE
         countCacheSend.resize(Procs());
         countCacheRecv.resize(Procs());
@@ -363,9 +365,9 @@ void mpiClass::CacheReceive(int bytes, CacheHeader *ph, int iProcFrom) {
     while (bytes) {
         int consumed;
         switch (ph->mid) {
-        case CacheMessageType::REQUEST: consumed = CacheReceiveRequest(bytes,ph); break;
-        case CacheMessageType::FLUSH:   consumed = CacheReceiveFlush(bytes,ph);  break;
-        case CacheMessageType::REPLY:   consumed = CacheReceiveReply(bytes,ph);  break;
+        case CacheMessageType::REQUEST: consumed = CacheReceiveRequest(bytes,ph,iProcFrom); break;
+        case CacheMessageType::FLUSH:   consumed = CacheReceiveFlush(bytes,ph,iProcFrom);  break;
+        case CacheMessageType::REPLY:   consumed = CacheReceiveReply(bytes,ph,iProcFrom);  break;
         default:
             assert(0);
         }
@@ -373,20 +375,7 @@ void mpiClass::CacheReceive(int bytes, CacheHeader *ph, int iProcFrom) {
         bytes -= consumed;
         ph = reinterpret_cast<CacheHeader *>(reinterpret_cast<char *>(ph)+consumed);
     }
-    if (iCacheMaxInflight) {
-        // If we generated REPLY messages then we need to flush the message. We only need to check
-        // iProcFrom because we do not send responses to anyone else. If we don't expedite REPLY
-        // messages then we can get a deadlock.
-        auto iFlush = flushBuffersByRank[iProcFrom];
-        if (iFlush != flushHeadBusy.end()) {
-            auto pFlush = *iFlush;
-            if (pFlush->contains(CacheMessageType::REPLY)) {
-                flushHeadBusy.erase(iFlush);
-                flushBuffersByRank[iProcFrom] = flushHeadBusy.end();
-                pFlush->action(this);
-            }
-        }
-    }
+    expedite_flush(iProcFrom);
 }
 
 /*
@@ -630,51 +619,24 @@ void mpiClass::FinishCacheRequest(mdlMessageCacheRequest *message, MPI_Request r
     expedite_flush(iProc);
 }
 
-// On the remote node, the message is received, and a response is constructed with the data
-// pulled directly from thread's cache. This is read-only, so is safe. It is forbidden in MDL
-// to remotely "read" part of an element that is also being modified. Results are "unpredictable".
-// Instead, one is expected to initialize such data via the "init" function.
-int mpiClass::CacheReceiveRequest(int count, CacheHeader *ph) {
-    assert( count >= sizeof(CacheHeader) );
-    assert( ph->mid == CacheMessageType::REQUEST );
-    int iCore = ph->idTo - Self();
+void mpiClass::BufferCacheResponse(FlushBuffer *flush,BufferedCacheRequest &request) {
+    int iCore = request.header.idTo - Self();
     assert(iCore>=0 && iCore<Cores());
-    auto c = pmdl[iCore]->cache[ph->cid].get();
+    auto c = pmdl[iCore]->cache[request.header.cid].get();
     assert(c->isActive());
     auto key_size = c->key_size();
-    int iRankFrom = ThreadToProc(ph->idFrom); /* Can use iRankFrom */
 
     auto pack_size = c->cache_helper->pack_size();
     assert(pack_size <= MDL_CACHE_DATA_SIZE);
 
-    FlushBuffer *flush;
-    mdlMessageCacheReply *reply;
-    if (iCacheMaxInflight==0) {
-        if (freeCacheReplies.empty()) reply = new mdlMessageCacheReply(iReplyBufSize);
-        else { reply=freeCacheReplies.front(); freeCacheReplies.pop_front(); }
-        flush = reply;
-        reply->emptyBuffer();
-        reply->setRankTo(iRankFrom);
-    }
     if (key_size) { // ADVANCED KEY
-        assert(c->hash_table);
-        const void *data = c->hash_table->lookup(ph->iLine,ph+1);
-        assert(c->getLineElementCount()==1);
-        if (iCacheMaxInflight) {
-            int iSize = sizeof(CacheHeader) + key_size + (data ? pack_size : 0);
-            flush = get_flush_buffer(iRankFrom,iSize);
-        }
-        flush->addBuffer(CacheMessageType::REPLY,ph->cid,Self(),ph->idFrom,ph->iLine,data?1:0);
-        if (data) c->cache_helper->pack(flush->getBuffer(pack_size),data);
+        flush->addBuffer(CacheMessageType::REPLY,request.header.cid,Self(),request.header.idFrom,request.header.iLine,request.data?1:0);
+        if (request.data) c->cache_helper->pack(flush->getBuffer(pack_size),request.data);
     }
     else { // SIMPLE KEY
-        int s = ph->iLine << c->nLineBits;
+        int s = request.header.iLine << c->nLineBits;
         int n = s + c->getLineElementCount();
-        if (iCacheMaxInflight) {
-            int iSize = sizeof(CacheHeader) + pack_size*c->getLineElementCount();
-            flush = get_flush_buffer(iRankFrom,iSize);
-        }
-        flush->addBuffer(CacheMessageType::REPLY,ph->cid,Self(),ph->idFrom,ph->iLine);
+        flush->addBuffer(CacheMessageType::REPLY,request.header.cid,Self(),request.header.idFrom,request.header.iLine);
         for (auto i=s; i<n; i++ ) {
             auto p = c->ReadLock(i);
             char *t = (i<c->nData) ? static_cast<char *>(p) : NULL;
@@ -682,7 +644,54 @@ int mpiClass::CacheReceiveRequest(int count, CacheHeader *ph) {
             c->ReadUnlock(p);
         }
     }
-    if (iCacheMaxInflight==0) reply->action(this); // MessageCacheReply()
+
+}
+
+// On the remote node, the message is received, and a response is constructed with the data
+// pulled directly from thread's cache. This is read-only, so is safe. It is forbidden in MDL
+// to remotely "read" part of an element that is also being modified. Results are "unpredictable".
+// Instead, one is expected to initialize such data via the "init" function.
+int mpiClass::CacheReceiveRequest(int count, CacheHeader *ph, int iProcFrom) {
+    assert( count >= sizeof(CacheHeader) );
+    assert( ph->mid == CacheMessageType::REQUEST );
+    int iCore = ph->idTo - Self();
+    assert(iCore>=0 && iCore<Cores());
+    auto c = pmdl[iCore]->cache[ph->cid].get();
+    assert(c->isActive());
+    auto key_size = c->key_size();
+    auto pack_size = c->cache_helper->pack_size();
+    assert(pack_size <= MDL_CACHE_DATA_SIZE);
+
+    // Find the data in the advanced cache if appropriate
+    const void *data;
+    if (key_size) { // ADVANCED KEY
+        assert(c->hash_table);
+        assert(c->getLineElementCount()==1);
+        data = c->hash_table->lookup(ph->iLine,ph+1);
+    }
+    else data = nullptr;
+    BufferedCacheRequest request(ph,data);
+    // Figure out which flush buffer to use
+    mdlMessageCacheReply *reply;
+    FlushBuffer *flush;
+    int iSize = sizeof(CacheHeader) + pack_size*c->getLineElementCount(); // Maximum needed for response
+    if (iCacheMaxInflight==0) {
+        if (freeCacheReplies.empty()) reply = new mdlMessageCacheReply(iReplyBufSize);
+        else { reply=freeCacheReplies.front(); freeCacheReplies.pop_front(); }
+        reply->emptyBuffer();
+        reply->setRankTo(iProcFrom);
+        flush = reply;
+    }
+    else {
+        reply = nullptr;
+        flush = get_flush_buffer(iProcFrom,iSize);
+        if (flush==nullptr) {
+            PendingRequests.push_back(request);
+            return sizeof(CacheHeader) + key_size;
+        }
+    }
+    BufferCacheResponse(flush,request);
+    if (reply) reply->action(this); // MessageCacheReply()
     return sizeof(CacheHeader) + key_size;
 }
 
@@ -711,7 +720,7 @@ void mpiClass::FinishCacheReply(mdlMessageCacheReply *pFlush) {
 // is queued back to the requesting thread. It will continue with the result.
 // If the REQUEST send for this data is not complete, then we do not send back the
 // result, rather we wait to rendezvous with the MPI_Isend completion.
-int mpiClass::CacheReceiveReply(int count, CacheHeader *ph) {
+int mpiClass::CacheReceiveReply(int count, CacheHeader *ph, int iProcFrom) {
     assert( count >= sizeof(CacheHeader) );
     assert( ph->mid == CacheMessageType::REPLY );
     int iCore = ph->idTo - Self();
@@ -851,22 +860,60 @@ void mpiClass::MessageFlushFromCore(mdlMessageFlushFromCore *pFlush) {
 
 // If there is a pending flush, and it has been expedited, then send it
 void mpiClass::expedite_flush(int iProc) {
+    std::set<int> ready;
     // Request messages are expedited if the number of cache messages inflight to this rank
     // falls below a certain threshold. Otherwise multiple REQUEST messages are batched.
-    if (countCacheInflight[iProc]<iCacheMaxInflight) {
+    if (iCacheMaxInflight) {
         auto iFlush = flushBuffersByRank[iProc];
+        // Always expedite REPLY messages to avoid deadlock situations
         if (iFlush != flushHeadBusy.end()) {
             auto pFlush = *iFlush;
-            if (pFlush->contains(CacheMessageType::REQUEST)) {
-                flushHeadBusy.erase(iFlush);
-                flushBuffersByRank[iProc] = flushHeadBusy.end();
-                pFlush->action(this);
+            if (pFlush->contains(CacheMessageType::REPLY)) {
+                ready.emplace(iProc);
+            }
+        }
+        // Expedite REQUEST message if they meet the criteria
+        if (countCacheInflight[iProc]<iCacheMaxInflight) {
+            if (iFlush != flushHeadBusy.end()) {
+                auto pFlush = *iFlush;
+                if (pFlush->contains(CacheMessageType::REQUEST)) {
+                    ready.emplace(iProc);
+                }
             }
         }
     }
+    // Try to process as many deferred requests as we can
+    while (!PendingRequests.empty()) {
+        auto &hdr = PendingRequests.front().header;
+        iProc = ThreadToProc(hdr.idFrom);
+
+        int iCore = hdr.idTo - Self();
+        assert(iCore>=0 && iCore<Cores());
+        auto c = pmdl[iCore]->cache[hdr.cid].get();
+        assert(c->isActive());
+        auto pack_size = c->cache_helper->pack_size();
+        assert(pack_size <= MDL_CACHE_DATA_SIZE);
+        int iSize = sizeof(CacheHeader) + pack_size*c->getLineElementCount(); // Maximum needed for response
+
+        auto flush = get_flush_buffer(iProc,iSize,false);
+        if (!flush) break;
+        BufferCacheResponse(flush,PendingRequests.front());
+        PendingRequests.pop_front();
+        ready.emplace(iProc);
+    }
+    // Now send the flush buffers that we marked above
+    for (auto i : ready) {
+        auto iFlush = flushBuffersByRank[i];
+        assert(iFlush != flushHeadBusy.end());
+        auto pFlush = *iFlush;
+        flushHeadBusy.erase(iFlush);
+        flushBuffersByRank[iProc] = flushHeadBusy.end();
+        pFlush->action(this);
+    }
+
 }
 
-mdlMessageFlushToRank *mpiClass::get_flush_buffer(int iProc,int iSize) {
+mdlMessageFlushToRank *mpiClass::get_flush_buffer(int iProc,int iSize,bool bWait) {
     auto iFlush = flushBuffersByRank[iProc];
     mdlMessageFlushToRank *pFlush;
     // If the current buffer is full, then send it and remove it from "busy".
@@ -888,9 +935,12 @@ mdlMessageFlushToRank *mpiClass::get_flush_buffer(int iProc,int iSize) {
             flushBuffersByRank[pFlush->getRankTo()] = flushHeadBusy.end();
             pFlush->action(this);
         }
-        while (flushHeadFree.empty()) { // Wait for a buffer to become available
-            finishRequests();
-            yield();
+        if (flushHeadFree.empty()) {
+            if (!bWait) return nullptr;
+            do {
+                finishRequests();
+                yield();
+            } while (flushHeadFree.empty());
         }
         pFlush = flushHeadFree.front();
         flushHeadFree.pop_front();
@@ -943,7 +993,7 @@ void mpiClass::FinishFlushToRank(mdlMessageFlushToRank *pFlush) {
 
 // Here we receive the flush buffer from a remote node. We have to split it
 // apart by target thread by calling queue_local_flush() for each element.
-int mpiClass::CacheReceiveFlush(int count, CacheHeader *ph) {
+int mpiClass::CacheReceiveFlush(int count, CacheHeader *ph, int iProcFrom) {
     assert( count >= sizeof(CacheHeader) );
     assert( ph->mid == CacheMessageType::FLUSH );
     bookkeeping();

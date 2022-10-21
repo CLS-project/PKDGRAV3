@@ -46,6 +46,7 @@
     #include <vector>
     #include <list>
     #include <map>
+    #include <boost/circular_buffer.hpp>
 #endif
 
 #ifndef MPI_VERSION
@@ -379,6 +380,15 @@ protected:
     std::vector<int>            SendReceiveAvailable;
     std::vector<int>            SendReceiveIndices;
     std::vector<mdlMessageMPI *> SendReceiveMessages;
+    struct BufferedCacheRequest {
+        CacheHeader header;
+        const void *data;
+        BufferedCacheRequest() = default;
+        BufferedCacheRequest(const CacheHeader *header,const void *data=nullptr) : header(*header), data(data) {}
+    };
+    boost::circular_buffer<BufferedCacheRequest> PendingRequests;
+    void BufferCacheResponse(FlushBuffer *flush,BufferedCacheRequest &request);
+
 #ifndef NDEBUG
     uint64_t nRequestsCreated, nRequestsReaped;
 #endif
@@ -419,9 +429,9 @@ protected:
     void MessageCacheReceive(mdlMessageCacheReceive *message);
     void FinishCacheReceive(mdlMessageCacheReceive *message, MPI_Request request, MPI_Status status);
     void CacheReceive(int bytes, CacheHeader *ph, int iProcFrom);
-    int CacheReceiveRequest(int count, CacheHeader *ph);
-    int CacheReceiveReply(int count, CacheHeader *ph);
-    int CacheReceiveFlush(int count, CacheHeader *ph);
+    int CacheReceiveRequest(int count, CacheHeader *ph, int iProcFrom);
+    int CacheReceiveReply(int count, CacheHeader *ph, int iProcFrom);
+    int CacheReceiveFlush(int count, CacheHeader *ph, int iProcFrom);
     friend class mdlMessageCacheOpen;
     void MessageCacheOpen(mdlMessageCacheOpen *message);
     friend class mdlMessageCacheClose;
@@ -461,7 +471,7 @@ protected:
 
 protected:
     void expedite_flush(int iProc);
-    mdlMessageFlushToRank *get_flush_buffer(int iProc,int iSize);
+    mdlMessageFlushToRank *get_flush_buffer(int iProc,int iSize,bool bWait=true);
     void flush_element(CacheHeader *pHdr,int iLineSize);
     void queue_local_flush(CacheHeader *ph);
     virtual int checkMPI();
