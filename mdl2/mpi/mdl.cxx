@@ -684,7 +684,7 @@ int mpiClass::CacheReceiveRequest(int count, CacheHeader *ph, int iProcFrom) {
     }
     else {
         reply = nullptr;
-        flush = get_flush_buffer(iProcFrom,iSize);
+        flush = get_flush_buffer(iProcFrom,iSize,false);
         if (flush==nullptr) {
             PendingRequests.push_back(request);
             return sizeof(CacheHeader) + key_size;
@@ -904,11 +904,13 @@ void mpiClass::expedite_flush(int iProc) {
     // Now send the flush buffers that we marked above
     for (auto i : ready) {
         auto iFlush = flushBuffersByRank[i];
-        assert(iFlush != flushHeadBusy.end());
-        auto pFlush = *iFlush;
-        flushHeadBusy.erase(iFlush);
-        flushBuffersByRank[iProc] = flushHeadBusy.end();
-        pFlush->action(this);
+        // We do need to check this because we could have flushed a buffer and had no free buffers
+        if (iFlush != flushHeadBusy.end()) {
+            auto pFlush = *iFlush;
+            flushHeadBusy.erase(iFlush);
+            flushBuffersByRank[iProc] = flushHeadBusy.end();
+            pFlush->action(this);
+        }
     }
 
 }
@@ -929,7 +931,7 @@ mdlMessageFlushToRank *mpiClass::get_flush_buffer(int iProc,int iSize,bool bWait
     }
     else pFlush = NULL; // We need a buffer
     if (pFlush==NULL) {
-        if (flushBuffCount - flushHeadBusy.size() < 10) { // Keep 10 free or in flight
+        if (flushBuffCount - flushHeadBusy.size() < flushBuffCount/5) { // Keep 20% free or in flight
             pFlush = flushHeadBusy.back(); // Remove LRU element
             flushHeadBusy.pop_back();
             flushBuffersByRank[pFlush->getRankTo()] = flushHeadBusy.end();
