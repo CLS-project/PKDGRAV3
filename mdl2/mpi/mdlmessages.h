@@ -31,6 +31,9 @@ struct CacheHeader {
     int32_t idFrom;
     int32_t idTo;
     int32_t iLine;
+#ifdef DEBUG_COUNT_CACHE
+    uint64_t sequence;
+#endif
 };
 
 class BufferTarget {
