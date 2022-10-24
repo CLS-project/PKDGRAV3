@@ -54,10 +54,10 @@ void MSR::ComputeSmoothing(double dTime, double dDelta) {
 
 
 
-static inline void densNodeOmegaE(NN *nnList, float fBall,
+static inline void densNodeOmegaE(NN *nnList, float ph,
                                   float dx_node, float dy_node, float dz_node, int nCnt,
                                   double *omega, double *E, int *nSmooth) {
-    float fBall2_p = 4.*fBall*fBall;
+    float fBall2_p = 4.*ph*ph;
     *omega = 0.0;
     *nSmooth = 0.0;
     for (int j=0; j<6; ++j)
@@ -71,7 +71,7 @@ static inline void densNodeOmegaE(NN *nnList, float fBall,
         const float fDist2 = dx*dx + dy*dy + dz*dz;
         if (fDist2 <= fBall2_p) {
             const double rpq = sqrt(fDist2);
-            const double Wpq = cubicSplineKernel(rpq, fBall);
+            const double Wpq = cubicSplineKernel(rpq, ph);
 
             *omega += Wpq;
 
@@ -279,7 +279,7 @@ void hydroDensity_node(PKD pkd, SMF *smf, BND bnd_node, PARTICLE **sinks, NN *nn
                     // have not yet fully converged due to, e.g., an anisotropic
                     // particle distribution
                     if (smf->dhMinOverSoft > 0.) {
-                        if (0.5*ph_new < smf->dhMinOverSoft*pkdSoft(pkd,partj)) {
+                        if (ph_new < smf->dhMinOverSoft*pkdSoft(pkd,partj)) {
                             if (!onLowerLimit) {
                                 // If in the next iteration still a lower smooth is
                                 // preferred, we will skip this particle
@@ -309,7 +309,7 @@ void hydroDensity_node(PKD pkd, SMF *smf, BND bnd_node, PARTICLE **sinks, NN *nn
             if (niter>1000 && partj->bMarked) {
                 if (c > Neff) {
                     partj->bMarked = 0;
-                    pkdSetBall(pkd, partj, ph);
+                    pkdSetBall(pkd, partj, 2.*ph);
                     densNodeNcondB(pkd, partj, E, *omega);
                     pkdSetDensity(pkd, partj, pkdMass(pkd,partj)*(*omega));
                     printf("WARNING %d Maximum iterations reached Neff %e c %e \n", pkdSpecies(pkd,partj), Neff, c);

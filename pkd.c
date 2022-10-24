@@ -1027,7 +1027,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             }
             else {
                 assert(dTuFac>0.0);
-                pkdSetBall(pkd,p,afSphOtherData[0]);
+                pkdSetBall(pkd,p,2.*afSphOtherData[0]);
                 if (pkd->oFieldOffset[oSph]) {
                     pSph = pkdSph(pkd, p);
 #ifndef OPTIM_REMOVE_UNUSED
