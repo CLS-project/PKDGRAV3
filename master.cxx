@@ -218,9 +218,22 @@ void MSR::Exit(int status) {
     exit(status);
 }
 
+static void make_directories(std::string name) {
+    auto i = name.rfind('/');
+    if (i > 0) {
+        if (i != std::string::npos) {
+            name = name.substr(0,i);
+            make_directories(name);
+            mkdir(name.c_str(),0755);
+        }
+    }
+}
+
 std::string MSR::BuildName(const char *path,int iStep,const char *type) {
     if (!path[0]) path = "{name}.{step:05d}{type}";
-    return fmt::format(path,"name"_a=OutName(),"step"_a=iStep,"type"_a=type);
+    auto name = fmt::format(path,"name"_a=OutName(),"step"_a=iStep,"type"_a=type);
+    make_directories(name);
+    return name;
 }
 std::string MSR::BuildName(int iStep,const char *type) {
     return BuildName(param.achOutPath,iStep,type);
