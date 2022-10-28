@@ -1427,6 +1427,12 @@ void MSR::Initialize() {
                 "Initial metallicity");
 #endif
 #ifdef STAR_FORMATION
+#ifdef HAVE_METALLICITY
+    param.bSFThresholdDenSchaye2004 = 0;
+    prmAddParam(prm,"bSFThresholdDenSchaye2004", 0, &param.bSFThresholdDenSchaye2004,
+                sizeof(int), "bSFThresholdDenSchaye2004",
+                "Use the metallicity-dependent SF density threshold of Schaye (2004)");
+#endif
     param.dSFThresholdDen = 0.1;
     prmAddParam(prm,"dSFThresholdDen", 2, &param.dSFThresholdDen,
                 sizeof(double), "dSFThresholdDen",
@@ -3560,7 +3566,7 @@ void MSR::EndTimestepIntegration(double dTime,double dDelta) {
     in.dConstGamma = param.dConstGamma;
     in.dTuFac = dTuFac;
 #ifdef STAR_FORMATION
-    in.dSFMinOverDensity = param.dSFMinOverDensity;
+    in.dSFThresholdOD = param.dSFThresholdOD;
 #endif
 #ifdef COOLING
     in.dCoolingFloorDen = param.dCoolingFloorDen;

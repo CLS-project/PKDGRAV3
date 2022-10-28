@@ -253,9 +253,13 @@ struct parameters {
 #endif
 #ifdef STAR_FORMATION
     /* IA: Star formation */
+#ifdef HAVE_METALLICITY
+    int bSFThresholdDenSchaye2004;
+#endif
     double dSFMinOverDensity;
     double dSFGasFraction;
     double dSFThresholdDen;
+    double dSFThresholdOD;
     double dSFThresholdu;
     double dSFThresholdT;
     double dSFindexKS;

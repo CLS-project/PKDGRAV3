@@ -20,6 +20,18 @@
 void MSR::SetStarFormationParam() {
     param.dSFThresholdu = param.dSFThresholdT*dTuFac;
 
+    if (csm->val.bComove) {
+        assert(csm->val.dOmegab > 0.);
+        // If in PKDGRAV3 units, this should always be unity
+        const double rhoCrit0 = 3. * csm->val.dHubble0 * csm->val.dHubble0 /
+                                (8. * M_PI);
+        param.dSFThresholdOD = rhoCrit0 * csm->val.dOmegab *
+                               param.dSFMinOverDensity;
+    }
+    else {
+        param.dSFThresholdOD = 0.0;
+    }
+
     if (!param.bRestart) {
         const double dnHToRho = MHYDR / param.dInitialH / param.units.dGmPerCcUnit;
         param.dSFThresholdDen *= dnHToRho; // Code physical density now
@@ -49,8 +61,13 @@ void MSR::StarForm(double dTime, double dDelta, int iRung) {
     in.dSFnormalizationKS = param.dSFnormalizationKS;
     in.dConstGamma = param.dConstGamma;
     in.dSFGasFraction = param.dSFGasFraction;
+    in.dSFThresholdDen = param.dSFThresholdDen * a * a * a;  // Send in comoving units
+    in.dSFThresholdOD = param.dSFThresholdOD;
     in.dSFThresholdu = param.dSFThresholdu;
     in.dSFEfficiency = param.dSFEfficiency;
+#ifdef HAVE_METALLICITY
+    in.bSFThresholdDenSchaye2004 = param.bSFThresholdDenSchaye2004;
+#endif
 #ifdef FEEDBACK
     in.dSNFBEfficiency = param.dSNFBEfficiency;
     in.dSNFBMaxEff = param.dSNFBMaxEff;
@@ -69,25 +86,6 @@ void MSR::StarForm(double dTime, double dDelta, int iRung) {
     in.dCCSNMaxMass = param.dCCSNMaxMass;
 #endif
 
-
-    // Here we set the minium density a particle must have to be SF
-    if (csm->val.bComove) {
-        double a3 = a*a*a;
-        in.dDenMin = param.dSFThresholdDen*a3;
-        assert(csm->val.dOmegab  > 0.);
-
-        // If in PKDGRAV3 units, this should always be unity
-        double rhoCrit0 = 3. * csm->val.dHubble0 * csm->val.dHubble0 /
-                          (8. * M_PI);
-        double denCosmoMin = rhoCrit0 * csm->val.dOmegab *
-                             param.dSFMinOverDensity;
-        in.dDenMin = (in.dDenMin > denCosmoMin) ? in.dDenMin : denCosmoMin;
-    }
-    else {
-        in.dDenMin = param.dSFThresholdDen;
-    }
-
-
     if (param.bVDetails) printf("Star Form (rung: %d) ... ", iRung);
 
     ActiveRung(iRung,1);
@@ -105,20 +103,22 @@ void MSR::StarForm(double dTime, double dDelta, int iRung) {
     dsec = TimerGet(TIMER_STARFORM);
     printf("Star Formation Calculated, Wallclock: %f secs\n\n",dsec);
 
-
 }
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-static inline double pressure_SFR(PKD pkd, double a_m3, double dDenMin,
-                                  double dSFnormalizationKS, double dSFindexKS, double dSFGasFraction,
-                                  double dEOSPolyFloorIndex, double dEOSPolyFloorDen, double dEOSPolyFlooru,
-                                  double dConstGamma, PARTICLE *p, SPHFIELDS *psph);
-static inline double density_SFR(PKD pkd, double a_m3, double dDenMin,
-                                 double dSFThresholdu, double dSFEfficiency,
-                                 PARTICLE *p, SPHFIELDS *psph);
+static inline double pressure_SFR(const float fMass, const float fDens, const double a_m3,
+                                  const double dThreshDen, const double dSFnormalizationKS,
+                                  const double dSFindexKS, const double dSFGasFraction,
+                                  const double dEOSPolyFloorIndex, const double dEOSPolyFloorDen,
+                                  const double dEOSPolyFlooru, const double dConstGamma,
+                                  SPHFIELDS *psph);
+
+static inline double density_SFR(const float fMass, const float fDens, const double a_m3,
+                                 const double dThreshDen, const double dSFThresholdu,
+                                 const double dSFEfficiency, SPHFIELDS *psph);
 
 
 int pstStarForm(PST pst,void *vin,int nIn,void *vout,int nOut) {
@@ -155,7 +155,6 @@ void pkdStarForm(PKD pkd,
 
     PARTICLE *p;
     SPHFIELDS *psph;
-    double dt;
     float *pv;
     int i, j;
 
@@ -175,32 +174,47 @@ void pkdStarForm(PKD pkd,
         p = pkdParticle(pkd,i);
 
         if (pkdIsActive(pkd,p) && pkdIsGas(pkd,p)) {
+            const float fDens = pkdDensity(pkd,p);
+            if (fDens < in.dSFThresholdOD) continue;
+
+            const float fMass = pkdMass(pkd, p);
             psph = pkdSph(pkd,p);
-            dt = in.dTime - psph->lastUpdateTime;
+
+#ifdef HAVE_METALLICITY
+            double dThreshDen;
+            if (in.bSFThresholdDenSchaye2004) {
+                const double dMetAbun = (double)psph->fMetalMass / (double)fMass;
+                const double dThreshFac = dMetAbun < 1.5e-6 ? 100.0 : pow(2e-3 / dMetAbun, 0.64);
+                dThreshDen = in.dSFThresholdDen * dThreshFac;
+            }
+            else {
+                dThreshDen = in.dSFThresholdDen;
+            }
+#else
+            const double dThreshDen = in.dSFThresholdDen;
+#endif
 
             double dmstar;
             if (in.dSFEfficiency > 0.0) {
-                dmstar = density_SFR(pkd, a_m3, in.dDenMin, in.dSFThresholdu, in.dSFEfficiency, p, psph);
+                dmstar = density_SFR(fMass, fDens, a_m3, dThreshDen, in.dSFThresholdu,
+                                     in.dSFEfficiency, psph);
             }
             else {
-                dmstar = pressure_SFR(pkd, a_m3, in.dDenMin,
-                                      in.dSFnormalizationKS, in.dSFindexKS, in.dSFGasFraction,
-                                      in.dEOSPolyFloorIndex, in.dEOSPolyFloorDen, in.dEOSPolyFlooru,
-                                      in.dConstGamma, p, psph);
+                dmstar = pressure_SFR(fMass, fDens, a_m3, dThreshDen, in.dSFnormalizationKS,
+                                      in.dSFindexKS, in.dSFGasFraction, in.dEOSPolyFloorIndex,
+                                      in.dEOSPolyFloorDen, in.dEOSPolyFlooru, in.dConstGamma,
+                                      psph);
             }
 
             psph->SFR = dmstar;
             if (dmstar == 0.0)
                 continue;
 
-            const double prob = 1.0 - exp(-dmstar*dt/pkdMass(pkd,p));
+            const double dt = in.dTime - psph->lastUpdateTime;
+            const double prob = 1.0 - exp(-dmstar * dt / fMass);
 
             // Star formation event?
             if (rand()<RAND_MAX*prob) {
-                float fMass = pkdMass(pkd, p);
-
-                //printf("STARFORM %e %e %e \n", dScaleFactor, rho_H, psph->Uint);
-
 #ifdef STELLAR_EVOLUTION
                 float afElemMass[ELEMENT_COUNT];
                 float fMetalMass;
@@ -266,61 +280,46 @@ void pkdStarForm(PKD pkd,
 }
 #endif
 
-static inline double pressure_SFR(PKD pkd, double a_m3, double dDenMin,
-                                  double dSFnormalizationKS, double dSFindexKS, double dSFGasFraction,
-                                  double dEOSPolyFloorIndex, double dEOSPolyFloorDen,double dEOSPolyFlooru,
-                                  double dConstGamma, PARTICLE *p, SPHFIELDS *psph) {
-
-    const float fMass = pkdMass(pkd, p);
-    const float fDens = pkdDensity(pkd,p);
-
-
+static inline double pressure_SFR(const float fMass, const float fDens, const double a_m3,
+                                  const double dThreshDen, const double dSFnormalizationKS,
+                                  const double dSFindexKS, const double dSFGasFraction,
+                                  const double dEOSPolyFloorIndex, const double dEOSPolyFloorDen,
+                                  const double dEOSPolyFlooru, const double dConstGamma,
+                                  SPHFIELDS *psph) {
     // Two SF thresholds are applied:
     //      a) Minimum density, computed at the master level
-    //      b) Maximum temperature of a
-    //            factor 0.5 dex (i.e., 3.1622) above the polytropic eEOS
+    //      b) Maximum temperature of a factor 0.5 dex (i.e., 3.1622)
+    //         above the polytropic eEOS
 #ifdef EEOS_POLYTROPE
     const double maxUint = 3.16228 * fMass *
-                           polytropicEnergyFloor(a_m3, fDens,
-                                   dEOSPolyFloorIndex, dEOSPolyFloorDen, dEOSPolyFlooru);
+                           polytropicEnergyFloor(a_m3, fDens, dEOSPolyFloorIndex,
+                                   dEOSPolyFloorDen, dEOSPolyFlooru);
 #else
     const double maxUint = INFINITY;
 #endif
 
-    if (psph->Uint > maxUint || fDens < dDenMin) {
+    if (psph->Uint > maxUint || fDens < dThreshDen) {
         return 0.0;
     }
 
-
     const double SFexp = 0.5*(dSFindexKS-1.);
-
-    const double dmstar =  dSFnormalizationKS * fMass *
-                           pow( dConstGamma*dSFGasFraction*psph->P*a_m3, SFexp);
-
+    const double dmstar = dSFnormalizationKS * fMass *
+                          pow(dConstGamma * dSFGasFraction * psph->P * a_m3, SFexp);
     return dmstar;
 }
 
-static inline double density_SFR(PKD pkd, double a_m3, double dDenMin,
-                                 double dSFThresholdu, double dSFEfficiency,
-                                 PARTICLE *p, SPHFIELDS *psph) {
-
-    const float fMass = pkdMass(pkd, p);
-    const float fDens = pkdDensity(pkd, p);
-
-
+static inline double density_SFR(const float fMass, const float fDens, const double a_m3,
+                                 const double dThreshDen, const double dSFThresholdu,
+                                 const double dSFEfficiency, SPHFIELDS *psph) {
     // Two SF thresholds are applied:
     //      a) Minimum density, computed at the master level
     //      b) Maximum temperature set by dSFThresholdTemp
-    const double maxUint = dSFThresholdu;
-
-    if (psph->Uint > maxUint || fDens < dDenMin) {
+    if (psph->Uint > dSFThresholdu || fDens < dThreshDen) {
         return 0.0;
     }
 
     const double tff = sqrt(3.*M_PI/(32.*fDens*a_m3));
-
     const double dmstar = dSFEfficiency * fMass / tff;
-
     return dmstar;
 }
 

@@ -202,7 +202,7 @@ struct inEndTimestep {
     double dConstGamma;
     double dTuFac;
 #ifdef STAR_FORMATION
-    double dSFMinOverDensity;
+    double dSFThresholdOD;
 #endif
 #ifdef COOLING
     double dCoolingFloorDen;
@@ -226,7 +226,10 @@ struct inEndTimestep {
 
 #ifdef STAR_FORMATION
 struct inStarForm {
-    double dDenMin;
+#ifdef HAVE_METALLICITY
+    int bSFThresholdDenSchaye2004;
+#endif
+
     double dDelta;
     double dTime;
     double dScaleFactor;
@@ -235,6 +238,8 @@ struct inStarForm {
     double dSFnormalizationKS;
     double dConstGamma;
     double dSFGasFraction;
+    double dSFThresholdDen;
+    double dSFThresholdOD;
     double dSFThresholdu;
     double dSFEfficiency;
 

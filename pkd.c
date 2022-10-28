@@ -2896,36 +2896,35 @@ void pkdEndTimestepIntegration(PKD pkd, struct inEndTimestep in) {
 
             // ##### Effective Equation Of State
 #ifdef COOLING
-            double denMin = in.dCoolingFloorDen;
-#ifdef STAR_FORMATION
-            double minOverDens = in.dSFMinOverDensity;
-#else
-            double minOverDens = 57.7;
-#endif
-            double denCosmoMin = -1.; // Low default to avoid messing the comparisons
-            if (pkd->csm->val.bComove) {
-                double rhoCrit0 = 3. * pkd->csm->val.dHubble0 * pkd->csm->val.dHubble0 /
-                                  (8. * M_PI);
-                denCosmoMin = rhoCrit0 * pkd->csm->val.dOmegab *
-                              minOverDens *
-                              a_inv3; // We do this in proper density
-            }
 
-            denMin = ( denCosmoMin > denMin) ? denCosmoMin : denMin;
-            if ( (fDensPhys > denMin) &&
-                    (psph->Uint < in.dCoolingFlooru*fMass ) ) {
+            // We do this in proper density
+#ifdef STAR_FORMATION
+            const double dSFThresholdOD = in.dSFThresholdOD * a_inv3;
+#else
+            double dSFThresholdOD = -1.; // Low default to avoid messing the comparisons
+            if (pkd->csm->val.bComove) {
+                const double rhoCrit0 = 3. * pkd->csm->val.dHubble0 * pkd->csm->val.dHubble0 /
+                                        (8. * M_PI);
+                dSFThresholdOD = rhoCrit0 * pkd->csm->val.dOmegab * 57.7 * a_inv3;
+            }
+#endif
+
+            const double dCoolingFloorDen = (dSFThresholdOD > in.dCoolingFloorDen) ?
+                                            dSFThresholdOD : in.dCoolingFloorDen;
+            if ( (fDensPhys > dCoolingFloorDen) && (psph->Uint < in.dCoolingFlooru*fMass) ) {
                 psph->Uint = in.dCoolingFlooru*fMass;
             }
+
 #ifdef EEOS_POLYTROPE
             /* Second, the polytropic EoS */
             // At high-redshift we can have so high densities that nH>threshold,
             // so this is only applied over a minimum overdensity
-            denMin = ( denCosmoMin > in.dEOSPolyFloorDen) ? denCosmoMin : in.dEOSPolyFloorDen;
-            if (fDensPhys > denMin) {
-
-                const double minUint =  fMass * polytropicEnergyFloor(a_inv3, fDens,
-                                        in.dEOSPolyFloorIndex, in.dEOSPolyFloorDen,  in.dEOSPolyFlooru);
-
+            const double dEOSPolyFloorDen = (dSFThresholdOD > in.dEOSPolyFloorDen) ?
+                                            dSFThresholdOD : in.dEOSPolyFloorDen;
+            if (fDensPhys > dEOSPolyFloorDen) {
+                const double minUint = fMass * polytropicEnergyFloor(a_inv3, fDens,
+                                       in.dEOSPolyFloorIndex, in.dEOSPolyFloorDen,
+                                       in.dEOSPolyFlooru);
                 if (psph->Uint < minUint) psph->Uint = minUint;
             }
 #endif

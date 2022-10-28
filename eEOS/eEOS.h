@@ -4,13 +4,13 @@
 /*
  * General polytropic eEOS floor
  */
-inline static double polytropicEnergyFloor(float a_inv3, float fDens,
-        double dEOSPolyFloorIndex, double dEOSPolyFloorDen, double dEOSPolyFlooru) {
+inline static double polytropicEnergyFloor(const double a_inv3, const float fDens,
+        const double dEOSPolyFloorIndex, const double dEOSPolyFloorDen, const double dEOSPolyFlooru) {
     return dEOSPolyFlooru * pow( fDens*a_inv3/dEOSPolyFloorDen, dEOSPolyFloorIndex );
 }
 
-inline static double polytropicPressureFloor(float a_inv3, float fDens, double dConstGamma,
-        double dEOSPolyFloorIndex, double dEOSPolyFloorDen, double dEOSPolyFlooru) {
+inline static double polytropicPressureFloor(const double a_inv3, const float fDens, const double dConstGamma,
+        const double dEOSPolyFloorIndex, const double dEOSPolyFloorDen, const double dEOSPolyFlooru) {
     return fDens * (dConstGamma - 1. ) *
            polytropicEnergyFloor(a_inv3, fDens, dEOSPolyFloorIndex, dEOSPolyFloorDen,  dEOSPolyFlooru);
 }

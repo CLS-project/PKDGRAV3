@@ -255,6 +255,7 @@ def parse():
 
     sform = parser.add_argument_group('Star formation')
     add_flag(sform,'SFThresholdDen',default=0.1,dest='dSFThresholdDen', type=float, help='Minimum density at which the star formation can happen, nH cm-3')
+    add_bool(sform,'SFThresholdDenSchaye2004',default=False,dest='bSFThresholdDenSchaye2004', help='Use the metallicity-dependent SF density threshold of Schaye (2004)')
     add_flag(sform,'SFThresholdT',default=1e5,dest='dSFThresholdT', type=float, help='Maximum temperature at which the star formation can happen, K')
     add_flag(sform,'SFminOverDens',default=57.7,dest='dSFMinOverDensity', type=float, help='Minimum overdensity for allowing star formation')
     add_flag(sform,'SFGasFraction',default=0.3,dest='dSFGasFraction', type=float, help='Gas fraction assumed for the star formation')
