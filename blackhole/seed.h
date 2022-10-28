@@ -7,7 +7,7 @@ extern "C" {
 #endif
 int pkdPlaceBHSeed(PKD pkd, double dTime, double dScaleFactor,
                    uint8_t uRungMax, double dDenMin, double dBHMhaloMin,
-                   double dTau, double dInitialH, double dBHSeedMass);
+                   double dTau, double dBHSeedMass);
 #ifdef __cplusplus
 }
 #endif

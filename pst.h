@@ -556,7 +556,6 @@ struct inPlaceBHSeed {
     double dDenMin;
     double dBHMhaloMin;
     double dTau;
-    double dInitialH;
     double dBHSeedMass;
     uint8_t uRungMax;
 };

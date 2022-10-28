@@ -1075,7 +1075,7 @@ int pstPlaceBHSeed(PST pst,void *vin,int nIn,void *vout,int nOut) {
     else {
         LCL *plcl = pst->plcl;
         out->nBHs = pkdPlaceBHSeed(plcl->pkd,in->dTime, in->dScaleFactor, in->uRungMax, in->dDenMin,
-                                   in->dBHMhaloMin, in->dTau, in->dInitialH, in->dBHSeedMass);
+                                   in->dBHMhaloMin, in->dTau, in->dBHSeedMass);
     }
     return sizeof(struct outPlaceBHSeed);
 

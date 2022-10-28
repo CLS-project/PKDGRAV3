@@ -13,11 +13,9 @@ void MSR::PlaceBHSeed(double dTime, uint8_t uRungMax) {
     in.dScaleFactor = csmTime2Exp(csm,dTime);
     in.dBHMhaloMin = param.dBHMhaloMin;
     in.dTau = param.dTau;
-    in.dInitialH = param.dInitialH;
     in.dBHSeedMass = param.dBHSeedMass;
 #ifdef STAR_FORMATION
-    if (csm->val.bComove)
-        in.dDenMin = param.dSFThresholdDen*pow(in.dScaleFactor,3);
+    in.dDenMin = param.dSFThresholdDen*pow(in.dScaleFactor,3);
 #else
     in.dDenMin = 0.0;
 #endif
@@ -46,7 +44,7 @@ extern "C" {
 
 int pkdPlaceBHSeed(PKD pkd, double dTime, double dScaleFactor,
                    uint8_t uRungMax, double dDenMin, double dBHMhaloMin,
-                   double dTau, double dInitialH, double dBHSeedMass) {
+                   double dTau, double dBHSeedMass) {
     int newBHs = 0;
     SMX smx;
     smInitialize(&smx,pkd,NULL,32,1,0,SMX_NULL);
@@ -92,14 +90,7 @@ int pkdPlaceBHSeed(PKD pkd, double dTime, double dScaleFactor,
             if (index==0) continue;
 
             // IA: We require the density to be above the SF threshold
-#ifdef COOLING
-            const double rho_H = pkdDensity(pkd,pLowPot) *
-                                 pkdSph(pkd,pLowPot)->afElemMass[ELEMENT_H] / pkdMass(pkd,pLowPot);
-#else
-            // If no information, assume primoridal abundance
-            const double rho_H = pkdDensity(pkd,pLowPot) * dInitialH;
-#endif
-            if (rho_H < dDenMin) continue;
+            if (pkdDensity(pkd,pLowPot) < dDenMin) continue;
 
             assert(pLowPot!=NULL);
             assert(pkdIsGas(pkd,pLowPot));

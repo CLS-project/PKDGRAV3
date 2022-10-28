@@ -18,14 +18,14 @@
 /* MSR layer
  */
 void MSR::SetStarFormationParam() {
-    const double dHydFrac = param.dInitialH;
-    const double dnHToRho = MHYDR / dHydFrac / param.units.dGmPerCcUnit;
     param.dSFThresholdu = param.dSFThresholdT*dTuFac;
 
-    const double Msolpcm2 = 1. / param.units.dMsolUnit *
-                            pow(param.units.dKpcUnit*1e3, 2);
     if (!param.bRestart) {
-        param.dSFThresholdDen *= dnHToRho*dHydFrac; // Code hydrogen density
+        const double dnHToRho = MHYDR / param.dInitialH / param.units.dGmPerCcUnit;
+        param.dSFThresholdDen *= dnHToRho; // Code physical density now
+
+        const double Msolpcm2 = 1. / param.units.dMsolUnit *
+                                pow(param.units.dKpcUnit*1e3, 2);
         param.dSFnormalizationKS *= 1. / param.units.dMsolUnit *
                                     param.units.dSecUnit/SECONDSPERYEAR *
                                     pow(param.units.dKpcUnit, 2) *
@@ -71,7 +71,6 @@ void MSR::StarForm(double dTime, double dDelta, int iRung) {
 
 
     // Here we set the minium density a particle must have to be SF
-    //  NOTE: We still have to divide by the hydrogen fraction of each particle!
     if (csm->val.bComove) {
         double a3 = a*a*a;
         in.dDenMin = param.dSFThresholdDen*a3;
@@ -81,8 +80,7 @@ void MSR::StarForm(double dTime, double dDelta, int iRung) {
         double rhoCrit0 = 3. * csm->val.dHubble0 * csm->val.dHubble0 /
                           (8. * M_PI);
         double denCosmoMin = rhoCrit0 * csm->val.dOmegab *
-                             param.dSFMinOverDensity *
-                             param.dInitialH;
+                             param.dSFMinOverDensity;
         in.dDenMin = (in.dDenMin > denCosmoMin) ? in.dDenMin : denCosmoMin;
     }
     else {
@@ -273,10 +271,8 @@ static inline double pressure_SFR(PKD pkd, double a_m3, double dDenMin,
                                   double dEOSPolyFloorIndex, double dEOSPolyFloorDen,double dEOSPolyFlooru,
                                   double dConstGamma, PARTICLE *p, SPHFIELDS *psph) {
 
-    float fMass = pkdMass(pkd, p);
-
-    const double hyd_abun = psph->afElemMass[ELEMENT_H] / fMass;
-    const double rho_H = pkdDensity(pkd,p) * hyd_abun;
+    const float fMass = pkdMass(pkd, p);
+    const float fDens = pkdDensity(pkd,p);
 
 
     // Two SF thresholds are applied:
@@ -285,20 +281,20 @@ static inline double pressure_SFR(PKD pkd, double a_m3, double dDenMin,
     //            factor 0.5 dex (i.e., 3.1622) above the polytropic eEOS
 #ifdef EEOS_POLYTROPE
     const double maxUint = 3.16228 * fMass *
-                           polytropicEnergyFloor(a_m3, pkdDensity(pkd,p),
-                                   dEOSPolyFloorIndex, dEOSPolyFloorDen,  dEOSPolyFlooru);
+                           polytropicEnergyFloor(a_m3, fDens,
+                                   dEOSPolyFloorIndex, dEOSPolyFloorDen, dEOSPolyFlooru);
 #else
     const double maxUint = INFINITY;
 #endif
 
-    if (psph->Uint > maxUint || rho_H < dDenMin) {
+    if (psph->Uint > maxUint || fDens < dDenMin) {
         return 0.0;
     }
 
 
     const double SFexp = 0.5*(dSFindexKS-1.);
 
-    const double dmstar =  dSFnormalizationKS * pkdMass(pkd,p) *
+    const double dmstar =  dSFnormalizationKS * fMass *
                            pow( dConstGamma*dSFGasFraction*psph->P*a_m3, SFexp);
 
     return dmstar;
@@ -308,26 +304,22 @@ static inline double density_SFR(PKD pkd, double a_m3, double dDenMin,
                                  double dSFThresholdu, double dSFEfficiency,
                                  PARTICLE *p, SPHFIELDS *psph) {
 
-    float fMass = pkdMass(pkd, p);
-    float fDens = pkdDensity(pkd, p);
-
-    const double hyd_abun = psph->afElemMass[ELEMENT_H] / fMass;
-    const double rho_H = fDens*hyd_abun;
+    const float fMass = pkdMass(pkd, p);
+    const float fDens = pkdDensity(pkd, p);
 
 
     // Two SF thresholds are applied:
     //      a) Minimum density, computed at the master level
     //      b) Maximum temperature set by dSFThresholdTemp
-    const double dens = fDens*a_m3;
     const double maxUint = dSFThresholdu;
 
-    if (psph->Uint > maxUint || rho_H < dDenMin) {
+    if (psph->Uint > maxUint || fDens < dDenMin) {
         return 0.0;
     }
 
     const double tff = sqrt(3.*M_PI/(32.*fDens*a_m3));
 
-    const double dmstar = dSFEfficiency * fDens / (tff * psph->omega);
+    const double dmstar = dSFEfficiency * fMass / tff;
 
     return dmstar;
 }
