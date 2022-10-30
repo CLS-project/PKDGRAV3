@@ -208,6 +208,8 @@ struct parameters {
     /*
      * IA: Internal energy floor parameters
      */
+    double dCoolingMinu;
+    double dCoolingMinTemp;
     double dCoolingFloorDen;
     double dCoolingFlooru;
     double dCoolingFloorT;

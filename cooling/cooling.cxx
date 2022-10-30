@@ -57,11 +57,14 @@ static inline void get_redshift_index(const float z, int *z_index, float *dz,
                                       struct cooling_function_data *restrict cooling);
 
 void MSR::SetCoolingParam() {
-    const double dHydFrac = param.dInitialH;
-    const double dnHToRho = MHYDR / dHydFrac / param.units.dGmPerCcUnit;
-    if (!param.bRestart)
+    param.dCoolingMinu = param.dCoolingMinTemp * dTuFac;
+    param.dCoolingFlooru = param.dCoolingFloorT * dTuFac;
+
+    if (!param.bRestart) {
+        const double dHydFrac = param.dInitialH;
+        const double dnHToRho = MHYDR / dHydFrac / param.units.dGmPerCcUnit;
         param.dCoolingFloorDen *= dnHToRho;
-    param.dCoolingFlooru = param.dCoolingFloorT*dTuFac;
+    }
 }
 
 /**
@@ -229,6 +232,7 @@ void MSR::CoolingInit(float redshift) {
     cooling->number_density_to_cgs = pow(param.units.dKpcUnit*KPCCM,-3.);
     cooling->units = param.units;
     cooling->dConstGamma = param.dConstGamma;
+    cooling->dCoolingMinu = param.dCoolingMinu;
 
     /* Store some constants in CGS units */
     const double proton_mass_cgs = MHYDR;
@@ -554,12 +558,11 @@ void cooling_cool_part(PKD pkd,
     /* IA: In our case we are using operator splitting so this is simpler */
     const float fMass = pkdMass(pkd,p);
     double u_0 = psph->Uint / fMass;
+    if (u_0 < cooling->dCoolingMinu) u_0 = cooling->dCoolingMinu;
 
 
     /* Convert to CGS units */
     double u_0_cgs = u_0 * cooling->internal_energy_to_cgs;
-    if (u_0_cgs < 1e10)  u_0_cgs = 1e10;
-
     const double dt_cgs =  cooling->units.dSecUnit * dt;
 
     /* Change in redshift over the course of this time-step
@@ -645,9 +648,8 @@ void cooling_cool_part(PKD pkd,
     }
 
     /* Convert back to internal units */
-    // IA: We set a minimum internal energy to avoid reaching the end of the table (~100 K)
-    if (u_final_cgs < 1e10) u_final_cgs = 2e10;
     double u_final = u_final_cgs * cooling->internal_energy_from_cgs;
+    if (u_final < cooling->dCoolingMinu) u_final = cooling->dCoolingMinu;
     psph->E = psph->E - psph->Uint;
     psph->Uint = u_final * fMass;
     psph->E = psph->E + psph->Uint;

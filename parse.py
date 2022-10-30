@@ -244,6 +244,7 @@ def parse():
     add_flag(cool,'He_reion_z_centre',default=3.5,dest='fHe_reion_z_centre', type=float, help='Mean redshift of Helium reionization')
     add_flag(cool,'He_reion_z_sigma',default=0.5,dest='fHe_reion_z_sigma', type=float, help='Redshift interval for Helium reionzation')
     add_flag(cool,'T_CMB_0',default=2.725,dest='fT_CMB_0', type=float, help='Temperature of the CMB at z=0')
+    add_flag(cool,'CoolingMinTemp',default=1e2,dest='dCoolingMinTemp', type=float, help='Minimum allowed temperature, K')
     add_flag(cool,'CoolingFloorDen',default=1e-5,dest='dCoolingFloorDen', type=float, help='Minimum density at which the internal enrgy floor will be applied, n_H cm-3')
     add_flag(cool,'CoolingFloorT',default=1e4,dest='dCoolingFloorT', type=float, help='Temperature at the internal energy floor, K')
 

@@ -1335,6 +1335,11 @@ void MSR::Initialize() {
                 "Temperature of the CMB at z=0");
 
     /* Parameters for the internal energy floor */
+    param.dCoolingMinTemp = 100.0;
+    prmAddParam(prm,"dCoolingMinTemp", 2, &param.dCoolingMinTemp,
+                sizeof(double), "dCoolingMinTemp",
+                "Minimum allowed temperature [K]");
+
     param.dCoolingFloorDen = 1e-5;
     prmAddParam(prm,"dCoolingFloorDen", 2, &param.dCoolingFloorDen,
                 sizeof(double), "dCoolingFloorDen",
