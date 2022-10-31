@@ -205,10 +205,12 @@ struct inEndTimestep {
     double dSFThresholdOD;
 #endif
 #ifdef COOLING
+    double dCoolingFloorOD;
     double dCoolingFloorDen;
     double dCoolingFlooru;
 #endif
 #ifdef EEOS_POLYTROPE
+    double dEOSPolyFloorOD;
     double dEOSPolyFloorIndex;
     double dEOSPolyFloorDen;
     double dEOSPolyFlooru;

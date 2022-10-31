@@ -2895,32 +2895,21 @@ void pkdEndTimestepIntegration(PKD pkd, struct inEndTimestep in) {
 #endif
 
             // ##### Effective Equation Of State
-#ifdef COOLING
-
             // We do this in proper density
-#ifdef STAR_FORMATION
-            const double dSFThresholdOD = in.dSFThresholdOD * a_inv3;
-#else
-            double dSFThresholdOD = -1.; // Low default to avoid messing the comparisons
-            if (pkd->csm->val.bComove) {
-                const double rhoCrit0 = 3. * pkd->csm->val.dHubble0 * pkd->csm->val.dHubble0 /
-                                        (8. * M_PI);
-                dSFThresholdOD = rhoCrit0 * pkd->csm->val.dOmegab * 57.7 * a_inv3;
-            }
-#endif
-
-            const double dCoolingFloorDen = (dSFThresholdOD > in.dCoolingFloorDen) ?
-                                            dSFThresholdOD : in.dCoolingFloorDen;
+#ifdef COOLING
+            /* First, the cooling temperature floor */
+            const double dCoolingFloorOD = in.dCoolingFloorOD * a_inv3;
+            const double dCoolingFloorDen = (dCoolingFloorOD > in.dCoolingFloorDen) ?
+                                            dCoolingFloorOD : in.dCoolingFloorDen;
             if ( (fDensPhys > dCoolingFloorDen) && (psph->Uint < in.dCoolingFlooru*fMass) ) {
                 psph->Uint = in.dCoolingFlooru*fMass;
             }
 
 #ifdef EEOS_POLYTROPE
-            /* Second, the polytropic EoS */
-            // At high-redshift we can have so high densities that nH>threshold,
-            // so this is only applied over a minimum overdensity
-            const double dEOSPolyFloorDen = (dSFThresholdOD > in.dEOSPolyFloorDen) ?
-                                            dSFThresholdOD : in.dEOSPolyFloorDen;
+            /* Second, the polytropic effective EoS */
+            const double dEOSPolyFloorOD = in.dEOSPolyFloorOD * a_inv3;
+            const double dEOSPolyFloorDen = (dEOSPolyFloorOD > in.dEOSPolyFloorDen) ?
+                                            dEOSPolyFloorOD : in.dEOSPolyFloorDen;
             if (fDensPhys > dEOSPolyFloorDen) {
                 const double minUint = fMass * polytropicEnergyFloor(a_inv3, fDens,
                                        in.dEOSPolyFloorIndex, in.dEOSPolyFloorDen,

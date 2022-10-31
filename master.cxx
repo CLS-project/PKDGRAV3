@@ -1340,17 +1340,27 @@ void MSR::Initialize() {
                 sizeof(double), "dCoolingMinTemp",
                 "Minimum allowed temperature [K]");
 
+    param.dCoolingMinOverDensity = 10.0;
+    prmAddParam(prm,"dCoolingMinOverDensity", 2, &param.dCoolingMinOverDensity,
+                sizeof(double), "dCoolingMinOverDensity",
+                "Minimum overdensity at which the internal energy floor will be applied");
+
     param.dCoolingFloorDen = 1e-5;
     prmAddParam(prm,"dCoolingFloorDen", 2, &param.dCoolingFloorDen,
                 sizeof(double), "dCoolingFloorDen",
                 "Minimum density at which the internal energy floor will be applied (in nH [cm-3])");
 
-    param.dCoolingFloorT = 1e4;
-    prmAddParam(prm,"dCoolingFloorT", 2, &param.dCoolingFloorT,
-                sizeof(double), "dCoolingFloorT",
-                "Temperature at the internal energy floor");
+    param.dCoolingFloorTemp = 1e4;
+    prmAddParam(prm,"dCoolingFloorTemp", 2, &param.dCoolingFloorTemp,
+                sizeof(double), "dCoolingFloorTemp",
+                "Temperature at the internal energy floor [K]");
 #endif
 #ifdef EEOS_POLYTROPE
+    param.dEOSMinOverDensity = 10.0;
+    prmAddParam(prm,"dEOSMinOverDensity", 2, &param.dEOSMinOverDensity,
+                sizeof(double), "dEOSMinOverDensity",
+                "Minimum overdensity at which the effective EOS will be applied");
+
     param.dEOSPolyFloorIndex = 4./3.; // This gives a Jeans Mass independent of density (see Schaye & Dalla Vecchia 2008)
     prmAddParam(prm,"dEOSPolyFloorIndex", 2, &param.dEOSPolyFloorIndex,
                 sizeof(double), "dEOSPolyFloorIndex",
@@ -1361,10 +1371,10 @@ void MSR::Initialize() {
                 sizeof(double), "dEOSPolyFloorDen",
                 "Minimum density at which the effective EOS will be applied (in nH [cm-3])");
 
-    param.dEOSPolyFlooru = 1e4;
-    prmAddParam(prm,"dEOSPolyFloorTemp", 2, &param.dEOSPolyFlooru,
+    param.dEOSPolyFloorTemp = 1e4;
+    prmAddParam(prm,"dEOSPolyFloorTemp", 2, &param.dEOSPolyFloorTemp,
                 sizeof(double), "dEOSPolyFloorTemp",
-                "Temperature at the density threshold for the effective EOS");
+                "Temperature at the density threshold for the effective EOS [K]");
 #endif
 #ifdef EEOS_JEANS
     param.dEOSNJeans = 8.75;
@@ -3574,10 +3584,12 @@ void MSR::EndTimestepIntegration(double dTime,double dDelta) {
     in.dSFThresholdOD = param.dSFThresholdOD;
 #endif
 #ifdef COOLING
+    in.dCoolingFloorOD = param.dCoolingFloorOD;
     in.dCoolingFloorDen = param.dCoolingFloorDen;
     in.dCoolingFlooru = param.dCoolingFlooru;
 #endif
 #if EEOS_POLYTROPE
+    in.dEOSPolyFloorOD = param.dEOSPolyFloorOD;
     in.dEOSPolyFloorIndex = param.dEOSPolyFloorIndex;
     in.dEOSPolyFloorDen = param.dEOSPolyFloorDen;
     in.dEOSPolyFlooru = param.dEOSPolyFlooru;

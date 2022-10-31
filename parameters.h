@@ -210,14 +210,19 @@ struct parameters {
      */
     double dCoolingMinu;
     double dCoolingMinTemp;
+    double dCoolingMinOverDensity;
+    double dCoolingFloorOD;
     double dCoolingFloorDen;
     double dCoolingFlooru;
-    double dCoolingFloorT;
+    double dCoolingFloorTemp;
 #endif
 #ifdef EEOS_POLYTROPE
+    double dEOSMinOverDensity;
+    double dEOSPolyFloorOD;
     double dEOSPolyFloorIndex;
     double dEOSPolyFloorDen;
     double dEOSPolyFlooru;
+    double dEOSPolyFloorTemp;
 #endif
 #ifdef EEOS_JEANS
     double dEOSNJeans;

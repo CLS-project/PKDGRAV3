@@ -58,11 +58,22 @@ static inline void get_redshift_index(const float z, int *z_index, float *dz,
 
 void MSR::SetCoolingParam() {
     param.dCoolingMinu = param.dCoolingMinTemp * dTuFac;
-    param.dCoolingFlooru = param.dCoolingFloorT * dTuFac;
+    param.dCoolingFlooru = param.dCoolingFloorTemp * dTuFac;
+
+    if (csm->val.bComove) {
+        assert(csm->val.dOmegab > 0.);
+        // If in PKDGRAV3 units, this should always be unity
+        const double rhoCrit0 = 3. * csm->val.dHubble0 * csm->val.dHubble0 /
+                                (8. * M_PI);
+        param.dCoolingFloorOD = rhoCrit0 * csm->val.dOmegab *
+                                param.dCoolingMinOverDensity;
+    }
+    else {
+        param.dCoolingFloorOD = 0.0;
+    }
 
     if (!param.bRestart) {
-        const double dHydFrac = param.dInitialH;
-        const double dnHToRho = MHYDR / dHydFrac / param.units.dGmPerCcUnit;
+        const double dnHToRho = MHYDR / param.dInitialH / param.units.dGmPerCcUnit;
         param.dCoolingFloorDen *= dnHToRho;
     }
 }
