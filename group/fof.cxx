@@ -160,14 +160,15 @@ static void addChildFof(PKD pkd, clList *cl, int iChild, int id, float *fOffset)
     iCache = 0;
     cOpen = 0.5*(cbnd.width(0) + cbnd.width(1) + cbnd.width(2)); /* Manhatten metric */
     pkdGetChildCells(c,id,idLower,iLower,idUpper,iUpper);
+    auto SPHbob = pkd->oNodeBOB ? pkd->NodeBOB(c) : &SPHbobVOID;
     cl->append(iCache,id,iChild,idLower,iLower,idUpper,iUpper,nc,cOpen,
-               pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c_r,fOffset,cbnd.center().data(),cbnd.fMax,
+               pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c_r,fOffset,cbnd.center().data(),cbnd.fMax
 #if SPHBALLOFBALLS
-               c->fBoBr2,c->fBoBxCenter,c->fBoByCenter,c->fBoBzCenter);
+               ,SPHbob->fBoBr2,SPHbob->fBoBxCenter,SPHbob->fBoByCenter,SPHbob->fBoBzCenter
+#elif SPHBOXOFBALLS
+               ,SPHbob->fBoBxMin,SPHbob->fBoBxMax,SPHbob->fBoByMin,SPHbob->fBoByMax,SPHbob->fBoBzMin,SPHbob->fBoBzMax
 #endif
-#if SPHBOXOFBALLS
-    c->fBoBxMin,c->fBoBxMax,c->fBoByMin,c->fBoByMax,c->fBoBzMin,c->fBoBzMax);
-#endif
+              );
 }
 
 

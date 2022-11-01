@@ -798,37 +798,40 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
             pAcc[2] = m*az;
         }
         pkdn->fSoft2 = dih2*dih2;
-        if (pkd->particles.present(PKD_FIELD::oBall)) {
+        if (pkd->oNodeBOB) {
+            auto SPHbob = pkd->NodeBOB(pkdn);
+            if (pkd->particles.present(PKD_FIELD::oBall)) {
 #if SPHBALLOFBALLS
-            pkdn->fBoBr2 = fBoBr*fBoBr;
-            pkdn->fBoBxCenter = fBoBxCenter;
-            pkdn->fBoByCenter = fBoByCenter;
-            pkdn->fBoBzCenter = fBoBzCenter;
+                SPHbob->fBoBr2 = fBoBr*fBoBr;
+                SPHbob->fBoBxCenter = fBoBxCenter;
+                SPHbob->fBoByCenter = fBoByCenter;
+                SPHbob->fBoBzCenter = fBoBzCenter;
 #endif
 #if SPHBOXOFBALLS
-            pkdn->fBoBxMin = fBoBxMin;
-            pkdn->fBoBxMax = fBoBxMax;
-            pkdn->fBoByMin = fBoByMin;
-            pkdn->fBoByMax = fBoByMax;
-            pkdn->fBoBzMin = fBoBzMin;
-            pkdn->fBoBzMax = fBoBzMax;
+                SPHbob->fBoBxMin = fBoBxMin;
+                SPHbob->fBoBxMax = fBoBxMax;
+                SPHbob->fBoByMin = fBoByMin;
+                SPHbob->fBoByMax = fBoByMax;
+                SPHbob->fBoBzMin = fBoBzMin;
+                SPHbob->fBoBzMax = fBoBzMax;
 #endif
-        }
-        else {
+            }
+            else {
 #if SPHBALLOFBALLS
-            pkdn->fBoBr2 = 0.0f;
-            pkdn->fBoBxCenter = 0.0f;
-            pkdn->fBoByCenter = 0.0f;
-            pkdn->fBoBzCenter = 0.0f;
+                SPHbob->fBoBr2 = 0.0f;
+                SPHbob->fBoBxCenter = 0.0f;
+                SPHbob->fBoByCenter = 0.0f;
+                SPHbob->fBoBzCenter = 0.0f;
 #endif
 #if SPHBOXOFBALLS
-            pkdn->fBoBxMin = 0.0f;
-            pkdn->fBoBxMax = 0.0f;
-            pkdn->fBoByMin = 0.0f;
-            pkdn->fBoByMax = 0.0f;
-            pkdn->fBoBzMin = 0.0f;
-            pkdn->fBoBzMax = 0.0f;
+                SPHbob->fBoBxMin = 0.0f;
+                SPHbob->fBoBxMax = 0.0f;
+                SPHbob->fBoByMin = 0.0f;
+                SPHbob->fBoByMax = 0.0f;
+                SPHbob->fBoBzMin = 0.0f;
+                SPHbob->fBoBzMax = 0.0f;
 #endif
+            }
         }
         d2Max = 0.0;
         for (pj=pkdn->pLower; pj<=pkdn->pUpper; ++pj) {
@@ -1049,40 +1052,46 @@ void pkdCombineCells1(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
     pkdn->uMinRung = p1->uMinRung < p2->uMinRung ? p1->uMinRung : p2->uMinRung;
     pkdn->uMaxRung = p1->uMaxRung > p2->uMaxRung ? p1->uMaxRung : p2->uMaxRung;
 
-    if (pkd->particles.present(PKD_FIELD::oNewSph)) {
-        /* Combine ball or box of balls */
+    if (pkd->oNodeBOB) {
+        auto SPHbob = pkd->NodeBOB(pkdn);
+        auto SPHbob1 = pkd->NodeBOB(p1);
+        auto SPHbob2 = pkd->NodeBOB(p2);
+
+        if (pkd->particles.present(PKD_FIELD::oNewSph)) {
+            /* Combine ball or box of balls */
 #if SPHBALLOFBALLS
-        double fBoBr,fBoBxCenter,fBoByCenter,fBoBzCenter;
-        CombineBallOfBalls(sqrt(p1->fBoBr2),p1->fBoBxCenter,p1->fBoByCenter,p1->fBoBzCenter,sqrt(p2->fBoBr2),p2->fBoBxCenter,p2->fBoByCenter,p2->fBoBzCenter,fBoBr,fBoBxCenter,fBoByCenter,fBoBzCenter);
-        pkdn->fBoBxCenter = fBoBxCenter;
-        pkdn->fBoByCenter = fBoByCenter;
-        pkdn->fBoBzCenter = fBoBzCenter;
-        pkdn->fBoBr2 = fBoBr * fBoBr;
+            double fBoBr,fBoBxCenter,fBoByCenter,fBoBzCenter;
+            CombineBallOfBalls(sqrt(SPHbob1->fBoBr2),SPHbob1->fBoBxCenter,SPHbob1->fBoByCenter,SPHbob.1->fBoBzCenter,sqrt(SPHbob2->fBoBr2),SPHbob2->fBoBxCenter,SPHbob2->fBoByCenter,SPHbob2->fBoBzCenter,fBoBr,fBoBxCenter,fBoByCenter,fBoBzCenter);
+            SPHbob->fBoBxCenter = fBoBxCenter;
+            SPHbob->fBoByCenter = fBoByCenter;
+            SPHbob->fBoBzCenter = fBoBzCenter;
+            SPHbob->fBoBr2 = fBoBr * fBoBr;
 #endif
 #if SPHBOXOFBALLS
-        pkdn->fBoBxMin = fmin(p1->fBoBxMin,p2->fBoBxMin);
-        pkdn->fBoBxMax = fmax(p1->fBoBxMax,p2->fBoBxMax);
-        pkdn->fBoByMin = fmin(p1->fBoByMin,p2->fBoByMin);
-        pkdn->fBoByMax = fmax(p1->fBoByMax,p2->fBoByMax);
-        pkdn->fBoBzMin = fmin(p1->fBoBzMin,p2->fBoBzMin);
-        pkdn->fBoBzMax = fmax(p1->fBoBzMax,p2->fBoBzMax);
+            SPHbob->fBoBxMin = fmin(SPHbob1->fBoBxMin,SPHbob2->fBoBxMin);
+            SPHbob->fBoBxMax = fmax(SPHbob1->fBoBxMax,SPHbob2->fBoBxMax);
+            SPHbob->fBoByMin = fmin(SPHbob1->fBoByMin,SPHbob2->fBoByMin);
+            SPHbob->fBoByMax = fmax(SPHbob1->fBoByMax,SPHbob2->fBoByMax);
+            SPHbob->fBoBzMin = fmin(SPHbob1->fBoBzMin,SPHbob2->fBoBzMin);
+            SPHbob->fBoBzMax = fmax(SPHbob1->fBoBzMax,SPHbob2->fBoBzMax);
 #endif
-    }
-    else {
+        }
+        else {
 #if SPHBALLOFBALLS
-        pkdn->fBoBxCenter = 0.0f;
-        pkdn->fBoByCenter = 0.0f;
-        pkdn->fBoBzCenter = 0.0f;
-        pkdn->fBoBr2 = 0.0f;
+            SPHbob->fBoBxCenter = 0.0f;
+            SPHbob->fBoByCenter = 0.0f;
+            SPHbob->fBoBzCenter = 0.0f;
+            SPHbob->fBoBr2 = 0.0f;
 #endif
 #if SPHBOXOFBALLS
-        pkdn->fBoBxMin = 0.0f;
-        pkdn->fBoBxMax = 0.0f;
-        pkdn->fBoByMin = 0.0f;
-        pkdn->fBoByMax = 0.0f;
-        pkdn->fBoBzMin = 0.0f;
-        pkdn->fBoBzMax = 0.0f;
+            SPHbob->fBoBxMin = 0.0f;
+            SPHbob->fBoBxMax = 0.0f;
+            SPHbob->fBoByMin = 0.0f;
+            SPHbob->fBoByMax = 0.0f;
+            SPHbob->fBoBzMin = 0.0f;
+            SPHbob->fBoBzMax = 0.0f;
 #endif
+        }
     }
     /* Combine marked flag */
     pkdn->bHasMarked = p1->bHasMarked || p2->bHasMarked;
@@ -1412,6 +1421,7 @@ void pkdTreeUpdateFlagBoundsRecurse(PKD pkd,uint32_t uRoot,SPHOptions *SPHoption
     float fBallFactor;
     double ft[3];
 
+    if (!pkd->oNodeBOB) return; // We aren't keeping track of the bounds
     if (SPHoptions->dofBallFactor) {
         fBallFactor = pkd->SPHoptions.fBallFactor;
     }
@@ -1420,6 +1430,7 @@ void pkdTreeUpdateFlagBoundsRecurse(PKD pkd,uint32_t uRoot,SPHOptions *SPHoption
     }
 
     c = pkd->TreeNode(uRoot);
+    auto SPHbob = pkd->NodeBOB(c);
 
     if (c->iLower == 0) {
         pj = c->pLower;
@@ -1434,12 +1445,12 @@ void pkdTreeUpdateFlagBoundsRecurse(PKD pkd,uint32_t uRoot,SPHOptions *SPHoption
 #endif
 #if SPHBOXOFBALLS
         float limitedBallSize = fmin(pkd->SPHoptions.ballSizeLimit,fBallFactor * pkdBall(pkd,p));
-        c->fBoBxMin = ft[0] - limitedBallSize;
-        c->fBoBxMax = ft[0] + limitedBallSize;
-        c->fBoByMin = ft[1] - limitedBallSize;
-        c->fBoByMax = ft[1] + limitedBallSize;
-        c->fBoBzMin = ft[2] - limitedBallSize;
-        c->fBoBzMax = ft[2] + limitedBallSize;
+        SPHbob->fBoBxMin = ft[0] - limitedBallSize;
+        SPHbob->fBoBxMax = ft[0] + limitedBallSize;
+        SPHbob->fBoByMin = ft[1] - limitedBallSize;
+        SPHbob->fBoByMax = ft[1] + limitedBallSize;
+        SPHbob->fBoBzMin = ft[2] - limitedBallSize;
+        SPHbob->fBoBzMax = ft[2] + limitedBallSize;
 #endif
         if (p->bMarked) {
             c->bHasMarked = 1;
@@ -1457,12 +1468,12 @@ void pkdTreeUpdateFlagBoundsRecurse(PKD pkd,uint32_t uRoot,SPHOptions *SPHoption
 #endif
 #if SPHBOXOFBALLS
             float limitedBallSize = fmin(pkd->SPHoptions.ballSizeLimit,fBallFactor * pkdBall(pkd,p));
-            c->fBoBxMin = fmin(c->fBoBxMin,ft[0] - limitedBallSize);
-            c->fBoBxMax = fmax(c->fBoBxMax,ft[0] + limitedBallSize);
-            c->fBoByMin = fmin(c->fBoByMin,ft[1] - limitedBallSize);
-            c->fBoByMax = fmax(c->fBoByMax,ft[1] + limitedBallSize);
-            c->fBoBzMin = fmin(c->fBoBzMin,ft[2] - limitedBallSize);
-            c->fBoBzMax = fmax(c->fBoBzMax,ft[2] + limitedBallSize);
+            SPHbob->fBoBxMin = fmin(SPHbob->fBoBxMin,ft[0] - limitedBallSize);
+            SPHbob->fBoBxMax = fmax(SPHbob->fBoBxMax,ft[0] + limitedBallSize);
+            SPHbob->fBoByMin = fmin(SPHbob->fBoByMin,ft[1] - limitedBallSize);
+            SPHbob->fBoByMax = fmax(SPHbob->fBoByMax,ft[1] + limitedBallSize);
+            SPHbob->fBoBzMin = fmin(SPHbob->fBoBzMin,ft[2] - limitedBallSize);
+            SPHbob->fBoBzMax = fmax(SPHbob->fBoBzMax,ft[2] + limitedBallSize);
 #endif
             if (p->bMarked) {
                 c->bHasMarked = 1;
@@ -1474,10 +1485,10 @@ void pkdTreeUpdateFlagBoundsRecurse(PKD pkd,uint32_t uRoot,SPHOptions *SPHoption
 #endif
         }
 #if SPHBALLOFBALLS
-        c->fBoBxCenter = fBoBxCenter;
-        c->fBoByCenter = fBoByCenter;
-        c->fBoBzCenter = fBoBzCenter;
-        c->fBoBr2 = fBoBr * fBoBr;
+        SPHbob->fBoBxCenter = fBoBxCenter;
+        SPHbob->fBoByCenter = fBoByCenter;
+        SPHbob->fBoBzCenter = fBoBzCenter;
+        SPHbob->fBoBr2 = fBoBr * fBoBr;
 #endif
     }
     else {
@@ -1486,21 +1497,23 @@ void pkdTreeUpdateFlagBoundsRecurse(PKD pkd,uint32_t uRoot,SPHOptions *SPHoption
         pkdTreeUpdateFlagBoundsRecurse(pkd,iCellUp,SPHoptions);
         cLow = pkd->TreeNode(iCellLo);
         cUp = pkd->TreeNode(iCellUp);
+        auto SPHbobLow = pkd->NodeBOB(cLow);
+        auto SPHbobUp = pkd->NodeBOB(cUp);
 #if SPHBALLOFBALLS
         double fBoBr,fBoBxCenter,fBoByCenter,fBoBzCenter;
-        CombineBallOfBalls(sqrt(cLow->fBoBr2),cLow->fBoBxCenter,cLow->fBoByCenter,cLow->fBoBzCenter,sqrt(cUp->fBoBr2),cUp->fBoBxCenter,cUp->fBoByCenter,cUp->fBoBzCenter,fBoBr,fBoBxCenter,fBoByCenter,fBoBzCenter);
-        c->fBoBxCenter = fBoBxCenter;
-        c->fBoByCenter = fBoByCenter;
-        c->fBoBzCenter = fBoBzCenter;
-        c->fBoBr2 = fBoBr * fBoBr;
+        CombineBallOfBalls(sqrt(SPHbobLow->fBoBr2),SPHbobLow->fBoBxCenter,SPHbobLow->fBoByCenter,SPHbobLow->fBoBzCenter,sqrt(SPHbobUp->fBoBr2),SPHbobUp->fBoBxCenter,SPHbobUp->fBoByCenter,SPHbobUp->fBoBzCenter,fBoBr,fBoBxCenter,fBoByCenter,fBoBzCenter);
+        SPHbob->fBoBxCenter = fBoBxCenter;
+        SPHbob->fBoByCenter = fBoByCenter;
+        SPHbob->fBoBzCenter = fBoBzCenter;
+        SPHbob->fBoBr2 = fBoBr * fBoBr;
 #endif
 #if SPHBOXOFBALLS
-        c->fBoBxMin = fmin(cLow->fBoBxMin,cUp->fBoBxMin);
-        c->fBoBxMax = fmax(cLow->fBoBxMax,cUp->fBoBxMax);
-        c->fBoByMin = fmin(cLow->fBoByMin,cUp->fBoByMin);
-        c->fBoByMax = fmax(cLow->fBoByMax,cUp->fBoByMax);
-        c->fBoBzMin = fmin(cLow->fBoBzMin,cUp->fBoBzMin);
-        c->fBoBzMax = fmax(cLow->fBoBzMax,cUp->fBoBzMax);
+        SPHbob->fBoBxMin = fmin(SPHbobLow->fBoBxMin,SPHbobUp->fBoBxMin);
+        SPHbob->fBoBxMax = fmax(SPHbobLow->fBoBxMax,SPHbobUp->fBoBxMax);
+        SPHbob->fBoByMin = fmin(SPHbobLow->fBoByMin,SPHbobUp->fBoByMin);
+        SPHbob->fBoByMax = fmax(SPHbobLow->fBoByMax,SPHbobUp->fBoByMax);
+        SPHbob->fBoBzMin = fmin(SPHbobLow->fBoBzMin,SPHbobUp->fBoBzMin);
+        SPHbob->fBoBzMax = fmax(SPHbobLow->fBoBzMax,SPHbobUp->fBoBzMax);
 #endif
         c->bHasMarked = cLow->bHasMarked || cUp->bHasMarked;
 #ifdef NN_FLAG_IN_PARTICLE

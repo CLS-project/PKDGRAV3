@@ -21,7 +21,8 @@
 #define SPHBALLOFBALLS 0
 #define SPHBOXOFBALLS 1
 
-#if !(SPHBALLOFBALLS | SPHBOXOFBALLS) | (SPHBALLOFBALLS & SPHBOXOFBALLS)
+//#if !(SPHBALLOFBALLS | SPHBOXOFBALLS) | (SPHBALLOFBALLS & SPHBOXOFBALLS)
+#if (SPHBALLOFBALLS & SPHBOXOFBALLS)
     #error "Define either SPHBALLOFBALLS or SPHBOXOFBALLS in SPHOptions.h"
 #endif
 
@@ -31,6 +32,32 @@
 
 #include <assert.h>
 #include "cosmo.h"
+
+
+struct SPHBallOfBalls {
+    float fBoBr2;       /* Ball of Balls radius squared */
+    float fBoBxCenter;
+    float fBoByCenter;
+    float fBoBzCenter;
+};
+
+struct SPHBoxOfBalls {
+    float fBoBxMin;
+    float fBoBxMax;
+    float fBoByMin;
+    float fBoByMax;
+    float fBoBzMin;
+    float fBoBzMax;
+};
+
+#if SPHBALLOFBALLS
+    typedef struct SPHBallOfBalls SPHBOB;
+#elif SPHBOXOFBALLS
+    typedef struct SPHBoxOfBalls SPHBOB;
+#else
+    typedef void SPHBOB;
+#endif
+extern const SPHBOB SPHbobVOID;
 
 struct pkdKickParameters;
 

@@ -63,8 +63,7 @@ public:
                fOffset[0],fOffset[1],fOffset[2],fCenter[0],fCenter[1],fCenter[2],fMax[0],fMax[1],fMax[2],0,
                fBoBr2,fBoBxCenter,fBoByCenter,fBoBzCenter);
     }
-#endif
-#if SPHBOXOFBALLS
+#elif SPHBOXOFBALLS
     void append(uint32_t iCache,uint32_t idCell,uint32_t iCell,
                 uint32_t idLower,uint32_t iLower,uint32_t idUpper,uint32_t iUpper,uint32_t nc,float cOpen,
                 float m,float fourh2,const double *r,const float *fOffset,const double *fCenter,const double *fMax,
@@ -73,19 +72,26 @@ public:
                fOffset[0],fOffset[1],fOffset[2],fCenter[0],fCenter[1],fCenter[2],fMax[0],fMax[1],fMax[2],0,
                fBoBxMin,fBoBxMax,fBoByMin,fBoByMax,fBoBzMin,fBoBzMax);
     }
+#else
+    void append(uint32_t iCache,uint32_t idCell,uint32_t iCell,
+                uint32_t idLower,uint32_t iLower,uint32_t idUpper,uint32_t iUpper,uint32_t nc,float cOpen,
+                float m,float fourh2,const double *r,const float *fOffset,const double *fCenter,const double *fMax) {
+        append(iCache,idCell,iCell,idLower,iLower,idUpper,iUpper,nc,cOpen,m,fourh2,r[0],r[1],r[2],
+               fOffset[0],fOffset[1],fOffset[2],fCenter[0],fCenter[1],fCenter[2],fMax[0],fMax[1],fMax[2],0);
+    }
 #endif
     void append(clBlock &B, int Bi) {
         append(B.iCache[Bi],B.idCell[Bi],B.iCell[Bi],
                B.idLower[Bi],B.iLower[Bi],B.idUpper[Bi],B.iUpper[Bi],
                B.nc[Bi], B.cOpen[Bi], B.m[Bi], B.fourh2[Bi],
                B.x[Bi], B.y[Bi], B.z[Bi],B.xOffset[Bi],B.yOffset[Bi],B.zOffset[Bi],
-               B.xCenter[Bi],B.yCenter[Bi],B.zCenter[Bi],B.xMax[Bi],B.yMax[Bi],B.zMax[Bi],B.iOpen[Bi],
+               B.xCenter[Bi],B.yCenter[Bi],B.zCenter[Bi],B.xMax[Bi],B.yMax[Bi],B.zMax[Bi],B.iOpen[Bi]
 #if SPHBALLOFBALLS
-               B.fBoBr2[Bi],B.fBoBxCenter[Bi],B.fBoByCenter[Bi],B.fBoBzCenter[Bi]);
+               ,B.fBoBr2[Bi],B.fBoBxCenter[Bi],B.fBoByCenter[Bi],B.fBoBzCenter[Bi]
+#elif SPHBOXOFBALLS
+               ,B.fBoBxMin[Bi],B.fBoBxMax[Bi],B.fBoByMin[Bi],B.fBoByMax[Bi],B.fBoBzMin[Bi],B.fBoBzMax[Bi]
 #endif
-#if SPHBOXOFBALLS
-        B.fBoBxMin[Bi],B.fBoBxMax[Bi],B.fBoByMin[Bi],B.fBoByMax[Bi],B.fBoBzMin[Bi],B.fBoBzMax[Bi]);
-#endif
+              );
     }
 };
 
