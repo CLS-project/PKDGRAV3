@@ -1061,7 +1061,7 @@ void pkdCombineCells1(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
             /* Combine ball or box of balls */
 #if SPHBALLOFBALLS
             double fBoBr,fBoBxCenter,fBoByCenter,fBoBzCenter;
-            CombineBallOfBalls(sqrt(SPHbob1->fBoBr2),SPHbob1->fBoBxCenter,SPHbob1->fBoByCenter,SPHbob.1->fBoBzCenter,sqrt(SPHbob2->fBoBr2),SPHbob2->fBoBxCenter,SPHbob2->fBoByCenter,SPHbob2->fBoBzCenter,fBoBr,fBoBxCenter,fBoByCenter,fBoBzCenter);
+            CombineBallOfBalls(sqrt(SPHbob1->fBoBr2),SPHbob1->fBoBxCenter,SPHbob1->fBoByCenter,SPHbob1->fBoBzCenter,sqrt(SPHbob2->fBoBr2),SPHbob2->fBoBxCenter,SPHbob2->fBoByCenter,SPHbob2->fBoBzCenter,fBoBr,fBoBxCenter,fBoByCenter,fBoBzCenter);
             SPHbob->fBoBxCenter = fBoBxCenter;
             SPHbob->fBoByCenter = fBoByCenter;
             SPHbob->fBoBzCenter = fBoBzCenter;
