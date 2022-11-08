@@ -64,9 +64,11 @@ typedef struct smfParameters {
     double dEOSNJeans;
 #endif
 #ifdef FEEDBACK
-    double dSNFBDelay;
     double dSNFBDu;
-    double dSNFBNumberSNperMass;
+    double dCCSNFBDelay;
+    double dCCSNFBSpecEnergy;
+    double dSNIaFBDelay;
+    double dSNIaFBSpecEnergy;
 #endif
 #ifdef BLACKHOLES
     double dBHFBEff;
@@ -81,7 +83,6 @@ typedef struct smfParameters {
     double dCCSNMinMass;
     double dSNIaNorm;
     double dSNIaScale;
-    double dSNIaEnergy;
     double dWindSpecificEkin;
 #endif
 } SMF;

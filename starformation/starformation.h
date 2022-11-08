@@ -3,18 +3,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-/*
- * ---------------------
- * MAIN FUNCTIONS
- * ---------------------
- */
-int pstStarFormInit(PST,void *,int,void *,int);
-void pkdStarFormInit(PKD pkd, double dTime, double dSNFBDelay, int *nFormed);
-
-int pstStarForm(PST,void *,int,void *,int);
-void pkdStarForm(PKD pkd, struct inStarForm in,
-                 int *nFormed, double *dMassFormed, int *nDeleted);
-
 
 /*
  * ---------------------
@@ -27,9 +15,26 @@ struct outStarForm {
     double dMassFormed;
 };
 struct inStarFormInit {
+#ifdef FEEDBACK
     double dTime;
-    double dSNFBDelay;
+    int bCCSNFeedback;
+    int bSNIaFeedback;
+    double dCCSNFBDelay;
+    double dSNIaFBDelay;
+#endif
 };
+
+/*
+ * ---------------------
+ * MAIN FUNCTIONS
+ * ---------------------
+ */
+int pstStarFormInit(PST,void *,int,void *,int);
+void pkdStarFormInit(PKD pkd, struct inStarFormInit in, int *nFormed);
+
+int pstStarForm(PST,void *,int,void *,int);
+void pkdStarForm(PKD pkd, struct inStarForm in,
+                 int *nFormed, double *dMassFormed, int *nDeleted);
 
 #ifdef __cplusplus
 }

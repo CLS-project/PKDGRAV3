@@ -1482,40 +1482,65 @@ void MSR::Initialize() {
                 "Star formation efficiency per free-fall time; set >0 to use density-based SFR");
 #endif
 #ifdef FEEDBACK
-    param.dSNFBDT = 31622776.60168379; // 10^7.5 K
-    prmAddParam(prm,"dSNFBDT", 2, &param.dSNFBDu,
-                sizeof(double), "dSNFBDT",
-                "Increment in temperature injected per supernova event [K]");
+    param.bCCSNFeedback = 1;
+    prmAddParam(prm,"bCCSNFeedback", 0, &param.bCCSNFeedback,
+                sizeof(int), "bCCSNFeedback",
+                "Activate energy feedback from CCSN events");
+
+    param.bSNIaFeedback = 0;
+    prmAddParam(prm,"bSNIaFeedback", 0, &param.bSNIaFeedback,
+                sizeof(int), "bSNIaFeedback",
+                "Activate energy feedback from SNIa events");
 
     param.dSNFBEfficiency = 1.;
     prmAddParam(prm,"dSNFBEfficiency", 2, &param.dSNFBEfficiency,
                 sizeof(double), "dSNFBEfficiency",
-                "Efficiency of the feedback process. Minimum efficiency if dSNFBMaxEff provided");
-
-    param.dSNFBDelay = 3e7;
-    prmAddParam(prm,"dSNFBDelay", 2, &param.dSNFBDelay,
-                sizeof(double), "dSNFBDelay",
-                "Time between formation of the star and injection of energy from SNII supernova [yr]");
-
-    param.dSNFBNumberSNperMass = 1.736e-2;
-    prmAddParam(prm,"SNFBNumberSNperMass", 2, &param.dSNFBNumberSNperMass,
-                sizeof(double), "dSNFBNumberSNperMass",
-                "Number of stars that will end their life as SNII events, per mass [1/Mo]");
+                "Efficiency of SN feedback. Asymptotic minimum efficiency "
+                "if dSNFBMaxEff is provided");
 
     param.dSNFBMaxEff = 0.0;
     prmAddParam(prm,"dSNFBMaxEff", 2, &param.dSNFBMaxEff,
                 sizeof(double), "dSNFBMaxEff",
-                "Asymptotic maximum efficiency for SNe II feedback");
+                "Asymptotic maximum efficiency of SN feedback");
+
+    param.dSNFBEffIndex = 0.87;
+    prmAddParam(prm,"dSNFBEffIndex", 2, &param.dSNFBEffIndex,
+                sizeof(double), "dSNFBEffIndex",
+                "Metallicity and density index for the feedback efficiency");
 
     param.dSNFBEffnH0 = 0.67;
     prmAddParam(prm,"dSNFBEffnH0", 2, &param.dSNFBEffnH0,
                 sizeof(double), "dSNFBEffnH0",
                 "Hydrogen number density normalization of the feedback efficiency [nH cm-3]");
 
-    param.dSNFBEffIndex = 0.87;
-    prmAddParam(prm,"dSNFBEffIndex", 2, &param.dSNFBEffIndex,
-                sizeof(double), "dSNFBEffIndex",
-                "Metallicity and density index for the feedback efficiency");
+    param.dSNFBDT = 31622776.60168379; // 10^7.5 K
+    prmAddParam(prm,"dSNFBDT", 2, &param.dSNFBDu,
+                sizeof(double), "dSNFBDT",
+                "Increment in temperature injected per supernova event [K]");
+
+    param.dCCSNFBDelay = 3e7;
+    prmAddParam(prm,"dCCSNFBDelay", 2, &param.dCCSNFBDelay,
+                sizeof(double), "dCCSNFBDelay",
+                "Time between star formation and injection of CCSN energy [yr]");
+
+    param.dCCSNFBNumPerMass = 1.736e-2;
+    prmAddParam(prm,"dCCSNFBNumPerMass", 2, &param.dCCSNFBNumPerMass,
+                sizeof(double), "dCCSNFBNumPerMass",
+                "Number of stars that will end their life as CCSN events, per mass [1/Mo]");
+
+    param.dSNIaFBDelay = 2e8;
+    prmAddParam(prm,"dSNIaFBDelay", 2, &param.dSNIaFBDelay,
+                sizeof(double), "dSNIaFBDelay",
+                "Time between star formation and injection of SNIa energy [yr]");
+
+    param.dSNIaFBNumPerMass = 2e-3;
+    prmAddParam(prm,"dSNIaFBNumPerMass", 2, &param.dSNIaFBNumPerMass,
+                sizeof(double), "dSNIaFBNumPerMass",
+                "Number of stars that will end their life as SNIa events, per mass [1/Mo]");
+
+    param.dSNIaEnergy = 1e51;
+    prmAddParam(prm, "dSNIaEnergy", 2, &param.dSNIaEnergy, sizeof(double), "dSNIaEnergy",
+                "SNIa event energy [erg]");
 #endif
 #ifdef BLACKHOLES
     param.bBHMerger = 1;
@@ -1632,11 +1657,6 @@ void MSR::Initialize() {
                 sizeof(double), "sniatf",
                 "Final time for the normalization of the Delay Time Distribution "
                 "function <yr>");
-
-    param.dSNIaEnergy = 1e51;
-    prmAddParam(prm, "dSNIaEnergy", 2, &param.dSNIaEnergy,
-                sizeof(double), "sniaenergy",
-                "SNIa event energy <erg>");
 
     param.dWindSpecificEkin = 10.0;
     prmAddParam(prm, "dStellarWindSpeed", 2, &param.dWindSpecificEkin,
@@ -2913,9 +2933,11 @@ void MSR::SmoothSetSMF(SMF *smf, double dTime, double dDelta, int nSmooth) {
     smf->dEOSNJeans = param.dEOSNJeans ;
 #endif
 #ifdef FEEDBACK
-    smf->dSNFBDelay = param.dSNFBDelay;
     smf->dSNFBDu = param.dSNFBDu;
-    smf->dSNFBNumberSNperMass = param.dSNFBNumberSNperMass;
+    smf->dCCSNFBDelay = param.dCCSNFBDelay;
+    smf->dCCSNFBSpecEnergy = param.dCCSNFBSpecEnergy;
+    smf->dSNIaFBDelay = param.dSNIaFBDelay;
+    smf->dSNIaFBSpecEnergy = param.dSNIaFBSpecEnergy;
 #endif
 #ifdef BLACKHOLES
     smf->dBHFBEff = param.dBHFBEff;
@@ -2930,7 +2952,6 @@ void MSR::SmoothSetSMF(SMF *smf, double dTime, double dDelta, int nSmooth) {
     smf->dCCSNMinMass = param.dCCSNMinMass;
     smf->dSNIaNorm = param.dSNIaNorm;
     smf->dSNIaScale = param.dSNIaScale;
-    smf->dSNIaEnergy = param.dSNIaEnergy;
     smf->dWindSpecificEkin = param.dWindSpecificEkin;
 #endif
 }
@@ -4276,7 +4297,9 @@ int MSR::NewTopStepKDK(
 #if defined(FEEDBACK) || defined(STELLAR_EVOLUTION)
     ActiveRung(uRung,0);
 #ifdef FEEDBACK
-    Smooth(dTime,dDelta,SMX_SN_FEEDBACK,1, param.nSmooth);
+    if (param.bCCSNFeedback || param.bSNIaFeedback) {
+        Smooth(dTime,dDelta,SMX_SN_FEEDBACK,1, param.nSmooth);
+    }
 #endif
 #ifdef STELLAR_EVOLUTION
     if (param.bChemEnrich) {
@@ -4468,7 +4491,9 @@ void MSR::TopStepKDK(
         printf("Computing feedback... ");
 
         TimerStart(TIMER_FEEDBACK);
-        Smooth(dTime,dDeltaStep,SMX_SN_FEEDBACK,1, param.nSmooth);
+        if (param.bCCSNFeedback || param.bSNIaFeedback) {
+            Smooth(dTime,dDeltaStep,SMX_SN_FEEDBACK,1, param.nSmooth);
+        }
         TimerStop(TIMER_FEEDBACK);
         dsec = TimerGet(TIMER_FEEDBACK);
         printf("took %.5f seconds\n", dsec);

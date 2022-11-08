@@ -69,10 +69,12 @@ void MSR::StarForm(double dTime, double dDelta, int iRung) {
     in.bSFThresholdDenSchaye2004 = param.bSFThresholdDenSchaye2004;
 #endif
 #ifdef FEEDBACK
+    in.bCCSNFeedback = param.bCCSNFeedback;
+    in.bSNIaFeedback = param.bSNIaFeedback;
     in.dSNFBEfficiency = param.dSNFBEfficiency;
     in.dSNFBMaxEff = param.dSNFBMaxEff;
-    in.dSNFBEffnH0 = param.dSNFBEffnH0;
     in.dSNFBEffIndex = param.dSNFBEffIndex;
+    in.dSNFBEffnH0 = param.dSNFBEffnH0;
 #endif
 #ifdef EEOS_POLYTROPE
     // In the rare case that not EEOS_POLYTROPE, this will be unused
@@ -237,7 +239,6 @@ void pkdStarForm(PKD pkd,
 
                 // We log statistics about the formation time
                 pStar->fTimer = in.dTime;
-                pStar->hasExploded = 0;
 
 #ifdef STELLAR_EVOLUTION
                 const float fMassInv = 1.0f / fMass;
@@ -253,6 +254,9 @@ void pkdStarForm(PKD pkd,
 #endif
 
 #ifdef FEEDBACK
+                pStar->bCCSNFBDone = in.bCCSNFeedback ? 0 : 1;
+                pStar->bSNIaFBDone = in.bSNIaFeedback ? 0 : 1;
+
                 // Compute the feedback efficiency for this particle based
                 // on the birth information (eq. 7 Schaye 2015)
 #ifdef HAVE_METALLICITY

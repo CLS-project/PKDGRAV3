@@ -1124,9 +1124,10 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
                 pStar = pkdStar(pkd,p);
                 pStar->fTimer = fTimer;
                 pStar->omega  = 0.;
-                // We avoid that star in the IC could explode
-                pStar->hasExploded = 1;
 #ifdef FEEDBACK
+                // We avoid that star in the IC could explode
+                pStar->bCCSNFBDone = 1;
+                pStar->bSNIaFBDone = 1;
                 pStar->fSNEfficiency = afStarOtherData[3];
 #endif
 #ifdef STELLAR_EVOLUTION

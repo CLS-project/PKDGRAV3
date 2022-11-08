@@ -270,7 +270,7 @@ int smReSmoothBHNode(SMX smx,SMF *smf, int iSmoothType) {
             float nodeBall = 0.;
 #ifdef OPTIM_REORDER_IN_NODES
             int pStart = node->pLower + pkdNodeNgas(pkd,node);
-#ifdef STAR_FORMATION
+#if (defined(STAR_FORMATION) && defined(FEEDBACK)) || defined(STELLAR_EVOLUTION)
             pStart += pkdNodeNstar(pkd, node);
 #endif
             int pEnd = pStart + pkdNodeNbh(pkd,node);
@@ -466,7 +466,7 @@ void buildCandidateMergerList(SMX smx, SMF *smf, KDN *node, BND bnd_node, int *n
             if (id == pkd->idSelf) {
 #ifdef OPTIM_REORDER_IN_NODES
                 pStart = kdn->pLower+pkdNodeNgas(pkd,kdn);
-#ifdef STAR_FORMATION
+#if (defined(STAR_FORMATION) && defined(FEEDBACK)) || defined(STELLAR_EVOLUTION)
                 pStart += pkdNodeNstar(pkd,kdn);
 #endif
                 pEnd = pStart + pkdNodeNbh(pkd,kdn);
@@ -508,7 +508,7 @@ void buildCandidateMergerList(SMX smx, SMF *smf, KDN *node, BND bnd_node, int *n
             else {
 #ifdef OPTIM_REORDER_IN_NODES
                 pStart = kdn->pLower+pkdNodeNgas(pkd,kdn);
-#ifdef STAR_FORMATION
+#if (defined(STAR_FORMATION) && defined(FEEDBACK)) || defined(STELLAR_EVOLUTION)
                 pStart += pkdNodeNstar(pkd,kdn);
 #endif
                 pEnd = pStart + pkdNodeNbh(pkd,kdn);

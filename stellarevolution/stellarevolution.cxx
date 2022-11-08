@@ -13,7 +13,6 @@ void MSR::SetStellarEvolutionParam() {
     if (!param.bRestart) {
         param.dSNIaNormInitTime *= SECONDSPERYEAR / param.units.dSecUnit;
         param.dSNIaNormFinalTime *= SECONDSPERYEAR / param.units.dSecUnit;
-        param.dSNIaEnergy /= param.units.dErgUnit;
         param.dStellarWindSpeed /= param.units.dKmPerSecUnit;
 
         if (strcmp(param.achSNIaDTDType, "exponential") == 0) {
@@ -433,10 +432,7 @@ void smChemEnrich(PARTICLE *p, float fBall, int nSmooth, NN *nnList, SMF *smf) {
     const float fStarDeltaEkin = 0.5f * fTotalMass * (pStarVel[0] * pStarVel[0] +
                                  pStarVel[1] * pStarVel[1] + pStarVel[2] * pStarVel[2]);
     const float fWindEkin = (float)smf->dWindSpecificEkin * fTotalMass;
-    const float fSNIaEjEnergy = (fNumSNIa * (float)smf->units.dMsolUnit) * pStar->fInitialMass *
-                                (float)smf->dSNIaEnergy;
-
-    const float fStarEjEnergy = fStarDeltaEkin * fExpFacInvSq + fWindEkin + fSNIaEjEnergy;
+    const float fStarEjEnergy = fStarDeltaEkin * fExpFacInvSq + fWindEkin;
 
 
     PARTICLE *q;

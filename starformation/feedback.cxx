@@ -3,12 +3,17 @@
 #include "master.h"
 
 void MSR::SetFeedbackParam() {
-    const double dHydFrac = param.dInitialH;
-    const double dnHToRho = MHYDR / dHydFrac / param.units.dGmPerCcUnit;
-    param.dSNFBDu = param.dSNFBDT*dTuFac;
+    param.dSNFBDu = param.dSNFBDT * dTuFac;
+    param.dCCSNFBSpecEnergy = (8.73e15 * (param.dCCSNFBNumPerMass / 1.736e-2)) /
+                              param.units.dErgPerGmUnit;
+    param.dSNIaFBSpecEnergy = (param.dSNIaEnergy / MSOLG) * param.dSNIaFBNumPerMass /
+                              param.units.dErgPerGmUnit;
+
     if (!param.bRestart) {
-        param.dSNFBDelay *=  SECONDSPERYEAR/param.units.dSecUnit ;
-        param.dSNFBNumberSNperMass *= 8.73e15 / param.units.dErgPerGmUnit / 1.736e-2;
+        param.dCCSNFBDelay *= SECONDSPERYEAR / param.units.dSecUnit;
+        param.dSNIaFBDelay *= SECONDSPERYEAR / param.units.dSecUnit;
+
+        const double dnHToRho = MHYDR / param.dInitialH / param.units.dGmPerCcUnit;
         param.dSNFBEffnH0 *= dnHToRho;
     }
 }
@@ -17,58 +22,44 @@ void MSR::SetFeedbackParam() {
 extern "C" {
 #endif
 
+static inline void snFeedback(PKD pkd, PARTICLE *p, int nSmooth, NN *nnList,
+                              const float fNgbTotMass, const double dDeltau,
+                              const double dStarMass, const double dSpecEnergy,
+                              const float fEfficiency, const double dConstGamma);
+
+
 /* Function that will be called with the information of all the neighbors.
- * Here we compute the probability of explosion, and we add the energy to the
- * surroinding gas particles
+ * The helper snFeedback computes the probability of explosion and adds
+ * the energy to the gas particles in nnList
  */
 void smSNFeedback(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
-    PARTICLE *q;
-    SPHFIELDS *qsph;
-    int i;
 
-    float totMass = 0;
-    for (i=0; i<nSmooth; ++i) {
-        q = nnList[i].pPart;
-
-        totMass += pkdMass(pkd,q);
+    float fNgbTotMass = 0.0f;
+    for (int i = 0; i < nSmooth; ++i) {
+        PARTICLE *q = nnList[i].pPart;
+        fNgbTotMass += pkdMass(pkd, q);
     }
-    totMass -= pkdMass(pkd,p);
+    fNgbTotMass -= pkdMass(pkd, p);
 
-    // We could unify this factors in order to avoid more operations
-    // (although I think wont make a huge change anyway)
-    // There is no need to explicitly convert to solar masses
-    // becuse we are doing a ratio
-    const double prob = pkdStar(pkd,p)->fSNEfficiency *
-                        smf->dSNFBNumberSNperMass *
-                        pkdMass(pkd,p) / (smf->dSNFBDu*totMass);
+    STARFIELDS *pStar = pkdStar(pkd, p);
 
-
-    assert(prob<1.0);
-    for (i=0; i<nSmooth; ++i) {
-        if (nnList[i].dx==0 && nnList[i].dy==0 && nnList[i].dz==0) continue;
-
-        if (rand()<RAND_MAX*prob) { // We have a supernova explosion!
-            q = nnList[i].pPart;
-            qsph = pkdSph(pkd,q);
-            //printf("Uint %e extra %e \n",
-            //   qsph->Uint, pkd->param.dFeedbackDu * pkdMass(pkd,q));
-
-            const double feed_energy = smf->dSNFBDu * pkdMass(pkd,q);
-#ifdef OLD_FB_SCHEME
-            qsph->Uint += feed_energy;
-            qsph->E += feed_energy;
-#ifdef ENTROPY_SWITCH
-            qsph->S += feed_energy*(smf->dConstGamma-1.) *
-                       pow(pkdDensity(pkd,q), -smf->dConstGamma+1);
-#endif
-#else // OLD_BH_SCHEME
-            qsph->fAccFBEnergy += feed_energy;
+#ifdef STELLAR_EVOLUTION
+    const double dStarMass = pStar->fInitialMass;
+#else
+    const double dStarMass = pkdMass(pkd, p);
 #endif
 
-            //printf("Adding SN energy! \n");
-        }
+    if (!pStar->bCCSNFBDone && ((smf->dTime - pStar->fTimer) > smf->dCCSNFBDelay)) {
+        snFeedback(pkd, p, nSmooth, nnList, fNgbTotMass, smf->dSNFBDu, dStarMass,
+                   smf->dCCSNFBSpecEnergy, pStar->fSNEfficiency, smf->dConstGamma);
+        pStar->bCCSNFBDone = 1;
+    }
 
+    if (!pStar->bSNIaFBDone && ((smf->dTime - pStar->fTimer) > smf->dSNIaFBDelay)) {
+        snFeedback(pkd, p, nSmooth, nnList, fNgbTotMass, smf->dSNFBDu, dStarMass,
+                   smf->dSNIaFBSpecEnergy, pStar->fSNEfficiency, smf->dConstGamma);
+        pStar->bSNIaFBDone = 1;
     }
 }
 
@@ -116,6 +107,38 @@ void combSNFeedback(void *vpkd, void *v1, const void *v2) {
 
     }
 
+}
+
+
+static inline void snFeedback(PKD pkd, PARTICLE *p, int nSmooth, NN *nnList,
+                              const float fNgbTotMass, const double dDeltau,
+                              const double dStarMass, const double dSpecEnergy,
+                              const float fEfficiency, const double dConstGamma) {
+
+    const double dProb = fEfficiency * dSpecEnergy * dStarMass /
+                         (dDeltau * fNgbTotMass);
+    assert(dProb < 1.0);
+
+    for (int i = 0; i < nSmooth; ++i) {
+        PARTICLE *q = nnList[i].pPart;
+        if (q == p) continue;
+
+        if (rand() < RAND_MAX * dProb) {
+            SPHFIELDS *qSph = pkdSph(pkd, q);
+            const double dEnergyInput = dDeltau * pkdMass(pkd, q);
+
+#ifdef OLD_FB_SCHEME
+            qSph->Uint += dEnergyInput;
+            qSph->E += dEnergyInput;
+#ifdef ENTROPY_SWITCH
+            qSph->S += dEnergyInput * (dConstGamma - 1.0) *
+                       pow(pkdDensity(pkd, q), 1.0 - dConstGamma);
+#endif
+#else // OLD_FB_SCHEME
+            qSph->fAccFBEnergy += dEnergyInput;
+#endif
+        }
+    }
 }
 
 #ifdef __cplusplus

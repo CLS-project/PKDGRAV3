@@ -250,10 +250,12 @@ struct inStarForm {
     double dEOSPolyFlooru;
 
 #ifdef FEEDBACK
+    int bCCSNFeedback;
+    int bSNIaFeedback;
     double dSNFBEfficiency;
     double dSNFBMaxEff;
-    double dSNFBEffnH0;
     double dSNFBEffIndex;
+    double dSNFBEffnH0;
 #endif
 
 #ifdef STELLAR_EVOLUTION

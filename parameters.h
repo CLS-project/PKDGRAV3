@@ -274,14 +274,21 @@ struct parameters {
     double dSFEfficiency;
 #endif
 #ifdef FEEDBACK
-    double dSNFBDelay;
+    int bCCSNFeedback;
+    int bSNIaFeedback;
     double dSNFBEfficiency;
-    double dSNFBDu;
-    double dSNFBDT;
-    double dSNFBNumberSNperMass;
     double dSNFBMaxEff;
-    double dSNFBEffnH0;
     double dSNFBEffIndex;
+    double dSNFBEffnH0;
+    double dSNFBDT;
+    double dSNFBDu;
+    double dCCSNFBDelay;
+    double dCCSNFBSpecEnergy;
+    double dCCSNFBNumPerMass;
+    double dSNIaFBDelay;
+    double dSNIaFBSpecEnergy;
+    double dSNIaEnergy;
+    double dSNIaFBNumPerMass;
 #endif
 #ifdef BLACKHOLES
     int bBHMerger;
@@ -312,7 +319,6 @@ struct parameters {
     double dSNIaScale;
     double dSNIaNormInitTime;
     double dSNIaNormFinalTime;
-    double dSNIaEnergy;
     double dStellarWindSpeed;
     double dWindSpecificEkin;
 #endif

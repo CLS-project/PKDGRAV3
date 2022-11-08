@@ -966,10 +966,14 @@ void smSmooth(SMX smx,SMF *smf) {
         for (pi=0; pi<pkd->nLocal; ++pi) {
             p = pkdParticle(pkd,pi);
             if (pkdIsStar(pkd,p)) {
-                if ( (pkdStar(pkd,p)->hasExploded == 0) &&
-                        ((smf->dTime-pkdStar(pkd,p)->fTimer) > smf->dSNFBDelay) ) {
+                STARFIELDS *pStar = pkdStar(pkd, p);
+
+                if (!pStar->bCCSNFBDone && ((smf->dTime - pStar->fTimer) > smf->dCCSNFBDelay)) {
                     smSmoothSingle(smx,smf,p, ROOT, 0);
-                    pkdStar(pkd,p)->hasExploded = 1;
+                }
+
+                if (!pStar->bSNIaFBDone && ((smf->dTime - pStar->fTimer) > smf->dSNIaFBDelay)) {
+                    smSmoothSingle(smx,smf,p, ROOT, 0);
                 }
             }
         }
@@ -2757,8 +2761,6 @@ int  smReSmooth(SMX smx,SMF *smf, int iSmoothType) {
         for (pi=0; pi<pkd->nLocal; ++pi) {
             p = pkdParticle(pkd,pi);
             if (pkdIsActive(pkd,p) && p->bMarked && pkdIsGas(pkd,p)) {
-                //if (pkdIsStar(pkd,p)) printf("%d \n",pkdStar(pkd,p)->hasExploded);
-
                 smReSmoothSingle(smx,smf,p,pkdBall(pkd,p));
                 nSmoothed++;
             }
@@ -2798,7 +2800,7 @@ int  smReSmooth(SMX smx,SMF *smf, int iSmoothType) {
                 }
             }
             if (pkdIsStar(pkd,p)) {
-                if (pkdStar(pkd,p)->hasExploded==0) {
+                if (!(pkdStar(pkd,p)->bCCSNFBDone && pkdStar(pkd,p)->bSNIaFBDone)) {
                     // IA: In principle this does NOT improve the Isolated Galaxy case, as we wait until the end of the
                     // step to update the primitive variables
                     //if ( (smf->dTime/*+pkd->param.dDelta/(1<<p->uRung)*/-pkdStar(pkd,p)->fTimer) < 0.95*pkd->param.dFeedbackDelay)
@@ -2816,11 +2818,15 @@ int  smReSmooth(SMX smx,SMF *smf, int iSmoothType) {
         for (pi=0; pi<pkd->nLocal; ++pi) {
             p = pkdParticle(pkd,pi);
             if (pkdIsStar(pkd,p)) {
-                if ( (pkdStar(pkd,p)->hasExploded == 0) &&
-                        ((smf->dTime-pkdStar(pkd,p)->fTimer) > smf->dSNFBDelay) ) {
-                    smReSmoothSingle(smx,smf,p, pkdBall(pkd,p));
-                    pkdStar(pkd,p)->hasExploded = 1;
+                STARFIELDS *pStar = pkdStar(pkd, p);
 
+                if (!pStar->bCCSNFBDone && ((smf->dTime - pStar->fTimer) > smf->dCCSNFBDelay)) {
+                    smSmoothSingle(smx,smf,p, ROOT, 0);
+                    nSmoothed++;
+                }
+
+                if (!pStar->bSNIaFBDone && ((smf->dTime - pStar->fTimer) > smf->dSNIaFBDelay)) {
+                    smSmoothSingle(smx,smf,p, ROOT, 0);
                     nSmoothed++;
                 }
             }
@@ -3009,7 +3015,8 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
                         // there is no need to updated its fBall.
                         // However, if we have stellar evolution, fBall needs to be
                         // always updated.
-                        if (pkdIsStar(pkd,p) && (pkdStar(pkd,p)->hasExploded==1))
+                        if (pkdIsStar(pkd,p) && pkdStar(pkd,p)->bCCSNFBDone &&
+                                pkdStar(pkd,p)->bSNIaFBDone)
                             continue;
 #endif
 

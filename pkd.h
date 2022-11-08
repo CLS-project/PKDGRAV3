@@ -316,8 +316,12 @@ typedef struct starfields {
 #endif
 
     float fTimer;  /* Time of formation */
+
+#ifdef FEEDBACK
+    int bCCSNFBDone;
+    int bSNIaFBDone;
     float fSNEfficiency;
-    int hasExploded; /* Has exploded as a supernova? */
+#endif
 } STARFIELDS;
 
 typedef struct blackholefields {
@@ -1112,7 +1116,6 @@ static inline int pkdNodeNstar( PKD pkd, KDN *n) {
 static inline void pkdNodeSetNstar(  PKD pkd, KDN *n, int nstar) {
     *CAST(int *, pkdNodeField(n, pkd->oNodeNstar)) = nstar;
 }
-
 #endif
 static inline int pkdNodeNbh( PKD pkd, KDN *n) {
     return *CAST(int *, pkdNodeField(n, pkd->oNodeNbh));
