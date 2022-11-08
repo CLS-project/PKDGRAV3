@@ -3,7 +3,7 @@
 #include "master.h"
 
 void MSR::SetFeedbackParam() {
-    param.dSNFBDu = param.dSNFBDT * dTuFac;
+    param.dSNFBDu = param.dSNFBDT * dTuFac * (param.dMeanMolWeight / 0.5917);
     param.dCCSNFBSpecEnergy = (8.73e15 * (param.dCCSNFBNumPerMass / 1.736e-2)) /
                               param.units.dErgPerGmUnit;
     param.dSNIaFBSpecEnergy = (param.dSNIaEnergy / MSOLG) * param.dSNIaFBNumPerMass /

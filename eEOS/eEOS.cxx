@@ -3,7 +3,7 @@
 #if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
 void MSR::SetEOSParam() {
 #ifdef EEOS_POLYTROPE
-    param.dEOSPolyFlooru = param.dEOSPolyFloorTemp * dTuFac; // Code internal energy per unit mass
+    param.dEOSPolyFlooru = param.dEOSPolyFloorTemp * dTuFac * (param.dMeanMolWeight / 1.2285);
 
     if (csm->val.bComove) {
         assert(csm->val.dOmegab > 0.);

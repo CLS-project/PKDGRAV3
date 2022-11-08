@@ -57,8 +57,8 @@ static inline void get_redshift_index(const float z, int *z_index, float *dz,
                                       struct cooling_function_data *restrict cooling);
 
 void MSR::SetCoolingParam() {
-    param.dCoolingMinu = param.dCoolingMinTemp * dTuFac;
-    param.dCoolingFlooru = param.dCoolingFloorTemp * dTuFac;
+    param.dCoolingMinu = param.dCoolingMinTemp * dTuFac * (param.dMeanMolWeight / 1.2285);
+    param.dCoolingFlooru = param.dCoolingFloorTemp * dTuFac * (param.dMeanMolWeight / 1.2285);
 
     if (csm->val.bComove) {
         assert(csm->val.dOmegab > 0.);
