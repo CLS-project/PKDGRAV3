@@ -9,9 +9,8 @@ void MSR::SetBlackholeParam() {
 
         // We precompute the factor such that we only need to multiply
         // AccretionRate by this amount to get E_feed
-        param.dBHFBEff = param.dBHFBEff *
-                         param.dBHRadiativeEff * (1. - param.dBHRadiativeEff) *
-                         pow( LIGHTSPEED * 1e-5 /param.units.dKmPerSecUnit,2);
+        param.dBHFBEff *= param.dBHRadiativeEff *
+                          pow( LIGHTSPEED * 1e-5 / param.units.dKmPerSecUnit, 2);
     }
 
     // This, in principle, will not be a parameter
