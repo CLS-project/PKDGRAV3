@@ -274,7 +274,7 @@ typedef struct sphfields {
 #endif
 
 
-#ifdef FEEDBACK
+#if defined(FEEDBACK) || defined(BLACKHOLES)
     float fAccFBEnergy;
 #endif
 
@@ -1101,6 +1101,20 @@ static inline void pkdNodeSetBndMinMax( PKD pkd, KDN *n, double *dMin, double *d
     }
     pkdNodeSetBnd(pkd,n,&bnd);
 }
+
+#if defined(FEEDBACK) || defined(BLACKHOLES)
+static inline void pkdAddFBEnergy(PKD pkd, PARTICLE *p, SPHFIELDS *psph, double dConstGamma) {
+#ifndef OLD_FB_SCHEME
+    psph->Uint += psph->fAccFBEnergy;
+    psph->E += psph->fAccFBEnergy;
+#ifdef ENTROPY_SWITCH
+    psph->S += psph->fAccFBEnergy*(dConstGamma-1.) *
+               pow(pkdDensity(pkd,p), -dConstGamma+1);
+#endif
+    psph->fAccFBEnergy = 0.0;
+#endif //OLD_FB_SCHEME
+}
+#endif
 
 #ifdef OPTIM_REORDER_IN_NODES
 static inline int pkdNodeNgas( PKD pkd, KDN *n) {

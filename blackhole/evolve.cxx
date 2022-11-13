@@ -65,15 +65,20 @@ static inline void bhFeedback(PKD pkd, NN *nnList, int nSmooth, int naccreted, P
                 SPHFIELDS *qsph = pkdSph(pkd,q);
                 if (qsph->BHAccretor.iPid != NOT_ACCRETED) continue; // Skip accreted particles
                 printf("BH feedback event!\n");
-                const double energy = dBHFBEcrit * pkdMass(pkd,q) ;
-                qsph->Uint += energy;
-                qsph->E += energy;
+                const double dEnergyInput = dBHFBEcrit * pkdMass(pkd,q) ;
+
+#ifdef OLD_FB_SCHEME
+                qsph->Uint += dEnergyInput;
+                qsph->E += dEnergyInput;
 #ifdef ENTROPY_SWITCH
-                qsph->S += energy*(dConstGamma-1.) *
+                qsph->S += dEnergyInput*(dConstGamma-1.) *
                            pow(pkdDensity(pkd,q), -dConstGamma+1);
 #endif
+#else // OLD_FB_SCHEME
+                qsph->fAccFBEnergy += dEnergyInput;
+#endif
 
-                pBH->dAccEnergy -= energy;
+                pBH->dAccEnergy -= dEnergyInput;
             }
         }
     }

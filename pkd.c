@@ -1097,7 +1097,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
                     pSph->lastCooling = 0.;
                     pSph->cooling_dudt = 0.;
 #endif
-#ifdef FEEDBACK
+#if defined(FEEDBACK) || defined(BLACKHOLES)
                     pSph->fAccFBEnergy = 0.;
 #endif
 #ifdef BLACKHOLES
@@ -2890,7 +2890,7 @@ void pkdEndTimestepIntegration(PKD pkd, struct inEndTimestep in) {
             pkdGrackleCooling(pkd, p, pDelta, in.dTuFac);
 #endif
 
-#ifdef FEEDBACK
+#if defined(FEEDBACK) || defined(BLACKHOLES)
             // ##### Apply feedback
             pkdAddFBEnergy(pkd, p, psph, in.dConstGamma);
 #endif
