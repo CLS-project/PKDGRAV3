@@ -92,6 +92,10 @@ struct parameters {
     int bInFileLC;
     double dRedshiftLCP;
     int nSideHealpix;
+  double hxLCP;
+  double hyLCP;
+  double hzLCP;
+  double sqdegLCP;
     /* BEGIN Gas Parameters */
     int bDoGas;
     int bGasAdiabatic;

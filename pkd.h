@@ -152,11 +152,10 @@ typedef struct velsmooth {
 } VELSMOOTH;
 
 typedef struct partLightCone {
-    float pos[3];
+  uint64_t id;
+   float pos[3];
     float vel[3];
-#ifdef POTENTIAL_IN_LIGHTCONE
     float pot;
-#endif
 } LIGHTCONEP;
 
 /*
@@ -564,7 +563,7 @@ public:
         mdl::mdlClass *mdl,int nStore,uint64_t nMinTotalStore,uint64_t nMinEphemeral,uint32_t nEphemeralBytes,
         int nTreeBitsLo, int nTreeBitsHi,
         int iCacheSize,int iCacheMaxInflight,int iWorkQueueSize,int iCUDAQueueSize,double *fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,uint64_t nBH,
-        uint64_t mMemoryModel, int bLightCone, int bLightConeParticles);
+        uint64_t mMemoryModel, int bLightCone, int bLightConeParticles, double *hLCP,double alphaLCP,double mrLCP);
     virtual ~pkdContext();
 
 protected:  // Support for memory models
@@ -674,9 +673,11 @@ public:
     /*
     ** Light cone variables.
     */
-    double lcOffset0[184];
-    double lcOffset1[184];
-    double lcOffset2[184];
+  int nLayerMax;
+  int *nBoxLC;
+    double *lcOffset0;
+    double *lcOffset1;
+    double *lcOffset2;
     asyncFileInfo afiLightCone;
     LIGHTCONEP *pLightCone;
     int nLightCone, nLightConeMax;
@@ -1293,7 +1294,8 @@ void pkdGravAll(PKD pkd,
                 double *pdFlop,uint64_t *pnRung);
 void pkdCalcEandL(PKD pkd,double *T,double *U,double *Eth,double *L,double *F,double *W);
 void pkdProcessLightCone(PKD pkd,PARTICLE *p,float fPot,double dLookbackFac,double dLookbackFacLCP,
-                         double dDriftDelta,double dKickDelta,double dBoxSize,int bLightConeParticles);
+                         double dDriftDelta,double dKickDelta,double dBoxSize,int bLightConeParticles,
+			 double hlcp [3],double tanalpha2);
 void pkdGravEvalPP(const PINFOIN &Part, ilpTile &tile, PINFOOUT &Out );
 void pkdDensityEval(const PINFOIN &Part, ilpTile &tile,  PINFOOUT &Out, SPHOptions *SPHoptions);
 void pkdDensityCorrectionEval(const PINFOIN &Part, ilpTile &tile,  PINFOOUT &Out, SPHOptions *SPHoptions);

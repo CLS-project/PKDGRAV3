@@ -332,7 +332,17 @@ void MSR::InitializePStore(uint64_t *nSpecies,uint64_t mMemoryModel) {
     ps.mMemoryModel = mMemoryModel | PKD_MODEL_VELOCITY;
     ps.bLightCone  = param.bLightCone;
     ps.bLightConeParticles  = param.bLightConeParticles;
-
+    ps.hLCP[0] = param.hxLCP;
+    ps.hLCP[1] = param.hyLCP;
+    ps.hLCP[2] = param.hzLCP;
+    if (param.sqdegLCP <= 0 || param.sqdegLCP >= 4*M_1_PI*180.0*180.0 ) {
+      ps.alphaLCP = -1; // indicates we want an all sky lightcone, a bit weird but this is the flag.
+    } else {
+      ps.alphaLCP = sqrt(param.sqdegLCP*M_1_PI)*(M_PI/180.0); 
+    }
+    double dTimeLCP = csmExp2Time(csm,1.0/(1.0+param.dRedshiftLCP));
+    ps.mrLCP = dLightSpeedSim(param.dBoxSize)*csmComoveKickFac(csm,dTimeLCP,(csmExp2Time(csm,1.0) - dTimeLCP));
+    
 #define SHOW(m) ((ps.mMemoryModel&PKD_MODEL_##m)?" " #m:"")
     printf("Memory Models:%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s\n",
            param.bMemIntegerPosition ? " INTEGER_POSITION" : " DOUBLE_POSITION",
@@ -1011,10 +1021,10 @@ void MSR::Initialize() {
     param.bLightCone = 0;
     prmAddParam(prm,"bLightCone",0,&param.bLightCone,sizeof(int),"lc",
                 "output light cone data = -lc");
-    param.nSideHealpix = 8192;
+    param.nSideHealpix = 0;
     prmAddParam(prm,"nSideHealpix",1,&param.nSideHealpix,
                 sizeof(int),"healpix",
-                "<Number per side of the healpix map> = 8192");
+                "<Number per side of the healpix map> = 0 (default:no healpix maps)");
     param.bLightConeParticles = 0;
     prmAddParam(prm,"bLightConeParticles",0,&param.bLightConeParticles,sizeof(int),"lcp",
                 "output light cone particles = -lcp");
@@ -1024,6 +1034,18 @@ void MSR::Initialize() {
     param.dRedshiftLCP = 0;
     prmAddParam(prm,"dRedshiftLCP",2,&param.dRedshiftLCP,sizeof(double),"zlcp",
                 "starting redshift to output light cone particles = 0");
+    param.hxLCP = 0.749;
+    prmAddParam(prm,"hxLCP",2,&param.hxLCP,sizeof(double),"hx",
+                "x-component of lightcone direction vector = 0.749");
+    param.hyLCP = 0.454;
+    prmAddParam(prm,"hyLCP",2,&param.hyLCP,sizeof(double),"hy",
+                "y-component of lightcone direction vector = 0.454");
+    param.hzLCP = 1;
+    prmAddParam(prm,"hzLCP",2,&param.hzLCP,sizeof(double),"hz",
+                "z-component of lightcone direction vector = 1");
+    param.sqdegLCP = 50.0;
+    prmAddParam(prm,"sqdegLCP",2,&param.sqdegLCP,sizeof(double),"sqdeg",
+                "square degrees of lightcone = 50.0 (opening angle of nearly 4 deg)");
     param.dRedTo = 0.0;
     prmAddParam(prm,"dRedTo",2,&param.dRedTo,sizeof(double),"zto",
                 "specifies final redshift for the simulation");
@@ -3235,18 +3257,28 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
     else in.ts.dAccFac = 1.0;
 
     CalculateKickParameters(&in.kick, uRungLo, dTime, dDelta, dStep, bKickClose, bKickOpen, SPHoptions);
-
+    
     in.lc.bLightConeParticles = param.bLightConeParticles;
     in.lc.dBoxSize = param.dBoxSize;
     if (param.bLightCone) {
         in.lc.dLookbackFac = csmComoveKickFac(csm,dTime,(csmExp2Time(csm,1.0) - dTime));
         dTimeLCP = csmExp2Time(csm,1.0/(1.0+param.dRedshiftLCP));
         in.lc.dLookbackFacLCP = csmComoveKickFac(csm,dTimeLCP,(csmExp2Time(csm,1.0) - dTimeLCP));
+	if (param.sqdegLCP <= 0 || param.sqdegLCP >= 4*M_1_PI*180.0*180.0 ) {
+	  in.lc.tanalpha_2 = -1; // indicates we want an all sky lightcone, a bit weird but this is the flag.
+	} else {
+	  double alpha = sqrt(param.sqdegLCP*M_1_PI)*(M_PI/180.0);
+	  in.lc.tanalpha_2 = tan(0.5*alpha);  // it is tangent of the half angle that we actually need!
+	}
     }
     else {
         in.lc.dLookbackFac = 0.0;
         in.lc.dLookbackFacLCP = 0.0;
     }
+    in.lc.hLCP[0] = param.hxLCP;
+    in.lc.hLCP[1] = param.hyLCP;
+    in.lc.hLCP[2] = param.hzLCP;
+    
     /*
     ** Note that in this loop we initialize dt with the full step, not a half step!
     */
@@ -4999,8 +5031,9 @@ double MSR::GenerateIC() {
     else {
         nSpecies[FIO_SPECIES_ALL] = nSpecies[FIO_SPECIES_DARK] = nTotal;
     }
-    InitializePStore(nSpecies,getMemoryModel());
+    InitializePStore(nSpecies,getMemoryModel()); // We now need a bit of cosmology to set the maximum lightcone depth here.
     InitCosmology();
+
     in.dOmegaRate = csm->val.dOmegab/csm->val.dOmega0;
     SetDerivedParameters();
     in.dTuFac = dTuFac;

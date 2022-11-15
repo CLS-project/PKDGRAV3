@@ -31,36 +31,33 @@ extern void addToLightCone(PKD pkd,double *r,float fPot,PARTICLE *p,int bParticl
 #define NBOX 184
 
 void pkdProcessLightCone(PKD pkd,PARTICLE *p,float fPot,double dLookbackFac,double dLookbackFacLCP,
-                         double dDriftDelta,double dKickDelta,double dBoxSize,int bLightConeParticles) {
+                         double dDriftDelta,double dKickDelta,double dBoxSize,int bLightConeParticles,double hlcp[3],double tanalpha_2) {
     const double dLightSpeed = dLightSpeedSim(dBoxSize);
     const double mrLCP = dLightSpeed*dLookbackFacLCP;
-
-    int nBox = NBOX; /* Check all 184 by default */
+    const double depth = dLightSpeed*dLookbackFac;
+    int bCone=1;
+    const int nLayerMax = ceil(mrLCP);
     double dxStart;
 
-    dxStart = (dLookbackFac*dLightSpeed - 3.0)/(dKickDelta*dLightSpeed);
-    if (dxStart > 1) return;
-    else if (dxStart < 0) {
-        dxStart = (dLookbackFac*dLightSpeed - 2.0)/(dKickDelta*dLightSpeed);
-        if (dxStart >= 0) dxStart = 0;
-        else {
-            /*
-            ** Check only 64!
-            */
-            nBox = 64;
-            dxStart = (dLookbackFac*dLightSpeed - 1.0)/(dKickDelta*dLightSpeed);
-            if (dxStart >= 0) dxStart = 0;
-            else {
-                /*
-                ** Check only 8!
-                */
-                nBox = 8;
-                if (dLookbackFac >= 0) dxStart = 0;
-                else return;   /* Nothing to check */
-            }
-        }
-    }
+    /*
+    ** dxStart measures the fraction of the light surface that *just* enters
+    ** a certain layer of replicas. If it lies well outside of this in the time step
+    ** (i.e. it is greater than 1) then we don't need to check it (3 replicas was the
+    ** max before). If it is negative then the light surface lies inside of 3
+    ** replicas being checked during the whole time step interval, the xStart will
+    ** always be 0 (we check the entire light surface progression during the entire
+    ** time interval given by dKickDelta.
+    */
+    assert(depth >= 0);
+    //    if (depth < 0) return; // timestep extends into the future, it seems.
+    int l = floor(depth);
+    if (l >= nLayerMax) l = nLayerMax-1;
+    int nBox = pkd->nBoxLC[l]; // check only this many boxes
+    dxStart = (depth - nLayerMax)/(dKickDelta*dLightSpeed);
+    if (dxStart > 1) return; // the timestep is still too deep!
+    if (dxStart < 0) dxStart = 0;
 
+    
     const vel_t *v = pkdVel(pkd,p);
     double r0[3],r1[3];
     int j;
@@ -127,9 +124,17 @@ void pkdProcessLightCone(PKD pkd,PARTICLE *p,float fPot,double dLookbackFac,doub
 
 
     dvec xStart = dxStart;
+    dvec h[3];
+    double ihm = 1.0/sqrt(hlcp[0]*hlcp[0] + hlcp[1]*hlcp[1] + hlcp[2]*hlcp[2]); // make sure it is a unit vector!
+    for (j=0;j<3;++j) h[j] = hlcp[j]*ihm;     // normalize the hlcp unit vector
+    /*
+    ** If the input tan of alpha/2 is given as negative then we want all sky.
+    */
+    if (tanalpha_2 < 0) bCone = 0;
+    else bCone = 1;
+    dvec tan2alpha_2 = tanalpha_2*tanalpha_2;
+    nBox = (nBox + dvec::width()-1)/dvec::width();
 
-    assert(nBox%dvec::width() == 0);
-    nBox /= dvec::width();
     int k;
     for (k=0; k<4; ++k) {
         double dtApprox, dt;
@@ -159,9 +164,9 @@ void pkdProcessLightCone(PKD pkd,PARTICLE *p,float fPot,double dLookbackFac,doub
         for (j=0; j<3; ++j) r1[j] = r0[j] + dt*v[j];
         for (int iOct=0; iOct<nBox; ++iOct) {
             dvec off0, off1, off2;
-            off0.load(pkd->lcOffset0+iOct*4);
-            off1.load(pkd->lcOffset1+iOct*4);
-            off2.load(pkd->lcOffset2+iOct*4);
+            off0.load(pkd->lcOffset0+iOct*dvec::width());
+            off1.load(pkd->lcOffset1+iOct*dvec::width());
+            off2.load(pkd->lcOffset2+iOct*dvec::width());
             dvec vrx0 = off0 + r0[0];
             dvec vry0 = off1 + r0[1];
             dvec vrz0 = off2 + r0[2];
@@ -181,20 +186,45 @@ void pkdProcessLightCone(PKD pkd,PARTICLE *p,float fPot,double dLookbackFac,doub
                     vr[0] = (1.0-vx)*vrx0 + vx*vrx1;
                     vr[1] = (1.0-vx)*vry0 + vx*vry1;
                     vr[2] = (1.0-vx)*vrz0 + vx*vrz1;
-                    int m = movemask(msk);
-                    for (int j=0; j<dvec::width(); ++j) {
-                        if (m & (1<<j)) {
-                            double r[3];
-                            r[0] = vr[0][j];
-                            r[1] = vr[1][j];
-                            r[2] = vr[2][j];
-                            /*
-                            ** Create a new light cone particle.
-                            */
-                            double mr = sqrt(r[0]*r[0] + r[1]*r[1] + r[2]*r[2]);
-                            addToLightCone(pkd,r,fPot,p,bLightConeParticles && (mr <= mrLCP));
-                        }
-                    }
+		    if (bCone) {
+		      /*
+		      ** Now here we test for inclusion into a cone.
+		      ** We need to have the unit vector of vr for this to calculate 
+		      ** the tangent of half the angle in the cone. For the full 
+		      ** sky lightcone we can skip this test. 
+		      ** (h is the direction unit vector of the cone)
+		      */
+		      dvec vrm = vr[0]*vr[0] + vr[1]*vr[1] + vr[2]*vr[2];
+		      vrm = sqrt(vrm);  // hopefully this is done as a vector operation
+		      dvec a[3]; // difference between the 2 unit vectors
+		      a[0] = vr[0]/vrm - h[0];
+		      a[1] = vr[1]/vrm - h[1];
+		      a[2] = vr[2]/vrm - h[2];
+		      dvec am2 = a[0]*a[0] + a[1]*a[1] + a[2]*a[2];
+		      dvec b[3]; // sum the 2 unit vectors
+		      b[0] = vr[0]/vrm + h[0];
+		      b[1] = vr[1]/vrm + h[1];
+		      b[2] = vr[2]/vrm + h[2];
+		      dvec bm2 = b[0]*b[0] + b[1]*b[1] + b[2]*b[2];
+		      dvec tan2 = min(am2,bm2)/max(am2,bm2); // we have computed the tan-squared of the half angle
+		      msk = msk & (tan2 < tan2alpha_2); // we need to test if it falls in the thin shell, and in the correct angular region.
+		    }
+		    if (!testz(msk)) {	// it tests twice the same thing for the full sky lightcone, sorry.	    
+		        int m = movemask(msk);
+			for (int j=0; j<dvec::width(); ++j) {
+			    if (m & (1<<j)) {
+			        double r[3];
+				r[0] = vr[0][j];
+				r[1] = vr[1][j];
+				r[2] = vr[2][j];
+				/*
+				** Create a new light cone particle.
+				*/
+				double mr = sqrt(r[0]*r[0] + r[1]*r[1] + r[2]*r[2]);
+				addToLightCone(pkd,r,fPot,p,bLightConeParticles && (mr <= mrLCP));
+			    }
+			}
+		    } /* end of (!testz(msk)) */	
                 }
             }
         }

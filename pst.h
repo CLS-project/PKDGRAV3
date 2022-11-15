@@ -281,6 +281,9 @@ struct inInitializePStore {
     int iCUDAQueueSize;
     int bLightCone;
     int bLightConeParticles;
+  double hLCP[3]; // lightcone direction vector
+  double alphaLCP; // lightcone opening angle (radians about hLCP)
+  double mrLCP; // light cone depth in simulation units (box lengths)
 };
 int pstInitializePStore(PST,void *,int,void *,int);
 
