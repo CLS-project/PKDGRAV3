@@ -211,40 +211,42 @@ void hydroDensity_node(PKD pkd, SMF *smf, BND bnd_node, PARTICLE **sinks, NN *nn
         if (*omega < 0)
             Neff = - *omega;
 
+        double dConvFac = .5;
         do {
-            float ph = 0.5*pkdBall(pkd,partj);
+            float fpSmooth = 0.5*pkdBall(pkd,partj);
             double E[6];
 
-            densNodeOmegaE(nnList, ph, dx_node, dy_node, dz_node,
+            densNodeOmegaE(nnList, fpSmooth, dx_node, dy_node, dz_node,
                            nCnt,omega, E, &nSmooth);
 
             // Check if it has converged
-            double c = 4.*M_PI/3. * (*omega) *ph*ph*ph*8.;
-            //printf("%" PRIu64 " %d %d %e %e \n", *pkdParticleID(pkd,partj), nSmooth, nCnt, ph, Neff);
+            double c = 4.*M_PI/3. * (*omega) * fpSmooth*fpSmooth*fpSmooth*8.;
             if ((fabs(c-Neff) < smf->dNeighborsStd) ) {
+
                 // Check if the converged density has a low enough condition number
-
                 double Ncond = densNodeNcondB(pkd, partj, E, *omega);
-
 
                 if (Ncond > 100) {
                     // In some configurations (outer particles in a isolated galaxy)
                     // the density could have converged but with a very high Ncond
                     // due to anisotropy.
-                    // For those cases, we impose a maximum effective ngb number
-                    if (Neff>200.) {
-                        partj->bMarked=0;
-                        printf("WARNING %d Maximum Neff reached: %e ; Ncond %e \n", nSmooth, Neff, Ncond);
-                    }
-                    else {
+                    if (Neff<200.) {
+                        // To decrease anisotropy we increase the effective number
+                        // of neighbours and repeat the iterative procedure
                         Neff *= 1.2;
                         niter = 0;
                         continue;
                     }
+                    else {
+                        // But we impose a maximun number of neighbours to avoid
+                        // too long interaction lists
+                        partj->bMarked=0;
+                        printf("WARNING %d Maximum Neff reached: %e ; Ncond %e \n", nSmooth, Neff, Ncond);
+                    }
                 }
                 if (nSmooth < 20) {
                     // If we converge to a fBall that encloses too few neighbours,
-                    // the effective number of nn is increased
+                    // the effective number of ngb is increased
                     Neff *= 1.2;
                     niter = 0;
                     continue;
@@ -254,22 +256,25 @@ void hydroDensity_node(PKD pkd, SMF *smf, BND bnd_node, PARTICLE **sinks, NN *nn
                 pkdSetDensity(pkd, partj, pkdMass(pkd,partj)*(*omega));
             }
             else {
-                float ph_new;
+                // We need to keep iterating
+                float fpSmoothNew;
 
-                ph_new = (c!=0.0) ? ph * pow(  Neff/c,0.3333333333) : ph*4.0;
-                if (ph_new > 4.0*ph) ph_new = ph*4.0;
-                ph_new = 0.5*(ph_new+ph);
+                fpSmoothNew = (c!=0.0) ? fpSmooth * pow(Neff/c, 1./3.) : fpSmooth*4.0;
+                if (fpSmoothNew > 4.0*fpSmooth) fpSmoothNew = fpSmooth*4.0;
 
-                pkdSetBall(pkd,partj, 2.*ph_new);
-                //printf("Setting new fBall %e %e %e \n", c, ph, pkdBall(pkd,partj));
+                fpSmoothNew = dConvFac*fpSmoothNew + (1.-dConvFac)*fpSmooth;
 
+                pkdSetBall(pkd,partj, 2.*fpSmoothNew);
 
-                if (ph_new>ph) {
+                if (fpSmoothNew>fpSmooth) {
+                    float fpBallNew = 2.*fpSmoothNew;
                     // We check that the proposed ball is enclosed within the
                     // node search region
-                    if (    (fabs(dx_node) + ph_new > bnd_node.fMax[0])||
-                            (fabs(dy_node) + ph_new > bnd_node.fMax[1])||
-                            (fabs(dz_node) + ph_new > bnd_node.fMax[2])) {
+                    if (    (fabs(dx_node) + fpBallNew > bnd_node.fMax[0])||
+                            (fabs(dy_node) + fpBallNew > bnd_node.fMax[1])||
+                            (fabs(dz_node) + fpBallNew > bnd_node.fMax[2])) {
+                        // A negative omega indicates the Neff for the next
+                        // nbg search
                         *omega = -Neff;
                         break;
                     }
@@ -279,7 +284,7 @@ void hydroDensity_node(PKD pkd, SMF *smf, BND bnd_node, PARTICLE **sinks, NN *nn
                     // have not yet fully converged due to, e.g., an anisotropic
                     // particle distribution
                     if (smf->dhMinOverSoft > 0.) {
-                        if (ph_new < smf->dhMinOverSoft*pkdSoft(pkd,partj)) {
+                        if (fpSmoothNew < smf->dhMinOverSoft*pkdSoft(pkd,partj)) {
                             if (!onLowerLimit) {
                                 // If in the next iteration still a lower smooth is
                                 // preferred, we will skip this particle
@@ -294,30 +299,45 @@ void hydroDensity_node(PKD pkd, SMF *smf, BND bnd_node, PARTICLE **sinks, NN *nn
                             }
                         }
                     }
+                    if (nSmooth < 20) {
+                        if (!onLowerLimit) {
+                            onLowerLimit = 1;
+                        }
+                        else {
+                            // If we converge to a fBall that encloses too few neighbours,
+                            // the effective number of nn is increased
+                            Neff *= 1.2;
+                            niter = 0;
+                            onLowerLimit = 0;
+                            continue;
+                        }
+                    }
                 }
             }
             niter++;
+            // Decrease the weight of the newly proposed smoothing length once
+            // in a while to avoid getting into infinite loops
+            if (niter%10==0 && niter<90)
+                dConvFac *= 0.9;
 
 
-            // At this point, we probably have a particle with plenty of
-            //  neighbours, and a small increase/decrease in the radius causes
-            //  omega to fluctuate around the desired value.
-            //
-            // In this cases, we stop iterating, making sure that we have the
-            //  upper value, which should have more than the expected number of
-            //  neighbours
-            if (niter>1000 && partj->bMarked) {
+            if (niter>100 && partj->bMarked) {
+                // At this point, we probably have a particle with plenty of
+                // neighbours, and a small increase/decrease in the radius causes
+                // omega to fluctuate around the desired value.
+                //
+                // In these cases, we stop iterating, making sure that we have the
+                // upper value, which should have more than the expected number of
+                // neighbours
                 if (c > Neff) {
                     partj->bMarked = 0;
-                    pkdSetBall(pkd, partj, 2.*ph);
+                    pkdSetBall(pkd, partj, 2.*fpSmooth);
                     densNodeNcondB(pkd, partj, E, *omega);
                     pkdSetDensity(pkd, partj, pkdMass(pkd,partj)*(*omega));
-                    printf("WARNING %d Maximum iterations reached Neff %e c %e \n", pkdSpecies(pkd,partj), Neff, c);
+                    printf("WARNING %d Maximum iterations reached Neff %e c %e \t %e %e %e %e \n", pkdSpecies(pkd,partj), Neff, c, pkdDensity(pkd,partj), pkdPos(pkd,partj,0),pkdPos(pkd,partj,1),pkdPos(pkd,partj,2));
                 }
             }
-
         } while (partj->bMarked);
-
     }
 }
 
