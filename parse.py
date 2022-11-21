@@ -276,6 +276,7 @@ def parse():
     add_flag(snfeed,'SNFBDT',default=10**7.5,dest='dSNFBDT', type=float, help='Gas-particle temperature increment per feedback event, K')
     add_flag(snfeed,'CCSNFBDelay',default=3e7,dest='dCCSNFBDelay', type=float, help='Time between star formation and injection of CCSN energy, yr')
     add_flag(snfeed,'CCSNFBNumPerMass',default=1.736e-2,dest='dCCSNFBNumPerMass', type=float, help='Number of stars that will end their life as CCSN events, per mass 1/Mo')
+    add_flag(snfeed,'CCSNEnergy',default=1e51,dest='dCCSNEnergy', help='CCSN event energy, erg')
     add_flag(snfeed,'SNIaFBDelay',default=2e8,dest='dSNIaFBDelay', type=float, help='Time between star formation and injection of SNIa energy, yr')
     add_flag(snfeed,'SNIaFBNumPerMass',default=2e-3,dest='dSNIaFBNumPerMass', type=float, help='Number of stars that will end their life as SNIa events, per mass 1/Mo')
     add_flag(snfeed,'SNIaEnergy',default=1e51,dest='dSNIaEnergy', help='SNIa event energy, erg')

@@ -284,6 +284,7 @@ struct parameters {
     double dSNFBDu;
     double dCCSNFBDelay;
     double dCCSNFBSpecEnergy;
+    double dCCSNEnergy;
     double dCCSNFBNumPerMass;
     double dSNIaFBDelay;
     double dSNIaFBSpecEnergy;

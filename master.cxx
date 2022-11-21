@@ -1513,7 +1513,7 @@ void MSR::Initialize() {
                 sizeof(double), "dSNFBEffnH0",
                 "Hydrogen number density normalization of the feedback efficiency [nH cm-3]");
 
-    param.dSNFBDT = 31622776.60168379; // 10^7.5 K
+    param.dSNFBDT = pow(10.0, 7.5);
     prmAddParam(prm,"dSNFBDT", 2, &param.dSNFBDu,
                 sizeof(double), "dSNFBDT",
                 "Increment in temperature injected per supernova event [K]");
@@ -1527,6 +1527,10 @@ void MSR::Initialize() {
     prmAddParam(prm,"dCCSNFBNumPerMass", 2, &param.dCCSNFBNumPerMass,
                 sizeof(double), "dCCSNFBNumPerMass",
                 "Number of stars that will end their life as CCSN events, per mass [1/Mo]");
+
+    param.dCCSNEnergy = 1e51;
+    prmAddParam(prm, "dCCSNEnergy", 2, &param.dCCSNEnergy, sizeof(double), "dCCSNEnergy",
+                "CCSN event energy [erg]");
 
     param.dSNIaFBDelay = 2e8;
     prmAddParam(prm,"dSNIaFBDelay", 2, &param.dSNIaFBDelay,
