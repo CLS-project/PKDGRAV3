@@ -5601,7 +5601,7 @@ uint64_t MSR::SelBox(double *dCenter, double *dSize,bool setIfTrue,bool clearIfF
 uint64_t MSR::SelSphere(double *r, double dRadius,int setIfTrue,int clearIfFalse) {
     uint64_t N;
     ServiceSelSphere::input in(r,dRadius,setIfTrue,clearIfFalse);
-    mdl->RunService(PST_SELBOX,sizeof(in),&in,&N);
+    mdl->RunService(PST_SELSPHERE,sizeof(in),&in,&N);
     return N;
 }
 uint64_t MSR::SelCylinder(double *dP1, double *dP2, double dRadius,
