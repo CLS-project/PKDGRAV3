@@ -66,6 +66,7 @@ def parse():
     add_flag(aparm,'dEnv0',default=-1.0,dest='dEnvironment0',type=float, help='first radius for density environment about a group')
     add_flag(aparm,'dEnv1',default=-1.0,dest='dEnvironment1',type=float, help='second radius for density environment about a group')
     add_bool(aparm,'lc',default=False,dest='bLightCone',help='output light cone data')
+    add_bool(aparm,'bbt',default=False,dest='bBowtie',help='output +++ and --- octants of the cone; a bowtie')
     add_flag(aparm,'zlcp',default=0,dest='dRedshiftLCP',type=float, help='starting redshift to output light cone particles')
     add_flag(aparm,'sqdeg',default=50,dest='sqdegLCP',type=float, help='square degrees of lightcone (if (<0 || >41253) then all sky)')
     add_flag(aparm,'hx',default=0.749,dest='hxLCP',type=float, help='x-component of lightcone direction vector')

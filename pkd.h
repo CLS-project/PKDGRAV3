@@ -1327,7 +1327,7 @@ void pkdKick(PKD pkd,double dTime,double dDelta,int bDoGas,double,double,double,
 void pkdKickTree(PKD pkd,double dTime,double dDelta,double,double,double,int iRoot);
 void pkdSwapAll(PKD pkd, int idSwap);
 void pkdInitCosmology(PKD pkd, struct csmVariables *cosmo);
-void pkdInitLightcone(PKD pkd,int bLightConeParticles,double dBoxSize,double dRedshiftLCP,double alphaLCP,double *hLCP);
+void pkdInitLightcone(PKD pkd,int bBowtie,int bLightConeParticles,double dBoxSize,double dRedshiftLCP,double alphaLCP,double *hLCP);
 void pkdZeroNewRung(PKD pkd,uint8_t uRungLo, uint8_t uRungHi, uint8_t uRung);
 void pkdActiveRung(PKD pkd, int iRung, int bGreater);
 void pkdCountRungs(PKD pkd,uint64_t *nRungs);

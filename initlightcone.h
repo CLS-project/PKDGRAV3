@@ -19,6 +19,7 @@
 class ServiceInitLightcone : public TraversePST {
 public:
     struct input {
+        int bBowtie;
         int bLightConeParticles;
         double dBoxSize;
         double dRedshiftLCP;

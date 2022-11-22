@@ -25,6 +25,6 @@ int ServiceInitLightcone::Service(PST pst,void *vin,int nIn,void *vout,int nOut)
     auto in = static_cast<input *>(vin);
     static_assert(std::is_void<output>());
     assert(nIn==sizeof(input));
-    pkdInitLightcone(pst->plcl->pkd,in->bLightConeParticles,in->dBoxSize,in->dRedshiftLCP,in->alphaLCP,in->hLCP);
+    pkdInitLightcone(pst->plcl->pkd,in->bBowtie,in->bLightConeParticles,in->dBoxSize,in->dRedshiftLCP,in->alphaLCP,in->hLCP);
     return 0;
 }

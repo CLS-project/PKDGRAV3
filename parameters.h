@@ -92,6 +92,7 @@ struct parameters {
     int bInFileLC;
     double dRedshiftLCP;
     int nSideHealpix;
+    int bBowtie;
     double hxLCP;
     double hyLCP;
     double hzLCP;

@@ -239,7 +239,7 @@ static void initLightBallOffsets(PKD pkd,double mrLCP) {
 }
 
 
-static void initLightConeOffsets(PKD pkd,double h[3],double alpha,double mrLCP) {
+static void initLightConeOffsets(PKD pkd,int bBowtie,double h[3],double alpha,double mrLCP) {
     int l,ix,iy,iz,nBox,nBoxMax;
     int *xy;
     int *xz;
@@ -327,26 +327,26 @@ static void initLightConeOffsets(PKD pkd,double h[3],double alpha,double mrLCP) 
                         pkd->lcOffset1[nBox] = r[1];
                         pkd->lcOffset2[nBox] = r[2];
                         ++nBox;
-#ifdef OUTPUT_BOWTIE
-                        /*
-                        ** Now include also the -,-,- octant for checks, as we will be producing a bowtie.
-                        */
-                        for (int j=0; j<3; ++j) r[j] = -r[j];
-                        if (pkd->Self()==0) printf("Lightcone replica:%d layer:%d r:<%f %f %f>\n",nBox,l,r[0],r[1],r[2]);
-                        if (nBox == nBoxMax) {
-                            nBoxMax += 100;
-                            pkd->lcOffset0 = (double *)realloc((void *)pkd->lcOffset0,nBoxMax*sizeof(double));
-                            assert(pkd->lcOffset0 != NULL);
-                            pkd->lcOffset1 = (double *)realloc((void *)pkd->lcOffset1,nBoxMax*sizeof(double));
-                            assert(pkd->lcOffset1 != NULL);
-                            pkd->lcOffset2 = (double *)realloc((void *)pkd->lcOffset2,nBoxMax*sizeof(double));
-                            assert(pkd->lcOffset2 != NULL);
+                        if (bBowtie) {
+                            /*
+                            ** Now include also the -,-,- octant for checks, as we will be producing a bowtie.
+                            */
+                            for (int j=0; j<3; ++j) r[j] = -r[j];
+                            if (pkd->Self()==0) printf("Lightcone replica:%d layer:%d r:<%f %f %f>\n",nBox,l,r[0],r[1],r[2]);
+                            if (nBox == nBoxMax) {
+                                nBoxMax += 100;
+                                pkd->lcOffset0 = (double *)realloc((void *)pkd->lcOffset0,nBoxMax*sizeof(double));
+                                assert(pkd->lcOffset0 != NULL);
+                                pkd->lcOffset1 = (double *)realloc((void *)pkd->lcOffset1,nBoxMax*sizeof(double));
+                                assert(pkd->lcOffset1 != NULL);
+                                pkd->lcOffset2 = (double *)realloc((void *)pkd->lcOffset2,nBoxMax*sizeof(double));
+                                assert(pkd->lcOffset2 != NULL);
+                            }
+                            pkd->lcOffset0[nBox] = r[0];
+                            pkd->lcOffset1[nBox] = r[1];
+                            pkd->lcOffset2[nBox] = r[2];
+                            ++nBox;
                         }
-                        pkd->lcOffset0[nBox] = r[0];
-                        pkd->lcOffset1[nBox] = r[1];
-                        pkd->lcOffset2[nBox] = r[2];
-                        ++nBox;
-#endif
                     }
                 }
             }
@@ -3119,7 +3119,7 @@ void pkdInitCosmology(PKD pkd, struct csmVariables *cosmo) {
 /*
 ** Initialize Lightcone stuff.
 */
-void pkdInitLightcone(PKD pkd,int bLightConeParticles,double dBoxSize,double dRedshiftLCP,double alphaLCP,double *hLCP) {
+void pkdInitLightcone(PKD pkd,int bLightConeParticles,int bBowtie,double dBoxSize,double dRedshiftLCP,double alphaLCP,double *hLCP) {
 #ifdef __linux__
     uint64_t nPageSize = sysconf(_SC_PAGESIZE);
 #else
@@ -3141,7 +3141,7 @@ void pkdInitLightcone(PKD pkd,int bLightConeParticles,double dBoxSize,double dRe
         initLightBallOffsets(pkd,mrLCP);
     }
     else {
-        initLightConeOffsets(pkd,hLCP,alphaLCP,mrLCP);
+        initLightConeOffsets(pkd,bBowtie,hLCP,alphaLCP,mrLCP);
     }
     /*
     ** allocate enough space for light cone particle output

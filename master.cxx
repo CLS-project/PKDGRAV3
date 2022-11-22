@@ -1036,6 +1036,9 @@ void MSR::Initialize() {
     param.bInFileLC = 0;
     prmAddParam(prm,"bInFileLC",0,&param.bInFileLC,sizeof(int),"lcin",
                 "input light cone data = -lcin");
+    param.bBowtie = 0;
+    prmAddParam(prm,"bBowtie",0,&param.bBowtie,sizeof(int),"bbt",
+                "output +++ and --- octants of the cone; a bowtie = 0");
     param.dRedshiftLCP = 0;
     prmAddParam(prm,"dRedshiftLCP",2,&param.dRedshiftLCP,sizeof(double),"zlcp",
                 "starting redshift to output light cone particles = 0");
@@ -3721,6 +3724,7 @@ void MSR::InitCosmology() {
         else {
             in.alphaLCP = sqrt(param.sqdegLCP*M_1_PI)*(M_PI/180.0);
         }
+        in.bBowtie = param.bBowtie;
         in.bLightConeParticles = param.bLightConeParticles;
         in.dBoxSize = param.dBoxSize;
         in.dRedshiftLCP = param.dRedshiftLCP;
