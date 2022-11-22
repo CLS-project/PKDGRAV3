@@ -139,9 +139,9 @@ struct pkdLightconeParameters {
     double dtLCKick[IRUNGMAX+1];
     double dLookbackFac;
     double dLookbackFacLCP;
-  double hLCP[3];
-  double tanalpha_2;
-  double dBoxSize;
+    double hLCP[3];
+    double tanalpha_2;
+    double dBoxSize;
     int bLightConeParticles;
 };
 

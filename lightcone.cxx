@@ -26,7 +26,7 @@
 #include "pkd.h"
 #include "core/simd.h"
 
-extern void addToLightCone(PKD pkd,double *r,float fPot,PARTICLE *p,int bParticleOutput);
+extern void addToLightCone(PKD pkd,double dvFac,double *r,float fPot,PARTICLE *p,int bParticleOutput);
 
 #define NBOX 184
 
@@ -57,7 +57,7 @@ void pkdProcessLightCone(PKD pkd,PARTICLE *p,float fPot,double dLookbackFac,doub
     if (dxStart > 1) return; // the timestep is still too deep!
     if (dxStart < 0) dxStart = 0;
 
-    
+
     const vel_t *v = pkdVel(pkd,p);
     double r0[3],r1[3];
     int j;
@@ -126,7 +126,7 @@ void pkdProcessLightCone(PKD pkd,PARTICLE *p,float fPot,double dLookbackFac,doub
     dvec xStart = dxStart;
     dvec h[3];
     double ihm = 1.0/sqrt(hlcp[0]*hlcp[0] + hlcp[1]*hlcp[1] + hlcp[2]*hlcp[2]); // make sure it is a unit vector!
-    for (j=0;j<3;++j) h[j] = hlcp[j]*ihm;     // normalize the hlcp unit vector
+    for (j=0; j<3; ++j) h[j] = hlcp[j]*ihm;   // normalize the hlcp unit vector
     /*
     ** If the input tan of alpha/2 is given as negative then we want all sky.
     */
@@ -186,45 +186,54 @@ void pkdProcessLightCone(PKD pkd,PARTICLE *p,float fPot,double dLookbackFac,doub
                     vr[0] = (1.0-vx)*vrx0 + vx*vrx1;
                     vr[1] = (1.0-vx)*vry0 + vx*vry1;
                     vr[2] = (1.0-vx)*vrz0 + vx*vrz1;
-		    if (bCone) {
-		      /*
-		      ** Now here we test for inclusion into a cone.
-		      ** We need to have the unit vector of vr for this to calculate 
-		      ** the tangent of half the angle in the cone. For the full 
-		      ** sky lightcone we can skip this test. 
-		      ** (h is the direction unit vector of the cone)
-		      */
-		      dvec vrm = vr[0]*vr[0] + vr[1]*vr[1] + vr[2]*vr[2];
-		      vrm = sqrt(vrm);  // hopefully this is done as a vector operation
-		      dvec a[3]; // difference between the 2 unit vectors
-		      a[0] = vr[0]/vrm - h[0];
-		      a[1] = vr[1]/vrm - h[1];
-		      a[2] = vr[2]/vrm - h[2];
-		      dvec am2 = a[0]*a[0] + a[1]*a[1] + a[2]*a[2];
-		      dvec b[3]; // sum the 2 unit vectors
-		      b[0] = vr[0]/vrm + h[0];
-		      b[1] = vr[1]/vrm + h[1];
-		      b[2] = vr[2]/vrm + h[2];
-		      dvec bm2 = b[0]*b[0] + b[1]*b[1] + b[2]*b[2];
-		      dvec tan2 = min(am2,bm2)/max(am2,bm2); // we have computed the tan-squared of the half angle
-		      msk = msk & (tan2 < tan2alpha_2); // we need to test if it falls in the thin shell, and in the correct angular region.
-		    }
-		    if (!testz(msk)) {	// it tests twice the same thing for the full sky lightcone, sorry.	    
-		        int m = movemask(msk);
-			for (int j=0; j<dvec::width(); ++j) {
-			    if (m & (1<<j)) {
-			        double r[3];
-				r[0] = vr[0][j];
-				r[1] = vr[1][j];
-				r[2] = vr[2][j];
-				/*
-				** Create a new light cone particle.
-				*/
-				double mr = sqrt(r[0]*r[0] + r[1]*r[1] + r[2]*r[2]);
-				addToLightCone(pkd,r,fPot,p,bLightConeParticles && (mr <= mrLCP));
-			    }
-			}
-		    } /* end of (!testz(msk)) */	
+                    if (bCone) {
+                        /*
+                        ** Now here we test for inclusion into a cone.
+                        ** We need to have the unit vector of vr for this to calculate
+                        ** the tangent of half the angle in the cone. For the full
+                        ** sky lightcone we can skip this test.
+                        ** (h is the direction unit vector of the cone)
+                        */
+                        dvec vrm = vr[0]*vr[0] + vr[1]*vr[1] + vr[2]*vr[2];
+                        vrm = sqrt(vrm);  // hopefully this is done as a vector operation
+                        dvec a[3]; // difference between the 2 unit vectors
+                        a[0] = vr[0]/vrm - h[0];
+                        a[1] = vr[1]/vrm - h[1];
+                        a[2] = vr[2]/vrm - h[2];
+                        dvec am2 = a[0]*a[0] + a[1]*a[1] + a[2]*a[2];
+                        dvec b[3]; // sum the 2 unit vectors
+                        b[0] = vr[0]/vrm + h[0];
+                        b[1] = vr[1]/vrm + h[1];
+                        b[2] = vr[2]/vrm + h[2];
+                        dvec bm2 = b[0]*b[0] + b[1]*b[1] + b[2]*b[2];
+                        dvec tan2 = min(am2,bm2)/max(am2,bm2); // we have computed the tan-squared of the half angle
+                        msk = msk & (tan2 < tan2alpha_2); // we need to test if it falls in the thin shell, and in the correct angular region.
+                    }
+                    if (!testz(msk)) {  // it tests twice the same thing for the full sky lightcone, sorry.
+                        int m = movemask(msk);
+                        for (int j=0; j<dvec::width(); ++j) {
+                            if (m & (1<<j)) {
+                                double r[3];
+                                r[0] = vr[0][j];
+                                r[1] = vr[1][j];
+                                r[2] = vr[2][j];
+                                /*
+                                ** Create a new light cone particle.
+                                */
+                                double mr = sqrt(r[0]*r[0] + r[1]*r[1] + r[2]*r[2]);
+                                /*
+                                ** Lookup the expansion factor to convert the velocities into physical peculiar
+                                ** in sim units. Input velocities are momenta p = a^2*x_dot and we want
+                                            ** v_pec = a*x_dot.
+                                                            ** Use r -> 1/a spline table (but only if mr is in the interpolation domain!).
+                                                            */
+                                if (mr < mrLCP) {
+                                    double dvFac = gsl_spline_eval(pkd->interp_scale,mr,pkd->interp_accel);
+                                    addToLightCone(pkd,dvFac,r,fPot,p,bLightConeParticles);
+                                }
+                            }
+                        }
+                    } /* end of (!testz(msk)) */
                 }
             }
         }

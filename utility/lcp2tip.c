@@ -21,7 +21,7 @@
 #include <stdint.h>
 
 typedef struct partLightCone {
-  uint64_t id;
+    uint64_t id;
     float pos[3];
     float vel[3];
     float pot;

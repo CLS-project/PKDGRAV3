@@ -79,6 +79,8 @@ using namespace fmt::literals; // Gives us ""_a and ""_format literals
 #include "core/calcroot.h"
 #include "core/select.h"
 
+#include "initlightcone.h"
+
 #include "domains/distribtoptree.h"
 #include "domains/distribroot.h"
 #include "domains/dumptrees.h"
@@ -330,19 +332,7 @@ void MSR::InitializePStore(uint64_t *nSpecies,uint64_t mMemoryModel) {
     ps.fPeriod[1] = param.dyPeriod;
     ps.fPeriod[2] = param.dzPeriod;
     ps.mMemoryModel = mMemoryModel | PKD_MODEL_VELOCITY;
-    ps.bLightCone  = param.bLightCone;
-    ps.bLightConeParticles  = param.bLightConeParticles;
-    ps.hLCP[0] = param.hxLCP;
-    ps.hLCP[1] = param.hyLCP;
-    ps.hLCP[2] = param.hzLCP;
-    if (param.sqdegLCP <= 0 || param.sqdegLCP >= 4*M_1_PI*180.0*180.0 ) {
-      ps.alphaLCP = -1; // indicates we want an all sky lightcone, a bit weird but this is the flag.
-    } else {
-      ps.alphaLCP = sqrt(param.sqdegLCP*M_1_PI)*(M_PI/180.0); 
-    }
-    double dTimeLCP = csmExp2Time(csm,1.0/(1.0+param.dRedshiftLCP));
-    ps.mrLCP = dLightSpeedSim(param.dBoxSize)*csmComoveKickFac(csm,dTimeLCP,(csmExp2Time(csm,1.0) - dTimeLCP));
-    
+
 #define SHOW(m) ((ps.mMemoryModel&PKD_MODEL_##m)?" " #m:"")
     printf("Memory Models:%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s\n",
            param.bMemIntegerPosition ? " INTEGER_POSITION" : " DOUBLE_POSITION",
@@ -3257,19 +3247,20 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
     else in.ts.dAccFac = 1.0;
 
     CalculateKickParameters(&in.kick, uRungLo, dTime, dDelta, dStep, bKickClose, bKickOpen, SPHoptions);
-    
+
     in.lc.bLightConeParticles = param.bLightConeParticles;
     in.lc.dBoxSize = param.dBoxSize;
     if (param.bLightCone) {
         in.lc.dLookbackFac = csmComoveKickFac(csm,dTime,(csmExp2Time(csm,1.0) - dTime));
         dTimeLCP = csmExp2Time(csm,1.0/(1.0+param.dRedshiftLCP));
         in.lc.dLookbackFacLCP = csmComoveKickFac(csm,dTimeLCP,(csmExp2Time(csm,1.0) - dTimeLCP));
-	if (param.sqdegLCP <= 0 || param.sqdegLCP >= 4*M_1_PI*180.0*180.0 ) {
-	  in.lc.tanalpha_2 = -1; // indicates we want an all sky lightcone, a bit weird but this is the flag.
-	} else {
-	  double alpha = sqrt(param.sqdegLCP*M_1_PI)*(M_PI/180.0);
-	  in.lc.tanalpha_2 = tan(0.5*alpha);  // it is tangent of the half angle that we actually need!
-	}
+        if (param.sqdegLCP <= 0 || param.sqdegLCP >= 4*M_1_PI*180.0*180.0 ) {
+            in.lc.tanalpha_2 = -1; // indicates we want an all sky lightcone, a bit weird but this is the flag.
+        }
+        else {
+            double alpha = sqrt(param.sqdegLCP*M_1_PI)*(M_PI/180.0);
+            in.lc.tanalpha_2 = tan(0.5*alpha);  // it is tangent of the half angle that we actually need!
+        }
     }
     else {
         in.lc.dLookbackFac = 0.0;
@@ -3278,7 +3269,7 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
     in.lc.hLCP[0] = param.hxLCP;
     in.lc.hLCP[1] = param.hyLCP;
     in.lc.hLCP[2] = param.hzLCP;
-    
+
     /*
     ** Note that in this loop we initialize dt with the full step, not a half step!
     */
@@ -3703,10 +3694,26 @@ double MSR::getTheta(double dTime) {
 }
 
 void MSR::InitCosmology() {
+    ServiceInitLightcone::input in;
     if (prmSpecified(prm, "h")) {
         csm->val.h = param.h;
     }
     mdl->RunService(PST_INITCOSMOLOGY,sizeof(csm->val),&csm->val);
+    if (param.bLightCone) {
+        if (param.sqdegLCP <= 0 || param.sqdegLCP >= 4*M_1_PI*180.0*180.0 ) {
+            in.alphaLCP = -1; // indicates we want an all sky lightcone, a bit weird but this is the flag.
+        }
+        else {
+            in.alphaLCP = sqrt(param.sqdegLCP*M_1_PI)*(M_PI/180.0);
+        }
+        in.bLightConeParticles = param.bLightConeParticles;
+        in.dBoxSize = param.dBoxSize;
+        in.dRedshiftLCP = param.dRedshiftLCP;
+        in.hLCP[0] = param.hxLCP;
+        in.hLCP[1] = param.hyLCP;
+        in.hLCP[2] = param.hzLCP;
+        mdl->RunService(PST_INITLIGHTCONE,sizeof(in),&in);
+    }
 }
 
 void MSR::ZeroNewRung(uint8_t uRungLo, uint8_t uRungHi, int uRung) {

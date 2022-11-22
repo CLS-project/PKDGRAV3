@@ -205,179 +205,179 @@ static void initLightBallOffsets(PKD pkd,double mrLCP) {
     ** outer layers if we want.
     */
     nBox = nBoxMax = 0;
-    for (l=0;l<pkd->nLayerMax;++l) {
-      for (ix=-l; ix<=l+1; ++ix) {
-        for (iy=-l; iy<=l+1; ++iy) {
-	  for (iz=-l; iz<=l+1; ++iz) {
-	    if ((ix>-l) && (ix<l+1) && (iy>-l) && (iy<l+1) && (iz>-l) && (iz<l+1)) continue;
-	    double r[3] = {ix - 0.5, iy - 0.5, iz - 0.5};
-	    MINDIST(&bnd,r,min2);
-	    if (min2 < mrLCP*mrLCP) {
-	      if (pkd->Self()==0) printf("Lightcone replica:%d layer:%d r:<%f %f %f> min2:%f\n",nBox,l,r[0],r[1],r[2],min2);
-	      if (nBox == nBoxMax) {
-		nBoxMax += 100;
-		pkd->lcOffset0 = (double *)realloc((void *)pkd->lcOffset0,nBoxMax*sizeof(double));
-		assert(pkd->lcOffset0 != NULL);
-		pkd->lcOffset1 = (double *)realloc((void *)pkd->lcOffset1,nBoxMax*sizeof(double));
-		assert(pkd->lcOffset1 != NULL);
-		pkd->lcOffset2 = (double *)realloc((void *)pkd->lcOffset2,nBoxMax*sizeof(double));
-		assert(pkd->lcOffset2 != NULL);
-	      }
-	      pkd->lcOffset0[nBox] = r[0];
-	      pkd->lcOffset1[nBox] = r[1];
-	      pkd->lcOffset2[nBox] = r[2];
-	      ++nBox;
-	    }
-	  }
+    for (l=0; l<pkd->nLayerMax; ++l) {
+        for (ix=-l; ix<=l+1; ++ix) {
+            for (iy=-l; iy<=l+1; ++iy) {
+                for (iz=-l; iz<=l+1; ++iz) {
+                    if ((ix>-l) && (ix<l+1) && (iy>-l) && (iy<l+1) && (iz>-l) && (iz<l+1)) continue;
+                    double r[3] = {ix - 0.5, iy - 0.5, iz - 0.5};
+                    MINDIST(&bnd,r,min2);
+                    if (min2 < mrLCP*mrLCP) {
+                        if (pkd->Self()==0) printf("Lightcone replica:%d layer:%d r:<%f %f %f> min2:%f\n",nBox,l,r[0],r[1],r[2],min2);
+                        if (nBox == nBoxMax) {
+                            nBoxMax += 100;
+                            pkd->lcOffset0 = (double *)realloc((void *)pkd->lcOffset0,nBoxMax*sizeof(double));
+                            assert(pkd->lcOffset0 != NULL);
+                            pkd->lcOffset1 = (double *)realloc((void *)pkd->lcOffset1,nBoxMax*sizeof(double));
+                            assert(pkd->lcOffset1 != NULL);
+                            pkd->lcOffset2 = (double *)realloc((void *)pkd->lcOffset2,nBoxMax*sizeof(double));
+                            assert(pkd->lcOffset2 != NULL);
+                        }
+                        pkd->lcOffset0[nBox] = r[0];
+                        pkd->lcOffset1[nBox] = r[1];
+                        pkd->lcOffset2[nBox] = r[2];
+                        ++nBox;
+                    }
+                }
+            }
         }
-      }
-      /*
-      ** Can save the nBox here for skipping the deeper parts of the lightcone checks!
-      */
-      pkd->nBoxLC[l] = nBox;
+        /*
+        ** Can save the nBox here for skipping the deeper parts of the lightcone checks!
+        */
+        pkd->nBoxLC[l] = nBox;
     }
 }
 
 
 static void initLightConeOffsets(PKD pkd,double h[3],double alpha,double mrLCP) {
-  int l,ix,iy,iz,nBox,nBoxMax;
-  int *xy;
-  int *xz;
-  int *yz;
-  double hm = sqrt(h[0]*h[0] + h[1]*h[1] + h[2]*h[2]);
-  double min2;
-  
-  pkd->nLayerMax = ceil(mrLCP);
-  for (int j=0;j<3;++j) h[j] /= hm;
-  if (pkd->Self()==0) printf("mrLCP:%f nLayerMax:%d vector width:%d h:<%f %f %f>\n",mrLCP,pkd->nLayerMax,dvec::width(),h[0],h[1],h[2]);
-  /*
-  ** Check that all the components of h are positive and that h is not too close to the 
-  ** walls!
-  */
-  assert(h[0] > 0);
-  assert(h[1] > 0);
-  assert(h[2] > 0);
-  
-  pkd->nBoxLC = (int *)malloc(pkd->nLayerMax*sizeof(int));
-  assert(pkd->nBoxLC != NULL);
+    int l,ix,iy,iz,nBox,nBoxMax;
+    int *xy;
+    int *xz;
+    int *yz;
+    double hm = sqrt(h[0]*h[0] + h[1]*h[1] + h[2]*h[2]);
+    double min2;
 
-  xy = (int *)malloc(pkd->nLayerMax*pkd->nLayerMax*sizeof(int));
-  assert(xy != NULL);
-  xz = (int *)malloc(pkd->nLayerMax*pkd->nLayerMax*sizeof(int));
-  assert(xz != NULL);
-  yz = (int *)malloc(pkd->nLayerMax*pkd->nLayerMax*sizeof(int));
-  assert(yz != NULL);
-  for (int j=0;j<pkd->nLayerMax*pkd->nLayerMax;++j) xy[j] = xz[j] = yz[j] = 1; // by default all projected cells need to be checked
-  double alpha_xy = atan2(tan(alpha),sqrt(h[0]*h[0] + h[1]*h[1])); // angle projected onto the xy plane
-  double alpha_xz = atan2(tan(alpha),sqrt(h[0]*h[0] + h[2]*h[2])); // angle projected onto the xz plane
-  double alpha_yz = atan2(tan(alpha),sqrt(h[1]*h[1] + h[2]*h[2])); // angle projected onto the xy plane
-  double beta_yx = atan2(h[0],h[1]);
-  assert(beta_yx > alpha_xy); // make sure it is far enough from the walls
-  double beta_zx = atan2(h[0],h[2]);
-  assert(beta_zx > alpha_xz); // make sure it is far enough from the walls
-  double beta_zy = atan2(h[1],h[2]);
-  assert(beta_zy > alpha_yz); // make sure it is far enough from the walls
+    pkd->nLayerMax = ceil(mrLCP);
+    for (int j=0; j<3; ++j) h[j] /= hm;
+    if (pkd->Self()==0) printf("mrLCP:%f nLayerMax:%d vector width:%d h:<%f %f %f>\n",mrLCP,pkd->nLayerMax,dvec::width(),h[0],h[1],h[2]);
+    /*
+    ** Check that all the components of h are positive and that h is not too close to the
+    ** walls!
+    */
+    assert(h[0] > 0);
+    assert(h[1] > 0);
+    assert(h[2] > 0);
 
-  double beta_xy = atan2(h[1],h[0]);
-  assert(beta_xy > alpha_xy); // make sure it is far enough from the walls
-  double beta_xz = atan2(h[2],h[0]);
-  assert(beta_xz > alpha_xz); // make sure it is far enough from the walls
-  double beta_yz = atan2(h[2],h[1]);
-  assert(beta_yz > alpha_yz); // make sure it is far enough from the walls
-  if (pkd->Self()==0) printf("alpha:%f beta_xy:%f alpha_xy:%f beta_xz:%f alpha_xz:%f beta_yz:%f alpha_yz:%f\n",alpha,beta_xy,alpha_xy,beta_xz,alpha_xz,beta_yz,alpha_yz);
-  for (int j=0;j<pkd->nLayerMax;++j) {
-    for (int i=0;i<pkd->nLayerMax;++i) {
-      double a1 = atan2(j,i+1);
-      double a2 = atan2(j+1,i);
-      if (beta_xy > a2 + alpha_xy || beta_xy < a1 - alpha_xy) xy[j*pkd->nLayerMax+i] = 0; // doesn't intersect
-      if (beta_xz > a2 + alpha_xz || beta_xz < a1 - alpha_xz) xz[j*pkd->nLayerMax+i] = 0; // doesn't intersect
-      if (beta_yz > a2 + alpha_yz || beta_yz < a1 - alpha_yz) yz[j*pkd->nLayerMax+i] = 0; // doesn't intersect
+    pkd->nBoxLC = (int *)malloc(pkd->nLayerMax*sizeof(int));
+    assert(pkd->nBoxLC != NULL);
+
+    xy = (int *)malloc(pkd->nLayerMax*pkd->nLayerMax*sizeof(int));
+    assert(xy != NULL);
+    xz = (int *)malloc(pkd->nLayerMax*pkd->nLayerMax*sizeof(int));
+    assert(xz != NULL);
+    yz = (int *)malloc(pkd->nLayerMax*pkd->nLayerMax*sizeof(int));
+    assert(yz != NULL);
+    for (int j=0; j<pkd->nLayerMax*pkd->nLayerMax; ++j) xy[j] = xz[j] = yz[j] = 1; // by default all projected cells need to be checked
+    double alpha_xy = atan2(tan(alpha),sqrt(h[0]*h[0] + h[1]*h[1])); // angle projected onto the xy plane
+    double alpha_xz = atan2(tan(alpha),sqrt(h[0]*h[0] + h[2]*h[2])); // angle projected onto the xz plane
+    double alpha_yz = atan2(tan(alpha),sqrt(h[1]*h[1] + h[2]*h[2])); // angle projected onto the xy plane
+    double beta_yx = atan2(h[0],h[1]);
+    assert(beta_yx > alpha_xy); // make sure it is far enough from the walls
+    double beta_zx = atan2(h[0],h[2]);
+    assert(beta_zx > alpha_xz); // make sure it is far enough from the walls
+    double beta_zy = atan2(h[1],h[2]);
+    assert(beta_zy > alpha_yz); // make sure it is far enough from the walls
+
+    double beta_xy = atan2(h[1],h[0]);
+    assert(beta_xy > alpha_xy); // make sure it is far enough from the walls
+    double beta_xz = atan2(h[2],h[0]);
+    assert(beta_xz > alpha_xz); // make sure it is far enough from the walls
+    double beta_yz = atan2(h[2],h[1]);
+    assert(beta_yz > alpha_yz); // make sure it is far enough from the walls
+    if (pkd->Self()==0) printf("alpha:%f beta_xy:%f alpha_xy:%f beta_xz:%f alpha_xz:%f beta_yz:%f alpha_yz:%f\n",alpha,beta_xy,alpha_xy,beta_xz,alpha_xz,beta_yz,alpha_yz);
+    for (int j=0; j<pkd->nLayerMax; ++j) {
+        for (int i=0; i<pkd->nLayerMax; ++i) {
+            double a1 = atan2(j,i+1);
+            double a2 = atan2(j+1,i);
+            if (beta_xy > a2 + alpha_xy || beta_xy < a1 - alpha_xy) xy[j*pkd->nLayerMax+i] = 0; // doesn't intersect
+            if (beta_xz > a2 + alpha_xz || beta_xz < a1 - alpha_xz) xz[j*pkd->nLayerMax+i] = 0; // doesn't intersect
+            if (beta_yz > a2 + alpha_yz || beta_yz < a1 - alpha_yz) yz[j*pkd->nLayerMax+i] = 0; // doesn't intersect
+        }
     }
-  }
-  pkd->lcOffset0 = NULL;
+    pkd->lcOffset0 = NULL;
     pkd->lcOffset1 = NULL;
     pkd->lcOffset2 = NULL;
     /*
     ** Set up the light cone offsets such that they proceed from the inner 8
-    ** unit boxes outward layer by layer so that we can skip checks of the 
+    ** unit boxes outward layer by layer so that we can skip checks of the
     ** outer layers if we want.
     */
     nBox = nBoxMax = 0;
-    for (l=0;l<pkd->nLayerMax;++l) {
-      for (ix=0;ix<=l;++ix) {
-	for (iy=0;iy<=l;++iy) {
-	  for (iz=0;iz<=l;++iz) {	      
-	    if (ix<l && iy<l && iz<l) continue;
-	    if (xy[iy*pkd->nLayerMax+ix] && xz[iz*pkd->nLayerMax+ix] && yz[iz*pkd->nLayerMax+iy]) {
-	      double r[3] = {ix + 0.5, iy + 0.5, iz + 0.5};
-	      BND bnd = {{0,0,0},{0.5,0.5,0.5}};
-	      MINDIST(&bnd,r,min2);
-	      if (min2 > mrLCP*mrLCP) continue;
-	      if (pkd->Self()==0) printf("Lightcone replica:%d layer:%d r:<%f %f %f>\n",nBox,l,r[0],r[1],r[2]);
-	      if (nBox == nBoxMax) {
-		nBoxMax += 100;
-		pkd->lcOffset0 = (double *)realloc((void *)pkd->lcOffset0,nBoxMax*sizeof(double));
-		assert(pkd->lcOffset0 != NULL);
-		pkd->lcOffset1 = (double *)realloc((void *)pkd->lcOffset1,nBoxMax*sizeof(double));
-		assert(pkd->lcOffset1 != NULL);
-		pkd->lcOffset2 = (double *)realloc((void *)pkd->lcOffset2,nBoxMax*sizeof(double));
-		assert(pkd->lcOffset2 != NULL);
-	      }
-	      pkd->lcOffset0[nBox] = r[0];
-	      pkd->lcOffset1[nBox] = r[1];
-	      pkd->lcOffset2[nBox] = r[2];
-	      ++nBox;
+    for (l=0; l<pkd->nLayerMax; ++l) {
+        for (ix=0; ix<=l; ++ix) {
+            for (iy=0; iy<=l; ++iy) {
+                for (iz=0; iz<=l; ++iz) {
+                    if (ix<l && iy<l && iz<l) continue;
+                    if (xy[iy*pkd->nLayerMax+ix] && xz[iz*pkd->nLayerMax+ix] && yz[iz*pkd->nLayerMax+iy]) {
+                        double r[3] = {ix + 0.5, iy + 0.5, iz + 0.5};
+                        BND bnd = {{0,0,0},{0.5,0.5,0.5}};
+                        MINDIST(&bnd,r,min2);
+                        if (min2 > mrLCP*mrLCP) continue;
+                        if (pkd->Self()==0) printf("Lightcone replica:%d layer:%d r:<%f %f %f>\n",nBox,l,r[0],r[1],r[2]);
+                        if (nBox == nBoxMax) {
+                            nBoxMax += 100;
+                            pkd->lcOffset0 = (double *)realloc((void *)pkd->lcOffset0,nBoxMax*sizeof(double));
+                            assert(pkd->lcOffset0 != NULL);
+                            pkd->lcOffset1 = (double *)realloc((void *)pkd->lcOffset1,nBoxMax*sizeof(double));
+                            assert(pkd->lcOffset1 != NULL);
+                            pkd->lcOffset2 = (double *)realloc((void *)pkd->lcOffset2,nBoxMax*sizeof(double));
+                            assert(pkd->lcOffset2 != NULL);
+                        }
+                        pkd->lcOffset0[nBox] = r[0];
+                        pkd->lcOffset1[nBox] = r[1];
+                        pkd->lcOffset2[nBox] = r[2];
+                        ++nBox;
 #ifdef OUTPUT_BOWTIE
-	      /*
-	      ** Now include also the -,-,- octant for checks, as we will be producing a bowtie.
-	      */
-	      for (int j=0;j<3;++j) r[j] = -r[j];
-	      if (pkd->Self()==0) printf("Lightcone replica:%d layer:%d r:<%f %f %f>\n",nBox,l,r[0],r[1],r[2]);
-	      if (nBox == nBoxMax) {
-		nBoxMax += 100;
-		pkd->lcOffset0 = (double *)realloc((void *)pkd->lcOffset0,nBoxMax*sizeof(double));
-		assert(pkd->lcOffset0 != NULL);
-		pkd->lcOffset1 = (double *)realloc((void *)pkd->lcOffset1,nBoxMax*sizeof(double));
-		assert(pkd->lcOffset1 != NULL);
-		pkd->lcOffset2 = (double *)realloc((void *)pkd->lcOffset2,nBoxMax*sizeof(double));
-		assert(pkd->lcOffset2 != NULL);
-	      }
-	      pkd->lcOffset0[nBox] = r[0];
-	      pkd->lcOffset1[nBox] = r[1];
-	      pkd->lcOffset2[nBox] = r[2];
-	      ++nBox;
+                        /*
+                        ** Now include also the -,-,- octant for checks, as we will be producing a bowtie.
+                        */
+                        for (int j=0; j<3; ++j) r[j] = -r[j];
+                        if (pkd->Self()==0) printf("Lightcone replica:%d layer:%d r:<%f %f %f>\n",nBox,l,r[0],r[1],r[2]);
+                        if (nBox == nBoxMax) {
+                            nBoxMax += 100;
+                            pkd->lcOffset0 = (double *)realloc((void *)pkd->lcOffset0,nBoxMax*sizeof(double));
+                            assert(pkd->lcOffset0 != NULL);
+                            pkd->lcOffset1 = (double *)realloc((void *)pkd->lcOffset1,nBoxMax*sizeof(double));
+                            assert(pkd->lcOffset1 != NULL);
+                            pkd->lcOffset2 = (double *)realloc((void *)pkd->lcOffset2,nBoxMax*sizeof(double));
+                            assert(pkd->lcOffset2 != NULL);
+                        }
+                        pkd->lcOffset0[nBox] = r[0];
+                        pkd->lcOffset1[nBox] = r[1];
+                        pkd->lcOffset2[nBox] = r[2];
+                        ++nBox;
 #endif
-	    }
-	  }
-	}
-      }
-      /*
-      ** Can save the nBox here for skipping the deeper parts of the lightcone checks!
-      */
-      pkd->nBoxLC[l] = nBox;
+                    }
+                }
+            }
+        }
+        /*
+        ** Can save the nBox here for skipping the deeper parts of the lightcone checks!
+        */
+        pkd->nBoxLC[l] = nBox;
     }
     /*
     ** Add more boxes to get to a multiple of the vector width.
-    ** Just make sure the added boxes far enough away to not get 
+    ** Just make sure the added boxes far enough away to not get
     ** included.
     */
     l = pkd->nLayerMax - 1;
     double r[3] = {2*l + 0.5, 2*l + 0.5, 2*l + 0.5};
     while (nBox%dvec::width()) {
-      if (pkd->Self()==0) printf("Lightcone replica:%d layer:%d r:<%f %f %f>\n",nBox,l,r[0],r[1],r[2]);
-      if (nBox == nBoxMax) {
-	nBoxMax += 100;
-	pkd->lcOffset0 = (double *)realloc((void *)pkd->lcOffset0,nBoxMax*sizeof(double));
-	assert(pkd->lcOffset0 != NULL);
-	pkd->lcOffset1 = (double *)realloc((void *)pkd->lcOffset1,nBoxMax*sizeof(double));
-	assert(pkd->lcOffset1 != NULL);
-	pkd->lcOffset2 = (double *)realloc((void *)pkd->lcOffset2,nBoxMax*sizeof(double));
-	assert(pkd->lcOffset2 != NULL);
-      }
-      pkd->lcOffset0[nBox] = r[0];
-      pkd->lcOffset1[nBox] = r[1];
-      pkd->lcOffset2[nBox] = r[2];
-      ++nBox;
+        if (pkd->Self()==0) printf("Lightcone replica:%d layer:%d r:<%f %f %f>\n",nBox,l,r[0],r[1],r[2]);
+        if (nBox == nBoxMax) {
+            nBoxMax += 100;
+            pkd->lcOffset0 = (double *)realloc((void *)pkd->lcOffset0,nBoxMax*sizeof(double));
+            assert(pkd->lcOffset0 != NULL);
+            pkd->lcOffset1 = (double *)realloc((void *)pkd->lcOffset1,nBoxMax*sizeof(double));
+            assert(pkd->lcOffset1 != NULL);
+            pkd->lcOffset2 = (double *)realloc((void *)pkd->lcOffset2,nBoxMax*sizeof(double));
+            assert(pkd->lcOffset2 != NULL);
+        }
+        pkd->lcOffset0[nBox] = r[0];
+        pkd->lcOffset1[nBox] = r[1];
+        pkd->lcOffset2[nBox] = r[2];
+        ++nBox;
     }
     pkd->nBoxLC[l] = nBox;
 }
@@ -387,7 +387,7 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
                        int nStore,uint64_t nMinTotalStore,uint64_t nMinEphemeral,uint32_t nEphemeralBytes,
                        int nTreeBitsLo, int nTreeBitsHi,
                        int iCacheSize,int iCacheMaxInflight,int iWorkQueueSize,int iCUDAQueueSize,double *fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,uint64_t nBH,
-                       uint64_t mMemoryModel, int bLightCone, int bLightConeParticles, double *hLCP, double alphaLCP, double mrLCP) : mdl(mdl),
+                       uint64_t mMemoryModel) : mdl(mdl),
     csm(nullptr) {
     PARTICLE *p;
     uint32_t pi;
@@ -679,38 +679,6 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     */
     this->pTempPRIVATE = static_cast<PARTICLE *>(malloc(ParticleSize()));
     mdlassert(mdl,this->pTempPRIVATE != NULL);
-    /*
-    ** Initialize light cone offsets.
-    */
-    if (this->Self() == 0) printf("alphaLCP = %f\n",alphaLCP);
-    if (alphaLCP < 0) {
-      initLightBallOffsets(this,mrLCP);
-    } else {
-      initLightConeOffsets(this,hLCP,alphaLCP,mrLCP);
-    }
-    /*
-    ** allocate enough space for light cone particle output
-    */
-    uint64_t nLightConeBytes = (1024*1024*16);
-    this->nLightConeMax = nLightConeBytes / sizeof(LIGHTCONEP);
-    this->nLightCone = 0;
-    if (bLightCone && bLightConeParticles) {
-        void *v;
-#ifdef _MSC_VER
-        this->pLightCone = _aligned_malloc(nLightConeBytes, nPageSize);
-#else
-        if (posix_memalign(&v, nPageSize, nLightConeBytes)) this->pLightCone = NULL;
-        else this->pLightCone = static_cast<LIGHTCONEP *>(v);
-#endif
-        mdlassert(mdl,this->pLightCone != NULL);
-        io_init(&this->afiLightCone,8,2*1024*1024,IO_AIO|IO_LIBAIO);
-    }
-    else {
-        this->afiLightCone.nBuffers = 0;
-        this->pLightCone = NULL;
-    }
-    this->afiLightCone.fd = -1;
-    this->pHealpixData = NULL;
 
 #ifdef MDL_CACHE_SIZE
     if ( iCacheSize > 0 ) mdlSetCacheSize(this->mdl,iCacheSize);
@@ -2418,17 +2386,21 @@ void pkdLightConeOpen(PKD pkd,const char *fname,int nSideHealpix) {
     }
 }
 
-void addToLightCone(PKD pkd,double *r,float fPot,PARTICLE *p,int bParticleOutput) {
+void addToLightCone(PKD pkd,double dvFac,double *r,float fPot,PARTICLE *p,int bParticleOutput) {
     vel_t *v = pkdVel(pkd,p);
     if (pkd->afiLightCone.fd>0 && bParticleOutput) {
         LIGHTCONEP *pLC = pkd->pLightCone;
-	pLC[pkd->nLightCone].id = *pkdParticleID(pkd,p);
+        pLC[pkd->nLightCone].id = *pkdParticleID(pkd,p);
         pLC[pkd->nLightCone].pos[0] = r[0];
         pLC[pkd->nLightCone].pos[1] = r[1];
         pLC[pkd->nLightCone].pos[2] = r[2];
-        pLC[pkd->nLightCone].vel[0] = v[0];
-        pLC[pkd->nLightCone].vel[1] = v[1];
-        pLC[pkd->nLightCone].vel[2] = v[2];
+        /*
+        ** Convert momentum (a^2 * x_dot to physical peculiar velocity (a * x_dot in sim units)
+        ** This is easy to do now, and somewhat more involved to do later.
+        */
+        pLC[pkd->nLightCone].vel[0] = v[0]*dvFac;
+        pLC[pkd->nLightCone].vel[1] = v[1]*dvFac;
+        pLC[pkd->nLightCone].vel[2] = v[2]*dvFac;
         pLC[pkd->nLightCone].pot    = fPot;
         if (++pkd->nLightCone == pkd->nLightConeMax) flushLightCone(pkd);
     }
@@ -2457,7 +2429,7 @@ void addToLightCone(PKD pkd,double *r,float fPot,PARTICLE *p,int bParticleOutput
 */
 #define NBOX 184
 void pkdProcessLightCone(PKD pkd,PARTICLE *p,float fPot,double dLookbackFac,double dLookbackFacLCP,double dDriftDelta,double dKickDelta,double dBoxSize,int bLightConeParticles,
-			 double hlcp [3],double tanalpha_2) {
+                         double hlcp [3],double tanalpha_2) {
     const double dLightSpeed = dLightSpeedSim(dBoxSize);
     const double mrLCP = dLightSpeed*dLookbackFacLCP;
     double vrx0[NBOX],vry0[NBOX],vrz0[NBOX];
@@ -2937,6 +2909,21 @@ void pkdEndTimestepIntegration(PKD pkd, struct inEndTimestep in) {
 }
 
 
+void pkdSetupInterpScale(PKD pkd,double dBoxSize,double mrMax) {
+    const int nTable=1000;
+    const double dLightSpeed = dLightSpeedSim(dBoxSize);
+    double dr,rt[nTable],at_inv[nTable];
+    /*
+    ** Setup lookup table.
+    */
+    dr = mrMax/(nTable-1);
+    for (int i=0; i<nTable; ++i) {
+        rt[i] = i*dr;
+        at_inv[i] = 1.0/csmComoveLookbackTime2Exp(pkd->csm,rt[i]/dLightSpeed);
+    }
+    pkd->interp_scale = gsl_spline_alloc(gsl_interp_cspline,nTable);
+    gsl_spline_init(pkd->interp_scale,rt,at_inv,nTable);
+}
 
 
 void pkdLightConeVel(PKD pkd,double dBoxSize) {
@@ -3112,7 +3099,7 @@ void pkdKickTree(PKD pkd,double dTime,double dDelta,double dDeltaVPred,double dD
 void pkdInitCosmology(PKD pkd, struct csmVariables *cosmo) {
     /*
     ** Need to be careful to correctly copy the cosmo
-    ** parameters. This is very ugly!
+    ** parameters. This is a bit ugly.
     */
     if (pkd->csm) csmFinish(pkd->csm);
     csmInitialize(&pkd->csm);
@@ -3120,6 +3107,59 @@ void pkdInitCosmology(PKD pkd, struct csmVariables *cosmo) {
     if (pkd->csm->val.classData.bClass) {
         csmClassGslInitialize(pkd->csm);
     }
+}
+
+
+/*
+** Initialize Lightcone stuff.
+*/
+void pkdInitLightcone(PKD pkd,int bLightConeParticles,double dBoxSize,double dRedshiftLCP,double alphaLCP,double *hLCP) {
+#ifdef __linux__
+    uint64_t nPageSize = sysconf(_SC_PAGESIZE);
+#else
+    uint64_t nPageSize = 512;
+#endif
+    uint64_t nPageMask = nPageSize-1;
+
+    /*
+    ** Initialize Lookup table for converting lightcone velocities to physical (sim units)
+    */
+    double dTimeLCP = csmExp2Time(pkd->csm,1.0/(1.0+dRedshiftLCP));
+    double mrLCP = dLightSpeedSim(dBoxSize)*csmComoveKickFac(pkd->csm,dTimeLCP,(csmExp2Time(pkd->csm,1.0) - dTimeLCP));
+    pkdSetupInterpScale(pkd,dBoxSize,mrLCP);
+    /*
+    ** Initialize light cone offsets.
+    */
+    if (pkd->Self() == 0) printf("alphaLCP = %f\n",alphaLCP);
+    if (alphaLCP < 0) {
+        initLightBallOffsets(pkd,mrLCP);
+    }
+    else {
+        initLightConeOffsets(pkd,hLCP,alphaLCP,mrLCP);
+    }
+    /*
+    ** allocate enough space for light cone particle output
+    */
+    uint64_t nLightConeBytes = (1024*1024*16);
+    pkd->nLightConeMax = nLightConeBytes / sizeof(LIGHTCONEP);
+    pkd->nLightCone = 0;
+    if (bLightConeParticles) {
+        void *v;
+#ifdef _MSC_VER
+        pkd->pLightCone = _aligned_malloc(nLightConeBytes, nPageSize);
+#else
+        if (posix_memalign(&v, nPageSize, nLightConeBytes)) pkd->pLightCone = NULL;
+        else pkd->pLightCone = static_cast<LIGHTCONEP *>(v);
+#endif
+        mdlassert(pkd->mdl,pkd->pLightCone != NULL);
+        io_init(&pkd->afiLightCone,8,2*1024*1024,IO_AIO|IO_LIBAIO);
+    }
+    else {
+        pkd->afiLightCone.nBuffers = 0;
+        pkd->pLightCone = NULL;
+    }
+    pkd->afiLightCone.fd = -1;
+    pkd->pHealpixData = NULL;
 }
 
 void pkdZeroNewRung(PKD pkd,uint8_t uRungLo, uint8_t uRungHi, uint8_t uRung) {  /* JW: Ugly -- need to clean up */
