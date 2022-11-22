@@ -388,7 +388,7 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
                        int nTreeBitsLo, int nTreeBitsHi,
                        int iCacheSize,int iCacheMaxInflight,int iWorkQueueSize,int iCUDAQueueSize,double *fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,uint64_t nBH,
                        uint64_t mMemoryModel) : mdl(mdl),
-    csm(nullptr) {
+    pLightCone(nullptr), pHealpixData(nullptr), csm(nullptr) {
     PARTICLE *p;
     uint32_t pi;
     int j,ism;
@@ -2396,7 +2396,7 @@ void addToLightCone(PKD pkd,double dvFac,double *r,float fPot,PARTICLE *p,int bP
     vel_t *v = pkdVel(pkd,p);
     if (pkd->afiLightCone.fd>0 && bParticleOutput) {
         LIGHTCONEP *pLC = pkd->pLightCone;
-        pLC[pkd->nLightCone].id = *pkdParticleID(pkd,p);
+        pLC[pkd->nLightCone].id = p->iOrder;
         pLC[pkd->nLightCone].pos[0] = r[0];
         pLC[pkd->nLightCone].pos[1] = r[1];
         pLC[pkd->nLightCone].pos[2] = r[2];
