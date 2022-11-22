@@ -3119,7 +3119,7 @@ void pkdInitCosmology(PKD pkd, struct csmVariables *cosmo) {
 /*
 ** Initialize Lightcone stuff.
 */
-void pkdInitLightcone(PKD pkd,int bLightConeParticles,int bBowtie,double dBoxSize,double dRedshiftLCP,double alphaLCP,double *hLCP) {
+void pkdInitLightcone(PKD pkd,int bBowtie,int bLightConeParticles,double dBoxSize,double dRedshiftLCP,double alphaLCP,double *hLCP) {
 #ifdef __linux__
     uint64_t nPageSize = sysconf(_SC_PAGESIZE);
 #else
