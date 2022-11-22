@@ -8,6 +8,9 @@ RUN apt-get update && apt-get install -y python3-dev python3-pip python3-numpy p
 RUN mkdir /build
 WORKDIR /build
 COPY euclid_flagship_500.hdf5 b0-final.std b0-final-np-asym-k1.acc.npy b0-final-p0.10-asym-k1.acc.npy b0-final-ref.grp.npy ./
+COPY sph-data ./sph-data
+COPY ANEOSmaterial ./ANEOSmaterial
+COPY EOSlib ./EOSlib
 ENV OMPI_ALLOW_RUN_AS_ROOT=1
 ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
 ENV OMPI_MCA_btl_vader_single_copy_mechanism=none

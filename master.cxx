@@ -220,9 +220,22 @@ void MSR::Exit(int status) {
     exit(status);
 }
 
+static void make_directories(std::string name) {
+    auto i = name.rfind('/');
+    if (i > 0) {
+        if (i != std::string::npos) {
+            name = name.substr(0,i);
+            make_directories(name);
+            mkdir(name.c_str(),0755);
+        }
+    }
+}
+
 std::string MSR::BuildName(const char *path,int iStep,const char *type) {
     if (!path[0]) path = "{name}.{step:05d}{type}";
-    return fmt::format(path,"name"_a=OutName(),"step"_a=iStep,"type"_a=type);
+    auto name = fmt::format(path,"name"_a=OutName(),"step"_a=iStep,"type"_a=type);
+    make_directories(name);
+    return name;
 }
 std::string MSR::BuildName(int iStep,const char *type) {
     return BuildName(param.achOutPath,iStep,type);
@@ -334,12 +347,14 @@ void MSR::InitializePStore(uint64_t *nSpecies,uint64_t mMemoryModel) {
     ps.mMemoryModel = mMemoryModel | PKD_MODEL_VELOCITY;
 
 #define SHOW(m) ((ps.mMemoryModel&PKD_MODEL_##m)?" " #m:"")
-    printf("Memory Models:%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s\n",
+    printf("Memory Models:%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s\n",
            param.bMemIntegerPosition ? " INTEGER_POSITION" : " DOUBLE_POSITION",
            SHOW(UNORDERED),SHOW(VELOCITY),SHOW(ACCELERATION),SHOW(POTENTIAL),
            SHOW(GROUPS),SHOW(RELAXATION),SHOW(MASS),SHOW(DENSITY),
            SHOW(BALL),SHOW(SOFTENING),SHOW(VELSMOOTH),SHOW(SPH),SHOW(NEW_SPH),
-           SHOW(STAR),SHOW(PARTICLE_ID),SHOW(BH));
+           SHOW(STAR),SHOW(PARTICLE_ID),SHOW(BH),SHOW(GLOBALGID),
+           SHOW(NODE_MOMENT),SHOW(NODE_ACCEL),SHOW(NODE_VEL),SHOW(NODE_SPHBNDS),
+           SHOW(NODE_BND),SHOW(NODE_VBND),SHOW(NODE_BOB));
 #undef SHOW
     ps.nMinEphemeral = 0;
     ps.nMinTotalStore = 0;
@@ -443,7 +458,7 @@ void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTi
     uint64_t mMemoryModel = 0;
     mMemoryModel = getMemoryModel();
     if (nGas && !prmSpecified(prm,"bDoGas")) param.bDoGas = 1;
-    if (DoGas() && NewSPH()) mMemoryModel |= (PKD_MODEL_NEW_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_DENSITY|PKD_MODEL_BALL);
+    if (DoGas() && NewSPH()) mMemoryModel |= (PKD_MODEL_NEW_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_DENSITY|PKD_MODEL_BALL|PKD_MODEL_NODE_BOB);
     InitializePStore(nSpecies,mMemoryModel);
 
     struct inRestore restore;
@@ -5184,7 +5199,7 @@ double MSR::Read(const char *achInFile) {
     else read->dvFac = getVfactor(dExpansion);
 
     if (nGas && !prmSpecified(prm,"bDoGas")) param.bDoGas = 1;
-    if (DoGas() && NewSPH()) mMemoryModel |= (PKD_MODEL_NEW_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_DENSITY|PKD_MODEL_BALL);
+    if (DoGas() && NewSPH()) mMemoryModel |= (PKD_MODEL_NEW_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_DENSITY|PKD_MODEL_BALL|PKD_MODEL_NODE_BOB);
     if (nStar) mMemoryModel |= (PKD_MODEL_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_MASS|PKD_MODEL_SOFTENING|PKD_MODEL_STAR);
 
     read->nNodeStart = 0;

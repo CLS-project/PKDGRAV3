@@ -26,6 +26,8 @@
 #include <stdio.h>
 #include "basetype.h"
 
+const SPHBOB SPHbobVOID = {0.0};
+
 SPHOptions initializeSPHOptions(struct parameters param, CSM csm, double dTime) {
     SPHOptions SPHoptions;
     SPHoptions.fKernelTarget = param.fKernelTarget;

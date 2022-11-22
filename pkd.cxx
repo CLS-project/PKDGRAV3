@@ -548,6 +548,12 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     else
         this->oNodeSphBounds = 0;
 
+    if ( mMemoryModel & PKD_MODEL_NODE_BOB ) {
+        this->oNodeBOB = NodeAddStruct(sizeof(SPHBOB));
+    }
+    else
+        this->oNodeBOB = 0;
+
     if ( mMemoryModel & PKD_MODEL_NODE_MOMENT )
         this->oNodeMom = NodeAddStruct(sizeof(FMOMR));
     else

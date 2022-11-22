@@ -125,6 +125,7 @@ static inline int64_t d2u64(double d) {
 
 #define PKD_MODEL_NODE_BND     (1<<28) /* Include normal bounds in tree */
 #define PKD_MODEL_NODE_VBND    (1<<29) /* Include velocity bounds in tree for phase-space density*/
+#define PKD_MODEL_NODE_BOB     (1<<30) /* Ball of Balls, or Box of Balls */
 
 #define PKD_MODEL_NEW_SPH      (1ULL<<32) /* New Sph Fields */
 
@@ -231,33 +232,17 @@ typedef struct kdNode {
     int pLower;          /* also serves as thread id for the LTT */
     int pUpper;          /* pUpper < 0 indicates no particles in tree! */
     uint32_t iLower;         /* Local lower node (or remote processor w/bRemote=1) */
-    uint32_t iDepth     : 15;
+    uint32_t iDepth     : 13;
     uint32_t bGroup     : 1;
     uint32_t iSplitDim  : 2;
     uint32_t uMinRung   : 6;
     uint32_t uMaxRung   : 6;
     uint32_t bTopTree   : 1; /* This is a top tree node: pLower,pUpper are node indexes */
     uint32_t bRemote    : 1; /* children are remote */
+    uint32_t bHasMarked : 1;         /* flag if node has a marked particle, there are still 63 bit left */
+    uint32_t bHasNNflag : 1;         /* NN_FLAG_IN_PARTICLE: flag if node has a NNflagged particle, there are still 62 bit left */
     float bMax;
     float fSoft2;
-#if SPHBALLOFBALLS
-    float fBoBr2;       /* Ball of Balls radius squared */
-    float fBoBxCenter;
-    float fBoByCenter;
-    float fBoBzCenter;
-#endif
-#if SPHBOXOFBALLS
-    float fBoBxMin;
-    float fBoBxMax;
-    float fBoByMin;
-    float fBoByMax;
-    float fBoBzMin;
-    float fBoBzMax;
-#endif
-    uint64_t bHasMarked : 1;         /* flag if node has a marked particle, there are still 63 bit left */
-#ifdef NN_FLAG_IN_PARTICLE
-    uint64_t bHasNNflag : 1;         /* flag if node has a NNflagged particle, there are still 62 bit left */
-#endif
 } KDN;
 
 typedef struct sphBounds {
@@ -701,6 +686,7 @@ public:
     int oNodeVelocity; /* Three vel_t */
     int oNodeAcceleration; /* Three doubles */
     int oNodeSoft;
+    int oNodeBOB; /* Ball or Box of Balls */
     int oNodeMom; /* an FMOMR */
     int oNodeBnd;
     int oNodeSphBounds; /* Three Bounds */
@@ -813,6 +799,22 @@ public:
 #ifdef HAVE_EOSLIB_H
     EOSmaterial *materials[EOS_N_MATERIAL_MAX] = {NULL};
 #endif
+protected:
+    auto NodeField( KDN *n, int iOffset ) {
+        auto v = reinterpret_cast<char *>(n);
+        return reinterpret_cast<void *>(v + iOffset);
+    }
+    auto NodeField( const KDN *n, int iOffset ) {
+        auto v = reinterpret_cast<const char *>(n);
+        return reinterpret_cast<const void *>(v + iOffset);
+    }
+public:
+    auto NodeBOB(KDN *n) {
+        return reinterpret_cast<SPHBOB *>(NodeField(n,oNodeBOB));
+    }
+    auto NodeBOB(const KDN *n) {
+        return reinterpret_cast<const SPHBOB *>(NodeField(n,oNodeBOB));
+    }
 
 };
 typedef pkdContext *PKD;
@@ -870,12 +872,20 @@ static inline void pkdCopyNode(PKD pkd, KDN *a, KDN *b) {
     memcpy(a,b,pkd->NodeSize());
 }
 static inline void *pkdNodeField( KDN *n, int iOffset ) {
-    char *v = (char *)n;
+    auto v = reinterpret_cast<char *>(n);
     /*assert(iOffset);*/ /* Remove this for better performance */
-    return (void *)(v + iOffset);
+    return reinterpret_cast<void *>(v + iOffset);
+}
+static inline const void *pkdNodeField( const KDN *n, int iOffset ) {
+    auto v = reinterpret_cast<const char *>(n);
+    /*assert(iOffset);*/ /* Remove this for better performance */
+    return reinterpret_cast<const void *>(v + iOffset);
 }
 static inline FMOMR *pkdNodeMom(PKD pkd,KDN *n) {
-    return CAST(FMOMR *,pkdNodeField(n,pkd->oNodeMom));
+    return reinterpret_cast<FMOMR *>(pkdNodeField(n,pkd->oNodeMom));
+}
+static inline const FMOMR *pkdNodeMom(PKD pkd,const KDN *n) {
+    return reinterpret_cast<const FMOMR *>(pkdNodeField(n,pkd->oNodeMom));
 }
 static inline vel_t *pkdNodeVel( PKD pkd, KDN *n ) {
     return CAST(vel_t *,pkdNodeField(n,pkd->oNodeVelocity));
@@ -887,15 +897,15 @@ static inline SPHBNDS *pkdNodeSphBounds( PKD pkd, KDN *n ) {
     return CAST(SPHBNDS *,pkdNodeField(n,pkd->oNodeSphBounds));
 }
 
-static inline void pkdNodeGetPos(PKD pkd,KDN *n,double *r) {
+static inline void pkdNodeGetPos(PKD pkd,const KDN *n,double *r) {
     if (pkd->bIntegerPosition) {
-        int32_t *pr = CAST(int32_t *,pkdNodeField(n,pkd->oNodePosition));
+        auto pr = static_cast<const int32_t *>(pkdNodeField(n,pkd->oNodePosition));
         r[0] = pkdIntPosToDbl(pkd,pr[0]);
         r[1] = pkdIntPosToDbl(pkd,pr[1]);
         r[2] = pkdIntPosToDbl(pkd,pr[2]);
     }
     else {
-        double *pr = CAST(double *,pkdNodeField(n,pkd->oNodePosition));
+        auto pr = static_cast<const double *>(pkdNodeField(n,pkd->oNodePosition));
         r[0] = pr[0];
         r[1] = pr[1];
         r[2] = pr[2];
@@ -920,9 +930,12 @@ static inline void pkdNodeSetPos1(PKD pkd,KDN *n,const double *r) {
 }
 
 static inline BND *pkdNodeBndPRIVATE( PKD pkd, KDN *n ) {
-    return CAST(BND *,pkdNodeField(n,pkd->oNodeBnd));
+    return static_cast<BND *>(pkdNodeField(n,pkd->oNodeBnd));
 }
-static inline BND pkdNodeGetBnd( PKD pkd, KDN *n ) {
+static inline const BND *pkdNodeBndPRIVATE( PKD pkd, const KDN *n ) {
+    return static_cast<const BND *>(pkdNodeField(n,pkd->oNodeBnd));
+}
+static inline BND pkdNodeGetBnd( PKD pkd, const KDN *n ) {
     if (pkd->bIntegerPosition) {
         IBND *ibnd = (IBND *)pkdNodeField(n,pkd->oNodeBnd);
         BND bnd;

@@ -72,15 +72,15 @@ static void addChild(PKD pkd, int iCache, clList *cl, int iChild, int id, float 
     pkdNodeGetPos(pkd,c,c_r);
     BND cbnd = pkdNodeGetBnd(pkd,c);
     pkdGetChildCells(c,id,idLower,iLower,idUpper,iUpper);
+    auto SPHbob = pkd->oNodeBOB ? pkd->NodeBOB(c) : &SPHbobVOID;
     cl->append(iCache,id,iChild,idLower,iLower,idUpper,iUpper,nc,cOpen,
-               pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c_r,fOffset,cbnd.fCenter,cbnd.fMax,
+               pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c_r,fOffset,cbnd.fCenter,cbnd.fMax
 #if SPHBALLOFBALLS
-               c->fBoBr2,c->fBoBxCenter,c->fBoByCenter,c->fBoBzCenter);
+               ,SPHbob->fBoBr2,SPHbob->fBoBxCenter,SPHbob->fBoByCenter,SPHbob->fBoBzCenter
+#elif SPHBOXOFBALLS
+               ,SPHbob->fBoBxMin,SPHbob->fBoBxMax,SPHbob->fBoByMin,SPHbob->fBoByMax,SPHbob->fBoBzMin,SPHbob->fBoBzMax
 #endif
-#if SPHBOXOFBALLS
-    c->fBoBxMin,c->fBoBxMax,c->fBoByMin,c->fBoByMax,c->fBoBzMin,c->fBoBzMax);
-#endif
-
+              );
 
 }
 /*
@@ -403,26 +403,26 @@ found_it:
                                                            r,       /* center of mass */
                                                            fOffset, /* fOffset */
                                                            r,       /* center of box */
-                                                           dZero3,  /* size of box */
+                                                           dZero3  /* size of box */
 #if SPHBALLOFBALLS
-                                                           pkdBall(pkd,p),r[0],r[1],r[2]);
+                                                           ,pkdBall(pkd,p),r[0],r[1],r[2]
+#elif SPHBOXOFBALLS
+                                                           ,r[0]-pkdBall(pkd,p),r[0]+pkdBall(pkd,p),r[1]-pkdBall(pkd,p),r[1]+pkdBall(pkd,p),r[2]-pkdBall(pkd,p),r[2]+pkdBall(pkd,p)
 #endif
-#if SPHBOXOFBALLS
-                                        r[0]-pkdBall(pkd,p),r[0]+pkdBall(pkd,p),r[1]-pkdBall(pkd,p),r[1]+pkdBall(pkd,p),r[2]-pkdBall(pkd,p),r[2]+pkdBall(pkd,p));
-#endif
+                                                          );
                                     }
                                     else {
                                         pkd->clNew->append(blk.iCache[jTile],id,-1 - pj,0,0,0,0,1,0.0,fMass,4.0f*fSoft*fSoft,
                                                            r,       /* center of mass */
                                                            fOffset, /* fOffset */
                                                            r,       /* center of box */
-                                                           dZero3,  /* size of box */
+                                                           dZero3  /* size of box */
 #if SPHBALLOFBALLS
-                                                           0.0f,r[0],r[1],r[2]);
+                                                           ,0.0f,r[0],r[1],r[2]
+#elif SPHBOXOFBALLS
+                                                           ,r[0],r[0],r[1],r[1],r[2],r[2]
 #endif
-#if SPHBOXOFBALLS
-                                        r[0],r[0],r[1],r[1],r[2],r[2]);
-#endif
+                                                          );
                                     }
                                 }
                                 break;

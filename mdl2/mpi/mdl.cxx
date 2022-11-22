@@ -349,6 +349,10 @@ void mpiClass::FinishCacheReceive(mdlMessageCacheReceive *message, MPI_Request r
 
     CacheHeader *ph = reinterpret_cast<CacheHeader *>(message->getBuffer());
 #ifdef DEBUG_COUNT_CACHE
+    if (ph->sequence!=countCacheRecv[source]) {
+        printf("MISMATCH: %d -> %d: sequence %llu expected %llu\n",source,Proc(),ph->sequence,countCacheRecv[source]);
+    }
+    assert(ph->sequence==countCacheRecv[source]);
     ++countCacheRecv[source];
 #endif
 
@@ -592,10 +596,10 @@ void mpiClass::MessageCacheRequest(mdlMessageCacheRequest *message) {
     else {
         CacheRequestRendezvous[iCoreFrom] = true; // The REQUEST and RESPONSE need to Rendezvous
         ++countCacheInflight[iProc];
-        MPI_Isend(&message->header,sizeof(message->header)+message->key_size,MPI_BYTE,iProc,MDL_TAG_CACHECOM, commMDL,newRequest(message));
 #ifdef DEBUG_COUNT_CACHE
-        ++countCacheSend[iProc];
+        message->header.sequence = countCacheSend[iProc]++;
 #endif
+        MPI_Isend(&message->header,sizeof(message->header)+message->key_size,MPI_BYTE,iProc,MDL_TAG_CACHECOM, commMDL,newRequest(message));
     }
 }
 
@@ -701,7 +705,8 @@ void mpiClass::MessageCacheReply(mdlMessageCacheReply *pFlush) {
     auto iProc = pFlush->getRankTo();
     ++countCacheInflight[iProc];
 #ifdef DEBUG_COUNT_CACHE
-    ++countCacheSend[iProc];
+    auto header = reinterpret_cast<CacheHeader *>(pFlush->getBuffer());
+    header->sequence = countCacheSend[iProc]++;
 #endif
     assert(iProc!=Proc());
     MPI_Issend(pFlush->getBuffer(),pFlush->getCount(),MPI_BYTE,iProc,
@@ -975,7 +980,8 @@ void mpiClass::MessageFlushToRank(mdlMessageFlushToRank *pFlush) {
         }
         else {
 #ifdef DEBUG_COUNT_CACHE
-            ++countCacheSend[iProc];
+            auto header = reinterpret_cast<CacheHeader *>(pFlush->getBuffer());
+            header->sequence = countCacheSend[iProc]++;
 #endif
             assert(iProc!=Proc());
             MPI_Issend(pFlush->getBuffer(),pFlush->getCount(),MPI_BYTE,iProc,
@@ -1810,7 +1816,9 @@ int mpiClass::Launch(int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),vo
 
     iRequestTarget = 0;
 
+#ifndef DEBUG_COUNT_CACHE
     assert(sizeof(CacheHeader) == 16); /* Well, should be a multiple of 8 at least. */
+#endif
     nOpenCaches = 0;
     iReplyBufSize = sizeof(CacheHeader) + MDL_CACHE_DATA_SIZE;
     iCacheBufSize = sizeof(CacheHeader) + MDL_FLUSH_DATA_SIZE;
