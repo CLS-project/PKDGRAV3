@@ -440,6 +440,7 @@ protected:
 #endif
 #ifdef STAR_FORMATION
     void SetStarFormationParam();
+    int  ValidateStarFormationParam();
     void StarFormInit(double dTime);
 #endif
     void StarForm(double dTime, double dDelta, int iRung);
@@ -452,6 +453,7 @@ protected:
 #endif
 #if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
     void SetEOSParam();
+    int ValidateEOSParam();
 #endif
 #ifdef BLACKHOLES
     void SetBlackholeParam();

@@ -463,6 +463,10 @@ int MSR::ValidateParameters() {
     if  (!ValidateBlackholeParam()) return 0;
 #endif
 
+#ifdef STAR_FORMATION
+    if  (!ValidateStarFormationParam()) return 0;
+#endif
+
     /*
     ** Make sure that we have some setting for nReplicas if bPeriodic is set.
     */

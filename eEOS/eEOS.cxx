@@ -2,31 +2,38 @@
 
 #if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
 void MSR::SetEOSParam() {
+    const double dHydFrac = param.dInitialH;
+    const double dnHToRho = MHYDR / dHydFrac / param.units.dGmPerCcUnit;
+    param.dEOSFloorDen = param.dEOSFloornH*dnHToRho;
+    param.dEOSFlooru = param.dEOSFloorTemp*dTuFac*(param.dMeanMolWeight / 1.2285);
+    if (csm->val.bComove)
+        param.dEOSFloorMinBaryonOD = param.dEOSFloorMinOD*csm->val.dOmegab;
+    else
+        param.dEOSFloorMinBaryonOD = 0.;
 #ifdef EEOS_POLYTROPE
-    param.dEOSPolyFlooru = param.dEOSPolyFloorTemp * dTuFac * (param.dMeanMolWeight / 1.2285);
-
-    if (csm->val.bComove) {
-        assert(csm->val.dOmegab > 0.);
-        // If in PKDGRAV3 units, this should always be unity
-        const double rhoCrit0 = 3. * csm->val.dHubble0 * csm->val.dHubble0 /
-                                (8. * M_PI);
-        param.dEOSPolyFloorOD = rhoCrit0 * csm->val.dOmegab *
-                                param.dEOSMinOverDensity;
-    }
-    else {
-        param.dEOSPolyFloorOD = 0.0;
-    }
+    param.dEOSPolyFloorExponent = param.dEOSPolyFloorIndex-1.;
+    param.dEOSPolyFloorDen =  param.dEOSPolyFloornH*dnHToRho;
+    param.dEOSPolyFlooru = param.dEOSPolyFloorTemp*dTuFac*(param.dMeanMolWeight / 1.2285);
+    if (csm->val.bComove)
+        param.dEOSPolyFloorMinBaryonOD = param.dEOSPolyFloorMinOD*csm->val.dOmegab;
+    else
+        param.dEOSPolyFloorMinBaryonOD = 0.;
 #endif
-
-    if (!param.bRestart) {
-#ifdef EEOS_POLYTROPE
-        param.dEOSPolyFloorIndex -= 1.;
-        const double dnHToRho = MHYDR / param.dInitialH / param.units.dGmPerCcUnit;
-        param.dEOSPolyFloorDen *= dnHToRho; // Code density
-#endif
-#ifdef EEOS_JEANS
-        param.dEOSNJeans = pow(param.dEOSNJeans, 0.666666);
-#endif
-    }
 }
+
+
+int MSR::ValidateEOSParam() {
+    if (!prmSpecified(prm, "dOmegab") && prmSpecified(prm, "dEOSFloorMinOD")) {
+        fprintf(stderr,"ERROR: dEOSFloorMinOD is specified but dOmegab is not set\n");
+        return 0;
+    }
+#ifdef EEOS_POLYTROPE
+    if (!prmSpecified(prm, "dOmegab") && prmSpecified(prm, "dEOSPolyFloorMinOD")) {
+        fprintf(stderr,"ERROR: dEOSPolyFloorMinOD is specified but dOmegab is not set\n");
+        return 0;
+    }
+#endif
+    return 1;
+}
+
 #endif

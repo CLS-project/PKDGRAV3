@@ -45,6 +45,13 @@ void MSR::SetStarFormationParam() {
     }
 }
 
+int MSR::ValidateStarFormationParam() {
+#if !defined(EEOS_POLYTROPE) && !defined(EEOS_JEANS)
+    fprintf(stderr,"WARNING: Star formation is active but no eEOS is selected!\n");
+#endif
+    return 1;
+}
+
 void MSR::StarForm(double dTime, double dDelta, int iRung) {
     struct inStarForm in;
     struct outStarForm out;
@@ -76,11 +83,8 @@ void MSR::StarForm(double dTime, double dDelta, int iRung) {
     in.dSNFBEffIndex = param.dSNFBEffIndex;
     in.dSNFBEffnH0 = param.dSNFBEffnH0;
 #endif
-#ifdef EEOS_POLYTROPE
-    // In the rare case that not EEOS_POLYTROPE, this will be unused
-    in.dEOSPolyFloorIndex = param.dEOSPolyFloorIndex;
-    in.dEOSPolyFloorDen = param.dEOSPolyFloorDen;
-    in.dEOSPolyFlooru = param.dEOSPolyFlooru;
+#if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
+    eEOSFill(param, &in.eEOS);
 #endif
 #ifdef STELLAR_EVOLUTION
     in.dSNIaMaxMass = param.dSNIaMaxMass;
@@ -111,11 +115,11 @@ void MSR::StarForm(double dTime, double dDelta, int iRung) {
 extern "C" {
 #endif
 
-static inline double pressure_SFR(const float fMass, const float fDens, const double a_m3,
+static inline double pressure_SFR(const float fMass, const float fDens,
+                                  const double fBall, const double a_m3,
                                   const double dThreshDen, const double dSFnormalizationKS,
                                   const double dSFindexKS, const double dSFGasFraction,
-                                  const double dEOSPolyFloorIndex, const double dEOSPolyFloorDen,
-                                  const double dEOSPolyFlooru, const double dConstGamma,
+                                  const double dConstGamma, eEOSparam eEOS,
                                   SPHFIELDS *psph);
 
 static inline double density_SFR(const float fMass, const float fDens, const double a_m3,
@@ -197,15 +201,15 @@ void pkdStarForm(PKD pkd,
 #endif
 
             double dmstar;
+            const float fBall = pkdBall(pkd,p);
             if (in.dSFEfficiency > 0.0) {
                 dmstar = density_SFR(fMass, fDens, a_m3, dThreshDen, in.dSFThresholdu,
                                      in.dSFEfficiency, psph);
             }
             else {
-                dmstar = pressure_SFR(fMass, fDens, a_m3, dThreshDen, in.dSFnormalizationKS,
-                                      in.dSFindexKS, in.dSFGasFraction, in.dEOSPolyFloorIndex,
-                                      in.dEOSPolyFloorDen, in.dEOSPolyFlooru, in.dConstGamma,
-                                      psph);
+                dmstar = pressure_SFR(fMass, fDens, fBall, a_m3, dThreshDen, in.dSFnormalizationKS,
+                                      in.dSFindexKS, in.dSFGasFraction, in.dConstGamma,
+                                      in.eEOS, psph);
             }
 
             psph->SFR = dmstar;
@@ -284,21 +288,21 @@ void pkdStarForm(PKD pkd,
 }
 #endif
 
-static inline double pressure_SFR(const float fMass, const float fDens, const double a_m3,
+static inline double pressure_SFR(const float fMass, const float fDens,
+                                  const double fBall, const double a_m3,
                                   const double dThreshDen, const double dSFnormalizationKS,
                                   const double dSFindexKS, const double dSFGasFraction,
-                                  const double dEOSPolyFloorIndex, const double dEOSPolyFloorDen,
-                                  const double dEOSPolyFlooru, const double dConstGamma,
+                                  const double dConstGamma, eEOSparam eEOS,
                                   SPHFIELDS *psph) {
     // Two SF thresholds are applied:
     //      a) Minimum density, computed at the master level
     //      b) Maximum temperature of a factor 0.5 dex (i.e., 3.1622)
     //         above the polytropic eEOS
-#ifdef EEOS_POLYTROPE
+#if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
     const double maxUint = 3.16228 * fMass *
-                           polytropicEnergyFloor(a_m3, fDens, dEOSPolyFloorIndex,
-                                   dEOSPolyFloorDen, dEOSPolyFlooru);
+                           eEOSEnergyFloor(a_m3, fDens, fBall, dConstGamma, eEOS);
 #else
+    // This configuration is allowed, but can easily produce numerical fragmentation!!!
     const double maxUint = INFINITY;
 #endif
 

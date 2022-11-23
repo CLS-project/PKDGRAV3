@@ -91,6 +91,7 @@ using namespace fmt::literals; // Gives us ""_a and ""_format literals
 #ifdef STELLAR_EVOLUTION
     #include "stellarevolution/stellarevolution.h"
 #endif
+#include "eEOS/eEOS.h"
 
 #define LOCKFILE ".lockfile"    /* for safety lock */
 #define STOPFILE "STOP"         /* for user interrupt */
@@ -1346,35 +1347,40 @@ void MSR::Initialize() {
                 sizeof(double), "dCoolingMinTemp",
                 "Minimum allowed temperature [K]");
 
-    param.dCoolingMinOverDensity = 10.0;
-    prmAddParam(prm,"dCoolingMinOverDensity", 2, &param.dCoolingMinOverDensity,
-                sizeof(double), "dCoolingMinOverDensity",
+    param.dEOSFloorDen = 10.0;
+    prmAddParam(prm,"dEOSFloorDen", 2, &param.dEOSFloorDen,
+                sizeof(double), "dEOSFloorDen",
                 "Minimum overdensity at which the internal energy floor will be applied");
 
-    param.dCoolingFloorDen = 1e-5;
-    prmAddParam(prm,"dCoolingFloorDen", 2, &param.dCoolingFloorDen,
-                sizeof(double), "dCoolingFloorDen",
+    param.dEOSFloornH = 1e-5;
+    prmAddParam(prm,"dEOSFloornH", 2, &param.dEOSFloornH,
+                sizeof(double), "dEOSFloornH",
                 "Minimum density at which the internal energy floor will be applied (in nH [cm-3])");
 
-    param.dCoolingFloorTemp = 1e4;
-    prmAddParam(prm,"dCoolingFloorTemp", 2, &param.dCoolingFloorTemp,
-                sizeof(double), "dCoolingFloorTemp",
+    param.dEOSFloorTemp = 1e4;
+    prmAddParam(prm,"dEOSFloorTemp", 2, &param.dEOSFloorTemp,
+                sizeof(double), "dEOSFloorTemp",
                 "Temperature at the internal energy floor [K]");
+
+    param.dEOSFloorMinOD = 10.0;
+    prmAddParam(prm,"dEOSFloorMinOD", 2, &param.dEOSFloorMinOD,
+                sizeof(double), "dEOSFloorMinOD",
+                "Minimum overdensity at which the constant temperature EOS will be applied");
 #endif
 #ifdef EEOS_POLYTROPE
-    param.dEOSMinOverDensity = 10.0;
-    prmAddParam(prm,"dEOSMinOverDensity", 2, &param.dEOSMinOverDensity,
-                sizeof(double), "dEOSMinOverDensity",
-                "Minimum overdensity at which the effective EOS will be applied");
+    param.dEOSPolyFloorMinOD = 10.0;
+    prmAddParam(prm,"dEOSPolyFloorMinOD", 2, &param.dEOSPolyFloorMinOD,
+                sizeof(double), "dEOSPolyFloorMinOD",
+                "Minimum overdensity at which the polytropic EOS will be applied");
 
     param.dEOSPolyFloorIndex = 4./3.; // This gives a Jeans Mass independent of density (see Schaye & Dalla Vecchia 2008)
     prmAddParam(prm,"dEOSPolyFloorIndex", 2, &param.dEOSPolyFloorIndex,
                 sizeof(double), "dEOSPolyFloorIndex",
                 "Index of the polytropic effective EOS");
 
-    param.dEOSPolyFloorDen = 0.1;
-    prmAddParam(prm,"dEOSPolyFloorDen", 2, &param.dEOSPolyFloorDen,
-                sizeof(double), "dEOSPolyFloorDen",
+    param.dEOSPolyFloornH = 0.1;
+    prmAddParam(prm,"dEOSPolyFloornH", 2, &param.dEOSPolyFloornH,
+                sizeof(double), "dEOSPolyFloornH",
                 "Minimum density at which the effective EOS will be applied (in nH [cm-3])");
 
     param.dEOSPolyFloorTemp = 1e4;
@@ -2939,13 +2945,8 @@ void MSR::SmoothSetSMF(SMF *smf, double dTime, double dDelta, int nSmooth) {
     smf->bUpdateBall = bUpdateBall;
     smf->dCFLacc = param.dCFLacc;
     smf->dNeighborsStd = param.dNeighborsStd;
-#if EEOS_POLYTROPE
-    smf->dEOSPolyFloorIndex = param.dEOSPolyFloorIndex ;
-    smf->dEOSPolyFloorDen = param.dEOSPolyFloorDen ;
-    smf->dEOSPolyFlooru = param.dEOSPolyFlooru ;
-#endif
-#if EEOS_JEANS
-    smf->dEOSNJeans = param.dEOSNJeans ;
+#if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
+    eEOSFill(param, &smf->eEOS);
 #endif
 #ifdef FEEDBACK
     smf->dSNFBDu = param.dSNFBDu;
@@ -3619,19 +3620,8 @@ void MSR::EndTimestepIntegration(double dTime,double dDelta) {
 #ifdef STAR_FORMATION
     in.dSFThresholdOD = param.dSFThresholdOD;
 #endif
-#ifdef COOLING
-    in.dCoolingFloorOD = param.dCoolingFloorOD;
-    in.dCoolingFloorDen = param.dCoolingFloorDen;
-    in.dCoolingFlooru = param.dCoolingFlooru;
-#endif
-#if EEOS_POLYTROPE
-    in.dEOSPolyFloorOD = param.dEOSPolyFloorOD;
-    in.dEOSPolyFloorIndex = param.dEOSPolyFloorIndex;
-    in.dEOSPolyFloorDen = param.dEOSPolyFloorDen;
-    in.dEOSPolyFlooru = param.dEOSPolyFlooru;
-#endif
-#if EEOS_JEANS
-    in.dEOSNJeans = param.dEOSNJeans;
+#if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
+    eEOSFill(param, &in.eEOS);
 #endif
 #ifdef BLACKHOLES
     in.dBHRadiativeEff = param.dBHRadiativeEff;

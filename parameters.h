@@ -205,23 +205,26 @@ struct parameters {
     double fCa_over_Si_in_Solar;
     double fS_over_Si_in_Solar;
     double fT_CMB_0;
-
-    /*
-     * IA: Internal energy floor parameters
-     */
     double dCoolingMinu;
     double dCoolingMinTemp;
-    double dCoolingMinOverDensity;
-    double dCoolingFloorOD;
-    double dCoolingFloorDen;
-    double dCoolingFlooru;
-    double dCoolingFloorTemp;
 #endif
+
+    /*
+     * Internal energy floor parameters
+     */
+    double dEOSFloorDen;
+    double dEOSFloorMinOD;
+    double dEOSFloorMinBaryonOD;
+    double dEOSFloornH;
+    double dEOSFlooru;
+    double dEOSFloorTemp;
 #ifdef EEOS_POLYTROPE
-    double dEOSMinOverDensity;
-    double dEOSPolyFloorOD;
+    double dEOSPolyFloorMinOD;
+    double dEOSPolyFloorMinBaryonOD;
     double dEOSPolyFloorIndex;
+    double dEOSPolyFloorExponent;
     double dEOSPolyFloorDen;
+    double dEOSPolyFloornH;
     double dEOSPolyFlooru;
     double dEOSPolyFloorTemp;
 #endif

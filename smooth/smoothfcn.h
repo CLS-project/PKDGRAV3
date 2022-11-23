@@ -55,13 +55,8 @@ typedef struct smfParameters {
     double dhMinOverSoft;
     int bUpdateBall;
     double dNeighborsStd;
-#if EEOS_POLYTROPE
-    double dEOSPolyFloorIndex;
-    double dEOSPolyFloorDen;
-    double dEOSPolyFlooru;
-#endif
-#if EEOS_JEANS
-    double dEOSNJeans;
+#if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
+    struct eEOSparam eEOS;
 #endif
 #ifdef FEEDBACK
     double dSNFBDu;

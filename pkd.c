@@ -74,7 +74,7 @@
 #ifdef COOLING
     #include "cooling/cooling.h"
 #endif
-#if ( defined(COOLING) || defined(GRACKLE) ) && defined(STAR_FORMATION)
+#if defined(EEOS_JEANS) || defined(EEOS_POLYTROPE)
     #include "eEOS/eEOS.h"
 #endif
 #ifdef BLACKHOLES
@@ -2895,36 +2895,12 @@ void pkdEndTimestepIntegration(PKD pkd, struct inEndTimestep in) {
             pkdAddFBEnergy(pkd, p, psph, in.dConstGamma);
 #endif
 
+#if defined(EEOS_JEANS) || defined(EEOS_POLYTROPE)
             // ##### Effective Equation Of State
-            // We do this in proper density
-#ifdef COOLING
-            /* First, the cooling temperature floor */
-            const double dCoolingFloorOD = in.dCoolingFloorOD * a_inv3;
-            const double dCoolingFloorDen = (dCoolingFloorOD > in.dCoolingFloorDen) ?
-                                            dCoolingFloorOD : in.dCoolingFloorDen;
-            if ( (fDensPhys > dCoolingFloorDen) && (psph->Uint < in.dCoolingFlooru*fMass) ) {
-                psph->Uint = in.dCoolingFlooru*fMass;
-            }
-
-#ifdef EEOS_POLYTROPE
-            /* Second, the polytropic effective EoS */
-            const double dEOSPolyFloorOD = in.dEOSPolyFloorOD * a_inv3;
-            const double dEOSPolyFloorDen = (dEOSPolyFloorOD > in.dEOSPolyFloorDen) ?
-                                            dEOSPolyFloorOD : in.dEOSPolyFloorDen;
-            if (fDensPhys > dEOSPolyFloorDen) {
-                const double minUint = fMass * polytropicEnergyFloor(a_inv3, fDens,
-                                       in.dEOSPolyFloorIndex, in.dEOSPolyFloorDen,
-                                       in.dEOSPolyFlooru);
-                if (psph->Uint < minUint) psph->Uint = minUint;
-            }
-#endif
-#endif // COOLING
-
-#ifdef  EEOS_JEANS
-            const double Ujeans = fMass * jeansEnergyFloor(fDens, f2Ball, in.dConstGamma, in.dEOSNJeans);
-
-            if (psph->Uint < Ujeans)
-                psph->Uint = Ujeans;
+            const double dEOSUint = fMass*eEOSEnergyFloor(a_inv3, pkdDensity(pkd,p), pkdBall(pkd,p), in.dConstGamma, in.eEOS);
+            if (dEOSUint != NOT_IN_EEOS)
+                if (psph->Uint < dEOSUint)
+                    psph->Uint = dEOSUint;
 #endif
 
             // Actually set the primitive variables

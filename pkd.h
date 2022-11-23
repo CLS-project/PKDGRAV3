@@ -39,6 +39,7 @@
 #ifdef GRACKLE
     #include <grackle.h>
 #endif
+#include "eEOS/eEOS_struct.h"
 #include "chemistry.h"
 
 #ifdef __cplusplus

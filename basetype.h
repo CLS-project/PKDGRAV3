@@ -27,6 +27,7 @@
 #include "ilc.h"
 #include "SPHOptions.h"
 #include "units.h"
+#include "eEOS/eEOS_struct.h"
 
 #define IORDERBITS 43
 #define IORDERMAX ((((uint64_t) 1)<<IORDERBITS)-1)
@@ -209,14 +210,8 @@ struct inEndTimestep {
     double dCoolingFloorDen;
     double dCoolingFlooru;
 #endif
-#ifdef EEOS_POLYTROPE
-    double dEOSPolyFloorOD;
-    double dEOSPolyFloorIndex;
-    double dEOSPolyFloorDen;
-    double dEOSPolyFlooru;
-#endif
-#ifdef EEOS_JEANS
-    double dEOSNJeans;
+#if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
+    struct eEOSparam eEOS;
 #endif
 #ifdef BLACKHOLES
     double dBHRadiativeEff;
@@ -263,6 +258,10 @@ struct inStarForm {
     double dCCSNMinMass;
     double dCCSNMaxMass;
 #endif
+#if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
+    struct eEOSparam eEOS;
+#endif
+
 };
 #endif
 
