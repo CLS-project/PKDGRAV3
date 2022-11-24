@@ -1,6 +1,5 @@
-#if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
-
 #include "eEOS/eEOS_struct.h"
+#if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
 
 inline static void eEOSFill(const struct parameters param, struct eEOSparam *eEOS) {
 #ifdef EEOS_POLYTROPE

@@ -1,4 +1,3 @@
-#if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
 #ifndef EEOS_STRUCT_H
 #define EEOS_STRUCT_H
 
@@ -17,5 +16,4 @@ struct eEOSparam {
     double dFloorDen;    // Minimum physical density at which the floor is active
     double dFloorMinOD;  // Minimum baryon overdensity to apply the floor
 };
-#endif
 #endif

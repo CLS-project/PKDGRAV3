@@ -258,9 +258,7 @@ struct inStarForm {
     double dCCSNMinMass;
     double dCCSNMaxMass;
 #endif
-#if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
     struct eEOSparam eEOS;
-#endif
 
 };
 #endif
