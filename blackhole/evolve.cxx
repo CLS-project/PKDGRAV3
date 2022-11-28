@@ -333,7 +333,7 @@ void combBHevolve(void *vpkd, void *vp1,const void *vp2) {
 
         if (psph2->BHAccretor.iPid != NOT_ACCRETED) {
             SPHFIELDS *psph1 = pkdSph(pkd,p1);
-            if (psph1->BHAccretor.iPid != NOT_ACCRETED) {
+            if (psph1->BHAccretor.iPid == NOT_ACCRETED) {
                 // First try to accrete this particle
                 psph1->BHAccretor.iPid   = psph2->BHAccretor.iPid;
                 psph1->BHAccretor.iIndex = psph2->BHAccretor.iIndex;
