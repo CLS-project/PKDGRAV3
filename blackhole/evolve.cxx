@@ -315,31 +315,27 @@ void combBHevolve(void *vpkd, void *vp1,const void *vp2) {
     PARTICLE *p1 = (PARTICLE *) vp1;
     PARTICLE *p2 = (PARTICLE *) vp2;
 
-    int pSpecies2 = pkdSpecies(pkd, p2);
-
-    if (pSpecies2 == FIO_SPECIES_SPH) {
+    if (pkdIsGas(pkd,p1) && pkdIsGas(pkd,p2)) {
+        SPHFIELDS *psph1 = pkdSph(pkd,p1);
         SPHFIELDS *psph2 = pkdSph(pkd,p2);
 
-        if (psph2->Uint > 0.0) {
-            SPHFIELDS *psph1 = pkdSph(pkd,p1);
-
-            psph1->Uint += psph2->Uint;
-            psph1->E += psph2->E;
+#ifdef OLD_FB_SCHEME
+        psph1->Uint += psph2->Uint;
+        psph1->E += psph2->E;
 #ifdef ENTROPY_SWITCH
-            psph1->S += psph2->S;
+        psph1->S += psph2->S;
+#endif
+#else //OLD_FB_SCHEME
+        psph1->fAccFBEnergy += psph2->fAccFBEnergy;
 #endif
 
+        // Is this the first accretion attempt for this particle?
+        if (psph1->BHAccretor.iPid == NOT_ACCRETED &&
+                psph2->BHAccretor.iPid != NOT_ACCRETED) {
+            psph1->BHAccretor.iPid   = psph2->BHAccretor.iPid;
+            psph1->BHAccretor.iIndex = psph2->BHAccretor.iIndex;
         }
-
-        if (psph2->BHAccretor.iPid != NOT_ACCRETED) {
-            SPHFIELDS *psph1 = pkdSph(pkd,p1);
-            if (psph1->BHAccretor.iPid == NOT_ACCRETED) {
-                // First try to accrete this particle
-                psph1->BHAccretor.iPid   = psph2->BHAccretor.iPid;
-                psph1->BHAccretor.iIndex = psph2->BHAccretor.iIndex;
-            }// Otherwise just keep the previous attempt
-        }
-
+        // If not, just keep the previous attempt
     }
 }
 
@@ -351,11 +347,16 @@ void initBHevolve(void *vpkd,void *vp) {
     if (pkdIsGas(pkd,p)) {
         SPHFIELDS *psph = pkdSph(pkd,p);
 
+#ifdef OLD_FB_SCHEME
         psph->Uint = 0.0;
         psph->E = 0.0;
 #ifdef ENTROPY_SWITCH
-        psph->S = 0.;
+        psph->S = 0.0;
 #endif
+#else // OLD_FB_SCHEME
+        psph->fAccFBEnergy = 0.0;
+#endif
+
         psph->BHAccretor.iPid = NOT_ACCRETED;
     }
 
