@@ -5384,8 +5384,10 @@ void MSR::OutputPk(int iStep,double dTime) {
         perror(filename.c_str());
         Exit(errno);
     }
+    fmt::print(fs,"# k P(k) N(k) P(k)+{linear}\n", "linear"_a = param.achPowerSpecies);
+    fmt::print(fs,"# a={a:.8f}  z={z:.8f}\n", "a"_a = a, "z"_a = 1/a - 1.0 );
     for (i=0; i<param.nBinsPk; ++i) {
-        if (fPk[i] > 0.0) fmt::print(fs,"{k} {pk} {nk} {all}\n",
+        if (fPk[i] > 0.0) fmt::print(fs,"{k:.8e} {pk:.8e} {nk} {all:.8e}\n",
                                          "k"_a   = kfact * fK[i] * 2.0 * M_PI,
                                          "pk"_a  = vfact * fPk[i],
                                          "nk"_a  = nPk[i],
