@@ -584,8 +584,9 @@ void MSR::Checkpoint(int iStep,int nSteps,double dTime,double dDelta) {
                   iStep,dTime,(1.0/dExp - 1.0));
     }
     else
-        TimerStart(TIMER_IO);
-    msrprintf("Writing checkpoint for Step: %d Time:%g\n",iStep,dTime);
+        msrprintf("Writing checkpoint for Step: %d Time:%g\n",iStep,dTime);
+
+    TimerStart(TIMER_IO);
 
     SaveParameters();
     writeParameters(in.achOutFile,iStep,nSteps,dTime,dDelta);
