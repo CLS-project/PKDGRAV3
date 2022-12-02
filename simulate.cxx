@@ -565,7 +565,7 @@ int MSR::ValidateParameters() {
     }
 
     /* Make sure that the old behaviour is obeyed. */
-    if ( param.nSteps == 0 ) {
+    if ( prmSpecified(prm,"nSteps") && param.nSteps == 0 ) {
         if ( !prmSpecified(prm,"bDoAccOutput") ) param.bDoAccOutput = 1;
         if ( !prmSpecified(prm,"bDoPotOutput") ) param.bDoPotOutput = 1;
     }
