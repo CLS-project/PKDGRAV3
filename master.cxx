@@ -1535,11 +1535,6 @@ void MSR::Initialize() {
                 sizeof(double), "dCCSNFBDelay",
                 "Time between star formation and injection of CCSN energy [yr]");
 
-    param.dCCSNFBNumPerMass = 1.736e-2;
-    prmAddParam(prm,"dCCSNFBNumPerMass", 2, &param.dCCSNFBNumPerMass,
-                sizeof(double), "dCCSNFBNumPerMass",
-                "Number of stars that will end their life as CCSN events, per mass [1/Mo]");
-
     param.dCCSNEnergy = 1e51;
     prmAddParam(prm, "dCCSNEnergy", 2, &param.dCCSNEnergy, sizeof(double), "dCCSNEnergy",
                 "CCSN event energy [erg]");
@@ -1617,34 +1612,10 @@ void MSR::Initialize() {
     prmAddParam(prm, "achSNIaDTDType", 3, param.achSNIaDTDType, 32, "dtdtype",
                 "Type of Delay Time Distribution function for SNIa events");
 
-    strcpy(param.achIMFType, "chabrier");
-    prmAddParam(prm, "achIMFType", 3, param.achIMFType, 32, "imftype",
-                "Type of Initial Mass Function");
-
     param.bChemEnrich = 1;
     prmAddParam(prm, "bChemEnrich", 0, &param.bChemEnrich,
                 sizeof(int), "bChemEnrich",
                 "Activate chemical enrichment of gas particles surrounding a star particle");
-
-    param.dIMFMinMass = 0.1;
-    prmAddParam(prm, "dIMFMinMass", 2, &param.dIMFMinMass,
-                sizeof(double), "imfminmass",
-                "Lower mass limit of the Initial Mass Function <Mo>");
-
-    param.dIMFMaxMass = 100.0;
-    prmAddParam(prm, "dIMFMaxMass", 2, &param.dIMFMaxMass,
-                sizeof(double), "imfmaxmass",
-                "Upper mass limit of the Initial Mass Function <Mo>");
-
-    param.dCCSNMinMass = 6.0;
-    prmAddParam(prm, "dCCSNMinMass", 2, &param.dCCSNMinMass,
-                sizeof(double), "ccsnminmass",
-                "Minimum mass for a star to end its life as a Core Collapse Supernova <Mo>");
-
-    param.dCCSNMaxMass = 100.0;
-    prmAddParam(prm, "dCCSNMaxMass", 2, &param.dCCSNMaxMass,
-                sizeof(double), "ccsnmaxmass",
-                "Maximum mass for a star to end its life as a Core Collapse Supernova <Mo>");
 
     param.dSNIaMaxMass = 8.0;
     prmAddParam(prm, "dSNIaMaxMass", 2, &param.dSNIaMaxMass,
@@ -1678,6 +1649,31 @@ void MSR::Initialize() {
     prmAddParam(prm, "dStellarWindSpeed", 2, &param.dWindSpecificEkin,
                 sizeof(double), "windspeed",
                 "Stellar wind speed <km/s>");
+#endif
+#if defined(FEEDBACK) || defined(STELLAR_EVOLUTION)
+    strcpy(param.achIMFType, "chabrier");
+    prmAddParam(prm, "achIMFType", 3, param.achIMFType, 32, "imftype",
+                "Type of Initial Mass Function");
+
+    param.dIMFMinMass = 0.1;
+    prmAddParam(prm, "dIMFMinMass", 2, &param.dIMFMinMass,
+                sizeof(double), "imfminmass",
+                "Lower mass limit of the Initial Mass Function <Mo>");
+
+    param.dIMFMaxMass = 100.0;
+    prmAddParam(prm, "dIMFMaxMass", 2, &param.dIMFMaxMass,
+                sizeof(double), "imfmaxmass",
+                "Upper mass limit of the Initial Mass Function <Mo>");
+
+    param.dCCSNMinMass = 6.0;
+    prmAddParam(prm, "dCCSNMinMass", 2, &param.dCCSNMinMass,
+                sizeof(double), "ccsnminmass",
+                "Minimum mass for a star to end its life as a Core Collapse Supernova <Mo>");
+
+    param.dCCSNMaxMass = 100.0;
+    prmAddParam(prm, "dCCSNMaxMass", 2, &param.dCCSNMaxMass,
+                sizeof(double), "ccsnmaxmass",
+                "Maximum mass for a star to end its life as a Core Collapse Supernova <Mo>");
 #endif
     /* END of new params */
 

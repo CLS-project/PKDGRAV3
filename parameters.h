@@ -289,7 +289,6 @@ struct parameters {
     double dCCSNFBDelay;
     double dCCSNFBSpecEnergy;
     double dCCSNEnergy;
-    double dCCSNFBNumPerMass;
     double dSNIaFBDelay;
     double dSNIaFBSpecEnergy;
     double dSNIaEnergy;
@@ -313,12 +312,7 @@ struct parameters {
 #ifdef STELLAR_EVOLUTION
     char achStelEvolPath[256];
     char achSNIaDTDType[32];
-    char achIMFType[32];
     int bChemEnrich;
-    double dIMFMinMass;
-    double dIMFMaxMass;
-    double dCCSNMinMass;
-    double dCCSNMaxMass;
     double dSNIaMaxMass;
     double dSNIaNorm;
     double dSNIaScale;
@@ -326,6 +320,13 @@ struct parameters {
     double dSNIaNormFinalTime;
     double dStellarWindSpeed;
     double dWindSpecificEkin;
+#endif
+#if defined(FEEDBACK) || defined(STELLAR_EVOLUTION)
+    char achIMFType[32];
+    double dIMFMinMass;
+    double dIMFMaxMass;
+    double dCCSNMinMass;
+    double dCCSNMaxMass;
 #endif
 
 #ifdef MDL_FFTW

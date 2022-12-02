@@ -1,11 +1,11 @@
 #ifdef STELLAR_EVOLUTION
 
 
-#include <math.h>
 #include <hdf5.h>
 
 #include "stellarevolution.h"
 #include "master.h"
+#include "imf.h"
 #include "hydro/hydro.h"
 
 
@@ -68,89 +68,53 @@ void MSR::StellarEvolutionInit(double dTime) {
     const double dMaxMass = param.dCCSNMaxMass;
     double adInitialMass[STEV_INTERP_N_MASS], adIMF[STEV_INTERP_N_MASS];
 
-    /* Setup the initial mass array */
-    const double dDeltaLog = (log10(dMaxMass) - log10(dMinMass)) / (STEV_INTERP_N_MASS - 1);
-    const double dDelta = pow(10.0, dDeltaLog);
-    double dMass = dMinMass;
-    for (i = 0; i < STEV_INTERP_N_MASS; i++) {
-        adInitialMass[i] = dMass;
-        dMass *= dDelta;
-    }
+    auto IMF = ChooseIMF(param.achIMFType, param.dIMFMinMass, param.dIMFMaxMass);
+    IMF->MassWeightedSample(dMinMass, dMaxMass, STEV_INTERP_N_MASS, adInitialMass, adIMF);
 
-    /* Compute the IMF at the values of the initial mass array */
-    if (strcmp(param.achIMFType, "chabrier") == 0) {
-        stevChabrierIMF(adInitialMass, STEV_INTERP_N_MASS, param.dIMFMinMass,
-                        param.dIMFMaxMass, adIMF);
-    }
-    else {
-        printf("ERROR: Undefined IMF type has been given in achIMFType parameter: %s\n",
-               param.achIMFType);
-        assert(0);
-    }
-
-    /* Store some of the data */
-    for (i = 0; i < STEV_INTERP_N_MASS; i++) {
+    /* Store the data */
+    for (i = 0; i < STEV_INTERP_N_MASS; ++i) {
         in.StelEvolData.afInitialMass[i] = adInitialMass[i];
-        in.StelEvolData.afIMFLogWeight[i] = adIMF[i] * adInitialMass[i];
+        in.StelEvolData.afIMFLogWeight[i] = adIMF[i];
     }
+    const double dDeltaLog = (log10(dMaxMass) - log10(dMinMass)) / (STEV_INTERP_N_MASS - 1);
     in.StelEvolData.fDeltaLogMass = dDeltaLog;
 
-    /* Verify IMF normalization using the initial mass array, if possible */
-    if (dMinMass == param.dIMFMinMass && dMaxMass == param.dIMFMaxMass) {
-        double dIMFNorm = 0.0;
-        for (i = 1; i < STEV_INTERP_N_MASS - 1; i++)
-            dIMFNorm += adInitialMass[i] * in.StelEvolData.afIMFLogWeight[i];
-        dIMFNorm += 0.5 * (adInitialMass[0] * in.StelEvolData.afIMFLogWeight[0] +
-                           adInitialMass[i] * in.StelEvolData.afIMFLogWeight[i]);
-        dIMFNorm *= M_LN10 * dDeltaLog;
-        printf("IMF normalization is: %.4f\n", dIMFNorm);
-        if (fabs(dIMFNorm - 1.0) > 1e-2) {
-            printf("ERROR: IMF normalization differs from unity by more than 1%%\n");
-            assert(0);
-        }
-    }
-    else {
-        printf("WARNING: IMF normalization has not been verified. Initial mass\n"
-               "         array's range is different from the IMF normalization range\n");
-    }
-
     /* Convert CCSN/AGB initial mass arrays to log for interpolation */
-    for (i = 0; i < CCSNData->nMasses; i++)
+    for (i = 0; i < CCSNData->nMasses; ++i)
         CCSNData->pfInitialMass[i] = log10(CCSNData->pfInitialMass[i]);
-    for (i = 0; i < AGBData->nMasses; i++)
+    for (i = 0; i < AGBData->nMasses; ++i)
         AGBData->pfInitialMass[i] = log10(AGBData->pfInitialMass[i]);
 
     /* Interpolate yields and ejected masses to the initial mass array */
     stevInterpToIMFSampling(&in.StelEvolData, CCSNData, AGBData, param.dCCSNMinMass);
 
-    /* Store remaining data */
-    for (i = 0; i < STEV_CCSN_N_METALLICITY; i++) {
+    for (i = 0; i < STEV_CCSN_N_METALLICITY; ++i) {
         if (CCSNData->pfMetallicity[i] > 0.0f)
             in.StelEvolData.afCCSNMetallicity[i] = log10(CCSNData->pfMetallicity[i]);
         else
             in.StelEvolData.afCCSNMetallicity[i] = STEV_MIN_LOG_METALLICITY;
     }
 
-    for (i = 0; i < STEV_AGB_N_METALLICITY; i++) {
+    for (i = 0; i < STEV_AGB_N_METALLICITY; ++i) {
         if (AGBData->pfMetallicity[i] > 0.0f)
             in.StelEvolData.afAGBMetallicity[i] = log10(AGBData->pfMetallicity[i]);
         else
             in.StelEvolData.afAGBMetallicity[i] = STEV_MIN_LOG_METALLICITY;
     }
 
-    for (i = 0; i < ELEMENT_COUNT; i++)
+    for (i = 0; i < ELEMENT_COUNT; ++i)
         in.StelEvolData.afSNIaEjectedMass[i] = SNIaData->pfEjectedMass[i];
     in.StelEvolData.fSNIaEjectedMetalMass = *SNIaData->pfMetalYield;
 
-    for (i = 0; i < STEV_LIFETIME_N_METALLICITY; i++) {
+    for (i = 0; i < STEV_LIFETIME_N_METALLICITY; ++i) {
         if (LifetimeData->pfMetallicity[i] > 0.0f)
             in.StelEvolData.afLifetimeMetallicity[i] = log10(LifetimeData->pfMetallicity[i]);
         else
             in.StelEvolData.afLifetimeMetallicity[i] = STEV_MIN_LOG_METALLICITY;
     }
-    for (i = 0; i < STEV_LIFETIME_N_MASS; i++)
+    for (i = 0; i < STEV_LIFETIME_N_MASS; ++i)
         in.StelEvolData.afLifetimeInitialMass[i] = log10(LifetimeData->pfInitialMass[i]);
-    for (i = 0; i < STEV_LIFETIME_N_METALLICITY * STEV_LIFETIME_N_MASS; i++) {
+    for (i = 0; i < STEV_LIFETIME_N_METALLICITY * STEV_LIFETIME_N_MASS; ++i) {
         in.StelEvolData.afLifetime[i] = log10(LifetimeData->pfLifetime[i] * SECONDSPERYEAR /
                                               param.units.dSecUnit);
     }
@@ -229,7 +193,7 @@ int pkdStellarEvolutionInit(PKD pkd, struct inStellarEvolutionInit *in) {
         }
         else if (pkdIsGas(pkd, p)) {
             SPHFIELDS *pSph = pkdSph(pkd, p);
-            for (int j = 0; j < 3; j++)
+            for (int j = 0; j < 3; ++j)
                 pSph->afReceivedMom[j] = 0.0f;
             pSph->fReceivedMass = 0.0f;
             pSph->fReceivedE = 0.0f;
@@ -244,7 +208,7 @@ void pkdAddStellarEjecta(PKD pkd, PARTICLE *p, SPHFIELDS *pSph, const double dCo
     const double dOldEkin = (pSph->mom[0] * pSph->mom[0] + pSph->mom[1] * pSph->mom[1] +
                              pSph->mom[2] * pSph->mom[2]) / (2.0 * pkdMass(pkd, p));
 
-    for (int i = 0; i < 3; i++)
+    for (int i = 0; i < 3; ++i)
         pSph->mom[i] += pSph->afReceivedMom[i];
     *((float *) pkdField(p, pkd->oFieldOffset[oMass])) += pSph->fReceivedMass;
     pSph->E += pSph->fReceivedE;
@@ -261,7 +225,7 @@ void pkdAddStellarEjecta(PKD pkd, PARTICLE *p, SPHFIELDS *pSph, const double dCo
 #endif
     }
 
-    for (int i = 0; i < 3; i++)
+    for (int i = 0; i < 3; ++i)
         pSph->afReceivedMom[i] = 0.0f;
     pSph->fReceivedMass = 0.0f;
     pSph->fReceivedE = 0.0f;
@@ -276,12 +240,12 @@ void initChemEnrich(void *vpkd, void *vp) {
     if (pkdIsGas(pkd, p)) {
         SPHFIELDS *pSph = pkdSph(pkd,p);
 
-        for (i = 0; i < 3; i++)
+        for (i = 0; i < 3; ++i)
             pSph->afReceivedMom[i] = 0.0f;
         pSph->fReceivedMass = 0.0f;
         pSph->fReceivedE = 0.0f;
 
-        for (i = 0; i < ELEMENT_COUNT; i++)
+        for (i = 0; i < ELEMENT_COUNT; ++i)
             pSph->afElemMass[i] = 0.0f;
         pSph->fMetalMass = 0.0f;
     }
@@ -298,12 +262,12 @@ void combChemEnrich(void *vpkd, void *vp1, const void *vp2) {
         SPHFIELDS *pSph1 = pkdSph(pkd, p1);
         SPHFIELDS *pSph2 = pkdSph(pkd, p2);
 
-        for (i = 0; i < 3; i++)
+        for (i = 0; i < 3; ++i)
             pSph1->afReceivedMom[i] += pSph2->afReceivedMom[i];
         pSph1->fReceivedMass += pSph2->fReceivedMass;
         pSph1->fReceivedE += pSph2->fReceivedE;
 
-        for (i = 0; i < ELEMENT_COUNT; i++)
+        for (i = 0; i < ELEMENT_COUNT; ++i)
             pSph1->afElemMass[i] += pSph2->afElemMass[i];
         pSph1->fMetalMass += pSph2->fMetalMass;
     }
@@ -349,7 +313,7 @@ void smChemEnrich(PARTICLE *p, float fBall, int nSmooth, NN *nnList, SMF *smf) {
 
     float afElemMass[ELEMENT_COUNT];
     float fMetalMass;
-    for (i = 0; i < ELEMENT_COUNT; i++)
+    for (i = 0; i < ELEMENT_COUNT; ++i)
         afElemMass[i] = 0.0f;
     fMetalMass = 0.0f;
 
@@ -396,7 +360,7 @@ void smChemEnrich(PARTICLE *p, float fBall, int nSmooth, NN *nnList, SMF *smf) {
                                fTransMass, fInitialMass, pStar->CCSN.oZ, pStar->CCSN.fDeltaZ,
                                afElemMass, &fMetalMass);
 
-        iTransMass++;
+        ++iTransMass;
         stevComputeMassToEject(pkd->StelEvolData->afAGBYield,
                                pkd->StelEvolData->afAGBMetalYield,
                                pkd->StelEvolData->afAGBEjectedMass,
@@ -410,7 +374,7 @@ void smChemEnrich(PARTICLE *p, float fBall, int nSmooth, NN *nnList, SMF *smf) {
     }
 
     const float fNumSNIa = (*pkd->StelEvolData->fcnNumSNIa)(smf, pStar, fInitialTime, fFinalTime);
-    for (i = 0; i < ELEMENT_COUNT; i++) {
+    for (i = 0; i < ELEMENT_COUNT; ++i) {
         afElemMass[i] += fNumSNIa * pkd->StelEvolData->afSNIaEjectedMass[i];
         afElemMass[i] *= pStar->fInitialMass;
     }
@@ -438,7 +402,7 @@ void smChemEnrich(PARTICLE *p, float fBall, int nSmooth, NN *nnList, SMF *smf) {
     PARTICLE *q;
     float fWeights[nSmooth];
     float fNormFactor = 0.0f;
-    for (i = 0; i < nSmooth; i++) {
+    for (i = 0; i < nSmooth; ++i) {
         q = nnList[i].pPart;
         if (q == p) continue;
 
@@ -448,7 +412,7 @@ void smChemEnrich(PARTICLE *p, float fBall, int nSmooth, NN *nnList, SMF *smf) {
     }
     fNormFactor = 1.0f / fNormFactor;
 
-    for (i = 0; i < nSmooth; i++) {
+    for (i = 0; i < nSmooth; ++i) {
         q = nnList[i].pPart;
         if (q == p) continue;
 
@@ -456,12 +420,12 @@ void smChemEnrich(PARTICLE *p, float fBall, int nSmooth, NN *nnList, SMF *smf) {
         const float fDeltaMass = fWeights[i] * fTotalMass;
         SPHFIELDS *qSph = pkdSph(pkd, q);
 
-        for (j = 0; j < 3; j++)
+        for (j = 0; j < 3; ++j)
             qSph->afReceivedMom[j] += fDeltaMass * pStarVel[j] * fExpFacInv;
         qSph->fReceivedMass += fDeltaMass;
         qSph->fReceivedE += fWeights[i] * fStarEjEnergy;
 
-        for (j = 0; j < ELEMENT_COUNT; j++)
+        for (j = 0; j < ELEMENT_COUNT; ++j)
             qSph->afElemMass[j] += fWeights[i] * afElemMass[j];
         qSph->fMetalMass += fWeights[i] * fMetalMass;
     }
@@ -563,7 +527,7 @@ STEV_RAWDATA *stevReadTable(char *pszPath) {
     char achTable[64];
     int iOffset, nDims, nSize;
     hsize_t dimSize[2];
-    for (int i = 0; i < RawData->nZs; i++) {
+    for (int i = 0; i < RawData->nZs; ++i) {
         iOffset = i * RawData->nElems * RawData->nMasses;
 
         sprintf(achTable, "%s/%s/%s", H5FIELD_TABLE, apchTableZNames[i], H5FIELD_YIELD);

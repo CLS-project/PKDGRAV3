@@ -1,11 +1,17 @@
 #ifdef FEEDBACK
 #include "starformation/feedback.h"
 #include "master.h"
+#include "imf.h"
 
 void MSR::SetFeedbackParam() {
     param.dSNFBDu = param.dSNFBDT * dTuFac * (param.dMeanMolWeight / 0.5917);
-    param.dCCSNFBSpecEnergy = (param.dCCSNEnergy / MSOLG) * param.dCCSNFBNumPerMass /
+
+    auto IMF = ChooseIMF(param.achIMFType, param.dIMFMinMass, param.dIMFMaxMass);
+    const double dCCSNNumPerMass =
+        IMF->UnweightedIntegration(param.dCCSNMinMass, param.dCCSNMaxMass);
+    param.dCCSNFBSpecEnergy = (param.dCCSNEnergy / MSOLG) * dCCSNNumPerMass /
                               param.units.dErgPerGmUnit;
+
     param.dSNIaFBSpecEnergy = (param.dSNIaEnergy / MSOLG) * param.dSNIaFBNumPerMass /
                               param.units.dErgPerGmUnit;
 

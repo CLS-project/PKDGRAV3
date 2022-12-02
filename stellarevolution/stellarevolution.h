@@ -122,36 +122,6 @@ float stevPowerlawNumSNIa(SMF *, STARFIELDS *, float, float);
  * -------
  */
 
-static inline void stevChabrierIMF(const double *restrict pdMass, const int nSize,
-                                   const double dMinMass, const double dMaxMass,
-                                   double *restrict pdIMF) {
-    const double dMc = 0.079;
-    const double dSigma = 0.69;
-    const double dSlope = -2.3;
-
-    const double dLogMc = log10(dMc);
-    const double dSigmaSq = dSigma * dSigma;
-    const double dConstFac = exp(-0.5 * dLogMc * dLogMc / dSigmaSq);
-
-    const double dLogNormInt = sqrt(0.5 * M_PI) * exp(0.5 * dSigmaSq * M_LN10 * M_LN10) *
-                               M_LN10 * dSigma * dMc *
-                               (erf((-dLogMc / dSigma - M_LN10 * dSigma) / sqrt(2.0)) -
-                                erf(((log10(dMinMass) - dLogMc) / dSigma - M_LN10 * dSigma) /
-                                    sqrt(2.0)));
-    const double dPowerLawInt = dConstFac * (pow(dMaxMass, dSlope + 2.0) - 1.0) / (dSlope + 2.0);
-
-    const double dLogNormFac = 1.0 / (dLogNormInt + dPowerLawInt);
-    const double dPowerLawFac = dLogNormFac * dConstFac;
-    for (int i = 0; i < nSize; i++) {
-        if (pdMass[i] < 1.0)
-            pdIMF[i] = dLogNormFac * exp(-0.5 * pow(log10(pdMass[i]) - dLogMc, 2.0) / dSigmaSq) /
-                       pdMass[i];
-        else
-            pdIMF[i] = dPowerLawFac * pow(pdMass[i], dSlope);
-    }
-}
-
-
 static inline void stevGetIndex1D(const float *restrict pfTable, const int nSize,
                                   const float fVal, int *restrict piIdx,
                                   float *restrict pfDelta) {
@@ -171,7 +141,7 @@ static inline void stevGetIndex1D(const float *restrict pfTable, const int nSize
     else {
         /* Normal case */
         int i;
-        for (i = 1; (i < nSize - 1) && (fVal > pfTable[i]); i++)
+        for (i = 1; (i < nSize - 1) && (fVal > pfTable[i]); ++i)
             ;
 
         *piIdx = --i;
@@ -240,13 +210,13 @@ static inline void stevInterpToIMFSampling(STEV_DATA *const Data, STEV_RAWDATA *
     const int iCCSNMinMass = stevGetIMFMassIndex(Data->afInitialMass, STEV_INTERP_N_MASS,
                              fCCSNMinMass, STEV_INTERP_N_MASS - 1);
 
-    for (i = 0; i < STEV_INTERP_N_MASS; i++) {
+    for (i = 0; i < STEV_INTERP_N_MASS; ++i) {
         fLogMass = log10(Data->afInitialMass[i]);
         if (i <= iCCSNMinMass) {
             stevGetIndex1D(AGB->pfInitialMass, STEV_AGB_N_MASS, fLogMass, &iMass, &fDeltaMass);
 
-            for (j = 0; j < ELEMENT_COUNT; j++) {
-                for (k = 0; k < STEV_CCSN_N_METALLICITY; k++) {
+            for (j = 0; j < ELEMENT_COUNT; ++j) {
+                for (k = 0; k < STEV_CCSN_N_METALLICITY; ++k) {
                     iData = stevRowMajorIndex(k, i, j, STEV_CCSN_N_METALLICITY,
                                               STEV_INTERP_N_MASS, ELEMENT_COUNT);
                     if (i < iCCSNMinMass) {
@@ -259,7 +229,7 @@ static inline void stevInterpToIMFSampling(STEV_DATA *const Data, STEV_RAWDATA *
                     }
                 }
 
-                for (k = 0; k < STEV_AGB_N_METALLICITY; k++) {
+                for (k = 0; k < STEV_AGB_N_METALLICITY; ++k) {
                     iTable = stevRowMajorIndex(k, j, iMass, STEV_AGB_N_METALLICITY,
                                                ELEMENT_COUNT, STEV_AGB_N_MASS);
                     iData = stevRowMajorIndex(k, i, j, STEV_AGB_N_METALLICITY,
@@ -272,7 +242,7 @@ static inline void stevInterpToIMFSampling(STEV_DATA *const Data, STEV_RAWDATA *
                 }
             }
 
-            for (k = 0; k < STEV_CCSN_N_METALLICITY; k++) {
+            for (k = 0; k < STEV_CCSN_N_METALLICITY; ++k) {
                 iData = stevRowMajorIndex(k, i, 0, STEV_CCSN_N_METALLICITY,
                                           STEV_INTERP_N_MASS, 1);
                 if (i < iCCSNMinMass) {
@@ -287,7 +257,7 @@ static inline void stevInterpToIMFSampling(STEV_DATA *const Data, STEV_RAWDATA *
                 }
             }
 
-            for (k = 0; k < STEV_AGB_N_METALLICITY; k++) {
+            for (k = 0; k < STEV_AGB_N_METALLICITY; ++k) {
                 iTable = stevRowMajorIndex(k, iMass, 0, STEV_AGB_N_METALLICITY,
                                            STEV_AGB_N_MASS, 1);
                 iData = stevRowMajorIndex(k, i, 0, STEV_AGB_N_METALLICITY,
@@ -305,8 +275,8 @@ static inline void stevInterpToIMFSampling(STEV_DATA *const Data, STEV_RAWDATA *
         else {
             stevGetIndex1D(CCSN->pfInitialMass, STEV_CCSN_N_MASS, fLogMass, &iMass, &fDeltaMass);
 
-            for (j = 0; j < ELEMENT_COUNT; j++) {
-                for (k = 0; k < STEV_CCSN_N_METALLICITY; k++) {
+            for (j = 0; j < ELEMENT_COUNT; ++j) {
+                for (k = 0; k < STEV_CCSN_N_METALLICITY; ++k) {
                     iTable = stevRowMajorIndex(k, j, iMass, STEV_CCSN_N_METALLICITY,
                                                ELEMENT_COUNT, STEV_CCSN_N_MASS);
                     iData = stevRowMajorIndex(k, i, j, STEV_CCSN_N_METALLICITY,
@@ -318,7 +288,7 @@ static inline void stevInterpToIMFSampling(STEV_DATA *const Data, STEV_RAWDATA *
                                                CCSN->pfYield[iTable + 1] * fDeltaMass;
                 }
 
-                for (k = 0; k < STEV_AGB_N_METALLICITY; k++) {
+                for (k = 0; k < STEV_AGB_N_METALLICITY; ++k) {
                     iData = stevRowMajorIndex(k, i, j, STEV_AGB_N_METALLICITY,
                                               STEV_INTERP_N_MASS, ELEMENT_COUNT);
                     if (i > iCCSNMinMass + 1) {
@@ -332,7 +302,7 @@ static inline void stevInterpToIMFSampling(STEV_DATA *const Data, STEV_RAWDATA *
                 }
             }
 
-            for (k = 0; k < STEV_CCSN_N_METALLICITY; k++) {
+            for (k = 0; k < STEV_CCSN_N_METALLICITY; ++k) {
                 iTable = stevRowMajorIndex(k, iMass, 0, STEV_CCSN_N_METALLICITY,
                                            STEV_CCSN_N_MASS, 1);
                 iData = stevRowMajorIndex(k, i, 0, STEV_CCSN_N_METALLICITY,
@@ -349,7 +319,7 @@ static inline void stevInterpToIMFSampling(STEV_DATA *const Data, STEV_RAWDATA *
                     CCSN->pfEjectedMass[iTable + 1] * fDeltaMass;
             }
 
-            for (k = 0; k < STEV_AGB_N_METALLICITY; k++) {
+            for (k = 0; k < STEV_AGB_N_METALLICITY; ++k) {
                 iData = stevRowMajorIndex(k, i, 0, STEV_AGB_N_METALLICITY,
                                           STEV_INTERP_N_MASS, 1);
                 if (i > iCCSNMinMass + 1) {
@@ -381,7 +351,7 @@ static inline void stevInterpolateXAxis(const float *restrict pfTable, const int
     const float *restrict pfLower = pfTable + iOffset * nZ;
     const float *restrict pfUpper = pfLower + nY * nZ;
 
-    for (int i = 0; i < nSize * nZ; i++)
+    for (int i = 0; i < nSize * nZ; ++i)
         pfResult[i] = pfLower[i] * (1.0f - fWeight) + pfUpper[i] * fWeight;
 }
 
@@ -395,11 +365,11 @@ static inline void stevComputeAndCorrectSimulEjecta(
     float *restrict pfMetalEjMass) {
 
     int i;
-    for (i = 0; i < nElems; i++)
+    for (i = 0; i < nElems; ++i)
         pfElemEjMass[i] = pfYield[i] + pfElemAbun[i] * fEjectedMass;
     *pfMetalEjMass = fMetalYield + fMetalAbun * fEjectedMass;
 
-    for (i = 0; i < nElems; i++) {
+    for (i = 0; i < nElems; ++i) {
         if (pfElemEjMass[i] < 0.0f) {
             if (i != ELEMENT_H && i != ELEMENT_He) *pfMetalEjMass -= pfElemEjMass[i];
             pfElemEjMass[i] = 0.0f;
@@ -410,7 +380,7 @@ static inline void stevComputeAndCorrectSimulEjecta(
     const float fTotalMass = pfElemEjMass[ELEMENT_H] + pfElemEjMass[ELEMENT_He] +
                              *pfMetalEjMass;
     const float fNormFactor = fEjectedMass / fTotalMass;
-    for (i = 0; i < nElems; i++) pfElemEjMass[i] *= fNormFactor;
+    for (i = 0; i < nElems; ++i) pfElemEjMass[i] *= fNormFactor;
     *pfMetalEjMass *= fNormFactor;
 }
 
@@ -448,7 +418,7 @@ static inline void stevComputeMassToEject(
        of stevComputeAndCorrectSimulEjecta must be removed */
     float afElemSimulEjecta[nSize * nElems];
     float afMetalSimulEjecta[nSize];
-    for (i = 0, j = 0; i < nSize; i++, j += nElems) {
+    for (i = 0, j = 0; i < nSize; ++i, j += nElems) {
         stevComputeAndCorrectSimulEjecta(afInterpYield + j, afInterpMetalYield[i],
                                          afInterpEjectedMass[i], nElems, pfElemAbun, fMetalAbun,
                                          afElemSimulEjecta + j, afMetalSimulEjecta + i);
@@ -457,8 +427,8 @@ static inline void stevComputeMassToEject(
     pfIMFLogWeight += iStart;
     pfInitialMass += iStart;
 
-    for (i = 0, j = 0; i < nSize; i++) {
-        for (k = 0; k < nElems; j++, k++)
+    for (i = 0, j = 0; i < nSize; ++i) {
+        for (k = 0; k < nElems; ++j, ++k)
             afElemSimulEjecta[j] *= pfIMFLogWeight[i];
         afMetalSimulEjecta[i] *= pfIMFLogWeight[i];
     }
@@ -469,28 +439,28 @@ static inline void stevComputeMassToEject(
     float afElemMassTemp[nElems], fMetalMassTemp;
 
     /* Contribution from the first and last values */
-    for (i = 0; i < nElems; i++) {
+    for (i = 0; i < nElems; ++i) {
         afElemMassTemp[i] = 0.5f * (afElemSimulEjecta[i] +
                                     afElemSimulEjecta[i + (nSize - 1) * nElems]);
     }
     fMetalMassTemp = 0.5f * (afMetalSimulEjecta[0] + afMetalSimulEjecta[nSize - 1]);
 
     /* Contribution from the middle values */
-    for (i = 1, j = nElems; i < nSize - 1; i++) {
-        for (k = 0; k < nElems; j++, k++)
+    for (i = 1, j = nElems; i < nSize - 1; ++i) {
+        for (k = 0; k < nElems; ++j, ++k)
             afElemMassTemp[k] += afElemSimulEjecta[j];
         fMetalMassTemp += afMetalSimulEjecta[i];
     }
 
     /* Multiply by the logarithm of the spacing */
-    for (i = 0; i < nElems; i++)
+    for (i = 0; i < nElems; ++i)
         afElemMassTemp[i] *= fDeltaLogMass;
     fMetalMassTemp *= fDeltaLogMass;
 
     /* Correction for initial and final values mismatch */
     const float fWeightStart = log10f(fMassStart / pfInitialMass[0]);
     const float fWeightEnd = log10f(pfInitialMass[nSize - 1] / fMassEnd);
-    for (i = 0; i < nElems; i++) {
+    for (i = 0; i < nElems; ++i) {
         afElemMassTemp[i] -=
             0.5f * (fWeightStart * (afElemSimulEjecta[i] +
                                     afElemSimulEjecta[i + nElems]) +
@@ -504,7 +474,7 @@ static inline void stevComputeMassToEject(
                               afMetalSimulEjecta[nSize - 1]));
 
     /* Multiply by natural logarithm of 10 */
-    for (i = 0; i < nElems; i++)
+    for (i = 0; i < nElems; ++i)
         pfElemMass[i] += M_LN10 * afElemMassTemp[i];
     *pfMetalMass += M_LN10 * fMetalMassTemp;
 }
