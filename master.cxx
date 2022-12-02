@@ -465,6 +465,9 @@ void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTi
         SetSPHoptions();
     }
     if (param.bAddDelete) GetNParts();
+    if (prmSpecified(prm,"achOutTimes")) {
+        nSteps = ReadOuts(dTime);
+    }
 
     Simulate(dTime,dDelta,iStep,nSteps);
 }
@@ -886,6 +889,9 @@ void MSR::Initialize() {
     strcpy(param.achCheckpointPath,"");
     prmAddParam(prm,"achCheckpointPath",3,param.achCheckpointPath,256,"cpp",
                 "<output path for checkpoints> = \"\"");
+    strcpy(param.achOutTimes,"");
+    prmAddParam(prm,"achOutTimes",3,param.achOutTimes,256,"ot",
+                "<input file containing the sequence of output z|t|a> = \"\"");
     csm->val.bComove = 0;
     prmAddParam(prm,"bComove",0,&csm->val.bComove,sizeof(int),
                 "cm", "enable/disable comoving coordinates = -cm");
@@ -2103,6 +2109,11 @@ double MSR::SwitchDelta(double dTime,double dDelta,int iStep,int nSteps) {
         if (iStep == param.nSteps10 && bVDetails)
             printf("dDelta changed to %g at z=10\n",dDelta);
     }
+    else if ( dOutTimes.size()>1) {
+        dDelta = dOutTimes[iStep+1]-dOutTimes[iStep];
+        printf("Changing dDelta to %e \n", dDelta);
+    }
+
     return dDelta;
 }
 
@@ -3693,13 +3704,6 @@ void MSR::KickKDKClose(double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungH
     TimerStop(TIMER_KICKC);
 }
 
-bool MSR::OutTime(double dTime) {
-    if (dOutTimes.back() <= dTime) {
-        while (dOutTimes.back() <= dTime) dOutTimes.pop_back();
-        return true;
-    }
-    return false;
-}
 
 int cmpTime(const void *v1,const void *v2) {
     double *d1 = (double *)v1;
@@ -3710,24 +3714,27 @@ int cmpTime(const void *v1,const void *v2) {
     else return (1);
 }
 
-void MSR::ReadOuts(double dTime,double dDelta) {
+int MSR::ReadOuts(double dTime) {
     char achFile[PST_FILENAME_SIZE];
     FILE *fp;
     int i,ret;
-    double z,a,t,n;
+    double z,a,t,n,newt;
     char achIn[80];
 
     /*
     ** Add Data Subpath for local and non-local names.
     */
-    MakePath(param.achDataSubPath,param.achOutName,achFile);
-    strcat(achFile,".red");
+    MakePath(param.achDataSubPath,param.achOutTimes,achFile);
 
     dOutTimes.clear();
     dOutTimes.push_back(INFINITY); // Sentinal node
 
+    // I do not like how this is done, the file should be provided by a parameter
     fp = fopen(achFile,"r");
-    if (!fp) return;
+    if (!fp) {
+        printf("The output times file: %s, is not present!\n", achFile);
+        abort();
+    }
     i = 0;
     while (1) {
         if (!fgets(achIn,80,fp)) goto NoMoreOuts;
@@ -3736,34 +3743,32 @@ void MSR::ReadOuts(double dTime,double dDelta) {
             ret = sscanf(&achIn[1],"%lf",&z);
             if (ret != 1) goto NoMoreOuts;
             a = 1.0/(z+1.0);
-            dOutTimes.push_back(csmExp2Time(csm,a));
+            newt = csmExp2Time(csm,a);
             break;
         case 'a':
             ret = sscanf(&achIn[1],"%lf",&a);
             if (ret != 1) goto NoMoreOuts;
-            dOutTimes.push_back(csmExp2Time(csm,a));
+            newt = csmExp2Time(csm,a);
             break;
         case 't':
             ret = sscanf(&achIn[1],"%lf",&t);
             if (ret != 1) goto NoMoreOuts;
-            dOutTimes.push_back(t);
-            break;
-        case 'n':
-            ret = sscanf(&achIn[1],"%lf",&n);
-            if (ret != 1) goto NoMoreOuts;
-            dOutTimes.push_back(dTime + (n-0.5)*dDelta);
+            newt = t;
             break;
         default:
             ret = sscanf(achIn,"%lf",&z);
             if (ret != 1) goto NoMoreOuts;
             a = 1.0/(z+1.0);
-            dOutTimes.push_back(csmExp2Time(csm,a));
+            newt = csmExp2Time(csm,a);
         }
+        dOutTimes.push_back(newt);
     }
 NoMoreOuts:
     fclose(fp);
-    // Sort in DECENDING order. We pop used values of the back. Sentinal is at the front
-    std::sort(dOutTimes.begin(),dOutTimes.end(),std::greater<double>());
+    dOutTimes.push_back(dTime);
+    std::sort(dOutTimes.begin(),dOutTimes.end(),std::less<double>());
+    assert( dTime < dOutTimes.back() );
+    return dOutTimes.size()-2;
 }
 
 /*
@@ -4069,12 +4074,11 @@ int MSR::CheckForOutput(int iStep,int nSteps,double dTime,int *pbDoCheckpoint,in
         *pbDoCheckpoint = 1 | (iStop<<1);
     }
 
-    if (OutTime(dTime)
-            || (OutInterval() > 0 &&
-                (bGlobalOutput
-                 || iStop
-                 || iStep == nSteps
-                 || (iStep%OutInterval() == 0))) ) {
+    if ((OutInterval() > 0 &&
+            (bGlobalOutput
+             || iStop
+             || iStep == nSteps
+             || (iStep%OutInterval() == 0))) ) {
         bGlobalOutput = 0;
         *pbDoOutput = 1  | (iStop<<1);
     }
@@ -5561,10 +5565,6 @@ void MSR::Output(int iStep, double dTime, double dDelta, int bCheckpoint) {
         Reorder();
         OutArray(BuildName(iStep,".soft").c_str(),OUT_SOFT_ARRAY);
     }
-    /*
-    ** Don't allow duplicate outputs.
-    */
-    while (OutTime(dTime));
 }
 
 uint64_t MSR::CountSelected() {

@@ -157,6 +157,9 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_SETGLOBALDT,pst,
                   (fcnService_t *) pstSetGlobalDt,
                   sizeof(struct outGetMinDt),0);
+    mdlAddService(mdl,PST_SETRUNG,pst,
+                  (fcnService_t *) pstSetRung,
+                  sizeof(struct outGetMinDt),0);
 #ifdef COOLING
     mdlAddService(mdl,PST_COOLINGUPDATE,pst,
                   (fcnService_t *) pstCoolingUpdate,
@@ -1533,6 +1536,22 @@ int pstSetGlobalDt(PST pst,void *vin,int nIn,void *vout,int nOut) {
     }
     else {
         pkdSetGlobalDt(plcl->pkd, in->uMinDt);
+    }
+    return 0;
+}
+
+int pstSetRung(PST pst,void *vin,int nIn,void *vout,int nOut) {
+    LCL *plcl = pst->plcl;
+    struct outGetMinDt *in = vin;
+
+    mdlassert(pst->mdl,nIn == sizeof(struct outGetMinDt));
+    if (pst->nLeaves > 1) {
+        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SETRUNG,in,nIn);
+        pstSetRung(pst->pstLower,in,nIn,NULL,0);
+        mdlGetReply(pst->mdl,rID,NULL,NULL);
+    }
+    else {
+        pkdSetRung(plcl->pkd, in->uMinDt);
     }
     return 0;
 }

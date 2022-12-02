@@ -92,7 +92,12 @@ bool MSR::getDeltaSteps(double dTime,int iStartStep,double &dDelta,int &nSteps) 
 void MSR::Simulate(double dTime) {
     double dDelta;
     int nSteps;
-    getDeltaSteps(dTime,param.iStartStep, /* OUTPUT -> */ dDelta,nSteps);
+    if (prmSpecified(prm,"achOutTimes")) {
+        nSteps = ReadOuts(dTime);
+    }
+    else {
+        getDeltaSteps(dTime,param.iStartStep, /* OUTPUT -> */ dDelta,nSteps);
+    }
     return Simulate(dTime,dDelta,param.iStartStep,nSteps);
 }
 void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
@@ -102,11 +107,6 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
     if (prmSpecified(prm,"dSoft")) SetSoft(Soft());
     auto dTheta = getTheta(dTime); // Adjust theta for gravity calculations.
 
-    /*
-    ** Now read in the output points, passing the initial time.
-    ** We do this only if nSteps is not equal to zero.
-    */
-    if (nSteps > 0) ReadOuts(dTime,dDelta);
 
     /*
     ** Now we have all the parameters for the simulation we can make a
@@ -429,6 +429,16 @@ int MSR::ValidateParameters() {
         fprintf(stderr,"       When specified must contain {name}, {step} and {type} and no other fields\n");
         fprintf(stderr,"       Default: {name}.{step:05d}{type}\n");
         fprintf(stderr,"       Example: /path/to/output/{step:05d}/{name}.{step:05d}{type}\n");
+        return 0;
+    }
+
+    if (prmSpecified(prm, "achOutTimes") && prmSpecified(prm, "nSteps") ) {
+        fprintf(stderr, "ERROR: achOutTimes and nSteps can not given at the same time.\n");
+        return 0;
+    }
+    if (prmSpecified(prm, "achOutTimes") && prmSpecified(prm, "dRedTo") ) {
+        fprintf(stderr, "ERROR: achOutTimes and dRedTo can not be given at the same time.\n");
+        fprintf(stderr, "       Add your final redshift (dRedTo) to the end of achOutTimes file.\n");
         return 0;
     }
 

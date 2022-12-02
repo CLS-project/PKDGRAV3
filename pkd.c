@@ -3723,6 +3723,18 @@ void pkdSetGlobalDt(PKD pkd, uint8_t minDt) {
     }
 }
 
+void pkdSetRung(PKD pkd, uint8_t uRung) {
+    PARTICLE *p;
+    int i, n;
+
+    n = pkdLocal(pkd);
+    for ( i=0; i<n; i++ ) {
+        p = pkdParticle(pkd,i);
+        p->uRung = uRung;
+        p->uNewRung = uRung;
+    }
+}
+
 
 /*
 ** This function checks the predicate and returns a new value based on the flags.

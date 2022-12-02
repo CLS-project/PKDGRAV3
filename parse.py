@@ -78,6 +78,7 @@ def parse():
     add_flag(ioparm,'iop', default='', dest='achIoPath', help='output path for snapshots and logfile')
     add_flag(ioparm,'cpp', default='', dest='achCheckpointPath', help='output path for checkpoints')
     add_flag(ioparm,'dsp', default='', dest='achDataSubPath', help='sub-path for data')
+    add_flag(ioparm,'ot', default='', dest='achOutTimes', help='input file containing the sequence of output redshift|time|a')
     add_bool(ioparm,'lcin',default=False,dest='bInFileLC',help='input light cone data')
     add_bool(ioparm,'par',default=True,dest='bParaRead',help='enable parallel reading of files')
     add_bool(ioparm,'paw',default=False,dest='bParaWrite',help='disable parallel writing of files')

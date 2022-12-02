@@ -354,14 +354,13 @@ protected:
     std::string BuildIoName(int iStep,const char *type="");
     std::string BuildCpName(int iStep,const char *type="");
 
-    void ReadOuts(double dTime,double dDelta);
+    int ReadOuts(double dTime);
     void msrprintf(const char *Format, ... ) const;
     void Exit(int status);
     uint64_t getMemoryModel();
     void InitializePStore(uint64_t *nSpecies,uint64_t mMemoryModel);
     int CheckForStop(const char *achStopFile);
     int CheckForOutput(int iStep,int nSteps,double dTime,int *pbDoCheckpoint,int *pbDoOutput);
-    bool OutTime(double dTime);
     void SetClasses();
     void SwapClasses(int id);
     void OneNodeRead(struct inReadFile *in, FIO fio);
