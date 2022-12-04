@@ -446,6 +446,10 @@ if (DEBUG_BH_ONLY)
    message("-- Allow for BH-only simulations for debugging purposes")
 endif(DEBUG_BH_ONLY)
 
+if (FEEDBACK OR STELLAR_EVOLUTION)
+   target_compile_options(${PROJECT_NAME} PRIVATE -DSTELLAR_IMF)
+endif()
+
 #### OPTIMIZATION OPTIONS
 option(OPTIM_NO_REDUNDANT_FLUXES "Avoid any redundant flux computation using the particle IDs" ON)
 if (OPTIM_NO_REDUNDANT_FLUXES)

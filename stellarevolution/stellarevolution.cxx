@@ -10,25 +10,25 @@
 
 
 void MSR::SetStellarEvolutionParam() {
-    if (!param.bRestart) {
-        param.dSNIaNormInitTime *= SECONDSPERYEAR / param.units.dSecUnit;
-        param.dSNIaNormFinalTime *= SECONDSPERYEAR / param.units.dSecUnit;
-        param.dStellarWindSpeed /= param.units.dKmPerSecUnit;
+    const double dYrToTime = SECONDSPERYEAR / param.units.dSecUnit;
 
-        if (strcmp(param.achSNIaDTDType, "exponential") == 0) {
-            param.dSNIaScale *= SECONDSPERYEAR / param.units.dSecUnit;
-        }
-        else if (strcmp(param.achSNIaDTDType, "powerlaw") == 0) {
-            param.dSNIaNorm /= (pow(param.dSNIaNormFinalTime, param.dSNIaScale + 1.0) -
-                                pow(param.dSNIaNormInitTime, param.dSNIaScale + 1.0));
-        }
-        else {
-            printf("ERROR: Undefined DTD type has been given in achSNIaDTDType parameter: %s\n",
-                   param.achSNIaDTDType);
-            assert(0);
-        }
+    if (strcmp(param.achSNIaDTDType, "exponential") == 0) {
+        param.dSNIaNorm = param.dSNIaNumPerMass;
+        param.dSNIaScale = param.dSNIaExpScale * dYrToTime;
     }
-    param.dWindSpecificEkin = 0.5 * param.dStellarWindSpeed * param.dStellarWindSpeed;
+    else if (strcmp(param.achSNIaDTDType, "powerlaw") == 0) {
+        param.dSNIaNorm = param.dSNIaNumPerMass /
+                          (pow(param.dSNIaPLFinalTime * dYrToTime, param.dSNIaPLScale + 1.0) -
+                           pow(param.dSNIaPLInitTime * dYrToTime, param.dSNIaPLScale + 1.0));
+        param.dSNIaScale = param.dSNIaPLScale;
+    }
+    else {
+        std::cerr << "ERROR: Undefined IMF type has been given in achSNIaDTDType " <<
+                  "parameter: " << param.achSNIaDTDType << std::endl;
+        Exit(1);
+    }
+
+    param.dWindSpecificEkin = 0.5 * pow(param.dStellarWindSpeed / param.units.dKmPerSecUnit, 2);
 }
 
 
@@ -168,9 +168,9 @@ int pkdStellarEvolutionInit(PKD pkd, struct inStellarEvolutionInit *in) {
         pkd->StelEvolData->fcnNumSNIa = stevPowerlawNumSNIa;
     }
     else {
-        printf("ERROR: Undefined SNIa DTD type has been given in achSNIaDTDType\n"
-               "       parameter: %s\n", in->achSNIaDTDType);
-        assert(0);
+        std::cerr << "ERROR: Undefined IMF type has been given in achSNIaDTDType " <<
+                  "parameter: " << in->achSNIaDTDType << std::endl;
+        exit(1);
     }
 
     for (int i = 0; i < pkd->nLocal; ++i) {

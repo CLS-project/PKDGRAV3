@@ -62,7 +62,7 @@ public:
     virtual double UnweightedIntegration(const double dLowerMass,
                                          const double dUpperMass) const noexcept {
         assert(dUpperMass > dLowerMass);
-        constexpr int nSamples = 200;
+        constexpr int nSamples{200};
         double adMass[nSamples], adIMF[nSamples];
         UnweightedSample(dLowerMass, dUpperMass, nSamples, adMass, adIMF);
         return LogTrapezoidalIntegration(adMass, adIMF, nSamples);
@@ -71,7 +71,7 @@ public:
     virtual double MassWeightedIntegration(const double dLowerMass,
                                            const double dUpperMass) const noexcept {
         assert(dUpperMass > dLowerMass);
-        constexpr int nSamples = 200;
+        constexpr int nSamples{200};
         double adMass[nSamples], adIMF[nSamples];
         MassWeightedSample(dLowerMass, dUpperMass, nSamples, adMass, adIMF);
         return LogTrapezoidalIntegration(adMass, adIMF, nSamples);
@@ -178,14 +178,6 @@ public:
     double Evaluate(const double dMass) const noexcept {
         return 1.0;
     }
-
-    double UnweightedIntegration(const double dLowerMass, const double dUpperMass) {
-        return 1.0;
-    }
-
-    double MassWeightedIntegration(const double dLowerMass, const double dUpperMass) {
-        return 1.0;
-    }
 };
 
 
@@ -198,29 +190,19 @@ public:
     double Evaluate(const double dMass) const noexcept {
         return 1.0;
     }
-
-    double UnweightedIntegration(const double dLowerMass, const double dUpperMass) {
-        return 1.0;
-    }
-
-    double MassWeightedIntegration(const double dLowerMass, const double dUpperMass) {
-        return 1.0;
-    }
 };
 
 
 inline std::unique_ptr<UniversalIMFBaseClass>
 ChooseIMF(const char *pszIMFType, const double dIMFMinMass, const double dIMFMaxMass) {
-    using IMFBase = UniversalIMFBaseClass;
-
     if (strcmp(pszIMFType, "chabrier") == 0) {
-        return std::unique_ptr<IMFBase>(new Chabrier{dIMFMinMass, dIMFMaxMass});
+        return std::make_unique<Chabrier>(dIMFMinMass, dIMFMaxMass);
     }
     else if (strcmp(pszIMFType, "kroupa") == 0) {
-        return std::unique_ptr<IMFBase>(new Kroupa{dIMFMinMass, dIMFMaxMass});
+        return std::make_unique<Kroupa>(dIMFMinMass, dIMFMaxMass);
     }
     else if (strcmp(pszIMFType, "salpeter") == 0) {
-        return std::unique_ptr<IMFBase>(new Salpeter{dIMFMinMass, dIMFMaxMass});
+        return std::make_unique<Salpeter>(dIMFMinMass, dIMFMaxMass);
     }
     else {
         std::cerr << "ERROR: Undefined IMF type has been given to ChooseIMF: " <<

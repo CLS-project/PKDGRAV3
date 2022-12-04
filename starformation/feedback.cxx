@@ -12,7 +12,7 @@ void MSR::SetFeedbackParam() {
     param.dCCSNFBSpecEnergy = (param.dCCSNEnergy / MSOLG) * dCCSNNumPerMass /
                               param.units.dErgPerGmUnit;
 
-    param.dSNIaFBSpecEnergy = (param.dSNIaEnergy / MSOLG) * param.dSNIaFBNumPerMass /
+    param.dSNIaFBSpecEnergy = (param.dSNIaEnergy / MSOLG) * param.dSNIaNumPerMass /
                               param.units.dErgPerGmUnit;
 
     if (!param.bRestart) {

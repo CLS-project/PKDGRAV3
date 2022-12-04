@@ -292,7 +292,6 @@ struct parameters {
     double dSNIaFBDelay;
     double dSNIaFBSpecEnergy;
     double dSNIaEnergy;
-    double dSNIaFBNumPerMass;
 #endif
 #ifdef BLACKHOLES
     int bBHMerger;
@@ -313,15 +312,20 @@ struct parameters {
     char achStelEvolPath[256];
     char achSNIaDTDType[32];
     int bChemEnrich;
-    double dSNIaMaxMass;
+    double dWindSpecificEkin;
     double dSNIaNorm;
     double dSNIaScale;
-    double dSNIaNormInitTime;
-    double dSNIaNormFinalTime;
+    double dSNIaExpScale;
+    double dSNIaPLScale;
+    double dSNIaPLInitTime;
+    double dSNIaPLFinalTime;
+    double dSNIaMaxMass;
     double dStellarWindSpeed;
-    double dWindSpecificEkin;
 #endif
 #if defined(FEEDBACK) || defined(STELLAR_EVOLUTION)
+    double dSNIaNumPerMass;
+#endif
+#ifdef STELLAR_IMF
     char achIMFType[32];
     double dIMFMinMass;
     double dIMFMaxMass;

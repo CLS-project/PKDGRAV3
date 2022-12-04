@@ -75,10 +75,10 @@ typedef struct smfParameters {
     int bBHAccretion;
 #endif
 #ifdef STELLAR_EVOLUTION
-    double dCCSNMinMass;
+    double dWindSpecificEkin;
     double dSNIaNorm;
     double dSNIaScale;
-    double dWindSpecificEkin;
+    double dCCSNMinMass;
 #endif
 } SMF;
 
