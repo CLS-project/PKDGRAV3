@@ -354,6 +354,9 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
 #if defined(USE_MFM) && ( defined(HAVE_MM_POW) || defined(HAVE_MM256_POW) || defined(HAVE_MM512_POW) )
         smx->fcnSmoothNode = hydroRiemann_simd;
 #else
+#if defined(USE_MFM)
+        static_assert( 0, "Not using simd for MFM");
+#endif
         smx->fcnSmoothNode = hydroRiemann;
 #endif
         smx->fcnSmoothGetNvars = hydroFluxGetNvars;
@@ -3149,7 +3152,7 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
 
                             // Try pointer to pPart declared as restrict, to check if compiler does something better
 
-                            if (nCnt_p >= nnListMax_p) {
+                            if (nCnt_p+SIMD_DWIDTH >= nnListMax_p) {
                                 nnListMax_p += NNLIST_INCREMENT;
                                 nnList_p = realloc(nnList_p,nnListMax_p*sizeof(NN));
                                 assert(nnList_p != NULL);
@@ -3191,6 +3194,8 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
                     //assert(nCnt_p<200);
 
                     if (smx->fcnSmoothNode) {
+                        // TODO: This memset can be omited for performance?
+                        memset(output_buffer, 0, nnListMax_p*outNvar*sizeof(my_real));
                         smx->fcnSmoothNode(partj,pkdBall(pkd,partj),nCnt_p, nnListMax_p,
                                            input_buffer, output_buffer, smf);
                         for (pk=0; pk<nCnt_p; pk++) {

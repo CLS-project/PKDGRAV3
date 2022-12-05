@@ -770,6 +770,16 @@ static inline void computeFace(ftype &modApq, std::array<ftype,3> &unit,
     }
 }
 
+template <typename ftype=double>
+static inline void low_limit(ftype &var, ftype def, ftype min) {
+    if (var<min)
+        var = def;
+}
+template <>
+inline void low_limit(dvec &var, dvec def, dvec min) {
+    auto cond = var<min;
+    var = mask_mov(var, cond, def);
+}
 
 template <typename ftype=double>
 static inline void doSinglePPFlux(ftype &F_rho, std::array<ftype,3> &F_v, ftype &F_p, ftype &F_S, ftype &minDt,
@@ -953,6 +963,11 @@ static inline void doSinglePPFlux(ftype &F_rho, std::array<ftype,3> &F_v, ftype 
             dConstGamma, H, a);
     }
 
+    ftype zero = 0.0;
+    low_limit(L_rho, pDensity, zero);
+    low_limit(R_rho, qDensity, zero);
+    low_limit(L_p, pP, zero);
+    low_limit(R_p, qP, zero);
     /*
     if (L_rho < 0) {
         L_rho = pDensity;
@@ -995,6 +1010,30 @@ static inline void doSinglePPFlux(ftype &F_rho, std::array<ftype,3> &F_v, ftype 
                          &F_rho, &F_p, F_v.data(),
                          face_unit.data());
 
+    /*
+    int nan;
+    // Only works if compiling with -fno-finite-math-only !!
+    nan = nan_guard(S_M, zero);
+    nan = nan_guard(P_M, zero);
+    if (nan){
+       printf("-----\n");
+       dump(S_M);
+       dump(P_M);
+       dump(R_rho);
+       dump(L_rho);
+       dump(R_p);
+       dump(L_p);
+       dump(R_v[0]);
+       dump(L_v[0]);
+       dump(R_v[1]);
+       dump(L_v[1]);
+       dump(R_v[2]);
+       dump(L_v[2]);
+       dump(face_unit[0]);
+       dump(face_unit[1]);
+       dump(face_unit[2]);
+    }
+    */
 
 
 #ifdef ENTROPY_SWITCH
@@ -1002,18 +1041,20 @@ static inline void doSinglePPFlux(ftype &F_rho, std::array<ftype,3> &F_v, ftype 
 #ifdef USE_MFM
     // As we are in a truly lagrangian configuration,
     // there is no advection of entropy among particles.
+    F_S=0.;
 #else
-    F_S=0;
+    /*
     for (auto j=0; j<3; j++) F_S += F_v[j]*face_unit[j];
     if (F_S > 0) {
         // Maybe this values should be properly extrapolated to the faces..
         // but this is expensive!
-        F_S *= psph->S*pDensity/pkdMass(pkd,p);
+        F_S *= pS*pOmega;
     }
     else {
-        F_S *= q(S)*q(rho)/q(mass);
+        F_S *= qS*qOmega;
     }
     F_S *= F_rho*modApq;
+    */
     F_S = 0.;
 
 #endif //USE_MFM
@@ -1035,7 +1076,6 @@ static inline void doSinglePPFlux(ftype &F_rho, std::array<ftype,3> &F_v, ftype 
 #ifdef FORCE_2D
     F_v[2] = 0.;
 #endif
-
 
     /*
     // Check for NAN fluxes
@@ -1062,6 +1102,14 @@ static inline void doSinglePPFlux(ftype &F_rho, std::array<ftype,3> &F_v, ftype 
         F_v[j] += vFrame[j]*F_rho;
     }
 
+    /*
+    nan_guard(minDt, zero);
+    nan_guard(F_rho, zero);
+    nan_guard(F_p, zero);
+    nan_guard(F_v[0], zero);
+    nan_guard(F_v[1], zero);
+    nan_guard(F_v[2], zero);
+    */
 
     // Phew! Done ;)
 }
@@ -1228,9 +1276,9 @@ void hydroRiemann_simd(PARTICLE *pIn,float fBall,int nSmooth, int nBuff,
     dvec qlastAccz;
 
 #ifdef __INTEL_COMPILER
-    __assume_aligned(input_buffer, 64);
-#pragma simd
-#pragma vector aligned
+//     __assume_aligned(input_buffer, 64);
+// #pragma simd
+// #pragma vector aligned
 #endif
 #ifdef __GNUC__
 //TODO Trick GCC into autovectorizing this!!
@@ -1254,6 +1302,7 @@ void hydroRiemann_simd(PARTICLE *pIn,float fBall,int nSmooth, int nBuff,
         qdy.load(       &q(dy));
         qdz.load(       &q(dz));
         qomega.load(    &q(omega));
+        // Change name to h, not ball
         qh.load(        &q(ball));
         qlast.load(     &q(lastUpdateTime));
         qDt.load(       &q(rung));
@@ -1327,9 +1376,18 @@ void hydroRiemann_simd(PARTICLE *pIn,float fBall,int nSmooth, int nBuff,
         F_v[0].store(&output_buffer[out_FmomX * nBuff + i]);
         F_v[1].store(&output_buffer[out_FmomY * nBuff + i]);
         F_v[2].store(&output_buffer[out_FmomZ * nBuff + i]);
+#ifdef ENTROPY_SWITCH
+        F_S.store(&output_buffer[out_FS * nBuff + i]);
+#endif
+        //dump(F_v[0]);
         minDt.store(&output_buffer[out_minDt * nBuff + i]);
 
-        /* Repeat without using simd instruction for comparison
+    }
+
+    /*
+    for (; i<nSmooth; i++) {
+        break;
+        //Repeat without using simd instruction for comparison
         double F_rho0;
         std::array<double,3> F_v0;
         double F_P0;
@@ -1337,11 +1395,10 @@ void hydroRiemann_simd(PARTICLE *pIn,float fBall,int nSmooth, int nBuff,
         double minDt0;
 
         double pS0, qS0;
-        double ph0 = pkdBall(pkd,p);
+        double ph0 = 0.5*pkdBall(pkd,p);
         double pDt0 = smf->dDelta/(1<<p->uRung);
 
-        for (auto k=0; k<SIMD_DWIDTH; k++){
-           double qDt0 = q(rung);
+        double qDt0 = q(rung);
         doSinglePPFlux( F_rho0, F_v0, F_P0, F_S0, minDt0,
                         bComove, smf->dTime, smf->dDelta,  smf->a,  smf->H,  smf->dConstGamma,
                         q(dr),  q(dx),  q(dy),  q(dz),
@@ -1367,12 +1424,20 @@ void hydroRiemann_simd(PARTICLE *pIn,float fBall,int nSmooth, int nBuff,
                         q(gradVyX),   q(gradVyY),   q(gradVyZ),
                         q(gradVzX),   q(gradVzY),   q(gradVzZ),
                         q(lastAccX),  q(lastAccY),  q(lastAccZ) );
-           i++;
-        }
-        i -= SIMD_DWIDTH;
-        */
+           //if (abs(F_P0 - qout(Fene))/F_P0 > 1e-2)
+           //   printf("%e %e \n", F_P0, qout(Fene));
+           qout(Frho) = F_rho0;
+           qout(Fene) = F_P0;
+           qout(FmomX) = F_v0[0];
+           qout(FmomY) = F_v0[1];
+           qout(FmomZ) = F_v0[2];
+    #ifdef ENTROPY_SWITCH
+           qout(FS) = F_S0;
+    #endif
+           qout(minDt) = minDt0;
 
     } // End of loop over neighbors
+    */
 }
 
 void hydroRiemann(PARTICLE *pIn,float fBall,int nSmooth, int nBuff,
@@ -1411,7 +1476,7 @@ void hydroRiemann(PARTICLE *pIn,float fBall,int nSmooth, int nBuff,
         double minDt;
 
         double pS, qS;
-        double ph = P.ball();
+        double ph = 0.5*P.ball();
         double qDt = q(rung);
         double pDt = smf->dDelta/(1<<P.rung());
 

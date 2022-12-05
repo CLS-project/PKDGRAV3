@@ -1,6 +1,7 @@
 #include "gtest/gtest.h"
 #define USE_MFM
 #include <vector>
+#include <cmath>
 
 #include "smooth/smoothfcn.h"
 #include "hydro/riemann_own.h"
@@ -16,6 +17,7 @@ protected:
     SMF smf;
     std::vector<double> n_unit {1., 0., 0.};
     dvec vn_unit[3] = {1., 0., 0.};
+    dvec zero = 0.;
     double rho_R, p_R;
     double rho_L, p_L;
     std::vector<double> v_R;
@@ -49,6 +51,10 @@ protected:
         for (auto k=0; k<3; k++)
             vv_L[k]   = v[k];
     }
+    template <typename ftype=double>
+    ftype cs(ftype g, ftype rho, ftype p) {
+        return sqrt(g*p/rho);
+    }
 
     int solve() {
         return Riemann_solver_exact(dConstGamma, rho_R, p_R, v_R.data(),
@@ -59,7 +65,7 @@ protected:
     }
 
     dvec solve_vec() {
-        dvec gamma = 1.4;
+        dvec gamma = dConstGamma;
         return Riemann_solver_exact(gamma, vrho_R, vp_R, vv_R,
                                     vrho_L, vp_L, vv_L,
                                     vP_M, vS_M,
@@ -231,3 +237,222 @@ TEST_F(RiemannTest, ToroVecAll) {
     EXPECT_NEAR(vS_M[3], 8.68975, 8.68975*TOL);
 }
 
+// Generic test, this was extracted from an Evrard collapse, but can be reused
+// if a problematic flux is found...
+TEST_F(RiemannTest, VecTest) {
+    double allrho_R[4] = {4.289399e-02,3.237508e-02, 5.528355e-02,6.015821e-02 };
+    double allrho_L[4] = {5.161085e-02,3.163507e-02, 9.228625e-02,9.838759e-02 };
+    double allp_R[4] =  {8.342137e-04,8.310585e-04, 1.426528e-02,2.818890e-02 };
+    double allp_L[4] =  {0.000000e+00,0.000000e+00, 0.000000e+00,0.000000e+00 };
+    double allvx_R[4] = {2.872663e-01,3.538408e-03, 1.822213e-02,3.715746e-02 };
+    double allvx_L[4] = {-1.996461e-01,-8.412928e-02,-1.822213e-02,-3.715746e-02 };
+    double allvy_R[4] = {-6.350583e-02, 1.505490e-02,-1.020411e-02,-4.192078e-02 };
+    double allvy_L[4] = {6.350583e-02,1.175719e-02, 1.020411e-02,4.192078e-02 };
+    double allvz_R[4] = {-7.044196e-03,2.253765e-02,-3.883064e-03,-4.353969e-02 };
+    double allvz_L[4] = {7.044196e-03,5.634412e-03, 3.883064e-03,4.353969e-02 };
+    double n_unitx[4] = {-8.133081e-01,-8.340868e-01, 9.763322e-01,8.057771e-03 };
+    double n_unity[4] = {-1.497787e-01,-3.649328e-01, -2.116392e-01, -8.610773e-01 };
+    double n_unitz[4] = {-5.622244e-01,-4.136705e-01, -4.454557e-02, -5.084103e-01 };
+
+    vrho_R.load(allrho_R);
+    vrho_L.load(allrho_L);
+    vp_R.load(allp_R);
+    vp_L.load(allp_L);
+    vv_R[0].load(allvx_R);
+    vv_L[0].load(allvx_L);
+    vv_R[1].load(allvy_R);
+    vv_L[1].load(allvy_L);
+    vv_R[2].load(allvz_R);
+    vv_L[2].load(allvz_L);
+    vn_unit[0].load(n_unitx);
+    vn_unit[1].load(n_unity);
+    vn_unit[2].load(n_unitz);
+
+    solve_vec();
+
+    EXPECT_EQ(nan_guard(vS_M, zero), 0);
+    EXPECT_EQ(nan_guard(vP_M, zero), 0);
+}
+
+TEST_F(RiemannTest, NaNguard) {
+    // This test does not necessarily mean that the implementation is wrong,
+    // rather, that the tests in this suite may present false negatives as
+    // some of them rely on detecting nan values.
+    // In general, using -fno-finite-math-only will allow for the correct use
+    // of NaNguard
+    double test = nan("");
+
+    dump(test);
+    EXPECT_EQ(nan_guard(test, 0.), 1);
+
+    dvec vtest = zero/zero;
+    dump(vtest);
+    EXPECT_EQ(nan_guard(vtest, zero), 1);
+}
+
+TEST_F(RiemannTest, VecPguess1) {
+    // Make sure that the template specialization of guess_pressure is working
+    // as expected by trying all the different branches (part 1/2)
+    //                   twoshock      rarefact      close          twoshock2
+    double allrho_R[4] = {1.,4.318226e-01,3.190336e-01, 5.99242};
+    double allrho_L[4] = {1.,4.680836e-01,3.756503e-01, 5.99924};
+    double allp_R[4] =  {100.,2.634937e-02,1.719681e-02, 46.0950};
+    double allp_L[4] =  {0.01,2.276876e-02,1.729200e-02, 460.894};
+    double allvx_R[4] = {0.,4.143744e-01,8.194100e-02, -6.19633};
+    double allvx_L[4] = {0.,-3.456463e-02,-9.371292e-03, 19.5975};
+
+    vrho_R.load(allrho_R);
+    vrho_L.load(allrho_L);
+    vp_R.load(allp_R);
+    vp_L.load(allp_L);
+    vv_R[0].load(allvx_R);
+    vv_L[0].load(allvx_L);
+
+    dvec gamma = 1.4;
+    dvec cs_L = cs(gamma, vrho_L, vp_L);
+    dvec cs_R = cs(gamma, vrho_R, vp_R);
+    dvec vPg =  guess_for_pressure(gamma,vrho_R,vp_R,vrho_L,vp_L,
+                                   vv_L[0], vv_R[0], cs_L, cs_R);
+
+    double Pg[4];
+    for (auto i=0; i<SIMD_DWIDTH; i++) {
+        Pg[i] = guess_for_pressure(gamma[i],vrho_R[i],vp_R[i],vrho_L[i],vp_L[i],
+                                   vv_L[0][i], vv_R[0][i], cs_L[i], cs_R[i]);
+    }
+    for (auto i=0; i<SIMD_DWIDTH; i++) {
+        EXPECT_NEAR(vPg[i], Pg[i], Pg[i]*TOL);
+    }
+
+    solve_vec();
+    EXPECT_EQ(nan_guard(vS_M, zero), 0);
+    EXPECT_EQ(nan_guard(vP_M, zero), 0);
+}
+
+TEST_F(RiemannTest, VecPguess2) {
+    // Make sure that the template specialization of guess_pressure is working
+    // as expected by trying all the different branches (part 2/2)
+    //                   vaccumm R     vaccumm L     close          twoshock2
+    double allrho_R[4] = {1.,4.318226e-01,3.190336e-01, 5.99242};
+    double allrho_L[4] = {1.,4.680836e-01,3.756503e-01, 5.99924};
+    double allp_R[4] =  {0.,2.634937e-02,1.719681e-02, 46.0950};
+    double allp_L[4] =  {0.01,0.,1.729200e-02, 460.894};
+    double allvx_R[4] = {0.,4.143744e-01,8.194100e-02, -6.19633};
+    double allvx_L[4] = {0.,-3.456463e-02,-9.371292e-03, 19.5975};
+
+    vrho_R.load(allrho_R);
+    vrho_L.load(allrho_L);
+    vp_R.load(allp_R);
+    vp_L.load(allp_L);
+    vv_R[0].load(allvx_R);
+    vv_L[0].load(allvx_L);
+
+    dvec gamma = 1.4;
+    dvec cs_L = cs(gamma, vrho_L, vp_L);
+    dvec cs_R = cs(gamma, vrho_R, vp_R);
+    dvec vPg =  guess_for_pressure(gamma,vrho_R,vp_R,vrho_L,vp_L,
+                                   vv_L[0], vv_R[0], cs_L, cs_R);
+
+    double Pg[4];
+    for (auto i=0; i<SIMD_DWIDTH; i++) {
+        Pg[i] = guess_for_pressure(gamma[i],vrho_R[i],vp_R[i],vrho_L[i],vp_L[i],
+                                   vv_L[0][i], vv_R[0][i], cs_L[i], cs_R[i]);
+    }
+    for (auto i=0; i<SIMD_DWIDTH; i++) {
+        EXPECT_NEAR(vPg[i], Pg[i], Pg[i]*TOL);
+    }
+
+    solve_vec();
+    EXPECT_EQ(nan_guard(vS_M, zero), 0);
+    EXPECT_EQ(nan_guard(vP_M, zero), 0);
+}
+
+TEST_F(RiemannTest, InputVacuumRho) {
+    set_R(0., 46.0950, {-6.19633,0.,0.});
+    set_L(0., 460.894, {19.5975,0.,0.});
+    int iters = solve();
+    EXPECT_NE(iters, 0);
+    EXPECT_NEAR(P_M, 0.0, TOL);
+    EXPECT_NEAR(S_M, 0.0, TOL);
+}
+
+TEST_F(RiemannTest, InputVacuumP) {
+    set_R(1., 0.0, {-6.19633,0.,0.});
+    set_L(1., 0.0, {19.5975,0.,0.});
+    int iters = solve();
+    EXPECT_NE(iters, 0);
+    EXPECT_NEAR(P_M, 0.0, TOL);
+    EXPECT_NEAR(S_M, 0.0, TOL);
+}
+
+TEST_F(RiemannTest, InternalVacuum) {
+    set_R(1., 1.0, { 100.,0.,0.});
+    set_L(1., 1.0, {-100.,0.,0.});
+    int iters = solve();
+    EXPECT_NE(iters, 0);
+    EXPECT_NEAR(P_M, 0.0, TOL);
+    EXPECT_NEAR(S_M, 0.0, TOL);
+}
+
+TEST_F(RiemannTest, LeftVacuum) {
+    set_R(1., 2.0, { 200.,0.,0.});
+    set_L(1., 1.0, { 100.,0.,0.});
+    int iters = solve();
+    EXPECT_NE(iters, 0);
+    double S_L = 100. + GAMMA_G4 * cs(dConstGamma, 1., 1.);
+    EXPECT_NEAR(P_M, 0.0, TOL);
+    EXPECT_NEAR(S_M, S_L, S_L*TOL);
+}
+
+TEST_F(RiemannTest, RightVacuum) {
+    set_R(1., 2.0, { -100.,0.,0.});
+    set_L(1., 1.0, { -200.,0.,0.});
+    int iters = solve();
+    EXPECT_NE(iters, 0);
+    double S_R = -100. - GAMMA_G4 * cs(dConstGamma, 1., 2.);
+    EXPECT_NEAR(P_M, 0.0, TOL);
+    EXPECT_NEAR(S_M, S_R, -S_R*TOL);
+}
+
+TEST_F(RiemannTest, VecVacuum) {
+
+    double allrho_R[4] = {0., 1.,   1.,   1.0    };
+    double allrho_L[4] = {0.,    1.,   1.,   1.0    };
+    double allp_R[4] =   {1.,    1.,  2.0,   2.0   };
+    double allp_L[4] =   {1.,    1.0, 1.0, 1.0    };
+    double allv_R[4] =   {-19.0, 100., 200., -100.  };
+    double allv_L[4] =   {-20.0,-100., 100., -200. };
+
+    vrho_R.load(allrho_R);
+    vrho_L.load(allrho_L);
+    vp_R.load(allp_R);
+    vp_L.load(allp_L);
+    vv_R[0].load(allv_R);
+    vv_L[0].load(allv_L);
+    vv_R[1] = 0.0;
+    vv_L[1] = 0.0;
+    vv_R[2] = 0.0;
+    vv_L[2] = 0.0;
+
+    solve_vec();
+
+    /*
+    for (auto i=0; i<SIMD_DWIDTH; i++) {
+        EXPECT_EQ(iters[i], 0);
+        //printf("%e %e %e\n", iters[i], vP_M[i], vS_M[i]);
+    }
+    */
+    //Test 1 input vacuum
+    EXPECT_NEAR(vP_M[0], 0., TOL);
+    EXPECT_NEAR(vS_M[0], 0., TOL);
+    //Test 2 interal vacuum
+    EXPECT_NEAR(vP_M[1], 0.0, TOL);
+    EXPECT_NEAR(vS_M[1], 0.0, TOL);
+    //Test 3
+    double S_L = 100. + GAMMA_G4 * cs(dConstGamma, 1., 1.);
+    EXPECT_NEAR(vP_M[2], 0.0, TOL);
+    EXPECT_NEAR(vS_M[2], S_L, S_L*TOL);
+    //Test 5
+    double S_R = -100. - GAMMA_G4 * cs(dConstGamma, 1., 2.);
+    EXPECT_NEAR(vP_M[3], 0.0, TOL);
+    EXPECT_NEAR(vS_M[3], S_R, -S_R*TOL);
+}

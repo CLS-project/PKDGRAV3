@@ -1,7 +1,17 @@
-
+#ifndef LIMITER_H
+#define LIMITER_H
+#ifndef PASS
+    #define PASS
+    static int equal = 0;
+    static int pass1 = 0;
+    static int pass2 = 0;
+    static int pass3 = 0;
+    static int pass4 = 0;
+    static int pass5 = 0;
+    static int pass6 = 0;
+#endif
 #define psi1 0.5
 #define psi2 0.25
-#pragma omp declare simd
 template <typename ftype=double>
 static inline void genericPairwiseLimiter(ftype Lstate, ftype Rstate,
         ftype *Lstate_face, ftype *Rstate_face) {
@@ -13,6 +23,7 @@ static inline void genericPairwiseLimiter(ftype Lstate, ftype Rstate,
     if (Lstate == Rstate) {
         *Lstate_face = Lstate;
         *Rstate_face = Rstate;
+        equal++;
     }
     else {
 
@@ -26,25 +37,31 @@ static inline void genericPairwiseLimiter(ftype Lstate, ftype Rstate,
 
         if (SIGN(phi_min - d1) == SIGN(phi_min) ) {
             phi_m = phi_min - d1;
+            pass1++;
         }
         else {
             phi_m = phi_min/(1. + d1/fabs(phi_min));
+            pass2++;
         }
 
         if (SIGN(phi_max + d1) == SIGN(phi_max) ) {
             phi_p = phi_max + d1;
+            pass3++;
         }
         else {
             phi_p = phi_max/(1. + d1/fabs(phi_max));
+            pass4++;
         }
 
         if (Lstate < Rstate) {
             *Lstate_face = MAX(phi_m, MIN(phi_mean+d2, *Lstate_face));
             *Rstate_face = MIN(phi_p, MAX(phi_mean-d2, *Rstate_face));
+            pass5++;
         }
         else {
             *Rstate_face = MAX(phi_m, MIN(phi_mean+d2, *Rstate_face));
             *Lstate_face = MIN(phi_p, MAX(phi_mean-d2, *Lstate_face));
+            pass6++;
         }
 
     }
@@ -52,8 +69,8 @@ static inline void genericPairwiseLimiter(ftype Lstate, ftype Rstate,
 
 #ifdef SIMD_H
 template <>
-static inline void genericPairwiseLimiter(dvec Lstate, dvec Rstate,
-        dvec *Lstate_face, dvec *Rstate_face) {
+inline void genericPairwiseLimiter(dvec Lstate, dvec Rstate,
+                                   dvec *Lstate_face, dvec *Rstate_face) {
 #ifdef DEBUG_FLUX_NOLIMITER
     return;
 #endif
@@ -195,3 +212,4 @@ static inline void ConditionedBarthJespersenLimiter(double *limVar, double *grad
 //    *limVar = 1.0;
 //    *limVar = 0.0;
 }
+#endif
