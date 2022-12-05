@@ -352,4 +352,8 @@ def update(pars,args,spec):
         if key in vars(args) and not getattr(spec,key):
             setattr(args,key,value)
             setattr(spec,key,True)
-        # else: this is a rogue variable?
+        else: #this is a rogue variable?
+            if key[0]!='_': # Avoid printing python's __stuff__. This can also
+                            # be used to define 'private' variables in the
+                            # parameter file, e.g., _variable = ...
+                print(f"WARNING: variable {key} is defined in the parameter file, but unused in PKDGRAV3")
