@@ -3,11 +3,21 @@
 #include <memory>
 #include <math.h>
 
+/* This universal IMF module uses dynamic polymorphism to select the
+ * requested IMF at run time. Usage is abstracted in a single interface
+ * consisting in non-virtual, virtual and pure-virtual member functions
+ * in a class hierarchy, which cannot, can and must be overriden,
+ * respectively, by deriving classes.
+ * Addition of a new universal IMF requires defining a new class that
+ * derives from UniversalIMFBaseClass, and adding the corresponding
+ * 'else if' clause to the ChooseIMF function.
+ */
 class UniversalIMFBaseClass {
 public:
     UniversalIMFBaseClass() = default;
     virtual ~UniversalIMFBaseClass() = default;
 
+    /* Set of non-virtual member functions implementing general algorithms */
     void SampleLogMass(const double dLowerMass, const double dUpperMass,
                        const int nSamples, double *restrict pdMass) const noexcept {
         assert(dUpperMass > dLowerMass);
@@ -50,6 +60,8 @@ public:
     }
 
 protected:
+    /* This member function normalizes a given IMF instance. It should be called
+     * only once, preferably in the body of deriving classes' constructors */
     void Normalize(const double dMinMass, const double dMaxMass) {
         const double dNormInv = MassWeightedIntegration(dMinMass, dMaxMass);
         assert(dNormInv > 0.0);
@@ -57,8 +69,12 @@ protected:
     }
 
 public:
+    /* Pure-virtual function that encapsulates the mathematical form of a given IMF */
     virtual double Evaluate(const double dMass) const noexcept = 0;
 
+    /* Set of virtual member functions that can be overriden should an implementation
+     * different from the standard be preferable; e.g., analytical instead of numerical
+     * integration */
     virtual double UnweightedIntegration(const double dLowerMass,
                                          const double dUpperMass) const noexcept {
         assert(dUpperMass > dLowerMass);
@@ -193,6 +209,17 @@ public:
 };
 
 
+/* Function that selects the requested IMF and returns a unique_ptr
+ * which can then be used to call the available algorithms.
+ * For example:
+ * {
+ *      ...
+ *      auto IMF = ChooseIMF( ... );
+ *      IMF->AnAlgorithm( ... );
+ *      IMF->AnotherAlgorithm( ... );
+ *      ...
+ * }
+ */
 inline std::unique_ptr<UniversalIMFBaseClass>
 ChooseIMF(const char *pszIMFType, const double dIMFMinMass, const double dIMFMaxMass) {
     if (strcmp(pszIMFType, "chabrier") == 0) {
