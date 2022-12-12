@@ -3222,7 +3222,7 @@ int MSR::NewTopStepKDK(
 	if (bKickOpen) LightConeOpen(iStep+1);
 
 	/* Compute the grids of linear species at main timesteps, before gravity is called */
-	if (strlen(param.achLinearSpecies) && param.nGridLin){
+	if (csm->val.classData.bClass && strlen(param.achLinearSpecies) && param.nGridLin){
 	    GridCreateFFT(param.nGridLin);
             SetLinGrid(dTime,dDelta,param.nGridLin,1,bKickOpen);
             if (param.bDoLinPkOutput)

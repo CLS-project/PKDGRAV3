@@ -60,15 +60,5 @@ extern "C"
 #endif
 int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int bFixed,float fPhase,int nGrid,int b2LPT,double dBoxSize,
     double a,int nTf, double *tk, double *tf, double *noiseMean, double *noiseCSQ);
-#ifdef __cplusplus
-extern "C"
-#endif
-int pkdGenerateClassICm(PKD pkd, MDLFFT fft, int iSeed, int bFixed, float fPhase, int nGrid,int b2LPT,
-    double dBoxSize, double a, double *noiseMean, double *noiseCSQ);
-#ifdef __cplusplus
-extern "C"
-#endif
-void pkdGenerateLinGrid(PKD pkd, MDLFFT fft, double a, double a_next, double LBox, int iSeed,
-    int bFixed, float fPhase, int bRho);
 #endif
 #endif
