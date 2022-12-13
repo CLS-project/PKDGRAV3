@@ -54,7 +54,7 @@ typedef struct lclBlock {
 
 typedef struct pstContext {
     struct pstContext *pstLower;
-    MDL mdl;
+    mdl::mdlClass *mdl;
     LCL *plcl;
     int idSelf;
     int idUpper;
@@ -262,7 +262,7 @@ enum pst_service {
 };
 
 void pstAddServices(PST,MDL);
-void pstInitialize(PST *,MDL,LCL *);
+void pstInitialize(PST *,mdl::mdlClass *,LCL *);
 void pstFinish(PST);
 
 /* PST_INITIALIZEPSTORE */

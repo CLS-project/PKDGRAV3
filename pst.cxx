@@ -344,7 +344,7 @@ void pstAddServices(PST pst,MDL mdl) {
                   sizeof(struct outGetParticles)*GET_PARTICLES_MAX );
 }
 
-void pstInitialize(PST *ppst,MDL mdl,LCL *plcl) {
+void pstInitialize(PST *ppst,mdl::mdlClass *mdl,LCL *plcl) {
     PST pst;
 
     pst = (PST)malloc(sizeof(struct pstContext));

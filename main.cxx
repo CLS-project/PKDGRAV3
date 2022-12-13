@@ -82,7 +82,7 @@ void *worker_init(MDL vmdl) {
     PST pst;
     LCL *plcl = new LCL;
     plcl->pkd = NULL;
-    pstInitialize(&pst,vmdl,plcl);
+    pstInitialize(&pst,mdl,plcl);
     pstAddServices(pst,vmdl);
     mdl->AddService(std::make_unique<ServiceSetAdd>(pst));
     mdl->AddService(std::make_unique<ServiceSwapAll>(pst));
