@@ -42,6 +42,8 @@
 #include "core/calcroot.h"
 #include "core/select.h"
 
+#include "io/service.h"
+
 #include "initlightcone.h"
 
 #include "domains/calcbound.h"
@@ -101,6 +103,7 @@ void *worker_init(MDL vmdl) {
     mdl->AddService(std::make_unique<ServiceSelBox>(pst));
     mdl->AddService(std::make_unique<ServiceSelSphere>(pst));
     mdl->AddService(std::make_unique<ServiceSelCylinder>(pst));
+    mdl->AddService(std::make_unique<ServiceFileSizes>(pst));
     mdl->AddService(std::make_unique<ServiceCalcBound>(pst));
     mdl->AddService(std::make_unique<ServiceCombineBound>(pst));
     mdl->AddService(std::make_unique<ServiceDistribTopTree>(pst));

@@ -79,6 +79,7 @@ typedef struct pstContext {
 enum pst_service {
     PST_SRV_STOP=0, /* service 0 is always STOP and handled by MDL */
     PST_SETADD,
+    PST_FILE_SIZES,
     PST_READFILE,
     PST_DOMAINDECOMP,
     PST_CALCBOUND,
