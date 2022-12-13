@@ -561,6 +561,8 @@ protected:
     PARTICLE *pTempPRIVATE = nullptr;
     size_t iTreeNodeSize = 0; // Size (in bytes) of a tree node
     uint32_t nEphemeralBytes = 0; /* per-particle */
+    void *storageBase;
+    uint64_t storageSize;
 public:
     particleStore particles;
     int FreeStore() { return particles.FreeStore(); }

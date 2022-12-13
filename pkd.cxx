@@ -168,25 +168,6 @@ void pkdContext::ExtendTree() {
     nMaxNodes = (1<<nTreeBitsLo) * nTreeTiles;
 }
 
-static void firstTouch(uint64_t n,char *p) {
-    if (n>4096) n-= 4096;
-    while (n>=4096) {
-        *p = 0;
-        p += 4096;
-        n -= 4096;
-    }
-}
-
-/* Greatest common divisor */
-static int gcd ( int a, int b ) {
-    while ( a != 0 ) {
-        int c = a;
-        a = b%a;
-        b = c;
-    }
-    return b;
-}
-
 static void initLightBallOffsets(PKD pkd,double mrLCP) {
     BND bnd = {{0,0,0},{0.5,0.5,0.5}};
     double min2;
@@ -587,13 +568,6 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     this->nTreeBitsHi = nTreeBitsHi;
     this->iTreeMask = (1<<this->nTreeBitsLo) - 1;
 
-    /* Adjust nStore so that we use an integer number of pages */
-    int n = nPageSize / gcd(nPageSize,particles.ParticleSize());
-    nStore += n; /* Not "n-1" here because we reserve one at the end */
-    nStore -= nStore % n;
-    assert( (uint64_t)nStore*this->ParticleSize() % nPageSize == 0);
-    --nStore;
-
     /*
     ** We need to allocate one large chunk of memory for:
     **   (1) The particles, and,
@@ -614,45 +588,25 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     ** allocate one hidden particle, which won't interfere with the rest of
     ** the code (hopefully). this->pStore[this->nStore] is this particle.
     **
-    ** IMPORTANT: There is a whole lot of pointer math here. If you mess with this
-    **            you better be sure you get it right or really bad things will happen.
     */
     this->nEphemeralBytes = nEphemeralBytes;
-    uint64_t nBytesPerThread = ((nStore+1)*ParticleSize()+nPageMask) & ~nPageMask; // Constraint (d)
-    uint64_t nBytesParticles = (uint64_t)mdlCores(this->mdl) * nBytesPerThread; // Constraint (a)
-    uint64_t nBytesEphemeral = (uint64_t)mdlCores(this->mdl) * (nStore+1)*1ul*this->nEphemeralBytes; // Constraint (a)
-    uint64_t nBytesTreeNodes = 0;
-    if (nBytesEphemeral < nMinEphemeral) nBytesEphemeral = nMinEphemeral; // Constraint (b)
-    if (nBytesParticles + nBytesEphemeral < nMinTotalStore) // Constraint (c)
-        nBytesTreeNodes = nMinTotalStore - nBytesParticles - nBytesEphemeral;
-    // Align to a even number of "tree tiles"
-    uint64_t nTreeTileBytesPerNode = (1<<this->nTreeBitsLo)*this->iTreeNodeSize*mdlCores(this->mdl);
-    uint64_t nTreeTiles = (uint64_t)ceil(1.0 * nBytesTreeNodes / nTreeTileBytesPerNode);
-    nBytesTreeNodes = nTreeTiles * nTreeTileBytesPerNode;
-    char *pParticles, *pEphemeral, *pTreeNodes;
-    if (mdlCore(this->mdl)==0) {
-        uint64_t nBytesTotal = nBytesParticles + nBytesEphemeral + nBytesTreeNodes;
-        void *vParticles;
-#ifdef _MSC_VER
-        pParticles = _aligned_malloc(nBytesTotal,nPageSize);
-#else
-        if (posix_memalign(&vParticles,nPageSize,nBytesTotal)) pParticles = NULL;
-        else pParticles = static_cast<char *>(vParticles);
-#endif
-        mdlassert(mdl,pParticles != NULL);
-        pEphemeral = pParticles + nBytesParticles;
-        pTreeNodes = pEphemeral + nBytesEphemeral;
-    }
-    else pParticles = pEphemeral = pTreeNodes = 0; // Ignore anyway in mdlSetArray() below
-    pParticles = static_cast<char *>(mdlSetArray(this->mdl,1,nBytesPerThread,pParticles));
-    pEphemeral = static_cast<char *>(mdlSetArray(this->mdl,1,nBytesEphemeral/mdlCores(this->mdl),pEphemeral));
-    pTreeNodes = static_cast<char *>(mdlSetArray(this->mdl,1,nBytesTreeNodes/mdlCores(this->mdl),pTreeNodes));
-    firstTouch(nBytesParticles/mdlCores(this->mdl),pParticles);
-    firstTouch(nBytesEphemeral/mdlCores(this->mdl),pEphemeral);
-    firstTouch(nBytesTreeNodes/mdlCores(this->mdl),pTreeNodes);
-    particles.setStore(pParticles,nStore);
 
-    this->pLite = pEphemeral;
+    uint64_t nEphemeral = nStore + 1;
+    if (nEphemeral * mdl->Cores()*nEphemeralBytes < nMinEphemeral)
+        nEphemeral = (nMinEphemeral + mdl->Cores()*nEphemeralBytes - 1) / (mdl->Cores()*nEphemeralBytes);
+
+    uint64_t nElements[3] = {uint64_t(nStore+1),nEphemeral,0};
+    uint64_t nBytesPerElement[3] = {particles.ParticleSize(),nEphemeralBytes,sizeof(uint64_t)};
+    void *pSegments[3];
+    storageSize = mdl->new_shared_array(pSegments,3,nElements,nBytesPerElement,nMinTotalStore);
+    if (storageSize == 0) {
+        fprintf(stderr, "ERROR: unable to allocate main storage\n");
+        abort();
+    }
+
+    storageBase = pSegments[0];
+    particles.setStore(pSegments[0],nStore);
+    this->pLite = pSegments[1];                 // Ephemeral storage
     /*
     ** Now we setup the node storage for the tree.  This storage is no longer
     ** continguous as the MDL now supports non-contiguous arrays.  We allocate
@@ -663,16 +617,18 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     */
     this->kdNodeListPRIVATE = static_cast<KDN **>(mdlMalloc(this->mdl,(1<<this->nTreeBitsHi)*sizeof(KDN *)));
     mdlassert(mdl,this->kdNodeListPRIVATE != NULL);
-    if (nTreeTiles) {
-        this->nTreeTilesReserved = nTreeTiles;
-        this->nTreeTiles = nTreeTiles;
-        for (j=0; j<nTreeTiles; ++j) {
-            this->kdNodeListPRIVATE[j] = reinterpret_cast<KDN *>(pTreeNodes);
-            pTreeNodes += (1<<this->nTreeBitsLo)*this->iTreeNodeSize;
-        }
+    auto nTileSize = (1<<this->nTreeBitsLo)*this->iTreeNodeSize;
+    auto nTileBytes = nElements[2] * nBytesPerElement[2];
+    auto pTreeNodes = static_cast<char *>(pSegments[2]);
+    nTreeTiles = 0;
+    while (nTileBytes >= nTileSize) {
+        this->kdNodeListPRIVATE[nTreeTiles] = reinterpret_cast<KDN *>(pTreeNodes);
+        pTreeNodes += nTileSize;
+        ++nTreeTiles;
+        nTileBytes -= nTileSize;
     }
-    else {
-        this->nTreeTilesReserved = 0;
+    nTreeTilesReserved = nTreeTiles;
+    if (nTreeTiles == 0) {
         this->kdNodeListPRIVATE[0] = static_cast<KDN *>(mdlMalloc(this->mdl,(1<<this->nTreeBitsLo)*this->iTreeNodeSize));
         mdlassert(mdl,this->kdNodeListPRIVATE[0] != NULL);
         this->nTreeTiles = 1;
@@ -808,11 +764,7 @@ pkdContext::~pkdContext() {
     /* Only thread zero allocated this memory block  */
     mdlThreadBarrier(mdl);
     if (mdlCore(mdl) == 0) {
-#ifdef _MSC_VER
-        _aligned_free(ParticleBase());
-#else
-        mdlFree(mdl, ParticleBase());
-#endif
+        mdl->delete_shared_array(storageBase,storageSize);
     }
     free(pTempPRIVATE);
     if (pLightCone) {
