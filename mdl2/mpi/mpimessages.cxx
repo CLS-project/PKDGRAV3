@@ -14,6 +14,7 @@ void mdlMessageReceiveReply::action(class mpiClass *mpi) { mpi->MessageReceiveRe
 void mdlMessageSendRequest::action(class mpiClass *mpi) { mpi->MessageSendRequest(this); }
 void mdlMessageSendReply::action(class mpiClass *mpi)   { mpi->MessageSendReply(this); }
 void mdlMessageCacheRequest::action(class mpiClass *mpi) { mpi->MessageCacheRequest(this); }
+void mdlMessageSwapGlobal::action(class mpiClass *mpi)  { mpi->MessageSwapGlobal(this);}
 
 // What to do when the MPI request has completed. Default is to send it back to the worker.
 void mdlMessageMPI::finish(class mpiClass *mpi, MPI_Request request, MPI_Status status) { sendBack(); }

@@ -22,6 +22,7 @@ using namespace mdl;
 #include <numeric>
 #include <cstring>
 #include <set>
+#include <queue>
 
 static inline int size_t_to_int(size_t v) {
     return (int)v;
@@ -1220,14 +1221,250 @@ void mpiClass::pthreadBarrierWait() {
     pthread_barrier_wait(&barrier);
 }
 
+/// @brief Swap elements between MPI ranks
+/// @param buffer start of memory buffer to exchange
+/// @param count total number of elements that could fit in this memory
+/// @param datasize size of each data element
+/// @param counts how many elements to send to each rank
+/// @return
+int mdlClass::swapglobal(void *buffer,dd_offset_type count,dd_offset_type datasize,/*const*/ dd_offset_type *counts) {
+    auto me = Proc();
+
+    ddBuffer = static_cast<char *>(buffer); // Our local buffer as a "char *"
+    auto pi = [this,datasize](dd_offset_type i) {      // Returns a pointer to the i'th element of our buffer
+        return ddBuffer + i*datasize;
+    };
+
+    // These vectors are part of the mdlClass; this is how we exchange information with the MPI thread.
+    ddOffset.reserve(Procs()); ddOffset.clear();    // Index of first element to send to each rank
+    ddCounts.reserve(Procs()); ddCounts.clear();    // Number of elements to send to each rank
+    dd_offset_type offset = 0;
+    for (auto i=0; i<Procs(); ++i) {
+        ddOffset.push_back(offset);     // Index of the element
+        ddCounts.push_back(counts[i]);  // Count of elements
+        offset += counts[i];
+    }
+    auto my_count   = counts[me];
+    ddCounts[me]    = 0;            // We don't send anything
+    ddFreeOffset[0] = ddOffset[me]; // A hole could open up here
+    ddFreeCounts[0] = 0;            // but there is currently no space
+    ddFreeOffset[1] = offset;       // There could also be room at the end
+    ddFreeCounts[1] = count-offset; // and we currently have this much
+
+    // This will combine the elements we receive in the lower segment with our data
+    // The data between the end of ddFree[0] and us are new elements
+    auto coalesce_lower = [this,me,&my_count]() {
+        auto free_end = ddFreeOffset[0] + ddFreeCounts[0];
+        my_count += ddOffset[me] - free_end;
+        ddOffset[me] = free_end;
+    };
+
+    int iVote = 0;
+    bool bContinue = false; // Most threads vote not to continue
+
+    do {
+        ThreadBarrier();
+        if (Core()==0) {
+            mdlMessageSwapGlobal swap(datasize);
+            enqueueAndWait(swap);
+            bContinue = !swap.is_finished();
+        }
+        iVote = ThreadBarrier(false,bContinue);
+
+        coalesce_lower();
+
+        // Compact for next iteration. This can open up two holes; one before me and one at the end
+        // Rank zero has no hole before.
+        offset = 0;
+        for (auto i=0; i<Procs(); ++i) {
+            if (i==me) offset = ddOffset[me] + my_count;
+            else {
+                auto n = ddCounts[i];
+                if (n && ddOffset[i]!=offset) std::memmove(pi(offset), pi(ddOffset[i]), n*datasize );
+                ddOffset[i] = offset;
+                offset += n;
+            }
+        }
+        auto n = ddFreeOffset[1] - offset;  // Free space in the upper segment is increased by this
+        ddFreeCounts[1] += n;
+        ddFreeOffset[1] -= n;
+        if (me) {                           // If there could be a free segment before me, adjust the size
+            ddFreeCounts[0] = ddOffset[me] - (ddOffset[me-1] + ddCounts[me-1]);
+            ddFreeOffset[0] = ddOffset[me] - ddFreeCounts[0];
+        }
+    } while (iVote);
+
+    assert(ddFreeOffset[0]==0);
+    assert(ddFreeCounts[0]==ddOffset[me]);  // Offset is zero, so this must be true
+    assert(ddFreeOffset[1]==ddOffset[me] + my_count);
+    if (ddFreeCounts[0]) {
+        auto src = ddFreeOffset[1] + ddFreeCounts[1];
+        auto nTop = count - src;
+        auto nMove = std::min(ddFreeCounts[0],nTop);
+        ddFreeCounts[1] += nMove;
+        ddFreeCounts[0] -= nMove;   // Both the end and count (offset is zero)
+        my_count += nMove;
+        ddOffset[me] -= nMove;
+        std::memmove(pi(ddOffset[me]), pi(src), nMove*datasize );
+    }
+    // Now we either have a hole in the bottom, or we have extra above, but not both.
+    if (ddFreeCounts[0]) {          // We have a hole at the bottom
+        auto beg = ddOffset[me];
+        auto end = ddFreeOffset[1]; // Free space is immediatly after us
+        auto dst = ddFreeOffset[0];
+        auto nMove = beg - dst;
+        if (end-beg <= nMove) {     // The hole is larger; just move down
+            std::memmove(pi(dst), pi(beg), (end-beg)*datasize );
+            // count = dst + (end-beg);
+        }
+        else {                      // Fill the hole from the elements at the end
+            std::memcpy(pi(dst), pi(end-nMove), nMove*datasize );
+            // count = end - nMove;
+        }
+    }
+    else {                          // Only excess at the top
+        auto dst = ddFreeOffset[1]; // Free space is immediatly after us
+        auto src = ddFreeOffset[1] + ddFreeCounts[1];
+        auto nMove = count - src;
+        std::memmove(pi(dst), pi(src), nMove*datasize );
+        ddFreeOffset[1] -= nMove;
+        ddFreeCounts[1] += nMove;
+        my_count += nMove;
+        // count = dst + nMove;
+    }
+    return my_count;
+}
+
+void mpiClass::MessageSwapGlobal(mdlMessageSwapGlobal *message) {
+    auto datasize = message->datasize();
+    auto me = Proc();
+
+    struct free_segment {
+        int iThread;                // Thread or Core ID
+        int iList;                  // Which list
+        dd_offset_type nCount;    // Count of free elements
+        free_segment() = default;
+        free_segment(int iThread, dd_offset_type nCount, int iList=0)
+            : iThread(iThread), iList(iList), nCount(nCount) {}
+        bool operator<(const free_segment &rhs) const { return nCount < rhs.nCount; }
+    };
+
+    // We will do a transfer of a single segment to each MPI rank, so let's choose the largest
+    std::vector<int>      largest(Procs(),0);   // Core with the largest amount to send to each rank
+    std::vector<dd_offset_type> scounts(Procs(),0);   // How many we can send to each rank
+    for (auto i=0; i<Cores(); ++i) {
+        auto other = pmdl[i];
+        // Calculate how many we can send in one go (the largest segment)
+        for (auto j=0; j<Procs(); ++j) {
+            if (other->ddCounts[j] > scounts[j]) {
+                largest[j] = i;
+                scounts[j] = other->ddCounts[j];
+            }
+        }
+    }
+    assert(scounts[me]==0);
+
+    auto nSend = std::reduce(scounts.begin(),scounts.end());
+    dd_offset_type nMaxSend;
+    /* We are done when there is nothing globally left to send */
+    MPI_Allreduce(&nSend,&nMaxSend,1,mpi_type(nSend),MPI_MAX,commMDL);
+    if (nMaxSend==0) {
+        message->finished(true);
+        message->sendBack();
+        return;
+    }
+
+    // First, tell all of our peers how many data elements we are willing to send
+    std::vector<dd_offset_type> rcounts(Procs());
+    assert(mpi_type(scounts[0]) == mpi_type(rcounts[0]));
+    MPI_Alltoall(scounts.data(),1,mpi_type(scounts[0]),rcounts.data(),1,mpi_type(rcounts[0]),commMDL);
+    // rcounts[] now contains a list of how many we could receive
+
+    // Turn this into a "requests" list so we can match
+    std::priority_queue<free_segment> RecvList;
+    for (auto i=0; i<Procs(); ++i) {
+        if (rcounts[i]) RecvList.emplace(i,rcounts[i]);
+    }
+
+    // build a list of free segments
+    std::priority_queue<free_segment> FreeList;
+    for (auto i=0; i<Cores(); ++i) {
+        auto other = pmdl[i];
+        // Add the free segment(s) to the free list
+        for (auto j=0; j<2; ++j) {
+            if (other->ddFreeCounts[j]) FreeList.emplace(i,other->ddFreeCounts[j],j);
+        }
+    }
+
+    MPI_Datatype mpitype;
+    MPI_Type_contiguous(datasize,MPI_BYTE,&mpitype);
+    MPI_Type_commit(&mpitype);
+    std::vector<MPI_Request> requests;
+    std::vector<MPI_Status> statuses;
+
+    // Try to match up as many requests as we can
+    std::fill(rcounts.begin(), rcounts.end(), 0);
+    while (!RecvList.empty() && !FreeList.empty()) {
+        // Grab this segment (we add it back below if it isn't empty)
+        auto iList = FreeList.top().iList;      // Segment list (0 or 1)
+        auto iCore = FreeList.top().iThread;    // Segment is on this core
+        auto nCount= FreeList.top().nCount;     // It can handle this many elements
+        FreeList.pop();
+
+        auto other = pmdl[iCore];
+        auto po = [other,datasize](dd_offset_type i) {return other->ddBuffer + i*datasize;};
+
+        auto iRank = RecvList.top().iThread;
+        dd_offset_type nSend = std::min(RecvList.top().nCount,nCount);
+        RecvList.pop();
+
+        rcounts[iRank] = nSend;
+
+        // Consume from this segment
+        assert(other->ddFreeCounts[iList]>=nSend);
+        other->ddFreeCounts[iList] -= nSend;
+        auto iDest = other->ddFreeOffset[iList] + other->ddFreeCounts[iList];
+        if (other->ddFreeCounts[iList]) FreeList.emplace(iCore,other->ddFreeCounts[iList],iList);
+
+        // Post the MPI receive
+        requests.emplace_back();
+        statuses.emplace_back();
+        MPI_Irecv(po(iDest), nSend, mpitype, iRank, MDL_TAG_SWAP, commMDL, &requests.back() );
+    }
+
+    // Now communicate how many we actually have to send
+    MPI_Alltoall(rcounts.data(),1,mpi_type(rcounts[0]),scounts.data(),1,mpi_type(scounts[0]),commMDL);
+
+    /* Now we post the matching sends. We can use "rsend" here because the receives are posted. */
+    for (auto i=0; i<Procs(); ++i) {
+        if (scounts[i]) {
+            auto other = pmdl[largest[i]];
+            auto po = [other,datasize](dd_offset_type i) {return other->ddBuffer + i*datasize;};
+            assert(scounts[i]<=other->ddCounts[i]);
+            other->ddCounts[i] -= scounts[i];
+            requests.emplace_back();
+            statuses.emplace_back();
+            MPI_Irsend(po(other->ddOffset[i]+other->ddCounts[i]), scounts[i], mpitype,
+                       i, MDL_TAG_SWAP, commMDL, &requests.back() );
+        }
+    }
+
+    /* Wait for all communication (send and recv) to finish */
+    MPI_Waitall(requests.size(), &requests.front(), &statuses.front());
+    MPI_Type_free(&mpitype);
+
+    message->sendBack();
+}
+
+
 //! Swap elements of a memory buffer between local threads.
 //! @param buffer A pointer to the start of the memory block
 //! @param count The total number of elements that count fit in the memory block
 //! @param datasize The size (in bytes) of each element
 //! @param counts The number of elements destined for each thread
-int mdlClass::swaplocal(void *buffer,int count,int datasize,/*const*/ int *counts) {
+int mdlClass::swaplocal(void *buffer,dd_offset_type count,dd_offset_type datasize,/*const*/ dd_offset_type *counts) {
     auto pBegin = static_cast<char *>(buffer);
-    auto pi = [pBegin,datasize](int i) {return pBegin + i*datasize;};
+    auto pi = [pBegin,datasize](dd_offset_type i) {return pBegin + i*datasize;};
     auto me = Core();
 
     // Example layout (we are rank 3)
@@ -1236,31 +1473,43 @@ int mdlClass::swaplocal(void *buffer,int count,int datasize,/*const*/ int *count
     // +-------------------------+----------+---------------+------------+
 
     // Setup counts and offsets. Other threads will update as they take elements
-    std::vector<int> ddFreeBeg,ddFreeEnd;
+    std::vector<dd_offset_type> ddFreeBeg,ddFreeEnd;
     ddFreeBeg.reserve(Cores()); ddFreeEnd.reserve(Cores());
-    ddOffset.reserve(Cores()); ddOffset.clear();
-    ddCounts.reserve(Cores()); ddCounts.clear();
+    ddOffset.reserve(std::max(Procs(),Cores())); ddOffset.clear();
+    ddCounts.reserve(std::max(Procs(),Cores())); ddCounts.clear();
     ddBuffer = pBegin;
-    int offset = 0;
+    dd_offset_type offset = 0;
     for (auto i=0; i<Cores(); ++i) {
         ddCounts.push_back(counts[i]);
         ddOffset.push_back(offset);
         ddFreeBeg.push_back(offset);
         offset += counts[i];
     }
+    assert(count >= offset);
+
+    // Check that we have enough space to receive everything
+    ThreadBarrier();
+    dd_offset_type nTotal = 0;
+    for (auto i=0; i<Cores(); ++i) {
+        auto other = pmdl[i];
+        nTotal += other->ddCounts[me];
+    }
+    ThreadBarrier();
+    assert(nTotal < count);
+
     // We have a special case for "our" element. Nobody will be taking them, so we
     // setup the free space at the end as available.
     ddFreeBeg[me] = offset;
     ddOffset[me] = count;
 
-    int iTake=0, iFree=0;
+    dd_offset_type iTake=0, iFree=0;
     do {
         ddFreeEnd.clear();
-        std::copy(ddOffset.begin(),ddOffset.end(),ddFreeEnd.begin());
+        std::copy(ddOffset.begin(),ddOffset.end(),std::back_inserter(ddFreeEnd));
         ThreadBarrier();
         iTake = iFree = 0;
         while (iTake<Cores() && iFree<Cores()) {
-            int nTake, nFree;
+            dd_offset_type nTake, nFree;
             // Find some data to transfer to us
             while (iTake==me || (iTake<Cores() && (nTake=pmdl[iTake]->ddCounts[me])==0)) ++iTake;
             if (iTake==Cores()) break; // We have moved everything we can (we are done)
@@ -1269,7 +1518,7 @@ int mdlClass::swaplocal(void *buffer,int count,int datasize,/*const*/ int *count
             if (iFree==Cores()) break; // No more free space -- we have to iterate
             if (nTake > nFree) nTake = nFree;
             auto other = pmdl[iTake];
-            auto po = [other,datasize](int i) {return other->ddBuffer + i*datasize;};
+            auto po = [other,datasize](dd_offset_type i) {return other->ddBuffer + i*datasize;};
             auto src = other->ddOffset[me];
             auto dst = ddFreeBeg[iFree];
             memcpy(pi(dst), po(src), nTake*datasize );
@@ -1280,7 +1529,7 @@ int mdlClass::swaplocal(void *buffer,int count,int datasize,/*const*/ int *count
     } while (ThreadBarrier(false,iTake<Cores()));
 
     // Now compact the storage
-    int dst = 0, src = 0;
+    dd_offset_type dst = 0, src = 0;
     for (auto i=0; i<Cores(); ++i) {
         auto n = i==me ? counts[me] : ddFreeBeg[i] - src;
         std::memmove(pi(dst), pi(src), n*datasize );
@@ -1291,116 +1540,9 @@ int mdlClass::swaplocal(void *buffer,int count,int datasize,/*const*/ int *count
     auto n = ddFreeBeg[me] - src;
     std::memmove(pi(dst), pi(src), n*datasize );
     dst += n;
+
+    ThreadBarrier();
     return dst;
-}
-
-/*
-** Perform a global swap: effectively a specialized in-place alltoallv
-** - data to be sent starts at "buffer" and send items are contiguous and in order by target
-** - total size of the buffer is "count" and must be at least as big as what we sent
-** - free space immediately follows send data and there must be some free space.
-*/
-int mpiClass::swapall(const char *buffer,int count,int datasize,/*const*/ int *counts) {
-    size_t size = datasize; /* NB!! must be a 64-bit type, hence size_t */
-    char *const pBufferEnd = (char *)buffer + size*count;
-    std::vector<int> rcount, scount;
-    MPI_Datatype mpitype;
-    //MPI_Request *requests;
-    std::vector<MPI_Request> requests;
-    std::vector<MPI_Status> statuses;
-    char *pSendBuff;
-    int nTotalReceived = 0;
-    int nSend, nRecv, iSend, iRecv, nMaxSend;
-    int i;
-
-    /* MPI buffers and datatype */
-    MPI_Type_contiguous(datasize,MPI_BYTE,&mpitype);
-    MPI_Type_commit(&mpitype);
-    rcount.resize(Procs());
-    scount.resize(Procs());
-
-    /* Counts of what to send and then move the "rejects" to the end of the buffer */
-    for (nSend=0,i=0; i<Procs(); ++i) nSend += counts[i];
-    assert(nSend <= count);
-    nRecv = count - nSend;
-    pSendBuff = (char *)buffer + size * nRecv;
-    if (nRecv && nSend) memmove(pSendBuff,buffer,size * nSend);
-
-    for (;;) {
-        /*
-        ** At the start of this loop:
-        **   nRecv: amount of element we have room to receive
-        **   buffer: pointer to the receive buffer
-        **   nSend: number of element (total) that we need to send
-        **   pSendBuff: pointer to first element to send
-        **   counts[]: number to send to each target: sum = nSend
-        */
-
-        /* We are done when there is nothing globally left to send */
-        MPI_Allreduce(&nSend,&nMaxSend,1,mpi_type(nSend),MPI_MAX,commMDL);
-        if (nMaxSend==0) break;
-
-        /* Collect how many we need to receive */
-        MPI_Alltoall(counts,1,mpi_type(counts[0]),&rcount[0],1,MPI_INT,commMDL);
-
-        iRecv = 0;
-        /* Calculate how many we can actually receive and post the receive */
-        for (i=0; i<Procs(); ++i) {
-            if (iRecv < nRecv && rcount[i]) {
-                if ( nRecv-iRecv < rcount[i] ) rcount[i] = nRecv-iRecv;
-                requests.emplace_back();
-                statuses.emplace_back();
-                MPI_Irecv((char *)buffer + size * iRecv, rcount[i], mpitype,
-                          i, MDL_TAG_SWAP, commMDL, &requests.back() );
-                iRecv += rcount[i];
-            }
-            else rcount[i] = 0;
-        }
-        assert(iRecv <= nRecv);
-
-        /* Now communicate how many we actually want to receive */
-        MPI_Alltoall(&rcount[0],1,MPI_INT,&scount[0],1,MPI_INT,commMDL);
-
-        /* Now we post the matching sends. We can use "rsend" here because the receives are posted. */
-        iSend = 0;
-        for (i=0; i<Procs(); ++i) {
-            if (scount[i]) {
-                requests.emplace_back();
-                statuses.emplace_back();
-                MPI_Irsend(pSendBuff + size * iSend, scount[i], mpitype,
-                           i, MDL_TAG_SWAP, commMDL, &requests.back() );
-            }
-            iSend += counts[i]; /* note "counts" here, not "scount" */
-        }
-
-        /* Wait for all communication (send and recv) to finish */
-        MPI_Waitall(requests.size(), &requests.front(), &statuses.front());
-
-        /* Now we compact the buffer for the next iteration */
-        char *pSrc = pBufferEnd;
-        pSendBuff = pBufferEnd;
-        nRecv -= iRecv; /* We received "iRecv" element, so we have that must less room */
-        for (i=Procs()-1; i>=0; --i) {
-            if (counts[i]) {
-                size_t nLeft = counts[i] - scount[i];
-                nRecv += scount[i]; /* We sent data so we have more receive room */
-                nSend -= scount[i];
-                if (nLeft) {
-                    size_t nMove = size*nLeft;
-                    if (pSrc != pSendBuff) memmove(pSendBuff - nMove, pSrc - nMove, nMove);
-                    pSendBuff -= nMove;
-                }
-                pSrc -= size * counts[i];
-                counts[i] = nLeft;
-            }
-        }
-        nTotalReceived += iRecv;
-        buffer += size * iRecv; /* New receive area */
-    }
-
-    MPI_Type_free(&mpitype);
-
-    return nTotalReceived;
 }
 
 // An indication that a thread has finished
