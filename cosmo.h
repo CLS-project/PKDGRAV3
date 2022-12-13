@@ -41,6 +41,10 @@ struct classDataBackgroundStruct {
     double a      [CLASS_BACKGROUND_SIZE];
     double t      [CLASS_BACKGROUND_SIZE];
     double H      [CLASS_BACKGROUND_SIZE];
+    double D1     [CLASS_BACKGROUND_SIZE];
+    double D2     [CLASS_BACKGROUND_SIZE];
+    double f1     [CLASS_BACKGROUND_SIZE];
+    double f2     [CLASS_BACKGROUND_SIZE];
     double rho_m  [CLASS_BACKGROUND_SIZE];
     double rho_lin[CLASS_BACKGROUND_SIZE];
     double rho_pk [CLASS_BACKGROUND_SIZE];
@@ -57,13 +61,14 @@ struct classDataPerturbationsStruct {
 };
 struct classDataStruct {
     int bClass;
+    int bClassGrowth;
     int nLinear; /* Number of linear species */
     int nPower; /* Number of linear species for measuring P(k) */
     struct classDataBackgroundStruct background;
     struct classDataPerturbationsStruct perturbations;
 };
 
-/* Nested strucst storing the CLASS GSL objects.
+/* Nested structs storing the CLASS GSL objects.
 ** They are nested in the following way:
 ** - classGslStruct (classGsl)
 **   - classGslBackgroundStruct (background)
@@ -78,6 +83,14 @@ struct classGslBackgroundStruct {
     gsl_spline       *logExp2logTime_spline;
     gsl_interp_accel *logTime2logExp_acc;
     gsl_spline       *logTime2logExp_spline;
+    gsl_interp_accel *logExp2logD1_acc;
+    gsl_spline       *logExp2logD1_spline;
+    gsl_interp_accel *logExp2lognegD2_acc;
+    gsl_spline       *logExp2lognegD2_spline;
+    gsl_interp_accel *logExp2logf1_acc;
+    gsl_spline       *logExp2logf1_spline;
+    gsl_interp_accel *logExp2logf2_acc;
+    gsl_spline       *logExp2logf2_spline;
     gsl_interp_accel *logExp2logRho_m_acc;
     gsl_spline       *logExp2logRho_m_spline;
     gsl_interp_accel *logExp2logRho_lin_acc;
