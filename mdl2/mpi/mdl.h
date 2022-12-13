@@ -215,6 +215,8 @@ public:
     std::unique_ptr<mdlMessageQueue[]> queueReceive; // Receive "Send/Ssend"
     void *pvMessageData; /* These two are for the collective malloc */
     size_t nMessageData;
+    void **pSegments;
+    uint64_t *nBytesSegment;
     int iCoreMPI;             /* Core that handles MPI requests */
     int cacheSize;
 
@@ -333,6 +335,8 @@ public:
     void Alltoallv(int dataSize,void *sbuff,int *scount,int *sdisps,void *rbuff,int *rcount,int *rdisps);
 
     int swaplocal(void *buffer,int count,int datasize,/*const*/ int *counts);
+    uint64_t new_shared_array(void **p, int nSegments,  uint64_t *nElements,uint64_t *nBytesPerElement,uint64_t nMinTotalStore=0);
+    void delete_shared_array(void *p,uint64_t nBytes);
 };
 
 class mpiClass : public mdlClass {

@@ -54,6 +54,10 @@ static inline int size_t_to_int(size_t v) {
 #endif
 #ifdef __linux__
     #include <sys/resource.h>
+    #include <sys/mman.h>
+#endif
+#ifdef HAVE_NUMA
+    #include <numa.h>
 #endif
 #include "mpi.h"
 
@@ -2477,6 +2481,86 @@ void *mdlMalloc(MDL mdl,size_t iSize) {
 void mdlFree(MDL mdl,void *p) {
     /*    MPI_Free_mem(p);*/
     free(p);
+}
+
+void mdlClass::delete_shared_array(void *p,uint64_t nBytes) {
+    if (Core()==0) munmap(p,nBytes);
+}
+
+uint64_t mdlClass::new_shared_array(void **p, int nSegments, uint64_t *nElements,uint64_t *nBytesPerElement,uint64_t nMinTotalStore) {
+    auto gcd = [](int a, int b) {                      // Greatest common divisor
+        while ( a != 0 ) {
+            auto c = a;
+            a = b%a;
+            b = c;
+        }
+        return b;
+    };
+    uint64_t nPageSize = sysconf(_SC_PAGESIZE);
+    auto align = [&gcd,nPageSize](auto &N,auto b) {     // Align elements to a page size boundary
+        auto n = nPageSize / gcd(nPageSize,b);
+        N += n-1;
+        N -= N % n;
+        assert(N*b%nPageSize == 0);
+        return N * b;
+    };
+
+    // Align each segment to a page boundary
+    uint64_t nBytes[nSegments];
+    nBytesSegment = nBytes;
+    pSegments = p;
+    nMessageData = 0;
+    for (auto i=0; i<nSegments; ++i) {
+        p[i] = nullptr;
+        nMessageData += (nBytesSegment[i] = align(nElements[i],nBytesPerElement[i]));
+    }
+    ThreadBarrier();
+    uint64_t nTotalBytes = 0;
+    for (auto t=0; t<Cores(); ++t)  {
+        assert(pmdl[t]->nMessageData == nMessageData);
+        nTotalBytes += pmdl[t]->nMessageData;
+    }
+    // If we don't have enough storage, then we need to increase the number of elements in the last segment
+    if (nTotalBytes < nMinTotalStore) {
+        ThreadBarrier();
+        auto nExtra = nMinTotalStore - nTotalBytes;
+        auto nPerThread = ((nExtra + Cores() - 1) / Cores() + nBytesPerElement[nSegments-1] - 1) / nBytesPerElement[nSegments-1];
+        nElements[nSegments-1] += nPerThread;
+        nMessageData = 0;
+        for (auto i=0; i<nSegments; ++i) {
+            nMessageData += (nBytesSegment[i] = align(nElements[i],nBytesPerElement[i]));
+        }
+        ThreadBarrier();
+    }
+
+    if (Core()==0) {
+        nTotalBytes = 0;
+        for (auto t=0; t<Cores(); ++t) nTotalBytes += pmdl[t]->nMessageData;
+        assert(nTotalBytes >= nMinTotalStore);
+        auto region = mmap(nullptr,nTotalBytes,PROT_READ|PROT_WRITE,MAP_PRIVATE|MAP_ANONYMOUS,-1,0);
+        if (region==MAP_FAILED) return 0;   // This likely means that there isn't enough memory.
+#ifdef __linux__
+        madvise(region,nTotalBytes,MADV_DONTDUMP);
+#endif
+        auto p = static_cast<char *>(region);
+        auto q = p;
+        for (auto i=0; i<nSegments; ++i) {
+            for (auto t=0; t<Cores(); ++t) {
+                auto o = pmdl[t];
+                o->pSegments[i] = p;
+                p += o->nBytesSegment[i];
+            }
+        }
+        assert(p-q == nTotalBytes);
+    }
+    ThreadBarrier();
+#ifdef HAVE_NUMA
+    for (auto i=0; i<nSegments; ++i) {
+        numa_setlocal_memory(pSegments[i],nElements[i]*nBytesPerElement[i]);
+    }
+#endif
+
+    return nTotalBytes;
 }
 
 /* This is a "thread collective" call. */
