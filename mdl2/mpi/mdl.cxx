@@ -1855,8 +1855,8 @@ int mpiClass::Launch(int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),vo
             else if (!strcmp(argv[i], "+d") && !bDiag) {
                 p = getenv("MDL_DIAGNOSTIC");
                 if (!p) p = getenv("HOME");
-                if (!p) sprintf(ach, "/tmp");
-                else sprintf(ach, "%s", p);
+                if (!p) snprintf(ach, sizeof(ach), "/tmp");
+                else snprintf(ach, sizeof(ach), "%s", p);
                 bDiag = 1;
             }
             else {

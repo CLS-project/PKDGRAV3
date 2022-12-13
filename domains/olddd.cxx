@@ -346,8 +346,8 @@ void ServiceDomainDecomp::RootSplit(PST pst,int iSplitDim,int bDoRootFind,int bD
     nSafeTot = nLowerStore + nUpperStore - (nLowTot + nHighTot);
     if (nSafeTot/pst->nLeaves < NUM_SAFETY) {
         NUM_SAFETY = nSafeTot/pst->nLeaves;
-        sprintf(ach,"id: %d tripped inactive NUM_SAFETY %d  Low %" PRIu64 "/%" PRIu64 "  High %" PRIu64 "/%" PRIu64 "\n",
-                pst->idSelf, NUM_SAFETY, nLowTot, nLowerStore, nHighTot, nUpperStore);
+        snprintf(ach,sizeof(ach),"id: %d tripped inactive NUM_SAFETY %d  Low %" PRIu64 "/%" PRIu64 "  High %" PRIu64 "/%" PRIu64 "\n",
+                 pst->idSelf, NUM_SAFETY, nLowTot, nLowerStore, nHighTot, nUpperStore);
         mdlDiag(pst->mdl,ach);
         mdlprintf(pst->mdl,"id: %d tripped inactive NUM_SAFETY %d  Low %%" PRIu64 "/%" PRIu64 "  High %" PRIu64 "/%" PRIu64 "\n",
                   pst->idSelf, NUM_SAFETY, nLowTot, nLowerStore, nHighTot, nUpperStore);
@@ -361,8 +361,8 @@ void ServiceDomainDecomp::RootSplit(PST pst,int iSplitDim,int bDoRootFind,int bD
 
 
     if (nLowTot > nLowerStore-NUM_SAFETY*pst->nLower) {
-        sprintf(ach,"id: %d: nLowTot > nLowerStore-NUM_SAFETY*pst->nLower %" PRIu64 " %" PRIu64 " %d %d\n",
-                pst->idSelf, nLowTot, nLowerStore, NUM_SAFETY, pst->nLower);
+        snprintf(ach,sizeof(ach),"id: %d: nLowTot > nLowerStore-NUM_SAFETY*pst->nLower %" PRIu64 " %" PRIu64 " %d %d\n",
+                 pst->idSelf, nLowTot, nLowerStore, NUM_SAFETY, pst->nLower);
         mdlDiag(pst->mdl,ach);
         fm = std::max(std::min(fm,bnd.upper(dBnd)),bnd.lower(dBnd));
         fl = fm;
@@ -429,8 +429,8 @@ void ServiceDomainDecomp::RootSplit(PST pst,int iSplitDim,int bDoRootFind,int bD
         mdlPrintTimer(pst->mdl,"TIME fix lower II _pstRootSplit ",&t);
     }
     else if (nHighTot > nUpperStore-NUM_SAFETY*pst->nUpper) {
-        sprintf(ach,"id: %d: nHighTot > nUpperStore-NUM_SAFETY*pst->nUpper %" PRIu64 " %" PRIu64 " %d %d\n",
-                pst->idSelf, nHighTot, nUpperStore, NUM_SAFETY, pst->nUpper);
+        snprintf(ach,sizeof(ach),"id: %d: nHighTot > nUpperStore-NUM_SAFETY*pst->nUpper %" PRIu64 " %" PRIu64 " %d %d\n",
+                 pst->idSelf, nHighTot, nUpperStore, NUM_SAFETY, pst->nUpper);
         mdlDiag(pst->mdl,ach);
         fm = std::max(std::min(fm,bnd.upper(dBnd)),bnd.lower(dBnd));
         fu = fm;
@@ -489,8 +489,8 @@ void ServiceDomainDecomp::RootSplit(PST pst,int iSplitDim,int bDoRootFind,int bD
     }
 
     if (nLowTot < NUM_SAFETY*pst->nLower) {
-        sprintf(ach,"id: %d: nLowTot < NUM_SAFETY*pst->nLower %" PRIu64 " %" PRIu64 " %d %d\n",
-                pst->idSelf, nLowTot, nLowerStore, NUM_SAFETY, pst->nLower);
+        snprintf(ach,sizeof(ach),"id: %d: nLowTot < NUM_SAFETY*pst->nLower %" PRIu64 " %" PRIu64 " %d %d\n",
+                 pst->idSelf, nLowTot, nLowerStore, NUM_SAFETY, pst->nLower);
         mdlDiag(pst->mdl,ach);
         fm = std::max(std::min(fm,bnd.upper(dBnd)),bnd.lower(dBnd));
         fu = fm;
@@ -548,8 +548,8 @@ void ServiceDomainDecomp::RootSplit(PST pst,int iSplitDim,int bDoRootFind,int bD
         mdlPrintTimer(pst->mdl,"TIME fix lower II _pstRootSplit ",&t);
     }
     if (nHighTot < NUM_SAFETY*pst->nUpper) {
-        sprintf(ach,"id: %d: nHighTot > nUpperStore-NUM_SAFETY*pst->nUpper %" PRIu64 " %" PRIu64 " %d %d\n",
-                pst->idSelf, nHighTot, nUpperStore, NUM_SAFETY, pst->nUpper);
+        snprintf(ach,sizeof(ach),"id: %d: nHighTot > nUpperStore-NUM_SAFETY*pst->nUpper %" PRIu64 " %" PRIu64 " %d %d\n",
+                 pst->idSelf, nHighTot, nUpperStore, NUM_SAFETY, pst->nUpper);
         mdlDiag(pst->mdl,ach);
         fm = std::max(std::min(fm,bnd.upper(dBnd)),bnd.lower(dBnd));
         fl = fm;

@@ -168,7 +168,7 @@ static_assert(sizeof(timer_names) / sizeof(timer_names[0]) == TOTAL_TIMERS);
 
 void MSR::TimerHeader() {
     char achFile[PST_FILENAME_SIZE];
-    sprintf(achFile,"%s.timing",OutName());
+    snprintf(achFile,sizeof(achFile),"%s.timing",OutName());
     FILE *fpLog = NULL;
     fpLog = fopen(achFile,"a");
     fprintf(fpLog,"# Step");
@@ -181,7 +181,7 @@ void MSR::TimerHeader() {
 
 void MSR::TimerDump(int iStep) {
     char achFile[PST_FILENAME_SIZE];
-    sprintf(achFile,"%s.timing",OutName());
+    snprintf(achFile,sizeof(achFile),"%s.timing",OutName());
     FILE *fpLog = NULL;
     fpLog = fopen(achFile,"a");
 
@@ -882,7 +882,7 @@ void MSR::Initialize() {
     prmAddParam(prm,"nTruncateRung",1,&param.nTruncateRung,sizeof(int),"nTR",
                 "<number of MaxRung particles to delete MaxRung> = 0");
     param.iMaxRung = IRUNGMAX;
-    sprintf(ach,"<maximum timestep rung> = %d",param.iMaxRung);
+    snprintf(ach,sizeof(ach),"<maximum timestep rung> = %d",param.iMaxRung);
     prmAddParam(prm,"iMaxRung",1,&param.iMaxRung,sizeof(int),
                 "mrung",ach);
     param.bNewKDK = 0;
@@ -3491,7 +3491,7 @@ void MSR::OutputFineStatistics(double dStep, double dTime) {
     if (dTime==-1) {
         char achFile[PST_FILENAME_SIZE];
         /* Initialization */
-        sprintf(achFile,"%s.finelog",OutName());
+        snprintf(achFile,sizeof(achFile),"%s.finelog",OutName());
         fpFineLog = fopen(achFile,"a");
         assert(fpFineLog != NULL);
         setbuf(fpFineLog,(char *) NULL); /* no buffering */

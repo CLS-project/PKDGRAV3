@@ -308,7 +308,6 @@ static int CheckSeed (unsigned long seed[6]) {
 RngStream RngStream_CreateStream (const char name[]) {
     int i;
     RngStream g;
-    size_t len;
 
     g = (RngStream) malloc (sizeof (struct RngStream_InfoState));
     if (g == NULL) {
@@ -316,9 +315,7 @@ RngStream RngStream_CreateStream (const char name[]) {
         exit (EXIT_FAILURE);
     }
     if (name) {
-        len = strlen (name);
-        g->name = (char *) malloc ((len + 1) * sizeof (char));
-        strncpy (g->name, name, len + 1);
+        g->name = strdup(name);
     }
     else
         g->name = 0;

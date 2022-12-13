@@ -143,8 +143,9 @@ void pkdOutput(PKD pkd, outType eOutputType, int iProcessor,int nProcessor,
     mdlPack unpack;
     asyncFileInfo info;
     char achOutFile[256];
+    int n = strlen(achOutFile);
     strcpy(achOutFile,fname);
-    sprintf(achOutFile+strlen(achOutFile),".%d",iProcessor);
+    snprintf(achOutFile+n,sizeof(achOutFile)-n,".%d",iProcessor);
     io_init(&info,4,1024*1024,IO_AIO|IO_LIBAIO);
     if (io_create(&info,achOutFile) < 0) { perror(fname); abort(); }
 
