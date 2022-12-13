@@ -282,6 +282,10 @@ struct inInitializePStore {
     int iWorkQueueSize;
     int iCUDAQueueSize;
 };
+struct outInitializePStore {
+    int nSizeParticle;
+    int nSizeNode;
+};
 int pstInitializePStore(PST,void *,int,void *,int);
 
 
@@ -317,13 +321,6 @@ struct inWriteASCII {
     char achOutFile[PST_FILENAME_SIZE];
 };
 int pstWriteASCII(PST,void *,int,void *,int);
-
-/* PST_RESTORE */
-struct inRestore {
-    int nProcessors;
-    char achInFile[PST_FILENAME_SIZE];
-};
-int pstRestore(PST,void *,int,void *,int);
 
 /* PST_WRITE */
 struct inWrite {

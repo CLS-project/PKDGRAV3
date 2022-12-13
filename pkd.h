@@ -634,6 +634,9 @@ public:
         if ((nNodes&1)==0) ++nNodes;
         return TreeAllocNode();
     }
+// I/O
+public:
+    void Restore(uint64_t iElement,const std::string &filename,uint64_t iBeg,uint64_t iEnd);
 
 public:
     mdl::mdlClass *mdl;
@@ -1290,7 +1293,6 @@ int pkdInactive(PKD);
 int pkdColOrdRejects(PKD,uint64_t,int);
 void pkdLocalOrder(PKD,uint64_t iMinOrder,uint64_t iMaxOrder);
 void pkdCheckpoint(PKD pkd,const char *fname);
-void pkdRestore(PKD pkd,const char *fname);
 void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dScaleFactor, double dTime,
                        uint64_t nDark, uint64_t nGas, uint64_t nStar, uint64_t nBH,
                        double dBoxSize, double h, int nProcessors, UNITS units);

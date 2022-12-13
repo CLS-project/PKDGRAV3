@@ -56,6 +56,7 @@
 #endif
 #include <sys/stat.h>
 #include <algorithm>
+#include <numeric>
 #include <functional>
 #include <fstream>
 #ifdef HAVE_SYS_PARAM_H
@@ -79,6 +80,7 @@ using namespace fmt::literals; // Gives us ""_a and ""_format literals
 #include "core/calcroot.h"
 #include "core/select.h"
 
+#include "io/restore.h"
 #include "initlightcone.h"
 
 #include "domains/distribtoptree.h"
@@ -329,7 +331,7 @@ uint64_t MSR::getMemoryModel() {
     return mMemoryModel;
 }
 
-void MSR::InitializePStore(uint64_t *nSpecies,uint64_t mMemoryModel) {
+std::pair<int,int> MSR::InitializePStore(uint64_t *nSpecies,uint64_t mMemoryModel,uint64_t nEphemeral) {
     struct inInitializePStore ps;
     double dStorageAmount = (1.0+param.dExtraStore);
     int i;
@@ -360,7 +362,7 @@ void MSR::InitializePStore(uint64_t *nSpecies,uint64_t mMemoryModel) {
     ps.nMinTotalStore = 0;
 
     /* Various features require more or less ephemeral storage */
-    ps.nEphemeralBytes = 0;
+    ps.nEphemeralBytes = nEphemeral;
     if (param.iFofInterval   && ps.nEphemeralBytes < 4) ps.nEphemeralBytes = 4;
     if (param.bFindHopGroups && ps.nEphemeralBytes < 8) ps.nEphemeralBytes = 8;
     if (param.iPkInterval    && ps.nEphemeralBytes < 4) ps.nEphemeralBytes = 4;
@@ -415,7 +417,8 @@ void MSR::InitializePStore(uint64_t *nSpecies,uint64_t mMemoryModel) {
         Py_DECREF(attr_per_node);
         Py_DECREF(attr_per_part);
     }
-    pstInitializePStore(pst,&ps,sizeof(ps),NULL,0);
+    outInitializePStore pout;
+    pstInitializePStore(pst,&ps,sizeof(ps),&pout,sizeof(pout));
     PKD pkd = pst->plcl->pkd;
     printf("Allocated %lu MB for particle store on each processor.\n",
            pkd->ParticleMemory()/(1024*1024));
@@ -427,23 +430,70 @@ void MSR::InitializePStore(uint64_t *nSpecies,uint64_t mMemoryModel) {
     }
     if (ps.nMinEphemeral)
         printf("Ephemeral will be at least %" PRIu64 " MB per node.\n",ps.nMinEphemeral/(1024*1024));
+    return std::make_pair(pout.nSizeParticle,pout.nSizeNode);
 }
+
+void MSR::stat_files(std::vector<uint64_t> &counts,const std::string &filename_template, uint64_t element_size) {
+    ServiceFileSizes::input hdr;
+
+    strncpy(hdr.filename,filename_template.c_str(),sizeof(hdr.filename));
+    hdr.nSimultaneous = hdr.nTotalActive = param.bParaRead==0?1:(param.nParaRead<=1 ? nThreads:param.nParaRead);
+    hdr.iReaderWriter = 0;
+    hdr.nElementSize = 1;
+
+    auto out = new ServiceFileSizes::output[ServiceFileSizes::max_files];
+    auto n = mdl->RunService(PST_FILE_SIZES,sizeof(hdr),&hdr,out);
+    n /= sizeof(ServiceFileSizes::output);
+    counts.resize(n);
+
+    for (auto i=0; i<n; ++i) {
+        assert(out[i].iFileIndex<n);
+        counts[out[i].iFileIndex] = out[i].nFileBytes/element_size;
+    }
+    delete [] out;
+}
+
+void MSR::Restore(const std::string &baseName,int nSizeParticle) {
+    std::vector<uint64_t> counts;
+    std::string filename_template = baseName + ".{i}";
+    TimerStart(TIMER_NONE);
+    printf("Scanning Checkpoint files...\n");
+    stat_files(counts,filename_template,nSizeParticle);
+    TimerStop(TIMER_NONE);
+    auto dsec = TimerGet(TIMER_NONE);
+    printf("... identified %" PRIu64 " particles in %d files, Wallclock: %f secs.\n",
+           std::accumulate(counts.begin(),counts.end(),uint64_t(0)),
+           int(counts.size()), dsec);
+
+    using mdl::ServiceBuffer;
+    ServiceBuffer msg {
+        ServiceBuffer::Field<ServiceInput::input>(),
+        ServiceBuffer::Field<ServiceInput::io_elements>(counts.size())
+    };
+    auto hdr = static_cast<ServiceInput::input *>(msg.data(0));
+    auto elements = static_cast<ServiceInput::io_elements *>(msg.data(1));
+    hdr->nFiles = counts.size();
+    hdr->nElements = std::accumulate(counts.begin(),counts.end(),uint64_t(0));
+    std::copy(counts.begin(),counts.end(),elements);
+    hdr->iBeg = 0;
+    hdr->iEnd = hdr->nElements;
+    strncpy(hdr->io.filename,filename_template.c_str(),sizeof(hdr->io.filename));
+    hdr->io.nSimultaneous = param.bParaRead==0?1:(param.nParaRead<=1 ? nThreads:param.nParaRead);
+    hdr->io.nSegment = hdr->io.iThread = 0; // setup later
+    hdr->io.iReaderWriter = 0;
+    mdl->RunService(PST_RESTORE,msg);
+}
+
 
 void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTime, double dDelta) {
     auto sec = MSR::Time();
 
-    if (mdlThreads(mdl) != n) {
-        fprintf(stderr,"ERROR: You must restart a checkpoint with the same number of threads\n");
-        fprintf(stderr,"       nThreads=%d, nCheckpointThreads=%d\n",mdlThreads(mdl),n);
-        fprintf(stderr,"       RESTART WITH %d THREADS\n",n);
-        Exit(1);
-    }
     ValidateParameters(); // Should be okay, but other stuff happens here (cosmo is setup for example)
 
     bVDetails = getParameterBoolean("bVDetails");
     if (param.bVStart)
         printf("Restoring from checkpoint\n");
-    TimerStart(TIMER_NONE);
+    TimerStart(TIMER_IO);
     param.bRestart = 1;
 
     nMaxOrder = N - 1; // iOrder goes from 0 to N-1
@@ -459,20 +509,25 @@ void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTi
     mMemoryModel = getMemoryModel();
     if (nGas && !prmSpecified(prm,"bDoGas")) param.bDoGas = 1;
     if (DoGas() && NewSPH()) mMemoryModel |= (PKD_MODEL_NEW_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_DENSITY|PKD_MODEL_BALL|PKD_MODEL_NODE_BOB);
-    InitializePStore(nSpecies,mMemoryModel);
+    auto [nSizeParticle,nSizeNode] = InitializePStore(nSpecies,mMemoryModel,param.nMemEphemeral);
 
-    struct inRestore restore;
-    restore.nProcessors = param.bParaRead==0?1:(param.nParaRead<=1 ? nThreads:param.nParaRead);
-    strcpy(restore.achInFile,baseName);
-    pstRestore(pst,&restore,sizeof(restore),NULL,0);
+    Restore(baseName,nSizeParticle);
     pstSetClasses(pst,aCheckpointClasses,nCheckpointClasses*sizeof(PARTCLASS),NULL,0);
     CalcBound();
     CountRungs(NULL);
 
-    TimerStop(TIMER_NONE);
-    auto dsec = TimerGet(TIMER_NONE);
+    TimerStop(TIMER_IO);
+    auto dsec = TimerGet(TIMER_IO);
     double dExp = csmTime2Exp(csm,dTime);
-    msrprintf("Checkpoint Restart Complete @ a=%g, Wallclock: %f secs\n\n",dExp,dsec);
+    if (dsec > 0.0) {
+        double rate = N*nSizeParticle / dsec;
+        const char *units = "B";
+        if (rate > 10000) { rate /= 1024;   units = "KB"; }
+        if (rate > 10000) { rate /= 1024;   units = "MB"; }
+        if (rate > 10000) { rate /= 1024;   units = "GB"; }
+        msrprintf("Checkpoint Restart Complete @ a=%g, Wallclock: %f secs (%.2f %s/s)\n\n",dExp,dsec,rate,units);
+    }
+    else msrprintf("Checkpoint Restart Complete @ a=%g, Wallclock: %f secs\n\n",dExp,dsec);
 
     /* We can indicate that the DD was already done at rung 0 */
     iLastRungRT = 0;
@@ -1184,6 +1239,9 @@ void MSR::Initialize() {
                 sizeof(int),"wic","<Write IC after generating> = 0");
 
     /* Memory models */
+    param.nMemEphemeral = 0;
+    prmAddParam(prm,"nMemEphemeral",4,&param.nMemEphemeral,
+                sizeof(param.nMemEphemeral),"ephemeral","<minimum size of emphemeral> = 0");
     param.bMemIntegerPosition = 0;
     prmAddParam(prm,"bMemIntegerPosition",0,&param.bMemIntegerPosition,
                 sizeof(int),"integer","<Particles have integerized positions> = -integer");
@@ -5058,7 +5116,7 @@ double MSR::GenerateIC() {
     else {
         nSpecies[FIO_SPECIES_ALL] = nSpecies[FIO_SPECIES_DARK] = nTotal;
     }
-    InitializePStore(nSpecies,getMemoryModel()); // We now need a bit of cosmology to set the maximum lightcone depth here.
+    InitializePStore(nSpecies,getMemoryModel(),param.nMemEphemeral); // We now need a bit of cosmology to set the maximum lightcone depth here.
     InitCosmology();
 
     in.dOmegaRate = csm->val.dOmegab/csm->val.dOmega0;
@@ -5212,7 +5270,7 @@ double MSR::Read(const char *achInFile) {
 
 
     for ( auto s=FIO_SPECIES_ALL; s<FIO_SPECIES_LAST; s=FIO_SPECIES(s+1)) nSpecies[s] = fioGetN(fio,s);
-    InitializePStore(nSpecies,mMemoryModel);
+    InitializePStore(nSpecies,mMemoryModel,param.nMemEphemeral);
 
     read->dOmega0 = csm->val.dOmega0;
     read->dOmegab = csm->val.dOmegab;

@@ -20,7 +20,7 @@
 #ifndef _GNU_SOURCE
     #define _GNU_SOURCE 1
 #endif
-
+#include "pkd_config.h"
 #include <fcntl.h>
 #include <sys/types.h>
 
@@ -50,6 +50,7 @@ typedef struct {
     } io;
 #endif
     char *pBuffer[IO_MAX_ASYNC_COUNT];
+    size_t iOffset[IO_MAX_ASYNC_COUNT];
     size_t nExpected[IO_MAX_ASYNC_COUNT];
     off_t iFilePosition;   /* File position */
     size_t nBufferSize;    /* Total size of the buffer */
@@ -67,18 +68,13 @@ typedef struct {
 #define IO_AIO     1
 #define IO_LIBAIO  2
 
-#ifdef __cplusplus
-extern "C" {
-#endif
 void io_init(asyncFileInfo *info, size_t nBuffers,size_t nBufferSize,int method);
 void io_free(asyncFileInfo *info);
 int io_create(asyncFileInfo *info, const char *pathname);
 int io_open(asyncFileInfo *info, const char *pathname);
 void io_write(asyncFileInfo *info, void *buf, size_t count);
 void io_read(asyncFileInfo *info, void *buf, size_t count);
+void io_read(asyncFileInfo *info, void *buf, size_t count,size_t offset);
 void io_close(asyncFileInfo *info);
-#ifdef __cplusplus
-}
-#endif
 
 #endif

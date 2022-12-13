@@ -1599,33 +1599,6 @@ void pkdCheckpoint(PKD pkd,const char *fname) {
     io_close(&info);
 }
 
-void pkdRestore(PKD pkd,const char *fname) {
-    asyncFileInfo info;
-    size_t nFileSize;
-    int fd;
-    io_init(&info, IO_MAX_ASYNC_COUNT, 0, IO_AIO|IO_LIBAIO);
-    fd = io_open(&info, fname);
-    if (fd<0) {
-        perror(fname);
-        abort();
-    }
-    struct stat s;
-    if ( fstat(fd,&s) != 0 ) {
-        perror(fname);
-        abort();
-    }
-    nFileSize = s.st_size;
-    pkd->SetLocal(nFileSize / pkd->ParticleSize());
-    char *pBuffer = (char *)pkd->ParticleBase();
-    while (nFileSize) {
-        size_t count = nFileSize > MAX_IO_BUFFER_SIZE ? MAX_IO_BUFFER_SIZE : nFileSize;
-        io_read(&info, pBuffer, count);
-        pBuffer += count;
-        nFileSize -= count;
-    }
-    io_close(&info);
-}
-
 /*****************************************************************************\
 * Write particles received from another node
 \*****************************************************************************/
