@@ -400,6 +400,8 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
 #endif
     uint64_t nPageMask = nPageSize-1;
 
+    io_init(&afiLightCone,0,0,IO_AIO|IO_LIBAIO);
+
 #define RANDOM_SEED 1
     srand(RANDOM_SEED);
 
