@@ -190,6 +190,7 @@ target_sources(${PROJECT_NAME} PRIVATE
 	domains/calcbound.cxx domains/combinebound.cxx domains/distribtoptree.cxx domains/distribroot.cxx domains/dumptrees.cxx
 	domains/enforceperiodic.cxx domains/freestore.cxx domains/olddd.cxx domains/getordsplits.cxx
 	gravity/setsoft.cxx gravity/activerung.cxx gravity/countrungs.cxx gravity/zeronewrung.cxx
+	analysis/rsloadids.cxx analysis/rssaveids.cxx analysis/rsextract.cxx analysis/rsreorder.cxx
 	eEOS/eEOS.cxx
 	SPH/SPHOptions.cxx SPH/SPHEOS.cxx SPH/SPHpredict.cxx initlightcone.cxx
 )
@@ -283,6 +284,28 @@ foreach(flag_var
       string(REPLACE "-DNDEBUG" "" ${flag_var} "${${flag_var}}")
    endif(${flag_var} MATCHES "-DNDEBUG")
 endforeach(flag_var)
+
+# The header files for rockstar conflict with C++ so make symbolic links
+set(ROCKSTAR_PATH CACHE STRING "Path to the Rockstar source code")
+if(ROCKSTAR_PATH)
+    set(HAVE_ROCKSTAR TRUE)
+    file(REAL_PATH ${ROCKSTAR_PATH} rdir EXPAND_TILDE)
+    make_directory(${CMAKE_BINARY_DIR}/rockstar)
+    make_directory(${CMAKE_BINARY_DIR}/rockstar/io)
+    foreach(file particle.h halo.h io/io_internal.h)
+        #find_file(rs_src ${file} PATHS ${rdir} NO_DEFAULT_PATH NO_CACHE REQUIRED)
+        add_custom_command(
+            OUTPUT ${CMAKE_BINARY_DIR}/rockstar/${file}
+            MAIN_DEPENDENCY ${rdir}/${file}
+            COMMAND ${CMAKE_COMMAND} -E create_symlink
+                ${rdir}/${file}
+                ${CMAKE_BINARY_DIR}/rockstar/${file}
+            VERBATIM
+        )
+        target_sources(${PROJECT_NAME} PRIVATE ${CMAKE_BINARY_DIR}/rockstar/${file})
+    endforeach()
+    target_sources(${PROJECT_NAME} PRIVATE analysis/rshaloloadids.cxx analysis/rshalocount.cxx)
+endif()
 
 option(HYDRO "Compile with hydrodynamics support" ON)
 if (HYDRO)

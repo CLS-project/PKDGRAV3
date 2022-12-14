@@ -83,6 +83,19 @@ using namespace fmt::literals; // Gives us ""_a and ""_format literals
 #include "io/restore.h"
 #include "initlightcone.h"
 
+#ifdef HAVE_ROCKSTAR
+#include "analysis/rshalocount.h"
+#include "analysis/rshaloloadids.h"
+namespace rockstar {
+#include "rockstar/io/io_internal.h"
+#include "rockstar/halo.h"
+}
+#endif
+
+#include "analysis/rsloadids.h"
+#include "analysis/rssaveids.h"
+#include "analysis/rsextract.h"
+
 #include "domains/distribtoptree.h"
 #include "domains/distribroot.h"
 #include "domains/dumptrees.h"
@@ -488,6 +501,11 @@ void MSR::Restore(const std::string &baseName,int nSizeParticle) {
 void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTime, double dDelta) {
     auto sec = MSR::Time();
 
+    if (parameter_overrides) {
+        if (!update_parameters(parameter_overrides)) Exit(1);
+        parameter_overrides = nullptr; // This is not owned by us
+    }
+
     ValidateParameters(); // Should be okay, but other stuff happens here (cosmo is setup for example)
 
     bVDetails = getParameterBoolean("bVDetails");
@@ -562,7 +580,7 @@ void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTi
         SetSPHoptions();
         InitializeEOS();
     }
-
+    if (bAnalysis) return; // Very cheeserific
     Simulate(dTime,dDelta,iStep,nSteps);
 }
 
@@ -6313,4 +6331,134 @@ void MSR::OutputOrbits(int iStep,double dTime) {
         }
         fs.close();
     }
+}
+
+#ifdef HAVE_ROCKSTAR
+void MSR::RsHaloLoadIds(const std::string &filename_template,bool bAppend) {
+    std::vector<uint64_t> counts;
+
+    TimerStart(TIMER_NONE);
+    printf("Scanning Rockstar halo binary files...\n");
+    ServiceRsHaloCount::input hdr;
+    strncpy(hdr.filename,filename_template.c_str(),sizeof(hdr.filename));
+    hdr.nSimultaneous = hdr.nTotalActive = param.bParaRead==0?1:(param.nParaRead<=1 ? nThreads:param.nParaRead);
+    hdr.iReaderWriter = 0;
+    hdr.nElementSize = 1;
+    auto out = new ServiceFileSizes::output[ServiceFileSizes::max_files];
+    auto n = mdl->RunService(PST_RS_HALO_COUNT,sizeof(hdr),&hdr,out);
+    n /= sizeof(ServiceFileSizes::output);
+    counts.resize(n);
+    for (auto i=0; i<n; ++i) {
+        assert(out[i].iFileIndex<n);
+        counts[out[i].iFileIndex] = out[i].nFileBytes;
+    }
+    delete [] out;
+
+    if (counts.size()==0) {
+        perror(filename_template.c_str());
+        abort();
+    }
+    TimerStop(TIMER_NONE);
+    auto dsec = TimerGet(TIMER_NONE);
+
+    printf("... identified %" PRIu64 " halos in %d files, Wallclock: %f secs.\n",
+           std::accumulate(counts.begin(),counts.end(),uint64_t(0)),
+           int(counts.size()), dsec);
+    RsLoadIds(PST_RS_HALO_LOAD_IDS,counts,filename_template,bAppend);
+    TimerStop(TIMER_IO);
+}
+#endif
+
+void MSR::RsLoadIds(int sid,std::vector<uint64_t> &counts,const std::string &filename_template,bool bAppend) {
+    using mdl::ServiceBuffer;
+    ServiceBuffer msg {
+        ServiceBuffer::Field<ServiceInput::input>(),
+        ServiceBuffer::Field<ServiceRsLoadIds::io_elements>(counts.size()),
+        ServiceBuffer::Field<ServiceRsLoadIds::input>()
+    };
+    auto hdr = static_cast<ServiceInput::input *>(msg.data(0));
+    auto elements = static_cast<ServiceRsLoadIds::io_elements *>(msg.data(1));
+    auto in = static_cast<ServiceRsLoadIds::input *>(msg.data(2));
+    in->bAppend = bAppend;
+    hdr->nFiles = counts.size();
+    hdr->nElements = std::accumulate(counts.begin(),counts.end(),uint64_t(0));
+    std::copy(counts.begin(),counts.end(),elements);
+    hdr->iBeg = 0;
+    hdr->iEnd = hdr->nElements;
+    strncpy(hdr->io.filename,filename_template.c_str(),sizeof(hdr->io.filename));
+    hdr->io.nSimultaneous = param.bParaRead==0?1:(param.nParaRead<=1 ? nThreads:param.nParaRead);
+    hdr->io.nSegment = hdr->io.iThread = 0; // setup later
+    hdr->io.iReaderWriter = 0;
+    printf("Loading %" PRIu64 " particle IDs from %d files\n",hdr->nElements,hdr->nFiles);
+    TimerStart(TIMER_NONE);
+    mdl->RunService(sid,msg);
+    TimerStop(TIMER_NONE);
+    auto dsec = TimerGet(TIMER_NONE);
+    printf("... finished reading particles IDs, Wallclock: %f secs.\n",dsec);
+}
+
+void MSR::RsLoadIds(const std::string &filename_template,bool bAppend) {
+    std::vector<uint64_t> counts;
+    TimerStart(TIMER_NONE);
+    printf("Scanning Particle ID binary files...\n");
+    stat_files(counts,filename_template,sizeof(uint64_t));
+    TimerStop(TIMER_NONE);
+    auto dsec = TimerGet(TIMER_NONE);
+    printf("... identified %" PRIu64 " IDs in %d files, Wallclock: %f secs.\n",
+           std::accumulate(counts.begin(),counts.end(),uint64_t(0)),
+           int(counts.size()), dsec);
+    RsLoadIds(PST_RS_LOAD_IDS,counts,filename_template,bAppend);
+}
+
+void MSR::RsSaveIds(const std::string &filename_template) {
+    ServiceRsSaveIds::input hdr;
+    strncpy(hdr.io.filename,filename_template.c_str(),sizeof(hdr.io.filename));
+    hdr.io.nSimultaneous = param.bParaWrite==0?1:param.nParaWrite<=1 ? nThreads:param.nParaWrite;
+    hdr.io.nSegment = hdr.io.iThread = 0; // setup later
+    hdr.io.iReaderWriter = 0;
+    printf("Saving particle IDS\n");
+    TimerStart(TIMER_NONE);
+    mdl->RunService(PST_RS_SAVE_IDS,sizeof(hdr),&hdr);
+    TimerStop(TIMER_NONE);
+    auto dsec = TimerGet(TIMER_NONE);
+    printf("... finished writing particles IDs, Wallclock: %f secs.\n",dsec);
+}
+
+void MSR::RsReorderIds() {
+    using mdl::ServiceBuffer;
+    ServiceBuffer msg {
+        ServiceBuffer::Field<ServiceRsExtract::input>(mdl->Threads()+1)
+    };
+    auto pOrds = static_cast<ServiceRsExtract::input *>(msg.data(0));
+    pOrds[mdl->Threads()] = N;
+    printf("Reordering particle IDS\n");
+    TimerStart(TIMER_NONE);
+    mdl->RunService(PST_GET_ORD_SPLITS,pOrds);
+    mdl->RunService(PST_RS_REORDER_IDS,msg);
+    TimerStop(TIMER_NONE);
+    auto dsec = TimerGet(TIMER_NONE);
+    printf("... finished reordering particles IDs, Wallclock: %f secs.\n",dsec);
+}
+
+void MSR::RsExtract(const char *filename_template) {
+    printf("Extracting matching particles\n");
+    using mdl::ServiceBuffer;
+    ServiceBuffer msg {
+        ServiceBuffer::Field<ServiceRsExtract::header>(),
+        ServiceBuffer::Field<ServiceRsExtract::input>(mdl->Threads()+1)
+    };
+    auto hdr = static_cast<ServiceRsExtract::header *>(msg.data(0));
+    strncpy(hdr->io.filename,filename_template,sizeof(hdr->io.filename));
+    hdr->io.nSimultaneous = param.bParaWrite==0?1:param.nParaWrite<=1 ? nThreads:param.nParaWrite;
+    hdr->io.nSegment = hdr->io.iThread = 0; // setup later
+    hdr->io.iReaderWriter = 0;
+
+    auto pOrds = static_cast<ServiceRsExtract::input *>(msg.data(1));
+    pOrds[mdl->Threads()] = N;
+    TimerStart(TIMER_NONE);
+    mdl->RunService(PST_GET_ORD_SPLITS,pOrds);
+    mdl->RunService(PST_RS_EXTRACT,msg);
+    TimerStop(TIMER_NONE);
+    auto dsec = TimerGet(TIMER_NONE);
+    printf("... finished extracting particles, Wallclock: %f secs.\n",dsec);
 }

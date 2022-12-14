@@ -638,6 +638,20 @@ public:
 public:
     void Restore(uint64_t iElement,const std::string &filename,uint64_t iBeg,uint64_t iEnd);
 
+// Rockstar Analysis
+protected:
+    uint64_t nRsElements;
+public:
+    void RsHaloIdStart(uint64_t nElements,bool bAppend=false);
+    void RsHaloIdFinish(uint64_t nElements);
+    void RsHaloIdRead(uint64_t iElement,const std::string &filename,uint64_t iBeg,uint64_t iEnd);
+    void RsIdStart(uint64_t nElements,bool bAppend=false);
+    void RsIdFinish(uint64_t nElements);
+    void RsIdRead(uint64_t iElement,const std::string &filename,uint64_t iBeg,uint64_t iEnd);
+    void RsIdSave(int iGroup,const std::string &filename,int iSegment,int nSegment);
+    void RsReorder(uint64_t *pOrds);
+    void RsExtract(const std::string &filename, int iSegment, uint64_t *pOrds);
+
 public:
     mdl::mdlClass *mdl;
     auto Self()    const {

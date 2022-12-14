@@ -45,6 +45,7 @@
 #cmakedefine HAVE_LIBAIO 1
 #cmakedefine HAVE_AIO_H 1
 #cmakedefine POTENTIAL_IN_LIGHTCONE
+#cmakedefine HAVE_ROCKSTAR 1
 
 #cmakedefine USE_SIMD 1
 #ifdef USE_SIMD

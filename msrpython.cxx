@@ -430,13 +430,31 @@ static PyTypeObject ephemeralType = {
 
 /********** Set Internal parameters **********/
 
-bool MSR::setParameters(PyObject *kwobj,bool bIgnoreUnknown) {
+bool MSR::verify_parameters(PyObject *kwobj) {
     bool bSuccess = true;
     PyObject *key, *value;
     Py_ssize_t pos = 0;
-    auto allow = PyDict_GetItemString(kwobj,"bIgnoreUnknown");
-    if (allow) bIgnoreUnknown = PyObject_IsTrue(allow)>0;
+    while (PyDict_Next(kwobj, &pos, &key, &value)) {
+        const char *keyString;
+        if (PyUnicode_Check(key)) {
+            PyObject *ascii = PyUnicode_AsASCIIString(key);
+            keyString = PyBytes_AsString(ascii);
+            Py_DECREF(ascii);
+            if (keyString[0]=='_') continue;
+        }
+        if (!PyObject_HasAttr(arguments,key)) {
+            PyErr_Format(PyExc_AttributeError,"invalid parameter %A",key);
+            PyErr_Print();
+            bSuccess=false;
+        }
+    }
+    return bSuccess;
+}
 
+bool MSR::update_parameters(PyObject *kwobj,bool bIgnoreUnknown) {
+    bool bSuccess = true;
+    PyObject *key, *value;
+    Py_ssize_t pos = 0;
     while (PyDict_Next(kwobj, &pos, &key, &value)) {
         const char *keyString;
         if (PyUnicode_Check(key)) {
@@ -456,6 +474,14 @@ bool MSR::setParameters(PyObject *kwobj,bool bIgnoreUnknown) {
         }
     }
     ppy2prm(prm,arguments,specified);
+    return bSuccess;
+}
+
+bool MSR::setParameters(PyObject *kwobj,bool bIgnoreUnknown) {
+    auto allow = PyDict_GetItemString(kwobj,"bIgnoreUnknown");
+    if (allow) bIgnoreUnknown = PyObject_IsTrue(allow)>0;
+
+    auto bSuccess = update_parameters(kwobj,bIgnoreUnknown);
     ValidateParameters();
     return bSuccess;
 }
@@ -532,6 +558,64 @@ ppy_msr_GenerateIC(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
 }
 
 /********** File I/O **********/
+
+static int run_script(MSRINSTANCE *self,const char *filename) {
+    FILE *fp = fopen(filename,"r");
+    if (fp == NULL) {
+        perror(filename);
+        return errno;
+    }
+
+    auto module = PyModule_New("restore");
+    PyModule_AddStringConstant(module, "__file__", "restore.py");
+    PyObject *localDict = PyModule_GetDict(module);
+    PyDict_SetItemString(localDict, "__builtins__", PyEval_GetBuiltins());
+    auto s = PyRun_FileEx(fp,filename,Py_file_input,localDict,localDict,1); // fp is closed on return
+    Py_XDECREF(s);
+    if (PyErr_Occurred()) {
+        int rc = 1;
+        if (PyErr_ExceptionMatches(PyExc_SystemExit)) {
+            PyObject *etype, *evalue, *etrace;
+            PyErr_Fetch(&etype, &evalue, &etrace);
+            if (auto o = PyNumber_Long(evalue)) {
+                rc = PyLong_AsLong(o);
+                Py_DECREF(o);
+            }
+            Py_DECREF(etype);
+            Py_DECREF(evalue);
+            Py_DECREF(etrace);
+        }
+        else PyErr_Print();
+        return rc;
+    }
+    return 0;
+}
+
+
+static PyObject *
+ppy_msr_load_checkpoint(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    flush_std_files();
+    static char const *kwlist[]= {"",NULL};
+    const char *fname;
+
+    if (kwobj) {
+        if (!PyArg_ValidateKeywordArguments(kwobj)) return NULL;
+        if (!self->msr->verify_parameters(kwobj)) {
+            return PyErr_Format(PyExc_AttributeError,"invalid parameters specified to load_checkpoint");
+        }
+    }
+    if ( !PyArg_ParseTupleAndKeywords(
+                args, nullptr, "s:load_checkpoint", const_cast<char **>(kwlist),
+                &fname ) )
+        return NULL;
+
+    self->msr->setAnalysisMode(kwobj);
+    run_script(self,fname);
+    self->msr->setAnalysisMode(false);
+
+    // return Py_BuildValue("d", dTime );
+    Py_RETURN_NONE;
+}
 
 static PyObject *
 ppy_msr_Load(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
@@ -611,20 +695,36 @@ ppy_msr_Checkpoint(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     Py_RETURN_NONE;
 }
 
+static void merge_objects(PyObject *o1, PyObject *o2) {
+    auto d1 = PyObject_GenericGetDict(o1,nullptr);
+    auto d2 = PyObject_GenericGetDict(o2,nullptr);
+    // auto d1 = PyObject_GetAttrString(o1,"__dict__");
+    // auto d2 = PyObject_GetAttrString(o2,"__dict__");
+    PyObject *key, *value;
+    Py_ssize_t pos = 0;
+    while (PyDict_Next(d2, &pos, &key, &value)) {
+        PyDict_SetItem(d1,key,value);
+    }
+}
+
 static PyObject *
 ppy_msr_Restart(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     flush_std_files();
     MSR *msr = self->msr;
     static char const *kwlist[]= {"arguments","specified","species","classes","n","name","step","steps","time","delta","E","U", "Utime", NULL};
     PyObject *species, *classes;
+    PyObject *arguments, *specified;
     int n, iStep, nSteps;
     const char *name;
     double dTime, dDelta;
     if ( !PyArg_ParseTupleAndKeywords(
                 args, kwobj, "OOOOisiiddddd:Restart", const_cast<char **>(kwlist),
-                &msr->arguments,&msr->specified,&species,&classes,&n,&name,
+                &arguments,&specified,&species,&classes,&n,&name,
                 &iStep,&nSteps,&dTime,&dDelta,&msr->dEcosmo,&msr->dUOld, &msr->dTimeOld ) )
         return NULL;
+
+    merge_objects(msr->arguments,arguments);  Py_DECREF(arguments);
+    merge_objects(msr->specified,specified);  Py_DECREF(specified);
 
     // Create a vector of number of species
     species = PySequence_Fast(species,"species must be a list");
@@ -1095,6 +1195,81 @@ ppy_msr_MarkBlackholes(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     return Py_BuildValue("L",n);
 }
 
+/********** Analysis: Rockstar tools **********/
+
+#ifdef HAVE_ROCKSTAR
+static PyObject *
+ppy_msr_rs_halo_load_ids(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    flush_std_files();
+    static char const *kwlist[]= {"filename","append",NULL};
+    const char *fname;
+    int bAppend = 0;
+
+    if ( !PyArg_ParseTupleAndKeywords(
+                args, kwobj, "s|p:rs_halo_load_ids", const_cast<char **>(kwlist),
+                &fname, &bAppend ) )
+        return NULL;
+    self->msr->RsHaloLoadIds(fname,bAppend);
+    Py_RETURN_NONE;
+}
+#endif
+
+static PyObject *
+ppy_msr_rs_load_ids(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    flush_std_files();
+    static char const *kwlist[]= {"filename","append",NULL};
+    const char *fname;
+    int bAppend = 0;
+
+    if ( !PyArg_ParseTupleAndKeywords(
+                args, kwobj, "s|p:rs_load_ids", const_cast<char **>(kwlist),
+                &fname, &bAppend ) )
+        return NULL;
+    self->msr->RsLoadIds(fname,bAppend);
+    Py_RETURN_NONE;
+}
+
+static PyObject *
+ppy_msr_rs_save_ids(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    flush_std_files();
+    static char const *kwlist[]= {"filename",NULL};
+    const char *fname;
+
+    if ( !PyArg_ParseTupleAndKeywords(
+                args, kwobj, "s:rs_save_ids", const_cast<char **>(kwlist),
+                &fname ) )
+        return NULL;
+    self->msr->RsSaveIds(fname);
+    Py_RETURN_NONE;
+}
+
+static PyObject *
+ppy_msr_rs_reorder_ids(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    flush_std_files();
+    static char const *kwlist[]= {NULL};
+
+    if ( !PyArg_ParseTupleAndKeywords(
+                args, kwobj, ":rs_reorder_ids", const_cast<char **>(kwlist)
+            ) )
+        return NULL;
+    self->msr->RsReorderIds();
+    Py_RETURN_NONE;
+}
+
+static PyObject *
+ppy_msr_rs_extract(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    flush_std_files();
+    static char const *kwlist[]= {"filename",NULL};
+    const char *fname;
+
+    if ( !PyArg_ParseTupleAndKeywords(
+                args, kwobj, "s:rs_extract", const_cast<char **>(kwlist),
+                &fname) )
+        return NULL;
+    self->msr->RsExtract(fname);
+    Py_RETURN_NONE;
+}
+
 /********** Analysis: Retrieve the values for all particles (DANGER! not memory friendly) **********/
 
 #ifdef USE_NUMPY
@@ -1216,6 +1391,10 @@ static PyMethodDef msr_methods[] = {
         "Generate Initial Condition"
     },
 
+    {
+        "load_checkpoint", (PyCFunction)ppy_msr_load_checkpoint, METH_VARARGS|METH_KEYWORDS,
+        "Load an checkpoint file"
+    },
     {
         "Load", (PyCFunction)ppy_msr_Load, METH_VARARGS|METH_KEYWORDS,
         "Load an input file"
@@ -1340,6 +1519,28 @@ static PyMethodDef msr_methods[] = {
     {
         "MarkBlackholes", (PyCFunction)ppy_msr_MarkBlackholes, METH_VARARGS|METH_KEYWORDS,
         "Marks all blackholes"
+    },
+#ifdef HAVE_ROCKSTAR
+    {
+        "rs_halo_load_ids", (PyCFunction)ppy_msr_rs_halo_load_ids, METH_VARARGS|METH_KEYWORDS,
+        "Load IDs from halo files for Rockstar processing"
+    },
+#endif
+    {
+        "rs_load_ids", (PyCFunction)ppy_msr_rs_load_ids, METH_VARARGS|METH_KEYWORDS,
+        "Load IDs for Rockstar processing"
+    },
+    {
+        "rs_save_ids", (PyCFunction)ppy_msr_rs_save_ids, METH_VARARGS|METH_KEYWORDS,
+        "Save IDs for Rockstar processing"
+    },
+    {
+        "rs_reorder_ids", (PyCFunction)ppy_msr_rs_reorder_ids, METH_VARARGS|METH_KEYWORDS,
+        "Reorder IDs for Rockstar processing"
+    },
+    {
+        "rs_extract", (PyCFunction)ppy_msr_rs_extract, METH_VARARGS|METH_KEYWORDS,
+        "Extract particles that match IDs for Rockstar processing"
     },
 #ifdef USE_NUMPY
     {

@@ -261,6 +261,12 @@ enum pst_service {
     PST_LIGHTCONEVEL,
     PST_GET_PARTICLES,
     PST_GET_ORD_SPLITS,
+    PST_RS_REORDER_IDS,
+    PST_RS_HALO_COUNT,
+    PST_RS_HALO_LOAD_IDS,
+    PST_RS_LOAD_IDS,
+    PST_RS_SAVE_IDS,
+    PST_RS_EXTRACT,
 };
 
 void pstAddServices(PST,MDL);

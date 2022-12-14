@@ -45,6 +45,15 @@
 #include "io/service.h"
 #include "io/restore.h"
 
+#ifdef HAVE_ROCKSTAR
+    #include "analysis/rshalocount.h"
+    #include "analysis/rshaloloadids.h"
+#endif
+#include "analysis/rsloadids.h"
+#include "analysis/rssaveids.h"
+#include "analysis/rsreorder.h"
+#include "analysis/rsextract.h"
+
 #include "initlightcone.h"
 
 #include "domains/calcbound.h"
@@ -119,6 +128,14 @@ void *worker_init(MDL vmdl) {
     mdl->AddService(std::make_unique<ServiceCountRungs>(pst));
     mdl->AddService(std::make_unique<ServiceZeroNewRung>(pst));
     mdl->AddService(std::make_unique<ServiceGetOrdSplits>(pst));
+#ifdef HAVE_ROCKSTAR
+    mdl->AddService(std::make_unique<ServiceRsHaloCount>(pst));
+    mdl->AddService(std::make_unique<ServiceRsHaloLoadIds>(pst));
+#endif
+    mdl->AddService(std::make_unique<ServiceRsLoadIds>(pst));
+    mdl->AddService(std::make_unique<ServiceRsSaveIds>(pst));
+    mdl->AddService(std::make_unique<ServiceRsReorderIds>(pst));
+    mdl->AddService(std::make_unique<ServiceRsExtract>(pst));
     mdl->AddService(std::make_unique<OldDD::ServiceDomainDecomp>(pst));
     mdl->AddService(std::make_unique<OldDD::ServiceDomainOrder>(pst));
     mdl->AddService(std::make_unique<OldDD::ServiceLocalOrder>(pst));
