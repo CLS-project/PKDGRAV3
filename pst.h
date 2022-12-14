@@ -260,6 +260,7 @@ enum pst_service {
     PST_LIGHTCONE_CLOSE,
     PST_LIGHTCONEVEL,
     PST_GET_PARTICLES,
+    PST_GET_ORD_SPLITS,
 };
 
 void pstAddServices(PST,MDL);

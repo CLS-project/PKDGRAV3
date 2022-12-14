@@ -188,7 +188,7 @@ target_sources(${PROJECT_NAME} PRIVATE
 	core/gridinfo.cxx analysis/interlace.cxx analysis/contrast.cxx analysis/assignmass.cxx analysis/measurepk.cxx bispectrum.cxx ic/whitenoise.cxx gravity/pmforces.cxx
 	core/setadd.cxx core/hostname.cxx core/initcosmology.cxx core/calcroot.cxx core/swapall.cxx core/select.cxx
 	domains/calcbound.cxx domains/combinebound.cxx domains/distribtoptree.cxx domains/distribroot.cxx domains/dumptrees.cxx
-	domains/enforceperiodic.cxx domains/freestore.cxx domains/olddd.cxx
+	domains/enforceperiodic.cxx domains/freestore.cxx domains/olddd.cxx domains/getordsplits.cxx
 	gravity/setsoft.cxx gravity/activerung.cxx gravity/countrungs.cxx gravity/zeronewrung.cxx
 	eEOS/eEOS.cxx
 	SPH/SPHOptions.cxx SPH/SPHEOS.cxx SPH/SPHpredict.cxx initlightcone.cxx

@@ -849,16 +849,18 @@ int ServiceDomainOrder::Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) {
     ** Now go on to Domain Order of next levels.
     */
     in->iMinOrder = iMidOrder;
-    if (pst->nUpper > 1) rID = mdl->ReqService(pst->idUpper,PST_DOMAINORDER,in,nIn);
+    rID = mdl->ReqService(pst->idUpper,PST_DOMAINORDER,in,nIn);
     in->iMinOrder = iMinOrder;
     in->iMaxOrder = iMidOrder-1;
-    if (pst->nLower > 1) Traverse(pst->pstLower,in,nIn,NULL,0);
-    if (pst->nUpper > 1) mdl->GetReply(rID);
+    Traverse(pst->pstLower,in,nIn,NULL,0);
+    mdl->GetReply(rID);
 
     return 0;
 }
 
 int ServiceDomainOrder::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
+    auto in = static_cast<input *>(vin);
+    pst->iOrdSplit = in->iMinOrder;
     return 0;
 }
 

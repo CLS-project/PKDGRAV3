@@ -55,6 +55,7 @@
 #include "domains/enforceperiodic.h"
 #include "domains/freestore.h"
 #include "domains/olddd.h"
+#include "domains/getordsplits.h"
 
 #include "gravity/setsoft.h"
 #include "gravity/activerung.h"
@@ -117,6 +118,7 @@ void *worker_init(MDL vmdl) {
     mdl->AddService(std::make_unique<ServiceActiveRung>(pst));
     mdl->AddService(std::make_unique<ServiceCountRungs>(pst));
     mdl->AddService(std::make_unique<ServiceZeroNewRung>(pst));
+    mdl->AddService(std::make_unique<ServiceGetOrdSplits>(pst));
     mdl->AddService(std::make_unique<OldDD::ServiceDomainDecomp>(pst));
     mdl->AddService(std::make_unique<OldDD::ServiceDomainOrder>(pst));
     mdl->AddService(std::make_unique<OldDD::ServiceLocalOrder>(pst));
