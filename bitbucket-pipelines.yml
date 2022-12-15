@@ -41,7 +41,7 @@ pipelines:
              - ln -s /build/b0-final* ./
              - env GTEST_OUTPUT="xml:test-reports/" OMP_NUM_THREADS=8 make test ARGS=--verbose
 
-     IA_dev_optim:
+     iac-hydro:
        - step:
            script:
              - >
