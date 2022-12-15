@@ -42,6 +42,8 @@
 #include "core/calcroot.h"
 #include "core/select.h"
 
+#include "initlightcone.h"
+
 #include "domains/calcbound.h"
 #include "domains/combinebound.h"
 #include "domains/distribtoptree.h"
@@ -86,6 +88,7 @@ void *worker_init(MDL vmdl) {
     mdl->AddService(std::make_unique<ServiceSwapAll>(pst));
     mdl->AddService(std::make_unique<ServiceHostname>(pst));
     mdl->AddService(std::make_unique<ServiceInitCosmology>(pst));
+    mdl->AddService(std::make_unique<ServiceInitLightcone>(pst));
     mdl->AddService(std::make_unique<ServiceCalcRoot>(pst));
     mdl->AddService(std::make_unique<ServiceCountSelected>(pst));
     mdl->AddService(std::make_unique<ServiceSelBlackholes>(pst));

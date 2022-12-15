@@ -380,7 +380,7 @@ static void initializePStore(PKD *ppkd,MDL mdl,struct inInitializePStore *in) {
         in->nTreeBitsLo,in->nTreeBitsHi,
         in->iCacheSize,in->iCacheMaxInflight,in->iWorkQueueSize,in->iCUDAQueueSize,in->fPeriod,
         in->nSpecies[FIO_SPECIES_DARK],in->nSpecies[FIO_SPECIES_SPH],in->nSpecies[FIO_SPECIES_STAR], in->nSpecies[FIO_SPECIES_BH],
-        in->mMemoryModel,in->bLightCone,in->bLightConeParticles);
+        in->mMemoryModel);
 }
 
 int pstInitializePStore(PST pst,void *vin,int nIn,void *vout,int nOut) {

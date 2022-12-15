@@ -428,7 +428,7 @@ void pkdParticleWorkDone(workParticle *wp) {
                         if (wp->lc->dLookbackFac > 0) {
                             pkdProcessLightCone(pkd,p,wp->pInfoOut[i].fPot,wp->lc->dLookbackFac,wp->lc->dLookbackFacLCP,
                                                 wp->lc->dtLCDrift[p->uRung],wp->lc->dtLCKick[p->uRung],
-                                                wp->lc->dBoxSize,wp->lc->bLightConeParticles);
+                                                wp->lc->dBoxSize,wp->lc->bLightConeParticles,wp->lc->hLCP,wp->lc->tanalpha_2);
                         }
                     }
                     p->bMarked = 1;

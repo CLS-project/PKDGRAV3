@@ -79,6 +79,8 @@ using namespace fmt::literals; // Gives us ""_a and ""_format literals
 #include "core/calcroot.h"
 #include "core/select.h"
 
+#include "initlightcone.h"
+
 #include "domains/distribtoptree.h"
 #include "domains/distribroot.h"
 #include "domains/dumptrees.h"
@@ -343,8 +345,6 @@ void MSR::InitializePStore(uint64_t *nSpecies,uint64_t mMemoryModel) {
     ps.fPeriod[1] = param.dyPeriod;
     ps.fPeriod[2] = param.dzPeriod;
     ps.mMemoryModel = mMemoryModel | PKD_MODEL_VELOCITY;
-    ps.bLightCone  = param.bLightCone;
-    ps.bLightConeParticles  = param.bLightConeParticles;
 
 #define SHOW(m) ((ps.mMemoryModel&PKD_MODEL_##m)?" " #m:"")
     printf("Memory Models:%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s\n",
@@ -584,8 +584,9 @@ void MSR::Checkpoint(int iStep,int nSteps,double dTime,double dDelta) {
                   iStep,dTime,(1.0/dExp - 1.0));
     }
     else
-        TimerStart(TIMER_IO);
-    msrprintf("Writing checkpoint for Step: %d Time:%g\n",iStep,dTime);
+        msrprintf("Writing checkpoint for Step: %d Time:%g\n",iStep,dTime);
+
+    TimerStart(TIMER_IO);
 
     SaveParameters();
     writeParameters(in.achOutFile,iStep,nSteps,dTime,dDelta);
@@ -1026,19 +1027,34 @@ void MSR::Initialize() {
     param.bLightCone = 0;
     prmAddParam(prm,"bLightCone",0,&param.bLightCone,sizeof(int),"lc",
                 "output light cone data = -lc");
-    param.nSideHealpix = 8192;
+    param.nSideHealpix = 0;
     prmAddParam(prm,"nSideHealpix",1,&param.nSideHealpix,
                 sizeof(int),"healpix",
-                "<Number per side of the healpix map> = 8192");
+                "<Number per side of the healpix map> = 0 (default:no healpix maps)");
     param.bLightConeParticles = 0;
     prmAddParam(prm,"bLightConeParticles",0,&param.bLightConeParticles,sizeof(int),"lcp",
                 "output light cone particles = -lcp");
     param.bInFileLC = 0;
     prmAddParam(prm,"bInFileLC",0,&param.bInFileLC,sizeof(int),"lcin",
                 "input light cone data = -lcin");
+    param.bBowtie = 0;
+    prmAddParam(prm,"bBowtie",0,&param.bBowtie,sizeof(int),"bbt",
+                "output +++ and --- octants of the cone; a bowtie = 0");
     param.dRedshiftLCP = 0;
     prmAddParam(prm,"dRedshiftLCP",2,&param.dRedshiftLCP,sizeof(double),"zlcp",
                 "starting redshift to output light cone particles = 0");
+    param.hxLCP = 0.749;
+    prmAddParam(prm,"hxLCP",2,&param.hxLCP,sizeof(double),"hx",
+                "x-component of lightcone direction vector = 0.749");
+    param.hyLCP = 0.454;
+    prmAddParam(prm,"hyLCP",2,&param.hyLCP,sizeof(double),"hy",
+                "y-component of lightcone direction vector = 0.454");
+    param.hzLCP = 1;
+    prmAddParam(prm,"hzLCP",2,&param.hzLCP,sizeof(double),"hz",
+                "z-component of lightcone direction vector = 1");
+    param.sqdegLCP = 50.0;
+    prmAddParam(prm,"sqdegLCP",2,&param.sqdegLCP,sizeof(double),"sqdeg",
+                "square degrees of lightcone = 50.0 (opening angle of nearly 4 deg)");
     param.dRedTo = 0.0;
     prmAddParam(prm,"dRedTo",2,&param.dRedTo,sizeof(double),"zto",
                 "specifies final redshift for the simulation");
@@ -3257,11 +3273,22 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
         in.lc.dLookbackFac = csmComoveKickFac(csm,dTime,(csmExp2Time(csm,1.0) - dTime));
         dTimeLCP = csmExp2Time(csm,1.0/(1.0+param.dRedshiftLCP));
         in.lc.dLookbackFacLCP = csmComoveKickFac(csm,dTimeLCP,(csmExp2Time(csm,1.0) - dTimeLCP));
+        if (param.sqdegLCP <= 0 || param.sqdegLCP >= 4*M_1_PI*180.0*180.0 ) {
+            in.lc.tanalpha_2 = -1; // indicates we want an all sky lightcone, a bit weird but this is the flag.
+        }
+        else {
+            double alpha = sqrt(param.sqdegLCP*M_1_PI)*(M_PI/180.0);
+            in.lc.tanalpha_2 = tan(0.5*alpha);  // it is tangent of the half angle that we actually need!
+        }
     }
     else {
         in.lc.dLookbackFac = 0.0;
         in.lc.dLookbackFacLCP = 0.0;
     }
+    in.lc.hLCP[0] = param.hxLCP;
+    in.lc.hLCP[1] = param.hyLCP;
+    in.lc.hLCP[2] = param.hzLCP;
+
     /*
     ** Note that in this loop we initialize dt with the full step, not a half step!
     */
@@ -3686,10 +3713,27 @@ double MSR::getTheta(double dTime) {
 }
 
 void MSR::InitCosmology() {
+    ServiceInitLightcone::input in;
     if (prmSpecified(prm, "h")) {
         csm->val.h = param.h;
     }
     mdl->RunService(PST_INITCOSMOLOGY,sizeof(csm->val),&csm->val);
+    if (param.bLightCone) {
+        if (param.sqdegLCP <= 0 || param.sqdegLCP >= 4*M_1_PI*180.0*180.0 ) {
+            in.alphaLCP = -1; // indicates we want an all sky lightcone, a bit weird but this is the flag.
+        }
+        else {
+            in.alphaLCP = sqrt(param.sqdegLCP*M_1_PI)*(M_PI/180.0);
+        }
+        in.bBowtie = param.bBowtie;
+        in.bLightConeParticles = param.bLightConeParticles;
+        in.dBoxSize = param.dBoxSize;
+        in.dRedshiftLCP = param.dRedshiftLCP;
+        in.hLCP[0] = param.hxLCP;
+        in.hLCP[1] = param.hyLCP;
+        in.hLCP[2] = param.hzLCP;
+        mdl->RunService(PST_INITLIGHTCONE,sizeof(in),&in);
+    }
 }
 
 void MSR::ZeroNewRung(uint8_t uRungLo, uint8_t uRungHi, int uRung) {
@@ -4129,7 +4173,7 @@ int MSR::NewTopStepKDK(
         if (bKickOpen) LightConeOpen(iStep+1);
 
         /* Compute the grids of linear species at main timesteps, before gravity is called */
-        if (strlen(param.achLinearSpecies) && param.nGridLin) {
+        if (csm->val.classData.bClass && strlen(param.achLinearSpecies) && param.nGridLin) {
             GridCreateFFT(param.nGridLin);
             SetLinGrid(dTime,dDelta,param.nGridLin,1,bKickOpen);
             if (param.bDoLinPkOutput)
@@ -5014,8 +5058,9 @@ double MSR::GenerateIC() {
     else {
         nSpecies[FIO_SPECIES_ALL] = nSpecies[FIO_SPECIES_DARK] = nTotal;
     }
-    InitializePStore(nSpecies,getMemoryModel());
+    InitializePStore(nSpecies,getMemoryModel()); // We now need a bit of cosmology to set the maximum lightcone depth here.
     InitCosmology();
+
     in.dOmegaRate = csm->val.dOmegab/csm->val.dOmega0;
     SetDerivedParameters();
     in.dTuFac = dTuFac;
@@ -5345,8 +5390,10 @@ void MSR::OutputPk(int iStep,double dTime) {
         perror(filename.c_str());
         Exit(errno);
     }
+    fmt::print(fs,"# k P(k) N(k) P(k)+{linear}\n", "linear"_a = param.achPowerSpecies);
+    fmt::print(fs,"# a={a:.8f}  z={z:.8f}\n", "a"_a = a, "z"_a = 1/a - 1.0 );
     for (i=0; i<param.nBinsPk; ++i) {
-        if (fPk[i] > 0.0) fmt::print(fs,"{k} {pk} {nk} {all}\n",
+        if (fPk[i] > 0.0) fmt::print(fs,"{k:.8e} {pk:.8e} {nk} {all:.8e}\n",
                                          "k"_a   = kfact * fK[i] * 2.0 * M_PI,
                                          "pk"_a  = vfact * fPk[i],
                                          "nk"_a  = nPk[i],
@@ -5562,7 +5609,7 @@ uint64_t MSR::SelBox(double *dCenter, double *dSize,bool setIfTrue,bool clearIfF
 uint64_t MSR::SelSphere(double *r, double dRadius,int setIfTrue,int clearIfFalse) {
     uint64_t N;
     ServiceSelSphere::input in(r,dRadius,setIfTrue,clearIfFalse);
-    mdl->RunService(PST_SELBOX,sizeof(in),&in,&N);
+    mdl->RunService(PST_SELSPHERE,sizeof(in),&in,&N);
     return N;
 }
 uint64_t MSR::SelCylinder(double *dP1, double *dP2, double dRadius,

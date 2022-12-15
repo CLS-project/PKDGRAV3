@@ -156,6 +156,7 @@ enum pst_service {
     PST_MASSCHECK,
     PST_ACTIVEORDER,
     PST_INITCOSMOLOGY,
+    PST_INITLIGHTCONE,
     PST_ZERONEWRUNG,
     PST_ACTIVERUNG,
     PST_COUNTRUNGS,
@@ -279,8 +280,6 @@ struct inInitializePStore {
     int iCacheMaxInflight;
     int iWorkQueueSize;
     int iCUDAQueueSize;
-    int bLightCone;
-    int bLightConeParticles;
 };
 int pstInitializePStore(PST,void *,int,void *,int);
 

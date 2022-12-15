@@ -153,11 +153,10 @@ typedef struct velsmooth {
 } VELSMOOTH;
 
 typedef struct partLightCone {
+    uint64_t id;
     float pos[3];
     float vel[3];
-#ifdef POTENTIAL_IN_LIGHTCONE
     float pot;
-#endif
 } LIGHTCONEP;
 
 /*
@@ -549,7 +548,7 @@ public:
         mdl::mdlClass *mdl,int nStore,uint64_t nMinTotalStore,uint64_t nMinEphemeral,uint32_t nEphemeralBytes,
         int nTreeBitsLo, int nTreeBitsHi,
         int iCacheSize,int iCacheMaxInflight,int iWorkQueueSize,int iCUDAQueueSize,double *fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,uint64_t nBH,
-        uint64_t mMemoryModel, int bLightCone, int bLightConeParticles);
+        uint64_t mMemoryModel);
     virtual ~pkdContext();
 
 protected:  // Support for memory models
@@ -659,15 +658,19 @@ public:
     /*
     ** Light cone variables.
     */
-    double lcOffset0[184];
-    double lcOffset1[184];
-    double lcOffset2[184];
+    int nLayerMax;
+    int *nBoxLC;
+    double *lcOffset0;
+    double *lcOffset1;
+    double *lcOffset2;
     asyncFileInfo afiLightCone;
     LIGHTCONEP *pLightCone;
     int nLightCone, nLightConeMax;
     int64_t nHealpixPerDomain;
     int64_t nSideHealpix;
     healpixData *pHealpixData;
+    gsl_spline *interp_scale; // interpolation table for 1/a given r in the lightcone
+    gsl_interp_accel *interp_accel = gsl_interp_accel_alloc();
 
     void *pLite;
     /*
@@ -1306,7 +1309,8 @@ void pkdGravAll(PKD pkd,
                 double *pdFlop,uint64_t *pnRung);
 void pkdCalcEandL(PKD pkd,double *T,double *U,double *Eth,double *L,double *F,double *W);
 void pkdProcessLightCone(PKD pkd,PARTICLE *p,float fPot,double dLookbackFac,double dLookbackFacLCP,
-                         double dDriftDelta,double dKickDelta,double dBoxSize,int bLightConeParticles);
+                         double dDriftDelta,double dKickDelta,double dBoxSize,int bLightConeParticles,
+                         double hlcp [3],double tanalpha2);
 void pkdGravEvalPP(const PINFOIN &Part, ilpTile &tile, PINFOOUT &Out );
 void pkdDensityEval(const PINFOIN &Part, ilpTile &tile,  PINFOOUT &Out, SPHOptions *SPHoptions);
 void pkdDensityCorrectionEval(const PINFOIN &Part, ilpTile &tile,  PINFOOUT &Out, SPHOptions *SPHoptions);
@@ -1322,7 +1326,8 @@ void pkdKickKDKClose(PKD pkd,double dTime,double dDelta,uint8_t uRungLo,uint8_t 
 void pkdKick(PKD pkd,double dTime,double dDelta,int bDoGas,double,double,double,uint8_t uRungLo,uint8_t uRungHi);
 void pkdKickTree(PKD pkd,double dTime,double dDelta,double,double,double,int iRoot);
 void pkdSwapAll(PKD pkd, int idSwap);
-void pkdInitCosmology(PKD pkd,struct csmVariables *cosmo);
+void pkdInitCosmology(PKD pkd, struct csmVariables *cosmo);
+void pkdInitLightcone(PKD pkd,int bBowtie,int bLightConeParticles,double dBoxSize,double dRedshiftLCP,double alphaLCP,double *hLCP);
 void pkdZeroNewRung(PKD pkd,uint8_t uRungLo, uint8_t uRungHi, uint8_t uRung);
 void pkdActiveRung(PKD pkd, int iRung, int bGreater);
 void pkdCountRungs(PKD pkd,uint64_t *nRungs);
@@ -1430,6 +1435,7 @@ void pkdLightCone(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
                   double dLookbackFac,double dLookbackFacLCP,
                   double *dtLCDrift,double *dtLCKick);
 void pkdLightConeVel(PKD pkd,double dBoxSize);
+void pkdSetupInterpScale(PKD pkd,double dBoxSize,double mrMax);
 
 struct outGetParticles { /* Array of these */
     uint64_t id;

@@ -194,7 +194,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
         else bKickOpen = 0;
 
         /* Compute the grids of the linear species before doing gravity */
-        if (strlen(param.achLinearSpecies) && param.nGridLin > 0) {
+        if (csm->val.classData.bClass && strlen(param.achLinearSpecies) && param.nGridLin > 0) {
             GridCreateFFT(param.nGridLin);
             SetLinGrid(dTime,dDelta,param.nGridLin,bKickClose,bKickOpen);
             if (param.bDoLinPkOutput)
@@ -340,7 +340,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
                                        param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,SPHoptions);
                 }
                 /* Set the grids of the linear species */
-                if (strlen(param.achLinearSpecies) && param.nGridLin > 0) {
+                if (csm->val.classData.bClass && strlen(param.achLinearSpecies) && param.nGridLin > 0) {
                     GridCreateFFT(param.nGridLin);
                     SetLinGrid(dTime,dDelta,param.nGridLin,bKickClose,bKickOpen);
                     if (param.bDoLinPkOutput)
