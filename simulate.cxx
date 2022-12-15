@@ -277,7 +277,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
         InitRelaxation();
     }
 
-    if (param.bWriteIC && !prmSpecified(prm,"nGrid")) {
+    if (param.bWriteIC && !prmSpecified(prm,"nGrid") && !NewSPH()) {
 #ifndef BLACKHOLES
         if (param.bFindGroups) {
             NewFof(param.dTau,param.nMinMembers);

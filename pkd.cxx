@@ -3871,9 +3871,15 @@ void pkdInitializeEOS(PKD pkd) {
                     param.dConstGamma = pkd->SPHoptions.gamma;
                     param.dMeanMolMass = pkd->SPHoptions.dMeanMolWeight;
                     pkd->materials[iMat] = EOSinitMaterial(iMat, pkd->SPHoptions.dKpcUnit, pkd->SPHoptions.dMsolUnit, &param);
+                    if (pkd->SPHoptions.useIsentropic) {
+                        EOSinitIsentropicLookup(pkd->materials[iMat],NULL);
+                    }
                 }
                 else {
                     pkd->materials[iMat] = EOSinitMaterial(iMat, pkd->SPHoptions.dKpcUnit, pkd->SPHoptions.dMsolUnit, NULL);
+                    if (pkd->SPHoptions.useIsentropic) {
+                        EOSinitIsentropicLookup(pkd->materials[iMat],NULL);
+                    }
                 }
             }
 #else

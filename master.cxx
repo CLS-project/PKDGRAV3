@@ -5275,10 +5275,15 @@ double MSR::Read(const char *achInFile) {
         TimerStop(TIMER_NONE);
         dsec = TimerGet(TIMER_NONE);
         printf("Converting u complete, Wallclock: %f secs.\n", dsec);
-        if (param.nSteps == 0) {
-            Write(BuildIoName(0).c_str(),0.0,0 );
-            exit(0);
+        if (param.bWriteIC || (param.nSteps == 0)) {
+            printf("Writing updated IC ...\n");
+            TimerStart(TIMER_NONE);
+            Write(BuildIoName(0).c_str(),0.0,0);
+            TimerStop(TIMER_NONE);
+            dsec = TimerGet(TIMER_NONE);
+            printf("Finished writing updated IC, Wallclock: %f secs.\n", dsec);
         }
+        if (param.nSteps == 0) exit(0);
     }
 
     return dTime;
