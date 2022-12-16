@@ -152,7 +152,7 @@ void pstAddServices(PST pst,MDL mdl) {
 #ifdef DEBUG_CACHED_FLUXES
     mdlAddService(mdl,PST_FLUXSTATS,pst,
                   (fcnService_t *) pstFluxStats,
-                  sizeof(struct inFluxStats), sizeof(struct outFluxStats));
+                  0, sizeof(struct outFluxStats));
 #endif
     mdlAddService(mdl,PST_SETGLOBALDT,pst,
                   (fcnService_t *) pstSetGlobalDt,
@@ -1591,13 +1591,12 @@ int pstResetFluxes(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
 #ifdef DEBUG_CACHED_FLUXES
 int pstFluxStats(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    struct inFluxStats *in = vin;
     struct outFluxStats *out = vout;
     struct outFluxStats outUpper;
 
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_FLUXSTATS,in,nIn);
-        pstFluxStats(pst->pstLower,vin,nIn,vout,nOut);
+        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_FLUXSTATS,NULL,0);
+        pstFluxStats(pst->pstLower,NULL,0,vout,nOut);
         mdlGetReply(pst->mdl,rID,&outUpper,&nOut);
         assert(nOut==sizeof(struct outFluxStats));
         out->nAvoided += outUpper.nAvoided;
