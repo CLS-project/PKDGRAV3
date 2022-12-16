@@ -1341,17 +1341,13 @@ void MSR::Initialize() {
                 sizeof(double), "fT_CMB_0",
                 "Temperature of the CMB at z=0");
 
-    /* Parameters for the internal energy floor */
     param.dCoolingMinTemp = 100.0;
     prmAddParam(prm,"dCoolingMinTemp", 2, &param.dCoolingMinTemp,
                 sizeof(double), "dCoolingMinTemp",
                 "Minimum allowed temperature [K]");
+#endif
 
-    param.dEOSFloorDen = 10.0;
-    prmAddParam(prm,"dEOSFloorDen", 2, &param.dEOSFloorDen,
-                sizeof(double), "dEOSFloorDen",
-                "Minimum overdensity at which the internal energy floor will be applied");
-
+#ifdef EEOS_POLYTROPE
     param.dEOSFloornH = 1e-5;
     prmAddParam(prm,"dEOSFloornH", 2, &param.dEOSFloornH,
                 sizeof(double), "dEOSFloornH",
@@ -1366,8 +1362,6 @@ void MSR::Initialize() {
     prmAddParam(prm,"dEOSFloorMinOD", 2, &param.dEOSFloorMinOD,
                 sizeof(double), "dEOSFloorMinOD",
                 "Minimum overdensity at which the constant temperature EOS will be applied");
-#endif
-#ifdef EEOS_POLYTROPE
     param.dEOSPolyFloorMinOD = 10.0;
     prmAddParam(prm,"dEOSPolyFloorMinOD", 2, &param.dEOSPolyFloorMinOD,
                 sizeof(double), "dEOSPolyFloorMinOD",

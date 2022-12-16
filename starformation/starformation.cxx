@@ -21,12 +21,8 @@ void MSR::SetStarFormationParam() {
     param.dSFThresholdu = param.dSFThresholdT*dTuFac;
 
     if (csm->val.bComove) {
-        assert(csm->val.dOmegab > 0.);
-        // If in PKDGRAV3 units, this should always be unity
-        const double rhoCrit0 = 3. * csm->val.dHubble0 * csm->val.dHubble0 /
-                                (8. * M_PI);
-        param.dSFThresholdOD = rhoCrit0 * csm->val.dOmegab *
-                               param.dSFMinOverDensity;
+        // As usual, in code units the critical density is 1.0
+        param.dSFThresholdOD = param.dSFMinOverDensity * csm->val.dOmegab;
     }
     else {
         param.dSFThresholdOD = 0.0;
