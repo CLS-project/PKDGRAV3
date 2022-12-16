@@ -983,7 +983,8 @@ static inline void doSinglePPFlux(ftype &F_rho, std::array<ftype,3> &F_v, ftype 
     }
     */
 
-#ifdef EEOS_POLYTROPE
+    /*
+    #ifdef EEOS_POLYTROPE
     const double pLpoly =
         polytropicPressureFloor(a_inv3, L_rho, smf->dConstGamma,
                                 smf->dEOSPolyFloorIndex, smf->dEOSPolyFloorDen, smf->dEOSPolyFlooru);
@@ -992,15 +993,16 @@ static inline void doSinglePPFlux(ftype &F_rho, std::array<ftype,3> &F_v, ftype 
                                 smf->dEOSPolyFloorIndex, smf->dEOSPolyFloorDen, smf->dEOSPolyFlooru);
     L_p = MAX(L_p, pLpoly);
     R_p = MAX(R_p, pRpoly);
-#endif
-#ifdef EEOS_JEANS
+    #endif
+    #ifdef EEOS_JEANS
     const double pLjeans =
         jeansPressureFloor(L_rho, ph, smf->dConstGamma, smf->dEOSNJeans);
     const double pRjeans =
         jeansPressureFloor(R_rho, q(ball), smf->dConstGamma, smf->dEOSNJeans);
     L_p = MAX(L_p, pLjeans);
     R_p = MAX(R_p, pRjeans);
-#endif
+    #endif
+    */
 
     ftype P_M, S_M;
     Riemann_solver_exact(dConstGamma,
@@ -1383,61 +1385,6 @@ void hydroRiemann_simd(PARTICLE *pIn,float fBall,int nSmooth, int nBuff,
         minDt.store(&output_buffer[out_minDt * nBuff + i]);
 
     }
-
-    /*
-    for (; i<nSmooth; i++) {
-        break;
-        //Repeat without using simd instruction for comparison
-        double F_rho0;
-        std::array<double,3> F_v0;
-        double F_P0;
-        double F_S0;
-        double minDt0;
-
-        double pS0, qS0;
-        double ph0 = 0.5*pkdBall(pkd,p);
-        double pDt0 = smf->dDelta/(1<<p->uRung);
-
-        double qDt0 = q(rung);
-        doSinglePPFlux( F_rho0, F_v0, F_P0, F_S0, minDt0,
-                        bComove, smf->dTime, smf->dDelta,  smf->a,  smf->H,  smf->dConstGamma,
-                        q(dr),  q(dx),  q(dy),  q(dz),
-                        ph0,  psph->lastUpdateTime,  pDt0,
-                        psph->omega,
-                        psph->B[XX],  psph->B[XY],  psph->B[XZ],
-                        psph->B[YY],  psph->B[YZ],  psph->B[ZZ],
-                        pDensity,  psph->vPred[0], psph->vPred[1], psph->vPred[2], psph->P,  pS0,
-                        psph->gradRho[0], psph->gradRho[1], psph->gradRho[2],
-                        psph->gradP[0],   psph->gradP[1],   psph->gradP[2],
-                        psph->gradVx[0],  psph->gradVx[1],  psph->gradVx[2],
-                        psph->gradVy[0],  psph->gradVy[1],  psph->gradVy[2],
-                        psph->gradVz[0],  psph->gradVz[1],  psph->gradVz[2],
-                        psph->lastAcc[0], psph->lastAcc[1], psph->lastAcc[2],
-                        q(ball),  q(lastUpdateTime),  qDt0,
-                        q(omega),
-                        q(B_XX),  q(B_XY),  q(B_XZ),
-                        q(B_YY),  q(B_YZ),  q(B_ZZ),
-                        q(rho),  q(vx), q(vy), q(vz),  q(P),  qS0,
-                        q(gradRhoX),  q(gradRhoY),  q(gradRhoZ),
-                        q(gradPX),    q(gradPY),    q(gradPZ),
-                        q(gradVxX),   q(gradVxY),   q(gradVxZ),
-                        q(gradVyX),   q(gradVyY),   q(gradVyZ),
-                        q(gradVzX),   q(gradVzY),   q(gradVzZ),
-                        q(lastAccX),  q(lastAccY),  q(lastAccZ) );
-           //if (abs(F_P0 - qout(Fene))/F_P0 > 1e-2)
-           //   printf("%e %e \n", F_P0, qout(Fene));
-           qout(Frho) = F_rho0;
-           qout(Fene) = F_P0;
-           qout(FmomX) = F_v0[0];
-           qout(FmomY) = F_v0[1];
-           qout(FmomZ) = F_v0[2];
-    #ifdef ENTROPY_SWITCH
-           qout(FS) = F_S0;
-    #endif
-           qout(minDt) = minDt0;
-
-    } // End of loop over neighbors
-    */
 }
 
 void hydroRiemann(PARTICLE *pIn,float fBall,int nSmooth, int nBuff,

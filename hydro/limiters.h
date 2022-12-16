@@ -23,7 +23,7 @@ static inline void genericPairwiseLimiter(ftype Lstate, ftype Rstate,
     if (Lstate == Rstate) {
         *Lstate_face = Lstate;
         *Rstate_face = Rstate;
-        equal++;
+        //equal++;
     }
     else {
 
@@ -37,31 +37,31 @@ static inline void genericPairwiseLimiter(ftype Lstate, ftype Rstate,
 
         if (SIGN(phi_min - d1) == SIGN(phi_min) ) {
             phi_m = phi_min - d1;
-            pass1++;
+            //pass1++;
         }
         else {
             phi_m = phi_min/(1. + d1/fabs(phi_min));
-            pass2++;
+            //pass2++;
         }
 
         if (SIGN(phi_max + d1) == SIGN(phi_max) ) {
             phi_p = phi_max + d1;
-            pass3++;
+            //pass3++;
         }
         else {
             phi_p = phi_max/(1. + d1/fabs(phi_max));
-            pass4++;
+            //pass4++;
         }
 
         if (Lstate < Rstate) {
             *Lstate_face = MAX(phi_m, MIN(phi_mean+d2, *Lstate_face));
             *Rstate_face = MIN(phi_p, MAX(phi_mean-d2, *Rstate_face));
-            pass5++;
+            //pass5++;
         }
         else {
             *Rstate_face = MAX(phi_m, MIN(phi_mean+d2, *Rstate_face));
             *Lstate_face = MIN(phi_p, MAX(phi_mean-d2, *Lstate_face));
-            pass6++;
+            //pass6++;
         }
 
     }

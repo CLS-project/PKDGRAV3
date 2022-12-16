@@ -14,7 +14,7 @@
 #define GAMMA_G9 (GAMMA-1.0)
 
 #define TOL_ITER 1.e-6
-#define NMAX_ITER 1000
+#define NMAX_ITER 100
 
 template <typename ftype=double>
 static inline void dump(ftype a) {
@@ -128,7 +128,6 @@ static inline ftype guess_for_pressure(ftype dConstGamma,
     pmin = min(L_p,R_p);
     pmax = max(L_p,R_p);
 
-    return 0.5*(pmin+pmax);
     // if one side is vacuum, guess half the mean
     if (pmin<=0.0)
         return 0.5*(pmin+pmax);
@@ -484,8 +483,7 @@ static inline void get_rarefaction_f_fp(ftype dConstGamma, ftype &f, ftype &fp,
 template <typename ftype=double>
 static inline void get_f_fp(ftype dConstGamma, ftype &f, ftype &fp,
                             ftype pg, ftype p, ftype r, ftype cs) {
-    auto cond = pg>p;
-    if (cond) {
+    if (pg>p) {
         /* shock wave */
         get_shock_f_fp(dConstGamma, f, fp, pg, p, r, cs);
     }
@@ -496,8 +494,8 @@ static inline void get_f_fp(ftype dConstGamma, ftype &f, ftype &fp,
 }
 
 template <>
-inline void get_f_fp(dvec dConstGamma, dvec &f, dvec &fp,
-                     dvec pg, dvec p, dvec r, dvec cs) {
+static inline void get_f_fp(dvec dConstGamma, dvec &f, dvec &fp,
+                            dvec pg, dvec p, dvec r, dvec cs) {
     auto cond = pg>p;
     auto ncond = pg<=p; //~cond;
     dvec f1, fp1;
@@ -516,44 +514,73 @@ inline void get_f_fp(dvec dConstGamma, dvec &f, dvec &fp,
 }
 
 template <typename ftype=double>
-static inline ftype newrap_solver(ftype dConstGamma, ftype &Pg, ftype &W_L, ftype &W_R,
-                                  ftype dvel,
-                                  ftype L_p, ftype L_rho, ftype cs_L,
-                                  ftype R_p, ftype R_rho, ftype cs_R) {
-    ftype itt = 0.0;
+static inline bool isConverged(const ftype &tol, const int &itt) {
+    if (itt<NMAX_ITER) {
+        if (tol>TOL_ITER) {
+            return false;
+        }
+        else {
+            return true;
+        }
+    }
+    else {
+        return true;
+    }
+}
+
+template <>
+static inline bool isConverged(const dvec &tol, const int &itt) {
+    if (itt<NMAX_ITER) {
+        auto notconverged = tol > TOL_ITER;
+        if (movemask(notconverged)) {
+            return false;
+        }
+        else {
+            return true;
+        }
+    }
+    else {
+        return true;
+    }
+}
+
+template <typename ftype=double>
+static inline int newrap_solver(ftype dConstGamma, ftype &Pg, ftype &W_L, ftype &W_R,
+                                ftype dvel,
+                                ftype L_p, ftype L_rho, ftype cs_L,
+                                ftype R_p, ftype R_rho, ftype cs_R) {
+    int itt = 0;
     ftype tol = 100.;
     ftype Pg_prev, Z_L, Z_R;
-    //while ((tol>TOL_ITER)&&(itt<NMAX_ITER))
+    //while ((tol>TOL_ITER)&&(itt<NMAX_ITER)) {
 //TODO: For now just a fixed iteration count is used
-    for (auto k=0; k<40; k++) {
+    //for (auto k=0; k<4; k++) {
+    while ( !isConverged(tol, itt) ) {
         Pg_prev=Pg;
         get_f_fp(dConstGamma, W_L, Z_L, Pg, L_p, L_rho, cs_L);
         get_f_fp(dConstGamma, W_R, Z_R, Pg, R_p, R_rho, cs_R);
 
-        Pg -= (W_L + W_R + dvel) / (Z_L + Z_R);
-        /*
-        if (itt < 50)
+        if (itt < 10)
             Pg -= (W_L + W_R + dvel) / (Z_L + Z_R);
         else
             Pg -= 0.5 * (W_L + W_R + dvel) / (Z_L + Z_R);
-        */
 
         limit_decrease(Pg, Pg_prev);
 
         tol = 2.0 * abs((Pg-Pg_prev)/(Pg+Pg_prev));
-        itt += 1.0;
+        itt += 1;
     }
     return itt;
 }
 
 template <typename ftype=double>
-static inline ftype iterative_Riemann_solver(ftype dConstGamma,
+static inline int iterative_Riemann_solver(ftype dConstGamma,
         ftype R_rho,ftype R_p,ftype L_rho,ftype L_p,
         ftype &P_M, ftype &S_M,
         ftype v_line_L, ftype v_line_R, ftype cs_L, ftype cs_R) {
     /* before going on, let's compare this to an exact Riemann solution calculated iteratively */
     ftype Pg, W_L, W_R;
-    ftype niter_Riemann;
+    int niter_Riemann;
     ftype dvel;
     dvel = v_line_R - v_line_L;
 
@@ -728,12 +755,12 @@ inline int handle_input_vacuum(dvec R_rho, dvec R_p,
 }
 
 template <typename ftype=double>
-static inline ftype Riemann_solver_exact(ftype dConstGamma,
-        ftype R_rho,ftype R_p, ftype R_v[3], ftype L_rho,ftype L_p, ftype L_v[3],
-        ftype &P_M, ftype &S_M, ftype *rho_f, ftype *p_f, ftype *v_f,
-        ftype n_unit[3]) {
+static inline int Riemann_solver_exact(ftype dConstGamma,
+                                       ftype R_rho,ftype R_p, ftype R_v[3], ftype L_rho,ftype L_p, ftype L_v[3],
+                                       ftype &P_M, ftype &S_M, ftype *rho_f, ftype *p_f, ftype *v_f,
+                                       ftype n_unit[3]) {
 
-    ftype niter;
+    int niter;
     ftype cs_L = sqrt(GAMMA * L_p / L_rho);
     ftype cs_R = sqrt(GAMMA * R_p / R_rho);
 

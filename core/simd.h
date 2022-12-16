@@ -189,7 +189,7 @@ template<> inline const vec<__m512,float> &vec<__m512,float>::store(float *pf) c
 template<> inline const vec<__m512,float> vec<__m512,float>::sign_mask() { return _mm512_castsi512_ps(_mm512_set1_epi32(0x80000000)); }
 inline vec<__m512,float> min(vec<__m512,float> const &a,vec<__m512,float> const &b) { return _mm512_min_ps(a,b); }
 inline vec<__m512,float> max(vec<__m512,float> const &a,vec<__m512,float> const &b) { return _mm512_max_ps(a,b); }
-//inline vec<__m512,float> abs(vec<__m512,float> const &a) { return _mm512_abs_ps(a); }
+inline vec<__m512,float> abs(vec<__m512,float> const &a) { return _mm512_abs_ps(a); }
 inline vec<__m512,float> operator*(vec<__m512,float> const &a,vec<__m512,float> const &b) { return _mm512_mul_ps(a,b); }
 inline vec<__m512,float> operator/(vec<__m512,float> const &a,vec<__m512,float> const &b) { return _mm512_div_ps(a,b); }
 inline vec<__m512,float> operator+(vec<__m512,float> const &a,vec<__m512,float> const &b) { return _mm512_add_ps(a,b); }
@@ -317,7 +317,7 @@ template<> inline const vec<__m512d,double> &vec<__m512d,double>::store(double *
 template<> inline const vec<__m512d,double> vec<__m512d,double>::sign_mask() { return _mm512_castsi512_pd(_mm512_set1_epi64(0x8000000000000000)); }
 inline vec<__m512d,double> min(vec<__m512d,double> const &a,vec<__m512d,double> const &b) { return _mm512_min_pd(a,b); }
 inline vec<__m512d,double> max(vec<__m512d,double> const &a,vec<__m512d,double> const &b) { return _mm512_max_pd(a,b); }
-//inline vec<__m512d,double> abs(vec<__m512d,double> const &a) { return _mm512_abs_pd(a); }
+inline vec<__m512d,double> abs(vec<__m512d,double> const &a) { return _mm512_abs_pd(a); }
 inline vec<__m512d,double> operator*(vec<__m512d,double> const &a,vec<__m512d,double> const &b) { return _mm512_mul_pd(a,b); }
 inline vec<__m512d,double> operator/(vec<__m512d,double> const &a,vec<__m512d,double> const &b) { return _mm512_div_pd(a,b); }
 inline vec<__m512d,double> operator+(vec<__m512d,double> const &a,vec<__m512d,double> const &b) { return _mm512_add_pd(a,b); }
