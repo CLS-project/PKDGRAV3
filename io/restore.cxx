@@ -14,14 +14,19 @@
  *  You should have received a copy of the GNU General Public License
  *  along with PKDGRAV3.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include "TraversePST.h"
+#include "restore.h"
+#include "io/iochunk.h"
 
-class ServiceFreeStore : public TraverseCount<uint64_t> {
-public:
-    typedef void input;
-    explicit ServiceFreeStore(PST pst)
-        : TraverseCount(pst,PST_FREESTORE,"FreeStore") {}
-protected:
-    virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
-};
-
+void ServiceRestore::Read(PST pst,uint64_t iElement,const std::string &filename,uint64_t iBeg,uint64_t iEnd) {
+    pst->plcl->pkd->Restore(iElement,filename,iBeg,iEnd);
+}
+void pkdContext::Restore(uint64_t iElement,const std::string &filename,uint64_t iBeg,uint64_t iEnd) {
+    void *pParticle = particles.Element(Local());
+    auto iOffset = iBeg * particles.ParticleSize();
+    auto nParts = iEnd-iBeg;
+    auto nBytes = nParts * particles.ParticleSize();
+    assert(iElement == Local());
+    assert(Local()+nParts < FreeStore());
+    io_chunk_read(filename.c_str(), pParticle, nBytes, iOffset);
+    AddLocal(nParts);
+}

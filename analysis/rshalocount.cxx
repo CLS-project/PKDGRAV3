@@ -14,14 +14,17 @@
  *  You should have received a copy of the GNU General Public License
  *  along with PKDGRAV3.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include "TraversePST.h"
+#include "rshalocount.h"
+#include <fstream>
+using std::ifstream;
+using std::ios_base;
+namespace rs {
+#include "rockstar/io/io_internal.h"
+}
 
-class ServiceFreeStore : public TraverseCount<uint64_t> {
-public:
-    typedef void input;
-    explicit ServiceFreeStore(PST pst)
-        : TraverseCount(pst,PST_FREESTORE,"FreeStore") {}
-protected:
-    virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
-};
-
+uint64_t ServiceRsHaloCount::GetSize(const std::string &filename,uint64_t file_size) {
+    std::ifstream fhalo(filename,std::ios_base::in | std::ios_base::binary);
+    rs::binary_output_header hdr;
+    fhalo.read(reinterpret_cast<std::ifstream::char_type *>(&hdr),sizeof(hdr));      assert(fhalo.good());
+    return hdr.num_halos;
+}

@@ -244,18 +244,22 @@ static double fetchFloat(PKD pkd,PARTICLE *p,int iType,int iDim) {
  * output stream (ASCII,BZIP2,GZIP,etc.).
 \******************************************************************************/
 static void storeInteger(PKD pkd,PKDOUT ctx,PARTICLE *p,int iType,int iDim) {
-    int n = ctx->inOffset - ctx->inBuffer;
-    if ( PKDOUT_BUFFER_SIZE - n < 24 ) {
+    int n = PKDOUT_BUFFER_SIZE - (ctx->inOffset - ctx->inBuffer);
+    if ( n < 24 ) {
         (*ctx->fnFlush)(pkd,ctx,0);
+        n = PKDOUT_BUFFER_SIZE - (ctx->inOffset - ctx->inBuffer);
     }
-    sprintf(ctx->inOffset,"%" PRIu64 "\n",fetchInteger(pkd,p,iType,iDim));
+    snprintf(ctx->inOffset,n,"%" PRIu64 "\n",fetchInteger(pkd,p,iType,iDim));
     assert(strlen(ctx->inOffset) < 24 );
     while ( *ctx->inOffset ) ++ctx->inOffset;
 }
 static void storeFloat(PKD pkd,PKDOUT ctx,PARTICLE *p,int iType,int iDim) {
-    if ( PKDOUT_BUFFER_SIZE - (ctx->inOffset-ctx->inBuffer) < 20 )
+    int n = PKDOUT_BUFFER_SIZE - (ctx->inOffset-ctx->inBuffer);
+    if ( n < 20 ) {
         (*ctx->fnFlush)(pkd,ctx,0);
-    sprintf(ctx->inOffset,"%.8g\n",fetchFloat(pkd,p,iType,iDim));
+        n = PKDOUT_BUFFER_SIZE - (ctx->inOffset-ctx->inBuffer);
+    }
+    snprintf(ctx->inOffset,n,"%.8g\n",fetchFloat(pkd,p,iType,iDim));
     assert(strlen(ctx->inOffset) < 20 );
     while ( *ctx->inOffset ) ++ctx->inOffset;
 }
@@ -285,20 +289,28 @@ static void storeRungDest(PKD pkd,PKDOUT ctx,PARTICLE *p,int iType,int iDim) {
 #else
     lKey = hilbert2d(x,y);
 #endif
-    if ( PKDOUT_BUFFER_SIZE - (ctx->inOffset-ctx->inBuffer) < 100 )
+    int n = PKDOUT_BUFFER_SIZE - (ctx->inOffset-ctx->inBuffer);
+    if ( n < 100 ) {
         (*ctx->fnFlush)(pkd,ctx,0);
-    sprintf(ctx->inOffset,"%016" PRIx64 " %d",lKey,static_cast<int>(p->uRung));
+        n = PKDOUT_BUFFER_SIZE - (ctx->inOffset-ctx->inBuffer);
+    }
+    snprintf(ctx->inOffset,n,"%016" PRIx64 " %d",lKey,static_cast<int>(p->uRung));
     ctx->inOffset += strlen(ctx->inOffset);
+    n = PKDOUT_BUFFER_SIZE - (ctx->inOffset-ctx->inBuffer);
     for (iRung=0; iRung<8; iRung++) {
-        sprintf(ctx->inOffset," %d", pRungDest[iRung]);
+        snprintf(ctx->inOffset,n," %d", pRungDest[iRung]);
         ctx->inOffset += strlen(ctx->inOffset);
+        n = PKDOUT_BUFFER_SIZE - (ctx->inOffset-ctx->inBuffer);
     }
     *ctx->inOffset++ = '\n';
 }
 static void storeHdr(PKD pkd,PKDOUT ctx,uint64_t N) {
-    if ( PKDOUT_BUFFER_SIZE - (ctx->inOffset-ctx->inBuffer) < 20 )
+    int n = PKDOUT_BUFFER_SIZE - (ctx->inOffset-ctx->inBuffer);
+    if ( n < 20 ) {
         (*ctx->fnFlush)(pkd,ctx,0);
-    sprintf(ctx->inOffset,"%" PRIu64 "\n",N);
+        n = PKDOUT_BUFFER_SIZE - (ctx->inOffset-ctx->inBuffer);
+    }
+    snprintf(ctx->inOffset,n,"%" PRIu64 "\n",N);
     while ( *ctx->inOffset ) ++ctx->inOffset;
 }
 static void finish(PKD pkd,PKDOUT ctx) {
@@ -307,9 +319,12 @@ static void finish(PKD pkd,PKDOUT ctx) {
 }
 
 static void storePsGroup(PKD pkd,PKDOUT ctx,PARTICLE *p,int iType,int iDim) {
-    if ( PKDOUT_BUFFER_SIZE - (ctx->inOffset-ctx->inBuffer) < 40 )
+    int n = PKDOUT_BUFFER_SIZE - (ctx->inOffset-ctx->inBuffer);
+    if ( n < 40 ) {
         (*ctx->fnFlush)(pkd,ctx,0);
-    sprintf(ctx->inOffset,"%" PRIu64 " %i\n",(uint64_t)p->iOrder, pkdGetGroup(pkd,p));
+        n = PKDOUT_BUFFER_SIZE - (ctx->inOffset-ctx->inBuffer);
+    }
+    snprintf(ctx->inOffset,n,"%" PRIu64 " %i\n",(uint64_t)p->iOrder, pkdGetGroup(pkd,p));
     assert(strlen(ctx->inOffset) < 40 );
     while ( *ctx->inOffset ) ++ctx->inOffset;
 }
@@ -356,13 +371,18 @@ static void storeRungDestBinary(PKD pkd,PKDOUT ctx,PARTICLE *p,int iType,int iDi
 #else
     lKey = hilbert2d(x,y);
 #endif
-    if ( PKDOUT_BUFFER_SIZE - (ctx->inOffset-ctx->inBuffer) < 100 )
+    int n = PKDOUT_BUFFER_SIZE - (ctx->inOffset-ctx->inBuffer);
+    if ( n < 100 ) {
         (*ctx->fnFlush)(pkd,ctx,0);
-    sprintf(ctx->inOffset,"%016" PRIx64 " %d",lKey,static_cast<int>(p->uRung));
+        n = PKDOUT_BUFFER_SIZE - (ctx->inOffset-ctx->inBuffer);
+    }
+    snprintf(ctx->inOffset,n,"%016" PRIx64 " %d",lKey,static_cast<int>(p->uRung));
     ctx->inOffset += strlen(ctx->inOffset);
+    n = PKDOUT_BUFFER_SIZE - (ctx->inOffset-ctx->inBuffer);
     for (iRung=0; iRung<8; iRung++) {
-        sprintf(ctx->inOffset," %d", pRungDest[iRung]);
+        snprintf(ctx->inOffset,n," %d", pRungDest[iRung]);
         ctx->inOffset += strlen(ctx->inOffset);
+        n = PKDOUT_BUFFER_SIZE - (ctx->inOffset-ctx->inBuffer);
     }
     *ctx->inOffset++ = '\n';
 }
@@ -374,9 +394,12 @@ static void storeHdrBinary(PKD pkd,PKDOUT ctx,uint64_t N) {
 }
 static void storePsGroupBinary(PKD pkd,PKDOUT ctx,PARTICLE *p,int iType,int iDim) {
     assert(0);
-    if ( PKDOUT_BUFFER_SIZE - (ctx->inOffset-ctx->inBuffer) < 40 )
+    int n = PKDOUT_BUFFER_SIZE - (ctx->inOffset-ctx->inBuffer);
+    if ( n < 40 ) {
         (*ctx->fnFlush)(pkd,ctx,0);
-    sprintf(ctx->inOffset,"%" PRIu64 " %i\n",(uint64_t)p->iOrder, pkdGetGroup(pkd,p));
+        n = PKDOUT_BUFFER_SIZE - (ctx->inOffset-ctx->inBuffer);
+    }
+    snprintf(ctx->inOffset,n,"%" PRIu64 " %i\n",(uint64_t)p->iOrder, pkdGetGroup(pkd,p));
     assert(strlen(ctx->inOffset) < 40 );
     while ( *ctx->inOffset ) ++ctx->inOffset;
 }

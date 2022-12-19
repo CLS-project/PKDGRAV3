@@ -44,6 +44,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <algorithm>
 #ifdef _MSC_VER
     #define FILE_PROTECTION (_S_IREAD | _S_IWRITE)
     typedef int ssize_t;
@@ -76,7 +77,6 @@ void io_init(asyncFileInfo *info, size_t nBuffers,size_t nBufferSize,int method)
     info->iBuffer = 0;
     info->nPending = 0;
     info->bWrite = 0;
-
 #ifdef HAVE_AIO_H
     if ((method & IO_AIO) && info->method==IO_REGULAR) {
         info->method = IO_AIO;
@@ -108,7 +108,7 @@ void io_init(asyncFileInfo *info, size_t nBuffers,size_t nBufferSize,int method)
                 assert(vBuffer!=NULL);
             }
             else vBuffer = NULL;
-            info->pBuffer[i] = vBuffer;
+            info->pBuffer[i] = reinterpret_cast<char *>(vBuffer);
         }
     }
 #endif
@@ -163,6 +163,7 @@ static void queue_dio(asyncFileInfo *info,int i,int bWrite) {
     /* Align buffer size for direct I/O. File will be truncated before closing if writing */
     nTransfer = (nBytes+info->nPageSize-1) & ~(info->nPageSize-1);
     info->nExpected[i] = bWrite ? nTransfer : nBytes; // We need to ask for a page size, but could *read* less
+    info->iOffset[i] = info->iFilePosition;
 #ifdef HAVE_AIO_H
     if (info->method == IO_AIO) {
         info->io.aio.pcb[i] = info->io.aio.cb + i;
@@ -203,9 +204,9 @@ static int wait_complete(asyncFileInfo *info, int nWait) {
                     iWait = i;
                     info->io.aio.pcb[i] = NULL;
                     ssize_t nBytesTransferred = aio_return(&info->io.aio.cb[i]);
-                    if (nBytesTransferred != info->nExpected[i]) {
-                        sprintf(szError,"errno=%d nBytesExpected=%" PRIu64 " nBytesTransferred=%" PRIi64 "\n",
-                                errno,(uint64_t)info->nExpected[i],(int64_t)nBytesTransferred);
+                    if (nBytesTransferred < info->nExpected[i]) {
+                        snprintf(szError,sizeof(szError),"errno=%d nBytesExpected=%" PRIu64 " nBytesTransferred=%" PRIi64 "\n",
+                                 errno,(uint64_t)info->nExpected[i],(int64_t)nBytesTransferred);
                         perror(szError);
                         abort();
                     }
@@ -214,7 +215,7 @@ static int wait_complete(asyncFileInfo *info, int nWait) {
                 }
                 else {
                     errno = rc;
-                    sprintf(szError,"aio_error: rc=%d",rc);
+                    snprintf(szError,sizeof(szError),"aio_error: rc=%d",rc);
                     perror(szError);
                     abort();
                 }
@@ -241,7 +242,7 @@ void io_write(asyncFileInfo *info, void *buf, size_t count) {
         // It is the responsibility of the caller to provide a buffer that
         // is properly aligned, and that will persist for the duration of the I/O.
         if (info->nBufferSize==0) {
-            info->pBuffer[info->iBuffer] = buf;
+            info->pBuffer[info->iBuffer] = reinterpret_cast<char *>(buf);
             info->iByte = count;
             queue_dio(info,info->iBuffer,info->bWrite);
             info->iByte = 0;
@@ -249,7 +250,7 @@ void io_write(asyncFileInfo *info, void *buf, size_t count) {
             else info->iBuffer = wait_complete(info,1);
             return;
         }
-        char *pBuf = buf;
+        auto pBuf = reinterpret_cast<char *>(buf);
         while (count) {
             size_t nBytes = info->nBufferSize - info->iByte;
             if (count < nBytes) nBytes = count;
@@ -277,7 +278,7 @@ void io_read(asyncFileInfo *info, void *buf, size_t count) {
         assert(info->nBufferSize==0);
         if (info->nPending < info->nBuffers) info->iBuffer = info->nPending;
         else info->iBuffer = wait_complete(info,1);
-        info->pBuffer[info->iBuffer] = buf;
+        info->pBuffer[info->iBuffer] = reinterpret_cast<char *>(buf);
         info->iByte = count;
         queue_dio(info,info->iBuffer,0);
         info->iByte = 0;
@@ -286,6 +287,56 @@ void io_read(asyncFileInfo *info, void *buf, size_t count) {
 #endif
     if (read(info->fd,buf,count) != count) { perror("read"); abort(); }
     info->iFilePosition += count;
+}
+
+static void finish_read(asyncFileInfo *info, char *p, size_t offset, int i) {
+    auto src = info->pBuffer[i];
+    if (info->iOffset[i] >= offset) {
+        memcpy(p+info->iOffset[i]-offset,src,info->nExpected[i]);
+    }
+    else {
+        auto nSkip = offset - info->iOffset[i];
+        memcpy(p,src+nSkip,info->nExpected[i]-nSkip);
+    }
+}
+
+
+void io_read(asyncFileInfo *info, void *buf, size_t count,size_t offset) {
+    auto p = static_cast<char *>(buf);
+#if defined(HAVE_LIBAIO) || defined(HAVE_AIO_H)
+    if (info->method&(IO_AIO|IO_LIBAIO)) {
+        assert(info->nBufferSize>0 && info->nBuffers>0);
+        auto nExtra = offset % info->nPageSize;
+        info->iFilePosition = offset - nExtra;
+        count += nExtra;
+        while (count) {
+            auto iSize = std::min(count,info->nBufferSize);
+            if (info->nPending < info->nBuffers) info->iBuffer = info->nPending;
+            else {
+                auto i = info->iBuffer = wait_complete(info,1);
+                finish_read(info,p,offset,i);
+            }
+            info->iByte = iSize;
+            queue_dio(info,info->iBuffer,0);
+            info->iByte = 0;
+            count -= iSize;
+        }
+        while (info->nPending) finish_read(info,p,offset,wait_complete(info,1));
+        return;
+    }
+#endif
+    info->iFilePosition = offset;
+    if (lseek(info->fd, offset, SEEK_SET) != offset) {
+        perror("Seek error");
+        abort();
+    }
+    while (count) {
+        auto iSize = std::min(count,info->nBufferSize);
+        if (read(info->fd,p,iSize) != iSize) { perror("read"); abort(); }
+        info->iFilePosition += iSize;
+        count -= iSize;
+        p += iSize;
+    }
 }
 
 void io_close(asyncFileInfo *info) {

@@ -135,7 +135,7 @@ int test(worker::Context *ctx,void *vin,int nIn,void *vout,int nOut) {
 
         // printf("Running test on %d of %d with %d elements\n",iCore,nCore,n);
 
-        auto counts = new int[nCore];
+        auto counts = new mdl::mdlClass::dd_offset_type[nCore];
 
         int j=0;
         for (auto i=0; i<nCore; ++i) {

@@ -173,8 +173,8 @@ public:
     virtual ~mdlBASE();
     int32_t Threads() const { return layout.nThreads; }
     int32_t Self()    const { return layout.idSelf; }
-    int16_t Core()    const { return layout.iCore; }
-    int16_t Cores()   const { return layout.nCores; }
+    int32_t Core()    const { return layout.iCore; }
+    int32_t Cores()   const { return layout.nCores; }
     int32_t Proc()    const { return layout.iProc; }
     int32_t Procs()   const { return layout.nProcs; }
     int32_t ProcToThread(int32_t iProc) const;

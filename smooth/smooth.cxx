@@ -600,17 +600,17 @@ void smFinish(SMX smx,SMF *smf) {
     /*
      * Output statistics.
      */
-    sprintf(achOut, "Cell Accesses: %g\n",
-            mdlNumAccess(smx->pkd->mdl,CID_CELL));
+    snprintf(achOut, sizeof(achOut), "Cell Accesses: %g\n",
+             mdlNumAccess(smx->pkd->mdl,CID_CELL));
     mdlDiag(smx->pkd->mdl, achOut);
-    sprintf(achOut, "    Miss ratio: %g\n",
-            mdlMissRatio(smx->pkd->mdl,CID_CELL));
+    snprintf(achOut, sizeof(achOut), "    Miss ratio: %g\n",
+             mdlMissRatio(smx->pkd->mdl,CID_CELL));
     mdlDiag(smx->pkd->mdl, achOut);
-    sprintf(achOut, "Particle Accesses: %g\n",
-            mdlNumAccess(smx->pkd->mdl,CID_PARTICLE));
+    snprintf(achOut, sizeof(achOut), "Particle Accesses: %g\n",
+             mdlNumAccess(smx->pkd->mdl,CID_PARTICLE));
     mdlDiag(smx->pkd->mdl, achOut);
-    sprintf(achOut, "    Miss ratio: %g\n",
-            mdlMissRatio(smx->pkd->mdl,CID_PARTICLE));
+    snprintf(achOut, sizeof(achOut), "    Miss ratio: %g\n",
+             mdlMissRatio(smx->pkd->mdl,CID_PARTICLE));
     mdlDiag(smx->pkd->mdl, achOut);
     /*
     ** Stop particle caching space.

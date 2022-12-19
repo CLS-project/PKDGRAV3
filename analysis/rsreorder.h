@@ -14,14 +14,19 @@
  *  You should have received a copy of the GNU General Public License
  *  along with PKDGRAV3.  If not, see <http://www.gnu.org/licenses/>.
  */
+
+#ifndef B9683FDD_489C_48B4_A749_59C4E4000A02
+#define B9683FDD_489C_48B4_A749_59C4E4000A02
+
 #include "TraversePST.h"
 
-class ServiceFreeStore : public TraverseCount<uint64_t> {
+class ServiceRsReorderIds : public TraversePST {
 public:
-    typedef void input;
-    explicit ServiceFreeStore(PST pst)
-        : TraverseCount(pst,PST_FREESTORE,"FreeStore") {}
-protected:
+    using input = uint64_t;
+    using output = void;
+    explicit ServiceRsReorderIds(PST pst)
+        : TraversePST(pst,PST_RS_REORDER_IDS,sizeof(input)*(pst->mdl->Threads()+1)) {}
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
 };
 
+#endif /* B9683FDD_489C_48B4_A749_59C4E4000A02 */

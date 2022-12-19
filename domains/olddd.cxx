@@ -346,8 +346,8 @@ void ServiceDomainDecomp::RootSplit(PST pst,int iSplitDim,int bDoRootFind,int bD
     nSafeTot = nLowerStore + nUpperStore - (nLowTot + nHighTot);
     if (nSafeTot/pst->nLeaves < NUM_SAFETY) {
         NUM_SAFETY = nSafeTot/pst->nLeaves;
-        sprintf(ach,"id: %d tripped inactive NUM_SAFETY %d  Low %" PRIu64 "/%" PRIu64 "  High %" PRIu64 "/%" PRIu64 "\n",
-                pst->idSelf, NUM_SAFETY, nLowTot, nLowerStore, nHighTot, nUpperStore);
+        snprintf(ach,sizeof(ach),"id: %d tripped inactive NUM_SAFETY %d  Low %" PRIu64 "/%" PRIu64 "  High %" PRIu64 "/%" PRIu64 "\n",
+                 pst->idSelf, NUM_SAFETY, nLowTot, nLowerStore, nHighTot, nUpperStore);
         mdlDiag(pst->mdl,ach);
         mdlprintf(pst->mdl,"id: %d tripped inactive NUM_SAFETY %d  Low %%" PRIu64 "/%" PRIu64 "  High %" PRIu64 "/%" PRIu64 "\n",
                   pst->idSelf, NUM_SAFETY, nLowTot, nLowerStore, nHighTot, nUpperStore);
@@ -361,8 +361,8 @@ void ServiceDomainDecomp::RootSplit(PST pst,int iSplitDim,int bDoRootFind,int bD
 
 
     if (nLowTot > nLowerStore-NUM_SAFETY*pst->nLower) {
-        sprintf(ach,"id: %d: nLowTot > nLowerStore-NUM_SAFETY*pst->nLower %" PRIu64 " %" PRIu64 " %d %d\n",
-                pst->idSelf, nLowTot, nLowerStore, NUM_SAFETY, pst->nLower);
+        snprintf(ach,sizeof(ach),"id: %d: nLowTot > nLowerStore-NUM_SAFETY*pst->nLower %" PRIu64 " %" PRIu64 " %d %d\n",
+                 pst->idSelf, nLowTot, nLowerStore, NUM_SAFETY, pst->nLower);
         mdlDiag(pst->mdl,ach);
         fm = std::max(std::min(fm,bnd.upper(dBnd)),bnd.lower(dBnd));
         fl = fm;
@@ -429,8 +429,8 @@ void ServiceDomainDecomp::RootSplit(PST pst,int iSplitDim,int bDoRootFind,int bD
         mdlPrintTimer(pst->mdl,"TIME fix lower II _pstRootSplit ",&t);
     }
     else if (nHighTot > nUpperStore-NUM_SAFETY*pst->nUpper) {
-        sprintf(ach,"id: %d: nHighTot > nUpperStore-NUM_SAFETY*pst->nUpper %" PRIu64 " %" PRIu64 " %d %d\n",
-                pst->idSelf, nHighTot, nUpperStore, NUM_SAFETY, pst->nUpper);
+        snprintf(ach,sizeof(ach),"id: %d: nHighTot > nUpperStore-NUM_SAFETY*pst->nUpper %" PRIu64 " %" PRIu64 " %d %d\n",
+                 pst->idSelf, nHighTot, nUpperStore, NUM_SAFETY, pst->nUpper);
         mdlDiag(pst->mdl,ach);
         fm = std::max(std::min(fm,bnd.upper(dBnd)),bnd.lower(dBnd));
         fu = fm;
@@ -489,8 +489,8 @@ void ServiceDomainDecomp::RootSplit(PST pst,int iSplitDim,int bDoRootFind,int bD
     }
 
     if (nLowTot < NUM_SAFETY*pst->nLower) {
-        sprintf(ach,"id: %d: nLowTot < NUM_SAFETY*pst->nLower %" PRIu64 " %" PRIu64 " %d %d\n",
-                pst->idSelf, nLowTot, nLowerStore, NUM_SAFETY, pst->nLower);
+        snprintf(ach,sizeof(ach),"id: %d: nLowTot < NUM_SAFETY*pst->nLower %" PRIu64 " %" PRIu64 " %d %d\n",
+                 pst->idSelf, nLowTot, nLowerStore, NUM_SAFETY, pst->nLower);
         mdlDiag(pst->mdl,ach);
         fm = std::max(std::min(fm,bnd.upper(dBnd)),bnd.lower(dBnd));
         fu = fm;
@@ -548,8 +548,8 @@ void ServiceDomainDecomp::RootSplit(PST pst,int iSplitDim,int bDoRootFind,int bD
         mdlPrintTimer(pst->mdl,"TIME fix lower II _pstRootSplit ",&t);
     }
     if (nHighTot < NUM_SAFETY*pst->nUpper) {
-        sprintf(ach,"id: %d: nHighTot > nUpperStore-NUM_SAFETY*pst->nUpper %" PRIu64 " %" PRIu64 " %d %d\n",
-                pst->idSelf, nHighTot, nUpperStore, NUM_SAFETY, pst->nUpper);
+        snprintf(ach,sizeof(ach),"id: %d: nHighTot > nUpperStore-NUM_SAFETY*pst->nUpper %" PRIu64 " %" PRIu64 " %d %d\n",
+                 pst->idSelf, nHighTot, nUpperStore, NUM_SAFETY, pst->nUpper);
         mdlDiag(pst->mdl,ach);
         fm = std::max(std::min(fm,bnd.upper(dBnd)),bnd.lower(dBnd));
         fl = fm;
@@ -849,16 +849,18 @@ int ServiceDomainOrder::Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) {
     ** Now go on to Domain Order of next levels.
     */
     in->iMinOrder = iMidOrder;
-    if (pst->nUpper > 1) rID = mdl->ReqService(pst->idUpper,PST_DOMAINORDER,in,nIn);
+    rID = mdl->ReqService(pst->idUpper,PST_DOMAINORDER,in,nIn);
     in->iMinOrder = iMinOrder;
     in->iMaxOrder = iMidOrder-1;
-    if (pst->nLower > 1) Traverse(pst->pstLower,in,nIn,NULL,0);
-    if (pst->nUpper > 1) mdl->GetReply(rID);
+    Traverse(pst->pstLower,in,nIn,NULL,0);
+    mdl->GetReply(rID);
 
     return 0;
 }
 
 int ServiceDomainOrder::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
+    auto in = static_cast<input *>(vin);
+    pst->iOrdSplit = in->iMinOrder;
     return 0;
 }
 

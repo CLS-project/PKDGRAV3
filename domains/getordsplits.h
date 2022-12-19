@@ -16,12 +16,15 @@
  */
 #include "TraversePST.h"
 
-class ServiceFreeStore : public TraverseCount<uint64_t> {
+class ServiceGetOrdSplits : public TraverseGatherPST<uint64_t> {
 public:
-    typedef void input;
-    explicit ServiceFreeStore(PST pst)
-        : TraverseCount(pst,PST_FREESTORE,"FreeStore") {}
+    using input = void;
+    // struct input {
+    //     uint64_t iMinOrder;
+    //     uint64_t iMaxOrder;
+    // };
+    explicit ServiceGetOrdSplits(PST pst)
+        : TraverseGatherPST(pst,PST_GET_ORD_SPLITS,0,sizeof(output)*pst->mdl->Threads(),"GetOrdSplits") {}
 protected:
-    virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
+    virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) final;
 };
-

@@ -561,6 +561,8 @@ protected:
     PARTICLE *pTempPRIVATE = nullptr;
     size_t iTreeNodeSize = 0; // Size (in bytes) of a tree node
     uint32_t nEphemeralBytes = 0; /* per-particle */
+    void *storageBase;
+    uint64_t storageSize;
 public:
     particleStore particles;
     int FreeStore() { return particles.FreeStore(); }
@@ -632,6 +634,23 @@ public:
         if ((nNodes&1)==0) ++nNodes;
         return TreeAllocNode();
     }
+// I/O
+public:
+    void Restore(uint64_t iElement,const std::string &filename,uint64_t iBeg,uint64_t iEnd);
+
+// Rockstar Analysis
+protected:
+    uint64_t nRsElements;
+public:
+    void RsHaloIdStart(uint64_t nElements,bool bAppend=false);
+    void RsHaloIdFinish(uint64_t nElements);
+    void RsHaloIdRead(uint64_t iElement,const std::string &filename,uint64_t iBeg,uint64_t iEnd);
+    void RsIdStart(uint64_t nElements,bool bAppend=false);
+    void RsIdFinish(uint64_t nElements);
+    void RsIdRead(uint64_t iElement,const std::string &filename,uint64_t iBeg,uint64_t iEnd);
+    void RsIdSave(int iGroup,const std::string &filename,int iSegment,int nSegment);
+    void RsReorder(uint64_t *pOrds);
+    void RsExtract(const std::string &filename, int iSegment, uint64_t *pOrds);
 
 public:
     mdl::mdlClass *mdl;
@@ -1288,7 +1307,6 @@ int pkdInactive(PKD);
 int pkdColOrdRejects(PKD,uint64_t,int);
 void pkdLocalOrder(PKD,uint64_t iMinOrder,uint64_t iMaxOrder);
 void pkdCheckpoint(PKD pkd,const char *fname);
-void pkdRestore(PKD pkd,const char *fname);
 void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dScaleFactor, double dTime,
                        uint64_t nDark, uint64_t nGas, uint64_t nStar, uint64_t nBH,
                        double dBoxSize, double h, int nProcessors, UNITS units);

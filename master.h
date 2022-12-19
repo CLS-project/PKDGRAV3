@@ -80,6 +80,8 @@ protected:
     const PST pst;
     mdl::mdlClass *mdl;
     bool bVDetails;
+    bool bAnalysis = false;
+    PyObject *parameter_overrides = nullptr;
 public:
     explicit MSR(MDL mdl,PST pst) : pst(pst), mdl(static_cast<mdl::mdlClass *>(mdl)), bVDetails(false) {}
     ~MSR();
@@ -94,6 +96,15 @@ public:
     double LoadOrGenerateIC();
     void Simulate(double dTime,double dDelta,int iStartStep,int nSteps);
     void Simulate(double dTime);
+    void setAnalysisMode(bool b=true) {bAnalysis=b;}
+    void setAnalysisMode(PyObject *over) {
+        bAnalysis=true;
+        parameter_overrides = over;
+    }
+protected:
+    void stat_files(std::vector<uint64_t> &counts,const std::string &filename_template, uint64_t element_size);
+    void Restore(const std::string &filename,int nSizeParticle);
+
 public:
     // Parameters
     bool      wasParameterSpecified(const char *name) const;
@@ -206,6 +217,9 @@ private:
     std::string getScalarString(const char *name, PyObject *v);
 public: // should be private
     PyObject *arguments=nullptr, *specified=nullptr;
+    bool verify_parameters(PyObject *kwobj);
+protected:
+    bool update_parameters(PyObject *kwobj,bool bIgnoreUnknown=false);
 public:
     int64_t                  getScalarInteger(const char *name);
     double                   getScalarNumber(const char *name);
@@ -371,7 +385,7 @@ protected:
     void msrprintf(const char *Format, ... ) const;
     void Exit(int status);
     uint64_t getMemoryModel();
-    void InitializePStore(uint64_t *nSpecies,uint64_t mMemoryModel);
+    std::pair<int,int> InitializePStore(uint64_t *nSpecies,uint64_t mMemoryModel,uint64_t nEphemeral);
     int CheckForStop(const char *achStopFile);
     int CheckForOutput(int iStep,int nSteps,double dTime,int *pbDoCheckpoint,int *pbDoOutput);
     bool OutTime(double dTime);
@@ -547,5 +561,14 @@ public:
     uint64_t SelBox(double *dCenter, double *dSize,bool setIfTrue=true,bool clearIfFalse=true);
     uint64_t SelSphere(double *r, double dRadius,int setIfTrue,int clearIfFalse);
     uint64_t SelCylinder(double *dP1, double *dP2, double dRadius, int setIfTrue, int clearIfFalse );
+public:
+    void RsLoadIds(int sid,std::vector<uint64_t> &counts,const std::string &filename,bool bAppend=false);
+#ifdef HAVE_ROCKSTAR
+    void RsHaloLoadIds(const std::string &filename,bool bAppend=false);
+#endif
+    void RsLoadIds(const std::string &filename,bool bAppend=false);
+    void RsSaveIds(const std::string &filename);
+    void RsReorderIds();
+    void RsExtract(const char *filename_template);
 };
 #endif

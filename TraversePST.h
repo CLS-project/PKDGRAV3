@@ -36,6 +36,7 @@ public:
     explicit TraversePST(PST node_pst,int service_id,const char *service_name="")
         : BasicService(service_id, 0, 0, service_name), node_pst(node_pst) {}
     virtual ~TraversePST() = default;
+    int ReqService(PST pst,void *vin,int nIn);
 protected:
     virtual int operator()(int nIn, void *pIn, void *pOut) final;
     virtual int Traverse(PST pst,void *vin,int nIn,void *vout,int nOut);
@@ -61,17 +62,52 @@ protected:
     virtual int Combine(void *vout,void *vout2) = 0;
 };
 
-// It is common for services to return a count of the number of particles
-// (total or updated) so this provides an appropriate Combine function
-class TraverseCountN : public TraverseCombinePST {
+// This class is for services where the input does not change as the PST is walked,
+// but where a field is gathered from each thread.
+template<typename OUTPUT>
+class TraverseGatherPST : public TraversePST {
 public:
-    typedef uint64_t output;
-    explicit TraverseCountN(PST pst,int service_id,int nInBytes, const char *service_name="")
+    explicit TraverseGatherPST(PST node_pst,int service_id,
+                               int nInBytes=0, int nOutBytes=0, const char *service_name="")
+        : TraversePST(node_pst,service_id, nInBytes, nOutBytes, service_name) {}
+    virtual ~TraverseGatherPST() = default;
+    using output = OUTPUT;
+protected:
+    virtual int Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) final {
+        auto mdl = reinterpret_cast<mdl::mdlClass *>(pst->mdl);
+        auto out1 = static_cast<output *>(vout);
+        auto out2 = out1 + pst->nLower;
+        int nBytesLower = pst->nLower * sizeof(output);
+        int nBytesUpper = pst->nUpper * sizeof(output);
+        assert(nBytesLower + nBytesUpper <= nOut);
+        nOut = nBytesLower + nBytesUpper;
+        auto rID = mdl->ReqService(pst->idUpper,getServiceID(),vin,nIn);
+        Traverse(pst->pstLower,vin,nIn,out1,nBytesLower);
+        nBytesUpper = mdl->GetReply(rID,out2);
+        assert(nBytesLower + nBytesUpper == nOut);
+        return nOut;
+    }
+};
+
+// This function more generally handles the common case where the return
+// needs to simply add the lower and upper values. This works for any
+// type that provides a "+=" function.
+template<class TYPENAME>
+class TraverseCount : public TraverseCombinePST {
+public:
+    typedef TYPENAME output;
+    static_assert(std::is_standard_layout<output>());
+    explicit TraverseCount(PST pst,int service_id,int nInBytes, const char *service_name="")
         : TraverseCombinePST(pst,service_id,nInBytes,sizeof(output),service_name) {}
-    explicit TraverseCountN(PST pst,int service_id,const char *service_name="")
+    explicit TraverseCount(PST pst,int service_id,const char *service_name="")
         : TraverseCombinePST(pst,service_id,0,sizeof(output),service_name) {}
 protected:
-    virtual int Combine(void *vout,void *vout2) final;
+    int Combine(void *vout,void *vout2) final {
+        auto out  = static_cast<output *>(vout);
+        auto out2 = static_cast<output *>(vout2);
+        *out += *out2;
+        return sizeof(output);
+    }
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override = 0;
 };
 

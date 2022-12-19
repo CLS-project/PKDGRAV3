@@ -333,6 +333,7 @@ struct parameters {
     /*
     ** Memory models.  Other parameters can force these to be set.
     */
+    uint64_t nMemEphemeral;
     int bMemIntegerPosition;
     int bMemUnordered;
     int bMemParticleID;

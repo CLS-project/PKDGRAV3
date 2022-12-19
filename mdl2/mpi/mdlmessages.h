@@ -100,6 +100,17 @@ public:
     virtual void action(class mpiClass *mdl);
 };
 
+class mdlMessageSwapGlobal : public mdlMessage {
+    bool bFinished;
+    int nDataSize;
+public:
+    explicit mdlMessageSwapGlobal(int nDataSize) : bFinished(false), nDataSize(nDataSize) {}
+    virtual void action(class mpiClass *mpi);
+    int datasize()             { return nDataSize; }
+    bool is_finished()         { return bFinished; }
+    void finished(bool b=true) { bFinished = b; }
+};
+
 class mdlMessageCacheOpen : public mdlMessage {
 public:
     virtual void action(class mpiClass *mdl);
