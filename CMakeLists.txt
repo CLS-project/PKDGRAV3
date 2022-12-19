@@ -181,15 +181,16 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 set_property(TARGET ${PROJECT_NAME} APPEND PROPERTY COMPILE_DEFINITIONS _LARGEFILE_SOURCE)
 target_sources(${PROJECT_NAME} PRIVATE
 	main.cxx cosmo.c master.cxx simulate.cxx pst.cxx TraversePST.cxx io/fio.c core/illinois.c param.c
-	pkd.cxx analysis/analysis.cxx smooth/smooth.cxx smooth/smoothfcn.cxx io/outtype.cxx io/output.cxx
+	pkd.cxx analysis/analysis.cxx smooth/smooth.cxx smooth/smoothfcn.cxx io/outtype.cxx io/output.cxx io/service.cxx
 	gravity/walk2.cxx gravity/grav2.cxx gravity/ewald.cxx ic/ic.cxx domains/tree.cxx gravity/opening.cxx gravity/pp.cxx gravity/pc.cxx gravity/cl.cxx
-	gravity/lst.cxx gravity/moments.c gravity/ilp.cxx gravity/ilc.cxx io/iomodule.c
+	gravity/lst.cxx gravity/moments.c gravity/ilp.cxx gravity/ilc.cxx io/iomodule.cxx io/iochunk.cxx io/restore.cxx
 	group/fof.cxx group/hop.cxx group/group.cxx group/groupstats.cxx ic/RngStream.c smooth/listcomp.c core/healpix.c
 	core/gridinfo.cxx analysis/interlace.cxx analysis/contrast.cxx analysis/assignmass.cxx analysis/measurepk.cxx bispectrum.cxx ic/whitenoise.cxx gravity/pmforces.cxx
 	core/setadd.cxx core/hostname.cxx core/initcosmology.cxx core/calcroot.cxx core/swapall.cxx core/select.cxx
 	domains/calcbound.cxx domains/combinebound.cxx domains/distribtoptree.cxx domains/distribroot.cxx domains/dumptrees.cxx
-	domains/enforceperiodic.cxx domains/freestore.cxx domains/olddd.cxx
+	domains/enforceperiodic.cxx domains/freestore.cxx domains/olddd.cxx domains/getordsplits.cxx
 	gravity/setsoft.cxx gravity/activerung.cxx gravity/countrungs.cxx gravity/zeronewrung.cxx
+	analysis/rsloadids.cxx analysis/rssaveids.cxx analysis/rsextract.cxx analysis/rsreorder.cxx
 	eEOS/eEOS.cxx
 	SPH/SPHOptions.cxx SPH/SPHEOS.cxx SPH/SPHpredict.cxx initlightcone.cxx
 )
@@ -201,7 +202,6 @@ target_link_libraries(${PROJECT_NAME} m)
 #target_link_libraries(tostd m)
 #target_link_libraries(psout m)
 
-if (NOT APPLE)
 CHECK_INCLUDE_FILES(libaio.h HAVE_LIBAIO_H)
 if (HAVE_LIBAIO_H)
   CHECK_LIBRARY_EXISTS(aio io_setup "" HAVE_LIBAIO)
@@ -216,7 +216,6 @@ if (HAVE_AIO_H)
   if(HAVE_RT)
     target_link_libraries(${PROJECT_NAME} rt)
   endif()
-endif()
 endif()
 if (HDF5_FOUND)
   set(USE_HDF5 TRUE)
@@ -285,6 +284,28 @@ foreach(flag_var
       string(REPLACE "-DNDEBUG" "" ${flag_var} "${${flag_var}}")
    endif(${flag_var} MATCHES "-DNDEBUG")
 endforeach(flag_var)
+
+# The header files for rockstar conflict with C++ so make symbolic links
+set(ROCKSTAR_PATH CACHE STRING "Path to the Rockstar source code")
+if(ROCKSTAR_PATH)
+    set(HAVE_ROCKSTAR TRUE)
+    file(REAL_PATH ${ROCKSTAR_PATH} rdir EXPAND_TILDE)
+    make_directory(${CMAKE_BINARY_DIR}/rockstar)
+    make_directory(${CMAKE_BINARY_DIR}/rockstar/io)
+    foreach(file particle.h halo.h io/io_internal.h)
+        #find_file(rs_src ${file} PATHS ${rdir} NO_DEFAULT_PATH NO_CACHE REQUIRED)
+        add_custom_command(
+            OUTPUT ${CMAKE_BINARY_DIR}/rockstar/${file}
+            MAIN_DEPENDENCY ${rdir}/${file}
+            COMMAND ${CMAKE_COMMAND} -E create_symlink
+                ${rdir}/${file}
+                ${CMAKE_BINARY_DIR}/rockstar/${file}
+            VERBATIM
+        )
+        target_sources(${PROJECT_NAME} PRIVATE ${CMAKE_BINARY_DIR}/rockstar/${file})
+    endforeach()
+    target_sources(${PROJECT_NAME} PRIVATE analysis/rshaloloadids.cxx analysis/rshalocount.cxx)
+endif()
 
 option(HYDRO "Compile with hydrodynamics support" ON)
 if (HYDRO)

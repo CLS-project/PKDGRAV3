@@ -1,3 +1,5 @@
+#ifndef BD2FB51E_EAF8_41BC_B8A5_6333435EB545
+#define BD2FB51E_EAF8_41BC_B8A5_6333435EB545
 /*  This file is part of PKDGRAV3 (http://www.pkdgrav.org/).
  *  Copyright (c) 2001-2018 Joachim Stadel & Douglas Potter
  *
@@ -14,14 +16,18 @@
  *  You should have received a copy of the GNU General Public License
  *  along with PKDGRAV3.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include "TraversePST.h"
+#include "io/service.h"
 
-class ServiceFreeStore : public TraverseCount<uint64_t> {
+class ServiceRsHaloLoadIds : public ServiceInput {
 public:
-    typedef void input;
-    explicit ServiceFreeStore(PST pst)
-        : TraverseCount(pst,PST_FREESTORE,"FreeStore") {}
-protected:
-    virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
+    struct input {
+        bool bAppend;
+    };
+    explicit ServiceRsHaloLoadIds(PST pst)
+        : ServiceInput(pst,PST_RS_HALO_LOAD_IDS,sizeof(input)) {}
+    virtual void Read(PST pst,uint64_t iElement,const std::string &filename,uint64_t iBeg,uint64_t iEnd) override;
+    virtual void start(PST pst,uint64_t nElements,void *vin,int nIn) override;
+    virtual void finish(PST pst,uint64_t nElements,void *vin,int nIn) override;
 };
 
+#endif /* BD2FB51E_EAF8_41BC_B8A5_6333435EB545 */

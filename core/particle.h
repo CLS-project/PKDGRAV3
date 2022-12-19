@@ -529,6 +529,7 @@ public:
         auto isMarked()     const { return store.isMarked(p); }
         auto rung()         const { return store.rung(p); }
         auto isRungRange(uint8_t uRungLo,uint8_t uRungHi)  const { return store.isRungRange(p,uRungLo,uRungHi); }
+        uint64_t get_order()            const {return p->iOrder;}
 
         void set_group( uint32_t gid ) { store.set_group(p,gid); }
         void set_density(float fDensity) {store.set_density(p,fDensity);}

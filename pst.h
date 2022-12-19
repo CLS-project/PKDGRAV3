@@ -54,7 +54,7 @@ typedef struct lclBlock {
 
 typedef struct pstContext {
     struct pstContext *pstLower;
-    MDL mdl;
+    mdl::mdlClass *mdl;
     LCL *plcl;
     int idSelf;
     int idUpper;
@@ -79,6 +79,7 @@ typedef struct pstContext {
 enum pst_service {
     PST_SRV_STOP=0, /* service 0 is always STOP and handled by MDL */
     PST_SETADD,
+    PST_FILE_SIZES,
     PST_READFILE,
     PST_DOMAINDECOMP,
     PST_CALCBOUND,
@@ -259,10 +260,17 @@ enum pst_service {
     PST_LIGHTCONE_CLOSE,
     PST_LIGHTCONEVEL,
     PST_GET_PARTICLES,
+    PST_GET_ORD_SPLITS,
+    PST_RS_REORDER_IDS,
+    PST_RS_HALO_COUNT,
+    PST_RS_HALO_LOAD_IDS,
+    PST_RS_LOAD_IDS,
+    PST_RS_SAVE_IDS,
+    PST_RS_EXTRACT,
 };
 
 void pstAddServices(PST,MDL);
-void pstInitialize(PST *,MDL,LCL *);
+void pstInitialize(PST *,mdl::mdlClass *,LCL *);
 void pstFinish(PST);
 
 /* PST_INITIALIZEPSTORE */
@@ -280,6 +288,10 @@ struct inInitializePStore {
     int iCacheMaxInflight;
     int iWorkQueueSize;
     int iCUDAQueueSize;
+};
+struct outInitializePStore {
+    int nSizeParticle;
+    int nSizeNode;
 };
 int pstInitializePStore(PST,void *,int,void *,int);
 
@@ -316,13 +328,6 @@ struct inWriteASCII {
     char achOutFile[PST_FILENAME_SIZE];
 };
 int pstWriteASCII(PST,void *,int,void *,int);
-
-/* PST_RESTORE */
-struct inRestore {
-    int nProcessors;
-    char achInFile[PST_FILENAME_SIZE];
-};
-int pstRestore(PST,void *,int,void *,int);
 
 /* PST_WRITE */
 struct inWrite {

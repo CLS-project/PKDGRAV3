@@ -191,6 +191,7 @@ def parse():
     add_flag(memory,'extra',default=0.1, dest='dExtraStore', type=float, help='Extra storage for particles')
     add_flag(memory,'treelo',default=14, dest='nTreeBitsLo',type=int, help='number of low bits for tree')
     add_flag(memory,'treehi',default=18, dest='nTreeBitsHi',type=int, help='number of high bits for tree')
+    add_flag(memory,'ephemeral',default=0, dest='nMemEphemeral',type=int, help='minimum size of ephemeral (in bytes)')
     add_bool(memory,'integer',default=False,dest='bMemIntegerPosition', help='Particles have integer positions')
     add_bool(memory,'unordered',default=False,dest='bMemUnordered', help='Particles have no specific order')
     add_bool(memory,'pid',default=False,dest='bMemParticleID', help='Particles have a unique identifier')

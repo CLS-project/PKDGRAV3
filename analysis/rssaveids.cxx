@@ -14,14 +14,15 @@
  *  You should have received a copy of the GNU General Public License
  *  along with PKDGRAV3.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include "TraversePST.h"
+#include "rssaveids.h"
+#include "io/iochunk.h"
 
-class ServiceFreeStore : public TraverseCount<uint64_t> {
-public:
-    typedef void input;
-    explicit ServiceFreeStore(PST pst)
-        : TraverseCount(pst,PST_FREESTORE,"FreeStore") {}
-protected:
-    virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
-};
+void ServiceRsSaveIds::Write(PST pst,void *vin,int nIn,int iGroup,const std::string &filename,int iSegment,int nSegment) {
+    pst->plcl->pkd->RsIdSave(iGroup,filename,iSegment,nSegment);
+}
 
+void pkdContext::RsIdSave(int iGroup,const std::string &filename,int iSegment,int nSegment) {
+    auto ids = static_cast<uint64_t *>(pLite);
+    auto nBytes = nRsElements*sizeof(ids[0]);
+    io_chunk_write(filename.c_str(), ids, nBytes, iSegment>0);
+}

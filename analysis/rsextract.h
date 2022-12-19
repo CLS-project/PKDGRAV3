@@ -14,14 +14,24 @@
  *  You should have received a copy of the GNU General Public License
  *  along with PKDGRAV3.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include "TraversePST.h"
 
-class ServiceFreeStore : public TraverseCount<uint64_t> {
+#ifndef DB0087E1_11FE_4040_88EB_FA1695330E03
+#define DB0087E1_11FE_4040_88EB_FA1695330E03
+
+#include "TraversePST.h"
+#include "io/service.h"
+
+class ServiceRsExtract : public ServiceOutput {
 public:
-    typedef void input;
-    explicit ServiceFreeStore(PST pst)
-        : TraverseCount(pst,PST_FREESTORE,"FreeStore") {}
+    using header = ServiceOutput::input;
+    using input = uint64_t;
+    using output = void;
+    explicit ServiceRsExtract(PST pst)
+        : ServiceOutput(pst,PST_RS_EXTRACT,sizeof(header)+sizeof(input)*(pst->mdl->Threads()+1)) {}
 protected:
-    virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
+    virtual void Write(PST pst,void *vin,int nIn,int iGroup,const std::string &filename,int iSegment,int nSegment) override;
+    // virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
 };
 
+
+#endif /* DB0087E1_11FE_4040_88EB_FA1695330E03 */

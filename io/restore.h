@@ -1,3 +1,6 @@
+#ifndef E5B60112_B4E2_46CB_AC8A_564BF342E5D3
+#define E5B60112_B4E2_46CB_AC8A_564BF342E5D3
+
 /*  This file is part of PKDGRAV3 (http://www.pkdgrav.org/).
  *  Copyright (c) 2001-2018 Joachim Stadel & Douglas Potter
  *
@@ -14,14 +17,14 @@
  *  You should have received a copy of the GNU General Public License
  *  along with PKDGRAV3.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include "TraversePST.h"
 
-class ServiceFreeStore : public TraverseCount<uint64_t> {
+#include "io/service.h"
+
+class ServiceRestore : public ServiceInput {
 public:
-    typedef void input;
-    explicit ServiceFreeStore(PST pst)
-        : TraverseCount(pst,PST_FREESTORE,"FreeStore") {}
-protected:
-    virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
+    explicit ServiceRestore(PST pst)
+        : ServiceInput(pst,PST_RESTORE) {}
+    virtual void Read(PST pst,uint64_t iElement,const std::string &filename,uint64_t iBeg,uint64_t iEnd) override;
 };
 
+#endif /* E5B60112_B4E2_46CB_AC8A_564BF342E5D3 */

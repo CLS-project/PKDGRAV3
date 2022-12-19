@@ -194,14 +194,18 @@ public:
 class mdlClass : public mdlBASE {
     int exit_code; // Only used by the worker thread
     friend class CACHE;
+    friend class mpiClass;
 protected:
     friend class mdlMessageFlushToCore;
     void MessageFlushToCore(mdlMessageFlushToCore *message);
-protected:
     // Domain decomposition
+public:
+    using dd_offset_type = uint64_t;
+protected:
     char *ddBuffer;
-    std::vector<int> ddOffset;
-    std::vector<int> ddCounts;
+    std::vector<dd_offset_type> ddOffset;
+    std::vector<dd_offset_type> ddCounts;
+    dd_offset_type ddFreeOffset[2], ddFreeCounts[2]; // For global Swap
 public:
     class mdlClass **pmdl;
     class mpiClass *mpi;
@@ -215,6 +219,8 @@ public:
     std::unique_ptr<mdlMessageQueue[]> queueReceive; // Receive "Send/Ssend"
     void *pvMessageData; /* These two are for the collective malloc */
     size_t nMessageData;
+    void **pSegments;
+    uint64_t *nBytesSegment;
     int iCoreMPI;             /* Core that handles MPI requests */
     int cacheSize;
 
@@ -332,7 +338,10 @@ public:
 #endif
     void Alltoallv(int dataSize,void *sbuff,int *scount,int *sdisps,void *rbuff,int *rcount,int *rdisps);
 
-    int swaplocal(void *buffer,int count,int datasize,/*const*/ int *counts);
+    int swaplocal( void *buffer,dd_offset_type count,dd_offset_type datasize,/*const*/ dd_offset_type *counts);
+    int swapglobal(void *buffer,dd_offset_type count,dd_offset_type datasize,/*const*/ dd_offset_type *counts);
+    uint64_t new_shared_array(void **p, int nSegments,  uint64_t *nElements,uint64_t *nBytesPerElement,uint64_t nMinTotalStore=0);
+    void delete_shared_array(void *p,uint64_t nBytes);
 };
 
 class mpiClass : public mdlClass {
@@ -417,6 +426,8 @@ protected:
     void MessageSTOP(mdlMessageSTOP *message);
     friend class mdlMessageBarrierMPI;
     void MessageBarrierMPI(mdlMessageBarrierMPI *message);
+    friend class mdlMessageSwapGlobal;
+    void MessageSwapGlobal(mdlMessageSwapGlobal *message);
     friend class mdlMessageFlushFromCore;
     void MessageFlushFromCore(mdlMessageFlushFromCore *message);
     friend class mdlMessageFlushToRank;
@@ -477,7 +488,6 @@ protected:
     virtual int checkMPI();
     void processMessages();
     void finishRequests();
-    int swapall(const char *buffer,int count,int datasize,/*const*/ int *counts);
 public:
     explicit mpiClass(int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *),
                       int argc=0, char **argv=0);

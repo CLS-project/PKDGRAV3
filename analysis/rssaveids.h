@@ -1,3 +1,5 @@
+#ifndef DF755BD8_0CD7_42F4_AE2E_201894E9ECAB
+#define DF755BD8_0CD7_42F4_AE2E_201894E9ECAB
 /*  This file is part of PKDGRAV3 (http://www.pkdgrav.org/).
  *  Copyright (c) 2001-2018 Joachim Stadel & Douglas Potter
  *
@@ -14,14 +16,18 @@
  *  You should have received a copy of the GNU General Public License
  *  along with PKDGRAV3.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include "TraversePST.h"
+#include "io/service.h"
 
-class ServiceFreeStore : public TraverseCount<uint64_t> {
+class ServiceRsSaveIds : public ServiceOutput {
 public:
-    typedef void input;
-    explicit ServiceFreeStore(PST pst)
-        : TraverseCount(pst,PST_FREESTORE,"FreeStore") {}
+    using input = ServiceOutput::input;
+    using output = void;
+
+    explicit ServiceRsSaveIds(PST pst)
+        : ServiceOutput(pst,PST_RS_SAVE_IDS,sizeof(input)) {}
 protected:
-    virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
+    virtual void Write(PST pst,void *vin,int nIn,int iGroup,const std::string &filename,int iSegment,int nSegment) override;
 };
 
+
+#endif /* DF755BD8_0CD7_42F4_AE2E_201894E9ECAB */
