@@ -1364,7 +1364,7 @@ void mpiClass::MessageSwapGlobal(mdlMessageSwapGlobal *message) {
     }
     assert(scounts[me]==0);
 
-    auto nSend = std::reduce(scounts.begin(),scounts.end());
+    auto nSend = std::accumulate(scounts.begin(),scounts.end(),dd_offset_type(0));
     dd_offset_type nMaxSend;
     /* We are done when there is nothing globally left to send */
     MPI_Allreduce(&nSend,&nMaxSend,1,mpi_type(nSend),MPI_MAX,commMDL);
