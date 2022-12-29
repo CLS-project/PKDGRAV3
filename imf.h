@@ -65,7 +65,7 @@ protected:
     void Normalize(const double dMinMass, const double dMaxMass) {
         const double dNormInv = MassWeightedIntegration(dMinMass, dMaxMass);
         assert(dNormInv > 0.0);
-        dNorm = 1.0 / dNormInv;
+        dNorm = dNorm / dNormInv;
     }
 
 public:
@@ -98,6 +98,7 @@ protected:
 };
 
 
+/* From Chabrier 2003 (2003PASP..115..763C), Table 1 */
 class Chabrier : public UniversalIMFBaseClass {
 public:
     explicit Chabrier(const double dMinMass, const double dMaxMass)
@@ -185,27 +186,62 @@ private:
 };
 
 
+/* From Kroupa 2001 (2001MNRAS.322..231K), Eq. 2 */
 class Kroupa : public UniversalIMFBaseClass {
 public:
-    explicit Kroupa(const double dMinMass, const double dMaxMass) {
+    explicit Kroupa(const double dMinMass, const double dMaxMass)
+        : Kroupa(-0.3, -1.3, -2.3, dMinMass, dMaxMass)
+    {}
+
+    explicit Kroupa(const double dAlpha0, const double dAlpha1, const double dAlpha2,
+                    const double dMinMass, const double dMaxMass)
+        : dPLSlope0{dAlpha0},
+          dPLSlope1{dAlpha1},
+          dPLSlope2{dAlpha2} {
         Normalize(dMinMass, dMaxMass);
     }
 
     double Evaluate(const double dMass) const noexcept {
-        return 1.0;
+        if (dMass < 0.08) {
+            const double dPLFac = dNorm * pow(0.08, dPLSlope1 - dPLSlope0) *
+                                  pow(0.5, dPLSlope2 - dPLSlope1);
+            return dPLFac * pow(dMass, dPLSlope0);
+        }
+        else if (dMass < 0.5) {
+            const double dPLFac = dNorm * pow(0.5, dPLSlope2 - dPLSlope1);
+            return dPLFac * pow(dMass, dPLSlope1);
+        }
+        else {
+            return dNorm * pow(dMass, dPLSlope2);
+        }
     }
+
+private:
+    double dPLSlope0;
+    double dPLSlope1;
+    double dPLSlope2;
 };
 
 
+/* From Salpeter 1955 (1955ApJ...121..161S), Eq. 5 */
 class Salpeter : public UniversalIMFBaseClass {
 public:
-    explicit Salpeter(const double dMinMass, const double dMaxMass) {
+    explicit Salpeter(const double dMinMass, const double dMaxMass)
+        : Salpeter(-2.35, dMinMass, dMaxMass)
+    {}
+
+    explicit Salpeter(const double dAlpha, const double dMinMass,
+                      const double dMaxMass)
+        : dPLSlope{dAlpha} {
         Normalize(dMinMass, dMaxMass);
     }
 
     double Evaluate(const double dMass) const noexcept {
-        return 1.0;
+        return dNorm * pow(dMass, dPLSlope);
     }
+
+private:
+    double dPLSlope;
 };
 
 

@@ -23,8 +23,8 @@ void MSR::SetStellarEvolutionParam() {
         param.dSNIaScale = param.dSNIaPLScale;
     }
     else {
-        std::cerr << "ERROR: Undefined IMF type has been given in achSNIaDTDType " <<
-                  "parameter: " << param.achSNIaDTDType << std::endl;
+        std::cerr << "ERROR: Undefined SNIa DTD type has been given in " <<
+                  "achSNIaDTDType parameter: " << param.achSNIaDTDType << std::endl;
         Exit(1);
     }
 
@@ -168,8 +168,8 @@ int pkdStellarEvolutionInit(PKD pkd, struct inStellarEvolutionInit *in) {
         pkd->StelEvolData->fcnNumSNIa = stevPowerlawNumSNIa;
     }
     else {
-        std::cerr << "ERROR: Undefined IMF type has been given in achSNIaDTDType " <<
-                  "parameter: " << in->achSNIaDTDType << std::endl;
+        std::cerr << "ERROR: Undefined SNIa DTD type has been given in " <<
+                  "achSNIaDTDType parameter: " << in->achSNIaDTDType << std::endl;
         exit(1);
     }
 
