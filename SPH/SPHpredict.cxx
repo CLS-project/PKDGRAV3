@@ -52,9 +52,9 @@ void SPHpredictOnTheFly(PKD pkd, PARTICLE *p, struct pkdKickParameters *kick, in
         vpred[1] = v[1] + dtPredDrift * ap[1];
         vpred[2] = v[2] + dtPredDrift * ap[2];
         if ((SPHoptions->VelocityDamper > 0.0) && p->bMarked) {
-            vpred[0] /= 1.0 - kick->dtOpen[p->uRung] * SPHoptions->VelocityDamper;
-            vpred[1] /= 1.0 - kick->dtOpen[p->uRung] * SPHoptions->VelocityDamper;
-            vpred[2] /= 1.0 - kick->dtOpen[p->uRung] * SPHoptions->VelocityDamper;
+            vpred[0] *= exp(kick->dtOpen[p->uRung] * SPHoptions->VelocityDamper);
+            vpred[1] *= exp(kick->dtOpen[p->uRung] * SPHoptions->VelocityDamper);
+            vpred[2] *= exp(kick->dtOpen[p->uRung] * SPHoptions->VelocityDamper);
         }
     }
     if (SPHoptions->doSPHForces || SPHoptions->doDensityCorrection) {
