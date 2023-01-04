@@ -3328,6 +3328,7 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
         in.ts.dRhoFac = 1.0/(a*a*a);
     }
     else in.ts.dRhoFac = 0.0;
+    in.ts.dTime = dTime;
     in.ts.dDelta = dDelta;
     in.ts.dEta = param.dEta;
     in.ts.dPreFacRhoLoc = param.dPreFacRhoLoc;
