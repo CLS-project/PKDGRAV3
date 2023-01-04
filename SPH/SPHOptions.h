@@ -81,6 +81,9 @@ typedef struct {
     float dMeanMolWeight;
     int nRungCorrection;
     int nPredictRung;
+    float CentrifugalT0;
+    float CentrifugalT1;
+    float CentrifugalOmega0;
     uint64_t doGravity : 1;
     uint64_t doDensity : 1;
     uint64_t doDensityCorrection : 1;
@@ -98,6 +101,7 @@ typedef struct {
     uint64_t useNNflags : 1;
     uint64_t doConsistentPrediction : 1;
     uint64_t kernelType : 3;
+    uint64_t doCentrifugal : 1;
 } SPHOptions;
 
 #ifdef __cplusplus

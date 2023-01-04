@@ -1407,6 +1407,19 @@ void MSR::Initialize() {
     prmAddParam(prm,"bGasBuiltinIdeal",0,&param.bGasBuiltinIdeal,
                 sizeof(int),"bGasBuiltinIdeal",
                 "<Use builtin ideal gas> = +GasBuiltinIdeal");
+    param.bCentrifugal = 0;
+    prmAddParam(prm,"bCentrifugal",0,&param.bCentrifugal,
+                sizeof(int),"bCentrifugal",
+                "<Apply centrifugal force> = +Centrifugal");
+    param.dCentrifT0 = 0.0;
+    prmAddParam(prm,"dCentrifT0", 2, &param.dCentrifT0,
+                sizeof(double), "dCentrifT0", "Start time for centrifugal ramp");
+    param.dCentrifT1 = 0.0;
+    prmAddParam(prm,"dCentrifT1", 2, &param.dCentrifT1,
+                sizeof(double), "dCentrifT1", "End time for centrifugal ramp");
+    param.dCentrifOmega0 = 0.0;
+    prmAddParam(prm,"dCentrifOmega0", 2, &param.dCentrifOmega0,
+                sizeof(double), "dCentrifOmega0", "Maximum omega for centrifugal ramp");
     param.bGasOnTheFlyPrediction = 0;
     prmAddParam(prm,"bGasOnTheFlyPrediction",0,&param.bGasOnTheFlyPrediction,
                 sizeof(int),"bGasOnTheFlyPrediction",

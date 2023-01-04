@@ -77,6 +77,10 @@ SPHOptions initializeSPHOptions(struct parameters param, CSM csm, double dTime) 
     SPHoptions.useNNflags = 0;
     SPHoptions.doConsistentPrediction = param.bGasConsistentPrediction;
     SPHoptions.kernelType = param.iKernelType;
+    SPHoptions.doCentrifugal = param.bCentrifugal;
+    SPHoptions.CentrifugalT0 = param.dCentrifT0;
+    SPHoptions.CentrifugalT1 = param.dCentrifT1;
+    SPHoptions.CentrifugalOmega0 = param.dCentrifOmega0;
     return SPHoptions;
 }
 
@@ -117,6 +121,10 @@ void copySPHOptions(SPHOptions *source, SPHOptions *target) {
     target->useNNflags = source->useNNflags;
     target->doConsistentPrediction = source->doConsistentPrediction;
     target->kernelType = source->kernelType;
+    target->doCentrifugal = source->doCentrifugal;
+    target->CentrifugalT0 = source->CentrifugalT0;
+    target->CentrifugalT1 = source->CentrifugalT1;
+    target->CentrifugalOmega0 = source->CentrifugalOmega0;
 }
 
 float calculateInterfaceCorrectionPrefactor(float nSmooth,int kernelType) {

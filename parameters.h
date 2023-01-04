@@ -125,6 +125,10 @@ struct parameters {
     int bGasOnTheFlyPrediction;
     int bGasInterfaceCorrection;
     int bGasConsistentPrediction;
+    int bCentrifugal;
+    double dCentrifT0;
+    double dCentrifT1;
+    double dCentrifOmega0;
 
     /* END Gas Parameters */
     double dEta;
