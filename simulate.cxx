@@ -388,6 +388,9 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
             bDoCheckpoint = 0;
         }
         if (bDoOutput) {
+            if (DoGas() && NewSPH() && param.bCentrifugal) {
+                ResetCOM();
+            }
             Output(iStep,dTime,param.dDelta,0);
             bDoOutput = 0;
             DomainDecomp();

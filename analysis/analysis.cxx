@@ -262,7 +262,7 @@ void pkdCalcCOM(PKD pkd, double *dCenter, double dRadius, int bPeriodic,
         double r[3];
         pkdGetPos1(pkd,p,r);
         d2 = pkdGetDistance2(pkd,p,dCenter,bPeriodic);
-        if ( d2 < dRadius2 ) {
+        if ( dRadius < 0 || d2 < dRadius2 ) {
             *M += m;
             vec_add_const_mult(com, com, m, r);
             vec_add_const_mult(vcm, vcm, m, v);
@@ -285,6 +285,28 @@ void pkdCalcMtot(PKD pkd,double *M, uint64_t *N) {
         double m = pkdMass(pkd,p);
         *M += m;
         (*N)++;
+    }
+}
+
+/*
+** Move the center of mass and center of mass velocity by the values given
+*/
+void pkdResetCOM(PKD pkd, double x_com, double y_com, double z_com, double vx_com, double vy_com, double vz_com) {
+    PARTICLE *p;
+    double r[3];
+    vel_t *v;
+    for (int i=0; i<pkd->Local(); ++i) {
+        PARTICLE *p = pkd->Particle(i);
+        pkdGetPos1(pkd,p,r);
+
+        pkdSetPos(pkd,p,0,r[0] - x_com);
+        pkdSetPos(pkd,p,1,r[1] - y_com);
+        pkdSetPos(pkd,p,2,r[2] - z_com);
+
+        v = pkdVel(pkd,p);
+        v[0] -= vx_com;
+        v[1] -= vy_com;
+        v[2] -= vz_com;
     }
 }
 

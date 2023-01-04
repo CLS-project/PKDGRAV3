@@ -234,6 +234,7 @@ enum pst_service {
     PST_CALCCOM,
     PST_CALCMTOT,
     PST_SETSPHOPTIONS,
+    PST_RESETCOM,
     PST_INITIALIZEEOS,
     PST_UPDATEGASVALUES,
     PST_TREEUPDATEFLAGBOUNDS,
@@ -1080,6 +1081,16 @@ struct inSetSPHoptions {
     SPHOptions SPHoptions;
 };
 int pstSetSPHoptions(PST pst,void *vin,int nIn,void *vout,int nOut);
+/* PST_RESETCOM */
+struct inResetCOM {
+    double x_com;
+    double y_com;
+    double z_com;
+    double vx_com;
+    double vy_com;
+    double vz_com;
+};
+int pstResetCOM(PST pst,void *vin,int nIn,void *vout,int nOut);
 /* PST_INITIALIZEEOS */
 int pstInitializeEOS(PST pst,void *vin,int nIn,void *vout,int nOut);
 /* PST_UPDATEGASVALUES */

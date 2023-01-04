@@ -531,6 +531,7 @@ protected:
                  double *com, double *vcm, double *L, double *M);
     void CalcMtot(double *M, uint64_t *N);
     void SetSPHoptions();
+    void ResetCOM();
     void InitializeEOS();
     void CalculateKickParameters(struct pkdKickParameters *kick, uint8_t uRungLo, double dTime, double dDelta, double dStep,
                                  int bKickClose, int bKickOpen, SPHOptions SPHoptions);

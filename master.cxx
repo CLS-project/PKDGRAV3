@@ -5770,6 +5770,26 @@ void MSR::SetSPHoptions() {
     pstSetSPHoptions(pst, &in, sizeof(in), NULL, 0);
 }
 
+void MSR::ResetCOM() {
+    double dCenter[3] = {0.0,0.0,0.0};
+    double com[3], vcm[3], L[3], M;
+    CalcCOM(&dCenter[0], -1.0, &com[0], &vcm[0], &L[0], &M);
+    printf("Before reseting: x_com = %.5e, y_com = %.5e, z_com = %.5e, vx_com = %.5e, vy_com = %.5e, vz_com = %.5e\n",com[0],com[1],com[2],vcm[0],vcm[1],vcm[2]);
+
+    struct inResetCOM in;
+    in.x_com = com[0];
+    in.y_com = com[1];
+    in.z_com = com[2];
+    in.vx_com = vcm[0];
+    in.vy_com = vcm[1];
+    in.vz_com = vcm[2];
+
+    pstResetCOM(pst, &in, sizeof(in), NULL, 0);
+
+    CalcCOM(&dCenter[0], -1.0, &com[0], &vcm[0], &L[0], &M);
+    printf("After reseting: x_com = %.5e, y_com = %.5e, z_com = %.5e, vx_com = %.5e, vy_com = %.5e, vz_com = %.5e\n",com[0],com[1],com[2],vcm[0],vcm[1],vcm[2]);
+}
+
 void MSR::InitializeEOS() {
     double sec,dsec;
     sec = MSR::Time();
