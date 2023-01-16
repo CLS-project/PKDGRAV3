@@ -1432,6 +1432,7 @@ void pkdCalcCOM(PKD pkd, double *dCenter, double dRadius, int bPeriodic,
                 double *com, double *vcm, double *L,
                 double *M, uint64_t *N);
 void pkdCalcMtot(PKD pkd, double *M, uint64_t *N);
+void pkdResetCOM(PKD pkd, double x_com, double y_com, double z_com, double vx_com, double vy_com, double vz_com);
 void pkdInitializeEOS(PKD pkd);
 void pkdUpdateGasValues(PKD pkd, struct pkdKickParameters *kick, SPHOptions *SPHoptions);
 void pkdTreeUpdateFlagBounds(PKD pkd,uint32_t uRoot,SPHOptions *SPHoptions);

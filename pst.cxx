@@ -292,6 +292,8 @@ void pstAddServices(PST pst,MDL mdl) {
                   sizeof(struct inCalcMtot), sizeof(struct outCalcMtot));
     mdlAddService(mdl,PST_SETSPHOPTIONS,pst,(fcnService_t *)pstSetSPHoptions,
                   sizeof(struct inSetSPHoptions), 0);
+    mdlAddService(mdl,PST_RESETCOM,pst,(fcnService_t *)pstResetCOM,
+                  sizeof(struct inResetCOM), 0);
     mdlAddService(mdl,PST_INITIALIZEEOS,pst,(fcnService_t *)pstInitializeEOS,
                   0, 0);
     mdlAddService(mdl,PST_UPDATEGASVALUES,pst,(fcnService_t *)pstUpdateGasValues,
@@ -2247,6 +2249,22 @@ int pstSetSPHoptions(PST pst,void *vin,int nIn,void *vout,int nOut) {
     }
     else {
         copySPHOptions(&in->SPHoptions, &plcl->pkd->SPHoptions);
+    }
+    return 0;
+}
+
+int pstResetCOM(PST pst,void *vin, int nIn, void *vout, int nOut) {
+    LCL *plcl = pst->plcl;
+    auto in = static_cast<struct inResetCOM *>(vin);
+
+    assert( nIn==sizeof(struct inResetCOM) );
+    if (pst->nLeaves > 1) {
+        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_RESETCOM,vin,nIn);
+        pstResetCOM(pst->pstLower,vin,nIn,vout,nOut);
+        mdlGetReply(pst->mdl,rID,NULL,NULL);
+    }
+    else {
+        pkdResetCOM(plcl->pkd,in->x_com,in->y_com,in->z_com,in->vx_com,in->vy_com,in->vz_com);
     }
     return 0;
 }

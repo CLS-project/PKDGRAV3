@@ -409,9 +409,9 @@ void pkdParticleWorkDone(workParticle *wp) {
                         p->uRung = uNewRung;
                         ++pkd->nRung[p->uRung];
                         if (wp->SPHoptions->VelocityDamper > 0.0f) {
-                            v[0] *= 1.0 - wp->kick->dtOpen[p->uRung] * wp->SPHoptions->VelocityDamper;
-                            v[1] *= 1.0 - wp->kick->dtOpen[p->uRung] * wp->SPHoptions->VelocityDamper;
-                            v[2] *= 1.0 - wp->kick->dtOpen[p->uRung] * wp->SPHoptions->VelocityDamper;
+                            v[0] *= exp(- wp->kick->dtOpen[p->uRung] * wp->SPHoptions->VelocityDamper);
+                            v[1] *= exp(- wp->kick->dtOpen[p->uRung] * wp->SPHoptions->VelocityDamper);
+                            v[2] *= exp(- wp->kick->dtOpen[p->uRung] * wp->SPHoptions->VelocityDamper);
                         }
                         v[0] += wp->kick->dtOpen[p->uRung]*wp->pInfoOut[i].a[0];
                         v[1] += wp->kick->dtOpen[p->uRung]*wp->pInfoOut[i].a[1];
@@ -500,6 +500,30 @@ static void queueSPHForces( PKD pkd, workParticle *wp, ilpList &ilp, int bGravSt
         }
     }
 }
+
+static void addCentrifugalAcceleration(PKD pkd, workParticle *wp) {
+    double dOmega, f;
+    double r[3], rxy;
+
+    if (wp->ts->dTime < wp->SPHoptions->CentrifugalT0) {
+        return;
+    }
+    else if (wp->ts->dTime < wp->SPHoptions->CentrifugalT1) {
+        dOmega = wp->SPHoptions->CentrifugalOmega0*(wp->ts->dTime - wp->SPHoptions->CentrifugalT0)/(wp->SPHoptions->CentrifugalT1 - wp->SPHoptions->CentrifugalT0);
+    }
+    else {
+        dOmega = wp->SPHoptions->CentrifugalOmega0;
+    }
+
+    f = dOmega * dOmega;
+    for (int i=0; i< wp->nP; i++) {
+        pkdGetPos1(pkd,wp->pPart[i],r);
+        rxy = sqrt(r[0] * r[0] + r[1] + r[1]);
+        wp->pInfoOut[i].a[0] += f * r[0];
+        wp->pInfoOut[i].a[1] += f * r[1];
+    }
+}
+
 static void queuePC( PKD pkd,  workParticle *wp, ilcList &ilc, int bGravStep ) {
     for ( auto &tile : ilc ) {
 #ifdef USE_CUDA
@@ -743,6 +767,9 @@ int pkdGravInteract(PKD pkd,
         ** Evaluate the SPH forces on the P-P interactions
         */
         queueSPHForces( pkd, wp, pkd->ilp, ts->bGravStep );
+        if (SPHoptions->doCentrifugal) {
+            addCentrifugalAcceleration(pkd, wp);
+        }
     }
 
     if (SPHoptions->doGravity) {

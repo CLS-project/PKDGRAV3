@@ -114,7 +114,7 @@ struct EwaldVariables {
 };
 
 struct pkdTimestepParameters {
-    double dDelta, dEta;
+    double dTime, dDelta, dEta;
     double dAccFac, dRhoFac, dPreFacRhoLoc;
     uint8_t uRungLo,uRungHi,uMaxRung;
     uint8_t bGravStep;
@@ -260,8 +260,6 @@ typedef struct {
     struct pkdLightconeParameters *lc;
     struct pkdTimestepParameters *ts;
     double dirLsum, normLsum;
-
-    double dTime;
 
     double dFlopSingleCPU;
     double dFlopSingleGPU;

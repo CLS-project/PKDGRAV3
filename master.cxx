@@ -1407,6 +1407,19 @@ void MSR::Initialize() {
     prmAddParam(prm,"bGasBuiltinIdeal",0,&param.bGasBuiltinIdeal,
                 sizeof(int),"bGasBuiltinIdeal",
                 "<Use builtin ideal gas> = +GasBuiltinIdeal");
+    param.bCentrifugal = 0;
+    prmAddParam(prm,"bCentrifugal",0,&param.bCentrifugal,
+                sizeof(int),"bCentrifugal",
+                "<Apply centrifugal force> = +Centrifugal");
+    param.dCentrifT0 = 0.0;
+    prmAddParam(prm,"dCentrifT0", 2, &param.dCentrifT0,
+                sizeof(double), "dCentrifT0", "Start time for centrifugal ramp");
+    param.dCentrifT1 = 0.0;
+    prmAddParam(prm,"dCentrifT1", 2, &param.dCentrifT1,
+                sizeof(double), "dCentrifT1", "End time for centrifugal ramp");
+    param.dCentrifOmega0 = 0.0;
+    prmAddParam(prm,"dCentrifOmega0", 2, &param.dCentrifOmega0,
+                sizeof(double), "dCentrifOmega0", "Maximum omega for centrifugal ramp");
     param.bGasOnTheFlyPrediction = 0;
     prmAddParam(prm,"bGasOnTheFlyPrediction",0,&param.bGasOnTheFlyPrediction,
                 sizeof(int),"bGasOnTheFlyPrediction",
@@ -3328,6 +3341,7 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
         in.ts.dRhoFac = 1.0/(a*a*a);
     }
     else in.ts.dRhoFac = 0.0;
+    in.ts.dTime = dTime;
     in.ts.dDelta = dDelta;
     in.ts.dEta = param.dEta;
     in.ts.dPreFacRhoLoc = param.dPreFacRhoLoc;
@@ -5754,6 +5768,26 @@ void MSR::SetSPHoptions() {
     struct inSetSPHoptions in;
     in.SPHoptions = initializeSPHOptions(param,csm,1.0);
     pstSetSPHoptions(pst, &in, sizeof(in), NULL, 0);
+}
+
+void MSR::ResetCOM() {
+    double dCenter[3] = {0.0,0.0,0.0};
+    double com[3], vcm[3], L[3], M;
+    CalcCOM(&dCenter[0], -1.0, &com[0], &vcm[0], &L[0], &M);
+    printf("Before reseting: x_com = %.5e, y_com = %.5e, z_com = %.5e, vx_com = %.5e, vy_com = %.5e, vz_com = %.5e\n",com[0],com[1],com[2],vcm[0],vcm[1],vcm[2]);
+
+    struct inResetCOM in;
+    in.x_com = com[0];
+    in.y_com = com[1];
+    in.z_com = com[2];
+    in.vx_com = vcm[0];
+    in.vy_com = vcm[1];
+    in.vz_com = vcm[2];
+
+    pstResetCOM(pst, &in, sizeof(in), NULL, 0);
+
+    CalcCOM(&dCenter[0], -1.0, &com[0], &vcm[0], &L[0], &M);
+    printf("After reseting: x_com = %.5e, y_com = %.5e, z_com = %.5e, vx_com = %.5e, vy_com = %.5e, vz_com = %.5e\n",com[0],com[1],com[2],vcm[0],vcm[1],vcm[2]);
 }
 
 void MSR::InitializeEOS() {

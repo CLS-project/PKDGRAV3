@@ -38,7 +38,12 @@ SPHOptions initializeSPHOptions(struct parameters param, CSM csm, double dTime) 
     SPHoptions.gamma = param.dConstGamma;
     SPHoptions.TuFac = param.units.dGasConst/(param.dConstGamma - 1)/param.dMeanMolWeight;
     SPHoptions.FastGasFraction = param.dFastGasFraction;
-    SPHoptions.VelocityDamper = param.dVelocityDamper;
+    if (param.dDelta > 0.0 && param.dVelocityDamper > 0.0) {
+        SPHoptions.VelocityDamper = 2.0 / param.dDelta * param.dVelocityDamper;
+    }
+    else {
+        SPHoptions.VelocityDamper = 0.0f;
+    }
     SPHoptions.nSmooth = param.nSmooth;
     SPHoptions.ballSizeLimit = param.dBallSizeLimit;
     SPHoptions.fBallFactor = 1.1f;
@@ -72,6 +77,10 @@ SPHOptions initializeSPHOptions(struct parameters param, CSM csm, double dTime) 
     SPHoptions.useNNflags = 0;
     SPHoptions.doConsistentPrediction = param.bGasConsistentPrediction;
     SPHoptions.kernelType = param.iKernelType;
+    SPHoptions.doCentrifugal = param.bCentrifugal;
+    SPHoptions.CentrifugalT0 = param.dCentrifT0;
+    SPHoptions.CentrifugalT1 = param.dCentrifT1;
+    SPHoptions.CentrifugalOmega0 = param.dCentrifOmega0;
     return SPHoptions;
 }
 
@@ -112,6 +121,10 @@ void copySPHOptions(SPHOptions *source, SPHOptions *target) {
     target->useNNflags = source->useNNflags;
     target->doConsistentPrediction = source->doConsistentPrediction;
     target->kernelType = source->kernelType;
+    target->doCentrifugal = source->doCentrifugal;
+    target->CentrifugalT0 = source->CentrifugalT0;
+    target->CentrifugalT1 = source->CentrifugalT1;
+    target->CentrifugalOmega0 = source->CentrifugalOmega0;
 }
 
 float calculateInterfaceCorrectionPrefactor(float nSmooth,int kernelType) {
