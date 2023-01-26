@@ -522,6 +522,17 @@ int MSR::ValidateParameters() {
             puts("ERROR: Box size for IC not specified");
             return 0;
         }
+        if ( !csm->val.classData.bClass ) {
+            if ( ( !prmSpecified(prm,"dSigma8") || csm->val.dSigma8 <= 0 ) &&
+                    ( !prmSpecified(prm,"dNormalization") || csm->val.dNormalization <= 0 ) ) {
+                puts("ERROR: Either dSigma8 or dNormalization should be specified for generating IC");
+                return 0;
+            }
+            if ( !prmSpecified(prm,"dSpectral") || csm->val.dSpectral <= 0 ) {
+                puts("ERROR: dSpectral for IC not specified");
+                return 0;
+            }
+        }
         if ( param.bICgas ) {
             if ( !prmSpecified(prm,"dOmegab") || csm->val.dOmegab <= 0 ) {
                 puts("ERROR: Can not generate IC with gas if dOmegab is not specified");
