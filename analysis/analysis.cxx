@@ -252,7 +252,7 @@ void pkdCalcCOM(PKD pkd, const blitz::TinyVector<double,3> &dCenter, double dRad
         const blitz::TinyVector<double,3> v = p.velocity();
         const auto r = p.position();
         auto d2 = pkdGetDistance2(pkd,p,dCenter,bPeriodic);
-        if ( d2 < dRadius2 ) {
+        if ( dRadius < 0 || d2 < dRadius2 ) {
             M += m;
             com += m * r;
             vcm += m * v;
