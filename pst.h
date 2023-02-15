@@ -62,7 +62,7 @@ typedef struct pstContext {
     int nLower;
     int nUpper;
     int iLvl;
-    BND bnd;
+    Bound bnd;
     int iSplitDim;
     uint64_t iOrdSplit;
     double fSplit;
@@ -163,7 +163,6 @@ enum pst_service {
     PST_COUNTRUNGS,
     PST_GRAVSTEP,
     PST_ACCELSTEP,
-    PST_SPHSTEP,
     PST_STARFORM,
     PST_STARFORMINIT,
     PST_DENSITYSTEP,
@@ -278,8 +277,8 @@ void pstFinish(PST);
 struct inInitializePStore {
     uint64_t mMemoryModel;
     uint64_t nStore;
-    uint64_t nSpecies[FIO_SPECIES_LAST];
-    double fPeriod[3];
+    fioSpeciesList nSpecies;
+    blitz::TinyVector<double,3> fPeriod;
     uint64_t nMinEphemeral;
     uint64_t nMinTotalStore;
     int nEphemeralBytes;
@@ -332,7 +331,7 @@ int pstWriteASCII(PST,void *,int,void *,int);
 
 /* PST_WRITE */
 struct inWrite {
-    BND bnd;
+    Bound bnd;
     UNITS units;
     double dTime;
     double dExp;
@@ -424,7 +423,7 @@ int pstHopJoin(PST,void *,int,void *,int);
 
 /* PST_HOP_FINISH_UP */
 struct inHopFinishUp {
-    double fPeriod[3];
+    blitz::TinyVector<double,3> fPeriod;
     int bPeriodic;
     int nMinGroupSize;
 };
@@ -454,7 +453,7 @@ int pstHopGravity(PST,void *,int,void *,int);
 /* PST_HOP_UNBIND */
 struct inHopUnbind {
     double dTime;
-    double fPeriod[3];
+    blitz::TinyVector<double,3> fPeriod;
     int bPeriodic;
     int nMinGroupSize;
     int iIteration;
@@ -471,7 +470,7 @@ int pstGroupRelocate(PST,void *,int,void *,int);
 /* PST_GROUP_STATS */
 struct inGroupStats {
     int bPeriodic;
-    double dPeriod[3];
+    blitz::TinyVector<double,3> dPeriod;
     uint64_t iGlobalStart;  /* initially set to 1 at the master level */
     double rEnvironment[2];
 };
@@ -642,8 +641,8 @@ struct outCalcEandL {
     double T;
     double U;
     double Eth;
-    double L[3];
-    double F[3];
+    blitz::TinyVector<double,3> L;
+    blitz::TinyVector<double,3> F;
     double W;
 };
 int pstCalcEandL(PST,void *,int,void *,int);
@@ -759,20 +758,6 @@ struct inAccelStep {
 };
 int pstAccelStep(PST,void *,int,void *,int);
 
-/* PST_SPHSTEP */
-struct inSphStep {
-    double dDelta;
-    double dEta;
-    double dAccFac;
-    double dEtaUDot;
-    int iMaxRung;
-    uint8_t uRungLo;
-    uint8_t uRungHi;
-};
-int pstSphStep(PST,void *,int,void *,int);
-
-
-
 /* PST_DENSITYSTEP */
 struct inDensityStep {
     double dDelta;
@@ -884,8 +869,6 @@ struct inFofFinishUp {
     int nMinGroupSize;
 };
 int pstFofFinishUp(PST,void *,int,void *,int);
-
-int pstInitRelaxation(PST,void *,int,void *,int);
 
 #ifdef MDL_FFTW
 /* PST_GETFFTMAXSIZES */
@@ -1033,10 +1016,10 @@ int pstSwapClasses(PST,void *,int,void *,int);
 /* PST_PROFILE */
 #define PST_MAX_PROFILE_BINS 1000000
 struct inProfile {
-    double dCenter[3];
-    double com[3];
-    double vcm[3];
-    double L[3];
+    blitz::TinyVector<double,3> dCenter;
+    blitz::TinyVector<double,3> com;
+    blitz::TinyVector<double,3> vcm;
+    blitz::TinyVector<double,3> L;
     uint32_t nBins;
     uint8_t uRungLo;
     uint8_t uRungHi;
@@ -1046,7 +1029,7 @@ int pstProfile(PST pst,void *vin,int nIn,void *vout,int nOut);
 
 /* PST_CALCDISTANCE */
 struct inCalcDistance {
-    double dCenter[3];
+    blitz::TinyVector<double,3> dCenter;
     double dRadius;
     int bPeriodic;
 };
@@ -1054,14 +1037,14 @@ int pstCalcDistance(PST pst,void *vin,int nIn,void *vout,int nOut);
 
 /* PST_CALCCOM */
 struct inCalcCOM {
-    double dCenter[3];
+    blitz::TinyVector<double,3> dCenter;
     double dRadius;
     int bPeriodic;
 };
 struct outCalcCOM {
-    double com[3];
-    double vcm[3];
-    double L[3];
+    blitz::TinyVector<double,3> com;
+    blitz::TinyVector<double,3> vcm;
+    blitz::TinyVector<double,3> L;
     double M;
     uint64_t N;
 };
@@ -1083,12 +1066,7 @@ struct inSetSPHoptions {
 int pstSetSPHoptions(PST pst,void *vin,int nIn,void *vout,int nOut);
 /* PST_RESETCOM */
 struct inResetCOM {
-    double x_com;
-    double y_com;
-    double z_com;
-    double vx_com;
-    double vy_com;
-    double vz_com;
+    blitz::TinyVector<double,3> r_com, v_com;
 };
 int pstResetCOM(PST pst,void *vin,int nIn,void *vout,int nOut);
 /* PST_INITIALIZEEOS */

@@ -40,8 +40,6 @@
 
 #define OUT_IORDER_ARRAY        25
 
-#define OUT_UDOT_ARRAY          26
-#define OUT_U_ARRAY             27
 #define OUT_C_ARRAY             28
 #define OUT_HSPH_ARRAY          29
 
@@ -57,7 +55,6 @@
 
 #define OUT_GROUP_ARRAY        112
 #define OUT_GLOBALGID_ARRAY      113
-#define OUT_RELAX_ARRAY        120
 #define OUT_BALL_ARRAY         121
 #define OUT_PSGROUP_ARRAY      122
 #define OUT_PSGROUP_STATS      123

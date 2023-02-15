@@ -18,8 +18,8 @@
 
 class ServiceCalcBound : public TraverseCombinePST {
 public:
-    typedef void input;
-    typedef Bound output;
+    using input = void;
+    using output = Bound;
     explicit ServiceCalcBound(PST pst)
         : TraverseCombinePST(pst,PST_CALCBOUND,0,sizeof(output),"CalcBound") {}
 protected:

@@ -204,7 +204,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
         }
         if (DoGas() && NewSPH()) {
             // Calculate Density
-            SelAll(0,1);
+            SelAll(-1,1);
             SPHOptions SPHoptions = initializeSPHOptions(param,csm,dTime);
             SPHoptions.doGravity = 0;
             SPHoptions.doDensity = 1;
@@ -221,7 +221,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
                 SPHoptions.doDensityCorrection = 0;
             }
             // Calculate Forces
-            SelAll(0,1);
+            SelAll(-1,1);
             SPHoptions.doGravity = 1;
             SPHoptions.doDensity = 0;
             SPHoptions.doSPHForces = 1;
@@ -273,9 +273,6 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
                        1.0/csmTime2Exp(csm,dTime)-1.0,
                        E,T,U,Eth,L[0],L[1],L[2],F[0],F[1],F[2],W,iSec);
     }
-    if ( param.bTraceRelaxation) {
-        InitRelaxation();
-    }
 
     if (param.bWriteIC && !prmSpecified(prm,"nGrid") && !NewSPH()) {
 #ifndef BLACKHOLES
@@ -308,7 +305,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
                 LightConeOpen(iStep);  /* open the lightcone */
                 if (DoGas() && NewSPH()) {
                     // Calculate Density
-                    SelAll(0,1);
+                    SelAll(-1,1);
                     SPHOptions SPHoptions = initializeSPHOptions(param,csm,dTime);
                     SPHoptions.doGravity = 0;
                     SPHoptions.doDensity = 1;
@@ -324,7 +321,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
                         SPHoptions.doDensityCorrection = 0;
                     }
                     // Calculate Forces
-                    SelAll(0,1);
+                    SelAll(-1,1);
                     SPHoptions.doGravity = 1;
                     SPHoptions.doDensity = 0;
                     SPHoptions.doSPHForces = 1;
@@ -372,12 +369,6 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
                            "%.16e %.16e %.16e %.16e %.16e %li\n",dTime,
                            1.0/csmTime2Exp(csm,dTime)-1.0,
                            E,T,U,Eth,L[0],L[1],L[2],F[0],F[1],F[2],W,lSec);
-        }
-        if ( param.bTraceRelaxation) {
-            ActiveRung(0,1); /* Activate all particles */
-            DomainDecomp();
-            BuildTree(0);
-            Relaxation(dTime,dDelta,SMX_RELAXATION,0);
         }
         if (!param.bNewKDK) {
             CheckForOutput(iStep,nSteps,dTime,&bDoCheckpoint,&bDoOutput);

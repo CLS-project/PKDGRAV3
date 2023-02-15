@@ -23,7 +23,7 @@ class TestFof(unittest.TestCase):
         msr.BuildTree()
         msr.Fof(dTau,nMinMembers)
         msr.Reorder()
-        b = msr.GetArray(field=17,time=time) # 17 = GLOBAL Group id (oGlobalGid)
+        b = msr.GetArray(field=16,time=time) # 16 = GLOBAL Group id (oGlobalGid)
         a = np.load('b0-final-ref.grp.npy')
         (ua,ia,ra) = np.unique(a,return_index=True,return_inverse=True)
         m = b[ia]

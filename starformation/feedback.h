@@ -1,13 +1,10 @@
 #include "pkd.h"
 #include "smooth/smooth.h"
-#ifdef __cplusplus
-extern "C" {
-#endif
-void smSNFeedback(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) ;
+void smSNFeedback(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) ;
 void initSNFeedback(void *vpkd, void *vp);
 void combSNFeedback(void *vpkd, void *v1, const void *v2);
 
-static inline void pkdAddFBEnergy(PKD pkd, PARTICLE *p, SPHFIELDS *psph, double dConstGamma) {
+static inline void pkdAddFBEnergy(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS *psph, double dConstGamma) {
 #ifndef OLD_FB_SCHEME
     psph->Uint += psph->fAccFBEnergy;
     psph->E += psph->fAccFBEnergy;
@@ -31,8 +28,3 @@ static inline float SNFeedbackEfficiency(float Z, float rho, double dSNFBEfficie
         return dSNFBEfficiency;
     }
 }
-
-
-#ifdef __cplusplus
-}
-#endif

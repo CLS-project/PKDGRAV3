@@ -9,6 +9,9 @@
 
 #include <stdio.h>
 
+using blitz::TinyVector;
+using blitz::dot;
+
 /* ----------------
  * HELPER FUNCTIONS
  * ----------------
@@ -89,16 +92,16 @@ double conditionNumber(double *E, double *B) {
 }
 
 
-void BarthJespersenLimiter(double *limVar, double *gradVar,
+void BarthJespersenLimiter(double *limVar, TinyVector<double,3> gradVar,
                            double var_max, double var_min,
-                           double dx, double dy, double dz) {
+                           TinyVector<double,3> dr) {
 #ifdef DEBUG_FLUX_NOLIMITER
     *limVar = 1;
     return;
 #endif
     double diff, lim;
 
-    diff = (gradVar[0]*dx + gradVar[1]*dy + gradVar[2]*dz);
+    diff = dot(gradVar,dr);
     if (var_min > 0) { var_min=0; } //IA: Can happen due to machine precision
     if (var_max < 0) { var_max=0; } //IA: Can happen due to machine precision
     if (diff > 0.) {
@@ -121,9 +124,9 @@ void BarthJespersenLimiter(double *limVar, double *gradVar,
 /* IA: In this version we take into account the condition number,
  * which give us an idea about how 'well aligned' are the particles
  */
-void ConditionedBarthJespersenLimiter(double *limVar, myreal *gradVar,
+void ConditionedBarthJespersenLimiter(double *limVar, TinyVector<myreal,3> gradVar,
                                       double var_max, double var_min,
-                                      double dx, double dy, double dz,
+                                      TinyVector<double,3> dr,
                                       double Ncrit, double Ncond) {
 #ifdef DEBUG_FLUX_NOLIMITER
     *limVar = 1;
@@ -137,7 +140,7 @@ void ConditionedBarthJespersenLimiter(double *limVar, myreal *gradVar,
     beta = (1. < diff) ? diff : 1.;
 
 
-    diff = (gradVar[0]*dx + gradVar[1]*dy + gradVar[2]*dz);
+    diff = dot(gradVar,dr);
     if (var_min > 0) { var_min=0; } //IA: Can happen due to machine precision
     if (var_max < 0) { var_max=0; } //IA: Can happen due to machine precision
     if (diff > 0.) {
@@ -229,35 +232,37 @@ void genericPairwiseLimiter(double Lstate, double Rstate,
 }
 
 
-void hydroSourceGravity(PKD pkd, PARTICLE *p, SPHFIELDS *psph,
+void hydroSourceGravity(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS *psph,
                         double pDelta, double *pa, double dScaleFactor,
                         int bComove) {
     double gravE = 0.0;
     double gravE_dmdt = 0.0;
     double aFac_m2 = 1./(dScaleFactor*dScaleFactor);
+    const auto &a = p.acceleration();
 
     if (bComove) {
         for (int j=0; j<3; j++) {
             // IA: One 1/a is from the definition of acceleration in pkdgrav3.
             //  The other comes from the shape of the source term, which is proportional to  1/a
-            pa[j] = pkdAccel(pkd,p)[j]*aFac_m2; // TODO: Do 1/a2 only once
+            pa[j] = a[j]*aFac_m2; // TODO: Do 1/a2 only once
         }
     }
     else {
         for (int j=0; j<3; j++) {
-            pa[j] = pkdAccel(pkd,p)[j];
+            pa[j] = a[j];
         }
     }
+    auto &v = p.velocity();
     for (int j=0; j<3; j++) {
-        psph->mom[j] += 0.5*pDelta*(psph->lastMass*psph->lastAcc[j] + pkdMass(pkd,p)*pa[j]);
-        pkdVel(pkd,p)[j] = psph->mom[j]/pkdMass(pkd,p);
+        psph->mom[j] += 0.5*pDelta*(psph->lastMass*psph->lastAcc[j] + p.mass()*pa[j]);
+        v[j] = psph->mom[j]/p.mass();
 #ifndef USE_MFM
         // IA: Multiplying here by 'a' instead of doing it at hydro.c is simpler and more efficient.
         // However, it may hinder conservation properties. But doing the time average over two steps is not conservative anyway
         // In the Zeldovich case I have not found any relevant difference among both options
         gravE_dmdt +=  0.5*( psph->lastAcc[j]*psph->lastDrDotFrho[j] +  pa[j]*psph->drDotFrho[j]*dScaleFactor ) ;
 #endif
-        gravE += 0.5*pDelta*( psph->lastMom[j]*psph->lastAcc[j] + pkdMass(pkd,p)*pkdVel(pkd,p)[j]*pa[j]  );
+        gravE += 0.5*pDelta*( psph->lastMom[j]*psph->lastAcc[j] + p.mass()*v[j]*pa[j]  );
     }
     if (pDelta==0.) gravE_dmdt = 0.;
 
@@ -267,7 +272,7 @@ void hydroSourceGravity(PKD pkd, PARTICLE *p, SPHFIELDS *psph,
 
 
 
-void hydroSourceExpansion(PKD pkd, PARTICLE *p, SPHFIELDS *psph,
+void hydroSourceExpansion(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS *psph,
                           double pDelta, double dScaleFactor, double dHubble,
                           int bComove, double dConstGamma) {
     //  E^{n+1} = E^{n} + dE_flux - dt*(H^{n} E^n + H^{n+1} E^{n+1})
@@ -299,12 +304,12 @@ void hydroSourceExpansion(PKD pkd, PARTICLE *p, SPHFIELDS *psph,
 
 
 
-void hydroSyncEnergies(PKD pkd, PARTICLE *p, SPHFIELDS *psph, double pa[3], double dConstGamma) {
+void hydroSyncEnergies(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS *psph, double pa[3], double dConstGamma) {
     double Ekin = 0.5*(psph->mom[0]*psph->mom[0] +
                        psph->mom[1]*psph->mom[1] +
-                       psph->mom[2]*psph->mom[2])/pkdMass(pkd,p);
-    double Egrav = pkdMass(pkd,p)*
-                   sqrt(pa[0]*pa[0] + pa[1]*pa[1] + pa[2]*pa[2])*pkdBall(pkd,p);
+                       psph->mom[2]*psph->mom[2])/p.mass();
+    double Egrav = p.mass()*
+                   sqrt(pa[0]*pa[0] + pa[1]*pa[1] + pa[2]*pa[2])*p.ball();
 
     if ( (Ekin+Egrav) > 100.*psph->Uint ) {
         // IA: The fluid is dominated by the kinetic energy,
@@ -350,38 +355,38 @@ void hydroSyncEnergies(PKD pkd, PARTICLE *p, SPHFIELDS *psph, double pa[3], doub
 
 
 
-void hydroSetPrimitives(PKD pkd, PARTICLE *p, SPHFIELDS *psph,
+void hydroSetPrimitives(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS *psph,
                         double dTuFac, double dConstGamma) {
-
     // Temperature minimum of T=0, but could be changed.
     // If cooling is used, the corresponding entropy floor
     // is applied inside cooling_cool_part
-    double minUint = 0. * dTuFac * pkdMass(pkd,p);
+    double minUint = 0. * dTuFac * p.mass();
     if (psph->Uint < minUint) {
         double Ekin = 0.5*(psph->mom[0]*psph->mom[0] +
                            psph->mom[1]*psph->mom[1] +
-                           psph->mom[2]*psph->mom[2])/pkdMass(pkd,p);
+                           psph->mom[2]*psph->mom[2])/p.mass();
         psph->Uint = minUint;
         psph->E = Ekin + minUint;
 #ifdef ENTROPY_SWITCH
         psph->S = psph->Uint *(dConstGamma -1.) *
-                  pow(pkdDensity(pkd,p), -dConstGamma+1);
+                  pow(p.density(), -dConstGamma+1);
 #endif
     }
     psph->P = psph->Uint*psph->omega*(dConstGamma -1.);
 
 
-    psph->c = sqrt(psph->P*dConstGamma/pkdDensity(pkd,p));
+    psph->c = sqrt(psph->P*dConstGamma/p.density());
 
+    auto &v = p.velocity();
     for (int j=0; j<3; j++) {
-        pkdVel(pkd,p)[j] = psph->mom[j]/pkdMass(pkd,p);
+        v[j] = psph->mom[j]/p.mass();
 
         /*IA: This is here for compatibility with hydro.c, as in there we use vPred.
          * I think that all could be changed to use only pkdVel instead.
          * But I am not sure if when adding gravity vPred would be needed,
          * thus I will *temporarly* keep it
          */
-        psph->vPred[j] = pkdVel(pkd,p)[j];
+        psph->vPred[j] = v[j];
     }
 }
 
@@ -389,7 +394,7 @@ void hydroSetPrimitives(PKD pkd, PARTICLE *p, SPHFIELDS *psph,
 
 
 
-void hydroSetLastVars(PKD pkd, PARTICLE *p, SPHFIELDS *psph, double *pa,
+void hydroSetLastVars(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS *psph, double *pa,
                       double dScaleFactor, double dTime, double dDelta,
                       double dConstGamma) {
 #ifndef USE_MFM
@@ -405,12 +410,12 @@ void hydroSetLastVars(PKD pkd, PARTICLE *p, SPHFIELDS *psph, double *pa,
     psph->lastUpdateTime = dTime;
     psph->lastE = psph->E;
     psph->lastUint = psph->Uint;
-    psph->lastMass = pkdMass(pkd,p);
+    psph->lastMass = p.mass();
 #ifdef ENTROPY_SWITCH
     if (dDelta <= 0) {
         // Initialize the entropy
-        psph->S = pkdMass(pkd,p) * psph->P *
-                  pow(pkdDensity(pkd,p), -dConstGamma);
+        psph->S = p.mass() * psph->P *
+                  pow(p.density(), -dConstGamma);
     }
     psph->lastS = psph->S;
 #endif

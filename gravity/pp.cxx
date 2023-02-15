@@ -25,6 +25,7 @@
 #include "core/simd.h"
 #include "pkd.h"
 #include "pp.h"
+#include <algorithm>
 
 template<typename BLOCK> struct ilist::EvalBlock<ResultPP<fvec>,BLOCK> {
     typedef ResultPP<fvec> result_type;
@@ -53,12 +54,11 @@ template<typename BLOCK> struct ilist::EvalBlock<ResultPP<fvec>,BLOCK> {
 };
 
 void pkdGravEvalPP(const PINFOIN &Part, ilpTile &tile,  PINFOOUT &Out ) {
-    const float *a = Part.a;
-    float a2 = a[0]*a[0] + a[1]*a[1] + a[2]*a[2];
+    float a2 = blitz::dot(Part.a,Part.a);
     fvec imaga = a2 > 0.0f ? 1.0f / sqrtf(a2) : 0.0f;
 
     ilist::EvalBlock<ResultPP<fvec>,ilpBlock> eval(
-        Part.r[0],Part.r[1],Part.r[2],Part.fSmooth2,a[0],a[1],a[2],imaga);;
+        Part.r[0],Part.r[1],Part.r[2],Part.fSmooth2,Part.a[0],Part.a[1],Part.a[2],imaga);;
     auto result = EvalTile(tile,eval);
     Out.a[0] += hadd(result.ax);
     Out.a[1] += hadd(result.ay);
@@ -201,10 +201,10 @@ void pkdSPHForcesEval(const PINFOIN &Part, ilpTile &tile,  PINFOOUT &Out, SPHOpt
     Out.divv += hadd(result.divv);
     // This should be a horizontal minimum for an fvec, resulting in a float containing the smallest float in the fvec
     for (int k = 0; k < result.dtEst.width(); k++) {
-        Out.dtEst = fmin(Out.dtEst,result.dtEst[k]);
+        Out.dtEst = std::min(Out.dtEst,result.dtEst[k]);
     }
     for (int k = 0; k < result.maxRung.width(); k++) {
-        Out.maxRung = fmax(Out.maxRung,result.maxRung[k]);
+        Out.maxRung = std::max(Out.maxRung,result.maxRung[k]);
     }
     assert(Out.dtEst > 0);
 }

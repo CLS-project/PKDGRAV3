@@ -1,6 +1,9 @@
+#include <algorithm>
 #include "hydro/hydro.h"
 #include "master.h"
-
+using blitz::TinyVector;
+using blitz::all;
+using blitz::dot;
 
 void MSR::HydroStep(double dTime, double dDelta) {
     double dsec;
@@ -44,40 +47,33 @@ void initHydroStep(void *vpkd, void *vp) {
  *    - Acceleration
  *    - Timestep of the neighouring particles (in a scatter approach)
  */
-void hydroStep(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
+void hydroStep(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
-    PARTICLE *q;
-    SPHFIELDS *psph, *qsph;
-    double dt2, dtEst, vsig_pq, dvDotdr, dx, dy, dz;
+    auto P = pkd->particles[pIn];
+    // PARTICLE *q;
+    double dt2, dtEst, vsig_pq, dvDotdr;
     uint8_t uNewRung;
-    int i,j;
+    int i;
 
-    psph = pkdSph(pkd, p);
+    auto &psph = P.sph();
 
     dtEst = HUGE_VAL;
 
     /*  Signal velocity criteria */
     for (i=0; i<nSmooth; ++i) {
+        TinyVector<double,3> dr = nnList[i].dr;
+        if (all(dr==0)) continue;
 
-        dx = nnList[i].dx;
-        dy = nnList[i].dy;
-        dz = nnList[i].dz;
-
-        if (dx==0 && dy==0 && dz==0) continue;
-
-        q = nnList[i].pPart;
-        qsph = pkdSph(pkd, q);
+        auto Q = pkd->particles[nnList[i].pPart];
+        const auto &qsph = Q.sph();
 
         // From Eqs 24,25 Hopkins 2015, to limit deltaT
-        dvDotdr = (dx*(qsph->vPred[0] - psph->vPred[0]) +
-                   dy*(qsph->vPred[1] - psph->vPred[1]) +
-                   dz*(qsph->vPred[2] - psph->vPred[2]));
-
+        dvDotdr = dot(dr,qsph.vPred - psph.vPred);
         if (dvDotdr < 0) {
-            vsig_pq = psph->c + qsph->c - dvDotdr/sqrt(nnList[i].fDist2);
+            vsig_pq = psph.c + qsph.c - dvDotdr/sqrt(nnList[i].fDist2);
         }
         else {
-            vsig_pq = psph->c + qsph->c;
+            vsig_pq = psph.c + qsph.c;
         }
 
         dt2 = 2.*smf->dEtaCourant * fBall * smf->a /vsig_pq;
@@ -87,17 +83,17 @@ void hydroStep(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
 #ifdef ENTROPY_SWITCH
     // Gather the maximum relative kinetic energy
-    psph->maxEkin = 0.0;
+    psph.maxEkin = 0.0;
     for (i=0; i<nSmooth; i++) {
-        q = nnList[i].pPart;
-        qsph = pkdSph(pkd, q);
+        auto q = pkd->particles[nnList[i].pPart];
+        auto &qsph = q.sph();
 
-        double dv2 =(qsph->vPred[0] - psph->vPred[0])*(qsph->vPred[0] - psph->vPred[0]) +
-                    (qsph->vPred[1] - psph->vPred[1])*(qsph->vPred[1] - psph->vPred[1]) +
-                    (qsph->vPred[2] - psph->vPred[2])*(qsph->vPred[2] - psph->vPred[2]);
-        double Ekin = 0.5*pkdMass(pkd,p)*dv2;
+        double dv2 =(qsph.vPred[0] - psph.vPred[0])*(qsph.vPred[0] - psph.vPred[0]) +
+                    (qsph.vPred[1] - psph.vPred[1])*(qsph.vPred[1] - psph.vPred[1]) +
+                    (qsph.vPred[2] - psph.vPred[2])*(qsph.vPred[2] - psph.vPred[2]);
+        double Ekin = 0.5*P.mass()*dv2;
 
-        psph->maxEkin = (psph->maxEkin < Ekin) ? Ekin : psph->maxEkin;
+        psph.maxEkin = (psph.maxEkin < Ekin) ? Ekin : psph.maxEkin;
 
     }
 #endif
@@ -123,14 +119,12 @@ void hydroStep(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
     /* Calculate the relative potential with respect to the centre of the
      * potential */
-    dx = pkdPos(pkd,p,0); //- potential->x[0];
-    dy = pkdPos(pkd,p,1); //- potential->x[1];
-    dz = pkdPos(pkd,p,2); //- potential->x[2];
+    auto dr = P.position(); // - potential-x;
 
     /* calculate the radius  */
     const double epsilon =  0.2/smf->units.dKpcUnit;
     const double epsilon2 = epsilon*epsilon;
-    const float r = sqrtf(dx * dx + dy * dy + dz * dz + epsilon2);
+    const float r = sqrtf(blitz::dot(dr,dr) + epsilon2);
     const float sqrtgm_inv = 1.f / sqrtf(mass);
 
     /* Calculate the circular orbital period */
@@ -149,15 +143,10 @@ void hydroStep(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
     // Timestep criteria based on the hydro+grav accelerations
 
-    double a[3], acc;
-    float *pa = pkdAccel(pkd,p);
+    double acc;
     double cfl = smf->dCFLacc, dtAcc;
 
-
-    for (j=0; j<3; j++) {
-        a[j] = pa[j] -
-               smf->a*(-pkdVel(pkd,p)[j]*psph->Frho + psph->Fmom[j])/pkdMass(pkd,p);
-    }
+    blitz::TinyVector<double,3> a = P.acceleration() - smf->a*(-P.velocity()*psph.Frho + psph.Fmom)/P.mass();
 
     // 1/a^3 from grav2.c:217
     // Explanation:
@@ -172,15 +161,13 @@ void hydroStep(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     acc = sqrt(a[0]*a[0] + a[1]*a[1] + a[2]*a[2]) * aFac;
 
 
-    float h = smf->bDoGravity ?
-              (fBall < pkdSoft(pkd,p) ? fBall : pkdSoft(pkd,p) )
-              : fBall;
+    float h = smf->bDoGravity ? std::min(fBall,P.soft()) : fBall;
     dtAcc = cfl*sqrt(2*h/acc);
 
 
     if (dtAcc < dtEst) dtEst = dtAcc;
     uNewRung = pkdDtToRung(dtEst,smf->dDelta,MAX_RUNG);
-    if (uNewRung > p->uNewRung ) p->uNewRung = uNewRung;
+    if (uNewRung > P.new_rung() ) P.set_new_rung(uNewRung);
 
 
     /* Timestep limiter that imposes that the particle must have a dt
@@ -191,18 +178,18 @@ void hydroStep(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
      */
     if (smf->dDelta >= 0) {
         for (i=0; i<nSmooth; ++i) {
-            q = nnList[i].pPart;
+            auto Q = pkd->particles[nnList[i].pPart];
 
-            //if ( (q->uNewRung - p->uNewRung) > 2) uNewRung = q->uNewRung-1;
-            //if (uNewRung > p->uNewRung ) p->uNewRung = uNewRung;
+            //if ( (q.uNewRung - p.uNewRung) > 2) uNewRung = q.uNewRung-1;
+            //if (uNewRung > p.uNewRung ) p.uNewRung = uNewRung;
 
 
-            if ( (p->uNewRung - q->uNewRung) > 2) {
-                q->uNewRung = p->uNewRung-1;
-                if (!pkdIsActive(pkd,q)) {
+            if ( (P.new_rung() - Q.new_rung()) > 2) {
+                Q.set_new_rung(P.new_rung()-1);
+                if (!Q.is_active()) {
                     // DEBUG: The number of wake up request and IDs must match!
                     //printf("Need to wake up! %"PRIu64" \n", *pkdParticleID(pkd,q));
-                    pkdSph(pkd,q)->uWake = p->uNewRung;
+                    Q.sph().uWake = P.new_rung();
                 }
             }
 
@@ -231,27 +218,21 @@ void combHydroStep(void *vpkd, void *v1,const void *v2) {
  */
 void pkdWakeParticles(PKD pkd,int iRoot, double dTime, double dDelta) {
     for (int i=0; i<pkd->Local(); ++i) {
-        PARTICLE *p = pkd->Particle(i);
-        if (pkdIsGas(pkd,p)) {
-            uint8_t uWake = pkdSph(pkd,p)->uWake;
+        auto P = pkd->particles[i];
+        if (P.is_gas()) {
+            auto &sph = P.sph();
+            uint8_t uWake = sph.uWake;
             if (uWake) {
-                SPHFIELDS *psph = pkdSph(pkd,p);
-
-                p->uRung = uWake;
-                p->uNewRung = uWake;
-                psph->uWake = 0;
-
-                psph->lastUpdateTime = dTime;
+                P.set_rung(uWake);
+                P.set_new_rung(uWake);
+                sph.uWake = 0;
+                sph.lastUpdateTime = dTime;
 
                 // We revert to the state at the end of the previous timestep
-                psph->E    = psph->lastE;
-                psph->Uint = psph->lastUint;
-                float *mass = pkd->particles.get<float>(p,PKD_FIELD::oMass);
-                *mass = psph->lastMass;
-
-                for (int j=0; j<3; j++) {
-                    psph->mom[j] = psph->lastMom[j];
-                }
+                sph.E    = sph.lastE;
+                sph.Uint = sph.lastUint;
+                P.set_mass(sph.lastMass);
+                sph.mom = sph.lastMom;
 
                 /* NOTE: What do we do with the variables?
                  *  We could integrate the source terms without major problems.

@@ -1,7 +1,7 @@
 
 #include "pkd.h"
 #include "smooth/smoothfcn.h"
-
+#include <vector>
 
 #define XX 0
 #define YY 3
@@ -19,8 +19,7 @@ typedef double my_real;
 
 /* Density loop */
 void hydroDensity(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf);
-void hydroDensity_node(PKD pkd, SMF *smf, BND bnd_node, PARTICLE **sinks, NN *nnList,
-                       int nCnt_own, int nCnt);
+void hydroDensity_node(PKD pkd, SMF *smf, Bound bnd_node, const std::vector<PARTICLE *> &sinks, NN *nnList, int nCnt);
 
 /* Gradient loop */
 void hydroGradients(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf);
@@ -37,7 +36,7 @@ void pkdResetFluxes(PKD pkd,double dTime,double dDelta,double,double);
 
 void combThirdHydroLoop(void *vpkd, void *p1,const void *p2);
 void hydroFluxFillBuffer(my_real **buffer, PARTICLE *q, int i,
-                         double dr2, double dx, double dy, double dz, SMF *);
+                         double dr2, blitz::TinyVector<double,3> dr, SMF *);
 void hydroFluxUpdateFromBuffer(my_real **out_buffer, my_real **in_buffer,
                                PARTICLE *p, PARTICLE *q, int i, SMF *);
 void hydroFluxGetNvars(int *in, int *out);
@@ -50,18 +49,18 @@ void pkdWakeParticles(PKD pkd,int iRoot, double dTime, double dDelta);
 
 
 /* Source terms */
-void hydroSourceGravity(PKD pkd, PARTICLE *p, SPHFIELDS *psph,
+void hydroSourceGravity(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS *psph,
                         double pDelta, double *pa, double dScaleFactor,
                         int bComove);
-void hydroSourceExpansion(PKD pkd, PARTICLE *p, SPHFIELDS *psph,
+void hydroSourceExpansion(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS *psph,
                           double pDelta, double dScaleFactor, double dHubble,
                           int bComove, double dConstGamma);
-void hydroSyncEnergies(PKD pkd, PARTICLE *p, SPHFIELDS *psph, double pa[3],
+void hydroSyncEnergies(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS *psph, double pa[3],
                        double dConstGamma);
 
-void hydroSetPrimitives(PKD pkd, PARTICLE *p, SPHFIELDS *psph, double dTuFac, double dConstGamma);
+void hydroSetPrimitives(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS *psph, double dTuFac, double dConstGamma);
 
-void hydroSetLastVars(PKD pkd, PARTICLE *p, SPHFIELDS *psph, double *pa,
+void hydroSetLastVars(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS *psph, double *pa,
                       double dScaleFactor, double dTime, double dDelta,
                       double dConstGamma);
 
@@ -72,12 +71,12 @@ void hydroSetLastVars(PKD pkd, PARTICLE *p, SPHFIELDS *psph, double *pa,
 void inverseMatrix(double *E, double *B);
 double conditionNumber(double *E, double *B);
 double cubicSplineKernel(double r, double h);
-void BarthJespersenLimiter(double *limVar, double *gradVar,
+void BarthJespersenLimiter(double *limVar, blitz::TinyVector<double,3> gradVar,
                            double var_max, double var_min,
-                           double dx, double dy, double dz);
-void ConditionedBarthJespersenLimiter(double *limVar, myreal *gradVar,
+                           blitz::TinyVector<double,3> dr);
+void ConditionedBarthJespersenLimiter(double *limVar, blitz::TinyVector<myreal,3> gradVar,
                                       double var_max, double var_min,
-                                      double dx, double dy, double dz,
+                                      blitz::TinyVector<double,3> dr,
                                       double Ncrit, double Ncond);
 void genericPairwiseLimiter(double Lstate, double Rstate,
                             double *Lstate_face, double *Rstate_face);

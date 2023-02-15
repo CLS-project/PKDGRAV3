@@ -24,6 +24,7 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <math.h>
+#include <numeric>
 #include "core/vqsort.h"
 #include "pkd.h"
 #include "ic/ic.h"
@@ -188,25 +189,16 @@ static void initShapesBins1(void *vpkd, void *b) {
 ** reference point.  If a periodic boundary is in effect then the smallest
 ** possible distance is returned.
 */
-double pkdGetDistance2(PKD pkd,PARTICLE *p, const double *dCenter, int bPeriodic ) {
-    double d2;
-    double dx,dx2;
-    int j;
-
-    d2 = 0.0;
-    for ( j=0; j<3; j++ ) {
-        dx = pkdPos(pkd,p,j) - dCenter[j];
-        /*
-        ** If a periodic wrap results in a smaller distance, then use that.
-        */
-        if ( bPeriodic ) {
-            if ( dx<0.0 ) dx2 = dx + pkd->fPeriod[j];
-            else dx2 = dx - pkd->fPeriod[j];
-            if ( dx2*dx2 < dx*dx ) dx = dx2;
+double pkdGetDistance2(PKD pkd,particleStore::Particle &p, blitz::TinyVector<double,3> dCenter, int bPeriodic ) {
+    blitz::TinyVector<double,3> dx = p.position() - dCenter;
+    // If a periodic wrap results in a smaller distance, then use that.
+    if ( bPeriodic ) {
+        for ( auto j=0; j<3; j++ ) {
+            auto dx2 = dx[j] + (dx[j] < 0.0 ? pkd->fPeriod[j] : -pkd->fPeriod[j]);
+            if ( dx2*dx2 < dx[j]*dx[j] ) dx[j] = dx2;
         }
-        d2 += dx*dx;
     }
-    return d2;
+    return blitz::dot(dx,dx);
 }
 
 typedef struct {
@@ -227,7 +219,7 @@ static int cmpRadiusLite(const void *pva,const void *pvb) {
 ** Use the pLite structure to calculate the distance to each particle
 ** Sort by distance when finished.
 */
-void pkdCalcDistance(PKD pkd, double *dCenter, int bPeriodic) {
+void pkdCalcDistance(PKD pkd, blitz::TinyVector<double,3> dCenter, int bPeriodic) {
     auto pl = static_cast<distance *>(pkd->pLite);
     int i;
 
@@ -235,7 +227,7 @@ void pkdCalcDistance(PKD pkd, double *dCenter, int bPeriodic) {
     ** Initialize the temporary particles.
     */
     for (i=0; i<pkd->Local(); ++i) {
-        PARTICLE *p = pkd->Particle(i);
+        auto p = pkd->particles[i];
         pl[i].d2 = pkdGetDistance2(pkd,p,dCenter,bPeriodic);
         pl[i].i = i;
     }
@@ -245,30 +237,28 @@ void pkdCalcDistance(PKD pkd, double *dCenter, int bPeriodic) {
 /*
 ** Return the mass weighted center of mass and velocity
 */
-void pkdCalcCOM(PKD pkd, double *dCenter, double dRadius, int bPeriodic,
-                double *com, double *vcm, double *L,
-                double *M, uint64_t *N) {
-    double d2, dRadius2, T[3];
-    int i;
-
-    for ( i=0; i<3; i++ ) com[i] = vcm[i] = L[i] = 0.0;
-    *M = 0.0;
-    *N = 0;
-    dRadius2 = dRadius * dRadius;
-    for (i=0; i<pkd->Local(); ++i) {
-        PARTICLE *p = pkd->Particle(i);
-        double m = pkdMass(pkd,p);
-        vel_t *v = pkdVel(pkd,p);
-        double r[3];
-        pkdGetPos1(pkd,p,r);
-        d2 = pkdGetDistance2(pkd,p,dCenter,bPeriodic);
-        if ( dRadius < 0 || d2 < dRadius2 ) {
-            *M += m;
-            vec_add_const_mult(com, com, m, r);
-            vec_add_const_mult(vcm, vcm, m, v);
-            cross_product(T, r, v);
-            vec_add_const_mult(L, L, m, T);
-            (*N)++;
+void pkdCalcCOM(PKD pkd, const blitz::TinyVector<double,3> &dCenter, double dRadius, int bPeriodic,
+                blitz::TinyVector<double,3> &com, blitz::TinyVector<double,3> &vcm,
+                blitz::TinyVector<double,3> &L, double &M, uint64_t &N) {
+    using blitz::cross;
+    com = 0.0;
+    vcm = 0.0;
+    L = 0.0;
+    M = 0.0;
+    N = 0;
+    auto dRadius2 = dRadius * dRadius;
+    for (auto &p : pkd->particles) {
+        double m = p.mass();
+        const blitz::TinyVector<double,3> v = p.velocity();
+        const auto r = p.position();
+        auto d2 = pkdGetDistance2(pkd,p,dCenter,bPeriodic);
+        if ( d2 < dRadius2 ) {
+            M += m;
+            com += m * r;
+            vcm += m * v;
+            auto T = cross(r,v);
+            L += m * T;
+            N++;
         }
     }
 }
@@ -277,36 +267,17 @@ void pkdCalcCOM(PKD pkd, double *dCenter, double dRadius, int bPeriodic,
 ** Return the mass of all particles
 */
 void pkdCalcMtot(PKD pkd,double *M, uint64_t *N) {
-    int i;
-    *M = 0.0;
-    *N = 0;
-    for (i=0; i<pkd->Local(); ++i) {
-        PARTICLE *p = pkd->Particle(i);
-        double m = pkdMass(pkd,p);
-        *M += m;
-        (*N)++;
-    }
+    *N = pkd->Local();
+    *M = std::accumulate(pkd->particles.begin(),pkd->particles.end(),0.0,
+    [](double a,auto &p) {return a + p.mass(); });
 }
 
-/*
-** Move the center of mass and center of mass velocity by the values given
-*/
-void pkdResetCOM(PKD pkd, double x_com, double y_com, double z_com, double vx_com, double vy_com, double vz_com) {
-    PARTICLE *p;
-    double r[3];
-    vel_t *v;
-    for (int i=0; i<pkd->Local(); ++i) {
-        PARTICLE *p = pkd->Particle(i);
-        pkdGetPos1(pkd,p,r);
-
-        pkdSetPos(pkd,p,0,r[0] - x_com);
-        pkdSetPos(pkd,p,1,r[1] - y_com);
-        pkdSetPos(pkd,p,2,r[2] - z_com);
-
-        v = pkdVel(pkd,p);
-        v[0] -= vx_com;
-        v[1] -= vy_com;
-        v[2] -= vz_com;
+void pkdResetCOM(PKD pkd, blitz::TinyVector<double,3> r_com, blitz::TinyVector<double,3> v_com) {
+    for (auto &p : pkd->particles) {
+        auto r = p.position();
+        p.set_position(p.position() - r_com);
+        auto &v = p.velocity();
+        v -= v_com;
     }
 }
 
@@ -372,9 +343,9 @@ static void CalculateInertia(PKD pkd,int nBins, const double *dRadii, SHAPESBIN 
     ** The most efficient way to handle this is to do the calculations for all bins
     */
     for (i=iBin=0; i<n; i++) {
-
-        PARTICLE *p = pkd->Particle(pl[i].i);
-        double m = pkdMass(pkd,p);
+        auto p = pkd->particles[pl[i].i];
+        auto r = p.position();
+        double m = p.mass();
 
         //double r = dRadii[iBin];
 
@@ -382,12 +353,12 @@ static void CalculateInertia(PKD pkd,int nBins, const double *dRadii, SHAPESBIN 
         while ( pl[i].d2<dRadii[iBin]*dRadii[iBin] && iBin < nBins ) ++iBin;
         while ( pl[i].d2>dRadii[iBin]*dRadii[iBin] ) --iBin;
 
-        pShape = CAST(SHAPESBIN *,mdlAcquire(pkd->mdl,CID_SHAPES,iBin,0));
+        pShape = static_cast<SHAPESBIN *>(mdlAcquire(pkd->mdl,CID_SHAPES,iBin,0));
         pShape->dMassEnclosed += m;
         for (j=0; j<3; j++) {
-            pShape->com[j] += m * pkdPos(pkd,p,j);
+            pShape->com[j] += m * r[j];
             for (k=0; k<=j; k++) {
-                pShape->dInertia[j][k] += m * pkdPos(pkd,p,j) * pkdPos(pkd,p,k);
+                pShape->dInertia[j][k] += m * r[j] * r[k];
             }
         }
         mdlRelease(pkd->mdl,CID_SHAPES,pShape);
@@ -501,7 +472,7 @@ void pkdShapes(PKD pkd, int nBins, const double *dCenter, const double *dRadii) 
     int i, j, k;
 
     if (pkd->Self() == 0) {
-        shapesBins = CAST(SHAPESBIN *,mdlMalloc(pkd->mdl,nBins*sizeof(SHAPESBIN)));
+        shapesBins = static_cast<SHAPESBIN *>(mdlMalloc(pkd->mdl,nBins*sizeof(SHAPESBIN)));
         assert( shapesBins != NULL );
         /* Start with the given center for every bin */
         for ( i=0; i<nBins; i++ ) {
@@ -531,8 +502,12 @@ void pkdShapes(PKD pkd, int nBins, const double *dCenter, const double *dRadii) 
 ** Density Profile
 */
 void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
-                const double *dCenter, const double *dRadii, int nBins,
-                const double *com, const double *vcm, const double *L) {
+                const blitz::TinyVector<double,3> &dCenter, const double *dRadii, int nBins,
+                const blitz::TinyVector<double,3> &com, const blitz::TinyVector<double,3> &vcm,
+                const blitz::TinyVector<double,3> &L) {
+    using blitz::TinyVector;
+    using blitz::dot;
+    using blitz::cross;
     auto pl = static_cast<distance *>(pkd->pLite);
     local_t n = pkd->Local();
     double r0, r, r2;
@@ -541,7 +516,7 @@ void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
 
     if (pkd->Self() == 0) {
         if ( pkd->profileBins != NULL ) mdlFree(pkd->mdl,pkd->profileBins);
-        pkd->profileBins = CAST(PROFILEBIN *,mdlMalloc(pkd->mdl,nBins*sizeof(PROFILEBIN)));
+        pkd->profileBins = static_cast<PROFILEBIN *>(mdlMalloc(pkd->mdl,nBins*sizeof(PROFILEBIN)));
         assert( pkd->profileBins != NULL );
         r0 = 0.0;
         for (iBin=0; iBin<nBins; iBin++) {
@@ -568,36 +543,31 @@ void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
     r0 = 0.0;
     i = 0;
     for (iBin=0; iBin<nBins; iBin++) {
-        pBin = CAST(PROFILEBIN *,mdlAcquire(pkd->mdl,CID_BIN,iBin,0));
+        pBin = static_cast<PROFILEBIN *>(mdlAcquire(pkd->mdl,CID_BIN,iBin,0));
         r = pBin->dRadius;
         r = dRadii[iBin];
         r2 = r*r;
         assert( r > r0 );
 
         while ( pl[i].d2 <= r2 && i<n) {
-            PARTICLE *p = pkd->Particle(pl[i].i);
-            double m = pkdMass(pkd,p);
-            vel_t *v = pkdVel(pkd,p);
-            double delta_x[3], delta_v[3], ang_mom[3], dx2, vel;
-            double r[3];
-            /*double vel_tang[3], vel_shell[3], vel_tang_pec[3];*/
-
-            r[0] = pkdPos(pkd,p,0);
-            r[1] = pkdPos(pkd,p,1);
-            r[2] = pkdPos(pkd,p,2);
+            auto P = pkd->particles[pl[i].i];
+            auto m = P.mass();
+            auto v = P.velocity();
+            const auto r = P.position();
+            TinyVector<double,3> delta_x, delta_v, ang_mom;
+            double dx2, vel;
 
             pBin->dMassInBin += m;
             pBin->nParticles++;
-
-            vec_sub(delta_x,r,com);
-            vec_sub(delta_v,v,vcm);
-            cross_product(ang_mom,delta_x,delta_v);
-            vec_add_const_mult(pBin->L,pBin->L,m,ang_mom);
-            dx2 = dot_product(delta_x,delta_x);
+            delta_x = r - com;
+            delta_v = v - vcm;
+            ang_mom = cross(delta_x,delta_v);
+            pBin->L += m * ang_mom;
+            dx2 = dot(delta_x,delta_x);
             if (dx2 != 0.0)
-                vel = dot_product(delta_x,delta_v)/sqrt(dx2);
+                vel = dot(delta_x,delta_v)/sqrt(dx2);
             else
-                vel = sqrt(dot_product(delta_v,delta_v));
+                vel = sqrt(dot(delta_v,delta_v));
             pBin->vel_radial += m * vel;
             pBin->vel_radial_sigma += m * vel * vel;
             i++;
@@ -617,24 +587,22 @@ void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
         r2 = r*r;
         assert( r > r0 );
         while ( pl[i].d2 <= r2 && i<n) {
-            PARTICLE *p = pkd->Particle(pl[i].i);
-            double m = pkdMass(pkd,p);
-            vel_t *v = pkdVel(pkd,p);
-            double delta_x[3], delta_v[3], dx2, r[3];
-            double vel_tang[3], vel_shell[3], vel_tang_pec[3];
-            r[0] = pkdPos(pkd,p,0);
-            r[1] = pkdPos(pkd,p,1);
-            r[2] = pkdPos(pkd,p,2);
+            auto P = pkd->particles[pl[i].i];
+            double m = P.mass();
+            auto v = P.velocity();
+            const auto r = P.position();
+            double dx2;
+            TinyVector<double,3> delta_x, delta_v, vel_tang, vel_shell, vel_tang_pec;
 
-            vec_sub(delta_x,r,com);
-            vec_sub(delta_v,v,vcm);
-            dx2 = dot_product(delta_x,delta_x);
+            delta_x = r - com;
+            delta_v = v - vcm;
+            dx2 = dot(delta_x,delta_x);
 
             if (dx2 != 0.0) {
-                vec_add_const_mult(vel_tang,delta_v,-dot_product(delta_v,delta_x) / dx2, delta_x);
-                cross_product(vel_shell,pBin->L,delta_x);
-                vec_add_const_mult(vel_tang_pec,vel_tang,-1.0 / dx2,vel_shell);
-                pBin->vel_tang_sigma += m * dot_product(vel_tang_pec,vel_tang_pec);
+                vel_tang = delta_v - dot(delta_v,delta_x) / dx2 * delta_x;
+                vel_shell = cross(pBin->L,delta_x);
+                vel_tang_pec = vel_tang - 1.0 / dx2 * vel_shell;
+                pBin->vel_tang_sigma += m * dot(vel_tang_pec,vel_tang_pec);
             }
             i++;
         }

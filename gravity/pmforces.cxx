@@ -307,9 +307,9 @@ void pkdLinearKick(PKD pkd,vel_t dtOpen,vel_t dtClose, int iAssignment=4) {
     std::vector<std::uint32_t> stack;
     stack.push_back(ROOT);
     while ( !stack.empty()) {
-        tree_node *kdn = reinterpret_cast<tree_node *>(pkd->TreeNode(stack.back()));
+        auto kdn = pkd->tree[stack.back()];
         stack.pop_back(); // Go to the next node in the tree
-        Bound bnd = pkdNodeGetBnd(pkd, kdn);
+        auto bnd = kdn->bound();
         shape_t ilower = shape_t(floor((bnd.lower() * ifPeriod + 0.5) * nGrid)) - iAssignment/2;
         shape_t iupper = shape_t(floor((bnd.upper() * ifPeriod + 0.5) * nGrid)) + iAssignment/2;
         shape_t ishape = iupper - ilower + 1;
@@ -318,8 +318,8 @@ void pkdLinearKick(PKD pkd,vel_t dtOpen,vel_t dtClose, int iAssignment=4) {
 
         if (size > maxSize) { // This cell is too large, so we split it and move on
             assert(kdn->is_cell()); // At the moment we cannot handle enormous buckets
-            stack.push_back(kdn->iLower+1);
-            stack.push_back(kdn->iLower);
+            stack.push_back(kdn->rchild());
+            stack.push_back(kdn->lchild());
         }
         else { // Assign the mass for this range of particles
             dataX.resize(size); // Hold the right number of masses
@@ -331,11 +331,9 @@ void pkdLinearKick(PKD pkd,vel_t dtOpen,vel_t dtClose, int iAssignment=4) {
             fetch_forces(pkd,CID_GridLinFx,nGrid,forcesX,ilower);
             fetch_forces(pkd,CID_GridLinFy,nGrid,forcesY,ilower);
             fetch_forces(pkd,CID_GridLinFz,nGrid,forcesZ,ilower);
-            for ( int i=kdn->pLower; i<=kdn->pUpper; ++i) { // All particles in this tree cell
-                auto p = pkd->Particle(i);
-                auto v = pkdVel(pkd,p);
-                position_t dr; pkdGetPos1(pkd,p,dr.data()); // Centered on 0 with period fPeriod
-                float3_t r(dr);
+            for ( auto &p : *kdn) { // All particles in this tree cell
+                auto v = p.velocity();
+                float3_t r = p.position();
                 r = (r * ifPeriod + 0.5) * nGrid - flower; // Scale and shift to fit in subcube
                 v[0] += (dtOpen + dtClose) * force_interpolate(forcesX, r.data(), iAssignment);
                 v[1] += (dtOpen + dtClose) * force_interpolate(forcesY, r.data(), iAssignment);
@@ -372,12 +370,7 @@ void pkdMeasureLinPk(PKD pkd, int nGrid, double dA, double dBoxSize,
     FFTW3(complex) *fftDataK;
     double ak;
     int i,j,k, idx, ks;
-    int iNyquist;
-
-    /* Sort the particles into optimal "cell" order */
-    /* Use tree order: QSORT(pkdParticleSize(pkd),pkd->Particle(0),pkd->nLocal,qsort_lt); */
-
-    iNyquist = nGrid / 2;
+    int iNyquist = nGrid / 2;
 
     mdlGridCoordFirstLast(pkd->mdl,fft->rgrid,&first,&last,1);
     /* Generate the grid of the linear species again,

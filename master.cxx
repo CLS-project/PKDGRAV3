@@ -33,11 +33,7 @@
 #include <stddef.h>
 #include <string.h>
 #include <ctype.h>
-#ifdef HAVE_INTTYPES_H
-    #include <inttypes.h>
-#else
-    #define PRIu64 "llu"
-#endif
+#include <cinttypes>
 #include <limits.h>
 #include <stdarg.h>
 #include <assert.h>
@@ -79,7 +75,6 @@ using namespace fmt::literals; // Gives us ""_a and ""_format literals
 #include "core/hostname.h"
 #include "core/calcroot.h"
 #include "core/select.h"
-
 #include "io/restore.h"
 #include "initlightcone.h"
 
@@ -312,7 +307,6 @@ uint64_t MSR::getMemoryModel() {
     if (param.bMemIntegerPosition) mMemoryModel |= PKD_MODEL_INTEGER_POS;
     if (param.bMemUnordered&&param.bNewKDK) mMemoryModel |= PKD_MODEL_UNORDERED;
     if (param.bMemParticleID)   mMemoryModel |= PKD_MODEL_PARTICLE_ID;
-    if (param.bTraceRelaxation) mMemoryModel |= PKD_MODEL_RELAXATION;
     if (param.bMemAcceleration || param.bDoAccOutput) mMemoryModel |= PKD_MODEL_ACCELERATION;
     if (param.bMemVelocity)     mMemoryModel |= PKD_MODEL_VELOCITY;
     if (param.bMemPotential || param.bDoPotOutput)    mMemoryModel |= PKD_MODEL_POTENTIAL;
@@ -320,7 +314,6 @@ uint64_t MSR::getMemoryModel() {
     if (param.bMemGroups)       mMemoryModel |= PKD_MODEL_GROUPS;
     if (param.bMemMass)         mMemoryModel |= PKD_MODEL_MASS;
     if (param.bMemSoft)         mMemoryModel |= PKD_MODEL_SOFTENING;
-    if (param.bMemRelaxation)   mMemoryModel |= PKD_MODEL_RELAXATION;
     if (param.bMemVelSmooth)    mMemoryModel |= PKD_MODEL_VELSMOOTH;
 
     if (param.bMemNodeAcceleration) mMemoryModel |= PKD_MODEL_NODE_ACCEL;
@@ -348,7 +341,7 @@ std::pair<int,int> MSR::InitializePStore(uint64_t *nSpecies,uint64_t mMemoryMode
     struct inInitializePStore ps;
     double dStorageAmount = (1.0+param.dExtraStore);
     int i;
-    for ( i=0; i<FIO_SPECIES_LAST; ++i) ps.nSpecies[i] = nSpecies[i];
+    for ( i=0; i<=FIO_SPECIES_LAST; ++i) ps.nSpecies[i] = nSpecies[i];
     ps.nStore = ceil( dStorageAmount * ps.nSpecies[FIO_SPECIES_ALL] / mdlThreads(mdl));
     ps.nTreeBitsLo = param.nTreeBitsLo;
     ps.nTreeBitsHi = param.nTreeBitsHi;
@@ -362,10 +355,10 @@ std::pair<int,int> MSR::InitializePStore(uint64_t *nSpecies,uint64_t mMemoryMode
     ps.mMemoryModel = mMemoryModel | PKD_MODEL_VELOCITY;
 
 #define SHOW(m) ((ps.mMemoryModel&PKD_MODEL_##m)?" " #m:"")
-    printf("Memory Models:%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s\n",
+    printf("Memory Models:%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s\n",
            param.bMemIntegerPosition ? " INTEGER_POSITION" : " DOUBLE_POSITION",
            SHOW(UNORDERED),SHOW(VELOCITY),SHOW(ACCELERATION),SHOW(POTENTIAL),
-           SHOW(GROUPS),SHOW(RELAXATION),SHOW(MASS),SHOW(DENSITY),
+           SHOW(GROUPS),SHOW(MASS),SHOW(DENSITY),
            SHOW(BALL),SHOW(SOFTENING),SHOW(VELSMOOTH),SHOW(SPH),SHOW(NEW_SPH),
            SHOW(STAR),SHOW(PARTICLE_ID),SHOW(BH),SHOW(GLOBALGID),
            SHOW(NODE_MOMENT),SHOW(NODE_ACCEL),SHOW(NODE_VEL),SHOW(NODE_SPHBNDS),
@@ -436,8 +429,8 @@ std::pair<int,int> MSR::InitializePStore(uint64_t *nSpecies,uint64_t mMemoryMode
     printf("Allocated %lu MB for particle store on each processor.\n",
            pkd->ParticleMemory()/(1024*1024));
     printf("Particles: %lu bytes (persistent) + %d bytes (ephemeral), Nodes: %lu bytes\n",
-           pkd->ParticleSize(),ps.nEphemeralBytes,pkd->NodeSize());
-    if (pkd->ParticleSize() > MDL_CACHE_DATA_SIZE) {
+           pkd->particles.ParticleSize(),ps.nEphemeralBytes,pkd->NodeSize());
+    if (pkd->particles.ParticleSize() > MDL_CACHE_DATA_SIZE) {
         printf("ERROR! MDL_CACHE_DATA_SIZE (%d bytes) is too small for the given particle size, please increasing it\n", MDL_CACHE_DATA_SIZE);
         abort();
     }
@@ -516,8 +509,8 @@ void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTi
 
     nMaxOrder = N - 1; // iOrder goes from 0 to N-1
 
-    uint64_t nSpecies[FIO_SPECIES_LAST];
-    for ( auto i=0; i<FIO_SPECIES_LAST; ++i) nSpecies[i] = 0;
+    fioSpeciesList nSpecies;
+    for ( auto i=0; i<=FIO_SPECIES_LAST; ++i) nSpecies[i] = 0;
     nSpecies[FIO_SPECIES_ALL]  = N;
     nSpecies[FIO_SPECIES_SPH]  = nGas;
     nSpecies[FIO_SPECIES_DARK] = nDark;
@@ -586,7 +579,7 @@ void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTi
 
 void MSR::writeParameters(const char *baseName,int iStep,int nSteps,double dTime,double dDelta) {
     char *p, achOutName[PST_FILENAME_SIZE];
-    uint64_t nSpecies[FIO_SPECIES_LAST];
+    fioSpeciesList nSpecies;
     int i;
     int nBytes;
 
@@ -611,7 +604,7 @@ void MSR::writeParameters(const char *baseName,int iStep,int nSteps,double dTime
         abort();
     }
 
-    for (i=0; i<FIO_SPECIES_LAST; ++i) nSpecies[i] = 0;
+    for (i=0; i<=FIO_SPECIES_LAST; ++i) nSpecies[i] = 0;
     nSpecies[FIO_SPECIES_ALL]  = N;
     nSpecies[FIO_SPECIES_SPH]  = nGas;
     nSpecies[FIO_SPECIES_DARK] = nDark;
@@ -1182,9 +1175,6 @@ void MSR::Initialize() {
     param.dEnvironment1 = -1.0;
     prmAddParam(prm,"dEnvironment1",2,&param.dEnvironment1,sizeof(double),"dEnv1",
                 "<second radius for density environment about a group> = -1.0 (disabled)");
-    param.bTraceRelaxation = 0;
-    prmAddParam(prm,"bTraceRelaxation",0,&param.bTraceRelaxation,sizeof(int),
-                "rtrace","<enable/disable relaxation tracing> = -rtrace");
 
 #ifdef MDL_FFTW
     param.nBinsPk = 0;
@@ -1290,9 +1280,6 @@ void MSR::Initialize() {
     param.bMemSoft = 0;
     prmAddParam(prm,"bMemSoft",0,&param.bMemSoft,
                 sizeof(int),"Ms","<Particles have individual softening> = -Ms");
-    param.bMemRelaxation = 0;
-    prmAddParam(prm,"bMemRelaxation",0,&param.bMemRelaxation,
-                sizeof(int),"Mr","<Particles have relaxation> = -Mr");
     param.bMemVelSmooth = 0;
     prmAddParam(prm,"bMemVelSmooth",0,&param.bMemVelSmooth,
                 sizeof(int),"Mvs","<Particles support velocity smoothing> = -Mvs");
@@ -1881,9 +1868,6 @@ void msrLogParams(MSR &msr,FILE *fp) {
 #ifdef OPTIM_NO_REDUNDANT_FLUXES
     fprintf(fp," OPTIM_NO_REDUNDANT_FLUXES");
 #endif
-#ifdef OPTIM_REMOVE_UNUSED
-    fprintf(fp," OPTIM_REMOVE_UNUSED");
-#endif
 #ifdef OPTIM_DENSITY_REITER
     fprintf(fp," OPTIM_DENSITY_REITER");
 #endif
@@ -2037,7 +2021,6 @@ void msrLogParams(MSR &msr,FILE *fp) {
     fprintf(fp," nMinMembers: %d",param.nMinMembers);
     fprintf(fp," nBins: %d",param.nBins);
     fprintf(fp," bLogBins: %d",param.bLogBins);
-    fprintf(fp,"\n# Relaxation estimate: bTraceRelaxation: %d",param.bTraceRelaxation);
     fprintf(fp," dTheta: %f",param.dTheta);
     fprintf(fp,"\n# dPeriod: %g",param.dPeriod);
     fprintf(fp," dxPeriod: %g",
@@ -2315,11 +2298,11 @@ void MSR::AllNodeWrite(const char *pszFileName, double dTime, double dvFac, int 
             param.dxPeriod < FLOAT_MAXVAL &&
             param.dyPeriod < FLOAT_MAXVAL &&
             param.dzPeriod < FLOAT_MAXVAL) {
-        Bound::coord offset(0.5*param.dxPeriod,0.5*param.dyPeriod,0.5*param.dzPeriod);
+        Bound::coord_type offset(0.5*param.dxPeriod,0.5*param.dyPeriod,0.5*param.dzPeriod);
         in.bnd = Bound(fCenter-offset,fCenter+offset);
     }
     else {
-        in.bnd = Bound(Bound::coord(-std::numeric_limits<double>::max()),Bound::coord(std::numeric_limits<double>::max()));
+        in.bnd = Bound(Bound::coord_type(-std::numeric_limits<double>::max()),Bound::coord_type(std::numeric_limits<double>::max()));
     }
 
     in.dEcosmo    = dEcosmo;
@@ -2456,10 +2439,10 @@ void MSR::InitBall() {
 void MSR::DomainDecompOld(int iRung) {
     OldDD::ServiceDomainDecomp::input in;
     uint64_t nActive;
-    const uint64_t nDT = d2u64(N*param.dFracDualTree);
-    const uint64_t nDD = d2u64(N*param.dFracNoDomainDecomp);
-    const uint64_t nRT = d2u64(N*param.dFracNoDomainRootFind);
-    const uint64_t nSD = d2u64(N*param.dFracNoDomainDimChoice);
+    const uint64_t nDT = (N*param.dFracDualTree);
+    const uint64_t nDD = (N*param.dFracNoDomainDecomp);
+    const uint64_t nRT = (N*param.dFracNoDomainRootFind);
+    const uint64_t nSD = (N*param.dFracNoDomainDimChoice);
     double dsec;
     int iRungDT, iRungDD=0,iRungRT,iRungSD;
     int i;
@@ -2644,7 +2627,7 @@ void MSR::DomainDecompOld(int iRung) {
             param.dxPeriod < FLOAT_MAXVAL &&
             param.dyPeriod < FLOAT_MAXVAL &&
             param.dzPeriod < FLOAT_MAXVAL) {
-        Bound::coord offset(0.5*param.dxPeriod,0.5*param.dyPeriod,0.5*param.dzPeriod);
+        Bound::coord_type offset(0.5*param.dxPeriod,0.5*param.dyPeriod,0.5*param.dzPeriod);
         in.bnd = Bound(fCenter-offset,fCenter+offset);
         mdl->RunService(PST_ENFORCEPERIODIC,sizeof(in.bnd),&in.bnd);
     }
@@ -2699,7 +2682,7 @@ void MSR::BuildTree(int bNeedEwald,uint32_t uRoot,uint32_t utRoot) {
 
     std::unique_ptr<char[]> buffer {new char[nMsgSize]};
     auto pDistribTop = new (buffer.get()) ServiceDistribTopTree::input;
-    auto pkdn = reinterpret_cast<KDN *>(pDistribTop + 1);
+    auto pkdn = pkd->tree[reinterpret_cast<KDN *>(pDistribTop + 1)];
     pDistribTop->uRoot = uRoot;
     pDistribTop->allocateMemory = 1;
 
@@ -2726,7 +2709,7 @@ void MSR::BuildTree(int bNeedEwald,uint32_t uRoot,uint32_t utRoot) {
         */
         ServiceCalcRoot::input calc;
         ServiceCalcRoot::output root;
-        pkdNodeGetPos(pkd,pkdn,calc.com);
+        calc.com = pkdn->position();
         calc.uRoot = uRoot;
 
         mdl->RunService(PST_CALCROOT,sizeof(calc),&calc,&root);
@@ -2865,7 +2848,6 @@ void MSR::Reorder() {
         sec = Time();
         OldDD::ServiceDomainOrder::input indomain(MaxOrder());
         mdl->RunService(PST_DOMAINORDER,sizeof(indomain),&indomain);
-
         OldDD::ServiceLocalOrder::input inlocal(MaxOrder());
         mdl->RunService(PST_LOCALORDER,sizeof(inlocal),&inlocal);
         dsec = Time() - sec;
@@ -3305,7 +3287,6 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
     double dsec,dTotFlop,dt,a;
     double dTimeLCP;
     uint8_t uRungMax=0;
-    uint8_t uRungLoTemp;
     char c;
 
     if (param.bVStep) {
@@ -3422,8 +3403,8 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
         */
         for (i=uRungLo; i<=IRUNGMAX; ++i) nRung[i] = outr.nRung[i];
 
-        const uint64_t nDT = d2u64(N*param.dFracDualTree);
-        const uint64_t nDD = d2u64(N*param.dFracNoDomainDecomp);
+        const uint64_t nDT = (N*param.dFracDualTree);
+        const uint64_t nDD = (N*param.dFracNoDomainDecomp);
         uint64_t nActive = 0;
         iRungDD = 0;
         iRungDT = 0;
@@ -3865,8 +3846,8 @@ int MSR::CountRungs(uint64_t *nRungs) {
     }
     iCurrMaxRung = iMaxRung;
 
-    const uint64_t nDT = d2u64(N*param.dFracDualTree);
-    const uint64_t nDD = d2u64(N*param.dFracNoDomainDecomp);
+    const uint64_t nDT = (N*param.dFracDualTree);
+    const uint64_t nDD = (N*param.dFracNoDomainDecomp);
     uint64_t nActive = 0;
     iRungDD = 0;
     iRungDT = 0;
@@ -3900,23 +3881,6 @@ void MSR::AccelStep(uint8_t uRungLo,uint8_t uRungHi,double dTime,double dDelta) 
     in.uRungHi = uRungHi;
     pstAccelStep(pst,&in,sizeof(in),NULL,0);
 }
-
-/* Requires full forces and full udot (i.e. sph and cooling both done) */
-void MSR::SphStep(uint8_t uRungLo,uint8_t uRungHi,double dTime,double dDelta) {
-#ifndef OPTIM_REMOVE_UNUSED
-    struct inSphStep in;
-    double a = csmTime2Exp(csm,dTime);
-    in.dAccFac = 1.0/(a*a*a);
-    in.dEta = param.dEta;
-    in.dEtaUDot = param.dEtaUDot;
-    in.uRungLo = uRungLo;
-    in.uRungHi = uRungHi;
-    in.dDelta = dDelta;
-    in.iMaxRung = param.iMaxRung;
-    pstSphStep(pst,&in,sizeof(in),NULL,0);
-#endif
-}
-
 
 uint8_t MSR::GetMinDt() {
     struct outGetMinDt out;
@@ -4214,7 +4178,7 @@ int MSR::NewTopStepKDK(
         uRoot2 = 0;
 
         if (DoGas() && NewSPH()) {
-            SelAll(0,1);
+            SelAll(-1,1);
         }
 
 #ifdef BLACKHOLES
@@ -4280,7 +4244,7 @@ int MSR::NewTopStepKDK(
     // active tree, or we can get HUGE group cells, and hence too much P-P/P-C
     int nGroup = (bDualTree && uRung > iRungDT) ? 1 : param.nGroup;
     if (DoGas() && NewSPH()) {
-        SelAll(0,1);
+        SelAll(-1,1);
         SPHOptions SPHoptions = initializeSPHOptions(param,csm,dTime);
         uint64_t nParticlesOnRung = 0;
         for (int i = MaxRung(); i>=uRung; i--) {
@@ -4348,7 +4312,7 @@ int MSR::NewTopStepKDK(
             }
         }
         // Calculate Forces
-        SelAll(0,1);
+        SelAll(-1,1);
         SPHoptions.doGravity = 1;
         SPHoptions.doDensity = 0;
         SPHoptions.nPredictRung = uRung;
@@ -4440,13 +4404,8 @@ void MSR::TopStepKDK(
         /* JW: Note -- can't trash uRungNew here! Force calcs set values for it! */
         ActiveRung(iRung, 1);
         if (param.bAccelStep) AccelStep(iRung,MAX_RUNG,dTime,dDeltaStep);
-        if (DoGas()) {
-            if (MeshlessHydro()) {
-                HydroStep(dTime, dDeltaStep);
-            }
-            else {
-                SphStep(iRung,MAX_RUNG,dTime,dDeltaStep);
-            }
+        if (DoGas()&&MeshlessHydro()) {
+            HydroStep(dTime, dDeltaStep);
         }
         if (param.bDensityStep) {
             DomainDecomp(iRung);
@@ -4578,13 +4537,8 @@ void MSR::TopStepKDK(
 
 
         if (DoGas() && MeshlessHydro()) {
-            if (MeshlessHydro()) {
-                EndTimestepIntegration(dTime, dDeltaStep);
-                MeshlessGradients(dTime, dDeltaStep);
-            }
-            else {
-                Sph(dTime,dDeltaStep,dStep);  /* dTime = Time at end of kick */
-            }
+            EndTimestepIntegration(dTime, dDeltaStep);
+            MeshlessGradients(dTime, dDeltaStep);
         }
 
         /*
@@ -4683,44 +4637,7 @@ void MSR::AddDelParticles() {
 
 /* Gas routines */
 void MSR::InitSph(double dTime,double dDelta) {
-    if (!MeshlessHydro()) {
-#ifndef OPTIM_REMOVE_UNUSED
-        /* Init gas, internal energy -- correct estimate from dTuFac */
-        ActiveRung(0,1);
-        /* Very important NOT to do this if starting from a checkpoint */
-        if (param.bGasCooling && !param.bRestart) {
-            struct inCorrectEnergy in;
-            double a;
-
-            //msrSelSrcGas(msr); /* Not really sure what the setting here needs to be */
-            //msrSelDstGas(msr);
-            Smooth(dTime,dDelta,SMX_DENDVDX,0,param.nSmooth);
-            //msrSelSrcAll(msr);
-            //msrSelDstAll(msr);
-
-            in.dTuFac = dTuFac;
-            a = csmTime2Exp(csm,dTime);
-            in.z = 1/a - 1;
-            in.dTime = dTime;
-            if (param.bInitTFromCooling) {
-                fprintf(stderr,"INFO: Resetting thermal energies to special value in cooling routines\n");
-                in.iDirection = CORRECTENERGY_SPECIAL;
-            }
-            else {
-                fprintf(stderr,"INFO: Correcting (dTuFac) thermal energies using cooling routines\n");
-                in.iDirection = CORRECTENERGY_IN;
-            }
-
-            pstCorrectEnergy(pst, &in, sizeof(in), NULL, 0);
-        }
-
-        ActiveRung(0,1);
-        Sph(dTime,dDelta,0);
-        SphStep(0,MAX_RUNG,dTime,dDelta); /* Requires SPH */
-        Cooling(dTime,0,0,1,1); /* Interate cooling for consistent dt */
-#endif
-    }
-    else {
+    if (MeshlessHydro()) {
         if (!param.bRestart) {
             ActiveRung(0,1);
             InitBall();
@@ -4734,28 +4651,6 @@ void MSR::InitSph(double dTime,double dDelta) {
         }
     }
     UpdateRung(0) ;
-}
-
-void MSR::Sph(double dTime, double dDelta, double dStep) {
-    double sec,dsec;
-
-    if (param.bVStep) printf("Calculating Sph, Step:%f\n",dStep);
-    sec = MSR::Time();
-
-    /* JW: Is the tree aware of this -- does it need to be?
-       Will smooth behave correctly? */
-
-    //msrSelSrcGas(msr); /* Not really sure what the setting here needs to be */
-    //msrSelDstGas(msr);
-    Smooth(dTime,dDelta,SMX_DENDVDX,0,param.nSmooth);
-    Smooth(dTime,dDelta,SMX_SPHFORCES,1,param.nSmooth); /* Should be a resmooth */
-    //msrSelSrcAll(msr);
-    //msrSelDstAll(msr);
-
-    dsec = MSR::Time() - sec;
-    if (param.bVStep) {
-        printf("SPH Calculated, Wallclock: %f secs\n",  dsec);
-    }
 }
 
 void MSR::CoolSetup(double dTime) {
@@ -5048,45 +4943,13 @@ void MSR::GroupStats() {
         printf("Group statistics complete, Wallclock: %f secs\n\n",dsec);
 }
 
-void MSR::InitRelaxation() {
-    pstInitRelaxation(pst,NULL,0,NULL,0);
-}
-
-void MSR::Relaxation(double dTime,double deltaT,int iSmoothType,int bSymmetric) {
-    struct inSmooth in;
-    in.nSmooth = param.nSmooth;
-    in.bPeriodic = param.bPeriodic;
-    in.bSymmetric = bSymmetric;
-    in.iSmoothType = iSmoothType;
-    if (Comove()) {
-        in.smf.H = csmTime2Hub(csm,dTime);
-        in.smf.a = csmTime2Exp(csm,dTime);
-    }
-    else {
-        in.smf.H = 0.0;
-        in.smf.a = 1.0;
-    }
-    in.smf.dDeltaT = deltaT;
-    if (param.bVStep) {
-        double sec,dsec;
-        printf("Smoothing for relaxation...dDeltaT = %f \n",deltaT);
-        sec = MSR::Time();
-        pstSmooth(pst,&in,sizeof(in),NULL,0);
-        dsec = MSR::Time() - sec;
-        printf("Relaxation Calculated, Wallclock: %f secs\n\n",dsec);
-    }
-    else {
-        pstSmooth(pst,&in,sizeof(in),NULL,0);
-    }
-}
-
 #ifdef MDL_FFTW
 double MSR::GenerateIC() {
     struct inGenerateIC in;
     struct outGenerateIC out;
     struct inGetFFTMaxSizes inFFTSizes;
     struct outGetFFTMaxSizes outFFTSizes;
-    uint64_t nSpecies[FIO_SPECIES_LAST];
+    fioSpeciesList nSpecies;
     double sec,dsec;
     double mean, rms;
     uint64_t nTotal;
@@ -5139,7 +5002,7 @@ double MSR::GenerateIC() {
     if (in.bICgas) nTotal *= 2;
     in.dBoxMass = csm->val.dOmega0 / nTotal;
 
-    for ( j=0; j<FIO_SPECIES_LAST; j++) nSpecies[j] = 0;
+    for ( j=0; j<=FIO_SPECIES_LAST; j++) nSpecies[j] = 0;
     if (in.bICgas) {
         nSpecies[FIO_SPECIES_ALL] = nTotal;
         nSpecies[FIO_SPECIES_SPH] = nTotal/2;
@@ -5230,7 +5093,7 @@ double MSR::Read(const char *achInFile) {
     FIO fio;
     int j;
     double dsec;
-    uint64_t nSpecies[FIO_SPECIES_LAST];
+    fioSpeciesList nSpecies;
     inReadFileFilename achFilename;
     uint64_t mMemoryModel = 0;
 
@@ -5301,7 +5164,7 @@ double MSR::Read(const char *achInFile) {
     read->nNodeEnd = N - 1;
 
 
-    for ( auto s=FIO_SPECIES_ALL; s<FIO_SPECIES_LAST; s=FIO_SPECIES(s+1)) nSpecies[s] = fioGetN(fio,s);
+    for ( auto s=FIO_SPECIES(0); s<=FIO_SPECIES_LAST; s=FIO_SPECIES(s+1)) nSpecies[s] = fioGetN(fio,s);
     InitializePStore(nSpecies,mMemoryModel,param.nMemEphemeral);
 
     read->dOmega0 = csm->val.dOmega0;
@@ -5559,8 +5422,6 @@ void MSR::Output(int iStep, double dTime, double dDelta, int bCheckpoint) {
 
     if (DoGas() && !param.nSteps) {  /* Diagnostic Gas */
         Reorder();
-        OutArray(BuildName(iStep,".uDot").c_str(),OUT_UDOT_ARRAY);
-        OutArray(BuildName(iStep,".u").c_str(),OUT_U_ARRAY);
         OutArray(BuildName(iStep,".c").c_str(),OUT_C_ARRAY);
         OutArray(BuildName(iStep,".hsph").c_str(),OUT_HSPH_ARRAY);
     }
@@ -5599,10 +5460,6 @@ void MSR::Output(int iStep, double dTime, double dDelta, int bCheckpoint) {
         OutArray(BuildName(iStep,".pot").c_str(),OUT_POT_ARRAY);
     }
 
-    if ( param.bTraceRelaxation) {
-        Reorder();
-        OutArray(BuildName(iStep,".relax").c_str(),OUT_RELAX_ARRAY);
-    }
     if ( DoDensity() ) {
         if (!NewSPH()) {
             Reorder();
@@ -5632,41 +5489,41 @@ uint64_t MSR::CountSelected() {
     mdl->RunService(PST_COUNTSELECTED,&N);
     return N;
 }
-uint64_t MSR::SelSpecies(uint64_t mSpecies,bool setIfTrue,bool clearIfFalse) {
+uint64_t MSR::SelSpecies(uint64_t mSpecies,int setIfTrue,int clearIfFalse) {
     uint64_t N;
     ServiceSelSpecies::input in(mSpecies,setIfTrue,clearIfFalse);
     mdl->RunService(PST_SELSPECIES,sizeof(in),&in,&N);
     return N;
 }
-uint64_t MSR::SelAll(bool setIfTrue,bool clearIfFalse) {
+uint64_t MSR::SelAll(int setIfTrue,int clearIfFalse) {
     return SelSpecies(1<<FIO_SPECIES_ALL,setIfTrue,clearIfFalse);
 }
-uint64_t MSR::SelGas(bool setIfTrue,bool clearIfFalse) {
+uint64_t MSR::SelGas(int setIfTrue,int clearIfFalse) {
     return SelSpecies(1<<FIO_SPECIES_SPH,setIfTrue,clearIfFalse);
 }
-uint64_t MSR::SelStar(bool setIfTrue,bool clearIfFalse) {
+uint64_t MSR::SelStar(int setIfTrue,int clearIfFalse) {
     return SelSpecies(1<<FIO_SPECIES_STAR,setIfTrue,clearIfFalse);
 }
-uint64_t MSR::SelDark(bool setIfTrue,bool clearIfFalse) {
+uint64_t MSR::SelDark(int setIfTrue,int clearIfFalse) {
     return SelSpecies(1<<FIO_SPECIES_DARK,setIfTrue,clearIfFalse);
 }
-uint64_t MSR::SelDeleted(bool setIfTrue,bool clearIfFalse) {
-    // The "LAST" species (normally invalid) marks deleted particles
-    return SelSpecies(1<<FIO_SPECIES_LAST,setIfTrue,clearIfFalse);
+uint64_t MSR::SelDeleted(int setIfTrue,int clearIfFalse) {
+    // The "UNKNWON" species marks deleted particles
+    return SelSpecies(1<<FIO_SPECIES_UNKNOWN,setIfTrue,clearIfFalse);
 }
-uint64_t MSR::SelActives(bool setIfTrue,bool clearIfFalse) {
+uint64_t MSR::SelActives(int setIfTrue,int clearIfFalse) {
     uint64_t N;
     ServiceSelActives::input in(setIfTrue,clearIfFalse);
     mdl->RunService(PST_SELACTIVES,sizeof(in),&in,&N);
     return N;
 }
-uint64_t MSR::SelBlackholes(bool setIfTrue,bool clearIfFalse) {
+uint64_t MSR::SelBlackholes(int setIfTrue,int clearIfFalse) {
     uint64_t N;
     ServiceSelBlackholes::input in(setIfTrue,clearIfFalse);
     mdl->RunService(PST_SELBLACKHOLES,sizeof(in),&in,&N);
     return N;
 }
-uint64_t MSR::SelGroup(int iGroup,bool setIfTrue,bool clearIfFalse) {
+uint64_t MSR::SelGroup(int iGroup,int setIfTrue,int clearIfFalse) {
     uint64_t N;
     ServiceSelGroup::input in(iGroup,setIfTrue,clearIfFalse);
     mdl->RunService(PST_SELGROUP,sizeof(in),&in,&N);
@@ -5690,7 +5547,7 @@ uint64_t MSR::SelPhaseDensity(double dMinPhaseDensity,double dMaxPhaseDensity,in
     mdl->RunService(PST_SELPHASEDENSITY,sizeof(in),&in,&N);
     return N;
 }
-uint64_t MSR::SelBox(double *dCenter, double *dSize,bool setIfTrue,bool clearIfFalse) {
+uint64_t MSR::SelBox(double *dCenter, double *dSize,int setIfTrue,int clearIfFalse) {
     uint64_t N;
     ServiceSelBox::input in(dCenter,dSize,setIfTrue,clearIfFalse);
     mdl->RunService(PST_SELBOX,sizeof(in),&in,&N);
@@ -5771,18 +5628,14 @@ void MSR::SetSPHoptions() {
 }
 
 void MSR::ResetCOM() {
-    double dCenter[3] = {0.0,0.0,0.0};
-    double com[3], vcm[3], L[3], M;
+    blitz::TinyVector<double,3> dCenter(0.0), com, vcm, L;
+    double M;
     CalcCOM(&dCenter[0], -1.0, &com[0], &vcm[0], &L[0], &M);
     printf("Before reseting: x_com = %.5e, y_com = %.5e, z_com = %.5e, vx_com = %.5e, vy_com = %.5e, vz_com = %.5e\n",com[0],com[1],com[2],vcm[0],vcm[1],vcm[2]);
 
     struct inResetCOM in;
-    in.x_com = com[0];
-    in.y_com = com[1];
-    in.z_com = com[2];
-    in.vx_com = vcm[0];
-    in.vy_com = vcm[1];
-    in.vz_com = vcm[2];
+    in.r_com = com;
+    in.v_com = vcm;
 
     pstResetCOM(pst, &in, sizeof(in), NULL, 0);
 
@@ -5963,7 +5816,7 @@ void MSR::TreeUpdateFlagBounds(int bNeedEwald,uint32_t uRoot,uint32_t utRoot,SPH
 
     std::unique_ptr<char[]> buffer {new char[nMsgSize]};
     auto pDistribTop = new (buffer.get()) ServiceDistribTopTree::input;
-    auto pkdn = reinterpret_cast<KDN *>(pDistribTop + 1);
+    auto pkdn = pkd->tree[reinterpret_cast<KDN *>(pDistribTop + 1)];
     pDistribTop->uRoot = uRoot;
     pDistribTop->allocateMemory = 0;
 
@@ -6005,7 +5858,7 @@ void MSR::profileRootFind( double *dBins, int lo, int hi, int nAccuracy, SPHEREC
     int iBin = (lo+hi) / 2;
     if ( lo == iBin ) return;
 
-    ctx->nTarget = d2u64((ctx->nTotal-ctx->nInner) * ctx->dFrac * iBin + ctx->nInner);
+    ctx->nTarget = ((ctx->nTotal-ctx->nInner) * ctx->dFrac * iBin + ctx->nInner);
     dBins[iBin] = illinois( countSphere, ctx, dBins[lo], dBins[hi], 0.0, 1.0*nAccuracy, &nIter );
     profileRootFind(dBins,lo,iBin,nAccuracy,ctx);
     profileRootFind(dBins,iBin,hi,nAccuracy,ctx);

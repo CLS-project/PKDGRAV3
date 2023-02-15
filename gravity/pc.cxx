@@ -62,11 +62,10 @@ template<typename BLOCK> struct ilist::EvalBlock<ResultPC<fvec>,BLOCK> {
 };
 
 void pkdGravEvalPC(const PINFOIN &Part, ilcTile &tile,  PINFOOUT &Out ) {
-    const float *a = Part.a;
-    float a2 = a[0]*a[0] + a[1]*a[1] + a[2]*a[2];
+    float a2 = blitz::dot(Part.a,Part.a);
     fvec imaga = a2 > 0.0f ? 1.0f / sqrtf(a2) : 0.0f;
     ilist::EvalBlock<ResultPC<fvec>,ilcBlock> eval(
-        Part.r[0],Part.r[1],Part.r[2],Part.fSmooth2,a[0],a[1],a[2],imaga);;
+        Part.r[0],Part.r[1],Part.r[2],Part.fSmooth2,Part.a[0],Part.a[1],Part.a[2],imaga);;
     auto result = EvalTile(tile,eval);
     Out.a[0] += hadd(result.ax);
     Out.a[1] += hadd(result.ay);

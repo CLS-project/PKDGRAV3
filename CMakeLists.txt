@@ -125,7 +125,6 @@ CHECK_INCLUDE_FILES (sys/time.h HAVE_SYS_TIME_H)
 CHECK_INCLUDE_FILES (sys/stat.h HAVE_SYS_STAT_H)
 CHECK_INCLUDE_FILES (sys/param.h HAVE_SYS_PARAM_H)
 CHECK_INCLUDE_FILES (unistd.h HAVE_UNISTD_H)
-CHECK_INCLUDE_FILES (inttypes.h HAVE_INTTYPES_H)
 CHECK_INCLUDE_FILES(rpc/types.h HAVE_RPC_TYPES_H)
 CHECK_INCLUDE_FILES(rpc/xdr.h HAVE_RPC_XDR_H)
 
@@ -186,7 +185,7 @@ target_sources(${PROJECT_NAME} PRIVATE
 	gravity/lst.cxx gravity/moments.c gravity/ilp.cxx gravity/ilc.cxx io/iomodule.cxx io/iochunk.cxx io/restore.cxx
 	group/fof.cxx group/hop.cxx group/group.cxx group/groupstats.cxx ic/RngStream.c smooth/listcomp.c core/healpix.c
 	core/gridinfo.cxx analysis/interlace.cxx analysis/contrast.cxx analysis/assignmass.cxx analysis/measurepk.cxx bispectrum.cxx ic/whitenoise.cxx gravity/pmforces.cxx
-	core/setadd.cxx core/hostname.cxx core/initcosmology.cxx core/calcroot.cxx core/swapall.cxx core/select.cxx
+	core/setadd.cxx core/hostname.cxx core/initcosmology.cxx core/calcroot.cxx core/swapall.cxx core/select.cxx core/particle.cxx
 	domains/calcbound.cxx domains/combinebound.cxx domains/distribtoptree.cxx domains/distribroot.cxx domains/dumptrees.cxx
 	domains/enforceperiodic.cxx domains/freestore.cxx domains/olddd.cxx domains/getordsplits.cxx
 	gravity/setsoft.cxx gravity/activerung.cxx gravity/countrungs.cxx gravity/zeronewrung.cxx
@@ -202,6 +201,7 @@ target_link_libraries(${PROJECT_NAME} m)
 #target_link_libraries(tostd m)
 #target_link_libraries(psout m)
 
+if (NOT APPLE)
 CHECK_INCLUDE_FILES(libaio.h HAVE_LIBAIO_H)
 if (HAVE_LIBAIO_H)
   CHECK_LIBRARY_EXISTS(aio io_setup "" HAVE_LIBAIO)
@@ -216,6 +216,7 @@ if (HAVE_AIO_H)
   if(HAVE_RT)
     target_link_libraries(${PROJECT_NAME} rt)
   endif()
+endif()
 endif()
 if (HDF5_FOUND)
   set(USE_HDF5 TRUE)
@@ -436,7 +437,7 @@ if (BLACKHOLES)
   target_compile_options(${PROJECT_NAME} PRIVATE -DBLACKHOLES)
   target_sources(${PROJECT_NAME} PRIVATE  blackhole/merger.cxx)
   target_sources(${PROJECT_NAME} PRIVATE  blackhole/seed.cxx)
-  target_sources(${PROJECT_NAME} PRIVATE  blackhole/evolve.c)
+  target_sources(${PROJECT_NAME} PRIVATE  blackhole/evolve.cxx)
   target_sources(${PROJECT_NAME} PRIVATE  blackhole/init.cxx)
   message("-- Black holes are ACTIVE")
 endif(BLACKHOLES)
@@ -457,12 +458,6 @@ if (OPTIM_NO_REDUNDANT_FLUXES)
    target_compile_options(${PROJECT_NAME} PRIVATE -DOPTIM_NO_REDUNDANT_FLUXES)
    message("-- OPTIM_NO_REDUNDANT_FLUXES: \t Avoid all redundant flux computations. Requires unique particleIDs and OPTIM_SMOOTH_NODE.")
 endif(OPTIM_NO_REDUNDANT_FLUXES)
-
-option(OPTIM_REMOVE_UNUSED "Remove unused variables in SPHFIELDS" ON)
-if(OPTIM_REMOVE_UNUSED)
-   target_compile_options(${PROJECT_NAME} PRIVATE -DOPTIM_REMOVE_UNUSED)
-   message("-- OPTIM_REMOVE_UNUSED: \t Removed unused variables in particle structs")
-endif(OPTIM_REMOVE_UNUSED)
 
 option(OPTIM_DENSITY_REITER "Reduce the number of density iterations when we have neighbors than expected" OFF)
 if (OPTIM_DENSITY_REITER)
@@ -559,6 +554,9 @@ if (NN_FLAG_IN_PARTICLE)
    target_compile_options(${PROJECT_NAME} PRIVATE -DNN_FLAG_IN_PARTICLE)
    message("-- NN_FLAG_IN_PARTICLE: A flag is added to the base particle to allow FastGas with interface correction. This reduces the maximum number of particles from 2^43 to 2^42. Set this option to OFF if more than 2^42 particles are needed in non-NewSPH runs.")
 endif (NN_FLAG_IN_PARTICLE)
+
+option(BOUND_USES_MINMAX "Bounds use lower and upper coordinate if ON, otherwise center and apothem" OFF)
+option(NEW_REORDER "Used the new MDL swap based particle reorder method" OFF)
 
 CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/pkd_config.h.in ${CMAKE_CURRENT_BINARY_DIR}/pkd_config.h)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_BINARY_DIR})

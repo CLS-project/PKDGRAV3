@@ -29,8 +29,9 @@
 #include "SPH/SPHOptions.h"
 #include "units.h"
 
-typedef float vel_t;
 typedef double pos_t;
+typedef float  vel_t;
+typedef float  acc_t;
 
 /*
 ** Costs: ADD/SUB/MUL/AND/CMP 1 cycle
@@ -55,8 +56,8 @@ typedef struct {
 #define PP_CUDA_MEMORY_LIMIT (2*1024*1024)
 
 typedef struct {
-    float r[3];
-    float a[3];
+    blitz::TinyVector<float,3> r;
+    blitz::TinyVector<float,3> a;
     float fSmooth2;
     float fDensity;
     /* SPH fields follow */
@@ -75,7 +76,7 @@ typedef struct {
 } PINFOIN;
 
 typedef struct {
-    float a[3];
+    blitz::TinyVector<float,3> a;
     float fPot;
     float dirsum, normsum;
     float rhopmax;
@@ -251,7 +252,7 @@ typedef struct {
     PINFOIN *pInfoIn;
     PINFOOUT *pInfoOut;
     double dFlop;
-    double c[3];
+    blitz::TinyVector<double,3> c;
     int nP;
     int nRefs;
     void *ctx;

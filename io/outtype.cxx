@@ -25,12 +25,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <assert.h>
-#ifdef HAVE_INTTYPES_H
-    #include <inttypes.h>
-#else
-    #define PRIu64 "llu"
-    #define PRIx64 "llx"
-#endif
+#include <cinttypes>
 #include "pkd.h"
 #include "outtype.h"
 #ifdef LARGEF
@@ -59,13 +54,10 @@ static int getType(int iType) {
     case OUT_AMAG_ARRAY:
     case OUT_RUNG_ARRAY:
     case OUT_SOFT_ARRAY:
-    case OUT_RELAX_ARRAY:
     case OUT_DIVV_ARRAY:
     case OUT_VELDISP2_ARRAY:
     case OUT_VELDISP_ARRAY:
     case OUT_PHASEDENS_ARRAY:
-    case OUT_UDOT_ARRAY:
-    case OUT_U_ARRAY:
     case OUT_C_ARRAY:
     case OUT_HSPH_ARRAY:
     case OUT_POS_VECTOR:
@@ -152,86 +144,65 @@ static uint64_t fetchInteger(PKD pkd,PARTICLE *p,int iType,int iDim) {
     return v;
 }
 static double fetchFloat(PKD pkd,PARTICLE *p,int iType,int iDim) {
-    float *a;
     double v;
-    VELSMOOTH *pvel;
+//    VELSMOOTH *pvel;
     switch (iType) {
     case OUT_DENSITY_ARRAY:
-        v = pkdDensity(pkd,p);
+        v = pkd->particles.density(p);
         break;
     case OUT_BALL_ARRAY:
-        v = pkdBall(pkd,p);
+        v = pkd->particles.ball(p);
         break;
     case OUT_POT_ARRAY:
         assert(pkd->particles.present(PKD_FIELD::oPotential));
-        a = pkdPot(pkd,p);
-        v = *a;
+        v = pkd->particles.potential(p);
         break;
     case OUT_AMAG_ARRAY:
         assert(pkd->particles.present(PKD_FIELD::oAcceleration)); /* Validate memory model */
-        a = pkdAccel(pkd,p);
-        v = sqrt(a[0]*a[0] + a[1]*a[1] + a[2]*a[2]);
+        v = sqrt(blitz::dot(pkd->particles.acceleration(p),pkd->particles.acceleration(p)));
         break;
     case OUT_RUNG_ARRAY:
         v = p->uRung;
         break;
     case OUT_SOFT_ARRAY:
-        v = pkdSoft(pkd,p);
-        break;
-    case OUT_RELAX_ARRAY:
-        assert(pkd->particles.present(PKD_FIELD::oRelaxation));
-        a = pkd->particles.get<float>(p,PKD_FIELD::oRelaxation);
-        v = *a;
+        v = pkd->particles.soft(p);
         break;
     case OUT_DIVV_ARRAY:
         assert(pkd->particles.present(PKD_FIELD::oVelSmooth)); /* Validate memory model */
-        pvel = pkd->particles.get<VELSMOOTH>(p,PKD_FIELD::oVelSmooth);
-        v = pvel->divv;
+        v = pkd->particles.get<VELSMOOTH>(p,PKD_FIELD::oVelSmooth).divv;
         break;
     case OUT_VELDISP2_ARRAY:
         assert(pkd->particles.present(PKD_FIELD::oVelSmooth)); /* Validate memory model */
-        pvel = pkd->particles.get<VELSMOOTH>(p,PKD_FIELD::oVelSmooth);
-        v = pvel->veldisp2;
+        v = pkd->particles.get<VELSMOOTH>(p,PKD_FIELD::oVelSmooth).veldisp2;
+        break;
     case OUT_VELDISP_ARRAY:
         assert(pkd->particles.present(PKD_FIELD::oVelSmooth)); /* Validate memory model */
-        pvel = pkd->particles.get<VELSMOOTH>(p,PKD_FIELD::oVelSmooth);
-        v = sqrt(pvel->veldisp2);
+        v = sqrt(pkd->particles.get<VELSMOOTH>(p,PKD_FIELD::oVelSmooth).veldisp2);
         break;
     case OUT_PHASEDENS_ARRAY:
         assert(pkd->particles.present(PKD_FIELD::oVelSmooth)); /* Validate memory model */
-        pvel = pkd->particles.get<VELSMOOTH>(p,PKD_FIELD::oVelSmooth);
-        v = pkdDensity(pkd,p)*pow(pvel->veldisp2,-1.5);
+        v = pkdDensity(pkd,p)*pow(pkd->particles.get<VELSMOOTH>(p,PKD_FIELD::oVelSmooth).veldisp2,-1.5);
         break;
-#ifndef OPTIM_REMOVE_UNUSED
-    case OUT_UDOT_ARRAY:
-        v = pkdSph(pkd,p)->uDot;
-        break;
-    case OUT_U_ARRAY:
-        v = pkdSph(pkd,p)->u;
-        break;
-#endif
     case OUT_C_ARRAY:
-        v = pkdSph(pkd,p)->c;
+        v = pkd->particles.sph(p).c;
         break;
     case OUT_HSPH_ARRAY:
-        v = pkdBall(pkd,p) * 0.5;
+        v = pkd->particles.ball(p) * 0.5;
         break;
     case OUT_POS_VECTOR:
-        v = pkdPos(pkd,p,iDim);
+        v = pkd->particles.position(p)[iDim];
         break;
     case OUT_VEL_VECTOR:
         assert(pkd->particles.present(PKD_FIELD::oVelocity)); /* Validate memory model */
-        v = pkdVel(pkd,p)[iDim];
+        v = pkd->particles.velocity(p)[iDim];
         break;
     case OUT_MEANVEL_VECTOR:
         assert(pkd->particles.present(PKD_FIELD::oVelSmooth)); /* Validate memory model */
-        pvel = pkd->particles.get<VELSMOOTH>(p,PKD_FIELD::oVelSmooth);
-        v = pvel->vmean[iDim];
+        v = pkd->particles.get<VELSMOOTH>(p,PKD_FIELD::oVelSmooth).vmean[iDim];
         break;
     case OUT_ACCEL_VECTOR:
         assert(pkd->particles.present(PKD_FIELD::oAcceleration)); /* Validate memory model */
-        a = pkdAccel(pkd,p);
-        v = a[iDim];
+        v = pkd->particles.acceleration(p)[iDim];
         break;
     default:
         v = 0.0;
@@ -270,8 +241,7 @@ static void storeRungDest(PKD pkd,PKDOUT ctx,PARTICLE *p,int iType,int iDim) {
     int iRung;
     float x,y,z;
     int64_t lKey;
-    uint16_t *pRungDest;
-    pRungDest = pkdRungDest(pkd,p);
+    const auto &RungDest = pkd->particles.RungDest(p);
 
 
     x = pkdPos(pkd,p,0) + 1.5;
@@ -298,7 +268,7 @@ static void storeRungDest(PKD pkd,PKDOUT ctx,PARTICLE *p,int iType,int iDim) {
     ctx->inOffset += strlen(ctx->inOffset);
     n = PKDOUT_BUFFER_SIZE - (ctx->inOffset-ctx->inBuffer);
     for (iRung=0; iRung<8; iRung++) {
-        snprintf(ctx->inOffset,n," %d", pRungDest[iRung]);
+        snprintf(ctx->inOffset,n," %d", RungDest[iRung]);
         ctx->inOffset += strlen(ctx->inOffset);
         n = PKDOUT_BUFFER_SIZE - (ctx->inOffset-ctx->inBuffer);
     }
@@ -352,8 +322,7 @@ static void storeRungDestBinary(PKD pkd,PKDOUT ctx,PARTICLE *p,int iType,int iDi
     int iRung;
     float x,y,z;
     int64_t lKey;
-    uint16_t *pRungDest;
-    pRungDest = pkdRungDest(pkd,p);
+    const auto &RungDest = pkd->particles.RungDest(p);
 
 
     x = pkdPos(pkd,p,0) + 1.5;
@@ -380,7 +349,7 @@ static void storeRungDestBinary(PKD pkd,PKDOUT ctx,PARTICLE *p,int iType,int iDi
     ctx->inOffset += strlen(ctx->inOffset);
     n = PKDOUT_BUFFER_SIZE - (ctx->inOffset-ctx->inBuffer);
     for (iRung=0; iRung<8; iRung++) {
-        snprintf(ctx->inOffset,n," %d", pRungDest[iRung]);
+        snprintf(ctx->inOffset,n," %d", RungDest[iRung]);
         ctx->inOffset += strlen(ctx->inOffset);
         n = PKDOUT_BUFFER_SIZE - (ctx->inOffset-ctx->inBuffer);
     }
@@ -796,14 +765,11 @@ void pkdOutHdr(PKD pkd,PKDOUT ctx,uint64_t N) {
 }
 
 void pkdOutASCII(PKD pkd,PKDOUT ctx,int iType,int iDim) {
-    int i;
-
     /*
     ** Write Elements!
     */
-    for (i=0; i<pkd->Local(); ++i) {
-        PARTICLE *p = pkd->Particle(i);
-        (*ctx->fnOut)(pkd,ctx,p,iType,iDim);
+    for (auto &p : pkd->particles) {
+        (*ctx->fnOut)(pkd,ctx,&p,iType,iDim);
     }
 }
 

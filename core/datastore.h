@@ -32,6 +32,7 @@ protected:
     int nStore = 0;                 //!< Maximum number of element that can be stored
     int nLocal = 0;                 //!< Current number of elements
 public:
+    using value_type = DATA;
     //! Set the size and location of the storage.
     //! \param p Pointer to the block of storage
     //! \param n Maximum number of element
@@ -49,6 +50,7 @@ public:
     int SetLocal(int n) { return (nLocal=n);}
     int AddLocal(int n) { return (nLocal+=n);}
     DATA *operator[](int i) {return Element(i);}
+    operator void *() {return Base();}
 };
 
 #endif

@@ -42,17 +42,16 @@ int pstStarFormInit(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
 void pkdStarFormInit(PKD pkd, double dTime, double dSNFBDelay, int *nFormed) {
     *nFormed = 0;
-    for (int i=0; i<pkdLocal(pkd); ++i) {
-        PARTICLE *p = pkdParticle(pkd,i);
-        if (pkdIsStar(pkd,p)) {
-            STARFIELDS *pStar = pkdStar(pkd,p);
-            if (pStar->fTimer >= 0) { // fTimer < 0 can be used for stars
+    for (auto &p : pkd->particles) {
+        if (p.is_star()) {
+            auto &star = p.star();
+            if (star.fTimer >= 0) { // fTimer < 0 can be used for stars
                 // in the IC that are not supossed to explode
 #ifdef FEEDBACK
-                if ( (dTime-pStar->fTimer) < dSNFBDelay)
+                if ( (dTime-star.fTimer) < dSNFBDelay)
 #endif
                 {
-                    pStar->hasExploded = 0; // This particle has not exploded before
+                    star.hasExploded = 0; // This particle has not exploded before
                     *nFormed += 1;
                 }
             }

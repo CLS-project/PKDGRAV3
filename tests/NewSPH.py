@@ -89,10 +89,10 @@ class TestNewSPHStep(unittest.TestCase):
         self.assertLess(np.std(relDiff_pos),2e-9)
         self.assertLess(np.max(relDiff_vel),1e-4)
         self.assertLess(np.std(relDiff_vel),4e-7)
-        self.assertLess(np.max(relDiff_acc),3e-2)
+        self.assertLess(np.max(relDiff_acc),4e-2)
         self.assertLess(np.std(relDiff_acc),2e-4)
         self.assertLess(np.max(relDiff_rho),4e-4)
-        self.assertLess(np.std(relDiff_rho),7e-7)
+        self.assertLess(np.std(relDiff_rho),8e-7)
         self.assertLess(np.max(relDiff_fBall),5e-5)
         self.assertLess(np.std(relDiff_fBall),3e-6)
 

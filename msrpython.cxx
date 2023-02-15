@@ -729,14 +729,13 @@ ppy_msr_Restart(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     // Create a vector of number of species
     species = PySequence_Fast(species,"species must be a list");
     int nSpecies = PySequence_Fast_GET_SIZE(species);
-    std::vector<uint64_t> vecSpecies;
-    vecSpecies.reserve(nSpecies);
+    assert(nSpecies==5);
+    uint64_t vecSpecies[nSpecies];
     for (auto i=0; i < nSpecies; ++i) {
         PyObject *item = PySequence_Fast_GET_ITEM(species, i);
-        vecSpecies.push_back(PyNumber_AsSsize_t(item,NULL));
+        vecSpecies[i] = PyNumber_AsSsize_t(item,NULL);
     }
     Py_DECREF(species); // PySequence_Fast creates a new reference
-    assert(vecSpecies.size()==5);
     msr->N     = vecSpecies[0];
     msr->nDark = vecSpecies[1];
     msr->nGas  = vecSpecies[2];
@@ -764,7 +763,6 @@ ppy_msr_Restart(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     Py_DECREF(classes); // PySequence_Fast creates a new reference
 
     ppy2prm(msr->prm,msr->arguments,msr->specified);
-
     msr->Restart(n, name, iStep, nSteps, dTime, dDelta);
 
     Py_RETURN_NONE;
@@ -1114,7 +1112,7 @@ ppy_msr_MarkSpecies(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     PyObject *species;
     int setIfTrue=1, clearIfFalse=1;
     if ( !PyArg_ParseTupleAndKeywords(
-                args, kwobj, "O|pp:MarkSpecies", const_cast<char **>(kwlist),
+                args, kwobj, "O|ii:MarkSpecies", const_cast<char **>(kwlist),
                 &species, &setIfTrue, &clearIfFalse ) )
         return NULL;
     uint64_t mSpecies = 0;
@@ -1147,7 +1145,7 @@ ppy_msr_MarkBox(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     double center[3], size[3];
     int setIfTrue=1, clearIfFalse=1;
     if ( !PyArg_ParseTupleAndKeywords(
-                args, kwobj, "(ddd)(ddd)|pp:MarkBox", const_cast<char **>(kwlist),
+                args, kwobj, "(ddd)(ddd)|ii:MarkBox", const_cast<char **>(kwlist),
                 &center[0], &center[1], &center[2], &size[0], &size[1], &size[2], &setIfTrue, &clearIfFalse ) )
         return NULL;
     auto n = self->msr->SelBox(center,size,setIfTrue,clearIfFalse);
@@ -1161,7 +1159,7 @@ ppy_msr_MarkSphere(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     double center[3], radius;
     int setIfTrue=1, clearIfFalse=1;
     if ( !PyArg_ParseTupleAndKeywords(
-                args, kwobj, "(ddd)d|pp:MarkSphere", const_cast<char **>(kwlist),
+                args, kwobj, "(ddd)d|ii:MarkSphere", const_cast<char **>(kwlist),
                 &center[0], &center[1], &center[2], &radius, &setIfTrue, &clearIfFalse ) )
         return NULL;
     auto n = self->msr->SelSphere(center,radius,setIfTrue,clearIfFalse);
@@ -1175,7 +1173,7 @@ ppy_msr_MarkCylinder(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     double point1[3], point2[3], radius;
     int setIfTrue=1, clearIfFalse=1;
     if ( !PyArg_ParseTupleAndKeywords(
-                args, kwobj, "(ddd)(ddd)d|pp:MarkCylinder", const_cast<char **>(kwlist),
+                args, kwobj, "(ddd)(ddd)d|ii:MarkCylinder", const_cast<char **>(kwlist),
                 &point1[0], &point1[1], &point1[2], &point2[0], &point2[1], &point2[2], &radius, &setIfTrue, &clearIfFalse ) )
         return NULL;
     auto n = self->msr->SelCylinder(point1,point2,radius,setIfTrue,clearIfFalse);
@@ -1188,7 +1186,7 @@ ppy_msr_MarkBlackholes(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     static char const *kwlist[]= {"setIfTrue","clearIfFalse",NULL};
     int setIfTrue=1, clearIfFalse=1;
     if ( !PyArg_ParseTupleAndKeywords(
-                args, kwobj, "|pp:MarkBlackholes", const_cast<char **>(kwlist),
+                args, kwobj, "|ii:MarkBlackholes", const_cast<char **>(kwlist),
                 &setIfTrue, &clearIfFalse ) )
         return NULL;
     auto n = self->msr->SelBlackholes(setIfTrue,clearIfFalse);
@@ -1766,11 +1764,11 @@ void MSR::setParameter(const char *name,double v,int bSpecified) {
     }
 }
 
-long long MSR::getParameterLongLong(const char *name) const {
-    long long v = 0;
+Py_ssize_t MSR::getParameterInteger(const char *name) const {
+    Py_ssize_t v = 0;
     if (auto n = PyObject_GetAttrString(arguments,name)) {
         if (auto o = PyNumber_Long(n)) {
-            v = PyLong_AsLongLong(o);
+            v = PyLong_AsSsize_t(o);
             Py_DECREF(o);
         }
         Py_DECREF(n);
@@ -1781,8 +1779,8 @@ long long MSR::getParameterLongLong(const char *name) const {
     }
     return v;
 }
-void MSR::setParameter(const char *name,long long v,int bSpecified) {
-    auto o = PyLong_FromLongLong(v);
+void MSR::setParameter(const char *name,Py_ssize_t v,int bSpecified) {
+    auto o = PyLong_FromSsize_t(v);
     if (o) {
         PyObject_SetAttrString(arguments,name,o);
         Py_DECREF(o);

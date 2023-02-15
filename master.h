@@ -17,7 +17,7 @@
 
 #ifndef MASTER_HINCLUDED
 #define MASTER_HINCLUDED
-
+#include "pkd_config.h"
 #include <stdint.h>
 #include <signal.h>
 #include <time.h>
@@ -110,10 +110,10 @@ public:
     bool      wasParameterSpecified(const char *name) const;
     bool      getParameterBoolean(  const char *name) const;
     double    getParameterDouble(   const char *name) const;
-    long long getParameterLongLong( const char *name) const;
+    Py_ssize_t getParameterInteger(  const char *name) const;
     void      setParameter(         const char *name,bool v,     int bSpecified=false);
     void      setParameter(         const char *name,double v,   int bSpecified=false);
-    void      setParameter(         const char *name,long long v,int bSpecified=false);
+    void       setParameter(         const char *name,Py_ssize_t v,int bSpecified=false);
 
     size_t getLocalGridMemory(int nGrid);
 
@@ -436,7 +436,6 @@ protected:
     void AccelStep(uint8_t uRungLo,uint8_t uRungHi,double dTime,double dDelta);
     uint8_t GetMinDt();
     void SetGlobalDt(uint8_t minDt);
-    void SphStep(uint8_t uRungLo,uint8_t uRungHi,double dTime,double dDelta);
     void DensityStep(uint8_t uRungLo,uint8_t uRungHi,double dTime,double dDelta);
 
     void FastGasPhase1(double dTime,double dDelta,int iSmoothType);
@@ -445,7 +444,6 @@ protected:
     void Cooling(double dTime,double dStep,int bUpdateState, int bUpdateTable,int bInterateDt);
     void AddDelParticles();
     void InitSph(double dTime,double dDelta);
-    void Sph(double dTime, double dDelta, double dStep);
     uint64_t CountDistance(double dRadius2Inner, double dRadius2Outer);
 
     // Meshless hydrodynamics
@@ -524,8 +522,6 @@ protected:
 
 
 
-    void InitRelaxation();
-    void Relaxation(double dTime,double deltaT,int iSmoothType,int bSymmetric);
     void CalcDistance(const double *dCenter, double dRadius );
     void CalcCOM(const double *dCenter, double dRadius,
                  double *com, double *vcm, double *L, double *M);
@@ -547,21 +543,22 @@ public:
     void OutputGrid(const char *filename, bool k=false, int iGrid=0, int nParaWrite=0);
 
     uint64_t CountSelected();
-    uint64_t SelSpecies(uint64_t mSpecies,bool setIfTrue=true,bool clearIfFalse=true);
-    uint64_t SelAll(bool setIfTrue=true,bool clearIfFalse=true);
-    uint64_t SelGas(bool setIfTrue=true,bool clearIfFalse=true);
-    uint64_t SelStar(bool setIfTrue=true,bool clearIfFalse=true);
-    uint64_t SelDark(bool setIfTrue=true,bool clearIfFalse=true);
-    uint64_t SelDeleted(bool setIfTrue=true,bool clearIfFalse=true);
-    uint64_t SelBlackholes(bool setIfTrue=true,bool clearIfFalse=true);
-    uint64_t SelActives(bool setIfTrue=true,bool clearIfFalse=true);
-    uint64_t SelGroup(int iGroup,bool setIfTrue=true,bool clearIfFalse=true);
-    uint64_t SelMass(double dMinMass,double dMaxMass,int setIfTrue,int ClearIfFalse);
-    uint64_t SelById(uint64_t idStart,uint64_t idEnd,int setIfTrue,int clearIfFalse);
-    uint64_t SelPhaseDensity(double dMinPhaseDensity,double dMaxPhaseDensity,int setIfTrue,int clearIfFalse);
-    uint64_t SelBox(double *dCenter, double *dSize,bool setIfTrue=true,bool clearIfFalse=true);
-    uint64_t SelSphere(double *r, double dRadius,int setIfTrue,int clearIfFalse);
-    uint64_t SelCylinder(double *dP1, double *dP2, double dRadius, int setIfTrue, int clearIfFalse );
+    uint64_t SelSpecies(uint64_t mSpecies,int setIfTrue=true,int clearIfFalse=true);
+    uint64_t SelAll(int setIfTrue=true,int clearIfFalse=true);
+    uint64_t SelGas(int setIfTrue=true,int clearIfFalse=true);
+    uint64_t SelStar(int setIfTrue=true,int clearIfFalse=true);
+    uint64_t SelDark(int setIfTrue=true,int clearIfFalse=true);
+    uint64_t SelDeleted(int setIfTrue=true,int clearIfFalse=true);
+    uint64_t SelBlackholes(int setIfTrue=true,int clearIfFalse=true);
+    uint64_t SelActives(int setIfTrue=true,int clearIfFalse=true);
+    uint64_t SelGroup(int iGroup,int setIfTrue=true,int clearIfFalse=true);
+    uint64_t SelMass(double dMinMass,double dMaxMass,int setIfTrue=true,int ClearIfFalse=true);
+    uint64_t SelById(uint64_t idStart,uint64_t idEnd,int setIfTrue=true,int clearIfFalse=true);
+    uint64_t SelPhaseDensity(double dMinPhaseDensity,double dMaxPhaseDensity,int setIfTrue=true,int clearIfFalse=true);
+    uint64_t SelBox(double *dCenter, double *dSize,int setIfTrue=true,int clearIfFalse=true);
+    uint64_t SelSphere(double *r, double dRadius,int setIfTrue=true,int clearIfFalse=true);
+    uint64_t SelCylinder(double *dP1, double *dP2, double dRadius, int setIfTrue=true, int clearIfFalse=true);
+
 public:
     void RsLoadIds(int sid,std::vector<uint64_t> &counts,const std::string &filename,bool bAppend=false);
 #ifdef HAVE_ROCKSTAR

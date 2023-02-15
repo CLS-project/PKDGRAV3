@@ -27,8 +27,8 @@ constexpr int MAX_ITTR = 64;
 * ServiceDomainDecomp
 \*****************************************************************************/
 
-static_assert(std::is_void<ServiceDomainDecomp::input>()  || std::is_trivial<ServiceDomainDecomp::input>());
-static_assert(std::is_void<ServiceDomainDecomp::output>() || std::is_trivial<ServiceDomainDecomp::output>());
+static_assert(std::is_void<ServiceDomainDecomp::input>()  || std::is_standard_layout<ServiceDomainDecomp::input>());
+static_assert(std::is_void<ServiceDomainDecomp::output>() || std::is_standard_layout<ServiceDomainDecomp::output>());
 
 int ServiceDomainDecomp::Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto mdl = static_cast<mdl::mdlClass *>(pst->mdl);
@@ -97,36 +97,36 @@ int ServiceDomainDecomp::Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) 
     assert(d == pst->iSplitDim);
     //nBndWrapd = in->nBndWrap[d];
 
-    auto l = bnd.lower(d);
-    auto u = bnd.upper(d);
+    auto l = bnd.lower();
+    auto u = bnd.upper();
     //in->nBndWrap[d] = nBndWrapd;
-    if (pst->fSplitInactive <= l || pst->fSplitInactive >= u) {
-        l = pst->fSplit;
+    if (pst->fSplitInactive <= l[d] || pst->fSplitInactive >= u[d]) {
+        l[d] = pst->fSplit;
     }
     else if (pst->fSplitInactive > pst->fSplit) {
-        l = pst->fSplit;
-        u = pst->fSplitInactive;
+        l[d] = pst->fSplit;
+        u[d] = pst->fSplitInactive;
     }
     else
         in->nBndWrap[d]++;
 
-    in->bnd.set(d,l,u);
+    in->bnd = Bound(l,u);
     auto rID = mdl->ReqService(pst->idUpper,PST_DOMAINDECOMP,vin,sizeof(*in));
 
-    l = bnd.lower(d);
-    u = bnd.upper(d);
+    l = bnd.lower();
+    u = bnd.upper();
     //in->nBndWrap[d] = nBndWrapd;
-    if (pst->fSplitInactive <= l || pst->fSplitInactive >= u) {
-        u = pst->fSplit;
+    if (pst->fSplitInactive <= l[d] || pst->fSplitInactive >= u[d]) {
+        u[d] = pst->fSplit;
     }
     else if (pst->fSplitInactive < pst->fSplit) {
-        u = pst->fSplit;
-        l = pst->fSplitInactive;
+        u[d] = pst->fSplit;
+        l[d] = pst->fSplitInactive;
     }
     else
         in->nBndWrap[d]++;
 
-    in->bnd.set(d,l,u);
+    in->bnd = Bound(l,u);
     Traverse(pst->pstLower,vin,sizeof(*in),NULL,0);
 
     mdl->GetReply(rID);
@@ -369,8 +369,8 @@ void ServiceDomainDecomp::RootSplit(PST pst,int iSplitDim,int bDoRootFind,int bD
 
         if (fu > fl) fmm = 0.5*(fl+fu);
         else {
-            fmm = 0.5*(fl+fu+bnd.width(dBnd));
-            if (fmm > bnd.upper(dBnd)) fmm = 0.5*(fl+fu-bnd.width(dBnd));
+            fmm = 0.5*(fl+fu)+bnd.apothem(dBnd);
+            if (fmm > bnd.upper(dBnd)) fmm = 0.5*(fl+fu)-bnd.apothem(dBnd);
             mdlassert(pst->mdl, fmm >= bnd.lower(dBnd) && fmm <= bnd.upper(dBnd));
         }
         ittr = 1;
@@ -412,8 +412,8 @@ void ServiceDomainDecomp::RootSplit(PST pst,int iSplitDim,int bDoRootFind,int bD
                 break;
             else if (fu > fl) fmm = 0.5*(fl+fu);
             else {
-                fmm = 0.5*(fl+fu+bnd.width(dBnd));
-                if (fmm > bnd.upper(dBnd)) fmm = 0.5*(fl+fu-bnd.width(dBnd));
+                fmm = 0.5*(fl+fu)+bnd.apothem(dBnd);
+                if (fmm > bnd.upper(dBnd)) fmm = 0.5*(fl+fu)-bnd.apothem(dBnd);
                 mdlassert(pst->mdl, fmm >= bnd.lower(dBnd) && fmm <= bnd.upper(dBnd));
             }
             ++ittr;
@@ -436,8 +436,8 @@ void ServiceDomainDecomp::RootSplit(PST pst,int iSplitDim,int bDoRootFind,int bD
         fu = fm;
         if (fu > fl) fmm = 0.5*(fl+fu);
         else {
-            fmm = 0.5*(fl+fu+bnd.width(dBnd));
-            if (fmm > bnd.upper(dBnd)) fmm = 0.5*(fl+fu-bnd.width(dBnd));
+            fmm = 0.5*(fl+fu)+bnd.apothem(dBnd);
+            if (fmm > bnd.upper(dBnd)) fmm = 0.5*(fl+fu)-bnd.apothem(dBnd);
             mdlassert(pst->mdl, fmm >= bnd.lower(dBnd) && fmm <= bnd.upper(dBnd));
         }
         ittr = 1;
@@ -471,8 +471,8 @@ void ServiceDomainDecomp::RootSplit(PST pst,int iSplitDim,int bDoRootFind,int bD
                 break;
             else if (fu > fl) fmm = 0.5*(fl+fu);
             else {
-                fmm = 0.5*(fl+fu+bnd.width(dBnd));
-                if (fmm > bnd.upper(dBnd)) fmm = 0.5*(fl+fu-bnd.width(dBnd));
+                fmm = 0.5*(fl+fu)+bnd.apothem(dBnd);
+                if (fmm > bnd.upper(dBnd)) fmm = 0.5*(fl+fu)-bnd.apothem(dBnd);
                 mdlassert(pst->mdl, fmm >= bnd.lower(dBnd) && fmm <= bnd.upper(dBnd));
             }
             ++ittr;
@@ -496,8 +496,8 @@ void ServiceDomainDecomp::RootSplit(PST pst,int iSplitDim,int bDoRootFind,int bD
         fu = fm;
         if (fu > fl) fmm = 0.5*(fl+fu);
         else {
-            fmm = 0.5*(fl+fu+bnd.width(dBnd));
-            if (fmm > bnd.upper(dBnd)) fmm = 0.5*(fl+fu-bnd.width(dBnd));
+            fmm = 0.5*(fl+fu)+bnd.apothem(dBnd);
+            if (fmm > bnd.upper(dBnd)) fmm = 0.5*(fl+fu)-bnd.apothem(dBnd);
             mdlassert(pst->mdl, fmm >= bnd.lower(dBnd) && fmm <= bnd.upper(dBnd));
         }
         ittr = 1;
@@ -531,8 +531,8 @@ void ServiceDomainDecomp::RootSplit(PST pst,int iSplitDim,int bDoRootFind,int bD
                 break;
             else if (fu > fl) fmm = 0.5*(fl+fu);
             else {
-                fmm = 0.5*(fl+fu+bnd.width(dBnd));
-                if (fmm > bnd.upper(dBnd)) fmm = 0.5*(fl+fu-bnd.width(dBnd));
+                fmm = 0.5*(fl+fu)+bnd.apothem(dBnd);
+                if (fmm > bnd.upper(dBnd)) fmm = 0.5*(fl+fu)-bnd.apothem(dBnd);
                 mdlassert(pst->mdl, fmm >= bnd.lower(dBnd) && fmm <= bnd.upper(dBnd));
             }
             ++ittr;
@@ -555,8 +555,8 @@ void ServiceDomainDecomp::RootSplit(PST pst,int iSplitDim,int bDoRootFind,int bD
         fl = fm;
         if (fu > fl) fmm = 0.5*(fl+fu);
         else {
-            fmm = 0.5*(fl+fu+bnd.width(dBnd));
-            if (fmm > bnd.upper(dBnd)) fmm = 0.5*(fl+fu-bnd.width(dBnd));
+            fmm = 0.5*(fl+fu)+bnd.apothem(dBnd);
+            if (fmm > bnd.upper(dBnd)) fmm = 0.5*(fl+fu)-bnd.apothem(dBnd);
             mdlassert(pst->mdl, fmm >= bnd.lower(dBnd) && fmm <= bnd.upper(dBnd));
         }
         ittr = 1;
@@ -590,8 +590,8 @@ void ServiceDomainDecomp::RootSplit(PST pst,int iSplitDim,int bDoRootFind,int bD
                 break;
             else if (fu > fl) fmm = 0.5*(fl+fu);
             else {
-                fmm = 0.5*(fl+fu+bnd.width(dBnd));
-                if (fmm > bnd.upper(dBnd)) fmm = 0.5*(fl+fu-bnd.width(dBnd));
+                fmm = 0.5*(fl+fu)+bnd.apothem(dBnd);
+                if (fmm > bnd.upper(dBnd)) fmm = 0.5*(fl+fu)-bnd.apothem(dBnd);
                 mdlassert(pst->mdl, fmm >= bnd.lower(dBnd) && fmm <= bnd.upper(dBnd));
             }
             ++ittr;

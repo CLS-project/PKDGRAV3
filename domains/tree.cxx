@@ -20,7 +20,7 @@
 #else
     #include "pkd_config.h"
 #endif
-
+#include <algorithm>
 #include <math.h>
 #include <stdlib.h>
 #include <stddef.h>
@@ -38,44 +38,42 @@
 #ifdef USE_ITT
     #include "ittnotify.h"
 #endif
-
+#include <vector>
+#include <numeric>
+#include <algorithm>
 
 uint32_t pkdDistribTopTree(PKD pkd, uint32_t uRoot, uint32_t nTop, KDN *pTop, int allocateMemory) {
     int i, iTop;
-    KDN *pLocalRoot = pkd->TreeNode(uRoot);
+    auto LocalRoot = pkd->tree[uRoot];
 
     if (allocateMemory) {
-        iTop = pkd->iTopTree[uRoot] = pkd->TreeAllocNode(nTop);
+        iTop = pkd->iTopTree[uRoot] = pkd->tree.AllocNode(nTop);
     }
     else {
         iTop = pkd->iTopTree[uRoot];
     }
     for (i=0; i<nTop; ++i) {
-        KDN *pNode = pkd->Node(pTop,i);
-        KDN *pLocal = pkd->TreeNode(iTop+i);
-        pkdCopyNode(pkd,pLocal,pNode);
-        assert(pLocal->bTopTree);
-        pLocal->bGroup = 0;
-        if (!pLocal->bRemote) { /* Fixup the links if necessary */
-            pLocal->iLower += iTop + i;
-            pLocal->pUpper += iTop + i;
+        treeStore::NodeReference node(pkd->tree,pTop,i);
+        auto Local = pkd->tree[iTop+i];
+        *Local = node;
+        // Local->copy(node);
+        assert(Local->is_top_tree());
+        Local->set_group(false);
+        if (Local->is_local()) { /* Fixup the links if necessary */
+            (*Local)->iLower += iTop + i;
+            (*Local)->pUpper += iTop + i;
         }
-        else if (pLocal->pLower == pkd->Self()) {
-            pLocal->pLower = pLocalRoot->pLower;
-            pLocal->pUpper = pLocalRoot->pUpper;
-            pLocal->iLower = pLocalRoot->iLower;
-            pLocal->bRemote = 0;
-            pLocal->bTopTree = 0;
+        else if (Local->remote_id() == pkd->Self()) {
+            Local->set_local(LocalRoot->lower(),LocalRoot->upper(),LocalRoot->lchild());
         }
     }
     return iTop;
 }
 
-static KDN *InitializeRootCommon(PKD pkd,uint32_t uRoot) {
-    KDN *pRoot = pkd->TreeNode(uRoot);
-    pRoot->bTopTree = 0;
-    pRoot->bRemote = 0;
-    pkdNodeSetBnd(pkd, pRoot, &pkd->bnd);
+static auto InitializeRootCommon(PKD pkd,uint32_t uRoot) {
+    auto pRoot = pkd->tree[uRoot];
+    pRoot->set_local();
+    pRoot->set_bound(pkd->bnd);
     return pRoot;
 }
 
@@ -83,40 +81,27 @@ static KDN *InitializeRootCommon(PKD pkd,uint32_t uRoot) {
 ** Creates a single root at ROOT with only marked particles
 */
 void pkdTreeInitMarked(PKD pkd) {
-    KDN *pRoot   = InitializeRootCommon(pkd,ROOT);
-    KDN *pRootFix = InitializeRootCommon(pkd,FIXROOT);
-    PARTICLE *pMarked, *pNot = NULL;
-    local_t iLast;
-    int i;
+    auto pRoot    = InitializeRootCommon(pkd,ROOT);
+    auto pRootFix = InitializeRootCommon(pkd,FIXROOT);
 
     if (mdlCacheStatus(pkd->mdl,CID_CELL)) mdlFinishCache(pkd->mdl,CID_CELL);
 
-    pMarked = pkd->Particle(i=0);
-    pNot = pkd->Particle(iLast=pkd->Local()-1);
-    PARTITION(pMarked<pNot,pMarked<=pNot,
-              pMarked=pkd->Particle(++i),pNot=pkd->Particle(--iLast),
-              pkdSwapParticle(pkd,pMarked,pNot),
-              pMarked->bMarked!=0,pNot->bMarked==0);
-    pRoot->pLower = 0;
-    pRoot->pUpper = i-1;
-    pRootFix->pLower = i;
-    pRootFix->pUpper = pkd->Local() - 1;
-
-    pkd->SetNodeCount(NRESERVED_NODES);
-    pRoot->iLower = 0;
-    pRoot->bGroup = 1;
-    pRootFix->iLower = 0;
-    pRootFix->bGroup = 1;
+    auto i = std::partition(pkd->particles.begin(),pkd->particles.end(),[](auto &p) {return p.marked();}) - pkd->particles.begin();
+    pRoot->set_local(0,i-1);
+    pRootFix->set_local(i,pkd->Local() - 1);
+    pkd->tree.SetNodeCount(NRESERVED_NODES);
+    pRoot->set_group(true);
+    pRootFix->set_group(true);
 }
 
 void pkdDumpTrees(PKD pkd,int bOnlyVA, uint8_t uRungDD) {
-    KDN *pRoot    = InitializeRootCommon(pkd,ROOT);
+    auto pRoot    = InitializeRootCommon(pkd,ROOT);
 
     if (pkd->Nodes() == 0) {
         assert(bOnlyVA==0);
-        pkd->SetNodeCount(NRESERVED_NODES);
-        pkd->TreeNode(ROOT)->iLower = NRESERVED_NODES;
-        pkd->TreeNode(FIXROOT)->iLower = NRESERVED_NODES;
+        pkd->tree.SetNodeCount(NRESERVED_NODES);
+        pkd->tree[ROOT]->set_local();
+        pkd->tree[FIXROOT]->set_local();
     }
 
     /* We can always close the "active" caches */
@@ -125,64 +110,43 @@ void pkdDumpTrees(PKD pkd,int bOnlyVA, uint8_t uRungDD) {
 
     /* Full Normal tree build. Only ROOT will be used */
     if (uRungDD == IRUNGMAX) {
-        pRoot->pLower = 0;
-        pRoot->pUpper = pkd->Local() - 1;
-        pkd->SetNodeCount(NRESERVED_NODES);
-        pRoot->iLower = 0;
-        pRoot->bGroup = 1;
+        pRoot->set_local(0,pkd->Local() - 1);
+        pRoot->set_group(true);
+        pkd->tree.SetNodeCount(NRESERVED_NODES);
     }
     /* Just rebuilding (active) ROOT. Truncate it. pLower and pUpper are still valid. */
     else if (bOnlyVA) {
-        if (pRoot->iLower) {
-            assert(pRoot->iLower >= NRESERVED_NODES);
-            pkd->SetNodeCount(pRoot->iLower); /* This effectively truncates the nodes used by this tree */
-            pRoot->iLower = 0;
-            pRoot->bGroup = 1;
+        if (pRoot->is_cell()) {
+            assert(pRoot->lchild() >= NRESERVED_NODES);
+            pkd->tree.SetNodeCount(pRoot->lchild()); /* This effectively truncates the nodes used by this tree */
+            pRoot->set_local(pRoot->lower(),pRoot->upper());
+            pRoot->set_group(true);
         }
     }
 
     /* Need to build two trees which is more complicated. */
     else {
-        KDN *pRootFix = InitializeRootCommon(pkd,FIXROOT);
-        PARTICLE *p, *pVA = NULL;
-        local_t iLast;
-        int i;
+        auto pRootFix = InitializeRootCommon(pkd,FIXROOT);
 
 #ifndef SINGLE_CACHES
         /* Here we also have to close the "fixed" caches */
         if (mdlCacheStatus(pkd->mdl,CID_CELL2))     mdlFinishCache(pkd->mdl,CID_CELL2);
         if (mdlCacheStatus(pkd->mdl,CID_PARTICLE2)) mdlFinishCache(pkd->mdl,CID_PARTICLE2);
 #endif
-        p = pkd->Particle(i=0);
-        pVA = pkd->Particle(iLast=pkd->Local()-1);
-        PARTITION(p<pVA,p<=pVA,
-                  p=pkd->Particle(++i),pVA=pkd->Particle(--iLast),
-                  pkdSwapParticle(pkd,p,pVA),
-                  p->uRung <= uRungDD,pVA->uRung > uRungDD);
+        auto iLast = std::partition(pkd->particles.begin(),pkd->particles.end(),
+        [uRungDD](auto &p) {return p.rung() < uRungDD;})
+        - pkd->particles.begin();
 
-        pkd->SetNodeCount(NRESERVED_NODES);
-        pRoot->iLower = 0;
-        pRoot->bGroup = 1;
-        pRootFix->iLower = 0;
-        pRootFix->bGroup = 1;
-
-        pRootFix->pLower = 0;
-        pRootFix->pUpper = iLast;
-        pRoot->pLower = iLast + 1;
-        pRoot->pUpper = pkd->Local() - 1;
-
-//  for(i=pRootFix->pLower; i<=pRootFix->pUpper; ++i) assert(pkd->Particle(i)->uRung<=uRungDD);
-//  for(i=pRoot->pLower; i<=pRoot->pUpper; ++i) assert(pkd->Particle(i)->uRung>uRungDD);
+        pkd->tree.SetNodeCount(NRESERVED_NODES);
+        pRoot->set_local(iLast+1,pkd->Local() - 1);
+        pRoot->set_group(true);
+        pRootFix->set_local(0,iLast);
+        pRootFix->set_group(true);
     }
 }
 
 #define MIN_SRATIO    0.05
 
-
-template<class split_t>
-static split_t PosRaw(PKD pkd,PARTICLE *p, int d) {
-    return pkd->particles.get<split_t>(p,PKD_FIELD::oPosition)[d];
-}
 
 /*
 ** Partition the particles between pLower and pUpper (inclusive)
@@ -190,108 +154,58 @@ static split_t PosRaw(PKD pkd,PARTICLE *p, int d) {
 */
 template<class split_t>
 static int PartPart(PKD pkd,int pLower,int pUpper,int d,split_t Split) {
-    PARTICLE *pi = pkd->Particle(pLower);
-    PARTICLE *pj = pkd->Particle(pUpper);
-    while (pi <= pj) {
-        if (PosRaw<split_t>(pkd,pi,d) < Split) pi = (PARTICLE *)(((char *)pi) + pkd->ParticleSize());
-        else break;
-    }
-    while (pi <= pj) {
-        if (Split < PosRaw<split_t>(pkd,pj,d)) pj = (PARTICLE *)(((char *)pj) - pkd->ParticleSize());
-        else break;
-    }
-    if (pi < pj) {
-        pkdSwapParticle(pkd,pi,pj);
-        while (1) {
-            while (PosRaw<split_t>(pkd,(pi = (PARTICLE *)(((char *)pi) + pkd->ParticleSize())),d) < Split);
-            while (Split < PosRaw<split_t>(pkd,(pj = (PARTICLE *)(((char *)pj) - pkd->ParticleSize())),d));
-            if (pi < pj) {
-                pkdSwapParticle(pkd,pi,pj);
-            }
-            else break;
-        }
-    }
-    return ((char *)pi - (char *)pkd->Particle(0)) / pkd->ParticleSize();
+    auto pi = pkd->particles.begin() + pLower;
+    auto pj = pkd->particles.begin() + pUpper;
+    return std::partition(pi,pj+1,[Split,d](auto &p) {return p.template raw_position<split_t>(d) < Split;}) - pkd->particles.begin();
 }
-
 
 /*
 ** M is the bucket size.
 ** This function assumes that the root node is correctly set up (particularly the bounds).
 */
-#define TEMP_S_INCREASE 100
 void BuildTemp(PKD pkd,int iNode,int M,int nGroup,double dMaxMax) {
-    KDN *pNode = pkd->TreeNode(iNode);
-    KDN *pLeft, *pRight;
+    auto pNode = pkd->tree[iNode];
     double lrMax;
-    int *S;     /* this is the stack */
-    int s,ns;
-    int iLeft,iRight;
+    std::vector<int> S;     /* this is the stack */
     int d;
     int i;
     int nr,nl;
     int lc,rc;
     int nBucket = 0;
 
-    pNode->iDepth = 0;
-    pNode->iSplitDim = 3;
+    pNode->set_depth(0);
+    pNode->set_split_dim(3);
 
     // Single bucket? We are done.
-    if (pNode->pUpper - pNode->pLower + 1 <= M) return;
+    if (pNode->count() <= M) return;
 
-    /*
-    ** Allocate stack!
-    */
-    ns = TEMP_S_INCREASE;
-    s = 0;
-    S = CAST(int *,malloc(ns*sizeof(int)));
-    assert(S != NULL);
+    S.reserve(100); // Start with a sensible stack size
 
-    Bound bnd = pkdNodeGetBnd(pkd,pNode);
+    auto bnd = pNode->bound();
     while (1) {
         // Begin new stage! Calculate the appropriate fSplit.
         // Pick longest dimension and split it in half.
         // Calculate the new left and right cells. We will use
         // either the left, the right or (usually) both.
-        pNode->iSplitDim = d = bnd.maxdim();
-        Bound lbnd,rbnd;
-        std::tie(lbnd,rbnd) = bnd.split(d);
+        pNode->set_split_dim(d = bnd.maxdim());
+        auto [lbnd,rbnd] = bnd.split(d);
         lrMax = 0.5*lbnd.maxside();
         // Now start the partitioning of the particles about
         // fSplit on dimension given by d.
         if (pkd->bIntegerPosition) {
             int32_t Split = pkdDblToIntPos(pkd,bnd.center(d));
-            i = PartPart(pkd,pNode->pLower,pNode->pUpper,d,Split);
+            i = PartPart(pkd,pNode->lower(),pNode->upper(),d,Split);
         }
-        else i = PartPart(pkd,pNode->pLower,pNode->pUpper,d,bnd.center(d));
-        nl = i - pNode->pLower;
-        nr = pNode->pUpper - i + 1;
+        else i = PartPart(pkd,pNode->lower(),pNode->upper(),d,bnd.center(d));
+        nl = i - pNode->lower();
+        nr = pNode->upper() + 1 - i;
         if (nl > 0 && nr > 0) {
-            /*
-            ** Allocate 2 new tree nodes making sure that we have
-            ** allocated enough storage.
-            */
-            pkd->TreeAllocNodePair(&iLeft,&iRight);
-            pLeft = pkd->TreeNode(iLeft);
-            pLeft->bTopTree = 0;
-            pLeft->bRemote = 0;
-            pLeft->pLower = pNode->pLower;
-            pLeft->pUpper = i-1;
-            pLeft->iDepth = pNode->iDepth+1;
-            pLeft->iSplitDim = 3;
-            pRight = pkd->TreeNode(iRight);
-            assert(iRight & 1);
-            pRight->bTopTree = 0;
-            pRight->bRemote = 0;
-            pRight->pLower = i;
-            pRight->pUpper = pNode->pUpper;
-            pRight->iDepth = pNode->iDepth+1;
-            pRight->iSplitDim = 3;
-            pNode->iLower = iLeft;
-            pNode->bGroup = pNode->pUpper - pNode->pLower < nGroup;
+            // Split this node into two children
+            auto [pLeft,pRight] = pNode->split(i);
 
-            pkdNodeSetBnd(pkd, pLeft, &lbnd);
-            pkdNodeSetBnd(pkd, pRight, &rbnd);
+            pNode->set_group(pNode->count() <= nGroup);
+            pLeft->set_bound(lbnd);
+            pRight->set_bound(rbnd);
 
             /*
             ** Now figure out which subfile to process next.
@@ -305,83 +219,73 @@ void BuildTemp(PKD pkd,int iNode,int M,int nGroup,double dMaxMax) {
                 rc = (nr > M);
             }
             if (rc && lc) {
-                /* Allocate more stack if required */
-                if ( s+1 >= ns ) {
-                    assert( s+1 == ns );
-                    ns += TEMP_S_INCREASE;
-                    S = CAST(int *,realloc(S,ns*sizeof(int)));
-                }
                 if (nr > nl) {
-                    S[s++] = iRight;    /* push tr */
-                    iNode = iLeft;      /* process lower subfile */
+                    S.push_back(pNode->rchild());   // push tr
+                    iNode = pNode->lchild();        // process lower subfile
                 }
                 else {
-                    S[s++] = iLeft; /* push tl */
-                    iNode = iRight;     /* process upper subfile */
+                    S.push_back(pNode->lchild());   // push tl
+                    iNode = pNode->rchild();        // process upper subfile
                 }
             }
             else if (lc) {
                 /*
                 ** Right must be a bucket in this case!
                 */
-                iNode = iLeft;   /* process lower subfile */
-                pRight->iLower = 0;
-                pRight->bGroup = 1;
+                iNode = pNode->lchild();   /* process lower subfile */
+                pRight->set_group(true);
                 ++nBucket;
             }
             else if (rc) {
                 /*
                 ** Left must be a bucket in this case!
                 */
-                iNode = iRight;   /* process upper subfile */
-                pLeft->iLower = 0;
-                pLeft->bGroup = 1;
+                iNode = pNode->rchild();   /* process upper subfile */
+                pLeft->set_group(true);
                 ++nBucket;
             }
             else {
                 /*
                 ** Both are buckets (we need to pop from the stack to get the next subfile.
                 */
-                pLeft->iLower = 0;
-                pLeft->bGroup = 1;
+                pLeft->set_group(true);
                 ++nBucket;
-                pRight->iLower = 0;
-                pRight->bGroup = 1;
+                pRight->set_group(true);
                 ++nBucket;
-                if (s) iNode = S[--s];      /* pop tn */
-                else break;
+                if (S.empty()) break;
+                iNode = S.back();
+                S.pop_back();
             }
         }
         else {
-            ++pNode->iDepth;
+            pNode->set_depth(pNode->depth()+1);
             // No nodes allocated: just change the bounds
             if (nl > 0) {
-                pkdNodeSetBnd(pkd, pNode, &lbnd);
+                pNode->set_bound(lbnd);
                 lc = (lrMax>dMaxMax || nl > M); /* this condition means the node is not a bucket */
                 if (!lc) {
-                    pNode->iLower = 0;
-                    pNode->bGroup = 1;
+                    pNode->set_group(true);
                     ++nBucket;
-                    if (s) iNode = S[--s];      /* pop tn */
-                    else break;
+                    if (S.empty()) break;
+                    iNode = S.back();
+                    S.pop_back();
                 }
             }
             else {
-                pkdNodeSetBnd(pkd, pNode, &rbnd);
+                pNode->set_bound(rbnd);
                 rc = (lrMax>dMaxMax || nr > M);
                 if (!rc) {
-                    pNode->iLower = 0;
-                    pNode->bGroup = 1;
+                    pNode->set_group(true);
                     ++nBucket;
-                    if (s) iNode = S[--s];      /* pop tn */
-                    else break;
+                    if (S.empty()) break;
+                    iNode = S.back();
+                    S.pop_back();
                 }
             }
         }
-        pNode = pkd->TreeNode(iNode);
-        bnd = pkdNodeGetBnd(pkd, pNode);
+        pNode = pkd->tree[iNode];
+        bnd = pNode->bound();
     }
-    free(S);
 }
 
 
@@ -395,237 +299,127 @@ void BuildTemp(PKD pkd,int iNode,int M,int nGroup,double dMaxMax) {
 ** new tree in the usual way.
 */
 void BuildFromTemplate(PKD pkd,int iNode,int M,int nGroup,int iTemplate) {
-
-    // The tree we are building
-    KDN *pNode, *pLeft, *pRight;
-    int iLeft, iRight;
-
-    // The "template" tree
-    KDN *pTemp, *ptLeft, *ptRight;
-
     int d;
     int i, nr, nl;
-    int ns,s;
     double dMaxMax;
     struct buildStack {
-        KDN *pTemp;
-        int iNode;
-    } *S;
+        int iTemp; // Template
+        int iNode; // New tree
+        buildStack() = default;
+        buildStack(int iTemp, int iNode) : iTemp(iTemp), iNode(iNode) {}
+    };
+    std::vector<buildStack> S;
     // If we have an empty tree root then we are "done"
-    pNode = pkd->TreeNode(iNode);
-    pNode->iDepth = 0;
-    pNode->iLower = 0;
-    pNode->bGroup = 1;
-    if (pNode->pUpper - pNode->pLower + 1 == 0) return;
+    auto pNode = pkd->tree[iNode];
+    pNode->set_depth(0);
+    pNode->set_leaf();
+    pNode->set_group(true);
+    if (pNode->count() == 0) return;
 
     // Setup stack and push the two root cells of each tree.
-    ns = TEMP_S_INCREASE;
-    S = (struct buildStack *)malloc(ns*sizeof(struct buildStack));
-    assert(S != NULL);
-    s = 1;
-    S[0].iNode = iNode;
-    S[0].pTemp = pkd->TreeNode(iTemplate);
+    S.reserve(100); // Start with a sensible stack size
 
-    dMaxMax = S[0].pTemp->bMax;
+    S.emplace_back(iTemplate,iNode);
+    auto pTemp = pkd->tree[iTemplate];
+    dMaxMax = pTemp->bMax();
 
-
-    do {
+    while (!S.empty()) {
         // Pop the next cells to process
-        assert(s);
-        --s;
-        pTemp = S[s].pTemp;
-        iNode = S[s].iNode;
+        pTemp = pkd->tree[S.back().iTemp];
+        iNode = S.back().iNode;
+        S.pop_back();
 
-        Bound bnd = pkdNodeGetBnd(pkd,pNode = pkd->TreeNode(iNode));
+        pNode = pkd->tree[iNode];
+        auto bnd = pNode->bound();
 
         // Follow the template tree to wherever it leads.
-        while (pTemp->iLower) {
-            d = pTemp->iSplitDim;
-            if (pTemp->iDepth != pNode->iDepth || d>2) break;
+        while (pTemp->is_cell()) {
+            d = pTemp->split_dim();
+            if (pTemp->depth() != pNode->depth() || d>2) break;
 
             // Split is between left and right child nodes in the given dimension
-            Bound ltbnd = pkdNodeGetBnd(pkd, ptLeft=pkd->TreeNode(pTemp->iLower));
-            Bound rtbnd = pkdNodeGetBnd(pkd, ptRight=pkd->TreeNode(pTemp->iLower+1));
+            auto ptLeft = pkd->tree[pTemp->lchild()];
+            auto ptRight = pkd->tree[pTemp->rchild()];
+            auto ltbnd = ptLeft->bound();
+            auto rtbnd = ptRight->bound();
             auto dSplit = 0.5 * (ltbnd.upper(d) + rtbnd.lower(d));
 
             // Partition the particles on either side of the split
             if (pkd->bIntegerPosition) {
                 int32_t Split = pkdDblToIntPos(pkd,dSplit);
-                i = PartPart(pkd,pNode->pLower,pNode->pUpper,d,Split);
+                i = PartPart(pkd,pNode->lower(),pNode->upper(),d,Split);
             }
-            else i = PartPart(pkd,pNode->pLower,pNode->pUpper,d,dSplit);
-            nl = i - pNode->pLower;
-            nr = pNode->pUpper - i + 1;
+            else i = PartPart(pkd,pNode->lower(),pNode->upper(),d,dSplit);
+            nl = i - pNode->lower();
+            nr = pNode->upper() + 1 - i;
             assert(nl>0 || nr>0);
 
-
             // Calculate bounding regions
-            Bound lbnd,rbnd;
-            std::tie(lbnd,rbnd) = bnd.split(d,dSplit);
+            auto [lbnd,rbnd] = bnd.split(d,dSplit);
             assert(rbnd.width(d) > 0.0);
             assert(lbnd.width(d) > 0.0);
 
             if (nl==0) { // Particles on the right only
-                ++pNode->iDepth;
-                pkdNodeSetBnd(pkd,pNode, &rbnd);
+                pNode->set_depth(pNode->depth()+1);
+                pNode->set_bound(rbnd);
                 pTemp = ptRight;
                 continue;
             }
             else if (nr==0) { // Particles on the left only
-                ++pNode->iDepth;
-                pkdNodeSetBnd(pkd,pNode, &lbnd);
+                pNode->set_depth(pNode->depth()+1);
+                pNode->set_bound(lbnd);
                 pTemp = ptLeft;
                 continue;
             }
 
             // Good. We have particles on both sides, so we need to split this cell
             // and setup the appropriate bounds.
+            auto [pLeft,pRight] = pNode->split(i);
+            pLeft->set_bound(lbnd);
+            pRight->set_bound(rbnd);
 
-            pkd->TreeAllocNodePair(&iLeft,&iRight);
+            pNode->set_group(pNode->count() <= nGroup && pTemp->is_group());
+            pLeft->set_group(true);
+            pRight->set_group(true);
 
-            pLeft = pkd->TreeNode(iLeft);
-            pLeft->bTopTree = 0;
-            pLeft->bRemote = 0;
-            pLeft->pLower = pNode->pLower;
-            pLeft->pUpper = i-1;
-            pLeft->iLower = 0;
-            pLeft->bGroup = 1;
-            pLeft->iDepth = pNode->iDepth + 1;
-            assert(pLeft->pLower <= pLeft->pUpper);
-
-            pRight = pkd->TreeNode(iRight);
-            assert(iRight & 1);
-            pRight->bTopTree = 0;
-            pRight->bRemote = 0;
-            pRight->pLower = i;
-            pRight->pUpper = pNode->pUpper;
-            pRight->iLower = 0;
-            pRight->bGroup = 1;
-            pRight->iDepth = pNode->iDepth + 1;
-            assert(pRight->pLower <= pRight->pUpper);
-
-            pNode->iLower = iLeft;
-            pNode->bGroup = (pNode->pUpper-pNode->pLower < nGroup) && pTemp->bGroup;
-
-            iNode = -1;
-            pNode = NULL;
-
-            pkdNodeSetBnd(pkd, pLeft, &lbnd);
-            pkdNodeSetBnd(pkd, pRight, &rbnd);
-
-            // push right and continue left
-            if ( s+1 >= ns ) {
-                assert( s+1 == ns );
-                ns += TEMP_S_INCREASE;
-                S = (struct buildStack *)realloc(S,ns*sizeof(struct buildStack));
-            }
-            S[s].pTemp = ptRight;
-            S[s].iNode = iRight;
-            ++s;
+            S.emplace_back(pTemp->rchild(),pNode->rchild());
             pTemp = ptLeft;
-            iNode = iLeft;
-            pNode = pkd->TreeNode(iNode);
-            bnd = pkdNodeGetBnd(pkd,pNode);
+            iNode = pNode->lchild();
+            pNode = pkd->tree[iNode];
+            bnd = pNode->bound();
         }
 
         // Bucket in the template tree: Now just build, but set a sensible maximum cell size
-        BuildTemp(pkd,iNode,M,nGroup,dMaxMax * pow(2.0,-pNode->iDepth/3.0));
-    } while (s);
-
-    free(S);
-}
-
-
-
-static vel_t zeroV[3] = {0.0,0.0,0.0};
-static float  zeroF[3] = {0.0,0.0,0.0};
-
-#if SPHBALLOFBALLS
-void CombineBallOfBalls(double fBall1, double fBoBxCenter1, double fBoByCenter1, double fBoBzCenter1,
-                        double fBall2, double fBoBxCenter2, double fBoByCenter2, double fBoBzCenter2,
-                        double &fBallNew, double &fBoBxCenterNew, double &fBoByCenterNew, double &fBoBzCenterNew) {
-    blitz::TinyVector<double,3> p1fBoBCenter = blitz::TinyVector<double,3>(fBoBxCenter1,fBoByCenter1,fBoBzCenter1);
-    blitz::TinyVector<double,3> p2fBoBCenter = blitz::TinyVector<double,3>(fBoBxCenter2,fBoByCenter2,fBoBzCenter2);
-    blitz::TinyVector<double,3> difference = p1fBoBCenter - p2fBoBCenter;
-    double length = sqrt(blitz::dot(difference,difference));
-    if (length == 0.0) {
-        fBoBxCenterNew = fBoBxCenter1;
-        fBoByCenterNew = fBoByCenter1;
-        fBoBzCenterNew = fBoBzCenter1;
-        fBallNew = fBall1;
-        return;
-    }
-    blitz::TinyVector<double,3> direction = difference / length;
-    blitz::TinyVector<double,3> point1 = p1fBoBCenter + direction * fBall1;
-    blitz::TinyVector<double,3> point2 = p2fBoBCenter - direction * fBall2;
-    blitz::TinyVector<double,3> radiusvec = (point1 - point2) / 2.0f;
-    blitz::TinyVector<double,3> midpoint = point2 + radiusvec;
-    double radius = sqrt(blitz::dot(radiusvec,radiusvec));
-    if (radius < fBall1 && radius < fBall2) {
-        printf("New radius is smaller then both radii, this should not happen: %.15e, %.15e, %.15e, %.15e, %.15e, %.15e, %.15e, %.15e\n",fBall1,fBoBxCenter1,fBoByCenter1,fBoBzCenter1,fBall2,fBoBxCenter2,fBoByCenter2,fBoBzCenter2);
-        assert(0);
-    }
-    else if (radius < fBall1) {
-        // Ball 2 is completely inside Ball 1
-        fBoBxCenterNew = fBoBxCenter1;
-        fBoByCenterNew = fBoByCenter1;
-        fBoBzCenterNew = fBoBzCenter1;
-        fBallNew = fBall1;
-    }
-    else if (radius < fBall2) {
-        // Ball 1 is completely inside Ball 2
-        fBoBxCenterNew = fBoBxCenter2;
-        fBoByCenterNew = fBoByCenter2;
-        fBoBzCenterNew = fBoBzCenter2;
-        fBallNew = fBall2;
-    }
-    else {
-        fBoBxCenterNew = midpoint[0];
-        fBoByCenterNew = midpoint[1];
-        fBoBzCenterNew = midpoint[2];
-        fBallNew = radius;
+        BuildTemp(pkd,iNode,M,nGroup,dMaxMax * pow(2.0,-pNode->depth()/3.0));
     }
 }
-#endif
 
 void Create(PKD pkd,int iRoot,double ddHonHLimit) {
     int iNode = iRoot;
-    PARTICLE *p;
-    KDN *pkdn,*pkdl,*pkdu;
-    FMOMR mom;
-    SPHBNDS *bn;
-    double kdn_r[3];
-    double fSoft,x,y,z,ax,ay,az,ft[3],d2,d2Max,dih2,bmin,b;
-#if SPHBALLOFBALLS
-    double fBoBr,fBoBxCenter,fBoByCenter,fBoBzCenter;
-#endif
-#if SPHBOXOFBALLS
-    double fBoBxMin,fBoBxMax,fBoByMin,fBoByMax,fBoBzMin,fBoBzMax;
-#endif
-    float *a, m, fMass, fBall;
-    vel_t *v, vx, vy, vz;
-    int pj,d,nDepth,ism;
+    blitz::TinyVector<double,3> kdn_r;
+    double fSoft,d2,dih2,b;
+    SPHBOB fBoB(0.0);
+    float m, fMass, fBall;
+    int pj,nDepth,ism;
     const int nMaxStackIncrease = 1;
 
     /* If the tree is empty, we just create a sensible moment and we are done. */
-    pkdn = pkd->TreeNode(iNode);
-    if (pkdn->pLower > pkdn->pUpper) {
-        pkdn->bMax = 1.0;
-        pkdn->uMinRung = MAX_RUNG;
-        pkdn->uMaxRung = 0;
-        pkdn->bHasMarked = 0;
-#ifdef NN_FLAG_IN_PARTICLE
-        pkdn->bHasNNflag = 0;
-#endif
-        if (pkd->oNodeMom) momClearFmomr(pkdNodeMom(pkd,pkdn));
+    auto pkdn = pkd->tree[iNode];
+    if (pkdn->count()==0) {
+        pkdn->bMax() = 1.0;
+        pkdn->set_min_rung(MAX_RUNG);
+        pkdn->set_max_rung(0);
+        pkdn->set_marked(false);
+        pkdn->set_NN(false);
+        if (pkdn->have_moment()) momClearFmomr(&pkdn->moment());
         return;
     }
 
     nDepth = 1;
     while (1) {
-        while ((pkdn=pkd->TreeNode(iNode))->iLower) {
+        while ((pkdn=pkd->tree[iNode])->is_cell()) {
             pkd->S[nDepth-1].iNodeIndex = iNode;
-            iNode = pkdn->iLower;
+            iNode = pkdn->lchild();
             ++nDepth;
             /*
             ** Is this the deepest in the tree so far? We might need to have more stack
@@ -634,7 +428,7 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
             ** stack entry available than what is needed to walk the tree.
             */
             if (nDepth > pkd->nMaxStack) {
-                pkd->S = CAST(CSTACK *,realloc(pkd->S,(pkd->nMaxStack+nMaxStackIncrease)*sizeof(CSTACK)));
+                pkd->S = static_cast<CSTACK *>(realloc(pkd->S,(pkd->nMaxStack+nMaxStackIncrease)*sizeof(CSTACK)));
                 assert(pkd->S != NULL);
                 for (ism=pkd->nMaxStack; ism<(pkd->nMaxStack+nMaxStackIncrease); ++ism) {
                     pkd->S[ism].cl = new clList(pkd->clFreeList);
@@ -643,282 +437,132 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
             }
         }
 
-        /*
-        ** Now calculate all bucket quantities!
-        ** This includes M,CoM,Moments and special
-        ** bounds and iMaxRung.
-        */
-        pkdn = pkd->TreeNode(iNode);
-        Bound bnd = pkdNodeGetBnd(pkd, pkdn);
-        /*
-        ** Before squeezing the bounds, calculate a minimum b value based on the splitting bounds alone.
-        ** This gives us a better feel for the "size" of a bucket with only a single particle.
-        */
-        bmin = bnd.minside();
-        /*
-        ** Now shrink wrap the bucket bounds.
-        */
-        pj = pkdn->pLower;
-        p = pkd->Particle(pj);
-#if defined(__AVX__) && defined(USE_SIMD)
-        if (pkd->bIntegerPosition) {
-            __m128i ivmin, ivmax;
-            ivmin = ivmax = pkdGetPosRaw(pkd,p);
-            for (++pj; pj<=pkdn->pUpper; ++pj) {
-                p = pkd->Particle(pj);
-                __m128i v = pkdGetPosRaw(pkd,p);
-                ivmin = _mm_min_epi32(ivmin,v);
-                ivmax = _mm_max_epi32(ivmax,v);
-            }
-            union {
-                double d[4];
-                __m256d p;
-            } vmin,vmax;
-            vmin.p = _mm256_mul_pd(_mm256_cvtepi32_pd(ivmin),_mm256_set1_pd(1.0/INTEGER_FACTOR) );
-            vmax.p = _mm256_mul_pd(_mm256_cvtepi32_pd(ivmax),_mm256_set1_pd(1.0/INTEGER_FACTOR) );
-            bnd = Bound(vmin.d,vmax.d);
-        }
-        else
-#endif
-        {
-            pkdGetPos1(pkd,p,ft);
-            double dMin[3] {ft[0],ft[1],ft[2]};
-            double dMax[3] {ft[0],ft[1],ft[2]};
-            for (++pj; pj<=pkdn->pUpper; ++pj) {
-                p = pkd->Particle(pj);
-                pkdGetPos1(pkd,p,ft);
-                for (d=0; d<3; ++d) {
-                    dMin[d] = std::min(dMin[d],ft[d]);
-                    dMax[d] = std::max(dMax[d],ft[d]);
-                }
-            }
-            bnd = Bound(dMin,dMax);
-        }
-        pkdNodeSetBnd(pkd, pkdn, &bnd);
-        pj = pkdn->pLower;
-        p = pkd->Particle(pj);
-        a = pkd->particles.present(PKD_FIELD::oAcceleration) ? pkdAccel(pkd,p) : zeroF;
-        m = pkdMass(pkd,p);
-        fSoft = pkdSoft(pkd,p);
-        v = pkd->particles.present(PKD_FIELD::oVelocity) ? pkdVel(pkd,p) : zeroV;
+        // Now calculate all bucket quantities!
+        // This includes M,CoM,Moments and special
+        // bounds and iMaxRung.
+        pkdn = pkd->tree[iNode];
+        // Before squeezing the bounds, calculate a minimum b value based on the splitting bounds alone.
+        // This gives us a better feel for the "size" of a bucket with only a single particle.
+        auto bmin = pkdn->bound().minside();
+        pkdn->update_bound();       // Update the bound to shrink wrap the particles
+        auto bnd = pkdn->bound();
+
+        pj = pkdn->lower();
+        auto p = pkd->particles[pj];
+        const auto a = p.have_acceleration() ? p.acceleration() : blitz::TinyVector<acc_t,3>(0.0);
+        const auto v = p.have_velocity()     ? p.velocity()     : blitz::TinyVector<vel_t,3>(0.0);
+        m = p.mass();
+        fSoft = p.soft();
         fMass = m;
         dih2 = fSoft;
-        pkdGetPos3(pkd,p,x,y,z);
+        auto r = p.position();
 
         if (pkd->particles.present(PKD_FIELD::oBall)) {
             /* initialize ball or box of balls */
-#if SPHBALLOFBALLS
-            fBoBr = fmin(pkd->SPHoptions.ballSizeLimit,pkd->SPHoptions.fBallFactor * pkdBall(pkd,p));
-            fBoBxCenter = x;
-            fBoByCenter = y;
-            fBoBzCenter = z;
-#endif
-#if SPHBOXOFBALLS
-            float limitedBallSize = fmin(pkd->SPHoptions.ballSizeLimit,pkd->SPHoptions.fBallFactor * pkdBall(pkd,p));
-            fBoBxMin = x - limitedBallSize;
-            fBoBxMax = x + limitedBallSize;
-            fBoByMin = y - limitedBallSize;
-            fBoByMax = y + limitedBallSize;
-            fBoBzMin = z - limitedBallSize;
-            fBoBzMax = z + limitedBallSize;
-#endif
+            float limitedBallSize = std::min(pkd->SPHoptions.ballSizeLimit,pkd->SPHoptions.fBallFactor * p.ball());
+            fBoB = SPHBOB(r,limitedBallSize);
         }
         /* initialize marked flag */
-        pkdn->bHasMarked = p->bMarked;
-#ifdef NN_FLAG_IN_PARTICLE
-        pkdn->bHasNNflag = p->bNNflag;
-#endif
+        pkdn->set_marked(p.marked());
+        pkdn->set_NN(p.NN_flag());
 
-        x *= m;
-        y *= m;
-        z *= m;
-        vx = m*v[0];
-        vy = m*v[1];
-        vz = m*v[2];
-        ax = m*a[0];
-        ay = m*a[1];
-        az = m*a[2];
-        pkdn->uMinRung = pkdn->uMaxRung = p->uRung;
-        for (++pj; pj<=pkdn->pUpper; ++pj) {
-            p = pkd->Particle(pj);
-            a = pkd->particles.present(PKD_FIELD::oAcceleration) ? pkdAccel(pkd,p) : zeroF;
-            m = pkdMass(pkd,p);
-            fSoft = pkdSoft(pkd,p);
-            v = pkd->particles.present(PKD_FIELD::oVelocity) ? pkdVel(pkd,p) : zeroV;
+        r *= m;
+
+        blitz::TinyVector<vel_t,3>  vr = m * v;
+        blitz::TinyVector<double,3> ar = m * a;
+        pkdn->set_rung(p.rung());
+        for (++pj; pj<=pkdn->upper(); ++pj) {
+            p = pkd->particles[pj];
+            const auto a = p.have_acceleration() ? p.acceleration() : blitz::TinyVector<acc_t,3>(0.0);
+            const auto v = p.have_velocity()     ? p.velocity()     : blitz::TinyVector<vel_t,3>(0.0);
+            m = p.mass();
+            fSoft = p.soft();
             fMass += m;
             if (fSoft>dih2) dih2=fSoft;
-            pkdGetPos1(pkd,p,ft);
+            auto ft = p.position();
 
             if (pkd->particles.present(PKD_FIELD::oBall)) {
-#if SPHBALLOFBALLS
-                CombineBallOfBalls(fBoBr,fBoBxCenter,fBoByCenter,fBoBzCenter,fmin(pkd->SPHoptions.ballSizeLimit,pkd->SPHoptions.fBallFactor * pkdBall(pkd,p)),ft[0],ft[1],ft[2],fBoBr,fBoBxCenter,fBoByCenter,fBoBzCenter);
-#endif
-#if SPHBOXOFBALLS
-                float limitedBallSize = fmin(pkd->SPHoptions.ballSizeLimit,pkd->SPHoptions.fBallFactor * pkdBall(pkd,p));
-                fBoBxMin = fmin(fBoBxMin,ft[0] - limitedBallSize);
-                fBoBxMax = fmax(fBoBxMax,ft[0] + limitedBallSize);
-                fBoByMin = fmin(fBoByMin,ft[1] - limitedBallSize);
-                fBoByMax = fmax(fBoByMax,ft[1] + limitedBallSize);
-                fBoBzMin = fmin(fBoBzMin,ft[2] - limitedBallSize);
-                fBoBzMax = fmax(fBoBzMax,ft[2] + limitedBallSize);
-#endif
+                float limitedBallSize = std::min(pkd->SPHoptions.ballSizeLimit,pkd->SPHoptions.fBallFactor * p.ball());
+                fBoB = fBoB.combine(ft,limitedBallSize);
             }
-            if (p->bMarked) pkdn->bHasMarked = 1;
-#ifdef NN_FLAG_IN_PARTICLE
-            if (p->bNNflag) pkdn->bHasNNflag = 1;
-#endif
+            if (p.marked()) pkdn->set_marked(true);
+            if (p.NN_flag()) pkdn->set_NN(true);
 
-            x += m*ft[0];
-            y += m*ft[1];
-            z += m*ft[2];
-            vx += m*v[0];
-            vy += m*v[1];
-            vz += m*v[2];
-            ax += m*a[0];
-            ay += m*a[1];
-            az += m*a[2];
-            if ( p->uRung > pkdn->uMaxRung ) pkdn->uMaxRung = p->uRung;
-            if ( p->uRung < pkdn->uMinRung ) pkdn->uMinRung = p->uRung;
+            r += m*ft;
+            vr += m*v;
+            ar += m*a;
+            pkdn->set_max_rung(std::max(pkdn->max_rung(),p.rung()));
+            pkdn->set_min_rung(std::min(pkdn->min_rung(),p.rung()));
         }
         m = 1.0f / fMass;
-        kdn_r[0] = m*x;
-        kdn_r[1] = m*y;
-        kdn_r[2] = m*z;
-        pkdNodeSetPos1(pkd,pkdn,kdn_r);
-        if (pkd->oNodeVelocity) {
-            vel_t *pVel = pkdNodeVel(pkd,pkdn);
-            pVel[0] = m*vx;
-            pVel[1] = m*vy;
-            pVel[2] = m*vz;
-        }
-        if (pkd->oNodeAcceleration) {
-            float *pAcc = pkdNodeAccel(pkd,pkdn);
-            pAcc[0] = m*ax;
-            pAcc[1] = m*ay;
-            pAcc[2] = m*az;
-        }
-        pkdn->fSoft2 = dih2*dih2;
-        if (pkd->oNodeBOB) {
-            auto SPHbob = pkd->NodeBOB(pkdn);
-            if (pkd->particles.present(PKD_FIELD::oBall)) {
-#if SPHBALLOFBALLS
-                SPHbob->fBoBr2 = fBoBr*fBoBr;
-                SPHbob->fBoBxCenter = fBoBxCenter;
-                SPHbob->fBoByCenter = fBoByCenter;
-                SPHbob->fBoBzCenter = fBoBzCenter;
-#endif
-#if SPHBOXOFBALLS
-                SPHbob->fBoBxMin = fBoBxMin;
-                SPHbob->fBoBxMax = fBoBxMax;
-                SPHbob->fBoByMin = fBoByMin;
-                SPHbob->fBoByMax = fBoByMax;
-                SPHbob->fBoBzMin = fBoBzMin;
-                SPHbob->fBoBzMax = fBoBzMax;
-#endif
-            }
-            else {
-#if SPHBALLOFBALLS
-                SPHbob->fBoBr2 = 0.0f;
-                SPHbob->fBoBxCenter = 0.0f;
-                SPHbob->fBoByCenter = 0.0f;
-                SPHbob->fBoBzCenter = 0.0f;
-#endif
-#if SPHBOXOFBALLS
-                SPHbob->fBoBxMin = 0.0f;
-                SPHbob->fBoBxMax = 0.0f;
-                SPHbob->fBoByMin = 0.0f;
-                SPHbob->fBoByMax = 0.0f;
-                SPHbob->fBoBzMin = 0.0f;
-                SPHbob->fBoBzMax = 0.0f;
-#endif
-            }
-        }
-        d2Max = 0.0;
-        for (pj=pkdn->pLower; pj<=pkdn->pUpper; ++pj) {
-            p = pkd->Particle(pj);
-#if defined(__AVX__) && defined(USE_SIMD)
-            if (pkd->bIntegerPosition) {
-                __m256d v = _mm256_sub_pd(pkdGetPos(pkd,p),_mm256_setr_pd(kdn_r[0],kdn_r[1],kdn_r[2],0.0));
-                v = _mm256_mul_pd(v,v);
-                __m128d t0 = _mm256_extractf128_pd(v,0);
-                __m128d t2 = _mm256_extractf128_pd(v,1);
-                __m128d t1 = _mm_unpackhi_pd(t0,t0);
-                t0 = _mm_add_sd(t0,t2);
-                t0 = _mm_add_sd(t0,t1);
-                d2Max = _mm_cvtsd_f64(_mm_max_sd(t0,_mm_set_sd(d2Max)));
-            }
-            else
-#endif
-            {
-                pkdGetPos1(pkd,p,ft);
-                x = ft[0] - kdn_r[0];
-                y = ft[1] - kdn_r[1];
-                z = ft[2] - kdn_r[2];
-                d2 = x*x + y*y + z*z;
-                /*
-                ** Update bounding ball and softened bounding ball.
-                */
-                d2Max = (d2 > d2Max)?d2:d2Max;
-            }
-        }
+        kdn_r = m*r;
+        pkdn->set_position(kdn_r);
+        if (pkdn->have_velocity())     pkdn->velocity() = m*vr;
+        if (pkdn->have_acceleration()) pkdn->acceleration() = m*ar;
+        pkdn->fSoft2() = dih2*dih2;
+        if (pkdn->have_BOB()) pkdn->BOB() = fBoB;
+
 #ifdef USE_MAXSIDE
         b = bnd.maxside();
 #else
+        auto d2Max = std::accumulate(pkdn->begin(),pkdn->end(),0.0,
+        [kdn_r](double d2Max,auto &p) {
+            auto r = p.position() - kdn_r;
+            auto d2 = blitz::dot(r,r);
+            return std::max(d2Max,d2);
+        });
         b = sqrt(d2Max);
 #endif
         if (b==0.0) b = 1.0f; /* FIXME: Single particle. Perhaps momMakeFmomr should be more robust. */
         else if (b < bmin) b = bmin;
-        pkdn->bMax = b;
-        assert(pkdn->bMax>=0);
+        pkdn->bMax() = b;
+        assert(b>=0);
         /*
         ** Now calculate the reduced multipole moment.
         ** Note that we use the cell's openening radius as the scaling factor!
         */
-        if (pkd->oNodeMom) {
-            momClearFmomr(pkdNodeMom(pkd,pkdn));
-            for (pj=pkdn->pLower; pj<=pkdn->pUpper; ++pj) {
-                p = pkd->Particle(pj);
-                pkdGetPos1(pkd,p,ft);
-                x = ft[0] - kdn_r[0];
-                y = ft[1] - kdn_r[1];
-                z = ft[2] - kdn_r[2];
-                m = pkdMass(pkd,p);
-                momMakeFmomr(&mom,m,pkdn->bMax,x,y,z);
-                momAddFmomr(pkdNodeMom(pkd,pkdn),&mom);
+        if (pkdn->have_moment()) {
+            auto &moment = pkdn->moment();
+            momClearFmomr(&moment);
+            for (auto &p : *pkdn) {
+                FMOMR mom;
+                auto ft = p.position();
+                r = ft - kdn_r;
+                m = p.mass();
+                momMakeFmomr(&mom,m,pkdn->bMax(),r[0],r[1],r[2]);
+                momAddFmomr(&moment,&mom);
             }
         }
         /*
         ** Calculate bucket fast gas bounds.
         */
-        if (pkd->oNodeSphBounds) {
-            bn = pkdNodeSphBounds(pkd,pkdn);
+        if (pkdn->have_sph_bound()) {
+            auto &bn = pkdn->sphbounds();
             /*
             ** Default bounds always makes the cell look infinitely far away, regardless from where.
             */
-            for (d=0; d<3; ++d) bn->A.min[d] = HUGE_VAL;
-            for (d=0; d<3; ++d) bn->A.max[d] = -HUGE_VAL;
-            for (d=0; d<3; ++d) bn->B.min[d] = HUGE_VAL;
-            for (d=0; d<3; ++d) bn->B.max[d] = -HUGE_VAL;
-            for (d=0; d<3; ++d) bn->BI.min[d] = HUGE_VAL;
-            for (d=0; d<3; ++d) bn->BI.max[d] = -HUGE_VAL;
-            for (pj=pkdn->pLower; pj<=pkdn->pUpper; ++pj) {
-                p = pkd->Particle(pj);
-                fBall = pkdBall(pkd,p);
-                if (pkdIsGas(pkd,p)) {
-                    double r[3];
-                    pkdGetPos1(pkd,p,r);
+            bn.A.min = HUGE_VAL;
+            bn.A.max = -HUGE_VAL;
+            bn.B.min = HUGE_VAL;
+            bn.B.max = -HUGE_VAL;
+            bn.BI.min = HUGE_VAL;
+            bn.BI.max = -HUGE_VAL;
+            for (auto &p : *pkdn) {
+                fBall = p.ball();
+                if (p.is_gas()) {
+                    auto r = p.position();
                     /*
                     ** This first ball bound over all gas particles is only used for remote searching.
                     */
-                    for (d=0; d<3; ++d) bn->B.min[d] = fmin(bn->B.min[d],r[d] - (1+ddHonHLimit)*fBall);
-                    for (d=0; d<3; ++d) bn->B.max[d] = fmax(bn->B.max[d],r[d] + (1+ddHonHLimit)*fBall);
-                    if (pkdIsActive(pkd,p)) {
-                        for (d=0; d<3; ++d) bn->A.min[d] = fmin(bn->A.min[d],r[d]);
-                        for (d=0; d<3; ++d) bn->A.max[d] = fmax(bn->A.max[d],r[d]);
+                    bn.B.min = blitz::min(bn.B.min,r - (1+ddHonHLimit)*fBall);
+                    bn.B.max = blitz::max(bn.B.max,r + (1+ddHonHLimit)*fBall);
+                    if (p.is_active()) {
+                        bn.A.min = blitz::min(bn.A.min,r);
+                        bn.A.max = blitz::max(bn.A.max,r);
                     }
                     else {
-                        for (d=0; d<3; ++d) bn->BI.min[d] = fmin(bn->BI.min[d],r[d] - (1+ddHonHLimit)*fBall);
-                        for (d=0; d<3; ++d) bn->BI.max[d] = fmax(bn->BI.max[d],r[d] + (1+ddHonHLimit)*fBall);
+                        bn.BI.min = blitz::min(bn.BI.min,r - (1+ddHonHLimit)*fBall);
+                        bn.BI.max = blitz::max(bn.BI.max,r + (1+ddHonHLimit)*fBall);
                     }
                 }
             }
@@ -943,42 +587,39 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
             ** this cell to form the quantities for this cell.
             ** First find the CoM, just like for the bucket.
             */
-            pkdn = pkd->TreeNode(iNode);
-            bnd = pkdNodeGetBnd(pkd, pkdn);
+            pkdn = pkd->tree[iNode];
+            auto bnd = pkdn->bound();
             /*
             ** Before squeezing the bounds, calculate a minimum b value based on the splitting bounds alone.
             ** This gives us a better feel for the "size" of a bucket with only a single particle.
             */
             bmin = bnd.minside();
-            pj = pkdn->pLower;
-            pkdl = pkd->TreeNode(pkdn->iLower);
-            pkdu = pkd->TreeNode(pkdn->iLower + 1);
+            pj = pkdn->lower();
+            auto pkdl = pkd->tree[pkdn->lchild()];
+            auto pkdu = pkd->tree[pkdn->rchild()];
             pkdCombineCells1(pkd,pkdn,pkdl,pkdu);
-            pkdNodeGetPos(pkd,pkdn,kdn_r);
-            if (pkdn->pUpper - pj < NMAX_OPENCALC) {
-                assert(pj<=pkdn->pUpper);
-                d2Max = 0;
-                for (; pj<=pkdn->pUpper; ++pj) {
-                    p = pkd->Particle(pj);
-#if defined(__AVX__) && defined(USE_SIMD)
-                    if (pkd->bIntegerPosition) {
-                        __m256d v = _mm256_sub_pd(pkdGetPos(pkd,p),_mm256_setr_pd(kdn_r[0],kdn_r[1],kdn_r[2],0.0));
-                        v = _mm256_mul_pd(v,v);
-                        __m128d t0 = _mm256_extractf128_pd(v,0);
-                        __m128d t2 = _mm256_extractf128_pd(v,1);
-                        __m128d t1 = _mm_unpackhi_pd(t0,t0);
-                        t0 = _mm_add_sd(t0,t2);
-                        t0 = _mm_add_sd(t0,t1);
-                        d2Max = _mm_cvtsd_f64(_mm_max_sd(t0,_mm_set_sd(d2Max)));
-                    }
-                    else
-#endif
+            kdn_r = pkdn->position();
+            if (pkdn->count() <= NMAX_OPENCALC) {
+                assert(pj<=pkdn->upper());
+                double d2Max = 0;
+                for (; pj<=pkdn->upper(); ++pj) {
+                    p = pkd->particles[pj];
+// #if defined(__AVX__) && defined(USE_SIMD)
+//                     if (pkd->bIntegerPosition) {
+//                         __m256d v = _mm256_sub_pd(pkdGetPos(pkd,p),_mm256_setr_pd(kdn_r[0],kdn_r[1],kdn_r[2],0.0));
+//                         v = _mm256_mul_pd(v,v);
+//                         __m128d t0 = _mm256_extractf128_pd(v,0);
+//                         __m128d t2 = _mm256_extractf128_pd(v,1);
+//                         __m128d t1 = _mm_unpackhi_pd(t0,t0);
+//                         t0 = _mm_add_sd(t0,t2);
+//                         t0 = _mm_add_sd(t0,t1);
+//                         d2Max = _mm_cvtsd_f64(_mm_max_sd(t0,_mm_set_sd(d2Max)));
+//                     }
+//                     else
+// #endif
                     {
-                        pkdGetPos3(pkd,p,x,y,z);
-                        x -= kdn_r[0];
-                        y -= kdn_r[1];
-                        z -= kdn_r[2];
-                        d2 = x*x + y*y + z*z;
+                        r = p.position() - kdn_r;
+                        d2 = blitz::dot(r,r);
                         d2Max = (d2 > d2Max)?d2:d2Max;
                     }
                 }
@@ -992,13 +633,13 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
                 if (d2Max>b) b = d2Max;
                 pkdn->bMax = b;
 #else
-                pkdn->bMax = sqrt(d2Max);
-                if (pkdn->bMax < bmin) pkdn->bMax = bmin;
+                pkdn->bMax() = sqrt(d2Max);
+                if (pkdn->bMax() < bmin) pkdn->bMax() = bmin;
 #endif
-                assert(pkdn->bMax >= 0);
+                assert(pkdn->bMax() >= 0);
             }
             else {
-                CALCOPEN(pkdn,bmin);  /* set bMax */
+                pkdn->calc_open(bmin); // set bMax
             }
             pkdCombineCells2(pkd,pkdn,pkdl,pkdu);
         }
@@ -1007,18 +648,15 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
 }
 
 
-void pkdCombineCells1(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
+void pkdCombineCells1(PKD pkd,treeStore::NodePointer pkdn,treeStore::NodePointer p1,treeStore::NodePointer p2) {
+    auto p1bnd = p1->bound();
+    auto p2bnd = p2->bound();
+    auto bnd = p1bnd.combine(p2bnd);
+    pkdn->set_bound(bnd);
     double m1,m2,ifMass;
-    int j;
-    double kdn_r[3];
-
-    Bound p1bnd = pkdNodeGetBnd(pkd, p1);
-    Bound p2bnd = pkdNodeGetBnd(pkd, p2);
-    Bound bnd = p1bnd.combine(p2bnd);
-    pkdNodeSetBnd(pkd, pkdn,&bnd);
-    if (pkd->oNodeMom) {
-        m1 = pkdNodeMom(pkd,p1)->m;
-        m2 = pkdNodeMom(pkd,p2)->m;
+    if (pkdn->have_moment()) {
+        m1 = p1->moment().m;
+        m2 = p2->moment().m;
         ifMass = 1/(m1 + m2);
         /*
         ** In the case where a cell has all its particles source inactive mom.m == 0, which is ok, but we
@@ -1033,119 +671,77 @@ void pkdCombineCells1(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
         ifMass = 1.0;
         m1 = m2 = 0.5;
     }
-    double p1_r[3], p2_r[3];
-    pkdNodeGetPos(pkd,p1,p1_r);
-    pkdNodeGetPos(pkd,p2,p2_r);
-    for (j=0; j<3; ++j) kdn_r[j] = ifMass*(m1*p1_r[j] + m2*p2_r[j]);
-    pkdNodeSetPos1(pkd,pkdn,kdn_r);
-    if (pkd->oNodeVelocity) {
-        for (j=0; j<3; ++j)
-            pkdNodeVel(pkd,pkdn)[j]
-                = ifMass*(m1*pkdNodeVel(pkd,p1)[j] + m2*pkdNodeVel(pkd,p2)[j]);
+    blitz::TinyVector<double,3> p1_r, p2_r, kdn_r;
+    p1_r = p1->position();
+    p2_r = p2->position();
+    kdn_r = ifMass*(m1*p1_r + m2*p2_r);
+    pkdn->set_position(kdn_r);
+    if (pkdn->have_velocity()) {
+        pkdn->velocity() = ifMass*(m1*p1->velocity() + m2*p2->velocity());
     }
-    if (pkd->oNodeAcceleration) {
-        for (j=0; j<3; ++j)
-            pkdNodeAccel(pkd,pkdn)[j]
-                = ifMass*(m1*pkdNodeAccel(pkd,p1)[j] + m2*pkdNodeAccel(pkd,p2)[j]);
+    if (pkdn->have_acceleration()) {
+        pkdn->acceleration() = ifMass*(m1*p1->acceleration() + m2*p2->acceleration());
     }
-    pkdn->fSoft2 = p1->fSoft2 > p2->fSoft2 ? p1->fSoft2 : p2->fSoft2;
-    pkdn->uMinRung = p1->uMinRung < p2->uMinRung ? p1->uMinRung : p2->uMinRung;
-    pkdn->uMaxRung = p1->uMaxRung > p2->uMaxRung ? p1->uMaxRung : p2->uMaxRung;
+    pkdn->fSoft2() = std::max(p1->fSoft2(),p2->fSoft2());
+    pkdn->set_min_rung(std::min(p1->min_rung(),p2->min_rung()));
+    pkdn->set_max_rung(std::max(p1->max_rung(),p2->max_rung()));
 
-    if (pkd->oNodeBOB) {
-        auto SPHbob = pkd->NodeBOB(pkdn);
-        auto SPHbob1 = pkd->NodeBOB(p1);
-        auto SPHbob2 = pkd->NodeBOB(p2);
+    if (pkdn->have_BOB()) {
+        auto &SPHbob = pkdn->BOB();
+        const auto &SPHbob1 = p1->BOB();
+        const auto &SPHbob2 = p2->BOB();
 
         if (pkd->particles.present(PKD_FIELD::oNewSph)) {
             /* Combine ball or box of balls */
-#if SPHBALLOFBALLS
-            double fBoBr,fBoBxCenter,fBoByCenter,fBoBzCenter;
-            CombineBallOfBalls(sqrt(SPHbob1->fBoBr2),SPHbob1->fBoBxCenter,SPHbob1->fBoByCenter,SPHbob1->fBoBzCenter,sqrt(SPHbob2->fBoBr2),SPHbob2->fBoBxCenter,SPHbob2->fBoByCenter,SPHbob2->fBoBzCenter,fBoBr,fBoBxCenter,fBoByCenter,fBoBzCenter);
-            SPHbob->fBoBxCenter = fBoBxCenter;
-            SPHbob->fBoByCenter = fBoByCenter;
-            SPHbob->fBoBzCenter = fBoBzCenter;
-            SPHbob->fBoBr2 = fBoBr * fBoBr;
-#endif
-#if SPHBOXOFBALLS
-            SPHbob->fBoBxMin = fmin(SPHbob1->fBoBxMin,SPHbob2->fBoBxMin);
-            SPHbob->fBoBxMax = fmax(SPHbob1->fBoBxMax,SPHbob2->fBoBxMax);
-            SPHbob->fBoByMin = fmin(SPHbob1->fBoByMin,SPHbob2->fBoByMin);
-            SPHbob->fBoByMax = fmax(SPHbob1->fBoByMax,SPHbob2->fBoByMax);
-            SPHbob->fBoBzMin = fmin(SPHbob1->fBoBzMin,SPHbob2->fBoBzMin);
-            SPHbob->fBoBzMax = fmax(SPHbob1->fBoBzMax,SPHbob2->fBoBzMax);
-#endif
+            SPHbob = SPHbob1.combine(SPHbob2);
         }
         else {
-#if SPHBALLOFBALLS
-            SPHbob->fBoBxCenter = 0.0f;
-            SPHbob->fBoByCenter = 0.0f;
-            SPHbob->fBoBzCenter = 0.0f;
-            SPHbob->fBoBr2 = 0.0f;
-#endif
-#if SPHBOXOFBALLS
-            SPHbob->fBoBxMin = 0.0f;
-            SPHbob->fBoBxMax = 0.0f;
-            SPHbob->fBoByMin = 0.0f;
-            SPHbob->fBoByMax = 0.0f;
-            SPHbob->fBoBzMin = 0.0f;
-            SPHbob->fBoBzMax = 0.0f;
-#endif
+            SPHbob = SPHBOB(0.0);
         }
     }
     /* Combine marked flag */
-    pkdn->bHasMarked = p1->bHasMarked || p2->bHasMarked;
-#ifdef NN_FLAG_IN_PARTICLE
-    pkdn->bHasNNflag = p1->bHasNNflag || p2->bHasNNflag;
-#endif
+    pkdn->set_marked(p1->is_marked() || p2->is_marked());
+    pkdn->set_NN(p1->is_NN() || p2->is_NN());
 }
 
 
-void pkdCombineCells2(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
-    FMOMR mom;
-    SPHBNDS *b1,*b2,*bn;
-    float x,y,z;
-    int j;
-
+void pkdCombineCells2(PKD pkd,treeStore::NodePointer pkdn,treeStore::NodePointer p1,treeStore::NodePointer p2) {
     /*
     ** Now calculate the reduced multipole moment.
     ** Shift the multipoles of each of the children
     ** to the CoM of this cell and add them up.
     */
-    if (pkd->oNodeMom) {
-        double kdn_r[3], p1_r[3], p2_r[3];
-        pkdNodeGetPos(pkd,pkdn,kdn_r);
-        pkdNodeGetPos(pkd,p1,p1_r);
-        pkdNodeGetPos(pkd,p2,p2_r);
-        *pkdNodeMom(pkd,pkdn) = *pkdNodeMom(pkd,p1);
-        x = (float)(p1_r[0] - kdn_r[0]);
-        y = (float)(p1_r[1] - kdn_r[1]);
-        z = (float)(p1_r[2] - kdn_r[2]);
-        momShiftFmomr(pkdNodeMom(pkd,pkdn),p1->bMax,x,y,z);
+    if (pkdn->have_moment()) {
+        blitz::TinyVector<double,3> dr;
+        auto &pkdn_moment = pkdn->moment();
+        auto kdn_r = pkdn->position();
+        auto p1_r  = p1->position();
+        auto p2_r  = p2->position();
+        pkdn_moment = p1->moment();
+        dr = p1_r - kdn_r;
+        momShiftFmomr(&pkdn_moment,p1->bMax(),dr[0],dr[1],dr[2]);
 
-        momRescaleFmomr(pkdNodeMom(pkd,pkdn),pkdn->bMax,p1->bMax);
+        momRescaleFmomr(&pkdn_moment,pkdn->bMax(),p1->bMax());
 
-        mom = *pkdNodeMom(pkd,p2);
-        x = (float)(p2_r[0] - kdn_r[0]);
-        y = (float)(p2_r[1] - kdn_r[1]);
-        z = (float)(p2_r[2] - kdn_r[2]);
-        momShiftFmomr(&mom,p2->bMax,x,y,z);
-        momScaledAddFmomr(pkdNodeMom(pkd,pkdn),pkdn->bMax,&mom,p2->bMax);
+        auto mom = p2->moment();
+        dr = p2_r - kdn_r;
+        momShiftFmomr(&mom,p2->bMax(),dr[0],dr[1],dr[2]);
+        momScaledAddFmomr(&pkdn_moment,pkdn->bMax(),&mom,p2->bMax());
 
     }
     /*
     ** Combine the special fast gas ball bounds for SPH.
     */
-    if (pkd->oNodeSphBounds) {
-        b1 = pkdNodeSphBounds(pkd,p1);
-        b2 = pkdNodeSphBounds(pkd,p2);
-        bn = pkdNodeSphBounds(pkd,pkdn);
-        for (j=0; j<3; ++j) bn->A.min[j] = fmin(b1->A.min[j],b2->A.min[j]);
-        for (j=0; j<3; ++j) bn->A.max[j] = fmax(b1->A.max[j],b2->A.max[j]);
-        for (j=0; j<3; ++j) bn->B.min[j] = fmin(b1->B.min[j],b2->B.min[j]);
-        for (j=0; j<3; ++j) bn->B.max[j] = fmax(b1->B.max[j],b2->B.max[j]);
-        for (j=0; j<3; ++j) bn->BI.min[j] = fmin(b1->BI.min[j],b2->BI.min[j]);
-        for (j=0; j<3; ++j) bn->BI.max[j] = fmax(b1->BI.max[j],b2->BI.max[j]);
+    if (pkd->tree.present(KDN_FIELD::oNodeSphBounds)) {
+        const auto &b1 = p1->sphbounds();
+        const auto &b2 = p2->sphbounds();
+        auto &bn = pkdn->sphbounds();
+        bn.A.min = blitz::min(b1.A.min,b2.A.min);
+        bn.A.max = blitz::max(b1.A.max,b2.A.max);
+        bn.B.min = blitz::min(b1.B.min,b2.B.min);
+        bn.B.max = blitz::max(b1.B.max,b2.B.max);
+        bn.BI.min = blitz::min(b1.BI.min,b2.BI.min);
+        bn.BI.max = blitz::max(b1.BI.max,b2.BI.max);
     }
 }
 
@@ -1171,7 +767,7 @@ void pkdTreeBuild(PKD pkd,int nBucket, int nGroup, uint32_t uRoot,uint32_t uTemp
     if (uRoot == FIXROOT) {
 #ifndef SINGLE_CACHES
         mdlROcache(pkd->mdl,CID_CELL2,pkdTreeNodeGetElement,pkd,pkd->NodeSize(),pkd->Nodes());
-        mdlROcache(pkd->mdl,CID_PARTICLE2,NULL,pkd->ParticleBase(),pkd->ParticleSize(),pkd->Local());
+        mdlROcache(pkd->mdl,CID_PARTICLE2,NULL,pkd->particles,pkd->particles.ParticleSize(),pkd->Local());
 #endif
     }
     else {
@@ -1187,14 +783,14 @@ void pkdTreeBuild(PKD pkd,int nBucket, int nGroup, uint32_t uRoot,uint32_t uTemp
 ** The array iGrpOffset[i] passed in here must have 2*pkd->nGroups entries!
 */
 void pkdGroupOrder(PKD pkd,uint32_t *iGrpOffset) {
-    uint32_t i,gid,iTree;
+    uint32_t i,iTree;
     uint32_t *iGrpEnd = &iGrpOffset[pkd->nGroups]; /* tricky because the 0th element is not used! */
 
     /* Count the number of particles in each group */
     for (i=0; i<=pkd->nGroups; ++i) iGrpOffset[i] = 0;
     for (i=0; i<pkd->Local(); ++i) {
-        auto p = pkd->Particle(i);
-        gid = pkdGetGroup(pkd,p);
+        auto P = pkd->particles[i];
+        auto gid = P.group();
         ++iGrpOffset[gid+1];
     }
     iGrpOffset[1] = 0;
@@ -1206,13 +802,13 @@ void pkdGroupOrder(PKD pkd,uint32_t *iGrpOffset) {
     /* Reorder the particles into group order */
     for (iTree=1; iTree<pkd->nGroups; ++iTree) {
         for (i=iGrpOffset[iTree]; i<iGrpEnd[iTree];) {
-            auto p = pkd->Particle(i);
-            gid = pkdGetGroup(pkd,p);
+            auto P = pkd->particles[i];
+            auto gid = P.group();
             if (!gid) gid = pkd->nGroups;
             if (gid == iTree) ++i;
             else {
-                PARTICLE *p2 = pkd->Particle(iGrpOffset[gid]++);
-                pkdSwapParticle(pkd,p,p2);
+                auto p2 = pkd->particles[iGrpOffset[gid]++];
+                swap(P,p2);
             }
         }
     }
@@ -1220,10 +816,7 @@ void pkdGroupOrder(PKD pkd,uint32_t *iGrpOffset) {
 
 
 void pkdTreeBuildByGroup(PKD pkd, int nBucket, int nGroup) {
-    PARTICLE *p;
-    KDN *pNode;
-    double r[3], dMin[3], dMax[3];
-    int i,j,k,n,gid,gid2,iRoot;
+    int i,k,n,iRoot;
     int iTree;
 
     /*
@@ -1242,18 +835,18 @@ void pkdTreeBuildByGroup(PKD pkd, int nBucket, int nGroup) {
     /*
     ** It is only forseen that there are 4 reserved nodes at present 0-NULL, 1-ROOT, 2-UNUSED, 3-VAROOT.
     */
-    pkd->SetNodeCount(NRESERVED_NODES);
+    pkd->tree.SetNodeCount(NRESERVED_NODES);
 
     if (pkd->hopSavedRoots == 0) {
         /* Sort particle by group, but with group 0 at the end */
-        int *iGrpOffset = CAST(int *,malloc(sizeof(int)*(pkd->nGroups+1)));
-        int *iGrpEnd = CAST(int *,malloc(sizeof(int)*(pkd->nGroups+1)));
+        auto iGrpOffset = new int[pkd->nGroups+1];
+        auto iGrpEnd = new int[pkd->nGroups+1];
 
         /* Count the number of particles in each group */
         for (i=0; i<=pkd->nGroups; ++i) iGrpOffset[i] = 0;
         for (i=0; i<pkd->Local(); ++i) {
-            p = pkd->Particle(i);
-            gid = pkdGetGroup(pkd,p);
+            auto P = pkd->particles[i];
+            auto gid = P.group();
             ++iGrpOffset[gid+1];
         }
         iGrpOffset[0] = iGrpOffset[1];
@@ -1266,97 +859,95 @@ void pkdTreeBuildByGroup(PKD pkd, int nBucket, int nGroup) {
 
         /* Now construct the top tree node for each group */
         i = 0;
-        for (gid=1; gid<pkd->nGroups; ++gid) {
+        for (auto gid=1; gid<pkd->nGroups; ++gid) {
             iRoot = pkd->TreeAllocRootNode();
             pkd->hopGroups[gid].iTreeRoot = iRoot;
-            pNode = pkd->TreeNode(iRoot);
-            pNode->pLower = i;
+            auto pNode = pkd->tree[iRoot];
             i = iGrpOffset[gid];
-            pNode->pUpper = i - 1;
+            pNode->set_local(i,i-1);
         }
 
         /* Reorder the particles into group order */
         for (iTree=1; iTree<pkd->nGroups; ++iTree) {
             for (i=iGrpOffset[iTree]; i<iGrpEnd[iTree]; ) {
-                p = pkd->Particle(i);
-                gid = pkdGetGroup(pkd,p);
+                auto P = pkd->particles[i];
+                auto gid = P.group();
                 if (gid==0) gid = pkd->nGroups;
                 if (gid == iTree) ++i;
                 else {
-                    PARTICLE *p2 = pkd->Particle(iGrpOffset[gid]++);
-                    pkdSwapParticle(pkd,p,p2);
+                    auto p2 = pkd->particles[iGrpOffset[gid]++];
+                    swap(P,p2);
                 }
             }
         }
 
-        free(iGrpOffset);
-        free(iGrpEnd);
+        delete [] iGrpOffset;
+        delete [] iGrpEnd;
 
         /* Calculate the bounds for each group */
         for (i=0; i<pkd->Local();) {
-            p = pkd->Particle(i);
-            pkdGetPos1(pkd,p,r);
-            gid = pkdGetGroup(pkd,p);
+            auto P = pkd->particles[i];
+            auto r = P.position();
+            auto gid = P.group();
             if (gid==0) break;
             iRoot = pkd->hopGroups[gid].iTreeRoot;
-            pNode = pkd->TreeNode(iRoot);
+            auto pNode = pkd->tree[iRoot];
 
-            pNode->iLower = 0;
-            pNode->bGroup = 1;
-            assert(pNode->pLower == i);
+            // pNode->iLower = 0;
+            pNode->set_group(true);
+            // assert(pNode->pLower == i);
 
-            for (j=0; j<3; ++j) dMin[j] = dMax[j] = r[j];
-            for (p = pkd->Particle(++i); i<pkd->Local() && pkdGetGroup(pkd,p)==gid; ++i) {
-                pkdGetPos1(pkd,p,r);
-                pkdMinMax(r,dMin,dMax);
+            auto dMin=r, dMax=r;
+            for (auto p = pkd->particles[++i]; i<pkd->Local() && p.group()==gid; ++i) {
+                r = p.position();
+                dMin = blitz::min(dMin,r);
+                dMax = blitz::max(dMax,r);
             }
-            pkdNodeSetBndMinMax(pkd,pNode,dMin,dMax);
-            assert(pNode->pUpper == i-1);
+            pNode->set_bound(Bound(dMin,dMax));
+            // assert(pNode->pUpper == i-1);
         }
         /* We can use this to quickly rebuild the trees */
         pkd->hopSavedRoots = pkd->Nodes();
     }
     else {
-        pkd->SetNodeCount(pkd->hopSavedRoots);
-        for (gid2=1; gid2<pkd->nGroups; ++gid2) {
+        pkd->tree.SetNodeCount(pkd->hopSavedRoots);
+        for (auto gid2=1; gid2<pkd->nGroups; ++gid2) {
             if (!pkd->hopGroups[gid2].bNeedGrav) continue;
             iRoot = pkd->hopGroups[gid2].iTreeRoot;
-            pNode = pkd->TreeNode(iRoot);
-            pNode->iLower = 0;
-            pNode->bGroup = 1;
-            n = pNode->pUpper;
-            for (i=pNode->pLower; i<=n; ) {
-                p = pkd->Particle(i);
-                pkdGetPos1(pkd,p,r);
-                gid = pkdGetGroup(pkd,p);
+            auto pNode = pkd->tree[iRoot];
+            // pNode->iLower = 0;
+            pNode->set_group(true);
+            n = pNode->upper();
+            blitz::TinyVector<double,3> dMin, dMax;
+            for (i=pNode->lower(); i<=n; ) {
+                auto p = pkd->particles[i];
+                auto r = p.position();
+                auto gid = p.group();
                 if (gid) {
                     assert(gid==gid2);
-                    if (i==pNode->pLower) {
-                        for (j=0; j<3; ++j) dMin[j] = dMax[j] = r[j];
-                    }
+                    if (i==pNode->lower()) dMin = dMax = r;
                     else {
-                        for (j=0; j<3; ++j) r[j] = r[j];
-                        pkdMinMax(r,dMin,dMax);
+                        dMin = blitz::min(dMin,r);
+                        dMax = blitz::max(dMax,r);
                     }
                     ++i;
                 }
                 else {
-                    PARTICLE *p2 = pkd->Particle(n--);
-                    pkdSwapParticle(pkd,p,p2);
+                    auto p2 = pkd->particles[n--];
+                    swap(p,p2);
                 }
             }
             assert(k==n+1);
-            pNode->pUpper = n;
-            Bound bnd(dMin,dMax);
-            pkdNodeSetBnd(pkd, pNode, &bnd);
+            pNode->set_local(pNode->lower(),n);
+            pNode->set_bound(Bound(dMin,dMax));
         }
     }
 
 
-    for (gid=1; gid<pkd->nGroups; ++gid)
+    for (auto gid=1; gid<pkd->nGroups; ++gid)
         if (pkd->hopGroups[gid].bNeedGrav)
             BuildTemp(pkd,pkd->hopGroups[gid].iTreeRoot,nBucket,nGroup,HUGE_VAL);
-    for (gid=1; gid<pkd->nGroups; ++gid)
+    for (auto gid=1; gid<pkd->nGroups; ++gid)
         if (pkd->hopGroups[gid].bNeedGrav)
             Create(pkd,pkd->hopGroups[gid].iTreeRoot,0.0);
     /*
@@ -1368,43 +959,6 @@ void pkdTreeBuildByGroup(PKD pkd, int nBucket, int nGroup) {
 
 }
 
-/*
-** Hopefully we can bypass this step once we figure out how to do the
-** Multipole Ewald with reduced multipoles.
-*/
-void pkdCalcRoot(PKD pkd,uint32_t uRoot,double *com,MOMC *pmom) {
-    PARTICLE *p;
-    double xr = com[0];
-    double yr = com[1];
-    double zr = com[2];
-    double x,y,z;
-    double fMass;
-    MOMC mc;
-    KDN *kdn = pkd->TreeNode(uRoot);
-    int i = kdn->pLower;
-    if (kdn->pLower > kdn->pUpper) momClearMomc(pmom);
-    else {
-        p = pkd->Particle(i);
-        pkdGetPos3(pkd,p,x,y,z);
-        x -= xr;
-        y -= yr;
-        z -= zr;
-        fMass = pkdMass(pkd,p);
-        momMakeMomc(pmom,fMass,x,y,z);
-        for (++i; i<=kdn->pUpper; ++i) {
-            p = pkd->Particle(i);
-            pkdGetPos3(pkd,p,x,y,z);
-            fMass = pkdMass(pkd,p);
-            x -= xr;
-            y -= yr;
-            z -= zr;
-            momMakeMomc(&mc,fMass,x,y,z);
-            momAddMomc(pmom,&mc);
-        }
-    }
-}
-
-
 void pkdDistribRoot(PKD pkd,double *r,MOMC *pmom) {
     pkd->ew.r[0] = r[0];
     pkd->ew.r[1] = r[1];
@@ -1413,112 +967,43 @@ void pkdDistribRoot(PKD pkd,double *r,MOMC *pmom) {
 }
 
 void pkdTreeUpdateFlagBoundsRecurse(PKD pkd,uint32_t uRoot,SPHOptions *SPHoptions) {
-    KDN *c,*cLow,*cUp;
-    int id,idLo,iCellLo,idUp,iCellUp;
-    id = 0;
-    PARTICLE *p;
+    int id = 0;
     int pj;
-    float fBallFactor;
-    double ft[3];
 
-    if (!pkd->oNodeBOB) return; // We aren't keeping track of the bounds
-    if (SPHoptions->dofBallFactor) {
-        fBallFactor = pkd->SPHoptions.fBallFactor;
+    if (!pkd->tree.present(KDN_FIELD::oNodeBOB)) return; // We aren't keeping track of the bounds
+    float fBallFactor = (SPHoptions->dofBallFactor) ? pkd->SPHoptions.fBallFactor : 1.0f;
+
+    auto c = pkd->tree[uRoot];
+    auto &SPHbob = pkd->NodeBOB(c);
+
+    if (c->is_bucket()) {
+        pj = c->lower();
+        auto p = pkd->particles[pj];
+        auto ft = p.position();
+        float limitedBallSize = std::min(pkd->SPHoptions.ballSizeLimit,fBallFactor * p.ball());
+        SPHbob = SPHBOB(ft,limitedBallSize);
+        if (p.marked()) c->set_marked(true);
+        if (p.NN_flag()) c->set_NN(true);
+        for (++pj; pj<=c->upper(); ++pj) {
+            auto p = pkd->particles[pj];
+            auto ft = p.position();
+            float limitedBallSize = std::min(pkd->SPHoptions.ballSizeLimit,fBallFactor * p.ball());
+            SPHbob = SPHbob.combine(ft,limitedBallSize);
+            if (p.marked()) c->set_marked(true);
+            if (p.NN_flag()) c->set_NN(true);
+        }
     }
     else {
-        fBallFactor = 1.0f;
-    }
-
-    c = pkd->TreeNode(uRoot);
-    auto SPHbob = pkd->NodeBOB(c);
-
-    if (c->iLower == 0) {
-        pj = c->pLower;
-        p = pkd->Particle(pj);
-        pkdGetPos1(pkd,p,ft);
-#if SPHBALLOFBALLS
-        double fBoBr, fBoBxCenter, fBoByCenter, fBoBzCenter;
-        fBoBr = fmin(pkd->SPHoptions.ballSizeLimit,fBallFactor * pkdBall(pkd,p));
-        fBoBxCenter = ft[0];
-        fBoByCenter = ft[1];
-        fBoBzCenter = ft[2];
-#endif
-#if SPHBOXOFBALLS
-        float limitedBallSize = fmin(pkd->SPHoptions.ballSizeLimit,fBallFactor * pkdBall(pkd,p));
-        SPHbob->fBoBxMin = ft[0] - limitedBallSize;
-        SPHbob->fBoBxMax = ft[0] + limitedBallSize;
-        SPHbob->fBoByMin = ft[1] - limitedBallSize;
-        SPHbob->fBoByMax = ft[1] + limitedBallSize;
-        SPHbob->fBoBzMin = ft[2] - limitedBallSize;
-        SPHbob->fBoBzMax = ft[2] + limitedBallSize;
-#endif
-        if (p->bMarked) {
-            c->bHasMarked = 1;
-        }
-#ifdef NN_FLAG_IN_PARTICLE
-        if (p->bNNflag) {
-            c->bHasNNflag = 1;
-        }
-#endif
-        for (++pj; pj<=c->pUpper; ++pj) {
-            p = pkd->Particle(pj);
-            pkdGetPos1(pkd,p,ft);
-#if SPHBALLOFBALLS
-            CombineBallOfBalls(fBoBr,fBoBxCenter,fBoByCenter,fBoBzCenter,fmin(pkd->SPHoptions.ballSizeLimit,fBallFactor * pkdBall(pkd,p)),ft[0],ft[1],ft[2],fBoBr,fBoBxCenter,fBoByCenter,fBoBzCenter);
-#endif
-#if SPHBOXOFBALLS
-            float limitedBallSize = fmin(pkd->SPHoptions.ballSizeLimit,fBallFactor * pkdBall(pkd,p));
-            SPHbob->fBoBxMin = fmin(SPHbob->fBoBxMin,ft[0] - limitedBallSize);
-            SPHbob->fBoBxMax = fmax(SPHbob->fBoBxMax,ft[0] + limitedBallSize);
-            SPHbob->fBoByMin = fmin(SPHbob->fBoByMin,ft[1] - limitedBallSize);
-            SPHbob->fBoByMax = fmax(SPHbob->fBoByMax,ft[1] + limitedBallSize);
-            SPHbob->fBoBzMin = fmin(SPHbob->fBoBzMin,ft[2] - limitedBallSize);
-            SPHbob->fBoBzMax = fmax(SPHbob->fBoBzMax,ft[2] + limitedBallSize);
-#endif
-            if (p->bMarked) {
-                c->bHasMarked = 1;
-            }
-#ifdef NN_FLAG_IN_PARTICLE
-            if (p->bNNflag) {
-                c->bHasNNflag = 1;
-            }
-#endif
-        }
-#if SPHBALLOFBALLS
-        SPHbob->fBoBxCenter = fBoBxCenter;
-        SPHbob->fBoByCenter = fBoByCenter;
-        SPHbob->fBoBzCenter = fBoBzCenter;
-        SPHbob->fBoBr2 = fBoBr * fBoBr;
-#endif
-    }
-    else {
-        pkdGetChildCells(c,id,idLo,iCellLo,idUp,iCellUp);
+        auto [iCellLo,idLo,iCellUp,idUp] = c->get_child_cells(id);
         pkdTreeUpdateFlagBoundsRecurse(pkd,iCellLo,SPHoptions);
         pkdTreeUpdateFlagBoundsRecurse(pkd,iCellUp,SPHoptions);
-        cLow = pkd->TreeNode(iCellLo);
-        cUp = pkd->TreeNode(iCellUp);
-        auto SPHbobLow = pkd->NodeBOB(cLow);
-        auto SPHbobUp = pkd->NodeBOB(cUp);
-#if SPHBALLOFBALLS
-        double fBoBr,fBoBxCenter,fBoByCenter,fBoBzCenter;
-        CombineBallOfBalls(sqrt(SPHbobLow->fBoBr2),SPHbobLow->fBoBxCenter,SPHbobLow->fBoByCenter,SPHbobLow->fBoBzCenter,sqrt(SPHbobUp->fBoBr2),SPHbobUp->fBoBxCenter,SPHbobUp->fBoByCenter,SPHbobUp->fBoBzCenter,fBoBr,fBoBxCenter,fBoByCenter,fBoBzCenter);
-        SPHbob->fBoBxCenter = fBoBxCenter;
-        SPHbob->fBoByCenter = fBoByCenter;
-        SPHbob->fBoBzCenter = fBoBzCenter;
-        SPHbob->fBoBr2 = fBoBr * fBoBr;
-#endif
-#if SPHBOXOFBALLS
-        SPHbob->fBoBxMin = fmin(SPHbobLow->fBoBxMin,SPHbobUp->fBoBxMin);
-        SPHbob->fBoBxMax = fmax(SPHbobLow->fBoBxMax,SPHbobUp->fBoBxMax);
-        SPHbob->fBoByMin = fmin(SPHbobLow->fBoByMin,SPHbobUp->fBoByMin);
-        SPHbob->fBoByMax = fmax(SPHbobLow->fBoByMax,SPHbobUp->fBoByMax);
-        SPHbob->fBoBzMin = fmin(SPHbobLow->fBoBzMin,SPHbobUp->fBoBzMin);
-        SPHbob->fBoBzMax = fmax(SPHbobLow->fBoBzMax,SPHbobUp->fBoBzMax);
-#endif
-        c->bHasMarked = cLow->bHasMarked || cUp->bHasMarked;
-#ifdef NN_FLAG_IN_PARTICLE
-        c->bHasNNflag = cLow->bHasNNflag || cUp->bHasNNflag;
-#endif
+        auto cLow = pkd->tree[iCellLo];
+        auto cUp = pkd->tree[iCellUp];
+        auto &SPHbobLow = cLow->BOB();
+        auto &SPHbobUp = cUp->BOB();
+        SPHbob = SPHbobLow.combine(SPHbobUp);
+        c->set_marked(cLow->is_marked() || cUp->is_marked());
+        c->set_NN(cLow->is_NN() || cUp->is_NN());
     }
 }
 

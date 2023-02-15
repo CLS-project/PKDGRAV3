@@ -34,7 +34,7 @@
 ** This version will also open buckets ("new" criteria)
 */
 
-void iOpenOutcomeBlock(PKD pkd,const KDN *k,int n,clBlock &blk,float dThetaMin,SPHOptions *SPHoptions) {
+void iOpenOutcomeBlock(PKD pkd,treeStore::NodePointer k,int n,clBlock &blk,float dThetaMin,SPHOptions *SPHoptions) {
     const float walk_min_multipole = 3;
     fmask T0,T1,T2,T3,T4,T6,T7;
     i32v P1,P2,P3,P4;
@@ -51,14 +51,13 @@ void iOpenOutcomeBlock(PKD pkd,const KDN *k,int n,clBlock &blk,float dThetaMin,S
     fvec k_xMinBnd, k_yMinBnd, k_zMinBnd, k_xMaxBnd, k_yMaxBnd, k_zMaxBnd;
     fvec k_x, k_y, k_z, k_bMax, k_Open;
     fmask k_notgrp;
-    double k_r[3];
-    pkdNodeGetPos(pkd,k,k_r);
+    auto k_r = k->position();
 
-    assert ( pkdNodeMom(pkd,k)->m > 0.0f );
+    assert ( k->moment().m > 0.0f );
 
     diCrit = 1.0f/dThetaMin;
 
-    Bound kbnd = pkdNodeGetBnd(pkd,k);
+    auto kbnd = k->bound();
     k_xMinBnd = kbnd.lower(0);
     k_yMinBnd = kbnd.lower(1);
     k_zMinBnd = kbnd.lower(2);
@@ -68,18 +67,18 @@ void iOpenOutcomeBlock(PKD pkd,const KDN *k,int n,clBlock &blk,float dThetaMin,S
     k_xCenter = kbnd.center(0);
     k_yCenter = kbnd.center(1);
     k_zCenter = kbnd.center(2);
-    k_xMax = 0.5*kbnd.width(0);
-    k_yMax = 0.5*kbnd.width(1);
-    k_zMax = 0.5*kbnd.width(2);
+    k_xMax = kbnd.apothem(0);
+    k_yMax = kbnd.apothem(1);
+    k_zMax = kbnd.apothem(2);
     k_x = k_r[0];
     k_y = k_r[1];
     k_z = k_r[2];
-    k_bMax = k->bMax;
-    k_notgrp = cvt_fvec(i32v(k->bGroup)) == 0.0;
+    k_bMax = k->bMax();
+    k_notgrp = cvt_fvec(i32v(k->is_group())) == 0.0;
     k_Open = 1.5f*k_bMax*diCrit;
-    auto SPHbob = pkd->oNodeBOB ? pkd->NodeBOB(k) : &SPHbobVOID;
+    const auto &SPHbob = k->have_BOB() ? k->BOB() : SPHBOB();
 #if SPHBALLOFBALLS
-    fvec k_fBoBr2 = SPHbob->fBoBr2;
+    fvec k_fBoBr2 = SPHbob.fBoBr * SPHbob.fBoBr;
     fvec blk_fBoBr2 = 0.0f;
     distk2 = HUGE_VALF;
     distc2 = HUGE_VALF;
@@ -93,33 +92,33 @@ void iOpenOutcomeBlock(PKD pkd,const KDN *k,int n,clBlock &blk,float dThetaMin,S
     for (i=0; i<n; ++i) {
         fourh2 = blk.fourh2.v[i];
 
-        if (pkd->oNodeBOB) {
+        if (pkd->tree.present(KDN_FIELD::oNodeBOB)) {
             if (SPHoptions->doDensity || SPHoptions->doDensityCorrection || SPHoptions->doSPHForces || SPHoptions->doSetDensityFlags || SPHoptions->doSetNNflags) {
 #if SPHBALLOFBALLS
                 distk2 = 0.0f;
-                dx = SPHbob->fBoBxCenter - blk.xCenter.v[i] - blk.xOffset.v[i] - blk.xMax.v[i];
+                dx = SPHbob.fBoBCenter[0] - blk.xCenter.v[i] - blk.xOffset.v[i] - blk.xMax.v[i];
                 distk2 += maskz_mov(dx>0,dx*dx);
-                dx = blk.xCenter.v[i] + blk.xOffset.v[i] - blk.xMax.v[i] - SPHbob->fBoBxCenter;
-                distk2 += maskz_mov(dx>0,dx*dx);
-
-                dx = SPHbob->fBoByCenter - blk.yCenter.v[i] - blk.yOffset.v[i] - blk.yMax.v[i];
-                distk2 += maskz_mov(dx>0,dx*dx);
-                dx = blk.yCenter.v[i] + blk.yOffset.v[i] - blk.yMax.v[i] - SPHbob->fBoByCenter;
+                dx = blk.xCenter.v[i] + blk.xOffset.v[i] - blk.xMax.v[i] - SPHbob.fBoBCenter[0];
                 distk2 += maskz_mov(dx>0,dx*dx);
 
-                dx = SPHbob->fBoBzCenter - blk.zCenter.v[i] - blk.zOffset.v[i] - blk.zMax.v[i];
+                dx = SPHbob.fBoBCenter[1] - blk.yCenter.v[i] - blk.yOffset.v[i] - blk.yMax.v[i];
                 distk2 += maskz_mov(dx>0,dx*dx);
-                dx = blk.zCenter.v[i] + blk.zOffset.v[i] - blk.zMax.v[i] - SPHbob->fBoBzCenter;
+                dx = blk.yCenter.v[i] + blk.yOffset.v[i] - blk.yMax.v[i] - SPHbob.fBoBCenter[1];
+                distk2 += maskz_mov(dx>0,dx*dx);
+
+                dx = SPHbob.fBoBCenter[2] - blk.zCenter.v[i] - blk.zOffset.v[i] - blk.zMax.v[i];
+                distk2 += maskz_mov(dx>0,dx*dx);
+                dx = blk.zCenter.v[i] + blk.zOffset.v[i] - blk.zMax.v[i] - SPHbob.fBoBCenter[2];
                 distk2 += maskz_mov(dx>0,dx*dx);
                 intersect1 = distk2 < k_fBoBr2;
 #endif
 #if SPHBOXOFBALLS
-                box1xMin = SPHbob->fBoBxMin;
-                box1xMax = SPHbob->fBoBxMax;
-                box1yMin = SPHbob->fBoByMin;
-                box1yMax = SPHbob->fBoByMax;
-                box1zMin = SPHbob->fBoBzMin;
-                box1zMax = SPHbob->fBoBzMax;
+                box1xMin = SPHbob.fBoBMin[0];
+                box1xMax = SPHbob.fBoBMax[0];
+                box1yMin = SPHbob.fBoBMin[1];
+                box1yMax = SPHbob.fBoBMax[1];
+                box1zMin = SPHbob.fBoBMin[2];
+                box1zMax = SPHbob.fBoBMax[2];
                 box2xMin = blk.xCenter.v[i] + blk.xOffset.v[i] - blk.xMax.v[i];
                 box2xMax = blk.xCenter.v[i] + blk.xOffset.v[i] + blk.xMax.v[i];
                 box2yMin = blk.yCenter.v[i] + blk.yOffset.v[i] - blk.yMax.v[i];
@@ -131,7 +130,7 @@ void iOpenOutcomeBlock(PKD pkd,const KDN *k,int n,clBlock &blk,float dThetaMin,S
             }
             if (SPHoptions->doSPHForces || SPHoptions->doSetDensityFlags || SPHoptions->doSetNNflags) {
 #if SPHBALLOFBALLS
-                blk_fBoBr2 = blk.fBoBr2.v[i];
+                blk_fBoBr2 = blk.fBoBr.v[i] * blk.fBoBr.v[i];
                 distc2 = 0.0f;
                 dx = k_xMinBnd - blk.fBoBxCenter.v[i] - blk.xOffset.v[i];
                 distc2 += maskz_mov(dx>0,dx*dx);
@@ -225,7 +224,7 @@ void iOpenOutcomeBlock(PKD pkd,const KDN *k,int n,clBlock &blk,float dThetaMin,S
     pkd->dFlopSingleCPU += dFlop;
 }
 
-void iOpenOutcomeSIMD(PKD pkd,KDN *k,clTile &tile,float dThetaMin,SPHOptions *SPHoptions) {
+void iOpenOutcomeSIMD(PKD pkd,treeStore::NodePointer k,clTile &tile,float dThetaMin,SPHOptions *SPHoptions) {
     // Do the full blocks, followed by the last (probably not full) block
     auto nBlocks = tile.count() / tile.width;
     for (auto iBlock=0; iBlock<nBlocks; ++iBlock) {

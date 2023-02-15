@@ -19,23 +19,24 @@
 #define IC_H
 
 #include <stdint.h>
+#include "blitz/array.h"
 
 typedef struct {
-    float dr[3];
-    float v[3];
+    blitz::TinyVector<float,3> dr;
+    blitz::TinyVector<float,3> v;
 } basicParticle;
 
 typedef struct {
     uint64_t ix : 21;
     uint64_t iy : 21;
     uint64_t iz : 21;
-    float dr[3];
-    float v[3];
+    blitz::TinyVector<float,3> dr;
+    blitz::TinyVector<float,3> v;
 } expandParticle;
 
 typedef struct {
-    int32_t r[3];
-    float v[3];
+    blitz::TinyVector<int32_t,3> r;
+    blitz::TinyVector<float,3> v;
 } integerParticle;
 
 typedef union {
@@ -55,9 +56,6 @@ typedef struct {
     FFTW3(real) vx,vy,vz;
 } gridpsc;
 
-#ifdef __cplusplus
-    extern "C"
-#endif
 int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int bFixed,float fPhase,int nGrid,int b2LPT,double dBoxSize,
                   double a,int nTf, double *tk, double *tf, double *noiseMean, double *noiseCSQ);
 #endif

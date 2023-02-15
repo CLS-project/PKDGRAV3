@@ -1,6 +1,8 @@
 #ifdef FEEDBACK
+#include <numeric>
 #include "starformation/feedback.h"
 #include "master.h"
+using blitz::all;
 
 void MSR::SetFeedbackParam() {
     const double dHydFrac = param.dInitialH;
@@ -13,57 +15,46 @@ void MSR::SetFeedbackParam() {
     }
 }
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /* Function that will be called with the information of all the neighbors.
  * Here we compute the probability of explosion, and we add the energy to the
  * surroinding gas particles
  */
-void smSNFeedback(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
+void smSNFeedback(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
-    PARTICLE *q;
-    SPHFIELDS *qsph;
+    auto p = pkd->particles[pIn];
     int i;
 
-    float totMass = 0;
-    for (i=0; i<nSmooth; ++i) {
-        q = nnList[i].pPart;
-
-        totMass += pkdMass(pkd,q);
-    }
-    totMass -= pkdMass(pkd,p);
+    auto totMass = std::accumulate(nnList,nnList+nSmooth,0.0f,[pkd](auto &a,auto &b) { return a + pkd->particles[b.pPart].mass();}) - p.mass();
 
     // We could unify this factors in order to avoid more operations
     // (although I think wont make a huge change anyway)
     // There is no need to explicitly convert to solar masses
     // becuse we are doing a ratio
-    const double prob = pkdStar(pkd,p)->fSNEfficiency *
+    const double prob = p.star().fSNEfficiency *
                         smf->dSNFBNumberSNperMass *
-                        pkdMass(pkd,p) / (smf->dSNFBDu*totMass);
+                        p.mass() / (smf->dSNFBDu*totMass);
 
 
     assert(prob<1.0);
     for (i=0; i<nSmooth; ++i) {
-        if (nnList[i].dx==0 && nnList[i].dy==0 && nnList[i].dz==0) continue;
+        if (all(nnList[i].dr==0)) continue;
 
         if (rand()<RAND_MAX*prob) { // We have a supernova explosion!
-            q = nnList[i].pPart;
-            qsph = pkdSph(pkd,q);
+            auto q = pkd->particles[nnList[i].pPart];
+            auto &qsph = q.sph();
             //printf("Uint %e extra %e \n",
             //   qsph->Uint, pkd->param.dFeedbackDu * pkdMass(pkd,q));
 
-            const double feed_energy = smf->dSNFBDu * pkdMass(pkd,q);
+            const double feed_energy = smf->dSNFBDu * q.mass();
 #ifdef OLD_FB_SCHEME
-            qsph->Uint += feed_energy;
-            qsph->E += feed_energy;
+            qsph.Uint += feed_energy;
+            qsph.E += feed_energy;
 #ifdef ENTROPY_SWITCH
-            qsph->S += feed_energy*(smf->dConstGamma-1.) *
-                       pow(pkdDensity(pkd,q), -smf->dConstGamma+1);
+            qsph.S += feed_energy*(smf->dConstGamma-1.) *
+                      pow(q.density(), -smf->dConstGamma+1);
 #endif
 #else // OLD_BH_SCHEME
-            qsph->fAccFBEnergy += feed_energy;
+            qsph.fAccFBEnergy += feed_energy;
 #endif
 
             //printf("Adding SN energy! \n");
@@ -76,19 +67,19 @@ void smSNFeedback(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
 void initSNFeedback(void *vpkd, void *vp) {
     PKD pkd = (PKD) vpkd;
-    PARTICLE *p = (PARTICLE *) vp;
+    auto p = pkd->particles[static_cast<PARTICLE *>(vp)];
 
-    if (pkdIsGas(pkd,p)) {
-        SPHFIELDS *psph = pkdSph(pkd,p);
+    if (p.is_gas()) {
+        auto &sph = p.sph();
 
 #ifdef OLD_FB_SCHEME
-        psph->Uint = 0.;
-        psph->E = 0.;
+        sph.Uint = 0.;
+        sph.E = 0.;
 #ifdef ENTROPY_SWITCH
-        psph->S = 0.;
+        sph.S = 0.;
 #endif
 #else // OLD_FB_SCHEME
-        psph->fAccFBEnergy = 0.;
+        sph.fAccFBEnergy = 0.;
 #endif
     }
 
@@ -97,28 +88,25 @@ void initSNFeedback(void *vpkd, void *vp) {
 
 void combSNFeedback(void *vpkd, void *v1, const void *v2) {
     PKD pkd = (PKD) vpkd;
-    PARTICLE *p1 = (PARTICLE *) v1;
-    PARTICLE *p2 = (PARTICLE *) v2;
+    auto p1 = pkd->particles[static_cast<PARTICLE *>(v1)];
+    auto p2 = pkd->particles[static_cast<const PARTICLE *>(v2)];
 
-    if (pkdIsGas(pkd,p1) && pkdIsGas(pkd,p2)) {
-
-        SPHFIELDS *psph1 = pkdSph(pkd,p1), *psph2 = pkdSph(pkd,p2);
+    if (p1.is_gas() && p2.is_gas()) {
+        auto &sph1 = p1.sph();
+        const auto &sph2 = p2.sph();
 
 #ifdef OLD_FB_SCHEME
-        psph1->Uint += psph2->Uint;
-        psph1->E += psph2->E;
+        sph1.Uint += sph2.Uint;
+        sph1.E += sph2.E;
 #ifdef ENTROPY_SWITCH
-        psph1->S += psph2->S;
+        sph1.S += sph2.S;
 #endif
 #else //OLD_FB_SCHEME
-        psph1->fAccFBEnergy += psph2->fAccFBEnergy;
+        sph1.fAccFBEnergy += sph2.fAccFBEnergy;
 #endif
 
     }
 
 }
 
-#ifdef __cplusplus
-}
-#endif
 #endif // FEEDBACK

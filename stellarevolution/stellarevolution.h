@@ -90,7 +90,7 @@ struct inStellarEvolutionInit {
 
 int pstStellarEvolutionInit(PST, void *, int, void *, int);
 int pkdStellarEvolutionInit(PKD, struct inStellarEvolutionInit *);
-void pkdAddStellarEjecta(PKD, PARTICLE *, SPHFIELDS *, const double);
+void pkdAddStellarEjecta(PKD, particleStore::ParticleReference &, SPHFIELDS *, const double);
 
 void smChemEnrich(PARTICLE *p, float fBall, int nSmooth, NN *nnList, SMF *smf);
 void initChemEnrich(void *vpkd, void *vp);

@@ -19,6 +19,7 @@
 #define CORE_DATAFIELDS_H
 
 #include <vector>
+#include <algorithm>
 #include "blitz/array.h"
 
 //! \brief Track offset of optional data fields
@@ -28,12 +29,15 @@
 //! are present, and their offset in the structure.
 template<typename DATA,typename FIELD>
 class dataFields {
+public:
+    using field = FIELD;
 protected:
     std::vector<int> oFieldOffset;  //!< The offset (in bytes) to each field of the element
-    size_t iElementSize = 0;        //!< Size (in bytes) of a single element
-    size_t nElementAlign = 0;       //!< Requirement alignment of the element (usually 4 or 8)
+    size_t iElementSize = sizeof(DATA);     //!< Size (in bytes) of a single element
+    size_t nElementAlign = alignof(DATA);   //!< Requirement alignment of the element (usually 4 or 8)
     size_t iElement32 = 0;
 public:
+    dataFields() : oFieldOffset(static_cast<size_t>(FIELD::MAX_FIELD),0) {}
     //! Setup the field offsets for adding fields.
     //! Here we set the basic size of the element to a fixed value (the header size).
     //! Following this call, "add" is called for each element that should be present.
@@ -64,12 +68,19 @@ public:
     //! \param f The field id
     template<typename T,std::enable_if_t<!std::is_void_v<T>,bool> = true>
     void add(FIELD f) {
-        static_assert(std::is_void_v<T> || std::alignment_of_v<T> == 4 || std::alignment_of_v<T> == 8);
+        static_assert(std::is_standard_layout<T>());
+        static_assert(std::is_void_v<T> || alignof(T) <= 4 || alignof(T) == 8);
         int iOffset = iElementSize;
-        int iAlign = std::alignment_of_v<T>;
-        if (iAlign==4 && iElement32 && sizeof(T)==4) {
+        int iAlign = std::max(4ul,alignof(T));
+        if (iAlign==4 && iElement32 && (sizeof(T)%8)) {
             iOffset = iElement32;
             iElement32 = 0;
+            auto iExtra = sizeof(T) - 4;
+            assert(iExtra%8 == 0);
+            for (auto &i : oFieldOffset) {
+                if (i>iOffset) i += iExtra;
+            }
+            iElementSize += iExtra;
         }
         else {
             auto iMask = iOffset & (iAlign-1);
@@ -86,36 +97,46 @@ public:
 public:
     //! Returns true if the field is present, otherwise false.
     //! \param f The field id
-    auto present(FIELD f) const {return oFieldOffset[static_cast<unsigned int>(f)]!= 0;}
+    auto present(FIELD f) const noexcept {return oFieldOffset[static_cast<unsigned int>(f)]!= 0;}
     //! Returns a pointer to the field if present or nullptr if not.
     //! \param p Pointer to an element
     //! \param f The field id
-    template<typename T>
-    auto get(const DATA *p,FIELD f) const {
+    template<typename T,std::enable_if_t<!std::is_array_v<T>,bool> = true>
+    const auto & get(const DATA *p,FIELD f) const noexcept {
         auto v = reinterpret_cast<const char *>(p);
-        return reinterpret_cast<const T *>(v + oFieldOffset[static_cast<unsigned int>(f)]);
+        return * reinterpret_cast<const T *>(v + oFieldOffset[static_cast<unsigned int>(f)]);
     }
     //! Returns a pointer to the field if present or nullptr if not.
     //! \param p Pointer to an element
     //! \param f The field id
-    template<typename T>
-    auto get(DATA *p,FIELD f) const {
+    template<typename T,std::enable_if_t<!std::is_array_v<T>,bool> = true>
+    auto & get(DATA *p,FIELD f) const noexcept {
         auto v = reinterpret_cast<char *>(p);
-        return reinterpret_cast<T *>(v + oFieldOffset[static_cast<unsigned int>(f)]);
+        return * reinterpret_cast<T *>(v + oFieldOffset[static_cast<unsigned int>(f)]);
     }
+
     //! Returns the field as a blitz++ TinyVector.
     //! \param p Pointer to an element
     //! \param f The field id
-    template<typename T,int n>
-    blitz::TinyVector<T,n> get(const DATA *p,FIELD f) const {
-        return blitz::TinyVector<T,n>(get<T>(p,f));
+    template<typename T,std::enable_if_t<std::rank_v<T> == 1,bool> = true>
+    const auto &get(const DATA *p,FIELD f) const noexcept {
+        return get<blitz::TinyVector<typename std::remove_extent<T>::type,std::extent_v<T>>>(p,f);
     }
+
+    //! Returns the field as a blitz++ TinyVector.
+    //! \param p Pointer to an element
+    //! \param f The field id
+    template<typename T,std::enable_if_t<std::rank_v<T> == 1,bool> = true>
+    auto &get(DATA *p,FIELD f) const noexcept {
+        return get<blitz::TinyVector<typename std::remove_extent<T>::type,std::extent_v<T>>>(p,f);
+    }
+
     //! Returns the size (in bytes) of an element (all fields).
-    auto ElementSize() const {return iElementSize; }
+    auto ElementSize() const noexcept {return iElementSize; }
     //! Returns a pointer to the i'th element at pBase.
     //! \param pBase Pointer to the first element
     //! \param i Index of the desired element
-    DATA *Element(void *pBase, int i) const {
+    DATA *Element(void *pBase, int i) const noexcept {
         auto v = static_cast<char *>(pBase);
         return reinterpret_cast<DATA *>(v + ((uint64_t)i)*ElementSize());
     }

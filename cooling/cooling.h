@@ -37,7 +37,7 @@ void pkd_cooling_update(PKD pkd, struct inCoolUpdate *in);
 
 void cooling_cool_part(PKD pkd,
                        const struct cooling_function_data *cooling,
-                       PARTICLE *p, SPHFIELDS *psph,
+                       particleStore::ParticleReference &p, SPHFIELDS *psph,
                        const float dt, const double time,
                        const float delta_redshift, const double redshift);
 
@@ -45,7 +45,7 @@ void cooling_cool_part(PKD pkd,
 
 float cooling_get_temperature(PKD pkd, const float redshift,
                               const struct cooling_function_data *restrict cooling,
-                              PARTICLE *p, SPHFIELDS *psph);
+                              particleStore::Particle &p, SPHFIELDS *psph);
 
 
 void cooling_Hydrogen_reionization(PKD pkd);

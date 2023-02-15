@@ -34,6 +34,7 @@
 #include <array>
 #include <tuple>
 
+#include "blitz/array.h"
 #include <boost/intrusive/list.hpp>
 #include <boost/fusion/include/algorithm.hpp>
 #include <boost/fusion/include/adapt_struct.hpp>
@@ -68,17 +69,14 @@
 
 namespace ilist {
 class ilCenterReference {
-    double dCenter[3] {0.0,0.0,0.0};
+    typedef blitz::TinyVector<double,3> double3;
+    typedef blitz::TinyVector<float,3> float3;
+    double3 dCenter = 0.0;
 public:
-    double getReference(int i) const {return dCenter[i];}
-    void setReference(double x,double y,double z) {
-        dCenter[0] = x;
-        dCenter[1] = y;
-        dCenter[2] = z;
-    }
-    auto get_dr(double x,double y,double z) {
-        return std::make_tuple<float,float,float>(x-dCenter[0],y-dCenter[1],z-dCenter[2]);
-    }
+    auto getReference()          const { return dCenter; }
+    auto getReference(int i)     const { return dCenter[i]; }
+    void setReference(double3 r)       { dCenter = r; }
+    auto get_dr(double3 r)       const { return float3(r-dCenter); }
 };
 
 // template<typename SCALAR,typename VECTOR,int N> struct ilBlockBase;

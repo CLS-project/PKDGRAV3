@@ -39,11 +39,10 @@ extern "C" {
 
 
 void pkdBHInit(PKD pkd, uint8_t uRungMax) {
-    for (int i=0; i<pkdLocal(pkd); i++) {
-        PARTICLE *p = pkdParticle(pkd,i);
-        if (pkdIsBH(pkd,p)) {
-            p->uRung = uRungMax;
-            p->uNewRung = uRungMax;
+    for (auto &p : pkd->particles) {
+        if (p.is_bh()) {
+            p.set_rung(uRungMax);
+            p.set_new_rung(uRungMax);
         }
     }
 }

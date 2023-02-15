@@ -58,7 +58,7 @@ void pkdProcessLightCone(PKD pkd,PARTICLE *p,float fPot,double dLookbackFac,doub
     if (dxStart < 0) dxStart = 0;
 
 
-    const vel_t *v = pkdVel(pkd,p);
+    const auto &v = pkd->particles.velocity(p);
     double r0[3],r1[3];
     int j;
     pkdGetPos1(pkd,p,r0);

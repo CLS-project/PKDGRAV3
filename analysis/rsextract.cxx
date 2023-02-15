@@ -49,9 +49,9 @@ void pkdContext::RsExtract(const std::string &filename, int iSegment, uint64_t *
         int iIndex = iOrder - pOrds[id];
         assert(id==mdl->Self());
         auto p = particles[iIndex];
-        assert(iOrder == p.get_order());
+        assert(iOrder == p.order());
         output_particle out;
-        out.iOrder = p.get_order();
+        out.iOrder = p.order();
         out.r = p.position();
         out.v = p.velocity();
         file.write(reinterpret_cast<ofstream::char_type *>(&out),sizeof(out));

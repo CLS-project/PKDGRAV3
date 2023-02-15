@@ -14,14 +14,21 @@
  *  You should have received a copy of the GNU General Public License
  *  along with PKDGRAV3.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include "TraversePST.h"
 
-class ServiceEnforcePeriodic : public TraversePST {
+#ifndef CORE_INTEGERIZE_H
+#define CORE_INTEGERIZE_H
+#include <cstdint>
+#include "blitz/array.h"
+
+class Integerize {
+    static constexpr std::uint32_t factor = 0x80000000u;
 public:
-    using input = Bound;
-    using output = void;
-    explicit ServiceEnforcePeriodic(PST pst)
-        : TraversePST(pst,PST_ENFORCEPERIODIC,sizeof(input),"EnforcePeriodic") {}
-protected:
-    virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut);
+    double  convert(std::int32_t i) const {return i * 1.0/factor; }
+    template<int n>
+    blitz::TinyVector<double,n>  convert(blitz::TinyVector<std::int32_t,n> i) const {return i * 1.0/factor; }
+    std::int32_t convert(double d) const {return d * factor; }
+    template<int n>
+    blitz::TinyVector<std::int32_t,n> convert(blitz::TinyVector<double,n> d) const {return d * factor; }
 };
+
+#endif

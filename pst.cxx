@@ -30,11 +30,7 @@
 #include <assert.h>
 #include <stdint.h>
 #include <string.h>
-#ifdef HAVE_INTTYPES_H
-    #include <inttypes.h>
-#else
-    #define PRIu64 "llu"
-#endif
+#include <cinttypes>
 #ifdef __linux__
     #include <unistd.h>
 #endif
@@ -215,8 +211,6 @@ void pstAddServices(PST pst,MDL mdl) {
                   sizeof(struct inCorrectEnergy),0);
     mdlAddService(mdl,PST_ACCELSTEP,pst,(fcnService_t *)pstAccelStep,
                   sizeof(struct inAccelStep), 0);
-    mdlAddService(mdl,PST_SPHSTEP,pst,(fcnService_t *)pstSphStep,
-                  sizeof(struct inSphStep), 0);
 #ifdef STAR_FORMATION
     mdlAddService(mdl,PST_STARFORM,pst,
                   (fcnService_t *) pstStarForm,
@@ -258,7 +252,6 @@ void pstAddServices(PST pst,MDL mdl) {
                   0,sizeof(struct outFofPhases));
     mdlAddService(mdl,PST_FOF_FINISH_UP,pst,(fcnService_t *)pstFofFinishUp,
                   sizeof(struct inFofFinishUp),sizeof(uint64_t));
-    mdlAddService(mdl,PST_INITRELAXATION,pst,(fcnService_t *)pstInitRelaxation,0,0);
     mdlAddService(mdl,PST_INITIALIZEPSTORE,pst,(fcnService_t *)pstInitializePStore,
                   sizeof(struct inInitializePStore),sizeof(struct outInitializePStore));
 #ifdef MDL_FFTW
@@ -359,6 +352,7 @@ void pstInitialize(PST *ppst,mdl::mdlClass *mdl,LCL *plcl) {
     pst->nLower = 0;
     pst->nUpper = 0;
     pst->iSplitDim = -1;
+    pst->iLvl = 0;
 }
 
 
@@ -397,7 +391,7 @@ int pstInitializePStore(PST pst,void *vin,int nIn,void *vout,int nOut) {
         if (plcl->pkd) delete plcl->pkd;
         initializePStore(&plcl->pkd,pst->mdl,in);
         out->nSizeParticle = plcl->pkd->particles.ElementSize();
-        out->nSizeNode = plcl->pkd->NodeSize();
+        out->nSizeNode = plcl->pkd->tree.ElementSize();
     }
     return sizeof(*out);
 }
@@ -754,10 +748,10 @@ int pstWrite(PST pst,void *vin,int nIn,void *vout,int nOut) {
             pkdWriteHeaderFIO(plcl->pkd, fio, 1./sqrt(in->dvFac), in->dTime,
                               in->nDark, in->nGas, in->nStar, in->nBH,
                               in->dBoxSize, in->HubbleParam, in->nProcessors, in->units);
-            pkdWriteFIO(plcl->pkd,fio,in->dvFac,in->dTuFac,&in->bnd);
+            pkdWriteFIO(plcl->pkd,fio,in->dvFac,in->dTuFac,in->bnd);
             for (i=in->iLower+1; i<in->iUpper; ++i ) {
                 int rID = mdlReqService(pst->mdl,i,PST_SENDPARTICLES,&pst->idSelf,sizeof(pst->idSelf));
-                pkdWriteFromNode(plcl->pkd,i,fio,in->dvFac,in->dTuFac,&in->bnd);
+                pkdWriteFromNode(plcl->pkd,i,fio,in->dvFac,in->dTuFac,in->bnd);
                 mdlGetReply(pst->mdl,rID,NULL,NULL);
             }
             fioClose(fio);
@@ -804,55 +798,45 @@ int pstBuildTree(PST pst,void *vin,int nIn,void *vout,int nOut) {
     PKD pkd = plcl->pkd;
     auto in = static_cast<struct inBuildTree *>(vin);
     uint32_t uRoot = in->uRoot;
-    auto pTop = static_cast<KDN *>(vout);
-    KDN *pCell1, *pCell2;
-    double minside;
+    auto pTop = pkd->tree[static_cast<KDN *>(vout)];
+    // double minside;
     int nOutUpper;
 
     /* We need to save our cells so we can update them later */
     if (pst->nLeaves > 1) {
-        pCell1 = pkd->Node(pTop,1);
-        pCell2 = pkd->Node(pTop,pst->nLower*2);
+        auto pCell1 = pTop + 1;
+        auto pCell2 = pTop + pst->nLower*2;
 
         /* We will accumulate the top tree here */
         int rID = mdlReqService(pst->mdl,pst->idUpper,PST_BUILDTREE,vin,nIn);
-        nOut = pstBuildTree(pst->pstLower,vin,nIn,pCell1,(pst->nLower*2-1) * pkd->NodeSize());
-        assert(nOut == (pst->nLower*2-1) * pkd->NodeSize());
+        nOut = pstBuildTree(pst->pstLower,vin,nIn,pCell1,(pst->nLower*2-1) * pkd->tree.ElementSize());
+        assert(nOut == (pst->nLower*2-1) * pkd->tree.ElementSize());
         mdlGetReply(pst->mdl,rID,pCell2,&nOutUpper);
-        assert(nOutUpper == (pst->nUpper*2-1) * pkd->NodeSize());
-        nOut += nOutUpper + pkd->NodeSize();
+        assert(nOutUpper == (pst->nUpper*2-1) * pkd->tree.ElementSize());
+        nOut += nOutUpper + pkd->tree.ElementSize();
 
         /*
         ** Combine Cell1 and Cell2 into pCell
         ** to find cell CoM, bounds and multipoles.
         ** This also computes the opening radius for gravity.
         */
-        pTop->bMax = HUGE_VAL;  /* initialize bMax for CombineCells */
-        MINSIDE(pst->bnd.fMax,minside);
+        pTop->bMax() = HUGE_VAL;  /* initialize bMax for CombineCells */
+        auto minside = pst->bnd.minside();
         pkdCombineCells1(pkd,pTop,pCell1,pCell2);
-        CALCOPEN(pTop,minside);
+        pTop->calc_open(minside);
         pkdCombineCells2(pkd,pTop,pCell1,pCell2);
 
         /* Get our cell ready */
-        pTop->bTopTree = 1;                         /* The replicated top tree */
-        pTop->bGroup = 0;                           /* top tree can never be a group */
-        pTop->bRemote = 0;                          /* top tree is not remote */
-        pTop->iLower = 1;                           /* Relative index to lower cell */
-        pTop->pUpper = pst->nLower*2;               /* Relative index to upper cell */
-        pTop->pLower = 0;                           /* Not used */
+        pTop->set_top_tree(pst->nLower*2);
     }
     else {
-        KDN *pRoot = pkd->TreeNode(uRoot);
+        auto pRoot = pkd->tree[uRoot];
         pkd->TreeAlignNode();
         pkdTreeBuild(plcl->pkd,in->nBucket,in->nGroup,in->uRoot,in->utRoot,in->ddHonHLimit);
-        pkdCopyNode(pkd,pTop,pRoot);
+        *pTop = *pRoot;
         /* Get our cell ready */
-        pTop->bTopTree = 1;
-        pTop->bGroup = 0;
-        pTop->bRemote = 1;
-        pTop->pUpper = pTop->pLower = pst->idSelf;
-        /* iLower is valid = ROOT */
-        nOut = pkd->NodeSize();
+        pTop->set_remote(pst->idSelf);
+        nOut = pkd->tree.ElementSize();
     }
     return nOut;
 }
@@ -1390,7 +1374,7 @@ int pstCalcEandL(PST pst,void *vin,int nIn,void *vout,int nOut) {
         out->W += outLcl.W;
     }
     else {
-        pkdCalcEandL(plcl->pkd,&out->T,&out->U,&out->Eth,out->L,out->F,&out->W);
+        pkdCalcEandL(plcl->pkd,out->T,out->U,out->Eth,out->L,out->F,out->W);
     }
     return sizeof(struct outCalcEandL);
 }
@@ -1652,7 +1636,7 @@ int pstROParticleCache(PST pst,void *vin,int nIn,void *vout,int nOut) {
         ** Start particle caching space.
         */
         PKD pkd = plcl->pkd;
-        mdlROcache(pkd->mdl,CID_PARTICLE,NULL,pkd->ParticleBase(),pkd->ParticleSize(),
+        mdlROcache(pkd->mdl,CID_PARTICLE,NULL,pkd->particles,pkd->particles.ParticleSize(),
                    pkd->Local());
 
     }
@@ -1772,23 +1756,6 @@ int pstAccelStep(PST pst,void *vin,int nIn,void *vout,int nOut) {
     }
     return 0;
 }
-
-int pstSphStep(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    LCL *plcl = pst->plcl;
-    auto in = static_cast<struct inSphStep *>(vin);
-
-    mdlassert(pst->mdl,nIn == sizeof(struct inSphStep));
-    if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_SPHSTEP,vin,nIn);
-        pstSphStep(pst->pstLower,vin,nIn,NULL,0);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
-    }
-    else {
-        pkdSphStep(plcl->pkd,in->uRungLo,in->uRungHi,in->dDelta,in->iMaxRung,in->dEta,in->dAccFac,in->dEtaUDot);
-    }
-    return 0;
-}
-
 
 int pstDensityStep(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
@@ -1975,22 +1942,6 @@ int pstFofFinishUp(PST pst,void *vin,int nIn,void *vout,int nOut) {
     return sizeof(uint64_t);
 }
 
-
-int pstInitRelaxation(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    LCL *plcl = pst->plcl;
-
-    mdlassert(pst->mdl,nIn == 0);
-    if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_INITRELAXATION,vin,nIn);
-        pstInitRelaxation(pst->pstLower,vin,nIn,NULL,0);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
-    }
-    else {
-        pkdInitRelaxation(plcl->pkd);
-    }
-    return 0;
-}
-
 #ifdef MDL_FFTW
 int pstGetFFTMaxSizes(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto in = static_cast<struct inGetFFTMaxSizes *>(vin);
@@ -2067,7 +2018,7 @@ int pstMemStatus(PST pst,void *vin,int nIn,void *vout,int nOut) {
             fclose(fp);
         }
 #endif
-        out->nBytesTree = plcl->pkd->TreeMemory();
+        out->nBytesTree = plcl->pkd->tree.memory();
         out->nBytesCl   = pkdClMemory(plcl->pkd);
         out->nBytesIlp  = pkdIlpMemory(plcl->pkd);
         out->nBytesIlc  = pkdIlcMemory(plcl->pkd);
@@ -2210,7 +2161,7 @@ int pstCalcCOM(PST pst,void *vin,int nIn,void *vout,int nOut) {
     }
     else {
         pkdCalcCOM(plcl->pkd,in->dCenter,in->dRadius,in->bPeriodic,
-                   out->com, out->vcm, out->L, &out->M, &out->N);
+                   out->com, out->vcm, out->L, out->M, out->N);
     }
     return sizeof(struct outCalcCOM);
 }
@@ -2264,7 +2215,7 @@ int pstResetCOM(PST pst,void *vin, int nIn, void *vout, int nOut) {
         mdlGetReply(pst->mdl,rID,NULL,NULL);
     }
     else {
-        pkdResetCOM(plcl->pkd,in->x_com,in->y_com,in->z_com,in->vx_com,in->vy_com,in->vz_com);
+        pkdResetCOM(plcl->pkd,in->r_com,in->v_com);
     }
     return 0;
 }
@@ -2303,55 +2254,45 @@ int pstTreeUpdateFlagBounds(PST pst,void *vin,int nIn,void *vout,int nOut) {
     PKD pkd = plcl->pkd;
     auto in = static_cast<struct inTreeUpdateFlagBounds *>(vin);
     uint32_t uRoot = in->uRoot;
-    auto pTop = static_cast<KDN *>(vout);
-    KDN *pCell1, *pCell2;
-    double minside;
+    auto pTop = pkd->tree[static_cast<KDN *>(vout)];
     int nOutUpper;
 
     /* We need to save our cells so we can update them later */
     if (pst->nLeaves > 1) {
-        pCell1 = pkd->Node(pTop,1);
-        pCell2 = pkd->Node(pTop,pst->nLower*2);
+        auto pCell1 = pTop + 1;
+        auto pCell2 = pTop + pst->nLower*2;
 
         /* We will accumulate the top tree here */
         int rID = mdlReqService(pst->mdl,pst->idUpper,PST_TREEUPDATEFLAGBOUNDS,vin,nIn);
-        nOut = pstTreeUpdateFlagBounds(pst->pstLower,vin,nIn,pCell1,(pst->nLower*2-1) * pkd->NodeSize());
-        assert(nOut == (pst->nLower*2-1) * pkd->NodeSize());
+        nOut = pstTreeUpdateFlagBounds(pst->pstLower,vin,nIn,pCell1,(pst->nLower*2-1) * pkd->tree.ElementSize());
+        assert(nOut == (pst->nLower*2-1) * pkd->tree.ElementSize());
         mdlGetReply(pst->mdl,rID,pCell2,&nOutUpper);
-        assert(nOutUpper == (pst->nUpper*2-1) * pkd->NodeSize());
-        nOut += nOutUpper + pkd->NodeSize();
+        assert(nOutUpper == (pst->nUpper*2-1) * pkd->tree.ElementSize());
+        nOut += nOutUpper + pkd->tree.ElementSize();
 
         /*
         ** Combine Cell1 and Cell2 into pCell
         ** to find cell CoM, bounds and multipoles.
         ** This also computes the opening radius for gravity.
         */
-        pTop->bMax = HUGE_VAL;  /* initialize bMax for CombineCells */
-        MINSIDE(pst->bnd.fMax,minside);
+        pTop->bMax() = HUGE_VAL;  /* initialize bMax for CombineCells */
+        auto minside = pst->bnd.minside();
         pkdCombineCells1(pkd,pTop,pCell1,pCell2);
-        CALCOPEN(pTop,minside);
+        pTop->calc_open(minside);
         pkdCombineCells2(pkd,pTop,pCell1,pCell2);
 
         /* Get our cell ready */
-        pTop->bTopTree = 1;                         /* The replicated top tree */
-        pTop->bGroup = 0;                           /* top tree can never be a group */
-        pTop->bRemote = 0;                          /* top tree is not remote */
-        pTop->iLower = 1;                           /* Relative index to lower cell */
-        pTop->pUpper = pst->nLower*2;               /* Relative index to upper cell */
-        pTop->pLower = 0;                           /* Not used */
+        pTop->set_top_tree(pst->nLower*2);
     }
     else {
-        KDN *pRoot = pkd->TreeNode(uRoot);
+        auto pRoot = pkd->tree[uRoot];
         pkd->TreeAlignNode();
         pkdTreeUpdateFlagBounds(plcl->pkd,uRoot,&in->SPHoptions);
-        pkdCopyNode(pkd,pTop,pRoot);
+        *pTop = *pRoot;
         /* Get our cell ready */
-        pTop->bTopTree = 1;
-        pTop->bGroup = 0;
-        pTop->bRemote = 1;
-        pTop->pUpper = pTop->pLower = pst->idSelf;
+        pTop->set_remote(pst->idSelf);
         /* iLower is valid = ROOT */
-        nOut = pkd->NodeSize();
+        nOut = pkd->tree.ElementSize();
     }
     return nOut;
 }

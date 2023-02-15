@@ -17,5 +17,6 @@
 
 #ifndef OPENING_INCLUDED
 #define OPENING_INCLUDED
-void iOpenOutcomeSIMD(PKD pkd,KDN *k,clTile &tile,float dThetaMin,SPHOptions *SPHoptions);
+#include "pkd.h"
+void iOpenOutcomeSIMD(PKD pkd,treeStore::NodePointer k,clTile &tile,float dThetaMin,SPHOptions *SPHoptions);
 #endif

@@ -18,8 +18,8 @@
 
 // Make sure that the communication structure is "trivial" so that it
 // can be moved around with "memcpy" which is required for MDL.
-static_assert(std::is_void<ServiceCombineBound::input>()  || std::is_trivial<ServiceCombineBound::input>());
-static_assert(std::is_void<ServiceCombineBound::output>() || std::is_trivial<ServiceCombineBound::output>());
+static_assert(std::is_void<ServiceCombineBound::input>()  || std::is_standard_layout<ServiceCombineBound::input>());
+static_assert(std::is_void<ServiceCombineBound::output>() || std::is_standard_layout<ServiceCombineBound::output>());
 
 int ServiceCombineBound::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
     static_assert(std::is_void<input>());

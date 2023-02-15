@@ -35,11 +35,6 @@ typedef blitz::TinyVector<int,3> shape_t;
 typedef blitz::TinyVector<double,3> position_t;
 typedef blitz::TinyVector<float,3> float3_t;
 
-struct tree_node : public KDN {
-    bool is_cell()   { return iLower!=0; }
-    bool is_bucket() { return iLower==0; }
-};
-
 template<int Order,typename F>
 static void assign(mass_array_t &masses, const F r[3], F mass) {
     AssignmentWeights<Order,F> Hx(r[0]),Hy(r[1]),Hz(r[2]);
@@ -109,9 +104,9 @@ void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int iAssignment, int iGrid, flo
     std::vector<std::uint32_t> stack;
     stack.push_back(iLocalRoot);
     while ( !stack.empty()) {
-        tree_node *kdn = reinterpret_cast<tree_node *>(pkd->TreeNode(stack.back()));
+        auto kdn = pkd->tree[stack.back()];
         stack.pop_back(); // Go to the next node in the tree
-        Bound bnd = pkdNodeGetBnd(pkd, kdn);
+        auto bnd = kdn->bound();
         shape_t ilower = shape_t(floor((bnd.lower() * ifPeriod + 0.5) * nGrid + fDelta)) - iAssignment/2;
         shape_t iupper = shape_t(floor((bnd.upper() * ifPeriod + 0.5) * nGrid + fDelta)) + iAssignment/2;
         shape_t ishape = iupper - ilower + 1;
@@ -120,14 +115,13 @@ void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int iAssignment, int iGrid, flo
 
         if (size > maxSize) { // This cell is too large, so we split it and move on
             if (kdn->is_cell()) { // At the moment we cannot handle enormous buckets
-                stack.push_back(kdn->iLower+1);
-                stack.push_back(kdn->iLower);
+                stack.push_back(kdn->rchild());
+                stack.push_back(kdn->lchild());
             }
             // Huge bucket. Do a particle at a time.
-            else for ( int i=kdn->pLower; i<=kdn->pUpper; ++i) { // All particles in this tree cell
-                    PARTICLE *p = pkd->Particle(i);
-                    position_t dr; pkdGetPos1(pkd,p,dr.data()); // Centered on 0 with period fPeriod
-                    float3_t r(dr);
+            else {
+                for ( auto &p : *kdn) { // All particles in this tree cell
+                    float3_t r(p.position());
                     r = (r * ifPeriod + 0.5) * nGrid + fDelta;
                     ilower = shape_t(r) - iAssignment/2;
                     iupper = shape_t(r) + iAssignment/2;
@@ -138,21 +132,20 @@ void pkdAssignMass(PKD pkd, uint32_t iLocalRoot, int iAssignment, int iGrid, flo
                     data.resize(size); // Hold the right number of masses
                     mass_array_t masses(data.data(),ishape,blitz::neverDeleteData,RegularArray());
                     masses = 0.0f;
-                    assign_mass(masses, r.data(), pkdMass(pkd,p), iAssignment);
+                    assign_mass(masses, r.data(), p.mass(), iAssignment);
                     flush_masses(pkd,nGrid,masses,ilower);
                 }
+            }
         }
         else { // Assign the mass for this range of particles
             data.resize(size); // Hold the right number of masses
             mass_array_t masses(data.data(),ishape,blitz::neverDeleteData,RegularArray());
             masses = 0.0f;
             //masses.dumpStructureInformation(std::cout);
-            for ( int i=kdn->pLower; i<=kdn->pUpper; ++i) { // All particles in this tree cell
-                PARTICLE *p = pkd->Particle(i);
-                position_t dr; pkdGetPos1(pkd,p,dr.data()); // Centered on 0 with period fPeriod
-                float3_t r(dr);
+            for ( auto &p : *kdn ) { // All particles in this tree cell
+                float3_t r(p.position());
                 r = (r * ifPeriod + 0.5) * nGrid + fDelta - flower; // Scale and shift to fit in subcube
-                assign_mass(masses, r.data(), pkdMass(pkd,p), iAssignment);
+                assign_mass(masses, r.data(), p.mass(), iAssignment);
             }
             flush_masses(pkd,nGrid,masses,ilower);
         }

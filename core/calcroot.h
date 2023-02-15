@@ -19,7 +19,7 @@
 class ServiceCalcRoot : public TraverseCombinePST {
 public:
     struct input {
-        double com[3];
+        blitz::TinyVector<double,3> com;
         uint32_t uRoot;
     };
     struct output {
