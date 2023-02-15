@@ -400,9 +400,9 @@ void pkdParticleWorkDone(workParticle *wp) {
                         p.set_rung(uNewRung);
                         ++pkd->nRung[p.rung()];
                         if (wp->SPHoptions->VelocityDamper > 0.0f) {
-                            v[0] *= exp(- wp->kick->dtOpen[p->uRung] * wp->SPHoptions->VelocityDamper);
-                            v[1] *= exp(- wp->kick->dtOpen[p->uRung] * wp->SPHoptions->VelocityDamper);
-                            v[2] *= exp(- wp->kick->dtOpen[p->uRung] * wp->SPHoptions->VelocityDamper);
+                            v[0] *= exp(- wp->kick->dtOpen[p.rung()] * wp->SPHoptions->VelocityDamper);
+                            v[1] *= exp(- wp->kick->dtOpen[p.rung()] * wp->SPHoptions->VelocityDamper);
+                            v[2] *= exp(- wp->kick->dtOpen[p.rung()] * wp->SPHoptions->VelocityDamper);
                         }
                         v[0] += wp->kick->dtOpen[p.rung()]*wp->pInfoOut[i].a[0];
                         v[1] += wp->kick->dtOpen[p.rung()]*wp->pInfoOut[i].a[1];
