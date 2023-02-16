@@ -505,12 +505,12 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
 #ifdef USE_MAXSIDE
         b = bnd.maxside();
 #else
-        auto d2Max = std::accumulate(pkdn->begin(),pkdn->end(),0.0,
-        [kdn_r](double d2Max,auto &p) {
-            auto r = p.position() - kdn_r;
-            auto d2 = blitz::dot(r,r);
-            return std::max(d2Max,d2);
-        });
+        double d2Max = 0.0;
+        for (auto &p : *pkdn) {
+            r = p.position() - kdn_r;
+            d2 = blitz::dot(r,r);
+            d2Max = std::max(d2,d2Max);
+        }
         b = sqrt(d2Max);
 #endif
         if (b==0.0) b = 1.0f; /* FIXME: Single particle. Perhaps momMakeFmomr should be more robust. */
