@@ -31,15 +31,15 @@ if (USE_METAL)
     add_custom_target(pkdgrav3_metallib ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/pkdgrav3_metallib.h)
   add_dependencies(${PROJECT_NAME} pkdgrav3_metallib)
   target_link_libraries(${PROJECT_NAME} PUBLIC ${METAL_LIBRARIES} mdl2 blitz)
+  set_target_properties(${PROJECT_NAME} PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS YES
+  )
 else(USE_METAL)
   add_library(${PROJECT_NAME} INTERFACE)
 endif(USE_METAL)
 
-set_target_properties(${PROJECT_NAME} PROPERTIES
-    CXX_STANDARD 17
-    CXX_STANDARD_REQUIRED YES
-    CXX_EXTENSIONS YES
-)
 #target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 #target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/metal-cpp)
 #target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
