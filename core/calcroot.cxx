@@ -25,7 +25,7 @@ static void pkdCalcRoot(PKD pkd,uint32_t uRoot,blitz::TinyVector<double,3> com,M
     auto kdn = pkd->tree[uRoot];
     momClearMomc(&mom);
     for (auto &p : *kdn) {
-        auto r = p.position() - com;
+        blitz::TinyVector<double,3> r = p.position() - com;
         auto m = p.mass();
         momMakeMomc(&mc,m,r[0],r[1],r[2]);
         momAddMomc(&mom,&mc);
