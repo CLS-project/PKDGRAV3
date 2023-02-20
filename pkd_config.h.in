@@ -43,7 +43,8 @@
 #cmakedefine INTEGER_POSITION 1
 #cmakedefine HAVE_LIBAIO 1
 #cmakedefine HAVE_AIO_H 1
-#cmakedefine POTENTIAL_IN_LIGHTCONE
+#cmakedefine POTENTIAL_IN_LIGHTCONE 1
+#cmakedefine BOUND_USES_MINMAX 1
 #cmakedefine HAVE_ROCKSTAR 1
 
 #cmakedefine USE_SIMD 1
