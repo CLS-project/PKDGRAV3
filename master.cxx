@@ -3840,7 +3840,7 @@ int MSR::CountRungs(uint64_t *nRungs) {
     int i, iMaxRung=0;
     mdl->RunService(PST_COUNTRUNGS,&out);
     for (i=0; i<=MAX_RUNG; ++i) {
-        nRung[i] = out.nRungs[i];
+        nRung[i] = out[i];
         if (nRung[i]) iMaxRung = i;
         if (nRungs) nRungs[i] = nRung[i];
     }
