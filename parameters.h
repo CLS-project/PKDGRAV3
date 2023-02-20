@@ -173,7 +173,6 @@ struct parameters {
     int nMinMembers;
     double dHopTau;
     double dTau;
-    int bTraceRelaxation;
     /*
     ** Parameters for group stats.
     */
@@ -348,7 +347,6 @@ struct parameters {
     int bMemGlobalGid;
     int bMemMass;
     int bMemSoft;
-    int bMemRelaxation;
     int bMemVelSmooth;
     int bMemPsMetric;
     int bMemNodeMoment;

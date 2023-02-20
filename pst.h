@@ -110,10 +110,8 @@ enum pst_service {
     PST_ENFORCEPERIODIC,
     PST_SMOOTH,
     PST_GRAVITY,
-    PST_GRAVEXTERNAL,
     PST_LIGHTCONE,
     PST_CALCEANDL,
-    PST_CALCEANDLEXT,
     PST_DRIFT,
     PST_RESETFLUXES,
     PST_COMPUTEPRIMVARS,
@@ -137,16 +135,9 @@ enum pst_service {
     PST_BH_INIT,
 #endif
     PST_MOVEDELETED,
-    PST_PREDICTSMOOTH,
-    PST_DRIFTINACTIVE,
     PST_CACHEBARRIER,
     PST_ROPARTICLECACHE,
     PST_PARTICLECACHEFINISH,
-    PST_COPY0,
-    PST_PREDICTOR,
-    PST_CORRECTOR,
-    PST_SUNCORRECTOR,
-    PST_PREDICTORINACTIVE,
     PST_KICK,
     PST_KICKTREE,
     PST_SETSOFT,
@@ -154,20 +145,17 @@ enum pst_service {
     PST_SETTOTAL,
     PST_ONENODEREADINIT,
     PST_SWAPALL,
-    PST_MASSCHECK,
     PST_ACTIVEORDER,
     PST_INITCOSMOLOGY,
     PST_INITLIGHTCONE,
     PST_ZERONEWRUNG,
     PST_ACTIVERUNG,
     PST_COUNTRUNGS,
-    PST_GRAVSTEP,
     PST_ACCELSTEP,
     PST_STARFORM,
     PST_STARFORMINIT,
     PST_DENSITYSTEP,
     PST_CORRECTENERGY,
-    PST_MARKSMOOTH,
     PST_RESMOOTH,
 #ifdef OPTIM_SMOOTH_NODE
     PST_RESMOOTHNODE,
@@ -178,9 +166,7 @@ enum pst_service {
 #ifdef STELLAR_EVOLUTION
     PST_STELLAREVOLUTIONINIT,
 #endif
-    PST_INITACCEL,
     PST_UPDATERUNG,
-    PST_INITDT,
     PST_ORDWEIGHT,
     PST_SETWRITESTART,
     PST_ADDWRITESTART,
@@ -188,11 +174,9 @@ enum pst_service {
     PST_NEWORDER,
     PST_GETNPARTS,
     PST_SETNPARTS,
-    PST_DENSCHECK,
     PST_NEW_FOF,
     PST_FOF_PHASES,
     PST_FOF_FINISH_UP,
-    PST_FOFMERGE,
     PST_HOP_LINK,
     PST_HOP_JOIN,
     PST_HOP_FINISH_UP,
@@ -201,11 +185,6 @@ enum pst_service {
     PST_HOP_UNBIND,
     PST_GROUP_RELOCATE,
     PST_GROUP_STATS,
-    PST_GROUP_STATS1,
-    PST_SHRINK_PHASES,
-    PST_GROUP_STATS2,
-    PST_GROUPPROFILES,
-    PST_INITRELAXATION,
     PST_INITIALIZEPSTORE,
     PST_GETFFTMAXSIZES,
     PST_GENERATEIC,
@@ -475,28 +454,6 @@ struct inGroupStats {
     double rEnvironment[2];
 };
 int pstGroupStats(PST,void *,int,void *,int);
-
-/* PST_GROUP_STATS1 */
-struct inGroupStats1 {
-    int bPeriodic;
-    double dPeriod[3];
-    double rEnvironment[2];
-};
-void pstGroupStats1(PST,void *,int,void *,int *);
-
-/* PST_SHRINK_PHASES */
-struct outShrinkPhases {
-    int bdone;
-};
-void pstShrinkPhases(PST,void *,int,void *,int *);
-
-/* PST_GROUP_STATS2 */
-struct inGroupStats2 {
-    int bPeriodic;
-    double dPeriod[3];
-    double rEnvironment[2];
-};
-void pstGroupStats2(PST,void *,int,void *,int *);
 
 /* PST_SMOOTH */
 struct inSmooth {
@@ -835,18 +792,6 @@ struct inSetNParts {
     uint64_t nBH;
 };
 int pstSetNParts(PST, void *, int, void *, int);
-
-/* PST_MARKSMOOTH */
-struct inMarkSmooth {
-    int nSmooth;
-    int bGasOnly;
-    int bPeriodic;
-    int bSymmetric;
-    int iMarkType;
-    SMF smf;
-};
-void pstMarkSmooth(PST,void *,int,void *,int *);
-
 
 /* PST_NEW_FOF */
 struct inNewFof {

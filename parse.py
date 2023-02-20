@@ -107,7 +107,6 @@ def parse():
     add_flag(ioparm,'compress',default=0, dest='iCompress',type=int, help='compression format, 0=none, 1=gzip, 2=bzip2')
     add_flag(ioparm,'wall',default=0, dest='iWallRunTime',type=int, help='Maximum Wallclock time (in minutes) to run')
     add_flag(ioparm,'signal',default=0, dest='iSignalSeconds',type=int, help='Time (in seconds) that USR1 is sent before termination')
-    add_bool(ioparm,'rtrace',default=False,dest='bTraceRelaxation',help='enable relaxation tracing')
     add_bool(ioparm,'restart',default=False,dest='bRestart',help='restart from checkpoint')
     ioparm.add_argument('-orbit', dest='lstOrbits', type=int, action='append', help='Particle ID of particle to write to orbit file (repeatable)')
 
@@ -202,7 +201,6 @@ def parse():
     add_bool(memory,'Mgg',default=False,dest='bMemGlobalGid', help='Particles support global group ids')
     add_bool(memory,'Mm',default=False,dest='bMemMass', help='Particles have individual masses')
     add_bool(memory,'Ms',default=False,dest='bMemSoft', help='Particles have individual softening')
-    add_bool(memory,'Mr',default=False,dest='bMemRelaxation', help='Particles have relaxation')
     add_bool(memory,'Mvs',default=False,dest='bMemVelSmooth', help='Particles support velocity smoothing')
     add_bool(memory,'MNm',default=False,dest='bMemNodeMoment', help='Tree nodes support multipole moments')
     add_bool(memory,'MNa',default=False,dest='bMemNodeAcceleration', help='Tree nodes support acceleration (for bGravStep)')
