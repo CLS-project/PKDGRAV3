@@ -60,6 +60,7 @@
 #include "domains/enforceperiodic.h"
 #include "domains/freestore.h"
 #include "domains/olddd.h"
+#include "domains/reorder.h"
 #include "domains/getordsplits.h"
 
 #include "gravity/setsoft.h"
@@ -133,8 +134,12 @@ void *worker_init(MDL vmdl) {
     mdl->AddService(std::make_unique<ServiceRsReorderIds>(pst));
     mdl->AddService(std::make_unique<ServiceRsExtract>(pst));
     mdl->AddService(std::make_unique<OldDD::ServiceDomainDecomp>(pst));
+#ifdef NEW_REORDER
+    mdl->AddService(std::make_unique<NewDD::ServiceReorder>(pst));
+#else
     mdl->AddService(std::make_unique<OldDD::ServiceDomainOrder>(pst));
     mdl->AddService(std::make_unique<OldDD::ServiceLocalOrder>(pst));
+#endif
     mdl->AddService(std::make_unique<OldDD::ServiceColRejects>(pst));
     mdl->AddService(std::make_unique<OldDD::ServiceSwapRejects>(pst));
     mdl->AddService(std::make_unique<OldDD::ServiceColOrdRejects>(pst));

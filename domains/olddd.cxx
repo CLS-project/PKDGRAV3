@@ -830,6 +830,7 @@ int ServiceColOrdRejects::Service(PST pst,void *vin,int nIn,void *vout,int nOut)
     return sizeof(output);
 }
 
+#ifndef NEW_REORDER
 /*****************************************************************************\
 * ServiceDomainOrder
 \*****************************************************************************/
@@ -990,6 +991,7 @@ int ServiceLocalOrder::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
     pkdLocalOrder(pkd,in->iMinOrder,in->iMaxOrder);
     return 0;
 }
+#endif
 
 /*****************************************************************************\
 * ServiceWeight

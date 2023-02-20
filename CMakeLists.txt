@@ -557,6 +557,9 @@ endif (NN_FLAG_IN_PARTICLE)
 
 option(BOUND_USES_MINMAX "Bounds use lower and upper coordinate if ON, otherwise center and apothem" OFF)
 option(NEW_REORDER "Used the new MDL swap based particle reorder method" OFF)
+if(NEW_REORDER)
+   target_sources(${PROJECT_NAME} PRIVATE domains/reorder.cxx)
+endif(NEW_REORDER)
 
 CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/pkd_config.h.in ${CMAKE_CURRENT_BINARY_DIR}/pkd_config.h)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_BINARY_DIR})

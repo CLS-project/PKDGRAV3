@@ -95,7 +95,7 @@ namespace rockstar {
 #include "domains/distribroot.h"
 #include "domains/dumptrees.h"
 #include "domains/olddd.h"
-
+#include "domains/reorder.h"
 #include "gravity/setsoft.h"
 #include "gravity/activerung.h"
 #include "gravity/countrungs.h"
@@ -2846,10 +2846,18 @@ void MSR::Reorder() {
 
         msrprintf("Ordering...\n");
         sec = Time();
+#ifdef NEW_REORDER
+        // Start by dividing the particles by processor; cores will follow
+        auto nPerProc = (N + mdl->Procs() - 1) / mdl->Procs();
+        printf("Divided %llu particles into %d domains (%llu)\n", N, mdl->Procs(), nPerProc);
+        NewDD::ServiceReorder::input indomain(nPerProc,MaxOrder());
+        mdl->RunService(PST_REORDER,sizeof(indomain),&indomain);
+#else
         OldDD::ServiceDomainOrder::input indomain(MaxOrder());
         mdl->RunService(PST_DOMAINORDER,sizeof(indomain),&indomain);
         OldDD::ServiceLocalOrder::input inlocal(MaxOrder());
         mdl->RunService(PST_LOCALORDER,sizeof(inlocal),&inlocal);
+#endif
         dsec = Time() - sec;
         msrprintf("Order established, Wallclock: %f secs\n\n",dsec);
 

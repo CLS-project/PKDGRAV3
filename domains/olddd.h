@@ -90,6 +90,7 @@ private:
     void RootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind);
 };
 
+#ifndef NEW_REORDER
 class ServiceDomainOrder : public ServiceDomain {
 public:
     struct input {
@@ -125,6 +126,7 @@ protected:
     virtual int Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) override;
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
 };
+#endif
 
 class ServiceWeight : public TraversePST {
 public:

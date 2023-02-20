@@ -1330,6 +1330,7 @@ int pkdColOrdRejects(PKD pkd,uint64_t nOrdSplit,int iSplitSide) {
     return pkdColRejects(pkd,nSplit);
 }
 
+#ifndef NEW_REORDER
 void pkdLocalOrder(PKD pkd,uint64_t iMinOrder, uint64_t iMaxOrder) {
     int i;
     assert(pkd->Local() == iMaxOrder - iMinOrder + 1);
@@ -1344,6 +1345,7 @@ void pkdLocalOrder(PKD pkd,uint64_t iMinOrder, uint64_t iMaxOrder) {
     }
     /* Above replaces: qsort(pkd->ParticleBase(),pkd->Local(),pkd->particles.ParticleSize(),cmpParticles); */
 }
+#endif
 
 #define MAX_IO_BUFFER_SIZE (8*1024*1024)
 
