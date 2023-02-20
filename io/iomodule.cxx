@@ -36,9 +36,7 @@
     #include <unistd.h>
 #endif
 #include <stdint.h>
-#ifdef HAVE_INTTYPES_H
-    #include <inttypes.h>
-#endif
+#include <cinttypes>
 #include <sys/stat.h>
 #include <stdio.h>
 #include <stdlib.h>
