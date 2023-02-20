@@ -160,7 +160,7 @@ int particleStore::SelById(uint64_t idStart, uint64_t idEnd, int setIfTrue, int 
 int particleStore::SelBox(TinyVector<double,3> dCenter, TinyVector<double,3> dSize, int setIfTrue, int clearIfFalse ) {
     return std::accumulate(begin(),end(),0,
     [setIfTrue,clearIfFalse,dCenter,dSize](int a,auto &p) {
-        auto dx = dCenter - p.position();
+        TinyVector<double,3> dx = dCenter - p.position();
         return a + p.set_marked(isSelected(all(dx < dSize) && all(dx >= -dSize),setIfTrue,clearIfFalse,p.marked()));
     });
 }
@@ -175,7 +175,7 @@ int particleStore::SelSphere(TinyVector<double,3> r, double dRadius, int setIfTr
     auto dRadius2 = dRadius * dRadius;
     return std::accumulate(begin(),end(),0,
     [setIfTrue,clearIfFalse,r,dRadius2](int a,auto &p) {
-        auto dx = r - p.position();
+        TinyVector<double,3> dx = r - p.position();
         return a + p.set_marked(isSelected(dot(dx,dx)<=dRadius2,setIfTrue,clearIfFalse,p.marked()));
     });
 }
