@@ -377,20 +377,16 @@ int pkdGenerateIC(PKD pkd, MDLFFT fft, int iSeed, int bFixed, float fPhase, int 
         for (auto index = output.begin(); index != output.end(); index++) {
             auto pos = index.position();
             for (auto i = 0; i < 3; i++) {
-                if (quantity == 0)
-                    if (b2LPT)
-                        index->dr[i] += R[7 + i](pos);
-                    else
-                        index->dr[i]  = R[7 + i](pos);
-                else if (b2LPT)
-                    index->v[i] += R[7 + i](pos);
-                else
-                    index->v[i]  = R[7 + i](pos);
-                if (! bClass)
-                    if (b2LPT)
-                        index->v[i] += vel_factor1*R[7 + i](pos);
-                    else
-                        index->v[i]  = vel_factor1*R[7 + i](pos);
+                if (quantity == 0) {
+                    if (b2LPT) index->dr[i] += R[7 + i](pos);
+                    else       index->dr[i]  = R[7 + i](pos);
+                }
+                else if (b2LPT) index->v[i] += R[7 + i](pos);
+                else            index->v[i]  = R[7 + i](pos);
+                if (!bClass) {
+                    if (b2LPT)  index->v[i] += vel_factor1*R[7 + i](pos);
+                    else        index->v[i]  = vel_factor1*R[7 + i](pos);
+                }
             }
         }
     }
