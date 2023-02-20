@@ -184,7 +184,7 @@ public:
     void AddService(std::unique_ptr<BasicService> &&service);
     int  RunService(int sid, int nIn, void *pIn, void *pOut=nullptr);
     int  RunService(int sid, ServiceBuffer &b, void *pOut=nullptr) { return RunService(sid,b.size(),b.data(),pOut);}
-    int  RunService(int sid, void *pOut) { return RunService(sid,0,nullptr,pOut); }
+    int  RunService(int sid, void *pOut=nullptr) { return RunService(sid,0,nullptr,pOut); }
     BasicService *GetService(unsigned sid) {return sid<services.size() ? services[sid].get() : nullptr; }
 };
 int mdlBaseProcToThread(mdlBASE *base, int iProc);
