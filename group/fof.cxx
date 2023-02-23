@@ -536,8 +536,7 @@ NextCell:
             }
         }
         while (iHead < iTail) {
-            p = pkd->particles[Fifo[iHead++]];
-            p_r = p.position();
+            p_r = pkd->particles[Fifo[iHead++]].position();
             iTail = pkdFofGatherLocal(pkd,S,dTau2,p_r,iGroup,iTail,Fifo,
                                       &bCurrFofContained,fMinFofContained,fMaxFofContained);
         }
@@ -550,8 +549,7 @@ NextCell:
             ** In this case mark the group particles as belonging to a removed group.
             */
             for (iHead=0; iHead<iTail; ++iHead) {
-                p = pkd->particles[Fifo[iHead]];
-                p.set_group(uGroupMax);
+                pkd->particles[Fifo[iHead]].set_group(uGroupMax);
             }
         }
         else {

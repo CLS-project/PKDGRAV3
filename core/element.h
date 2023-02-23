@@ -52,11 +52,6 @@ protected:
         return *this;                                               // ... because you cannot assign to a "value"
     }
 public:
-    SingleElement &operator=(SingleElement &&rhs) {                 // Move assignment operator
-        p = rhs.p;
-        element_store = rhs.element_store;
-        return *this;
-    }
     explicit SingleElement(store_type &store) : element_store(&store), p(nullptr) {}
     SingleElement(store_type &store,int i) : element_store(&store), p(store.Element(i)) {}
     SingleElement(store_type &store,void *p,int i) : element_store(&store), p(store.Element(p,i)) {}
@@ -81,6 +76,7 @@ protected:
     }
 public:
     using ELEMENT::ELEMENT; // Get all constructors (including the copy constructor)
+    using ELEMENT::operator=;
     SinglePointer<ELEMENT> operator&() {
         return SinglePointer<ELEMENT>(this->store(),this->p);
     }

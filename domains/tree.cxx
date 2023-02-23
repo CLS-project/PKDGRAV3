@@ -472,7 +472,7 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
         blitz::TinyVector<double,3> ar = m * a;
         pkdn->set_rung(p.rung());
         for (++pj; pj<=pkdn->upper(); ++pj) {
-            p = pkd->particles[pj];
+            auto p = pkd->particles[pj];
             const auto a = p.have_acceleration() ? p.acceleration() : blitz::TinyVector<acc_t,3>(0.0);
             const auto v = p.have_velocity()     ? p.velocity()     : blitz::TinyVector<vel_t,3>(0.0);
             m = p.mass();
@@ -603,7 +603,7 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
                 assert(pj<=pkdn->upper());
                 double d2Max = 0;
                 for (; pj<=pkdn->upper(); ++pj) {
-                    p = pkd->particles[pj];
+                    auto p = pkd->particles[pj];
 // #if defined(__AVX__) && defined(USE_SIMD)
 //                     if (pkd->bIntegerPosition) {
 //                         __m256d v = _mm256_sub_pd(pkdGetPos(pkd,p),_mm256_setr_pd(kdn_r[0],kdn_r[1],kdn_r[2],0.0));
