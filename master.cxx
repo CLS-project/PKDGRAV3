@@ -1044,9 +1044,9 @@ void MSR::Initialize() {
     param.nMinMembers = 10;
     prmAddParam(prm,"nMinMembers",1,&param.nMinMembers,sizeof(int),
                 "nMinMembers","<minimum number of group members> = 10");
-    param.dTau = 0.164;
+    param.dTau = 0.0;
     prmAddParam(prm,"dTau",2,&param.dTau,sizeof(double),"dTau",
-                "<linking length for FOF in units of mean particle separation> = 0.164");
+                "<linking length for FOF in code distance units>");
     param.dEnvironment0 = -1.0;
     prmAddParam(prm,"dEnvironment0",2,&param.dEnvironment0,sizeof(double),"dEnv0",
                 "<first radius for density environment about a group> = -1.0 (disabled)");

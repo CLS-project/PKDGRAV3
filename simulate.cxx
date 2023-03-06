@@ -715,6 +715,11 @@ int MSR::ValidateParameters() {
     if (param.nParaWrite > nThreads) param.nParaWrite = nThreads;
 
 
+    if (param.bFindGroups && !prmSpecified(prm,"dTau")) {
+        fprintf(stderr, "ERROR: you must specify dTau when FOF is to be run\n");
+        return 0;
+    }
+
 
     if (csm->val.classData.bClass) {
         const char *aLinear[MAX_CSM_SPECIES];

@@ -62,7 +62,7 @@ def parse():
     add_bool(aparm,'hop',default=False,dest='bFindHopGroups',help='enable phase-space group finder')
     add_flag(aparm,'hoptau',default=-4.0,dest='dHopTau',type=float, help='linking length for Gasshopper (negative for multiples of softening)')
     add_flag(aparm,'nMinMembers',default=10, dest='nMinMembers',type=int, help='minimum number of group members')
-    add_flag(aparm,'tau',default=0.164,dest='dTau',type=float,help='linking length for FOF in units of mean particle separation')
+    add_flag(aparm,'tau',default=0.0,dest='dTau',type=float,help='linking length for FOF in code distance units')
     add_flag(aparm,'dEnv0',default=-1.0,dest='dEnvironment0',type=float, help='first radius for density environment about a group')
     add_flag(aparm,'dEnv1',default=-1.0,dest='dEnvironment1',type=float, help='second radius for density environment about a group')
     add_bool(aparm,'lc',default=False,dest='bLightCone',help='output light cone data')
