@@ -123,7 +123,7 @@ static inline void snFeedback(PKD pkd, PARTICLE *p, int nSmooth, NN *nnList,
 
     const double dProb = fEfficiency * dSpecEnergy * dStarMass /
                          (dDeltau * fNgbTotMass);
-    assert(dProb < 1.0);
+    const double dCorrFac = dProb > 1.0 ? dProb : 1.0;
 
     for (int i = 0; i < nSmooth; ++i) {
         PARTICLE *q = nnList[i].pPart;
@@ -131,7 +131,7 @@ static inline void snFeedback(PKD pkd, PARTICLE *p, int nSmooth, NN *nnList,
 
         if (rand() < RAND_MAX * dProb) {
             SPHFIELDS *qSph = pkdSph(pkd, q);
-            const double dEnergyInput = dDeltau * pkdMass(pkd, q);
+            const double dEnergyInput = dCorrFac * dDeltau * pkdMass(pkd, q);
 
 #ifdef OLD_FB_SCHEME
             qSph->Uint += dEnergyInput;
