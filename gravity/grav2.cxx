@@ -45,6 +45,7 @@
 #include "SPH/SPHpredict.h"
 
 #include <algorithm>
+#include <stack>
 
 #if 1
 #if defined(USE_SIMD) && defined(__SSE2__)
@@ -549,6 +550,40 @@ static void queueEwald( PKD pkd, workParticle *wp ) {
     pkdParticleWorkDone(wp);
 }
 
+static void extensiveILPTest(PKD pkd, workParticle *wp, ilpList &ilp) {
+    std::stack<std::pair<int,int>> cellStack;
+
+    // Add the toptree cell corresponding to the ROOT cell to the stack
+    cellStack.push(std::make_pair(pkd->iTopTree[ROOT],pkd->Self()));
+    int nParticles = 0;
+
+    while (!cellStack.empty()) {
+        auto [iCell, id] = cellStack.top();
+        cellStack.pop();
+        auto c = (id == pkd->Self()) ? pkd->tree[iCell] : pkd->tree[static_cast<KDN *>(mdlFetch(pkd->mdl,CID_CELL,iCell,id))];
+
+        // Walking the top tree
+        if (c->is_top_tree()) {
+            auto [iLower, idLower, iUpper, idUpper] = c->get_child_cells(id);
+            cellStack.push(std::make_pair(iUpper, idUpper));
+            cellStack.push(std::make_pair(iLower, idLower));
+            continue;
+        }
+
+        /* We are either on
+        ** the toptree cell that corresponds to my local cell
+        ** or on one of the 2 children for cell corresponding to remote threads id != pkd->Self()
+        ** so we can loop through the particles between c->lower() and c->upper()
+        ** and mdlFetch them from that thread
+        */
+        for (auto pj=c->lower(); pj<=c->upper(); ++pj) {
+            auto p = (id == pkd->Self()) ? pkd->particles[pj] : pkd->particles[static_cast<PARTICLE *>(mdlFetch(pkd->mdl,CID_PARTICLE,pj,id))];
+            ++nParticles;
+        }
+    }
+    assert(nParticles == pkd->nGas);
+}
+
 /*
 ** This version of grav.c does all the operations inline, including
 ** v_sqrt's and such.
@@ -686,7 +721,7 @@ int pkdGravInteract(PKD pkd,
     nActive += wp->nP;
 
     if (SPHoptions->doExtensiveILPTest) {
-        printf("Doing extensive ILP test\n");
+        extensiveILPTest(pkd, wp, pkd->ilp);
     }
 
     /*
