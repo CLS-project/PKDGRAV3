@@ -64,7 +64,7 @@ SPHOptions initializeSPHOptions(struct parameters param, CSM csm, double dTime) 
     SPHoptions.doSPHForces = 0;
     SPHoptions.doUConversion = 0;
     SPHoptions.doSetDensityFlags = 0;
-    SPHoptions.dofBallFactor = 0;
+    SPHoptions.dofBallFactor = 1;
     SPHoptions.useNumDen = 1;
     SPHoptions.useIsentropic = param.bGasIsentropic;
     SPHoptions.useBuiltinIdeal = param.bGasBuiltinIdeal;
@@ -108,7 +108,7 @@ void copySPHOptions(SPHOptions *source, SPHOptions *target) {
     target->doSPHForces = 0;
     target->doUConversion = 0;
     target->doSetDensityFlags = 0;
-    target->dofBallFactor = 0;
+    target->dofBallFactor = 1;
     target->useNumDen = source->useNumDen;
     target->useIsentropic = source->useIsentropic;
     target->useBuiltinIdeal = source->useBuiltinIdeal;

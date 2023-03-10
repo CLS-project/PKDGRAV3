@@ -4269,6 +4269,7 @@ int MSR::NewTopStepKDK(
                                  1,bKickOpen,param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,nGroup,SPHoptions);
             // Select Neighbors of Neighbors
             if (SPHoptions.doInterfaceCorrection) {
+                SPHoptions.dofBallFactor = 1;
                 TreeUpdateFlagBounds(param.bEwald,ROOT,0,SPHoptions);
                 SPHoptions.doSetDensityFlags = 0;
                 SPHoptions.doSetNNflags = 1;
