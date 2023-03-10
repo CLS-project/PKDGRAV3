@@ -685,6 +685,10 @@ int pkdGravInteract(PKD pkd,
 
     nActive += wp->nP;
 
+    if (SPHoptions->doExtensiveILPTest) {
+        printf("Doing extensive ILP test\n");
+    }
+
     /*
     ** Evaluate the local expansion.
     */

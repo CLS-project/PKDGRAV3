@@ -1419,6 +1419,10 @@ void MSR::Initialize() {
     prmAddParam(prm,"bGasConsistentPrediction",0,&param.bGasConsistentPrediction,
                 sizeof(int),"bGasConsistentPrediction",
                 "<Do consistent prediction> = +bGasConsistentPrediction");
+    param.bGasDoExtensiveILPTest = 0;
+    prmAddParam(prm,"bGasDoExtensiveILPTest",0,&param.bGasDoExtensiveILPTest,
+                sizeof(int),"bGasDoExtensiveILPTest",
+                "<Do extensive ILP test> = +bGasDoExtensiveILPTest");
     /* END Gas/Star Parameters */
     param.nOutputParticles = 0;
     prmAddArray(prm,"lstOrbits",4,&param.iOutputParticles,sizeof(uint64_t),&param.nOutputParticles);
