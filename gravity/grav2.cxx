@@ -612,18 +612,18 @@ int pkdGravInteract(PKD pkd,
         wp->pPart[nP] = &p;
         wp->iPart[nP] = &p - pkd->particles.begin();
         wp->pInfoIn[nP].r = pkd->ilc.get_dr(r);
-        if (p.have_acceleration()) {
-            const auto &ap = p.acceleration();
-            wp->pInfoIn[nP].a[0]  = ap[0];
-            wp->pInfoIn[nP].a[1]  = ap[1];
-            wp->pInfoIn[nP].a[2]  = ap[2];
-            //ap[0] = ap[1] = ap[2] = 0.0;
-        }
-        else {
-            wp->pInfoIn[nP].a[0]  = 0;
-            wp->pInfoIn[nP].a[1]  = 0;
-            wp->pInfoIn[nP].a[2]  = 0;
-        }
+        // if (p.have_acceleration()) {
+        // const auto &ap = p.acceleration();
+        // wp->pInfoIn[nP].a[0]  = ap[0];
+        // wp->pInfoIn[nP].a[1]  = ap[1];
+        // wp->pInfoIn[nP].a[2]  = ap[2];
+        //ap[0] = ap[1] = ap[2] = 0.0;
+        // }
+        // else {
+        // wp->pInfoIn[nP].a[0]  = 0;
+        // wp->pInfoIn[nP].a[1]  = 0;
+        // wp->pInfoIn[nP].a[2]  = 0;
+        // }
 
         if (p.have_newsph()) {
             const auto &NewSph = p.newsph();
