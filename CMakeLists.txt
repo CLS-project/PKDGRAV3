@@ -42,12 +42,17 @@ if (COMPILER_OPT_WARN_ALL_SUPPORTED)
   set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wall")
   set(CMAKE_C_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wall")
 endif()
-if(CMAKE_VERSION VERSION_GREATER "3.17.0")
-   find_package(CUDAToolkit)
-else()
-   message(WARNING "Using old FindCUDA, consider updating cmake.")
-   find_package(CUDA)
+
+option(WITH_CUDA "Enable CUDA compilation by default" ON) #ON by default
+if(WITH_CUDA)
+  if(CMAKE_VERSION VERSION_GREATER "3.17.0")
+    find_package(CUDAToolkit)
+  else()
+    message(WARNING "Using old FindCUDA, consider updating cmake.")
+    find_package(CUDA)
+  endif()
 endif()
+
 find_package(Git)
 if(Git_FOUND)
   execute_process(

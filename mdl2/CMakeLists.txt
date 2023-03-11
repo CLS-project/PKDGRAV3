@@ -31,12 +31,17 @@ check_symbol_exists(backtrace execinfo.h USE_BT)
 
 find_package(Threads REQUIRED)
 find_package(MPI REQUIRED)	# MPI support
-if(CMAKE_VERSION VERSION_GREATER "3.17.0")
-   find_package(CUDAToolkit)
-else()
-   message(WARNING "Using old FindCUDA, consider updating cmake.")
-   find_package(CUDA)
+
+option(WITH_CUDA "Enable CUDA compilation by default" ON) #ON by default
+if(WITH_CUDA)
+  if(CMAKE_VERSION VERSION_GREATER "3.17.0")
+    find_package(CUDAToolkit)
+  else()
+    message(WARNING "Using old FindCUDA, consider updating cmake.")
+    find_package(CUDA)
+  endif()
 endif()
+
 find_package(elfutils QUIET)
 
 add_library(${PROJECT_NAME} STATIC "")
