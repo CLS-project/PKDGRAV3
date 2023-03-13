@@ -253,6 +253,8 @@ void smBHevolve(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
         vRel2 = vx*vx + vy*vy + vz*vz;
         vRel2 *= norm*norm;
 
+        pkdSetDensity(pkd, p, pDensity);
+
         const double vphi = sqrt(vcircx*vcircx + vcircy*vcircy + vcircz*vcircz)*norm/ph;
 
         // We allow the accretion viscosity to act over a boosted Bondi accretion
