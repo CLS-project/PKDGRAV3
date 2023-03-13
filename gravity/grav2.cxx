@@ -583,7 +583,7 @@ static void extensiveILPTest(PKD pkd, workParticle *wp, ilpList &ilp) {
             // Get position and ball size of particle p
             auto pr = p.position();
             float fBallFactor = (wp->SPHoptions->dofBallFactor) ? wp->SPHoptions->fBallFactor : 1.0f;
-            float pBall2 = p.ball() * fBallFactor;
+            float pBall2 = std::min(wp->SPHoptions->ballSizeLimit, p.ball() * fBallFactor);
             pBall2 *= pBall2;
 
             int needsCheck = 0;
@@ -593,7 +593,7 @@ static void extensiveILPTest(PKD pkd, workParticle *wp, ilpList &ilp) {
 
                 // Get position and ball size of particle q
                 auto qr = q.position();
-                float qBall2 = q.ball() * fBallFactor;
+                float qBall2 = std::min(wp->SPHoptions->ballSizeLimit, q.ball() * fBallFactor);
                 qBall2 *= qBall2;
 
                 // Calculate distance squared between particle p and q
