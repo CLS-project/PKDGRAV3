@@ -215,6 +215,8 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
             if (SPHoptions.doInterfaceCorrection) {
                 SPHoptions.doDensity = 0;
                 SPHoptions.doDensityCorrection = 1;
+                SPHoptions.dofBallFactor = 0;
+                TreeUpdateFlagBounds(param.bEwald,ROOT,0,SPHoptions);
                 uRungMax = Gravity(0,MAX_RUNG,ROOT,0,dTime,dDelta,iStartStep,dTheta,0,bKickOpen,
                                    param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,SPHoptions);
                 UpdateGasValues(0,dTime,dDelta,iStartStep,0,bKickOpen,SPHoptions);
@@ -315,6 +317,8 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
                     if (SPHoptions.doInterfaceCorrection) {
                         SPHoptions.doDensity = 0;
                         SPHoptions.doDensityCorrection = 1;
+                        SPHoptions.dofBallFactor = 0;
+                        TreeUpdateFlagBounds(param.bEwald,ROOT,0,SPHoptions);
                         uRungMax = Gravity(0,MAX_RUNG,ROOT,0,ddTime,dDelta,diStep,dTheta,0,1,
                                            param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,SPHoptions);
                         UpdateGasValues(0,ddTime,dDelta,diStep,0,1,SPHoptions);
