@@ -578,7 +578,7 @@ static void extensiveILPTest(PKD pkd, workParticle *wp, ilpList &ilp) {
         ** and mdlFetch them from that thread
         */
         for (auto pj=c->lower(); pj<=c->upper(); ++pj) {
-            auto p = (id == pkd->Self()) ? pkd->particles[pj] : pkd->particles[static_cast<PARTICLE *>(mdlFetch(pkd->mdl,CID_PARTICLE,pj,id))];
+            auto p = (id == pkd->Self()) ? pkd->particles[pj] : pkd->particles[static_cast<PARTICLE *>(mdlAcquire(pkd->mdl,CID_PARTICLE,pj,id))];
 
             // Get position and ball size of particle p
             auto pr = p.position();
@@ -668,6 +668,7 @@ static void extensiveILPTest(PKD pkd, workParticle *wp, ilpList &ilp) {
             }
 
             ++nParticles;
+            mdlRelease(pkd->mdl,CID_PARTICLE,&p);
         }
     }
     assert(nParticles == pkd->nGas);
