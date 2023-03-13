@@ -43,6 +43,7 @@
 #include "SPH/SPHOptions.h"
 #include "SPH/SPHEOS.h"
 #include "SPH/SPHpredict.h"
+#include "../core/simd.h"
 
 #include <algorithm>
 #include <stack>
@@ -578,6 +579,94 @@ static void extensiveILPTest(PKD pkd, workParticle *wp, ilpList &ilp) {
         */
         for (auto pj=c->lower(); pj<=c->upper(); ++pj) {
             auto p = (id == pkd->Self()) ? pkd->particles[pj] : pkd->particles[static_cast<PARTICLE *>(mdlFetch(pkd->mdl,CID_PARTICLE,pj,id))];
+
+            // Get position and ball size of particle p
+            auto pr = p.position();
+            float fBallFactor = (wp->SPHoptions->dofBallFactor) ? wp->SPHoptions->fBallFactor : 1.0f;
+            float pBall2 = p.ball() * fBallFactor;
+            pBall2 *= pBall2;
+
+            int needsCheck = 0;
+            // Loop over all particles in the wp
+            for (auto i=0; i<wp->nP; ++i) {
+                auto q = pkd->particles[wp->iPart[i]];
+
+                // Get position and ball size of particle q
+                auto qr = q.position();
+                float qBall2 = q.ball() * fBallFactor;
+                qBall2 *= qBall2;
+
+                // Calculate distance squared between particle p and q
+                auto dist = pr - qr;
+                float dist2 = blitz::dot(dist,dist);
+
+                // Do check for gather
+                if (dist2 <= qBall2) {
+                    needsCheck = 1;
+                    break;
+                }
+                // Do check for scatter
+                if ((wp->SPHoptions->doSPHForces || wp->SPHoptions->doSetDensityFlags || wp->SPHoptions->doSetNNflags) && dist2 <= pBall2) {
+                    needsCheck = 1;
+                    break;
+                }
+            }
+
+            // Now we need to check
+            if (needsCheck) {
+                // Check that NN flag is set if applicable
+                if (wp->SPHoptions->doSetNNflags) {
+                    if (!p.NN_flag()) {
+                        printf("WARNING, failed NN flag test\n");
+                    }
+                    // assert(p.NN_flag());
+                }
+                // Check that density flag is set if applicable
+                if (wp->SPHoptions->doSetDensityFlags) {
+                    if (!p.marked()) {
+                        printf("WARNING, failed density flag test\n");
+                    }
+                    // assert(p.marked());
+                }
+
+                // Check if particle is on the ILP list
+                if (!wp->SPHoptions->doSetNNflags && !wp->SPHoptions->doSetDensityFlags) {
+                    // Get distance relative to the reference of the ilp
+                    fvec dx = (float)(ilp.getReference(0) - pr[0]);
+                    fvec dy = (float)(ilp.getReference(1) - pr[1]);
+                    fvec dz = (float)(ilp.getReference(2) - pr[2]);
+
+                    float occurrences = 0.0f;
+                    fvec occurrence = 0.0f;
+                    fmask mask;
+
+                    // Compare every entry of the ilp to the positions and count the matches
+                    for ( auto &tile : ilp ) {
+                        auto nBlocks = tile.count() / tile.width;
+                        for (auto iBlock=0; iBlock<=nBlocks; ++iBlock) {
+                            int n = (iBlock == nBlocks ?  tile.count() - nBlocks *tile.width : tile.width);
+                            auto &blk = tile[iBlock];
+                            while (n & fvec::mask()) {
+                                blk.dx.s[n] = blk.dy.s[n] = blk.dz.s[n] = 1e14f;
+                                ++n;
+                            }
+                            n /= fvec::width();
+                            for (auto i=0; i<n; ++i) {
+                                mask = ((blk.dx.v[i] == dx) & (blk.dy.v[i] == dy) & (blk.dz.v[i] == dz));
+                                occurrence += maskz_mov(mask,1.0f);
+                            }
+                        }
+                    }
+
+                    // Sum up the matches and compare to 1
+                    occurrences = hadd(occurrence);
+                    if (occurrences != 1.0f) {
+                        printf("WARNING, failed present on ILP test. Occurrences = %.15e\n",occurrences);
+                    }
+                    // assert(occurences == 1.0f);
+                }
+            }
+
             ++nParticles;
         }
     }
@@ -647,18 +736,6 @@ int pkdGravInteract(PKD pkd,
         wp->pPart[nP] = &p;
         wp->iPart[nP] = &p - pkd->particles.begin();
         wp->pInfoIn[nP].r = pkd->ilc.get_dr(r);
-        // if (p.have_acceleration()) {
-        // const auto &ap = p.acceleration();
-        // wp->pInfoIn[nP].a[0]  = ap[0];
-        // wp->pInfoIn[nP].a[1]  = ap[1];
-        // wp->pInfoIn[nP].a[2]  = ap[2];
-        //ap[0] = ap[1] = ap[2] = 0.0;
-        // }
-        // else {
-        // wp->pInfoIn[nP].a[0]  = 0;
-        // wp->pInfoIn[nP].a[1]  = 0;
-        // wp->pInfoIn[nP].a[2]  = 0;
-        // }
 
         if (p.have_newsph()) {
             const auto &NewSph = p.newsph();
