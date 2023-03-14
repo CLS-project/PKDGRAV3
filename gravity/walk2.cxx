@@ -270,7 +270,7 @@ found_it:
                                             r = p.position();
                                             pkd->ilp.setReference(r);
                                             pkd->ilc.setReference(r);
-                                            mdlRelease(pkd->mdl,iCidPart,&p);
+                                            if (id != pkd->Self()) mdlRelease(pkd->mdl,iCidPart,&p);
                                         }
                                         else {
                                             auto p = (id == pkd->Self()) ? pkd->particles[c->lower()]
@@ -376,7 +376,7 @@ found_it:
                                                                Bound(r,r),          // zero size box at r
                                                                SPHBOB(r,0.0));
                                         }
-                                        mdlRelease(pkd->mdl,iCidPart,&p);
+                                        if (id != pkd->Self()) mdlRelease(pkd->mdl,iCidPart,&p);
                                     }
                                     else {
                                         auto p = (id == pkd->Self()) ? pkd->particles[pj]
