@@ -579,7 +579,7 @@ static void extensiveILPTest(PKD pkd, workParticle *wp, ilpList &ilp) {
         ** and mdlFetch them from that thread
         */
         for (auto pj=c->lower(); pj<=c->upper(); ++pj) {
-            auto p = (id == pkd->Self()) ? pkd->particles[pj] : pkd->particles[static_cast<PARTICLE *>(mdlAcquire(pkd->mdl,CID_PARTICLE,pj,id))];
+            auto p = (id == pkd->Self()) ? pkd->particles[pj] : ((wp->SPHoptions->doSetDensityFlags || wp->SPHoptions->doSetNNflags) ? pkd->particles[static_cast<PARTICLE *>(mdlAcquire(pkd->mdl,CID_PARTICLE,pj,id))] : pkd->particles[static_cast<PARTICLE *>(mdlFetch(pkd->mdl,CID_PARTICLE,pj,id))]);
             ++nParticles;
 
             // Shortcut if necessary flag already set, as the test will pass in the end
@@ -686,7 +686,7 @@ static void extensiveILPTest(PKD pkd, workParticle *wp, ilpList &ilp) {
                     // assert(occurences == 1.0f);
                 }
             }
-            if (id != pkd->Self()) mdlRelease(pkd->mdl,CID_PARTICLE,&p);
+            if ((id != pkd->Self()) && (wp->SPHoptions->doSetDensityFlags || wp->SPHoptions->doSetNNflags)) mdlRelease(pkd->mdl,CID_PARTICLE,&p);
         }
     }
     assert(nParticles == pkd->nGas);
