@@ -2890,11 +2890,6 @@ void pkdEndTimestepIntegration(PKD pkd, struct inEndTimestep in) {
             pkdGrackleCooling(pkd, p, pDelta, in.dTuFac);
 #endif
 
-#if defined(FEEDBACK) || defined(BLACKHOLES)
-            // ##### Apply feedback
-            pkdAddFBEnergy(pkd, p, psph, in.dConstGamma);
-#endif
-
 #if defined(EEOS_JEANS) || defined(EEOS_POLYTROPE)
             // ##### Effective Equation Of State
             const double dEOSUint = fMass*eEOSEnergyFloor(a_inv3, pkdDensity(pkd,p), pkdBall(pkd,p), in.dConstGamma, in.eEOS);
@@ -2903,13 +2898,17 @@ void pkdEndTimestepIntegration(PKD pkd, struct inEndTimestep in) {
                     psph->Uint = dEOSUint;
 #endif
 
+#if defined(FEEDBACK) || defined(BLACKHOLES)
+            // ##### Apply feedback
+            pkdAddFBEnergy(pkd, p, psph, in.dConstGamma);
+#endif
+
             // Actually set the primitive variables
             hydroSetPrimitives(pkd, p, psph, in.dTuFac, in.dConstGamma);
 
 
             // Set 'last*' variables for next timestep
             hydroSetLastVars(pkd, p, psph, pa, dScaleFactor, in.dTime, in.dDelta, in.dConstGamma);
-
 
         }
         else if (pkdIsBH(pkd,p) && pkdIsActive(pkd,p)) {
