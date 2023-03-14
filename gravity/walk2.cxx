@@ -264,11 +264,21 @@ found_it:
                                     iCidPart = blk.iCache[jTile]==CID_CELL ? CID_PARTICLE : CID_PARTICLE2;
                                     if (!bReferenceFound) {
                                         bReferenceFound=1;
-                                        auto p = (id == pkd->Self()) ? pkd->particles[c->lower()]
-                                                 : pkd->particles[static_cast<PARTICLE *>(mdlFetch(pkd->mdl,iCidPart,c->lower(),id))];
-                                        r = p.position();
-                                        pkd->ilp.setReference(r);
-                                        pkd->ilc.setReference(r);
+                                        if (SPHoptions->doSetDensityFlags || SPHoptions->doSetNNflags) {
+                                            auto p = (id == pkd->Self()) ? pkd->particles[c->lower()]
+                                                     : pkd->particles[static_cast<PARTICLE *>(mdlAcquire(pkd->mdl,iCidPart,c->lower(),id))];
+                                            r = p.position();
+                                            pkd->ilp.setReference(r);
+                                            pkd->ilc.setReference(r);
+                                            mdlRelease(pkd->mdl,iCidPart,&p);
+                                        }
+                                        else {
+                                            auto p = (id == pkd->Self()) ? pkd->particles[c->lower()]
+                                                     : pkd->particles[static_cast<PARTICLE *>(mdlFetch(pkd->mdl,iCidPart,c->lower(),id))];
+                                            r = p.position();
+                                            pkd->ilp.setReference(r);
+                                            pkd->ilc.setReference(r);
+                                        }
                                     }
                                     for (pj=c->lower(); pj<=c->upper(); ++pj) {
                                         if (SPHoptions->doSetDensityFlags || SPHoptions->doSetNNflags) {
@@ -344,24 +354,53 @@ found_it:
                                     : pkd->tree[static_cast<KDN *>(mdlFetch(pkd->mdl,blk.iCache[jTile],iCheckCell,id))];
                                 iCidPart = blk.iCache[jTile]==CID_CELL ? CID_PARTICLE : CID_PARTICLE2;
                                 for (pj=c->lower(); pj<=c->upper(); ++pj) {
-                                    auto p = (id == pkd->Self()) ? pkd->particles[pj]
-                                             : pkd->particles[static_cast<PARTICLE *>(mdlFetch(pkd->mdl,iCidPart,pj,id))];
-                                    r = p.position();
-                                    fMass = p.mass();
-                                    fSoft = p.soft();
-                                    if (p.have_newsph()) {
-                                        pkd->clNew->append(blk.iCache[jTile],id,-1 - pj,0,0,0,0,1,0.0,fMass,4.0f*fSoft*fSoft,
-                                                           r,                   // center of mass
-                                                           fOffset,             // fOffset
-                                                           Bound(r,r),          // zero size box at r
-                                                           SPHBOB(r,p.ball()));
+                                    if (SPHoptions->doSetDensityFlags || SPHoptions->doSetNNflags) {
+                                        auto p = (id == pkd->Self()) ? pkd->particles[pj]
+                                                 : pkd->particles[static_cast<PARTICLE *>(mdlAcquire(pkd->mdl,iCidPart,pj,id))];
+                                        r = p.position();
+                                        fMass = p.mass();
+                                        fSoft = p.soft();
+                                        if (p.have_newsph()) {
+                                            float fBallFactor = (SPHoptions->dofBallFactor) ? SPHoptions->fBallFactor : 1.0f;
+                                            float limitedBallSize = std::min(SPHoptions->ballSizeLimit,fBallFactor * p.ball());
+                                            pkd->clNew->append(blk.iCache[jTile],id,-1 - pj,0,0,0,0,1,0.0,fMass,4.0f*fSoft*fSoft,
+                                                               r,                   // center of mass
+                                                               fOffset,             // fOffset
+                                                               Bound(r,r),          // zero size box at r
+                                                               SPHBOB(r,limitedBallSize));
+                                        }
+                                        else {
+                                            pkd->clNew->append(blk.iCache[jTile],id,-1 - pj,0,0,0,0,1,0.0,fMass,4.0f*fSoft*fSoft,
+                                                               r,                   // center of mass
+                                                               fOffset,             // fOffset
+                                                               Bound(r,r),          // zero size box at r
+                                                               SPHBOB(r,0.0));
+                                        }
+                                        mdlRelease(pkd->mdl,iCidPart,&p);
                                     }
                                     else {
-                                        pkd->clNew->append(blk.iCache[jTile],id,-1 - pj,0,0,0,0,1,0.0,fMass,4.0f*fSoft*fSoft,
-                                                           r,                   // center of mass
-                                                           fOffset,             // fOffset
-                                                           Bound(r,r),          // zero size box at r
-                                                           SPHBOB(r,0.0));
+                                        auto p = (id == pkd->Self()) ? pkd->particles[pj]
+                                                 : pkd->particles[static_cast<PARTICLE *>(mdlFetch(pkd->mdl,iCidPart,pj,id))];
+                                        r = p.position();
+                                        fMass = p.mass();
+                                        fSoft = p.soft();
+                                        if (p.have_newsph()) {
+                                            float fBallFactor = (SPHoptions->dofBallFactor) ? SPHoptions->fBallFactor : 1.0f;
+                                            float limitedBallSize = std::min(SPHoptions->ballSizeLimit,fBallFactor * p.ball());
+                                            pkd->clNew->append(blk.iCache[jTile],id,-1 - pj,0,0,0,0,1,0.0,fMass,4.0f*fSoft*fSoft,
+                                                               r,                   // center of mass
+                                                               fOffset,             // fOffset
+                                                               Bound(r,r),          // zero size box at r
+                                                               SPHBOB(r,limitedBallSize));
+                                        }
+                                        else {
+                                            pkd->clNew->append(blk.iCache[jTile],id,-1 - pj,0,0,0,0,1,0.0,fMass,4.0f*fSoft*fSoft,
+                                                               r,                   // center of mass
+                                                               fOffset,             // fOffset
+                                                               Bound(r,r),          // zero size box at r
+                                                               SPHBOB(r,0.0));
+                                        }
+
                                     }
                                 }
                                 break;

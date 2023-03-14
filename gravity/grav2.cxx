@@ -552,6 +552,7 @@ static void queueEwald( PKD pkd, workParticle *wp ) {
 }
 
 static void extensiveILPTest(PKD pkd, workParticle *wp, ilpList &ilp) {
+    if (wp->SPHoptions->doDensity || wp->SPHoptions->doDensityCorrection || wp->SPHoptions->doSPHForces) return;
     std::stack<std::pair<int,int>> cellStack;
 
     // Add the toptree cell corresponding to the ROOT cell to the stack
@@ -586,6 +587,8 @@ static void extensiveILPTest(PKD pkd, workParticle *wp, ilpList &ilp) {
             float pBall2 = std::min(wp->SPHoptions->ballSizeLimit, p.ball() * fBallFactor);
             pBall2 *= pBall2;
 
+            float qBall2save, dist2save;
+
             int needsCheck = 0;
             // Loop over all particles in the wp
             for (auto i=0; i<wp->nP; ++i) {
@@ -601,13 +604,17 @@ static void extensiveILPTest(PKD pkd, workParticle *wp, ilpList &ilp) {
                 float dist2 = blitz::dot(dist,dist);
 
                 // Do check for gather
-                if (dist2 <= qBall2) {
+                if (dist2 < qBall2) {
                     needsCheck = 1;
+                    dist2save = dist2;
+                    qBall2save = qBall2;
                     break;
                 }
                 // Do check for scatter
-                if ((wp->SPHoptions->doSPHForces || wp->SPHoptions->doSetDensityFlags || wp->SPHoptions->doSetNNflags) && dist2 <= pBall2) {
+                if ((wp->SPHoptions->doSPHForces || wp->SPHoptions->doSetDensityFlags || wp->SPHoptions->doSetNNflags) && dist2 < pBall2) {
                     needsCheck = 1;
+                    dist2save = dist2;
+                    qBall2save = qBall2;
                     break;
                 }
             }
@@ -618,6 +625,7 @@ static void extensiveILPTest(PKD pkd, workParticle *wp, ilpList &ilp) {
                 if (wp->SPHoptions->doSetNNflags) {
                     if (!p.NN_flag()) {
                         printf("WARNING, failed NN flag test\n");
+                        printf("pBall2 = %.15e, qBall2 = %.15e, dist2 = %.15e\n",pBall2,qBall2save,dist2save);
                     }
                     // assert(p.NN_flag());
                 }
@@ -625,6 +633,7 @@ static void extensiveILPTest(PKD pkd, workParticle *wp, ilpList &ilp) {
                 if (wp->SPHoptions->doSetDensityFlags) {
                     if (!p.marked()) {
                         printf("WARNING, failed density flag test\n");
+                        printf("pBall2 = %.15e, qBall2 = %.15e, dist2 = %.15e\n",pBall2,qBall2save,dist2save);
                     }
                     // assert(p.marked());
                 }
