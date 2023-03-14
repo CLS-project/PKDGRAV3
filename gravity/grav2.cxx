@@ -583,8 +583,10 @@ static void extensiveILPTest(PKD pkd, workParticle *wp, ilpList &ilp) {
             ++nParticles;
 
             // Shortcut if necessary flag already set, as the test will pass in the end
-            if (wp->SPHoptions->doSetDensityFlags && p.marked()) continue;
-            if (wp->SPHoptions->doSetNNflags && p.NN_flag()) continue;
+            if ((wp->SPHoptions->doSetDensityFlags && p.marked()) || (wp->SPHoptions->doSetNNflags && p.NN_flag())) {
+                mdlRelease(pkd->mdl,CID_PARTICLE,&p);
+                continue;
+            }
 
             // Get position and ball size of particle p
             auto pr = p.position();
