@@ -168,6 +168,7 @@ void smBHmerger(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
                     pbh->newPos[2] = pkdPos(pkd,p,2)-qmass*inv_newmass*nnList[i].dz;
                     pbh->doReposition = 2;
                     pbh->dInternalMass += pkdBH(pkd,q)->dInternalMass;
+                    pbh->dAccEnergy += pkdBH(pkd,q)->dAccEnergy;
 
                     for (int j=0; j<3; j++) {
                         pv[j] = (pmass*pv[j] + qmass*qv[j])*inv_newmass;
