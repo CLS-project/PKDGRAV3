@@ -581,6 +581,10 @@ static void extensiveILPTest(PKD pkd, workParticle *wp, ilpList &ilp) {
         for (auto pj=c->lower(); pj<=c->upper(); ++pj) {
             auto p = (id == pkd->Self()) ? pkd->particles[pj] : pkd->particles[static_cast<PARTICLE *>(mdlAcquire(pkd->mdl,CID_PARTICLE,pj,id))];
 
+            // Shortcut if necessary flag already set, as the test will pass in the end
+            if (wp->SPHoptions->doSetDensityFlags && p.marked()) continue;
+            if (wp->SPHoptions->doSetNNflags && p.NN_flag()) continue;
+
             // Get position and ball size of particle p
             auto pr = p.position();
             float fBallFactor = (wp->SPHoptions->dofBallFactor) ? wp->SPHoptions->fBallFactor : 1.0f;
