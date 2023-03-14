@@ -302,7 +302,13 @@ static inline double pressure_SFR(const float fMass, const float fDens,
     const double maxUint = INFINITY;
 #endif
 
-    if (psph->Uint > maxUint || fDens < dThreshDen) {
+#ifdef OLD_FB_SCHEME
+    const double dUint = psph->Uint;
+#else
+    const double dUint = psph->Uint + psph->fAccFBEnergy;
+#endif
+
+    if (dUint > maxUint || fDens < dThreshDen) {
         return 0.0;
     }
 
