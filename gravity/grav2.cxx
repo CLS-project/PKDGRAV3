@@ -580,6 +580,7 @@ static void extensiveILPTest(PKD pkd, workParticle *wp, ilpList &ilp) {
         */
         for (auto pj=c->lower(); pj<=c->upper(); ++pj) {
             auto p = (id == pkd->Self()) ? pkd->particles[pj] : pkd->particles[static_cast<PARTICLE *>(mdlAcquire(pkd->mdl,CID_PARTICLE,pj,id))];
+            ++nParticles;
 
             // Shortcut if necessary flag already set, as the test will pass in the end
             if (wp->SPHoptions->doSetDensityFlags && p.marked()) continue;
@@ -679,8 +680,6 @@ static void extensiveILPTest(PKD pkd, workParticle *wp, ilpList &ilp) {
                     // assert(occurences == 1.0f);
                 }
             }
-
-            ++nParticles;
             mdlRelease(pkd->mdl,CID_PARTICLE,&p);
         }
     }
