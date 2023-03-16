@@ -248,8 +248,11 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
         */
 
 
-        for (j=0; j<3; j++) {
-            face_unit[j] = Apq[j]/modApq;
+        if (modApq > 0.) {
+            for (j=0; j<3; ++j) face_unit[j] = Apq[j]/modApq;
+        }
+        else {
+            for (j=0; j<3; ++j) face_unit[j] = 0.;
         }
 
 
@@ -732,8 +735,11 @@ void hydroRiemann_vec(PARTICLE *p,float fBall,int nSmooth,
 
 
         my_real face_unit[3];
-        for (j=0; j<3; j++) {
-            face_unit[j] = Apq[j]/modApq;
+        if (modApq > 0.) {
+            for (j=0; j<3; ++j) face_unit[j] = Apq[j]/modApq;
+        }
+        else {
+            for (j=0; j<3; ++j) face_unit[j] = 0.;
         }
 
 
