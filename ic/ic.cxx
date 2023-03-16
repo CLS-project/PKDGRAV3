@@ -787,11 +787,14 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
                 //pSph->fLastBall = 0.0;
                 pSph->lastUpdateTime = -1.;
                 // pSph->nLastNeighs = 100;
+#ifdef STAR_FORMATION
+                pSph->SFR = 0.;
+#endif
 #ifdef COOLING
                 pSph->lastCooling = 0.;
                 pSph->cooling_dudt = 0.;
 #endif
-#ifdef FEEDBACK
+#if defined(FEEDBACK) || defined(BLACKHOLES)
                 pSph->fAccFBEnergy = 0.;
 #endif
                 pSph->uWake = 0;

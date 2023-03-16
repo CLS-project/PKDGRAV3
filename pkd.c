@@ -1093,6 +1093,9 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
                     //pSph->fLastBall = 0.0;
                     pSph->lastUpdateTime = -1.;
                     // pSph->nLastNeighs = 100;
+#ifdef STAR_FORMATION
+                    pSph->SFR = 0.;
+#endif
 #ifdef COOLING
                     pSph->lastCooling = 0.;
                     pSph->cooling_dudt = 0.;

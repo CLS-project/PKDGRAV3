@@ -176,9 +176,6 @@ void pkdStarForm(PKD pkd,
         p = pkdParticle(pkd,i);
 
         if (pkdIsActive(pkd,p) && pkdIsGas(pkd,p)) {
-            const float fDens = pkdDensity(pkd,p);
-            if (fDens < in.dSFThresholdOD) continue;
-
             const float fMass = pkdMass(pkd, p);
             psph = pkdSph(pkd,p);
 
@@ -193,19 +190,20 @@ void pkdStarForm(PKD pkd,
                 dThreshDen = in.dSFThresholdDen;
             }
 #else
-            const double dThreshDen = in.dSFThresholdDen;
+            double dThreshDen = in.dSFThresholdDen;
 #endif
 
+            dThreshDen = dThreshDen > in.dSFThresholdOD ? dThreshDen : in.dSFThresholdOD;
+
             double dmstar;
-            const float fBall = pkdBall(pkd,p);
             if (in.dSFEfficiency > 0.0) {
-                dmstar = density_SFR(fMass, fDens, a_m3, dThreshDen, in.dSFThresholdu,
-                                     in.dSFEfficiency, psph);
+                dmstar = density_SFR(fMass, pkdDensity(pkd,p), a_m3, dThreshDen,
+                                     in.dSFThresholdu, in.dSFEfficiency, psph);
             }
             else {
-                dmstar = pressure_SFR(fMass, fDens, fBall, a_m3, dThreshDen, in.dSFnormalizationKS,
-                                      in.dSFindexKS, in.dSFGasFraction, in.dConstGamma,
-                                      in.eEOS, psph);
+                dmstar = pressure_SFR(fMass, pkdDensity(pkd,p), pkdBall(pkd,p), a_m3,
+                                      dThreshDen, in.dSFnormalizationKS, in.dSFindexKS,
+                                      in.dSFGasFraction, in.dConstGamma, in.eEOS, psph);
             }
 
             psph->SFR = dmstar;
