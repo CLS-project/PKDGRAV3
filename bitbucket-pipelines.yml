@@ -7,6 +7,18 @@ pipelines:
           - cmake .
           - make
   pull-requests:
+    'PKDGRAV-*':
+       - step:
+           script:
+             - >
+               cmake -DCOOLING=on
+               -DSTAR_FORMATION=on
+               -DFEEDBACK=on
+               -DEEOS_POLYTROPE=on
+               -DBLACKHOLES=on
+               -DSTELLAR_EVOLUTION=on
+               .
+             - make
     '**':
       - step:
            runs-on: self.hosted
