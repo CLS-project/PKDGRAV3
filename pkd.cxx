@@ -1841,7 +1841,7 @@ static void combSetMarked(void *vpkd, void *v1, const void *v2) {
 #endif
 }
 
-void extensiveMarkerTest(PKD pkd, SPHOptions *SPHoptions) {
+void extensiveMarkerTest(PKD pkd, struct pkdTimestepParameters *ts, SPHOptions *SPHoptions) {
     std::stack<std::pair<int,int>> cellStack;
 
     // Add the toptree cell corresponding to the ROOT cell to the stack
@@ -1891,6 +1891,14 @@ void extensiveMarkerTest(PKD pkd, SPHOptions *SPHoptions) {
             auto rootc = pkd->tree[ROOT];
             for (auto qj=rootc->lower(); qj<=rootc->upper(); ++qj) {
                 auto q = pkd->particles[qj];
+
+
+                // Skip those that are not active
+#ifdef NN_FLAG_IN_PARTICLE
+                if (!q.is_rung_range(ts->uRungLo,ts->uRungHi) && !(SPHoptions->useDensityFlags && q.marked()) && !(SPHoptions->useNNflags && q.NN_flag())) continue;
+#else
+                if (!q.is_rung_range(ts->uRungLo,ts->uRungHi) && !(SPHoptions->useDensityFlags && q.marked())) continue;
+#endif
 
                 // Get position and ball size of particle q
                 auto qr = q.position();
@@ -2008,7 +2016,7 @@ void pkdGravAll(PKD pkd,
     if (SPHoptions->doExtensiveILPTest & (SPHoptions->doSetDensityFlags || SPHoptions->doSetNNflags)) {
         mdlFlushCache(pkd->mdl,CID_PARTICLE);
         mdlCacheBarrier(pkd->mdl,CID_PARTICLE);
-        extensiveMarkerTest(pkd, SPHoptions);
+        extensiveMarkerTest(pkd, ts, SPHoptions);
     }
 
     dActive = (double)(*pnActive);
