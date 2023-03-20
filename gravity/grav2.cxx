@@ -717,11 +717,8 @@ int pkdGravInteract(PKD pkd,
     wp->SPHoptions = SPHoptions;
 
     for (auto &p : *pkdn) {
-#ifdef NN_FLAG_IN_PARTICLE
         if (!p.is_rung_range(ts->uRungLo,ts->uRungHi) && !(SPHoptions->useDensityFlags && p.marked()) && !(SPHoptions->useNNflags && p.NN_flag())) continue;
-#else
-        if (!p.is_rung_range(ts->uRungLo,ts->uRungHi) && !(SPHoptions->useDensityFlags && p.marked())) continue;
-#endif
+
         auto r = p.position();
 
         nP = wp->nP++;

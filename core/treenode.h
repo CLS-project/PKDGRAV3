@@ -56,8 +56,8 @@ struct KDN {
     uint32_t uMaxRung   : 6;
     uint32_t bTopTree   : 1; /* This is a top tree node: pLower,pUpper are node indexes */
     uint32_t bRemote    : 1; /* children are remote */
-    uint32_t bHasMarked : 1;         /* flag if node has a marked particle, there are still 63 bit left */
-    uint32_t bHasNNflag : 1;         /* NN_FLAG_IN_PARTICLE: flag if node has a NNflagged particle, there are still 62 bit left */
+    uint32_t bHasMarked : 1;         /* flag if node has a marked particle */
+    uint32_t bHasNNflag : 1;         /* flag if node has a NNflagged particle */
     float bMax;
     float fSoft2;
 };

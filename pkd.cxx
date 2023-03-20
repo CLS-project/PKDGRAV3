@@ -1892,13 +1892,8 @@ void extensiveMarkerTest(PKD pkd, struct pkdTimestepParameters *ts, SPHOptions *
             for (auto qj=rootc->lower(); qj<=rootc->upper(); ++qj) {
                 auto q = pkd->particles[qj];
 
-
                 // Skip those that are not active
-#ifdef NN_FLAG_IN_PARTICLE
                 if (!q.is_rung_range(ts->uRungLo,ts->uRungHi) && !(SPHoptions->useDensityFlags && q.marked()) && !(SPHoptions->useNNflags && q.NN_flag())) continue;
-#else
-                if (!q.is_rung_range(ts->uRungLo,ts->uRungHi) && !(SPHoptions->useDensityFlags && q.marked())) continue;
-#endif
 
                 // Get position and ball size of particle q
                 auto qr = q.position();
