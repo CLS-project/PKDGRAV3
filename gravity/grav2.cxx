@@ -579,14 +579,8 @@ static void extensiveILPTest(PKD pkd, workParticle *wp, ilpList &ilp) {
         ** and mdlFetch them from that thread
         */
         for (auto pj=c->lower(); pj<=c->upper(); ++pj) {
-            auto p = (id == pkd->Self()) ? pkd->particles[pj] : ((wp->SPHoptions->doSetDensityFlags || wp->SPHoptions->doSetNNflags) ? pkd->particles[static_cast<PARTICLE *>(mdlAcquire(pkd->mdl,CID_PARTICLE,pj,id))] : pkd->particles[static_cast<PARTICLE *>(mdlFetch(pkd->mdl,CID_PARTICLE,pj,id))]);
+            auto p = (id == pkd->Self()) ? pkd->particles[pj] : pkd->particles[static_cast<PARTICLE *>(mdlFetch(pkd->mdl,CID_PARTICLE,pj,id))];
             ++nParticles;
-
-            // Shortcut if necessary flag already set, as the test will pass in the end
-            if ((wp->SPHoptions->doSetDensityFlags && p.marked()) || (wp->SPHoptions->doSetNNflags && p.NN_flag())) {
-                if (id != pkd->Self()) mdlRelease(pkd->mdl,CID_PARTICLE,&p);
-                continue;
-            }
 
             // Get position and ball size of particle p
             auto pr = p.position();
@@ -620,7 +614,7 @@ static void extensiveILPTest(PKD pkd, workParticle *wp, ilpList &ilp) {
                     break;
                 }
                 // Do check for scatter
-                if ((wp->SPHoptions->doSPHForces || wp->SPHoptions->doSetDensityFlags || wp->SPHoptions->doSetNNflags) && dist2 < pBall2) {
+                if (wp->SPHoptions->doSPHForces && dist2 < pBall2) {
                     needsCheck = 1;
                     dist2save = dist2;
                     qBall2save = qBall2;
@@ -629,64 +623,43 @@ static void extensiveILPTest(PKD pkd, workParticle *wp, ilpList &ilp) {
                 }
             }
 
-            // Now we need to check
+            // Now we need to check if particle is on the ILP list
             if (needsCheck) {
-                // Check that NN flag is set if applicable
-                if (wp->SPHoptions->doSetNNflags) {
-                    if (!p.NN_flag()) {
-                        printf("WARNING, failed NN flag test\n");
-                        printf("pBall2 = %.15e, qBall2 = %.15e, dist2 = %.15e, porder = %d, qorder = %d\n",pBall2,qBall2save,dist2save,(int)(p.order()),qOrdersave);
-                    }
-                    // assert(p.NN_flag());
-                }
-                // Check that density flag is set if applicable
-                if (wp->SPHoptions->doSetDensityFlags) {
-                    if (!p.marked()) {
-                        printf("WARNING, failed mark flag test\n");
-                        printf("pBall2 = %.15e, qBall2 = %.15e, dist2 = %.15e, porder = %d, qorder = %d\n",pBall2,qBall2save,dist2save,(int)(p.order()),qOrdersave);
-                    }
-                    // assert(p.marked());
-                }
+                // Get distance relative to the reference of the ilp
+                fvec dx = (float)(ilp.getReference(0) - pr[0]);
+                fvec dy = (float)(ilp.getReference(1) - pr[1]);
+                fvec dz = (float)(ilp.getReference(2) - pr[2]);
 
-                // Check if particle is on the ILP list
-                if (!wp->SPHoptions->doSetNNflags && !wp->SPHoptions->doSetDensityFlags) {
-                    // Get distance relative to the reference of the ilp
-                    fvec dx = (float)(ilp.getReference(0) - pr[0]);
-                    fvec dy = (float)(ilp.getReference(1) - pr[1]);
-                    fvec dz = (float)(ilp.getReference(2) - pr[2]);
+                float occurrences = 0.0f;
+                fvec occurrence = 0.0f;
+                fmask mask;
 
-                    float occurrences = 0.0f;
-                    fvec occurrence = 0.0f;
-                    fmask mask;
-
-                    // Compare every entry of the ilp to the positions and count the matches
-                    for ( auto &tile : ilp ) {
-                        auto nBlocks = tile.count() / tile.width;
-                        for (auto iBlock=0; iBlock<=nBlocks; ++iBlock) {
-                            int n = (iBlock == nBlocks ?  tile.count() - nBlocks *tile.width : tile.width);
-                            auto &blk = tile[iBlock];
-                            while (n & fvec::mask()) {
-                                blk.dx.s[n] = blk.dy.s[n] = blk.dz.s[n] = 1e14f;
-                                ++n;
-                            }
-                            n /= fvec::width();
-                            for (auto i=0; i<n; ++i) {
-                                mask = ((blk.dx.v[i] == dx) & (blk.dy.v[i] == dy) & (blk.dz.v[i] == dz));
-                                occurrence += maskz_mov(mask,1.0f);
-                            }
+                // Compare every entry of the ilp to the positions and count the matches
+                for ( auto &tile : ilp ) {
+                    auto nBlocks = tile.count() / tile.width;
+                    for (auto iBlock=0; iBlock<=nBlocks; ++iBlock) {
+                        int n = (iBlock == nBlocks ?  tile.count() - nBlocks *tile.width : tile.width);
+                        auto &blk = tile[iBlock];
+                        while (n & fvec::mask()) {
+                            blk.dx.s[n] = blk.dy.s[n] = blk.dz.s[n] = 1e14f;
+                            ++n;
+                        }
+                        n /= fvec::width();
+                        for (auto i=0; i<n; ++i) {
+                            mask = ((blk.dx.v[i] == dx) & (blk.dy.v[i] == dy) & (blk.dz.v[i] == dz));
+                            occurrence += maskz_mov(mask,1.0f);
                         }
                     }
-
-                    // Sum up the matches and compare to 1
-                    occurrences = hadd(occurrence);
-                    if (occurrences != 1.0f) {
-                        printf("WARNING, failed present on ILP test. Occurrences = %.15e\n",occurrences);
-                        printf("pBall2 = %.15e, qBall2 = %.15e, dist2 = %.15e, porder = %d, qorder = %d\n",pBall2,qBall2save,dist2save,(int)(p.order()),qOrdersave);
-                    }
-                    // assert(occurences == 1.0f);
                 }
+
+                // Sum up the matches and compare to 1
+                occurrences = hadd(occurrence);
+                if (occurrences != 1.0f) {
+                    printf("WARNING, failed present on ILP test. Occurrences = %.15e\n",occurrences);
+                    printf("pBall2 = %.15e, qBall2 = %.15e, dist2 = %.15e, porder = %d, qorder = %d\n",pBall2,qBall2save,dist2save,(int)(p.order()),qOrdersave);
+                }
+                // assert(occurences == 1.0f);
             }
-            if ((id != pkd->Self()) && (wp->SPHoptions->doSetDensityFlags || wp->SPHoptions->doSetNNflags)) mdlRelease(pkd->mdl,CID_PARTICLE,&p);
         }
     }
     assert(nParticles == pkd->nGas);
@@ -816,7 +789,7 @@ int pkdGravInteract(PKD pkd,
 
     nActive += wp->nP;
 
-    if (SPHoptions->doExtensiveILPTest) {
+    if (SPHoptions->doExtensiveILPTest & !(SPHoptions->doSetDensityFlags || SPHoptions->doSetNNflags)) {
         extensiveILPTest(pkd, wp, pkd->ilp);
     }
 
