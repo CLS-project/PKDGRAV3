@@ -2008,7 +2008,7 @@ void pkdGravAll(PKD pkd,
                             dTime,nReps,bPeriodic && bEwald,nGroup,
                             iRoot1,iRoot2,0,dThetaMin,pdFlop,&dPartSum,&dCellSum,SPHoptions);
 
-    if (SPHoptions->doExtensiveILPTest & (SPHoptions->doSetDensityFlags || SPHoptions->doSetNNflags)) {
+    if (SPHoptions->doExtensiveILPTest && (SPHoptions->doSetDensityFlags || SPHoptions->doSetNNflags)) {
         mdlFlushCache(pkd->mdl,CID_PARTICLE);
         mdlCacheBarrier(pkd->mdl,CID_PARTICLE);
         extensiveMarkerTest(pkd, ts, SPHoptions);

@@ -786,7 +786,7 @@ int pkdGravInteract(PKD pkd,
 
     nActive += wp->nP;
 
-    if (SPHoptions->doExtensiveILPTest & !(SPHoptions->doSetDensityFlags || SPHoptions->doSetNNflags)) {
+    if (SPHoptions->doExtensiveILPTest && !(SPHoptions->doSetDensityFlags || SPHoptions->doSetNNflags)) {
         extensiveILPTest(pkd, wp, pkd->ilp);
     }
 
