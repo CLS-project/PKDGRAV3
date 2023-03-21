@@ -107,7 +107,7 @@ class TestNewSPHExtensive(unittest.TestCase):
         cls.params['bGasDoExtensiveILPTest'] = 1
         cls.msr = MSR()
 
-    def testNewSPHStep(self):
+    def testNewSPHExtensive(self):
         self.msr.setParameters(**self.params)
         self.msr.simulate()
         self.assertLess(0.1,1.0)
