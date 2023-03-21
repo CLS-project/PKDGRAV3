@@ -96,6 +96,21 @@ class TestNewSPHStep(unittest.TestCase):
         self.assertLess(np.max(relDiff_fBall),5e-5)
         self.assertLess(np.std(relDiff_fBall),3e-6)
 
+@unittest.skipIf(not os.path.isfile('collision_small.par'), "missing collision_small.par")
+@unittest.skipIf(not os.path.isfile('collision_small.std'), "missing collision_small.std")
+@unittest.skipIf(not os.path.isfile('MANEOStable_iron.in'), "missing MANEOStable_iron.in")
+@unittest.skipIf(not os.path.isfile('MANEOStable_fosterite.in'), "missing MANEOStable_fosterite.in")
+class TestNewSPHExtensive(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.params = vars(SourceFileLoader('collision_small', 'collision_small.par').load_module())
+        cls.params['bGasDoExtensiveILPTest'] = 1
+        cls.msr = MSR()
+
+    def testNewSPHStep(self):
+        self.msr.setParameters(**self.params)
+        self.msr.simulate()
+        self.assertLess(0.1,1.0)
 
 if __name__ == '__main__':
     print('Running test')
