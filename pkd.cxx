@@ -702,7 +702,6 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
     uint64_t iParticleID;
 
     mdlassert(pkd->mdl,fio != NULL);
-
 #ifdef USE_ITT
     __itt_domain *domain = __itt_domain_create("MyTraces.MyDomain");
     __itt_string_handle *shMyTask = __itt_string_handle_create("Read");
@@ -1228,7 +1227,9 @@ int pkdUpperPartWrap(PKD pkd,int d,double fSplit1,double fSplit2,int i,int j) {
 int pkdLowerOrdPart(PKD pkd,uint64_t nOrdSplit,int i,int j) {
     auto pi = pkd->particles.begin() + i;
     auto pj = pkd->particles.begin() + j;
-    auto ii = std::partition(pi,pj+1,[nOrdSplit](auto &p) {return p.order()>=nOrdSplit;});
+    auto split = [nOrdSplit](auto &p) {return p.order()>=nOrdSplit;};
+    auto ii = std::partition(pi,pj+1,split);
+    //assert (std::all_of(pi,ii,split) && std::none_of(ii,pj+1,split));
     return ii - pkd->particles.begin();
 }
 
@@ -1236,7 +1237,9 @@ int pkdLowerOrdPart(PKD pkd,uint64_t nOrdSplit,int i,int j) {
 int pkdUpperOrdPart(PKD pkd,uint64_t nOrdSplit,int i,int j) {
     auto pi = pkd->particles.begin() + i;
     auto pj = pkd->particles.begin() + j;
-    auto ii = std::partition(pi,pj+1,[nOrdSplit](auto &p) {return p.order()<nOrdSplit;});
+    auto split = [nOrdSplit](auto &p) {return p.order()<nOrdSplit;};
+    auto ii = std::partition(pi,pj+1,split);
+    //assert (std::all_of(pi,ii,split) && std::none_of(ii,pj+1,split));
     return ii - pkd->particles.begin();
 }
 
@@ -1259,7 +1262,7 @@ int pkdColRejects(PKD pkd,int nSplit) {
     */
     if (pkd->Local() != pkd->FreeStore()) {
         for (i=pkd->nRejects-1; i>=0; --i)
-            pkd->CopyParticle(pkd->Particle(iRejects+i),pkd->Particle(nSplit+i));
+            pkd->particles[iRejects+i] = pkd->particles[nSplit+i];
     }
     pkd->SetLocal(nSplit);
     return (pkd->nRejects);
