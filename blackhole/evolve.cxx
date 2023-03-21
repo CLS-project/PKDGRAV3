@@ -420,11 +420,13 @@ void pkdBHAccretion(PKD pkd, double dScaleFactor) {
                 }
                 assert(pkdIsBH(pkd,bh));
                 float bhMass = pkdMass(pkd,bh);
-                float newMass = bhMass + pkdMass(pkd,p);
-                float inv_newMass = 1./newMass;
+                float addMass = pkdMass(pkd,p);
 
                 //printf("Mass: internal %e old %e \t new %e \n",
                 //         pBH->dInternalMass, pMass, newMass);
+
+                float *mass_field = (float *)pkdField(bh, pkd->oFieldOffset[oMass]);
+                *mass_field += addMass;
 
                 vel_t *pv = pkdVel(pkd,bh);
 
@@ -434,17 +436,16 @@ void pkdBHAccretion(PKD pkd, double dScaleFactor) {
                 // We have to consider remote and local particles differently,
                 // as for the remotes the momentum is accumulated here but then
                 // added in the combine function
-                if (psph->BHAccretor.iPid != pkd->idSelf)
+                if (psph->BHAccretor.iPid != pkd->idSelf) {
                     for (int j=0; j<3; j++)
-                        pv[j] = dScaleFactor*psph->mom[j];
-                else
+                        pv[j] += dScaleFactor*psph->mom[j];
+                }
+                else {
+                    float inv_newMass = 1./(*mass_field);
                     for (int j=0; j<3; j++)
                         pv[j] = (bhMass*pv[j] + dScaleFactor*psph->mom[j]) *
                                 inv_newMass;
-
-
-                float *mass_field = (float *)pkdField(bh, pkd->oFieldOffset[oMass]);
-                *mass_field = newMass;
+                }
 
                 pkdDeleteParticle(pkd,p);
 
