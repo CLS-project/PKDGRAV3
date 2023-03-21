@@ -552,7 +552,6 @@ static void queueEwald( PKD pkd, workParticle *wp ) {
 }
 
 static void extensiveILPTest(PKD pkd, workParticle *wp, ilpList &ilp) {
-    // if (wp->SPHoptions->doDensity || wp->SPHoptions->doDensityCorrection || wp->SPHoptions->doSPHForces) return;
     std::stack<std::pair<int,int>> cellStack;
 
     // Add the toptree cell corresponding to the ROOT cell to the stack
@@ -588,9 +587,6 @@ static void extensiveILPTest(PKD pkd, workParticle *wp, ilpList &ilp) {
             float pBall2 = std::min(wp->SPHoptions->ballSizeLimit, p.ball() * fBallFactor);
             pBall2 *= pBall2;
 
-            float qBall2save, dist2save;
-            int qOrdersave;
-
             int needsCheck = 0;
             // Loop over all particles in the wp
             for (auto i=0; i<wp->nP; ++i) {
@@ -608,17 +604,11 @@ static void extensiveILPTest(PKD pkd, workParticle *wp, ilpList &ilp) {
                 // Do check for gather
                 if (dist2 < qBall2) {
                     needsCheck = 1;
-                    dist2save = dist2;
-                    qBall2save = qBall2;
-                    qOrdersave = (int) q.order();
                     break;
                 }
                 // Do check for scatter
-                if (wp->SPHoptions->doSPHForces && dist2 < pBall2) {
+                if (wp->SPHoptions->doSPHForces && (dist2 < pBall2)) {
                     needsCheck = 1;
-                    dist2save = dist2;
-                    qBall2save = qBall2;
-                    qOrdersave = (int) q.order();
                     break;
                 }
             }
@@ -630,7 +620,6 @@ static void extensiveILPTest(PKD pkd, workParticle *wp, ilpList &ilp) {
                 fvec dy = (float)(ilp.getReference(1) - pr[1]);
                 fvec dz = (float)(ilp.getReference(2) - pr[2]);
 
-                float occurrences = 0.0f;
                 fvec occurrence = 0.0f;
                 fmask mask;
 
@@ -651,14 +640,9 @@ static void extensiveILPTest(PKD pkd, workParticle *wp, ilpList &ilp) {
                         }
                     }
                 }
-
                 // Sum up the matches and compare to 1
-                occurrences = hadd(occurrence);
-                if (occurrences != 1.0f) {
-                    printf("WARNING, failed present on ILP test. Occurrences = %.15e\n",occurrences);
-                    printf("pBall2 = %.15e, qBall2 = %.15e, dist2 = %.15e, porder = %d, qorder = %d\n",pBall2,qBall2save,dist2save,(int)(p.order()),qOrdersave);
-                }
-                // assert(occurences == 1.0f);
+                float occurrences = hadd(occurrence);
+                assert(occurrences == 1.0f);
             }
         }
     }

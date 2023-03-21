@@ -1883,9 +1883,6 @@ void extensiveMarkerTest(PKD pkd, struct pkdTimestepParameters *ts, SPHOptions *
             float pBall2 = std::min(SPHoptions->ballSizeLimit, p.ball() * fBallFactor);
             pBall2 *= pBall2;
 
-            float qBall2save, dist2save;
-            int qOrdersave;
-
             int needsCheck = 0;
             // Loop over all particles in my root
             auto rootc = pkd->tree[ROOT];
@@ -1907,17 +1904,11 @@ void extensiveMarkerTest(PKD pkd, struct pkdTimestepParameters *ts, SPHOptions *
                 // Do check for gather
                 if (dist2 < qBall2) {
                     needsCheck = 1;
-                    dist2save = dist2;
-                    qBall2save = qBall2;
-                    qOrdersave = (int) q.order();
                     break;
                 }
                 // Do check for scatter
                 if (dist2 < pBall2) {
                     needsCheck = 1;
-                    dist2save = dist2;
-                    qBall2save = qBall2;
-                    qOrdersave = (int) q.order();
                     break;
                 }
             }
@@ -1925,21 +1916,9 @@ void extensiveMarkerTest(PKD pkd, struct pkdTimestepParameters *ts, SPHOptions *
             // Now we need to check
             if (needsCheck) {
                 // Check that NN flag is set if applicable
-                if (SPHoptions->doSetNNflags) {
-                    if (!p.NN_flag()) {
-                        printf("WARNING, failed NN flag test\n");
-                        printf("pBall2 = %.15e, qBall2 = %.15e, dist2 = %.15e, porder = %d, qorder = %d\n",pBall2,qBall2save,dist2save,(int)(p.order()),qOrdersave);
-                    }
-                    // assert(p.NN_flag());
-                }
+                if (SPHoptions->doSetNNflags) assert(p.NN_flag());
                 // Check that density flag is set if applicable
-                if (SPHoptions->doSetDensityFlags) {
-                    if (!p.marked()) {
-                        printf("WARNING, failed mark flag test\n");
-                        printf("pBall2 = %.15e, qBall2 = %.15e, dist2 = %.15e, porder = %d, qorder = %d\n",pBall2,qBall2save,dist2save,(int)(p.order()),qOrdersave);
-                    }
-                    // assert(p.marked());
-                }
+                if (SPHoptions->doSetDensityFlags) assert(p.marked());
             }
             if (id != pkd->Self()) mdlRelease(pkd->mdl,CID_PARTICLE,&p);
         }
