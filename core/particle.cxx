@@ -89,9 +89,7 @@ int particleStore::SelSpecies(uint64_t mSpecies, int setIfTrue, int clearIfFalse
     return std::accumulate(begin(),end(),0,
     [setIfTrue,clearIfFalse,mSpecies](int a,auto &p) {
         auto b = isSelected((1<<p.species()) & mSpecies,setIfTrue,clearIfFalse,p.marked());
-#ifdef NN_FLAG_IN_PARTICLE
         p.set_NN_flag(b); /* This is a bit clunky, but we only ever use this to reset the flags. */
-#endif
         return a + p.set_marked(b);
     });
 }

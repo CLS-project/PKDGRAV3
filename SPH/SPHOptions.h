@@ -140,6 +140,7 @@ typedef struct {
     uint64_t doConsistentPrediction : 1;
     uint64_t kernelType : 3;
     uint64_t doCentrifugal : 1;
+    uint64_t doExtensiveILPTest : 1;
 } SPHOptions;
 
 #ifdef __cplusplus

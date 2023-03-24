@@ -200,25 +200,10 @@ found_it:
                                     assert(id >= 0);
                                     iCidPart = blk.iCache[jTile]==CID_CELL ? CID_PARTICLE : CID_PARTICLE2;
                                     if (SPHoptions->doSetDensityFlags || SPHoptions->doSetNNflags) {
-                                        if (id == pkd->Self()) {
-                                            auto p = pkd->particles[pj];
-                                            if (SPHoptions->doSetDensityFlags) {
-                                                p.set_marked(true);
-                                            }
-                                            if (SPHoptions->doSetNNflags) {
-                                                p.set_NN_flag(true);
-                                            }
-                                        }
-                                        else {
-                                            auto p = pkd->particles[static_cast<PARTICLE *>(mdlAcquire(pkd->mdl,iCidPart,pj,id))];
-                                            if (SPHoptions->doSetDensityFlags) {
-                                                p.set_marked(true);
-                                            }
-                                            if (SPHoptions->doSetNNflags) {
-                                                p.set_NN_flag(true);
-                                            }
-                                            mdlRelease(pkd->mdl,iCidPart,&p);
-                                        }
+                                        auto p = (id == pkd->Self()) ? pkd->particles[pj] : pkd->particles[static_cast<PARTICLE *>(mdlAcquire(pkd->mdl,iCidPart,pj,id))];
+                                        if (SPHoptions->doSetDensityFlags) p.set_marked(true);
+                                        if (SPHoptions->doSetNNflags) p.set_NN_flag(true);
+                                        if (id != pkd->Self()) mdlRelease(pkd->mdl,iCidPart,&p);
                                     }
                                     else {
                                         auto p = (id == pkd->Self()) ? pkd->particles[pj]
@@ -264,33 +249,18 @@ found_it:
                                     iCidPart = blk.iCache[jTile]==CID_CELL ? CID_PARTICLE : CID_PARTICLE2;
                                     if (!bReferenceFound) {
                                         bReferenceFound=1;
-                                        auto p = (id == pkd->Self()) ? pkd->particles[c->lower()]
-                                                 : pkd->particles[static_cast<PARTICLE *>(mdlFetch(pkd->mdl,iCidPart,c->lower(),id))];
+                                        auto p = (id == pkd->Self()) ? pkd->particles[c->lower()] : ((SPHoptions->doSetDensityFlags || SPHoptions->doSetNNflags) ? pkd->particles[static_cast<PARTICLE *>(mdlAcquire(pkd->mdl,iCidPart,c->lower(),id))] : pkd->particles[static_cast<PARTICLE *>(mdlFetch(pkd->mdl,iCidPart,c->lower(),id))]);
                                         r = p.position();
                                         pkd->ilp.setReference(r);
                                         pkd->ilc.setReference(r);
+                                        if ((id != pkd->Self()) && (SPHoptions->doSetDensityFlags || SPHoptions->doSetNNflags)) mdlRelease(pkd->mdl,iCidPart,&p);
                                     }
                                     for (pj=c->lower(); pj<=c->upper(); ++pj) {
                                         if (SPHoptions->doSetDensityFlags || SPHoptions->doSetNNflags) {
-                                            if (id == pkd->Self()) {
-                                                auto p = pkd->particles[pj];
-                                                if (SPHoptions->doSetDensityFlags) {
-                                                    p.set_marked(true);
-                                                }
-                                                if (SPHoptions->doSetNNflags) {
-                                                    p.set_NN_flag(true);
-                                                }
-                                            }
-                                            else {
-                                                auto p = pkd->particles[static_cast<PARTICLE *>(mdlAcquire(pkd->mdl,iCidPart,pj,id))];
-                                                if (SPHoptions->doSetDensityFlags) {
-                                                    p.set_marked(true);
-                                                }
-                                                if (SPHoptions->doSetNNflags) {
-                                                    p.set_NN_flag(true);
-                                                }
-                                                mdlRelease(pkd->mdl,iCidPart,&p);
-                                            }
+                                            auto p = (id == pkd->Self()) ? pkd->particles[pj] : pkd->particles[static_cast<PARTICLE *>(mdlAcquire(pkd->mdl,iCidPart,pj,id))];
+                                            if (SPHoptions->doSetDensityFlags) p.set_marked(true);
+                                            if (SPHoptions->doSetNNflags) p.set_NN_flag(true);
+                                            if (id != pkd->Self()) mdlRelease(pkd->mdl,iCidPart,&p);
                                         }
                                         else {
                                             auto p = (id == pkd->Self()) ? pkd->particles[pj]
@@ -344,17 +314,18 @@ found_it:
                                     : pkd->tree[static_cast<KDN *>(mdlFetch(pkd->mdl,blk.iCache[jTile],iCheckCell,id))];
                                 iCidPart = blk.iCache[jTile]==CID_CELL ? CID_PARTICLE : CID_PARTICLE2;
                                 for (pj=c->lower(); pj<=c->upper(); ++pj) {
-                                    auto p = (id == pkd->Self()) ? pkd->particles[pj]
-                                             : pkd->particles[static_cast<PARTICLE *>(mdlFetch(pkd->mdl,iCidPart,pj,id))];
+                                    auto p = (id == pkd->Self()) ? pkd->particles[pj] : ((SPHoptions->doSetDensityFlags || SPHoptions->doSetNNflags) ? pkd->particles[static_cast<PARTICLE *>(mdlAcquire(pkd->mdl,iCidPart,pj,id))] : pkd->particles[static_cast<PARTICLE *>(mdlFetch(pkd->mdl,iCidPart,pj,id))]);
                                     r = p.position();
                                     fMass = p.mass();
                                     fSoft = p.soft();
                                     if (p.have_newsph()) {
+                                        float fBallFactor = (SPHoptions->dofBallFactor) ? SPHoptions->fBallFactor : 1.0f;
+                                        float limitedBallSize = std::min(SPHoptions->ballSizeLimit,fBallFactor * p.ball());
                                         pkd->clNew->append(blk.iCache[jTile],id,-1 - pj,0,0,0,0,1,0.0,fMass,4.0f*fSoft*fSoft,
                                                            r,                   // center of mass
                                                            fOffset,             // fOffset
                                                            Bound(r,r),          // zero size box at r
-                                                           SPHBOB(r,p.ball()));
+                                                           SPHBOB(r,limitedBallSize));
                                     }
                                     else {
                                         pkd->clNew->append(blk.iCache[jTile],id,-1 - pj,0,0,0,0,1,0.0,fMass,4.0f*fSoft*fSoft,
@@ -363,6 +334,7 @@ found_it:
                                                            Bound(r,r),          // zero size box at r
                                                            SPHBOB(r,0.0));
                                     }
+                                    if ((id != pkd->Self()) && (SPHoptions->doSetDensityFlags || SPHoptions->doSetNNflags)) mdlRelease(pkd->mdl,iCidPart,&p);
                                 }
                                 break;
                             case 3:

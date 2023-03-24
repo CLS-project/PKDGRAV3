@@ -129,6 +129,7 @@ struct parameters {
     double dCentrifT0;
     double dCentrifT1;
     double dCentrifOmega0;
+    int bGasDoExtensiveILPTest;
 
     /* END Gas Parameters */
     double dEta;

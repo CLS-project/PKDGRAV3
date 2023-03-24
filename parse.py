@@ -243,6 +243,7 @@ def parse():
     add_flag(gas,'CentrifT0',default=0.0, dest='dCentrifT0',type=float, help='Start time for centrifugal ramp')
     add_flag(gas,'CentrifT1',default=0.0, dest='dCentrifT1',type=float, help='End time for centrifugal ramp')
     add_flag(gas,'CentrifOmega0',default=0.0, dest='dCentrifOmega0',type=float, help='Maximum omega for centrifugal ramp')
+    add_bool(gas,'GasDoExtensiveILPTest',default=False,dest='bGasDoExtensiveILPTest',help='Extensively test the ILP for completeness. Very costly.')
     add_bool(gas,'meshless',default=False,dest='bMeshlessHydro',help='Use the new implementation of the hydrodynamics')
     add_bool(gas,'globaldt',default=False,dest='bGlobalDt',help='Force all particles to the same rung')
     add_bool(gas,'iterh',default=True,dest='bIterativeSmoothingLength',help='Use an iterative scheme to obtain h')

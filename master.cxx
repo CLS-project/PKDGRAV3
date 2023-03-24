@@ -1419,6 +1419,10 @@ void MSR::Initialize() {
     prmAddParam(prm,"bGasConsistentPrediction",0,&param.bGasConsistentPrediction,
                 sizeof(int),"bGasConsistentPrediction",
                 "<Do consistent prediction> = +bGasConsistentPrediction");
+    param.bGasDoExtensiveILPTest = 0;
+    prmAddParam(prm,"bGasDoExtensiveILPTest",0,&param.bGasDoExtensiveILPTest,
+                sizeof(int),"bGasDoExtensiveILPTest",
+                "<Do extensive ILP test> = +bGasDoExtensiveILPTest");
     /* END Gas/Star Parameters */
     param.nOutputParticles = 0;
     prmAddArray(prm,"lstOrbits",4,&param.iOutputParticles,sizeof(uint64_t),&param.nOutputParticles);
@@ -4269,6 +4273,7 @@ int MSR::NewTopStepKDK(
                                  1,bKickOpen,param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,nGroup,SPHoptions);
             // Select Neighbors of Neighbors
             if (SPHoptions.doInterfaceCorrection) {
+                SPHoptions.dofBallFactor = 1;
                 TreeUpdateFlagBounds(param.bEwald,ROOT,0,SPHoptions);
                 SPHoptions.doSetDensityFlags = 0;
                 SPHoptions.doSetNNflags = 1;
@@ -4300,6 +4305,8 @@ int MSR::NewTopStepKDK(
                 SPHoptions.doDensityCorrection = 1;
                 SPHoptions.useDensityFlags = 1;
                 SPHoptions.useNNflags = 0;
+                SPHoptions.dofBallFactor = 0;
+                TreeUpdateFlagBounds(param.bEwald,ROOT,0,SPHoptions);
                 *puRungMax = Gravity(uRung,MaxRung(),ROOT,uRoot2,dTime,dDelta,*pdStep,dTheta,1,bKickOpen,
                                      param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,nGroup,SPHoptions);
                 UpdateGasValues(uRung,dTime,dDelta,*pdStep,1,bKickOpen,SPHoptions);
@@ -4313,6 +4320,8 @@ int MSR::NewTopStepKDK(
             if (SPHoptions.doInterfaceCorrection) {
                 SPHoptions.doDensity = 0;
                 SPHoptions.doDensityCorrection = 1;
+                SPHoptions.dofBallFactor = 0;
+                TreeUpdateFlagBounds(param.bEwald,ROOT,0,SPHoptions);
                 *puRungMax = Gravity(0,MaxRung(),ROOT,uRoot2,dTime,dDelta,*pdStep,dTheta,1,bKickOpen,
                                      param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,nGroup,SPHoptions);
                 UpdateGasValues(0,dTime,dDelta,*pdStep,1,bKickOpen,SPHoptions);
@@ -5274,6 +5283,8 @@ double MSR::Read(const char *achInFile) {
         if (SPHoptions.doInterfaceCorrection) {
             SPHoptions.doDensity = 0;
             SPHoptions.doDensityCorrection = 1;
+            SPHoptions.dofBallFactor = 0;
+            TreeUpdateFlagBounds(param.bEwald,ROOT,0,SPHoptions);
             Gravity(0,MAX_RUNG,ROOT,0,dTime,0.0f,param.iStartStep,getTheta(dTime),0,1,
                     param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,SPHoptions);
             UpdateGasValues(0,dTime,0.0f,param.iStartStep,0,1,SPHoptions);

@@ -64,7 +64,7 @@ SPHOptions initializeSPHOptions(struct parameters param, CSM csm, double dTime) 
     SPHoptions.doSPHForces = 0;
     SPHoptions.doUConversion = 0;
     SPHoptions.doSetDensityFlags = 0;
-    SPHoptions.dofBallFactor = 0;
+    SPHoptions.dofBallFactor = 1;
     SPHoptions.useNumDen = 1;
     SPHoptions.useIsentropic = param.bGasIsentropic;
     SPHoptions.useBuiltinIdeal = param.bGasBuiltinIdeal;
@@ -79,6 +79,7 @@ SPHOptions initializeSPHOptions(struct parameters param, CSM csm, double dTime) 
     SPHoptions.CentrifugalT0 = param.dCentrifT0;
     SPHoptions.CentrifugalT1 = param.dCentrifT1;
     SPHoptions.CentrifugalOmega0 = param.dCentrifOmega0;
+    SPHoptions.doExtensiveILPTest = param.bGasDoExtensiveILPTest;
     return SPHoptions;
 }
 
@@ -108,7 +109,7 @@ void copySPHOptions(SPHOptions *source, SPHOptions *target) {
     target->doSPHForces = 0;
     target->doUConversion = 0;
     target->doSetDensityFlags = 0;
-    target->dofBallFactor = 0;
+    target->dofBallFactor = 1;
     target->useNumDen = source->useNumDen;
     target->useIsentropic = source->useIsentropic;
     target->useBuiltinIdeal = source->useBuiltinIdeal;
@@ -123,6 +124,7 @@ void copySPHOptions(SPHOptions *source, SPHOptions *target) {
     target->CentrifugalT0 = source->CentrifugalT0;
     target->CentrifugalT1 = source->CentrifugalT1;
     target->CentrifugalOmega0 = source->CentrifugalOmega0;
+    target->doExtensiveILPTest = source->doExtensiveILPTest;
 }
 
 float calculateInterfaceCorrectionPrefactor(float nSmooth,int kernelType) {

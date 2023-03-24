@@ -70,6 +70,7 @@
 #include "cosmo.h"
 #include "SPH/SPHEOS.h"
 #include "SPH/SPHpredict.h"
+#include <stack>
 extern "C" {
 #include "core/healpix.h"
 }
@@ -1843,6 +1844,91 @@ static void combSetMarked(void *vpkd, void *v1, const void *v2) {
 #endif
 }
 
+void extensiveMarkerTest(PKD pkd, struct pkdTimestepParameters *ts, SPHOptions *SPHoptions) {
+    std::stack<std::pair<int,int>> cellStack;
+
+    // Add the toptree cell corresponding to the ROOT cell to the stack
+    cellStack.push(std::make_pair(pkd->iTopTree[ROOT],pkd->Self()));
+    int nParticles = 0;
+
+    while (!cellStack.empty()) {
+        auto [iCell, id] = cellStack.top();
+        cellStack.pop();
+        auto c = (id == pkd->Self()) ? pkd->tree[iCell] : pkd->tree[static_cast<KDN *>(mdlFetch(pkd->mdl,CID_CELL,iCell,id))];
+
+        // Walking the top tree
+        if (c->is_top_tree()) {
+            auto [iLower, idLower, iUpper, idUpper] = c->get_child_cells(id);
+            cellStack.push(std::make_pair(iUpper, idUpper));
+            cellStack.push(std::make_pair(iLower, idLower));
+            continue;
+        }
+
+        /* We are either on
+        ** the toptree cell that corresponds to my local cell
+        ** or on one of the 2 children for cell corresponding to remote threads id != pkd->Self()
+        ** so we can loop through the particles between c->lower() and c->upper()
+        ** and mdlFetch them from that thread
+        */
+        for (auto pj=c->lower(); pj<=c->upper(); ++pj) {
+            auto p = (id == pkd->Self()) ? pkd->particles[pj] : pkd->particles[static_cast<PARTICLE *>(mdlAcquire(pkd->mdl,CID_PARTICLE,pj,id))];
+            ++nParticles;
+
+            // Shortcut if necessary flag already set, as the test will pass in the end
+            if ((SPHoptions->doSetDensityFlags && p.marked()) || (SPHoptions->doSetNNflags && p.NN_flag())) {
+                if (id != pkd->Self()) mdlRelease(pkd->mdl,CID_PARTICLE,&p);
+                continue;
+            }
+
+            // Get position and ball size of particle p
+            auto pr = p.position();
+            float fBallFactor = (SPHoptions->dofBallFactor) ? SPHoptions->fBallFactor : 1.0f;
+            float pBall2 = std::min(SPHoptions->ballSizeLimit, p.ball() * fBallFactor);
+            pBall2 *= pBall2;
+
+            int needsCheck = 0;
+            // Loop over all particles in my root
+            auto rootc = pkd->tree[ROOT];
+            for (auto qj=rootc->lower(); qj<=rootc->upper(); ++qj) {
+                auto q = pkd->particles[qj];
+
+                // Skip those that are not active
+                if (!q.is_rung_range(ts->uRungLo,ts->uRungHi) && !(SPHoptions->useDensityFlags && q.marked()) && !(SPHoptions->useNNflags && q.NN_flag())) continue;
+
+                // Get position and ball size of particle q
+                auto qr = q.position();
+                float qBall2 = std::min(SPHoptions->ballSizeLimit, q.ball() * fBallFactor);
+                qBall2 *= qBall2;
+
+                // Calculate distance squared between particle p and q
+                auto dist = pr - qr;
+                float dist2 = blitz::dot(dist,dist);
+
+                // Do check for gather
+                if (dist2 < qBall2) {
+                    needsCheck = 1;
+                    break;
+                }
+                // Do check for scatter
+                if (dist2 < pBall2) {
+                    needsCheck = 1;
+                    break;
+                }
+            }
+
+            // Now we need to check
+            if (needsCheck) {
+                // Check that NN flag is set if applicable
+                if (SPHoptions->doSetNNflags) assert(p.NN_flag());
+                // Check that density flag is set if applicable
+                if (SPHoptions->doSetDensityFlags) assert(p.marked());
+            }
+            if (id != pkd->Self()) mdlRelease(pkd->mdl,CID_PARTICLE,&p);
+        }
+    }
+    assert(nParticles == pkd->nGas);
+}
+
 void pkdGravAll(PKD pkd,
                 struct pkdKickParameters *kick,struct pkdLightconeParameters *lc,struct pkdTimestepParameters *ts,
                 double dTime,int nReps,int bPeriodic,
@@ -1903,6 +1989,12 @@ void pkdGravAll(PKD pkd,
     *pnActive = pkdGravWalk(pkd,kick,lc,ts,
                             dTime,nReps,bPeriodic && bEwald,nGroup,
                             iRoot1,iRoot2,0,dThetaMin,pdFlop,&dPartSum,&dCellSum,SPHoptions);
+
+    if (SPHoptions->doExtensiveILPTest && (SPHoptions->doSetDensityFlags || SPHoptions->doSetNNflags)) {
+        mdlFlushCache(pkd->mdl,CID_PARTICLE);
+        mdlCacheBarrier(pkd->mdl,CID_PARTICLE);
+        extensiveMarkerTest(pkd, ts, SPHoptions);
+    }
 
     dActive = (double)(*pnActive);
     if (*pnActive) {

@@ -43,8 +43,10 @@
 #include "SPH/SPHOptions.h"
 #include "SPH/SPHEOS.h"
 #include "SPH/SPHpredict.h"
+#include "../core/simd.h"
 
 #include <algorithm>
+#include <stack>
 
 #if 1
 #if defined(USE_SIMD) && defined(__SSE2__)
@@ -549,6 +551,104 @@ static void queueEwald( PKD pkd, workParticle *wp ) {
     pkdParticleWorkDone(wp);
 }
 
+static void extensiveILPTest(PKD pkd, workParticle *wp, ilpList &ilp) {
+    std::stack<std::pair<int,int>> cellStack;
+
+    // Add the toptree cell corresponding to the ROOT cell to the stack
+    cellStack.push(std::make_pair(pkd->iTopTree[ROOT],pkd->Self()));
+    int nParticles = 0;
+
+    while (!cellStack.empty()) {
+        auto [iCell, id] = cellStack.top();
+        cellStack.pop();
+        auto c = (id == pkd->Self()) ? pkd->tree[iCell] : pkd->tree[static_cast<KDN *>(mdlFetch(pkd->mdl,CID_CELL,iCell,id))];
+
+        // Walking the top tree
+        if (c->is_top_tree()) {
+            auto [iLower, idLower, iUpper, idUpper] = c->get_child_cells(id);
+            cellStack.push(std::make_pair(iUpper, idUpper));
+            cellStack.push(std::make_pair(iLower, idLower));
+            continue;
+        }
+
+        /* We are either on
+        ** the toptree cell that corresponds to my local cell
+        ** or on one of the 2 children for cell corresponding to remote threads id != pkd->Self()
+        ** so we can loop through the particles between c->lower() and c->upper()
+        ** and mdlFetch them from that thread
+        */
+        for (auto pj=c->lower(); pj<=c->upper(); ++pj) {
+            auto p = (id == pkd->Self()) ? pkd->particles[pj] : pkd->particles[static_cast<PARTICLE *>(mdlFetch(pkd->mdl,CID_PARTICLE,pj,id))];
+            ++nParticles;
+
+            // Get position and ball size of particle p
+            auto pr = p.position();
+            float fBallFactor = (wp->SPHoptions->dofBallFactor) ? wp->SPHoptions->fBallFactor : 1.0f;
+            float pBall2 = std::min(wp->SPHoptions->ballSizeLimit, p.ball() * fBallFactor);
+            pBall2 *= pBall2;
+
+            int needsCheck = 0;
+            // Loop over all particles in the wp
+            for (auto i=0; i<wp->nP; ++i) {
+                auto q = pkd->particles[wp->iPart[i]];
+
+                // Get position and ball size of particle q
+                auto qr = q.position();
+                float qBall2 = std::min(wp->SPHoptions->ballSizeLimit, q.ball() * fBallFactor);
+                qBall2 *= qBall2;
+
+                // Calculate distance squared between particle p and q
+                auto dist = pr - qr;
+                float dist2 = blitz::dot(dist,dist);
+
+                // Do check for gather
+                if (dist2 < qBall2) {
+                    needsCheck = 1;
+                    break;
+                }
+                // Do check for scatter
+                if (wp->SPHoptions->doSPHForces && (dist2 < pBall2)) {
+                    needsCheck = 1;
+                    break;
+                }
+            }
+
+            // Now we need to check if particle is on the ILP list
+            if (needsCheck) {
+                // Get distance relative to the reference of the ilp
+                fvec dx = (float)(ilp.getReference(0) - pr[0]);
+                fvec dy = (float)(ilp.getReference(1) - pr[1]);
+                fvec dz = (float)(ilp.getReference(2) - pr[2]);
+
+                fvec occurrence = 0.0f;
+                fmask mask;
+
+                // Compare every entry of the ilp to the positions and count the matches
+                for ( auto &tile : ilp ) {
+                    auto nBlocks = tile.count() / tile.width;
+                    for (auto iBlock=0; iBlock<=nBlocks; ++iBlock) {
+                        int n = (iBlock == nBlocks ?  tile.count() - nBlocks *tile.width : tile.width);
+                        auto &blk = tile[iBlock];
+                        while (n & fvec::mask()) {
+                            blk.dx.s[n] = blk.dy.s[n] = blk.dz.s[n] = 1e14f;
+                            ++n;
+                        }
+                        n /= fvec::width();
+                        for (auto i=0; i<n; ++i) {
+                            mask = ((blk.dx.v[i] == dx) & (blk.dy.v[i] == dy) & (blk.dz.v[i] == dz));
+                            occurrence += maskz_mov(mask,1.0f);
+                        }
+                    }
+                }
+                // Sum up the matches and compare to 1
+                float occurrences = hadd(occurrence);
+                assert(occurrences == 1.0f);
+            }
+        }
+    }
+    assert(nParticles == pkd->nGas);
+}
+
 /*
 ** This version of grav.c does all the operations inline, including
 ** v_sqrt's and such.
@@ -601,29 +701,14 @@ int pkdGravInteract(PKD pkd,
     wp->SPHoptions = SPHoptions;
 
     for (auto &p : *pkdn) {
-#ifdef NN_FLAG_IN_PARTICLE
         if (!p.is_rung_range(ts->uRungLo,ts->uRungHi) && !(SPHoptions->useDensityFlags && p.marked()) && !(SPHoptions->useNNflags && p.NN_flag())) continue;
-#else
-        if (!p.is_rung_range(ts->uRungLo,ts->uRungHi) && !(SPHoptions->useDensityFlags && p.marked())) continue;
-#endif
+
         auto r = p.position();
 
         nP = wp->nP++;
         wp->pPart[nP] = &p;
         wp->iPart[nP] = &p - pkd->particles.begin();
         wp->pInfoIn[nP].r = pkd->ilc.get_dr(r);
-        if (p.have_acceleration()) {
-            const auto &ap = p.acceleration();
-            wp->pInfoIn[nP].a[0]  = ap[0];
-            wp->pInfoIn[nP].a[1]  = ap[1];
-            wp->pInfoIn[nP].a[2]  = ap[2];
-            //ap[0] = ap[1] = ap[2] = 0.0;
-        }
-        else {
-            wp->pInfoIn[nP].a[0]  = 0;
-            wp->pInfoIn[nP].a[1]  = 0;
-            wp->pInfoIn[nP].a[2]  = 0;
-        }
 
         if (p.have_newsph()) {
             const auto &NewSph = p.newsph();
@@ -684,6 +769,10 @@ int pkdGravInteract(PKD pkd,
     }
 
     nActive += wp->nP;
+
+    if (SPHoptions->doExtensiveILPTest && !(SPHoptions->doSetDensityFlags || SPHoptions->doSetNNflags)) {
+        extensiveILPTest(pkd, wp, pkd->ilp);
+    }
 
     /*
     ** Evaluate the local expansion.
