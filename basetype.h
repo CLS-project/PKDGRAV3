@@ -227,6 +227,7 @@ struct inStarForm {
     int bSFThresholdDenSchaye2004;
 #endif
 
+    double dHubble;
     double dDelta;
     double dTime;
     double dScaleFactor;

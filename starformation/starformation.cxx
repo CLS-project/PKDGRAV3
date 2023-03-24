@@ -57,6 +57,7 @@ void MSR::StarForm(double dTime, double dDelta, int iRung) {
 
     const double a = csmTime2Exp(csm,dTime);
 
+    in.dHubble = Comove() ? csmTime2Hub(csm,dTime) : 0.0;
     in.dScaleFactor = a;
     in.dTime = dTime;
     in.dDelta = dDelta;
@@ -118,9 +119,10 @@ static inline double pressure_SFR(const float fMass, const float fDens,
                                   const double dConstGamma, eEOSparam eEOS,
                                   SPHFIELDS *psph);
 
-static inline double density_SFR(const float fMass, const float fDens, const double a_m3,
-                                 const double dThreshDen, const double dSFThresholdu,
-                                 const double dSFEfficiency, SPHFIELDS *psph);
+static inline double density_SFR(const float fMass, const float fDens, const double dHubble,
+                                 const double a_m1, const double a_m3, const double dThreshDen,
+                                 const double dSFThresholdu, const double dSFEfficiency,
+                                 SPHFIELDS *psph);
 
 
 int pstStarForm(PST pst,void *vin,int nIn,void *vout,int nOut) {
@@ -197,8 +199,8 @@ void pkdStarForm(PKD pkd,
 
             double dmstar;
             if (in.dSFEfficiency > 0.0) {
-                dmstar = density_SFR(fMass, pkdDensity(pkd,p), a_m3, dThreshDen,
-                                     in.dSFThresholdu, in.dSFEfficiency, psph);
+                dmstar = density_SFR(fMass, pkdDensity(pkd,p), in.dHubble, a_m1, a_m3,
+                                     dThreshDen, in.dSFThresholdu, in.dSFEfficiency, psph);
             }
             else {
                 dmstar = pressure_SFR(fMass, pkdDensity(pkd,p), pkdBall(pkd,p), a_m3,
@@ -316,13 +318,17 @@ static inline double pressure_SFR(const float fMass, const float fDens,
     return dmstar;
 }
 
-static inline double density_SFR(const float fMass, const float fDens, const double a_m3,
-                                 const double dThreshDen, const double dSFThresholdu,
-                                 const double dSFEfficiency, SPHFIELDS *psph) {
-    // Two SF thresholds are applied:
-    //      a) Minimum density, computed at the master level
-    //      b) Maximum temperature set by dSFThresholdTemp
-    if (psph->Uint > dSFThresholdu || fDens < dThreshDen) {
+static inline double density_SFR(const float fMass, const float fDens, const double dHubble,
+                                 const double a_m1, const double a_m3, const double dThreshDen,
+                                 const double dSFThresholdu, const double dSFEfficiency,
+                                 SPHFIELDS *psph) {
+    // Three SF criteria are enforced:
+    //      a) A minimum density, computed at the master level
+    //      b) A maximum temperature, set by dSFThresholdTemp
+    //      c) Converging flow (negative physical velocity divergence)
+    const double dVelDiv = a_m1 * (psph->gradVx[0] + psph->gradVy[1] + psph->gradVz[2]) +
+                           3. * dHubble;
+    if (fDens < dThreshDen || psph->Uint > dSFThresholdu || dVelDiv > 0.0) {
         return 0.0;
     }
 
