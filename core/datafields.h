@@ -53,6 +53,14 @@ public:
     void align(void) {
         iElementSize = (iElementSize + nElementAlign - 1 ) & ~(nElementAlign-1);
     }
+
+    //! Add a field to the store. A field of type T is added with the specified offset.
+    //! \param f The field id
+    //! \param offset The offset to the field
+    template<typename T,std::enable_if_t<!std::is_void_v<T>,bool> = true>
+    void add(FIELD f,int offset) {
+        oFieldOffset[static_cast<unsigned int>(f)] = offset;
+    }
     //! Add a "void" type field. For some element the offset isn't relevant, only if it is present.
     //! \param f The field id
     template<typename T,std::enable_if_t<std::is_void_v<T>,bool> = true>
@@ -95,6 +103,9 @@ public:
         oFieldOffset[static_cast<unsigned int>(f)] = iOffset;
     }
 public:
+    //! Returns the offset (in bytes) of the specified field or zero if it not present
+    //! \param f The field id
+    auto offset(FIELD f) const noexcept {return oFieldOffset[static_cast<unsigned int>(f)];}
     //! Returns true if the field is present, otherwise false.
     //! \param f The field id
     auto present(FIELD f) const noexcept {return oFieldOffset[static_cast<unsigned int>(f)]!= 0;}

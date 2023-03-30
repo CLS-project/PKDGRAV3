@@ -32,6 +32,7 @@
 typedef double pos_t;
 typedef float  vel_t;
 typedef float  acc_t;
+typedef float  mass_t;
 
 /*
 ** Costs: ADD/SUB/MUL/AND/CMP 1 cycle

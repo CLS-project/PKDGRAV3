@@ -33,6 +33,7 @@ enum class KDN_FIELD {
     oNodePosition,      // Three double or int32_t (if bIntegerPosition)
     oNodeVelocity,      // Three vel_t
     oNodeAcceleration,  // Three doubles
+    oNodeMass,          // One float (may point into oNodeMom!)
     oNodeBOB,           // Ball or Box of Balls
     oNodeMom,           // an FMOMR
     oNodeBnd,
@@ -122,6 +123,8 @@ public:
     auto       &sphbounds(          KDN *n ) const {return get<SPHBNDS>(n,KDN_FIELD::oNodeSphBounds);}
     const auto &moment(       const KDN *n ) const {return get<FMOMR>(n,KDN_FIELD::oNodeMom);}
     auto       &moment(             KDN *n ) const {return get<FMOMR>(n,KDN_FIELD::oNodeMom);}
+    const auto &mass(         const KDN *n ) const {return get<mass_t>(n,KDN_FIELD::oNodeMass);}
+    auto       &mass(               KDN *n ) const {return get<mass_t>(n,KDN_FIELD::oNodeMass);}
     const auto &BOB(          const KDN *n ) const {return get<SPHBOB>(n,KDN_FIELD::oNodeBOB);}
     auto       &BOB(                KDN *n ) const {return get<SPHBOB>(n,KDN_FIELD::oNodeBOB);}
     const auto &Ngas(         const KDN *n ) const {return get<int32_t>(n,KDN_FIELD::oNodeNgas);}
@@ -171,6 +174,7 @@ public:
         auto &vbound()       const {return store().vbound(p);}
         auto &sphbounds()    const {return store().sphbounds(p);}
         auto &moment()       const {return store().moment(p);}
+        auto &mass()         const {return store().mass(p);}
         auto &BOB()          const {return store().BOB(p);}
         auto &Ngas()         const {return store().Ngas(p);}
         auto &Nstar()        const {return store().Nstar(p);}

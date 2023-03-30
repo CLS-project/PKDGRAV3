@@ -147,7 +147,7 @@ static void addChildFof(PKD pkd, remoteTree &tree, clList *cl, int iChild, int i
     auto [iLower, idLower, iUpper, idUpper] = c->get_child_cells(id);
     const auto &SPHbob = c->have_BOB() ? c->BOB() : SPHBOB();
     cl->append(iCache,id,iChild,idLower,iLower,idUpper,iUpper,c->count(),cOpen,
-               c->moment().m,4.0f*c->fSoft2(),c_r,fOffset,cbnd,SPHbob);
+               c->mass(),4.0f*c->fSoft2(),c_r,fOffset,cbnd,SPHbob);
 }
 
 

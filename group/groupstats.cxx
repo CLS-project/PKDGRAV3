@@ -247,7 +247,7 @@ static double gatherMass(PKD pkd,remoteID *S,double fBall2,double ri2,double ro2
         if (min2 > ri2) goto NoIntersect;
         max2 = bnd.maxdist(r);
         if (max2 <= ro2) {
-            fMass += kdn->moment().m;
+            fMass += kdn->mass();
             goto NoIntersect;
         }
         /*
@@ -319,7 +319,7 @@ static double gatherLocalMass(PKD pkd,remoteID *S,double fBall2,double ri2,doubl
         if (min2 > ri2) goto NoIntersect;
         max2 = bnd.maxdist(r);
         if (max2 <= ro2) {
-            fMass += kdn.moment().m;
+            fMass += kdn.mass();
             goto NoIntersect;
         }
         /*

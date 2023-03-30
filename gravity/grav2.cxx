@@ -217,7 +217,7 @@ void pkdParticleWorkDone(workParticle *wp) {
                 }
             }
 
-            if (wp->SPHoptions->doGravity) {
+            if (wp->SPHoptions->doGravity || wp->SPHoptions->doSPHForces) {
                 auto r = p.position();
                 auto m = p.mass();
 #ifdef HERNQUIST_POTENTIAL

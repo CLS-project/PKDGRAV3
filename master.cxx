@@ -4330,7 +4330,7 @@ int MSR::NewTopStepKDK(
         }
         // Calculate Forces
         SelAll(-1,1);
-        SPHoptions.doGravity = 1;
+        SPHoptions.doGravity = param.bDoGravity;
         SPHoptions.doDensity = 0;
         SPHoptions.nPredictRung = uRung;
         SPHoptions.doSPHForces = 1;
@@ -4340,9 +4340,9 @@ int MSR::NewTopStepKDK(
         *puRungMax = Gravity(uRung,MaxRung(),ROOT,uRoot2,dTime,dDelta,*pdStep,dTheta,
                              1,bKickOpen,param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,nGroup,SPHoptions);
     }
-    else {
+    else { /*if (param.bDoGravity)*/
         SPHOptions SPHoptions = initializeSPHOptions(param,csm,dTime);
-        SPHoptions.doGravity = 1;
+        SPHoptions.doGravity = param.bDoGravity;
         *puRungMax = Gravity(uRung,MaxRung(),ROOT,uRoot2,dTime,dDelta,*pdStep,dTheta,
                              1,bKickOpen,param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,nGroup,SPHoptions);
     }

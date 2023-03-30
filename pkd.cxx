@@ -454,8 +454,11 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     if ( mMemoryModel & PKD_MODEL_NODE_BOB )
         tree.add<SPHBOB>(KDN_FIELD::oNodeBOB);
 
-    if ( mMemoryModel & PKD_MODEL_NODE_MOMENT )
+    if ( mMemoryModel & PKD_MODEL_NODE_MOMENT ) {
         tree.add<FMOMR>(KDN_FIELD::oNodeMom);
+        tree.add<mass_t>(KDN_FIELD::oNodeMass,tree.offset(KDN_FIELD::oNodeMom) + offsetof(FMOMR,m));
+    }
+    else tree.add<mass_t>(KDN_FIELD::oNodeMass);
 
     /* The acceleration is required for the new time step criteria */
     if ( mMemoryModel & PKD_MODEL_NODE_ACCEL )

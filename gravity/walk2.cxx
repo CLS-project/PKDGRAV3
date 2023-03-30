@@ -59,7 +59,7 @@ static void addChild(PKD pkd, int iCache, clList *cl, int iChild, int id, blitz:
     auto [iLower, idLower, iUpper, idUpper] = c->get_child_cells(id);
     const auto &SPHbob = c->have_BOB() ? c->BOB() : SPHBOB();
     cl->append(iCache,id,iChild,idLower,iLower,idUpper,iUpper,nc,cOpen,
-               c->moment().m,4.0f*c->fSoft2(),c_r,fOffset,cbnd,
+               c->mass(),4.0f*c->fSoft2(),c_r,fOffset,cbnd,
                SPHbob);
 
 }
@@ -634,7 +634,7 @@ static void initGravWalk(PKD pkd,double dTime,double dThetaMin,int bPeriodic,int
 
     pkd->fiCritTheta = 1.0f / dThetaMin;
 
-    assert(pkd->tree.present(KDN_FIELD::oNodeMom));
+    assert(pkd->tree.present(KDN_FIELD::oNodeMass));
     if (bGravStep) {
         assert(pkd->tree.present(KDN_FIELD::oNodeAcceleration));
         if (iTimeStepCrit == 1) {

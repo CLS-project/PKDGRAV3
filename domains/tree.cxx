@@ -412,6 +412,7 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
         pkdn->set_marked(false);
         pkdn->set_NN(false);
         if (pkdn->have_moment()) momClearFmomr(&pkdn->moment());
+        else pkdn->mass() = 0;
         return;
     }
 
@@ -533,6 +534,7 @@ void Create(PKD pkd,int iRoot,double ddHonHLimit) {
                 momAddFmomr(&moment,&mom);
             }
         }
+        else pkdn->mass() = std::accumulate(pkdn->begin(),pkdn->end(),mass_t(0),[](mass_t a,auto &p) {return a + p.mass(); });
         /*
         ** Calculate bucket fast gas bounds.
         */
@@ -654,23 +656,16 @@ void pkdCombineCells1(PKD pkd,treeStore::NodePointer pkdn,treeStore::NodePointer
     auto bnd = p1bnd.combine(p2bnd);
     pkdn->set_bound(bnd);
     double m1,m2,ifMass;
-    if (pkdn->have_moment()) {
-        m1 = p1->moment().m;
-        m2 = p2->moment().m;
-        ifMass = 1/(m1 + m2);
-        /*
-        ** In the case where a cell has all its particles source inactive mom.m == 0, which is ok, but we
-        ** still need a reasonable center in order to define opening balls in the tree code.
-        */
-        if ( m1==0.0 || m2 == 0.0 ) {
-            ifMass = 1.0;
-            m1 = m2 = 0.5;
-        }
-    }
-    else {
+
+    m1 = p1->mass();
+    m2 = p2->mass();
+    // In the case where a cell has all its particles source inactive mass == 0, which is ok, but we
+    // still need a reasonable center in order to define opening balls in the tree code.
+    if ( m1==0.0 || m2 == 0.0 ) {
         ifMass = 1.0;
         m1 = m2 = 0.5;
     }
+    else ifMass = 1/(m1 + m2);
     blitz::TinyVector<double,3> p1_r, p2_r, kdn_r;
     p1_r = p1->position();
     p2_r = p2->position();
@@ -729,6 +724,7 @@ void pkdCombineCells2(PKD pkd,treeStore::NodePointer pkdn,treeStore::NodePointer
         momScaledAddFmomr(&pkdn_moment,pkdn->bMax(),&mom,p2->bMax());
 
     }
+    else pkdn->mass() = p1->mass() + p2->mass();
     /*
     ** Combine the special fast gas ball bounds for SPH.
     */

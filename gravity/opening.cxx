@@ -53,7 +53,7 @@ void iOpenOutcomeBlock(PKD pkd,treeStore::NodePointer k,int n,clBlock &blk,float
     fmask k_notgrp;
     auto k_r = k->position();
 
-    assert ( k->moment().m > 0.0f );
+    assert ( k->mass() > 0.0f );
 
     diCrit = 1.0f/dThetaMin;
 
