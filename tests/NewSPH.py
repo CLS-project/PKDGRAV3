@@ -17,6 +17,7 @@ class TestNewSPHRead(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.params = vars(SourceFileLoader('collision', 'collision.par').load_module())
+        cls.params['bGasDoExtensiveILPTest'] = 0
         cls.msr = MSR()
         cls.rho = np.load('initial_rho.npy')
         cls.fBall = np.load('initial_fBall.npy')
@@ -52,6 +53,7 @@ class TestNewSPHStep(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.params = vars(SourceFileLoader('collision', 'collision.par').load_module())
+        cls.params['bGasDoExtensiveILPTest'] = 0
         cls.msr = MSR()
         cls.pos = np.load('final_pos.npy')
         cls.vel = np.load('final_vel.npy')
