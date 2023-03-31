@@ -116,6 +116,7 @@ protected:
 public:
     explicit CACHEhelper(uint32_t nData, bool bModify=false) : nData(nData), bModify(bModify) {}
     virtual ~CACHEhelper() = default;
+    uint32_t data_size() {return nData;}
 };
 
 class CACHE : private ARChelper {
@@ -151,7 +152,7 @@ protected:
 public:
     void initialize(uint32_t cacheSize,
                     void *(*getElt)(void *pData,int i,int iDataSize),
-                    void *pData,int iDataSize,int nData,
+                    void *pData,int nData,
                     std::shared_ptr<CACHEhelper> helper);
 
     void initialize_advanced(uint32_t cacheSize,hash::GHASH *hash,int iDataSize,std::shared_ptr<CACHEhelper> helper);
@@ -296,7 +297,7 @@ public:
 
     CACHE *CacheInitialize(int cid,
                            void *(*getElt)(void *pData,int i,int iDataSize),
-                           void *pData,int iDataSize,int nData,
+                           void *pData,int nData,
                            std::shared_ptr<CACHEhelper> helper);
     CACHE *AdvancedCacheInitialize(int cid,hash::GHASH *hash,int iDataSize,std::shared_ptr<CACHEhelper> helper);
 

@@ -618,20 +618,24 @@ NextCell:
 ** the second fetch will only update it if the new name is actually smaller than the
 ** one set by the first fetch.
 */
-static void initNames(void *vctx, void *v) {
-    struct smGroupArray *g = (struct smGroupArray *)v;
-    g->id.iPid = INT32_MAX;
-    g->id.iIndex = INT32_MAX;
-}
-static void combNames(void *vctx, void *v1, const void *v2) {
-    struct smGroupArray *g1 = (struct smGroupArray *)v1;
-    const struct smGroupArray *g2 = (const struct smGroupArray *)v2;
-    if ( g1->id.iPid>g2->id.iPid || (g1->id.iPid==g2->id.iPid && g1->id.iIndex>g2->id.iIndex) ) {
-        g1->id.iPid = g2->id.iPid;
-        g1->id.iIndex = g2->id.iIndex;
+class PropogateNames : public mdl::CACHEhelper {
+protected:
+    virtual void init(void *dst) override {
+        auto g = static_cast<struct smGroupArray *>(dst);
+        g->id.iPid = INT32_MAX;
+        g->id.iIndex = INT32_MAX;
     }
-}
-
+    virtual void combine(void *dst, const void *src,const void *key) override {
+        auto g1 = static_cast<struct smGroupArray *>(dst);
+        auto g2 = static_cast<struct smGroupArray const *>(src);
+        if ( g1->id.iPid>g2->id.iPid || (g1->id.iPid==g2->id.iPid && g1->id.iIndex>g2->id.iIndex) ) {
+            g1->id.iPid = g2->id.iPid;
+            g1->id.iIndex = g2->id.iIndex;
+        }
+    }
+public:
+    explicit PropogateNames() : CACHEhelper(sizeof(struct smGroupArray),true) {}
+};
 
 int pkdFofPhases(PKD pkd) {
     MDL mdl = pkd->mdl;
@@ -708,8 +712,7 @@ int pkdFofPhases(PKD pkd) {
     /*
     ** Phase 3: propagate.
     */
-    mdlCOcache(mdl,CID_GROUP,NULL,pkd->ga,sizeof(struct smGroupArray),pkd->nGroups,
-               NULL, initNames, combNames );
+    pkd->mdl->CacheInitialize(CID_GROUP,NULL,pkd->ga,pkd->nGroups,std::make_shared<PropogateNames>());
     for (i=1; i<pkd->nGroups; ++i) {
         iLink = pkd->ga[i].iLink;
         if (iLink) {
@@ -733,7 +736,7 @@ int pkdFofPhases(PKD pkd) {
             }
         }
     }
-    mdlFinishCache(mdl,CID_GROUP);
+    pkd->mdl->FinishCache(CID_GROUP);
     return (bMadeProgress);
 }
 

@@ -152,9 +152,8 @@ extern "C"
 void mdlROcache(MDL mdl,int cid,
                 void *(*getElt)(void *pData,int i,int iDataSize),
                 void *pData,int iDataSize,int nData) {
-    static_cast<mdlClass *>(mdl)->CacheInitialize(cid,getElt,pData,iDataSize,nData,
+    static_cast<mdlClass *>(mdl)->CacheInitialize(cid,getElt,pData,nData,
             std::make_shared<CACHEhelper>(iDataSize));
-//    static_cast<mdlClass *>(mdl)->CacheInitialize(cid,getElt,pData,iDataSize,nData,NULL,NULL,NULL);
 }
 
 // This opens a combiner (read/write) cache. Called from a worker outside of MDL
@@ -165,18 +164,16 @@ void mdlCOcache(MDL mdl,int cid,
                 void *ctx,void (*init)(void *,void *),void (*combine)(void *,void *,const void *)) {
     assert(init);
     assert(combine);
-    static_cast<mdlClass *>(mdl)->CacheInitialize(cid,getElt,pData,iDataSize,nData,
+    static_cast<mdlClass *>(mdl)->CacheInitialize(cid,getElt,pData,nData,
             std::make_shared<legacyCACHEhelper>(iDataSize,ctx,init,combine));
-//    static_cast<mdlClass *>(mdl)->CacheInitialize(cid,getElt,pData,iDataSize,nData,ctx,init,combine);
 }
 
 // Cache creation is a collective operation (all worker threads participate): call the initialize() member to set it up.
 CACHE *mdlClass::CacheInitialize(
     int cid,
     void *(*getElt)(void *pData,int i,int iDataSize),
-    void *pData,int iDataSize,int nData,
+    void *pData,int nData,
     std::shared_ptr<CACHEhelper> helper) {
-//    void *ctx,void (*init)(void *,void *),void (*combine)(void *,void *,const void *)) {
 
     // We cannot reallocate this structure because there may be other threads accessing it.
     // This might be safe to do with an appropriate barrier, but it would shuffle CACHE objects.
@@ -185,8 +182,7 @@ CACHE *mdlClass::CacheInitialize(
     if (cid<0 || cid >= cache.size()) abort();
 
     auto c = cache[cid].get();
-//    c->initialize(cacheSize,getElt,pData,iDataSize,nData,ctx,init,combine);
-    c->initialize(cacheSize,getElt,pData,iDataSize,nData,helper);
+    c->initialize(cacheSize,getElt,pData,nData,helper);
 
     /* Nobody should start using this cache until all threads have started it! */
     ThreadBarrier(true);
@@ -399,7 +395,7 @@ void *CACHE::getArrayElement(void *vData,int i,int iDataSize) {
 // This records the callback information, and updates the ARC cache to match (if necessary)
 void CACHE::initialize(uint32_t cacheSize,
                        void *(*getElt)(void *pData,int i,int iDataSize),
-                       void *pData,int iDataSize,int nData,
+                       void *pData,int nData,
                        std::shared_ptr<CACHEhelper> helper) {
 
     assert(!cache_helper);
@@ -407,7 +403,7 @@ void CACHE::initialize(uint32_t cacheSize,
     this->getElt = getElt==NULL ? getArrayElement : getElt;
     this->pData = pData;
     this->nData = nData;
-    this->iDataSize = iDataSize;
+    this->iDataSize = helper->data_size();
     this->cache_helper = helper;
 
     if (iDataSize > MDL_CACHE_DATA_SIZE) nLineBits = 0;
