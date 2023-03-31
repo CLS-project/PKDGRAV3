@@ -610,6 +610,24 @@ NextCell:
     mdlFinishCache(mdl,CID_PARTICLE);
 }
 
+class FetchNames : public mdl::CACHEhelper {
+protected:
+    virtual void pack(void *dst, const void *src) override {
+        auto g1 = static_cast<remoteID *>(dst);           // Packed value
+        auto g2 = static_cast<smGroupArray const *>(src); // Regular element
+        g1->iPid = g2->id.iPid;
+        g1->iIndex = g2->id.iIndex;
+    }
+    virtual void  unpack(void *dst, const void *src, const void *key) override {
+        auto g1 = static_cast<smGroupArray *>(dst);   // Regular element
+        auto g2 = static_cast<remoteID const *>(src); // Packed value
+        g1->id.iPid = g2->iPid;
+        g1->id.iIndex = g2->iIndex;
+    }
+    virtual uint32_t pack_size()  override {return sizeof(remoteID);}
+public:
+    explicit FetchNames() : CACHEhelper(sizeof(struct smGroupArray)) {}
+};
 
 /*
 ** When we virtual fetch a name of one of the groups we may already have fetched the
@@ -621,18 +639,10 @@ NextCell:
 class PropogateNames : public mdl::CACHEhelper {
 protected:
     virtual void pack(void *dst, const void *src) override {
-        assert(0); // We use virtual fetch only, so pack() is not used
-        //     auto g1 = static_cast<remoteID *>(dst);           // Packed value
-        //     auto g2 = static_cast<smGroupArray const *>(src); // Regular element
-        //     g1->iPid = g2->id.iPid;
-        //     g1->iIndex = g2->id.iIndex;
+        assert(0); abort(); // We use virtual fetch only, so pack() is not used
     }
     virtual void  unpack(void *dst, const void *src, const void *key) override {
-        assert(0); // We use virtual fetch only, so unpack() is not used
-        //     auto g1 = static_cast<smGroupArray *>(dst);   // Regular element
-        //     auto g2 = static_cast<remoteID const *>(src); // Packed value
-        //     g1->id.iPid = g2->iPid;
-        //     g1->id.iIndex = g2->iIndex;
+        assert(0); abort(); // We use virtual fetch only, so unpack() is not used
     }
     // virtual uint32_t pack_size()  override {return sizeof(remoteID);}
     virtual void init(void *dst) override {
@@ -670,7 +680,7 @@ int pkdFofPhases(PKD pkd) {
     /*
     ** Phase 1: fetch remote names.
     */
-    mdlROcache(mdl,CID_GROUP,NULL,pkd->ga,sizeof(struct smGroupArray),pkd->nGroups);
+    pkd->mdl->CacheInitialize(CID_GROUP,NULL,pkd->ga,pkd->nGroups,std::make_shared<FetchNames>());
     for (iRemote=1; iRemote<pkd->iRemoteGroup; ++iRemote) {
         iIndex = pkd->tmpFofRemote[iRemote].key.iIndex;
         assert(iIndex > 0);
@@ -683,7 +693,7 @@ int pkdFofPhases(PKD pkd) {
         pkd->tmpFofRemote[iRemote].name.iIndex = pRemote->id.iIndex;
         pkd->tmpFofRemote[iRemote].name.iPid = pRemote->id.iPid;
     }
-    mdlFinishCache(mdl,CID_GROUP);
+    pkd->mdl->FinishCache(CID_GROUP);
     /*
     ** Phase 2: update to unique names.
     */
