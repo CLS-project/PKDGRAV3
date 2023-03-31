@@ -168,6 +168,12 @@ void mdlCOcache(MDL mdl,int cid,
             std::make_shared<legacyCACHEhelper>(iDataSize,ctx,init,combine));
 }
 
+CACHE *mdlClass::CacheInitialize(int cid,
+                                 void *(*getElt)(void *pData,int i,int iDataSize),
+                                 void *pData,int nData,int iDataSize) {
+    return CacheInitialize(cid,getElt,pData,nData,std::make_shared<CACHEhelper>(iDataSize));
+}
+
 // Cache creation is a collective operation (all worker threads participate): call the initialize() member to set it up.
 CACHE *mdlClass::CacheInitialize(
     int cid,

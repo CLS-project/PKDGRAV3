@@ -299,6 +299,9 @@ public:
                            void *(*getElt)(void *pData,int i,int iDataSize),
                            void *pData,int nData,
                            std::shared_ptr<CACHEhelper> helper);
+    CACHE *CacheInitialize(int cid,
+                           void *(*getElt)(void *pData,int i,int iDataSize),
+                           void *pData,int nData,int iDataSize);
     CACHE *AdvancedCacheInitialize(int cid,hash::GHASH *hash,int iDataSize,std::shared_ptr<CACHEhelper> helper);
 
     void *AcquireWrite(int cid,int iIndex) {

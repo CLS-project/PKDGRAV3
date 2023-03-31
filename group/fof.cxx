@@ -605,9 +605,11 @@ NextCell:
     ** Now lets go looking for local particles which have a remote neighbor that is part of
     ** a group.
     */
-    mdlROcache(mdl,CID_PARTICLE,NULL,pkd->particles,pkd->particles.ParticleSize(),pkd->Local());
+    // mdlROcache(mdl,CID_PARTICLE,NULL,pkd->particles,pkd->particles.ParticleSize(),pkd->Local());
+    pkd->mdl->CacheInitialize(CID_PARTICLE,NULL,pkd->particles,pkd->Local(),pkd->particles.ParticleSize());
     pkdFofRemoteSearch(pkd,dTau2,bPeriodic,nReplicas,nBucket);
-    mdlFinishCache(mdl,CID_PARTICLE);
+    // mdlFinishCache(mdl,CID_PARTICLE);
+    pkd->mdl->FinishCache(CID_PARTICLE);
 }
 
 class FetchNames : public mdl::CACHEhelper {
@@ -636,7 +638,7 @@ public:
 ** the second fetch will only update it if the new name is actually smaller than the
 ** one set by the first fetch.
 */
-class PropogateNames : public mdl::CACHEhelper {
+class PropagateNames : public mdl::CACHEhelper {
 protected:
     virtual void pack(void *dst, const void *src) override {
         assert(0); abort(); // We use virtual fetch only, so pack() is not used
@@ -667,7 +669,7 @@ protected:
     virtual uint32_t flush_size() override {return sizeof(remoteID);}
 
 public:
-    explicit PropogateNames() : CACHEhelper(sizeof(struct smGroupArray),true) {}
+    explicit PropagateNames() : CACHEhelper(sizeof(struct smGroupArray),true) {}
 };
 
 int pkdFofPhases(PKD pkd) {
@@ -745,7 +747,7 @@ int pkdFofPhases(PKD pkd) {
     /*
     ** Phase 3: propagate.
     */
-    pkd->mdl->CacheInitialize(CID_GROUP,NULL,pkd->ga,pkd->nGroups,std::make_shared<PropogateNames>());
+    pkd->mdl->CacheInitialize(CID_GROUP,NULL,pkd->ga,pkd->nGroups,std::make_shared<PropagateNames>());
     for (i=1; i<pkd->nGroups; ++i) {
         iLink = pkd->ga[i].iLink;
         if (iLink) {
