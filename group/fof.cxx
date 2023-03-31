@@ -620,19 +620,42 @@ NextCell:
 */
 class PropogateNames : public mdl::CACHEhelper {
 protected:
+    virtual void pack(void *dst, const void *src) override {
+        assert(0); // We use virtual fetch only, so pack() is not used
+        //     auto g1 = static_cast<remoteID *>(dst);           // Packed value
+        //     auto g2 = static_cast<smGroupArray const *>(src); // Regular element
+        //     g1->iPid = g2->id.iPid;
+        //     g1->iIndex = g2->id.iIndex;
+    }
+    virtual void  unpack(void *dst, const void *src, const void *key) override {
+        assert(0); // We use virtual fetch only, so unpack() is not used
+        //     auto g1 = static_cast<smGroupArray *>(dst);   // Regular element
+        //     auto g2 = static_cast<remoteID const *>(src); // Packed value
+        //     g1->id.iPid = g2->iPid;
+        //     g1->id.iIndex = g2->iIndex;
+    }
+    // virtual uint32_t pack_size()  override {return sizeof(remoteID);}
     virtual void init(void *dst) override {
-        auto g = static_cast<struct smGroupArray *>(dst);
+        auto g = static_cast<smGroupArray *>(dst);
         g->id.iPid = INT32_MAX;
         g->id.iIndex = INT32_MAX;
     }
     virtual void combine(void *dst, const void *src,const void *key) override {
-        auto g1 = static_cast<struct smGroupArray *>(dst);
-        auto g2 = static_cast<struct smGroupArray const *>(src);
-        if ( g1->id.iPid>g2->id.iPid || (g1->id.iPid==g2->id.iPid && g1->id.iIndex>g2->id.iIndex) ) {
-            g1->id.iPid = g2->id.iPid;
-            g1->id.iIndex = g2->id.iIndex;
+        auto g1 = static_cast<smGroupArray *>(dst);   // Regular element
+        auto g2 = static_cast<remoteID const *>(src); // Packed value
+        if ( g1->id.iPid>g2->iPid || (g1->id.iPid==g2->iPid && g1->id.iIndex>g2->iIndex) ) {
+            g1->id.iPid = g2->iPid;
+            g1->id.iIndex = g2->iIndex;
         }
     }
+    virtual void flush(void *dst, const void *src) override {
+        auto g1 = static_cast<remoteID *>(dst);           // Packed value
+        auto g2 = static_cast<smGroupArray const *>(src); // Regular element
+        g1->iPid = g2->id.iPid;
+        g1->iIndex = g2->id.iIndex;
+    }
+    virtual uint32_t flush_size() override {return sizeof(remoteID);}
+
 public:
     explicit PropogateNames() : CACHEhelper(sizeof(struct smGroupArray),true) {}
 };

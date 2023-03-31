@@ -1013,7 +1013,6 @@ int mpiClass::CacheReceiveFlush(int count, CacheHeader *ph, int iProcFrom) {
     auto key_size = c->key_size();
     auto iLineSize = c->getLineElementCount() * c->cache_helper->flush_size();
     if (key_size==0) {
-        assert(c->iLineSize==iLineSize);
         // For some operations (e.g., grid assignment), we use core 0 and an index into the process.
         // Here we convert this to the correct index and core, updating iLine and iCore
         int iIndex = ph->iLine << c->nLineBits;
@@ -1082,7 +1081,7 @@ void mdlClass::MessageFlushToCore(mdlMessageFlushToCore *pFlush) {
                     c->cache_helper->combine(p,pData,nullptr);
                     c->WriteUnlock(p);
                 }
-                pData += c->iDataSize;
+                pData += c->cache_helper->flush_size();
             }
         }
         count -= sizeof(CacheHeader) + iLineSize + key_size;
