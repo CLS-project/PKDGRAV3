@@ -2555,6 +2555,24 @@ static FIO gadgetOpen(fioFileList *fileList, int bReopen) {
 
 #include <hdf5.h>
 
+/* Returns a half-precision FP HDF5 type */
+static hid_t getFP16LE(void) {
+    hid_t fp16le = H5Tcopy(H5T_NATIVE_FLOAT);
+
+    herr_t err = H5Tset_fields(fp16le, 15, 10, 5, 0, 10);
+    assert(err >= 0);
+    err = H5Tset_precision(fp16le, 16);
+    assert(err >= 0);
+    err = H5Tset_ebias(fp16le, 15);
+    assert(err >= 0);
+    err = H5Tset_size(fp16le, 2);
+    assert(err >= 0);
+    err = H5Tset_order(fp16le, H5T_ORDER_LE);
+    assert(err >= 0);
+
+    return fp16le;
+}
+
 /* Returns the number of records in a dataset */
 static hsize_t getSetSize(hid_t setID) {
     hid_t spaceID;
@@ -2893,6 +2911,7 @@ typedef struct {
     hid_t unitsID;
     hid_t paramsID;
     hid_t stringType;
+    hid_t fp16leType;
     int mFlags;
     FIO_SPECIES eCurrent;
     IOBASE base[FIO_SPECIES_LAST];
@@ -3463,6 +3482,7 @@ static void hdf5Close(FIO fio) {
     assert(H5Fget_obj_count(hio->fileID,H5F_OBJ_ALL)==1);
     H5Fclose(hio->fileID);
     H5Tclose(hio->stringType);
+    H5Tclose(hio->fp16leType);
     free(hio);
 }
 
@@ -3930,7 +3950,7 @@ static int hdf5WriteSph(
         field_create(&base->fldFields[SPH_SMOOTHING],base->group_id,
                      FIELD_SMOOTHING, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, 1 );
         field_create(&base->fldFields[SPH_ABUNDANCES],base->group_id,
-                     FIELD_ABUNDANCES, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, ELEMENT_COUNT);
+                     FIELD_ABUNDANCES, H5T_NATIVE_FLOAT, hio->fp16leType, ELEMENT_COUNT);
         field_create(&base->fldFields[SPH_GROUP],base->group_id,
                      FIELD_GROUP, H5T_NATIVE_INT32, H5T_NATIVE_INT32, 1);
 #ifdef STAR_FORMATION
@@ -3939,7 +3959,7 @@ static int hdf5WriteSph(
 #endif
 #ifdef HAVE_METALLICITY
         field_create(&base->fldFields[SPH_METALLICITY],base->group_id,
-                     FIELD_METALLICITY, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, 1);
+                     FIELD_METALLICITY, H5T_NATIVE_FLOAT, hio->fp16leType, 1);
 #endif
         if ( hio->mFlags&FIO_FLAG_ID) { //Force to write particle IDs
             ioorder_create(&base->ioOrder,base->group_id,0);
@@ -4002,9 +4022,9 @@ static int hdf5WriteStar(
                      FIELD_GROUP, H5T_NATIVE_INT32, H5T_NATIVE_INT32, 1);
 #ifdef STELLAR_EVOLUTION
         field_create(&base->fldFields[STAR_ABUNDANCES],base->group_id,
-                     FIELD_ABUNDANCES, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, ELEMENT_COUNT );
+                     FIELD_ABUNDANCES, H5T_NATIVE_FLOAT, hio->fp16leType, ELEMENT_COUNT );
         field_create(&base->fldFields[STAR_METALLICITY],base->group_id,
-                     FIELD_METALLICITY, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, 1);
+                     FIELD_METALLICITY, H5T_NATIVE_FLOAT, hio->fp16leType, 1);
         field_create(&base->fldFields[STAR_INITIALMASS],base->group_id,
                      FIELD_INITIALMASS, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, 1);
         field_create(&base->fldFields[STAR_ENRICHTIME],base->group_id,
@@ -4122,6 +4142,9 @@ static FIO hdf5OpenOne(const char *fname,int iFile) {
     fioInitialize(&hio->fio,FIO_FORMAT_HDF5,FIO_MODE_READING,0);
     hio->stringType = H5Tcopy(H5T_C_S1);
     H5Tset_size(hio->stringType, 256);
+
+    /* Half-precision FP type to save storage */
+    hio->fp16leType = getFP16LE();
 
     /* Scan the files - all but the first one */
     hio->fio.mFlags |= FIO_FLAG_DENSITY | FIO_FLAG_POTENTIAL;
@@ -4380,6 +4403,9 @@ FIO fioHDF5Create(const char *fileName, int mFlags) {
 
     hio->stringType = H5Tcopy(H5T_C_S1);
     H5Tset_size(hio->stringType, 32);
+
+    /* Half-precision FP type to save storage */
+    hio->fp16leType = getFP16LE();
 
     /* Global parameters (dTime,etc.) are stored here */
     hio->headerID = H5Gcreate( hio->fileID, GROUP_HEADER, 0 );
