@@ -283,7 +283,7 @@ void pkdParticleWorkDone(workParticle *wp) {
                 pkd->dEnergyW += m * blitz::dot(r,wp->pInfoOut[i].a);
                 pkd->dEnergyF += m * wp->pInfoOut[i].a;
 
-                if (wp->ts->bGravStep) {
+                if (wp->ts->bGravStep && wp->SPHoptions->doGravity) {
                     float dirsum = wp->pInfoOut[i].dirsum;
                     float normsum = wp->pInfoOut[i].normsum;
 
@@ -329,7 +329,7 @@ void pkdParticleWorkDone(workParticle *wp) {
                     fy = wp->pInfoOut[i].a[1];
                     fz = wp->pInfoOut[i].a[2];
                     maga = fx*fx + fy*fy + fz*fz;
-                    if (maga > 0) {
+                    if (maga > 0 && wp->SPHoptions->doGravity) {
                         float imaga = rsqrtf(maga) * fiAccFac;
                         dT = fEta*asqrtf(p.soft()*imaga);
                         if (p.have_newsph()) {
