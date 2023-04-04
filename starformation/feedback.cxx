@@ -4,7 +4,7 @@
 #include "imf.h"
 
 void MSR::SetFeedbackParam() {
-    param.dSNFBDu = param.dSNFBDT * dTuFac * (param.dMeanMolWeight / 0.5917);
+    param.dSNFBDu = param.dSNFBDT * dTuFacPrimIonised;
 
     auto IMF = ChooseIMF(param.achIMFType, param.dIMFMinMass, param.dIMFMaxMass);
     const double dCCSNNumPerMass =

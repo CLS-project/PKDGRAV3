@@ -568,7 +568,16 @@ void MSR::SetDerivedParameters() {
     \**********************************************************************/
 
     SetUnits();
-    dTuFac = param.units.dGasConst/(param.dConstGamma - 1)/param.dMeanMolWeight;
+
+    /* Temperature-to-specific-internal-energy conversion factors for different values
+     * of mean molecular weight (mu) */
+    const double dTuPrefac = param.units.dGasConst / (param.dConstGamma - 1.);
+    dTuFac = dTuPrefac / param.dMeanMolWeight;
+
+    const double dInvPrimNeutralMu = 0.25 + 0.75 * param.dInitialH;
+    const double dInvPrimIonisedMu = 0.75 + 1.25 * param.dInitialH;
+    dTuFacPrimNeutral = dTuPrefac * dInvPrimNeutralMu;
+    dTuFacPrimIonised = dTuPrefac * dInvPrimIonisedMu;
 
 #ifdef COOLING
     SetCoolingParam();
@@ -3606,7 +3615,7 @@ void MSR::EndTimestepIntegration(double dTime,double dDelta) {
     in.dTime = dTime;
     in.dDelta = dDelta;
     in.dConstGamma = param.dConstGamma;
-    in.dTuFac = dTuFac;
+    in.dTuFac = dTuFacPrimNeutral;
 #ifdef STAR_FORMATION
     in.dSFThresholdOD = param.dSFThresholdOD;
 #endif
@@ -5079,7 +5088,7 @@ double MSR::GenerateIC() {
     InitCosmology();
     in.dOmegaRate = csm->val.dOmegab/csm->val.dOmega0;
     SetDerivedParameters();
-    in.dTuFac = dTuFac;
+    in.dTuFac = dTuFacPrimNeutral;
 
     assert(param.dRedFrom >= 0.0 );
     in.dExpansion = 1.0 / (1.0 + param.dRedFrom);

@@ -18,7 +18,7 @@ void MSR::SetBlackholeParam() {
 
     // We convert from Delta T to energy per mass.
     // This needs to be multiplied by the mass of the gas particle
-    param.dBHFBEcrit = param.dBHFBDT * dTuFac * (param.dMeanMolWeight / 0.5917) * n_heat;
+    param.dBHFBEcrit = param.dBHFBDT * dTuFacPrimIonised * n_heat;
 
 }
 

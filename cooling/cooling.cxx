@@ -57,7 +57,7 @@ static inline void get_redshift_index(const float z, int *z_index, float *dz,
                                       struct cooling_function_data *restrict cooling);
 
 void MSR::SetCoolingParam() {
-    param.dCoolingMinu = param.dCoolingMinTemp * dTuFac * (param.dMeanMolWeight / 1.2285);
+    param.dCoolingMinu = param.dCoolingMinTemp * dTuFacPrimNeutral;
 }
 
 /**

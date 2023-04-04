@@ -18,7 +18,7 @@
 /* MSR layer
  */
 void MSR::SetStarFormationParam() {
-    param.dSFThresholdu = param.dSFThresholdT*dTuFac;
+    param.dSFThresholdu = param.dSFThresholdT*dTuFacPrimNeutral;
 
     if (csm->val.bComove) {
         // As usual, in code units the critical density is 1.0

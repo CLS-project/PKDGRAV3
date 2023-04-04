@@ -5,7 +5,7 @@ void MSR::SetEOSParam() {
     const double dHydFrac = param.dInitialH;
     const double dnHToRho = MHYDR / dHydFrac / param.units.dGmPerCcUnit;
     param.dEOSFloorDen = param.dEOSFloornH*dnHToRho;
-    param.dEOSFlooru = param.dEOSFloorTemp*dTuFac*(param.dMeanMolWeight / 1.2285);
+    param.dEOSFlooru = param.dEOSFloorTemp*dTuFacPrimNeutral;
     if (csm->val.bComove)
         param.dEOSFloorMinBaryonOD = param.dEOSFloorMinOD*csm->val.dOmegab;
     else
@@ -13,7 +13,7 @@ void MSR::SetEOSParam() {
 #ifdef EEOS_POLYTROPE
     param.dEOSPolyFloorExponent = param.dEOSPolyFloorIndex-1.;
     param.dEOSPolyFloorDen =  param.dEOSPolyFloornH*dnHToRho;
-    param.dEOSPolyFlooru = param.dEOSPolyFloorTemp*dTuFac*(param.dMeanMolWeight / 1.2285);
+    param.dEOSPolyFlooru = param.dEOSPolyFloorTemp*dTuFacPrimNeutral;
     if (csm->val.bComove)
         param.dEOSPolyFloorMinBaryonOD = param.dEOSPolyFloorMinOD*csm->val.dOmegab;
     else

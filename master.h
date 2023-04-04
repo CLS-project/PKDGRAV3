@@ -313,6 +313,8 @@ public:
 
     /* Gas */
     double dTuFac;
+    double dTuFacPrimIonised;
+    double dTuFacPrimNeutral;
     int bUpdateBall;
 
     /* Values for a restore from checkpoint */
