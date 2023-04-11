@@ -2857,11 +2857,6 @@ void pkdEndTimestepIntegration(PKD pkd, struct inEndTimestep in) {
             }
 #endif
 
-            float fMass = pkdMass(pkd, p);
-            float fDens = pkdDensity(pkd, p);
-            const float fDensPhys = fDens*a_inv3;
-            const float f2Ball = 2.*pkdBall(pkd,p);
-
             if (in.dDelta > 0) {
                 pDelta = in.dTime - psph->lastUpdateTime;
             }
@@ -2895,10 +2890,16 @@ void pkdEndTimestepIntegration(PKD pkd, struct inEndTimestep in) {
 
 #if defined(EEOS_JEANS) || defined(EEOS_POLYTROPE)
             // ##### Effective Equation Of State
-            const double dEOSUint = fMass*eEOSEnergyFloor(a_inv3, pkdDensity(pkd,p), pkdBall(pkd,p), in.dConstGamma, in.eEOS);
-            if (dEOSUint != NOT_IN_EEOS)
-                if (psph->Uint < dEOSUint)
+            const double dFlooru = eEOSEnergyFloor(a_inv3, pkdDensity(pkd,p), pkdBall(pkd,p),
+                                                   in.dConstGamma, in.eEOS);
+            if (dFlooru != NOT_IN_EEOS) {
+                const double dEOSUint = pkdMass(pkd, p) * dFlooru;
+                if (psph->Uint < dEOSUint) {
+                    psph->E = psph->E - psph->Uint;
                     psph->Uint = dEOSUint;
+                    psph->E = psph->E + psph->Uint;
+                }
+            }
 #endif
 
 #if defined(FEEDBACK) || defined(BLACKHOLES)
