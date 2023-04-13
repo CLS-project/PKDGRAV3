@@ -173,3 +173,34 @@ Similarily the time unit must be:
     t_{unit} &= 3.08567758149\times 10^{16} s\\
              &\approx 0.978461942~Gyrs
 
+kpc & Gyrs
+==========
+
+One can also fix the length unit to kpc, the time unit to Gyrs and thus the velocity unit to kpc/Gyr. The mass unit is then:
+
+
+.. math:: 
+    G &= 4.51710305052\times 10^{-48}\frac{Mpc^3}{M_\odot}\frac{1}{s^2}\\
+      &= 4.51710305052\times 10^{-39}\frac{kpc^3}{M_\odot}\frac{1}{s^2}\\
+
+With :math:`3.15581184\times 10^7` seconds in a year and :math:`3.15581184\times 10^{16}` seconds in a Gyr, we get:
+
+.. math:: 
+    G &= 4.51710305052\times 10^{-39}\frac{kpc^3}{M_\odot}\frac{1}{s^2} \times \left(3.15581184\times 10^{16}\frac{s}{Gyr}\right)^2\\
+      &= 4.49864994804\times 10^{-6}\frac{kpc^3}{M_\odot Gyr}
+
+This means that the mass unit is:
+
+.. math:: 
+    M_{unit} = \frac{1}{4.49864994804\times 10^{-6}}~M_\odot = 2.22288911462\times 10^5~M_\odot
+
+Velocity
+--------
+
+It should be noted that kpc/Gyr is very nearly km/s. This should be obvious because the time unit in the kpc and km/s unit system is very nearly 1 Gpc (but not exactly).
+
+.. math:: 
+    V = \frac{kpc}{Gyr}
+      = \frac{\pi^{-1}\times 9.69394202136\times 10^{16}\frac{km}{kpc}}{3.15581184\times 10^{16}\frac{s}{Gyr}}
+      = 0.97777615965\frac{km}{s}
+
