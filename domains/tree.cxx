@@ -159,135 +159,143 @@ static int PartPart(PKD pkd,int pLower,int pUpper,int d,split_t Split) {
     return std::partition(pi,pj+1,[Split,d](auto &p) {return p.template raw_position<split_t>(d) < Split;}) - pkd->particles.begin();
 }
 
-/*
-** M is the bucket size.
-** This function assumes that the root node is correctly set up (particularly the bounds).
-*/
-void BuildTemp(PKD pkd,int iNode,int M,int nGroup,double dMaxMax) {
-    auto pNode = pkd->tree[iNode];
-    double lrMax;
-    std::vector<int> S;     /* this is the stack */
-    int d;
-    int i;
-    int nr,nl;
-    int lc,rc;
-    int nBucket = 0;
-
+/// @brief Build tree
+///
+/// This function assumes that the root node is correctly set up (particularly the bounds).
+/// @param pkd pkdContext object.
+/// @param iNode index of node in pkd->tree[]
+/// @param bucketSize bucket size.
+/// todo: what is this parameter?
+/// @param nGroup ???
+/// todo: I think this might be a maximum size that a bucket can have.
+/// @param dMaxMax ???
+void BuildTemp(PKD pkd, int iNode, int bucketSize, int nGroup, double dMaxMax) {
+    std::vector<int> stack;
+    // todo: why is nBucket here? It's value doesn't get used.
+    int nBucket = 0; // Count number of buckets.
+    auto pNode = pkd->tree[iNode]; // Current node of the tree.
     pNode->set_depth(0);
     pNode->set_split_dim(3);
 
     // Single bucket? We are done.
-    if (pNode->count() <= M) return;
+    if (pNode->count() <= bucketSize) return;
 
-    S.reserve(100); // Start with a sensible stack size
-
+    stack.reserve(100); // Start with a sensible stack size
     auto bnd = pNode->bound();
-    while (1) {
+    while (true) {
+        // todo: why is it called fSplit?
         // Begin new stage! Calculate the appropriate fSplit.
         // Pick longest dimension and split it in half.
         // Calculate the new left and right cells. We will use
         // either the left, the right or (usually) both.
-        pNode->set_split_dim(d = bnd.maxdim());
-        auto [lbnd,rbnd] = bnd.split(d);
-        lrMax = 0.5*lbnd.maxside();
+        int d = bnd.maxdim();
+        pNode->set_split_dim(d);
+        auto [lbnd, rbnd] = bnd.split(d);
+        double lrMax = 0.5 * lbnd.maxside();
         // Now start the partitioning of the particles about
         // fSplit on dimension given by d.
+        int i; // Partition index.
         if (pkd->bIntegerPosition) {
-            int32_t Split = pkdDblToIntPos(pkd,bnd.center(d));
-            i = PartPart(pkd,pNode->lower(),pNode->upper(),d,Split);
+            int32_t pivot = pkdDblToIntPos(pkd, bnd.center(d));
+            i = PartPart(pkd, pNode->lower(), pNode->upper(), d, pivot);
         }
-        else i = PartPart(pkd,pNode->lower(),pNode->upper(),d,bnd.center(d));
-        nl = i - pNode->lower();
-        nr = pNode->upper() + 1 - i;
-        if (nl > 0 && nr > 0) {
-            // Split this node into two children
-            auto [pLeft,pRight] = pNode->split(i);
+        else {
+            double pivot = bnd.center(d);
+            i = PartPart(pkd, pNode->lower(), pNode->upper(), d, pivot);
+        }
 
+        int nl = i - pNode->lower();     // Number of particles in the left partition.
+        int nr = pNode->upper() + 1 - i; // Number of particles in the right partition.
+        if (nl > 0 && nr > 0) { // Both sides non empty.
+            // Split this node into two children
+            auto [pLeft, pRight] = pNode->split(i);
+
+            // todo: What is set_group()?
             pNode->set_group(pNode->count() <= nGroup);
             pLeft->set_bound(lbnd);
             pRight->set_bound(rbnd);
 
             /*
-            ** Now figure out which subfile to process next.
+            ** Now figure out which sub-tree to process next.
             */
-            if (lrMax > dMaxMax) {
-                lc = (nl > 0); /* this condition means the left child is not a bucket */
-                rc = (nr > 0);
-            }
-            else {
-                lc = (nl > M); /* this condition means the left child is not a bucket */
-                rc = (nr > M);
-            }
-            if (rc && lc) {
+            bool continue_left = (lrMax > dMaxMax || nl > bucketSize); // this condition means the left child is not a bucket.
+            bool continue_right = (lrMax > dMaxMax || nr > bucketSize); // this condition means the right child is not a bucket.
+
+            if (continue_right && continue_left) {
+                // Process smaller subtree first.
+                // todo: why?
                 if (nr > nl) {
-                    S.push_back(pNode->rchild());   // push tr
-                    iNode = pNode->lchild();        // process lower subfile
+                    stack.push_back(pNode->rchild()); // push right subtree.
+                    iNode = pNode->lchild();          // process left sub-tree.
                 }
                 else {
-                    S.push_back(pNode->lchild());   // push tl
-                    iNode = pNode->rchild();        // process upper subfile
+                    stack.push_back(pNode->lchild()); // push left subtree.
+                    iNode = pNode->rchild();          // process right sub-tree.
                 }
             }
-            else if (lc) {
+            else if (continue_left) {
                 /*
                 ** Right must be a bucket in this case!
                 */
-                iNode = pNode->lchild();   /* process lower subfile */
+                iNode = pNode->lchild(); // process left sub-tree
                 pRight->set_group(true);
                 ++nBucket;
             }
-            else if (rc) {
+            else if (continue_right) {
                 /*
                 ** Left must be a bucket in this case!
                 */
-                iNode = pNode->rchild();   /* process upper subfile */
+                iNode = pNode->rchild(); // process right sub-tree
                 pLeft->set_group(true);
                 ++nBucket;
             }
             else {
                 /*
-                ** Both are buckets (we need to pop from the stack to get the next subfile.
+                ** Both are buckets (we need to pop from the stack to get the next sub-tree.
                 */
                 pLeft->set_group(true);
                 ++nBucket;
                 pRight->set_group(true);
                 ++nBucket;
-                if (S.empty()) break;
-                iNode = S.back();
-                S.pop_back();
+                if (stack.empty()) break;
+                iNode = stack.back();
+                stack.pop_back();
             }
         }
-        else {
-            pNode->set_depth(pNode->depth()+1);
-            // No nodes allocated: just change the bounds
+        else {   // At least one half of the partition is empty.
+            // In practice it can only every be one half that is empty, because we don't create empty nodes.
+            // No need to allocate additional node. Just change bounds of current node.
+            // todo: Why is the depth increased?
+            pNode->set_depth(pNode->depth() + 1);
             if (nl > 0) {
                 pNode->set_bound(lbnd);
-                lc = (lrMax>dMaxMax || nl > M); /* this condition means the node is not a bucket */
-                if (!lc) {
+                bool is_bucket = !(lrMax > dMaxMax || nl > bucketSize);
+                if (is_bucket) {
                     pNode->set_group(true);
                     ++nBucket;
-                    if (S.empty()) break;
-                    iNode = S.back();
-                    S.pop_back();
+                    if (stack.empty()) break;
+                    iNode = stack.back();
+                    stack.pop_back();
                 }
             }
             else {
                 pNode->set_bound(rbnd);
-                rc = (lrMax>dMaxMax || nr > M);
-                if (!rc) {
+                bool is_bucket = !(lrMax > dMaxMax || nr > bucketSize);
+                if (is_bucket) {
                     pNode->set_group(true);
                     ++nBucket;
-                    if (S.empty()) break;
-                    iNode = S.back();
-                    S.pop_back();
+                    if (stack.empty()) break;
+                    iNode = stack.back();
+                    stack.pop_back();
                 }
             }
         }
+
+        // Get node and bound for next iteration.
         pNode = pkd->tree[iNode];
         bnd = pNode->bound();
     }
 }
-
 
 /*
 ** With more than a single tree, we must be careful to make sure
