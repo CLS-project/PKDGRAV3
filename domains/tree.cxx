@@ -262,32 +262,28 @@ void BuildTemp(PKD pkd, int iNode, int bucketSize, int nGroup, double dMaxMax) {
                 stack.pop_back();
             }
         }
-        else {   // At least one half of the partition is empty.
+        else {
+            // At least one half of the partition is empty.
             // In practice it can only every be one half that is empty, because we don't create empty nodes.
-            // No need to allocate additional node. Just change bounds of current node.
+            assert(nl > 0 || nr > 0);
             // todo: Why is the depth increased?
+            // No need to allocate additional node. Just change bounds and depth of current node.
             pNode->set_depth(pNode->depth() + 1);
+            bool is_bucket;
             if (nl > 0) {
                 pNode->set_bound(lbnd);
-                bool is_bucket = !(lrMax > dMaxMax || nl > bucketSize);
-                if (is_bucket) {
-                    pNode->set_group(true);
-                    ++nBucket;
-                    if (stack.empty()) break;
-                    iNode = stack.back();
-                    stack.pop_back();
-                }
+                is_bucket = !(lrMax > dMaxMax || nl > bucketSize);
             }
             else {
                 pNode->set_bound(rbnd);
-                bool is_bucket = !(lrMax > dMaxMax || nr > bucketSize);
-                if (is_bucket) {
-                    pNode->set_group(true);
-                    ++nBucket;
-                    if (stack.empty()) break;
-                    iNode = stack.back();
-                    stack.pop_back();
-                }
+                is_bucket = !(lrMax > dMaxMax || nr > bucketSize);
+            }
+            if (is_bucket) {
+                pNode->set_group(true);
+                ++nBucket;
+                if (stack.empty()) break;
+                iNode = stack.back();
+                stack.pop_back();
             }
         }
 
