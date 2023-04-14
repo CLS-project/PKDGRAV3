@@ -1,41 +1,42 @@
-			       pkdgrav3
-			 September 24, 2018
-		      http://www.pkdgrav.org/
+========
+pkdgrav3
+========
 
-		Douglas Potter <douglas.potter@uzh.ch>
-		Joachim Stadel <stadel@physik.uzh.ch>
+Douglas Potter <douglas.potter@uzh.ch>
+Joachim Stadel <stadel@physik.uzh.ch>
+
+The User Guide for pkdgrav3 can be found at:
+
+https://pkdgrav3.readthedocs.io/
 
 Quick Start
------------
+===========
 
-The pkdgrav3 code now uses the "cmake" build system. It is recommended to
+The pkdgrav3 code uses the "cmake" build system. It is recommended to
 use an "out of source" build. The easiest way to accomplish this is to
-create a subdirectory in the pkdgrav3 source directory:
+create a subdirectory in the pkdgrav3 source directory::
 
     mkdir build
-    cd build
-    cmake ..
-    make
+    cmake -S . -B build
+    cmake --build build
 
 This will build a single executable "pkdgrav3" and other utility programs.
 
 Prerequisites
--------------
+=============
 
 CMake - cmake build system
-
     Most modern systems already have cmake installed. Pkdgrav3 requires
-    version 3.1 or newer of cmake. You can check with "cmake --version":
+    version 3.1 or newer of cmake. You can check with "cmake --version"::
 
         pkdgrav3:~> cmake --version
         cmake version 3.5.2
 
     If you need a more recent version is can be found at:
 
-        https://cmake.org/
+    https://cmake.org/
 
 Python3 - Python Library and Interpreter
-
     Most modern distributions have Python3 installed. It should be automatically
     detected, but if not refer to:
 
@@ -47,20 +48,18 @@ Python3 - Python Library and Interpreter
 	https://cmake.org/cmake/help/latest/module/FindPythonInterp.html
 
 GSL - The GNU Scientific Library
-
     This library is usually available on HPC systems, but if not it must be
     downloaded and compiled, and can be found at this URL.
 
-        https://www.gnu.org/software/gsl/
+    https://www.gnu.org/software/gsl/
 
     pkdgrav3 will locate the GSL installation by invoking gsl-config, so make
     sure that it is in your PATH. Alternatively, you can tell CMake where to
-    find it by defining GSL_ROOT_ROOT:
+    find it by defining GSL_ROOT_ROOT::
 
         cmake -DGSL_ROOT_DIR=/opt/gsl/2.5
 
 Boost - C++ Template Lirary
-
     This library is usually available on HPC systems, but if not it must be
     downloaded and compiled, and can be found at this URL.
 
@@ -73,16 +72,15 @@ Boost - C++ Template Lirary
     Generally setting BOOST_ROOT is required for user installations.
 
 FFTW - Fast Fourier Transform Library
-
     If FFTW is available then two advanced features are enabled in pkdgrav3.
       1. Initial Condition Generation, and,
       2. Power spectrum measurement
 
     If is is not available on your system it can be obtained from:
 
-        http://www.fftw.org/
+    http://www.fftw.org/
 
-    If CMake does not automatically find FFTW then you can define FFTW_ROOT:
+    If CMake does not automatically find FFTW then you can define FFTW_ROOT::
 
         cmake -DFFTW_ROOT=/path/to/fftw
 
@@ -94,58 +92,50 @@ CUDA (optional)
 	https://developer.nvidia.com/cuda-downloads
 
 Configuration
--------------
-
-Integer Positions
-
-  This option saves memory and provides sufficient accuracy for cosmological simulations.
-  Only periodic boxes are supported. This is now supported by setting bIntegerPosition at runtime.
+=============
 
 Potentials in Lightcone particle output
+---------------------------------------
 
-  The potential for each particle can be output for the lightcone.
-  Enable by setting POTENTIAL_IN_LIGHTCONE when running cmake.
+The potential for each particle can be output for the lightcone.
+Enable by setting POTENTIAL_IN_LIGHTCONE when running cmake::
 
     cmake -DPOTENTIAL_IN_LIGHTCONE=True ...
 
 
 Build
------
+=====
 
 Once CMake has been run to produce a Makefile and associated files,
-the "make" command is used to build the program, as in:
+the "make" command is used to build the program, as in::
 
-    make
+    cmake --build build
 
 The build can be done in parallel so if you are on, for example,
-a 16 core machine, the build process can be sped up with:
+a 16 core machine, the build process can be sped up with::
 
-    make -j 16
+    cmake --build -j 16 build
 
 Running
--------
+=======
 
-    pkdgrav3
-    --------
-    This version is run using the MPI system on the cluster in question.
-    Normally this involves a special command (often "mpirun" or "mpiexec"),
-    for example:
+This version is run using the MPI system on the cluster in question.
+Normally this involves a special command (often "mpirun" or "mpiexec"),
+for example::
 
-	mpiexec pkdgrav3 simfile.par
+    mpiexec pkdgrav3 simfile.par
 
-    Consult your cluster documentation on how to run MPI programs.
-
+Consult your cluster documentation on how to run MPI programs.
 
 IA annotations
-======
+==============
 
 For the CUDA compiler, the GNU compiler must be older than 6.0
-This is the command used for preparing and compiling my version, on virus
+This is the command used for preparing and compiling my version, on virus::
 
-      mkdir build
-      cd build
-      CC=/scratch/isaacaa/opt/gcc53/bin/gcc CXX=/scratch/isaacaa/opt/gcc53/bin/g++ cmake -DFFTW_ROOT=/scratch/isaacaa/opt/fftw3  ..
-      make
-
+    mkdir build
+    cd build
+    CC=/scratch/isaacaa/opt/gcc53/bin/gcc CXX=/scratch/isaacaa/opt/gcc53/bin/g++ cmake -DFFTW_ROOT=/scratch/isaacaa/opt/fftw3  ..
+    make
 
 The newly added compile-time flags are described in README.hydro
