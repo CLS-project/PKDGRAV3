@@ -24,55 +24,6 @@
 #endif
 #include <math.h>
 
-/* Define if SIMD optimizations should be used. */
-/* Visual Studio definition */
-#if defined(_MSC_VER) && defined(__AVX__)
-    #define USE_SIMD 1
-    #ifndef __SSE__
-        #define __SSE__
-    #endif
-    #ifndef __SSE2__
-        #define __SSE2__
-    #endif
-    #ifdef __AVX2__
-        #define __FMA__
-    #endif
-#elif defined(_M_X64)
-    #define __SSE__
-    #define __SSE2__
-    #define __AVX__
-    #ifdef __AVX2__
-        #define __FMA__
-    #endif
-    #define USE_SIMD 1
-#elif _M_IX86_FP >= 1
-    #define USE_SIMD 1
-    #define __SSE__
-    #if _M_IX86_FP >= 2
-        #define __SSE2__
-    #endif
-#endif
-
-#ifdef USE_SIMD
-    #if defined(__AVX512F__)
-        #define SIMD_BITS 4
-    #elif defined(__AVX__)
-        #define SIMD_BITS 3
-    #elif defined(__SSE__)
-        #define SIMD_BITS 2
-    #endif
-#endif
-#ifdef SIMD_BITS
-    #define SIMD_DBITS (SIMD_BITS-1)
-#else
-    #define SIMD_BITS 0
-    #define SIMD_DBITS 0
-#endif
-#define SIMD_WIDTH (1<<SIMD_BITS)
-#define SIMD_DWIDTH (1<<SIMD_DBITS)
-#define SIMD_MASK (SIMD_WIDTH-1)
-#define SIMD_DMASK (SIMD_DWIDTH-1)
-
 #if !defined(__CUDACC__) && !defined(__METAL_VERSION__)
 #ifdef USE_SIMD
     #if defined(__SSE__)
@@ -176,8 +127,6 @@ static inline void SIMD_free(void *p) {
 #define SIMD_free free
 #endif/*USE_SIMD*/
 
-#if defined(__cplusplus)
-
 #if __GNUC__ > 5
     #pragma GCC diagnostic push
     #pragma GCC diagnostic ignored "-Wignored-attributes"
@@ -191,8 +140,8 @@ struct vec {
 public:
     typedef vtype vector_t;
     typedef ftype scalar_t;
-    static int width() { return sizeof(vector_t)/sizeof(scalar_t); }
-    static int mask()  { return sizeof(vector_t)/sizeof(scalar_t)-1; }
+    static constexpr int width() { return sizeof(vector_t)/sizeof(scalar_t); }
+    static constexpr int mask()  { return sizeof(vector_t)/sizeof(scalar_t)-1; }
     typedef scalar_t __attribute__((aligned(sizeof(vector_t)))) array_t[sizeof(vector_t)/sizeof(scalar_t)];
 private:
     vector_t ymm;
@@ -878,8 +827,6 @@ inline vec<int32_t,int32_t> mask_mov(vec<int32_t,int32_t> const &src,mmask<bool>
 #if __GNUC__ > 4
     #pragma GCC diagnostic pop
 #endif
-
-#endif/*defined(__cplusplus)*/
 
 #endif/*__CUDACC__*/
 

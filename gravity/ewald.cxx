@@ -119,7 +119,7 @@ double evalEwaldSIMD( PKD pkd,ewaldSIMD *ews,
     evalEwald<dvec,struct ewaldSIMD::PEWALDVARS,struct ewaldSIMD::PMOMC>(
             ews->ewp,ews->ewm,ax,ay,az,dPot,x,y,z,g0,g1,g2,g3,g4,g5);
 
-    return COST_FLOP_EWALD * SIMD_DWIDTH;
+    return COST_FLOP_EWALD * dvec::width();
 }
 #endif
 
@@ -195,7 +195,7 @@ double pkdParticleEwald(PKD pkd,double *r, float *pa, float *pPot,double *pdFlop
                     pr2[nSIMD] = r2;
                     pInHole[nSIMD] = bInHole;
 //          doerfc.i[nSIMD] = bInHole ? 0 : UINT64_MAX;
-                    if (++nSIMD == SIMD_DWIDTH) {
+                    if (++nSIMD == dvec::width()) {
                         dFlopDouble += evalEwaldSIMD(pkd,&pkd->es,dax,day,daz,dPot,dvec(px),dvec(py),dvec(pz),dvec(pr2),dvec(pInHole) == 0.0);
                         nSIMD = 0;
                     }
@@ -273,7 +273,7 @@ double pkdParticleEwald(PKD pkd,double *r, float *pa, float *pPot,double *pdFlop
     fy = dy;
     fz = dz;
 
-    nLoop = (ew.nEwhLoop+SIMD_MASK) >> SIMD_BITS;
+    nLoop = (ew.nEwhLoop+fvec::mask()) / fvec::width();
     i = 0;
     do {
         fvec hdotx,s,c,t;
@@ -432,7 +432,7 @@ void pkdEwaldInit(PKD pkd,int nReps,double fEwCut,double fhCut) {
 
     i = (int)pow(1+2*hReps,3);
 #if defined(USE_SIMD_EWALD) && defined(__SSE__)
-    i = (i + SIMD_MASK) & ~SIMD_MASK;
+    i = (i + fvec::mask()) & ~fvec::mask();
 #endif
     if ( i>ew->nMaxEwhLoop ) {
         ew->nMaxEwhLoop = i;
@@ -450,7 +450,7 @@ void pkdEwaldInit(PKD pkd,int nReps,double fEwCut,double fhCut) {
     ew->nEwhLoop = i;
     i = (int)pow(1+2*ew->nEwReps,3);
 #if defined(USE_SIMD_EWALD) && defined(__SSE2__)
-    i = (i + SIMD_MASK) & ~SIMD_MASK;
+    i = (i + fvec::mask()) & ~fvec::mask();
 #endif
     i = 0;
     for (hx=-hReps; hx<=hReps; ++hx) {
