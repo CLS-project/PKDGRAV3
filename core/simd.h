@@ -22,7 +22,6 @@
 #include <cstdint>
 #include <math.h>
 
-#if !defined(__CUDACC__) && !defined(__METAL_VERSION__)
 #ifdef USE_SIMD
     #if defined(__SSE__)
         #include <xmmintrin.h>
@@ -43,6 +42,11 @@
         #endif
     #endif/*__SSE__*/
 #endif/*USE_SIMD*/
+
+#if __GNUC__ > 5
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Wignored-attributes"
+#endif
 
 /**********************************************************************\
 * SIMD Vector class template
@@ -139,6 +143,8 @@ inline i32v cvt_i32v(const fvec &a) { return i32v((std::int32_t)a); }
 inline fvec cvt_fvec(const i32v &a) { return fvec((float)a); }
 inline fvec cvt_dvec(const dvec &a) { return fvec((float)a); }
 #endif/*__AVX512F__,__AVX__,__SSE2__*/
+
+#if !defined(__CUDACC__) && !defined(__METAL_VERSION__)
 
 /**********************************************************************\
 * Generic Operators
@@ -746,6 +752,11 @@ inline vec<std::int32_t,std::int32_t> mask_mov(vec<std::int32_t,std::int32_t> co
 
 #endif/*#elif defined(__SSE__)*/
 #endif /*__AVX512F__*/
+
+#if __GNUC__ > 4
+    #pragma GCC diagnostic pop
+#endif
+
 
 #endif/*__CUDACC__*/
 
