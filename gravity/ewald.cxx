@@ -131,7 +131,7 @@ double pkdParticleEwald(PKD pkd,double *r, float *pa, float *pPot,double *pdFlop
 #ifdef USE_SIMD_EWALD
     dvec dPot,dax,day,daz;
     fvec fPot,fax,fay,faz,fx,fy,fz;
-    dvec::array_t px,py,pz,pr2,pInHole;
+    alignas(dvec) dvec::array_t px,py,pz,pr2,pInHole;
     int nSIMD = 0;
 #endif
     int i,ix,iy,iz;

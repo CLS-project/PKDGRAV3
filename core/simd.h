@@ -19,9 +19,7 @@
 #define SIMD_H
 
 #include "pkd_config.h"
-#if !defined(_STDINT_H) && !defined(_STDINT_H_) && !defined(_STDINT_H_INCLUDED) && !defined(_STDINT) && !defined(__STDINT_H_)
-    #include <stdint.h>
-#endif
+#include <cstdint>
 #include <math.h>
 
 #if !defined(__CUDACC__) && !defined(__METAL_VERSION__)
@@ -43,7 +41,6 @@
         #ifdef __FMA4__
             #include <x86intrin.h>
         #endif
-
     #endif/*__SSE__*/
 #endif/*USE_SIMD*/
 
@@ -53,11 +50,11 @@
 template<typename vtype,typename ftype>
 struct vec {
 public:
-    typedef vtype vector_t;
-    typedef ftype scalar_t;
+    using vector_t = vtype;
+    using scalar_t = ftype;
     static constexpr int width() { return sizeof(vector_t)/sizeof(scalar_t); }
-    static constexpr int mask()  { return sizeof(vector_t)/sizeof(scalar_t)-1; }
-    typedef scalar_t __attribute__((aligned(sizeof(vector_t)))) array_t[sizeof(vector_t)/sizeof(scalar_t)];
+    static constexpr int mask()  { return width()-1; }
+    using array_t  = scalar_t[width()];
 private:
     vector_t ymm;
 public:
@@ -72,7 +69,7 @@ public:
     vec(vector_t const &d) { ymm = d; }
     explicit vec(scalar_t const *d) { load(d); }
     operator vector_t() const { return ymm; }
-    scalar_t operator [] (uint32_t idx) const;
+    scalar_t operator [] (std::uint32_t idx) const;
     const vec &store(scalar_t *f) const;
     static const vec sign_mask();
     vec<vector_t,scalar_t> operator-() const;
@@ -91,10 +88,10 @@ public:
 };
 
 #if defined(__AVX512F__) && defined(USE_SIMD)
-typedef vec<__m512i,int32_t> i32v;
+typedef vec<__m512i,std::int32_t> i32v;
 typedef vec<__m512,float> fvec;
 typedef mmask<__mmask16> fmask;
-typedef vec<__m512i,int64_t> i64v;
+typedef vec<__m512i,std::int64_t> i64v;
 typedef vec<__m512d,double> dvec;
 typedef mmask<__mmask8> dmask;
 inline i32v cvt_i32v(const fvec &a) { return i32v(_mm512_cvtps_epi32(a)); }
@@ -106,10 +103,10 @@ inline dvec cast_dvec(const i64v &a) { return dvec(_mm512_castsi512_pd(a)); }
 
 //inline fvec cvt_fvec(const i64v &a) { return fvec(_mm512_cvtepi64_ps(a)); }
 #elif defined(__AVX__) && defined(USE_SIMD)
-typedef vec<__m256i,int32_t> i32v;
+typedef vec<__m256i,std::int32_t> i32v;
 typedef vec<__m256,float> fvec;
 typedef vec<__m256,float> fmask;
-typedef vec<__m256i,int64_t> i64v;
+typedef vec<__m256i,std::int64_t> i64v;
 typedef vec<__m256d,double> dvec;
 typedef vec<__m256d,double> dmask;
 inline i32v cvt_i32v(const fvec &a) { return i32v(_mm256_cvtps_epi32(a)); }
@@ -118,11 +115,11 @@ inline fvec cvt_fvec(const dvec &a) { return fvec(_mm256_castps128_ps256(_mm256_
 inline fvec cast_fvec(const i32v &a) { return fvec(_mm256_castsi256_ps(a)); }
 inline dvec cast_dvec(const i64v &a) { return dvec(_mm256_castsi256_pd(a)); }
 #elif defined(__SSE__) && defined(USE_SIMD)
-typedef vec<__m128i,int32_t> i32v;
+typedef vec<__m128i,std::int32_t> i32v;
 typedef vec<__m128,float> fvec;
 typedef vec<__m128,float> fmask;
 #if defined(__SSE2__)
-typedef vec<__m128i,int64_t> i64v;
+typedef vec<__m128i,std::int64_t> i64v;
 typedef vec<__m128d,double> dvec;
 typedef vec<__m128d,double> dmask;
 inline i32v cvt_i32v(const fvec &a) { return i32v(_mm_cvtps_epi32(a)); }
@@ -132,13 +129,13 @@ inline fvec cast_fvec(const i32v &a) { return fvec(_mm_castsi128_ps(a)); }
 inline dvec cast_dvec(const i64v &a) { return dvec(_mm_castsi128_pd(a)); }
 #endif/*__SSE2__*/
 #else/*__AVX512F__,__AVX__,__SSE2__*/
-typedef vec<int32_t,int32_t> i32v;
+typedef vec<std::int32_t,std::int32_t> i32v;
 typedef vec<float,float> fvec;
 typedef vec<double,double> dvec;
-typedef vec<int64_t,int64_t> i64v;
+typedef vec<std::int64_t,std::int64_t> i64v;
 typedef mmask<bool> fmask;
 typedef mmask<bool> dmask;
-inline i32v cvt_i32v(const fvec &a) { return i32v((int32_t)a); }
+inline i32v cvt_i32v(const fvec &a) { return i32v((std::int32_t)a); }
 inline fvec cvt_fvec(const i32v &a) { return fvec((float)a); }
 inline fvec cvt_dvec(const dvec &a) { return fvec((float)a); }
 #endif/*__AVX512F__,__AVX__,__SSE2__*/
@@ -162,7 +159,7 @@ template<typename v,typename ftype> inline vec<v,ftype> &operator|=(vec<v,ftype>
 template<typename v,typename ftype> inline vec<v,ftype> &operator|=(vec<v,ftype> &a,ftype const &b) { return a = a | b; }
 template<typename v,typename ftype> inline vec<v,ftype> &operator^=(vec<v,ftype> &a,vec<v,ftype> const &b) { return a = a ^ b; }
 template<typename v,typename ftype> inline vec<v,ftype> &operator^=(vec<v,ftype> &a,ftype const &b) { return a = a ^ b; }
-template<typename v,typename ftype> inline ftype vec<v,ftype>::operator [] (uint32_t idx) const {
+template<typename v,typename ftype> inline ftype vec<v,ftype>::operator [] (std::uint32_t idx) const {
     ftype d[sizeof(vector_t)/sizeof(scalar_t)];
     store(d);
     return d[idx];
@@ -252,45 +249,45 @@ inline vec<__m512,float> maskz_mov(mmask<__mmask16> const &k,vec<__m512,float> c
 /**********************************************************************\
 * AVX512 32-bit integer
 \**********************************************************************/
-template<> inline vec<__m512i,int32_t>::vec(const int32_t &d) { ymm = _mm512_set1_epi32(d); }
-template<> inline vec<__m512i,int32_t> &vec<__m512i,int32_t>::zero() { ymm = _mm512_setzero_si512(); return *this; }
-template<> inline vec<__m512i,int32_t> &vec<__m512i,int32_t>::load1(int32_t f) { ymm = _mm512_setr_epi32(f,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0); return *this; }
-template<> inline vec<__m512i,int32_t> &vec<__m512i,int32_t>::load(const int32_t *pf) { ymm = _mm512_loadu_si512((__m512i *)pf); return *this; }
-template<> inline const vec<__m512i,int32_t> &vec<__m512i,int32_t>::store(int32_t *pf) const { _mm512_storeu_si512((__m512i *)pf,ymm); return *this; }
-template<> inline const vec<__m512i,int32_t> vec<__m512i,int32_t>::sign_mask() { return _mm512_set1_epi32(0x80000000); }
-template<> inline vec<__m512i,int32_t> vec<__m512i,int32_t>::operator-() const {
+template<> inline vec<__m512i,std::int32_t>::vec(const std::int32_t &d) { ymm = _mm512_set1_epi32(d); }
+template<> inline vec<__m512i,std::int32_t> &vec<__m512i,std::int32_t>::zero() { ymm = _mm512_setzero_si512(); return *this; }
+template<> inline vec<__m512i,std::int32_t> &vec<__m512i,std::int32_t>::load1(std::int32_t f) { ymm = _mm512_setr_epi32(f,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0); return *this; }
+template<> inline vec<__m512i,std::int32_t> &vec<__m512i,std::int32_t>::load(const std::int32_t *pf) { ymm = _mm512_loadu_si512((__m512i *)pf); return *this; }
+template<> inline const vec<__m512i,std::int32_t> &vec<__m512i,std::int32_t>::store(std::int32_t *pf) const { _mm512_storeu_si512((__m512i *)pf,ymm); return *this; }
+template<> inline const vec<__m512i,std::int32_t> vec<__m512i,std::int32_t>::sign_mask() { return _mm512_set1_epi32(0x80000000); }
+template<> inline vec<__m512i,std::int32_t> vec<__m512i,std::int32_t>::operator-() const {
     return _mm512_castps_si512(_mm512_xor_ps(_mm512_castsi512_ps(ymm),_mm512_castsi512_ps(sign_mask())));
 }
-inline vec<__m512i,int32_t> operator&(vec<__m512i,int32_t> const &a,vec<__m512i,int32_t> const &b) { return _mm512_and_epi32(a,b); }
-inline vec<__m512i,int32_t> operator|(vec<__m512i,int32_t> const &a,vec<__m512i,int32_t> const &b) { return _mm512_or_epi32(a,b); }
-inline vec<__m512i,int32_t> operator^(vec<__m512i,int32_t> const &a,vec<__m512i,int32_t> const &b) { return _mm512_xor_epi32(a,b); }
+inline vec<__m512i,std::int32_t> operator&(vec<__m512i,std::int32_t> const &a,vec<__m512i,std::int32_t> const &b) { return _mm512_and_epi32(a,b); }
+inline vec<__m512i,std::int32_t> operator|(vec<__m512i,std::int32_t> const &a,vec<__m512i,std::int32_t> const &b) { return _mm512_or_epi32(a,b); }
+inline vec<__m512i,std::int32_t> operator^(vec<__m512i,std::int32_t> const &a,vec<__m512i,std::int32_t> const &b) { return _mm512_xor_epi32(a,b); }
 
-inline mmask<__mmask16> operator==(vec<__m512i,int32_t> const &a,vec<__m512i,int32_t> const &b) { return _mm512_cmp_epi32_mask(a,b,_MM_CMPINT_EQ); }
-inline mmask<__mmask16> operator!=(vec<__m512i,int32_t> const &a,vec<__m512i,int32_t> const &b) { return _mm512_cmp_epi32_mask(a,b,_MM_CMPINT_NE); }
-inline mmask<__mmask16> operator>(vec<__m512i,int32_t> const &a,vec<__m512i,int32_t> const &b) { return _mm512_cmp_epi32_mask(a,b,_MM_CMPINT_GT); }
-inline mmask<__mmask16> operator<(vec<__m512i,int32_t> const &a,vec<__m512i,int32_t> const &b) { return _mm512_cmp_epi32_mask(a,b,_MM_CMPINT_LT); }
-inline mmask<__mmask16> operator>=(vec<__m512i,int32_t> const &a,vec<__m512i,int32_t> const &b) { return _mm512_cmp_epi32_mask(a,b,_MM_CMPINT_GE); }
-inline mmask<__mmask16> operator<=(vec<__m512i,int32_t> const &a,vec<__m512i,int32_t> const &b) { return _mm512_cmp_epi32_mask(a,b,_MM_CMPINT_LE); }
+inline mmask<__mmask16> operator==(vec<__m512i,std::int32_t> const &a,vec<__m512i,std::int32_t> const &b) { return _mm512_cmp_epi32_mask(a,b,_MM_CMPINT_EQ); }
+inline mmask<__mmask16> operator!=(vec<__m512i,std::int32_t> const &a,vec<__m512i,std::int32_t> const &b) { return _mm512_cmp_epi32_mask(a,b,_MM_CMPINT_NE); }
+inline mmask<__mmask16> operator>(vec<__m512i,std::int32_t> const &a,vec<__m512i,std::int32_t> const &b) { return _mm512_cmp_epi32_mask(a,b,_MM_CMPINT_GT); }
+inline mmask<__mmask16> operator<(vec<__m512i,std::int32_t> const &a,vec<__m512i,std::int32_t> const &b) { return _mm512_cmp_epi32_mask(a,b,_MM_CMPINT_LT); }
+inline mmask<__mmask16> operator>=(vec<__m512i,std::int32_t> const &a,vec<__m512i,std::int32_t> const &b) { return _mm512_cmp_epi32_mask(a,b,_MM_CMPINT_GE); }
+inline mmask<__mmask16> operator<=(vec<__m512i,std::int32_t> const &a,vec<__m512i,std::int32_t> const &b) { return _mm512_cmp_epi32_mask(a,b,_MM_CMPINT_LE); }
 
-inline vec<__m512i,int32_t> mask_mov(vec<__m512i,int32_t> const &src,mmask<__mmask16> const &k,vec<__m512i,int32_t> const &a)
+inline vec<__m512i,std::int32_t> mask_mov(vec<__m512i,std::int32_t> const &src,mmask<__mmask16> const &k,vec<__m512i,std::int32_t> const &a)
 { return _mm512_mask_mov_epi32(src,k,a); }
 
 
 /**********************************************************************\
 * AVX512 64-bit integer
 \**********************************************************************/
-template<> inline vec<__m512i,int64_t>::vec(const int64_t &d) { ymm = _mm512_set1_epi64(d); }
-template<> inline vec<__m512i,int64_t> &vec<__m512i,int64_t>::zero() { ymm = _mm512_setzero_si512(); return *this; }
-template<> inline vec<__m512i,int64_t> &vec<__m512i,int64_t>::load1(int64_t f) { ymm = _mm512_setr_epi64(f,0,0,0,0,0,0,0); return *this; }
-template<> inline vec<__m512i,int64_t> &vec<__m512i,int64_t>::load(const int64_t *pf) { ymm = _mm512_loadu_si512((__m512i *)pf); return *this; }
-template<> inline const vec<__m512i,int64_t> &vec<__m512i,int64_t>::store(int64_t *pf) const { _mm512_storeu_si512((__m512i *)pf,ymm); return *this; }
-template<> inline const vec<__m512i,int64_t> vec<__m512i,int64_t>::sign_mask() { return _mm512_set1_epi64(0x8000000000000000); }
-template<> inline vec<__m512i,int64_t> vec<__m512i,int64_t>::operator-() const {
+template<> inline vec<__m512i,std::int64_t>::vec(const std::int64_t &d) { ymm = _mm512_set1_epi64(d); }
+template<> inline vec<__m512i,std::int64_t> &vec<__m512i,std::int64_t>::zero() { ymm = _mm512_setzero_si512(); return *this; }
+template<> inline vec<__m512i,std::int64_t> &vec<__m512i,std::int64_t>::load1(std::int64_t f) { ymm = _mm512_setr_epi64(f,0,0,0,0,0,0,0); return *this; }
+template<> inline vec<__m512i,std::int64_t> &vec<__m512i,std::int64_t>::load(const std::int64_t *pf) { ymm = _mm512_loadu_si512((__m512i *)pf); return *this; }
+template<> inline const vec<__m512i,std::int64_t> &vec<__m512i,std::int64_t>::store(std::int64_t *pf) const { _mm512_storeu_si512((__m512i *)pf,ymm); return *this; }
+template<> inline const vec<__m512i,std::int64_t> vec<__m512i,std::int64_t>::sign_mask() { return _mm512_set1_epi64(0x8000000000000000); }
+template<> inline vec<__m512i,std::int64_t> vec<__m512i,std::int64_t>::operator-() const {
     return _mm512_castps_si512(_mm512_xor_ps(_mm512_castsi512_ps(ymm),_mm512_castsi512_ps(sign_mask())));
 }
-inline vec<__m512i,int64_t> operator&(vec<__m512i,int64_t> const &a,vec<__m512i,int64_t> const &b) { return _mm512_and_epi64(a,b); }
-inline vec<__m512i,int64_t> operator|(vec<__m512i,int64_t> const &a,vec<__m512i,int64_t> const &b) { return _mm512_or_epi64(a,b); }
-inline vec<__m512i,int64_t> operator^(vec<__m512i,int64_t> const &a,vec<__m512i,int64_t> const &b) { return _mm512_xor_epi64(a,b); }
+inline vec<__m512i,std::int64_t> operator&(vec<__m512i,std::int64_t> const &a,vec<__m512i,std::int64_t> const &b) { return _mm512_and_epi64(a,b); }
+inline vec<__m512i,std::int64_t> operator|(vec<__m512i,std::int64_t> const &a,vec<__m512i,std::int64_t> const &b) { return _mm512_or_epi64(a,b); }
+inline vec<__m512i,std::int64_t> operator^(vec<__m512i,std::int64_t> const &a,vec<__m512i,std::int64_t> const &b) { return _mm512_xor_epi64(a,b); }
 
 /**********************************************************************\
 * AVX512 single precision mask
@@ -440,39 +437,39 @@ inline int testz(vec<__m256,float> const &a) { return !_mm256_movemask_ps(a); }
 /**********************************************************************\
 * AVX 32-bit integer
 \**********************************************************************/
-template<> inline vec<__m256i,int32_t>::vec(const int32_t &d) { ymm = _mm256_set1_epi32(d); }
-template<> inline vec<__m256i,int32_t> &vec<__m256i,int32_t>::zero() { ymm = _mm256_setzero_si256(); return *this; }
-template<> inline vec<__m256i,int32_t> &vec<__m256i,int32_t>::load1(int32_t f) { ymm = _mm256_setr_epi32(f,0,0,0,0,0,0,0); return *this; }
-template<> inline vec<__m256i,int32_t> &vec<__m256i,int32_t>::load(const int32_t *pf) { ymm = _mm256_loadu_si256((__m256i *)pf); return *this; }
-template<> inline const vec<__m256i,int32_t> &vec<__m256i,int32_t>::store(int32_t *pf) const { _mm256_storeu_si256((__m256i *)pf,ymm); return *this; }
-template<> inline const vec<__m256i,int32_t> vec<__m256i,int32_t>::sign_mask() { return _mm256_set1_epi32(0x80000000); }
+template<> inline vec<__m256i,std::int32_t>::vec(const std::int32_t &d) { ymm = _mm256_set1_epi32(d); }
+template<> inline vec<__m256i,std::int32_t> &vec<__m256i,std::int32_t>::zero() { ymm = _mm256_setzero_si256(); return *this; }
+template<> inline vec<__m256i,std::int32_t> &vec<__m256i,std::int32_t>::load1(std::int32_t f) { ymm = _mm256_setr_epi32(f,0,0,0,0,0,0,0); return *this; }
+template<> inline vec<__m256i,std::int32_t> &vec<__m256i,std::int32_t>::load(const std::int32_t *pf) { ymm = _mm256_loadu_si256((__m256i *)pf); return *this; }
+template<> inline const vec<__m256i,std::int32_t> &vec<__m256i,std::int32_t>::store(std::int32_t *pf) const { _mm256_storeu_si256((__m256i *)pf,ymm); return *this; }
+template<> inline const vec<__m256i,std::int32_t> vec<__m256i,std::int32_t>::sign_mask() { return _mm256_set1_epi32(0x80000000); }
 #ifdef __AVX2__
-template<> inline vec<__m256i,int32_t> vec<__m256i,int32_t>::operator-() const { return _mm256_xor_si256(ymm,sign_mask()); }
-inline vec<__m256i,int32_t> operator+(vec<__m256i,int32_t> const &a,vec<__m256i,int32_t> const &b) { return _mm256_add_epi32(a,b); }
-inline vec<__m256i,int32_t> operator-(vec<__m256i,int32_t> const &a,vec<__m256i,int32_t> const &b) { return _mm256_sub_epi32(a,b); }
-inline vec<__m256i,int32_t> operator&(vec<__m256i,int32_t> const &a,vec<__m256i,int32_t> const &b) { return _mm256_and_si256(a,b); }
-inline vec<__m256i,int32_t> mask_mov(vec<__m256i,int32_t> const &src,vec<__m256i,int32_t> const &p,vec<__m256i,int32_t> const &a)
+template<> inline vec<__m256i,std::int32_t> vec<__m256i,std::int32_t>::operator-() const { return _mm256_xor_si256(ymm,sign_mask()); }
+inline vec<__m256i,std::int32_t> operator+(vec<__m256i,std::int32_t> const &a,vec<__m256i,std::int32_t> const &b) { return _mm256_add_epi32(a,b); }
+inline vec<__m256i,std::int32_t> operator-(vec<__m256i,std::int32_t> const &a,vec<__m256i,std::int32_t> const &b) { return _mm256_sub_epi32(a,b); }
+inline vec<__m256i,std::int32_t> operator&(vec<__m256i,std::int32_t> const &a,vec<__m256i,std::int32_t> const &b) { return _mm256_and_si256(a,b); }
+inline vec<__m256i,std::int32_t> mask_mov(vec<__m256i,std::int32_t> const &src,vec<__m256i,std::int32_t> const &p,vec<__m256i,std::int32_t> const &a)
 { return _mm256_blendv_epi8(src,a,p); }
-inline vec<__m256i,int32_t> mask_mov(vec<__m256i,int32_t> const &src,vec<__m256,float> const &p,vec<__m256i,int32_t> const &a)
+inline vec<__m256i,std::int32_t> mask_mov(vec<__m256i,std::int32_t> const &src,vec<__m256,float> const &p,vec<__m256i,std::int32_t> const &a)
 { return _mm256_blendv_epi8(src,a,_mm256_castps_si256(p)); }
 #else
-template<> inline vec<__m256i,int32_t> vec<__m256i,int32_t>::operator-() const {
+template<> inline vec<__m256i,std::int32_t> vec<__m256i,std::int32_t>::operator-() const {
     return _mm256_castps_si256(_mm256_xor_ps(_mm256_castsi256_ps(ymm),_mm256_castsi256_ps(sign_mask())));
 }
-inline vec<__m256i,int32_t> operator&(vec<__m256i,int32_t> const &a,vec<__m256i,int32_t> const &b)
+inline vec<__m256i,std::int32_t> operator&(vec<__m256i,std::int32_t> const &a,vec<__m256i,std::int32_t> const &b)
 { return _mm256_castps_si256(_mm256_and_ps(_mm256_castsi256_ps(a),_mm256_castsi256_ps(b))); }
-inline vec<__m256i,int32_t> mask_mov(vec<__m256i,int32_t> const &src,vec<__m256i,int32_t> const &p,vec<__m256i,int32_t> const &a)
+inline vec<__m256i,std::int32_t> mask_mov(vec<__m256i,std::int32_t> const &src,vec<__m256i,std::int32_t> const &p,vec<__m256i,std::int32_t> const &a)
 { return _mm256_castps_si256(_mm256_blendv_ps(_mm256_castsi256_ps(src),_mm256_castsi256_ps(a),_mm256_castsi256_ps(p))); }
-inline vec<__m256i,int32_t> mask_mov(vec<__m256i,int32_t> const &src,vec<__m256,float> const &p,vec<__m256i,int32_t> const &a)
+inline vec<__m256i,std::int32_t> mask_mov(vec<__m256i,std::int32_t> const &src,vec<__m256,float> const &p,vec<__m256i,std::int32_t> const &a)
 { return _mm256_castps_si256(_mm256_blendv_ps(_mm256_castsi256_ps(src),_mm256_castsi256_ps(a),p)); }
 #endif
 #ifdef __AVX2__
-inline vec<__m256i,int32_t> operator==(vec<__m256i,int32_t> const &a,vec<__m256i,int32_t> const &b) { return _mm256_cmpeq_epi32(a,b); }
-//inline vec<__m256i,int32_t> operator!=(vec<__m256i,int32_t> const &a,vec<__m256i,int32_t> const &b) { return _mm256_cmpneq_epi32(a,b); }
-inline vec<__m256i,int32_t> operator>(vec<__m256i,int32_t> const &a,vec<__m256i,int32_t> const &b) { return _mm256_cmpgt_epi32(a,b); }
-//inline vec<__m256i,int32_t> operator<(vec<__m256i,int32_t> const &a,vec<__m256i,int32_t> const &b) { return _mm256_cmplt_epi32(a,b); }
-//inline vec<__m256i,int32_t> operator>=(vec<__m256i,int32_t> const &a,vec<__m256i,int32_t> const &b) { return _mm256_cmpge_epi32(a,b); }
-//inline vec<__m256i,int32_t> operator<=(vec<__m256i,int32_t> const &a,vec<__m256i,int32_t> const &b) { return _mm256_cmple_epi32(a,b); }
+inline vec<__m256i,std::int32_t> operator==(vec<__m256i,std::int32_t> const &a,vec<__m256i,std::int32_t> const &b) { return _mm256_cmpeq_epi32(a,b); }
+//inline vec<__m256i,std::int32_t> operator!=(vec<__m256i,std::int32_t> const &a,vec<__m256i,std::int32_t> const &b) { return _mm256_cmpneq_epi32(a,b); }
+inline vec<__m256i,std::int32_t> operator>(vec<__m256i,std::int32_t> const &a,vec<__m256i,std::int32_t> const &b) { return _mm256_cmpgt_epi32(a,b); }
+//inline vec<__m256i,std::int32_t> operator<(vec<__m256i,std::int32_t> const &a,vec<__m256i,std::int32_t> const &b) { return _mm256_cmplt_epi32(a,b); }
+//inline vec<__m256i,std::int32_t> operator>=(vec<__m256i,std::int32_t> const &a,vec<__m256i,std::int32_t> const &b) { return _mm256_cmpge_epi32(a,b); }
+//inline vec<__m256i,std::int32_t> operator<=(vec<__m256i,std::int32_t> const &a,vec<__m256i,std::int32_t> const &b) { return _mm256_cmple_epi32(a,b); }
 #else
 #endif
 
@@ -520,9 +517,9 @@ inline int testz(vec<__m256d,double> const &a) { return !_mm256_movemask_pd(a); 
 /**********************************************************************\
 * AVX 64-bit integer
 \**********************************************************************/
-template<> inline vec<__m256i,int64_t> &vec<__m256i,int64_t>::zero() { ymm = _mm256_setzero_si256(); return *this; }
-template<> inline vec<__m256i,int64_t> &vec<__m256i,int64_t>::load1(int64_t f) { ymm = _mm256_setr_epi64x(f,0,0,0); return *this; }
-template<> inline vec<__m256i,int64_t> &vec<__m256i,int64_t>::load(const int64_t *pf) { ymm = _mm256_loadu_si256((__m256i *)pf); return *this; }
+template<> inline vec<__m256i,std::int64_t> &vec<__m256i,std::int64_t>::zero() { ymm = _mm256_setzero_si256(); return *this; }
+template<> inline vec<__m256i,std::int64_t> &vec<__m256i,std::int64_t>::load1(std::int64_t f) { ymm = _mm256_setr_epi64x(f,0,0,0); return *this; }
+template<> inline vec<__m256i,std::int64_t> &vec<__m256i,std::int64_t>::load(const std::int64_t *pf) { ymm = _mm256_loadu_si256((__m256i *)pf); return *this; }
 
 #elif defined(__SSE__) && defined(USE_SIMD)
 
@@ -587,32 +584,32 @@ inline vec<__m128,float> mask_mov(vec<__m128,float> const &src,vec<__m128,float>
 /**********************************************************************\
 * SSE 32-bit integer
 \**********************************************************************/
-template<> inline vec<__m128i,int32_t>::vec(const int32_t &d) { ymm = _mm_set1_epi32(d); }
-template<> inline vec<__m128i,int32_t> &vec<__m128i,int32_t>::zero() { ymm = _mm_setzero_si128(); return *this; }
-template<> inline vec<__m128i,int32_t> &vec<__m128i,int32_t>::load1(int32_t f) { ymm = _mm_setr_epi32(f,0,0,0); return *this; }
-template<> inline vec<__m128i,int32_t> &vec<__m128i,int32_t>::load(const int32_t *pf) { ymm = _mm_loadu_si128((__m128i *)pf); return *this; }
-template<> inline vec<__m128i,int64_t> &vec<__m128i,int64_t>::load(const int64_t *pf) { ymm = _mm_loadu_si128((__m128i *)pf); return *this; }
-template<> inline const vec<__m128i,int32_t> &vec<__m128i,int32_t>::store(int32_t *pf) const { _mm_storeu_si128((__m128i *)pf,ymm); return *this; }
-template<> inline const vec<__m128i,int32_t> vec<__m128i,int32_t>::sign_mask() { return _mm_set1_epi32(0x80000000); }
+template<> inline vec<__m128i,std::int32_t>::vec(const std::int32_t &d) { ymm = _mm_set1_epi32(d); }
+template<> inline vec<__m128i,std::int32_t> &vec<__m128i,std::int32_t>::zero() { ymm = _mm_setzero_si128(); return *this; }
+template<> inline vec<__m128i,std::int32_t> &vec<__m128i,std::int32_t>::load1(std::int32_t f) { ymm = _mm_setr_epi32(f,0,0,0); return *this; }
+template<> inline vec<__m128i,std::int32_t> &vec<__m128i,std::int32_t>::load(const std::int32_t *pf) { ymm = _mm_loadu_si128((__m128i *)pf); return *this; }
+template<> inline vec<__m128i,std::int64_t> &vec<__m128i,std::int64_t>::load(const std::int64_t *pf) { ymm = _mm_loadu_si128((__m128i *)pf); return *this; }
+template<> inline const vec<__m128i,std::int32_t> &vec<__m128i,std::int32_t>::store(std::int32_t *pf) const { _mm_storeu_si128((__m128i *)pf,ymm); return *this; }
+template<> inline const vec<__m128i,std::int32_t> vec<__m128i,std::int32_t>::sign_mask() { return _mm_set1_epi32(0x80000000); }
 #ifdef __SSE2__
-template<> inline vec<__m128i,int32_t> vec<__m128i,int32_t>::operator-() const { return _mm_xor_si128(ymm,sign_mask()); }
-inline vec<__m128i,int32_t> operator&(vec<__m128i,int32_t> const &a,vec<__m128i,int32_t> const &b) { return _mm_and_si128(a,b); }
+template<> inline vec<__m128i,std::int32_t> vec<__m128i,std::int32_t>::operator-() const { return _mm_xor_si128(ymm,sign_mask()); }
+inline vec<__m128i,std::int32_t> operator&(vec<__m128i,std::int32_t> const &a,vec<__m128i,std::int32_t> const &b) { return _mm_and_si128(a,b); }
 #else
-template<> inline vec<__m128i,int32_t> vec<__m128i,int32_t>::operator-() {
+template<> inline vec<__m128i,std::int32_t> vec<__m128i,std::int32_t>::operator-() {
     return _mm_castps_si128(_mm_xor_ps(_mm_castsi128_ps(ymm),_mm_castsi128_ps(sign_mask())));
 }
-inline vec<__m128i,int32_t> operator&(vec<__m128i,int32_t> const &a,vec<__m128i,int32_t> const &b)
+inline vec<__m128i,std::int32_t> operator&(vec<__m128i,std::int32_t> const &a,vec<__m128i,std::int32_t> const &b)
 { return _mm_castps_si128(_mm_and_ps(_mm_castsi128_ps(a),_mm_castsi128_ps(b))); }
 #endif
 
-inline vec<__m128i,int32_t> mask_mov(vec<__m128i,int32_t> const &src,vec<__m128i,int32_t> const &p,vec<__m128i,int32_t> const &a) {
+inline vec<__m128i,std::int32_t> mask_mov(vec<__m128i,std::int32_t> const &src,vec<__m128i,std::int32_t> const &p,vec<__m128i,std::int32_t> const &a) {
 #ifdef __SSE4_1__
     return _mm_blendv_epi8(src,a,p);
 #else
     return _mm_castps_si128(_mm_or_ps(_mm_and_ps(_mm_castsi128_ps(p),_mm_castsi128_ps(a)),_mm_andnot_ps(_mm_castsi128_ps(p),_mm_castsi128_ps(src))));
 #endif
 }
-inline vec<__m128i,int32_t> mask_mov(vec<__m128i,int32_t> const &src,vec<__m128,float> const &p,vec<__m128i,int32_t> const &a) {
+inline vec<__m128i,std::int32_t> mask_mov(vec<__m128i,std::int32_t> const &src,vec<__m128,float> const &p,vec<__m128i,std::int32_t> const &a) {
 #ifdef __SSE4_1__
     return _mm_blendv_epi8(src,a,_mm_castps_si128(p));
 #else
@@ -735,15 +732,15 @@ inline int movemask(mmask<bool> const &k) { return (int)(k); }
 /**********************************************************************\
 * 32-bit integer
 \**********************************************************************/
-//template<> inline vec<int32_t,int32_t>::vec(const int32_t &d) { ymm = d; }
-template<> inline vec<int32_t,int32_t> &vec<int32_t,int32_t>::zero() { ymm = 0; return *this; }
-template<> inline vec<int32_t,int32_t> &vec<int32_t,int32_t>::load1(int32_t f) { ymm = f; return *this; }
-template<> inline vec<int32_t,int32_t> &vec<int32_t,int32_t>::load(const int32_t *pf) { ymm = *pf; return *this; }
-template<> inline const vec<int32_t,int32_t> &vec<int32_t,int32_t>::store(int32_t *pf) const { *pf = ymm; return *this; }
-inline vec<int32_t,int32_t> maskz_mov(mmask<bool> const &p,vec<int32_t,int32_t> const &a) {
-    return p ? a : vec<int32_t,int32_t>(0);
+//template<> inline vec<std::int32_t,std::int32_t>::vec(const std::int32_t &d) { ymm = d; }
+template<> inline vec<std::int32_t,std::int32_t> &vec<std::int32_t,std::int32_t>::zero() { ymm = 0; return *this; }
+template<> inline vec<std::int32_t,std::int32_t> &vec<std::int32_t,std::int32_t>::load1(std::int32_t f) { ymm = f; return *this; }
+template<> inline vec<std::int32_t,std::int32_t> &vec<std::int32_t,std::int32_t>::load(const std::int32_t *pf) { ymm = *pf; return *this; }
+template<> inline const vec<std::int32_t,std::int32_t> &vec<std::int32_t,std::int32_t>::store(std::int32_t *pf) const { *pf = ymm; return *this; }
+inline vec<std::int32_t,std::int32_t> maskz_mov(mmask<bool> const &p,vec<std::int32_t,std::int32_t> const &a) {
+    return p ? a : vec<std::int32_t,std::int32_t>(0);
 }
-inline vec<int32_t,int32_t> mask_mov(vec<int32_t,int32_t> const &src,mmask<bool> const &p,vec<int32_t,int32_t> const &a) {
+inline vec<std::int32_t,std::int32_t> mask_mov(vec<std::int32_t,std::int32_t> const &src,mmask<bool> const &p,vec<std::int32_t,std::int32_t> const &a) {
     return p ? a : src;
 }
 
