@@ -25,6 +25,7 @@
 #ifdef HAVE_MALLOC_H
     #include <malloc.h>
 #endif
+#include <new>
 #include <math.h>
 #include <assert.h>
 #include "ewald.h"
@@ -92,11 +93,10 @@ static int evalEwald(
 #if defined(USE_SIMD_EWALD) && defined(__SSE2__)
 double evalEwaldSIMD( PKD pkd,ewaldSIMD *ews,
                       dvec &ax, dvec &ay, dvec &az, dvec &dPot,
-                      v_df Ix, v_df Iy, v_df Iz, const v_df &Ir2, const dmask &doerfc ) {
+                      dvec x, dvec y, dvec z, dvec r2, const dmask &doerfc ) {
     dvec dir,dir2,a,g0,g1,g2,g3,g4,g5,alphan;
     dvec rerf,rerfc,ex2;
     dvec alpha2x2 = 2.0 * dvec(ews->ewp.alpha2);
-    dvec x=Ix, y=Iy, z=Iz, r2=Ir2;
 
     dir = rsqrt(r2);
     dir2 = dir*dir;
@@ -436,15 +436,15 @@ void pkdEwaldInit(PKD pkd,int nReps,double fEwCut,double fhCut) {
 #endif
     if ( i>ew->nMaxEwhLoop ) {
         ew->nMaxEwhLoop = i;
-        ewt->hx.f = (ewaldFloatType *)SIMD_malloc(ew->nMaxEwhLoop*sizeof(ewt->hx.f));
+        ewt->hx.f = new (std::align_val_t(sizeof(fvec))) ewaldFloatType[ew->nMaxEwhLoop];
         assert(ewt->hx.f != NULL);
-        ewt->hy.f = (ewaldFloatType *)SIMD_malloc(ew->nMaxEwhLoop*sizeof(ewt->hy.f));
+        ewt->hy.f = new (std::align_val_t(sizeof(fvec))) ewaldFloatType[ew->nMaxEwhLoop];
         assert(ewt->hy.f != NULL);
-        ewt->hz.f = (ewaldFloatType *)SIMD_malloc(ew->nMaxEwhLoop*sizeof(ewt->hz.f));
+        ewt->hz.f = new (std::align_val_t(sizeof(fvec))) ewaldFloatType[ew->nMaxEwhLoop];
         assert(ewt->hz.f != NULL);
-        ewt->hCfac.f = (ewaldFloatType *)SIMD_malloc(ew->nMaxEwhLoop*sizeof(ewt->hCfac.f));
+        ewt->hCfac.f = new (std::align_val_t(sizeof(fvec))) ewaldFloatType[ew->nMaxEwhLoop];
         assert(ewt->hCfac.f != NULL);
-        ewt->hSfac.f = (ewaldFloatType *)SIMD_malloc(ew->nMaxEwhLoop*sizeof(ewt->hSfac.f));
+        ewt->hSfac.f = new (std::align_val_t(sizeof(fvec))) ewaldFloatType[ew->nMaxEwhLoop];
         assert(ewt->hSfac.f != NULL);
     }
     ew->nEwhLoop = i;

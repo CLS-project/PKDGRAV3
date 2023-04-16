@@ -47,91 +47,6 @@
     #endif/*__SSE__*/
 #endif/*USE_SIMD*/
 
-#ifdef USE_SIMD
-    #ifdef HAVE_ANSIDECL_H
-        #include <ansidecl.h>
-    #else/*!HAVE_ANSIDECL_H*/
-        #define ATTRIBUTE_ALIGNED_ALIGNOF(m)
-    #endif/*HAVE_ANSIDECL_H*/
-    #if defined(__SSE__)
-        #if defined(__AVX512F__)
-            typedef ATTRIBUTE_ALIGNED_ALIGNOF(__m512) __m512  v_sf;
-            typedef ATTRIBUTE_ALIGNED_ALIGNOF(__m512) __m512d v_df;
-            typedef ATTRIBUTE_ALIGNED_ALIGNOF(__m512) __m512  v_bool;
-            typedef ATTRIBUTE_ALIGNED_ALIGNOF(__m512) __m512i v_i;
-        #elif defined(__AVX__)
-            typedef ATTRIBUTE_ALIGNED_ALIGNOF(__m256) __m256  v_sf;
-            typedef ATTRIBUTE_ALIGNED_ALIGNOF(__m256) __m256d v_df;
-            typedef ATTRIBUTE_ALIGNED_ALIGNOF(__m256) __m256  v_bool;
-            typedef ATTRIBUTE_ALIGNED_ALIGNOF(__m256) __m256i v_i;
-        #else/*must be __SSE__*/
-            typedef ATTRIBUTE_ALIGNED_ALIGNOF(__m128) __m128  v_sf;
-            typedef ATTRIBUTE_ALIGNED_ALIGNOF(__m128) __m128d v_df;
-            typedef ATTRIBUTE_ALIGNED_ALIGNOF(__m128) __m128  v_bool;
-            typedef ATTRIBUTE_ALIGNED_ALIGNOF(__m128) __m128i v_i;
-        #endif/*__AVX512F*/
-    #else/*__SSE__ must be altivec */
-        typedef vector float v_sf;
-        typedef vector bool int v_bool;
-        typedef vector bool int v_i;
-    #endif/*__SSE__*/
-#else/*USE_SIMD*/
-    typedef float v_sf;
-    typedef double v_df;
-    typedef int32_t v_i;
-#endif/*USE_SIMD*/
-
-#ifdef USE_SIMD
-
-#if defined(HAVE_POSIX_MEMALIGN) || defined(HAVE_MEMALIGN)
-    #include <stdlib.h>
-#endif
-#ifdef HAVE_LIBMEMKIND
-#include <hbwmalloc.h>
-static inline void *SIMD_malloc( size_t newSize ) {
-    void *np;
-
-    if ( hbw_posix_memalign( &np, sizeof(v_sf), newSize ) == 0 )
-        return np;
-    else
-        return NULL;
-}
-
-static inline void SIMD_free(void *p) {
-    hbw_free(p);
-}
-#elif defined(HAVE_POSIX_MEMALIGN)
-static inline void *SIMD_malloc( size_t newSize ) {
-    void *np;
-
-    if ( posix_memalign( &np, sizeof(v_sf), newSize ) == 0 )
-        return np;
-    else
-        return NULL;
-}
-
-static inline void SIMD_free(void *p) {
-    free(p);
-}
-#else
-static inline void *SIMD_malloc(size_t newSize) {
-    return _mm_malloc(newSize, sizeof(v_sf));
-}
-
-static inline void SIMD_free(void *p) {
-    _mm_free(p);
-}
-#endif
-#else/*USE_SIMD*/
-#define SIMD_malloc malloc
-#define SIMD_free free
-#endif/*USE_SIMD*/
-
-#if __GNUC__ > 5
-    #pragma GCC diagnostic push
-    #pragma GCC diagnostic ignored "-Wignored-attributes"
-#endif
-
 /**********************************************************************\
 * SIMD Vector class template
 \**********************************************************************/
@@ -824,9 +739,6 @@ inline vec<int32_t,int32_t> mask_mov(vec<int32_t,int32_t> const &src,mmask<bool>
 
 #endif/*#elif defined(__SSE__)*/
 #endif /*__AVX512F__*/
-#if __GNUC__ > 4
-    #pragma GCC diagnostic pop
-#endif
 
 #endif/*__CUDACC__*/
 

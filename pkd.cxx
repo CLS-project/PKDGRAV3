@@ -622,11 +622,11 @@ pkdContext::~pkdContext() {
     }
     delete [] S;
     if (ew.nMaxEwhLoop) {
-        SIMD_free(ewt.hx.f);
-        SIMD_free(ewt.hy.f);
-        SIMD_free(ewt.hz.f);
-        SIMD_free(ewt.hCfac.f);
-        SIMD_free(ewt.hSfac.f);
+        delete [] ewt.hx.f;
+        delete [] ewt.hy.f;
+        delete [] ewt.hz.f;
+        delete [] ewt.hCfac.f;
+        delete [] ewt.hSfac.f;
     }
 
     /*
