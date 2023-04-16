@@ -1058,16 +1058,18 @@ ppy_msr_grid_bin_k(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
 static PyObject *
 ppy_msr_MeasurePk(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     flush_std_files();
-    static char const *kwlist[]= {"grid","bins","a",NULL};
+    static char const *kwlist[]= {"grid","bins","a","interlace","order",NULL};
     double a = 1.0;
     int nBins = -1;
+    int bInterlace = 1;
+    int iOrder = 4;
     int nGrid, i;
     std::vector<float> fK,fPk,fPkAll;
     std::vector<uint64_t> nK;
 
     if ( !PyArg_ParseTupleAndKeywords(
-                args, kwobj, "i|id:MeasurePk", const_cast<char **>(kwlist),
-                &nGrid, &nBins, &a ) )
+                args, kwobj, "i|idpi:MeasurePk", const_cast<char **>(kwlist),
+                &nGrid, &nBins, &a, &bInterlace ) )
         return NULL;
     if (nBins<0) nBins = nGrid/2;
 
@@ -1075,7 +1077,7 @@ ppy_msr_MeasurePk(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     fPkAll.resize(nBins+1);
     fK.resize(nBins+1);
     nK.resize(nBins+1);
-    self->msr->MeasurePk(4,1,nGrid,a,nBins,nK.data(),fK.data(),fPk.data(),fPkAll.data());
+    self->msr->MeasurePk(iOrder,bInterlace,nGrid,a,nBins,nK.data(),fK.data(),fPk.data(),fPkAll.data());
     auto ListK = PyList_New( nBins+1 );
     auto ListPk = PyList_New( nBins+1 );
     auto ListPkAll = PyList_New( nBins+1 );
