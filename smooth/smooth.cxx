@@ -1068,10 +1068,10 @@ void static inline allocNodeBuffer(const int N, const int nVar, my_real **p_buff
 
     assert(oldN < N);
 
-    *p_buff = (my_real *) _mm_malloc(N*nVar*sizeof(my_real), 64);
+    *p_buff = new (std::align_val_t(64)) my_real[N*nVar];
     assert(*p_buff!=NULL);
     if (oldBuff == NULL) {
-        *p_ptrs = (my_real **)_mm_malloc(nVar*sizeof(my_real *), 64);
+        *p_ptrs = new (std::align_val_t(64)) my_real*[nVar];
         assert(*p_ptrs!=NULL);
     }
 
@@ -1097,7 +1097,7 @@ void static inline reallocNodeBuffer(const int N, const int nVar, my_real **p_bu
 
     allocNodeBuffer(N, nVar, &tmp_buffer, p_ptrs, *p_buff, oldN);
 
-    _mm_free(*p_buff);
+    delete [] *p_buff;
 
     *p_buff = tmp_buffer;
 }
@@ -1399,10 +1399,10 @@ int  smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
         }
     }
     if (smx->fcnSmoothGetNvars) {
-        _mm_free(input_buffer);
-        _mm_free(input_pointers);
-        _mm_free(output_buffer);
-        _mm_free(output_pointers);
+        delete [] input_buffer;
+        delete [] input_pointers;
+        delete [] output_buffer;
+        delete [] output_pointers;
     }
     free(nnList_p);
     //printf("nSmoothed %d \n", nSmoothed);

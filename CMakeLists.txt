@@ -271,9 +271,7 @@ if(USE_SIMD)
 #if USE_SIMD_FMM
 target_sources(${PROJECT_NAME} PRIVATE gravity/vmoments.cxx)
 #endif
-#if USE_SIMD_LC
 target_sources(${PROJECT_NAME} PRIVATE lightcone.cxx)
-#endif
 endif()
 
 foreach(flag_var

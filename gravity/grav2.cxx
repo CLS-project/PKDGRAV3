@@ -636,7 +636,7 @@ static void extensiveILPTest(PKD pkd, workParticle *wp, ilpList &ilp) {
                         n /= fvec::width();
                         for (auto i=0; i<n; ++i) {
                             mask = ((blk.dx.v[i] == dx) & (blk.dy.v[i] == dy) & (blk.dz.v[i] == dz));
-                            occurrence += maskz_mov(mask,1.0f);
+                            occurrence += maskz_mov(mask,fvec(1.0f));
                         }
                     }
                 }

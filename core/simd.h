@@ -135,6 +135,7 @@ inline dvec cast_dvec(const i64v &a) { return dvec(_mm_castsi128_pd(a)); }
 typedef vec<int32_t,int32_t> i32v;
 typedef vec<float,float> fvec;
 typedef vec<double,double> dvec;
+typedef vec<int64_t,int64_t> i64v;
 typedef mmask<bool> fmask;
 typedef mmask<bool> dmask;
 inline i32v cvt_i32v(const fvec &a) { return i32v((int32_t)a); }
@@ -717,10 +718,19 @@ inline vec<float,float> mask_mov(vec<float,float> const &src,bool const &p,vec<f
     return p ? a : src;
 }
 
+/**********************************************************************\
+* double precision
+\**********************************************************************/
+
+//template<> inline vec<double,double>::vec(const double &d) { ymm = d; }
+template<> inline vec<double,double> &vec<double,double>::zero() { ymm = 0; return *this; }
+template<> inline vec<double,double> &vec<double,double>::load1(double f) { ymm = f; return *this; }
+template<> inline vec<double,double> &vec<double,double>::load(const double *pf) { ymm = *pf; return *this; }
+template<> inline const vec<double,double> &vec<double,double>::store(double *pf) const { *pf = ymm; return *this; }
+
 inline vec<double,double> min(vec<double,double> const &a,vec<double,double> const &b) { return a<b?a:b; }
 inline vec<double,double> max(vec<double,double> const &a,vec<double,double> const &b) { return a>b?a:b; }
 inline int movemask(mmask<bool> const &k) { return (int)(k); }
-
 
 /**********************************************************************\
 * 32-bit integer
