@@ -1802,17 +1802,25 @@ extern "C" PyObject *PyInit_CSM(void);
 int MSR::Python(int argc, char *argv[]) {
     PyImport_AppendInittab(MASTER_MODULE_NAME,initModuleMSR);
     PyImport_AppendInittab("CSM",PyInit_CSM);
-
+    PyStatus status;
+    PyConfig config;
+    PyConfig_InitPythonConfig(&config);
+    PyConfig_Read(&config);
+    config.site_import = 1;
+    config.user_site_directory = 1;
+    config.parse_argv = 0;
+    status = PyConfig_SetBytesArgv(&config, argc, argv);
     // I don't like this, but it works for pyenv. See:
     //   https://bugs.python.org/issue22213
     //   https://www.python.org/dev/peps/pep-0432/
     auto PYENV_VIRTUAL_ENV = getenv("PYENV_VIRTUAL_ENV");
     if (PYENV_VIRTUAL_ENV) {
-        std::string path = PYENV_VIRTUAL_ENV;
-        path += "/bin/python";
-        Py_SetProgramName(Py_DecodeLocale(path.c_str(),NULL));
+        std::string exec = PYENV_VIRTUAL_ENV;
+        exec += "/bin/python";
+        status = PyConfig_SetBytesString(&config,&config.program_name,exec.c_str());
     }
-    Py_InitializeEx(0);
+    status = Py_InitializeFromConfig(&config);
+    PyConfig_Clear(&config);
 
     // Contruct the "MSR" context and module
     auto msr_module = PyModule_Create(&msrModule);
@@ -1821,12 +1829,6 @@ int MSR::Python(int argc, char *argv[]) {
     auto moduleState = reinterpret_cast<struct msrModuleState *>(PyModule_GetState(msr_module));
     moduleState->msr = this;
     moduleState->bImported = false; // If imported then we enter script mode
-
-    // Convert program arguments to unicode
-    auto wargv = new wchar_t *[argc];
-    for (int i=0; i<argc; ++i) wargv[i] = Py_DecodeLocale(argv[i],NULL);
-    PySys_SetArgv(argc, wargv);
-    delete[] wargv;
 
     PyObject *main_module = PyImport_ImportModule("__main__");
     auto globals = PyModule_GetDict(main_module);
