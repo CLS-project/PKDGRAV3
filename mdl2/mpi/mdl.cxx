@@ -2027,6 +2027,7 @@ int mpiClass::Launch(int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),vo
 #endif
         pthread_attr_t attr;
         pthread_attr_init(&attr);
+        pthread_attr_setstacksize(&attr,8*1024*1024);
         pthread_barrier_init(&barrier,NULL,Cores()+(bDedicated?1:0));
         for (i = iCoreMPI+1; i < Cores(); ++i) {
             pthread_create(&threadid[i], &attr,
