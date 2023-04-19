@@ -147,16 +147,19 @@ void pkdDumpTrees(PKD pkd,int bOnlyVA, uint8_t uRungDD) {
 
 #define MIN_SRATIO    0.05
 
-
-/*
-** Partition the particles between pLower and pUpper (inclusive)
-** around "Split" in dimension "d". Return the index of the split.
-*/
-template<class split_t>
-static int PartPart(PKD pkd,int pLower,int pUpper,int d,split_t Split) {
+/// @brief Partition particles array between pLower and pUpper (inclusive).
+/// @tparam pivot_t
+/// @param pkd pkdContext object.
+/// @param pLower Starting index of partition.
+/// @param pUpper End index of partition (inclusive).
+/// @param d Dimension to split in.
+/// @param pivot Values lower then pivot are sorted to the left of the array, values larger then pivot are sorted to the right of the array.
+/// @return The index of the split.
+template<class pivot_t>
+static int PartPart(PKD pkd,int pLower,int pUpper,int d,pivot_t pivot) {
     auto pi = pkd->particles.begin() + pLower;
     auto pj = pkd->particles.begin() + pUpper;
-    return std::partition(pi,pj+1,[Split,d](auto &p) {return p.template raw_position<split_t>(d) < Split;}) - pkd->particles.begin();
+    return std::partition(pi,pj+1,[pivot,d](auto &p) {return p.template raw_position<pivot_t>(d) < pivot;}) - pkd->particles.begin();
 }
 
 /// @brief Build tree.
