@@ -145,8 +145,6 @@ void pkdDumpTrees(PKD pkd,int bOnlyVA, uint8_t uRungDD) {
     }
 }
 
-#define MIN_SRATIO    0.05
-
 /// @brief Partition particles array between pLower and pUpper (inclusive).
 /// @tparam pivot_t
 /// @param pkd pkdContext object.
