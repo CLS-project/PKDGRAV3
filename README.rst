@@ -85,7 +85,6 @@ FFTW - Fast Fourier Transform Library
         cmake -DFFTW_ROOT=/path/to/fftw
 
 CUDA (optional)
-
     If your system has a CUDA capable GPU then pkdgrav3 can use it.
     The necessary toolkits can be downloaded from nVidia.
 

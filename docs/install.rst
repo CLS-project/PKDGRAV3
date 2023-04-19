@@ -127,3 +127,21 @@ If you intend to run the test suite, you need the ``xmlrunner`` package. On Ubun
 For Ubuntu 20.03 you need to create a virtual environment and install it with ``pip``::
 
     pip3 install xmlrunner
+
++++++
+MacOS
++++++
+
+You will need Xcode_ which can be install from the App Store. You need to launch it at least once.
+
+.. _Xcode: https://apps.apple.com/us/app/xcode/
+
+The following instructions assume that you have installed and are using
+Homebrew_ as your package manager.
+
+.. _Homebrew: https://brew.sh
+
+Then install the following packages::
+
+    brew install cmake boost fftw git gsl open-mpi hdf5-mpi python pyenv pyenv-virtualenv
+
