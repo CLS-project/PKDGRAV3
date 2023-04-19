@@ -171,7 +171,6 @@ static int PartPart(PKD pkd,int pLower,int pUpper,int d,pivot_t pivot) {
 /// todo: I think this might be a maximum size that a bucket can have.
 /// @param bucketWidth Maximum width that the largest side of a node can have to be considered a bucket.
 void BuildTemp(PKD pkd, int iNode, int bucketSize, int nGroup, double bucketWidth) {
-    std::vector<int> stack;
     // todo: why is nBucket here? It's value doesn't get used.
     int nBucket = 0; // Count number of buckets.
     auto pNode = pkd->tree[iNode]; // Current node of the tree.
@@ -184,6 +183,7 @@ void BuildTemp(PKD pkd, int iNode, int bucketSize, int nGroup, double bucketWidt
     // Single bucket? We are done.
     if (pNode->count() <= bucketSize) return;
 
+    std::vector<int> stack;
     stack.reserve(100); // Start with a sensible stack size
     auto bnd = pNode->bound();
     while (true) {
