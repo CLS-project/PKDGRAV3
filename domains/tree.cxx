@@ -175,9 +175,12 @@ void BuildTemp(PKD pkd, int iNode, int bucketSize, int nGroup, double bucketWidt
     // todo: why is nBucket here? It's value doesn't get used.
     int nBucket = 0; // Count number of buckets.
     auto pNode = pkd->tree[iNode]; // Current node of the tree.
+    // todo: What are these methods for?
     pNode->set_depth(0);
+    // todo: Why is set_split_dim(d) not just a parameter of Node->split()?
     pNode->set_split_dim(3);
 
+    // todo: Why do we ignore the bucketWidth here?
     // Single bucket? We are done.
     if (pNode->count() <= bucketSize) return;
 
