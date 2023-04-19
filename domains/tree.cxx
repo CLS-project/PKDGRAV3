@@ -159,17 +159,17 @@ static int PartPart(PKD pkd,int pLower,int pUpper,int d,split_t Split) {
     return std::partition(pi,pj+1,[Split,d](auto &p) {return p.template raw_position<split_t>(d) < Split;}) - pkd->particles.begin();
 }
 
-/// @brief Build tree
+/// @brief Build tree.
 ///
 /// This function assumes that the root node is correctly set up (particularly the bounds).
 /// @param pkd pkdContext object.
 /// @param iNode index of node in pkd->tree[]
-/// @param bucketSize bucket size.
+/// @param bucketSize Maximum number of particles a node can have to be to be considered a bucket.
 /// todo: what is this parameter?
 /// @param nGroup ???
 /// todo: I think this might be a maximum size that a bucket can have.
-/// @param dMaxMax ???
-void BuildTemp(PKD pkd, int iNode, int bucketSize, int nGroup, double dMaxMax) {
+/// @param bucketWidth Maximum width that the largest side of a node can have to be considered a bucket.
+void BuildTemp(PKD pkd, int iNode, int bucketSize, int nGroup, double bucketWidth) {
     std::vector<int> stack;
     // todo: why is nBucket here? It's value doesn't get used.
     int nBucket = 0; // Count number of buckets.
@@ -191,7 +191,8 @@ void BuildTemp(PKD pkd, int iNode, int bucketSize, int nGroup, double dMaxMax) {
         int d = bnd.maxdim();
         pNode->set_split_dim(d);
         auto [lbnd, rbnd] = bnd.split(d);
-        double lrMax = 0.5 * lbnd.maxside();
+        // todo: lbnd.maxside() == rbnd.maxside()?
+        double nodeSize = 0.5 * lbnd.maxside();
         // Now start the partitioning of the particles about
         // fSplit on dimension given by d.
         int i; // Partition index.
@@ -215,15 +216,13 @@ void BuildTemp(PKD pkd, int iNode, int bucketSize, int nGroup, double dMaxMax) {
             pLeft->set_bound(lbnd);
             pRight->set_bound(rbnd);
 
-            /*
-            ** Now figure out which sub-tree to process next.
-            */
-            bool continue_left = (lrMax > dMaxMax || nl > bucketSize); // this condition means the left child is not a bucket.
-            bool continue_right = (lrMax > dMaxMax || nr > bucketSize); // this condition means the right child is not a bucket.
+            // Figure out which sub-tree to process next.
+            bool left_is_bucket = (nodeSize <= bucketWidth && nl <= bucketSize);
+            bool right_is_bucket = (nodeSize <= bucketWidth && nr <= bucketSize);
 
-            if (continue_right && continue_left) {
+            if (!right_is_bucket && !left_is_bucket) {
                 // Process smaller subtree first.
-                // todo: why?
+                // todo: why smaller first?
                 if (nr > nl) {
                     stack.push_back(pNode->rchild()); // push right subtree.
                     iNode = pNode->lchild();          // process left sub-tree.
@@ -233,26 +232,18 @@ void BuildTemp(PKD pkd, int iNode, int bucketSize, int nGroup, double dMaxMax) {
                     iNode = pNode->rchild();          // process right sub-tree.
                 }
             }
-            else if (continue_left) {
-                /*
-                ** Right must be a bucket in this case!
-                */
+            else if (!left_is_bucket) {
                 iNode = pNode->lchild(); // process left sub-tree
                 pRight->set_group(true);
                 ++nBucket;
             }
-            else if (continue_right) {
-                /*
-                ** Left must be a bucket in this case!
-                */
+            else if (!right_is_bucket) {
                 iNode = pNode->rchild(); // process right sub-tree
                 pLeft->set_group(true);
                 ++nBucket;
             }
             else {
-                /*
-                ** Both are buckets (we need to pop from the stack to get the next sub-tree.
-                */
+                // Both are buckets. We need to pop from the stack to get the next sub-tree.
                 pLeft->set_group(true);
                 ++nBucket;
                 pRight->set_group(true);
@@ -272,11 +263,11 @@ void BuildTemp(PKD pkd, int iNode, int bucketSize, int nGroup, double dMaxMax) {
             bool is_bucket;
             if (nl > 0) {
                 pNode->set_bound(lbnd);
-                is_bucket = !(lrMax > dMaxMax || nl > bucketSize);
+                is_bucket = (nodeSize <= bucketWidth && nl <= bucketSize);
             }
             else {
                 pNode->set_bound(rbnd);
-                is_bucket = !(lrMax > dMaxMax || nr > bucketSize);
+                is_bucket = (nodeSize <= bucketWidth && nr <= bucketSize);
             }
             if (is_bucket) {
                 pNode->set_group(true);
