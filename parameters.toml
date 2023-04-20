@@ -1,4 +1,21 @@
+################################################################################
 # All pkdgrav3 parameters
+#   Each key is divided into a section and a parameter name. Parameter names
+#   must be globally unique.
+#
+#   Fields:
+#     flag:    the command line flag used to override the parameter
+#     default: the default value. NB: The type of "default" determines the
+#              type of the parameter. String, int, float or Boolean.
+#     omitted: The "default" value if the parameter is ommited if it is
+#              different from "default". Parsed as restructured text.
+#              Needs to be small to fit beside the parameter (default whatever)
+#              (see dHubble0 for an advanced example).
+#     help:    the short string included with "pkdgrav3 --help"
+#     docs:    Detailed documentation about the parameter that is included in
+#              the User Guide. Parsed as restructured text. (see e.g. dTheta)
+#
+################################################################################
 
 ################################################################################
 ########## Gravity, Domains, Trees
@@ -443,16 +460,34 @@ help="number of MaxRung particles to delete MaxRung"
 flag="theta"
 default=0.7
 help="Barnes opening criterion"
+docs='''
+The Barns/Hut opening criterion :math:`\theta`. A value of 0.7 gives
+an RMS error of approximately :math:`0.1\%` which is normally adequate.
+At very high redshift, when the particle distribution is very uniform
+and thus the force on each particle is nearly zero then decreasing this
+to 0.4 is recommended. Theta should be relaxed at lower redshift by
+adjusting ``dTheta20`` and ``dTheta2``.
+'''
 
 ["Force Accuracy".dTheta20]
 flag="theta20"
 default=0.0
+omitted="dTheta"
 help="Barnes opening criterion for 2 < z <= 20"
+docs='''
+This controls :math:`\theta` for redshifts between 2 and 20.
+The recommended value is 0.55.
+'''
 
 ["Force Accuracy".dTheta2]
 flag="theta2"
 default=0.0
+omitted="dTheta20"
 help="Barnes opening criterion for z <= 2"
+docs='''
+This controls :math:`\theta` for redshifts below 2.
+The recommended value is 0.7.
+'''
 
 ################################################################################
 ########## Periodic Boundaries
@@ -519,7 +554,8 @@ help="dEwhCut"
 
 ["Cosmology".dHubble0]
 flag="Hub"
-default=2.8944050182330705 # sqrt(pi*8/3)
+default=2.8944050182330705
+omitted=':math:`\sqrt{\frac{8}{3}\pi}`'
 help="dHubble0"
 
 ["Cosmology".dOmega0]

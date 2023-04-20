@@ -30,15 +30,20 @@ class make_parameters(Directive):
           items=[]
           for key,v in sv.items():
             # The default value with empty strings as none
-            default = v['default']
-            if isinstance(default,str):
+            if 'omitted' in v:
+                default=v['omitted']
+            else:
+              default = v['default']
+              if isinstance(default,str):
                 default = f'"{default}"' if len(default)>0 else "none"
             # Prefer docs over help and reparse as restructed text.
             text = v['docs'] if 'docs' in v else v['help']
             node = nodes.section()
             nested_parse_with_titles(self.state, nodes.paragraph(text=text), node)
+            term=nodes.paragraph()
+            nested_parse_with_titles(self.state, nodes.paragraph(text=f'{key} (default {default})'), term)
             items += nodes.definition_list_item('',
-                    nodes.term('','',nodes.paragraph(text=f'{key} (default {default})')),
+                    nodes.term('','',term),
                     nodes.definition('',*node.children))
           sect += nodes.definition_list('',*items)
           docs.append(sect)
