@@ -165,48 +165,46 @@ static int PartPart(PKD pkd,int pLower,int pUpper,int d,pivot_t pivot) {
 /// This function assumes that the root node is correctly set up (particularly the bounds).
 /// @param pkd pkdContext object.
 /// @param iNode index of node in pkd->tree[]
-/// @param bucketSize Maximum number of particles a node can have to be to be considered a bucket.
-/// todo: what is this parameter?
-/// @param nGroup ???
-/// todo: I think this might be a maximum size that a bucket can have.
-/// @param bucketWidth Maximum width that the largest side of a node can have to be considered a bucket.
-void BuildTemp(PKD pkd, int iNode, int bucketSize, int nGroup, double bucketWidth) {
+/// @param bucketSize Maximum number of particles a node can have to be considered a bucket.
+/// @param nGroup Maximum number of particles a node can have to be considered a group.
+/// @param maxBucketWidth Hacky parameter to control that the size of bucket is not too large.
+///        Was used because sometimes the tree would not build correctly without this.
+void BuildTemp(PKD pkd, int iNode, int bucketSize, int nGroup, double maxBucketWidth) {
     // todo: why is nBucket here? It's value doesn't get used.
     int nBucket = 0; // Count number of buckets.
-    auto pNode = pkd->tree[iNode]; // Current node of the tree.
-    // todo: What are these methods for?
-    pNode->set_depth(0);
-    // todo: Why is set_split_dim(d) not just a parameter of Node->split()?
-    pNode->set_split_dim(3);
+    auto pNode = pkd->tree[iNode]; // Current node of the larger tree that spans across nodes.
 
-    // todo: Why do we ignore the bucketWidth here?
+    pNode->set_depth(0);
+
     // Single bucket? We are done.
-    if (pNode->count() <= bucketSize) return;
+    if (pNode->count() <= bucketSize) {
+        // splitDim == 3 is a sentinel value for this beeing a leave node.
+        pNode->set_split_dim(3);
+        return;
+    };
 
     std::vector<int> stack;
     stack.reserve(100); // Start with a sensible stack size
     auto bnd = pNode->bound();
     while (true) {
-        // todo: why is it called fSplit?
-        // Begin new stage! Calculate the appropriate fSplit.
+        // Begin new stage! Calculate the appropriate split.
         // Pick longest dimension and split it in half.
         // Calculate the new left and right cells. We will use
         // either the left, the right or (usually) both.
         int d = bnd.maxdim();
         pNode->set_split_dim(d);
         auto [lbnd, rbnd] = bnd.split(d);
-        // todo: lbnd.maxside() == rbnd.maxside()?
         double nodeSize = 0.5 * lbnd.maxside();
         // Now start the partitioning of the particles about
-        // fSplit on dimension given by d.
+        // split on dimension given by d.
         int i; // Partition index.
         if (pkd->bIntegerPosition) {
-            int32_t pivot = pkdDblToIntPos(pkd, bnd.center(d));
-            i = PartPart(pkd, pNode->lower(), pNode->upper(), d, pivot);
+            int32_t split = pkdDblToIntPos(pkd, bnd.center(d));
+            i = PartPart(pkd, pNode->lower(), pNode->upper(), d, split);
         }
         else {
-            double pivot = bnd.center(d);
-            i = PartPart(pkd, pNode->lower(), pNode->upper(), d, pivot);
+            double split = bnd.center(d);
+            i = PartPart(pkd, pNode->lower(), pNode->upper(), d, split);
         }
 
         int nl = i - pNode->lower();     // Number of particles in the left partition.
@@ -215,18 +213,16 @@ void BuildTemp(PKD pkd, int iNode, int bucketSize, int nGroup, double bucketWidt
             // Split this node into two children
             auto [pLeft, pRight] = pNode->split(i);
 
-            // todo: What is set_group()?
             pNode->set_group(pNode->count() <= nGroup);
             pLeft->set_bound(lbnd);
             pRight->set_bound(rbnd);
 
             // Figure out which sub-tree to process next.
-            bool left_is_bucket = (nodeSize <= bucketWidth && nl <= bucketSize);
-            bool right_is_bucket = (nodeSize <= bucketWidth && nr <= bucketSize);
+            bool left_is_bucket = (nodeSize <= maxBucketWidth && nl <= bucketSize);
+            bool right_is_bucket = (nodeSize <= maxBucketWidth && nr <= bucketSize);
 
             if (!right_is_bucket && !left_is_bucket) {
-                // Process smaller subtree first.
-                // todo: why smaller first?
+                // Process smaller subtree first. This keeps the stack size as small as possible.
                 if (nr > nl) {
                     stack.push_back(pNode->rchild()); // push right subtree.
                     iNode = pNode->lchild();          // process left sub-tree.
@@ -261,17 +257,16 @@ void BuildTemp(PKD pkd, int iNode, int bucketSize, int nGroup, double bucketWidt
             // At least one half of the partition is empty.
             // In practice it can only every be one half that is empty, because we don't create empty nodes.
             assert(nl > 0 || nr > 0);
-            // todo: Why is the depth increased?
             // No need to allocate additional node. Just change bounds and depth of current node.
             pNode->set_depth(pNode->depth() + 1);
             bool is_bucket;
             if (nl > 0) {
                 pNode->set_bound(lbnd);
-                is_bucket = (nodeSize <= bucketWidth && nl <= bucketSize);
+                is_bucket = (nodeSize <= maxBucketWidth && nl <= bucketSize);
             }
             else {
                 pNode->set_bound(rbnd);
-                is_bucket = (nodeSize <= bucketWidth && nr <= bucketSize);
+                is_bucket = (nodeSize <= maxBucketWidth && nr <= bucketSize);
             }
             if (is_bucket) {
                 pNode->set_group(true);
@@ -282,6 +277,69 @@ void BuildTemp(PKD pkd, int iNode, int bucketSize, int nGroup, double bucketWidt
             }
         }
 
+        // Get node and bound for next iteration.
+        pNode = pkd->tree[iNode];
+        bnd = pNode->bound();
+    }
+}
+
+// todo: does it make more sense here to use stl .start() .end() iterators instead of ints?
+void hist_sort_inplace(PKD pkd, int pStart, int pEnd, blitz::Array<int, 3> &offsets, blitz::Array<int, 3> &next_free, std::array<uint32_t, 3> splits) {
+    assert(blitz::all(offsets.shape() == next_free.shape()));
+    // todo: fill function.
+}
+
+
+/// @brief Build tree.
+/// This algorithm has the following steps:
+///     1. Bin space into 2**nSplits 3D cells.
+///     2. Sort particles array into these bins.
+///     3. Build tree with already sorted particles array.
+///     4. Repeat with bins if they are not buckets.
+/// The advantage compared to the old "split-in-half, partition particles, recurse" algorithm is
+/// that the particles are sorted way less often and with a non-comparative algorithm.
+/// @param pkd pkdContext object.
+/// @param iNode index of node in pkd->tree[]
+/// @param nGroup Optimization for grouping nodes together when considering interactions.
+///        An opening criterion for the entire group is considered instead of going down to a single bucket.
+/// @param nSplits Number of times the space gets split into 2. The resulting number of 3d bins is 2**nSplits.
+// todo: Better function name.
+void BuildTempBinned(PKD pkd, int iNode, int bucketSize, int nGroup, int nSplits) {
+    auto pNode = pkd->tree[iNode]; // Current node of the tree.
+    pNode->set_depth(0);
+    // todo: This method call might not be needed.
+    pNode->set_split_dim(3);
+    auto bnd = pNode->bound();
+
+    // Single bucket? We are done.
+    if (pNode->count() <= bucketSize) return;
+
+    // Buffer for histogram.
+    // todo: Does it make sense to keep the buffer outside of the sorting function?
+    auto bufferSize = 2 << (nSplits - 1);
+    blitz::Array<int32_t, 3> offsets(bufferSize);
+    blitz::Array<int32_t, 3> next_free(bufferSize);
+
+    while (true) {
+        // todo: Find 3D bin boundaries.
+        auto widths = bnd.width();
+        std::array<uint32_t, 3> splitsPerDimension{0};
+        for (int _ = nSplits; --_;) {
+            int d = blitz::maxIndex(widths)[0];
+            widths[d] /= 2;
+            splitsPerDimension[d] += 1;
+        }
+
+        // todo: Inplace binned sort.
+        // todo: how to reinterpret histogramm with the new dimensions?
+        offsets = 0;
+        hist_sort_inplace(pkd, pNode->lower(), pNode->upper(), offsets, next_free, splitsPerDimension);
+
+        // todo: Build tree with given histogram.
+        // todo: something with stack.push_back(iLeaveNode)
+        // _buildTempBinned();
+
+        // todo: Repeat with tree leaves if they are not buckets.
         // Get node and bound for next iteration.
         pNode = pkd->tree[iNode];
         bnd = pNode->bound();
