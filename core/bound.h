@@ -75,8 +75,10 @@ public:
     value_type      center(int d) const {return fCenter[d];}
     size_value_type minside()     const {return 2*size_value_type(blitz::min(apothem()));}
     size_value_type maxside()     const {return 2*size_value_type(blitz::max(apothem()));}
-    int    maxdim()      const {return (fMax[0]>fMax[2]) ? (fMax[0]>fMax[1]?0:1) : (fMax[2]>fMax[1]?2:1);}
-    int    mindim()      const {return (fMax[0]<fMax[2]) ? (fMax[0]<fMax[1]?0:1) : (fMax[2]<fMax[1]?2:1);}
+    /// @brief Returns the dimension (0, 1 or 2) in which the "width" of the bound is the largest.
+    int             maxdim()      const {return (fMax[0]>fMax[2]) ? (fMax[0]>fMax[1]?0:1) : (fMax[2]>fMax[1]?2:1);}
+    /// @brief Returns the dimension (0, 1 or 2) in which the "width" of the bound is the smallest.
+    int             mindim()      const {return (fMax[0]<fMax[2]) ? (fMax[0]<fMax[1]?0:1) : (fMax[2]<fMax[1]?2:1);}
 
     long_value_type maxdist(coord_type r) const {
         long_coord_type x = blitz::abs(center()-r) + apothem();
