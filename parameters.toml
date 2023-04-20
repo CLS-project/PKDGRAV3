@@ -557,16 +557,25 @@ flag="Hub"
 default=2.8944050182330705
 omitted=':math:`\sqrt{\frac{8}{3}\pi}`'
 help="dHubble0"
+docs='''
+The Hubble parameter :math:`H_0` in code units.
+'''
 
 ["Cosmology".dOmega0]
 flag="Om"
 default=1.0
 help="dOmega0"
+docs='''
+The matter density of the universe :math:`\Omega_m`.
+'''
 
 ["Cosmology".dLambda]
 flag="Lambda"
 default=0.0
 help="dLambda"
+docs='''
+The dark energy density of the universe :math:`\Omega_\Lambda`.
+'''
 
 ["Cosmology".dOmegaDE]
 flag="omDE"

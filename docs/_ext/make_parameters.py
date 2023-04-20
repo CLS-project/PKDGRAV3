@@ -40,10 +40,10 @@ class make_parameters(Directive):
             text = v['docs'] if 'docs' in v else v['help']
             node = nodes.section()
             nested_parse_with_titles(self.state, nodes.paragraph(text=text), node)
-            term=nodes.paragraph()
+            term=nodes.section()
             nested_parse_with_titles(self.state, nodes.paragraph(text=f'{key} (default {default})'), term)
             items += nodes.definition_list_item('',
-                    nodes.term('','',term),
+                    nodes.term('','',*term.children),
                     nodes.definition('',*node.children))
           sect += nodes.definition_list('',*items)
           docs.append(sect)
