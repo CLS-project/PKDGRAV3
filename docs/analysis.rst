@@ -41,7 +41,7 @@ bPkInterlace (default True)
     This controls the use of interlaced grids to reduce aliasing. If enabled
     (the default), it creates two mass assignment grids and deposits the mass
     on the second grid offset by half a grid spacing. This greatly reduces the
-    aliasing effect at the cost of additional memory. We recommend this be left on.
+    aliasing effect at the cost of additional memory. We recommend that this be left on.
 
 Output
 ======
@@ -63,7 +63,7 @@ Number of Samples
 
 Linear P(k)
     This is the same as the P(k) column, except it includes the linear part (if present),
-    for example if you are using the linear neutrino 
+    for example if you are using the linear neutrino treatment.
 
 
 
