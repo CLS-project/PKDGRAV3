@@ -27,6 +27,7 @@ class make_parameters(Directive):
           # sect = [nodes.title('','',nodes.paragraph(text=sk))]
           sect = nodes.section(ids=[sk])
           sect += nodes.title(text=sk)
+          items=[]
           for key,v in sv.items():
             # The default value with empty strings as none
             default = v['default']
@@ -36,9 +37,10 @@ class make_parameters(Directive):
             text = v['docs'] if 'docs' in v else v['help']
             node = nodes.section()
             nested_parse_with_titles(self.state, nodes.paragraph(text=text), node)
-            sect += nodes.definition_list_item('',
+            items += nodes.definition_list_item('',
                     nodes.term('','',nodes.paragraph(text=f'{key} (default {default})')),
                     nodes.definition('',*node.children))
+          sect += nodes.definition_list('',*items)
           docs.append(sect)
         return docs
 
