@@ -170,8 +170,6 @@ static int PartPart(PKD pkd,int pLower,int pUpper,int d,pivot_t pivot) {
 /// @param maxBucketWidth Hacky parameter to control that the size of bucket is not too large.
 ///        Was used because sometimes the tree would not build correctly without this.
 void BuildTemp(PKD pkd, int iNode, int bucketSize, int nGroup, double maxBucketWidth) {
-    // todo: why is nBucket here? It's value doesn't get used.
-    int nBucket = 0; // Count number of buckets.
     auto pNode = pkd->tree[iNode]; // Current node of the larger tree that spans across nodes.
 
     pNode->set_depth(0);
@@ -235,19 +233,16 @@ void BuildTemp(PKD pkd, int iNode, int bucketSize, int nGroup, double maxBucketW
             else if (!left_is_bucket) {
                 iNode = pNode->lchild(); // process left sub-tree
                 pRight->set_group(true);
-                ++nBucket;
             }
             else if (!right_is_bucket) {
                 iNode = pNode->rchild(); // process right sub-tree
                 pLeft->set_group(true);
-                ++nBucket;
             }
             else {
                 // Both are buckets. We need to pop from the stack to get the next sub-tree.
                 pLeft->set_group(true);
-                ++nBucket;
                 pRight->set_group(true);
-                ++nBucket;
+
                 if (stack.empty()) break;
                 iNode = stack.back();
                 stack.pop_back();
@@ -270,7 +265,6 @@ void BuildTemp(PKD pkd, int iNode, int bucketSize, int nGroup, double maxBucketW
             }
             if (is_bucket) {
                 pNode->set_group(true);
-                ++nBucket;
                 if (stack.empty()) break;
                 iNode = stack.back();
                 stack.pop_back();
