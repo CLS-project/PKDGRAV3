@@ -1,5 +1,8 @@
-from sys import argv,exit
-import tomllib as tl
+from sys import argv,exit,version_info
+if version_info >= (3,11):
+  import tomllib as tl
+else:
+  import tomli as tl
 
 def group(a, *ns):
   for n in ns:
