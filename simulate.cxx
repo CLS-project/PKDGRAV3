@@ -193,7 +193,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
     else bKickOpen = 0;
     if (DoGravity()) {
         /* Compute the grids of the linear species before doing gravity */
-        if (csm->val.classData.bClass && strlen(param.achLinearSpecies) && param.nGridLin > 0) {
+        if (csm->val.classData.bClass && strlen(param.achLinSpecies) && param.nGridLin > 0) {
             GridCreateFFT(param.nGridLin);
             SetLinGrid(dTime,dDelta,param.nGridLin,bKickClose,bKickOpen);
             if (param.bDoLinPkOutput)
@@ -339,7 +339,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
                                        param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,SPHoptions);
                 }
                 /* Set the grids of the linear species */
-                if (csm->val.classData.bClass && strlen(param.achLinearSpecies) && param.nGridLin > 0) {
+                if (csm->val.classData.bClass && strlen(param.achLinSpecies) && param.nGridLin > 0) {
                     GridCreateFFT(param.nGridLin);
                     SetLinGrid(dTime,dDelta,param.nGridLin,bKickClose,bKickOpen);
                     if (param.bDoLinPkOutput)
@@ -712,17 +712,17 @@ int MSR::ValidateParameters() {
     if (csm->val.classData.bClass) {
         const char *aLinear[MAX_CSM_SPECIES];
         const char *aPower[MAX_CSM_SPECIES];
-        char *achLinearSpecies = strdup(param.achLinearSpecies);
-        char *achPowerSpecies = strdup(param.achPowerSpecies);
-        int nLinear = parseSpeciesNames(aLinear,achLinearSpecies);
-        int nPower = parseSpeciesNames(aPower,achPowerSpecies);
+        char *achLinSpecies = strdup(param.achLinSpecies);
+        char *achPkSpecies = strdup(param.achPkSpecies);
+        int nLinear = parseSpeciesNames(aLinear,achLinSpecies);
+        int nPower = parseSpeciesNames(aPower,achPkSpecies);
         if (!prmSpecified(prm,"dOmega0")) csm->val.dOmega0 = 0.0;
         csmClassRead(csm, param.achClassFilename, param.dBoxSize, param.h, nLinear, aLinear, nPower, aPower);
-        free(achLinearSpecies);
-        free(achPowerSpecies);
+        free(achLinSpecies);
+        free(achPkSpecies);
         csmClassGslInitialize(csm);
     }
-    if (strlen(param.achLinearSpecies) && param.nGridLin == 0) {
+    if (strlen(param.achLinSpecies) && param.nGridLin == 0) {
         fprintf(stderr, "ERROR: you must specify nGridLin when running with linear species\n");
         abort();
     }

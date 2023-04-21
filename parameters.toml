@@ -28,7 +28,7 @@ help="The gravitional Softening length"
 docs='''
 This sets the gravitational softening length **globally** for all particles
 in code units. Normally the softening is read from the input file, and
-can be different for each particle (for example for different massses).
+can be different for each particle (for example for different masses).
 '''
 
 ["Gravity, Domains, Trees".dSoftMax]
@@ -161,7 +161,7 @@ help="output +++ and --- octants of the cone; a bowtie"
 
 ["Analysis".dRedshiftLCP]
 flag="zlcp"
-default=0
+default=0.0
 help="starting redshift to output light cone particles"
 
 ["Analysis".sqdegLCP]
@@ -357,6 +357,11 @@ help="Time (in seconds) that USR1 is sent before termination"
 flag="restart"
 default=false
 help="restart from checkpoint"
+
+["I/O Parameters".lstOrbits]
+flag="orbit"
+default=[]
+help="Particle ID of particle to write to orbit file (repeatable)"
 
 ####
 ####    ioparm.add_argument('-orbit', dest='lstOrbits', type=int, action='append', help='Particle ID of particle to write to orbit file (repeatable)')
@@ -743,6 +748,7 @@ help="number of high bits for tree"
 ["Memory Model and Control".nMemEphemeral]
 flag="ephemeral"
 default=0
+size=8
 help="minimum size of ephemeral (in bytes)"
 
 ["Memory Model and Control".bMemIntegerPosition]
@@ -1365,11 +1371,6 @@ help="Stellar wind speed <km/s>"
 ################################################################################
 ########## Debugging/Testing/Diagnostics
 ################################################################################
-
-["Debugging/Testing/Diagnostics".bNoGrav]
-flag="nograv"
-default=false
-help="enable gravity calulation for testing"
 
 ["Debugging/Testing/Diagnostics".bDedicatedMPI]
 flag="dedicated"

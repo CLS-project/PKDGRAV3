@@ -392,7 +392,7 @@ std::pair<int,int> MSR::InitializePStore(uint64_t *nSpecies,uint64_t mMemoryMode
      * Add some ephemeral memory (if needed) for the linGrid.
      * 3 grids are stored : forceX, forceY, forceZ
      */
-    if (strlen(param.achLinearSpecies)) {
+    if (strlen(param.achLinSpecies)) {
         struct inGetFFTMaxSizes inFFTSizes;
         struct outGetFFTMaxSizes outFFTSizes;
 
@@ -1210,12 +1210,12 @@ void MSR::Initialize() {
     param.achClassFilename[0] = 0;
     prmAddParam(prm, "achClassFilename", 3, param.achClassFilename,
                 256, "class_filename", "<Name of hdf5 file containing the CLASS data> -class_filename");
-    param.achLinearSpecies[0] = 0;
-    prmAddParam(prm, "achLinSpecies", 3, param.achLinearSpecies,
+    param.achLinSpecies[0] = 0;
+    prmAddParam(prm, "achLinSpecies", 3, param.achLinSpecies,
                 128, "lin_species",
                 "<plus-separated string of linear species, e.g. \"ncdm[0]+g+metric\"> -lin_species");
-    param.achPowerSpecies[0] = 0;
-    prmAddParam(prm, "achPkSpecies", 3, param.achPowerSpecies,
+    param.achPkSpecies[0] = 0;
+    prmAddParam(prm, "achPkSpecies", 3, param.achPkSpecies,
                 128, "pk_species",
                 "<plus-separated string of P(k) linear species, e.g. \"ncdm[0]+g\"> -pk_species");
     param.h = 0.0;
@@ -4239,7 +4239,7 @@ int MSR::NewTopStepKDK(
         if (bKickOpen) LightConeOpen(iStep+1);
 
         /* Compute the grids of linear species at main timesteps, before gravity is called */
-        if (csm->val.classData.bClass && strlen(param.achLinearSpecies) && param.nGridLin) {
+        if (csm->val.classData.bClass && strlen(param.achLinSpecies) && param.nGridLin) {
             GridCreateFFT(param.nGridLin);
             SetLinGrid(dTime,dDelta,param.nGridLin,1,bKickOpen);
             if (param.bDoLinPkOutput)
@@ -5362,7 +5362,7 @@ void MSR::OutputPk(int iStep,double dTime) {
         perror(filename.c_str());
         Exit(errno);
     }
-    fmt::print(fs,"# k P(k) N(k) P(k)+{linear}\n", "linear"_a = param.achPowerSpecies);
+    fmt::print(fs,"# k P(k) N(k) P(k)+{linear}\n", "linear"_a = param.achPkSpecies);
     fmt::print(fs,"# a={a:.8f}  z={z:.8f}\n", "a"_a = a, "z"_a = 1/a - 1.0 );
     for (i=0; i<param.nBinsPk; ++i) {
         if (fPk[i] > 0.0) fmt::print(fs,"{k:.8e} {pk:.8e} {nk} {all:.8e}\n",
@@ -6102,7 +6102,7 @@ void MSR::MeasurePk(int iAssignment,int bInterlace,int nGrid,double a,int nBins,
     WindowCorrection(iAssignment,0);
 
     GridBinK(nBins,0,nPk,fK,fPk);
-    if (csm->val.classData.bClass && param.nGridLin>0 && strlen(param.achPowerSpecies) > 0) {
+    if (csm->val.classData.bClass && param.nGridLin>0 && strlen(param.achPkSpecies) > 0) {
         AddLinearSignal(0,param.iSeed,param.dBoxSize,a,param.bFixedAmpIC,param.dFixedAmpPhasePI * M_PI);
         GridBinK(nBins,0,nPk,fK,fPkAll);
     }

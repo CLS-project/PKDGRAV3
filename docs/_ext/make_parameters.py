@@ -29,9 +29,11 @@ class make_parameters(Directive):
           sect += nodes.title(text=sk)
           items=[]
           for key,v in sv.items():
+            if 'private' in v and v['private']:
+              continue
             # The default value with empty strings as none
             if 'omitted' in v:
-                default=v['omitted']
+              default=v['omitted']
             else:
               default = v['default']
               if isinstance(default,str):

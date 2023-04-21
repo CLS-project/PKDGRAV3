@@ -326,7 +326,6 @@ def parse():
     add_flag(stev,'StellarWindSpeed',default=10.0,dest='dStellarWindSpeed', help='Stellar wind speed <km/s>')
 
     debugp = parser.add_argument_group('Debugging/Testing/Diagnostics')
-    add_bool(debugp,'nograv',default=False,dest='bNoGrav', help='enable gravity calulation for testing')
     add_bool(debugp,'dedicated',default=False,dest='bDedicatedMPI', help='enable dedicated MPI thread')
     add_bool(debugp,'sharedmpi',default=False,dest='bSharedMPI', help='enable extra dedicated MPI thread')
     add_bool(debugp,'overwrite',default=False,dest='bOverwrite', help='enable overwrite safety lock')

@@ -63,7 +63,6 @@ struct parameters {
     int iCheckInterval;
     int iLogInterval;
     int iPkInterval;
-    int iOrder;
     int bEwald;
     int iEwOrder;
     int nReplicas;
@@ -151,7 +150,6 @@ struct parameters {
     double dEccFacMax;
     double dRedTo;
     double dRedFrom;
-    double dCentMass;
     char achInFile[256];
     char achOutName[256];
     char achOutPath[256];
@@ -160,8 +158,8 @@ struct parameters {
     char achDataSubPath[256];
     char achTfFile[256];
     char achClassFilename[256];
-    char achLinearSpecies[256];
-    char achPowerSpecies[256];
+    char achLinSpecies[256];
+    char achPkSpecies[256];
     double dFracDualTree;
     double dFracNoDomainDecomp;
     double dFracNoDomainRootFind;
@@ -349,7 +347,6 @@ struct parameters {
     int bMemMass;
     int bMemSoft;
     int bMemVelSmooth;
-    int bMemPsMetric;
     int bMemNodeMoment;
     int bMemNodeAcceleration;
     int bMemNodeVelocity;
