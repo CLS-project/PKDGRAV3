@@ -444,7 +444,7 @@ help="Number of particles in collisional regime"
 
 ["Time Stepping".iMaxRung]
 flag="mrung"
-default=0
+default=63
 help="maximum timestep rung"
 
 ["Time Stepping".bNewKDK]

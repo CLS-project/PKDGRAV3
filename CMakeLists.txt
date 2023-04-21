@@ -163,9 +163,10 @@ add_subdirectory(metal)
 add_subdirectory(tests)
 
 add_custom_command(
-    OUTPUT ${CMAKE_BINARY_DIR}/m_parse.h
-    MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/parse.py
-    COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/make_parse.py ${CMAKE_SOURCE_DIR}/parse.py ${CMAKE_BINARY_DIR}/m_parse.h
+    OUTPUT ${CMAKE_BINARY_DIR}/parse.py ${CMAKE_BINARY_DIR}/m_parse.h
+    MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/parameters.toml
+    DEPENDS ${CMAKE_SOURCE_DIR}/make_parse.py
+    COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/make_parse.py ${CMAKE_SOURCE_DIR}/parameters.toml ${CMAKE_BINARY_DIR}/parse.py ${CMAKE_BINARY_DIR}/m_parse.h
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     VERBATIM
 )
