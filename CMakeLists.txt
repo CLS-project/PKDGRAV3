@@ -581,4 +581,5 @@ endif()
 #target_include_directories(psout PRIVATE ${GSL_INCLUDE_DIRS})
 #target_link_libraries(psout ${GSL_LIBRARIES})
 
+install(TARGETS ${PROJECT_NAME} ${PROJECT_NAME} DESTINATION "bin")
 #install(TARGETS ${PROJECT_NAME} tostd DESTINATION "bin")

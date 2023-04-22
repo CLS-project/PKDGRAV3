@@ -72,6 +72,25 @@ CUDA_ (optional)
 
         .. _CUDA: https://developer.nvidia.com/cuda-downloads
 
++++++++++++++++++++++++++++
+Python Virtual Environments
++++++++++++++++++++++++++++
+
+There are multiple different tools available to create and manage
+Python virtual environments. The following works with the build-in system.
+
+    python -m venv /path/to/pkdgrav3/.venv
+
+When you want to compile or run the code you need to activate the environment.
+
+    source /path/to/pkdgrav3/.venv/bin/activate
+
+The location can be anywhere you want. To install packages use ``pip``.
+A requirements.txt is provided that will install the packages necessary
+to compile, run and test the code.
+
+    python -m pip install -r requirements.txt
+
 ++++++++++++++++++++++++
 Compilation Instructions
 ++++++++++++++++++++++++
@@ -83,12 +102,64 @@ the one only need run ``cmake`` to configure the build environment, and again to
     cmake -S . -B build
     cmake --build build
 
+++++++++++++++++++++++
+Directory Organization
+++++++++++++++++++++++
+
+Both ``CMake`` and ``Python`` allow for a flexible layout of your files. The choice of
+how to organise your files is a personal one, but you may consider doing so on a
+per-project basis. Consider the case where your source files are in a subdirectory
+of your home directors called ``sources`` while your project specific files are
+located in ``project``.
+
++------------------------------+---------------------------------+
+| What                         | Location                        |
++==============================+=================================+
+| pkdgrav3 source code         | $HOME/sources/pkdgrav3          |
++------------------------------+---------------------------------+
+| project1                     | $HOME/project/project1          |
++------------------------------+---------------------------------+
+
+You need to choose a ``build`` directory for pkdgrav3, and virtual environment
+directory for Python. Since both of these are in some sense associated with the
+project you could put then both in the project directory, for example:
+
++------------------------------+---------------------------------+
+| What                         | Location                        |
++==============================+=================================+
+| pkdgrav3 build directory     | $HOME/project/project1/build    |
++------------------------------+---------------------------------+
+| virtual environment directory| $HOME/project/project1/.venv    |
++------------------------------+---------------------------------+
+
+This can be easily achieved with::
+
+    cd $HOME/project/project1
+
+    python -m venv .venv
+    source .venv/bin/activate
+    python -m pip install -r $HOME/sources/pkdgrav3/requirements.txt
+
+    cmake -S $HOME/sources/pkdgrav3 -B build
+    cmake --build build
+    cmake --install build --prefix $HOME/project/project1
+
+You can then file the pkdgrav3 executable here::
+
+    $HOME/project/project1/bin/pkdgrav3
+
+The ``build`` directory is no longer needed and can be removed.
+Obviously if you expect to make changes to ``pkdgrav3`` and recompile
+you would leave it intact. It is also not necessary to run the install
+phase as you can run ``pkdgrav3`` directly from the build directory,
+or copy it somewhere more convenient.
+
 ++++++++++++++++++++++++++++++++++++++++++
 Swiss National Supercomputer Center (CSCS)
 ++++++++++++++++++++++++++++++++++++++++++
 
 The necessary libraries can be selected using the modules subsystem with the exception
-of the ``tomli`` module for Python. This you can install using ``pip``.
+of the Python modules which can be installed using ``pip`` and ``requirements.txt``.
 
 -----
 Eiger
