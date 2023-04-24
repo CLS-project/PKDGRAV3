@@ -2,7 +2,11 @@ from docutils import nodes
 from docutils.parsers.rst import Directive
 from docutils.statemachine import ViewList
 from sphinx.util.nodes import nested_parse_with_titles
-import tomllib as tl
+from sys import version_info
+if version_info >= (3,11):
+    import tomllib as tl
+else:
+    import tomli as tl
 import re
 
 class make_parameters(Directive):
