@@ -1802,6 +1802,7 @@ extern "C" PyObject *PyInit_CSM(void);
 int MSR::Python(int argc, char *argv[]) {
     PyImport_AppendInittab(MASTER_MODULE_NAME,initModuleMSR);
     PyImport_AppendInittab("CSM",PyInit_CSM);
+#if PY_MAJOR_VERSION>3 || (PY_MAJOR_VERSION==3&&PY_MINOR_VERSION>=8)
     PyStatus status;
     PyConfig config;
     PyConfig_InitPythonConfig(&config);
@@ -1810,6 +1811,7 @@ int MSR::Python(int argc, char *argv[]) {
     config.user_site_directory = 1;
     config.parse_argv = 0;
     status = PyConfig_SetBytesArgv(&config, argc, argv);
+#endif
     // I don't like this, but it works for pyenv. See:
     //   https://bugs.python.org/issue22213
     //   https://www.python.org/dev/peps/pep-0432/
@@ -1817,11 +1819,23 @@ int MSR::Python(int argc, char *argv[]) {
     if (PYENV_VIRTUAL_ENV) {
         std::string exec = PYENV_VIRTUAL_ENV;
         exec += "/bin/python";
+#if PY_MAJOR_VERSION>3 || (PY_MAJOR_VERSION==3&&PY_MINOR_VERSION>=8)
         status = PyConfig_SetBytesString(&config,&config.program_name,exec.c_str());
+#else
+        Py_SetProgramName(Py_DecodeLocale(exec.c_str(),NULL));
+#endif
     }
+#if PY_MAJOR_VERSION>3 || (PY_MAJOR_VERSION==3&&PY_MINOR_VERSION>=8)
     status = Py_InitializeFromConfig(&config);
     PyConfig_Clear(&config);
-
+#else
+    Py_InitializeEx(0);
+    // Convert program arguments to unicode
+    auto wargv = new wchar_t *[argc];
+    for (int i=0; i<argc; ++i) wargv[i] = Py_DecodeLocale(argv[i],NULL);
+    PySys_SetArgv(argc, wargv);
+    delete[] wargv;
+#endif
     // Contruct the "MSR" context and module
     auto msr_module = PyModule_Create(&msrModule);
     PyState_AddModule(msr_module,&msrModule);
