@@ -277,69 +277,6 @@ void BuildTemp(PKD pkd, int iNode, int bucketSize, int nGroup, double maxBucketW
     }
 }
 
-// todo: does it make more sense here to use stl .start() .end() iterators instead of ints?
-void hist_sort_inplace(PKD pkd, int pStart, int pEnd, blitz::Array<int, 3> &offsets, blitz::Array<int, 3> &next_free, std::array<uint32_t, 3> splits) {
-    assert(blitz::all(offsets.shape() == next_free.shape()));
-    // todo: fill function.
-}
-
-
-/// @brief Build tree.
-/// This algorithm has the following steps:
-///     1. Bin space into 2**nSplits 3D cells.
-///     2. Sort particles array into these bins.
-///     3. Build tree with already sorted particles array.
-///     4. Repeat with bins if they are not buckets.
-/// The advantage compared to the old "split-in-half, partition particles, recurse" algorithm is
-/// that the particles are sorted way less often and with a non-comparative algorithm.
-/// @param pkd pkdContext object.
-/// @param iNode index of node in pkd->tree[]
-/// @param nGroup Optimization for grouping nodes together when considering interactions.
-///        An opening criterion for the entire group is considered instead of going down to a single bucket.
-/// @param nSplits Number of times the space gets split into 2. The resulting number of 3d bins is 2**nSplits.
-// todo: Better function name.
-void BuildTempBinned(PKD pkd, int iNode, int bucketSize, int nGroup, int nSplits) {
-    auto pNode = pkd->tree[iNode]; // Current node of the tree.
-    pNode->set_depth(0);
-    // todo: This method call might not be needed.
-    pNode->set_split_dim(3);
-    auto bnd = pNode->bound();
-
-    // Single bucket? We are done.
-    if (pNode->count() <= bucketSize) return;
-
-    // Buffer for histogram.
-    // todo: Does it make sense to keep the buffer outside of the sorting function?
-    auto bufferSize = 2 << (nSplits - 1);
-    blitz::Array<int32_t, 3> offsets(bufferSize);
-    blitz::Array<int32_t, 3> next_free(bufferSize);
-
-    while (true) {
-        // todo: Find 3D bin boundaries.
-        auto widths = bnd.width();
-        std::array<uint32_t, 3> splitsPerDimension{0};
-        for (int _ = nSplits; --_;) {
-            int d = blitz::maxIndex(widths)[0];
-            widths[d] /= 2;
-            splitsPerDimension[d] += 1;
-        }
-
-        // todo: Inplace binned sort.
-        // todo: how to reinterpret histogramm with the new dimensions?
-        offsets = 0;
-        hist_sort_inplace(pkd, pNode->lower(), pNode->upper(), offsets, next_free, splitsPerDimension);
-
-        // todo: Build tree with given histogram.
-        // todo: something with stack.push_back(iLeaveNode)
-        // _buildTempBinned();
-
-        // todo: Repeat with tree leaves if they are not buckets.
-        // Get node and bound for next iteration.
-        pNode = pkd->tree[iNode];
-        bnd = pNode->bound();
-    }
-}
-
 /*
 ** With more than a single tree, we must be careful to make sure
 ** that they match or the P-P, P-C and hence checklists will explode.
