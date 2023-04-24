@@ -11,7 +11,9 @@ Welcome to pkdgrav3's documentation!
    :caption: Contents:
 
    install.rst
+   analysis.rst
    units.rst
+   parameters.rst
 
 ..
   Indices and tables

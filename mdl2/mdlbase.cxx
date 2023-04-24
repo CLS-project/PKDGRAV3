@@ -99,7 +99,9 @@ mdlBASE::mdlBASE(int argc,char **argv) {
     layout.iProc = 0;
     layout.nCores = 1;
     layout.iCore = 0;
+#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
     nTicks = 0;
+#endif
 
     /*
     ** Set default "maximums" for structures. These are NOT hard

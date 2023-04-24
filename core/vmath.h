@@ -200,7 +200,7 @@ dvec verf(const dvec &v,const dvec &iv,const dvec &ex2,dvec &r_erf,dvec &r_erfc)
         dvec::array_t q0a,q0b,q0c,q0d, q1a,q1b,q1c,q1d, q2a,q2b,q2c,q2d;
         dvec::array_t q3a,q3b,q3c,q3d, q4a,q4b,q4c,q4d, q5a,q5b,q5c,q5d;
 #endif
-    } consts = {
+    } consts alignas(dvec) = {
 #if defined(__AVX512F__)
 #define ERF_CONSTS(d,c,b,a) {a,b,c,d,a,b,c,d}
 #elif defined(__AVX2__)

@@ -1058,16 +1058,18 @@ ppy_msr_grid_bin_k(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
 static PyObject *
 ppy_msr_MeasurePk(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     flush_std_files();
-    static char const *kwlist[]= {"grid","bins","a",NULL};
+    static char const *kwlist[]= {"grid","bins","a","interlace","order",NULL};
     double a = 1.0;
     int nBins = -1;
+    int bInterlace = 1;
+    int iOrder = 4;
     int nGrid, i;
     std::vector<float> fK,fPk,fPkAll;
     std::vector<uint64_t> nK;
 
     if ( !PyArg_ParseTupleAndKeywords(
-                args, kwobj, "i|id:MeasurePk", const_cast<char **>(kwlist),
-                &nGrid, &nBins, &a ) )
+                args, kwobj, "i|idpi:MeasurePk", const_cast<char **>(kwlist),
+                &nGrid, &nBins, &a, &bInterlace ) )
         return NULL;
     if (nBins<0) nBins = nGrid/2;
 
@@ -1075,7 +1077,7 @@ ppy_msr_MeasurePk(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     fPkAll.resize(nBins+1);
     fK.resize(nBins+1);
     nK.resize(nBins+1);
-    self->msr->MeasurePk(4,1,nGrid,a,nBins,nK.data(),fK.data(),fPk.data(),fPkAll.data());
+    self->msr->MeasurePk(iOrder,bInterlace,nGrid,a,nBins,nK.data(),fK.data(),fPk.data(),fPkAll.data());
     auto ListK = PyList_New( nBins+1 );
     auto ListPk = PyList_New( nBins+1 );
     auto ListPkAll = PyList_New( nBins+1 );
@@ -1800,17 +1802,25 @@ extern "C" PyObject *PyInit_CSM(void);
 int MSR::Python(int argc, char *argv[]) {
     PyImport_AppendInittab(MASTER_MODULE_NAME,initModuleMSR);
     PyImport_AppendInittab("CSM",PyInit_CSM);
-
+    PyStatus status;
+    PyConfig config;
+    PyConfig_InitPythonConfig(&config);
+    PyConfig_Read(&config);
+    config.site_import = 1;
+    config.user_site_directory = 1;
+    config.parse_argv = 0;
+    status = PyConfig_SetBytesArgv(&config, argc, argv);
     // I don't like this, but it works for pyenv. See:
     //   https://bugs.python.org/issue22213
     //   https://www.python.org/dev/peps/pep-0432/
     auto PYENV_VIRTUAL_ENV = getenv("PYENV_VIRTUAL_ENV");
     if (PYENV_VIRTUAL_ENV) {
-        std::string path = PYENV_VIRTUAL_ENV;
-        path += "/bin/python";
-        Py_SetProgramName(Py_DecodeLocale(path.c_str(),NULL));
+        std::string exec = PYENV_VIRTUAL_ENV;
+        exec += "/bin/python";
+        status = PyConfig_SetBytesString(&config,&config.program_name,exec.c_str());
     }
-    Py_InitializeEx(0);
+    status = Py_InitializeFromConfig(&config);
+    PyConfig_Clear(&config);
 
     // Contruct the "MSR" context and module
     auto msr_module = PyModule_Create(&msrModule);
@@ -1819,12 +1829,6 @@ int MSR::Python(int argc, char *argv[]) {
     auto moduleState = reinterpret_cast<struct msrModuleState *>(PyModule_GetState(msr_module));
     moduleState->msr = this;
     moduleState->bImported = false; // If imported then we enter script mode
-
-    // Convert program arguments to unicode
-    auto wargv = new wchar_t *[argc];
-    for (int i=0; i<argc; ++i) wargv[i] = Py_DecodeLocale(argv[i],NULL);
-    PySys_SetArgv(argc, wargv);
-    delete[] wargv;
 
     PyObject *main_module = PyImport_ImportModule("__main__");
     auto globals = PyModule_GetDict(main_module);

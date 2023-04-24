@@ -96,7 +96,7 @@ public:
 // };
 
 template<typename SCALAR,typename VECTOR,int N>
-struct alignas(SIMD_WIDTH *sizeof(float)) ilBlockBase {
+struct alignas(fvec::width()*sizeof(float)) ilBlockBase {
     static constexpr int scalar_count = N;
 #if defined(__CUDACC__) || defined(__METAL_VERSION__)
     typedef SCALAR scalar_t;

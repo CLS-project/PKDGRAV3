@@ -622,11 +622,11 @@ pkdContext::~pkdContext() {
     }
     delete [] S;
     if (ew.nMaxEwhLoop) {
-        SIMD_free(ewt.hx.f);
-        SIMD_free(ewt.hy.f);
-        SIMD_free(ewt.hz.f);
-        SIMD_free(ewt.hCfac.f);
-        SIMD_free(ewt.hSfac.f);
+        delete [] ewt.hx.f;
+        delete [] ewt.hy.f;
+        delete [] ewt.hz.f;
+        delete [] ewt.hCfac.f;
+        delete [] ewt.hSfac.f;
     }
 
     /*
@@ -2175,166 +2175,6 @@ void addToLightCone(PKD pkd,double dvFac,double *r,float fPot,PARTICLE *p,int bP
         m->fPotential += fPot;
     }
 }
-
-#ifndef USE_SIMD_LC
-/*
-** This is the non-SIMD code path...unfortunately the code is duplicated with lightcone.cxx.
-** Currently not implementing the cone output, but works for all sky.
-*/
-#define NBOX 184
-void pkdProcessLightCone(PKD pkd,PARTICLE *p,float fPot,double dLookbackFac,double dLookbackFacLCP,double dDriftDelta,double dKickDelta,double dBoxSize,int bLightConeParticles,
-                         double hlcp [3],double tanalpha_2) {
-    const double dLightSpeed = dLightSpeedSim(dBoxSize);
-    const double mrLCP = dLightSpeed*dLookbackFacLCP;
-    double vrx0[NBOX],vry0[NBOX],vrz0[NBOX];
-    double vrx1[NBOX],vry1[NBOX],vrz1[NBOX];
-    double mr0[NBOX],mr1[NBOX],x[NBOX];
-    TinyVector<double,3> r0,r1;
-    double dlbt, dt, xStart, mr;
-    int j,k,iOct,nBox,bParticleOutput;
-    struct {
-        double dt;
-        double fOffset;
-        int jPlane;
-    } isect[4], temp;
-
-    /*
-    ** Check all 184 by default.
-    */
-    nBox = NBOX;
-    xStart = (dLookbackFac*dLightSpeed - 3.0)/(dKickDelta*dLightSpeed);
-    if (xStart > 1) return;
-    else if (xStart < 0) {
-        xStart = (dLookbackFac*dLightSpeed - 2.0)/(dKickDelta*dLightSpeed);
-        if (xStart >= 0) xStart = 0;
-        else {
-            /*
-            ** Check only 64!
-            */
-            nBox = 64;
-            xStart = (dLookbackFac*dLightSpeed - 1.0)/(dKickDelta*dLightSpeed);
-            if (xStart >= 0) xStart = 0;
-            else {
-                /*
-                ** Check only 8!
-                */
-                nBox = 8;
-                xStart = 0;
-            }
-        }
-    }
-
-    const auto &v = pkd->particles.velocity(p);
-    r0 = p.position();
-    for (j=0; j<3; ++j) {
-        if (r0[j] < -0.5) r0[j] += 1.0;
-        else if (r0[j] >= 0.5) r0[j] -= 1.0;
-    }
-    for (j=0; j<3; ++j) {
-        isect[j].dt = (0.5 - r0[j])/v[j];
-        if (isect[j].dt > 0.0) {
-            /*
-            ** Particle crosses the upper j-coordinate boundary of the unit cell at isect[j].dt.
-            */
-            isect[j].fOffset = -1.0;
-        }
-        else {
-            /*
-            ** Particle crosses the lower j-coordinate boundary of the unit cell at isect[j].dt.
-            */
-            isect[j].dt = (-0.5 - r0[j])/v[j];
-            isect[j].fOffset = 1.0;
-        }
-        isect[j].jPlane = j;
-    }
-    isect[3].dt = dDriftDelta;
-    isect[3].fOffset = 0.0;
-    isect[3].jPlane = 3;
-    /*
-    ** Sort them!
-    */
-    if (isect[0].dt>isect[1].dt) {
-        temp = isect[0];
-        isect[0] = isect[1];
-        isect[1] = temp;
-    }
-    if (isect[2].dt>isect[3].dt) {
-        temp = isect[2];
-        isect[2] = isect[3];
-        isect[3] = temp;
-    }
-    temp = isect[1];
-    isect[1] = isect[2];
-    isect[2] = temp;
-    if (isect[0].dt>isect[1].dt) {
-        temp = isect[0];
-        isect[0] = isect[1];
-        isect[1] = temp;
-    }
-    if (isect[2].dt>isect[3].dt) {
-        temp = isect[2];
-        isect[2] = isect[3];
-        isect[3] = temp;
-    }
-    if (isect[1].dt>isect[2].dt) {
-        temp = isect[1];
-        isect[1] = isect[2];
-        isect[2] = temp;
-    }
-
-    for (k=0; k<4; ++k) {
-        double dtApprox;
-        if (k==0) {
-            /*
-            ** Check lightcone from 0 <= dt < isect[k].dt
-            */
-            dt = isect[k].dt;
-            dtApprox = dt/dDriftDelta*dKickDelta;
-            dlbt = dLookbackFac;
-        }
-        else {
-            /*
-            ** Check lightcone from isect[k-1].dt <= dt < isect[k].dt
-            */
-            dt = isect[k].dt - isect[k-1].dt;
-            dtApprox = dt/dDriftDelta*dKickDelta;
-            dlbt = dLookbackFac - dtApprox;
-        }
-        r1 = r0 + dt*v;
-        for (iOct=0; iOct<nBox; ++iOct) {
-            vrx0[iOct] = pkd->lcOffset0[iOct] + r0[0];
-            vry0[iOct] = pkd->lcOffset1[iOct] + r0[1];
-            vrz0[iOct] = pkd->lcOffset2[iOct] + r0[2];
-            vrx1[iOct] = pkd->lcOffset0[iOct] + r1[0];
-            vry1[iOct] = pkd->lcOffset1[iOct] + r1[1];
-            vrz1[iOct] = pkd->lcOffset2[iOct] + r1[2];
-            mr0[iOct] = sqrt(vrx0[iOct]*vrx0[iOct] + vry0[iOct]*vry0[iOct] + vrz0[iOct]*vrz0[iOct]);
-            mr1[iOct] = sqrt(vrx1[iOct]*vrx1[iOct] + vry1[iOct]*vry1[iOct] + vrz1[iOct]*vrz1[iOct]);
-            x[iOct] = (dLightSpeed*dlbt - mr0[iOct])/(dLightSpeed*dtApprox - mr0[iOct] + mr1[iOct]);
-        }
-        for (iOct=0; iOct<nBox; ++iOct) {
-            if (x[iOct] >= xStart && x[iOct] < 1.0) {
-                double r[3];
-                /*
-                ** Create a new light cone particle.
-                */
-                r[0] = (1-x[iOct])*vrx0[iOct] + x[iOct]*vrx1[iOct];
-                r[1] = (1-x[iOct])*vry0[iOct] + x[iOct]*vry1[iOct];
-                r[2] = (1-x[iOct])*vrz0[iOct] + x[iOct]*vrz1[iOct];
-                mr = sqrt(r[0]*r[0] + r[1]*r[1] + r[2]*r[2]);
-                addToLightCone(pkd,r,fPot,p,bLightConeParticles && (mr <= mrLCP));
-            }
-        }
-        if (isect[k].jPlane == 3) break;
-        /*
-        ** Now we need to reposition r0 to the new segment.
-        */
-        for (j=0; j<3; ++j) r0[j] = r1[j];
-        r0[isect[k].jPlane] += isect[k].fOffset;
-    }
-}
-#undef NBOX
-#endif
 
 /*
 ** Drift particles whose Rung falls between uRungLo (large step) and uRungHi (small step) inclusive,

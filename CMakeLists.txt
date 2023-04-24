@@ -163,9 +163,10 @@ add_subdirectory(metal)
 add_subdirectory(tests)
 
 add_custom_command(
-    OUTPUT ${CMAKE_BINARY_DIR}/m_parse.h
-    MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/parse.py
-    COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/make_parse.py ${CMAKE_SOURCE_DIR}/parse.py ${CMAKE_BINARY_DIR}/m_parse.h
+    OUTPUT ${CMAKE_BINARY_DIR}/parse.py ${CMAKE_BINARY_DIR}/m_parse.h
+    MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/parameters.toml
+    DEPENDS ${CMAKE_SOURCE_DIR}/make_parse.py
+    COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/make_parse.py ${CMAKE_SOURCE_DIR}/parameters.toml ${CMAKE_BINARY_DIR}/parse.py ${CMAKE_BINARY_DIR}/m_parse.h
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     VERBATIM
 )
@@ -271,9 +272,7 @@ if(USE_SIMD)
 #if USE_SIMD_FMM
 target_sources(${PROJECT_NAME} PRIVATE gravity/vmoments.cxx)
 #endif
-#if USE_SIMD_LC
 target_sources(${PROJECT_NAME} PRIVATE lightcone.cxx)
-#endif
 endif()
 
 foreach(flag_var
@@ -582,4 +581,5 @@ endif()
 #target_include_directories(psout PRIVATE ${GSL_INCLUDE_DIRS})
 #target_link_libraries(psout ${GSL_LIBRARIES})
 
+install(TARGETS ${PROJECT_NAME} ${PROJECT_NAME} DESTINATION "bin")
 #install(TARGETS ${PROJECT_NAME} tostd DESTINATION "bin")

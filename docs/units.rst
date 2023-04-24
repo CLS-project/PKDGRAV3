@@ -75,7 +75,22 @@ It is helpful to introduce the value of the gravitational constant.
 .. math:: 
     G = 4.30091727063\times 10^{-9}~\text{Mpc}~M_\odot^{-1}\left(\text{km}/\text{s}\right)^2
 
-Recall that :math:`1` Mpc is :math:`\pi^{-1}\times 9.69394202136\times 10^{19}` km, so we can rewrite this as the product of a density and time squared.
+Recall that:
+
+.. math::
+    \frac{1~\text{pc}}{1~\text{au}} = \frac{180\times 60\times 60}{\pi}
+
+where:
+
+pc
+   The length of a parsec.
+
+au
+   The length of the astronomical unit which is defined to be exactly 149 597 870 700 meters.
+
+This means that :math:`1` Mpc
+is :math:`\pi^{-1}\times 9.69394202136\times 10^{19}` km, so we can rewrite
+:math:`G` as the product of a density and time squared.
 
 .. math:: 
     G &= 4.30091727063\times 10^{-9}\frac{Mpc}{M_\odot}\left(\frac{\text{km}}{\text{s}}\right)^2 \times

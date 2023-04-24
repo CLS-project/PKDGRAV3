@@ -97,7 +97,7 @@ typedef struct {
 typedef union {
     ewaldFloatType *f;
 #if defined(USE_SIMD) && !defined(__CUDACC__)
-    v_sf *p;
+    fvec *p;
 #endif
 } ewaldFloat;
 

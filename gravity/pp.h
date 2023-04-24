@@ -138,7 +138,7 @@ PP_CUDA_BOTH ResultDensity<F> EvalDensity(
         result.adrhodfball = Im * result.adndendfball;
 
         // return the number of particles used
-        result.anSmooth = maskz_mov(r_lt_one,1.0f);
+        result.anSmooth = maskz_mov(r_lt_one,F(1.0f));
 
         // Calculate the imbalance values
         if (doInterfaceCorrection) {

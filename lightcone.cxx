@@ -22,7 +22,6 @@
 #endif
 #include <stdint.h>
 #include <math.h>
-#include <immintrin.h>
 #include "pkd.h"
 #include "core/simd.h"
 
