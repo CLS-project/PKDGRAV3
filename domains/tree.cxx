@@ -146,7 +146,7 @@ void pkdDumpTrees(PKD pkd,int bOnlyVA, uint8_t uRungDD) {
 }
 
 /// @brief Partition particles array between pLower and pUpper (inclusive).
-/// @tparam pivot_t
+/// @tparam pivot_t Allows for floating point or integer positions.
 /// @param pkd pkdContext object.
 /// @param pLower Starting index of partition.
 /// @param pUpper End index of partition (inclusive).
