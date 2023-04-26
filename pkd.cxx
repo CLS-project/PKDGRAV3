@@ -1438,7 +1438,7 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,Bound bnd
             T = SPHEOSTofRhoU(pkd,fDensity, NewSph.u, p.imaterial(), &pkd->SPHoptions);
             for (int k = 0; k < ELEMENT_COUNT; k++) fMetals[k] = 0.0f;
             fMetals[0] = p.imaterial();
-            fSoft = p.soft();
+            fSoft = p.ball() / 2.0f;
             fioWriteSph(fio,iParticleID,r.data(),v.data(),fMass,fSoft,fPot,
                         fDensity,T,&fMetals[0],0.0f,T,otherData);
         }

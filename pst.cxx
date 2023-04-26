@@ -1369,8 +1369,8 @@ int pstCalcEandL(PST pst,void *vin,int nIn,void *vout,int nOut) {
         out->T += outLcl.T;
         out->U += outLcl.U;
         out->Eth += outLcl.Eth;
-        for (k=0; k<3; k++) out->L[k] = outLcl.L[k];
-        for (k=0; k<3; k++) out->F[k] = outLcl.F[k];
+        for (k=0; k<3; k++) out->L[k] += outLcl.L[k];
+        for (k=0; k<3; k++) out->F[k] += outLcl.F[k];
         out->W += outLcl.W;
     }
     else {
