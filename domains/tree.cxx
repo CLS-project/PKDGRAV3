@@ -145,149 +145,137 @@ void pkdDumpTrees(PKD pkd,int bOnlyVA, uint8_t uRungDD) {
     }
 }
 
-#define MIN_SRATIO    0.05
-
-
-/*
-** Partition the particles between pLower and pUpper (inclusive)
-** around "Split" in dimension "d". Return the index of the split.
-*/
-template<class split_t>
-static int PartPart(PKD pkd,int pLower,int pUpper,int d,split_t Split) {
+/// @brief Partition particles array between pLower and pUpper (inclusive).
+/// @tparam pivot_t Allows for floating point or integer positions.
+/// @param pkd pkdContext object.
+/// @param pLower Starting index of partition.
+/// @param pUpper End index of partition (inclusive).
+/// @param d Dimension to split in.
+/// @param pivot Values lower then pivot are sorted to the left of the array, values larger then pivot are sorted to the right of the array.
+/// @return The index of the split.
+template<class pivot_t>
+static int PartPart(PKD pkd,int pLower,int pUpper,int d,pivot_t pivot) {
     auto pi = pkd->particles.begin() + pLower;
     auto pj = pkd->particles.begin() + pUpper;
-    return std::partition(pi,pj+1,[Split,d](auto &p) {return p.template raw_position<split_t>(d) < Split;}) - pkd->particles.begin();
+    return std::partition(pi,pj+1,[pivot,d](auto &p) {return p.template raw_position<pivot_t>(d) < pivot;}) - pkd->particles.begin();
 }
 
-/*
-** M is the bucket size.
-** This function assumes that the root node is correctly set up (particularly the bounds).
-*/
-void BuildTemp(PKD pkd,int iNode,int M,int nGroup,double dMaxMax) {
-    auto pNode = pkd->tree[iNode];
-    double lrMax;
-    std::vector<int> S;     /* this is the stack */
-    int d;
-    int i;
-    int nr,nl;
-    int lc,rc;
-    int nBucket = 0;
+/// @brief Build tree.
+///
+/// This function assumes that the root node is correctly set up (particularly the bounds).
+/// @param pkd pkdContext object.
+/// @param iNode index of node in pkd->tree[]
+/// @param bucketSize Maximum number of particles a node can have to be considered a bucket.
+/// @param nGroup Maximum number of particles a node can have to be considered a group.
+/// @param maxBucketWidth Hacky parameter to control that the size of bucket is not too large.
+///        Was used because sometimes the tree would not build correctly without this.
+void BuildTemp(PKD pkd, int iNode, int bucketSize, int nGroup, double maxBucketWidth) {
+    auto pNode = pkd->tree[iNode]; // Current node of the larger tree that spans across nodes.
 
     pNode->set_depth(0);
-    pNode->set_split_dim(3);
 
     // Single bucket? We are done.
-    if (pNode->count() <= M) return;
+    if (pNode->count() <= bucketSize) {
+        // splitDim == 3 is a sentinel value for this beeing a leave node.
+        pNode->set_split_dim(3);
+        return;
+    };
 
-    S.reserve(100); // Start with a sensible stack size
-
+    std::vector<int> stack;
+    stack.reserve(100); // Start with a sensible stack size
     auto bnd = pNode->bound();
-    while (1) {
-        // Begin new stage! Calculate the appropriate fSplit.
+    while (true) {
+        // Begin new stage! Calculate the appropriate split.
         // Pick longest dimension and split it in half.
         // Calculate the new left and right cells. We will use
         // either the left, the right or (usually) both.
-        pNode->set_split_dim(d = bnd.maxdim());
-        auto [lbnd,rbnd] = bnd.split(d);
-        lrMax = 0.5*lbnd.maxside();
+        int d = bnd.maxdim();
+        pNode->set_split_dim(d);
+        auto [lbnd, rbnd] = bnd.split(d);
+        double nodeSize = 0.5 * lbnd.maxside();
         // Now start the partitioning of the particles about
-        // fSplit on dimension given by d.
+        // split on dimension given by d.
+        int i; // Partition index.
         if (pkd->bIntegerPosition) {
-            int32_t Split = pkdDblToIntPos(pkd,bnd.center(d));
-            i = PartPart(pkd,pNode->lower(),pNode->upper(),d,Split);
+            int32_t split = pkdDblToIntPos(pkd, bnd.center(d));
+            i = PartPart(pkd, pNode->lower(), pNode->upper(), d, split);
         }
-        else i = PartPart(pkd,pNode->lower(),pNode->upper(),d,bnd.center(d));
-        nl = i - pNode->lower();
-        nr = pNode->upper() + 1 - i;
-        if (nl > 0 && nr > 0) {
+        else {
+            double split = bnd.center(d);
+            i = PartPart(pkd, pNode->lower(), pNode->upper(), d, split);
+        }
+
+        int nl = i - pNode->lower();     // Number of particles in the left partition.
+        int nr = pNode->upper() + 1 - i; // Number of particles in the right partition.
+        if (nl > 0 && nr > 0) { // Both sides non empty.
             // Split this node into two children
-            auto [pLeft,pRight] = pNode->split(i);
+            auto [pLeft, pRight] = pNode->split(i);
 
             pNode->set_group(pNode->count() <= nGroup);
             pLeft->set_bound(lbnd);
             pRight->set_bound(rbnd);
 
-            /*
-            ** Now figure out which subfile to process next.
-            */
-            if (lrMax > dMaxMax) {
-                lc = (nl > 0); /* this condition means the left child is not a bucket */
-                rc = (nr > 0);
-            }
-            else {
-                lc = (nl > M); /* this condition means the left child is not a bucket */
-                rc = (nr > M);
-            }
-            if (rc && lc) {
+            // Figure out which sub-tree to process next.
+            bool left_is_bucket = (nodeSize <= maxBucketWidth && nl <= bucketSize);
+            bool right_is_bucket = (nodeSize <= maxBucketWidth && nr <= bucketSize);
+
+            if (!right_is_bucket && !left_is_bucket) {
+                // Process smaller subtree first. This keeps the stack size as small as possible.
                 if (nr > nl) {
-                    S.push_back(pNode->rchild());   // push tr
-                    iNode = pNode->lchild();        // process lower subfile
+                    stack.push_back(pNode->rchild()); // push right subtree.
+                    iNode = pNode->lchild();          // process left sub-tree.
                 }
                 else {
-                    S.push_back(pNode->lchild());   // push tl
-                    iNode = pNode->rchild();        // process upper subfile
+                    stack.push_back(pNode->lchild()); // push left subtree.
+                    iNode = pNode->rchild();          // process right sub-tree.
                 }
             }
-            else if (lc) {
-                /*
-                ** Right must be a bucket in this case!
-                */
-                iNode = pNode->lchild();   /* process lower subfile */
+            else if (!left_is_bucket) {
+                iNode = pNode->lchild(); // process left sub-tree
                 pRight->set_group(true);
-                ++nBucket;
             }
-            else if (rc) {
-                /*
-                ** Left must be a bucket in this case!
-                */
-                iNode = pNode->rchild();   /* process upper subfile */
+            else if (!right_is_bucket) {
+                iNode = pNode->rchild(); // process right sub-tree
                 pLeft->set_group(true);
-                ++nBucket;
             }
             else {
-                /*
-                ** Both are buckets (we need to pop from the stack to get the next subfile.
-                */
+                // Both are buckets. We need to pop from the stack to get the next sub-tree.
                 pLeft->set_group(true);
-                ++nBucket;
                 pRight->set_group(true);
-                ++nBucket;
-                if (S.empty()) break;
-                iNode = S.back();
-                S.pop_back();
+
+                if (stack.empty()) break;
+                iNode = stack.back();
+                stack.pop_back();
             }
         }
         else {
-            pNode->set_depth(pNode->depth()+1);
-            // No nodes allocated: just change the bounds
+            // At least one half of the partition is empty.
+            // In practice it can only every be one half that is empty, because we don't create empty nodes.
+            assert(nl > 0 || nr > 0);
+            // No need to allocate additional node. Just change bounds and depth of current node.
+            pNode->set_depth(pNode->depth() + 1);
+            bool is_bucket;
             if (nl > 0) {
                 pNode->set_bound(lbnd);
-                lc = (lrMax>dMaxMax || nl > M); /* this condition means the node is not a bucket */
-                if (!lc) {
-                    pNode->set_group(true);
-                    ++nBucket;
-                    if (S.empty()) break;
-                    iNode = S.back();
-                    S.pop_back();
-                }
+                is_bucket = (nodeSize <= maxBucketWidth && nl <= bucketSize);
             }
             else {
                 pNode->set_bound(rbnd);
-                rc = (lrMax>dMaxMax || nr > M);
-                if (!rc) {
-                    pNode->set_group(true);
-                    ++nBucket;
-                    if (S.empty()) break;
-                    iNode = S.back();
-                    S.pop_back();
-                }
+                is_bucket = (nodeSize <= maxBucketWidth && nr <= bucketSize);
+            }
+            if (is_bucket) {
+                pNode->set_group(true);
+                if (stack.empty()) break;
+                iNode = stack.back();
+                stack.pop_back();
             }
         }
+
+        // Get node and bound for next iteration.
         pNode = pkd->tree[iNode];
         bnd = pNode->bound();
     }
 }
-
 
 /*
 ** With more than a single tree, we must be careful to make sure
