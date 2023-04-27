@@ -495,13 +495,14 @@ void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTi
     auto sec = MSR::Time();
 
     if (parameter_overrides) {
-        if (!update_parameters(parameter_overrides)) Exit(1);
+        if (!parameters.update(parameter_overrides)) Exit(1);
+        parameters.ppy2prm(prm);
         parameter_overrides = nullptr; // This is not owned by us
     }
 
     ValidateParameters(); // Should be okay, but other stuff happens here (cosmo is setup for example)
 
-    bVDetails = getParameterBoolean("bVDetails");
+    bVDetails = parameters.get_bVDetails();
     if (param.bVStart)
         printf("Restoring from checkpoint\n");
     TimerStart(TIMER_IO);
@@ -615,9 +616,9 @@ void MSR::writeParameters(const char *baseName,int iStep,int nSteps,double dTime
             "from MASTER import MSR",
             "from argparse import Namespace",
             "arguments=");
-    PyObject_Print(arguments,fp,0);
+    PyObject_Print(parameters.get_arguments(),fp,0);
     fprintf(fp,"\n%s","specified=");
-    PyObject_Print(specified,fp,0);
+    PyObject_Print(parameters.get_specified(),fp,0);
     fprintf(fp,"\nspecies=[ ");
     for (i=0; i<FIO_SPECIES_LAST; ++i) fprintf(fp,"%" PRIu64 ",",nSpecies[i]);
     fprintf(fp," ]\n");
@@ -2125,8 +2126,6 @@ int MSR::CheckForStop(const char *achStopFile) {
 MSR::~MSR() {
     csmFinish(csm);
     prmFinish(prm);
-    Py_XDECREF(arguments);
-    Py_XDECREF(specified);
     if (Py_IsInitialized()) Py_Finalize();
 }
 

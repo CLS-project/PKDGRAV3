@@ -51,199 +51,11 @@ static void flush_std_files(void) {
 }
 
 /******************************************************************************\
-*   Modern, safe, direct from Python parameter fetching
-\******************************************************************************/
-
-int64_t MSR::getScalarInteger(const char *name, PyObject *v) {
-    if (PyLong_Check(v)) return PyLong_AsLong(v);
-    else if (PyFloat_Check(v)) return static_cast<int64_t>(PyFloat_AsDouble(v));
-    else throw std::domain_error(name);
-}
-int64_t MSR::getScalarInteger(const char *name) {
-    int64_t result;
-    auto v = PyObject_GetAttrString(arguments, name);
-    result = getScalarInteger(name,v);
-    Py_DECREF(v);
-    return result;
-}
-std::vector<int64_t> MSR::getVectorInteger(const char *name) {
-    std::vector<int64_t> result;
-    auto v = PyObject_GetAttrString(arguments, name);
-    if (PyList_Check(v)) {
-        auto n = PyList_Size(v);
-        result.reserve(n);
-        for (auto i=0; i<n; ++i) result.push_back(getScalarInteger(name,PyList_GetItem(v,i)));
-    }
-    else result.push_back(getScalarInteger(name));
-    Py_DECREF(v);
-    return result;
-}
-
-double MSR::getScalarNumber(const char *name, PyObject *v) {
-    if (PyFloat_Check(v)) return PyFloat_AsDouble(v);
-    else if (PyLong_Check(v)) return PyLong_AsLong(v);
-    else throw std::domain_error(name);
-}
-double MSR::getScalarNumber(const char *name) {
-    double result;
-    auto v = PyObject_GetAttrString(arguments, name);
-    result = getScalarNumber(name,v);
-    Py_DECREF(v);
-    return result;
-}
-std::vector<double> MSR::getVectorNumber(const char *name) {
-    std::vector<double> result;
-    auto v = PyObject_GetAttrString(arguments, name);
-    if (PyList_Check(v)) {
-        auto n = PyList_Size(v);
-        result.reserve(n);
-        for (auto i=0; i<n; ++i) result.push_back(getScalarNumber(name,PyList_GetItem(v,i)));
-    }
-    else result.push_back(getScalarNumber(name));
-    Py_DECREF(v);
-    return result;
-}
-
-std::string MSR::getScalarString(const char *name, PyObject *v) {
-    std::string result;
-    if (PyUnicode_Check(v)) {
-        auto ascii = PyUnicode_AsASCIIString(v);
-        result = PyBytes_AsString(ascii);
-        Py_DECREF(ascii);
-    }
-    else throw std::domain_error(name);
-    return result;
-}
-std::string MSR::getScalarString(const char *name) {
-    std::string result;
-    auto v = PyObject_GetAttrString(arguments, name);
-    result = getScalarString(name,v);
-    Py_DECREF(v);
-    return result;
-}
-std::vector<std::string> MSR::getVectorString(const char *name) {
-    std::vector<std::string> result;
-    auto v = PyObject_GetAttrString(arguments, name);
-    if (PyList_Check(v)) {
-        auto n = PyList_Size(v);
-        result.reserve(n);
-        for (auto i=0; i<n; ++i) result.push_back(getScalarString(name,PyList_GetItem(v,i)));
-    }
-    else result.push_back(getScalarString(name));
-    Py_DECREF(v);
-    return result;
-}
-
-
-/******************************************************************************\
-*   Copy parameters from Python to pkdgrav3 (may go away eventually)
-\******************************************************************************/
-
-static void setNode(PRM_NODE *pn,int i,PyObject *v) {
-    const char *s;
-    switch (pn->iType) {
-    case 0:
-    case 1:
-        assert(pn->iSize == sizeof(int));
-        if (PyLong_Check(v)) ((int *)pn->pValue)[i] = PyLong_AsLong(v);
-        else if (PyFloat_Check(v)) ((int *)pn->pValue)[i] = (int)PyFloat_AsDouble(v);
-        else fprintf(stderr,"Invalid type for %s\n",pn->pszName);
-        break;
-    case 2:
-        assert(pn->iSize == sizeof(double));
-        if (PyFloat_Check(v)) ((double *)pn->pValue)[i] = PyFloat_AsDouble(v);
-        else if (PyLong_Check(v)) ((double *)pn->pValue)[i] = PyLong_AsLong(v);
-        else fprintf(stderr,"Invalid type for %s\n",pn->pszName);
-        break;
-    case 3:
-        if (PyUnicode_Check(v)) {
-            PyObject *ascii = PyUnicode_AsASCIIString(v);
-            s = PyBytes_AsString(ascii);
-            Py_DECREF(ascii);
-        }
-        else {
-            fprintf(stderr,"Invalid type for %s\n",pn->pszName);
-            s = NULL;
-        }
-        if (s!=NULL) {
-            assert(pn->iSize > strlen(s));
-            strcpy((char *)pn->pValue,s);
-        }
-        else *(char *)pn->pValue = 0;
-        break;
-    case 4:
-        assert(pn->iSize == sizeof(uint64_t));
-        ((uint64_t *)pn->pValue)[i] = PyLong_AsLong(v);
-        break;
-    }
-}
-
-static int ppy2prm(PRM prm,PyObject *arguments, PyObject *specified) {
-    int bOK = 1;
-
-    for ( auto pn=prm->pnHead; pn!=NULL; pn=pn->pnNext ) {
-        //auto v = PyDict_GetItemString(arguments, pn->pszName);
-        //auto f = PyDict_GetItemString(specified, pn->pszName);
-        auto v = PyObject_GetAttrString(arguments, pn->pszName); // A Namespace
-        if (v!=NULL) {
-            if (v != Py_None) {
-                auto f = PyObject_GetAttrString(specified, pn->pszName); // A Namespace
-                if (f) {
-                    pn->bArg = PyObject_IsTrue(f)>0;
-                    Py_DECREF(f);
-                }
-                else pn->bArg = 0;
-                if (PyList_Check(v)) {
-                    if (pn->pCount==NULL) {
-                        fprintf(stderr,"The parameter %s cannot be a list!\n",pn->pszName);
-                        bOK = 0;
-                    }
-                    else {
-                        int i, n = PyList_Size(v);
-                        for (i=0; i<n; ++i) setNode(pn,i,PyList_GetItem(v,i));
-                        *pn->pCount = n;
-                    }
-                }
-                else setNode(pn,0,v);
-            }
-            Py_DECREF(v);
-        }
-        else {
-            PyErr_Clear();
-        }
-    }
-    return bOK;
-}
-
-/******************************************************************************\
 *   Copy parameters from pkdgrav3 to Python (may go away eventually)
 \******************************************************************************/
 
-static void prm2ppy(PRM prm,PyObject *arguments, PyObject *specified) {
-    for ( auto pn=prm->pnHead; pn!=NULL; pn=pn->pnNext ) {
-        if (pn->pCount!=NULL) continue; // Lists are read-only for now
-        PyObject *v;
-
-        switch (pn->iType) {
-        case 0:
-        case 1:
-            v = PyLong_FromLong(*(int *)pn->pValue);
-            break;
-        case 2:
-            v = PyFloat_FromDouble(*(double *)pn->pValue);
-            break;
-        default:
-            v = NULL;
-        }
-        if (v) {
-            PyObject_SetAttrString(arguments,pn->pszName,v);
-            Py_DECREF(v);
-        }
-    }
-}
-
 void MSR::SaveParameters() {
-    prm2ppy(prm,arguments,specified);
+    parameters.prm2ppy(prm);
 }
 
 /******************************************************************************\
@@ -430,58 +242,11 @@ static PyTypeObject ephemeralType = {
 
 /********** Set Internal parameters **********/
 
-bool MSR::verify_parameters(PyObject *kwobj) {
-    bool bSuccess = true;
-    PyObject *key, *value;
-    Py_ssize_t pos = 0;
-    while (PyDict_Next(kwobj, &pos, &key, &value)) {
-        const char *keyString;
-        if (PyUnicode_Check(key)) {
-            PyObject *ascii = PyUnicode_AsASCIIString(key);
-            keyString = PyBytes_AsString(ascii);
-            Py_DECREF(ascii);
-            if (keyString[0]=='_') continue;
-        }
-        if (!PyObject_HasAttr(arguments,key)) {
-            PyErr_Format(PyExc_AttributeError,"invalid parameter %A",key);
-            PyErr_Print();
-            bSuccess=false;
-        }
-    }
-    return bSuccess;
-}
-
-bool MSR::update_parameters(PyObject *kwobj,bool bIgnoreUnknown) {
-    bool bSuccess = true;
-    PyObject *key, *value;
-    Py_ssize_t pos = 0;
-    while (PyDict_Next(kwobj, &pos, &key, &value)) {
-        const char *keyString;
-        if (PyUnicode_Check(key)) {
-            PyObject *ascii = PyUnicode_AsASCIIString(key);
-            keyString = PyBytes_AsString(ascii);
-            Py_DECREF(ascii);
-            if (keyString[0]=='_') continue;
-        }
-        if (PyObject_HasAttr(arguments,key)) {
-            PyObject_SetAttr(arguments,key,value);
-            PyObject_SetAttr(specified,key,Py_True);
-        }
-        else if (!bIgnoreUnknown) {
-            PyErr_Format(PyExc_AttributeError,"invalid parameter %A",key);
-            PyErr_Print();
-            bSuccess=false;
-        }
-    }
-    ppy2prm(prm,arguments,specified);
-    return bSuccess;
-}
-
 bool MSR::setParameters(PyObject *kwobj,bool bIgnoreUnknown) {
     auto allow = PyDict_GetItemString(kwobj,"bIgnoreUnknown");
     if (allow) bIgnoreUnknown = PyObject_IsTrue(allow)>0;
-
-    auto bSuccess = update_parameters(kwobj,bIgnoreUnknown);
+    auto bSuccess = parameters.update(kwobj,bIgnoreUnknown);
+    parameters.ppy2prm(prm);
     ValidateParameters();
     return bSuccess;
 }
@@ -600,7 +365,7 @@ ppy_msr_load_checkpoint(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
 
     if (kwobj) {
         if (!PyArg_ValidateKeywordArguments(kwobj)) return NULL;
-        if (!self->msr->verify_parameters(kwobj)) {
+        if (!self->msr->parameters.verify(kwobj)) {
             return PyErr_Format(PyExc_AttributeError,"invalid parameters specified to load_checkpoint");
         }
     }
@@ -695,18 +460,6 @@ ppy_msr_Checkpoint(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     Py_RETURN_NONE;
 }
 
-static void merge_objects(PyObject *o1, PyObject *o2) {
-    auto d1 = PyObject_GenericGetDict(o1,nullptr);
-    auto d2 = PyObject_GenericGetDict(o2,nullptr);
-    // auto d1 = PyObject_GetAttrString(o1,"__dict__");
-    // auto d2 = PyObject_GetAttrString(o2,"__dict__");
-    PyObject *key, *value;
-    Py_ssize_t pos = 0;
-    while (PyDict_Next(d2, &pos, &key, &value)) {
-        PyDict_SetItem(d1,key,value);
-    }
-}
-
 static PyObject *
 ppy_msr_Restart(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     flush_std_files();
@@ -723,8 +476,9 @@ ppy_msr_Restart(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
                 &iStep,&nSteps,&dTime,&dDelta,&msr->dEcosmo,&msr->dUOld, &msr->dTimeOld ) )
         return NULL;
 
-    merge_objects(msr->arguments,arguments);  Py_DECREF(arguments);
-    merge_objects(msr->specified,specified);  Py_DECREF(specified);
+    msr->parameters.merge(pkd_parameters(arguments,specified));
+    Py_DECREF(arguments);
+    Py_DECREF(specified);
 
     // Create a vector of number of species
     species = PySequence_Fast(species,"species must be a list");
@@ -762,7 +516,7 @@ ppy_msr_Restart(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     }
     Py_DECREF(classes); // PySequence_Fast creates a new reference
 
-    ppy2prm(msr->prm,msr->arguments,msr->specified);
+    msr->parameters.ppy2prm(msr->prm);
     msr->Restart(n, name, iStep, nSteps, dTime, dDelta);
 
     Py_RETURN_NONE;
@@ -830,7 +584,6 @@ ppy_msr_Gravity(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     int iRoot1 = ROOT;
     int iRoot2 = 0;
     double dStep = 0.0;
-    //double dTheta = msr->getParameterDouble("dTheta");
     int bKickOpen = 1;
     int bKickClose = 1;
     int onlyMarked = 0;
@@ -1580,13 +1333,15 @@ static PyMemberDef msr_members[] = {
 };
 
 static PyObject *msr_get_parm(MSRINSTANCE *self, void *) {
-    Py_INCREF(self->msr->arguments);
-    return self->msr->arguments;
+    auto a = self->msr->parameters.get_arguments();
+    Py_INCREF(a);
+    return a;
 }
 
 static PyObject *msr_get_spec(MSRINSTANCE *self, void *) {
-    Py_INCREF(self->msr->specified);
-    return self->msr->specified;
+    auto s = self->msr->parameters.get_specified();
+    Py_INCREF(s);
+    return s;
 }
 
 // This warning should be fixed in newer Python versions
@@ -1699,104 +1454,6 @@ void MSR::runAnalysis(int iStep,double dTime) {
 *   Setup MSR using Python to parse parameters / enter analysis mode
 \******************************************************************************/
 
-bool MSR::wasParameterSpecified(const char *name) const {
-    bool bSpecified = false;
-    if (auto f = PyObject_GetAttrString(specified,name)) {
-        bSpecified = PyObject_IsTrue(f)>0;
-        Py_DECREF(f);
-    }
-    return bSpecified;
-}
-
-bool MSR::getParameterBoolean(const char *name) const {
-    bool v = false;
-    if (auto o = PyObject_GetAttrString(arguments,name)) {
-        v = PyObject_IsTrue(o)>0;
-        Py_DECREF(o);
-    }
-    if (PyErr_Occurred()) {
-        PyErr_Print();
-        abort();
-    }
-    return v;
-}
-void MSR::setParameter(const char *name,bool v,int bSpecified) {
-    auto o = v ? Py_True : Py_False;
-    PyObject_SetAttrString(arguments,name,o);
-    if (bSpecified) {
-        Py_INCREF(Py_True);
-        PyObject_SetAttrString(specified,name,Py_True);
-    }
-    if (PyErr_Occurred()) {
-        PyErr_Print();
-        abort();
-    }
-}
-
-
-double MSR::getParameterDouble(const char *name) const {
-    double v = 0.0;
-    if (auto n = PyObject_GetAttrString(arguments,name)) {
-        if (auto o = PyNumber_Float(n)) {
-            v = PyFloat_AsDouble(o);
-            Py_DECREF(o);
-        }
-        Py_DECREF(n);
-    }
-    if (PyErr_Occurred()) {
-        PyErr_Print();
-        abort();
-    }
-    return v;
-}
-void MSR::setParameter(const char *name,double v,int bSpecified) {
-    auto o = PyFloat_FromDouble(v);
-    //v = PyLong_FromLong(*(int *)pn->pValue);
-    if (o) {
-        PyObject_SetAttrString(arguments,name,o);
-        Py_DECREF(o);
-        if (bSpecified) {
-            Py_INCREF(Py_True);
-            PyObject_SetAttrString(specified,name,Py_True);
-        }
-    }
-    if (PyErr_Occurred()) {
-        PyErr_Print();
-        abort();
-    }
-}
-
-Py_ssize_t MSR::getParameterInteger(const char *name) const {
-    Py_ssize_t v = 0;
-    if (auto n = PyObject_GetAttrString(arguments,name)) {
-        if (auto o = PyNumber_Long(n)) {
-            v = PyLong_AsSsize_t(o);
-            Py_DECREF(o);
-        }
-        Py_DECREF(n);
-    }
-    if (PyErr_Occurred()) {
-        PyErr_Print();
-        abort();
-    }
-    return v;
-}
-void MSR::setParameter(const char *name,Py_ssize_t v,int bSpecified) {
-    auto o = PyLong_FromSsize_t(v);
-    if (o) {
-        PyObject_SetAttrString(arguments,name,o);
-        Py_DECREF(o);
-        if (bSpecified) {
-            Py_INCREF(Py_True);
-            PyObject_SetAttrString(specified,name,Py_True);
-        }
-    }
-    if (PyErr_Occurred()) {
-        PyErr_Print();
-        abort();
-    }
-}
-
 extern "C" PyObject *PyInit_CSM(void);
 
 int MSR::Python(int argc, char *argv[]) {
@@ -1867,18 +1524,14 @@ int MSR::Python(int argc, char *argv[]) {
         fprintf(stderr,"INTERNAL ERROR: parse.parse() MUST return a tuple\n");
         abort();
     }
-    Py_XDECREF(arguments);
-    arguments = PyTuple_GetItem(result,0); /* Values of each parameter */
-    Py_INCREF(arguments);
-    Py_XDECREF(specified);
-    specified = PyTuple_GetItem(result,1); /* If it was explicitely specified */
-    Py_INCREF(specified);
+    auto arguments = PyTuple_GetItem(result,0);         // Borrowed: Values of each parameter
+    auto specified = PyTuple_GetItem(result,1);         // Borrowed: If it was explicitely specified
+    parameters = pkd_parameters(arguments,specified);   // This will take ownership
     Py_DECREF(result);
-    parameters = pkd_parameters(arguments,specified);
     PyObject *script = PyObject_GetAttrString(arguments,"script");
 
-    ppy2prm(prm,arguments,specified); // Update the pkdgrav parameter state
-    bVDetails = getParameterBoolean("bVDetails");
+    parameters.ppy2prm(prm); // Update the pkdgrav parameter state
+    bVDetails = parameters.get_bVDetails();
 
     // If a script was specified then we run it.
     if (script != Py_None) {
@@ -1920,13 +1573,20 @@ int MSR::Python(int argc, char *argv[]) {
 
     // If "MASTER" was imported then we are done -- the script should have done its job
     if (!moduleState->bImported) { // We must prepare for a normal legacy execution
+        if (!parameters.verify(locals)) {
+            PyErr_Print();
+            fprintf(stderr,
+                    "To avoid accidentially mistyping parameter names, you must prefix any additional\n"
+                    "variables with an underscore. Verify the above listed variables/parameters.\n");
+            exit(1);
+        }
         update(locals,arguments,specified);
         if (PyErr_Occurred()) {
             PyErr_Print();
             exit(1);
         }
-        ppy2prm(prm,arguments,specified); // Update the pkdgrav parameter state
-        bVDetails = getParameterBoolean("bVDetails");
+        parameters.ppy2prm(prm); // Update the pkdgrav parameter state
+        bVDetails = parameters.get_bVDetails();
     }
 
     return moduleState->bImported ? 0 : -1;

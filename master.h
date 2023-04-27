@@ -107,15 +107,6 @@ protected:
     void Restore(const std::string &filename,int nSizeParticle);
 
 public:
-    // Parameters
-    bool      wasParameterSpecified(const char *name) const;
-    bool      getParameterBoolean(  const char *name) const;
-    double    getParameterDouble(   const char *name) const;
-    Py_ssize_t getParameterInteger(  const char *name) const;
-    void      setParameter(         const char *name,bool v,     int bSpecified=false);
-    void      setParameter(         const char *name,double v,   int bSpecified=false);
-    void       setParameter(         const char *name,Py_ssize_t v,int bSpecified=false);
-
     size_t getLocalGridMemory(int nGrid);
 
     // I/O and IC Generation
@@ -211,24 +202,9 @@ public:
 protected:
     std::list<msr_analysis_callback> analysis_callbacks;
 
-// Parameters from Python interface
-private:
-    int64_t     getScalarInteger(const char *name, PyObject *v);
-    double      getScalarNumber(const char *name, PyObject *v);
-    std::string getScalarString(const char *name, PyObject *v);
 public: // should be private
     pkd_parameters parameters;
-    PyObject *arguments=nullptr, *specified=nullptr;
-    bool verify_parameters(PyObject *kwobj);
-protected:
-    bool update_parameters(PyObject *kwobj,bool bIgnoreUnknown=false);
 public:
-    int64_t                  getScalarInteger(const char *name);
-    double                   getScalarNumber(const char *name);
-    std::string              getScalarString(const char *name);
-    std::vector<int64_t>     getVectorInteger(const char *name);
-    std::vector<double>      getVectorNumber(const char *name);
-    std::vector<std::string> getVectorString(const char *name);
     bool setParameters(PyObject *kwobj,bool bIgnoreUnknown=false);
 
     PRM prm;
