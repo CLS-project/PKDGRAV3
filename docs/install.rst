@@ -52,6 +52,7 @@ Python3 - Python Library and Interpreter
 
     You will need to install the following Python modules:
         * numpy (often installed globally)
+        * Cython
         * tomli (if using Python versions before 3.11)
 
 Boost_ C++ Library
@@ -194,7 +195,7 @@ For other versions of Ubuntu (specifically 20.04 and 22.04), the following packa
     sudo apt update
     sudo apt install -y autoconf automake pkg-config cmake gcc g++ make gfortran git
     sudo apt install -y libfftw3-dev libfftw3-mpi-dev libgsl0-dev libboost-all-dev libhdf5-dev libmemkind-dev libhwloc-dev
-    sudo apt install -y python3-dev python3-pip python3-numpy python3-ddt python3-nose python3-tomli
+    sudo apt install -y python3-dev cython3 python3-pip python3-numpy python3-ddt python3-nose python3-tomli
 
 If you intend to run the test suite, you need the ``xmlrunner`` package. On Ubuntu 22.04 you can install this with::
 
