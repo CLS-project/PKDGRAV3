@@ -163,10 +163,19 @@ add_subdirectory(metal)
 add_subdirectory(tests)
 
 add_custom_command(
-    OUTPUT ${CMAKE_BINARY_DIR}/parse.py ${CMAKE_BINARY_DIR}/m_parse.h
+    OUTPUT ${CMAKE_BINARY_DIR}/parse.pyx ${CMAKE_BINARY_DIR}/parse.cpp
     MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/parameters.toml
     DEPENDS ${CMAKE_SOURCE_DIR}/make_parse.py
-    COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/make_parse.py ${CMAKE_SOURCE_DIR}/parameters.toml ${CMAKE_BINARY_DIR}/parse.py ${CMAKE_BINARY_DIR}/m_parse.h
+    COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/make_parse.py ${CMAKE_SOURCE_DIR}/parameters.toml ${CMAKE_BINARY_DIR}/parse.pyx
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    VERBATIM
+)
+
+add_custom_command(
+    OUTPUT ${CMAKE_BINARY_DIR}/pkd_parameters.h
+    MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/parameters.toml
+    DEPENDS ${CMAKE_SOURCE_DIR}/make_parameters.py
+    COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/make_parameters.py ${CMAKE_SOURCE_DIR}/parameters.toml ${CMAKE_BINARY_DIR}/pkd_parameters.h
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     VERBATIM
 )
@@ -180,7 +189,7 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 )
 set_property(TARGET ${PROJECT_NAME} APPEND PROPERTY COMPILE_DEFINITIONS _LARGEFILE_SOURCE)
 target_sources(${PROJECT_NAME} PRIVATE
-	main.cxx cosmo.c master.cxx simulate.cxx pst.cxx TraversePST.cxx io/fio.c core/illinois.c param.c
+	main.cxx cosmo.c master.cxx simulate.cxx pst.cxx TraversePST.cxx io/fio.c core/illinois.c param.c ${CMAKE_BINARY_DIR}/pkd_parameters.h
 	pkd.cxx analysis/analysis.cxx smooth/smooth.cxx smooth/smoothfcn.cxx io/outtype.cxx io/output.cxx io/service.cxx
 	gravity/walk2.cxx gravity/grav2.cxx gravity/ewald.cxx ic/ic.cxx domains/tree.cxx gravity/opening.cxx gravity/pp.cxx gravity/pc.cxx gravity/cl.cxx
 	gravity/lst.cxx gravity/moments.c gravity/ilp.cxx gravity/ilc.cxx io/iomodule.cxx io/iochunk.cxx io/restore.cxx
@@ -235,7 +244,7 @@ if(${CMAKE_VERSION} VERSION_LESS "3.12")
     set(USE_PYTHON TRUE)
     target_include_directories(${PROJECT_NAME} PUBLIC ${PYTHON_INCLUDE_DIRS})
     target_link_libraries(${PROJECT_NAME} ${PYTHON_LIBRARIES})
-    target_sources(${PROJECT_NAME} PRIVATE msrpython.cxx m_parse.h csmpython.c)
+    target_sources(${PROJECT_NAME} PRIVATE msrpython.cxx ${CMAKE_BINARY_DIR}/parse.cpp csmpython.c)
 
     if (PYTHON_EXECUTABLE)
       # Find out the include path
@@ -258,7 +267,7 @@ else(${CMAKE_VERSION} VERSION_LESS "3.12")
     set(USE_PYTHON TRUE)
     target_include_directories(${PROJECT_NAME} PUBLIC ${Python3_INCLUDE_DIRS})
     target_link_libraries(${PROJECT_NAME} Python3::Python)
-    target_sources(${PROJECT_NAME} PRIVATE msrpython.cxx m_parse.h csmpython.c)
+    target_sources(${PROJECT_NAME} PRIVATE msrpython.cxx ${CMAKE_BINARY_DIR}/parse.cpp csmpython.c)
     if (Python3_NumPy_FOUND)
       target_include_directories(${PROJECT_NAME} PUBLIC ${Python3_NumPy_INCLUDE_DIRS})
     endif()

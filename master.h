@@ -28,6 +28,7 @@
 #include "pst.h"
 #include "mdl.h"
 #include "parameters.h"
+#include "pkd_parameters.h"
 #ifdef COOLING
     #include "cooling/cooling_struct.h"
 #endif
@@ -216,6 +217,7 @@ private:
     double      getScalarNumber(const char *name, PyObject *v);
     std::string getScalarString(const char *name, PyObject *v);
 public: // should be private
+    pkd_parameters parameters;
     PyObject *arguments=nullptr, *specified=nullptr;
     bool verify_parameters(PyObject *kwobj);
 protected:

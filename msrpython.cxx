@@ -22,7 +22,7 @@
     #include <numpy/arrayobject.h>
 #endif
 #include <structmember.h> // for PyMemberDef
-#include "m_parse.h"
+#include "parse.h"
 
 #include "master.h"
 #include "csmpython.h"
@@ -1802,6 +1802,7 @@ extern "C" PyObject *PyInit_CSM(void);
 int MSR::Python(int argc, char *argv[]) {
     PyImport_AppendInittab(MASTER_MODULE_NAME,initModuleMSR);
     PyImport_AppendInittab("CSM",PyInit_CSM);
+    PyImport_AppendInittab("parse", PyInit_parse);
 #if PY_MAJOR_VERSION>3 || (PY_MAJOR_VERSION==3&&PY_MINOR_VERSION>=8)
     PyStatus status;
     PyConfig config;
@@ -1850,26 +1851,15 @@ int MSR::Python(int argc, char *argv[]) {
     PyDict_SetItemString(globals, "__builtins__",PyEval_GetBuiltins());
 
     // Parse the command line
-    auto PARSE = PyModule_New("parse");
-    PyModule_AddStringConstant(PARSE, "__file__", "parse.py");
-    PyObject *localDict = PyModule_GetDict(PARSE);
-    PyDict_SetItemString(localDict, "__builtins__", PyEval_GetBuiltins());
-    PyObject *pyValue = PyRun_String(parse_py, Py_file_input, localDict, localDict);
-    Py_XDECREF(pyValue);
-    PyObject *parse = PyObject_GetAttrString(PARSE, "parse");
-    if (!PyCallable_Check(parse)) {
-        fprintf(stderr,"INTERNAL ERROR: parse.parse() MUST be callable\n");
-        abort();
-    }
-    PyObject *update = PyObject_GetAttrString(PARSE, "update");
-    if (!PyCallable_Check(update)) {
-        fprintf(stderr,"INTERNAL ERROR: parse.update() MUST be callable\n");
-        abort();
-    }
-    PyObject *result= PyObject_CallObject(parse,NULL);
-    if (PyErr_Occurred()) {
+    auto PARSE = PyImport_ImportModule("parse");
+    if (!PARSE) {
         PyErr_Print();
-        exit(1);
+        abort();
+    }
+    auto result = parse();
+    if (!result) {
+        PyErr_Print();
+        abort();
     }
     // Retrieve the results
     int n = PyTuple_Size(result);
@@ -1884,6 +1874,7 @@ int MSR::Python(int argc, char *argv[]) {
     specified = PyTuple_GetItem(result,1); /* If it was explicitely specified */
     Py_INCREF(specified);
     Py_DECREF(result);
+    parameters = pkd_parameters(arguments,specified);
     PyObject *script = PyObject_GetAttrString(arguments,"script");
 
     ppy2prm(prm,arguments,specified); // Update the pkdgrav parameter state
@@ -1929,11 +1920,7 @@ int MSR::Python(int argc, char *argv[]) {
 
     // If "MASTER" was imported then we are done -- the script should have done its job
     if (!moduleState->bImported) { // We must prepare for a normal legacy execution
-        PyObject *args = PyTuple_New(3);
-        PyTuple_SetItem(args,0,locals);
-        PyTuple_SetItem(args,1,arguments);
-        PyTuple_SetItem(args,2,specified);
-        PyObject_CallObject(update,args); // Copy and variables into the arguments Namespace
+        update(locals,arguments,specified);
         if (PyErr_Occurred()) {
             PyErr_Print();
             exit(1);

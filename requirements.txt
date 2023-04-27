@@ -1,4 +1,5 @@
 tomli; python_version < '3.11'
+Cython >= 0.29
 numpy
 xmlrunner
 ddt

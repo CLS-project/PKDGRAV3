@@ -1,31 +1,19 @@
 from sys import argv,exit,version_info
+from Cython.Build import cythonize
 if version_info >= (3,11):
   import tomllib as tl
 else:
   import tomli as tl
 
-def group(a, *ns):
-  for n in ns:
-    a = [a[i:i+n] for i in range(0, len(a), n)]
-  return a
-
-def join(a, *cs):
-  return [cs[0].join(join(t, *cs[1:])) for t in a] if cs else a
-
-def hexdump(file,data):
-  toHex = lambda c: '0x{:02X}'.format(c)
-  make = lambda f, *cs: join(group(list(map(f, data)), 16), *cs)
-  hs = make(toHex, ',')
-  for i, (h) in enumerate(hs):
-    file.write('{},\n'.format(h))
-
-if len(argv) <= 3: exit('Usage: {} toml parse.py m_parse.h'.format(ARGV[0]))
+if len(argv) <= 2: exit('Usage: {} toml parse.pyx'.format(ARGV[0]))
 
 with open(argv[1],"rb") as fp:
   f=tl.load(fp)
 
 with open(argv[2], 'w') as parse_py:
-  print('''def parse():
+  print('''# distutils: language = c++
+# cython: always_allow_keywords=True
+cdef public tuple parse():
     from argparse import ArgumentParser,ArgumentDefaultsHelpFormatter,Action,Namespace
     from sys import argv
 
@@ -93,7 +81,6 @@ with open(argv[2], 'w') as parse_py:
 
   print('''
     parser.add_argument('script',nargs='?',default=None,help='File containing parameters or analysis script')
-
     (params,extra) = parser.parse_known_args()
     spec = parser.getSpecified()
     for k in vars(params):
@@ -102,15 +89,11 @@ with open(argv[2], 'w') as parse_py:
     if params.script is not None: argv[0]=params.script
     return (params,spec)
 
-def update(pars,args,spec):
+cdef public update(pars,args,spec):
     for key,value in pars.items():
         if key in vars(args) and not getattr(spec,key):
             setattr(args,key,value)
             setattr(spec,key,True)
         # else: this is a rogue variable?''',file=parse_py)
 
-with open(argv[2], 'rb') as parse_py:
-  with open(argv[3], 'w') as m_parse:
-    m_parse.write('char parse_py[] = {\n')
-    hexdump(m_parse,parse_py.read())
-    m_parse.write('0x00 };\n')
+cythonize(argv[2],language_level='3str')
