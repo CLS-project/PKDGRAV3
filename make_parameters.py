@@ -20,6 +20,10 @@ public:
   w = 0
   for sk,sv in f.items():
     w = max(w,max(map(len, sv)))
+
+  for sk,sv in f.items():
+    for k,v in sv.items():
+      print(f'    static constexpr auto str_{k:{w}} = "{k}";',file=parameters_h)
   for sk,sv in f.items():
     for k,v in sv.items():
       default = v['default']
@@ -27,24 +31,15 @@ public:
       size = v['size'] if 'size' in v else None
       print(f'    /// {help}',file=parameters_h)
       if isinstance(default,float):
-        print(f'    auto get_{k:{w}}() {{ return get<double>("{k}"); }}',file=parameters_h)
+        print(f'    auto get_{k:{w}}() {{ return get<double>(str_{k}); }}',file=parameters_h)
       elif isinstance(default,bool):
-        print(f'    auto get_{k:{w}}() {{ return get<bool>("{k}"); }}',file=parameters_h)
+        print(f'    auto get_{k:{w}}() {{ return get<bool>(str_{k}); }}',file=parameters_h)
       elif isinstance(default,int):
-        print(f'    auto get_{k:{w}}() {{ return get<int64_t>("{k}"); }}',file=parameters_h)
+        print(f'    auto get_{k:{w}}() {{ return get<int64_t>(str_{k}); }}',file=parameters_h)
       elif isinstance(default,str):
-        print(f'    auto get_{k:{w}}() {{ return get<std::string>("{k}"); }}',file=parameters_h)
+        print(f'    auto get_{k:{w}}() {{ return get<std::string>(str_{k}); }}',file=parameters_h)
       else:
-        print(f'    auto get_{k:{w}}() {{ return get<PyObject*>("{k}"); }}',file=parameters_h)
-      print(f'    bool has_{k:{w}}() {{ return has("{k}"); }}',file=parameters_h)
-
-      # else:
-      #   print(type(default))
-  # print('    struct {',file=parameters_h)
-  # for sk,sv in f.items():
-  #   for k,v in sv.items():
-  #       print(f'        bool {k:{w}}() {{ return has("{k}"); }}',file=parameters_h)
-
-  # print('    } specified;',file=parameters_h)
+        print(f'    auto get_{k:{w}}() {{ return get<PyObject*>(str_{k}); }}',file=parameters_h)
+      print(f'    bool has_{k:{w}}() {{ return has(str_{k}); }}',file=parameters_h)
 
   print('};',file=parameters_h)
