@@ -45,68 +45,6 @@ protected:
     template<typename T> T get(const char *name);
     template<typename T> T get(const char *name, PyObject *v);
 
-    template<> PyObject *get<PyObject *>(const char *name) {
-        auto v = PyObject_GetAttrString(arguments, name);
-        if (!v) throw std::domain_error(name);
-        return v;
-    }
-    template<> double get<double>(const char *name, PyObject *v) {
-        if (PyFloat_Check(v)) return PyFloat_AsDouble(v);
-        else if (PyLong_Check(v)) return PyLong_AsLong(v);
-        else throw std::domain_error(name);
-    }
-    template<> double get<double>(const char *name) {
-        double result;
-        auto v = get<PyObject *>(name);
-        result = get<double>(name,v);
-        Py_DECREF(v);
-        return result;
-    }
-
-    template<> int64_t get<int64_t>(const char *name, PyObject *v) {
-        if (PyLong_Check(v)) return PyLong_AsLong(v);
-        else if (PyFloat_Check(v)) return static_cast<int64_t>(PyFloat_AsDouble(v));
-        else throw std::domain_error(name);
-    }
-    template<> int64_t get<int64_t>(const char *name) {
-        int64_t result;
-        auto v = get<PyObject *>(name);
-        result = get<int64_t>(name,v);
-        Py_DECREF(v);
-        return result;
-    }
-
-    template<> std::string get<std::string>(const char *name, PyObject *v) {
-        std::string result;
-        if (PyUnicode_Check(v)) {
-            auto ascii = PyUnicode_AsASCIIString(v);
-            result = PyBytes_AsString(ascii);
-            Py_DECREF(ascii);
-        }
-        else throw std::domain_error(name);
-        return result;
-    }
-    template<> std::string get<std::string>(const char *name) {
-        std::string result;
-        auto v = get<PyObject *>(name);
-        result = get<std::string>(name,v);
-        Py_DECREF(v);
-        return result;
-    }
-
-    template<> bool get<bool>(const char *name) {
-        bool v = false;
-        if (auto o = PyObject_GetAttrString(arguments,name)) {
-            v = PyObject_IsTrue(o)>0;
-            Py_DECREF(o);
-        }
-        if (PyErr_Occurred()) {
-            PyErr_Print();
-            abort();
-        }
-        return v;
-    }
-
 public:
 
     virtual ~pyrameters() {
@@ -333,5 +271,68 @@ public:
     }
 
 };
+
+template<> inline PyObject *pyrameters::get<PyObject *>(const char *name) {
+    auto v = PyObject_GetAttrString(arguments, name);
+    if (!v) throw std::domain_error(name);
+    return v;
+}
+
+template<> inline double pyrameters::get<double>(const char *name, PyObject *v) {
+    if (PyFloat_Check(v)) return PyFloat_AsDouble(v);
+    else if (PyLong_Check(v)) return PyLong_AsLong(v);
+    else throw std::domain_error(name);
+}
+template<> inline double pyrameters::get<double>(const char *name) {
+    double result;
+    auto v = get<PyObject *>(name);
+    result = get<double>(name,v);
+    Py_DECREF(v);
+    return result;
+}
+
+template<> inline int64_t pyrameters::get<int64_t>(const char *name, PyObject *v) {
+    if (PyLong_Check(v)) return PyLong_AsLong(v);
+    else if (PyFloat_Check(v)) return static_cast<int64_t>(PyFloat_AsDouble(v));
+    else throw std::domain_error(name);
+}
+template<> inline int64_t pyrameters::get<int64_t>(const char *name) {
+    int64_t result;
+    auto v = get<PyObject *>(name);
+    result = get<int64_t>(name,v);
+    Py_DECREF(v);
+    return result;
+}
+
+template<> inline std::string pyrameters::get<std::string>(const char *name, PyObject *v) {
+    std::string result;
+    if (PyUnicode_Check(v)) {
+        auto ascii = PyUnicode_AsASCIIString(v);
+        result = PyBytes_AsString(ascii);
+        Py_DECREF(ascii);
+    }
+    else throw std::domain_error(name);
+    return result;
+}
+template<> inline std::string pyrameters::get<std::string>(const char *name) {
+    std::string result;
+    auto v = get<PyObject *>(name);
+    result = get<std::string>(name,v);
+    Py_DECREF(v);
+    return result;
+}
+
+template<> inline bool pyrameters::get<bool>(const char *name) {
+    bool v = false;
+    if (auto o = PyObject_GetAttrString(arguments,name)) {
+        v = PyObject_IsTrue(o)>0;
+        Py_DECREF(o);
+    }
+    if (PyErr_Occurred()) {
+        PyErr_Print();
+        abort();
+    }
+    return v;
+}
 
 #endif
