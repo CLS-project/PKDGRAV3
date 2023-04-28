@@ -430,6 +430,7 @@ help="Number of particles for local density in dynamical time-stepping"
 ["Time Stepping".dPreFacRhoLoc]
 flag="dprefacrholoc"
 default=4.1887902047863905 # pi*4.0/3.0
+omitted=':math:`\frac{4}{3}\pi`'
 help="Pre-factor for local density in dynamical time-stepping"
 
 ["Time Stepping".dEccFacMax]
@@ -893,6 +894,7 @@ help="Beta constant in viscosity"
 ["Gas".dConstGamma]
 flag="gamma"
 default=1.6666666666666667 # 5.0/3.0
+omitted=':math:`\frac{5}{3}`'
 help="Ratio of specific heats"
 
 ["Gas".dMeanMolWeight]
@@ -1090,11 +1092,13 @@ help="Temperature of the CMB at z=0"
 ["Cooling".dCoolingFloorDen]
 flag="CoolingFloorDen"
 default=1e-5
+omitted=':math:`10^{-5}`'
 help="Minimum density at which the internal enrgy floor will be applied, n_H cm-3"
 
 ["Cooling".dCoolingFloorT]
 flag="CoolingFloorT"
 default=1e4
+omitted=':math:`10^4`'
 help="Temperature at the internal energy floor, K"
 
 ################################################################################
@@ -1129,6 +1133,7 @@ help="Index of the KS law for star formation"
 ["Star formation".dSFnormalizationKS]
 flag="SFnormalizationKS"
 default=2.5e-4
+omitted=':math:`2.5\times 10^{-4}`'
 help="Normalization of the KS law for star formation"
 
 ["Star formation".dSFEfficiency]
@@ -1144,6 +1149,7 @@ help="Star formation efficiency per free-fall time; set >0 to use density-based 
 ["Supernova feedback".dSNFBDT]
 flag="SNFBDT"
 default=31622776.60168379 # 10**7.5
+omitted=':math:`10^{7.5}`'
 help="Increment in tempertue per supernova event, K"
 
 ["Supernova feedback".dSNFBEff]
@@ -1154,6 +1160,7 @@ help="Efficiency of the SN feedback. Minimum efficiency of dSNFBMaxEff is provid
 ["Supernova feedback".dSNFBDelay]
 flag="SNFBDelay"
 default=3e7
+omitted=':math:`3\times 10^7`'
 help="Time between star formation and injection of SN energy, yr"
 
 ["Supernova feedback".dSNFBNumberSNperMass]
@@ -1213,11 +1220,13 @@ help="Coupling efficiency of the BH with its surroundings"
 ["Blackholes".dBHFBDT]
 flag="BHFBDT"
 default=1e8
+omitted=':math:`10^8`'
 help="Temperature change in the blackhole feedback events"
 
 ["Blackholes".dBHAccretionEddFac]
 flag="BHAccretionEddFac"
-default=1.053912e-06
+default=1.05391277e-06
+omitted=':math:`\frac{4\pi\times m_p}{\sigma_t\times c} = 1.05391277\times 10^{-6}`'
 help="4pi * m_p / sigma_T / c , kg m^-3 s"
 
 ["Blackholes".bBHPlaceSeed]
@@ -1346,21 +1355,25 @@ help="Normalization of the Delay Time Distribution function <1/Mo>"
 ["Stellar evolution".dSNIaScale]
 flag="SNIaScale"
 default=2e9
+omitted=':math:`2\times 10^9`'
 help="Scale of the Delay Time Distribution function (Exponential: <yr>. Powerlaw: <dimensionless>)"
 
 ["Stellar evolution".dSNIaNormInitTime]
 flag="SNIaNormInitTime"
 default=40e6
+omitted=':math:`40\times 10^6`'
 help="Initial time for the normalization of the Delay Time Distribution function <yr>"
 
 ["Stellar evolution".dSNIaNormFinalTime]
 flag="SNIaNormFinalTime"
 default=13.7e9
+omitted=':math:`13.7\times 10^9`'
 help="Final time for the normalization of the Delay Time Distribution function <yr>"
 
 ["Stellar evolution".dSNIaEnergy]
 flag="SNIaEnergy"
 default=1e51
+omitted=':math:`10^{51}`'
 help="SNIa event energy <erg>"
 
 ["Stellar evolution".dStellarWindSpeed]
