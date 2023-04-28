@@ -27,12 +27,6 @@ struct parameters {
     /*
     ** Parameters for PKDGRAV.
     */
-    int bOverwrite;
-    int bVWarnings;
-    int bVStart;
-    int bVStep;
-    int bVRungStat;
-    int bVDetails;
     int bPeriodic;
     int bRestart;
     int bParaRead;

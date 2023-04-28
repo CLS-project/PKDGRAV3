@@ -555,7 +555,7 @@ int MSR::ValidateParameters() {
     }
 #endif
     if (param.dTheta <= 0) {
-        if (param.dTheta == 0 && param.bVWarnings)
+        if (param.dTheta == 0 && parameters.get_bVWarnings())
             fprintf(stderr,"WARNING: Zero opening angle may cause numerical problems\n");
         else if (param.dTheta < 0) {
             fprintf(stderr,"ERROR: Opening angle must be non-negative\n");
@@ -666,7 +666,7 @@ int MSR::ValidateParameters() {
         if (!prmSpecified(prm,"bMemPotential")) param.bMemPotential = 1;
         if (param.iMaxRung < 1) {
             param.iMaxRung = 0;
-            if (param.bVWarnings) fprintf(stderr,"WARNING: iMaxRung set to 0, SINGLE STEPPING run!\n");
+            if (parameters.get_bVWarnings()) fprintf(stderr,"WARNING: iMaxRung set to 0, SINGLE STEPPING run!\n");
             /*
             ** For single stepping we don't need fancy timestepping variables.
             */
@@ -682,11 +682,11 @@ int MSR::ValidateParameters() {
                 param.bAccelStep = 0;
                 param.bEpsAccStep = 0;
                 param.bDensityStep = 0;
-                if (param.bVWarnings) fprintf(stderr,"WARNING: bGravStep set in combination with older criteria, now using ONLY bGravStep!\n");
+                if (parameters.get_bVWarnings()) fprintf(stderr,"WARNING: bGravStep set in combination with older criteria, now using ONLY bGravStep!\n");
             }
             else if (!param.bAccelStep && !param.bGravStep && !param.bDensityStep) {
                 param.bGravStep = 1;
-                if (param.bVWarnings) fprintf(stderr,"WARNING: none of bAccelStep, bDensityStep, or bGravStep set, now using bGravStep!\n");
+                if (parameters.get_bVWarnings()) fprintf(stderr,"WARNING: none of bAccelStep, bDensityStep, or bGravStep set, now using bGravStep!\n");
             }
             /*
             ** Set the needed memory model based on the chosen timestepping method.

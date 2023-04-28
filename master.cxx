@@ -503,7 +503,7 @@ void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTi
     ValidateParameters(); // Should be okay, but other stuff happens here (cosmo is setup for example)
 
     bVDetails = parameters.get_bVDetails();
-    if (param.bVStart)
+    if (parameters.get_bVStart())
         printf("Restoring from checkpoint\n");
     TimerStart(TIMER_IO);
     param.bRestart = 1;
@@ -798,24 +798,6 @@ void MSR::Initialize() {
     ** Now setup for the input parameters.
     */
     prmInitialize(&prm,MSR::Leader,MSR::Trailer);
-    param.bOverwrite = 0;
-    prmAddParam(prm,"bOverwrite",0,&param.bOverwrite,sizeof(int),
-                "overwrite","enable/disable overwrite safety lock = -overwrite");
-    param.bVWarnings = 1;
-    prmAddParam(prm,"bVWarnings",0,&param.bVWarnings,sizeof(int),
-                "vwarnings","enable/disable warnings = +vwarnings");
-    param.bVStart = 1;
-    prmAddParam(prm,"bVStart",0,&param.bVStart,sizeof(int),
-                "vstart","enable/disable verbose start = +vstart");
-    param.bVStep = 1;
-    prmAddParam(prm,"bVStep",0,&param.bVStep,sizeof(int),
-                "vstep","enable/disable verbose step = +vstep");
-    param.bVRungStat = 1;
-    prmAddParam(prm,"bVRungStat",0,&param.bVRungStat,sizeof(int),
-                "vrungstat","enable/disable rung statistics = +vrungstat");
-    param.bVDetails = 0;
-    prmAddParam(prm,"bVDetails",0,&param.bVDetails,sizeof(int),
-                "vdetails","enable/disable verbose details = +vdetails");
     param.nDigits = 5;
     prmAddParam(prm,"nDigits",1,&param.nDigits,sizeof(int),"nd",
                 "<number of digits to use in output filenames> = 5");
@@ -1912,7 +1894,7 @@ void msrLogParams(MSR &msr,FILE *fp) {
     fprintf(fp," nThreads: %d",nThreads);
     fprintf(fp," bDiag: %d",param.bDiag);
     fprintf(fp," Verbosity flags: (%d,%d,%d,%d,%d)",param.bVWarnings,
-            param.bVStart,param.bVStep,param.bVRungStat,
+            param.bVStart,param.bVStep,parameters.get_bVRungStat(),
             bVDetails);
     fprintf(fp,"\n# bPeriodic: %d",param.bPeriodic);
     fprintf(fp," bComove: %d",csm->val.bComove);
@@ -2076,12 +2058,13 @@ int MSR::GetLock() {
     ** a new lock is created. The bOverwrite parameter flag can be used to
     ** suppress lock checking.
     */
+    auto bOverwrite = parameters.get_bOverwrite();
 
     FILE *fp = NULL;
     char achTmp[256],achFile[256];
 
     MakePath(param.achDataSubPath,LOCKFILE,achFile);
-    if (!param.bOverwrite && (fp = fopen(achFile,"r"))) {
+    if (!bOverwrite && (fp = fopen(achFile,"r"))) {
         if (fscanf(fp,"%s",achTmp) != 1) achTmp[0] = '\0';
         (void) fclose(fp);
         if (!strcmp(param.achOutName,achTmp)) {
@@ -2091,7 +2074,7 @@ int MSR::GetLock() {
         }
     }
     if (!(fp = fopen(achFile,"w"))) {
-        if (param.bOverwrite && param.bVWarnings) {
+        if (bOverwrite && parameters.get_bVWarnings()) {
             (void) printf("WARNING: Unable to create %s...ignored.\n",achFile);
             return 1;
         }
@@ -2485,7 +2468,7 @@ void MSR::DomainDecompOld(int iRung) {
             bRestoreActive = 1;
             in.bDoRootFind = 1;
             in.bDoSplitDimFind = 1;
-            if (param.bVRungStat) {
+            if (parameters.get_bVRungStat()) {
                 printf("Doing Domain Decomposition (nActive = %" PRIu64 "/%" PRIu64 ", iRung:%d iRungRT:%d)\n",
                        nActive,N,iRung,iRungRT);
             }
@@ -2496,14 +2479,14 @@ void MSR::DomainDecompOld(int iRung) {
             */
             in.bDoRootFind = 1;
             if (iRung <= iRungSD) {
-                if (param.bVRungStat) {
+                if (parameters.get_bVRungStat()) {
                     printf("Doing Domain Decomposition (nActive = %" PRIu64 "/%" PRIu64 ", iRung:%d iRungRT:%d)\n",
                            nActive,N,iRung,iRungRT);
                 }
                 in.bDoSplitDimFind = 1;
             }
             else {
-                if (param.bVRungStat) {
+                if (parameters.get_bVRungStat()) {
                     printf("Skipping Domain Dim Choice (nActive = %" PRIu64 "/%" PRIu64 ", iRung:%d iRungSD:%d)\n",
                            nActive,N,iRung,iRungSD);
                 }
@@ -2513,7 +2496,7 @@ void MSR::DomainDecompOld(int iRung) {
             bRestoreActive = 1;
         }
         else if (iRung <= iRungDD) {
-            if (param.bVRungStat) {
+            if (parameters.get_bVRungStat()) {
                 printf("Skipping Root Finder (nActive = %" PRIu64 "/%" PRIu64 ", iRung:%d iRungRT:%d iRungDD:%d)\n",
                        nActive,N,iRung,iRungRT,iRungDD);
             }
@@ -2522,7 +2505,7 @@ void MSR::DomainDecompOld(int iRung) {
             bRestoreActive = 0;
         }
         else {
-            if (param.bVRungStat) {
+            if (parameters.get_bVRungStat()) {
                 printf("Skipping Domain Decomposition (nActive = %" PRIu64 "/%" PRIu64 ", iRung:%d iRungDD:%d)\n",
                        nActive,N,iRung,iRungDD);
             }
@@ -2542,7 +2525,7 @@ void MSR::DomainDecompOld(int iRung) {
             in.bDoSplitDimFind = 1;
         }
         else if (iRung == iLastRungDD) {
-            if (param.bVRungStat) {
+            if (parameters.get_bVRungStat()) {
                 printf("Skipping Domain Decomposition (nActive = %" PRIu64 "/%" PRIu64 ", iRung:%d iRungDD:%d iLastRungRT:%d)\n",
                        nActive,N,iRung,iRungDD,iLastRungRT);
             }
@@ -2557,7 +2540,7 @@ void MSR::DomainDecompOld(int iRung) {
                 in.bDoSplitDimFind = 0;
             }
             else {
-                if (param.bVRungStat) {
+                if (parameters.get_bVRungStat()) {
                     printf("Skipping Domain Decomposition (nActive = %" PRIu64 "/%" PRIu64 ", iRung:%d iRungDD:%d iLastRungRT:%d)\n",
                            nActive,N,iRung,iRungDD,iLastRungRT);
                 }
@@ -2573,7 +2556,7 @@ void MSR::DomainDecompOld(int iRung) {
                 in.bDoSplitDimFind = 0;
             }
             else {
-                if (param.bVRungStat) {
+                if (parameters.get_bVRungStat()) {
                     printf("Skipping Root Finder (nActive = %" PRIu64 "/%" PRIu64 ", iRung:%d iRungRT:%d iRungDD:%d iLastRungRT:%d)\n",
                            nActive,N,iRung,iRungRT,iRungDD,iLastRungRT);
                 }
@@ -2583,7 +2566,7 @@ void MSR::DomainDecompOld(int iRung) {
         }
         else if (iRung > iRungSD) {
             if (iLastRungRT == iRung) {
-                if (param.bVRungStat) {
+                if (parameters.get_bVRungStat()) {
                     printf("Skipping Root Finder (nActive = %" PRIu64 "/%" PRIu64 ", iRung:%d iRungRT:%d iRungDD:%d iLastRungRT:%d)\n",
                            nActive,N,iRung,iRungRT,iRungDD,iLastRungRT);
                 }
@@ -2591,7 +2574,7 @@ void MSR::DomainDecompOld(int iRung) {
                 in.bDoSplitDimFind = 0;
             }
             else {
-                if (param.bVRungStat) {
+                if (parameters.get_bVRungStat()) {
                     printf("Skipping Domain Dim Choice (nActive = %" PRIu64 "/%" PRIu64 ", iRung:%d iRungSD:%d iLastRungRT:%d)\n",
                            nActive,N,iRung,iRungSD,iLastRungRT);
                 }
@@ -3076,7 +3059,7 @@ void MSR::Smooth(double dTime,double dDelta,int iSmoothType,int bSymmetric,int n
     in.bSymmetric = bSymmetric;
     in.iSmoothType = iSmoothType;
     SmoothSetSMF(&(in.smf), dTime, dDelta, nSmooth);
-    if (param.bVStep) {
+    if (parameters.get_bVStep()) {
         double sec,dsec;
         printf("Smoothing...\n");
         sec = MSR::Time();
@@ -3098,7 +3081,7 @@ int MSR::ReSmooth(double dTime,double dDelta,int iSmoothType,int bSymmetric) {
     in.bSymmetric = bSymmetric;
     in.iSmoothType = iSmoothType;
     SmoothSetSMF(&(in.smf), dTime, dDelta, param.nSmooth);
-    if (param.bVStep) {
+    if (parameters.get_bVStep()) {
         double sec,dsec;
         printf("ReSmoothing...\n");
         sec = MSR::Time();
@@ -3300,7 +3283,7 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
     uint8_t uRungMax=0;
     char c;
 
-    if (param.bVStep) {
+    if (parameters.get_bVStep()) {
         if (SPHoptions.doDensity && SPHoptions.useDensityFlags) printf("Calculating Density using FastGas, Step:%f (rung %d)\n",dStep,uRungLo);
         if (SPHoptions.doDensity && !SPHoptions.useDensityFlags) printf("Calculating Density without FastGas, Step:%f (rung %d)\n",dStep,uRungLo);
         if (SPHoptions.doDensityCorrection && SPHoptions.useDensityFlags) printf("Calculating Density Correction using FastGas, Step:%f (rung %d)\n",dStep,uRungLo);
@@ -3425,7 +3408,7 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
             if (nActive > nDD && !iRungDD) iRungDD = i;
         }
     }
-    if (param.bVStep) {
+    if (parameters.get_bVStep()) {
         /*
         ** Output some info...
         */
@@ -3465,7 +3448,7 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
         msrPrintStat(&outr.sPartMissRatio, "  P-cache miss %:",2);
         msrPrintStat(&outr.sCellMissRatio, "  C-cache miss %:",2);
     }
-    if (param.bVRungStat && bKickOpen) {
+    if (parameters.get_bVRungStat() && bKickOpen) {
         printf("Rung distribution:\n");
         printf("\n");
         nRungSum[uRungMax] = nRung[uRungMax];
@@ -3969,7 +3952,7 @@ void MSR::UpdateRung(uint8_t uRung) {
 
     iCurrMaxRung = iOutMaxRung;
 
-    if (param.bVRungStat) {
+    if (parameters.get_bVRungStat()) {
         printf("Rung distribution:\n");
         printf("\n");
         for (iTempRung=0; iTempRung <= iCurrMaxRung; ++iTempRung) {
@@ -4714,7 +4697,7 @@ void MSR::ChemCompInit() {
 void MSR::HopWrite(const char *fname) {
     double dsec;
 
-    if (param.bVStep)
+    if (parameters.get_bVStep())
         printf("Writing group statistics to %s\n", fname );
     TimerStart(TIMER_IO);
 
@@ -4729,7 +4712,7 @@ void MSR::HopWrite(const char *fname) {
     pstOutput(pst,&out,sizeof(out),NULL,0);
     TimerStop(TIMER_IO);
     dsec = TimerGet(TIMER_IO);
-    if (param.bVStep)
+    if (parameters.get_bVStep())
         printf("Written statistics, Wallclock: %f secs\n",dsec);
 
 }
@@ -4756,7 +4739,7 @@ void MSR::Hop(double dTime, double dDelta) {
     SmoothSetSMF(&(in.smf), dTime, dDelta, in.nSmooth);
     SmoothSetSMF(&(h.smf), dTime, dDelta, in.nSmooth);
 
-    if (param.bVStep) {
+    if (parameters.get_bVStep()) {
         if (h.dHopTau<0.0)
             printf("Running Grasshopper with adaptive linking length (%g times softening)\n", -h.dHopTau );
         else
@@ -4767,7 +4750,7 @@ void MSR::Hop(double dTime, double dDelta) {
     sec = MSR::Time();
     pstSmooth(pst,&in,sizeof(in),NULL,0);
     dsec = MSR::Time() - sec;
-    if (param.bVStep)
+    if (parameters.get_bVStep())
         printf("Density calculation complete in %f secs, finding chains...\n",dsec);
 
     h.iSmoothType = SMX_GRADIENT_M3;
@@ -4775,14 +4758,14 @@ void MSR::Hop(double dTime, double dDelta) {
     nGroups = 0;
     pstHopLink(pst,&h,sizeof(h),&nGroups,sizeof(nGroups));
     dsec = MSR::Time() - sec;
-    if (param.bVStep)
+    if (parameters.get_bVStep())
         printf("Chain search complete in %f secs, building minimal tree...\n",dsec);
 
     /* Build a new tree with only marked particles */
     sec = MSR::Time();
     BuildTreeMarked();
     dsec = MSR::Time() - sec;
-    if (param.bVStep)
+    if (parameters.get_bVStep())
         printf("Tree build complete in %f secs, merging %" PRIu64 " chains...\n",dsec,nGroups);
 
     h.iSmoothType = SMX_HOP_LINK;
@@ -4792,12 +4775,12 @@ void MSR::Hop(double dTime, double dDelta) {
         ++i;
         assert(i<100);
         pstHopJoin(pst,&h,sizeof(h),&j,sizeof(j));
-        if (param.bVStep)
+        if (parameters.get_bVStep())
             printf("... %d iteration%s, %" PRIu64 " chains remain\n",i,i==1?"":"s",j.nGroups);
     } while ( !j.bDone );
     nGroups = j.nGroups;
     dsec = MSR::Time() - sec;
-    if (param.bVStep)
+    if (parameters.get_bVStep())
         printf("Chain merge complete in %f secs, %" PRIu64 " groups\n",dsec,nGroups);
     inFinish.nMinGroupSize = param.nMinMembers;
     inFinish.bPeriodic = param.bPeriodic;
@@ -4805,11 +4788,11 @@ void MSR::Hop(double dTime, double dDelta) {
     inFinish.fPeriod[1] = param.dyPeriod;
     inFinish.fPeriod[2] = param.dzPeriod;
     pstHopFinishUp(pst,&inFinish,sizeof(inFinish),&nGroups,sizeof(nGroups));
-    if (param.bVStep)
+    if (parameters.get_bVStep())
         printf("Removed groups with fewer than %d particles, %" PRIu64 " remain\n",
                inFinish.nMinGroupSize, nGroups);
 #if 0
-    if (param.bVStep)
+    if (parameters.get_bVStep())
         printf("Unbinding\n");
 
     struct inHopUnbind inUnbind;
@@ -4838,13 +4821,13 @@ void MSR::Hop(double dTime, double dDelta) {
         inTreeBuild.nGroup = param.nGroup;
         pstHopTreeBuild(pst,&inTreeBuild,sizeof(inTreeBuild),NULL,0);
         dsec = MSR::Time() - sec;
-        if (param.bVStep)
+        if (parameters.get_bVStep())
             printf("... group trees built, Wallclock: %f secs\n",dsec);
 
         sec = MSR::Time();
         pstHopGravity(pst,&inGravity,sizeof(inGravity),NULL,0);
         dsec = MSR::Time() - sec;
-        if (param.bVStep)
+        if (parameters.get_bVStep())
             printf("... gravity complete, Wallclock: %f secs\n",dsec);
 
         sec = MSR::Time();
@@ -4852,7 +4835,7 @@ void MSR::Hop(double dTime, double dDelta) {
         pstHopUnbind(pst,&inUnbind,sizeof(inUnbind),&outUnbind,sizeof(outUnbind));
         nGroups = outUnbind.nGroups;
         dsec = MSR::Time() - sec;
-        if (param.bVStep)
+        if (parameters.get_bVStep())
             printf("Unbinding completed in %f secs, %" PRIu64 " particles evaporated, %" PRIu64 " groups remain\n",
                    dsec,outUnbind.nEvaporated, nGroups);
     } while (++inUnbind.iIteration < 100 && outUnbind.nEvaporated);
@@ -4874,7 +4857,7 @@ void MSR::Hop(double dTime, double dDelta) {
     pstGroupStats(pst,&inGroupStats,sizeof(inGroupStats),NULL,0);
 
     dsec = MSR::Time() - ssec;
-    if (param.bVStep)
+    if (parameters.get_bVStep())
         printf("Grasshopper complete, Wallclock: %f secs\n\n",dsec);
 }
 
@@ -4895,7 +4878,7 @@ void MSR::NewFof(double dTau,int nMinMembers) {
     in.nReplicas = param.nReplicas;
     in.nBucket = param.nBucket;
 
-    if (param.bVStep) {
+    if (parameters.get_bVStep()) {
         printf("Running FoF with fixed linking length %g\n", dTau );
     }
 
@@ -4904,7 +4887,7 @@ void MSR::NewFof(double dTau,int nMinMembers) {
 
     TimerStop(TIMER_NONE);
     dsec = TimerGet(TIMER_NONE);
-    if (param.bVStep)
+    if (parameters.get_bVStep())
         printf("Initial FoF calculation complete in %f secs\n",dsec);
 
     TimerStart(TIMER_NONE);
@@ -4913,23 +4896,23 @@ void MSR::NewFof(double dTau,int nMinMembers) {
         ++i;
         assert(i<100);
         pstFofPhases(pst,NULL,0,&out,sizeof(out));
-        if (param.bVStep)
+        if (parameters.get_bVStep())
             printf("... %d iteration%s\n",i,i==1?"":"s");
     } while ( out.bMadeProgress );
 
     TimerStop(TIMER_NONE);
     dsec = TimerGet(TIMER_NONE);
-    if (param.bVStep)
+    if (parameters.get_bVStep())
         printf("Global merge complete in %f secs\n",dsec);
 
     inFinish.nMinGroupSize = nMinMembers;
     pstFofFinishUp(pst,&inFinish,sizeof(inFinish),&nGroups,sizeof(nGroups));
-    if (param.bVStep)
+    if (parameters.get_bVStep())
         printf("Removed groups with fewer than %d particles, %" PRIu64 " remain\n",
                inFinish.nMinGroupSize, nGroups);
     TimerStop(TIMER_FOF);
     dsec = TimerGet(TIMER_FOF);
-    if (param.bVStep)
+    if (parameters.get_bVStep())
         printf("FoF complete, Wallclock: %f secs\n",dsec);
 }
 
@@ -4938,7 +4921,7 @@ void MSR::GroupStats() {
     struct inGroupStats inGroupStats;
     double dsec;
 
-    if (param.bVStep)
+    if (parameters.get_bVStep())
         printf("Generating Group statistics\n");
     TimerStart(TIMER_FOF);
     inGroupStats.bPeriodic = param.bPeriodic;
@@ -4955,7 +4938,7 @@ void MSR::GroupStats() {
     pstGroupStats(pst,&inGroupStats,sizeof(inGroupStats),NULL,0);
     TimerStop(TIMER_FOF);
     dsec = TimerGet(TIMER_FOF);
-    if (param.bVStep)
+    if (parameters.get_bVStep())
         printf("Group statistics complete, Wallclock: %f secs\n\n",dsec);
 }
 
@@ -5044,7 +5027,7 @@ double MSR::GenerateIC() {
     nBH = nSpecies[FIO_SPECIES_BH];
     nMaxOrder = N - 1; // iOrder goes from 0 to N-1
 
-    if (param.bVStart)
+    if (parameters.get_bVStart())
         printf("Generating IC...\nN:%" PRIu64 " nDark:%" PRIu64
                " nGas:%" PRIu64 " nStar:%" PRIu64 "\n",
                N, nDark,nGas,nStar);
@@ -5055,7 +5038,7 @@ double MSR::GenerateIC() {
         FILE *fp = fopen(param.achTfFile,"r");
         char buffer[256];
 
-        if (param.bVStart)
+        if (parameters.get_bVStart())
             printf("Reading transfer function from %s\n", param.achTfFile);
         if (fp == NULL) {
             perror(param.achTfFile);
@@ -5070,7 +5053,7 @@ double MSR::GenerateIC() {
             }
         }
         fclose(fp);
-        if (param.bVStart)
+        if (parameters.get_bVStart())
             printf("Transfer function : %d lines kmin %g kmax %g\n",
                    in.nTf, exp(in.k[0]), exp(in.k[in.nTf-1]));
 

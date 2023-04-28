@@ -35,7 +35,7 @@ void MSR::BHMerger(double dTime) {
     Nout.nStar = 0;
     Nout.nBH = 0;
 
-    if (param.bVStep) {
+    if (parameters.get_bVStep()) {
         pstReSmoothNode(pst,&in,sizeof(in),
                         &out,sizeof(struct outSmooth));
         pstMoveDeletedParticles(pst, NULL, 0,

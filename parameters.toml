@@ -1372,45 +1372,63 @@ help="Stellar wind speed <km/s>"
 ########## Debugging/Testing/Diagnostics
 ################################################################################
 
-["Debugging/Testing/Diagnostics".bDedicatedMPI]
-flag="dedicated"
-default=false
-help="enable dedicated MPI thread"
-
-["Debugging/Testing/Diagnostics".bSharedMPI]
-flag="sharedmpi"
-default=false
-help="enable extra dedicated MPI thread"
-
 ["Debugging/Testing/Diagnostics".bOverwrite]
 flag="overwrite"
 default=false
 help="enable overwrite safety lock"
+docs='''
+When a simulation is run, a special file named ".lockfile" is created. If The
+program exits normally (after a checkpoint or output) then the file is removed.
+If the file is present when the code is run and this parameter is false, then
+the code will immediatly exit with an error. Setting this to true disables
+this behaviour.
+'''
 
 ["Debugging/Testing/Diagnostics".bVWarnings]
 flag="vwarnings"
 default=true
 help="enable warnings"
+docs='''
+Prints a warning when unusual (but valid) conditions are encountered, for example if
+a .lockfile exists and bOverwrite is true, or the maximum rung is set to zero
+(forcing single stepping).
+'''
 
 ["Debugging/Testing/Diagnostics".bVStart]
 flag="vstart"
 default=true
 help="enable verbose start"
+docs='''
+Causes additional progress updates to be printed during the start of a simulation,
+for example which file is being read, or that an initial condition is being generated.
+'''
 
 ["Debugging/Testing/Diagnostics".bVStep]
 flag="vstep"
 default=true
 help="enable verbose step"
+docs='''
+Provides verbose information on what calculations and analysis is being performed
+during the base steps.
+'''
 
 ["Debugging/Testing/Diagnostics".bVRungStat]
 flag="vrungstat"
 default=true
 help="enable rung statistics"
+docs='''
+Provides rung related information, such as the distribution of particles by rung,
+as well as details on the load balancer calculations.
+'''
 
 ["Debugging/Testing/Diagnostics".bVDetails]
 flag="vdetails"
 default=false
 help="enable verbose details"
+docs='''
+Provides verbose tracing information which is normally not useful except to a
+developer debugging an issue with the code.
+'''
 
 ["Debugging/Testing/Diagnostics".nDigits]
 flag="nd"
