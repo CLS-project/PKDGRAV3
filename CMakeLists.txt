@@ -211,6 +211,26 @@ target_link_libraries(${PROJECT_NAME} m)
 #target_link_libraries(tostd m)
 #target_link_libraries(psout m)
 
+make_directory(${CMAKE_BINARY_DIR}/modules)
+foreach(file accuracy)
+    add_custom_command(
+        OUTPUT ${CMAKE_BINARY_DIR}/modules/${file}.pyx
+        MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/modules/${file}.pyx
+        COMMAND ${CMAKE_COMMAND} -E create_symlink
+            ${CMAKE_SOURCE_DIR}/modules/${file}.pyx
+            ${CMAKE_BINARY_DIR}/modules/${file}.pyx
+        VERBATIM
+    )
+    add_custom_command(
+        OUTPUT ${CMAKE_BINARY_DIR}/modules/${file}.cpp
+        MAIN_DEPENDENCY ${CMAKE_BINARY_DIR}/modules/${file}.pyx
+        COMMAND cythonize --3str
+            ${CMAKE_BINARY_DIR}/modules/${file}.pyx
+        VERBATIM
+    )
+    target_sources(${PROJECT_NAME} PRIVATE ${CMAKE_BINARY_DIR}/modules/${file}.cpp)
+endforeach()
+
 if (NOT APPLE)
 CHECK_INCLUDE_FILES(libaio.h HAVE_LIBAIO_H)
 if (HAVE_LIBAIO_H)

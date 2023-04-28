@@ -1455,11 +1455,13 @@ void MSR::runAnalysis(int iStep,double dTime) {
 \******************************************************************************/
 
 extern "C" PyObject *PyInit_CSM(void);
+extern "C" PyObject *PyInit_accuracy(void);
 
 int MSR::Python(int argc, char *argv[]) {
     PyImport_AppendInittab(MASTER_MODULE_NAME,initModuleMSR);
     PyImport_AppendInittab("CSM",PyInit_CSM);
     PyImport_AppendInittab("parse", PyInit_parse);
+    PyImport_AppendInittab("accuracy", PyInit_accuracy);
 #if PY_MAJOR_VERSION>3 || (PY_MAJOR_VERSION==3&&PY_MINOR_VERSION>=8)
     PyStatus status;
     PyConfig config;
