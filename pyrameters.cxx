@@ -266,7 +266,7 @@ template<> bool pyrameters::get<bool>(const char *name) {
 template<> void pyrameters::set_dynamic(const char *name, double value) {
     auto o = PyFloat_FromDouble(value);
     if (o) {
-        PyObject_SetAttrString(dynamic,name,o);
+        PyDict_SetItemString(dynamic,name,o);
         Py_DECREF(o);
     }
     if (PyErr_Occurred()) {
@@ -278,7 +278,7 @@ template<> void pyrameters::set_dynamic(const char *name, double value) {
 template<> void pyrameters::set_dynamic(const char *name, std::int64_t value) {
     auto o = PyLong_FromSsize_t(value);
     if (o) {
-        PyObject_SetAttrString(dynamic,name,o);
+        PyDict_SetItemString(dynamic,name,o);
         Py_DECREF(o);
     }
     if (PyErr_Occurred()) {
@@ -290,7 +290,7 @@ template<> void pyrameters::set_dynamic(const char *name, std::int64_t value) {
 template<> void pyrameters::set_dynamic(const char *name, std::uint64_t value) {
     auto o = PyLong_FromSize_t(value);
     if (o) {
-        PyObject_SetAttrString(dynamic,name,o);
+        PyDict_SetItemString(dynamic,name,o);
         Py_DECREF(o);
     }
     if (PyErr_Occurred()) {
