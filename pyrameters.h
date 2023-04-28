@@ -20,12 +20,14 @@
 #include <Python.h>
 #include <stdexcept>
 #include <string>
+#include <cstdint>
 
 #include "param.h"  // This should go away at some point
 
 class pyrameters {
 protected:
     PyObject *arguments=nullptr, *specified=nullptr;
+    PyObject *dynamic=nullptr;
 
 public:
     auto get_arguments() {return arguments; }
@@ -45,12 +47,13 @@ public:
         if (Py_IsInitialized()) {
             Py_XDECREF(arguments);
             Py_XDECREF(specified);
+            Py_XDECREF(dynamic);
         }
     }
 
-    pyrameters() : arguments(nullptr), specified(nullptr) {}
+    pyrameters() : arguments(nullptr), specified(nullptr), dynamic(nullptr) {}
 
-    pyrameters(PyObject *arguments, PyObject *specified) : arguments(arguments), specified(specified) {
+    pyrameters(PyObject *arguments, PyObject *specified) : arguments(arguments), specified(specified), dynamic(PyDict_New()) {
         Py_INCREF(this->arguments);
         Py_INCREF(this->specified);
     }
@@ -58,6 +61,7 @@ public:
     pyrameters(const pyrameters &other) {           // copy constructor
         this->arguments = other.arguments;
         this->specified = other.specified;
+        this->dynamic = PyDict_Copy(other.dynamic);
         Py_INCREF(this->arguments);
         Py_INCREF(this->specified);
     }
@@ -66,11 +70,14 @@ public:
         if (this != &rhs) {
             Py_XDECREF(this->arguments);
             Py_XDECREF(this->specified);
+            Py_XDECREF(this->dynamic);
 
             this->arguments = rhs.arguments;
             this->specified = rhs.specified;
+            this->dynamic = rhs.dynamic;
             Py_INCREF(this->arguments);
             Py_INCREF(this->specified);
+            Py_INCREF(this->dynamic);
         }
         return *this;
     }
@@ -78,8 +85,10 @@ public:
     pyrameters(pyrameters &&other) {                // move constructor
         this->arguments = other.arguments;
         this->specified = other.specified;
+        this->dynamic = other.dynamic;
         other.arguments = nullptr;
         other.specified = nullptr;
+        other.dynamic = nullptr;
     }
 
     // move assignment
@@ -87,14 +96,17 @@ public:
         if (this != &rhs) {
             this->arguments = rhs.arguments;
             this->specified = rhs.specified;
+            this->dynamic = rhs.dynamic;
             rhs.arguments = nullptr;
             rhs.specified = nullptr;
+            rhs.dynamic = nullptr;
         }
         return *this;
     }
 
 protected:
     static void merge(PyObject *o1, PyObject *o2);
+    PyObject *call_or_return(PyObject *value);
 
 public:
     /// @brief Merge the parameters from another parameter set into this one
@@ -112,15 +124,26 @@ public:
     void prm2ppy(PRM prm);
     bool ppy2prm(PRM prm);
 
+public:
+    template<typename T> void set_dynamic(const char *name, T value);
+
 };
 
-template<> PyObject   *pyrameters::get<PyObject *>(const char *name);
-template<> double      pyrameters::get<double>(const char *name, PyObject *v);
-template<> double      pyrameters::get<double>(const char *name);
-template<> int64_t     pyrameters::get<int64_t>(const char *name, PyObject *v);
-template<> int64_t     pyrameters::get<int64_t>(const char *name);
-template<> std::string pyrameters::get<std::string>(const char *name, PyObject *v);
-template<> std::string pyrameters::get<std::string>(const char *name);
-template<> bool        pyrameters::get<bool>(const char *name);
+template<> PyObject    *pyrameters::get<PyObject *>(const char *name);
+template<> double       pyrameters::get<double>(const char *name, PyObject *v);
+template<> double       pyrameters::get<double>(const char *name);
+template<> std::int64_t pyrameters::get<std::int64_t>(const char *name, PyObject *v);
+template<> std::int64_t pyrameters::get<std::int64_t>(const char *name);
+template<> std::string  pyrameters::get<std::string>(const char *name, PyObject *v);
+template<> std::string  pyrameters::get<std::string>(const char *name);
+template<> bool         pyrameters::get<bool>(const char *name);
+
+template<> void pyrameters::set_dynamic(const char *name, float         value);
+template<> void pyrameters::set_dynamic(const char *name, double        value);
+template<> void pyrameters::set_dynamic(const char *name, std::int32_t  value);
+template<> void pyrameters::set_dynamic(const char *name, std::int64_t  value);
+template<> void pyrameters::set_dynamic(const char *name, std::uint32_t value);
+template<> void pyrameters::set_dynamic(const char *name, std::uint64_t value);
+
 
 #endif

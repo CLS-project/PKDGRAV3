@@ -131,8 +131,8 @@ static void setNode(PRM_NODE *pn,int i,PyObject *v) {
         else *(char *)pn->pValue = 0;
         break;
     case 4:
-        assert(pn->iSize == sizeof(uint64_t));
-        ((uint64_t *)pn->pValue)[i] = PyLong_AsLong(v);
+        assert(pn->iSize == sizeof(std::uint64_t));
+        ((std::uint64_t *)pn->pValue)[i] = PyLong_AsLong(v);
         break;
     }
 }
@@ -200,6 +200,14 @@ bool pyrameters::ppy2prm(PRM prm) {
 template<> PyObject *pyrameters::get<PyObject *>(const char *name) {
     auto v = PyObject_GetAttrString(arguments, name);
     if (!v) throw std::domain_error(name);
+    if (PyCallable_Check(v)) {
+        auto callback = v;
+        auto call_args = PyTuple_New(0);
+        v = PyObject_Call(callback,call_args,dynamic);
+        Py_DECREF(call_args);
+        Py_DECREF(callback);
+    }
+    if (PyErr_Occurred()) PyErr_Print();
     return v;
 }
 
@@ -216,15 +224,15 @@ template<> double pyrameters::get<double>(const char *name) {
     return result;
 }
 
-template<> int64_t pyrameters::get<int64_t>(const char *name, PyObject *v) {
+template<> std::int64_t pyrameters::get<std::int64_t>(const char *name, PyObject *v) {
     if (PyLong_Check(v)) return PyLong_AsLong(v);
-    else if (PyFloat_Check(v)) return static_cast<int64_t>(PyFloat_AsDouble(v));
+    else if (PyFloat_Check(v)) return static_cast<std::int64_t>(PyFloat_AsDouble(v));
     else throw std::domain_error(name);
 }
-template<> int64_t pyrameters::get<int64_t>(const char *name) {
-    int64_t result;
+template<> std::int64_t pyrameters::get<std::int64_t>(const char *name) {
+    std::int64_t result;
     auto v = get<PyObject *>(name);
-    result = get<int64_t>(name,v);
+    result = get<std::int64_t>(name,v);
     Py_DECREF(v);
     return result;
 }
@@ -248,14 +256,57 @@ template<> std::string pyrameters::get<std::string>(const char *name) {
 }
 
 template<> bool pyrameters::get<bool>(const char *name) {
-    bool v = false;
-    if (auto o = PyObject_GetAttrString(arguments,name)) {
-        v = PyObject_IsTrue(o)>0;
+    bool result = false;
+    auto v = get<PyObject *>(name);
+    result = PyObject_IsTrue(v)>0;
+    Py_DECREF(v);
+    return result;
+}
+
+template<> void pyrameters::set_dynamic(const char *name, double value) {
+    auto o = PyFloat_FromDouble(value);
+    if (o) {
+        PyObject_SetAttrString(dynamic,name,o);
         Py_DECREF(o);
     }
     if (PyErr_Occurred()) {
         PyErr_Print();
         abort();
     }
-    return v;
+}
+
+template<> void pyrameters::set_dynamic(const char *name, std::int64_t value) {
+    auto o = PyLong_FromSsize_t(value);
+    if (o) {
+        PyObject_SetAttrString(dynamic,name,o);
+        Py_DECREF(o);
+    }
+    if (PyErr_Occurred()) {
+        PyErr_Print();
+        abort();
+    }
+}
+
+template<> void pyrameters::set_dynamic(const char *name, std::uint64_t value) {
+    auto o = PyLong_FromSize_t(value);
+    if (o) {
+        PyObject_SetAttrString(dynamic,name,o);
+        Py_DECREF(o);
+    }
+    if (PyErr_Occurred()) {
+        PyErr_Print();
+        abort();
+    }
+}
+
+template<> void pyrameters::set_dynamic(const char *name, float value) {
+    set_dynamic<double>(name,value);
+}
+
+template<> void pyrameters::set_dynamic(const char *name, std::int32_t value) {
+    set_dynamic<std::int64_t>(name,value);
+}
+
+template<> void pyrameters::set_dynamic(const char *name, std::uint32_t value) {
+    set_dynamic<std::uint64_t>(name,value);
 }

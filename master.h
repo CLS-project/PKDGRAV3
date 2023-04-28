@@ -204,6 +204,11 @@ protected:
 
 public: // should be private
     pkd_parameters parameters;
+    void set_dynamic(int iStep, double dTime) {
+        parameters.set_dynamic("step",iStep);
+        parameters.set_dynamic("time",dTime);
+        if (csm->val.bComove) parameters.set_dynamic("time",csmTime2Exp(csm,dTime));
+    }
 public:
     bool setParameters(PyObject *kwobj,bool bIgnoreUnknown=false);
 
