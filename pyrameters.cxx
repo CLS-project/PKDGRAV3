@@ -52,7 +52,19 @@ bool pyrameters::verify(PyObject *kwobj) {
             Py_DECREF(ascii);
             if (keyString[0]=='_') continue; // skip things that start with underscore
         }
+        // If this key is not a valid argument, then print an error,
+        // unless it is a module, or a callable imported from another module.
         if (!PyObject_HasAttr(arguments,key) && !PyModule_Check(value)) {
+            if (PyCallable_Check(value)) {
+                auto module = PyObject_GetAttrString(value,"__module__");
+                if (module && PyUnicode_Check(module)) {
+                    auto ascii = PyUnicode_AsASCIIString(module);
+                    auto result = PyBytes_AsString(ascii);
+                    Py_DECREF(ascii);
+                    Py_DECREF(module);
+                    if (result && strcmp(result,"__main__")!=0) continue;
+                }
+            }
             PyErr_Format(PyExc_AttributeError,"invalid parameter %A",key);
             PyErr_Print();
             bSuccess=false;
