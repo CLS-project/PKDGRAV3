@@ -224,7 +224,7 @@ foreach(file accuracy checkpoint)
     add_custom_command(
         OUTPUT ${CMAKE_BINARY_DIR}/modules/${file}.cpp
         MAIN_DEPENDENCY ${CMAKE_BINARY_DIR}/modules/${file}.pyx
-        COMMAND cythonize --3str
+        COMMAND ${PYTHON} -m cython --3str --cplus
             ${CMAKE_BINARY_DIR}/modules/${file}.pyx
         VERBATIM
     )
