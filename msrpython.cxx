@@ -23,6 +23,7 @@
 #endif
 #include <structmember.h> // for PyMemberDef
 #include "parse.h"
+#include "modules/checkpoint.h"
 
 #include "master.h"
 #include "csmpython.h"
@@ -576,7 +577,8 @@ ppy_msr_Gravity(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     static char const *kwlist[]= {"time","delta","theta","rung","ewald","step","KickClose","KickOpen", "onlyMarked", NULL};
     double dTime = 0.0;
     double dDelta = 0.0;
-    double dTheta = msr->param.dTheta;
+    // double dTheta = msr->param.dTheta;
+    double dTheta = 0.7;
 
     int bEwald = msr->param.bEwald;
     int iRungLo    = 0;
@@ -1461,6 +1463,7 @@ int MSR::Python(int argc, char *argv[]) {
     PyImport_AppendInittab(MASTER_MODULE_NAME,initModuleMSR);
     PyImport_AppendInittab("CSM",PyInit_CSM);
     PyImport_AppendInittab("parse", PyInit_parse);
+    PyImport_AppendInittab("checkpoint", PyInit_checkpoint);
     PyImport_AppendInittab("accuracy", PyInit_accuracy);
 #if PY_MAJOR_VERSION>3 || (PY_MAJOR_VERSION==3&&PY_MINOR_VERSION>=8)
     PyStatus status;
@@ -1508,6 +1511,12 @@ int MSR::Python(int argc, char *argv[]) {
     auto globals = PyModule_GetDict(main_module);
     auto locals = globals;
     PyDict_SetItemString(globals, "__builtins__",PyEval_GetBuiltins());
+
+
+    if (!PyImport_ImportModule("checkpoint")) {
+        PyErr_Print();
+        abort();
+    }
 
     // Parse the command line
     auto PARSE = PyImport_ImportModule("parse");

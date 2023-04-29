@@ -212,7 +212,7 @@ target_link_libraries(${PROJECT_NAME} m)
 #target_link_libraries(psout m)
 
 make_directory(${CMAKE_BINARY_DIR}/modules)
-foreach(file accuracy)
+foreach(file accuracy checkpoint)
     add_custom_command(
         OUTPUT ${CMAKE_BINARY_DIR}/modules/${file}.pyx
         MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/modules/${file}.pyx

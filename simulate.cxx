@@ -99,10 +99,9 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
     FILE *fpLog = NULL;
 
     InitCosmology();
-    set_dynamic(iStartStep,dTime);
+    auto dTheta = set_dynamic(iStartStep,dTime);
 
     if (prmSpecified(prm,"dSoft")) SetSoft(Soft());
-    auto dTheta = getTheta(dTime); // Adjust theta for gravity calculations.
 
     /*
     ** Now read in the output points, passing the initial time.
@@ -295,9 +294,8 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
     bKickOpen = 0;
     int iStop=0, bDoCheckpoint=0, bDoOutput=0;
     for (auto iStep=iStartStep+1; iStep<=nSteps&&!iStop; ++iStep) {
-        set_dynamic(iStep,dTime);
+        auto dTheta = set_dynamic(iStep-1,dTime);
         dDelta = SwitchDelta(dTime,dDelta,iStep-1,param.nSteps);
-        dTheta = getTheta(dTime);
         lPrior = time(0);
         TimerRestart();
         if (param.bNewKDK) {
@@ -477,19 +475,6 @@ int MSR::ValidateParameters() {
 #endif
 
     /*
-    ** Make sure that we have some setting for nReplicas if bPeriodic is set.
-    */
-    if (param.bPeriodic && !prmSpecified(prm,"nReplicas")) {
-        param.nReplicas = 1;
-    }
-    /*
-    ** Warn that we have a setting for nReplicas if bPeriodic NOT set.
-    */
-    if (!param.bPeriodic && param.nReplicas != 0) {
-        printf("WARNING: nReplicas set to non-zero value for non-periodic!\n");
-    }
-
-    /*
     ** CUDA likes a larger group size
     */
     if ( ((mdl->isCudaActive() && param.iCUDAQueueSize>0) || mdl->isMetalActive()) && !prmSpecified(prm,"nGroup") && param.nGroup<256)
@@ -554,15 +539,6 @@ int MSR::ValidateParameters() {
             param.nBinsLinPk = PST_MAX_K_BINS;
     }
 #endif
-    if (param.dTheta <= 0) {
-        if (param.dTheta == 0 && parameters.get_bVWarnings())
-            fprintf(stderr,"WARNING: Zero opening angle may cause numerical problems\n");
-        else if (param.dTheta < 0) {
-            fprintf(stderr,"ERROR: Opening angle must be non-negative\n");
-            return 0;
-        }
-    }
-
     if (!prmSpecified(prm,"dFracNoDomainRootFind") && param.dFracNoDomainRootFind > param.dFracNoDomainDimChoice) param.dFracNoDomainRootFind = param.dFracNoDomainDimChoice;
     if (!prmSpecified(prm,"dFracNoDomainDecomp") && param.dFracNoDomainDecomp > param.dFracNoDomainRootFind) param.dFracNoDomainDecomp = param.dFracNoDomainRootFind;
     if (!prmSpecified(prm,"dFracDualTree") && param.dFracDualTree > param.dFracNoDomainDecomp) param.dFracDualTree = param.dFracNoDomainDecomp;
@@ -646,9 +622,6 @@ int MSR::ValidateParameters() {
         fprintf(stderr,"WARNING: Integer coordinates are enabled but the the box is not periodic\n"
                 "       and/or the box size is not 1. Set bPeriodic=1 and dPeriod=1.\n");
     }
-
-    if (!prmSpecified(prm,"dTheta20")) param.dTheta20 = param.dTheta;
-    if (!prmSpecified(prm,"dTheta2")) param.dTheta2 = param.dTheta20;
 
     /*
     ** Check if fast gas boundaries are needed.

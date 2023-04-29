@@ -69,6 +69,7 @@ using namespace fmt::literals; // Gives us ""_a and ""_format literals
 #include "smooth/smoothfcn.h"
 #include "io/fio.h"
 #include "SPH/SPHOptions.h"
+#include "modules/checkpoint.h"
 
 #include "core/setadd.h"
 #include "core/swapall.h"
@@ -599,7 +600,13 @@ void MSR::writeParameters(const char *baseName,int iStep,int nSteps,double dTime
         strcat(achOutName,".par");
     }
 
-    FILE *fp = fopen(achOutName,"w");
+
+    PyObject *main_module = PyImport_ImportModule("__main__");
+    auto globals = PyModule_GetDict(main_module);
+    print_imports(achOutName, globals);
+    Py_DECREF(main_module);
+
+    FILE *fp = fopen(achOutName,"a");
     if (fp==NULL) {
         perror(achOutName);
         abort();
@@ -864,9 +871,6 @@ void MSR::Initialize() {
     param.iEwOrder = 4;
     prmAddParam(prm,"iEwOrder",1,&param.iEwOrder,sizeof(int),"ewo",
                 "<Ewald multipole expansion order: 1, 2, 3 or 4> = 4");
-    param.nReplicas = 0;
-    prmAddParam(prm,"nReplicas",1,&param.nReplicas,sizeof(int),"nrep",
-                "<nReplicas> = 0 for -p, or 1 for +p");
     param.dSoft = 0.0;
     prmAddParam(prm,"dSoft",2,&param.dSoft,sizeof(double),"e",
                 "<gravitational softening length> = 0.0");
@@ -943,15 +947,6 @@ void MSR::Initialize() {
     param.dEwhCut = 2.8;
     prmAddParam(prm,"dEwhCut",2,&param.dEwhCut,sizeof(double),"ewh",
                 "<dEwhCut> = 2.8");
-    param.dTheta = 0.7;
-    param.dTheta2 = param.dTheta;
-    param.dTheta20 = param.dTheta;
-    prmAddParam(prm,"dTheta",2,&param.dTheta,sizeof(double),"theta",
-                "<Barnes opening criterion> = 0.8");
-    prmAddParam(prm,"dTheta20",2,&param.dTheta20,sizeof(double),
-                "theta20","<Barnes opening criterion for 2 < z <= 20> = 0.8");
-    prmAddParam(prm,"dTheta2",2,&param.dTheta2,sizeof(double),
-                "theta2","<Barnes opening criterion for z <= 2> = 0.8");
     param.dPeriod = 1.0;
     prmAddParam(prm,"dPeriod",2,&param.dPeriod,sizeof(double),"L",
                 "<periodic box length> = 1.0");
@@ -3297,14 +3292,14 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
     in.iRoot1 = iRoot1;
     in.iRoot2 = iRoot2;
 
-    in.nReps = param.nReplicas;
-    in.nGroup = nGroup;
     in.dTheta = dTheta;
+    in.nGroup = nGroup;
 
     in.bPeriodic = param.bPeriodic;
     in.bEwald = bEwald;
     in.dEwCut = param.dEwCut;
     in.dEwhCut = param.dEwhCut;
+    in.nReps = in.bPeriodic ? parameters.get_nReplicas() : 0;
 
     // Parameters related to timestepping
     in.ts.iTimeStepCrit = iTimeStepCrit;
@@ -3753,28 +3748,6 @@ NoMoreOuts:
     fclose(fp);
     // Sort in DECENDING order. We pop used values of the back. Sentinal is at the front
     std::sort(dOutTimes.begin(),dOutTimes.end(),std::greater<double>());
-}
-
-/*
- ** Theta switch. Default is to use dTheta, then switch:
- **   at z=20 to dTheta20
- **   at z=2 to dTheta2
- ** We also adjust the number of replicas if the accuracy warrants it.
- */
-double MSR::getTheta(double dTime) {
-    if (Comove()) {
-        double a = csmTime2Exp(csm,dTime);
-        double dTheta;
-        if (a < (1.0/21.0)) dTheta = param.dTheta;
-        else if (a < (1.0/3.0)) dTheta = param.dTheta20;
-        else dTheta = param.dTheta2;
-        if ( !prmSpecified(prm,"nReplicas") && param.nReplicas>=1 ) {
-            if ( dTheta < 0.52 ) param.nReplicas = 2;
-            else param.nReplicas = 1;
-        }
-        return dTheta;
-    }
-    else return param.dTheta;
 }
 
 void MSR::InitCosmology() {
@@ -4875,7 +4848,7 @@ void MSR::NewFof(double dTau,int nMinMembers) {
     in.dTau2 = dTau*dTau;
     in.nMinMembers = nMinMembers;
     in.bPeriodic = param.bPeriodic;
-    in.nReplicas = param.nReplicas;
+    in.nReplicas = in.bPeriodic ? parameters.get_nReplicas() : 0;
     in.nBucket = param.nBucket;
 
     if (parameters.get_bVStep()) {
@@ -5255,11 +5228,14 @@ double MSR::Read(const char *achInFile) {
         ActiveRung(0,1); /* Activate all particles */
         DomainDecomp(-1);
         BuildTree(param.bEwald);
+
+        auto dTheta = set_dynamic(parameters.get_iStartStep(),dTime);
+
         // Calculate Density
         SPHOptions SPHoptions = initializeSPHOptions(param,csm,dTime);
         SPHoptions.doDensity = 1;
         SPHoptions.doUConversion = 1;
-        Gravity(0,MAX_RUNG,ROOT,0,dTime,0.0f,param.iStartStep,getTheta(dTime),0,1,
+        Gravity(0,MAX_RUNG,ROOT,0,dTime,0.0f,param.iStartStep,dTheta,0,1,
                 param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,SPHoptions);
         MemStatus();
         if (SPHoptions.doInterfaceCorrection) {
@@ -5267,7 +5243,7 @@ double MSR::Read(const char *achInFile) {
             SPHoptions.doDensityCorrection = 1;
             SPHoptions.dofBallFactor = 0;
             TreeUpdateFlagBounds(param.bEwald,ROOT,0,SPHoptions);
-            Gravity(0,MAX_RUNG,ROOT,0,dTime,0.0f,param.iStartStep,getTheta(dTime),0,1,
+            Gravity(0,MAX_RUNG,ROOT,0,dTime,0.0f,param.iStartStep,dTheta,0,1,
                     param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,SPHoptions);
             UpdateGasValues(0,dTime,0.0f,param.iStartStep,0,1,SPHoptions);
         }

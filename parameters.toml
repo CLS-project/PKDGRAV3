@@ -472,27 +472,18 @@ an RMS error of approximately :math:`0.1\%` which is normally adequate.
 At very high redshift, when the particle distribution is very uniform
 and thus the force on each particle is nearly zero then decreasing this
 to 0.4 is recommended. Theta should be relaxed at lower redshift by
-adjusting ``dTheta20`` and ``dTheta2``.
+using accuracy.classic_theta_switch().
 '''
 
-["Force Accuracy".dTheta20]
-flag="theta20"
-default=0.0
-omitted="dTheta"
-help="Barnes opening criterion for 2 < z <= 20"
+["Force Accuracy".nReplicas]
+flag="nrep"
+default=1
+help="nReplicas"
 docs='''
-This controls :math:`\theta` for redshifts between 2 and 20.
-The recommended value is 0.55.
-'''
-
-["Force Accuracy".dTheta2]
-flag="theta2"
-default=0.0
-omitted="dTheta20"
-help="Barnes opening criterion for z <= 2"
-docs='''
-This controls :math:`\theta` for redshifts below 2.
-The recommended value is 0.7.
+This sets the number of box replicas that will be considered for tree-based force calculations.
+When periodic boundary conditions are disabled this parameter is ignored.
+For cosmological simulations it is recommended to switch between 1 and 2 replicas
+depending on :math:`\theta` by using accuracy.classic_replicas_switch().
 '''
 
 ################################################################################
@@ -518,11 +509,6 @@ help="enable Ewald correction"
 flag="ewo"
 default=4
 help="Ewald multipole expansion order: 1, 2, 3 or 4"
-
-["Periodic Boundaries".nReplicas]
-flag="nrep"
-default=0
-help="nReplicas"
 
 ["Periodic Boundaries".dPeriod]
 flag="L"

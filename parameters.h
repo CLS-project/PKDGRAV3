@@ -59,7 +59,6 @@ struct parameters {
     int iPkInterval;
     int bEwald;
     int iEwOrder;
-    int nReplicas;
     int iStartStep;
     int nSteps;
     int nSteps10;
@@ -133,9 +132,6 @@ struct parameters {
     double dDelta;
     double dEwCut;
     double dEwhCut;
-    double dTheta;
-    double dTheta2;
-    double dTheta20;
     double dPeriod;
     double dxPeriod;
     double dyPeriod;
