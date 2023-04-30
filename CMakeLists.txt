@@ -163,11 +163,19 @@ add_subdirectory(metal)
 add_subdirectory(tests)
 
 add_custom_command(
-    OUTPUT ${CMAKE_BINARY_DIR}/parse.pyx ${CMAKE_BINARY_DIR}/parse.cpp
+    OUTPUT ${CMAKE_BINARY_DIR}/parse.pyx
     MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/parameters.toml
     DEPENDS ${CMAKE_SOURCE_DIR}/make_parse.py
     COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/make_parse.py ${CMAKE_SOURCE_DIR}/parameters.toml ${CMAKE_BINARY_DIR}/parse.pyx
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    VERBATIM
+)
+add_custom_command(
+    OUTPUT ${CMAKE_BINARY_DIR}/parse.cpp
+    MAIN_DEPENDENCY ${CMAKE_BINARY_DIR}/parse.pyx
+    COMMAND ${PYTHON} -m cython --3str --cplus --no-docstrings
+        -o ${CMAKE_BINARY_DIR}/parse.cpp
+        ${CMAKE_BINARY_DIR}/parse.pyx
     VERBATIM
 )
 
@@ -212,23 +220,17 @@ target_link_libraries(${PROJECT_NAME} m)
 #target_link_libraries(psout m)
 
 make_directory(${CMAKE_BINARY_DIR}/modules)
-foreach(file accuracy checkpoint)
+foreach(file accuracy.py checkpoint.pyx)
+    get_filename_component(base_name ${file} NAME_WE)
     add_custom_command(
-        OUTPUT ${CMAKE_BINARY_DIR}/modules/${file}.pyx
-        MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/modules/${file}.pyx
-        COMMAND ${CMAKE_COMMAND} -E create_symlink
-            ${CMAKE_SOURCE_DIR}/modules/${file}.pyx
-            ${CMAKE_BINARY_DIR}/modules/${file}.pyx
+        OUTPUT ${CMAKE_BINARY_DIR}/modules/${base_name}.cpp
+        MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/modules/${file}
+        COMMAND ${PYTHON} -m cython --3str --cplus --no-docstrings
+            -o ${CMAKE_BINARY_DIR}/modules/${base_name}.cpp
+            ${CMAKE_SOURCE_DIR}/modules/${file}
         VERBATIM
     )
-    add_custom_command(
-        OUTPUT ${CMAKE_BINARY_DIR}/modules/${file}.cpp
-        MAIN_DEPENDENCY ${CMAKE_BINARY_DIR}/modules/${file}.pyx
-        COMMAND ${PYTHON} -m cython --3str --cplus
-            ${CMAKE_BINARY_DIR}/modules/${file}.pyx
-        VERBATIM
-    )
-    target_sources(${PROJECT_NAME} PRIVATE ${CMAKE_BINARY_DIR}/modules/${file}.cpp)
+    target_sources(${PROJECT_NAME} PRIVATE ${CMAKE_BINARY_DIR}/modules/${base_name}.cpp)
 endforeach()
 
 if (NOT APPLE)

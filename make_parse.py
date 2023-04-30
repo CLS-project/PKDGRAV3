@@ -1,5 +1,4 @@
 from sys import argv,exit,version_info
-from Cython.Build import cythonize
 if version_info >= (3,11):
   import tomllib as tl
 else:
@@ -95,5 +94,3 @@ cdef public update(pars,args,spec):
             setattr(args,key,value)
             setattr(spec,key,True)
         # else: this is a rogue variable?''',file=parse_py)
-
-cythonize(argv[2],language_level='3str')
