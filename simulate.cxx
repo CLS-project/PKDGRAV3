@@ -211,7 +211,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
         SPHoptions.doDensity = 1;
         SPHoptions.doSPHForces = 0;
         uRungMax = Gravity(0,MAX_RUNG,ROOT,0,dTime,dDelta,iStartStep,dTheta,0,bKickOpen,
-                           param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,SPHoptions);
+                           param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
         MemStatus();
         if (SPHoptions.doInterfaceCorrection) {
             SPHoptions.doDensity = 0;
@@ -219,7 +219,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
             SPHoptions.dofBallFactor = 0;
             TreeUpdateFlagBounds(param.bEwald,ROOT,0,SPHoptions);
             uRungMax = Gravity(0,MAX_RUNG,ROOT,0,dTime,dDelta,iStartStep,dTheta,0,bKickOpen,
-                               param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,SPHoptions);
+                               param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
             UpdateGasValues(0,dTime,dDelta,iStartStep,0,bKickOpen,SPHoptions);
             SPHoptions.doDensityCorrection = 0;
         }
@@ -231,14 +231,14 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
         SPHoptions.dofBallFactor = 0;
         TreeUpdateFlagBounds(param.bEwald,ROOT,0,SPHoptions);
         uRungMax = Gravity(0,MAX_RUNG,ROOT,0,dTime,dDelta,iStartStep,dTheta,0,bKickOpen,
-                           param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,SPHoptions);
+                           param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
         MemStatus();
     }
     else if (DoGravity()) {
         SPHOptions SPHoptions = initializeSPHOptions(param,csm,dTime);
         SPHoptions.doGravity = param.bDoGravity;
         uRungMax = Gravity(0,MAX_RUNG,ROOT,0,dTime,dDelta,iStartStep,dTheta,0,bKickOpen,
-                           param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,SPHoptions);
+                           param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
         MemStatus();
     }
     if (DoGravity() && param.bGravStep) {
@@ -247,7 +247,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
         SPHOptions SPHoptions = initializeSPHOptions(param,csm,dTime);
         SPHoptions.doGravity = param.bDoGravity;
         Gravity(0,MAX_RUNG,ROOT,0,dTime,dDelta,iStartStep,dTheta,0,0,
-                param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,SPHoptions);
+                param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
         MemStatus();
     }
     if (DoGas() && MeshlessHydro()) {
@@ -312,14 +312,14 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
                     SPHoptions.doDensity = 1;
                     SPHoptions.doSPHForces = 0;
                     uRungMax = Gravity(0,MAX_RUNG,ROOT,0,ddTime,dDelta,diStep,dTheta,0,1,
-                                       param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,SPHoptions);
+                                       param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
                     if (SPHoptions.doInterfaceCorrection) {
                         SPHoptions.doDensity = 0;
                         SPHoptions.doDensityCorrection = 1;
                         SPHoptions.dofBallFactor = 0;
                         TreeUpdateFlagBounds(param.bEwald,ROOT,0,SPHoptions);
                         uRungMax = Gravity(0,MAX_RUNG,ROOT,0,ddTime,dDelta,diStep,dTheta,0,1,
-                                           param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,SPHoptions);
+                                           param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
                         UpdateGasValues(0,ddTime,dDelta,diStep,0,1,SPHoptions);
                         SPHoptions.doDensityCorrection = 0;
                     }
@@ -331,13 +331,13 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
                     SPHoptions.dofBallFactor = 0;
                     TreeUpdateFlagBounds(param.bEwald,ROOT,0,SPHoptions);
                     uRungMax = Gravity(0,MAX_RUNG,ROOT,0,ddTime,dDelta,diStep,dTheta,0,1,
-                                       param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,SPHoptions);
+                                       param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
                 }
                 else {
                     SPHOptions SPHoptions = initializeSPHOptions(param,csm,dTime);
                     SPHoptions.doGravity = param.bDoGravity;
                     uRungMax = Gravity(0,MAX_RUNG,ROOT,0,ddTime,dDelta,diStep,dTheta,0,1,
-                                       param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,SPHoptions);
+                                       param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
                 }
                 /* Set the grids of the linear species */
                 if (csm->val.classData.bClass && strlen(param.achLinSpecies) && param.nGridLin > 0) {

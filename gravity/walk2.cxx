@@ -656,7 +656,7 @@ static void initGravWalk(PKD pkd,double dTime,double dThetaMin,int bPeriodic,int
 /*
 ** Returns total number of active particles for which gravity was calculated.
 */
-int pkdGravWalkHop(PKD pkd,double dTime,int nGroup, double dThetaMin,double *pdFlop,double *pdPartSum,double *pdCellSum) {
+int pkdGravWalkHop(PKD pkd,double dTime, double dThetaMin,double *pdFlop,double *pdPartSum,double *pdCellSum) {
     int id,iRoot,iRootSelf;
     float fOffset[3];
     int nActive;
@@ -696,7 +696,7 @@ int pkdGravWalkHop(PKD pkd,double dTime,int nGroup, double dThetaMin,double *pdF
 ** Returns total number of active particles for which gravity was calculated.
 */
 int pkdGravWalk(PKD pkd,struct pkdKickParameters *kick,struct pkdLightconeParameters *lc,struct pkdTimestepParameters *ts,
-                double dTime,int nReps,int bEwald,int nGroup,
+                double dTime,int nReps,int bEwald,
                 int iLocalRoot1, int iLocalRoot2,int iVARoot,
                 double dThetaMin,double *pdFlop,double *pdPartSum,double *pdCellSum,SPHOptions *SPHoptions) {
     int id;
@@ -783,7 +783,7 @@ int pkdGravWalk(PKD pkd,struct pkdKickParameters *kick,struct pkdLightconeParame
 /*
 ** Returns total number of active particles for which gravity was calculated.
 */
-int pkdGravWalkGroups(PKD pkd,double dTime,int nGroup, double dThetaMin,double *pdFlop,double *pdPartSum,double *pdCellSum) {
+int pkdGravWalkGroups(PKD pkd,double dTime, double dThetaMin,double *pdFlop,double *pdPartSum,double *pdCellSum) {
     int id,iRoot;
     blitz::TinyVector<float,3> fOffset;
     int i,k;

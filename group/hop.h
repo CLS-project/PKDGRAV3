@@ -24,6 +24,6 @@ int smHopJoin(SMX smx,SMF *smf,double dHopTau,int *nLocal);
 int pkdHopFinishUp(PKD pkd, int nMinGroupSize, int bPeriodic, blitz::TinyVector<double,3> dPeriod);
 void pkdHopTreeBuild(PKD pkd,int nBucket,int nGroup);
 int pkdHopUnbind(PKD pkd,double dTime,int nMinGroupSize, int bPeriodic, blitz::TinyVector<double,3> dPeriod);
-int pkdGravWalkHop(PKD pkd,double dTime,int nGroup, double dThetaMin,double *pdFlop
+int pkdGravWalkHop(PKD pkd,double dTime,double dThetaMin,double *pdFlop
                    ,double *pdPartSum,double *pdCellSum);
 #endif

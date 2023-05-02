@@ -3269,7 +3269,19 @@ void msrPrintStat(STAT *ps,char const *pszPrefix,int p) {
 
 uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
                      double dTime, double dDelta, double dStep, double dTheta,
-                     int bKickClose,int bKickOpen,int bEwald,int bGravStep,int nPartRhoLoc,int iTimeStepCrit,int nGroup,SPHOptions SPHoptions) {
+                     int bKickClose,int bKickOpen,int bEwald,int bGravStep,
+                     int nPartRhoLoc,int iTimeStepCrit) {
+    SPHOptions SPHoptions = initializeSPHOptions(param,csm,dTime);
+    SPHoptions.doGravity = param.bDoGravity;
+    return Gravity(uRungLo,uRungHi,iRoot1,iRoot2,dTime,dDelta,dStep,dTheta,
+                   bKickClose,bKickOpen,bEwald,bGravStep,nPartRhoLoc,iTimeStepCrit,
+                   SPHoptions);
+}
+
+uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
+                     double dTime, double dDelta, double dStep, double dTheta,
+                     int bKickClose,int bKickOpen,int bEwald,int bGravStep,
+                     int nPartRhoLoc,int iTimeStepCrit,SPHOptions SPHoptions) {
     struct inGravity in;
     uint64_t nRungSum[IRUNGMAX+1];
     int i;
@@ -3294,7 +3306,6 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
     in.iRoot2 = iRoot2;
 
     in.dTheta = dTheta;
-    in.nGroup = nGroup;
 
     in.bPeriodic = param.bPeriodic;
     in.bEwald = bEwald;
@@ -4210,7 +4221,6 @@ int MSR::NewTopStepKDK(
 
     // We need to make sure we descend all the way to the bucket with the
     // active tree, or we can get HUGE group cells, and hence too much P-P/P-C
-    int nGroup = (bDualTree && uRung > iRungDT) ? 1 : param.nGroup;
     if (DoGas() && NewSPH()) {
         SelAll(-1,1);
         SPHOptions SPHoptions = initializeSPHOptions(param,csm,dTime);
@@ -4226,7 +4236,7 @@ int MSR::NewTopStepKDK(
             SPHoptions.doSPHForces = 0;
             SPHoptions.doSetDensityFlags = 1;
             *puRungMax = Gravity(uRung,MaxRung(),ROOT,uRoot2,dTime,dDelta,*pdStep,dTheta,
-                                 1,bKickOpen,param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,nGroup,SPHoptions);
+                                 1,bKickOpen,param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
             // Select Neighbors of Neighbors
             if (SPHoptions.doInterfaceCorrection) {
                 SPHoptions.dofBallFactor = 1;
@@ -4235,7 +4245,7 @@ int MSR::NewTopStepKDK(
                 SPHoptions.doSetNNflags = 1;
                 SPHoptions.useDensityFlags = 1;
                 *puRungMax = Gravity(uRung,MaxRung(),ROOT,uRoot2,dTime,dDelta,*pdStep,dTheta,
-                                     1,bKickOpen,param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,nGroup,SPHoptions);
+                                     1,bKickOpen,param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
                 SPHoptions.doSetNNflags = 0;
                 SPHoptions.useDensityFlags = 0;
             }
@@ -4255,7 +4265,7 @@ int MSR::NewTopStepKDK(
             }
             TreeUpdateFlagBounds(param.bEwald,ROOT,0,SPHoptions);
             *puRungMax = Gravity(uRung,MaxRung(),ROOT,uRoot2,dTime,dDelta,*pdStep,dTheta,
-                                 1,bKickOpen,param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,nGroup,SPHoptions);
+                                 1,bKickOpen,param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
             if (SPHoptions.doInterfaceCorrection) {
                 SPHoptions.doDensity = 0;
                 SPHoptions.doDensityCorrection = 1;
@@ -4264,7 +4274,7 @@ int MSR::NewTopStepKDK(
                 SPHoptions.dofBallFactor = 0;
                 TreeUpdateFlagBounds(param.bEwald,ROOT,0,SPHoptions);
                 *puRungMax = Gravity(uRung,MaxRung(),ROOT,uRoot2,dTime,dDelta,*pdStep,dTheta,1,bKickOpen,
-                                     param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,nGroup,SPHoptions);
+                                     param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
                 UpdateGasValues(uRung,dTime,dDelta,*pdStep,1,bKickOpen,SPHoptions);
                 SPHoptions.doDensityCorrection = 0;
                 SPHoptions.useDensityFlags = 0;
@@ -4272,14 +4282,14 @@ int MSR::NewTopStepKDK(
         }
         else {
             *puRungMax = Gravity(0,MaxRung(),ROOT,uRoot2,dTime,dDelta,*pdStep,dTheta,
-                                 1,bKickOpen,param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,nGroup,SPHoptions);
+                                 1,bKickOpen,param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
             if (SPHoptions.doInterfaceCorrection) {
                 SPHoptions.doDensity = 0;
                 SPHoptions.doDensityCorrection = 1;
                 SPHoptions.dofBallFactor = 0;
                 TreeUpdateFlagBounds(param.bEwald,ROOT,0,SPHoptions);
                 *puRungMax = Gravity(0,MaxRung(),ROOT,uRoot2,dTime,dDelta,*pdStep,dTheta,1,bKickOpen,
-                                     param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,nGroup,SPHoptions);
+                                     param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
                 UpdateGasValues(0,dTime,dDelta,*pdStep,1,bKickOpen,SPHoptions);
                 SPHoptions.doDensityCorrection = 0;
             }
@@ -4294,13 +4304,13 @@ int MSR::NewTopStepKDK(
         SPHoptions.dofBallFactor = 0;
         TreeUpdateFlagBounds(param.bEwald,ROOT,0,SPHoptions);
         *puRungMax = Gravity(uRung,MaxRung(),ROOT,uRoot2,dTime,dDelta,*pdStep,dTheta,
-                             1,bKickOpen,param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,nGroup,SPHoptions);
+                             1,bKickOpen,param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
     }
     else { /*if (param.bDoGravity)*/
         SPHOptions SPHoptions = initializeSPHOptions(param,csm,dTime);
         SPHoptions.doGravity = param.bDoGravity;
         *puRungMax = Gravity(uRung,MaxRung(),ROOT,uRoot2,dTime,dDelta,*pdStep,dTheta,
-                             1,bKickOpen,param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,nGroup,SPHoptions);
+                             1,bKickOpen,param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
     }
 
 #if defined(FEEDBACK) || defined(STELLAR_EVOLUTION)
@@ -4480,7 +4490,7 @@ void MSR::TopStepKDK(
             SPHoptions.doGravity = 1;
             Gravity(iKickRung,MAX_RUNG,ROOT,0,dTime,dDeltaStep,dStep,dTheta,0,0,
                     param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,
-                    param.nGroup,SPHoptions);
+                    SPHoptions);
         }
 
 #if defined(FEEDBACK) || defined(STELLAR_EVOLUTION)
@@ -5237,7 +5247,7 @@ double MSR::Read(const char *achInFile) {
         SPHoptions.doDensity = 1;
         SPHoptions.doUConversion = 1;
         Gravity(0,MAX_RUNG,ROOT,0,dTime,0.0f,param.iStartStep,dTheta,0,1,
-                param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,SPHoptions);
+                param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
         MemStatus();
         if (SPHoptions.doInterfaceCorrection) {
             SPHoptions.doDensity = 0;
@@ -5245,7 +5255,7 @@ double MSR::Read(const char *achInFile) {
             SPHoptions.dofBallFactor = 0;
             TreeUpdateFlagBounds(param.bEwald,ROOT,0,SPHoptions);
             Gravity(0,MAX_RUNG,ROOT,0,dTime,0.0f,param.iStartStep,dTheta,0,1,
-                    param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,SPHoptions);
+                    param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
             UpdateGasValues(0,dTime,0.0f,param.iStartStep,0,1,SPHoptions);
         }
         TimerStop(TIMER_NONE);

@@ -746,7 +746,7 @@ void *pkdRecvArray(PKD pkd,int iNode, void *pDest, int iUnitSize);
 void pkdGravAll(PKD pkd,
                 struct pkdKickParameters *kick,struct pkdLightconeParameters *lc,struct pkdTimestepParameters *ts,
                 double dTime,int nReps,int bPeriodic,
-                int bEwald,int nGroup,int iRoot1, int iRoot2,
+                int bEwald,int iRoot1, int iRoot2,
                 double fEwCut,double fEwhCut,double dThetaMin,SPHOptions *SPHoptions,
                 uint64_t *pnActive,
                 double *pdPart,double *pdPartNumAccess,double *pdPartMissRatio,
