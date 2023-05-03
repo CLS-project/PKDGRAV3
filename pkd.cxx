@@ -766,7 +766,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             fioReadSph(fio,&iParticleID,r.data(),vel.data(),&fMass,&fSoft,pPot,
                        &fDensity,&u,&fMetals[0],afSphOtherData);
             if (p.have_newsph()) {
-                fSoft = 1.0f;
+                fSoft = 1.0f; // Dummy value, because the field in the file is used as hSmooth
                 pkd->particles.setClass(fMass,fSoft,fMetals[0],eSpecies,&p);
             }
             else {
