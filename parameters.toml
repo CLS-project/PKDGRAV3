@@ -505,11 +505,6 @@ flag="ewald"
 default=true
 help="enable Ewald correction"
 
-["Periodic Boundaries".iEwOrder]
-flag="ewo"
-default=4
-help="Ewald multipole expansion order: 1, 2, 3 or 4"
-
 ["Periodic Boundaries".dPeriod]
 flag="L"
 default=1.0

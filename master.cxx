@@ -623,9 +623,13 @@ void MSR::writeParameters(const char *baseName,int iStep,int nSteps,double dTime
             "from MASTER import MSR",
             "from argparse import Namespace",
             "arguments=");
-    PyObject_Print(parameters.get_arguments(),fp,0);
+    auto a = parameters.arguments();
+    PyObject_Print(a,fp,0);
+    Py_DECREF(a);
     fprintf(fp,"\n%s","specified=");
-    PyObject_Print(parameters.get_specified(),fp,0);
+    auto s = parameters.specified();
+    PyObject_Print(s,fp,0);
+    Py_DECREF(s);
     fprintf(fp,"\nspecies=[ ");
     for (i=0; i<FIO_SPECIES_LAST; ++i) fprintf(fp,"%" PRIu64 ",",nSpecies[i]);
     fprintf(fp," ]\n");
@@ -808,9 +812,6 @@ void MSR::Initialize() {
     param.nDigits = 5;
     prmAddParam(prm,"nDigits",1,&param.nDigits,sizeof(int),"nd",
                 "<number of digits to use in output filenames> = 5");
-    param.bPeriodic = 0;
-    prmAddParam(prm,"bPeriodic",0,&param.bPeriodic,sizeof(int),"p",
-                "periodic/non-periodic = -p");
     param.bRestart = 0;
     prmAddParam(prm,"bRestart",0,&param.bRestart,sizeof(int),"restart",
                 "restart from checkpoint");
@@ -865,12 +866,6 @@ void MSR::Initialize() {
     param.dDeltakRedshift = 2.0;
     prmAddParam(prm,"dDeltakRedshift",2,&param.dDeltakRedshift,sizeof(double),"zdel",
                 "starting redshift to output delta(k) field = 2.0");
-    param.bEwald = 1;
-    prmAddParam(prm,"bEwald",0,&param.bEwald,sizeof(int),"ewald",
-                "enable/disable Ewald correction = +ewald");
-    param.iEwOrder = 4;
-    prmAddParam(prm,"iEwOrder",1,&param.iEwOrder,sizeof(int),"ewo",
-                "<Ewald multipole expansion order: 1, 2, 3 or 4> = 4");
     param.dSoft = 0.0;
     prmAddParam(prm,"dSoft",2,&param.dSoft,sizeof(double),"e",
                 "<gravitational softening length> = 0.0");
@@ -2275,7 +2270,7 @@ void MSR::AllNodeWrite(const char *pszFileName, double dTime, double dvFac, int 
     }
 
     /* We need to enforce periodic boundaries (when applicable) */
-    if (param.bPeriodic &&
+    if (parameters.get_bPeriodic() &&
             param.dxPeriod < FLOAT_MAXVAL &&
             param.dyPeriod < FLOAT_MAXVAL &&
             param.dzPeriod < FLOAT_MAXVAL) {
@@ -2604,7 +2599,7 @@ void MSR::DomainDecompOld(int iRung) {
     ** three dimensions then we can set the initial bounds
     ** instead of calculating them.
     */
-    if (param.bPeriodic &&
+    if (parameters.get_bPeriodic() &&
             param.dxPeriod < FLOAT_MAXVAL &&
             param.dyPeriod < FLOAT_MAXVAL &&
             param.dzPeriod < FLOAT_MAXVAL) {
@@ -3050,7 +3045,7 @@ void MSR::Smooth(double dTime,double dDelta,int iSmoothType,int bSymmetric,int n
     struct inSmooth in;
 
     in.nSmooth = nSmooth;
-    in.bPeriodic = param.bPeriodic;
+    in.bPeriodic = parameters.get_bPeriodic();
     in.bSymmetric = bSymmetric;
     in.iSmoothType = iSmoothType;
     SmoothSetSMF(&(in.smf), dTime, dDelta, nSmooth);
@@ -3072,7 +3067,7 @@ int MSR::ReSmooth(double dTime,double dDelta,int iSmoothType,int bSymmetric) {
     struct outSmooth out;
 
     in.nSmooth = param.nSmooth;
-    in.bPeriodic = param.bPeriodic;
+    in.bPeriodic = parameters.get_bPeriodic();
     in.bSymmetric = bSymmetric;
     in.iSmoothType = iSmoothType;
     SmoothSetSMF(&(in.smf), dTime, dDelta, param.nSmooth);
@@ -3096,7 +3091,7 @@ int MSR::ReSmoothNode(double dTime, double dDelta,int iSmoothType,int bSymmetric
     struct outSmooth out;
 
     in.nSmooth = param.nSmooth;
-    in.bPeriodic = param.bPeriodic;
+    in.bPeriodic = parameters.get_bPeriodic();
     in.bSymmetric = bSymmetric;
     in.iSmoothType = iSmoothType;
     SmoothSetSMF(&(in.smf), dTime, dDelta, param.nSmooth);
@@ -3307,7 +3302,7 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
 
     in.dTheta = dTheta;
 
-    in.bPeriodic = param.bPeriodic;
+    in.bPeriodic = parameters.get_bPeriodic();
     in.bEwald = bEwald;
     in.dEwCut = param.dEwCut;
     in.dEwhCut = param.dEwhCut;
@@ -4065,6 +4060,7 @@ int MSR::NewTopStepKDK(
     double *pdStep, /* Current step */
     uint8_t *puRungMax,
     int *pbDoCheckpoint,int *pbDoOutput,int *pbNeedKickOpen) {
+    const auto bEwald = parameters.get_bEwald();
     double dDeltaRung,dTimeFixed;
     uint32_t uRoot2=0;
     int bKickOpen=1;
@@ -4097,7 +4093,7 @@ int MSR::NewTopStepKDK(
                 dDeltaRung = dDelta/(1 << iRungDT); // Main tree step
                 Drift(dTime,0.5 * dDeltaRung,FIXROOT);
                 dTimeFixed = dTime + 0.5 * dDeltaRung;
-                BuildTreeFixed(param.bEwald,iRungDT);
+                BuildTreeFixed(bEwald,iRungDT);
             }
         }
         else bDualTree = 0;
@@ -4150,7 +4146,7 @@ int MSR::NewTopStepKDK(
     UpdateSoft(dTime);
     if (bDualTree && uRung > iRungDT) {
         uRoot2 = FIXROOT;
-        BuildTreeActive(param.bEwald,iRungDT);
+        BuildTreeActive(bEwald,iRungDT);
     }
     else {
         DomainDecomp(uRung);
@@ -4177,7 +4173,7 @@ int MSR::NewTopStepKDK(
         }
 #endif
 
-        BuildTree(param.bEwald);
+        BuildTree(bEwald);
     }
 
     if (!uRung) {
@@ -4236,16 +4232,16 @@ int MSR::NewTopStepKDK(
             SPHoptions.doSPHForces = 0;
             SPHoptions.doSetDensityFlags = 1;
             *puRungMax = Gravity(uRung,MaxRung(),ROOT,uRoot2,dTime,dDelta,*pdStep,dTheta,
-                                 1,bKickOpen,param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
+                                 1,bKickOpen,bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
             // Select Neighbors of Neighbors
             if (SPHoptions.doInterfaceCorrection) {
                 SPHoptions.dofBallFactor = 1;
-                TreeUpdateFlagBounds(param.bEwald,ROOT,0,SPHoptions);
+                TreeUpdateFlagBounds(bEwald,ROOT,0,SPHoptions);
                 SPHoptions.doSetDensityFlags = 0;
                 SPHoptions.doSetNNflags = 1;
                 SPHoptions.useDensityFlags = 1;
                 *puRungMax = Gravity(uRung,MaxRung(),ROOT,uRoot2,dTime,dDelta,*pdStep,dTheta,
-                                     1,bKickOpen,param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
+                                     1,bKickOpen,bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
                 SPHoptions.doSetNNflags = 0;
                 SPHoptions.useDensityFlags = 0;
             }
@@ -4263,18 +4259,18 @@ int MSR::NewTopStepKDK(
             if (SPHoptions.doInterfaceCorrection) {
                 SPHoptions.useNNflags = 1;
             }
-            TreeUpdateFlagBounds(param.bEwald,ROOT,0,SPHoptions);
+            TreeUpdateFlagBounds(bEwald,ROOT,0,SPHoptions);
             *puRungMax = Gravity(uRung,MaxRung(),ROOT,uRoot2,dTime,dDelta,*pdStep,dTheta,
-                                 1,bKickOpen,param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
+                                 1,bKickOpen,bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
             if (SPHoptions.doInterfaceCorrection) {
                 SPHoptions.doDensity = 0;
                 SPHoptions.doDensityCorrection = 1;
                 SPHoptions.useDensityFlags = 1;
                 SPHoptions.useNNflags = 0;
                 SPHoptions.dofBallFactor = 0;
-                TreeUpdateFlagBounds(param.bEwald,ROOT,0,SPHoptions);
+                TreeUpdateFlagBounds(bEwald,ROOT,0,SPHoptions);
                 *puRungMax = Gravity(uRung,MaxRung(),ROOT,uRoot2,dTime,dDelta,*pdStep,dTheta,1,bKickOpen,
-                                     param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
+                                     bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
                 UpdateGasValues(uRung,dTime,dDelta,*pdStep,1,bKickOpen,SPHoptions);
                 SPHoptions.doDensityCorrection = 0;
                 SPHoptions.useDensityFlags = 0;
@@ -4282,14 +4278,14 @@ int MSR::NewTopStepKDK(
         }
         else {
             *puRungMax = Gravity(0,MaxRung(),ROOT,uRoot2,dTime,dDelta,*pdStep,dTheta,
-                                 1,bKickOpen,param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
+                                 1,bKickOpen,bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
             if (SPHoptions.doInterfaceCorrection) {
                 SPHoptions.doDensity = 0;
                 SPHoptions.doDensityCorrection = 1;
                 SPHoptions.dofBallFactor = 0;
-                TreeUpdateFlagBounds(param.bEwald,ROOT,0,SPHoptions);
+                TreeUpdateFlagBounds(bEwald,ROOT,0,SPHoptions);
                 *puRungMax = Gravity(0,MaxRung(),ROOT,uRoot2,dTime,dDelta,*pdStep,dTheta,1,bKickOpen,
-                                     param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
+                                     bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
                 UpdateGasValues(0,dTime,dDelta,*pdStep,1,bKickOpen,SPHoptions);
                 SPHoptions.doDensityCorrection = 0;
             }
@@ -4302,15 +4298,15 @@ int MSR::NewTopStepKDK(
         SPHoptions.doSPHForces = 1;
         SPHoptions.useDensityFlags = 0;
         SPHoptions.dofBallFactor = 0;
-        TreeUpdateFlagBounds(param.bEwald,ROOT,0,SPHoptions);
+        TreeUpdateFlagBounds(bEwald,ROOT,0,SPHoptions);
         *puRungMax = Gravity(uRung,MaxRung(),ROOT,uRoot2,dTime,dDelta,*pdStep,dTheta,
-                             1,bKickOpen,param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
+                             1,bKickOpen,bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
     }
     else { /*if (param.bDoGravity)*/
         SPHOptions SPHoptions = initializeSPHOptions(param,csm,dTime);
         SPHoptions.doGravity = param.bDoGravity;
         *puRungMax = Gravity(uRung,MaxRung(),ROOT,uRoot2,dTime,dDelta,*pdStep,dTheta,
-                             1,bKickOpen,param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
+                             1,bKickOpen,bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
     }
 
 #if defined(FEEDBACK) || defined(STELLAR_EVOLUTION)
@@ -4366,6 +4362,7 @@ void MSR::TopStepKDK(
     int iKickRung,   /* Gravity on all rungs from iRung to iKickRung */
     int iAdjust) {   /* Do an adjust? */
     double dDeltaStep = dDeltaRung * (1 << iRung);
+    const auto bEwald = parameters.get_bEwald();
 #ifdef BLACKHOLES
     if (!iKickRung && !iRung && param.bBHPlaceSeed) {
         PlaceBHSeed(dTime, iRung);
@@ -4377,7 +4374,7 @@ void MSR::TopStepKDK(
         // This is done to prevent a mismatch between the fetched and true
         // cell data, as it may have been updated if a BH has been placed
         // into that node
-        BuildTree(param.bEwald);
+        BuildTree(bEwald);
 #endif
     }
 #endif
@@ -4483,13 +4480,13 @@ void MSR::TopStepKDK(
             ActiveRung(iKickRung,1);
             if (DoGravity()) UpdateSoft(dTime);
             msrprintf("%*cForces, iRung: %d to %d\n",2*iRung+2,' ',iKickRung,iRung);
-            BuildTree(param.bEwald);
+            BuildTree(bEwald);
         }
         if (DoGravity()) {
             SPHOptions SPHoptions = initializeSPHOptions(param,csm,dTime);
             SPHoptions.doGravity = 1;
             Gravity(iKickRung,MAX_RUNG,ROOT,0,dTime,dDeltaStep,dStep,dTheta,0,0,
-                    param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,
+                    bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,
                     SPHoptions);
         }
 
@@ -4543,7 +4540,7 @@ void MSR::TopStepKDK(
     if (!iKickRung && !iRung && param.bFindGroups) {
         NewFof(param.dTau,param.nMinMembers);
         GroupStats();
-        BuildTree(param.bEwald);
+        BuildTree(bEwald);
     }
 
 }
@@ -4714,7 +4711,7 @@ void MSR::Hop(double dTime, double dDelta) {
     ssec = MSR::Time();
 
     h.nSmooth    = in.nSmooth = 80;
-    h.bPeriodic  = in.bPeriodic = param.bPeriodic;
+    h.bPeriodic  = in.bPeriodic = parameters.get_bPeriodic();
     h.bSymmetric = in.bSymmetric = 0;
     h.dHopTau    = param.dHopTau<0 ? param.dHopTau : param.dHopTau;
     h.smf.a      = in.smf.a = dTime;
@@ -4767,7 +4764,7 @@ void MSR::Hop(double dTime, double dDelta) {
     if (parameters.get_bVStep())
         printf("Chain merge complete in %f secs, %" PRIu64 " groups\n",dsec,nGroups);
     inFinish.nMinGroupSize = param.nMinMembers;
-    inFinish.bPeriodic = param.bPeriodic;
+    inFinish.bPeriodic = parameters.get_bPeriodic();
     inFinish.fPeriod[0] = param.dxPeriod;
     inFinish.fPeriod[1] = param.dyPeriod;
     inFinish.fPeriod[2] = param.dzPeriod;
@@ -4781,7 +4778,7 @@ void MSR::Hop(double dTime, double dDelta) {
 
     struct inHopUnbind inUnbind;
     inUnbind.dTime = dTime;
-    inUnbind.bPeriodic = param.bPeriodic;
+    inUnbind.bPeriodic = parameters.get_bPeriodic();
     inUnbind.fPeriod[0] = param.dxPeriod;
     inUnbind.fPeriod[1] = param.dyPeriod;
     inUnbind.fPeriod[2] = param.dzPeriod;
@@ -4789,7 +4786,7 @@ void MSR::Hop(double dTime, double dDelta) {
     inUnbind.iIteration = 0;
     struct inHopGravity inGravity;
     inGravity.dTime = dTime;
-    inGravity.bPeriodic = param.bPeriodic;
+    inGravity.bPeriodic = parameters.get_bPeriodic();
     inGravity.nGroup = param.nGroup;
     inGravity.dEwCut = param.dEwCut;
     inGravity.dEwhCut = param.dEwhCut;
@@ -4827,7 +4824,7 @@ void MSR::Hop(double dTime, double dDelta) {
     /*
     ** This should be done as a separate msr function.
     */
-    inGroupStats.bPeriodic = param.bPeriodic;
+    inGroupStats.bPeriodic = parameters.get_bPeriodic();
     inGroupStats.dPeriod[0] = param.dxPeriod;
     inGroupStats.dPeriod[1] = param.dyPeriod;
     inGroupStats.dPeriod[2] = param.dzPeriod;
@@ -4858,7 +4855,7 @@ void MSR::NewFof(double dTau,int nMinMembers) {
 
     in.dTau2 = dTau*dTau;
     in.nMinMembers = nMinMembers;
-    in.bPeriodic = param.bPeriodic;
+    in.bPeriodic = parameters.get_bPeriodic();
     in.nReplicas = in.bPeriodic ? parameters.get_nReplicas() : 0;
     in.nBucket = param.nBucket;
 
@@ -4908,7 +4905,7 @@ void MSR::GroupStats() {
     if (parameters.get_bVStep())
         printf("Generating Group statistics\n");
     TimerStart(TIMER_FOF);
-    inGroupStats.bPeriodic = param.bPeriodic;
+    inGroupStats.bPeriodic = parameters.get_bPeriodic();
     inGroupStats.dPeriod[0] = param.dxPeriod;
     inGroupStats.dPeriod[1] = param.dyPeriod;
     inGroupStats.dPeriod[2] = param.dzPeriod;
@@ -4939,7 +4936,7 @@ double MSR::GenerateIC() {
     int j;
 
     // We only support periodic initial conditions
-    param.bPeriodic = 1;
+    parameters.set(parameters.str_bPeriodic,true);
 
     in.dBoxSize = param.dBoxSize;
     in.iSeed = param.iSeed;
@@ -5181,7 +5178,7 @@ double MSR::Read(const char *achInFile) {
     ** If this is a non-periodic box, then we must precalculate the bounds.
     ** We throw away the result, but PKD will keep track for later.
     */
-    if (!param.bPeriodic ||
+    if (!parameters.get_bPeriodic() ||
             param.dxPeriod >= FLOAT_MAXVAL ||
             param.dyPeriod >= FLOAT_MAXVAL ||
             param.dzPeriod >= FLOAT_MAXVAL) {
@@ -5191,6 +5188,7 @@ double MSR::Read(const char *achInFile) {
     InitCosmology();
 
     if (DoGas() && NewSPH()) {
+        const auto bEwald = parameters.get_bEwald();
         /*
         ** Initialize kernel target with either the mean mass or nSmooth
         */
@@ -5224,7 +5222,7 @@ double MSR::Read(const char *achInFile) {
         Reorder();
         ActiveRung(0,1); /* Activate all particles */
         DomainDecomp(-1);
-        BuildTree(param.bEwald);
+        BuildTree(bEwald);
         Smooth(dTime,0.0f,SMX_BALL,0,2 * param.nSmooth);
         Reorder();
         TimerStop(TIMER_NONE);
@@ -5238,7 +5236,7 @@ double MSR::Read(const char *achInFile) {
         printf("Converting u ...\n");
         ActiveRung(0,1); /* Activate all particles */
         DomainDecomp(-1);
-        BuildTree(param.bEwald);
+        BuildTree(bEwald);
 
         auto dTheta = set_dynamic(parameters.get_iStartStep(),dTime);
 
@@ -5247,15 +5245,15 @@ double MSR::Read(const char *achInFile) {
         SPHoptions.doDensity = 1;
         SPHoptions.doUConversion = 1;
         Gravity(0,MAX_RUNG,ROOT,0,dTime,0.0f,param.iStartStep,dTheta,0,1,
-                param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
+                bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
         MemStatus();
         if (SPHoptions.doInterfaceCorrection) {
             SPHoptions.doDensity = 0;
             SPHoptions.doDensityCorrection = 1;
             SPHoptions.dofBallFactor = 0;
-            TreeUpdateFlagBounds(param.bEwald,ROOT,0,SPHoptions);
+            TreeUpdateFlagBounds(bEwald,ROOT,0,SPHoptions);
             Gravity(0,MAX_RUNG,ROOT,0,dTime,0.0f,param.iStartStep,dTheta,0,1,
-                    param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
+                    bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
             UpdateGasValues(0,dTime,0.0f,param.iStartStep,0,1,SPHoptions);
         }
         TimerStop(TIMER_NONE);
@@ -5567,7 +5565,7 @@ void MSR::CalcDistance(const double *dCenter, double dRadius ) {
 
     for (j=0; j<3; j++) in.dCenter[j] = dCenter[j];
     in.dRadius = dRadius;
-    in.bPeriodic = param.bPeriodic;
+    in.bPeriodic = parameters.get_bPeriodic();
     pstCalcDistance(pst, &in, sizeof(in), NULL, 0);
 }
 
@@ -5581,7 +5579,7 @@ void MSR::CalcCOM(const double *dCenter, double dRadius,
 
     for (j=0; j<3; j++) in.dCenter[j] = dCenter[j];
     in.dRadius = dRadius;
-    in.bPeriodic = param.bPeriodic;
+    in.bPeriodic = parameters.get_bPeriodic();
     nOut = pstCalcCOM(pst, &in, sizeof(in), &out, sizeof(out));
     assert( nOut == sizeof(out) );
 

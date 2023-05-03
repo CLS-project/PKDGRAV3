@@ -309,7 +309,7 @@ ppy_msr_GenerateIC(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     flush_std_files();
     static char const *kwlist[]= {"csm","z","grid","seed","L",NULL};
     CSMINSTANCE *cosmo = NULL;
-    self->msr->param.bPeriodic = 1;
+    self->msr->parameters.set(self->msr->parameters.str_bPeriodic,true);
     if ( !PyArg_ParseTupleAndKeywords(
                 args, kwobj, "Odi|id:GenerateIC", const_cast<char **>(kwlist),
                 &cosmo,&self->msr->param.dRedFrom,&self->msr->param.nGrid,
@@ -543,7 +543,7 @@ static PyObject *
 ppy_msr_BuildTree(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     flush_std_files();
     static char const *kwlist[]= {"ewald","rung","active","marked",NULL};
-    int bEwald = self->msr->param.bEwald;
+    int bEwald = self->msr->parameters.get_bEwald();
     uint8_t uRungDT = 0; /* Zero rung means build a single tree */
     int bActive = 0;
     int bMarked = 0;
@@ -580,7 +580,7 @@ ppy_msr_Gravity(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     // double dTheta = msr->param.dTheta;
     double dTheta = 0.7;
 
-    int bEwald = msr->param.bEwald;
+    int bEwald = msr->parameters.get_bEwald();
     int iRungLo    = 0;
     int iRungHi    = MAX_RUNG;
     int iRoot1 = ROOT;
@@ -1335,15 +1335,11 @@ static PyMemberDef msr_members[] = {
 };
 
 static PyObject *msr_get_parm(MSRINSTANCE *self, void *) {
-    auto a = self->msr->parameters.get_arguments();
-    Py_INCREF(a);
-    return a;
+    return self->msr->parameters.arguments();
 }
 
 static PyObject *msr_get_spec(MSRINSTANCE *self, void *) {
-    auto s = self->msr->parameters.get_specified();
-    Py_INCREF(s);
-    return s;
+    return self->msr->parameters.specified();
 }
 
 // This warning should be fixed in newer Python versions

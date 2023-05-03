@@ -27,7 +27,6 @@ struct parameters {
     /*
     ** Parameters for PKDGRAV.
     */
-    int bPeriodic;
     int bRestart;
     int bParaRead;
     int bParaWrite;
@@ -57,8 +56,6 @@ struct parameters {
     int iCheckInterval;
     int iLogInterval;
     int iPkInterval;
-    int bEwald;
-    int iEwOrder;
     int iStartStep;
     int nSteps;
     int nSteps10;
