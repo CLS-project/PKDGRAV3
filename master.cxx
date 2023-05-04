@@ -2107,6 +2107,9 @@ int MSR::CheckForStop(const char *achStopFile) {
     return 0;
 }
 
+MSR::MSR(MDL mdl,PST pst) : pst(pst), mdl(static_cast<mdl::mdlClass *>(mdl)), bVDetails(false) {
+}
+
 MSR::~MSR() {
     csmFinish(csm);
     prmFinish(prm);
@@ -2342,7 +2345,7 @@ uint64_t MSR::CalcWriteStart() {
     return out.nTotal;
 }
 
-void MSR::Write(const char *pszFileName,double dTime,int bCheckpoint) {
+void MSR::Write(const std::string &pszFileName,double dTime,int bCheckpoint) {
     char achOutFile[PST_FILENAME_SIZE];
     int nProcessors;
     double dvFac, dExp;
@@ -2362,7 +2365,7 @@ void MSR::Write(const char *pszFileName,double dTime,int bCheckpoint) {
     /*
     ** Add Data Subpath for local and non-local names.
     */
-    MSR::MakePath(param.achDataSubPath,pszFileName,achOutFile);
+    MSR::MakePath(param.achDataSubPath,pszFileName.c_str(),achOutFile);
 
     /*
     ** If bParaWrite is 0, then we write serially; if it is 1, then we write
@@ -5079,7 +5082,7 @@ double MSR::GenerateIC() {
 }
 #endif
 
-double MSR::Read(const char *achInFile) {
+double MSR::Read(const std::string &achInFile) {
     double dTime,dExpansion;
     FIO fio;
     int j;
@@ -5097,7 +5100,7 @@ double MSR::Read(const char *achInFile) {
     auto read = new (buffer.get()) inReadFile;
 
     /* Add Data Subpath for local and non-local names. */
-    MSR::MakePath(param.achDataSubPath,achInFile,achFilename);
+    MSR::MakePath(param.achDataSubPath,achInFile.c_str(),achFilename);
     fio = fioOpen(achFilename,csm->val.dOmega0,csm->val.dOmegab);
     if (fio==NULL) {
         fprintf(stderr,"ERROR: unable to open input file\n");
@@ -5544,19 +5547,19 @@ uint64_t MSR::SelPhaseDensity(double dMinPhaseDensity,double dMaxPhaseDensity,in
     mdl->RunService(PST_SELPHASEDENSITY,sizeof(in),&in,&N);
     return N;
 }
-uint64_t MSR::SelBox(double *dCenter, double *dSize,int setIfTrue,int clearIfFalse) {
+uint64_t MSR::SelBox(blitz::TinyVector<double,3> center, blitz::TinyVector<double,3> size,int setIfTrue,int clearIfFalse) {
     uint64_t N;
-    ServiceSelBox::input in(dCenter,dSize,setIfTrue,clearIfFalse);
+    ServiceSelBox::input in(center,size,setIfTrue,clearIfFalse);
     mdl->RunService(PST_SELBOX,sizeof(in),&in,&N);
     return N;
 }
-uint64_t MSR::SelSphere(double *r, double dRadius,int setIfTrue,int clearIfFalse) {
+uint64_t MSR::SelSphere(blitz::TinyVector<double,3> r, double dRadius,int setIfTrue,int clearIfFalse) {
     uint64_t N;
     ServiceSelSphere::input in(r,dRadius,setIfTrue,clearIfFalse);
     mdl->RunService(PST_SELSPHERE,sizeof(in),&in,&N);
     return N;
 }
-uint64_t MSR::SelCylinder(double *dP1, double *dP2, double dRadius,
+uint64_t MSR::SelCylinder(blitz::TinyVector<double,3> dP1, blitz::TinyVector<double,3> dP2, double dRadius,
                           int setIfTrue, int clearIfFalse ) {
     uint64_t N;
     ServiceSelCylinder::input in(dP1,dP2,dRadius,setIfTrue,clearIfFalse);

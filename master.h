@@ -84,7 +84,7 @@ protected:
     bool bAnalysis = false;
     PyObject *parameter_overrides = nullptr;
 public:
-    explicit MSR(MDL mdl,PST pst) : pst(pst), mdl(static_cast<mdl::mdlClass *>(mdl)), bVDetails(false) {}
+    explicit MSR(MDL mdl,PST pst);
     ~MSR();
 public:
     int Python(int argc, char *argv[]);
@@ -116,9 +116,9 @@ public:
                  double dEcosmo,double dUOld, double dTimeOld,
                  std::vector<PARTCLASS> &aClasses,
                  PyObject *arguments,PyObject *specified);
-    double Read(const char *achInFile);
+    double Read(const std::string &achInFile);
     void Checkpoint(int iStep, int nSteps, double dTime, double dDelta);
-    void Write(const char *pszFileName,double dTime,int bCheckpoint);
+    void Write(const std::string &pszFileName,double dTime,int bCheckpoint);
     void OutArray(const char *pszFile,int iType,int iFileType);
     void OutArray(const char *pszFile,int iType);
     void OutVector(const char *pszFile,int iType,int iFileType);
@@ -546,9 +546,9 @@ public:
     uint64_t SelMass(double dMinMass,double dMaxMass,int setIfTrue=true,int ClearIfFalse=true);
     uint64_t SelById(uint64_t idStart,uint64_t idEnd,int setIfTrue=true,int clearIfFalse=true);
     uint64_t SelPhaseDensity(double dMinPhaseDensity,double dMaxPhaseDensity,int setIfTrue=true,int clearIfFalse=true);
-    uint64_t SelBox(double *dCenter, double *dSize,int setIfTrue=true,int clearIfFalse=true);
-    uint64_t SelSphere(double *r, double dRadius,int setIfTrue=true,int clearIfFalse=true);
-    uint64_t SelCylinder(double *dP1, double *dP2, double dRadius, int setIfTrue=true, int clearIfFalse=true);
+    uint64_t SelBox(blitz::TinyVector<double,3> center, blitz::TinyVector<double,3> size,int setIfTrue=true,int clearIfFalse=true);
+    uint64_t SelSphere(blitz::TinyVector<double,3> r, double dRadius,int setIfTrue=true,int clearIfFalse=true);
+    uint64_t SelCylinder(blitz::TinyVector<double,3> dP1, blitz::TinyVector<double,3> dP2, double dRadius, int setIfTrue=true, int clearIfFalse=true);
 
 public:
     void RsLoadIds(int sid,std::vector<uint64_t> &counts,const std::string &filename,bool bAppend=false);

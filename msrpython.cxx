@@ -899,7 +899,7 @@ static PyObject *
 ppy_msr_MarkBox(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     flush_std_files();
     static char const *kwlist[]= {"center","size","setIfTrue","clearIfFalse",NULL};
-    double center[3], size[3];
+    blitz::TinyVector<double,3> center, size;
     int setIfTrue=1, clearIfFalse=1;
     if ( !PyArg_ParseTupleAndKeywords(
                 args, kwobj, "(ddd)(ddd)|ii:MarkBox", const_cast<char **>(kwlist),
@@ -913,7 +913,8 @@ static PyObject *
 ppy_msr_MarkSphere(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     flush_std_files();
     static char const *kwlist[]= {"center","radius","setIfTrue","clearIfFalse",NULL};
-    double center[3], radius;
+    blitz::TinyVector<double,3> center;
+    double radius;
     int setIfTrue=1, clearIfFalse=1;
     if ( !PyArg_ParseTupleAndKeywords(
                 args, kwobj, "(ddd)d|ii:MarkSphere", const_cast<char **>(kwlist),
@@ -927,7 +928,8 @@ static PyObject *
 ppy_msr_MarkCylinder(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     flush_std_files();
     static char const *kwlist[]= {"point1","point2","radius","setIfTrue","clearIfFalse",NULL};
-    double point1[3], point2[3], radius;
+    blitz::TinyVector<double,3> point1, point2;
+    double radius;
     int setIfTrue=1, clearIfFalse=1;
     if ( !PyArg_ParseTupleAndKeywords(
                 args, kwobj, "(ddd)(ddd)d|ii:MarkCylinder", const_cast<char **>(kwlist),
