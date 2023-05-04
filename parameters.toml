@@ -486,14 +486,19 @@ For cosmological simulations it is recommended to switch between 1 and 2 replica
 depending on :math:`\theta` by using accuracy.classic_replicas_switch().
 '''
 
+["Force Accuracy".dEwCut]
+flag="ew"
+default=2.6
+help="dEwCut"
+
+["Force Accuracy".dEwhCut]
+flag="ewh"
+default=2.8
+help="dEwhCut"
+
 ################################################################################
 ########## Periodic Boundaries
 ################################################################################
-
-["Periodic Boundaries".bComove]
-flag="cm"
-default=false
-help="enable comoving coordinates"
 
 ["Periodic Boundaries".bPeriodic]
 flag="p"
@@ -525,19 +530,17 @@ flag="Lz"
 default=1.0
 help="periodic box length in z-dimension"
 
-["Periodic Boundaries".dEwCut]
-flag="ew"
-default=2.6
-help="dEwCut"
-
-["Periodic Boundaries".dEwhCut]
-flag="ewh"
-default=2.8
-help="dEwhCut"
-
 ################################################################################
 ########## Cosmology
 ################################################################################
+
+["Cosmology".bComove]
+flag="cm"
+default=false
+help="enable comoving coordinates"
+docs='''
+Enables comoving coordinate system and cosmology.
+'''
 
 ["Cosmology".dHubble0]
 flag="Hub"
