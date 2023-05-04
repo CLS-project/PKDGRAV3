@@ -1,11 +1,11 @@
 from __future__ import division
-import os
+import os,sys
 from math import sqrt,pi
 import numpy as np
 import unittest
 from ddt import ddt, data, file_data, unpack
 import xmlrunner
-from MASTER import MSR # Once MSR is imported, simulation mode is no longer automatically entered
+import PKDGRAV as msr # Once PKDGRAV is imported, simulation mode is no longer automatically entered
 
 @ddt
 @unittest.skipIf(not os.path.isfile('b0-final.std'), "missing b0-final.std")
@@ -16,15 +16,15 @@ class TestFof(unittest.TestCase):
         name = 'b0-final.std'
         dTau = 0.0004098
         nMinMembers = 10
-        msr = MSR()
-        msr.setParameters(bFindGroups = True,bMemGlobalGid = True)
-        time = msr.Load(name)
-        msr.DomainDecomp()
-        msr.BuildTree()
-        msr.Fof(dTau,nMinMembers)
-        msr.Reorder()
-        b = msr.GetArray(field=16,time=time) # 16 = GLOBAL Group id (oGlobalGid)
+        msr.set_parameters(bFindGroups = True,bMemGlobalGid = True)
+        time = msr.load(name)
+        msr.domain_decompose()
+        msr.build_tree()
+        msr.fof(dTau,nMinMembers)
+        msr.reorder()
+        b = msr.get_array(field=msr.FIELD_GLOBAL_GID,time=time) # 16 = GLOBAL Group id (oGlobalGid)
         a = np.load('b0-final-ref.grp.npy')
+        self.assertTrue(np.all(np.where(a == 0)[0]==np.where(b == 0)[0]))
         (ua,ia,ra) = np.unique(a,return_index=True,return_inverse=True)
         m = b[ia]
         x = m[ra]
