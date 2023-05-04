@@ -186,16 +186,47 @@ def get_array(field,time=1.0,marked=False):
     if N[1] == 1: a = np.reshape(a,(N[0]))
     return a
 
-def mark_box(center,size,set_if_true=1,clear_if_false=1):
+def mark_box(center,apothem,set_if_true=1,clear_if_false=1):
+    """
+    Mark particles inside a given box
+
+    :param number[3] center: center coordinate
+    :param number[3] apothem: distance from center to edge
+    :param integer set_if_true: mark the particle if it is inside
+    :param integer clear_if_flase: unmark the particle if it is outside
+    :return: number of particles marked
+    :rtype: integer
+    """
     return msr0.SelBox(TinyVector[double,BLITZ3](center[0],center[1],center[2]),
-                TinyVector[double,BLITZ3](size[0],  size[1],  size[2]),
+                TinyVector[double,BLITZ3](apothem[0],  apothem[1],  apothem[2]),
                 set_if_true,clear_if_false)
 
 def mark_sphere(center,radius,set_if_true=1,clear_if_false=1):
+    """
+    Mark particles inside a given sphere
+
+    :param number[3] center: center coordinate
+    :param number radius: distance from center to edge
+    :param integer set_if_true: mark the particle if it is inside
+    :param integer clear_if_flase: unmark the particle if it is outside
+    :return: number of particles marked
+    :rtype: integer
+    """
     return msr0.SelSphere(TinyVector[double,BLITZ3](center[0],center[1],center[2]),
                    radius,set_if_true,clear_if_false)
 
 def mark_cylinder(point1,point2,radius,set_if_true=1,clear_if_false=1):
+    """
+    Mark particles inside a cylinder
+
+    :param number[3] point1: center of the first end of the cylinder
+    :param number[3] point2: center of the second end of the cylinder
+    :param number radius: radius of the cylinder
+    :param integer set_if_true: mark the particle if it is inside
+    :param integer clear_if_flase: unmark the particle if it is outside
+    :return: number of particles marked
+    :rtype: integer
+    """
     return msr0.SelCylinder(TinyVector[double,BLITZ3](point1[0],point1[1],point1[2]),
                      TinyVector[double,BLITZ3](point2[0],point2[1],point2[2]),
                      radius,set_if_true,clear_if_false)
