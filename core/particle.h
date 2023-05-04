@@ -257,7 +257,7 @@ struct VELSMOOTH {
 //!
 //! The PARTICLE structure can be minimally only four or eight bytes.
 //! The fields listed below can be added based on the memory model.
-enum class PKD_FIELD {
+enum PKD_FIELD {
     oPosition,
     oVelocity, /* Three vel_t */
     oAcceleration, /* Three float */

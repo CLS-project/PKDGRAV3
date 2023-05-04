@@ -20,44 +20,43 @@
 
 #include "pkd.h"
 
-#define OUT_TIPSY_STD            0
-#define OUT_TIPSY_DBL            1
+enum OUT_TYPE {
+    OUT_DENSITY_ARRAY        = 11,
+    OUT_POT_ARRAY            = 12,
+    OUT_AMAG_ARRAY           = 13,
+    OUT_IMASS_ARRAY          = 14,
+    OUT_RUNG_ARRAY           = 15,
+    OUT_DIVV_ARRAY           = 16,
+    OUT_VELDISP2_ARRAY       = 17,
+    OUT_VELDISP_ARRAY        = 18,
+    OUT_PHASEDENS_ARRAY      = 19,
+    OUT_SOFT_ARRAY           = 20,
+    OUT_POS_VECTOR           = 21,
+    OUT_VEL_VECTOR           = 22,
+    OUT_ACCEL_VECTOR         = 23,
+    OUT_MEANVEL_VECTOR       = 24,
 
-#define OUT_DENSITY_ARRAY   11
-#define OUT_POT_ARRAY       12
-#define OUT_AMAG_ARRAY      13
-#define OUT_IMASS_ARRAY     14
-#define OUT_RUNG_ARRAY      15
-#define OUT_DIVV_ARRAY          16
-#define OUT_VELDISP2_ARRAY      17
-#define OUT_VELDISP_ARRAY       18
-#define OUT_PHASEDENS_ARRAY     19
-#define OUT_SOFT_ARRAY          20
-#define OUT_POS_VECTOR      21
-#define OUT_VEL_VECTOR      22
-#define OUT_ACCEL_VECTOR    23
-#define OUT_MEANVEL_VECTOR      24
+    OUT_IORDER_ARRAY         = 25,
 
-#define OUT_IORDER_ARRAY        25
+    OUT_C_ARRAY              = 28,
+    OUT_HSPH_ARRAY           = 29,
 
-#define OUT_C_ARRAY             28
-#define OUT_HSPH_ARRAY          29
+    OUT_RUNGDEST_ARRAY       = 30,
+    OUT_MARKED_ARRAY         = 31,
 
-#define OUT_RUNGDEST_ARRAY      30
-#define OUT_MARKED_ARRAY        31
+    OUT_CACHEFLUX_ARRAY      = 32,
+    OUT_CACHECOLL_ARRAY      = 33,
+    OUT_AVOIDEDFLUXES_ARRAY  = 34,
+    OUT_COMPUTEDFLUXES_ARRAY = 35,
 
-#define OUT_CACHEFLUX_ARRAY   32
-#define OUT_CACHECOLL_ARRAY   33
-#define OUT_AVOIDEDFLUXES_ARRAY   34
-#define OUT_COMPUTEDFLUXES_ARRAY   35
+    OUT_HOP_STATS            = 100,
 
-#define OUT_HOP_STATS          100
-
-#define OUT_GROUP_ARRAY        112
-#define OUT_GLOBALGID_ARRAY      113
-#define OUT_BALL_ARRAY         121
-#define OUT_PSGROUP_ARRAY      122
-#define OUT_PSGROUP_STATS      123
+    OUT_GROUP_ARRAY          = 112,
+    OUT_GLOBALGID_ARRAY      = 113,
+    OUT_BALL_ARRAY           = 121,
+    OUT_PSGROUP_ARRAY        = 122,
+    OUT_PSGROUP_STATS        = 123
+};
 
 #define PKDOUT_TYPE_ASCII 0
 #define PKDOUT_TYPE_BINARY 1
