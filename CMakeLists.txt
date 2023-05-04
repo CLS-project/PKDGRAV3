@@ -180,10 +180,11 @@ add_custom_command(
 )
 
 add_custom_command(
-    OUTPUT ${CMAKE_BINARY_DIR}/pkd_parameters.h
+    OUTPUT ${CMAKE_BINARY_DIR}/pkd_parameters.h ${CMAKE_BINARY_DIR}/pkd_parameters.pxi
     MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/parameters.toml
     DEPENDS ${CMAKE_SOURCE_DIR}/make_parameters.py
     COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/make_parameters.py ${CMAKE_SOURCE_DIR}/parameters.toml ${CMAKE_BINARY_DIR}/pkd_parameters.h
+    ${CMAKE_BINARY_DIR}/pkd_parameters.pxi
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     VERBATIM
 )
@@ -220,18 +221,35 @@ target_link_libraries(${PROJECT_NAME} m)
 #target_link_libraries(psout m)
 
 make_directory(${CMAKE_BINARY_DIR}/modules)
-foreach(file accuracy.py checkpoint.pyx)
-    get_filename_component(base_name ${file} NAME_WE)
-    add_custom_command(
-        OUTPUT ${CMAKE_BINARY_DIR}/modules/${base_name}.cpp
-        MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/modules/${file}
-        COMMAND ${PYTHON} -m cython --3str --cplus --no-docstrings
-            -o ${CMAKE_BINARY_DIR}/modules/${base_name}.cpp
-            ${CMAKE_SOURCE_DIR}/modules/${file}
-        VERBATIM
-    )
-    target_sources(${PROJECT_NAME} PRIVATE ${CMAKE_BINARY_DIR}/modules/${base_name}.cpp)
-endforeach()
+add_custom_command(
+    OUTPUT ${CMAKE_BINARY_DIR}/modules/accuracy.cpp
+    MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/modules/accuracy.py
+    COMMAND ${PYTHON} -m cython --3str --cplus --no-docstrings
+        -o ${CMAKE_BINARY_DIR}/modules/accuracy.cpp
+        ${CMAKE_SOURCE_DIR}/modules/accuracy.py
+    VERBATIM
+)
+target_sources(${PROJECT_NAME} PRIVATE ${CMAKE_BINARY_DIR}/modules/accuracy.cpp)
+add_custom_command(
+    OUTPUT ${CMAKE_BINARY_DIR}/modules/checkpoint.cpp ${CMAKE_BINARY_DIR}/modules/checkpoint.h
+    MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/modules/checkpoint.pyx
+    COMMAND ${PYTHON} -m cython --3str --cplus --no-docstrings
+        -o ${CMAKE_BINARY_DIR}/modules/checkpoint.cpp
+        ${CMAKE_SOURCE_DIR}/modules/checkpoint.pyx
+    VERBATIM
+)
+target_sources(${PROJECT_NAME} PRIVATE ${CMAKE_BINARY_DIR}/modules/checkpoint.cpp)
+add_custom_command(
+    OUTPUT ${CMAKE_BINARY_DIR}/modules/PKDGRAV.cpp ${CMAKE_BINARY_DIR}/modules/PKDGRAV.h
+    MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/modules/PKDGRAV.py
+    DEPENDS ${CMAKE_SOURCE_DIR}/modules/PKDGRAV.pxd ${CMAKE_BINARY_DIR}/pkd_parameters.pxi
+    COMMAND ${PYTHON} -m cython --3str --cplus --no-docstrings
+        -I ${CMAKE_BINARY_DIR}
+        -o ${CMAKE_BINARY_DIR}/modules/PKDGRAV.cpp
+        ${CMAKE_SOURCE_DIR}/modules/PKDGRAV.py
+    VERBATIM
+)
+target_sources(${PROJECT_NAME} PRIVATE ${CMAKE_BINARY_DIR}/modules/PKDGRAV.cpp)
 
 if (NOT APPLE)
 CHECK_INCLUDE_FILES(libaio.h HAVE_LIBAIO_H)

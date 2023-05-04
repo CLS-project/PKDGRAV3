@@ -16,3 +16,22 @@ in the following way::
 
 .. automodule:: accuracy
    :members:
+
+
+PKDGRAV Interface
+-----------------
+
+Instead of simulation mode, you can enter analysis mode by importing the ``PKDGRAV``
+module. Once imported you are then responsible for calling the correct methods
+to achieve your analysis tasks. For example, the following script can be used
+to measure the power spectrum of a periodic simulation output.
+
+.. literalinclude:: ../tools/measurepk.py
+
+The complete list of methods is as follows.
+
+.. automodule:: PKDGRAV
+   :members:
+
+
+
