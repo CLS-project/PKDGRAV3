@@ -111,7 +111,11 @@ public:
 
     // I/O and IC Generation
     double GenerateIC();
-    void Restart(int n, const char *baseName, int iStep, int nSteps, double dTime, double dDelta);
+    void Restart(int n, const char *baseName, int iStep, int nSteps, double dTime, double dDelta,
+                 size_t nDark, size_t nGas, size_t nStar, size_t nBH,
+                 double dEcosmo,double dUOld, double dTimeOld,
+                 std::vector<PARTCLASS> &aClasses,
+                 PyObject *arguments,PyObject *specified);
     double Read(const char *achInFile);
     void Checkpoint(int iStep, int nSteps, double dTime, double dDelta);
     void Write(const char *pszFileName,double dTime,int bCheckpoint);
@@ -306,8 +310,6 @@ public:
     int iCheckpointStep;
     int nCheckpointThreads;
     char achCheckpointName[PST_FILENAME_SIZE];
-    int nCheckpointClasses;
-    PARTCLASS aCheckpointClasses[PKD_MAX_CLASSES];
 protected:
     static double Time();
     static void Leader();

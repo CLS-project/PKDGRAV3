@@ -470,16 +470,12 @@ ppy_msr_Restart(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     PyObject *arguments, *specified;
     int n, iStep, nSteps;
     const char *name;
-    double dTime, dDelta;
+    double dTime, dDelta, dEcosmo, dUOld, dTimeOld;
     if ( !PyArg_ParseTupleAndKeywords(
                 args, kwobj, "OOOOisiiddddd:Restart", const_cast<char **>(kwlist),
                 &arguments,&specified,&species,&classes,&n,&name,
-                &iStep,&nSteps,&dTime,&dDelta,&msr->dEcosmo,&msr->dUOld, &msr->dTimeOld ) )
+                &iStep,&nSteps,&dTime,&dDelta,&dEcosmo,&dUOld, &dTimeOld ) )
         return NULL;
-
-    msr->parameters.merge(pkd_parameters(arguments,specified));
-    Py_DECREF(arguments);
-    Py_DECREF(specified);
 
     // Create a vector of number of species
     species = PySequence_Fast(species,"species must be a list");
@@ -491,16 +487,16 @@ ppy_msr_Restart(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
         vecSpecies[i] = PyNumber_AsSsize_t(item,NULL);
     }
     Py_DECREF(species); // PySequence_Fast creates a new reference
-    msr->N     = vecSpecies[0];
-    msr->nDark = vecSpecies[1];
-    msr->nGas  = vecSpecies[2];
-    msr->nStar = vecSpecies[3];
-    msr->nBH   = vecSpecies[4];
+    auto nDark = vecSpecies[FIO_SPECIES_DARK];
+    auto nGas  = vecSpecies[FIO_SPECIES_SPH];
+    auto nStar = vecSpecies[FIO_SPECIES_STAR];
+    auto nBH   = vecSpecies[FIO_SPECIES_BH];
 
     // Process the array of class information
     classes = PySequence_Fast(classes,"species must be a list");
     int nClasses = PySequence_Fast_GET_SIZE(classes);
-    msr->nCheckpointClasses = nClasses;
+    std::vector<PARTCLASS> aClasses;
+    aClasses.reserve(nClasses);
     for (auto i=0; i < nClasses; ++i) {
         PyObject *item = PySequence_Fast_GET_ITEM(classes, i);
         auto cls = PySequence_Fast(item,"class entry must be a list");
@@ -509,17 +505,21 @@ ppy_msr_Restart(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
         PyObject *itemMass    = PySequence_Fast_GET_ITEM(cls, 1);
         PyObject *itemSoft    = PySequence_Fast_GET_ITEM(cls, 2);
         PyObject *itemiMat    = PySequence_Fast_GET_ITEM(cls, 3);
-        msr->aCheckpointClasses[i].eSpecies = (FIO_SPECIES)PyNumber_AsSsize_t(itemSpecies,NULL);
-        msr->aCheckpointClasses[i].fMass = PyFloat_AsDouble(itemMass);
-        msr->aCheckpointClasses[i].fSoft = PyFloat_AsDouble(itemSoft);
-        msr->aCheckpointClasses[i].iMat  = PyNumber_AsSsize_t(itemiMat,NULL);
+
+        auto spec = (FIO_SPECIES)PyNumber_AsSsize_t(itemSpecies,NULL);
+        auto mass = PyFloat_AsDouble(itemMass);
+        auto soft = PyFloat_AsDouble(itemSoft);
+        auto imat = PyNumber_AsSsize_t(itemiMat,NULL);
+        aClasses.emplace_back(spec,mass,soft,imat);
         Py_DECREF(cls); // PySequence_Fast creates a new reference
     }
     Py_DECREF(classes); // PySequence_Fast creates a new reference
 
-    msr->parameters.ppy2prm(msr->prm);
-    msr->Restart(n, name, iStep, nSteps, dTime, dDelta);
-
+    msr->Restart(n, name, iStep, nSteps, dTime, dDelta,
+                 nDark, nGas, nStar, nBH, dEcosmo, dUOld, dTimeOld,
+                 aClasses,arguments,specified);
+    Py_DECREF(arguments);
+    Py_DECREF(specified);
     Py_RETURN_NONE;
 }
 

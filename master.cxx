@@ -492,8 +492,23 @@ void MSR::Restore(const std::string &baseName,int nSizeParticle) {
 }
 
 
-void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTime, double dDelta) {
+void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTime, double dDelta,
+                  size_t nDark, size_t nGas, size_t nStar, size_t nBH,
+                  double dEcosmo, double dUOld, double dTimeOld,
+                  std::vector<PARTCLASS> &aClasses,PyObject *arguments,PyObject *specified) {
     auto sec = MSR::Time();
+
+    parameters.merge(pkd_parameters(arguments,specified));
+    parameters.ppy2prm(prm);
+
+    this->nDark = nDark;
+    this->nGas  = nGas;
+    this->nStar = nStar;
+    this->nBH   = nBH;
+    this->N     = nDark + nGas + nStar + nBH;
+    this->dEcosmo = dEcosmo;
+    this->dUOld   = dUOld;
+    this->dTimeOld= dTimeOld;
 
     if (parameter_overrides) {
         if (!parameters.update(parameter_overrides)) Exit(1);
@@ -525,7 +540,7 @@ void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTi
     auto [nSizeParticle,nSizeNode] = InitializePStore(nSpecies,mMemoryModel,param.nMemEphemeral);
 
     Restore(baseName,nSizeParticle);
-    pstSetClasses(pst,aCheckpointClasses,nCheckpointClasses*sizeof(PARTCLASS),NULL,0);
+    pstSetClasses(pst,aClasses.data(),aClasses.size()*sizeof(PARTCLASS),NULL,0);
     CalcBound();
     CountRungs(NULL);
 
@@ -585,8 +600,10 @@ void MSR::writeParameters(const char *baseName,int iStep,int nSteps,double dTime
     int i;
     int nBytes;
 
+    static_assert(PKD_MAX_CLASSES<=256); // Hopefully nobody will be mean to us (we use the stack)
+    PARTCLASS aCheckpointClasses[PKD_MAX_CLASSES];
     nBytes = pstGetClasses(pst,NULL,0,aCheckpointClasses,PKD_MAX_CLASSES*sizeof(PARTCLASS));
-    nCheckpointClasses = nBytes / sizeof(PARTCLASS);
+    int nCheckpointClasses = nBytes / sizeof(PARTCLASS);
     assert(nCheckpointClasses*sizeof(PARTCLASS)==nBytes);
 
     strcpy( achOutName, baseName );
