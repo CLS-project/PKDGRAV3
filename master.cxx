@@ -3285,6 +3285,7 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
         if (SPHoptions.doDensityCorrection && !SPHoptions.useDensityFlags) printf("Calculating Density Correction without FastGas, Step:%f (rung %d)\n",dStep,uRungLo);
         if (SPHoptions.doGravity && SPHoptions.doSPHForces) printf("Calculating Gravity and SPH forces, Step:%f (rung %d)\n",dStep,uRungLo);
         if (SPHoptions.doGravity && !SPHoptions.doSPHForces) printf("Calculating Gravity, Step:%f (rung %d)\n",dStep,uRungLo);
+        if (!SPHoptions.doGravity && SPHoptions.doSPHForces) printf("Calculating SPH forces, Step:%f (rung %d)\n",dStep,uRungLo);
         if (SPHoptions.doSetDensityFlags) printf("Marking Neighbors for FastGas, Step:%f (rung %d)\n",dStep,uRungLo);
         if (SPHoptions.doSetNNflags) printf("Marking Neighbors of Neighbors for FastGas, Step:%f (rung %d)\n",dStep,uRungLo);
     }
@@ -5671,7 +5672,7 @@ void MSR::CalculateKickParameters(struct pkdKickParameters *kick, uint8_t uRungL
     ** Create the deltas for the on-the-fly prediction of velocity and the
     ** thermodynamical variable.
     */
-    if (SPHoptions.doGravity || SPHoptions.doDensity || SPHoptions.doDensityCorrection) {
+    if (SPHoptions.doSPHForces || SPHoptions.doDensity || SPHoptions.doDensityCorrection) {
         double substepWeAreAt = dStep - floor(dStep); // use fmod instead
         double stepStartTime = dTime - substepWeAreAt * dDelta;
         for (i = 0; i <= param.iMaxRung; ++i) {
@@ -5715,7 +5716,7 @@ void MSR::CalculateKickParameters(struct pkdKickParameters *kick, uint8_t uRungL
     /*
     ** Create the deltas for the on-the-fly prediction in case of ISPH
     */
-    if (NewSPH() && (SPHoptions.doGravity || SPHoptions.doDensity || SPHoptions.doDensityCorrection) && SPHoptions.useIsentropic) {
+    if (NewSPH() && (SPHoptions.doSPHForces || SPHoptions.doDensity || SPHoptions.doDensityCorrection) && SPHoptions.useIsentropic) {
         double substepWeAreAt = dStep - floor(dStep); // use fmod instead
         double stepStartTime = dTime - substepWeAreAt * dDelta;
         for (i = 0; i <= param.iMaxRung; ++i) {
