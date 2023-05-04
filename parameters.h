@@ -154,7 +154,6 @@ struct parameters {
     /*
     ** Additional parameters for group finding.
     */
-    int bFindGroups;
     int bFindHopGroups;
     int nMinMembers;
     double dHopTau;
@@ -330,7 +329,6 @@ struct parameters {
     int bMemVelocity;
     int bMemPotential;
     int bMemGroups;
-    int bMemGlobalGid;
     int bMemMass;
     int bMemSoft;
     int bMemVelSmooth;

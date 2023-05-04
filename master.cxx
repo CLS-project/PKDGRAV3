@@ -294,9 +294,9 @@ uint64_t MSR::getMemoryModel() {
     ** can be used to request a specific model, but certain operations
     ** will force these flags to be on.
     */
-    if (param.bFindGroups) {
+    if (parameters.get_bFindGroups()) {
         mMemoryModel |= PKD_MODEL_GROUPS|PKD_MODEL_VELOCITY;
-        if (param.bMemGlobalGid) {
+        if (parameters.get_bMemGlobalGid()) {
             mMemoryModel |= PKD_MODEL_GLOBALGID;
         }
     }
@@ -1127,9 +1127,6 @@ void MSR::Initialize() {
     prmAddParam(prm,"iSignalSeconds",1,&param.iSignalSeconds,
                 sizeof(int),"signal",
                 "<Time (in seconds) that USR1 is sent before termination> = 0 = immediate");
-    param.bFindGroups = 0;
-    prmAddParam(prm,"bFindGroups",0,&param.bFindGroups,sizeof(int),
-                "groupfinder","<enable/disable group finder> = -groupfinder");
     param.bFindHopGroups = 0;
     prmAddParam(prm,"bFindHopGroups",0,&param.bFindHopGroups,sizeof(int),
                 "hop","<enable/disable phase-space group finder> = -hop");
@@ -1244,9 +1241,6 @@ void MSR::Initialize() {
     param.bMemGroups = 0;
     prmAddParam(prm,"bMemGroups",0,&param.bMemGroups,
                 sizeof(int),"Mg","<Particles support group finding> = -Mg");
-    param.bMemGlobalGid = 0;
-    prmAddParam(prm,"bMemGlobalGid",0,&param.bMemGlobalGid,
-                sizeof(int),"Mgg","<Particles support global group ids> = -Mgg");
     param.bMemMass = 0;
     prmAddParam(prm,"bMemMass",0,&param.bMemMass,
                 sizeof(int),"Mm","<Particles have individual masses> = -Mm");
@@ -4211,7 +4205,7 @@ int MSR::NewTopStepKDK(
             GridDeleteFFT();
         }
 
-        if (param.bFindGroups) NewFof(param.dTau,param.nMinMembers);
+        if (parameters.get_bFindGroups()) NewFof(param.dTau,param.nMinMembers);
     }
 
 
@@ -4337,7 +4331,7 @@ int MSR::NewTopStepKDK(
         }
     }
 
-    if (!uRung && param.bFindGroups) {
+    if (!uRung && parameters.get_bFindGroups()) {
         GroupStats();
         HopWrite(BuildName(iStep,".fofstats").c_str());
     }
@@ -4537,7 +4531,7 @@ void MSR::TopStepKDK(
 
     dTime += 0.5*dDeltaRung; /* Important to have correct time at step end for SF! */
 
-    if (!iKickRung && !iRung && param.bFindGroups) {
+    if (!iKickRung && !iRung && parameters.get_bFindGroups()) {
         NewFof(param.dTau,param.nMinMembers);
         GroupStats();
         BuildTree(bEwald);
@@ -5421,7 +5415,7 @@ void MSR::Output(int iStep, double dTime, double dDelta, int bCheckpoint) {
             Smooth(dTime,dDelta,SMX_DENSITY,bSymmetric,param.nSmooth);
         }
     }
-    if ( param.bFindGroups ) {
+    if ( parameters.get_bFindGroups() ) {
         Reorder();
         //sprintf(achFile,"%s.fof",OutName());
         //OutArray(achFile,OUT_GROUP_ARRAY);

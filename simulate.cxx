@@ -259,7 +259,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
 #ifndef DEBUG_BH_ONLY
     BlackholeInit(uRungMax);
 #endif
-    if (param.bFindGroups && param.bBHPlaceSeed) {
+    if (parameters.get_bFindGroups() && param.bBHPlaceSeed) {
         NewFof(param.dTau,param.nMinMembers);
         GroupStats();
     }
@@ -278,7 +278,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
 
     if (param.bWriteIC && !prmSpecified(prm,"nGrid") && !NewSPH()) {
 #ifndef BLACKHOLES
-        if (param.bFindGroups) {
+        if (parameters.get_bFindGroups()) {
             NewFof(param.dTau,param.nMinMembers);
             GroupStats();
         }
@@ -287,7 +287,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
     }
 
     // Make sure that the tree is usable before the start of the simulation
-    if (param.bFindGroups || param.bWriteIC) {
+    if (parameters.get_bFindGroups() || param.bWriteIC) {
         DomainDecomp();
         BuildTree(bEwald);
     }
