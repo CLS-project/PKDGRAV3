@@ -5647,7 +5647,7 @@ void MSR::CalculateKickParameters(struct pkdKickParameters *kick, uint8_t uRungL
     */
     kick->bKickClose = bKickClose;
     kick->bKickOpen = bKickOpen;
-    if (SPHoptions.doGravity || SPHoptions.doDensity || SPHoptions.doDensityCorrection) {
+    if (SPHoptions.doGravity || SPHoptions.doSPHForces || SPHoptions.doDensity || SPHoptions.doDensityCorrection) {
         for (i=0,dt=0.5*dDelta; i<=param.iMaxRung; ++i,dt*=0.5) {
             kick->dtClose[i] = 0.0;
             kick->dtOpen[i] = 0.0;
