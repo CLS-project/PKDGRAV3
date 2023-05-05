@@ -3282,6 +3282,7 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
                      int nPartRhoLoc,int iTimeStepCrit) {
     SPHOptions SPHoptions = initializeSPHOptions(param,csm,dTime);
     SPHoptions.doGravity = param.bDoGravity;
+    SPHoptions.nPredictRung = uRungLo;
     return Gravity(uRungLo,uRungHi,iRoot1,iRoot2,dTime,dDelta,dStep,dTheta,
                    bKickClose,bKickOpen,bEwald,bGravStep,nPartRhoLoc,iTimeStepCrit,
                    SPHoptions);
