@@ -221,7 +221,7 @@ found_it:
                                             float cs = 0.0f;                        /* should be calculated by the EOS, nyi */
                                             float T = 0.0f;
                                             float expImb2 = NewSph.expImb2;
-                                            SPHpredictOnTheFly(pkd, p, kick, ts->uRungLo, vpred, &P, &cs, &T, SPHoptions);
+                                            SPHpredictOnTheFly(pkd, p, kick, SPHoptions->nPredictRung, vpred, &P, &cs, &T, SPHoptions);
                                             pkd->ilp.append(
                                                 r[0] + blk.xOffset[jTile],
                                                 r[1] + blk.yOffset[jTile],
@@ -275,7 +275,7 @@ found_it:
                                                 float cs = 0.0f;                    /* should be calculated by the EOS, nyi */
                                                 float T = 0.0f;
                                                 float expImb2 = NewSph.expImb2;
-                                                SPHpredictOnTheFly(pkd, p, kick, ts->uRungLo, vpred, &P, &cs, &T, SPHoptions);
+                                                SPHpredictOnTheFly(pkd, p, kick, SPHoptions->nPredictRung, vpred, &P, &cs, &T, SPHoptions);
                                                 pkd->ilp.append(
                                                     r[0] + blk.xOffset[jTile],
                                                     r[1] + blk.yOffset[jTile],
