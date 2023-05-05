@@ -216,9 +216,9 @@ found_it:
                                         }
                                         if (pkd->particles.present(PKD_FIELD::oNewSph)) {
                                             const auto &NewSph = p.newsph();
-                                            float Omega = NewSph.Omega;                     /* should be the Omega field of the sph fields, nyi */
-                                            float P = 0.0f;                         /* should be calculated by the EOS, nyi */
-                                            float cs = 0.0f;                        /* should be calculated by the EOS, nyi */
+                                            float Omega = NewSph.Omega;
+                                            float P = 0.0f;
+                                            float cs = 0.0f;
                                             float T = 0.0f;
                                             float expImb2 = NewSph.expImb2;
                                             SPHpredictOnTheFly(pkd, p, kick, SPHoptions->nPredictRung, vpred, &P, &cs, &T, SPHoptions);
@@ -270,9 +270,9 @@ found_it:
                                             r = p.position();
                                             if (p.have_newsph()) {
                                                 const auto &NewSph = p.newsph();
-                                                float Omega = NewSph.Omega;                 /* should be the Omega field of the sph fields, nyi */
-                                                float P = 0.0f;                     /* should be calculated by the EOS, nyi */
-                                                float cs = 0.0f;                    /* should be calculated by the EOS, nyi */
+                                                float Omega = NewSph.Omega;
+                                                float P = 0.0f;
+                                                float cs = 0.0f;
                                                 float T = 0.0f;
                                                 float expImb2 = NewSph.expImb2;
                                                 SPHpredictOnTheFly(pkd, p, kick, SPHoptions->nPredictRung, vpred, &P, &cs, &T, SPHoptions);
