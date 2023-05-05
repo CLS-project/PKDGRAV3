@@ -24,7 +24,7 @@ void MSR::PlaceBHSeed(double dTime, uint8_t uRungMax) {
 
     printf("Planting seeds...\n");
     TimerStart(TIMER_BHS);
-    assert(param.bFindGroups);
+    assert(parameters.get_bFindGroups());
     pstPlaceBHSeed(pst, &in, sizeof(in), &out, sizeof(out));
     TimerStop(TIMER_BHS);
 

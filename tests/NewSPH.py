@@ -4,7 +4,7 @@ from math import sqrt,pi
 import numpy as np
 import unittest
 import xmlrunner
-from MASTER import MSR
+import PKDGRAV as msr
 from importlib.machinery import SourceFileLoader
 
 @unittest.skipIf(not os.path.isfile('collision.par'), "missing collision.par")
@@ -18,17 +18,16 @@ class TestNewSPHRead(unittest.TestCase):
     def setUpClass(cls):
         cls.params = vars(SourceFileLoader('collision', 'collision.par').load_module())
         cls.params['bGasDoExtensiveILPTest'] = 0
-        cls.msr = MSR()
         cls.rho = np.load('initial_rho.npy')
         cls.fBall = np.load('initial_fBall.npy')
 
     def testNewSPHRead(self):
-        self.msr.setParameters(**self.params)
-        self.msr.Load(self.params['achInFile'])
-        self.msr.Reorder()
+        msr.set_parameters(**self.params)
+        msr.load(self.params['achInFile'])
+        msr.reorder()
         # Get scalar values
-        rho = self.msr.GetArray(field=7,time=0.0)
-        fBall = self.msr.GetArray(field=8,time=0.0)
+        rho = msr.get_array(field=msr.FIELD_DENSITY,time=0.0)
+        fBall = msr.get_array(field=msr.FIELD_BALL,time=0.0)
         relDiff_rho = np.abs((self.rho - rho) / self.rho)
         relDiff_fBall = np.abs((self.fBall - fBall) / self.fBall)
         print("Maximum relative density deviation = {}".format(np.max(relDiff_rho)))
@@ -54,7 +53,6 @@ class TestNewSPHStep(unittest.TestCase):
     def setUpClass(cls):
         cls.params = vars(SourceFileLoader('collision', 'collision.par').load_module())
         cls.params['bGasDoExtensiveILPTest'] = 0
-        cls.msr = MSR()
         cls.pos = np.load('final_pos.npy')
         cls.vel = np.load('final_vel.npy')
         cls.acc = np.load('final_acc.npy')
@@ -62,19 +60,19 @@ class TestNewSPHStep(unittest.TestCase):
         cls.fBall = np.load('final_fBall.npy')
 
     def testNewSPHStep(self):
-        self.msr.setParameters(**self.params)
-        self.msr.simulate()
-        self.msr.Reorder()
+        msr.set_parameters(**self.params)
+        msr.simulate()
+        msr.reorder()
         # Get vector values
-        pos = self.msr.GetArray(field=0,time=0.0)
-        vel = self.msr.GetArray(field=1,time=0.0)
-        acc = self.msr.GetArray(field=2,time=0.0)
+        pos = msr.get_array(field=msr.FIELD_POSITION,time=0.0)
+        vel = msr.get_array(field=msr.FIELD_VELOCITY,time=0.0)
+        acc = msr.get_array(field=msr.FIELD_ACCELERATION,time=0.0)
         relDiff_pos = np.abs(np.linalg.norm(self.pos - pos, axis=1) / np.linalg.norm(self.pos, axis=1))
         relDiff_vel = np.abs(np.linalg.norm(self.vel - vel, axis=1) / np.linalg.norm(self.vel, axis=1))
         relDiff_acc = np.abs(np.linalg.norm(self.acc - acc, axis=1) / np.linalg.norm(self.acc, axis=1))
         # Get scalar values
-        rho = self.msr.GetArray(field=7,time=0.0)
-        fBall = self.msr.GetArray(field=8,time=0.0)
+        rho = msr.get_array(field=msr.FIELD_DENSITY,time=0.0)
+        fBall = msr.get_array(field=msr.FIELD_BALL,time=0.0)
         relDiff_rho = np.abs((self.rho - rho) / self.rho)
         relDiff_fBall = np.abs((self.fBall - fBall) / self.fBall)
         print("Maximum relative position deviation = {}".format(np.max(relDiff_pos)))
@@ -107,11 +105,10 @@ class TestNewSPHExtensive(unittest.TestCase):
     def setUpClass(cls):
         cls.params = vars(SourceFileLoader('collision_small', 'collision_small.par').load_module())
         cls.params['bGasDoExtensiveILPTest'] = 1
-        cls.msr = MSR()
 
     def testNewSPHExtensive(self):
-        self.msr.setParameters(**self.params)
-        self.msr.simulate()
+        msr.set_parameters(**self.params)
+        msr.simulate()
         self.assertLess(0.1,1.0)
 
 if __name__ == '__main__':

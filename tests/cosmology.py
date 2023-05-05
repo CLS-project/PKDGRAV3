@@ -1,5 +1,5 @@
 from __future__ import division
-import MASTER as MSR
+import PKDGRAV as msr
 from CSM import CSM
 import math
 import unittest

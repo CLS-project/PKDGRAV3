@@ -5,6 +5,7 @@
 import sys,os,sphinx
 
 sys.path.append(os.path.abspath("./_ext"))
+sys.path.append(os.path.abspath("../modules"))
 
 
 # -- Project information -----------------------------------------------------
@@ -17,7 +18,7 @@ author = 'Douglas Potter'
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
-extensions=['make_parameters']
+extensions=['sphinx.ext.autodoc','make_parameters']
 if sphinx.version_info < (1,8):
     extensions += ['sphinx.ext.imgmath']
 

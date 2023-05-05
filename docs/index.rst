@@ -13,6 +13,7 @@ Welcome to pkdgrav3's documentation!
    install.rst
    analysis.rst
    units.rst
+   extensions.rst
    parameters.rst
 
 ..

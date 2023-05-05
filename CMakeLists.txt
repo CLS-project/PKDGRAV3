@@ -163,19 +163,28 @@ add_subdirectory(metal)
 add_subdirectory(tests)
 
 add_custom_command(
-    OUTPUT ${CMAKE_BINARY_DIR}/parse.pyx ${CMAKE_BINARY_DIR}/parse.cpp
+    OUTPUT ${CMAKE_BINARY_DIR}/parse.pyx
     MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/parameters.toml
     DEPENDS ${CMAKE_SOURCE_DIR}/make_parse.py
     COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/make_parse.py ${CMAKE_SOURCE_DIR}/parameters.toml ${CMAKE_BINARY_DIR}/parse.pyx
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     VERBATIM
 )
+add_custom_command(
+    OUTPUT ${CMAKE_BINARY_DIR}/parse.cpp
+    MAIN_DEPENDENCY ${CMAKE_BINARY_DIR}/parse.pyx
+    COMMAND ${PYTHON} -m cython --3str --cplus --no-docstrings
+        -o ${CMAKE_BINARY_DIR}/parse.cpp
+        ${CMAKE_BINARY_DIR}/parse.pyx
+    VERBATIM
+)
 
 add_custom_command(
-    OUTPUT ${CMAKE_BINARY_DIR}/pkd_parameters.h
+    OUTPUT ${CMAKE_BINARY_DIR}/pkd_parameters.h ${CMAKE_BINARY_DIR}/pkd_parameters.pxi
     MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/parameters.toml
     DEPENDS ${CMAKE_SOURCE_DIR}/make_parameters.py
     COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/make_parameters.py ${CMAKE_SOURCE_DIR}/parameters.toml ${CMAKE_BINARY_DIR}/pkd_parameters.h
+    ${CMAKE_BINARY_DIR}/pkd_parameters.pxi
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     VERBATIM
 )
@@ -212,24 +221,35 @@ target_link_libraries(${PROJECT_NAME} m)
 #target_link_libraries(psout m)
 
 make_directory(${CMAKE_BINARY_DIR}/modules)
-foreach(file accuracy checkpoint)
-    add_custom_command(
-        OUTPUT ${CMAKE_BINARY_DIR}/modules/${file}.pyx
-        MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/modules/${file}.pyx
-        COMMAND ${CMAKE_COMMAND} -E create_symlink
-            ${CMAKE_SOURCE_DIR}/modules/${file}.pyx
-            ${CMAKE_BINARY_DIR}/modules/${file}.pyx
-        VERBATIM
-    )
-    add_custom_command(
-        OUTPUT ${CMAKE_BINARY_DIR}/modules/${file}.cpp
-        MAIN_DEPENDENCY ${CMAKE_BINARY_DIR}/modules/${file}.pyx
-        COMMAND ${PYTHON} -m cython --3str --cplus
-            ${CMAKE_BINARY_DIR}/modules/${file}.pyx
-        VERBATIM
-    )
-    target_sources(${PROJECT_NAME} PRIVATE ${CMAKE_BINARY_DIR}/modules/${file}.cpp)
-endforeach()
+add_custom_command(
+    OUTPUT ${CMAKE_BINARY_DIR}/modules/accuracy.cpp
+    MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/modules/accuracy.py
+    COMMAND ${PYTHON} -m cython --3str --cplus --no-docstrings
+        -o ${CMAKE_BINARY_DIR}/modules/accuracy.cpp
+        ${CMAKE_SOURCE_DIR}/modules/accuracy.py
+    VERBATIM
+)
+target_sources(${PROJECT_NAME} PRIVATE ${CMAKE_BINARY_DIR}/modules/accuracy.cpp)
+add_custom_command(
+    OUTPUT ${CMAKE_BINARY_DIR}/modules/checkpoint.cpp ${CMAKE_BINARY_DIR}/modules/checkpoint.h
+    MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/modules/checkpoint.pyx
+    COMMAND ${PYTHON} -m cython --3str --cplus --no-docstrings
+        -o ${CMAKE_BINARY_DIR}/modules/checkpoint.cpp
+        ${CMAKE_SOURCE_DIR}/modules/checkpoint.pyx
+    VERBATIM
+)
+target_sources(${PROJECT_NAME} PRIVATE ${CMAKE_BINARY_DIR}/modules/checkpoint.cpp)
+add_custom_command(
+    OUTPUT ${CMAKE_BINARY_DIR}/modules/PKDGRAV.cpp ${CMAKE_BINARY_DIR}/modules/PKDGRAV.h
+    MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/modules/PKDGRAV.py
+    DEPENDS ${CMAKE_SOURCE_DIR}/modules/PKDGRAV.pxd ${CMAKE_BINARY_DIR}/pkd_parameters.pxi
+    COMMAND ${PYTHON} -m cython --3str --cplus --no-docstrings
+        -I ${CMAKE_BINARY_DIR}
+        -o ${CMAKE_BINARY_DIR}/modules/PKDGRAV.cpp
+        ${CMAKE_SOURCE_DIR}/modules/PKDGRAV.py
+    VERBATIM
+)
+target_sources(${PROJECT_NAME} PRIVATE ${CMAKE_BINARY_DIR}/modules/PKDGRAV.cpp)
 
 if (NOT APPLE)
 CHECK_INCLUDE_FILES(libaio.h HAVE_LIBAIO_H)

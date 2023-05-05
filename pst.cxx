@@ -954,7 +954,7 @@ int pstHopGravity(PST pst,void *vin,int nIn,void *vout,int nOut) {
     else {
         LCL *plcl = pst->plcl;
         double dFlop=0, dPartSum=0, dCellSum=0;
-        pkdGravWalkHop(plcl->pkd,in->dTime,in->nGroup,in->dTheta,&dFlop,&dPartSum,&dCellSum);
+        pkdGravWalkHop(plcl->pkd,in->dTime,in->dTheta,&dFlop,&dPartSum,&dCellSum);
     }
     return 0;
 }
@@ -1269,7 +1269,7 @@ int pstGravity(PST pst,void *vin,int nIn,void *vout,int nOut) {
         PKD pkd = plcl->pkd;
         pkdGravAll(pkd,&in->kick,&in->lc,&in->ts,
                    in->dTime,in->nReps,in->bPeriodic,
-                   in->bEwald,in->nGroup,in->iRoot1,in->iRoot2,in->dEwCut,in->dEwhCut,in->dTheta,&in->SPHoptions,
+                   in->bEwald,in->iRoot1,in->iRoot2,in->dEwCut,in->dEwhCut,in->dTheta,&in->SPHoptions,
                    &outr->nActive,
                    &outr->sPart.dSum,&outr->sPartNumAccess.dSum,&outr->sPartMissRatio.dSum,
                    &outr->sCell.dSum,&outr->sCellNumAccess.dSum,&outr->sCellMissRatio.dSum,

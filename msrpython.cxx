@@ -23,10 +23,10 @@
 #endif
 #include <structmember.h> // for PyMemberDef
 #include "parse.h"
-#include "modules/checkpoint.h"
-
 #include "master.h"
 #include "csmpython.h"
+#include "modules/checkpoint.h"
+#include "modules/PKDGRAV.h"
 
 #define MASTER_MODULE_NAME "MASTER"
 #define MASTER_TYPE_NAME "MSR"
@@ -309,7 +309,7 @@ ppy_msr_GenerateIC(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     flush_std_files();
     static char const *kwlist[]= {"csm","z","grid","seed","L",NULL};
     CSMINSTANCE *cosmo = NULL;
-    self->msr->param.bPeriodic = 1;
+    self->msr->parameters.set(self->msr->parameters.str_bPeriodic,true);
     if ( !PyArg_ParseTupleAndKeywords(
                 args, kwobj, "Odi|id:GenerateIC", const_cast<char **>(kwlist),
                 &cosmo,&self->msr->param.dRedFrom,&self->msr->param.nGrid,
@@ -470,16 +470,12 @@ ppy_msr_Restart(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     PyObject *arguments, *specified;
     int n, iStep, nSteps;
     const char *name;
-    double dTime, dDelta;
+    double dTime, dDelta, dEcosmo, dUOld, dTimeOld;
     if ( !PyArg_ParseTupleAndKeywords(
                 args, kwobj, "OOOOisiiddddd:Restart", const_cast<char **>(kwlist),
                 &arguments,&specified,&species,&classes,&n,&name,
-                &iStep,&nSteps,&dTime,&dDelta,&msr->dEcosmo,&msr->dUOld, &msr->dTimeOld ) )
+                &iStep,&nSteps,&dTime,&dDelta,&dEcosmo,&dUOld, &dTimeOld ) )
         return NULL;
-
-    msr->parameters.merge(pkd_parameters(arguments,specified));
-    Py_DECREF(arguments);
-    Py_DECREF(specified);
 
     // Create a vector of number of species
     species = PySequence_Fast(species,"species must be a list");
@@ -491,16 +487,16 @@ ppy_msr_Restart(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
         vecSpecies[i] = PyNumber_AsSsize_t(item,NULL);
     }
     Py_DECREF(species); // PySequence_Fast creates a new reference
-    msr->N     = vecSpecies[0];
-    msr->nDark = vecSpecies[1];
-    msr->nGas  = vecSpecies[2];
-    msr->nStar = vecSpecies[3];
-    msr->nBH   = vecSpecies[4];
+    auto nDark = vecSpecies[FIO_SPECIES_DARK];
+    auto nGas  = vecSpecies[FIO_SPECIES_SPH];
+    auto nStar = vecSpecies[FIO_SPECIES_STAR];
+    auto nBH   = vecSpecies[FIO_SPECIES_BH];
 
     // Process the array of class information
     classes = PySequence_Fast(classes,"species must be a list");
     int nClasses = PySequence_Fast_GET_SIZE(classes);
-    msr->nCheckpointClasses = nClasses;
+    std::vector<PARTCLASS> aClasses;
+    aClasses.reserve(nClasses);
     for (auto i=0; i < nClasses; ++i) {
         PyObject *item = PySequence_Fast_GET_ITEM(classes, i);
         auto cls = PySequence_Fast(item,"class entry must be a list");
@@ -509,17 +505,21 @@ ppy_msr_Restart(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
         PyObject *itemMass    = PySequence_Fast_GET_ITEM(cls, 1);
         PyObject *itemSoft    = PySequence_Fast_GET_ITEM(cls, 2);
         PyObject *itemiMat    = PySequence_Fast_GET_ITEM(cls, 3);
-        msr->aCheckpointClasses[i].eSpecies = (FIO_SPECIES)PyNumber_AsSsize_t(itemSpecies,NULL);
-        msr->aCheckpointClasses[i].fMass = PyFloat_AsDouble(itemMass);
-        msr->aCheckpointClasses[i].fSoft = PyFloat_AsDouble(itemSoft);
-        msr->aCheckpointClasses[i].iMat  = PyNumber_AsSsize_t(itemiMat,NULL);
+
+        auto spec = (FIO_SPECIES)PyNumber_AsSsize_t(itemSpecies,NULL);
+        auto mass = PyFloat_AsDouble(itemMass);
+        auto soft = PyFloat_AsDouble(itemSoft);
+        auto imat = PyNumber_AsSsize_t(itemiMat,NULL);
+        aClasses.emplace_back(spec,mass,soft,imat);
         Py_DECREF(cls); // PySequence_Fast creates a new reference
     }
     Py_DECREF(classes); // PySequence_Fast creates a new reference
 
-    msr->parameters.ppy2prm(msr->prm);
-    msr->Restart(n, name, iStep, nSteps, dTime, dDelta);
-
+    msr->Restart(n, name, iStep, nSteps, dTime, dDelta,
+                 nDark, nGas, nStar, nBH, dEcosmo, dUOld, dTimeOld,
+                 aClasses,arguments,specified);
+    Py_DECREF(arguments);
+    Py_DECREF(specified);
     Py_RETURN_NONE;
 }
 
@@ -543,7 +543,7 @@ static PyObject *
 ppy_msr_BuildTree(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     flush_std_files();
     static char const *kwlist[]= {"ewald","rung","active","marked",NULL};
-    int bEwald = self->msr->param.bEwald;
+    int bEwald = self->msr->parameters.get_bEwald();
     uint8_t uRungDT = 0; /* Zero rung means build a single tree */
     int bActive = 0;
     int bMarked = 0;
@@ -580,7 +580,7 @@ ppy_msr_Gravity(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     // double dTheta = msr->param.dTheta;
     double dTheta = 0.7;
 
-    int bEwald = msr->param.bEwald;
+    int bEwald = msr->parameters.get_bEwald();
     int iRungLo    = 0;
     int iRungHi    = MAX_RUNG;
     int iRoot1 = ROOT;
@@ -599,7 +599,7 @@ ppy_msr_Gravity(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     SPHOptions SPHoptions = initializeSPHOptions(msr->param,msr->csm,dTime);
     SPHoptions.doGravity = msr->param.bDoGravity;
     uint8_t uRungMax = msr->Gravity(iRungLo,iRungHi,iRoot1,iRoot2,dTime,dDelta,dStep,dTheta,bKickClose,bKickOpen,bEwald,
-                                    msr->param.bGravStep, msr->param.nPartRhoLoc, msr->param.iTimeStepCrit, msr->param.nGroup, SPHoptions);
+                                    msr->param.bGravStep, msr->param.nPartRhoLoc, msr->param.iTimeStepCrit, SPHoptions);
     return Py_BuildValue("i", uRungMax);
 }
 
@@ -899,7 +899,7 @@ static PyObject *
 ppy_msr_MarkBox(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     flush_std_files();
     static char const *kwlist[]= {"center","size","setIfTrue","clearIfFalse",NULL};
-    double center[3], size[3];
+    blitz::TinyVector<double,3> center, size;
     int setIfTrue=1, clearIfFalse=1;
     if ( !PyArg_ParseTupleAndKeywords(
                 args, kwobj, "(ddd)(ddd)|ii:MarkBox", const_cast<char **>(kwlist),
@@ -913,7 +913,8 @@ static PyObject *
 ppy_msr_MarkSphere(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     flush_std_files();
     static char const *kwlist[]= {"center","radius","setIfTrue","clearIfFalse",NULL};
-    double center[3], radius;
+    blitz::TinyVector<double,3> center;
+    double radius;
     int setIfTrue=1, clearIfFalse=1;
     if ( !PyArg_ParseTupleAndKeywords(
                 args, kwobj, "(ddd)d|ii:MarkSphere", const_cast<char **>(kwlist),
@@ -927,7 +928,8 @@ static PyObject *
 ppy_msr_MarkCylinder(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     flush_std_files();
     static char const *kwlist[]= {"point1","point2","radius","setIfTrue","clearIfFalse",NULL};
-    double point1[3], point2[3], radius;
+    blitz::TinyVector<double,3> point1, point2;
+    double radius;
     int setIfTrue=1, clearIfFalse=1;
     if ( !PyArg_ParseTupleAndKeywords(
                 args, kwobj, "(ddd)(ddd)d|ii:MarkCylinder", const_cast<char **>(kwlist),
@@ -1335,15 +1337,11 @@ static PyMemberDef msr_members[] = {
 };
 
 static PyObject *msr_get_parm(MSRINSTANCE *self, void *) {
-    auto a = self->msr->parameters.get_arguments();
-    Py_INCREF(a);
-    return a;
+    return self->msr->parameters.arguments();
 }
 
 static PyObject *msr_get_spec(MSRINSTANCE *self, void *) {
-    auto s = self->msr->parameters.get_specified();
-    Py_INCREF(s);
-    return s;
+    return self->msr->parameters.specified();
 }
 
 // This warning should be fixed in newer Python versions
@@ -1461,6 +1459,9 @@ extern "C" PyObject *PyInit_accuracy(void);
 
 int MSR::Python(int argc, char *argv[]) {
     PyImport_AppendInittab(MASTER_MODULE_NAME,initModuleMSR);
+    PyImport_AppendInittab("PKDGRAV",PyInit_PKDGRAV);
+    PKDGRAV_msr0 = this;
+    PKDGRAV_msr_imported = false;
     PyImport_AppendInittab("CSM",PyInit_CSM);
     PyImport_AppendInittab("parse", PyInit_parse);
     PyImport_AppendInittab("checkpoint", PyInit_checkpoint);
@@ -1583,7 +1584,7 @@ int MSR::Python(int argc, char *argv[]) {
     Py_DECREF(script);
 
     // If "MASTER" was imported then we are done -- the script should have done its job
-    if (!moduleState->bImported) { // We must prepare for a normal legacy execution
+    if (!moduleState->bImported && !PKDGRAV_msr_imported) { // We must prepare for a normal legacy execution
         if (!parameters.verify(locals)) {
             PyErr_Print();
             fprintf(stderr,
@@ -1600,5 +1601,5 @@ int MSR::Python(int argc, char *argv[]) {
         bVDetails = parameters.get_bVDetails();
     }
 
-    return moduleState->bImported ? 0 : -1;
+    return moduleState->bImported || PKDGRAV_msr_imported ? 0 : -1;
 }
