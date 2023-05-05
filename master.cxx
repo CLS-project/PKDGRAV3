@@ -3282,6 +3282,7 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
                      int nPartRhoLoc,int iTimeStepCrit) {
     SPHOptions SPHoptions = initializeSPHOptions(param,csm,dTime);
     SPHoptions.doGravity = param.bDoGravity;
+    SPHoptions.nPredictRung = uRungLo;
     return Gravity(uRungLo,uRungHi,iRoot1,iRoot2,dTime,dDelta,dStep,dTheta,
                    bKickClose,bKickOpen,bEwald,bGravStep,nPartRhoLoc,iTimeStepCrit,
                    SPHoptions);
@@ -4319,6 +4320,7 @@ int MSR::NewTopStepKDK(
     else { /*if (param.bDoGravity)*/
         SPHOptions SPHoptions = initializeSPHOptions(param,csm,dTime);
         SPHoptions.doGravity = param.bDoGravity;
+        SPHoptions.nPredictRung = uRung;
         *puRungMax = Gravity(uRung,MaxRung(),ROOT,uRoot2,dTime,dDelta,*pdStep,dTheta,
                              1,bKickOpen,bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
     }
@@ -5426,14 +5428,12 @@ void MSR::Output(int iStep, double dTime, double dDelta, int bCheckpoint) {
         OutArray(BuildName(iStep,".hsph").c_str(),OUT_HSPH_ARRAY);
     }
 
-    if (DoDensity()) {
+    if (DoDensity() && !NewSPH()) {
         ActiveRung(0,1); /* Activate all particles */
         DomainDecomp(-1);
         BuildTree(0);
         bSymmetric = 0;  /* should be set in param file! */
-        if (!NewSPH()) {
-            Smooth(dTime,dDelta,SMX_DENSITY,bSymmetric,param.nSmooth);
-        }
+        Smooth(dTime,dDelta,SMX_DENSITY,bSymmetric,param.nSmooth);
     }
     if ( parameters.get_bFindGroups() ) {
         Reorder();
@@ -5460,11 +5460,9 @@ void MSR::Output(int iStep, double dTime, double dDelta, int bCheckpoint) {
         OutArray(BuildName(iStep,".pot").c_str(),OUT_POT_ARRAY);
     }
 
-    if ( DoDensity() ) {
-        if (!NewSPH()) {
-            Reorder();
-            OutArray(BuildName(iStep,".den").c_str(),OUT_DENSITY_ARRAY);
-        }
+    if (DoDensity() && !NewSPH()) {
+        Reorder();
+        OutArray(BuildName(iStep,".den").c_str(),OUT_DENSITY_ARRAY);
     }
     if (param.bDoRungOutput) {
         Reorder();
@@ -5754,10 +5752,14 @@ void MSR::CalculateKickParameters(struct pkdKickParameters *kick, uint8_t uRungL
                 TSubStepStart = stepStartTime + (substepsDoneAtThisSize - 1.0) * substepSize * dDelta;
                 TSubStepKicked = stepStartTime + (substepsDoneAtThisSize - 0.5) * substepSize * dDelta;
             }
-            /* At the beginning we have a special case */
-            if (dTime == 0.0) {
-                TSubStepStart = 0.0;
-                TSubStepKicked = 0.0;
+            /* At the beginning we have a special case
+            ** If we are not doing the closing kick, we are also in a special case.
+            ** This only ever happens in simulate at the beginning and after a write
+            ** where we do not have to undo a kick
+            */
+            if ((dTime == 0.0) || (! bKickClose)) {
+                TSubStepStart = stepStartTime;
+                TSubStepKicked = stepStartTime;
             }
             double dtPredISPHUndoOpen = TSubStepStart - TSubStepKicked;
             double dtPredISPHOpen = (dTime - TSubStepStart) / 2.0;
