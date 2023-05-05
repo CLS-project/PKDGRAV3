@@ -5728,10 +5728,14 @@ void MSR::CalculateKickParameters(struct pkdKickParameters *kick, uint8_t uRungL
                 TSubStepStart = stepStartTime + (substepsDoneAtThisSize - 1.0) * substepSize * dDelta;
                 TSubStepKicked = stepStartTime + (substepsDoneAtThisSize - 0.5) * substepSize * dDelta;
             }
-            /* At the beginning we have a special case */
-            if (dTime == 0.0) {
-                TSubStepStart = 0.0;
-                TSubStepKicked = 0.0;
+            /* At the beginning we have a special case
+            ** If we are not doing the closing kick, we are also in a special case.
+            ** This only ever happens in simulate at the beginning and after a write
+            ** where we do not have to undo a kick
+            */
+            if ((dTime == 0.0) || (! bKickClose)) {
+                TSubStepStart = stepStartTime;
+                TSubStepKicked = stepStartTime;
             }
             double dtPredISPHUndoOpen = TSubStepStart - TSubStepKicked;
             double dtPredISPHOpen = (dTime - TSubStepStart) / 2.0;
