@@ -423,8 +423,8 @@ void pkdParticleWorkDone(workParticle *wp) {
                                                 wp->lc->dtLCDrift[p.rung()],wp->lc->dtLCKick[p.rung()],
                                                 wp->lc->dBoxSize,wp->lc->bLightConeParticles,wp->lc->hLCP,wp->lc->tanalpha_2);
                         }
-                        p.set_marked(true);
                     }
+                    p.set_marked(true);
                 }
             }
             else {
