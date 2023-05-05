@@ -5404,14 +5404,12 @@ void MSR::Output(int iStep, double dTime, double dDelta, int bCheckpoint) {
         OutArray(BuildName(iStep,".hsph").c_str(),OUT_HSPH_ARRAY);
     }
 
-    if (DoDensity()) {
+    if (DoDensity() && !NewSPH()) {
         ActiveRung(0,1); /* Activate all particles */
         DomainDecomp(-1);
         BuildTree(0);
         bSymmetric = 0;  /* should be set in param file! */
-        if (!NewSPH()) {
-            Smooth(dTime,dDelta,SMX_DENSITY,bSymmetric,param.nSmooth);
-        }
+        Smooth(dTime,dDelta,SMX_DENSITY,bSymmetric,param.nSmooth);
     }
     if ( param.bFindGroups ) {
         Reorder();
@@ -5438,11 +5436,9 @@ void MSR::Output(int iStep, double dTime, double dDelta, int bCheckpoint) {
         OutArray(BuildName(iStep,".pot").c_str(),OUT_POT_ARRAY);
     }
 
-    if ( DoDensity() ) {
-        if (!NewSPH()) {
-            Reorder();
-            OutArray(BuildName(iStep,".den").c_str(),OUT_DENSITY_ARRAY);
-        }
+    if (DoDensity() && !NewSPH()) {
+        Reorder();
+        OutArray(BuildName(iStep,".den").c_str(),OUT_DENSITY_ARRAY);
     }
     if (param.bDoRungOutput) {
         Reorder();
