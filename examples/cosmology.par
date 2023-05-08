@@ -2,10 +2,6 @@ from accuracy import classic_theta_switch,classic_replicas_switch
 
 achOutName      = "example"
 
-# Memory and performance
-bMemUnordered   = True          # iOrder replaced by potential and group id
-bNewKDK         = True          # No accelerations in the particle, dual tree possible
-
 # Initial Condition
 dBoxSize        = 2000          # Mpc/h
 nGrid           = 128           # Simulation has nGrid^3 particles
@@ -25,8 +21,12 @@ iStartStep      = 0
 nSteps          = 100
 dRedTo          = 0.0
 
+# Cosmological Simulation
+bComove         = True          # Use comoving coordinates
+bPeriodic       = True          # with a periodic box
+bEwald          = True          # enable Ewald periodic boundaries
+
 # Logging/Output
-iLogInterval    = 1
 iOutInterval    = 10
 #iCheckInterval = 10
 bDoDensity      = False
@@ -38,13 +38,12 @@ bParaWrite      = False         # Write in parallel (does not work on all file s
 #nParaRead      = 8             # Limit number of simultaneous readers to this
 #nParaWrite     = 8             # Limit number of simultaneous writers to this
 
-# Cosmological Simulation
-bComove         = True          # Use comoving coordinates
-bPeriodic       = True          # with a periodic box
-bEwald          = True          # enable Ewald periodic boundaries
-
 # Accuracy Parameters
 bEpsAccStep     = True          # Choose eps/a timestep criteria
 dTheta          = classic_theta_switch()        # 0.40, 0.55, 0.70 switch
 nReplicas       = classic_replicas_switch()     # 1 if theta > 0.52 otherwise 2
+
+# Memory and performance
+bMemUnordered   = True          # iOrder replaced by potential and group id
+bNewKDK         = True          # No accelerations in the particle, dual tree possible
 
