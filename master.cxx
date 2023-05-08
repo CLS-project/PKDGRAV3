@@ -636,10 +636,7 @@ void MSR::writeParameters(const char *baseName,int iStep,int nSteps,double dTime
     nSpecies[FIO_SPECIES_STAR] = nStar;
     nSpecies[FIO_SPECIES_BH]   = nBH;
 
-    fprintf(fp,"%s\n%s\n%s",
-            "from MASTER import MSR",
-            "from argparse import Namespace",
-            "arguments=");
+    fprintf(fp,"arguments=");
     auto a = parameters.arguments();
     PyObject_Print(a,fp,0);
     Py_DECREF(a);

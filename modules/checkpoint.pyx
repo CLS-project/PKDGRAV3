@@ -7,8 +7,12 @@ import cython
 cdef public void print_imports(const char * filename, dict keys):
   import inspect
   with open(filename,"w") as fp:
+    print("from MASTER import MSR",file=fp)
+    print("from argparse import Namespace",file=fp)
     for k,v in keys.items():
       if k[0] == '_':
+        pass
+      elif k in ['MSR','Namespace']:
         pass
       elif inspect.ismodule(v):
         name=inspect.getmodule(v).__name__
@@ -16,7 +20,7 @@ cdef public void print_imports(const char * filename, dict keys):
           print(f'import {name}',file=fp)
         else:
           print(f'import {name} as {k}',file=fp)
-      else:
+      elif inspect.isclass(v):
         module = inspect.getmodule(v)
         if module and module.__name__ != '__main__':
           if hasattr(v,'__name__') and v.__name__ != k:
