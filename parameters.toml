@@ -1447,7 +1447,13 @@ flag="wqs"
 default=0
 help="size of the MDL work queue"
 
-["Debugging/Testing/Diagnostics".iCUDAQueueSize]
-flag="cqs"
-default=8
-help="size of the CUDA work queue"
+["Debugging/Testing/Diagnostics".bGPU]
+flag="gpu"
+default=true
+help="enable or disable the GPU use"
+docs='''
+If compiled with GPU support, the code will try to use a GPU to
+accelerator some phases of the calculation. If no GPU is present,
+the the CPU alone will be used. The use of the GPU can be disabled
+by setting the to False.
+'''

@@ -24,7 +24,7 @@
 ** Returns total number of active particles for which gravity was calculated.
 */
 int pkdGravWalk(PKD pkd,struct pkdKickParameters *kick,struct pkdLightconeParameters *lc,struct pkdTimestepParameters *ts,
-                double dTime,int nReps,int bEwald,int iRoot1, int iRoot2,
+                double dTime,int nReps,int bEwald,bool bGPU,int iRoot1, int iRoot2,
                 int iVARoot, double dThetaMin,double *pdFlop,double *pdPartSum,double *pdCellSum,SPHOptions *SPHoptions);
 
 int pkdGravWalkGroups(PKD pkd,double dTime,double dThetaMin,double *pdFlop,double *pdPartSum,double *pdCellSum);

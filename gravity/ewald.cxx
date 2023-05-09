@@ -328,7 +328,7 @@ double pkdParticleEwald(PKD pkd,double *r, float *pa, float *pPot,double *pdFlop
     return dFlopDouble + dFlopSingle;
 }
 
-void pkdEwaldInit(PKD pkd,int nReps,double fEwCut,double fhCut) {
+void pkdEwaldInit(PKD pkd,int nReps,double fEwCut,double fhCut,bool bGPU) {
     struct EwaldVariables *const ew = &pkd->ew;
     EwaldTable *const ewt = &pkd->ewt;
     const MOMC *restrict mom = &ew->mom;
@@ -506,14 +506,16 @@ void pkdEwaldInit(PKD pkd,int nReps,double fEwCut,double fhCut) {
         ewt->hSfac.f[i] = 0;
         ++i;
     }
+    if (bGPU) {
 #ifdef USE_CL
-    clEwaldInit(pkd->mdl->clCtx,ew,ewt);
-    mdlThreadBarrier(pkd->mdl);
+        clEwaldInit(pkd->mdl->clCtx,ew,ewt);
+        mdlThreadBarrier(pkd->mdl);
 #endif
 #ifdef USE_CUDA
-    auto cuda = reinterpret_cast<CudaClient *>(pkd->cudaClient);
-    // Only one thread needs to transfer the tables to the GPU
-    if (pkd->mdl->Core()==0) cuda->setupEwald(ew,ewt);
-    pkd->mdl->ThreadBarrier();
+        auto cuda = reinterpret_cast<CudaClient *>(pkd->cudaClient);
+        // Only one thread needs to transfer the tables to the GPU
+        if (pkd->mdl->Core()==0) cuda->setupEwald(ew,ewt);
+        pkd->mdl->ThreadBarrier();
 #endif
+    }
 }

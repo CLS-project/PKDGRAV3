@@ -372,7 +372,7 @@ static void initializePStore(PKD *ppkd,MDL mdl,struct inInitializePStore *in) {
     *ppkd = new pkdContext(
         static_cast<mdl::mdlClass *>(mdl),in->nStore,in->nMinTotalStore,in->nMinEphemeral,in->nEphemeralBytes,
         in->nTreeBitsLo,in->nTreeBitsHi,
-        in->iCacheSize,in->iCacheMaxInflight,in->iWorkQueueSize,in->iCUDAQueueSize,in->fPeriod,
+        in->iCacheSize,in->iCacheMaxInflight,in->iWorkQueueSize,in->fPeriod,
         in->nSpecies[FIO_SPECIES_DARK],in->nSpecies[FIO_SPECIES_SPH],in->nSpecies[FIO_SPECIES_STAR], in->nSpecies[FIO_SPECIES_BH],
         in->mMemoryModel);
 }
@@ -1268,7 +1268,7 @@ int pstGravity(PST pst,void *vin,int nIn,void *vout,int nOut) {
 #endif
         PKD pkd = plcl->pkd;
         pkdGravAll(pkd,&in->kick,&in->lc,&in->ts,
-                   in->dTime,in->nReps,in->bPeriodic,
+                   in->dTime,in->nReps,in->bPeriodic,in->bGPU,
                    in->bEwald,in->iRoot1,in->iRoot2,in->dEwCut,in->dEwhCut,in->dTheta,&in->SPHoptions,
                    &outr->nActive,
                    &outr->sPart.dSum,&outr->sPartNumAccess.dSum,&outr->sPartMissRatio.dSum,

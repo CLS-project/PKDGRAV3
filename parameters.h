@@ -74,7 +74,6 @@ struct parameters {
     int iCacheSize;
     int iCacheMaxInflight;
     int iWorkQueueSize;
-    int iCUDAQueueSize;
     int bAddDelete;
     int bLightCone;
     int bLightConeParticles;

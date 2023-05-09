@@ -267,7 +267,6 @@ struct inInitializePStore {
     int iCacheSize;
     int iCacheMaxInflight;
     int iWorkQueueSize;
-    int iCUDAQueueSize;
 };
 struct outInitializePStore {
     int nSizeParticle;
@@ -542,6 +541,7 @@ struct inGravity {
     int nReps;
     int bPeriodic;
     int bEwald;
+    int bGPU;
     int iRoot1;
     int iRoot2;
     struct pkdKickParameters kick;

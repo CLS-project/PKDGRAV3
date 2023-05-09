@@ -310,7 +310,7 @@ static void initLightConeOffsets(PKD pkd,int bBowtie,double h[3],double alpha,do
 pkdContext::pkdContext(mdl::mdlClass *mdl,
                        int nStore,uint64_t nMinTotalStore,uint64_t nMinEphemeral,uint32_t nEphemeralBytes,
                        int nTreeBitsLo, int nTreeBitsHi,
-                       int iCacheSize,int iCacheMaxInflight,int iWorkQueueSize,int iCUDAQueueSize,
+                       int iCacheSize,int iCacheMaxInflight,int iWorkQueueSize,
                        const blitz::TinyVector<double,3> &fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,uint64_t nBH,
                        uint64_t mMemoryModel) : mdl(mdl),
     pLightCone(nullptr), pHealpixData(nullptr), csm(nullptr) {
@@ -1935,7 +1935,7 @@ void extensiveMarkerTest(PKD pkd, struct pkdTimestepParameters *ts, SPHOptions *
 
 void pkdGravAll(PKD pkd,
                 struct pkdKickParameters *kick,struct pkdLightconeParameters *lc,struct pkdTimestepParameters *ts,
-                double dTime,int nReps,int bPeriodic,
+                double dTime,int nReps,int bPeriodic,int bGPU,
                 int bEwald,int iRoot1, int iRoot2,
                 double fEwCut,double fEwhCut,double dThetaMin,SPHOptions *SPHoptions,
                 uint64_t *pnActive,
@@ -1967,7 +1967,7 @@ void pkdGravAll(PKD pkd,
     ** Set up Ewald tables and stuff.
     */
     if (bPeriodic && bEwald && SPHoptions->doGravity) {
-        pkdEwaldInit(pkd,nReps,fEwCut,fEwhCut); /* ignored in Flop count! */
+        pkdEwaldInit(pkd,nReps,fEwCut,fEwhCut,bGPU); /* ignored in Flop count! */
     }
     /*
     ** Start particle caching space (cell cache already active).
@@ -1991,7 +1991,7 @@ void pkdGravAll(PKD pkd,
     pkd->dFlopSingleGPU = pkd->dFlopDoubleGPU = 0.0;
 
     *pnActive = pkdGravWalk(pkd,kick,lc,ts,
-                            dTime,nReps,bPeriodic && bEwald,
+                            dTime,nReps,bPeriodic && bEwald,bGPU,
                             iRoot1,iRoot2,0,dThetaMin,pdFlop,&dPartSum,&dCellSum,SPHoptions);
 
     if (SPHoptions->doExtensiveILPTest && (SPHoptions->doSetDensityFlags || SPHoptions->doSetNNflags)) {
