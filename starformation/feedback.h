@@ -1,9 +1,6 @@
 #include "pkd.h"
 #include "smooth/smooth.h"
-#ifdef __cplusplus
-extern "C" {
-#endif
-void smSNFeedback(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) ;
+void smSNFeedback(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) ;
 void initSNFeedback(void *vpkd, void *vp);
 void combSNFeedback(void *vpkd, void *v1, const void *v2);
 
@@ -20,6 +17,3 @@ static inline float SNFeedbackEfficiency(float Z, float rho, double dSNFBEfficie
     }
 }
 
-#ifdef __cplusplus
-}
-#endif

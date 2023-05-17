@@ -134,7 +134,6 @@ static double green(int i, int jj, int kk, int nGrid) {
         return -1.0/g;
 }
 
-extern "C"
 void pkdSetLinGrid(PKD pkd, double a0, double a, double a1, double dBSize, int nGrid, int iSeed,
                    int bFixed, float fPhase) {
     MDLFFT fft = pkd->fft;
@@ -147,7 +146,6 @@ void pkdSetLinGrid(PKD pkd, double a0, double a, double a1, double dBSize, int n
      * in memory, the other ones are defined in order to
      * have an explicit naming in the code
      */
-    FFTW3(real) *rForceX, *rForceY, *rForceZ;
     FFTW3(complex) *cDelta_lin_field, *cForceY, *cForceZ;
 
     /* Scale factors and normalization */
@@ -211,16 +209,15 @@ void pkdSetLinGrid(PKD pkd, double a0, double a, double a1, double dBSize, int n
         cDelta_lin_field[idx][1] = -dDifferentiate * rePotential;
     }
     mdlIFFT(pkd->mdl, fft, cForceY);
-    rForceY = (FFTW3(real) *)mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)),cForceY);
+    //auto rForceY = static_cast<FFTW3(real)*>(mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)),cForceY));
 
     mdlIFFT(pkd->mdl, fft, cForceZ);
-    rForceZ = (FFTW3(real) *)mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)),cForceZ);
+    //auto rForceZ = static_cast<FFTW3(real)*>(mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)),cForceZ));
 
     mdlIFFT(pkd->mdl, fft, cDelta_lin_field);
-    rForceX = (FFTW3(real) *)mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)), cDelta_lin_field);
+    //auto rForceX = static_cast<FFTW3(real)*>(mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)), cDelta_lin_field));
 }
 
-extern "C"
 int pstSetLinGrid(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
     struct inSetLinGrid *in = reinterpret_cast<struct inSetLinGrid *>(vin);
@@ -310,9 +307,9 @@ void pkdLinearKick(PKD pkd,vel_t dtOpen,vel_t dtClose, int iAssignment=4) {
     std::vector<std::uint32_t> stack;
     stack.push_back(ROOT);
     while ( !stack.empty()) {
-        tree_node *kdn = reinterpret_cast<tree_node *>(pkdTreeNode(pkd,stack.back()));
+        auto kdn = pkd->tree[stack.back()];
         stack.pop_back(); // Go to the next node in the tree
-        Bound bnd = pkdNodeGetBnd(pkd, kdn);
+        auto bnd = kdn->bound();
         shape_t ilower = shape_t(floor((bnd.lower() * ifPeriod + 0.5) * nGrid)) - iAssignment/2;
         shape_t iupper = shape_t(floor((bnd.upper() * ifPeriod + 0.5) * nGrid)) + iAssignment/2;
         shape_t ishape = iupper - ilower + 1;
@@ -321,8 +318,8 @@ void pkdLinearKick(PKD pkd,vel_t dtOpen,vel_t dtClose, int iAssignment=4) {
 
         if (size > maxSize) { // This cell is too large, so we split it and move on
             assert(kdn->is_cell()); // At the moment we cannot handle enormous buckets
-            stack.push_back(kdn->iLower+1);
-            stack.push_back(kdn->iLower);
+            stack.push_back(kdn->rchild());
+            stack.push_back(kdn->lchild());
         }
         else { // Assign the mass for this range of particles
             dataX.resize(size); // Hold the right number of masses
@@ -334,11 +331,9 @@ void pkdLinearKick(PKD pkd,vel_t dtOpen,vel_t dtClose, int iAssignment=4) {
             fetch_forces(pkd,CID_GridLinFx,nGrid,forcesX,ilower);
             fetch_forces(pkd,CID_GridLinFy,nGrid,forcesY,ilower);
             fetch_forces(pkd,CID_GridLinFz,nGrid,forcesZ,ilower);
-            for ( int i=kdn->pLower; i<=kdn->pUpper; ++i) { // All particles in this tree cell
-                auto p = pkdParticle(pkd,i);
-                auto v = pkdVel(pkd,p);
-                position_t dr; pkdGetPos1(pkd,p,dr.data()); // Centered on 0 with period fPeriod
-                float3_t r(dr);
+            for ( auto &p : *kdn) { // All particles in this tree cell
+                auto v = p.velocity();
+                float3_t r = p.position();
                 r = (r * ifPeriod + 0.5) * nGrid - flower; // Scale and shift to fit in subcube
                 v[0] += (dtOpen + dtClose) * force_interpolate(forcesX, r.data(), iAssignment);
                 v[1] += (dtOpen + dtClose) * force_interpolate(forcesY, r.data(), iAssignment);
@@ -351,7 +346,6 @@ void pkdLinearKick(PKD pkd,vel_t dtOpen,vel_t dtClose, int iAssignment=4) {
     mdlFinishCache(pkd->mdl,CID_GridLinFz);
 }
 
-extern "C"
 int pstLinearKick(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
     struct inLinearKick *in = reinterpret_cast<struct inLinearKick *>(vin);
@@ -376,12 +370,7 @@ void pkdMeasureLinPk(PKD pkd, int nGrid, double dA, double dBoxSize,
     FFTW3(complex) *fftDataK;
     double ak;
     int i,j,k, idx, ks;
-    int iNyquist;
-
-    /* Sort the particles into optimal "cell" order */
-    /* Use tree order: QSORT(pkdParticleSize(pkd),pkdParticle(pkd,0),pkd->nLocal,qsort_lt); */
-
-    iNyquist = nGrid / 2;
+    int iNyquist = nGrid / 2;
 
     mdlGridCoordFirstLast(pkd->mdl,fft->rgrid,&first,&last,1);
     /* Generate the grid of the linear species again,
@@ -445,7 +434,6 @@ void pkdMeasureLinPk(PKD pkd, int nGrid, double dA, double dBoxSize,
     }
 }
 
-extern "C"
 int pstMeasureLinPk(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
     struct inMeasureLinPk *in = reinterpret_cast<struct inMeasureLinPk *>(vin);

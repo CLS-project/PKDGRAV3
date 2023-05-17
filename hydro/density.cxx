@@ -1,5 +1,9 @@
 #include "hydro/hydro.h"
 #include "master.h"
+#include "blitz/array.h"
+using blitz::TinyVector;
+using blitz::abs;
+using blitz::any;
 
 void MSR::ComputeSmoothing(double dTime, double dDelta) {
     int nSmoothed = 1, it=0, maxit = 100;
@@ -54,67 +58,54 @@ void MSR::ComputeSmoothing(double dTime, double dDelta) {
 
 
 
-static inline void densNodeOmegaE(NN *nnList, float ph,
-                                  float dx_node, float dy_node, float dz_node, int nCnt,
-                                  double *omega, double *E, int *nSmooth) {
-    float fBall2_p = 4.*ph*ph;
+static inline void densNodeOmegaE(NN *nnList, float ph, TinyVector<float,3> dr_node, int nCnt,
+                                  double *omega, TinyVector<double,6> &E, int *nSmooth) {
+    const float fBall2_p = 4.*ph*ph;
     *omega = 0.0;
     *nSmooth = 0.0;
-    for (int j=0; j<6; ++j)
-        E[j] = 0.;
-    for (int pk=0; pk<nCnt; pk++) {
+    E = 0.0;
+    for (auto pk = 0; pk < nCnt; ++pk) {
         // As both dr vector are relative to the cell, we can do:
-        const float dx = dx_node - nnList[pk].dx;
-        const float dy = dy_node - nnList[pk].dy;
-        const float dz = dz_node - nnList[pk].dz;
+        const TinyVector<float,3> dr{dr_node - nnList[pk].dr};
 
-        const float fDist2 = dx*dx + dy*dy + dz*dz;
+        const auto fDist2 = blitz::dot(dr,dr);
         if (fDist2 <= fBall2_p) {
             const double rpq = sqrt(fDist2);
             const double Wpq = cubicSplineKernel(rpq, ph);
 
             *omega += Wpq;
 
+            E[XX] += dr[0]*dr[0]*Wpq;
+            E[YY] += dr[1]*dr[1]*Wpq;
+            E[ZZ] += dr[2]*dr[2]*Wpq;
 
-            E[XX] += dx*dx*Wpq;
-            E[YY] += dy*dy*Wpq;
-            E[ZZ] += dz*dz*Wpq;
-
-            E[XY] += dy*dx*Wpq;
-            E[XZ] += dz*dx*Wpq;
-            E[YZ] += dy*dz*Wpq;
+            E[XY] += dr[1]*dr[0]*Wpq;
+            E[XZ] += dr[2]*dr[0]*Wpq;
+            E[YZ] += dr[1]*dr[2]*Wpq;
 
             *nSmooth += 1;
-
         }
     }
 }
 
 
-static inline double densNodeNcondB(PKD pkd, PARTICLE *p,
-                                    double *E, double omega) {
-    double B[6];
+static inline double densNodeNcondB(PKD pkd, particleStore::ParticleReference &p,
+                                    TinyVector<double,6> &E, double omega) {
+    TinyVector<double,6> B;
 
     // Normalize the matrix
-    for (int j=0; j<6; ++j) {
-        E[j] /= omega;
-    }
+    E /= omega;
 
-    inverseMatrix(E, B);
-    double Ncond = conditionNumber(E, B);
+    inverseMatrix(E.data(), B.data());
+    double Ncond = conditionNumber(E.data(), B.data());
     assert(Ncond==Ncond);
 
-    if (pkdIsGas(pkd,p)) {
+    if (p.is_gas()) {
         // We can already set this here, so it can be skipped in
         // hydroGradients
-        SPHFIELDS *psph = pkdSph(pkd,p);
-        psph->Ncond = Ncond;
-        psph->B[XX] = B[XX];
-        psph->B[YY] = B[YY];
-        psph->B[ZZ] = B[ZZ];
-        psph->B[XY] = B[XY];
-        psph->B[XZ] = B[XZ];
-        psph->B[YZ] = B[YZ];
+        auto &sph = p.sph();
+        sph.Ncond = Ncond;
+        sph.B = B;
     }
 
     return Ncond;
@@ -122,86 +113,72 @@ static inline double densNodeNcondB(PKD pkd, PARTICLE *p,
 
 // Compute the density and derived variables simply given the fBall,
 // without trying to converge to the correct value
-void hydroDensityFinal(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
+void hydroDensityFinal(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
+    auto p = pkd->particles[pIn];
 #ifdef OPTIM_UNION_EXTRAFIELDS
     double *omega = NULL;
-    omega = pkdIsGas(pkd,p)  ? &(pkdSph(pkd,p)->omega) : omega;
-    omega = pkdIsStar(pkd,p) ? &(pkdStar(pkd,p)->omega) : omega;
-    omega = pkdIsBH(pkd,p)   ? &(pkdBH(pkd,p)->omega) : omega;
+    omega = p.is_gas()  ? &(p.sph().omega)  : omega;
+    omega = p.is_star() ? &(p.star().omega) : omega;
+    omega = p.is_bh()   ? &(p.BH().omega)   : omega;
 #else
     // Assuming *only* stars and gas
-    double *omega = &(pkdSph(pkd,p)->omega);
+    double *omega = &(p.sph().omega);
 #endif
 
     const double ph = 0.5*fBall;
-
     *omega = 0.0;
-    for (int i=0; i<nSmooth; ++i) {
-        const float dx = -nnList[i].dx;
-        const float dy = -nnList[i].dy;
-        const float dz = -nnList[i].dz;
-        const float fDist2 = dx*dx + dy*dy + dz*dz;
-        const double rpq = sqrt(fDist2);
 
+    if (p.is_gas()) {
+        TinyVector<double,6> E{0.0};
 
-        *omega += cubicSplineKernel(rpq, ph);
-    }
-
-
-    if (pkdIsGas(pkd,p)) {
-        double E[6];
-        for (int i=0; i<6; ++i) {
-            E[i] = 0.0;
-        }
-
-        for (int i=0; i<nSmooth; ++i) {
-            const float dx = -nnList[i].dx;
-            const float dy = -nnList[i].dy;
-            const float dz = -nnList[i].dz;
-            const float fDist2 = dx*dx + dy*dy + dz*dz;
-            const double rpq = sqrt(fDist2);
-
+        for (auto i = 0; i < nSmooth; ++i) {
+            const double rpq = sqrt(nnList[i].fDist2);
             const double Wpq = cubicSplineKernel(rpq, ph);
 
-            E[XX] += dx*dx*Wpq;
-            E[YY] += dy*dy*Wpq;
-            E[ZZ] += dz*dz*Wpq;
+            *omega += Wpq;
 
-            E[XY] += dy*dx*Wpq;
-            E[XZ] += dz*dx*Wpq;
-            E[YZ] += dy*dz*Wpq;
+            const auto &dr = nnList[i].dr;
+
+            E[XX] += dr[0]*dr[0]*Wpq;
+            E[YY] += dr[1]*dr[1]*Wpq;
+            E[ZZ] += dr[2]*dr[2]*Wpq;
+
+            E[XY] += dr[1]*dr[0]*Wpq;
+            E[XZ] += dr[2]*dr[0]*Wpq;
+            E[YZ] += dr[1]*dr[2]*Wpq;
         }
 
         /* Normalize the matrix */
-        for (int i=0; i<6; ++i) {
-            E[i] /= *omega;
+        E /= *omega;
+
+        inverseMatrix(E.data(), p.sph().B.data());
+    }
+    else {
+        for (auto i = 0; i < nSmooth; ++i) {
+            const double rpq = sqrt(nnList[i].fDist2);
+            *omega += cubicSplineKernel(rpq, ph);
         }
-        inverseMatrix(E, pkdSph(pkd,p)->B);
     }
 
-    pkdSetDensity(pkd, p, pkdMass(pkd,p)*(*omega));
-    //printf("%" PRIu64 " final iteration omega %e\t density %e\t fBall %e\t nn %d \n", *pkdParticleID(pkd,p), *omega, pkdDensity(pkd,p), ph, nSmooth);
+    p.set_density(p.mass() * (*omega));
 }
 
 
-void hydroDensity_node(PKD pkd, SMF *smf, BND bnd_node, PARTICLE **sinks, NN *nnList,
-                       int nCnt_own, int nCnt) {
-    for (int pj=0; pj<nCnt_own; pj++) {
-        PARTICLE *partj = sinks[pj];
+void hydroDensity_node(PKD pkd, SMF *smf, Bound bnd_node, const std::vector<PARTICLE *> &sinks,
+                       NN *nnList,int nCnt) {
+    for (auto &P : sinks) {
+        auto partj = pkd->particles[P];
 #ifdef OPTIM_UNION_EXTRAFIELDS
         double *omega = NULL;
-        omega = pkdIsGas(pkd,partj)  ? &(pkdSph(pkd,partj)->omega) : omega;
-        omega = pkdIsStar(pkd,partj) ? &(pkdStar(pkd,partj)->omega) : omega;
-        omega = pkdIsBH(pkd,partj)   ? &(pkdBH(pkd,partj)->omega) : omega;
+        omega = partj.is_gas()  ? &(partj.sph().omega)  : omega;
+        omega = partj.is_star() ? &(partj.star().omega) : omega;
+        omega = partj.is_bh()   ? &(partj.BH().omega)   : omega;
 #else
         // Assuming *only* stars and gas
-        double *omega = &(pkdSph(pkd,partj)->omega);
+        double *omega = &(partj.sph().omega);
 #endif
-
-        float dx_node = -pkdPos(pkd,partj,0)+bnd_node.fCenter[0];
-        float dy_node = -pkdPos(pkd,partj,1)+bnd_node.fCenter[1];
-        float dz_node = -pkdPos(pkd,partj,2)+bnd_node.fCenter[2];
+        const TinyVector<float,3> dr_node {bnd_node.center() - partj.position()};
 
         int niter = 0;
         int nSmooth;
@@ -213,14 +190,13 @@ void hydroDensity_node(PKD pkd, SMF *smf, BND bnd_node, PARTICLE **sinks, NN *nn
 
         double dConvFac = .5;
         do {
-            float fpSmooth = 0.5*pkdBall(pkd,partj);
-            double E[6];
+            const float fpSmooth = 0.5 * partj.ball();
+            TinyVector<double,6> E;
 
-            densNodeOmegaE(nnList, fpSmooth, dx_node, dy_node, dz_node,
-                           nCnt,omega, E, &nSmooth);
+            densNodeOmegaE(nnList, fpSmooth, dr_node, nCnt, omega, E, &nSmooth);
 
             // Check if it has converged
-            double c = 4.*M_PI/3. * (*omega) * fpSmooth*fpSmooth*fpSmooth*8.;
+            const double c = 4.*M_PI/3. * (*omega) * fpSmooth*fpSmooth*fpSmooth*8.;
             if ((fabs(c-Neff) < smf->dNeighborsStd) ) {
 
                 // Check if the converged density has a low enough condition number
@@ -240,7 +216,6 @@ void hydroDensity_node(PKD pkd, SMF *smf, BND bnd_node, PARTICLE **sinks, NN *nn
                     else {
                         // But we impose a maximun number of neighbours to avoid
                         // too long interaction lists
-                        partj->bMarked=0;
                         printf("WARNING %d Maximum Neff reached: %e ; Ncond %e \n", nSmooth, Neff, Ncond);
                     }
                 }
@@ -252,27 +227,21 @@ void hydroDensity_node(PKD pkd, SMF *smf, BND bnd_node, PARTICLE **sinks, NN *nn
                     continue;
                 }
 
-                partj->bMarked = 0;
-                pkdSetDensity(pkd, partj, pkdMass(pkd,partj)*(*omega));
+                partj.set_marked(false);
+                partj.set_density(partj.mass() * (*omega));
             }
             else {
                 // We need to keep iterating
-                float fpSmoothNew;
+                constexpr float hMaxFac = 4.0f;
+                const bool isMaxFac = Neff > c * pow(hMaxFac, 3);
+                const float hFac = isMaxFac ? hMaxFac : pow(Neff/c, 1./3.);
+                const float fpSmoothNew = fpSmooth * (1. + dConvFac*(hFac - 1.));
+                partj.set_ball(2.*fpSmoothNew);
 
-                fpSmoothNew = (c!=0.0) ? fpSmooth * pow(Neff/c, 1./3.) : fpSmooth*4.0;
-                if (fpSmoothNew > 4.0*fpSmooth) fpSmoothNew = fpSmooth*4.0;
-
-                fpSmoothNew = dConvFac*fpSmoothNew + (1.-dConvFac)*fpSmooth;
-
-                pkdSetBall(pkd,partj, 2.*fpSmoothNew);
-
-                if (fpSmoothNew>fpSmooth) {
-                    float fpBallNew = 2.*fpSmoothNew;
+                if (fpSmoothNew > fpSmooth) {
                     // We check that the proposed ball is enclosed within the
                     // node search region
-                    if (    (fabs(dx_node) + fpBallNew > bnd_node.fMax[0])||
-                            (fabs(dy_node) + fpBallNew > bnd_node.fMax[1])||
-                            (fabs(dz_node) + fpBallNew > bnd_node.fMax[2])) {
+                    if (any(abs(dr_node) + partj.ball() > bnd_node.apothem())) {
                         // A negative omega indicates the Neff for the next
                         // nbg search
                         *omega = -Neff;
@@ -284,18 +253,18 @@ void hydroDensity_node(PKD pkd, SMF *smf, BND bnd_node, PARTICLE **sinks, NN *nn
                     // have not yet fully converged due to, e.g., an anisotropic
                     // particle distribution
                     if (smf->dhMinOverSoft > 0.) {
-                        if (fpSmoothNew < smf->dhMinOverSoft*pkdSoft(pkd,partj)) {
+                        const float fpMinSmooth = smf->dhMinOverSoft * partj.soft();
+                        if (fpSmoothNew < fpMinSmooth) {
+                            partj.set_ball(2.*fpMinSmooth);
                             if (!onLowerLimit) {
                                 // If in the next iteration still a lower smooth is
                                 // preferred, we will skip this particle
-                                pkdSetBall(pkd, partj, 2.*smf->dhMinOverSoft*pkdSoft(pkd,partj) );
                                 onLowerLimit = 1;
                             }
                             else {
-                                pkdSetBall(pkd, partj, 2.*smf->dhMinOverSoft*pkdSoft(pkd,partj) );
                                 densNodeNcondB(pkd, partj, E, *omega);
-                                pkdSetDensity(pkd, partj, pkdMass(pkd,partj)*(*omega));
-                                partj->bMarked = 0;
+                                partj.set_density(partj.mass() * (*omega));
+                                partj.set_marked(false);
                             }
                         }
                     }
@@ -321,7 +290,7 @@ void hydroDensity_node(PKD pkd, SMF *smf, BND bnd_node, PARTICLE **sinks, NN *nn
                 dConvFac *= 0.9;
 
 
-            if (niter>100 && partj->bMarked) {
+            if (niter>100 && partj.marked()) {
                 // At this point, we probably have a particle with plenty of
                 // neighbours, and a small increase/decrease in the radius causes
                 // omega to fluctuate around the desired value.
@@ -330,14 +299,17 @@ void hydroDensity_node(PKD pkd, SMF *smf, BND bnd_node, PARTICLE **sinks, NN *nn
                 // upper value, which should have more than the expected number of
                 // neighbours
                 if (c > Neff) {
-                    partj->bMarked = 0;
-                    pkdSetBall(pkd, partj, 2.*fpSmooth);
+                    partj.set_marked(false);
+                    partj.set_ball(2.*fpSmooth);
                     densNodeNcondB(pkd, partj, E, *omega);
-                    pkdSetDensity(pkd, partj, pkdMass(pkd,partj)*(*omega));
-                    printf("WARNING %d Maximum iterations reached Neff %e c %e \t %e %e %e %e \n", pkdSpecies(pkd,partj), Neff, c, pkdDensity(pkd,partj), pkdPos(pkd,partj,0),pkdPos(pkd,partj,1),pkdPos(pkd,partj,2));
+                    partj.set_density(partj.mass() * (*omega));
+                    printf("WARNING %d Maximum iterations reached "
+                           "Neff %e c %e \t %e %e %e %e \n",
+                           partj.species(), Neff, c, partj.density(), partj.position(0),
+                           partj.position(1),partj.position(2));
                 }
             }
-        } while (partj->bMarked);
+        } while (partj.marked());
     }
 }
 
@@ -349,23 +321,22 @@ void hydroDensity_node(PKD pkd, SMF *smf, BND bnd_node, PARTICLE **sinks, NN *nn
  * The supported density computation is that performed by hydroDensity_node,
  * which is automatically selected when using the OPTIM_SMOOTH_NODE flag
  */
-void hydroDensity(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
+void hydroDensity(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
-    SPHFIELDS *psph;
+    auto p = pkd->particles[pIn];
     double ph, rpq, hpq, c;
-    int i;
 
     /* Particle p data */
-    psph = pkdSph(pkd,p);
+    auto &sph = p.sph();
     ph = 0.5*fBall;
 
     /* Compute the \omega(x_i) normalization factor */
-    psph->omega = 0.0;
-    ph = pkdBall(pkd,p);
+    sph.omega = 0.0;
+    ph = p.ball();
 #ifdef OPTIM_DENSITY_REITER
     float maxr = 0.0;
 #endif //OPTIM_DENSITY_REITER
-    for (i=0; i<nSmooth; ++i) {
+    for (auto i = 0; i < nSmooth; ++i) {
 #ifdef OPTIM_DENSITY_REITER
         if (nnList[i].fDist2> maxr) maxr =nnList[i].fDist2;
 #else
@@ -373,7 +344,7 @@ void hydroDensity(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
         rpq = sqrt(nnList[i].fDist2);
         hpq = ph;
 
-        psph->omega += cubicSplineKernel(rpq, hpq);
+        sph.omega += cubicSplineKernel(rpq, hpq);
 #endif //OPTIM_DENSITY_REITER
     }
 
@@ -383,36 +354,36 @@ void hydroDensity(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
      */
 #ifdef OPTIM_DENSITY_REITER
     maxr = sqrt(maxr);
-    while (p->bMarked) {
-        psph->omega=0.0;
-        ph = pkdBall(pkd,p);
-        for (i=0; i<nSmooth; ++i) {
+    while (p.marked()) {
+        sph.omega=0.0;
+        ph = p.ball();
+        for (auto i = 0; i < nSmooth; ++i) {
 
             rpq = sqrt(nnList[i].fDist2);
             hpq = ph;
 
-            psph->omega += cubicSplineKernel(rpq, hpq);
+            sph.omega += cubicSplineKernel(rpq, hpq);
         }
 #else
-    if (smf->bIterativeSmoothingLength && p->bMarked) {
+    if (smf->bIterativeSmoothingLength && p.marked()) {
 #endif //OPTIM_DENSITY_REITER
 
-        c = 4.*M_PI/3. * psph->omega *ph*ph*ph*8.;
+        c = 4.*M_PI/3. * sph.omega *ph*ph*ph*8.;
         if (fabs(c-smf->nSmooth) < smf->dNeighborsStd) {
-            p->bMarked = 0;
+            p.set_marked(false);
         }
         else {
             float newBall;
             newBall = ph * pow(  smf->nSmooth/c,0.3333333333);
             //   if (nSmooth <= 1) newBall *= 2.*fBall;
 
-            pkdSetBall(pkd,p, 0.5*(newBall+ph));
-            //psph->fLastBall = ph;
+            p.set_ball(0.5*(newBall+ph));
+            //sph.fLastBall = ph;
 
 #ifdef OPTIM_DENSITY_REITER
             // If the suggested new radius does not enclose all our neighbors,
             // we need to reiterate
-            if (pkdBall(pkd,p)>maxr) break;
+            if (p.ball()>maxr) break;
 #endif
 
         }
@@ -420,5 +391,5 @@ void hydroDensity(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
 
     /* We compute the density making use of Eq. 27 Hopkins 2015 */
-    pkdSetDensity(pkd,p, pkdMass(pkd,p)*psph->omega);
+    p.set_density(p.mass() * sph.omega);
 }

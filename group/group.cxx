@@ -28,22 +28,21 @@
 */
 static void updateGroupIds(PKD pkd, int nGroups, struct smGroupArray *ga, int bIndexIsGID) {
     MDL mdl = pkd->mdl;
-    PARTICLE *p;
     int pi, gid;
 
     /* Update the group for all local particles */
-    for (pi=0; pi<pkd->nLocal; ++pi) {
-        p = pkdParticle(pkd,pi);
-        gid = pkdGetGroup(pkd,p);
+    for (pi=0; pi<pkd->Local(); ++pi) {
+        auto p = pkd->particles[pi];
+        gid = p.group();
         if (gid<=0) continue;
-        pkdSetGroup(pkd,p,ga[gid].iNewGid);
+        p.set_group(ga[gid].iNewGid);
     }
 
     /* Now gid has the new position -- a reorder is necessary */
     if (bIndexIsGID) {
         mdlROcache(mdl,CID_GROUP,NULL,ga,sizeof(struct smGroupArray), nGroups);
         for (gid=1; gid<nGroups; ++gid) {
-            if (ga[gid].id.iPid==pkd->idSelf) {
+            if (ga[gid].id.iPid==pkd->Self()) {
                 ga[gid].id.iIndex = ga[gid].iNewGid;
             }
             else {
@@ -68,17 +67,13 @@ static int smga_cmp(const void *a0, const void *b0) {
 /* Put the groups back in "group" order  */
 static int reorderGroups(PKD pkd, int nGroups, struct smGroupArray *ga) {
     struct smGroupArray tmp;
-    int pi,nNew;
 
     /* Move the dead groups (if any) to the end by partitioning */
-    nNew = 1;
-    pi = nGroups-1;
-    PARTITION(nNew<pi,nNew<=pi,++nNew,--pi,
-    {tmp = ga[pi]; ga[pi]=ga[nNew]; ga[nNew]=tmp;},
-    ga[nNew].iGid>0,ga[pi].iGid<=0);
+    assert(nGroups>0);
+    int nNew = std::partition(ga+1,ga+nGroups,[](auto g) {return g.iGid>0;}) - ga;
     pkd->nLocalGroups = 0;
-    for (pi=1; pi<nGroups; ++pi) {
-        if (ga[pi].id.iPid == pkd->idSelf && pi<nNew) ++pkd->nLocalGroups;
+    for (auto pi=1; pi<nGroups; ++pi) {
+        if (ga[pi].id.iPid == pkd->Self() && pi<nNew) ++pkd->nLocalGroups;
         if (pi<nNew) {
             assert(ga[pi].iGid>0);
             assert(ga[pi].iGid<nNew);
@@ -86,7 +81,7 @@ static int reorderGroups(PKD pkd, int nGroups, struct smGroupArray *ga) {
         else assert(ga[pi].iGid==0);
     }
     /* Now just do a simple reorder */
-    for (pi=1; pi<nNew; ++pi) {
+    for (auto pi=1; pi<nNew; ++pi) {
         while (ga[pi].iGid != pi) {
             /* If the swap destination is already correct, then we are a duplicate - drop it */
             if (ga[ga[pi].iGid].iGid == ga[pi].iGid) {
@@ -100,7 +95,7 @@ static int reorderGroups(PKD pkd, int nGroups, struct smGroupArray *ga) {
             ga[pi] = tmp;
         }
     }
-    for (pi=1; pi<nNew; ++pi) {
+    for (auto pi=1; pi<nNew; ++pi) {
         assert(ga[pi].iGid == pi);
         assert(ga[pi].iNewGid >= 0);
     }
@@ -109,7 +104,7 @@ static int reorderGroups(PKD pkd, int nGroups, struct smGroupArray *ga) {
 
 /*
 ** Sort groups by Processor and ID, with local groups first
-** The new group ID is in iNewGid and groups are in still in the old order.
+** The new group ID is in iNewGid and groups are still in the old order.
 */
 static int renumberGroups(PKD pkd, int nGroups,struct smGroupArray *ga) {
     int i, gid, nNew;
@@ -119,15 +114,15 @@ static int renumberGroups(PKD pkd, int nGroups,struct smGroupArray *ga) {
     for (i=1; i<nGroups; ++i) {
         assert(ga[i].iGid == i);
         assert(ga[i].id.iPid>=0);
-        if (ga[i].id.iPid == pkd->idSelf) {
+        if (ga[i].id.iPid == pkd->Self()) {
             ga[i].id.iPid = -1;
             ++pkd->nLocalGroups;
         }
     }
     qsort(ga+1,nGroups-1,sizeof(struct smGroupArray),smga_cmp);
-    for (i=1; i<nGroups; ++i) if (ga[i].id.iPid == -1) ga[i].id.iPid = pkd->idSelf;
+    for (i=1; i<nGroups; ++i) if (ga[i].id.iPid == -1) ga[i].id.iPid = pkd->Self();
     gid = 0; /* Sentinal node always as iPid=idSelf, iIndex == -1 */
-    ga[0].id.iPid = pkd->idSelf;
+    ga[0].id.iPid = pkd->Self();
     ga[0].id.iIndex = -1;
     /* Count and note *unique* groups */
     for (i=nNew=1; i<nGroups; ++i) {
@@ -177,27 +172,26 @@ static void combMaxnGroup(void *vctx, void *v1, const void *v2) {
 */
 int pkdGroupRelocate(PKD pkd,int nGroups,struct smGroupArray *ga) {
     MDL mdl = pkd->mdl;
-    PARTICLE *p;
     int i, gid, nLocalGroups;
 
     /* Count local members of all groups */
     nLocalGroups = 0;
     for (i=0; i<pkd->nGroups; ++i) {
-        if (ga[i].id.iPid == pkd->idSelf && i) ++nLocalGroups;
+        if (ga[i].id.iPid == pkd->Self() && i) ++nLocalGroups;
         ga[i].nTotal = 0;
     }
-    for (i=0; i<pkd->nLocal; ++i) {
-        p = pkdParticle(pkd,i);
-        gid = pkdGetGroup(pkd,p);
+    for (i=0; i<pkd->Local(); ++i) {
+        auto p = pkd->particles[i];
+        gid = p.group();
         ++ga[gid].nTotal;
     }
     /* Now find the real processor with the most particles for each group */
     mdlCOcache(mdl,CID_GROUP,NULL,ga,sizeof(struct smGroupArray),nGroups,
                NULL,initMaxnGroup,combMaxnGroup);
     for (i=1+nLocalGroups; i<nGroups; ++i) {
-        assert(ga[i].id.iPid != pkd->idSelf);
+        assert(ga[i].id.iPid != pkd->Self());
         auto g = static_cast<struct smGroupArray *>(mdlVirtualFetch(mdl,CID_GROUP,ga[i].id.iIndex,ga[i].id.iPid));
-        g->id.iPid = pkd->idSelf;
+        g->id.iPid = pkd->Self();
         g->id.iIndex = i;
         g->nTotal = ga[i].nTotal;
     }
@@ -236,7 +230,6 @@ static void combTotalnGroup(void *vctx, void *v1, const void *v2) {
 */
 int pkdGroupCounts(PKD pkd,int nGroups,struct smGroupArray *ga) {
     MDL mdl = pkd->mdl;
-    PARTICLE *p;
     int i, gid;
     int nLocalGroups;
 
@@ -245,12 +238,12 @@ int pkdGroupCounts(PKD pkd,int nGroups,struct smGroupArray *ga) {
     */
     nLocalGroups = 0;
     for (i=0; i<nGroups; ++i) {
-        if (ga[i].id.iPid == pkd->idSelf && i) ++nLocalGroups;
+        if (ga[i].id.iPid == pkd->Self() && i) ++nLocalGroups;
         ga[i].nTotal = 0;
     }
-    for (i=0; i<pkd->nLocal; ++i) {
-        p = pkdParticle(pkd,i);
-        gid = pkdGetGroup(pkd,p);
+    for (i=0; i<pkd->Local(); ++i) {
+        auto p = pkd->particles[i];
+        gid = p.group();
         ++ga[gid].nTotal;
     }
     /*
@@ -259,7 +252,7 @@ int pkdGroupCounts(PKD pkd,int nGroups,struct smGroupArray *ga) {
     mdlCOcache(mdl,CID_GROUP,NULL,ga,sizeof(struct smGroupArray),nGroups,
                NULL,initTotalnGroup,combTotalnGroup);
     for (i=1+nLocalGroups; i<nGroups; ++i) {
-        assert(ga[i].id.iPid != pkd->idSelf);   /* assumes local groups come first, then remotes */
+        assert(ga[i].id.iPid != pkd->Self());   /* assumes local groups come first, then remotes */
         auto g = static_cast<struct smGroupArray *>(mdlVirtualFetch(mdl,CID_GROUP,ga[i].id.iIndex,ga[i].id.iPid));
         g->nTotal += ga[i].nTotal;
     }
@@ -280,9 +273,7 @@ int pkdGroupCounts(PKD pkd,int nGroups,struct smGroupArray *ga) {
 
 int pkdPurgeSmallGroups(PKD pkd,int nGroups,struct smGroupArray *ga,int nMinGroupSize) {
     int i,j,gid;
-    int nLocalGroups;
-
-    nLocalGroups = pkdGroupCounts(pkd,nGroups,ga);
+    pkdGroupCounts(pkd,nGroups,ga);
     /* Purge groups with too few particles */
     for (i=j=1; i<nGroups; ++i) {
         if (ga[i].nTotal < nMinGroupSize) gid=0;

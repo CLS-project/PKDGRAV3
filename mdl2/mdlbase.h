@@ -28,7 +28,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include "opa_queue.h"
 
 /*
 * Compile time mdl debugging options
@@ -118,12 +117,14 @@ protected:
 
 class mdlBASE : protected mdlbt {
 public:
-    int32_t nThreads; /* Global number of threads (total) */
-    int32_t idSelf;   /* Global index of this thread */
-    int32_t nProcs;   /* Number of global processes (e.g., MPI ranks) */
-    int32_t iProc;    /* Index of this process (MPI rank) */
-    int16_t nCores;   /* Number of threads in this process */
-    int16_t iCore;    /* Local core id */
+    struct {
+        int32_t nThreads; /* Global number of threads (total) */
+        int32_t idSelf;   /* Global index of this thread */
+        int32_t nProcs;   /* Number of global processes (e.g., MPI ranks) */
+        int32_t iProc;    /* Index of this process (MPI rank) */
+        int32_t nCores;   /* Number of threads in this process */
+        int32_t iCore;    /* Local core id */
+    } layout;
     int bDiag;        /* When true, debug output is enabled */
     int argc;
 
@@ -170,12 +171,12 @@ public:
 public:
     explicit mdlBASE(int argc,char **argv);
     virtual ~mdlBASE();
-    int32_t Threads() const { return nThreads; }
-    int32_t Self()    const { return idSelf; }
-    int16_t Core()    const { return iCore; }
-    int16_t Cores()   const { return nCores; }
-    int32_t Proc()    const { return iProc; }
-    int32_t Procs()   const { return nProcs; }
+    int32_t Threads() const { return layout.nThreads; }
+    int32_t Self()    const { return layout.idSelf; }
+    int32_t Core()    const { return layout.iCore; }
+    int32_t Cores()   const { return layout.nCores; }
+    int32_t Proc()    const { return layout.iProc; }
+    int32_t Procs()   const { return layout.nProcs; }
     int32_t ProcToThread(int32_t iProc) const;
     int32_t ThreadToProc(int32_t iThread) const;
     void yield();
@@ -183,7 +184,7 @@ public:
     void AddService(std::unique_ptr<BasicService> &&service);
     int  RunService(int sid, int nIn, void *pIn, void *pOut=nullptr);
     int  RunService(int sid, ServiceBuffer &b, void *pOut=nullptr) { return RunService(sid,b.size(),b.data(),pOut);}
-    int  RunService(int sid, void *pOut) { return RunService(sid,0,nullptr,pOut); }
+    int  RunService(int sid, void *pOut=nullptr) { return RunService(sid,0,nullptr,pOut); }
     BasicService *GetService(unsigned sid) {return sid<services.size() ? services[sid].get() : nullptr; }
 };
 int mdlBaseProcToThread(mdlBASE *base, int iProc);
@@ -208,7 +209,7 @@ int mdlGetArgc(void *mdl);
 char **mdlGetArgv(void *mdl);
 
 
-void mdlDiag(void *mdl, char *psz);
+void mdlDiag(void *mdl, const char *psz);
 #ifdef MDLASSERT
 #ifndef __STRING
 #define __STRING( arg )   (("arg"))

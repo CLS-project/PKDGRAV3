@@ -20,7 +20,7 @@
 #include "master.h"
 #include "units.h"
 #include "fmt/format.h"
-#include "SPHOptions.h"
+#include "SPH/SPHOptions.h"
 
 /******************************************************************************\
 *   Simulation Mode: normal method of populating the simulation data
@@ -104,8 +104,9 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
     FILE *fpLog = NULL;
 
     InitCosmology();
+    auto dTheta = set_dynamic(iStartStep,dTime);
+
     if (prmSpecified(prm,"dSoft")) SetSoft(Soft());
-    auto dTheta = getTheta(dTime); // Adjust theta for gravity calculations.
 
 
     /*
@@ -185,16 +186,15 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
     uint8_t uRungMax;
     int iSec = time(0);
 
+    dDelta = SwitchDelta(dTime,dDelta,iStartStep,param.nSteps);
+    if (param.bNewKDK) {
+        LightConeOpen(iStartStep + 1);
+        bKickOpen = 1;
+    }
+    else bKickOpen = 0;
     if (DoGravity()) {
-        dDelta = SwitchDelta(dTime,dDelta,iStartStep,param.nSteps);
-        if (param.bNewKDK) {
-            LightConeOpen(iStartStep + 1);
-            bKickOpen = 1;
-        }
-        else bKickOpen = 0;
-
         /* Compute the grids of the linear species before doing gravity */
-        if (strlen(param.achLinearSpecies) && param.nGridLin > 0) {
+        if (csm->val.classData.bClass && strlen(param.achLinSpecies) && param.nGridLin > 0) {
             GridCreateFFT(param.nGridLin);
             SetLinGrid(dTime,dDelta,param.nGridLin,bKickClose,bKickOpen);
             if (param.bDoLinPkOutput)
@@ -202,42 +202,53 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
             LinearKick(dTime,dDelta,bKickClose,bKickOpen);
             GridDeleteFFT();
         }
-        if (DoGas() && NewSPH()) {
-            SelAll(0,1);
-            SPHOptions SPHoptions = initializeSPHOptions(param,csm,dTime);
-            SPHoptions.doGravity = 0;
-            SPHoptions.doDensity = 1;
-            SPHoptions.doSPHForces = 0;
-            uRungMax = Gravity(0,MAX_RUNG,ROOT,0,dTime,dDelta,iStartStep,dTheta,0,bKickOpen,
-                               param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,SPHoptions);
-            MemStatus();
-            SelAll(0,1);
-            SPHoptions.doGravity = 1;
+    }
+    if (DoGas() && NewSPH()) {
+        // Calculate Density
+        SelAll(-1,1);
+        SPHOptions SPHoptions = initializeSPHOptions(param,csm,dTime);
+        SPHoptions.doGravity = 0;
+        SPHoptions.doDensity = 1;
+        SPHoptions.doSPHForces = 0;
+        uRungMax = Gravity(0,MAX_RUNG,ROOT,0,dTime,dDelta,iStartStep,dTheta,0,bKickOpen,
+                           param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,SPHoptions);
+        MemStatus();
+        if (SPHoptions.doInterfaceCorrection) {
             SPHoptions.doDensity = 0;
-            SPHoptions.doSPHForces = 1;
+            SPHoptions.doDensityCorrection = 1;
             SPHoptions.dofBallFactor = 0;
             TreeUpdateFlagBounds(param.bEwald,ROOT,0,SPHoptions);
             uRungMax = Gravity(0,MAX_RUNG,ROOT,0,dTime,dDelta,iStartStep,dTheta,0,bKickOpen,
                                param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,SPHoptions);
-            MemStatus();
+            UpdateGasValues(0,dTime,dDelta,iStartStep,0,bKickOpen,SPHoptions);
+            SPHoptions.doDensityCorrection = 0;
         }
-        else {
-            SPHOptions SPHoptions = initializeSPHOptions(param,csm,dTime);
-            SPHoptions.doGravity = 1;
-            uRungMax = Gravity(0,MAX_RUNG,ROOT,0,dTime,dDelta,iStartStep,dTheta,0,bKickOpen,
-                               param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,SPHoptions);
-            MemStatus();
-        }
-
-        if (param.bGravStep) {
-            assert(param.bNewKDK == 0);    /* for now! */
-            BuildTree(param.bEwald);
-            SPHOptions SPHoptions = initializeSPHOptions(param,csm,dTime);
-            SPHoptions.doGravity = 1;
-            Gravity(0,MAX_RUNG,ROOT,0,dTime,dDelta,iStartStep,dTheta,0,0,
-                    param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,SPHoptions);
-            MemStatus();
-        }
+        // Calculate Forces
+        SelAll(-1,1);
+        SPHoptions.doGravity = param.bDoGravity;
+        SPHoptions.doDensity = 0;
+        SPHoptions.doSPHForces = 1;
+        SPHoptions.dofBallFactor = 0;
+        TreeUpdateFlagBounds(param.bEwald,ROOT,0,SPHoptions);
+        uRungMax = Gravity(0,MAX_RUNG,ROOT,0,dTime,dDelta,iStartStep,dTheta,0,bKickOpen,
+                           param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,SPHoptions);
+        MemStatus();
+    }
+    else if (DoGravity()) {
+        SPHOptions SPHoptions = initializeSPHOptions(param,csm,dTime);
+        SPHoptions.doGravity = param.bDoGravity;
+        uRungMax = Gravity(0,MAX_RUNG,ROOT,0,dTime,dDelta,iStartStep,dTheta,0,bKickOpen,
+                           param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,SPHoptions);
+        MemStatus();
+    }
+    if (DoGravity() && param.bGravStep) {
+        assert(param.bNewKDK == 0);    /* for now! */
+        BuildTree(param.bEwald);
+        SPHOptions SPHoptions = initializeSPHOptions(param,csm,dTime);
+        SPHoptions.doGravity = param.bDoGravity;
+        Gravity(0,MAX_RUNG,ROOT,0,dTime,dDelta,iStartStep,dTheta,0,0,
+                param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,SPHoptions);
+        MemStatus();
     }
     if (DoGas() && MeshlessHydro()) {
         InitSph(dTime, dDelta);
@@ -248,7 +259,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
     BlackholeInit(uRungMax);
 #endif
     if (param.bFindGroups && param.bBHPlaceSeed) {
-        NewFof(dTime);
+        NewFof(param.dTau,param.nMinMembers);
         GroupStats();
     }
 #endif
@@ -263,14 +274,11 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
                        1.0/csmTime2Exp(csm,dTime)-1.0,
                        E,T,U,Eth,L[0],L[1],L[2],F[0],F[1],F[2],W,iSec);
     }
-    if ( param.bTraceRelaxation) {
-        InitRelaxation();
-    }
 
-    if (param.bWriteIC && !prmSpecified(prm,"nGrid")) {
+    if (param.bWriteIC && !prmSpecified(prm,"nGrid") && !NewSPH()) {
 #ifndef BLACKHOLES
         if (param.bFindGroups) {
-            NewFof(dTime);
+            NewFof(param.dTau,param.nMinMembers);
             GroupStats();
         }
 #endif
@@ -286,8 +294,8 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
     bKickOpen = 0;
     int iStop=0, bDoCheckpoint=0, bDoOutput=0;
     for (auto iStep=iStartStep+1; iStep<=nSteps&&!iStop; ++iStep) {
+        auto dTheta = set_dynamic(iStep-1,dTime);
         dDelta = SwitchDelta(dTime,dDelta,iStep-1,param.nSteps);
-        dTheta = getTheta(dTime);
         lPrior = time(0);
         TimerRestart();
         if (param.bNewKDK) {
@@ -297,15 +305,27 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
                 BuildTree(0);
                 LightConeOpen(iStep);  /* open the lightcone */
                 if (DoGas() && NewSPH()) {
-                    SelAll(0,1);
+                    // Calculate Density
+                    SelAll(-1,1);
                     SPHOptions SPHoptions = initializeSPHOptions(param,csm,dTime);
                     SPHoptions.doGravity = 0;
                     SPHoptions.doDensity = 1;
                     SPHoptions.doSPHForces = 0;
                     uRungMax = Gravity(0,MAX_RUNG,ROOT,0,ddTime,dDelta,diStep,dTheta,0,1,
                                        param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,SPHoptions);
-                    SelAll(0,1);
-                    SPHoptions.doGravity = 1;
+                    if (SPHoptions.doInterfaceCorrection) {
+                        SPHoptions.doDensity = 0;
+                        SPHoptions.doDensityCorrection = 1;
+                        SPHoptions.dofBallFactor = 0;
+                        TreeUpdateFlagBounds(param.bEwald,ROOT,0,SPHoptions);
+                        uRungMax = Gravity(0,MAX_RUNG,ROOT,0,ddTime,dDelta,diStep,dTheta,0,1,
+                                           param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,SPHoptions);
+                        UpdateGasValues(0,ddTime,dDelta,diStep,0,1,SPHoptions);
+                        SPHoptions.doDensityCorrection = 0;
+                    }
+                    // Calculate Forces
+                    SelAll(-1,1);
+                    SPHoptions.doGravity = param.bDoGravity;
                     SPHoptions.doDensity = 0;
                     SPHoptions.doSPHForces = 1;
                     SPHoptions.dofBallFactor = 0;
@@ -315,12 +335,12 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
                 }
                 else {
                     SPHOptions SPHoptions = initializeSPHOptions(param,csm,dTime);
-                    SPHoptions.doGravity = 1;
+                    SPHoptions.doGravity = param.bDoGravity;
                     uRungMax = Gravity(0,MAX_RUNG,ROOT,0,ddTime,dDelta,diStep,dTheta,0,1,
                                        param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,SPHoptions);
                 }
                 /* Set the grids of the linear species */
-                if (strlen(param.achLinearSpecies) && param.nGridLin > 0) {
+                if (csm->val.classData.bClass && strlen(param.achLinSpecies) && param.nGridLin > 0) {
                     GridCreateFFT(param.nGridLin);
                     SetLinGrid(dTime,dDelta,param.nGridLin,bKickClose,bKickOpen);
                     if (param.bDoLinPkOutput)
@@ -353,12 +373,6 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
                            1.0/csmTime2Exp(csm,dTime)-1.0,
                            E,T,U,Eth,L[0],L[1],L[2],F[0],F[1],F[2],W,lSec);
         }
-        if ( param.bTraceRelaxation) {
-            ActiveRung(0,1); /* Activate all particles */
-            DomainDecomp();
-            BuildTree(0);
-            Relaxation(dTime,dDelta,SMX_RELAXATION,0);
-        }
         if (!param.bNewKDK) {
             CheckForOutput(iStep,nSteps,dTime,&bDoCheckpoint,&bDoOutput);
         }
@@ -368,6 +382,9 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
             bDoCheckpoint = 0;
         }
         if (bDoOutput) {
+            if (DoGas() && NewSPH() && param.bCentrifugal) {
+                ResetCOM();
+            }
             Output(iStep,dTime,param.dDelta,0);
             bDoOutput = 0;
             DomainDecomp();
@@ -447,6 +464,7 @@ int MSR::ValidateParameters() {
         return 0;
     }
 
+    if (!prmSpecified(prm,"bDoGas")) param.bDoGas = param.bMeshlessHydro||param.bNewSPH;
     if (param.bDoGas && !(param.bMeshlessHydro||param.bNewSPH) ) {
         fprintf(stderr,"ERROR: Please provide an hydrodynamic solver to be used: bMeshlessHydro or bNewSPH.\n");
         return 0;
@@ -459,6 +477,7 @@ int MSR::ValidateParameters() {
         fprintf(stderr,"ERROR: Only one hydrodynamic scheme can be used.\n");
         return 0;
     }
+
 #ifdef BLACKHOLES
     if  (!ValidateBlackholeParam()) return 0;
 #endif
@@ -467,23 +486,22 @@ int MSR::ValidateParameters() {
     if  (!ValidateStarFormationParam()) return 0;
 #endif
 
-    /*
-    ** Make sure that we have some setting for nReplicas if bPeriodic is set.
-    */
-    if (param.bPeriodic && !prmSpecified(prm,"nReplicas")) {
-        param.nReplicas = 1;
+    if (param.bGasInterfaceCorrection && param.bGasOnTheFlyPrediction) {
+        fprintf(stderr,"Warning: On-the-fly prediction is not compatible with interface correction, disabled\n");
+        param.bGasOnTheFlyPrediction = 0;
     }
-    /*
-    ** Warn that we have a setting for nReplicas if bPeriodic NOT set.
-    */
-    if (!param.bPeriodic && param.nReplicas != 0) {
-        printf("WARNING: nReplicas set to non-zero value for non-periodic!\n");
+
+#ifndef NN_FLAG_IN_PARTICLE
+    if (param.bNewSPH && param.bGasInterfaceCorrection && param.dFastGasFraction > 0.0f) {
+        fprintf(stderr,"ERROR: Interface correction and FastGas is active, but the NN flag is not compiled in. Set NN_FLAG_IN_PARTICLE to ON in CMakeLists.txt and recompile.\n");
+        return 0;
     }
+#endif
 
     /*
     ** CUDA likes a larger group size
     */
-    if (mdl->isCudaActive() && param.iCUDAQueueSize>0 && !prmSpecified(prm,"nGroup") && param.nGroup<256)
+    if ( ((mdl->isCudaActive() && param.iCUDAQueueSize>0) || mdl->isMetalActive()) && !prmSpecified(prm,"nGroup") && param.nGroup<256)
         param.nGroup = 256;
 
 
@@ -556,15 +574,6 @@ int MSR::ValidateParameters() {
             param.nBinsLinPk = PST_MAX_K_BINS;
     }
 #endif
-    if (param.dTheta <= 0) {
-        if (param.dTheta == 0 && param.bVWarnings)
-            fprintf(stderr,"WARNING: Zero opening angle may cause numerical problems\n");
-        else if (param.dTheta < 0) {
-            fprintf(stderr,"ERROR: Opening angle must be non-negative\n");
-            return 0;
-        }
-    }
-
     if (!prmSpecified(prm,"dFracNoDomainRootFind") && param.dFracNoDomainRootFind > param.dFracNoDomainDimChoice) param.dFracNoDomainRootFind = param.dFracNoDomainDimChoice;
     if (!prmSpecified(prm,"dFracNoDomainDecomp") && param.dFracNoDomainDecomp > param.dFracNoDomainRootFind) param.dFracNoDomainDecomp = param.dFracNoDomainRootFind;
     if (!prmSpecified(prm,"dFracDualTree") && param.dFracDualTree > param.dFracNoDomainDecomp) param.dFracDualTree = param.dFracNoDomainDecomp;
@@ -649,9 +658,6 @@ int MSR::ValidateParameters() {
                 "       and/or the box size is not 1. Set bPeriodic=1 and dPeriod=1.\n");
     }
 
-    if (!prmSpecified(prm,"dTheta20")) param.dTheta20 = param.dTheta;
-    if (!prmSpecified(prm,"dTheta2")) param.dTheta2 = param.dTheta20;
-
     /*
     ** Check if fast gas boundaries are needed.
     */
@@ -662,12 +668,13 @@ int MSR::ValidateParameters() {
     ** Check timestepping and gravity combinations.
     */
     assert(param.iMaxRung <= IRUNGMAX);
+    if (param.bEpsAccStep) param.bAccelStep = 1;
     if (param.bDoGravity) {
         /* Potential is optional, but the default for gravity */
         if (!prmSpecified(prm,"bMemPotential")) param.bMemPotential = 1;
         if (param.iMaxRung < 1) {
             param.iMaxRung = 0;
-            if (param.bVWarnings) fprintf(stderr,"WARNING: iMaxRung set to 0, SINGLE STEPPING run!\n");
+            if (parameters.get_bVWarnings()) fprintf(stderr,"WARNING: iMaxRung set to 0, SINGLE STEPPING run!\n");
             /*
             ** For single stepping we don't need fancy timestepping variables.
             */
@@ -675,9 +682,6 @@ int MSR::ValidateParameters() {
             param.bMemNodeVelocity = 0;
         }
         else {
-            if (param.bEpsAccStep) {
-                param.bAccelStep = 1;
-            }
             if ((param.bAccelStep || param.bDensityStep) && param.bGravStep) {
                 /*
                 ** We cannot combine these 2 types of timestepping criteria, we need to choose one
@@ -686,11 +690,11 @@ int MSR::ValidateParameters() {
                 param.bAccelStep = 0;
                 param.bEpsAccStep = 0;
                 param.bDensityStep = 0;
-                if (param.bVWarnings) fprintf(stderr,"WARNING: bGravStep set in combination with older criteria, now using ONLY bGravStep!\n");
+                if (parameters.get_bVWarnings()) fprintf(stderr,"WARNING: bGravStep set in combination with older criteria, now using ONLY bGravStep!\n");
             }
             else if (!param.bAccelStep && !param.bGravStep && !param.bDensityStep) {
                 param.bGravStep = 1;
-                if (param.bVWarnings) fprintf(stderr,"WARNING: none of bAccelStep, bDensityStep, or bGravStep set, now using bGravStep!\n");
+                if (parameters.get_bVWarnings()) fprintf(stderr,"WARNING: none of bAccelStep, bDensityStep, or bGravStep set, now using bGravStep!\n");
             }
             /*
             ** Set the needed memory model based on the chosen timestepping method.
@@ -724,17 +728,17 @@ int MSR::ValidateParameters() {
     if (csm->val.classData.bClass) {
         const char *aLinear[MAX_CSM_SPECIES];
         const char *aPower[MAX_CSM_SPECIES];
-        char *achLinearSpecies = strdup(param.achLinearSpecies);
-        char *achPowerSpecies = strdup(param.achPowerSpecies);
-        int nLinear = parseSpeciesNames(aLinear,achLinearSpecies);
-        int nPower = parseSpeciesNames(aPower,achPowerSpecies);
+        char *achLinSpecies = strdup(param.achLinSpecies);
+        char *achPkSpecies = strdup(param.achPkSpecies);
+        int nLinear = parseSpeciesNames(aLinear,achLinSpecies);
+        int nPower = parseSpeciesNames(aPower,achPkSpecies);
         if (!prmSpecified(prm,"dOmega0")) csm->val.dOmega0 = 0.0;
         csmClassRead(csm, param.achClassFilename, param.dBoxSize, param.h, nLinear, aLinear, nPower, aPower);
-        free(achLinearSpecies);
-        free(achPowerSpecies);
+        free(achLinSpecies);
+        free(achPkSpecies);
         csmClassGslInitialize(csm);
     }
-    if (strlen(param.achLinearSpecies) && param.nGridLin == 0) {
+    if (strlen(param.achLinSpecies) && param.nGridLin == 0) {
         fprintf(stderr, "ERROR: you must specify nGridLin when running with linear species\n");
         abort();
     }

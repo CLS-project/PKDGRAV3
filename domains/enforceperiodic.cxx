@@ -18,11 +18,11 @@
 
 // Make sure that the communication structure is "trivial" so that it
 // can be moved around with "memcpy" which is required for MDL.
-static_assert(std::is_void<ServiceEnforcePeriodic::input>()  || std::is_trivial<ServiceEnforcePeriodic::input>());
-static_assert(std::is_void<ServiceEnforcePeriodic::output>() || std::is_trivial<ServiceEnforcePeriodic::output>());
+static_assert(std::is_void<ServiceEnforcePeriodic::input>()  || std::is_standard_layout<ServiceEnforcePeriodic::input>());
+static_assert(std::is_void<ServiceEnforcePeriodic::output>() || std::is_standard_layout<ServiceEnforcePeriodic::output>());
 
 int ServiceEnforcePeriodic::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    auto in = static_cast<input *>(vin);
+    const auto &in = *static_cast<input *>(vin);
     static_assert(std::is_void<output>());
     auto pkd = pst->plcl->pkd;
     pkdEnforcePeriodic(pkd,in);

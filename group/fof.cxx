@@ -26,38 +26,27 @@
 #include "pkd.h"
 #include "group.h"
 #include "blitz/array.h"
-#include "../SPHOptions.h"
+#include "../SPH/SPHOptions.h"
+#include "core/remote.h"
 
+#include <algorithm>
 
-static inline int getCell(PKD pkd,int iCell,int id,float *pcOpen,KDN **pc) {
-    KDN *c;
-    int nc;
-    assert(iCell > 0);
-    assert(id >= 0);
-    if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCell);
-    else c = CAST(KDN *,mdlFetch(pkd->mdl,CID_CELL,iCell,id));
-    *pc = c;
-    if (c->bRemote|c->bTopTree) nc = 1000000000; /* we never allow pp with this cell */
-    else nc = c->pUpper - c->pLower + 1;
-    *pcOpen = c->bMax * pkd->fiCritTheta;
-    return nc;
-}
+using blitz::TinyVector;
+using blitz::sum;
+using blitz::dot;
+using blitz::any;
 
-
-uint32_t pkdFofGatherLocal(PKD pkd,int *S,double fBall2,double r[3],uint32_t iGroup,
+uint32_t pkdFofGatherLocal(PKD pkd,int *S,double fBall2,TinyVector<double,3> r,uint32_t iGroup,
                            uint32_t iTail,uint32_t *Fifo,int *pbCurrFofContained,
-                           const Bound::coord fMinFofContained,const Bound::coord fMaxFofContained) {
-    KDN *kdn;
-    PARTICLE *p;
-    double p_r[3];
+                           const Bound::coord_type fMinFofContained,const Bound::coord_type fMaxFofContained) {
     double min2,dx,dy,dz,fDist2;
     int sp = 0;
-    int iCell,pj,pEnd,j;
+    int iCell,pj,j;
     uint32_t iPartGroup;
 
-    kdn = pkdTreeNode(pkd,iCell = ROOT);
+    auto kdn = pkd->tree[iCell = ROOT];
     while (1) {
-        Bound bnd = pkdNodeGetBnd(pkd, kdn);
+        auto bnd = kdn->bound();
         min2 = bnd.mindist(r);
         if (min2 > fBall2) {
             goto NoIntersect;
@@ -65,17 +54,16 @@ uint32_t pkdFofGatherLocal(PKD pkd,int *S,double fBall2,double r[3],uint32_t iGr
         /*
         ** We have an intersection to test.
         */
-        if (kdn->iLower) {
-            kdn = pkdTreeNode(pkd,iCell = kdn->iLower);
-            S[sp++] = iCell+1;
+        if (kdn->is_cell()) {
+            S[sp++] = kdn->rchild();
+            kdn = pkd->tree[iCell = kdn->lchild()];
             continue;
         }
-        pEnd = kdn->pUpper;
-        for (pj=kdn->pLower; pj<=pEnd; ++pj) {
-            p = pkdParticle(pkd,pj);
-            iPartGroup = pkdGetGroup(pkd,p);
+        for (pj=kdn->lower(); pj<=kdn->upper(); ++pj) {
+            auto p = pkd->particles[pj];
+            iPartGroup = p.group();
             if (iPartGroup) continue;
-            pkdGetPos1(pkd,p,p_r);
+            auto p_r = p.position();
             dx = r[0] - p_r[0];
             dy = r[1] - p_r[1];
             dz = r[2] - p_r[2];
@@ -84,7 +72,7 @@ uint32_t pkdFofGatherLocal(PKD pkd,int *S,double fBall2,double r[3],uint32_t iGr
                 /*
                 **  Mark particle and add it to the do-fifo
                 */
-                pkdSetGroup(pkd,p,iGroup);
+                p.set_group(iGroup);
                 Fifo[iTail++] = pj;
                 if (*pbCurrFofContained) {
                     for (j=0; j<3; ++j) {
@@ -101,7 +89,7 @@ uint32_t pkdFofGatherLocal(PKD pkd,int *S,double fBall2,double r[3],uint32_t iGr
             }
         }
 NoIntersect:
-        if (sp) kdn = pkdTreeNode(pkd,iCell = S[--sp]);
+        if (sp) kdn = pkd->tree[iCell = S[--sp]];
         else break;
     }
     return (iTail);
@@ -109,98 +97,86 @@ NoIntersect:
 
 
 
-static void iOpenRemoteFof(PKD pkd,KDN *k,CL cl,CLTILE tile,float dTau2) {
+static void iOpenRemoteFof(PKD pkd,treeStore::NodePointer k,clTile &tile,float dTau2) {
     float dx,minbnd2,kOpen;
-    CL_BLK *blk;
-    int i,n,nLeft,iOpen;
+    int i,iOpen;
 
-    Bound kbnd = pkdNodeGetBnd(pkd,k);
-    kOpen = 0.5*(kbnd.width(0) + kbnd.width(1) + kbnd.width(2)); /* Manhatten metric */
-    blk = tile->blk;
-    for (nLeft=tile->lstTile.nBlocks; nLeft>=0; --nLeft,blk++) {
-        n = nLeft ? cl->lst.nPerBlock : tile->lstTile.nInLast;
+    auto kbnd = k->bound();
+    kOpen = sum(kbnd.apothem()); /* Manhatten metric */
+
+    auto nBlocks = tile.count() / tile.width;
+    for (auto iBlock=0; iBlock<=nBlocks; ++iBlock) {
+        int n = iBlock<nBlocks ? tile.width : tile.count() - nBlocks*tile.width;
+        clBlock &blk = tile[iBlock];
         for (i=0; i<n; ++i) {
-            if (blk->idCell.i[i] > pkd->idSelf) iOpen = 10;  /* ignore this cell, but this never ignores the top tree */
+            if (blk.idCell[i] > pkd->Self()) iOpen = 10;  /* ignore this cell, but this never ignores the top tree */
             else {
                 minbnd2 = 0;
-                dx = kbnd.lower(0) -  blk->xCenter.f[i] - blk->xOffset.f[i] - blk->xMax.f[i];
+                dx = kbnd.lower(0) -  blk.xCenter[i] - blk.xOffset[i] - blk.xMax[i];
                 if (dx > 0) minbnd2 += dx*dx;
-                dx = blk->xCenter.f[i] + blk->xOffset.f[i] - blk->xMax.f[i] - kbnd.upper(0);
+                dx = blk.xCenter[i] + blk.xOffset[i] - blk.xMax[i] - kbnd.upper(0);
                 if (dx > 0) minbnd2 += dx*dx;
-                dx = kbnd.lower(1) - blk->yCenter.f[i] - blk->yOffset.f[i] - blk->yMax.f[i];
+                dx = kbnd.lower(1) - blk.yCenter[i] - blk.yOffset[i] - blk.yMax[i];
                 if (dx > 0) minbnd2 += dx*dx;
-                dx = blk->yCenter.f[i] + blk->yOffset.f[i] - blk->yMax.f[i] - kbnd.upper(1);
+                dx = blk.yCenter[i] + blk.yOffset[i] - blk.yMax[i] - kbnd.upper(1);
                 if (dx > 0) minbnd2 += dx*dx;
-                dx = kbnd.lower(2) - blk->zCenter.f[i] - blk->zOffset.f[i] - blk->zMax.f[i];
+                dx = kbnd.lower(2) - blk.zCenter[i] - blk.zOffset[i] - blk.zMax[i];
                 if (dx > 0) minbnd2 += dx*dx;
-                dx = blk->zCenter.f[i] + blk->zOffset.f[i] - blk->zMax.f[i] - kbnd.upper(2);
+                dx = blk.zCenter[i] + blk.zOffset[i] - blk.zMax[i] - kbnd.upper(2);
                 if (dx > 0) minbnd2 += dx*dx;
                 if (minbnd2 > dTau2) iOpen = 10;  /* ignore this cell */
-                else if (k->iLower == 0) {
-                    if (blk->iLower.i[i] == 0) iOpen = 1;
+                else if (k->is_bucket()) {
+                    if (blk.iLower[i] == 0) iOpen = 1;
                     else iOpen = 3;
                 }
-                else if (kOpen > blk->cOpen.f[i] || blk->iLower.i[i] == 0) iOpen = 0;
+                else if (kOpen > blk.cOpen[i] || blk.iLower[i] == 0) iOpen = 0;
                 else iOpen = 3;
             }
-            blk->iOpen.i[i] = iOpen;
+            blk.iOpen[i] = iOpen;
         }
     }
 }
 
 
-static void addChildFof(PKD pkd, CL cl, int iChild, int id, float *fOffset) {
-    int idLower, iLower, idUpper, iUpper, iCache;
-    float cOpen;
-    KDN *c;
-    double c_r[3];
-    int nc = getCell(pkd,iChild,id,&cOpen,&c);
-    pkdNodeGetPos(pkd,c,c_r);
-    Bound cbnd = pkdNodeGetBnd(pkd,c);
-    iCache = 0;
-    cOpen = 0.5*(cbnd.width(0) + cbnd.width(1) + cbnd.width(2)); /* Manhatten metric */
-    pkdGetChildCells(c,id,idLower,iLower,idUpper,iUpper);
-    clAppend(cl,iCache,id,iChild,idLower,iLower,idUpper,iUpper,nc,cOpen,
-#if SPHBALLOFBALLS
-             pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c_r,fOffset,cbnd.center(),cbnd.fMax,c->fBoBr2,c->fBoBxCenter,c->fBoByCenter,c->fBoBzCenter);
-#endif
-#if SPHBOXOFBALLS
-    pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c_r,fOffset,cbnd.center(),cbnd.fMax,c->fBoBxMin,c->fBoBxMax,c->fBoByMin,c->fBoByMax,c->fBoBzMin,c->fBoBzMax);
-#endif
+static void addChildFof(PKD pkd, remoteTree &tree, clList *cl, int iChild, int id, TinyVector<float,3> fOffset) {
+    auto c = tree(iChild,id);
+    auto c_r = c->position();
+    auto cbnd = c->bound();
+    auto iCache = 0;
+    auto cOpen = blitz::sum(cbnd.apothem()); /* Manhatten metric */
+    auto [iLower, idLower, iUpper, idUpper] = c->get_child_cells(id);
+    const auto &SPHbob = c->have_BOB() ? c->BOB() : SPHBOB();
+    cl->append(iCache,id,iChild,idLower,iLower,idUpper,iUpper,c->count(),cOpen,
+               c->mass(),4.0f*c->fSoft2(),c_r,fOffset,cbnd,SPHbob);
 }
 
 
 void pkdFofRemoteSearch(PKD pkd,double dTau2,int bPeriodic,int nReplicas,int nBucket) {
-    KDN *kdnSelf,*c,*k;
-    PARTICLE *p;
-    CLTILE cltile;
-    CL clTemp;
-    double xj,yj,zj,d2;
+    double d2;
     int npi;
     uint32_t pjGroup;
     uint32_t pi,pj;
     int iRemote;
     int i,j,ix,iy,iz,bRep;
-    int idSelf,iTop,iCell,id,iCellLo,idLo,iCellUp,idUp,iSib,iCheckCell,iCheckLower;
+    int idSelf,iTop,iCell,id,iSib,iCheckCell,iCheckLower;
     int jTile,M,iStack;
-    float fOffset[3];
+    TinyVector<float,3> fOffset;
 
+    remoteTree tree(pkd->mdl,pkd->tree,CID_CELL);
+    remoteParticles particles(pkd->mdl,pkd->particles,CID_PARTICLE);
 
     /*
     ** Allocate the vectors to be large enough to handle all particles in a bucket.
     ** M should be aligned to 4*sizeof(double)
     */
     M = nBucket;
-    auto xi = std::make_unique<double[]>(M);
-    auto yi = std::make_unique<double[]>(M);
-    auto zi = std::make_unique<double[]>(M);
+    auto ri = std::make_unique<TinyVector<double,3>[]>(M);
     auto piGroup = std::make_unique<uint32_t[]>(M);
 
     iStack = 0;
-    clClear(pkd->cl);
+    pkd->cl->clear();
 
-    kdnSelf = pkdTreeNode(pkd,ROOT);
-    Bound bndSelf = pkdNodeGetBnd(pkd, kdnSelf);
+    auto bndSelf = pkd->tree[ROOT]->bound();
     idSelf = mdlSelf(pkd->mdl);
     iTop = pkd->iTopTree[ROOT];
     id = idSelf;
@@ -210,24 +186,22 @@ void pkdFofRemoteSearch(PKD pkd,double dTau2,int bPeriodic,int nReplicas,int nBu
     ** the checklist.
     */
     iCell = iTop;
-    c = pkdTreeNode(pkd,iCell);
-    while (c->bTopTree) {
-        pkdGetChildCells(c,id,idLo,iCellLo,idUp,iCellUp);
+    auto c = pkd->tree[iCell];
+    while (c->is_top_tree()) {
+        auto [iCellLo,idLo,iCellUp,idUp] = c->get_child_cells(id);
         if (idLo == idSelf) {
-            c = pkdTreeNode(pkd,iCellLo);
-            Bound bnd = pkdNodeGetBnd(pkd,c);
-            for (j=0; j<3; ++j) {
-                if (fabs(bndSelf.fCenter[j] - bnd.fCenter[j]) > bnd.fMax[j]) {
-                    addChildFof(pkd,pkd->cl,iCellLo,idLo,fOffset);
-                    id = idUp;
-                    assert(id == idSelf);
-                    iCell = iCellUp;
-                    c = pkdTreeNode(pkd,iCell);
-                    goto NextCell;
-                }
+            c = pkd->tree[iCellLo];
+            auto bnd = c->bound();
+            if (any(fabs(bndSelf.center() - bnd.center()) > bnd.apothem())) {
+                addChildFof(pkd,tree,pkd->cl,iCellLo,idLo,fOffset);
+                id = idUp;
+                assert(id == idSelf);
+                iCell = iCellUp;
+                c = pkd->tree[iCell];
+                goto NextCell;
             }
         }
-        addChildFof(pkd,pkd->cl,iCellUp,idUp,fOffset);
+        addChildFof(pkd,tree,pkd->cl,iCellUp,idUp,fOffset);
         iCell = iCellLo;
         id = idLo;
         assert(id == idSelf);
@@ -246,7 +220,7 @@ NextCell:
                 for (iz=-nReps; iz<=nReps; ++iz) {
                     fOffset[2] = iz*pkd->fPeriod[2];
                     bRep = ix || iy || iz;
-                    if (bRep) addChildFof(pkd,pkd->cl,iTop,idSelf,fOffset);
+                    if (bRep) addChildFof(pkd,tree,pkd->cl,iTop,idSelf,fOffset);
                 }
             }
         }
@@ -254,7 +228,7 @@ NextCell:
 
     iCell = ROOT;
     id = idSelf;
-    k = pkdTreeNode(pkd,iCell);
+    auto k = pkd->tree[iCell];
     /*
     ** The checklist is ready for a bound-bound walk of the remote particles.
     */
@@ -263,58 +237,54 @@ NextCell:
             /*
             ** Process the Checklist for the cell pointed to by k.
             */
-            clClear(pkd->S[iStack+1].cl);
+            pkd->S[iStack+1].cl->clear();
             do {
-                CL_LOOP(pkd->cl,cltile) {
-#ifdef USE_SIMD_OPEN
-                    iOpenRemoteFof(pkd,k,pkd->cl,cltile,dTau2);
-#else
-                    iOpenRemoteFof(pkd,k,pkd->cl,cltile,dTau2);
-#endif
+                for (auto &tile : *pkd->cl) {
+                    iOpenRemoteFof(pkd,k,tile,dTau2);
                 }
-                clClear(pkd->clNew);
-                CL_LOOP(pkd->cl,cltile) {
-                    CL_BLK *blk = cltile->blk;
-                    int nLeft;
-                    for (nLeft=cltile->lstTile.nBlocks; nLeft>=0; --nLeft,blk++) {
-                        int n = nLeft ? pkd->cl->lst.nPerBlock : cltile->lstTile.nInLast;
+                pkd->clNew->clear();
+                for (auto &tile : *pkd->cl) {
+
+                    auto nBlocks = tile.count() / tile.width;
+                    for (auto iBlock=0; iBlock<=nBlocks; ++iBlock) {
+                        int n = iBlock<nBlocks ? tile.width : tile.count() - nBlocks*tile.width;
+                        clBlock &blk = tile[iBlock];
                         for (jTile=0; jTile<n; ++jTile) {
-                            switch (blk->iOpen.i[jTile]) {
+                            switch (blk.iOpen[jTile]) {
                             case 0:
                                 /*
                                 ** This checkcell stays on the checklist.
                                 */
-                                clAppendItem(pkd->S[iStack+1].cl,blk,jTile);
+                                pkd->S[iStack+1].cl->append(blk,jTile);
                                 break;
                             case 1:
                                 /*
                                 ** We check individual particles against each other here.
                                 */
-                                iCheckCell = blk->iCell.i[jTile];
-                                id = blk->idCell.i[jTile];
-                                if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCheckCell);
-                                else c = CAST(KDN *,mdlFetch(pkd->mdl,CID_CELL,iCheckCell,id));
+                                iCheckCell = blk.iCell[jTile];
+                                id = blk.idCell[jTile];
+                                c = tree(iCheckCell,id);
                                 /*
                                 ** Convert all the coordinates in the k-cell and store them in vectors.
                                 */
-                                for (pi=k->pLower,npi=0; pi<=k->pUpper; ++pi,++npi) {
-                                    p = pkdParticle(pkd,pi);
-                                    pkdGetPos3(pkd,p,xi[npi],yi[npi],zi[npi]);
-                                    piGroup[npi] = pkdGetGroup(pkd,p);
+                                for (pi=k->lower(),npi=0; pi<=k->upper(); ++pi,++npi) {
+                                    auto p = pkd->particles[pi];
+                                    ri[npi] = p.position();
+                                    piGroup[npi] = p.group();
                                 }
-                                for (pj=c->pLower; pj<=c->pUpper; ++pj) {
-                                    if (id == pkd->idSelf) p = pkdParticle(pkd,pj);
-                                    else p = CAST(PARTICLE *,mdlFetch(pkd->mdl,CID_PARTICLE,pj,id));
-                                    pjGroup = pkdGetGroup(pkd,p);
-                                    pkdGetPos3(pkd,p,xj,yj,zj);
-                                    xj += blk->xOffset.f[jTile];
-                                    yj += blk->yOffset.f[jTile];
-                                    zj += blk->zOffset.f[jTile];
+                                for (pj=c->lower(); pj<=c->upper(); ++pj) {
+                                    auto p = particles(pj,id);
+                                    pjGroup = p.group();
+                                    auto rj = p.position();
+                                    rj[0] += blk.xOffset[jTile];
+                                    rj[1] += blk.yOffset[jTile];
+                                    rj[2] += blk.zOffset[jTile];
                                     /*
                                     ** The following could be vectorized over the vectors xi,yi and zi!
                                     */
                                     for (i=0; i<npi; ++i) {
-                                        d2 = (xj-xi[i])*(xj-xi[i]) + (yj-yi[i])*(yj-yi[i]) + (zj-zi[i])*(zj-zi[i]);
+                                        auto r = rj - ri[i];
+                                        d2 = dot(r,r);
                                         if (d2 < dTau2) {
                                             /*
                                             ** We have found a remote group link!
@@ -354,15 +324,15 @@ NextCell:
                                 ** We could do a prefetch here for non-local
                                 §              ** cells.
                                 */
-                                iCheckCell = blk->iCell.i[jTile];    assert(iCheckCell >= 0);
-                                iCheckLower = blk->iLower.i[jTile];  assert(iCheckLower > 0);
+                                iCheckCell = blk.iCell[jTile];    assert(iCheckCell >= 0);
+                                iCheckLower = blk.iLower[jTile];  assert(iCheckLower > 0);
 
-                                fOffset[0] = blk->xOffset.f[jTile];
-                                fOffset[1] = blk->yOffset.f[jTile];
-                                fOffset[2] = blk->zOffset.f[jTile];
+                                fOffset[0] = blk.xOffset[jTile];
+                                fOffset[1] = blk.yOffset[jTile];
+                                fOffset[2] = blk.zOffset[jTile];
 
-                                addChildFof(pkd,pkd->clNew,blk->iLower.i[jTile],blk->idLower.i[jTile],fOffset);
-                                addChildFof(pkd,pkd->clNew,blk->iUpper.i[jTile],blk->idUpper.i[jTile],fOffset);
+                                addChildFof(pkd,tree,pkd->clNew,blk.iLower[jTile],blk.idLower[jTile],fOffset);
+                                addChildFof(pkd,tree,pkd->clNew,blk.iUpper[jTile],blk.idUpper[jTile],fOffset);
                                 break;
                             case 10:
                                 /*
@@ -375,25 +345,22 @@ NextCell:
                         } /* end of for (jTile) */
                     } /* end of for (nLeft) */
                 } /* end of CL_LOOP */
-                clTemp = pkd->cl;
-                pkd->cl = pkd->clNew;
-                assert(pkd->cl!=NULL);
-                pkd->clNew = clTemp;
-            } while (clCount(pkd->cl));
+                std::swap(pkd->cl,pkd->clNew);
+            } while (pkd->cl->count());
             /*
             ** Done processing of the Checklist.
             ** Now prepare to proceed to the next deeper
             ** level of the tree.
             */
-            if (k->iLower == 0) break;
-            iCell = k->iLower;
-            k = pkdTreeNode(pkd,iCell);
+            if (k->is_bucket()) break;
+            iCell = k->lchild();
+            iSib = k->rchild();
+            k = pkd->tree[iCell];
             /*
             ** Push the sibling onto the stack.
             */
-            iSib = iCell+1;
-            c = pkdTreeNode(pkd,iSib);
-            clClone(pkd->cl,pkd->S[iStack+1].cl);
+            c = pkd->tree[iSib];
+            pkd->cl->clone(*pkd->S[iStack+1].cl);
             ++iStack;
             assert(iStack < pkd->nMaxStack);
             pkd->S[iStack].iNodeIndex = iSib;
@@ -402,20 +369,17 @@ NextCell:
         ** Now the checklist should be empty and we should have dealt with all
         ** links going across the processor domains for this bucket.
         */
-        assert(clCount(pkd->S[iStack+1].cl)==0);
+        assert(pkd->S[iStack+1].cl->count()==0);
         /*
         ** Get the next cell to process from the stack.
         */
         if (iStack == -1) break;  /* we are done! */
-        k = pkdTreeNode(pkd,iCell = pkd->S[iStack].iNodeIndex);
+        k = pkd->tree[iCell = pkd->S[iStack].iNodeIndex];
         /*
         ** Grab the checklist from the stack.
         */
-        clTemp = pkd->cl;
-        assert(clCount(pkd->cl) == 0);
-        pkd->cl = pkd->S[iStack].cl;
-        assert(pkd->cl!=NULL);
-        pkd->S[iStack].cl = clTemp;
+        std::swap(pkd->cl,pkd->S[iStack].cl);
+
         --iStack;
     }
 }
@@ -447,18 +411,15 @@ void updateInteriorBound(Bound &ibnd,const Bound &bnd) {
 
 void pkdNewFof(PKD pkd,double dTau2,int nMinMembers,int bPeriodic,int nReplicas,int nBucket) {
     MDL mdl = pkd->mdl;
-    PARTICLE *p;
-    double p_r[3];
     uint32_t iGroup;
     int pn,i,j;
-    KDN *kdnSelf;
     uint32_t iHead;
     uint32_t iTail;
     const uint32_t uGroupMax = (pkd->bNoParticleOrder)?IGROUPMAX:0xffffffff;
     uint32_t *Fifo;
     int bCurrFofContained;
 
-    assert(pkd->oFieldOffset[oGroup] || pkd->bNoParticleOrder); /* Validate memory model */
+    assert(pkd->particles.present(PKD_FIELD::oGroup) || pkd->bNoParticleOrder); /* Validate memory model */
     auto S = new int[1024]; assert(S);
     /*
     ** Set up the bounds for the FOF groups that are certainly contained in the domain.
@@ -466,8 +427,7 @@ void pkdNewFof(PKD pkd,double dTau2,int nMinMembers,int bPeriodic,int nReplicas,
     ** For now I assume that the domains do NOT overlap, but the calculation for overlapping
     ** domains just involves a tree walk.
     */
-    kdnSelf = pkdTreeNode(pkd,ROOT);
-    Bound bndSelf = pkdNodeGetBnd(pkd, kdnSelf);
+    auto bndSelf = pkd->tree[ROOT]->bound();
     pkd->bndInterior = bndSelf;
 #if 0
     /*
@@ -476,13 +436,13 @@ void pkdNewFof(PKD pkd,double dTau2,int nMinMembers,int bPeriodic,int nReplicas,
     ** Check bounds against all siblings of the top tree down to local root.
     */
     iCell = iTop;
-    c = pkdTreeNode(pkd,iCell);
-    Bound bndTop = pkdNodeGetBnd(pkd,c);
+    c = pkd->tree[iCell];
+    auto bndTop = c->bound();
     while (c->bTopTree) {
-        pkdGetChildCells(c,id,idLo,iCellLo,idUp,iCellUp);
+        auto [iCellLo,idLo,iCellUp,idUp] = c->get_child_cells(id);
         if (idLo == idSelf) {
-            c = pkdTreeNode(pkd,iCellLo);
-            Bound bnd = pkdNodeGetBnd(pkd,c);
+            c = pkd->tree[iCellLo];
+            auto bnd = c->bound();
             for (j=0; j<3; ++j) {
                 if (fabs(bndSelf.fCenter[j]-bnd.fCenter[j]) > bnd.fMax[j]) {
                     /*
@@ -492,14 +452,14 @@ void pkdNewFof(PKD pkd,double dTau2,int nMinMembers,int bPeriodic,int nReplicas,
                     id = idUp;
                     assert(id == idSelf);
                     iCell = iCellUp;
-                    c = pkdTreeNode(pkd,iCell);
+                    c = pkd->tree[iCell];
                     goto NextCell;
                 }
             }
         }
         assert(idUp == idSelf);
-        c = pkdTreeNode(pkd,iCellUp);
-        bnd = pkdNodeGetBnd(pkd,c);
+        c = pkd->tree[iCellUp];
+        bnd = c->bound();
         /*
         ** Check bounds against this sibling.
         */
@@ -513,7 +473,7 @@ NextCell:
     ** Check bounds against first replica global roots for periodic BCs.
     */
     if (bPeriodic) {
-        BND rbnd;
+        Bound rbnd;
         for (j=0; j<3; ++j) rbnd.fMax[j] = bndTop->fMax[j];
         for (ix=-1; ix<=1; ++ix) {
             fOffset[0] = ix*pkd->fPeriod[0];
@@ -539,33 +499,32 @@ NextCell:
     /*
     ** Finally make the contained region be dTau smaller on each side.
     */
-    blitz::TinyVector<double,3> fMinFofContained = bndSelf.lower() + sqrt(dTau2);
-    blitz::TinyVector<double,3> fMaxFofContained = bndSelf.upper() - sqrt(dTau2);
+    TinyVector<double,3> fMinFofContained = bndSelf.lower() + sqrt(dTau2);
+    TinyVector<double,3> fMaxFofContained = bndSelf.upper() - sqrt(dTau2);
     /*
     ** Clear the group numbers!
     */
-    for (pn=0; pn<pkd->nLocal; ++pn) {
-        p = pkdParticle(pkd,pn);
-        pkdSetGroup(pkd,p,0);
+    for (auto &p : pkd->particles) {
+        p.set_group(0);
     }
     /*
     ** The following *just* fits into ephemeral storage of 4 bytes/particle.
     */
-    assert(pkd->nEphemeralBytes >= 4);
+    assert(pkd->EphemeralBytes() >= 4);
     Fifo = (uint32_t *)(pkd->pLite);
     iGroup = 1;
-    for (pn=0; pn<pkd->nLocal; ++pn) {
-        p = pkdParticle(pkd,pn);
-        if (pkdGetGroup(pkd,p)) continue;
+    for (pn=0; pn<pkd->Local(); ++pn) {
+        auto p = pkd->particles[pn];
+        if (p.group()) continue;
         /*
         ** Mark particle and add it to the do-fifo
         */
         iHead = iTail = 0;
         Fifo[iTail++] = pn;
         assert(iGroup < uGroupMax);
-        pkdSetGroup(pkd,p,iGroup);
+        p.set_group(iGroup);
         bCurrFofContained = 1;
-        pkdGetPos1(pkd,p,p_r);
+        auto p_r = p.position();
         for (j=0; j<3; ++j) {
             if (p_r[j] < fMinFofContained[j]) {
                 bCurrFofContained = 0;
@@ -577,12 +536,11 @@ NextCell:
             }
         }
         while (iHead < iTail) {
-            p = pkdParticle(pkd,Fifo[iHead++]);
-            pkdGetPos1(pkd,p,p_r);
+            p_r = pkd->particles[Fifo[iHead++]].position();
             iTail = pkdFofGatherLocal(pkd,S,dTau2,p_r,iGroup,iTail,Fifo,
                                       &bCurrFofContained,fMinFofContained,fMaxFofContained);
         }
-        assert(iTail <= pkd->nLocal);
+        assert(iTail <= pkd->Local());
         /*
         ** Now check if this fof group is contained and has fewer than nMinFof particles.
         */
@@ -591,8 +549,7 @@ NextCell:
             ** In this case mark the group particles as belonging to a removed group.
             */
             for (iHead=0; iHead<iTail; ++iHead) {
-                p = pkdParticle(pkd,Fifo[iHead]);
-                pkdSetGroup(pkd,p,uGroupMax);
+                pkd->particles[Fifo[iHead]].set_group(uGroupMax);
             }
         }
         else {
@@ -602,9 +559,8 @@ NextCell:
     /*
     ** Clear group ids for removed small groups.
     */
-    for (pn=0; pn<pkd->nLocal; ++pn) {
-        p = pkdParticle(pkd,pn);
-        if (pkdGetGroup(pkd,p) == uGroupMax) pkdSetGroup(pkd,p,0);
+    for (auto &p : pkd->particles) {
+        if (p.group() == uGroupMax) p.set_group(0);
     }
     pkd->nLocalGroups = iGroup-1;
     pkd->nGroups = pkd->nLocalGroups + 1;
@@ -614,13 +570,13 @@ NextCell:
     ** Create initial group table. The assert below is a very minimal requirement as it doesn't account for remote
     ** links (tmpFofRemote). However, we check this again everytime we add a new remote link.
     */
-    assert(sizeof(*pkd->ga)*pkd->nGroups+sizeof(*pkd->tmpFofRemote) <= 1ul*pkd->nEphemeralBytes*pkd->nStore);
-    pkd->nMaxRemoteGroups = (1ul*pkd->nEphemeralBytes*pkd->nStore - sizeof(*pkd->ga)*pkd->nGroups) / sizeof(*pkd->tmpFofRemote);
+    assert(sizeof(*pkd->ga)*pkd->nGroups+sizeof(*pkd->tmpFofRemote) <= 1ul*pkd->EphemeralBytes()*pkd->FreeStore());
+    pkd->nMaxRemoteGroups = (1ul*pkd->EphemeralBytes()*pkd->FreeStore() - sizeof(*pkd->ga)*pkd->nGroups) / sizeof(*pkd->tmpFofRemote);
     pkd->ga = (struct smGroupArray *)(pkd->pLite);
     pkd->tmpFofRemote = (FOFRemote *)&pkd->ga[pkd->nGroups];
     for (i=0; i<pkd->nGroups; ++i) {
         pkd->ga[i].id.iIndex = i;
-        pkd->ga[i].id.iPid = pkd->idSelf;
+        pkd->ga[i].id.iPid = pkd->Self();
         pkd->ga[i].iGid = i;
         pkd->ga[i].iLink = 0;   /* this is a linked list of remote groups linked to this local group */
         pkd->ga[i].minPot = FLOAT_MAXVAL;
@@ -629,12 +585,12 @@ NextCell:
     /*
     ** Set a local reference point for each group.
     */
-    for (pn=0; pn<pkd->nLocal; ++pn) {
-        p = pkdParticle(pkd,pn);
-        if ( (i = pkdGetGroup(pkd,p)) != 0 ) {
+    for (pn=0; pn<pkd->Local(); ++pn) {
+        auto p = pkd->particles[pn];
+        if ( (i = p.group()) != 0 ) {
             if (pkd->ga[i].iMinPart == 0xffffffff) {
                 pkd->ga[i].iMinPart = pn;
-                pkd->ga[i].minPot = (float)pkd->idSelf; /* this makes the reference particle be in the lowest processor number */
+                pkd->ga[i].minPot = (float)pkd->Self(); /* this makes the reference particle be in the lowest processor number */
             }
         }
         /*
@@ -649,11 +605,31 @@ NextCell:
     ** Now lets go looking for local particles which have a remote neighbor that is part of
     ** a group.
     */
-    mdlROcache(mdl,CID_PARTICLE,NULL,pkdParticleBase(pkd),pkdParticleSize(pkd),pkdLocal(pkd));
+    // mdlROcache(mdl,CID_PARTICLE,NULL,pkd->particles,pkd->particles.ParticleSize(),pkd->Local());
+    pkd->mdl->CacheInitialize(CID_PARTICLE,NULL,pkd->particles,pkd->Local(),pkd->particles.ParticleSize());
     pkdFofRemoteSearch(pkd,dTau2,bPeriodic,nReplicas,nBucket);
-    mdlFinishCache(mdl,CID_PARTICLE);
+    // mdlFinishCache(mdl,CID_PARTICLE);
+    pkd->mdl->FinishCache(CID_PARTICLE);
 }
 
+class FetchNames : public mdl::CACHEhelper {
+protected:
+    virtual void pack(void *dst, const void *src) override {
+        auto g1 = static_cast<remoteID *>(dst);           // Packed value
+        auto g2 = static_cast<smGroupArray const *>(src); // Regular element
+        g1->iPid = g2->id.iPid;
+        g1->iIndex = g2->id.iIndex;
+    }
+    virtual void  unpack(void *dst, const void *src, const void *key) override {
+        auto g1 = static_cast<smGroupArray *>(dst);   // Regular element
+        auto g2 = static_cast<remoteID const *>(src); // Packed value
+        g1->id.iPid = g2->iPid;
+        g1->id.iIndex = g2->iIndex;
+    }
+    virtual uint32_t pack_size()  override {return sizeof(remoteID);}
+public:
+    explicit FetchNames() : CACHEhelper(sizeof(struct smGroupArray)) {}
+};
 
 /*
 ** When we virtual fetch a name of one of the groups we may already have fetched the
@@ -662,20 +638,39 @@ NextCell:
 ** the second fetch will only update it if the new name is actually smaller than the
 ** one set by the first fetch.
 */
-static void initNames(void *vctx, void *v) {
-    struct smGroupArray *g = (struct smGroupArray *)v;
-    g->id.iPid = INT32_MAX;
-    g->id.iIndex = INT32_MAX;
-}
-static void combNames(void *vctx, void *v1, const void *v2) {
-    struct smGroupArray *g1 = (struct smGroupArray *)v1;
-    const struct smGroupArray *g2 = (const struct smGroupArray *)v2;
-    if ( g1->id.iPid>g2->id.iPid || (g1->id.iPid==g2->id.iPid && g1->id.iIndex>g2->id.iIndex) ) {
-        g1->id.iPid = g2->id.iPid;
-        g1->id.iIndex = g2->id.iIndex;
+class PropagateNames : public mdl::CACHEhelper {
+protected:
+    virtual void pack(void *dst, const void *src) override {
+        assert(0); abort(); // We use virtual fetch only, so pack() is not used
     }
-}
+    virtual void  unpack(void *dst, const void *src, const void *key) override {
+        assert(0); abort(); // We use virtual fetch only, so unpack() is not used
+    }
+    // virtual uint32_t pack_size()  override {return sizeof(remoteID);}
+    virtual void init(void *dst) override {
+        auto g = static_cast<smGroupArray *>(dst);
+        g->id.iPid = INT32_MAX;
+        g->id.iIndex = INT32_MAX;
+    }
+    virtual void combine(void *dst, const void *src,const void *key) override {
+        auto g1 = static_cast<smGroupArray *>(dst);   // Regular element
+        auto g2 = static_cast<remoteID const *>(src); // Packed value
+        if ( g1->id.iPid>g2->iPid || (g1->id.iPid==g2->iPid && g1->id.iIndex>g2->iIndex) ) {
+            g1->id.iPid = g2->iPid;
+            g1->id.iIndex = g2->iIndex;
+        }
+    }
+    virtual void flush(void *dst, const void *src) override {
+        auto g1 = static_cast<remoteID *>(dst);           // Packed value
+        auto g2 = static_cast<smGroupArray const *>(src); // Regular element
+        g1->iPid = g2->id.iPid;
+        g1->iIndex = g2->id.iIndex;
+    }
+    virtual uint32_t flush_size() override {return sizeof(remoteID);}
 
+public:
+    explicit PropagateNames() : CACHEhelper(sizeof(struct smGroupArray),true) {}
+};
 
 int pkdFofPhases(PKD pkd) {
     MDL mdl = pkd->mdl;
@@ -687,7 +682,7 @@ int pkdFofPhases(PKD pkd) {
     /*
     ** Phase 1: fetch remote names.
     */
-    mdlROcache(mdl,CID_GROUP,NULL,pkd->ga,sizeof(struct smGroupArray),pkd->nGroups);
+    pkd->mdl->CacheInitialize(CID_GROUP,NULL,pkd->ga,pkd->nGroups,std::make_shared<FetchNames>());
     for (iRemote=1; iRemote<pkd->iRemoteGroup; ++iRemote) {
         iIndex = pkd->tmpFofRemote[iRemote].key.iIndex;
         assert(iIndex > 0);
@@ -700,7 +695,7 @@ int pkdFofPhases(PKD pkd) {
         pkd->tmpFofRemote[iRemote].name.iIndex = pRemote->id.iIndex;
         pkd->tmpFofRemote[iRemote].name.iPid = pRemote->id.iPid;
     }
-    mdlFinishCache(mdl,CID_GROUP);
+    pkd->mdl->FinishCache(CID_GROUP);
     /*
     ** Phase 2: update to unique names.
     */
@@ -752,8 +747,7 @@ int pkdFofPhases(PKD pkd) {
     /*
     ** Phase 3: propagate.
     */
-    mdlCOcache(mdl,CID_GROUP,NULL,pkd->ga,sizeof(struct smGroupArray),pkd->nGroups,
-               NULL, initNames, combNames );
+    pkd->mdl->CacheInitialize(CID_GROUP,NULL,pkd->ga,pkd->nGroups,std::make_shared<PropagateNames>());
     for (i=1; i<pkd->nGroups; ++i) {
         iLink = pkd->ga[i].iLink;
         if (iLink) {
@@ -777,7 +771,7 @@ int pkdFofPhases(PKD pkd) {
             }
         }
     }
-    mdlFinishCache(mdl,CID_GROUP);
+    pkd->mdl->FinishCache(CID_GROUP);
     return (bMadeProgress);
 }
 

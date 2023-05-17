@@ -1,8 +1,5 @@
 #include "pst.h"
 #include "units.h"
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 /*
  * ---------------------
@@ -36,6 +33,3 @@ int pstStarForm(PST,void *,int,void *,int);
 void pkdStarForm(PKD pkd, struct inStarForm in,
                  int *nFormed, double *dMassFormed, int *nDeleted);
 
-#ifdef __cplusplus
-}
-#endif

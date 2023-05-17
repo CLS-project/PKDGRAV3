@@ -1,6 +1,8 @@
 #include "blackhole/evolve.h"
 #include "hydro/hydro.h"
 #include "master.h"
+using blitz::TinyVector;
+using blitz::dot;
 
 void MSR::BHDrift(double dTime, double dDelta) {
     Smooth(dTime,dDelta,SMX_BH_DRIFT,1,param.nSmooth);
@@ -12,81 +14,76 @@ void MSR::BHDrift(double dTime, double dDelta) {
 }
 
 
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 static inline int bhAccretion(PKD pkd, NN *nnList, int nSmooth,
-                              PARTICLE *p, BHFIELDS *pBH, float ph, float pMass,
-                              double pDensity, double dScaleFactor) {
-    double prob_factor = (pBH->dInternalMass - pMass)/pDensity;
-    int naccreted = 0;
+                              particleStore::ParticleReference &p, BHFIELDS &bh,
+                              float ph, float pMass, double pDensity,
+                              double dScaleFactor) {
+    const double prob_factor = (bh.dInternalMass - pMass)/pDensity;
+    int nAccreted = 0;
     if (prob_factor > 0.0) {
-        double prob;
-        for (int i=0; i<nSmooth; ++i) {
-
-
+        for (auto i = 0; i < nSmooth; ++i) {
             const double rpq = sqrt(nnList[i].fDist2);
             const double kernel = cubicSplineKernel(rpq, ph);
-            prob = prob_factor * kernel;
+            const double prob = prob_factor * kernel;
             if (rand()<RAND_MAX*prob) {
-                naccreted++;
+                ++nAccreted;
                 printf("SWALLOW!\n");
-                PARTICLE *q = nnList[i].pPart;
-                assert(pkdIsGas(pkd,q));
+                auto q = pkd->particles[nnList[i].pPart];
+                assert(q.is_gas());
+                auto &sph = q.sph();
 
-                pkdSph(pkd,q)->BHAccretor.iPid = pkd->idSelf;
-                pkdSph(pkd,q)->BHAccretor.iIndex = pkdParticleIndex(pkd,p);
+                sph.BHAccretor.iPid = pkd->Self();
+                sph.BHAccretor.iIndex = &p - pkd->particles.begin();
             }
         }
     }
-    return naccreted;
+    return nAccreted;
 }
 
 
-static inline void bhFeedback(PKD pkd, NN *nnList, int nSmooth, int naccreted, PARTICLE *p,
-                              BHFIELDS *pBH, float massSum, double dConstGamma,
-                              double dBHFBEff, double dBHFBEcrit) {
+static inline void bhFeedback(PKD pkd, NN *nnList, int nSmooth, int nAccreted,
+                              particleStore::ParticleReference &p, BHFIELDS &bh,
+                              float massSum, double dConstGamma, double dBHFBEff,
+                              double dBHFBEcrit) {
 
-    pBH->dFeedbackRate = dBHFBEff * pBH->dAccretionRate;
+    bh.dFeedbackRate = dBHFBEff * bh.dAccretionRate;
 
     const double meanMass = massSum/nSmooth;
     const double Ecrit = dBHFBEcrit * meanMass;
-    if (pBH->dAccEnergy > Ecrit) {
-        const double nHeat = pBH->dAccEnergy / Ecrit;
-        const double prob = nHeat / (nSmooth-naccreted); // Correct probability for accreted particles
-        for (int i=0; i<nSmooth; ++i) {
+    if (bh.dAccEnergy > Ecrit) {
+        const double nHeat = bh.dAccEnergy / Ecrit;
+        const double prob = nHeat / (nSmooth-nAccreted); // Correct probability for accreted particles
+        for (auto i = 0; i < nSmooth; ++i) {
             if (rand()<RAND_MAX*prob) {
-                PARTICLE *q;
-                q = nnList[i].pPart;
-                assert(pkdIsGas(pkd,q));
+                auto q = pkd->particles[nnList[i].pPart];
+                assert(q.is_gas());
 
-                SPHFIELDS *qsph = pkdSph(pkd,q);
-                if (qsph->BHAccretor.iPid != NOT_ACCRETED) continue; // Skip accreted particles
+                auto &qsph = q.sph();
+                if (qsph.BHAccretor.iPid != NOT_ACCRETED) continue; // Skip accreted particles
                 printf("BH feedback event!\n");
-                const double dEnergyInput = dBHFBEcrit * pkdMass(pkd,q) ;
+                const double dEnergyInput = dBHFBEcrit * q.mass();
 
 #ifdef OLD_FB_SCHEME
-                qsph->Uint += dEnergyInput;
-                qsph->E += dEnergyInput;
+                qsph.Uint += dEnergyInput;
+                qsph.E += dEnergyInput;
 #ifdef ENTROPY_SWITCH
-                qsph->S += dEnergyInput*(dConstGamma-1.) *
-                           pow(pkdDensity(pkd,q), -dConstGamma+1);
+                qsph.S += dEnergyInput*(dConstGamma-1.) *
+                          pow(q.density(), -dConstGamma+1);
 #endif
 #else // OLD_FB_SCHEME
-                qsph->fAccFBEnergy += dEnergyInput;
+                qsph.fAccFBEnergy += dEnergyInput;
 #endif
 
-                pBH->dAccEnergy -= dEnergyInput;
+                bh.dAccEnergy -= dEnergyInput;
             }
         }
     }
 }
 
-static inline void bhDrift(PKD pkd, PARTICLE *p, float pMass,
-                           PARTICLE *pLowPot, uint8_t uMaxRung,
-                           double maxv2, float mv[3], double dScaleFactor) {
+static inline void bhDrift(PKD pkd, particleStore::ParticleReference &p,
+                           float pMass, PARTICLE *pLowPotIn, uint8_t uMaxRung,
+                           double maxv2, const TinyVector<vel_t,3> &mv,
+                           double dScaleFactor) {
     // In situations where only BH are present, or there is no gravity, pLowPot
     // may be null. In that case, the drift operation in this function makes no
     // sense.
@@ -96,28 +93,27 @@ static inline void bhDrift(PKD pkd, PARTICLE *p, float pMass,
     // a BH. In those cases, keeping the assert is recommended to detect such
     // pathological cases.
     //if (pLowPot==NULL){
-    //   printf("%e %d \n", pkdBall(pkd,p), nSmooth);
+    //   printf("%e %d \n", p->ball(), nSmooth);
     //   for (int i=0; i<nSmooth; ++i)
     //      printf("%e \n", *pkdPot(pkd, nnList[i].pPart));
     //}
 #ifndef DEBUG_BH_ONLY
-    //assert(pLowPot!=NULL);
+    //assert(pLowPotIn!=NULL);
 #endif
-    if (pLowPot==NULL) return;
-
+    if (pLowPotIn==NULL) return;
 
 #ifdef DEBUG_BH_NODRIFT
     return;
 #endif
+
     // We only follow exactly that particle if the BH does not
     // have enough mass to dictate the movement of the particles
-    if (pMass < 10.*pkdMass(pkd,pLowPot)) {
-        double inv_a = 1./dScaleFactor;
-        vel_t *lowPotv = pkdVel(pkd, pLowPot);
-        vel_t *pv = pkdVel(pkd,p);
-        float v2 = 0.0;
-        for (int j=0; j<3; j++)
-            v2 += (lowPotv[j]-pv[j]*inv_a - mv[j]) * (lowPotv[j]-pv[j]*inv_a -mv[j]);
+    auto LowPot = pkd->particles[pLowPotIn];
+    if (pMass < 10.*LowPot.mass()) {
+        const double inv_a = 1./dScaleFactor;
+        const auto &lowPotv = LowPot.velocity();
+        const auto &pv = p.velocity();
+        const TinyVector<vel_t,3> v {lowPotv - pv *inv_a - mv};
 
         // We set a limit of the velocity to avoid being dragged
         //  by fast particles (v<0.25cs).
@@ -125,217 +121,150 @@ static inline void bhDrift(PKD pkd, PARTICLE *p, float pMass,
         //  \propto a for gas, and \propto a^2 for BH/DM/stars.
         //
         //  This is overriden when just creating the BH
-        BHFIELDS *pBH = pkdBH(pkd,p);
-        //printf("check %e %e \n", v2, cs);
-        if (v2 < maxv2 || pBH->doReposition == 2) {
-            pBH->doReposition = 1;
-            for (int j=0; j<3; j++) {
-                pBH->newPos[j] = pkdPos(pkd,pLowPot,j);
-                //pv[j] = dScaleFactor*lowPotv[j];
-            }
+        auto &bh = p.BH();
+        if (dot(v,v) < maxv2 || bh.doReposition == 2) {
+            bh.doReposition = 1;
+            bh.newPos = LowPot.position();
         }
     }
-
 }
 
 
-void smBHevolve(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
-
+void smBHevolve(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
-    PARTICLE *pLowPot = NULL;
+    auto p = pkd->particles[pIn];
+    const auto &pv = p.velocity();
+    const auto &pMass = p.mass();
+    particleStore::ParticlePointer pLowPot(pkd->particles);
     float minPot = HUGE_VAL;
-    float pMass = pkdMass(pkd,p);
     uint8_t uMaxRung = 0;
     double cs = 0.;
-    float inv_a = 1./smf->a;
-    int naccreted = 0;
-    float ph = 0.5*fBall;
+    int nAccreted = 0;
+    const float inv_a = 1./smf->a;
+    const float ph = 0.5*fBall;
 
     // We look for the most bounded neighbouring particle
-    vel_t mvx = 0.;
-    vel_t mvy = 0.;
-    vel_t mvz = 0.;
-    for (int i=0; i<nSmooth; ++i) {
-        PARTICLE *q = nnList[i].pPart;
+    TinyVector<vel_t,3> mv{0.0};
+    for (auto i = 0; i < nSmooth; ++i) {
+        auto q = pkd->particles[nnList[i].pPart];
 #ifndef DEBUG_BH_ONLY
-        assert(pkdIsGas(pkd,q));
+        assert(q.is_gas());
 #endif
-        if (pkdSph(pkd,q)->BHAccretor.iPid != NOT_ACCRETED) naccreted++;
-        pLowPot = (*pkdPot(pkd,q)<minPot)  ? q : pLowPot;
+        if (q.sph().BHAccretor.iPid != NOT_ACCRETED) ++nAccreted;
+        pLowPot = (q.potential()<minPot)  ? &q : pLowPot;
         // We could have no potential if gravity is not calculated
-        minPot = (pLowPot!=NULL) ? *pkdPot(pkd,pLowPot) : minPot;
-        uMaxRung = (q->uRung > uMaxRung) ? q->uRung : uMaxRung;
-        cs += pkdSph(pkd,nnList[i].pPart)->c;
+        minPot = (pLowPot!=NULL) ? pLowPot->potential() : minPot;
+        uMaxRung = (q.rung() > uMaxRung) ? q.rung() : uMaxRung;
 
-        vel_t *pv = pkdVel(pkd,p);
-        mvx += pkdVel(pkd,nnList[i].pPart)[0]-pv[0]*inv_a;
-        mvy += pkdVel(pkd,nnList[i].pPart)[1]-pv[1]*inv_a;
-        mvz += pkdVel(pkd,nnList[i].pPart)[2]-pv[2]*inv_a;
+        cs += q.sph().c;
+        mv += q.velocity() - pv * inv_a;
     }
     // We do a simple mean, to avoid computing the kernels again
     const float inv_nSmooth = 1./nSmooth;
     cs *= inv_nSmooth;
+    mv *= inv_nSmooth;
 
-    mvx *= inv_nSmooth;
-    mvy *= inv_nSmooth;
-    mvz *= inv_nSmooth;
-
-
-    float stdvx = 0.0;
-    float stdvy = 0.0;
-    float stdvz = 0.0;
-    for (int i=0; i<nSmooth; ++i) {
-        PARTICLE *q = nnList[i].pPart;
-
-        vel_t *pv = pkdVel(pkd,p);
-        const float vx = pkdVel(pkd,nnList[i].pPart)[0]-pv[0]*inv_a;
-        const float vy = pkdVel(pkd,nnList[i].pPart)[1]-pv[1]*inv_a;
-        const float vz = pkdVel(pkd,nnList[i].pPart)[2]-pv[2]*inv_a;
-        stdvx += (vx-mvx)*(vx-mvx);
-        stdvy += (vy-mvy)*(vy-mvy);
-        stdvz += (vz-mvz)*(vz-mvz);
+    float stdv2 = 0.0;
+    for (auto i = 0; i < nSmooth; ++i) {
+        const auto &qv = pkd->particles[nnList[i].pPart].velocity();
+        const TinyVector<vel_t,3> dv {qv - pv *inv_a - mv};
+        stdv2 += dot(dv,dv);
     }
-    stdvx *= inv_nSmooth;
-    stdvy *= inv_nSmooth;
-    stdvz *= inv_nSmooth;
-    float stdv2 = stdvx + stdvy + stdvz;
-
-    //printf("vx\t %e %e\n", mvx, sqrt(stdvx));
-    //printf("vy\t %e %e\n", mvy, sqrt(stdvy));
-    //printf("vz\t %e %e\n", mvz, sqrt(stdvz));
+    stdv2 *= inv_nSmooth;
 
     if (smf->bBHAccretion || smf->bBHFeedback) {
-        BHFIELDS *pBH = pkdBH(pkd,p);
-        double pDensity;
-        double vRel2;
-
+        auto &bh = p.BH();
 
         // First, we gather all the smoothed quantities
-        pDensity = 0.0;
-        vel_t vx = 0.0;
-        vel_t vy = 0.0;
-        vel_t vz = 0.0;
-        double vcircx = 0.0;
-        double vcircy = 0.0;
-        double vcircz = 0.0;
-        vel_t *pv = pkdVel(pkd,p);
+        double pDensity = 0.0;
         double massSum = 0.0;
-        double kernelSum = 0.0;
-        for (int i=0; i<nSmooth; ++i) {
+        TinyVector<vel_t,3> v{0.0}, vcirc{0.0};
+        for (auto i = 0; i < nSmooth; ++i) {
+            auto q = pkd->particles[nnList[i].pPart];
 #ifndef DEBUG_BH_ONLY
-            assert(pkdIsGas(pkd,nnList[i].pPart));
+            assert(q.is_gas());
 #endif
             const double rpq = sqrt(nnList[i].fDist2);
             const double kernel = cubicSplineKernel(rpq, ph);
-            const double  qmass = pkdMass(pkd,nnList[i].pPart);
-            kernelSum += kernel;
-            massSum += qmass;
+            const auto &qMass = q.mass();
+            massSum += qMass;
 
-            const double weight = qmass * kernel;
+            const double weight = qMass * kernel;
             pDensity += weight;
 
-            const double dvx = weight*(pkdVel(pkd,nnList[i].pPart)[0]-pv[0]*inv_a);
-            const double dvy = weight*(pkdVel(pkd,nnList[i].pPart)[1]-pv[1]*inv_a);
-            const double dvz = weight*(pkdVel(pkd,nnList[i].pPart)[2]-pv[2]*inv_a);
-
-            vx += dvx;
-            vy += dvy;
-            vz += dvz;
-
-            const double dvcircx = (nnList[i].dy*dvz - nnList[i].dz*dvy);
-            const double dvcircy = (nnList[i].dz*dvx - nnList[i].dx*dvz);
-            const double dvcircz = (nnList[i].dx*dvy - nnList[i].dy*dvx);
-            vcircx += dvcircx;
-            vcircy += dvcircy;
-            vcircz += dvcircz;
+            const auto &qv = q.velocity();
+            const TinyVector<vel_t,3> dv {weight *(qv - pv*inv_a)};
+            v += dv;
+            vcirc += blitz::cross(nnList[i].dr, dv);
         }
         const double norm = 1./pDensity;
-        vRel2 = vx*vx + vy*vy + vz*vz;
-        vRel2 *= norm*norm;
+        const double vRel2 = dot(v,v) * norm * norm;
 
-        pkdSetDensity(pkd, p, pDensity);
-
-        const double vphi = sqrt(vcircx*vcircx + vcircy*vcircy + vcircz*vcircz)*norm/ph;
+        p.set_density(pDensity);
 
         // We allow the accretion viscosity to act over a boosted Bondi accretion
         double dBondiPrefactor = smf->dBHAccretionAlpha;
         if (smf->dBHAccretionCvisc) {
+            const double vphi = sqrt(dot(vcirc,vcirc)) * norm / ph;
             const double fac = cs/vphi;
-            dBondiPrefactor *= MIN(1.0, fac*fac*fac/smf->dBHAccretionCvisc);
+            dBondiPrefactor *= std::min(1.0, fac*fac*fac/smf->dBHAccretionCvisc);
         }
 
         // Do we need to convert to physical?
         pDensity *= inv_a*inv_a*inv_a;
         const double dBondiAccretion = dBondiPrefactor *
-                                       4.* M_PI * pBH->dInternalMass*pBH->dInternalMass * pDensity /
+                                       4.* M_PI * bh.dInternalMass*bh.dInternalMass * pDensity /
                                        pow(cs*cs + vRel2, 1.5);
 
         // All the prefactors are computed at the setup phase
         const double dEddingtonAccretion = smf->dBHAccretionEddFac *
-                                           pBH->dInternalMass;
+                                           bh.dInternalMass;
 
-        pBH->dEddingtonRatio = dBondiAccretion/dEddingtonAccretion;
+        bh.dEddingtonRatio = dBondiAccretion/dEddingtonAccretion;
 
-        pBH->dAccretionRate = ( dEddingtonAccretion < dBondiAccretion ) ?
-                              dEddingtonAccretion : dBondiAccretion;
+        bh.dAccretionRate = ( dEddingtonAccretion < dBondiAccretion ) ?
+                            dEddingtonAccretion : dBondiAccretion;
 
 
 
         if (smf->bBHAccretion) {
-            naccreted += bhAccretion(pkd, nnList, nSmooth, p, pBH,
+            nAccreted += bhAccretion(pkd, nnList, nSmooth, p, bh,
                                      ph, pMass, pDensity, smf->a);
         }
         if (smf->bBHFeedback) {
-            bhFeedback(pkd, nnList, nSmooth, naccreted, p, pBH, massSum, smf->dConstGamma,
+            bhFeedback(pkd, nnList, nSmooth, nAccreted, p, bh, massSum, smf->dConstGamma,
                        smf->dBHFBEff, smf->dBHFBEcrit);
         }
     }
 
-    /*
-    pLowPot = NULL;
-    minPot  = HUGE_VAL;
-    float cs2 = cs*cs;
-    for (int i=0; i<nSmooth; ++i) {
-        PARTICLE *q = nnList[i].pPart;
-        vel_t *lowPotv = pkdVel(pkd, q);
-        vel_t *pv = pkdVel(pkd,p);
-        float v2 = 0.0;
-        for (int j=0; j<3; j++)
-            v2 += (lowPotv[j]-pv[j]*inv_a) * (lowPotv[j]-pv[j]*inv_a);
-        pLowPot = (*pkdPot(pkd,q)<minPot && v2 < 0.0625*cs2)  ? q : pLowPot;
-        minPot = (pLowPot!=NULL) ? *pkdPot(pkd,pLowPot) : minPot;
-    }
-    */
-    float mv[3] = {mvx, mvy, mvz};
     bhDrift(pkd, p, pMass, pLowPot, uMaxRung, stdv2, mv, smf->a);
-
 
 }
 
 void combBHevolve(void *vpkd, void *vp1,const void *vp2) {
     PKD pkd = (PKD) vpkd;
-    PARTICLE *p1 = (PARTICLE *) vp1;
-    PARTICLE *p2 = (PARTICLE *) vp2;
+    auto p1 = pkd->particles[static_cast<PARTICLE *>(vp1)];
+    auto p2 = pkd->particles[static_cast<const PARTICLE *>(vp2)];
 
-    if (pkdIsGas(pkd,p1) && pkdIsGas(pkd,p2)) {
-        SPHFIELDS *psph1 = pkdSph(pkd,p1);
-        SPHFIELDS *psph2 = pkdSph(pkd,p2);
+    if (p1.is_gas() && p2.is_gas()) {
+        auto &sph1 = p1.sph();
+        const auto &sph2 = p2.sph();
 
 #ifdef OLD_FB_SCHEME
-        psph1->Uint += psph2->Uint;
-        psph1->E += psph2->E;
+        sph1.Uint += sph2.Uint;
+        sph1.E += sph2.E;
 #ifdef ENTROPY_SWITCH
-        psph1->S += psph2->S;
+        sph1.S += sph2.S;
 #endif
 #else //OLD_FB_SCHEME
-        psph1->fAccFBEnergy += psph2->fAccFBEnergy;
+        sph1.fAccFBEnergy += sph2.fAccFBEnergy;
 #endif
 
         // Is this the first accretion attempt for this particle?
-        if (psph1->BHAccretor.iPid == NOT_ACCRETED &&
-                psph2->BHAccretor.iPid != NOT_ACCRETED) {
-            psph1->BHAccretor.iPid   = psph2->BHAccretor.iPid;
-            psph1->BHAccretor.iIndex = psph2->BHAccretor.iIndex;
+        if (sph1.BHAccretor.iPid == NOT_ACCRETED &&
+                sph2.BHAccretor.iPid != NOT_ACCRETED) {
+            sph1.BHAccretor.iPid = sph2.BHAccretor.iPid;
+            sph1.BHAccretor.iIndex = sph2.BHAccretor.iIndex;
         }
         // If not, just keep the previous attempt
     }
@@ -343,92 +272,78 @@ void combBHevolve(void *vpkd, void *vp1,const void *vp2) {
 
 
 void initBHevolve(void *vpkd,void *vp) {
-    PARTICLE *p = (PARTICLE *) vp;
     PKD pkd = (PKD) vpkd;
+    auto p = pkd->particles[static_cast<PARTICLE *>(vp)];
 
-    if (pkdIsGas(pkd,p)) {
-        SPHFIELDS *psph = pkdSph(pkd,p);
+    if (p.is_gas()) {
+        auto &sph = p.sph();
 
 #ifdef OLD_FB_SCHEME
-        psph->Uint = 0.0;
-        psph->E = 0.0;
+        sph.Uint = 0.0;
+        sph.E = 0.0;
 #ifdef ENTROPY_SWITCH
-        psph->S = 0.0;
+        sph.S = 0.0;
 #endif
 #else // OLD_FB_SCHEME
-        psph->fAccFBEnergy = 0.0;
+        sph.fAccFBEnergy = 0.0;
 #endif
 
-        psph->BHAccretor.iPid = NOT_ACCRETED;
+        sph.BHAccretor.iPid = NOT_ACCRETED;
     }
-
 }
 
 void initBHAccretion(void *vpkd, void *vp) {
     PKD pkd = (PKD) vpkd;
-    PARTICLE *p = (PARTICLE *) vp;
-    float *mass = (float *)pkdField(p, pkd->oFieldOffset[oMass]);
-    *mass = 0.0;
-    vel_t *v = pkdVel(pkd,p);
-    for (int i=0; i<3; i++)
-        v[i] = 0.;
+    auto p = pkd->particles[static_cast<PARTICLE *>(vp)];
+    p.set_mass(0.0);
+    p.velocity() = 0.0;
 }
 
 void combBHAccretion(void *vpkd, void *vp1, const void *vp2) {
     PKD pkd = (PKD) vpkd;
-    PARTICLE *p1 = (PARTICLE *) vp1;
-    PARTICLE *p2 = (PARTICLE *) vp2;
+    auto p1 = pkd->particles[static_cast<PARTICLE *>(vp1)];
+    auto p2 = pkd->particles[static_cast<const PARTICLE *>(vp2)];
 
-    if (pkdIsBH(pkd,p1) && pkdIsBH(pkd,p2)) {
-        assert(*pkdParticleID(pkd,p1) == *pkdParticleID(pkd,p2));
-        float old_mass = pkdMass(pkd,p1);
-        float new_mass = old_mass + pkdMass(pkd, p2);
+    if (p1.is_bh() && p2.is_bh()) {
+        assert(p1.ParticleID() == p2.ParticleID());
+        float old_mass = p1.mass();
+        float new_mass = old_mass + p2.mass();
         float inv_mass = 1./new_mass;
 
-        vel_t *v1 = pkdVel(pkd, p1);
-        vel_t *v2 = pkdVel(pkd, p2); // **Momentum** added by the accretion
-        for (int i=0; i<3; i++)
-            v1[i] = (old_mass*v1[i] + v2[i])*inv_mass;
+        auto &v1 = p1.velocity();
+        const auto &v2 = p2.velocity(); // **Momentum** added by the accretion
+        v1 = (old_mass*v1 + v2)*inv_mass;
 
-        float *mass1 = (float *)pkdField(p1, pkd->oFieldOffset[oMass]);
-        *mass1 = new_mass;
+        p1.set_mass(new_mass);
     }
-
-
 }
 
 
 void pkdBHAccretion(PKD pkd, double dScaleFactor) {
 
-    mdlCOcache(pkd->mdl,CID_PARTICLE,NULL,pkdParticleBase(pkd),pkdParticleSize(pkd),
-               pkdLocal(pkd),pkd,initBHAccretion,combBHAccretion);
+    mdlCOcache(pkd->mdl, CID_PARTICLE, NULL, pkd->particles, pkd->particles.ParticleSize(),
+               pkd->Local(), pkd, initBHAccretion, combBHAccretion);
 
-    for (int i=0; i<pkd->nLocal; i++) {
-        PARTICLE *p = pkdParticle(pkd,i);
-        if (pkdIsGas(pkd,p)) {
-            SPHFIELDS *psph = pkdSph(pkd, p);
-            if (psph->BHAccretor.iPid != NOT_ACCRETED) {
-                PARTICLE *bh;
+    for (auto &p : pkd->particles) {
+        if (p.is_gas()) {
+            auto &sph = p.sph();
+            if (sph.BHAccretor.iPid != NOT_ACCRETED) {
+                particleStore::ParticlePointer bh(pkd->particles);
                 // this particle was accreted!
-                //printf("%d,%d accreted by %d,%d\n", i, pkd->idSelf, psph->BHAccretor.iIndex, psph->BHAccretor.iPid);
+                //printf("%d,%d accreted by %d,%d\n", i, pkd->Self(), sph.BHAccretor.iIndex, sph.BHAccretor.iPid);
 
-                if (psph->BHAccretor.iPid != pkd->idSelf) {
-                    bh = (PARTICLE * )mdlAcquire(pkd->mdl,CID_PARTICLE,psph->BHAccretor.iIndex,psph->BHAccretor.iPid);
+                if (sph.BHAccretor.iPid != pkd->Self()) {
+                    bh = &pkd->particles[static_cast<PARTICLE *>(mdlAcquire(pkd->mdl,CID_PARTICLE,sph.BHAccretor.iIndex,sph.BHAccretor.iPid))];
                 }
                 else {
-                    bh = pkdParticle(pkd, psph->BHAccretor.iIndex);
+                    bh = &pkd->particles[sph.BHAccretor.iIndex];
                 }
-                assert(pkdIsBH(pkd,bh));
-                float bhMass = pkdMass(pkd,bh);
-                float addMass = pkdMass(pkd,p);
+                assert(bh->is_bh());
 
-                //printf("Mass: internal %e old %e \t new %e \n",
-                //         pBH->dInternalMass, pMass, newMass);
+                const float bhMass = bh->mass();
+                bh->set_mass(bhMass + p.mass());
 
-                float *mass_field = (float *)pkdField(bh, pkd->oFieldOffset[oMass]);
-                *mass_field += addMass;
-
-                vel_t *pv = pkdVel(pkd,bh);
+                auto &bhv = bh->velocity();
 
                 // To properly conserve momentum, we need to use the
                 // hydrodynamic variable, as the pkdVel may not be updated yet
@@ -436,43 +351,33 @@ void pkdBHAccretion(PKD pkd, double dScaleFactor) {
                 // We have to consider remote and local particles differently,
                 // as for the remotes the momentum is accumulated here but then
                 // added in the combine function
-                if (psph->BHAccretor.iPid != pkd->idSelf) {
-                    for (int j=0; j<3; j++)
-                        pv[j] += dScaleFactor*psph->mom[j];
+                if (sph.BHAccretor.iPid != pkd->Self()) {
+                    bhv += dScaleFactor * sph.mom;
                 }
                 else {
-                    float inv_newMass = 1./(*mass_field);
-                    for (int j=0; j<3; j++)
-                        pv[j] = (bhMass*pv[j] + dScaleFactor*psph->mom[j]) *
-                                inv_newMass;
+                    const float inv_newMass = 1. / bh->mass();
+                    bhv = (bhMass*bhv + dScaleFactor*sph.mom) * inv_newMass;
                 }
 
                 pkdDeleteParticle(pkd,p);
 
-                if (psph->BHAccretor.iPid != pkd->idSelf)
+                if (sph.BHAccretor.iPid != pkd->Self())
                     mdlRelease(pkd->mdl, CID_PARTICLE, bh);
-
             }
-
         }
-
     }
+
     mdlFinishCache(pkd->mdl,CID_PARTICLE);
 
 }
 
-void pkdBHIntegrate(PKD pkd, PARTICLE *p, double dTime, double dDelta, double dBHRadiativeEff) {
-    BHFIELDS *pBH = pkdBH(pkd,p);
+void pkdBHIntegrate(PKD pkd, particleStore::ParticleReference &p, double dTime,
+                    double dDelta, double dBHRadiativeEff) {
+    auto &bh = p.BH();
+    const double pDelta = dDelta > 0. ? dTime - bh.lastUpdateTime : 0.0;
 
-    double pDelta = 0.0;
-    if (dDelta > 0)
-        pDelta = dTime - pBH->lastUpdateTime;
-
-    pBH->dInternalMass += pBH->dAccretionRate  * pDelta * (1.-dBHRadiativeEff);
-    pBH->dAccEnergy += pBH->dFeedbackRate * pDelta;
-    pBH->lastUpdateTime = dTime;
-
+    bh.dInternalMass += bh.dAccretionRate  * pDelta * (1.-dBHRadiativeEff);
+    bh.dAccEnergy += bh.dFeedbackRate * pDelta;
+    bh.lastUpdateTime = dTime;
 }
-#ifdef __cplusplus
-}
-#endif
+

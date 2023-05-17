@@ -20,19 +20,10 @@
 
 #define USE_GSL_COSMO
 #ifdef USE_GSL_COSMO
-#include <gsl/gsl_integration.h>
-#include <gsl/gsl_spline.h>
-#include <gsl/gsl_interp2d.h>
-#include <gsl/gsl_spline2d.h>
-/* This is the same as gsl_spline_eval, except that it will extrapolate beyond the end. */
-inline double csm_spline_eval(gsl_spline *spline, double v, gsl_interp_accel *accel) {
-    if (v>spline->x[spline->size-1]) {
-        double m = (spline->y[spline->size-1] - spline->y[spline->size-2])
-                   / (spline->x[spline->size-1] - spline->x[spline->size-2]);
-        return spline->y[spline->size-1] + m*(v-spline->x[spline->size-1]);
-    }
-    else return gsl_spline_eval(spline,v,accel);
-}
+    #include <gsl/gsl_integration.h>
+    #include <gsl/gsl_spline.h>
+    #include <gsl/gsl_interp2d.h>
+    #include <gsl/gsl_spline2d.h>
 #endif
 
 /*
@@ -50,6 +41,10 @@ struct classDataBackgroundStruct {
     double a      [CLASS_BACKGROUND_SIZE];
     double t      [CLASS_BACKGROUND_SIZE];
     double H      [CLASS_BACKGROUND_SIZE];
+    double D1     [CLASS_BACKGROUND_SIZE];
+    double D2     [CLASS_BACKGROUND_SIZE];
+    double f1     [CLASS_BACKGROUND_SIZE];
+    double f2     [CLASS_BACKGROUND_SIZE];
     double rho_m  [CLASS_BACKGROUND_SIZE];
     double rho_lin[CLASS_BACKGROUND_SIZE];
     double rho_pk [CLASS_BACKGROUND_SIZE];
@@ -66,13 +61,14 @@ struct classDataPerturbationsStruct {
 };
 struct classDataStruct {
     int bClass;
+    int bClassGrowth;
     int nLinear; /* Number of linear species */
     int nPower; /* Number of linear species for measuring P(k) */
     struct classDataBackgroundStruct background;
     struct classDataPerturbationsStruct perturbations;
 };
 
-/* Nested strucst storing the CLASS GSL objects.
+/* Nested structs storing the CLASS GSL objects.
 ** They are nested in the following way:
 ** - classGslStruct (classGsl)
 **   - classGslBackgroundStruct (background)
@@ -87,6 +83,14 @@ struct classGslBackgroundStruct {
     gsl_spline       *logExp2logTime_spline;
     gsl_interp_accel *logTime2logExp_acc;
     gsl_spline       *logTime2logExp_spline;
+    gsl_interp_accel *logExp2logD1_acc;
+    gsl_spline       *logExp2logD1_spline;
+    gsl_interp_accel *logExp2lognegD2_acc;
+    gsl_spline       *logExp2lognegD2_spline;
+    gsl_interp_accel *logExp2logf1_acc;
+    gsl_spline       *logExp2logf1_spline;
+    gsl_interp_accel *logExp2logf2_acc;
+    gsl_spline       *logExp2logf2_spline;
     gsl_interp_accel *logExp2logRho_m_acc;
     gsl_spline       *logExp2logRho_m_spline;
     gsl_interp_accel *logExp2logRho_lin_acc;
@@ -145,6 +149,17 @@ typedef struct csmContext {
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/* This is the same as gsl_spline_eval, except that it will extrapolate beyond the end. */
+inline double csm_spline_eval(gsl_spline *spline, double v, gsl_interp_accel *accel) {
+    if (v>spline->x[spline->size-1]) {
+        double m = (spline->y[spline->size-1] - spline->y[spline->size-2])
+                   / (spline->x[spline->size-1] - spline->x[spline->size-2]);
+        return spline->y[spline->size-1] + m*(v-spline->x[spline->size-1]);
+    }
+    else return gsl_spline_eval(spline,v,accel);
+}
+
 void csmClassRead(CSM csm, const char *achFilename, double dBoxSize, double h,
                   int nLinear, const char **aLinear, int nPower, const char **aPower);
 void csmClassGslInitialize(CSM csm);

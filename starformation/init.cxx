@@ -17,10 +17,6 @@ void MSR::StarFormInit(double dTime) {
 #endif
 }
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 int pstStarFormInit(PST pst,void *vin,int nIn,void *vout,int nOut) {
 #ifdef FEEDBACK
     struct inStarFormInit *in = (struct inStarFormInit *) vin;
@@ -46,25 +42,22 @@ int pstStarFormInit(PST pst,void *vin,int nIn,void *vout,int nOut) {
 void pkdStarFormInit(PKD pkd, struct inStarFormInit in, int *nFormed) {
 #ifdef FEEDBACK
     *nFormed = 0;
-    for (int i = 0; i < pkdLocal(pkd); ++i) {
-        PARTICLE *p = pkdParticle(pkd,i);
-        if (pkdIsStar(pkd,p)) {
-            STARFIELDS *pStar = pkdStar(pkd,p);
-            if (pStar->fTimer >= 0) { // fTimer < 0 can be used for stars
+    for (auto &p : pkd->particles) {
+        if (p.is_star()) {
+            auto &star = p.star();
+            if (star.fTimer >= 0) { // fTimer < 0 can be used for stars
                 // in the IC that are not supossed to explode
-                if ((in.dTime - pStar->fTimer) < in.dCCSNFBDelay)
-                    pStar->bCCSNFBDone = in.bCCSNFeedback ? 0 : 1;
+                if ((in.dTime - star.fTimer) < in.dCCSNFBDelay)
+                    star.bCCSNFBDone = in.bCCSNFeedback ? 0 : 1;
 
-                if ((in.dTime - pStar->fTimer) < in.dSNIaFBDelay)
-                    pStar->bSNIaFBDone = in.bSNIaFeedback ? 0 : 1;
+                if ((in.dTime - star.fTimer) < in.dSNIaFBDelay)
+                    star.bSNIaFBDone = in.bSNIaFeedback ? 0 : 1;
 
-                if (!(pStar->bCCSNFBDone && pStar->bSNIaFBDone))
+                if (!(star.bCCSNFBDone && star.bSNIaFBDone))
                     *nFormed += 1;
             }
         }
     }
 #endif
 }
-#ifdef __cplusplus
-}
-#endif
+

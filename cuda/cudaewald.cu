@@ -267,18 +267,15 @@ void pkdParticleWorkDone(workParticle *work);
 void CudaClient::setupEwald(struct EwaldVariables *const ew, EwaldTable *const ewt) {
     nEwhLoop = ew->nEwhLoop;
     // The Ewald table needs to be sent once to every GPU on the system
-    if (mdl.Core()==0) {
-        mdl::cudaMessageQueue wait;
-        for (auto i=0; i<mdl.numGPUs(); ++i) {
-            auto m = new MessageEwaldSetup(ew,ewt,i);
-            mdl.enqueue(*m,wait);
-        }
-        for (auto i=0; i<mdl.numGPUs(); ++i) {
-            auto &m = wait.wait();
-            delete &m;
-        }
+    mdl::cudaMessageQueue wait;
+    for (auto i=0; i<cuda.numDevices(); ++i) {
+        auto m = new MessageEwaldSetup(ew,ewt,i);
+        cuda.enqueue(*m,wait);
     }
-    mdl.ThreadBarrier();
+    for (auto i=0; i<cuda.numDevices(); ++i) {
+        auto &m = wait.wait();
+        delete &m;
+    }
 }
 
 // Contruct the message with Ewald tables. We can just tuck away the pointers as we have to wait.
@@ -286,7 +283,7 @@ MessageEwaldSetup::MessageEwaldSetup(struct EwaldVariables *const ew, EwaldTable
     : mdl::cudaMessage(iDevice), ewIn(ew), ewt(ewt) {}
 
 // This copies all of the variables to the device.
-void MessageEwaldSetup::launch(cudaStream_t stream,void *pCudaBufIn, void *pCudaBufOut) {
+void MessageEwaldSetup::launch(mdl::Stream &stream,void *pCudaBufIn, void *pCudaBufOut) {
     CUDA_CHECK(cudaMemcpyToSymbolAsync, (ew,   ewIn, sizeof(ew), 0, cudaMemcpyHostToDevice, stream));
     CUDA_CHECK(cudaMemcpyToSymbolAsync, (hx,   ewt->hx.f,   sizeof(float)*ewIn->nEwhLoop, 0, cudaMemcpyHostToDevice, stream));
     CUDA_CHECK(cudaMemcpyToSymbolAsync, (hy,   ewt->hy.f,   sizeof(float)*ewIn->nEwhLoop, 0, cudaMemcpyHostToDevice, stream));
@@ -314,19 +311,13 @@ void MessageEwaldSetup::launch(cudaStream_t stream,void *pCudaBufIn, void *pCuda
     CUDA_CHECK(cudaMemcpyToSymbolAsync, (bHole,ibHole.data(),ibHole.size()*sizeof(decltype(ibHole)::value_type), 0, cudaMemcpyHostToDevice, stream));
 }
 
-extern "C"
-int CudaClientQueueEwald(void *vcudaClient, workParticle *work) {
-    auto cuda = reinterpret_cast<CudaClient *>(vcudaClient);
-    return cuda->queueEwald(work);
-}
-
 int CudaClient::queueEwald(workParticle *work) {
     if (ewald) {
         if (ewald->queue(work)) return work->nP; // Sucessfully queued
-        mdl.enqueue(*ewald); // Full, so send it to the GPU
+        cuda.enqueue(*ewald,gpu); // Full, so send it to the GPU
         ewald = nullptr;
     }
-    mdl.flushCompletedCUDA();
+    gpu.flushCompleted();
     if (freeEwald.empty()) return 0; // No buffers so the CPU has to do this part
     ewald = & freeEwald.dequeue();
     if (ewald->queue(work)) return work->nP; // Sucessfully queued
@@ -335,7 +326,7 @@ int CudaClient::queueEwald(workParticle *work) {
 
 MessageEwald::MessageEwald(class CudaClient &cuda) : cuda(cuda) {
     nParticles = 0;
-    nMaxParticles = requestBufferSize / sizeof(gpuEwaldInput) * EWALD_ALIGN;
+    nMaxParticles = std::min(resultsBufferSize / sizeof(gpuEwaldOutput),requestBufferSize / sizeof(gpuEwaldInput)) * EWALD_ALIGN;
     ppWP.reserve(CUDA_WP_MAX_BUFFERED);
 }
 
@@ -358,7 +349,7 @@ bool MessageEwald::queue(workParticle *work) {
     return true;
 }
 
-void MessageEwald::launch(cudaStream_t stream,void *pCudaBufIn, void *pCudaBufOut) {
+void MessageEwald::launch(mdl::Stream &stream,void *pCudaBufIn, void *pCudaBufOut) {
     int align = (nParticles+EWALD_MASK)&~EWALD_MASK; /* Warp align the memory buffers */
     int ngrid = align/EWALD_ALIGN;
     dim3 dimBlock( EWALD_ALIGN, 1 );

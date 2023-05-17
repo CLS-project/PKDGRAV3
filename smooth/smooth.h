@@ -18,11 +18,14 @@
 #ifndef SMOOTH_HINCLUDED
 #define SMOOTH_HINCLUDED
 
+extern "C" {
 #include "listcomp.h"
+}
 #include "pkd.h"
 #include "smooth/smoothfcn.h"
 #include "hydro/hydro.h"
 #include "group/group.h"
+#include "blitz/array.h"
 
 #define NNLIST_INCREMENT    200     /* number of extra neighbor elements added to nnList */
 
@@ -44,9 +47,8 @@ typedef struct smContext {
     void (*fcnSmoothNode)(PARTICLE *, float, int, double **, double **, SMF *);
     void (*fcnSmoothGetNvars)(int *, int *);
     void (*fcnSmoothFillBuffer)(double **, PARTICLE *, int,
-                                double, double, double, double, SMF *);
+                                double, blitz::TinyVector<double,3>, SMF *);
     void (*fcnSmoothUpdate)(double **, double **, PARTICLE *, PARTICLE *, int, SMF *);
-    void (*fcnPost)(void *,PARTICLE *,SMF *);
     int nSmooth;
     int nQueue;
     int bPeriodic;
@@ -54,7 +56,7 @@ typedef struct smContext {
     int bSymmetric;
     int iSmoothType;
     int bSearchGasOnly;
-    double rLast[3]; /* For the snake */
+    blitz::TinyVector<double,3> rLast; /* For the snake */
     PQ *pq;
     /*
     ** Flags to mark local particles which are inactive either because they
@@ -113,19 +115,16 @@ int smInitializeRO(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,
 void smFinish(SMX,SMF *);
 void smSmoothInitialize(SMX smx);
 void smSmoothFinish(SMX smx);
-float smSmoothSingle(SMX smx,SMF *smf,PARTICLE *p,int iRoot1, int iRoot2);
+float smSmoothSingle(SMX smx,SMF *smf,particleStore::ParticleReference &p,int iRoot1, int iRoot2);
 void smSmooth(SMX,SMF *);
-void smReSmoothSingle(SMX smx,SMF *smf,PARTICLE *p,double fBall);
+void smReSmoothSingle(SMX smx,SMF *smf,particleStore::ParticleReference &p,double fBall);
 int  smReSmooth(SMX,SMF *, int);
 #ifdef OPTIM_SMOOTH_NODE
 int  smReSmoothNode(SMX,SMF *, int);
-void buildInteractionList(SMX smx, SMF *smf, KDN *node, BND bnd_node, int *nCnt, double r[3], int ix, int iy, int iz);
+void buildInteractionList(SMX smx, SMF *smf, KDN *node, Bound bnd_node, int *nCnt, blitz::TinyVector<double,3> r, int ix, int iy, int iz);
 #endif
 
-void smGather(SMX smx,double fBall2,double r[3], PARTICLE *p);
-void smFastGasPhase1(SMX smx,SMF *smf);
-void smFastGasPhase2(SMX smx,SMF *smf);
-void pkdFastGasCleanup(PKD pkd);  /* frees up the neighbor lists */
+void smGather(SMX smx,double fBall2,blitz::TinyVector<double,3> r);
 
 inline void smSwapNN(NN *nnList, int i, int j) {
     NN temp;

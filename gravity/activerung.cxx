@@ -25,6 +25,6 @@ int ServiceActiveRung::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto in = static_cast<input *>(vin);
     static_assert(std::is_void<output>());
     auto pkd = pst->plcl->pkd;
-    pkdActiveRung(pkd, in->iRung, in->bGreater);
+    pkd->ActiveRung(in->iRung, in->bGreater!=0);
     return 0;
 }

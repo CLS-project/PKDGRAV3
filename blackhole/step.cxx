@@ -11,27 +11,19 @@ void MSR::BHStep(double dTime, double dDelta) {
 }
 
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-void smBHstep(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
+void smBHstep(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
 #ifndef DEBUG_BH_ONLY
     PKD pkd = smf->pkd;
+    auto p = pkd->particles[pIn];
     uint8_t uMaxRung = 0;
-    for (int i=0; i<nSmooth; ++i) {
-        PARTICLE *q = nnList[i].pPart;
-        uMaxRung = (q->uRung > uMaxRung) ? q->uRung : uMaxRung;
+    for (auto i = 0; i < nSmooth; ++i) {
+        auto q = pkd->particles[nnList[i].pPart];
+        uMaxRung = (q.rung() > uMaxRung) ? q.rung() : uMaxRung;
     }
-
-    p->uNewRung = uMaxRung;
+    p.set_new_rung(uMaxRung);
 #endif
 
 }
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

@@ -16,15 +16,11 @@
  */
 #include "TraversePST.h"
 
-class ServiceCountRungs : public TraverseCombinePST {
+class ServiceCountRungs : public TraverseCount<blitz::TinyVector<uint64_t,MAX_RUNG+1>> {
 public:
     typedef void input;
-    struct output {
-        uint64_t nRungs[MAX_RUNG+1];
-    };
     explicit ServiceCountRungs(PST pst)
-        : TraverseCombinePST(pst,PST_COUNTRUNGS,0,sizeof(output),"CountRungs") {}
+        : TraverseCount(pst,PST_COUNTRUNGS,0,"CountRungs") {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut);
-    virtual int Combine(void *vout,void *vout2);
 };

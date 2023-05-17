@@ -22,7 +22,8 @@
     #include <numpy/arrayobject.h>
 #endif
 #include <structmember.h> // for PyMemberDef
-#include "m_parse.h"
+#include "parse.h"
+#include "modules/checkpoint.h"
 
 #include "master.h"
 #include "csmpython.h"
@@ -51,194 +52,11 @@ static void flush_std_files(void) {
 }
 
 /******************************************************************************\
-*   Modern, safe, direct from Python parameter fetching
-\******************************************************************************/
-
-int64_t MSR::getScalarInteger(const char *name, PyObject *v) {
-    if (PyLong_Check(v)) return PyLong_AsLong(v);
-    else if (PyFloat_Check(v)) return static_cast<int64_t>(PyFloat_AsDouble(v));
-    else throw std::domain_error(name);
-}
-int64_t MSR::getScalarInteger(const char *name) {
-    int64_t result;
-    auto v = PyObject_GetAttrString(arguments, name);
-    result = getScalarInteger(name,v);
-    Py_DECREF(v);
-    return result;
-}
-std::vector<int64_t> MSR::getVectorInteger(const char *name) {
-    std::vector<int64_t> result;
-    auto v = PyObject_GetAttrString(arguments, name);
-    if (PyList_Check(v)) {
-        auto n = PyList_Size(v);
-        result.reserve(n);
-        for (auto i=0; i<n; ++i) result.push_back(getScalarInteger(name,PyList_GetItem(v,i)));
-    }
-    else result.push_back(getScalarInteger(name));
-    Py_DECREF(v);
-    return result;
-}
-
-double MSR::getScalarNumber(const char *name, PyObject *v) {
-    if (PyFloat_Check(v)) return PyFloat_AsDouble(v);
-    else if (PyLong_Check(v)) return PyLong_AsLong(v);
-    else throw std::domain_error(name);
-}
-double MSR::getScalarNumber(const char *name) {
-    double result;
-    auto v = PyObject_GetAttrString(arguments, name);
-    result = getScalarNumber(name,v);
-    Py_DECREF(v);
-    return result;
-}
-std::vector<double> MSR::getVectorNumber(const char *name) {
-    std::vector<double> result;
-    auto v = PyObject_GetAttrString(arguments, name);
-    if (PyList_Check(v)) {
-        auto n = PyList_Size(v);
-        result.reserve(n);
-        for (auto i=0; i<n; ++i) result.push_back(getScalarNumber(name,PyList_GetItem(v,i)));
-    }
-    else result.push_back(getScalarNumber(name));
-    Py_DECREF(v);
-    return result;
-}
-
-std::string MSR::getScalarString(const char *name, PyObject *v) {
-    std::string result;
-    if (PyUnicode_Check(v)) {
-        auto ascii = PyUnicode_AsASCIIString(v);
-        result = PyBytes_AsString(ascii);
-        Py_DECREF(ascii);
-    }
-    else throw std::domain_error(name);
-    return result;
-}
-std::string MSR::getScalarString(const char *name) {
-    std::string result;
-    auto v = PyObject_GetAttrString(arguments, name);
-    result = getScalarString(name,v);
-    Py_DECREF(v);
-    return result;
-}
-std::vector<std::string> MSR::getVectorString(const char *name) {
-    std::vector<std::string> result;
-    auto v = PyObject_GetAttrString(arguments, name);
-    if (PyList_Check(v)) {
-        auto n = PyList_Size(v);
-        result.reserve(n);
-        for (auto i=0; i<n; ++i) result.push_back(getScalarString(name,PyList_GetItem(v,i)));
-    }
-    else result.push_back(getScalarString(name));
-    Py_DECREF(v);
-    return result;
-}
-
-
-/******************************************************************************\
-*   Copy parameters from Python to pkdgrav3 (may go away eventually)
-\******************************************************************************/
-
-static void setNode(PRM_NODE *pn,int i,PyObject *v) {
-    const char *s;
-    switch (pn->iType) {
-    case 0:
-    case 1:
-        assert(pn->iSize == sizeof(int));
-        if (PyLong_Check(v)) ((int *)pn->pValue)[i] = PyLong_AsLong(v);
-        else if (PyFloat_Check(v)) ((int *)pn->pValue)[i] = (int)PyFloat_AsDouble(v);
-        else fprintf(stderr,"Invalid type for %s\n",pn->pszName);
-        break;
-    case 2:
-        assert(pn->iSize == sizeof(double));
-        if (PyFloat_Check(v)) ((double *)pn->pValue)[i] = PyFloat_AsDouble(v);
-        else if (PyLong_Check(v)) ((double *)pn->pValue)[i] = PyLong_AsLong(v);
-        else fprintf(stderr,"Invalid type for %s\n",pn->pszName);
-        break;
-    case 3:
-        if (PyUnicode_Check(v)) {
-            PyObject *ascii = PyUnicode_AsASCIIString(v);
-            s = PyBytes_AsString(ascii);
-            Py_DECREF(ascii);
-        }
-        else {
-            fprintf(stderr,"Invalid type for %s\n",pn->pszName);
-            s = NULL;
-        }
-        if (s!=NULL) {
-            assert(pn->iSize > strlen(s));
-            strcpy((char *)pn->pValue,s);
-        }
-        else *(char *)pn->pValue = 0;
-        break;
-    case 4:
-        assert(pn->iSize == sizeof(uint64_t));
-        ((uint64_t *)pn->pValue)[i] = PyLong_AsLong(v);
-        break;
-    }
-}
-
-static int ppy2prm(PRM prm,PyObject *arguments, PyObject *specified) {
-    int bOK = 1;
-
-    for ( auto pn=prm->pnHead; pn!=NULL; pn=pn->pnNext ) {
-        //auto v = PyDict_GetItemString(arguments, pn->pszName);
-        //auto f = PyDict_GetItemString(specified, pn->pszName);
-        auto v = PyObject_GetAttrString(arguments, pn->pszName); // A Namespace
-        if (v!=NULL) {
-            if (v != Py_None) {
-                auto f = PyObject_GetAttrString(specified, pn->pszName); // A Namespace
-                if (f) { pn->bArg = PyObject_IsTrue(f)>0; Py_DECREF(f); }
-                else pn->bArg = 0;
-                if (PyList_Check(v)) {
-                    if (pn->pCount==NULL) {
-                        fprintf(stderr,"The parameter %s cannot be a list!\n",pn->pszName);
-                        bOK = 0;
-                    }
-                    else {
-                        int i, n = PyList_Size(v);
-                        for (i=0; i<n; ++i) setNode(pn,i,PyList_GetItem(v,i));
-                        *pn->pCount = n;
-                    }
-                }
-                else setNode(pn,0,v);
-            }
-            Py_DECREF(v);
-        }
-        else {PyErr_Clear();}
-    }
-    return bOK;
-}
-
-/******************************************************************************\
 *   Copy parameters from pkdgrav3 to Python (may go away eventually)
 \******************************************************************************/
 
-static void prm2ppy(PRM prm,PyObject *arguments, PyObject *specified) {
-    for ( auto pn=prm->pnHead; pn!=NULL; pn=pn->pnNext ) {
-        if (pn->pCount!=NULL) continue; // Lists are read-only for now
-        PyObject *v;
-
-        switch (pn->iType) {
-        case 0:
-        case 1:
-            v = PyLong_FromLong(*(int *)pn->pValue);
-            break;
-        case 2:
-            v = PyFloat_FromDouble(*(double *)pn->pValue);
-            break;
-        default:
-            v = NULL;
-        }
-        if (v) {
-            PyObject_SetAttrString(arguments,pn->pszName,v);
-            Py_DECREF(v);
-        }
-    }
-}
-
 void MSR::SaveParameters() {
-    prm2ppy(prm,arguments,specified);
+    parameters.prm2ppy(prm);
 }
 
 /******************************************************************************\
@@ -325,7 +143,9 @@ static void ephemeral_dealloc(EPHEMERALINSTANCE *self) {
 
 static PyObject *ephemeral_new(PyTypeObject *type, PyObject *args, PyObject *kwds) {
     auto self = reinterpret_cast<EPHEMERALINSTANCE *>(type->tp_alloc(type, 0));
-    if (self == NULL) { return NULL; }
+    if (self == NULL) {
+        return NULL;
+    }
     // Make a copy of the MSR object
     auto msr_module = PyState_FindModule(&msrModule); // We created this already
     auto moduleState = reinterpret_cast<struct msrModuleState *>(PyModule_GetState(msr_module));
@@ -424,31 +244,10 @@ static PyTypeObject ephemeralType = {
 /********** Set Internal parameters **********/
 
 bool MSR::setParameters(PyObject *kwobj,bool bIgnoreUnknown) {
-    bool bSuccess = true;
-    PyObject *key, *value;
-    Py_ssize_t pos = 0;
     auto allow = PyDict_GetItemString(kwobj,"bIgnoreUnknown");
     if (allow) bIgnoreUnknown = PyObject_IsTrue(allow)>0;
-
-    while (PyDict_Next(kwobj, &pos, &key, &value)) {
-        const char *keyString;
-        if (PyUnicode_Check(key)) {
-            PyObject *ascii = PyUnicode_AsASCIIString(key);
-            keyString = PyBytes_AsString(ascii);
-            Py_DECREF(ascii);
-            if (keyString[0]=='_') continue;
-        }
-        if (PyObject_HasAttr(arguments,key)) {
-            PyObject_SetAttr(arguments,key,value);
-            PyObject_SetAttr(specified,key,Py_True);
-        }
-        else if (!bIgnoreUnknown) {
-            PyErr_Format(PyExc_AttributeError,"invalid parameter %A",key);
-            PyErr_Print();
-            bSuccess=false;
-        }
-    }
-    ppy2prm(prm,arguments,specified);
+    auto bSuccess = parameters.update(kwobj,bIgnoreUnknown);
+    parameters.ppy2prm(prm);
     ValidateParameters();
     return bSuccess;
 }
@@ -525,6 +324,64 @@ ppy_msr_GenerateIC(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
 }
 
 /********** File I/O **********/
+
+static int run_script(MSRINSTANCE *self,const char *filename) {
+    FILE *fp = fopen(filename,"r");
+    if (fp == NULL) {
+        perror(filename);
+        return errno;
+    }
+
+    auto module = PyModule_New("restore");
+    PyModule_AddStringConstant(module, "__file__", "restore.py");
+    PyObject *localDict = PyModule_GetDict(module);
+    PyDict_SetItemString(localDict, "__builtins__", PyEval_GetBuiltins());
+    auto s = PyRun_FileEx(fp,filename,Py_file_input,localDict,localDict,1); // fp is closed on return
+    Py_XDECREF(s);
+    if (PyErr_Occurred()) {
+        int rc = 1;
+        if (PyErr_ExceptionMatches(PyExc_SystemExit)) {
+            PyObject *etype, *evalue, *etrace;
+            PyErr_Fetch(&etype, &evalue, &etrace);
+            if (auto o = PyNumber_Long(evalue)) {
+                rc = PyLong_AsLong(o);
+                Py_DECREF(o);
+            }
+            Py_DECREF(etype);
+            Py_DECREF(evalue);
+            Py_DECREF(etrace);
+        }
+        else PyErr_Print();
+        return rc;
+    }
+    return 0;
+}
+
+
+static PyObject *
+ppy_msr_load_checkpoint(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    flush_std_files();
+    static char const *kwlist[]= {"",NULL};
+    const char *fname;
+
+    if (kwobj) {
+        if (!PyArg_ValidateKeywordArguments(kwobj)) return NULL;
+        if (!self->msr->parameters.verify(kwobj)) {
+            return PyErr_Format(PyExc_AttributeError,"invalid parameters specified to load_checkpoint");
+        }
+    }
+    if ( !PyArg_ParseTupleAndKeywords(
+                args, nullptr, "s:load_checkpoint", const_cast<char **>(kwlist),
+                &fname ) )
+        return NULL;
+
+    self->msr->setAnalysisMode(kwobj);
+    run_script(self,fname);
+    self->msr->setAnalysisMode(false);
+
+    // return Py_BuildValue("d", dTime );
+    Py_RETURN_NONE;
+}
 
 static PyObject *
 ppy_msr_Load(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
@@ -610,26 +467,30 @@ ppy_msr_Restart(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     MSR *msr = self->msr;
     static char const *kwlist[]= {"arguments","specified","species","classes","n","name","step","steps","time","delta","E","U", "Utime", NULL};
     PyObject *species, *classes;
+    PyObject *arguments, *specified;
     int n, iStep, nSteps;
     const char *name;
     double dTime, dDelta;
     if ( !PyArg_ParseTupleAndKeywords(
                 args, kwobj, "OOOOisiiddddd:Restart", const_cast<char **>(kwlist),
-                &msr->arguments,&msr->specified,&species,&classes,&n,&name,
+                &arguments,&specified,&species,&classes,&n,&name,
                 &iStep,&nSteps,&dTime,&dDelta,&msr->dEcosmo,&msr->dUOld, &msr->dTimeOld ) )
         return NULL;
+
+    msr->parameters.merge(pkd_parameters(arguments,specified));
+    Py_DECREF(arguments);
+    Py_DECREF(specified);
 
     // Create a vector of number of species
     species = PySequence_Fast(species,"species must be a list");
     int nSpecies = PySequence_Fast_GET_SIZE(species);
-    std::vector<uint64_t> vecSpecies;
-    vecSpecies.reserve(nSpecies);
+    assert(nSpecies==5);
+    uint64_t vecSpecies[nSpecies];
     for (auto i=0; i < nSpecies; ++i) {
         PyObject *item = PySequence_Fast_GET_ITEM(species, i);
-        vecSpecies.push_back(PyNumber_AsSsize_t(item,NULL));
+        vecSpecies[i] = PyNumber_AsSsize_t(item,NULL);
     }
     Py_DECREF(species); // PySequence_Fast creates a new reference
-    assert(vecSpecies.size()==5);
     msr->N     = vecSpecies[0];
     msr->nDark = vecSpecies[1];
     msr->nGas  = vecSpecies[2];
@@ -643,19 +504,20 @@ ppy_msr_Restart(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     for (auto i=0; i < nClasses; ++i) {
         PyObject *item = PySequence_Fast_GET_ITEM(classes, i);
         auto cls = PySequence_Fast(item,"class entry must be a list");
-        assert(PySequence_Fast_GET_SIZE(cls)==3);
+        assert(PySequence_Fast_GET_SIZE(cls)==4);
         PyObject *itemSpecies = PySequence_Fast_GET_ITEM(cls, 0);
         PyObject *itemMass    = PySequence_Fast_GET_ITEM(cls, 1);
         PyObject *itemSoft    = PySequence_Fast_GET_ITEM(cls, 2);
+        PyObject *itemiMat    = PySequence_Fast_GET_ITEM(cls, 3);
         msr->aCheckpointClasses[i].eSpecies = (FIO_SPECIES)PyNumber_AsSsize_t(itemSpecies,NULL);
         msr->aCheckpointClasses[i].fMass = PyFloat_AsDouble(itemMass);
         msr->aCheckpointClasses[i].fSoft = PyFloat_AsDouble(itemSoft);
+        msr->aCheckpointClasses[i].iMat  = PyNumber_AsSsize_t(itemiMat,NULL);
         Py_DECREF(cls); // PySequence_Fast creates a new reference
     }
     Py_DECREF(classes); // PySequence_Fast creates a new reference
 
-    ppy2prm(msr->prm,msr->arguments,msr->specified);
-
+    msr->parameters.ppy2prm(msr->prm);
     msr->Restart(n, name, iStep, nSteps, dTime, dDelta);
 
     Py_RETURN_NONE;
@@ -715,7 +577,8 @@ ppy_msr_Gravity(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     static char const *kwlist[]= {"time","delta","theta","rung","ewald","step","KickClose","KickOpen", "onlyMarked", NULL};
     double dTime = 0.0;
     double dDelta = 0.0;
-    double dTheta = msr->param.dTheta;
+    // double dTheta = msr->param.dTheta;
+    double dTheta = 0.7;
 
     int bEwald = msr->param.bEwald;
     int iRungLo    = 0;
@@ -723,7 +586,6 @@ ppy_msr_Gravity(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     int iRoot1 = ROOT;
     int iRoot2 = 0;
     double dStep = 0.0;
-    //double dTheta = msr->getParameterDouble("dTheta");
     int bKickOpen = 1;
     int bKickClose = 1;
     int onlyMarked = 0;
@@ -735,7 +597,7 @@ ppy_msr_Gravity(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     if (onlyMarked) iRoot2 = FIXROOT;
 
     SPHOptions SPHoptions = initializeSPHOptions(msr->param,msr->csm,dTime);
-    SPHoptions.doGravity = 1;
+    SPHoptions.doGravity = msr->param.bDoGravity;
     uint8_t uRungMax = msr->Gravity(iRungLo,iRungHi,iRoot1,iRoot2,dTime,dDelta,dStep,dTheta,bKickClose,bKickOpen,bEwald,
                                     msr->param.bGravStep, msr->param.nPartRhoLoc, msr->param.iTimeStepCrit, msr->param.nGroup, SPHoptions);
     return Py_BuildValue("i", uRungMax);
@@ -760,6 +622,23 @@ ppy_msr_Smooth(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
         return NULL;
     if (bResmooth) self->msr->ReSmooth(dTime,dDelta,iSmoothType,bSymmetric);
     else self->msr->Smooth(dTime,dDelta,iSmoothType,bSymmetric,nSmooth);
+    Py_RETURN_NONE;
+}
+
+/********** Algorithms: FoF **********/
+
+static PyObject *
+ppy_msr_Fof(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    flush_std_files();
+    static char const *kwlist[]= {"tau","minmembers",NULL};
+    double dTau;
+    int nMinMembers = 10;
+    if ( !PyArg_ParseTupleAndKeywords(
+                args, kwobj, "d|i:Fof", const_cast<char **>(kwlist),
+                &dTau,&nMinMembers) )
+        return NULL;
+    self->msr->NewFof(dTau,nMinMembers);
+    self->msr->GroupStats();  /* we need to call this if we want to have global group ids for each particle! */
     Py_RETURN_NONE;
 }
 
@@ -934,16 +813,18 @@ ppy_msr_grid_bin_k(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
 static PyObject *
 ppy_msr_MeasurePk(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     flush_std_files();
-    static char const *kwlist[]= {"grid","bins","a",NULL};
+    static char const *kwlist[]= {"grid","bins","a","interlace","order",NULL};
     double a = 1.0;
     int nBins = -1;
+    int bInterlace = 1;
+    int iOrder = 4;
     int nGrid, i;
     std::vector<float> fK,fPk,fPkAll;
     std::vector<uint64_t> nK;
 
     if ( !PyArg_ParseTupleAndKeywords(
-                args, kwobj, "i|id:MeasurePk", const_cast<char **>(kwlist),
-                &nGrid, &nBins, &a ) )
+                args, kwobj, "i|idpi:MeasurePk", const_cast<char **>(kwlist),
+                &nGrid, &nBins, &a, &bInterlace ) )
         return NULL;
     if (nBins<0) nBins = nGrid/2;
 
@@ -951,7 +832,7 @@ ppy_msr_MeasurePk(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     fPkAll.resize(nBins+1);
     fK.resize(nBins+1);
     nK.resize(nBins+1);
-    self->msr->MeasurePk(4,1,nGrid,a,nBins,nK.data(),fK.data(),fPk.data(),fPkAll.data());
+    self->msr->MeasurePk(iOrder,bInterlace,nGrid,a,nBins,nK.data(),fK.data(),fPk.data(),fPkAll.data());
     auto ListK = PyList_New( nBins+1 );
     auto ListPk = PyList_New( nBins+1 );
     auto ListPkAll = PyList_New( nBins+1 );
@@ -988,7 +869,7 @@ ppy_msr_MarkSpecies(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     PyObject *species;
     int setIfTrue=1, clearIfFalse=1;
     if ( !PyArg_ParseTupleAndKeywords(
-                args, kwobj, "O|pp:MarkSpecies", const_cast<char **>(kwlist),
+                args, kwobj, "O|ii:MarkSpecies", const_cast<char **>(kwlist),
                 &species, &setIfTrue, &clearIfFalse ) )
         return NULL;
     uint64_t mSpecies = 0;
@@ -1021,7 +902,7 @@ ppy_msr_MarkBox(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     double center[3], size[3];
     int setIfTrue=1, clearIfFalse=1;
     if ( !PyArg_ParseTupleAndKeywords(
-                args, kwobj, "(ddd)(ddd)|pp:MarkBox", const_cast<char **>(kwlist),
+                args, kwobj, "(ddd)(ddd)|ii:MarkBox", const_cast<char **>(kwlist),
                 &center[0], &center[1], &center[2], &size[0], &size[1], &size[2], &setIfTrue, &clearIfFalse ) )
         return NULL;
     auto n = self->msr->SelBox(center,size,setIfTrue,clearIfFalse);
@@ -1035,7 +916,7 @@ ppy_msr_MarkSphere(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     double center[3], radius;
     int setIfTrue=1, clearIfFalse=1;
     if ( !PyArg_ParseTupleAndKeywords(
-                args, kwobj, "(ddd)d|pp:MarkSphere", const_cast<char **>(kwlist),
+                args, kwobj, "(ddd)d|ii:MarkSphere", const_cast<char **>(kwlist),
                 &center[0], &center[1], &center[2], &radius, &setIfTrue, &clearIfFalse ) )
         return NULL;
     auto n = self->msr->SelSphere(center,radius,setIfTrue,clearIfFalse);
@@ -1049,7 +930,7 @@ ppy_msr_MarkCylinder(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     double point1[3], point2[3], radius;
     int setIfTrue=1, clearIfFalse=1;
     if ( !PyArg_ParseTupleAndKeywords(
-                args, kwobj, "(ddd)(ddd)d|pp:MarkCylinder", const_cast<char **>(kwlist),
+                args, kwobj, "(ddd)(ddd)d|ii:MarkCylinder", const_cast<char **>(kwlist),
                 &point1[0], &point1[1], &point1[2], &point2[0], &point2[1], &point2[2], &radius, &setIfTrue, &clearIfFalse ) )
         return NULL;
     auto n = self->msr->SelCylinder(point1,point2,radius,setIfTrue,clearIfFalse);
@@ -1062,11 +943,86 @@ ppy_msr_MarkBlackholes(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     static char const *kwlist[]= {"setIfTrue","clearIfFalse",NULL};
     int setIfTrue=1, clearIfFalse=1;
     if ( !PyArg_ParseTupleAndKeywords(
-                args, kwobj, "|pp:MarkBlackholes", const_cast<char **>(kwlist),
+                args, kwobj, "|ii:MarkBlackholes", const_cast<char **>(kwlist),
                 &setIfTrue, &clearIfFalse ) )
         return NULL;
     auto n = self->msr->SelBlackholes(setIfTrue,clearIfFalse);
     return Py_BuildValue("L",n);
+}
+
+/********** Analysis: Rockstar tools **********/
+
+#ifdef HAVE_ROCKSTAR
+static PyObject *
+ppy_msr_rs_halo_load_ids(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    flush_std_files();
+    static char const *kwlist[]= {"filename","append",NULL};
+    const char *fname;
+    int bAppend = 0;
+
+    if ( !PyArg_ParseTupleAndKeywords(
+                args, kwobj, "s|p:rs_halo_load_ids", const_cast<char **>(kwlist),
+                &fname, &bAppend ) )
+        return NULL;
+    self->msr->RsHaloLoadIds(fname,bAppend);
+    Py_RETURN_NONE;
+}
+#endif
+
+static PyObject *
+ppy_msr_rs_load_ids(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    flush_std_files();
+    static char const *kwlist[]= {"filename","append",NULL};
+    const char *fname;
+    int bAppend = 0;
+
+    if ( !PyArg_ParseTupleAndKeywords(
+                args, kwobj, "s|p:rs_load_ids", const_cast<char **>(kwlist),
+                &fname, &bAppend ) )
+        return NULL;
+    self->msr->RsLoadIds(fname,bAppend);
+    Py_RETURN_NONE;
+}
+
+static PyObject *
+ppy_msr_rs_save_ids(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    flush_std_files();
+    static char const *kwlist[]= {"filename",NULL};
+    const char *fname;
+
+    if ( !PyArg_ParseTupleAndKeywords(
+                args, kwobj, "s:rs_save_ids", const_cast<char **>(kwlist),
+                &fname ) )
+        return NULL;
+    self->msr->RsSaveIds(fname);
+    Py_RETURN_NONE;
+}
+
+static PyObject *
+ppy_msr_rs_reorder_ids(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    flush_std_files();
+    static char const *kwlist[]= {NULL};
+
+    if ( !PyArg_ParseTupleAndKeywords(
+                args, kwobj, ":rs_reorder_ids", const_cast<char **>(kwlist)
+            ) )
+        return NULL;
+    self->msr->RsReorderIds();
+    Py_RETURN_NONE;
+}
+
+static PyObject *
+ppy_msr_rs_extract(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
+    flush_std_files();
+    static char const *kwlist[]= {"filename",NULL};
+    const char *fname;
+
+    if ( !PyArg_ParseTupleAndKeywords(
+                args, kwobj, "s:rs_extract", const_cast<char **>(kwlist),
+                &fname) )
+        return NULL;
+    self->msr->RsExtract(fname);
+    Py_RETURN_NONE;
 }
 
 /********** Analysis: Retrieve the values for all particles (DANGER! not memory friendly) **********/
@@ -1090,17 +1046,38 @@ ppy_msr_GetArray(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     N[0] = self->msr->N;
     N[1] = 1;
     switch (field) {
-    case oPosition:     N[1]=3; typenum = NPY_FLOAT64; iUnitSize = sizeof(double);  break;
-    case oAcceleration: N[1]=3; break;
-    case oVelocity:     N[1]=3; break;
-    case oPotential:    break;
-    case oGroup:                 typenum = NPY_UINT32; iUnitSize = sizeof(uint32_t); break;
-    case oMass:         break;
-    case oSoft:         break;
-    case oDensity:      break;
-    case oBall:         break;
-    case oParticleID:            typenum = NPY_UINT64; iUnitSize = sizeof(uint64_t); break;
-    default: abort();
+    case PKD_FIELD::oPosition:
+        N[1]=3;
+        typenum = NPY_FLOAT64;
+        iUnitSize = sizeof(double);
+        break;
+    case PKD_FIELD::oAcceleration:
+        N[1]=3;
+        break;
+    case PKD_FIELD::oVelocity:
+        N[1]=3;
+        break;
+    case PKD_FIELD::oPotential:
+        break;
+    case PKD_FIELD::oGroup:
+        typenum = NPY_UINT32;
+        iUnitSize = sizeof(uint32_t);
+        break;
+    case PKD_FIELD::oMass:
+        break;
+    case PKD_FIELD::oSoft:
+        break;
+    case PKD_FIELD::oDensity:
+        break;
+    case PKD_FIELD::oBall:
+        break;
+    case PKD_FIELD::oParticleID:
+    case PKD_FIELD::oGlobalGid:
+        typenum = NPY_UINT64;
+        iUnitSize = sizeof(uint64_t);
+        break;
+    default:
+        abort();
 //  oSph, /* Sph structure */
 //  oStar, /* Star structure */
 //  oRelaxation,
@@ -1169,6 +1146,10 @@ static PyMethodDef msr_methods[] = {
         "Generate Initial Condition"
     },
 
+    {
+        "load_checkpoint", (PyCFunction)ppy_msr_load_checkpoint, METH_VARARGS|METH_KEYWORDS,
+        "Load an checkpoint file"
+    },
     {
         "Load", (PyCFunction)ppy_msr_Load, METH_VARARGS|METH_KEYWORDS,
         "Load an input file"
@@ -1254,6 +1235,10 @@ static PyMethodDef msr_methods[] = {
         "Add the linear signal to the existing grid"
     },
     {
+        "Fof", (PyCFunction)ppy_msr_Fof, METH_VARARGS|METH_KEYWORDS,
+        "Friends-of-friends group finder"
+    },
+    {
         "MeasurePk", (PyCFunction)ppy_msr_MeasurePk, METH_VARARGS|METH_KEYWORDS,
         "Measure the power spectrum"
     },
@@ -1290,6 +1275,28 @@ static PyMethodDef msr_methods[] = {
         "MarkBlackholes", (PyCFunction)ppy_msr_MarkBlackholes, METH_VARARGS|METH_KEYWORDS,
         "Marks all blackholes"
     },
+#ifdef HAVE_ROCKSTAR
+    {
+        "rs_halo_load_ids", (PyCFunction)ppy_msr_rs_halo_load_ids, METH_VARARGS|METH_KEYWORDS,
+        "Load IDs from halo files for Rockstar processing"
+    },
+#endif
+    {
+        "rs_load_ids", (PyCFunction)ppy_msr_rs_load_ids, METH_VARARGS|METH_KEYWORDS,
+        "Load IDs for Rockstar processing"
+    },
+    {
+        "rs_save_ids", (PyCFunction)ppy_msr_rs_save_ids, METH_VARARGS|METH_KEYWORDS,
+        "Save IDs for Rockstar processing"
+    },
+    {
+        "rs_reorder_ids", (PyCFunction)ppy_msr_rs_reorder_ids, METH_VARARGS|METH_KEYWORDS,
+        "Reorder IDs for Rockstar processing"
+    },
+    {
+        "rs_extract", (PyCFunction)ppy_msr_rs_extract, METH_VARARGS|METH_KEYWORDS,
+        "Extract particles that match IDs for Rockstar processing"
+    },
 #ifdef USE_NUMPY
     {
         "GetArray", (PyCFunction)ppy_msr_GetArray, METH_VARARGS|METH_KEYWORDS,
@@ -1309,7 +1316,9 @@ static void msr_dealloc(MSRINSTANCE *self) {
 
 static PyObject *msr_new(PyTypeObject *type, PyObject *args, PyObject *kwds) {
     MSRINSTANCE *self = reinterpret_cast<MSRINSTANCE *>(type->tp_alloc(type, 0));
-    if (self == NULL) { return NULL; }
+    if (self == NULL) {
+        return NULL;
+    }
     // Make a copy of the MSR object
     auto msr_module = PyState_FindModule(&msrModule); // We created this already
     auto moduleState = reinterpret_cast<struct msrModuleState *>(PyModule_GetState(msr_module));
@@ -1326,13 +1335,15 @@ static PyMemberDef msr_members[] = {
 };
 
 static PyObject *msr_get_parm(MSRINSTANCE *self, void *) {
-    Py_INCREF(self->msr->arguments);
-    return self->msr->arguments;
+    auto a = self->msr->parameters.get_arguments();
+    Py_INCREF(a);
+    return a;
 }
 
 static PyObject *msr_get_spec(MSRINSTANCE *self, void *) {
-    Py_INCREF(self->msr->specified);
-    return self->msr->specified;
+    auto s = self->msr->parameters.get_specified();
+    Py_INCREF(s);
+    return s;
 }
 
 // This warning should be fixed in newer Python versions
@@ -1445,103 +1456,49 @@ void MSR::runAnalysis(int iStep,double dTime) {
 *   Setup MSR using Python to parse parameters / enter analysis mode
 \******************************************************************************/
 
-bool MSR::wasParameterSpecified(const char *name) const {
-    bool bSpecified = false;
-    if (auto f = PyObject_GetAttrString(specified,name)) {
-        bSpecified = PyObject_IsTrue(f)>0;
-        Py_DECREF(f);
-    }
-    return bSpecified;
-}
-
-bool MSR::getParameterBoolean(const char *name) const {
-    bool v = false;
-    if (auto o = PyObject_GetAttrString(arguments,name)) {
-        v = PyObject_IsTrue(o)>0;
-        Py_DECREF(o);
-    }
-    if (PyErr_Occurred()) { PyErr_Print(); abort(); }
-    return v;
-}
-void MSR::setParameter(const char *name,bool v,int bSpecified) {
-    auto o = v ? Py_True : Py_False;
-    PyObject_SetAttrString(arguments,name,o);
-    if (bSpecified) {
-        Py_INCREF(Py_True);
-        PyObject_SetAttrString(specified,name,Py_True);
-    }
-    if (PyErr_Occurred()) { PyErr_Print(); abort(); }
-}
-
-
-double MSR::getParameterDouble(const char *name) const {
-    double v = 0.0;
-    if (auto n = PyObject_GetAttrString(arguments,name)) {
-        if (auto o = PyNumber_Float(n)) {
-            v = PyFloat_AsDouble(o);
-            Py_DECREF(o);
-        }
-        Py_DECREF(n);
-    }
-    if (PyErr_Occurred()) { PyErr_Print(); abort(); }
-    return v;
-}
-void MSR::setParameter(const char *name,double v,int bSpecified) {
-    auto o = PyFloat_FromDouble(v);
-    //v = PyLong_FromLong(*(int *)pn->pValue);
-    if (o) {
-        PyObject_SetAttrString(arguments,name,o);
-        Py_DECREF(o);
-        if (bSpecified) {
-            Py_INCREF(Py_True);
-            PyObject_SetAttrString(specified,name,Py_True);
-        }
-    }
-    if (PyErr_Occurred()) { PyErr_Print(); abort(); }
-}
-
-long long MSR::getParameterLongLong(const char *name) const {
-    long long v = 0;
-    if (auto n = PyObject_GetAttrString(arguments,name)) {
-        if (auto o = PyNumber_Long(n)) {
-            v = PyLong_AsLongLong(o);
-            Py_DECREF(o);
-        }
-        Py_DECREF(n);
-    }
-    if (PyErr_Occurred()) { PyErr_Print(); abort(); }
-    return v;
-}
-void MSR::setParameter(const char *name,long long v,int bSpecified) {
-    auto o = PyLong_FromLongLong(v);
-    if (o) {
-        PyObject_SetAttrString(arguments,name,o);
-        Py_DECREF(o);
-        if (bSpecified) {
-            Py_INCREF(Py_True);
-            PyObject_SetAttrString(specified,name,Py_True);
-        }
-    }
-    if (PyErr_Occurred()) { PyErr_Print(); abort(); }
-}
-
 extern "C" PyObject *PyInit_CSM(void);
+extern "C" PyObject *PyInit_accuracy(void);
 
 int MSR::Python(int argc, char *argv[]) {
     PyImport_AppendInittab(MASTER_MODULE_NAME,initModuleMSR);
     PyImport_AppendInittab("CSM",PyInit_CSM);
-
+    PyImport_AppendInittab("parse", PyInit_parse);
+    PyImport_AppendInittab("checkpoint", PyInit_checkpoint);
+    PyImport_AppendInittab("accuracy", PyInit_accuracy);
+#if PY_MAJOR_VERSION>3 || (PY_MAJOR_VERSION==3&&PY_MINOR_VERSION>=8)
+    PyStatus status;
+    PyConfig config;
+    PyConfig_InitPythonConfig(&config);
+    PyConfig_Read(&config);
+    config.site_import = 1;
+    config.user_site_directory = 1;
+    config.parse_argv = 0;
+    status = PyConfig_SetBytesArgv(&config, argc, argv);
+#endif
     // I don't like this, but it works for pyenv. See:
     //   https://bugs.python.org/issue22213
     //   https://www.python.org/dev/peps/pep-0432/
     auto PYENV_VIRTUAL_ENV = getenv("PYENV_VIRTUAL_ENV");
     if (PYENV_VIRTUAL_ENV) {
-        std::string path = PYENV_VIRTUAL_ENV;
-        path += "/bin/python";
-        Py_SetProgramName(Py_DecodeLocale(path.c_str(),NULL));
+        std::string exec = PYENV_VIRTUAL_ENV;
+        exec += "/bin/python";
+#if PY_MAJOR_VERSION>3 || (PY_MAJOR_VERSION==3&&PY_MINOR_VERSION>=8)
+        status = PyConfig_SetBytesString(&config,&config.program_name,exec.c_str());
+#else
+        Py_SetProgramName(Py_DecodeLocale(exec.c_str(),NULL));
+#endif
     }
+#if PY_MAJOR_VERSION>3 || (PY_MAJOR_VERSION==3&&PY_MINOR_VERSION>=8)
+    status = Py_InitializeFromConfig(&config);
+    PyConfig_Clear(&config);
+#else
     Py_InitializeEx(0);
-
+    // Convert program arguments to unicode
+    auto wargv = new wchar_t *[argc];
+    for (int i=0; i<argc; ++i) wargv[i] = Py_DecodeLocale(argv[i],NULL);
+    PySys_SetArgv(argc, wargv);
+    delete[] wargv;
+#endif
     // Contruct the "MSR" context and module
     auto msr_module = PyModule_Create(&msrModule);
     PyState_AddModule(msr_module,&msrModule);
@@ -1550,44 +1507,42 @@ int MSR::Python(int argc, char *argv[]) {
     moduleState->msr = this;
     moduleState->bImported = false; // If imported then we enter script mode
 
-    // Convert program arguments to unicode
-    auto wargv = new wchar_t *[argc];
-    for (int i=0; i<argc; ++i) wargv[i] = Py_DecodeLocale(argv[i],NULL);
-    PySys_SetArgv(argc, wargv);
-    delete[] wargv;
-
     PyObject *main_module = PyImport_ImportModule("__main__");
     auto globals = PyModule_GetDict(main_module);
     auto locals = globals;
     PyDict_SetItemString(globals, "__builtins__",PyEval_GetBuiltins());
 
+
+    if (!PyImport_ImportModule("checkpoint")) {
+        PyErr_Print();
+        abort();
+    }
+
     // Parse the command line
-    auto PARSE = PyModule_New("parse");
-    PyModule_AddStringConstant(PARSE, "__file__", "parse.py");
-    PyObject *localDict = PyModule_GetDict(PARSE);
-    PyDict_SetItemString(localDict, "__builtins__", PyEval_GetBuiltins());
-    PyObject *pyValue = PyRun_String(parse_py, Py_file_input, localDict, localDict);
-    Py_XDECREF(pyValue);
-    PyObject *parse = PyObject_GetAttrString(PARSE, "parse");
-    if (!PyCallable_Check(parse)) { fprintf(stderr,"INTERNAL ERROR: parse.parse() MUST be callable\n"); abort(); }
-    PyObject *update = PyObject_GetAttrString(PARSE, "update");
-    if (!PyCallable_Check(update)) { fprintf(stderr,"INTERNAL ERROR: parse.update() MUST be callable\n"); abort(); }
-    PyObject *result= PyObject_CallObject(parse,NULL);
-    if (PyErr_Occurred()) { PyErr_Print(); exit(1); }
+    auto PARSE = PyImport_ImportModule("parse");
+    if (!PARSE) {
+        PyErr_Print();
+        abort();
+    }
+    auto result = parse();
+    if (!result) {
+        PyErr_Print();
+        abort();
+    }
     // Retrieve the results
     int n = PyTuple_Size(result);
-    if (n!=2) { fprintf(stderr,"INTERNAL ERROR: parse.parse() MUST return a tuple\n"); abort(); }
-    Py_XDECREF(arguments);
-    arguments = PyTuple_GetItem(result,0); /* Values of each parameter */
-    Py_INCREF(arguments);
-    Py_XDECREF(specified);
-    specified = PyTuple_GetItem(result,1); /* If it was explicitely specified */
-    Py_INCREF(specified);
+    if (n!=2) {
+        fprintf(stderr,"INTERNAL ERROR: parse.parse() MUST return a tuple\n");
+        abort();
+    }
+    auto arguments = PyTuple_GetItem(result,0);         // Borrowed: Values of each parameter
+    auto specified = PyTuple_GetItem(result,1);         // Borrowed: If it was explicitely specified
+    parameters = pkd_parameters(arguments,specified);   // This will take ownership
     Py_DECREF(result);
     PyObject *script = PyObject_GetAttrString(arguments,"script");
 
-    ppy2prm(prm,arguments,specified); // Update the pkdgrav parameter state
-    bVDetails = getParameterBoolean("bVDetails");
+    parameters.ppy2prm(prm); // Update the pkdgrav parameter state
+    bVDetails = parameters.get_bVDetails();
 
     // If a script was specified then we run it.
     if (script != Py_None) {
@@ -1597,9 +1552,15 @@ int MSR::Python(int argc, char *argv[]) {
             filename = PyBytes_AsString(ascii);
             Py_DECREF(ascii);
         }
-        else { fprintf(stderr,"INTERNAL ERROR: script filename is invalid\n"); abort(); }
+        else {
+            fprintf(stderr,"INTERNAL ERROR: script filename is invalid\n");
+            abort();
+        }
         FILE *fp = fopen(filename,"r");
-        if (fp == NULL) { perror(filename); exit(errno); }
+        if (fp == NULL) {
+            perror(filename);
+            exit(errno);
+        }
         auto s = PyRun_FileEx(fp,filename,Py_file_input,globals,locals,1); // fp is closed on return
         Py_XDECREF(s);
         if (PyErr_Occurred()) {
@@ -1623,14 +1584,20 @@ int MSR::Python(int argc, char *argv[]) {
 
     // If "MASTER" was imported then we are done -- the script should have done its job
     if (!moduleState->bImported) { // We must prepare for a normal legacy execution
-        PyObject *args = PyTuple_New(3);
-        PyTuple_SetItem(args,0,locals);
-        PyTuple_SetItem(args,1,arguments);
-        PyTuple_SetItem(args,2,specified);
-        PyObject_CallObject(update,args); // Copy and variables into the arguments Namespace
-        if (PyErr_Occurred()) { PyErr_Print(); exit(1); }
-        ppy2prm(prm,arguments,specified); // Update the pkdgrav parameter state
-        bVDetails = getParameterBoolean("bVDetails");
+        if (!parameters.verify(locals)) {
+            PyErr_Print();
+            fprintf(stderr,
+                    "To avoid accidentially mistyping parameter names, you must prefix any additional\n"
+                    "variables with an underscore. Verify the above listed variables/parameters.\n");
+            exit(1);
+        }
+        update(locals,arguments,specified);
+        if (PyErr_Occurred()) {
+            PyErr_Print();
+            exit(1);
+        }
+        parameters.ppy2prm(prm); // Update the pkdgrav parameter state
+        bVDetails = parameters.get_bVDetails();
     }
 
     return moduleState->bImported ? 0 : -1;

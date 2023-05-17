@@ -1,5 +1,8 @@
-cmake_minimum_required(VERSION 3.6)
-cmake_policy(VERSION 3.6...3.14)
+cmake_minimum_required(VERSION 3.8)
+cmake_policy(VERSION 3.8...3.22)
+include(CheckLanguage)
+include(CheckFunctionExists)
+include(CheckCXXCompilerFlag)
 
 # cmake uses -isysroot to specify the SDK, but this removes /usr/local/lib
 # from consideration. We need this for the dependant libraries of Python3,
@@ -13,16 +16,11 @@ project(pkdgrav3 VERSION 3.1.2)
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/mdl2)
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR})
 
-include(CheckFunctionExists)
-
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   message(STATUS "Release build with debug info selected")
   set(CMAKE_BUILD_TYPE RelWithDebInfo)
-  set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -Wall ")
-  set(CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELWITHDEBINFO} -Wall ")
 endif()
 
-include(CheckCXXCompilerFlag)
 
 set(TARGET_ARCHITECTURE "auto" CACHE STRING "CPU architecture to optimize for.")
 if(TARGET_ARCHITECTURE STREQUAL "auto")
@@ -30,29 +28,25 @@ if(TARGET_ARCHITECTURE STREQUAL "auto")
   if (COMPILER_OPT_ARCH_NATIVE_SUPPORTED)
     add_compile_options(-march=native)
   endif()
-  CHECK_CXX_COMPILER_FLAG("/arch:AVX" COMPILER_OPT_ARCH_AVX_SUPPORTED)
-  if (COMPILER_OPT_ARCH_AVX_SUPPORTED)
-    add_compile_options(/arch:AVX)
+  if (CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
+    CHECK_CXX_COMPILER_FLAG("/arch:AVX" COMPILER_OPT_ARCH_AVX_SUPPORTED)
+    if (COMPILER_OPT_ARCH_AVX_SUPPORTED)
+      add_compile_options(/arch:AVX)
+    endif(COMPILER_OPT_ARCH_AVX_SUPPORTED)
   endif()
 else()
     add_compile_options(-march=${TARGET_ARCHITECTURE})
 endif()
 CHECK_CXX_COMPILER_FLAG("-Wall" COMPILER_OPT_WARN_ALL_SUPPORTED)
 if (COMPILER_OPT_WARN_ALL_SUPPORTED)
-  set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wall")
-  set(CMAKE_C_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wall")
-endif()
-
-option(WITH_CUDA "Enable CUDA compilation by default" ON) #ON by default
-if(WITH_CUDA)
-  if(CMAKE_VERSION VERSION_GREATER "3.17.0")
-    find_package(CUDAToolkit)
-  else()
-    message(WARNING "Using old FindCUDA, consider updating cmake.")
-    find_package(CUDA)
-  endif()
-endif()
-
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wall")
+    set(CMAKE_C_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wall")
+    CHECK_CXX_COMPILER_FLAG("-Wno-sign-compare" COMPILER_OPT_WARN_NO_SIGN_COMPARE_SUPPORTED)
+    if(COMPILER_OPT_WARN_NO_SIGN_COMPARE_SUPPORTED)
+        set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wno-sign-compare")
+        set(CMAKE_C_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wno-sign-compare")
+    endif(COMPILER_OPT_WARN_NO_SIGN_COMPARE_SUPPORTED)
+endif(COMPILER_OPT_WARN_ALL_SUPPORTED)
 find_package(Git)
 if(Git_FOUND)
   execute_process(
@@ -131,7 +125,6 @@ CHECK_INCLUDE_FILES (sys/time.h HAVE_SYS_TIME_H)
 CHECK_INCLUDE_FILES (sys/stat.h HAVE_SYS_STAT_H)
 CHECK_INCLUDE_FILES (sys/param.h HAVE_SYS_PARAM_H)
 CHECK_INCLUDE_FILES (unistd.h HAVE_UNISTD_H)
-CHECK_INCLUDE_FILES (inttypes.h HAVE_INTTYPES_H)
 CHECK_INCLUDE_FILES(rpc/types.h HAVE_RPC_TYPES_H)
 CHECK_INCLUDE_FILES(rpc/xdr.h HAVE_RPC_XDR_H)
 
@@ -165,12 +158,24 @@ check_symbol_exists(atexit stdlib.h HAVE_ATEXIT)
 add_subdirectory(fmt)
 add_subdirectory(blitz)
 add_subdirectory(mdl2)
+add_subdirectory(cuda)
+add_subdirectory(metal)
 add_subdirectory(tests)
 
 add_custom_command(
-    OUTPUT ${CMAKE_BINARY_DIR}/m_parse.h
-    MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/parse.py
-    COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/make_parse.py ${CMAKE_SOURCE_DIR}/parse.py ${CMAKE_BINARY_DIR}/m_parse.h
+    OUTPUT ${CMAKE_BINARY_DIR}/parse.pyx ${CMAKE_BINARY_DIR}/parse.cpp
+    MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/parameters.toml
+    DEPENDS ${CMAKE_SOURCE_DIR}/make_parse.py
+    COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/make_parse.py ${CMAKE_SOURCE_DIR}/parameters.toml ${CMAKE_BINARY_DIR}/parse.pyx
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    VERBATIM
+)
+
+add_custom_command(
+    OUTPUT ${CMAKE_BINARY_DIR}/pkd_parameters.h
+    MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/parameters.toml
+    DEPENDS ${CMAKE_SOURCE_DIR}/make_parameters.py
+    COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/make_parameters.py ${CMAKE_SOURCE_DIR}/parameters.toml ${CMAKE_BINARY_DIR}/pkd_parameters.h
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     VERBATIM
 )
@@ -184,25 +189,47 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 )
 set_property(TARGET ${PROJECT_NAME} APPEND PROPERTY COMPILE_DEFINITIONS _LARGEFILE_SOURCE)
 target_sources(${PROJECT_NAME} PRIVATE
-	main.cxx cosmo.c master.cxx simulate.cxx pst.c TraversePST.cxx io/fio.c core/illinois.c param.c
-	pkd.c analysis.c smooth/smooth.c smooth/smoothfcn.c io/outtype.c io/output.cxx
-	gravity/walk2.cxx gravity/grav2.cxx gravity/ewald.cxx ic/ic.cxx domains/tree.cxx gravity/opening.cxx gravity/pp.cxx gravity/pc.cxx gravity/cl.c
-	lst.c gravity/moments.c ilp.c ilc.c io/iomodule.c SPHOptions.c
+	main.cxx cosmo.c master.cxx simulate.cxx pst.cxx TraversePST.cxx io/fio.c core/illinois.c param.c pyrameters.cxx ${CMAKE_BINARY_DIR}/pkd_parameters.h
+	pkd.cxx analysis/analysis.cxx smooth/smooth.cxx smooth/smoothfcn.cxx io/outtype.cxx io/output.cxx io/service.cxx
+	gravity/walk2.cxx gravity/grav2.cxx gravity/ewald.cxx ic/ic.cxx domains/tree.cxx gravity/opening.cxx gravity/pp.cxx gravity/pc.cxx gravity/cl.cxx
+	gravity/lst.cxx gravity/moments.c gravity/ilp.cxx gravity/ilc.cxx io/iomodule.cxx io/iochunk.cxx io/restore.cxx
 	group/fof.cxx group/hop.cxx group/group.cxx group/groupstats.cxx ic/RngStream.c smooth/listcomp.c core/healpix.c
 	core/gridinfo.cxx analysis/interlace.cxx analysis/contrast.cxx analysis/assignmass.cxx analysis/measurepk.cxx bispectrum.cxx ic/whitenoise.cxx gravity/pmforces.cxx
-	core/setadd.cxx core/hostname.cxx core/initcosmology.cxx core/calcroot.cxx core/swapall.cxx core/select.cxx
+	core/setadd.cxx core/hostname.cxx core/initcosmology.cxx core/calcroot.cxx core/swapall.cxx core/select.cxx core/particle.cxx
 	domains/calcbound.cxx domains/combinebound.cxx domains/distribtoptree.cxx domains/distribroot.cxx domains/dumptrees.cxx
-	domains/enforceperiodic.cxx domains/freestore.cxx domains/olddd.cxx
+	domains/enforceperiodic.cxx domains/freestore.cxx domains/olddd.cxx domains/getordsplits.cxx
 	gravity/setsoft.cxx gravity/activerung.cxx gravity/countrungs.cxx gravity/zeronewrung.cxx
-      hydro/hydro.c eEOS/eEOS.cxx
+	analysis/rsloadids.cxx analysis/rssaveids.cxx analysis/rsextract.cxx analysis/rsreorder.cxx
+	eEOS/eEOS.cxx
+	SPH/SPHOptions.cxx SPH/SPHEOS.cxx SPH/SPHpredict.cxx initlightcone.cxx
 )
 set_property(SOURCE io/fio.c APPEND PROPERTY COMPILE_DEFINITIONS "USE_PTHREAD")
-add_executable(tostd utility/tostd.c io/fio.c)
-add_executable(psout utility/psout.c cosmo.c)
+#add_executable(tostd utility/tostd.c io/fio.c)
+#add_executable(psout utility/psout.c cosmo.c)
 
 target_link_libraries(${PROJECT_NAME} m)
-target_link_libraries(tostd m)
-target_link_libraries(psout m)
+#target_link_libraries(tostd m)
+#target_link_libraries(psout m)
+
+make_directory(${CMAKE_BINARY_DIR}/modules)
+foreach(file accuracy checkpoint)
+    add_custom_command(
+        OUTPUT ${CMAKE_BINARY_DIR}/modules/${file}.pyx
+        MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/modules/${file}.pyx
+        COMMAND ${CMAKE_COMMAND} -E create_symlink
+            ${CMAKE_SOURCE_DIR}/modules/${file}.pyx
+            ${CMAKE_BINARY_DIR}/modules/${file}.pyx
+        VERBATIM
+    )
+    add_custom_command(
+        OUTPUT ${CMAKE_BINARY_DIR}/modules/${file}.cpp
+        MAIN_DEPENDENCY ${CMAKE_BINARY_DIR}/modules/${file}.pyx
+        COMMAND ${PYTHON} -m cython --3str --cplus
+            ${CMAKE_BINARY_DIR}/modules/${file}.pyx
+        VERBATIM
+    )
+    target_sources(${PROJECT_NAME} PRIVATE ${CMAKE_BINARY_DIR}/modules/${file}.cpp)
+endforeach()
 
 if (NOT APPLE)
 CHECK_INCLUDE_FILES(libaio.h HAVE_LIBAIO_H)
@@ -221,44 +248,23 @@ if (HAVE_AIO_H)
   endif()
 endif()
 endif()
-
-if (CUDAToolkit_FOUND)
-  enable_language(CUDA)
-  set(USE_CUDA TRUE)
-  message(WARNING ${CUDA_ARCHITECTURE})
-  if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
-      set(CMAKE_CUDA_ARCHITECTURES 60)
-  endif()
-  set_target_properties(${PROJECT_NAME} PROPERTIES CUDA_ARCHITECTURES ${CMAKE_CUDA_ARCHITECTURES})
-  target_sources(${PROJECT_NAME} PRIVATE cuda/cudaewald.cu cuda/cudapppc.cu cuda/cudautil.cu)
-endif(CUDAToolkit_FOUND)
-if (CUDA_FOUND)
-  set(USE_CUDA TRUE)
-  get_property(MDL_INCLUDES TARGET mdl2 PROPERTY INCLUDE_DIRECTORIES)
-  get_property(OPENPA_INCLUDES TARGET openpa PROPERTY INCLUDE_DIRECTORIES)
-#  target_link_libraries(${PROJECT_NAME} ${CUDA_LIBRARIES})
-  CUDA_INCLUDE_DIRECTORIES(${MDL_INCLUDES} ${OPENPA_INCLUDES})
-  CUDA_COMPILE(cuda_files cuda/cudaewald.cu cuda/cudapppc.cu cuda/cudautil.cu
-	OPTIONS -arch compute_60)
-  target_sources(${PROJECT_NAME} PRIVATE ${cuda_files})
-endif(CUDA_FOUND)
 if (HDF5_FOUND)
   set(USE_HDF5 TRUE)
   target_include_directories(${PROJECT_NAME} PUBLIC ${HDF5_INCLUDE_DIRS})
   target_link_libraries(${PROJECT_NAME} ${HDF5_LIBRARIES} ${HDF5_HL_LIBRARIES})
   #set_property(TARGET ${PROJECT_NAME} APPEND PROPERTY COMPILE_DEFINITIONS ${HDF5_DEFINITIONS})
   #set_property(TARGET ${PROJECT_NAME} APPEND PROPERTY COMPILE_DEFINITIONS H5_USE_16_API)
-  target_include_directories(tostd PUBLIC ${HDF5_INCLUDE_DIRS})
-  target_link_libraries(tostd ${HDF5_LIBRARIES} ${HDF5_HL_LIBRARIES})
-  target_include_directories(psout PUBLIC ${HDF5_INCLUDE_DIRS})
-  target_link_libraries(psout ${HDF5_LIBRARIES} ${HDF5_HL_LIBRARIES})
+  #target_include_directories(tostd PUBLIC ${HDF5_INCLUDE_DIRS})
+  #target_link_libraries(tostd ${HDF5_LIBRARIES} ${HDF5_HL_LIBRARIES})
+  #target_include_directories(psout PUBLIC ${HDF5_INCLUDE_DIRS})
+  #target_link_libraries(psout ${HDF5_LIBRARIES} ${HDF5_HL_LIBRARIES})
 endif(HDF5_FOUND)
 if(${CMAKE_VERSION} VERSION_LESS "3.12")
   if (PYTHONLIBS_FOUND)
     set(USE_PYTHON TRUE)
     target_include_directories(${PROJECT_NAME} PUBLIC ${PYTHON_INCLUDE_DIRS})
     target_link_libraries(${PROJECT_NAME} ${PYTHON_LIBRARIES})
-    target_sources(${PROJECT_NAME} PRIVATE msrpython.cxx m_parse.h csmpython.c)
+    target_sources(${PROJECT_NAME} PRIVATE msrpython.cxx ${CMAKE_BINARY_DIR}/parse.cpp csmpython.c)
 
     if (PYTHON_EXECUTABLE)
       # Find out the include path
@@ -281,7 +287,7 @@ else(${CMAKE_VERSION} VERSION_LESS "3.12")
     set(USE_PYTHON TRUE)
     target_include_directories(${PROJECT_NAME} PUBLIC ${Python3_INCLUDE_DIRS})
     target_link_libraries(${PROJECT_NAME} Python3::Python)
-    target_sources(${PROJECT_NAME} PRIVATE msrpython.cxx m_parse.h csmpython.c)
+    target_sources(${PROJECT_NAME} PRIVATE msrpython.cxx ${CMAKE_BINARY_DIR}/parse.cpp csmpython.c)
     if (Python3_NumPy_FOUND)
       target_include_directories(${PROJECT_NAME} PUBLIC ${Python3_NumPy_INCLUDE_DIRS})
     endif()
@@ -295,9 +301,7 @@ if(USE_SIMD)
 #if USE_SIMD_FMM
 target_sources(${PROJECT_NAME} PRIVATE gravity/vmoments.cxx)
 #endif
-#if USE_SIMD_LC
 target_sources(${PROJECT_NAME} PRIVATE lightcone.cxx)
-#endif
 endif()
 
 foreach(flag_var
@@ -310,10 +314,32 @@ foreach(flag_var
    endif(${flag_var} MATCHES "-DNDEBUG")
 endforeach(flag_var)
 
+# The header files for rockstar conflict with C++ so make symbolic links
+set(ROCKSTAR_PATH CACHE STRING "Path to the Rockstar source code")
+if(ROCKSTAR_PATH)
+    set(HAVE_ROCKSTAR TRUE)
+    file(REAL_PATH ${ROCKSTAR_PATH} rdir EXPAND_TILDE)
+    make_directory(${CMAKE_BINARY_DIR}/rockstar)
+    make_directory(${CMAKE_BINARY_DIR}/rockstar/io)
+    foreach(file particle.h halo.h io/io_internal.h)
+        #find_file(rs_src ${file} PATHS ${rdir} NO_DEFAULT_PATH NO_CACHE REQUIRED)
+        add_custom_command(
+            OUTPUT ${CMAKE_BINARY_DIR}/rockstar/${file}
+            MAIN_DEPENDENCY ${rdir}/${file}
+            COMMAND ${CMAKE_COMMAND} -E create_symlink
+                ${rdir}/${file}
+                ${CMAKE_BINARY_DIR}/rockstar/${file}
+            VERBATIM
+        )
+        target_sources(${PROJECT_NAME} PRIVATE ${CMAKE_BINARY_DIR}/rockstar/${file})
+    endforeach()
+    target_sources(${PROJECT_NAME} PRIVATE analysis/rshaloloadids.cxx analysis/rshalocount.cxx)
+endif()
+
 option(HYDRO "Compile with hydrodynamics support" ON)
 if (HYDRO)
    message("-- Compiling with hydrodynamics support")
-   target_sources(${PROJECT_NAME} PRIVATE  hydro/hydro.c hydro/density.cxx
+   target_sources(${PROJECT_NAME} PRIVATE  hydro/hydro.cxx hydro/density.cxx
                   hydro/gradient.cxx hydro/flux.cxx hydro/step.cxx)
 endif(HYDRO)
 
@@ -466,12 +492,6 @@ if (OPTIM_NO_REDUNDANT_FLUXES)
    message("-- OPTIM_NO_REDUNDANT_FLUXES: \t Avoid all redundant flux computations. Requires unique particleIDs and OPTIM_SMOOTH_NODE.")
 endif(OPTIM_NO_REDUNDANT_FLUXES)
 
-option(OPTIM_REMOVE_UNUSED "Remove unused variables in SPHFIELDS" ON)
-if(OPTIM_REMOVE_UNUSED)
-   target_compile_options(${PROJECT_NAME} PRIVATE -DOPTIM_REMOVE_UNUSED)
-   message("-- OPTIM_REMOVE_UNUSED: \t Removed unused variables in particle structs")
-endif(OPTIM_REMOVE_UNUSED)
-
 option(OPTIM_DENSITY_REITER "Reduce the number of density iterations when we have neighbors than expected" OFF)
 if (OPTIM_DENSITY_REITER)
    target_compile_options(${PROJECT_NAME} PRIVATE -DOPTIM_DENSITY_REITER)
@@ -526,10 +546,57 @@ if (OPTIM_AVOID_IS_ACTIVE)
 endif (OPTIM_AVOID_IS_ACTIVE)
 ####
 
+find_path(EOSLIB_PATH EOSlib.h HINTS "${CMAKE_SOURCE_DIR}/../EOSlib" NO_DEFAULT_PATH)
+find_path(ANEOSMATERIAL_PATH ANEOSmaterial.h HINTS "${CMAKE_SOURCE_DIR}/../ANEOSmaterial" NO_DEFAULT_PATH)
+find_path(TILLOTSON_PATH tillotson.h HINTS "${CMAKE_SOURCE_DIR}/../tillotson" NO_DEFAULT_PATH)
+find_path(REOS3_PATH reos3.h HINTS "${CMAKE_SOURCE_DIR}/../reos3" NO_DEFAULT_PATH)
+find_path(SCVHEOS_PATH scvheos.h HINTS "${CMAKE_SOURCE_DIR}/../scvh" NO_DEFAULT_PATH)
+if(EOSLIB_PATH)
+    message(STATUS "found EOSlib.h in ${EOSLIB_PATH}")
+    target_sources(${PROJECT_NAME} PRIVATE ${EOSLIB_PATH}/EOSlib.c ${EOSLIB_PATH}/igeos.c)
+    target_include_directories(${PROJECT_NAME} PUBLIC ${EOSLIB_PATH})
+    target_compile_options(${PROJECT_NAME} PRIVATE -DHAVE_EOSLIB_H)
+endif()
+if(EOSLIB_PATH AND ANEOSMATERIAL_PATH)
+    message(STATUS "found ANEOSmaterial.h in ${ANEOSMATERIAL_PATH}")
+    target_sources(${PROJECT_NAME} PRIVATE ${ANEOSMATERIAL_PATH}/ANEOSmaterial.c ${ANEOSMATERIAL_PATH}/interpBilinear.c)
+    target_include_directories(${PROJECT_NAME} PUBLIC ${ANEOSMATERIAL_PATH})
+    target_compile_options(${PROJECT_NAME} PRIVATE -DHAVE_ANEOSMATERIAL_H)
+endif()
+if(EOSLIB_PATH AND TILLOTSON_PATH)
+    message(STATUS "found tillotson.h in ${TILLOTSON_PATH}")
+    target_sources(${PROJECT_NAME} PRIVATE ${TILLOTSON_PATH}/tillotson.c ${TILLOTSON_PATH}/tillinitlookup.c ${TILLOTSON_PATH}/tillsplint.c ${TILLOTSON_PATH}/interpol/brent.c)
+    target_include_directories(${PROJECT_NAME} PUBLIC ${TILLOTSON_PATH})
+    target_compile_options(${PROJECT_NAME} PRIVATE -DHAVE_TILLOTSON_H)
+endif()
+if(EOSLIB_PATH AND REOS3_PATH)
+    message(STATUS "found reos3.h in ${REOS3_PATH}")
+    target_sources(${PROJECT_NAME} PRIVATE ${REOS3_PATH}/reos3.c)
+    target_include_directories(${PROJECT_NAME} PUBLIC ${REOS3_PATH})
+    target_compile_options(${PROJECT_NAME} PRIVATE -DHAVE_REOS3_H)
+endif()
+if(EOSLIB_PATH AND SCVHEOS_PATH)
+    message(STATUS "found scvheos.h in ${SCVHEOS_PATH}")
+    target_sources(${PROJECT_NAME} PRIVATE ${SCVHEOS_PATH}/scvheos.c)
+    target_include_directories(${PROJECT_NAME} PUBLIC ${SCVHEOS_PATH})
+    target_compile_options(${PROJECT_NAME} PRIVATE -DHAVE_SCVHEOS_H)
+endif()
+
+option(NN_FLAG_IN_PARTICLE "Add a NN flag to the particle." ON)
+if (NN_FLAG_IN_PARTICLE)
+   target_compile_options(${PROJECT_NAME} PRIVATE -DNN_FLAG_IN_PARTICLE)
+   message("-- NN_FLAG_IN_PARTICLE: A flag is added to the base particle to allow FastGas with interface correction. This reduces the maximum number of particles from 2^43 to 2^42. Set this option to OFF if more than 2^42 particles are needed in non-NewSPH runs.")
+endif (NN_FLAG_IN_PARTICLE)
+
+option(BOUND_USES_MINMAX "Bounds use lower and upper coordinate if ON, otherwise center and apothem" OFF)
+option(NEW_REORDER "Used the new MDL swap based particle reorder method" OFF)
+if(NEW_REORDER)
+   target_sources(${PROJECT_NAME} PRIVATE domains/reorder.cxx)
+endif(NEW_REORDER)
 
 CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/pkd_config.h.in ${CMAKE_CURRENT_BINARY_DIR}/pkd_config.h)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
-target_link_libraries(${PROJECT_NAME} mdl2 openpa)
+target_link_libraries(${PROJECT_NAME} mdl2 pkdcuda pkdmetal)
 target_include_directories(${PROJECT_NAME} PRIVATE ${GSL_INCLUDE_DIRS})
 target_link_libraries(${PROJECT_NAME} ${GSL_LIBRARIES})
 target_link_libraries(${PROJECT_NAME} blitz fmt)
@@ -537,10 +604,16 @@ target_link_libraries(${PROJECT_NAME} blitz fmt)
 enable_testing()
 add_test(NAME cosmology COMMAND ${PROJECT_NAME} ${CMAKE_CURRENT_SOURCE_DIR}/tests/cosmology.py WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
 add_test(NAME gravity   COMMAND ${PROJECT_NAME} ${CMAKE_CURRENT_SOURCE_DIR}/tests/gravity.py   WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+add_test(NAME select    COMMAND ${PROJECT_NAME} ${CMAKE_CURRENT_SOURCE_DIR}/tests/select.py    WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+add_test(NAME fof   COMMAND ${PROJECT_NAME} ${CMAKE_CURRENT_SOURCE_DIR}/tests/foftest.py   WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+if(EOSLIB_PATH AND ANEOSMATERIAL_PATH)
+add_test(NAME NewSPH   COMMAND ${PROJECT_NAME} ${CMAKE_CURRENT_SOURCE_DIR}/tests/NewSPH.py   WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+endif()
 
-target_include_directories(tostd PUBLIC ${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_CURRENT_SOURCE_DIR})
-target_include_directories(psout PUBLIC ${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_CURRENT_SOURCE_DIR})
-target_include_directories(psout PRIVATE ${GSL_INCLUDE_DIRS})
-target_link_libraries(psout ${GSL_LIBRARIES})
+#target_include_directories(tostd PUBLIC ${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_CURRENT_SOURCE_DIR})
+#target_include_directories(psout PUBLIC ${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_CURRENT_SOURCE_DIR})
+#target_include_directories(psout PRIVATE ${GSL_INCLUDE_DIRS})
+#target_link_libraries(psout ${GSL_LIBRARIES})
 
-install(TARGETS ${PROJECT_NAME} tostd DESTINATION "bin")
+install(TARGETS ${PROJECT_NAME} ${PROJECT_NAME} DESTINATION "bin")
+#install(TARGETS ${PROJECT_NAME} tostd DESTINATION "bin")

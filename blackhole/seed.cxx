@@ -1,4 +1,4 @@
-
+#include <algorithm>
 #include "blackhole/seed.h"
 #include "smooth/smooth.h"
 #include "master.h"
@@ -38,10 +38,6 @@ void MSR::PlaceBHSeed(double dTime, uint8_t uRungMax) {
 
 }
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 int pkdPlaceBHSeed(PKD pkd, double dTime, double dScaleFactor,
                    uint8_t uRungMax, double dDenMin, double dBHMhaloMin,
                    double dTau, double dBHSeedMass) {
@@ -50,92 +46,84 @@ int pkdPlaceBHSeed(PKD pkd, double dTime, double dScaleFactor,
     smInitialize(&smx,pkd,NULL,32,1,0,SMX_NULL);
     // Look for any FoF group that do not contain any BH particle in it
     for (int gid=1; gid<=pkd->nLocalGroups; ++gid) {
-        //printf("group %d mass %e \n", gid, pkd->veryTinyGroupTable[gid].fMass);
-        //assert (pkd->ga[gid].id.iPid == pkd->idSelf);
 
         smx->nnListSize = 0;
         if (pkd->veryTinyGroupTable[gid].nBH==0 &&
                 pkd->veryTinyGroupTable[gid].fMass > dBHMhaloMin) {
-            printf("Group %d (mass %e) do not have any BH, adding one!\n",
-                   gid, pkd->veryTinyGroupTable[gid].fMass);
-            pkd->veryTinyGroupTable[gid].nBH++;
-
-            // Fake particle for the neighbour search
-            PARTICLE *p = NULL;
 
             // To adaptively search around rPot but avoiding very long interactions lists
             // the search radius is increased in steps until enough gas particles are found
             float dTauSearch = dTau*0.02;
             while (!(smx->nnListSize > 100 || dTauSearch >= dTau)) {
                 smx->nnListSize = 0;
-                smGather(smx,dTauSearch,pkd->veryTinyGroupTable[gid].rPot, p);
+                smGather(smx,dTauSearch,pkd->veryTinyGroupTable[gid].rPot);
                 dTauSearch *= 2.0;
             }
 
-
-            float minPot = HUGE_VAL;
-            int index = 0;
-            PARTICLE *pLowPot = NULL;
-            for (int i=0; i<smx->nnListSize; i++) {
-                if (pkd->idSelf != smx->nnList[i].iPid) continue;
-                PARTICLE *q = smx->nnList[i].pPart;
-                assert(pkdIsGas(pkd,q));
-                pLowPot = (*pkdPot(pkd,q)<minPot)  ? q : pLowPot;
-                index += 1;
-                minPot = (pLowPot!=NULL) ? *pkdPot(pkd,pLowPot) : minPot;
-            }
-
+            // Find the first local particle
+            auto ii = std::find_if(smx->nnList,smx->nnList+smx->nnListSize,
+            [pkd](const auto &nn) {return nn.iPid==pkd->Self();});
             // IA: I do not like this *at all*
             //  But maybe we are reading completely remote fof group??? TODO Check
-            if (index==0) continue;
+            if (ii == smx->nnList+smx->nnListSize) continue;
+
+            // Now find the one with the minimum potential
+            ii = std::min_element(ii,smx->nnList+smx->nnListSize,
+            [pkd](const auto &a,const auto &b) {
+                if (a.iPid != pkd->Self()) return false; // keep smallest
+                auto p = pkd->particles[a.pPart];
+                auto q = pkd->particles[b.pPart];
+                return p.potential() < q.potential();
+            });
+            assert(ii < smx->nnList+smx->nnListSize);
+            assert(ii->iPid == pkd->Self());
+            auto pLowPot = pkd->particles[ii->pPart];
 
             // IA: We require the density to be above the SF threshold
-            if (pkdDensity(pkd,pLowPot) < dDenMin) continue;
+            if (pLowPot.density() < dDenMin) continue;
 
-            assert(pLowPot!=NULL);
-            assert(pkdIsGas(pkd,pLowPot));
+            assert(pLowPot.is_gas());
+
+            printf("Group %d (mass %e thread %d) doesn't have a BH, adding one!\n",
+                   gid, pkd->veryTinyGroupTable[gid].fMass, pkd->Self());
+            ++pkd->veryTinyGroupTable[gid].nBH;
 
             // Now convert this particle into a BH
             // We just change the class of the particle
-            double omega = pkdSph(pkd,pLowPot)->omega;
-            pkdSetClass(pkd, pkdMass(pkd,pLowPot), pkdSoft0(pkd,pLowPot),
-                        FIO_SPECIES_BH, pLowPot);
+            double omega = pLowPot.sph().omega;
+            pLowPot.set_class(pLowPot.mass(),pLowPot.soft0(),0,FIO_SPECIES_BH);
 
-            BHFIELDS *pBH = pkdBH(pkd,pLowPot);
+            auto &bh = pLowPot.BH();
             // When changing the class, we have to take into account tht
             // the code velocity has different scale factor dependencies for
             // dm/star/bh particles and gas particles
-            float *pv = pkdVel(pkd,pLowPot);
-            for (int j=0; j<3; j++) {
-                pv[j] *= dScaleFactor;
-            }
+            pLowPot.velocity() *= dScaleFactor;
 
             // We initialize the particle. Take into account that we need to
             // set EVERY variable, because as we use unions, there may be
             // dirty stuff
-            pBH->omega = omega;
-            pBH->dInternalMass = dBHSeedMass;
-            pBH->newPos[0] = -1; // Ask for a reposition
-            pBH->lastUpdateTime = dTime;
-            pBH->dAccretionRate = 0.0;
-            pBH->dEddingtonRatio = 0.0;
-            pBH->dFeedbackRate = 0.0;
-            pBH->dAccEnergy = 0.0;
-            pBH->fTimer = dTime;
-            pBH->doReposition = 2;
+            bh.omega = omega;
+            bh.dInternalMass = dBHSeedMass;
+            bh.newPos[0] = -1; // Ask for a reposition
+            bh.lastUpdateTime = dTime;
+            bh.dAccretionRate = 0.0;
+            bh.dEddingtonRatio = 0.0;
+            bh.dFeedbackRate = 0.0;
+            bh.dAccEnergy = 0.0;
+            bh.fTimer = dTime;
+            bh.doReposition = 2;
 
             // As the particle that was converted to a BH lies in a very
             // dense environment it will probably have a high rung, so
             // this is not required
-            pLowPot->uNewRung = uRungMax;
+            pLowPot.set_new_rung(uRungMax);
 
+            ++pkd->nBH;
+            --pkd->nGas;
+            ++newBHs;
 
-            pkd->nBH++;
-            pkd->nGas--;
-            newBHs++;
-
-            for (int i=0; i<smx->nnListSize; ++i) {
-                if (smx->nnList[i].iPid != pkd->idSelf) {
+            for (int i = 0; i < smx->nnListSize; ++i) {
+                if (smx->nnList[i].iPid != pkd->Self()) {
                     mdlRelease(pkd->mdl,CID_PARTICLE,smx->nnList[i].pPart);
                 }
             }
@@ -149,45 +137,32 @@ int pkdPlaceBHSeed(PKD pkd, double dTime, double dScaleFactor,
              * into BH anyway
              */
             /*
-            PARTICLE* p = (PARTICLE *) malloc(pkdParticleSize(pkd));
-            vel_t *vel = pkdVel(pkd,p);
-            float* acc = pkdAccel(pkd,p);
-            for (int j=0; j<3; j++){
-               pkdSetPos(pkd, p, j, pkd->veryTinyGroupTable[gid].rPot[j]);
-               vel[j] = 0.0;
-               acc[j] = 0.0;
-            }
-
-
-
-            p->uRung = uRungMax;
-            p->uNewRung = uRungMax;
+            auto p = pkd->particles.NewParticle();
+            p.velocity() = 0.0;
+            p.acceleration() = 0.0;
+            p.set_position(pkd->veryTinyGroupTable[gid].rPot);
+            p.set_rung(uRungMax);
+            p.set_new_rung(uRungMax);
 
             // This class should have been created while reading the IC (at pkdReadFIO),
             // this won't be problematic as long as we use oMass and dSoft is set in the parameters file
-            pkdSetClass(pkd,0,pkdSoft(pkd,p),FIO_SPECIES_BH,p);
+            p.set_class(0,p.soft(),0,FIO_SPECIES_BH);
 
-            float *pmass = pkdField(p,pkd->oMass);
-            *pmass = pkd->param.dBHSeedMass;
-            pkdSetBall(pkd,p,pkd->param.dSoft);
+            p.mass() = pkd->param.dBHSeedMass;
+            p.set_ball(pkd->param.dSoft);
 
-            BHFIELDS* pBH = pkdBH(pkd,p);
+            auto &pBH = p.BH();
 
-            pBH->dAccretionRate = 0.0;
-            pBH->dFeedbackRate = 0.0;
-            pBH->dAccEnergy = 0.0;
-            pBH->lastUpdateTime = dTime;
-            pBH->fTimer = dTime;
-            pBH->dInternalMass = *pmass;
-            pBH->newPos[0] = -1;
+            pBH.dAccretionRate = 0.0;
+            pBH.dFeedbackRate = 0.0;
+            pBH.dAccEnergy = 0.0;
+            pBH.lastUpdateTime = dTime;
+            pBH.fTimer = dTime;
+            pBH.dInternalMass = *pmass;
+            pBH.newPos[0] = -1;
 
             // TODO: Check in output that this is coherent with the rest of particles in the group
-            pkdSetGroup(pkd,p,gid);
-
-            pkdNewParticle(pkd,p);
-            free(p);
-
-            p = pkdParticle(pkd,pkd->nLocal-1);
+            p.set_group(gid);
             */
         }
 
@@ -198,6 +173,3 @@ int pkdPlaceBHSeed(PKD pkd, double dTime, double dScaleFactor,
     return newBHs;
 
 }
-#ifdef __cplusplus
-}
-#endif

@@ -48,6 +48,10 @@ int TraversePST::Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) {
     return mdl->GetReply(rID,vout);
 }
 
+int TraversePST::ReqService(PST pst,void *vin,int nIn) {
+    return pst->mdl->ReqService(pst->idUpper,getServiceID(),vin,nIn);
+}
+
 // This class is used for services that pass the same input (or none),
 // and need to combine output results of the same size and type.
 int TraverseCombinePST::Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) {
@@ -60,13 +64,3 @@ int TraverseCombinePST::Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) {
     return nOut;
 }
 
-// Make sure that the communication structure is "trivial" so that it
-// can be moved around with "memcpy" which is required for MDL.
-//static_assert(std::is_void<TraverseCountN::input>()  || std::is_trivial<TraverseCountN::input>());
-static_assert(std::is_void<TraverseCountN::output>() || std::is_trivial<TraverseCountN::output>());
-int TraverseCountN::Combine(void *vout,void *vout2) {
-    auto out  = static_cast<output *>(vout);
-    auto out2 = static_cast<output *>(vout2);
-    *out += *out2;
-    return sizeof(output);
-}

@@ -40,7 +40,13 @@
 #include "cuda/cudautil.h"
 #include "cuda/cudapppc.h"
 #include "cuda/cudaewald.h"
-#include "SPHOptions.h"
+#include "SPH/SPHOptions.h"
+#include "SPH/SPHEOS.h"
+#include "SPH/SPHpredict.h"
+#include "../core/simd.h"
+
+#include <algorithm>
+#include <stack>
 
 #if 1
 #if defined(USE_SIMD) && defined(__SSE2__)
@@ -75,7 +81,7 @@ static inline float rsqrtf(float v) {
     dir = 1/sqrt(d2);\
     }
 
-static void queueDensity( PKD pkd, workParticle *wp, ILP ilp, int bGravStep );
+static void queueDensity( PKD pkd, workParticle *wp, ilpList &ilp, int bGravStep );
 /*
 ** This is called after work has been done for this particle group.
 ** If everyone has finished, then the particle is updated.
@@ -83,11 +89,8 @@ static void queueDensity( PKD pkd, workParticle *wp, ILP ilp, int bGravStep );
 void pkdParticleWorkDone(workParticle *wp) {
     auto pkd = static_cast<PKD>(wp->ctx);
     int i,gid;
-    PARTICLE *p;
-    double r[3];
-    vel_t *v,v2;
-    float *a;
-    float fx, fy, fz, m;
+    vel_t v2;
+    float fx, fy, fz;
     float maga, dT, dtGrav;
     unsigned char uNewRung;
 
@@ -129,7 +132,7 @@ void pkdParticleWorkDone(workParticle *wp) {
                         dfdx = prefac * 3.0f * fBall * fBall * wp->pInfoOut[i].rho + prefac * fBall * fBall * fBall * wp->pInfoOut[i].drhodfball;
                     }
                     float newfBall = wp->pInfoIn[i].fBall - fx / dfdx;
-                    if (newfBall >= wp->SPHoptions->ballSizeLimit || wp->pInfoIn[i].isTooLarge) {
+                    if (fabsf(newfBall) >= wp->SPHoptions->ballSizeLimit || wp->pInfoIn[i].isTooLarge) {
                         wp->pInfoIn[i].fBall = wp->SPHoptions->ballSizeLimit;
                         wp->pInfoIn[i].isTooLarge = 1;
                     }
@@ -144,7 +147,7 @@ void pkdParticleWorkDone(workParticle *wp) {
                     }
                 }
                 wp->nRefs = 1;
-                queueDensity(pkd,wp,wp->ilp,wp->bGravStep);
+                queueDensity(pkd,wp,*wp->ilp,wp->bGravStep);
                 pkdParticleWorkDone(wp);
                 return;
             }
@@ -163,33 +166,60 @@ void pkdParticleWorkDone(workParticle *wp) {
         pkd->dFlopDoubleCPU += wp->dFlopDoubleCPU;
         pkd->dFlopSingleGPU += wp->dFlopSingleGPU;
         pkd->dFlopDoubleGPU += wp->dFlopDoubleGPU;
+        auto p = pkd->particles[pkd->Local()];
+        // char particle_buffer[pkd->particles.ParticleSize()];
+        // auto p = reinterpret_cast<PARTICLE *>(particle_buffer);
         for ( i=0; i<wp->nP; i++ ) {
-            p = CAST(PARTICLE *,mdlAcquireWrite(pkd->mdl,CID_PARTICLE,wp->iPart[i]));
+            //p = static_cast<PARTICLE *>(mdlAcquireWrite(pkd->mdl,CID_PARTICLE,wp->iPart[i]));
+            p = pkd->particles[wp->pPart[i]];
+            // pkd->CopyParticle(p,wp->pPart[i]);
 
-            if (pkd->oFieldOffset[oNewSph]) {
-                NEWSPHFIELDS *pNewSph = pkdNewSph(pkd,p);
+            if (p.have_newsph()) {
+                auto &NewSph = p.newsph();
                 if (wp->SPHoptions->doDensity) {
-                    pkdSetDensity(pkd,p,wp->pInfoOut[i].rho);
-                    pkdSetBall(pkd,p,wp->pInfoOut[i].fBall);
-                    pNewSph->Omega = 1.0f + wp->pInfoOut[i].fBall/(3.0f * wp->pInfoOut[i].rho)*wp->pInfoOut[i].drhodfball;
-                    if (wp->SPHoptions->doUConversion) {
-                        pNewSph->u = EOSUofRhoT(pkdDensity(pkd,p),pNewSph->u,wp->SPHoptions);
-                    }
-                }
-                if (wp->SPHoptions->doSPHForces) {
-                    pNewSph->divv = wp->pInfoOut[i].divv;
-                    if (wp->SPHoptions->useIsentropic) {
-                        pNewSph->uDot = (wp->SPHoptions->gamma - 1.0f) / pow(pkdDensity(pkd,p),wp->SPHoptions->gamma - 1.0f) * wp->pInfoOut[i].uDot;
+                    p.set_density(wp->pInfoOut[i].rho);
+                    p.set_ball(wp->pInfoOut[i].fBall);
+                    if (wp->pInfoIn[i].fBall < wp->SPHoptions->ballSizeLimit) {
+                        NewSph.Omega = 1.0f + wp->pInfoOut[i].fBall/(3.0f * wp->pInfoOut[i].rho)*wp->pInfoOut[i].drhodfball;
                     }
                     else {
-                        pNewSph->uDot = wp->pInfoOut[i].uDot;
+                        NewSph.Omega = 1.0f;
+                    }
+                    if (wp->SPHoptions->doInterfaceCorrection) {
+                        float imbalance = sqrtf(wp->pInfoOut[i].imbalanceX*wp->pInfoOut[i].imbalanceX + wp->pInfoOut[i].imbalanceY*wp->pInfoOut[i].imbalanceY + wp->pInfoOut[i].imbalanceZ*wp->pInfoOut[i].imbalanceZ) / (0.5f * wp->pInfoOut[i].fBall * wp->pInfoOut[i].rho);
+                        imbalance *= calculateInterfaceCorrectionPrefactor(wp->SPHoptions->fKernelTarget,wp->SPHoptions->kernelType);
+                        NewSph.expImb2 = expf(-imbalance*imbalance);
+                    }
+                    if (wp->SPHoptions->doUConversion && !wp->SPHoptions->doInterfaceCorrection) {
+                        NewSph.u = SPHEOSUofRhoT(pkd,p.density(),NewSph.u,p.imaterial(),wp->SPHoptions);
+                        NewSph.oldRho = p.density();
+                    }
+                    if (!wp->SPHoptions->doOnTheFlyPrediction) {
+                        SPHpredictInDensity(pkd, p, wp->kick, wp->SPHoptions->nPredictRung, &NewSph.P, &NewSph.cs, &NewSph.T, wp->SPHoptions);
+                    }
+                }
+                if (wp->SPHoptions->doDensityCorrection) {
+                    float Tbar = wp->pInfoOut[i].corrT / wp->pInfoOut[i].corr;
+                    float Pbar = wp->pInfoOut[i].corrP / wp->pInfoOut[i].corr;
+                    float Ttilde = NewSph.expImb2 * NewSph.T + (1.0f - NewSph.expImb2) * Tbar;
+                    float Ptilde = NewSph.expImb2 * NewSph.P + (1.0f - NewSph.expImb2) * Pbar;
+                    float newRho = SPHEOSRhoofPT(pkd, Ptilde, Ttilde, p.imaterial(), wp->SPHoptions);
+                    p.set_density(newRho);
+                }
+                if (wp->SPHoptions->doSPHForces) {
+                    NewSph.divv = wp->pInfoOut[i].divv;
+                    if (p.imaterial() == 0 && wp->SPHoptions->useIsentropic && wp->SPHoptions->useBuiltinIdeal) {
+                        NewSph.uDot = (wp->SPHoptions->gamma - 1.0f) / pow(p.density(),wp->SPHoptions->gamma - 1.0f) * wp->pInfoOut[i].uDot;
+                    }
+                    else {
+                        NewSph.uDot = wp->pInfoOut[i].uDot;
                     }
                 }
             }
 
-            if (wp->SPHoptions->doGravity) {
-                pkdGetPos1(pkd,p,r);
-                m = pkdMass(pkd,p);
+            if (wp->SPHoptions->doGravity || wp->SPHoptions->doSPHForces) {
+                auto r = p.position();
+                auto m = p.mass();
 #ifdef HERNQUIST_POTENTIAL
                 // Hard coded just for the isolated galaxy test
                 const double const_reduced_hubble_cgs = 3.2407789e-18;
@@ -216,12 +246,8 @@ void pkdParticleWorkDone(workParticle *wp) {
 
 
 
-                const float dx = pkdPos(pkd,p,0);
-                const float dy = pkdPos(pkd,p,1);
-                const float dz = pkdPos(pkd,p,2);
-
                 /* Calculate the acceleration */
-                const float rr = sqrtf(dx * dx + dy * dy + dz * dz + epsilon2);
+                const float rr = sqrtf(blitz::dot(r,r) + epsilon2);
                 const float r_plus_a_inv = 1.f / (rr + al);
                 const float r_plus_a_inv2 = r_plus_a_inv * r_plus_a_inv;
                 const float term = -mass * r_plus_a_inv2 / rr;
@@ -232,35 +258,28 @@ void pkdParticleWorkDone(workParticle *wp) {
 
 
 
-                wp->pInfoOut[i].a[0] += term * dx;
-                wp->pInfoOut[i].a[1] += term * dy;
-                wp->pInfoOut[i].a[2] += term * dz;
+                wp->pInfoOut[i].a[0] += term * r[0];
+                wp->pInfoOut[i].a[1] += term * r[1];
+                wp->pInfoOut[i].a[2] += term * r[2];
 #endif
-                if (pkd->oFieldOffset[oAcceleration]) {
-                    a = pkdAccel(pkd,p);
-                    a[0] = wp->pInfoOut[i].a[0];
-                    a[1] = wp->pInfoOut[i].a[1];
-                    a[2] = wp->pInfoOut[i].a[2];
+                if (pkd->particles.present(PKD_FIELD::oAcceleration)) {
+                    p.acceleration() = wp->pInfoOut[i].a;
                 }
-                if (pkd->oFieldOffset[oPotential]) {
-                    float *pPot = pkdPot(pkd,p);
-                    *pPot = wp->pInfoOut[i].fPot;
+                if (pkd->particles.present(PKD_FIELD::oPotential)) {
+                    p.potential() = wp->pInfoOut[i].fPot;
                 }
                 if (pkd->ga != NULL) {
-                    gid = pkdGetGroup(pkd,p);
+                    gid = p.group();
                     if (gid && wp->pInfoOut[i].fPot < pkd->ga[gid].minPot) {
                         pkd->ga[gid].minPot = wp->pInfoOut[i].fPot;
                         pkd->ga[gid].iMinPart = wp->iPart[i];
                     }
                 }
-                a = wp->pInfoOut[i].a;
                 pkd->dEnergyU += 0.5 * m * wp->pInfoOut[i].fPot;
-                pkd->dEnergyW += m*(r[0]*a[0] + r[1]*a[1] + r[2]*a[2]);
-                pkd->dEnergyF[0] += m*a[0];
-                pkd->dEnergyF[1] += m*a[1];
-                pkd->dEnergyF[2] += m*a[2];
+                pkd->dEnergyW += m * blitz::dot(r,wp->pInfoOut[i].a);
+                pkd->dEnergyF += m * wp->pInfoOut[i].a;
 
-                if (wp->ts->bGravStep) {
+                if (wp->ts->bGravStep && wp->SPHoptions->doGravity) {
                     float dirsum = wp->pInfoOut[i].dirsum;
                     float normsum = wp->pInfoOut[i].normsum;
 
@@ -273,10 +292,7 @@ void pkdParticleWorkDone(workParticle *wp) {
                         /*
                         ** Use new acceleration here!
                         */
-                        fx = wp->pInfoOut[i].a[0];
-                        fy = wp->pInfoOut[i].a[1];
-                        fz = wp->pInfoOut[i].a[2];
-                        maga = fx*fx + fy*fy + fz*fz;
+                        maga = blitz::dot(wp->pInfoOut[i].a,wp->pInfoOut[i].a);
                         if (maga>0.0f) maga = asqrtf(maga);
                         dtGrav = maga*dirsum/normsum;
                     }
@@ -285,12 +301,21 @@ void pkdParticleWorkDone(workParticle *wp) {
                     dtGrav = (wp->pInfoOut[i].rhopmax > dtGrav?wp->pInfoOut[i].rhopmax:dtGrav);
                     if (dtGrav > 0.0) {
                         dT = fEta * rsqrtf(dtGrav*wp->ts->dRhoFac);
-                        if (pkd->oFieldOffset[oNewSph]) {
-                            dT = fmin(dT,wp->pInfoOut[i].dtEst);
+                        if (pkd->particles.present(PKD_FIELD::oNewSph)) {
+                            dT = std::min(dT,wp->pInfoOut[i].dtEst);
                         }
                         uNewRung = pkdDtToRungInverse(dT,fiDelta,wp->ts->uMaxRung-1);
+                        if (pkd->particles.present(PKD_FIELD::oNewSph)) {
+                            uNewRung = std::max(std::max((int)uNewRung,(int)round(wp->pInfoOut[i].maxRung) - wp->SPHoptions->nRungCorrection),0);
+                        }
                     }
-                    else uNewRung = 0; /* Assumes current uNewRung is outdated -- not ideal */
+                    else {
+                        uNewRung = 0; /* Assumes current uNewRung is outdated -- not ideal */
+                        if (pkd->particles.present(PKD_FIELD::oNewSph)) {
+                            uNewRung = pkdDtToRungInverse(wp->pInfoOut[i].dtEst,fiDelta,wp->ts->uMaxRung-1);
+                            uNewRung = std::max(std::max((int)uNewRung,(int)round(wp->pInfoOut[i].maxRung) - wp->SPHoptions->nRungCorrection),0);
+                        }
+                    }
                 } /* end of wp->bGravStep */
                 else {
                     /*
@@ -300,15 +325,24 @@ void pkdParticleWorkDone(workParticle *wp) {
                     fy = wp->pInfoOut[i].a[1];
                     fz = wp->pInfoOut[i].a[2];
                     maga = fx*fx + fy*fy + fz*fz;
-                    if (maga > 0) {
+                    if (maga > 0 && wp->SPHoptions->doGravity) {
                         float imaga = rsqrtf(maga) * fiAccFac;
-                        dT = fEta*asqrtf(pkdSoft(pkd,p)*imaga);
-                        if (pkd->oFieldOffset[oNewSph]) {
-                            dT = fmin(dT,wp->pInfoOut[i].dtEst);
+                        dT = fEta*asqrtf(p.soft()*imaga);
+                        if (p.have_newsph()) {
+                            dT = std::min(dT,wp->pInfoOut[i].dtEst);
                         }
                         uNewRung = pkdDtToRungInverse(dT,fiDelta,wp->ts->uMaxRung-1);
+                        if (p.have_newsph()) {
+                            uNewRung = std::max(std::max((int)uNewRung,(int)round(wp->pInfoOut[i].maxRung) - wp->SPHoptions->nRungCorrection),0);
+                        }
                     }
-                    else uNewRung = 0;
+                    else {
+                        uNewRung = 0;
+                        if (p.have_newsph()) {
+                            uNewRung = pkdDtToRungInverse(wp->pInfoOut[i].dtEst,fiDelta,wp->ts->uMaxRung-1);
+                            uNewRung = std::max(std::max((int)uNewRung,(int)round(wp->pInfoOut[i].maxRung) - wp->SPHoptions->nRungCorrection),0);
+                        }
+                    }
                 }
                 /*
                 ** Here we must make sure we do not try to take a larger opening
@@ -317,7 +351,7 @@ void pkdParticleWorkDone(workParticle *wp) {
                 */
                 if (uNewRung < wp->ts->uRungLo) uNewRung = wp->ts->uRungLo;
                 else if (uNewRung > wp->ts->uRungHi) uNewRung = wp->ts->uRungHi;
-                if (!pkd->bNoParticleOrder) p->uNewRung = uNewRung;
+                if (!pkd->bNoParticleOrder) p.set_new_rung(uNewRung);
                 /*
                 ** Now we want to kick the particle velocities with a closing kick
                 ** based on the old rung and an opening kick based on the new rung.
@@ -327,20 +361,27 @@ void pkdParticleWorkDone(workParticle *wp) {
                 ** This also requires the various timestep factors to have been
                 ** pre-calculated for this dTime and all possible rungs at play.
                 ** Note that the only persistent info needed is the old rung which
-                ** gets updated at the end of this so that p->uRung indicates
+                ** gets updated at the end of this so that p.uRung indicates
                 ** which particles are active in this time step.
-                ** p->uRung = uNewRung could be done here, but we let the outside
+                ** p.uRung = uNewRung could be done here, but we let the outside
                 ** code handle this.
                 */
-                if (pkd->oFieldOffset[oVelocity]) {
-                    v = pkdVel(pkd,p);
+                if (pkd->particles.present(PKD_FIELD::oVelocity)) {
+                    auto &v = p.velocity();
                     if (wp->kick && wp->kick->bKickClose) {
-                        v[0] += wp->kick->dtClose[p->uRung]*wp->pInfoOut[i].a[0];
-                        v[1] += wp->kick->dtClose[p->uRung]*wp->pInfoOut[i].a[1];
-                        v[2] += wp->kick->dtClose[p->uRung]*wp->pInfoOut[i].a[2];
+                        v[0] += wp->kick->dtClose[p.rung()]*wp->pInfoOut[i].a[0];
+                        v[1] += wp->kick->dtClose[p.rung()]*wp->pInfoOut[i].a[1];
+                        v[2] += wp->kick->dtClose[p.rung()]*wp->pInfoOut[i].a[2];
                         if (wp->SPHoptions->doSPHForces) {
-                            NEWSPHFIELDS *pNewSph = pkdNewSph(pkd,p);
-                            pNewSph->u += wp->kick->dtClose[p->uRung] * pNewSph->uDot;
+                            auto &NewSph = p.newsph();
+                            if (wp->SPHoptions->useIsentropic) {
+                                NewSph.u = SPHEOSIsentropic(pkd,NewSph.oldRho,NewSph.u,p.density(),p.imaterial(),wp->SPHoptions);
+                                NewSph.oldRho = p.density();
+                            }
+                            NewSph.u += wp->kick->dtClose[p.rung()] * NewSph.uDot;
+                            if (!wp->SPHoptions->doOnTheFlyPrediction && !wp->SPHoptions->doConsistentPrediction) {
+                                NewSph.P = SPHEOSPCTofRhoU(pkd,p.density(),NewSph.u,&NewSph.cs,&NewSph.T,p.imaterial(),wp->SPHoptions);
+                            }
                         }
                     }
                     v2 = v[0]*v[0] + v[1]*v[1] + v[2]*v[2];
@@ -354,14 +395,19 @@ void pkdParticleWorkDone(workParticle *wp) {
                     pkd->dEnergyL[2] += m*(r[0]*v[1] - r[1]*v[0]);
 
                     if (wp->kick && wp->kick->bKickOpen) {
-                        p->uRung = uNewRung;
-                        ++pkd->nRung[p->uRung];
-                        v[0] += wp->kick->dtOpen[p->uRung]*wp->pInfoOut[i].a[0];
-                        v[1] += wp->kick->dtOpen[p->uRung]*wp->pInfoOut[i].a[1];
-                        v[2] += wp->kick->dtOpen[p->uRung]*wp->pInfoOut[i].a[2];
+                        p.set_rung(uNewRung);
+                        ++pkd->nRung[p.rung()];
+                        if (wp->SPHoptions->VelocityDamper > 0.0f) {
+                            v[0] *= exp(- wp->kick->dtOpen[p.rung()] * wp->SPHoptions->VelocityDamper);
+                            v[1] *= exp(- wp->kick->dtOpen[p.rung()] * wp->SPHoptions->VelocityDamper);
+                            v[2] *= exp(- wp->kick->dtOpen[p.rung()] * wp->SPHoptions->VelocityDamper);
+                        }
+                        v[0] += wp->kick->dtOpen[p.rung()]*wp->pInfoOut[i].a[0];
+                        v[1] += wp->kick->dtOpen[p.rung()]*wp->pInfoOut[i].a[1];
+                        v[2] += wp->kick->dtOpen[p.rung()]*wp->pInfoOut[i].a[2];
                         if (wp->SPHoptions->doSPHForces) {
-                            NEWSPHFIELDS *pNewSph = pkdNewSph(pkd,p);
-                            pNewSph->u += wp->kick->dtOpen[p->uRung] * pNewSph->uDot;
+                            auto &NewSph = p.newsph();
+                            NewSph.u += wp->kick->dtOpen[p.rung()] * NewSph.uDot;
                         }
                         /*
                         ** On KickOpen we also always check for intersection with the lightcone
@@ -369,18 +415,20 @@ void pkdParticleWorkDone(workParticle *wp) {
                         ** timestep as is usual for kicking (we are drifting afterall).
                         */
                         if (wp->lc->dLookbackFac > 0) {
-                            pkdProcessLightCone(pkd,p,wp->pInfoOut[i].fPot,wp->lc->dLookbackFac,wp->lc->dLookbackFacLCP,
-                                                wp->lc->dtLCDrift[p->uRung],wp->lc->dtLCKick[p->uRung],
-                                                wp->lc->dBoxSize,wp->lc->bLightConeParticles);
+                            pkdProcessLightCone(pkd,&p,wp->pInfoOut[i].fPot,wp->lc->dLookbackFac,wp->lc->dLookbackFacLCP,
+                                                wp->lc->dtLCDrift[p.rung()],wp->lc->dtLCKick[p.rung()],
+                                                wp->lc->dBoxSize,wp->lc->bLightConeParticles,wp->lc->hLCP,wp->lc->tanalpha_2);
                         }
                     }
-                    p->bMarked = 1;
+                    p.set_marked(true);
                 }
             }
             else {
-                ++pkd->nRung[p->uRung];
+                ++pkd->nRung[p.rung()];
             }
-            mdlReleaseWrite(pkd->mdl,CID_PARTICLE,p);
+            auto q = pkd->particles[static_cast<PARTICLE *>(mdlAcquireWrite(pkd->mdl,CID_PARTICLE,wp->iPart[i]))];
+            q = p;
+            mdlReleaseWrite(pkd->mdl,CID_PARTICLE,&q);
         }
         delete [] wp->pPart;
         delete [] wp->iPart;
@@ -390,152 +438,23 @@ void pkdParticleWorkDone(workParticle *wp) {
     }
 }
 
-int CPUdoWorkPP(void *vpp) {
-    auto pp = static_cast<workPP *>(vpp);
-    workParticle *wp = pp->work;
-    ILPTILE tile = pp->tile;
-    ILP_BLK *blk = tile->blk;
-    PINFOIN *pPart = &pp->work->pInfoIn[pp->i];
-    PINFOOUT *pOut = &pp->pInfoOut[pp->i];
-    int nBlocks = tile->lstTile.nBlocks;
-    int nInLast = tile->lstTile.nInLast;
-
-    pOut->a[0] = 0.0;
-    pOut->a[1] = 0.0;
-    pOut->a[2] = 0.0;
-    pOut->fPot = 0.0;
-    pOut->dirsum = 0.0;
-    pOut->normsum = 0.0;
-    pkdGravEvalPP(pPart,nBlocks,nInLast,blk,pOut);
-    wp->dFlopSingleCPU += COST_FLOP_PP*(tile->lstTile.nBlocks*ILP_PART_PER_BLK  + tile->lstTile.nInLast);
-    if ( ++pp->i == pp->work->nP ) return 0;
-    else return 1;
-}
-
-int CPUdoWorkDensity(void *vpp) {
-    auto pp = static_cast<workPP *>(vpp);
-    workParticle *wp = pp->work;
-    ILPTILE tile = pp->tile;
-    ILP_BLK *blk = tile->blk;
-    PINFOIN *pPart = &pp->work->pInfoIn[pp->i];
-    PINFOOUT *pOut = &pp->pInfoOut[pp->i];
-    int nBlocks = tile->lstTile.nBlocks;
-    int nInLast = tile->lstTile.nInLast;
-    SPHOptions *SPHoptions = wp->SPHoptions;
-
-    pOut->rho = 0.0;
-    pOut->drhodfball = 0.0;
-    pOut->nden = 0.0;
-    pOut->dndendfball = 0.0;
-    pOut->nSmooth = 0.0;
-    pkdDensityEval(pPart,nBlocks,nInLast,blk,pOut,SPHoptions);
-    //wp->dFlopSingleCPU += COST_FLOP_PP*(tile->lstTile.nBlocks*ILP_PART_PER_BLK  + tile->lstTile.nInLast);
-    if ( ++pp->i == pp->work->nP ) return 0;
-    else return 1;
-}
-
-int CPUdoWorkSPHForces(void *vpp) {
-    auto pp = static_cast<workPP *>(vpp);
-    workParticle *wp = pp->work;
-    ILPTILE tile = pp->tile;
-    ILP_BLK *blk = tile->blk;
-    PINFOIN *pPart = &pp->work->pInfoIn[pp->i];
-    PINFOOUT *pOut = &pp->pInfoOut[pp->i];
-    int nBlocks = tile->lstTile.nBlocks;
-    int nInLast = tile->lstTile.nInLast;
-    SPHOptions *SPHoptions = wp->SPHoptions;
-
-    pOut->uDot = 0.0;
-    pOut->a[0] = 0.0;
-    pOut->a[1] = 0.0;
-    pOut->a[2] = 0.0;
-    pOut->divv = 0.0;
-    pOut->dtEst = HUGE_VALF;
-    pkdSPHForcesEval(pPart,nBlocks,nInLast,blk,pOut,SPHoptions);
-    //wp->dFlopSingleCPU += COST_FLOP_PP*(tile->lstTile.nBlocks*ILP_PART_PER_BLK  + tile->lstTile.nInLast);
-    if ( ++pp->i == pp->work->nP ) return 0;
-    else return 1;
-}
-
-int doneWorkPP(void *vpp) {
-    auto pp = static_cast<workPP *>(vpp);
-    int i;
-
-    for (i=0; i<pp->work->nP; ++i) {
-        pp->work->pInfoOut[i].a[0] += pp->pInfoOut[i].a[0];
-        pp->work->pInfoOut[i].a[1] += pp->pInfoOut[i].a[1];
-        pp->work->pInfoOut[i].a[2] += pp->pInfoOut[i].a[2];
-        pp->work->pInfoOut[i].fPot += pp->pInfoOut[i].fPot;
-        pp->work->pInfoOut[i].dirsum += pp->pInfoOut[i].dirsum;
-        pp->work->pInfoOut[i].normsum += pp->pInfoOut[i].normsum;
-    }
-    lstFreeTile(&pp->ilp->lst,&pp->tile->lstTile);
-    pkdParticleWorkDone(pp->work);
-    delete [] pp->pInfoOut;
-    delete pp;
-    return 0;
-}
-
-int doneWorkDensity(void *vpp) {
-    auto pp = static_cast<workPP *>(vpp);
-    int i;
-
-    for (i=0; i<pp->work->nP; ++i) {
-        pp->work->pInfoOut[i].rho += pp->pInfoOut[i].rho;
-        pp->work->pInfoOut[i].drhodfball += pp->pInfoOut[i].drhodfball;
-        pp->work->pInfoOut[i].nden += pp->pInfoOut[i].nden;
-        pp->work->pInfoOut[i].dndendfball += pp->pInfoOut[i].dndendfball;
-        pp->work->pInfoOut[i].nSmooth += pp->pInfoOut[i].nSmooth;
-    }
-    lstFreeTile(&pp->ilp->lst,&pp->tile->lstTile);
-    pkdParticleWorkDone(pp->work);
-    delete [] pp->pInfoOut;
-    delete pp;
-    return 0;
-}
-
-int doneWorkSPHForces(void *vpp) {
-    auto pp = static_cast<workPP *>(vpp);
-    int i;
-
-    for (i=0; i<pp->work->nP; ++i) {
-        pp->work->pInfoOut[i].uDot += pp->pInfoOut[i].uDot;
-        pp->work->pInfoOut[i].a[0] += pp->pInfoOut[i].a[0];
-        pp->work->pInfoOut[i].a[1] += pp->pInfoOut[i].a[1];
-        pp->work->pInfoOut[i].a[2] += pp->pInfoOut[i].a[2];
-        pp->work->pInfoOut[i].divv += pp->pInfoOut[i].divv;
-        pp->work->pInfoOut[i].dtEst = fmin(pp->work->pInfoOut[i].dtEst,pp->pInfoOut[i].dtEst);
-    }
-    lstFreeTile(&pp->ilp->lst,&pp->tile->lstTile);
-    pkdParticleWorkDone(pp->work);
-    delete [] pp->pInfoOut;
-    delete pp;
-    return 0;
-}
-
-static void queuePP( PKD pkd, workParticle *wp, ILP ilp, int bGravStep ) {
-    ILPTILE tile;
-    ILP_LOOP(ilp,tile) {
+static void queuePP( PKD pkd, workParticle *wp, ilpList &ilp, int bGravStep ) {
+    for ( auto &tile : ilp ) {
 #ifdef USE_CUDA
-        if (CudaClientQueuePP(pkd->cudaClient,wp,tile,bGravStep)) continue;
+        if (pkd->cudaClient->queuePP(wp,tile,bGravStep)) continue;
 #endif
-        auto pp = new workPP;
-        assert(pp!=NULL);
-        pp->pInfoOut = new PINFOOUT[wp->nP];
-        assert(pp->pInfoOut!=NULL);
-        pp->work = wp;
-        pp->ilp = ilp;
-        pp->tile = tile;
-        pp->i = 0;
-        tile->lstTile.nRefs++;
-        wp->nRefs++;
-        mdlAddWork(pkd->mdl,pp,NULL,NULL,CPUdoWorkPP,doneWorkPP);
+#ifdef USE_METAL
+        if (pkd->metalClient->queuePP(wp,tile,bGravStep)) continue;
+#endif
+        for (auto i=0; i<wp->nP; ++i) {
+            pkdGravEvalPP(wp->pInfoIn[i],tile,wp->pInfoOut[i]);
+            wp->dFlopSingleCPU += COST_FLOP_PP*tile.size();
+        }
     }
 }
 
-static void queueDensity( PKD pkd, workParticle *wp, ILP ilp, int bGravStep ) {
-    ILPTILE tile;
-    wp->ilp = ilp;
+static void queueDensity( PKD pkd, workParticle *wp, ilpList &ilp, int bGravStep ) {
+    wp->ilp = &ilp;
     wp->bGravStep = bGravStep;
     for ( int i=0; i<wp->nP; i++ ) {
         wp->pInfoOut[i].rho = 0.0f;
@@ -543,114 +462,75 @@ static void queueDensity( PKD pkd, workParticle *wp, ILP ilp, int bGravStep ) {
         wp->pInfoOut[i].nden = 0.0f;
         wp->pInfoOut[i].dndendfball = 0.0f;
         wp->pInfoOut[i].nSmooth = 0.0f;
+        wp->pInfoOut[i].imbalanceX = 0.0f;
+        wp->pInfoOut[i].imbalanceY = 0.0f;
+        wp->pInfoOut[i].imbalanceZ = 0.0f;
+    }
+    for ( auto &tile : ilp ) {
+        for (auto i=0; i<wp->nP; ++i) {
+            pkdDensityEval(wp->pInfoIn[i],tile,wp->pInfoOut[i],wp->SPHoptions);
+        }
+    }
+}
+
+static void queueDensityCorrection( PKD pkd, workParticle *wp, ilpList &ilp, int bGravStep ) {
+    for ( auto &tile : ilp ) {
+        for (auto i=0; i<wp->nP; ++i) {
+            pkdDensityCorrectionEval(wp->pInfoIn[i],tile,wp->pInfoOut[i],wp->SPHoptions);
+        }
+    }
+}
+
+static void queueSPHForces( PKD pkd, workParticle *wp, ilpList &ilp, int bGravStep ) {
+    for ( auto &tile : ilp ) {
+        for (auto i=0; i<wp->nP; ++i) {
+            pkdSPHForcesEval(wp->pInfoIn[i],tile,wp->pInfoOut[i],wp->SPHoptions);
+        }
+    }
+}
+
+static void addCentrifugalAcceleration(PKD pkd, workParticle *wp) {
+    double dOmega, f;
+    double r[3], rxy;
+
+    if (wp->ts->dTime < wp->SPHoptions->CentrifugalT0) {
+        return;
+    }
+    else if (wp->ts->dTime < wp->SPHoptions->CentrifugalT1) {
+        dOmega = wp->SPHoptions->CentrifugalOmega0*(wp->ts->dTime - wp->SPHoptions->CentrifugalT0)/(wp->SPHoptions->CentrifugalT1 - wp->SPHoptions->CentrifugalT0);
+    }
+    else {
+        dOmega = wp->SPHoptions->CentrifugalOmega0;
     }
 
-    ILP_LOOP(ilp,tile) {
+    f = dOmega * dOmega;
+    for (int i=0; i< wp->nP; i++) {
+        pkdGetPos1(pkd,wp->pPart[i],r);
+        rxy = sqrt(r[0] * r[0] + r[1] + r[1]);
+        wp->pInfoOut[i].a[0] += f * r[0];
+        wp->pInfoOut[i].a[1] += f * r[1];
+    }
+}
+
+static void queuePC( PKD pkd,  workParticle *wp, ilcList &ilc, int bGravStep ) {
+    for ( auto &tile : ilc ) {
 #ifdef USE_CUDA
-        assert(0);
+        if (pkd->cudaClient->queuePC(wp,tile,bGravStep)) continue;
 #endif
-        auto pp = new workPP;
-        assert(pp!=NULL);
-        pp->pInfoOut = new PINFOOUT[wp->nP];
-        assert(pp->pInfoOut!=NULL);
-        pp->work = wp;
-        pp->ilp = ilp;
-        pp->tile = tile;
-        pp->i = 0;
-        tile->lstTile.nRefs++;
-        wp->nRefs++;
-        mdlAddWork(pkd->mdl,pp,NULL,NULL,CPUdoWorkDensity,doneWorkDensity);
-    }
-}
-
-static void queueSPHForces( PKD pkd, workParticle *wp, ILP ilp, int bGravStep ) {
-    ILPTILE tile;
-    ILP_LOOP(ilp,tile) {
-#ifdef USE_CUDA
-        assert(0);
+#ifdef USE_METAL
+        if (pkd->metalClient->queuePC(wp,tile,bGravStep)) continue;
 #endif
-        auto pp = new workPP;
-        assert(pp!=NULL);
-        pp->pInfoOut = new PINFOOUT[wp->nP];
-        assert(pp->pInfoOut!=NULL);
-        pp->work = wp;
-        pp->ilp = ilp;
-        pp->tile = tile;
-        pp->i = 0;
-        tile->lstTile.nRefs++;
-        wp->nRefs++;
-        mdlAddWork(pkd->mdl,pp,NULL,NULL,CPUdoWorkSPHForces,doneWorkSPHForces);
-    }
-}
-
-int CPUdoWorkPC(void *vpc) {
-    auto pc = static_cast<workPC *>(vpc);
-    workParticle *wp = pc->work;
-    ILCTILE tile = pc->tile;
-    ILC_BLK *blk = tile->blk;
-    PINFOIN *pPart = &pc->work->pInfoIn[pc->i];
-    PINFOOUT *pOut = &pc->pInfoOut[pc->i];
-    int nBlocks = tile->lstTile.nBlocks;
-    int nInLast = tile->lstTile.nInLast;
-
-    pOut->a[0] = 0.0;
-    pOut->a[1] = 0.0;
-    pOut->a[2] = 0.0;
-    pOut->fPot = 0.0;
-    pOut->dirsum = 0.0;
-    pOut->normsum = 0.0;
-    pkdGravEvalPC(pPart,nBlocks,nInLast,blk,pOut);
-    wp->dFlopSingleCPU += COST_FLOP_PC*(tile->lstTile.nBlocks*ILC_PART_PER_BLK  + tile->lstTile.nInLast);
-    if ( ++pc->i == pc->work->nP ) return 0;
-    else return 1;
-}
-
-int doneWorkPC(void *vpc) {
-    auto pc = static_cast<workPC *>(vpc);
-    int i;
-
-    for (i=0; i<pc->work->nP; ++i) {
-        pc->work->pInfoOut[i].a[0] += pc->pInfoOut[i].a[0];
-        pc->work->pInfoOut[i].a[1] += pc->pInfoOut[i].a[1];
-        pc->work->pInfoOut[i].a[2] += pc->pInfoOut[i].a[2];
-        pc->work->pInfoOut[i].fPot += pc->pInfoOut[i].fPot;
-        pc->work->pInfoOut[i].dirsum += pc->pInfoOut[i].dirsum;
-        pc->work->pInfoOut[i].normsum += pc->pInfoOut[i].normsum;
-    }
-
-    lstFreeTile(&pc->ilc->lst,&pc->tile->lstTile);
-    pkdParticleWorkDone(pc->work);
-    delete [] pc->pInfoOut;
-    delete pc;
-    return 0;
-}
-
-static void queuePC( PKD pkd,  workParticle *wp, ILC ilc, int bGravStep ) {
-    ILCTILE tile;
-    workPC *pc;
-
-    ILC_LOOP(ilc,tile) {
-#ifdef USE_CUDA
-        if (CudaClientQueuePC(pkd->cudaClient,wp,tile,bGravStep)) continue;
-#endif
-        pc = new workPC;
-        assert(pc!=NULL);
-        pc->pInfoOut = new PINFOOUT[wp->nP];
-        assert(pc->pInfoOut!=NULL);
-        pc->work = wp;
-        pc->ilc = ilc;
-        pc->tile = tile;
-        pc->i = 0;
-        tile->lstTile.nRefs++;
-        wp->nRefs++;
-        mdlAddWork(pkd->mdl,pc,NULL,NULL,CPUdoWorkPC,doneWorkPC);
+        for (auto i=0; i<wp->nP; ++i) {
+            pkdGravEvalPC(wp->pInfoIn[i],tile,wp->pInfoOut[i]);
+            wp->dFlopSingleCPU += COST_FLOP_PC*tile.size();
+        }
     }
 }
 
 static void queueEwald( PKD pkd, workParticle *wp ) {
     int i;
 #ifdef USE_CUDA
-    int nQueued = CudaClientQueueEwald(pkd->cudaClient,wp);
+    int nQueued = pkd->cudaClient->queueEwald(wp);
 #else
     int nQueued = 0;
 #endif
@@ -662,9 +542,107 @@ static void queueEwald( PKD pkd, workParticle *wp ) {
         r[0] = wp->c[0] + in->r[0];
         r[1] = wp->c[1] + in->r[1];
         r[2] = wp->c[2] + in->r[2];
-        wp->dFlop += pkdParticleEwald(pkd,r,out->a,&out->fPot,&wp->dFlopSingleCPU,&wp->dFlopDoubleCPU);
+        wp->dFlop += pkdParticleEwald(pkd,r,out->a.data(),&out->fPot,&wp->dFlopSingleCPU,&wp->dFlopDoubleCPU);
     }
     pkdParticleWorkDone(wp);
+}
+
+static void extensiveILPTest(PKD pkd, workParticle *wp, ilpList &ilp) {
+    std::stack<std::pair<int,int>> cellStack;
+
+    // Add the toptree cell corresponding to the ROOT cell to the stack
+    cellStack.push(std::make_pair(pkd->iTopTree[ROOT],pkd->Self()));
+    int nParticles = 0;
+
+    while (!cellStack.empty()) {
+        auto [iCell, id] = cellStack.top();
+        cellStack.pop();
+        auto c = (id == pkd->Self()) ? pkd->tree[iCell] : pkd->tree[static_cast<KDN *>(mdlFetch(pkd->mdl,CID_CELL,iCell,id))];
+
+        // Walking the top tree
+        if (c->is_top_tree()) {
+            auto [iLower, idLower, iUpper, idUpper] = c->get_child_cells(id);
+            cellStack.push(std::make_pair(iUpper, idUpper));
+            cellStack.push(std::make_pair(iLower, idLower));
+            continue;
+        }
+
+        /* We are either on
+        ** the toptree cell that corresponds to my local cell
+        ** or on one of the 2 children for cell corresponding to remote threads id != pkd->Self()
+        ** so we can loop through the particles between c->lower() and c->upper()
+        ** and mdlFetch them from that thread
+        */
+        for (auto pj=c->lower(); pj<=c->upper(); ++pj) {
+            auto p = (id == pkd->Self()) ? pkd->particles[pj] : pkd->particles[static_cast<PARTICLE *>(mdlFetch(pkd->mdl,CID_PARTICLE,pj,id))];
+            ++nParticles;
+
+            // Get position and ball size of particle p
+            auto pr = p.position();
+            float fBallFactor = (wp->SPHoptions->dofBallFactor) ? wp->SPHoptions->fBallFactor : 1.0f;
+            float pBall2 = std::min(wp->SPHoptions->ballSizeLimit, p.ball() * fBallFactor);
+            pBall2 *= pBall2;
+
+            int needsCheck = 0;
+            // Loop over all particles in the wp
+            for (auto i=0; i<wp->nP; ++i) {
+                auto q = pkd->particles[wp->iPart[i]];
+
+                // Get position and ball size of particle q
+                auto qr = q.position();
+                float qBall2 = std::min(wp->SPHoptions->ballSizeLimit, q.ball() * fBallFactor);
+                qBall2 *= qBall2;
+
+                // Calculate distance squared between particle p and q
+                auto dist = pr - qr;
+                float dist2 = blitz::dot(dist,dist);
+
+                // Do check for gather
+                if (dist2 < qBall2) {
+                    needsCheck = 1;
+                    break;
+                }
+                // Do check for scatter
+                if (wp->SPHoptions->doSPHForces && (dist2 < pBall2)) {
+                    needsCheck = 1;
+                    break;
+                }
+            }
+
+            // Now we need to check if particle is on the ILP list
+            if (needsCheck) {
+                // Get distance relative to the reference of the ilp
+                fvec dx = (float)(ilp.getReference(0) - pr[0]);
+                fvec dy = (float)(ilp.getReference(1) - pr[1]);
+                fvec dz = (float)(ilp.getReference(2) - pr[2]);
+
+                fvec occurrence = 0.0f;
+                fmask mask;
+
+                // Compare every entry of the ilp to the positions and count the matches
+                for ( auto &tile : ilp ) {
+                    auto nBlocks = tile.count() / tile.width;
+                    for (auto iBlock=0; iBlock<=nBlocks; ++iBlock) {
+                        int n = (iBlock == nBlocks ?  tile.count() - nBlocks *tile.width : tile.width);
+                        auto &blk = tile[iBlock];
+                        while (n & fvec::mask()) {
+                            blk.dx.s[n] = blk.dy.s[n] = blk.dz.s[n] = 1e14f;
+                            ++n;
+                        }
+                        n /= fvec::width();
+                        for (auto i=0; i<n; ++i) {
+                            mask = ((blk.dx.v[i] == dx) & (blk.dy.v[i] == dy) & (blk.dz.v[i] == dz));
+                            occurrence += maskz_mov(mask,fvec(1.0f));
+                        }
+                    }
+                }
+                // Sum up the matches and compare to 1
+                float occurrences = hadd(occurrence);
+                assert(occurrences == 1.0f);
+            }
+        }
+    }
+    assert(nParticles == pkd->nGas);
 }
 
 /*
@@ -675,21 +653,14 @@ static void queueEwald( PKD pkd, workParticle *wp ) {
 
 int pkdGravInteract(PKD pkd,
                     struct pkdKickParameters *kick,struct pkdLightconeParameters *lc,struct pkdTimestepParameters *ts,
-                    KDN *pBucket,LOCR *pLoc,ILP ilp,ILC ilc,
+                    treeStore::NodePointer pkdn,LOCR *pLoc,ilpList &ilp,ilcList &ilc,
                     float dirLsum,float normLsum,int bEwald,double *pdFlop,
                     SMX smx,SMF *smf,int iRoot1,int iRoot2,SPHOptions *SPHoptions) {
-    PARTICLE *p;
-    KDN *pkdn = pBucket;
-    double r[3], kdn_r[3];
-    vel_t *v;
-    float *ap;
-    float fMass,fSoft;
-    double dx,dy,dz;
     float fBall;
     int i,nSoft,nActive;
     int nP;
 
-    pkdNodeGetPos(pkd,pkdn,kdn_r);
+    auto kdn_r = pkdn->position();
 
     /*
     ** Now process the two interaction lists for each active particle.
@@ -707,14 +678,14 @@ int pkdGravInteract(PKD pkd,
     wp->dFlopDoubleCPU = wp->dFlopDoubleGPU = 0.0;
     wp->nP = 0;
 
-    nP = pkdn->pUpper - pkdn->pLower + 1;
+    nP = pkdn->count();
     wp->pPart = new PARTICLE *[nP];
     wp->iPart = new uint32_t[nP];
     wp->pInfoIn = new PINFOIN[nP];
     wp->pInfoOut = new PINFOOUT[nP];
-    wp->c[0] = ilp->cx; assert(wp->c[0] == ilc->cx);
-    wp->c[1] = ilp->cy; assert(wp->c[1] == ilc->cy);
-    wp->c[2] = ilp->cz; assert(wp->c[2] == ilc->cz);
+    wp->c[0] = ilp.getReference(0); assert(wp->c[0] == ilc.getReference(0));
+    wp->c[1] = ilp.getReference(1); assert(wp->c[1] == ilc.getReference(1));
+    wp->c[2] = ilp.getReference(2); assert(wp->c[2] == ilc.getReference(2));
 
     wp->dirLsum = dirLsum; // not used here...
     wp->normLsum = normLsum; // not used here...
@@ -725,51 +696,25 @@ int pkdGravInteract(PKD pkd,
 
     wp->SPHoptions = SPHoptions;
 
-    for (i=pkdn->pLower; i<=pkdn->pUpper; ++i) {
-        p = pkdParticle(pkd,i);
-        if (!pkdIsRungRange(p,ts->uRungLo,ts->uRungHi) && !(SPHoptions->useDensityFlags && p->bMarked)) continue;
-        pkdGetPos1(pkd,p,r);
-        fMass = pkdMass(pkd,p);
-        fSoft = pkdSoft(pkd,p);
-        v = pkdVel(pkd,p);
+    for (auto &p : *pkdn) {
+        if (!p.is_rung_range(ts->uRungLo,ts->uRungHi) && !(SPHoptions->useDensityFlags && p.marked()) && !(SPHoptions->useNNflags && p.NN_flag())) continue;
+
+        auto r = p.position();
 
         nP = wp->nP++;
-        wp->pPart[nP] = p;
-        wp->iPart[nP] = i;
-        wp->pInfoIn[nP].r[0]  = (float)(r[0] - ilp->cx);
-        wp->pInfoIn[nP].r[1]  = (float)(r[1] - ilp->cy);
-        wp->pInfoIn[nP].r[2]  = (float)(r[2] - ilp->cz);
-        if (pkd->oFieldOffset[oAcceleration]) {
-            ap = pkdAccel(pkd,p);
-            wp->pInfoIn[nP].a[0]  = ap[0];
-            wp->pInfoIn[nP].a[1]  = ap[1];
-            wp->pInfoIn[nP].a[2]  = ap[2];
-            //ap[0] = ap[1] = ap[2] = 0.0;
-        }
-        else {
-            wp->pInfoIn[nP].a[0]  = 0;
-            wp->pInfoIn[nP].a[1]  = 0;
-            wp->pInfoIn[nP].a[2]  = 0;
-        }
+        wp->pPart[nP] = &p;
+        wp->iPart[nP] = &p - pkd->particles.begin();
+        wp->pInfoIn[nP].r = pkd->ilc.get_dr(r);
 
-        if (pkd->oFieldOffset[oNewSph]) {
-            NEWSPHFIELDS *pNewSph = pkdNewSph(pkd,p);
-            float dtPredDrift = getDtPredDrift(kick,p->bMarked,ts->uRungLo,p->uRung);
-            wp->pInfoIn[nP].fBall = pkdBall(pkd,p);
+        if (p.have_newsph()) {
+            const auto &NewSph = p.newsph();
+            wp->pInfoIn[nP].fBall = p.ball();
             wp->pInfoIn[nP].isTooLarge = 0;
-            wp->pInfoIn[nP].Omega = pNewSph->Omega;
-            wp->pInfoIn[nP].v[0] = v[0] + dtPredDrift * wp->pInfoIn[nP].a[0];
-            wp->pInfoIn[nP].v[1] = v[1] + dtPredDrift * wp->pInfoIn[nP].a[1];
-            wp->pInfoIn[nP].v[2] = v[2] + dtPredDrift * wp->pInfoIn[nP].a[2];
-            wp->pInfoIn[nP].rho = pkdDensity(pkd,p);
-            if (wp->SPHoptions->doSPHForces) {
-                wp->pInfoIn[nP].P = EOSPCofRhoU(pkdDensity(pkd,p),pNewSph->u + dtPredDrift * pNewSph->uDot,&wp->pInfoIn[nP].c,SPHoptions);
-            }
-            else {
-                wp->pInfoIn[nP].P = 0.0f;
-                wp->pInfoIn[nP].c = 0.0f;
-            }
-            wp->pInfoIn[nP].species = pkdSpecies(pkd,p);
+            wp->pInfoIn[nP].Omega = NewSph.Omega;
+            wp->pInfoIn[nP].iMat = p.imaterial();
+            SPHpredictOnTheFly(pkd, p, kick, ts->uRungLo, wp->pInfoIn[nP].v, &wp->pInfoIn[nP].P, &wp->pInfoIn[nP].cs, NULL, SPHoptions);
+            wp->pInfoIn[nP].rho = p.density();
+            wp->pInfoIn[nP].species = p.species();
 
             wp->pInfoOut[nP].rho = 0.0f;
             wp->pInfoOut[nP].drhodfball = 0.0f;
@@ -777,9 +722,16 @@ int pkdGravInteract(PKD pkd,
             wp->pInfoOut[nP].dndendfball = 0.0f;
             wp->pInfoOut[nP].fBall = 0.0f;
             wp->pInfoOut[nP].nSmooth = 0.0f;
+            wp->pInfoOut[nP].imbalanceX = 0.0f;
+            wp->pInfoOut[nP].imbalanceY = 0.0f;
+            wp->pInfoOut[nP].imbalanceZ = 0.0f;
             wp->pInfoOut[nP].uDot = 0.0f;
             wp->pInfoOut[nP].divv = 0.0f;
             wp->pInfoOut[nP].dtEst = HUGE_VALF;
+            wp->pInfoOut[nP].maxRung = 0.0f;
+            wp->pInfoOut[nP].corrT = 0.0f;
+            wp->pInfoOut[nP].corrP = 0.0f;
+            wp->pInfoOut[nP].corr = 0.0f;
         }
 
         wp->pInfoOut[nP].a[0] = 0.0f;
@@ -814,31 +766,28 @@ int pkdGravInteract(PKD pkd,
 
     nActive += wp->nP;
 
+    if (SPHoptions->doExtensiveILPTest && !(SPHoptions->doSetDensityFlags || SPHoptions->doSetNNflags)) {
+        extensiveILPTest(pkd, wp, pkd->ilp);
+    }
+
     /*
     ** Evaluate the local expansion.
     */
     if (pLoc && SPHoptions->doGravity) {
         for ( i=0; i<wp->nP; i++ ) {
             momFloat ax,ay,az, dPot;
-            double *c = wp->c;
-            float *in = wp->pInfoIn[i].r;
-            //pkdGetPos1(wp->pPart[i]->r,r);
-            r[0] = c[0] + in[0];
-            r[1] = c[1] + in[1];
-            r[2] = c[2] + in[2];
+            blitz::TinyVector<double,3> r = wp->c + wp->pInfoIn[i].r;
 
             /*
             ** Evaluate local expansion.
             */
-            dx = r[0] - kdn_r[0];
-            dy = r[1] - kdn_r[1];
-            dz = r[2] - kdn_r[2];
+            blitz::TinyVector<double,3> dr = r - kdn_r;
             dPot = 0;
             ax = 0;
             ay = 0;
             az = 0;
 
-            momEvalLocr(pLoc,dx,dy,dz,&dPot,&ax,&ay,&az);
+            momEvalLocr(pLoc,dr[0],dr[1],dr[2],&dPot,&ax,&ay,&az);
 
             wp->pInfoOut[i].fPot += dPot;
             wp->pInfoOut[i].a[0] += ax;
@@ -851,27 +800,36 @@ int pkdGravInteract(PKD pkd,
         /*
         ** Evaluate the P-C interactions
         */
-        assert(ilc->cx==ilp->cx && ilc->cy==ilp->cy && ilc->cz==ilp->cz );
-        queuePC( pkd,  wp, ilc, ts->bGravStep );
+        queuePC( pkd,  wp, pkd->ilc, ts->bGravStep );
 
         /*
         ** Evaluate the P-P interactions
         */
-        queuePP( pkd, wp, ilp, ts->bGravStep );
+        queuePP( pkd, wp, pkd->ilp, ts->bGravStep );
     }
 
     if (SPHoptions->doDensity) {
         /*
         ** Evaluate the Density on the P-P interactions
         */
-        queueDensity( pkd, wp, ilp, ts->bGravStep );
+        queueDensity( pkd, wp, pkd->ilp, ts->bGravStep );
+    }
+
+    if (SPHoptions->doDensityCorrection) {
+        /*
+        ** Evaluate the weighted averages of P and T
+        */
+        queueDensityCorrection( pkd, wp, pkd->ilp, ts->bGravStep );
     }
 
     if (SPHoptions->doSPHForces) {
         /*
         ** Evaluate the SPH forces on the P-P interactions
         */
-        queueSPHForces( pkd, wp, ilp, ts->bGravStep );
+        queueSPHForces( pkd, wp, pkd->ilp, ts->bGravStep );
+        if (SPHoptions->doCentrifugal) {
+            addCentrifugalAcceleration(pkd, wp);
+        }
     }
 
     if (SPHoptions->doGravity) {
@@ -892,8 +850,10 @@ int pkdGravInteract(PKD pkd,
             r[1] = c[1] + in[1];
             r[2] = c[2] + in[2];
             //p = wp->pPart[i];
-            //pkdGetPos1(p->r,r);
-            v = pkdVel(pkd,p);
+            //pkdGetPos1(p.r,r);
+            float fMass = p.mass();
+            float fSoft = p.soft();
+            const auto &v = p.velocity();
             /*
             ** Set value for time-step, note that we have the current ewald acceleration
             ** in this now as well!
@@ -919,12 +879,12 @@ int pkdGravInteract(PKD pkd,
                     for ( blk=0; blk<=tile->lstTile.nBlocks; ++blk ) {
                         n = (blk==tile->lstTile.nBlocks ? tile->lstTile.nInLast : ilp->lst.nPerBlock);
                         for (prt=0; prt<n; ++prt) {
-                            if (p->iOrder < wp->ts->nPartColl || tile->xtr[blk].iOrder.i[prt] < wp->ts->nPartColl) {
+                            if (p.order() < wp->ts->nPartColl || tile->xtr[blk].iOrder.i[prt] < wp->ts->nPartColl) {
                                 fx = r[0] - ilp->cx + tile->blk[blk].dx.f[prt];
                                 fy = r[1] - ilp->cy + tile->blk[blk].dy.f[prt];
                                 fz = r[2] - ilp->cz + tile->blk[blk].dz.f[prt];
                                 d2 = fx*fx + fy*fy + fz*fz;
-                                if (p->iOrder == tile->xtr[blk].iOrder.i[prt]) continue;
+                                if (p.order() == tile->xtr[blk].iOrder.i[prt]) continue;
                                 fourh2 = softmassweight(fMass,4*fSoft*fSoft,
                                                         tile->blk[blk].m.f[prt],tile->blk[blk].fourh2.f[prt]);
                                 if (d2 > fourh2) {
@@ -963,7 +923,7 @@ int pkdGravInteract(PKD pkd,
 
     pkdParticleWorkDone(wp);
 
-    *pdFlop += nActive*(ilpCount(pkd->ilp)*COST_FLOP_PP + ilcCount(pkd->ilc)*COST_FLOP_PC) + nSoft*15;
+    *pdFlop += nActive*(pkd->ilp.count()*COST_FLOP_PP + pkd->ilc.count()*COST_FLOP_PC) + nSoft*15;
     return (nActive);
 }
 

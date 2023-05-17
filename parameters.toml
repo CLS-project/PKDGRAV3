@@ -1,0 +1,1535 @@
+################################################################################
+# All pkdgrav3 parameters
+#   Each key is divided into a section and a parameter name. Parameter names
+#   must be globally unique.
+#
+#   Fields:
+#     flag:    the command line flag used to override the parameter
+#     default: the default value. NB: The type of "default" determines the
+#              type of the parameter. String, int, float or Boolean.
+#     omitted: The "default" value if the parameter is ommited if it is
+#              different from "default". Parsed as restructured text.
+#              Needs to be small to fit beside the parameter (default whatever)
+#              (see dHubble0 for an advanced example).
+#     help:    the short string included with "pkdgrav3 --help"
+#     docs:    Detailed documentation about the parameter that is included in
+#              the User Guide. Parsed as restructured text. (see e.g. dTheta)
+#
+################################################################################
+
+################################################################################
+########## Gravity, Domains, Trees
+################################################################################
+
+["Gravity, Domains, Trees".dSoft]
+flag="e"
+default=0.0
+help="The gravitional Softening length"
+docs='''
+This sets the gravitational softening length **globally** for all particles
+in code units. Normally the softening is read from the input file, and
+can be different for each particle (for example for different masses).
+'''
+
+["Gravity, Domains, Trees".dSoftMax]
+flag="eMax"
+default=0.0
+help="maximum comoving gravitational softening length (abs or multiplier)"
+
+["Gravity, Domains, Trees".bPhysicalSoft]
+flag="PhysSoft"
+default=false
+help="Physical gravitational softening length"
+
+["Gravity, Domains, Trees".bSoftMaxMul]
+flag="SMM"
+default=true
+help="Use maximum comoving gravitational softening length as a multiplier"
+
+["Gravity, Domains, Trees".bDoGravity]
+flag="g"
+default=true
+help="enable interparticle gravity"
+docs='''
+By setting this to false, accelerations due to gravitational forces are
+not applied. This is useful for hydrodyamical simulations.
+'''
+
+["Gravity, Domains, Trees".nGridLin]
+flag="lingrid"
+default=0
+help="Grid size for linear species 0=disabled"
+
+["Gravity, Domains, Trees".bDoLinPkOutput]
+flag="linpk"
+default=false
+help="enable power spectrum output for linear species"
+
+["Gravity, Domains, Trees".bDualTree]
+flag="2tree"
+default=false
+help="enable second tree for active rungs"
+
+["Gravity, Domains, Trees".dFracDualTree]
+flag="fndt"
+default=0.05
+help="Fraction of Active Particles for to use a dual tree"
+
+["Gravity, Domains, Trees".dFracNoDomainDecomp]
+flag="fndd"
+default=0.1
+help="Fraction of Active Particles for no DD"
+
+["Gravity, Domains, Trees".dFracNoDomainRootFind]
+flag="fndrf"
+default=0.1
+help="Fraction of Active Particles for no DD root finding"
+
+["Gravity, Domains, Trees".dFracNoDomainDimChoice]
+flag="fnddc"
+default=0.1
+help="Fraction of Active Particles for no DD dimension choice"
+
+################################################################################
+########## Analysis
+################################################################################
+
+["Analysis".nBinsPk]
+flag="npk"
+default=0
+help="Number of log bins for P(k)"
+
+["Analysis".nGridPk]
+flag="pk"
+default=0
+help="Grid size for measure P(k) 0=disabled"
+
+["Analysis".bPkInterlace]
+flag="pkinterlace"
+default=true
+help="Use interlacing to measure P(k)"
+
+["Analysis".iPkOrder]
+flag="pko"
+default=4
+help="Mass assignment order for measuring P(k)"
+
+["Analysis".bFindGroups]
+flag="groupfinder"
+default=false
+help="enable group finder"
+
+["Analysis".bFindHopGroups]
+flag="hop"
+default=false
+help="enable phase-space group finder"
+
+["Analysis".dHopTau]
+flag="hoptau"
+default=-4.0
+help="linking length for Gasshopper (negative for multiples of softening)"
+
+["Analysis".nMinMembers]
+flag="nMinMembers"
+default=10
+help="minimum number of group members"
+
+["Analysis".dTau]
+flag="tau"
+default=0.164
+help="linking length for FOF in units of mean particle separation"
+
+["Analysis".dEnvironment0]
+flag="dEnv0"
+default=-1.0
+help="first radius for density environment about a group"
+
+["Analysis".dEnvironment1]
+flag="dEnv1"
+default=-1.0
+help="second radius for density environment about a group"
+
+["Analysis".bLightCone]
+flag="lc"
+default=false
+help="output light cone data"
+
+["Analysis".bBowtie]
+flag="bbt"
+default=false
+help="output +++ and --- octants of the cone; a bowtie"
+
+["Analysis".dRedshiftLCP]
+flag="zlcp"
+default=0.0
+help="starting redshift to output light cone particles"
+
+["Analysis".sqdegLCP]
+flag="sqdeg"
+default=50.0
+help="square degrees of lightcone (if (<0 || >41253) then all sky)"
+
+["Analysis".hxLCP]
+flag="hx"
+default=0.749
+help="x-component of lightcone direction vector"
+
+["Analysis".hyLCP]
+flag="hy"
+default=0.454
+help="y-component of lightcone direction vector"
+
+["Analysis".hzLCP]
+flag="hz"
+default=1.0
+help="z-component of lightcone direction vector"
+
+["Analysis".dDeltakRedshift]
+flag="zdel"
+default=0.0
+help="starting redshift to output delta(k) field"
+
+["Analysis".nSideHealpix]
+flag="healpix"
+default=0
+help="Number per side of the healpix map"
+
+["Analysis".bLightConeParticles]
+flag="lcp"
+default=false
+help="output light cone particles"
+
+################################################################################
+########## I/O Parameters
+################################################################################
+
+["I/O Parameters".achInFile]
+flag="I"
+default=""
+help="input file name"
+
+["I/O Parameters".achOutName]
+flag="o"
+default="pkdgrav3"
+help="output name for snapshots and logfile"
+
+["I/O Parameters".achOutPath]
+flag="op"
+default=""
+help="output path for snapshots and logfile"
+
+["I/O Parameters".achIoPath]
+flag="iop"
+default=""
+help="output path for snapshots and logfile"
+
+["I/O Parameters".achCheckpointPath]
+flag="cpp"
+default=""
+help="output path for checkpoints"
+
+["I/O Parameters".achDataSubPath]
+flag="dsp"
+default=""
+help="sub-path for data"
+
+["I/O Parameters".achOutTimes]
+flag="ot"
+default=""
+help="input file containing the sequence of output redshift|time|a"
+
+["I/O Parameters".bInFileLC]
+flag="lcin"
+default=false
+help="input light cone data"
+
+["I/O Parameters".bParaRead]
+flag="par"
+default=true
+help="enable parallel reading of files"
+
+["I/O Parameters".bParaWrite]
+flag="paw"
+default=false
+help="disable parallel writing of files"
+
+["I/O Parameters".nParaRead]
+flag="npar"
+default=0
+help="number of threads to read with during parallel read (0=unlimited)"
+
+["I/O Parameters".nParaWrite]
+flag="npaw"
+default=0
+help="number of threads to write with during parallel write (0=unlimited)"
+
+["I/O Parameters".iOutInterval]
+flag="oi"
+default=0
+help="number of timesteps between snapshots"
+
+["I/O Parameters".iFofInterval]
+flag="fof"
+default=0
+help="number of timesteps between fof group finding"
+
+["I/O Parameters".iCheckInterval]
+flag="ci"
+default=0
+help="number of timesteps between checkpoints"
+
+["I/O Parameters".iLogInterval]
+flag="ol"
+default=1
+help="number of timesteps between logfile outputs"
+
+["I/O Parameters".iPkInterval]
+flag="opk"
+default=1
+help="number of timesteps between pk outputs"
+
+["I/O Parameters".iDeltakInterval]
+flag="odk"
+default=0
+help="number of timesteps between DeltaK outputs"
+
+["I/O Parameters".bHDF5]
+flag="hdf5"
+default=false
+help="output in HDF5 format"
+
+["I/O Parameters".bDoublePos]
+flag="dp"
+default=false
+help="input/output double precision positions (standard format only)"
+
+["I/O Parameters".bDoubleVel]
+flag="dv"
+default=false
+help="input/output double precision velocities (standard format only)"
+
+["I/O Parameters".bDoSoftOutput]
+flag="softout"
+default=false
+help="enable soft outputs"
+
+["I/O Parameters".bDoDensity]
+flag="den"
+default=true
+help="enable density outputs"
+
+["I/O Parameters".bDoAccOutput]
+flag="accout"
+default=false
+help="enable acceleration outputs"
+
+["I/O Parameters".bDoPotOutput]
+flag="potout"
+default=false
+help="enable potential outputs"
+
+["I/O Parameters".bDoRungOutput]
+flag="rungout"
+default=false
+help="enable rung outputs"
+
+["I/O Parameters".bDoRungDestOutput]
+flag="rungdestout"
+default=false
+help="enable rung destination outputs"
+
+["I/O Parameters".bStandard]
+flag="std"
+default=true
+help="output in standard TIPSY binary format"
+
+["I/O Parameters".iCompress]
+flag="compress"
+default=0
+help="compression format, 0=none, 1=gzip, 2=bzip2"
+
+["I/O Parameters".iWallRunTime]
+flag="wall"
+default=0
+help="Maximum Wallclock time (in minutes) to run"
+
+["I/O Parameters".iSignalSeconds]
+flag="signal"
+default=0
+help="Time (in seconds) that USR1 is sent before termination"
+
+["I/O Parameters".bRestart]
+flag="restart"
+default=false
+help="restart from checkpoint"
+
+["I/O Parameters".lstOrbits]
+flag="orbit"
+default=[]
+help="Particle ID of particle to write to orbit file (repeatable)"
+
+####
+####    ioparm.add_argument('-orbit', dest='lstOrbits', type=int, action='append', help='Particle ID of particle to write to orbit file (repeatable)')
+####
+
+
+################################################################################
+########## Time Stepping
+################################################################################
+
+["Time Stepping".iStartStep]
+flag="nstart"
+default=0
+help="initial step numbering"
+
+["Time Stepping".nSteps]
+flag="n"
+default=0
+help="number of timesteps"
+
+["Time Stepping".nSteps10]
+flag="n10"
+default=0
+help="number of timesteps to z=10"
+
+["Time Stepping".dRedTo]
+flag="zto"
+default=0.0
+help="specifies final redshift for the simulation"
+
+["Time Stepping".dDelta]
+flag="dt"
+default=0.0
+help="time step"
+
+["Time Stepping".dEta]
+flag="eta"
+default=0.2
+help="time step criterion"
+
+["Time Stepping".bGravStep]
+flag="gs"
+default=false
+help="Gravity timestepping according to iTimeStep Criterion"
+
+["Time Stepping".bEpsAccStep]
+flag="ea"
+default=false
+help="Sqrt(Epsilon on a) timestepping"
+
+["Time Stepping".bDensityStep]
+flag="isrho"
+default=false
+help="Sqrt(1/Rho) timestepping"
+
+["Time Stepping".iTimeStepCrit]
+flag="tsc"
+default=0
+help="Criteria for dynamical time-stepping"
+
+["Time Stepping".nPartRhoLoc]
+flag="nprholoc"
+default=32
+help="Number of particles for local density in dynamical time-stepping"
+
+["Time Stepping".dPreFacRhoLoc]
+flag="dprefacrholoc"
+default=4.1887902047863905 # pi*4.0/3.0
+omitted=':math:`\frac{4}{3}\pi`'
+help="Pre-factor for local density in dynamical time-stepping"
+
+["Time Stepping".dEccFacMax]
+flag="deccfacmax"
+default=3000.0
+help="Maximum correction factor for eccentricity correction"
+
+["Time Stepping".nPartColl]
+flag="npcoll"
+default=0
+help="Number of particles in collisional regime"
+
+["Time Stepping".iMaxRung]
+flag="mrung"
+default=63
+help="maximum timestep rung"
+
+["Time Stepping".bNewKDK]
+flag="NewKDK"
+default=false
+help="Use new implementation of KDK time stepping=no"
+
+["Time Stepping".nTruncateRung]
+flag="nTR"
+default=0
+help="number of MaxRung particles to delete MaxRung"
+
+################################################################################
+########## Force Accuracy
+################################################################################
+
+["Force Accuracy".dTheta]
+flag="theta"
+default=0.7
+help="Barnes opening criterion"
+docs='''
+The Barns/Hut opening criterion :math:`\theta`. A value of 0.7 gives
+an RMS error of approximately :math:`0.1\%` which is normally adequate.
+At very high redshift, when the particle distribution is very uniform
+and thus the force on each particle is nearly zero then decreasing this
+to 0.4 is recommended. Theta should be relaxed at lower redshift by
+using accuracy.classic_theta_switch().
+'''
+
+["Force Accuracy".nReplicas]
+flag="nrep"
+default=1
+help="nReplicas"
+docs='''
+This sets the number of box replicas that will be considered for tree-based force calculations.
+When periodic boundary conditions are disabled this parameter is ignored.
+For cosmological simulations it is recommended to switch between 1 and 2 replicas
+depending on :math:`\theta` by using accuracy.classic_replicas_switch().
+'''
+
+################################################################################
+########## Periodic Boundaries
+################################################################################
+
+["Periodic Boundaries".bComove]
+flag="cm"
+default=false
+help="enable comoving coordinates"
+
+["Periodic Boundaries".bPeriodic]
+flag="p"
+default=false
+help="periodic/non-periodic"
+
+["Periodic Boundaries".bEwald]
+flag="ewald"
+default=true
+help="enable Ewald correction"
+
+["Periodic Boundaries".iEwOrder]
+flag="ewo"
+default=4
+help="Ewald multipole expansion order: 1, 2, 3 or 4"
+
+["Periodic Boundaries".dPeriod]
+flag="L"
+default=1.0
+help="periodic box length"
+
+["Periodic Boundaries".dxPeriod]
+flag="Lx"
+default=1.0
+help="periodic box length in x-dimension"
+
+["Periodic Boundaries".dyPeriod]
+flag="Ly"
+default=1.0
+help="periodic box length in y-dimension"
+
+["Periodic Boundaries".dzPeriod]
+flag="Lz"
+default=1.0
+help="periodic box length in z-dimension"
+
+["Periodic Boundaries".dEwCut]
+flag="ew"
+default=2.6
+help="dEwCut"
+
+["Periodic Boundaries".dEwhCut]
+flag="ewh"
+default=2.8
+help="dEwhCut"
+
+################################################################################
+########## Cosmology
+################################################################################
+
+["Cosmology".dHubble0]
+flag="Hub"
+default=2.8944050182330705
+omitted=':math:`\sqrt{\frac{8}{3}\pi}`'
+help="dHubble0"
+docs='''
+The Hubble parameter :math:`H_0` in code units.
+'''
+
+["Cosmology".dOmega0]
+flag="Om"
+default=1.0
+help="dOmega0"
+docs='''
+The matter density of the universe :math:`\Omega_m`.
+'''
+
+["Cosmology".dLambda]
+flag="Lambda"
+default=0.0
+help="dLambda"
+docs='''
+The dark energy density of the universe :math:`\Omega_\Lambda`.
+'''
+
+["Cosmology".dOmegaDE]
+flag="omDE"
+default=0.0
+help="Omega for Dark Energy using w0 and wa parameters: <dOmegaDE"
+
+["Cosmology".w0]
+flag="w0"
+default=-1.0
+help="w0 parameter for Dark Energy <w0"
+
+["Cosmology".wa]
+flag="wa"
+default=0.0
+help="wa parameter for Dark Energy <wa"
+
+["Cosmology".dOmegaRad]
+flag="Omrad"
+default=0.0
+help="dOmegaRad"
+
+["Cosmology".dOmegab]
+flag="Omb"
+default=0.0
+help="dOmegab"
+
+["Cosmology".dSigma8]
+flag="S8"
+default=0.0
+help="dSimga8"
+
+["Cosmology".dNormalization]
+flag="As"
+default=0.0
+help="dNormalization"
+
+["Cosmology".dSpectral]
+flag="ns"
+default=0.0
+help="dSpectral"
+
+["Cosmology".dRunning]
+flag="alphas"
+default=0.0
+help="Primordial tilt running: <dRunning"
+
+["Cosmology".dPivot]
+flag="kpivot"
+default=0.05
+help="Primordial pivot scale in 1/Mpc (not h/Mpc): <dPivot"
+
+["Cosmology".bClass]
+flag="class"
+default=false
+help="Enable/disable the use of CLASS"
+
+["Cosmology".achClassFilename]
+flag="class_filename"
+default=""
+help="Name of hdf5 file containing the CLASS data"
+
+["Cosmology".achLinSpecies]
+flag="lin_species"
+default=""
+help="plus-separated string of linear species, e.g. \"ncdm[0]+g+metric\""
+
+["Cosmology".achPkSpecies]
+flag="pk_species"
+default=""
+help="plus-separated string of species for P(k)"
+
+["Cosmology".h]
+flag="h"
+default=0.0
+help="dimensionless Hubble constant h"
+
+["Cosmology".dBoxSize]
+flag="mpc"
+default=1.0
+help="Simulation Box size in Mpc/h"
+
+["Cosmology".achTfFile]
+flag="tf"
+default=""
+help="transfer file name (file in CMBFAST format)"
+
+################################################################################
+########## Initial Conditions
+################################################################################
+
+["Initial Conditions".dRedFrom]
+flag="z"
+default=0.0
+help="specifies initial redshift for the simulation"
+
+["Initial Conditions".nGrid]
+flag="grid"
+default=0
+help="Grid size for IC 0=disabled"
+
+["Initial Conditions".iSeed]
+flag="seed"
+default=0
+help="Random seed for IC"
+
+["Initial Conditions".b2LPT]
+flag="2lpt"
+default=true
+help="Enable/disable 2LPT"
+
+["Initial Conditions".bWriteIC]
+flag="wic"
+default=false
+help="Write IC after generating"
+
+["Initial Conditions".bFixedAmpIC]
+flag="fixedamp"
+default=false
+help="Use fixed amplitude of 1 for ICs"
+
+["Initial Conditions".dFixedAmpPhasePI]
+flag="fixedphase"
+default=0.0
+help="Phase shift for fixed amplitude in units of PI"
+
+["Initial Conditions".bICgas]
+flag="ICgas"
+default=false
+help="Enable/disable gas in the ICs"
+
+["Initial Conditions".dInitialT]
+flag="initT"
+default=100.0
+help="Initial temperature of the gas generated ICs"
+
+################################################################################
+########## Memory Model and Control
+################################################################################
+
+["Memory Model and Control".nBucket]
+flag="b"
+default=16
+help="max number of particles in a bucket"
+
+["Memory Model and Control".nGroup]
+flag="grp"
+default=64
+help="max number of particles in a group"
+
+["Memory Model and Control".dExtraStore]
+flag="extra"
+default=0.1
+help="Extra storage for particles"
+
+["Memory Model and Control".nTreeBitsLo]
+flag="treelo"
+default=14
+help="number of low bits for tree"
+
+["Memory Model and Control".nTreeBitsHi]
+flag="treehi"
+default=18
+help="number of high bits for tree"
+
+["Memory Model and Control".nMemEphemeral]
+flag="ephemeral"
+default=0
+size=8
+help="minimum size of ephemeral (in bytes)"
+
+["Memory Model and Control".bMemIntegerPosition]
+flag="integer"
+default=false
+help="Particles have integer positions"
+
+["Memory Model and Control".bMemUnordered]
+flag="unordered"
+default=false
+help="Particles have no specific order"
+
+["Memory Model and Control".bMemParticleID]
+flag="pid"
+default=false
+help="Particles have a unique identifier"
+
+["Memory Model and Control".bMemAcceleration]
+flag="Ma"
+default=false
+help="Particles have acceleration"
+
+["Memory Model and Control".bMemVelocity]
+flag="Mv"
+default=false
+help="Particles have velocity"
+
+["Memory Model and Control".bMemPotential]
+flag="Mp"
+default=false
+help="Particles have potential"
+
+["Memory Model and Control".bMemGroups]
+flag="Mg"
+default=false
+help="Particles support group finding"
+
+["Memory Model and Control".bMemGlobalGid]
+flag="Mgg"
+default=false
+help="Particles support global group ids"
+
+["Memory Model and Control".bMemMass]
+flag="Mm"
+default=false
+help="Particles have individual masses"
+
+["Memory Model and Control".bMemSoft]
+flag="Ms"
+default=false
+help="Particles have individual softening"
+
+["Memory Model and Control".bMemVelSmooth]
+flag="Mvs"
+default=false
+help="Particles support velocity smoothing"
+
+["Memory Model and Control".bMemNodeMoment]
+flag="MNm"
+default=false
+help="Tree nodes support multipole moments"
+
+["Memory Model and Control".bMemNodeAcceleration]
+flag="MNa"
+default=false
+help="Tree nodes support acceleration (for bGravStep)"
+
+["Memory Model and Control".bMemNodeVelocity]
+flag="MNv"
+default=false
+help="Tree nodes support velocity (for iTimeStepCrit = 1)"
+
+["Memory Model and Control".bMemNodeSphBounds]
+flag="MNsph"
+default=false
+help="Tree nodes support fast-gas bounds"
+
+["Memory Model and Control".bMemNodeBnd]
+flag="MNbnd"
+default=true
+help="Tree nodes support 3D bounds"
+
+["Memory Model and Control".bMemNodeVBnd]
+flag="MNvbnd"
+default=false
+help="Tree nodes support velocity bounds"
+
+["Memory Model and Control".bMemBall]
+flag="MBall"
+default=false
+help="Particles have ball"
+
+################################################################################
+########## Gas
+################################################################################
+
+["Gas".nSmooth]
+flag="s"
+default=64
+help="number of particles to smooth over"
+
+["Gas".bDoGas]
+flag="gas"
+default=false
+help="calculate gas/do not calculate gas"
+
+["Gas".bGasAdiabatic]
+flag="GasAdiabatic"
+default=true
+help="Gas is Adiabatic"
+
+["Gas".bGasIsentropic]
+flag="GasIsentropic"
+default=true
+help="Gas is evolved isentropically"
+
+["Gas".bGasIsothermal]
+flag="GasIsothermal"
+default=false
+help="Gas is Isothermal"
+
+["Gas".dEtaCourant]
+flag="etaC"
+default=0.4
+help="Courant criterion"
+
+["Gas".dCFLacc]
+flag="etaAcc"
+default=0.01
+help="Timestep criterion for the acceleration"
+
+["Gas".dConstAlpha]
+flag="alpha"
+default=1.0
+help="Alpha constant in viscosity"
+
+["Gas".dConstBeta]
+flag="beta"
+default=2.0
+help="Beta constant in viscosity"
+
+["Gas".dConstGamma]
+flag="gamma"
+default=1.6666666666666667 # 5.0/3.0
+omitted=':math:`\frac{5}{3}`'
+help="Ratio of specific heats"
+
+["Gas".dMeanMolWeight]
+flag="mmw"
+default=1.0
+help="Mean molecular weight in amu"
+
+["Gas".dGasConst]
+flag="gcnst"
+default=1.0
+help="Gas Constant"
+
+["Gas".dKBoltzUnit]
+flag="kb"
+default=1.0
+help="Boltzmann Constant in System Units"
+
+["Gas".dhMinOverSoft]
+flag="hmin"
+default=0.0
+help="Minimum h as a fraction of Softening"
+
+["Gas".dFastGasFraction]
+flag="FastGasFraction"
+default=0.5
+help="Fraction for FastGas"
+
+["Gas".dMsolUnit]
+flag="msu"
+default=1.0
+help="Solar mass/system mass unit"
+
+["Gas".dKpcUnit]
+flag="kpcu"
+default=1000.0
+help="Kiloparsec/system length unit"
+
+["Gas".bAddDelete]
+flag="adddel"
+default=false
+help="Add Delete Particles"
+
+["Gas".fKernelTarget]
+flag="fKernelTarget"
+default=0.0
+help="Kernel target, either number- or massdensity"
+
+["Gas".dVelocityDamper]
+flag="VelocityDamper"
+default=0.0
+help="Velocity Damper"
+
+["Gas".dBallSizeLimit]
+flag="ballSizeLimit"
+default=10.0
+help="Ball size limit"
+
+["Gas".iKernelType]
+flag="KernelType"
+default=0
+help="Kernel type, 0: M4, 1: Wendland C2, 2: Wendland C4, 3: Wendland C6"
+
+["Gas".bNewSPH]
+flag="bNewSPH"
+default=false
+help="Use the new SPH implementation"
+
+["Gas".bGasBuiltinIdeal]
+flag="GasBuiltinIdeal"
+default=false
+help="Use builtin ideal gas"
+
+["Gas".bGasOnTheFlyPrediction]
+flag="GasOnTheFlyPrediction"
+default=false
+help="Do on the fly prediction"
+
+["Gas".bGasInterfaceCorrection]
+flag="GasInterfaceCorrection"
+default=false
+help="Do interface correction"
+
+["Gas".bGasConsistentPrediction]
+flag="GasConsistentPrediction"
+default=false
+help="Use consistent prediction"
+
+["Gas".bCentrifugal]
+flag="Centrifugal"
+default=false
+help="Apply centrifugal force"
+
+["Gas".dCentrifT0]
+flag="CentrifT0"
+default=0.0
+help="Start time for centrifugal ramp"
+
+["Gas".dCentrifT1]
+flag="CentrifT1"
+default=0.0
+help="End time for centrifugal ramp"
+
+["Gas".dCentrifOmega0]
+flag="CentrifOmega0"
+default=0.0
+help="Maximum omega for centrifugal ramp"
+
+["Gas".bGasDoExtensiveILPTest]
+flag="GasDoExtensiveILPTest"
+default=false
+help="Extensively test the ILP for completeness. Very costly."
+
+["Gas".bMeshlessHydro]
+flag="meshless"
+default=false
+help="Use the new implementation of the hydrodynamics"
+
+["Gas".bGlobalDt]
+flag="globaldt"
+default=false
+help="Force all particles to the same rung"
+
+["Gas".bIterativeSmoothingLength]
+flag="iterh"
+default=true
+help="Use an iterative scheme to obtain h"
+
+["Gas".bWakeUpParticles]
+flag="wakeup"
+default=false
+help="Wake the particles when there is a big rung difference"
+
+["Gas".dNeighborsStd]
+flag="neighstd"
+default=1.0
+help="Maximum deviation from desired number of neighbors"
+
+["Gas".bOutFineStatistics]
+flag="finestats"
+default=false
+help="Save high cadence information on the rung distribution and star formation"
+
+["Gas".ddHonHLimit]
+flag="HonHLimit"
+default=0.1
+help="|dH|/H Limiter"
+docs='''
+:math:`\frac{|dH|}{H}` limiter
+'''
+
+["Gas".dMaxPhysicalSoft]
+flag="MaxPhysicalSoft"
+default=0.0
+help="maximum softening in physical coordinates"
+
+################################################################################
+########## Cooling
+################################################################################
+
+["Cooling".achCoolingTables]
+flag="coolingtables"
+default=""
+help="Path to the cooling tables"
+
+["Cooling".fH_reion_z]
+flag="H_reion_z"
+default=11.5
+help="Redshift of Hydrogen reionization"
+
+["Cooling".fH_reion_eV_p_H]
+flag="H_reion_eV_p_H"
+default=2.0
+help="Energy injected per proton during H reionization, eV"
+
+["Cooling".fHe_reion_eV_p_H]
+flag="He_reion_eV_p_H"
+default=2.0
+help="Energy injected per proton during He reionization, eV"
+
+["Cooling".fHe_reion_z_centre]
+flag="He_reion_z_centre"
+default=3.5
+help="Mean redshift of Helium reionization"
+
+["Cooling".fHe_reion_z_sigma]
+flag="He_reion_z_sigma"
+default=0.5
+help="Redshift interval for Helium reionzation"
+
+["Cooling".fT_CMB_0]
+flag="T_CMB_0"
+default=2.725
+help="Temperature of the CMB at z=0"
+
+["Cooling".dCoolingMinTemp]
+flag="CoolingMinTemp"
+default=1e2
+help="Minimum allowed temperature, K"
+
+################################################################################
+########## Effective equation of state
+################################################################################
+
+["Effective equation of state".dEOSFloornH]
+flag="EOSFloornH"
+default=1e-5
+omitted=':math:`10^{-5}`'
+help="Minimum density at which the internal energy floor will be applied, n_H cm-3"
+
+["Effective equation of state".dEOSFloorMinOD]
+flag="EOSFloorMinOD"
+default=10
+help="Minimum baryonic overdensity at which the internal energy floor will be applied"
+
+["Effective equation of state".dEOSFloorTemp]
+flag="EOSFloorTemp"
+default=1e4
+help="Temperature at the internal energy floor, K"
+
+["Effective equation of state".dEOSPolyFloornH]
+flag="EOSPolyFloornH"
+default=0.1
+help="Density threshold beyond which the polytropic effective EOS will be applied, nH cm-3)"
+
+["Effective equation of state".dEOSPolyFloorMinOD]
+flag="EOSPolyFloorMinOD"
+default=10
+help="Minimum baryonic overdensity at which the polytropic effective EOS will be applied"
+
+["Effective equation of state".dEOSPolyFloorIndex]
+flag="EOSPolyFloorIndex"
+default=1.3333333333333333
+omitted=':math:`\frac{4}{3}`'
+help="Index of the polytropic effective EOS"
+
+["Effective equation of state".dEOSPolyFloorTemp]
+flag="EOSPolyFloorTemp"
+default=1e4
+help="Temperature at the density threshold for the effective EOS, K"
+
+["Effective equation of state".dEOSNJeans]
+flag="EOSNJeans"
+default=8.75
+help="Number of elements to resolve the Jeans length"
+
+################################################################################
+########## Star formation
+################################################################################
+
+["Star formation".dSFThresholdDen]
+flag="SFThresholdDen"
+default=0.1
+help="Minimum density at which the star formation can happen, nH cm-3"
+
+["Star formation".bSFThresholdDenSchaye2004]
+flag="SFThresholdDenSchaye2004"
+default=false
+help="Use the metallicity-dependent star-formation density threshold of Schaye (2004)"
+
+["Star formation".dSFThresholdT]
+flag="SFThresholdT"
+default=1e5
+help="Maximum temperature at which the star formation can happen, K"
+
+["Star formation".dSFMinOverDensity]
+flag="SFminOverDens"
+default=57.7
+help="Minimum overdensity for allowing star formation"
+
+["Star formation".dSFGasFraction]
+flag="SFGasFraction"
+default=0.3
+help="Gas fraction assumed for the star formation"
+
+["Star formation".dSFindexKS]
+flag="SFindexKS"
+default=1.4
+help="Index of the Kennicutt-Schmidt star-formation law"
+
+["Star formation".dSFnormalizationKS]
+flag="SFnormalizationKS"
+default=1.515e-4
+omitted=':math:`1.515\times 10^{-4}`'
+help="Normalization of the Kennicutt-Schmidt star-formation law. Value must be consistent with the chosen IMF"
+
+["Star formation".dSFEfficiency]
+flag="SFEfficiency"
+default=0.0
+help="Star formation efficiency per free-fall time; set >0 to use density-based SFR"
+
+################################################################################
+########## Supernova feedback
+################################################################################
+
+["Supernova feedback".bCCSNFeedback]
+flag="bCCSNFeedback"
+default=true
+help="Activate energy feedback from CCSN events"
+
+["Supernova feedback".bSNIaFeedback]
+flag="bSNIaFeedback"
+default=false
+help="Activate energy feedback from SNIa events"
+
+["Supernova feedback".dSNFBEfficiency]
+flag="SNFBEfficiency"
+default=1.0
+help="Efficiency of SN feedback. Asymptotic minimum efficiency if dSNFBMaxEff is provided"
+
+["Supernova feedback".dSNFBMaxEff]
+flag="SNFBMaxEff"
+default=0.0
+help="Asymptotic maximum efficiency of SN feedback"
+
+["Supernova feedback".dSNFBEffIndex]
+flag="SNFBEffIndex"
+default=0.87
+help="Metallicity and density index for the feedback efficiency"
+
+["Supernova feedback".dSNFBEffnH0]
+flag="SNFBEffnH0"
+default=0.67
+help="Hydrogen number density normalization of the feedback efficiency, nH cm-3"
+
+["Supernova feedback".dSNFBDT]
+flag="SNFBDT"
+default=31622776.60168379 # 10**7.5
+omitted=':math:`10^{7.5}`'
+help="Gas-particle temperature increment per SN feedback event, K"
+
+["Supernova feedback".dCCSNFBDelay]
+flag="CCSNFBDelay"
+default=3e7
+omitted=':math:`3\times 10^7`'
+help="Time between star formation and injection of CCSN energy, yr"
+
+["Supernova feedback".dCCSNEnergy]
+flag="CCSNEnergy"
+default=1e51
+omitted=':math:`10^{51}`'
+help="CCSN event energy, erg"
+
+["Supernova feedback".dSNIaFBDelay]
+flag="dSNIaFBDelay"
+default=2e8
+omitted=':math:`2\times 10^8`'
+help="Time between star formation and injection of SNIa energy, yr"
+
+["Supernova feedback".dSNIaEnergy]
+flag="dSNIaEnergy"
+default=1e51
+omitted=':math:`10^{51}`'
+help="SNIa event energy, erg"
+
+################################################################################
+########## Blackholes
+################################################################################
+
+["Blackholes".bBHMerger]
+flag="bBHMerger"
+default=true
+help="Activate mergers of blackhole particles"
+
+["Blackholes".bBHAccretion]
+flag="bBHAccretion"
+default=true
+help="Activate the accretion of gas particles into blackholes"
+
+["Blackholes".bBHFeedback]
+flag="bBHFeedback"
+default=true
+help="Activate the BH feedback"
+
+["Blackholes".dBHAccretionAlpha]
+flag="BHAccretionAlpha"
+default=1.0
+help="Accretion boost parameter"
+
+["Blackholes".dBHAccretionCvisc]
+flag="BHAccretionCvisc"
+default=0.0
+help="Accretion viscosity parameter"
+
+["Blackholes".dBHRadiativeEff]
+flag="dBHRadiativeEff"
+default=0.1
+help="AGN radiative efficiency"
+
+["Blackholes".dBHFBEff]
+flag="BHFBEff"
+default=0.1
+help="AGN coupling efficiency with its surroundings"
+
+["Blackholes".dBHFBDT]
+flag="BHFBDT"
+default=1e8
+omitted=':math:`10^8`'
+help="Gas-particle temperature increment per AGN feedback event, K"
+
+["Blackholes".dBHAccretionEddFac]
+flag="BHAccretionEddFac"
+default=1.05391277e-06
+omitted=':math:`\frac{4\pi\times m_p}{\sigma_t\times c} = 1.05391277\times 10^{-6}`'
+help="4pi * m_p / sigma_T / c , kg m^-3 s"
+
+["Blackholes".bBHPlaceSeed]
+flag="bBHPlaceSeed"
+default=true
+help="Place BH seeds in FOF groups"
+
+["Blackholes".dBHSeedMass]
+flag="BHSeedMass"
+default=1.0
+help="Mass of the BH seed, in code units"
+
+["Blackholes".dBHMhaloMin]
+flag="BHMhaloMin"
+default=1.0
+help="Minimum mass required to place a BH in a FOF group, in code units"
+
+################################################################################
+########## Chemistry
+################################################################################
+
+["Chemistry".dInitialH]
+flag="InitialH"
+default=0.75
+help="Initial Hydrogen abundance"
+
+["Chemistry".dInitialHe]
+flag="InitialHe"
+default=0.25
+help="Initial Helium abundance"
+
+["Chemistry".dInitialC]
+flag="InitialC"
+default=0.0
+help="Initial Carbon abundance"
+
+["Chemistry".dInitialN]
+flag="InitialN"
+default=0.0
+help="Initial Nitrogen abundance"
+
+["Chemistry".dInitialO]
+flag="InitialO"
+default=0.0
+help="Initial Oxygen abundance"
+
+["Chemistry".dInitialNe]
+flag="InitialNe"
+default=0.0
+help="Initial Neon abundance"
+
+["Chemistry".dInitialMg]
+flag="InitialMg"
+default=0.0
+help="Initial Magnesium abundance"
+
+["Chemistry".dInitialSi]
+flag="InitialSi"
+default=0.0
+help="Initial Silicon abundance"
+
+["Chemistry".dInitialFe]
+flag="InitialFe"
+default=0.0
+help="Initial Iron abundance"
+
+["Chemistry".dInitialMetallicity]
+flag="InitialMetallicity"
+default=0.0
+help="Initial metallicity"
+
+################################################################################
+########## Stellar Initial-Mass Function (IMF)
+################################################################################
+
+["Stellar Initial-Mass Function (IMF)".achIMFType]
+flag="imftype"
+default=""
+help="Type of IMF"
+
+["Stellar Initial-Mass Function (IMF)".dIMFMinMass]
+flag="IMFMinMass"
+default=0.1
+help="Lower-mass limit of the IMF, Msol"
+
+["Stellar Initial-Mass Function (IMF)".dIMFMaxMass]
+flag="IMFMaxMass"
+default=100.0
+help="Upper-mass limit of the IMF, Msol"
+
+["Stellar Initial-Mass Function (IMF)".dCCSNMinMass]
+flag="CCSNMinMass"
+default=6.0
+help="Minimum mass for a star to end its life as a Core Collapse Supernova, Msol"
+
+["Stellar Initial-Mass Function (IMF)".dCCSNMaxMass]
+flag="CCSNMaxMass"
+default=100.0
+help="Maximum mass for a star to end its life as a Core Collapse Supernova, Msol"
+
+################################################################################
+########## Stellar evolution
+################################################################################
+
+["Stellar evolution".achStelEvolPath]
+flag="stevtables"
+default=""
+help="Path to stellar evolution tables"
+
+["Stellar evolution".achSNIaDTDType]
+flag="dtdtype"
+default=""
+help="Type of Delay-Time Distribution function for SNIa events"
+
+["Stellar evolution".bChemEnrich]
+flag="bChemEnrich"
+default=true
+help="Activate chemical enrichment of gas particles surrounding a star particle"
+
+["Stellar evolution".dSNIaExpScale]
+flag="SNIaExpScale"
+default=2e9
+omitted=':math:`2\times 10^9`'
+help="Time scale of the exponential Delay-Time Distribution function, yr"
+
+["Stellar evolution".dSNIaPLScale]
+flag="SNIaPLScale"
+default=-1.1
+help="Index of the power-law Delay-Time Distribution function"
+
+["Stellar evolution".dSNIaPLInitTime]
+flag="SNIaPLInitTime"
+default=40e6
+omitted=':math:`40\times 10^6`'
+help="Initial time for the normalization of the power-law Delay-Time Distribution function, yr"
+
+["Stellar evolution".dSNIaPLFinalTime]
+flag="SNIaPLFinalTime"
+default=13.7e9
+omitted=':math:`13.7\times 10^9`'
+help="Final time for the normalization of the power-law Delay-Time Distribution function, yr"
+
+["Stellar evolution".dSNIaNumPerMass]
+flag="SNIaNumPerMass"
+default=2e-3
+help="Number of SNIa events per stellar mass, 1/Msol"
+
+["Stellar evolution".dSNIaMaxMass]
+flag="SNIaMaxMass"
+default=8.0
+help="Maximum mass for the likely progenitors of SNIa events, Msol"
+
+["Stellar evolution".dStellarWindSpeed]
+flag="StellarWindSpeed"
+default=10.0
+help="Stellar wind speed, km/s"
+
+################################################################################
+########## Debugging/Testing/Diagnostics
+################################################################################
+
+["Debugging/Testing/Diagnostics".bOverwrite]
+flag="overwrite"
+default=false
+help="enable overwrite safety lock"
+docs='''
+When a simulation is run, a special file named ".lockfile" is created. If The
+program exits normally (after a checkpoint or output) then the file is removed.
+If the file is present when the code is run and this parameter is false, then
+the code will immediatly exit with an error. Setting this to true disables
+this behaviour.
+'''
+
+["Debugging/Testing/Diagnostics".bVWarnings]
+flag="vwarnings"
+default=true
+help="enable warnings"
+docs='''
+Prints a warning when unusual (but valid) conditions are encountered, for example if
+a .lockfile exists and bOverwrite is true, or the maximum rung is set to zero
+(forcing single stepping).
+'''
+
+["Debugging/Testing/Diagnostics".bVStart]
+flag="vstart"
+default=true
+help="enable verbose start"
+docs='''
+Causes additional progress updates to be printed during the start of a simulation,
+for example which file is being read, or that an initial condition is being generated.
+'''
+
+["Debugging/Testing/Diagnostics".bVStep]
+flag="vstep"
+default=true
+help="enable verbose step"
+docs='''
+Provides verbose information on what calculations and analysis is being performed
+during the base steps.
+'''
+
+["Debugging/Testing/Diagnostics".bVRungStat]
+flag="vrungstat"
+default=true
+help="enable rung statistics"
+docs='''
+Provides rung related information, such as the distribution of particles by rung,
+as well as details on the load balancer calculations.
+'''
+
+["Debugging/Testing/Diagnostics".bVDetails]
+flag="vdetails"
+default=false
+help="enable verbose details"
+docs='''
+Provides verbose tracing information which is normally not useful except to a
+developer debugging an issue with the code.
+'''
+
+["Debugging/Testing/Diagnostics".nDigits]
+flag="nd"
+default=5
+help="number of digits to use in output filenames"
+
+["Debugging/Testing/Diagnostics".iCacheSize]
+flag="cs"
+default=0
+help="size of the MDL cache (0=default)"
+
+["Debugging/Testing/Diagnostics".iCacheMaxInflight]
+flag="flight"
+default=0
+help="maximum number of inflight cache message to each rank (0=no limit)"
+
+["Debugging/Testing/Diagnostics".iWorkQueueSize]
+flag="wqs"
+default=0
+help="size of the MDL work queue"
+
+["Debugging/Testing/Diagnostics".iCUDAQueueSize]
+flag="cqs"
+default=8
+help="size of the CUDA work queue"
+

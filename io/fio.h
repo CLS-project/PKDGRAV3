@@ -132,15 +132,16 @@ typedef enum {
 ** each particle will contain, so we can enumerate them here.
 */
 typedef enum {
-    FIO_SPECIES_ALL=0,
     FIO_SPECIES_DARK,
     FIO_SPECIES_SPH,
     FIO_SPECIES_STAR,
     FIO_SPECIES_BH,
-    FIO_SPECIES_LAST /* Must be last */
+    FIO_SPECIES_UNKNOWN,    /* Deleted for example */
+    FIO_SPECIES_LAST,       /* This is the count of valid species (all is added on the end) */
+    FIO_SPECIES_ALL=FIO_SPECIES_LAST /* Internally keep an ALL count */
 } FIO_SPECIES;
 
-typedef uint64_t fioSpeciesList[FIO_SPECIES_LAST];
+typedef uint64_t fioSpeciesList[FIO_SPECIES_LAST+1];
 
 typedef struct {
     uint64_t       iFirst;      /* Starting particle index */
@@ -248,7 +249,7 @@ static inline FIO_MODE fioMode(FIO fio) {
 ** Returns the number of particles of a given species (or ALL).
 */
 static inline uint64_t fioGetN(FIO fio,FIO_SPECIES eSpecies) {
-    assert(/*eSpecies>=FIO_SPECIES_ALL &&*/ eSpecies<FIO_SPECIES_LAST);
+    assert(eSpecies<=FIO_SPECIES_LAST);
     return fio->nSpecies[eSpecies];
 }
 

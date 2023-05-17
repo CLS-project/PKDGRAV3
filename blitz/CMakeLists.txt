@@ -14,4 +14,4 @@ target_include_directories(blitz INTERFACE ${BLITZ_INCLUDE_DIR})
 target_include_directories(blitz PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/bzconfig.h.in ${CMAKE_CURRENT_BINARY_DIR}/bzconfig.h)
-install(FILES ${BLITZ_HEADERS} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/blitz)
+install(FILES ${BLITZ_HEADERS} DESTINATION "include/blitz")

@@ -14,6 +14,7 @@
  *  You should have received a copy of the GNU General Public License
  *  along with PKDGRAV3.  If not, see <http://www.gnu.org/licenses/>.
  */
+#include "pkd_config.h"
 #include "TraversePST.h"
 
 namespace OldDD {
@@ -89,6 +90,7 @@ private:
     void RootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind);
 };
 
+#ifndef NEW_REORDER
 class ServiceDomainOrder : public ServiceDomain {
 public:
     struct input {
@@ -124,6 +126,7 @@ protected:
     virtual int Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) override;
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut) override;
 };
+#endif
 
 class ServiceWeight : public TraversePST {
 public:

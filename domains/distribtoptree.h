@@ -28,7 +28,7 @@ public:
     explicit ServiceDistribTopTree(PST pst)
         : TraversePST(pst,PST_DISTRIBTOPTREE,
                       sizeof(input)
-                      + (mdlThreads(pst->mdl)==1?1:2*mdlThreads(pst->mdl)-1)*pkdMaxNodeSize(),
+                      + (mdlThreads(pst->mdl)==1?1:2*mdlThreads(pst->mdl)-1)*pkdContext::MaxNodeSize(),
                       "DistribTopTree") {}
 protected:
     virtual int Service(PST pst,void *vin,int nIn,void *vout,int nOut);
