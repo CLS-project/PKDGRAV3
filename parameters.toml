@@ -910,11 +910,19 @@ help="Fraction for FastGas"
 flag="msu"
 default=1.0
 help="Solar mass/system mass unit"
+docs='''
+This is the number of solar masses (:math:`M_\odot`) per system mass unit.
+If you measure a mass of 1 in system units, it is this many solar masses.
+'''
 
 ["Gas".dKpcUnit]
 flag="kpcu"
 default=1000.0
 help="Kiloparsec/system length unit"
+docs='''
+This is the number of Kiloparsecs per system unit length.
+If you measure a distance of 1 in system units, it is this many kiloparsecs.
+'''
 
 ["Gas".bAddDelete]
 flag="adddel"

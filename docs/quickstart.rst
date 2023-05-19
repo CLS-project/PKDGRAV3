@@ -142,7 +142,7 @@ Simulation Duration
 ===================
 
 iStartStep
-   The starting step number. Ordinarily simulation start at step zero.
+   The starting step number. Simulations ordinarily start at step zero.
 
 nSteps
    The total number of steps. Outputs can only be produced at the end of each step,
