@@ -131,7 +131,7 @@ typedef enum {
 ** Particle species are a special thing.  Codes must know explicitly what data
 ** each particle will contain, so we can enumerate them here.
 */
-typedef enum {
+enum FIO_SPECIES {
     FIO_SPECIES_DARK,
     FIO_SPECIES_SPH,
     FIO_SPECIES_STAR,
@@ -139,7 +139,7 @@ typedef enum {
     FIO_SPECIES_UNKNOWN,    /* Deleted for example */
     FIO_SPECIES_LAST,       /* This is the count of valid species (all is added on the end) */
     FIO_SPECIES_ALL=FIO_SPECIES_LAST /* Internally keep an ALL count */
-} FIO_SPECIES;
+};
 
 typedef uint64_t fioSpeciesList[FIO_SPECIES_LAST+1];
 
@@ -166,8 +166,8 @@ typedef struct fioInfo {
     fioFileList fileList;
 
     void (*fcnClose)(struct fioInfo *fio);
-    int  (*fcnSeek) (struct fioInfo *fio,uint64_t iPart,FIO_SPECIES eSpecies);
-    FIO_SPECIES (*fcnSpecies) (struct fioInfo *fio);
+    int  (*fcnSeek) (struct fioInfo *fio,uint64_t iPart,enum FIO_SPECIES eSpecies);
+    enum FIO_SPECIES (*fcnSpecies) (struct fioInfo *fio);
 
     int  (*fcnReadDark) (struct fioInfo *fio,
                          uint64_t *piParticleID,double *pdPos,double *pdVel,
@@ -248,7 +248,7 @@ static inline FIO_MODE fioMode(FIO fio) {
 /*
 ** Returns the number of particles of a given species (or ALL).
 */
-static inline uint64_t fioGetN(FIO fio,FIO_SPECIES eSpecies) {
+static inline uint64_t fioGetN(FIO fio,enum FIO_SPECIES eSpecies) {
     assert(eSpecies<=FIO_SPECIES_LAST);
     return fio->nSpecies[eSpecies];
 }
@@ -256,14 +256,14 @@ static inline uint64_t fioGetN(FIO fio,FIO_SPECIES eSpecies) {
 /*
 ** Seek to the N'th particle or the N'th particle of a given species.
 */
-static inline int fioSeek(struct fioInfo *fio,uint64_t iPart,FIO_SPECIES eSpecies) {
+static inline int fioSeek(struct fioInfo *fio,uint64_t iPart,enum FIO_SPECIES eSpecies) {
     return (*fio->fcnSeek)(fio,iPart,eSpecies);
 }
 
 /*
 ** Returns the species at the current file position (what will next be read)
 */
-static inline FIO_SPECIES fioSpecies(struct fioInfo *fio) {
+static inline enum FIO_SPECIES fioSpecies(struct fioInfo *fio) {
     return (*fio->fcnSpecies)(fio);
 }
 

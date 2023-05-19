@@ -4,6 +4,16 @@ import cython
 
 @cython.cclass
 class classic_theta_switch:
+    """
+    This is the classic theta switch. Use this by setting
+    the parameter `dTheta` to an instance of this class.
+
+    :param number before20: theta to use before redshift 20 
+    :param number between20and2: theta to use between redshift 20 and 2
+    :param number after2: theta to use after redshift 2
+    :return: theta
+    :rtype: number
+    """
     before20: cython.double
     between20and2: cython.double
     after2: cython.double
@@ -24,6 +34,14 @@ class classic_theta_switch:
 
 @cython.cclass
 class classic_replicas_switch:
+    """
+    This is the classic replicas switch. Use this by setting
+    the parameter `nReplicas` to an instance of this class.
+
+    :param number theta_switch: theta threshold to switch between 1 and 2 replicas
+    :return: number of replicas
+    :rtype: integer
+    """
     theta_switch: cython.double
     def __init__(self,theta_switch=0.52):
         self.theta_switch = theta_switch

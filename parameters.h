@@ -27,7 +27,6 @@ struct parameters {
     /*
     ** Parameters for PKDGRAV.
     */
-    int bPeriodic;
     int bRestart;
     int bParaRead;
     int bParaWrite;
@@ -57,8 +56,6 @@ struct parameters {
     int iCheckInterval;
     int iLogInterval;
     int iPkInterval;
-    int bEwald;
-    int iEwOrder;
     int iStartStep;
     int nSteps;
     int nSteps10;
@@ -158,7 +155,6 @@ struct parameters {
     /*
     ** Additional parameters for group finding.
     */
-    int bFindGroups;
     int bFindHopGroups;
     int nMinMembers;
     double dHopTau;
@@ -361,7 +357,6 @@ struct parameters {
     int bMemVelocity;
     int bMemPotential;
     int bMemGroups;
-    int bMemGlobalGid;
     int bMemMass;
     int bMemSoft;
     int bMemVelSmooth;

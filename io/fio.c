@@ -401,7 +401,7 @@ static int fioNoSetAttr(
 }
 
 static int fioNoSeek(FIO UNUSED(fio),uint64_t UNUSED(iPart),
-                     FIO_SPECIES UNUSED(eSpecies)) {
+                     enum FIO_SPECIES UNUSED(eSpecies)) {
     fprintf(stderr,"Seeking is not supported\n");
     abort();
     return 0;
@@ -412,7 +412,7 @@ static void fioNoClose(FIO UNUSED(fio)) {
     abort();
 }
 
-static FIO_SPECIES fioNoSpecies(FIO UNUSED(fio)) {
+static enum FIO_SPECIES fioNoSpecies(FIO UNUSED(fio)) {
     return FIO_SPECIES_UNKNOWN;
 }
 
@@ -478,7 +478,7 @@ typedef struct {
     FIO fioCurrent;
     FIO (*baseOpen)(const char *fname,int iFile);
     uint64_t iSpecies;
-    FIO_SPECIES eSpecies;
+    enum FIO_SPECIES eSpecies;
 } fioList;
 
 static int listNextSpecies(FIO fio) {
@@ -589,13 +589,13 @@ static int listGetAttr(FIO fio, const int headerType, const char *attr, FIO_TYPE
     return 1;
 }
 
-static FIO_SPECIES listSpecies(FIO fio) {
+static enum FIO_SPECIES listSpecies(FIO fio) {
     fioList *vio = (fioList *)fio;
     assert(fio->eFormat == FIO_FORMAT_MULTIPLE);
     return fioSpecies(vio->fioCurrent);
 }
 
-static int listSeek(FIO fio,uint64_t iPart,FIO_SPECIES eSpecies) {
+static int listSeek(FIO fio,uint64_t iPart,enum FIO_SPECIES eSpecies) {
     fioList *vio = (fioList *)fio;
     int iFile;
     assert(fio->eFormat == FIO_FORMAT_MULTIPLE);
@@ -760,7 +760,7 @@ static int tipsyGetAttr(FIO fio, const int headerType,
     return 0;
 }
 
-static FIO_SPECIES tipsySpecies(FIO fio) {
+static enum FIO_SPECIES tipsySpecies(FIO fio) {
     fioTipsy *tio = (fioTipsy *)fio;
     assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_READING);
     if (tio->iOrder<tio->fio.nSpecies[FIO_SPECIES_SPH]) return FIO_SPECIES_SPH;
@@ -1355,7 +1355,7 @@ int fioTipsyIsStandard(FIO fio) {
     return tio->fio.fcnReadDark == tipsyReadStandardDark;
 }
 
-static int tipsySeek(FIO fio,uint64_t iPart,FIO_SPECIES eSpecies) {
+static int tipsySeek(FIO fio,uint64_t iPart,enum FIO_SPECIES eSpecies) {
     fioTipsy *tio = (fioTipsy *)fio;
     int rc;
 
@@ -1377,7 +1377,7 @@ static int tipsySeek(FIO fio,uint64_t iPart,FIO_SPECIES eSpecies) {
     return 0;
 }
 
-static int tipsySeekStandard(FIO fio,uint64_t iPart,FIO_SPECIES eSpecies) {
+static int tipsySeekStandard(FIO fio,uint64_t iPart,enum FIO_SPECIES eSpecies) {
     /*fioTipsy *tio = (fioTipsy *)fio;*/
     int rc;
     /*assert(fio->eFormat == FIO_FORMAT_TIPSY);*/
@@ -1856,7 +1856,7 @@ typedef struct {
     double   pos_fac, pos_off, vel_fac, mass_fac;
     uint64_t iType;
     int      eType;       /* GADGET type (0..5) */
-    FIO_SPECIES eCurrent;
+    enum FIO_SPECIES eCurrent;
     int bTagged, bSwap;
     int mFlags;
 } fioGADGET;
@@ -1884,7 +1884,7 @@ static int gadgetGetAttr(FIO fio, const int headerType,
     return 1;
 }
 
-static FIO_SPECIES gadgetSpecies(struct fioInfo *fio) {
+static enum FIO_SPECIES gadgetSpecies(struct fioInfo *fio) {
     fioGADGET *gio = (fioGADGET *)fio;
     return gio->eCurrent;
 }
@@ -1921,7 +1921,7 @@ static void gadgetSeekFP(gadgetFP *fp,uint64_t iPart) {
     }
 }
 
-static int gadgetSeek(FIO fio,uint64_t iPart,FIO_SPECIES eSpecies) {
+static int gadgetSeek(FIO fio,uint64_t iPart,enum FIO_SPECIES eSpecies) {
     fioGADGET *gio = (fioGADGET *)fio;
     uint64_t iMass = iPart;
 
@@ -2912,12 +2912,12 @@ typedef struct {
     hid_t stringType;
     hid_t fp16leType;
     int mFlags;
-    FIO_SPECIES eCurrent;
+    enum FIO_SPECIES eCurrent;
     IOBASE base[FIO_SPECIES_LAST];
 } fioHDF5;
 
 
-const char *fioSpeciesName(FIO_SPECIES eSpecies) {
+const char *fioSpeciesName(enum FIO_SPECIES eSpecies) {
     switch (eSpecies) {
     case FIO_SPECIES_DARK: return "PartType1";
     case FIO_SPECIES_SPH:  return "PartType0";
@@ -3443,7 +3443,7 @@ static int hdf5SetAttr(
 
 }
 
-static FIO_SPECIES hdf5Species (struct fioInfo *fio) {
+static enum FIO_SPECIES hdf5Species (struct fioInfo *fio) {
     fioHDF5 *hio = (fioHDF5 *)fio;
     return hio->eCurrent;
 }
@@ -3486,7 +3486,7 @@ static void hdf5Close(FIO fio) {
 }
 
 
-static int hdf5Seek(FIO fio,uint64_t iPart,FIO_SPECIES eSpecies) {
+static int hdf5Seek(FIO fio,uint64_t iPart,enum FIO_SPECIES eSpecies) {
     fioHDF5 *hio = (fioHDF5 *)fio;
     IOBASE *base;
     int i;
@@ -4869,7 +4869,7 @@ static int graficGetAttr(FIO fio, const int headerType,
     return 0;
 }
 
-static int graficSeek(FIO fio,uint64_t iPart,FIO_SPECIES eSpecies) {
+static int graficSeek(FIO fio,uint64_t iPart,enum FIO_SPECIES eSpecies) {
     fioGrafic *gio = (fioGrafic *)fio;
     uint64_t newOrder;
 
@@ -5167,7 +5167,7 @@ static double getOmega(double a,double H0,double omegam,double omegav) {
 }
 
 
-static FIO_SPECIES graficSpecies(FIO fio) {
+static enum FIO_SPECIES graficSpecies(FIO fio) {
     fioGrafic *gio = (fioGrafic *)fio;
     assert(fio->eFormat == FIO_FORMAT_GRAFIC && fio->eMode==FIO_MODE_READING);
     if (gio->iOrder<gio->fio.nSpecies[FIO_SPECIES_SPH]) return FIO_SPECIES_SPH;

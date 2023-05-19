@@ -11,8 +11,10 @@ Welcome to pkdgrav3's documentation!
    :caption: Contents:
 
    install.rst
+   quickstart.rst
    analysis.rst
    units.rst
+   extensions.rst
    parameters.rst
 
 ..

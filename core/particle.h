@@ -92,7 +92,7 @@ struct PARTCLASS {
         return fMass==b.fMass && fSoft==b.fSoft && iMat==b.iMat && eSpecies==b.eSpecies;
     }
     PARTCLASS() = default;
-    PARTCLASS(float fMass,float fSoft,int iMat,FIO_SPECIES eSpecies)
+    PARTCLASS(FIO_SPECIES eSpecies,float fMass,float fSoft,int iMat)
         : fMass(fMass), fSoft(fSoft), iMat(iMat), eSpecies(eSpecies) {}
 };
 static_assert(std::is_trivial<PARTCLASS>());
@@ -270,7 +270,7 @@ struct VELSMOOTH {
 //!
 //! The PARTICLE structure can be minimally only four or eight bytes.
 //! The fields listed below can be added based on the memory model.
-enum class PKD_FIELD {
+enum PKD_FIELD {
     oPosition,
     oVelocity, /* Three vel_t */
     oAcceleration, /* Three float */
@@ -673,7 +673,7 @@ public:
         }
         /* NOTE: The above can both be true, in which case a "zero" class is recorded */
         /* NOTE: Species is always part of the class table, so there will be at least one class per species */
-        PARTCLASS newClass(fMass,fSoft,iMat,eSpecies);
+        PARTCLASS newClass(eSpecies,fMass,fSoft,iMat);
 
         /* TODO: This is a linear search which is fine for a small number of classes */
         auto iclass = std::find(ParticleClasses.begin(),ParticleClasses.end(),newClass);

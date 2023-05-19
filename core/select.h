@@ -145,6 +145,8 @@ public:
         int setIfTrue;
         int clearIfFalse;
         input() = default;
+        input(blitz::TinyVector<double,3> center,blitz::TinyVector<double,3> size,int setIfTrue=true,int clearIfFalse=true)
+            : dCenter{center}, dSize{size}, setIfTrue(setIfTrue), clearIfFalse(clearIfFalse) {}
         input(const double *dCenter,const double *dSize,int setIfTrue=true,int clearIfFalse=true)
             : dCenter{dCenter[0],dCenter[1],dCenter[2]}, dSize{dSize[0],dSize[1],dSize[2]},
               setIfTrue(setIfTrue), clearIfFalse(clearIfFalse) {}
@@ -165,6 +167,8 @@ public:
         int setIfTrue;
         int clearIfFalse;
         input() = default;
+        input(blitz::TinyVector<double,3> r,double dRadius,int setIfTrue=true,int clearIfFalse=true)
+            : r{r}, dRadius(dRadius), setIfTrue(setIfTrue), clearIfFalse(clearIfFalse) {}
         input(const double *r,double dRadius,int setIfTrue=true,int clearIfFalse=true)
             : r{r[0],r[1],r[2]}, dRadius(dRadius), setIfTrue(setIfTrue), clearIfFalse(clearIfFalse) {}
         input(double r0, double r1,double r2,double dRadius,int setIfTrue=true,int clearIfFalse=true)
@@ -184,6 +188,9 @@ public:
         int setIfTrue;
         int clearIfFalse;
         input() = default;
+        input(blitz::TinyVector<double,3> dP1,blitz::TinyVector<double,3> dP2,double dRadius,int setIfTrue=true,int clearIfFalse=true)
+            : dP1{dP1}, dP2{dP2}, dRadius(dRadius),
+              setIfTrue(setIfTrue), clearIfFalse(clearIfFalse) {}
         input(const double *dP1,const double *dP2,double dRadius,int setIfTrue=true,int clearIfFalse=true)
             : dP1{dP1[0],dP1[1],dP1[2]}, dP2{dP2[0],dP2[1],dP2[2]}, dRadius(dRadius),
               setIfTrue(setIfTrue), clearIfFalse(clearIfFalse) {}

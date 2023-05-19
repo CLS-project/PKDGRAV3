@@ -160,9 +160,12 @@ Swiss National Supercomputer Center (CSCS)
 ++++++++++++++++++++++++++++++++++++++++++
 
 The necessary libraries can be selected using the modules subsystem with the exception
-of the Python modules which can be installed using ``pip`` and ``requirements.txt``.
+of some of the Python packages which can be installed using ``pip`` and ``requirements.txt``.
 
------
+-----------------------
+System Specific Modules
+-----------------------
+
 Eiger
 -----
 
@@ -171,7 +174,6 @@ The GNU programming environment is recommended, thus issue the following command
     module swap PrgEnv-cray PrgEnv-gnu
     module load cpeGNU GSL Boost cray-hdf5 cray-fftw CMake cray-python hwloc
 
----------
 Piz Daint
 ---------
 
@@ -179,6 +181,21 @@ You can compile for the GPU partition and run on the multi-core partition, thus 
 
     module load daint-gpu cudatoolkit cray-hdf5 GSL Boost cray-fftw CMake cray-python
 
+---------------
+Python Packages
+---------------
+
+Some additional Python package are required to compile the code. **After** you load the
+system modules above, use the following to install the necessary packages::
+
+    cd /path/to/pkdgrav3
+    python -m venv --system-site-packages .venv
+    source .venv/bin/activate
+    python -m pip install -r requirements.txt
+
+This should allow you to build the code and run it in the future without activating the
+virtual environment. If you need to recompile, then you must still activate the
+virtual environment.
 
 ++++++
 Ubuntu

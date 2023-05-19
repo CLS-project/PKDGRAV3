@@ -26,12 +26,12 @@
 
 class pyrameters {
 protected:
-    PyObject *arguments=nullptr, *specified=nullptr;
-    PyObject *dynamic=nullptr;
+    PyObject *arguments_=nullptr, *specified_=nullptr;
+    PyObject *dynamic_=nullptr;
 
 public:
-    auto get_arguments() {return arguments; }
-    auto get_specified() {return specified; }
+    auto arguments() {Py_INCREF(arguments_); return arguments_; }
+    auto specified() {Py_INCREF(specified_); return specified_; }
 
 protected:
 
@@ -41,65 +41,68 @@ protected:
     template<typename T> T get(const char *name, PyObject *v);
 
 public:
+    template<typename T> void set(const char *name, T value);
+
+public:
 
     virtual ~pyrameters() {
         // If we have arguments and specified then we need to decrement the reference count
         if (Py_IsInitialized()) {
-            Py_XDECREF(arguments);
-            Py_XDECREF(specified);
-            Py_XDECREF(dynamic);
+            Py_XDECREF(arguments_);
+            Py_XDECREF(specified_);
+            Py_XDECREF(dynamic_);
         }
     }
 
-    pyrameters() : arguments(nullptr), specified(nullptr), dynamic(nullptr) {}
+    pyrameters() : arguments_(nullptr), specified_(nullptr), dynamic_(nullptr) {}
 
-    pyrameters(PyObject *arguments, PyObject *specified) : arguments(arguments), specified(specified), dynamic(PyDict_New()) {
-        Py_INCREF(this->arguments);
-        Py_INCREF(this->specified);
+    pyrameters(PyObject *arguments, PyObject *specified) : arguments_(arguments), specified_(specified), dynamic_(PyDict_New()) {
+        Py_INCREF(this->arguments_);
+        Py_INCREF(this->specified_);
     }
 
     pyrameters(const pyrameters &other) {           // copy constructor
-        this->arguments = other.arguments;
-        this->specified = other.specified;
-        this->dynamic = PyDict_Copy(other.dynamic);
-        Py_INCREF(this->arguments);
-        Py_INCREF(this->specified);
+        this->arguments_ = other.arguments_;
+        this->specified_ = other.specified_;
+        this->dynamic_ = PyDict_Copy(other.dynamic_);
+        Py_INCREF(this->arguments_);
+        Py_INCREF(this->specified_);
     }
 
     pyrameters &operator=(const pyrameters &rhs) {  // copy assignment
         if (this != &rhs) {
-            Py_XDECREF(this->arguments);
-            Py_XDECREF(this->specified);
-            Py_XDECREF(this->dynamic);
+            Py_XDECREF(this->arguments_);
+            Py_XDECREF(this->specified_);
+            Py_XDECREF(this->dynamic_);
 
-            this->arguments = rhs.arguments;
-            this->specified = rhs.specified;
-            this->dynamic = rhs.dynamic;
-            Py_INCREF(this->arguments);
-            Py_INCREF(this->specified);
-            Py_INCREF(this->dynamic);
+            this->arguments_ = rhs.arguments_;
+            this->specified_ = rhs.specified_;
+            this->dynamic_ = rhs.dynamic_;
+            Py_INCREF(this->arguments_);
+            Py_INCREF(this->specified_);
+            Py_INCREF(this->dynamic_);
         }
         return *this;
     }
 
     pyrameters(pyrameters &&other) {                // move constructor
-        this->arguments = other.arguments;
-        this->specified = other.specified;
-        this->dynamic = other.dynamic;
-        other.arguments = nullptr;
-        other.specified = nullptr;
-        other.dynamic = nullptr;
+        this->arguments_ = other.arguments_;
+        this->specified_ = other.specified_;
+        this->dynamic_ = other.dynamic_;
+        other.arguments_ = nullptr;
+        other.specified_ = nullptr;
+        other.dynamic_ = nullptr;
     }
 
     // move assignment
     pyrameters &operator=(pyrameters &&rhs) {       // move assignment
         if (this != &rhs) {
-            this->arguments = rhs.arguments;
-            this->specified = rhs.specified;
-            this->dynamic = rhs.dynamic;
-            rhs.arguments = nullptr;
-            rhs.specified = nullptr;
-            rhs.dynamic = nullptr;
+            this->arguments_ = rhs.arguments_;
+            this->specified_ = rhs.specified_;
+            this->dynamic_ = rhs.dynamic_;
+            rhs.arguments_ = nullptr;
+            rhs.specified_ = nullptr;
+            rhs.dynamic_ = nullptr;
         }
         return *this;
     }
@@ -145,5 +148,6 @@ template<> void pyrameters::set_dynamic(const char *name, std::int64_t  value);
 template<> void pyrameters::set_dynamic(const char *name, std::uint32_t value);
 template<> void pyrameters::set_dynamic(const char *name, std::uint64_t value);
 
+template<> void pyrameters::set(const char *name, bool value);
 
 #endif

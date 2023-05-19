@@ -102,6 +102,7 @@ void MSR::Simulate(double dTime) {
 }
 void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
     FILE *fpLog = NULL;
+    const auto bEwald = parameters.get_bEwald();
 
     InitCosmology();
     auto dTheta = set_dynamic(iStartStep,dTime);
@@ -176,7 +177,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
     ActiveRung(0,1); /* Activate all particles */
     DomainDecomp();
     UpdateSoft(dTime);
-    BuildTree(param.bEwald);
+    BuildTree(bEwald);
     runAnalysis(iStartStep,dTime); // Run any registered Python analysis tasks
     OutputOrbits(iStartStep,dTime);
     if (param.nGridPk>0) OutputPk(iStartStep,dTime);
@@ -211,15 +212,15 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
         SPHoptions.doDensity = 1;
         SPHoptions.doSPHForces = 0;
         uRungMax = Gravity(0,MAX_RUNG,ROOT,0,dTime,dDelta,iStartStep,dTheta,0,bKickOpen,
-                           param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,SPHoptions);
+                           bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
         MemStatus();
         if (SPHoptions.doInterfaceCorrection) {
             SPHoptions.doDensity = 0;
             SPHoptions.doDensityCorrection = 1;
             SPHoptions.dofBallFactor = 0;
-            TreeUpdateFlagBounds(param.bEwald,ROOT,0,SPHoptions);
+            TreeUpdateFlagBounds(bEwald,ROOT,0,SPHoptions);
             uRungMax = Gravity(0,MAX_RUNG,ROOT,0,dTime,dDelta,iStartStep,dTheta,0,bKickOpen,
-                               param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,SPHoptions);
+                               bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
             UpdateGasValues(0,dTime,dDelta,iStartStep,0,bKickOpen,SPHoptions);
             SPHoptions.doDensityCorrection = 0;
         }
@@ -229,25 +230,25 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
         SPHoptions.doDensity = 0;
         SPHoptions.doSPHForces = 1;
         SPHoptions.dofBallFactor = 0;
-        TreeUpdateFlagBounds(param.bEwald,ROOT,0,SPHoptions);
+        TreeUpdateFlagBounds(bEwald,ROOT,0,SPHoptions);
         uRungMax = Gravity(0,MAX_RUNG,ROOT,0,dTime,dDelta,iStartStep,dTheta,0,bKickOpen,
-                           param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,SPHoptions);
+                           bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
         MemStatus();
     }
     else if (DoGravity()) {
         SPHOptions SPHoptions = initializeSPHOptions(param,csm,dTime);
         SPHoptions.doGravity = param.bDoGravity;
         uRungMax = Gravity(0,MAX_RUNG,ROOT,0,dTime,dDelta,iStartStep,dTheta,0,bKickOpen,
-                           param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,SPHoptions);
+                           bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
         MemStatus();
     }
     if (DoGravity() && param.bGravStep) {
         assert(param.bNewKDK == 0);    /* for now! */
-        BuildTree(param.bEwald);
+        BuildTree(bEwald);
         SPHOptions SPHoptions = initializeSPHOptions(param,csm,dTime);
         SPHoptions.doGravity = param.bDoGravity;
         Gravity(0,MAX_RUNG,ROOT,0,dTime,dDelta,iStartStep,dTheta,0,0,
-                param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,SPHoptions);
+                bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
         MemStatus();
     }
     if (DoGas() && MeshlessHydro()) {
@@ -258,7 +259,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
 #ifndef DEBUG_BH_ONLY
     BlackholeInit(uRungMax);
 #endif
-    if (param.bFindGroups && param.bBHPlaceSeed) {
+    if (parameters.get_bFindGroups() && param.bBHPlaceSeed) {
         NewFof(param.dTau,param.nMinMembers);
         GroupStats();
     }
@@ -277,7 +278,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
 
     if (param.bWriteIC && !prmSpecified(prm,"nGrid") && !NewSPH()) {
 #ifndef BLACKHOLES
-        if (param.bFindGroups) {
+        if (parameters.get_bFindGroups()) {
             NewFof(param.dTau,param.nMinMembers);
             GroupStats();
         }
@@ -286,9 +287,9 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
     }
 
     // Make sure that the tree is usable before the start of the simulation
-    if (param.bFindGroups || param.bWriteIC) {
+    if (parameters.get_bFindGroups() || param.bWriteIC) {
         DomainDecomp();
-        BuildTree(param.bEwald);
+        BuildTree(bEwald);
     }
 
     bKickOpen = 0;
@@ -312,14 +313,14 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
                     SPHoptions.doDensity = 1;
                     SPHoptions.doSPHForces = 0;
                     uRungMax = Gravity(0,MAX_RUNG,ROOT,0,ddTime,dDelta,diStep,dTheta,0,1,
-                                       param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,SPHoptions);
+                                       bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
                     if (SPHoptions.doInterfaceCorrection) {
                         SPHoptions.doDensity = 0;
                         SPHoptions.doDensityCorrection = 1;
                         SPHoptions.dofBallFactor = 0;
-                        TreeUpdateFlagBounds(param.bEwald,ROOT,0,SPHoptions);
+                        TreeUpdateFlagBounds(bEwald,ROOT,0,SPHoptions);
                         uRungMax = Gravity(0,MAX_RUNG,ROOT,0,ddTime,dDelta,diStep,dTheta,0,1,
-                                           param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,SPHoptions);
+                                           bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
                         UpdateGasValues(0,ddTime,dDelta,diStep,0,1,SPHoptions);
                         SPHoptions.doDensityCorrection = 0;
                     }
@@ -329,15 +330,15 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
                     SPHoptions.doDensity = 0;
                     SPHoptions.doSPHForces = 1;
                     SPHoptions.dofBallFactor = 0;
-                    TreeUpdateFlagBounds(param.bEwald,ROOT,0,SPHoptions);
+                    TreeUpdateFlagBounds(bEwald,ROOT,0,SPHoptions);
                     uRungMax = Gravity(0,MAX_RUNG,ROOT,0,ddTime,dDelta,diStep,dTheta,0,1,
-                                       param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,SPHoptions);
+                                       bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
                 }
                 else {
                     SPHOptions SPHoptions = initializeSPHOptions(param,csm,dTime);
                     SPHoptions.doGravity = param.bDoGravity;
                     uRungMax = Gravity(0,MAX_RUNG,ROOT,0,ddTime,dDelta,diStep,dTheta,0,1,
-                                       param.bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,param.nGroup,SPHoptions);
+                                       bEwald,param.bGravStep,param.nPartRhoLoc,param.iTimeStepCrit,SPHoptions);
                 }
                 /* Set the grids of the linear species */
                 if (csm->val.classData.bClass && strlen(param.achLinSpecies) && param.nGridLin > 0) {
@@ -388,7 +389,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
             Output(iStep,dTime,param.dDelta,0);
             bDoOutput = 0;
             DomainDecomp();
-            BuildTree(param.bEwald);
+            BuildTree(bEwald);
         }
         TimerDump(iStep);
     }
@@ -653,7 +654,7 @@ int MSR::ValidateParameters() {
     /*
     ** At the moment, integer positions are only really safe in periodic boxes!Wr
     */
-    if (param.bMemIntegerPosition && (!param.bPeriodic||param.dxPeriod!=1.0||param.dyPeriod!=1.0||param.dzPeriod!=1.0)) {
+    if (param.bMemIntegerPosition && (!parameters.get_bPeriodic()||param.dxPeriod!=1.0||param.dyPeriod!=1.0||param.dzPeriod!=1.0)) {
         fprintf(stderr,"WARNING: Integer coordinates are enabled but the the box is not periodic\n"
                 "       and/or the box size is not 1. Set bPeriodic=1 and dPeriod=1.\n");
     }

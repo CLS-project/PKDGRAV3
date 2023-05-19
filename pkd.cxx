@@ -764,6 +764,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             fioReadSph(fio,&iParticleID,r.data(),vel.data(),&fMass,&fSoft,pPot,
                        &fDensity,&u,&fMetals[0],afSphOtherData);
             if (p.have_newsph()) {
+                fSoft = 1.0f; // Dummy value, because the field in the file is used as hSmooth
                 pkd->particles.setClass(fMass,fSoft,fMetals[0],eSpecies,&p);
             }
             else {
@@ -1932,7 +1933,7 @@ void extensiveMarkerTest(PKD pkd, struct pkdTimestepParameters *ts, SPHOptions *
 void pkdGravAll(PKD pkd,
                 struct pkdKickParameters *kick,struct pkdLightconeParameters *lc,struct pkdTimestepParameters *ts,
                 double dTime,int nReps,int bPeriodic,
-                int bEwald,int nGroup,int iRoot1, int iRoot2,
+                int bEwald,int iRoot1, int iRoot2,
                 double fEwCut,double fEwhCut,double dThetaMin,SPHOptions *SPHoptions,
                 uint64_t *pnActive,
                 double *pdPart,double *pdPartNumAccess,double *pdPartMissRatio,
@@ -1987,7 +1988,7 @@ void pkdGravAll(PKD pkd,
     pkd->dFlopSingleGPU = pkd->dFlopDoubleGPU = 0.0;
 
     *pnActive = pkdGravWalk(pkd,kick,lc,ts,
-                            dTime,nReps,bPeriodic && bEwald,nGroup,
+                            dTime,nReps,bPeriodic && bEwald,
                             iRoot1,iRoot2,0,dThetaMin,pdFlop,&dPartSum,&dCellSum,SPHoptions);
 
     if (SPHoptions->doExtensiveILPTest && (SPHoptions->doSetDensityFlags || SPHoptions->doSetNNflags)) {

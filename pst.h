@@ -425,7 +425,6 @@ struct inHopGravity {
     double dEwhCut;
     double dTheta;
     int bPeriodic;
-    int nGroup;
     uint8_t uRungLo;
     uint8_t uRungHi;
 };
@@ -547,7 +546,6 @@ struct inGravity {
     int nReps;
     int bPeriodic;
     int bEwald;
-    int nGroup;
     int iRoot1;
     int iRoot2;
     struct pkdKickParameters kick;

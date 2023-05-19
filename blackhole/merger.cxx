@@ -25,7 +25,7 @@ void MSR::BHMerger(double dTime) {
 #endif
 
     in.nSmooth = param.nSmooth;
-    in.bPeriodic = param.bPeriodic;
+    in.bPeriodic = parameters.get_bPeriodic();
     in.bSymmetric = 0;
     in.iSmoothType = SMX_BH_MERGER;
     SmoothSetSMF(&(in.smf), dTime, 0.0, in.nSmooth);
