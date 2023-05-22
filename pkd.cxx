@@ -759,11 +759,10 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 #endif
                     // If the value is negative, means that it is a temperature
                     u = (u<0.0) ? -u*dTuFac : u;
-                    Sph.vPred = vel * sqrt(dvFac);
                     Sph.Frho = 0.0;
                     Sph.Fmom = 0.0;
                     Sph.Fene = 0.0;
-                    Sph.E = (u + 0.5 * dot(Sph.vPred,Sph.vPred)) * fMass;
+                    Sph.E = (u + 0.5*dvFac*dot(vel,vel)) * fMass;
                     Sph.Uint = u * fMass;
                     assert(Sph.E > 0.);
                     Sph.mom = fMass * vel * sqrt(dvFac);
@@ -2452,16 +2451,11 @@ void pkdKick(PKD pkd,double dTime,double dDelta,int bDoGas,double dDeltaVPred,do
     if (bDoGas) { // pkd->param.bMeshlessHydro
         assert(pkd->particles.present(PKD_FIELD::oSph));
         for (auto &p : pkd->particles) {
-            if (p.is_rung_range(uRungLo,uRungHi)) {
-                auto &v = p.velocity();
-                if (p.is_gas()) {
-                    //auto &sph = p.sph();
-                    //sph.vPred[0] = v[0];
-                    //sph.vPred[1] = v[1];
-                    //sph.vPred[2] = v[2];
-                }
-                else {
-                    v += p.acceleration() * dDelta;
+            if (!p.is_gas()) {
+                if (p.is_rung_range(uRungLo,uRungHi)) {
+                    auto &a = p.acceleration();
+                    auto &v = p.velocity();
+                    v += a*dDelta;
                 }
             }
         }

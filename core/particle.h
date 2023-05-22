@@ -100,10 +100,6 @@ static_assert(std::is_trivial<PARTCLASS>());
 typedef double myreal;
 
 struct SPHFIELDS {
-    blitz::TinyVector<double,3> vPred;
-
-    float c;        /* sound speed */
-
     /* IA: B matrix to 'easily' reconstruct faces'. Reminder: it is symmetric */
     blitz::TinyVector<double,6> B;
 
@@ -123,6 +119,8 @@ struct SPHFIELDS {
 #ifndef USE_MFM
     blitz::TinyVector<myreal,3> lastDrDotFrho;
 #endif
+    float c;        /* sound speed */
+
     float lastMass;
 
     /* IA: normalization factor (Eq 7 Hopkins 2015) at the particle position */
@@ -578,7 +576,6 @@ public:
         auto &newsph()      const { return store().newsph(p); }
         auto &star()        const { return store().star(p); }
         auto &BH()          const { return store().BH(p); }
-        // auto vPred()        const { return store().vPred(p); }
         auto Timer()        const { return store().Timer(p); }
         auto isNew()        const { return store().isNew(p); }
         auto isMarked()     const { return store().isMarked(p); }

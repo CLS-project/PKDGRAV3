@@ -558,11 +558,10 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
 #ifdef HAVE_METALLICITY
                 Sph.fMetalMass = in->dInitialMetallicity * fGasMass;
 #endif
-                Sph.vPred = VelGas;
                 Sph.Frho = 0.0;
                 Sph.Fmom = 0.0;
                 Sph.Fene = 0.0;
-                Sph.E = u + 0.5*blitz::dot(Sph.vPred,Sph.vPred);
+                Sph.E = u + 0.5*blitz::dot(VelGas,VelGas);
                 Sph.E *= fGasMass;
                 Sph.Uint = u*fGasMass;
                 assert(Sph.E>0);

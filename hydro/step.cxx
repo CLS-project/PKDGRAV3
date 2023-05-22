@@ -51,6 +51,7 @@ void hydroStep(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     auto p = pkd->particles[pIn];
     double dtEst;
 
+    const auto &pv = p.velocity();
     auto &psph = p.sph();
     const double ph = 0.5*p.ball();
 
@@ -60,13 +61,14 @@ void hydroStep(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     for (auto i = 0; i < nSmooth; ++i) {
         if (pIn == nnList[i].pPart) continue;
         auto q = pkd->particles[nnList[i].pPart];
+        const auto &qv = q.velocity();
         const auto &qsph = q.sph();
 
         const auto &dr = nnList[i].dr;
 
 
         // From Eqs 24,25 Hopkins 2015, to limit deltaT
-        const double dvDotdr = dot(dr,qsph.vPred - psph.vPred);
+        const double dvDotdr = dot(dr,qv - pv);
         double vsig_pq = psph.c + qsph.c;
         if (dvDotdr < 0.) vsig_pq -= dvDotdr/sqrt(nnList[i].fDist2);
 
@@ -81,7 +83,7 @@ void hydroStep(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
         auto q = pkd->particles[nnList[i].pPart];
         auto &qsph = q.sph();
 
-        double dv2 = dot(qsph.vPred - psph.vPred, qsph.vPred - psph.vPred);
+        double dv2 = dot(qv - pv,qv - pv);
         double Ekin = 0.5*p.mass()*dv2;
 
         psph.maxEkin = (psph.maxEkin < Ekin) ? Ekin : psph.maxEkin;

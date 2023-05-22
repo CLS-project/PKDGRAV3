@@ -294,19 +294,10 @@ void hydroSetPrimitives(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS 
                   pow(p.density(), -dConstGamma+1);
 #endif
     }
+
     psph->P = psph->Uint*psph->omega*(dConstGamma -1.);
-
-
     psph->c = sqrt(psph->P*dConstGamma/p.density());
-
-    auto &v = p.velocity();
-    v = psph->mom / p.mass();
-    /*IA: This is here for compatibility with fluxes.cxx, as in there we use vPred.
-     * I think that all could be changed to use only p.velocity() instead.
-     * But I am not sure if when adding gravity vPred would be needed,
-     * thus I will *temporarily* keep it
-     */
-    psph->vPred = v;
+    p.velocity() = psph->mom / p.mass();
 }
 
 

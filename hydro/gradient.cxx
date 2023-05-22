@@ -34,6 +34,7 @@ void hydroGradients(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     double p_max, p_min;
     double limRho, limVx, limVy, limVz, limP;
 
+    const auto &pv = p.velocity();
     auto &psph = p.sph();
     const double ph = 0.5*fBall;
 
@@ -105,6 +106,7 @@ void hydroGradients(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     for (auto i = 0; i < nSmooth; ++i) {
         if (pIn == nnList[i].pPart) continue;
         auto q = pkd->particles[nnList[i].pPart];
+        const auto &qv = q.velocity();
         auto &qsph = q.sph();
 
         const TinyVector<double,3> dr{-nnList[i].dr};
@@ -120,9 +122,9 @@ void hydroGradients(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
         psiTilde_p[2] = dot(dr, TinyVector<double,3> {psph.B[XZ],psph.B[YZ],psph.B[ZZ]}) * psi;
 
         psph.gradRho += psiTilde_p * (q.density() - p.density());
-        psph.gradVx  += psiTilde_p * (qsph.vPred[0] - psph.vPred[0]);
-        psph.gradVy  += psiTilde_p * (qsph.vPred[1] - psph.vPred[1]);
-        psph.gradVz  += psiTilde_p * (qsph.vPred[2] - psph.vPred[2]);
+        psph.gradVx  += psiTilde_p * (qv[0] - pv[0]);
+        psph.gradVy  += psiTilde_p * (qv[1] - pv[1]);
+        psph.gradVz  += psiTilde_p * (qv[2] - pv[2]);
         psph.gradP   += psiTilde_p * (qsph.P - psph.P);
     }
 
@@ -133,7 +135,6 @@ void hydroGradients(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     rho_max= vx_max= vy_max= vz_max= p_max = -HUGE_VAL;
 
 
-    const auto &pv = p.velocity();
     for (auto i = 0; i < nSmooth; ++i) {
 //        if (pIn == nnList[i].pPart) continue;
         auto q = pkd->particles[nnList[i].pPart];

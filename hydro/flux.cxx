@@ -113,13 +113,14 @@ void hydroRiemann(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
     auto P = pkd->particles[pIn];
     double minDt;
-    double pv[3], qv[3], vFrame[3];
+    double pvFrame[3], qvFrame[3], vFrame[3];
     double modApq, pDeltaHalf, qDeltaHalf;
     double pdivv, qdivv, psi;
     double psiTilde_p[3], psiTilde_q[3], Apq[3], face_unit[3], dr[3];
     struct Input_vec_Riemann riemann_input;
     struct Riemann_outputs riemann_output;
 
+    const auto &pv = P.velocity();
     auto &psph = P.sph();
     const double ph = 0.5*P.ball();
     const double pDensity = P.density();
@@ -132,6 +133,7 @@ void hydroRiemann(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
         if (nnList[i].pPart == pIn) continue;
 
         auto Q = pkd->particles[nnList[i].pPart];
+        const auto &qv = Q.velocity();
         auto &qsph = Q.sph();
         const double qh = 0.5*Q.ball();
 
@@ -235,11 +237,11 @@ void hydroRiemann(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
         // Velocity of the quadrature mid-point
         for (auto j = 0; j < 3; ++j) {
-            vFrame[j] = 0.5*(psph.vPred[j]+qsph.vPred[j]);
+            vFrame[j] = 0.5 * (pv[j] + qv[j]);
 
             // We boost to the reference of the p-q 'face'
-            pv[j] = psph.vPred[j] - vFrame[j];
-            qv[j] = qsph.vPred[j] - vFrame[j];
+            pvFrame[j] = pv[j] - vFrame[j];
+            qvFrame[j] = qv[j] - vFrame[j];
         }
 
         // Mid-point rule
@@ -262,12 +264,12 @@ void hydroRiemann(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
         riemann_input.L.rho = P.density();
         riemann_input.R.rho = Q.density();
-        riemann_input.L.v[0] = pv[0];
-        riemann_input.R.v[0] = qv[0];
-        riemann_input.L.v[1] = pv[1];
-        riemann_input.R.v[1] = qv[1];
-        riemann_input.L.v[2] = pv[2];
-        riemann_input.R.v[2] = qv[2];
+        riemann_input.L.v[0] = pvFrame[0];
+        riemann_input.R.v[0] = qvFrame[0];
+        riemann_input.L.v[1] = pvFrame[1];
+        riemann_input.R.v[1] = qvFrame[1];
+        riemann_input.L.v[2] = pvFrame[2];
+        riemann_input.R.v[2] = qvFrame[2];
         riemann_input.L.p = psph.P;
         riemann_input.R.p = qsph.P;
 
@@ -276,8 +278,8 @@ void hydroRiemann(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
         // We add the gradients terms (from extrapolation and forward prediction)
         for (auto j = 0; j < 3; ++j) {
-            riemann_input.L.rho += ( dr[j] - pDeltaHalf*pv[j])*psph.gradRho[j];
-            riemann_input.R.rho += (-dr[j] - qDeltaHalf*qv[j])*qsph.gradRho[j];
+            riemann_input.L.rho += ( dr[j] - pDeltaHalf*pvFrame[j])*psph.gradRho[j];
+            riemann_input.R.rho += (-dr[j] - qDeltaHalf*qvFrame[j])*qsph.gradRho[j];
 
             riemann_input.L.v[0] += ( dr[j]*psph.gradVx[j]);
             riemann_input.R.v[0] += (-dr[j]*qsph.gradVx[j]);
@@ -288,8 +290,8 @@ void hydroRiemann(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
             riemann_input.L.v[2] += ( dr[j]*psph.gradVz[j]);
             riemann_input.R.v[2] += (-dr[j]*qsph.gradVz[j]);
 
-            riemann_input.L.p += ( dr[j] - pDeltaHalf*pv[j])*psph.gradP[j];
-            riemann_input.R.p += (-dr[j] - qDeltaHalf*qv[j])*qsph.gradP[j];
+            riemann_input.L.p += ( dr[j] - pDeltaHalf*pvFrame[j])*psph.gradP[j];
+            riemann_input.R.p += (-dr[j] - qDeltaHalf*qvFrame[j])*qsph.gradP[j];
         }
 //      printf("2) L.rho %e \t R.rho %e \n", riemann_input.L.rho, riemann_input.R.rho);
 //      printf("2) L.p %e \t R.p %e \n", riemann_input.L.p, riemann_input.R.p);
@@ -300,9 +302,9 @@ void hydroRiemann(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
         /*
         genericPairwiseLimiter(p.density(), q.density(), &riemann_input.L.rho, &riemann_input.R.rho);
         genericPairwiseLimiter(psph.P, qsph.P, &riemann_input.L.p, &riemann_input.R.p);
-        genericPairwiseLimiter(pv[0], qv[0], &riemann_input.L.v[0], &riemann_input.R.v[0]);
-        genericPairwiseLimiter(pv[1], qv[1], &riemann_input.L.v[1], &riemann_input.R.v[1]);
-        genericPairwiseLimiter(pv[2], qv[2], &riemann_input.L.v[2], &riemann_input.R.v[2]);
+        genericPairwiseLimiter(pvFrame[0], qvFrame[0], &riemann_input.L.v[0], &riemann_input.R.v[0]);
+        genericPairwiseLimiter(pvFrame[1], qvFrame[1], &riemann_input.L.v[1], &riemann_input.R.v[1]);
+        genericPairwiseLimiter(pvFrame[2], qvFrame[2], &riemann_input.L.v[2], &riemann_input.R.v[2]);
         */
 
 
@@ -311,11 +313,11 @@ void hydroRiemann(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
         // Forward extrapolation of velocity
         for (auto j = 0; j < 3; ++j) {
-            temp = pv[j]*pdivv + psph.gradP[j]/pDensity*pDeltaHalf;
+            temp = pvFrame[j]*pdivv + psph.gradP[j]/pDensity*pDeltaHalf;
             riemann_input.L.v[j] -= temp;
             vFrame[j] -= 0.5*temp;
 
-            temp = qv[j]*qdivv + qsph.gradP[j]/Q.density()*qDeltaHalf;
+            temp = qvFrame[j]*qdivv + qsph.gradP[j]/Q.density()*qDeltaHalf;
             riemann_input.R.v[j] -= temp;
             vFrame[j] -= 0.5*temp;
         }
@@ -337,18 +339,18 @@ void hydroRiemann(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
         genericPairwiseLimiter(P.density(), Q.density(), &riemann_input.L.rho, &riemann_input.R.rho);
         genericPairwiseLimiter(psph.P, qsph.P, &riemann_input.L.p, &riemann_input.R.p);
-        genericPairwiseLimiter(pv[0], qv[0], &riemann_input.L.v[0], &riemann_input.R.v[0]);
-        genericPairwiseLimiter(pv[1], qv[1], &riemann_input.L.v[1], &riemann_input.R.v[1]);
-        genericPairwiseLimiter(pv[2], qv[2], &riemann_input.L.v[2], &riemann_input.R.v[2]);
+        genericPairwiseLimiter(pvFrame[0], qvFrame[0], &riemann_input.L.v[0], &riemann_input.R.v[0]);
+        genericPairwiseLimiter(pvFrame[1], qvFrame[1], &riemann_input.L.v[1], &riemann_input.R.v[1]);
+        genericPairwiseLimiter(pvFrame[2], qvFrame[2], &riemann_input.L.v[2], &riemann_input.R.v[2]);
 
         if (pkd->csm->val.bComove) {
 
             for (auto j = 0; j < 3; ++j) {
-                temp = smf->H * pDeltaHalf * smf->a * pv[j];
+                temp = smf->H * pDeltaHalf * smf->a * pvFrame[j];
                 riemann_input.L.v[j] -= temp;
                 vFrame[j] -= 0.5*temp;
 
-                temp = smf->H * qDeltaHalf * smf->a * qv[j];
+                temp = smf->H * qDeltaHalf * smf->a * qvFrame[j];
                 riemann_input.R.v[j] -= temp;
                 vFrame[j] -= 0.5*temp;
             }
@@ -494,11 +496,10 @@ void hydroRiemann(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
                 qsph.E += minDt * riemann_output.Fluxes.p;
 
                 qsph.Uint += minDt * ( riemann_output.Fluxes.p -
-                                       riemann_output.Fluxes.v[0]*qsph.vPred[0] -
-                                       riemann_output.Fluxes.v[1]*qsph.vPred[1] -
-                                       riemann_output.Fluxes.v[2]*qsph.vPred[2] +
-                                       0.5*dot(qsph.vPred,qsph.vPred) *
-                                       riemann_output.Fluxes.rho );
+                                       riemann_output.Fluxes.v[0]*qv[0] -
+                                       riemann_output.Fluxes.v[1]*qv[1] -
+                                       riemann_output.Fluxes.v[2]*qv[2] +
+                                       0.5*dot(qv,qv)*riemann_output.Fluxes.rho );
 #ifndef USE_MFM
                 qsph.drDotFrho[0] += minDt * riemann_output.Fluxes.rho * dx * smf->a;
                 qsph.drDotFrho[1] += minDt * riemann_output.Fluxes.rho * dy * smf->a;
@@ -521,11 +522,10 @@ void hydroRiemann(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
             psph.E -= minDt * riemann_output.Fluxes.p;
 
             psph.Uint -= minDt * ( riemann_output.Fluxes.p -
-                                   riemann_output.Fluxes.v[0]*psph.vPred[0] -
-                                   riemann_output.Fluxes.v[1]*psph.vPred[1] -
-                                   riemann_output.Fluxes.v[2]*psph.vPred[2] +
-                                   0.5*dot(psph.vPred,psph.vPred) *
-                                   riemann_output.Fluxes.rho );
+                                   riemann_output.Fluxes.v[0]*pv[0] -
+                                   riemann_output.Fluxes.v[1]*pv[1] -
+                                   riemann_output.Fluxes.v[2]*pv[2] +
+                                   0.5*dot(pv,pv)*riemann_output.Fluxes.rho );
 #ifndef USE_MFM
             psph.drDotFrho[0] += minDt * riemann_output.Fluxes.rho * dx * smf->a;
             psph.drDotFrho[1] += minDt * riemann_output.Fluxes.rho * dy * smf->a;
@@ -613,6 +613,7 @@ void hydroRiemann_vec(PARTICLE *pIn,float fBall,int nSmooth,
     PKD pkd = smf->pkd;
     auto P = pkd->particles[pIn];
 
+    const auto &pv = P.velocity();
     auto &psph = P.sph();
     const my_real ph = 0.5*P.ball();
 
@@ -704,19 +705,19 @@ void hydroRiemann_vec(PARTICLE *pIn,float fBall,int nSmooth,
 
         // Velocity of the quadrature mid-point
         my_real vFrame[3];
-        vFrame[0] = 0.5*(psph.vPred[0]+q(vx));
-        vFrame[1] = 0.5*(psph.vPred[1]+q(vy));
-        vFrame[2] = 0.5*(psph.vPred[2]+q(vz));
+        vFrame[0] = 0.5 * (pv[0] + q(vx));
+        vFrame[1] = 0.5 * (pv[1] + q(vy));
+        vFrame[2] = 0.5 * (pv[2] + q(vz));
 
-        my_real pv[3], qv[3];
+        my_real pvFrame[3], qvFrame[3];
         for (auto j = 0; j < 3; ++j) {
             // We boost to the reference of the p-q 'face'
-            pv[j] = psph.vPred[j] - vFrame[j];
+            pvFrame[j] = pv[j] - vFrame[j];
         }
 
-        qv[0] = q(vx) - vFrame[0];
-        qv[1] = q(vy) - vFrame[1];
-        qv[2] = q(vz) - vFrame[2];
+        qvFrame[0] = q(vx) - vFrame[0];
+        qvFrame[1] = q(vy) - vFrame[1];
+        qvFrame[2] = q(vz) - vFrame[2];
 
         // Mid-point rule
         const my_real dr[3] = {-0.5*dx, -0.5*dy, -0.5*dz};
@@ -736,12 +737,12 @@ void hydroRiemann_vec(PARTICLE *pIn,float fBall,int nSmooth,
 
         riemann_input.L.rho = pDensity;
         riemann_input.R.rho = q(rho);
-        riemann_input.L.v[0] = pv[0];
-        riemann_input.R.v[0] = qv[0];
-        riemann_input.L.v[1] = pv[1];
-        riemann_input.R.v[1] = qv[1];
-        riemann_input.L.v[2] = pv[2];
-        riemann_input.R.v[2] = qv[2];
+        riemann_input.L.v[0] = pvFrame[0];
+        riemann_input.R.v[0] = qvFrame[0];
+        riemann_input.L.v[1] = pvFrame[1];
+        riemann_input.R.v[1] = qvFrame[1];
+        riemann_input.L.v[2] = pvFrame[2];
+        riemann_input.R.v[2] = qvFrame[2];
         riemann_input.L.p = psph.P;
         riemann_input.R.p = q(P);
 
@@ -750,20 +751,20 @@ void hydroRiemann_vec(PARTICLE *pIn,float fBall,int nSmooth,
 
         // We add the gradients terms (from extrapolation and forward prediction)
         for (auto j = 0; j < 3; ++j) {
-            riemann_input.L.rho += ( dr[j] - pDeltaHalf*pv[j])*psph.gradRho[j];
+            riemann_input.L.rho += ( dr[j] - pDeltaHalf*pvFrame[j])*psph.gradRho[j];
 
             riemann_input.L.v[0] += ( dr[j]*psph.gradVx[j]);
             riemann_input.L.v[1] += ( dr[j]*psph.gradVy[j]);
             riemann_input.L.v[2] += ( dr[j]*psph.gradVz[j]);
 
-            riemann_input.L.p += ( dr[j] - pDeltaHalf*pv[j])*psph.gradP[j];
+            riemann_input.L.p += ( dr[j] - pDeltaHalf*pvFrame[j])*psph.gradP[j];
         }
 
 
 
-        riemann_input.R.rho += (-dr[0] - qDeltaHalf*qv[0])*q(gradRhoX);
-        riemann_input.R.rho += (-dr[1] - qDeltaHalf*qv[1])*q(gradRhoY);
-        riemann_input.R.rho += (-dr[2] - qDeltaHalf*qv[2])*q(gradRhoZ);
+        riemann_input.R.rho += (-dr[0] - qDeltaHalf*qvFrame[0])*q(gradRhoX);
+        riemann_input.R.rho += (-dr[1] - qDeltaHalf*qvFrame[1])*q(gradRhoY);
+        riemann_input.R.rho += (-dr[2] - qDeltaHalf*qvFrame[2])*q(gradRhoZ);
 
         riemann_input.R.v[0] += (-dr[0]*q(gradVxX));
         riemann_input.R.v[0] += (-dr[1]*q(gradVxY));
@@ -777,9 +778,9 @@ void hydroRiemann_vec(PARTICLE *pIn,float fBall,int nSmooth,
         riemann_input.R.v[2] += (-dr[1]*q(gradVzY));
         riemann_input.R.v[2] += (-dr[2]*q(gradVzZ));
 
-        riemann_input.R.p += (-dr[0] - qDeltaHalf*qv[0])*q(gradPX);
-        riemann_input.R.p += (-dr[1] - qDeltaHalf*qv[1])*q(gradPY);
-        riemann_input.R.p += (-dr[2] - qDeltaHalf*qv[2])*q(gradPZ);
+        riemann_input.R.p += (-dr[0] - qDeltaHalf*qvFrame[0])*q(gradPX);
+        riemann_input.R.p += (-dr[1] - qDeltaHalf*qvFrame[1])*q(gradPY);
+        riemann_input.R.p += (-dr[2] - qDeltaHalf*qvFrame[2])*q(gradPZ);
 
 
 
@@ -793,20 +794,20 @@ void hydroRiemann_vec(PARTICLE *pIn,float fBall,int nSmooth,
 
 
         for (auto j = 0; j < 3; ++j) { // Forward extrapolation of velocity
-            temp = pv[j]*pdivv + psph.gradP[j]/pDensity*pDeltaHalf;
+            temp = pvFrame[j]*pdivv + psph.gradP[j]/pDensity*pDeltaHalf;
             riemann_input.L.v[j] -= temp;
             vFrame[j] -= 0.5*temp;
         }
 
-        temp = qv[0]*qdivv + q(gradPX)/q(rho)*qDeltaHalf;
+        temp = qvFrame[0]*qdivv + q(gradPX)/q(rho)*qDeltaHalf;
         riemann_input.R.v[0] -= temp;
         vFrame[0] -= 0.5*temp;
 
-        temp = qv[1]*qdivv + q(gradPY)/q(rho)*qDeltaHalf;
+        temp = qvFrame[1]*qdivv + q(gradPY)/q(rho)*qDeltaHalf;
         riemann_input.R.v[1] -= temp;
         vFrame[1] -= 0.5*temp;
 
-        temp = qv[2]*qdivv + q(gradPZ)/q(rho)*qDeltaHalf;
+        temp = qvFrame[2]*qdivv + q(gradPZ)/q(rho)*qDeltaHalf;
         riemann_input.R.v[2] -= temp;
         vFrame[2] -= 0.5*temp;
 
@@ -837,17 +838,17 @@ void hydroRiemann_vec(PARTICLE *pIn,float fBall,int nSmooth,
         genericPairwiseLimiter(pDensity, q(rho), &riemann_input.L.rho, &riemann_input.R.rho);
         genericPairwiseLimiter(psph.P, q(P), &riemann_input.L.p, &riemann_input.R.p);
         for (auto j = 0; j < 3; ++j) {
-            genericPairwiseLimiter(pv[j], qv[j], &riemann_input.L.v[j], &riemann_input.R.v[j]);
+            genericPairwiseLimiter(pvFrame[j], qvFrame[j], &riemann_input.L.v[j], &riemann_input.R.v[j]);
         }
 
         if (pkd->csm->val.bComove) {
 
             for (auto j = 0; j < 3; ++j) {
-                temp = smf->H * pDeltaHalf * smf->a * pv[j];
+                temp = smf->H * pDeltaHalf * smf->a * pvFrame[j];
                 riemann_input.L.v[j] -= temp;
                 vFrame[j] -= 0.5*temp;
 
-                temp = smf->H * qDeltaHalf * smf->a * qv[j];
+                temp = smf->H * qDeltaHalf * smf->a * qvFrame[j];
                 riemann_input.R.v[j] -= temp;
                 vFrame[j] -= 0.5*temp;
             }
@@ -1031,9 +1032,10 @@ void hydroFluxFillBuffer(my_real **buffer, PARTICLE *qIn, int i, double dr2,
 #ifdef ENTROPY_SWITCH
     buffer[q_S][i] = qsph.S;
 #endif
-    buffer[q_vx][i] = qsph.vPred[0];
-    buffer[q_vy][i] = qsph.vPred[1];
-    buffer[q_vz][i] = qsph.vPred[2];
+    const auto &qv = Q.velocity();
+    buffer[q_vx][i] = qv[0];
+    buffer[q_vy][i] = qv[1];
+    buffer[q_vz][i] = qv[2];
 
     buffer[q_gradRhoX][i] = qsph.gradRho[0];
     buffer[q_gradRhoY][i] = qsph.gradRho[1];
@@ -1074,6 +1076,8 @@ void hydroFluxUpdateFromBuffer(my_real **out_buffer, my_real **in_buffer,
     PKD pkd = smf->pkd;
     auto P = pkd->particles[pIn];
     auto Q = pkd->particles[qIn];
+    const auto &pv = P.velocity();
+    const auto &qv = Q.velocity();
     auto &psph = P.sph();
     auto &qsph = Q.sph();
     const auto &dDelta = smf->dDelta;
@@ -1088,10 +1092,10 @@ void hydroFluxUpdateFromBuffer(my_real **out_buffer, my_real **in_buffer,
         psph.E -= out_buffer[out_minDt][i] * out_buffer[out_Fene][i];
 
         psph.Uint -= out_buffer[out_minDt][i] * ( out_buffer[out_Fene][i]
-                     - out_buffer[out_FmomX][i]*psph.vPred[0]
-                     - out_buffer[out_FmomY][i]*psph.vPred[1]
-                     - out_buffer[out_FmomZ][i]*psph.vPred[2]
-                     + 0.5*dot(psph.vPred,psph.vPred)*out_buffer[out_Frho][i] );
+                     - out_buffer[out_FmomX][i]*pv[0]
+                     - out_buffer[out_FmomY][i]*pv[1]
+                     - out_buffer[out_FmomZ][i]*pv[2]
+                     + 0.5*dot(pv,pv)*out_buffer[out_Frho][i] );
 
 #ifdef ENTROPY_SWITCH
         psph.S -= out_buffer[out_minDt][i] * out_buffer[out_FS][i];
@@ -1137,10 +1141,10 @@ void hydroFluxUpdateFromBuffer(my_real **out_buffer, my_real **in_buffer,
             qsph.E += out_buffer[out_minDt][i] * out_buffer[out_Fene][i];
 
             qsph.Uint += out_buffer[out_minDt][i] * ( out_buffer[out_Fene][i]
-                         - out_buffer[out_FmomX][i]*qsph.vPred[0]
-                         - out_buffer[out_FmomY][i]*qsph.vPred[1]
-                         - out_buffer[out_FmomZ][i]*qsph.vPred[2]
-                         + 0.5*dot(qsph.vPred,qsph.vPred)*out_buffer[out_Frho][i] );
+                         - out_buffer[out_FmomX][i]*qv[0]
+                         - out_buffer[out_FmomY][i]*qv[1]
+                         - out_buffer[out_FmomZ][i]*qv[2]
+                         + 0.5*dot(qv,qv)*out_buffer[out_Frho][i] );
 #ifdef ENTROPY_SWITCH
             qsph.S += out_buffer[out_minDt][i] * out_buffer[out_FS][i];
 #endif
