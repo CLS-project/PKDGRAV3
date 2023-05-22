@@ -164,12 +164,6 @@ struct SPHFIELDS {
 #endif
 
     float afElemMass[ELEMENT_COUNT];
-
-#ifdef COOLING
-    myreal lastCooling;
-    float cooling_dudt;
-#endif
-
 #ifdef HAVE_METALLICITY
     float fMetalMass;
 #endif

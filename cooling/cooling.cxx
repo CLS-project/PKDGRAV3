@@ -626,14 +626,9 @@ void cooling_cool_part(PKD pkd,
     /* if cooling rate is small, take the explicit solution */
     if (fabs(ratefact_cgs * LambdaNet_cgs * dt_cgs) <
             explicit_tolerance * u_0_cgs) {
-
         u_final_cgs = u_0_cgs + ratefact_cgs * LambdaNet_cgs * dt_cgs;
-        //IA: This would be the second order scheme
-        //u_final_cgs = u_0_cgs + 0.5*(ratefact_cgs * LambdaNet_cgs + psph->lastCooling)* dt_cgs;
-
     }
     else {
-
         /* Otherwise, go the bisection route. */
         u_final_cgs =
             bisection_iter(u_0_cgs, n_H_cgs, redshift, n_H_index, d_n_H, He_index,
@@ -654,26 +649,6 @@ void cooling_cool_part(PKD pkd,
               pow(p.density(), -cooling->dConstGamma+1);
 #endif
 
-    /* We now need to check that we are not going to go below any of the limits */
-
-    /* Absolute minimum */
-    const double u_minimal = 0.0; /* IA: TODO define minimum temperature */ //hydro_properties->minimal_internal_energy;
-    u_final = std::max(u_final, u_minimal);
-
-    /* Expected change in energy over the next kick step
-       (assuming no change in dt) */
-    const float u_floor = 0.;
-    const double delta_u = u_final - std::max(u_start, u_floor);
-
-    /* Turn this into a rate of change (including cosmology term) */
-    const float cooling_du_dt = delta_u / dt;
-
-    /* Update the internal energy time derivative */
-    // IA: TODO, do we use this?
-    psph->cooling_dudt = cooling_du_dt;
-
-    /* Store the radiated energy */
-    //xp->cooling_data.radiated_energy -= hydro_get_mass(p) * cooling_du_dt * dt;
 }
 
 /**

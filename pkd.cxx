@@ -788,10 +788,6 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 #ifdef STAR_FORMATION
                     Sph.SFR = 0.;
 #endif
-#ifdef COOLING
-                    Sph.lastCooling = 0.;
-                    Sph.cooling_dudt = 0.;
-#endif
 #if defined(FEEDBACK) || defined(BLACKHOLES)
                     Sph.fAccFBEnergy = 0.;
 #endif

@@ -588,10 +588,6 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
 #ifdef STAR_FORMATION
                 Sph.SFR = 0.;
 #endif
-#ifdef COOLING
-                Sph.lastCooling = 0.;
-                Sph.cooling_dudt = 0.;
-#endif
 #if defined(FEEDBACK) || defined(BLACKHOLES)
                 Sph.fAccFBEnergy = 0.;
 #endif
