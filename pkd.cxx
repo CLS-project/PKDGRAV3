@@ -545,17 +545,6 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     this->metalClient = new MetalClient(*this->mdl);
 #endif
     /*
-    ** Initialize neighbor list pointer to NULL if present.
-    */
-    if (particles.present(PKD_FIELD::oSph)) {
-        for (pi=0; pi<(particles.FreeStore()+1); ++pi) {
-            p = Particle(pi);
-            auto &sph = particles.sph(p);
-            sph.pNeighborList = NULL;
-        }
-    }
-
-    /*
     ** Initialize global group id.
     */
     if (particles.present(PKD_FIELD::oGlobalGid)) {
@@ -628,22 +617,6 @@ pkdContext::~pkdContext() {
         delete [] ewt.hSfac.f;
     }
 
-    /*
-    ** Free any neighbor lists that were left hanging around.
-    */
-    if (particles.present(PKD_FIELD::oSph)) {
-        for (pi=0; pi<(FreeStore()+1); ++pi) {
-            p = Particle(pi);
-            if (pkdIsGas(this,p)) {
-                auto &sph = particles.sph(p);
-                ppCList = &sph.pNeighborList;
-                if (*ppCList) {
-                    free(*ppCList);
-                    *ppCList = NULL;
-                }
-            }
-        }
-    }
     /* Only thread zero allocated this memory block  */
     mdlThreadBarrier(mdl);
     if (mdlCore(mdl) == 0) {

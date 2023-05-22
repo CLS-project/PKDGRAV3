@@ -521,9 +521,6 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
                     pgas.set_order(pgas.order() + in->nGrid*in->nGrid*in->nGrid);
                 pgas.set_position(pgas.position() + inGrid*0.5);
 
-                auto &sph = pgas.sph();
-                sph.pNeighborList = NULL;
-
                 auto &VelGas = pgas.velocity();
                 // Change the scale factor dependency
                 double a_m1 = 1./in->dExpansion;

@@ -100,7 +100,6 @@ static_assert(std::is_trivial<PARTCLASS>());
 typedef double myreal;
 
 struct SPHFIELDS {
-    char *pNeighborList; /* pointer to nearest neighbor list - compressed */
     blitz::TinyVector<double,3> vPred;
 
     float c;        /* sound speed */
@@ -484,9 +483,6 @@ public:
         return get<BHFIELDS>(p,PKD_FIELD::oBH);
 #endif
     }
-    auto pNeighborList( PARTICLE *p ) const {
-        return &get<SPHFIELDS>(p,PKD_FIELD::oSph).pNeighborList;
-    }
     auto Timer( PARTICLE *p ) const {
         return &get<STARFIELDS>(p,PKD_FIELD::oStar).fTimer;
     }
@@ -589,7 +585,6 @@ public:
         auto &star()        const { return store().star(p); }
         auto &BH()          const { return store().BH(p); }
         // auto vPred()        const { return store().vPred(p); }
-        auto pNeighborList()const { return store().pNeighborList(p); }
         auto Timer()        const { return store().Timer(p); }
         auto isNew()        const { return store().isNew(p); }
         auto isMarked()     const { return store().isMarked(p); }
