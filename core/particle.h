@@ -160,7 +160,7 @@ struct SPHFIELDS {
     //uint8_t uNewRung;
 
 #ifdef STAR_FORMATION
-    myreal SFR;
+    float SFR;
 #endif
 
     float afElemMass[ELEMENT_COUNT];
