@@ -305,7 +305,7 @@ void combBHAccretion(void *vpkd, void *vp1, const void *vp2) {
     auto p2 = pkd->particles[static_cast<const PARTICLE *>(vp2)];
 
     if (p1.is_bh() && p2.is_bh()) {
-        assert(p1.ParticleID() == p2.ParticleID());
+        assert(p1.order() == p2.order());
         float old_mass = p1.mass();
         float new_mass = old_mass + p2.mass();
         float inv_mass = 1./new_mass;

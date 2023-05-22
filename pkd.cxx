@@ -853,7 +853,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             assert(0);
         }
         p.set_position(r);
-        if (!pkd->bNoParticleOrder) p.set_order(iFirst++);
+        if (!pkd->bNoParticleOrder) p.set_order(iParticleID);
         if (p.have_particle_id()) p.ParticleID() = iParticleID;
 
         if (p.have_velocity()) {

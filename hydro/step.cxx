@@ -172,7 +172,7 @@ void hydroStep(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
                 q.set_new_rung(p.new_rung() - 1);
                 if (!q.is_active()) {
                     // DEBUG: The number of wake up request and IDs must match!
-                    //printf("Need to wake up! %"PRIu64" \n", *pkdParticleID(pkd,q));
+                    //printf("Need to wake up! %"PRIu64" \n", q.order());
                     q.sph().uWake = p.new_rung();
                 }
             }
