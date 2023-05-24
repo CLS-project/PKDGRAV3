@@ -316,7 +316,13 @@ void pkdParticleWorkDone(workParticle *wp) {
                     else {
                         uNewRung = 0; /* Assumes current uNewRung is outdated -- not ideal */
                         if (pkd->particles.present(PKD_FIELD::oNewSph)) {
-                            uNewRung = pkdDtToRungInverse(wp->pInfoOut[i].dtEst,fiDelta,wp->ts->uMaxRung-1);
+                            dT = HUGE_VALF;
+                            if (maga > 0.0f) {
+                                float imaga = rsqrtf(maga) * fiAccFac;
+                                dT = fEta*asqrtf(0.5f * p.ball() * imaga);
+                            }
+                            dT = std::min(dT,wp->pInfoOut[i].dtEst);
+                            uNewRung = pkdDtToRungInverse(dT,fiDelta,wp->ts->uMaxRung-1);
                             uNewRung = std::max(std::max((int)uNewRung,(int)round(wp->pInfoOut[i].maxRung) - wp->SPHoptions->nRungCorrection),0);
                         }
                     }
@@ -343,7 +349,13 @@ void pkdParticleWorkDone(workParticle *wp) {
                     else {
                         uNewRung = 0;
                         if (p.have_newsph()) {
-                            uNewRung = pkdDtToRungInverse(wp->pInfoOut[i].dtEst,fiDelta,wp->ts->uMaxRung-1);
+                            dT = HUGE_VALF;
+                            if (maga > 0.0f) {
+                                float imaga = rsqrtf(maga) * fiAccFac;
+                                dT = fEta*asqrtf(0.5f * p.ball() * imaga);
+                            }
+                            dT = std::min(dT,wp->pInfoOut[i].dtEst);
+                            uNewRung = pkdDtToRungInverse(dT,fiDelta,wp->ts->uMaxRung-1);
                             uNewRung = std::max(std::max((int)uNewRung,(int)round(wp->pInfoOut[i].maxRung) - wp->SPHoptions->nRungCorrection),0);
                         }
                     }
