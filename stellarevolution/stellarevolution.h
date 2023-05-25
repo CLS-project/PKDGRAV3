@@ -78,6 +78,22 @@ struct inStellarEvolutionInit {
     STEV_DATA StelEvolData;
 };
 
+
+struct stevPack {
+    blitz::TinyVector<double,3> position;
+    float fDensity;
+    uint8_t iClass;
+};
+
+
+struct stevFlush {
+    float afReceivedMom[3];
+    float fReceivedMass;
+    float fReceivedE;
+    float afElemMass[ELEMENT_COUNT];
+    float fMetalMass;
+};
+
 /*
  * --------------
  * MAIN FUNCTIONS
@@ -89,10 +105,11 @@ int pkdStellarEvolutionInit(PKD, struct inStellarEvolutionInit *);
 void pkdAddStellarEjecta(PKD, particleStore::ParticleReference &, SPHFIELDS &, const double);
 
 void smChemEnrich(PARTICLE *p, float fBall, int nSmooth, NN *nnList, SMF *smf);
-void initChemEnrich(void *vpkd, void *vp);
-void combChemEnrich(void *vpkd, void *vp1, const void *vp2);
-
-
+void packChemEnrich(void *vpkd, void *dst, const void *src);
+void unpackChemEnrich(void *vpkd, void *dst, const void *src);
+void initChemEnrich(void *vpkd, void *dst);
+void flushChemEnrich(void *vpkd, void *dst, const void *src);
+void combChemEnrich(void *vpkd, void *dst, const void *src);
 
 /*
  * ----------------

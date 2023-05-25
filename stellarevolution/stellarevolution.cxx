@@ -224,9 +224,33 @@ void pkdAddStellarEjecta(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS
 }
 
 
-void initChemEnrich(void *vpkd, void *vp) {
+void packChemEnrich(void *vpkd, void *dst, const void *src) {
     PKD pkd = (PKD) vpkd;
-    auto p = pkd->particles[static_cast<PARTICLE *>(vp)];
+    auto p1 = static_cast<stevPack *>(dst);
+    auto p2 = pkd->particles[static_cast<const PARTICLE *>(src)];
+
+    p1->iClass = p2.get_class();
+    if (p2.is_gas()) {
+        p1->position = p2.position();
+        p1->fDensity = p2.density();
+    }
+}
+
+void unpackChemEnrich(void *vpkd, void *dst, const void *src) {
+    PKD pkd = (PKD) vpkd;
+    auto p1 = pkd->particles[static_cast<PARTICLE *>(dst)];
+    auto p2 = static_cast<const stevPack *>(src);
+
+    p1.set_class(p2->iClass);
+    if (p1.is_gas()) {
+        p1.set_position(p2->position);
+        p1.set_density(p2->fDensity);
+    }
+}
+
+void initChemEnrich(void *vpkd, void *dst) {
+    PKD pkd = (PKD) vpkd;
+    auto p = pkd->particles[static_cast<PARTICLE *>(dst)];
 
     if (p.is_gas()) {
         auto &sph = p.sph();
@@ -242,24 +266,41 @@ void initChemEnrich(void *vpkd, void *vp) {
     }
 }
 
-
-void combChemEnrich(void *vpkd, void *vp1, const void *vp2) {
+void flushChemEnrich(void *vpkd, void *dst, const void *src) {
     PKD pkd = (PKD) vpkd;
-    auto p1 = pkd->particles[static_cast<PARTICLE *>(vp1)];
-    auto p2 = pkd->particles[static_cast<const PARTICLE *>(vp2)];
+    auto p1 = static_cast<stevFlush *>(dst);
+    auto p2 = pkd->particles[static_cast<const PARTICLE *>(src)];
 
-    if (p1.is_gas() && p2.is_gas()) {
-        auto &sph1 = p1.sph();
-        const auto &sph2 = p2.sph();
+    if (p2.is_gas()) {
+        const auto &sph = p2.sph();
 
         for (auto i = 0; i < 3; ++i)
-            sph1.afReceivedMom[i] += sph2.afReceivedMom[i];
-        sph1.fReceivedMass += sph2.fReceivedMass;
-        sph1.fReceivedE += sph2.fReceivedE;
+            p1->afReceivedMom[i] = sph.afReceivedMom[i];
+        p1->fReceivedMass = sph.fReceivedMass;
+        p1->fReceivedE = sph.fReceivedE;
 
         for (auto i = 0; i < ELEMENT_COUNT; ++i)
-            sph1.afElemMass[i] += sph2.afElemMass[i];
-        sph1.fMetalMass += sph2.fMetalMass;
+            p1->afElemMass[i] = sph.afElemMass[i];
+        p1->fMetalMass = sph.fMetalMass;
+    }
+}
+
+void combChemEnrich(void *vpkd, void *dst, const void *src) {
+    PKD pkd = (PKD) vpkd;
+    auto p1 = pkd->particles[static_cast<PARTICLE *>(dst)];
+    auto p2 = static_cast<const stevFlush *>(src);
+
+    if (p1.is_gas()) {
+        auto &sph = p1.sph();
+
+        for (auto i = 0; i < 3; ++i)
+            sph.afReceivedMom[i] += p2->afReceivedMom[i];
+        sph.fReceivedMass += p2->fReceivedMass;
+        sph.fReceivedE += p2->fReceivedE;
+
+        for (auto i = 0; i < ELEMENT_COUNT; ++i)
+            sph.afElemMass[i] += p2->afElemMass[i];
+        sph.fMetalMass += p2->fMetalMass;
     }
 }
 

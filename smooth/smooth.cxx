@@ -227,8 +227,14 @@ int smHashPresent(SMX smx,void *p) {
 static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodic,int bSymmetric,int iSmoothType,int bMakeCache) {
     SMX smx;
     void (*initParticle)(void *,void *) = NULL;
+    void (*pack)(void *,void *,const void *) = NULL;
+    void (*unpack)(void *,void *,const void *) = NULL;
     void (*init)(void *,void *) = NULL;
+    void (*flush)(void *,void *,const void *) = NULL;
     void (*comb)(void *,void *,const void *) = NULL;
+    bool bPacked = false;
+    uint32_t iPackSize = 0;
+    uint32_t iFlushSize = 0;
     int i;
 
     smx = new struct smContext;
@@ -381,9 +387,15 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
     case SMX_CHEM_ENRICHMENT:
         smx->fcnSmooth = smChemEnrich;
         initParticle = NULL;
+        pack = packChemEnrich;
+        unpack = unpackChemEnrich;
         init = initChemEnrich;
+        flush = flushChemEnrich;
         comb = combChemEnrich;
         smx->bSearchGasOnly = 1;
+        bPacked = true;
+        iPackSize = sizeof(stevPack);
+        iFlushSize = sizeof(stevFlush);
         break;
 #endif
     case SMX_BALL:
@@ -420,7 +432,19 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
     */
     if (bMakeCache) {
         smx->bOwnCache = 1;
-        if (bSymmetric) {
+        if (bPacked) {
+            if (bSymmetric) {
+                mdlPackedCacheCO(pkd->mdl,CID_PARTICLE,NULL,pkd->particles,nTree,
+                                 pkd->particles.ParticleSize(),pkd,iPackSize,
+                                 pack,unpack,iFlushSize,init,flush,comb);
+            }
+            else {
+                mdlPackedCacheRO(pkd->mdl,CID_PARTICLE,NULL,pkd->particles,nTree,
+                                 pkd->particles.ParticleSize(),pkd,iPackSize,
+                                 pack,unpack);
+            }
+        }
+        else if (bSymmetric) {
             mdlCOcache(pkd->mdl,CID_PARTICLE,NULL,
                        pkd->particles,pkd->particles.ParticleSize(),
                        nTree,pkd,init,comb);
