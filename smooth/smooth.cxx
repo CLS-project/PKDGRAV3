@@ -388,9 +388,15 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
     case SMX_BH_DRIFT:
         smx->fcnSmooth = smBHevolve;
         initParticle = NULL; /* Original Particle */
+        pack = packBHevolve;
+        unpack = unpackBHevolve;
         init = initBHevolve; /* Cached copies */
+        flush = flushBHevolve;
         comb = combBHevolve;
         smx->bSearchGasOnly = 1;
+        bPacked = true;
+        iPackSize = sizeof(bhEvolvePack);
+        iFlushSize = sizeof(bhEvolveFlush);
         break;
 #endif
 #ifdef STELLAR_EVOLUTION

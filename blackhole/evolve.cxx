@@ -241,46 +241,55 @@ void smBHevolve(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
 }
 
-void combBHevolve(void *vpkd, void *vp1,const void *vp2) {
+
+void packBHevolve(void *vpkd,void *dst,const void *src) {
     PKD pkd = (PKD) vpkd;
-    auto p1 = pkd->particles[static_cast<PARTICLE *>(vp1)];
-    auto p2 = pkd->particles[static_cast<const PARTICLE *>(vp2)];
+    auto p1 = static_cast<bhEvolvePack *>(dst);
+    auto p2 = pkd->particles[static_cast<const PARTICLE *>(src)];
 
-    if (p1.is_gas() && p2.is_gas()) {
-        auto &sph1 = p1.sph();
-        const auto &sph2 = p2.sph();
-
-#ifdef OLD_FB_SCHEME
-        sph1.Uint += sph2.Uint;
-        sph1.E += sph2.E;
+    p1->iClass = p2.get_class();
+    if (p2.is_gas()) {
+        p1->position = p2.position();
+        p1->velocity = p2.velocity();
+        p1->c = p2.sph().c;
+        p1->fMass = p2.mass();
 #ifdef ENTROPY_SWITCH
-        sph1.S += sph2.S;
+        p1->fDensity = p2.density();
 #endif
-#else //OLD_FB_SCHEME
-        sph1.fAccFBEnergy += sph2.fAccFBEnergy;
-#endif
-
-        // Is this the first accretion attempt for this particle?
-        if (sph1.BHAccretor.iPid == NOT_ACCRETED &&
-                sph2.BHAccretor.iPid != NOT_ACCRETED) {
-            sph1.BHAccretor.iPid = sph2.BHAccretor.iPid;
-            sph1.BHAccretor.iIndex = sph2.BHAccretor.iIndex;
-        }
-        // If not, just keep the previous attempt
+        p1->fPotential = p2.potential();
+        p1->uRung = p2.rung();
     }
 }
 
-
-void initBHevolve(void *vpkd,void *vp) {
+void unpackBHevolve(void *vpkd,void *dst,const void *src) {
     PKD pkd = (PKD) vpkd;
-    auto p = pkd->particles[static_cast<PARTICLE *>(vp)];
+    auto p1 = pkd->particles[static_cast<PARTICLE *>(dst)];
+    auto p2 = static_cast<const bhEvolvePack *>(src);
+
+    p1.set_class(p2->iClass);
+    if (p1.is_gas()) {
+        p1.set_position(p2->position);
+        p1.velocity() = p2->velocity;
+        p1.sph().c = p2->c;
+        p1.set_mass(p2->fMass);
+#ifdef ENTROPY_SWITCH
+        p1.set_density(p2->fDensity);
+#endif
+        p1.potential() = p2->fPotential;
+        p1.set_rung(p2->uRung);
+    }
+}
+
+void initBHevolve(void *vpkd,void *dst) {
+    PKD pkd = (PKD) vpkd;
+    auto p = pkd->particles[static_cast<PARTICLE *>(dst)];
 
     if (p.is_gas()) {
         auto &sph = p.sph();
 
 #ifdef OLD_FB_SCHEME
-        sph.Uint = 0.0;
         sph.E = 0.0;
+        sph.Uint = 0.0;
 #ifdef ENTROPY_SWITCH
         sph.S = 0.0;
 #endif
@@ -291,6 +300,58 @@ void initBHevolve(void *vpkd,void *vp) {
         sph.BHAccretor.iPid = NOT_ACCRETED;
     }
 }
+
+void flushBHevolve(void *vpkd,void *dst,const void *src) {
+    PKD pkd = (PKD) vpkd;
+    auto p1 = static_cast<bhEvolveFlush *>(dst);
+    auto p2 = pkd->particles[static_cast<const PARTICLE *>(src)];
+
+    if (p2.is_gas()) {
+        const auto &sph = p2.sph();
+
+#ifdef OLD_FB_SCHEME
+        p1->E = sph.E;
+        p1->Uint = sph.Uint;
+#ifdef ENTROPY_SWITCH
+        p1->S = sph.S;
+#endif
+#else //OLD_FB_SCHEME
+        p1->fAccFBEnergy = sph.fAccFBEnergy;
+#endif
+
+        p1->iAccPid = sph.BHAccretor.iPid;
+        p1->iAccIndex = sph.BHAccretor.iIndex;
+    }
+}
+
+void combBHevolve(void *vpkd,void *dst,const void *src) {
+    PKD pkd = (PKD) vpkd;
+    auto p1 = pkd->particles[static_cast<PARTICLE *>(dst)];
+    auto p2 = static_cast<const bhEvolveFlush *>(src);
+
+    if (p1.is_gas()) {
+        auto &sph = p1.sph();
+
+#ifdef OLD_FB_SCHEME
+        sph.E += p2->E;
+        sph.Uint += p2->Uint;
+#ifdef ENTROPY_SWITCH
+        sph.S += p2->S;
+#endif
+#else //OLD_FB_SCHEME
+        sph.fAccFBEnergy += p2->fAccFBEnergy;
+#endif
+
+        // Is this the first accretion attempt for this particle?
+        if (sph.BHAccretor.iPid == NOT_ACCRETED &&
+                p2->iAccPid != NOT_ACCRETED) {
+            sph.BHAccretor.iPid = p2->iAccPid;
+            sph.BHAccretor.iIndex = p2->iAccIndex;
+        }
+        // If not, just keep the previous attempt
+    }
+}
+
 
 void initBHAccretion(void *vpkd, void *vp) {
     PKD pkd = (PKD) vpkd;
