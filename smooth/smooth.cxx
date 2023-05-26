@@ -356,9 +356,15 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
     case SMX_SN_FEEDBACK:
         smx->fcnSmooth = smSNFeedback;
         initParticle = NULL; /* Original Particle */
+        pack = packSNFeedback;
+        unpack = unpackSNFeedback;
         init = initSNFeedback; /* Cached copies */
+        flush = flushSNFeedback;
         comb = combSNFeedback;
         smx->bSearchGasOnly = 1;
+        bPacked = true;
+        iPackSize = sizeof(snFeedbackPack);
+        iFlushSize = sizeof(snFeedbackFlush);
         break;
 #endif
 #ifdef BLACKHOLES

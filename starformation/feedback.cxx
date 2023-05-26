@@ -65,17 +65,46 @@ void smSNFeedback(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 }
 
 
-
-void initSNFeedback(void *vpkd, void *vp) {
+void packSNFeedback(void *vpkd,void *dst,const void *src) {
     PKD pkd = (PKD) vpkd;
-    auto p = pkd->particles[static_cast<PARTICLE *>(vp)];
+    auto p1 = static_cast<snFeedbackPack *>(dst);
+    auto p2 = pkd->particles[static_cast<const PARTICLE *>(src)];
+
+    p1->iClass = p2.get_class();
+    if (p2.is_gas()) {
+        p1->position = p2.position();
+        p1->fMass = p2.mass();
+#ifdef ENTROPY_SWITCH
+        p1->fDensity = p2.density();
+#endif
+    }
+}
+
+void unpackSNFeedback(void *vpkd,void *dst,const void *src) {
+    PKD pkd = (PKD) vpkd;
+    auto p1 = pkd->particles[static_cast<PARTICLE *>(dst)];
+    auto p2 = static_cast<const snFeedbackPack *>(src);
+
+    p1.set_class(p2->iClass);
+    if (p1.is_gas()) {
+        p1.set_position(p2->position);
+        p1.set_mass(p2->fMass);
+#ifdef ENTROPY_SWITCH
+        p1.set_density(p2->fDensity);
+#endif
+    }
+}
+
+void initSNFeedback(void *vpkd,void *dst) {
+    PKD pkd = (PKD) vpkd;
+    auto p = pkd->particles[static_cast<PARTICLE *>(dst)];
 
     if (p.is_gas()) {
         auto &sph = p.sph();
 
 #ifdef OLD_FB_SCHEME
-        sph.Uint = 0.;
         sph.E = 0.;
+        sph.Uint = 0.;
 #ifdef ENTROPY_SWITCH
         sph.S = 0.;
 #endif
@@ -83,31 +112,46 @@ void initSNFeedback(void *vpkd, void *vp) {
         sph.fAccFBEnergy = 0.;
 #endif
     }
-
 }
 
-
-void combSNFeedback(void *vpkd, void *v1, const void *v2) {
+void flushSNFeedback(void *vpkd,void *dst,const void *src) {
     PKD pkd = (PKD) vpkd;
-    auto p1 = pkd->particles[static_cast<PARTICLE *>(v1)];
-    auto p2 = pkd->particles[static_cast<const PARTICLE *>(v2)];
+    auto p1 = static_cast<snFeedbackFlush *>(dst);
+    auto p2 = pkd->particles[static_cast<const PARTICLE *>(src)];
 
-    if (p1.is_gas() && p2.is_gas()) {
-        auto &sph1 = p1.sph();
-        const auto &sph2 = p2.sph();
+    if (p2.is_gas()) {
+        const auto &sph = p2.sph();
 
 #ifdef OLD_FB_SCHEME
-        sph1.Uint += sph2.Uint;
-        sph1.E += sph2.E;
+        p1->E = sph.E;
+        p1->Uint = sph.Uint;
 #ifdef ENTROPY_SWITCH
-        sph1.S += sph2.S;
+        p1->S = sph.S;
 #endif
-#else //OLD_FB_SCHEME
-        sph1.fAccFBEnergy += sph2.fAccFBEnergy;
+#else // OLD_FB_SCHEME
+        p1->fAccFBEnergy = sph.fAccFBEnergy;
 #endif
-
     }
+}
 
+void combSNFeedback(void *vpkd,void *dst,const void *src) {
+    PKD pkd = (PKD) vpkd;
+    auto p1 = pkd->particles[static_cast<PARTICLE *>(dst)];
+    auto p2 = static_cast<const snFeedbackFlush *>(src);
+
+    if (p1.is_gas()) {
+        auto &sph = p1.sph();
+
+#ifdef OLD_FB_SCHEME
+        sph.E += p2->E;
+        sph.Uint += p2->Uint;
+#ifdef ENTROPY_SWITCH
+        sph.S += p2->S;
+#endif
+#else // OLD_FB_SCHEME
+        sph.fAccFBEnergy += p2->fAccFBEnergy;
+#endif
+    }
 }
 
 
