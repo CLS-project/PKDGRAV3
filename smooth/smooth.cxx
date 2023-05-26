@@ -377,9 +377,13 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
     case SMX_BH_STEP:
         smx->fcnSmooth = smBHstep;
         initParticle = NULL; /* Original Particle */
+        pack = packBHstep;
+        unpack = unpackBHstep;
         init = NULL; /* Cached copies */
         comb = NULL;
         smx->bSearchGasOnly = 1;
+        bPacked = true;
+        iPackSize = sizeof(bhStepPack);
         break;
     case SMX_BH_DRIFT:
         smx->fcnSmooth = smBHevolve;
