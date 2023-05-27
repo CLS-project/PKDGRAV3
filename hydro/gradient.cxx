@@ -24,6 +24,37 @@ void MSR::MeshlessGradients(double dTime, double dDelta) {
 }
 
 
+void packHydroGradients(void *vpkd,void *dst,const void *src) {
+    PKD pkd = (PKD) vpkd;
+    auto p1 = static_cast<hydroGradientsPack *>(dst);
+    auto p2 = pkd->particles[static_cast<const PARTICLE *>(src)];
+
+    p1->iClass = p2.get_class();
+    if (p2.is_gas()) {
+        p1->position = p2.position();
+        p1->velocity = p2.velocity();
+        p1->P = p2.sph().P;
+        p1->fBall = p2.ball();
+        p1->fDensity = p2.density();
+        p1->bMarked = p2.marked();
+    }
+}
+
+void unpackHydroGradients(void *vpkd,void *dst,const void *src) {
+    PKD pkd = (PKD) vpkd;
+    auto p1 = pkd->particles[static_cast<PARTICLE *>(dst)];
+    auto p2 = static_cast<const hydroGradientsPack *>(src);
+
+    p1.set_class(p2->iClass);
+    if (p1.is_gas()) {
+        p1.set_position(p2->position);
+        p1.velocity() = p2->velocity;
+        p1.sph().P = p2->P;
+        p1.set_ball(p2->fBall);
+        p1.set_density(p2->fDensity);
+        p1.set_marked(p2->bMarked);
+    }
+}
 
 void hydroGradients(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 

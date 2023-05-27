@@ -323,8 +323,12 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         assert( pkd->particles.present(PKD_FIELD::oSph) ); /* Validate memory model */
         smx->fcnSmooth = hydroGradients;
         initParticle = NULL; /* Original Particle */
+        pack = packHydroGradients;
+        unpack = unpackHydroGradients;
         init = NULL; /* Cached copies */
         comb = NULL;
+        bPacked = true;
+        iPackSize = sizeof(hydroGradientsPack);
         break;
     case SMX_HYDRO_FLUX:
         assert( pkd->particles.present(PKD_FIELD::oSph) ); /* Validate memory model */

@@ -27,8 +27,22 @@ void hydroDensity_node(PKD pkd, SMF *smf, Bound bnd_node, const std::vector<PART
                        NN *nnList, int nCnt);
 void hydroDensityFinal(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf);
 
+
 /* Gradient loop */
+struct hydroGradientsPack {
+    blitz::TinyVector<double,3> position;
+    blitz::TinyVector<double,3> velocity;
+    double P;
+    float fBall;
+    float fDensity;
+    uint8_t iClass;
+    bool bMarked;
+};
+
 void hydroGradients(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf);
+void packHydroGradients(void *vpkd,void *dst,const void *src);
+void unpackHydroGradients(void *vpkd,void *dst,const void *src);
+
 
 /* Flux loop */
 void initHydroFluxes(void *vpkd, void *vp);
@@ -46,6 +60,7 @@ void hydroFluxFillBuffer(my_real **buffer, PARTICLE *q, int i,
 void hydroFluxUpdateFromBuffer(my_real **out_buffer, my_real **in_buffer,
                                PARTICLE *p, PARTICLE *q, int i, SMF *);
 void hydroFluxGetNvars(int *in, int *out);
+
 
 /* Time step loop */
 struct hydroStepPack {
