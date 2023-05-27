@@ -348,9 +348,15 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
     case SMX_HYDRO_STEP:
         assert( pkd->particles.present(PKD_FIELD::oSph) ); /* Validate memory model */
         smx->fcnSmooth = hydroStep;
-        initParticle = initHydroStep; /* Original Particle */
+        initParticle = NULL; /* Original Particle */
+        pack = packHydroStep;
+        unpack = unpackHydroStep;
         init = initHydroStep; /* Cached copies */
+        flush = flushHydroStep;
         comb = combHydroStep;
+        bPacked = true;
+        iPackSize = sizeof(hydroStepPack);
+        iFlushSize = sizeof(hydroStepFlush);
         break;
 #ifdef FEEDBACK
     case SMX_SN_FEEDBACK:

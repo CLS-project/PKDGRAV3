@@ -17,7 +17,7 @@ int sign(T v) {return (v>0) - (v<0);}
 typedef double my_real;
 
 /* -----------------
- * MAIN FUNCTIONS
+ * MAIN FUNCTIONS AND CLASSES
  * -----------------
  */
 
@@ -48,10 +48,29 @@ void hydroFluxUpdateFromBuffer(my_real **out_buffer, my_real **in_buffer,
 void hydroFluxGetNvars(int *in, int *out);
 
 /* Time step loop */
-void initHydroStep(void *vpkd, void *vp);
+struct hydroStepPack {
+    blitz::TinyVector<double,3> position;
+    blitz::TinyVector<double,3> velocity;
+    float c;
+    float fBall;
+    uint8_t uRung;
+    uint8_t uNewRung;
+    uint8_t iClass;
+    bool bMarked;
+};
+
+struct hydroStepFlush {
+    uint8_t uNewRung;
+    uint8_t uWake;
+};
+
 void hydroStep(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf);
-void combHydroStep(void *vpkd, void *p1,const void *p2);
-void pkdWakeParticles(PKD pkd,int iRoot, double dTime, double dDelta);
+void packHydroStep(void *vpkd,void *dst,const void *src);
+void unpackHydroStep(void *vpkd,void *dst,const void *src);
+void initHydroStep(void *vpkd,void *dst);
+void flushHydroStep(void *vpkd,void *dst,const void *src);
+void combHydroStep(void *vpkd,void *dst,const void *src);
+void pkdWakeParticles(PKD pkd,int iRoot,double dTime,double dDelta);
 
 
 /* Source terms */

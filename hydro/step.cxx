@@ -38,7 +38,64 @@ void MSR::HydroStep(double dTime, double dDelta) {
     }
 }
 
-void initHydroStep(void *vpkd, void *vp) {
+
+void packHydroStep(void *vpkd,void *dst,const void *src) {
+    PKD pkd = (PKD) vpkd;
+    auto p1 = static_cast<hydroStepPack *>(dst);
+    auto p2 = pkd->particles[static_cast<const PARTICLE *>(src)];
+
+    p1->iClass = p2.get_class();
+    if (p2.is_gas()) {
+        p1->position = p2.position();
+        p1->velocity = p2.velocity();
+        p1->c = p2.sph().c;
+        p1->fBall = p2.ball();
+        p1->uRung = p2.rung();
+        p1->uNewRung = p2.new_rung();
+        p1->bMarked = p2.marked();
+    }
+}
+
+void unpackHydroStep(void *vpkd,void *dst,const void *src) {
+    PKD pkd = (PKD) vpkd;
+    auto p1 = pkd->particles[static_cast<PARTICLE *>(dst)];
+    auto p2 = static_cast<const hydroStepPack *>(src);
+
+    p1.set_class(p2->iClass);
+    if (p1.is_gas()) {
+        p1.set_position(p2->position);
+        p1.velocity() = p2->velocity;
+        p1.sph().c = p2->c;
+        p1.set_ball(p2->fBall);
+        p1.set_rung(p2->uRung);
+        p1.set_new_rung(p2->uNewRung);
+        p1.set_marked(p2->bMarked);
+    }
+}
+
+void initHydroStep(void *vpkd,void *dst) {
+}
+
+void flushHydroStep(void *vpkd,void *dst,const void *src) {
+    PKD pkd = (PKD) vpkd;
+    auto p1 = static_cast<hydroStepFlush *>(dst);
+    auto p2 = pkd->particles[static_cast<const PARTICLE *>(src)];
+
+    if (p2.is_gas()) {
+        p1->uNewRung = p2.new_rung();
+        p1->uWake = p2.sph().uWake;
+    }
+}
+
+void combHydroStep(void *vpkd,void *dst,const void *src) {
+    PKD pkd = (PKD) vpkd;
+    auto p1 = pkd->particles[static_cast<PARTICLE *>(dst)];
+    auto p2 = static_cast<const hydroStepFlush *>(src);
+    assert(!pkd->bNoParticleOrder);
+    if (p1.is_gas()) {
+        if (p2->uNewRung > p1.new_rung()) p1.set_new_rung(p2->uNewRung);
+        p1.sph().uWake = p2->uWake;
+    }
 }
 
 /* Compute the hydrodynamical time step of this particle, based:
@@ -81,7 +138,7 @@ void hydroStep(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     psph.maxEkin = 0.0;
     for (auto i = 0; i < nSmooth; ++i) {
         auto q = pkd->particles[nnList[i].pPart];
-        auto &qsph = q.sph();
+        const auto &qv = q.velocity();
 
         double dv2 = dot(qv - pv,qv - pv);
         double Ekin = 0.5*p.mass()*dv2;
@@ -177,16 +234,6 @@ void hydroStep(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
                 }
             }
         }
-    }
-}
-
-void combHydroStep(void *vpkd, void *v1,const void *v2) {
-    PKD pkd = (PKD) vpkd;
-    auto p1 = pkd->particles[static_cast<PARTICLE *>(v1)];
-    auto p2 = pkd->particles[static_cast<const PARTICLE *>(v2)];
-    assert(!pkd->bNoParticleOrder);
-    if (p1.is_gas() && p2.is_gas()) {
-        if (p2.new_rung() > p1.new_rung()) p1.set_new_rung(p2.new_rung());
     }
 }
 
