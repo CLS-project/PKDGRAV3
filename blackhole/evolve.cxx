@@ -353,27 +353,70 @@ void combBHevolve(void *vpkd,void *dst,const void *src) {
 }
 
 
-void initBHAccretion(void *vpkd, void *vp) {
+struct bhAccretionPack {
+    uint64_t iOrder;
+    uint8_t iClass;
+};
+
+struct bhAccretionFlush {
+    blitz::TinyVector<double,3> mom;
+    uint64_t iOrder;
+    float fMass;
+};
+
+void packBHAccretion(void *vpkd,void *dst,const void *src) {
     PKD pkd = (PKD) vpkd;
-    auto p = pkd->particles[static_cast<PARTICLE *>(vp)];
-    p.set_mass(0.0);
-    p.velocity() = 0.0;
+    auto p1 = static_cast<bhAccretionPack *>(dst);
+    auto p2 = pkd->particles[static_cast<const PARTICLE *>(src)];
+
+    p1->iOrder = p2.order();
+    p1->iClass = p2.get_class();
 }
 
-void combBHAccretion(void *vpkd, void *vp1, const void *vp2) {
+void unpackBHAccretion(void *vpkd,void *dst,const void *src) {
     PKD pkd = (PKD) vpkd;
-    auto p1 = pkd->particles[static_cast<PARTICLE *>(vp1)];
-    auto p2 = pkd->particles[static_cast<const PARTICLE *>(vp2)];
+    auto p1 = pkd->particles[static_cast<PARTICLE *>(dst)];
+    auto p2 = static_cast<const bhAccretionPack *>(src);
 
-    if (p1.is_bh() && p2.is_bh()) {
-        assert(p1.order() == p2.order());
+    p1.set_order(p2->iOrder);
+    p1.set_class(p2->iClass);
+}
+
+void initBHAccretion(void *vpkd,void *dst) {
+    PKD pkd = (PKD) vpkd;
+    auto p = pkd->particles[static_cast<PARTICLE *>(dst)];
+
+    if (p.is_bh()) {
+        p.velocity() = 0.0;
+        p.set_mass(0.0);
+    }
+}
+
+void flushBHAccretion(void *vpkd,void *dst,const void *src) {
+    PKD pkd = (PKD) vpkd;
+    auto p1 = static_cast<bhAccretionFlush *>(dst);
+    auto p2 = pkd->particles[static_cast<const PARTICLE *>(src)];
+
+    if (p2.is_bh()) {
+        p1->mom = p2.velocity(); // **Momentum** added by the accretion
+        p1->iOrder = p2.order();
+        p1->fMass = p2.mass();
+    }
+}
+
+void combBHAccretion(void *vpkd,void *dst,const void *src) {
+    PKD pkd = (PKD) vpkd;
+    auto p1 = pkd->particles[static_cast<PARTICLE *>(dst)];
+    auto p2 = static_cast<const bhAccretionFlush *>(src);
+
+    if (p1.is_bh()) {
+        assert(p1.order() == p2->iOrder);
         float old_mass = p1.mass();
-        float new_mass = old_mass + p2.mass();
+        float new_mass = old_mass + p2->fMass;
         float inv_mass = 1./new_mass;
 
         auto &v1 = p1.velocity();
-        const auto &v2 = p2.velocity(); // **Momentum** added by the accretion
-        v1 = (old_mass*v1 + v2)*inv_mass;
+        v1 = (old_mass*v1 + p2->mom)*inv_mass;
 
         p1.set_mass(new_mass);
     }
@@ -382,8 +425,10 @@ void combBHAccretion(void *vpkd, void *vp1, const void *vp2) {
 
 void pkdBHAccretion(PKD pkd, double dScaleFactor) {
 
-    mdlCOcache(pkd->mdl, CID_PARTICLE, NULL, pkd->particles, pkd->particles.ParticleSize(),
-               pkd->Local(), pkd, initBHAccretion, combBHAccretion);
+    mdlPackedCacheCO(pkd->mdl, CID_PARTICLE, NULL, pkd->particles, pkd->Local(),
+                     pkd->particles.ParticleSize(), pkd, sizeof(bhAccretionPack),
+                     packBHAccretion, unpackBHAccretion, sizeof(bhAccretionFlush),
+                     initBHAccretion, flushBHAccretion, combBHAccretion);
 
     for (auto &p : pkd->particles) {
         if (p.is_gas()) {
