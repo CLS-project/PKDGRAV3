@@ -309,15 +309,23 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         assert( pkd->particles.present(PKD_FIELD::oSph) ); /* Validate memory model */
         smx->fcnSmooth = hydroDensity;
         initParticle = NULL; /* Original Particle */
+        pack = packHydroDensity;
+        unpack = unpackHydroDensity;
         init = NULL; /* Cached copies */
         comb = NULL;
+        bPacked = true;
+        iPackSize = sizeof(hydroDensityPack);
         break;
     case SMX_HYDRO_DENSITY_FINAL:
         assert( pkd->particles.present(PKD_FIELD::oSph) ); /* Validate memory model */
         smx->fcnSmooth = hydroDensityFinal;
         initParticle = NULL; /* Original Particle */
+        pack = packHydroDensity;
+        unpack = unpackHydroDensity;
         init = NULL; /* Cached copies */
         comb = NULL;
+        bPacked = true;
+        iPackSize = sizeof(hydroDensityPack);
         break;
     case SMX_HYDRO_GRADIENT:
         assert( pkd->particles.present(PKD_FIELD::oSph) ); /* Validate memory model */

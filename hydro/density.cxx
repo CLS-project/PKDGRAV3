@@ -57,7 +57,6 @@ void MSR::ComputeSmoothing(double dTime, double dDelta) {
 }
 
 
-
 static inline void densNodeOmegaE(NN *nnList, float ph, TinyVector<float,3> dr_node, int nCnt,
                                   double *omega, TinyVector<double,6> &E, int *nSmooth) {
     const float fBall2_p = 4.*ph*ph;
@@ -88,7 +87,6 @@ static inline void densNodeOmegaE(NN *nnList, float ph, TinyVector<float,3> dr_n
     }
 }
 
-
 static inline double densNodeNcondB(PKD pkd, particleStore::ParticleReference &p,
                                     TinyVector<double,6> &E, double omega) {
     TinyVector<double,6> B;
@@ -110,6 +108,34 @@ static inline double densNodeNcondB(PKD pkd, particleStore::ParticleReference &p
 
     return Ncond;
 }
+
+
+void packHydroDensity(void *vpkd,void *dst,const void *src) {
+    PKD pkd = (PKD) vpkd;
+    auto p1 = static_cast<hydroDensityPack *>(dst);
+    auto p2 = pkd->particles[static_cast<const PARTICLE *>(src)];
+
+    p1->iClass = p2.get_class();
+    if (p2.is_gas()) {
+        p1->position = p2.position();
+        p1->fBall = p2.ball();
+        p1->bMarked = p2.marked();
+    }
+}
+
+void unpackHydroDensity(void *vpkd,void *dst,const void *src) {
+    PKD pkd = (PKD) vpkd;
+    auto p1 = pkd->particles[static_cast<PARTICLE *>(dst)];
+    auto p2 = static_cast<const hydroDensityPack *>(src);
+
+    p1.set_class(p2->iClass);
+    if (p1.is_gas()) {
+        p1.set_position(p2->position);
+        p1.set_ball(p2->fBall);
+        p1.set_marked(p2->bMarked);
+    }
+}
+
 
 // Compute the density and derived variables simply given the fBall,
 // without trying to converge to the correct value

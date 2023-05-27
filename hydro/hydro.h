@@ -22,10 +22,19 @@ typedef double my_real;
  */
 
 /* Density loop */
+struct hydroDensityPack {
+    blitz::TinyVector<double,3> position;
+    float fBall;
+    uint8_t iClass;
+    bool bMarked;
+};
+
 void hydroDensity(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf);
 void hydroDensity_node(PKD pkd, SMF *smf, Bound bnd_node, const std::vector<PARTICLE *> &sinks,
                        NN *nnList, int nCnt);
 void hydroDensityFinal(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf);
+void packHydroDensity(void *vpkd,void *dst,const void *src);
+void unpackHydroDensity(void *vpkd,void *dst,const void *src);
 
 
 /* Gradient loop */
