@@ -45,6 +45,7 @@ void pkdResetFluxes(PKD pkd, double dTime,double dDelta,double dDeltaVPred,doubl
 
 }
 
+
 void MSR::MeshlessFluxes(double dTime,double dDelta) {
     double dsec;
     printf("Computing fluxes... ");
@@ -67,37 +68,144 @@ void MSR::MeshlessFluxes(double dTime,double dDelta) {
     printf("took %.5f seconds\n", dsec);
 }
 
-void initHydroFluxes(void *vpkd, void *vp) {
+
+void packHydroFluxes(void *vpkd,void *dst,const void *src) {
+    PKD pkd = (PKD) vpkd;
+    auto p1 = static_cast<hydroFluxesPack *>(dst);
+    auto p2 = pkd->particles[static_cast<const PARTICLE *>(src)];
+
+    p1->iClass = p2.get_class();
+    if (p2.is_gas()) {
+        const auto &sph = p2.sph();
+
+        p1->position = p2.position();
+        p1->velocity = p2.velocity();
+
+        p1->B = sph.B;
+        p1->gradRho = sph.gradRho;
+        p1->gradVx = sph.gradVx;
+        p1->gradVy = sph.gradVy;
+        p1->gradVz = sph.gradVz;
+        p1->gradP = sph.gradP;
+        p1->lastUpdateTime = sph.lastUpdateTime;
+        p1->lastAcc = sph.lastAcc;
+        p1->omega = sph.omega;
+        p1->P = sph.P;
+
+        p1->fBall = p2.ball();
+        p1->fDensity = p2.density();
+        p1->uRung = p2.rung();
+        p1->bMarked = p2.marked();
+    }
 }
 
-/* Zero all the conserved quantities, which will be updated
- * during the hydro loop.
- *
- * Then those will be merged with the actual particle information inside
- * combThirdHydroLoop
- */
-void initHydroFluxesCached(void *vpkd, void *vp) {
+void unpackHydroFluxes(void *vpkd,void *dst,const void *src) {
     PKD pkd = (PKD) vpkd;
-    auto P = pkd->particles[static_cast<PARTICLE *>(vp)];
+    auto p1 = pkd->particles[static_cast<PARTICLE *>(dst)];
+    auto p2 = static_cast<const hydroFluxesPack *>(src);
+
+    p1.set_class(p2->iClass);
+    if (p1.is_gas()) {
+        auto &sph = p1.sph();
+
+        p1.set_position(p2->position);
+        p1.velocity() = p2->velocity;
+
+        sph.B = p2->B;
+        sph.gradRho = p2->gradRho;
+        sph.gradVx = p2->gradVx;
+        sph.gradVy = p2->gradVy;
+        sph.gradVz = p2->gradVz;
+        sph.gradP = p2->gradP;
+        sph.lastUpdateTime = p2->lastUpdateTime;
+        sph.lastAcc = p2->lastAcc;
+        sph.omega = p2->omega;
+        sph.P = p2->P;
+
+        p1.set_ball(p2->fBall);
+        p1.set_density(p2->fDensity);
+        p1.set_rung(p2->uRung);
+        p1.set_marked(p2->bMarked);
+    }
+}
+
+void initHydroFluxes(void *vpkd,void *dst) {
+}
+
+/* Zero all the conserved quantities in cached copies, which will be updated
+ * during the hydro loop. They will be merged with the actual particle
+ * information in combHydroFluxes
+ */
+void initHydroFluxesCached(void *vpkd,void *dst) {
+    PKD pkd = (PKD) vpkd;
+    auto p = pkd->particles[static_cast<PARTICLE *>(dst)];
     assert(!pkd->bNoParticleOrder);
     // For the init*Cached and comb functions we still have to explicitly
     // check if we are handling gas particles even ifdef OPTIM_REORDER_IN_NODES
     // because these operations are done in a cache-line basis, and a line may
     // contain other particles that are not of interest!
-    if (P.is_gas()) {
-        auto &sph = P.sph();
-
-        P.set_mass(0.0);
-        sph.mom = 0.;
-        sph.E = 0.;
-        sph.Uint = 0.;
+    if (p.is_gas()) {
+        auto &sph = p.sph();
 
         sph.Frho = 0.0;
-        sph.Fene = 0.0;
         sph.Fmom = 0.0;
+        sph.Fene = 0.0;
 #ifndef USE_MFM
         sph.drDotFrho = 0.0;
 #endif
+
+        sph.mom = 0.0;
+        sph.E = 0.0;
+        sph.Uint = 0.0;
+
+        p.set_mass(0.0);
+    }
+}
+
+void flushHydroFluxes(void *vpkd,void *dst,const void *src) {
+    PKD pkd = (PKD) vpkd;
+    auto p1 = static_cast<hydroFluxesFlush *>(dst);
+    auto p2 = pkd->particles[static_cast<const PARTICLE *>(src)];
+
+    if (p2.is_gas()) {
+        const auto &sph = p2.sph();
+
+        p1->Frho = sph.Frho;
+        p1->Fmom = sph.Fmom;
+        p1->Fene = sph.Fene;
+#ifndef USE_MFM
+        p1->drDotFrho = sph.drDotFrho;
+#endif
+
+        p1->mom = sph.mom;
+        p1->E = sph.E;
+        p1->Uint = sph.Uint;
+
+        p1->fMass = p2.mass();
+    }
+}
+
+void combHydroFluxes(void *vpkd,void *dst,const void *src) {
+    PKD pkd = (PKD) vpkd;
+    auto p1 = pkd->particles[static_cast<PARTICLE *>(dst)];
+    auto p2 = static_cast<const hydroFluxesFlush *>(src);
+
+    assert(!pkd->bNoParticleOrder);
+    if (p1.is_gas()) {
+        auto &sph = p1.sph();
+
+        sph.Frho += p2->Frho;
+        sph.Fmom += p2->Fmom;
+        sph.Fene += p2->Fene;
+#ifndef USE_MFM
+        sph.drDotFrho += p2->drDotFrho;
+#endif
+
+        sph.mom += p2->mom;
+        sph.E += p2->E;
+        sph.Uint += p2->Uint;
+
+        p1.set_mass(p1.mass() + p2->fMass);
     }
 }
 
@@ -1177,33 +1285,5 @@ void hydroFluxGetNvars(int *in, int *out) {
     *out = out_last;
 }
 
-
-
 #endif // OPTIM_FLUX_VEC
-
-
-void combThirdHydroLoop(void *vpkd, void *v1,const void *v2) {
-    PKD pkd = (PKD) vpkd;
-    auto P1 = pkd->particles[static_cast<PARTICLE *>(v1)];
-    auto P2 = pkd->particles[static_cast<const PARTICLE *>(v2)];
-
-    assert(!pkd->bNoParticleOrder);
-    if (P1.is_gas() && P2.is_gas()) {
-        auto &psph1 = P1.sph();
-        const auto &psph2 = P2.sph();
-
-        P1.set_mass(P1.mass() + P2.mass());
-
-        psph1.mom += psph2.mom;
-        psph1.E += psph2.E;
-        psph1.Uint += psph2.Uint;
-
-        psph1.Fmom += psph2.Fmom;
-        psph1.Frho += psph2.Frho;
-        psph1.Fene += psph2.Fene;
-#ifndef USE_MFM
-        psph1.drDotFrho += psph2.drDotFrho;
-#endif
-    }
-}
 

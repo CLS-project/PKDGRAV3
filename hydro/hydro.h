@@ -54,21 +54,53 @@ void unpackHydroGradients(void *vpkd,void *dst,const void *src);
 
 
 /* Flux loop */
-void initHydroFluxes(void *vpkd, void *vp);
-void initHydroFluxesCached(void *vpkd, void *vp);
+struct hydroFluxesPack {
+    blitz::TinyVector<double,3> position;
+    blitz::TinyVector<double,3> velocity;
+    blitz::TinyVector<double,6> B;
+    blitz::TinyVector<myreal,3> gradRho, gradVx, gradVy, gradVz, gradP;
+    myreal lastUpdateTime;
+    blitz::TinyVector<myreal,3> lastAcc;
+    double omega;
+    double P;
+    float fBall;
+    float fDensity;
+    uint8_t uRung;
+    uint8_t iClass;
+    bool bMarked;
+};
+
+struct hydroFluxesFlush {
+    myreal Frho;
+    blitz::TinyVector<myreal,3> Fmom;
+    myreal Fene;
+#ifndef USE_MFM
+    blitz::TinyVector<double,3> drDotFrho;
+#endif
+    blitz::TinyVector<double,3> mom;
+    double E;
+    double Uint;
+    float fMass;
+};
+
 void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf);
 void hydroRiemann_vec(PARTICLE *p,float fBall,int nSmooth,
                       my_real **restrict input_buffer,
                       my_real **restrict output_buffer,
                       SMF *smf);
-void pkdResetFluxes(PKD pkd,double dTime,double dDelta,double,double);
-
-void combThirdHydroLoop(void *vpkd, void *p1,const void *p2);
+void packHydroFluxes(void *vpkd,void *dst,const void *src);
+void unpackHydroFluxes(void *vpkd,void *dst,const void *src);
+void initHydroFluxes(void *vpkd,void *vp);
+void initHydroFluxesCached(void *vpkd,void *vp);
+void flushHydroFluxes(void *vpkd,void *dst,const void *src);
+void combHydroFluxes(void *vpkd,void *p1,const void *p2);
 void hydroFluxFillBuffer(my_real **buffer, PARTICLE *q, int i,
                          double dr2, blitz::TinyVector<double,3> dr, SMF *);
 void hydroFluxUpdateFromBuffer(my_real **out_buffer, my_real **in_buffer,
                                PARTICLE *p, PARTICLE *q, int i, SMF *);
 void hydroFluxGetNvars(int *in, int *out);
+
+void pkdResetFluxes(PKD pkd,double dTime,double dDelta,double,double);
 
 
 /* Time step loop */

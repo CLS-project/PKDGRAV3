@@ -342,8 +342,14 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         assert( pkd->particles.present(PKD_FIELD::oSph) ); /* Validate memory model */
         smx->fcnSmooth = hydroRiemann;
         initParticle = initHydroFluxes; /* Original Particle */
+        pack = packHydroFluxes;
+        unpack = unpackHydroFluxes;
         init = initHydroFluxesCached; /* Cached copies */
-        comb = combThirdHydroLoop;
+        flush = flushHydroFluxes;
+        comb = combHydroFluxes;
+        bPacked = true;
+        iPackSize = sizeof(hydroFluxesPack);
+        iFlushSize = sizeof(hydroFluxesFlush);
         break;
 #ifdef OPTIM_FLUX_VEC
     case SMX_HYDRO_FLUX_VEC:
@@ -353,8 +359,14 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         smx->fcnSmoothFillBuffer = hydroFluxFillBuffer;
         smx->fcnSmoothUpdate = hydroFluxUpdateFromBuffer;
         initParticle = initHydroFluxes; /* Original Particle */
+        pack = packHydroFluxes;
+        unpack = unpackHydroFluxes;
         init = initHydroFluxesCached; /* Cached copies */
-        comb = combThirdHydroLoop;
+        flush = flushHydroFluxes;
+        comb = combHydroFluxes;
+        bPacked = true;
+        iPackSize = sizeof(hydroFluxesPack);
+        iFlushSize = sizeof(hydroFluxesFlush);
         break;
 #endif
     case SMX_HYDRO_STEP:
