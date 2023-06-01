@@ -793,9 +793,8 @@ void *mdlClass::finishCacheRequest(int cid,uint32_t uLine, uint32_t uId, uint32_
             if ( n > oc->nData ) n = oc->nData;
             auto pData = static_cast<char *>(data);
             for (auto i=s; i<n; i++ ) {
-                //FIXME: not unpack!
                 auto p = oc->ReadLock(i);
-                c->cache_helper->unpack(pData,p,pKey);
+                memcpy(pData,p,oc->iDataSize);
                 oc->ReadUnlock(p);
                 pData += oc->iDataSize;
             }
