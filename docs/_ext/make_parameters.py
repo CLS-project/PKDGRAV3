@@ -39,6 +39,7 @@ class make_parameters(Directive):
           # Prefer docs over help and reparse as restructed text.
           text = v['docs'] if 'docs' in v else v['help']
           node = nodes.section()
+          text = f'.. index:: single: parameters ; {key}\n\n{text}'
           vl = ViewList(text.split('\n'),source='')
           nested_parse_with_titles(self.state, vl, node)
           term=nodes.section()
@@ -46,6 +47,7 @@ class make_parameters(Directive):
           items += nodes.definition_list_item('',
                   nodes.term('','',*term.children),
                   nodes.definition('',*node.children))
+          # dli.insert(0,nodes.target('', '', ids=[f'{key}'.lower()]))
         else:
           subs += [self.emit_section(key,v)]
       if (len(items)>0):

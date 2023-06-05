@@ -15,11 +15,21 @@
 #     docs:    Detailed documentation about the parameter that is included in
 #              the User Guide. Parsed as restructured text. (see e.g. dTheta)
 #
+#   Subsections can be created to organize the parameters in the User Guide.
+#   See the "Force Accuracy" section for an example. Due to limitations of
+#   argparse, the parameters are only grouped by the main heading (for --help).
+#
 ################################################################################
 
 ################################################################################
 ########## Gravity, Domains, Trees
 ################################################################################
+["Gravity, Domains, Trees"]
+docs='''
+Parameters in this section are used to override the gravitational softening
+:math:`\epsilon`, control the tree memory layout, as well as to control
+how often domain decomposition and tree building occur.
+'''
 
 ["Gravity, Domains, Trees".dSoft]
 flag="e"
@@ -94,95 +104,163 @@ help="Fraction of Active Particles for no DD dimension choice"
 ########## Analysis
 ################################################################################
 
-["Analysis".nBinsPk]
-flag="npk"
-default=0
-help="Number of log bins for P(k)"
+["Analysis"."Power Spectrum Measurement"]
+docs='''
+The code provides a built-in tool for measureing the power spectrum P(k)
+of a simulation. These parameters control the configuration.
+'''
 
-["Analysis".nGridPk]
+["Analysis"."Power Spectrum Measurement".nGridPk]
 flag="pk"
 default=0
 help="Grid size for measure P(k) 0=disabled"
+docs='''
+This size of the 3D grid for measuring the power spectrum.
+This feature is disabled if the grid size is zero which is the default.
+A reasonable value is to set this to the same size as the IC grid,
+plus or minus a factor of two.
+'''
 
-["Analysis".bPkInterlace]
+["Analysis"."Power Spectrum Measurement".nBinsPk]
+flag="npk"
+default=0
+omitted=':math:`\frac{\text{nGridPk}}{2}`'
+help="Number of log bins for P(k)"
+docs='''
+Specifies the number of P(k) bins (in log space) when measuring the power spectrum.
+The default is half of the grid size (`nGridPk`).
+'''
+
+["Analysis"."Power Spectrum Measurement".bPkInterlace]
 flag="pkinterlace"
 default=true
 help="Use interlacing to measure P(k)"
+docs='''
+If enabled, the power spectrum measurement tool creates two mass assignment grids.
+The second contains the mass with the particles offset by half a grid cell.
+The results of the two mass assignment grids are combined to reduce grid aliasing effects.
+'''
 
-["Analysis".iPkOrder]
+["Analysis"."Power Spectrum Measurement".iPkOrder]
 flag="pko"
 default=4
 help="Mass assignment order for measuring P(k)"
+docs='''
+Selects the mass assignment method:
 
-["Analysis".bFindGroups]
-flag="groupfinder"
-default=false
-help="enable group finder"
+1. Nearest Grid Point (NGP),
+2. Cloud in Cell (CIC),
+3. Triangular Shaped Cloud (TSC), and
+4. Piecewise Cublic Split (PSC).
 
-["Analysis".bFindHopGroups]
-flag="hop"
-default=false
-help="enable phase-space group finder"
+The recommended method is PCS.
+'''
 
-["Analysis".dHopTau]
-flag="hoptau"
-default=-4.0
-help="linking length for Gasshopper (negative for multiples of softening)"
-
-["Analysis".nMinMembers]
-flag="nMinMembers"
-default=10
-help="minimum number of group members"
-
-["Analysis".dTau]
-flag="tau"
-default=0.164
-help="linking length for FOF in units of mean particle separation"
-
-["Analysis".dEnvironment0]
-flag="dEnv0"
-default=-1.0
-help="first radius for density environment about a group"
-
-["Analysis".dEnvironment1]
-flag="dEnv1"
-default=-1.0
-help="second radius for density environment about a group"
-
-["Analysis".bLightCone]
+["Analysis"."Light Cone".bLightCone]
 flag="lc"
 default=false
 help="output light cone data"
 
-["Analysis".bBowtie]
+["Analysis"."Light Cone".bBowtie]
 flag="bbt"
 default=false
 help="output +++ and --- octants of the cone; a bowtie"
 
-["Analysis".dRedshiftLCP]
+["Analysis"."Light Cone".dRedshiftLCP]
 flag="zlcp"
 default=0.0
 help="starting redshift to output light cone particles"
 
-["Analysis".sqdegLCP]
+["Analysis"."Light Cone".sqdegLCP]
 flag="sqdeg"
 default=50.0
 help="square degrees of lightcone (if (<0 || >41253) then all sky)"
 
-["Analysis".hxLCP]
+["Analysis"."Light Cone".hxLCP]
 flag="hx"
 default=0.749
 help="x-component of lightcone direction vector"
 
-["Analysis".hyLCP]
+["Analysis"."Light Cone".hyLCP]
 flag="hy"
 default=0.454
 help="y-component of lightcone direction vector"
 
-["Analysis".hzLCP]
+["Analysis"."Light Cone".hzLCP]
 flag="hz"
 default=1.0
 help="z-component of lightcone direction vector"
+
+["Analysis"."Light Cone".bLightConeParticles]
+flag="lcp"
+default=false
+help="output light cone particles"
+
+["Analysis"."Group Finding"]
+docs='''
+Several group finding schemes are available.
+The following parameters apply to all schemes.
+'''
+
+["Analysis"."Group Finding".nMinMembers]
+flag="nMinMembers"
+default=10
+help="minimum number of group members"
+docs='''
+After groups have been identified, and that have fewer than this many
+particles are removed.
+'''
+
+["Analysis"."Group Finding".dEnvironment0]
+flag="dEnv0"
+default=-1.0
+omitted="disabled"
+help="first radius for density environment about a group"
+
+["Analysis"."Group Finding".dEnvironment1]
+flag="dEnv1"
+default=-1.0
+omitted="disabled"
+help="second radius for density environment about a group"
+
+["Analysis"."Group Finding"."Friends of Friends"]
+docs='''
+This provides a classic Friends-of-Friends group finder where particles
+are linked together if they are within a certain distance
+:math:`\tau`.
+'''
+
+["Analysis"."Group Finding"."Friends of Friends".bFindGroups]
+flag="groupfinder"
+default=false
+help="enable group finder"
+docs='''
+The Friends-of-friends group finder is enabled when this is true.
+'''
+
+["Analysis"."Group Finding"."Friends of Friends".dTau]
+flag="tau"
+default=0.164
+help="linking length for FOF in units of mean particle separation"
+docs='''
+The linking length :math:`\tau`. This is normally set to one fifth of
+the mean particle separation.
+'''
+
+["Analysis"."Group Finding"."Grasshopper"]
+docs='''
+This halo finder is not currently available.
+'''
+
+["Analysis"."Group Finding"."Grasshopper".bFindHopGroups]
+flag="hop"
+default=false
+help="enable density-gradient group finder"
+
+["Analysis"."Group Finding"."Grasshopper".dHopTau]
+flag="hoptau"
+default=-4.0
+help="linking length for Gasshopper (negative for multiples of softening)"
 
 ["Analysis".dDeltakRedshift]
 flag="zdel"
@@ -193,11 +271,6 @@ help="starting redshift to output delta(k) field"
 flag="healpix"
 default=0
 help="Number per side of the healpix map"
-
-["Analysis".bLightConeParticles]
-flag="lcp"
-default=false
-help="output light cone particles"
 
 ################################################################################
 ########## I/O Parameters
@@ -363,11 +436,6 @@ flag="orbit"
 default=[]
 help="Particle ID of particle to write to orbit file (repeatable)"
 
-####
-####    ioparm.add_argument('-orbit', dest='lstOrbits', type=int, action='append', help='Particle ID of particle to write to orbit file (repeatable)')
-####
-
-
 ################################################################################
 ########## Time Stepping
 ################################################################################
@@ -462,7 +530,18 @@ help="number of MaxRung particles to delete MaxRung"
 ########## Force Accuracy
 ################################################################################
 
-["Force Accuracy".dTheta]
+["Force Accuracy"]
+docs='''
+Parameters in this section control force accuracy and in turn control RMS error
+in calculated accelerations.
+'''
+
+["Force Accuracy"."Barnes/Hut Opening Angle"]
+docs='''
+Opening angle control.
+'''
+
+["Force Accuracy"."Barnes/Hut Opening Angle".dTheta]
 flag="theta"
 default=0.7
 help="Barnes opening criterion"
@@ -475,7 +554,16 @@ to 0.4 is recommended. Theta should be relaxed at lower redshift by
 using accuracy.classic_theta_switch().
 '''
 
-["Force Accuracy".nReplicas]
+["Force Accuracy"."Ewald".bEwald]
+flag="ewald"
+default=true
+help="enable Ewald correction"
+docs='''
+If this is true then the Ewald correction to forces is applied for
+periodic volumes. This has no effect if the simulation is not periodic.
+'''
+
+["Force Accuracy"."Ewald".nReplicas]
 flag="nrep"
 default=1
 help="nReplicas"
@@ -486,12 +574,12 @@ For cosmological simulations it is recommended to switch between 1 and 2 replica
 depending on :math:`\theta` by using accuracy.classic_replicas_switch().
 '''
 
-["Force Accuracy".dEwCut]
+["Force Accuracy"."Ewald".dEwCut]
 flag="ew"
 default=2.6
 help="dEwCut"
 
-["Force Accuracy".dEwhCut]
+["Force Accuracy"."Ewald".dEwhCut]
 flag="ewh"
 default=2.8
 help="dEwhCut"
@@ -504,11 +592,10 @@ help="dEwhCut"
 flag="p"
 default=false
 help="periodic/non-periodic"
-
-["Periodic Boundaries".bEwald]
-flag="ewald"
-default=true
-help="enable Ewald correction"
+docs='''
+This turns on periodic boundary conditions. If you have gravity turned on
+(which is the usual case) then you also want to enable Ewald correction.
+'''
 
 ["Periodic Boundaries".dPeriod]
 flag="L"
@@ -542,6 +629,19 @@ docs='''
 Enables comoving coordinate system and cosmology.
 '''
 
+["Cosmology".dBoxSize]
+flag="mpc"
+default=1.0
+help="Simulation Box size in Mpc/h"
+docs='''
+The size of the simulation box in :math:`h^{-1}~\text{Mpc}`.
+This is used when generating an initial condition and to
+normalize the power spectrum meaurement. It is also required
+to normalize :math:`\theta` and :math:`\delta` if the CLASS
+interface is used. For pure dark matter simulations it is not
+technically necessary to specify this, but it is recommended.
+'''
+
 ["Cosmology".dHubble0]
 flag="Hub"
 default=2.8944050182330705
@@ -549,9 +649,72 @@ omitted=':math:`\sqrt{\frac{8}{3}\pi}`'
 help="dHubble0"
 docs='''
 The Hubble parameter :math:`H_0` in code units.
+It is very unlikely that you will need to change this.
 '''
 
-["Cosmology".dOmega0]
+["Cosmology"."Normalization"]
+docs='''
+Input transfer functions need to be normalized.
+'''
+
+["Cosmology"."Normalization".dSpectral]
+flag="ns"
+default=0.0
+omitted="none"
+help="dSpectral"
+docs='''
+This sets the spectral index :math:`n_s`.
+'''
+
+["Cosmology"."Normalization".dNormalization]
+flag="As"
+default=0.0
+omitted="none"
+help="dNormalization"
+docs='''
+This set the normalization :math:`a_s` of the transfer function.
+This is normally used for the CLASS/CONCEPT interface.
+'''
+
+["Cosmology"."Normalization".dSigma8]
+flag="S8"
+default=0.0
+omitted="none"
+help="dSimga8"
+docs='''
+Alternatively, the normalization of the transfer function can be
+specified by supplying :math:`\sigma_8`, an observable.
+This is more commonly used when specifying a transfer funciton.
+'''
+
+["Cosmology"."Transfer Function"]
+docs='''
+The cosmology can be specified using a tabulated transfer function
+and by setting the cosmological parameters. If you instead use the
+CONCEPT/CLASS interface then none of these parameters should be
+specified as they will be read from the HDF5 input file.
+'''
+
+["Cosmology"."Transfer Function".achTfFile]
+flag="tf"
+default=""
+help="transfer file name (file in CMBFAST format)"
+docs='''
+A tabulated transfer function in CMBFAST format.
+The first column is k and the second column is T(k).
+Units are :math:`h^{-1}~\text{Mpc}`. This can be
+omitted if you are not using the built-in IC generator
+(i.e., you are supplying your own input file),
+but the other parameters need to be specified for
+cosmological runs.
+'''
+
+["Cosmology"."Transfer Function".h]
+flag="h"
+default=0.0
+help="hubble parameter h"
+
+["Cosmology"."Transfer Function".dOmega0]
 flag="Om"
 default=1.0
 help="dOmega0"
@@ -559,7 +722,7 @@ docs='''
 The matter density of the universe :math:`\Omega_m`.
 '''
 
-["Cosmology".dLambda]
+["Cosmology"."Transfer Function".dLambda]
 flag="Lambda"
 default=0.0
 help="dLambda"
@@ -567,104 +730,100 @@ docs='''
 The dark energy density of the universe :math:`\Omega_\Lambda`.
 '''
 
-["Cosmology".dOmegaDE]
+["Cosmology"."Transfer Function".dOmegaDE]
 flag="omDE"
 default=0.0
 help="Omega for Dark Energy using w0 and wa parameters: <dOmegaDE"
 
-["Cosmology".w0]
+["Cosmology"."Transfer Function".w0]
 flag="w0"
 default=-1.0
 help="w0 parameter for Dark Energy <w0"
 
-["Cosmology".wa]
+["Cosmology"."Transfer Function".wa]
 flag="wa"
 default=0.0
 help="wa parameter for Dark Energy <wa"
 
-["Cosmology".dOmegaRad]
+["Cosmology"."Transfer Function".dOmegaRad]
 flag="Omrad"
 default=0.0
 help="dOmegaRad"
 
-["Cosmology".dOmegab]
+["Cosmology"."Transfer Function".dOmegab]
 flag="Omb"
 default=0.0
 help="dOmegab"
 
-["Cosmology".dSigma8]
-flag="S8"
-default=0.0
-help="dSimga8"
 
-["Cosmology".dNormalization]
-flag="As"
-default=0.0
-help="dNormalization"
 
-["Cosmology".dSpectral]
-flag="ns"
-default=0.0
-help="dSpectral"
 
-["Cosmology".dRunning]
-flag="alphas"
-default=0.0
-help="Primordial tilt running: <dRunning"
 
-["Cosmology".dPivot]
-flag="kpivot"
-default=0.05
-help="Primordial pivot scale in 1/Mpc (not h/Mpc): <dPivot"
+["Cosmology"."Concept/CLASS"]
+docs='''
+The code can use HDF5 files created by `CONCEPT <https://jmd-dk.github.io/concept/>`_
+by tabulating `CLASS <http://class-code.net>`_ data for cosmology.
+'''
 
-["Cosmology".bClass]
+["Cosmology"."Concept/CLASS".bClass]
 flag="class"
 default=false
 help="Enable/disable the use of CLASS"
 
-["Cosmology".achClassFilename]
+["Cosmology"."Concept/CLASS".achClassFilename]
 flag="class_filename"
 default=""
 help="Name of hdf5 file containing the CLASS data"
 
-["Cosmology".achLinSpecies]
+["Cosmology"."Concept/CLASS".achLinSpecies]
 flag="lin_species"
 default=""
 help="plus-separated string of linear species, e.g. \"ncdm[0]+g+metric\""
 
-["Cosmology".achPkSpecies]
+["Cosmology"."Concept/CLASS".achPkSpecies]
 flag="pk_species"
 default=""
 help="plus-separated string of species for P(k)"
 
-["Cosmology".h]
-flag="h"
+["Cosmology"."Concept/CLASS".dRunning]
+flag="alphas"
 default=0.0
-help="hubble parameter h"
+help="Primordial tilt running: <dRunning"
 
-["Cosmology".dBoxSize]
-flag="mpc"
-default=1.0
-help="Simulation Box size in Mpc"
+["Cosmology"."Concept/CLASS".dPivot]
+flag="kpivot"
+default=0.05
+help="Primordial pivot scale in 1/Mpc (not h/Mpc): <dPivot"
 
-["Cosmology".achTfFile]
-flag="tf"
-default=""
-help="transfer file name (file in CMBFAST format)"
+
 
 ################################################################################
 ########## Initial Conditions
 ################################################################################
 
+["Initial Conditions"]
+docs='''
+The code contains an Initial Condition (IC) generator that supports both
+first order (Zeldovich) and second order linear perturbation theory.
+It is important that the cosmological parameters be properly set,
+so refer to that section for details.
+'''
+
 ["Initial Conditions".dRedFrom]
 flag="z"
 default=0.0
+omitted="none"
 help="specifies initial redshift for the simulation"
 
 ["Initial Conditions".nGrid]
 flag="grid"
 default=0
+omitted="none"
 help="Grid size for IC 0=disabled"
+docs='''
+This sets the grid size and hence the number of particles in the IC.
+For a grid size of :math:`N` there will be :math:`N^3` particles.
+'''
 
 ["Initial Conditions".iSeed]
 flag="seed"
@@ -709,16 +868,46 @@ help="Initial temperature of the gas generated ICs"
 flag="b"
 default=16
 help="max number of particles in a bucket"
+docs='''
+Classic tree codes build the tree down to nodes that contain a single particle.
+This parameter specifies the largest "bucket" size; when a tree cell has this
+many or fewer particles, the node is no longer split.
+
+In theory, single particle buckets allow for improved performance as cells can
+be the exact size that the opening criteria requires.
+In practice this introduces two complications.
+First, the amount of memory required for the tree grows exponentially and will
+eventually take more memory than the particles. The other complication is that
+the tree walking time increases and even though less work is done calculating
+the forces, the extra time walking the tree can end up taking longer.
+
+A value between 8 and 32 is a reasonable compromise. Larger bucket sizes
+result in less memory usage.
+'''
 
 ["Memory Model and Control".nGroup]
 flag="grp"
 default=64
+omitted="64 or 256 if GPU enabled"
 help="max number of particles in a group"
+docs='''
+When a tree node with this many particles or fewer is reached during the tree walk,
+the walk is stopped and all of these particles receive the same set of interactions.
+Increasing this parameters moves work from tree walking to force calculations.
+The default values are usually optimally tuned. This parameter must be greater or
+equal to `nBucket`.
+'''
 
 ["Memory Model and Control".dExtraStore]
 flag="extra"
 default=0.1
 help="Extra storage for particles"
+docs='''
+The code allocates exactly enough space to store the particles if they are evenly
+distributed between all of the threads, **plus** this fraction. For example, if this
+parameter is set to 0.1 then it increases the size of the particle storage by 10%.
+This uses additional memory, but makes it easier to balance work. 
+'''
 
 ["Memory Model and Control".nTreeBitsLo]
 flag="treelo"
@@ -740,16 +929,31 @@ help="minimum size of ephemeral (in bytes)"
 flag="integer"
 default=false
 help="Particles have integer positions"
+docs='''
+By default particle positions are stored as double precision floating point numbers.
+Enabling this feature changes positions to 32-bit integers. This can only be used
+with periodical boxes, and will save 12 bytes of memory per particle.
+'''
 
 ["Memory Model and Control".bMemUnordered]
 flag="unordered"
 default=false
 help="Particles have no specific order"
+docs='''
+This feature removes the particle ID (particle number) and will save 4 bytes per particle.
+It is not possible to track particles between snapshots as there is no way to sort them,
+unless `bMemParticleID` is enable.
+'''
 
 ["Memory Model and Control".bMemParticleID]
 flag="pid"
 default=false
 help="Particles have a unique identifier"
+docs='''
+This enables a 64-bit integer particle id that can be used to track particles between snapshots.
+This feature is only available with file formats that support this additional field.
+Currently this field can be read from GADGET2 format files and read and written to the HDF5 format.
+'''
 
 ["Memory Model and Control".bMemAcceleration]
 flag="Ma"
