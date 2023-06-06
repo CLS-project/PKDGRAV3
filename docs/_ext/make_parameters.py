@@ -36,18 +36,32 @@ class make_parameters(Directive):
             default = v['default']
             if isinstance(default,str):
               default = f'"{default}"' if len(default)>0 else "none"
+          if isinstance(v['default'],float):
+            classifier = 'float'
+          elif isinstance(v['default'],bool):
+            classifier = 'Boolean'
+          elif isinstance(v['default'],int):
+            classifier = 'integer'
+          elif isinstance(v['default'],str):
+            classifier = 'string'
+          else:
+            classifier = None
+
           # Prefer docs over help and reparse as restructed text.
           text = v['docs'] if 'docs' in v else v['help']
           node = nodes.section()
-          text = f'.. index:: single: parameters ; {key}\n\n{text}'
           vl = ViewList(text.split('\n'),source='')
           nested_parse_with_titles(self.state, vl, node)
+          text = f'.. index:: single: parameters ; {key}\n\n{key} (default {default})'
           term=nodes.section()
-          nested_parse_with_titles(self.state, nodes.paragraph(text=f'{key} (default {default})'), term)
-          items += nodes.definition_list_item('',
-                  nodes.term('','',*term.children),
-                  nodes.definition('',*node.children))
-          # dli.insert(0,nodes.target('', '', ids=[f'{key}'.lower()]))
+          vl = ViewList(text.split('\n'),source='')
+          nested_parse_with_titles(self.state, vl, term)
+          dli = nodes.definition_list_item()
+          dli += nodes.term('','',*term.children[0:-1],*term.children[-1].children)
+          if classifier is not None:
+            dli += nodes.classifier('default',classifier)
+          dli += nodes.definition('',*node.children)
+          items += dli
         else:
           subs += [self.emit_section(key,v)]
       if (len(items)>0):
