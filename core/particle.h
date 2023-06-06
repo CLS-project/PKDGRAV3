@@ -177,17 +177,7 @@ struct SPHFIELDS {
     float fAccFBEnergy;
 #endif
 
-#ifdef BLACKHOLES
-    // This could ideally be stored in a temporal buffer (pLite), but it has some
-    // limitations as it has to be shared when doing mdlAcquire.
-    struct {
-        int iPid;
-        int iIndex;
-    } BHAccretor;
-#endif
-
     uint8_t uWake;
-
 };
 
 struct NEWSPHFIELDS {

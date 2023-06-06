@@ -1,3 +1,4 @@
+#include <numeric>
 #include "blackhole/evolve.h"
 #include "hydro/hydro.h"
 #include "master.h"
@@ -8,9 +9,11 @@ void MSR::BHDrift(double dTime, double dDelta) {
     Smooth(dTime,dDelta,SMX_BH_DRIFT,1,param.nSmooth);
     pstRepositionBH(pst, NULL, 0, NULL, 0);
 
-    struct inBHAccretion in;
-    in.dScaleFactor = csmTime2Exp(csm,dTime);
-    pstBHAccretion(pst, &in, sizeof(in), NULL, 0);
+    if (param.bBHAccretion) {
+        struct inBHAccretion in;
+        in.dScaleFactor = csmTime2Exp(csm,dTime);
+        pstBHAccretion(pst, &in, sizeof(in), NULL, 0);
+    }
 }
 
 
@@ -26,14 +29,24 @@ static inline int bhAccretion(PKD pkd, NN *nnList, int nSmooth,
             const double kernel = cubicSplineKernel(rpq, ph);
             const double prob = prob_factor * kernel;
             if (rand()<RAND_MAX*prob) {
+                nnList[i].bMarked = 1;
                 ++nAccreted;
                 printf("SWALLOW!\n");
+
                 auto q = pkd->particles[nnList[i].pPart];
                 assert(q.is_gas());
-                auto &sph = q.sph();
 
-                sph.BHAccretor.iPid = pkd->Self();
-                sph.BHAccretor.iIndex = &p - pkd->particles.begin();
+                if (nnList[i].iPid != pkd->Self()) {
+                    auto BHAccretor = static_cast<remoteID *>(mdlAcquire(pkd->mdl,CID_GROUP,nnList[i].iIndex,nnList[i].iPid));
+                    BHAccretor->iPid = pkd->Self();
+                    BHAccretor->iIndex = &p - pkd->particles.begin();
+                    mdlRelease(pkd->mdl,CID_GROUP,BHAccretor);
+                }
+                else {
+                    auto BHAccretor = &static_cast<remoteID *>(pkd->pLite)[nnList[i].iIndex];
+                    BHAccretor->iPid = pkd->Self();
+                    BHAccretor->iIndex = &p - pkd->particles.begin();
+                }
             }
         }
     }
@@ -54,12 +67,13 @@ static inline void bhFeedback(PKD pkd, NN *nnList, int nSmooth, int nAccreted,
         const double nHeat = bh.dAccEnergy / Ecrit;
         const double prob = nHeat / (nSmooth-nAccreted); // Correct probability for accreted particles
         for (auto i = 0; i < nSmooth; ++i) {
+            if (nAccreted > 0 && nnList[i].bMarked) continue; // Skip accreted particles
+
             if (rand()<RAND_MAX*prob) {
                 auto q = pkd->particles[nnList[i].pPart];
                 assert(q.is_gas());
 
                 auto &qsph = q.sph();
-                if (qsph.BHAccretor.iPid != NOT_ACCRETED) continue; // Skip accreted particles
                 printf("BH feedback event!\n");
                 const double dEnergyInput = dBHFBEcrit * q.mass();
 
@@ -139,7 +153,6 @@ void smBHevolve(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     float minPot = HUGE_VAL;
     uint8_t uMaxRung = 0;
     double cs = 0.;
-    int nAccreted = 0;
     const float inv_a = 1./smf->a;
     const float ph = 0.5*fBall;
 
@@ -150,7 +163,6 @@ void smBHevolve(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 #ifndef DEBUG_BH_ONLY
         assert(q.is_gas());
 #endif
-        if (q.sph().BHAccretor.iPid != NOT_ACCRETED) ++nAccreted;
         pLowPot = (q.potential()<minPot)  ? &q : pLowPot;
         // We could have no potential if gravity is not calculated
         minPot = (pLowPot!=NULL) ? pLowPot->potential() : minPot;
@@ -227,7 +239,16 @@ void smBHevolve(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
 
 
+        int nAccreted = 0;
         if (smf->bBHAccretion) {
+            // We use bMarked to flag accreted neighbours in the BH feedback loop
+            nAccreted += std::accumulate(nnList, nnList+nSmooth, 0, [pkd](auto &sum, auto &ii) {
+                auto rID = ii.iPid != pkd->Self() ?
+                           static_cast<remoteID *>(mdlFetch(pkd->mdl,CID_GROUP,ii.iIndex,ii.iPid)) :
+                           &static_cast<remoteID *>(pkd->pLite)[ii.iIndex];
+                ii.bMarked = rID->iPid != NOT_ACCRETED;
+                return sum + ii.bMarked;
+            });
             nAccreted += bhAccretion(pkd, nnList, nSmooth, p, bh,
                                      ph, pMass, pDensity, smf->a);
         }
@@ -296,8 +317,6 @@ void initBHevolve(void *vpkd,void *dst) {
 #else // OLD_FB_SCHEME
         sph.fAccFBEnergy = 0.0;
 #endif
-
-        sph.BHAccretor.iPid = NOT_ACCRETED;
     }
 }
 
@@ -318,9 +337,6 @@ void flushBHevolve(void *vpkd,void *dst,const void *src) {
 #else //OLD_FB_SCHEME
         p1->fAccFBEnergy = sph.fAccFBEnergy;
 #endif
-
-        p1->iAccPid = sph.BHAccretor.iPid;
-        p1->iAccIndex = sph.BHAccretor.iIndex;
     }
 }
 
@@ -341,14 +357,6 @@ void combBHevolve(void *vpkd,void *dst,const void *src) {
 #else //OLD_FB_SCHEME
         sph.fAccFBEnergy += p2->fAccFBEnergy;
 #endif
-
-        // Is this the first accretion attempt for this particle?
-        if (sph.BHAccretor.iPid == NOT_ACCRETED &&
-                p2->iAccPid != NOT_ACCRETED) {
-            sph.BHAccretor.iPid = p2->iAccPid;
-            sph.BHAccretor.iIndex = p2->iAccIndex;
-        }
-        // If not, just keep the previous attempt
     }
 }
 
@@ -430,19 +438,19 @@ void pkdBHAccretion(PKD pkd, double dScaleFactor) {
                      packBHAccretion, unpackBHAccretion, sizeof(bhAccretionFlush),
                      initBHAccretion, flushBHAccretion, combBHAccretion);
 
-    for (auto &p : pkd->particles) {
+    for (auto i = 0; i < pkd->Local(); ++i) {
+        auto p = pkd->particles[i];
         if (p.is_gas()) {
-            auto &sph = p.sph();
-            if (sph.BHAccretor.iPid != NOT_ACCRETED) {
-                particleStore::ParticlePointer bh(pkd->particles);
+            auto &BHAccretor = static_cast<remoteID *>(pkd->pLite)[i];
+            if (BHAccretor.iPid != NOT_ACCRETED) {
                 // this particle was accreted!
-                //printf("%d,%d accreted by %d,%d\n", i, pkd->Self(), sph.BHAccretor.iIndex, sph.BHAccretor.iPid);
+                particleStore::ParticlePointer bh(pkd->particles);
 
-                if (sph.BHAccretor.iPid != pkd->Self()) {
-                    bh = &pkd->particles[static_cast<PARTICLE *>(mdlAcquire(pkd->mdl,CID_PARTICLE,sph.BHAccretor.iIndex,sph.BHAccretor.iPid))];
+                if (BHAccretor.iPid != pkd->Self()) {
+                    bh = &pkd->particles[static_cast<PARTICLE *>(mdlAcquire(pkd->mdl,CID_PARTICLE,BHAccretor.iIndex,BHAccretor.iPid))];
                 }
                 else {
-                    bh = &pkd->particles[sph.BHAccretor.iIndex];
+                    bh = &pkd->particles[BHAccretor.iIndex];
                 }
                 assert(bh->is_bh());
 
@@ -457,7 +465,8 @@ void pkdBHAccretion(PKD pkd, double dScaleFactor) {
                 // We have to consider remote and local particles differently,
                 // as for the remotes the momentum is accumulated here but then
                 // added in the combine function
-                if (sph.BHAccretor.iPid != pkd->Self()) {
+                auto &sph = p.sph();
+                if (BHAccretor.iPid != pkd->Self()) {
                     bhv += dScaleFactor * sph.mom;
                 }
                 else {
@@ -467,7 +476,7 @@ void pkdBHAccretion(PKD pkd, double dScaleFactor) {
 
                 pkdDeleteParticle(pkd,p);
 
-                if (sph.BHAccretor.iPid != pkd->Self())
+                if (BHAccretor.iPid != pkd->Self())
                     mdlRelease(pkd->mdl, CID_PARTICLE, bh);
             }
         }
