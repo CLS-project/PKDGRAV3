@@ -312,7 +312,13 @@ void pkdParticleWorkDone(workParticle *wp) {
                     else {
                         uNewRung = 0; /* Assumes current uNewRung is outdated -- not ideal */
                         if (pkd->particles.present(PKD_FIELD::oNewSph)) {
-                            uNewRung = pkdDtToRungInverse(wp->pInfoOut[i].dtEst,fiDelta,wp->ts->uMaxRung-1);
+                            dT = HUGE_VALF;
+                            if (maga > 0.0f) {
+                                float imaga = rsqrtf(maga) * fiAccFac;
+                                dT = fEta*asqrtf(0.5f * p.ball() * imaga);
+                            }
+                            dT = std::min(dT,wp->pInfoOut[i].dtEst);
+                            uNewRung = pkdDtToRungInverse(dT,fiDelta,wp->ts->uMaxRung-1);
                             uNewRung = std::max(std::max((int)uNewRung,(int)round(wp->pInfoOut[i].maxRung) - wp->SPHoptions->nRungCorrection),0);
                         }
                     }
@@ -339,7 +345,13 @@ void pkdParticleWorkDone(workParticle *wp) {
                     else {
                         uNewRung = 0;
                         if (p.have_newsph()) {
-                            uNewRung = pkdDtToRungInverse(wp->pInfoOut[i].dtEst,fiDelta,wp->ts->uMaxRung-1);
+                            dT = HUGE_VALF;
+                            if (maga > 0.0f) {
+                                float imaga = rsqrtf(maga) * fiAccFac;
+                                dT = fEta*asqrtf(0.5f * p.ball() * imaga);
+                            }
+                            dT = std::min(dT,wp->pInfoOut[i].dtEst);
+                            uNewRung = pkdDtToRungInverse(dT,fiDelta,wp->ts->uMaxRung-1);
                             uNewRung = std::max(std::max((int)uNewRung,(int)round(wp->pInfoOut[i].maxRung) - wp->SPHoptions->nRungCorrection),0);
                         }
                     }
@@ -438,14 +450,16 @@ void pkdParticleWorkDone(workParticle *wp) {
     }
 }
 
-static void queuePP( PKD pkd, workParticle *wp, ilpList &ilp, int bGravStep ) {
+static void queuePP( PKD pkd, workParticle *wp, ilpList &ilp, int bGravStep, bool bGPU=true ) {
     for ( auto &tile : ilp ) {
+        if (bGPU) {
 #ifdef USE_CUDA
-        if (pkd->cudaClient->queuePP(wp,tile,bGravStep)) continue;
+            if (pkd->cudaClient->queuePP(wp,tile,bGravStep)) continue;
 #endif
 #ifdef USE_METAL
-        if (pkd->metalClient->queuePP(wp,tile,bGravStep)) continue;
+            if (pkd->metalClient->queuePP(wp,tile,bGravStep)) continue;
 #endif
+        }
         for (auto i=0; i<wp->nP; ++i) {
             pkdGravEvalPP(wp->pInfoIn[i],tile,wp->pInfoOut[i]);
             wp->dFlopSingleCPU += COST_FLOP_PP*tile.size();
@@ -512,14 +526,16 @@ static void addCentrifugalAcceleration(PKD pkd, workParticle *wp) {
     }
 }
 
-static void queuePC( PKD pkd,  workParticle *wp, ilcList &ilc, int bGravStep ) {
+static void queuePC( PKD pkd,  workParticle *wp, ilcList &ilc, int bGravStep, bool bGPU=true ) {
     for ( auto &tile : ilc ) {
+        if (bGPU) {
 #ifdef USE_CUDA
-        if (pkd->cudaClient->queuePC(wp,tile,bGravStep)) continue;
+            if (pkd->cudaClient->queuePC(wp,tile,bGravStep)) continue;
 #endif
 #ifdef USE_METAL
-        if (pkd->metalClient->queuePC(wp,tile,bGravStep)) continue;
+            if (pkd->metalClient->queuePC(wp,tile,bGravStep)) continue;
 #endif
+        }
         for (auto i=0; i<wp->nP; ++i) {
             pkdGravEvalPC(wp->pInfoIn[i],tile,wp->pInfoOut[i]);
             wp->dFlopSingleCPU += COST_FLOP_PC*tile.size();
@@ -527,13 +543,14 @@ static void queuePC( PKD pkd,  workParticle *wp, ilcList &ilc, int bGravStep ) {
     }
 }
 
-static void queueEwald( PKD pkd, workParticle *wp ) {
+static void queueEwald( PKD pkd, workParticle *wp, bool bGPU=true ) {
     int i;
-#ifdef USE_CUDA
-    int nQueued = pkd->cudaClient->queueEwald(wp);
-#else
     int nQueued = 0;
+    if (bGPU) {
+#ifdef USE_CUDA
+        nQueued = pkd->cudaClient->queueEwald(wp);
 #endif
+    }
     ++wp->nRefs;
     for ( i=nQueued; i<wp->nP; ++i) {
         PINFOIN *in = &wp->pInfoIn[i];
@@ -655,7 +672,7 @@ int pkdGravInteract(PKD pkd,
                     struct pkdKickParameters *kick,struct pkdLightconeParameters *lc,struct pkdTimestepParameters *ts,
                     treeStore::NodePointer pkdn,LOCR *pLoc,ilpList &ilp,ilcList &ilc,
                     float dirLsum,float normLsum,int bEwald,double *pdFlop,
-                    SMX smx,SMF *smf,int iRoot1,int iRoot2,SPHOptions *SPHoptions) {
+                    SMX smx,SMF *smf,int iRoot1,int iRoot2,SPHOptions *SPHoptions,bool bGPU) {
     float fBall;
     int i,nSoft,nActive;
     int nP;
@@ -800,12 +817,12 @@ int pkdGravInteract(PKD pkd,
         /*
         ** Evaluate the P-C interactions
         */
-        queuePC( pkd,  wp, pkd->ilc, ts->bGravStep );
+        queuePC( pkd,  wp, pkd->ilc, ts->bGravStep, bGPU );
 
         /*
         ** Evaluate the P-P interactions
         */
-        queuePP( pkd, wp, pkd->ilp, ts->bGravStep );
+        queuePP( pkd, wp, pkd->ilp, ts->bGravStep, bGPU );
     }
 
     if (SPHoptions->doDensity) {
@@ -837,7 +854,7 @@ int pkdGravInteract(PKD pkd,
         ** Calculate the Ewald correction for this particle, if it is required.
         */
         if (bEwald) {
-            queueEwald( pkd,  wp );
+            queueEwald( pkd,  wp, bGPU );
         }
     }
 

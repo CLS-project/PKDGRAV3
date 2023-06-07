@@ -68,7 +68,7 @@ static void addChild(PKD pkd, int iCache, clList *cl, int iChild, int id, blitz:
 */
 static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2,
                             struct pkdKickParameters *kick,struct pkdLightconeParameters *lc,struct pkdTimestepParameters *ts,
-                            double dTime,int bEwald,
+                            double dTime,int bEwald,bool bGPU,
                             double dThetaMin, double *pdFlop, double *pdPartSum,double *pdCellSum,SPHOptions *SPHoptions) {
     treeStore::NodePointer c(pkd->tree);
     int id,iCell,iSib,iCheckCell,iCheckLower;
@@ -568,7 +568,7 @@ found_it:
         */
         nActive = pkdGravInteract(pkd,kick,lc,ts,
                                   k,&L,pkd->ilp,pkd->ilc,dirLsum,normLsum,bEwald,pdFlop,
-                                  smx, &smf, iRoot, iRoot2, SPHoptions);
+                                  smx, &smf, iRoot, iRoot2, SPHoptions, bGPU);
         /*
         ** Update the limit for a shift of the center here based on the opening radius of this
         ** cell (the one we just evaluated).
@@ -696,7 +696,7 @@ int pkdGravWalkHop(PKD pkd,double dTime, double dThetaMin,double *pdFlop,double 
 ** Returns total number of active particles for which gravity was calculated.
 */
 int pkdGravWalk(PKD pkd,struct pkdKickParameters *kick,struct pkdLightconeParameters *lc,struct pkdTimestepParameters *ts,
-                double dTime,int nReps,int bEwald,
+                double dTime,int nReps,int bEwald,bool bGPU,
                 int iLocalRoot1, int iLocalRoot2,int iVARoot,
                 double dThetaMin,double *pdFlop,double *pdPartSum,double *pdCellSum,SPHOptions *SPHoptions) {
     int id;
@@ -746,7 +746,7 @@ int pkdGravWalk(PKD pkd,struct pkdKickParameters *kick,struct pkdLightconeParame
             }
         }
         nActive += processCheckList(pkd, smx, smf, iLocalRoot1, iLocalRoot2, kick,lc,ts,
-                                    dTime,bEwald, dThetaMin, pdFlop, pdPartSum, pdCellSum, SPHoptions);
+                                    dTime,bEwald, bGPU, dThetaMin, pdFlop, pdPartSum, pdCellSum, SPHoptions);
     }
 #if 0
     /*

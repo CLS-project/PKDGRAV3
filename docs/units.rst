@@ -2,6 +2,8 @@
 Units
 ============
 
+.. index:: single: units
+
 ---------------
 Code Convention
 ---------------
@@ -19,6 +21,8 @@ where :math:`G` is the gravitational constant and :math:`H_0` is the Hubble para
 .. math::
 
     \rho_{c} = \frac{3H_0^2}{8\pi G} = 1
+
+.. index:: pair: cosmology ; units
 
 ------------------
 Cosmological Units

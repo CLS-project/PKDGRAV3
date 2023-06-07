@@ -36,7 +36,7 @@ int pkdGravInteract(PKD pkd,
                     struct pkdKickParameters *kick,struct pkdLightconeParameters *lc,struct pkdTimestepParameters *ts,
                     treeStore::NodePointer pBucket,LOCR *pLoc,ilpList &ilp,ilcList &ilc,
                     float dirLsum,float normLsum,int bEwald,double *pdFlop,
-                    SMX smx,SMF *smf,int iRoot1,int iRoot2,SPHOptions *SPHoptions);
+                    SMX smx,SMF *smf,int iRoot1,int iRoot2,SPHOptions *SPHoptions,bool bGPU=true);
 
 void pkdParticleWorkDone(workParticle *work);
 

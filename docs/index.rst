@@ -17,10 +17,10 @@ Welcome to pkdgrav3's documentation!
    extensions.rst
    parameters.rst
 
-..
-  Indices and tables
-  ==================
 
-  * :ref:`genindex`
-  *  :ref:`modindex`
-  * :ref:`search`
+Indices and tables
+==================
+
+* :ref:`genindex`
+* :ref:`modindex`
+* :ref:`search`

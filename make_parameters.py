@@ -4,6 +4,41 @@ if version_info >= (3,11):
 else:
   import tomli as tl
 
+def emit_str(section,parameters_h):
+  for k,v in section:
+    if isinstance(v,(str,int,float,bool)): continue
+    if 'default' in v:
+      print(f'    static constexpr auto str_{k:{w}} = "{k}";',file=parameters_h)
+    else:
+      emit_str(v.items(),parameters_h)
+def emit_proto(section,parameters_h):
+  for k,v in section:
+    if isinstance(v,(str,int,float,bool)): continue
+    if 'default' in v:
+      default = v['default']
+      help = v['help']
+      size = v['size'] if 'size' in v else None
+      print(f'    /// {help}',file=parameters_h)
+      if isinstance(default,float):
+        print(f'    auto get_{k:{w}}() {{ return get<double>(str_{k}); }}',file=parameters_h)
+        print(f'        float   get_{k}()',file=parameters_pxi)
+      elif isinstance(default,bool):
+        print(f'    auto get_{k:{w}}() {{ return get<bool>(str_{k}); }}',file=parameters_h)
+        print(f'        bool    get_{k}()',file=parameters_pxi)
+      elif isinstance(default,int):
+        print(f'    auto get_{k:{w}}() {{ return get<int64_t>(str_{k}); }}',file=parameters_h)
+        print(f'        int64_t get_{k}()',file=parameters_pxi)
+      elif isinstance(default,str):
+        print(f'    auto get_{k:{w}}() {{ return get<std::string>(str_{k}); }}',file=parameters_h)
+        print(f'        string  get_{k}()',file=parameters_pxi)
+      else:
+        print(f'    auto get_{k:{w}}() {{ return get<PyObject*>(str_{k}); }}',file=parameters_h)
+        print(f'        object  get_{k}()',file=parameters_pxi)
+      print(f'    bool has_{k:{w}}() {{ return has(str_{k}); }}',file=parameters_h)
+      print(f'        bool    has_{k}()',file=parameters_pxi)
+    else:
+      emit_proto(v.items(),parameters_h)
+
 if len(argv) <= 3: exit('Usage: {} toml parameters.h parameters.pxi'.format(argv[0]))
 
 with open(argv[1],"rb") as fp:
@@ -31,31 +66,9 @@ public:
     w = max(w,max(map(len, sv)))
 
   for sk,sv in f.items():
-    for k,v in sv.items():
-      print(f'    static constexpr auto str_{k:{w}} = "{k}";',file=parameters_h)
+    emit_str(sv.items(),parameters_h)
   for sk,sv in f.items():
-    for k,v in sv.items():
-      default = v['default']
-      help = v['help']
-      size = v['size'] if 'size' in v else None
-      print(f'    /// {help}',file=parameters_h)
-      if isinstance(default,float):
-        print(f'    auto get_{k:{w}}() {{ return get<double>(str_{k}); }}',file=parameters_h)
-        print(f'        float   get_{k}()',file=parameters_pxi)
-      elif isinstance(default,bool):
-        print(f'    auto get_{k:{w}}() {{ return get<bool>(str_{k}); }}',file=parameters_h)
-        print(f'        bool    get_{k}()',file=parameters_pxi)
-      elif isinstance(default,int):
-        print(f'    auto get_{k:{w}}() {{ return get<int64_t>(str_{k}); }}',file=parameters_h)
-        print(f'        int64_t get_{k}()',file=parameters_pxi)
-      elif isinstance(default,str):
-        print(f'    auto get_{k:{w}}() {{ return get<std::string>(str_{k}); }}',file=parameters_h)
-        print(f'        string  get_{k}()',file=parameters_pxi)
-      else:
-        print(f'    auto get_{k:{w}}() {{ return get<PyObject*>(str_{k}); }}',file=parameters_h)
-        print(f'        object  get_{k}()',file=parameters_pxi)
-      print(f'    bool has_{k:{w}}() {{ return has(str_{k}); }}',file=parameters_h)
-      print(f'        bool    has_{k}()',file=parameters_pxi)
+    emit_proto(sv.items(),parameters_h)
 
   print('''};
 #endif

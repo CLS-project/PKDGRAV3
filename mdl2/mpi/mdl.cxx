@@ -649,10 +649,13 @@ void mpiClass::BufferCacheResponse(FlushBuffer *flush,BufferedCacheRequest &requ
         int n = s + c->getLineElementCount();
         flush->addBuffer(CacheMessageType::REPLY,request.header.cid,Self(),request.header.idFrom,request.header.iLine);
         for (auto i=s; i<n; i++ ) {
-            auto p = c->ReadLock(i);
-            char *t = (i<c->nData) ? static_cast<char *>(p) : NULL;
-            c->cache_helper->pack(flush->getBuffer(pack_size),t);
-            c->ReadUnlock(p);
+            auto buffer = flush->getBuffer(pack_size);
+            if (i<c->nData) {
+                auto p = c->ReadLock(i);
+                c->cache_helper->pack(buffer,p);
+                c->ReadUnlock(p);
+            }
+            else memset(buffer,0,pack_size);
         }
     }
 
@@ -793,9 +796,8 @@ void *mdlClass::finishCacheRequest(int cid,uint32_t uLine, uint32_t uId, uint32_
             if ( n > oc->nData ) n = oc->nData;
             auto pData = static_cast<char *>(data);
             for (auto i=s; i<n; i++ ) {
-                //FIXME: not unpack!
                 auto p = oc->ReadLock(i);
-                c->cache_helper->unpack(pData,p,pKey);
+                memcpy(pData,p,oc->iDataSize);
                 oc->ReadUnlock(p);
                 pData += oc->iDataSize;
             }

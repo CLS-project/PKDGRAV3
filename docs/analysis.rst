@@ -15,6 +15,8 @@ Parameters
 
 The following parameters control P(k) measurement:
 
+.. index:: single: parameters ; nGridPk
+
 nGridPk (default 0 or off)
     This is the width of the 3D mass assignment grid used to measure P(k).
     A good value for this is the same as the simulation IC grid size
@@ -22,10 +24,14 @@ nGridPk (default 0 or off)
 
         nGridPk = nGrid // 2
 
+.. index:: single: parameters ; iPkInterval
+
 iPkInterval (default 1)
     Measure and output P(k) every step. You can change this to have P(k)
     measurements done less frequently. For example, setting iPkInterval to 10
     will cause P(k) to be measured every 10 steps (10, 20, 30, etc.).
+
+.. index:: single: parameters ; iPkOrder
 
 iPkOrder (default 4)
     This selects the mass assignment scheme. Possible values are:
@@ -36,6 +42,8 @@ iPkOrder (default 4)
     4. Piecewise Cubic Spline (PCS)
 
     It is recommended to keep the default (PCS).
+
+.. index:: single: parameters ; bPkInterlace
 
 bPkInterlace (default True)
     This controls the use of interlaced grids to reduce aliasing. If enabled

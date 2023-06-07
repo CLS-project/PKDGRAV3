@@ -4,6 +4,33 @@ if version_info >= (3,11):
 else:
   import tomli as tl
 
+def emit_section(section,parse_py):
+  for k,v in section:
+    if isinstance(v,(str,int,float,bool)): continue
+    if 'default' in v:
+      default = v['default']
+      flag = v['flag']
+      help = v['help']
+      size = v['size'] if 'size' in v else None
+      if isinstance(default,float):
+        print(f"    add_flag(s,'{flag}',default={default:.15g},dest='{k}',type=float,help='{help}')",file=parse_py)
+      elif isinstance(default,bool):
+        print(f"    add_bool(s,'{flag}',default={default},dest='{k}',help='{help}')",file=parse_py)
+      elif isinstance(default,int):
+        print(f"    add_flag(s,'{flag}',default={default},dest='{k}',type=int,help='{help}')",file=parse_py)
+      elif isinstance(default,str):
+        if len(default)>0:
+          print(f"    add_flag(s,'{flag}',default='{default}',dest='{k}',help='{help}')",file=parse_py)
+        else:
+          print(f"    add_flag(s,'{flag}', dest='{k}',help='{help}')",file=parse_py)
+      elif isinstance(default,list):
+        print(f"    s.add_argument('-{flag}',dest='{k}',type=int,action='append',help='{help}')",file=parse_py)
+      else:
+        print(type(default),file=parse_py)
+    else:
+      emit_section(v.items(),parse_py)
+  print('',file=parse_py)
+
 if len(argv) <= 2: exit('Usage: {} toml parse.pyx'.format(ARGV[0]))
 
 with open(argv[1],"rb") as fp:
@@ -52,31 +79,9 @@ cdef public tuple parse():
     parser.add_argument('--help',action='help',help='show this help message and exit')
 ''',file=parse_py)
 
-  section=0
   for sk,sv in f.items():
-    section+=1
-    print(f"    s{section} = parser.add_argument_group('{sk}')",file=parse_py)
-    for k,v in sv.items():
-      default = v['default']
-      flag = v['flag']
-      help = v['help']
-      size = v['size'] if 'size' in v else None
-      if isinstance(default,float):
-        print(f"    add_flag(s{section},'{flag}',default={default:.15g},dest='{k}',type=float,help='{help}')",file=parse_py)
-      elif isinstance(default,bool):
-        print(f"    add_bool(s{section},'{flag}',default={default},dest='{k}',help='{help}')",file=parse_py)
-      elif isinstance(default,int):
-        print(f"    add_flag(s{section},'{flag}',default={default},dest='{k}',type=int,help='{help}')",file=parse_py)
-      elif isinstance(default,str):
-        if len(default)>0:
-          print(f"    add_flag(s{section},'{flag}',default='{default}',dest='{k}',help='{help}')",file=parse_py)
-        else:
-          print(f"    add_flag(s{section},'{flag}', dest='{k}',help='{help}')",file=parse_py)
-      elif isinstance(default,list):
-        print(f"    s{section}.add_argument('-{flag}',dest='{k}',type=int,action='append',help='{help}')",file=parse_py)
-      else:
-        print(type(default),file=parse_py)
-    print('',file=parse_py)
+    print(f"    s = parser.add_argument_group('{sk}')",file=parse_py)
+    emit_section(sv.items(),parse_py)
 
   print('''
     parser.add_argument('script',nargs='?',default=None,help='File containing parameters or analysis script')

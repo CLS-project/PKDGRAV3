@@ -350,7 +350,6 @@ std::pair<int,int> MSR::InitializePStore(uint64_t *nSpecies,uint64_t mMemoryMode
     ps.iCacheSize  = param.iCacheSize;
     ps.iCacheMaxInflight = param.iCacheMaxInflight;
     ps.iWorkQueueSize  = param.iWorkQueueSize;
-    ps.iCUDAQueueSize  = param.iCUDAQueueSize;
     ps.fPeriod[0] = param.dxPeriod;
     ps.fPeriod[1] = param.dyPeriod;
     ps.fPeriod[2] = param.dzPeriod;
@@ -1074,9 +1073,6 @@ void MSR::Initialize() {
     param.iWorkQueueSize = 0;
     prmAddParam(prm,"iWorkQueueSize",1,&param.iWorkQueueSize,sizeof(int),"wqs",
                 "<size of the MDL work queue> = 0");
-    param.iCUDAQueueSize = 8;
-    prmAddParam(prm,"iCUDAQueueSize",1,&param.iCUDAQueueSize,sizeof(int),"cqs",
-                "<size of the CUDA work queue> = 8");
     param.nSmooth = 64;
     prmAddParam(prm,"nSmooth",1,&param.nSmooth,sizeof(int),"s",
                 "<number of particles to smooth over> = 64");
@@ -1984,7 +1980,6 @@ void msrLogParams(MSR &msr,FILE *fp) {
     fprintf(fp," iCacheSize: %d",param.iCacheSize);
     fprintf(fp," iCacheMaxInflight: %d",param.iCacheMaxInflight);
     fprintf(fp," iWorkQueueSize: %d",param.iWorkQueueSize);
-    fprintf(fp," iCUDAQueueSize: %d",param.iCUDAQueueSize);
     if (prmSpecified(prm,"dSoft"))
         fprintf(fp," dSoft: %g",param.dSoft);
     else
@@ -3380,6 +3375,7 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
 
     in.bPeriodic = parameters.get_bPeriodic();
     in.bEwald = bEwald;
+    in.bGPU = parameters.get_bGPU();
     in.dEwCut = param.dEwCut;
     in.dEwhCut = param.dEwhCut;
     in.nReps = in.bPeriodic ? parameters.get_nReplicas() : 0;

@@ -350,7 +350,7 @@ public:
     explicit pkdContext(
         mdl::mdlClass *mdl,int nStore,uint64_t nMinTotalStore,uint64_t nMinEphemeral,uint32_t nEphemeralBytes,
         int nTreeBitsLo, int nTreeBitsHi,
-        int iCacheSize,int iCacheMaxInflight,int iWorkQueueSize,int iCUDAQueueSize,const blitz::TinyVector<double,3> &fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,uint64_t nBH,
+        int iCacheSize,int iCacheMaxInflight,int iWorkQueueSize,const blitz::TinyVector<double,3> &fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,uint64_t nBH,
         uint64_t mMemoryModel);
     virtual ~pkdContext();
 
@@ -761,7 +761,7 @@ void pkdSendArray(PKD pkd, int iNode, PKD_FIELD field, int iUnitSize,double dvFa
 void *pkdRecvArray(PKD pkd,int iNode, void *pDest, int iUnitSize);
 void pkdGravAll(PKD pkd,
                 struct pkdKickParameters *kick,struct pkdLightconeParameters *lc,struct pkdTimestepParameters *ts,
-                double dTime,int nReps,int bPeriodic,
+                double dTime,int nReps,int bPeriodic,int bGPU,
                 int bEwald,int iRoot1, int iRoot2,
                 double fEwCut,double fEwhCut,double dThetaMin,SPHOptions *SPHoptions,
                 uint64_t *pnActive,
