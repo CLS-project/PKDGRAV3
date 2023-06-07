@@ -103,7 +103,7 @@ class CACHEhelper {
 protected:
     uint32_t nData;   // Size of a data element in bytes
     bool     bModify; // If this cache will be modified (and thus flushed)
-    virtual void    pack(void *dst, const void *src) { if (src) memcpy(dst,src,nData); else memset(dst,0,nData); }
+    virtual void    pack(void *dst, const void *src) { memcpy(dst,src,nData); }
     virtual void  unpack(void *dst, const void *src, const void *key) { memcpy(dst,src,nData); }
     virtual void    init(void *dst) {}
     virtual void   flush(void *dst, const void *src)                  { memcpy(dst,src,nData); }
