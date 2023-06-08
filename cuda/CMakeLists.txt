@@ -9,7 +9,7 @@ if(CMAKE_CUDA_COMPILER)
   enable_language(CUDA)
   set(USE_CUDA TRUE)
   set(USE_CUDA ${USE_CUDA} PARENT_SCOPE)
-  add_library(${PROJECT_NAME} STATIC cudaewald.cu cudapppc.cu  cudautil.cu)
+  add_library(${PROJECT_NAME} STATIC cudaewald.cu cudapppc.cu cudautil.cu cudaSPHOptions.cu)
   set_target_properties(${PROJECT_NAME} PROPERTIES
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED YES

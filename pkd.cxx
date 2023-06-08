@@ -1969,6 +1969,7 @@ void pkdGravAll(PKD pkd,
     if (bPeriodic && bEwald && SPHoptions->doGravity) {
         pkdEwaldInit(pkd,nReps,fEwCut,fEwhCut,bGPU); /* ignored in Flop count! */
     }
+    pkdInitializeSPHOptions(pkd, SPHoptions, bGPU);
     /*
     ** Start particle caching space (cell cache already active).
     */
@@ -3134,5 +3135,16 @@ void pkdInitializeEOS(PKD pkd) {
             assert(0);
 #endif
         }
+    }
+}
+
+void pkdInitializeSPHOptions(PKD pkd, SPHOptions *SPHoptions, int bGPU) {
+    if (bGPU) {
+#ifdef USE_CUDA
+        auto cuda = reinterpret_cast<CudaClient *>(pkd->cudaClient);
+        // Only one thread needs to transfer the SPHoptions to the GPU
+        if (pkd->mdl->Core()==0) cuda->setupSPHOptions(SPHoptions);
+        pkd->mdl->ThreadBarrier();
+#endif
     }
 }

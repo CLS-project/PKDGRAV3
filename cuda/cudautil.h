@@ -31,6 +31,7 @@
 #include "gpu/pppcdata.h"
 #include "cudapppc.h"
 #include "reduce.h"
+#include "SPH/SPHOptions.h"
 
 class MessageEwald : public mdl::cudaMessage,public gpu::hostData {
 protected:
@@ -54,6 +55,15 @@ protected:
     EwaldTable *const ewt;
     std::vector<momFloat> dLx, dLy, dLz;
     std::vector<int> ibHole;
+};
+
+class MessageSPHOptionsSetup : public mdl::cudaMessage {
+protected:
+    virtual void launch(mdl::Stream &stream, void *pCudaBufIn, void *pCudaBufOut) override;
+public:
+    explicit MessageSPHOptionsSetup(SPHOptions *const SPHoptions, int iDevice=-1);
+protected:
+    SPHOptions *const SPHoptionsIn;
 };
 
 class CudaClient {
@@ -103,6 +113,7 @@ public:
     }
     int  queueEwald(workParticle *wp);
     void setupEwald(struct EwaldVariables *const ew, EwaldTable *const ewt);
+    void setupSPHOptions(SPHOptions *const SPHoptions);
 };
 #endif
 #endif
