@@ -61,9 +61,9 @@ class MessageSPHOptionsSetup : public mdl::cudaMessage {
 protected:
     virtual void launch(mdl::Stream &stream, void *pCudaBufIn, void *pCudaBufOut) override;
 public:
-    explicit MessageSPHOptionsSetup(SPHOptions *const SPHoptions, int iDevice=-1);
+    explicit MessageSPHOptionsSetup(SPHOptionsGPU *const SPHoptions, int iDevice=-1);
 protected:
-    SPHOptions *const SPHoptionsIn;
+    SPHOptionsGPU *const SPHoptionsIn;
 };
 
 class CudaClient {
@@ -113,7 +113,7 @@ public:
     }
     int  queueEwald(workParticle *wp);
     void setupEwald(struct EwaldVariables *const ew, EwaldTable *const ewt);
-    void setupSPHOptions(SPHOptions *const SPHoptions);
+    void setupSPHOptions(SPHOptionsGPU *const SPHoptions);
 };
 #endif
 #endif

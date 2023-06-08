@@ -143,11 +143,24 @@ typedef struct {
     uint64_t doExtensiveILPTest : 1;
 } SPHOptions;
 
+typedef struct {
+    int kernelType;
+    int doInterfaceCorrection;
+    int useIsentropic;
+    float epsilon;
+    float alpha;
+    float beta;
+    float EtaCourant;
+    float a;
+    float H;
+} SPHOptionsGPU;
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 SPHOptions initializeSPHOptions(struct parameters param, CSM csm, double dTime);
 void copySPHOptions(SPHOptions *source, SPHOptions *target);
+void copySPHOptionsGPU(SPHOptions *source, SPHOptionsGPU *target);
 float calculateInterfaceCorrectionPrefactor(float nSmooth,int kernelType);
 #ifdef __cplusplus
 }

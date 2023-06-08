@@ -127,6 +127,18 @@ void copySPHOptions(SPHOptions *source, SPHOptions *target) {
     target->doExtensiveILPTest = source->doExtensiveILPTest;
 }
 
+void copySPHOptionsGPU(SPHOptions *target, SPHOptionsGPU *source) {
+    target->kernelType = source->kernelType;
+    target->doInterfaceCorrection = source->doInterfaceCorrection;
+    target->useIsentropic = source->useIsentropic;
+    target->epsilon = source->epsilon;
+    target->alpha = source->alpha;
+    target->beta = source->beta;
+    target->EtaCourant = source->EtaCourant;
+    target->a = source->a;
+    target->H = source->H;
+}
+
 float calculateInterfaceCorrectionPrefactor(float nSmooth,int kernelType) {
     float alpha = 0.0f;
     switch (kernelType) {

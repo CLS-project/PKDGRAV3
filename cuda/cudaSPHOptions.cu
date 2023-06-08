@@ -30,9 +30,9 @@
 #include "cudautil.h"
 #include "SPH/SPHOptions.h"
 
-__constant__ SPHOptions SPHoptions;
+__constant__ SPHOptionsGPU SPHoptions;
 
-void CudaClient::setupSPHOptions(SPHOptions *const SPHoptions) {
+void CudaClient::setupSPHOptions(SPHOptionsGPU *const SPHoptions) {
     mdl::cudaMessageQueue wait;
     for (auto i=0; i<cuda.numDevices(); ++i) {
         auto m = new MessageSPHOptionsSetup(SPHoptions,i);
@@ -44,7 +44,7 @@ void CudaClient::setupSPHOptions(SPHOptions *const SPHoptions) {
     }
 }
 
-MessageSPHOptionsSetup::MessageSPHOptionsSetup(SPHOptions *const SPHoptions, int iDevice)
+MessageSPHOptionsSetup::MessageSPHOptionsSetup(SPHOptionsGPU *const SPHoptions, int iDevice)
     : mdl::cudaMessage(iDevice), SPHoptionsIn(SPHoptions) {}
 
 void MessageSPHOptionsSetup::launch(mdl::Stream &stream,void *pCudaBufIn, void *pCudaBufOut) {
