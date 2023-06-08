@@ -869,8 +869,8 @@ void smSmooth(SMX smx,SMF *smf) {
             assert(pkd->EphemeralBytes() >= sizeof(remoteID));
             for (auto i = 0; i < pkd->Local(); ++i) {
                 if (pkd->particles[i].is_gas()) {
-                    auto &BHAccretor = static_cast<remoteID *>(pkd->pLite)[i];
-                    BHAccretor.iPid = NOT_ACCRETED;
+                    auto accretor = BHAccretor(pkd,i);
+                    accretor.set_pid(NOT_ACCRETED);
                 }
             }
             pkd->mdl->CacheInitialize(CID_GROUP,NULL,pkd->pLite,pkd->Local(),

@@ -59,3 +59,50 @@ public:
     explicit BHAccretionCache() : CACHEhelper(sizeof(remoteID),true) {}
 };
 
+class BHAccretor {
+public:
+    BHAccretor() = delete;
+
+    explicit BHAccretor(PKD pkd,int32_t iIndex)
+        : pkd(pkd),rID(fetch(iIndex)),bMDL(false),bAcquire(false) {}
+
+    explicit BHAccretor(PKD pkd,int cid,int32_t iIndex,int32_t iPid,bool bAcquire)
+        : pkd(pkd),cid(cid),bMDL(pkd->Self() != iPid),bAcquire(bAcquire) {
+        if (bMDL) {
+            if (bAcquire) rID = acquire(iIndex,iPid);
+            else rID = fetch(iIndex,iPid);
+        }
+        else rID = fetch(iIndex);
+    }
+
+    BHAccretor(const BHAccretor &o) = delete;
+    BHAccretor &operator=(const BHAccretor &o) = delete;
+    BHAccretor(BHAccretor &&o) = default;
+    BHAccretor &operator=(BHAccretor &&o) = delete;
+    ~BHAccretor() { if (bAcquire) mdlRelease(pkd->mdl,cid,rID); }
+
+    auto get_pid() const { return rID->iPid; }
+    auto get_index() const { return rID->iIndex; }
+    void set_pid(int32_t iPid) { rID->iPid = iPid; }
+    void set_index(int32_t iIndex) { rID->iIndex = iIndex; }
+
+    bool is_remote() { return rID->iPid != pkd->Self(); }
+    bool has_accreted() { return rID->iPid != NOT_ACCRETED; }
+
+private:
+    remoteID *fetch(int32_t iIndex) {
+        return &static_cast<remoteID *>(pkd->pLite)[iIndex];
+    }
+    remoteID *fetch(int32_t iIndex,int32_t iPid) {
+        return static_cast<remoteID *>(mdlFetch(pkd->mdl,cid,iIndex,iPid));
+    }
+    remoteID *acquire(int32_t iIndex,int32_t iPid) {
+        return static_cast<remoteID *>(mdlAcquire(pkd->mdl,cid,iIndex,iPid));
+    }
+
+    PKD pkd;
+    remoteID *rID;
+    int cid;
+    bool bMDL, bAcquire;
+};
+
