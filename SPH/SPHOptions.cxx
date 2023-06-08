@@ -127,7 +127,7 @@ void copySPHOptions(SPHOptions *source, SPHOptions *target) {
     target->doExtensiveILPTest = source->doExtensiveILPTest;
 }
 
-void copySPHOptionsGPU(SPHOptions *target, SPHOptionsGPU *source) {
+void copySPHOptionsGPU(SPHOptions *source, SPHOptionsGPU *target) {
     target->kernelType = source->kernelType;
     target->doInterfaceCorrection = source->doInterfaceCorrection;
     target->useIsentropic = source->useIsentropic;
