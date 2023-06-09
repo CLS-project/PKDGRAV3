@@ -64,11 +64,11 @@ public:
     BHAccretor() = delete;
 
     explicit BHAccretor(PKD pkd,int32_t iIndex)
-        : pkd(pkd),rID(fetch(iIndex)),bMDL(false),bAcquire(false) {}
+        : pkd(pkd),rID(fetch(iIndex)),bRemoteID(false),bAcquire(false) {}
 
     explicit BHAccretor(PKD pkd,int cid,int32_t iIndex,int32_t iPid,bool bAcquire)
-        : pkd(pkd),cid(cid),bMDL(pkd->Self() != iPid),bAcquire(bAcquire) {
-        if (bMDL) {
+        : pkd(pkd),cid(cid),bRemoteID(pkd->Self() != iPid),bAcquire(bAcquire) {
+        if (bRemoteID) {
             if (bAcquire) rID = acquire(iIndex,iPid);
             else rID = fetch(iIndex,iPid);
         }
@@ -86,7 +86,7 @@ public:
     void set_pid(int32_t iPid) { rID->iPid = iPid; }
     void set_index(int32_t iIndex) { rID->iIndex = iIndex; }
 
-    bool is_remote() { return rID->iPid != pkd->Self(); }
+    bool is_remote_bh() { return rID->iPid != pkd->Self(); }
     bool has_accreted() { return rID->iPid != NOT_ACCRETED; }
 
 private:
@@ -103,6 +103,6 @@ private:
     PKD pkd;
     remoteID *rID;
     int cid;
-    bool bMDL, bAcquire;
+    bool bRemoteID, bAcquire;
 };
 

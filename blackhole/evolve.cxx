@@ -435,7 +435,7 @@ void pkdBHAccretion(PKD pkd, double dScaleFactor) {
             if (accretor.has_accreted()) {
                 particleStore::ParticlePointer bh(pkd->particles);
 
-                if (accretor.is_remote()) {
+                if (accretor.is_remote_bh()) {
                     bh = &pkd->particles[static_cast<PARTICLE *>(mdlAcquire(pkd->mdl,CID_PARTICLE,accretor.get_index(),accretor.get_pid()))];
                 }
                 else {
@@ -455,7 +455,7 @@ void pkdBHAccretion(PKD pkd, double dScaleFactor) {
                 // as for the remotes the momentum is accumulated here but then
                 // added in the combine function
                 auto &sph = p.sph();
-                if (accretor.is_remote()) {
+                if (accretor.is_remote_bh()) {
                     bhv += dScaleFactor * sph.mom;
                 }
                 else {
@@ -465,7 +465,7 @@ void pkdBHAccretion(PKD pkd, double dScaleFactor) {
 
                 pkdDeleteParticle(pkd,p);
 
-                if (accretor.is_remote()) mdlRelease(pkd->mdl, CID_PARTICLE, bh);
+                if (accretor.is_remote_bh()) mdlRelease(pkd->mdl, CID_PARTICLE, bh);
             }
         }
     }
