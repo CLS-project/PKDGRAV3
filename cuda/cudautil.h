@@ -30,7 +30,6 @@
 #include "check.h"
 #include "gpu/pppcdata.h"
 #include "cudapppc.h"
-#include "reduce.h"
 #include "SPH/SPHOptions.h"
 
 class MessageEwald : public mdl::cudaMessage,public gpu::hostData {

@@ -89,13 +89,13 @@ __global__ void cudaInteract(
         if (threadIdx.x < work->nI) {
             result = evalInteraction(pPart[iP],sblk,threadIdx.x);
         }
-        warpReduceAndStoreAtomic<float,32>(threadIdx.x,result.ax,&out[iP].ax);
-        warpReduceAndStoreAtomic<float,32>(threadIdx.x,result.ay,&out[iP].ay);
-        warpReduceAndStoreAtomic<float,32>(threadIdx.x,result.az,&out[iP].az);
-        warpReduceAndStoreAtomic<float,32>(threadIdx.x,result.pot,&out[iP].fPot);
+        warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.ax,&out[iP].ax);
+        warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.ay,&out[iP].ay);
+        warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.az,&out[iP].az);
+        warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.pot,&out[iP].fPot);
         if (bGravStep) {
-            warpReduceAndStoreAtomic<float,32>(threadIdx.x,result.ir,&out[iP].dirsum);
-            warpReduceAndStoreAtomic<float,32>(threadIdx.x,result.norm,&out[iP].normsum);
+            warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.ir,&out[iP].dirsum);
+            warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.norm,&out[iP].normsum);
         }
     }
 }
