@@ -224,12 +224,12 @@ struct ResultSPHForces {
         return *this;
     }
 };
-template<class F,class M,class Ivec>
+template<class F,class M>
 PP_CUDA_BOTH ResultSPHForces<F> EvalSPHForces(
     F Pdx, F Pdy, F Pdz, F PfBall, F POmega,     // Particle
-    F Pvx, F Pvy, F Pvz, F Prho, F PP, F Pc, Ivec Pspecies,
+    F Pvx, F Pvy, F Pvz, F Prho, F PP, F Pc,
     F Idx, F Idy, F Idz, F Im, F IfBall, F IOmega,      // Interactions
-    F Ivx, F Ivy, F Ivz, F Irho, F IP, F Ic, Ivec Ispecies, F uRung,
+    F Ivx, F Ivy, F Ivz, F Irho, F IP, F Ic, F uRung,
     int kernelType, float epsilon, float alpha, float beta,
     float EtaCourant,float a,float H,bool useIsentropic) {
     ResultSPHForces<F> result;

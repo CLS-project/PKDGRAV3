@@ -149,13 +149,12 @@ void pkdDensityCorrectionEval(const PINFOIN &Part, ilpTile &tile,  PINFOOUT &Out
 template<typename BLOCK> struct ilist::EvalBlock<ResultSPHForces<fvec>,BLOCK> {
     typedef ResultSPHForces<fvec> result_type;
     const fvec fx,fy,fz,fBall,Omega,vx,vy,vz,rho,P,c;
-    const i32v species;
     const SPHOptions *const SPHoptions;
     EvalBlock() = default;
     EvalBlock(fvec fx, fvec fy,fvec fz,fvec fBall,fvec Omega,fvec vx,fvec vy,fvec vz,
-              fvec rho,fvec P,fvec c,i32v species,SPHOptions *SPHoptions)
+              fvec rho,fvec P,fvec c,SPHOptions *SPHoptions)
         : fx(fx),fy(fy),fz(fz),fBall(fBall),Omega(Omega),vx(vx),vy(vy),vz(vz),
-          rho(rho),P(P),c(c),species(species), SPHoptions(SPHoptions) {}
+          rho(rho),P(P),c(c), SPHoptions(SPHoptions) {}
 
     result_type operator()(int n,BLOCK &blk) {
         // Sentinal values
@@ -177,10 +176,10 @@ template<typename BLOCK> struct ilist::EvalBlock<ResultSPHForces<fvec>,BLOCK> {
         result_type result;
         result.zero();
         for (auto i=0; i<n; ++i) {
-            result += EvalSPHForces<fvec,fmask,i32v>(
-                          fx,fy,fz,fBall,Omega,vx,vy,vz,rho,P,c,species,
+            result += EvalSPHForces<fvec,fmask>(
+                          fx,fy,fz,fBall,Omega,vx,vy,vz,rho,P,c,
                           blk.dx.v[i],blk.dy.v[i],blk.dz.v[i],blk.m.v[i],blk.fBall.v[i],blk.Omega.v[i],
-                          blk.vx.v[i],blk.vy.v[i],blk.vz.v[i],blk.rho.v[i],blk.P.v[i],blk.c.v[i],blk.species.v[i],blk.uRung.v[i],
+                          blk.vx.v[i],blk.vy.v[i],blk.vz.v[i],blk.rho.v[i],blk.P.v[i],blk.c.v[i],blk.uRung.v[i],
                           SPHoptions->kernelType,SPHoptions->epsilon,SPHoptions->alpha,SPHoptions->beta,
                           SPHoptions->EtaCourant,SPHoptions->a,SPHoptions->H,SPHoptions->useIsentropic);
         }
@@ -191,7 +190,7 @@ template<typename BLOCK> struct ilist::EvalBlock<ResultSPHForces<fvec>,BLOCK> {
 void pkdSPHForcesEval(const PINFOIN &Part, ilpTile &tile,  PINFOOUT &Out, SPHOptions *SPHoptions ) {
     ilist::EvalBlock<ResultSPHForces<fvec>,BlockPP<ILC_PART_PER_BLK>> eval(
                 Part.r[0],Part.r[1],Part.r[2],Part.fBall,Part.Omega,
-                Part.v[0],Part.v[1],Part.v[2],Part.rho,Part.P,Part.cs,Part.species,
+                Part.v[0],Part.v[1],Part.v[2],Part.rho,Part.P,Part.cs,
                 SPHoptions);
     auto result = EvalTile(tile,eval);
     Out.uDot += hadd(result.uDot);
