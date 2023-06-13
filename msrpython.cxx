@@ -1461,7 +1461,6 @@ int MSR::Python(int argc, char *argv[]) {
     PyImport_AppendInittab(MASTER_MODULE_NAME,initModuleMSR);
     PyImport_AppendInittab("PKDGRAV",PyInit_PKDGRAV);
     PKDGRAV_msr0 = this;
-    PKDGRAV_msr_imported = false;
     PyImport_AppendInittab("CSM",PyInit_CSM);
     PyImport_AppendInittab("parse", PyInit_parse);
     PyImport_AppendInittab("checkpoint", PyInit_checkpoint);
@@ -1583,8 +1582,10 @@ int MSR::Python(int argc, char *argv[]) {
     }
     Py_DECREF(script);
 
+    auto imported = is_PKDGRAV_imported(locals);
+
     // If "MASTER" was imported then we are done -- the script should have done its job
-    if (!moduleState->bImported && !PKDGRAV_msr_imported) { // We must prepare for a normal legacy execution
+    if (!moduleState->bImported && !imported) { // We must prepare for a normal legacy execution
         if (!parameters.verify(locals)) {
             PyErr_Print();
             fprintf(stderr,
@@ -1601,5 +1602,5 @@ int MSR::Python(int argc, char *argv[]) {
         bVDetails = parameters.get_bVDetails();
     }
 
-    return moduleState->bImported || PKDGRAV_msr_imported ? 0 : -1;
+    return moduleState->bImported || imported ? 0 : -1;
 }

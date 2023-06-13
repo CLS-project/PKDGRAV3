@@ -6,8 +6,6 @@ import cython
 # import array
 import numpy as np
 
-msr_imported = True
-
 def set_parameters(**kwargs):
     msr0.parameters.update(kwargs,True)
     msr0.parameters.ppy2prm(msr0.prm)

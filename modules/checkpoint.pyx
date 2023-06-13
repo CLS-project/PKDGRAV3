@@ -2,6 +2,7 @@
 # cython: always_allow_keywords=True
 
 import cython
+from libcpp cimport bool
 
 @cython.locals(keys=cython.dict)
 cdef public void print_imports(const char * filename, dict keys):
@@ -27,3 +28,13 @@ cdef public void print_imports(const char * filename, dict keys):
             print(f'from {module.__name__} import {v.__name__} as {k}',file=fp)
           else:
             print(f'from {module.__name__} import {k}',file=fp)
+
+@cython.locals(keys=cython.dict)
+cdef public bool is_PKDGRAV_imported(dict keys):
+  import inspect
+  for k,v in keys.items():
+    if inspect.ismodule(v):
+      name=inspect.getmodule(v).__name__
+      if name == "PKDGRAV":
+        return True
+  return False
