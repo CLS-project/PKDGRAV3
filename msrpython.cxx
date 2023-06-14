@@ -1456,10 +1456,12 @@ void MSR::runAnalysis(int iStep,double dTime) {
 
 extern "C" PyObject *PyInit_CSM(void);
 extern "C" PyObject *PyInit_accuracy(void);
+extern "C" PyObject *PyInit_cosmology(void);
 
 int MSR::Python(int argc, char *argv[]) {
     PyImport_AppendInittab(MASTER_MODULE_NAME,initModuleMSR);
     PyImport_AppendInittab("PKDGRAV",PyInit_PKDGRAV);
+    PyImport_AppendInittab("cosmology",PyInit_cosmology);
     PKDGRAV_msr0 = this;
     PyImport_AppendInittab("CSM",PyInit_CSM);
     PyImport_AppendInittab("parse", PyInit_parse);
