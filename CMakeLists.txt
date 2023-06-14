@@ -250,6 +250,20 @@ add_custom_command(
     VERBATIM
 )
 target_sources(${PROJECT_NAME} PRIVATE ${CMAKE_BINARY_DIR}/modules/PKDGRAV.cpp)
+add_custom_command(
+    OUTPUT ${CMAKE_BINARY_DIR}/modules/cosmology.cpp
+    MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/modules/cosmology.pyx
+    COMMAND ${PYTHON} -m cython --3str --cplus --no-docstrings
+        -o ${CMAKE_BINARY_DIR}/modules/cosmology.cpp
+        ${CMAKE_SOURCE_DIR}/modules/cosmology.pyx
+    VERBATIM
+)
+target_sources(${PROJECT_NAME} PRIVATE ${CMAKE_BINARY_DIR}/modules/cosmology.cpp)
+
+add_library(cosmology MODULE ${CMAKE_CURRENT_BINARY_DIR}/modules/cosmology.cpp ${CMAKE_CURRENT_SOURCE_DIR}/cosmo.c)
+target_include_directories(cosmology PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${GSL_INCLUDE_DIRS} ${HDF5_INCLUDE_DIRS})
+target_link_libraries(cosmology Python3::Python ${GSL_LIBRARIES} ${HDF5_LIBRARIES} ${HDF5_HL_LIBRARIES} mdl2)
+set_target_properties(cosmology PROPERTIES PREFIX "")  
 
 if (NOT APPLE)
 CHECK_INCLUDE_FILES(libaio.h HAVE_LIBAIO_H)
