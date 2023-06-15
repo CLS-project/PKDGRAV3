@@ -1,6 +1,3 @@
-# distutils: language = c++
-# cython: always_allow_keywords=True
-
 from libc.stdlib cimport malloc, free
 cimport cosmo
 from math import sqrt,pi
@@ -11,80 +8,32 @@ cdef extern from "Python.h":
 cdef class Cosmology:
     cdef cosmo.csmContext* _csm
 
-    def __cinit__(self):
+    cdef inline initialize(self):
         cosmo.csmInitialize(&self._csm)
-        pass
-    def __dealloc__(self):
+
+    cdef inline finish(self):
         if self._csm is not NULL:
             cosmo.csmFinish(self._csm)
-    def __enter__(self):
-        return self
-    def __exit__(self, type, value, traceback):
-        pass
 
-    @property
-    def omega_matter(self):
-        return self._csm.val.dOmega0
+    cdef inline cosmo.csmContext * csm(self):
+        return self._csm
 
-    @property
-    def omega_baryon(self):
-        return self._csm.val.dOmegab
-
-    @property
-    def omega_lambda(self):
-        return self._csm.val.dLambda
-
-    @property
-    def omega_radiation(self):
-        return self._csm.val.dOmegaRad
-
-    @property
-    def omega_dark_energy(self):
-        return self._csm.val.dOmegaDE
-
-    @property
-    def w0(self):
-        return self._csm.val.w0
-
-    @property
-    def wa(self):
-        return self._csm.val.wa
-
-    def radiation_matter_equivalence(self):
-        return cosmo.csmRadMatEquivalence(self._csm)
-        
-    def expansion_to_hubble(self,a):
-        return cosmo.csmExp2Hub(self._csm,a)
-
-    def time_to_hubble(self,time):
-        return cosmo.csmTime2Hub(self._csm,time)
-
-    def expansion_to_time(self,a):
-        return cosmo.csmExp2Time(self._csm,a)
-
-    def time_to_expansion(self,time):
-        return cosmo.csmTime2Exp(self._csm,time)
-
-    def comoving_drift_factor(self,time,delta):
-        return cosmo.csmComoveDriftFac(self._csm, time, delta);
-
-    def comoving_kick_factor(self,time,delta):
-        return cosmo.csmComoveKickFac(self._csm, time, delta);
-
-    def comoving_growth(self,a):
+    cdef inline _comoving_growth(self,a):
         cdef double D1LPT, D2LPT, f1LPT, f2LPT
         cosmo.csmComoveGrowth(self._csm, a, &D1LPT, &D2LPT, &f1LPT, &f2LPT)
         return (D1LPT, D2LPT, f1LPT, f2LPT)
 
 
+
+
 cdef class SimpleCosmology(Cosmology):
-    def __init__(self,*,omega_matter,omega_lambda=None,omega_baryon=0.0,omega_radiation=0.0,omega_dark_energy=0.0,
-                        w0=-1.0,wa=0.0,running=0.0,pivot=0.05,comoving=True,sigma8=0.0,As=0.0,ns=0.0,h=1.0):
+    cdef inline initialize_simple(self,omega_matter,omega_lambda,omega_baryon,omega_radiation,omega_dark_energy,
+                        w0,wa,running,pivot,comoving,sigma8,As,ns,h):
         self._csm.val.classData.bClass = 0
         self._csm.val.bComove = comoving
         self._csm.val.dHubble0 = sqrt(8.0/3.0 * pi)
         self._csm.val.dOmega0 = omega_matter
-        self._csm.val.dLambda = omega_lambda if omega_lambda is not None else 1.0 - omega_matter - omega_radiation - omega_dark_energy
+        self._csm.val.dLambda = omega_lambda
         self._csm.val.dOmegaRad = omega_radiation
         self._csm.val.dOmegab = omega_baryon
         self._csm.val.dOmegaDE = omega_dark_energy
@@ -98,7 +47,7 @@ cdef class SimpleCosmology(Cosmology):
         self._csm.val.h = h
 
 cdef class ClassCosmology(Cosmology):
-    cdef const char** parse_species(self, list species, int n):
+    cdef inline const char** parse_species(self, list species, int n):
         cdef:
             int i
             const char **c_species = <const char**> malloc(sizeof(char*) * n)
@@ -111,7 +60,8 @@ cdef class ClassCosmology(Cosmology):
         
         return c_species
 
-    def __init__(self,file,L=1.0,As=0.0,ns=0.0,linear_species=[],power_species=[]):
+    cdef inline initialize_class(self,file,L,As,ns,linear_species,power_species):
+        
         cdef:
             int n_linear = len(linear_species)
             int n_power = len(power_species)

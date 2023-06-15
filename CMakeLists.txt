@@ -252,10 +252,11 @@ add_custom_command(
 target_sources(${PROJECT_NAME} PRIVATE ${CMAKE_BINARY_DIR}/modules/PKDGRAV.cpp)
 add_custom_command(
     OUTPUT ${CMAKE_BINARY_DIR}/modules/cosmology.cpp
-    MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/modules/cosmology.pyx
+    MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/modules/cosmology.py
+    DEPENDS ${CMAKE_SOURCE_DIR}/modules/cosmology.pxd
     COMMAND ${PYTHON} -m cython --3str --cplus --no-docstrings
         -o ${CMAKE_BINARY_DIR}/modules/cosmology.cpp
-        ${CMAKE_SOURCE_DIR}/modules/cosmology.pyx
+        ${CMAKE_SOURCE_DIR}/modules/cosmology.py
     VERBATIM
 )
 target_sources(${PROJECT_NAME} PRIVATE ${CMAKE_BINARY_DIR}/modules/cosmology.cpp)
