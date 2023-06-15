@@ -33,5 +33,14 @@ The complete list of methods is as follows.
 .. automodule:: PKDGRAV
    :members:
 
+Cosmology Interface
+-------------------
 
+The classes SimpleCosmology and ClassCosmology expose the interface for determining
+cosmological values used in the code.
+
+The complete list of classes and methods is as follows.
+
+.. automodule:: cosmology
+   :members:
 
