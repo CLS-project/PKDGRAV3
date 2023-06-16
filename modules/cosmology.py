@@ -175,3 +175,110 @@ class ClassCosmology(Cosmology):
     """
     def __init__(self,file,L=1.0,As=0.0,ns=0.0,linear_species=[],power_species=[]):
         self.initialize_class(file,L,As,ns,linear_species,power_species)
+
+        # return cosmo.csmComoveKickFac(self._csm, time, delta);
+    def rho_bar_matter(self,a):
+        """
+        Mean density :math:`\\bar{\\rho}` of matter.
+
+        :param number a: expansion factor :math:`a`
+        :return: mean matter density :math:`\\bar{\\rho}(a)`
+        :rtype: number
+        """
+        return cosmo.csmRhoBar_m(self._csm,a)
+
+    def rho_bar_linear(self,a):
+        """
+        Mean density :math:`\\bar{\\rho}` of linear species.
+
+        :param number a: expansion factor :math:`a`
+        :return: mean density :math:`\\bar{\\rho}(a)` of linear species
+        :rtype: number
+        """
+        return cosmo.csmRhoBar_lin(self._csm,a)
+
+    def rho_bar_power(self,a):
+        """
+        Mean density :math:`\\bar{\\rho}` of linear species to include in the power spectrum.
+
+        :param number a: expansion factor :math:`a`
+        :return: mean density :math:`\\bar{\\rho}(a)` of linear species to include in the power spectrum
+        :rtype: number
+        """
+        return cosmo.csmRhoBar_pk(self._csm,a)
+
+
+    def delta_matter(self,a,k):
+        """
+        The :math:`\\delta` perturbation of matter species.
+
+        :param number a: expansion factor :math:`a`
+        :param number k: wavenumber :math:`k`
+        :return: delta perturbations :math:`\\delta(a,k)` of matter species
+        :rtype: number
+        """
+        return cosmo.csmDelta_m(self._csm,a,k)
+
+    def theta_matter(self,a,k):
+        """
+        The :math:`\\theta` perturbation of matter species.
+
+        :param number a: expansion factor :math:`a`
+        :param number k: wavenumber :math:`k`
+        :return: delta perturbations :math:`\\theta(a,k)` of matter species
+        :rtype: number
+        """
+        return cosmo.csmTheta_m(self._csm,a,k)
+
+    def delta_linear(self,a,k):
+        """
+        The :math:`\\delta` perturbation of linear species.
+
+        :param number a: expansion factor :math:`a`
+        :param number k: wavenumber :math:`k`
+        :return: delta perturbations :math:`\\delta(a,k)` of linear species
+        :rtype: number
+        """
+        return cosmo.csmDelta_lin(self._csm,a,k)
+
+    def delta_power(self,a,k):
+        """
+        The :math:`\\delta` perturbation of linear species to include in the power spectrum.
+
+        :param number a: expansion factor :math:`a`
+        :param number k: wavenumber :math:`k`
+        :return: delta perturbations :math:`\\delta(a,k)` of linear species to include in the power spectrum
+        :rtype: number
+        """
+        return cosmo.csmDelta_pk(self._csm,a,k)
+
+    def delta_rho_linear(self,a,a_next,k):
+        """
+        Calculates :math:`\\delta\\bar{\\rho}` of linear species.
+
+        :param number a: expansion factor :math:`a`
+        :param number a_next: next expansion factor :math:`a'`
+        :param number k: wavenumber :math:`k`
+        :return: :math:`\\delta(a,k)\\bar{\\rho}(a)` of linear species
+        :rtype: number
+        """
+        return cosmo.csmDeltaRho_lin(self._csm,a,a_next,k)
+
+    def delta_rho_power(self,a,k):
+        """
+        Calculates :math:`\\delta\\bar{\\rho}` for the species included in the power spectrum.
+
+        :param number a: expansion factor :math:`a`
+        :param number k: wavenumber :math:`k`
+        :return: :math:`\\delta(a,k)\\bar{\\rho}(a)`
+        :rtype: number
+        """
+        return cosmo.csmDeltaRho_pk(self._csm,a,k)
+
+    def zeta(self,k):
+        """
+        :param number k: wavenumber :math:`k`
+        :return: zeta :math:`\\zeta(k)`
+        :rtype: number
+        """
+        return cosmo.csmZeta(self._csm,k)

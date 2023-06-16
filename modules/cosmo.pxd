@@ -44,3 +44,14 @@ cdef extern from "cosmo.h":
     double csmComoveKickFac(csmContext *csm, double dTime, double dDelta);
     double csmComoveLookbackTime2Exp(csmContext *csm, double dComoveTime);
     void csmComoveGrowth(csmContext *csm, double a, double *D1LPT, double *D2LPT, double *f1LPT, double *f2LPT);
+
+    double csmRhoBar_m    (csmContext *csm, double a)
+    double csmRhoBar_lin  (csmContext *csm, double a)
+    double csmRhoBar_pk   (csmContext *csm, double a)
+    double csmDelta_m     (csmContext *csm, double a,                double k)
+    double csmTheta_m     (csmContext *csm, double a,                double k)
+    double csmDelta_lin   (csmContext *csm, double a,                double k)
+    double csmDelta_pk    (csmContext *csm, double a,                double k)
+    double csmDeltaRho_lin(csmContext *csm, double a, double a_next, double k)
+    double csmDeltaRho_pk (csmContext *csm, double a,                double k)
+    double csmZeta        (csmContext *csm,                          double k)
