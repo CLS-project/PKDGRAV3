@@ -40,8 +40,32 @@ template <int n> struct pcBlk {
 #endif
     fvector<n> m,u;
 };
+
+template <int n> struct denBlk {
+    int width() const {return n;}
+    fvector<n> dx, dy, dz;
+    fvector<n> m, iMat;
+};
+
+template <int n> struct denCorrBlk {
+    int width() const {return n;}
+    fvector<n> dx, dy, dz;
+    fvector<n> T, P, expImb2;
+};
+
+template <int n> struct sphForceBlk {
+    int width() const {return n;}
+    fvector<n> dx, dy, dz;
+    fvector<n> m, fBall, Omega;
+    fvector<n> vx, vy, vz;
+    fvector<n> rho, P, c, rung;
+};
+
 typedef ppBlk<32> ppInteract;
 typedef pcBlk<32> pcInteract;
+typedef denBlk<32> denInteract;
+typedef denCorrBlk<32> denCorrInteract;
+typedef sphForceBlk<32> sphForceInteract;
 
 // One of these entries for each interaction block
 struct alignas(8) ppWorkUnit {
@@ -69,5 +93,51 @@ struct alignas(32) ppResult {
     float normsum;
 };
 static_assert(sizeof(ppResult)==32,"Check size of ppResult");
+
+struct alignas(32) denInput {
+    float dx, dy, dz;
+    float fBall, iMat;
+};
+static_assert(sizeof(denInput)==32,"Check size of denInput");
+
+struct alignas(32) denResult {
+    float rho;
+    float drhodfball;
+    float nden;
+    float dndendfball;
+    float nSmooth;
+    float imbalanceX, imbalanceY, imbalanceZ;
+};
+static_assert(sizeof(denResult)==32,"Check size of denResult");
+
+struct alignas(16) denCorrInput {
+    float dx, dy, dz;
+    float fBall;
+};
+static_assert(sizeof(denCorrInput)==16,"Check size of denCorrInput");
+
+struct alignas(16) denCorrResult {
+    float corrT;
+    float corrP;
+    float corr;
+};
+static_assert(sizeof(denCorrResult)==16,"Check size of denCorrResult");
+
+struct alignas(64) sphForceInput {
+    float dx, dy, dz;
+    float fBall, Omega;
+    float vx, vy, vz;
+    float rho, P, c;
+};
+static_assert(sizeof(sphForceInput)==64,"Check size of sphForceInput");
+
+struct alignas(32) sphForceResult {
+    float uDot;
+    float ax, ay, az;
+    float divv;
+    float dtEst;
+    float maxRung;
+};
+static_assert(sizeof(sphForceResult)==32,"Check size of sphForceResult");
 }
 #endif

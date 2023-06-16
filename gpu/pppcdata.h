@@ -51,6 +51,57 @@ inline int copyBLKs(ppInteract *out, ilpTile &in) {
     return nBlk;
 }
 
+inline int copyBLKs(denInteract *out, ilpTile &in) {
+    auto n = in.width;
+    auto nIlp = in.count();
+    int i, nBlk = (nIlp+n-1) / n;
+    for (i=0; i<nBlk; ++i) {
+        memcpy(&out[i].dx,   &in[i].dx,   sizeof(out[i].dx));
+        memcpy(&out[i].dy,   &in[i].dy,   sizeof(out[i].dy));
+        memcpy(&out[i].dz,   &in[i].dz,   sizeof(out[i].dz));
+        memcpy(&out[i].m,    &in[i].m,    sizeof(out[i].m));
+        memcpy(&out[i].iMat, &in[i].iMat, sizeof(out[i].iMat));
+    }
+    return nBlk;
+}
+
+inline int copyBLKs(denCorrInteract *out, ilpTile &in) {
+    auto n = in.width;
+    auto nIlp = in.count();
+    int i, nBlk = (nIlp+n-1) / n;
+    for (i=0; i<nBlk; ++i) {
+        memcpy(&out[i].dx,      &in[i].dx,      sizeof(out[i].dx));
+        memcpy(&out[i].dy,      &in[i].dy,      sizeof(out[i].dy));
+        memcpy(&out[i].dz,      &in[i].dz,      sizeof(out[i].dz));
+        memcpy(&out[i].T,       &in[i].T,       sizeof(out[i].T));
+        memcpy(&out[i].P,       &in[i].P,       sizeof(out[i].P));
+        memcpy(&out[i].expImb2, &in[i].expImb2, sizeof(out[i].expImb2));
+    }
+    return nBlk;
+}
+
+inline int copyBLKs(sphForceInteract *out, ilpTile &in) {
+    auto n = in.width;
+    auto nIlp = in.count();
+    int i, nBlk = (nIlp+n-1) / n;
+    for (i=0; i<nBlk; ++i) {
+        memcpy(&out[i].dx,    &in[i].dx,    sizeof(out[i].dx));
+        memcpy(&out[i].dy,    &in[i].dy,    sizeof(out[i].dy));
+        memcpy(&out[i].dz,    &in[i].dz,    sizeof(out[i].dz));
+        memcpy(&out[i].m,     &in[i].m,     sizeof(out[i].m));
+        memcpy(&out[i].fBall, &in[i].fBall, sizeof(out[i].fBall));
+        memcpy(&out[i].Omega, &in[i].Omega, sizeof(out[i].Omega));
+        memcpy(&out[i].vx,    &in[i].vx,    sizeof(out[i].vx));
+        memcpy(&out[i].vy,    &in[i].vy,    sizeof(out[i].vy));
+        memcpy(&out[i].vz,    &in[i].vz,    sizeof(out[i].vz));
+        memcpy(&out[i].rho,   &in[i].rho,   sizeof(out[i].rho));
+        memcpy(&out[i].P,     &in[i].P,     sizeof(out[i].P));
+        memcpy(&out[i].c,     &in[i].c,     sizeof(out[i].c));
+        memcpy(&out[i].rung,  &in[i].uRung, sizeof(out[i].rung));
+    }
+    return nBlk;
+}
+
 inline int copyBLKs(pcInteract *out, ilcTile &in) {
     auto n = in.width;
     auto nIlp = in.count();
