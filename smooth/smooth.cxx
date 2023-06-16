@@ -1450,7 +1450,7 @@ int smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
                         if (fDist2 < pBall2) {
 
                             // Reasons not to compute this interaction
-                            if ( iSmoothType==SMX_HYDRO_FLUX ||
+                            if (iSmoothType==SMX_HYDRO_FLUX ||
                                     iSmoothType==SMX_HYDRO_FLUX_VEC) {
 
                                 const auto &qBall = smx->nnList[pk].fBall;
@@ -1465,14 +1465,10 @@ int smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
 
 #ifdef OPTIM_NO_REDUNDANT_FLUXES
                                 if (qIsActive) {
-                                    if (dr[0] > 0) continue;
-                                    else if (dr[0]==0) {
-                                        if (dr[1] > 0) continue;
-                                        else if (dr[1]==0) {
-                                            if (dr[2] > 0) continue;
-                                            else if (dr[2]==0) abort();
-                                        }
+                                    if (pkd->Self() == smx->nnList[pk].iPid) {
+                                        if (P < smx->nnList[pk].pPart) continue;
                                     }
+                                    else if (pkd->Self() < smx->nnList[pk].iPid) continue;
                                 }
 #endif
                             }
