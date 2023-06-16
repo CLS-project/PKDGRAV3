@@ -57,7 +57,7 @@ void MSR::ComputeSmoothing(double dTime, double dDelta) {
 }
 
 
-static inline void densNodeOmegaE(NN *nnList, float ph, TinyVector<float,3> dr_node, int nCnt,
+static inline void densNodeOmegaE(NN *nnList, float ph, TinyVector<double,3> dr_node, int nCnt,
                                   double *omega, TinyVector<double,6> &E, int *nSmooth) {
     const float fBall2_p = 4.*ph*ph;
     *omega = 0.0;
@@ -65,7 +65,7 @@ static inline void densNodeOmegaE(NN *nnList, float ph, TinyVector<float,3> dr_n
     E = 0.0;
     for (auto pk = 0; pk < nCnt; ++pk) {
         // As both dr vector are relative to the cell, we can do:
-        const TinyVector<float,3> dr{dr_node - nnList[pk].dr};
+        const TinyVector<double,3> dr{dr_node - nnList[pk].dr};
 
         const auto fDist2 = blitz::dot(dr,dr);
         if (fDist2 <= fBall2_p) {
@@ -204,7 +204,7 @@ void hydroDensity_node(PKD pkd, SMF *smf, Bound bnd_node, const std::vector<PART
         // Assuming *only* stars and gas
         double *omega = &(partj.sph().omega);
 #endif
-        const TinyVector<float,3> dr_node {bnd_node.center() - partj.position()};
+        const TinyVector<double,3> dr_node {bnd_node.center() - partj.position()};
 
         int niter = 0;
         int nSmooth;
