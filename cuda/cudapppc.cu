@@ -44,6 +44,7 @@ inline __device__ float maskz_mov(bool p,float a) { return p ? a : 0.0f; }
 #define WIDTH 32
 
 /// Evaluate a single P-P interaction
+template<bool bGravStep>
 __device__ __forceinline__ auto evalInteraction(const gpu::ppInput pp,const gpu::Blk<WIDTH,ilpTile> *__restrict__ blk,int i) {
     return EvalPP<float,bool>(pp.dx, pp.dy, pp.dz, pp.fSoft2,
                               blk->dx[i], blk->dy[i], blk->dz[i], blk->fourh2[i], blk->m[i],
@@ -51,26 +52,40 @@ __device__ __forceinline__ auto evalInteraction(const gpu::ppInput pp,const gpu:
 }
 
 /// Evaluate a single P-C interaction
+template<bool bGravStep>
 __device__ __forceinline__ auto evalInteraction(const gpu::ppInput pp,const gpu::Blk<WIDTH,ilcTile> *__restrict__ blk,int i) {
-    return EvalPC<float,bool,true>(pp.dx, pp.dy, pp.dz, pp.fSoft2,
-                                   blk->dx[i],blk->dy[i],blk->dz[i],blk->m[i],blk->u[i],
-                                   blk->xxxx[i],blk->xxxy[i],blk->xxxz[i],blk->xxyz[i],blk->xxyy[i],
-                                   blk->yyyz[i],blk->xyyz[i],blk->xyyy[i],blk->yyyy[i],
-                                   blk->xxx[i],blk->xyy[i],blk->xxy[i],blk->yyy[i],blk->xxz[i],blk->yyz[i],blk->xyz[i],
-                                   blk->xx[i],blk->xy[i],blk->xz[i],blk->yy[i],blk->yz[i],
+    return EvalPC<float,bool,bGravStep>(pp.dx, pp.dy, pp.dz, pp.fSoft2,
+                                        blk->dx[i],blk->dy[i],blk->dz[i],blk->m[i],blk->u[i],
+                                        blk->xxxx[i],blk->xxxy[i],blk->xxxz[i],blk->xxyz[i],blk->xxyy[i],
+                                        blk->yyyz[i],blk->xyyz[i],blk->xyyy[i],blk->yyyy[i],
+                                        blk->xxx[i],blk->xyy[i],blk->xxy[i],blk->yyy[i],blk->xxz[i],blk->yyz[i],blk->xyz[i],
+                                        blk->xx[i],blk->xy[i],blk->xz[i],blk->yy[i],blk->yz[i],
 #ifdef USE_DIAPOLE
-                                   blk->x[i],blk->y[i],blk->z[i],
+                                        blk->x[i],blk->y[i],blk->z[i],
 #endif
-                                   pp.ax, pp.ay, pp.az, pp.dImaga);
+                                        pp.ax, pp.ay, pp.az, pp.dImaga);
+}
+
+// Reduction of a P-P or P-C interaction
+template <bool bGravStep,class RESULT>
+__device__ __forceinline__ void reduceInteraction(gpu::ppResult &out, RESULT result) {
+    warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.ax,&out.ax);
+    warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.ay,&out.ay);
+    warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.az,&out.az);
+    warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.pot,&out.fPot);
+    if (bGravStep) {
+        warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.ir,&out.dirsum);
+        warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.norm,&out.normsum);
+    }
 }
 
 /// CUDA Kernel to evaluate a block of P-P or P-C interactions
-template <bool bGravStep,class BLK>
+template <bool bGravStep,class INPUT,class BLK,class OUTPUT>
 __global__ void cudaInteract(
     const gpu::ppWorkUnit *__restrict__ work,
-    const gpu::ppInput *__restrict__ pPart,
+    const INPUT *__restrict__ pPart, // e.g., gpu::ppInput
     const BLK *__restrict__ gblk,
-    gpu::ppResult *out) {
+    OUTPUT *out) { // e.g., gpu::ppResult
     extern __shared__ char cache[];
     auto sblk = reinterpret_cast<BLK *>(cache);
     auto block = cooperative_groups::this_thread_block();
@@ -84,19 +99,12 @@ __global__ void cudaInteract(
     cooperative_groups::memcpy_async(block, sblk, gblk, sizeof(*gblk));
     cooperative_groups::wait(block); // Joins all threads, waits for all copies to complete
 
-    decltype(evalInteraction(pPart[0],sblk,0)) result {0,0,0,0,0,0};
+    decltype(evalInteraction<bGravStep>(pPart[0],sblk,0)) result {0,0,0,0,0,0};
     for (auto iP=threadIdx.y; iP<work->nP; iP += blockDim.y) {
         if (threadIdx.x < work->nI) {
-            result = evalInteraction(pPart[iP],sblk,threadIdx.x);
+            result = evalInteraction<bGravStep>(pPart[iP],sblk,threadIdx.x);
         }
-        warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.ax,&out[iP].ax);
-        warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.ay,&out[iP].ay);
-        warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.az,&out[iP].az);
-        warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.pot,&out[iP].fPot);
-        if (bGravStep) {
-            warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.ir,&out[iP].dirsum);
-            warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.norm,&out[iP].normsum);
-        }
+        reduceInteraction<bGravStep>(out[iP],result);
     }
 }
 

@@ -128,7 +128,6 @@ cdef extern from "master.h":
         uint64_t SelCylinder(TinyVector[double,BLITZ3] dP1, TinyVector[double,BLITZ3] dP2, double dRadius, int setIfTrue, int clearIfFalse)
 
 cdef public MSR *msr0 "PKDGRAV_msr0"
-cdef public bool msr_imported "PKDGRAV_msr_imported"
 
 cpdef restart(object arguments,object specified,list species,list classes,int n,str name,
     int step,int steps,double time,double delta,double E,double U,double Utime)
