@@ -212,7 +212,7 @@ PP_CUDA_BOTH ResultDensityCorrection<F> EvalDensityCorrection(
 template<class F=float>
 struct ResultSPHForces {
     F uDot, ax, ay, az, divv, dtEst, maxRung;
-    void zero() { uDot=ax=ay=az=divv=maxRung=0; dtEst=HUGE_VALF; }
+    void zero() { uDot=ax=ay=az=divv=maxRung=0; dtEst=1e14f; }
     ResultSPHForces<F> operator+=(const ResultSPHForces<F> rhs) {
         uDot += rhs.uDot;
         ax += rhs.ax;
@@ -331,11 +331,11 @@ PP_CUDA_BOTH ResultSPHForces<F> EvalSPHForces(
         dtMu = 0.6f * beta / (aFac * EtaCourant);
         result.dtEst = 0.5f * PfBall / (dtC * Pc - dtMu * muij);
         mask1 = Pr_lt_one | Ir_lt_one;
-        result.dtEst = mask_mov(HUGE_VALF,mask1,result.dtEst);
+        result.dtEst = mask_mov(1e14f,mask1,result.dtEst);
         result.maxRung = maskz_mov(mask1,uRung);
 
         /*for (int index = 0; index < result.dtEst.width(); index++) {
-            if (!isfinite(result.ax[index]) || !isfinite(result.ay[index]) || !isfinite(result.az[index]) || !isfinite(result.uDot[index]) || (!isfinite(result.dtEst[index]) && result.dtEst[index] != HUGE_VALF) || result.dtEst[index] <= 0.0f) {
+            if (!isfinite(result.ax[index]) || !isfinite(result.ay[index]) || !isfinite(result.az[index]) || !isfinite(result.uDot[index]) || (!isfinite(result.dtEst[index]) && result.dtEst[index] != 1e14f) || result.dtEst[index] <= 0.0f) {
                 printf("An error occured in EvalSPHForces:\n\
                 ax = %.5e, ay = %.5e, az = %.5e, uDot = %.5e, dtEst = %.5e\n\
                 Pdx = %.5e, Pdy = %.5e, Pdz = %.5e, Pvx = %.5e, Pvy = %.5e, Pvz = %.5e\n\

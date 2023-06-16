@@ -145,8 +145,8 @@ typedef struct {
 
 typedef struct {
     int kernelType;
-    int doInterfaceCorrection;
-    int useIsentropic;
+    bool doInterfaceCorrection;
+    bool useIsentropic;
     float epsilon;
     float alpha;
     float beta;

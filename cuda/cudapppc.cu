@@ -32,6 +32,7 @@
 
 inline __device__ bool testz(bool p) { return !p; }
 inline __device__ float maskz_mov(bool p,float a) { return p ? a : 0.0f; }
+inline __device__ float mask_mov(float src, bool p, float a) { return p ? a : src; }
 
 #include "basetype.h"
 #include "cudapppc.h"
@@ -39,9 +40,13 @@ inline __device__ float maskz_mov(bool p,float a) { return p ? a : 0.0f; }
 #include "gravity/pc.h"
 #include "gravity/ilp.h"
 #include "gravity/ilc.h"
+#include "cudautil.h"
 #include "cuda/reduce.h"
+#include "SPH/SPHOptions.h"
 
 #define WIDTH 32
+
+__constant__ SPHOptionsGPU SPHoptions;
 
 /// Evaluate a single P-P interaction
 template<bool bGravStep>
@@ -49,6 +54,29 @@ __device__ __forceinline__ auto evalInteraction(const gpu::ppInput pp,const gpu:
     return EvalPP<float,bool>(pp.dx, pp.dy, pp.dz, pp.fSoft2,
                               blk->dx[i], blk->dy[i], blk->dz[i], blk->fourh2[i], blk->m[i],
                               pp.ax, pp.ay, pp.az, pp.dImaga);
+}
+
+template<bool bGravStep>
+__device__ __forceinline__ auto evalInteraction(const gpu::denInput pp,const gpu::denBlk<WIDTH> *__restrict__ blk,int i) {
+    return EvalDensity<float,bool>(pp.dx, pp.dy, pp.dz, pp.fBall, pp.iMat,
+                                   blk->dx[i], blk->dy[i], blk->dz[i], blk->m[i], blk->iMat[i],
+                                   SPHoptions.kernelType, SPHoptions.doInterfaceCorrection);
+}
+
+template<bool bGravStep>
+__device__ __forceinline__ auto evalInteraction(const gpu::denCorrInput pp,const gpu::denCorrBlk<WIDTH> *__restrict__ blk,int i) {
+    return EvalDensityCorrection<float,bool>(pp.dx, pp.dy, pp.dz, pp.fBall,
+            blk->dx[i], blk->dy[i], blk->dz[i], blk->T[i], blk->P[i], blk->expImb2[i],
+            SPHoptions.kernelType);
+}
+
+template<bool bGravStep>
+__device__ __forceinline__ auto evalInteraction(const gpu::sphForceInput pp,const gpu::sphForceBlk<WIDTH> *__restrict__ blk,int i) {
+    return EvalSPHForces<float,bool>(pp.dx, pp.dy, pp.dz, pp.fBall, pp.Omega, pp.vx, pp.vy, pp.vz, pp.rho, pp.P, pp.c,
+                                     blk->dx[i], blk->dy[i], blk->dz[i], blk->m[i], blk->fBall[i], blk->Omega[i], blk->vx[i],
+                                     blk->vy[i], blk->vz[i], blk->rho[i], blk->P[i], blk->c[i], blk->rung[i],
+                                     SPHoptions.kernelType, SPHoptions.epsilon, SPHoptions.alpha, SPHoptions.beta,
+                                     SPHoptions.EtaCourant, SPHoptions.a, SPHoptions.H, SPHoptions.useIsentropic);
 }
 
 /// Evaluate a single P-C interaction
@@ -99,7 +127,8 @@ __global__ void cudaInteract(
     cooperative_groups::memcpy_async(block, sblk, gblk, sizeof(*gblk));
     cooperative_groups::wait(block); // Joins all threads, waits for all copies to complete
 
-    decltype(evalInteraction<bGravStep>(pPart[0],sblk,0)) result {0,0,0,0,0,0};
+    decltype(evalInteraction<bGravStep>(pPart[0],sblk,0)) result;
+    result.zero();
     for (auto iP=threadIdx.y; iP<work->nP; iP += blockDim.y) {
         if (threadIdx.x < work->nI) {
             result = evalInteraction<bGravStep>(pPart[iP],sblk,threadIdx.x);
@@ -172,3 +201,25 @@ template void MessagePP::finish();
 template void MessagePC::finish();
 template void MessagePP::launch(mdl::Stream &stream,void *pCudaBufIn, void *pCudaBufOut);
 template void MessagePC::launch(mdl::Stream &stream,void *pCudaBufIn, void *pCudaBufOut);
+
+/*
+** This has to live here currently, but will be moved out later.
+*/
+void CudaClient::setupSPHOptions(SPHOptionsGPU *const SPHoptions) {
+    mdl::cudaMessageQueue wait;
+    for (auto i=0; i<cuda.numDevices(); ++i) {
+        auto m = new MessageSPHOptionsSetup(SPHoptions,i);
+        cuda.enqueue(*m,wait);
+    }
+    for (auto i=0; i<cuda.numDevices(); ++i) {
+        auto &m = wait.wait();
+        delete &m;
+    }
+}
+
+MessageSPHOptionsSetup::MessageSPHOptionsSetup(SPHOptionsGPU *const SPHoptions, int iDevice)
+    : mdl::cudaMessage(iDevice), SPHoptionsIn(SPHoptions) {}
+
+void MessageSPHOptionsSetup::launch(mdl::Stream &stream,void *pCudaBufIn, void *pCudaBufOut) {
+    CUDA_CHECK(cudaMemcpyToSymbolAsync, (SPHoptions, SPHoptionsIn, sizeof(SPHoptions), 0, cudaMemcpyHostToDevice, stream));
+}
