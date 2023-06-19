@@ -265,6 +265,7 @@ void MessageDen<N>::finish() {
         auto *pInfoOut = w.wp->pInfoOut;
         for (auto ip=0; ip<nP; ++ip) {
             pInfoOut[ip].rho         += pR[ip].rho;
+            pInfoOut[ip].drhodfball  += pR[ip].drhodfball;
             pInfoOut[ip].nden        += pR[ip].nden;
             pInfoOut[ip].dndendfball += pR[ip].dndendfball;
             pInfoOut[ip].nSmooth     += pR[ip].nSmooth;
