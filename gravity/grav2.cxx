@@ -450,6 +450,11 @@ void pkdParticleWorkDone(workParticle *wp) {
         delete [] wp->iPart;
         delete [] wp->pInfoIn;
         delete [] wp->pInfoOut;
+#ifdef USE_CUDA
+        if (wp->SPHoptions->doDensity && wp->bGPU) {
+            delete wp->ilp;
+        }
+#endif
         delete wp;
     }
 }
@@ -472,7 +477,6 @@ static void queuePP( PKD pkd, workParticle *wp, ilpList &ilp, int bGravStep, boo
 }
 
 static void queueDensity( PKD pkd, workParticle *wp, ilpList &ilp, int bGravStep ) {
-    wp->ilp = &ilp;
     wp->bGravStep = bGravStep;
     for ( int i=0; i<wp->nP; i++ ) {
         wp->pInfoOut[i].rho = 0.0f;
@@ -509,7 +513,7 @@ static void queueSPHForces( PKD pkd, workParticle *wp, ilpList &ilp, int bGravSt
 
 static void addCentrifugalAcceleration(PKD pkd, workParticle *wp) {
     double dOmega, f;
-    double r[3], rxy;
+    double r[3];
 
     if (wp->ts->dTime < wp->SPHoptions->CentrifugalT0) {
         return;
@@ -524,7 +528,6 @@ static void addCentrifugalAcceleration(PKD pkd, workParticle *wp) {
     f = dOmega * dOmega;
     for (int i=0; i< wp->nP; i++) {
         pkdGetPos1(pkd,wp->pPart[i],r);
-        rxy = sqrt(r[0] * r[0] + r[1] + r[1]);
         wp->pInfoOut[i].a[0] += f * r[0];
         wp->pInfoOut[i].a[1] += f * r[1];
     }
@@ -694,6 +697,7 @@ int pkdGravInteract(PKD pkd,
     assert(wp!=NULL);
     wp->nRefs = 1; /* I am using it currently */
     wp->ctx = pkd;
+    wp->bGPU = bGPU;
     wp->dFlop = 0.0;
     wp->dFlopSingleCPU = wp->dFlopSingleGPU = 0.0;
     wp->dFlopDoubleCPU = wp->dFlopDoubleGPU = 0.0;
@@ -784,6 +788,24 @@ int pkdGravInteract(PKD pkd,
             }
         }
     }
+
+    /*
+    ** If CUDA is used, and we are doing density on the GPU,
+    ** we need to clone the ilp,
+    ** otherwise we use the reference to the global ilp.
+    */
+#ifdef USE_CUDA
+    if (SPHoptions->doDensity && bGPU) {
+        wp->ilp = new ilpList;
+        wp->ilp->clone(pkd->ilp);
+        wp->ilp->setReference(pkd->ilp.getReference());
+    }
+    else {
+#endif
+        wp->ilp = &ilp;
+#ifdef USE_CUDA
+    }
+#endif
 
     nActive += wp->nP;
 
