@@ -107,6 +107,39 @@ __device__ __forceinline__ void reduceInteraction(gpu::ppResult &out, RESULT res
     }
 }
 
+// Reduction of a density interaction
+template <bool bGravStep,class RESULT>
+__device__ __forceinline__ void reduceInteraction(gpu::denResult &out, RESULT result) {
+    warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.rho,&out.rho);
+    warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.drhodfball,&out.drhodfball);
+    warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.nden,&out.nden);
+    warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.dndendfball,&out.dndendfball);
+    warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.nSmooth,&out.nSmooth);
+    warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.imbalanceX,&out.imbalanceX);
+    warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.imbalanceY,&out.imbalanceY);
+    warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.imbalanceZ,&out.imbalanceZ);
+}
+
+// Reduction of a density correction interaction
+template <bool bGravStep,class RESULT>
+__device__ __forceinline__ void reduceInteraction(gpu::denCorrResult &out, RESULT result) {
+    warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.corrT,&out.corrT);
+    warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.corrP,&out.corrP);
+    warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.corr,&out.corr);
+}
+
+// Reduction of an SPH force interaction
+template <bool bGravStep,class RESULT>
+__device__ __forceinline__ void reduceInteraction(gpu::sphForceResult &out, RESULT result) {
+    warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.uDot,&out.uDot);
+    warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.ax,&out.ax);
+    warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.ay,&out.ay);
+    warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.az,&out.az);
+    warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.divv,&out.divv);
+    warpReduceAndStoreAtomicMin<float,32>(threadIdx.x,result.dtEst,&out.dtEst);
+    warpReduceAndStoreAtomicMax<float,32>(threadIdx.x,result.maxRung,&out.maxRung);
+}
+
 /// CUDA Kernel to evaluate a block of P-P or P-C interactions
 template <bool bGravStep,class INPUT,class BLK,class OUTPUT>
 __global__ void cudaInteract(
