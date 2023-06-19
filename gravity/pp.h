@@ -87,17 +87,17 @@ PP_CUDA_BOTH ResultPP<F> EvalPP(
 
 template<class F=float>
 struct ResultDensity {
-    F arho, adrhodfball, anden, adndendfball, anSmooth, aimbalanceX, aimbalanceY, aimbalanceZ;
-    void zero() { arho=adrhodfball=anden=adndendfball=anSmooth=aimbalanceX=aimbalanceY=aimbalanceZ=0; }
-    ResultDensity<F> operator+=(const ResultDensity<F> rhs) {
-        arho += rhs.arho;
-        adrhodfball += rhs.adrhodfball;
-        anden += rhs.anden;
-        adndendfball += rhs.adndendfball;
-        anSmooth += rhs.anSmooth;
-        aimbalanceX += rhs.aimbalanceX;
-        aimbalanceY += rhs.aimbalanceY;
-        aimbalanceZ += rhs.aimbalanceZ;
+    F rho, drhodfball, nden, dndendfball, nSmooth, imbalanceX, imbalanceY, imbalanceZ;
+    PP_CUDA_BOTH void zero() { rho=drhodfball=nden=dndendfball=nSmooth=imbalanceX=imbalanceY=imbalanceZ=0; }
+    PP_CUDA_BOTH ResultDensity<F> operator+=(const ResultDensity<F> rhs) {
+        rho += rhs.rho;
+        drhodfball += rhs.drhodfball;
+        nden += rhs.nden;
+        dndendfball += rhs.dndendfball;
+        nSmooth += rhs.nSmooth;
+        imbalanceX += rhs.imbalanceX;
+        imbalanceY += rhs.imbalanceY;
+        imbalanceZ += rhs.imbalanceZ;
         return *this;
     }
 };
@@ -130,15 +130,15 @@ PP_CUDA_BOTH ResultDensity<F> EvalDensity(
         DSPHKERNEL_DFBALL(r, ifBall, w, dwdr, C, dWdfball, kernelType);
 
         // return the density
-        result.anden = C * w;
-        result.arho = Im * result.anden;
+        result.nden = C * w;
+        result.rho = Im * result.nden;
 
         // return the density derivative
-        result.adndendfball = dWdfball;
-        result.adrhodfball = Im * result.adndendfball;
+        result.dndendfball = dWdfball;
+        result.drhodfball = Im * result.dndendfball;
 
         // return the number of particles used
-        result.anSmooth = maskz_mov(r_lt_one,F(1.0f));
+        result.nSmooth = maskz_mov(r_lt_one,F(1.0f));
 
         // Calculate the imbalance values
         if (doInterfaceCorrection) {
@@ -146,14 +146,14 @@ PP_CUDA_BOTH ResultDensity<F> EvalDensity(
             F plus_one = 1.0f;
             F minus_one = -1.0f;
             F kappa = mask_mov(minus_one,mask2,plus_one);
-            result.aimbalanceX = kappa * dx * result.arho;
-            result.aimbalanceY = kappa * dy * result.arho;
-            result.aimbalanceZ = kappa * dz * result.arho;
+            result.imbalanceX = kappa * dx * result.rho;
+            result.imbalanceY = kappa * dy * result.rho;
+            result.imbalanceZ = kappa * dz * result.rho;
         }
         else {
-            result.aimbalanceX = 0.0f;
-            result.aimbalanceY = 0.0f;
-            result.aimbalanceZ = 0.0f;
+            result.imbalanceX = 0.0f;
+            result.imbalanceY = 0.0f;
+            result.imbalanceZ = 0.0f;
         }
     }
     else {
@@ -164,12 +164,12 @@ PP_CUDA_BOTH ResultDensity<F> EvalDensity(
 
 template<class F=float>
 struct ResultDensityCorrection {
-    F acorrT, acorrP, acorr;
-    void zero() { acorrT=acorrP=acorr=0; }
-    ResultDensityCorrection<F> operator+=(const ResultDensityCorrection<F> rhs) {
-        acorrT += rhs.acorrT;
-        acorrP += rhs.acorrP;
-        acorr += rhs.acorr;
+    F corrT, corrP, corr;
+    PP_CUDA_BOTH void zero() { corrT=corrP=corr=0; }
+    PP_CUDA_BOTH ResultDensityCorrection<F> operator+=(const ResultDensityCorrection<F> rhs) {
+        corrT += rhs.corrT;
+        corrP += rhs.corrP;
+        corr += rhs.corr;
         return *this;
     }
 };
@@ -199,9 +199,9 @@ PP_CUDA_BOTH ResultDensityCorrection<F> EvalDensityCorrection(
         SPHKERNEL_INIT(r, ifBall, C, t1, mask1, kernelType);
         SPHKERNEL(r, w, t1, t2, t3, r_lt_one, mask1, kernelType);
 
-        result.acorr = expImb2 * C * w;
-        result.acorrT = T * result.acorr;
-        result.acorrP = P * result.acorr;
+        result.corr = expImb2 * C * w;
+        result.corrT = T * result.corr;
+        result.corrP = P * result.corr;
     }
     else {
         result.zero(); // No work to do
@@ -212,8 +212,8 @@ PP_CUDA_BOTH ResultDensityCorrection<F> EvalDensityCorrection(
 template<class F=float>
 struct ResultSPHForces {
     F uDot, ax, ay, az, divv, dtEst, maxRung;
-    void zero() { uDot=ax=ay=az=divv=maxRung=0; dtEst=1e14f; }
-    ResultSPHForces<F> operator+=(const ResultSPHForces<F> rhs) {
+    PP_CUDA_BOTH void zero() { uDot=ax=ay=az=divv=maxRung=0; dtEst=1e14f; }
+    PP_CUDA_BOTH ResultSPHForces<F> operator+=(const ResultSPHForces<F> rhs) {
         uDot += rhs.uDot;
         ax += rhs.ax;
         ay += rhs.ay;

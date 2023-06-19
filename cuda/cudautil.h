@@ -29,6 +29,9 @@
 #include <cstdlib>
 #include "check.h"
 #include "gpu/pppcdata.h"
+#include "gpu/dendata.h"
+#include "gpu/dencorrdata.h"
+#include "gpu/sphforcedata.h"
 #include "cudapppc.h"
 #include "SPH/SPHOptions.h"
 
@@ -74,6 +77,12 @@ protected:
     MessagePP *pp;
     mdl::messageQueue<MessagePC> freePC;
     MessagePC *pc;
+    mdl::messageQueue<MessageDen<32>> freeDen;
+    MessageDen<32> *den;
+    mdl::messageQueue<MessageDenCorr<32>> freeDenCorr;
+    MessageDenCorr<32> *denCorr;
+    mdl::messageQueue<MessageSPHForce<32>> freeSPHForce;
+    MessageSPHForce<32> *sphForce;
 
     int nEwhLoop;
     std::list<MessageEwald> free_Ewald, busy_Ewald;
@@ -109,6 +118,18 @@ public:
 
     int queuePC(workParticle *work, ilcTile &tile, bool bGravStep) {
         return queue(pc,freePC,work,tile,bGravStep);
+    }
+
+    int queueDen(workParticle *work, ilpTile &tile, bool bGravStep) {
+        return queue(den,freeDen,work,tile,bGravStep);
+    }
+
+    int queueDenCorr(workParticle *work, ilpTile &tile, bool bGravStep) {
+        return queue(denCorr,freeDenCorr,work,tile,bGravStep);
+    }
+
+    int queueSPHForce(workParticle *work, ilpTile &tile, bool bGravStep) {
+        return queue(sphForce,freeSPHForce,work,tile,bGravStep);
     }
     int  queueEwald(workParticle *wp);
     void setupEwald(struct EwaldVariables *const ew, EwaldTable *const ewt);

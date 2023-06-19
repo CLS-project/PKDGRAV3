@@ -99,14 +99,14 @@ void pkdDensityEval(const PINFOIN &Part, ilpTile &tile,  PINFOOUT &Out, SPHOptio
     ilist::EvalBlock<ResultDensity<fvec>,BlockPP<ILC_PART_PER_BLK>> eval(
                 Part.r[0],Part.r[1],Part.r[2],Part.fBall,Part.iMat,SPHoptions);
     auto result = EvalTile(tile,eval);
-    Out.rho += hadd(result.arho);
-    Out.drhodfball += hadd(result.adrhodfball);
-    Out.nden += hadd(result.anden);
-    Out.dndendfball += hadd(result.adndendfball);
-    Out.nSmooth += hadd(result.anSmooth);
-    Out.imbalanceX += hadd(result.aimbalanceX);
-    Out.imbalanceY += hadd(result.aimbalanceY);
-    Out.imbalanceZ += hadd(result.aimbalanceZ);
+    Out.rho += hadd(result.rho);
+    Out.drhodfball += hadd(result.drhodfball);
+    Out.nden += hadd(result.nden);
+    Out.dndendfball += hadd(result.dndendfball);
+    Out.nSmooth += hadd(result.nSmooth);
+    Out.imbalanceX += hadd(result.imbalanceX);
+    Out.imbalanceY += hadd(result.imbalanceY);
+    Out.imbalanceZ += hadd(result.imbalanceZ);
 }
 
 template<typename BLOCK> struct ilist::EvalBlock<ResultDensityCorrection<fvec>,BLOCK> {
@@ -141,9 +141,9 @@ void pkdDensityCorrectionEval(const PINFOIN &Part, ilpTile &tile,  PINFOOUT &Out
     ilist::EvalBlock<ResultDensityCorrection<fvec>,BlockPP<ILC_PART_PER_BLK>> eval(
                 Part.r[0],Part.r[1],Part.r[2],Part.fBall,SPHoptions);
     auto result = EvalTile(tile,eval);
-    Out.corrT += hadd(result.acorrT);
-    Out.corrP += hadd(result.acorrP);
-    Out.corr += hadd(result.acorr);
+    Out.corrT += hadd(result.corrT);
+    Out.corrP += hadd(result.corrP);
+    Out.corr += hadd(result.corr);
 }
 
 template<typename BLOCK> struct ilist::EvalBlock<ResultSPHForces<fvec>,BLOCK> {

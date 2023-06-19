@@ -131,6 +131,11 @@ __device__ __forceinline__ void reduceInteraction(gpu::denCorrResult &out, RESUL
 // Reduction of an SPH force interaction
 template <bool bGravStep,class RESULT>
 __device__ __forceinline__ void reduceInteraction(gpu::sphForceResult &out, RESULT result) {
+    if (threadIdx.x==0) {
+        if (out.dtEst == 0.0f) {
+            atomicAdd(&out.dtEst,1e14f);
+        }
+    }
     warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.uDot,&out.uDot);
     warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.ax,&out.ax);
     warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.ay,&out.ay);
@@ -226,14 +231,160 @@ void MessagePPPC<TILE,N>::finish() {
     freeQueue.enqueue(*this);
 }
 
+template<int N>
+void MessageDen<N>::launch(mdl::Stream &stream,void *pCudaBufIn, void *pCudaBufOut) {
+    typedef gpu::denBlk<N> BLK;
+    auto *pCudaOutput = reinterpret_cast<gpu::denResult *>(pCudaBufOut);
+
+    CUDA_CHECK(cudaMemcpyAsync,(pCudaBufIn, this->pHostBufIn, this->requestBufferCount, cudaMemcpyHostToDevice, stream));
+
+    // The interation blocks
+    auto *__restrict__ blkCuda = reinterpret_cast<BLK *>(pCudaBufIn);
+    // The particle information
+    auto *__restrict__ partCuda = reinterpret_cast<gpu::denInput *>(blkCuda + this->nTotalInteractionBlocks);
+    // The interaction block descriptors
+    auto *__restrict__ wuCuda = reinterpret_cast<gpu::ppWorkUnit *>(partCuda + this->nTotalParticles);
+
+    cudaMemsetAsync(pCudaBufOut,0,this->resultsBufferCount,stream);
+
+    dim3 dimBlock( N, 8, 1 );
+    dim3 dimGrid( this->nGrid, 1,1);
+    cudaInteract<false>
+    <<<dimGrid, dimBlock, sizeof(BLK), stream>>>
+    (wuCuda,partCuda,blkCuda,pCudaOutput );
+
+    CUDA_CHECK(cudaMemcpyAsync,(this->pHostBufOut, pCudaBufOut, this->resultsBufferCount, cudaMemcpyDeviceToHost, stream) );
+}
+
+template<int N>
+void MessageDen<N>::finish() {
+    auto *pR = reinterpret_cast<gpu::denResult *>(this->pHostBufOut);
+
+    for ( auto &w : this->work ) {
+        auto nP = w.wp->nP;
+        auto *pInfoOut = w.wp->pInfoOut;
+        for (auto ip=0; ip<nP; ++ip) {
+            pInfoOut[ip].rho         += pR[ip].rho;
+            pInfoOut[ip].nden        += pR[ip].nden;
+            pInfoOut[ip].dndendfball += pR[ip].dndendfball;
+            pInfoOut[ip].nSmooth     += pR[ip].nSmooth;
+            pInfoOut[ip].imbalanceX  += pR[ip].imbalanceX;
+            pInfoOut[ip].imbalanceY  += pR[ip].imbalanceY;
+            pInfoOut[ip].imbalanceZ  += pR[ip].imbalanceZ;
+        }
+        pR += this->align_nP(nP);
+        pkdParticleWorkDone(w.wp);
+    }
+    this->clear();
+    freeQueue.enqueue(*this);
+}
+
+template<int N>
+void MessageDenCorr<N>::launch(mdl::Stream &stream,void *pCudaBufIn, void *pCudaBufOut) {
+    typedef gpu::denCorrBlk<N> BLK;
+    auto *pCudaOutput = reinterpret_cast<gpu::denCorrResult *>(pCudaBufOut);
+
+    CUDA_CHECK(cudaMemcpyAsync,(pCudaBufIn, this->pHostBufIn, this->requestBufferCount, cudaMemcpyHostToDevice, stream));
+
+    // The interation blocks
+    auto *__restrict__ blkCuda = reinterpret_cast<BLK *>(pCudaBufIn);
+    // The particle information
+    auto *__restrict__ partCuda = reinterpret_cast<gpu::denCorrInput *>(blkCuda + this->nTotalInteractionBlocks);
+    // The interaction block descriptors
+    auto *__restrict__ wuCuda = reinterpret_cast<gpu::ppWorkUnit *>(partCuda + this->nTotalParticles);
+
+    cudaMemsetAsync(pCudaBufOut,0,this->resultsBufferCount,stream);
+
+    dim3 dimBlock( N, 8, 1 );
+    dim3 dimGrid( this->nGrid, 1,1);
+    cudaInteract<false>
+    <<<dimGrid, dimBlock, sizeof(BLK), stream>>>
+    (wuCuda,partCuda,blkCuda,pCudaOutput );
+
+    CUDA_CHECK(cudaMemcpyAsync,(this->pHostBufOut, pCudaBufOut, this->resultsBufferCount, cudaMemcpyDeviceToHost, stream) );
+}
+
+template<int N>
+void MessageDenCorr<N>::finish() {
+    auto *pR = reinterpret_cast<gpu::denCorrResult *>(this->pHostBufOut);
+
+    for ( auto &w : this->work ) {
+        auto nP = w.wp->nP;
+        auto *pInfoOut = w.wp->pInfoOut;
+        for (auto ip=0; ip<nP; ++ip) {
+            pInfoOut[ip].corrT += pR[ip].corrT;
+            pInfoOut[ip].corrP += pR[ip].corrP;
+            pInfoOut[ip].corr  += pR[ip].corr;
+        }
+        pR += this->align_nP(nP);
+        pkdParticleWorkDone(w.wp);
+    }
+    this->clear();
+    freeQueue.enqueue(*this);
+}
+
+template<int N>
+void MessageSPHForce<N>::launch(mdl::Stream &stream,void *pCudaBufIn, void *pCudaBufOut) {
+    typedef gpu::sphForceBlk<N> BLK;
+    auto *pCudaOutput = reinterpret_cast<gpu::sphForceResult *>(pCudaBufOut);
+
+    CUDA_CHECK(cudaMemcpyAsync,(pCudaBufIn, this->pHostBufIn, this->requestBufferCount, cudaMemcpyHostToDevice, stream));
+
+    // The interation blocks
+    auto *__restrict__ blkCuda = reinterpret_cast<BLK *>(pCudaBufIn);
+    // The particle information
+    auto *__restrict__ partCuda = reinterpret_cast<gpu::sphForceInput *>(blkCuda + this->nTotalInteractionBlocks);
+    // The interaction block descriptors
+    auto *__restrict__ wuCuda = reinterpret_cast<gpu::ppWorkUnit *>(partCuda + this->nTotalParticles);
+
+    cudaMemsetAsync(pCudaBufOut,0,this->resultsBufferCount,stream);
+
+    dim3 dimBlock( N, 8, 1 );
+    dim3 dimGrid( this->nGrid, 1,1);
+    cudaInteract<false>
+    <<<dimGrid, dimBlock, sizeof(BLK), stream>>>
+    (wuCuda,partCuda,blkCuda,pCudaOutput );
+
+    CUDA_CHECK(cudaMemcpyAsync,(this->pHostBufOut, pCudaBufOut, this->resultsBufferCount, cudaMemcpyDeviceToHost, stream) );
+}
+
+template<int N>
+void MessageSPHForce<N>::finish() {
+    auto *pR = reinterpret_cast<gpu::sphForceResult *>(this->pHostBufOut);
+
+    for ( auto &w : this->work ) {
+        auto nP = w.wp->nP;
+        auto *pInfoOut = w.wp->pInfoOut;
+        for (auto ip=0; ip<nP; ++ip) {
+            pInfoOut[ip].uDot   += pR[ip].uDot;
+            pInfoOut[ip].a[0]   += pR[ip].ax;
+            pInfoOut[ip].a[1]   += pR[ip].ay;
+            pInfoOut[ip].a[2]   += pR[ip].az;
+            pInfoOut[ip].divv   += pR[ip].divv;
+            pInfoOut[ip].dtEst   = std::min(pInfoOut[ip].dtEst,pR[ip].dtEst);
+            pInfoOut[ip].maxRung = std::max(pInfoOut[ip].maxRung,pR[ip].maxRung);
+        }
+        pR += this->align_nP(nP);
+        pkdParticleWorkDone(w.wp);
+    }
+    this->clear();
+    freeQueue.enqueue(*this);
+}
+
 /*****************************************************************************\
 *   Explicit instantiation for methods we need elsewhere
 \*****************************************************************************/
 
 template void MessagePP::finish();
 template void MessagePC::finish();
+template void MessageDen<32>::finish();
+template void MessageDenCorr<32>::finish();
+template void MessageSPHForce<32>::finish();
 template void MessagePP::launch(mdl::Stream &stream,void *pCudaBufIn, void *pCudaBufOut);
 template void MessagePC::launch(mdl::Stream &stream,void *pCudaBufIn, void *pCudaBufOut);
+template void MessageDen<32>::launch(mdl::Stream &stream,void *pCudaBufIn, void *pCudaBufOut);
+template void MessageDenCorr<32>::launch(mdl::Stream &stream,void *pCudaBufIn, void *pCudaBufOut);
+template void MessageSPHForce<32>::launch(mdl::Stream &stream,void *pCudaBufIn, void *pCudaBufOut);
 
 /*
 ** This has to live here currently, but will be moved out later.
