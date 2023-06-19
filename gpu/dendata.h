@@ -112,11 +112,11 @@ public:
 
             // Copy in nP particles
             for (auto j=0; j<nP; ++j) {
-                partHost[j].dx    =  pInfoIn[j].r[0];
-                partHost[j].dy    =  pInfoIn[j].r[1];
-                partHost[j].dz    =  pInfoIn[j].r[2];
-                partHost[j].fBall =  pInfoIn[j].fBall;
-                partHost[j].iMat  =  pInfoIn[j].iMat;
+                partHost[j].dx    = pInfoIn[j].r[0];
+                partHost[j].dy    = pInfoIn[j].r[1];
+                partHost[j].dz    = pInfoIn[j].r[2];
+                partHost[j].fBall = pInfoIn[j].fBall;
+                partHost[j].iMat  = pInfoIn[j].iMat;
             }
             nP = align_nP(nP);
             partHost += nP;

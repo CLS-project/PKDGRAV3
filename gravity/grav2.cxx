@@ -146,7 +146,7 @@ void pkdParticleWorkDone(workParticle *wp) {
                         wp->pInfoIn[i].fBall = newfBall;
                     }
                 }
-                wp->nRefs = 1;
+                ++wp->nRefs;
                 queueDensity(pkd, wp, *wp->ilp, wp->bGravStep, wp->bGPU);
                 pkdParticleWorkDone(wp);
                 return;
@@ -489,12 +489,12 @@ static void queueDensity( PKD pkd, workParticle *wp, ilpList &ilp, int bGravStep
         wp->pInfoOut[i].imbalanceZ = 0.0f;
     }
     for ( auto &tile : ilp ) {
-        for (auto i=0; i<wp->nP; ++i) {
-            if (bGPU) {
+        if (bGPU) {
 #ifdef USE_CUDA
-                if (pkd->cudaClient->queueDen(wp,tile,bGravStep)) continue;
+            if (pkd->cudaClient->queueDen(wp,tile,bGravStep)) continue;
 #endif
-            }
+        }
+        for (auto i=0; i<wp->nP; ++i) {
             pkdDensityEval(wp->pInfoIn[i],tile,wp->pInfoOut[i],wp->SPHoptions);
         }
     }
@@ -502,12 +502,12 @@ static void queueDensity( PKD pkd, workParticle *wp, ilpList &ilp, int bGravStep
 
 static void queueDensityCorrection( PKD pkd, workParticle *wp, ilpList &ilp, int bGravStep, bool bGPU=true) {
     for ( auto &tile : ilp ) {
-        for (auto i=0; i<wp->nP; ++i) {
-            if (bGPU) {
+        if (bGPU) {
 #ifdef USE_CUDA
-                if (pkd->cudaClient->queueDenCorr(wp,tile,bGravStep)) continue;
+            if (pkd->cudaClient->queueDenCorr(wp,tile,bGravStep)) continue;
 #endif
-            }
+        }
+        for (auto i=0; i<wp->nP; ++i) {
             pkdDensityCorrectionEval(wp->pInfoIn[i],tile,wp->pInfoOut[i],wp->SPHoptions);
         }
     }
@@ -515,12 +515,12 @@ static void queueDensityCorrection( PKD pkd, workParticle *wp, ilpList &ilp, int
 
 static void queueSPHForces( PKD pkd, workParticle *wp, ilpList &ilp, int bGravStep, bool bGPU=true) {
     for ( auto &tile : ilp ) {
-        for (auto i=0; i<wp->nP; ++i) {
-            if (bGPU) {
+        if (bGPU) {
 #ifdef USE_CUDA
-                if (pkd->cudaClient->queueSPHForce(wp,tile,bGravStep)) continue;
+            if (pkd->cudaClient->queueSPHForce(wp,tile,bGravStep)) continue;
 #endif
-            }
+        }
+        for (auto i=0; i<wp->nP; ++i) {
             pkdSPHForcesEval(wp->pInfoIn[i],tile,wp->pInfoOut[i],wp->SPHoptions);
         }
     }
@@ -767,7 +767,7 @@ int pkdGravInteract(PKD pkd,
             wp->pInfoOut[nP].imbalanceZ = 0.0f;
             wp->pInfoOut[nP].uDot = 0.0f;
             wp->pInfoOut[nP].divv = 0.0f;
-            wp->pInfoOut[nP].dtEst = HUGE_VALF;
+            wp->pInfoOut[nP].dtEst = 1e14f;
             wp->pInfoOut[nP].maxRung = 0.0f;
             wp->pInfoOut[nP].corrT = 0.0f;
             wp->pInfoOut[nP].corrP = 0.0f;
