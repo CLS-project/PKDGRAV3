@@ -162,12 +162,15 @@ void hydroGradients(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     /* Now we can limit them */
 
     // First step, compute the maximum and minimum difference of each variable
-    rho_min= vx_min= vy_min= vz_min= p_min =  HUGE_VAL;
-    rho_max= vx_max= vy_max= vz_max= p_max = -HUGE_VAL;
+    rho_min = rho_max = p.density();
+    vx_min = vx_max = pv[0];
+    vy_min = vy_max = pv[1];
+    vz_min = vz_max = pv[2];
+    p_min = p_max = psph.P;
 
 
     for (auto i = 0; i < nSmooth; ++i) {
-//        if (pIn == nnList[i].pPart) continue;
+        if (pIn == nnList[i].pPart) continue;
         auto q = pkd->particles[nnList[i].pPart];
         auto &qsph = q.sph();
         const auto &qv = q.velocity();
