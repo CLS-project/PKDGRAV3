@@ -488,6 +488,8 @@ public:
     double dFlop;
     double dFlopSingleCPU, dFlopDoubleCPU;
     double dFlopSingleGPU, dFlopDoubleGPU;
+    int nWpPending;
+    uint64_t nTilesTotal, nTilesCPU;
     /*
     ** Opening angle table for mass weighting.
     */

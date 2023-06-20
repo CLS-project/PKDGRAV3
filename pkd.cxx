@@ -1990,10 +1990,15 @@ void pkdGravAll(PKD pkd,
     dCellSum = 0.0;
     pkd->dFlopSingleCPU = pkd->dFlopDoubleCPU = 0.0;
     pkd->dFlopSingleGPU = pkd->dFlopDoubleGPU = 0.0;
+    pkd->nWpPending = 0;
+    pkd->nTilesTotal = 0;
+    pkd->nTilesCPU = 0;
 
     *pnActive = pkdGravWalk(pkd,kick,lc,ts,
                             dTime,nReps,bPeriodic && bEwald,bGPU,
                             iRoot1,iRoot2,0,dThetaMin,pdFlop,&dPartSum,&dCellSum,SPHoptions);
+
+    printf("Thread %d: Pending WPs = %d\n",pkd->Self(),pkd->nWpPending);
 
     if (SPHoptions->doExtensiveILPTest && (SPHoptions->doSetDensityFlags || SPHoptions->doSetNNflags)) {
         mdlFlushCache(pkd->mdl,CID_PARTICLE);
