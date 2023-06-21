@@ -616,7 +616,11 @@ doneCheckList:
         ** but also flush the queues repeatedly.
         ** Once this while loop exits, ALL density work has been done.
         */
-        while (pkd->mdl->gpu.flushCompleted()) pkd->cudaClient->flushCUDA();
+        // while (pkd->mdl->gpu.flushCompleted()) pkd->cudaClient->flushCUDA();
+        while (pkd->nWpPending) {
+            pkd->mdl->gpu.flushCompleted();
+            pkd->cudaClient->flushCUDA();
+        }
     }
 #endif
 #ifdef USE_METAL
