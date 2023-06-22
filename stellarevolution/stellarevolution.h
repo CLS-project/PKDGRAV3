@@ -87,10 +87,10 @@ struct stevPack {
 
 
 struct stevFlush {
-    float afReceivedMom[3];
+    blitz::TinyVector<float,3> ReceivedMom;
     float fReceivedMass;
     float fReceivedE;
-    float afElemMass[ELEMENT_COUNT];
+    blitz::TinyVector<float,ELEMENT_COUNT> ElemMass;
     float fMetalMass;
 };
 

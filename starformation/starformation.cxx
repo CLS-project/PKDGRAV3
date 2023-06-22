@@ -205,10 +205,9 @@ void pkdStarForm(PKD pkd,
             // Star formation event?
             if (rand()<RAND_MAX*prob) {
 #ifdef STELLAR_EVOLUTION
-                float afElemMass[ELEMENT_COUNT];
+                blitz::TinyVector<float,ELEMENT_COUNT> ElemMass;
                 float fMetalMass;
-                for (auto i = 0; i < ELEMENT_COUNT; ++i)
-                    afElemMass[i] = sph.afElemMass[i];
+                ElemMass = sph.ElemMass;
                 fMetalMass = sph.fMetalMass;
 #endif
 
@@ -226,8 +225,7 @@ void pkdStarForm(PKD pkd,
 
 #ifdef STELLAR_EVOLUTION
                 const float fMassInv = 1.0f / mass;
-                for (auto i = 0; i < ELEMENT_COUNT; ++i)
-                    star.afElemAbun[i] = afElemMass[i] * fMassInv;
+                star.ElemAbun = ElemMass * fMassInv;
                 star.fMetalAbun = fMetalMass * fMassInv;
 
                 star.fInitialMass = mass;

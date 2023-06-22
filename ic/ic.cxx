@@ -530,30 +530,30 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
                 double u = in->dInitialT * in->dTuFac;
                 assert(pkd->particles.present(PKD_FIELD::oSph));
                 auto &Sph = pgas.sph();
-                Sph.afElemMass[ELEMENT_H]  = in->dInitialH  * fGasMass;
+                Sph.ElemMass[ELEMENT_H]  = in->dInitialH  * fGasMass;
 #ifdef HAVE_HELIUM
-                Sph.afElemMass[ELEMENT_He] = in->dInitialHe * fGasMass;
+                Sph.ElemMass[ELEMENT_He] = in->dInitialHe * fGasMass;
 #endif
 #ifdef HAVE_CARBON
-                Sph.afElemMass[ELEMENT_C]  = in->dInitialC  * fGasMass;
+                Sph.ElemMass[ELEMENT_C]  = in->dInitialC  * fGasMass;
 #endif
 #ifdef HAVE_NITROGEN
-                Sph.afElemMass[ELEMENT_N]  = in->dInitialN  * fGasMass;
+                Sph.ElemMass[ELEMENT_N]  = in->dInitialN  * fGasMass;
 #endif
 #ifdef HAVE_OXYGEN
-                Sph.afElemMass[ELEMENT_O]  = in->dInitialO  * fGasMass;
+                Sph.ElemMass[ELEMENT_O]  = in->dInitialO  * fGasMass;
 #endif
 #ifdef HAVE_NEON
-                Sph.afElemMass[ELEMENT_Ne] = in->dInitialNe * fGasMass;
+                Sph.ElemMass[ELEMENT_Ne] = in->dInitialNe * fGasMass;
 #endif
 #ifdef HAVE_MAGNESIUM
-                Sph.afElemMass[ELEMENT_Mg] = in->dInitialMg * fGasMass;
+                Sph.ElemMass[ELEMENT_Mg] = in->dInitialMg * fGasMass;
 #endif
 #ifdef HAVE_SILICON
-                Sph.afElemMass[ELEMENT_Si] = in->dInitialSi * fGasMass;
+                Sph.ElemMass[ELEMENT_Si] = in->dInitialSi * fGasMass;
 #endif
 #ifdef HAVE_IRON
-                Sph.afElemMass[ELEMENT_Fe] = in->dInitialFe * fGasMass;
+                Sph.ElemMass[ELEMENT_Fe] = in->dInitialFe * fGasMass;
 #endif
 #ifdef HAVE_METALLICITY
                 Sph.fMetalMass = in->dInitialMetallicity * fGasMass;

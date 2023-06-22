@@ -571,7 +571,7 @@ void cooling_cool_part(PKD pkd,
     abundance_ratio_to_solar(psph, fMass, cooling, abundance_ratio);
 
     /* Get the Hydrogen and Helium mass fractions */
-    const float *const elem_mass = psph->afElemMass;
+    const auto &elem_mass = psph->ElemMass;
     //chemistry_get_metal_mass_fraction_for_cooling(p);
     const float XH = elem_mass[ELEMENT_H] / fMass;
     const float XHe = elem_mass[ELEMENT_He] / fMass;
@@ -734,7 +734,7 @@ float cooling_get_temperature(PKD pkd, const float redshift,
     //printf("u_cgs %e \n", u_cgs);
 
     /* Get the Hydrogen and Helium mass fractions */
-    const float *const elem_mass = psph->afElemMass;
+    const auto &elem_mass = psph->ElemMass;
     //chemistry_get_metal_mass_fraction_for_cooling(p);
     const float XH = elem_mass[ELEMENT_H] / fMass;
     const float XHe = elem_mass[ELEMENT_He] / fMass;
@@ -819,7 +819,7 @@ void cooling_Hydrogen_reionization(PKD pkd) {
             const double old_u = sph.Uint ;
 
             /* IA: Mass in hydrogen */
-            const double extra_heat = extra_heat_per_proton * sph.afElemMass[ELEMENT_H];
+            const double extra_heat = extra_heat_per_proton * sph.ElemMass[ELEMENT_H];
             const double new_u = old_u + extra_heat;
 
             //printf("Applying extra energy for H reionization! U=%e dU=%e \n", old_u, extra_heat);

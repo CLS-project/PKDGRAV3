@@ -8,6 +8,8 @@
 #include "imf.h"
 #include "hydro/hydro.h"
 
+using blitz::TinyVector;
+
 
 void MSR::SetStellarEvolutionParam() {
     const double dYrToTime = SECONDSPERYEAR / param.units.dSecUnit;
@@ -186,8 +188,7 @@ int pkdStellarEvolutionInit(PKD pkd, struct inStellarEvolutionInit *in) {
         }
         else if (p.is_gas()) {
             auto &sph = p.sph();
-            for (auto j = 0; j < 3; ++j)
-                sph.afReceivedMom[j] = 0.0f;
+            sph.ReceivedMom = 0.0f;
             sph.fReceivedMass = 0.0f;
             sph.fReceivedE = 0.0f;
         }
@@ -201,8 +202,7 @@ void pkdAddStellarEjecta(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS
                          const double dConstGamma) {
     const double dOldEkin = blitz::dot(sph.mom, sph.mom) / (2.0 * p.mass());
 
-    for (auto i = 0; i < 3; ++i)
-        sph.mom[i] += sph.afReceivedMom[i];
+    sph.mom += sph.ReceivedMom;
     p.set_mass(p.mass() + sph.fReceivedMass);
     sph.E += sph.fReceivedE;
 
@@ -217,8 +217,7 @@ void pkdAddStellarEjecta(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS
 #endif
     }
 
-    for (auto i = 0; i < 3; ++i)
-        sph.afReceivedMom[i] = 0.0f;
+    sph.ReceivedMom = 0.0f;
     sph.fReceivedMass = 0.0f;
     sph.fReceivedE = 0.0f;
 }
@@ -255,13 +254,11 @@ void initChemEnrich(void *vpkd, void *dst) {
     if (p.is_gas()) {
         auto &sph = p.sph();
 
-        for (auto i = 0; i < 3; ++i)
-            sph.afReceivedMom[i] = 0.0f;
+        sph.ReceivedMom = 0.0f;
         sph.fReceivedMass = 0.0f;
         sph.fReceivedE = 0.0f;
 
-        for (auto i = 0; i < ELEMENT_COUNT; ++i)
-            sph.afElemMass[i] = 0.0f;
+        sph.ElemMass = 0.0f;
         sph.fMetalMass = 0.0f;
     }
 }
@@ -274,13 +271,11 @@ void flushChemEnrich(void *vpkd, void *dst, const void *src) {
     if (p2.is_gas()) {
         const auto &sph = p2.sph();
 
-        for (auto i = 0; i < 3; ++i)
-            p1->afReceivedMom[i] = sph.afReceivedMom[i];
+        p1->ReceivedMom = sph.ReceivedMom;
         p1->fReceivedMass = sph.fReceivedMass;
         p1->fReceivedE = sph.fReceivedE;
 
-        for (auto i = 0; i < ELEMENT_COUNT; ++i)
-            p1->afElemMass[i] = sph.afElemMass[i];
+        p1->ElemMass = sph.ElemMass;
         p1->fMetalMass = sph.fMetalMass;
     }
 }
@@ -293,13 +288,11 @@ void combChemEnrich(void *vpkd, void *dst, const void *src) {
     if (p1.is_gas()) {
         auto &sph = p1.sph();
 
-        for (auto i = 0; i < 3; ++i)
-            sph.afReceivedMom[i] += p2->afReceivedMom[i];
+        sph.ReceivedMom += p2->ReceivedMom;
         sph.fReceivedMass += p2->fReceivedMass;
         sph.fReceivedE += p2->fReceivedE;
 
-        for (auto i = 0; i < ELEMENT_COUNT; ++i)
-            sph.afElemMass[i] += p2->afElemMass[i];
+        sph.ElemMass += p2->ElemMass;
         sph.fMetalMass += p2->fMetalMass;
     }
 }
@@ -342,11 +335,8 @@ void smChemEnrich(PARTICLE *pIn, float fBall, int nSmooth, NN *nnList, SMF *smf)
        Since this multiplication must always be made, it is done once and for all in
        the function stevStarParticleInit. */
 
-    float afElemMass[ELEMENT_COUNT];
-    float fMetalMass;
-    for (auto i = 0; i < ELEMENT_COUNT; ++i)
-        afElemMass[i] = 0.0f;
-    fMetalMass = 0.0f;
+    TinyVector<float,ELEMENT_COUNT> ElemMass{0.0f};
+    float fMetalMass{0.0f};
 
     const float fTransMass = smf->dCCSNMinMass;
     if (fFinalMass > fTransMass) {
@@ -358,9 +348,9 @@ void smChemEnrich(PARTICLE *pIn, float fBall, int nSmooth, NN *nnList, SMF *smf)
                                pkd->StelEvolData->afIMFLogWeight,
                                pkd->StelEvolData->fDeltaLogMass,
                                STEV_CCSN_N_METALLICITY, STEV_INTERP_N_MASS, ELEMENT_COUNT,
-                               star.afElemAbun, star.fMetalAbun, iFinalMass, iInitialMass,
+                               star.ElemAbun.data(), star.fMetalAbun, iFinalMass, iInitialMass,
                                fFinalMass, fInitialMass, star.CCSN.oZ, star.CCSN.fDeltaZ,
-                               afElemMass, &fMetalMass);
+                               ElemMass.data(), &fMetalMass);
     }
     else if (fInitialMass < fTransMass) {
         /* AGB only */
@@ -371,9 +361,9 @@ void smChemEnrich(PARTICLE *pIn, float fBall, int nSmooth, NN *nnList, SMF *smf)
                                pkd->StelEvolData->afIMFLogWeight,
                                pkd->StelEvolData->fDeltaLogMass,
                                STEV_AGB_N_METALLICITY, STEV_INTERP_N_MASS, ELEMENT_COUNT,
-                               star.afElemAbun, star.fMetalAbun, iFinalMass, iInitialMass,
+                               star.ElemAbun.data(), star.fMetalAbun, iFinalMass, iInitialMass,
                                fFinalMass, fInitialMass, star.AGB.oZ, star.AGB.fDeltaZ,
-                               afElemMass, &fMetalMass);
+                               ElemMass.data(), &fMetalMass);
     }
     else {
         /* Mixed CCSN and AGB */
@@ -387,9 +377,9 @@ void smChemEnrich(PARTICLE *pIn, float fBall, int nSmooth, NN *nnList, SMF *smf)
                                pkd->StelEvolData->afIMFLogWeight,
                                pkd->StelEvolData->fDeltaLogMass,
                                STEV_CCSN_N_METALLICITY, STEV_INTERP_N_MASS, ELEMENT_COUNT,
-                               star.afElemAbun, star.fMetalAbun, iTransMass, iInitialMass,
+                               star.ElemAbun.data(), star.fMetalAbun, iTransMass, iInitialMass,
                                fTransMass, fInitialMass, star.CCSN.oZ, star.CCSN.fDeltaZ,
-                               afElemMass, &fMetalMass);
+                               ElemMass.data(), &fMetalMass);
 
         ++iTransMass;
         stevComputeMassToEject(pkd->StelEvolData->afAGBYield,
@@ -399,21 +389,21 @@ void smChemEnrich(PARTICLE *pIn, float fBall, int nSmooth, NN *nnList, SMF *smf)
                                pkd->StelEvolData->afIMFLogWeight,
                                pkd->StelEvolData->fDeltaLogMass,
                                STEV_AGB_N_METALLICITY, STEV_INTERP_N_MASS, ELEMENT_COUNT,
-                               star.afElemAbun, star.fMetalAbun, iFinalMass, iTransMass,
+                               star.ElemAbun.data(), star.fMetalAbun, iFinalMass, iTransMass,
                                fFinalMass, fTransMass, star.AGB.oZ, star.AGB.fDeltaZ,
-                               afElemMass, &fMetalMass);
+                               ElemMass.data(), &fMetalMass);
     }
 
     const float fNumSNIa = (*pkd->StelEvolData->fcnNumSNIa)(smf, star, fInitialTime, fFinalTime);
     for (auto i = 0; i < ELEMENT_COUNT; ++i) {
-        afElemMass[i] += fNumSNIa * pkd->StelEvolData->afSNIaEjectedMass[i];
-        afElemMass[i] *= star.fInitialMass;
+        ElemMass[i] += fNumSNIa * pkd->StelEvolData->afSNIaEjectedMass[i];
     }
+    ElemMass *= star.fInitialMass;
     fMetalMass += fNumSNIa * pkd->StelEvolData->fSNIaEjectedMetalMass;
     fMetalMass *= star.fInitialMass;
 
 
-    const float fTotalMass = afElemMass[ELEMENT_H] + afElemMass[ELEMENT_He] + fMetalMass;
+    const float fTotalMass = ElemMass[ELEMENT_H] + ElemMass[ELEMENT_He] + fMetalMass;
     star.fNextEnrichTime = stevComputeNextEnrichTime(smf->dTime, star.fInitialMass,
                            fTotalMass, fFinalTime - fInitialTime);
     p.set_mass(p.mass() - fTotalMass);
@@ -449,13 +439,11 @@ void smChemEnrich(PARTICLE *pIn, float fBall, int nSmooth, NN *nnList, SMF *smf)
         const float fDeltaMass = fWeights[i] * fTotalMass;
         auto &qsph = q.sph();
 
-        for (auto j = 0; j < 3; ++j)
-            qsph.afReceivedMom[j] += fDeltaMass * StarVel[j] * fScaleFactorInv;
+        qsph.ReceivedMom += fDeltaMass * StarVel * fScaleFactorInv;
         qsph.fReceivedMass += fDeltaMass;
         qsph.fReceivedE += fWeights[i] * fStarEjEnergy;
 
-        for (auto j = 0; j < ELEMENT_COUNT; ++j)
-            qsph.afElemMass[j] += fWeights[i] * afElemMass[j];
+        qsph.ElemMass += fWeights[i] * ElemMass;
         qsph.fMetalMass += fWeights[i] * fMetalMass;
     }
 }
