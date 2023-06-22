@@ -31,6 +31,10 @@ void MSR::SetStellarEvolutionParam() {
     }
 
     param.dWindSpecificEkin = 0.5 * pow(param.dStellarWindSpeed / param.units.dKmPerSecUnit, 2);
+    /* The number of gas particles to enrich is set to the average number of
+       neighbours within a smoothing length. The factor 0.5 comes from the cubic
+       spline kernel used by the hydro */
+    param.nSmoothEnrich = 0.5 * param.nSmooth;
 }
 
 
@@ -403,48 +407,41 @@ void smChemEnrich(PARTICLE *pIn, float fBall, int nSmooth, NN *nnList, SMF *smf)
     fMetalMass *= star.fInitialMass;
 
 
-    const float fTotalMass = ElemMass[ELEMENT_H] + ElemMass[ELEMENT_He] + fMetalMass;
+    const double dTotalMass = (double)ElemMass[ELEMENT_H] + ElemMass[ELEMENT_He] +
+                              fMetalMass;
     star.fNextEnrichTime = stevComputeNextEnrichTime(smf->dTime, star.fInitialMass,
-                           fTotalMass, fFinalTime - fInitialTime);
-    p.set_mass(p.mass() - fTotalMass);
+                           dTotalMass, fFinalTime - fInitialTime);
+    p.set_mass(p.mass() - dTotalMass);
     assert(p.mass() > 0.0f);
 
 
-    const float fScaleFactorInv = 1.0 / csmTime2Exp(pkd->csm, smf->dTime);
-    const float fScaleFactorInvSq = fScaleFactorInv * fScaleFactorInv;
+    const double dScaleFactorInv = 1.0 / csmTime2Exp(pkd->csm, smf->dTime);
+    const double dScaleFactorInvSq = dScaleFactorInv * dScaleFactorInv;
     const auto &StarVel = p.velocity();
 
-    const float fStarDeltaEkin = 0.5f * fTotalMass * blitz::dot(StarVel,StarVel);
-    const float fWindEkin = (float)smf->dWindSpecificEkin * fTotalMass;
-    const float fStarEjEnergy = fStarDeltaEkin * fScaleFactorInvSq + fWindEkin;
+    const double dStarDeltaEkin = 0.5 * dTotalMass * blitz::dot(StarVel,StarVel);
+    const double dWindEkin = smf->dWindSpecificEkin * dTotalMass;
+    const double dStarEjEnergy = dStarDeltaEkin * dScaleFactorInvSq + dWindEkin;
 
 
-    float fWeights[nSmooth];
-    float fNormFactor = 0.0f;
-    for (auto i = 0; i < nSmooth; ++i) {
-        if (nnList[i].pPart == pIn) continue;
-        auto q = pkd->particles[nnList[i].pPart];
+    const double dWeight = 1.0 / nSmooth;
+    const double dDeltaMass = dWeight * dTotalMass;
+    const double dDeltaE = dWeight * dStarEjEnergy;
 
-        const double dRpq = sqrt(nnList[i].fDist2);
-        fWeights[i] = cubicSplineKernel(dRpq, 0.5*fBall) / q.density();
-        fNormFactor += fWeights[i];
-    }
-    fNormFactor = 1.0f / fNormFactor;
+    ElemMass *= dWeight;
+    fMetalMass *= dWeight;
 
     for (auto i = 0; i < nSmooth; ++i) {
-        if (nnList[i].pPart == pIn) continue;
         auto q = pkd->particles[nnList[i].pPart];
-
-        fWeights[i] *= fNormFactor;
-        const float fDeltaMass = fWeights[i] * fTotalMass;
+        assert(q.is_gas());
         auto &qsph = q.sph();
 
-        qsph.ReceivedMom += fDeltaMass * StarVel * fScaleFactorInv;
-        qsph.fReceivedMass += fDeltaMass;
-        qsph.fReceivedE += fWeights[i] * fStarEjEnergy;
+        qsph.ReceivedMom += dDeltaMass * StarVel * dScaleFactorInv;
+        qsph.fReceivedMass += dDeltaMass;
+        qsph.fReceivedE += dDeltaE;
 
-        qsph.ElemMass += fWeights[i] * ElemMass;
-        qsph.fMetalMass += fWeights[i] * fMetalMass;
+        qsph.ElemMass += ElemMass;
+        qsph.fMetalMass += fMetalMass;
     }
 }
 

@@ -312,6 +312,7 @@ struct parameters {
     char achStelEvolPath[256];
     char achSNIaDTDType[32];
     int bChemEnrich;
+    int nSmoothEnrich;
     double dWindSpecificEkin;
     double dSNIaNorm;
     double dSNIaScale;

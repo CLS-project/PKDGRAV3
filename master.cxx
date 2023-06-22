@@ -4367,12 +4367,12 @@ int MSR::NewTopStepKDK(
     ActiveRung(uRung,0);
 #ifdef FEEDBACK
     if (param.bCCSNFeedback || param.bSNIaFeedback) {
-        Smooth(dTime,dDelta,SMX_SN_FEEDBACK,1, param.nSmooth);
+        Smooth(dTime,dDelta,SMX_SN_FEEDBACK,1,param.nSmooth);
     }
 #endif
 #ifdef STELLAR_EVOLUTION
     if (param.bChemEnrich) {
-        Smooth(dTime,dDelta,SMX_CHEM_ENRICHMENT,1, param.nSmooth);
+        Smooth(dTime,dDelta,SMX_CHEM_ENRICHMENT,1,param.nSmoothEnrich);
     }
 #endif
 #endif
@@ -4557,7 +4557,7 @@ void MSR::TopStepKDK(
 
         TimerStart(TIMER_FEEDBACK);
         if (param.bCCSNFeedback || param.bSNIaFeedback) {
-            Smooth(dTime,dDeltaStep,SMX_SN_FEEDBACK,1, param.nSmooth);
+            Smooth(dTime,dDeltaStep,SMX_SN_FEEDBACK,1,param.nSmooth);
         }
         TimerStop(TIMER_FEEDBACK);
         dsec = TimerGet(TIMER_FEEDBACK);
@@ -4567,7 +4567,7 @@ void MSR::TopStepKDK(
         printf("Computing stellar evolution... ");
         TimerStart(TIMER_STEV);
         if (param.bChemEnrich) {
-            Smooth(dTime,dDeltaStep,SMX_CHEM_ENRICHMENT,1, param.nSmooth);
+            Smooth(dTime,dDeltaStep,SMX_CHEM_ENRICHMENT,1,param.nSmoothEnrich);
         }
         TimerStop(TIMER_STEV);
         dsec = TimerGet(TIMER_STEV);
