@@ -480,6 +480,16 @@ static void queuePP( PKD pkd, workParticle *wp, ilpList &ilp, int bGravStep, boo
 }
 
 static void queueDensity( PKD pkd, workParticle *wp, ilpList &ilp, int bGravStep, bool bGPU=true) {
+#ifdef USE_CUDA
+    if (!pkd->cudaClient->wpslock) {
+        pkd->cudaClient->wpslock = 1;
+        while (!pkd->cudaClient->wps.empty()) {
+            pkdParticleWorkDone(pkd->cudaClient->wps.front());
+            pkd->cudaClient->wps.pop();
+        }
+        pkd->cudaClient->wpslock = 0;
+    }
+#endif
     wp->bGravStep = bGravStep;
     for ( int i=0; i<wp->nP; i++ ) {
         wp->pInfoOut[i].rho = 0.0f;

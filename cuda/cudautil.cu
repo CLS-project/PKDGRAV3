@@ -54,11 +54,11 @@
 
 CudaClient::CudaClient( mdl::CUDA &cuda, mdl::gpu::Client &gpu) : cuda(cuda), gpu(gpu), ewald(nullptr), pp(nullptr), pc(nullptr), den(nullptr), denCorr(nullptr), sphForce(nullptr) {
     if (cuda.isActive()) {
-        for (int i=0 ; i < 1 ; ++i) {
+        for (int i=0 ; i < 2 ; ++i) {
             freeEwald.enqueue(new MessageEwald(*this));
             freePP.enqueue(new MessagePP(freePP));
             freePC.enqueue(new MessagePC(freePC));
-            freeDen.enqueue(new MessageDen(freeDen));
+            freeDen.enqueue(new MessageDen(freeDen, &this->wps, &this->wpslock));
             freeDenCorr.enqueue(new MessageDenCorr(freeDenCorr));
             freeSPHForce.enqueue(new MessageSPHForce(freeSPHForce));
         }

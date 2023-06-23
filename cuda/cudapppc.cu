@@ -260,7 +260,6 @@ void MessageDen<N>::launch(mdl::Stream &stream,void *pCudaBufIn, void *pCudaBufO
 template<int N>
 void MessageDen<N>::finish() {
     auto *pR = reinterpret_cast<gpu::denResult *>(this->pHostBufOut);
-    std::queue<workParticle *> wps;
 
     for ( auto &w : this->work ) {
         auto nP = w.wp->nP;
@@ -277,14 +276,10 @@ void MessageDen<N>::finish() {
         }
         pR += this->align_nP(nP);
         // pkdParticleWorkDone(w.wp);
-        wps.push(w.wp);
+        this->wps->push(w.wp);
     }
     this->clear();
     freeQueue.enqueue(*this);
-    while (!wps.empty()) {
-        pkdParticleWorkDone(wps.front());
-        wps.pop();
-    }
 }
 
 template<int N>

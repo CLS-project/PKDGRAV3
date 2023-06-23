@@ -1993,12 +1993,13 @@ void pkdGravAll(PKD pkd,
     pkd->nWpPending = 0;
     pkd->nTilesTotal = 0;
     pkd->nTilesCPU = 0;
+    pkd->cudaClient->wpslock = 0;
 
     *pnActive = pkdGravWalk(pkd,kick,lc,ts,
                             dTime,nReps,bPeriodic && bEwald,bGPU,
                             iRoot1,iRoot2,0,dThetaMin,pdFlop,&dPartSum,&dCellSum,SPHoptions);
 
-    printf("Thread %d: Pending WPs = %d\n",pkd->Self(),pkd->nWpPending);
+    assert(pkd->nWpPending == 0);
 
     if (SPHoptions->doExtensiveILPTest && (SPHoptions->doSetDensityFlags || SPHoptions->doSetNNflags)) {
         mdlFlushCache(pkd->mdl,CID_PARTICLE);

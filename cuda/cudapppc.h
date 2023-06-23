@@ -24,6 +24,7 @@
 #include "gpu/dencorrdata.h"
 #include "gpu/sphforcedata.h"
 #include "check.h"
+#include <queue>
 
 template<class TILE,int WIDTH=32>
 class MessagePPPC : public mdl::cudaMessage, public gpu::pppcData<TILE,WIDTH> {
@@ -57,8 +58,10 @@ protected:
     virtual void launch(mdl::Stream &stream,void *pCudaBufIn, void *pCudaBufOut) override;
     virtual void finish() override;
 public:
-    explicit MessageDen(mdl::messageQueue<MessageDen> &freeQueue)
-        : freeQueue(freeQueue) {
+    std::queue<workParticle *> *wps;
+    int *wpslock;
+    explicit MessageDen(mdl::messageQueue<MessageDen> &freeQueue, std::queue<workParticle *> *wps, int *wpslock)
+        : freeQueue(freeQueue), wps(wps), wpslock(wpslock) {
         // For CUDA we want to "pin" the host memory for optimal performance
         CUDA_CHECK(cudaHostRegister,(this->pHostBufIn, this->requestBufferSize, cudaHostRegisterPortable));
         CUDA_CHECK(cudaHostRegister,(this->pHostBufOut,this->resultsBufferSize, cudaHostRegisterPortable));

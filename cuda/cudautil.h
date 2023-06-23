@@ -34,6 +34,7 @@
 #include "gpu/sphforcedata.h"
 #include "cudapppc.h"
 #include "SPH/SPHOptions.h"
+#include <queue>
 
 class MessageEwald : public mdl::cudaMessage,public gpu::hostData {
 protected:
@@ -110,6 +111,8 @@ protected:
         }
     }
 public:
+    std::queue<workParticle *> wps;
+    int wpslock;
     explicit CudaClient( mdl::CUDA &cuda, mdl::gpu::Client &gpu);
     void flushCUDA();
     int queuePP(workParticle *work, ilpTile &tile, bool bGravStep) {
