@@ -1,5 +1,6 @@
 from libc.stdlib cimport malloc, free
 cimport cosmo
+cimport numpy as np
 from math import sqrt,pi
 
 cdef extern from "Python.h":
@@ -27,8 +28,11 @@ cdef class Cosmology:
 
 
 cdef class SimpleCosmology(Cosmology):
+    cdef np.ndarray _k
+    cdef np.ndarray _Tk
+
     cdef inline initialize_simple(self,omega_matter,omega_lambda,omega_baryon,omega_radiation,omega_dark_energy,
-                        w0,wa,running,pivot,comoving,sigma8,As,ns,h):
+                        w0,wa,running,pivot,comoving,sigma8,As,ns,h,k,Tk):
         self._csm.val.classData.bClass = 0
         self._csm.val.bComove = comoving
         self._csm.val.dHubble0 = sqrt(8.0/3.0 * pi)
@@ -47,6 +51,11 @@ cdef class SimpleCosmology(Cosmology):
         self._csm.val.h = h
 
 cdef class ClassCosmology(Cosmology):
+    cdef object _file
+    cdef object _linear_species
+    cdef object _power_species
+    cdef double _L
+
     cdef inline const char** parse_species(self, list species, int n):
         cdef:
             int i
