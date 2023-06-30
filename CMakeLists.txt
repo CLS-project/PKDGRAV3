@@ -248,7 +248,7 @@ add_custom_command(
     OUTPUT ${CMAKE_BINARY_DIR}/modules/cosmology.cpp
     MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/modules/cosmology.py
     DEPENDS ${CMAKE_SOURCE_DIR}/modules/cosmology.pxd
-    COMMAND ${PYTHON} -m cython --3str --cplus --no-docstrings
+    COMMAND ${PYTHON} -m cython --3str --cplus
         -o ${CMAKE_BINARY_DIR}/modules/cosmology.cpp
         ${CMAKE_SOURCE_DIR}/modules/cosmology.py
     VERBATIM
@@ -257,6 +257,7 @@ target_sources(${PROJECT_NAME} PRIVATE ${CMAKE_BINARY_DIR}/modules/cosmology.cpp
 
 add_library(cosmology MODULE ${CMAKE_CURRENT_BINARY_DIR}/modules/cosmology.cpp ${CMAKE_CURRENT_SOURCE_DIR}/cosmo.c)
 target_include_directories(cosmology PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${GSL_INCLUDE_DIRS} ${HDF5_INCLUDE_DIRS})
+target_compile_definitions(cosmology PUBLIC NPY_NO_DEPRECATED_API=NPY_1_7_API_VERSION)
 target_link_libraries(cosmology Python3::Python Python3::NumPy ${GSL_LIBRARIES} ${HDF5_LIBRARIES} ${HDF5_HL_LIBRARIES} mdl2)
 set_target_properties(cosmology PROPERTIES PREFIX "")  
 
@@ -295,6 +296,7 @@ if (Python3_Development_FOUND)
   target_sources(${PROJECT_NAME} PRIVATE msrpython.cxx ${CMAKE_BINARY_DIR}/parse.cpp csmpython.c)
   if (Python3_NumPy_FOUND)
     target_include_directories(${PROJECT_NAME} PUBLIC ${Python3_NumPy_INCLUDE_DIRS})
+    target_compile_definitions(${PROJECT_NAME} PUBLIC NPY_NO_DEPRECATED_API=NPY_1_7_API_VERSION)
   endif()
 else()
   target_sources(${PROJECT_NAME} PRIVATE tinypy.c pkdtinypy.c)

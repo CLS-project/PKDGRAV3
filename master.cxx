@@ -69,6 +69,7 @@ using namespace fmt::literals; // Gives us ""_a and ""_format literals
 #include "smooth/smoothfcn.h"
 #include "io/fio.h"
 #include "SPH/SPHOptions.h"
+#define CYTHON_EXTERN_C extern "C++"
 #include "modules/checkpoint.h"
 
 #include "core/setadd.h"

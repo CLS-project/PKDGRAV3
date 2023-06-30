@@ -16,15 +16,13 @@
  */
 #include <string>
 #include <Python.h>
-#define USE_NUMPY
-#ifdef USE_NUMPY
-    #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
-    #include <numpy/arrayobject.h>
-#endif
+#include <numpy/arrayobject.h>
 #include <structmember.h> // for PyMemberDef
 #include "parse.h"
 #include "master.h"
 #include "csmpython.h"
+
+#define CYTHON_EXTERN_C extern "C++"
 #include "modules/checkpoint.h"
 #include "modules/PKDGRAV.h"
 
@@ -1033,7 +1031,6 @@ ppy_msr_rs_extract(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
 
 /********** Analysis: Retrieve the values for all particles (DANGER! not memory friendly) **********/
 
-#ifdef USE_NUMPY
 static PyObject *
 ppy_msr_GetArray(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     flush_std_files();
@@ -1119,8 +1116,6 @@ ppy_msr_GetParticles(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
 //    return array;
     Py_RETURN_NONE; // FOR NOW, FIX
 }
-#endif
-
 #endif
 
 /******************************************************************************\
@@ -1303,12 +1298,10 @@ static PyMethodDef msr_methods[] = {
         "rs_extract", (PyCFunction)ppy_msr_rs_extract, METH_VARARGS|METH_KEYWORDS,
         "Extract particles that match IDs for Rockstar processing"
     },
-#ifdef USE_NUMPY
     {
         "GetArray", (PyCFunction)ppy_msr_GetArray, METH_VARARGS|METH_KEYWORDS,
         "Get a complete array of the given value"
     },
-#endif
     {NULL, NULL, 0, NULL}
 };
 
@@ -1409,9 +1402,7 @@ static PyObject *initModuleMSR(void) {
     auto msr_module = PyState_FindModule(&msrModule); // We created this already
     auto moduleState = reinterpret_cast<struct msrModuleState *>(PyModule_GetState(msr_module));
     moduleState->bImported = true;
-#ifdef USE_NUMPY
     import_array();
-#endif
     //auto mainModule = PyImport_AddModule("__main__"); // Borrowed reference
     //PyObject *mainDict = PyModule_GetDict(mainModule);
     //setConstants(mainDict);
