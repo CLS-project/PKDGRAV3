@@ -132,9 +132,7 @@ __device__ __forceinline__ void reduceInteraction(gpu::denCorrResult &out, RESUL
 // Reduction of an SPH force interaction
 template <bool bGravStep,class RESULT>
 __device__ __forceinline__ void reduceInteraction(gpu::sphForceResult &out, RESULT result) {
-    if (threadIdx.x==0) {
-        atomicCAS((int *)&out.dtEst,__float_as_int(0.0f),__float_as_int(1e14f));
-    }
+    if ((threadIdx.x == 0) && (out.dtEst == 0.0f)) atomicCAS((int *)&out.dtEst, __float_as_int(0.0f), __float_as_int(1e14f));
     warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.uDot,&out.uDot);
     warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.ax,&out.ax);
     warpReduceAndStoreAtomicAdd<float,32>(threadIdx.x,result.ay,&out.ay);
