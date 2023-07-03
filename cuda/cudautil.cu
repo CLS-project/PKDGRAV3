@@ -58,7 +58,7 @@ CudaClient::CudaClient( mdl::CUDA &cuda, mdl::gpu::Client &gpu) : cuda(cuda), gp
             freeEwald.enqueue(new MessageEwald(*this));
             freePP.enqueue(new MessagePP(freePP));
             freePC.enqueue(new MessagePC(freePC));
-            freeDen.enqueue(new MessageDen(freeDen, &this->wps, &this->wpslock));
+            freeDen.enqueue(new MessageDen(freeDen, &this->wps));
             freeDenCorr.enqueue(new MessageDenCorr(freeDenCorr));
             freeSPHForce.enqueue(new MessageSPHForce(freeSPHForce));
         }

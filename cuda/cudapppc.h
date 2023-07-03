@@ -59,9 +59,8 @@ protected:
     virtual void finish() override;
 public:
     std::queue<workParticle *> *wps;
-    int *wpslock;
-    explicit MessageDen(mdl::messageQueue<MessageDen> &freeQueue, std::queue<workParticle *> *wps, int *wpslock)
-        : freeQueue(freeQueue), wps(wps), wpslock(wpslock) {
+    explicit MessageDen(mdl::messageQueue<MessageDen> &freeQueue, std::queue<workParticle *> *wps)
+        : freeQueue(freeQueue), wps(wps) {
         // For CUDA we want to "pin" the host memory for optimal performance
         CUDA_CHECK(cudaHostRegister,(this->pHostBufIn, this->requestBufferSize, cudaHostRegisterPortable));
         CUDA_CHECK(cudaHostRegister,(this->pHostBufOut,this->resultsBufferSize, cudaHostRegisterPortable));

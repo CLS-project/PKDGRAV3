@@ -619,13 +619,9 @@ doneCheckList:
         // while (pkd->mdl->gpu.flushCompleted()) pkd->cudaClient->flushCUDA();
         while (pkd->nWpPending) {
             pkd->mdl->gpu.flushCompleted();
-            if (!pkd->cudaClient->wpslock) {
-                pkd->cudaClient->wpslock = 1;
-                while (!pkd->cudaClient->wps.empty()) {
-                    pkdParticleWorkDone(pkd->cudaClient->wps.front());
-                    pkd->cudaClient->wps.pop();
-                }
-                pkd->cudaClient->wpslock = 0;
+            while (!pkd->cudaClient->wps.empty()) {
+                pkdParticleWorkDone(pkd->cudaClient->wps.front());
+                pkd->cudaClient->wps.pop();
             }
             pkd->cudaClient->flushCUDA();
         }

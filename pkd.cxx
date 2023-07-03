@@ -1993,7 +1993,6 @@ void pkdGravAll(PKD pkd,
     pkd->nWpPending = 0;
     pkd->nTilesTotal = 0;
     pkd->nTilesCPU = 0;
-    pkd->cudaClient->wpslock = 0;
 
     *pnActive = pkdGravWalk(pkd,kick,lc,ts,
                             dTime,nReps,bPeriodic && bEwald,bGPU,

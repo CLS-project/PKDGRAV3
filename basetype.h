@@ -270,7 +270,6 @@ typedef struct {
 
     SPHOptions *SPHoptions;
     ilpList *ilp;
-    int bGravStep;
     int bGPU;
 } workParticle;
 

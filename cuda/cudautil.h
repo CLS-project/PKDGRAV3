@@ -112,7 +112,6 @@ protected:
     }
 public:
     std::queue<workParticle *> wps;
-    int wpslock;
     explicit CudaClient( mdl::CUDA &cuda, mdl::gpu::Client &gpu);
     void flushCUDA();
     int queuePP(workParticle *work, ilpTile &tile, bool bGravStep) {
@@ -123,16 +122,16 @@ public:
         return queue(pc,freePC,work,tile,bGravStep);
     }
 
-    int queueDen(workParticle *work, ilpTile &tile, bool bGravStep) {
-        return queue(den,freeDen,work,tile,bGravStep);
+    int queueDen(workParticle *work, ilpTile &tile) {
+        return queue(den,freeDen,work,tile, false);
     }
 
-    int queueDenCorr(workParticle *work, ilpTile &tile, bool bGravStep) {
-        return queue(denCorr,freeDenCorr,work,tile,bGravStep);
+    int queueDenCorr(workParticle *work, ilpTile &tile) {
+        return queue(denCorr,freeDenCorr,work,tile, false);
     }
 
-    int queueSPHForce(workParticle *work, ilpTile &tile, bool bGravStep) {
-        return queue(sphForce,freeSPHForce,work,tile,bGravStep);
+    int queueSPHForce(workParticle *work, ilpTile &tile) {
+        return queue(sphForce,freeSPHForce,work,tile, false);
     }
     int  queueEwald(workParticle *wp);
     void setupEwald(struct EwaldVariables *const ew, EwaldTable *const ewt);
