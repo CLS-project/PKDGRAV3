@@ -488,6 +488,8 @@ public:
     double dFlop;
     double dFlopSingleCPU, dFlopDoubleCPU;
     double dFlopSingleGPU, dFlopDoubleGPU;
+    int nWpPending;
+    uint64_t nTilesTotal, nTilesCPU;
     /*
     ** Opening angle table for mass weighting.
     */
@@ -846,6 +848,7 @@ void pkdCalcCOM(PKD pkd, const blitz::TinyVector<double,3> &dCenter, double dRad
 void pkdCalcMtot(PKD pkd, double *M, uint64_t *N);
 void pkdResetCOM(PKD pkd, blitz::TinyVector<double,3> r_com, blitz::TinyVector<double,3> v_com);
 void pkdInitializeEOS(PKD pkd);
+void pkdCopySPHOptionsToDevice(PKD pkd, SPHOptions *SPHoptions, int bGPU);
 void pkdUpdateGasValues(PKD pkd, struct pkdKickParameters *kick, SPHOptions *SPHoptions);
 void pkdTreeUpdateFlagBounds(PKD pkd,uint32_t uRoot,SPHOptions *SPHoptions);
 #ifdef MDL_FFTW

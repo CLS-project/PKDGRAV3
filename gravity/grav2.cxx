@@ -81,7 +81,7 @@ static inline float rsqrtf(float v) {
     dir = 1/sqrt(d2);\
     }
 
-static void queueDensity( PKD pkd, workParticle *wp, ilpList &ilp, int bGravStep );
+static void reQueueDensity( PKD pkd, workParticle *wp, ilpList &ilp, bool bGPU);
 /*
 ** This is called after work has been done for this particle group.
 ** If everyone has finished, then the particle is updated.
@@ -146,8 +146,8 @@ void pkdParticleWorkDone(workParticle *wp) {
                         wp->pInfoIn[i].fBall = newfBall;
                     }
                 }
-                wp->nRefs = 1;
-                queueDensity(pkd,wp,*wp->ilp,wp->bGravStep);
+                ++wp->nRefs;
+                reQueueDensity(pkd, wp, *wp->ilp, wp->bGPU);
                 pkdParticleWorkDone(wp);
                 return;
             }
@@ -450,12 +450,19 @@ void pkdParticleWorkDone(workParticle *wp) {
         delete [] wp->iPart;
         delete [] wp->pInfoIn;
         delete [] wp->pInfoOut;
+#ifdef USE_CUDA
+        if (wp->SPHoptions->doDensity && wp->bGPU) {
+            delete wp->ilp;
+        }
+#endif
+        --pkd->nWpPending;
         delete wp;
     }
 }
 
-static void queuePP( PKD pkd, workParticle *wp, ilpList &ilp, int bGravStep, bool bGPU=true ) {
+static void queuePP( PKD pkd, workParticle *wp, ilpList &ilp, int bGravStep, bool bGPU=true) {
     for ( auto &tile : ilp ) {
+        ++pkd->nTilesTotal;
         if (bGPU) {
 #ifdef USE_CUDA
             if (pkd->cudaClient->queuePP(wp,tile,bGravStep)) continue;
@@ -464,6 +471,7 @@ static void queuePP( PKD pkd, workParticle *wp, ilpList &ilp, int bGravStep, boo
             if (pkd->metalClient->queuePP(wp,tile,bGravStep)) continue;
 #endif
         }
+        ++pkd->nTilesCPU;
         for (auto i=0; i<wp->nP; ++i) {
             pkdGravEvalPP(wp->pInfoIn[i],tile,wp->pInfoOut[i]);
             wp->dFlopSingleCPU += COST_FLOP_PP*tile.size();
@@ -471,9 +479,7 @@ static void queuePP( PKD pkd, workParticle *wp, ilpList &ilp, int bGravStep, boo
     }
 }
 
-static void queueDensity( PKD pkd, workParticle *wp, ilpList &ilp, int bGravStep ) {
-    wp->ilp = &ilp;
-    wp->bGravStep = bGravStep;
+static void reQueueDensity( PKD pkd, workParticle *wp, ilpList &ilp, bool bGPU=true) {
     for ( int i=0; i<wp->nP; i++ ) {
         wp->pInfoOut[i].rho = 0.0f;
         wp->pInfoOut[i].drhodfball = 0.0f;
@@ -485,22 +491,53 @@ static void queueDensity( PKD pkd, workParticle *wp, ilpList &ilp, int bGravStep
         wp->pInfoOut[i].imbalanceZ = 0.0f;
     }
     for ( auto &tile : ilp ) {
+        ++pkd->nTilesTotal;
+        if (bGPU) {
+#ifdef USE_CUDA
+            if (pkd->cudaClient->queueDen(wp,tile)) continue;
+#endif
+        }
+        ++pkd->nTilesCPU;
         for (auto i=0; i<wp->nP; ++i) {
             pkdDensityEval(wp->pInfoIn[i],tile,wp->pInfoOut[i],wp->SPHoptions);
         }
     }
 }
 
-static void queueDensityCorrection( PKD pkd, workParticle *wp, ilpList &ilp, int bGravStep ) {
+static void queueDensity( PKD pkd, workParticle *wp, ilpList &ilp, bool bGPU=true) {
+#ifdef USE_CUDA
+    while (!pkd->cudaClient->wps.empty()) {
+        pkdParticleWorkDone(pkd->cudaClient->wps.front());
+        pkd->cudaClient->wps.pop();
+    }
+#endif
+    reQueueDensity(pkd, wp, ilp, bGPU);
+}
+
+static void queueDensityCorrection( PKD pkd, workParticle *wp, ilpList &ilp, bool bGPU=true) {
     for ( auto &tile : ilp ) {
+        ++pkd->nTilesTotal;
+        if (bGPU) {
+#ifdef USE_CUDA
+            if (pkd->cudaClient->queueDenCorr(wp,tile)) continue;
+#endif
+        }
+        ++pkd->nTilesCPU;
         for (auto i=0; i<wp->nP; ++i) {
             pkdDensityCorrectionEval(wp->pInfoIn[i],tile,wp->pInfoOut[i],wp->SPHoptions);
         }
     }
 }
 
-static void queueSPHForces( PKD pkd, workParticle *wp, ilpList &ilp, int bGravStep ) {
+static void queueSPHForces( PKD pkd, workParticle *wp, ilpList &ilp, bool bGPU=true) {
     for ( auto &tile : ilp ) {
+        ++pkd->nTilesTotal;
+        if (bGPU) {
+#ifdef USE_CUDA
+            if (pkd->cudaClient->queueSPHForce(wp,tile)) continue;
+#endif
+        }
+        ++pkd->nTilesCPU;
         for (auto i=0; i<wp->nP; ++i) {
             pkdSPHForcesEval(wp->pInfoIn[i],tile,wp->pInfoOut[i],wp->SPHoptions);
         }
@@ -509,7 +546,7 @@ static void queueSPHForces( PKD pkd, workParticle *wp, ilpList &ilp, int bGravSt
 
 static void addCentrifugalAcceleration(PKD pkd, workParticle *wp) {
     double dOmega, f;
-    double r[3], rxy;
+    double r[3];
 
     if (wp->ts->dTime < wp->SPHoptions->CentrifugalT0) {
         return;
@@ -524,14 +561,14 @@ static void addCentrifugalAcceleration(PKD pkd, workParticle *wp) {
     f = dOmega * dOmega;
     for (int i=0; i< wp->nP; i++) {
         pkdGetPos1(pkd,wp->pPart[i],r);
-        rxy = sqrt(r[0] * r[0] + r[1] + r[1]);
         wp->pInfoOut[i].a[0] += f * r[0];
         wp->pInfoOut[i].a[1] += f * r[1];
     }
 }
 
-static void queuePC( PKD pkd,  workParticle *wp, ilcList &ilc, int bGravStep, bool bGPU=true ) {
+static void queuePC( PKD pkd,  workParticle *wp, ilcList &ilc, int bGravStep, bool bGPU=true) {
     for ( auto &tile : ilc ) {
+        ++pkd->nTilesTotal;
         if (bGPU) {
 #ifdef USE_CUDA
             if (pkd->cudaClient->queuePC(wp,tile,bGravStep)) continue;
@@ -540,6 +577,7 @@ static void queuePC( PKD pkd,  workParticle *wp, ilcList &ilc, int bGravStep, bo
             if (pkd->metalClient->queuePC(wp,tile,bGravStep)) continue;
 #endif
         }
+        ++pkd->nTilesCPU;
         for (auto i=0; i<wp->nP; ++i) {
             pkdGravEvalPC(wp->pInfoIn[i],tile,wp->pInfoOut[i]);
             wp->dFlopSingleCPU += COST_FLOP_PC*tile.size();
@@ -547,7 +585,7 @@ static void queuePC( PKD pkd,  workParticle *wp, ilcList &ilc, int bGravStep, bo
     }
 }
 
-static void queueEwald( PKD pkd, workParticle *wp, bool bGPU=true ) {
+static void queueEwald( PKD pkd, workParticle *wp, bool bGPU=true) {
     int i;
     int nQueued = 0;
     if (bGPU) {
@@ -692,8 +730,10 @@ int pkdGravInteract(PKD pkd,
     /* Collect the bucket particle information */
     auto wp = new workParticle;
     assert(wp!=NULL);
+    ++pkd->nWpPending;
     wp->nRefs = 1; /* I am using it currently */
     wp->ctx = pkd;
+    wp->bGPU = bGPU;
     wp->dFlop = 0.0;
     wp->dFlopSingleCPU = wp->dFlopSingleGPU = 0.0;
     wp->dFlopDoubleCPU = wp->dFlopDoubleGPU = 0.0;
@@ -748,7 +788,7 @@ int pkdGravInteract(PKD pkd,
             wp->pInfoOut[nP].imbalanceZ = 0.0f;
             wp->pInfoOut[nP].uDot = 0.0f;
             wp->pInfoOut[nP].divv = 0.0f;
-            wp->pInfoOut[nP].dtEst = HUGE_VALF;
+            wp->pInfoOut[nP].dtEst = 1e14f;
             wp->pInfoOut[nP].maxRung = 0.0f;
             wp->pInfoOut[nP].corrT = 0.0f;
             wp->pInfoOut[nP].corrP = 0.0f;
@@ -784,6 +824,24 @@ int pkdGravInteract(PKD pkd,
             }
         }
     }
+
+    /*
+    ** If CUDA is used, and we are doing density on the GPU,
+    ** we need to clone the ilp,
+    ** otherwise we use the reference to the global ilp.
+    */
+#ifdef USE_CUDA
+    if (SPHoptions->doDensity && bGPU) {
+        wp->ilp = new ilpList;
+        wp->ilp->clone(pkd->ilp);
+        wp->ilp->setReference(pkd->ilp.getReference());
+    }
+    else {
+#endif
+        wp->ilp = &ilp;
+#ifdef USE_CUDA
+    }
+#endif
 
     nActive += wp->nP;
 
@@ -821,33 +879,33 @@ int pkdGravInteract(PKD pkd,
         /*
         ** Evaluate the P-C interactions
         */
-        queuePC( pkd,  wp, pkd->ilc, ts->bGravStep, bGPU );
+        queuePC( pkd,  wp, pkd->ilc, ts->bGravStep, bGPU);
 
         /*
         ** Evaluate the P-P interactions
         */
-        queuePP( pkd, wp, pkd->ilp, ts->bGravStep, bGPU );
+        queuePP( pkd, wp, pkd->ilp, ts->bGravStep, bGPU);
     }
 
     if (SPHoptions->doDensity) {
         /*
         ** Evaluate the Density on the P-P interactions
         */
-        queueDensity( pkd, wp, pkd->ilp, ts->bGravStep );
+        queueDensity( pkd, wp, pkd->ilp, bGPU);
     }
 
     if (SPHoptions->doDensityCorrection) {
         /*
         ** Evaluate the weighted averages of P and T
         */
-        queueDensityCorrection( pkd, wp, pkd->ilp, ts->bGravStep );
+        queueDensityCorrection( pkd, wp, pkd->ilp, bGPU);
     }
 
     if (SPHoptions->doSPHForces) {
         /*
         ** Evaluate the SPH forces on the P-P interactions
         */
-        queueSPHForces( pkd, wp, pkd->ilp, ts->bGravStep );
+        queueSPHForces( pkd, wp, pkd->ilp, bGPU);
         if (SPHoptions->doCentrifugal) {
             addCentrifugalAcceleration(pkd, wp);
         }

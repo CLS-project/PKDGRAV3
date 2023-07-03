@@ -607,6 +607,25 @@ found_it:
 doneCheckList:
 #ifdef USE_CUDA
     pkd->cudaClient->flushCUDA();
+    if (SPHoptions->doDensity) {
+        /*
+        ** In the density pass, a wp can requeue itself to perform the Newton iterations.
+        ** To make sure that after the thread has reached the end of the tree walk
+        ** the work that is still being resent by the last few wps will still be treated,
+        ** we not only have to check (as done in mdlCompleteAllWork),
+        ** but also flush the queues repeatedly.
+        ** Once this while loop exits, ALL density work has been done.
+        */
+        // while (pkd->mdl->gpu.flushCompleted()) pkd->cudaClient->flushCUDA();
+        while (pkd->nWpPending) {
+            pkd->mdl->gpu.flushCompleted();
+            while (!pkd->cudaClient->wps.empty()) {
+                pkdParticleWorkDone(pkd->cudaClient->wps.front());
+                pkd->cudaClient->wps.pop();
+            }
+            pkd->cudaClient->flushCUDA();
+        }
+    }
 #endif
 #ifdef USE_METAL
     pkd->metalClient->flushMETAL();

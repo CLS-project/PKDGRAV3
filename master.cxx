@@ -3437,6 +3437,9 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
         msrPrintStat(&outr.sPartMissRatio, "  P-cache miss %:",2);
         msrPrintStat(&outr.sCellMissRatio, "  C-cache miss %:",2);
     }
+    if (outr.nTilesTotal > 0) {
+        printf("Total tiles processed: %.5e, on the GPU: %.5e, ratio: %2.2f %%\n",(double)outr.nTilesTotal,(double)(outr.nTilesTotal - outr.nTilesCPU),100.0 - ((double)outr.nTilesCPU)/((double)outr.nTilesTotal)*100.0);
+    }
     if (parameters.get_bVRungStat() && bKickOpen) {
         printf("Rung distribution:\n");
         printf("\n");

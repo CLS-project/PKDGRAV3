@@ -52,14 +52,16 @@
 *   CudaClient interface (new!)
 \*****************************************************************************/
 
-CudaClient::CudaClient( mdl::CUDA &cuda, mdl::gpu::Client &gpu) : cuda(cuda), gpu(gpu), ewald(nullptr), pp(nullptr), pc(nullptr) {
+CudaClient::CudaClient( mdl::CUDA &cuda, mdl::gpu::Client &gpu) : cuda(cuda), gpu(gpu), ewald(nullptr), pp(nullptr), pc(nullptr), den(nullptr), denCorr(nullptr), sphForce(nullptr) {
     if (cuda.isActive()) {
-        freeEwald.enqueue(new MessageEwald(*this));
-        freeEwald.enqueue(new MessageEwald(*this));
-        freePP.enqueue(new MessagePP(freePP));
-        freePP.enqueue(new MessagePP(freePP));
-        freePC.enqueue(new MessagePC(freePC));
-        freePC.enqueue(new MessagePC(freePC));
+        for (int i=0 ; i < 2 ; ++i) {
+            freeEwald.enqueue(new MessageEwald(*this));
+            freePP.enqueue(new MessagePP(freePP));
+            freePC.enqueue(new MessagePC(freePC));
+            freeDen.enqueue(new MessageDen(freeDen, &this->wps));
+            freeDenCorr.enqueue(new MessageDenCorr(freeDenCorr));
+            freeSPHForce.enqueue(new MessageSPHForce(freeSPHForce));
+        }
     }
 }
 
@@ -67,4 +69,7 @@ void CudaClient::flushCUDA() {
     if (ewald) { cuda.enqueue(*ewald,gpu);        ewald = nullptr; }
     flush(pp);
     flush(pc);
+    flush(den);
+    flush(denCorr);
+    flush(sphForce);
 }

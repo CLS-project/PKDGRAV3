@@ -270,7 +270,7 @@ typedef struct {
 
     SPHOptions *SPHoptions;
     ilpList *ilp;
-    int bGravStep;
+    int bGPU;
 } workParticle;
 
 #define EWALD_ALIGN 64

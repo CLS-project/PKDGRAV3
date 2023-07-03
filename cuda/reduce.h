@@ -21,7 +21,7 @@
 #include "sm_30_intrinsics.h"
 
 template <typename T,unsigned int blockSize>
-inline __device__ T warpReduce(/*volatile T * data, int tid,*/ T t) {
+inline __device__ T warpReduceAdd(/*volatile T * data, int tid,*/ T t) {
 #if CUDART_VERSION >= 9000
     if (blockSize >= 32) t += __shfl_down_sync(0xffffffff,t,16);
     if (blockSize >= 16) t += __shfl_down_sync(0xffffffff,t,8);
@@ -39,20 +39,77 @@ inline __device__ T warpReduce(/*volatile T * data, int tid,*/ T t) {
 }
 
 template <typename T,unsigned int blockSize>
-__device__ void warpReduceAndStore(volatile T *data, int tid,T *result) {
-    T t = warpReduce<T,blockSize>(data[tid]);
-    if (tid==0) *result = t;
+inline __device__ T warpReduceMin(/*volatile T * data, int tid,*/ T t) {
+#if CUDART_VERSION >= 9000
+    if (blockSize >= 32) t = min(t, __shfl_down_sync(0xffffffff,t,16));
+    if (blockSize >= 16) t = min(t, __shfl_down_sync(0xffffffff,t,8));
+    if (blockSize >= 8)  t = min(t, __shfl_down_sync(0xffffffff,t,4));
+    if (blockSize >= 4)  t = min(t, __shfl_down_sync(0xffffffff,t,2));
+    if (blockSize >= 2)  t = min(t, __shfl_down_sync(0xffffffff,t,1));
+#else
+    if (blockSize >= 32) t = min(t, __shfl_xor(t,16));
+    if (blockSize >= 16) t = min(t, __shfl_xor(t,8));
+    if (blockSize >= 8)  t = min(t, __shfl_xor(t,4));
+    if (blockSize >= 4)  t = min(t, __shfl_xor(t,2));
+    if (blockSize >= 2)  t = min(t, __shfl_xor(t,1));
+#endif
+    return t;
 }
 
 template <typename T,unsigned int blockSize>
-__device__ void warpReduceAndStore(int tid,T t,T *result) {
-    t = warpReduce<T,blockSize>(t);
-    if (tid==0) *result = t;
+inline __device__ T warpReduceMax(/*volatile T * data, int tid,*/ T t) {
+#if CUDART_VERSION >= 9000
+    if (blockSize >= 32) t = max(t, __shfl_down_sync(0xffffffff,t,16));
+    if (blockSize >= 16) t = max(t, __shfl_down_sync(0xffffffff,t,8));
+    if (blockSize >= 8)  t = max(t, __shfl_down_sync(0xffffffff,t,4));
+    if (blockSize >= 4)  t = max(t, __shfl_down_sync(0xffffffff,t,2));
+    if (blockSize >= 2)  t = max(t, __shfl_down_sync(0xffffffff,t,1));
+#else
+    if (blockSize >= 32) t = max(t, __shfl_xor(t,16));
+    if (blockSize >= 16) t = max(t, __shfl_xor(t,8));
+    if (blockSize >= 8)  t = max(t, __shfl_xor(t,4));
+    if (blockSize >= 4)  t = max(t, __shfl_xor(t,2));
+    if (blockSize >= 2)  t = max(t, __shfl_xor(t,1));
+#endif
+    return t;
+}
+
+/*
+** Overload atomicMin and atomicMax for floats
+** Courtesy of Xiaojing An and timothygiraffe
+** https://stackoverflow.com/questions/17399119/how-do-i-use-atomicmax-on-floating-point-values-in-cuda/51549250#51549250
+** Xiaojing An provided the initial implementation
+** timothygiraffe modified it to ensure it works for any values of the inputs
+*/
+__device__ __forceinline__ float atomicMin(float *addr, float value) {
+    float old;
+    old = !signbit(value) ? __int_as_float(atomicMin((int *)addr, __float_as_int(value))) :
+          __uint_as_float(atomicMax((unsigned int *)addr, __float_as_uint(value)));
+    return old;
+}
+
+__device__ __forceinline__ float atomicMax(float *addr, float value) {
+    float old;
+    old = !signbit(value) ? __int_as_float(atomicMax((int *)addr, __float_as_int(value))) :
+          __uint_as_float(atomicMin((unsigned int *)addr, __float_as_uint(value)));
+    return old;
 }
 
 template <typename T,unsigned int blockSize>
-__device__ void warpReduceAndStoreAtomic(int tid,T t,T *result) {
-    t = warpReduce<T,blockSize>(t);
+__device__ void warpReduceAndStoreAtomicAdd(int tid,T t,T *result) {
+    t = warpReduceAdd<T,blockSize>(t);
     if (tid==0) atomicAdd(result,t);
+}
+
+template <typename T,unsigned int blockSize>
+__device__ void warpReduceAndStoreAtomicMin(int tid,T t,T *result) {
+    t = warpReduceMin<T,blockSize>(t);
+    if (tid==0) atomicMin(result,t);
+}
+
+template <typename T,unsigned int blockSize>
+__device__ void warpReduceAndStoreAtomicMax(int tid,T t,T *result) {
+    t = warpReduceMax<T,blockSize>(t);
+    if (tid==0) atomicMax(result,t);
 }
 #endif
