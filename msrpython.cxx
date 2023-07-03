@@ -309,17 +309,21 @@ ppy_msr_GenerateIC(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     flush_std_files();
     static char const *kwlist[]= {"csm","z","grid","seed","L",NULL};
     CSMINSTANCE *cosmo = NULL;
+    int nGrid = self->msr->parameters.get_nGrid();
+    int iSeed = self->msr->parameters.get_iSeed();
+    double z = self->msr->parameters.get_dRedFrom();
+    double L = self->msr->parameters.get_dBoxSize();
     self->msr->parameters.set(self->msr->parameters.str_bPeriodic,true);
     if ( !PyArg_ParseTupleAndKeywords(
                 args, kwobj, "Odi|id:GenerateIC", const_cast<char **>(kwlist),
-                &cosmo,&self->msr->param.dRedFrom,&self->msr->param.nGrid,
-                &self->msr->param.iSeed, &self->msr->param.dBoxSize) )
+                &cosmo,&z,&nGrid,
+                &iSeed, &L) )
         return NULL;
     if (!PyObject_TypeCheck(cosmo,&csmType)) return PyErr_Format(PyExc_TypeError,"Expected CSM object");
     self->msr->csm->val = cosmo->csm->val;
     if (self->msr->csm->val.classData.bClass)
         csmClassGslInitialize(self->msr->csm);
-    double dTime = self->msr->GenerateIC();
+    double dTime = self->msr->GenerateIC(nGrid,iSeed,z,L,self->msr->csm);
     return Py_BuildValue("d", dTime );
 }
 

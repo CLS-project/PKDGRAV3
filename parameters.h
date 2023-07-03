@@ -135,7 +135,6 @@ struct parameters {
     double dPreFacRhoLoc;
     double dEccFacMax;
     double dRedTo;
-    double dRedFrom;
     char achInFile[256];
     char achOutName[256];
     char achOutPath[256];
@@ -164,13 +163,6 @@ struct parameters {
     double dEnvironment1;
     /* IC Generation */
     int bWriteIC;
-    double h;
-    double dBoxSize;
-    int nGrid;
-    int iSeed;
-    int bFixedAmpIC;
-    double dFixedAmpPhasePI;
-    int b2LPT;
     int bICgas;
     double dInitialT;
 

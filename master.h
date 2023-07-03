@@ -110,7 +110,7 @@ public:
     size_t getLocalGridMemory(int nGrid);
 
     // I/O and IC Generation
-    double GenerateIC();
+    double GenerateIC(int nGrid,int iSeed,double z,double L,CSM csm=nullptr);
     void Restart(int n, const char *baseName, int iStep, int nSteps, double dTime, double dDelta,
                  size_t nDark, size_t nGas, size_t nStar, size_t nBH,
                  double dEcosmo,double dUOld, double dTimeOld,
@@ -388,7 +388,7 @@ protected:
     void SwitchTheta(double);
     double getTheta(double dTime);
     double SwitchDelta(double dTime,double dDelta,int iStep,int nSteps);
-    void InitCosmology();
+    void InitCosmology(CSM csm);
     void BuildTree(int bNeedEwald,uint32_t uRoot,uint32_t utRoot);
     void ActiveRung(int iRung, int bGreater);
     void ActiveOrder();
