@@ -18,10 +18,10 @@ author = 'Douglas Potter'
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
-extensions=['sphinx.ext.autodoc','make_parameters']
+extensions=['sphinx.ext.autodoc','sphinxcontrib.bibtex','make_parameters']
 if sphinx.version_info < (1,8):
     extensions += ['sphinx.ext.imgmath']
-
+bibtex_bibfiles = ['references.bib']
 templates_path = ['_templates']
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 

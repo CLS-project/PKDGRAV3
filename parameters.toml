@@ -139,6 +139,7 @@ docs='''
 If enabled, the power spectrum measurement tool creates two mass assignment grids.
 The second contains the mass with the particles offset by half a grid cell.
 The results of the two mass assignment grids are combined to reduce grid aliasing effects.
+See :cite:t:`HockneyEastwood1988`.
 '''
 
 ["Analysis"."Power Spectrum Measurement".iPkOrder]
