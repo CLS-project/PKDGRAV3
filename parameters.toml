@@ -106,7 +106,7 @@ help="Fraction of Active Particles for no DD dimension choice"
 
 ["Analysis"."Power Spectrum Measurement"]
 docs='''
-The code provides a built-in tool for measureing the power spectrum P(k)
+The code provides a built-in tool for measuring the power spectrum P(k)
 of a simulation. These parameters control the configuration.
 '''
 
@@ -152,7 +152,7 @@ Selects the mass assignment method:
 1. Nearest Grid Point (NGP),
 2. Cloud in Cell (CIC),
 3. Triangular Shaped Cloud (TSC), and
-4. Piecewise Cublic Split (PSC).
+4. Piecewise Cubic Spline (PSC).
 
 The recommended method is PCS.
 '''
@@ -340,7 +340,7 @@ help="number of timesteps between snapshots"
 ["I/O Parameters".iFofInterval]
 flag="fof"
 default=0
-help="number of timesteps between fof group finding"
+help="number of timesteps between FOF group finding"
 
 ["I/O Parameters".iCheckInterval]
 flag="ci"
@@ -637,7 +637,7 @@ help="Simulation Box size in Mpc/h"
 docs='''
 The size of the simulation box in :math:`h^{-1}~\text{Mpc}`.
 This is used when generating an initial condition and to
-normalize the power spectrum meaurement. It is also required
+normalize the power spectrum measurement. It is also required
 to normalize :math:`\theta` and :math:`\delta` if the CLASS
 interface is used. For pure dark matter simulations it is not
 technically necessary to specify this, but it is recommended.
@@ -664,7 +664,7 @@ default=0.0
 omitted="none"
 help="dSpectral"
 docs='''
-This sets the spectral index :math:`n_s`.
+This sets the spectral index :math:`n_{\text{s}}`.
 '''
 
 ["Cosmology"."Normalization".dNormalization]
@@ -673,8 +673,8 @@ default=0.0
 omitted="none"
 help="dNormalization"
 docs='''
-This set the normalization :math:`a_s` of the transfer function.
-This is normally used for the CLASS/CONCEPT interface.
+This set the normalization :math:`A_{\text{s}}` of the transfer function.
+This is normally used for the CLASS/CO\ *N*\ CEPT interface.
 '''
 
 ["Cosmology"."Normalization".dSigma8]
@@ -685,14 +685,14 @@ help="dSimga8"
 docs='''
 Alternatively, the normalization of the transfer function can be
 specified by supplying :math:`\sigma_8`, an observable.
-This is more commonly used when specifying a transfer funciton.
+This is more commonly used when specifying a transfer function.
 '''
 
 ["Cosmology"."Transfer Function"]
 docs='''
 The cosmology can be specified using a tabulated transfer function
 and by setting the cosmological parameters. If you instead use the
-CONCEPT/CLASS interface then none of these parameters should be
+CO\ *N*\ CEPT/CLASS interface then none of these parameters should be
 specified as they will be read from the HDF5 input file.
 '''
 
@@ -760,38 +760,38 @@ help="dOmegab"
 
 
 
-["Cosmology"."Concept/CLASS"]
+["Cosmology"."CONCEPT/CLASS"]
 docs='''
 The code can use HDF5 files created by `CONCEPT <https://jmd-dk.github.io/concept/>`_
 by tabulating `CLASS <http://class-code.net>`_ data for cosmology.
 '''
 
-["Cosmology"."Concept/CLASS".bClass]
+["Cosmology"."CONCEPT/CLASS".bClass]
 flag="class"
 default=false
 help="Enable/disable the use of CLASS"
 
-["Cosmology"."Concept/CLASS".achClassFilename]
+["Cosmology"."CONCEPT/CLASS".achClassFilename]
 flag="class_filename"
 default=""
 help="Name of hdf5 file containing the CLASS data"
 
-["Cosmology"."Concept/CLASS".achLinSpecies]
+["Cosmology"."CONCEPT/CLASS".achLinSpecies]
 flag="lin_species"
 default=""
-help="plus-separated string of linear species, e.g. \"ncdm[0]+g+metric\""
+help="Plus-separated string of linear species, e.g. ``\"g+ncdm[0]+metric\"``"
 
-["Cosmology"."Concept/CLASS".achPkSpecies]
+["Cosmology"."CONCEPT/CLASS".achPkSpecies]
 flag="pk_species"
 default=""
-help="plus-separated string of species for P(k)"
+help="Plus-separated string of linear species for linear P(k)"
 
-["Cosmology"."Concept/CLASS".dRunning]
+["Cosmology"."CONCEPT/CLASS".dRunning]
 flag="alphas"
 default=0.0
 help="Primordial tilt running: <dRunning"
 
-["Cosmology"."Concept/CLASS".dPivot]
+["Cosmology"."CONCEPT/CLASS".dPivot]
 flag="kpivot"
 default=0.05
 help="Primordial pivot scale in 1/Mpc (not h/Mpc): <dPivot"
@@ -805,7 +805,7 @@ help="Primordial pivot scale in 1/Mpc (not h/Mpc): <dPivot"
 ["Initial Conditions"]
 docs='''
 The code contains an Initial Condition (IC) generator that supports both
-first order (Zeldovich) and second order linear perturbation theory.
+first order (Zeldovich) and second order Lagrangian perturbation theory.
 It is important that the cosmological parameters be properly set,
 so refer to that section for details.
 '''
@@ -907,7 +907,7 @@ docs='''
 The code allocates exactly enough space to store the particles if they are evenly
 distributed between all of the threads, **plus** this fraction. For example, if this
 parameter is set to 0.1 then it increases the size of the particle storage by 10%.
-This uses additional memory, but makes it easier to balance work. 
+This uses additional memory, but makes it easier to balance work.
 '''
 
 ["Memory Model and Control".nTreeBitsLo]
@@ -1125,7 +1125,7 @@ flag="kpcu"
 default=1000.0
 help="Kiloparsec/system length unit"
 docs='''
-This is the number of Kiloparsecs per system unit length.
+This is the number of kiloparsecs per system unit length.
 If you measure a distance of 1 in system units, it is this many kiloparsecs.
 '''
 
@@ -1245,7 +1245,7 @@ docs='''
 ["Gas".dMaxPhysicalSoft]
 flag="MaxPhysicalSoft"
 default=0.0
-help="maximum softening in physical coordinataes"
+help="maximum softening in physical coordinates"
 
 ################################################################################
 ########## Cooling
@@ -1290,7 +1290,7 @@ help="Temperature of the CMB at z=0"
 flag="CoolingFloorDen"
 default=1e-5
 omitted=':math:`10^{-5}`'
-help="Minimum density at which the internal enrgy floor will be applied, n_H cm-3"
+help="Minimum density at which the internal energy floor will be applied, n_H cm-3"
 
 ["Cooling".dCoolingFloorT]
 flag="CoolingFloorT"
@@ -1590,7 +1590,7 @@ docs='''
 When a simulation is run, a special file named ".lockfile" is created. If The
 program exits normally (after a checkpoint or output) then the file is removed.
 If the file is present when the code is run and this parameter is false, then
-the code will immediatly exit with an error. Setting this to true disables
+the code will immediately exit with an error. Setting this to true disables
 this behaviour.
 '''
 
@@ -1666,7 +1666,7 @@ default=true
 help="enable or disable the GPU use"
 docs='''
 If compiled with GPU support, the code will try to use a GPU to
-accelerator some phases of the calculation. If no GPU is present,
-the the CPU alone will be used. The use of the GPU can be disabled
-by setting the to False.
+accelerate some phases of the calculation. If no GPU is present,
+the CPU alone will be used. The use of the GPU can be disabled
+by setting this to False.
 '''
