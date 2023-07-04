@@ -8,7 +8,7 @@ Power Spectrum Measurement
 
 The code can measure the power spectrum P(k) of a periodic simulation.
 It uses grid interlacing and high order mass assignment as described
-in Sefusatti et. al [#sefusatti]_
+in :cite:p:`2016MNRAS.460.3624S`.
 
 Parameters
 ==========
@@ -72,10 +72,4 @@ Number of Samples
 Linear P(k)
     This is the same as the P(k) column, except it includes the linear part (if present),
     for example if you are using the linear neutrino treatment.
-
-
-
-.. rubric:: Footnotes
-
-.. [#sefusatti] https://arxiv.org/abs/1512.07295
 
