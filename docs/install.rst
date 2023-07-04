@@ -24,7 +24,7 @@ FFTW_
       #. Initial Condition Generation, and,
       #. Power spectrum measurement
 
-    If is is not available on your system you can download it from the FFTW_ website and compile it yourself.
+    If it is not available on your system you can download it from the FFTW_ website and compile it yourself.
 
     .. _FFTW: http://www.fftw.org/
 
