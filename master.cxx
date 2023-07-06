@@ -2412,7 +2412,7 @@ void MSR::DomainDecompOld(int iRung) {
 
     in.bDoRootFind = 1;
     in.bDoSplitDimFind = 1;
-    if (iRung >= 0) {
+    if (iRung > 0) {
         /*
         ** All of this could be calculated once for the case that the number
         ** of particles don't change. Or calculated every time the number of
