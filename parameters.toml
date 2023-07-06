@@ -139,7 +139,7 @@ docs='''
 If enabled, the power spectrum measurement tool creates two mass assignment grids.
 The second contains the mass with the particles offset by half a grid cell.
 The results of the two mass assignment grids are combined to reduce grid aliasing effects.
-See :cite:t:`HockneyEastwood1988`.
+See :cite:t:`HockneyEastwood1988`, section 7-8 "Interlacing" for details..
 '''
 
 ["Analysis"."Power Spectrum Measurement".iPkOrder]
@@ -154,7 +154,7 @@ Selects the mass assignment method:
 3. Triangular Shaped Cloud (TSC), and
 4. Piecewise Cubic Spline (PSC).
 
-The recommended method is PCS.
+The recommended method is PCS. See :cite:t:`2016MNRAS.460.3624S` for details.
 '''
 
 ["Analysis"."Light Cone".bLightCone]
