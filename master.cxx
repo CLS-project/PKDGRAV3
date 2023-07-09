@@ -3078,12 +3078,13 @@ void MSR::SmoothSetSMF(SMF *smf, double dTime, double dDelta, int nSmooth) {
     smf->gamma = param.dConstGamma;
     smf->dDelta = dDelta;
     smf->dEtaCourant = param.dEtaCourant;
-    smf->dConstGamma = param.dConstGamma;
     smf->bMeshlessHydro = param.bMeshlessHydro;
-    smf->dhMinOverSoft = param.dhMinOverSoft;
     smf->bIterativeSmoothingLength = param.bIterativeSmoothingLength;
     smf->bUpdateBall = bUpdateBall;
+    smf->nBucket = param.nBucket;
     smf->dCFLacc = param.dCFLacc;
+    smf->dConstGamma = param.dConstGamma;
+    smf->dhMinOverSoft = param.dhMinOverSoft;
     smf->dNeighborsStd = param.dNeighborsStd;
 #if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
     eEOSFill(param, &smf->eEOS);

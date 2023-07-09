@@ -1283,7 +1283,7 @@ int smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
     // Here we store the pointers to the particles whose interaction
     // need to be computed
     std::vector<PARTICLE *> sinks;
-    sinks.reserve(64); // At most, the size of the bucket
+    sinks.reserve(smf->nBucket); // At most, the bucket size
 
     /* For allowing vectorization, it is better to use an structure of
      *  arrays rather than an array of structures.
