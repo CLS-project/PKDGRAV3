@@ -3358,15 +3358,19 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
     char c;
 
     if (parameters.get_bVStep()) {
-        if (SPHoptions.doDensity && SPHoptions.useDensityFlags) printf("Calculating Density using FastGas, Step:%f (rung %d)\n",dStep,uRungLo);
-        if (SPHoptions.doDensity && !SPHoptions.useDensityFlags) printf("Calculating Density without FastGas, Step:%f (rung %d)\n",dStep,uRungLo);
-        if (SPHoptions.doDensityCorrection && SPHoptions.useDensityFlags) printf("Calculating Density Correction using FastGas, Step:%f (rung %d)\n",dStep,uRungLo);
-        if (SPHoptions.doDensityCorrection && !SPHoptions.useDensityFlags) printf("Calculating Density Correction without FastGas, Step:%f (rung %d)\n",dStep,uRungLo);
-        if (SPHoptions.doGravity && SPHoptions.doSPHForces) printf("Calculating Gravity and SPH forces, Step:%f (rung %d)\n",dStep,uRungLo);
-        if (SPHoptions.doGravity && !SPHoptions.doSPHForces) printf("Calculating Gravity, Step:%f (rung %d)\n",dStep,uRungLo);
-        if (!SPHoptions.doGravity && SPHoptions.doSPHForces) printf("Calculating SPH forces, Step:%f (rung %d)\n",dStep,uRungLo);
-        if (SPHoptions.doSetDensityFlags) printf("Marking Neighbors for FastGas, Step:%f (rung %d)\n",dStep,uRungLo);
-        if (SPHoptions.doSetNNflags) printf("Marking Neighbors of Neighbors for FastGas, Step:%f (rung %d)\n",dStep,uRungLo);
+        if (SPHoptions.doDensity && SPHoptions.useDensityFlags) printf("Calculating Density using FastGas, Step:%f (rung %d)",dStep,uRungLo);
+        if (SPHoptions.doDensity && !SPHoptions.useDensityFlags) printf("Calculating Density without FastGas, Step:%f (rung %d)",dStep,uRungLo);
+        if (SPHoptions.doDensityCorrection && SPHoptions.useDensityFlags) printf("Calculating Density Correction using FastGas, Step:%f (rung %d)",dStep,uRungLo);
+        if (SPHoptions.doDensityCorrection && !SPHoptions.useDensityFlags) printf("Calculating Density Correction without FastGas, Step:%f (rung %d)",dStep,uRungLo);
+        if (SPHoptions.doGravity && SPHoptions.doSPHForces) printf("Calculating Gravity and SPH forces, Step:%f (rung %d)",dStep,uRungLo);
+        if (SPHoptions.doGravity && !SPHoptions.doSPHForces) printf("Calculating Gravity, Step:%f (rung %d)",dStep,uRungLo);
+        if (!SPHoptions.doGravity && SPHoptions.doSPHForces) printf("Calculating SPH forces, Step:%f (rung %d)",dStep,uRungLo);
+        if (SPHoptions.doSetDensityFlags) printf("Marking Neighbors for FastGas, Step:%f (rung %d)",dStep,uRungLo);
+        if (SPHoptions.doSetNNflags) printf("Marking Neighbors of Neighbors for FastGas, Step:%f (rung %d)",dStep,uRungLo);
+        if (csm->val.bComove)
+            printf(", Redshift:%f\n", 1. / csmTime2Exp(csm,dTime) - 1.);
+        else
+            printf(", Time:%f\n", dTime);
     }
     in.dTime = dTime;
     in.iRoot1 = iRoot1;
