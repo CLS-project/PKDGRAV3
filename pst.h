@@ -844,6 +844,7 @@ struct inGenerateIC {
     int nGrid;
     int b2LPT;
     int bICgas;
+    int nBucket;
     double dInitialT;
     double dInitialH;
 #ifdef HAVE_HELIUM
@@ -902,6 +903,7 @@ struct inMoveIC {
     float fSoft;
     int nGrid;
     int bICgas;
+    int nBucket;
     double dInitialT;
     double dInitialH;
 #ifdef HAVE_HELIUM

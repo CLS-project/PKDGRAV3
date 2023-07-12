@@ -5010,6 +5010,7 @@ double MSR::GenerateIC() {
     in.nGrid = param.nGrid;
     in.b2LPT = param.b2LPT;
     in.bICgas = param.bICgas;
+    in.nBucket = param.nBucket;
     in.dInitialT = param.dInitialT;
     in.dInitialH = param.dInitialH;
 #ifdef HAVE_HELIUM
