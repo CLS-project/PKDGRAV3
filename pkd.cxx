@@ -1571,6 +1571,8 @@ void pkdWriteViaNode(PKD pkd, int iNode) {
 void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dScaleFactor, double dTime,
                        uint64_t nDark, uint64_t nGas, uint64_t nStar, uint64_t nBH,
                        double dBoxSize, double h, int nProcessors, UNITS units) {
+    char version[] = PACKAGE_VERSION;
+    fioSetAttr(fio, HDF5_HEADER_G, "PKDGRAV version", FIO_TYPE_STRING, 1, version);
     fioSetAttr(fio, HDF5_HEADER_G, "Time", FIO_TYPE_DOUBLE, 1, &dTime);
     if (pkd->csm->val.bComove) {
         double z = 1./dScaleFactor - 1.;
