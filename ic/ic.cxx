@@ -521,22 +521,16 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
                 }
                 if (!pkd->bNoParticleOrder)
                     pgas.set_order(pgas.order() + in->nGrid*in->nGrid*in->nGrid);
-                if (nBucket>1) {
-                    // Just put gas particles on top of the original particle, if
-                    // nBucket > 1 and the tree is built with more than one particle
-                    // per leaf.
-                    pgas.set_position(pgas.position());
-                }
-                else {   // CDV - TO DO
-                    // Use N-GenIC trick to keep the centre of mass of the original
-                    // particle at its original position. This is needed for displaced
-                    // dark matter and gas particles in case the tree is built down to
-                    // one particle per leaf. Here we displace the particles by a fraction
-                    // of the grid cell size (1/25 ~ the softening length) weighted by
-                    // the particle mass.
-                    p.set_position(p.position() - inGrid*0.04*(1.0 - in->dOmegaRate));
-                    pgas.set_position(pgas.position() + inGrid*0.04*in->dOmegaRate);
-                }
+
+                // Use N-GenIC trick to keep the centre of mass of the original
+                // particle at its original position. This is needed for displaced
+                // dark matter and gas particles in case the tree is built down to
+                // one particle per leaf. Here we displace the particles by a length
+                // proportional to half the grid cell size and weighted by
+                // the particle mass to preserve the centre of mass and conserve
+                // linear and angular momentum and kinetic energy.
+                p.set_position(p.position() - inGrid*0.5*(1.0 - in->dOmegaRate));
+                pgas.set_position(pgas.position() + inGrid*0.5*in->dOmegaRate);
 
                 auto &VelGas = pgas.velocity();
                 // Change the scale factor dependency
