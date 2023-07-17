@@ -836,7 +836,7 @@ struct inGenerateIC {
     uint64_t nPerNode;
     double dBoxSize;
     double dBoxMass;
-    double dOmegaRate;
+    double dBaryonFraction;
     double dExpansion;
     int iSeed;
     int bFixed;
