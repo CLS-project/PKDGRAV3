@@ -529,8 +529,8 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
                 // proportional to half the grid cell size and weighted by
                 // the particle mass to preserve the centre of mass and conserve
                 // linear and angular momentum and kinetic energy.
-                p.set_position(p.position() - inGrid*0.5*(1.0 - in->dBaryonFraction));
-                pgas.set_position(pgas.position() + inGrid*0.5*in->dBaryonFraction);
+                p.set_position(p.position() - inGrid*0.5*in->dBaryonFraction);
+                pgas.set_position(pgas.position() + inGrid*0.5*(1.0 - in->dBaryonFraction));
 
                 auto &VelGas = pgas.velocity();
                 // Change the scale factor dependency
