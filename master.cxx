@@ -5041,12 +5041,9 @@ double MSR::GenerateIC() {
     in.dInitialMetallicity = param.dInitialMetallicity;
 #endif
 
-    nTotal  = in.nGrid; /* Careful: 32 bit integer cubed => 64 bit integer */
-    nTotal *= in.nGrid;
-    nTotal *= in.nGrid;
+    nTotal = in.nGrid * in.nGrid * in.nGrid; /* Careful: 32 bit integer cubed => 64 bit integer */
     in.dBoxMass = csm->val.dOmega0 / nTotal;
     if (in.bICgas) nTotal *= 2;
-    in.dBoxMass = csm->val.dOmega0 / nTotal;
 
     for ( j=0; j<=FIO_SPECIES_LAST; j++) nSpecies[j] = 0;
     if (in.bICgas) {
@@ -5067,8 +5064,8 @@ double MSR::GenerateIC() {
     assert(param.dRedFrom >= 0.0 );
     in.dExpansion = 1.0 / (1.0 + param.dRedFrom);
 
-    N     = nSpecies[FIO_SPECIES_ALL];
-    nGas  = nSpecies[FIO_SPECIES_SPH];
+    N = nSpecies[FIO_SPECIES_ALL];
+    nGas = nSpecies[FIO_SPECIES_SPH];
     nDark = nSpecies[FIO_SPECIES_DARK];
     nStar = nSpecies[FIO_SPECIES_STAR];
     nBH = nSpecies[FIO_SPECIES_BH];

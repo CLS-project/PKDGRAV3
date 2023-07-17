@@ -459,8 +459,8 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
         float fGasMass, fDarkMass, fGasSoft, fDarkSoft;
         int nBucket;
         if (in->bICgas) {
-            fGasMass = 2.0*in->fMass*in->dBaryonFraction;
-            fDarkMass = 2.0*in->fMass*(1.0 - in->dBaryonFraction);
+            fGasMass = in->fMass*in->dBaryonFraction;
+            fDarkMass = in->fMass*(1.0 - in->dBaryonFraction);
             fGasSoft = in->fSoft * sqrt(in->dBaryonFraction);
             fDarkSoft = in->fSoft;
             nBucket = in->nBucket;
@@ -722,7 +722,7 @@ int pstMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
         move.iStart = 0;
         move.nMove = nLocal;
         move.fMass = in->dBoxMass;
-        move.fSoft = 1.0 / (50.0*in->nGrid);
+        move.fSoft = 1.0 / (25.0*in->nGrid);
         move.nGrid = in->nGrid;
         move.bICgas = in->bICgas;
         move.nBucket = in->nBucket;
