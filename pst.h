@@ -934,7 +934,7 @@ struct inMoveIC {
     double dInitialMetallicity;
 #endif
     double dExpansion;
-    double dOmegaRate;
+    double dBaryonFraction;
     double dTuFac;
 };
 int pltMoveIC(PST,void *,int,void *,int);
