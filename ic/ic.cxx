@@ -445,7 +445,7 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
         icUp.dInitialMetallicity = in->dInitialMetallicity;
 #endif
         icUp.dExpansion = in->dExpansion;
-        icUp.dOmegaRate = in->dOmegaRate;
+        icUp.dBaryonFraction = in->dBaryonFraction;
         icUp.dTuFac = in->dTuFac;
 
         int rID = mdl->ReqService(pst->idUpper,PLT_MOVEIC,&icUp,nIn);
@@ -459,9 +459,9 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
         float fGasMass, fDarkMass, fGasSoft, fDarkSoft;
         int nBucket;
         if (in->bICgas) {
-            fGasMass = 2.0*in->fMass*in->dOmegaRate;
-            fDarkMass = 2.0*in->fMass*(1.0 - in->dOmegaRate);
-            fGasSoft = in->fSoft * sqrt(in->dOmegaRate);
+            fGasMass = 2.0*in->fMass*in->dBaryonFraction;
+            fDarkMass = 2.0*in->fMass*(1.0 - in->dBaryonFraction);
+            fGasSoft = in->fSoft * sqrt(in->dBaryonFraction);
             fDarkSoft = in->fSoft;
             nBucket = in->nBucket;
         }
@@ -529,8 +529,8 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
                 // proportional to half the grid cell size and weighted by
                 // the particle mass to preserve the centre of mass and conserve
                 // linear and angular momentum and kinetic energy.
-                p.set_position(p.position() - inGrid*0.5*(1.0 - in->dOmegaRate));
-                pgas.set_position(pgas.position() + inGrid*0.5*in->dOmegaRate);
+                p.set_position(p.position() - inGrid*0.5*(1.0 - in->dBaryonFraction));
+                pgas.set_position(pgas.position() + inGrid*0.5*in->dBaryonFraction);
 
                 auto &VelGas = pgas.velocity();
                 // Change the scale factor dependency
@@ -756,7 +756,7 @@ int pstMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
         move.dInitialMetallicity = in->dInitialMetallicity;
 #endif
         move.dExpansion = in->dExpansion;
-        move.dOmegaRate = in->dOmegaRate;
+        move.dBaryonFraction = in->dBaryonFraction;
         move.dTuFac = in->dTuFac;
         pltMoveIC(pst,&move,sizeof(move),NULL,0);
     }

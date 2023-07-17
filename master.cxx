@@ -5060,7 +5060,7 @@ double MSR::GenerateIC() {
     InitializePStore(nSpecies,getMemoryModel(),param.nMemEphemeral); // We now need a bit of cosmology to set the maximum lightcone depth here.
     InitCosmology();
 
-    in.dOmegaRate = csm->val.dOmegab/csm->val.dOmega0;
+    in.dBaryonFraction = csm->val.dOmegab/csm->val.dOmega0;
     SetDerivedParameters();
     in.dTuFac = dTuFacPrimNeutral;
 
