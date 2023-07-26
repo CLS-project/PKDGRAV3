@@ -161,16 +161,33 @@ The recommended method is PCS.
 flag="lc"
 default=false
 help="output light cone data"
+docs='''
+Enable or disable light cone output.
+'''
+
+["Analysis"."Light Cone".dRedshiftLCP]
+flag="zlcp"
+default=0.0
+help="starting redshift to output light cone"
+
+["Analysis"."Light Cone".nSideHealpix]
+flag="healpix"
+default=0
+help="Number per side of the healpix map"
+docs='''
+Sets the "nSide" parameter for healpix, and if non-zero
+enables the output of the healpix maps.
+'''
+
+["Analysis"."Light Cone".bLightConeParticles]
+flag="lcp"
+default=false
+help="output light cone particles"
 
 ["Analysis"."Light Cone".bBowtie]
 flag="bbt"
 default=false
 help="output +++ and --- octants of the cone; a bowtie"
-
-["Analysis"."Light Cone".dRedshiftLCP]
-flag="zlcp"
-default=0.0
-help="starting redshift to output light cone particles"
 
 ["Analysis"."Light Cone".sqdegLCP]
 flag="sqdeg"
@@ -191,11 +208,6 @@ help="y-component of lightcone direction vector"
 flag="hz"
 default=1.0
 help="z-component of lightcone direction vector"
-
-["Analysis"."Light Cone".bLightConeParticles]
-flag="lcp"
-default=false
-help="output light cone particles"
 
 ["Analysis"."Group Finding"]
 docs='''
@@ -241,11 +253,14 @@ The Friends-of-friends group finder is enabled when this is true.
 
 ["Analysis"."Group Finding"."Friends of Friends".dTau]
 flag="tau"
-default=0.164
-help="linking length for FOF in units of mean particle separation"
+default=0.0
+help="linking length for FOF in code units"
 docs='''
 The linking length :math:`\tau`. This is normally set to one fifth of
-the mean particle separation.
+the mean particle separation. For example, if you use the built-in IC
+generator you could set this parameter with::
+
+  dTau = 0.2 / nGrid
 '''
 
 ["Analysis"."Group Finding"."Grasshopper"]
@@ -267,11 +282,6 @@ help="linking length for Gasshopper (negative for multiples of softening)"
 flag="zdel"
 default=0.0
 help="starting redshift to output delta(k) field"
-
-["Analysis".nSideHealpix]
-flag="healpix"
-default=0
-help="Number per side of the healpix map"
 
 ################################################################################
 ########## I/O Parameters
