@@ -4,7 +4,7 @@
 #include <cmath>
 
 #include "smooth/smoothfcn.h"
-#include "hydro/riemann_own.h"
+#include "hydro/riemann.h"
 
 const double TOL = 5e-6;
 

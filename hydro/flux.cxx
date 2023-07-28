@@ -2,11 +2,7 @@
 #include "master.h"
 #include "eEOS/eEOS.h"
 #include "hydro/limiters.h"
-#ifdef OPTIM_FLUX_VEC
-    #include "riemann_own.h"
-#else
-    #include "riemann.h"
-#endif
+#include "riemann.h"
 using blitz::TinyVector;
 using blitz::dot;
 
