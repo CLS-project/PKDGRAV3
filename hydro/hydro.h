@@ -119,10 +119,10 @@ void hydroRiemann(PARTICLE *p,float fBall,int nSmooth, int nBuff,
                   my_real *restrict input_buffer,
                   my_real *restrict output_buffer,
                   SMF *smf);
-void hydroRiemann_simd(PARTICLE *p,float fBall,int nSmooth, int nBuff,
-                       my_real *restrict input_buffer,
-                       my_real *restrict output_buffer,
-                       SMF *smf);
+void hydroRiemann_wrapper(PARTICLE *p,float fBall,int nSmooth, int nBuff,
+                          my_real *restrict input_buffer,
+                          my_real *restrict output_buffer,
+                          SMF *smf);
 void pkdResetFluxes(PKD pkd,double dTime,double dDelta,double,double);
 
 void flushHydroFluxes(void *vpkd,void *dst,const void *src);
@@ -131,7 +131,7 @@ void hydroFluxFillBuffer(my_real *input_buffer, PARTICLE *q, int i, int nBuff,
                          double dr2, blitz::TinyVector<double,3> dr, SMF *);
 void hydroFluxUpdateFromBuffer(my_real *output_buffer, my_real *input_buffer,
                                PARTICLE *p, PARTICLE *q, int i, int nBuff, SMF *);
-void hydroFluxGetNvars(int *in, int *out);
+void hydroFluxGetBufferInfo(int *in, int *out);
 
 void pkdResetFluxes(PKD pkd,double dTime,double dDelta,double,double);
 
@@ -160,7 +160,6 @@ void initHydroStep(void *vpkd,void *dst);
 void flushHydroStep(void *vpkd,void *dst,const void *src);
 void combHydroStep(void *vpkd,void *dst,const void *src);
 void pkdWakeParticles(PKD pkd,int iRoot,double dTime,double dDelta);
-
 
 /* Source terms */
 void hydroSourceGravity(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS *psph,

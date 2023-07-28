@@ -8,7 +8,7 @@
 
 const int Ntests = 200;
 
-class RiemannTest : public ::testing::Test {
+class LimiterTest : public ::testing::Test {
 protected:
     std::array<double, SIMD_DWIDTH> Lst;
     std::array<double, SIMD_DWIDTH> Rst;
@@ -37,7 +37,7 @@ protected:
 
 };
 
-TEST_F(RiemannTest, PairwiseLimiterTest) {
+TEST_F(LimiterTest, PairwiseLimiterTest) {
 
     for (auto i=0; i<Ntests; i++) {
         set_inputs();
@@ -45,9 +45,14 @@ TEST_F(RiemannTest, PairwiseLimiterTest) {
         // reference
         std::array<double, SIMD_DWIDTH> Lstf0 = Lstf;
         std::array<double, SIMD_DWIDTH> Rstf0 = Rstf;
-        for (auto k=0; k<SIMD_DWIDTH; k++)
-            genericPairwiseLimiter(Lst[k], Rst[k], &Lstf0[k], &Rstf0[k]);
-
+        for (auto k=0; k<SIMD_DWIDTH; k++) {
+            // Extra copy to pass the correct reference to limiter function
+            vec<double,double> Rtmp = Rstf0[k];
+            vec<double,double> Ltmp = Lstf0[k];
+            genericPairwiseLimiter<vec<double,double>>(Lst[k], Rst[k], Ltmp, Rtmp);
+            Rstf0[k] = Rtmp;
+            Lstf0[k] = Ltmp;
+        }
 
         // simd version
         dvec Lstv, Rstv, Lstfv, Rstfv;
@@ -55,7 +60,7 @@ TEST_F(RiemannTest, PairwiseLimiterTest) {
         Rstv.load( Rst.data() );
         Lstfv.load( Lstf.data() );
         Rstfv.load( Rstf.data() );
-        genericPairwiseLimiter(Lstv, Rstv, &Lstfv, &Rstfv);
+        genericPairwiseLimiter(Lstv, Rstv, Lstfv, Rstfv);
 
         // compare them
         for (auto k=0; k<SIMD_DWIDTH; k++) {

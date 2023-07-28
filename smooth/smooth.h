@@ -29,7 +29,6 @@ extern "C" {
 
 #define NNLIST_INCREMENT    200     /* number of extra neighbor elements added to nnList */
 
-
 struct hashElement {
     void *p;
     struct hashElement *coll;
@@ -45,7 +44,7 @@ typedef struct smContext {
     PARTICLE *pSentinel;
     void (*fcnSmooth)(PARTICLE *,float,int,NN *,SMF *);
     void (*fcnSmoothNode)(PARTICLE *, float, int, int, double *, double *, SMF *);
-    void (*fcnSmoothGetNvars)(int *, int *);
+    void (*fcnSmoothGetBufferInfo)(int *, int *);
     void (*fcnSmoothFillBuffer)(double *, PARTICLE *, int, int,
                                 double, blitz::TinyVector<double,3>, SMF *);
     void (*fcnSmoothUpdate)(double *, double *, PARTICLE *, PARTICLE *, int, int, SMF *);
@@ -103,7 +102,6 @@ typedef struct smContext {
     uint32_t iTail;
     int  *Fifo;
 } *SMX;
-
 
 #ifdef __cplusplus
 extern "C" {

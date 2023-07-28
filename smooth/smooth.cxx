@@ -243,7 +243,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
     assert(smx->pSentinel != NULL);
     smx->pkd = pkd;
     smx->fcnSmoothNode = NULL;
-    smx->fcnSmoothGetNvars = NULL;
+    smx->fcnSmoothGetBufferInfo = NULL;
     smx->fcnSmoothFillBuffer = NULL;
     smx->fcnSmoothUpdate = NULL;
     if (smf != NULL) smf->pkd = pkd;
@@ -338,28 +338,11 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         bPacked = true;
         iPackSize = sizeof(hydroGradientsPack);
         break;
-    case SMX_HYDRO_FLUX:
-        assert( pkd->particles.present(PKD_FIELD::oSph) ); /* Validate memory model */
-        smx->fcnSmooth = hydroRiemann_old;
-        initParticle = initHydroFluxes; /* Original Particle */
-        pack = packHydroFluxes;
-        unpack = unpackHydroFluxes;
-        init = initHydroFluxesCached; /* Cached copies */
-        flush = flushHydroFluxes;
-        comb = combHydroFluxes;
-        bPacked = true;
-        iPackSize = sizeof(hydroFluxesPack);
-        iFlushSize = sizeof(hydroFluxesFlush);
-        break;
 #ifdef OPTIM_FLUX_VEC
     case SMX_HYDRO_FLUX_VEC:
         assert (pkd->particles.present(PKD_FIELD::oSph));
-#if defined(USE_MFM) && ( defined(HAVE_MM_POW) || defined(HAVE_MM256_POW) || defined(HAVE_MM512_POW) )
-        smx->fcnSmoothNode = hydroRiemann_simd;
-#else
-        smx->fcnSmoothNode = hydroRiemann;
-#endif
-        smx->fcnSmoothGetNvars = hydroFluxGetNvars;
+        smx->fcnSmoothNode = hydroRiemann_wrapper;
+        smx->fcnSmoothGetBufferInfo = hydroFluxGetBufferInfo;
         smx->fcnSmoothFillBuffer = hydroFluxFillBuffer;
         smx->fcnSmoothUpdate = hydroFluxUpdateFromBuffer;
         initParticle = initHydroFluxes; /* Original Particle */
@@ -460,7 +443,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
         assert(0);
     }
 
-    if ( (smx->fcnSmoothNode != NULL) && ( (smx->fcnSmoothGetNvars == NULL) ||
+    if ( (smx->fcnSmoothNode != NULL) && ( (smx->fcnSmoothGetBufferInfo == NULL) ||
                                            (smx->fcnSmoothFillBuffer == NULL) || (smx->fcnSmoothUpdate == NULL) ) ) {
         fprintf(stderr, "ERROR: Trying to use particle buffer in node smooth,"
                 "but not all the required fuctions are set\n");
@@ -1292,8 +1275,8 @@ int smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
     my_real *input_buffer = NULL;
     my_real *output_buffer = NULL;
     int inNvar, outNvar;
-    if (smx->fcnSmoothGetNvars) {
-        smx->fcnSmoothGetNvars(&inNvar, &outNvar);
+    if (smx->fcnSmoothGetBufferInfo) {
+        smx->fcnSmoothGetBufferInfo(&inNvar, &outNvar);
         allocNodeBuffer(nnListMax_p, inNvar, &input_buffer, NULL,0);
         allocNodeBuffer(nnListMax_p, outNvar, &output_buffer, NULL,0);
     }
@@ -1472,7 +1455,7 @@ int smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
                                 nnListMax_p += NNLIST_INCREMENT;
                                 nnList_p = static_cast<NN *>(realloc(nnList_p,nnListMax_p*sizeof(NN)));
                                 assert(nnList_p != NULL);
-                                if (smx->fcnSmoothGetNvars) {
+                                if (smx->fcnSmoothGetBufferInfo) {
                                     printf("WARNING: Increasing smoothNode buffer size to %d\n",
                                            nnListMax_p);
                                     int oldListMax = nnListMax_p - NNLIST_INCREMENT;
@@ -1530,7 +1513,7 @@ int smReSmoothNode(SMX smx,SMF *smf, int iSmoothType) {
 
         }
     }
-    if (smx->fcnSmoothGetNvars) {
+    if (smx->fcnSmoothGetBufferInfo) {
         delete [] input_buffer;
         delete [] output_buffer;
     }

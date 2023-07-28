@@ -14,15 +14,15 @@
 #define psi2 0.25
 template <typename ftype=double>
 static inline void genericPairwiseLimiter(ftype Lstate, ftype Rstate,
-        ftype *Lstate_face, ftype *Rstate_face) {
+        ftype &Lstate_face, ftype &Rstate_face) {
 #ifdef DEBUG_FLUX_NOLIMITER
     return;
 #endif
     ftype phi_max, phi_min, d1, d2, phi_mean, phi_p, phi_m;
 
     if (Lstate == Rstate) {
-        *Lstate_face = Lstate;
-        *Rstate_face = Rstate;
+        Lstate_face = Lstate;
+        Rstate_face = Rstate;
         //equal++;
     }
     else {
@@ -32,8 +32,8 @@ static inline void genericPairwiseLimiter(ftype Lstate, ftype Rstate,
 
         phi_mean = 0.5*(Lstate+Rstate);
 
-        phi_min = MIN(Lstate, Rstate);
-        phi_max = MAX(Lstate, Rstate);
+        phi_min = min(Lstate, Rstate);
+        phi_max = max(Lstate, Rstate);
 
         if (SIGN(phi_min - d1) == SIGN(phi_min) ) {
             phi_m = phi_min - d1;
@@ -54,13 +54,13 @@ static inline void genericPairwiseLimiter(ftype Lstate, ftype Rstate,
         }
 
         if (Lstate < Rstate) {
-            *Lstate_face = MAX(phi_m, MIN(phi_mean+d2, *Lstate_face));
-            *Rstate_face = MIN(phi_p, MAX(phi_mean-d2, *Rstate_face));
+            Lstate_face = max(phi_m, min(phi_mean+d2, Lstate_face));
+            Rstate_face = min(phi_p, max(phi_mean-d2, Rstate_face));
             //pass5++;
         }
         else {
-            *Rstate_face = MAX(phi_m, MIN(phi_mean+d2, *Rstate_face));
-            *Lstate_face = MIN(phi_p, MAX(phi_mean-d2, *Lstate_face));
+            Rstate_face = max(phi_m, min(phi_mean+d2, Rstate_face));
+            Lstate_face = min(phi_p, max(phi_mean-d2, Lstate_face));
             //pass6++;
         }
 
@@ -70,14 +70,13 @@ static inline void genericPairwiseLimiter(ftype Lstate, ftype Rstate,
 #ifdef SIMD_H
 template <>
 inline void genericPairwiseLimiter(dvec Lstate, dvec Rstate,
-                                   dvec *Lstate_face, dvec *Rstate_face) {
+                                   dvec &Lstate_face, dvec &Rstate_face) {
 #ifdef DEBUG_FLUX_NOLIMITER
     return;
 #endif
     dvec phi_max, phi_min, d1, d2, phi_mean, phi_p, phi_m;
 
     auto equal = Lstate == Rstate;
-
 
     d1 = psi1*abs(Lstate - Rstate);
     d2 = psi2*abs(Lstate - Rstate);
@@ -122,10 +121,10 @@ inline void genericPairwiseLimiter(dvec Lstate, dvec Rstate,
     {
         auto cond = Lstate < Rstate;
         auto ncond = ~cond;
-        *Lstate_face = mask_mov( *Lstate_face, cond, max(phi_m, min(phi_mean+d2, *Lstate_face)));
-        *Rstate_face = mask_mov( *Rstate_face, cond, min(phi_p, max(phi_mean-d2, *Rstate_face)));
-        *Rstate_face = mask_mov( *Rstate_face,ncond, max(phi_m, min(phi_mean+d2, *Rstate_face)));
-        *Lstate_face = mask_mov( *Lstate_face,ncond, min(phi_p, max(phi_mean-d2, *Lstate_face)));
+        Lstate_face = mask_mov( Lstate_face, cond, max(phi_m, min(phi_mean+d2, Lstate_face)));
+        Rstate_face = mask_mov( Rstate_face, cond, min(phi_p, max(phi_mean-d2, Rstate_face)));
+        Rstate_face = mask_mov( Rstate_face,ncond, max(phi_m, min(phi_mean+d2, Rstate_face)));
+        Lstate_face = mask_mov( Lstate_face,ncond, min(phi_p, max(phi_mean-d2, Lstate_face)));
     }
     /*
     if (Lstate < Rstate) {
@@ -138,11 +137,10 @@ inline void genericPairwiseLimiter(dvec Lstate, dvec Rstate,
     }
     */
 
-    *Lstate_face = mask_mov(*Lstate_face, equal, Lstate);
-    *Rstate_face = mask_mov(*Rstate_face, equal, Rstate);
+    Lstate_face = mask_mov(Lstate_face, equal, Lstate);
+    Rstate_face = mask_mov(Rstate_face, equal, Rstate);
 }
 #endif
-
 
 static inline void BarthJespersenLimiter(double *limVar, double *gradVar,
         double var_max, double var_min,
@@ -190,7 +188,6 @@ static inline void ConditionedBarthJespersenLimiter(double *limVar, double *grad
     diff = diff < 1. ? diff : 1.;
     diff *= 2.;
     beta = (1. < diff) ? diff : 1.;
-
 
     diff = (gradVar[0]*dx + gradVar[1]*dy + gradVar[2]*dz);
     if (var_min > 0) { var_min=0; } //IA: Can happen due to machine precision
