@@ -765,16 +765,16 @@ static inline void computeFace(ftype &modApq, std::array<ftype,3> &unit,
         modApq += Apq[j]*Apq[j];
     }
     modApq = sqrt(modApq);
-    if (modApq > 0.) {
+    //if (modApq > 0.) {
         for (auto j=0; j<3; j++) {
             unit[j] = Apq[j]/modApq;
         }
-    }
-    else {
-        for (auto j=0; j<3; j++) {
-            unit[j] = 0.0;
-        }
-    }
+    //}
+    //else {
+    //    for (auto j=0; j<3; j++) {
+    //        unit[j] = 0.0;
+    //    }
+    //}
 }
 
 template <typename ftype=double>

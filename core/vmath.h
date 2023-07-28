@@ -63,7 +63,7 @@ fvec cosf(const fvec &xx) {
     fvec fj = cvt_fvec(j);
     fmask mask = fj >= 2.0f;
     fj = mask_sub(mask,fj,fvec(2.0f));
-    mask ^= (fj >= 1.0f);
+    mask ^= (fmask)(fj >= 1.0f);
     cos_sign = maskz_mov(mask,fvec::sign_mask());
     fmask poly = fj >= 1.0f;
     x = ((x - y * vmath_DP1) - y * vmath_DP2) - y * vmath_DP3;
@@ -94,7 +94,7 @@ void sincosf(const fvec &xx, fvec &sin, fvec &cos) {
     fmask mask = fj >= 2.0f;
     sin_sign = mask_xor(mask,sin_sign,fvec::sign_mask());
     fj = mask_sub(mask,fj,fvec(2.0f));
-    mask ^= (fj >= 1.0f);
+    mask ^= (fmask)(fj >= 1.0f);
     cos_sign = maskz_mov(mask,fvec::sign_mask());
     fmask poly = fj >= 1.0f;
     x = ((x - y * vmath_DP1) - y * vmath_DP2) - y * vmath_DP3;
@@ -253,7 +253,6 @@ dvec verf(const dvec &v,const dvec &iv,const dvec &ex2,dvec &r_erf,dvec &r_erfc)
                + i32v(_mm256_and_si256(i32v(consts.two),_mm256_castpd_si256(pred1)))
                + i32v(_mm256_and_si256(i32v(consts.two),_mm256_castpd_si256(pred2)));
 #endif
-
 
     SET_PREFACTOR(p0);
     SET_PREFACTOR(p1);
