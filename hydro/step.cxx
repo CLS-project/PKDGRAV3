@@ -124,7 +124,8 @@ void hydroStep(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
         const auto &dr = nnList[i].dr;
 
 
-        // From eqs. 24, 25 of Hopkins 2015, to limit deltaT
+        // Signal velocity based time step criterion as described in
+        // Monaghan (1997).
         const double dvDotdr = dot(dr,qv - pv);
         double vsig_pq = psph.c + qsph.c;
         if (dvDotdr < 0.) vsig_pq -= dvDotdr/sqrt(nnList[i].fDist2);
@@ -144,7 +145,6 @@ void hydroStep(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
         double Ekin = 0.5*p.mass()*dv2;
 
         psph.maxEkin = (psph.maxEkin < Ekin) ? Ekin : psph.maxEkin;
-
     }
 #endif
 

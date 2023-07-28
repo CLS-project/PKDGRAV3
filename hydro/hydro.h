@@ -163,6 +163,16 @@ double conditionNumber(double *E, double *B);
 //         return 0.0;
 //     }
 // }
+
+// Cubic spline kernel as defined in Dehnen & Aly (2012)
+//
+// (1 − q)^3 − 4(1/2 − q)^3  for   0 < q <= 1/2
+//                (1 − q)^3  for 1/2 < q <= 1
+//                        0  for       q > 1
+//
+// where q = r/H. The assert() is there to capture eventual failures in the
+// neighbours search. Indeed, all neighbouring particles should be inside
+// the sphere defined by H (fBall in PKDGRAV3 terminology).
 inline double cubicSplineKernel(double r, double H) {
     double M_1_H = 1.0 / H;
     double q = r * M_1_H;
