@@ -230,7 +230,7 @@ void hydroRiemann(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
     const auto &pv = P.velocity();
     auto &psph = P.sph();
-    const double ph = 0.5*P.ball();
+    const double ph = P.ball();
     const double pDensity = P.density();
 
     for (auto i = 0; i < nSmooth; ++i) {
@@ -243,7 +243,7 @@ void hydroRiemann(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
         auto Q = pkd->particles[nnList[i].pPart];
         const auto &qv = Q.velocity();
         auto &qsph = Q.sph();
-        const double qh = 0.5*Q.ball();
+        const double qh = Q.ball();
 
         const double dx = nnList[i].dr[0];
         const double dy = nnList[i].dr[1];
@@ -723,7 +723,7 @@ void hydroRiemann_vec(PARTICLE *pIn,float fBall,int nSmooth,
 
     const auto &pv = P.velocity();
     auto &psph = P.sph();
-    const my_real ph = 0.5*P.ball();
+    const my_real ph = P.ball();
 
     const my_real pDensity = P.density();
     const my_real p_omega = psph.omega;
@@ -1126,7 +1126,7 @@ void hydroFluxFillBuffer(my_real **buffer, PARTICLE *qIn, int i, double dr2,
     PKD pkd = smf->pkd;
     auto Q = pkd->particles[qIn];
     double dDelta = smf->dDelta;
-    float qh = 0.5*Q.ball();
+    float qh = Q.ball();
     auto &qsph = Q.sph();
     buffer[q_mass][i] = Q.mass();
     buffer[q_ball][i] = qh;

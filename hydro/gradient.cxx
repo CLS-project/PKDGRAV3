@@ -67,7 +67,7 @@ void hydroGradients(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
     const auto &pv = p.velocity();
     auto &psph = p.sph();
-    const double ph = 0.5*fBall;
+    const double ph = fBall;
 
 #ifndef OPTIM_SMOOTH_NODE
     /* Compute the E matrix (Hopkins 2015, eq 14) */

@@ -19,14 +19,14 @@ void MSR::BHDrift(double dTime, double dDelta) {
 
 static inline int bhAccretion(PKD pkd, NN *nnList, int nSmooth,
                               particleStore::ParticleReference &p, BHFIELDS &bh,
-                              float ph, float pMass, double pDensity,
+                              float pH, float pMass, double pDensity,
                               double dScaleFactor) {
     const double prob_factor = (bh.dInternalMass - pMass)/pDensity;
     int nAccreted = 0;
     if (prob_factor > 0.0) {
         for (auto i = 0; i < nSmooth; ++i) {
             const double rpq = sqrt(nnList[i].fDist2);
-            const double kernel = cubicSplineKernel(rpq, ph);
+            const double kernel = cubicSplineKernel(rpq, pH);
             const double prob = prob_factor * kernel;
             if (rand()<RAND_MAX*prob) {
                 nnList[i].bMarked = 1;
@@ -146,7 +146,9 @@ void smBHevolve(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     uint8_t uMaxRung = 0;
     double cs = 0.;
     const float inv_a = 1./smf->a;
+    // CDV - pH = H
     const float ph = 0.5*fBall;
+    const float pH = fBall;
 
     // We look for the most bounded neighbouring particle
     TinyVector<vel_t,3> mv{0.0};
@@ -189,7 +191,7 @@ void smBHevolve(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
             assert(q.is_gas());
 #endif
             const double rpq = sqrt(nnList[i].fDist2);
-            const double kernel = cubicSplineKernel(rpq, ph);
+            const double kernel = cubicSplineKernel(rpq, pH);
             const auto &qMass = q.mass();
             massSum += qMass;
 
@@ -240,7 +242,7 @@ void smBHevolve(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
                 return sum + ii.bMarked;
             });
             nAccreted += bhAccretion(pkd, nnList, nSmooth, p, bh,
-                                     ph, pMass, pDensity, smf->a);
+                                     pH, pMass, pDensity, smf->a);
         }
         if (smf->bBHFeedback) {
             bhFeedback(pkd, nnList, nSmooth, nAccreted, p, bh, massSum, smf->dConstGamma,

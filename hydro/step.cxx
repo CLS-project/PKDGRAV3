@@ -110,11 +110,11 @@ void hydroStep(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
     const auto &pv = p.velocity();
     auto &psph = p.sph();
-    const double ph = 0.5*p.ball();
+    const double ph = 0.5*p.ball(); // CDV - This is OK
 
     dtEst = HUGE_VAL;
 
-    /*  Signal velocity criteria */
+    /*  Signal velocity criterion */
     for (auto i = 0; i < nSmooth; ++i) {
         if (pIn == nnList[i].pPart) continue;
         auto q = pkd->particles[nnList[i].pPart];
@@ -124,12 +124,12 @@ void hydroStep(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
         const auto &dr = nnList[i].dr;
 
 
-        // From Eqs 24,25 Hopkins 2015, to limit deltaT
+        // From eqs. 24, 25 of Hopkins 2015, to limit deltaT
         const double dvDotdr = dot(dr,qv - pv);
         double vsig_pq = psph.c + qsph.c;
         if (dvDotdr < 0.) vsig_pq -= dvDotdr/sqrt(nnList[i].fDist2);
 
-        const double dt2 = 2.*smf->dEtaCourant * ph * smf->a / vsig_pq;
+        const double dt2 = smf->dEtaCourant * ph * smf->a / vsig_pq;
         if (dt2 < dtEst) dtEst = dt2;
     }
 

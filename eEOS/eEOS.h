@@ -16,7 +16,6 @@ inline static void eEOSFill(const struct parameters param, struct eEOSparam *eEO
     eEOS->dFloorMinOD = param.dEOSFloorMinBaryonOD;
 }
 
-
 /*
  * General interface to the eEOS module
  * The density is in comoving coordinates.
@@ -25,8 +24,6 @@ inline static double eEOSEnergyFloor(double a_inv3, float fDens, float fBall,
                                      double dConstGamma, struct eEOSparam eEOS);
 inline static double eEOSPressureFloor(double a_inv3, float fDens, float fBall,
                                        double dConstGamma, struct eEOSparam eEOS);
-
-
 
 /*
  * Simple constant temperature floor
@@ -44,7 +41,6 @@ inline static double constantPressureFloor(double a_inv3, float fDens,
     return fDens * (dConstGamma - 1. ) *
            constantEnergyFloor(a_inv3, fDens, dConstGamma, eEOS);
 }
-
 
 #ifdef EEOS_POLYTROPE
 /*
@@ -64,7 +60,6 @@ inline static double polytropicPressureFloor(double a_inv3, float fDens, double 
     return fDens * (dConstGamma - 1. ) * polytropicEnergyFloor(a_inv3, fDens, dConstGamma, eEOS);
 }
 
-
 inline static double eEOSEnergyFloor(double a_inv3, float fDens, float fBall,
                                      double dConstGamma, struct eEOSparam eEOS) {
     const double polyEnergy = polytropicEnergyFloor(a_inv3, fDens, dConstGamma, eEOS);
@@ -75,6 +70,7 @@ inline static double eEOSEnergyFloor(double a_inv3, float fDens, float fBall,
     else
         return constantEnergy;
 }
+
 inline static double eEOSPressureFloor(double a_inv3, float fDens, float fBall,
                                        double dConstGamma, struct eEOSparam eEOS) {
     const double polyPressure = polytropicPressureFloor(a_inv3, fDens, dConstGamma, eEOS);
@@ -85,11 +81,7 @@ inline static double eEOSPressureFloor(double a_inv3, float fDens, float fBall,
     else
         return constantPressure;
 }
-
 #endif
-
-
-
 
 #ifdef EEOS_JEANS
 /*
@@ -102,14 +94,12 @@ inline static double eEOSPressureFloor(double a_inv3, float fDens, float fBall,
 inline static double eEOSPressureFloor(double a_inv3, float fDens, float fBall,
                                        double dConstGamma, struct eEOSparam eEOS) {
     return 1.2/dConstGamma * pow(eEOS.dNJeans,2./3.) * fDens * fDens * fBall * fBall;
-
 }
 
 inline static double eEOSEnergyFloor(double a_inv3, float fDens, float fBall,
                                      double dConstGamma, struct eEOSparam eEOS) {
     return eEOSPressureFloor(a_inv3, fDens, fBall, eEOS) /
            (fDens * (dConstGamma - 1.));
-
 }
 #endif
 #endif

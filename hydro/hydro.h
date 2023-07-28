@@ -150,17 +150,31 @@ void hydroSetLastVars(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS *p
  */
 void inverseMatrix(double *E, double *B);
 double conditionNumber(double *E, double *B);
-inline double cubicSplineKernel(double r, double h) {
-    double q;
-    q = r/h;
-    if (q<1.0) {
-        return M_1_PI/(h*h*h)*( 1. - 1.5*q*q*(1.-0.5*q) );
-    }
-    else if (q<2.0) {
-        return 0.25*M_1_PI/(h*h*h)*(2.-q)*(2.-q)*(2.-q);
+// inline double cubicSplineKernel(double r, double h) {
+//     double q;
+//     q = r/h;
+//     if (q<1.0) {
+//         return M_1_PI/(h*h*h)*( 1. - 1.5*q*q*(1.-0.5*q) );
+//     }
+//     else if (q<2.0) {
+//         return 0.25*M_1_PI/(h*h*h)*(2.-q)*(2.-q)*(2.-q);
+//     }
+//     else {
+//         return 0.0;
+//     }
+// }
+inline double cubicSplineKernel(double r, double H) {
+    double M_1_H = 1.0 / H;
+    double q = r * M_1_H;
+    double norm = 16 * M_1_PI * M_1_H * M_1_H * M_1_H;
+
+    assert(q <= 1);
+
+    if (q < 0.5) {
+        return norm * (0.5 - 3 * q * q * (1.0 - q));
     }
     else {
-        return 0.0;
+        return norm * (1.0 - q) * (1.0 - q) * (1.0 - q);
     }
 }
 void BarthJespersenLimiter(double *limVar, const blitz::TinyVector<double,3> &gradVar,

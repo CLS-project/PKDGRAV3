@@ -59,7 +59,7 @@ void MSR::ComputeSmoothing(double dTime, double dDelta) {
 
 static inline void densNodeOmegaE(NN *nnList, float ph, TinyVector<double,3> dr_node, int nCnt,
                                   double *omega, TinyVector<double,6> &E, int *nSmooth) {
-    const float fBall2_p = 4.*ph*ph;
+    const float fBall2_p = ph*ph;
     *omega = 0.0;
     *nSmooth = 0.0;
     E = 0.0;
@@ -152,7 +152,7 @@ void hydroDensityFinal(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf
     double *omega = &(p.sph().omega);
 #endif
 
-    const double ph = 0.5*fBall;
+    const double ph = fBall;
     *omega = 0.0;
 
     if (p.is_gas()) {
@@ -216,13 +216,13 @@ void hydroDensity_node(PKD pkd, SMF *smf, Bound bnd_node, const std::vector<PART
 
         double dConvFac = .5;
         do {
-            const float fpSmooth = 0.5 * partj.ball();
+            const float fpSmooth = partj.ball();
             TinyVector<double,6> E;
 
             densNodeOmegaE(nnList, fpSmooth, dr_node, nCnt, omega, E, &nSmooth);
 
             // Check if it has converged
-            const double c = 4.*M_PI/3. * (*omega) * fpSmooth*fpSmooth*fpSmooth*8.;
+            const double c = 4.*M_PI/3. * (*omega) * fpSmooth*fpSmooth*fpSmooth;
             if ((fabs(c-Neff) < smf->dNeighborsStd) ) {
 
                 // Check if the converged density has a low enough condition number
@@ -262,7 +262,7 @@ void hydroDensity_node(PKD pkd, SMF *smf, Bound bnd_node, const std::vector<PART
                 const bool isMaxFac = Neff > c * pow(hMaxFac, 3);
                 const float hFac = isMaxFac ? hMaxFac : pow(Neff/c, 1./3.);
                 const float fpSmoothNew = fpSmooth * (1. + dConvFac*(hFac - 1.));
-                partj.set_ball(2.*fpSmoothNew);
+                partj.set_ball(fpSmoothNew);
 
                 if (fpSmoothNew > fpSmooth) {
                     // We check that the proposed ball is enclosed within the
@@ -278,10 +278,10 @@ void hydroDensity_node(PKD pkd, SMF *smf, Bound bnd_node, const std::vector<PART
                     // Put a hard lower limit based on the softening, even if we
                     // have not yet fully converged due to, e.g., an anisotropic
                     // particle distribution
-                    if (smf->dhMinOverSoft > 0.) {
-                        const float fpMinSmooth = smf->dhMinOverSoft * partj.soft();
+                    if (smf->dhMinOverSoft > 0) {
+                        const float fpMinSmooth = 2 * smf->dhMinOverSoft * partj.soft();
                         if (fpSmoothNew < fpMinSmooth) {
-                            partj.set_ball(2.*fpMinSmooth);
+                            partj.set_ball(fpMinSmooth);
                             if (!onLowerLimit) {
                                 // If in the next iteration still a lower smooth is
                                 // preferred, we will skip this particle
@@ -326,7 +326,7 @@ void hydroDensity_node(PKD pkd, SMF *smf, Bound bnd_node, const std::vector<PART
                 // neighbours
                 if (c > Neff) {
                     partj.set_marked(false);
-                    partj.set_ball(2.*fpSmooth);
+                    partj.set_ball(fpSmooth);
                     densNodeNcondB(pkd, partj, E, *omega);
                     partj.set_density(partj.mass() * (*omega));
                     printf("WARNING %d Maximum iterations reached "
@@ -354,11 +354,11 @@ void hydroDensity(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
     /* Particle p data */
     auto &sph = p.sph();
-    ph = 0.5*fBall;
+    ph = fBall; // CDV - WHY?
 
     /* Compute the \omega(x_i) normalization factor */
     sph.omega = 0.0;
-    ph = p.ball();
+    ph = p.ball(); // CDV- WHY?
 #ifdef OPTIM_DENSITY_REITER
     float maxr = 0.0;
 #endif //OPTIM_DENSITY_REITER
@@ -366,9 +366,8 @@ void hydroDensity(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 #ifdef OPTIM_DENSITY_REITER
         if (nnList[i].fDist2> maxr) maxr =nnList[i].fDist2;
 #else
-
         rpq = sqrt(nnList[i].fDist2);
-        hpq = ph;
+        hpq = ph; // CDV - WHY?
 
         sph.omega += cubicSplineKernel(rpq, hpq);
 #endif //OPTIM_DENSITY_REITER
@@ -384,7 +383,6 @@ void hydroDensity(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
         sph.omega=0.0;
         ph = p.ball();
         for (auto i = 0; i < nSmooth; ++i) {
-
             rpq = sqrt(nnList[i].fDist2);
             hpq = ph;
 
@@ -394,13 +392,13 @@ void hydroDensity(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     if (smf->bIterativeSmoothingLength && p.marked()) {
 #endif //OPTIM_DENSITY_REITER
 
-        c = 4.*M_PI/3. * sph.omega *ph*ph*ph*8.;
+        c = 4.*M_PI/3. * sph.omega *ph*ph*ph;
         if (fabs(c-smf->nSmooth) < smf->dNeighborsStd) {
             p.set_marked(false);
         }
         else {
             float newBall;
-            newBall = ph * pow(  smf->nSmooth/c,0.3333333333);
+            newBall = ph * pow(smf->nSmooth/c,0.3333333333);
             //   if (nSmooth <= 1) newBall *= 2.*fBall;
 
             p.set_ball(0.5*(newBall+ph));
@@ -411,10 +409,8 @@ void hydroDensity(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
             // we need to reiterate
             if (p.ball()>maxr) break;
 #endif
-
         }
     }
-
 
     /* We compute the density making use of Eq. 27 Hopkins 2015 */
     p.set_density(p.mass() * sph.omega);
