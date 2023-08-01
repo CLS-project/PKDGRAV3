@@ -42,7 +42,6 @@ void pkdResetFluxes(PKD pkd, double dTime,double dDelta,double dDeltaVPred,doubl
 
 }
 
-
 void MSR::MeshlessFluxes(double dTime,double dDelta) {
     double dsec;
     printf("Computing fluxes... ");
@@ -64,7 +63,6 @@ void MSR::MeshlessFluxes(double dTime,double dDelta) {
     dsec = TimerGet(TIMER_FLUXES);
     printf("took %.5f seconds\n", dsec);
 }
-
 
 void packHydroFluxes(void *vpkd,void *dst,const void *src) {
     PKD pkd = (PKD) vpkd;
@@ -388,7 +386,8 @@ private:
                                dtype qGradVxX, dtype qGradVxY, dtype qGradVxZ,
                                dtype qGradVyX, dtype qGradVyY, dtype qGradVyZ,
                                dtype qGradVzX, dtype qGradVzY, dtype qGradVzZ,
-                               dtype qLastAccX, dtype qLastAccY, dtype qLastAccZ) {
+                               dtype qLastAccX, dtype qLastAccY, dtype qLastAccZ,
+                               struct eEOSparam &eEOS) {
 
 #ifdef FORCE_1D
         if (dz!=0) continue;
@@ -543,24 +542,23 @@ private:
         low_limit(L_p, pP, zero);
         low_limit(R_p, qP, zero);
 
+#ifdef EEOS_POLYTROPE
+        dtype a_inv3 = 1.0/(a*a*a);
+        const dtype pLpoly =
+            polytropicPressureFloor<dtype,mtype>(a_inv3, L_rho, dConstGamma,eEOS);
+        const dtype pRpoly =
+            polytropicPressureFloor<dtype,mtype>(a_inv3, R_rho, dConstGamma,eEOS);
+        L_p = max(L_p, pLpoly);
+        R_p = max(R_p, pRpoly);
+#endif
         /*
-        #ifdef EEOS_POLYTROPE
-        const double pLpoly =
-            polytropicPressureFloor(a_inv3, L_rho, smf->dConstGamma,
-                                    smf->dEOSPolyFloorIndex, smf->dEOSPolyFloorDen, smf->dEOSPolyFlooru);
-        const double pRpoly =
-            polytropicPressureFloor(a_inv3, R_rho, smf->dConstGamma,
-                                    smf->dEOSPolyFloorIndex, smf->dEOSPolyFloorDen, smf->dEOSPolyFlooru);
-        L_p = MAX(L_p, pLpoly);
-        R_p = MAX(R_p, pRpoly);
-        #endif
         #ifdef EEOS_JEANS
         const double pLjeans =
             jeansPressureFloor(L_rho, ph, smf->dConstGamma, smf->dEOSNJeans);
         const double pRjeans =
             jeansPressureFloor(R_rho, q(ball), smf->dConstGamma, smf->dEOSNJeans);
-        L_p = MAX(L_p, pLjeans);
-        R_p = MAX(R_p, pRjeans);
+        L_p = max(L_p, pLjeans);
+        R_p = max(R_p, pRjeans);
         #endif
         */
 
@@ -710,7 +708,6 @@ public:
         dtype a = smf->a;
         dtype H = smf->H;
         dtype dConstGamma = smf->dConstGamma;
-
 
         dtype pomega = psph.omega;
         dtype ph     = 0.5*P.ball();
@@ -885,7 +882,8 @@ public:
                             qgradVxx,   qgradVxy,   qgradVxz,
                             qgradVyx,   qgradVyy,   qgradVyz,
                             qgradVzx,   qgradVzy,   qgradVzz,
-                            qlastAccx,  qlastAccy,  qlastAccz) ;
+                            qlastAccx,  qlastAccy,  qlastAccz,
+                            smf->eEOS );
 
             // We fill the output buffer with the fluxes, which then
             // will be added to the corresponding particles
@@ -982,10 +980,10 @@ void hydroFluxUpdateFromBuffer(my_real *output_buffer, my_real *input_buffer,
         psph.E -= qout(minDt) * qout(Fene);
 
         psph.Uint -= qout(minDt) * ( qout(Fene)
-                     - qout(FmomX)*pv[0]
-                     - qout(FmomY)*pv[1]
-                     - qout(FmomZ)*pv[2]
-                     + 0.5*dot(pv,pv)*qout(Frho) );
+                                     - qout(FmomX)*pv[0]
+                                     - qout(FmomY)*pv[1]
+                                     - qout(FmomZ)*pv[2]
+                                     + 0.5*dot(pv,pv)*qout(Frho) );
 
 #ifdef ENTROPY_SWITCH
         psph.S -= qout(minDt)* qout(FS);
@@ -1031,10 +1029,10 @@ void hydroFluxUpdateFromBuffer(my_real *output_buffer, my_real *input_buffer,
             qsph.E += qout(minDt) * qout(Fene);
 
             qsph.Uint += qout(minDt) * ( qout(Fene)
-                         - qout(FmomX)*qv[0]
-                         - qout(FmomY)*qv[1]
-                         - qout(FmomZ)*qv[2]
-                         + 0.5*dot(qv,qv)*qout(Frho) );
+                                         - qout(FmomX)*qv[0]
+                                         - qout(FmomY)*qv[1]
+                                         - qout(FmomZ)*qv[2]
+                                         + 0.5*dot(qv,qv)*qout(Frho) );
 #ifdef ENTROPY_SWITCH
             qsph.S += qout(minDt) * qout(FS);
 #endif

@@ -119,7 +119,6 @@ static inline double density_SFR(const float fMass, const float fDens, const dou
                                  const double dSFThresholdu, const double dSFEfficiency,
                                  SPHFIELDS &sph);
 
-
 int pstStarForm(PST pst,void *vin,int nIn,void *vout,int nOut) {
     struct inStarForm *in = (struct inStarForm *) vin;
     struct outStarForm *out = (struct outStarForm *) vout;
@@ -142,7 +141,6 @@ int pstStarForm(PST pst,void *vin,int nIn,void *vout,int nOut) {
     }
     return sizeof(struct outStarForm);
 }
-
 
 void pkdStarForm(PKD pkd,
                  struct inStarForm in,
@@ -280,7 +278,7 @@ static inline double pressure_SFR(const float fMass, const float fDens,
     //         above the polytropic eEOS
 #if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
     const double maxUint = 3.16228 * fMass *
-                           eEOSEnergyFloor(a_m3, fDens, fBall, dConstGamma, eEOS);
+                           eEOSEnergyFloor<vec<double,double>,mmask<bool>>(a_m3, fDens, fBall, dConstGamma, eEOS);
 #else
     // This configuration is allowed, but can easily produce numerical fragmentation!!!
     const double maxUint = INFINITY;
@@ -324,4 +322,3 @@ static inline double density_SFR(const float fMass, const float fDens, const dou
     const double dmstar = dSFEfficiency * fMass / tff;
     return dmstar;
 }
-
