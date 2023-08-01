@@ -10,10 +10,10 @@ const int Ntests = 200;
 
 class LimiterTest : public ::testing::Test {
 protected:
-    std::array<double, SIMD_DWIDTH> Lst;
-    std::array<double, SIMD_DWIDTH> Rst;
-    std::array<double, SIMD_DWIDTH> Lstf;
-    std::array<double, SIMD_DWIDTH> Rstf;
+    std::array<double, dvec::width()> Lst;
+    std::array<double, dvec::width()> Rst;
+    std::array<double, dvec::width()> Lstf;
+    std::array<double, dvec::width()> Rstf;
     void SetUp() override {
         srand(1234);
     }
@@ -24,7 +24,7 @@ protected:
     }
 
     void set_inputs() {
-        for (auto k=0; k<SIMD_DWIDTH; k++) {
+        for (auto k=0; k<dvec::width(); k++) {
             Lst[k] = get_rand();
             Rst[k] = get_rand();
             Lstf[k] = get_rand();
@@ -43,9 +43,9 @@ TEST_F(LimiterTest, PairwiseLimiterTest) {
         set_inputs();
 
         // reference
-        std::array<double, SIMD_DWIDTH> Lstf0 = Lstf;
-        std::array<double, SIMD_DWIDTH> Rstf0 = Rstf;
-        for (auto k=0; k<SIMD_DWIDTH; k++) {
+        std::array<double, dvec::width()> Lstf0 = Lstf;
+        std::array<double, dvec::width()> Rstf0 = Rstf;
+        for (auto k=0; k<dvec::width(); k++) {
             // Extra copy to pass the correct reference to limiter function
             vec<double,double> Rtmp = Rstf0[k];
             vec<double,double> Ltmp = Lstf0[k];
@@ -63,7 +63,7 @@ TEST_F(LimiterTest, PairwiseLimiterTest) {
         genericPairwiseLimiter(Lstv, Rstv, Lstfv, Rstfv);
 
         // compare them
-        for (auto k=0; k<SIMD_DWIDTH; k++) {
+        for (auto k=0; k<dvec::width(); k++) {
             //printf("%d %e %e %e\n", k, Lstf[k], Lstf0[k], Lstfv[k]);
             EXPECT_NEAR(Lstfv[k], Lstf0[k], 1e-9);
             EXPECT_NEAR(Rstfv[k], Rstf0[k], 1e-9);

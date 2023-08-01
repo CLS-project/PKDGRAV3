@@ -14,6 +14,11 @@ protected:
     void SetUp() override {}
     void TearDown() override {}
 
+    int width() {
+        return ftype::width();
+    }
+
+
     SMF smf;
     std::vector<double> n_unit {1., 0., 0.};
     ftype vn_unit[3] = {1., 0., 0.};
@@ -75,7 +80,7 @@ TEST_F(RiemannTestVec, ToroVec1) {
     set_vec_L(1., 1., {0.,0.,0.});
     auto iters = solve();
 
-    for (auto i=0; i<SIMD_DWIDTH; i++) {
+    for (auto i=0; i<width(); i++) {
         EXPECT_NE(iters[i], 0);
         EXPECT_NEAR(vP_M[i], 0.30313, 0.30313*TOL);
         EXPECT_NEAR(vS_M[i], 0.92745, 0.92745*TOL);
@@ -88,7 +93,7 @@ TEST_F(RiemannTestVec, ToroVec2) {
     set_vec_L(1., 0.4, {-2.,0.,0.});
     auto iters = solve();
 
-    for (auto i=0; i<SIMD_DWIDTH; i++) {
+    for (auto i=0; i<width(); i++) {
         EXPECT_NE(iters[i], 0);
         EXPECT_NEAR(vP_M[i], 0.00189, 0.000005);
         EXPECT_NEAR(vS_M[i], 0.0, 5e-6);
@@ -101,7 +106,7 @@ TEST_F(RiemannTestVec, ToroVec3) {
     set_vec_L(1., 1000., {0.,0.,0.});
     auto iters = solve();
 
-    for (auto i=0; i<SIMD_DWIDTH; i++) {
+    for (auto i=0; i<width(); i++) {
         EXPECT_NE(iters[i], 0);
         EXPECT_NEAR(vP_M[i], 460.894, 460.894*TOL);
         EXPECT_NEAR(vS_M[i], 19.5975, 19.5975*TOL);
@@ -114,7 +119,7 @@ TEST_F(RiemannTestVec, ToroVec4) {
     set_vec_L(1., 0.01, {0.,0.,0.});
     auto iters = solve();
 
-    for (auto i=0; i<SIMD_DWIDTH; i++) {
+    for (auto i=0; i<width(); i++) {
         EXPECT_NE(iters[i], 0);
         EXPECT_NEAR(vP_M[i],  46.0950, 46.0950*TOL);
         EXPECT_NEAR(vS_M[i], -6.19633, 6.19633*TOL);
@@ -127,7 +132,7 @@ TEST_F(RiemannTestVec, ToroVec5) {
     set_vec_L(5.99924, 460.894, {19.5975,0.,0.});
     auto iters = solve();
 
-    for (auto i=0; i<SIMD_DWIDTH; i++) {
+    for (auto i=0; i<width(); i++) {
         EXPECT_NE(iters[i], 0);
         EXPECT_NEAR(vP_M[i], 1691.64, 1691.64*TOL);
         EXPECT_NEAR(vS_M[i], 8.68975, 8.68975*TOL);
@@ -156,7 +161,7 @@ TEST_F(RiemannTestVec, ToroVecAll) {
 
     auto iters = solve();
 
-    for (auto i=0; i<SIMD_DWIDTH; i++) {
+    for (auto i=0; i<width(); i++) {
         EXPECT_NE(iters[i], 0);
         printf("%e %e %e\n", iters[i], vP_M[i], vS_M[i]);
     }
@@ -227,85 +232,6 @@ TEST_F(RiemannTestVec, NaNguard) {
     EXPECT_EQ(nan_guard(vtest, zero), 1);
 }
 
-/*
-TEST_F(RiemannTest, VecPguess1) {
-    // Make sure that the template specialization of guess_pressure is working
-    // as expected by trying all the different branches (part 1/2)
-    //                   twoshock      rarefact      close          twoshock2
-    double allrho_R[4] = {1.,4.318226e-01,3.190336e-01, 5.99242};
-    double allrho_L[4] = {1.,4.680836e-01,3.756503e-01, 5.99924};
-    double allp_R[4] =  {100.,2.634937e-02,1.719681e-02, 46.0950};
-    double allp_L[4] =  {0.01,2.276876e-02,1.729200e-02, 460.894};
-    double allvx_R[4] = {0.,4.143744e-01,8.194100e-02, -6.19633};
-    double allvx_L[4] = {0.,-3.456463e-02,-9.371292e-03, 19.5975};
-
-    vrho_R.load(allrho_R);
-    vrho_L.load(allrho_L);
-    vp_R.load(allp_R);
-    vp_L.load(allp_L);
-    vv_R[0].load(allvx_R);
-    vv_L[0].load(allvx_L);
-
-    ftype gamma = 1.4;
-    ftype cs_L = cs(gamma, vrho_L, vp_L);
-    ftype cs_R = cs(gamma, vrho_R, vp_R);
-    ftype vPg =  guess_for_pressure(gamma,vrho_R,vp_R,vrho_L,vp_L,
-                                   vv_L[0], vv_R[0], cs_L, cs_R);
-
-    double Pg[4];
-    for (auto i=0; i<SIMD_DWIDTH; i++) {
-        Pg[i] = guess_for_pressure(gamma[i],vrho_R[i],vp_R[i],vrho_L[i],vp_L[i],
-                                   vv_L[0][i], vv_R[0][i], cs_L[i], cs_R[i]);
-    }
-    for (auto i=0; i<SIMD_DWIDTH; i++) {
-        EXPECT_NEAR(vPg[i], Pg[i], Pg[i]*TOL);
-    }
-
-    solve();
-    EXPECT_EQ(nan_guard(vS_M, zero), 0);
-    EXPECT_EQ(nan_guard(vP_M, zero), 0);
-}
-*/
-
-/*
-TEST_F(RiemannTest, VecPguess2) {
-    // Make sure that the template specialization of guess_pressure is working
-    // as expected by trying all the different branches (part 2/2)
-    //                   vaccumm R     vaccumm L     close          twoshock2
-    double allrho_R[4] = {1.,4.318226e-01,3.190336e-01, 5.99242};
-    double allrho_L[4] = {1.,4.680836e-01,3.756503e-01, 5.99924};
-    double allp_R[4] =  {0.,2.634937e-02,1.719681e-02, 46.0950};
-    double allp_L[4] =  {0.01,0.,1.729200e-02, 460.894};
-    double allvx_R[4] = {0.,4.143744e-01,8.194100e-02, -6.19633};
-    double allvx_L[4] = {0.,-3.456463e-02,-9.371292e-03, 19.5975};
-
-    vrho_R.load(allrho_R);
-    vrho_L.load(allrho_L);
-    vp_R.load(allp_R);
-    vp_L.load(allp_L);
-    vv_R[0].load(allvx_R);
-    vv_L[0].load(allvx_L);
-
-    ftype gamma = 1.4;
-    ftype cs_L = cs(gamma, vrho_L, vp_L);
-    ftype cs_R = cs(gamma, vrho_R, vp_R);
-    ftype vPg =  guess_for_pressure(gamma,vrho_R,vp_R,vrho_L,vp_L,
-                                   vv_L[0], vv_R[0], cs_L, cs_R);
-
-    double Pg[4];
-    for (auto i=0; i<SIMD_DWIDTH; i++) {
-        Pg[i] = guess_for_pressure(gamma[i],vrho_R[i],vp_R[i],vrho_L[i],vp_L[i],
-                                   vv_L[0][i], vv_R[0][i], cs_L[i], cs_R[i]);
-    }
-    for (auto i=0; i<SIMD_DWIDTH; i++) {
-        EXPECT_NEAR(vPg[i], Pg[i], Pg[i]*TOL);
-    }
-
-    solve();
-    EXPECT_EQ(nan_guard(vS_M, zero), 0);
-    EXPECT_EQ(nan_guard(vP_M, zero), 0);
-}
-*/
 
 TEST_F(RiemannTestVec, VecVacuum) {
 
@@ -329,12 +255,6 @@ TEST_F(RiemannTestVec, VecVacuum) {
 
     solve();
 
-    /*
-    for (auto i=0; i<SIMD_DWIDTH; i++) {
-        EXPECT_EQ(iters[i], 0);
-        //printf("%e %e %e\n", iters[i], vP_M[i], vS_M[i]);
-    }
-    */
     //Test 1 input vacuum
     EXPECT_NEAR(vP_M[0], 0., TOL);
     EXPECT_NEAR(vS_M[0], 0., TOL);
@@ -433,24 +353,3 @@ TEST_F(RiemannTestNoVec, InternalVacuum) {
     EXPECT_NEAR(S_M, 0.0, TOL);
 }
 
-/*
-TEST_F(RiemannTestNoVec, LeftVacuum) {
-    set_R(1., 2.0, { 200.,0.,0.});
-    set_L(1., 1.0, { 100.,0.,0.});
-    int iters = solve();
-    EXPECT_NE(iters, 0);
-    double S_L = 200. - (2./(dConstGamma-1.0)) * cs(dConstGamma, 1., 1.);
-    EXPECT_NEAR(P_M, 0.0, TOL);
-    EXPECT_NEAR(S_M, S_L, S_L*TOL);
-}
-
-TEST_F(RiemannTestNoVec, RightVacuum) {
-    set_R(1., 2.0, { -100.,0.,0.});
-    set_L(1., 1.0, { -200.,0.,0.});
-    int iters = solve();
-    EXPECT_NE(iters, 0);
-    double S_R = -100. - (2./(dConstGamma-1.0)) * cs(dConstGamma, 1., 2.);
-    EXPECT_NEAR(P_M, 0.0, TOL);
-    EXPECT_NEAR(S_M, S_R, -S_R*TOL);
-}
-*/
