@@ -55,9 +55,7 @@ typedef struct smfParameters {
     double dhMinOverSoft;
     int bUpdateBall;
     double dNeighborsStd;
-#if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
     struct eEOSparam eEOS;
-#endif
 #ifdef FEEDBACK
     double dSNFBDu;
     double dCCSNFBDelay;
@@ -82,7 +80,6 @@ typedef struct smfParameters {
 #endif
 } SMF;
 
-
 typedef struct pqNode {
     struct pqNode *pqLoser;
     struct pqNode *pqFromInt;
@@ -96,7 +93,6 @@ typedef struct pqNode {
     int iIndex;
     int iPid;
 } PQ;
-
 
 typedef PQ NN;
 
@@ -115,7 +111,6 @@ typedef PQ NN;
             }\
         }\
     }
-
 
 #define PQ_BUILD(pq,n,q)\
 {\
@@ -141,7 +136,6 @@ typedef PQ NN;
     else (q) = (pq)[1].pqWinner;\
     }
 
-
 #define PQ_REPLACE(q)\
 {\
     PQ *t,*lt;\
@@ -155,7 +149,6 @@ typedef PQ NN;
         t = t->pqFromInt;\
         }\
     }
-
 
 #define SMX_NULL                            0
 void NullSmooth(PARTICLE *,float fBall,int,NN *,SMF *);
@@ -200,13 +193,3 @@ void LinkHopChains(PARTICLE *,float fBall,int,NN *,SMF *);
 void initBall(void *,void *);
 void BallSmooth(PARTICLE *,float fBall,int,NN *,SMF *);
 #endif
-
-
-
-
-
-
-
-
-
-
