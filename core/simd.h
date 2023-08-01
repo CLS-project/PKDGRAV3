@@ -68,7 +68,9 @@ public:
 
     vec() = default;
 #ifdef USE_SIMD
-    template<typename V=vector_t, typename F=scalar_t> requires (sizeof(V) != sizeof(F))
+    template<typename V=vector_t, typename F=scalar_t,
+             std::enable_if_t<sizeof(V) != sizeof(F), bool> = true>
+
     vec(scalar_t const &d);
 #endif
     vec(vector_t const &d) { ymm = d; }

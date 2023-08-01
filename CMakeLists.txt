@@ -192,7 +192,7 @@ add_custom_command(
 add_executable(${PROJECT_NAME} "")
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_auto_type cxx_range_for cxx_lambdas cxx_strong_enums)
 set_target_properties(${PROJECT_NAME} PROPERTIES
-    CXX_STANDARD 20
+    CXX_STANDARD 17
     CXX_STANDARD_REQUIRED YES
     CXX_EXTENSIONS NO
 )
