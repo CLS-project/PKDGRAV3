@@ -63,7 +63,6 @@ void hydroDensityFinal(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf);
 void packHydroDensity(void *vpkd,void *dst,const void *src);
 void unpackHydroDensity(void *vpkd,void *dst,const void *src);
 
-
 /* Gradient loop */
 struct hydroGradientsPack {
     blitz::TinyVector<double,3> position;
@@ -78,7 +77,6 @@ struct hydroGradientsPack {
 void hydroGradients(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf);
 void packHydroGradients(void *vpkd,void *dst,const void *src);
 void unpackHydroGradients(void *vpkd,void *dst,const void *src);
-
 
 /* Flux loop */
 struct hydroFluxesPack {
@@ -114,7 +112,6 @@ void packHydroFluxes(void *vpkd,void *dst,const void *src);
 void unpackHydroFluxes(void *vpkd,void *dst,const void *src);
 void initHydroFluxes(void *vpkd,void *vp);
 void initHydroFluxesCached(void *vpkd,void *vp);
-void hydroRiemann_old(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf);
 void hydroRiemann(PARTICLE *p,float fBall,int nSmooth, int nBuff,
                   my_real *restrict input_buffer,
                   my_real *restrict output_buffer,
@@ -134,7 +131,6 @@ void hydroFluxUpdateFromBuffer(my_real *output_buffer, my_real *input_buffer,
 void hydroFluxGetBufferInfo(int *in, int *out);
 
 void pkdResetFluxes(PKD pkd,double dTime,double dDelta,double,double);
-
 
 /* Time step loop */
 struct hydroStepPack {

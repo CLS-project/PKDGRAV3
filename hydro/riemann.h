@@ -14,6 +14,10 @@ inline void dump(dvec a) {
     printf("\n");
 }
 
+/* NOTE: If you wish to use this functions, make sure that the code is compiled
+ * with "-fno-finite-math-only" or similar flags, otherwise this comparisons will
+ * always be false.
+ */
 template <typename dtype>
 static inline int nan_guard(dtype &var, dtype def) {
     int nan = 0;
@@ -307,7 +311,6 @@ private:
             v_f_out[k].load(v_f[k]);
 
     }
-// TODO: otherwise, MFV can not use simd
 
 #else
 
@@ -436,21 +439,6 @@ private:
         fp = a0 / (r*cs*pratio);
     }
 
-    /*
-
-     inline void get_f_fp( dtype &f, dtype &fp,
-                                dtype pg, dtype p, dtype r, dtype cs) {
-        if (pg>p) {
-            // shock wave
-            get_shock_f_fp( f, fp, pg, p, r, cs);
-        }
-        else {
-            // rarefaction wave
-            get_rarefaction_f_fp( f, fp, pg, p, r, cs);
-        }
-    }
-    */
-
     inline void get_f_fp( dtype &f, dtype &fp,
                           dtype pg, dtype p, dtype r, dtype cs) {
         mtype cond = pg>p;
@@ -492,9 +480,6 @@ private:
         int itt = 0;
         dtype tol = 100.;
         dtype Pg_prev, Z_L, Z_R;
-        //while ((tol>TOL_ITER)&&(itt<NMAX_ITER)) {
-//TODO: For now just a fixed iteration count is used
-        //for (auto k=0; k<4; k++) {
         while ( !isConverged(tol, itt) ) {
             Pg_prev=Pg;
             get_f_fp( W_L, Z_L, Pg, L_p, L_rho, cs_L);
@@ -600,15 +585,15 @@ private:
                                    dtype *p_f, dtype *v_f) {
         dtype zeros = 0.0;
         mtype vac = (mtype)((mtype)(L_p <= zeros) & (mtype)(R_p <= zeros)) | (mtype)((mtype)(L_rho<=zeros) & (mtype)(R_rho<=zeros));
-        //dump(L_p);
         P_M = mask_mov(P_M, vac, zeros);
         S_M = mask_mov(S_M, vac, zeros);
 
+        /*
         if (movemask(vac)) {
-            //printf("vaccum input\n");
-            //dump(P_M);
-            //dump(S_M);
+            dump(P_M);
+            dump(S_M);
         }
+        */
 
         mtype nvac = ~vac;
         if (movemask(nvac)) {    // At least one non-vacuum
@@ -636,61 +621,20 @@ public:
         dtype v_line_R = R_v[0]*n_unit[0] +
                          R_v[1]*n_unit[1] +
                          R_v[2]*n_unit[2];
-        //printf("Going for the exact Riemann Solver \n");
-        /* first, we need to check for all the special/exceptional cases that will cause things to go haywire */
-        //dtype niter = 0;
-
-        /* the usual situation is here:: */
-        //if ((L_rho > 0) && (R_rho > 0))
-        {
-            niter=iterative_Riemann_solver( R_rho, R_p, L_rho, L_p, P_M, S_M, v_line_L, v_line_R, cs_L, cs_R);
-            //if (niter)
-            {
-//           printf("Normal Riemann solution %e \n", Riemann_out->Fluxes.rho);
-                /* this is the 'normal' Reimann solution */
-
+        niter=iterative_Riemann_solver( R_rho, R_p, L_rho, L_p, P_M, S_M, v_line_L, v_line_R, cs_L, cs_R);
 #ifndef USE_MFM
-                dtype S = 0;
-                sample_reimann_standard( S,
-                                         R_rho, R_p, R_v,
-                                         L_rho, L_p, L_v,
-                                         P_M, S_M,
-                                         rho_f, p_f, v_f,
-                                         n_unit,v_line_L,v_line_R,cs_L,cs_R);
+        dtype S = 0;
+        sample_reimann_standard( S,
+                                 R_rho, R_p, R_v,
+                                 L_rho, L_p, L_v,
+                                 P_M, S_M,
+                                 rho_f, p_f, v_f,
+                                 n_unit,v_line_L,v_line_R,cs_L,cs_R);
 #endif
-                //
-//           printf("Normal Riemann solution %e \n", Riemann_out->Fluxes.rho);
-                //}
-                //else {
-                // ICs lead to vacuum, need to sample vacuum solution
-                //sample_reimann_vaccum_internal( 0.0,R_rho, R_p, R_v, L_rho, L_p, L_v, P_M, S_M, rho_f, p_f, v_f, n_unit,v_line_L,v_line_R,cs_L,cs_R);
-            }
-            dtype zero = 0.;
-            sample_reimann_vaccum_internal( zero, R_rho, R_p, R_v, L_rho, L_p, L_v, P_M, S_M, rho_f, p_f, v_f, n_unit,v_line_L,v_line_R,cs_L,cs_R);
-            handle_input_vacuum(R_rho, R_p, L_rho, L_p, P_M, S_M, rho_f, p_f, v_f);
-            //if (!proceed) return 0;
-        }
-        /*
-        else {
-            // one of the densities is zero or negative
-            if ((L_rho<0)||(R_rho<0))
-                //assert(0);
-                if (L_rho>0) {
-                    sample_reimann_vaccum_right(  0.0,
-                                                R_rho, R_p,  R_v,  L_rho, L_p,  L_v,
-                                                P_M,  S_M,  rho_f,  p_f,  v_f,
-                                                n_unit,  v_line_L,  v_line_R,  cs_L,  cs_R);
-                }
-            if (R_rho>0) {
-                sample_reimann_vaccum_left( 0.0,
-                                           R_rho, R_p,  R_v,  L_rho, L_p,  L_v,
-                                           P_M,  S_M,  rho_f,  p_f,  v_f,
-                                           n_unit,  v_line_L,  v_line_R,  cs_L,  cs_R);
-            }
-        }
-        */
+        dtype zero = 0.;
+        sample_reimann_vaccum_internal( zero, R_rho, R_p, R_v, L_rho, L_p, L_v, P_M, S_M, rho_f, p_f, v_f, n_unit,v_line_L,v_line_R,cs_L,cs_R);
+        handle_input_vacuum(R_rho, R_p, L_rho, L_p, P_M, S_M, rho_f, p_f, v_f);
 #ifndef USE_MFM
-        /* if we got a valid solution, this solver returns face states: need to convert these to fluxes */
         convert_face_to_flux( rho_f, p_f, v_f, n_unit);
 #endif
         return niter;
