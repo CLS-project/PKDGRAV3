@@ -230,7 +230,7 @@ void hydroRiemann(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
     const auto &pv = P.velocity();
     auto &psph = P.sph();
-    const double ph = P.ball();
+    const double pH = P.ball();
     const double pDensity = P.density();
 
     for (auto i = 0; i < nSmooth; ++i) {
@@ -243,7 +243,7 @@ void hydroRiemann(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
         auto Q = pkd->particles[nnList[i].pPart];
         const auto &qv = Q.velocity();
         auto &qsph = Q.sph();
-        const double qh = Q.ball();
+        const double qH = Q.ball();
 
         const double dx = nnList[i].dr[0];
         const double dy = nnList[i].dr[1];
@@ -257,13 +257,13 @@ void hydroRiemann(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 #endif
 
 
-        const double hpq = ph;
+        const auto &Hpq = pH;
         const double rpq = sqrt(nnList[i].fDist2);
         // We only compute the fluxes if both particles are within the kernel
         // of each other
-        if (2.*qh < rpq) continue;
+        if (qH < rpq) continue;
 
-        const double Wpq = cubicSplineKernel(rpq, hpq);
+        const double Wpq = cubicSplineKernel(rpq, Hpq);
         if (Wpq==0.0) {
             continue;
         }
@@ -307,13 +307,13 @@ void hydroRiemann(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
 
         // \tilde{\psi}_j (x_i)
-        psi = -cubicSplineKernel(rpq, ph)/psph.omega;
+        psi = -cubicSplineKernel(rpq, pH)/psph.omega;
         psiTilde_p[0] = (psph.B[XX]*dx + psph.B[XY]*dy + psph.B[XZ]*dz)*psi;
         psiTilde_p[1] = (psph.B[XY]*dx + psph.B[YY]*dy + psph.B[YZ]*dz)*psi;
         psiTilde_p[2] = (psph.B[XZ]*dx + psph.B[YZ]*dy + psph.B[ZZ]*dz)*psi;
 
         // \tilde{\psi}_i (x_j)
-        psi = cubicSplineKernel(rpq, qh)/qsph.omega;
+        psi = cubicSplineKernel(rpq, qH)/qsph.omega;
         psiTilde_q[0] = (qsph.B[XX]*dx + qsph.B[XY]*dy + qsph.B[XZ]*dz)*psi;
         psiTilde_q[1] = (qsph.B[XY]*dx + qsph.B[YY]*dy + qsph.B[YZ]*dz)*psi;
         psiTilde_q[2] = (qsph.B[XZ]*dx + qsph.B[YZ]*dy + qsph.B[ZZ]*dz)*psi;
@@ -328,7 +328,7 @@ void hydroRiemann(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
         /* DEBUG
         if (modApq<=0.0) {
            printf("dx %e \t dy %e \t dz %e \n", dx, dy, dz);
-           printf("rpq %e hpq %e ratio %e Wpq %e \n", rpq, hpq, rpq/hpq, Wpq);
+           printf("rpq %e Hpq %e ratio %e Wpq %e \n", rpq, Hpq, rpq/Hpq, Wpq);
         }
         assert(modApq>0.0); // Area should be positive!
         */
@@ -495,12 +495,12 @@ void hydroRiemann(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
 #if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
         const double a_inv3 = 1./(smf->a * smf->a * smf->a);
-        const double pLeEOS = eEOSPressureFloor(a_inv3, riemann_input.L.rho, ph,
+        const double pLeEOS = eEOSPressureFloor(a_inv3, riemann_input.L.rho, 0.5*pH,
                                                 smf->dConstGamma, smf->eEOS);
         if (pLeEOS != NOT_IN_EEOS)
             riemann_input.L.p = std::max(riemann_input.L.p, pLeEOS);
 
-        const double pReEOS = eEOSPressureFloor(a_inv3, riemann_input.R.rho, qh,
+        const double pReEOS = eEOSPressureFloor(a_inv3, riemann_input.R.rho, 0.5*qH,
                                                 smf->dConstGamma, smf->eEOS);
         if (pReEOS != NOT_IN_EEOS)
             riemann_input.R.p = std::max(riemann_input.R.p, pReEOS);
@@ -591,7 +591,7 @@ void hydroRiemann(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 #ifndef OPTIM_NO_REDUNDANT_FLUXES
             {
 #else
-            if ( (2.*qh < rpq) | !Q.is_active()) {
+            if ((qH < rpq) | !Q.is_active()) {
 #endif
 
 
@@ -723,7 +723,7 @@ void hydroRiemann_vec(PARTICLE *pIn,float fBall,int nSmooth,
 
     const auto &pv = P.velocity();
     auto &psph = P.sph();
-    const my_real ph = P.ball();
+    const my_real pH = P.ball();
 
     const my_real pDensity = P.density();
     const my_real p_omega = psph.omega;
@@ -740,7 +740,7 @@ void hydroRiemann_vec(PARTICLE *pIn,float fBall,int nSmooth,
 #endif
     for (auto i = 0; i < nSmooth; ++i) {
 
-        const my_real qh = q(ball);
+        const my_real qH = q(ball);
 
         const my_real dx = q(dx);
         const my_real dy = q(dy);
@@ -781,14 +781,14 @@ void hydroRiemann_vec(PARTICLE *pIn,float fBall,int nSmooth,
         const my_real omega_q = q(omega);
 
         // \tilde{\psi}_j (x_i)
-        my_real psi = -cubicSplineKernel(rpq, ph)/p_omega;
+        my_real psi = -cubicSplineKernel(rpq, pH)/p_omega;
         TinyVector<my_real,3> psiTilde_p, psiTilde_q;
         psiTilde_p[0] = (psph.B[XX]*dx + psph.B[XY]*dy + psph.B[XZ]*dz)*psi;
         psiTilde_p[1] = (psph.B[XY]*dx + psph.B[YY]*dy + psph.B[YZ]*dz)*psi;
         psiTilde_p[2] = (psph.B[XZ]*dx + psph.B[YZ]*dy + psph.B[ZZ]*dz)*psi;
 
         // \tilde{\psi}_i (x_j)
-        psi = cubicSplineKernel(rpq, qh)/omega_q;
+        psi = cubicSplineKernel(rpq, qH)/omega_q;
         psiTilde_q[0] = (q(B_XX)*dx + q(B_XY)*dy + q(B_XZ)*dz)*psi;
         psiTilde_q[1] = (q(B_XY)*dx + q(B_YY)*dy + q(B_YZ)*dz)*psi;
         psiTilde_q[2] = (q(B_XZ)*dx + q(B_YZ)*dy + q(B_ZZ)*dz)*psi;
@@ -799,7 +799,7 @@ void hydroRiemann_vec(PARTICLE *pIn,float fBall,int nSmooth,
         /* DEBUG
         if (modApq<=0.0) {
            printf("dx %e \t dy %e \t dz %e \n", dx, dy, dz);
-           printf("rpq %e hpq %e ratio %e Wpq %e \n", rpq, hpq, rpq/hpq, Wpq);
+           printf("rpq %e Hpq %e ratio %e Wpq %e \n", rpq, Hpq, rpq/Hpq, Wpq);
         }
         assert(modApq>0.0); // Area should be positive!
         */
@@ -990,12 +990,12 @@ void hydroRiemann_vec(PARTICLE *pIn,float fBall,int nSmooth,
 
 #if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
         const double a_inv3 = 1./(smf->a * smf->a * smf->a);
-        const double pLeEOS = eEOSPressureFloor(a_inv3, riemann_input.L.rho, ph, //probably ball, not ph
+        const double pLeEOS = eEOSPressureFloor(a_inv3, riemann_input.L.rho, 0.5*pH,
                                                 smf->dConstGamma, smf->eEOS);
         if (pLeEOS != NOT_IN_EEOS)
             riemann_input.L.p = std::max(riemann_input.L.p, pLeEOS);
 
-        const double pReEOS = eEOSPressureFloor(a_inv3, riemann_input.R.rho, qh,
+        const double pReEOS = eEOSPressureFloor(a_inv3, riemann_input.R.rho, 0.5*qH,
                                                 smf->dConstGamma, smf->eEOS);
         if (pReEOS != NOT_IN_EEOS)
             riemann_input.R.p = std::max(riemann_input.R.p, pReEOS);
@@ -1126,10 +1126,10 @@ void hydroFluxFillBuffer(my_real **buffer, PARTICLE *qIn, int i, double dr2,
     PKD pkd = smf->pkd;
     auto Q = pkd->particles[qIn];
     double dDelta = smf->dDelta;
-    float qh = Q.ball();
+    double qH = Q.ball();
     auto &qsph = Q.sph();
     buffer[q_mass][i] = Q.mass();
-    buffer[q_ball][i] = qh;
+    buffer[q_ball][i] = qH;
     buffer[q_dx][i] = dr[0];
     buffer[q_dy][i] = dr[1];
     buffer[q_dz][i] = dr[2];

@@ -67,7 +67,7 @@ void hydroGradients(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
     const auto &pv = p.velocity();
     auto &psph = p.sph();
-    const double ph = fBall;
+    const double pH = p.ball();
 
 #ifndef OPTIM_SMOOTH_NODE
     /* Compute the E matrix (Hopkins 2015, eq 14) */
@@ -76,9 +76,9 @@ void hydroGradients(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     for (auto i = 0; i < nSmooth; ++i) {
 
         const double rpq = sqrt(nnList[i].fDist2);
-        const auto &hpq = ph;
+        const auto &Hpq = pH;
 
-        const double Wpq = cubicSplineKernel(rpq, hpq);
+        const double Wpq = cubicSplineKernel(rpq, Hpq);
         const auto &dr = nnList[i].dr;
 
         E[XX] += dr[0]*dr[0]*Wpq;
@@ -143,8 +143,8 @@ void hydroGradients(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
         const TinyVector<double,3> dr{-nnList[i].dr};
 
         const double rpq = sqrt(nnList[i].fDist2);
-        const auto &hpq = ph;
-        const double Wpq = cubicSplineKernel(rpq, hpq);
+        const auto &Hpq = pH;
+        const double Wpq = cubicSplineKernel(rpq, Hpq);
         const double psi = Wpq/psph.omega;
 
         TinyVector<double,3> psiTilde_p;

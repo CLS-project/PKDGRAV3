@@ -110,11 +110,11 @@ void hydroStep(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
     const auto &pv = p.velocity();
     auto &psph = p.sph();
-    const double ph = 0.5*p.ball(); // CDV - This is OK
+    const double ph = 0.5*p.ball();
 
     dtEst = HUGE_VAL;
 
-    /*  Signal velocity criterion */
+    /*  Signal velocity criterion as described in Monaghan (1997) */
     for (auto i = 0; i < nSmooth; ++i) {
         if (pIn == nnList[i].pPart) continue;
         auto q = pkd->particles[nnList[i].pPart];
@@ -123,9 +123,6 @@ void hydroStep(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
         const auto &dr = nnList[i].dr;
 
-
-        // Signal velocity based time step criterion as described in
-        // Monaghan (1997).
         const double dvDotdr = dot(dr,qv - pv);
         double vsig_pq = psph.c + qsph.c;
         if (dvDotdr < 0.) vsig_pq -= dvDotdr/sqrt(nnList[i].fDist2);
