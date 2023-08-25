@@ -3357,6 +3357,8 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
     uint8_t uRungMax=0;
     char c;
 
+    a = csmTime2Exp(csm,dTime);
+
     if (parameters.get_bVStep()) {
         if (SPHoptions.doDensity && SPHoptions.useDensityFlags) printf("Calculating Density using FastGas, Step:%f (rung %d)",dStep,uRungLo);
         if (SPHoptions.doDensity && !SPHoptions.useDensityFlags) printf("Calculating Density without FastGas, Step:%f (rung %d)",dStep,uRungLo);
@@ -3368,7 +3370,7 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
         if (SPHoptions.doSetDensityFlags) printf("Marking Neighbors for FastGas, Step:%f (rung %d)",dStep,uRungLo);
         if (SPHoptions.doSetNNflags) printf("Marking Neighbors of Neighbors for FastGas, Step:%f (rung %d)",dStep,uRungLo);
         if (csm->val.bComove)
-            printf(", Redshift:%f\n", 1. / csmTime2Exp(csm,dTime) - 1.);
+            printf(", Redshift:%f\n", 1. / a - 1.);
         else
             printf(", Time:%f\n", dTime);
     }
@@ -3390,10 +3392,7 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
     in.ts.nPartRhoLoc = nPartRhoLoc;
     in.ts.nPartColl = param.nPartColl;
     in.ts.dEccFacMax = param.dEccFacMax;
-    if (bGravStep) {
-        double a = csmTime2Exp(csm,dTime);
-        in.ts.dRhoFac = 1.0/(a*a*a);
-    }
+    if (bGravStep) in.ts.dRhoFac = 1.0/(a*a*a);
     else in.ts.dRhoFac = 0.0;
     in.ts.dTime = dTime;
     in.ts.dDelta = dDelta;
@@ -3403,10 +3402,7 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
     in.ts.uRungLo = uRungLo;
     in.ts.uRungHi = uRungHi;
     in.ts.uMaxRung = param.iMaxRung;
-    if (csm->val.bComove) {
-        a = csmTime2Exp(csm,dTime);
-        in.ts.dAccFac = 1.0/(a*a*a);
-    }
+    if (csm->val.bComove) in.ts.dAccFac = 1.0/(a*a*a);
     else in.ts.dAccFac = 1.0;
 
     CalculateKickParameters(&in.kick, uRungLo, dTime, dDelta, dStep, bKickClose, bKickOpen, SPHoptions);
