@@ -150,19 +150,6 @@ void hydroSetLastVars(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS *p
  */
 void inverseMatrix(double *E, double *B);
 double conditionNumber(double *E, double *B);
-// inline double cubicSplineKernel(double r, double h) {
-//     double q;
-//     q = r/h;
-//     if (q<1.0) {
-//         return M_1_PI/(h*h*h)*( 1. - 1.5*q*q*(1.-0.5*q) );
-//     }
-//     else if (q<2.0) {
-//         return 0.25*M_1_PI/(h*h*h)*(2.-q)*(2.-q)*(2.-q);
-//     }
-//     else {
-//         return 0.0;
-//     }
-// }
 
 // Cubic spline kernel as defined in Dehnen & Aly (2012)
 //
@@ -170,23 +157,24 @@ double conditionNumber(double *E, double *B);
 //                (1 − q)^3  for 1/2 < q <= 1
 //                        0  for       q > 1
 //
-// where q = r/H. The assert() is there to capture eventual failures in the
-// neighbours search. Indeed, all neighbouring particles should be inside
-// the sphere defined by H (fBall in PKDGRAV3 terminology).
+// where q = r/H.
 inline double cubicSplineKernel(double r, double H) {
-    double M_1_H = 1.0 / H;
-    double q = r * M_1_H;
-    double norm = 16 * M_1_PI * M_1_H * M_1_H * M_1_H;
-
-    assert(q <= 1);
+    constexpr double dNormFac = 16 * M_1_PI;
+    double dHInv = 1.0 / H;
+    double q = r * dHInv;
+    double dNorm = dNormFac * dHInv * dHInv * dHInv;
 
     if (q < 0.5) {
-        return norm * (0.5 - 3 * q * q * (1.0 - q));
+        return dNorm * (0.5 - 3 * q * q * (1.0 - q));
+    }
+    else if (q < 1.0) {
+        return dNorm * (1.0 - q) * (1.0 - q) * (1.0 - q);
     }
     else {
-        return norm * (1.0 - q) * (1.0 - q) * (1.0 - q);
+        return 0.0;
     }
 }
+
 void BarthJespersenLimiter(double *limVar, const blitz::TinyVector<double,3> &gradVar,
                            double var_max, double var_min,
                            const blitz::TinyVector<double,3> &dr);
