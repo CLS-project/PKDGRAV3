@@ -362,7 +362,7 @@ private:
         var = mask_mov(var, cond, def);
     }
 
-    inline void doSinglePPFlux(dtype &F_rho, std::array<dtype,3> &F_v, dtype &F_p, dtype &F_S, dtype &minDt,
+    inline void doSinglePPFlux(const mtype mask, dtype &F_rho, std::array<dtype,3> &F_v, dtype &F_p, dtype &F_S, dtype &minDt,
                                bool bComove, dtype dTime, dtype dDelta, dtype a, dtype H, dtype dConstGamma,
                                dtype rpq, dtype dx, dtype dy, dtype dz,
                                dtype pBall, dtype pLastUpdateTime, dtype pDt,
@@ -564,7 +564,7 @@ private:
 
         dtype P_M, S_M;
 
-        RiemannSolverExact<dtype,mtype> riemann(dConstGamma);
+        RiemannSolverExact<dtype,mtype> riemann(dConstGamma, mask);
         int niter = riemann.solve(
                         R_rho, R_p, R_v,
                         L_rho, L_p, L_v,
@@ -786,20 +786,13 @@ public:
         dtype qlastAccy;
         dtype qlastAccz;
 
-#ifdef __INTEL_COMPILER
-//     __assume_aligned(input_buffer, 64);
-// #pragma simd
-// #pragma vector aligned
-#endif
-#ifdef __GNUC__
-//TODO Trick GCC into autovectorizing this!!
-#endif
+        double index[dtype::width()];
+        for (auto i=0; i<dtype::width(); i++)
+            index[i] = i;
+        dtype index_v;
+        index_v.load(index);
+
 #pragma forceinline
-//#pragma clang loop vectorize(assume_safety)
-//#pragma clang loop vectorize(enable)
-//TODO make sure about nSmooth limit and out-of-bounds
-// This assert will be activated if nSmooth is close to nBuff, a permanent
-// solution to this is needed
         assert(nBuff>(nSmooth+dtype::width()-1));
         for (auto i=0; i<nSmooth; i+=dtype::width()) {
             dtype F_rho;
@@ -807,6 +800,9 @@ public:
             dtype F_P;
             dtype F_S;
             dtype minDt;
+
+            const mtype mask = index_v<(double)nSmooth;
+            index_v += (double)dtype::width();
 
             qdr.load(       &q(dr));
             qdx.load(       &q(dx));
@@ -858,7 +854,7 @@ public:
                 dTime = 0.;
             }
 
-            doSinglePPFlux( F_rho, F_v, F_P, F_S, minDt,
+            doSinglePPFlux( mask, F_rho, F_v, F_P, F_S, minDt,
                             bComove, dTime, dDelta,  a,  H,  dConstGamma,
                             qdr,  qdx,  qdy,  qdz,
                             ph,  plast,  pDt,

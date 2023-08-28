@@ -45,7 +45,7 @@ template <typename dtype=dvec, typename mtype=dmask>
 class RiemannSolverExact {
 public:
 
-    RiemannSolverExact(dtype gamma) : gamma(gamma) {
+    RiemannSolverExact(dtype gamma, mtype mask) : gamma(gamma), mask(mask) {
         G1 = (gamma-1.0)/(2.0*gamma);
         G2 = (gamma+1.0)/(2.0*gamma);
         G3 = (2.0*gamma/(gamma-1.0));
@@ -58,6 +58,7 @@ public:
     };
 
 private:
+    mtype mask;
     dtype gamma;
 
     dtype G1;
@@ -458,29 +459,16 @@ private:
         //}
     }
 
-    inline bool isConverged(const dtype &tol, const int &itt) {
-        if (itt<NMAX_ITER) {
-            mtype notconverged = tol > TOL_ITER;
-            if (movemask(notconverged)) {
-                return false;
-            }
-            else {
-                return true;
-            }
-        }
-        else {
-            return true;
-        }
-    }
-
-    inline int newrap_solver( dtype &Pg, dtype &W_L, dtype &W_R,
+    inline int newrap_solver( dtype &niter_v, dtype &Pg, dtype &W_L, dtype &W_R,
                               dtype dvel,
                               dtype L_p, dtype L_rho, dtype cs_L,
                               dtype R_p, dtype R_rho, dtype cs_R) {
         int itt = 0;
+        niter_v = 1.;
         dtype tol = 100.;
         dtype Pg_prev, Z_L, Z_R;
-        while ( !isConverged(tol, itt) ) {
+        mtype not_converged = (niter_v==1.) & mask;
+        while ( itt<NMAX_ITER && movemask(not_converged) ) {
             Pg_prev=Pg;
             get_f_fp( W_L, Z_L, Pg, L_p, L_rho, cs_L);
             get_f_fp( W_R, Z_R, Pg, R_p, R_rho, cs_R);
@@ -493,12 +481,15 @@ private:
             limit_decrease(Pg, Pg_prev);
 
             tol = 2.0 * abs((Pg-Pg_prev)/(Pg+Pg_prev));
+            not_converged = (tol > TOL_ITER)&mask;
+            niter_v = mask_mov(niter_v, not_converged, niter_v+1.0);
             itt += 1;
         }
         return itt;
     }
 
     inline int iterative_Riemann_solver(
+        dtype &niter_v,
         dtype R_rho,dtype R_p,dtype L_rho,dtype L_p,
         dtype &P_M, dtype &S_M,
         dtype v_line_L, dtype v_line_R, dtype cs_L, dtype cs_R) {
@@ -511,7 +502,7 @@ private:
         Pg = this->guess_for_pressure( R_rho, R_p, L_rho, L_p, v_line_L, v_line_R, cs_L, cs_R);
         //dump(Pg);
 
-        niter_Riemann = newrap_solver( Pg, W_L, W_R, dvel,
+        niter_Riemann = newrap_solver( niter_v, Pg, W_L, W_R, dvel,
                                        L_p, L_rho, cs_L, R_p, R_rho, cs_R);
         //if (niter_Riemann<NMAX_ITER)
         {
@@ -525,27 +516,28 @@ private:
         //}
     }
 
-    inline void sample_reimann_vaccum_internal( dtype S,
+    inline void sample_reimann_vaccum_internal( dtype niter_v, dtype S,
             dtype R_rho,dtype R_p, dtype R_v[3],dtype L_rho,dtype L_p, dtype L_v[3],
             dtype &P_M, dtype &S_M, dtype *rho_f, dtype *p_f, dtype *v_f,
             dtype n_unit[3], dtype v_line_L, dtype v_line_R, dtype cs_L, dtype cs_R) {
 #ifndef USE_MFM
         //assert(0);
 #endif
+        mtype not_converged = (niter_v >= NMAX_ITER) & mask;
         dtype dvel = v_line_R - v_line_L;
         dtype check_vel = G4 * (cs_R + cs_L) - dvel;
-        mtype vac = check_vel < 0;
+        mtype vac = (check_vel < 0) | not_converged;
         if (movemask(vac)) {
-            //printf("vaccum internal\n");
             dtype S_L = v_line_L + G4 * cs_L;
             dtype S_R = v_line_R - G4 * cs_R;
 
+            // Note that we avoid the extra branches in the old `sample_reimann_vaccum`
             mtype lfan = vac&(S<=S_L);
             mtype rfan = vac&(S>=S_R);
             dtype zeros = 0.;
 
             P_M = mask_mov(P_M, vac, zeros);
-            S_M = mask_mov(S_M, vac, zeros);
+            S_M = mask_mov(S_M, vac, S);
             S_M = mask_mov(S_M, lfan, S_L);
             S_M = mask_mov(S_M, rfan, S_R);
         }
@@ -585,6 +577,7 @@ private:
                                    dtype *p_f, dtype *v_f) {
         dtype zeros = 0.0;
         mtype vac = (mtype)((mtype)(L_p <= zeros) & (mtype)(R_p <= zeros)) | (mtype)((mtype)(L_rho<=zeros) & (mtype)(R_rho<=zeros));
+        vac = vac&mask;
         P_M = mask_mov(P_M, vac, zeros);
         S_M = mask_mov(S_M, vac, zeros);
 
@@ -611,6 +604,7 @@ public:
         dtype &P_M, dtype &S_M, dtype *rho_f, dtype *p_f, dtype *v_f,
         dtype n_unit[3]) {
         int niter;
+        dtype niter_v;
         dtype cs_L = sqrt(gamma * L_p / L_rho);
         dtype cs_R = sqrt(gamma * R_p / R_rho);
 
@@ -621,7 +615,8 @@ public:
         dtype v_line_R = R_v[0]*n_unit[0] +
                          R_v[1]*n_unit[1] +
                          R_v[2]*n_unit[2];
-        niter=iterative_Riemann_solver( R_rho, R_p, L_rho, L_p, P_M, S_M, v_line_L, v_line_R, cs_L, cs_R);
+        mtype vac = mask & ( (R_rho < 0.) | (L_rho < 0.) );
+        niter=iterative_Riemann_solver( niter_v, R_rho, R_p, L_rho, L_p, P_M, S_M, v_line_L, v_line_R, cs_L, cs_R);
 #ifndef USE_MFM
         dtype S = 0;
         sample_reimann_standard( S,
@@ -632,7 +627,7 @@ public:
                                  n_unit,v_line_L,v_line_R,cs_L,cs_R);
 #endif
         dtype zero = 0.;
-        sample_reimann_vaccum_internal( zero, R_rho, R_p, R_v, L_rho, L_p, L_v, P_M, S_M, rho_f, p_f, v_f, n_unit,v_line_L,v_line_R,cs_L,cs_R);
+        sample_reimann_vaccum_internal( niter_v, zero, R_rho, R_p, R_v, L_rho, L_p, L_v, P_M, S_M, rho_f, p_f, v_f, n_unit,v_line_L,v_line_R,cs_L,cs_R);
         handle_input_vacuum(R_rho, R_p, L_rho, L_p, P_M, S_M, rho_f, p_f, v_f);
 #ifndef USE_MFM
         convert_face_to_flux( rho_f, p_f, v_f, n_unit);
