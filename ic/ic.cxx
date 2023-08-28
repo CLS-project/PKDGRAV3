@@ -603,6 +603,10 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
 #endif
                 Sph.uWake = 0;
                 Sph.omega = 0.0;
+#ifdef BLACKHOLES
+                Sph.BHAccretor.iIndex = NOT_ACCRETED;
+                Sph.BHAccretor.iPid   = NOT_ACCRETED;
+#endif
             }
         }
         if (in->bICgas) pkd->SetLocal( pkd->nActive = in->nMove * 2);

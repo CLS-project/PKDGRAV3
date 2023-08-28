@@ -791,6 +791,10 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 #if defined(FEEDBACK) || defined(BLACKHOLES)
                     Sph.fAccFBEnergy = 0.;
 #endif
+#ifdef BLACKHOLES
+                    Sph.BHAccretor.iIndex = NOT_ACCRETED;
+                    Sph.BHAccretor.iPid   = NOT_ACCRETED;
+#endif
                     Sph.uWake = 0;
                 }
             }

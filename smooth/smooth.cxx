@@ -860,30 +860,12 @@ void smSmooth(SMX smx,SMF *smf) {
     smSmoothInitialize(smx);
     smf->pfDensity = NULL;
     switch (smx->iSmoothType) {
-#ifdef BLACKHOLES
     case SMX_BH_DRIFT:
-        /*
-        ** For BH accretion, we use the ephemeral storage to keep track of accreting BHs
-        */
-        if (smf->bBHAccretion) {
-            assert(pkd->EphemeralBytes() >= sizeof(remoteID));
-            for (auto i = 0; i < pkd->Local(); ++i) {
-                if (pkd->particles[i].is_gas()) {
-                    auto accretor = BHAccretor(pkd,i);
-                    accretor.set_pid(NOT_ACCRETED);
-                }
-            }
-            pkd->mdl->CacheInitialize(CID_GROUP,NULL,pkd->pLite,pkd->Local(),
-                                      std::make_shared<BHAccretionCache>());
-        }
-
         for (auto &p : pkd->particles) {
             if (p.is_bh()) {
                 smSmoothSingle(smx,smf,p,ROOT,0);
             }
         }
-
-        if (smf->bBHAccretion) mdlFinishCache(pkd->mdl,CID_GROUP);
         break;
     case SMX_BH_STEP:
         for (auto &p : pkd->particles) {
@@ -892,7 +874,6 @@ void smSmooth(SMX smx,SMF *smf) {
             }
         }
         break;
-#endif
 #ifdef FEEDBACK
     case SMX_SN_FEEDBACK:
         for (auto &p : pkd->particles) {
@@ -1129,7 +1110,6 @@ int smReSmooth(SMX smx,SMF *smf, int iSmoothType) {
         }
         break;
 
-#ifdef BLACKHOLES
     case SMX_BH_DRIFT:
         for (auto &p : pkd->particles) {
             if (p.is_bh()) {
@@ -1147,7 +1127,6 @@ int smReSmooth(SMX smx,SMF *smf, int iSmoothType) {
             }
         }
         break;
-#endif
 
 #ifdef FEEDBACK
     /* IA: If computing the hydrostep, we also do the smooth over the newly formed stars that has not yet exploded, such that
