@@ -467,7 +467,7 @@ private:
         niter_v = 1.;
         dtype tol = 100.;
         dtype Pg_prev, Z_L, Z_R;
-        mtype not_converged = (niter_v==1.) & mask;
+        mtype not_converged = static_cast<mtype>(niter_v==1.) & mask;
         while ( itt<NMAX_ITER && movemask(not_converged) ) {
             Pg_prev=Pg;
             get_f_fp( W_L, Z_L, Pg, L_p, L_rho, cs_L);
@@ -481,7 +481,7 @@ private:
             limit_decrease(Pg, Pg_prev);
 
             tol = 2.0 * abs((Pg-Pg_prev)/(Pg+Pg_prev));
-            not_converged = (tol > TOL_ITER)&mask;
+            not_converged = static_cast<mtype>(tol > TOL_ITER)&mask;
             niter_v = mask_mov(niter_v, not_converged, niter_v+1.0);
             itt += 1;
         }
@@ -523,10 +523,10 @@ private:
 #ifndef USE_MFM
         //assert(0);
 #endif
-        mtype not_converged = (niter_v >= NMAX_ITER) & mask;
+        mtype not_converged = static_cast<mtype>(niter_v >= NMAX_ITER) & mask;
         dtype dvel = v_line_R - v_line_L;
         dtype check_vel = G4 * (cs_R + cs_L) - dvel;
-        mtype vac = (check_vel < 0) | not_converged;
+        mtype vac = static_cast<mtype>(check_vel < 0) | not_converged;
         if (movemask(vac)) {
             dtype S_L = v_line_L + G4 * cs_L;
             dtype S_R = v_line_R - G4 * cs_R;
