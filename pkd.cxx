@@ -1937,6 +1937,7 @@ void pkdGravAll(PKD pkd,
     if (bPeriodic && bEwald && SPHoptions->doGravity) {
         pkdEwaldInit(pkd,nReps,fEwCut,fEwhCut,bGPU); /* ignored in Flop count! */
     }
+    pkdCopySPHOptionsToDevice(pkd, SPHoptions, bGPU);
     /*
     ** Start particle caching space (cell cache already active).
     */
@@ -1957,10 +1958,15 @@ void pkdGravAll(PKD pkd,
     dCellSum = 0.0;
     pkd->dFlopSingleCPU = pkd->dFlopDoubleCPU = 0.0;
     pkd->dFlopSingleGPU = pkd->dFlopDoubleGPU = 0.0;
+    pkd->nWpPending = 0;
+    pkd->nTilesTotal = 0;
+    pkd->nTilesCPU = 0;
 
     *pnActive = pkdGravWalk(pkd,kick,lc,ts,
                             dTime,nReps,bPeriodic && bEwald,bGPU,
                             iRoot1,iRoot2,0,dThetaMin,pdFlop,&dPartSum,&dCellSum,SPHoptions);
+
+    assert(pkd->nWpPending == 0);
 
     if (SPHoptions->doExtensiveILPTest && (SPHoptions->doSetDensityFlags || SPHoptions->doSetNNflags)) {
         mdlFlushCache(pkd->mdl,CID_PARTICLE);
@@ -3060,5 +3066,20 @@ void pkdInitializeEOS(PKD pkd) {
             assert(0);
 #endif
         }
+    }
+}
+
+void pkdCopySPHOptionsToDevice(PKD pkd, SPHOptions *SPHoptions, int bGPU) {
+    if (bGPU) {
+#ifdef USE_CUDA
+        auto cuda = reinterpret_cast<CudaClient *>(pkd->cudaClient);
+        // Only one thread needs to transfer the SPHoptions to the GPU
+        if (pkd->mdl->Core()==0) {
+            SPHOptionsGPU SPHoptionsGPU;
+            copySPHOptionsGPU(SPHoptions, &SPHoptionsGPU);
+            cuda->setupSPHOptions(&SPHoptionsGPU);
+        }
+        pkd->mdl->ThreadBarrier();
+#endif
     }
 }

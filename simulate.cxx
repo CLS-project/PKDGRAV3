@@ -27,8 +27,13 @@
 \******************************************************************************/
 double MSR::LoadOrGenerateIC() {
     double dTime = -HUGE_VAL;
-    if (prmSpecified(prm,"nGrid")) {
-        dTime = GenerateIC(); /* May change nSteps/dDelta */
+    if (parameters.has_nGrid()) {
+        dTime = GenerateIC(
+                    parameters.get_nGrid(),
+                    parameters.get_iSeed(),
+                    parameters.get_dRedFrom(),
+                    parameters.get_dBoxSize(),
+                    csm); /* May change nSteps/dDelta */
         if ( param.bWriteIC ) {
             Write(BuildIoName(0).c_str(),dTime,param.bWriteIC-1);
         }
@@ -104,7 +109,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
     FILE *fpLog = NULL;
     const auto bEwald = parameters.get_bEwald();
 
-    InitCosmology();
+    InitCosmology(csm);
     auto dTheta = set_dynamic(iStartStep,dTime);
 
     if (prmSpecified(prm,"dSoft")) SetSoft(Soft());
@@ -128,10 +133,11 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
     TimerHeader();
 
     if (param.bLightCone && Comove()) {
+        auto dBoxSize = parameters.get_dBoxSize();
         printf("One, Two, Three replica depth is z=%.10g, %.10g, %.10g\n",
-               1.0/csmComoveLookbackTime2Exp(csm,1.0 / dLightSpeedSim(1*param.dBoxSize)) - 1.0,
-               1.0/csmComoveLookbackTime2Exp(csm,1.0 / dLightSpeedSim(2*param.dBoxSize)) - 1.0,
-               1.0/csmComoveLookbackTime2Exp(csm,1.0 / dLightSpeedSim(3*param.dBoxSize)) - 1.0 );
+               1.0/csmComoveLookbackTime2Exp(csm,1.0 / dLightSpeedSim(1*dBoxSize)) - 1.0,
+               1.0/csmComoveLookbackTime2Exp(csm,1.0 / dLightSpeedSim(2*dBoxSize)) - 1.0,
+               1.0/csmComoveLookbackTime2Exp(csm,1.0 / dLightSpeedSim(3*dBoxSize)) - 1.0 );
     }
 
     if (DoGas() && MeshlessHydro()) {
@@ -276,7 +282,7 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
                        E,T,U,Eth,L[0],L[1],L[2],F[0],F[1],F[2],W,iSec);
     }
 
-    if (param.bWriteIC && !prmSpecified(prm,"nGrid") && !NewSPH()) {
+    if (param.bWriteIC && !parameters.has_nGrid() && !NewSPH()) {
 #ifndef BLACKHOLES
         if (parameters.get_bFindGroups()) {
             NewFof(param.dTau,param.nMinMembers);
@@ -528,16 +534,16 @@ int MSR::ValidateParameters() {
         puts("ERROR: iPkOrder must be 1 (NGP), 2 (CIC), 3 (TSC) or 4 (PCS)");
         return 0;
     }
-    if ( param.nGrid ) {
+    if ( parameters.get_nGrid() ) {
         if (param.achInFile[0]) {
             puts("ERROR: do not specify an input file when generating IC");
             return 0;
         }
-        if ( param.iSeed == 0 ) {
+        if ( parameters.get_iSeed() == 0 ) {
             //puts("ERROR: Random seed for IC not specified");
-            param.iSeed = time(NULL);
+            parameters.set(parameters.str_iSeed,time(NULL));
         }
-        if ( !prmSpecified(prm,"dBoxSize") || param.dBoxSize <= 0 ) {
+        if ( !parameters.has_dBoxSize() || parameters.get_dBoxSize() <= 0 ) {
             puts("ERROR: Box size for IC not specified");
             return 0;
         }
@@ -734,7 +740,7 @@ int MSR::ValidateParameters() {
         int nLinear = parseSpeciesNames(aLinear,achLinSpecies);
         int nPower = parseSpeciesNames(aPower,achPkSpecies);
         if (!prmSpecified(prm,"dOmega0")) csm->val.dOmega0 = 0.0;
-        csmClassRead(csm, param.achClassFilename, param.dBoxSize, param.h, nLinear, aLinear, nPower, aPower);
+        csmClassRead(csm, param.achClassFilename, parameters.get_dBoxSize(), parameters.get_h(), nLinear, aLinear, nPower, aPower);
         free(achLinSpecies);
         free(achPkSpecies);
         csmClassGslInitialize(csm);

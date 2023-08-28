@@ -85,6 +85,8 @@ int ServiceDomainDecomp::Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) 
         }
 #endif
     }
+    else d = pst->iSplitDim;
+    assert(d >= 0);
 
     mdlPrintTimer(pst->mdl,"TIME Mass Check done in pstDomainDecomp",&t);
     RootSplit(pst,d,in->bDoRootFind,in->bDoSplitDimFind);
@@ -94,9 +96,6 @@ int ServiceDomainDecomp::Recurse(PST pst,void *vin,int nIn,void *vout,int nOut) 
     /*
     ** Now go on to DD of next levels, but pass correct wrapping bounds.
     */
-    assert(d == pst->iSplitDim);
-    //nBndWrapd = in->nBndWrap[d];
-
     auto l = bnd.lower();
     auto u = bnd.upper();
     //in->nBndWrap[d] = nBndWrapd;

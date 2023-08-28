@@ -593,6 +593,8 @@ struct outGravityReduct {
     double dFlopDoubleGPU;
     uint64_t nActive;
     uint64_t nRung[IRUNGMAX+1];
+    uint64_t nTilesTotal;
+    uint64_t nTilesCPU;
 };
 int pstGravity(PST,void *,int,void *,int);
 

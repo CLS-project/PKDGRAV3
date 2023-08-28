@@ -16,15 +16,13 @@
  */
 #include <string>
 #include <Python.h>
-#define USE_NUMPY
-#ifdef USE_NUMPY
-    #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
-    #include <numpy/arrayobject.h>
-#endif
+#include <numpy/arrayobject.h>
 #include <structmember.h> // for PyMemberDef
 #include "parse.h"
 #include "master.h"
 #include "csmpython.h"
+
+#define CYTHON_EXTERN_C extern "C++"
 #include "modules/checkpoint.h"
 #include "modules/PKDGRAV.h"
 
@@ -309,17 +307,21 @@ ppy_msr_GenerateIC(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     flush_std_files();
     static char const *kwlist[]= {"csm","z","grid","seed","L",NULL};
     CSMINSTANCE *cosmo = NULL;
+    int nGrid = self->msr->parameters.get_nGrid();
+    int iSeed = self->msr->parameters.get_iSeed();
+    double z = self->msr->parameters.get_dRedFrom();
+    double L = self->msr->parameters.get_dBoxSize();
     self->msr->parameters.set(self->msr->parameters.str_bPeriodic,true);
     if ( !PyArg_ParseTupleAndKeywords(
                 args, kwobj, "Odi|id:GenerateIC", const_cast<char **>(kwlist),
-                &cosmo,&self->msr->param.dRedFrom,&self->msr->param.nGrid,
-                &self->msr->param.iSeed, &self->msr->param.dBoxSize) )
+                &cosmo,&z,&nGrid,
+                &iSeed, &L) )
         return NULL;
     if (!PyObject_TypeCheck(cosmo,&csmType)) return PyErr_Format(PyExc_TypeError,"Expected CSM object");
     self->msr->csm->val = cosmo->csm->val;
     if (self->msr->csm->val.classData.bClass)
         csmClassGslInitialize(self->msr->csm);
-    double dTime = self->msr->GenerateIC();
+    double dTime = self->msr->GenerateIC(nGrid,iSeed,z,L,self->msr->csm);
     return Py_BuildValue("d", dTime );
 }
 
@@ -1029,7 +1031,6 @@ ppy_msr_rs_extract(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
 
 /********** Analysis: Retrieve the values for all particles (DANGER! not memory friendly) **********/
 
-#ifdef USE_NUMPY
 static PyObject *
 ppy_msr_GetArray(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
     flush_std_files();
@@ -1115,8 +1116,6 @@ ppy_msr_GetParticles(MSRINSTANCE *self, PyObject *args, PyObject *kwobj) {
 //    return array;
     Py_RETURN_NONE; // FOR NOW, FIX
 }
-#endif
-
 #endif
 
 /******************************************************************************\
@@ -1299,12 +1298,10 @@ static PyMethodDef msr_methods[] = {
         "rs_extract", (PyCFunction)ppy_msr_rs_extract, METH_VARARGS|METH_KEYWORDS,
         "Extract particles that match IDs for Rockstar processing"
     },
-#ifdef USE_NUMPY
     {
         "GetArray", (PyCFunction)ppy_msr_GetArray, METH_VARARGS|METH_KEYWORDS,
         "Get a complete array of the given value"
     },
-#endif
     {NULL, NULL, 0, NULL}
 };
 
@@ -1405,9 +1402,7 @@ static PyObject *initModuleMSR(void) {
     auto msr_module = PyState_FindModule(&msrModule); // We created this already
     auto moduleState = reinterpret_cast<struct msrModuleState *>(PyModule_GetState(msr_module));
     moduleState->bImported = true;
-#ifdef USE_NUMPY
     import_array();
-#endif
     //auto mainModule = PyImport_AddModule("__main__"); // Borrowed reference
     //PyObject *mainDict = PyModule_GetDict(mainModule);
     //setConstants(mainDict);
@@ -1456,12 +1451,13 @@ void MSR::runAnalysis(int iStep,double dTime) {
 
 extern "C" PyObject *PyInit_CSM(void);
 extern "C" PyObject *PyInit_accuracy(void);
+extern "C" PyObject *PyInit_cosmology(void);
 
 int MSR::Python(int argc, char *argv[]) {
     PyImport_AppendInittab(MASTER_MODULE_NAME,initModuleMSR);
     PyImport_AppendInittab("PKDGRAV",PyInit_PKDGRAV);
+    PyImport_AppendInittab("cosmology",PyInit_cosmology);
     PKDGRAV_msr0 = this;
-    PKDGRAV_msr_imported = false;
     PyImport_AppendInittab("CSM",PyInit_CSM);
     PyImport_AppendInittab("parse", PyInit_parse);
     PyImport_AppendInittab("checkpoint", PyInit_checkpoint);
@@ -1583,8 +1579,10 @@ int MSR::Python(int argc, char *argv[]) {
     }
     Py_DECREF(script);
 
+    auto imported = is_PKDGRAV_imported(locals);
+
     // If "MASTER" was imported then we are done -- the script should have done its job
-    if (!moduleState->bImported && !PKDGRAV_msr_imported) { // We must prepare for a normal legacy execution
+    if (!moduleState->bImported && !imported) { // We must prepare for a normal legacy execution
         if (!parameters.verify(locals)) {
             PyErr_Print();
             fprintf(stderr,
@@ -1601,5 +1599,5 @@ int MSR::Python(int argc, char *argv[]) {
         bVDetails = parameters.get_bVDetails();
     }
 
-    return moduleState->bImported || PKDGRAV_msr_imported ? 0 : -1;
+    return moduleState->bImported || imported ? 0 : -1;
 }

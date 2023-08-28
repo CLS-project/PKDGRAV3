@@ -29,8 +29,12 @@
 #include <cstdlib>
 #include "check.h"
 #include "gpu/pppcdata.h"
+#include "gpu/dendata.h"
+#include "gpu/dencorrdata.h"
+#include "gpu/sphforcedata.h"
 #include "cudapppc.h"
-#include "reduce.h"
+#include "SPH/SPHOptions.h"
+#include <queue>
 
 class MessageEwald : public mdl::cudaMessage,public gpu::hostData {
 protected:
@@ -56,6 +60,15 @@ protected:
     std::vector<int> ibHole;
 };
 
+class MessageSPHOptionsSetup : public mdl::cudaMessage {
+protected:
+    virtual void launch(mdl::Stream &stream, void *pCudaBufIn, void *pCudaBufOut) override;
+public:
+    explicit MessageSPHOptionsSetup(SPHOptionsGPU *const SPHoptions, int iDevice=-1);
+protected:
+    SPHOptionsGPU *const SPHoptionsIn;
+};
+
 class CudaClient {
     friend class MessageEwald;
 protected:
@@ -65,6 +78,12 @@ protected:
     MessagePP *pp;
     mdl::messageQueue<MessagePC> freePC;
     MessagePC *pc;
+    mdl::messageQueue<MessageDen<32>> freeDen;
+    MessageDen<32> *den;
+    mdl::messageQueue<MessageDenCorr<32>> freeDenCorr;
+    MessageDenCorr<32> *denCorr;
+    mdl::messageQueue<MessageSPHForce<32>> freeSPHForce;
+    MessageSPHForce<32> *sphForce;
 
     int nEwhLoop;
     std::list<MessageEwald> free_Ewald, busy_Ewald;
@@ -92,6 +111,7 @@ protected:
         }
     }
 public:
+    std::queue<workParticle *> wps;
     explicit CudaClient( mdl::CUDA &cuda, mdl::gpu::Client &gpu);
     void flushCUDA();
     int queuePP(workParticle *work, ilpTile &tile, bool bGravStep) {
@@ -101,8 +121,21 @@ public:
     int queuePC(workParticle *work, ilcTile &tile, bool bGravStep) {
         return queue(pc,freePC,work,tile,bGravStep);
     }
+
+    int queueDen(workParticle *work, ilpTile &tile) {
+        return queue(den,freeDen,work,tile, false);
+    }
+
+    int queueDenCorr(workParticle *work, ilpTile &tile) {
+        return queue(denCorr,freeDenCorr,work,tile, false);
+    }
+
+    int queueSPHForce(workParticle *work, ilpTile &tile) {
+        return queue(sphForce,freeSPHForce,work,tile, false);
+    }
     int  queueEwald(workParticle *wp);
     void setupEwald(struct EwaldVariables *const ew, EwaldTable *const ewt);
+    void setupSPHOptions(SPHOptionsGPU *const SPHoptions);
 };
 #endif
 #endif

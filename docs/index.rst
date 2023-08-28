@@ -16,11 +16,13 @@ Welcome to pkdgrav3's documentation!
    units.rst
    extensions.rst
    parameters.rst
+   resources.rst
 
+.. only:: html or text
 
-Indices and tables
-==================
+   .. rubric:: Indices and tables
 
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
+   * :ref:`genindex`
+   * :ref:`modindex`
+   * :ref:`search`
+
