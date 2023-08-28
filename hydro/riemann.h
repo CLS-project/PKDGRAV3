@@ -540,6 +540,23 @@ private:
             S_M = mask_mov(S_M, vac, S);
             S_M = mask_mov(S_M, lfan, S_L);
             S_M = mask_mov(S_M, rfan, S_R);
+#ifndef USE_MFM
+            *rho_f = mask_mov(*rho_f, vac, 0.0);
+            *p_f = mask_mov(*p_f, vac, P_M);
+            dtype v_f_internal;
+            dtype v_f_right;
+            dtype v_f_left;
+            for (auto k=0; k<3; k++) {
+                v_f_internal = (L_v[k] + (R_v[k]-L_v[k]) * (S-S_L)/(S_R-S_L)) *
+                               (1-n_unit[k]) + S * n_unit[k];
+                v_f_left  = R_v[k] + (S_M - v_line_R) * n_unit[k];
+                v_f_right = L_v[k] + (S_M - v_line_L) * n_unit[k];
+
+                v_f[k] = mask_mov(v_f[k], vac, v_f_internal);
+                v_f[k] = mask_mov(v_f[k], lfan, v_f_right);
+                v_f[k] = mask_mov(v_f[k], rfan, v_f_left);
+            }
+#endif
         }
     }
 
@@ -581,6 +598,13 @@ private:
         P_M = mask_mov(P_M, vac, zeros);
         S_M = mask_mov(S_M, vac, zeros);
 
+#ifndef USE_MFM
+        *rho_f = mask_mov(*rho_f, vac, 0.0);
+        *p_f = mask_mov(*p_f, vac, 0.0);
+        for (auto k=0; k<3; k++) {
+            v_f[k] = mask_mov(v_f[k], vac, 0.);
+        }
+#endif
         /*
         if (movemask(vac)) {
             dump(P_M);
