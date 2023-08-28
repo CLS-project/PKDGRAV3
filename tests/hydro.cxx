@@ -61,7 +61,8 @@ protected:
     }
 
     ftype solve() {
-        RiemannSolverExact<ftype,mtype> riemann(dConstGamma);
+        mtype mask = static_cast<ftype>(0.) == 0.;
+        RiemannSolverExact<ftype,mtype> riemann(dConstGamma,mask);
         return riemann.solve(vrho_R, vp_R, vv_R,
                              vrho_L, vp_L, vv_L,
                              vP_M, vS_M,
@@ -74,6 +75,7 @@ protected:
 typedef RiemannTest<vec<double,double>,mmask<bool>> RiemannTestNoVec;
 typedef RiemannTest<dvec,dmask> RiemannTestVec;
 
+#if ( defined(HAVE_MM_POW) || defined(HAVE_MM256_POW) || defined(HAVE_MM512_POW) )
 TEST_F(RiemannTestVec, ToroVec1) {
 
     set_vec_R(0.125, 0.1, {0.,0.,0.});
@@ -270,6 +272,7 @@ TEST_F(RiemannTestVec, VecVacuum) {
     EXPECT_NEAR(vP_M[3], 0.0, TOL);
     EXPECT_NEAR(vS_M[3], S_R, -S_R*TOL);
 }
+#endif
 
 TEST_F(RiemannTestNoVec, Toro1) {
 
