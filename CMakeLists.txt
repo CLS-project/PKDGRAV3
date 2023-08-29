@@ -321,6 +321,7 @@ if(USE_SIMD)
    # check_symbol_exists does not work for intrinsics..
    include(CheckCSourceCompiles)
    set(CMAKE_REQUIRED_FLAGS -march=native)
+   set(CMAKE_REQUIRED_LIBRARIES m)
    check_c_source_compiles("
        #include <immintrin.h>
        int main() {
@@ -333,7 +334,22 @@ if(USE_SIMD)
    )
    if(HAVE_MM_POW)
       target_compile_options(${PROJECT_NAME} PRIVATE -DHAVE_MM_POW)
-   endif()
+   else(HAVE_MM_POW)
+       check_c_source_compiles("
+           #include <immintrin.h>
+           __m128d _ZGVbN2vv_pow(__m128d x, __m128d y);
+           int main() {
+             __m128d a, b;
+             __m128d tmp = _ZGVbN2vv_pow(a, b);
+             return 0;
+           }
+         "
+         HAVE_LIBVECM_POW
+       )
+       if(HAVE_LIBVECM_POW)
+           target_compile_options(${PROJECT_NAME} PRIVATE -DHAVE_LIBVECM_POW)
+       endif(HAVE_LIBVECM_POW)
+   endif(HAVE_MM_POW)
    check_c_source_compiles("
        #include <immintrin.h>
        int main() {
@@ -346,7 +362,22 @@ if(USE_SIMD)
    )
    if(HAVE_MM256_POW)
       target_compile_options(${PROJECT_NAME} PRIVATE -DHAVE_MM256_POW)
-   endif()
+   else(HAVE_MM256_POW)
+       check_c_source_compiles("
+           #include <immintrin.h>
+           __m256d _ZGVdN4vv_pow(__m256d x, __m256d y);
+           int main() {
+             __m256d a, b;
+             __m256d tmp = _ZGVdN4vv_pow(a, b);
+             return 0;
+           }
+         "
+         HAVE_LIBVECM256_POW
+       )
+       if(HAVE_LIBVECM256_POW)
+           target_compile_options(${PROJECT_NAME} PRIVATE -DHAVE_LIBVECM256_POW)
+       endif(HAVE_LIBVECM256_POW)
+   endif(HAVE_MM256_POW)
    check_c_source_compiles("
        #include <immintrin.h>
        int main() {
@@ -359,6 +390,21 @@ if(USE_SIMD)
    )
    if(HAVE_MM512_POW)
       target_compile_options(${PROJECT_NAME} PRIVATE -DHAVE_MM512_POW)
+   else(HAVE_MM512_POW)
+       check_c_source_compiles("
+           #include <immintrin.h>
+           __m512d _ZGVeN8vv_pow(__m512d x, __m512d y);
+           int main() {
+             __m512d a, b;
+             __m512d tmp = _ZGVeN8vv_pow(a, b);
+             return 0;
+           }
+         "
+         HAVE_LIBVECM512_POW
+       )
+       if(HAVE_LIBVECM512_POW)
+           target_compile_options(${PROJECT_NAME} PRIVATE -DHAVE_LIBVECM512_POW)
+       endif(HAVE_LIBVECM512_POW)
    endif()
    #if USE_SIMD_FMM
    target_sources(${PROJECT_NAME} PRIVATE gravity/vmoments.cxx)

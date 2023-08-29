@@ -1067,7 +1067,7 @@ void hydroRiemann_wrapper(PARTICLE *p,float fBall,int nSmooth, int nBuff,
                           my_real *restrict input_buffer,
                           my_real *restrict output_buffer, SMF *smf) {
 
-#if defined(USE_SIMD_FLUX) && ( defined(HAVE_MM_POW) || defined(HAVE_MM256_POW) || defined(HAVE_MM512_POW) )
+#if defined(USE_SIMD_FLUX)
     MeshlessHydroSolver<dvec,dmask> solver;
 #else
     MeshlessHydroSolver<vec<double,double>,mmask<bool>> solver;

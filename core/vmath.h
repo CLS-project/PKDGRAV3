@@ -282,20 +282,48 @@ dvec verf(const dvec &v,const dvec &iv,const dvec &ex2,dvec &r_erf,dvec &r_erfc)
     return t;
 }
 
+extern "C" {
+#if defined(HAVE_LIBVECM_POW)
+    __m128d _ZGVbN2vv_pow(__m128d x, __m128d y);
+#endif
+#if defined(HAVE_LIBVECM256_POW)
+    __m256d _ZGVdN4vv_pow(__m256d x, __m256d y);
+#endif
+#if defined(HAVE_LIBVECM512_POW)
+    __m512d _ZGVeN8vv_pow(__m512d x, __m512d y);
+#endif
+}
+
 static inline
 dvec pow(const dvec &xx,const dvec &yy) {
     dvec t;
-#if (defined(__AVX512F__) && defined(HAVE_MM512_POW))
+#if defined(__AVX512F__)
+#if defined(HAVE_MM512_POW)
     t =_mm512_pow_pd(xx, yy);
-#elif (defined(__AVX__) && defined(HAVE_MM256_POW))
-    t = _mm256_pow_pd(xx, yy);
-#elif (defined(__SSE__) && defined(HAVE_MM_POW))
-    t = _mm_pow_pd(xx, yy);
+#elif defined(HAVE_LIBVECM_POW)
+    t =_ZGVeN8vv_pow(xx, yy);
 #else
-    // The above intrinsics are part of intel svml available as part of the
-    // oneAPI suite. If not available, we would need to add a hand-made
-    // implementation of pow, or avoid using simd in the hydro solver
     assert(0);
+#endif
+
+#elif defined(__AVX__)
+#if defined(HAVE_MM256_POW)
+    t = _mm256_pow_pd(xx, yy);
+#elif defined(HAVE_LIBVECM256_POW)
+    t = _ZGVdN4vv_pow(xx, yy);
+#else
+    assert(0);
+#endif
+
+#elif defined(__SSE__)
+#if defined(HAVE_MM_POW)
+    t = _mm_pow_pd(xx, yy);
+#elif defined (HAVE_LIBVECM_POW)
+    t = _ZGVbN2vv_pow(xx, yy);
+#else
+    assert(0);
+#endif
+
 #endif
     return t;
 }
