@@ -141,6 +141,7 @@ struct parameters {
     char achIoPath[256];
     char achCheckpointPath[256];
     char achDataSubPath[256];
+    char achOutTimes[256];
     char achTfFile[256];
     char achClassFilename[256];
     char achLinSpecies[256];
@@ -196,18 +197,28 @@ struct parameters {
     double fCa_over_Si_in_Solar;
     double fS_over_Si_in_Solar;
     double fT_CMB_0;
+    double dCoolingMinu;
+    double dCoolingMinTemp;
+#endif
 
     /*
-     * IA: Internal energy floor parameters
+     * Internal energy floor parameters
      */
-    double dCoolingFloorDen;
-    double dCoolingFlooru;
-    double dCoolingFloorT;
-#endif
+    double dEOSFloorDen;
+    double dEOSFloorMinOD;
+    double dEOSFloorMinBaryonOD;
+    double dEOSFloornH;
+    double dEOSFlooru;
+    double dEOSFloorTemp;
 #ifdef EEOS_POLYTROPE
+    double dEOSPolyFloorMinOD;
+    double dEOSPolyFloorMinBaryonOD;
     double dEOSPolyFloorIndex;
+    double dEOSPolyFloorExponent;
     double dEOSPolyFloorDen;
+    double dEOSPolyFloornH;
     double dEOSPolyFlooru;
+    double dEOSPolyFloorTemp;
 #endif
 #ifdef EEOS_JEANS
     double dEOSNJeans;
@@ -245,9 +256,13 @@ struct parameters {
 #endif
 #ifdef STAR_FORMATION
     /* IA: Star formation */
+#ifdef HAVE_METALLICITY
+    int bSFThresholdDenSchaye2004;
+#endif
     double dSFMinOverDensity;
     double dSFGasFraction;
     double dSFThresholdDen;
+    double dSFThresholdOD;
     double dSFThresholdu;
     double dSFThresholdT;
     double dSFindexKS;
@@ -255,14 +270,20 @@ struct parameters {
     double dSFEfficiency;
 #endif
 #ifdef FEEDBACK
-    double dSNFBDelay;
+    int bCCSNFeedback;
+    int bSNIaFeedback;
     double dSNFBEfficiency;
-    double dSNFBDu;
-    double dSNFBDT;
-    double dSNFBNumberSNperMass;
     double dSNFBMaxEff;
-    double dSNFBEffnH0;
     double dSNFBEffIndex;
+    double dSNFBEffnH0;
+    double dSNFBDT;
+    double dSNFBDu;
+    double dCCSNFBDelay;
+    double dCCSNFBSpecEnergy;
+    double dCCSNEnergy;
+    double dSNIaFBDelay;
+    double dSNIaFBSpecEnergy;
+    double dSNIaEnergy;
 #endif
 #ifdef BLACKHOLES
     int bBHMerger;
@@ -270,6 +291,7 @@ struct parameters {
     int bBHAccretion;
     int bBHFeedback;
     double dBHAccretionAlpha;
+    double dBHAccretionCvisc;
     double dBHAccretionEddFac;
     double dBHRadiativeEff;
     double dBHFBEff;
@@ -281,20 +303,27 @@ struct parameters {
 #ifdef STELLAR_EVOLUTION
     char achStelEvolPath[256];
     char achSNIaDTDType[32];
-    char achIMFType[32];
     int bChemEnrich;
+    int nSmoothEnrich;
+    double dWindSpecificEkin;
+    double dSNIaNorm;
+    double dSNIaScale;
+    double dSNIaExpScale;
+    double dSNIaPLScale;
+    double dSNIaPLInitTime;
+    double dSNIaPLFinalTime;
+    double dSNIaMaxMass;
+    double dStellarWindSpeed;
+#endif
+#if defined(FEEDBACK) || defined(STELLAR_EVOLUTION)
+    double dSNIaNumPerMass;
+#endif
+#ifdef STELLAR_IMF
+    char achIMFType[32];
     double dIMFMinMass;
     double dIMFMaxMass;
     double dCCSNMinMass;
     double dCCSNMaxMass;
-    double dSNIaMaxMass;
-    double dSNIaNorm;
-    double dSNIaScale;
-    double dSNIaNormInitTime;
-    double dSNIaNormFinalTime;
-    double dSNIaEnergy;
-    double dStellarWindSpeed;
-    double dWindSpecificEkin;
 #endif
 
 #ifdef MDL_FFTW

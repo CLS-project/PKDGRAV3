@@ -105,6 +105,7 @@ namespace rockstar {
 #ifdef STELLAR_EVOLUTION
     #include "stellarevolution/stellarevolution.h"
 #endif
+#include "eEOS/eEOS.h"
 
 #define LOCKFILE ".lockfile"    /* for safety lock */
 #define STOPFILE "STOP"         /* for user interrupt */
@@ -590,6 +591,11 @@ void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTi
         SetSPHoptions();
         InitializeEOS();
     }
+    if (param.bAddDelete) GetNParts();
+    if (prmSpecified(prm,"achOutTimes")) {
+        nSteps = ReadOuts(dTime);
+    }
+
     if (bAnalysis) return; // Very cheeserific
     Simulate(dTime,dDelta,iStep,nSteps);
 }
@@ -675,8 +681,9 @@ void MSR::Checkpoint(int iStep,int nSteps,double dTime,double dDelta) {
         msrprintf("Writing checkpoint for Step: %d Time:%g Redshift:%g\n",
                   iStep,dTime,(1.0/dExp - 1.0));
     }
-    else
+    else {
         msrprintf("Writing checkpoint for Step: %d Time:%g\n",iStep,dTime);
+    }
 
     TimerStart(TIMER_IO);
 
@@ -700,7 +707,16 @@ void MSR::SetDerivedParameters() {
     \**********************************************************************/
 
     SetUnits();
-    dTuFac = param.units.dGasConst/(param.dConstGamma - 1)/param.dMeanMolWeight;
+
+    /* Temperature-to-specific-internal-energy conversion factors for different values
+     * of mean molecular weight (mu) */
+    const double dTuPrefac = param.units.dGasConst / (param.dConstGamma - 1.);
+    dTuFac = dTuPrefac / param.dMeanMolWeight;
+
+    const double dInvPrimNeutralMu = 0.25 + 0.75 * param.dInitialH;
+    const double dInvPrimIonisedMu = 0.75 + 1.25 * param.dInitialH;
+    dTuFacPrimNeutral = dTuPrefac * dInvPrimNeutralMu;
+    dTuFacPrimIonised = dTuPrefac * dInvPrimIonisedMu;
 
 #ifdef COOLING
     SetCoolingParam();
@@ -983,6 +999,9 @@ void MSR::Initialize() {
     strcpy(param.achCheckpointPath,"");
     prmAddParam(prm,"achCheckpointPath",3,param.achCheckpointPath,256,"cpp",
                 "<output path for checkpoints> = \"\"");
+    strcpy(param.achOutTimes,"");
+    prmAddParam(prm,"achOutTimes",3,param.achOutTimes,256,"ot",
+                "<input file containing the sequence of output z|t|a> = \"\"");
     csm->val.bComove = 0;
     prmAddParam(prm,"bComove",0,&csm->val.bComove,sizeof(int),
                 "cm", "enable/disable comoving coordinates = -cm");
@@ -1050,12 +1069,11 @@ void MSR::Initialize() {
 #else
     param.iCacheSize = 0;
 #endif
-    param.iCacheMaxInflight = 0;
     prmAddParam(prm,"iCacheSize",1,&param.iCacheSize,sizeof(int),"cs",
-                "<maximum number of inflight cache message to each rank (0=no limit)'> = 0");
+                "<size of the MDL cache (0=default)> = 0");
     param.iCacheMaxInflight = 0;
     prmAddParam(prm,"iCacheMaxInflight",1,&param.iCacheMaxInflight,sizeof(int),"inflight",
-                "<size of the MDL cache (0=no limit)> = 0");
+                "<maximum number of inflight cache message to each rank (0=no limit)> = 0");
     param.iWorkQueueSize = 0;
     prmAddParam(prm,"iWorkQueueSize",1,&param.iWorkQueueSize,sizeof(int),"wqs",
                 "<size of the MDL work queue> = 0");
@@ -1147,9 +1165,9 @@ void MSR::Initialize() {
     param.nMinMembers = 10;
     prmAddParam(prm,"nMinMembers",1,&param.nMinMembers,sizeof(int),
                 "nMinMembers","<minimum number of group members> = 10");
-    param.dTau = 0.164;
+    param.dTau = 0.0;
     prmAddParam(prm,"dTau",2,&param.dTau,sizeof(double),"dTau",
-                "<linking length for FOF in units of mean particle separation> = 0.164");
+                "<linking length for FOF in code distance units>");
     param.dEnvironment0 = -1.0;
     prmAddParam(prm,"dEnvironment0",2,&param.dEnvironment0,sizeof(double),"dEnv0",
                 "<first radius for density environment about a group> = -1.0 (disabled)");
@@ -1462,32 +1480,46 @@ void MSR::Initialize() {
                 sizeof(double), "fT_CMB_0",
                 "Temperature of the CMB at z=0");
 
-    /* Parameters for the internal energy floor */
-    param.dCoolingFloorDen = 1e-5;
-    prmAddParam(prm,"dCoolingFloorDen", 2, &param.dCoolingFloorDen,
-                sizeof(double), "dCoolingFloorDen",
+    param.dCoolingMinTemp = 100.0;
+    prmAddParam(prm,"dCoolingMinTemp", 2, &param.dCoolingMinTemp,
+                sizeof(double), "dCoolingMinTemp",
+                "Minimum allowed temperature [K]");
+#endif
+
+#ifdef EEOS_POLYTROPE
+    param.dEOSFloornH = 1e-5;
+    prmAddParam(prm,"dEOSFloornH", 2, &param.dEOSFloornH,
+                sizeof(double), "dEOSFloornH",
                 "Minimum density at which the internal energy floor will be applied (in nH [cm-3])");
 
-    param.dCoolingFloorT = 1e4;
-    prmAddParam(prm,"dCoolingFloorT", 2, &param.dCoolingFloorT,
-                sizeof(double), "dCoolingFloorT",
-                "Temperature at the internal energy floor");
-#endif
-#ifdef EEOS_POLYTROPE
+    param.dEOSFloorTemp = 1e4;
+    prmAddParam(prm,"dEOSFloorTemp", 2, &param.dEOSFloorTemp,
+                sizeof(double), "dEOSFloorTemp",
+                "Temperature at the internal energy floor [K]");
+
+    param.dEOSFloorMinOD = 10.0;
+    prmAddParam(prm,"dEOSFloorMinOD", 2, &param.dEOSFloorMinOD,
+                sizeof(double), "dEOSFloorMinOD",
+                "Minimum overdensity at which the constant temperature EOS will be applied");
+    param.dEOSPolyFloorMinOD = 10.0;
+    prmAddParam(prm,"dEOSPolyFloorMinOD", 2, &param.dEOSPolyFloorMinOD,
+                sizeof(double), "dEOSPolyFloorMinOD",
+                "Minimum overdensity at which the polytropic EOS will be applied");
+
     param.dEOSPolyFloorIndex = 4./3.; // This gives a Jeans Mass independent of density (see Schaye & Dalla Vecchia 2008)
     prmAddParam(prm,"dEOSPolyFloorIndex", 2, &param.dEOSPolyFloorIndex,
                 sizeof(double), "dEOSPolyFloorIndex",
                 "Index of the polytropic effective EOS");
 
-    param.dEOSPolyFloorDen = 0.1;
-    prmAddParam(prm,"dEOSPolyFloorDen", 2, &param.dEOSPolyFloorDen,
-                sizeof(double), "dEOSPolyFloorDen",
+    param.dEOSPolyFloornH = 0.1;
+    prmAddParam(prm,"dEOSPolyFloornH", 2, &param.dEOSPolyFloornH,
+                sizeof(double), "dEOSPolyFloornH",
                 "Minimum density at which the effective EOS will be applied (in nH [cm-3])");
 
-    param.dEOSPolyFlooru = 1e4;
-    prmAddParam(prm,"dEOSPolyFloorTemp", 2, &param.dEOSPolyFlooru,
+    param.dEOSPolyFloorTemp = 1e4;
+    prmAddParam(prm,"dEOSPolyFloorTemp", 2, &param.dEOSPolyFloorTemp,
                 sizeof(double), "dEOSPolyFloorTemp",
-                "Temperature at the density threshold for the effective EOS");
+                "Temperature at the density threshold for the effective EOS [K]");
 #endif
 #ifdef EEOS_JEANS
     param.dEOSNJeans = 8.75;
@@ -1555,6 +1587,12 @@ void MSR::Initialize() {
                 "Initial metallicity");
 #endif
 #ifdef STAR_FORMATION
+#ifdef HAVE_METALLICITY
+    param.bSFThresholdDenSchaye2004 = 0;
+    prmAddParam(prm,"bSFThresholdDenSchaye2004", 0, &param.bSFThresholdDenSchaye2004,
+                sizeof(int), "bSFThresholdDenSchaye2004",
+                "Use the metallicity-dependent SF density threshold of Schaye (2004)");
+#endif
     param.dSFThresholdDen = 0.1;
     prmAddParam(prm,"dSFThresholdDen", 2, &param.dSFThresholdDen,
                 sizeof(double), "dSFThresholdDen",
@@ -1589,40 +1627,59 @@ void MSR::Initialize() {
                 "Star formation efficiency per free-fall time; set >0 to use density-based SFR");
 #endif
 #ifdef FEEDBACK
-    param.dSNFBDT = 31622776.60168379; // 10^7.5 K
-    prmAddParam(prm,"dSNFBDT", 2, &param.dSNFBDu,
-                sizeof(double), "dSNFBDT",
-                "Increment in temperature injected per supernova event [K]");
+    param.bCCSNFeedback = 1;
+    prmAddParam(prm,"bCCSNFeedback", 0, &param.bCCSNFeedback,
+                sizeof(int), "bCCSNFeedback",
+                "Activate energy feedback from CCSN events");
+
+    param.bSNIaFeedback = 0;
+    prmAddParam(prm,"bSNIaFeedback", 0, &param.bSNIaFeedback,
+                sizeof(int), "bSNIaFeedback",
+                "Activate energy feedback from SNIa events");
 
     param.dSNFBEfficiency = 1.;
     prmAddParam(prm,"dSNFBEfficiency", 2, &param.dSNFBEfficiency,
                 sizeof(double), "dSNFBEfficiency",
-                "Efficiency of the feedback process. Minimum efficiency if dSNFBMaxEff provided");
-
-    param.dSNFBDelay = 3e7;
-    prmAddParam(prm,"dSNFBDelay", 2, &param.dSNFBDelay,
-                sizeof(double), "dSNFBDelay",
-                "Time between formation of the star and injection of energy from SNII supernova [yr]");
-
-    param.dSNFBNumberSNperMass = 1.736e-2;
-    prmAddParam(prm,"SNFBNumberSNperMass", 2, &param.dSNFBNumberSNperMass,
-                sizeof(double), "dSNFBNumberSNperMass",
-                "Number of stars that will end their life as SNII events, per mass [1/Mo]");
+                "Efficiency of SN feedback. Asymptotic minimum efficiency "
+                "if dSNFBMaxEff is provided");
 
     param.dSNFBMaxEff = 0.0;
     prmAddParam(prm,"dSNFBMaxEff", 2, &param.dSNFBMaxEff,
                 sizeof(double), "dSNFBMaxEff",
-                "Asymptotic maximum efficiency for SNe II feedback");
+                "Asymptotic maximum efficiency of SN feedback");
+
+    param.dSNFBEffIndex = 0.87;
+    prmAddParam(prm,"dSNFBEffIndex", 2, &param.dSNFBEffIndex,
+                sizeof(double), "dSNFBEffIndex",
+                "Metallicity and density index for the feedback efficiency");
 
     param.dSNFBEffnH0 = 0.67;
     prmAddParam(prm,"dSNFBEffnH0", 2, &param.dSNFBEffnH0,
                 sizeof(double), "dSNFBEffnH0",
                 "Hydrogen number density normalization of the feedback efficiency [nH cm-3]");
 
-    param.dSNFBEffIndex = 0.87;
-    prmAddParam(prm,"dSNFBEffIndex", 2, &param.dSNFBEffIndex,
-                sizeof(double), "dSNFBEffIndex",
-                "Metallicity and density index for the feedback efficiency");
+    param.dSNFBDT = pow(10.0, 7.5);
+    prmAddParam(prm,"dSNFBDT", 2, &param.dSNFBDu,
+                sizeof(double), "dSNFBDT",
+                "Increment in temperature injected per supernova event [K]");
+
+    param.dCCSNFBDelay = 3e7;
+    prmAddParam(prm,"dCCSNFBDelay", 2, &param.dCCSNFBDelay,
+                sizeof(double), "dCCSNFBDelay",
+                "Time between star formation and injection of CCSN energy [yr]");
+
+    param.dCCSNEnergy = 1e51;
+    prmAddParam(prm, "dCCSNEnergy", 2, &param.dCCSNEnergy, sizeof(double), "dCCSNEnergy",
+                "CCSN event energy [erg]");
+
+    param.dSNIaFBDelay = 2e8;
+    prmAddParam(prm,"dSNIaFBDelay", 2, &param.dSNIaFBDelay,
+                sizeof(double), "dSNIaFBDelay",
+                "Time between star formation and injection of SNIa energy [yr]");
+
+    param.dSNIaEnergy = 1e51;
+    prmAddParam(prm, "dSNIaEnergy", 2, &param.dSNIaEnergy, sizeof(double), "dSNIaEnergy",
+                "SNIa event energy [erg]");
 #endif
 #ifdef BLACKHOLES
     param.bBHMerger = 1;
@@ -1641,6 +1698,10 @@ void MSR::Initialize() {
     prmAddParam(prm,"dBHAccretionAlpha", 2, &param.dBHAccretionAlpha,
                 sizeof(double), "dAccretionAlpha",
                 "Accretion efficiency parameter <adimiensional>");
+    param.dBHAccretionCvisc = 0.0;
+    prmAddParam(prm,"dBHAccretionCvisc", 2, &param.dBHAccretionCvisc,
+                sizeof(double), "dAccretionCvisc",
+                "Accretion viscosity parameter <adimiensional>");
     param.dBHRadiativeEff = 0.1;
     prmAddParam(prm,"dBHRadiativeEff", 2, &param.dBHRadiativeEff,
                 sizeof(double), "dBHRadiativeEff",
@@ -1673,30 +1734,69 @@ void MSR::Initialize() {
 #ifdef STELLAR_EVOLUTION
     strcpy(param.achStelEvolPath, "");
     prmAddParam(prm, "achStelEvolPath", 3, param.achStelEvolPath, 256, "stevtables",
-                "Path to stellar evolution tables");
+                "Path to stellar-evolution tables");
 
     strcpy(param.achSNIaDTDType, "exponential");
     prmAddParam(prm, "achSNIaDTDType", 3, param.achSNIaDTDType, 32, "dtdtype",
-                "Type of Delay Time Distribution function for SNIa events");
-
-    strcpy(param.achIMFType, "chabrier");
-    prmAddParam(prm, "achIMFType", 3, param.achIMFType, 32, "imftype",
-                "Type of Initial Mass Function");
+                "Type of Delay-Time Distribution function for SNIa events");
 
     param.bChemEnrich = 1;
     prmAddParam(prm, "bChemEnrich", 0, &param.bChemEnrich,
                 sizeof(int), "bChemEnrich",
                 "Activate chemical enrichment of gas particles surrounding a star particle");
 
+    param.dSNIaExpScale = 2e9;
+    prmAddParam(prm, "dSNIaExpScale", 2, &param.dSNIaExpScale,
+                sizeof(double), "sniaexpscale",
+                "Time scale of the exponential Delay-Time Distribution function <yr>");
+
+    param.dSNIaPLScale = -1.1;
+    prmAddParam(prm, "dSNIaPLScale", 2, &param.dSNIaPLScale,
+                sizeof(double), "sniaplscale",
+                "Index of the power-law Delay-Time Distribution function <dimensionless>");
+
+    param.dSNIaPLInitTime = 40e6;
+    prmAddParam(prm, "dSNIaPLInitTime", 2, &param.dSNIaPLInitTime,
+                sizeof(double), "sniaplti",
+                "Initial time for the normalization of the power-law Delay-Time Distribution "
+                "function <yr>");
+
+    param.dSNIaPLFinalTime = 13.7e9;
+    prmAddParam(prm, "dSNIaPLFinalTime", 2, &param.dSNIaPLFinalTime,
+                sizeof(double), "sniapltf",
+                "Final time for the normalization of the power-law Delay-Time Distribution "
+                "function <yr>");
+
+    param.dSNIaMaxMass = 8.0;
+    prmAddParam(prm, "dSNIaMaxMass", 2, &param.dSNIaMaxMass,
+                sizeof(double), "sniamaxmass",
+                "Maximum mass for the likely progenitors of SNIa events <Mo>");
+
+    param.dStellarWindSpeed = 10.0;
+    prmAddParam(prm, "dStellarWindSpeed", 2, &param.dStellarWindSpeed,
+                sizeof(double), "windspeed",
+                "Stellar wind speed <km/s>");
+#endif
+#if defined(FEEDBACK) || defined(STELLAR_EVOLUTION)
+    param.dSNIaNumPerMass = 2e-3;
+    prmAddParam(prm,"dSNIaNumPerMass", 2, &param.dSNIaNumPerMass,
+                sizeof(double), "dSNIaNumPerMass",
+                "Number of SNIa events per stellar mass <1/Mo>");
+#endif
+#ifdef STELLAR_IMF
+    strcpy(param.achIMFType, "chabrier");
+    prmAddParam(prm, "achIMFType", 3, param.achIMFType, 32, "imftype",
+                "Type of Initial-Mass Function");
+
     param.dIMFMinMass = 0.1;
     prmAddParam(prm, "dIMFMinMass", 2, &param.dIMFMinMass,
                 sizeof(double), "imfminmass",
-                "Lower mass limit of the Initial Mass Function <Mo>");
+                "Lower mass limit of the Initial-Mass Function <Mo>");
 
     param.dIMFMaxMass = 100.0;
     prmAddParam(prm, "dIMFMaxMass", 2, &param.dIMFMaxMass,
                 sizeof(double), "imfmaxmass",
-                "Upper mass limit of the Initial Mass Function <Mo>");
+                "Upper mass limit of the Initial-Mass Function <Mo>");
 
     param.dCCSNMinMass = 6.0;
     prmAddParam(prm, "dCCSNMinMass", 2, &param.dCCSNMinMass,
@@ -1707,44 +1807,6 @@ void MSR::Initialize() {
     prmAddParam(prm, "dCCSNMaxMass", 2, &param.dCCSNMaxMass,
                 sizeof(double), "ccsnmaxmass",
                 "Maximum mass for a star to end its life as a Core Collapse Supernova <Mo>");
-
-    param.dSNIaMaxMass = 8.0;
-    prmAddParam(prm, "dSNIaMaxMass", 2, &param.dSNIaMaxMass,
-                sizeof(double), "sniamaxmass",
-                "Maximum mass for the likely progenitors of SNIa events <Mo>");
-
-    param.dSNIaNorm = 2e-3;
-    prmAddParam(prm, "dSNIaNorm", 2, &param.dSNIaNorm,
-                sizeof(double), "snianorm",
-                "Normalization of the Delay Time Distribution function <1/Mo>");
-
-    param.dSNIaScale = 2e9;
-    prmAddParam(prm, "dSNIaScale", 2, &param.dSNIaScale,
-                sizeof(double), "sniascale",
-                "Scale of the Delay Time Distribution function (Exponential <yr>, "
-                "Powerlaw <dimensionless>)");
-
-    param.dSNIaNormInitTime = 40e6;
-    prmAddParam(prm, "dSNIaNormInitTime", 2, &param.dSNIaNormInitTime,
-                sizeof(double), "sniati",
-                "Initial time for the normalization of the Delay Time Distribution "
-                "function <yr>");
-
-    param.dSNIaNormFinalTime = 13.7e9;
-    prmAddParam(prm, "dSNIaNormFinalTime", 2, &param.dSNIaNormFinalTime,
-                sizeof(double), "sniatf",
-                "Final time for the normalization of the Delay Time Distribution "
-                "function <yr>");
-
-    param.dSNIaEnergy = 1e51;
-    prmAddParam(prm, "dSNIaEnergy", 2, &param.dSNIaEnergy,
-                sizeof(double), "sniaenergy",
-                "SNIa event energy <erg>");
-
-    param.dWindSpecificEkin = 10.0;
-    prmAddParam(prm, "dStellarWindSpeed", 2, &param.dWindSpecificEkin,
-                sizeof(double), "windspeed",
-                "Stellar wind speed <km/s>");
 #endif
     /* END of new params */
 
@@ -2180,6 +2242,11 @@ double MSR::SwitchDelta(double dTime,double dDelta,int iStep,int nSteps) {
         if (iStep == param.nSteps10 && bVDetails)
             printf("dDelta changed to %g at z=10\n",dDelta);
     }
+    else if ( dOutTimes.size()>1) {
+        dDelta = dOutTimes[iStep+1]-dOutTimes[iStep];
+        printf("Changing dDelta to %e \n", dDelta);
+    }
+
     return dDelta;
 }
 
@@ -2287,6 +2354,7 @@ void MSR::AllNodeWrite(const char *pszFileName, double dTime, double dvFac, int 
                 | (bDouble?FIO_FLAG_CHECKPOINT:0)
                 | (param.bDoublePos?FIO_FLAG_DOUBLE_POS:0)
                 | (param.bDoubleVel?FIO_FLAG_DOUBLE_VEL:0)
+                | (param.bMemParticleID?FIO_FLAG_ID:0)
                 | (param.bMemMass?0:FIO_FLAG_COMPRESS_MASS)
                 | (param.bMemSoft?0:FIO_FLAG_COMPRESS_SOFT);
 
@@ -2990,40 +3058,38 @@ void MSR::SmoothSetSMF(SMF *smf, double dTime, double dDelta, int nSmooth) {
     smf->gamma = param.dConstGamma;
     smf->dDelta = dDelta;
     smf->dEtaCourant = param.dEtaCourant;
-    smf->dConstGamma = param.dConstGamma;
     smf->bMeshlessHydro = param.bMeshlessHydro;
-    smf->dhMinOverSoft = param.dhMinOverSoft;
     smf->bIterativeSmoothingLength = param.bIterativeSmoothingLength;
     smf->bUpdateBall = bUpdateBall;
+    smf->nBucket = param.nBucket;
     smf->dCFLacc = param.dCFLacc;
+    smf->dConstGamma = param.dConstGamma;
+    smf->dhMinOverSoft = param.dhMinOverSoft;
     smf->dNeighborsStd = param.dNeighborsStd;
-#if EEOS_POLYTROPE
-    smf->dEOSPolyFloorIndex = param.dEOSPolyFloorIndex ;
-    smf->dEOSPolyFloorDen = param.dEOSPolyFloorDen ;
-    smf->dEOSPolyFlooru = param.dEOSPolyFlooru ;
-#endif
-#if EEOS_JEANS
-    smf->dEOSNJeans = param.dEOSNJeans ;
+#if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
+    eEOSFill(param, &smf->eEOS);
 #endif
 #ifdef FEEDBACK
-    smf->dSNFBDelay = param.dSNFBDelay;
     smf->dSNFBDu = param.dSNFBDu;
-    smf->dSNFBNumberSNperMass = param.dSNFBNumberSNperMass;
+    smf->dCCSNFBDelay = param.dCCSNFBDelay;
+    smf->dCCSNFBSpecEnergy = param.dCCSNFBSpecEnergy;
+    smf->dSNIaFBDelay = param.dSNIaFBDelay;
+    smf->dSNIaFBSpecEnergy = param.dSNIaFBSpecEnergy;
 #endif
 #ifdef BLACKHOLES
     smf->dBHFBEff = param.dBHFBEff;
     smf->dBHFBEcrit = param.dBHFBEcrit;
     smf->dBHAccretionEddFac = param.dBHAccretionEddFac;
     smf->dBHAccretionAlpha = param.dBHAccretionAlpha;
+    smf->dBHAccretionCvisc = param.dBHAccretionCvisc;
     smf->bBHFeedback = param.bBHFeedback;
     smf->bBHAccretion = param.bBHAccretion;
 #endif
 #ifdef STELLAR_EVOLUTION
-    smf->dCCSNMinMass = param.dCCSNMinMass;
+    smf->dWindSpecificEkin = param.dWindSpecificEkin;
     smf->dSNIaNorm = param.dSNIaNorm;
     smf->dSNIaScale = param.dSNIaScale;
-    smf->dSNIaEnergy = param.dSNIaEnergy;
-    smf->dWindSpecificEkin = param.dWindSpecificEkin;
+    smf->dCCSNMinMass = param.dCCSNMinMass;
 #endif
 }
 
@@ -3114,7 +3180,6 @@ void MSR::ReorderWithinNodes() {
 #endif
 
 void MSR::UpdateSoft(double dTime) {
-    if (!(param.bPhysicalSoft)) return;
     if (param.bPhysicalSoft) {
         struct inPhysicalSoft in;
 
@@ -3272,16 +3337,22 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
     uint8_t uRungMax=0;
     char c;
 
+    a = csmTime2Exp(csm,dTime);
+
     if (parameters.get_bVStep()) {
-        if (SPHoptions.doDensity && SPHoptions.useDensityFlags) printf("Calculating Density using FastGas, Step:%f (rung %d)\n",dStep,uRungLo);
-        if (SPHoptions.doDensity && !SPHoptions.useDensityFlags) printf("Calculating Density without FastGas, Step:%f (rung %d)\n",dStep,uRungLo);
-        if (SPHoptions.doDensityCorrection && SPHoptions.useDensityFlags) printf("Calculating Density Correction using FastGas, Step:%f (rung %d)\n",dStep,uRungLo);
-        if (SPHoptions.doDensityCorrection && !SPHoptions.useDensityFlags) printf("Calculating Density Correction without FastGas, Step:%f (rung %d)\n",dStep,uRungLo);
-        if (SPHoptions.doGravity && SPHoptions.doSPHForces) printf("Calculating Gravity and SPH forces, Step:%f (rung %d)\n",dStep,uRungLo);
-        if (SPHoptions.doGravity && !SPHoptions.doSPHForces) printf("Calculating Gravity, Step:%f (rung %d)\n",dStep,uRungLo);
-        if (!SPHoptions.doGravity && SPHoptions.doSPHForces) printf("Calculating SPH forces, Step:%f (rung %d)\n",dStep,uRungLo);
-        if (SPHoptions.doSetDensityFlags) printf("Marking Neighbors for FastGas, Step:%f (rung %d)\n",dStep,uRungLo);
-        if (SPHoptions.doSetNNflags) printf("Marking Neighbors of Neighbors for FastGas, Step:%f (rung %d)\n",dStep,uRungLo);
+        if (SPHoptions.doDensity && SPHoptions.useDensityFlags) printf("Calculating Density using FastGas, Step:%f (rung %d)",dStep,uRungLo);
+        if (SPHoptions.doDensity && !SPHoptions.useDensityFlags) printf("Calculating Density without FastGas, Step:%f (rung %d)",dStep,uRungLo);
+        if (SPHoptions.doDensityCorrection && SPHoptions.useDensityFlags) printf("Calculating Density Correction using FastGas, Step:%f (rung %d)",dStep,uRungLo);
+        if (SPHoptions.doDensityCorrection && !SPHoptions.useDensityFlags) printf("Calculating Density Correction without FastGas, Step:%f (rung %d)",dStep,uRungLo);
+        if (SPHoptions.doGravity && SPHoptions.doSPHForces) printf("Calculating Gravity and SPH forces, Step:%f (rung %d)",dStep,uRungLo);
+        if (SPHoptions.doGravity && !SPHoptions.doSPHForces) printf("Calculating Gravity, Step:%f (rung %d)",dStep,uRungLo);
+        if (!SPHoptions.doGravity && SPHoptions.doSPHForces) printf("Calculating SPH forces, Step:%f (rung %d)",dStep,uRungLo);
+        if (SPHoptions.doSetDensityFlags) printf("Marking Neighbors for FastGas, Step:%f (rung %d)",dStep,uRungLo);
+        if (SPHoptions.doSetNNflags) printf("Marking Neighbors of Neighbors for FastGas, Step:%f (rung %d)",dStep,uRungLo);
+        if (csm->val.bComove)
+            printf(", Redshift:%f\n", 1. / a - 1.);
+        else
+            printf(", Time:%f\n", dTime);
     }
     in.dTime = dTime;
     in.iRoot1 = iRoot1;
@@ -3301,10 +3372,7 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
     in.ts.nPartRhoLoc = nPartRhoLoc;
     in.ts.nPartColl = param.nPartColl;
     in.ts.dEccFacMax = param.dEccFacMax;
-    if (bGravStep) {
-        double a = csmTime2Exp(csm,dTime);
-        in.ts.dRhoFac = 1.0/(a*a*a);
-    }
+    if (bGravStep) in.ts.dRhoFac = 1.0/(a*a*a);
     else in.ts.dRhoFac = 0.0;
     in.ts.dTime = dTime;
     in.ts.dDelta = dDelta;
@@ -3314,10 +3382,7 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
     in.ts.uRungLo = uRungLo;
     in.ts.uRungHi = uRungHi;
     in.ts.uMaxRung = param.iMaxRung;
-    if (csm->val.bComove) {
-        a = csmTime2Exp(csm,dTime);
-        in.ts.dAccFac = 1.0/(a*a*a);
-    }
+    if (csm->val.bComove) in.ts.dAccFac = 1.0/(a*a*a);
     else in.ts.dAccFac = 1.0;
 
     CalculateKickParameters(&in.kick, uRungLo, dTime, dDelta, dStep, bKickClose, bKickOpen, SPHoptions);
@@ -3523,13 +3588,9 @@ void MSR::Drift(double dTime,double dDelta,int iRoot) {
     TimerStop(TIMER_DRIFT);
     dsec = TimerGet(TIMER_DRIFT);
 
-#ifdef BLACKHOLES
+#if defined(BLACKHOLES) and !defined(DEBUG_BH_ONLY)
     TimerStart(TIMER_DRIFT);
-    // For this cases, I think that the ReSmoothNode will not provide
-    // any important speed up, so we can use the old gather.
-    // TODO: check if this is indeed true!
-    ReSmooth(dTime,dDelta,SMX_BH_DRIFT,1);
-    pstRepositionBH(pst, NULL, 0, NULL, 0);
+    BHDrift(dTime, dDelta);
 
     TimerStop(TIMER_DRIFT);
     double dsecBH = TimerGet(TIMER_DRIFT);
@@ -3589,21 +3650,12 @@ void MSR::EndTimestepIntegration(double dTime,double dDelta) {
     in.dTime = dTime;
     in.dDelta = dDelta;
     in.dConstGamma = param.dConstGamma;
-    in.dTuFac = dTuFac;
+    in.dTuFac = dTuFacPrimNeutral;
 #ifdef STAR_FORMATION
-    in.dSFMinOverDensity = param.dSFMinOverDensity;
+    in.dSFThresholdOD = param.dSFThresholdOD;
 #endif
-#ifdef COOLING
-    in.dCoolingFloorDen = param.dCoolingFloorDen;
-    in.dCoolingFlooru = param.dCoolingFlooru;
-#endif
-#if EEOS_POLYTROPE
-    in.dEOSPolyFloorIndex = param.dEOSPolyFloorIndex;
-    in.dEOSPolyFloorDen = param.dEOSPolyFloorDen;
-    in.dEOSPolyFlooru = param.dEOSPolyFlooru;
-#endif
-#if EEOS_JEANS
-    in.dEOSNJeans = param.dEOSNJeans;
+#if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
+    eEOSFill(param, &in.eEOS);
 #endif
 #ifdef BLACKHOLES
     in.dBHRadiativeEff = param.dBHRadiativeEff;
@@ -3676,13 +3728,6 @@ void MSR::KickKDKClose(double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungH
     TimerStop(TIMER_KICKC);
 }
 
-bool MSR::OutTime(double dTime) {
-    if (dOutTimes.back() <= dTime) {
-        while (dOutTimes.back() <= dTime) dOutTimes.pop_back();
-        return true;
-    }
-    return false;
-}
 
 int cmpTime(const void *v1,const void *v2) {
     double *d1 = (double *)v1;
@@ -3693,24 +3738,27 @@ int cmpTime(const void *v1,const void *v2) {
     else return (1);
 }
 
-void MSR::ReadOuts(double dTime,double dDelta) {
+int MSR::ReadOuts(double dTime) {
     char achFile[PST_FILENAME_SIZE];
     FILE *fp;
     int ret;
-    double z,a,t,n;
+    double z,a,t,n,newt;
     char achIn[80];
 
     /*
     ** Add Data Subpath for local and non-local names.
     */
-    MakePath(param.achDataSubPath,param.achOutName,achFile);
-    strcat(achFile,".red");
+    MakePath(param.achDataSubPath,param.achOutTimes,achFile);
 
     dOutTimes.clear();
     dOutTimes.push_back(INFINITY); // Sentinal node
 
+    // I do not like how this is done, the file should be provided by a parameter
     fp = fopen(achFile,"r");
-    if (!fp) return;
+    if (!fp) {
+        printf("The output times file: %s, is not present!\n", achFile);
+        abort();
+    }
     while (1) {
         if (!fgets(achIn,80,fp)) goto NoMoreOuts;
         switch (achIn[0]) {
@@ -3718,34 +3766,32 @@ void MSR::ReadOuts(double dTime,double dDelta) {
             ret = sscanf(&achIn[1],"%lf",&z);
             if (ret != 1) goto NoMoreOuts;
             a = 1.0/(z+1.0);
-            dOutTimes.push_back(csmExp2Time(csm,a));
+            newt = csmExp2Time(csm,a);
             break;
         case 'a':
             ret = sscanf(&achIn[1],"%lf",&a);
             if (ret != 1) goto NoMoreOuts;
-            dOutTimes.push_back(csmExp2Time(csm,a));
+            newt = csmExp2Time(csm,a);
             break;
         case 't':
             ret = sscanf(&achIn[1],"%lf",&t);
             if (ret != 1) goto NoMoreOuts;
-            dOutTimes.push_back(t);
-            break;
-        case 'n':
-            ret = sscanf(&achIn[1],"%lf",&n);
-            if (ret != 1) goto NoMoreOuts;
-            dOutTimes.push_back(dTime + (n-0.5)*dDelta);
+            newt = t;
             break;
         default:
             ret = sscanf(achIn,"%lf",&z);
             if (ret != 1) goto NoMoreOuts;
             a = 1.0/(z+1.0);
-            dOutTimes.push_back(csmExp2Time(csm,a));
+            newt = csmExp2Time(csm,a);
         }
+        dOutTimes.push_back(newt);
     }
 NoMoreOuts:
     fclose(fp);
-    // Sort in DECENDING order. We pop used values of the back. Sentinal is at the front
-    std::sort(dOutTimes.begin(),dOutTimes.end(),std::greater<double>());
+    dOutTimes.push_back(dTime);
+    std::sort(dOutTimes.begin(),dOutTimes.end(),std::less<double>());
+    assert( dTime < dOutTimes.back() );
+    return dOutTimes.size()-2;
 }
 
 void MSR::InitCosmology(CSM csm) {
@@ -4025,12 +4071,11 @@ int MSR::CheckForOutput(int iStep,int nSteps,double dTime,int *pbDoCheckpoint,in
         *pbDoCheckpoint = 1 | (iStop<<1);
     }
 
-    if (OutTime(dTime)
-            || (OutInterval() > 0 &&
-                (bGlobalOutput
-                 || iStop
-                 || iStep == nSteps
-                 || (iStep%OutInterval() == 0))) ) {
+    if ((OutInterval() > 0 &&
+            (bGlobalOutput
+             || iStop
+             || iStep == nSteps
+             || (iStep%OutInterval() == 0))) ) {
         bGlobalOutput = 0;
         *pbDoOutput = 1  | (iStop<<1);
     }
@@ -4302,11 +4347,13 @@ int MSR::NewTopStepKDK(
 #if defined(FEEDBACK) || defined(STELLAR_EVOLUTION)
     ActiveRung(uRung,0);
 #ifdef FEEDBACK
-    ReSmooth(dTime,dDelta,SMX_SN_FEEDBACK,1);
+    if (param.bCCSNFeedback || param.bSNIaFeedback) {
+        Smooth(dTime,dDelta,SMX_SN_FEEDBACK,1,param.nSmooth);
+    }
 #endif
 #ifdef STELLAR_EVOLUTION
     if (param.bChemEnrich) {
-        ReSmooth(dTime,dDelta,SMX_CHEM_ENRICHMENT,1);
+        Smooth(dTime,dDelta,SMX_CHEM_ENRICHMENT,1,param.nSmoothEnrich);
     }
 #endif
 #endif
@@ -4355,7 +4402,7 @@ void MSR::TopStepKDK(
     const auto bEwald = parameters.get_bEwald();
 #ifdef BLACKHOLES
     if (!iKickRung && !iRung && param.bBHPlaceSeed) {
-        PlaceBHSeed(dTime, iRung);
+        PlaceBHSeed(dTime, CurrMaxRung());
 
 #ifdef OPTIM_REORDER_IN_NODES
         // This is kind of overkill. Ideally just reseting the CID_CELL
@@ -4374,7 +4421,7 @@ void MSR::TopStepKDK(
         /* JW: Note -- can't trash uRungNew here! Force calcs set values for it! */
         ActiveRung(iRung, 1);
         if (param.bAccelStep) AccelStep(iRung,MAX_RUNG,dTime,dDeltaStep);
-        if (DoGas()&&MeshlessHydro()) {
+        if (DoGas() && MeshlessHydro()) {
             HydroStep(dTime, dDeltaStep);
         }
         if (param.bDensityStep) {
@@ -4383,6 +4430,9 @@ void MSR::TopStepKDK(
             BuildTree(0);
             DensityStep(iRung,MAX_RUNG,dTime,dDeltaStep);
         }
+#ifdef BLACKHOLES
+        BHStep(dTime, dDeltaStep);
+#endif
         UpdateRung(iRung);
     }
 
@@ -4487,7 +4537,9 @@ void MSR::TopStepKDK(
         printf("Computing feedback... ");
 
         TimerStart(TIMER_FEEDBACK);
-        ReSmooth(dTime,dDeltaStep,SMX_SN_FEEDBACK,1);
+        if (param.bCCSNFeedback || param.bSNIaFeedback) {
+            Smooth(dTime,dDeltaStep,SMX_SN_FEEDBACK,1,param.nSmooth);
+        }
         TimerStop(TIMER_FEEDBACK);
         dsec = TimerGet(TIMER_FEEDBACK);
         printf("took %.5f seconds\n", dsec);
@@ -4496,7 +4548,7 @@ void MSR::TopStepKDK(
         printf("Computing stellar evolution... ");
         TimerStart(TIMER_STEV);
         if (param.bChemEnrich) {
-            ReSmooth(dTime,dDeltaStep,SMX_CHEM_ENRICHMENT,1);
+            Smooth(dTime,dDeltaStep,SMX_CHEM_ENRICHMENT,1,param.nSmoothEnrich);
         }
         TimerStop(TIMER_STEV);
         dsec = TimerGet(TIMER_STEV);
@@ -4950,6 +5002,7 @@ double MSR::GenerateIC(int nGrid,int iSeed,double z,double L,CSM csm) {
     in.nGrid = nGrid;
     in.b2LPT = parameters.get_b2LPT();
     in.bICgas = param.bICgas;
+    in.nBucket = param.nBucket;
     in.dInitialT = param.dInitialT;
     in.dInitialH = param.dInitialH;
 #ifdef HAVE_HELIUM
@@ -4980,12 +5033,9 @@ double MSR::GenerateIC(int nGrid,int iSeed,double z,double L,CSM csm) {
     in.dInitialMetallicity = param.dInitialMetallicity;
 #endif
 
-    nTotal  = in.nGrid; /* Careful: 32 bit integer cubed => 64 bit integer */
-    nTotal *= in.nGrid;
-    nTotal *= in.nGrid;
+    nTotal = in.nGrid * in.nGrid * in.nGrid; /* Careful: 32 bit integer cubed => 64 bit integer */
     in.dBoxMass = csm->val.dOmega0 / nTotal;
     if (in.bICgas) nTotal *= 2;
-    in.dBoxMass = csm->val.dOmega0 / nTotal;
 
     for ( j=0; j<=FIO_SPECIES_LAST; j++) nSpecies[j] = 0;
     if (in.bICgas) {
@@ -4999,15 +5049,15 @@ double MSR::GenerateIC(int nGrid,int iSeed,double z,double L,CSM csm) {
     InitializePStore(nSpecies,getMemoryModel(),param.nMemEphemeral); // We now need a bit of cosmology to set the maximum lightcone depth here.
     InitCosmology(csm);
 
-    in.dOmegaRate = csm->val.dOmegab/csm->val.dOmega0;
+    in.dBaryonFraction = csm->val.dOmegab/csm->val.dOmega0;
     SetDerivedParameters();
-    in.dTuFac = dTuFac;
+    in.dTuFac = dTuFacPrimNeutral;
 
     assert(z >= 0.0 );
     in.dExpansion = 1.0 / (1.0 + z);
 
-    N     = nSpecies[FIO_SPECIES_ALL];
-    nGas  = nSpecies[FIO_SPECIES_SPH];
+    N = nSpecies[FIO_SPECIES_ALL];
+    nGas = nSpecies[FIO_SPECIES_SPH];
     nDark = nSpecies[FIO_SPECIES_DARK];
     nStar = nSpecies[FIO_SPECIES_STAR];
     nBH = nSpecies[FIO_SPECIES_BH];
@@ -5468,10 +5518,6 @@ void MSR::Output(int iStep, double dTime, double dDelta, int bCheckpoint) {
         Reorder();
         OutArray(BuildName(iStep,".soft").c_str(),OUT_SOFT_ARRAY);
     }
-    /*
-    ** Don't allow duplicate outputs.
-    */
-    while (OutTime(dTime));
 }
 
 uint64_t MSR::CountSelected() {

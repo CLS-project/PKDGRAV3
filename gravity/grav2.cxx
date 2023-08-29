@@ -246,12 +246,8 @@ void pkdParticleWorkDone(workParticle *wp) {
 
 
 
-                const float dx = pkdPos(pkd,p,0);
-                const float dy = pkdPos(pkd,p,1);
-                const float dz = pkdPos(pkd,p,2);
-
                 /* Calculate the acceleration */
-                const float rr = sqrtf(dx * dx + dy * dy + dz * dz + epsilon2);
+                const float rr = sqrtf(blitz::dot(r,r) + epsilon2);
                 const float r_plus_a_inv = 1.f / (rr + al);
                 const float r_plus_a_inv2 = r_plus_a_inv * r_plus_a_inv;
                 const float term = -mass * r_plus_a_inv2 / rr;
@@ -262,9 +258,9 @@ void pkdParticleWorkDone(workParticle *wp) {
 
 
 
-                wp->pInfoOut[i].a[0] += term * dx;
-                wp->pInfoOut[i].a[1] += term * dy;
-                wp->pInfoOut[i].a[2] += term * dz;
+                wp->pInfoOut[i].a[0] += term * r[0];
+                wp->pInfoOut[i].a[1] += term * r[1];
+                wp->pInfoOut[i].a[2] += term * r[2];
 #endif
                 if (pkd->particles.present(PKD_FIELD::oAcceleration)) {
                     p.acceleration() = wp->pInfoOut[i].a;

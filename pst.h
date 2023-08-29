@@ -134,6 +134,7 @@ enum pst_service {
     PST_BH_PLACESEED,
     PST_BH_REPOSITION,
     PST_BH_INIT,
+    PST_BH_ACCRETION,
 #endif
     PST_MOVEDELETED,
     PST_CACHEBARRIER,
@@ -511,7 +512,6 @@ struct inPlaceBHSeed {
     double dDenMin;
     double dBHMhaloMin;
     double dTau;
-    double dInitialH;
     double dBHSeedMass;
     uint8_t uRungMax;
 };
@@ -521,6 +521,10 @@ struct outPlaceBHSeed {
 int pstPlaceBHSeed(PST,void *,int,void *,int);
 int pstBHInit(PST,void *,int,void *,int);
 int pstRepositionBH(PST,void *,int,void *,int);
+struct inBHAccretion {
+    double dScaleFactor;
+};
+int pstBHAccretion(PST,void *,int,void *,int);
 #endif
 
 /* PST_RESMOOTH */
@@ -834,7 +838,7 @@ struct inGenerateIC {
     uint64_t nPerNode;
     double dBoxSize;
     double dBoxMass;
-    double dOmegaRate;
+    double dBaryonFraction;
     double dExpansion;
     int iSeed;
     int bFixed;
@@ -842,6 +846,7 @@ struct inGenerateIC {
     int nGrid;
     int b2LPT;
     int bICgas;
+    int nBucket;
     double dInitialT;
     double dInitialH;
 #ifdef HAVE_HELIUM
@@ -900,6 +905,7 @@ struct inMoveIC {
     float fSoft;
     int nGrid;
     int bICgas;
+    int nBucket;
     double dInitialT;
     double dInitialH;
 #ifdef HAVE_HELIUM
@@ -930,7 +936,7 @@ struct inMoveIC {
     double dInitialMetallicity;
 #endif
     double dExpansion;
-    double dOmegaRate;
+    double dBaryonFraction;
     double dTuFac;
 };
 int pltMoveIC(PST,void *,int,void *,int);

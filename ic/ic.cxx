@@ -28,6 +28,9 @@
 #include "ic.h"
 #include "whitenoise.hpp"
 #include "core/gridinfo.hpp"
+#ifdef BLACKHOLES
+    #include "blackhole/evolve.h"
+#endif
 using namespace gridinfo;
 using namespace blitz;
 using namespace mdl;
@@ -442,7 +445,7 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
         icUp.dInitialMetallicity = in->dInitialMetallicity;
 #endif
         icUp.dExpansion = in->dExpansion;
-        icUp.dOmegaRate = in->dOmegaRate;
+        icUp.dBaryonFraction = in->dBaryonFraction;
         icUp.dTuFac = in->dTuFac;
 
         int rID = mdl->ReqService(pst->idUpper,PLT_MOVEIC,&icUp,nIn);
@@ -454,11 +457,13 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
         pkd->particles.clearClasses();
         double inGrid = 1.0 / in->nGrid;
         float fGasMass, fDarkMass, fGasSoft, fDarkSoft;
+        int nBucket;
         if (in->bICgas) {
-            fGasMass = 2.0*in->fMass*in->dOmegaRate;
-            fDarkMass = 2.0*in->fMass*(1.0 - in->dOmegaRate);
-            fGasSoft = in->fSoft * sqrt(in->dOmegaRate);
+            fGasMass = in->fMass*in->dBaryonFraction;
+            fDarkMass = in->fMass*(1.0 - in->dBaryonFraction);
+            fGasSoft = in->fSoft * sqrt(in->dBaryonFraction);
             fDarkSoft = in->fSoft;
+            nBucket = in->nBucket;
         }
         else {
             fDarkMass = in->fMass;
@@ -488,9 +493,9 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
                 Vel[2] = temp.v[2];
                 Vel[1] = temp.v[1];
                 Vel[0] = temp.v[0];
-                blitz::TinyVector<double,3> r(  temp.dr[0] + (temp.ix+0.5) * inGrid - 0.5,
-                                                temp.dr[1] + (temp.iy+0.5) * inGrid - 0.5,
-                                                temp.dr[2] + (temp.iz+0.5) * inGrid - 0.5);
+                blitz::TinyVector<double,3> r(temp.dr[0] + (temp.ix+0.5) * inGrid - 0.5,
+                                              temp.dr[1] + (temp.iy+0.5) * inGrid - 0.5,
+                                              temp.dr[2] + (temp.iz+0.5) * inGrid - 0.5);
                 p.set_position(r);
                 if (pkd->particles.present(PKD_FIELD::oParticleID)) {
                     auto &ID = p.ParticleID();
@@ -516,10 +521,16 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
                 }
                 if (!pkd->bNoParticleOrder)
                     pgas.set_order(pgas.order() + in->nGrid*in->nGrid*in->nGrid);
-                pgas.set_position(pgas.position() + inGrid*0.5);
 
-                auto &sph = pgas.sph();
-                sph.pNeighborList = NULL;
+                // Use N-GenIC trick to keep the centre of mass of the original
+                // particle at its original position. This is needed for displaced
+                // dark matter and gas particles in case the tree is built down to
+                // one particle per leaf. Here we displace the particles by a length
+                // proportional to half the grid cell size and weighted by
+                // the particle mass to preserve the centre of mass and conserve
+                // linear and angular momentum and kinetic energy.
+                p.set_position(p.position() - inGrid*0.5*in->dBaryonFraction);
+                pgas.set_position(pgas.position() + inGrid*0.5*(1.0 - in->dBaryonFraction));
 
                 auto &VelGas = pgas.velocity();
                 // Change the scale factor dependency
@@ -530,44 +541,43 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
                 double u = in->dInitialT * in->dTuFac;
                 assert(pkd->particles.present(PKD_FIELD::oSph));
                 auto &Sph = pgas.sph();
-                Sph.afElemMass[ELEMENT_H]  = in->dInitialH  * fGasMass;
+                Sph.ElemMass[ELEMENT_H]  = in->dInitialH  * fGasMass;
 #ifdef HAVE_HELIUM
-                Sph.afElemMass[ELEMENT_He] = in->dInitialHe * fGasMass;
+                Sph.ElemMass[ELEMENT_He] = in->dInitialHe * fGasMass;
 #endif
 #ifdef HAVE_CARBON
-                Sph.afElemMass[ELEMENT_C]  = in->dInitialC  * fGasMass;
+                Sph.ElemMass[ELEMENT_C]  = in->dInitialC  * fGasMass;
 #endif
 #ifdef HAVE_NITROGEN
-                Sph.afElemMass[ELEMENT_N]  = in->dInitialN  * fGasMass;
+                Sph.ElemMass[ELEMENT_N]  = in->dInitialN  * fGasMass;
 #endif
 #ifdef HAVE_OXYGEN
-                Sph.afElemMass[ELEMENT_O]  = in->dInitialO  * fGasMass;
+                Sph.ElemMass[ELEMENT_O]  = in->dInitialO  * fGasMass;
 #endif
 #ifdef HAVE_NEON
-                Sph.afElemMass[ELEMENT_Ne] = in->dInitialNe * fGasMass;
+                Sph.ElemMass[ELEMENT_Ne] = in->dInitialNe * fGasMass;
 #endif
 #ifdef HAVE_MAGNESIUM
-                Sph.afElemMass[ELEMENT_Mg] = in->dInitialMg * fGasMass;
+                Sph.ElemMass[ELEMENT_Mg] = in->dInitialMg * fGasMass;
 #endif
 #ifdef HAVE_SILICON
-                Sph.afElemMass[ELEMENT_Si] = in->dInitialSi * fGasMass;
+                Sph.ElemMass[ELEMENT_Si] = in->dInitialSi * fGasMass;
 #endif
 #ifdef HAVE_IRON
-                Sph.afElemMass[ELEMENT_Fe] = in->dInitialFe * fGasMass;
+                Sph.ElemMass[ELEMENT_Fe] = in->dInitialFe * fGasMass;
 #endif
 #ifdef HAVE_METALLICITY
                 Sph.fMetalMass = in->dInitialMetallicity * fGasMass;
 #endif
-                Sph.vPred = VelGas;
                 Sph.Frho = 0.0;
                 Sph.Fmom = 0.0;
                 Sph.Fene = 0.0;
-                Sph.E = u + 0.5*blitz::dot(Sph.vPred,Sph.vPred);
+                Sph.E = u + 0.5*blitz::dot(VelGas,VelGas);
                 Sph.E *= fGasMass;
                 Sph.Uint = u*fGasMass;
                 assert(Sph.E>0);
                 Sph.mom = fGasMass*VelGas;
-                Sph.lastMom = 0.; // vel[0];
+                Sph.lastMom = 0.;
                 Sph.lastE = Sph.E;
 #ifdef ENTROPY_SWITCH
                 Sph.S = 0.0;
@@ -585,14 +595,18 @@ int pltMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
                 //Sph.fLastBall = 0.0;
                 Sph.lastUpdateTime = -1.;
                 // Sph.nLastNeighs = 100;
-#ifdef COOLING
-                Sph.lastCooling = 0.;
-                Sph.cooling_dudt = 0.;
+#ifdef STAR_FORMATION
+                Sph.SFR = 0.;
 #endif
-#ifdef FEEDBACK
+#if defined(FEEDBACK) || defined(BLACKHOLES)
                 Sph.fAccFBEnergy = 0.;
 #endif
                 Sph.uWake = 0;
+                Sph.omega = 0.0;
+#ifdef BLACKHOLES
+                Sph.BHAccretor.iIndex = NOT_ACCRETED;
+                Sph.BHAccretor.iPid   = NOT_ACCRETED;
+#endif
             }
         }
         if (in->bICgas) pkd->SetLocal( pkd->nActive = in->nMove * 2);
@@ -715,6 +729,7 @@ int pstMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
         move.fSoft = 1.0 / (50.0*in->nGrid);
         move.nGrid = in->nGrid;
         move.bICgas = in->bICgas;
+        move.nBucket = in->nBucket;
         move.dInitialT = in->dInitialT;
         move.dInitialH = in->dInitialH;
 #ifdef HAVE_HELIUM
@@ -745,7 +760,7 @@ int pstMoveIC(PST pst,void *vin,int nIn,void *vout,int nOut) {
         move.dInitialMetallicity = in->dInitialMetallicity;
 #endif
         move.dExpansion = in->dExpansion;
-        move.dOmegaRate = in->dOmegaRate;
+        move.dBaryonFraction = in->dBaryonFraction;
         move.dTuFac = in->dTuFac;
         pltMoveIC(pst,&move,sizeof(move),NULL,0);
     }

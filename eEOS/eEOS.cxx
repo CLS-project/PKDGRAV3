@@ -4,15 +4,36 @@
 void MSR::SetEOSParam() {
     const double dHydFrac = param.dInitialH;
     const double dnHToRho = MHYDR / dHydFrac / param.units.dGmPerCcUnit;
-    if (!param.bRestart) {
+    param.dEOSFloorDen = param.dEOSFloornH*dnHToRho;
+    param.dEOSFlooru = param.dEOSFloorTemp*dTuFacPrimNeutral;
+    if (csm->val.bComove)
+        param.dEOSFloorMinBaryonOD = param.dEOSFloorMinOD*csm->val.dOmegab;
+    else
+        param.dEOSFloorMinBaryonOD = 0.;
 #ifdef EEOS_POLYTROPE
-        param.dEOSPolyFloorIndex -= 1.;
-        param.dEOSPolyFloorDen *=  dnHToRho; // Code density
-        param.dEOSPolyFlooru *= dTuFac; // Code internal energy per unit mass
+    param.dEOSPolyFloorExponent = param.dEOSPolyFloorIndex-1.;
+    param.dEOSPolyFloorDen =  param.dEOSPolyFloornH*dnHToRho;
+    param.dEOSPolyFlooru = param.dEOSPolyFloorTemp*dTuFacPrimNeutral;
+    if (csm->val.bComove)
+        param.dEOSPolyFloorMinBaryonOD = param.dEOSPolyFloorMinOD*csm->val.dOmegab;
+    else
+        param.dEOSPolyFloorMinBaryonOD = 0.;
 #endif
-#ifdef EEOS_JEANS
-        param.dEOSNJeans = pow(param.dEOSNJeans, 0.666666);
-#endif
-    }
 }
+
+
+int MSR::ValidateEOSParam() {
+    if (!prmSpecified(prm, "dOmegab") && prmSpecified(prm, "dEOSFloorMinOD")) {
+        fprintf(stderr,"ERROR: dEOSFloorMinOD is specified but dOmegab is not set\n");
+        return 0;
+    }
+#ifdef EEOS_POLYTROPE
+    if (!prmSpecified(prm, "dOmegab") && prmSpecified(prm, "dEOSPolyFloorMinOD")) {
+        fprintf(stderr,"ERROR: dEOSPolyFloorMinOD is specified but dOmegab is not set\n");
+        return 0;
+    }
+#endif
+    return 1;
+}
+
 #endif

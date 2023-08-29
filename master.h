@@ -303,6 +303,8 @@ public:
 
     /* Gas */
     double dTuFac;
+    double dTuFacPrimIonised;
+    double dTuFacPrimNeutral;
     int bUpdateBall;
 
     /* Values for a restore from checkpoint */
@@ -372,14 +374,13 @@ protected:
     std::string BuildIoName(int iStep,const char *type="");
     std::string BuildCpName(int iStep,const char *type="");
 
-    void ReadOuts(double dTime,double dDelta);
+    int ReadOuts(double dTime);
     void msrprintf(const char *Format, ... ) const;
     void Exit(int status);
     uint64_t getMemoryModel();
     std::pair<int,int> InitializePStore(uint64_t *nSpecies,uint64_t mMemoryModel,uint64_t nEphemeral);
     int CheckForStop(const char *achStopFile);
     int CheckForOutput(int iStep,int nSteps,double dTime,int *pbDoCheckpoint,int *pbDoOutput);
-    bool OutTime(double dTime);
     void SetClasses();
     void SwapClasses(int id);
     void OneNodeRead(struct inReadFile *in, FIO fio);
@@ -457,6 +458,7 @@ protected:
 #endif
 #ifdef STAR_FORMATION
     void SetStarFormationParam();
+    int  ValidateStarFormationParam();
     void StarFormInit(double dTime);
 #endif
     void StarForm(double dTime, double dDelta, int iRung);
@@ -469,12 +471,16 @@ protected:
 #endif
 #if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
     void SetEOSParam();
+    int ValidateEOSParam();
 #endif
 #ifdef BLACKHOLES
     void SetBlackholeParam();
+    int  ValidateBlackholeParam();
     void BlackholeInit(uint8_t uRungMax);
     void PlaceBHSeed(double dTime, uint8_t uRungMax);
     void BHMerger(double dTime);
+    void BHDrift(double dTime, double dDelta);
+    void BHStep(double dTime, double dDelta);
 #endif
 
 

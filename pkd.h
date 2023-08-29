@@ -47,6 +47,8 @@
 #ifdef GRACKLE
     #include <grackle.h>
 #endif
+#include "eEOS/eEOS_struct.h"
+#include "chemistry.h"
 
 typedef uint_fast32_t local_t; /* Count of particles locally (per processor) */
 typedef uint_fast64_t total_t; /* Count of particles globally (total number) */
@@ -604,6 +606,20 @@ static inline int pkdIsActive(PKD pkd, PARTICLE *p ) {
 
 void *pkdTreeNodeGetElement(void *vData,int i,int iDataSize);
 
+#if defined(FEEDBACK) || defined(BLACKHOLES)
+static inline void pkdAddFBEnergy(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS *psph, double dConstGamma) {
+#ifndef OLD_FB_SCHEME
+    psph->Uint += psph->fAccFBEnergy;
+    psph->E += psph->fAccFBEnergy;
+#ifdef ENTROPY_SWITCH
+    psph->S += psph->fAccFBEnergy*(dConstGamma-1.) *
+               pow(p.density(), -dConstGamma+1);
+#endif
+    psph->fAccFBEnergy = 0.0;
+#endif //OLD_FB_SCHEME
+}
+#endif
+
 /*
 ** The size of a particle is variable based on the memory model.
 ** The following three routines must be used instead of accessing pStore
@@ -670,7 +686,7 @@ static inline __m256d pkdGetPos(PKD pkd,PARTICLE *p) {
 #endif
 
 static inline int pkdIsDeleted(PKD pkd,PARTICLE *p) {
-    return (pkdSpecies(pkd,p) == FIO_SPECIES_LAST);
+    return (pkdSpecies(pkd,p) == FIO_SPECIES_UNKNOWN);
 }
 
 static inline int pkdIsNew(PKD pkd,PARTICLE *p) {
@@ -711,7 +727,7 @@ int pkdWeight(PKD,int,double,int,int,int,int *,int *,double *,double *);
 void pkdCountVA(PKD,int,double,int *,int *);
 double pkdTotalMass(PKD pkd);
 uint8_t pkdGetMinDt(PKD pkd);
-void   pkdSetGlobalDt(PKD pkd, uint8_t minDt);
+void pkdSetGlobalDt(PKD pkd, uint8_t minDt);
 int pkdLowerPart(PKD,int,double,int,int);
 int pkdUpperPart(PKD,int,double,int,int);
 int pkdWeightWrap(PKD,int,double,double,int,int,int,int *,int *);

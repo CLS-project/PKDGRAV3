@@ -97,7 +97,12 @@ bool MSR::getDeltaSteps(double dTime,int iStartStep,double &dDelta,int &nSteps) 
 void MSR::Simulate(double dTime) {
     double dDelta;
     int nSteps;
-    getDeltaSteps(dTime,param.iStartStep, /* OUTPUT -> */ dDelta,nSteps);
+    if (prmSpecified(prm,"achOutTimes")) {
+        nSteps = ReadOuts(dTime);
+    }
+    else {
+        getDeltaSteps(dTime,param.iStartStep, /* OUTPUT -> */ dDelta,nSteps);
+    }
     return Simulate(dTime,dDelta,param.iStartStep,nSteps);
 }
 void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
@@ -109,11 +114,6 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
 
     if (prmSpecified(prm,"dSoft")) SetSoft(Soft());
 
-    /*
-    ** Now read in the output points, passing the initial time.
-    ** We do this only if nSteps is not equal to zero.
-    */
-    if (nSteps > 0) ReadOuts(dTime,dDelta);
 
     /*
     ** Now we have all the parameters for the simulation we can make a
@@ -456,6 +456,16 @@ int MSR::ValidateParameters() {
         return 0;
     }
 
+    if (prmSpecified(prm, "achOutTimes") && prmSpecified(prm, "nSteps") ) {
+        fprintf(stderr, "ERROR: achOutTimes and nSteps can not given at the same time.\n");
+        return 0;
+    }
+    if (prmSpecified(prm, "achOutTimes") && prmSpecified(prm, "dRedTo") ) {
+        fprintf(stderr, "ERROR: achOutTimes and dRedTo can not be given at the same time.\n");
+        fprintf(stderr, "       Add your final redshift (dRedTo) to the end of achOutTimes file.\n");
+        return 0;
+    }
+
     if (param.nDigits < 1 || param.nDigits > 9) {
         (void) fprintf(stderr,"Unreasonable number of filename digits.\n");
         return 0;
@@ -466,14 +476,28 @@ int MSR::ValidateParameters() {
         fprintf(stderr,"ERROR: Please provide an hydrodynamic solver to be used: bMeshlessHydro or bNewSPH.\n");
         return 0;
     }
+    if ((param.bMeshlessHydro||param.bNewSPH) && !param.bDoGas) {
+        fprintf(stderr,"ERROR: An hydro scheme is selected but bDoGas=0! Did you forget to add bDoGas=1?\n");
+        return 0;
+    }
     if (param.bMeshlessHydro && param.bNewSPH) {
         fprintf(stderr,"ERROR: Only one hydrodynamic scheme can be used.\n");
         return 0;
     }
+
+#ifdef BLACKHOLES
+    if  (!ValidateBlackholeParam()) return 0;
+#endif
+
+#ifdef STAR_FORMATION
+    if  (!ValidateStarFormationParam()) return 0;
+#endif
+
     if (param.bGasInterfaceCorrection && param.bGasOnTheFlyPrediction) {
         fprintf(stderr,"Warning: On-the-fly prediction is not compatible with interface correction, disabled\n");
         param.bGasOnTheFlyPrediction = 0;
     }
+
 #ifndef NN_FLAG_IN_PARTICLE
     if (param.bNewSPH && param.bGasInterfaceCorrection && param.dFastGasFraction > 0.0f) {
         fprintf(stderr,"ERROR: Interface correction and FastGas is active, but the NN flag is not compiled in. Set NN_FLAG_IN_PARTICLE to ON in CMakeLists.txt and recompile.\n");
@@ -523,6 +547,17 @@ int MSR::ValidateParameters() {
             puts("ERROR: Box size for IC not specified");
             return 0;
         }
+        if ( !csm->val.classData.bClass ) {
+            if ( ( !prmSpecified(prm,"dSigma8") || csm->val.dSigma8 <= 0 ) &&
+                    ( !prmSpecified(prm,"dNormalization") || csm->val.dNormalization <= 0 ) ) {
+                puts("ERROR: Either dSigma8 or dNormalization should be specified for generating IC");
+                return 0;
+            }
+            if ( !prmSpecified(prm,"dSpectral") || csm->val.dSpectral <= 0 ) {
+                puts("ERROR: dSpectral for IC not specified");
+                return 0;
+            }
+        }
         if ( param.bICgas ) {
             if ( !prmSpecified(prm,"dOmegab") || csm->val.dOmegab <= 0 ) {
                 puts("ERROR: Can not generate IC with gas if dOmegab is not specified");
@@ -561,7 +596,7 @@ int MSR::ValidateParameters() {
     }
 
     /* Make sure that the old behaviour is obeyed. */
-    if ( param.nSteps == 0 ) {
+    if ( prmSpecified(prm,"nSteps") && param.nSteps == 0 ) {
         if ( !prmSpecified(prm,"bDoAccOutput") ) param.bDoAccOutput = 1;
         if ( !prmSpecified(prm,"bDoPotOutput") ) param.bDoPotOutput = 1;
     }
@@ -690,6 +725,11 @@ int MSR::ValidateParameters() {
     if (param.nParaRead  > nThreads) param.nParaRead  = nThreads;
     if (param.nParaWrite > nThreads) param.nParaWrite = nThreads;
 
+
+    if (parameters.get_bFindGroups() && !prmSpecified(prm,"dTau")) {
+        fprintf(stderr, "ERROR: you must specify dTau when FOF is to be run\n");
+        return 0;
+    }
 
 
     if (csm->val.classData.bClass) {

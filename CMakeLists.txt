@@ -473,6 +473,7 @@ if (BLACKHOLES)
   target_sources(${PROJECT_NAME} PRIVATE  blackhole/seed.cxx)
   target_sources(${PROJECT_NAME} PRIVATE  blackhole/evolve.cxx)
   target_sources(${PROJECT_NAME} PRIVATE  blackhole/init.cxx)
+  target_sources(${PROJECT_NAME} PRIVATE  blackhole/step.cxx)
   message("-- Black holes are ACTIVE")
 endif(BLACKHOLES)
 option(DEBUG_BH_NODRIFT "Deactivate BH drift by the gas" OFF)
@@ -485,6 +486,10 @@ if (DEBUG_BH_ONLY)
    target_compile_options(${PROJECT_NAME} PRIVATE -DDEBUG_BH_ONLY)
    message("-- Allow for BH-only simulations for debugging purposes")
 endif(DEBUG_BH_ONLY)
+
+if (FEEDBACK OR STELLAR_EVOLUTION)
+   target_compile_options(${PROJECT_NAME} PRIVATE -DSTELLAR_IMF)
+endif()
 
 #### OPTIMIZATION OPTIONS
 option(OPTIM_NO_REDUNDANT_FLUXES "Avoid any redundant flux computation using the particle IDs" ON)

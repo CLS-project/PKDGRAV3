@@ -13,11 +13,9 @@ void MSR::PlaceBHSeed(double dTime, uint8_t uRungMax) {
     in.dScaleFactor = csmTime2Exp(csm,dTime);
     in.dBHMhaloMin = param.dBHMhaloMin;
     in.dTau = param.dTau;
-    in.dInitialH = param.dInitialH;
     in.dBHSeedMass = param.dBHSeedMass;
 #ifdef STAR_FORMATION
-    if (csm->val.bComove)
-        in.dDenMin = param.dSFThresholdDen*pow(in.dScaleFactor,3);
+    in.dDenMin = param.dSFThresholdDen*pow(in.dScaleFactor,3);
 #else
     in.dDenMin = 0.0;
 #endif
@@ -40,64 +38,62 @@ void MSR::PlaceBHSeed(double dTime, uint8_t uRungMax) {
 
 }
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 int pkdPlaceBHSeed(PKD pkd, double dTime, double dScaleFactor,
                    uint8_t uRungMax, double dDenMin, double dBHMhaloMin,
-                   double dTau, double dInitialH, double dBHSeedMass) {
+                   double dTau, double dBHSeedMass) {
     int newBHs = 0;
     SMX smx;
     smInitialize(&smx,pkd,NULL,32,1,0,SMX_NULL);
-
     // Look for any FoF group that do not contain any BH particle in it
     for (int gid=1; gid<=pkd->nLocalGroups; ++gid) {
-        //printf("group %d mass %e \n", gid, pkd->veryTinyGroupTable[gid].fMass);
-        //assert (pkd->ga[gid].id.iPid == pkd->idSelf);
 
+        smx->nnListSize = 0;
         if (pkd->veryTinyGroupTable[gid].nBH==0 &&
                 pkd->veryTinyGroupTable[gid].fMass > dBHMhaloMin) {
-            printf("Group %d (mass %e) do not have any BH, adding one!\n",
-                   gid, pkd->veryTinyGroupTable[gid].fMass);
-            pkd->veryTinyGroupTable[gid].nBH++;
 
-            smx->nnListSize = 0;
-            smGather(smx,dTau,pkd->veryTinyGroupTable[gid].rPot);
+            // To adaptively search around rPot but avoiding very long interactions lists
+            // the search radius is increased in steps until enough gas particles are found
+            float dTauSearch = dTau*0.02;
+            while (!(smx->nnListSize > 100 || dTauSearch >= dTau)) {
+                smx->nnListSize = 0;
+                smGather(smx,dTauSearch,pkd->veryTinyGroupTable[gid].rPot);
+                dTauSearch *= 2.0;
+            }
 
             // Find the first local particle
-            auto ii = std::find_if(smx->nnList,smx->nnList+smx->nnListSize,[pkd](const auto &nn) {return nn.iPid==pkd->Self();});
+            auto ii = std::find_if(smx->nnList,smx->nnList+smx->nnListSize,
+            [pkd](const auto &nn) {return nn.iPid==pkd->Self();});
             // IA: I do not like this *at all*
             //  But maybe we are reading completely remote fof group??? TODO Check
             if (ii == smx->nnList+smx->nnListSize) continue;
 
-            // Now find the minumum
-            ii = std::min_element(ii,smx->nnList+smx->nnListSize,[pkd](const auto &a,const auto &b) {
-                if (b.iPid != pkd->Self()) return true; // Well, "a" is valid
+            // Now find the one with the minimum potential
+            ii = std::min_element(ii,smx->nnList+smx->nnListSize,
+            [pkd](const auto &a,const auto &b) {
+                if (a.iPid != pkd->Self()) return false; // keep smallest
                 auto p = pkd->particles[a.pPart];
                 auto q = pkd->particles[b.pPart];
                 return p.potential() < q.potential();
             });
             assert(ii < smx->nnList+smx->nnListSize);
+            assert(ii->iPid == pkd->Self());
             auto pLowPot = pkd->particles[ii->pPart];
 
             // IA: We require the density to be above the SF threshold
-#ifdef COOLING
-            const double rho_H = pLowPot.density() * pLowPot.sph().afElemMass[ELEMENT_H] / pLowPot.mass();
-#else
-            // If no information, assume primoridal abundance
-            const double rho_H = pLowPot.density() * dInitialH;
-#endif
-            if (rho_H < dDenMin) continue;
+            if (pLowPot.density() < dDenMin) continue;
 
             assert(pLowPot.is_gas());
+
+            printf("Group %d (mass %e thread %d) doesn't have a BH, adding one!\n",
+                   gid, pkd->veryTinyGroupTable[gid].fMass, pkd->Self());
+            ++pkd->veryTinyGroupTable[gid].nBH;
 
             // Now convert this particle into a BH
             // We just change the class of the particle
             double omega = pLowPot.sph().omega;
             pLowPot.set_class(pLowPot.mass(),pLowPot.soft0(),0,FIO_SPECIES_BH);
 
-            auto BH = pLowPot.BH();
+            auto &bh = pLowPot.BH();
             // When changing the class, we have to take into account tht
             // the code velocity has different scale factor dependencies for
             // dm/star/bh particles and gas particles
@@ -106,26 +102,31 @@ int pkdPlaceBHSeed(PKD pkd, double dTime, double dScaleFactor,
             // We initialize the particle. Take into account that we need to
             // set EVERY variable, because as we use unions, there may be
             // dirty stuff
-            BH.omega = omega;
-            BH.dInternalMass = dBHSeedMass;
-            BH.newPos[0] = -1; // Ask for a reposition
-            BH.lastUpdateTime = dTime;
-            BH.dAccretionRate = 0.0;
-            BH.dEddingtonRatio = 0.0;
-            BH.dFeedbackRate = 0.0;
-            BH.dAccEnergy = 0.0;
-            BH.fTimer = dTime;
+            bh.omega = omega;
+            bh.dInternalMass = dBHSeedMass;
+            bh.newPos[0] = -1; // Ask for a reposition
+            bh.lastUpdateTime = dTime;
+            bh.dAccretionRate = 0.0;
+            bh.dEddingtonRatio = 0.0;
+            bh.dFeedbackRate = 0.0;
+            bh.dAccEnergy = 0.0;
+            bh.fTimer = dTime;
+            bh.doReposition = 2;
 
             // As the particle that was converted to a BH lies in a very
             // dense environment it will probably have a high rung, so
             // this is not required
-            //pLowPot.uNewRung = uRungMax;
+            pLowPot.set_new_rung(uRungMax);
 
+            ++pkd->nBH;
+            --pkd->nGas;
+            ++newBHs;
 
-            pkd->nBH++;
-            pkd->nGas--;
-            newBHs++;
-
+            for (int i = 0; i < smx->nnListSize; ++i) {
+                if (smx->nnList[i].iPid != pkd->Self()) {
+                    mdlRelease(pkd->mdl,CID_PARTICLE,smx->nnList[i].pPart);
+                }
+            }
             /* Old seeding process, which creates a BH rather than converting
              * a gas particle.
              * This is problematic because we would need to assing a
@@ -172,6 +173,3 @@ int pkdPlaceBHSeed(PKD pkd, double dTime, double dScaleFactor,
     return newBHs;
 
 }
-#ifdef __cplusplus
-}
-#endif
