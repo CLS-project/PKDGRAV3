@@ -45,6 +45,7 @@ extern "C" {
 #include "master.h"
 #include "pkd_config.h"
 #include <stdio.h>
+#include <algorithm>
 
 /* Maximum number of iterations for bisection scheme */
 static const int bisection_max_iterations = 150;
@@ -211,7 +212,7 @@ void MSR::CoolingInit(float redshift) {
 
     /* Read in cooling table header */
     char fname[eagle_table_path_name_length + 12];
-    sprintf(fname, "%s/z_0.000.hdf5", cooling->cooling_table_path);
+    snprintf(fname, sizeof(fname), "%s/z_0.000.hdf5", cooling->cooling_table_path);
     read_cooling_header(fname, cooling);
 
     /* Allocate space for cooling tables */
@@ -520,7 +521,7 @@ inline static double bisection_iter(
 void cooling_cool_part(PKD pkd,
                        const struct cooling_function_data *cooling,
                        //struct part *restrict p, struct xpart *restrict xp,
-                       PARTICLE *p, SPHFIELDS *psph,
+                       particleStore::ParticleReference &p, SPHFIELDS *psph,
                        const float dt, const double time,
                        const float delta_redshift, const double redshift) {
 
@@ -549,7 +550,7 @@ void cooling_cool_part(PKD pkd,
 //  u_0 = max(u_0, hydro_properties->minimal_internal_energy);
 
     /* IA: In our case we are using operator splitting so this is simpler */
-    const float fMass = pkdMass(pkd,p);
+    const float fMass = p.mass();
     double u_0 = psph->Uint / fMass;
     if (u_0 < cooling->dCoolingMinu) u_0 = cooling->dCoolingMinu;
 
@@ -570,7 +571,7 @@ void cooling_cool_part(PKD pkd,
     abundance_ratio_to_solar(psph, fMass, cooling, abundance_ratio);
 
     /* Get the Hydrogen and Helium mass fractions */
-    const float *const elem_mass = psph->afElemMass;
+    const auto &elem_mass = psph->ElemMass;
     //chemistry_get_metal_mass_fraction_for_cooling(p);
     const float XH = elem_mass[ELEMENT_H] / fMass;
     const float XHe = elem_mass[ELEMENT_He] / fMass;
@@ -581,7 +582,7 @@ void cooling_cool_part(PKD pkd,
 
     /* convert Hydrogen mass fraction into physical Hydrogen number density */
     const float a_m3 = pow(1.+redshift,3.);
-    const float rho = pkdDensity(pkd,p) * a_m3 ;
+    const float rho = p.density() * a_m3 ;
     const double n_H = rho * XH / MHYDR * cooling->units.dMsolUnit * MSOLG;
     const double n_H_cgs = n_H * cooling->number_density_to_cgs;
 
@@ -625,14 +626,9 @@ void cooling_cool_part(PKD pkd,
     /* if cooling rate is small, take the explicit solution */
     if (fabs(ratefact_cgs * LambdaNet_cgs * dt_cgs) <
             explicit_tolerance * u_0_cgs) {
-
         u_final_cgs = u_0_cgs + ratefact_cgs * LambdaNet_cgs * dt_cgs;
-        //IA: This would be the second order scheme
-        //u_final_cgs = u_0_cgs + 0.5*(ratefact_cgs * LambdaNet_cgs + psph->lastCooling)* dt_cgs;
-
     }
     else {
-
         /* Otherwise, go the bisection route. */
         u_final_cgs =
             bisection_iter(u_0_cgs, n_H_cgs, redshift, n_H_index, d_n_H, He_index,
@@ -650,29 +646,9 @@ void cooling_cool_part(PKD pkd,
 #ifdef ENTROPY_SWITCH
     psph->S = psph->Uint *
               (cooling->dConstGamma -1.) *
-              pow(pkdDensity(pkd,p), -cooling->dConstGamma+1);
+              pow(p.density(), -cooling->dConstGamma+1);
 #endif
 
-    /* We now need to check that we are not going to go below any of the limits */
-
-    /* Absolute minimum */
-    const double u_minimal = 0.0; /* IA: TODO define minimum temperature */ //hydro_properties->minimal_internal_energy;
-    u_final = fmax(u_final, u_minimal);
-
-    /* Expected change in energy over the next kick step
-       (assuming no change in dt) */
-    const double u_floor = 0.;
-    const double delta_u = u_final - fmax(u_start, u_floor);
-
-    /* Turn this into a rate of change (including cosmology term) */
-    const float cooling_du_dt = delta_u / dt;
-
-    /* Update the internal energy time derivative */
-    // IA: TODO, do we use this?
-    psph->cooling_dudt = cooling_du_dt;
-
-    /* Store the radiated energy */
-    //xp->cooling_data.radiated_energy -= hydro_get_mass(p) * cooling_du_dt * dt;
 }
 
 /**
@@ -741,7 +717,7 @@ void cooling_cool_part(PKD pkd,
  */
 float cooling_get_temperature(PKD pkd, const float redshift,
                               const struct cooling_function_data *restrict cooling,
-                              PARTICLE *p, SPHFIELDS *psph) {
+                              particleStore::Particle &p, SPHFIELDS *psph) {
 
 #ifdef SWIFT_DEBUG_CHECKS
     if (cooling->Redshifts == NULL)
@@ -751,14 +727,14 @@ float cooling_get_temperature(PKD pkd, const float redshift,
 #endif
 
     /* Get physical internal energy */
-    const float fMass = pkdMass(pkd,p);
+    const float fMass = p.mass();
     const float u = psph->Uint / fMass;
     double u_cgs = u * cooling->internal_energy_to_cgs;
-    if (u_cgs < 1e10) return psph->P/pkdDensity(pkd,p) / cooling->units.dGasConst *1.14 ;
+    if (u_cgs < 1e10) return psph->P/p.density() / cooling->units.dGasConst *1.14 ;
     //printf("u_cgs %e \n", u_cgs);
 
     /* Get the Hydrogen and Helium mass fractions */
-    const float *const elem_mass = psph->afElemMass;
+    const auto &elem_mass = psph->ElemMass;
     //chemistry_get_metal_mass_fraction_for_cooling(p);
     const float XH = elem_mass[ELEMENT_H] / fMass;
     const float XHe = elem_mass[ELEMENT_He] / fMass;
@@ -768,7 +744,7 @@ float cooling_get_temperature(PKD pkd, const float redshift,
     const float HeFrac = XHe / (XH + XHe);
 
     /* Convert Hydrogen mass fraction into Hydrogen number density */
-    const float rho = pkdDensity(pkd,p) * pow(1.+redshift,3.); // TODO: why does not work with dComovingGmPerCcUnit?
+    const float rho = p.density() * pow(1.+redshift,3.); // TODO: why does not work with dComovingGmPerCcUnit?
     //printf("dComovingGmPerCcUnit %e \n",cooling->units.dComovingGmPerCcUnit);
     const double n_H = rho * XH / MHYDR * cooling->units.dMsolUnit * MSOLG;
     const double n_H_cgs = n_H * cooling->number_density_to_cgs;
@@ -791,6 +767,9 @@ float cooling_get_temperature(PKD pkd, const float redshift,
     /* Undo the log! */
     return exp(log_10_T * M_LN10);
 }
+#ifdef __cplusplus
+}
+#endif
 
 /**
  * @brief Returns the total radiated energy by this particle.
@@ -825,8 +804,6 @@ float cooling_get_temperature(PKD pkd, const float redshift,
  */
 void cooling_Hydrogen_reionization(PKD pkd) {
 
-    PARTICLE *p;
-    SPHFIELDS *psph;
     struct cooling_function_data *cooling = pkd->cooling;
     /* Energy to inject in internal units */
     const double extra_heat_per_proton =
@@ -835,28 +812,27 @@ void cooling_Hydrogen_reionization(PKD pkd) {
 
     cooling->H_reion_done = 1;
     /* Loop through particles and set new heat */
-    for (int i=0; i<pkdLocal(pkd); ++i) {
-        p = pkdParticle(pkd,i);
-        if (pkdIsGas(pkd,p)) {
-            psph = pkdSph(pkd, p);
+    for (auto &p : pkd->particles) {
+        if (p.is_gas()) {
+            auto &sph = p.sph();
 
-            const double old_u = psph->Uint ;
+            const double old_u = sph.Uint ;
 
             /* IA: Mass in hydrogen */
-            const double extra_heat = extra_heat_per_proton * psph->afElemMass[ELEMENT_H];
+            const double extra_heat = extra_heat_per_proton * sph.ElemMass[ELEMENT_H];
             const double new_u = old_u + extra_heat;
 
             //printf("Applying extra energy for H reionization! U=%e dU=%e \n", old_u, extra_heat);
 #ifdef ENTROPY_SWITCH
-            psph->S += extra_heat * (cooling->dConstGamma-1.) *
-                       pow(pkdDensity(pkd,p), -cooling->dConstGamma+1);
+            sph.S += extra_heat * (cooling->dConstGamma-1.) *
+                     pow(p.density(), -cooling->dConstGamma+1);
 #endif
 
             //hydro_set_physical_internal_energy(p, xp, cosmo, new_u);
             //hydro_set_drifted_physical_internal_energy(p, cosmo, new_u);
             //printf("old_u %e \t new_u %e \t du %e \n", old_u, new_u, extra_heat);
-            psph->Uint = new_u;
-            psph->E += extra_heat;
+            sph.Uint = new_u;
+            sph.E += extra_heat;
             /* IA: TODO: Can this cause problems as now lastUint and Uint can be very different? */
         }
     }
@@ -1046,6 +1022,3 @@ void cooling_clean(struct cooling_function_data *cooling) {
 //
 //  cooling_restore_tables(cooling, cosmo);
 //}
-#ifdef __cplusplus
-}
-#endif

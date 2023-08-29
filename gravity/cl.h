@@ -17,190 +17,72 @@
 
 #ifndef CL_H
 #define CL_H
-#include <stdint.h>
-
-#ifndef CL_PART_PER_TILE
-    #define CL_PART_PER_TILE 1024 /* 1024*100 ~ 100k */
-#endif
-
-#define CL_PART_PER_BLK 16
-#define CL_BLK_PER_TILE (CL_PART_PER_TILE/CL_PART_PER_BLK)
-
-#if !defined(__CUDACC__)
-    #include "core/simd.h"
-#endif
-
 #include "lst.h"
-#include "../SPHOptions.h"
+#include "core/bound.h"
+#include "../SPH/SPHOptions.h"
 
-/*
-** We use a union here so that the compiler can properly align the values.
-*/
-typedef union {
-    float f[CL_PART_PER_BLK];
-#if !defined(__CUDACC__)
-    v_sf p[CL_PART_PER_BLK/SIMD_WIDTH];
+#ifndef CL_PART_PER_BLK
+    #define CL_PART_PER_BLK 16
 #endif
-} clFloat;
 
-typedef union {
-    int32_t i[CL_PART_PER_BLK];
-#if !defined(__CUDACC__)
-    v_i     p[CL_PART_PER_BLK/SIMD_WIDTH];
-#endif
-} clInt32;
+// These are the fields and their types found in the interaction list
+#define CL_FIELDS_PARAMS_SEQ\
+    ((int32_t,iCache))((int32_t,idCell))((int32_t,iCell))((int32_t,idLower))((int32_t,iLower))((int32_t,idUpper))((int32_t,iUpper))\
+    ((int32_t,nc))((float,cOpen))((float,m))((float,fourh2))((float,x))((float,y))((float,z))\
+    ((float,xOffset))((float,yOffset))((float,zOffset))((float,xCenter))((float,yCenter))((float,zCenter))\
+    ((float,xMax))((float,yMax))((float,zMax))((int32_t,iOpen))
 
-typedef union {
-    uint64_t i[CL_PART_PER_BLK];
-} clInt64;
-
-typedef struct {
-    clInt32 iOpen;
-    clInt32 iCache;
-    clInt32 idCell;
-    clInt32 iCell;
-    clInt32 idLower;
-    clInt32 iLower;
-    clInt32 idUpper;
-    clInt32 iUpper;
-    clInt32 nc;
-    clFloat cOpen;
-    clFloat m;
-    clFloat fourh2;
-    clFloat x;
-    clFloat y;
-    clFloat z;
-    clFloat xOffset;
-    clFloat yOffset;
-    clFloat zOffset;
-    clFloat xCenter;
-    clFloat yCenter;
-    clFloat zCenter;
-    clFloat xMax;
-    clFloat yMax;
-    clFloat zMax;
 #if SPHBALLOFBALLS
-    clFloat fBoBr2;
-    clFloat fBoBxCenter;
-    clFloat fBoByCenter;
-    clFloat fBoBzCenter;
-#endif
-#if SPHBOXOFBALLS
-    clFloat fBoBxMin;
-    clFloat fBoBxMax;
-    clFloat fBoByMin;
-    clFloat fBoByMax;
-    clFloat fBoBzMin;
-    clFloat fBoBzMax;
-#endif
-} CL_BLK;
-
-
-typedef struct clTile {
-    LSTTILE lstTile;
-    CL_BLK *blk;
-} *CLTILE;
-
-typedef struct clContext {
-    LST lst;
-} *CL;
-
-#define clClear(cl) lstClear(&(cl)->lst)
-#define clExtend(cl) lstExtend(&(cl)->lst)
-#define clMemory(cl) lstMemory(&(cl)->lst)
-#define clCount(cl) lstCount(&(cl)->lst)
-#define clClone(dst,src) lstClone(&(dst)->lst,&(src)->lst)
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-void clInitialize(CL *cl,LSTFREELIST *clFreeList);
-void clDestroy(CL cl);
-#ifdef __cplusplus
-}
+    #define CL_FIELDS_BALLS_SEQ ((float,fBoBr))((float,fBoBxCenter))((float,fBoByCenter))((float,fBoBzCenter))
+#elif SPHBOXOFBALLS
+    #define CL_FIELDS_BALLS_SEQ ((float,fBoBxMin))((float,fBoByMin))((float,fBoBzMin))((float,fBoBxMax))((float,fBoByMax))((float,fBoBzMax))
+#else
+    #define CL_FIELDS_BALLS_SEQ
 #endif
 
-static inline void clAppendAll(
-    CL cl,int iCache,int idCell,int iCell, int idLower,int iLower,int idUpper,int iUpper,int nc,
-    float cOpen,float m,float fourh2,float x, float y, float z,
-    float xOffset,float yOffset,float zOffset,float xCenter,float yCenter,float zCenter,
+#define CL_FIELDS_SEQ CL_FIELDS_PARAMS_SEQ CL_FIELDS_BALLS_SEQ
+
+ILIST_DECLARE(CL,CL_FIELDS_SEQ)
+#define CL_FIELD_TYPES ILIST_FIELD_VALUES(CL_FIELDS_SEQ,0)
+#define CL_FIELD_NAMES ILIST_FIELD_VALUES(CL_FIELDS_SEQ,1)
+#define CL_FIELD_PROTOS ILIST_FIELD_PROTOS(CL_FIELDS_SEQ)
+
+using clBlock = BlockCL<CL_PART_PER_BLK>;
+using clTile = TileCL<CL_PART_PER_BLK,64>;
+class clList : public ListCL<CL_PART_PER_BLK,64> {
+public:
+    using ListCL<CL_PART_PER_BLK,64>::append;
+    typedef ListCL<CL_PART_PER_BLK,64> free_list;
+    clList(free_list &freeList) {setFreeList(freeList);}
+
+    void append(uint32_t iCache,uint32_t idCell,uint32_t iCell,
+                uint32_t idLower,uint32_t iLower,uint32_t idUpper,uint32_t iUpper,uint32_t nc,float cOpen,float m,float fourh2,
+                blitz::TinyVector<float,3> r,blitz::TinyVector<float,3> fOffset,Bound bnd,
+                SPHBOB bob) {
+        auto fCenter = bnd.center();
+        auto fMax = bnd.apothem();
+        append(iCache,idCell,iCell,idLower,iLower,idUpper,iUpper,nc,cOpen,m,fourh2,r[0],r[1],r[2],
+               fOffset[0],fOffset[1],fOffset[2],fCenter[0],fCenter[1],fCenter[2],fMax[0],fMax[1],fMax[2],0
 #if SPHBALLOFBALLS
-    float xMax,float yMax,float zMax,int iOpen,float fBoBr2,float fBoBxCenter,float fBoByCenter,float fBoBzCenter) {
+               ,bob.fBoBr,bob.fBoBCenter[0],bob.fBoBCenter[1],bob.fBoBCenter[2]
+#elif SPHBOXOFBALLS
+               ,bob.fBoBMin[0],bob.fBoBMin[1],bob.fBoBMin[2],bob.fBoBMax[0],bob.fBoBMax[1],bob.fBoBMax[2]
 #endif
-#if SPHBOXOFBALLS
-    float xMax,float yMax,float zMax,int iOpen,float fBoBxMin,float fBoBxMax,float fBoByMin,float fBoByMax,float fBoBzMin,float fBoBzMax) {
-#endif
-        CLTILE tile = (CLTILE)lstReposition(&cl->lst);
-        uint_fast32_t blk = tile->lstTile.nBlocks;
-        uint_fast32_t prt = tile->lstTile.nInLast;
-        tile->blk[blk].iCache.i[prt] = iCache;
-        tile->blk[blk].iOpen.i[prt] = iOpen;
-        tile->blk[blk].idCell.i[prt] = (idCell);
-        tile->blk[blk].iCell.i[prt] = (iCell);
-        tile->blk[blk].idLower.i[prt] = (idLower);
-        tile->blk[blk].iLower.i[prt] = (iLower);
-        tile->blk[blk].idUpper.i[prt] = (idUpper);
-        tile->blk[blk].iUpper.i[prt] = (iUpper);
-        tile->blk[blk].nc.i[prt] = (nc);
-        tile->blk[blk].cOpen.f[prt] = (cOpen);
-        tile->blk[blk].m.f[prt] = (m);
-        tile->blk[blk].fourh2.f[prt] = (fourh2);
-        tile->blk[blk].x.f[prt] = x;
-        tile->blk[blk].y.f[prt] = y;
-        tile->blk[blk].z.f[prt] = z;
-        tile->blk[blk].xOffset.f[prt] = xOffset;
-        tile->blk[blk].yOffset.f[prt] = yOffset;
-        tile->blk[blk].zOffset.f[prt] = zOffset;
-        tile->blk[blk].xCenter.f[prt] = xCenter;
-        tile->blk[blk].yCenter.f[prt] = yCenter;
-        tile->blk[blk].zCenter.f[prt] = zCenter;
-        tile->blk[blk].xMax.f[prt] = xMax;
-        tile->blk[blk].yMax.f[prt] = yMax;
-        tile->blk[blk].zMax.f[prt] = zMax;
-#if SPHBALLOFBALLS
-        tile->blk[blk].fBoBr2.f[prt] = fBoBr2;
-        tile->blk[blk].fBoBxCenter.f[prt] = fBoBxCenter;
-        tile->blk[blk].fBoByCenter.f[prt] = fBoByCenter;
-        tile->blk[blk].fBoBzCenter.f[prt] = fBoBzCenter;
-#endif
-#if SPHBOXOFBALLS
-        tile->blk[blk].fBoBxMin.f[prt] = fBoBxMin;
-        tile->blk[blk].fBoBxMax.f[prt] = fBoBxMax;
-        tile->blk[blk].fBoByMin.f[prt] = fBoByMin;
-        tile->blk[blk].fBoByMax.f[prt] = fBoByMax;
-        tile->blk[blk].fBoBzMin.f[prt] = fBoBzMin;
-        tile->blk[blk].fBoBzMax.f[prt] = fBoBzMax;
-#endif
-        ++tile->lstTile.nInLast;
+              );
     }
-
+    void append(clBlock &B, int Bi) {
+        append(B.iCache[Bi],B.idCell[Bi],B.iCell[Bi],
+               B.idLower[Bi],B.iLower[Bi],B.idUpper[Bi],B.iUpper[Bi],
+               B.nc[Bi], B.cOpen[Bi], B.m[Bi], B.fourh2[Bi],
+               B.x[Bi], B.y[Bi], B.z[Bi],B.xOffset[Bi],B.yOffset[Bi],B.zOffset[Bi],
+               B.xCenter[Bi],B.yCenter[Bi],B.zCenter[Bi],B.xMax[Bi],B.yMax[Bi],B.zMax[Bi],B.iOpen[Bi]
 #if SPHBALLOFBALLS
-#define clAppend(cl,iCache,idCell,iCell,idLower,iLower,idUpper,iUpper,nc,cOpen,m,fourh2,r,fOffset,fCenter,fMax,fBoBr2,fBoBxCenter,fBoByCenter,fBoBzCenter) \
-    clAppendAll(cl,iCache,idCell,iCell,idLower,iLower,idUpper,iUpper,nc,cOpen,m,fourh2,r[0],r[1],r[2], \
-    fOffset[0],fOffset[1],fOffset[2],fCenter[0],fCenter[1],fCenter[2],\
-    fMax[0],fMax[1],fMax[2],0,fBoBr2,fBoBxCenter,fBoByCenter,fBoBzCenter)
+               ,B.fBoBr[Bi],B.fBoBxCenter[Bi],B.fBoByCenter[Bi],B.fBoBzCenter[Bi]
+#elif SPHBOXOFBALLS
+               ,B.fBoBxMin[Bi],B.fBoByMin[Bi],B.fBoBzMin[Bi],B.fBoBxMax[Bi],B.fBoByMax[Bi],B.fBoBzMax[Bi]
 #endif
-#if SPHBOXOFBALLS
-#define clAppend(cl,iCache,idCell,iCell,idLower,iLower,idUpper,iUpper,nc,cOpen,m,fourh2,r,fOffset,fCenter,fMax,fBoBxMin,fBoBxMax,fBoByMin,fBoByMax,fBoBzMin,fBoBzMax) \
-    clAppendAll(cl,iCache,idCell,iCell,idLower,iLower,idUpper,iUpper,nc,cOpen,m,fourh2,r[0],r[1],r[2], \
-    fOffset[0],fOffset[1],fOffset[2],fCenter[0],fCenter[1],fCenter[2],\
-    fMax[0],fMax[1],fMax[2],0,fBoBxMin,fBoBxMax,fBoByMin,fBoByMax,fBoBzMin,fBoBzMax)
-#endif
-
-
-    static inline void clAppendItem(CL cl, CL_BLK *B, int Bi) {
-        clAppendAll(cl,B->iCache.i[Bi],B->idCell.i[Bi],B->iCell.i[Bi],
-                    B->idLower.i[Bi],B->iLower.i[Bi],B->idUpper.i[Bi],B->iUpper.i[Bi],
-                    B->nc.i[Bi], B->cOpen.f[Bi], B->m.f[Bi], B->fourh2.f[Bi],
-                    B->x.f[Bi], B->y.f[Bi], B->z.f[Bi],B->xOffset.f[Bi],B->yOffset.f[Bi],B->zOffset.f[Bi],
-#if SPHBALLOFBALLS
-                    B->xCenter.f[Bi],B->yCenter.f[Bi],B->zCenter.f[Bi],B->xMax.f[Bi],B->yMax.f[Bi],B->zMax.f[Bi],B->iOpen.i[Bi],B->fBoBr2.f[Bi],B->fBoBxCenter.f[Bi],B->fBoByCenter.f[Bi],B->fBoBzCenter.f[Bi]);
-#endif
-#if SPHBOXOFBALLS
-        B->xCenter.f[Bi],B->yCenter.f[Bi],B->zCenter.f[Bi],B->xMax.f[Bi],B->yMax.f[Bi],B->zMax.f[Bi],B->iOpen.i[Bi],B->fBoBxMin.f[Bi],B->fBoBxMax.f[Bi],B->fBoByMin.f[Bi],B->fBoByMax.f[Bi],B->fBoBzMin.f[Bi],B->fBoBzMax.f[Bi]);
-#endif
+              );
     }
-
-#define CL_LOOP(CL,CL_TILE) for( CL_TILE=(CLTILE)((CL)->lst.list); CL_TILE!=NULL; CL_TILE=(CLTILE)(CL_TILE->lstTile.next))
+};
 
 #endif

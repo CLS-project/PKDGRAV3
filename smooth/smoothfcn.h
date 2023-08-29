@@ -50,10 +50,11 @@ typedef struct smfParameters {
     /* IA: Meshless hydro */
     int bMeshlessHydro;
     int bIterativeSmoothingLength;
+    int bUpdateBall;
+    int nBucket;
     double dCFLacc;
     double dConstGamma;
     double dhMinOverSoft;
-    int bUpdateBall;
     double dNeighborsStd;
 #if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
     struct eEOSparam eEOS;
@@ -90,10 +91,8 @@ typedef struct pqNode {
     struct pqNode *pqWinner;    /* Only used when building initial tree */
     PARTICLE *pPart;
     double fDist2;
-    double dx;
-    double dy;
-    double dz;
-    float  fBall;
+    blitz::TinyVector<double,3> dr;
+    float fBall;
     int bMarked;
     int iIndex;
     int iPid;
@@ -168,35 +167,6 @@ void combDensity(void *,void *,const void *);
 void Density(PARTICLE *,float fBall,int,NN *,SMF *);
 void DensitySym(PARTICLE *,float fBall,int,NN *,SMF *);
 
-#define SMX_MEANVEL             2
-void initMeanVel(void *,void *);
-void combMeanVel(void *,void *,const void *);
-void MeanVel(PARTICLE *,float fBall,int,NN *,SMF *);
-void MeanVelSym(PARTICLE *,float fBall,int,NN *,SMF *);
-
-#define SMX_DIVV                3
-void initDivv(void *,void *);
-void combDivv(void *,void *,const void *);
-void Divv(PARTICLE *,float fBall,int,NN *,SMF *);
-void DivvSym(PARTICLE *,float fBall,int,NN *,SMF *);
-
-#define SMX_VELDISP2                4
-void initVelDisp2(void *,void *);
-void combVelDisp2(void *,void *,const void *);
-void VelDisp2(PARTICLE *,float fBall,int,NN *,SMF *);
-void VelDisp2Sym(PARTICLE *,float fBall,int,NN *,SMF *);
-
-#define SMX_DENDVDX             5
-void initDenDVDX(void *,void *);
-void combDenDVDX(void *,void *,const void *);
-void DenDVDX(PARTICLE *,float fBall,int,NN *,SMF *);
-
-#define SMX_SPHFORCES               6
-void initSphForcesParticle(void *,void *);
-void initSphForces(void *,void *);
-void combSphForces(void *,void *,const void *);
-void SphForces(PARTICLE *,float fBall,int,NN *,SMF *);
-
 #define SMX_HYDRO_DENSITY     40
 #define SMX_HYDRO_DENSITY_FINAL 41
 #define SMX_HYDRO_GRADIENT    42
@@ -214,28 +184,8 @@ void SphForces(PARTICLE *,float fBall,int,NN *,SMF *);
     #define SMX_CHEM_ENRICHMENT   60
 #endif
 
-#define SMX_DIST_DELETED_GAS                    7
-void initDistDeletedGas(void *,void *p1);
-void combDistDeletedGas(void *,void *p1,const void *p2);
-void DistDeletedGas(PARTICLE *,float fBall, int, NN *, SMF *);
-
-#define SMX_DIST_SN_ENERGY                      8
-void initDistSNEnergy(void *,void *p1);
-void combDistSNEnergy(void *,void *p1,const void *p2);
-void DistSNEnergy(PARTICLE *p, float, int, NN *, SMF *);
-
 #define SMX_PRINTNN                            9
 void PrintNN(PARTICLE *,float fBall,int,NN *,SMF *);
-
-#define SMX_FOF         25
-void initGroupIds(void *,void *p);
-void initGroupMerge(void *,void *g);
-void combGroupMerge(void *,void *g1, const void *g2);
-void initGroupBins(void *,void *b);
-void combGroupBins(void *,void *b1, const void *b2);
-
-#define SMX_RELAXATION      26
-void AddRelaxation(PARTICLE *,float fBall,int,NN *,SMF *);
 
 #define SMX_DENSITY_F1          28
 void DensityF1(PARTICLE *,float fBall,int,NN *,SMF *);

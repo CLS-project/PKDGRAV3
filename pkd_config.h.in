@@ -13,7 +13,6 @@
 #cmakedefine HAVE_SYS_STAT_H 1
 #cmakedefine HAVE_SYS_PARAM_H 1
 #cmakedefine HAVE_UNISTD_H 1
-#cmakedefine HAVE_INTTYPES_H 1
 
 #cmakedefine HAVE_FLOOR 1
 #cmakedefine HAVE_POW 1
@@ -38,12 +37,16 @@
 
 #cmakedefine _GNU_SOURCE 1
 #cmakedefine USE_CUDA 1
+#cmakedefine USE_METAL 1
 #cmakedefine USE_HDF5 1
 #cmakedefine USE_PYTHON 1
 #cmakedefine INTEGER_POSITION 1
 #cmakedefine HAVE_LIBAIO 1
 #cmakedefine HAVE_AIO_H 1
-#cmakedefine POTENTIAL_IN_LIGHTCONE
+#cmakedefine POTENTIAL_IN_LIGHTCONE 1
+#cmakedefine BOUND_USES_MINMAX 1
+#cmakedefine NEW_REORDER 1
+#cmakedefine HAVE_ROCKSTAR 1
 
 #cmakedefine USE_SIMD 1
 #ifdef USE_SIMD

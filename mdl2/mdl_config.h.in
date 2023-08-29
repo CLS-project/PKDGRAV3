@@ -1,6 +1,7 @@
 #ifdef NDEBUG /* Better would be to fix up the assert framework, */
 #undef NDEBUG /* but for now it would just cause too many problems. */
 #endif
+#cmakedefine MPI_FOUND 1
 #cmakedefine HAVE_MALLOC_H 1
 #cmakedefine HAVE_TIME_H 1
 #cmakedefine HAVE_SYS_TIME_H 1
@@ -8,11 +9,15 @@
 #cmakedefine HAVE_SIGNAL_H 1
 #cmakedefine HAVE_INTTYPES_H 1
 #cmakedefine HAVE_MEMKIND 1
+#cmakedefine HAVE_NUMA 1
+#cmakedefine HAVE_SCHED_YIELD 1
 #cmakedefine USE_CUDA 1
+#cmakedefine USE_METAL 1
 #cmakedefine USE_HWLOC 1
 #cmakedefine USE_ELFUTILS 1
 #cmakedefine MDL_FFTW 1
 #cmakedefine USE_BT 1
+#cmakedefine DEBUG_COUNT_CACHE 1
 #define USE_SINGLE 1
 #define OMPI_SKIP_MPICXX
 #define INSTRUMENT 1

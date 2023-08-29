@@ -93,13 +93,15 @@ mdlBASE::mdlBASE(int argc,char **argv) {
     this->argv = argv;
 
     /* Some sensible defaults */
-    nThreads = 1;
-    idSelf = 0;
-    nProcs = 1;
-    iProc = 0;
-    nCores = 1;
-    iCore = 0;
+    layout.nThreads = 1;
+    layout.idSelf = 0;
+    layout.nProcs = 1;
+    layout.iProc = 0;
+    layout.nCores = 1;
+    layout.iCore = 0;
+#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
     nTicks = 0;
+#endif
 
     /*
     ** Set default "maximums" for structures. These are NOT hard
@@ -127,15 +129,15 @@ mdlBASE::~mdlBASE() {
 
 /* O(1): Given a process id, return the first global thread id */
 int32_t mdlBASE::ProcToThread(int32_t iProc) const {
-    assert(iProc >= 0 && iProc <= nProcs);
+    assert(iProc >= 0 && iProc <= layout.nProcs);
     return iProcToThread[iProc];
 }
 
 /* O(l2(nProc)): Given a global thread id, return the process to which it belongs */
 int32_t mdlBASE::ThreadToProc(int32_t iThread) const {
-    int l=0, u=nProcs;
-    assert(iThread >= 0 && iThread <= nThreads);
-    assert(nThreads == iProcToThread[nProcs]);
+    int l=0, u=layout.nProcs;
+    assert(iThread >= 0 && iThread <= layout.nThreads);
+    assert(layout.nThreads == iProcToThread[layout.nProcs]);
     while (l <= u) {
         int m = (u + l) / 2;
         if (iThread < iProcToThread[m]) u = m - 1;
@@ -182,18 +184,6 @@ const char *mdlName(void *mdl) {
     return base->nodeName;
 }
 
-#if 0
-int mdlThreads(void *mdl) {  return reinterpret_cast<mdlBASE *>(mdl)->nThreads; }
-int mdlSelf(void *mdl)    {  return reinterpret_cast<mdlBASE *>(mdl)->idSelf; }
-int mdlCore(void *mdl)    {  return reinterpret_cast<mdlBASE *>(mdl)->iCore; }
-int mdlCores(void *mdl)   {  return reinterpret_cast<mdlBASE *>(mdl)->nCores; }
-int mdlProc(void *mdl)    {  return reinterpret_cast<mdlBASE *>(mdl)->iProc; }
-int mdlProcs(void *mdl)   {  return reinterpret_cast<mdlBASE *>(mdl)->nProcs; }
-
-int mdlGetArgc(void *mdl) {  return reinterpret_cast<mdlBASE *>(mdl)->argc; }
-char **mdlGetArgv(void *mdl) {  return reinterpret_cast<mdlBASE *>(mdl)->argv; }
-#endif
-
 double mdlCpuTimer(void *mdl) {
 #ifdef __linux__
     struct rusage ru;
@@ -220,7 +210,7 @@ double mdlCpuTimer(void *mdl) {
 #endif
 }
 
-void mdlDiag(void *mdl, char *psz) {
+void mdlDiag(void *mdl, const char *psz) {
 #if 0
     mdlBASE *base = reinterpret_cast<mdlBASE *>(mdl);
     if (base->bDiag) {

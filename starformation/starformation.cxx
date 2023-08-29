@@ -51,7 +51,6 @@ int MSR::ValidateStarFormationParam() {
 void MSR::StarForm(double dTime, double dDelta, int iRung) {
     struct inStarForm in;
     struct outStarForm out;
-    double sec,sec1,dsec;
 
     TimerStart(TIMER_STARFORM);
 
@@ -89,11 +88,11 @@ void MSR::StarForm(double dTime, double dDelta, int iRung) {
     in.dCCSNMaxMass = param.dCCSNMaxMass;
 #endif
 
-    if (param.bVDetails) printf("Star Form (rung: %d) ... ", iRung);
+    if (parameters.get_bVDetails()) printf("Star Form (rung: %d) ... ", iRung);
 
     ActiveRung(iRung,1);
     pstStarForm(pst, &in, sizeof(in), &out, 0);
-    if (param.bVDetails)
+    if (parameters.get_bVDetails())
         printf("%d Stars formed with mass %g, %d gas deleted\n",
                out.nFormed, out.dMassFormed, out.nDeleted);
     massFormed += out.dMassFormed;
@@ -103,26 +102,22 @@ void MSR::StarForm(double dTime, double dDelta, int iRung) {
     nStar += out.nFormed;
 
     TimerStop(TIMER_STARFORM);
-    dsec = TimerGet(TIMER_STARFORM);
+    auto dsec = TimerGet(TIMER_STARFORM);
     printf("Star Formation Calculated, Wallclock: %f secs\n\n",dsec);
 
 }
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 static inline double pressure_SFR(const float fMass, const float fDens,
                                   const double fBall, const double a_m3,
                                   const double dThreshDen, const double dSFnormalizationKS,
                                   const double dSFindexKS, const double dSFGasFraction,
                                   const double dConstGamma, eEOSparam eEOS,
-                                  SPHFIELDS *psph);
+                                  SPHFIELDS &sph);
 
 static inline double density_SFR(const float fMass, const float fDens, const double dHubble,
                                  const double a_m1, const double a_m3, const double dThreshDen,
                                  const double dSFThresholdu, const double dSFEfficiency,
-                                 SPHFIELDS *psph);
+                                 SPHFIELDS &sph);
 
 
 int pstStarForm(PST pst,void *vin,int nIn,void *vout,int nOut) {
@@ -149,22 +144,15 @@ int pstStarForm(PST pst,void *vin,int nIn,void *vout,int nOut) {
 }
 
 
-
-
 void pkdStarForm(PKD pkd,
                  struct inStarForm in,
                  int *nFormed, /* number of stars formed */
                  double *dMassFormed,   /* mass of stars formed */
                  int *nDeleted) { /* gas particles deleted */
 
-    PARTICLE *p;
-    SPHFIELDS *psph;
-    float *pv;
-    int i, j;
-
-    assert(pkd->oFieldOffset[oStar]);
-    assert(pkd->oFieldOffset[oSph]);
-    assert(pkd->oFieldOffset[oMass]);
+    assert(pkd->particles.present(PKD_FIELD::oStar));
+    assert(pkd->particles.present(PKD_FIELD::oSph));
+    assert(pkd->particles.present(PKD_FIELD::oMass));
 
     *nFormed = 0;
     *nDeleted = 0;
@@ -174,17 +162,16 @@ void pkdStarForm(PKD pkd,
     const double a_m2 = a_m1*a_m1;
     const double a_m3 = a_m2*a_m1;
 
-    for (i=0; i<pkdLocal(pkd); ++i) {
-        p = pkdParticle(pkd,i);
+    for (auto &p : pkd->particles) {
 
-        if (pkdIsActive(pkd,p) && pkdIsGas(pkd,p)) {
-            const float fMass = pkdMass(pkd, p);
-            psph = pkdSph(pkd,p);
+        if (p.is_active() && p.is_gas()) {
+            const auto &mass = p.mass();
+            auto &sph = p.sph();
 
 #ifdef HAVE_METALLICITY
             double dThreshDen;
             if (in.bSFThresholdDenSchaye2004) {
-                const double dMetAbun = (double)psph->fMetalMass / (double)fMass;
+                const double dMetAbun = (double)sph.fMetalMass / (double)mass;
                 const double dThreshFac = dMetAbun < 1.5e-6 ? 100.0 : pow(2e-3 / dMetAbun, 0.64);
                 dThreshDen = in.dSFThresholdDen * dThreshFac;
             }
@@ -199,82 +186,77 @@ void pkdStarForm(PKD pkd,
 
             double dmstar;
             if (in.dSFEfficiency > 0.0) {
-                dmstar = density_SFR(fMass, pkdDensity(pkd,p), in.dHubble, a_m1, a_m3,
-                                     dThreshDen, in.dSFThresholdu, in.dSFEfficiency, psph);
+                dmstar = density_SFR(mass, p.density(), in.dHubble, a_m1, a_m3,
+                                     dThreshDen, in.dSFThresholdu, in.dSFEfficiency, sph);
             }
             else {
-                dmstar = pressure_SFR(fMass, pkdDensity(pkd,p), pkdBall(pkd,p), a_m3,
+                dmstar = pressure_SFR(mass, p.density(), p.ball(), a_m3,
                                       dThreshDen, in.dSFnormalizationKS, in.dSFindexKS,
-                                      in.dSFGasFraction, in.dConstGamma, in.eEOS, psph);
+                                      in.dSFGasFraction, in.dConstGamma, in.eEOS, sph);
             }
 
-            psph->SFR = dmstar;
+            sph.SFR = dmstar;
             if (dmstar == 0.0)
                 continue;
 
-            const double dt = in.dTime - psph->lastUpdateTime;
-            const double prob = 1.0 - exp(-dmstar * dt / fMass);
+            const double dt = in.dTime - sph.lastUpdateTime;
+            const double prob = 1.0 - exp(-dmstar * dt / mass);
 
             // Star formation event?
             if (rand()<RAND_MAX*prob) {
 #ifdef STELLAR_EVOLUTION
-                float afElemMass[ELEMENT_COUNT];
+                blitz::TinyVector<float,ELEMENT_COUNT> ElemMass;
                 float fMetalMass;
-                for (j = 0; j < ELEMENT_COUNT; j++)
-                    afElemMass[j] = psph->afElemMass[j];
-                fMetalMass = psph->fMetalMass;
+                ElemMass = sph.ElemMass;
+                fMetalMass = sph.fMetalMass;
 #endif
 
                 // We just change the class of the particle to stellar one
-                pkdSetClass(pkd, fMass, pkdSoft0(pkd,p), FIO_SPECIES_STAR, p);
-                STARFIELDS *pStar = pkdStar(pkd, p);
+                p.set_class(mass, p.soft0(),0, FIO_SPECIES_STAR);
+                auto &star = p.star();
 
                 // When changing the class, we have to take into account that
                 // the code velocity has different scale factor dependencies for
                 // dm/star particles and gas particles
-                pv = pkdVel(pkd,p);
-                for (j=0; j<3; j++) {
-                    pv[j] *= in.dScaleFactor;
-                }
+                p.velocity() *= in.dScaleFactor;
 
                 // We log statistics about the formation time
-                pStar->fTimer = in.dTime;
+                star.fTimer = in.dTime;
 
 #ifdef STELLAR_EVOLUTION
-                const float fMassInv = 1.0f / fMass;
-                for (j = 0; j < ELEMENT_COUNT; j++)
-                    pStar->afElemAbun[j] = afElemMass[j] * fMassInv;
-                pStar->fMetalAbun = fMetalMass * fMassInv;
+                const float fMassInv = 1.0f / mass;
+                star.ElemAbun = ElemMass * fMassInv;
+                star.fMetalAbun = fMetalMass * fMassInv;
 
-                pStar->fInitialMass = fMass;
-                pStar->fLastEnrichTime = 0.0f;
+                star.fInitialMass = mass;
+                star.fLastEnrichTime = 0.0f;
 
-                stevStarParticleInit(pkd, pStar, in.dSNIaMaxMass, in.dCCSNMinMass,
+                stevStarParticleInit(pkd, star, in.dSNIaMaxMass, in.dCCSNMinMass,
                                      in.dCCSNMaxMass);
 #endif
 
 #ifdef FEEDBACK
-                pStar->bCCSNFBDone = in.bCCSNFeedback ? 0 : 1;
-                pStar->bSNIaFBDone = in.bSNIaFeedback ? 0 : 1;
+                star.bCCSNFBDone = in.bCCSNFeedback ? 0 : 1;
+                star.bSNIaFBDone = in.bSNIaFeedback ? 0 : 1;
 
                 // Compute the feedback efficiency for this particle based
                 // on the birth information (eq. 7 Schaye 2015)
 #ifdef HAVE_METALLICITY
-                const double fMetalAbun = pStar->fMetalAbun;
+                const double fMetalAbun = star.fMetalAbun;
 #else
                 const double fMetalAbun = 0.00127; // 0.1 Zsolar
 #endif
-                pStar->fSNEfficiency = SNFeedbackEfficiency(fMetalAbun,
-                                       pkdDensity(pkd,p)*a_m3, in.dSNFBEfficiency,
-                                       in.dSNFBMaxEff, in.dSNFBEffIndex, in.dSNFBEffnH0);
+                star.fSNEfficiency = SNFeedbackEfficiency(fMetalAbun,
+                                     p.density()*a_m3, in.dSNFBEfficiency,
+                                     in.dSNFBMaxEff, in.dSNFBEffIndex, in.dSNFBEffnH0);
 #endif
 
                 // Safety check
-                assert(pkdIsStar(pkd,p));
-                assert(!pkdIsGas(pkd,p));
+                assert(p.is_star());
+                assert(!p.is_gas());
 
                 (*nFormed)++;
-                *dMassFormed += fMass;
+                *dMassFormed += mass;
 
                 pkd->nGas -= 1;
                 pkd->nStar += 1;
@@ -289,7 +271,7 @@ static inline double pressure_SFR(const float fMass, const float fDens,
                                   const double dThreshDen, const double dSFnormalizationKS,
                                   const double dSFindexKS, const double dSFGasFraction,
                                   const double dConstGamma, eEOSparam eEOS,
-                                  SPHFIELDS *psph) {
+                                  SPHFIELDS &sph) {
     // Two SF thresholds are applied:
     //      a) Minimum density, computed at the master level
     //      b) Maximum temperature of a factor 0.5 dex (i.e., 3.1622)
@@ -302,10 +284,14 @@ static inline double pressure_SFR(const float fMass, const float fDens,
     const double maxUint = INFINITY;
 #endif
 
+#if defined(FEEDBACK) || defined(BLACKHOLES)
 #ifdef OLD_FB_SCHEME
-    const double dUint = psph->Uint;
+    const double dUint = sph.Uint;
 #else
-    const double dUint = psph->Uint + psph->fAccFBEnergy;
+    const double dUint = sph.Uint + sph.fAccFBEnergy;
+#endif
+#else
+    const double dUint = sph.Uint;
 #endif
 
     if (dUint > maxUint || fDens < dThreshDen) {
@@ -314,21 +300,21 @@ static inline double pressure_SFR(const float fMass, const float fDens,
 
     const double SFexp = 0.5*(dSFindexKS-1.);
     const double dmstar = dSFnormalizationKS * fMass *
-                          pow(dConstGamma * dSFGasFraction * psph->P * a_m3, SFexp);
+                          pow(dConstGamma * dSFGasFraction * sph.P * a_m3, SFexp);
     return dmstar;
 }
 
 static inline double density_SFR(const float fMass, const float fDens, const double dHubble,
                                  const double a_m1, const double a_m3, const double dThreshDen,
                                  const double dSFThresholdu, const double dSFEfficiency,
-                                 SPHFIELDS *psph) {
+                                 SPHFIELDS &sph) {
     // Three SF criteria are enforced:
     //      a) A minimum density, computed at the master level
     //      b) A maximum temperature, set by dSFThresholdTemp
     //      c) Converging flow (negative physical velocity divergence)
-    const double dVelDiv = a_m1 * (psph->gradVx[0] + psph->gradVy[1] + psph->gradVz[2]) +
+    const double dVelDiv = a_m1 * (sph.gradVx[0] + sph.gradVy[1] + sph.gradVz[2]) +
                            3. * dHubble;
-    if (fDens < dThreshDen || psph->Uint > dSFThresholdu || dVelDiv > 0.0) {
+    if (fDens < dThreshDen || sph.Uint > dSFThresholdu || dVelDiv > 0.0) {
         return 0.0;
     }
 
@@ -337,6 +323,3 @@ static inline double density_SFR(const float fMass, const float fDens, const dou
     return dmstar;
 }
 
-#ifdef __cplusplus
-}
-#endif

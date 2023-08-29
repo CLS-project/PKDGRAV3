@@ -144,7 +144,8 @@ void pkdOutput(PKD pkd, outType eOutputType, int iProcessor,int nProcessor,
     asyncFileInfo info;
     char achOutFile[256];
     strcpy(achOutFile,fname);
-    sprintf(achOutFile+strlen(achOutFile),".%d",iProcessor);
+    int n = strlen(achOutFile);
+    snprintf(achOutFile+n,sizeof(achOutFile)-n,".%d",iProcessor);
     io_init(&info,4,1024*1024,IO_AIO|IO_LIBAIO);
     if (io_create(&info,achOutFile) < 0) { perror(fname); abort(); }
 
@@ -168,7 +169,7 @@ void pkdOutput(PKD pkd, outType eOutputType, int iProcessor,int nProcessor,
     }
     while (--nPartner) {
         struct inOutputSend send;
-        send.iPartner = pkd->idSelf;
+        send.iPartner = pkd->Self();
         send.eOutputType = eOutputType;
         send.iGrid = iGrid;
         ++iPartner;

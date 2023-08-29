@@ -25,6 +25,7 @@
 #ifdef HAVE_MALLOC_H
     #include <malloc.h>
 #endif
+#include <new>
 #include <math.h>
 #include <assert.h>
 #include "ewald.h"
@@ -92,14 +93,10 @@ static int evalEwald(
 #if defined(USE_SIMD_EWALD) && defined(__SSE2__)
 double evalEwaldSIMD( PKD pkd,ewaldSIMD *ews,
                       dvec &ax, dvec &ay, dvec &az, dvec &dPot,
-                      v_df Ix, v_df Iy, v_df Iz, const v_df &Ir2, const dmask &doerfc ) {
+                      dvec x, dvec y, dvec z, dvec r2, const dmask &doerfc ) {
     dvec dir,dir2,a,g0,g1,g2,g3,g4,g5,alphan;
-    dvec xx,xxx,xxy,xxz,yy,yyy,yyz,xyy,zz,zzz,xzz,yzz,xy,xyz,xz,yz;
-    dvec Qta,Q4mirx,Q4miry,Q4mirz,Q4mir,Q4x,Q4y,Q4z;
-    dvec Q3mirx,Q3miry,Q3mirz,Q3mir,Q2mirx,Q2miry,Q2mirz,Q2mir;
-    dvec rerf,rerfc,ex2,t,tx,ty,tz,tpot;
+    dvec rerf,rerfc,ex2;
     dvec alpha2x2 = 2.0 * dvec(ews->ewp.alpha2);
-    dvec x=Ix, y=Iy, z=Iz, r2=Ir2;
 
     dir = rsqrt(r2);
     dir2 = dir*dir;
@@ -122,11 +119,10 @@ double evalEwaldSIMD( PKD pkd,ewaldSIMD *ews,
     evalEwald<dvec,struct ewaldSIMD::PEWALDVARS,struct ewaldSIMD::PMOMC>(
             ews->ewp,ews->ewm,ax,ay,az,dPot,x,y,z,g0,g1,g2,g3,g4,g5);
 
-    return COST_FLOP_EWALD * SIMD_DWIDTH;
+    return COST_FLOP_EWALD * dvec::width();
 }
 #endif
 
-extern "C"
 double pkdParticleEwald(PKD pkd,double *r, float *pa, float *pPot,double *pdFlopSingle, double *pdFlopDouble) {
     struct EwaldVariables &ew = pkd->ew;
     EwaldTable *ewt = &pkd->ewt;
@@ -135,7 +131,7 @@ double pkdParticleEwald(PKD pkd,double *r, float *pa, float *pPot,double *pdFlop
 #ifdef USE_SIMD_EWALD
     dvec dPot,dax,day,daz;
     fvec fPot,fax,fay,faz,fx,fy,fz;
-    dvec::array_t px,py,pz,pr2,pInHole;
+    alignas(dvec) dvec::array_t px,py,pz,pr2,pInHole;
     int nSIMD = 0;
 #endif
     int i,ix,iy,iz;
@@ -199,7 +195,7 @@ double pkdParticleEwald(PKD pkd,double *r, float *pa, float *pPot,double *pdFlop
                     pr2[nSIMD] = r2;
                     pInHole[nSIMD] = bInHole;
 //          doerfc.i[nSIMD] = bInHole ? 0 : UINT64_MAX;
-                    if (++nSIMD == SIMD_DWIDTH) {
+                    if (++nSIMD == dvec::width()) {
                         dFlopDouble += evalEwaldSIMD(pkd,&pkd->es,dax,day,daz,dPot,dvec(px),dvec(py),dvec(pz),dvec(pr2),dvec(pInHole) == 0.0);
                         nSIMD = 0;
                     }
@@ -277,7 +273,7 @@ double pkdParticleEwald(PKD pkd,double *r, float *pa, float *pPot,double *pdFlop
     fy = dy;
     fz = dz;
 
-    nLoop = (ew.nEwhLoop+SIMD_MASK) >> SIMD_BITS;
+    nLoop = (ew.nEwhLoop+fvec::mask()) / fvec::width();
     i = 0;
     do {
         fvec hdotx,s,c,t;
@@ -332,8 +328,7 @@ double pkdParticleEwald(PKD pkd,double *r, float *pa, float *pPot,double *pdFlop
     return dFlopDouble + dFlopSingle;
 }
 
-extern "C"
-void pkdEwaldInit(PKD pkd,int nReps,double fEwCut,double fhCut) {
+void pkdEwaldInit(PKD pkd,int nReps,double fEwCut,double fhCut,bool bGPU) {
     struct EwaldVariables *const ew = &pkd->ew;
     EwaldTable *const ewt = &pkd->ewt;
     const MOMC *restrict mom = &ew->mom;
@@ -398,7 +393,7 @@ void pkdEwaldInit(PKD pkd,int nReps,double fEwCut,double fhCut) {
     ew->Q3z = 0.5*(mom->xxz + mom->yyz + mom->zzz);
     ew->Q2 = 0.5*(mom->xx + mom->yy + mom->zz);
     ew->nReps = nReps;
-    ew->nEwReps = d2i(ceil(fEwCut));
+    ew->nEwReps = ceil(fEwCut);
     ew->nEwReps = ew->nEwReps > nReps ? ew->nEwReps : nReps;
     ew->fEwCut2 = fEwCut*fEwCut*L*L;
     ew->fInner2 = 1.2e-3*L*L;
@@ -432,30 +427,30 @@ void pkdEwaldInit(PKD pkd,int nReps,double fEwCut,double fhCut) {
     /*
     ** Now setup stuff for the h-loop.
     */
-    hReps = d2i(ceil(fhCut));
+    hReps = ceil(fhCut);
     k4 = M_PI*M_PI/(ew->alpha*ew->alpha*L*L);
 
     i = (int)pow(1+2*hReps,3);
 #if defined(USE_SIMD_EWALD) && defined(__SSE__)
-    i = (i + SIMD_MASK) & ~SIMD_MASK;
+    i = (i + fvec::mask()) & ~fvec::mask();
 #endif
     if ( i>ew->nMaxEwhLoop ) {
         ew->nMaxEwhLoop = i;
-        ewt->hx.f = (ewaldFloatType *)SIMD_malloc(ew->nMaxEwhLoop*sizeof(ewt->hx.f));
+        ewt->hx.f = new (std::align_val_t(sizeof(fvec))) ewaldFloatType[ew->nMaxEwhLoop];
         assert(ewt->hx.f != NULL);
-        ewt->hy.f = (ewaldFloatType *)SIMD_malloc(ew->nMaxEwhLoop*sizeof(ewt->hy.f));
+        ewt->hy.f = new (std::align_val_t(sizeof(fvec))) ewaldFloatType[ew->nMaxEwhLoop];
         assert(ewt->hy.f != NULL);
-        ewt->hz.f = (ewaldFloatType *)SIMD_malloc(ew->nMaxEwhLoop*sizeof(ewt->hz.f));
+        ewt->hz.f = new (std::align_val_t(sizeof(fvec))) ewaldFloatType[ew->nMaxEwhLoop];
         assert(ewt->hz.f != NULL);
-        ewt->hCfac.f = (ewaldFloatType *)SIMD_malloc(ew->nMaxEwhLoop*sizeof(ewt->hCfac.f));
+        ewt->hCfac.f = new (std::align_val_t(sizeof(fvec))) ewaldFloatType[ew->nMaxEwhLoop];
         assert(ewt->hCfac.f != NULL);
-        ewt->hSfac.f = (ewaldFloatType *)SIMD_malloc(ew->nMaxEwhLoop*sizeof(ewt->hSfac.f));
+        ewt->hSfac.f = new (std::align_val_t(sizeof(fvec))) ewaldFloatType[ew->nMaxEwhLoop];
         assert(ewt->hSfac.f != NULL);
     }
     ew->nEwhLoop = i;
     i = (int)pow(1+2*ew->nEwReps,3);
 #if defined(USE_SIMD_EWALD) && defined(__SSE2__)
-    i = (i + SIMD_MASK) & ~SIMD_MASK;
+    i = (i + fvec::mask()) & ~fvec::mask();
 #endif
     i = 0;
     for (hx=-hReps; hx<=hReps; ++hx) {
@@ -511,12 +506,16 @@ void pkdEwaldInit(PKD pkd,int nReps,double fEwCut,double fhCut) {
         ewt->hSfac.f[i] = 0;
         ++i;
     }
+    if (bGPU) {
 #ifdef USE_CL
-    clEwaldInit(pkd->mdl->clCtx,ew,ewt);
-    mdlThreadBarrier(pkd->mdl);
+        clEwaldInit(pkd->mdl->clCtx,ew,ewt);
+        mdlThreadBarrier(pkd->mdl);
 #endif
 #ifdef USE_CUDA
-    auto cuda = reinterpret_cast<CudaClient *>(pkd->cudaClient);
-    cuda->setupEwald(ew,ewt);
+        auto cuda = reinterpret_cast<CudaClient *>(pkd->cudaClient);
+        // Only one thread needs to transfer the tables to the GPU
+        if (pkd->mdl->Core()==0) cuda->setupEwald(ew,ewt);
+        pkd->mdl->ThreadBarrier();
 #endif
+    }
 }

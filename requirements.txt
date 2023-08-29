@@ -1,0 +1,6 @@
+tomli; python_version < '3.11'
+Cython >= 3.0b
+numpy >= 1.7
+xmlrunner
+ddt
+nose

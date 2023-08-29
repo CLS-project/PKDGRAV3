@@ -27,13 +27,6 @@ struct parameters {
     /*
     ** Parameters for PKDGRAV.
     */
-    int bOverwrite;
-    int bVWarnings;
-    int bVStart;
-    int bVStep;
-    int bVRungStat;
-    int bVDetails;
-    int bPeriodic;
     int bRestart;
     int bParaRead;
     int bParaWrite;
@@ -63,10 +56,6 @@ struct parameters {
     int iCheckInterval;
     int iLogInterval;
     int iPkInterval;
-    int iOrder;
-    int bEwald;
-    int iEwOrder;
-    int nReplicas;
     int iStartStep;
     int nSteps;
     int nSteps10;
@@ -83,14 +72,19 @@ struct parameters {
     int bDoAccOutput;
     int bDoPotOutput;
     int iCacheSize;
+    int iCacheMaxInflight;
     int iWorkQueueSize;
-    int iCUDAQueueSize;
     int bAddDelete;
     int bLightCone;
     int bLightConeParticles;
     int bInFileLC;
     double dRedshiftLCP;
     int nSideHealpix;
+    int bBowtie;
+    double hxLCP;
+    double hyLCP;
+    double hzLCP;
+    double sqdegLCP;
     /* BEGIN Gas Parameters */
     int bDoGas;
     int bGasAdiabatic;
@@ -111,7 +105,19 @@ struct parameters {
     double dhMinOverSoft;
     double dFastGasFraction;
     double fKernelTarget;
+    double dVelocityDamper;
+    double dBallSizeLimit;
+    int iKernelType;
     int bNewSPH;
+    int bGasBuiltinIdeal;
+    int bGasOnTheFlyPrediction;
+    int bGasInterfaceCorrection;
+    int bGasConsistentPrediction;
+    int bCentrifugal;
+    double dCentrifT0;
+    double dCentrifT1;
+    double dCentrifOmega0;
+    int bGasDoExtensiveILPTest;
 
     /* END Gas Parameters */
     double dEta;
@@ -122,9 +128,6 @@ struct parameters {
     double dDelta;
     double dEwCut;
     double dEwhCut;
-    double dTheta;
-    double dTheta2;
-    double dTheta20;
     double dPeriod;
     double dxPeriod;
     double dyPeriod;
@@ -132,8 +135,6 @@ struct parameters {
     double dPreFacRhoLoc;
     double dEccFacMax;
     double dRedTo;
-    double dRedFrom;
-    double dCentMass;
     char achInFile[256];
     char achOutName[256];
     char achOutPath[256];
@@ -143,8 +144,8 @@ struct parameters {
     char achOutTimes[256];
     char achTfFile[256];
     char achClassFilename[256];
-    char achLinearSpecies[256];
-    char achPowerSpecies[256];
+    char achLinSpecies[256];
+    char achPkSpecies[256];
     double dFracDualTree;
     double dFracNoDomainDecomp;
     double dFracNoDomainRootFind;
@@ -152,12 +153,10 @@ struct parameters {
     /*
     ** Additional parameters for group finding.
     */
-    int bFindGroups;
     int bFindHopGroups;
     int nMinMembers;
     double dHopTau;
     double dTau;
-    int bTraceRelaxation;
     /*
     ** Parameters for group stats.
     */
@@ -165,13 +164,6 @@ struct parameters {
     double dEnvironment1;
     /* IC Generation */
     int bWriteIC;
-    double h;
-    double dBoxSize;
-    int nGrid;
-    int iSeed;
-    int bFixedAmpIC;
-    double dFixedAmpPhasePI;
-    int b2LPT;
     int bICgas;
     double dInitialT;
 
@@ -312,6 +304,7 @@ struct parameters {
     char achStelEvolPath[256];
     char achSNIaDTDType[32];
     int bChemEnrich;
+    int nSmoothEnrich;
     double dWindSpecificEkin;
     double dSNIaNorm;
     double dSNIaScale;
@@ -348,6 +341,7 @@ struct parameters {
     /*
     ** Memory models.  Other parameters can force these to be set.
     */
+    uint64_t nMemEphemeral;
     int bMemIntegerPosition;
     int bMemUnordered;
     int bMemParticleID;
@@ -357,9 +351,7 @@ struct parameters {
     int bMemGroups;
     int bMemMass;
     int bMemSoft;
-    int bMemRelaxation;
     int bMemVelSmooth;
-    int bMemPsMetric;
     int bMemNodeMoment;
     int bMemNodeAcceleration;
     int bMemNodeVelocity;

@@ -15,11 +15,7 @@
  *  along with PKDGRAV3.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifdef HAVE_CONFIG_H
-    #include "config.h"
-#else
-    #include "pkd_config.h"
-#endif
+#include "pkd_config.h"
 
 #ifdef ENABLE_FE
     #include <fenv.h>
@@ -42,6 +38,20 @@
 #include "core/calcroot.h"
 #include "core/select.h"
 
+#include "io/service.h"
+#include "io/restore.h"
+
+#ifdef HAVE_ROCKSTAR
+    #include "analysis/rshalocount.h"
+    #include "analysis/rshaloloadids.h"
+#endif
+#include "analysis/rsloadids.h"
+#include "analysis/rssaveids.h"
+#include "analysis/rsreorder.h"
+#include "analysis/rsextract.h"
+
+#include "initlightcone.h"
+
 #include "domains/calcbound.h"
 #include "domains/combinebound.h"
 #include "domains/distribtoptree.h"
@@ -50,6 +60,8 @@
 #include "domains/enforceperiodic.h"
 #include "domains/freestore.h"
 #include "domains/olddd.h"
+#include "domains/reorder.h"
+#include "domains/getordsplits.h"
 
 #include "gravity/setsoft.h"
 #include "gravity/activerung.h"
@@ -80,12 +92,13 @@ void *worker_init(MDL vmdl) {
     PST pst;
     LCL *plcl = new LCL;
     plcl->pkd = NULL;
-    pstInitialize(&pst,vmdl,plcl);
+    pstInitialize(&pst,mdl,plcl);
     pstAddServices(pst,vmdl);
     mdl->AddService(std::make_unique<ServiceSetAdd>(pst));
     mdl->AddService(std::make_unique<ServiceSwapAll>(pst));
     mdl->AddService(std::make_unique<ServiceHostname>(pst));
     mdl->AddService(std::make_unique<ServiceInitCosmology>(pst));
+    mdl->AddService(std::make_unique<ServiceInitLightcone>(pst));
     mdl->AddService(std::make_unique<ServiceCalcRoot>(pst));
     mdl->AddService(std::make_unique<ServiceCountSelected>(pst));
     mdl->AddService(std::make_unique<ServiceSelBlackholes>(pst));
@@ -98,6 +111,8 @@ void *worker_init(MDL vmdl) {
     mdl->AddService(std::make_unique<ServiceSelBox>(pst));
     mdl->AddService(std::make_unique<ServiceSelSphere>(pst));
     mdl->AddService(std::make_unique<ServiceSelCylinder>(pst));
+    mdl->AddService(std::make_unique<ServiceFileSizes>(pst));
+    mdl->AddService(std::make_unique<ServiceRestore>(pst));
     mdl->AddService(std::make_unique<ServiceCalcBound>(pst));
     mdl->AddService(std::make_unique<ServiceCombineBound>(pst));
     mdl->AddService(std::make_unique<ServiceDistribTopTree>(pst));
@@ -109,9 +124,22 @@ void *worker_init(MDL vmdl) {
     mdl->AddService(std::make_unique<ServiceActiveRung>(pst));
     mdl->AddService(std::make_unique<ServiceCountRungs>(pst));
     mdl->AddService(std::make_unique<ServiceZeroNewRung>(pst));
+    mdl->AddService(std::make_unique<ServiceGetOrdSplits>(pst));
+#ifdef HAVE_ROCKSTAR
+    mdl->AddService(std::make_unique<ServiceRsHaloCount>(pst));
+    mdl->AddService(std::make_unique<ServiceRsHaloLoadIds>(pst));
+#endif
+    mdl->AddService(std::make_unique<ServiceRsLoadIds>(pst));
+    mdl->AddService(std::make_unique<ServiceRsSaveIds>(pst));
+    mdl->AddService(std::make_unique<ServiceRsReorderIds>(pst));
+    mdl->AddService(std::make_unique<ServiceRsExtract>(pst));
     mdl->AddService(std::make_unique<OldDD::ServiceDomainDecomp>(pst));
+#ifdef NEW_REORDER
+    mdl->AddService(std::make_unique<NewDD::ServiceReorder>(pst));
+#else
     mdl->AddService(std::make_unique<OldDD::ServiceDomainOrder>(pst));
     mdl->AddService(std::make_unique<OldDD::ServiceLocalOrder>(pst));
+#endif
     mdl->AddService(std::make_unique<OldDD::ServiceColRejects>(pst));
     mdl->AddService(std::make_unique<OldDD::ServiceSwapRejects>(pst));
     mdl->AddService(std::make_unique<OldDD::ServiceColOrdRejects>(pst));

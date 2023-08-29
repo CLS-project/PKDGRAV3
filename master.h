@@ -17,7 +17,7 @@
 
 #ifndef MASTER_HINCLUDED
 #define MASTER_HINCLUDED
-
+#include "pkd_config.h"
 #include <stdint.h>
 #include <signal.h>
 #include <time.h>
@@ -28,6 +28,7 @@
 #include "pst.h"
 #include "mdl.h"
 #include "parameters.h"
+#include "pkd_parameters.h"
 #ifdef COOLING
     #include "cooling/cooling_struct.h"
 #endif
@@ -38,6 +39,8 @@
 extern time_t timeGlobalSignalTime;
 extern int bGlobalOutput;
 
+// IMPORTANT: If you change the timers here then you need to change
+// their names in master.cxx (timer_names)
 enum msrTimers {
     TIMER_GRAVITY = 0,
     TIMER_IO,
@@ -68,25 +71,6 @@ enum msrTimers {
     TOTAL_TIMERS
 };
 
-// The order should be the same than in the enumerate above!
-static const char *timer_names[TOTAL_TIMERS] = {
-    "Gravity",  "IO", "Tree", "DomainDecom",  "KickOpen", "KickClose",
-    "Density", "EndTimeStep",  "Gradient", "Flux", "TimeStep", "Drift", "FoF",
-#ifdef FEEDBACK
-    "Feedback",
-#endif
-#ifdef STAR_FORMATION
-    "StarForm",
-#endif
-#ifdef BLACKHOLES
-    "BHs",
-#endif
-#ifdef STELLAR_EVOLUTION
-    "Stev",
-#endif
-    "Others"
-};
-
 struct MSRINSTANCE {
     PyObject_HEAD
     class MSR *msr;
@@ -97,8 +81,10 @@ protected:
     const PST pst;
     mdl::mdlClass *mdl;
     bool bVDetails;
+    bool bAnalysis = false;
+    PyObject *parameter_overrides = nullptr;
 public:
-    explicit MSR(MDL mdl,PST pst) : pst(pst), mdl(static_cast<mdl::mdlClass *>(mdl)), bVDetails(false) {}
+    explicit MSR(MDL mdl,PST pst);
     ~MSR();
 public:
     int Python(int argc, char *argv[]);
@@ -111,24 +97,28 @@ public:
     double LoadOrGenerateIC();
     void Simulate(double dTime,double dDelta,int iStartStep,int nSteps);
     void Simulate(double dTime);
-public:
-    // Parameters
-    bool      wasParameterSpecified(const char *name) const;
-    bool      getParameterBoolean(  const char *name) const;
-    double    getParameterDouble(   const char *name) const;
-    long long getParameterLongLong( const char *name) const;
-    void      setParameter(         const char *name,bool v,     int bSpecified=false);
-    void      setParameter(         const char *name,double v,   int bSpecified=false);
-    void      setParameter(         const char *name,long long v,int bSpecified=false);
+    void setAnalysisMode(bool b=true) {bAnalysis=b;}
+    void setAnalysisMode(PyObject *over) {
+        bAnalysis=true;
+        parameter_overrides = over;
+    }
+protected:
+    void stat_files(std::vector<uint64_t> &counts,const std::string &filename_template, uint64_t element_size);
+    void Restore(const std::string &filename,int nSizeParticle);
 
+public:
     size_t getLocalGridMemory(int nGrid);
 
     // I/O and IC Generation
-    double GenerateIC();
-    void Restart(int n, const char *baseName, int iStep, int nSteps, double dTime, double dDelta);
-    double Read(const char *achInFile);
+    double GenerateIC(int nGrid,int iSeed,double z,double L,CSM csm=nullptr);
+    void Restart(int n, const char *baseName, int iStep, int nSteps, double dTime, double dDelta,
+                 size_t nDark, size_t nGas, size_t nStar, size_t nBH,
+                 double dEcosmo,double dUOld, double dTimeOld,
+                 std::vector<PARTCLASS> &aClasses,
+                 PyObject *arguments,PyObject *specified);
+    double Read(const std::string &achInFile);
     void Checkpoint(int iStep, int nSteps, double dTime, double dDelta);
-    void Write(const char *pszFileName,double dTime,int bCheckpoint);
+    void Write(const std::string &pszFileName,double dTime,int bCheckpoint);
     void OutArray(const char *pszFile,int iType,int iFileType);
     void OutArray(const char *pszFile,int iType);
     void OutVector(const char *pszFile,int iType,int iFileType);
@@ -136,7 +126,7 @@ public:
     void Output(int iStep, double dTime, double dDelta, int bCheckpoint);
     void OutputFineStatistics(double dStep, double dTime);
 
-    void RecvArray(void *vBuffer,int field,int iUnitSize,double dTime,bool bMarked=false);
+    void RecvArray(void *vBuffer,PKD_FIELD field,int iUnitSize,double dTime,bool bMarked=false);
 
     // Particle order, domains, trees
     void Reorder();
@@ -152,7 +142,10 @@ public:
     // Gravity
     uint8_t Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
                     double dTime,double dDelta,double dStep,double dTheta,
-                    int bKickClose,int bKickOpen,int bEwald,int bGravStep,int nPartRhoLoc,int iTimeStepCrit,int nGroup,SPHOptions SPHoptions);
+                    int bKickClose,int bKickOpen,int bEwald,int bGravStep,int nPartRhoLoc,int iTimeStepCrit);
+    uint8_t Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
+                    double dTime,double dDelta,double dStep,double dTheta,
+                    int bKickClose,int bKickOpen,int bEwald,int bGravStep,int nPartRhoLoc,int iTimeStepCrit,SPHOptions SPHoptions);
 
     // Analysis
     void Smooth(double dTime,double dDelta,int iSmoothType,int bSymmetric,int nSmooth);
@@ -160,7 +153,7 @@ public:
 #ifdef OPTIM_SMOOTH_NODE
     int ReSmoothNode(double dTime, double dDelta, int iSmoothType,int bSymmetric);
 #endif
-    void NewFof(double exp);
+    void NewFof(double dTau,int nMinMembers);
     void Hop(double dTime,double dDelta);
     void GroupStats();
     void HopWrite(const char *fname);
@@ -216,20 +209,17 @@ public:
 protected:
     std::list<msr_analysis_callback> analysis_callbacks;
 
-// Parameters from Python interface
-private:
-    int64_t     getScalarInteger(const char *name, PyObject *v);
-    double      getScalarNumber(const char *name, PyObject *v);
-    std::string getScalarString(const char *name, PyObject *v);
 public: // should be private
-    PyObject *arguments=nullptr, *specified=nullptr;
+    pkd_parameters parameters;
+    double set_dynamic(int iStep, double dTime) {
+        parameters.set_dynamic("step",iStep);
+        parameters.set_dynamic("time",dTime);
+        if (csm->val.bComove) parameters.set_dynamic("a",csmTime2Exp(csm,dTime));
+        auto dTheta = parameters.get_dTheta();
+        parameters.set_dynamic("theta",dTheta);
+        return dTheta;
+    }
 public:
-    int64_t                  getScalarInteger(const char *name);
-    double                   getScalarNumber(const char *name);
-    std::string              getScalarString(const char *name);
-    std::vector<int64_t>     getVectorInteger(const char *name);
-    std::vector<double>      getVectorNumber(const char *name);
-    std::vector<std::string> getVectorString(const char *name);
     bool setParameters(PyObject *kwobj,bool bIgnoreUnknown=false);
 
     PRM prm;
@@ -322,8 +312,6 @@ public:
     int iCheckpointStep;
     int nCheckpointThreads;
     char achCheckpointName[PST_FILENAME_SIZE];
-    int nCheckpointClasses;
-    PARTCLASS aCheckpointClasses[PKD_MAX_CLASSES];
 protected:
     static double Time();
     static void Leader();
@@ -334,22 +322,52 @@ protected:
     double getVfactor(double dTime);
     bool getDeltaSteps(double dTime,int iStartStep,double &dDelta,int &nSteps);
 
-    const char *OutName() const { return param.achOutName;}
+    const char *OutName() const {
+        return param.achOutName;
+    }
     //int Steps()           const { return param.nSteps; }
-    int LogInterval()     const { return param.iLogInterval; }
-    int OutInterval()     const { return param.iOutInterval; }
-    int CheckInterval()   const { return param.iCheckInterval; }
-    double Soft()         const { return param.dSoft; }
-    int DoDensity()       const { return param.bDoDensity; }
-    int DoGas()           const { return param.bDoGas; }
-    int NewSPH()          const { return param.bNewSPH; }
-    int MeshlessHydro()   const { return param.bMeshlessHydro; }
-    int DoGravity()       const { return param.bDoGravity; }
-    double Eta()          const { return param.dEta; }
-    int MaxRung()         const { return param.iMaxRung; }
-    int Comove()          const { return csm->val.bComove; }
-    uint64_t MaxOrder()   const { return nMaxOrder; }
-    int CurrMaxRung()     const { return iCurrMaxRung; }
+    int LogInterval()     const {
+        return param.iLogInterval;
+    }
+    int OutInterval()     const {
+        return param.iOutInterval;
+    }
+    int CheckInterval()   const {
+        return param.iCheckInterval;
+    }
+    double Soft()         const {
+        return param.dSoft;
+    }
+    int DoDensity()       const {
+        return param.bDoDensity;
+    }
+    int DoGas()           const {
+        return param.bDoGas;
+    }
+    int NewSPH()          const {
+        return param.bNewSPH;
+    }
+    int MeshlessHydro()   const {
+        return param.bMeshlessHydro;
+    }
+    int DoGravity()       const {
+        return param.bDoGravity;
+    }
+    double Eta()          const {
+        return param.dEta;
+    }
+    int MaxRung()         const {
+        return param.iMaxRung;
+    }
+    int Comove()          const {
+        return csm->val.bComove;
+    }
+    uint64_t MaxOrder()   const {
+        return nMaxOrder;
+    }
+    int CurrMaxRung()     const {
+        return iCurrMaxRung;
+    }
 
     std::string BuildName(const char *path,int iStep,const char *type="");
     std::string BuildName(int iStep,const char *type=""); // With achOutPath
@@ -360,7 +378,7 @@ protected:
     void msrprintf(const char *Format, ... ) const;
     void Exit(int status);
     uint64_t getMemoryModel();
-    void InitializePStore(uint64_t *nSpecies,uint64_t mMemoryModel);
+    std::pair<int,int> InitializePStore(uint64_t *nSpecies,uint64_t mMemoryModel,uint64_t nEphemeral);
     int CheckForStop(const char *achStopFile);
     int CheckForOutput(int iStep,int nSteps,double dTime,int *pbDoCheckpoint,int *pbDoOutput);
     void SetClasses();
@@ -371,7 +389,7 @@ protected:
     void SwitchTheta(double);
     double getTheta(double dTime);
     double SwitchDelta(double dTime,double dDelta,int iStep,int nSteps);
-    void InitCosmology();
+    void InitCosmology(CSM csm);
     void BuildTree(int bNeedEwald,uint32_t uRoot,uint32_t utRoot);
     void ActiveRung(int iRung, int bGreater);
     void ActiveOrder();
@@ -410,7 +428,6 @@ protected:
     void AccelStep(uint8_t uRungLo,uint8_t uRungHi,double dTime,double dDelta);
     uint8_t GetMinDt();
     void SetGlobalDt(uint8_t minDt);
-    void SphStep(uint8_t uRungLo,uint8_t uRungHi,double dTime,double dDelta);
     void DensityStep(uint8_t uRungLo,uint8_t uRungHi,double dTime,double dDelta);
 
     void FastGasPhase1(double dTime,double dDelta,int iSmoothType);
@@ -419,7 +436,6 @@ protected:
     void Cooling(double dTime,double dStep,int bUpdateState, int bUpdateTable,int bInterateDt);
     void AddDelParticles();
     void InitSph(double dTime,double dDelta);
-    void Sph(double dTime, double dDelta, double dStep);
     uint64_t CountDistance(double dRadius2Inner, double dRadius2Outer);
 
     // Meshless hydrodynamics
@@ -503,13 +519,17 @@ protected:
 
 
 
-    void InitRelaxation();
-    void Relaxation(double dTime,double deltaT,int iSmoothType,int bSymmetric);
     void CalcDistance(const double *dCenter, double dRadius );
     void CalcCOM(const double *dCenter, double dRadius,
                  double *com, double *vcm, double *L, double *M);
     void CalcMtot(double *M, uint64_t *N);
     void SetSPHoptions();
+    void ResetCOM();
+    void InitializeEOS();
+    void CalculateKickParameters(struct pkdKickParameters *kick, uint8_t uRungLo, double dTime, double dDelta, double dStep,
+                                 int bKickClose, int bKickOpen, SPHOptions SPHoptions);
+    void UpdateGasValues(uint8_t uRungLo, double dTime, double dDelta, double dStep,
+                         int bKickClose, int bKickOpen, SPHOptions SPHoptions);
     void TreeUpdateFlagBounds(int bNeedEwald,uint32_t uRoot,uint32_t utRoot,SPHOptions SPHoptions);
 
 public:
@@ -520,20 +540,30 @@ public:
     void OutputGrid(const char *filename, bool k=false, int iGrid=0, int nParaWrite=0);
 
     uint64_t CountSelected();
-    uint64_t SelSpecies(uint64_t mSpecies,bool setIfTrue=true,bool clearIfFalse=true);
-    uint64_t SelAll(bool setIfTrue=true,bool clearIfFalse=true);
-    uint64_t SelGas(bool setIfTrue=true,bool clearIfFalse=true);
-    uint64_t SelStar(bool setIfTrue=true,bool clearIfFalse=true);
-    uint64_t SelDark(bool setIfTrue=true,bool clearIfFalse=true);
-    uint64_t SelDeleted(bool setIfTrue=true,bool clearIfFalse=true);
-    uint64_t SelBlackholes(bool setIfTrue=true,bool clearIfFalse=true);
-    uint64_t SelActives(bool setIfTrue=true,bool clearIfFalse=true);
-    uint64_t SelGroup(int iGroup,bool setIfTrue=true,bool clearIfFalse=true);
-    uint64_t SelMass(double dMinMass,double dMaxMass,int setIfTrue,int ClearIfFalse);
-    uint64_t SelById(uint64_t idStart,uint64_t idEnd,int setIfTrue,int clearIfFalse);
-    uint64_t SelPhaseDensity(double dMinPhaseDensity,double dMaxPhaseDensity,int setIfTrue,int clearIfFalse);
-    uint64_t SelBox(double *dCenter, double *dSize,bool setIfTrue=true,bool clearIfFalse=true);
-    uint64_t SelSphere(double *r, double dRadius,int setIfTrue,int clearIfFalse);
-    uint64_t SelCylinder(double *dP1, double *dP2, double dRadius, int setIfTrue, int clearIfFalse );
+    uint64_t SelSpecies(uint64_t mSpecies,int setIfTrue=true,int clearIfFalse=true);
+    uint64_t SelAll(int setIfTrue=true,int clearIfFalse=true);
+    uint64_t SelGas(int setIfTrue=true,int clearIfFalse=true);
+    uint64_t SelStar(int setIfTrue=true,int clearIfFalse=true);
+    uint64_t SelDark(int setIfTrue=true,int clearIfFalse=true);
+    uint64_t SelDeleted(int setIfTrue=true,int clearIfFalse=true);
+    uint64_t SelBlackholes(int setIfTrue=true,int clearIfFalse=true);
+    uint64_t SelActives(int setIfTrue=true,int clearIfFalse=true);
+    uint64_t SelGroup(int iGroup,int setIfTrue=true,int clearIfFalse=true);
+    uint64_t SelMass(double dMinMass,double dMaxMass,int setIfTrue=true,int ClearIfFalse=true);
+    uint64_t SelById(uint64_t idStart,uint64_t idEnd,int setIfTrue=true,int clearIfFalse=true);
+    uint64_t SelPhaseDensity(double dMinPhaseDensity,double dMaxPhaseDensity,int setIfTrue=true,int clearIfFalse=true);
+    uint64_t SelBox(blitz::TinyVector<double,3> center, blitz::TinyVector<double,3> size,int setIfTrue=true,int clearIfFalse=true);
+    uint64_t SelSphere(blitz::TinyVector<double,3> r, double dRadius,int setIfTrue=true,int clearIfFalse=true);
+    uint64_t SelCylinder(blitz::TinyVector<double,3> dP1, blitz::TinyVector<double,3> dP2, double dRadius, int setIfTrue=true, int clearIfFalse=true);
+
+public:
+    void RsLoadIds(int sid,std::vector<uint64_t> &counts,const std::string &filename,bool bAppend=false);
+#ifdef HAVE_ROCKSTAR
+    void RsHaloLoadIds(const std::string &filename,bool bAppend=false);
+#endif
+    void RsLoadIds(const std::string &filename,bool bAppend=false);
+    void RsSaveIds(const std::string &filename);
+    void RsReorderIds();
+    void RsExtract(const char *filename_template);
 };
 #endif

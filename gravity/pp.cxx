@@ -25,248 +25,187 @@
 #include "core/simd.h"
 #include "pkd.h"
 #include "pp.h"
+#include <algorithm>
 
-extern "C"
-void pkdGravEvalPP(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINFOOUT *pOut ) {
-    fvec pax, pay, paz, pfx, pfy, pfz;
-    fvec piax, piay, piaz;
-    fvec ppot /*,pmass,p4soft2*/;
-    fvec pimaga,psmooth2,pirsum,pnorms;
+template<typename BLOCK> struct ilist::EvalBlock<ResultPP<fvec>,BLOCK> {
+    typedef ResultPP<fvec> result_type;
+    const fvec fx,fy,fz,pSmooth2,Pax,Pay,Paz,imaga;
 
-    float ax,ay,az,fPot,dirsum,normsum;
-    float dimaga;
+    EvalBlock() = default;
+    EvalBlock(fvec fx, fvec fy,fvec fz,fvec pSmooth2,fvec Pax,fvec Pay,fvec Paz,fvec imaga)
+        : fx(fx),fy(fy),fz(fz),pSmooth2(pSmooth2),Pax(Pax),Pay(Pay),Paz(Paz),imaga(imaga) {}
 
-    float fx = pPart->r[0];
-    float fy = pPart->r[1];
-    float fz = pPart->r[2];
-    float fsmooth2 = pPart->fSmooth2;
-    float *a = pPart->a;
-    int nLeft, j;
-
-    dimaga = a[0]*a[0] + a[1]*a[1] + a[2]*a[2];
-    if (dimaga > 0) {
-        dimaga = 1.0f/sqrtf(dimaga);
-    }
-    pimaga = dimaga;
-
-
-    /*
-    ** This is a little trick to speed up the calculation. By setting
-    ** unused entries in the list to have a zero mass, the resulting
-    ** forces are zero. Setting the distance to a large value avoids
-    ** softening the non-existent forces which is slightly faster.
-    */
-    for ( j = nInLast; j&fvec::mask(); j++) {
-        blk[nBlocks].dx.f[j] = blk[nBlocks].dy.f[j] = blk[nBlocks].dz.f[j] = 1e18f;
-        blk[nBlocks].m.f[j] = 0.0f;
-        blk[nBlocks].fourh2.f[j] = 1e-18f;
-    }
-
-    piax    = a[0];
-    piay    = a[1];
-    piaz    = a[2];
-    pfx     = fx;
-    pfy     = fy;
-    pfz     = fz;
-    psmooth2= fsmooth2;
-
-    pax = pay = paz = ppot = pirsum = pnorms = 0.0;
-
-    for ( nLeft=nBlocks; nLeft >= 0; --nLeft,++blk ) {
-        int n = (nLeft ? ILP_PART_PER_BLK : nInLast+fvec::mask()) >> SIMD_BITS;
-        for (j=0; j<n; ++j) {
-            fvec Idx = blk->dx.p[j];
-            fvec Idy = blk->dy.p[j];
-            fvec Idz = blk->dz.p[j];
-            fvec Im = blk->m.p[j];
-            fvec fourh2 = blk->fourh2.p[j];
-            auto result = EvalPP<fvec,fmask>(pfx,pfy,pfz,psmooth2,Idx,Idy,Idz,fourh2,Im,
-                                             piax,piay,piaz,pimaga);
-            pirsum += result.ir;
-            pnorms += result.norm;
-            ppot += result.pot;
-            pax += result.ax;
-            pay += result.ay;
-            paz += result.az;
+    result_type operator()(int n,BLOCK &blk) {
+        // Sentinal values
+        while (n&fvec::mask()) {
+            blk.dx.s[n] = blk.dy.s[n] = blk.dz.s[n] = 1e18f;
+            blk.m.s[n] = 0.0f;
+            blk.fourh2.s[n] = 1e-18f;
+            ++n;
         }
+        n /= fvec::width(); // Now number of blocks
+        result_type result;
+        result.zero();
+        for (auto i=0; i<n; ++i) {
+            result += EvalPP<fvec,fmask>(fx,fy,fz,pSmooth2,blk.dx.v[i],blk.dy.v[i],blk.dz.v[i],blk.fourh2.v[i],blk.m.v[i],Pax,Pay,Paz,imaga);
+        }
+        return result;
     }
-    ax = hadd(pax);
-    ay = hadd(pay);
-    az = hadd(paz);
-    fPot = hadd(ppot);
-    dirsum = hadd(pirsum);
-    normsum = hadd(pnorms);
+};
 
-    pOut->a[0] += ax;
-    pOut->a[1] += ay;
-    pOut->a[2] += az;
-    pOut->fPot += fPot;
-    pOut->dirsum += dirsum;
-    pOut->normsum += normsum;
+void pkdGravEvalPP(const PINFOIN &Part, ilpTile &tile,  PINFOOUT &Out ) {
+    float a2 = blitz::dot(Part.a,Part.a);
+    fvec imaga = a2 > 0.0f ? 1.0f / sqrtf(a2) : 0.0f;
+
+    ilist::EvalBlock<ResultPP<fvec>,ilpBlock> eval(
+        Part.r[0],Part.r[1],Part.r[2],Part.fSmooth2,Part.a[0],Part.a[1],Part.a[2],imaga);;
+    auto result = EvalTile(tile,eval);
+    Out.a[0] += hadd(result.ax);
+    Out.a[1] += hadd(result.ay);
+    Out.a[2] += hadd(result.az);
+    Out.fPot += hadd(result.pot);
+    Out.dirsum += hadd(result.ir);
+    Out.normsum += hadd(result.norm);
 }
 
-extern "C"
-void pkdDensityEval(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINFOOUT *pOut, SPHOptions *SPHoptions ) {
-    fvec parho, padrhodfball, panden, padndendfball, pfx, pfy, pfz, pfBall;
-    fvec pnSmooth;
+template<typename BLOCK> struct ilist::EvalBlock<ResultDensity<fvec>,BLOCK> {
+    typedef ResultDensity<fvec> result_type;
+    const fvec fx,fy,fz,fBall,iMat;
+    const SPHOptions *const SPHoptions;
 
-    float arho, adrhodfball, anden, adndendfball;
-    float anSmooth;
+    EvalBlock() = default;
+    EvalBlock(fvec fx, fvec fy,fvec fz,fvec fBall,fvec iMat,SPHOptions *SPHoptions)
+        : fx(fx),fy(fy),fz(fz),fBall(fBall),iMat(iMat),SPHoptions(SPHoptions) {}
 
-    float fx = pPart->r[0];
-    float fy = pPart->r[1];
-    float fz = pPart->r[2];
-    float fBall = pPart->fBall;
-    int nLeft, j;
-
-    /*
-    ** This is a little trick to speed up the calculation. By setting
-    ** unused entries in the list to have a zero mass, the resulting
-    ** forces are zero. Setting the distance to a large value avoids
-    ** softening the non-existent forces which is slightly faster.
-    */
-    for ( j = nInLast; j&fvec::mask(); j++) {
-        blk[nBlocks].dx.f[j] = blk[nBlocks].dy.f[j] = blk[nBlocks].dz.f[j] = 1e18f;
-        blk[nBlocks].m.f[j] = 0.0f;
-    }
-
-    pfx     = fx;
-    pfy     = fy;
-    pfz     = fz;
-    pfBall  = fBall;
-
-    parho = padrhodfball = panden = padndendfball = 0.0f;
-    pnSmooth = 0.0f;
-
-    for ( nLeft=nBlocks; nLeft >= 0; --nLeft,++blk ) {
-        int n = (nLeft ? ILP_PART_PER_BLK : nInLast+fvec::mask()) >> SIMD_BITS;
-        for (j=0; j<n; ++j) {
-            fvec Idx = blk->dx.p[j];
-            fvec Idy = blk->dy.p[j];
-            fvec Idz = blk->dz.p[j];
-            fvec Im = blk->m.p[j];
-            ResultDensity<fvec> result;
-            result = EvalDensity<fvec,fmask>(pfx,pfy,pfz,Idx,Idy,Idz,Im,pfBall,SPHoptions->kernelType);
-            parho += result.arho;
-            padrhodfball += result.adrhodfball;
-            panden += result.anden;
-            padndendfball += result.adndendfball;
-            pnSmooth += result.anSmooth;
+    result_type operator()(int n,BLOCK &blk) {
+        // Sentinal values
+        while (n&fvec::mask()) {
+            blk.dx.s[n] = blk.dy.s[n] = blk.dz.s[n] = 1e14f;
+            blk.m.s[n] = 0.0f;
+            blk.iMat.s[n] = 0.0f;
+            ++n;
         }
+        n /= fvec::width(); // Now number of blocks
+        result_type result;
+        result.zero();
+        for (auto i=0; i<n; ++i) {
+            result += EvalDensity<fvec,fmask>(fx,fy,fz,fBall,iMat,blk.dx.v[i],blk.dy.v[i],blk.dz.v[i],blk.m.v[i],blk.iMat.v[i],SPHoptions->kernelType,SPHoptions->doInterfaceCorrection);
+        }
+        return result;
     }
-    arho = hadd(parho);
-    adrhodfball = hadd(padrhodfball);
-    anden = hadd(panden);
-    adndendfball = hadd(padndendfball);
-    anSmooth = hadd(pnSmooth);
+};
 
-    pOut->rho += arho;
-    pOut->drhodfball += adrhodfball;
-    pOut->nden += anden;
-    pOut->dndendfball += adndendfball;
-    pOut->nSmooth += anSmooth;
+void pkdDensityEval(const PINFOIN &Part, ilpTile &tile,  PINFOOUT &Out, SPHOptions *SPHoptions ) {
+    ilist::EvalBlock<ResultDensity<fvec>,BlockPP<ILC_PART_PER_BLK>> eval(
+                Part.r[0],Part.r[1],Part.r[2],Part.fBall,Part.iMat,SPHoptions);
+    auto result = EvalTile(tile,eval);
+    Out.rho += hadd(result.rho);
+    Out.drhodfball += hadd(result.drhodfball);
+    Out.nden += hadd(result.nden);
+    Out.dndendfball += hadd(result.dndendfball);
+    Out.nSmooth += hadd(result.nSmooth);
+    Out.imbalanceX += hadd(result.imbalanceX);
+    Out.imbalanceY += hadd(result.imbalanceY);
+    Out.imbalanceZ += hadd(result.imbalanceZ);
 }
 
-extern "C"
-void pkdSPHForcesEval(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINFOOUT *pOut, SPHOptions *SPHoptions ) {
-    fvec t1, t2, t3, t4, t5, t6;
-    fvec PfBall, POmega, Pdx, Pdy, Pdz, Pvx, Pvy, Pvz, Prho, PP, Pc;
-    fvec IfBall, IOmega, Idx, Idy, Idz, Ivx, Ivy, Ivz, Irho, IP, Ic, Im;
-    i32v Pspecies, Ispecies;
-    fvec puDot, pax, pay, paz, pdivv, pdtEst;
-    float auDot, aax, aay, aaz, adivv, adtEst;
+template<typename BLOCK> struct ilist::EvalBlock<ResultDensityCorrection<fvec>,BLOCK> {
+    typedef ResultDensityCorrection<fvec> result_type;
+    const fvec fx,fy,fz,fBall;
+    const SPHOptions *const SPHoptions;
 
-    float fx = pPart->r[0];
-    float fy = pPart->r[1];
-    float fz = pPart->r[2];
-    float fBall = pPart->fBall;
-    float fOmega = pPart->Omega;
-    float fvx = pPart->v[0];
-    float fvy = pPart->v[1];
-    float fvz = pPart->v[2];
-    float frho = pPart->rho;
-    float fP = pPart->P;
-    float fc = pPart->c;
-    int32_t ispecies = pPart->species;
-    int nLeft, j;
+    EvalBlock() = default;
+    EvalBlock(fvec fx, fvec fy,fvec fz,fvec fBall,SPHOptions *SPHoptions)
+        : fx(fx),fy(fy),fz(fz),fBall(fBall),SPHoptions(SPHoptions) {}
 
-    /*
-    ** This is a little trick to speed up the calculation. By setting
-    ** unused entries in the list to have a zero mass, the resulting
-    ** forces are zero. Setting the distance to a large value avoids
-    ** softening the non-existent forces which is slightly faster.
-    */
-    for ( j = nInLast; j&fvec::mask(); j++) {
-        blk[nBlocks].dx.f[j] = blk[nBlocks].dy.f[j] = blk[nBlocks].dz.f[j] = 1e18f;
-        blk[nBlocks].fBall.f[j] = blk[nBlocks].Omega.f[j] = blk[nBlocks].rho.f[j] = 1e18f;
-        blk[nBlocks].vx.f[j] = blk[nBlocks].vy.f[j] = blk[nBlocks].vz.f[j] = 0.0f;
-        blk[nBlocks].m.f[j] = 0.0f;
-        blk[nBlocks].P.f[j] = 0.0f;
-        blk[nBlocks].c.f[j] = 0.0f;
+    result_type operator()(int n,BLOCK &blk) {
+        // Sentinal values
+        while (n&fvec::mask()) {
+            blk.dx.s[n] = blk.dy.s[n] = blk.dz.s[n] = 1e14f;
+            blk.T.s[n] = 0.0f;
+            blk.P.s[n] = 0.0f;
+            blk.expImb2.s[n] = 0.0f;
+            ++n;
+        }
+        n /= fvec::width(); // Now number of blocks
+        result_type result;
+        result.zero();
+        for (auto i=0; i<n; ++i) {
+            result += EvalDensityCorrection<fvec,fmask>(fx,fy,fz,fBall,blk.dx.v[i],blk.dy.v[i],blk.dz.v[i],blk.T.v[i],blk.P.v[i],blk.expImb2.v[i],SPHoptions->kernelType);
+        }
+        return result;
     }
+};
 
-    Pdx     = fx;
-    Pdy     = fy;
-    Pdz     = fz;
-    PfBall  = fBall;
-    POmega  = fOmega;
-    Pvx     = fvx;
-    Pvy     = fvy;
-    Pvz     = fvz;
-    Prho    = frho;
-    PP      = fP;
-    Pc      = fc;
-    Pspecies= ispecies;
+void pkdDensityCorrectionEval(const PINFOIN &Part, ilpTile &tile,  PINFOOUT &Out, SPHOptions *SPHoptions ) {
+    ilist::EvalBlock<ResultDensityCorrection<fvec>,BlockPP<ILC_PART_PER_BLK>> eval(
+                Part.r[0],Part.r[1],Part.r[2],Part.fBall,SPHoptions);
+    auto result = EvalTile(tile,eval);
+    Out.corrT += hadd(result.corrT);
+    Out.corrP += hadd(result.corrP);
+    Out.corr += hadd(result.corr);
+}
 
-    puDot = pax = pay = paz = pdivv = 0.0f;
-    pdtEst = HUGE_VALF;
+template<typename BLOCK> struct ilist::EvalBlock<ResultSPHForces<fvec>,BLOCK> {
+    typedef ResultSPHForces<fvec> result_type;
+    const fvec fx,fy,fz,fBall,Omega,vx,vy,vz,rho,P,c;
+    const SPHOptions *const SPHoptions;
+    EvalBlock() = default;
+    EvalBlock(fvec fx, fvec fy,fvec fz,fvec fBall,fvec Omega,fvec vx,fvec vy,fvec vz,
+              fvec rho,fvec P,fvec c,SPHOptions *SPHoptions)
+        : fx(fx),fy(fy),fz(fz),fBall(fBall),Omega(Omega),vx(vx),vy(vy),vz(vz),
+          rho(rho),P(P),c(c), SPHoptions(SPHoptions) {}
 
-    for ( nLeft=nBlocks; nLeft >= 0; --nLeft,++blk ) {
-        int n = (nLeft ? ILP_PART_PER_BLK : nInLast+fvec::mask()) >> SIMD_BITS;
-        for (j=0; j<n; ++j) {
-            fvec Idx = blk->dx.p[j];
-            fvec Idy = blk->dy.p[j];
-            fvec Idz = blk->dz.p[j];
-            fvec Im = blk->m.p[j];
-            fvec IfBall = blk->fBall.p[j];
-            fvec IOmega = blk->Omega.p[j];
-            fvec Ivx = blk->vx.p[j];
-            fvec Ivy = blk->vy.p[j];
-            fvec Ivz = blk->vz.p[j];
-            fvec Irho = blk->rho.p[j];
-            fvec IP = blk->P.p[j];
-            fvec Ic = blk->c.p[j];
-            i32v Ispecies = blk->species.p[j];
-
-            auto result = EvalSPHForces<fvec,fmask,i32v>(Pdx,Pdy,Pdz,PfBall,POmega,Pvx,Pvy,Pvz,Prho,PP,Pc,Pspecies,
-                          Idx,Idy,Idz,Im,IfBall,IOmega,Ivx,Ivy,Ivz,Irho,IP,Ic,Ispecies,
+    result_type operator()(int n,BLOCK &blk) {
+        // Sentinal values
+        while (n&fvec::mask()) {
+            // This is a little trick to speed up the calculation. By setting
+            // unused entries in the list to have a zero mass, the resulting
+            // forces are zero. Setting the distance to a large value avoids
+            // softening the non-existent forces which is slightly faster.
+            blk.dx.s[n] = blk.dy.s[n] = blk.dz.s[n] = 1e14f;
+            blk.fBall.s[n] = blk.Omega.s[n] = blk.rho.s[n] = 1.0f;
+            blk.vx.s[n] = blk.vy.s[n] = blk.vz.s[n] = 0.0f;
+            blk.m.s[n] = 0.0f;
+            blk.P.s[n] = 0.0f;
+            blk.c.s[n] = 0.0f;
+            blk.uRung.s[n] = 0.0f;
+            ++n;
+        }
+        n /= fvec::width(); // Now number of blocks
+        result_type result;
+        result.zero();
+        for (auto i=0; i<n; ++i) {
+            result += EvalSPHForces<fvec,fmask>(
+                          fx,fy,fz,fBall,Omega,vx,vy,vz,rho,P,c,
+                          blk.dx.v[i],blk.dy.v[i],blk.dz.v[i],blk.m.v[i],blk.fBall.v[i],blk.Omega.v[i],
+                          blk.vx.v[i],blk.vy.v[i],blk.vz.v[i],blk.rho.v[i],blk.P.v[i],blk.c.v[i],blk.uRung.v[i],
                           SPHoptions->kernelType,SPHoptions->epsilon,SPHoptions->alpha,SPHoptions->beta,
                           SPHoptions->EtaCourant,SPHoptions->a,SPHoptions->H,SPHoptions->useIsentropic);
-            puDot += result.uDot;
-            pax += result.ax;
-            pay += result.ay;
-            paz += result.az;
-            pdivv += result.divv;
-            pdtEst = min(pdtEst,result.dtEst);
         }
+        return result;
     }
-    auDot = hadd(puDot);
-    aax = hadd(pax);
-    aay = hadd(pay);
-    aaz = hadd(paz);
-    adivv = hadd(pdivv);
-    adtEst = HUGE_VALF;
-    // This should be a horizontal minimum for an fvec, resulting in a float containing the smallest float in the fvec
-    for (int k = 0; k < pdtEst.width(); k++) {
-        adtEst = fmin(adtEst,pdtEst[k]);
-    }
-    assert(adtEst > 0);
+};
 
-    pOut->uDot += auDot;
-    pOut->a[0] += aax;
-    pOut->a[1] += aay;
-    pOut->a[2] += aaz;
-    pOut->divv += adivv;
-    pOut->dtEst = fmin(pOut->dtEst,adtEst);
+void pkdSPHForcesEval(const PINFOIN &Part, ilpTile &tile,  PINFOOUT &Out, SPHOptions *SPHoptions ) {
+    ilist::EvalBlock<ResultSPHForces<fvec>,BlockPP<ILC_PART_PER_BLK>> eval(
+                Part.r[0],Part.r[1],Part.r[2],Part.fBall,Part.Omega,
+                Part.v[0],Part.v[1],Part.v[2],Part.rho,Part.P,Part.cs,
+                SPHoptions);
+    auto result = EvalTile(tile,eval);
+    Out.uDot += hadd(result.uDot);
+    Out.a[0] += hadd(result.ax);
+    Out.a[1] += hadd(result.ay);
+    Out.a[2] += hadd(result.az);
+    Out.divv += hadd(result.divv);
+    // This should be a horizontal minimum for an fvec, resulting in a float containing the smallest float in the fvec
+    for (int k = 0; k < result.dtEst.width(); k++) {
+        Out.dtEst = std::min(Out.dtEst,result.dtEst[k]);
+    }
+    for (int k = 0; k < result.maxRung.width(); k++) {
+        Out.maxRung = std::max(Out.maxRung,result.maxRung[k]);
+    }
+    assert(Out.dtEst > 0);
 }
+
 #endif/*USE_SIMD_PP*/

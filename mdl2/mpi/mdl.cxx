@@ -19,6 +19,10 @@
 using namespace mdl;
 
 #include <algorithm>
+#include <numeric>
+#include <cstring>
+#include <set>
+#include <queue>
 
 static inline int size_t_to_int(size_t v) {
     return (int)v;
@@ -51,11 +55,24 @@ static inline int size_t_to_int(size_t v) {
 #endif
 #ifdef __linux__
     #include <sys/resource.h>
+    #include <sys/mman.h>
+#endif
+#ifdef HAVE_NUMA
+    #include <numa.h>
 #endif
 #include "mpi.h"
-#ifdef USE_CL
-    #include "clutil.h"
-#endif
+
+template<typename T>
+MPI_Datatype mpi_type(T v) {
+    static_assert(sizeof(T)==0,"Create a specialization for this MPI datatype");
+    return MPI_DATATYPE_NULL;
+}
+template<> MPI_Datatype mpi_type(int32_t v) { return MPI_INT32_T; }
+template<> MPI_Datatype mpi_type(uint32_t v) { return MPI_UINT32_T; }
+template<> MPI_Datatype mpi_type(int64_t v) { return MPI_INT64_T; }
+template<> MPI_Datatype mpi_type(uint64_t v) { return MPI_UINT64_T; }
+
+
 #ifdef USE_ITT
     #include "ittnotify.h"
 #endif
@@ -135,9 +152,8 @@ extern "C"
 void mdlROcache(MDL mdl,int cid,
                 void *(*getElt)(void *pData,int i,int iDataSize),
                 void *pData,int iDataSize,int nData) {
-    static_cast<mdlClass *>(mdl)->CacheInitialize(cid,getElt,pData,iDataSize,nData,
+    static_cast<mdlClass *>(mdl)->CacheInitialize(cid,getElt,pData,nData,
             std::make_shared<CACHEhelper>(iDataSize));
-//    static_cast<mdlClass *>(mdl)->CacheInitialize(cid,getElt,pData,iDataSize,nData,NULL,NULL,NULL);
 }
 
 // This opens a combiner (read/write) cache. Called from a worker outside of MDL
@@ -148,18 +164,22 @@ void mdlCOcache(MDL mdl,int cid,
                 void *ctx,void (*init)(void *,void *),void (*combine)(void *,void *,const void *)) {
     assert(init);
     assert(combine);
-    static_cast<mdlClass *>(mdl)->CacheInitialize(cid,getElt,pData,iDataSize,nData,
+    static_cast<mdlClass *>(mdl)->CacheInitialize(cid,getElt,pData,nData,
             std::make_shared<legacyCACHEhelper>(iDataSize,ctx,init,combine));
-//    static_cast<mdlClass *>(mdl)->CacheInitialize(cid,getElt,pData,iDataSize,nData,ctx,init,combine);
+}
+
+CACHE *mdlClass::CacheInitialize(int cid,
+                                 void *(*getElt)(void *pData,int i,int iDataSize),
+                                 void *pData,int nData,int iDataSize) {
+    return CacheInitialize(cid,getElt,pData,nData,std::make_shared<CACHEhelper>(iDataSize));
 }
 
 // Cache creation is a collective operation (all worker threads participate): call the initialize() member to set it up.
 CACHE *mdlClass::CacheInitialize(
     int cid,
     void *(*getElt)(void *pData,int i,int iDataSize),
-    void *pData,int iDataSize,int nData,
+    void *pData,int nData,
     std::shared_ptr<CACHEhelper> helper) {
-//    void *ctx,void (*init)(void *,void *),void (*combine)(void *,void *,const void *)) {
 
     // We cannot reallocate this structure because there may be other threads accessing it.
     // This might be safe to do with an appropriate barrier, but it would shuffle CACHE objects.
@@ -168,8 +188,7 @@ CACHE *mdlClass::CacheInitialize(
     if (cid<0 || cid >= cache.size()) abort();
 
     auto c = cache[cid].get();
-//    c->initialize(cacheSize,getElt,pData,iDataSize,nData,ctx,init,combine);
-    c->initialize(cacheSize,getElt,pData,iDataSize,nData,helper);
+    c->initialize(cacheSize,getElt,pData,nData,helper);
 
     /* Nobody should start using this cache until all threads have started it! */
     ThreadBarrier(true);
@@ -178,6 +197,85 @@ CACHE *mdlClass::CacheInitialize(
     enqueueAndWait(mdlMessageCacheOpen());
 
     return (c);
+}
+
+class packedCACHEhelperRO : public CACHEhelper {
+protected:
+    uint32_t nPack;
+    void *ctx;
+    void (*pack_function)   (void *,void *,const void *);
+    void (*unpack_function) (void *,void *,const void *);
+
+    virtual void   pack(void *dst, const void *src)                  override { (*pack_function)(ctx,dst,src); }
+    virtual void unpack(void *dst, const void *src, const void *key) override { (*unpack_function)(ctx,dst,src); }
+    virtual uint32_t pack_size() override {return nPack;}
+
+public:
+    explicit packedCACHEhelperRO(uint32_t nData,void *ctx,
+                                 uint32_t pack_size,
+                                 void (*pack_function)   (void *,void *,const void *),
+                                 void (*unpack_function) (void *,void *,const void *))
+        : CACHEhelper(nData,false),nPack(pack_size),ctx(ctx),
+          pack_function(pack_function),unpack_function(unpack_function) {}
+};
+
+void mdlPackedCacheRO(MDL mdl,int cid,
+                      void *(*getElt)(void *pData,int i,int iDataSize),
+                      void *pData,int nData,uint32_t iDataSize,
+                      void *ctx,uint32_t iPackSize,
+                      void (*pack)   (void *,void *,const void *),
+                      void (*unpack) (void *,void *,const void *)) {
+    static_cast<mdlClass *>(mdl)->CacheInitialize(cid,getElt,pData,nData,
+            std::make_shared<packedCACHEhelperRO>(iDataSize,ctx,iPackSize,
+                    pack,unpack));
+}
+
+class packedCACHEhelperCO : public CACHEhelper {
+protected:
+    uint32_t nPack, nFlush;
+    void *ctx;
+    void (*pack_function)   (void *,void *,const void *);
+    void (*unpack_function) (void *,void *,const void *);
+    void (*init_function)   (void *,void *);
+    void (*flush_function)  (void *,void *,const void *);
+    void (*combine_function)(void *,void *,const void *);
+
+    virtual void    pack(void *dst, const void *src)                  override { (*pack_function)(ctx,dst,src); }
+    virtual void  unpack(void *dst, const void *src, const void *key) override { (*unpack_function)(ctx,dst,src); }
+    virtual void    init(void *dst)                                   override { (*init_function)(ctx,dst); }
+    virtual void   flush(void *dst, const void *src)                  override { (*flush_function)(ctx,dst,src); }
+    virtual void combine(void *dst, const void *src, const void *key) override { (*combine_function)(ctx,dst,src); }
+    virtual uint32_t pack_size()  override {return nPack;}
+    virtual uint32_t flush_size() override {return nFlush;}
+
+public:
+    explicit packedCACHEhelperCO(uint32_t nData,void *ctx,
+                                 uint32_t pack_size,
+                                 void (*pack_function)   (void *,void *,const void *),
+                                 void (*unpack_function) (void *,void *,const void *),
+                                 void (*init_function)   (void *,void *),
+                                 uint32_t flush_size,
+                                 void (*flush_function)  (void *,void *,const void *),
+                                 void (*combine_function)(void *,void *,const void *))
+        : CACHEhelper(nData,true),nPack(pack_size),nFlush(flush_size),ctx(ctx),
+          pack_function(pack_function),unpack_function(unpack_function),
+          init_function(init_function),flush_function(flush_function),
+          combine_function(combine_function) {}
+};
+
+void mdlPackedCacheCO(MDL mdl,int cid,
+                      void *(*getElt)(void *pData,int i,int iDataSize),
+                      void *pData,int nData,uint32_t iDataSize,
+                      void *ctx,uint32_t iPackSize,
+                      void (*pack)   (void *,void *,const void *),
+                      void (*unpack) (void *,void *,const void *),
+                      uint32_t iFlushSize,
+                      void (*init)   (void *,void *),
+                      void (*flush)  (void *,void *,const void *),
+                      void (*combine)(void *,void *,const void *)) {
+    static_cast<mdlClass *>(mdl)->CacheInitialize(cid,getElt,pData,nData,
+            std::make_shared<packedCACHEhelperCO>(iDataSize,ctx,iPackSize,
+                    pack,unpack,init,iFlushSize,flush,combine));
 }
 
 class advancedCACHEhelper : public CACHEhelper {
@@ -273,31 +371,40 @@ CACHE *mdlClass::AdvancedCacheInitialize(int cid,hash::GHASH *hash,int iDataSize
 // and creates a MPI_Request on the SendReceiveRequests list.
 // This is returned and used by an MPI route (e.g., MPI_Isend).
 // When complete message->finish() will be called (see finishRequests).
-MPI_Request *mpiClass::newRequest(mdlMessageMPI *message) {
+MPI_Request *mpiClass::newRequest(mdlMessageMPI *message,MPI_Request request) {
 #ifndef NDEBUG
     ++nRequestsCreated;
 #endif
-    // It is common for a message to post another MPI message. We just reuse
-    // the existing slot in this case.
-    if (iLastMessage >= 0) {
-        auto i = iLastMessage;
-        iLastMessage = -1;
+    if (SendReceiveAvailable.size()) {
+        auto i = SendReceiveAvailable.back();
+        SendReceiveAvailable.pop_back();
+        assert(SendReceiveMessages[i]==nullptr);
+        assert(SendReceiveRequests[i]==MPI_REQUEST_NULL);
+        assert(i<SendReceiveMessages.size());
+        assert(i<SendReceiveRequests.size());
         SendReceiveMessages[i] = message;
+        SendReceiveRequests[i] = request;
         return &SendReceiveRequests[i];
     }
     else {
-        SendReceiveRequests.emplace_back();
         SendReceiveMessages.push_back(message);
+        SendReceiveRequests.push_back(request);
         return &SendReceiveRequests.back();
     }
-    return &SendReceiveRequests.back();
 }
 
 // Open the cache by posting the receive if required
 void mpiClass::MessageCacheOpen(mdlMessageCacheOpen *message) {
     if (nOpenCaches==0) {
-        for (auto i=listCacheReceive.begin(); i!=listCacheReceive.end(); ++i)
-            (*i)->action(this);
+        msgCacheReceive->action(this);
+        countCacheInflight.resize(Procs(),0);
+        PendingRequests.set_capacity(Threads()); // This is very conservative, but uses some memory
+#ifdef DEBUG_COUNT_CACHE
+        countCacheSend.resize(Procs());
+        countCacheRecv.resize(Procs());
+        std::fill(countCacheSend.begin(),countCacheSend.end(),0);
+        std::fill(countCacheRecv.begin(),countCacheRecv.end(),0);
+#endif
     }
     ++nOpenCaches;
     message->sendBack();
@@ -305,30 +412,60 @@ void mpiClass::MessageCacheOpen(mdlMessageCacheOpen *message) {
 
 // Post the recieve. Receive will continue to be reposted as message are recieved.
 void mpiClass::MessageCacheReceive(mdlMessageCacheReceive *message) {
-    MPI_Irecv(message->getBuffer(),iCacheBufSize, MPI_BYTE, MPI_ANY_SOURCE,
-              MDL_TAG_CACHECOM, commMDL, newRequest(message));
+    auto request = newRequest(message);
+    MPI_Recv_init(message->getBuffer(),iCacheBufSize, MPI_BYTE, MPI_ANY_SOURCE,
+                  MDL_TAG_CACHECOM, commMDL, request);
+    MPI_Start(request);
 }
 
 // Called when the receive finishes. Decode the type of message and process it,
 // then restart the receive.
-void mpiClass::FinishCacheReceive(mdlMessageCacheReceive *message, int bytes, int source, int cancelled) {
-    if (cancelled) return;
+void mpiClass::FinishCacheReceive(mdlMessageCacheReceive *message, MPI_Request request, MPI_Status status) {
+    int bytes, source, cancelled;
+    assert(message);
+    MPI_Test_cancelled(&status,&cancelled);
+    if (cancelled) {
+        MPI_Request_free(&request);
+        assert(request==MPI_REQUEST_NULL);
+        return;
+    }
+    MPI_Get_count(&status, MPI_BYTE, &bytes);
+    source = status.MPI_SOURCE;
+    assert(source!=Proc());
 
     CacheHeader *ph = reinterpret_cast<CacheHeader *>(message->getBuffer());
-    //int iRankFrom = status.MPI_SOURCE;
+#ifdef DEBUG_COUNT_CACHE
+    if (ph->sequence!=countCacheRecv[source]) {
+        printf("MISMATCH: %d -> %d: sequence %llu expected %llu\n",source,Proc(),ph->sequence,countCacheRecv[source]);
+    }
+    assert(ph->sequence==countCacheRecv[source]);
+    ++countCacheRecv[source];
+#endif
 
     /* Well, could be any threads cache */
     int iCore = ph->idTo - Self();
     assert(iCore>=0 && iCore<Cores());
 
-    switch (ph->mid) {
-    case CacheMessageType::REQUEST: CacheReceiveRequest(bytes,ph); break;
-    case CacheMessageType::FLUSH:   CacheReceiveFlush(bytes,ph);  break;
-    case CacheMessageType::REPLY:   CacheReceiveReply(bytes,ph);  break;
-    default:
-        assert(0);
+    CacheReceive(bytes,ph,source);
+    MPI_Start(newRequest(message,request));
+}
+
+void mpiClass::CacheReceive(int bytes, CacheHeader *ph, int iProcFrom) {
+    // This message can consist of a list of any of the three, so process them individually
+    while (bytes) {
+        int consumed;
+        switch (ph->mid) {
+        case CacheMessageType::REQUEST: consumed = CacheReceiveRequest(bytes,ph,iProcFrom); break;
+        case CacheMessageType::FLUSH:   consumed = CacheReceiveFlush(bytes,ph,iProcFrom);  break;
+        case CacheMessageType::REPLY:   consumed = CacheReceiveReply(bytes,ph,iProcFrom);  break;
+        default:
+            assert(0);
+        }
+        assert(consumed <= bytes);
+        bytes -= consumed;
+        ph = reinterpret_cast<CacheHeader *>(reinterpret_cast<char *>(ph)+consumed);
     }
-    MessageCacheReceive(message); // Restart the receive
+    expedite_flush(iProcFrom);
 }
 
 /*
@@ -343,7 +480,7 @@ void *CACHE::getArrayElement(void *vData,int i,int iDataSize) {
 // This records the callback information, and updates the ARC cache to match (if necessary)
 void CACHE::initialize(uint32_t cacheSize,
                        void *(*getElt)(void *pData,int i,int iDataSize),
-                       void *pData,int iDataSize,int nData,
+                       void *pData,int nData,
                        std::shared_ptr<CACHEhelper> helper) {
 
     assert(!cache_helper);
@@ -351,7 +488,7 @@ void CACHE::initialize(uint32_t cacheSize,
     this->getElt = getElt==NULL ? getArrayElement : getElt;
     this->pData = pData;
     this->nData = nData;
-    this->iDataSize = iDataSize;
+    this->iDataSize = helper->data_size();
     this->cache_helper = helper;
 
     if (iDataSize > MDL_CACHE_DATA_SIZE) nLineBits = 0;
@@ -534,80 +671,172 @@ void mpiClass::MessageCacheRequest(mdlMessageCacheRequest *message) {
     assert(CacheRequestMessages[iCoreFrom]==nullptr);
     CacheRequestMessages[iCoreFrom] = message;
     assert(message->pLine);
-    iProc = ThreadToProc(message->header.idTo);
-    MPI_Isend(&message->header,sizeof(message->header)+message->key_size,MPI_BYTE,iProc,MDL_TAG_CACHECOM, commMDL,newRequest(message));
+    int iProc = ThreadToProc(message->header.idTo);
+    message->setRankTo(iProc);
+    assert(iProc!=Proc());
+    if (iCacheMaxInflight) {
+        // Cache requests are added to the cache flush buffer, but are expedited
+        flush_element(&message->header,message->key_size);
+        expedite_flush(iProc);
+    }
+    else {
+        CacheRequestRendezvous[iCoreFrom] = true; // The REQUEST and RESPONSE need to Rendezvous
+        ++countCacheInflight[iProc];
+#ifdef DEBUG_COUNT_CACHE
+        message->header.sequence = countCacheSend[iProc]++;
+#endif
+        MPI_Isend(&message->header,sizeof(message->header)+message->key_size,MPI_BYTE,iProc,MDL_TAG_CACHECOM, commMDL,newRequest(message));
+    }
+}
+
+// Normally, when an MPI request finishes, we send it back to the requesting thread. The process is
+// different for cache requests. We do nothing because the result is actually sent back, not the request.
+// You would think that the "request" MPI send would complete before the response message is received,
+// but this is NOT ALWAYS THE CASE. What we do is to rendezvous with the REPLY message. If this SEND completes
+// before the the REPLY message is received (actually before it is processed), then it will clear the
+// rendezvous flag. If the flag is clear here then we send back the request (with response data).
+void mpiClass::FinishCacheRequest(mdlMessageCacheRequest *message, MPI_Request request, MPI_Status status) {
+    int iProc = message->getRankTo();
+    assert(iProc!=Proc());
+    --countCacheInflight[iProc];
+    int iCore = message->header.idFrom - Self();
+    assert(iCore>=0 && iCore<Cores());
+    if (CacheRequestRendezvous[iCore]) CacheRequestRendezvous[iCore] = false;
+    else {
+        CacheRequestMessages[iCore]->sendBack();
+        CacheRequestMessages[iCore] = NULL;
+    }
+    expedite_flush(iProc);
+}
+
+void mpiClass::BufferCacheResponse(FlushBuffer *flush,BufferedCacheRequest &request) {
+    int iCore = request.header.idTo - Self();
+    assert(iCore>=0 && iCore<Cores());
+    auto c = pmdl[iCore]->cache[request.header.cid].get();
+    assert(c->isActive());
+    auto key_size = c->key_size();
+
+    auto pack_size = c->cache_helper->pack_size();
+    assert(pack_size <= MDL_CACHE_DATA_SIZE);
+
+    if (key_size) { // ADVANCED KEY
+        flush->addBuffer(CacheMessageType::REPLY,request.header.cid,Self(),request.header.idFrom,request.header.iLine,request.data?1:0);
+        if (request.data) c->cache_helper->pack(flush->getBuffer(pack_size),request.data);
+    }
+    else { // SIMPLE KEY
+        int s = request.header.iLine << c->nLineBits;
+        int n = s + c->getLineElementCount();
+        flush->addBuffer(CacheMessageType::REPLY,request.header.cid,Self(),request.header.idFrom,request.header.iLine);
+        for (auto i=s; i<n; i++ ) {
+            auto buffer = flush->getBuffer(pack_size);
+            if (i<c->nData) {
+                auto p = c->ReadLock(i);
+                c->cache_helper->pack(buffer,p);
+                c->ReadUnlock(p);
+            }
+            else memset(buffer,0,pack_size);
+        }
+    }
+
 }
 
 // On the remote node, the message is received, and a response is constructed with the data
 // pulled directly from thread's cache. This is read-only, so is safe. It is forbidden in MDL
 // to remotely "read" part of an element that is also being modified. Results are "unpredictable".
 // Instead, one is expected to initialize such data via the "init" function.
-void mpiClass::CacheReceiveRequest(int count, const CacheHeader *ph) {
+int mpiClass::CacheReceiveRequest(int count, CacheHeader *ph, int iProcFrom) {
     assert( count >= sizeof(CacheHeader) );
-    auto key_size = count - sizeof(CacheHeader);
+    assert( ph->mid == CacheMessageType::REQUEST );
     int iCore = ph->idTo - Self();
     assert(iCore>=0 && iCore<Cores());
-    int iRankFrom = ThreadToProc(ph->idFrom); /* Can use iRankFrom */
-    mdlMessageCacheReply *reply;
-    if (freeCacheReplies.empty()) reply = new mdlMessageCacheReply(iReplyBufSize);
-    else { reply=freeCacheReplies.front(); freeCacheReplies.pop_front(); }
-    reply->emptyBuffer();
-    reply->setRankTo(iRankFrom);
-    reply->addBuffer(ph->cid,Self(),ph->idFrom,ph->iLine);
     auto c = pmdl[iCore]->cache[ph->cid].get();
+    assert(c->isActive());
+    auto key_size = c->key_size();
     auto pack_size = c->cache_helper->pack_size();
     assert(pack_size <= MDL_CACHE_DATA_SIZE);
+
+    // Find the data in the advanced cache if appropriate
+    const void *data;
     if (key_size) { // ADVANCED KEY
         assert(c->hash_table);
-        const void *data = c->hash_table->lookup(ph->iLine,ph+1);
-        if (data) c->cache_helper->pack(reply->getBuffer(pack_size),data);
+        assert(c->getLineElementCount()==1);
+        data = c->hash_table->lookup(ph->iLine,ph+1);
     }
-    else { // SIMPLE KEY
-        int s = ph->iLine << c->nLineBits;
-        int n = s + c->getLineElementCount();
-        for (auto i=s; i<n; i++ ) {
-            auto p = c->ReadLock(i);
-            char *t = (i<c->nData) ? static_cast<char *>(p) : NULL;
-            c->cache_helper->pack(reply->getBuffer(pack_size),t);
-            c->ReadUnlock(p);
+    else data = nullptr;
+    BufferedCacheRequest request(ph,data);
+    // Figure out which flush buffer to use
+    mdlMessageCacheReply *reply;
+    FlushBuffer *flush;
+    int iSize = sizeof(CacheHeader) + pack_size*c->getLineElementCount(); // Maximum needed for response
+    if (iCacheMaxInflight==0) {
+        if (freeCacheReplies.empty()) reply = new mdlMessageCacheReply(iReplyBufSize);
+        else { reply=freeCacheReplies.front(); freeCacheReplies.pop_front(); }
+        reply->emptyBuffer();
+        reply->setRankTo(iProcFrom);
+        flush = reply;
+    }
+    else {
+        reply = nullptr;
+        flush = get_flush_buffer(iProcFrom,iSize,false);
+        if (flush==nullptr) {
+            PendingRequests.push_back(request);
+            return sizeof(CacheHeader) + key_size;
         }
     }
-    reply->action(this); // MessageCacheReply()
+    BufferCacheResponse(flush,request);
+    if (reply) reply->action(this); // MessageCacheReply()
+    return sizeof(CacheHeader) + key_size;
 }
 
 // The reply message is sent back to the origin node, and added to the MPI request tracker.
 // This is the "action" routine.
 void mpiClass::MessageCacheReply(mdlMessageCacheReply *pFlush) {
-    MPI_Issend(pFlush->getBuffer(),pFlush->getCount(),MPI_BYTE,pFlush->getRankTo(),
+    auto iProc = pFlush->getRankTo();
+    ++countCacheInflight[iProc];
+#ifdef DEBUG_COUNT_CACHE
+    auto header = reinterpret_cast<CacheHeader *>(pFlush->getBuffer());
+    header->sequence = countCacheSend[iProc]++;
+#endif
+    assert(iProc!=Proc());
+    MPI_Issend(pFlush->getBuffer(),pFlush->getCount(),MPI_BYTE,iProc,
                MDL_TAG_CACHECOM,commMDL,newRequest(pFlush));
 }
 
 // When the send finishes, the buffer is added back to the list of free reply buffers
 void mpiClass::FinishCacheReply(mdlMessageCacheReply *pFlush) {
+    auto iProc = pFlush->getRankTo();
     freeCacheReplies.push_front(pFlush);
+    --countCacheInflight[iProc];
+    expedite_flush(iProc);
 }
 
 // On the requesting node, the data is copied back to the request, and the message
 // is queued back to the requesting thread. It will continue with the result.
-void mpiClass::CacheReceiveReply(int count, const CacheHeader *ph) {
+// If the REQUEST send for this data is not complete, then we do not send back the
+// result, rather we wait to rendezvous with the MPI_Isend completion.
+int mpiClass::CacheReceiveReply(int count, CacheHeader *ph, int iProcFrom) {
+    assert( count >= sizeof(CacheHeader) );
+    assert( ph->mid == CacheMessageType::REPLY );
     int iCore = ph->idTo - Self();
     assert(iCore>=0 && iCore<Cores());
     auto c = pmdl[iCore]->cache[ph->cid].get();
+    assert(c->isActive());
     auto pack_size = c->cache_helper->pack_size();
     assert(pack_size <= MDL_CACHE_DATA_SIZE);
     int iLineSize = c->getLineElementCount() * pack_size;
-    assert( count == sizeof(CacheHeader) + iLineSize || count == sizeof(CacheHeader));
+    //assert( count == sizeof(CacheHeader) + iLineSize || count == sizeof(CacheHeader));
     if (CacheRequestMessages[iCore]) { // This better be true (unless we implement prefetch)
         mdlMessageCacheRequest *pRequest = CacheRequestMessages[iCore];
-        CacheRequestMessages[iCore] = NULL;
         assert(pRequest->pLine);
-        if (count == sizeof(CacheHeader) + iLineSize) {
-            pRequest->header.nItems = ph->nItems;
-            memcpy(pRequest->pLine,ph+1,iLineSize);
+        pRequest->header.nItems = ph->nItems;
+        memcpy(pRequest->pLine,ph+1,ph->nItems*iLineSize);
+        if (CacheRequestRendezvous[iCore]) CacheRequestRendezvous[iCore] = false;
+        else {
+            CacheRequestMessages[iCore]->sendBack();
+            CacheRequestMessages[iCore] = NULL;
         }
-        else pRequest->header.nItems = 0;
-        pRequest->sendBack();
     }
+    return sizeof(CacheHeader) + ph->nItems * iLineSize;
 }
 
 // Later when we have found an empty cache element, this is called to wait for the result
@@ -646,9 +875,8 @@ void *mdlClass::finishCacheRequest(int cid,uint32_t uLine, uint32_t uId, uint32_
             if ( n > oc->nData ) n = oc->nData;
             auto pData = static_cast<char *>(data);
             for (auto i=s; i<n; i++ ) {
-                //FIXME: not unpack!
                 auto p = oc->ReadLock(i);
-                c->cache_helper->unpack(pData,p,pKey);
+                memcpy(pData,p,oc->iDataSize);
                 oc->ReadUnlock(p);
                 pData += oc->iDataSize;
             }
@@ -723,10 +951,64 @@ void mpiClass::MessageFlushFromCore(mdlMessageFlushFromCore *pFlush) {
     pFlush->sendBack();
 }
 
-// This takes a single flush element and adds it to the correct buffer for
-// the destination rank.
-void mpiClass::flush_element(CacheHeader *pHdr,int iSize) {
-    int iProc = ThreadToProc(pHdr->idTo);
+// If there is a pending flush, and it has been expedited, then send it
+void mpiClass::expedite_flush(int iProc) {
+    std::set<int> ready;
+    // Request messages are expedited if the number of cache messages inflight to this rank
+    // falls below a certain threshold. Otherwise multiple REQUEST messages are batched.
+    if (iCacheMaxInflight) {
+        auto iFlush = flushBuffersByRank[iProc];
+        // Always expedite REPLY messages to avoid deadlock situations
+        if (iFlush != flushHeadBusy.end()) {
+            auto pFlush = *iFlush;
+            if (pFlush->contains(CacheMessageType::REPLY)) {
+                ready.emplace(iProc);
+            }
+        }
+        // Expedite REQUEST message if they meet the criteria
+        if (countCacheInflight[iProc]<iCacheMaxInflight) {
+            if (iFlush != flushHeadBusy.end()) {
+                auto pFlush = *iFlush;
+                if (pFlush->contains(CacheMessageType::REQUEST)) {
+                    ready.emplace(iProc);
+                }
+            }
+        }
+    }
+    // Try to process as many deferred requests as we can
+    while (!PendingRequests.empty()) {
+        auto &hdr = PendingRequests.front().header;
+        iProc = ThreadToProc(hdr.idFrom);
+
+        int iCore = hdr.idTo - Self();
+        assert(iCore>=0 && iCore<Cores());
+        auto c = pmdl[iCore]->cache[hdr.cid].get();
+        assert(c->isActive());
+        auto pack_size = c->cache_helper->pack_size();
+        assert(pack_size <= MDL_CACHE_DATA_SIZE);
+        int iSize = sizeof(CacheHeader) + pack_size*c->getLineElementCount(); // Maximum needed for response
+
+        auto flush = get_flush_buffer(iProc,iSize,false);
+        if (!flush) break;
+        BufferCacheResponse(flush,PendingRequests.front());
+        PendingRequests.pop_front();
+        ready.emplace(iProc);
+    }
+    // Now send the flush buffers that we marked above
+    for (auto i : ready) {
+        auto iFlush = flushBuffersByRank[i];
+        // We do need to check this because we could have flushed a buffer and had no free buffers
+        if (iFlush != flushHeadBusy.end()) {
+            auto pFlush = *iFlush;
+            flushHeadBusy.erase(iFlush);
+            flushBuffersByRank[iProc] = flushHeadBusy.end();
+            pFlush->action(this);
+        }
+    }
+
+}
+
+mdlMessageFlushToRank *mpiClass::get_flush_buffer(int iProc,int iSize,bool bWait) {
     auto iFlush = flushBuffersByRank[iProc];
     mdlMessageFlushToRank *pFlush;
     // If the current buffer is full, then send it and remove it from "busy".
@@ -742,68 +1024,95 @@ void mpiClass::flush_element(CacheHeader *pHdr,int iSize) {
     }
     else pFlush = NULL; // We need a buffer
     if (pFlush==NULL) {
-        if (flushBuffCount - flushHeadBusy.size() < 10) { // Keep 10 free or in flight
+        if (flushBuffCount - flushHeadBusy.size() < flushBuffCount/5) { // Keep 20% free or in flight
             pFlush = flushHeadBusy.back(); // Remove LRU element
             flushHeadBusy.pop_back();
             flushBuffersByRank[pFlush->getRankTo()] = flushHeadBusy.end();
             pFlush->action(this);
         }
-        while (flushHeadFree.empty()) { // Wait for a buffer to become available
-            finishRequests();
-            yield();
+        if (flushHeadFree.empty()) {
+            if (!bWait) return nullptr;
+            do {
+                finishRequests();
+                yield();
+            } while (flushHeadFree.empty());
         }
         pFlush = flushHeadFree.front();
         flushHeadFree.pop_front();
         pFlush->setRankTo(iProc);
         pFlush->emptyBuffer();
     }
+    assert(pFlush->canBuffer(iSize));
     flushHeadBusy.push_front(pFlush); // Front = most recently used
     flushBuffersByRank[iProc] = flushHeadBusy.begin();
+    return pFlush;
+}
+
+// This takes a single flush element and adds it to the correct buffer for
+// the destination rank.
+void mpiClass::flush_element(CacheHeader *pHdr,int iSize) {
+    int iProc = ThreadToProc(pHdr->idTo);
+    auto pFlush = get_flush_buffer(iProc,iSize);
     pFlush->addBuffer(iSize,pHdr);
 }
 
 // Called to flush a buffer full of cache data to a particular rank
 void mpiClass::MessageFlushToRank(mdlMessageFlushToRank *pFlush) {
+    auto iProc = pFlush->getRankTo();
+    ++countCacheInflight[iProc];
     if (pFlush->getCount()>0) {
-        MPI_Issend(pFlush->getBuffer(),pFlush->getCount(),MPI_BYTE,pFlush->getRankTo(),
-                   MDL_TAG_CACHECOM,commMDL,newRequest(pFlush));
+        if (iProc==Proc()) {
+            CacheHeader *ph = reinterpret_cast<CacheHeader *>(pFlush->getBuffer());
+            CacheReceive(pFlush->getCount(),ph,iProc);
+            FinishFlushToRank(pFlush);
+        }
+        else {
+#ifdef DEBUG_COUNT_CACHE
+            auto header = reinterpret_cast<CacheHeader *>(pFlush->getBuffer());
+            header->sequence = countCacheSend[iProc]++;
+#endif
+            assert(iProc!=Proc());
+            MPI_Issend(pFlush->getBuffer(),pFlush->getCount(),MPI_BYTE,iProc,
+                       MDL_TAG_CACHECOM,commMDL,newRequest(pFlush));
+        }
     }
     else FinishFlushToRank(pFlush);
 }
 
 // When the send is done, add this back to the free list.
 void mpiClass::FinishFlushToRank(mdlMessageFlushToRank *pFlush) {
+    auto iProc = pFlush->getRankTo();
     flushHeadFree.push_front(pFlush);
+    --countCacheInflight[iProc];
+    expedite_flush(iProc);
 }
 
 // Here we receive the flush buffer from a remote node. We have to split it
 // apart by target thread by calling queue_local_flush() for each element.
-void mpiClass::CacheReceiveFlush(int count, CacheHeader *ph) {
-    while (count>0) {
-        assert(count > sizeof(CacheHeader));
-        char *pszRcv = (char *)(ph+1);
-        int iCore = ph->idTo - Self();
-        auto c = pmdl[iCore]->cache[ph->cid].get();
-        assert(c->modify());
-        auto key_size = c->key_size();
-        auto iLineSize = c->getLineElementCount() * c->cache_helper->flush_size();
-        if (key_size==0) {
-            assert(c->iLineSize==iLineSize);
-            int iIndex = ph->iLine << c->nLineBits;
-            while (iIndex >= c->nData) {
-                iIndex -= c->nData;
-                assert(iCore+1<Cores());
-                c = pmdl[++iCore]->cache[ph->cid].get();
-            }
-            ph->iLine = iIndex >> c->nLineBits;
+int mpiClass::CacheReceiveFlush(int count, CacheHeader *ph, int iProcFrom) {
+    assert( count >= sizeof(CacheHeader) );
+    assert( ph->mid == CacheMessageType::FLUSH );
+    bookkeeping();
+    int iCore = ph->idTo - Self();
+    auto c = pmdl[iCore]->cache[ph->cid].get();
+    assert(c->isActive());
+    assert(c->modify());
+    auto key_size = c->key_size();
+    auto iLineSize = c->getLineElementCount() * c->cache_helper->flush_size();
+    if (key_size==0) {
+        // For some operations (e.g., grid assignment), we use core 0 and an index into the process.
+        // Here we convert this to the correct index and core, updating iLine and iCore
+        int iIndex = ph->iLine << c->nLineBits;
+        while (iIndex >= c->nData) {
+            iIndex -= c->nData;
+            assert(iCore+1<Cores());
+            c = pmdl[++iCore]->cache[ph->cid].get();
         }
-        ph->idTo = iCore;
-        queue_local_flush(ph);
-        pszRcv += iLineSize + key_size;
-        ph = (CacheHeader *)(pszRcv);
-        count -= sizeof(CacheHeader) + iLineSize + key_size;
+        ph->iLine = iIndex >> c->nLineBits;
     }
-    assert(count==0);
+    ph->idTo = iCore;
+    queue_local_flush(ph);
+    return sizeof(CacheHeader) + iLineSize + key_size;
 }
 
 // Send a buffer to a local thread
@@ -859,7 +1168,7 @@ void mdlClass::MessageFlushToCore(mdlMessageFlushToCore *pFlush) {
                     c->cache_helper->combine(p,pData,nullptr);
                     c->WriteUnlock(p);
                 }
-                pData += c->iDataSize;
+                pData += c->cache_helper->flush_size();
             }
         }
         count -= sizeof(CacheHeader) + iLineSize + key_size;
@@ -892,7 +1201,6 @@ void mdlClass::FlushCache(int cid) {
     auto c = cache[cid].get();
 
     TimeAddComputing();
-    wqAccepting = 1;
     c->clear();
     flush_core_buffer();
     ThreadBarrier();
@@ -905,7 +1213,6 @@ void mdlClass::FlushCache(int cid) {
         enqueueAndWait(mdlMessageCacheFlushLocal());
     }
     ThreadBarrier();
-    wqAccepting = 0;
     TimeAddSynchronizing();
 }
 
@@ -939,12 +1246,10 @@ void mdlClass::FinishCache(int cid) {
     auto c = cache[cid].get();
 
     TimeAddComputing();
-    wqAccepting = 1;
     FlushCache(cid);
     enqueueAndWait(mdlMessageCacheClose());
     ThreadBarrier();
     c->close();
-    wqAccepting = 0;
     TimeAddSynchronizing();
 }
 
@@ -953,12 +1258,31 @@ void mpiClass::MessageCacheClose(mdlMessageCacheClose *message) {
     assert(nOpenCaches > 0);
     --nOpenCaches;
     if (nOpenCaches == 0) {
+        // Make sure that there are no cache message inflight at this point; that would potentially be bad.
+        assert(std::all_of(countCacheInflight.begin(), countCacheInflight.end(), [](int i) { return i==0; }));
+#ifdef DEBUG_COUNT_CACHE
+        std::vector<uint64_t> countRecvExpected(Procs());
+        MPI_Alltoall(countCacheSend.data(),1,MPI_UINT64_T,countRecvExpected.data(),1,MPI_UINT64_T,commMDL);
+        bool bBAD = false;
+        for (auto i=0; i<Procs(); ++i) {
+            if (countCacheRecv[i] != countRecvExpected[i]) {
+                printf("Rank %d received %" PRIu64 " from rank %d but expected %" PRIu64 "\n",
+                       Proc(), countCacheRecv[i], i, countRecvExpected[i]);
+                bBAD = true;
+            }
+        }
+        if (bBAD) {fflush(stdout); sleep(1); MPI_Abort(commMDL,1); }
+#endif
         for (auto i=SendReceiveMessages.begin(); i!=SendReceiveMessages.end(); ++i) {
             if (dynamic_cast<mdlMessageCacheReceive *>(*i) != nullptr)
                 MPI_Cancel(&SendReceiveRequests[i-SendReceiveMessages.begin()]);
         }
     }
     message->sendBack();
+}
+
+void mdlClass::SetCacheMaxInflight(int iMax) {
+    if (Core()==0) mpi->SetCacheMaxInflight(iMax);
 }
 
 /*****************************************************************************\
@@ -979,113 +1303,328 @@ void mpiClass::pthreadBarrierWait() {
     pthread_barrier_wait(&barrier);
 }
 
-/*
-** Perform a global swap: effectively a specialized in-place alltoallv
-** - data to be sent starts at "buffer" and send items are contiguous and in order by target
-** - total size of the buffer is "count" and must be at least as big as what we sent
-** - free space immediately follows send data and there must be some free space.
-*/
-int mpiClass::swapall(const char *buffer,int count,int datasize,/*const*/ int *counts) {
-    size_t size = datasize; /* NB!! must be a 64-bit type, hence size_t */
-    char *const pBufferEnd = (char *)buffer + size*count;
-    std::vector<int> rcount, scount;
-    MPI_Datatype mpitype;
-    //MPI_Request *requests;
-    std::vector<MPI_Request> requests;
-    std::vector<MPI_Status> statuses;
-    char *pSendBuff;
-    int nTotalReceived = 0;
-    int nSend, nRecv, iSend, iRecv, nMaxSend;
-    int i;
+/// @brief Swap elements between MPI ranks
+/// @param buffer start of memory buffer to exchange
+/// @param count total number of elements that could fit in this memory
+/// @param datasize size of each data element
+/// @param counts how many elements to send to each rank
+/// @return
+int mdlClass::swapglobal(void *buffer,dd_offset_type count,dd_offset_type datasize,/*const*/ dd_offset_type *counts) {
+    auto me = Proc();
 
-    /* MPI buffers and datatype */
-    MPI_Type_contiguous(datasize,MPI_BYTE,&mpitype);
-    MPI_Type_commit(&mpitype);
-    rcount.resize(Procs());
-    scount.resize(Procs());
+    ddBuffer = static_cast<char *>(buffer); // Our local buffer as a "char *"
+    auto pi = [this,datasize](dd_offset_type i) {      // Returns a pointer to the i'th element of our buffer
+        return ddBuffer + i*datasize;
+    };
 
-    /* Counts of what to send and then move the "rejects" to the end of the buffer */
-    for (nSend=0,i=0; i<Procs(); ++i) nSend += counts[i];
-    assert(nSend <= count);
-    nRecv = count - nSend;
-    pSendBuff = (char *)buffer + size * nRecv;
-    if (nRecv && nSend) memmove(pSendBuff,buffer,size * nSend);
+    // These vectors are part of the mdlClass; this is how we exchange information with the MPI thread.
+    ddOffset.reserve(Procs()); ddOffset.clear();    // Index of first element to send to each rank
+    ddCounts.reserve(Procs()); ddCounts.clear();    // Number of elements to send to each rank
+    dd_offset_type offset = 0;
+    for (auto i=0; i<Procs(); ++i) {
+        ddOffset.push_back(offset);     // Index of the element
+        ddCounts.push_back(counts[i]);  // Count of elements
+        offset += counts[i];
+    }
+    auto my_count   = counts[me];
+    ddCounts[me]    = 0;            // We don't send anything
+    ddFreeOffset[0] = ddOffset[me]; // A hole could open up here
+    ddFreeCounts[0] = 0;            // but there is currently no space
+    ddFreeOffset[1] = offset;       // There could also be room at the end
+    ddFreeCounts[1] = count-offset; // and we currently have this much
 
-    for (;;) {
-        /*
-        ** At the start of this loop:
-        **   nRecv: amount of element we have room to receive
-        **   buffer: pointer to the receive buffer
-        **   nSend: number of element (total) that we need to send
-        **   pSendBuff: pointer to first element to send
-        **   counts[]: number to send to each target: sum = nSend
-        */
+    // This will combine the elements we receive in the lower segment with our data
+    // The data between the end of ddFree[0] and us are new elements
+    auto coalesce_lower = [this,me,&my_count]() {
+        auto free_end = ddFreeOffset[0] + ddFreeCounts[0];
+        my_count += ddOffset[me] - free_end;
+        ddOffset[me] = free_end;
+    };
 
-        /* We are done when there is nothing globally left to send */
-        MPI_Allreduce(&nSend,&nMaxSend,1,MPI_INT,MPI_MAX,commMDL);
-        if (nMaxSend==0) break;
+    int iVote = 0;
+    bool bContinue = false; // Most threads vote not to continue
 
-        /* Collect how many we need to receive */
-        MPI_Alltoall(counts,1,MPI_INT,&rcount[0],1,MPI_INT,commMDL);
-
-        iRecv = 0;
-        /* Calculate how many we can actually receive and post the receive */
-        for (i=0; i<Procs(); ++i) {
-            if (iRecv < nRecv && rcount[i]) {
-                if ( nRecv-iRecv < rcount[i] ) rcount[i] = nRecv-iRecv;
-                requests.emplace_back();
-                statuses.emplace_back();
-                MPI_Irecv((char *)buffer + size * iRecv, rcount[i], mpitype,
-                          i, MDL_TAG_SWAP, commMDL, &requests.back() );
-                iRecv += rcount[i];
-            }
-            else rcount[i] = 0;
+    do {
+        ThreadBarrier();
+        if (Core()==0) {
+            mdlMessageSwapGlobal swap(datasize);
+            enqueueAndWait(swap);
+            bContinue = !swap.is_finished();
         }
-        assert(iRecv <= nRecv);
+        iVote = ThreadBarrier(false,bContinue);
 
-        /* Now communicate how many we actually want to receive */
-        MPI_Alltoall(&rcount[0],1,MPI_INT,&scount[0],1,MPI_INT,commMDL);
+        coalesce_lower();
 
-        /* Now we post the matching sends. We can use "rsend" here because the receives are posted. */
-        iSend = 0;
-        for (i=0; i<Procs(); ++i) {
-            if (scount[i]) {
-                requests.emplace_back();
-                statuses.emplace_back();
-                MPI_Irsend(pSendBuff + size * iSend, scount[i], mpitype,
-                           i, MDL_TAG_SWAP, commMDL, &requests.back() );
-            }
-            iSend += counts[i]; /* note "counts" here, not "scount" */
-        }
-
-        /* Wait for all communication (send and recv) to finish */
-        MPI_Waitall(requests.size(), &requests.front(), &statuses.front());
-
-        /* Now we compact the buffer for the next iteration */
-        char *pSrc = pBufferEnd;
-        pSendBuff = pBufferEnd;
-        nRecv -= iRecv; /* We received "iRecv" element, so we have that must less room */
-        for (i=Procs()-1; i>=0; --i) {
-            if (counts[i]) {
-                size_t nLeft = counts[i] - scount[i];
-                nRecv += scount[i]; /* We sent data so we have more receive room */
-                nSend -= scount[i];
-                if (nLeft) {
-                    size_t nMove = size*nLeft;
-                    if (pSrc != pSendBuff) memmove(pSendBuff - nMove, pSrc - nMove, nMove);
-                    pSendBuff -= nMove;
-                }
-                pSrc -= size * counts[i];
-                counts[i] = nLeft;
+        // Compact for next iteration. This can open up two holes; one before me and one at the end
+        // Rank zero has no hole before.
+        offset = 0;
+        for (auto i=0; i<Procs(); ++i) {
+            if (i==me) offset = ddOffset[me] + my_count;
+            else {
+                auto n = ddCounts[i];
+                if (n && ddOffset[i]!=offset) std::memmove(pi(offset), pi(ddOffset[i]), n*datasize );
+                ddOffset[i] = offset;
+                offset += n;
             }
         }
-        nTotalReceived += iRecv;
-        buffer += size * iRecv; /* New receive area */
+        auto n = ddFreeOffset[1] - offset;  // Free space in the upper segment is increased by this
+        ddFreeCounts[1] += n;
+        ddFreeOffset[1] -= n;
+        if (me) {                           // If there could be a free segment before me, adjust the size
+            ddFreeCounts[0] = ddOffset[me] - (ddOffset[me-1] + ddCounts[me-1]);
+            ddFreeOffset[0] = ddOffset[me] - ddFreeCounts[0];
+        }
+    } while (iVote);
+
+    assert(ddFreeOffset[0]==0);
+    assert(ddFreeCounts[0]==ddOffset[me]);  // Offset is zero, so this must be true
+    assert(ddFreeOffset[1]==ddOffset[me] + my_count);
+    if (ddFreeCounts[0]) {
+        auto src = ddFreeOffset[1] + ddFreeCounts[1];
+        auto nTop = count - src;
+        auto nMove = std::min(ddFreeCounts[0],nTop);
+        ddFreeCounts[1] += nMove;
+        ddFreeCounts[0] -= nMove;   // Both the end and count (offset is zero)
+        my_count += nMove;
+        ddOffset[me] -= nMove;
+        std::memmove(pi(ddOffset[me]), pi(src), nMove*datasize );
+    }
+    // Now we either have a hole in the bottom, or we have extra above, but not both.
+    if (ddFreeCounts[0]) {          // We have a hole at the bottom
+        auto beg = ddOffset[me];
+        auto end = ddFreeOffset[1]; // Free space is immediatly after us
+        auto dst = ddFreeOffset[0];
+        auto nMove = beg - dst;
+        if (end-beg <= nMove) {     // The hole is larger; just move down
+            std::memmove(pi(dst), pi(beg), (end-beg)*datasize );
+            // count = dst + (end-beg);
+        }
+        else {                      // Fill the hole from the elements at the end
+            std::memcpy(pi(dst), pi(end-nMove), nMove*datasize );
+            // count = end - nMove;
+        }
+    }
+    else {                          // Only excess at the top
+        auto dst = ddFreeOffset[1]; // Free space is immediatly after us
+        auto src = ddFreeOffset[1] + ddFreeCounts[1];
+        auto nMove = count - src;
+        std::memmove(pi(dst), pi(src), nMove*datasize );
+        ddFreeOffset[1] -= nMove;
+        ddFreeCounts[1] += nMove;
+        my_count += nMove;
+        // count = dst + nMove;
+    }
+    return my_count;
+}
+
+void mpiClass::MessageSwapGlobal(mdlMessageSwapGlobal *message) {
+    auto datasize = message->datasize();
+    auto me = Proc();
+
+    struct free_segment {
+        int iThread;                // Thread or Core ID
+        int iList;                  // Which list
+        dd_offset_type nCount;    // Count of free elements
+        free_segment() = default;
+        free_segment(int iThread, dd_offset_type nCount, int iList=0)
+            : iThread(iThread), iList(iList), nCount(nCount) {}
+        bool operator<(const free_segment &rhs) const { return nCount < rhs.nCount; }
+    };
+
+    // We will do a transfer of a single segment to each MPI rank, so let's choose the largest
+    std::vector<int>      largest(Procs(),0);   // Core with the largest amount to send to each rank
+    std::vector<dd_offset_type> scounts(Procs(),0);   // How many we can send to each rank
+    for (auto i=0; i<Cores(); ++i) {
+        auto other = pmdl[i];
+        // Calculate how many we can send in one go (the largest segment)
+        for (auto j=0; j<Procs(); ++j) {
+            if (other->ddCounts[j] > scounts[j]) {
+                largest[j] = i;
+                scounts[j] = other->ddCounts[j];
+            }
+        }
+    }
+    assert(scounts[me]==0);
+
+    auto nSend = std::accumulate(scounts.begin(),scounts.end(),dd_offset_type(0));
+    dd_offset_type nMaxSend;
+    /* We are done when there is nothing globally left to send */
+    MPI_Allreduce(&nSend,&nMaxSend,1,mpi_type(nSend),MPI_MAX,commMDL);
+    if (nMaxSend==0) {
+        message->finished(true);
+        message->sendBack();
+        return;
     }
 
+    // First, tell all of our peers how many data elements we are willing to send
+    std::vector<dd_offset_type> rcounts(Procs());
+    assert(mpi_type(scounts[0]) == mpi_type(rcounts[0]));
+    MPI_Alltoall(scounts.data(),1,mpi_type(scounts[0]),rcounts.data(),1,mpi_type(rcounts[0]),commMDL);
+    // rcounts[] now contains a list of how many we could receive
+
+    // Turn this into a "requests" list so we can match
+    std::priority_queue<free_segment> RecvList;
+    for (auto i=0; i<Procs(); ++i) {
+        if (rcounts[i]) RecvList.emplace(i,rcounts[i]);
+    }
+
+    // build a list of free segments
+    std::priority_queue<free_segment> FreeList;
+    for (auto i=0; i<Cores(); ++i) {
+        auto other = pmdl[i];
+        // Add the free segment(s) to the free list
+        for (auto j=0; j<2; ++j) {
+            if (other->ddFreeCounts[j]) FreeList.emplace(i,other->ddFreeCounts[j],j);
+        }
+    }
+
+    MPI_Datatype mpitype;
+    MPI_Type_contiguous(datasize,MPI_BYTE,&mpitype);
+    MPI_Type_commit(&mpitype);
+    std::vector<MPI_Request> requests;
+    std::vector<MPI_Status> statuses;
+
+    // Try to match up as many requests as we can
+    std::fill(rcounts.begin(), rcounts.end(), 0);
+    while (!RecvList.empty() && !FreeList.empty()) {
+        // Grab this segment (we add it back below if it isn't empty)
+        auto iList = FreeList.top().iList;      // Segment list (0 or 1)
+        auto iCore = FreeList.top().iThread;    // Segment is on this core
+        auto nCount= FreeList.top().nCount;     // It can handle this many elements
+        FreeList.pop();
+
+        auto other = pmdl[iCore];
+        auto po = [other,datasize](dd_offset_type i) {return other->ddBuffer + i*datasize;};
+
+        auto iRank = RecvList.top().iThread;
+        dd_offset_type nSend = std::min(RecvList.top().nCount,nCount);
+        RecvList.pop();
+
+        rcounts[iRank] = nSend;
+
+        // Consume from this segment
+        assert(other->ddFreeCounts[iList]>=nSend);
+        other->ddFreeCounts[iList] -= nSend;
+        auto iDest = other->ddFreeOffset[iList] + other->ddFreeCounts[iList];
+        if (other->ddFreeCounts[iList]) FreeList.emplace(iCore,other->ddFreeCounts[iList],iList);
+
+        // Post the MPI receive
+        requests.emplace_back();
+        statuses.emplace_back();
+        MPI_Irecv(po(iDest), nSend, mpitype, iRank, MDL_TAG_SWAP, commMDL, &requests.back() );
+    }
+
+    // Now communicate how many we actually have to send
+    MPI_Alltoall(rcounts.data(),1,mpi_type(rcounts[0]),scounts.data(),1,mpi_type(scounts[0]),commMDL);
+
+    /* Now we post the matching sends. We can use "rsend" here because the receives are posted. */
+    for (auto i=0; i<Procs(); ++i) {
+        if (scounts[i]) {
+            auto other = pmdl[largest[i]];
+            auto po = [other,datasize](dd_offset_type i) {return other->ddBuffer + i*datasize;};
+            assert(scounts[i]<=other->ddCounts[i]);
+            other->ddCounts[i] -= scounts[i];
+            requests.emplace_back();
+            statuses.emplace_back();
+            MPI_Irsend(po(other->ddOffset[i]+other->ddCounts[i]), scounts[i], mpitype,
+                       i, MDL_TAG_SWAP, commMDL, &requests.back() );
+        }
+    }
+
+    /* Wait for all communication (send and recv) to finish */
+    MPI_Waitall(requests.size(), &requests.front(), &statuses.front());
     MPI_Type_free(&mpitype);
 
-    return nTotalReceived;
+    message->sendBack();
+}
+
+
+//! Swap elements of a memory buffer between local threads.
+//! @param buffer A pointer to the start of the memory block
+//! @param count The total number of elements that count fit in the memory block
+//! @param datasize The size (in bytes) of each element
+//! @param counts The number of elements destined for each thread
+int mdlClass::swaplocal(void *buffer,dd_offset_type count,dd_offset_type datasize,/*const*/ dd_offset_type *counts) {
+    auto pBegin = static_cast<char *>(buffer);
+    auto pi = [pBegin,datasize](dd_offset_type i) {return pBegin + i*datasize;};
+    auto me = Core();
+
+    // Example layout (we are rank 3)
+    // +-------------------------+----------+---------------+------------+
+    // | Thread 0 to 2 elements  | thread 3 | thread 4-     | unused     |
+    // +-------------------------+----------+---------------+------------+
+
+    // Setup counts and offsets. Other threads will update as they take elements
+    std::vector<dd_offset_type> ddFreeBeg,ddFreeEnd;
+    ddFreeBeg.reserve(Cores()); ddFreeEnd.reserve(Cores());
+    ddOffset.reserve(std::max(Procs(),Cores())); ddOffset.clear();
+    ddCounts.reserve(std::max(Procs(),Cores())); ddCounts.clear();
+    ddBuffer = pBegin;
+    dd_offset_type offset = 0;
+    for (auto i=0; i<Cores(); ++i) {
+        ddCounts.push_back(counts[i]);
+        ddOffset.push_back(offset);
+        ddFreeBeg.push_back(offset);
+        offset += counts[i];
+    }
+    assert(count >= offset);
+
+    // Check that we have enough space to receive everything
+    ThreadBarrier();
+    dd_offset_type nTotal = 0;
+    for (auto i=0; i<Cores(); ++i) {
+        auto other = pmdl[i];
+        nTotal += other->ddCounts[me];
+    }
+    ThreadBarrier();
+    assert(nTotal < count);
+
+    // We have a special case for "our" element. Nobody will be taking them, so we
+    // setup the free space at the end as available.
+    ddFreeBeg[me] = offset;
+    ddOffset[me] = count;
+
+    dd_offset_type iTake=0, iFree=0;
+    do {
+        ddFreeEnd.clear();
+        std::copy(ddOffset.begin(),ddOffset.end(),std::back_inserter(ddFreeEnd));
+        ThreadBarrier();
+        iTake = iFree = 0;
+        while (iTake<Cores() && iFree<Cores()) {
+            dd_offset_type nTake, nFree;
+            // Find some data to transfer to us
+            while (iTake==me || (iTake<Cores() && (nTake=pmdl[iTake]->ddCounts[me])==0)) ++iTake;
+            if (iTake==Cores()) break; // We have moved everything we can (we are done)
+            // Now find somewhere to move it
+            while (iFree<Cores() && (nFree = ddFreeEnd[iFree] - ddFreeBeg[iFree]) == 0) ++iFree;
+            if (iFree==Cores()) break; // No more free space -- we have to iterate
+            if (nTake > nFree) nTake = nFree;
+            auto other = pmdl[iTake];
+            auto po = [other,datasize](dd_offset_type i) {return other->ddBuffer + i*datasize;};
+            auto src = other->ddOffset[me];
+            auto dst = ddFreeBeg[iFree];
+            memcpy(pi(dst), po(src), nTake*datasize );
+            other->ddCounts[me] -= nTake;
+            other->ddOffset[me] += nTake;
+            ddFreeBeg[iFree] += nTake;
+        }
+    } while (ThreadBarrier(false,iTake<Cores()));
+
+    // Now compact the storage
+    dd_offset_type dst = 0, src = 0;
+    for (auto i=0; i<Cores(); ++i) {
+        auto n = i==me ? counts[me] : ddFreeBeg[i] - src;
+        std::memmove(pi(dst), pi(src), n*datasize );
+        dst += n;
+        src += counts[i];
+    }
+    // Compact the elements from the intial free space block
+    auto n = ddFreeBeg[me] - src;
+    std::memmove(pi(dst), pi(src), n*datasize );
+    dst += n;
+
+    ThreadBarrier();
+    return dst;
 }
 
 // An indication that a thread has finished
@@ -1097,7 +1636,6 @@ void mpiClass::MessageSTOP(mdlMessageSTOP *message) {
 void mpiClass::MessageBarrierMPI(mdlMessageBarrierMPI *message) {
     MPI_Ibarrier(commMDL,newRequest(message));
 }
-
 void mpiClass::MessageGridShare(mdlMessageGridShare *share) {
     MPI_Allgather(&share->grid->sSlab,sizeof(*share->grid->rs),MPI_BYTE,
                   share->grid->rs,sizeof(*share->grid->rs),MPI_BYTE,
@@ -1108,6 +1646,7 @@ void mpiClass::MessageGridShare(mdlMessageGridShare *share) {
     share->sendBack();
 }
 
+#ifdef MDL_FFTW
 // MPI thread: initiate a real to complex transform
 void mpiClass::MessageDFT_R2C(mdlMessageDFT_R2C *message) {
     FFTW3(execute_dft_r2c)(message->fft->fplan,message->data,message->kdata);
@@ -1150,6 +1689,7 @@ void mpiClass::MessageFFT_Plans(mdlMessageFFT_Plans *plans) {
     plans->iplan = info.iplan;
     plans->sendBack();
 }
+#endif
 
 void mpiClass::MessageAlltoallv(mdlMessageAlltoallv *a2a) {
     MPI_Datatype mpitype;
@@ -1247,7 +1787,7 @@ void mpiClass::MessageReceiveReply(mdlMessageReceiveReply *send) {
     else MPI_Irecv(&send->header,sizeof(ServiceHeader),MPI_BYTE,iProc,tag,commMDL,newRequest(send));
 }
 
-void mpiClass::FinishReceiveReply(mdlMessageReceiveReply *send) {
+void mpiClass::FinishReceiveReply(mdlMessageReceiveReply *send, MPI_Request request, MPI_Status status) {
     assert(pRequestTargets[send->target]>=0);
     pRequestTargets[send->target] = -1;
     send->sendBack();
@@ -1257,6 +1797,8 @@ void mpiClass::finishRequests() {
     int nDone = 1; // Prime the loop; we keep trying as long as we get work
     // If there are MPI send/recieve message pending then check if they are complete
     while (!SendReceiveRequests.empty() && nDone) {
+        // Here we keep track of entries that we can reuse in newRequest()
+        assert(SendReceiveAvailable.size()==0);
         // Should be sufficent, but resize if necessary
         if (SendReceiveIndices.size() < SendReceiveRequests.size())  SendReceiveIndices.resize(SendReceiveRequests.size());
         if (SendReceiveStatuses.size() < SendReceiveRequests.size()) SendReceiveStatuses.resize(SendReceiveRequests.size());
@@ -1268,31 +1810,37 @@ void mpiClass::finishRequests() {
 #ifndef NDEBUG
             nRequestsReaped += nDone;
 #endif
-            bool bCull = false;
             assert(SendReceiveMessages.size() == SendReceiveRequests.size()); // basic sanity
             for (int i=0; i<nDone; ++i) {
                 unsigned indx = SendReceiveIndices[i];
                 assert(indx < SendReceiveMessages.size());
-                iLastMessage = indx;
-                mdlMessageMPI *M = SendReceiveMessages[indx];
-                SendReceiveMessages[indx] = nullptr; // Mark as done (removed below)
-                assert(SendReceiveRequests[indx] == MPI_REQUEST_NULL); // set by Testsome
-                int bytes, source, cancelled;
-                MPI_Test_cancelled(&SendReceiveStatuses[i],&cancelled);
-                if (cancelled) bytes = source = -1;
-                else {
-                    MPI_Get_count(&SendReceiveStatuses[i], MPI_BYTE, &bytes); // Relevant for Recv() only
-                    source = SendReceiveStatuses[i].MPI_SOURCE; // Relevant for Recv() only
-                }
-                M->finish(this,bytes,source,cancelled); // Finish request (which could create/add more requests)
-                if (!SendReceiveMessages[indx]) bCull = true;
-                iLastMessage = -1; // Either it was reused, or it will be culled below
+                mdlMessageMPI *message = SendReceiveMessages[indx];
+                MPI_Request request = SendReceiveRequests[indx];
+                // If request is not MPI_REQUEST_NULL then it means that we have a persistent communication channel.
+                // It is the job of the "finish" routine to start or cancel the request and add it back with newRequest().
+                // Elements marked as "NULL" can now be reused in newRequest() so we add them to SendReceiveAvailable
+                SendReceiveAvailable.push_back(indx);
+                SendReceiveMessages[indx] = nullptr;
+                SendReceiveRequests[indx] = MPI_REQUEST_NULL;
+                message->finish(this,request,SendReceiveStatuses[i]); // Finish request (which could create/add more requests)
             }
             // Now remove the "marked" elements. The "finish" routines above could have added new entries at the end (but that is valid).
-            if (bCull) {
-                SendReceiveMessages.erase(std::remove(SendReceiveMessages.begin(), SendReceiveMessages.end(), (mdlMessageMPI *)0), SendReceiveMessages.end());
-                SendReceiveRequests.erase(std::remove(SendReceiveRequests.begin(), SendReceiveRequests.end(), MPI_REQUEST_NULL),  SendReceiveRequests.end());
-                assert(SendReceiveMessages.size() == SendReceiveRequests.size()); // Should have removed the same number from each list
+            // By design the list of marked elements is in SendReceiveAvailable, and are in ascending order. We can remove them efficiently with:
+            if (SendReceiveAvailable.size()) {
+                SendReceiveAvailable.push_back(SendReceiveMessages.size());
+                auto d = SendReceiveAvailable[0];
+                for (int i=1; i<SendReceiveAvailable.size(); ++i) {
+                    auto s = SendReceiveAvailable[i-1] + 1;
+                    auto e = SendReceiveAvailable[i];
+                    while (s<e) {
+                        SendReceiveMessages[d] = SendReceiveMessages[s];
+                        SendReceiveRequests[d] = SendReceiveRequests[s];
+                        s++; d++;
+                    }
+                }
+                SendReceiveMessages.erase(SendReceiveMessages.begin()+d,SendReceiveMessages.end());
+                SendReceiveRequests.erase(SendReceiveRequests.begin()+d,SendReceiveRequests.end());
+                SendReceiveAvailable.clear();
             }
         }
     }
@@ -1309,10 +1857,13 @@ void mpiClass::processMessages() {
 ** any requests from the thread queue, and track MPI completions.
 */
 int mpiClass::checkMPI() {
+    gpu.flushCompleted();
     /* Start any CUDA work packages */
 #ifdef USE_CUDA
-    flushCompletedCUDA();
-    cuda.initiate();
+    cuda.launch();
+#endif
+#ifdef USE_METAL
+    metal.launch();
 #endif
     processMessages();
     finishRequests(); // Check for non-block MPI requests (send, receive, barrier, etc.)
@@ -1355,7 +1906,7 @@ int mpiClass::Launch(int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),vo
     pthread_setspecific(mdl_key, static_cast<class mdlClass *>(this));
 
 #ifdef _SC_NPROCESSORS_CONF /* from unistd.h */
-    nCores = sysconf(_SC_NPROCESSORS_CONF);
+    layout.nCores = sysconf(_SC_NPROCESSORS_CONF);
 #endif
 
     /*
@@ -1370,7 +1921,7 @@ int mpiClass::Launch(int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),vo
         for (i = j = 1; i<argc; ++i) {
             if (!strcmp(argv[i], "-sz")) {
                 if (argv[++i]) {
-                    nCores = atoi(argv[i]);
+                    layout.nCores = atoi(argv[i]);
                     bThreads = true;
                 }
             }
@@ -1386,8 +1937,8 @@ int mpiClass::Launch(int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),vo
             else if (!strcmp(argv[i], "+d") && !bDiag) {
                 p = getenv("MDL_DIAGNOSTIC");
                 if (!p) p = getenv("HOME");
-                if (!p) sprintf(ach, "/tmp");
-                else sprintf(ach, "%s", p);
+                if (!p) snprintf(ach, sizeof(ach), "/tmp");
+                else snprintf(ach, sizeof(ach), "%s", p);
                 bDiag = 1;
             }
             else {
@@ -1399,8 +1950,8 @@ int mpiClass::Launch(int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),vo
         argv[argc] = nullptr;
     }
     if (!bThreads) {
-        if ( (p=getenv("SLURM_CPUS_PER_TASK")) != NULL ) nCores = atoi(p);
-        else if ( (p=getenv("OMP_NUM_THREADS")) != NULL ) nCores = atoi(p);
+        if ( (p=getenv("SLURM_CPUS_PER_TASK")) != NULL ) layout.nCores = atoi(p);
+        else if ( (p=getenv("OMP_NUM_THREADS")) != NULL ) layout.nCores = atoi(p);
     }
     assert(Cores()>0);
 
@@ -1428,18 +1979,18 @@ int mpiClass::Launch(int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),vo
 #ifdef USE_ITT
     __itt_task_end(domain);
 #endif
-    MPI_Comm_size(commMDL, &nProcs);
-    MPI_Comm_rank(commMDL, &iProc);
+    MPI_Comm_size(commMDL, &layout.nProcs);
+    MPI_Comm_rank(commMDL, &layout.iProc);
 
     /* Dedicate one of the threads for MPI, unless it would be senseless to do so */
     if (bDedicated == -1) {
-        if (nProcs>0 && Cores()>3) bDedicated = 1;
+        if (Procs()>0 && Cores()>3) bDedicated = 1;
         else bDedicated = 0;
     }
     if (bDedicated == 1) {
 #ifndef USE_HWLOC
-        /*if (Cores()==1 || nProcs==1) bDedicated=0;
-          else*/ --nCores;
+        /*if (Cores()==1 || Procs()==1) bDedicated=0;
+          else*/ --layout.nCores;
 #else
         hwloc_topology_init(&topology);
         hwloc_topology_load(topology);
@@ -1457,30 +2008,26 @@ int mpiClass::Launch(int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),vo
             }
             else n = 1;
         }
-        nCores -= n;
+        layout.nCores -= n;
 #endif
     }
 
     /* Construct the thread/processor map */
     iProcToThread.resize(Procs()+1);
     iProcToThread[0] = 0;
-    MPI_Allgather(&nCores, 1, MPI_INT, &iProcToThread.front() + 1, 1, MPI_INT, commMDL);
+    MPI_Allgather(&layout.nCores, 1, MPI_INT32_T, &iProcToThread.front() + 1, 1, MPI_INT, commMDL);
     for (i = 1; i < Procs(); ++i) iProcToThread[i + 1] += iProcToThread[i];
-    nThreads = iProcToThread[Procs()];
-    idSelf = iProcToThread[Proc()];
+    layout.nThreads = iProcToThread[Procs()];
+    layout.idSelf = iProcToThread[Proc()];
 
     iCoreMPI = bDedicated ? -1 : 0;
-    iCore = iCoreMPI;
+    layout.iCore = iCoreMPI;
 
     /* We have an extra MDL context in case we want a dedicated MPI thread */
     pmdl = new mdlClass *[Cores()+1];
     assert(pmdl!=NULL);
     pmdl++;
     pmdl[iCoreMPI] = this;
-
-#ifdef USE_CL
-    void *clContext = CL_create_context();
-#endif
 
     /* Allocate the other MDL structures for any threads. */
     for (i = iCoreMPI+1; i < Cores(); ++i) {
@@ -1491,14 +2038,19 @@ int mpiClass::Launch(int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),vo
 #ifdef USE_CUDA
     cuda.initialize();
 #endif
+#ifdef USE_METAL
+    metal.initialize();
+#endif
 
     iRequestTarget = 0;
 
+#ifndef DEBUG_COUNT_CACHE
     assert(sizeof(CacheHeader) == 16); /* Well, should be a multiple of 8 at least. */
+#endif
     nOpenCaches = 0;
     iReplyBufSize = sizeof(CacheHeader) + MDL_CACHE_DATA_SIZE;
     iCacheBufSize = sizeof(CacheHeader) + MDL_FLUSH_DATA_SIZE;
-    while (listCacheReceive.size()<25) listCacheReceive.push_back(new mdlMessageCacheReceive(iCacheBufSize));
+    msgCacheReceive = std::make_unique<mdlMessageCacheReceive>(iCacheBufSize);
 
     n = Procs();
     if (n > 256) n = 256;
@@ -1521,7 +2073,8 @@ int mpiClass::Launch(int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),vo
     SendReceiveMessages.reserve(Cores()*2);
     SendReceiveStatuses.resize(Cores()*2);
     SendReceiveIndices.resize(Cores()*2);
-    CacheRequestMessages.resize(Cores()); // Each core can have ONE request
+    CacheRequestMessages.resize(Cores(),nullptr); // Each core can have ONE request
+    CacheRequestRendezvous.resize(Cores(),false);
 #ifndef NDEBUG
     nRequestsCreated = nRequestsReaped = 0;
 #endif
@@ -1555,6 +2108,7 @@ int mpiClass::Launch(int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),vo
 #endif
         pthread_attr_t attr;
         pthread_attr_init(&attr);
+        pthread_attr_setstacksize(&attr,8*1024*1024);
         pthread_barrier_init(&barrier,NULL,Cores()+(bDedicated?1:0));
         for (i = iCoreMPI+1; i < Cores(); ++i) {
             pthread_create(&threadid[i], &attr,
@@ -1586,6 +2140,8 @@ int mpiClass::Launch(int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),vo
     register_backtrace();
 #endif
     if (!bDedicated) {
+        delete queueReceive.release();
+        queueReceive = std::make_unique<mdlMessageQueue[]>(Cores());
         worker_ctx = (*fcnWorkerInit)(static_cast<MDL>(static_cast<mdlClass *>(this)));
         pthread_setspecific(worker_key, worker_ctx);
         CommitServices();
@@ -1609,15 +2165,12 @@ int mpiClass::Launch(int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),vo
     // Deallocate cache reply buffers
     for (auto pReply : freeCacheReplies) { delete pReply; }
     freeCacheReplies.clear();
-    while (listCacheReceive.size()) {
-        delete listCacheReceive.back();
-        listCacheReceive.pop_back();
-    }
 
     while (!localFlushBuffers.empty())
         delete &static_cast<mdlMessageFlushToCore &>(localFlushBuffers.dequeue());
     for (auto i : flushHeadFree) delete i;
 
+#ifdef MDL_FFTW
     // Cleanup for FFTW
     for (auto &plan : fft_plans) {
         auto &info = plan.second;
@@ -1627,15 +2180,16 @@ int mpiClass::Launch(int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),vo
     fft_plans.clear();
     if (Cores()>1) FFTW3(cleanup_threads)();
     FFTW3(cleanup)();
+#endif
 
     MPI_Barrier(commMDL);
     MPI_Finalize();
     return exit_code;
 }
 
-#ifdef USE_CUDA
-void mpiClass::enqueue(const cudaMessage &M, basicQueue &replyTo) {
-    cuda.enqueue(M,replyTo);
+#ifdef USE_METAL
+void mpiClass::enqueue(const metal::metalMessage &M, basicQueue &replyTo) {
+    metal.enqueue(M,replyTo);
 }
 #endif
 
@@ -1679,80 +2233,32 @@ void mdlClass::bookkeeping() {
     combine_all_incoming();
 }
 
-/* Do one piece of work. Return 0 if there was no work. */
-int mdlClass::DoSomeWork() {
-    MDLwqNode *work;
-    int rc = 0;
-    CacheCheck();
-    if (!OPA_Queue_is_empty(&wq)) {
-        /* Grab a work package, and perform it */
-        OPA_Queue_dequeue(&wq, work, MDLwqNode, hdr);
-        OPA_decr_int(&wqCurSize);
-        while ( (*work->doFcn)(work->ctx) != 0 ) {
-            CacheCheck();
-        }
-        rc = 1;
-        /* Send it back to the original thread for completion (could be us) */
-        if (work->iCoreOwner == Core()) goto reQueue;
-        OPA_Queue_enqueue(&pmdl[work->iCoreOwner]->wqDone, work, MDLwqNode, hdr);
-    }
-    while (!OPA_Queue_is_empty(&wqDone)) {
-        OPA_Queue_dequeue(&wqDone, work, MDLwqNode, hdr);
-reQueue:
-        (*work->doneFcn)(work->ctx);
-        work->ctx = NULL;
-        work->doFcn = NULL;
-        work->doneFcn = NULL;
-        OPA_Queue_enqueue(&wqFree, work, MDLwqNode, hdr);
-    }
-    return rc;
-}
-
 extern "C" void mdlCompleteAllWork(MDL mdl) { static_cast<mdlClass *>(mdl)->CompleteAllWork(); }
 void mdlClass::CompleteAllWork() {
-    while (DoSomeWork()) {}
-#ifdef USE_CL
-    while (CL_flushDone(clCtx)) {}
-#endif
-#ifdef USE_CUDA
-    while (flushCompletedCUDA()) {}
-#endif
+    while (gpu.flushCompleted()) {} // Wait for any/all GPU operations to return/completed
 }
 
 basicMessage &mdlClass::waitQueue(basicQueue &wait) {
     while (wait.empty()) {
         checkMPI(); // Only does something on the MPI thread
         bookkeeping();
-        if (DoSomeWork() == 0) {
-            // This is important in the case where we have oversubscribed the CPU
-            yield();
-        }
+        yield();
     }
     return wait.dequeue();
 }
 
-#ifdef USE_CUDA
-int mdlClass::flushCompletedCUDA() {
-    while (!cudaDone.empty()) {
-        auto &M = cudaDone.dequeue();
-        M.finish();
-        --nCUDA;
-    }
-    return nCUDA;
+#ifdef USE_METAL
+void mdlClass::enqueue(const metal::metalMessage &M) {
+    mpi->enqueue(M,gpu);
 }
 
-void mdlClass::enqueue(const cudaMessage &M) {
-    ++nCUDA;
-    mpi->enqueue(M,cudaDone);
-}
-
-void mdlClass::enqueue(const cudaMessage &M, basicQueue &replyTo) {
+void mdlClass::enqueue(const metal::metalMessage &M, basicQueue &replyTo) {
     mpi->enqueue(M,replyTo);
 }
 
 // Send the message to the MPI thread and wait for the response
-void mdlClass::enqueueAndWait(const cudaMessage &M) {
-    cudaMessageQueue wait;
+void mdlClass::enqueueAndWait(const metal::metalMessage &M) {
+    metal::metalMessageQueue wait;
     enqueue(M,wait);
     waitQueue(wait);
 }
@@ -1775,22 +2281,32 @@ void mdlClass::enqueueAndWait(const mdlMessage &M) {
 
 /* Synchronize threads */
 extern "C" void mdlThreadBarrier(MDL mdl) { static_cast<mdlClass *>(mdl)->ThreadBarrier(); }
-void mdlClass::ThreadBarrier(bool bGlobal) {
-    mdlMessage barrier;
+int mdlClass::ThreadBarrier(bool bGlobal,int iVote) {
+    mdlMessageVote barrier(iVote);
     int i;
 
     if (Core()) {
         // Send barrier message to thread 0 and wait for it back
         pmdl[0]->threadBarrierQueue.enqueue(barrier,threadBarrierQueue);
         waitQueue(threadBarrierQueue);
+        iVote = barrier.vote();
     }
     else {
         mdlMessageQueue pending;
         // Wait for all of the above messages, then send them back
-        for (i=1; i<Cores(); ++i) pending.enqueue(waitQueue(threadBarrierQueue));
+        for (i=1; i<Cores(); ++i) {
+            mdlMessageVote &M = dynamic_cast<mdlMessageVote &>(waitQueue(threadBarrierQueue));
+            iVote += M.vote();
+            pending.enqueue(M);
+        }
         if (bGlobal && Procs()>1) enqueueAndWait(mdlMessageBarrierMPI());
-        for (i=1; i<Cores(); ++i) waitQueue(pending).sendBack();
+        for (i=1; i<Cores(); ++i) {
+            mdlMessageVote &M = dynamic_cast<mdlMessageVote &>(waitQueue(pending));
+            M.vote(iVote);
+            M.sendBack();
+        }
     }
+    return iVote;
 }
 
 void mdlClass::mdl_start_MPI_Ssend(mdlMessageSend &M, mdlMessageQueue &replyTo) {
@@ -1853,15 +2369,6 @@ int mdlClass::mdl_MPI_Sendrecv(
 
 void mdlClass::init(bool bDiag) {
     /*
-    ** Our work queue. We can defer work for when we are waiting, or get work
-    ** from other threads if we are idle.
-    */
-    wqMaxSize = 0;
-    wqAccepting = 0;
-    wqLastHelper = 0;
-    OPA_store_int(&wqCurSize,0);
-
-    /*
     ** Set default "maximums" for structures. These are NOT hard
     ** maximums, as the structures will be realloc'd when these
     ** values are exceeded.
@@ -1886,21 +2393,15 @@ void mdlClass::init(bool bDiag) {
     for (int i=0; i<9; ++i) coreFlushBuffers.enqueue(new mdlMessageFlushFromCore);
     coreFlushBuffer = new mdlMessageFlushFromCore;
 
-    queueReceive.resize(Cores()); // A separate receive queue from each core
+    queueReceive = std::make_unique<mdlMessageQueue[]>(Cores());
 
-#ifdef USE_CL
-    clCtx = CL_initialize(clContext,Cores(),Core());
-#endif
-#ifdef USE_CUDA
-    nCUDA = 0;
-#endif
     this->bDiag = bDiag;
     if (bDiag) {
         char achDiag[256], ach[256];
         const char *tmp = strrchr(argv[0], '/');
         if (!tmp) tmp = argv[0];
         else ++tmp;
-        sprintf(achDiag, "%s/%s.%d", ach, tmp, Self());
+        if (snprintf(achDiag, sizeof(achDiag), "%s/%s.%d", ach, tmp, Self())>=sizeof(achDiag)) abort();
         fpDiag = fopen(achDiag, "w");
         assert(fpDiag != NULL);
     }
@@ -1908,12 +2409,12 @@ void mdlClass::init(bool bDiag) {
 
 mdlClass::mdlClass(class mpiClass *mdl, int iMDL)
     : mdlBASE(mdl->argc,mdl->argv), mpi(mdl) {
-    iCore = iMDL;
-    idSelf = mdl->Self() + iMDL;
-    nThreads = mdl->Threads();
-    nCores = mdl->Cores();
-    nProcs = mdl->nProcs;
-    iProc = mdl->iProc;
+    layout.iCore = iMDL;
+    layout.idSelf = mdl->Self() + iMDL;
+    layout.nThreads = mdl->Threads();
+    layout.nCores = mdl->Cores();
+    layout.nProcs = mdl->layout.nProcs;
+    layout.iProc = mdl->layout.iProc;
     iProcToThread = mdl->iProcToThread;
 
     iCoreMPI = mdl->iCoreMPI;
@@ -2205,6 +2706,86 @@ void *mdlMalloc(MDL mdl,size_t iSize) {
 void mdlFree(MDL mdl,void *p) {
     /*    MPI_Free_mem(p);*/
     free(p);
+}
+
+void mdlClass::delete_shared_array(void *p,uint64_t nBytes) {
+    if (Core()==0) munmap(p,nBytes);
+}
+
+uint64_t mdlClass::new_shared_array(void **p, int nSegments, uint64_t *nElements,uint64_t *nBytesPerElement,uint64_t nMinTotalStore) {
+    auto gcd = [](int a, int b) {                      // Greatest common divisor
+        while ( a != 0 ) {
+            auto c = a;
+            a = b%a;
+            b = c;
+        }
+        return b;
+    };
+    uint64_t nPageSize = sysconf(_SC_PAGESIZE);
+    auto align = [&gcd,nPageSize](auto &N,auto b) {     // Align elements to a page size boundary
+        auto n = nPageSize / gcd(nPageSize,b);
+        N += n-1;
+        N -= N % n;
+        assert(N*b%nPageSize == 0);
+        return N * b;
+    };
+
+    // Align each segment to a page boundary
+    uint64_t nBytes[nSegments];
+    nBytesSegment = nBytes;
+    pSegments = p;
+    nMessageData = 0;
+    for (auto i=0; i<nSegments; ++i) {
+        p[i] = nullptr;
+        nMessageData += (nBytesSegment[i] = align(nElements[i],nBytesPerElement[i]));
+    }
+    ThreadBarrier();
+    uint64_t nTotalBytes = 0;
+    for (auto t=0; t<Cores(); ++t)  {
+        assert(pmdl[t]->nMessageData == nMessageData);
+        nTotalBytes += pmdl[t]->nMessageData;
+    }
+    // If we don't have enough storage, then we need to increase the number of elements in the last segment
+    if (nTotalBytes < nMinTotalStore) {
+        ThreadBarrier();
+        auto nExtra = nMinTotalStore - nTotalBytes;
+        auto nPerThread = ((nExtra + Cores() - 1) / Cores() + nBytesPerElement[nSegments-1] - 1) / nBytesPerElement[nSegments-1];
+        nElements[nSegments-1] += nPerThread;
+        nMessageData = 0;
+        for (auto i=0; i<nSegments; ++i) {
+            nMessageData += (nBytesSegment[i] = align(nElements[i],nBytesPerElement[i]));
+        }
+        ThreadBarrier();
+    }
+
+    if (Core()==0) {
+        nTotalBytes = 0;
+        for (auto t=0; t<Cores(); ++t) nTotalBytes += pmdl[t]->nMessageData;
+        assert(nTotalBytes >= nMinTotalStore);
+        auto region = mmap(nullptr,nTotalBytes,PROT_READ|PROT_WRITE,MAP_PRIVATE|MAP_ANONYMOUS,-1,0);
+        if (region==MAP_FAILED) return 0;   // This likely means that there isn't enough memory.
+#ifdef __linux__
+        madvise(region,nTotalBytes,MADV_DONTDUMP);
+#endif
+        auto p = static_cast<char *>(region);
+        auto q = p;
+        for (auto i=0; i<nSegments; ++i) {
+            for (auto t=0; t<Cores(); ++t) {
+                auto o = pmdl[t];
+                o->pSegments[i] = p;
+                p += o->nBytesSegment[i];
+            }
+        }
+        assert(p-q == nTotalBytes);
+    }
+    ThreadBarrier();
+#ifdef HAVE_NUMA
+    for (auto i=0; i<nSegments; ++i) {
+        numa_setlocal_memory(pSegments[i],nElements[i]*nBytesPerElement[i]);
+    }
+#endif
+
+    return nTotalBytes;
 }
 
 /* This is a "thread collective" call. */
@@ -2538,87 +3119,13 @@ void mdlAlltoallv(MDL cmdl,int dataSize,void *sbuff,int *scount,int *sdisps,void
 void mdlClass::Alltoallv(int dataSize,void *sbuff,int *scount,int *sdisps,void *rbuff,int *rcount,int *rdisps) {
     enqueueAndWait(mdlMessageAlltoallv(dataSize,sbuff,scount,sdisps,rbuff,rcount,rdisps));
 }
-#if defined(USE_CUDA) || defined(USE_CL)
+#if defined(USE_CUDA)
 void mdlSetCudaBufferSize(MDL cmdl,int inBufSize, int outBufSize) {
 //    mdlClass *mdl = static_cast<mdlClass *>(cmdl);
 //    if (mdl->inCudaBufSize < inBufSize) mdl->inCudaBufSize = inBufSize;
 //    if (mdl->outCudaBufSize < outBufSize) mdl->outCudaBufSize = outBufSize;
 }
 #endif
-
-void mdlSetWorkQueueSize(MDL cmdl,int wqMaxSize,int cudaSize) {
-    mdlClass *mdl = static_cast<mdlClass *>(cmdl);
-    MDLwqNode *work;
-    int i;
-
-#ifdef USE_CL
-    CL_SetQueueSize(mdl->clCtx,cudaSize,mdl->inCudaBufSize,mdl->outCudaBufSize);
-#endif
-    while (wqMaxSize > mdl->wqMaxSize) {
-        for (i=0; i<mdl->Cores(); ++i) {
-            work = CAST(MDLwqNode *,malloc(sizeof(MDLwqNode)));
-            OPA_Queue_header_init(&work->hdr);
-            work->iCoreOwner = mdl->Core();
-            work->ctx = NULL;
-            work->doFcn = NULL;
-            work->doneFcn = NULL;
-            OPA_Queue_enqueue(&mdl->wqFree, work, MDLwqNode, hdr);
-        }
-        ++mdl->wqMaxSize;
-    }
-    while (wqMaxSize < mdl->wqMaxSize) {
-        for (i=0; i<mdl->Cores(); ++i) {
-            if (!OPA_Queue_is_empty(&mdl->wqFree))
-                OPA_Queue_dequeue(&mdl->wqFree, work, MDLwqNode, hdr);
-            else assert(0);
-            free(work);
-        }
-        --mdl->wqMaxSize;
-    }
-}
-
-void mdlAddWork(MDL cmdl, void *ctx,
-                int (*initWork)(void *ctx,void *vwork),
-                int (*checkWork)(void *ctx,void *vwork),
-                mdlWorkFunction doWork,
-                mdlWorkFunction doneWork) {
-    mdlClass *mdl = static_cast<mdlClass *>(cmdl);
-    mdlClass *Qmdl = NULL;
-    MDLwqNode *work;
-    int i;
-
-    /* Obviously, we can only queue work if we have a free queue element */
-    if (!OPA_Queue_is_empty(&mdl->wqFree)) {
-        /* We have some room, so save work for later */
-        if (OPA_load_int(&mdl->wqCurSize) < mdl->wqMaxSize) Qmdl = mdl;
-        /* See if anyone else is accepting work */
-        else {
-            i = mdl->wqLastHelper;
-            do {
-                mdlClass *rMDL = mdl->pmdl[i];
-                if (rMDL->wqAccepting && OPA_load_int(&rMDL->wqCurSize)<rMDL->wqMaxSize) {
-                    Qmdl = rMDL;
-                    mdl->wqLastHelper = i;
-                    break;
-                }
-                if (++i == mdl->Cores()) i = 0;
-            } while (i!=mdl->wqLastHelper);
-        }
-        if (Qmdl) {
-            OPA_Queue_dequeue(&mdl->wqFree, work, MDLwqNode, hdr);
-            work->ctx = ctx;
-            work->doFcn = doWork;
-            work->doneFcn = doneWork;
-            OPA_incr_int(&Qmdl->wqCurSize);
-            OPA_Queue_enqueue(&Qmdl->wq, work, MDLwqNode, hdr);
-            return;
-        }
-    }
-
-    /* Just handle it ourselves */
-    while ( doWork(ctx) != 0 ) {}
-    doneWork(ctx);
-}
 
 int mdlProcToThread(MDL cmdl, int iProc) {
     return static_cast<mdlClass *>(cmdl)->ProcToThread(iProc);
@@ -2670,7 +3177,7 @@ void mdlprintf(MDL cmdl, const char *format, ...) {
 }
 
 int mdlClass::numGPUs() {return mpi->numGPUs(); }
-
+bool mdlClass::isMetalActive() {return mpi->isMetalActive(); }
 bool mdlClass::isCudaActive() {return mpi->isCudaActive(); }
 int mdlCudaActive(MDL mdl) {
 #ifdef USE_CUDA

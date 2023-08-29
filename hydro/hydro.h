@@ -2,7 +2,7 @@
 #define HYDRO_H
 #include "pkd.h"
 #include "smooth/smoothfcn.h"
-
+#include <vector>
 
 #define XX 0
 #define YY 3
@@ -11,93 +11,176 @@
 #define XZ 2
 #define YZ 4
 
+template<typename T>
+int sign(T v) {return (v>0) - (v<0);}
+
 typedef double my_real;
 
 /* -----------------
- * MAIN FUNCTIONS
+ * MAIN FUNCTIONS AND CLASSES
  * -----------------
  */
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 /* Density loop */
+struct hydroDensityPack {
+    blitz::TinyVector<double,3> position;
+    float fBall;
+    uint8_t iClass;
+    bool bMarked;
+};
+
 void hydroDensity(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf);
-void hydroDensity_node(PKD pkd, SMF *smf, BND bnd_node, PARTICLE **sinks, NN *nnList,
-                       int nCnt_own, int nCnt);
+void hydroDensity_node(PKD pkd, SMF *smf, Bound bnd_node, const std::vector<PARTICLE *> &sinks,
+                       NN *nnList, int nCnt);
 void hydroDensityFinal(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf);
+void packHydroDensity(void *vpkd,void *dst,const void *src);
+void unpackHydroDensity(void *vpkd,void *dst,const void *src);
+
 
 /* Gradient loop */
+struct hydroGradientsPack {
+    blitz::TinyVector<double,3> position;
+    blitz::TinyVector<double,3> velocity;
+    double P;
+    float fBall;
+    float fDensity;
+    uint8_t iClass;
+    bool bMarked;
+};
+
 void hydroGradients(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf);
+void packHydroGradients(void *vpkd,void *dst,const void *src);
+void unpackHydroGradients(void *vpkd,void *dst,const void *src);
+
 
 /* Flux loop */
-void initHydroFluxes(void *vpkd, void *vp);
-void initHydroFluxesCached(void *vpkd, void *vp);
+struct hydroFluxesPack {
+    blitz::TinyVector<double,3> position;
+    blitz::TinyVector<double,3> velocity;
+    blitz::TinyVector<double,6> B;
+    blitz::TinyVector<myreal,3> gradRho, gradVx, gradVy, gradVz, gradP;
+    myreal lastUpdateTime;
+    blitz::TinyVector<myreal,3> lastAcc;
+    double omega;
+    double P;
+    float fBall;
+    float fDensity;
+    uint8_t uRung;
+    uint8_t iClass;
+    bool bMarked;
+};
+
+struct hydroFluxesFlush {
+    myreal Frho;
+    blitz::TinyVector<myreal,3> Fmom;
+    myreal Fene;
+#ifndef USE_MFM
+    blitz::TinyVector<double,3> drDotFrho;
+#endif
+    blitz::TinyVector<double,3> mom;
+    double E;
+    double Uint;
+    float fMass;
+};
+
 void hydroRiemann(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf);
 void hydroRiemann_vec(PARTICLE *p,float fBall,int nSmooth,
                       my_real **restrict input_buffer,
                       my_real **restrict output_buffer,
                       SMF *smf);
-void pkdResetFluxes(PKD pkd,double dTime,double dDelta,double,double);
-
-void combThirdHydroLoop(void *vpkd, void *p1,const void *p2);
+void packHydroFluxes(void *vpkd,void *dst,const void *src);
+void unpackHydroFluxes(void *vpkd,void *dst,const void *src);
+void initHydroFluxes(void *vpkd,void *vp);
+void initHydroFluxesCached(void *vpkd,void *vp);
+void flushHydroFluxes(void *vpkd,void *dst,const void *src);
+void combHydroFluxes(void *vpkd,void *p1,const void *p2);
 void hydroFluxFillBuffer(my_real **buffer, PARTICLE *q, int i,
-                         double dr2, double dx, double dy, double dz, SMF *);
+                         double dr2, blitz::TinyVector<double,3> dr, SMF *);
 void hydroFluxUpdateFromBuffer(my_real **out_buffer, my_real **in_buffer,
                                PARTICLE *p, PARTICLE *q, int i, SMF *);
 void hydroFluxGetNvars(int *in, int *out);
 
+void pkdResetFluxes(PKD pkd,double dTime,double dDelta,double,double);
+
+
 /* Time step loop */
-void initHydroStep(void *vpkd, void *vp);
+struct hydroStepPack {
+    blitz::TinyVector<double,3> position;
+    blitz::TinyVector<double,3> velocity;
+    float c;
+    float fBall;
+    uint8_t uRung;
+    uint8_t uNewRung;
+    uint8_t iClass;
+    bool bMarked;
+};
+
+struct hydroStepFlush {
+    uint8_t uNewRung;
+    uint8_t uWake;
+};
+
 void hydroStep(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf);
-void combHydroStep(void *vpkd, void *p1,const void *p2);
-void pkdWakeParticles(PKD pkd,int iRoot, double dTime, double dDelta);
+void packHydroStep(void *vpkd,void *dst,const void *src);
+void unpackHydroStep(void *vpkd,void *dst,const void *src);
+void initHydroStep(void *vpkd,void *dst);
+void flushHydroStep(void *vpkd,void *dst,const void *src);
+void combHydroStep(void *vpkd,void *dst,const void *src);
+void pkdWakeParticles(PKD pkd,int iRoot,double dTime,double dDelta);
 
 
 /* Source terms */
-void hydroSourceGravity(PKD pkd, PARTICLE *p, SPHFIELDS *psph,
-                        double pDelta, double *pa, double dScaleFactor,
+void hydroSourceGravity(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS *psph,
+                        double pDelta, blitz::TinyVector<double,3> &pa, double dScaleFactor,
                         int bComove);
-void hydroSourceExpansion(PKD pkd, PARTICLE *p, SPHFIELDS *psph,
+void hydroSourceExpansion(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS *psph,
                           double pDelta, double dScaleFactor, double dHubble,
                           int bComove, double dConstGamma);
-void hydroSyncEnergies(PKD pkd, PARTICLE *p, SPHFIELDS *psph, double pa[3],
-                       double dConstGamma);
-
-void hydroSetPrimitives(PKD pkd, PARTICLE *p, SPHFIELDS *psph, double dTuFac, double dConstGamma);
-
-void hydroSetLastVars(PKD pkd, PARTICLE *p, SPHFIELDS *psph, double *pa,
-                      double dScaleFactor, double dTime, double dDelta,
-                      double dConstGamma);
+void hydroSyncEnergies(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS *psph,
+                       const blitz::TinyVector<double,3> &pa, double dConstGamma);
+void hydroSetPrimitives(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS *psph,
+                        double dTuFac, double dConstGamma);
+void hydroSetLastVars(PKD pkd, particleStore::ParticleReference &p, SPHFIELDS *psph,
+                      const blitz::TinyVector<double,3> &pa, double dScaleFactor,
+                      double dTime, double dDelta, double dConstGamma);
 
 /* -----------------
  * HELPERS
  * -----------------
  */
-#define SIGN(x) (((x) > 0) ? 1 : (((x) < 0) ? -1 : 0) )
-#define MIN(X, Y)  ((X) < (Y) ? (X) : (Y))
-#define MAX(X, Y)  ((X) > (Y) ? (X) : (Y))
 void inverseMatrix(double *E, double *B);
 double conditionNumber(double *E, double *B);
-inline double cubicSplineKernel(double r, double h) {
-    double q;
-    q = r/h;
-    if (q<1.0) {
-        return M_1_PI/(h*h*h)*( 1. - 1.5*q*q*(1.-0.5*q) );
+
+// Cubic spline kernel as defined in Dehnen & Aly (2012)
+//
+// (1 − q)^3 − 4(1/2 − q)^3  for   0 < q <= 1/2
+//                (1 − q)^3  for 1/2 < q <= 1
+//                        0  for       q > 1
+//
+// where q = r/H.
+inline double cubicSplineKernel(double r, double H) {
+    constexpr double dNormFac = 16 * M_1_PI;
+    double dHInv = 1.0 / H;
+    double q = r * dHInv;
+    double dNorm = dNormFac * dHInv * dHInv * dHInv;
+
+    if (q < 0.5) {
+        return dNorm * (0.5 - 3 * q * q * (1.0 - q));
     }
-    else if (q<2.0) {
-        return 0.25*M_1_PI/(h*h*h)*(2.-q)*(2.-q)*(2.-q);
+    else if (q < 1.0) {
+        return dNorm * (1.0 - q) * (1.0 - q) * (1.0 - q);
     }
     else {
         return 0.0;
     }
 }
-void BarthJespersenLimiter(double *limVar, double *gradVar,
+
+void BarthJespersenLimiter(double *limVar, const blitz::TinyVector<double,3> &gradVar,
                            double var_max, double var_min,
-                           double dx, double dy, double dz);
-void ConditionedBarthJespersenLimiter(double *limVar, myreal *gradVar,
+                           const blitz::TinyVector<double,3> &dr);
+void ConditionedBarthJespersenLimiter(double *limVar, const blitz::TinyVector<myreal,3> &gradVar,
                                       double var_max, double var_min,
-                                      double dx, double dy, double dz,
+                                      const blitz::TinyVector<double,3> &dr,
                                       double Ncrit, double Ncond);
 #define psi1 0.5
 #define psi2 0.25
@@ -120,17 +203,17 @@ inline void genericPairwiseLimiter(double Lstate, double Rstate,
 
         phi_mean = 0.5*(Lstate+Rstate);
 
-        phi_min = MIN(Lstate, Rstate);
-        phi_max = MAX(Lstate, Rstate);
+        phi_min = std::min(Lstate, Rstate);
+        phi_max = std::max(Lstate, Rstate);
 
-        if (SIGN(phi_min - d1) == SIGN(phi_min) ) {
+        if (sign(phi_min - d1) == sign(phi_min) ) {
             phi_m = phi_min - d1;
         }
         else {
             phi_m = phi_min/(1. + d1/fabs(phi_min));
         }
 
-        if (SIGN(phi_max + d1) == SIGN(phi_max) ) {
+        if (sign(phi_max + d1) == sign(phi_max) ) {
             phi_p = phi_max + d1;
         }
         else {
@@ -138,12 +221,12 @@ inline void genericPairwiseLimiter(double Lstate, double Rstate,
         }
 
         if (Lstate < Rstate) {
-            *Lstate_face = MAX(phi_m, MIN(phi_mean+d2, *Lstate_face));
-            *Rstate_face = MIN(phi_p, MAX(phi_mean-d2, *Rstate_face));
+            *Lstate_face = std::max(phi_m, std::min(phi_mean+d2, *Lstate_face));
+            *Rstate_face = std::min(phi_p, std::max(phi_mean-d2, *Rstate_face));
         }
         else {
-            *Rstate_face = MAX(phi_m, MIN(phi_mean+d2, *Rstate_face));
-            *Lstate_face = MIN(phi_p, MAX(phi_mean-d2, *Lstate_face));
+            *Rstate_face = std::max(phi_m, std::min(phi_mean+d2, *Rstate_face));
+            *Lstate_face = std::min(phi_p, std::max(phi_mean-d2, *Lstate_face));
         }
 
     }
@@ -154,7 +237,4 @@ void compute_Ustar(double rho_K, double S_K, double v_K,
                    double p_K, double h_K, double S_s,
                    double *rho_sK, double *rhov_sK, double *e_sK);
 
-#ifdef __cplusplus
-}
-#endif
 #endif

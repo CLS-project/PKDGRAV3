@@ -116,12 +116,13 @@ void pkdGrackleUpdate(PKD pkd, double dScaleFactor, char *achCoolingTable, UNITS
 
 
 
-void pkdGrackleCooling(PKD pkd, PARTICLE *p, double pDelta, double dTuFac) {
-    SPHFIELDS *psph = pkdSph(pkd,p);
-    gr_float fDensity = pkdDensity(pkd,p);
-    gr_float fMetalDensity = psph->fMetalMass*psph->omega;
+void pkdGrackleCooling(PKD pkd, particleStore::ParticleReference &p, double pDelta,
+                       double dTuFac) {
+    auto &sph = p.sph();
+    gr_float fDensity = p.density();
+    gr_float fMetalDensity = sph.fMetalMass*sph.omega;
     gr_float minUint = 100. * dTuFac;
-    gr_float fSpecificUint = psph->Uint/pkdMass(pkd,p);
+    gr_float fSpecificUint = sph.Uint/p.mass();
 
 
     // Set field arrays.
@@ -145,9 +146,9 @@ void pkdGrackleCooling(PKD pkd, PARTICLE *p, double pDelta, double dTuFac) {
         err = local_solve_chemistry( pkd->grackle_data, pkd->grackle_rates, pkd->grackle_units,
                                      pkd->grackle_field, pDelta );
         if (err == 0) fprintf(stderr, "Error in calculate_cooling_time.\n");
-        psph->E -= psph->Uint;
-        psph->Uint = pkd->grackle_field->internal_energy[0]*pkdMass(pkd,p);
-        psph->E += psph->Uint;
+        sph.E -= sph.Uint;
+        sph.Uint = pkd->grackle_field->internal_energy[0]*p.mass();
+        sph.E += sph.Uint;
     }
     double diff = (fSpecificUint-pkd->grackle_field->internal_energy[0])/fSpecificUint;
 

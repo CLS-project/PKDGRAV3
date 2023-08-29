@@ -45,210 +45,48 @@
 #include "cuda/cudautil.h"
 #include "cuda/cudapppc.h"
 #include "cuda/cudaewald.h"
-#include "../SPHOptions.h"
+#include "../SPH/SPHOptions.h"
+#include "../SPH/SPHEOS.h"
+#include "../SPH/SPHpredict.h"
 
-static inline int getCell(PKD pkd,int iCache,int iCell,int id,float *pcOpen,KDN **pc) {
-    KDN *c;
-    int nc;
-    assert(iCell > 0);
-    assert(id >= 0);
-    if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCell);
-    else c = CAST(KDN *,mdlFetch(pkd->mdl,iCache,iCell,id));
-    *pc = c;
-    if (c->bRemote|c->bTopTree) nc = 1000000000; /* we never allow pp with this cell */
-    else nc = c->pUpper - c->pLower + 1;
-    *pcOpen = c->bMax * pkd->fiCritTheta;
-    return nc;
-}
+static void addChild(PKD pkd, int iCache, clList *cl, int iChild, int id, blitz::TinyVector<float,3> fOffset) {
+    auto c = (id == pkd->Self()) ? pkd->tree[iChild] :
+             pkd->tree[static_cast<KDN *>(mdlFetch(pkd->mdl,iCache,iChild,id))];
+    auto nc = (c->is_remote()|c->is_top_tree()) ? 1000000000 : c->count();
+    auto cOpen = c->bMax() * pkd->fiCritTheta;
+    auto c_r = c->position();
+    auto cbnd = c->bound();
+    auto [iLower, idLower, iUpper, idUpper] = c->get_child_cells(id);
+    const auto &SPHbob = c->have_BOB() ? c->BOB() : SPHBOB();
+    cl->append(iCache,id,iChild,idLower,iLower,idUpper,iUpper,nc,cOpen,
+               c->mass(),4.0f*c->fSoft2(),c_r,fOffset,cbnd,
+               SPHbob);
 
-
-#ifdef USE_SIMD_OPEN
-#else
-/*
-** This implements the original pkdgrav2m opening criterion, which has been
-** well tested, gives good force accuracy, but may not be the most efficient
-** and also doesn't explicitly conserve momentum.
-**
-** This version has been changed by adding the ability to open buckets.
-*/
-static void iOpenOutcomeCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,SPHOptions *SPHoptions) {
-    const int walk_min_multipole = 3;
-    float dx,dy,dz,mink2,d2,d2Open,xc,yc,zc,fourh2,minbnd2,kOpen,cOpen,diCrit,distk2,distc2;
-    int i;
-    int iOpen,iOpenA,iOpenB;
-    CL_BLK *blk;
-    int n, nLeft;
-    BND kbnd;
-    double k_r[3];
-
-    distk2 = HUGE_VALF;
-    distc2 = HUGE_VALF;
-
-    kbnd = pkdNodeGetBnd(pkd,k);
-    pkdNodeGetPos(pkd,k,k_r);
-    assert(0); // NOT everything implemented
-
-    diCrit = 1.0f / dThetaMin;
-    blk = tile->blk;
-    for (nLeft=tile->lstTile.nBlocks; nLeft>=0; --nLeft,blk++) {
-        n = nLeft ? cl->lst.nPerBlock : tile->lstTile.nInLast;
-        for (i=0; i<n; ++i) {
-            if (blk->m.f[i] <= 0) iOpen = 10;  /* ignore this cell */
-            else {
-                fourh2 = blk->fourh2.f[i];
-
-                if (SPHoptions->doDensity || SPHoptions->doSPHForces || SPHoptions->doSetDensityFlags) {
-                    distk2 = 0.0f;
-                    dx = kbnd.fCenter[0] -  blk->xCenter.f[i] - blk->xOffset.f[i] - blk->xMax.f[i];
-                    if (dx > 0) distk2 += dx*dx;
-                    dx = blk->xCenter.f[i] + blk->xOffset.f[i] - blk->xMax.f[i] - kbnd.fCenter[0];
-                    if (dx > 0) distk2 += dx*dx;
-
-                    dx = kbnd.fCenter[1] - blk->yCenter.f[i] - blk->yOffset.f[i] - blk->yMax.f[i];
-                    if (dx > 0) distk2 += dx*dx;
-                    dx = blk->yCenter.f[i] + blk->yOffset.f[i] - blk->yMax.f[i] - kbnd.fCenter[1];
-                    if (dx > 0) distk2 += dx*dx;
-
-                    dx = kbnd.fCenter[2] - blk->zCenter.f[i] - blk->zOffset.f[i] - blk->zMax.f[i];
-                    if (dx > 0) distk2 += dx*dx;
-                    dx = blk->zCenter.f[i] + blk->zOffset.f[i] - blk->zMax.f[i] - kbnd.fCenter[2];
-                    if (dx > 0) distk2 += dx*dx;
-                }
-                if (SPHoptions->doSPHForces || SPHoptions->doSetDensityFlags) {
-                    distc2 = 0.0f;
-                    dx = kbnd.fCenter[0] - kbnd.fMax[0] -  blk->xCenter.f[i] - blk->xOffset.f[i];
-                    if (dx > 0) distc2 += dx*dx;
-                    dx = blk->xCenter.f[i] + blk->xOffset.f[i] - kbnd.fCenter[0] - kbnd.fMax[0];
-                    if (dx > 0) distc2 += dx*dx;
-
-                    dx = kbnd.fCenter[1] - kbnd.fMax[1] - blk->yCenter.f[i] - blk->yOffset.f[i];
-                    if (dx > 0) distc2 += dx*dx;
-                    dx = blk->yCenter.f[i] + blk->yOffset.f[i] - kbnd.fCenter[1] - kbnd.fMax[1];
-                    if (dx > 0) distc2 += dx*dx;
-
-                    dx = kbnd.fCenter[2] - kbnd.fMax[2] - blk->zCenter.f[i] - blk->zOffset.f[i];
-                    if (dx > 0) distc2 += dx*dx;
-                    dx = blk->zCenter.f[i] + blk->zOffset.f[i] - kbnd.fCenter[2] - kbnd.fMax[2];
-                    if (dx > 0) distc2 += dx*dx;
-                }
-
-                xc = blk->x.f[i] + blk->xOffset.f[i];
-                yc = blk->y.f[i] + blk->yOffset.f[i];
-                zc = blk->z.f[i] + blk->zOffset.f[i];
-                d2 = pow(k_r[0]-xc,2) + pow(k_r[1]-yc,2) + pow(k_r[2]-zc,2);
-                kOpen = 1.5f * k->bMax * diCrit;
-                cOpen = blk->cOpen.f[i];
-                d2Open = pow(cOpen+kOpen,2);
-                dx = fabs(xc - kbnd.fCenter[0]) - kbnd.fMax[0];
-                dy = fabs(yc - kbnd.fCenter[1]) - kbnd.fMax[1];
-                dz = fabs(zc - kbnd.fCenter[2]) - kbnd.fMax[2];
-                mink2 = ((dx>0)?dx *dx:0) + ((dy>0)?dy *dy:0) + ((dz>0)?dz *dz:0);
-                minbnd2 = 0;
-
-                dx = kbnd.fCenter[0] - kbnd.fMax[0] -  blk->xCenter.f[i] - blk->xOffset.f[i] - blk->xMax.f[i];
-                if (dx > 0) minbnd2 += dx*dx;
-                dx = blk->xCenter.f[i] + blk->xOffset.f[i] - blk->xMax.f[i] - kbnd.fCenter[0] - kbnd.fMax[0];
-                if (dx > 0) minbnd2 += dx*dx;
-
-                dx = kbnd.fCenter[1] - kbnd.fMax[1] - blk->yCenter.f[i] - blk->yOffset.f[i] - blk->yMax.f[i];
-                if (dx > 0) minbnd2 += dx*dx;
-                dx = blk->yCenter.f[i] + blk->yOffset.f[i] - blk->yMax.f[i] - kbnd.fCenter[1] - kbnd.fMax[1];
-                if (dx > 0) minbnd2 += dx*dx;
-
-                dx = kbnd.fCenter[2] - kbnd.fMax[2] - blk->zCenter.f[i] - blk->zOffset.f[i] - blk->zMax.f[i];
-                if (dx > 0) minbnd2 += dx*dx;
-                dx = blk->zCenter.f[i] + blk->zOffset.f[i] - blk->zMax.f[i] - kbnd.fCenter[2] - kbnd.fMax[2];
-                if (dx > 0) minbnd2 += dx*dx;
-
-                if (d2 > d2Open && minbnd2 > fourh2 && distk2 > k->fBoBr2 && distc2 > blk->fBoBr2.f[i]) iOpen = 8;
-                else if (cOpen > kOpen) {
-                    if (blk->iLower.i[i]) iOpen = 3;
-                    else iOpen = 2;
-                }
-                else {
-                    if (blk->iLower.i[i] == 0) iOpenA = 1;
-                    else iOpenA = 3;
-                    if (blk->nc.i[i] < walk_min_multipole || mink2 <= cOpen*cOpen) iOpenB = iOpenA;
-                    else if (minbnd2 > fourh2 && distk2 > k->fBoBr2 && distc2 > blk->fBoBr2.f[i]) iOpenB = 4;
-                    else iOpenB = iOpenA;
-                    if (!k->bGroup) iOpen = 0;
-                    else iOpen = iOpenB;
-                }
-            }
-#ifdef USE_SIMD_OPEN
-            /* This function is only called with SIMD if we are checking the two. Print the differences. */
-            if (blk->iOpen.i[i] != iOpen) {
-                printf("SIMD=%d, iOpen=%d, d2=%.8g > d2Open=%.8g, minbnd2=%.8g > fourh2=%.8g, kOpen=%.8g, cOpen=%.8g\n",
-                       blk->iOpen.i[i], iOpen, d2, d2Open, minbnd2, fourh2,
-                       kOpen, blk->cOpen.f[i]);
-            }
-#else
-            blk->iOpen.i[i] = iOpen;
-#endif
-        }
-    }
-    double dFlop = COST_FLOP_OPEN*(tile->lstTile.nBlocks*CL_PART_PER_BLK  + tile->lstTile.nInLast);
-    pkd->dFlop += dFlop;
-    pkd->dFlopSingleCPU += dFlop;
-}
-#endif
-
-static void addChild(PKD pkd, int iCache, CL cl, int iChild, int id, float *fOffset) {
-    int idLower, iLower, idUpper, iUpper;
-    float cOpen;
-    KDN *c;
-    double c_r[3];
-    int nc = getCell(pkd,iCache,iChild,id,&cOpen,&c);
-    pkdNodeGetPos(pkd,c,c_r);
-    BND cbnd = pkdNodeGetBnd(pkd,c);
-    pkdGetChildCells(c,id,idLower,iLower,idUpper,iUpper);
-    clAppend(cl,iCache,id,iChild,idLower,iLower,idUpper,iUpper,nc,cOpen,
-#if SPHBALLOFBALLS
-             pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c_r,fOffset,cbnd.fCenter,cbnd.fMax,c->fBoBr2,c->fBoBxCenter,c->fBoByCenter,c->fBoBzCenter);
-#endif
-#if SPHBOXOFBALLS
-    pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c_r,fOffset,cbnd.fCenter,cbnd.fMax,c->fBoBxMin,c->fBoBxMax,c->fBoByMin,c->fBoByMax,c->fBoBzMin,c->fBoBzMax);
-#endif
 }
 /*
 ** Returns total number of active particles for which gravity was calculated.
 */
 static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2,
                             struct pkdKickParameters *kick,struct pkdLightconeParameters *lc,struct pkdTimestepParameters *ts,
-                            double dTime,int bEwald,
+                            double dTime,int bEwald,bool bGPU,
                             double dThetaMin, double *pdFlop, double *pdPartSum,double *pdCellSum,SPHOptions *SPHoptions) {
-    KDN *k,*c;
+    treeStore::NodePointer c(pkd->tree);
     int id,iCell,iSib,iCheckCell,iCheckLower;
-    PARTICLE *p;
     FMOMR monoPole;
     LOCR L;
     FLOCR Lf;
-    double dShiftFlop;
-    const vel_t *v;
-    const float *a;
-    double r[3], k_r[3], c_r[3];
-    double dOffset[3];
+    float vpred[3];
+    blitz::TinyVector<float,3> a;
+    blitz::TinyVector<double,3> r, k_r, c_r, dOffset, dx;
     double xParent,yParent,zParent;
-    double d2;
-    double dx[3],dir;
-    float fOffset[3];
+    blitz::TinyVector<float,3> fOffset;
     float dirLsum,normLsum;
     float fMass,fSoft;
     int iStack;
     int j,jTile,pj,nActive,nTotActive;
-    float cOpen,kOpen;
-    static const float  fZero3[] = {0.0f,0.0f,0.0f};
-    static const vel_t vZero3[] = {0.0,0.0,0.0};
-    CL clTemp;
-    CLTILE cltile;
+    static const blitz::TinyVector<float,3> fZero3(0,0,0);
     int iCidPart;
     int bReferenceFound;
-    uint64_t iOrder;
-#ifdef USE_SIMD_FMM
-    float fzero[3] = {0,0,0};
-#else
-    float imaga;
-#endif
     double dFlop;
 
     pkd->dFlop = 0.0; /* Flops are accumulated here! */
@@ -263,85 +101,50 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2,
     normLsum = 0;
     nTotActive = 0;
 
-    a = fZero3;
-    v = vZero3;
+    a = 0;
 
     /*
     ** We are now going to work on the local tree.
     ** Make iCell point to the root of the tree again.
     */
-    k = pkdTreeNode(pkd,iCell = iRoot);
-    pkdNodeGetPos(pkd,k,k_r);
+    auto k = pkd->tree[iCell = iRoot];
+    k_r = k->position();
     while (1) {
 #ifdef ILP_ILC_CAN_BE_NON_EMPTY
-        KDN *kFind;
         ILPTILE tile;
         ILCTILE ctile;
-        double cx,cy,cz,d2c;
+        blitz::TinyVector<double,3> reference;
+        double d2c;
         int iLower,iUpper;
         /*
         ** Find the next active particle that will be encountered in the walk algorithm below
         ** in order to set a good initial center for the P-P interaction list.
         */
-        kFind = k;
+        auto kFind = k;
         while (kFind->iLower) {
             int iCellDescend;
-            kFind = pkdTreeNode(pkd,iCellDescend = kFind->iLower);
+            kFind = pkd->tree[iCellDescend = kFind->iLower];
             if (kFind->uMinRung>uRungHi || kFind->uMaxRung < uRungLo) {
                 /*
                 ** Move onto processing the sibling.
                 */
-                kFind = pkdTreeNode(pkd,++iCellDescend);
+                kFind = pkd->tree[++iCellDescend];
             }
         }
-        for (pj=kFind->pLower; pj<=kFind->pUpper; ++pj) {
-            p = pkdParticle(pkd,pj);
-            if (!pkdIsActive(pkd,p)) continue;
-            pkdGetPos3(pkd,p,cx,cy,cz);
+        for (auto &p : *kfind) {
+            if (!p.is_active()) continue;
+            reference = p.position();
             goto found_it;
         }
-        printf("%d: TREE ERROR\n", pkd->idSelf);
+        printf("%d: TREE ERROR\n", pkd->Self());
         assert(0); /* We didn't find an active particle */
 found_it:
-        d2c = (cx - pkd->ilp->cx)*(cx - pkd->ilp->cx) + (cy - pkd->ilp->cy)*(cy - pkd->ilp->cy) +
-              (cz - pkd->ilp->cz)*(cz - pkd->ilp->cz);
+        reference -= pkd->ilp->getReference();
+        d2c = blitz::dot(reference,reference);
         if ( d2c > 1e-5 ) {
-            /*
-            ** Correct all remaining PP interactions to this new center.
-            */
-            ILP_LOOP( pkd->ilp, tile ) {
-                ILP_BLK *blk = tile->blk;
-                int nLeft, n, prt;
-                for ( nLeft=tile->lstTile.nBlocks; nLeft >= 0; --nLeft,blk++ ) {
-                    n = (nLeft ? pkd->ilp->lst.nPerBlock : tile->lstTile.nInLast);
-                    for (prt=0; prt<n; ++prt) {
-                        blk->dx.f[prt] += (float)(cx - pkd->ilp->cx);
-                        blk->dy.f[prt] += (float)(cy - pkd->ilp->cy);
-                        blk->dz.f[prt] += (float)(cz - pkd->ilp->cz);
-                    }
-                }
-            }
-            pkd->ilp->cx = cx;
-            pkd->ilp->cy = cy;
-            pkd->ilp->cz = cz;
-            /*
-            ** Correct all remaining PC interactions to this new center.
-            */
-            ILC_LOOP( pkd->ilc, ctile ) {
-                ILC_BLK *blk = ctile->blk;
-                int nLeft, n, prt;
-                for ( nLeft=ctile->lstTile.nBlocks; nLeft >= 0; --nLeft,blk++ ) {
-                    n = (nLeft ? pkd->ilc->lst.nPerBlock : ctile->lstTile.nInLast);
-                    for (prt=0; prt<n; ++prt) {
-                        blk->dx.f[prt] += (float)(cx - pkd->ilc->cx);
-                        blk->dy.f[prt] += (float)(cy - pkd->ilc->cy);
-                        blk->dz.f[prt] += (float)(cz - pkd->ilc->cz);
-                    }
-                }
-            }
-            pkd->ilc->cx = cx;
-            pkd->ilc->cy = cy;
-            pkd->ilc->cz = cz;
+            // Correct all remaining PP/PC interactions to this new center.
+            pkd->ilp.recenter(reference);
+            pkd->ilc.recenter(reference);
         }
         bReferenceFound = 1;
 #else
@@ -352,169 +155,144 @@ found_it:
             ** Process the Checklist.
             */
 #ifdef USE_SIMD_FMM
-            if (ts->bGravStep) a = pkdNodeAccel(pkd,k);
-            else a = fzero;
+            a = (ts->bGravStep) ? k->acceleration() : 0.0f;
 #else
+            float imaga;
             if (ts->bGravStep) {
-                a = pkdNodeAccel(pkd,k);
-                imaga = 1.0 / sqrtf(a[0]*a[0] + a[1]*a[1] + a[2]*a[2]);
+                a = k->acceleration();
+                imaga = 1.0 / sqrtf(blitz::dot(a,a));
             }
 #endif
             /*
             ** For cells which will remain on the checklist for a further deeper level of
             ** level of the tree we will be using the stack cl (even if no push happens later).
             */
-            clClear(pkd->S[iStack+1].cl);
+            pkd->S[iStack+1].cl->clear();
 #ifdef USE_SIMD_FMM
-            ilcClear(pkd->ill);
+            pkd->ill.clear();
 #endif
             do {
-                CL_LOOP(pkd->cl,cltile) {
-#ifdef USE_SIMD_OPEN
-                    iOpenOutcomeSIMD(pkd,k,pkd->cl,cltile,dThetaMin,SPHoptions);
-                    /*Verify:iOpenOutcomeNewCL(pkd,k,pkd->cl,cltile,dThetaMin);*/
-#else
-                    iOpenOutcomeCL(pkd,k,pkd->cl,cltile,dThetaMin,SPHoptions);
-#endif
+                for (auto &tile : *pkd->cl) {
+                    iOpenOutcomeSIMD(pkd,k,tile,dThetaMin,SPHoptions);
                 }
-                clClear(pkd->clNew);
-                CL_LOOP(pkd->cl,cltile) {
-                    CL_BLK *blk = cltile->blk;
-                    int nLeft;
-                    for (nLeft=cltile->lstTile.nBlocks; nLeft>=0; --nLeft,blk++) {
-                        int n = nLeft ? pkd->cl->lst.nPerBlock : cltile->lstTile.nInLast;
+                pkd->clNew->clear();
+                for (auto &tile : *pkd->cl) {
+                    auto nBlocks = tile.count() / tile.width;
+                    for (auto iBlock=0; iBlock<=nBlocks; ++iBlock) {
+                        int n = iBlock<nBlocks ? tile.width : tile.count() - nBlocks*tile.width;
+                        auto &blk = tile[iBlock];
                         for (jTile=0; jTile<n; ++jTile) {
-                            switch (blk->iOpen.i[jTile]) {
+                            switch (blk.iOpen[jTile]) {
                             case 0:
                                 /*
                                 ** This checkcell stays on the checklist.
                                 */
-                                clAppendItem(pkd->S[iStack+1].cl,blk,jTile);
+                                pkd->S[iStack+1].cl->append(blk,jTile);
                                 break;
                             case 1:
                                 /*
                                 ** This checkcell's particles are added to the P-P list.
                                 */
-                                iCheckCell = blk->iCell.i[jTile];
-                                id = blk->idCell.i[jTile];
+                                iCheckCell = blk.iCell[jTile];
+                                id = blk.idCell[jTile];
                                 if (iCheckCell < 0) {
                                     pj = -1 - iCheckCell;
                                     assert(id >= 0);
-                                    iCidPart = blk->iCache.i[jTile]==CID_CELL ? CID_PARTICLE : CID_PARTICLE2;
-                                    if (SPHoptions->doSetDensityFlags) {
-                                        if (id == pkd->idSelf) {
-                                            p = pkdParticle(pkd,pj);
-                                            p->bMarked = 1;
-                                        }
-                                        else {
-                                            p = CAST(PARTICLE *,mdlAcquire(pkd->mdl,iCidPart,pj,id));
-                                            p->bMarked = 1;
-                                            mdlRelease(pkd->mdl,iCidPart,p);
-                                        }
+                                    iCidPart = blk.iCache[jTile]==CID_CELL ? CID_PARTICLE : CID_PARTICLE2;
+                                    if (SPHoptions->doSetDensityFlags || SPHoptions->doSetNNflags) {
+                                        auto p = (id == pkd->Self()) ? pkd->particles[pj] : pkd->particles[static_cast<PARTICLE *>(mdlAcquire(pkd->mdl,iCidPart,pj,id))];
+                                        if (SPHoptions->doSetDensityFlags) p.set_marked(true);
+                                        if (SPHoptions->doSetNNflags) p.set_NN_flag(true);
+                                        if (id != pkd->Self()) mdlRelease(pkd->mdl,iCidPart,&p);
                                     }
                                     else {
-                                        if (id == pkd->idSelf) p = pkdParticle(pkd,pj);
-                                        else p = CAST(PARTICLE *,mdlFetch(pkd->mdl,iCidPart,pj,id));
-                                        if (ts->bGravStep && ts->iTimeStepCrit == 1) v = pkdVel(pkd,p);
-                                        pkdGetPos1(pkd,p,r);
+                                        auto p = (id == pkd->Self()) ? pkd->particles[pj]
+                                                 : pkd->particles[static_cast<PARTICLE *>(mdlFetch(pkd->mdl,iCidPart,pj,id))];
+                                        r = p.position();
                                         if (!bReferenceFound) {
                                             bReferenceFound=1;
-                                            pkd->ilp->cx=r[0]; pkd->ilp->cy=r[1]; pkd->ilp->cz=r[2];
-                                            pkd->ilc->cx=r[0]; pkd->ilc->cy=r[1]; pkd->ilc->cz=r[2];
+                                            pkd->ilp.setReference(r);
+                                            pkd->ilc.setReference(r);
                                         }
-                                        iOrder = pkd->bNoParticleOrder ? 0 : p->iOrder;
-                                        v = pkdVel(pkd,p);
-                                        if (pkd->oFieldOffset[oNewSph]) {
-                                            NEWSPHFIELDS *pNewSph = pkdNewSph(pkd,p);
-                                            float dtPredDrift = getDtPredDrift(kick,p->bMarked,ts->uRungLo,p->uRung);
-                                            float Omega = pNewSph->Omega;                     /* should be the Omega field of the sph fields, nyi */
-                                            float P = 0.0f;                         /* should be calculated by the EOS, nyi */
-                                            float cs = 0.0f;                        /* should be calculated by the EOS, nyi */
-                                            const float *ap = pkdAccel(pkd,p);
-                                            if (SPHoptions->doSPHForces) {
-                                                P = EOSPCofRhoU(pkdDensity(pkd,p),pNewSph->u + dtPredDrift * pNewSph->uDot,&cs,SPHoptions);
-                                            }
-                                            ilpAppend(pkd->ilp,
-                                                      r[0] + blk->xOffset.f[jTile],
-                                                      r[1] + blk->yOffset.f[jTile],
-                                                      r[2] + blk->zOffset.f[jTile],
-                                                      blk->m.f[jTile], blk->fourh2.f[jTile],
-                                                      iOrder, v[0] + dtPredDrift * ap[0], v[1] + dtPredDrift * ap[1], v[2] + dtPredDrift * ap[2],
-                                                      pkdBall(pkd,p), Omega, pkdDensity(pkd,p), P, cs, pkdSpecies(pkd,p));
+                                        if (pkd->particles.present(PKD_FIELD::oNewSph)) {
+                                            const auto &NewSph = p.newsph();
+                                            float Omega = NewSph.Omega;
+                                            float P = 0.0f;
+                                            float cs = 0.0f;
+                                            float T = 0.0f;
+                                            float expImb2 = NewSph.expImb2;
+                                            SPHpredictOnTheFly(pkd, p, kick, SPHoptions->nPredictRung, vpred, &P, &cs, &T, SPHoptions);
+                                            pkd->ilp.append(
+                                                r[0] + blk.xOffset[jTile],
+                                                r[1] + blk.yOffset[jTile],
+                                                r[2] + blk.zOffset[jTile],
+                                                blk.m[jTile], blk.fourh2[jTile],
+                                                vpred[0], vpred[1], vpred[2],
+                                                p.ball(), Omega, p.density(), P, cs, p.species(), p.rung(), p.imaterial(), T, expImb2);
                                         }
                                         else {
-                                            ilpAppend(pkd->ilp,
-                                                      r[0] + blk->xOffset.f[jTile],
-                                                      r[1] + blk->yOffset.f[jTile],
-                                                      r[2] + blk->zOffset.f[jTile],
-                                                      blk->m.f[jTile], blk->fourh2.f[jTile],
-                                                      iOrder, v[0], v[1], v[2],
-                                                      0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0);
+                                            auto v = p.velocity();
+                                            pkd->ilp.append(
+                                                r[0] + blk.xOffset[jTile],
+                                                r[1] + blk.yOffset[jTile],
+                                                r[2] + blk.zOffset[jTile],
+                                                blk.m[jTile], blk.fourh2[jTile],
+                                                v[0], v[1], v[2],
+                                                0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0, p.rung(), 0, 0.0f, 0.0f);
                                         }
                                     }
                                 }
                                 else {
                                     assert(id >= 0);
-                                    if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCheckCell);
-                                    else {
-                                        c = CAST(KDN *,mdlFetch(pkd->mdl,blk->iCache.i[jTile],iCheckCell,id));
-                                    }
-                                    iCidPart = blk->iCache.i[jTile]==CID_CELL ? CID_PARTICLE : CID_PARTICLE2;
+                                    c = (id == pkd->Self()) ? pkd->tree[iCheckCell]
+                                        : pkd->tree[static_cast<KDN *>(mdlFetch(pkd->mdl,blk.iCache[jTile],iCheckCell,id))];
+                                    iCidPart = blk.iCache[jTile]==CID_CELL ? CID_PARTICLE : CID_PARTICLE2;
                                     if (!bReferenceFound) {
                                         bReferenceFound=1;
-                                        if (id == pkd->idSelf) p = pkdParticle(pkd,c->pLower);
-                                        else p = CAST(PARTICLE *,mdlFetch(pkd->mdl,iCidPart,c->pLower,id));
-                                        pkdGetPos1(pkd,p,r);
-                                        pkd->ilp->cx=r[0]; pkd->ilp->cy=r[1]; pkd->ilp->cz=r[2];
-                                        pkd->ilc->cx=r[0]; pkd->ilc->cy=r[1]; pkd->ilc->cz=r[2];
+                                        auto p = (id == pkd->Self()) ? pkd->particles[c->lower()] : ((SPHoptions->doSetDensityFlags || SPHoptions->doSetNNflags) ? pkd->particles[static_cast<PARTICLE *>(mdlAcquire(pkd->mdl,iCidPart,c->lower(),id))] : pkd->particles[static_cast<PARTICLE *>(mdlFetch(pkd->mdl,iCidPart,c->lower(),id))]);
+                                        r = p.position();
+                                        pkd->ilp.setReference(r);
+                                        pkd->ilc.setReference(r);
+                                        if ((id != pkd->Self()) && (SPHoptions->doSetDensityFlags || SPHoptions->doSetNNflags)) mdlRelease(pkd->mdl,iCidPart,&p);
                                     }
-                                    for (pj=c->pLower; pj<=c->pUpper; ++pj) {
-                                        if (SPHoptions->doSetDensityFlags) {
-                                            if (id == pkd->idSelf) {
-                                                p = pkdParticle(pkd,pj);
-                                                p->bMarked = 1;
-                                            }
-                                            else {
-                                                p = CAST(PARTICLE *,mdlAcquire(pkd->mdl,iCidPart,pj,id));
-                                                p->bMarked = 1;
-                                                mdlRelease(pkd->mdl,iCidPart,p);
-                                            }
+                                    for (pj=c->lower(); pj<=c->upper(); ++pj) {
+                                        if (SPHoptions->doSetDensityFlags || SPHoptions->doSetNNflags) {
+                                            auto p = (id == pkd->Self()) ? pkd->particles[pj] : pkd->particles[static_cast<PARTICLE *>(mdlAcquire(pkd->mdl,iCidPart,pj,id))];
+                                            if (SPHoptions->doSetDensityFlags) p.set_marked(true);
+                                            if (SPHoptions->doSetNNflags) p.set_NN_flag(true);
+                                            if (id != pkd->Self()) mdlRelease(pkd->mdl,iCidPart,&p);
                                         }
                                         else {
-                                            if (id == pkd->idSelf) p = pkdParticle(pkd,pj);
-                                            else p = CAST(PARTICLE *,mdlFetch(pkd->mdl,iCidPart,pj,id));
-                                            fMass = pkdMass(pkd,p);
-                                            fSoft = pkdSoft(pkd,p);
-                                            if (ts->bGravStep && ts->iTimeStepCrit == 1) v = pkdVel(pkd,p);
-                                            pkdGetPos1(pkd,p,r);
-                                            iOrder = pkd->bNoParticleOrder ? 0 : p->iOrder;
-                                            v = pkdVel(pkd,p);
-                                            if (pkd->oFieldOffset[oNewSph]) {
-                                                NEWSPHFIELDS *pNewSph = pkdNewSph(pkd,p);
-                                                float dtPredDrift = getDtPredDrift(kick,p->bMarked,ts->uRungLo,p->uRung);
-                                                float Omega = pNewSph->Omega;                 /* should be the Omega field of the sph fields, nyi */
-                                                float P = 0.0f;                     /* should be calculated by the EOS, nyi */
-                                                float cs = 0.0f;                    /* should be calculated by the EOS, nyi */
-                                                const float *ap = pkdAccel(pkd,p);
-                                                if (SPHoptions->doSPHForces) {
-                                                    P = EOSPCofRhoU(pkdDensity(pkd,p),pNewSph->u + dtPredDrift * pNewSph->uDot,&cs,SPHoptions);
-                                                }
-                                                ilpAppend(pkd->ilp,
-                                                          r[0] + blk->xOffset.f[jTile],
-                                                          r[1] + blk->yOffset.f[jTile],
-                                                          r[2] + blk->zOffset.f[jTile],
-                                                          fMass, 4*fSoft*fSoft,
-                                                          iOrder, v[0] + dtPredDrift * ap[0], v[1] + dtPredDrift * ap[1], v[2] + dtPredDrift * ap[2],
-                                                          pkdBall(pkd,p), Omega, pkdDensity(pkd,p), P, cs, pkdSpecies(pkd,p));
+                                            auto p = (id == pkd->Self()) ? pkd->particles[pj]
+                                                     : pkd->particles[static_cast<PARTICLE *>(mdlFetch(pkd->mdl,iCidPart,pj,id))];
+                                            fMass = p.mass();
+                                            fSoft = p.soft();
+                                            r = p.position();
+                                            if (p.have_newsph()) {
+                                                const auto &NewSph = p.newsph();
+                                                float Omega = NewSph.Omega;
+                                                float P = 0.0f;
+                                                float cs = 0.0f;
+                                                float T = 0.0f;
+                                                float expImb2 = NewSph.expImb2;
+                                                SPHpredictOnTheFly(pkd, p, kick, SPHoptions->nPredictRung, vpred, &P, &cs, &T, SPHoptions);
+                                                pkd->ilp.append(
+                                                    r[0] + blk.xOffset[jTile],
+                                                    r[1] + blk.yOffset[jTile],
+                                                    r[2] + blk.zOffset[jTile],
+                                                    fMass, 4*fSoft*fSoft,
+                                                    vpred[0], vpred[1], vpred[2],
+                                                    p.ball(), Omega, p.density(), P, cs, p.species(), p.rung(), p.imaterial(), T, expImb2);
                                             }
                                             else {
-                                                ilpAppend(pkd->ilp,
-                                                          r[0] + blk->xOffset.f[jTile],
-                                                          r[1] + blk->yOffset.f[jTile],
-                                                          r[2] + blk->zOffset.f[jTile],
-                                                          fMass, 4*fSoft*fSoft,
-                                                          iOrder, v[0], v[1], v[2],
-                                                          0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0);
+                                                auto v = p.velocity();
+                                                pkd->ilp.append(
+                                                    r[0] + blk.xOffset[jTile],
+                                                    r[1] + blk.yOffset[jTile],
+                                                    r[2] + blk.zOffset[jTile],
+                                                    fMass, 4*fSoft*fSoft,
+                                                    v[0], v[1], v[2],
+                                                    0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0, p.rung(), 0, 0.0f, 0.0f);
                                             }
                                         }
                                     }
@@ -525,51 +303,38 @@ found_it:
                                 ** Now I am trying to open a bucket, which means I add each particle back on the
                                 ** checklist with a cell size of zero.
                                 */
-                                iCheckCell = blk->iCell.i[jTile];
+                                iCheckCell = blk.iCell[jTile];
                                 assert(iCheckCell>=0);
-                                id = blk->idCell.i[jTile];
-                                fOffset[0] = blk->xOffset.f[jTile];
-                                fOffset[1] = blk->yOffset.f[jTile];
-                                fOffset[2] = blk->zOffset.f[jTile];
+                                id = blk.idCell[jTile];
+                                fOffset[0] = blk.xOffset[jTile];
+                                fOffset[1] = blk.yOffset[jTile];
+                                fOffset[2] = blk.zOffset[jTile];
                                 assert(id >= 0);
-                                if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCheckCell);
-                                else {
-                                    c = CAST(KDN *,mdlFetch(pkd->mdl,blk->iCache.i[jTile],iCheckCell,id));
-                                }
-                                iCidPart = blk->iCache.i[jTile]==CID_CELL ? CID_PARTICLE : CID_PARTICLE2;
-                                for (pj=c->pLower; pj<=c->pUpper; ++pj) {
-                                    if (id == pkd->idSelf) p = pkdParticle(pkd,pj);
-                                    else p = CAST(PARTICLE *,mdlFetch(pkd->mdl,iCidPart,pj,id));
-                                    pkdGetPos1(pkd,p,r);
-                                    fMass = pkdMass(pkd,p);
-                                    fSoft = pkdSoft(pkd,p);
-                                    if (ts->bGravStep && ts->iTimeStepCrit == 1) v = pkdVel(pkd,p);
-                                    if (pkd->oFieldOffset[oNewSph]) {
-                                        clAppend(pkd->clNew,blk->iCache.i[jTile],id,-1 - pj,0,0,0,0,1,0.0,fMass,4.0f*fSoft*fSoft,
-                                                 r,       /* center of mass */
-                                                 fOffset, /* fOffset */
-                                                 r,       /* center of box */
-                                                 fZero3,  /* size of box */
-#if SPHBALLOFBALLS
-                                                 pkdBall(pkd,p),r[0],r[1],r[2]);
-#endif
-#if SPHBOXOFBALLS
-                                        r[0]-pkdBall(pkd,p),r[0]+pkdBall(pkd,p),r[1]-pkdBall(pkd,p),r[1]+pkdBall(pkd,p),r[2]-pkdBall(pkd,p),r[2]+pkdBall(pkd,p));
-#endif
+                                c = (id == pkd->Self()) ? pkd->tree[iCheckCell]
+                                    : pkd->tree[static_cast<KDN *>(mdlFetch(pkd->mdl,blk.iCache[jTile],iCheckCell,id))];
+                                iCidPart = blk.iCache[jTile]==CID_CELL ? CID_PARTICLE : CID_PARTICLE2;
+                                for (pj=c->lower(); pj<=c->upper(); ++pj) {
+                                    auto p = (id == pkd->Self()) ? pkd->particles[pj] : ((SPHoptions->doSetDensityFlags || SPHoptions->doSetNNflags) ? pkd->particles[static_cast<PARTICLE *>(mdlAcquire(pkd->mdl,iCidPart,pj,id))] : pkd->particles[static_cast<PARTICLE *>(mdlFetch(pkd->mdl,iCidPart,pj,id))]);
+                                    r = p.position();
+                                    fMass = p.mass();
+                                    fSoft = p.soft();
+                                    if (p.have_newsph()) {
+                                        float fBallFactor = (SPHoptions->dofBallFactor) ? SPHoptions->fBallFactor : 1.0f;
+                                        float limitedBallSize = std::min(SPHoptions->ballSizeLimit,fBallFactor * p.ball());
+                                        pkd->clNew->append(blk.iCache[jTile],id,-1 - pj,0,0,0,0,1,0.0,fMass,4.0f*fSoft*fSoft,
+                                                           r,                   // center of mass
+                                                           fOffset,             // fOffset
+                                                           Bound(r,r),          // zero size box at r
+                                                           SPHBOB(r,limitedBallSize));
                                     }
                                     else {
-                                        clAppend(pkd->clNew,blk->iCache.i[jTile],id,-1 - pj,0,0,0,0,1,0.0,fMass,4.0f*fSoft*fSoft,
-                                                 r,       /* center of mass */
-                                                 fOffset, /* fOffset */
-                                                 r,       /* center of box */
-                                                 fZero3,  /* size of box */
-#if SPHBALLOFBALLS
-                                                 0.0f,r[0],r[1],r[2]);
-#endif
-#if SPHBOXOFBALLS
-                                        r[0],r[0],r[1],r[1],r[2],r[2]);
-#endif
+                                        pkd->clNew->append(blk.iCache[jTile],id,-1 - pj,0,0,0,0,1,0.0,fMass,4.0f*fSoft*fSoft,
+                                                           r,                   // center of mass
+                                                           fOffset,             // fOffset
+                                                           Bound(r,r),          // zero size box at r
+                                                           SPHBOB(r,0.0));
                                     }
+                                    if ((id != pkd->Self()) && (SPHoptions->doSetDensityFlags || SPHoptions->doSetNNflags)) mdlRelease(pkd->mdl,iCidPart,&p);
                                 }
                                 break;
                             case 3:
@@ -578,15 +343,15 @@ found_it:
                                 ** We could do a prefetch here for non-local
                                 ** cells.
                                 */
-                                iCheckCell = blk->iCell.i[jTile];                 assert(iCheckCell >= 0);
-                                iCheckLower = blk->iLower.i[jTile];               assert(iCheckLower > 0);
+                                iCheckCell = blk.iCell[jTile];                 assert(iCheckCell >= 0);
+                                iCheckLower = blk.iLower[jTile];               assert(iCheckLower > 0);
 
-                                fOffset[0] = blk->xOffset.f[jTile];
-                                fOffset[1] = blk->yOffset.f[jTile];
-                                fOffset[2] = blk->zOffset.f[jTile];
+                                fOffset[0] = blk.xOffset[jTile];
+                                fOffset[1] = blk.yOffset[jTile];
+                                fOffset[2] = blk.zOffset[jTile];
 
-                                addChild(pkd,blk->iCache.i[jTile],pkd->clNew,blk->iLower.i[jTile],blk->idLower.i[jTile],fOffset);
-                                addChild(pkd,blk->iCache.i[jTile],pkd->clNew,blk->iUpper.i[jTile],blk->idUpper.i[jTile],fOffset);
+                                addChild(pkd,blk.iCache[jTile],pkd->clNew,blk.iLower[jTile],blk.idLower[jTile],fOffset);
+                                addChild(pkd,blk.iCache[jTile],pkd->clNew,blk.iUpper[jTile],blk.idUpper[jTile],fOffset);
 
                                 break;
                             case 4:
@@ -595,22 +360,20 @@ found_it:
                                 ** Interact += Moment(c);
                                 */
                                 if (SPHoptions->doGravity) {
-                                    iCheckCell = blk->iCell.i[jTile];
+                                    iCheckCell = blk.iCell[jTile];
                                     assert(iCheckCell>=0);
-                                    id = blk->idCell.i[jTile];
-                                    if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCheckCell);
-                                    else {
-                                        c = CAST(KDN *,mdlFetch(pkd->mdl,blk->iCache.i[jTile],iCheckCell,id));
-                                    }
-                                    r[0] = blk->x.f[jTile] + blk->xOffset.f[jTile];
-                                    r[1] = blk->y.f[jTile] + blk->yOffset.f[jTile];
-                                    r[2] = blk->z.f[jTile] + blk->zOffset.f[jTile];
+                                    id = blk.idCell[jTile];
+                                    c = (id == pkd->Self()) ? pkd->tree[iCheckCell]
+                                        : pkd->tree[static_cast<KDN *>(mdlFetch(pkd->mdl,blk.iCache[jTile],iCheckCell,id))];
+                                    r[0] = blk.x[jTile] + blk.xOffset[jTile];
+                                    r[1] = blk.y[jTile] + blk.yOffset[jTile];
+                                    r[2] = blk.z[jTile] + blk.zOffset[jTile];
                                     if (!bReferenceFound) {
                                         bReferenceFound=1;
-                                        pkd->ilp->cx=r[0]; pkd->ilp->cy=r[1]; pkd->ilp->cz=r[2];
-                                        pkd->ilc->cx=r[0]; pkd->ilc->cy=r[1]; pkd->ilc->cz=r[2];
+                                        pkd->ilp.setReference(r);
+                                        pkd->ilc.setReference(r);
                                     }
-                                    ilcAppend(pkd->ilc,r[0],r[1],r[2],pkdNodeMom(pkd,c),c->bMax);
+                                    pkd->ilc.append(r[0],r[1],r[2],&c->moment(),c->bMax());
                                 }
                                 break;
                             case 8:
@@ -618,24 +381,24 @@ found_it:
                                 ** Local expansion accepted!
                                 */
                                 if (SPHoptions->doGravity) {
-                                    iCheckCell = blk->iCell.i[jTile];
+                                    iCheckCell = blk.iCell[jTile];
                                     if (iCheckCell<0) {
-                                        fOffset[0] = blk->xOffset.f[jTile];
-                                        fOffset[1] = blk->yOffset.f[jTile];
-                                        fOffset[2] = blk->zOffset.f[jTile];
-                                        dx[0] = k_r[0] - (blk->x.f[jTile] + blk->xOffset.f[jTile]);
-                                        dx[1] = k_r[1] - (blk->y.f[jTile] + blk->yOffset.f[jTile]);
-                                        dx[2] = k_r[2] - (blk->z.f[jTile] + blk->zOffset.f[jTile]);
-                                        d2 = dx[0]*dx[0] + dx[1]*dx[1] + dx[2]*dx[2];
-                                        dir = 1.0/sqrt(d2);
+                                        fOffset[0] = blk.xOffset[jTile];
+                                        fOffset[1] = blk.yOffset[jTile];
+                                        fOffset[2] = blk.zOffset[jTile];
+                                        dx[0] = k_r[0] - (blk.x[jTile] + blk.xOffset[jTile]);
+                                        dx[1] = k_r[1] - (blk.y[jTile] + blk.yOffset[jTile]);
+                                        dx[2] = k_r[2] - (blk.z[jTile] + blk.zOffset[jTile]);
 #ifdef USE_SIMD_FMM
-                                        monoPole.m = blk->m.f[jTile];
-                                        ilcAppendFloat(pkd->ill,dx[0],dx[1],dx[2],&monoPole,1.0);
+                                        monoPole.m = blk.m[jTile];
+                                        pkd->ill.append((float)dx[0],(float)dx[1],(float)dx[2],&monoPole,1.0);
 #else
-                                        /* monoPole.m = blk->m.f[jTile];*/
+                                        double d2 = dx[0]*dx[0] + dx[1]*dx[1] + dx[2]*dx[2];
+                                        double dir = 1.0/sqrt(d2);
+                                        /* monoPole.m = blk.m[jTile];*/
                                         /* *pdFlop += momLocrAddFmomr5cm(&L,&monoPole,0.0,dir,dx[0],dx[1],dx[2],&tax,&tay,&taz);*/
                                         double tax,tay,taz;
-                                        dFlop = momLocrAddMono5(&L,blk->m.f[jTile],dir,dx[0],dx[1],dx[2],&tax,&tay,&taz);
+                                        dFlop = momLocrAddMono5(&L,blk.m[jTile],dir,dx[0],dx[1],dx[2],&tax,&tay,&taz);
                                         *pdFlop += dFlop;
                                         pkd->dFlopDoubleCPU += dFlop;
                                         if (ts->bGravStep) {
@@ -649,26 +412,22 @@ found_it:
 #endif
                                     }
                                     else {
-                                        id = blk->idCell.i[jTile];
-                                        dOffset[0] = blk->xOffset.f[jTile];
-                                        dOffset[1] = blk->yOffset.f[jTile];
-                                        dOffset[2] = blk->zOffset.f[jTile];
-                                        if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCheckCell);
-                                        else {
-                                            c = CAST(KDN *,mdlFetch(pkd->mdl,blk->iCache.i[jTile],iCheckCell,id));
-                                        }
-                                        pkdNodeGetPos(pkd,c,c_r);
+                                        id = blk.idCell[jTile];
+                                        dOffset[0] = blk.xOffset[jTile];
+                                        dOffset[1] = blk.yOffset[jTile];
+                                        dOffset[2] = blk.zOffset[jTile];
+                                        c = (id == pkd->Self()) ? pkd->tree[iCheckCell]
+                                            : pkd->tree[static_cast<KDN *>(mdlFetch(pkd->mdl,blk.iCache[jTile],iCheckCell,id))];
+                                        c_r = c->position();
 #ifdef USE_SIMD_FMM
-                                        for (j=0; j<3; ++j) dx[j] = k_r[j] - (c_r[j] + dOffset[j]);
-                                        ilcAppendFloat(pkd->ill,dx[0],dx[1],dx[2],pkdNodeMom(pkd,c),c->bMax);
+                                        dx = k_r - (c_r + dOffset);
+                                        pkd->ill.append((float)dx[0],(float)dx[1],(float)dx[2],&c->moment(),c->bMax());
 #else
-                                        d2 = 0;
-                                        for (j=0; j<3; ++j) {
-                                            dx[j] = k_r[j] - (c_r[j] + dOffset[j]);
-                                            d2 += dx[j]*dx[j];
-                                        }
-                                        dir = 1.0/sqrt(d2);
-                                        dFlop = momLocrAddFmomr5cm(&L,pkdNodeMom(pkd,c),c->bMax,dir,dx[0],dx[1],dx[2],&tax,&tay,&taz);
+                                        dx = k_r - (c_r + dOffset);
+                                        double d2 = blitz::dot(dx,dx);
+                                        double dir = 1.0/sqrt(d2);
+                                        double tax,tay,taz;
+                                        dFlop = momLocrAddFmomr5cm(&L,&c->moment(),c->bMax(),dir,dx[0],dx[1],dx[2],&tax,&tay,&taz);
                                         *pdFlop += dFlop;
                                         pkd->dFlopDoubleCPU += dFlop;
                                         if (ts->bGravStep) {
@@ -694,20 +453,17 @@ found_it:
                         }
                     }
                 } /* end of CL_LOOP */
-                clTemp = pkd->cl;
-                pkd->cl = pkd->clNew;
-                assert(pkd->cl!=NULL);
-                pkd->clNew = clTemp;
-            } while (clCount(pkd->cl));
+                std::swap(pkd->cl,pkd->clNew);
+            } while (pkd->cl->count());
             /*
             ** Now calculate the local expansion.
             */
 #ifdef USE_SIMD_FMM
             // Need to do something here with dirLsum and normLsum for GravStep
             // Need to get the scaling factor correct here
-            if (ilcCount(pkd->ill)) {
-                float v = k->bMax;
-                dFlop = momFlocrSetVFmomr5cm(&Lf,v,pkd->ill,a,&dirLsum,&normLsum);
+            if (pkd->ill.count()) {
+                float v = k->bMax();
+                dFlop = momFlocrSetVFmomr5cm(&Lf,v,pkd->ill,a.data(),&dirLsum,&normLsum);
                 *pdFlop += dFlop;
                 pkd->dFlopSingleCPU += dFlop;
                 momLocrAddFlocr(&L,&Lf,v);
@@ -718,40 +474,37 @@ found_it:
             ** Now prepare to proceed to the next deeper
             ** level of the tree.
             */
-            if (k->bGroup) break; /* A bucket is ALWAYS a group */
+            if (k->is_group()) break; /* A bucket is ALWAYS a group */
             xParent = k_r[0];
             yParent = k_r[1];
             zParent = k_r[2];
             for (j=0; j<3; ++j) fOffset[j] = 0.0f;
-            iCell = k->iLower;
-            getCell(pkd,-1,iCell,pkd->idSelf,&kOpen,&k);
-            pkdNodeGetPos(pkd,k,k_r);
+            iCell = k->lchild();
+            k = pkd->tree[iCell];
+            k_r = k->position();
             /*
             ** Check iCell is active. We eventually want to just to a
             ** rung check here when we start using tree repair, but
             ** for now this is just as good.
             */
-            if ((k->uMinRung<=ts->uRungHi && k->uMaxRung >= ts->uRungLo) || (SPHoptions->useDensityFlags && k->bHasMarked)) {
+            if ((k->min_rung()<=ts->uRungHi && k->max_rung() >= ts->uRungLo) || (SPHoptions->useDensityFlags && k->is_marked()) || (SPHoptions->useNNflags && k->is_NN())) {
                 /*
                 ** iCell is active, continue processing it.
                 ** Put the sibling onto the checklist.
                 */
                 iSib = iCell+1;
-                getCell(pkd,-1,iSib,pkd->idSelf,&cOpen,&c);
-                if ((c->uMinRung<=ts->uRungHi && c->uMaxRung >= ts->uRungLo) || (SPHoptions->useDensityFlags && c->bHasMarked)) {
+                c = pkd->tree[iSib];
+                if ((c->min_rung()<=ts->uRungHi && c->max_rung() >= ts->uRungLo) || (SPHoptions->useDensityFlags && c->is_marked()) || (SPHoptions->useNNflags && c->is_NN())) {
                     /*
                     ** Sibling is active so we need to clone the checklist!
                     */
-                    clClone(pkd->cl,pkd->S[iStack+1].cl);
+                    pkd->cl->clone(*pkd->S[iStack+1].cl);
                 }
                 else {
                     /*
                     ** Otherwise we can simple grab it.
                     */
-                    clTemp = pkd->cl;
-                    pkd->cl = pkd->S[iStack+1].cl;
-                    assert(pkd->cl!=NULL);
-                    pkd->S[iStack+1].cl = clTemp;
+                    std::swap(pkd->cl,pkd->S[iStack+1].cl);
                 }
                 /*
                 ** Test whether the sibling is active as well.
@@ -759,7 +512,7 @@ found_it:
                 ** have to be careful to not pop the stack when we
                 ** hit the sibling.
                 */
-                if ((c->uMinRung<=ts->uRungHi && c->uMaxRung >= ts->uRungLo) || (SPHoptions->useDensityFlags && c->bHasMarked)) {
+                if ((c->min_rung()<=ts->uRungHi && c->max_rung() >= ts->uRungLo) || (SPHoptions->useDensityFlags && c->is_marked()) || (SPHoptions->useNNflags && c->is_NN())) {
                     /*
                     ** Sibling is active as well.
                     ** Push Checklist for the sibling onto the stack
@@ -772,19 +525,21 @@ found_it:
                     ** At this point, the ILP is normally empty if you never do P-P except when reaching a bucket.
                     ** Softened multi-poles are also an exception.
                     */
-                    ilpCheckPt(pkd->ilp,&pkd->S[iStack].PartChkPt);
-                    ilcCheckPt(pkd->ilc,&pkd->S[iStack].CellChkPt);
+                    //ilpCheckPt(pkd->ilp,&pkd->S[iStack].PartChkPt);
+                    //ilcCheckPt(pkd->ilc,&pkd->S[iStack].CellChkPt);
+                    assert(pkd->ilp.count()==0);
+                    assert(pkd->ilc.count()==0);
                     /*
                     ** Note here we already have the correct elements in S[iStack] (iStack+1 was used previously), just need to add one.
                     */
                     pkd->S[iStack].L = L;
                     pkd->S[iStack].dirLsum = dirLsum;
                     pkd->S[iStack].normLsum = normLsum;
-                    pkdNodeGetPos(pkd,c,c_r);
-                    dShiftFlop = momShiftLocr(&pkd->S[iStack].L,
-                                              c_r[0] - xParent,
-                                              c_r[1] - yParent,
-                                              c_r[2] - zParent);
+                    c_r = c->position();
+                    momShiftLocr(&pkd->S[iStack].L,
+                                 c_r[0] - xParent,
+                                 c_r[1] - yParent,
+                                 c_r[2] - zParent);
                 }
             }
             else {
@@ -793,15 +548,12 @@ found_it:
                 ** No need to push anything onto the stack here.
                 ** We can simply grab it the checklist from the Stack.
                 */
-                clTemp = pkd->cl;
-                pkd->cl = pkd->S[iStack+1].cl;
-                assert(pkd->cl!=NULL);
-                pkd->S[iStack+1].cl = clTemp;
+                std::swap(pkd->cl,pkd->S[iStack+1].cl);
                 /*
                 ** Move onto processing the sibling.
                 */
-                k = pkdTreeNode(pkd,++iCell);
-                pkdNodeGetPos(pkd,k,k_r);
+                k = pkd->tree[++iCell];
+                k_r = k->position();
             }
             dFlop = momShiftLocr(&L,k_r[0] - xParent,
                                  k_r[1] - yParent,
@@ -816,7 +568,7 @@ found_it:
         */
         nActive = pkdGravInteract(pkd,kick,lc,ts,
                                   k,&L,pkd->ilp,pkd->ilc,dirLsum,normLsum,bEwald,pdFlop,
-                                  smx, &smf, iRoot, iRoot2, SPHoptions);
+                                  smx, &smf, iRoot, iRoot2, SPHoptions, bGPU);
         /*
         ** Update the limit for a shift of the center here based on the opening radius of this
         ** cell (the one we just evaluated).
@@ -826,28 +578,27 @@ found_it:
             ** Here we used to set the weights of particles based on the work done, but now we just assume that
             ** all particles cost the same in domain decomposition, so we really don't need to set anything here.
             */
-            *pdPartSum += nActive*ilpCount(pkd->ilp);
-            *pdCellSum += nActive*ilcCount(pkd->ilc);
+            *pdPartSum += nActive * pkd->ilp.count();
+            *pdCellSum += nActive * pkd->ilc.count();
             nTotActive += nActive;
         }
         /* Get the next cell to process from the stack */
         if (iStack == -1) goto doneCheckList;
-        k = pkdTreeNode(pkd,iCell = pkd->S[iStack].iNodeIndex);
-        pkdNodeGetPos(pkd,k,k_r);
+        k = pkd->tree[iCell = pkd->S[iStack].iNodeIndex];
+        k_r = k->position();
         /*
         ** Pop the Checklist from the top of the stack,
         ** also getting the state of the interaction list.
         */
-        ilpRestore(pkd->ilp,&pkd->S[iStack].PartChkPt);
-        ilcRestore(pkd->ilc,&pkd->S[iStack].CellChkPt);
+        //ilpRestore(pkd->ilp,&pkd->S[iStack].PartChkPt);
+        //ilcRestore(pkd->ilc,&pkd->S[iStack].CellChkPt);
+        pkd->ilp.clear();
+        pkd->ilc.clear();
         /*
         ** Grab the checklist from the stack.
         */
-        clTemp = pkd->cl;
-        assert(clCount(pkd->cl) == 0);
-        pkd->cl = pkd->S[iStack].cl;
-        assert(pkd->cl!=NULL);
-        pkd->S[iStack].cl = clTemp;
+        assert(pkd->cl->count() == 0);
+        std::swap(pkd->cl,pkd->S[iStack].cl);
         L = pkd->S[iStack].L;
         dirLsum = pkd->S[iStack].dirLsum;
         normLsum = pkd->S[iStack].normLsum;
@@ -855,7 +606,29 @@ found_it:
     }
 doneCheckList:
 #ifdef USE_CUDA
-    CudaClientFlush(pkd->cudaClient);
+    pkd->cudaClient->flushCUDA();
+    if (SPHoptions->doDensity) {
+        /*
+        ** In the density pass, a wp can requeue itself to perform the Newton iterations.
+        ** To make sure that after the thread has reached the end of the tree walk
+        ** the work that is still being resent by the last few wps will still be treated,
+        ** we not only have to check (as done in mdlCompleteAllWork),
+        ** but also flush the queues repeatedly.
+        ** Once this while loop exits, ALL density work has been done.
+        */
+        // while (pkd->mdl->gpu.flushCompleted()) pkd->cudaClient->flushCUDA();
+        while (pkd->nWpPending) {
+            pkd->mdl->gpu.flushCompleted();
+            while (!pkd->cudaClient->wps.empty()) {
+                pkdParticleWorkDone(pkd->cudaClient->wps.front());
+                pkd->cudaClient->wps.pop();
+            }
+            pkd->cudaClient->flushCUDA();
+        }
+    }
+#endif
+#ifdef USE_METAL
+    pkd->metalClient->flushMETAL();
 #endif
     mdlCompleteAllWork(pkd->mdl);
     *pdFlop += pkd->dFlop; /* Accumulate work flops (notably Ewald) */
@@ -880,12 +653,12 @@ static void initGravWalk(PKD pkd,double dTime,double dThetaMin,int bPeriodic,int
 
     pkd->fiCritTheta = 1.0f / dThetaMin;
 
-    assert(pkd->oNodeMom);
+    assert(pkd->tree.present(KDN_FIELD::oNodeMass));
     if (bGravStep) {
-        assert(pkd->oNodeAcceleration);
+        assert(pkd->tree.present(KDN_FIELD::oNodeAcceleration));
         if (iTimeStepCrit == 1) {
-            assert(pkd->oNodeVelocity);
-            assert(pkd->oFieldOffset[oVelocity]);
+            assert(pkd->tree.present(KDN_FIELD::oNodeVelocity));
+            assert(pkd->particles.present(PKD_FIELD::oVelocity));
         }
     }
 
@@ -902,7 +675,7 @@ static void initGravWalk(PKD pkd,double dTime,double dThetaMin,int bPeriodic,int
 /*
 ** Returns total number of active particles for which gravity was calculated.
 */
-int pkdGravWalkHop(PKD pkd,double dTime,int nGroup, double dThetaMin,double *pdFlop,double *pdPartSum,double *pdCellSum) {
+int pkdGravWalkHop(PKD pkd,double dTime, double dThetaMin,double *pdFlop,double *pdPartSum,double *pdCellSum) {
     int id,iRoot,iRootSelf;
     float fOffset[3];
     int nActive;
@@ -910,15 +683,15 @@ int pkdGravWalkHop(PKD pkd,double dTime,int nGroup, double dThetaMin,double *pdF
     SMX smx;
     SMF smf;
 
-    mdlROcache(pkd->mdl,CID_PARTICLE,NULL,pkdParticleBase(pkd),pkdParticleSize(pkd), pkdLocal(pkd));
+    mdlROcache(pkd->mdl,CID_PARTICLE,NULL,pkd->particles,pkd->particles.ParticleSize(), pkd->Local());
     initGravWalk(pkd,dTime,dThetaMin,0,0,0,0,&smx,&smf);
     nActive = 0;
     for (gid=1; gid<pkd->nGroups; ++gid) {
         if (!pkd->hopGroups[gid].bNeedGrav) continue;
         pkd->hopGroups[gid].bNeedGrav = 0;
-        ilpClear(pkd->ilp);
-        ilcClear(pkd->ilc);
-        clClear(pkd->cl);
+        pkd->ilp.clear();
+        pkd->ilc.clear();
+        pkd->cl->clear();
         iRootSelf = pkd->hopGroups[gid].iAllRoots;
         for (i=iRootSelf; i<iRootSelf + pkd->hopGroups[gid].nRemote+1; ++i) {
             for (j=0; j<3; ++j) fOffset[j] = 0.0f;
@@ -927,7 +700,7 @@ int pkdGravWalkHop(PKD pkd,double dTime,int nGroup, double dThetaMin,double *pdF
             assert(iRoot>0);
             addChild(pkd,CID_CELL,pkd->cl,iRoot,id,fOffset);
         }
-        assert(pkd->hopRoots[iRootSelf].iPid==pkd->idSelf);
+        assert(pkd->hopRoots[iRootSelf].iPid==pkd->Self());
         // nActive += processCheckList(pkd, smx, smf, pkd->hopRoots[iRootSelf].iIndex, 0, 0, MAX_RUNG,
         //     NULL,NULL,1.0,dTime,
         //     0, dThetaMin, 0, 0, pdFlop, pdPartSum, pdCellSum);
@@ -942,12 +715,12 @@ int pkdGravWalkHop(PKD pkd,double dTime,int nGroup, double dThetaMin,double *pdF
 ** Returns total number of active particles for which gravity was calculated.
 */
 int pkdGravWalk(PKD pkd,struct pkdKickParameters *kick,struct pkdLightconeParameters *lc,struct pkdTimestepParameters *ts,
-                double dTime,int nReps,int bEwald,int nGroup,
+                double dTime,int nReps,int bEwald,bool bGPU,
                 int iLocalRoot1, int iLocalRoot2,int iVARoot,
                 double dThetaMin,double *pdFlop,double *pdPartSum,double *pdCellSum,SPHOptions *SPHoptions) {
     int id;
     float fOffset[3];
-    int ix,iy,iz,bRep;
+    int ix,iy,iz;
     int nActive = 0;
     SMX smx;
     SMF smf;
@@ -957,20 +730,20 @@ int pkdGravWalk(PKD pkd,struct pkdKickParameters *kick,struct pkdLightconeParame
 
     iTop1 = pkd->iTopTree[iLocalRoot1];
     iTop2 = pkd->iTopTree[iLocalRoot2];
-    id = pkd->idSelf;
+    id = pkd->Self();
 
     /*
     ** Walk tree 1 against trees 1 (and optionally 2) if there are active particles
     */
-    KDN *k = pkdTreeNode(pkd,iLocalRoot1);
-    if (k->pLower<=k->pUpper && (pkdIsCellActive(k,ts->uRungLo,ts->uRungHi) || (SPHoptions->useDensityFlags && k->bHasMarked))) {
+    auto k = pkd->tree[iLocalRoot1];
+    if (k->count() && (k->is_active(ts->uRungLo,ts->uRungHi) || (SPHoptions->useDensityFlags && k->is_marked())  || (SPHoptions->useNNflags && k->is_NN()))) {
         /*
         ** Initially we set our cell pointer to
         ** point to the top tree.
         */
-        ilpClear(pkd->ilp);
-        ilcClear(pkd->ilc);
-        clClear(pkd->cl);
+        pkd->ilp.clear();
+        pkd->ilc.clear();
+        pkd->cl->clear();
 
         /*
         ** Add all replicas of the entire box to the Checklist.
@@ -982,7 +755,6 @@ int pkdGravWalk(PKD pkd,struct pkdKickParameters *kick,struct pkdLightconeParame
                 fOffset[1] = iy*pkd->fPeriod[1];
                 for (iz=-nReps; iz<=nReps; ++iz) {
                     fOffset[2] = iz*pkd->fPeriod[2];
-                    bRep = ix || iy || iz;
                     addChild(pkd,CID_CELL,pkd->cl,iTop1,id,fOffset);
 #ifndef SINGLE_CACHES
                     if (iLocalRoot2>0) addChild(pkd,CID_CELL2,pkd->cl,iTop2,id,fOffset);
@@ -993,7 +765,7 @@ int pkdGravWalk(PKD pkd,struct pkdKickParameters *kick,struct pkdLightconeParame
             }
         }
         nActive += processCheckList(pkd, smx, smf, iLocalRoot1, iLocalRoot2, kick,lc,ts,
-                                    dTime,bEwald, dThetaMin, pdFlop, pdPartSum, pdCellSum, SPHoptions);
+                                    dTime,bEwald, bGPU, dThetaMin, pdFlop, pdPartSum, pdCellSum, SPHoptions);
     }
 #if 0
     /*
@@ -1001,10 +773,10 @@ int pkdGravWalk(PKD pkd,struct pkdKickParameters *kick,struct pkdLightconeParame
     */
     if (iLocalRoot2>0) {
         /* Check that the iRoot has active particles! */
-        if (!pkdIsCellActive(pkdTreeNode(pkd,iLocalRoot2),uRungLo,uRungHi)) return 0;
-        ilpClear(pkd->ilp);
-        ilcClear(pkd->ilc);
-        clClear(pkd->cl);
+        if (!pkd->tree[iLocalRoot2]->is_active(uRungLo,uRungHi)) return 0;
+        pkd->ilp.clear();
+        pkd->ilc.clear();
+        pkd->cl->clear();
         /*
         ** Add all replicas of the entire box to the Checklist.
         ** We add at least one box (0,0,0). The root cell is alway on processor 0.
@@ -1015,7 +787,6 @@ int pkdGravWalk(PKD pkd,struct pkdKickParameters *kick,struct pkdLightconeParame
                 fOffset[1] = iy*pkd->fPeriod[1];
                 for (iz=-nReps; iz<=nReps; ++iz) {
                     fOffset[2] = iz*pkd->fPeriod[2];
-                    bRep = ix || iy || iz;
                     addChild(pkd,CID_CELL,pkd->cl,iTop1,id,fOffset);
                 }
             }
@@ -1031,10 +802,10 @@ int pkdGravWalk(PKD pkd,struct pkdKickParameters *kick,struct pkdLightconeParame
 /*
 ** Returns total number of active particles for which gravity was calculated.
 */
-int pkdGravWalkGroups(PKD pkd,double dTime,int nGroup, double dThetaMin,double *pdFlop,double *pdPartSum,double *pdCellSum) {
+int pkdGravWalkGroups(PKD pkd,double dTime, double dThetaMin,double *pdFlop,double *pdPartSum,double *pdCellSum) {
     int id,iRoot;
-    float fOffset[3];
-    int i,j,k;
+    blitz::TinyVector<float,3> fOffset;
+    int i,k;
     SMX smx;
     SMF smf;
 
@@ -1048,12 +819,12 @@ int pkdGravWalkGroups(PKD pkd,double dTime,int nGroup, double dThetaMin,double *
     int nActive=0;
     for (i=1; i < pkd->psGroupTable.nGroups; i++) {
         if (gd[i].nLocal == 0) continue;
-        ilpClear(pkd->ilp);
-        ilcClear(pkd->ilc);
-        clClear(pkd->cl);
+        pkd->ilp.clear();
+        pkd->ilc.clear();
+        pkd->cl->clear();
 #if 1
         for (k=1; k < gd[i].nTreeRoots; k++) {
-            for (j=0; j<3; ++j) fOffset[j] = 0.0f;
+            fOffset = 0.0f;
             id = gd[i].treeRoots[k].iPid;
             iRoot = gd[i].treeRoots[k].iLocalRootId;
             addChild(pkd,CID_CELL,pkd->cl,iRoot,id,fOffset);

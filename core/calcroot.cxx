@@ -16,17 +16,32 @@
  */
 #include "calcroot.h"
 
-// Make sure that the communication structure is "trivial" so that it
-// can be moved around with "memcpy" which is required for MDL.
-static_assert(std::is_void<ServiceCalcRoot::input>()  || std::is_trivial<ServiceCalcRoot::input>());
-static_assert(std::is_void<ServiceCalcRoot::output>() || std::is_trivial<ServiceCalcRoot::output>());
+/*
+** Hopefully we can bypass this step once we figure out how to do the
+** Multipole Ewald with reduced multipoles.
+*/
+static void pkdCalcRoot(PKD pkd,uint32_t uRoot,blitz::TinyVector<double,3> com,MOMC &mom) {
+    MOMC mc;
+    auto kdn = pkd->tree[uRoot];
+    momClearMomc(&mom);
+    for (auto &p : *kdn) {
+        blitz::TinyVector<double,3> r = p.position() - com;
+        auto m = p.mass();
+        momMakeMomc(&mc,m,r[0],r[1],r[2]);
+        momAddMomc(&mom,&mc);
+    }
+}
+
+// Ensure the communication structures are "standard" so that they can be moved around with "memcpy" (required by MDL)
+static_assert(std::is_void<ServiceCalcRoot::input>()  || std::is_standard_layout<ServiceCalcRoot::input>());
+static_assert(std::is_void<ServiceCalcRoot::output>() || std::is_standard_layout<ServiceCalcRoot::output>());
 
 int ServiceCalcRoot::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto in   = static_cast<input *>(vin);
     auto out  = static_cast<output *>(vout);
     assert(nIn==sizeof(input));
     assert(nOut==sizeof(output));
-    pkdCalcRoot(pst->plcl->pkd,in->uRoot,in->com,&out->momc);
+    pkdCalcRoot(pst->plcl->pkd,in->uRoot,in->com,out->momc);
     return sizeof(output);
 }
 

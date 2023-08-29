@@ -1,4 +1,5 @@
 #ifdef FEEDBACK
+#include <numeric>
 #include "starformation/feedback.h"
 #include "master.h"
 #include "imf.h"
@@ -24,11 +25,8 @@ void MSR::SetFeedbackParam() {
     }
 }
 
-#ifdef __cplusplus
-extern "C" {
-#endif
 
-static inline void snFeedback(PKD pkd, PARTICLE *p, int nSmooth, NN *nnList,
+static inline void snFeedback(PKD pkd, PARTICLE *pIn, int nSmooth, NN *nnList,
                               const float fNgbTotMass, const double dDeltau,
                               const double dStarMass, const double dSpecEnergy,
                               const float fEfficiency, const double dConstGamma);
@@ -38,85 +36,126 @@ static inline void snFeedback(PKD pkd, PARTICLE *p, int nSmooth, NN *nnList,
  * The helper snFeedback computes the probability of explosion and adds
  * the energy to the gas particles in nnList
  */
-void smSNFeedback(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
+void smSNFeedback(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
+    auto p = pkd->particles[pIn];
 
-    float fNgbTotMass = 0.0f;
-    for (int i = 0; i < nSmooth; ++i) {
-        PARTICLE *q = nnList[i].pPart;
-        fNgbTotMass += pkdMass(pkd, q);
-    }
-    fNgbTotMass -= pkdMass(pkd, p);
+    const auto fNgbTotMass = std::accumulate(nnList, nnList + nSmooth, 0.0f,
+    [pkd](auto &a, auto &b) { return a + pkd->particles[b.pPart].mass(); }) - p.mass();
 
-    STARFIELDS *pStar = pkdStar(pkd, p);
+    auto &star = p.star();
 
 #ifdef STELLAR_EVOLUTION
-    const double dStarMass = pStar->fInitialMass;
+    const double dStarMass = star.fInitialMass;
 #else
-    const double dStarMass = pkdMass(pkd, p);
+    const double dStarMass = p.mass();
 #endif
 
-    if (!pStar->bCCSNFBDone && ((smf->dTime - pStar->fTimer) > smf->dCCSNFBDelay)) {
-        snFeedback(pkd, p, nSmooth, nnList, fNgbTotMass, smf->dSNFBDu, dStarMass,
-                   smf->dCCSNFBSpecEnergy, pStar->fSNEfficiency, smf->dConstGamma);
-        pStar->bCCSNFBDone = 1;
+    if (!star.bCCSNFBDone && ((smf->dTime - star.fTimer) > smf->dCCSNFBDelay)) {
+        snFeedback(pkd, pIn, nSmooth, nnList, fNgbTotMass, smf->dSNFBDu, dStarMass,
+                   smf->dCCSNFBSpecEnergy, star.fSNEfficiency, smf->dConstGamma);
+        star.bCCSNFBDone = 1;
     }
 
-    if (!pStar->bSNIaFBDone && ((smf->dTime - pStar->fTimer) > smf->dSNIaFBDelay)) {
-        snFeedback(pkd, p, nSmooth, nnList, fNgbTotMass, smf->dSNFBDu, dStarMass,
-                   smf->dSNIaFBSpecEnergy, pStar->fSNEfficiency, smf->dConstGamma);
-        pStar->bSNIaFBDone = 1;
+    if (!star.bSNIaFBDone && ((smf->dTime - star.fTimer) > smf->dSNIaFBDelay)) {
+        snFeedback(pkd, pIn, nSmooth, nnList, fNgbTotMass, smf->dSNFBDu, dStarMass,
+                   smf->dSNIaFBSpecEnergy, star.fSNEfficiency, smf->dConstGamma);
+        star.bSNIaFBDone = 1;
     }
 }
 
 
-
-void initSNFeedback(void *vpkd, void *vp) {
+void packSNFeedback(void *vpkd,void *dst,const void *src) {
     PKD pkd = (PKD) vpkd;
-    PARTICLE *p = (PARTICLE *) vp;
+    auto p1 = static_cast<snFeedbackPack *>(dst);
+    auto p2 = pkd->particles[static_cast<const PARTICLE *>(src)];
 
-    if (pkdIsGas(pkd,p)) {
-        SPHFIELDS *psph = pkdSph(pkd,p);
+    p1->iClass = p2.get_class();
+    if (p2.is_gas()) {
+        p1->position = p2.position();
+        p1->fMass = p2.mass();
+#ifdef ENTROPY_SWITCH
+        p1->fDensity = p2.density();
+#endif
+    }
+}
+
+void unpackSNFeedback(void *vpkd,void *dst,const void *src) {
+    PKD pkd = (PKD) vpkd;
+    auto p1 = pkd->particles[static_cast<PARTICLE *>(dst)];
+    auto p2 = static_cast<const snFeedbackPack *>(src);
+
+    p1.set_class(p2->iClass);
+    if (p1.is_gas()) {
+        p1.set_position(p2->position);
+        p1.set_mass(p2->fMass);
+#ifdef ENTROPY_SWITCH
+        p1.set_density(p2->fDensity);
+#endif
+    }
+}
+
+void initSNFeedback(void *vpkd,void *dst) {
+    PKD pkd = (PKD) vpkd;
+    auto p = pkd->particles[static_cast<PARTICLE *>(dst)];
+
+    if (p.is_gas()) {
+        auto &sph = p.sph();
 
 #ifdef OLD_FB_SCHEME
-        psph->Uint = 0.;
-        psph->E = 0.;
+        sph.E = 0.;
+        sph.Uint = 0.;
 #ifdef ENTROPY_SWITCH
-        psph->S = 0.;
+        sph.S = 0.;
 #endif
 #else // OLD_FB_SCHEME
-        psph->fAccFBEnergy = 0.;
+        sph.fAccFBEnergy = 0.;
 #endif
     }
-
 }
 
-
-void combSNFeedback(void *vpkd, void *v1, const void *v2) {
+void flushSNFeedback(void *vpkd,void *dst,const void *src) {
     PKD pkd = (PKD) vpkd;
-    PARTICLE *p1 = (PARTICLE *) v1;
-    PARTICLE *p2 = (PARTICLE *) v2;
+    auto p1 = static_cast<snFeedbackFlush *>(dst);
+    auto p2 = pkd->particles[static_cast<const PARTICLE *>(src)];
 
-    if (pkdIsGas(pkd,p1) && pkdIsGas(pkd,p2)) {
-
-        SPHFIELDS *psph1 = pkdSph(pkd,p1), *psph2 = pkdSph(pkd,p2);
+    if (p2.is_gas()) {
+        const auto &sph = p2.sph();
 
 #ifdef OLD_FB_SCHEME
-        psph1->Uint += psph2->Uint;
-        psph1->E += psph2->E;
+        p1->E = sph.E;
+        p1->Uint = sph.Uint;
 #ifdef ENTROPY_SWITCH
-        psph1->S += psph2->S;
+        p1->S = sph.S;
 #endif
-#else //OLD_FB_SCHEME
-        psph1->fAccFBEnergy += psph2->fAccFBEnergy;
+#else // OLD_FB_SCHEME
+        p1->fAccFBEnergy = sph.fAccFBEnergy;
 #endif
-
     }
+}
 
+void combSNFeedback(void *vpkd,void *dst,const void *src) {
+    PKD pkd = (PKD) vpkd;
+    auto p1 = pkd->particles[static_cast<PARTICLE *>(dst)];
+    auto p2 = static_cast<const snFeedbackFlush *>(src);
+
+    if (p1.is_gas()) {
+        auto &sph = p1.sph();
+
+#ifdef OLD_FB_SCHEME
+        sph.E += p2->E;
+        sph.Uint += p2->Uint;
+#ifdef ENTROPY_SWITCH
+        sph.S += p2->S;
+#endif
+#else // OLD_FB_SCHEME
+        sph.fAccFBEnergy += p2->fAccFBEnergy;
+#endif
+    }
 }
 
 
-static inline void snFeedback(PKD pkd, PARTICLE *p, int nSmooth, NN *nnList,
+static inline void snFeedback(PKD pkd, PARTICLE *pIn, int nSmooth, NN *nnList,
                               const float fNgbTotMass, const double dDeltau,
                               const double dStarMass, const double dSpecEnergy,
                               const float fEfficiency, const double dConstGamma) {
@@ -125,29 +164,26 @@ static inline void snFeedback(PKD pkd, PARTICLE *p, int nSmooth, NN *nnList,
                          (dDeltau * fNgbTotMass);
     const double dCorrFac = dProb > 1.0 ? dProb : 1.0;
 
-    for (int i = 0; i < nSmooth; ++i) {
-        PARTICLE *q = nnList[i].pPart;
-        if (q == p) continue;
+    for (auto i = 0; i < nSmooth; ++i) {
+        if (nnList[i].pPart == pIn) continue;
 
         if (rand() < RAND_MAX * dProb) {
-            SPHFIELDS *qSph = pkdSph(pkd, q);
-            const double dEnergyInput = dCorrFac * dDeltau * pkdMass(pkd, q);
+            auto q = pkd->particles[nnList[i].pPart];
+            auto &qsph = q.sph();
+            const double dEnergyInput = dCorrFac * dDeltau * q.mass();
 
 #ifdef OLD_FB_SCHEME
-            qSph->Uint += dEnergyInput;
-            qSph->E += dEnergyInput;
+            qsph.Uint += dEnergyInput;
+            qsph.E += dEnergyInput;
 #ifdef ENTROPY_SWITCH
-            qSph->S += dEnergyInput * (dConstGamma - 1.0) *
-                       pow(pkdDensity(pkd, q), 1.0 - dConstGamma);
+            qsph.S += dEnergyInput * (dConstGamma - 1.0) *
+                      pow(q.density(), 1.0 - dConstGamma);
 #endif
 #else // OLD_FB_SCHEME
-            qSph->fAccFBEnergy += dEnergyInput;
+            qsph.fAccFBEnergy += dEnergyInput;
 #endif
         }
     }
 }
 
-#ifdef __cplusplus
-}
-#endif
 #endif // FEEDBACK

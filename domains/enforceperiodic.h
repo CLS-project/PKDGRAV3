@@ -18,8 +18,8 @@
 
 class ServiceEnforcePeriodic : public TraversePST {
 public:
-    typedef Bound input;
-    typedef void output;
+    using input = Bound;
+    using output = void;
     explicit ServiceEnforcePeriodic(PST pst)
         : TraversePST(pst,PST_ENFORCEPERIODIC,sizeof(input),"EnforcePeriodic") {}
 protected:

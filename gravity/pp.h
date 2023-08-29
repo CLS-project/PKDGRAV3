@@ -15,16 +15,29 @@
  *  along with PKDGRAV3.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef CUDA_DEVICE
-    #define CUDA_DEVICE
+#ifdef __CUDACC__
+    #define PP_CUDA_BOTH __host__ __device__
+#else
+    #define PP_CUDA_BOTH
 #endif
 template<class F=float>
 struct ResultPP {
+    typedef F type;
     F ax, ay, az, pot;
     F ir, norm;
+    PP_CUDA_BOTH void zero() { ax=ay=az=pot=ir=norm=0; }
+    PP_CUDA_BOTH ResultPP<F> operator+=(const ResultPP<F> rhs) {
+        ax += rhs.ax;
+        ay += rhs.ay;
+        az += rhs.az;
+        pot += rhs.pot;
+        ir += rhs.ir;
+        norm += rhs.norm;
+        return *this;
+    }
 };
 template<class F,class M>
-CUDA_DEVICE ResultPP<F> EvalPP(
+PP_CUDA_BOTH ResultPP<F> EvalPP(
     F Pdx, F Pdy, F Pdz, F Psmooth2,       // Particle
     F Idx, F Idy, F Idz, F fourh2, F Im) { // Interaction(s)
     ResultPP<F> result;
@@ -60,13 +73,13 @@ CUDA_DEVICE ResultPP<F> EvalPP(
 
 // Calculate additional terms for GravStep
 template<class F,class M>
-CUDA_DEVICE ResultPP<F> EvalPP(
+PP_CUDA_BOTH ResultPP<F> EvalPP(
     F Pdx, F Pdy, F Pdz, F Psmooth2,     // Particle
     F Idx, F Idy, F Idz, F fourh2, F Im, // Interaction(s)
     F Pax, F Pay, F Paz, F imaga) {
     ResultPP<F> result = EvalPP<F,M>(Pdx,Pdy,Pdz,Psmooth2,Idx,Idy,Idz,fourh2,Im);
     F adotai = Pax*result.ax + Pay*result.ay + Paz*result.az;
-    adotai = maskz_mov(adotai>0.0f & result.norm>=Psmooth2,adotai) * imaga;
+    adotai = maskz_mov((adotai>0.0f) & (result.norm>=Psmooth2),adotai) * imaga;
     result.norm = adotai * adotai;
     result.ir *= result.norm;
     return result;
@@ -74,13 +87,25 @@ CUDA_DEVICE ResultPP<F> EvalPP(
 
 template<class F=float>
 struct ResultDensity {
-    F arho, adrhodfball, anden, adndendfball, anSmooth;
+    F rho, drhodfball, nden, dndendfball, nSmooth, imbalanceX, imbalanceY, imbalanceZ;
+    PP_CUDA_BOTH void zero() { rho=drhodfball=nden=dndendfball=nSmooth=imbalanceX=imbalanceY=imbalanceZ=0; }
+    PP_CUDA_BOTH ResultDensity<F> operator+=(const ResultDensity<F> rhs) {
+        rho += rhs.rho;
+        drhodfball += rhs.drhodfball;
+        nden += rhs.nden;
+        dndendfball += rhs.dndendfball;
+        nSmooth += rhs.nSmooth;
+        imbalanceX += rhs.imbalanceX;
+        imbalanceY += rhs.imbalanceY;
+        imbalanceZ += rhs.imbalanceZ;
+        return *this;
+    }
 };
 template<class F,class M>
-CUDA_DEVICE ResultDensity<F> EvalDensity(
-    F Pdx, F Pdy, F Pdz,     // Particle
-    F Idx, F Idy, F Idz, F Im, F fBall,  // Interaction(s)
-    int kernelType) {
+PP_CUDA_BOTH ResultDensity<F> EvalDensity(
+    F Pdx, F Pdy, F Pdz, F fBall, F PiMat,     // Particle
+    F Idx, F Idy, F Idz, F Im, F IiMat,  // Interaction(s)
+    int kernelType, bool doInterfaceCorrection) {
     ResultDensity<F> result;
     F dx = Idx + Pdx;
     F dy = Idy + Pdy;
@@ -105,32 +130,106 @@ CUDA_DEVICE ResultDensity<F> EvalDensity(
         DSPHKERNEL_DFBALL(r, ifBall, w, dwdr, C, dWdfball, kernelType);
 
         // return the density
-        result.anden = C * w;
-        result.arho = Im * result.anden;
+        result.nden = C * w;
+        result.rho = Im * result.nden;
 
         // return the density derivative
-        result.adndendfball = dWdfball;
-        result.adrhodfball = Im * result.adndendfball;
+        result.dndendfball = dWdfball;
+        result.drhodfball = Im * result.dndendfball;
 
         // return the number of particles used
-        result.anSmooth = maskz_mov(r_lt_one,1.0f);
+        result.nSmooth = maskz_mov(r_lt_one,F(1.0f));
+
+        // Calculate the imbalance values
+        if (doInterfaceCorrection) {
+            M mask2 = PiMat == IiMat;
+            F plus_one = 1.0f;
+            F minus_one = -1.0f;
+            F kappa = mask_mov(minus_one,mask2,plus_one);
+            result.imbalanceX = kappa * dx * result.rho;
+            result.imbalanceY = kappa * dy * result.rho;
+            result.imbalanceZ = kappa * dz * result.rho;
+        }
+        else {
+            result.imbalanceX = 0.0f;
+            result.imbalanceY = 0.0f;
+            result.imbalanceZ = 0.0f;
+        }
     }
     else {
-        result = {}; // No work to do
+        result.zero(); // No work to do
+    }
+    return result;
+}
+
+template<class F=float>
+struct ResultDensityCorrection {
+    F corrT, corrP, corr;
+    PP_CUDA_BOTH void zero() { corrT=corrP=corr=0; }
+    PP_CUDA_BOTH ResultDensityCorrection<F> operator+=(const ResultDensityCorrection<F> rhs) {
+        corrT += rhs.corrT;
+        corrP += rhs.corrP;
+        corr += rhs.corr;
+        return *this;
+    }
+};
+template<class F,class M>
+PP_CUDA_BOTH ResultDensityCorrection<F> EvalDensityCorrection(
+    F Pdx, F Pdy, F Pdz, F fBall,     // Particle
+    F Idx, F Idy, F Idz, F T, F P, F expImb2,  // Interaction(s)
+    int kernelType) {
+    ResultDensityCorrection<F> result;
+    F dx = Idx + Pdx;
+    F dy = Idy + Pdy;
+    F dz = Idz + Pdz;
+    F d2 = dx*dx + dy*dy + dz*dz;
+
+    F r, w;
+    F ifBall, C;
+    F t1, t2, t3;
+    M mask1;
+
+    ifBall = 1.0f / fBall;
+    r = sqrt(d2) * ifBall;
+
+    M r_lt_one = r < 1.0f;
+
+    if (!testz(r_lt_one)) {
+        // There is some work to do
+        SPHKERNEL_INIT(r, ifBall, C, t1, mask1, kernelType);
+        SPHKERNEL(r, w, t1, t2, t3, r_lt_one, mask1, kernelType);
+
+        result.corr = expImb2 * C * w;
+        result.corrT = T * result.corr;
+        result.corrP = P * result.corr;
+    }
+    else {
+        result.zero(); // No work to do
     }
     return result;
 }
 
 template<class F=float>
 struct ResultSPHForces {
-    F uDot, ax, ay, az, divv, dtEst;
+    F uDot, ax, ay, az, divv, dtEst, maxRung;
+    PP_CUDA_BOTH void zero() { uDot=ax=ay=az=divv=maxRung=0; dtEst=1e14f; }
+    PP_CUDA_BOTH ResultSPHForces<F> operator+=(const ResultSPHForces<F> rhs) {
+        uDot += rhs.uDot;
+        ax += rhs.ax;
+        ay += rhs.ay;
+        az += rhs.az;
+        divv += rhs.divv;
+        dtEst = min(dtEst,rhs.dtEst); // CAREFUL! We use "min" here
+        maxRung = max(maxRung,rhs.maxRung);
+        return *this;
+    }
 };
-template<class F,class M,class Ivec>
-CUDA_DEVICE ResultSPHForces<F> EvalSPHForces(
+template<class F,class M>
+PP_CUDA_BOTH ResultSPHForces<F> EvalSPHForces(
     F Pdx, F Pdy, F Pdz, F PfBall, F POmega,     // Particle
-    F Pvx, F Pvy, F Pvz, F Prho, F PP, F Pc, Ivec Pspecies,
+    F Pvx, F Pvy, F Pvz, F Prho, F PP, F Pc,
     F Idx, F Idy, F Idz, F Im, F IfBall, F IOmega,      // Interactions
-    F Ivx, F Ivy, F Ivz, F Irho, F IP, F Ic, Ivec Ispecies,
+    F Ivx, F Ivy, F Ivz, F Irho, F IP, F Ic, F uRung,
     int kernelType, float epsilon, float alpha, float beta,
     float EtaCourant,float a,float H,bool useIsentropic) {
     ResultSPHForces<F> result;
@@ -220,10 +319,9 @@ CUDA_DEVICE ResultSPHForces<F> EvalSPHForces(
         }
 
         // acceleration
-        // i am not sure if there has to be an Omega in the artificial viscosity part
-        result.ax = - Im * (PPoverRho2 + IPoverRho2 + Piij) * dWdx * aFac;
-        result.ay = - Im * (PPoverRho2 + IPoverRho2 + Piij) * dWdy * aFac;
-        result.az = - Im * (PPoverRho2 + IPoverRho2 + Piij) * dWdz * aFac;
+        result.ax = - Im * (PPoverRho2 * PdWdx + IPoverRho2 * IdWdx + Piij * dWdx) * aFac;
+        result.ay = - Im * (PPoverRho2 * PdWdy + IPoverRho2 * IdWdy + Piij * dWdy) * aFac;
+        result.az = - Im * (PPoverRho2 * PdWdz + IPoverRho2 * IdWdz + Piij * dWdz) * aFac;
 
         // divv
         result.divv = Im / Irho * (dvx * dWdx + dvy * dWdy + dvz * dWdz);
@@ -233,27 +331,36 @@ CUDA_DEVICE ResultSPHForces<F> EvalSPHForces(
         dtMu = 0.6f * beta / (aFac * EtaCourant);
         result.dtEst = 0.5f * PfBall / (dtC * Pc - dtMu * muij);
         mask1 = Pr_lt_one | Ir_lt_one;
-        result.dtEst = mask_mov(HUGE_VALF,mask1,result.dtEst);
+        result.dtEst = mask_mov(1e14f,mask1,result.dtEst);
+        result.maxRung = maskz_mov(mask1,uRung);
 
-        // for (int index = 0; index<8;index++) {
-        // if (ax[index] != ax[index]) {
-        // printf("ax = %.15e ax = %.15e ax = %.15e\n",ax[index],ay[index],az[index]);
-        // printf("Pdx = %.15e Pdy = %.15e Pdz = %.15e\n",Pdx[index],Pdy[index],Pdz[index]);
-        // printf("PfBall = %.15e POmega = %.15e Prho = %.15e\n",PfBall[index],POmega[index],Prho[index]);
-        // printf("Pvx = %.15e Pvy = %.15e Pvy = %.15e\n",Pvx[index],Pvy[index],Pvz[index]);
-        // printf("PP = %.15e Pc = %.15e Pspecies = %d\n",PP[index],Pc[index],Pspecies[index]);
-        // printf("Idx = %.15e Idy = %.15e Idz = %.15e\n",Idx[index],Idy[index],Idz[index]);
-        // printf("Im = %.15e IfBall = %.15e IOmega = %.15e\n Irho = %.15e\n",Im[index],IfBall[index],IOmega[index],Irho[index]);
-        // printf("Ivx = %.15e Ivy = %.15e Ivz = %.15e\n",Ivx[index],Ivy[index],Ivz[index]);
-        // printf("IP = %.15e Ic = %.15e Ispecies = %d\n",IP[index],Ic[index],Ispecies[index]);
-        // printf("Im = %.15e PPoverRho2 = %.15e IPoverRho2 = %.15e Piij = %.15e dWdz = %.15e aFac = %.15e\n",Im[index],PPoverRho2[index], IPoverRho2[index], Piij[index], dWdz[index],aFac[index]);
-        // assert(0);
-        // }
-        // }
+        /*for (int index = 0; index < result.dtEst.width(); index++) {
+            if (!isfinite(result.ax[index]) || !isfinite(result.ay[index]) || !isfinite(result.az[index]) || !isfinite(result.uDot[index]) || (!isfinite(result.dtEst[index]) && result.dtEst[index] != 1e14f) || result.dtEst[index] <= 0.0f) {
+                printf("An error occured in EvalSPHForces:\n\
+                ax = %.5e, ay = %.5e, az = %.5e, uDot = %.5e, dtEst = %.5e\n\
+                Pdx = %.5e, Pdy = %.5e, Pdz = %.5e, Pvx = %.5e, Pvy = %.5e, Pvz = %.5e\n\
+                PfBall = %.5e, POmega = %.5e, Prho = %.5e, PP = %.5e, Pc = %.5e\n\
+                Idx = %.5e, Idy = %.5e, Idz = %.5e, Ivx = %.5e, Ivy = %.5e, Ivz = %.5e\n\
+                IfBall = %.5e, IOmega = %.5e, Irho = %.5e, IP = %.5e, Ic = %.5e, Im = %.5e\n\
+                PPoverRho2 = %.5e, IPoverRho2 = %.5e, Piij = %.5e, muij = %.5e\n\
+                PdWdx = %.5e, PdWdy = %.5e, PdWdz = %.5e\n\
+                IdWdx = %.5e, IdWdy = %.5e, IdWdz = %.5e\n\
+                dWdx = %.5e, dWdy = %.5e, dWdz = %.5e\n\
+                ",result.ax[index],result.ay[index],result.az[index],result.uDot[index],result.dtEst[index],
+                       Pdx[index],Pdy[index],Pdz[index],Pvx[index],Pvy[index],Pvz[index],
+                       PfBall[index],POmega[index],Prho[index],PP[index],Pc[index],
+                       Idx[index],Idy[index],Idz[index],Ivx[index],Ivy[index],Ivz[index],
+                       IfBall[index],IOmega[index],Irho[index],IP[index],Ic[index],Im[index],
+                       PPoverRho2[index],IPoverRho2[index],Piij[index],muij[index],
+                       PdWdx[index],PdWdy[index],PdWdz[index],
+                       IdWdx[index],IdWdy[index],IdWdz[index],
+                       dWdx[index],dWdy[index],dWdz[index]);
+            }
+        }*/
     }
     else {
-        result = {};
-        result.dtEst = HUGE_VALF;
+        result.zero();
     }
     return result;
 }
+#undef PP_CUDA_BOTH

@@ -18,15 +18,16 @@
 
 // Make sure that the communication structure is "trivial" so that it
 // can be moved around with "memcpy" which is required for MDL.
-static_assert(std::is_void<ServiceCalcBound::input>()  || std::is_trivial<ServiceCalcBound::input>());
-static_assert(std::is_void<ServiceCalcBound::output>() || std::is_trivial<ServiceCalcBound::output>());
+static_assert(std::is_void<ServiceCalcBound::input>()  || std::is_standard_layout<ServiceCalcBound::input>());
+static_assert(std::is_void<ServiceCalcBound::output>() || std::is_standard_layout<ServiceCalcBound::output>());
 
 int ServiceCalcBound::Service(PST pst,void *vin,int nIn,void *vout,int nOut) {
+    auto pkd = pst->plcl->pkd;
     static_assert(std::is_void<input>());
-    auto out = static_cast<output *>(vout);
+    auto &out = * static_cast<output *>(vout);
     assert(nIn==0);
     assert(nOut==sizeof(output));
-    pkdCalcBound(pst->plcl->pkd,out);
+    out = pkd->bnd = pkd->particles.bound();
     return sizeof(output);
 }
 

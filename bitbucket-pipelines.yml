@@ -3,6 +3,7 @@ image: dpotter/pkdgrav3-build
 pipelines:
   default:
     - step:
+        size: 2x
         script:
           - cmake .
           - make
@@ -21,9 +22,10 @@ pipelines:
              - make
     '**':
       - step:
+           size: 2x
            runs-on: self.hosted
            script:
-             - cmake .
+             - cmake -DUSE_GTEST=Yes .
              - make -j 8
              - ln -s /build/euclid_flagship_500.hdf5
              - ln -s /build/b0-final* ./
@@ -31,30 +33,35 @@ pipelines:
   branches:
      develop:
        - step:
+           size: 2x
            runs-on:
              - 'self.hosted'
              - 'gpu'
            script:
              - lscpu
-             - cmake .
+             - cmake -DUSE_GTEST=Yes -DEOSLIB_PATH=/build/EOSlib -DANEOSMATERIAL_PATH=/build/ANEOSmaterial .
              - make -j 8
              - ln -s /build/euclid_flagship_500.hdf5
              - ln -s /build/b0-final* ./
+             - ln -s /build/sph-data/* ./
              - env GTEST_OUTPUT="xml:test-reports/" OMP_NUM_THREADS=8 make test ARGS=--verbose
        - step:
+           size: 2x
            runs-on:
              - 'self.hosted'
              - 'avx512'
            script:
              - lscpu
-             - cmake .
+             - cmake -DUSE_GTEST=Yes -DEOSLIB_PATH=/build/EOSlib -DANEOSMATERIAL_PATH=/build/ANEOSmaterial .
              - make -j 8
              - ln -s /build/euclid_flagship_500.hdf5
              - ln -s /build/b0-final* ./
+             - ln -s /build/sph-data/* ./
              - env GTEST_OUTPUT="xml:test-reports/" OMP_NUM_THREADS=8 make test ARGS=--verbose
 
      iac-hydro:
        - step:
+           size: 2x
            script:
              - >
                cmake -DCOOLING=on

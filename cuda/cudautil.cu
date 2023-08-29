@@ -48,94 +48,28 @@
     #include <sys/time.h>
 #endif
 
-static void *CUDA_malloc(size_t nBytes) {
-#ifdef __linux__
-    uint64_t nPageSize = sysconf(_SC_PAGESIZE);
-#else
-    uint64_t nPageSize = 512;
-#endif
-    void *blk;
-#ifdef _MSC_VER
-    blk = _aligned_malloc(nBytes, nPageSize);
-#else
-    if (posix_memalign(&blk, nPageSize, nBytes)) blk = NULL;
-#endif
-    char *p = reinterpret_cast<char *>(blk);
-    char *e = p + nBytes;
-    for (; p<e; p+= nPageSize) *p = 0;
-
-    return blk;
-}
-
-static void CUDA_free(void *data) {
-    free(data);
-}
-
-void CUDA_Abort(cudaError_t rc, const char *fname, const char *file, int line) {
-    fprintf(stderr,"%s error %d in %s(%d)\n%s\n", fname, rc, file, line, cudaGetErrorString(rc));
-    exit(1);
-}
-
-#ifdef _MSC_VER
-double CUDA_getTime() {
-    FILETIME ft;
-    uint64_t clock;
-    GetSystemTimeAsFileTime(&ft);
-    clock = ft.dwHighDateTime;
-    clock <<= 32;
-    clock |= ft.dwLowDateTime;
-    /* clock is in 100 nano-second units */
-    return clock / 10000000.0;
-}
-#else
-double CUDA_getTime() {
-    struct timeval tv;
-    gettimeofday(&tv,NULL);
-    return (tv.tv_sec+(tv.tv_usec*1e-6));
-}
-#endif
-
 /*****************************************************************************\
 *   CudaClient interface (new!)
 \*****************************************************************************/
 
-extern "C"
-void *CudaClientInitialize(MDL vmdl) {
-    auto mdl = reinterpret_cast<mdl::mdlClass *>(vmdl);
-    return new CudaClient(*mdl);
-}
-
-CudaClient::CudaClient(mdl::mdlClass &mdl) : mdl(mdl), ewald(nullptr), pp(nullptr), pc(nullptr) {
-    if (mdl.isCudaActive()) {
-        freeEwald.enqueue(new MessageEwald(*this));
-        freeEwald.enqueue(new MessageEwald(*this));
-        freePP.enqueue(new MessagePP(freePP));
-        freePP.enqueue(new MessagePP(freePP));
-        freePC.enqueue(new MessagePC(freePC));
-        freePC.enqueue(new MessagePC(freePC));
+CudaClient::CudaClient( mdl::CUDA &cuda, mdl::gpu::Client &gpu) : cuda(cuda), gpu(gpu), ewald(nullptr), pp(nullptr), pc(nullptr), den(nullptr), denCorr(nullptr), sphForce(nullptr) {
+    if (cuda.isActive()) {
+        for (int i=0 ; i < 2 ; ++i) {
+            freeEwald.enqueue(new MessageEwald(*this));
+            freePP.enqueue(new MessagePP(freePP));
+            freePC.enqueue(new MessagePC(freePC));
+            freeDen.enqueue(new MessageDen(freeDen, &this->wps));
+            freeDenCorr.enqueue(new MessageDenCorr(freeDenCorr));
+            freeSPHForce.enqueue(new MessageSPHForce(freeSPHForce));
+        }
     }
 }
 
-extern "C"
-void CudaClientFlush(void *vcudaClient) {
-    auto cuda = reinterpret_cast<CudaClient *>(vcudaClient);
-    cuda->flushCUDA();
-}
-
 void CudaClient::flushCUDA() {
-    if (ewald) { mdl.enqueue(*ewald);        ewald = nullptr; }
+    if (ewald) { cuda.enqueue(*ewald,gpu);        ewald = nullptr; }
     flush(pp);
     flush(pc);
-}
-
-cudaDataMessage::cudaDataMessage() {
-    pHostBufIn = CUDA_malloc(requestBufferSize);
-    pHostBufOut= CUDA_malloc(resultsBufferSize);
-    CUDA_CHECK(cudaHostRegister,(pHostBufIn, requestBufferSize, cudaHostRegisterPortable));
-    CUDA_CHECK(cudaHostRegister,(pHostBufOut,resultsBufferSize, cudaHostRegisterPortable));
-}
-
-cudaDataMessage::~cudaDataMessage() {
-    CUDA_free(pHostBufIn);
-    CUDA_free(pHostBufOut);
+    flush(den);
+    flush(denCorr);
+    flush(sphForce);
 }

@@ -23,20 +23,17 @@
     #include "pkd_config.h"
 #endif
 #include <stdint.h>
-#include "ilp.h"
-#include "ilc.h"
-#include "SPHOptions.h"
+#include "core/particle.h"
+#include "gravity/ilp.h"
+#include "gravity/ilc.h"
+#include "SPH/SPHOptions.h"
 #include "units.h"
 #include "eEOS/eEOS_struct.h"
 
-#define IORDERBITS 43
-#define IORDERMAX ((((uint64_t) 1)<<IORDERBITS)-1)
-
-#define IRUNGBITS 6
-#define IRUNGMAX ((1<<IRUNGBITS)-1)
-
-typedef float vel_t;
 typedef double pos_t;
+typedef float  vel_t;
+typedef float  acc_t;
+typedef float  mass_t;
 
 /*
 ** Costs: ADD/SUB/MUL/AND/CMP 1 cycle
@@ -58,30 +55,11 @@ typedef struct {
     int32_t  iIndex;    /* Index of item on the processor */
 } remoteID;
 
-/* Regular particle with order and all the goodies */
-typedef struct particle {
-uint64_t  uRung      :  IRUNGBITS;
-    uint64_t  bMarked    :  1;
-uint64_t  uNewRung   :  IRUNGBITS;  /* Optional with bNewKDK + bMemUnordered */
-    uint64_t  iClass     :  8;          /* Optional with bMemUnordered */
-uint64_t  iOrder     :  IORDERBITS; /* Optional with bMemUnordered */
-} PARTICLE;
-
-/* Abbreviated particle header with group id */
-#define IGROUPBITS (32-IRUNGBITS-1)
-#define IGROUPMAX ((1<<IGROUPBITS)-1)
-
-typedef struct uparticle {
-uint32_t  uRung      :  IRUNGBITS;
-    uint32_t  bMarked    :  1;
-uint32_t  iGroup     :  IGROUPBITS;
-} UPARTICLE;
-
 #define PP_CUDA_MEMORY_LIMIT (2*1024*1024)
 
 typedef struct {
-    float r[3];
-    float a[3];
+    blitz::TinyVector<float,3> r;
+    blitz::TinyVector<float,3> a;
     float fSmooth2;
     float fDensity;
     /* SPH fields follow */
@@ -90,8 +68,9 @@ typedef struct {
     float v[3];
     float rho; /* fDensity above is used for different stuff, calculated with different kernel etc */
     float P;
-    float c;
+    float cs;
     int32_t species;
+    float iMat;
     int isTooLarge;
     /*    float v[3];*/
     /*    float fMass;*/
@@ -99,13 +78,15 @@ typedef struct {
 } PINFOIN;
 
 typedef struct {
-    float a[3];
+    blitz::TinyVector<float,3> a;
     float fPot;
     float dirsum, normsum;
     float rhopmax;
     /* SPH fields follow */
     float rho, drhodfball, nden, dndendfball, fBall, nSmooth;
-    float uDot, divv, dtEst;
+    float uDot, divv, dtEst, maxRung;
+    float imbalanceX, imbalanceY, imbalanceZ;
+    float corrT, corrP, corr;
 } PINFOOUT;
 
 
@@ -117,7 +98,7 @@ typedef struct {
 typedef union {
     ewaldFloatType *f;
 #if defined(USE_SIMD) && !defined(__CUDACC__)
-    v_sf *p;
+    fvec *p;
 #endif
 } ewaldFloat;
 
@@ -136,7 +117,7 @@ struct EwaldVariables {
 };
 
 struct pkdTimestepParameters {
-    double dDelta, dEta;
+    double dTime, dDelta, dEta;
     double dAccFac, dRhoFac, dPreFacRhoLoc;
     uint8_t uRungLo,uRungHi,uMaxRung;
     uint8_t bGravStep;
@@ -151,6 +132,9 @@ struct pkdKickParameters {
     vel_t dtClose[IRUNGMAX+1];
     vel_t dtOpen[IRUNGMAX+1];
     vel_t dtPredDrift[IRUNGMAX+1];
+    vel_t dtPredISPHUndoOpen[IRUNGMAX+1];
+    vel_t dtPredISPHOpen[IRUNGMAX+1];
+    vel_t dtPredISPHClose[IRUNGMAX+1];
 };
 
 struct pkdLightconeParameters {
@@ -158,6 +142,8 @@ struct pkdLightconeParameters {
     double dtLCKick[IRUNGMAX+1];
     double dLookbackFac;
     double dLookbackFacLCP;
+    double hLCP[3];
+    double tanalpha_2;
     double dBoxSize;
     int bLightConeParticles;
 };
@@ -274,7 +260,7 @@ typedef struct {
     PINFOIN *pInfoIn;
     PINFOOUT *pInfoOut;
     double dFlop;
-    double c[3];
+    blitz::TinyVector<double,3> c;
     int nP;
     int nRefs;
     void *ctx;
@@ -284,36 +270,15 @@ typedef struct {
     struct pkdTimestepParameters *ts;
     double dirLsum, normLsum;
 
-    double dTime;
-
     double dFlopSingleCPU;
     double dFlopSingleGPU;
     double dFlopDoubleCPU;
     double dFlopDoubleGPU;
 
     SPHOptions *SPHoptions;
-    ILP ilp;
-    int bGravStep;
+    ilpList *ilp;
+    int bGPU;
 } workParticle;
-
-/*
-** One tile of PP interactions
-*/
-typedef struct {
-    PINFOOUT *pInfoOut;
-    ILP ilp;
-    ILPTILE tile;
-    workParticle *work;
-    int i;
-} workPP;
-
-typedef struct {
-    PINFOOUT *pInfoOut;
-    ILC ilc;
-    ILCTILE tile;
-    workParticle *work;
-    int i;
-} workPC;
 
 #define EWALD_ALIGN 64
 #define EWALD_MASK (EWALD_ALIGN-1)

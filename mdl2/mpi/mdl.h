@@ -32,9 +32,13 @@
 #include "mdlfft.h"
 #ifdef __cplusplus
     #include "arc.h"
-    #include "mdlmessages.h"
+    #include "mpimessages.h"
+    #include "gpu/mdlgpu.h"
     #ifdef USE_CUDA
         #include "mdlcuda.h"
+    #endif
+    #ifdef USE_METAL
+        #include "metal/mdlmetal.h"
     #endif
     #include "rwlock.h"
     #include <memory>
@@ -42,6 +46,7 @@
     #include <vector>
     #include <list>
     #include <map>
+    #include <boost/circular_buffer.hpp>
 #endif
 
 #ifndef MPI_VERSION
@@ -72,17 +77,6 @@ namespace mdl {
 static const auto mdl_cache_size = 15'000'000;
 static const auto mdl_check_mask = 0x7f;
 
-typedef struct mdl_wq_node {
-    /* We can put this on different types of queues */
-    union {
-        OPA_Queue_element_hdr_t hdr;
-    };
-    int iCoreOwner;
-    void *ctx;
-    mdlWorkFunction doFcn;
-    mdlWorkFunction doneFcn;
-} MDLwqNode;
-
 // typedef struct cacheHeaderNew {
 //     uint32_t mid     :  2; /*  2: Message ID: request, flush, reply */
 //     uint32_t cid     :  6; /*  6: Cache for this entry */
@@ -91,7 +85,7 @@ typedef struct mdl_wq_node {
 //     uint32_t iLine;        /* Index of the cache line */
 //     } CacheHeadernew;
 
-#define MDL_CACHE_DATA_SIZE (1024)
+#define MDL_CACHE_DATA_SIZE (4096)
 
 //*****************************************************************************
 
@@ -109,7 +103,7 @@ class CACHEhelper {
 protected:
     uint32_t nData;   // Size of a data element in bytes
     bool     bModify; // If this cache will be modified (and thus flushed)
-    virtual void    pack(void *dst, const void *src) { if (src) memcpy(dst,src,nData); else memset(dst,0,nData); }
+    virtual void    pack(void *dst, const void *src) { memcpy(dst,src,nData); }
     virtual void  unpack(void *dst, const void *src, const void *key) { memcpy(dst,src,nData); }
     virtual void    init(void *dst) {}
     virtual void   flush(void *dst, const void *src)                  { memcpy(dst,src,nData); }
@@ -122,6 +116,7 @@ protected:
 public:
     explicit CACHEhelper(uint32_t nData, bool bModify=false) : nData(nData), bModify(bModify) {}
     virtual ~CACHEhelper() = default;
+    uint32_t data_size() {return nData;}
 };
 
 class CACHE : private ARChelper {
@@ -157,7 +152,7 @@ protected:
 public:
     void initialize(uint32_t cacheSize,
                     void *(*getElt)(void *pData,int i,int iDataSize),
-                    void *pData,int iDataSize,int nData,
+                    void *pData,int nData,
                     std::shared_ptr<CACHEhelper> helper);
 
     void initialize_advanced(uint32_t cacheSize,hash::GHASH *hash,int iDataSize,std::shared_ptr<CACHEhelper> helper);
@@ -200,9 +195,18 @@ public:
 class mdlClass : public mdlBASE {
     int exit_code; // Only used by the worker thread
     friend class CACHE;
+    friend class mpiClass;
 protected:
     friend class mdlMessageFlushToCore;
     void MessageFlushToCore(mdlMessageFlushToCore *message);
+    // Domain decomposition
+public:
+    using dd_offset_type = uint64_t;
+protected:
+    char *ddBuffer;
+    std::vector<dd_offset_type> ddOffset;
+    std::vector<dd_offset_type> ddCounts;
+    dd_offset_type ddFreeOffset[2], ddFreeCounts[2]; // For global Swap
 public:
     class mdlClass **pmdl;
     class mpiClass *mpi;
@@ -213,20 +217,14 @@ public:
     void *worker_ctx;
     mdlMessageQueue threadBarrierQueue;
 
-    std::vector<mdlMessageQueue> queueReceive; // Receive "Send/Ssend"
+    std::unique_ptr<mdlMessageQueue[]> queueReceive; // Receive "Send/Ssend"
     void *pvMessageData; /* These two are for the collective malloc */
     size_t nMessageData;
+    void **pSegments;
+    uint64_t *nBytesSegment;
     int iCoreMPI;             /* Core that handles MPI requests */
     int cacheSize;
 
-    /* Work Queues */
-    mdlMessageQueue wq;     /* Work for us to do */
-    mdlMessageQueue wqDone; /* Completed work from other threads */
-    mdlMessageQueue wqFree; /* Free work queue nodes */
-    int wqMaxSize;
-    uint16_t wqAccepting;
-    uint16_t wqLastHelper;
-    OPA_int_t wqCurSize;
     /*
      ** Services stuff!
      */
@@ -250,11 +248,8 @@ public:
 
     int nFlushOutBytes;
 
-#if defined(USE_CUDA) || defined(USE_CL)
+#if defined(USE_CUDA)
     int inCudaBufSize, outCudaBufSize;
-#endif
-#ifdef USE_CL
-    void *clCtx;
 #endif
 protected:
     void CommitServices();
@@ -273,7 +268,6 @@ protected:
     void *WorkerThread();
     void combine_all_incoming();
 
-    int DoSomeWork();
     void bookkeeping();
     void *finishCacheRequest(int cid,uint32_t uLine, uint32_t uId, uint32_t size, const void *pKey, bool bVirtual, void *dst, const void *src);
 
@@ -284,13 +278,11 @@ protected:
     void enqueue(const mdlMessage &M, basicQueue &replyTo, bool bWait=false);
     void enqueueAndWait(const mdlMessage &M);
 public:
-#ifdef USE_CUDA
-    int nCUDA;
-    cudaMessageQueue cudaDone;
-    int flushCompletedCUDA(); // Returns how many are still outstanding
-    void enqueue(const cudaMessage &M);
-    void enqueue(const cudaMessage &M, basicQueue &replyTo);
-    void enqueueAndWait(const cudaMessage &M);
+    gpu::Client gpu;
+#ifdef USE_METAL
+    void enqueue(const metal::metalMessage &M);
+    void enqueue(const metal::metalMessage &M, basicQueue &replyTo);
+    void enqueueAndWait(const metal::metalMessage &M);
 #endif
 private:
     void init(bool bDiag = false);
@@ -301,11 +293,15 @@ public:
                       int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *),
                       int argc=0, char **argv=0);
     virtual ~mdlClass();
+    void SetCacheMaxInflight(int iMax);
 
     CACHE *CacheInitialize(int cid,
                            void *(*getElt)(void *pData,int i,int iDataSize),
-                           void *pData,int iDataSize,int nData,
+                           void *pData,int nData,
                            std::shared_ptr<CACHEhelper> helper);
+    CACHE *CacheInitialize(int cid,
+                           void *(*getElt)(void *pData,int i,int iDataSize),
+                           void *pData,int nData,int iDataSize);
     CACHE *AdvancedCacheInitialize(int cid,hash::GHASH *hash,int iDataSize,std::shared_ptr<CACHEhelper> helper);
 
     void *AcquireWrite(int cid,int iIndex) {
@@ -326,38 +322,49 @@ public:
 
     void CacheCheck();
     void CacheBarrier(int cid);
-    void ThreadBarrier(bool bGlobal=false);
+    int ThreadBarrier(bool bGlobal=false,int iVote=0);
     void CompleteAllWork();
     bool isCudaActive();
+    bool isMetalActive();
     int numGPUs();
     void Backtrace() {show_backtrace();}
 
     void *Access(int cid, uint32_t uIndex,  int uId, bool bLock,bool bModify,bool bVirtual);
     void *Access(int cid, uint32_t uHash,void *pKey, bool bLock,bool bModify,bool bVirtual);
 
+    void GridShare(MDLGRID grid);
+#ifdef MDL_FFTW
     size_t FFTlocalCount(int n1,int n2,int n3,int *nz,int *sz,int *ny,int *sy);
     MDLFFT FFTNodeInitialize(int n1,int n2,int n3,int bMeasure,FFTW3(real) *data);
-    void GridShare(MDLGRID grid);
 
     void FFT( MDLFFT fft, FFTW3(real) *data );
     void IFFT( MDLFFT fft, FFTW3(complex) *kdata );
+#endif
     void Alltoallv(int dataSize,void *sbuff,int *scount,int *sdisps,void *rbuff,int *rcount,int *rdisps);
 
+    int swaplocal( void *buffer,dd_offset_type count,dd_offset_type datasize,/*const*/ dd_offset_type *counts);
+    int swapglobal(void *buffer,dd_offset_type count,dd_offset_type datasize,/*const*/ dd_offset_type *counts);
+    uint64_t new_shared_array(void **p, int nSegments,  uint64_t *nElements,uint64_t *nBytesPerElement,uint64_t nMinTotalStore=0);
+    void delete_shared_array(void *p,uint64_t nBytes);
 };
 
 class mpiClass : public mdlClass {
 public:
     mdlMessageQueue queueWORK;
     mdlMessageQueue queueREGISTER;
+#ifdef USE_CUDA
+    CUDA cuda;
+#endif
+#ifdef USE_METAL
+    metal::METAL metal;
+#endif
 protected:
     MPI_Comm commMDL;             /* Current active communicator */
     pthread_barrier_t barrier;
     std::vector<pthread_t> threadid;
-#ifdef USE_CUDA
-    CUDA cuda;
-#endif
     mdlMessageQueue queueMPInew;     // Queue of work sent to MPI task
     std::vector<mdlMessageCacheRequest *> CacheRequestMessages;
+    std::vector<bool> CacheRequestRendezvous;
 
     // Used to buffer incoming flush requests before sending them to each core
     mdlMessageQueue localFlushBuffers;
@@ -373,21 +380,40 @@ protected:
     int iRequestTarget;
     int nActiveCores;
     int nOpenCaches;
+    // By setting this to a positive value, it limits the number of cache messages inflight
+    // to each rank to the specified number. When enabled (not zero), all REQUEST and RESPONSE
+    // messages are added to the flush buffer. The flush buffer is sent when below this limit.
+    // To avoid deadlock, the flush buffer is sent if there is at least one REPLY message after
+    // processing a batch of incoming REQUEST/REPLY/FLUSH messages.
+    int iCacheMaxInflight = 0;
     int iCacheBufSize;  /* Cache input buffer size */
     int iReplyBufSize;  /* Cache reply buffer size */
-    int iLastMessage = -1;
     std::vector<MPI_Request>    SendReceiveRequests;
     std::vector<MPI_Status>     SendReceiveStatuses;
+    std::vector<int>            SendReceiveAvailable;
     std::vector<int>            SendReceiveIndices;
     std::vector<mdlMessageMPI *> SendReceiveMessages;
+    struct BufferedCacheRequest {
+        CacheHeader header;
+        const void *data;
+        BufferedCacheRequest() = default;
+        BufferedCacheRequest(const CacheHeader *header,const void *data=nullptr) : header(*header), data(data) {}
+    };
+    boost::circular_buffer<BufferedCacheRequest> PendingRequests;
+    void BufferCacheResponse(FlushBuffer *flush,BufferedCacheRequest &request);
+
 #ifndef NDEBUG
     uint64_t nRequestsCreated, nRequestsReaped;
 #endif
-    MPI_Request *newRequest(mdlMessageMPI *message);
+    MPI_Request *newRequest(mdlMessageMPI *message,MPI_Request request=MPI_REQUEST_NULL);
 
-    std::vector<mdlMessageCacheReceive *> listCacheReceive;
+    std::unique_ptr<mdlMessageCacheReceive> msgCacheReceive;
+    std::vector<uint32_t> countCacheInflight;
+#ifdef DEBUG_COUNT_CACHE
+    std::vector<uint64_t> countCacheSend, countCacheRecv;
+#endif
     std::list<mdlMessageCacheReply *> freeCacheReplies;
-
+#ifdef MDL_FFTW
     // Cached FFTW plans
     struct fft_plan_information {
         ptrdiff_t nz, sz, ny, sy, nLocal;
@@ -395,6 +421,7 @@ protected:
     };
     typedef std::tuple<ptrdiff_t,ptrdiff_t,ptrdiff_t> fft_plan_key;
     std::map<fft_plan_key,fft_plan_information> fft_plans;
+#endif
 
 protected:
     // These are functions that are called as a result of a worker thread sending
@@ -403,6 +430,8 @@ protected:
     void MessageSTOP(mdlMessageSTOP *message);
     friend class mdlMessageBarrierMPI;
     void MessageBarrierMPI(mdlMessageBarrierMPI *message);
+    friend class mdlMessageSwapGlobal;
+    void MessageSwapGlobal(mdlMessageSwapGlobal *message);
     friend class mdlMessageFlushFromCore;
     void MessageFlushFromCore(mdlMessageFlushFromCore *message);
     friend class mdlMessageFlushToRank;
@@ -413,10 +442,11 @@ protected:
     void FinishCacheReply(mdlMessageCacheReply *message);
     friend class mdlMessageCacheReceive;
     void MessageCacheReceive(mdlMessageCacheReceive *message);
-    void FinishCacheReceive(mdlMessageCacheReceive *message, int bytes, int source, int cancelled);
-    void CacheReceiveRequest(int count, const CacheHeader *ph);
-    void CacheReceiveReply(int count, const CacheHeader *ph);
-    void CacheReceiveFlush(int count, CacheHeader *ph);
+    void FinishCacheReceive(mdlMessageCacheReceive *message, MPI_Request request, MPI_Status status);
+    void CacheReceive(int bytes, CacheHeader *ph, int iProcFrom);
+    int CacheReceiveRequest(int count, CacheHeader *ph, int iProcFrom);
+    int CacheReceiveReply(int count, CacheHeader *ph, int iProcFrom);
+    int CacheReceiveFlush(int count, CacheHeader *ph, int iProcFrom);
     friend class mdlMessageCacheOpen;
     void MessageCacheOpen(mdlMessageCacheOpen *message);
     friend class mdlMessageCacheClose;
@@ -427,6 +457,7 @@ protected:
     void MessageCacheFlushLocal(mdlMessageCacheFlushLocal *message);
     friend class mdlMessageGridShare;
     void MessageGridShare(mdlMessageGridShare *message);
+#ifdef MDL_FFTW
     friend class mdlMessageDFT_R2C;
     void MessageDFT_R2C(mdlMessageDFT_R2C *message);
     friend class mdlMessageDFT_C2R;
@@ -435,6 +466,7 @@ protected:
     void MessageFFT_Sizes(mdlMessageFFT_Sizes *message);
     friend class mdlMessageFFT_Plans;
     void MessageFFT_Plans(mdlMessageFFT_Plans *message);
+#endif
     friend class mdlMessageAlltoallv;
     void MessageAlltoallv(mdlMessageAlltoallv *message);
     friend class mdlMessageSend;
@@ -443,34 +475,42 @@ protected:
     void MessageReceive(mdlMessageReceive *message);
     friend class mdlMessageReceiveReply;
     void MessageReceiveReply(mdlMessageReceiveReply *message);
-    void FinishReceiveReply(mdlMessageReceiveReply *message);
+    void FinishReceiveReply(mdlMessageReceiveReply *message, MPI_Request request, MPI_Status status);
     friend class mdlMessageSendRequest;
     void MessageSendRequest(mdlMessageSendRequest *message);
     friend class mdlMessageSendReply;
     void MessageSendReply(mdlMessageSendReply *message);
     friend class mdlMessageCacheRequest;
     void MessageCacheRequest(mdlMessageCacheRequest *message);
+    void FinishCacheRequest(mdlMessageCacheRequest *message, MPI_Request request, MPI_Status status);
 
 protected:
+    void expedite_flush(int iProc);
+    mdlMessageFlushToRank *get_flush_buffer(int iProc,int iSize,bool bWait=true);
     void flush_element(CacheHeader *pHdr,int iLineSize);
     void queue_local_flush(CacheHeader *ph);
     virtual int checkMPI();
     void processMessages();
     void finishRequests();
-    int swapall(const char *buffer,int count,int datasize,/*const*/ int *counts);
 public:
     explicit mpiClass(int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *),
                       int argc=0, char **argv=0);
     virtual ~mpiClass();
+    void SetCacheMaxInflight(int iMax) {iCacheMaxInflight = iMax;}
     int Launch(int (*fcnMaster)(MDL,void *),void *(*fcnWorkerInit)(MDL),void (*fcnWorkerDone)(MDL,void *));
     void KillAll(int signo);
 #ifdef USE_CUDA
-    void enqueue(const cudaMessage &M, basicQueue &replyTo);
     bool isCudaActive() {return cuda.isActive(); }
     int numGPUs() {return cuda.numDevices();}
 #else
     bool isCudaActive() {return false; }
     int numGPUs() {return 0;}
+#endif
+#ifdef USE_METAL
+    void enqueue(const metal::metalMessage &M, basicQueue &replyTo);
+    bool isMetalActive() {return metal.isActive(); }
+#else
+    bool isMetalActive() {return false; }
 #endif
     void enqueue(mdlMessage &M);
     void enqueue(const mdlMessage &M, basicQueue &replyTo, bool bWait=false);
@@ -605,6 +645,22 @@ void mdlCOcache(MDL mdl,int cid,
                 void *(*getElt)(void *pData,int i,int iDataSize),
                 void *pData,int iDataSize,int nData,
                 void *ctx,void (*init)(void *,void *),void (*combine)(void *,void *,const void *));
+void mdlPackedCacheRO(MDL mdl,int cid,
+                      void *(*getElt)(void *pData,int i,int iDataSize),
+                      void *pData,int nData,uint32_t iDataSize,
+                      void *ctx,uint32_t iPackSize,
+                      void (*pack)   (void *,void *,const void *),
+                      void (*unpack) (void *,void *,const void *));
+void mdlPackedCacheCO(MDL mdl,int cid,
+                      void *(*getElt)(void *pData,int i,int iDataSize),
+                      void *pData,int nData,uint32_t iDataSize,
+                      void *ctx,uint32_t iPackSize,
+                      void (*pack)   (void *,void *,const void *),
+                      void (*unpack) (void *,void *,const void *),
+                      uint32_t iFlushSize,
+                      void (*init)   (void *,void *),
+                      void (*flush)  (void *,void *,const void *),
+                      void (*combine)(void *,void *,const void *));
 void mdlAdvancedCacheRO(MDL mdl,int cid,void *pHash,int iDataSize);
 void mdlAdvancedCacheCO(MDL mdl,int cid,void *pHash,int iDataSize,
                         void *ctx,void (*init)(void *,void *),void (*combine)(void *,void *,const void *));
@@ -629,14 +685,8 @@ void mdlReleaseWrite(MDL mdl,int cid,void *p);
 double mdlNumAccess(MDL,int);
 double mdlMissRatio(MDL,int);
 
-void mdlSetWorkQueueSize(MDL,int,int);
 void mdlSetCudaBufferSize(MDL,int,int);
 int mdlCudaActive(MDL mdl);
-void mdlAddWork(MDL mdl, void *ctx,
-                int (*initWork)(void *ctx,void *vwork),
-                int (*checkWork)(void *ctx,void *vwork),
-                mdlWorkFunction doWork,
-                mdlWorkFunction doneWork);
 
 void mdlTimeReset(MDL mdl);
 double mdlTimeComputing(MDL mdl);
