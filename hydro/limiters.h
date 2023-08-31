@@ -12,13 +12,13 @@
 #endif
 #define psi1 0.5
 #define psi2 0.25
-template <typename ftype=double>
-static inline void genericPairwiseLimiter(ftype Lstate, ftype Rstate,
-        ftype &Lstate_face, ftype &Rstate_face) {
+template <typename dtype=double>
+static inline void genericPairwiseLimiter(dtype Lstate, dtype Rstate,
+        dtype &Lstate_face, dtype &Rstate_face) {
 #ifdef DEBUG_FLUX_NOLIMITER
     return;
 #endif
-    ftype phi_max, phi_min, d1, d2, phi_mean, phi_p, phi_m;
+    dtype phi_max, phi_min, d1, d2, phi_mean, phi_p, phi_m;
 
     if (Lstate == Rstate) {
         Lstate_face = Lstate;

@@ -28,12 +28,12 @@ typedef double my_real;
 //                        0  for       q > 1
 //
 // where q = r/H.
-template <typename ftype=double, typename mtype=bool>
-inline ftype cubicSplineKernel(ftype r, ftype H) {
-    const ftype dNormFac = 16 * M_1_PI;
-    const ftype dHInv = 1.0 / H;
-    const ftype q = r * dHInv;
-    const ftype dNorm = dNormFac * dHInv * dHInv * dHInv;
+template <typename dtype=double, typename mtype=bool>
+inline dtype cubicSplineKernel(dtype r, dtype H) {
+    const dtype dNormFac = 16 * M_1_PI;
+    const dtype dHInv = 1.0 / H;
+    const dtype q = r * dHInv;
+    const dtype dNorm = dNormFac * dHInv * dHInv * dHInv;
 
     if (q < 0.5) {
         return dNorm * (0.5 - 3 * q * q * (1.0 - q));

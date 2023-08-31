@@ -8,32 +8,32 @@
 
 const double TOL = 5e-6;
 
-template<typename ftype, typename mtype>
+template<typename dtype, typename mtype>
 class RiemannTest : public ::testing::Test {
 protected:
     void SetUp() override {}
     void TearDown() override {}
 
     int width() {
-        return ftype::width();
+        return dtype::width();
     }
 
 
     SMF smf;
     std::vector<double> n_unit {1., 0., 0.};
-    ftype vn_unit[3] = {1., 0., 0.};
-    ftype zero = 0.;
+    dtype vn_unit[3] = {1., 0., 0.};
+    dtype zero = 0.;
     double rho_R, p_R;
     double rho_L, p_L;
     std::vector<double> v_R;
     std::vector<double> v_L;
     double P_M, S_M, rho_f, p_f, v_f[3];
     double dConstGamma = 1.4;
-    ftype vrho_R, vp_R;
-    ftype vrho_L, vp_L;
-    ftype vv_R[3];
-    ftype vv_L[3];
-    ftype vP_M, vS_M, vrho_f, vp_f, vv_f[3];
+    dtype vrho_R, vp_R;
+    dtype vrho_L, vp_L;
+    dtype vv_R[3];
+    dtype vv_L[3];
+    dtype vP_M, vS_M, vrho_f, vp_f, vv_f[3];
     void set_R(double rho, double p, std::vector<double> v) {
         rho_R = rho;
         p_R   = p;
@@ -60,9 +60,9 @@ protected:
         return sqrt(g*p/rho);
     }
 
-    ftype solve() {
-        mtype mask = static_cast<ftype>(0.) == 0.;
-        RiemannSolverExact<ftype,mtype> riemann(dConstGamma,mask);
+    dtype solve() {
+        mtype mask = static_cast<dtype>(0.) == 0.;
+        RiemannSolverExact<dtype,mtype> riemann(dConstGamma,mask);
         return riemann.solve(vrho_R, vp_R, vv_R,
                              vrho_L, vp_L, vv_L,
                              vP_M, vS_M,
