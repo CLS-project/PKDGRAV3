@@ -1279,6 +1279,8 @@ int pstGravity(PST pst,void *vin,int nIn,void *vout,int nOut) {
         outr->dFlopDoubleCPU += tmp.dFlopDoubleCPU;
         outr->dFlopSingleGPU += tmp.dFlopSingleGPU;
         outr->dFlopDoubleGPU += tmp.dFlopDoubleGPU;
+        outr->nTilesTotal    += tmp.nTilesTotal;
+        outr->nTilesCPU      += tmp.nTilesCPU;
     }
     else {
 #ifdef __linux__
@@ -1297,6 +1299,8 @@ int pstGravity(PST pst,void *vin,int nIn,void *vout,int nOut) {
         outr->dFlopDoubleCPU = 1e-9*pkd->dFlopDoubleCPU;
         outr->dFlopSingleGPU = 1e-9*pkd->dFlopSingleGPU;
         outr->dFlopDoubleGPU = 1e-9*pkd->dFlopDoubleGPU;
+        outr->nTilesTotal    = pkd->nTilesTotal;
+        outr->nTilesCPU      = pkd->nTilesCPU;
         outr->sLocal.dSum = plcl->pkd->Local();
         outr->sActive.dSum = (double)outr->nActive;
 #ifdef __linux__

@@ -88,7 +88,6 @@ inline static dtype eEOSPressureFloor(dtype a_inv3, dtype fDens, dtype fBall,
     mtype mask = constantPressure != NOT_IN_EEOS;
     return mask_mov( constantPressure, mask, max(polyPressure, constantPressure) );
 }
-
 #endif
 
 #ifdef EEOS_JEANS
@@ -103,7 +102,6 @@ template <typename dtype, typename mtype>
 inline static dtype eEOSPressureFloor(dtype a_inv3, dtype fDens, dtype fBall,
                                       dtype dConstGamma, struct eEOSparam eEOS) {
     return 1.2/dConstGamma * pow(eEOS.dNJeans,2./3.) * fDens * fDens * fBall * fBall;
-
 }
 
 template <typename dtype, typename mtype>
@@ -111,7 +109,6 @@ inline static dtype eEOSEnergyFloor(dtype a_inv3, dtype fDens, dtype fBall,
                                     dtype dConstGamma, struct eEOSparam eEOS) {
     return eEOSPressureFloor(a_inv3, fDens, fBall, eEOS) /
            (fDens * (dConstGamma - 1.));
-
 }
 #endif
 #endif

@@ -69,6 +69,7 @@ using namespace fmt::literals; // Gives us ""_a and ""_format literals
 #include "smooth/smoothfcn.h"
 #include "io/fio.h"
 #include "SPH/SPHOptions.h"
+#define CYTHON_EXTERN_C extern "C++"
 #include "modules/checkpoint.h"
 
 #include "core/setadd.h"
@@ -404,7 +405,7 @@ std::pair<int,int> MSR::InitializePStore(uint64_t *nSpecies,uint64_t mMemoryMode
             ps.nMinEphemeral = 3*outFFTSizes.nMaxLocal*sizeof(FFTW3(real));
     }
 
-    int nGrid = param.nGrid;
+    int nGrid = parameters.get_nGrid();
     if (nGrid>0) {
         struct inGetFFTMaxSizes inFFTSizes;
         struct outGetFFTMaxSizes outFFTSizes;
@@ -561,7 +562,7 @@ void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTi
     iLastRungRT = 0;
     iLastRungDD = 0;
 
-    InitCosmology();
+    InitCosmology(csm);
 
     SetDerivedParameters();
 
@@ -764,10 +765,10 @@ void MSR::SetUnits() {
         /* code comove density -->g per cc = param.units.dGmPerCcUnit(1+z)^3*/
         param.units.dComovingGmPerCcUnit = param.units.dGmPerCcUnit;
     }
-    else if (param.nGrid) {
+    else if (parameters.get_nGrid()) {
         // We need to properly set a unit system, we do so following the
         // convention: G=1, rho=Omega0 in code units
-        param.units.dKpcUnit = param.dBoxSize*1e3 / csm->val.h;
+        param.units.dKpcUnit = parameters.get_dBoxSize()*1e3 / csm->val.h;
 
         // The mass unit is set such that we recover a correct dHubble0
         // in code units and 100h in physical
@@ -1007,6 +1008,9 @@ void MSR::Initialize() {
     csm->val.dHubble0 = 0.0;
     prmAddParam(prm,"dHubble0",2,&csm->val.dHubble0,
                 sizeof(double),"Hub", "<dHubble0> = 0.0");
+    csm->val.h = 0.0;
+    prmAddParam(prm,"h",2,&csm->val.h,
+                sizeof(double),"h","<hubble parameter h> = 0");
     csm->val.dOmega0 = 1.0;
     prmAddParam(prm,"dOmega0",2,&csm->val.dOmega0,
                 sizeof(double),"Om", "<dOmega0> = 1.0");
@@ -1125,9 +1129,6 @@ void MSR::Initialize() {
     param.dRedTo = 0.0;
     prmAddParam(prm,"dRedTo",2,&param.dRedTo,sizeof(double),"zto",
                 "specifies final redshift for the simulation");
-    param.dRedFrom = 0.0;
-    prmAddParam(prm,"dRedFrom",2,&param.dRedFrom,sizeof(double),"z",
-                "specifies initial redshift for the simulation");
     param.dFracDualTree = 0.05;
     prmAddParam(prm,"dFracDualTree",2,&param.dFracDualTree,
                 sizeof(double),"fndt",
@@ -1187,12 +1188,6 @@ void MSR::Initialize() {
     param.iPkOrder = 4;
     prmAddParam(prm,"iPkOrder",1,&param.iPkOrder,
                 sizeof(int),"pko","<Mass assignment order for measuring P(k) = 3");
-    param.bFixedAmpIC = 0;
-    prmAddParam(prm,"bFixedAmpIC",0,&param.bFixedAmpIC,
-                sizeof(int),"fixedamp","<Use fixed amplitude of 1 for ICs> = -fixedamp");
-    param.dFixedAmpPhasePI = 0.0;
-    prmAddParam(prm,"dFixedAmpPhasePI",2,&param.dFixedAmpPhasePI,
-                sizeof(double),"fixedphase","<Phase shift for fixed amplitude in units of PI> = 0.0");
     param.nGridLin = 0;
     prmAddParam(prm, "nGridLin", 1, &param.nGridLin,
                 sizeof(int), "lingrid", "<Grid size for linear species 0=disabled> =0");
@@ -1216,24 +1211,9 @@ void MSR::Initialize() {
     prmAddParam(prm, "achPkSpecies", 3, param.achPkSpecies,
                 128, "pk_species",
                 "<plus-separated string of P(k) linear species, e.g. \"ncdm[0]+g\"> -pk_species");
-    param.h = 0.0;
-    prmAddParam(prm,"h",2,&param.h,
-                sizeof(double),"h","<hubble parameter h> = 0");
-    param.dBoxSize = 1.0;
-    prmAddParam(prm,"dBoxSize",2,&param.dBoxSize,
-                sizeof(double),"mpc","<Simulation Box size in Mpc> = 1.0");
-    param.nGrid = 0;
-    prmAddParam(prm,"nGrid",1,&param.nGrid,
-                sizeof(int),"grid","<Grid size for IC 0=disabled> = 0");
     param.achTfFile[0] = 0;
     prmAddParam(prm,"achTfFile",3,param.achTfFile,256,"tf",
                 "<transfer file name> (file in CMBFAST format)");
-    param.iSeed = 0;
-    prmAddParam(prm,"iSeed",1,&param.iSeed,
-                sizeof(int),"seed","<Random seed for IC> = 0");
-    param.b2LPT = 1;
-    prmAddParam(prm,"b2LPT",0,&param.b2LPT,
-                sizeof(int),"2lpt","<Enable/disable 2LPT> = 1");
     param.bICgas = 0;
     prmAddParam(prm,"bICgas",0,&param.bICgas,
                 sizeof(int),"ICgas","<Enable/disable gas in the ICs> = 0");
@@ -2500,7 +2480,7 @@ void MSR::DomainDecompOld(int iRung) {
 
     in.bDoRootFind = 1;
     in.bDoSplitDimFind = 1;
-    if (iRung >= 0) {
+    if (iRung > 0) {
         /*
         ** All of this could be calculated once for the case that the number
         ** of particles don't change. Or calculated every time the number of
@@ -3078,12 +3058,13 @@ void MSR::SmoothSetSMF(SMF *smf, double dTime, double dDelta, int nSmooth) {
     smf->gamma = param.dConstGamma;
     smf->dDelta = dDelta;
     smf->dEtaCourant = param.dEtaCourant;
-    smf->dConstGamma = param.dConstGamma;
     smf->bMeshlessHydro = param.bMeshlessHydro;
-    smf->dhMinOverSoft = param.dhMinOverSoft;
     smf->bIterativeSmoothingLength = param.bIterativeSmoothingLength;
     smf->bUpdateBall = bUpdateBall;
+    smf->nBucket = param.nBucket;
     smf->dCFLacc = param.dCFLacc;
+    smf->dConstGamma = param.dConstGamma;
+    smf->dhMinOverSoft = param.dhMinOverSoft;
     smf->dNeighborsStd = param.dNeighborsStd;
 #if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
     eEOSFill(param, &smf->eEOS);
@@ -3356,16 +3337,22 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
     uint8_t uRungMax=0;
     char c;
 
+    a = csmTime2Exp(csm,dTime);
+
     if (parameters.get_bVStep()) {
-        if (SPHoptions.doDensity && SPHoptions.useDensityFlags) printf("Calculating Density using FastGas, Step:%f (rung %d)\n",dStep,uRungLo);
-        if (SPHoptions.doDensity && !SPHoptions.useDensityFlags) printf("Calculating Density without FastGas, Step:%f (rung %d)\n",dStep,uRungLo);
-        if (SPHoptions.doDensityCorrection && SPHoptions.useDensityFlags) printf("Calculating Density Correction using FastGas, Step:%f (rung %d)\n",dStep,uRungLo);
-        if (SPHoptions.doDensityCorrection && !SPHoptions.useDensityFlags) printf("Calculating Density Correction without FastGas, Step:%f (rung %d)\n",dStep,uRungLo);
-        if (SPHoptions.doGravity && SPHoptions.doSPHForces) printf("Calculating Gravity and SPH forces, Step:%f (rung %d)\n",dStep,uRungLo);
-        if (SPHoptions.doGravity && !SPHoptions.doSPHForces) printf("Calculating Gravity, Step:%f (rung %d)\n",dStep,uRungLo);
-        if (!SPHoptions.doGravity && SPHoptions.doSPHForces) printf("Calculating SPH forces, Step:%f (rung %d)\n",dStep,uRungLo);
-        if (SPHoptions.doSetDensityFlags) printf("Marking Neighbors for FastGas, Step:%f (rung %d)\n",dStep,uRungLo);
-        if (SPHoptions.doSetNNflags) printf("Marking Neighbors of Neighbors for FastGas, Step:%f (rung %d)\n",dStep,uRungLo);
+        if (SPHoptions.doDensity && SPHoptions.useDensityFlags) printf("Calculating Density using FastGas, Step:%f (rung %d)",dStep,uRungLo);
+        if (SPHoptions.doDensity && !SPHoptions.useDensityFlags) printf("Calculating Density without FastGas, Step:%f (rung %d)",dStep,uRungLo);
+        if (SPHoptions.doDensityCorrection && SPHoptions.useDensityFlags) printf("Calculating Density Correction using FastGas, Step:%f (rung %d)",dStep,uRungLo);
+        if (SPHoptions.doDensityCorrection && !SPHoptions.useDensityFlags) printf("Calculating Density Correction without FastGas, Step:%f (rung %d)",dStep,uRungLo);
+        if (SPHoptions.doGravity && SPHoptions.doSPHForces) printf("Calculating Gravity and SPH forces, Step:%f (rung %d)",dStep,uRungLo);
+        if (SPHoptions.doGravity && !SPHoptions.doSPHForces) printf("Calculating Gravity, Step:%f (rung %d)",dStep,uRungLo);
+        if (!SPHoptions.doGravity && SPHoptions.doSPHForces) printf("Calculating SPH forces, Step:%f (rung %d)",dStep,uRungLo);
+        if (SPHoptions.doSetDensityFlags) printf("Marking Neighbors for FastGas, Step:%f (rung %d)",dStep,uRungLo);
+        if (SPHoptions.doSetNNflags) printf("Marking Neighbors of Neighbors for FastGas, Step:%f (rung %d)",dStep,uRungLo);
+        if (csm->val.bComove)
+            printf(", Redshift:%f\n", 1. / a - 1.);
+        else
+            printf(", Time:%f\n", dTime);
     }
     in.dTime = dTime;
     in.iRoot1 = iRoot1;
@@ -3385,10 +3372,7 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
     in.ts.nPartRhoLoc = nPartRhoLoc;
     in.ts.nPartColl = param.nPartColl;
     in.ts.dEccFacMax = param.dEccFacMax;
-    if (bGravStep) {
-        double a = csmTime2Exp(csm,dTime);
-        in.ts.dRhoFac = 1.0/(a*a*a);
-    }
+    if (bGravStep) in.ts.dRhoFac = 1.0/(a*a*a);
     else in.ts.dRhoFac = 0.0;
     in.ts.dTime = dTime;
     in.ts.dDelta = dDelta;
@@ -3398,16 +3382,13 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
     in.ts.uRungLo = uRungLo;
     in.ts.uRungHi = uRungHi;
     in.ts.uMaxRung = param.iMaxRung;
-    if (csm->val.bComove) {
-        a = csmTime2Exp(csm,dTime);
-        in.ts.dAccFac = 1.0/(a*a*a);
-    }
+    if (csm->val.bComove) in.ts.dAccFac = 1.0/(a*a*a);
     else in.ts.dAccFac = 1.0;
 
     CalculateKickParameters(&in.kick, uRungLo, dTime, dDelta, dStep, bKickClose, bKickOpen, SPHoptions);
 
     in.lc.bLightConeParticles = param.bLightConeParticles;
-    in.lc.dBoxSize = param.dBoxSize;
+    in.lc.dBoxSize = parameters.get_dBoxSize();
     if (param.bLightCone) {
         in.lc.dLookbackFac = csmComoveKickFac(csm,dTime,(csmExp2Time(csm,1.0) - dTime));
         dTimeLCP = csmExp2Time(csm,1.0/(1.0+param.dRedshiftLCP));
@@ -3521,6 +3502,9 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
         msrPrintStat(&outr.sCellNumAccess, "  C-cache access:",1);
         msrPrintStat(&outr.sPartMissRatio, "  P-cache miss %:",2);
         msrPrintStat(&outr.sCellMissRatio, "  C-cache miss %:",2);
+    }
+    if (outr.nTilesTotal > 0) {
+        printf("Total tiles processed: %.5e, on the GPU: %.5e, ratio: %2.2f %%\n",(double)outr.nTilesTotal,(double)(outr.nTilesTotal - outr.nTilesCPU),100.0 - ((double)outr.nTilesCPU)/((double)outr.nTilesTotal)*100.0);
     }
     if (parameters.get_bVRungStat() && bKickOpen) {
         printf("Rung distribution:\n");
@@ -3810,11 +3794,9 @@ NoMoreOuts:
     return dOutTimes.size()-2;
 }
 
-void MSR::InitCosmology() {
+void MSR::InitCosmology(CSM csm) {
     ServiceInitLightcone::input in;
-    if (prmSpecified(prm, "h")) {
-        csm->val.h = param.h;
-    }
+    if (parameters.has_h()) csm->val.h = parameters.get_h();
     mdl->RunService(PST_INITCOSMOLOGY,sizeof(csm->val),&csm->val);
     if (param.bLightCone) {
         if (param.sqdegLCP <= 0 || param.sqdegLCP >= 4*M_1_PI*180.0*180.0 ) {
@@ -3825,7 +3807,7 @@ void MSR::InitCosmology() {
         }
         in.bBowtie = param.bBowtie;
         in.bLightConeParticles = param.bLightConeParticles;
-        in.dBoxSize = param.dBoxSize;
+        in.dBoxSize = parameters.get_dBoxSize();
         in.dRedshiftLCP = param.dRedshiftLCP;
         in.hLCP[0] = param.hxLCP;
         in.hLCP[1] = param.hyLCP;
@@ -4034,7 +4016,7 @@ void MSR::LightConeVel() {
     double dsec;
     struct inLightConeVel in;
 
-    in.dBoxSize = param.dBoxSize;
+    in.dBoxSize = parameters.get_dBoxSize();
     TimerStart(TIMER_NONE);
     pstLightConeVel(pst,&in,sizeof(in),NULL,0);
     TimerStop(TIMER_NONE);
@@ -4366,12 +4348,12 @@ int MSR::NewTopStepKDK(
     ActiveRung(uRung,0);
 #ifdef FEEDBACK
     if (param.bCCSNFeedback || param.bSNIaFeedback) {
-        Smooth(dTime,dDelta,SMX_SN_FEEDBACK,1, param.nSmooth);
+        Smooth(dTime,dDelta,SMX_SN_FEEDBACK,1,param.nSmooth);
     }
 #endif
 #ifdef STELLAR_EVOLUTION
     if (param.bChemEnrich) {
-        Smooth(dTime,dDelta,SMX_CHEM_ENRICHMENT,1, param.nSmooth);
+        Smooth(dTime,dDelta,SMX_CHEM_ENRICHMENT,1,param.nSmoothEnrich);
     }
 #endif
 #endif
@@ -4556,7 +4538,7 @@ void MSR::TopStepKDK(
 
         TimerStart(TIMER_FEEDBACK);
         if (param.bCCSNFeedback || param.bSNIaFeedback) {
-            Smooth(dTime,dDeltaStep,SMX_SN_FEEDBACK,1, param.nSmooth);
+            Smooth(dTime,dDeltaStep,SMX_SN_FEEDBACK,1,param.nSmooth);
         }
         TimerStop(TIMER_FEEDBACK);
         dsec = TimerGet(TIMER_FEEDBACK);
@@ -4566,7 +4548,7 @@ void MSR::TopStepKDK(
         printf("Computing stellar evolution... ");
         TimerStart(TIMER_STEV);
         if (param.bChemEnrich) {
-            Smooth(dTime,dDeltaStep,SMX_CHEM_ENRICHMENT,1, param.nSmooth);
+            Smooth(dTime,dDeltaStep,SMX_CHEM_ENRICHMENT,1,param.nSmoothEnrich);
         }
         TimerStop(TIMER_STEV);
         dsec = TimerGet(TIMER_STEV);
@@ -4891,9 +4873,10 @@ void MSR::Hop(double dTime, double dDelta) {
     inGroupStats.rEnvironment[0] = param.dEnvironment0;
     inGroupStats.rEnvironment[1] = param.dEnvironment1;
     inGroupStats.iGlobalStart = 1; /* global id 0 means ungrouped particle on all cpus */
-    if ( prmSpecified(prm,"dBoxSize") && param.dBoxSize > 0.0 ) {
-        inGroupStats.rEnvironment[0] /= param.dBoxSize;
-        inGroupStats.rEnvironment[1] /= param.dBoxSize;
+    auto dBoxSize = parameters.get_dBoxSize();
+    if ( parameters.has_dBoxSize() && dBoxSize > 0.0 ) {
+        inGroupStats.rEnvironment[0] /= dBoxSize;
+        inGroupStats.rEnvironment[1] /= dBoxSize;
     }
     pstGroupStats(pst,&inGroupStats,sizeof(inGroupStats),NULL,0);
 
@@ -4972,9 +4955,10 @@ void MSR::GroupStats() {
     inGroupStats.rEnvironment[0] = param.dEnvironment0;
     inGroupStats.rEnvironment[1] = param.dEnvironment1;
     inGroupStats.iGlobalStart = 1; /* global id 0 means ungrouped particle on all cpus */
-    if ( prmSpecified(prm,"dBoxSize") && param.dBoxSize > 0.0 ) {
-        inGroupStats.rEnvironment[0] /= param.dBoxSize;
-        inGroupStats.rEnvironment[1] /= param.dBoxSize;
+    auto dBoxSize = parameters.get_dBoxSize();
+    if ( parameters.has_dBoxSize() && dBoxSize > 0.0 ) {
+        inGroupStats.rEnvironment[0] /= dBoxSize;
+        inGroupStats.rEnvironment[1] /= dBoxSize;
     }
     pstGroupStats(pst,&inGroupStats,sizeof(inGroupStats),NULL,0);
     TimerStop(TIMER_FOF);
@@ -4984,7 +4968,7 @@ void MSR::GroupStats() {
 }
 
 #ifdef MDL_FFTW
-double MSR::GenerateIC() {
+double MSR::GenerateIC(int nGrid,int iSeed,double z,double L,CSM csm) {
     struct inGenerateIC in;
     struct outGenerateIC out;
     struct inGetFFTMaxSizes inFFTSizes;
@@ -4995,16 +4979,30 @@ double MSR::GenerateIC() {
     uint64_t nTotal;
     int j;
 
+    if (csm) {
+        this->csm->val = csm->val;
+        if (this->csm->val.classData.bClass)
+            csmClassGslInitialize(this->csm);
+    }
+    else csm = this->csm;
+
     // We only support periodic initial conditions
     parameters.set(parameters.str_bPeriodic,true);
+    parameters.set(parameters.str_bComove,true);
 
-    in.dBoxSize = param.dBoxSize;
-    in.iSeed = param.iSeed;
-    in.bFixed = param.bFixedAmpIC;
-    in.fPhase = param.dFixedAmpPhasePI * M_PI;
-    in.nGrid = param.nGrid;
-    in.b2LPT = param.b2LPT;
+    parameters.set(parameters.str_iSeed,iSeed);
+    parameters.set(parameters.str_dRedFrom,z);
+    parameters.set(parameters.str_dBoxSize,L);
+    parameters.set(parameters.str_nGrid,nGrid);
+
+    in.dBoxSize = L;
+    in.iSeed = iSeed;
+    in.bFixed = parameters.get_bFixedAmpIC();
+    in.fPhase = parameters.get_dFixedAmpPhasePI() * M_PI;
+    in.nGrid = nGrid;
+    in.b2LPT = parameters.get_b2LPT();
     in.bICgas = param.bICgas;
+    in.nBucket = param.nBucket;
     in.dInitialT = param.dInitialT;
     in.dInitialH = param.dInitialH;
 #ifdef HAVE_HELIUM
@@ -5035,12 +5033,9 @@ double MSR::GenerateIC() {
     in.dInitialMetallicity = param.dInitialMetallicity;
 #endif
 
-    nTotal  = in.nGrid; /* Careful: 32 bit integer cubed => 64 bit integer */
-    nTotal *= in.nGrid;
-    nTotal *= in.nGrid;
+    nTotal = in.nGrid * in.nGrid * in.nGrid; /* Careful: 32 bit integer cubed => 64 bit integer */
     in.dBoxMass = csm->val.dOmega0 / nTotal;
     if (in.bICgas) nTotal *= 2;
-    in.dBoxMass = csm->val.dOmega0 / nTotal;
 
     for ( j=0; j<=FIO_SPECIES_LAST; j++) nSpecies[j] = 0;
     if (in.bICgas) {
@@ -5052,17 +5047,17 @@ double MSR::GenerateIC() {
         nSpecies[FIO_SPECIES_ALL] = nSpecies[FIO_SPECIES_DARK] = nTotal;
     }
     InitializePStore(nSpecies,getMemoryModel(),param.nMemEphemeral); // We now need a bit of cosmology to set the maximum lightcone depth here.
-    InitCosmology();
+    InitCosmology(csm);
 
-    in.dOmegaRate = csm->val.dOmegab/csm->val.dOmega0;
+    in.dBaryonFraction = csm->val.dOmegab/csm->val.dOmega0;
     SetDerivedParameters();
     in.dTuFac = dTuFacPrimNeutral;
 
-    assert(param.dRedFrom >= 0.0 );
-    in.dExpansion = 1.0 / (1.0 + param.dRedFrom);
+    assert(z >= 0.0 );
+    in.dExpansion = 1.0 / (1.0 + z);
 
-    N     = nSpecies[FIO_SPECIES_ALL];
-    nGas  = nSpecies[FIO_SPECIES_SPH];
+    N = nSpecies[FIO_SPECIES_ALL];
+    nGas = nSpecies[FIO_SPECIES_SPH];
     nDark = nSpecies[FIO_SPECIES_DARK];
     nStar = nSpecies[FIO_SPECIES_STAR];
     nBH = nSpecies[FIO_SPECIES_BH];
@@ -5110,7 +5105,7 @@ double MSR::GenerateIC() {
            inFFTSizes.nx, inFFTSizes.ny, outFFTSizes.nMaxZ,
            inFFTSizes.nx, outFFTSizes.nMaxY, inFFTSizes.nz);
 
-    msrprintf("IC Generation @ a=%g with seed %d\n",in.dExpansion,param.iSeed);
+    msrprintf("IC Generation @ a=%g with seed %d\n",in.dExpansion,iSeed);
     in.nPerNode = outFFTSizes.nMaxLocal;
     pstGenerateIC(pst,&in,sizeof(in),&out,sizeof(out));
     mean = 2*out.noiseMean / N;
@@ -5173,8 +5168,11 @@ double MSR::Read(const std::string &achInFile) {
             fioGetAttr(fio,HDF5_COSMO_G,"Omega_m",FIO_TYPE_DOUBLE,&csm->val.dOmega0);
         if (!prmSpecified(prm, "dLambda"))
             fioGetAttr(fio,HDF5_COSMO_G,"Omega_Lambda",FIO_TYPE_DOUBLE,&csm->val.dLambda);
-        if (!prmSpecified(prm, "dBoxSize"))
-            fioGetAttr(fio,HDF5_HEADER_G,"BoxSize",FIO_TYPE_DOUBLE,&param.dBoxSize);
+        if (!parameters.has_dBoxSize()) {
+            double dBoxSize;
+            fioGetAttr(fio,HDF5_HEADER_G,"BoxSize",FIO_TYPE_DOUBLE,&dBoxSize);
+            parameters.set(parameters.str_dBoxSize,dBoxSize);
+        }
         if (!prmSpecified(prm, "h"))
             fioGetAttr(fio,HDF5_COSMO_G,"HubbleParam",FIO_TYPE_DOUBLE,&csm->val.h);
     }
@@ -5245,7 +5243,7 @@ double MSR::Read(const std::string &achInFile) {
         CalcBound();
     }
 
-    InitCosmology();
+    InitCosmology(csm);
 
     if (DoGas() && NewSPH()) {
         const auto bEwald = parameters.get_bEwald();
@@ -5377,7 +5375,7 @@ void MSR::OutputPk(int iStep,double dTime) {
     MeasurePk(param.iPkOrder,param.bPkInterlace,param.nGridPk,a,param.nBinsPk,nPk.get(),fK.get(),fPk.get(),fPkAll.get());
 
     /* If the Box Size (in mpc/h) was specified, then we can scale the output power spectrum measurement */
-    if ( prmSpecified(prm,"dBoxSize") && param.dBoxSize > 0.0 ) kfact = param.dBoxSize;
+    if ( parameters.has_dBoxSize() && parameters.get_dBoxSize() > 0.0 ) kfact = parameters.get_dBoxSize();
     else kfact = 1.0;
     vfact = kfact * kfact * kfact;
     kfact = 1.0 / kfact;
@@ -5414,7 +5412,7 @@ void MSR::OutputLinPk(int iStep,double dTime) {
 
     if (param.nGridLin == 0) return;
     if (!csm->val.bComove) return;
-    if (!prmSpecified(prm, "dBoxSize")) return;
+    if (!parameters.has_dBoxSize()) return;
 
     std::unique_ptr<float[]>    fK    {new float[param.nBinsLinPk]};
     std::unique_ptr<float[]>    fPk   {new float[param.nBinsLinPk]};
@@ -5422,12 +5420,12 @@ void MSR::OutputLinPk(int iStep,double dTime) {
 
     a = csmTime2Exp(csm, dTime);
 
-    MeasureLinPk(param.nGridLin,a,param.dBoxSize,nPk.get(),fK.get(),fPk.get());
+    MeasureLinPk(param.nGridLin,a,parameters.get_dBoxSize(),nPk.get(),fK.get(),fPk.get());
 
     if (!csm->val.bComove) a = 1.0;
     else a = csmTime2Exp(csm,dTime);
 
-    if ( param.dBoxSize > 0.0 ) kfact = param.dBoxSize;
+    if ( parameters.get_dBoxSize() > 0.0 ) kfact = parameters.get_dBoxSize();
     else kfact = 1.0;
     vfact = kfact * kfact * kfact;
     kfact = 1.0 / kfact;
@@ -6126,7 +6124,8 @@ void MSR::MeasurePk(int iAssignment,int bInterlace,int nGrid,double a,int nBins,
 
     GridBinK(nBins,0,nPk,fK,fPk);
     if (csm->val.classData.bClass && param.nGridLin>0 && strlen(param.achPkSpecies) > 0) {
-        AddLinearSignal(0,param.iSeed,param.dBoxSize,a,param.bFixedAmpIC,param.dFixedAmpPhasePI * M_PI);
+        AddLinearSignal(0,parameters.get_iSeed(),parameters.get_dBoxSize(),a,
+                        parameters.get_bFixedAmpIC(),parameters.get_dFixedAmpPhasePI() * M_PI);
         GridBinK(nBins,0,nPk,fK,fPkAll);
     }
     else {
@@ -6152,9 +6151,9 @@ void MSR::MeasureLinPk(int nGrid, double dA, double dBoxSize,
     in.nBins = param.nBinsLinPk;
     in.dBoxSize = dBoxSize;
     in.dA = dA;
-    in.iSeed = param.iSeed;
-    in.bFixed = param.bFixedAmpIC;
-    in.fPhase = param.dFixedAmpPhasePI * M_PI;
+    in.iSeed = parameters.get_iSeed();
+    in.bFixed = parameters.get_bFixedAmpIC();
+    in.fPhase = parameters.get_dFixedAmpPhasePI() * M_PI;
 
     std::unique_ptr<struct outMeasureLinPk> out {new struct outMeasureLinPk};
     printf("Measuring P_lin(k) with grid size %d (%d bins)...\n",in.nGrid,in.nBins);
@@ -6189,11 +6188,11 @@ void MSR::SetLinGrid(double dTime, double dDelta,int nGrid, int bKickClose, int 
         if (bKickOpen)  in.a1 = csmTime2Exp(csm, dTime + 0.5*dDelta);
     }
 
-    in.dBSize = param.dBoxSize;
+    in.dBSize = parameters.get_dBoxSize();
     /* Parameters for the grid realization */
-    in.iSeed = param.iSeed;
-    in.bFixed = param.bFixedAmpIC;
-    in.fPhase = param.dFixedAmpPhasePI*M_PI;
+    in.iSeed = parameters.get_iSeed();
+    in.bFixed = parameters.get_bFixedAmpIC();
+    in.fPhase = parameters.get_dFixedAmpPhasePI()*M_PI;
     pstSetLinGrid(pst, &in, sizeof(in), NULL, 0);
 
     TimerStop(TIMER_NONE);

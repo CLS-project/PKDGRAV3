@@ -197,10 +197,6 @@ bool pyrameters::ppy2prm(PRM prm) {
     return bOK;
 }
 
-template<> void pyrameters::set(const char *name, bool value) {
-    PyObject_SetAttrString(arguments_,name,value ? Py_True : Py_False);
-}
-
 template<> PyObject *pyrameters::get<PyObject *>(const char *name) {
     auto v = PyObject_GetAttrString(arguments_, name);
     if (!v) throw std::domain_error(name);

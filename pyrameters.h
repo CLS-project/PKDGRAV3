@@ -21,6 +21,7 @@
 #include <stdexcept>
 #include <string>
 #include <cstdint>
+#include "blitz/array.h"
 
 #include "param.h"  // This should go away at some point
 
@@ -39,9 +40,25 @@ protected:
 
     template<typename T> T get(const char *name);
     template<typename T> T get(const char *name, PyObject *v);
+    template<typename T,int N> blitz::TinyVector<T,N> get(const char *name);
 
 public:
-    template<typename T> void set(const char *name, T value);
+    template<typename T, typename std::enable_if<std::is_integral<T>::value &&std::is_signed<T>::value&& !std::is_same<T, bool>::value, int>::type = 0>
+    void set(const char *name, T value) {
+        PyObject_SetAttrString(arguments_,name,PyLong_FromSsize_t(value));
+    }
+    template<typename T, typename std::enable_if<std::is_integral<T>::value &&std::is_unsigned<T>::value&& !std::is_same<T, bool>::value, int>::type = 0>
+    void set(const char *name, T value) {
+        PyObject_SetAttrString(arguments_,name,PyLong_FromSize_t(value));
+    }
+    template<typename T, typename std::enable_if<std::is_floating_point<T>::value, int>::type = 0>
+    void set(const char *name, T value) {
+        PyObject_SetAttrString(arguments_,name,PyFloat_FromDouble(value));
+    }
+    template<typename T, typename std::enable_if<std::is_same<T, bool>::value, int>::type = 0>
+    void set(const char *name, T value) {
+        PyObject_SetAttrString(arguments_,name,value ? Py_True : Py_False);
+    }
 
 public:
 
@@ -147,7 +164,5 @@ template<> void pyrameters::set_dynamic(const char *name, std::int32_t  value);
 template<> void pyrameters::set_dynamic(const char *name, std::int64_t  value);
 template<> void pyrameters::set_dynamic(const char *name, std::uint32_t value);
 template<> void pyrameters::set_dynamic(const char *name, std::uint64_t value);
-
-template<> void pyrameters::set(const char *name, bool value);
 
 #endif

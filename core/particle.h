@@ -161,13 +161,13 @@ struct SPHFIELDS {
     float SFR;
 #endif
 
-    float afElemMass[ELEMENT_COUNT];
+    blitz::TinyVector<float,ELEMENT_COUNT> ElemMass;
 #ifdef HAVE_METALLICITY
     float fMetalMass;
 #endif
 
 #ifdef STELLAR_EVOLUTION
-    float afReceivedMom[3];
+    blitz::TinyVector<float,3> ReceivedMom;
     float fReceivedMass;
     float fReceivedE;
 #endif
@@ -177,7 +177,17 @@ struct SPHFIELDS {
     float fAccFBEnergy;
 #endif
 
+#ifdef BLACKHOLES
+    // This could ideally be stored in a temporal buffer (pLite), but it has some
+    // limitations as it has to be shared when doing mdlAcquire.
+    struct {
+        int iPid;
+        int iIndex;
+    } BHAccretor;
+#endif
+
     uint8_t uWake;
+
 };
 
 struct NEWSPHFIELDS {
@@ -196,7 +206,7 @@ struct NEWSPHFIELDS {
 struct STARFIELDS {
     double omega;
 #ifdef STELLAR_EVOLUTION
-    float afElemAbun[ELEMENT_COUNT]; /* Formation abundances */
+    blitz::TinyVector<float,ELEMENT_COUNT> ElemAbun; /* Formation abundances */
     float fMetalAbun;            /* Formation metallicity */
     float fInitialMass;
     float fLastEnrichTime;

@@ -1,5 +1,5 @@
-cmake_minimum_required(VERSION 3.8)
-cmake_policy(VERSION 3.8...3.22)
+cmake_minimum_required(VERSION 3.14)
+cmake_policy(VERSION 3.14...3.22)
 include(CheckLanguage)
 include(CheckFunctionExists)
 include(CheckCXXCompilerFlag)
@@ -68,14 +68,8 @@ endif()
 find_package(GSL REQUIRED)      # GNU Scientific Library
 find_package(HDF5 COMPONENTS C HL)
 find_package(FFTW REQUIRED)
-if(${CMAKE_VERSION} VERSION_LESS "3.12")
-  find_package(PythonLibs 3 REQUIRED)
-  find_package(PythonInterp 3 REQUIRED)
-  set(PYTHON ${PYTHON_EXECUTABLE})
-else()
-  find_package(Python3 REQUIRED COMPONENTS Interpreter Development NumPy)
-  set(PYTHON ${Python3_EXECUTABLE})
-endif()
+find_package(Python3 REQUIRED COMPONENTS Interpreter Development NumPy)
+set(PYTHON ${Python3_EXECUTABLE})
 # _GNU_SOURCE gives us more options
 INCLUDE(CheckCSourceCompiles)
 check_c_source_compiles("
@@ -250,6 +244,22 @@ add_custom_command(
     VERBATIM
 )
 target_sources(${PROJECT_NAME} PRIVATE ${CMAKE_BINARY_DIR}/modules/PKDGRAV.cpp)
+add_custom_command(
+    OUTPUT ${CMAKE_BINARY_DIR}/modules/cosmology.cpp
+    MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/modules/cosmology.py
+    DEPENDS ${CMAKE_SOURCE_DIR}/modules/cosmology.pxd
+    COMMAND ${PYTHON} -m cython --3str --cplus
+        -o ${CMAKE_BINARY_DIR}/modules/cosmology.cpp
+        ${CMAKE_SOURCE_DIR}/modules/cosmology.py
+    VERBATIM
+)
+target_sources(${PROJECT_NAME} PRIVATE ${CMAKE_BINARY_DIR}/modules/cosmology.cpp)
+
+add_library(cosmology MODULE ${CMAKE_CURRENT_BINARY_DIR}/modules/cosmology.cpp ${CMAKE_CURRENT_SOURCE_DIR}/cosmo.c)
+target_include_directories(cosmology PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${GSL_INCLUDE_DIRS} ${HDF5_INCLUDE_DIRS})
+target_compile_definitions(cosmology PUBLIC NPY_NO_DEPRECATED_API=NPY_1_7_API_VERSION)
+target_link_libraries(cosmology Python3::Python Python3::NumPy ${GSL_LIBRARIES} ${HDF5_LIBRARIES} ${HDF5_HL_LIBRARIES} mdl2)
+set_target_properties(cosmology PROPERTIES PREFIX "")  
 
 if (NOT APPLE)
 CHECK_INCLUDE_FILES(libaio.h HAVE_LIBAIO_H)
@@ -279,42 +289,18 @@ if (HDF5_FOUND)
   #target_include_directories(psout PUBLIC ${HDF5_INCLUDE_DIRS})
   #target_link_libraries(psout ${HDF5_LIBRARIES} ${HDF5_HL_LIBRARIES})
 endif(HDF5_FOUND)
-if(${CMAKE_VERSION} VERSION_LESS "3.12")
-  if (PYTHONLIBS_FOUND)
-    set(USE_PYTHON TRUE)
-    target_include_directories(${PROJECT_NAME} PUBLIC ${PYTHON_INCLUDE_DIRS})
-    target_link_libraries(${PROJECT_NAME} ${PYTHON_LIBRARIES})
-    target_sources(${PROJECT_NAME} PRIVATE msrpython.cxx ${CMAKE_BINARY_DIR}/parse.cpp csmpython.c)
-
-    if (PYTHON_EXECUTABLE)
-      # Find out the include path
-      execute_process(
-        COMMAND "${PYTHON_EXECUTABLE}" -c
-                "from __future__ import print_function\ntry: import numpy; print(numpy.get_include(), end='')\nexcept:pass\n"
-                OUTPUT_VARIABLE __numpy_path)
-    endif()
-    find_path(PYTHON_NUMPY_INCLUDE_DIR numpy/arrayobject.h
-      HINTS "${__numpy_path}" "${PYTHON_INCLUDE_PATH}" NO_DEFAULT_PATH)
-    if(PYTHON_NUMPY_INCLUDE_DIR)
-      set(PYTHON_NUMPY_FOUND 1 CACHE INTERNAL "Python numpy found")
-      target_include_directories(${PROJECT_NAME} PUBLIC ${PYTHON_NUMPY_INCLUDE_DIR})
-    endif(PYTHON_NUMPY_INCLUDE_DIR)
-  else()
-    target_sources(${PROJECT_NAME} PRIVATE tinypy.c pkdtinypy.c)
-  endif(PYTHONLIBS_FOUND)
-else(${CMAKE_VERSION} VERSION_LESS "3.12")
-  if (Python3_Development_FOUND)
-    set(USE_PYTHON TRUE)
-    target_include_directories(${PROJECT_NAME} PUBLIC ${Python3_INCLUDE_DIRS})
-    target_link_libraries(${PROJECT_NAME} Python3::Python)
-    target_sources(${PROJECT_NAME} PRIVATE msrpython.cxx ${CMAKE_BINARY_DIR}/parse.cpp csmpython.c)
-    if (Python3_NumPy_FOUND)
-      target_include_directories(${PROJECT_NAME} PUBLIC ${Python3_NumPy_INCLUDE_DIRS})
-    endif()
-  else()
-    target_sources(${PROJECT_NAME} PRIVATE tinypy.c pkdtinypy.c)
-  endif(Python3_Development_FOUND)
-endif()
+if (Python3_Development_FOUND)
+  set(USE_PYTHON TRUE)
+  target_include_directories(${PROJECT_NAME} PUBLIC ${Python3_INCLUDE_DIRS})
+  target_link_libraries(${PROJECT_NAME} Python3::Python Python3::NumPy)
+  target_sources(${PROJECT_NAME} PRIVATE msrpython.cxx ${CMAKE_BINARY_DIR}/parse.cpp csmpython.c)
+  if (Python3_NumPy_FOUND)
+    target_include_directories(${PROJECT_NAME} PUBLIC ${Python3_NumPy_INCLUDE_DIRS})
+    target_compile_definitions(${PROJECT_NAME} PUBLIC NPY_NO_DEPRECATED_API=NPY_1_7_API_VERSION)
+  endif()
+else()
+  target_sources(${PROJECT_NAME} PRIVATE tinypy.c pkdtinypy.c)
+endif(Python3_Development_FOUND)
 
 set(USE_SIMD "yes" CACHE STRING "Should SIMD be used.")
 if(USE_SIMD)

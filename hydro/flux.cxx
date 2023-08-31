@@ -314,7 +314,7 @@ private:
 
     inline void computeFace(dtype &modApq, std::array<dtype,3> &unit,
                             dtype rpq,  dtype dx, dtype dy, dtype dz,
-                            dtype ph, dtype qh, dtype p_omega, dtype q_omega,
+                            dtype pH, dtype qH, dtype p_omega, dtype q_omega,
                             dtype pBxx, dtype pBxy, dtype pBxz,
                             dtype pByy, dtype pByz, dtype pBzz,
                             dtype qBxx, dtype qBxy, dtype qBxz,
@@ -324,7 +324,7 @@ private:
         dtype Apq[3] = {0.,0.,0.};
 
         // \tilde{\psi}_j (x_i)
-        psi  = -cubicSplineKernel(rpq, ph)/p_omega;
+        psi  = -cubicSplineKernel(rpq, pH)/p_omega;
         psiTilde[0] = (pBxx*dx + pBxy*dy + pBxz*dz)*psi;
         psiTilde[1] = (pBxy*dx + pByy*dy + pByz*dz)*psi;
         psiTilde[2] = (pBxz*dx + pByz*dy + pBzz*dz)*psi;
@@ -333,7 +333,7 @@ private:
         }
 
         // \tilde{\psi}_i (x_j)
-        psi = cubicSplineKernel(rpq, qh)/q_omega;
+        psi = cubicSplineKernel(rpq, qH)/q_omega;
         psiTilde[0] = (qBxx*dx + qBxy*dy + qBxz*dz)*psi;
         psiTilde[1] = (qBxy*dx + qByy*dy + qByz*dz)*psi;
         psiTilde[2] = (qBxz*dx + qByz*dy + qBzz*dz)*psi;
@@ -554,7 +554,7 @@ private:
         /*
         #ifdef EEOS_JEANS
         const double pLjeans =
-            jeansPressureFloor(L_rho, ph, smf->dConstGamma, smf->dEOSNJeans);
+            jeansPressureFloor(L_rho, pH, smf->dConstGamma, smf->dEOSNJeans);
         const double pRjeans =
             jeansPressureFloor(R_rho, q(ball), smf->dConstGamma, smf->dEOSNJeans);
         L_p = max(L_p, pLjeans);
@@ -710,7 +710,7 @@ public:
         dtype dConstGamma = smf->dConstGamma;
 
         dtype pomega = psph.omega;
-        dtype ph     = 0.5*P.ball();
+        dtype pH     = P.ball();
         dtype plast  = psph.lastUpdateTime;
         dtype pDt    = smf->dDelta/(1<<P.rung());
         dtype pBXX   = psph.B[XX];
@@ -857,7 +857,7 @@ public:
             doSinglePPFlux( mask, F_rho, F_v, F_P, F_S, minDt,
                             bComove, dTime, dDelta,  a,  H,  dConstGamma,
                             qdr,  qdx,  qdy,  qdz,
-                            ph,  plast,  pDt,
+                            pH,  plast,  pDt,
                             pomega,
                             pBXX,  pBXY,  pBXZ,
                             pBYY,  pBYZ,  pBZZ,
@@ -903,10 +903,10 @@ void hydroFluxFillBuffer(my_real *input_buffer, PARTICLE *qIn, int i, int nBuff,
     PKD pkd = smf->pkd;
     auto Q = pkd->particles[qIn];
     double dDelta = smf->dDelta;
-    float qh = 0.5*Q.ball();
+    double qH = Q.ball();
     auto &qsph = Q.sph();
     q(mass) = Q.mass();
-    q(ball) = qh;
+    q(ball) = qH;
     q(dx) = dr[0];
     q(dy) = dr[1];
     q(dz) = dr[2];

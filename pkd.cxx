@@ -668,7 +668,8 @@ size_t pkdIllMemory(PKD pkd) {
 void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double dTuFac) {
     float dummypot;
     TinyVector<double,3> r, vel;
-    float fMass, fSoft,fDensity,u,fMetals[ELEMENT_COUNT],fTimer;
+    TinyVector<float,ELEMENT_COUNT> metals;
+    float fMass,fSoft,fDensity,u,fTimer;
     FIO_SPECIES eSpecies;
     uint64_t iParticleID;
 
@@ -732,10 +733,10 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             ;
             float afSphOtherData[2];
             fioReadSph(fio,&iParticleID,r.data(),vel.data(),&fMass,&fSoft,pPot,
-                       &fDensity,&u,&fMetals[0],afSphOtherData);
+                       &fDensity,&u,metals.data(),afSphOtherData);
             if (p.have_newsph()) {
                 fSoft = 1.0f; // Dummy value, because the field in the file is used as hSmooth
-                pkd->particles.setClass(fMass,fSoft,fMetals[0],eSpecies,&p);
+                pkd->particles.setClass(fMass,fSoft,metals[0],eSpecies,&p);
             }
             else {
                 pkd->particles.setClass(fMass,fSoft,0,eSpecies,&p);
@@ -750,7 +751,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
                 p.set_ball(2.*afSphOtherData[0]);
                 if (p.have_sph()) {
                     auto &Sph = p.sph();
-                    for (auto j = 0; j < ELEMENT_COUNT; ++j) Sph.afElemMass[j] = fMetals[j] * fMass;
+                    Sph.ElemMass = metals * fMass;
 #ifdef HAVE_METALLICITY
                     Sph.fMetalMass = afSphOtherData[1] * fMass;
 #endif
@@ -787,6 +788,10 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 #if defined(FEEDBACK) || defined(BLACKHOLES)
                     Sph.fAccFBEnergy = 0.;
 #endif
+#ifdef BLACKHOLES
+                    Sph.BHAccretor.iIndex = NOT_ACCRETED;
+                    Sph.BHAccretor.iPid   = NOT_ACCRETED;
+#endif
                     Sph.uWake = 0;
                 }
             }
@@ -800,7 +805,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             ;
             float afStarOtherData[4];
             fioReadStar(fio,&iParticleID,r.data(),vel.data(),&fMass,&fSoft,pPot,&fDensity,
-                        fMetals,&fTimer,afStarOtherData);
+                        metals.data(),&fTimer,afStarOtherData);
             pkd->particles.setClass(fMass,fSoft,0,eSpecies,&p);
             p.set_density(fDensity);
             if (p.have_star()) {
@@ -814,8 +819,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
                 Star.fSNEfficiency = afStarOtherData[3];
 #endif
 #ifdef STELLAR_EVOLUTION
-                for (auto j = 0; j < ELEMENT_COUNT; ++j)
-                    Star.afElemAbun[j] = fMetals[j];
+                Star.ElemAbun = metals;
                 Star.fMetalAbun = afStarOtherData[0];
                 Star.fInitialMass = afStarOtherData[1];
                 Star.fLastEnrichTime = afStarOtherData[2];
@@ -1333,7 +1337,8 @@ void pkdCheckpoint(PKD pkd,const char *fname) {
 
 static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,Bound bnd,particleStore::Particle &p) {
     TinyVector<double,3> v,r;
-    float fMetals[ELEMENT_COUNT], fTimer;
+    TinyVector<float,ELEMENT_COUNT> metals;
+    float fTimer;
     uint64_t iParticleID;
 
     float fPot = p.have_potential() ? p.potential() :0;
@@ -1384,11 +1389,11 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,Bound bnd
             float otherData[3];
             otherData[0] = otherData[1] = otherData[2] = 0.0f;
             T = SPHEOSTofRhoU(pkd,fDensity, NewSph.u, p.imaterial(), &pkd->SPHoptions);
-            for (int k = 0; k < ELEMENT_COUNT; k++) fMetals[k] = 0.0f;
-            fMetals[0] = p.imaterial();
+            metals = 0.0f;
+            metals[0] = p.imaterial();
             fSoft = p.ball() / 2.0f;
             fioWriteSph(fio,iParticleID,r.data(),v.data(),fMass,fSoft,fPot,
-                        fDensity,T,&fMetals[0],0.0f,T,otherData);
+                        fDensity,T,metals.data(),0.0f,T,otherData);
         }
         else {
             assert(p.have_sph());
@@ -1419,7 +1424,7 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,Bound bnd
                 float temperature = 0;
 #endif
 
-                for (auto k = 0; k < ELEMENT_COUNT; ++k) fMetals[k] = Sph.afElemMass[k] / fMass;
+                metals = Sph.ElemMass / fMass;
 
 #ifdef STAR_FORMATION
                 float SFR = Sph.SFR;
@@ -1436,8 +1441,8 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,Bound bnd
                 otherData[2] = Sph.fMetalMass / fMass;
 #endif
 
-                fioWriteSph(fio,iParticleID,r.data(),v.data(),fMass,fSoft,fPot,
-                            fDensity,Sph.Uint/fMass, &fMetals[0], ph, temperature, &otherData[0]);
+                fioWriteSph(fio,iParticleID,r.data(),v.data(),fMass,fSoft,fPot,fDensity,
+                            Sph.Uint/fMass,metals.data(),ph,temperature,&otherData[0]);
             }
         }
         break;
@@ -1450,7 +1455,7 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,Bound bnd
     case FIO_SPECIES_STAR: {
         auto &Star = p.star();
 #ifdef STELLAR_EVOLUTION
-        for (auto k = 0; k < ELEMENT_COUNT; k++) fMetals[k] = Star.afElemAbun[k];
+        metals = Star.ElemAbun;
 #endif
         float otherData[6];
         otherData[0] = Star.fTimer;
@@ -1464,7 +1469,7 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,Bound bnd
         otherData[5] = Star.fSNEfficiency;
 #endif
         fioWriteStar(fio,iParticleID,r.data(),v.data(),fMass,fSoft,fPot,fDensity,
-                     &fMetals[0],&otherData[0]);
+                     metals.data(),&otherData[0]);
     }
     break;
     case FIO_SPECIES_BH: {
@@ -1556,6 +1561,8 @@ void pkdWriteViaNode(PKD pkd, int iNode) {
 void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dScaleFactor, double dTime,
                        uint64_t nDark, uint64_t nGas, uint64_t nStar, uint64_t nBH,
                        double dBoxSize, double h, int nProcessors, UNITS units) {
+    char version[] = PACKAGE_VERSION;
+    fioSetAttr(fio, HDF5_HEADER_G, "PKDGRAV version", FIO_TYPE_STRING, 1, version);
     fioSetAttr(fio, HDF5_HEADER_G, "Time", FIO_TYPE_DOUBLE, 1, &dTime);
     if (pkd->csm->val.bComove) {
         double z = 1./dScaleFactor - 1.;
@@ -1914,6 +1921,7 @@ void pkdGravAll(PKD pkd,
     if (bPeriodic && bEwald && SPHoptions->doGravity) {
         pkdEwaldInit(pkd,nReps,fEwCut,fEwhCut,bGPU); /* ignored in Flop count! */
     }
+    pkdCopySPHOptionsToDevice(pkd, SPHoptions, bGPU);
     /*
     ** Start particle caching space (cell cache already active).
     */
@@ -1934,10 +1942,15 @@ void pkdGravAll(PKD pkd,
     dCellSum = 0.0;
     pkd->dFlopSingleCPU = pkd->dFlopDoubleCPU = 0.0;
     pkd->dFlopSingleGPU = pkd->dFlopDoubleGPU = 0.0;
+    pkd->nWpPending = 0;
+    pkd->nTilesTotal = 0;
+    pkd->nTilesCPU = 0;
 
     *pnActive = pkdGravWalk(pkd,kick,lc,ts,
                             dTime,nReps,bPeriodic && bEwald,bGPU,
                             iRoot1,iRoot2,0,dThetaMin,pdFlop,&dPartSum,&dCellSum,SPHoptions);
+
+    assert(pkd->nWpPending == 0);
 
     if (SPHoptions->doExtensiveILPTest && (SPHoptions->doSetDensityFlags || SPHoptions->doSetNNflags)) {
         mdlFlushCache(pkd->mdl,CID_PARTICLE);
@@ -2565,31 +2578,31 @@ void pkdChemCompInit(PKD pkd, struct inChemCompInit in) {
             auto &Sph = p.sph();
             float fMass = p.mass();
 
-            if (Sph.afElemMass[ELEMENT_H] < 0.0f) {
-                Sph.afElemMass[ELEMENT_H]  = in.dInitialH  * fMass;
+            if (Sph.ElemMass[ELEMENT_H] < 0.0f) {
+                Sph.ElemMass[ELEMENT_H]  = in.dInitialH  * fMass;
 #ifdef HAVE_HELIUM
-                Sph.afElemMass[ELEMENT_He] = in.dInitialHe * fMass;
+                Sph.ElemMass[ELEMENT_He] = in.dInitialHe * fMass;
 #endif
 #ifdef HAVE_CARBON
-                Sph.afElemMass[ELEMENT_C]  = in.dInitialC  * fMass;
+                Sph.ElemMass[ELEMENT_C]  = in.dInitialC  * fMass;
 #endif
 #ifdef HAVE_NITROGEN
-                Sph.afElemMass[ELEMENT_N]  = in.dInitialN  * fMass;
+                Sph.ElemMass[ELEMENT_N]  = in.dInitialN  * fMass;
 #endif
 #ifdef HAVE_OXYGEN
-                Sph.afElemMass[ELEMENT_O]  = in.dInitialO  * fMass;
+                Sph.ElemMass[ELEMENT_O]  = in.dInitialO  * fMass;
 #endif
 #ifdef HAVE_NEON
-                Sph.afElemMass[ELEMENT_Ne] = in.dInitialNe * fMass;
+                Sph.ElemMass[ELEMENT_Ne] = in.dInitialNe * fMass;
 #endif
 #ifdef HAVE_MAGNESIUM
-                Sph.afElemMass[ELEMENT_Mg] = in.dInitialMg * fMass;
+                Sph.ElemMass[ELEMENT_Mg] = in.dInitialMg * fMass;
 #endif
 #ifdef HAVE_SILICON
-                Sph.afElemMass[ELEMENT_Si] = in.dInitialSi * fMass;
+                Sph.ElemMass[ELEMENT_Si] = in.dInitialSi * fMass;
 #endif
 #ifdef HAVE_IRON
-                Sph.afElemMass[ELEMENT_Fe] = in.dInitialFe * fMass;
+                Sph.ElemMass[ELEMENT_Fe] = in.dInitialFe * fMass;
 #endif
             }
 #ifdef HAVE_METALLICITY
@@ -2602,31 +2615,31 @@ void pkdChemCompInit(PKD pkd, struct inChemCompInit in) {
         else if (p.is_star()) {
             auto &Star = p.star();
 
-            if (Star.afElemAbun[ELEMENT_H] < 0.0f) {
-                Star.afElemAbun[ELEMENT_H]  = in.dInitialH;
+            if (Star.ElemAbun[ELEMENT_H] < 0.0f) {
+                Star.ElemAbun[ELEMENT_H]  = in.dInitialH;
 #ifdef HAVE_HELIUM
-                Star.afElemAbun[ELEMENT_He] = in.dInitialHe;
+                Star.ElemAbun[ELEMENT_He] = in.dInitialHe;
 #endif
 #ifdef HAVE_CARBON
-                Star.afElemAbun[ELEMENT_C]  = in.dInitialC;
+                Star.ElemAbun[ELEMENT_C]  = in.dInitialC;
 #endif
 #ifdef HAVE_NITROGEN
-                Star.afElemAbun[ELEMENT_N]  = in.dInitialN;
+                Star.ElemAbun[ELEMENT_N]  = in.dInitialN;
 #endif
 #ifdef HAVE_OXYGEN
-                Star.afElemAbun[ELEMENT_O]  = in.dInitialO;
+                Star.ElemAbun[ELEMENT_O]  = in.dInitialO;
 #endif
 #ifdef HAVE_NEON
-                Star.afElemAbun[ELEMENT_Ne] = in.dInitialNe;
+                Star.ElemAbun[ELEMENT_Ne] = in.dInitialNe;
 #endif
 #ifdef HAVE_MAGNESIUM
-                Star.afElemAbun[ELEMENT_Mg] = in.dInitialMg;
+                Star.ElemAbun[ELEMENT_Mg] = in.dInitialMg;
 #endif
 #ifdef HAVE_SILICON
-                Star.afElemAbun[ELEMENT_Si] = in.dInitialSi;
+                Star.ElemAbun[ELEMENT_Si] = in.dInitialSi;
 #endif
 #ifdef HAVE_IRON
-                Star.afElemAbun[ELEMENT_Fe] = in.dInitialFe;
+                Star.ElemAbun[ELEMENT_Fe] = in.dInitialFe;
 #endif
             }
             if (Star.fMetalAbun < 0.0f)
@@ -3017,5 +3030,20 @@ void pkdInitializeEOS(PKD pkd) {
             assert(0);
 #endif
         }
+    }
+}
+
+void pkdCopySPHOptionsToDevice(PKD pkd, SPHOptions *SPHoptions, int bGPU) {
+    if (bGPU) {
+#ifdef USE_CUDA
+        auto cuda = reinterpret_cast<CudaClient *>(pkd->cudaClient);
+        // Only one thread needs to transfer the SPHoptions to the GPU
+        if (pkd->mdl->Core()==0) {
+            SPHOptionsGPU SPHoptionsGPU;
+            copySPHOptionsGPU(SPHoptions, &SPHoptionsGPU);
+            cuda->setupSPHOptions(&SPHoptionsGPU);
+        }
+        pkd->mdl->ThreadBarrier();
+#endif
     }
 }

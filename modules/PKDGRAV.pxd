@@ -7,6 +7,8 @@ from libcpp.vector cimport vector
 from libcpp.string cimport string
 from libc.stdint cimport int64_t,uint64_t,uint8_t
 import cython
+cimport cosmo
+from cosmology cimport Cosmology
 
 cdef extern from "blitz/array.h" namespace "blitz" nogil:
     cdef cppclass BLITZ1 "1":
@@ -105,6 +107,7 @@ cdef extern from "master.h":
                     size_t nDark, size_t nGas, size_t nStar, size_t nBH,
                     double dEcosmo,double dUOld, double dTimeOld,
                     vector[PARTCLASS] &aClasses,object arguments,object specified)
+        double GenerateIC(int nGrid,int iSeed,double z,double L,cosmo.csmContext * csm)
         double Read(string achInFile)
         void Write(string pszFileName,double dTime,bool bCheckpoint)
         void DomainDecomp(int iRung)
@@ -128,11 +131,10 @@ cdef extern from "master.h":
         uint64_t SelCylinder(TinyVector[double,BLITZ3] dP1, TinyVector[double,BLITZ3] dP2, double dRadius, int setIfTrue, int clearIfFalse)
 
 cdef public MSR *msr0 "PKDGRAV_msr0"
-cdef public bool msr_imported "PKDGRAV_msr_imported"
 
 cpdef restart(object arguments,object specified,list species,list classes,int n,str name,
     int step,int steps,double time,double delta,double E,double U,double Utime)
-cpdef load(str filename)
+# cpdef load(str filename)
 cpdef save(str filename,double time=*)
 cpdef domain_decompose(int rung=*)
 cpdef build_tree(bool ewald=*)

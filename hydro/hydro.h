@@ -20,15 +20,26 @@ typedef double my_real;
  * MAIN FUNCTIONS AND CLASSES
  * -----------------
  */
+
+// Cubic spline kernel as defined in Dehnen & Aly (2012)
+//
+// (1 − q)^3 − 4(1/2 − q)^3  for   0 < q <= 1/2
+//                (1 − q)^3  for 1/2 < q <= 1
+//                        0  for       q > 1
+//
+// where q = r/H.
 template <typename ftype=double, typename mtype=bool>
-inline ftype cubicSplineKernel(ftype r, ftype h) {
-    ftype q;
-    q = r/h;
-    if (q<1.0) {
-        return M_1_PI/(h*h*h)*( 1. - 1.5*q*q*(1.-0.5*q) );
+inline ftype cubicSplineKernel(ftype r, ftype H) {
+    const ftype dNormFac = 16 * M_1_PI;
+    const ftype dHInv = 1.0 / H;
+    const ftype q = r * dHInv;
+    const ftype dNorm = dNormFac * dHInv * dHInv * dHInv;
+
+    if (q < 0.5) {
+        return dNorm * (0.5 - 3 * q * q * (1.0 - q));
     }
-    else if (q<2.0) {
-        return 0.25*M_1_PI/(h*h*h)*(2.-q)*(2.-q)*(2.-q);
+    else if (q < 1.0) {
+        return dNorm * (1.0 - q) * (1.0 - q) * (1.0 - q);
     }
     else {
         return 0.0;
@@ -37,13 +48,18 @@ inline ftype cubicSplineKernel(ftype r, ftype h) {
 
 #ifdef SIMD_H
 template <>
-inline dvec cubicSplineKernel(dvec r, dvec h) {
-    dvec q, out=0.0, t;
-    q = r/h;
-    t = 0.25*M_1_PI/(h*h*h)*(2.-q)*(2.-q)*(2.-q);
-    out = mask_mov(out, q<2.0, t);
-    t = M_1_PI/(h*h*h)*( 1. - 1.5*q*q*(1.-0.5*q) );
+inline dvec cubicSplineKernel(dvec r, dvec H) {
+    const dvec dNormFac = 16 * M_1_PI;
+    const dvec dHInv = 1.0 / H;
+    const dvec q = r * dHInv;
+    const dvec dNorm = dNormFac * dHInv * dHInv * dHInv;
+    const dvec oneMq = 1.0 - q;
+    dvec out = 0.0;
+    dvec t;
+    t = dNorm * oneMq * oneMq * oneMq;
     out = mask_mov(out, q<1.0, t);
+    t = dNorm * (0.5 - 3 * q * q * oneMq);
+    out = mask_mov(out, q<0.5, t);
     return out;
 }
 #endif

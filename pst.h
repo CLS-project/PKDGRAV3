@@ -593,6 +593,8 @@ struct outGravityReduct {
     double dFlopDoubleGPU;
     uint64_t nActive;
     uint64_t nRung[IRUNGMAX+1];
+    uint64_t nTilesTotal;
+    uint64_t nTilesCPU;
 };
 int pstGravity(PST,void *,int,void *,int);
 
@@ -836,7 +838,7 @@ struct inGenerateIC {
     uint64_t nPerNode;
     double dBoxSize;
     double dBoxMass;
-    double dOmegaRate;
+    double dBaryonFraction;
     double dExpansion;
     int iSeed;
     int bFixed;
@@ -844,6 +846,7 @@ struct inGenerateIC {
     int nGrid;
     int b2LPT;
     int bICgas;
+    int nBucket;
     double dInitialT;
     double dInitialH;
 #ifdef HAVE_HELIUM
@@ -902,6 +905,7 @@ struct inMoveIC {
     float fSoft;
     int nGrid;
     int bICgas;
+    int nBucket;
     double dInitialT;
     double dInitialH;
 #ifdef HAVE_HELIUM
@@ -932,7 +936,7 @@ struct inMoveIC {
     double dInitialMetallicity;
 #endif
     double dExpansion;
-    double dOmegaRate;
+    double dBaryonFraction;
     double dTuFac;
 };
 int pltMoveIC(PST,void *,int,void *,int);

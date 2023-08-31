@@ -5,8 +5,7 @@ import cython
 # from cython.cimports.cpython import array
 # import array
 import numpy as np
-
-msr_imported = True
+from cosmology import Cosmology
 
 def set_parameters(**kwargs):
     msr0.parameters.update(kwargs,True)
@@ -28,7 +27,31 @@ def restart(arguments,specified,species,classes,n,name,step,steps,time,delta,E,U
         step,steps,time,delta,ndark,nsph,nstar,nbh,
         E,U,Utime,aClasses,arguments,specified)
 
-def load(filename):
+def generate_ic(cosmology : Cosmology,*,grid : int,seed : int,z : float,L : float,
+                order : int = None, fixed_amplitude : bool = False, phase_pi : float = 0, **kwargs) -> float:
+    """
+    Generate initial conditions for a cosmological simulation.
+    
+    :param Cosmology cosmology: cosmology
+    :param integer grid: grid size of the initial conditions
+    :param integer seed: random seed
+    :param number z: starting redshift
+    :param number L: length unit of the box
+    :param integer order: IC order, 1=Zeldovich, 2=2LPT
+    :param Boolean fixed_amplitude: use fixed amplitude for the power spectrum
+    :param number phase_pi: phase of the initial conditions (in units of :math:`\\pi` radians, normally 0 or 1)
+    :return: time
+    """
+    msr0.parameters.set(msr0.parameters.str_bFixedAmpIC,fixed_amplitude)
+    msr0.parameters.set(msr0.parameters.str_dFixedAmpPhasePI,phase_pi)
+    if order is None: pass
+    elif order == 1:  msr0.parameters.set(msr0.parameters.str_b2LPT,False)
+    elif order == 2:  msr0.parameters.set(msr0.parameters.str_b2LPT,True)
+    else:             raise ValueError("invalid IC order")
+    set_parameters(**kwargs)
+    return msr0.GenerateIC(grid,seed,z,L,cosmology._csm)
+
+def load(filename,**kwargs):
     """
     Read particles from an input file.
 
@@ -36,6 +59,7 @@ def load(filename):
     :return: time
     :rtype: number
     """
+    set_parameters(**kwargs)
     return msr0.Read(filename.encode('UTF-8'))
 
 def save(filename,time=1.0):
