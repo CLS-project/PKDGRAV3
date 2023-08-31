@@ -28,6 +28,7 @@
 #include "gravity/ilc.h"
 #include "SPH/SPHOptions.h"
 #include "units.h"
+#include "eEOS/eEOS_struct.h"
 
 typedef double pos_t;
 typedef float  vel_t;
@@ -188,19 +189,15 @@ struct inEndTimestep {
     double dConstGamma;
     double dTuFac;
 #ifdef STAR_FORMATION
-    double dSFMinOverDensity;
+    double dSFThresholdOD;
 #endif
 #ifdef COOLING
+    double dCoolingFloorOD;
     double dCoolingFloorDen;
     double dCoolingFlooru;
 #endif
-#ifdef EEOS_POLYTROPE
-    double dEOSPolyFloorIndex;
-    double dEOSPolyFloorDen;
-    double dEOSPolyFlooru;
-#endif
-#ifdef EEOS_JEANS
-    double dEOSNJeans;
+#if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
+    struct eEOSparam eEOS;
 #endif
 #ifdef BLACKHOLES
     double dBHRadiativeEff;
@@ -212,7 +209,11 @@ struct inEndTimestep {
 
 #ifdef STAR_FORMATION
 struct inStarForm {
-    double dDenMin;
+#ifdef HAVE_METALLICITY
+    int bSFThresholdDenSchaye2004;
+#endif
+
+    double dHubble;
     double dDelta;
     double dTime;
     double dScaleFactor;
@@ -221,6 +222,8 @@ struct inStarForm {
     double dSFnormalizationKS;
     double dConstGamma;
     double dSFGasFraction;
+    double dSFThresholdDen;
+    double dSFThresholdOD;
     double dSFThresholdu;
     double dSFEfficiency;
 
@@ -229,10 +232,12 @@ struct inStarForm {
     double dEOSPolyFlooru;
 
 #ifdef FEEDBACK
+    int bCCSNFeedback;
+    int bSNIaFeedback;
     double dSNFBEfficiency;
     double dSNFBMaxEff;
-    double dSNFBEffnH0;
     double dSNFBEffIndex;
+    double dSNFBEffnH0;
 #endif
 
 #ifdef STELLAR_EVOLUTION
@@ -240,6 +245,8 @@ struct inStarForm {
     double dCCSNMinMass;
     double dCCSNMaxMass;
 #endif
+    struct eEOSparam eEOS;
+
 };
 #endif
 

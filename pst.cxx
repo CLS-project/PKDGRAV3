@@ -57,6 +57,7 @@
 #endif
 #ifdef BLACKHOLES
     #include "blackhole/merger.h"
+    #include "blackhole/evolve.h"
     #include "blackhole/seed.h"
     #include "blackhole/init.h"
 #endif
@@ -137,7 +138,7 @@ void pstAddServices(PST pst,MDL mdl) {
 #ifdef DEBUG_CACHED_FLUXES
     mdlAddService(mdl,PST_FLUXSTATS,pst,
                   (fcnService_t *) pstFluxStats,
-                  sizeof(struct inFluxStats), sizeof(struct outFluxStats));
+                  0, sizeof(struct outFluxStats));
 #endif
     mdlAddService(mdl,PST_SETGLOBALDT,pst,
                   (fcnService_t *) pstSetGlobalDt,
@@ -174,6 +175,9 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_BH_REPOSITION,pst,
                   (fcnService_t *) pstRepositionBH,
                   0, 0);
+    mdlAddService(mdl,PST_BH_ACCRETION,pst,
+                  (fcnService_t *) pstBHAccretion,
+                  sizeof(struct inBHAccretion), 0);
 #endif
     mdlAddService(mdl,PST_MOVEDELETED,pst,
                   (fcnService_t *)pstMoveDeletedParticles,
@@ -859,7 +863,7 @@ int pstPhysicalSoft(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
 int pstHopLink(PST pst,void *vin,int nIn,void *vout,int nOut) {
     auto in = static_cast<struct inHopLink *>(vin);
-    uint64_t *nOutGroups = (uint64_t *)vout;
+    auto nOutGroups = static_cast<uint64_t *>(vout);
     uint64_t nOutUpper;
 
     mdlassert(pst->mdl,nIn == sizeof(struct inHopLink));
@@ -908,8 +912,8 @@ int pstHopJoin(PST pst,void *vin,int nIn,void *vout,int nOut) {
 }
 
 int pstHopFinishUp(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    struct inHopFinishUp *in = (struct inHopFinishUp *)vin;
-    uint64_t *nOutGroups = (uint64_t *)vout;
+    auto in = static_cast<struct inHopFinishUp *>(vin);
+    auto nOutGroups = static_cast<uint64_t *>(vout);
     uint64_t nOutUpper;
 
     mdlassert(pst->mdl,nIn == sizeof(struct inHopFinishUp));
@@ -929,7 +933,7 @@ int pstHopFinishUp(PST pst,void *vin,int nIn,void *vout,int nOut) {
 }
 
 int pstHopTreeBuild(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    struct inHopTreeBuild *in = (struct inHopTreeBuild *)vin;
+    auto in = static_cast<struct inHopTreeBuild *>(vin);
     mdlassert(pst->mdl,nIn == sizeof(struct inHopTreeBuild));
     if (pst->nLeaves > 1) {
         int rID = mdlReqService(pst->mdl,pst->idUpper,PST_HOP_TREE_BUILD,vin,nIn);
@@ -944,7 +948,7 @@ int pstHopTreeBuild(PST pst,void *vin,int nIn,void *vout,int nOut) {
 }
 
 int pstHopGravity(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    struct inHopGravity *in = (struct inHopGravity *)vin;
+    auto in = static_cast<struct inHopGravity *>(vin);
     mdlassert(pst->mdl,nIn == sizeof(struct inHopGravity));
     if (pst->nLeaves > 1) {
         int rID = mdlReqService(pst->mdl,pst->idUpper,PST_HOP_GRAVITY,vin,nIn);
@@ -960,8 +964,8 @@ int pstHopGravity(PST pst,void *vin,int nIn,void *vout,int nOut) {
 }
 
 int pstHopUnbind(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    struct inHopUnbind *in = (struct inHopUnbind *)vin;
-    struct outHopUnbind *out = (struct outHopUnbind *)vout;
+    auto in = static_cast<struct inHopUnbind *>(vin);
+    auto out = static_cast<struct outHopUnbind *>(vout);
     struct outHopUnbind outUpper, outLower;
     mdlassert(pst->mdl,nIn == sizeof(struct inHopUnbind));
     mdlassert(pst->mdl,nOut == sizeof(struct outHopUnbind));
@@ -1027,7 +1031,7 @@ int pstPlaceBHSeed(PST pst,void *vin,int nIn,void *vout,int nOut) {
     else {
         LCL *plcl = pst->plcl;
         out->nBHs = pkdPlaceBHSeed(plcl->pkd,in->dTime, in->dScaleFactor, in->uRungMax, in->dDenMin,
-                                   in->dBHMhaloMin, in->dTau, in->dInitialH, in->dBHSeedMass);
+                                   in->dBHMhaloMin, in->dTau, in->dBHSeedMass);
     }
     return sizeof(struct outPlaceBHSeed);
 
@@ -1056,6 +1060,21 @@ int pstRepositionBH(PST pst,void *vin,int nIn,void *vout,int nOut) {
     else {
         LCL *plcl = pst->plcl;
         pkdRepositionBH(plcl->pkd);
+    }
+    return 0;
+
+}
+int pstBHAccretion(PST pst,void *vin,int nIn,void *vout,int nOut) {
+    auto in = static_cast<struct inBHAccretion *>(vin);
+    mdlassert(pst->mdl,nIn == sizeof(struct inBHAccretion));
+    if (pst->nLeaves > 1) {
+        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_BH_ACCRETION,in,nIn);
+        pstBHAccretion(pst->pstLower,vin,nIn,vout,nOut);
+        mdlGetReply(pst->mdl,rID,NULL,NULL);
+    }
+    else {
+        LCL *plcl = pst->plcl;
+        pkdBHAccretion(plcl->pkd, in->dScaleFactor);
     }
     return 0;
 
@@ -1417,7 +1436,6 @@ int pstSetGlobalDt(PST pst,void *vin,int nIn,void *vout,int nOut) {
     return 0;
 }
 
-
 #ifdef OPTIM_REORDER_IN_NODES
 int pstReorderWithinNodes(PST pst,void *vin,int nIn,void *vout,int nOut) {
     LCL *plcl = pst->plcl;
@@ -1452,13 +1470,12 @@ int pstResetFluxes(PST pst,void *vin,int nIn,void *vout,int nOut) {
 
 #ifdef DEBUG_CACHED_FLUXES
 int pstFluxStats(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    auto in = static_cast<struct inFluxStats *>(vin);
     auto out = static_cast<struct outFluxStats *>(vout);
     struct outFluxStats outUpper;
 
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_FLUXSTATS,in,nIn);
-        pstFluxStats(pst->pstLower,vin,nIn,vout,nOut);
+        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_FLUXSTATS,NULL,0);
+        pstFluxStats(pst->pstLower,NULL,0,vout,nOut);
         mdlGetReply(pst->mdl,rID,&outUpper,&nOut);
         assert(nOut==sizeof(struct outFluxStats));
         out->nAvoided += outUpper.nAvoided;
@@ -1926,8 +1943,8 @@ int pstFofPhases(PST pst,void *vin,int nIn,void *vout,int nOut) {
 ** JST: added the count of lower subtree number of local groups.
 */
 int pstFofFinishUp(PST pst,void *vin,int nIn,void *vout,int nOut) {
-    struct inFofFinishUp *in = (struct inFofFinishUp *)vin;
-    uint64_t *nOutGroups = (uint64_t *)vout;
+    auto in = static_cast<struct inFofFinishUp *>(vin);
+    auto nOutGroups = static_cast<uint64_t *>(vout);
     uint64_t nOutUpper;
 
     mdlassert(pst->mdl,nIn == sizeof(struct inFofFinishUp));

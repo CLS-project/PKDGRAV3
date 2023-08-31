@@ -54,7 +54,7 @@ static inline void abundance_ratio_to_solar(SPHFIELDS *psph, float fMass,
         float ratio_solar[eagle_cooling_N_abundances]) {
 
     /* Get individual element masses from the particle */
-    const float *const elem_mass = psph->afElemMass;
+    const auto &elem_mass = psph->ElemMass;
 //      chemistry_get_metal_mass_fraction_for_cooling(p);
     const float inv_mass = 1.0f / fMass;
 

@@ -645,6 +645,22 @@ void mdlCOcache(MDL mdl,int cid,
                 void *(*getElt)(void *pData,int i,int iDataSize),
                 void *pData,int iDataSize,int nData,
                 void *ctx,void (*init)(void *,void *),void (*combine)(void *,void *,const void *));
+void mdlPackedCacheRO(MDL mdl,int cid,
+                      void *(*getElt)(void *pData,int i,int iDataSize),
+                      void *pData,int nData,uint32_t iDataSize,
+                      void *ctx,uint32_t iPackSize,
+                      void (*pack)   (void *,void *,const void *),
+                      void (*unpack) (void *,void *,const void *));
+void mdlPackedCacheCO(MDL mdl,int cid,
+                      void *(*getElt)(void *pData,int i,int iDataSize),
+                      void *pData,int nData,uint32_t iDataSize,
+                      void *ctx,uint32_t iPackSize,
+                      void (*pack)   (void *,void *,const void *),
+                      void (*unpack) (void *,void *,const void *),
+                      uint32_t iFlushSize,
+                      void (*init)   (void *,void *),
+                      void (*flush)  (void *,void *,const void *),
+                      void (*combine)(void *,void *,const void *));
 void mdlAdvancedCacheRO(MDL mdl,int cid,void *pHash,int iDataSize);
 void mdlAdvancedCacheCO(MDL mdl,int cid,void *pHash,int iDataSize,
                         void *ctx,void (*init)(void *,void *),void (*combine)(void *,void *,const void *));

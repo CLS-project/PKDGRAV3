@@ -199,6 +199,85 @@ CACHE *mdlClass::CacheInitialize(
     return (c);
 }
 
+class packedCACHEhelperRO : public CACHEhelper {
+protected:
+    uint32_t nPack;
+    void *ctx;
+    void (*pack_function)   (void *,void *,const void *);
+    void (*unpack_function) (void *,void *,const void *);
+
+    virtual void   pack(void *dst, const void *src)                  override { (*pack_function)(ctx,dst,src); }
+    virtual void unpack(void *dst, const void *src, const void *key) override { (*unpack_function)(ctx,dst,src); }
+    virtual uint32_t pack_size() override {return nPack;}
+
+public:
+    explicit packedCACHEhelperRO(uint32_t nData,void *ctx,
+                                 uint32_t pack_size,
+                                 void (*pack_function)   (void *,void *,const void *),
+                                 void (*unpack_function) (void *,void *,const void *))
+        : CACHEhelper(nData,false),nPack(pack_size),ctx(ctx),
+          pack_function(pack_function),unpack_function(unpack_function) {}
+};
+
+void mdlPackedCacheRO(MDL mdl,int cid,
+                      void *(*getElt)(void *pData,int i,int iDataSize),
+                      void *pData,int nData,uint32_t iDataSize,
+                      void *ctx,uint32_t iPackSize,
+                      void (*pack)   (void *,void *,const void *),
+                      void (*unpack) (void *,void *,const void *)) {
+    static_cast<mdlClass *>(mdl)->CacheInitialize(cid,getElt,pData,nData,
+            std::make_shared<packedCACHEhelperRO>(iDataSize,ctx,iPackSize,
+                    pack,unpack));
+}
+
+class packedCACHEhelperCO : public CACHEhelper {
+protected:
+    uint32_t nPack, nFlush;
+    void *ctx;
+    void (*pack_function)   (void *,void *,const void *);
+    void (*unpack_function) (void *,void *,const void *);
+    void (*init_function)   (void *,void *);
+    void (*flush_function)  (void *,void *,const void *);
+    void (*combine_function)(void *,void *,const void *);
+
+    virtual void    pack(void *dst, const void *src)                  override { (*pack_function)(ctx,dst,src); }
+    virtual void  unpack(void *dst, const void *src, const void *key) override { (*unpack_function)(ctx,dst,src); }
+    virtual void    init(void *dst)                                   override { (*init_function)(ctx,dst); }
+    virtual void   flush(void *dst, const void *src)                  override { (*flush_function)(ctx,dst,src); }
+    virtual void combine(void *dst, const void *src, const void *key) override { (*combine_function)(ctx,dst,src); }
+    virtual uint32_t pack_size()  override {return nPack;}
+    virtual uint32_t flush_size() override {return nFlush;}
+
+public:
+    explicit packedCACHEhelperCO(uint32_t nData,void *ctx,
+                                 uint32_t pack_size,
+                                 void (*pack_function)   (void *,void *,const void *),
+                                 void (*unpack_function) (void *,void *,const void *),
+                                 void (*init_function)   (void *,void *),
+                                 uint32_t flush_size,
+                                 void (*flush_function)  (void *,void *,const void *),
+                                 void (*combine_function)(void *,void *,const void *))
+        : CACHEhelper(nData,true),nPack(pack_size),nFlush(flush_size),ctx(ctx),
+          pack_function(pack_function),unpack_function(unpack_function),
+          init_function(init_function),flush_function(flush_function),
+          combine_function(combine_function) {}
+};
+
+void mdlPackedCacheCO(MDL mdl,int cid,
+                      void *(*getElt)(void *pData,int i,int iDataSize),
+                      void *pData,int nData,uint32_t iDataSize,
+                      void *ctx,uint32_t iPackSize,
+                      void (*pack)   (void *,void *,const void *),
+                      void (*unpack) (void *,void *,const void *),
+                      uint32_t iFlushSize,
+                      void (*init)   (void *,void *),
+                      void (*flush)  (void *,void *,const void *),
+                      void (*combine)(void *,void *,const void *)) {
+    static_cast<mdlClass *>(mdl)->CacheInitialize(cid,getElt,pData,nData,
+            std::make_shared<packedCACHEhelperCO>(iDataSize,ctx,iPackSize,
+                    pack,unpack,init,iFlushSize,flush,combine));
+}
+
 class advancedCACHEhelper : public CACHEhelper {
 protected:
     uint32_t nPack, nFlush;

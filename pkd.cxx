@@ -77,7 +77,7 @@ extern "C" {
 #ifdef COOLING
     #include "cooling/cooling.h"
 #endif
-#if ( defined(COOLING) || defined(GRACKLE) ) && defined(STAR_FORMATION)
+#if defined(EEOS_JEANS) || defined(EEOS_POLYTROPE)
     #include "eEOS/eEOS.h"
 #endif
 #ifdef BLACKHOLES
@@ -105,11 +105,10 @@ extern "C" {
 #endif
 
 using blitz::TinyVector;
-using blitz::any;
+using blitz::dot;
+using blitz::max;
+using blitz::min;
 
-//************************************************************************************************************************
-//**
-//************************************************************************************************************************
 
 static void initLightBallOffsets(PKD pkd,double mrLCP) {
     Bound bnd(TinyVector<double,3>(-0.5),TinyVector<double,3>(0.5));
@@ -134,7 +133,7 @@ static void initLightBallOffsets(PKD pkd,double mrLCP) {
             for (iy=-l; iy<=l+1; ++iy) {
                 for (iz=-l; iz<=l+1; ++iz) {
                     if ((ix>-l) && (ix<l+1) && (iy>-l) && (iy<l+1) && (iz>-l) && (iz<l+1)) continue;
-                    blitz::TinyVector<double,3> r(ix - 0.5, iy - 0.5, iz - 0.5);
+                    TinyVector<double,3> r(ix - 0.5, iy - 0.5, iz - 0.5);
                     min2 = bnd.mindist(r);
                     if (min2 < mrLCP*mrLCP) {
                         if (pkd->Self()==0) printf("Lightcone replica:%d layer:%d r:<%f %f %f> min2:%f\n",nBox,l,r[0],r[1],r[2],min2);
@@ -311,7 +310,7 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
                        int nStore,uint64_t nMinTotalStore,uint64_t nMinEphemeral,uint32_t nEphemeralBytes,
                        int nTreeBitsLo, int nTreeBitsHi,
                        int iCacheSize,int iCacheMaxInflight,int iWorkQueueSize,
-                       const blitz::TinyVector<double,3> &fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,uint64_t nBH,
+                       const TinyVector<double,3> &fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,uint64_t nBH,
                        uint64_t mMemoryModel) : mdl(mdl),
     pLightCone(nullptr), pHealpixData(nullptr), csm(nullptr) {
     PARTICLE *p;
@@ -546,17 +545,6 @@ pkdContext::pkdContext(mdl::mdlClass *mdl,
     this->metalClient = new MetalClient(*this->mdl);
 #endif
     /*
-    ** Initialize neighbor list pointer to NULL if present.
-    */
-    if (particles.present(PKD_FIELD::oSph)) {
-        for (pi=0; pi<(particles.FreeStore()+1); ++pi) {
-            p = Particle(pi);
-            auto &sph = particles.sph(p);
-            sph.pNeighborList = NULL;
-        }
-    }
-
-    /*
     ** Initialize global group id.
     */
     if (particles.present(PKD_FIELD::oGlobalGid)) {
@@ -629,22 +617,6 @@ pkdContext::~pkdContext() {
         delete [] ewt.hSfac.f;
     }
 
-    /*
-    ** Free any neighbor lists that were left hanging around.
-    */
-    if (particles.present(PKD_FIELD::oSph)) {
-        for (pi=0; pi<(FreeStore()+1); ++pi) {
-            p = Particle(pi);
-            if (pkdIsGas(this,p)) {
-                auto &sph = particles.sph(p);
-                ppCList = &sph.pNeighborList;
-                if (*ppCList) {
-                    free(*ppCList);
-                    *ppCList = NULL;
-                }
-            }
-        }
-    }
     /* Only thread zero allocated this memory block  */
     mdlThreadBarrier(mdl);
     if (mdlCore(mdl) == 0) {
@@ -697,10 +669,10 @@ size_t pkdIllMemory(PKD pkd) {
 }
 
 void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double dTuFac) {
-    int i,j;
     float dummypot;
-    blitz::TinyVector<double,3> r, vel;
-    float fMass, fSoft,fDensity,u,fMetals[ELEMENT_COUNT],fTimer;
+    TinyVector<double,3> r, vel;
+    TinyVector<float,ELEMENT_COUNT> metals;
+    float fMass,fSoft,fDensity,u,fTimer;
     FIO_SPECIES eSpecies;
     uint64_t iParticleID;
 
@@ -727,7 +699,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
     fSoft = 0.0f;
 
     fioSeek(fio,iFirst,FIO_SPECIES_ALL);
-    for (i=0; i<nLocal; ++i) {
+    for (auto i = 0; i < nLocal; ++i) {
         auto p = pkd->particles[pkd->Local()+i];
         /*
         ** General initialization.
@@ -735,8 +707,8 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
         p.set_rung(0);
         if (!pkd->bNoParticleOrder) p.set_new_rung(0);
         p.set_marked(true);
-        p.density() = 0.0;
-        if (p.have_ball()) p.ball() = 0.0;
+        p.set_density(0.0);
+        if (p.have_ball()) p.set_ball(0.0);
         /*
         ** Clear the accelerations so that the timestepping calculations do not
         ** get funny uninitialized values!
@@ -764,40 +736,38 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             ;
             float afSphOtherData[2];
             fioReadSph(fio,&iParticleID,r.data(),vel.data(),&fMass,&fSoft,pPot,
-                       &fDensity,&u,&fMetals[0],afSphOtherData);
+                       &fDensity,&u,metals.data(),afSphOtherData);
             if (p.have_newsph()) {
                 fSoft = 1.0f; // Dummy value, because the field in the file is used as hSmooth
-                pkd->particles.setClass(fMass,fSoft,fMetals[0],eSpecies,&p);
+                pkd->particles.setClass(fMass,fSoft,metals[0],eSpecies,&p);
             }
             else {
                 pkd->particles.setClass(fMass,fSoft,0,eSpecies,&p);
             }
-            p.density() = fDensity;
+            p.set_density(fDensity);
             if (p.have_newsph()) {
                 auto &NewSph = p.newsph();
                 NewSph.u = -u; /* Can't do conversion until density known */
             }
             else {
                 assert(dTuFac>0.0);
-                p.set_ball(afSphOtherData[0]);
+                p.set_ball(2.*afSphOtherData[0]);
                 if (p.have_sph()) {
                     auto &Sph = p.sph();
-                    for (j = 0; j < ELEMENT_COUNT; j++) Sph.afElemMass[j] = fMetals[j] * fMass;
+                    Sph.ElemMass = metals * fMass;
 #ifdef HAVE_METALLICITY
                     Sph.fMetalMass = afSphOtherData[1] * fMass;
 #endif
                     // If the value is negative, means that it is a temperature
                     u = (u<0.0) ? -u*dTuFac : u;
-                    Sph.vPred = vel*sqrt(dvFac);
                     Sph.Frho = 0.0;
                     Sph.Fmom = 0.0;
                     Sph.Fene = 0.0;
-                    Sph.E = u + 0.5*(blitz::dot(Sph.vPred,Sph.vPred));
-                    Sph.E *= fMass;
-                    Sph.Uint = u*fMass;
-                    assert(Sph.E>0);
-                    Sph.mom = fMass * vel * dvFac;
-                    Sph.lastMom = 0.; // vel[0];
+                    Sph.E = (u + 0.5*dvFac*dot(vel,vel)) * fMass;
+                    Sph.Uint = u * fMass;
+                    assert(Sph.E > 0.);
+                    Sph.mom = fMass * vel * sqrt(dvFac);
+                    Sph.lastMom = 0.;
                     Sph.lastE = Sph.E;
 #ifdef ENTROPY_SWITCH
                     Sph.S = 0.0;
@@ -807,26 +777,23 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
                     Sph.lastUint = Sph.Uint;
                     Sph.lastHubble = 0.0;
                     Sph.lastMass = fMass;
-                    Sph.lastAcc[0] = 0.;
-                    Sph.lastAcc[1] = 0.;
-                    Sph.lastAcc[2] = 0.;
+                    Sph.lastAcc = 0.;
 #ifndef USE_MFM
-                    Sph.lastDrDotFrho[0] = 0.;
-                    Sph.lastDrDotFrho[1] = 0.;
-                    Sph.lastDrDotFrho[2] = 0.;
-                    Sph.drDotFrho[0] = 0.;
-                    Sph.drDotFrho[1] = 0.;
-                    Sph.drDotFrho[2] = 0.;
+                    Sph.lastDrDotFrho = 0.;
+                    Sph.drDotFrho = 0.;
 #endif
                     //Sph.fLastBall = 0.0;
                     Sph.lastUpdateTime = -1.;
                     // Sph.nLastNeighs = 100;
-#ifdef COOLING
-                    Sph.lastCooling = 0.;
-                    Sph.cooling_dudt = 0.;
+#ifdef STAR_FORMATION
+                    Sph.SFR = 0.;
 #endif
-#ifdef FEEDBACK
+#if defined(FEEDBACK) || defined(BLACKHOLES)
                     Sph.fAccFBEnergy = 0.;
+#endif
+#ifdef BLACKHOLES
+                    Sph.BHAccretor.iIndex = NOT_ACCRETED;
+                    Sph.BHAccretor.iPid   = NOT_ACCRETED;
 #endif
                     Sph.uWake = 0;
                 }
@@ -835,26 +802,27 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
         case FIO_SPECIES_DARK:
             fioReadDark(fio,&iParticleID,r.data(),vel.data(),&fMass,&fSoft,pPot,&fDensity);
             pkd->particles.setClass(fMass,fSoft,0,eSpecies,&p);
-            p.density() = fDensity;
+            p.set_density(fDensity);
             break;
         case FIO_SPECIES_STAR:
             ;
             float afStarOtherData[4];
             fioReadStar(fio,&iParticleID,r.data(),vel.data(),&fMass,&fSoft,pPot,&fDensity,
-                        fMetals,&fTimer,afStarOtherData);
+                        metals.data(),&fTimer,afStarOtherData);
             pkd->particles.setClass(fMass,fSoft,0,eSpecies,&p);
-            p.density() = fDensity;
+            p.set_density(fDensity);
             if (p.have_star()) {
                 auto &Star = p.star();
                 Star.fTimer = fTimer;
-                // We avoid that star in the IC could explode
-                Star.hasExploded = 1;
+                Star.omega  = 0.;
 #ifdef FEEDBACK
+                // We avoid that star in the IC could explode
+                Star.bCCSNFBDone = 1;
+                Star.bSNIaFBDone = 1;
                 Star.fSNEfficiency = afStarOtherData[3];
 #endif
 #ifdef STELLAR_EVOLUTION
-                for (j = 0; j < ELEMENT_COUNT; j++)
-                    Star.afElemAbun[j] = fMetals[j];
+                Star.ElemAbun = metals;
                 Star.fMetalAbun = afStarOtherData[0];
                 Star.fInitialMass = afStarOtherData[1];
                 Star.fLastEnrichTime = afStarOtherData[2];
@@ -869,6 +837,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             pkd->particles.setClass(fMass,fSoft,0,eSpecies,&p);
             if (p.have_bh()) {
                 auto &BH = p.BH();
+                BH.omega  = 0.;
                 BH.fTimer = fTimer;
                 BH.pLowPot = NULL;
                 BH.newPos[0] = -1;
@@ -884,7 +853,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
             assert(0);
         }
         p.set_position(r);
-        if (!pkd->bNoParticleOrder) p.set_order(iFirst++);
+        if (!pkd->bNoParticleOrder) p.set_order(iParticleID);
         if (p.have_particle_id()) p.ParticleID() = iParticleID;
 
         if (p.have_velocity()) {
@@ -898,7 +867,6 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
                 v = vel * sqrt(dvFac);
             }
         }
-
     }
 
     pkd->AddLocal(nLocal);
@@ -1383,8 +1351,9 @@ void pkdCheckpoint(PKD pkd,const char *fname) {
 \*****************************************************************************/
 
 static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,Bound bnd,particleStore::Particle &p) {
-    blitz::TinyVector<double,3> v,r;
-    float fMetals[ELEMENT_COUNT], fTimer, fBall;
+    TinyVector<double,3> v,r;
+    TinyVector<float,ELEMENT_COUNT> metals;
+    float fTimer;
     uint64_t iParticleID;
 
     float fPot = p.have_potential() ? p.potential() :0;
@@ -1399,15 +1368,13 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,Bound bnd
     }
     else v = 0.0;
 
-    /* Initialize SPH fields if present */
     auto fMass = p.mass();
-    auto fSoft = p.soft0();
+    auto fSoft = p.soft();
     if (pkd->particles.fixedsoft() >= 0.0) fSoft = 0.0;
     if (p.have_particle_id()) iParticleID = p.ParticleID();
     else if (!pkd->bNoParticleOrder) iParticleID = p.order();
     else iParticleID = 0;
     float fDensity = p.have_density() ? p.density() : 0;
-    blitz::TinyVector<double,3> q = p.position();
 
     r = bnd.wrap(p.position()); // Enforce periodic boundaries */
     // If it still doesn't lie in the "unit" cell then something has gone quite wrong with the
@@ -1437,11 +1404,11 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,Bound bnd
             float otherData[3];
             otherData[0] = otherData[1] = otherData[2] = 0.0f;
             T = SPHEOSTofRhoU(pkd,fDensity, NewSph.u, p.imaterial(), &pkd->SPHoptions);
-            for (int k = 0; k < ELEMENT_COUNT; k++) fMetals[k] = 0.0f;
-            fMetals[0] = p.imaterial();
+            metals = 0.0f;
+            metals[0] = p.imaterial();
             fSoft = p.ball() / 2.0f;
             fioWriteSph(fio,iParticleID,r.data(),v.data(),fMass,fSoft,fPot,
-                        fDensity,T,&fMetals[0],0.0f,T,otherData);
+                        fDensity,T,metals.data(),0.0f,T,otherData);
         }
         else {
             assert(p.have_sph());
@@ -1449,11 +1416,10 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,Bound bnd
             {
 #if defined(COOLING)
                 const double dRedshift = dvFacGas - 1.;
-                float temperature =  cooling_get_temperature(pkd, dRedshift, pkd->cooling, p, &Sph);
+                float temperature = cooling_get_temperature(pkd, dRedshift, pkd->cooling, p, &Sph);
 #elif defined(GRACKLE)
-                gr_float fDensity = p.density();
-                gr_float fMetalDensity = Sph.fMetalMass*Sph.omega;
-                gr_float fSpecificUint = Sph.Uint/p.mass();
+                gr_float fMetalDensity = Sph.fMetalMass * Sph.omega;
+                gr_float fSpecificUint = Sph.Uint / fMass;
 
                 // Set field arrays.
                 pkd->grackle_field->density[0]         = fDensity;
@@ -1473,7 +1439,7 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,Bound bnd
                 float temperature = 0;
 #endif
 
-                for (int k = 0; k < ELEMENT_COUNT; k++) fMetals[k] = Sph.afElemMass[k] / fMass;
+                metals = Sph.ElemMass / fMass;
 
 #ifdef STAR_FORMATION
                 float SFR = Sph.SFR;
@@ -1481,7 +1447,7 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,Bound bnd
                 float SFR=0.;
 #endif
 
-                fBall = p.ball();
+                float ph = 0.5 * p.ball();
                 float otherData[3];
                 otherData[0] = SFR;
                 // We may have problem if the number of groups increses more than 2^24, but should be enough
@@ -1490,8 +1456,8 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,Bound bnd
                 otherData[2] = Sph.fMetalMass / fMass;
 #endif
 
-                fioWriteSph(fio,iParticleID,r.data(),v.data(),fMass,fSoft,fPot,
-                            fDensity,Sph.Uint/fMass, &fMetals[0], fBall, temperature, &otherData[0]);
+                fioWriteSph(fio,iParticleID,r.data(),v.data(),fMass,fSoft,fPot,fDensity,
+                            Sph.Uint/fMass,metals.data(),ph,temperature,&otherData[0]);
             }
         }
         break;
@@ -1504,7 +1470,7 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,Bound bnd
     case FIO_SPECIES_STAR: {
         auto &Star = p.star();
 #ifdef STELLAR_EVOLUTION
-        for (int k = 0; k < ELEMENT_COUNT; k++) fMetals[k] = Star.afElemAbun[k];
+        metals = Star.ElemAbun;
 #endif
         float otherData[6];
         otherData[0] = Star.fTimer;
@@ -1518,7 +1484,7 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,double dvFacGas,Bound bnd
         otherData[5] = Star.fSNEfficiency;
 #endif
         fioWriteStar(fio,iParticleID,r.data(),v.data(),fMass,fSoft,fPot,fDensity,
-                     &fMetals[0],&otherData[0]);
+                     metals.data(),&otherData[0]);
     }
     break;
     case FIO_SPECIES_BH: {
@@ -1610,6 +1576,8 @@ void pkdWriteViaNode(PKD pkd, int iNode) {
 void pkdWriteHeaderFIO(PKD pkd, FIO fio, double dScaleFactor, double dTime,
                        uint64_t nDark, uint64_t nGas, uint64_t nStar, uint64_t nBH,
                        double dBoxSize, double h, int nProcessors, UNITS units) {
+    char version[] = PACKAGE_VERSION;
+    fioSetAttr(fio, HDF5_HEADER_G, "PKDGRAV version", FIO_TYPE_STRING, 1, version);
     fioSetAttr(fio, HDF5_HEADER_G, "Time", FIO_TYPE_DOUBLE, 1, &dTime);
     if (pkd->csm->val.bComove) {
         double z = 1./dScaleFactor - 1.;
@@ -1906,7 +1874,7 @@ void extensiveMarkerTest(PKD pkd, struct pkdTimestepParameters *ts, SPHOptions *
 
                 // Calculate distance squared between particle p and q
                 auto dist = pr - qr;
-                float dist2 = blitz::dot(dist,dist);
+                float dist2 = dot(dist,dist);
 
                 // Do check for gather
                 if (dist2 < qBall2) {
@@ -2243,8 +2211,8 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
                 assert(isfinite(rfinal[0]));
                 assert(isfinite(rfinal[1]));
                 assert(isfinite(rfinal[2]));
-                dMin = blitz::min(dMin,rfinal);
-                dMax = blitz::max(dMax,rfinal);
+                dMin = min(dMin,rfinal);
+                dMax = max(dMax,rfinal);
             }
         }
         else {
@@ -2259,8 +2227,8 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
                 // }
                 r0 = p.position();
                 p.set_position(rfinal = r0 + dDelta*v);
-                dMin = blitz::min(dMin,rfinal);
-                dMax = blitz::max(dMax,rfinal);
+                dMin = min(dMin,rfinal);
+                dMax = max(dMax,rfinal);
             }
         }
     }
@@ -2270,8 +2238,8 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
             const auto &v = p.velocity();
             r0 = p.position();
             p.set_position(rfinal = r0 + dDelta*v);
-            dMin = blitz::min(dMin,rfinal);
-            dMax = blitz::max(dMax,rfinal);
+            dMin = min(dMin,rfinal);
+            dMax = max(dMax,rfinal);
         }
     }
     pkd->bnd = Bound(dMin,dMax);
@@ -2309,7 +2277,8 @@ void pkdReorderWithinNodes(PKD pkd) {
 
 
 void pkdEndTimestepIntegration(PKD pkd, struct inEndTimestep in) {
-    double pDelta, dScaleFactor, dHubble, pa[3];
+    double pDelta, dScaleFactor, dHubble;
+    TinyVector<double,3> pa;
 
     int bComove = pkd->csm->val.bComove;
 
@@ -2327,29 +2296,20 @@ void pkdEndTimestepIntegration(PKD pkd, struct inEndTimestep in) {
         dScaleFactor = 1.0;
         dHubble = 0.0;
     }
-#if defined(COOLING) || defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
-    const double a_inv = 1./dScaleFactor;
-    const double a_inv3 = a_inv*a_inv*a_inv;
-#endif
 #ifdef GRACKLE
     pkdGrackleUpdate(pkd, dScaleFactor, in.achCoolingTable, in.units);
 #endif
     for (auto &p : pkd->particles) {
-        if (p.is_gas() && p.is_active()  ) {
+        if (p.is_gas() && p.is_active()) {
             auto &sph = p.sph();
 
             // ##### Add ejecta from stellar evolution
 #ifdef STELLAR_EVOLUTION
             if (in.bChemEnrich && sph.fReceivedMass > 0.0f) {
-                pkdAddStellarEjecta(pkd, p, &sph, in.dConstGamma);
+                pkdAddStellarEjecta(pkd, p, sph, in.dConstGamma);
             }
 #endif
 
-#if defined(COOLING) || defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
-            float fMass = p.mass();
-            float fDens = p.density();
-            const float fDensPhys = fDens*a_inv3;
-#endif
             if (in.dDelta > 0) {
                 pDelta = in.dTime - sph.lastUpdateTime;
             }
@@ -2358,14 +2318,12 @@ void pkdEndTimestepIntegration(PKD pkd, struct inEndTimestep in) {
             }
 
             // ##### Gravity
-            hydroSourceGravity(pkd, p, &sph,
-                               pDelta, &pa[0], dScaleFactor, bComove);
+            hydroSourceGravity(pkd, p, &sph, pDelta, pa, dScaleFactor, bComove);
 
 
             // ##### Expansion effects
             hydroSourceExpansion(pkd, p, &sph,
                                  pDelta, dScaleFactor, dHubble, bComove, in.dConstGamma);
-
 
 
             // ##### Synchronize Uint, Etot (and possibly S)
@@ -2382,52 +2340,26 @@ void pkdEndTimestepIntegration(PKD pkd, struct inEndTimestep in) {
             pkdGrackleCooling(pkd, p, pDelta, in.dTuFac);
 #endif
 
-#ifdef FEEDBACK
+#if defined(EEOS_JEANS) || defined(EEOS_POLYTROPE)
+            // ##### Effective Equation Of State
+            const double a_inv3 = 1. / (dScaleFactor * dScaleFactor * dScaleFactor);
+            const double dFlooru = eEOSEnergyFloor(a_inv3, p.density(), p.ball(),
+                                                   in.dConstGamma, in.eEOS);
+            if (dFlooru != NOT_IN_EEOS) {
+                const double dEOSUint = p.mass() * dFlooru;
+                if (sph.Uint < dEOSUint) {
+                    sph.E = sph.E - sph.Uint;
+                    sph.Uint = dEOSUint;
+                    sph.E = sph.E + sph.Uint;
+                }
+            }
+#endif
+
+#if defined(FEEDBACK) || defined(BLACKHOLES)
             // ##### Apply feedback
             pkdAddFBEnergy(pkd, p, &sph, in.dConstGamma);
 #endif
 
-            // ##### Effective Equation Of State
-#ifdef COOLING
-            double denMin = in.dCoolingFloorDen;
-#ifdef STAR_FORMATION
-            double minOverDens = in.dSFMinOverDensity;
-#else
-            double minOverDens = 57.7;
-#endif
-            if (pkd->csm->val.bComove) {
-                double rhoCrit0 = 3. * pkd->csm->val.dHubble0 * pkd->csm->val.dHubble0 /
-                                  (8. * M_PI);
-                double denCosmoMin = rhoCrit0 * pkd->csm->val.dOmegab *
-                                     minOverDens *
-                                     a_inv3; // We do this in proper density
-
-                denMin = ( denCosmoMin > denMin) ? denCosmoMin : denMin;
-            }
-
-            if ( (fDensPhys > denMin) &&
-                    (sph.Uint < in.dCoolingFlooru*fMass ) ) {
-                sph.Uint = in.dCoolingFlooru*fMass;
-            }
-#endif
-#ifdef EEOS_POLYTROPE
-            /* Second, the polytropic EoS */
-            if (fDensPhys > in.dEOSPolyFloorDen) {
-
-                const double minUint =  fMass * polytropicEnergyFloor(a_inv3, fDens,
-                                        in.dEOSPolyFloorIndex, in.dEOSPolyFloorDen,  in.dEOSPolyFlooru);
-
-                if (sph.Uint < minUint) sph.Uint = minUint;
-            }
-#endif
-
-#ifdef  EEOS_JEANS
-            const float f2Ball = 2.*p.ball();
-            const double Ujeans = fMass * jeansEnergyFloor(fDens, f2Ball, in.dConstGamma, in.dEOSNJeans);
-
-            if (sph.Uint < Ujeans)
-                sph.Uint = Ujeans;
-#endif
 
             // Actually set the primitive variables
             hydroSetPrimitives(pkd, p, &sph, in.dTuFac, in.dConstGamma);
@@ -2444,7 +2376,6 @@ void pkdEndTimestepIntegration(PKD pkd, struct inEndTimestep in) {
 #endif
         }
     }
-
 }
 
 
@@ -2492,7 +2423,7 @@ void pkdLightConeVel(PKD pkd,double dBoxSize) {
     for (auto &p : pkd->particles) {
         auto &v = p.velocity();
         auto r = p.position();
-        auto r2 = blitz::dot(r,r);
+        auto r2 = dot(r,r);
         /*
         ** Use r -> 1/a spline table.
         */
@@ -2529,16 +2460,11 @@ void pkdKick(PKD pkd,double dTime,double dDelta,int bDoGas,double dDeltaVPred,do
     if (bDoGas) { // pkd->param.bMeshlessHydro
         assert(pkd->particles.present(PKD_FIELD::oSph));
         for (auto &p : pkd->particles) {
-            if (p.is_rung_range(uRungLo,uRungHi)) {
-                auto &v = p.velocity();
-                if (p.is_gas()) {
-                    //auto &sph = p.sph();
-                    //sph.vPred[0] = v[0];
-                    //sph.vPred[1] = v[1];
-                    //sph.vPred[2] = v[2];
-                }
-                else {
-                    v += p.acceleration() * dDelta;
+            if (!p.is_gas()) {
+                if (p.is_rung_range(uRungLo,uRungHi)) {
+                    auto &a = p.acceleration();
+                    auto &v = p.velocity();
+                    v += a*dDelta;
                 }
             }
         }
@@ -2665,8 +2591,8 @@ void pkdAccelStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
             const auto &v = p.velocity();
             const auto &a = p.acceleration();
             double fSoft = p.soft();
-            double vel = blitz::dot(v,v);
-            double acc = blitz::dot(a,a);
+            double vel = dot(v,v);
+            double acc = dot(a,a);
             mdlassert(pkd->mdl,vel >= 0);
             vel = sqrt(vel)*dVelFac;
             mdlassert(pkd->mdl,acc >= 0);
@@ -2685,31 +2611,31 @@ void pkdChemCompInit(PKD pkd, struct inChemCompInit in) {
             auto &Sph = p.sph();
             float fMass = p.mass();
 
-            if (Sph.afElemMass[ELEMENT_H] < 0.0f) {
-                Sph.afElemMass[ELEMENT_H]  = in.dInitialH  * fMass;
+            if (Sph.ElemMass[ELEMENT_H] < 0.0f) {
+                Sph.ElemMass[ELEMENT_H]  = in.dInitialH  * fMass;
 #ifdef HAVE_HELIUM
-                Sph.afElemMass[ELEMENT_He] = in.dInitialHe * fMass;
+                Sph.ElemMass[ELEMENT_He] = in.dInitialHe * fMass;
 #endif
 #ifdef HAVE_CARBON
-                Sph.afElemMass[ELEMENT_C]  = in.dInitialC  * fMass;
+                Sph.ElemMass[ELEMENT_C]  = in.dInitialC  * fMass;
 #endif
 #ifdef HAVE_NITROGEN
-                Sph.afElemMass[ELEMENT_N]  = in.dInitialN  * fMass;
+                Sph.ElemMass[ELEMENT_N]  = in.dInitialN  * fMass;
 #endif
 #ifdef HAVE_OXYGEN
-                Sph.afElemMass[ELEMENT_O]  = in.dInitialO  * fMass;
+                Sph.ElemMass[ELEMENT_O]  = in.dInitialO  * fMass;
 #endif
 #ifdef HAVE_NEON
-                Sph.afElemMass[ELEMENT_Ne] = in.dInitialNe * fMass;
+                Sph.ElemMass[ELEMENT_Ne] = in.dInitialNe * fMass;
 #endif
 #ifdef HAVE_MAGNESIUM
-                Sph.afElemMass[ELEMENT_Mg] = in.dInitialMg * fMass;
+                Sph.ElemMass[ELEMENT_Mg] = in.dInitialMg * fMass;
 #endif
 #ifdef HAVE_SILICON
-                Sph.afElemMass[ELEMENT_Si] = in.dInitialSi * fMass;
+                Sph.ElemMass[ELEMENT_Si] = in.dInitialSi * fMass;
 #endif
 #ifdef HAVE_IRON
-                Sph.afElemMass[ELEMENT_Fe] = in.dInitialFe * fMass;
+                Sph.ElemMass[ELEMENT_Fe] = in.dInitialFe * fMass;
 #endif
             }
 #ifdef HAVE_METALLICITY
@@ -2722,31 +2648,31 @@ void pkdChemCompInit(PKD pkd, struct inChemCompInit in) {
         else if (p.is_star()) {
             auto &Star = p.star();
 
-            if (Star.afElemAbun[ELEMENT_H] < 0.0f) {
-                Star.afElemAbun[ELEMENT_H]  = in.dInitialH;
+            if (Star.ElemAbun[ELEMENT_H] < 0.0f) {
+                Star.ElemAbun[ELEMENT_H]  = in.dInitialH;
 #ifdef HAVE_HELIUM
-                Star.afElemAbun[ELEMENT_He] = in.dInitialHe;
+                Star.ElemAbun[ELEMENT_He] = in.dInitialHe;
 #endif
 #ifdef HAVE_CARBON
-                Star.afElemAbun[ELEMENT_C]  = in.dInitialC;
+                Star.ElemAbun[ELEMENT_C]  = in.dInitialC;
 #endif
 #ifdef HAVE_NITROGEN
-                Star.afElemAbun[ELEMENT_N]  = in.dInitialN;
+                Star.ElemAbun[ELEMENT_N]  = in.dInitialN;
 #endif
 #ifdef HAVE_OXYGEN
-                Star.afElemAbun[ELEMENT_O]  = in.dInitialO;
+                Star.ElemAbun[ELEMENT_O]  = in.dInitialO;
 #endif
 #ifdef HAVE_NEON
-                Star.afElemAbun[ELEMENT_Ne] = in.dInitialNe;
+                Star.ElemAbun[ELEMENT_Ne] = in.dInitialNe;
 #endif
 #ifdef HAVE_MAGNESIUM
-                Star.afElemAbun[ELEMENT_Mg] = in.dInitialMg;
+                Star.ElemAbun[ELEMENT_Mg] = in.dInitialMg;
 #endif
 #ifdef HAVE_SILICON
-                Star.afElemAbun[ELEMENT_Si] = in.dInitialSi;
+                Star.ElemAbun[ELEMENT_Si] = in.dInitialSi;
 #endif
 #ifdef HAVE_IRON
-                Star.afElemAbun[ELEMENT_Fe] = in.dInitialFe;
+                Star.ElemAbun[ELEMENT_Fe] = in.dInitialFe;
 #endif
             }
             if (Star.fMetalAbun < 0.0f)

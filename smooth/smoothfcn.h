@@ -50,38 +50,36 @@ typedef struct smfParameters {
     /* IA: Meshless hydro */
     int bMeshlessHydro;
     int bIterativeSmoothingLength;
+    int bUpdateBall;
+    int nBucket;
     double dCFLacc;
     double dConstGamma;
     double dhMinOverSoft;
-    int bUpdateBall;
     double dNeighborsStd;
-#if EEOS_POLYTROPE
-    double dEOSPolyFloorIndex;
-    double dEOSPolyFloorDen;
-    double dEOSPolyFlooru;
-#endif
-#if EEOS_JEANS
-    double dEOSNJeans;
+#if defined(EEOS_POLYTROPE) || defined(EEOS_JEANS)
+    struct eEOSparam eEOS;
 #endif
 #ifdef FEEDBACK
-    double dSNFBDelay;
     double dSNFBDu;
-    double dSNFBNumberSNperMass;
+    double dCCSNFBDelay;
+    double dCCSNFBSpecEnergy;
+    double dSNIaFBDelay;
+    double dSNIaFBSpecEnergy;
 #endif
 #ifdef BLACKHOLES
     double dBHFBEff;
     double dBHFBEcrit;
     double dBHAccretionEddFac;
     double dBHAccretionAlpha;
+    double dBHAccretionCvisc;
     int bBHFeedback;
     int bBHAccretion;
 #endif
 #ifdef STELLAR_EVOLUTION
-    double dCCSNMinMass;
+    double dWindSpecificEkin;
     double dSNIaNorm;
     double dSNIaScale;
-    double dSNIaEnergy;
-    double dWindSpecificEkin;
+    double dCCSNMinMass;
 #endif
 } SMF;
 
@@ -94,6 +92,8 @@ typedef struct pqNode {
     PARTICLE *pPart;
     double fDist2;
     blitz::TinyVector<double,3> dr;
+    float fBall;
+    int bMarked;
     int iIndex;
     int iPid;
 } PQ;
@@ -168,15 +168,17 @@ void Density(PARTICLE *,float fBall,int,NN *,SMF *);
 void DensitySym(PARTICLE *,float fBall,int,NN *,SMF *);
 
 #define SMX_HYDRO_DENSITY     40
-#define SMX_HYDRO_GRADIENT    41
-#define SMX_HYDRO_FLUX        42
-#define SMX_HYDRO_STEP        43
-#define SMX_HYDRO_FLUX_VEC    44
+#define SMX_HYDRO_DENSITY_FINAL 41
+#define SMX_HYDRO_GRADIENT    42
+#define SMX_HYDRO_FLUX        43
+#define SMX_HYDRO_STEP        44
+#define SMX_HYDRO_FLUX_VEC    45
 
 #define SMX_SN_FEEDBACK       50
 
 #define SMX_BH_MERGER         55
 #define SMX_BH_DRIFT          56
+#define SMX_BH_STEP           57
 
 #ifdef STELLAR_EVOLUTION
     #define SMX_CHEM_ENRICHMENT   60
