@@ -5033,7 +5033,9 @@ double MSR::GenerateIC(int nGrid,int iSeed,double z,double L,CSM csm) {
     in.dInitialMetallicity = param.dInitialMetallicity;
 #endif
 
-    nTotal = in.nGrid * in.nGrid * in.nGrid; /* Careful: 32 bit integer cubed => 64 bit integer */
+    nTotal  = in.nGrid; /* Careful: 32 bit integer cubed => 64 bit integer */
+    nTotal *= in.nGrid;
+    nTotal *= in.nGrid;
     in.dBoxMass = csm->val.dOmega0 / nTotal;
     if (in.bICgas) nTotal *= 2;
 
