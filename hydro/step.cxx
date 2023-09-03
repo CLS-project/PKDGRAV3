@@ -38,7 +38,6 @@ void MSR::HydroStep(double dTime, double dDelta) {
     }
 }
 
-
 void packHydroStep(void *vpkd,void *dst,const void *src) {
     PKD pkd = (PKD) vpkd;
     auto p1 = static_cast<hydroStepPack *>(dst);
@@ -127,7 +126,7 @@ void hydroStep(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
         double vsig_pq = psph.c + qsph.c;
         if (dvDotdr < 0.) vsig_pq -= dvDotdr/sqrt(nnList[i].fDist2);
 
-        const double dt2 = smf->dEtaCourant * ph * smf->a / vsig_pq;
+        const double dt2 = smf->dEtaCourant * 2 * ph * smf->a / vsig_pq;
         if (dt2 < dtEst) dtEst = dt2;
     }
 
@@ -184,10 +183,6 @@ void hydroStep(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     if (time_step < dtEst) dtEst = time_step;
 #endif
 
-
-
-
-
     // Timestep criteria based on the hydro+grav accelerations
 
     const TinyVector<double,3>
@@ -207,11 +202,9 @@ void hydroStep(PARTICLE *pIn,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     const float h = smf->bDoGravity ? std::min(ph, static_cast<double>(p.soft())) : ph;
     const double dtAcc = smf->dCFLacc * sqrt(2.*h/acc);
 
-
     if (dtAcc < dtEst) dtEst = dtAcc;
     const uint8_t uNewRung = pkdDtToRung(dtEst,smf->dDelta,MAX_RUNG);
     if (uNewRung > p.new_rung()) p.set_new_rung(uNewRung);
-
 
     /* Timestep limiter that imposes that the particle must have a dt
      * which is at most four times (i.e., 2 rungs) the smallest dt of the neighbours
