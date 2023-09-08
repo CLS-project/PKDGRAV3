@@ -17,7 +17,7 @@ if [ $? -ne 0 ]; then
 fi
 
 GITROOTDIR=$(git rev-parse --show-toplevel)
-FILES=`git diff --cached --name-only --diff-filter=ACMR | egrep -v '^(mdl2/(openpa|boost)|fmt|blitz|windows)/' | egrep '\.(c|h|cxx|cu)$'`
+FILES=`git diff --cached --name-only --diff-filter=ACMR | egrep -v '^(mdl2/(openpa|boost)|fmt|blitz|windows)/' | egrep '\.(c|h|cxx|mm|metal|cu)$'`
 for FILE in $FILES; do
 	$ASTYLE --options=$GITROOTDIR/.astylerc --stdin=$FILE | cmp -s $FILE -
 	if [ $? -ne 0 ]; then
