@@ -50,7 +50,6 @@ double MSR::LoadOrGenerateIC() {
     return dTime;
 }
 
-
 /******************************************************************************\
 *   Calculate dDelta and nSteps from: iStartStep, nSteps, dRedTo, dDelta
 \******************************************************************************/
@@ -113,7 +112,6 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
     auto dTheta = set_dynamic(iStartStep,dTime);
 
     if (prmSpecified(prm,"dSoft")) SetSoft(Soft());
-
 
     /*
     ** Now we have all the parameters for the simulation we can make a
@@ -187,7 +185,6 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
     runAnalysis(iStartStep,dTime); // Run any registered Python analysis tasks
     OutputOrbits(iStartStep,dTime);
     if (param.nGridPk>0) OutputPk(iStartStep,dTime);
-
 
     int bKickOpen, bKickClose=0;
     uint8_t uRungMax;
@@ -270,7 +267,6 @@ void MSR::Simulate(double dTime,double dDelta,int iStartStep,int nSteps) {
         GroupStats();
     }
 #endif
-
 
     double E=0,T=0,U=0,Eth=0,L[3]= {0,0,0},F[3]= {0,0,0},W=0;
     CalcEandL(MSR_INIT_E,dTime,&E,&T,&U,&Eth,L,F,&W);
@@ -466,11 +462,6 @@ int MSR::ValidateParameters() {
         return 0;
     }
 
-    if (param.nDigits < 1 || param.nDigits > 9) {
-        (void) fprintf(stderr,"Unreasonable number of filename digits.\n");
-        return 0;
-    }
-
     if (!prmSpecified(prm,"bDoGas")) param.bDoGas = param.bMeshlessHydro||param.bNewSPH;
     if (param.bDoGas && !(param.bMeshlessHydro||param.bNewSPH) ) {
         fprintf(stderr,"ERROR: Please provide an hydrodynamic solver to be used: bMeshlessHydro or bNewSPH.\n");
@@ -510,7 +501,6 @@ int MSR::ValidateParameters() {
     */
     if ( (mdl->isCudaActive() || mdl->isMetalActive()) && !prmSpecified(prm,"nGroup") && param.nGroup<256)
         param.nGroup = 256;
-
 
 #ifndef USE_HDF5
     if (param.bHDF5) {
@@ -719,18 +709,15 @@ int MSR::ValidateParameters() {
         }
     }
 
-
     /* Make sure that parallel read and write are sane */
     int nThreads = mdlThreads(mdl);
     if (param.nParaRead  > nThreads) param.nParaRead  = nThreads;
     if (param.nParaWrite > nThreads) param.nParaWrite = nThreads;
 
-
     if (parameters.get_bFindGroups() && !prmSpecified(prm,"dTau")) {
         fprintf(stderr, "ERROR: you must specify dTau when FOF is to be run\n");
         return 0;
     }
-
 
     if (csm->val.classData.bClass) {
         const char *aLinear[MAX_CSM_SPECIES];

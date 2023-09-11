@@ -91,7 +91,6 @@ struct parameters {
     int bGasIsentropic;
     int bGasIsothermal;
     int bNewKDK;
-    int nDigits;
 #define GET_PARTICLES_MAX 20 /* We have a nested loop, so don't increase this */
     int nOutputParticles;
     uint64_t iOutputParticles[GET_PARTICLES_MAX];

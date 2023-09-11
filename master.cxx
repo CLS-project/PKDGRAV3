@@ -62,7 +62,6 @@
 #include "fmt/ostream.h"
 using namespace fmt::literals; // Gives us ""_a and ""_format literals
 
-
 #include "master.h"
 #include "core/illinois.h"
 #include "io/outtype.h"
@@ -157,7 +156,6 @@ double MSR::TimerGet(int iTimer) {
 double MSR::TimerGetAcc(int iTimer) {
     return ti[iTimer].acc;
 }
-
 
 // The order should be the same than in the enumerate above!
 static const char *timer_names[TOTAL_TIMERS] = {
@@ -492,7 +490,6 @@ void MSR::Restore(const std::string &baseName,int nSizeParticle) {
     mdl->RunService(PST_RESTORE,msg);
 }
 
-
 void MSR::Restart(int n, const char *baseName, int iStep, int nSteps, double dTime, double dDelta,
                   size_t nDark, size_t nGas, size_t nStar, size_t nBH,
                   double dEcosmo, double dUOld, double dTimeOld,
@@ -623,7 +620,6 @@ void MSR::writeParameters(const char *baseName,int iStep,int nSteps,double dTime
         strcat(achOutName,".par");
     }
 
-
     PyObject *main_module = PyImport_ImportModule("__main__");
     auto globals = PyModule_GetDict(main_module);
     print_imports(achOutName, globals);
@@ -700,7 +696,6 @@ void MSR::Checkpoint(int iStep,int nSteps,double dTime,double dDelta) {
     msrprintf("Checkpoint has been successfully written, Wallclock: %f secs.\n", dsec);
 }
 
-
 void MSR::SetDerivedParameters() {
     /**********************************************************************\
     * The following "parameters" are derived from real parameters.
@@ -776,7 +771,6 @@ void MSR::SetUnits() {
         param.units.dMsolUnit = pow( param.units.dKpcUnit * KPCCM, 3 ) / MSOLG
                                 * 3.0 * pow( dHubbleCGS, 2 ) * M_1_PI / 8.0 / GCGS;
 
-
         /* code KBOLTZ/MHYDR */
         param.units.dGasConst = param.units.dKpcUnit*KPCCM*KBOLTZ
                                 /MHYDR/GCGS/param.units.dMsolUnit/MSOLG;
@@ -796,7 +790,6 @@ void MSR::SetUnits() {
                                          /(param.units.dKpcUnit*KPCCM))/1e5;
         /* code comove density -->g per cc = param.units.dGmPerCcUnit(1+z)^3*/
         param.units.dComovingGmPerCcUnit = param.units.dGmPerCcUnit;
-
 
         // Some safety checks
         double H0 = csm->val.h * 100. / param.units.dKmPerSecUnit *
@@ -839,9 +832,6 @@ void MSR::Initialize() {
     ** Now setup for the input parameters.
     */
     prmInitialize(&prm,MSR::Leader,MSR::Trailer);
-    param.nDigits = 5;
-    prmAddParam(prm,"nDigits",1,&param.nDigits,sizeof(int),"nd",
-                "<number of digits to use in output filenames> = 5");
     param.bRestart = 0;
     prmAddParam(prm,"bRestart",0,&param.bRestart,sizeof(int),"restart",
                 "restart from checkpoint");
@@ -2373,7 +2363,6 @@ void MSR::AllNodeWrite(const char *pszFileName, double dTime, double dvFac, int 
     pstWrite(pst,&in,sizeof(in),NULL,0);
 }
 
-
 uint64_t MSR::CalcWriteStart() {
     struct outSetTotal out;
     struct inSetWriteStart in;
@@ -2449,7 +2438,6 @@ void MSR::Write(const std::string &pszFileName,double dTime,int bCheckpoint) {
 
     msrprintf("Output file has been successfully written, Wallclock: %f secs.\n", dsec);
 }
-
 
 void MSR::SetSoft(double dSoft) {
     msrprintf("Set Softening...\n");
@@ -3312,7 +3300,6 @@ void msrPrintStat(STAT *ps,char const *pszPrefix,int p) {
     }
 }
 
-
 uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
                      double dTime, double dDelta, double dStep, double dTheta,
                      int bKickClose,int bKickOpen,int bEwald,int bGravStep,
@@ -3527,7 +3514,6 @@ uint8_t MSR::Gravity(uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
     return (uRungMax);
 }
 
-
 void MSR::CalcEandL(int bFirst,double dTime,double *E,double *T,double *U,double *Eth,double *L,double *F,double *W) {
     struct outCalcEandL out;
     double a;
@@ -3564,7 +3550,6 @@ void MSR::CalcEandL(int bFirst,double dTime,double *E,double *T,double *U,double
     *E = (*T) + (*U) - dEcosmo + a*a*(*Eth);
 }
 
-
 void MSR::Drift(double dTime,double dDelta,int iRoot) {
     struct inDrift in;
     double dsec;
@@ -3599,10 +3584,6 @@ void MSR::Drift(double dTime,double dDelta,int iRoot) {
     printf("Drift took %.5f seconds \n", dsec);
 #endif
 }
-
-
-
-
 
 void MSR::OutputFineStatistics(double dStep, double dTime) {
     if (!param.bOutFineStatistics)
@@ -3640,7 +3621,6 @@ void MSR::OutputFineStatistics(double dStep, double dTime) {
     }
 }
 
-
 void MSR::EndTimestepIntegration(double dTime,double dDelta) {
     struct inEndTimestep in;
     in.units = param.units;
@@ -3675,8 +3655,6 @@ void MSR::EndTimestepIntegration(double dTime,double dDelta) {
     dsec = TimerGet(TIMER_ENDINT);
     printf("took %.5f seconds\n",dsec);
 }
-
-
 
 /*
  * For gas, updates predicted velocities to beginning of timestep.
@@ -3727,7 +3705,6 @@ void MSR::KickKDKClose(double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungH
     pstKick(pst,&in,sizeof(in),NULL,0);
     TimerStop(TIMER_KICKC);
 }
-
 
 int cmpTime(const void *v1,const void *v2) {
     double *d1 = (double *)v1;
@@ -3832,7 +3809,6 @@ void MSR::ActiveRung(int iRung, int bGreater) {
         nActive = N;
     else {
         int i;
-
 
         nActive = 0;
         for ( i=iRung; i<= (bGreater?param.iMaxRung:iRung); i++ )
@@ -3959,7 +3935,6 @@ void MSR::UpdateRung(uint8_t uRung) {
         iOutMaxRung = iTempRung;
     }
 
-
     /*
     ** Now copy the rung distribution to the msr structure!
     */
@@ -3978,7 +3953,6 @@ void MSR::UpdateRung(uint8_t uRung) {
     }
 }
 
-
 /*
  ** Open the healpix output file, and also the particles files if requested.
  */
@@ -3994,7 +3968,6 @@ void MSR::LightConeOpen(int iStep) {
         pstLightConeOpen(pst,&lc,sizeof(lc),NULL,0);
     }
 }
-
 
 /*
  ** Close the files for this step.
@@ -4023,7 +3996,6 @@ void MSR::LightConeVel() {
     dsec = TimerGet(TIMER_NONE);
     printf("Converted lightcone velocities to physical, Wallclock: %f secs.\n", dsec);
 }
-
 
 /* True if we should omit the opening kick */
 int MSR::CheckForOutput(int iStep,int nSteps,double dTime,int *pbDoCheckpoint,int *pbDoOutput) {
@@ -4082,7 +4054,6 @@ int MSR::CheckForOutput(int iStep,int nSteps,double dTime,int *pbDoCheckpoint,in
 
     return (iStep==param.nSteps10) || *pbDoOutput || *pbDoCheckpoint;
 }
-
 
 int MSR::NewTopStepKDK(
     double &dTime,  /* MODIFIED: Current simulation time */
@@ -4248,7 +4219,6 @@ int MSR::NewTopStepKDK(
         if (parameters.get_bFindGroups()) NewFof(param.dTau,param.nMinMembers);
     }
 
-
     // We need to make sure we descend all the way to the bucket with the
     // active tree, or we can get HUGE group cells, and hence too much P-P/P-C
     if (DoGas() && NewSPH()) {
@@ -4386,7 +4356,6 @@ int MSR::NewTopStepKDK(
         Drift(dTimeFixed,0.5 * dDeltaRung,FIXROOT);
     }
 
-
     return bDualTree;
 }
 
@@ -4484,7 +4453,6 @@ void MSR::TopStepKDK(
         }
 #endif
 
-
         ActiveRung(iKickRung,1);
         DomainDecomp(iKickRung);
 
@@ -4557,7 +4525,6 @@ void MSR::TopStepKDK(
         ActiveRung(iKickRung,1);
 #endif
 
-
         if (DoGas() && MeshlessHydro()) {
             EndTimestepIntegration(dTime, dDeltaStep);
             MeshlessGradients(dTime, dDeltaStep);
@@ -4587,7 +4554,6 @@ void MSR::TopStepKDK(
 
 }
 
-
 void MSR::GetNParts() { /* JW: Not pretty -- may be better way via fio */
     struct outGetNParts outget;
 
@@ -4614,7 +4580,6 @@ void MSR::AddDelParticles() {
     int i;
 
     msrprintf("Changing Particle number\n");
-
 
     std::unique_ptr<struct outColNParts[]> pColNParts {new struct outColNParts[nThreads]};
     pstColNParts(pst, NULL, 0, pColNParts.get(), nThreads*sizeof(pColNParts[0]));
@@ -4885,7 +4850,6 @@ void MSR::Hop(double dTime, double dDelta) {
         printf("Grasshopper complete, Wallclock: %f secs\n\n",dsec);
 }
 
-
 void MSR::NewFof(double dTau,int nMinMembers) {
     struct inNewFof in;
     struct outFofPhases out;
@@ -4939,7 +4903,6 @@ void MSR::NewFof(double dTau,int nMinMembers) {
     if (parameters.get_bVStep())
         printf("FoF complete, Wallclock: %f secs\n",dsec);
 }
-
 
 void MSR::GroupStats() {
     struct inGroupStats inGroupStats;
@@ -5203,7 +5166,6 @@ double MSR::Read(const std::string &achInFile) {
     read->nNodeStart = 0;
     read->nNodeEnd = N - 1;
 
-
     for ( auto s=FIO_SPECIES(0); s<=FIO_SPECIES_LAST; s=FIO_SPECIES(s+1)) nSpecies[s] = fioGetN(fio,s);
     InitializePStore(nSpecies,mMemoryModel,param.nMemEphemeral);
 
@@ -5464,7 +5426,6 @@ void MSR::Output(int iStep, double dTime, double dDelta, int bCheckpoint) {
     printf( "Writing output for step %d\n", iStep );
 
     Write(BuildIoName(iStep).c_str(),dTime,bCheckpoint );
-
 
     if (DoGas() && !param.nSteps) {  /* Diagnostic Gas */
         Reorder();
@@ -5918,7 +5879,6 @@ double MSR::countShell(double rInner,void *vctx) {
     }
     return 1.0*nSelected - 1.0*ctx->nTarget;
 }
-
 
 /*
 ** Calculate a profile.

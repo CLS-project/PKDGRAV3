@@ -1729,11 +1729,6 @@ Provides verbose tracing information which is normally not useful except to a
 developer debugging an issue with the code.
 '''
 
-["Debugging/Testing/Diagnostics".nDigits]
-flag="nd"
-default=5
-help="number of digits to use in output filenames"
-
 ["Debugging/Testing/Diagnostics".iCacheSize]
 flag="cs"
 default=0
